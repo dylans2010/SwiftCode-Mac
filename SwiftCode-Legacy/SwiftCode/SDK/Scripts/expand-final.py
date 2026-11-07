@@ -4,8 +4,7 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Integration Test Suites and Fixtures
+
     int_dir = os.path.join(dest, "tests", "integration")
     os.makedirs(int_dir, exist_ok=True)
     modules = ["SwiftCodeSDK", "ProjectKit", "BuildKit", "SourceControlKit", "WorkspaceKit", "DiagnosticsKit", "ExtensionKit"]
@@ -27,7 +26,6 @@ def main():
         with open(os.path.join(int_dir, f"{mod}_integration_tests.swift"), "w") as f:
             f.write("\n".join(lines))
 
-    # 2. Comprehensive Guides
     guides_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(guides_dir, exist_ok=True)
     extra_guides = [
@@ -57,7 +55,6 @@ def main():
         with open(os.path.join(guides_dir, f"{slug}.md"), "w") as f:
             f.write("\n".join(lines))
 
-    # 3. Schemas
     schemas_dir = os.path.join(dest, "resources", "schemas")
     os.makedirs(schemas_dir, exist_ok=True)
     for schema_name in ["project-config-v1", "diagnostics-report-v1", "toolchain-manifest-v1", "extension-catalog-v1", "audit-log-v1"]:
@@ -75,7 +72,6 @@ def main():
         with open(os.path.join(schemas_dir, f"{schema_name}.schema.json"), "w") as f:
             json.dump(schema_obj, f, indent=2)
 
-    # 4. Manifest update
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

@@ -3,15 +3,11 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "OpenRouterService")
 
-// MARK: - OpenRouter API Service
-
 final class OpenRouterService: Sendable {
     static let shared = OpenRouterService()
     private init() {}
 
     private let baseURL = URL(string: "https://openrouter.ai/api/v1")!
-
-    // MARK: - Chat Completion (non-streaming)
 
     func chat(
         messages: [AIMessage],
@@ -126,8 +122,6 @@ final class OpenRouterService: Sendable {
             throw OpenRouterError.decodingError(detail: error.localizedDescription, rawBody: raw)
         }
     }
-
-    // MARK: - Streaming Chat Completion
 
     func streamChat(
         messages: [AIMessage],
@@ -248,7 +242,6 @@ final class OpenRouterService: Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
-            // Collect the body for better error reporting
             var bodyData = Data()
             for try await byte in stream {
                 bodyData.append(byte)
@@ -268,7 +261,6 @@ final class OpenRouterService: Sendable {
 
             guard let data = jsonString.data(using: .utf8) else { continue }
 
-            // Check for JSON error payload within the stream line
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorDict = json["error"] as? [String: Any],
                let errorMessage = errorDict["message"] as? String {
@@ -283,14 +275,10 @@ final class OpenRouterService: Sendable {
         }
     }
 
-    // MARK: - Fetch Available Models
-
     func fetchModels() async throws -> [OpenRouterModel] {
         return try await OpenRouterClient.shared.fetchModels()
     }
 }
-
-// MARK: - Response Models
 
 private struct OpenRouterResponse: Decodable {
     struct Choice: Decodable {
@@ -320,8 +308,6 @@ private struct OpenRouterModelsResponse: Decodable {
     }
     let data: [ModelData]
 }
-
-// MARK: - Errors
 
 enum OpenRouterError: LocalizedError {
     case missingAPIKey

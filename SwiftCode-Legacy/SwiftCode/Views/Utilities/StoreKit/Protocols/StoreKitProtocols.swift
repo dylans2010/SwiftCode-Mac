@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Manager Architectures
-
 @MainActor
 public final class StoreKitDocumentManager {
     public static let shared = StoreKitDocumentManager()
@@ -88,9 +86,6 @@ public final class StoreKitSearchManager {
     public static let shared = StoreKitSearchManager()
     private init() {}
 }
-
-
-// MARK: - Services Architectures
 
 public final class StoreKitParserService: Sendable {
     public static let shared = StoreKitParserService()

@@ -1,20 +1,6 @@
 import Foundation
 import Observation
 
-/// Project dashboard — Legacy's `Views/Dashboard/` folder organisation and
-/// GitHub remote setup, ported onto SwiftCode's systems.
-///
-/// - Folders group the projects SwiftCode already knows (`RecentProjects` +
-///   `ProjectRegistryStore`); the folder membership itself is JSON in
-///   Application Support `SwiftCode/ProjectDashboard/folders.json`.
-/// - Per-project symbols keep Legacy's UserDefaults key
-///   (`com.swiftcode.project.symbol.<uuid>`) so a symbol chosen in Legacy
-///   survives the move.
-/// - GitHub remote setup calls `api.github.com` directly with a caller
-///   supplied token (wiring: pass the token SwiftCodeGitHub already holds in
-///   the Keychain). Linking a remote runs real `git remote add` in the
-///   project directory; every failure is surfaced, never swallowed.
-
 public struct ProjectFolder: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID
     public var name: String
@@ -82,7 +68,6 @@ public final class ProjectFolderStore {
 }
 
 public enum ProjectDashboardSymbols {
-    /// Legacy's per-project symbol key, kept verbatim for compatibility.
     public static func symbol(for projectID: UUID, defaults: UserDefaults = .standard) -> String {
         defaults.string(forKey: "com.swiftcode.project.symbol.\(projectID.uuidString)") ?? "swift"
     }
@@ -92,7 +77,6 @@ public enum ProjectDashboardSymbols {
     }
 }
 
-/// GitHub remote setup (Legacy `GitHubRemoteSetupView`'s data layer).
 @Observable
 @MainActor
 public final class GitHubRemoteSetupModel {
@@ -164,7 +148,6 @@ public final class GitHubRemoteSetupModel {
         return RepositorySummary(githubID: repo.id, name: repo.name, fullName: repo.full_name, htmlURL: repo.html_url, isPrivate: repo.private)
     }
 
-    /// Runs real `git remote add origin <url>` in the project directory.
     public func linkRemote(projectURL: URL, remoteURL: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")

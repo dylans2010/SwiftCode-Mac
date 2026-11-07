@@ -6,7 +6,6 @@ struct SimulatorDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Simulator Control Center", systemImage: "iphone")
                     .font(.headline)

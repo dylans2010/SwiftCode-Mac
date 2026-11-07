@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import SwiftCodeAssistant
 
-/// The four sections an AI documentation analysis returns.
 public struct AIInsightResults: Sendable, Equatable {
     public let overview: String
     public let integrationOpportunities: String
@@ -17,26 +16,6 @@ public struct AIInsightResults: Sendable, Equatable {
     }
 }
 
-/// Analyzes Apple Developer Documentation against the user's project
-/// (ported from Legacy's `DocumentationAnalyzer`, honestly reworked).
-///
-/// Legacy's version had a fake at its core: `extractDocumentationContent`
-/// returned a canned string ("Documentation for X. This API provides
-/// methods...") instead of reading the page, and `requestAIAnalysis`
-/// called `LLMService` with a hardcoded `gpt-4-turbo` model. This version
-/// does the real thing:
-/// - the page is fetched over the network and stripped to text (via
-///   `ReleaseNotesFormatter.plainText`, the same HTML-to-text pass the
-///   update notes use); a fetch failure is an error, not invented text.
-/// - the project is scanned from an explicit workspace URL (Legacy read
-///   `ProjectSessionStore.shared.activeProject`, which does not exist in
-///   SwiftCode) — up to 50 Swift files, collecting their `import` lines.
-/// - the analysis runs through an injected `AssistantProvider` with an
-///   explicit model (the caller picks the provider the user selected in
-///   Assist; no model is hardcoded here).
-///
-/// The caller is the Documentation Browser's AI Co-Pilot tab (Wave 19);
-/// this file is the engine, not the view.
 @Observable
 @MainActor
 public final class DocumentationAnalyzer {
@@ -47,10 +26,6 @@ public final class DocumentationAnalyzer {
     private let provider: AssistantProvider
     private let model: String?
 
-    /// - Parameters:
-    ///   - provider: the assistant provider to run the analysis with
-    ///     (e.g. `CodingAssistantServices.shared.provider(kind)`).
-    ///   - model: the model id to request, or nil for the provider's default.
     public init(provider: AssistantProvider, model: String? = nil) {
         self.provider = provider
         self.model = model
@@ -62,7 +37,6 @@ public final class DocumentationAnalyzer {
         results = nil
 
         do {
-            // Step 1 & 2: Capture URL and extract relevant documentation content
             let documentationSummary: String
             if let documentationContent {
                 documentationSummary = documentationContent
@@ -70,10 +44,8 @@ public final class DocumentationAnalyzer {
                 documentationSummary = try await extractDocumentationContent(from: url)
             }
 
-            // Step 3: Scan the user's project codebase
             let projectContext = scanProjectContext(workspaceURL: workspaceURL)
 
-            // Step 4: Send both to the selected assistant provider
             let analysis = try await requestAIAnalysis(docSummary: documentationSummary, projectContext: projectContext)
 
             self.results = analysis
@@ -84,8 +56,6 @@ public final class DocumentationAnalyzer {
         isAnalyzing = false
     }
 
-    /// Fetches the documentation page and strips it to readable text.
-    /// Throws on network failure or an empty page — never invents content.
     private func extractDocumentationContent(from url: URL) async throws -> String {
         let (data, response) = try await URLSession.shared.data(from: url)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
@@ -109,7 +79,6 @@ public final class DocumentationAnalyzer {
         let fm = FileManager.default
         var context = "Project Name: \(projectDir.lastPathComponent)\n"
 
-        // Use an enumerator to find Swift files and gather some context
         if let enumerator = fm.enumerator(at: projectDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
             var swiftFileCount = 0
             var imports = Set<String>()
@@ -124,7 +93,7 @@ public final class DocumentationAnalyzer {
                         }
                     }
                 }
-                if swiftFileCount > 50 { break } // Limit scan
+                if swiftFileCount > 50 { break }
             }
 
             context += "Total Swift files: \(swiftFileCount)\n"
@@ -166,9 +135,6 @@ public final class DocumentationAnalyzer {
         return Self.parseAIResponse(text)
     }
 
-    /// Splits a model reply into the four expected sections (Legacy's
-    /// naive heading-based parser, unchanged in behaviour). Static so
-    /// tests can cover it without a provider.
     static func parseAIResponse(_ text: String) -> AIInsightResults {
         let sections = ["Overview", "Integration Opportunities", "Suggested Code Implementation", "Potential Improvements"]
         var results: [String: String] = [:]

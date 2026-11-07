@@ -1,15 +1,5 @@
 import Foundation
 
-/// Toolbar action → sheet destination routing (Legacy
-/// `SwiftCode/Core/ToolbarActionManager.swift`, Dylan's own code,
-/// ported under MIT).
-///
-/// One fix versus Legacy: Legacy's switch listed `"build_logs"`
-/// twice (first → `.buildLogs`, later → `.xcodeBuildLogs`); the
-/// second case was unreachable because the first match always won,
-/// so it is dropped here.
-
-/// Central manager that maps toolbar button IDs to their correct destination.
 @MainActor
 final class ToolbarActionManager {
     static let shared = ToolbarActionManager()
@@ -77,7 +67,6 @@ final class ToolbarActionManager {
         case deviceConnect
         case virtualization
 
-        // Sidebar & Inspector additions
         case debugSessions
         case bookmarksSidebar
         case breakpointsSidebar

@@ -6,11 +6,6 @@ import SwiftCodeIDEShell
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// A tester's walk through the AppKit IDE, offscreen. With `SWIFTCODE_WALK_DIR`
-/// and `SWIFTCODE_WALK_PACKAGE` (the Greeter package of
-/// `scripts/linux-ui-parity/make-demo.sh`) set, it writes a PNG of each state
-/// and `menus-*.txt`, the menu bar's enabled items in that state, so a person
-/// can look through them. It asserts nothing and never runs without the variables.
 @MainActor
 @Suite(.serialized) struct BetaWalkProbeTests {
     nonisolated static let outDir = ProcessInfo.processInfo.environment["SWIFTCODE_WALK_DIR"]
@@ -36,7 +31,6 @@ import SwiftCodeProject
         }
         func settle(_ s: Double = 0.4) async { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
 
-        // First launch: no recents; then one.
         let td = TestDefaults("beta-walk-welcome")
         defer { td.remove() }
         let recents = RecentProjects(defaults: td.defaults)
@@ -50,7 +44,6 @@ import SwiftCodeProject
         try shot(try #require(welcome.window), "welcome-recent")
         welcome.window?.close()
 
-        // Settings, every pane.
         let settings = SettingsWindowController(prefs: Preferences(defaults: td.defaults), components: [])
         let sw = try #require(settings.window)
         sw.appearance = look
@@ -61,7 +54,6 @@ import SwiftCodeProject
         }
         sw.close()
 
-        // New Project, every platform tab.
         let sheet = NewProjectSheetController(defaults: td.defaults)
         let host = NSWindow(contentViewController: sheet)
         host.appearance = look
@@ -75,7 +67,6 @@ import SwiftCodeProject
         }
         host.close()
 
-        // The workspace.
         let session = WorkspaceSession(model: try WorkspaceModel(url: dir))
         session.engine = PackageBuildEngine()
         let wc = WorkspaceWindowController(session: session, loadDestinations: false, startLanguageService: false, openFirstFile: false)
@@ -87,7 +78,6 @@ import SwiftCodeProject
         try shot(win, "workspace-no-destinations")
         try Self.menus(controller: wc, name: "\(appearance)-menus-workspace", to: out)
 
-        // Controls a screen reader could not name.
         func unlabelled(_ v: NSView, _ out: inout [String]) {
             if let c = v as? NSControl, !v.isHidden, !(v is NSTextField), !(v is NSTableView), !(v is NSScroller) {
                 let title = (c as? NSButton)?.title ?? ""
@@ -100,7 +90,6 @@ import SwiftCodeProject
         if let frame = win.contentView?.superview { unlabelled(frame, &nameless) }
         try nameless.joined(separator: "\n").write(to: out.appendingPathComponent("\(appearance)-unlabelled.txt"), atomically: true, encoding: .utf8)
 
-        // Each navigator.
         for i in 0..<CommandTable.navigators.count {
             wc.navigator.select(i)
             await settle(0.2)
@@ -108,7 +97,6 @@ import SwiftCodeProject
         }
         wc.navigator.select(0)
 
-        // A file, find, then a failing build, then a fixed build, tests and run.
         let greeting = session.model.root.allFiles.first { $0.name == "Greeting.swift" }?.path
         wc.open(path: try #require(greeting), line: nil)
         try shot(win, "file")
@@ -118,14 +106,12 @@ import SwiftCodeProject
         await settle(0.5)
         try shot(win, "find")
 
-        // The assistant with no model configured: nothing answers at the address.
         Preferences.shared.codingAssistant.ollamaURL = "http://127.0.0.1:1"
         wc.setLeftPane(codingAssistant: true)
         await settle(0.5)
         try shot(win, "assistant-no-model")
         wc.setLeftPane(codingAssistant: false)
 
-        // Destination pop-up contents with nothing available.
         var lines = ["destinations: \(wc.session.model.destinationGroups.map { "\($0)" })"]
         lines.append("scheme: \(session.scheme ?? "none") destination: \(session.destination.map(\.name) ?? "none")")
         try lines.joined(separator: "\n").write(to: out.appendingPathComponent("\(appearance)-destinations.txt"), atomically: true, encoding: .utf8)
@@ -143,7 +129,6 @@ import SwiftCodeProject
         try shot(win, "build-failed-report")
         wc.navigator.select(0)
 
-        // The error fixed: a build that succeeds, tests, Run, and the menus with a file open.
         let main = dir.appendingPathComponent("Sources/Greeter/main.swift")
         let before = try String(contentsOf: main, encoding: .utf8)
         try before.split(separator: "\n", omittingEmptySubsequences: false).filter { !$0.contains("deliberate error") }.joined(separator: "\n")
@@ -178,13 +163,11 @@ import SwiftCodeProject
         try "\(session.console)\n--- activity \(session.activity)".write(to: out.appendingPathComponent("\(appearance)-run-console.txt"), atomically: true, encoding: .utf8)
         wc.stopProduct(nil)
 
-        // About.
         let about = AboutWindowController()
         about.window?.appearance = look
         try shot(try #require(about.window), "about")
         about.close()
 
-        // What a failed open and a failed clone say.
         var errors: [String] = []
         do { _ = try WorkspaceModel(url: FileManager.default.temporaryDirectory) } catch {
             errors.append("open folder: \(error.localizedDescription) | \((error as NSError).localizedRecoverySuggestion ?? "")")
@@ -200,7 +183,6 @@ import SwiftCodeProject
         }
         try errors.joined(separator: "\n").write(to: out.appendingPathComponent("\(appearance)-errors.txt"), atomically: true, encoding: .utf8)
 
-        // Device Hub with no simulator.
         let hub = DevicesController(devices: [], simulators: [])
         let hw = hub.makeWindow()
         hw.appearance = look
@@ -208,7 +190,6 @@ import SwiftCodeProject
         try shot(hw, "device-hub-empty")
         hw.close()
 
-        // Source Control on a repository with a change.
         let repoDir = FileManager.default.temporaryDirectory.appendingPathComponent("beta-walk-repo-\(UUID().uuidString)")
         try FileManager.default.copyItem(at: dir, to: repoDir)
         defer { try? FileManager.default.removeItem(at: repoDir) }
@@ -229,7 +210,6 @@ import SwiftCodeProject
         try shot(rw, "source-control-changes")
         rw.close()
 
-        // Organizer, Gauge, scheme editor.
         let archives = FileManager.default.temporaryDirectory.appendingPathComponent("beta-walk-archives-\(UUID().uuidString)")
         let org = OrganizerController(archivesDirectory: archives)
         let ow = NSWindow(contentViewController: org)
@@ -240,7 +220,6 @@ import SwiftCodeProject
         win.close()
     }
 
-    /// The menu bar's items with what validation says now: "on" or "off".
     static func menus(controller wc: WorkspaceWindowController, name: String, to out: URL) throws {
         let bar = MainMenu.make()
         var lines: [String] = []

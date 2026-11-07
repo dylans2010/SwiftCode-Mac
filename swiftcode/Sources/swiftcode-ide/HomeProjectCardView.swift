@@ -1,9 +1,3 @@
-// HomeProjectCardView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Dashboard/HomeProjectCardView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Per-project SF Symbol picker UI (SimpleProjectSymbolPickerView)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 @MainActor

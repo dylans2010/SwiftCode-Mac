@@ -4,19 +4,14 @@ import Foundation
 import Glibc
 #endif
 
-/// Records a Linux process (`specs/ide/profiler.md` §3.2): perf_event_open
-/// sampling when the kernel allows it, else Gauge's LD_PRELOAD agent.
 public struct LinuxRecordOptions: Sendable {
     public enum Backend: String, Sendable { case auto, perf, agent }
-    /// The command to launch (argv); nil with `pid` set: attach.
     public var command: [String]?
     public var pid: Int?
     public var rate: Int = 1000
     public var seconds: Double?
     public var backend: Backend = .auto
-    /// `libSwiftCodeGaugeAgent.so` (agent back end).
     public var agentPath: String?
-    /// Kernel frames (perf only; needs perf_event_paranoid ≤ 1).
     public var kernel = false
 
     public init(command: [String]? = nil, pid: Int? = nil) {
@@ -31,8 +26,6 @@ public struct LinuxRecordError: Error, CustomStringConvertible {
 }
 
 public enum LinuxRecorder {
-    /// Records until the process exits or `seconds` pass (then a launched
-    /// command gets SIGINT, and SIGKILL 2 s later). `log` gets progress lines.
     public static func record(_ o: LinuxRecordOptions, log: (String) -> Void = { _ in }) throws -> GaugeTrace {
         #if os(Linux)
         let rate = max(10, min(10_000, o.rate))
@@ -73,11 +66,9 @@ public enum LinuxRecorder {
             host: hostDescription(), command: (o.command ?? ["pid \(pid)"]).joined(separator: " "), startDate: Date(),
             sampleIntervalNs: periodNs, clock: "monotonic", notes: notes))
 
-        // perf events: one inherited event for a launched command, else one per thread.
         var events: [Int32: ycg_perf] = [:]
         if backend == .perf {
             if launched {
-                // One inherited event per CPU (an inherited event for any CPU cannot be mapped).
                 var failure: Int32 = 0
                 for cpu in 0..<Int32(ycg_cpu_count()) {
                     var p = ycg_perf()
@@ -86,7 +77,6 @@ public enum LinuxRecorder {
                 if events.isEmpty {
                     let e = failure
                     if o.backend == .auto, let agent = o.agentPath, FileManager.default.fileExists(atPath: agent) {
-                        // Refused after all: start over with the agent.
                         _ = kill(pid, SIGKILL)
                         var st: Int32 = 0
                         _ = ycg_wait(pid, 0, &st)
@@ -145,7 +135,6 @@ public enum LinuxRecorder {
 
         while true {
             let now = monotonicNs()
-            // Every 10 ms in the first half second (short programs), then every 100 ms.
             if now &- lastPoll >= (now &- t0 < 500_000_000 ? 10_000_000 : 100_000_000) {
                 lastPoll = now
                 pollProcess(pid: pid, maps: &maps, names: &names, executable: launched ? o.command.flatMap { resolveExecutable($0.first ?? "") } : nil)
@@ -172,18 +161,15 @@ public enum LinuxRecorder {
         if lost > 0 { builder.update { $0.recording.notes.append("\(lost) samples lost (ring buffer full)") } }
         if launched { log("process \(pid) ended with status \(exitStatus)\(exited ? "" : " (stopped)")") }
 
-        // Agent samples.
         if let file = samplesFile {
             let data = (try? Data(contentsOf: URL(fileURLWithPath: file))) ?? Data()
             try? FileManager.default.removeItem(atPath: file)
             raw += parseAgentSamples([UInt8](data))
         }
 
-        // Threads, samples and images.
         var threadIDs: Set<UInt64> = []
         for s in raw.sorted(by: { $0.time < $1.time }) where s.time >= t0 {
             threadIDs.insert(s.tid)
-            // Frames leaf first → outermost first, as absolute addresses.
             let frames = s.frames.reversed().map { GaugeTrace.Frame(image: -1, offset: $0) }
             builder.addSample(time: s.time - t0, thread: s.tid, state: s.kernel ? .kernel : .user, frames: frames)
         }
@@ -212,7 +198,6 @@ public enum LinuxRecorder {
         #endif
     }
 
-    /// Parses the agent's records (cswiftcodegaugeagent.h): (tid, time, kernel, frames leaf first).
     public static func parseAgentSamples(_ b: [UInt8]) -> [(tid: UInt64, time: UInt64, kernel: Bool, frames: [UInt64])] {
         var out: [(UInt64, UInt64, Bool, [UInt64])] = []
         var c = ByteCursor(b)
@@ -268,8 +253,6 @@ public enum LinuxRecorder {
         return pid
     }
 
-    /// The whole of a /proc file (their size reads as 0, so a plain file
-    /// read can stop early).
     static func readProcFile(_ path: String) -> String? {
         let fd = open(path, O_RDONLY | O_CLOEXEC)
         guard fd >= 0 else { return nil }
@@ -294,8 +277,6 @@ public enum LinuxRecorder {
         }
     }
 
-    /// Mappings (only once the launched executable is mapped: before its
-    /// exec the child still has the recorder's own image) and thread names.
     static func pollProcess(pid: Int32, maps: inout Set<GaugeSymbolicator.Mapping>, names: inout [Int32: String], executable: String?) {
         if let text = readProcFile("/proc/\(pid)/maps"), executable.map({ text.contains($0) }) ?? true {
             maps.formUnion(GaugeSymbolicator.parseMaps(text))

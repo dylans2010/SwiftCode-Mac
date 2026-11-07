@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/SDK/Studio/Views/SDKStudioLogsView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: UserLogsPane, DeveloperLogsPane, AuditLogsPane.
-
 import AppKit
 import Foundation
 import SwiftUI
@@ -41,7 +38,6 @@ private struct UserLogsPane: View {
     }
 
     private func reload() {
-        // `SDKUserLogger` reads are synchronous in-memory snapshots.
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         entries = query.isEmpty
             ? SDKUserLogger.shared.recentEntries()

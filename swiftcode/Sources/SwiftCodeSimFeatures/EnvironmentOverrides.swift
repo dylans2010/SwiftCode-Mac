@@ -1,19 +1,3 @@
-// Environment Overrides for one running app (specs/simulator/
-// simulator-features.md §7.3; "SwiftCode implementation" §I.6).
-//
-// The reference changes the debugged process only, by running code inside
-// it, and leaves the device's settings alone. **SwiftCode decision**: a remote
-// SwiftCode run has no debugger, so SwiftCode's code is put into the app at launch
-// instead: the app is launched with `DYLD_INSERT_LIBRARIES` naming SwiftCode's
-// overrides library (SimGuestAgents/overrides) and `SWIFTCODE_ENV_OVERRIDES_DIR`
-// naming a directory in the device. The host keeps one property list per
-// app there (`<bundle id>.plist`) and has the settings agent post
-// `dev.swiftcode.environment-overrides.changed`; the library rereads the file
-// and applies it in-process: trait overrides on every window scene
-// (appearance, Dynamic Type, contrast, bold text) and its own answers to
-// UIKit's accessibility status functions with their public change
-// notifications (the switches). Nothing of the device's preferences changes.
-
 import Foundation
 
 public struct EnvironmentOverrides: Equatable, Sendable {
@@ -30,7 +14,6 @@ public struct EnvironmentOverrides: Equatable, Sendable {
         case smartInvert = "smart-invert"
         case differentiateWithoutColor = "differentiate-without-color"
 
-        /// The category of §7.3.
         public var category: String {
             switch self {
             case .appearance: "Appearance"
@@ -55,7 +38,6 @@ public struct EnvironmentOverrides: Equatable, Sendable {
             }
         }
 
-        /// The values after "No Override", in §7.3's order, with their wire values.
         public var choices: [(title: String, value: String)] {
             switch self {
             case .appearance: [("Light", "light"), ("Dark", "dark")]
@@ -74,11 +56,9 @@ public struct EnvironmentOverrides: Equatable, Sendable {
 
     public static let noOverride = "No Override"
     public static let changedNotification = "dev.swiftcode.environment-overrides.changed"
-    /// The environment variables of an app launched with overrides.
     public static let directoryVariable = "SWIFTCODE_ENV_OVERRIDES_DIR"
     public static let libraryName = "libSwiftCodeEnvironmentOverrides.dylib"
 
-    /// Item → wire value ("light", "dark", a content size name, "on", "off").
     public var values: [Item: String] = [:]
 
     public init(values: [Item: String] = [:]) { self.values = values }
@@ -89,8 +69,6 @@ public struct EnvironmentOverrides: Equatable, Sendable {
         item.choices.contains { $0.value == value }
     }
 
-    /// The file's property list: appearance and dynamic-type as strings,
-    /// the switches as booleans.
     public var plist: [String: Any] {
         var out: [String: Any] = [:]
         for (item, v) in values {
@@ -115,7 +93,6 @@ public struct EnvironmentOverrides: Equatable, Sendable {
         }
     }
 
-    /// `item=value` words, sorted by item order (the control answer).
     public var words: [String] {
         Item.allCases.compactMap { i in values[i].map { "\(i.rawValue)=\($0)" } }
     }
@@ -123,7 +100,6 @@ public struct EnvironmentOverrides: Equatable, Sendable {
     public enum Request: Equatable, Sendable {
         case show
         case clear
-        /// nil value: back to No Override.
         case set([Item: String?])
 
         public static func parse(_ w: [String]) throws -> Request {
@@ -147,9 +123,6 @@ public struct EnvironmentOverrides: Equatable, Sendable {
         }
     }
 
-    /// The pop-over's three sections (SwiftCode's layout; §7.3, Q11): each
-    /// section is on (its items overridden) or off (No Override). With
-    /// Accessibility on, every accessibility item takes its check box's state.
     public struct Sections: Equatable, Sendable {
         public var appearance: Appearance?
         public var dynamicType: ContentSize?
@@ -180,7 +153,6 @@ public struct EnvironmentOverrides: Equatable, Sendable {
         return s
     }
 
-    /// The control command that makes the app's overrides these (`overrides <id> clear` or `… <item>=<value>…`).
     public func commandWords(bundleID: String) -> [String] {
         let w = Item.allCases.map { i in "\(i.rawValue)=\(values[i] ?? "none")" }
         return ["overrides", bundleID] + (isEmpty ? ["clear"] : w)

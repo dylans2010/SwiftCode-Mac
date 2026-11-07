@@ -3,50 +3,11 @@ import SwiftCodeIDECore
 import SwiftCodeSubprocess
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/RepositoryDashboardView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The repository dashboard: status, smart suggestions, statistics &
-/// health, AI workspace diagnostics, quick actions, and a unified activity
-/// timeline.
-///
-/// Adaptations for the destination:
-/// - Legacy read `GitViewModel` + `RepositoryContext` (cached metadata,
-///   counts, languages), which do not exist here. This port derives
-///   everything live: `GitRepository` for branch / status / ahead-behind /
-///   history, and `GitHubClient` for repository size, branches, PRs,
-///   issues, releases, and languages. When no remote/client is available
-///   the remote stats show "—" and the remote sections are skipped.
-/// - Legacy showed a FAKE "1.2 GB (Estimated)" size when metadata was
-///   missing. This port never invents a size: it shows the real size from
-///   `GitHubRepository.size` (KB) or "—" when unavailable.
-/// - Legacy's analytics cards also contained hardcoded numbers ("88%
-///   merged", "14 runs", "3 Engineers", "Swift 94%", "Lead 70%"). Every
-///   number here is computed from real data (commit counts, distinct
-///   authors, language byte shares from `listLanguages`, top-author share).
-/// - Legacy's AI diagnostics called `LLMService.generateResponse`. There
-///   is no equivalent seam, so the diagnostics take an injected
-///   `aiAnalysis` closure (host wires it to Assist chat completion with a
-///   prompt built from the real repo stats); nil → the button is disabled
-///   with a help tip.
-/// - Quick actions run real git: Pull → `repository.pull()`, Stage All →
-///   `repository.stageAll()`, Discard All → `repository.discard` per
-///   tracked change plus `git clean -fd` for untracked files (behind a
-///   confirmation — it deletes files).
-/// - The timeline merges local commits (`repository.log`) with live CI
-///   runs (`client.listWorkflowRuns`) sorted by date.
-///
-/// Hook: present as the GitHub workspace dashboard with the workspace's
-/// repository and client; `onNavigateToSection` routes section taps to the
-/// GitHub sidebar selection (`GitHubSidebarItem`, defined in
-/// `GitHubToolbar.swift`).
 @MainActor
 public struct RepositoryDashboardView: View {
     public var repository: GitRepository
     public var client: GitHubClient?
     public var remote: (owner: String, repo: String)?
-    /// Runs the AI workspace diagnostics over a prompt built from the real
-    /// repo stats and returns the report. Nil → diagnostics disabled.
     public var aiAnalysis: ((String) async throws -> String)?
     public var onNavigateToSection: (GitHubSidebarItem) -> Void
 
@@ -115,8 +76,6 @@ public struct RepositoryDashboardView: View {
         }
         .task { await load() }
     }
-
-    // MARK: - Sections
 
     private var welcomeHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -338,8 +297,6 @@ public struct RepositoryDashboardView: View {
         var date: Date
         var isCI: Bool
     }
-
-    // MARK: - Loading & actions
 
     private func load() async {
         isLoading = true

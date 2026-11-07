@@ -1,18 +1,6 @@
 import SwiftUI
 import SwiftCodeCloud
 
-/// Edits one row's values; the caller persists them.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseRecordEditor.swift`.
-///
-/// The only change over Legacy is the removal of the `liquidGlass`
-/// header (SwiftCodeUI has no such modifier); the header is a plain
-/// row on a subtle background. The form itself is unchanged: one
-/// field per column, auto-increment primary keys disabled, and
-/// `onSave` hands the edited `[String: String]` back to the caller
-/// — `DatabaseRecordViewer` runs the real `UPDATE` for it. The
-/// editor itself executes nothing.
 @MainActor
 struct DatabaseRecordEditor: View {
     @Environment(\.dismiss) private var dismiss

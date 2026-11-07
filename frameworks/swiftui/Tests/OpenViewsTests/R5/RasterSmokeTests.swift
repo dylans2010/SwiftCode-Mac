@@ -23,7 +23,6 @@ import Testing
         let img = r.render(RenderFrame(displayList: list, scale: 2, background: .white), size: PixelSize(width: 200, height: 200))
         #expect(img.pixel(x: 10, y: 10) == (255, 0, 0, 255))
         #expect(img.pixel(x: 190, y: 190) == (255, 255, 255, 255))
-        // Clipped group at 60…70 × 0…10 points, half-transparent green over white.
         let g = img.pixel(x: 130, y: 10)
         #expect(g.3 == 255 && g.1 == 255 && abs(Int(g.0) - 128) <= 2)
         #expect(img.pixel(x: 150, y: 10) == (255, 255, 255, 255))

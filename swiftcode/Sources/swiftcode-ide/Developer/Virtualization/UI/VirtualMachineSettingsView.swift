@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSettingsView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -25,7 +23,6 @@ public struct VirtualMachineSettingsView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             if let activeVM = vm {
-                // Section 1: General Settings
                 GroupBox(label: Text("General Settings").font(.headline)) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -46,10 +43,8 @@ public struct VirtualMachineSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 2: Performance Parameters
                 GroupBox(label: Text("Performance Parameters").font(.headline)) {
                     VStack(alignment: .leading, spacing: 14) {
-                        // CPU Cores Slider
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Label("CPU Core Allocation:", systemImage: "cpu")
@@ -64,7 +59,6 @@ public struct VirtualMachineSettingsView: View {
 
                         Divider()
 
-                        // Memory (RAM) Slider
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Label("Memory (RAM) Allocation:", systemImage: "memorychip")
@@ -79,7 +73,6 @@ public struct VirtualMachineSettingsView: View {
 
                         Divider()
 
-                        // Storage capacity info (Read-only resize is handled in StorageView)
                         HStack {
                             Label("Storage Capacity:", systemImage: "externaldrive")
                                 .fontWeight(.medium)
@@ -96,7 +89,6 @@ public struct VirtualMachineSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 3: Advanced Options (Hidden by default via Progressive Disclosure)
                 DisclosureGroup(isExpanded: $showingAdvancedConfig) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Low-Level Hypervisor Configurations:")

@@ -32,13 +32,12 @@ public struct EnvironmentProfilesView: View {
     @State private var showingRecipeExport = false
     @State private var recipeExportJSON = ""
 
-    // Package Dashboard mock metadata
     public struct VMPackage: Identifiable, Sendable {
         public let id: String
         public let name: String
         public let version: String
         public let installDate: String
-        public let status: String // "Installed", "Update Available"
+        public let status: String
     }
 
     private let packageDashboardData: [String: [VMPackage]] = [
@@ -68,7 +67,6 @@ public struct EnvironmentProfilesView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Service Profiles & Recipes")
                         .font(.system(size: 24, weight: .bold))
@@ -77,9 +75,7 @@ public struct EnvironmentProfilesView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Main split panes
                 HStack(alignment: .top, spacing: 16) {
-                    // Profile Management Card (Left Column)
                     GroupBox(label:
                         Label("Active Service Recipe", systemImage: "doc.text.image.fill")
                             .font(.headline)
@@ -102,7 +98,6 @@ public struct EnvironmentProfilesView: View {
                             if let prof = activeProfile {
                                 Divider()
 
-                                // Env variables list
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Environment Variables:")
                                         .fontWeight(.bold)
@@ -183,7 +178,6 @@ public struct EnvironmentProfilesView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                     .frame(maxWidth: .infinity)
 
-                    // Packages Inventory dashboard (Right Column)
                     GroupBox(label:
                         Label("Sandbox Package Inventory", systemImage: "shippingbox.fill")
                             .font(.headline)
@@ -243,7 +237,6 @@ public struct EnvironmentProfilesView: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                // Add Profile Form
                 GroupBox(label: Text("Create Custom Service Profile Recipe").font(.headline)) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {

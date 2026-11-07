@@ -6,15 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// The normative menu bar of `specs/ide/reference-ui-5.md` §2, transcribed
-/// from the spec: generic titles (§1.3), order, separators ("—"), section
-/// labels ("[…]"), submenus ("▸"), shortcuts in the spec's notation (any
-/// spelling of a keystroke: "⌘<" or "⇧⌘,"), alternates ("alt", with the
-/// revealing modifiers for one without a shortcut) and conditional items
-/// ("when", hidden until their condition holds). System items (§1.6) are
-/// not listed: AppKit adds them. The Editor menu, one per editor kind
-/// (§2.7/§2.8), is in `EditorMenuGoldenTests.swift`. `reference-ui-6.md`
-/// §8 (R43) changed File ▸ New, Edit ▸ Copy ▸ / Paste ▸ and Help.
 let menuBarGolden = """
 SwiftCode ▸
   About SwiftCode
@@ -597,7 +588,6 @@ Help ▸
   Search Documentation for Selected Text | ⌃⌥⌘/
 """
 
-/// Renders a built menu in the golden notation (canonical shortcuts).
 @MainActor
 func renderMenu(_ menu: NSMenu, depth: Int = 0) -> [String] {
     var out: [String] = []
@@ -633,7 +623,6 @@ func modifiers(_ f: NSEvent.ModifierFlags) -> MenuCommand.Modifiers {
     return m
 }
 
-/// The golden text with each shortcut in canonical notation.
 func canonicalGolden(_ text: String) -> [String] {
     text.split(separator: "\n", omittingEmptySubsequences: true).map { line in
         var f = line.components(separatedBy: " | ")
@@ -644,7 +633,6 @@ func canonicalGolden(_ text: String) -> [String] {
 
 @MainActor
 @Suite(.serialized) struct MenuBarGoldenTests {
-    /// A menu bar built with factory key bindings.
     func withFactoryBar(_ body: @MainActor (NSMenu) throws -> Void) rethrows {
         let t = TestDefaults("menu-golden")
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/menu-golden/\(UUID().uuidString)")
@@ -660,8 +648,6 @@ func canonicalGolden(_ text: String) -> [String] {
         try body(MainMenu.make())
     }
 
-    /// §1.9 first test: titles, order, separators, labels, alternates,
-    /// conditional items and shortcuts of the whole bar against §2.
     @Test func menuBarMatchesSpec() {
         withFactoryBar { bar in
             #expect(bar.items.map(\.title) == ["SwiftCode", "File", "Edit", "View", "Find", "Navigate", "Editor", "Product", "Debug", "Integrate", "Window", "Help"])
@@ -685,9 +671,6 @@ func canonicalGolden(_ text: String) -> [String] {
         }
     }
 
-    /// §1.9 second test: no two items share a shortcut, alternates
-    /// excepted (they differ by modifiers); the one command listed in two
-    /// menus (Developer Documentation) counts once.
     @Test func noTwoItemsShareAShortcut() {
         withFactoryBar { bar in
             var seen: [String: (String, String)] = [:]
@@ -709,7 +692,6 @@ func canonicalGolden(_ text: String) -> [String] {
         }
     }
 
-    /// §2.0: the corrected bindings, including the Editor menu's.
     @Test func shortcutCorrections() {
         withFactoryBar { bar in
             @MainActor func find(_ path: [String]) -> NSMenuItem? {
@@ -735,10 +717,8 @@ func canonicalGolden(_ text: String) -> [String] {
             #expect(find(["Edit", "Format", "Re-Indent"]) == nil)
             #expect(sc("File", "Close Other Window Tabs") == "⌥⇧⌘W")
             #expect(sc("View", "Enter Full Screen") == "⌃⌘F")
-            // Editor ▸ Show Coding Tools: Show Coding Tools…, then the four coding tools.
             let tools = find(["Editor", "Show Coding Tools"])?.submenu?.items.map { $0.isSeparatorItem ? "—" : $0.title }
             #expect(tools == ["Show Coding Tools…", "—", "Explain", "Document", "Generate a Playground", "Generate a Preview"])
-            // §1.6: the table lists none of the system's items.
             let edit = find(["Edit"])?.submenu?.items.map(\.title) ?? []
             #expect(!edit.contains("Start Dictation…") && !edit.contains("Emoji & Symbols") && !edit.contains("AutoFill"))
             let window = find(["Window"])?.submenu?.items.map(\.title) ?? []
@@ -746,8 +726,6 @@ func canonicalGolden(_ text: String) -> [String] {
         }
     }
 
-    /// §1.2: alternates are AppKit alternates of the item above, on the
-    /// same key (a shifted spelling is paired through its unshifted key).
     @Test func alternatesPairWithTheirBase() {
         withFactoryBar { bar in
             @MainActor func walk(_ m: NSMenu) {
@@ -775,8 +753,6 @@ func canonicalGolden(_ text: String) -> [String] {
         }
     }
 
-    /// §1.8: shifted punctuation is stored as AppKit expects; letters are
-    /// lowercase with ⇧; function keys carry no implicit modifier.
     @Test func keyEquivalentsAsAppKitExpects() {
         withFactoryBar { bar in
             let nav = bar.item(withTitle: "Navigate")!.submenu!

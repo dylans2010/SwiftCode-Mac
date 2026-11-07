@@ -5,11 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Hover (pointer devices): a view is hovered while it is on the hit chain
-// under a pointer that is not pressed. `onHover` reports entering and
-// leaving; `onContinuousHover` reports every position, then `.ended`.
-
-/// The phase of a continuous hover.
 public enum HoverPhase: Equatable, Sendable {
     case active(CGPoint)
     case ended
@@ -59,13 +54,10 @@ struct HoverModifier: PrimitiveModifier {
 }
 
 extension View {
-    /// Calls `action` with true when the pointer enters the view, false when
-    /// it leaves.
     public func onHover(perform action: @escaping (Bool) -> Void) -> some View {
         modifier(HoverModifier(onHover: action, onContinuous: nil, global: false))
     }
 
-    /// Calls `action` with the pointer's position while it is over the view.
     public func onContinuousHover(coordinateSpace: CoordinateSpace = .local,
                                   perform action: @escaping (HoverPhase) -> Void) -> some View {
         modifier(HoverModifier(onHover: nil, onContinuous: action, global: coordinateSpace != .local))

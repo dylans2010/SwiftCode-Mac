@@ -1,14 +1,5 @@
-//
-//  AssistDataInspectionTools.swift
-//  SwiftCode
-//
-//  Created on 2026-10-18.
-//
-
 import Foundation
 import CryptoKit
-
-// MARK: - Helper
 
 private func resolveWorkspaceDataInspectionURL(_ raw: String, workspaceRoot: URL) -> URL? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,8 +19,6 @@ private func resolveWorkspaceDataInspectionURL(_ raw: String, workspaceRoot: URL
     }
     return candidate
 }
-
-// MARK: - File Compare Diff Tool (safeRead)
 
 public struct AssistFileCompareDiffTool: AssistTool {
     public let id = "file_compare_diff"
@@ -136,8 +125,6 @@ public struct AssistFileCompareDiffTool: AssistTool {
         }
     }
 }
-
-// MARK: - Count File Lines Tool (safeRead)
 
 public struct AssistCountFileLinesTool: AssistTool {
     public let id = "count_file_lines"
@@ -247,8 +234,6 @@ public struct AssistCountFileLinesTool: AssistTool {
     }
 }
 
-// MARK: - Extract Code Symbols Tool (safeRead)
-
 public struct AssistExtractCodeSymbolsTool: AssistTool {
     public let id = "extract_code_symbols"
     public let name = "Extract Code Symbols"
@@ -328,8 +313,6 @@ public struct AssistExtractCodeSymbolsTool: AssistTool {
         }
     }
 }
-
-// MARK: - Generate File Checksum Tool (safeRead)
 
 public struct AssistGenerateFileChecksumTool: AssistTool {
     public let id = "generate_file_checksum"

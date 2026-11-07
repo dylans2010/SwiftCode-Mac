@@ -1,8 +1,3 @@
-//
-//  AssistSigningCertificateInspectorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSigningCertificateInspectorTool: AssistTool {

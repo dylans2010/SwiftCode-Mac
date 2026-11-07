@@ -1,8 +1,6 @@
 import Foundation
 import SwiftCodeLanguage
 
-/// The language-server requests the semantic find kinds use. `LSPClient`
-/// provides them; tests can stand in.
 public protocol SemanticFindService: Sendable {
     func workspaceSymbols(_ query: String) async throws -> [WorkspaceSymbol]
     func references(_ url: URL, at p: Position) async throws -> [Location]
@@ -15,17 +13,13 @@ public protocol SemanticFindService: Sendable {
 
 extension LSPClient: SemanticFindService {}
 
-/// A row of the Find navigator's results: a heading, a file, a match or a
-/// symbol, with where selecting it goes.
 public struct FindResultNode: Equatable, Sendable {
     public enum Kind: Equatable, Sendable { case heading, file, match, symbol }
     public var kind: Kind
     public var title: String
     public var detail: String?
     public var path: String?
-    /// 1-based.
     public var line: Int?
-    /// LSP `SymbolKind` of a symbol row.
     public var symbolKind: Int?
     public var children: [FindResultNode]
 
@@ -40,23 +34,14 @@ public struct FindResultNode: Equatable, Sendable {
         self.children = children
     }
 
-    /// Rows below this one, depth-first (tests, counts).
     public var flattened: [FindResultNode] { [self] + children.flatMap(\.flattened) }
 }
 
-/// The Find navigator's semantic kinds (Symbols ▸ Definitions and
-/// References, Call Hierarchy, Ancestor, Descendent and Conforming Types)
-/// through the language server. A query names the symbol; the editor's
-/// commands start from the caret instead. See `specs/ide/navigators.md`
-/// §Find navigator, "SwiftCode implementation".
 public enum SemanticFind {
     public struct Result: Equatable, Sendable {
-        /// "Greeter — 3 references", "Callers of greet(times:)", …
         public var heading: String
         public var nodes: [FindResultNode]
-        /// Results counted for the heading (references, definitions, types, callers).
         public var count: Int
-        /// Why there is nothing to show (no server, no symbol, unsupported).
         public var message: String?
         public init(heading: String, nodes: [FindResultNode] = [], count: Int = 0, message: String? = nil) {
             self.heading = heading
@@ -66,7 +51,6 @@ public enum SemanticFind {
         }
     }
 
-    /// A symbol to start from: its file, the position of its name, its name.
     public struct Seed: Equatable, Sendable {
         public var url: URL
         public var position: Position
@@ -80,14 +64,10 @@ public enum SemanticFind {
         }
     }
 
-    /// At most this many symbols are expanded for one query.
     public static let maxSeeds = 20
-    /// Call hierarchy depth shown (callers of callers).
     public static let callerDepth = 2
-    /// Type hierarchy depth followed.
     public static let typeDepth = 8
 
-    /// Reads one line of a file (0-based), for row text.
     public typealias LineReader = @Sendable (String, Int) -> String?
 
     public static let diskLines: LineReader = { path, line in
@@ -96,12 +76,10 @@ public enum SemanticFind {
         return line < lines.count ? lines[line] : nil
     }
 
-    /// The symbol's base name: "greet(times:)" → "greet".
     public static func baseName(_ name: String) -> String {
         String(name.prefix { $0 != "(" && $0 != "<" && $0 != " " })
     }
 
-    /// Whether a symbol name matches the query's text, match style and case.
     public static func nameMatches(_ name: String, _ q: FindQuery) -> Bool {
         let base = baseName(name)
         let a = q.ignoreCase ? base.lowercased() : base, b = q.ignoreCase ? q.text.lowercased() : q.text
@@ -115,8 +93,6 @@ public enum SemanticFind {
         }
     }
 
-    /// The symbols a query names, best first: exact names, then the rest
-    /// by name. The position is moved onto the name in its line.
     public static func seeds(_ q: FindQuery, service: SemanticFindService, lines: LineReader = diskLines,
                              where keep: (WorkspaceSymbol) -> Bool = { _ in true }) async throws -> [Seed] {
         let symbols = try await service.workspaceSymbols(q.text).filter { nameMatches($0.name, q) && keep($0) }
@@ -133,8 +109,6 @@ public enum SemanticFind {
         }
     }
 
-    /// The position of `name`'s first occurrence on the line at or after
-    /// `p` (a declaration's range can start at its keywords).
     static func namePosition(_ name: String, at p: Position, path: String, lines: LineReader) -> Position {
         guard let line = lines(path, p.line) else { return p }
         let units = Array(line.utf16), base = Array(baseName(name).utf16)
@@ -147,9 +121,6 @@ public enum SemanticFind {
         return p
     }
 
-    // MARK: Running a query
-
-    /// Runs a semantic query from the Find navigator.
     public static func run(_ q: FindQuery, service: SemanticFindService?, lines: LineReader = diskLines) async -> Result {
         guard let service else { return Result(heading: q.text, message: "No language server") }
         guard q.kind.isSemantic, !q.text.isEmpty else { return Result(heading: q.text) }
@@ -174,8 +145,6 @@ public enum SemanticFind {
         }
     }
 
-    /// Runs a kind from the editor's caret (Find Selected Symbol in
-    /// Workspace, Find Call Hierarchy, Find Ancestor Types, …).
     public static func run(_ kind: FindQuery.Kind, at seed: Seed, service: SemanticFindService?, lines: LineReader = diskLines) async -> Result {
         guard let service else { return Result(heading: seed.name, message: "No language server") }
         do {
@@ -200,9 +169,6 @@ public enum SemanticFind {
         }
     }
 
-    // MARK: Kinds
-
-    /// Symbols ▸ Definitions: the declarations, by file.
     static func definitions(_ text: String, _ syms: [WorkspaceSymbol], lines: LineReader) -> Result {
         let byFile = Dictionary(grouping: syms) { $0.location.url.standardizedFileURL.path }
         let nodes = byFile.keys.sorted().map { path in
@@ -217,8 +183,6 @@ public enum SemanticFind {
                       message: syms.isEmpty ? "No symbol named \u{201C}\(text)\u{201D}" : nil)
     }
 
-    /// References (with the declarations), merged for every seed, by file
-    /// then line; rows read "line: text".
     static func references(_ seeds: [Seed], service: SemanticFindService, lines: LineReader) async throws -> Result {
         var seen = Set<String>()
         var refs: [Location] = []
@@ -240,7 +204,6 @@ public enum SemanticFind {
         return Result(heading: "\(name) — \(plural(refs.count, "reference"))", nodes: nodes, count: refs.count)
     }
 
-    /// Call Hierarchy: each function, then its callers, `callerDepth` levels.
     static func callers(_ seeds: [Seed], service: SemanticFindService) async throws -> Result {
         var nodes: [FindResultNode] = []
         var count = 0
@@ -266,16 +229,12 @@ public enum SemanticFind {
                       message: nodes.isEmpty ? "No function at the symbol" : nil)
     }
 
-    /// Ancestor Types (supertypes), Descendent Types (subtypes) and
-    /// Conforming Types (the types that adopt a protocol), followed
-    /// `typeDepth` levels without repeating a type.
     static func types(_ kind: FindQuery.Kind, _ seeds: [Seed], service: SemanticFindService) async throws -> Result {
         var count = 0
         func key(_ i: TypeHierarchyItem) -> String { "\(i.url.path):\(i.selection.line):\(i.name)" }
         func next(_ i: TypeHierarchyItem) async throws -> [TypeHierarchyItem] {
             let list = kind == .ancestorTypes ? try await service.supertypes(i) : try await service.subtypes(i)
             switch kind {
-            // Protocols refine protocols; other types adopt them.
             case .conformingTypes: return list.filter { $0.kind != 11 }
             case .descendentTypes where i.kind == 11: return list.filter { $0.kind == 11 }
             default: return list

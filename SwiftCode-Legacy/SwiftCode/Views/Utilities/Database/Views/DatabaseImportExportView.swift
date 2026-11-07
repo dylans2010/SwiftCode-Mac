@@ -2,10 +2,9 @@ import SwiftUI
 
 struct DatabaseImportExportView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
-    @State private var selectedTab = 0 // 0 = Import, 1 = Export
+    @State private var selectedTab = 0
 
-    // Import states
-    @State private var importFormat = "CSV" // CSV, JSON
+    @State private var importFormat = "CSV"
     @State private var importText = "id,name,email\n1,Alex,alex@example.com\n2,Emma,emma@example.com"
     @State private var targetTable = ""
     @State private var tables: [DatabaseTable] = []
@@ -15,9 +14,8 @@ struct DatabaseImportExportView: View {
     @State private var importMessage = ""
     @State private var isImporting = false
 
-    // Export states
     @State private var exportTable = ""
-    @State private var exportFormat = "JSON" // JSON, CSV, SQL DDL, SQL Inserts, XML, Markdown
+    @State private var exportFormat = "JSON"
     @State private var csvDelimiter = ","
     @State private var customFileName = "export_data"
     @State private var exportLog = ""
@@ -26,7 +24,6 @@ struct DatabaseImportExportView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Mode Selector
             Picker("Action", selection: $selectedTab) {
                 Text("Data Import Center").tag(0)
                 Text("Data Export Center").tag(1)
@@ -40,10 +37,8 @@ struct DatabaseImportExportView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if selectedTab == 0 {
-                        // Data Import Center
                         importCenterPane()
                     } else {
-                        // Data Export Center
                         exportCenterPane()
                     }
                 }
@@ -58,7 +53,6 @@ struct DatabaseImportExportView: View {
         }
     }
 
-    // MARK: - Import Center Pane
     @ViewBuilder
     private func importCenterPane() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -128,7 +122,6 @@ struct DatabaseImportExportView: View {
                 }
             }
 
-            // Preview parsed grid
             if !parsedRows.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Parsed Records Preview (Top 5 rows)")
@@ -194,7 +187,6 @@ struct DatabaseImportExportView: View {
         }
     }
 
-    // MARK: - Export Center Pane
     @ViewBuilder
     private func exportCenterPane() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -305,7 +297,6 @@ struct DatabaseImportExportView: View {
         }
     }
 
-    // MARK: - Logic Operations
     private func loadTables() {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite, let path = conn.sqliteFilePath else { return }
         Task {
@@ -331,7 +322,6 @@ struct DatabaseImportExportView: View {
             parsedColumns = cols
             parsedRows = rows
         } else {
-            // JSON parsing
             guard let data = trimmed.data(using: .utf8),
                   let jsonArray = try? JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
                 validationLog = "Error: Invalid JSON payload format. Must be an array of flat objects."
@@ -357,7 +347,6 @@ struct DatabaseImportExportView: View {
             parsedRows = rowsList
         }
 
-        // Match against targetTable schema column names & constraints
         if let currentTable = tables.first(where: { $0.name == targetTable }) {
             var issues: [String] = []
             let targetCols = Set(currentTable.columns.map { $0.name })
@@ -393,7 +382,6 @@ struct DatabaseImportExportView: View {
             var inserted = 0
             var errors = 0
 
-            // Build statements
             for row in parsedRows {
                 let columnsList = parsedColumns.filter { col in
                     if let tableObj = tables.first(where: { $0.name == targetTable }) {

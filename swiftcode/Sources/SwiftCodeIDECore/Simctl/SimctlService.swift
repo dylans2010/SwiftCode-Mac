@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimctlService.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import os
 
@@ -43,7 +41,6 @@ public actor SimctlService {
         do {
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
-            // 1. Parse runtimes
             var parsedRuntimes: [SimulatorRuntime] = []
             if let runtimesList = json["runtimes"] as? [[String: Any]] {
                 for r in runtimesList {
@@ -53,7 +50,6 @@ public actor SimctlService {
                     let platform = r["platform"] as? String ?? (name.contains("iOS") ? "iOS" : name.contains("watchOS") ? "watchOS" : name.contains("tvOS") ? "tvOS" : name.contains("visionOS") ? "visionOS" : "macOS")
                     let isAvailable = r["isAvailable"] as? Bool ?? true
 
-                    // Filter out unavailable runtimes
                     if isAvailable {
                         parsedRuntimes.append(SimulatorRuntime(
                             identifier: identifier,
@@ -66,16 +62,13 @@ public actor SimctlService {
                 }
             }
 
-            // Sort newest first
             parsedRuntimes.sort { r1, r2 in
                 r1.version.compare(r2.version, options: .numeric) == .orderedDescending
             }
 
-            // 2. Parse devices
             var parsedDevices: [SimulatorDevice] = []
             if let devicesMap = json["devices"] as? [String: [[String: Any]]] {
                 for (runtimeKey, devList) in devicesMap {
-                    // Match runtime version and platform
                     let cleanRuntimeID = runtimeKey.replacingOccurrences(of: "com.apple.CoreSimulator.SimRuntime.", with: "")
                     let parts = cleanRuntimeID.split(separator: "-")
                     let platform = parts.first.map(String.init) ?? "iOS"
@@ -119,7 +112,6 @@ public actor SimctlService {
         }
     }
 
-    // Core diagnostics checks
     public func runDiagnostics() async -> PipelineDiagnostics {
         let startTime = Date()
 
@@ -168,14 +160,48 @@ public actor SimctlService {
         )
     }
 
-    // Core simctl command utilities
-
     public func bootDevice(udid: String) async throws {
         let command = SimulatorCommand.boot(udid: udid)
         let result = try await executor.execute(command)
         if result.exitCode != 0 {
             throw SimulatorError.simctlFailed(reason: result.errorOutput)
         }
+    }
+
+    public func rebootDevice(udid: String) async throws {
+        let command = SimulatorCommand.reboot(udid: udid)
+        let result = try await executor.execute(command)
+        if result.exitCode != 0 {
+            throw SimulatorError.simctlFailed(reason: result.errorOutput)
+        }
+    }
+
+    public func triggerShake(udid: String) async throws {
+        let command = SimulatorCommand.notifyPost(udid: udid, notification: "com.apple.UIKit.SimulatorPreferences.ShakeDevice")
+        let result = try await executor.execute(command)
+        if result.exitCode != 0 {
+            throw SimulatorError.simctlFailed(reason: result.errorOutput)
+        }
+    }
+
+    public func triggerMemoryWarning(udid: String) async throws {
+        let command = SimulatorCommand.notifyPost(udid: udid, notification: "com.apple.UIKit.SimulatorPreferences.MemoryWarning")
+        let result = try await executor.execute(command)
+        if result.exitCode != 0 {
+            throw SimulatorError.simctlFailed(reason: result.errorOutput)
+        }
+    }
+
+    public func setSlowAnimations(udid: String, enabled: Bool) async throws {
+        let notif = enabled ? "com.apple.CoreGraphics.SlowAnimations.enable" : "com.apple.CoreGraphics.SlowAnimations.disable"
+        let command = SimulatorCommand.notifyPost(udid: udid, notification: notif)
+        _ = try? await executor.execute(command)
+    }
+
+    public func setStandbyMode(udid: String, enabled: Bool) async throws {
+        let notif = enabled ? "com.apple.springboard.standby.enter" : "com.apple.springboard.standby.exit"
+        let command = SimulatorCommand.notifyPost(udid: udid, notification: notif)
+        _ = try? await executor.execute(command)
     }
 
     public func shutdownDevice(udid: String) async throws {

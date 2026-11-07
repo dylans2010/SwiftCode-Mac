@@ -55,7 +55,6 @@ struct ActionsView: View {
 
     private var mainContent: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack(spacing: 12) {
                 Label("GitHub Actions", systemImage: "play.circle.fill")
                     .font(.headline)
@@ -144,8 +143,6 @@ struct ActionsView: View {
 
         let urlStr: String
         if context.displayMode == .entireAccount {
-            // Note: Since there is no simple global workflow runs API, we list user repositories and get workflow runs for the connected repo if any, or default to general.
-            // Let's query notifications or repository workflow list, or if not possible, use the connected repo runs.
             if let (owner, repo) = ownerAndRepo {
                 urlStr = "https://api.github.com/repos/\(owner)/\(repo)/actions/runs"
             } else {

@@ -14,7 +14,6 @@ public actor SkillsRuntime {
         let standardized = directory.standardizedFileURL.resolvingSymlinksInPath()
         let home = fileManager.homeDirectoryForCurrentUser.standardizedFileURL.resolvingSymlinksInPath()
 
-        // Never perform an unbounded recursive scan on the root filesystem or user home directory
         if standardized.path == "/" || standardized.path == home.path {
             return []
         }
@@ -28,7 +27,6 @@ public actor SkillsRuntime {
         var discoveredSkills: [Skill] = []
 
         while let fileURL = enumerator?.nextObject() as? URL {
-            // Never enter sensitive macOS privacy protected directories (Photos, Music, Movies, Library)
             let name = fileURL.lastPathComponent
             if name == "Pictures" || name == "Music" || name == "Movies" || name == "Photos" || name == "Library" {
                 enumerator?.skipDescendants()
@@ -40,7 +38,6 @@ public actor SkillsRuntime {
                     let content = try String(contentsOf: fileURL, encoding: .utf8)
                     var skill = try parser.parse(content: content, url: fileURL)
 
-                    // Restore enabled state from UserDefaults
                     let isEnabled = UserDefaults.standard.bool(forKey: "skill_enabled_\(skill.id.uuidString)")
                     skill.isEnabled = isEnabled || !UserDefaults.standard.dictionaryRepresentation().keys.contains("skill_enabled_\(skill.id.uuidString)")
 
@@ -76,7 +73,6 @@ public actor SkillsRuntime {
 
     public func saveSkill(_ skill: Skill, at url: URL) async throws {
         try skill.content.write(to: url, atomically: true, encoding: .utf8)
-        // Refresh local state
         let updatedSkill = try parser.parse(content: skill.content, url: url)
         if let index = skills.firstIndex(where: { $0.id == updatedSkill.id }) {
             skills[index] = updatedSkill

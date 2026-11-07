@@ -16,7 +16,6 @@ struct CreditsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Contributors Header Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {

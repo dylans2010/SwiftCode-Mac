@@ -11,11 +11,9 @@ public struct CloudManagementView: View {
     @State private var stats = CloudStatistics()
     @State private var selectedTab = 0
 
-    // Interactive edit sheet states
     @State private var showingChangeEmail = false
     @State private var showingChangePassword = false
 
-    // Server Ping Connection States
     @State private var isTestingConnection = false
     @State private var testConnectionResult: String?
     @State private var testConnectionSuccess = false
@@ -65,7 +63,6 @@ public struct CloudManagementView: View {
     private var accountSetupTab: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Section 1: User Account & Connection Status
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -88,7 +85,6 @@ public struct CloudManagementView: View {
 
                                     Spacer()
 
-                                    // Verification status badge
                                     HStack(spacing: 4) {
                                         Image(systemName: user.emailVerification ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
                                         Text(user.emailVerification ? "Verified" : "Unverified")
@@ -103,7 +99,6 @@ public struct CloudManagementView: View {
 
                                 Divider()
 
-                                // Display permanent SwiftCode ID
                                 if let swiftCodeID = authManager.swiftCodeID {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text("Canonical SwiftCode ID:")
@@ -133,7 +128,6 @@ public struct CloudManagementView: View {
 
                                 Divider()
 
-                                // Operational controls
                                 HStack(spacing: 12) {
                                     Button {
                                         showingChangeEmail = true
@@ -208,7 +202,6 @@ public struct CloudManagementView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 2: Appwrite Server Ping Test
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -250,7 +243,6 @@ public struct CloudManagementView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 3: Sync Engine Configurations
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -287,7 +279,6 @@ public struct CloudManagementView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 4: Sync Activity Stats
                 if syncEnabled && authManager.isAuthenticated {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -398,8 +389,6 @@ public struct CloudManagementView: View {
     }
 }
 
-// MARK: - Change Email Sheet
-
 struct ChangeEmailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var newEmail = ""
@@ -470,8 +459,6 @@ struct ChangeEmailSheet: View {
     }
 }
 
-// MARK: - Change Password Sheet
-
 struct ChangePasswordSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var oldPassword = ""
@@ -540,4 +527,3 @@ struct ChangePasswordSheet: View {
         }
     }
 }
-

@@ -4,21 +4,13 @@ import SwiftCodeGitHub
 import SwiftCodeIDECore
 import SwiftCodeMCP
 
-/// Settings ▸ Coding Assistant (coding-assistant.md §6): the back end, the
-/// local servers' addresses, the OpenAI sign-in or API key, the agent
-/// tools, what context is sent, and a note on privacy. Secrets go to the
-/// keychain only; this pane never shows a stored key or token.
 @MainActor
 public final class CodingAssistantSettingsPane: SettingsPane {
     public static let paneTitle = "Coding Assistant"
     let services: CodingAssistantServices
-    /// The last sign-in or key message (tests).
     public private(set) var accountMessage = ""
-    /// The last GitHub token validation message (tests).
     public private(set) var githubMessage = ""
-    /// The running sign-in (tests await it).
     public private(set) var signInTask: Task<Void, Never>?
-    /// The running GitHub token validation (tests await it).
     public private(set) var githubValidationTask: Task<Void, Never>?
 
     public init(prefs: Preferences = .shared, services: CodingAssistantServices = .shared) {
@@ -197,7 +189,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         row("", check("Send the other open files", s.context.includeOpenFiles) { [weak self] on in self?.settings.context.includeOpenFiles = on })
         row("", check("Send the workspace's issues", s.context.includeIssues) { [weak self] on in self?.settings.context.includeIssues = on })
 
-        // coding-assistant.md §3.5: the output limit and sampling for the model servers.
         heading("Output")
         row("Most output tokens:", optionalField(s.generation.maxOutputTokens.map(String.init), placeholder: "no limit") { [weak self] v in
             self?.settings.generation.maxOutputTokens = Int(v).flatMap { $0 > 0 ? $0 : nil }
@@ -220,7 +211,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         note(Self.privacyText)
     }
 
-    /// A text field for an optional number; empty clears it.
     func optionalField(_ value: String?, placeholder: String, _ commit: @escaping (String) -> Void) -> NSTextField {
         let f = ClosureField(string: value ?? "")
         f.placeholderString = placeholder
@@ -236,7 +226,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
     on 127.0.0.1 only, with a new token for each request. Off: agents only read and propose, as before.
     """
 
-    /// The `swiftcode mcp` command line: the `swiftcode` next to SwiftCode, else on PATH.
     public static func mcpCommandLine() -> String {
         let fm = FileManager.default
         var candidates: [String] = []
@@ -248,7 +237,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         return (exe.contains(" ") ? "'\(exe)'" : exe) + " mcp"
     }
 
-    /// A selectable, read-only line with a Copy button.
     func copyField(_ text: String) -> NSView {
         let f = NSTextField(string: text)
         f.isEditable = false
@@ -276,8 +264,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
     you accept them.
     """
 
-    // MARK: Rows
-
     func field(_ value: String, width: CGFloat, placeholder: String = "", _ action: @escaping (String) -> Void) -> NSTextField {
         let f = ClosureField(string: value)
         f.placeholderString = placeholder
@@ -286,8 +272,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         return f
     }
 
-    /// A key field that writes to the secret store; it shows only whether
-    /// a key is saved, never the key.
     func secretRow(_ account: String, placeholder: String) -> NSView {
         let saved = try? services.store.read(account)
         let f = NSSecureTextField()
@@ -321,8 +305,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         return stack
     }
 
-    /// Saved keys and tokens are not settings; nudge observers to check
-    /// the back ends again.
     func settingsChangedExternally() {
         NotificationCenter.default.post(name: Self.credentialsDidChange, object: nil)
     }
@@ -359,7 +341,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         return stack
     }
 
-    /// Opens the browser for OpenAI's sign-in and waits for it.
     public func signIn() {
         accountMessage = "Continue in your browser…"
         rebuild()
@@ -391,8 +372,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         }
     }
 
-    /// The GitHub token check: a status line and a Validate button.
-    /// The token is never shown, only whether it works.
     func githubValidationRow() -> NSView {
         let status = NSTextField(labelWithString: githubMessage)
         status.font = .systemFont(ofSize: 11)
@@ -405,9 +384,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         return stack
     }
 
-    /// Validates the saved GitHub token with `GET /user` and shows the
-    /// login or the error. The token is read once here and passed by
-    /// value; it is never displayed or logged.
     public func validateGitHubToken() {
         githubMessage = "Checking…"
         rebuild()
@@ -424,7 +400,6 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         }
     }
 
-    /// The first sign-in's notice that requests use the ChatGPT plan.
     func showPlanNotice() {
         guard let w = view.window, w.isVisible else { return }
         let a = NSAlert()

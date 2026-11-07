@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for GameController
-
 public struct GameControllerAPIEntity_0000: Sendable, Codable {
     public let id: String = "gamecontroller.api.0"
     public var name: String = "GameControllerEntity_0"

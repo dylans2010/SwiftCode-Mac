@@ -1,22 +1,10 @@
 import Foundation
 
-// `Font` (round R4): text styles with the Dynamic Type point sizes of
-// 07-text-images-color.md §1.1, system fonts of a fixed size, custom
-// families, weights, widths, designs, italic, leading and digit/case
-// variants; resolution against the environment (`Font.Context`,
-// `Font.Resolved`). Which typeface renders a resolved font is decided by the
-// text measurer's font provider (TextMeasurer.swift): OpenViews never uses
-// Apple's system fonts.
-
-/// A font.
 public struct Font: Hashable, Sendable {
-    /// The text styles (07 §1.1).
     public enum TextStyle: String, Hashable, CaseIterable, Sendable {
         case largeTitle, title, title2, title3, headline, subheadline, body, callout, footnote, caption, caption2
     }
 
-    /// A font weight. `value` is the weight on SwiftUI's scale (regular 0,
-    /// bold 0.4).
     public struct Weight: Hashable, Sendable {
         public let value: Double
         package init(value: Double) { self.value = value }
@@ -30,13 +18,11 @@ public struct Font: Hashable, Sendable {
         public static let heavy = Weight(value: 0.56)
         public static let black = Weight(value: 0.62)
 
-        /// The named weights, lightest first, with their OpenType weight class.
         package static let ladder: [(Weight, Int)] = [
             (.ultraLight, 100), (.thin, 200), (.light, 300), (.regular, 400), (.medium, 500),
             (.semibold, 600), (.bold, 700), (.heavy, 800), (.black, 900),
         ]
 
-        /// OpenType weight class (100…900), interpolated between named weights.
         package var weightClass: Int {
             let l = Weight.ladder
             if value <= l.first!.0.value { return l.first!.1 }
@@ -49,7 +35,6 @@ public struct Font: Hashable, Sendable {
             return 400
         }
 
-        /// `steps` named weights heavier (negative: lighter).
         package func stepped(by steps: Int) -> Weight {
             let l = Weight.ladder
             let i = l.lastIndex { $0.0.value <= value } ?? 0
@@ -57,8 +42,6 @@ public struct Font: Hashable, Sendable {
         }
     }
 
-    /// A font width. Values are ours (the spec names the widths only):
-    /// compressed −0.3, condensed −0.2, standard 0, expanded 0.2.
     public struct Width: Hashable, Sendable {
         public var value: CGFloat
         public init(_ value: CGFloat) { self.value = value }
@@ -67,7 +50,6 @@ public struct Font: Hashable, Sendable {
         public static let standard = Width(0)
         public static let expanded = Width(0.2)
 
-        /// OpenType width class (1…9, 5 normal).
         package var widthClass: Int {
             switch value {
             case ..<(-0.25): return 2
@@ -82,7 +64,6 @@ public struct Font: Hashable, Sendable {
         case `default`, serif, rounded, monospaced
     }
 
-    /// Line spacing variants.
     public enum Leading: Hashable, Sendable {
         case standard, tight, loose
     }
@@ -90,7 +71,6 @@ public struct Font: Hashable, Sendable {
     package enum Base: Hashable, Sendable {
         case style(TextStyle)
         case system(size: CGFloat)
-        /// A family by name; `relativeTo` nil = fixed size.
         case custom(String, size: CGFloat, relativeTo: TextStyle?)
     }
 
@@ -126,7 +106,6 @@ public struct Font: Hashable, Sendable {
     public static let footnote = Font(base: .style(.footnote))
     public static let caption = Font(base: .style(.caption))
     public static let caption2 = Font(base: .style(.caption2))
-    /// The default font of text (body).
     public static let `default` = Font.body
 
     public static func system(_ style: TextStyle, design: Design? = nil, weight: Weight? = nil) -> Font {
@@ -143,7 +122,6 @@ public struct Font: Hashable, Sendable {
         return f
     }
 
-    /// A custom family that scales with the body style.
     public static func custom(_ name: String, size: CGFloat) -> Font {
         Font(base: .custom(name, size: size, relativeTo: .body))
     }
@@ -172,19 +150,12 @@ public struct Font: Hashable, Sendable {
     public func uppercaseSmallCaps() -> Font { var f = self; f.smallCapsOptions.insert(.uppercase); return f }
     public func uppercaseSmallCaps(_ isActive: Bool) -> Font { isActive ? uppercaseSmallCaps() : self }
     public func leading(_ leading: Leading) -> Font { var f = self; f.leading = leading; return f }
-    /// The same font at a fixed point size.
     public func pointSize(_ size: CGFloat) -> Font { var f = self; f.pointSizeOverride = size; return f }
-    /// The same font scaled by `factor`.
     public func scaled(by factor: CGFloat) -> Font { var f = self; f.scaleFactor *= factor; return f }
 
-    // MARK: Resolution
-
-    /// What resolution reads from the environment.
     public struct Context: Hashable, Sendable, CustomDebugStringConvertible {
         package var dynamicTypeSize: DynamicTypeSize
         package var legibilityWeight: LegibilityWeight?
-        /// Text styles at the desktop sizes (`DesktopTextStyles`) instead
-        /// of the phone's Dynamic Type table.
         package var desktopTextStyles: Bool
 
         package init(dynamicTypeSize: DynamicTypeSize = .large, legibilityWeight: LegibilityWeight? = .regular,
@@ -199,13 +170,11 @@ public struct Font: Hashable, Sendable {
                 + (desktopTextStyles ? ", desktop" : "") + ")"
         }
 
-        /// A text style's point size in this context.
         package func pointSize(_ style: DynamicTypeTable.Style) -> CGFloat {
             desktopTextStyles ? DesktopTextStyles.pointSize(style) : DynamicTypeTable.pointSize(style, dynamicTypeSize)
         }
     }
 
-    /// A font resolved for a context.
     public struct Resolved: Hashable, Sendable {
         public let pointSize: CGFloat
         public let weight: Weight
@@ -236,7 +205,7 @@ public struct Font: Hashable, Sendable {
         switch base {
         case .style(let s):
             size = context.pointSize(.init(s))
-            if self.weight == nil && s == .headline { weight = context.desktopTextStyles ? .bold : .semibold } // 07 §1.1
+            if self.weight == nil && s == .headline { weight = context.desktopTextStyles ? .bold : .semibold }
             style = s
         case .system(let s):
             size = s
@@ -263,14 +232,10 @@ public struct Font: Hashable, Sendable {
 }
 
 extension EnvironmentValues {
-    /// The values font resolution reads.
     public var fontResolutionContext: Font.Context {
         Font.Context(dynamicTypeSize: dynamicTypeSize, legibilityWeight: legibilityWeight, desktopTextStyles: _desktopTextStyles)
     }
 
-    /// Text styles resolve to the desktop sizes (`DesktopTextStyles`):
-    /// set by the app host on window-system back ends, where the phone's
-    /// Dynamic Type sizes are too large for desktop chrome.
     package var _desktopTextStyles: Bool {
         get { self[DesktopTextStylesKey.self] }
         set { self[DesktopTextStylesKey.self] = newValue }
@@ -279,12 +244,6 @@ extension EnvironmentValues {
 
 private enum DesktopTextStylesKey: EnvironmentKey { static let defaultValue = false }
 
-/// The text styles' point sizes on a desktop: the sizes Apple's Human
-/// Interface Guidelines publish for macOS's built-in text styles
-/// (Typography ▸ Specifications ▸ macOS): large title 26, title 22,
-/// title 2 17, title 3 15, headline 13 bold, body 13, callout 12,
-/// subheadline 11, footnote 10, caption 10, caption 2 10. They do not
-/// follow Dynamic Type (macOS has none).
 package enum DesktopTextStyles {
     package static func pointSize(_ style: DynamicTypeTable.Style) -> CGFloat {
         switch style {
@@ -302,10 +261,6 @@ package enum DesktopTextStyles {
     }
 }
 
-/// Dynamic Type point sizes per text style and size category
-/// (07-text-images-color.md §1.1, UIKit's 13 styles; SwiftUI's `title` is
-/// `title1`, `caption` is `caption1`, and the two extra-large titles are not
-/// SwiftUI styles on iOS).
 package enum DynamicTypeTable {
     package enum Style: CaseIterable, Hashable, Sendable {
         case largeTitle, title1, title2, title3, headline, subheadline, body, callout, footnote, caption1, caption2
@@ -328,7 +283,6 @@ package enum DynamicTypeTable {
         }
     }
 
-    /// Columns: xSmall … xxxLarge, accessibility1 … accessibility5.
     package static let sizes: [Style: [CGFloat]] = [
         .largeTitle: [31, 32, 33, 34, 36, 38, 40, 44, 48, 52, 56, 60],
         .title1: [25, 26, 27, 28, 30, 32, 34, 38, 43, 48, 53, 58],
@@ -349,8 +303,6 @@ package enum DynamicTypeTable {
         sizes[style]![DynamicTypeSize.allCases.firstIndex(of: size)!]
     }
 
-    /// Default weight of a style: headline semibold, the extra-large titles
-    /// bold, the others regular (07 §1.1).
     package static func weight(_ style: Style) -> Font.Weight {
         switch style {
         case .headline: return .semibold

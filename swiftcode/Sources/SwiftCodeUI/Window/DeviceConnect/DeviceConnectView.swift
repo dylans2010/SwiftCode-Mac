@@ -3,23 +3,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import SwiftCodeDeviceModel
 
-/// The physical-device connect window: discover iOS devices over
-/// USB or Wi-Fi (`xcrun xcdevice list`), validate the Xcode
-/// environment, build with `xcodebuild`, install and launch with
-/// `devicectl`/`simctl`, and watch the deployment pipeline, console,
-/// sessions and history.
-///
-/// This is the port of Legacy's whole DeviceConnectKit UI
-/// (`SwiftCode/Views/Build/DeviceConnectKit/DeviceConnectView.swift`
-/// + `Views/Console/`, `Deployment/`, `Environment/`, `Inspector/`,
-/// `Sessions/`, `Settings/`, `Sheets/`, `Sidebar/`, `Toolbar/`,
-/// `Components/`): the same sections and actions, rebuilt in SwiftCode
-/// style (default accent, no Legacy orange) on the ported
-/// `SwiftCodeDeviceModel` managers. SwiftCode's Device Hub covers simulators
-/// and remote sessions; this is the missing physical-device side.
-/// Hosting and menu wiring are on the integration list: this view is
-/// presented with `NSHostingController`, as `SettingsPanes.swift`
-/// already does for `PaywallView`.
 @MainActor
 struct DeviceConnectView: View {
     @State private var selection = DeviceConnectSection.devices

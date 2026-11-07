@@ -1,14 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Transfer Projects/TransferProjectsHomeView.swift
-//
-// Adapted for SwiftCode: production `ProjectTransferManager.startTransfer`
-// takes a `CollaborationProject`, while Legacy took Legacy's `Project`;
-// the call site now wraps the active `Project` (`name` +
-// `directoryURL`) in a `CollaborationProject`. Everything else is
-// verbatim. `PeerSessionManager` / `ProjectTransferManager` /
-// `TransferPermission` are in `SwiftCodeCollaboration`;
-// `ProjectSessionStore` / `Project` are in `SwiftCodeIDECore`.
-
 import SwiftCodeCollaboration
 import SwiftCodeIDECore
 import SwiftUI

@@ -1,13 +1,8 @@
-// Tests of VulkanMetalBackend through the MetalBackend API with hand-built
-// command models (no protocol decoder). They need a Vulkan GPU with
-// VK_EXT_external_memory_host (the Thor); elsewhere they are skipped.
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
 @testable import SwiftCodeVulkan
 
-/// Page-aligned shared anonymous memory, standing in for guest pages.
 final class HostPages: @unchecked Sendable {
     let pointer: UnsafeMutableRawPointer
     let length: Int
@@ -37,7 +32,6 @@ final class HostPages: @unchecked Sendable {
     }
 }
 
-/// Shared test state: one backend (device creation is not free) and the test shaders.
 enum VK {
     static let lock = NSLock()
     nonisolated(unsafe) static var counter: UInt64 = 1000
@@ -56,13 +50,11 @@ enum VK {
         t.add(Array("test:fill".utf8), TranslatedShader(spirv: TestShaders.fill, reflection: ShaderReflection(stage: .kernel, entryPoint: "main")))
         t.add(Array("test:tri.vert".utf8), TranslatedShader(spirv: TestShaders.triVert, reflection: ShaderReflection(stage: .vertex, entryPoint: "main")))
         t.add(Array("test:color.frag".utf8), TranslatedShader(spirv: TestShaders.colorFrag, reflection: ShaderReflection(stage: .fragment, entryPoint: "main")))
-        // The triangle's vertex shader with a reflection that reads instance_id.
         var instReflection = ShaderReflection(stage: .vertex, entryPoint: "main")
         instReflection.builtins = ["instance_id"]
         t.add(Array("test:tri.vert+inst".utf8), TranslatedShader(spirv: TestShaders.triVert, reflection: instReflection))
         t.add(Array("test:full.vert".utf8), TranslatedShader(spirv: TestShaders.fullVert, reflection: ShaderReflection(stage: .vertex, entryPoint: "main")))
         t.add(Array("test:tex.frag".utf8), TranslatedShader(spirv: TestShaders.texFrag, reflection: ShaderReflection(stage: .fragment, entryPoint: "main")))
-        // The same shader with a reflection that lists its texture (as swiftcode-airc's does).
         var texReflection = ShaderReflection(stage: .fragment, entryPoint: "main")
         texReflection.textures = [ShaderReflection.Binding(index: 0)]
         t.add(Array("test:tex.frag+refl".utf8), TranslatedShader(spirv: TestShaders.texFrag, reflection: texReflection))
@@ -77,7 +69,6 @@ enum VK {
 
     static var available: Bool { backend.isAvailable }
 
-    /// A function handle for one of the test shaders.
     static func function(_ name: String) throws -> MetalHandle {
         let h = handle()
         try backend.createFunction(h, metallib: Array("test:\(name)".utf8))
@@ -92,8 +83,6 @@ enum VK {
         let done = DispatchSemaphore(value: 0)
     }
 
-    /// Submits and waits (10 s at most). Returns the status and whether
-    /// `scheduled` came before `completed`.
     @discardableResult
     static func run(_ passes: [MetalPass]) -> (status: Int, scheduledFirst: Bool) {
         let c = Completion()
@@ -117,7 +106,6 @@ enum VK {
         return t
     }
 
-    /// Reads a texture back through getBytes (tightly packed rows).
     static func read(_ texture: MetalHandle, _ w: Int, _ h: Int, bpp: Int = 4) throws -> [UInt8] {
         let pages = HostPages(roundUp(w * h * bpp, 16384))
         try backend.getBytes(texture: texture, MetalRegion(width: w, height: h), level: 0, slice: 0,
@@ -141,7 +129,6 @@ struct VulkanBackendTests {
     @Test func deviceAndFormats() throws {
         let b = VK.backend
         print("device: \(b.deviceName), subgroup \(b.subgroupSize), limits \(b.limits())")
-        // The home-screen formats of metal-sim-protocol.md §10 must all map.
         let homeScreen: [UInt32] = [115, 80, 65, 253, 25, 10, 1, 70, 81, 71, 110, 250, 252, 92, 90]
         for f in homeScreen {
             let v = b.vulkanFormat(forMetal: f)
@@ -162,7 +149,6 @@ struct VulkanBackendTests {
     @Test func computeOverGuestMemory() throws {
         let b = VK.backend
         let n = 1000
-        // Two "guest objects": buffers at unaligned offsets inside the first.
         let guest = HostPages(65536), other = HostPages(16384)
         let aOff = 0, bOff = 8192 + 64, outOff = 16384 + 128
         for i in 0..<n {
@@ -200,15 +186,6 @@ struct VulkanBackendTests {
         for h in [ha, hb, hout, hcount, pipe] { b.release(h) }
     }
 
-    /// A kernel named in `laneIsolatedKernels` runs one thread per workgroup
-    /// (§15.5) with the same result; the grid guard still holds.
-    /// stage8-contract.md §15.9: a kernel writes a one-level view of a
-    /// mipmapped texture (visionOS RealityKit's ASTC mip chains), and the
-    /// view's heap slot belonged to a released texture before. Views had no
-    /// storage view (the identity test failed for every view's spelled-out
-    /// swizzle), so the write went through the released texture's storage
-    /// descriptor into freed memory, and the Thor's GPU never finished the
-    /// dispatch. Its own back end: without the fix the queue stops.
     @Test func kernelWritesAViewInAReusedSlot() throws {
         var o = VulkanMetalBackend.Options()
         o.log = { print($0) }
@@ -224,9 +201,6 @@ struct VulkanBackendTests {
                      scheduled: {}, completed: { s in status.value = s; done.signal() })
             return done.wait(timeout: .now() + 8) == .timedOut ? -2 : status.value
         }
-        // A writable mipmapped texture, and a writable texture written once
-        // and released: once the GPU is done with it, its image memory is
-        // freed and its slot is free.
         let t = VK.handle(), level1 = VK.handle(), old = VK.handle()
         try b.createTexture(t, MetalTextureDescriptor(pixelFormat: MetalPixelFormat.rgba8Unorm, width: 80, height: 48,
                                                       mipmapLevelCount: 2, usage: 0x3, resourceOptions: 0x20), iosurface: nil)
@@ -235,14 +209,12 @@ struct VulkanBackendTests {
         #expect(run([.compute([.setComputePipelineState(pipe), .setTexture(index: 0, texture: old),
                                .dispatchThreads(MetalSize3(256, 256, 1), threadsPerThreadgroup: MetalSize3(8, 8, 1))])]) == 4)
         b.release(old)
-        #expect(run([]) == 4)  // the release is carried out after this completes
-        // A view of level 1 takes the freed slot.
+        #expect(run([]) == 4)
         try b.createTextureView(level1, parent: t, MetalTextureViewDescriptor(pixelFormat: MetalPixelFormat.rgba8Unorm, levels: 1..<2))
         let status = run([.compute([.setComputePipelineState(pipe), .setTexture(index: 0, texture: level1),
                                     .dispatchThreads(MetalSize3(40, 24, 1), threadsPerThreadgroup: MetalSize3(8, 8, 1))])])
         #expect(status == 4, "the dispatch did not finish (status \(status))")
         guard status == 4 else { return }
-        // The write lands in level 1.
         let pages = HostPages(16384)
         try b.getBytes(texture: t, MetalRegion(width: 40, height: 24), level: 1, slice: 0,
                        into: pages.region(0, 40 * 24 * 4), bytesPerRow: 40 * 4, bytesPerImage: 40 * 24 * 4)
@@ -253,13 +225,6 @@ struct VulkanBackendTests {
         for h in [level1, t, pipe, fn] { b.release(h) }
     }
 
-    /// visionos.md §10.20: a kernel writes an sRGB texture (shaderRead |
-    /// shaderWrite | pixelFormatView) through RGBA8Unorm views of the whole
-    /// texture and of one level, as visionOS RealityKit's ASTC decoder does.
-    /// An sRGB format cannot be a storage image, so the image had no storage
-    /// usage, its unorm views no storage view, and the writes went to the
-    /// dummy image: the room's textures stayed zero. The bytes written must
-    /// land unchanged (a unorm view stores them as they are).
     @Test func kernelWritesUnormViewsOfAnSRGBTexture() throws {
         guard VK.available else { return }
         let b = VK.backend
@@ -290,17 +255,11 @@ struct VulkanBackendTests {
             for i in 0..<(w * h) where px[4 * i] != UInt8(i % w) || px[4 * i + 1] != UInt8(i / w) || px[4 * i + 3] != 255 { bad += 1 }
             #expect(bad == 0, "level \(level): \(bad) of \(w * h) texels not written")
         }
-        // The sRGB texture itself is still sampled and rendered as sRGB.
         #expect(b.textures[t]?.shaderView != nil)
         #expect(b.textures[whole]?.storageView != nil && b.textures[level1]?.storageView != nil)
         for x in [level1, whole, t, pipe] { b.release(x) }
     }
 
-    /// A cube texture Metal only reads gets a storage view (visionos.md
-    /// §10.24): a function's `read()` of a cube face goes through it, and
-    /// without one visionOS RealityKit's `generateClampedMap` read the
-    /// room's environment cube as zeros (black reflections). A 2D texture
-    /// Metal only reads still gets none.
     @Test func readOnlyCubesGetStorageViews() throws {
         guard VK.available, VulkanMetalBackend.storageForCubeReads, !VulkanMetalBackend.storageForEveryTexture else { return }
         let b = VK.backend
@@ -312,14 +271,10 @@ struct VulkanBackendTests {
                                                          usage: MetalTextureUsage.shaderRead, resourceOptions: 0x20), iosurface: nil)
         #expect(b.textures[cube]?.storageView != nil && b.textures[cube]?.shaderView != nil)
         #expect(b.textures[flat]?.storageView == nil)
-        // The cube's levels own consecutive storage slots (explicit-level reads).
         #expect(try #require(b.heapSlots(ofTexture: cube)).count == 6)
         for x in [cube, flat] { b.release(x) }
     }
 
-    /// A snapshot restore (visionos.md §10.21) reserves the heap slots the
-    /// textures and samplers had: a fresh back end hands them out to those
-    /// handles only, in any creation order, and to nothing made first.
     @Test func reservedHeapSlotsGoBackToTheirObjects() throws {
         guard VK.available else { return }
         let a = VK.backend
@@ -346,7 +301,6 @@ struct VulkanBackendTests {
         let b = VulkanMetalBackend(translator: VK.translator, options: o)
         defer { b.shutdown() }
         b.reserveHeapSlots(textures: [t2: run2, t3: run3], samplers: [s1: UInt32(sid)])
-        // Made first, a texture and a sampler of other handles get other slots.
         let other = VK.handle(), otherSampler = VK.handle()
         try b.createTexture(other, storage, iosurface: nil)
         var nearest = MetalSamplerDescriptor()
@@ -356,26 +310,20 @@ struct VulkanBackendTests {
         #expect(!(run2.index..<run2.index + run2.count).overlaps(otherRun.index..<otherRun.index + otherRun.count))
         #expect(!(run3.index..<run3.index + run3.count).overlaps(otherRun.index..<otherRun.index + otherRun.count))
         #expect(b.gpuResourceID(ofSampler: otherSampler) != sid)
-        // Then the reserved ones, in reverse order, get exactly their runs back.
         try b.createTexture(t3, storage, iosurface: nil)
         try b.createTexture(t2, sampled, iosurface: nil)
         try b.createSampler(s1, linear)
         #expect(b.heapSlots(ofTexture: t2).map { $0 == run2 } == true)
         #expect(b.heapSlots(ofTexture: t3).map { $0 == run3 } == true)
         #expect(b.gpuResourceID(ofSampler: s1) == sid)
-        // An empty call gives back what nobody used; nothing is released twice.
         b.reserveHeapSlots(textures: [VK.handle(): (index: 900, count: 1)], samplers: [:])
         b.reserveHeapSlots(textures: [:], samplers: [:])
         #expect(b.textureIndices.badReleases == 0 && b.samplerIndices.badReleases == 0)
     }
 
-    /// A texture Metal did not mark `shaderWrite` has no storage view; a
-    /// kernel that writes it anyway writes the dummy image (logged), never
-    /// what its heap slot held before (a released texture's view).
     @Test func kernelWritesTextureWithoutShaderWriteUsage() throws {
         var o = VulkanMetalBackend.Options()
         o.log = { print($0) }
-        // The fill kernel with a reflection that says texture 0 is written.
         let tr = PrebuiltShaderTranslator()
         var refl = ShaderReflection(stage: .kernel, entryPoint: "main")
         var written = ShaderReflection.Binding(index: 0)
@@ -394,16 +342,13 @@ struct VulkanBackendTests {
                      scheduled: {}, completed: { s in status.value = s; done.signal() })
             return done.wait(timeout: .now() + 8) == .timedOut ? -2 : status.value
         }
-        // A writable texture, written once and released: once the GPU is
-        // done with it, its image memory is freed and its slot is free.
         let old = VK.handle()
         try b.createTexture(old, MetalTextureDescriptor(pixelFormat: MetalPixelFormat.rgba8Unorm, width: 256, height: 256,
                                                         usage: 0x3, resourceOptions: 0x20), iosurface: nil)
         #expect(run([.compute([.setComputePipelineState(pipe), .setTexture(index: 0, texture: old),
                                .dispatchThreads(MetalSize3(256, 256, 1), threadsPerThreadgroup: MetalSize3(8, 8, 1))])]) == 4)
         b.release(old)
-        #expect(run([]) == 4)  // the release is carried out after this completes
-        // shaderRead | renderTarget, no shaderWrite: it takes the freed slot.
+        #expect(run([]) == 4)
         let t = VK.handle()
         try b.createTexture(t, MetalTextureDescriptor(pixelFormat: MetalPixelFormat.rgba8Unorm, width: 40, height: 24,
                                                       usage: 0x5, resourceOptions: 0x20), iosurface: nil)
@@ -414,10 +359,6 @@ struct VulkanBackendTests {
         for h in [t, pipe, fn] { b.release(h) }
     }
 
-    /// A kernel's explicit-level storage access uses slot heapIndex + L
-    /// (swiftcode-airc); a mipmapped writable texture owns one slot per level,
-    /// each with a one-level storage view, and the slots go back to the
-    /// dummy image when the texture is released.
     @Test func mipmappedStorageTextureOwnsOneSlotPerLevel() throws {
         let b = VK.backend
         let t = VK.handle()
@@ -434,7 +375,6 @@ struct VulkanBackendTests {
         let v = b.textures[view]
         b.cond.unlock()
         #expect(v?.heapCount == 3, "view: levels \(v?.levelCount ?? -1), storage \(v?.storageView != nil), slots \(v?.heapCount ?? 0)")
-        // A one-level view or a texture without storage owns one slot.
         let single = VK.handle()
         try b.createTextureView(single, parent: t, MetalTextureViewDescriptor(pixelFormat: MetalPixelFormat.rgba8Unorm, levels: 6..<7))
         b.cond.lock()
@@ -497,13 +437,6 @@ struct VulkanBackendTests {
         VK.backend.release(t)
     }
 
-    /// visionOS layers (visionos.md §10.12.4, §10.12.5 item 4): wakeboardd's
-    /// shared texture (messageType 19: 2D array, array length 1,
-    /// `BGRA8Unorm_sRGB`) is written by backboardd only through its own
-    /// messageType-20 ref (a view of the same image), (a) as the
-    /// MultisampleResolve target of a 4× pass (resolve level 0, slice 0) and
-    /// (b) as colour attachment 0. Both must land in the image the message-19
-    /// handle reads.
     @Test func sharedLayerViewTakesResolveAndAttachmentWrites() throws {
         let b = VK.backend
         let w = 64, h = 32
@@ -526,11 +459,9 @@ struct VulkanBackendTests {
             let px = try VK.read(t, w, h)
             return stride(from: 0, to: px.count, by: 4).allSatisfy { Array(px[$0..<$0 + 4]) == want }
         }
-        // (a) The 4× pass clears to red and resolves into the opened ref.
         #expect(VK.run([pass(msaa, resolve: opened, store: MetalStoreAction.multisampleResolve, clear: [1, 0, 0, 1])]).status == 4)
         #expect(try uniform(layer, [0, 0, 255, 255]), "resolve through the message-20 ref")
         #expect(try uniform(opened, [0, 0, 255, 255]))
-        // (b) The opened ref as colour attachment 0, cleared to (0, 0, 0, 0) then green.
         #expect(VK.run([pass(opened, resolve: nil, store: MetalStoreAction.store, clear: [0, 0, 0, 0])]).status == 4)
         #expect(try uniform(layer, [0, 0, 0, 0]))
         #expect(VK.run([pass(opened, resolve: nil, store: MetalStoreAction.store, clear: [0, 1, 0, 1])]).status == 4)
@@ -538,11 +469,6 @@ struct VulkanBackendTests {
         for t in [opened, msaa, layer] { b.release(t) }
     }
 
-    /// A red triangle with its apex at the top of the target (Metal clip
-    /// space is y-up), through a vertex descriptor and a constant buffer.
-    /// A draw whose base instance reaches past every vertex buffer (from a
-    /// wrongly decoded record, visionos.md §10.13) is skipped when the
-    /// vertex function reads instance_id; base instance 0 draws.
     @Test func implausibleBaseInstanceIsSkipped() throws {
         for (base, drawn) in [(1_000, false), (0, true)] {
             let t = try VK.texture(MetalPixelFormat.bgra8Unorm, 64, 64)
@@ -562,12 +488,11 @@ struct VulkanBackendTests {
                       before: [MetalRenderCommand] = [], after: [MetalRenderCommand] = []) throws -> Int {
         let b = VK.backend
         let verts = HostPages(16384)
-        // float2 position + uchar4 color, stride 12.
         let positions: [(Float, Float)] = [(-1, -1), (1, -1), (0, 1)]
         for (i, p) in positions.enumerated() {
             verts.pointer.storeBytes(of: p.0, toByteOffset: 12 * i, as: Float.self)
             verts.pointer.storeBytes(of: p.1, toByteOffset: 12 * i + 4, as: Float.self)
-            verts.pointer.storeBytes(of: UInt32(0xFF00_00FF), toByteOffset: 12 * i + 8, as: UInt32.self)  // r=255, a=255
+            verts.pointer.storeBytes(of: UInt32(0xFF00_00FF), toByteOffset: 12 * i + 8, as: UInt32.self)
         }
         let xf: [Float] = [1, 1, 0, 0]
         for (i, v) in xf.enumerated() { verts.pointer.storeBytes(of: v, toByteOffset: 4096 + 4 * i, as: Float.self) }
@@ -625,23 +550,15 @@ struct VulkanBackendTests {
         VK.backend.release(t)
     }
 
-    /// The triangle (-1,-1), (1,-1), (0,1) is counter-clockwise on screen.
     @Test func cullingAndWinding() throws {
         let t = try VK.texture(MetalPixelFormat.rgba8Unorm, 32, 32)
-        // Front = counter-clockwise, cull back: visible.
         #expect(try drawTriangle(into: t, format: MetalPixelFormat.rgba8Unorm, cull: 2, winding: 1) == 4)
         #expect(try VK.read(t, 32, 32)[4 * (28 * 32 + 16)] == 255)
-        // Front = clockwise (Metal's default), cull back: culled.
         #expect(try drawTriangle(into: t, format: MetalPixelFormat.rgba8Unorm, cull: 2, winding: 0) == 4)
         #expect(try VK.read(t, 32, 32)[4 * (28 * 32 + 16)] == 0)
         VK.backend.release(t)
     }
 
-    /// Visibility results (record 132, visionos.md §10.20.8): a draw in
-    /// boolean mode at offset 0 that covers pixels makes slot 0 non-zero; a
-    /// culled draw in counting mode at offset 8 makes slot 8 zero; slot 16,
-    /// which no draw counts into, keeps its bytes. Without queries every
-    /// slot keeps the 0xAB filler.
     @Test func visibilityResultsCountSamples() throws {
         let b = VK.backend
         let pages = HostPages(16384)
@@ -663,11 +580,6 @@ struct VulkanBackendTests {
         withExtendedLifetime(pages) {}
     }
 
-    /// A pipeline without a fragment function draws depth only
-    /// (visionos.md §10.22.2): its draws count samples for visibility
-    /// results and leave the colour attachment as it was. Before, such
-    /// pipelines were not rasterized at all and every occlusion query
-    /// counted 0.
     @Test func depthOnlyPipelinesRasterize() throws {
         let b = VK.backend
         let pages = HostPages(16384)
@@ -702,7 +614,7 @@ struct VulkanBackendTests {
         let pipe = VK.handle(), ds = VK.handle()
         try b.createRenderPipeline(pipe, desc)
         var dsd = MetalDepthStencilDescriptor()
-        dsd.depthCompareFunction = 6  // GreaterEqual against a clear of 0 (reverse depth)
+        dsd.depthCompareFunction = 6
         try b.createDepthStencilState(ds, dsd)
         var d = MetalRenderPassDescriptor()
         d.colorAttachments = [MetalColorAttachment(index: 0, attachment: MetalRenderPassAttachment(
@@ -729,9 +641,6 @@ struct VulkanBackendTests {
         withExtendedLifetime((pages, verts)) {}
     }
 
-    /// A `replaceRegion` body shorter than its region (metal-sim-protocol.md
-    /// §5.3 says the guest sends exactly the region's bytes) uploads the
-    /// bytes it has and zeros for the rest, never what lies past the data.
     @Test func shortUploadZeroFillsTheTail() throws {
         let b = VK.backend
         let t = try VK.texture(MetalPixelFormat.rgba8Unorm, 4, 4, usage: 1)
@@ -744,7 +653,6 @@ struct VulkanBackendTests {
         let px = try VK.read(t, 4, 4)
         #expect(Array(px[0..<40]) == [UInt8](repeating: 0x11, count: 40))
         #expect(Array(px[40..<64]) == [UInt8](repeating: 0, count: 24))
-        // A full upload after it is unchanged.
         let full = (0..<64).map { UInt8($0) }
         try b.replaceRegion(texture: t, region, level: 0, slice: 0, bytes: full, bytesPerRow: 16, bytesPerImage: 64)
         #expect(try VK.read(t, 4, 4) == full)
@@ -758,7 +666,7 @@ struct VulkanBackendTests {
         try b.replaceRegion(texture: src, MetalRegion(width: 2, height: 2), level: 0, slice: 0, bytes: texels,
                             bytesPerRow: 8, bytesPerImage: 16)
         let smp = VK.handle()
-        try b.createSampler(smp, MetalSamplerDescriptor())  // nearest, clamp
+        try b.createSampler(smp, MetalSamplerDescriptor())
         var desc = MetalRenderPipelineDescriptor()
         desc.vertexFunction = try VK.function("full.vert")
         desc.fragmentFunction = try VK.function("tex.frag")
@@ -787,9 +695,6 @@ struct VulkanBackendTests {
         for h in [src, smp, pipe, t] { b.release(h) }
     }
 
-    /// A draw that samples its own color attachment samples a copy made
-    /// just before the draw (§15.6): the cleared color comes back, and the
-    /// copy is counted.
     @Test func drawSamplingItsOwnTargetReadsASnapshot() throws {
         let b = VK.backend
         let smp = VK.handle()
@@ -818,8 +723,6 @@ struct VulkanBackendTests {
         for h in [smp, pipe, t] { b.release(h) }
     }
 
-    /// A scissored draw that samples its own target copies only its
-    /// scissor rectangle (2 texels wider) and reads the cleared color there.
     @Test func scissoredFeedbackDrawCopiesItsScissor() throws {
         let b = VK.backend
         let smp = VK.handle()
@@ -913,11 +816,8 @@ struct VulkanBackendTests {
         for h in [t, pipe] { b.release(h) }
     }
 
-    /// An IOSurface texture: the surface's pixels are read before the pass
-    /// (load action Load) and the rendering is in surface memory before
-    /// `scheduled`.
     @Test func ioSurfaceTexture() throws {
-        let w = 64, h = 64, pitch = 320  // pitch larger than 64 × 4
+        let w = 64, h = 64, pitch = 320
         let surface = HostPages(roundUp(pitch * h, 16384))
         for y in 0..<h {
             for x in 0..<w { surface.pointer.storeBytes(of: UInt32(0xFF00_FF00), toByteOffset: y * pitch + 4 * x, as: UInt32.self) }
@@ -927,9 +827,8 @@ struct VulkanBackendTests {
         let t = try VK.texture(MetalPixelFormat.bgra8Unorm, w, h, usage: 0x5, private: false, iosurface: backing)
         #expect(try drawTriangle(into: t, format: MetalPixelFormat.bgra8Unorm, load: MetalLoadAction.load) == 4)
         func at(_ x: Int, _ y: Int) -> UInt32 { surface.pointer.load(fromByteOffset: y * pitch + 4 * x, as: UInt32.self) }
-        #expect(at(32, 2) == 0xFFFF_0000, "apex \(hex(at(32, 2)))")   // red in BGRA
-        #expect(at(2, 2) == 0xFF00_FF00, "outside \(hex(at(2, 2)))")  // green kept (loaded)
-        // `scheduled` must come before `completed`.
+        #expect(at(32, 2) == 0xFFFF_0000, "apex \(hex(at(32, 2)))")
+        #expect(at(2, 2) == 0xFF00_FF00, "outside \(hex(at(2, 2)))")
         let r = VK.run([VK.colorPass(t, clear: [0, 0, 1, 1])])
         #expect(r.status == 4 && r.scheduledFirst)
         #expect(at(10, 10) == 0xFF00_00FF, "after clear \(hex(at(10, 10)))")
@@ -944,10 +843,6 @@ struct VulkanBackendTests {
         func write() { lock.withLock { seed &+= 1 } }
     }
 
-    /// IOSurface copies limited to what changed (stage8-contract.md §14):
-    /// a copy-out covers only the scissor rects drawn in; a copy-in is
-    /// skipped while the image holds the surface's pixels, and happens again
-    /// after a CPU write lock (seed) or another image's copy-out.
     @Test func ioSurfaceCopiesOnlyWhatChanged() throws {
         let b = VK.backend
         let w = 64, h = 64, pitch = 320
@@ -966,13 +861,10 @@ struct VulkanBackendTests {
         }
         let band = MetalScissorRect(x: 24, y: 0, width: 16, height: h)
 
-        // 1. Scissored draw: red inside the band, green kept outside it.
         #expect(try drawTriangle(into: t1, format: MetalPixelFormat.bgra8Unorm, load: MetalLoadAction.load, scissor: band) == 4)
         #expect(at(32, 40) == 0xFFFF_0000, "inside \(hex(at(32, 40)))")
         #expect(at(4, 62) == 0xFF00_FF00, "outside the scissor \(hex(at(4, 62)))")
 
-        // 2. A write without a lock is not seen: the copy-in is skipped, and
-        // the copy-out (the band only) leaves the written pixel alone.
         let skipped = b.stats.surfaceUploadsSkipped
         set(2, 2, 0xFF00_00FF)
         #expect(try drawTriangle(into: t1, format: MetalPixelFormat.bgra8Unorm, load: MetalLoadAction.load, scissor: band) == 4)
@@ -980,21 +872,18 @@ struct VulkanBackendTests {
         #expect(at(2, 2) == 0xFF00_00FF, "unlocked CPU write kept in surface memory \(hex(at(2, 2)))")
         #expect(try image(t1, 2, 2) == 0xFF00_FF00, "image not reloaded")
 
-        // 3. A write under a write lock (seed raised) is copied in.
         state.write()
         set(3, 3, 0xFF12_3456)
         #expect(try drawTriangle(into: t1, format: MetalPixelFormat.bgra8Unorm, load: MetalLoadAction.load, scissor: band) == 4)
         #expect(try image(t1, 3, 3) == 0xFF12_3456, "seed change copies in")
         #expect(b.stats.surfaceUploadsSkipped == skipped + 1)
 
-        // 4. A held lock means no skipping.
         state.lock.withLock { state.locked = true }
         set(5, 5, 0xFF65_4321)
         #expect(try drawTriangle(into: t1, format: MetalPixelFormat.bgra8Unorm, load: MetalLoadAction.load, scissor: band) == 4)
         #expect(try image(t1, 5, 5) == 0xFF65_4321, "locked surface copies in")
         state.lock.withLock { state.locked = false }
 
-        // 5. Another texture over the same surface writes it: t1 copies in again.
         let t2 = try VK.texture(MetalPixelFormat.bgra8Unorm, w, h, usage: 0x5, private: false, iosurface: backing)
         let other = MetalScissorRect(x: 0, y: 48, width: 64, height: 16)
         #expect(try drawTriangle(into: t2, format: MetalPixelFormat.bgra8Unorm, load: MetalLoadAction.load, scissor: other) == 4)
@@ -1003,15 +892,11 @@ struct VulkanBackendTests {
         #expect(try image(t1, 4, 62) == 0xFFFF_0000, "t1 sees t2's copy-out")
         #expect(at(4, 62) == 0xFFFF_0000)
 
-        // 6. A clear writes everything.
         #expect(VK.run([VK.colorPass(t1, clear: [0, 0, 1, 1])]).status == 4)
         #expect(at(2, 2) == 0xFF00_00FF && at(60, 60) == 0xFF00_00FF, "after clear \(hex(at(2, 2)))")
         for t in [t1, t2] { b.release(t) }
     }
 
-    /// A copy-out held behind an event wait reaches the surface only when the
-    /// held work is submitted: an image of the same surface that copied it
-    /// in meanwhile must copy it in again afterwards (no stale pixels).
     @Test func heldCopyOutInvalidatesOtherImages() throws {
         let b = VK.backend
         let w = 32, h = 32, pitch = 128
@@ -1030,17 +915,14 @@ struct VulkanBackendTests {
         }
         let event = VK.handle()
         try b.createEvent(event)
-        // tB holds the surface's (green) pixels.
         #expect(VK.run([VK.colorPass(tB, load: MetalLoadAction.load)]).status == 4)
         #expect(try pixel(tB, 2, 2) == 0xFF00_FF00)
-        // tA's clear to blue is held behind an event; meanwhile tB copies in again (still green).
         let done = DispatchSemaphore(value: 0)
         let cb = MetalCommandBuffer(process: 1, queue: VK.handle(), commandBufferRef: VK.nextID(),
                                     passes: [.event([.wait(event, value: 1)]), VK.colorPass(tA, clear: [0, 0, 1, 1])])
         b.submit(cb, scheduled: {}, completed: { _ in done.signal() })
         #expect(VK.run([VK.colorPass(tB, load: MetalLoadAction.load)]).status == 4)
         #expect(try pixel(tB, 2, 2) == 0xFF00_FF00)
-        // The held clear runs; tB must see it.
         b.signalEvent(event, value: 1)
         #expect(done.wait(timeout: .now() + 10) == .success)
         #expect(surface.pointer.load(fromByteOffset: 2 * pitch + 8, as: UInt32.self) == 0xFF00_00FF)
@@ -1051,9 +933,6 @@ struct VulkanBackendTests {
         b.waitIdle()
     }
 
-    /// A GPU that stops making progress (a submission that never completes,
-    /// app-launch.md §3.7) costs one surface-write timeout, then only short
-    /// looks; waiting resumes once the GPU moves again.
     @Test func surfaceWaitOnAStuckGPU() throws {
         var o = VulkanMetalBackend.Options()
         o.log = { print($0) }
@@ -1061,7 +940,6 @@ struct VulkanBackendTests {
         let b = VulkanMetalBackend(translator: VK.translator, options: o)
         let gate = VK.handle()
         try b.createEvent(gate)
-        // An empty submission that writes surface 21 and waits on the GPU for the gate.
         b.cond.lock()
         let rec = try b.newRecording()
         rec.waitSemaphore = b.events[gate]?.semaphore
@@ -1078,7 +956,6 @@ struct VulkanBackendTests {
         #expect(first >= 150_000_000 && second < 50_000_000, "first \(first / 1_000_000) ms, second \(second / 1_000_000) ms")
         #expect(b.stats.surfaceWriteWaitTimeouts == 1)
         b.signalEvent(gate, value: 1)
-        // The GPU moves again: a look sees the write finished, and full waits resume.
         var done = false
         for _ in 0..<400 where !done { done = b.waitForSurfaceWrites(21, timeout: 5) }
         #expect(done)
@@ -1086,9 +963,6 @@ struct VulkanBackendTests {
         b.shutdown()
     }
 
-    /// `scheduled` comes when the work is on the queue (stage8-contract.md
-    /// §14); a reader that waits for the surface's GPU writes then sees the
-    /// finished pixels.
     @Test func scheduledEarlyAndSurfaceWriteWait() throws {
         let b = VK.backend
         guard b.options.earlyScheduled else { return }
@@ -1111,9 +985,6 @@ struct VulkanBackendTests {
         b.release(t)
     }
 
-    /// Asynchronous pipeline creation plus the persistent VkPipelineCache:
-    /// a pipeline used right after creation waits for its build; the cache
-    /// is written and a second backend loads it.
     @Test func pipelineCachePersists() throws {
         let path = NSTemporaryDirectory() + "swiftcode-vk-cache-\(getpid()).bin"
         defer { try? FileManager.default.removeItem(atPath: path) }
@@ -1131,7 +1002,7 @@ struct VulkanBackendTests {
             var c = MetalColorAttachmentDescriptor(index: 0)
             c.pixelFormat = MetalPixelFormat.rgba8Unorm
             desc.colorAttachments = [c]
-            try b.createRenderPipeline(pipe, desc)  // returns before the compile is done
+            try b.createRenderPipeline(pipe, desc)
             try b.createTexture(t, MetalTextureDescriptor(pixelFormat: MetalPixelFormat.rgba8Unorm, width: 8, height: 8, usage: 5),
                                 iosurface: nil)
             let done = DispatchSemaphore(value: 0)
@@ -1160,7 +1031,6 @@ struct VulkanBackendTests {
         _ = try b.createComputePipeline(pipe, function: try VK.function("fill"))
         let done = DispatchSemaphore(value: 0)
         let cb = MetalCommandBuffer(process: 1, queue: nil, commandBufferRef: 99, passes: [
-            // An unknown texture handle reads as the dummy texture (heap index 0).
             .compute([.setComputePipelineState(pipe), .setTexture(index: 0, texture: MetalHandle(999_999)),
                       .setBuffer(index: 2, buffer: buf, offset: 0),
                       .dispatchThreads(MetalSize3(4, 4, 1), threadsPerThreadgroup: MetalSize3(4, 4, 1))]),
@@ -1170,7 +1040,6 @@ struct VulkanBackendTests {
             .blit([.copyBufferToBuffer(source: MetalHandle(424_242), sourceOffset: 0, destination: buf, destinationOffset: 0, size: 4)]),
         ])
         b.submit(cb, scheduled: {}, completed: { s in #expect(s == 4); done.signal() })
-        // Released while the command buffer may still run.
         b.release(buf)
         b.release(pipe)
         #expect(done.wait(timeout: .now() + 10) == .success)
@@ -1178,11 +1047,6 @@ struct VulkanBackendTests {
         withExtendedLifetime(mem) {}
     }
 
-    /// Event waits are held on the host per Metal queue (VulkanEventWaits.swift):
-    /// a command buffer waiting for an event that a later command buffer of
-    /// another queue signals completes (one shared Vulkan queue must not
-    /// deadlock), the same queue's next command buffer runs after it, and a
-    /// CPU signal releases a wait.
     @Test func eventWaitsAcrossQueues() throws {
         let b = VK.backend
         let event = VK.handle(), cpuEvent = VK.handle()
@@ -1203,11 +1067,9 @@ struct VulkanBackendTests {
                 done.signal()
             })
         }
-        // A1 waits for the event; A2 (same queue) must run after it; B signals it.
         submit("A1", queueA, [.event([.wait(event, value: 1)]), VK.colorPass(t1, clear: [1, 0, 0, 1])])
         submit("A2", queueA, [VK.colorPass(t1, load: MetalLoadAction.load, clear: [0, 0, 0, 1])])
         submit("B", queueB, [VK.colorPass(t2, clear: [0, 1, 0, 1]), .event([.signal(event, value: 1)])])
-        // C waits for a CPU signal.
         submit("C", queueC, [.event([.wait(cpuEvent, value: 5)]), VK.colorPass(t3, clear: [0, 0, 1, 1])])
         for _ in 0..<3 { #expect(done.wait(timeout: .now() + 10) == .success) }
         order.lock()
@@ -1219,18 +1081,11 @@ struct VulkanBackendTests {
         #expect(done.wait(timeout: .now() + 10) == .success)
         #expect(try VK.read(t1, 16, 16)[0..<4] == [255, 0, 0, 255])
         #expect(try VK.read(t3, 16, 16)[0..<4] == [0, 0, 255, 255])
-        // A wait for a value already reached costs nothing.
         #expect(VK.run([.event([.wait(event, value: 1)]), VK.colorPass(t2, clear: [1, 1, 1, 1])]).status == 4)
         for h in [event, cpuEvent, t1, t2, t3] { b.release(h) }
         b.waitIdle()
     }
 
-    /// visionOS layer events (visionos.md §10.12.2, §10.12.5 item 5):
-    /// wakeboardd's event (messageType 17) opened in backboardd (18, an
-    /// alias). backboardd's GPU signals n on its alias, and its next frame's
-    /// GPU wait for n on the same alias is satisfied by that signal; the
-    /// value wakeboardd reads through its own ref (op 41) is the last value
-    /// backboardd's GPU signalled.
     @Test func layerEventAliasCarriesGPUSignals() throws {
         let b = VK.backend
         let layer = VK.handle(), opened = VK.handle()
@@ -1243,16 +1098,13 @@ struct VulkanBackendTests {
             let cb = MetalCommandBuffer(process: 9, queue: queue, commandBufferRef: VK.nextID(), passes: passes)
             b.submit(cb, scheduled: {}, completed: { s in statuses.value = s; done.signal() })
         }
-        // The frame's event-only command buffer: wait for n − 1, signal n.
         for n: UInt64 in 1...6 {
             submit([.event([.wait(opened, value: n - 1)]), .event([.signal(opened, value: n)])])
             #expect(done.wait(timeout: .now() + 10) == .success, "frame \(n)")
             #expect(statuses.value == 4)
             #expect(b.eventValue(layer) == n, "frame \(n): wakeboardd's ref reads \(b.eventValue(layer) as Any)")
         }
-        // Frame slot of value v: (v − 1) mod 3.
         #expect(((b.eventValue(layer) ?? 0) - 1) % 3 == 2)
-        // A CPU signal through wakeboardd's ref is seen through backboardd's.
         b.signalEvent(layer, value: 9)
         #expect(b.eventValue(opened) == 9)
         b.release(opened)
@@ -1261,10 +1113,6 @@ struct VulkanBackendTests {
         b.waitIdle()
     }
 
-    /// The ordered end before exit (stage8-contract.md §12): finished work
-    /// completes normally, work held for an event that never comes completes
-    /// as an error, both backend threads end, nothing is abandoned, and a
-    /// second shutdown returns at once.
     @Test func shutdownEndsTheBackendThreads() throws {
         var o = VulkanMetalBackend.Options()
         o.log = { print($0) }
@@ -1320,15 +1168,14 @@ struct VulkanBackendTests {
     @Test func formatTable() {
         #expect(metalPixelFormatTable(MetalPixelFormat.bgra8Unorm)?.bytesPerBlock == 4)
         #expect(metalPixelFormatTable(MetalPixelFormat.rgba16Float)?.bytesPerBlock == 8)
-        #expect(metalPixelFormatTable(204)?.blockWidth == 4)        // ASTC 4x4 LDR
-        #expect(metalPixelFormatTable(218)?.blockHeight == 12)      // ASTC 12x12 LDR
+        #expect(metalPixelFormatTable(204)?.blockWidth == 4)
+        #expect(metalPixelFormatTable(218)?.blockHeight == 12)
         #expect(metalPixelFormatTable(MetalPixelFormat.depth32FloatStencil8)?.isStencil == true)
         #expect(metalVertexFormat(29) != nil && metalVertexFormat(9) != nil)
         #expect(vkColorWriteMask(0x8) == 1 && vkColorWriteMask(0xF) == 0xF)
     }
 
     @Test func reflectionDecodes() throws {
-        // The shape of swiftcode-airc's reflection (swiftcode/Translator/src/translate.cpp).
         let json = #"{"stage":"kernel","entry_point":"k","hash":"ab12","abi":{"version":1,"push_constant_size":32,"table_push_offset":0,"table_entries":192},"buffers":[{"index":0,"table_entry":0,"used":true}],"constexpr_samplers":[{"table_entry":176,"mag_filter":"linear","s_address":"repeat"}],"constant_data":{"table_entry":31,"size":3,"base64":"AQID"},"compute":{"workgroup_size_spec_ids":[0,1,2],"grid_push_offset":16,"threadgroup_memory":{"static_bytes":0,"dynamic":true,"size_spec_id":3,"slots_base":0,"slots":[{"index":0,"offset_spec_id":100}]}},"extra":5}"#
         let r = try ShaderReflection.decode(Data(json.utf8))
         #expect(r.stage == .kernel && r.entryPoint == "k" && r.hash == "ab12")
@@ -1336,7 +1183,6 @@ struct VulkanBackendTests {
         #expect(r.constantData?.bytes == [1, 2, 3])
         let key = SamplerKey(r.constexprSamplers![0])
         #expect(key.magFilter == 1 && key.s == 2)
-        // Bicubic constexpr samplers filter linearly (visionos.md §10.24).
         var bicubic = ShaderReflection.ConstexprSampler(tableEntry: 177)
         bicubic.magFilter = "bicubic"; bicubic.minFilter = "bicubic"; bicubic.mipFilter = "none"
         let b = SamplerKey(bicubic)
@@ -1347,16 +1193,12 @@ struct VulkanBackendTests {
 func hex(_ v: UInt32) -> String { String(v, radix: 16) }
 func hex(_ v: UInt64) -> String { String(v, radix: 16) }
 
-/// `IndexAllocator.claim` (visionos.md §10.21) hands out exactly the run
-/// asked for: past the slots handed out (the gap becomes free single slots)
-/// or a free run of that start and length; never a taken slot. No GPU needed.
 @Suite struct IndexAllocatorTests {
     @Test func claimsExactRuns() {
         var a = IndexAllocator(capacity: 64)
         let first = a.claim(10, count: 3)
         let taken = [a.claim(11), a.claim(10, count: 3), a.claim(0), a.claim(63, count: 2)]
         #expect(first && taken == [false, false, false, false])
-        // The skipped slots 1…9 are handed out one by one, never 10…12.
         var singles: [UInt32] = []
         for _ in 0..<9 { if let i = a.allocate() { singles.append(i) } }
         #expect(singles.sorted() == Array(1...9))

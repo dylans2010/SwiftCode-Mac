@@ -1,5 +1,3 @@
-// json.h: a small JSON value type with a writer and a parser, enough for
-// swiftcode-airc's request headers and reflection documents.
 #pragma once
 
 #include <cstdint>
@@ -16,7 +14,7 @@ struct Json {
     double num = 0;
     std::string str;
     std::vector<Json> arr;
-    std::vector<std::pair<std::string, Json>> obj;  // insertion order kept
+    std::vector<std::pair<std::string, Json>> obj;
 
     Json() = default;
     Json(bool v) : kind(Bool), b(v) {}
@@ -60,8 +58,7 @@ struct Json {
     }
 
     std::string dump(int indent = -1) const;
-    // Throws std::runtime_error on malformed input.
     static Json parse(const std::string &text);
 };
 
-}  // namespace airc
+}

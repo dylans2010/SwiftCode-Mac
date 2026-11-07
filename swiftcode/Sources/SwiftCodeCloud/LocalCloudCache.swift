@@ -1,15 +1,5 @@
 import Foundation
 
-/// The in-memory local cloud cache, backed by `CloudPersistence`.
-/// Ported verbatim from Legacy's `LocalCloudCache.swift` (46 lines):
-/// records are keyed by `"\(recordType):\(recordKey)"`, every
-/// mutation rewrites the whole cache file, and `clear()` empties
-/// both memory and disk.
-///
-/// This cache holds `CloudRecord` payloads only. It is the store
-/// `CloudManager.handleLogout` clears, and the store
-/// `CloudSyncEngine` never actually fills — Legacy never wired a
-/// remote source into it, so neither does this port.
 public actor LocalCloudCache {
     public static let shared = LocalCloudCache()
 

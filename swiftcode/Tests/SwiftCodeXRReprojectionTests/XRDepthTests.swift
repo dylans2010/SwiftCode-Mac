@@ -1,30 +1,19 @@
-// Depth encode/decode, quantisation, the message, the re-projection math, the
-// reference warp's hole filling on synthetic scenes, and (where a Vulkan
-// loader and GPU exist) the GPU against the reference
-// (specs/simulator/xr-depth.md §8).
-
 import Foundation
 import Testing
 import SwiftCodeDisplayStream
 @testable import SwiftCodeXRReprojection
 
-/// A synthetic room: a back wall at `wall` metres, a floor 1.6 m below the
-/// eye, and a box (a square at `box` metres covering the centre).
 struct SyntheticScene {
     var width = 160, height = 90
     var fov = XRFieldOfView.guest(width: 3840, height: 2160)
     var wall = 4.0, box = 1.0, boxHalf = 0.25
     var near: Float = 0.1
 
-    /// Distance along −Z of the pixel's ray, and its colour.
     func hit(u: Double, v: Double) -> (z: Double, colour: (UInt8, UInt8, UInt8)) {
         let t = fov.tangents
         let tx = t.left + u * (t.right - t.left), ty = t.up - v * (t.up - t.down)
-        // The box: a square at z = box, |x|, |y| < boxHalf.
-        if abs(tx * box) < boxHalf && abs(ty * box) < boxHalf { return (box, (40, 40, 220)) }   // red box (BGRA order)
-        // The floor y = −1.6: z = 1.6 / −ty when looking down.
-        if ty < 0 { let z = 1.6 / -ty; if z < wall { return (z, (30, 160, 30)) } }               // green floor
-        // The wall: a checker of 0.5 m.
+        if abs(tx * box) < boxHalf && abs(ty * box) < boxHalf { return (box, (40, 40, 220)) }
+        if ty < 0 { let z = 1.6 / -ty; if z < wall { return (z, (30, 160, 30)) } }
         let x = tx * wall, y = ty * wall
         let check = (Int(floor(x / 0.5)) + Int(floor(y / 0.5))) & 1 == 0
         return (wall, check ? (200, 200, 200) : (90, 90, 90))
@@ -37,7 +26,7 @@ struct SyntheticScene {
                 let h = hit(u: (Double(x) + 0.5) / Double(width), v: (Double(y) + 0.5) / Double(height))
                 let i = y * width + x
                 (c[i * 4], c[i * 4 + 1], c[i * 4 + 2]) = h.colour
-                q[i] = XRDepthSample.sample(distance: Float(h.z), near: near) & 0xFFFE    // the low bit marks the windows layer
+                q[i] = XRDepthSample.sample(distance: Float(h.z), near: near) & 0xFFFE
             }
         }
         return (c, XRDepthImage(width: width, height: height, samples: q, near: near, fov: fov))
@@ -49,7 +38,6 @@ struct SyntheticScene {
         let (_, d) = SyntheticScene(width: 960, height: 540).render()
         let packed = try XRDepthCodec.encode(d.samples, width: d.width, height: d.height)
         #expect(try XRDepthCodec.decode(packed, width: d.width, height: d.height) == d.samples)
-        // A room of planes compresses well (raw: 1 036 800 bytes).
         #expect(packed.count < 2 * d.samples.count / 8)
     }
 
@@ -70,7 +58,7 @@ struct SyntheticScene {
         #expect(XRDepthSample.sample(distance: .infinity, near: 0.1) == 0)
         #expect(XRDepthSample.distance(0, near: 0.1) == .infinity)
         #expect(XRDepthSample.quantize(reverseZ: 1.5) == 65535)
-        #expect(XRDepthSample.quantize(reverseZ: 1e-9) == 1)     // something drawn stays distinguishable from nothing
+        #expect(XRDepthSample.quantize(reverseZ: 1e-9) == 1)
     }
 
     @Test func messageRoundTrips() throws {
@@ -103,22 +91,20 @@ struct SyntheticScene {
     }
 
     @Test func translationGivesParallaxInInverseDepth() {
-        // A sideways step of b metres moves a point at z by f·b/z pixels (f in uv: 1 / (r − l)).
         let src = XRViewGeometry(pose: .identity, fov: fov)
         let b = 0.064
         let dst = XRViewGeometry(pose: SpatialPose(position: SpatialVector(b, 0, 0)), fov: fov)
         for z in [0.5, 1.0, 4.0] {
             let q = XRDepthSample.sample(distance: Float(z), near: 0.1)
             let r = XRReprojection.reproject(u: 0.5, v: 0.5, q: q, from: src, to: dst)!
-            let expected = 0.5 - b / Double(XRDepthSample.distance(q, near: 0.1)) / 2      // tangents ±1: uv per tangent = 1/2
+            let expected = 0.5 - b / Double(XRDepthSample.distance(q, near: 0.1)) / 2
             #expect(abs(r.u - expected) < 1e-6)
         }
-        // Infinity does not move with translation, only with rotation.
         let far = XRReprojection.reproject(u: 0.3, v: 0.6, q: 0, from: src, to: dst)!
         #expect(abs(far.u - 0.3) < 1e-9 && abs(far.v - 0.6) < 1e-9 && far.depth == 0)
         let turned = XRViewGeometry(pose: SpatialPose(rotation: SpatialQuaternion(yaw: .pi / 8, pitch: 0)), fov: fov)
         let t = XRReprojection.reproject(u: 0.5, v: 0.5, q: 0, from: src, to: turned)!
-        #expect(abs(t.u - (0.5 + tan(Double.pi / 8) / 2)) < 1e-9)     // turned left: the centre moves right
+        #expect(abs(t.u - (0.5 + tan(Double.pi / 8) / 2)) < 1e-9)
     }
 
     @Test func projectionIsReverseZInfinite() {
@@ -128,13 +114,12 @@ struct SyntheticScene {
         let inf = p.apply((0, 0, -1, 0))
         #expect(inf.z == 0 && inf.w == 1)
         let top = p.apply((0, fov.tangents.up, -1, 1))
-        #expect(abs(top.y / top.w + 1) < 1e-12)    // Vulkan: up is −y
+        #expect(abs(top.y / top.w + 1) < 1e-12)
     }
 
     @Test func eyesFollowTheHead() {
         let head = SpatialPose(position: SpatialVector(0, 1.6, 0), rotation: SpatialQuaternion(yaw: .pi / 2, pitch: 0))
         let (l, r) = XRReprojection.eyes(head: head, ipd: 0.064)
-        // Turned left 90°: the head's +x is the stage's −z.
         #expect(abs(l.position.z - 0.032) < 1e-12 && abs(r.position.z + 0.032) < 1e-12)
         #expect(abs((r.position - l.position).length - 0.064) < 1e-12)
     }
@@ -150,7 +135,6 @@ struct SyntheticScene {
                 #expect(abs(back.u - u) < 1e-9 && abs(back.v - v) < 1e-9)
             }
         }
-        // A view looking along −Z sees the −Z face and not the +Z face.
         let mask = xrVisibleFaces(forward: SpatialVector(0, 0, -1), fov: fov)
         #expect(mask & (1 << 5) != 0 && mask & (1 << 4) == 0)
     }
@@ -178,8 +162,6 @@ struct SyntheticScene {
         #expect(r.covered > s.width * s.height * 95 / 100)
     }
 
-    /// The right eye of a head at the source pose: the box (1 m) shifts left
-    /// against the wall (4 m) and uncovers a strip of wall on its right.
     @Test func stereoShiftAndBackgroundFill() {
         let s = SyntheticScene(width: 320, height: 180)
         let (c, d) = s.render()
@@ -190,21 +172,17 @@ struct SyntheticScene {
                                       width: s.width, height: s.height, settings: XRWarpSettings(gridStep: 1, mode: .background))
         let holes = XRReferenceWarp.warp(colour: c, colourWidth: s.width, colourHeight: s.height, depth: d, source: src, destination: dst,
                                          width: s.width, height: s.height, settings: XRWarpSettings(gridStep: 1, mode: .discard))
-        // The right eye is ipd / 2 to the right: the box's right edge (source u
-        // 0.625) moves by −(ipd / 2) / 1 m / 2 in uv, the wall by −(ipd / 2) / 4 m / 2.
         let boxShift = 0.032 / 1.0 / 2, wallShift = 0.032 / 4.0 / 2
         let row = s.height / 2
         let edge = Int((0.625 - boxShift) * Double(s.width)), wallStart = Int((0.625 - wallShift) * Double(s.width))
-        #expect(bg.pixel(edge - 2, row).r > 150 && bg.pixel(edge - 2, row).g < 80)    // still the red box (r = 220)
-        // The disoccluded strip between them is filled with wall colours, not black, not red.
+        #expect(bg.pixel(edge - 2, row).r > 150 && bg.pixel(edge - 2, row).g < 80)
         let strip = wallStart - edge
         #expect(strip >= 3)
         for x in (edge + 1)..<wallStart {
             let p = bg.pixel(x, row)
             #expect(p.a == 255 && !(p.r > 150 && p.g < 80))
-            #expect(holes.pixel(x, row).a == 0)          // discard leaves the hole
+            #expect(holes.pixel(x, row).a == 0)
         }
-        // Disoccluded area: the strip over the box's height, a few percent of the picture.
         let expected = Double(strip) * 0.5 / (s.fov.tangents.up - s.fov.tangents.down) * Double(s.height)
         #expect(Double(bg.stretched) > expected * 0.5 && Double(bg.stretched) < expected * 3)
         #expect(bg.stretchedFraction < 0.05)
@@ -221,7 +199,6 @@ struct SyntheticScene {
         let (c, d) = s.render()
         let src = XRViewGeometry(pose: .identity, fov: s.fov)
         let (_, right) = XRReprojection.eyes(head: .identity, ipd: 0.064)
-        // Linear colour: sRGB filtering differs from the reference's nearest sample only at edges.
         try c.withUnsafeBytes { try gpu.setPicture(bgra: $0.baseAddress!, width: s.width, height: s.height, bytesPerRow: s.width * 4, view: src) }
         try gpu.setDepth(d)
         gpu.settings = XRWarpSettings(gridStep: 1, mode: .background)
@@ -245,8 +222,6 @@ struct SyntheticScene {
         let (c, d) = s.render()
         try gpu.enableCache(faceSize: 256, centre: .zero)
         gpu.settings = XRWarpSettings(gridStep: 1, mode: .background)
-        // Seen looking ahead: the cache holds it. Then the eye turns 60° left
-        // with no picture: the right part of the view comes from the cache.
         let src = XRViewGeometry(pose: .identity, fov: s.fov)
         try c.withUnsafeBytes { try gpu.setPicture(bgra: $0.baseAddress!, width: s.width, height: s.height, bytesPerRow: s.width * 4, view: src) }
         try gpu.setDepth(d)
@@ -255,11 +230,10 @@ struct SyntheticScene {
         let turned = SpatialPose(rotation: SpatialQuaternion(yaw: .pi / 3, pitch: 0))
         try gpu.render(eye: turned, fov: s.fov, target: .init(width: s.width, height: s.height), picture: false)
         let out = try gpu.readOffscreen(width: s.width, height: s.height)
-        // Turned 60° left, the old view's left edge (45° left) is at 15° right of centre: covered from x ≈ 0.63.
         let row = s.height / 4, x = Int(0.85 * Double(s.width))
         #expect(out[(row * s.width + x) * 4 + 3] > 0 || out[(row * s.width + x) * 4] > 20)
         let xl = Int(0.1 * Double(s.width))
-        #expect(out[(row * s.width + xl) * 4] < 5 && out[(row * s.width + xl) * 4 + 2] < 5)      // never seen: black
+        #expect(out[(row * s.width + xl) * 4] < 5 && out[(row * s.width + xl) * 4 + 2] < 5)
         try gpu.enableCache(faceSize: 0, centre: .zero)
     }
 
@@ -275,10 +249,8 @@ struct SyntheticScene {
         try c.withUnsafeBytes { try gpu.setPicture(bgra: $0.baseAddress!, width: s.width, height: s.height, bytesPerRow: s.width * 4, view: src) }
         try gpu.setDepth(d)
         try gpu.updateCache()
-        // An eye 10 cm to the right: beside the box (1 m) the wall (4 m) it hid shows; neither the picture nor the cache has it.
         try gpu.render(eye: SpatialPose(position: SpatialVector(0.1, 0, 0)), fov: s.fov, target: .init(width: s.width, height: s.height))
         let out = try gpu.readOffscreen(width: s.width, height: s.height)
-        // (The eye's right edge is beyond what the picture saw: black there is right.)
         var black: [Int] = []
         let row = s.height / 2
         for x in (s.width / 10)..<(s.width * 9 / 10) {
@@ -289,8 +261,6 @@ struct SyntheticScene {
         try gpu.enableCache(faceSize: 0, centre: .zero)
     }
 
-    /// A depth edge the move to the cache's centre stretched is not stored: a fill kept in the
-    /// cache stays in the room as a ghost beside what made it, over what was known there.
     @Test func aStretchedEdgeIsNotStoredInTheCache() throws {
         guard let gpu = Self.gpu else { return }
         let s = SyntheticScene(width: 320, height: 180)
@@ -299,29 +269,20 @@ struct SyntheticScene {
         try gpu.clearCache()
         gpu.settings = XRWarpSettings(gridStep: 1, mode: .background)
         gpu.eyeNear = 0.1
-        // The picture from 20 cm to the right of the cache's centre: seen from the centre, the
-        // strip of wall beside the box (right of it, for a viewer to the left of the picture) is
-        // what the picture could not see.
         let src = XRViewGeometry(pose: SpatialPose(position: SpatialVector(0.2, 0, 0)), fov: s.fov)
         try c.withUnsafeBytes { try gpu.setPicture(bgra: $0.baseAddress!, width: s.width, height: s.height, bytesPerRow: s.width * 4, view: src) }
         try gpu.setDepth(d)
         try gpu.updateCache()
         try gpu.render(eye: .identity, fov: s.fov, target: .init(width: s.width, height: s.height), picture: false)
         let out = try gpu.readOffscreen(width: s.width, height: s.height)
-        // In the room's frame the box spans x −0.05 … 0.45 at 1 m; from the picture it hid the wall
-        // at 4 m from x −0.8 to 1.2, so from the centre the tangents −0.2 … −0.05 are that wall.
         let row = s.height / 2, x = Int((-0.125 + 1) / 2 * Double(s.width))
         let i = (row * s.width + x) * 4
         #expect(out[i] < 8 && out[i + 1] < 8 && out[i + 2] < 8, "the stretched edge was stored: \(out[i]) \(out[i + 1]) \(out[i + 2])")
-        // Beside it the room was seen, and is there.
         let j = (row * s.width + Int((-0.4 + 1) / 2 * Double(s.width))) * 4
         #expect(out[j] > 40 || out[j + 1] > 40)
         try gpu.enableCache(faceSize: 0, centre: .zero)
     }
 
-    /// The windows layer (the depth's low bit) stays out of the world cache: seen first with a
-    /// window over the wall, the cache keeps the wall it knew there; while the head moves
-    /// (`freshUnder`), the window still shows, drawn from the picture over the cache.
     @Test func theWindowsLayerStaysOutOfTheCache() throws {
         guard let gpu = Self.gpu else { return }
         let s = FloatingDiscScene()
@@ -339,7 +300,6 @@ struct SyntheticScene {
             return out[i] > 180 && out[i + 2] < 70
         }
         let centre = s.width / 2
-        // The room alone first, then the same view with the window: the cache must keep the room.
         var room = s.render()
         for i in room.depth.samples.indices where room.depth.samples[i] == XRDepthSample.sample(distance: Float(s.disc), near: 0.1) & 0xFFFE {
             room.depth.samples[i] = XRDepthSample.sample(distance: Float(s.wall), near: 0.1) & 0xFFFE
@@ -353,11 +313,9 @@ struct SyntheticScene {
         try gpu.render(eye: .identity, fov: s.fov, target: target, picture: false)
         var out = try gpu.readOffscreen(width: s.width, height: s.height)
         #expect(!isDisc(out, centre, centre), "the window went into the cache")
-        // The head moving: the room from the cache, the window from the picture.
         try gpu.render(eye: .identity, fov: s.fov, target: target, picture: true, freshUnder: true)
         out = try gpu.readOffscreen(width: s.width, height: s.height)
         #expect(isDisc(out, centre, centre), "the window is hidden while the head moves")
-        // A room object (no mark) does go in, as before.
         try gpu.clearCache()
         try show(s.render(window: false))
         try gpu.updateCache()
@@ -369,7 +327,6 @@ struct SyntheticScene {
 
     @Test func gpuTimeFitsTheHeadsetFrame() throws {
         guard let gpu = Self.gpu else { return }
-        // The real sizes: depth 960 × 540, picture 1920 × 1080, eyes 2700 × 2970.
         let s = SyntheticScene(width: 960, height: 540)
         let (_, d) = s.render()
         let colour = [UInt8](repeating: 128, count: 1920 * 1080 * 4)
@@ -397,7 +354,6 @@ struct SyntheticScene {
 }
 
 @Suite struct XREnvironmentCalibrationTests {
-    /// A room-like light field in the cube's frame: a bright window towards +X, stripes along the azimuth.
     static func light(_ d: SpatialVector) -> Float {
         let n = d.normalized
         let az = atan2(n.z, n.x)
@@ -405,7 +361,6 @@ struct SyntheticScene {
     }
 
     static func halfBits(_ f: Float) -> UInt16 {
-        // Normal halves only (the test's values are 0.05…3).
         let b = f.bitPattern
         let e = Int((b >> 23) & 0xFF) - 127 + 15, m = (b >> 13) & 0x3FF
         return UInt16(b >> 31) << 15 | UInt16(max(0, min(30, e))) << 10 | UInt16(m)
@@ -416,7 +371,6 @@ struct SyntheticScene {
         #expect(XREnvironmentCalibration.half(0x0001) > 0 && XREnvironmentCalibration.half(0x7C00) == .infinity)
     }
 
-    /// A room: a box with stripes on its walls and a bright top.
     static func wall(_ p: SpatialVector) -> Float {
         let stripes: Float = sin(Float(p.x * 3)) * sin(Float(p.z * 3)) * cos(Float(p.y * 4))
         return 0.4 + 0.25 * stripes + (p.y > 0.8 ? 0.2 : 0)
@@ -431,7 +385,6 @@ struct SyntheticScene {
         let size = 64
         var data = [UInt8](repeating: 0, count: 6 * size * size * 8)
         for f in XRCubeFace.allCases {
-            // The cube is taken at the probe, in the guest's left-handed frame.
             let g = f.geometry(centre: .zero, mirrored: true)
             for y in 0..<size {
                 for x in 0..<size {
@@ -444,7 +397,6 @@ struct SyntheticScene {
             }
         }
         let cube = XREnvironmentCalibration.Cube(halfFloats: data, size: size)
-        // What a head at the origin sees, in all directions: at 0.6 of the cube's value.
         var samples: [XREnvironmentCalibration.Sample] = []
         for j in 0..<60 { for i in 0..<120 {
             let az = Double(i) / 120 * 2 * .pi, el = (Double(j) + 0.5) / 60 * .pi - .pi / 2
@@ -460,7 +412,6 @@ struct SyntheticScene {
     }
 
     @Test func aMirroredFaceShowsWhatTheLookupNames() {
-        // Stage direction (x, y, z) is cube direction (x, y, −z): the guest's +Z face is ahead (the stage's −Z).
         #expect(abs(XRCubeFace.posZ.axis(mirrored: true).z + 1) < 1e-12)
         #expect(abs(XRCubeFace.negZ.axis(mirrored: true).z - 1) < 1e-12)
         for f in XRCubeFace.allCases {
@@ -479,7 +430,6 @@ struct SyntheticScene {
             let g = f.geometry(centre: probe, mirrored: true)
             for j in 0..<n { for i in 0..<n {
                 let s = q[f.rawValue * n * n + j * n + i]
-                // The sample's point (xr-depth.md §5.1): on one of the box's planes.
                 let t = g.toStage.apply((-1 + 2 * Double(i) / Double(n - 1), 1 - 2 * Double(j) / Double(n - 1), -1, Double(s) / 65535 / 0.1))
                 let p = SpatialVector(t.x / t.w, t.y / t.w, t.z / t.w)
                 let plane = [abs(p.x - lo.x), abs(p.x - hi.x), abs(p.y - lo.y), abs(p.y - hi.y), abs(p.z - lo.z), abs(p.z - hi.z)].min()!
@@ -498,13 +448,10 @@ struct SyntheticScene {
     @Test func holdKeepsThePoseInsideTheBandAndRestsAfterFollowing() {
         var h = XRCameraHold()
         #expect(h.apply(Self.pose(0), time: 0) == Self.pose(0) && h.holding)
-        // Small motion: the camera stays.
         #expect(h.apply(Self.pose(0.01, yaw: 1), time: 0.1) == Self.pose(0))
-        // Out of the band: follows.
         #expect(h.apply(Self.pose(0.03), time: 0.2) == Self.pose(0.03) && !h.holding)
         #expect(h.apply(Self.pose(0.06), time: 0.25) == Self.pose(0.06))
         #expect(h.apply(Self.pose(0.06), time: 0.3) == Self.pose(0.06) && !h.holding)
-        // At rest for 0.15 s: holds where it is, jitter does not move it.
         #expect(h.apply(Self.pose(0.061), time: 0.41) == Self.pose(0.061) && h.holding)
         #expect(h.apply(Self.pose(0.065), time: 0.5) == Self.pose(0.061))
     }
@@ -514,7 +461,7 @@ struct SyntheticScene {
         _ = h.apply(Self.pose(0), time: 0)
         var last = Self.pose(0)
         for i in 1...100 {
-            let p = Self.pose(0, yaw: Double(i) * 0.25)    // 25°/s
+            let p = Self.pose(0, yaw: Double(i) * 0.25)
             last = h.apply(p, time: Double(i) * 0.01)
         }
         #expect(!h.holding && XRCameraHold.differs(last, Self.pose(0, yaw: 25), metres: 0.001, radians: 0.01 * Self.degree) == false)

@@ -1,6 +1,3 @@
-// An opaque archive value: keeps non-public archive content whose format the
-// spec does not fix (codable.md marks these), so it is decoded and written
-// back unchanged by the same coder.
 import Foundation
 
 struct AnyCodingKey: CodingKey, Hashable {
@@ -20,7 +17,6 @@ struct AnyCodingKey: CodingKey, Hashable {
     }
 }
 
-/// A JSON-shaped value read from any decoder.
 indirect enum ArchiveValue: Codable, Equatable, Sendable {
     case null
     case bool(Bool)

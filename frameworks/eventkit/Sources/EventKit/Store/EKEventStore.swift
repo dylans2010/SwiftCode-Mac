@@ -1,20 +1,8 @@
-// EKEventStore: sources, calendars, identifiers, save/commit/reset and change
-// notifications (interface.md §2, §5, §6; design.md §3–§4).
-
 import Foundation
 
-/// SwiftCode-specific store settings. `EKEventStore()` uses
-/// `EKEventStore.swiftcodeDefaultConfiguration`; tests and tools create stores
-/// with their own configuration through `init(swiftcodeConfiguration:)`.
 public struct SwiftCodeEventStoreConfiguration: Sendable {
-    /// The calendar database file (created with the fresh-device content on
-    /// first use).
     public var databaseURL: URL
-    /// The zone in which floating and all-day values are read; nil means the
-    /// process's default time zone at the time of use.
     public var timeZone: TimeZone?
-    /// Access level for events and reminders (the authorization broker of
-    /// round R5 is not implemented yet; these are the recorded answers).
     public var eventAccess: EKAuthorizationStatus
     public var reminderAccess: EKAuthorizationStatus
 
@@ -26,8 +14,6 @@ public struct SwiftCodeEventStoreConfiguration: Sendable {
         self.reminderAccess = reminderAccess
     }
 
-    /// `$SWIFTCODE_EVENTKIT_DATABASE`, else `<data home>/swiftcode-eventkit/Calendar.sqlite`
-    /// (`$XDG_DATA_HOME` or `~/.local/share` on Linux, Application Support on macOS).
     public static var standardDatabaseURL: URL {
         let env = ProcessInfo.processInfo.environment
         if let p = env["SWIFTCODE_EVENTKIT_DATABASE"], !p.isEmpty { return URL(fileURLWithPath: p) }
@@ -46,8 +32,6 @@ public class EKEventStore: NSObject {
     private static let defaultsLock = NSLock()
     nonisolated(unsafe) private static var _default = SwiftCodeEventStoreConfiguration()
 
-    /// The configuration used by `EKEventStore()` and by
-    /// `authorizationStatus(for:)`.
     public static var swiftcodeDefaultConfiguration: SwiftCodeEventStoreConfiguration {
         get { defaultsLock.lock(); defer { defaultsLock.unlock() }; return _default }
         set { defaultsLock.lock(); _default = newValue; defaultsLock.unlock() }
@@ -61,7 +45,6 @@ public class EKEventStore: NSObject {
     private var stagedMask: UInt = 0
     private var stagedIDs: [String] = []
     let delegateSourceIDs: Set<String>?
-    /// Reminder searches run here (reminders.md §4).
     let searchQueue = DispatchQueue(label: "org.swiftcode.eventkit.reminders.search")
     let accessQueue = DispatchQueue(label: "org.swiftcode.eventkit.access")
 
@@ -78,7 +61,6 @@ public class EKEventStore: NSObject {
         self.init(swiftcodeConfiguration: EKEventStore.swiftcodeDefaultConfiguration)
     }
 
-    /// A store limited to the given sources.
     public init(sources: [EKSource]) {
         let base = sources.first?.store.configuration ?? EKEventStore.swiftcodeDefaultConfiguration
         configuration = base
@@ -95,8 +77,6 @@ public class EKEventStore: NSObject {
     var eventsFull: Bool { configuration.eventAccess == .fullAccess }
     var eventsWriteOnly: Bool { configuration.eventAccess == .writeOnly }
     var remindersFull: Bool { configuration.reminderAccess == .fullAccess }
-
-    // MARK: Authorization (recorded answers; the R5 broker is deferred)
 
     public class func authorizationStatus(for entityType: EKEntityType) -> EKAuthorizationStatus {
         let c = swiftcodeDefaultConfiguration
@@ -128,15 +108,10 @@ public class EKEventStore: NSObject {
     public func requestWriteOnlyAccessToEvents() async throws -> Bool { eventsFull || eventsWriteOnly }
     public func requestFullAccessToReminders() async throws -> Bool { remindersFull }
 
-    // MARK: Identity
-
-    /// The database's unique identifier; nil without full event access.
     public var eventStoreIdentifier: String! {
         guard eventsFull else { return nil }
         return db?.meta("unique_id")
     }
-
-    // MARK: Sources
 
     private var virtualSource: EKSource {
         EKSource(store: self, row: SourceRow(id: FixedIDs.virtualSource, title: "Account", type: EKSourceType.calDAV.rawValue))
@@ -167,14 +142,10 @@ public class EKEventStore: NSObject {
 
     public func refreshSourcesIfNecessary() {}
 
-    // MARK: Calendars
-
-    /// The default reminder list's real source (where "Local" lists live).
     private var reminderHomeSourceID: String? {
         db?.calendar(db?.meta("default_reminder_list") ?? FixedIDs.remindersList)?.sourceID
     }
 
-    /// The row as the current access level presents it.
     private func presented(_ row: CalendarRow) -> CalendarRow {
         var r = row
         if r.entityMask & EKEntityMask.reminder.rawValue != 0 && !eventsFull { r.sourceID = FixedIDs.localReminderSource }
@@ -289,8 +260,6 @@ public class EKEventStore: NSObject {
         }
     }
 
-    // MARK: Item lookups
-
     public func calendarItem(withIdentifier identifier: String) -> EKCalendarItem? {
         lock.lock(); defer { lock.unlock() }
         guard let row = db?.item(identifier) else { return nil }
@@ -355,10 +324,6 @@ public class EKEventStore: NSObject {
         return true
     }
 
-    // MARK: Commit, reset
-
-    /// Runs a write inside the store's transaction (opened on first use and
-    /// kept open while changes are staged with commit NO).
     func write(mask: UInt, commit: Bool, _ body: () throws -> [String]) throws {
         guard let db else { throw EKError(.internalFailure) }
         let conn = db.conn
@@ -397,14 +362,11 @@ public class EKEventStore: NSObject {
         }
     }
 
-    /// Writes every change staged with commit NO; one notification.
     public func commit() throws {
         lock.lock(); defer { lock.unlock() }
         try commitLocked()
     }
 
-    /// Discards staged changes; objects obtained before become invalid
-    /// (their `eventIdentifier` reads nil).
     public func reset() {
         lock.lock(); defer { lock.unlock() }
         if let db, db.conn.inTransaction { try? db.conn.exec("ROLLBACK") }

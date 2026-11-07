@@ -1,21 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/CommitManagerView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The commit manager: branch context with Undo/Redo of staging and
-// change actions, the working-tree editor and staged-changes list, the
-// commit composer, and per-commit history with diff links. The
-// destination's `CommitController` / `CommitEditorController` /
-// `BranchHistoryController` cover the same sections, but the per-change
-// Undo/Redo buttons (`CommitManager.canUndo` / `canRedo` / `undo()` /
-// `redo()`) have no equivalent there — they are the gap this file
-// closes. `CollaborationMainView` instantiates this view for its
-// `.commits` tab.
-//
-// Adaptations for SwiftCode: Legacy's hardcoded dark paint / white text
-// become system-adaptive, and `.liquidGlass` (no destination
-// equivalent) becomes the system thin material, as in the sibling
-// Collaboration views.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

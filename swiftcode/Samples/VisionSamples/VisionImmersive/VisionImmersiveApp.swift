@@ -1,7 +1,3 @@
-// SwiftCode's visionOS sample 3 (visionos.md §10.21): a window that opens an
-// immersive space (mixed style) at launch; the space holds RealityKit
-// content (a sphere to the right, a ring of cubes in front) and a
-// tap gesture that recolours the sphere.
 import os
 import RealityKit
 import SwiftUI

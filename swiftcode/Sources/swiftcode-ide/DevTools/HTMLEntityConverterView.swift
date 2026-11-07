@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct HTMLEntityConverterView: View {
@@ -16,7 +13,6 @@ struct HTMLEntityConverterView: View {
             }
             .pickerStyle(.segmented)
             .padding()
-            
 
             TextEditor(text: $input)
                 .border(Color.secondary.opacity(0.2))

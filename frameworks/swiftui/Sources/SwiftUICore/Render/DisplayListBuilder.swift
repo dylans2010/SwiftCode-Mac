@@ -3,31 +3,13 @@ import OVRender
 import OVText
 import Synchronization
 
-// Lowering the laid-out view graph to a display list (09-open-design.md
-// §3.5, round R5). The walk mirrors `presentedLayers()` (R6): every layout
-// node is placed at its presented frame, render effects use their presented
-// values, removed views that are still transitioning out are drawn where
-// they were. A node contributes its own drawing (`LayoutNode.draw`, below
-// its children), then its children (a background before its base); effects
-// wrap the result in a group. Groups that only translate are dissolved, so
-// the list stays flat where nothing needs isolation.
-//
-// Item IDs come from view identity: the view-graph node that created the
-// layout node (stable while the view lives) and the node's index among the
-// nodes it created, then the item's index in the node's drawing.
-
-/// A node's own drawing, in its coordinates, for its placed size.
 package typealias NodeDraw = (inout DrawRecorder, CGSize) -> Void
 
-/// Collects the items of one node's drawing.
 package struct DrawRecorder {
     package var items: [DisplayItem] = []
     package let id: DisplayItemID
-    /// Text measurement and symbols of the layout pass.
     package let textMeasurer: (any TextMeasurer)?
     package let symbols: (any SymbolProvider)?
-    /// True when the root is mirrored for right-to-left layout: text and
-    /// images undo the mirroring around their own centre.
     package let mirrored: Bool
     private var counter: UInt64 = 0
 
@@ -47,8 +29,6 @@ package struct DrawRecorder {
         items.append(DisplayItem(id: nextID(), content))
     }
 
-    /// Adds items that must not be mirrored (text, images) in a group that
-    /// flips them back about the centre of `width`.
     package mutating func addUnmirrored(width: CGFloat, _ contents: [DisplayItem.Content]) {
         guard mirrored else {
             for c in contents { add(c) }
@@ -61,15 +41,10 @@ package struct DrawRecorder {
     }
 }
 
-/// How a layout node changes the rendering of its children.
 package enum NodeRenderEffect {
-    /// Clips to a shape in the node's bounds.
     case clip((CGSize) -> Path, eoFill: Bool)
-    /// The node's second child is an alpha mask for its first.
     case mask
     case blend(RenderBlendMode)
-    /// Composites the children as one layer (opacity and blending apply to
-    /// the group); `drawingGroup` also asks the compositor for a layer.
     case compositingGroup(isLayer: Bool)
     case shadow(RenderColor, radius: Double, x: Double, y: Double)
     case blur(radius: Double)
@@ -78,8 +53,6 @@ package enum NodeRenderEffect {
 }
 
 extension ViewGraph {
-    /// The display list of the last layout pass, with every animation at
-    /// its presented value.
     package func displayList() -> DisplayList {
         var items: [DisplayItem] = []
         let mirror = layoutResult?.mirrorWidth
@@ -216,9 +189,6 @@ extension AffineTransform2D {
     }
 }
 
-// MARK: - Text
-
-/// Glyph outlines of an OVText face for the rasteriser.
 final class FaceGlyphSource: GlyphOutlineSource, @unchecked Sendable {
     let face: any FontFace
     let unitsPerEm: Double
@@ -249,8 +219,6 @@ final class FaceGlyphSource: GlyphOutlineSource, @unchecked Sendable {
     }
 }
 
-/// The drawing of a text: one glyph run per stretch of clusters that share
-/// face, size, baseline offset and colour.
 package func textDraw(_ text: ResolvedText, environment: EnvironmentValues) -> NodeDraw {
     { rec, size in
         guard let tm = rec.textMeasurer as? TypesetTextMeasurer, !text.string.isEmpty else { return }

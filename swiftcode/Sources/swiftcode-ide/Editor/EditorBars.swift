@@ -4,9 +4,6 @@ import SwiftCodeEditorKit
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Find and Replace in the open file (`specs/ide/source-editor.md` §Find bar):
-/// options, the query, "N of M", previous and next, Done; with Replace, a
-/// second row.
 struct EditorFindBarView: View {
     @Bindable var bar: EditorFindBar
     var model: WorkspaceShellModel
@@ -62,8 +59,6 @@ struct EditorFindBarView: View {
         .background(c.content)
         .onChange(of: bar.query) { _, _ in bar.refresh() }
         .onChange(of: bar.options) { _, _ in bar.refresh() }
-        // After the bar is in the window (a focus request made while it is
-        // being built finds no field yet).
         .task(id: bar.focusCount) { queryFocused = true }
         .onDisappear { model.focusEditor() }
         .onKeyPress(.escape) {
@@ -74,7 +69,6 @@ struct EditorFindBarView: View {
     }
 }
 
-/// A file that changed on disk, was deleted there, or can't be edited.
 struct EditorBanner: View {
     var model: WorkspaceShellModel
     let document: EditorDocument
@@ -125,7 +119,6 @@ struct EditorBanner: View {
     }
 }
 
-/// Navigate ▸ Jump to Line….
 struct JumpToLineSheet: View {
     var model: WorkspaceShellModel
     @State private var text = ""

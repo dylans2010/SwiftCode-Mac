@@ -20,16 +20,14 @@ import SwiftCodePlist
         wc.open(path: file.path, line: nil)
         let pe = try #require(wc.plistEditor)
         #expect(wc.editor.auxiliary === pe.view)
-        // Root row plus three keys plus two array items.
         #expect(pe.outline.numberOfRows == 6)
         func reread() throws -> NSDictionary { try #require(NSDictionary(contentsOf: file)) }
 
-        // Keys are in file order (Foundation sorted them): CFBundleName, Count, Flags.
         pe.setKey("CFBundleDisplayName", at: [0])
         #expect(try reread()["CFBundleDisplayName"] as? String == "Sample")
         #expect(pe.setValueText("7", at: [1]))
         #expect((try reread()["Count"] as? Int) == 7)
-        #expect(!pe.setValueText("seven", at: [1])) // not a number: refused
+        #expect(!pe.setValueText("seven", at: [1]))
         pe.setType("Boolean", at: [1])
         #expect(try reread()["Count"] as? Bool == true)
         let new = pe.insert(after: [1])
@@ -37,20 +35,18 @@ import SwiftCodePlist
         pe.setKey("Version", at: new)
         pe.setValueText("1.0", at: new)
         #expect(try reread()["Version"] as? String == "1.0")
-        pe.insert(after: [3], asChild: true) // into Flags
+        pe.insert(after: [3], asChild: true)
         #expect((try reread()["Flags"] as? [String]) == ["", "a", "b"])
         pe.remove(at: [3, 0])
         #expect((try reread()["Flags"] as? [String]) == ["a", "b"])
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "plist-editor.png")
 
-        // The written file is our XML layout with keys in editing order.
         let text = try String(contentsOf: file, encoding: .utf8)
         #expect(try PropertyListDocument(data: Data(text.utf8)).xml() == text)
         guard case .dictionary(let d) = try PropertyListDocument(data: Data(text.utf8)).root else { return }
         #expect(d.map(\.key) == ["CFBundleDisplayName", "Count", "Version", "Flags"])
     }
 
-    /// reference-ui-5.md §11.2 (P8): a binary list shows and keeps its key order.
     @Test func binaryListKeepsKeyOrder() throws {
         _ = NSApplication.shared
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-bplist-\(UUID().uuidString)")

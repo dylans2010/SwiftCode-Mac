@@ -3,7 +3,6 @@ import Testing
 import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 
-/// reference-ui-4.md §4 (inline issues) and §7 (Quick Help).
 @Suite struct ReferenceUI4EditorTests {
     static let hover = """
     ```swift

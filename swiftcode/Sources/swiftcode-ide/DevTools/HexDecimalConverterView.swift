@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct HexDecimalConverterView: View {
@@ -29,7 +26,7 @@ struct HexDecimalConverterView: View {
             Spacer()
         }
         .padding()
-        
+
         .navigationTitle("Hex to Decimal Converter")
     }
 

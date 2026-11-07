@@ -1,12 +1,3 @@
-// mtlwatch: a diagnostic dylib for SwiftCode's own simulator (visionos.md §7.2
-// R1). Inserted into guest processes (DYLD_INSERT_LIBRARIES through
-// swiftcode-simd's --env), it wraps the MTLDevice that MTLCreateSystemDefaultDevice
-// and MTLCopyAllDevices return in a forwarding proxy and records, per
-// process, every device selector called and its first results: nil object
-// results, BOOL answers and errors. Public API only (Foundation, Metal,
-// the ObjC runtime's NSProxy/NSInvocation forwarding, dyld interposing).
-// Output: $MTLWATCH_DIR/mtlwatch.<process>.<pid> (default /tmp).
-
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <stdio.h>
@@ -57,7 +48,6 @@ static void openLog(void) {
     } else {
         result = [NSString stringWithFormat:@"(%s)", rt];
     }
-    // Arguments: the first object argument (a descriptor) and a BOOL/int one.
     NSMutableString *args = [NSMutableString string];
     NSUInteger n = inv.methodSignature.numberOfArguments;
     for (NSUInteger i = 2; i < n && i < 6; i++) {
@@ -73,7 +63,6 @@ static void openLog(void) {
             [inv getArgument:&v atIndex:(NSInteger)i];
             [args appendFormat:@" arg%lu=%llu", (unsigned long)i, v];
         } else if (at[0] == '^' && i == n - 1) {
-            // an NSError ** out-parameter
             NSError *__autoreleasing *ep = NULL;
             [inv getArgument:&ep atIndex:(NSInteger)i];
             if (ep && *ep) [args appendFormat:@" error=%@", (*ep).localizedDescription];

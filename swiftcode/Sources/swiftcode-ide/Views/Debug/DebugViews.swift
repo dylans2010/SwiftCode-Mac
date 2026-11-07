@@ -3,23 +3,12 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-// The debugger's views (`specs/ide/debug.md`, `reference-ui-4.md` §5–§6,
-// `reference-ui-2.md` §9): the Debug and Breakpoint navigators, the debug
-// bar's controls, the variables view and the console's prompt and bar.
-// Their state is `ShellDebugModel`'s.
-
-/// Breakpoints' blue (the AppKit IDE's `Theme.breakpointColor`).
 enum DebugColors {
     static let breakpoint = Color(.sRGB, red: 0, green: 122 / 255, blue: 1)
-    /// The stopped line's band and its annotation (`Theme.currentLineColor`).
     static let pcLine = Color(.sRGB, red: 52 / 255, green: 199 / 255, blue: 89 / 255)
     static let argumentBadge = Color(.sRGB, red: 175 / 255, green: 82 / 255, blue: 222 / 255)
 }
 
-// MARK: - Navigators
-
-/// The Debug navigator (⌘7): the process, its gauges, threads and the
-/// stopped thread's frames; "No Debug Session" without one.
 struct DebugNavigator: View {
     var model: WorkspaceShellModel
 
@@ -45,8 +34,6 @@ struct DebugNavigator: View {
     }
 }
 
-/// The Breakpoint navigator (⌘8): the project, the files and their
-/// breakpoints with their IDs and enabled markers; "No Breakpoints".
 struct BreakpointNavigator: View {
     var model: WorkspaceShellModel
 
@@ -76,9 +63,6 @@ struct BreakpointNavigator: View {
     }
 }
 
-/// A navigator outline whose rows carry a value at their right end (a
-/// gauge's reading, a breakpoint's ID) and, after it, the row's own
-/// controls.
 struct DebugOutline<Accessory: View>: View {
     var rows: [DebugNavigatorRow]
     var selection: String?
@@ -86,9 +70,7 @@ struct DebugOutline<Accessory: View>: View {
     var toggle: (String, Bool) -> Void
     var target: String
     var contextMenu: ((DebugNavigatorRow) -> AnyView)?
-    /// A double-click on a breakpoint row (Edit Breakpoint).
     var open: ((String) -> Void)?
-    /// Rows report their window frames (the breakpoint editor's anchor).
     var rowFrame: ((String, CGRect) -> Void)?
     @ViewBuilder var accessory: (DebugNavigatorRow) -> Accessory
     @Environment(\.colorScheme) private var scheme
@@ -120,8 +102,6 @@ struct DebugOutline<Accessory: View>: View {
         .shellTarget(target)
     }
 
-    /// A breakpoint's kind letter on its icon (the icon sits after the
-    /// disclosure column: `OutlineRowView`'s metrics).
     @ViewBuilder
     func letter(_ r: DebugNavigatorRow) -> some View {
         if let l = r.letter {
@@ -152,9 +132,6 @@ struct DebugOutline<Accessory: View>: View {
     }
 }
 
-// MARK: - Debug bar
-
-/// A bar's icon: a symbol in the secondary label color (dimmed when off).
 struct BarIcon: View {
     var name: String
     var size: CGFloat
@@ -178,9 +155,6 @@ struct BarIcon: View {
     }
 }
 
-/// The debug bar's left part (`reference-ui-4.md` §5.4): the breakpoints
-/// toggle; while a session runs, Continue (Pause), Step Over, Step Into
-/// and Step Out, then "<process> › Thread n › <index> <function>".
 struct DebugBarItems: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -220,11 +194,6 @@ struct DebugBarItems: View {
     }
 }
 
-// MARK: - Variables view
-
-/// The variables view (`reference-ui-4.md` §5.5): "A name: Type = value"
-/// rows with disclosure triangles for aggregates, over its bottom bar: the
-/// scope pop-up and the filter (`reference-ui-2.md` §9.1).
 struct VariablesPane: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -255,7 +224,6 @@ struct VariablesPane: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contextMenu {
-                // The empty area: Add Expression… only.
                 Button("Add Expression…") { d.beginAddingExpression() }.disabled(!d.isPaused)
             }
             HStack(spacing: 8) {
@@ -277,7 +245,6 @@ struct VariablesPane: View {
                 FilterField(text: Binding(get: { d.variableFilter }, set: { d.variableFilter = $0 }), colors: c)
                     .frame(maxWidth: 180)
                     .shellTarget("variables filter")
-                // With the console hidden its bar's toggles come here.
                 if !d.showsConsole { DebugHalvesToggles(model: model) }
             }
             .padding(.horizontal, CGFloat(WorkspaceChrome.bottomBarSideInset))
@@ -288,7 +255,6 @@ struct VariablesPane: View {
     }
 }
 
-/// A variable's context menu (`debug.md` §Variables view depth).
 struct VariableMenuItems: View {
     var model: WorkspaceShellModel
     var row: VariableRow
@@ -314,8 +280,6 @@ struct VariableMenuItems: View {
     }
 }
 
-/// Add Expression…'s field at the top of the variables view: Return adds
-/// the watch expression, Escape cancels.
 struct NewExpressionRow: View {
     var model: WorkspaceShellModel
     var colors: ShellColors
@@ -344,7 +308,6 @@ struct NewExpressionRow: View {
     }
 }
 
-/// Reports a view's window frame as it changes.
 struct RowFrameReader: View {
     var id: String
     var report: (String, CGRect) -> Void
@@ -387,11 +350,9 @@ struct VariableRowView: View {
                     .frame(width: 13, height: 13)
                     .background { RoundedRectangle(cornerRadius: 3).fill(b == "A" ? DebugColors.argumentBadge : DebugColors.breakpoint) }
             } else if row.isWatch && row.level == 0 {
-                // Watch expressions line up with the badged rows.
                 Color.clear.frame(width: 13, height: 13)
             }
             if let d = model?.debug, d.editingVariable == row.id {
-                // Edit Value: the value becomes a field (Return sets it).
                 (Text(verbatim: row.name).foregroundStyle(c.label)
                     + Text(verbatim: row.type.map { ": \($0)" } ?? "").foregroundStyle(c.secondaryLabel)
                     + Text(verbatim: " = ").foregroundStyle(c.secondaryLabel))
@@ -415,7 +376,6 @@ struct VariableRowView: View {
     }
 }
 
-/// Edit Value's field in a variables row.
 struct ValueEditField: View {
     var model: WorkspaceShellModel
     @FocusState private var focused: Bool
@@ -439,7 +399,6 @@ struct ValueEditField: View {
     }
 }
 
-/// A bottom bar's filter field: the funnel, the field, flat.
 struct FilterField: View {
     @Binding var text: String
     var colors: ShellColors
@@ -455,10 +414,6 @@ struct FilterField: View {
     }
 }
 
-// MARK: - Console
-
-/// The console's `(lldb)` prompt and input line (`debug.md` §Debug
-/// console): Return evaluates the line; ↑ / ↓ walk the history.
 struct ConsolePrompt: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -481,8 +436,6 @@ struct ConsolePrompt: View {
     }
 }
 
-/// The console bar's items before the trash (`reference-ui-2.md` §9.2):
-/// the output filter (All, Debugger, Target Output).
 struct ConsoleFilterMenu: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -507,8 +460,6 @@ struct ConsoleFilterMenu: View {
     }
 }
 
-/// The two toggles at the console bar's end: show or hide the variables
-/// view and the console.
 struct DebugHalvesToggles: View {
     var model: WorkspaceShellModel
 

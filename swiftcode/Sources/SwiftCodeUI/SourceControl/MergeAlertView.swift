@@ -1,11 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The merge confirmation (`specs/ide/merge-sheet.md` §1.2): a 420 × 133
-/// window-modal alert centred on the workspace window, SwiftCode's icon, the
-/// bold title and the message, then Cancel and **Merge** (the default:
-/// Return; Cancel answers Escape). Integrate ▸ Merge… adds a pop-up of
-/// the branches to merge from (SwiftCode's choice).
 @MainActor
 public final class MergeAlertView: NSView {
     public let iconView = NSImageView()
@@ -13,7 +8,6 @@ public final class MergeAlertView: NSView {
     public let messageField = NSTextField(wrappingLabelWithString: "")
     public let cancelButton = MergeButton(title: MergeSheetText.cancel)
     public let mergeButton = MergeButton(title: MergeSheetText.merge)
-    /// Integrate ▸ Merge…: the branch to merge from.
     public private(set) var chooser: NSPopUpButton?
     public private(set) var branch: String
     let current: String
@@ -93,7 +87,6 @@ public final class MergeAlertView: NSView {
         typealias M = MergeSheetMetrics
         iconView.frame = NSRect(x: M.alertIconOrigin.x, y: M.alertIconOrigin.y, width: M.alertIcon, height: M.alertIcon)
         let textWidth = bounds.width - M.alertTextX - 20
-        // The title's first cap top 20 below the alert's top.
         let titleFont = titleField.font ?? .boldSystemFont(ofSize: 13)
         let capOffset = (titleFont.ascender - titleFont.capHeight).rounded()
         titleField.frame = NSRect(x: M.alertTextX - 2, y: M.alertTitleTop - capOffset, width: textWidth + 4, height: 34)

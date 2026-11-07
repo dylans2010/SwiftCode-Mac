@@ -1,22 +1,13 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// The Mac's preview host: a long-lived process that loads payloads
-/// (`PreviewPayloadGenerator` for `.macOS`) and renders their previews
-/// offscreen to PNG files, so a macOS preview refresh costs one payload
-/// compile instead of a SwiftPM build and a new process. It reads one JSON
-/// request per line on standard input and answers `SWIFTCODE-PREVIEW ready
-/// <generation> <ms>` or `SWIFTCODE-PREVIEW error <generation> <message>` on
-/// standard output. See `specs/ide/previews.md` §The macOS host.
 public enum PreviewMacHost {
     public static let executableName = "SwiftCodePreviewMacHost"
     public static let sourceVersion = 2
 
-    /// One render request.
     public struct Request: Codable, Equatable, Sendable {
         public struct Item: Codable, Equatable, Sendable {
             public var index: Int
-            /// A fixed size, or 0 × 0 for the fitting size.
             public var width: Double
             public var height: Double
             public init(index: Int, width: Double = 0, height: Double = 0) {
@@ -125,8 +116,6 @@ public enum PreviewMacHost {
     }
     """#
 
-    /// The deployment target payloads and the host use on this Mac: the
-    /// SDK's version, so previewed code may use every API the SDK has.
     public static func deploymentTarget(sdkVersion: String) -> String {
         sdkVersion.split(separator: ".").prefix(2).joined(separator: ".")
     }
@@ -137,7 +126,6 @@ public enum PreviewMacHost {
          "-o", output.path, source.path]
     }
 
-    /// Builds (or reuses) the Mac host under `workDirectory/hosts/macOS-<target>-v<version>/`.
     public static func build(deploymentTarget: String, workDirectory: URL, xcrun: String = "/usr/bin/xcrun") throws(PreviewFailure) -> URL {
         let dir = workDirectory.appendingPathComponent("hosts/macOS-\(deploymentTarget)-v\(sourceVersion)")
         let exe = dir.appendingPathComponent(executableName)

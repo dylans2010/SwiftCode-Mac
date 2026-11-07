@@ -3,12 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The String Catalog editor (`specs/ide/string-catalog.md` §Editor): the
-/// languages at the left (the source language first, then each with its
-/// percentage translated, "+" to add one), the table of strings at the
-/// right — Key, Default Localization, Comment, the language's translation
-/// (not for the source language) and State — with the headers' sort, the
-/// filter, Add Key, "−" and Refresh from Source under it.
 struct StringCatalogEditorView: View {
     var model: StringCatalogEditorModel
     @Environment(\.colorScheme) private var scheme
@@ -55,7 +49,6 @@ struct StringCatalogEditorView: View {
     }
 }
 
-/// The languages: name, "Source" or the percentage, a progress bar.
 struct LanguageList: View {
     var model: StringCatalogEditorModel
     @Environment(\.colorScheme) private var scheme
@@ -134,7 +127,6 @@ struct LanguageList: View {
     }
 }
 
-/// The table of strings.
 struct StringTable: View {
     var model: StringCatalogEditorModel
     @FocusState private var hasKeyboard: Bool
@@ -146,7 +138,6 @@ struct StringTable: View {
         let c = ShellColors(scheme)
         let rows = model.rows
         let showTranslation = !model.isSourceLanguage
-        // Plural or device variations of the source language, by key.
         let sourceVariations = Dictionary(model.catalog.rows(language: model.catalog.sourceLanguage).map { ($0.key, $0.variations) },
                                           uniquingKeysWith: { a, _ in a })
         GeometryReader { geo in
@@ -297,7 +288,6 @@ struct StringRowView: View {
     }
 }
 
-/// A row's state: a colored dot and its name.
 struct StateBadge: View {
     var state: StringCatalog.State
     var colors: ShellColors

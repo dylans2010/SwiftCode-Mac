@@ -1,14 +1,5 @@
 import Foundation
 
-/// Shared diagnostic / search / index result models (Legacy
-/// `SwiftCode/Models/CoreModels.swift`, Dylan's own code, ported under
-/// MIT). Small value types shared by the Advanced Tools views and the
-/// code-intelligence engines. `SearchResult.matchRange` stays transient
-/// UI-highlight state and is excluded from `Codable`, as in Legacy.
-
-// MARK: - Code Error
-
-/// One diagnostic attached to a file and line (Legacy `CodeError`).
 public struct CodeError: Identifiable, Sendable {
     public let id = UUID()
     public let fileName: String
@@ -48,9 +39,6 @@ public struct CodeError: Identifiable, Sendable {
     }
 }
 
-// MARK: - Search Result
-
-/// One text-search hit (Legacy `SearchResult`).
 public struct SearchResult: Identifiable, Codable, Sendable {
     public let id: UUID
     public let fileName: String
@@ -94,9 +82,6 @@ public struct SearchResult: Identifiable, Codable, Sendable {
     }
 }
 
-// MARK: - Index Entry
-
-/// One entry of a code index (Legacy `IndexEntry`).
 public struct IndexEntry: Identifiable, Sendable {
     public let id = UUID()
     public let name: String

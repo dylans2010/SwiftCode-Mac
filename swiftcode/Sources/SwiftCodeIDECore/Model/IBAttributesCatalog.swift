@@ -1,21 +1,10 @@
 import Foundation
 
-/// The Attributes inspector for every UIKit kind (`interface-builder.md`
-/// §Reference Attributes inspector): the kind's own section first, then its
-/// superclasses' (Control, Scroll View, View; Simulated Metrics and View
-/// Controller for controllers; Bar Item; Gesture Recognizer), with the
-/// spec's labels, control types and order. Each row names the attribute it
-/// writes; the names are file-format facts and public UIKit property
-/// names. The shared sections are written once below.
 struct IBAttributeRows {
     let d: IBDocument
     let o: IBDocument.Object
     var id: String { o.id }
 
-    // MARK: Row builders
-
-    /// Pairs from "value|Title" strings ("value" alone: the title is the
-    /// value in words).
     static func pairs(_ list: [String]) -> (values: [String], titles: [String]) {
         let split = list.map { s -> (String, String) in
             if let bar = s.firstIndex(of: "|") { return (String(s[..<bar]), String(s[s.index(after: bar)...])) }
@@ -37,7 +26,6 @@ struct IBAttributeRows {
         return .check(key: key, title: title, target: target, attribute: attr, isOn: v == "YES", onValue: "YES", offValue: nil)
     }
 
-    /// A check box whose attribute says the opposite (`hidden` for "Shows").
     func inverseCheck(_ key: String, _ title: String, _ attr: String, at t: String? = nil) -> IBInspectorRow {
         .check(key: key, title: title, target: t ?? id, attribute: attr, isOn: value(attr, t) != "YES", onValue: nil, offValue: "YES")
     }
@@ -47,8 +35,6 @@ struct IBAttributeRows {
         return .popUp(key: key, target: t ?? id, attribute: attr, values: p.values, titles: p.titles, value: value(attr, t) ?? def ?? p.values[0])
     }
 
-    /// A pop-up SwiftCode shows with its current choice only (its file form is
-    /// not specified yet).
     func fixed(_ key: String, _ title: String) -> IBInspectorRow {
         .popUp(key: key, target: id, attribute: "@shown", values: [title], titles: [title], value: title)
     }
@@ -83,12 +69,9 @@ struct IBAttributeRows {
         return .popUp(key: "Font", target: id, attribute: "@font", values: titles, titles: titles, value: d.fontTitle(o, default: def))
     }
 
-    /// "Text: pop-up (Plain), text field": the kind of text, then the text.
     func textRows(_ attr: String, _ def: String = "") -> [IBInspectorRow] {
         [fixed("Text", o.node.child("attributedString") != nil ? "Attributed" : "Plain"), .text(label: "", target: id, attribute: attr, value: o.attribute(attr) ?? def, placeholder: "")]
     }
-
-    // MARK: Shared value lists
 
     static let alignments = ["left|Left", "center|Center", "right|Right", "justified|Justified", "natural|Natural"]
     static let lineBreaks = ["clip|Clip", "characterWrap|Character Wrap", "wordWrap|Word Wrap", "headTruncation|Truncate Head",
@@ -99,9 +82,6 @@ struct IBAttributeRows {
                                 ("Shipment Tracking Number", "shipmentTrackingNumber"), ("Flight Number", "flightNumber"),
                                 ("Lookup Suggestion", "lookupSuggestion")]
 
-    // MARK: Shared sections
-
-    /// View (every view). A subview ends with Installed.
     func viewSection() -> IBInspectorSection {
         var rows: [IBInspectorRow] = [
             pop("Content Mode", "contentMode", ["scaleToFill|Scale To Fill", "scaleAspectFit|Aspect Fit", "scaleAspectFill|Aspect Fill", "redraw|Redraw",
@@ -126,7 +106,6 @@ struct IBAttributeRows {
         return IBInspectorSection("View", rows)
     }
 
-    /// Control (UIControl subclasses), with the kind's alignment defaults.
     func controlSection(h: String = "center", v: String = "center") -> IBInspectorSection {
         IBInspectorSection("Control", [
             icons("Horizontal", "contentHorizontalAlignment", ["leading|Leading", "left|Left", "center|Center", "trailing|Trailing", "right|Right", "fill|Fill"], h),
@@ -139,7 +118,6 @@ struct IBAttributeRows {
         ])
     }
 
-    /// Scroll View (scroll views, text views, table and collection views).
     func scrollSection() -> IBInspectorSection {
         IBInspectorSection("Scroll View", [
             pop("Indicators", "indicatorStyle", ["default|Default Style", "black|Black Style", "white|White Style"]),
@@ -159,12 +137,10 @@ struct IBAttributeRows {
         ])
     }
 
-    /// Simulated Metrics (every controller; split view controllers have no Top Bar).
     func simulatedMetrics(topBar: Bool = true) -> IBInspectorSection {
         IBInspectorSection("Simulated Metrics", ["Size", "Top Bar", "Bottom Bar", "Keyboard"].filter { topBar || $0 != "Top Bar" }.map { fixed($0, "Inferred") })
     }
 
-    /// View Controller (every controller, after its own section).
     func viewControllerSection() -> IBInspectorSection {
         let size = "\(id)>size@preferredContentSize"
         return IBInspectorSection("View Controller", [
@@ -191,7 +167,6 @@ struct IBAttributeRows {
         ])
     }
 
-    /// Bar Item (bar button items and tab bar items, after their own section).
     func barItemSection() -> IBInspectorSection {
         IBInspectorSection("Bar Item", [
             text("Title", "title"), combo("Image", "image", "Image"), combo("Landscape", "landscapeImage", "Image"),
@@ -199,7 +174,6 @@ struct IBAttributeRows {
         ])
     }
 
-    /// Gesture Recognizer (every recognizer, last).
     func gestureSection() -> IBInspectorSection {
         IBInspectorSection("Gesture Recognizer", [
             check("State", "Enabled", "enabled", on: true),
@@ -210,7 +184,6 @@ struct IBAttributeRows {
         ])
     }
 
-    /// The Text Input Traits group (text fields, text views, search bars).
     func textInputTraits(capitalization: String = "none") -> [IBInspectorRow] {
         let t = "\(id)>textInputTraits@textInputTraits"
         return [
@@ -240,9 +213,6 @@ struct IBAttributeRows {
         Self.dataDetectors.enumerated().map { check($0.offset == 0 ? "Data Detectors" : "", $0.element.0, $0.element.1, on: on($0.element.1), at: path) }
     }
 
-    // MARK: Per kind
-
-    /// The sections for the object, in the reference's order.
     func sections(segment: Int) -> [IBInspectorSection] {
         let e = o.element
         if d.isController(o) || e == "viewControllerPlaceholder" { return controllerSections() }
@@ -318,8 +288,6 @@ struct IBAttributeRows {
         return [simulatedMetrics(topBar: e != "splitViewController")] + (own.map { [$0] } ?? []) + [viewControllerSection()]
     }
 
-    /// Sections of objects without a frame (bar items, menus, gesture
-    /// recognizers, placeholders); nil for views.
     func nonViewSections() -> [IBInspectorSection]? {
         switch o.element {
         case "barButtonItem":
@@ -429,7 +397,6 @@ struct IBAttributeRows {
         return own + [gestureSection()]
     }
 
-    /// The kind's own section (views); nil for plain views.
     func ownSection(segment: Int) -> IBInspectorSection? {
         let e = o.element
         switch e {
@@ -795,7 +762,6 @@ struct IBAttributeRows {
         }
     }
 
-    /// The Button section (all six UIButton kinds).
     func buttonSection() -> IBInspectorSection {
         let config = "\(id)>buttonConfiguration@configuration"
         let style = d.value("style", at: config)
@@ -837,23 +803,17 @@ struct IBAttributeRows {
 }
 
 extension IBDocument {
-    /// The Attributes inspector's sections for object `id`; empty when
-    /// unknown. `segment` is the segmented control segment the Segment
-    /// pop-up shows.
     public func attributesSections(_ id: String, segment: Int = 0) -> [IBInspectorSection] {
         guard let o = byID[id] else { return [] }
-        // A scene row shows its controller's inspector.
         if o.element == "scene", let c = o.children.first(where: isController) { return attributesSections(c.id, segment: segment) }
         let rows = IBAttributeRows(d: self, o: o)
         if !isFlippedRuntime {
-            // macOS documents: the View Controller and View sections.
             if isController(o) { return [rows.simulatedMetrics(), rows.viewControllerSection()] }
             return o.isView ? [rows.viewSection()] : []
         }
         return rows.sections(segment: segment)
     }
 
-    /// Every attribute row's control type, for tests and the walk.
     public static func rowKind(_ r: IBInspectorRow) -> String {
         switch r {
         case .text: "text field"

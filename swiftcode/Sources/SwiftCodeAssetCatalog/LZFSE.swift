@@ -3,20 +3,6 @@ import Foundation
 import Compression
 #endif
 
-/// LZFSE streams as `Assets.car` uses them (`specs/formats/assets-car.md`
-/// §7.3, §7.4). The format is public: Apple's open-source reference
-/// implementation (github.com/lzfse/lzfse, BSD-3-Clause) defines it, and
-/// this file follows the block layout and opcode table that reference
-/// documents. No code is taken from it.
-///
-/// A stream is a list of blocks, each starting with a four-byte magic:
-/// `bvx$` ends the stream, `bvx-` holds raw bytes (`u32 size`, bytes),
-/// `bvxn` holds LZVN-coded bytes (`u32 decoded size`, `u32 payload size`,
-/// payload). `bvx1`/`bvx2` (the FSE-coded blocks) are not written; they are
-/// read only through the system library on macOS.
-///
-/// SwiftCode writes LZVN blocks (or a raw block when that is smaller) with its
-/// own encoder, so the same input gives the same bytes on every platform.
 public enum LZFSE {
     static let endMagic: [UInt8] = Array("bvx$".utf8)
     static let rawMagic: [UInt8] = Array("bvx-".utf8)
@@ -27,14 +13,8 @@ public enum LZFSE {
         public var description: String { "LZFSE: \(message)" }
     }
 
-    /// The largest block SwiftCode writes, in decoded bytes. CoreUI decoded
-    /// only the first 782,336 bytes of a single 1.4 MB LZVN block (the rest
-    /// of the image stayed black, on macOS and on iOS), so long inputs are
-    /// cut into independent blocks.
     public static let blockSize = 64 * 1024
 
-    /// The input in independent blocks of at most `blockSize` bytes, each an
-    /// LZVN block (or a raw block when that is smaller), then the end marker.
     public static func encode(_ input: [UInt8], blockSize: Int = LZFSE.blockSize) -> [UInt8] {
         var w = ByteWriter(capacity: input.count / 8 + 64)
         var p = 0
@@ -57,8 +37,6 @@ public enum LZFSE {
         return w.bytes
     }
 
-    /// Decodes a stream. `expectedSize`, when known, lets the system library
-    /// decode FSE blocks on macOS.
     public static func decode(_ input: ArraySlice<UInt8>, expectedSize: Int? = nil) throws -> [UInt8] {
         var out: [UInt8] = []
         if let expectedSize { out.reserveCapacity(expectedSize) }
@@ -91,7 +69,6 @@ public enum LZFSE {
     }
 
     #if canImport(Compression)
-    /// The system's decoder, for FSE blocks written by other tools.
     static func systemDecode(_ b: [UInt8], expectedSize: Int?) throws -> [UInt8] {
         var capacity = max(expectedSize ?? 0, b.count * 8, 1 << 16)
         while capacity <= 1 << 30 {
@@ -113,22 +90,6 @@ public enum LZFSE {
     #endif
 }
 
-/// The LZVN block coding (opcode table of the LZFSE reference decoder).
-///
-///     sml_d  LLMMMDDD DDDDDDDD          L literals, M+3 match, 11-bit distance (DDD < 6)
-///     med_d  101LLMMM DDDDDDMM DDDDDDDD  L literals, 5-bit M+3 match, 14-bit distance
-///     lrg_d  LLMMM111 DDDDDDDD DDDDDDDD  L literals, M+3 match, 16-bit distance
-///     pre_d  LLMMM110                   L ≥ 1 literals, M+3 match, previous distance
-///     sml_l  1110LLLL, lrg_l 11100000 L  literals 1–15, 16–271
-///     sml_m  1111MMMM, lrg_m 11110000 M  match 1–15, 16–271 at the previous distance
-///     eos    00000110 (then 7 zero bytes), nop 0x0E 0x16
-///
-/// L is two bits (0–3) in the distance opcodes, but the longest match each
-/// L allows is 10, 8, 6 and 4: with L = 1 the patterns 0x70–0x7F are not
-/// distance opcodes (the system decoder on macOS rejects them; found by
-/// probing it with our own streams), with L = 2 the patterns 0xA0–0xBF are
-/// med_d, with L = 3 the patterns 0xD0–0xFF are undefined or literal and
-/// match opcodes.
 enum LZVN {
     static func maxShortMatch(literals l: Int) -> Int { [10, 8, 6, 4][l] }
 
@@ -138,7 +99,7 @@ enum LZVN {
         let n = input.count
         input.withUnsafeBufferPointer { src in
             var table = [Int32](repeating: -1, count: 1 << 14)
-            var anchor = 0          // first byte not yet emitted
+            var anchor = 0
             var i = 0
             var prevD = 0
             @inline(__always) func hash(_ p: Int) -> Int {
@@ -150,7 +111,6 @@ enum LZVN {
                 let cand = Int(table[h])
                 table[h] = Int32(i)
                 var d = 0, m = 0
-                // Prefer the previous distance (cheap opcodes), then the hash candidate.
                 if prevD > 0, i - prevD >= 0, src[i] == src[i - prevD], src[i + 1] == src[i + 1 - prevD], src[i + 2] == src[i + 2 - prevD] {
                     d = prevD
                 } else if cand >= 0, i - cand <= 0xFFFF, i - cand > 0,
@@ -164,7 +124,6 @@ enum LZVN {
                 guard m >= 3 else { i += 1; continue }
                 emit(literals: anchor, i, match: m, distance: d, prevD: &prevD, src: src, out: &out)
                 let end = i + m
-                // Index a few positions inside the match.
                 var k = i + 1
                 while k < end, k + 4 <= n, k < i + 8 {
                     table[hash(k)] = Int32(k)
@@ -198,7 +157,6 @@ enum LZVN {
         }
     }
 
-    /// The literals `[from, to)` and a match of `m` bytes at distance `d`.
     static func emit(literals from: Int, _ to: Int, match m: Int, distance d: Int, prevD: inout Int,
                      src: UnsafeBufferPointer<UInt8>, out: inout [UInt8]) {
         var litStart = from
@@ -216,7 +174,6 @@ enum LZVN {
         let first: Int
         let L = UInt8(l)
         if d == prevD {
-            // pre_d (L ≥ 1 here)
             first = min(m, maxShortMatch(literals: l))
             out.append(L << 6 | UInt8(first - 3) << 3 | 6)
             out += lits
@@ -225,7 +182,6 @@ enum LZVN {
             out += [L << 6 | UInt8(first - 3) << 3 | UInt8(d >> 8), UInt8(d & 0xFF)]
             out += lits
         } else if d < 0x4000 {
-            // med_d: 101LLMMM, then u16 (D << 2 | M low bits)
             first = min(m, 34)
             let mm = first - 3
             let w = UInt16(d) << 2 | UInt16(mm & 3)

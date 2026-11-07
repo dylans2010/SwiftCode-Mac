@@ -1,14 +1,5 @@
-// CodeStructureAnalyzer.swift
-//
-// Ported from Legacy `SwiftCode/Views/Editor/EditorLogicFrameworks/CodeStructureAnalyzer.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Complexity score in code statistics; Per-file CodeStatistics view (non-empty/comment lines, per-kind counts as a view)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import Foundation
-
-// MARK: - Code Structure Analyzer
-// Uses regex to detect Swift declarations without requiring SwiftSyntax.
 
 struct CodeSymbol: Identifiable, Equatable {
     let id = UUID()
@@ -49,8 +40,6 @@ final class CodeStructureAnalyzer {
     static let shared = CodeStructureAnalyzer()
     private init() {}
 
-    // MARK: - Analyze
-
     func analyze(_ code: String) -> [CodeSymbol] {
         var symbols: [CodeSymbol] = []
         let lines = code.components(separatedBy: "\n")
@@ -82,8 +71,6 @@ final class CodeStructureAnalyzer {
         return symbols
     }
 
-    // MARK: - Pattern Builder
-
     private func buildPatterns() -> [(NSRegularExpression, CodeSymbol.SymbolKind)] {
         let defs: [(String, CodeSymbol.SymbolKind)] = [
             (#"(?:^|[\s]+)class\s+([A-Za-z_][A-Za-z0-9_]*)[\s<:{]"#,    .class),
@@ -101,8 +88,6 @@ final class CodeStructureAnalyzer {
             return (regex, kind)
         }
     }
-
-    // MARK: - Quick Stats
 
     func statistics(for code: String) -> CodeStatistics {
         let lines = code.components(separatedBy: "\n")
@@ -135,7 +120,6 @@ struct CodeStatistics {
     var variableCount: Int
 
     var complexityScore: Int {
-        // Simple McCabe-like approximation
         return functionCount * 2 + classCount + structCount
     }
 }

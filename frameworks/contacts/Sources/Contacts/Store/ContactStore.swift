@@ -1,23 +1,10 @@
-// CNContactStore (interface.md §3–§6): authorization (recorded answers),
-// fetching, enumeration, groups and containers, atomic save requests,
-// change notifications and change history.
-
 import Foundation
 
-/// SwiftCode-specific store settings. `CNContactStore()` uses
-/// `CNContactStore.swiftcodeDefaultConfiguration`; tests and tools create
-/// stores with their own configuration through `init(swiftcodeConfiguration:)`.
 public struct SwiftCodeContactStoreConfiguration: Sendable {
-    /// The contacts database file (created with the fresh-device content on first use).
     public var databaseURL: URL
-    /// The app's access (the authorization broker of round R6 is not
-    /// implemented; this is the recorded answer).
     public var authorizationStatus: CNAuthorizationStatus
-    /// With `.limited`: the contacts the user shared with the app.
     public var limitedContactIdentifiers: Set<String>
-    /// Identifies the app; contacts it creates stay visible with limited access.
     public var bundleIdentifier: String
-    /// The region used for phone matching and postal layouts ("us").
     public var countryCode: String
 
     public init(databaseURL: URL = SwiftCodeContactStoreConfiguration.standardDatabaseURL,
@@ -32,8 +19,6 @@ public struct SwiftCodeContactStoreConfiguration: Sendable {
         self.countryCode = countryCode
     }
 
-    /// `$SWIFTCODE_CONTACTS_DATABASE`, else `<data home>/swiftcode-contacts/AddressBook.sqlite`
-    /// (`$XDG_DATA_HOME` or `~/.local/share` on Linux, Application Support on macOS).
     public static var standardDatabaseURL: URL {
         let env = ProcessInfo.processInfo.environment
         if let p = env["SWIFTCODE_CONTACTS_DATABASE"], !p.isEmpty { return URL(fileURLWithPath: p) }
@@ -48,7 +33,6 @@ public struct SwiftCodeContactStoreConfiguration: Sendable {
     }
 }
 
-/// Undeclared user-info keys of the change notification (interface.md §6.1).
 let notificationSaveIdentifiersKey = "CNNotificationSaveIdentifiersKey"
 let notificationSourcesKey = "CNNotificationSourcesKey"
 let notificationOriginationExternallyKey = "CNNotificationOriginationExternally"
@@ -57,7 +41,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
     private static let defaultsLock = NSLock()
     nonisolated(unsafe) private static var _default = SwiftCodeContactStoreConfiguration()
 
-    /// The configuration used by `CNContactStore()` and `authorizationStatus(for:)`.
     public static var swiftcodeDefaultConfiguration: SwiftCodeContactStoreConfiguration {
         get { defaultsLock.lock(); defer { defaultsLock.unlock() }; return _default }
         set { defaultsLock.lock(); _default = newValue; defaultsLock.unlock() }
@@ -84,16 +67,12 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         if let db { ChangeWatcher.shared.unregister(path: db.path) }
     }
 
-    // MARK: Authorization (recorded answers; the R6 broker is deferred)
-
     public class func authorizationStatus(for entityType: CNEntityType) -> CNAuthorizationStatus {
         swiftcodeDefaultConfiguration.authorizationStatus
     }
 
     var granted: Bool { configuration.authorizationStatus == .authorized || configuration.authorizationStatus == .limited }
 
-    /// Answers from the recorded status on a global queue (authorization.md §3):
-    /// granted for full and for limited access.
     public func requestAccess(for entityType: CNEntityType, completionHandler: @escaping (Bool, (any Error)?) -> Void) {
         let ok = granted
         nonisolated(unsafe) let handler = completionHandler
@@ -123,19 +102,13 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         db.allContacts().filter(isVisible)
     }
 
-    // MARK: Identity
-
-    /// The local container; available without access (interface.md §3).
     public func defaultContainerIdentifier() -> String { localContainerIdentifier }
 
-    /// Opaque; available before authorization (interface.md §6.2).
     public var currentHistoryToken: Data? {
         lock.lock(); defer { lock.unlock() }
         guard let db else { return nil }
         return HistoryToken.make(databaseID: db.meta("unique_id") ?? "", seq: db.maxSeq())
     }
-
-    // MARK: Building contacts
 
     func checkKeys(_ keys: Set<String>) throws {
         if keys.contains(CNContactNoteKey) && !SwiftCodeContactsEnvironment.notesEntitlement {
@@ -152,8 +125,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
             ? CNMutableContact(identifier: s.identifier, data: data, available: keys)
             : CNContact(identifier: s.identifier, data: data, available: keys)
     }
-
-    // MARK: Fetching
 
     func fetch(predicate: NSPredicate?, keys descriptors: [CNKeyDescriptor], sortOrder: CNContactSortOrder,
                mutable: Bool) throws -> [CNContact] {
@@ -192,12 +163,10 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         return rows.map { makeContact($0, keys: keys, mutable: mutable) }
     }
 
-    /// The contacts matching a predicate (nil: all), in storage order.
     public func unifiedContacts(matching predicate: NSPredicate?, keysToFetch keys: [CNKeyDescriptor]) throws -> [CNContact] {
         try fetch(predicate: predicate, keys: keys, sortOrder: .none, mutable: false)
     }
 
-    /// Throws code 200 for an unknown or deleted identifier (interface.md §4.1).
     public func unifiedContact(withIdentifier identifier: String, keysToFetch keys: [CNKeyDescriptor]) throws -> CNContact {
         let found = try fetch(predicate: CNStorePredicate(.contactIdentifiers([identifier])), keys: keys, sortOrder: .none, mutable: false)
         guard let c = found.first else { throw CNError(.recordDoesNotExist) }
@@ -209,7 +178,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         throw CNError(.featureNotAvailable)
     }
 
-    /// Synchronous enumeration; set `stop.pointee` to true to end early.
     public func enumerateContacts(with fetchRequest: CNContactFetchRequest,
                                   usingBlock block: (CNContact, UnsafeMutablePointer<ObjCBool>) -> Void) throws {
         let contacts = try fetch(predicate: fetchRequest.predicate, keys: fetchRequest.keysToFetch,
@@ -221,7 +189,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         }
     }
 
-    /// The contacts as an enumerator, with the history token of the fetch.
     public func enumerator(for request: CNContactFetchRequest) throws -> CNFetchResult<NSEnumerator> {
         lock.lock(); defer { lock.unlock() }
         let token = currentHistoryToken ?? Data()
@@ -230,11 +197,8 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         return CNFetchResult(value: ArrayEnumerator(contacts), currentHistoryToken: token)
     }
 
-    // MARK: Groups and containers
-
     func makeGroup(_ g: StoredGroup) -> CNGroup { CNGroup(identifier: g.identifier, name: g.name) }
 
-    /// Groups are visible with limited access too (interface.md §3).
     public func groups(matching predicate: NSPredicate?) throws -> [CNGroup] {
         lock.lock(); defer { lock.unlock() }
         let db = try checkAccess()
@@ -272,10 +236,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         }
     }
 
-    // MARK: Saving
-
-    /// Executes the request atomically: any failure rolls everything back
-    /// (interface.md §5).
     public func execute(_ saveRequest: CNSaveRequest) throws {
         lock.lock()
         do {
@@ -290,7 +250,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
     }
 
     private func apply(_ request: CNSaveRequest, _ db: ContactsDatabase) throws -> [String] {
-        // Membership changes refer to records as they were before the request.
         let existingGroups = Set(db.groups().map(\.identifier))
         let existingContacts = Set(db.allContacts().filter(isVisible).map(\.identifier))
         let author = request.transactionAuthor
@@ -332,7 +291,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
                     saved.append(c)
                     changed.append(c.identifier)
                 case .deleteContact(let c):
-                    // Deleting a missing record is not an error.
                     guard visibleExists(c.identifier) else { continue }
                     try db.deleteContact(c.identifier)
                     try db.journal(txn: txn, author: author, writer: writer, kind: "contact", op: "delete", record: c.identifier)
@@ -375,19 +333,13 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         return changed
     }
 
-    // MARK: Notifications (interface.md §6.1)
-
     private func postNotifications(_ request: CNSaveRequest) {
-        // First on the thread that executed the save …
         NotificationCenter.default.post(name: .CNContactStoreDidChange, object: nil, userInfo: [
             notificationSaveIdentifiersKey: [request.saveIdentifier, storeIdentifier],
             notificationSourcesKey: [configuration.bundleIdentifier, ProcessInfo.processInfo.processName],
         ])
-        // … then on the main queue, marked as originating externally.
         ChangeWatcher.postExternal()
     }
-
-    // MARK: Change history (interface.md §6.2)
 
     public func enumerator(for request: CNChangeHistoryFetchRequest) throws -> CNFetchResult<NSEnumerator> {
         lock.lock(); defer { lock.unlock() }
@@ -427,8 +379,6 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         return CNFetchResult(value: ArrayEnumerator(events), currentHistoryToken: token)
     }
 
-    /// One event per changed record (its net change since the token), in
-    /// the order the records first changed; membership changes as recorded.
     private func coalesce(_ rows: [JournalRow], db: ContactsDatabase, keys: Set<String>, mutable: Bool,
                           groups: Bool) -> [CNChangeHistoryEvent] {
         var order: [String] = []
@@ -488,14 +438,8 @@ public class CNContactStore: NSObject, @unchecked Sendable {
     }
 }
 
-// MARK: - Change watcher
-
-/// Posts the main-queue change notification, and watches each open
-/// database's journal for commits by other processes (polling every 200 ms;
-/// one main-queue notification per foreign transaction).
 final class ChangeWatcher: @unchecked Sendable {
     static let shared = ChangeWatcher()
-    /// Identifies this process's journal rows.
     static let processToken = UUID().uuidString
     static let pollInterval: DispatchTimeInterval = .milliseconds(200)
 
@@ -541,7 +485,6 @@ final class ChangeWatcher: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard let e = entries[path] else { return }
         e.count -= 1
-        // swiftlint:disable:next empty_count - a counter, not a collection
         if e.count <= 0 {
             e.timer?.cancel()
             entries[path] = nil

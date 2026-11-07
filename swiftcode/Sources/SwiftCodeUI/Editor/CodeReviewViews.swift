@@ -1,10 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Code Review mode in the source editor (`specs/ide/reference-ui-4.md`
-/// §15): inline tints with gutter bars, the change stepper bar with the
-/// two sources and a swap button, the source picker popover, and the
-/// ribbons between the side-by-side columns.
 @MainActor
 public final class CodeReviewState {
     public var style: ComparisonStyle = .inline
@@ -14,15 +10,11 @@ public final class CodeReviewState {
     public internal(set) var leftSource: ReviewSource = .uncommittedChanges
     public internal(set) var rightSource: ReviewSource = .lastCommit
     var baseline = ""
-    /// The left-hand text when the left source is not the working copy.
     var leftText: String?
-    /// Places the controls (the window puts them in the debug bar); when
-    /// nil they sit along the editor's bottom edge.
     var host: ((CodeReviewBar?) -> Void)?
     let bar = CodeReviewBar()
 }
 
-/// "‹ N changes ›", then the left source, a swap button and the right source.
 @MainActor
 public final class CodeReviewBar: NSView {
     public let previous = NSButton(image: NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Previous Change")!, target: nil, action: nil)
@@ -33,7 +25,7 @@ public final class CodeReviewBar: NSView {
     public let rightSource = NSButton(title: "Last Commit", target: nil, action: nil)
     var onStep: ((Bool) -> Void)?
     var onSwap: (() -> Void)?
-    var onPick: ((Bool, NSView) -> Void)?   // (left side?, anchor)
+    var onPick: ((Bool, NSView) -> Void)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -80,8 +72,6 @@ extension NSBox {
     }
 }
 
-/// The source picker popover: "Branches & Tags" and "Commits" columns, each
-/// with a search field.
 @MainActor
 public final class ReviewSourcePicker: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public let columns: CodeReviewModel.PickerColumns
@@ -159,7 +149,6 @@ public final class ReviewSourcePicker: NSViewController, NSTableViewDataSource, 
         choose(table: t === branchTable ? 0 : 1, row: t.clickedRow)
     }
 
-    /// Chooses a row (tests call this directly).
     @discardableResult
     public func choose(table: Int, row: Int) -> ReviewSource? {
         var source: ReviewSource?
@@ -173,13 +162,9 @@ public final class ReviewSourcePicker: NSViewController, NSTableViewDataSource, 
     }
 }
 
-/// The band between the side-by-side columns: each change region on the
-/// left is joined to its region on the right; a deletion or insertion
-/// narrows to a marker line on the side that has no lines.
 @MainActor
 final class RibbonView: NSView {
     var changes: [ReviewChange] = [] { didSet { needsDisplay = true } }
-    /// Maps a 1-based line on each side to a y position (top of the line).
     var leftY: ((Int) -> CGFloat)?
     var rightY: ((Int) -> CGFloat)?
     var lineHeight: CGFloat = 15
@@ -189,7 +174,6 @@ final class RibbonView: NSView {
         guard let leftY, let rightY else { return }
         for c in changes {
             let color: NSColor = c.kind == .added ? .systemGreen : (c.kind == .removed ? .systemRed : .systemBlue)
-            // Left column = working copy (new lines), right = source (old).
             let l0 = leftY(c.newStart), l1 = l0 + CGFloat(c.newCount) * lineHeight
             let r0 = rightY(c.oldStart), r1 = r0 + CGFloat(c.oldCount) * lineHeight
             let p = NSBezierPath()
@@ -216,8 +200,6 @@ final class RibbonView: NSView {
         k == .added ? .systemGreen : (k == .removed ? .systemRed : .systemBlue)
     }
 
-    /// Where lines exist on one side only: a marker on the empty side at
-    /// the place they would go (reference-ui-4 §15.3).
     struct InsertionMarker: Equatable { var leftSide: Bool; var row: Int; var y: CGFloat; var kind: LineDiff.Row.Kind }
     var insertionMarkers: [InsertionMarker] {
         guard let leftY, let rightY else { return [] }
@@ -239,8 +221,6 @@ extension SourceEditorController {
     public var reviewBar: CodeReviewBar { review.bar }
     public var currentReviewChange: Int? { review.current }
 
-    /// Inline Code Review: the text stays editable; changed lines are tinted
-    /// and marked in the gutter; the stepper bar is shown.
     public func showInlineComparison(baseline: String, source: ReviewSource) {
         _ = view
         hideComparison()
@@ -265,7 +245,6 @@ extension SourceEditorController {
         if let host = review.host { host(nil) } else { review.bar.removeFromSuperview() }
     }
 
-    /// Recomputes the marks after an edit.
     func refreshInlineComparison() {
         guard review.inlineShown else { return }
         let rows = LineDiff.sideBySide(LineDiff.diff(LineDiff.lines(review.baseline), LineDiff.lines(textView.string)))
@@ -300,7 +279,6 @@ extension SourceEditorController {
         review.bar.next.isEnabled = !review.changes.isEmpty
     }
 
-    /// ‹ / ›: selects the previous or next change and reveals it.
     @discardableResult
     public func stepReviewChange(forward: Bool) -> Int? {
         review.current = CodeReviewModel.step(from: review.current, count: review.changes.count, forward: forward)
@@ -311,8 +289,6 @@ extension SourceEditorController {
         return review.current
     }
 
-    /// Selects the change that covers `line` (or the deletion before it)
-    /// and reveals it; returns its index.
     @discardableResult
     public func selectReviewChange(containing line: Int) -> Int? {
         guard let i = review.changes.firstIndex(where: { line >= $0.newStart && line < $0.newStart + max($0.newCount, 1) }) else { return nil }
@@ -322,7 +298,6 @@ extension SourceEditorController {
         return i
     }
 
-    /// Swaps the two sources' titles (and sides, in side-by-side).
     func swapReviewSources() {
         swap(&review.leftSource, &review.rightSource)
         updateReviewBar()
@@ -335,7 +310,6 @@ extension SourceEditorController {
 }
 
 extension SourceTextView {
-    /// Inline Code Review tints (drawn before the text).
     func drawReviewMarks(in rect: NSRect) {
         for (line, kind) in reviewMarks {
             guard let r = lineRect(line), r.intersects(rect) else { continue }
@@ -351,7 +325,6 @@ extension SourceTextView {
 }
 
 extension SourceEditorController {
-    /// Side-by-side Code Review with the stepper bar.
     public func showSideBySideComparison(baseline: String, source: ReviewSource) {
         _ = view
         hideInlineComparison()
@@ -366,8 +339,6 @@ extension SourceEditorController {
         } else {
             showComparison(old: baseline, oldTitle: title)
         }
-        // §15.3: the working copy side is editable; edits flow back to the
-        // file's text and re-diff.
         comparison.onWorkingCopyEdit = review.leftText == nil ? { [weak self] text in
             guard let self else { return }
             self.textView.string = text

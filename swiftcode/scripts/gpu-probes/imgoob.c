@@ -1,18 +1,3 @@
-// imgoob: what a storage-image write outside the written view does on this
-// device (stage8-contract.md §15.9). One thread writes a W x H rectangle of
-// texels at (OX, OY) through a storage view of mip level LEVEL of a
-// SIZE x SIZE RGBA8 image with LEVELS levels; the view is LEVEL's
-// (as a Metal texture view of one level is).
-// usage: imgoob SPV SIZE LEVELS LEVEL W H OX OY [ROBUST [STALE]]
-//   ROBUST 1: the pipeline is created with robust image access
-//   (VK_EXT_pipeline_robustness), for comparison.
-//   STALE 1: the view and the image are destroyed (memory freed) after
-//   their descriptor was written, before the dispatch that writes through
-//   it: a heap slot that still names a released texture. STALE 2: heap
-//   index 7 is written to, whose descriptor was never written.
-// Exit 0 when the dispatch finished within 5 s, 1 when it did not.
-// Build (from swiftcode/, on a host with Vulkan; stage8-contract.md §15):
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o X scripts/gpu-probes/X.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,14 +49,12 @@ int main(int argc, char **argv) {
     VkDependencyInfo di = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
     vk->vkCmdPipelineBarrier2(cb, &di);
     if (stale == 1) {
-        // The layout change must complete first; then the image goes.
         vk->vkEndCommandBuffer(cb);
         VkSemaphore t0 = yvk_timeline_create(&ctx, 0);
         yvk_submit(&ctx, cb, t0, 1, NULL, 0);
         yvk_timeline_wait(&ctx, t0, 1, 5000000000ull);
         vk->vkDestroyImageView(ctx.device, view, NULL);
         yvk_image_destroy(&ctx, &img);
-        // Other allocations reuse nothing in particular; the slot still names the old view.
         cb = yvk_command_buffer_begin(&ctx, err, sizeof err);
     }
     vk->vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, pipe);

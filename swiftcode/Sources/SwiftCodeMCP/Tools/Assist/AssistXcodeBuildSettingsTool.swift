@@ -1,21 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/AssistXcodeBuildSettingsTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/Tools/Assist/AssistXcodeBuildSettingsTool.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Live xcodebuild -showBuildSettings execution with fully resolved settings (SDK paths, resolved values); destination reports only 11 key settings statically merged from the .pbxproj
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - ToolCapability — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - ToolRiskLevel — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+ProjectModel.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
-//
-//  AssistXcodeBuildSettingsTool.swift
-//  SwiftCode
-//
-
 import Foundation
 import SwiftCodeAssistant
 
@@ -82,7 +64,6 @@ public struct AssistXcodeBuildSettingsTool: AssistTool {
                 }
             }
 
-            // Summary of primary settings
             let keySettings = [
                 "TARGET_NAME",
                 "PRODUCT_NAME",

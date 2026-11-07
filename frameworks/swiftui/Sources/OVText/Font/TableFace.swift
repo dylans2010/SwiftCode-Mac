@@ -1,16 +1,4 @@
-// A face defined by tables instead of a font file: vertical metrics as
-// fractions of the point size, a per-size leading table, and a table of
-// measured run widths. Its glyph advances are estimates (a fixed fraction of
-// the size per character), so layouts that need them report
-// `usesEstimates`.
-//
-// Use: conformance tests set the measured values of a reference font in it
-// (widths, ascent, descent and leading recorded in the spec) so that layout
-// arithmetic around text can be checked exactly without that font; any
-// answer that would need the font's real glyph widths is flagged.
-
 public final class TableFace: FontFace, @unchecked Sendable {
-    /// A measured run: text, point size and weight class.
     public struct Run: Hashable, Sendable {
         public var text: String
         public var size: Double
@@ -26,18 +14,13 @@ public final class TableFace: FontFace, @unchecked Sendable {
     public let familyName: String
     public let styleName: String
     public let traits: FontTraits
-    /// Ascent and descent as fractions of the point size.
     public let ascentRatio: Double
     public let descentRatio: Double
     public let capHeightRatio: Double
     public let xHeightRatio: Double
-    /// Leading by point size; sizes not listed use the nearest listed size
-    /// (or `defaultLeadingRatio` × size when the table is empty).
     public let leadingBySize: [Double: Double]
     public let defaultLeadingRatio: Double
-    /// Measured run widths (points) by text, size and weight.
     public let runs: [Run: Double]
-    /// Estimated advance of one character, as a fraction of the size.
     public let estimatedAdvanceRatio: Double
 
     public init(familyName: String, styleName: String = "Regular", traits: FontTraits = FontTraits(),

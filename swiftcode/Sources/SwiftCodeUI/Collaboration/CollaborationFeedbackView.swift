@@ -1,10 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationFeedbackView.swift
-// Verbatim behaviour: a bottom toast pill plus the `collaborationFeedback`
-// View modifier. No backend: the message comes from the caller (the
-// CollaborationMainView feeds it BranchWorkspaceManager's real
-// lastSuccessMessage / lastErrorMessage). No destination changes needed.
-
 import SwiftUI
 
 struct CollaborationFeedbackView: View {

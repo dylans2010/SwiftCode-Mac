@@ -2,15 +2,7 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeProject
 
-/// `-resolvePackageDependencies [-clonedSourcePackagesDirPath <dir>]`.
-/// Projects and workspaces: remote references (`XCRemoteSwiftPackageReference`)
-/// are resolved with SwiftCode's `PackageResolver` (git and SwiftPM's public
-/// command line) into `<dir>/checkouts`, and `Package.resolved` is written
-/// next to the project or workspace; local references are reported as is.
-/// Package folders: SwiftPM's own `swift package resolve` with `<dir>` as
-/// its scratch path. See `specs/xcodebuild/packages.md` §4.
 enum ResolvePackages {
-    /// `-clonedSourcePackagesDirPath`, else `<DerivedData folder>/SourcePackages`.
     static func sourcePackagesDirectory(_ inv: Invocation, name: String, path: String, context ctx: XcodebuildContext) -> String {
         if let d = inv.value("-clonedSourcePackagesDirPath") {
             return URL(fileURLWithPath: d.hasPrefix("/") ? d : ctx.cwd + "/" + d).standardizedFileURL.path
@@ -48,8 +40,6 @@ enum ResolvePackages {
         return 0
     }
 
-    /// A package folder: SwiftPM resolves (and writes the folder's
-    /// `Package.resolved` when it has remote dependencies).
     static func run(_ inv: Invocation, package pkg: SwiftPackage, context ctx: XcodebuildContext) throws(XcodebuildFailure) -> Int32 {
         let dir = sourcePackagesDirectory(inv, name: pkg.name, path: pkg.directory, context: ctx)
         let r = TestActions.run(pkg.swift, ["package", "--package-path", pkg.directory, "--scratch-path", dir, "resolve"], environment: ctx.environment)

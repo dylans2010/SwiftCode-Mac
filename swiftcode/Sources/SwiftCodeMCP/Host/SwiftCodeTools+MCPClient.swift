@@ -5,30 +5,7 @@ import FoundationNetworking
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// A real MCP (Model Context Protocol) client for `use_mcp`,
-/// replacing the Wave 4 list-only port.
-///
-/// Legacy's `UseMCP` enumerates its configured servers and calls a
-/// tool on one of them through `MCPServerManager`. The destination
-/// has no MCP client, so this file is one: it reads the user's
-/// server configuration, speaks JSON-RPC 2.0 over stdio (spawned
-/// fixed-argv, NDJSON on stdout) or streamable HTTP, and returns
-/// the server's content blocks. See
-/// `specs/ide/gap-closure-failing-tools.md` §5.
-///
-/// Configuration: `~/.config/swiftcode/mcp-servers.json` (or
-/// `$XDG_CONFIG_HOME/swiftcode/mcp-servers.json`), Claude-Desktop
-/// shape: `{"mcpServers": {"name": {"command": "...", "args": [...],
-/// "env": {...}} | {"url": "https://…", "headers": {...}}}}`.
-/// Transport is inferred (a `command` means stdio, a `url` means
-/// streamable HTTP). The legacy SSE transport is NOT implemented:
-/// a server configured with `"transport": "sse"` fails naming that.
-///
-/// Every call goes through `terminalApproveChange` (no Autopilot
-/// bypass) except the no-connection `list_servers` read, mirroring
-/// Legacy's approval behaviour.
 extension SwiftCodeMCPHost {
-    /// One configured external MCP server.
     struct ExternalMCPServer: Sendable {
         var name: String
         var command: String?
@@ -39,12 +16,8 @@ extension SwiftCodeMCPHost {
         var transport: String?
     }
 
-    /// Test seam: an in-memory server table used by tests instead
-    /// of the config file. Nil in production.
     nonisolated(unsafe) static var externalMCPTestConfig: [String: ExternalMCPServer]?
 
-    /// The config file path (`$XDG_CONFIG_HOME` when set, else
-    /// `~/.config`).
     nonisolated static func externalMCPConfigURL() -> URL {
         let base: URL
         if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"], !xdg.isEmpty {
@@ -55,10 +28,6 @@ extension SwiftCodeMCPHost {
         return base.appendingPathComponent("swiftcode").appendingPathComponent("mcp-servers.json")
     }
 
-    /// The configured servers, or an empty map when the file is
-    /// absent (Legacy's "no servers configured" case). A present
-    /// but unparseable file fails naming the path and the expected
-    /// shape.
     nonisolated static func externalMCPServers() throws -> [String: ExternalMCPServer] {
         if let test = externalMCPTestConfig { return test }
         let url = externalMCPConfigURL()
@@ -83,21 +52,16 @@ extension SwiftCodeMCPHost {
         return out
     }
 
-    // MARK: - JSON-RPC
-
-    /// One JSON-RPC 2.0 request object (id, method, params).
     nonisolated static func externalMCPRequest(id: Int, method: String, params: [String: Any]? = nil) -> Data {
         var obj: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method]
         if let params { obj["params"] = params }
         return (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
     }
 
-    /// Parses one JSON-RPC message. Returns `.response(result)`,
-    /// `.error(message)`, or nil for notifications / other traffic.
     nonisolated static func externalMCPParseMessage(_ line: String) -> Result<Any, MCPToolError>? {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        guard obj["id"] != nil else { return nil } // notification or response-without-id
+        guard obj["id"] != nil else { return nil }
         if let error = obj["error"] as? [String: Any] {
             let message = error["message"] as? String ?? "unknown MCP error"
             let code = error["code"] as? Int
@@ -107,9 +71,6 @@ extension SwiftCodeMCPHost {
         return .success(result)
     }
 
-    /// Joins an MCP `tools/call` result's content blocks into text
-    /// (text blocks, plus `data` of embedded resources when present).
-    /// `isError` is reported separately so the caller can fail.
     nonisolated static func externalMCPJoinContent(_ result: Any) -> (text: String, isError: Bool) {
         guard let dict = result as? [String: Any] else {
             return (String(describing: result), false)
@@ -130,23 +91,12 @@ extension SwiftCodeMCPHost {
         return (parts.joined(separator: "\n"), isError)
     }
 
-    /// The `initialize` params (protocol version `2025-03-26`,
-    /// client `SwiftCode` / `swiftcode-mcp`). The server's protocol version
-    /// is accepted, never enforced.
     nonisolated static var externalMCPInitializeParams: [String: Any] {
         ["protocolVersion": "2025-03-26",
          "capabilities": [:] as [String: Any],
          "clientInfo": ["name": "SwiftCode", "version": "swiftcode-mcp"]]
     }
 
-    // MARK: - stdio transport
-
-    /// Runs one JSON-RPC exchange against a stdio server: spawns
-    /// the fixed command, sends `initialize` + `notifications/initialized`,
-    /// then the single `method` call, and terminates the process.
-    /// Stdout is read as NDJSON (stderr is bounded to a 4,000-char
-    /// tail and only surfaced on failure). Timeouts: 30 s for
-    /// initialize/list, 300 s for a tool call.
     func externalMCPStdioExchange(server: ExternalMCPServer, method: String, params: [String: Any]?,
                                   timeout: TimeInterval) async throws -> Any {
         guard let command = server.command, !command.isEmpty else {
@@ -164,11 +114,6 @@ extension SwiftCodeMCPHost {
         return result
     }
 
-    /// The low-level stdio exchange: spawns, writes each request as
-    /// one NDJSON line, and collects the response for each request id
-    /// (the `notifications/initialized` notification between
-    /// initialize and the method call carries no id and is sent
-    /// without waiting). Returns the method-call result, or throws.
     nonisolated static func externalMCPStdioRun(command: String, args: [String], env: [String: String],
                                                 requests: [(id: Int, method: String, params: [String: Any]?)],
                                                 timeout: TimeInterval) async throws -> (Any, String) {
@@ -221,7 +166,6 @@ extension SwiftCodeMCPHost {
                 inPipe.fileHandleForWriting.write(data)
             }
             let deadline = Date().addingTimeInterval(timeout)
-            // initialize
             let first = requests[0]
             send(first.id, first.method, first.params)
             var initResult: Result<Any, MCPToolError>?
@@ -238,11 +182,9 @@ extension SwiftCodeMCPHost {
                 process.terminate()
                 throw MCPToolError("MCP server '\(command)' did not answer initialize within \(Int(timeout))s")
             }
-            // notifications/initialized (a notification: no id, no wait)
             if let data = try? JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "method": "notifications/initialized"]) {
                 inPipe.fileHandleForWriting.write(data + Data([0x0A]))
             }
-            // The method call (only one per exchange).
             guard requests.count > 1 else {
                 process.terminate()
                 throw MCPToolError("Internal error: no MCP method to call")
@@ -266,17 +208,11 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - streamable HTTP transport
-
-    /// One JSON-RPC exchange over streamable HTTP: POST with
-    /// `Accept: application/json, text/event-stream`, then parse
-    /// either a bare JSON response or an SSE stream (`data:` lines).
     func externalMCPHTTPExchange(server: ExternalMCPServer, method: String, params: [String: Any]?,
                                  timeout: TimeInterval) async throws -> Any {
         guard let urlString = server.url, let url = URL(string: urlString) else {
             throw MCPToolError("MCP server '\(server.name)' has no url (streamable HTTP transport needs one)")
         }
-        // initialize
         _ = try await externalMCPHTTPRequest(url: url, headers: server.headers, id: 1,
                                              method: "initialize", params: Self.externalMCPInitializeParams, timeout: 30)
         var notificationRequest = URLRequest(url: url)
@@ -305,7 +241,6 @@ extension SwiftCodeMCPHost {
         }
         let text = response.text
         if (response.contentType ?? "").contains("text/event-stream") || text.contains("\ndata:") || text.hasPrefix("data:") {
-            // SSE: take the last data line that parses as a JSON-RPC response.
             var last: Result<Any, MCPToolError>?
             for line in text.components(separatedBy: .newlines) where line.hasPrefix("data:") {
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
@@ -327,14 +262,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - Handler
-
-    /// `use_mcp`: `serverName: "list"` / `toolName: "list_servers"`
-    /// lists the configured servers without connecting or approval
-    /// (Legacy's mirror). `list_tools` connects and lists that
-    /// server's tools. Any other call parses `arguments` as a JSON
-    /// object, goes through `terminalApproveChange`, and returns the
-    /// server's content blocks joined as text.
     func useMCPExternal(_ call: MCPToolCall) async throws -> MCPToolResult {
         let serverName = call.string("serverName") ?? ""
         let toolName = call.string("toolName") ?? ""
@@ -378,7 +305,6 @@ extension SwiftCodeMCPHost {
                                 "tools": .array(tools.compactMap { ($0["name"] as? String).map(AnyJSON.string) })],
                                summary: summary)
         }
-        // Tool call: parse arguments, approve, call.
         let argsText = call.string("arguments") ?? "{}"
         guard let argsData = argsText.data(using: .utf8),
               let argsObj = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] else {
@@ -403,9 +329,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-
-/// The off-main stdio accumulator for an MCP server exchange, boxed so the
-/// `@Sendable` readability handlers can mutate it under its lock.
 private final class MCPStdioCapture: @unchecked Sendable {
     let lock = NSLock()
     var lines: [String] = []

@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// specs/ide/reference-ui.md: navigators, toolbar, menus, settings
-/// defaults, behaviors, debug area, File inspector, jump bar.
 @MainActor
 @Suite(.serialized) struct ReferenceUITests {
     @Test func defaultsFollowReference() {

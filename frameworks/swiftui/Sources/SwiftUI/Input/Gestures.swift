@@ -5,19 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// The gestures the reference SDK declares in the `SwiftUI` module
-// (api-inventory.md): drag, long press, spatial tap, sequence, and the
-// `@GestureState` / `updating` pair. Behaviour per 06-app-and-components.md
-// §7; thresholds the spec does not give are marked as ours.
-
-// swiftlint:disable force_cast - recognizer values are the gesture's Value by construction
-
-// MARK: - Drag
-
-/// Recognizes a press that moves at least `minimumDistance` (06 §7: the first
-/// `onChanged` once the translation reaches it; `startLocation` is the
-/// touch-down point; velocity in points per second; the predicted end is
-/// 0.25 s of travel at that velocity).
 public struct DragGesture: Gesture {
     public typealias Body = Never
     public var minimumDistance: CGFloat
@@ -28,21 +15,16 @@ public struct DragGesture: Gesture {
         self.coordinateSpace = coordinateSpace
     }
 
-    /// The state of a drag.
     public struct Value: Equatable, Sendable {
-        /// When the current event happened (the back end's monotonic clock).
         public var time: Date
         public var location: CGPoint
         public var startLocation: CGPoint
-        /// Points per second.
         public var velocity: CGSize
 
         public var translation: CGSize {
             CGSize(width: location.x - startLocation.x, height: location.y - startLocation.y)
         }
 
-        /// Where the drag would come to rest: 0.25 s of travel at the current
-        /// velocity (06 §7).
         public var predictedEndTranslation: CGSize {
             CGSize(width: translation.width + DragRecognizer.predictionInterval * velocity.width,
                    height: translation.height + DragRecognizer.predictionInterval * velocity.height)
@@ -73,11 +55,6 @@ extension DragGesture: PrimitiveGesture {
     }
 }
 
-// MARK: - Long press
-
-/// Recognizes a press held for `minimumDuration` without moving more than
-/// `maximumDistance`. While held its provisional value is `true` (06 §7:
-/// "pressing" at touch-down); it ends with `true` at the duration.
 public struct LongPressGesture: Gesture {
     public typealias Value = Bool
     public typealias Body = Never
@@ -111,8 +88,6 @@ struct LongPressActionGesture: Gesture, PrimitiveGesture {
 }
 
 extension View {
-    /// Runs `action` after a press of `minimumDuration`; `onPressingChanged`
-    /// reports the press going down and up.
     public func onLongPressGesture(minimumDuration: Double = 0.5, maximumDistance: CGFloat = 10,
                                    perform action: @escaping () -> Void,
                                    onPressingChanged: ((Bool) -> Void)? = nil) -> some View {
@@ -130,9 +105,6 @@ extension View {
     }
 }
 
-// MARK: - Spatial tap
-
-/// A tap whose value is where it happened.
 public struct SpatialTapGesture: Gesture {
     public typealias Body = Never
     public var count: Int
@@ -157,9 +129,6 @@ extension SpatialTapGesture: PrimitiveGesture {
     }
 }
 
-// MARK: - Sequence
-
-/// The first gesture, then (once it ended) the second.
 public struct SequenceGesture<First: Gesture, Second: Gesture>: Gesture {
     public typealias Body = Never
     public var first: First
@@ -187,16 +156,11 @@ extension SequenceGesture: PrimitiveGesture {
 }
 
 extension Gesture {
-    /// This gesture, then `other` once it has ended.
     public func sequenced<Other: Gesture>(before other: Other) -> SequenceGesture<Self, Other> {
         SequenceGesture(self, other)
     }
 }
 
-// MARK: - Gesture state
-
-/// A value a gesture writes while it is in progress; it returns to its
-/// initial value when the gesture ends or is cancelled.
 @propertyWrapper
 public struct GestureState<Value>: DynamicProperty {
     package let box: StateBox<Value>
@@ -241,7 +205,6 @@ extension GestureState: GraphInputComparable {
     package func _isGraphInputEqual(to other: Any) -> Bool { true }
 }
 
-/// A gesture that updates a `@GestureState` while it runs.
 public struct GestureStateGesture<Base: Gesture, State>: Gesture {
     public typealias Value = Base.Value
     public typealias Body = Never
@@ -273,12 +236,9 @@ extension GestureStateGesture: PrimitiveGesture {
 }
 
 extension Gesture {
-    /// Updates `state` with each new value while the gesture runs.
     public func updating<State>(_ state: GestureState<State>,
                                 body: @escaping (Value, inout State, inout Transaction) -> Void)
         -> GestureStateGesture<Self, State> {
         GestureStateGesture(base: self, state: state, body: body)
     }
 }
-
-// swiftlint:enable force_cast

@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The "+ Capability" library panel (reference-ui-3.md §1.5): a filter
-/// field, list/grid toggles, an alphabetical list with icons, a detail pane
-/// for the selection, and an error footer when no team is set.
 @MainActor
 public final class CapabilityLibraryController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public enum Layout: Int { case list, grid }
@@ -12,11 +9,8 @@ public final class CapabilityLibraryController: NSViewController, NSTableViewDat
     public private(set) var selected: Capability?
     public private(set) var layout: Layout = .list
     public var filter = "" { didSet { reload() } }
-    /// Capabilities already on the target (shown, but not addable).
     public let present: Set<Capability>
-    /// Footer lines ("Error Loading Capabilities" …) or nil.
     public let error: [String]?
-    /// Adds the capability; returns an error message or nil.
     public var onAdd: ((Capability) -> String?)?
 
     let searchField = NSSearchField()
@@ -135,7 +129,6 @@ public final class CapabilityLibraryController: NSViewController, NSTableViewDat
         grid.isHidden = l == .list
     }
 
-    /// Adds the selection; closes the panel on success.
     @discardableResult
     public func addSelectedCapability() -> Bool {
         guard let c = selected, !present.contains(c) else { return false }

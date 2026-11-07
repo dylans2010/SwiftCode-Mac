@@ -8,10 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Layout rules of 04-layout.md and 08 §3 that the golden table does not
-// pin down numerically (T-RTL, safe areas, pixel rounding, the Layout
-// protocol), checked with font-independent views.
-
 private func approx(_ a: CGFloat, _ b: CGFloat) -> Bool { abs(a - b) <= 0.01 }
 private func approx(_ a: CGRect?, _ b: CGRect) -> Bool {
     guard let a else { return false }
@@ -80,7 +76,6 @@ struct RightToLeftTests {
 
 @Suite("Safe areas (04 §7)")
 struct SafeAreaTests {
-    // Reference device: 466 × 678 window, bottom inset 34, trailing inset 84.
     static let window = CGSize(width: 466, height: 678)
     static let insets = EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84)
 
@@ -101,7 +96,7 @@ struct SafeAreaTests {
     @Test("ignoresSafeArea() extends a view that touches the insets to the window")
     func ignores() {
         let r = run(color().ignoresSafeArea().probe("c"))
-        let c = r.root.children[0].children[0]  // the colour inside ignoresSafeArea
+        let c = r.root.children[0].children[0]
         #expect(approx(r.frame(of: c), CGRect(0, 0, 466, 678)))
     }
 
@@ -137,7 +132,6 @@ struct SafeAreaTests {
     @Test("Right-to-left: the device's right-side inset is the leading inset")
     func rtlLeading() {
         let r = run(color().named("c"), rtl: true)
-        // Mirrored to absolute coordinates, the content still avoids the right edge.
         #expect(approx(r.namedFrames["c"], CGRect(0, 0, 382, 644)))
         #expect(r.safeAreaInsets(of: r.node(named: "c")!) == EdgeInsets(top: 0, leading: 84, bottom: 34, trailing: 0))
     }
@@ -162,8 +156,6 @@ struct PixelRoundingTests {
     }
 }
 
-/// A user layout: subviews in a row, each at its ideal size, `gap` apart,
-/// bottom-aligned; counts cache creation.
 private struct BottomRow: Layout {
     var gap: CGFloat
     struct Cache { var made = 0 }
@@ -185,7 +177,6 @@ private struct BottomRow: Layout {
 
 private enum Rank: LayoutValueKey { static let defaultValue = 0 }
 
-/// Places subviews by their `Rank` value, highest first, top to bottom.
 private struct RankedColumn: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         CGSize(width: subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0,
@@ -229,8 +220,6 @@ struct LayoutProtocolTests {
     func mergedBaselines() {
         let node = LayoutNode.layout(BottomRow(gap: 0), [text("Big").font(.largeTitle), text("small").font(.caption)])
         let r = layout(node, 300, 500)
-        // "Big" has its baseline at 32.33; "small" (14.33 tall, baseline 11.33)
-        // is bottom-aligned in the 40.67-tall row, so its baseline is at 37.67.
         #expect(approx(r.baselines.first, 32.33))
         #expect(approx(r.baselines.last, 37.67))
     }

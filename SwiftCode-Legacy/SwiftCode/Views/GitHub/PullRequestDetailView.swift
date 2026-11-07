@@ -6,10 +6,8 @@ struct PullRequestDetailView: View {
     let pr: GitHubPullRequest
     @Environment(\.dismiss) private var dismiss
 
-    // Details view segment tabs
     @State private var activeTab: DetailTab = .conversation
 
-    // Live Pull Request State Data
     @State private var filesModified: [PullRequestFile] = []
     @State private var prCommits: [GitHubCommit] = []
     @State private var isLoadingFiles = false
@@ -17,15 +15,12 @@ struct PullRequestDetailView: View {
     @State private var isMerging = false
     @State private var selectedFileIdx = 0
 
-    // Local Comments (posted during this session)
     @State private var replyText = ""
     @State private var localComments: [LocalComment] = []
 
-    // AI Review states
     @State private var isRunningAIReview = false
     @State private var aiReviewSummaryText = ""
 
-    // Alerts and messages
     @State private var successMessage: String?
     @State private var errorMessage: String?
     @State private var showSuccess = false
@@ -59,7 +54,6 @@ struct PullRequestDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("PR #\(pr.number): \(pr.title)", systemImage: "arrow.triangle.pull")
                     .font(.headline)
@@ -67,7 +61,6 @@ struct PullRequestDetailView: View {
 
                 Spacer()
 
-                // Tabs Switcher
                 Picker("Tabs", selection: $activeTab) {
                     ForEach(DetailTab.allCases) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -88,7 +81,6 @@ struct PullRequestDetailView: View {
 
             Divider()
 
-            // Active Tab Pane Switcher
             switch activeTab {
             case .conversation:
                 conversationPane
@@ -110,12 +102,9 @@ struct PullRequestDetailView: View {
         } message: { msg in Text(msg) }
     }
 
-    // MARK: - Conversation Tab Pane
-
     private var conversationPane: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // Status Header section
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
@@ -141,7 +130,6 @@ struct PullRequestDetailView: View {
                     .cornerRadius(6)
                 }
 
-                // CI / Build checks
                 VStack(alignment: .leading, spacing: 8) {
                     Text("BUILD CHECK STATUS")
                         .font(.caption2.bold())
@@ -159,7 +147,6 @@ struct PullRequestDetailView: View {
                     .cornerRadius(4)
                 }
 
-                // Conflict and Merge controls
                 VStack(alignment: .leading, spacing: 10) {
                     Text("MERGE INTEGRATION CONTROLS")
                         .font(.caption2.bold())
@@ -204,7 +191,6 @@ struct PullRequestDetailView: View {
                 .background(Color.green.opacity(0.04))
                 .cornerRadius(6)
 
-                // Conversation Timeline (comments and commits)
                 VStack(alignment: .leading, spacing: 10) {
                     Text("TIMELINE ACTIVITY (COMMITS)")
                         .font(.caption2.bold())
@@ -242,7 +228,6 @@ struct PullRequestDetailView: View {
                         }
                     }
 
-                    // Local session comments
                     if !localComments.isEmpty {
                         Text("SESSION COMMENTS")
                             .font(.caption2.bold())
@@ -270,7 +255,6 @@ struct PullRequestDetailView: View {
                         }
                     }
 
-                    // Add comment form
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Add Comment").font(.caption.bold())
                         TextEditor(text: $replyText)
@@ -291,8 +275,6 @@ struct PullRequestDetailView: View {
         }
     }
 
-    // MARK: - Files Changed Tab Pane
-
     private var filesChangedPane: some View {
         VStack(spacing: 0) {
             if isLoadingFiles {
@@ -302,7 +284,6 @@ struct PullRequestDetailView: View {
                 ContentUnavailableView("No Files Changed", systemImage: "doc.text")
             } else {
                 HSplitView {
-                    // Left list files
                     List(0..<filesModified.count, id: \.self) { idx in
                         let file = filesModified[idx]
                         HStack {
@@ -331,7 +312,6 @@ struct PullRequestDetailView: View {
                     }
                     .frame(width: 250)
 
-                    // Right inline diff display
                     VStack(alignment: .leading, spacing: 0) {
                         let activeFile = filesModified[selectedFileIdx]
                         Text("Diff for \(activeFile.filename)")
@@ -408,8 +388,6 @@ struct PullRequestDetailView: View {
         }
     }
 
-    // MARK: - AI Reviews Tab Pane
-
     private var aiReviewsPane: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -457,8 +435,6 @@ struct PullRequestDetailView: View {
         }
     }
 
-    // MARK: - Actions Operations Executions
-
     private func fetchPRData() {
         guard let (owner, repo) = ownerAndRepo else { return }
 
@@ -481,7 +457,6 @@ struct PullRequestDetailView: View {
                 let fetchedCommits = try await GitHubService.shared.listPullRequestCommits(owner: owner, repo: repo, number: pr.number)
                 self.prCommits = fetchedCommits
             } catch {
-                // silent capture
             }
             isLoadingCommits = false
         }

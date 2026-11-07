@@ -34,8 +34,6 @@ public enum DatabaseSection: String, CaseIterable, Identifiable {
     }
 }
 
-/// Main entry point for the Database Explorer.
-/// Functions as an invisible background trigger that natively launches the AppKit workspace window.
 public struct DatabaseExplorerView: View {
     @Environment(\.dismiss) private var dismiss
 

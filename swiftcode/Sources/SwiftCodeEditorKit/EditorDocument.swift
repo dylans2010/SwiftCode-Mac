@@ -2,18 +2,14 @@ import Foundation
 import Observation
 import SwiftCodeSyntax
 
-/// An open file: its buffer, how it maps to disk, and what is on disk now.
 @Observable
 public final class EditorDocument {
     public let path: String
     public let buffer: EditorBuffer
     @ObservationIgnored public private(set) var format: EditorFileFormat
     @ObservationIgnored public private(set) var stamp: EditorDiskStamp?
-    /// Why the file is read-only, else nil.
     public private(set) var readOnlyReason: String?
-    /// What differs on disk from what the buffer was loaded from or saved to.
     public private(set) var diskChange: DiskChange?
-    /// What a view keeps with the document (its scroll position).
     @ObservationIgnored public var viewState: AnyObject?
 
     public enum DiskChange: Equatable, Sendable {
@@ -22,7 +18,6 @@ public final class EditorDocument {
 
     public enum SaveResult: Equatable, Sendable {
         case saved
-        /// The file changed on disk since it was loaded; nothing was written.
         case conflict(DiskChange)
         case failed(String)
     }
@@ -39,7 +34,6 @@ public final class EditorDocument {
         buffer.isReadOnly = readOnlyReason != nil
     }
 
-    /// Opens `path`; nil and a message when it can't be shown as text.
     public static func open(path: String, typingOptions: TypingOptions = TypingOptions()) -> (document: EditorDocument?, message: String?) {
         let language = SyntaxLanguage(fileName: (path as NSString).lastPathComponent)
         switch EditorFile.load(path: path) {
@@ -53,11 +47,6 @@ public final class EditorDocument {
         }
     }
 
-    // MARK: Saving
-
-    /// Writes the buffer to disk. With a change on disk it writes nothing
-    /// and says so, unless `overwrite`. On any failure the buffer stays as
-    /// it is, dirty.
     @discardableResult
     public func save(overwrite: Bool = false) -> SaveResult {
         guard readOnlyReason == nil else { return .failed(readOnlyReason ?? "Read-only") }
@@ -76,10 +65,6 @@ public final class EditorDocument {
         }
     }
 
-    // MARK: Changes on disk
-
-    /// Compares the disk with what was last read or written; updates
-    /// `diskChange`. A touched file with the same bytes is no change.
     @discardableResult
     public func checkDisk() -> DiskChange? {
         guard let stamp else {
@@ -104,9 +89,6 @@ public final class EditorDocument {
         return .modified
     }
 
-    /// Replaces the buffer with the file's bytes: an undoable edit of what
-    /// differs, the caret kept in place. False if the file can't be read as
-    /// text (the buffer is untouched).
     @discardableResult
     public func reloadFromDisk() -> Bool {
         guard let data = FileManager.default.contents(atPath: path), let d = EditorFile.decode(data) else { return false }
@@ -120,8 +102,6 @@ public final class EditorDocument {
         return true
     }
 
-    /// Keep what is in the buffer: the disk's version is now the known one, so
-    /// the next save overwrites it. The buffer counts as edited.
     public func keepBufferOverDisk() {
         let data = FileManager.default.contents(atPath: path)
         stamp = data.map { EditorFile.stamp(path: path, data: $0) } ?? stamp
@@ -129,7 +109,6 @@ public final class EditorDocument {
         diskChange = nil
     }
 
-    /// Makes the buffer hold `text`, as one undoable edit of the part that differs.
     func apply(text: String) {
         let new = Array(text.utf16)
         let old = buffer.document.units
@@ -151,6 +130,5 @@ public final class EditorDocument {
                        selection: EditorSelection(anchor: map(caret.anchor), head: map(caret.head)))
     }
 
-    /// Restores recovered text over the buffer (an undoable edit; dirty).
     public func restore(text: String) { apply(text: text) }
 }

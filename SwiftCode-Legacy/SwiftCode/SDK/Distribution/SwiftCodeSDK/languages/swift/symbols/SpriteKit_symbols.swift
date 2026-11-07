@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: SpriteKit
-
 public struct SpriteKitInterface_0000: Sendable, Codable {
     public let id: String = "spritekit.api.0"
     public var title: String = "SpriteKit Symbol 0"

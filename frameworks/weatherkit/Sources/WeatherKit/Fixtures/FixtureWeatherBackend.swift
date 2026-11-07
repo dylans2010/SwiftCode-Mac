@@ -1,36 +1,8 @@
-// SwiftCode extension (design.md §2–§3, plan.md R3): a backend that serves
-// weather from JSON fixtures in the `Codable` archive format of codable.md.
-//
-// A fixture set is a directory with a manifest, `fixture.json`:
-//
-//     {
-//       "name": "default",                       identifier part
-//       "anchorDate": "2026-01-15T12:00:00Z",    the "now" the data was written for
-//       "timeZone": "UTC",                       how days are delimited
-//       "rebase": "days",                        "days" or "none"
-//       "defaultExpiration": 3600,               seconds
-//       "expiration": { "currentWeather": 600 }, seconds per product
-//       "weather": "weather.json",               a `Weather` archive
-//       "attribution": "attribution.json",       a `WeatherAttribution` archive
-//       "legalAttributionText": "…",             optional
-//       "products": { "historicalComparisons": "…json", "dailyTemperatureStatistics": "…json", … }
-//     }
-//
-// Dates in fixture files may be ISO 8601 strings or numbers (seconds since
-// 2001-01-01, Foundation's default). With `rebase: days` every date is
-// shifted by whole days so that the anchor's day becomes the request's day
-// (in the fixture time zone), and the minute forecast is shifted to start at
-// the request's minute. Every product's metadata is set to the request
-// coordinate, `date` = request time and `expirationDate` = request time +
-// the product's expiration.
 import Foundation
 
 public struct FixtureWeatherBackend: WeatherBackend {
-    /// How fixture dates relate to the request time.
     public enum Rebase: String, Codable, Sendable {
-        /// Dates as written.
         case none
-        /// Shifted by whole days to the request's day.
         case days
     }
 
@@ -53,7 +25,6 @@ public struct FixtureWeatherBackend: WeatherBackend {
     let timeZone: TimeZone
     let rebase: Rebase
 
-    /// Loads the fixture set in `directory`. `rebase` overrides the manifest.
     public init(directory: URL, rebase: Rebase? = nil) throws {
         self.directory = directory
         let data = try Data(contentsOf: directory.appendingPathComponent("fixture.json"))
@@ -70,8 +41,6 @@ public struct FixtureWeatherBackend: WeatherBackend {
         self.rebase = rebase ?? manifest.rebase ?? .days
     }
 
-    /// The fixture set shipped with the package: made-up data written by
-    /// SwiftCode for tests and demos ("Fixture data").
     public static func bundled(rebase: Rebase? = nil) throws -> FixtureWeatherBackend {
         guard let root = Bundle.module.url(forResource: "Fixtures", withExtension: nil) else {
             throw WeatherBackendError.malformedResponse("bundled fixtures missing")
@@ -81,10 +50,7 @@ public struct FixtureWeatherBackend: WeatherBackend {
 
     public var identifier: String { "fixtures:\(manifest.name)" }
 
-    /// The anchor date of the set (the "now" its data was written for).
     public var anchorDate: Date { anchor }
-
-    // MARK: WeatherBackend
 
     public func attribution(language: String) async throws -> WeatherAttribution {
         var attribution = try decode(WeatherAttribution.self, file: manifest.attribution, offset: 0)
@@ -204,15 +170,12 @@ public struct FixtureWeatherBackend: WeatherBackend {
         return results
     }
 
-    // MARK: Helpers
-
     var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         return calendar
     }
 
-    /// Seconds to add to fixture dates for a request at `now`.
     func dayOffset(for now: Date) -> TimeInterval {
         guard rebase == .days else { return 0 }
         return calendar.startOfDay(for: now).timeIntervalSince(calendar.startOfDay(for: anchor))
@@ -232,8 +195,6 @@ public struct FixtureWeatherBackend: WeatherBackend {
         Date(timeIntervalSinceReferenceDate: (date.timeIntervalSinceReferenceDate / seconds).rounded(.down) * seconds)
     }
 
-    /// Elements in `[start, end)` for a date range; from `defaultStart` on
-    /// without one.
     func select<E>(_ elements: [E], by date: KeyPath<E, Date>, range: WeatherProductRange?, defaultStart: Date?) -> [E] {
         switch range {
         case .dates(let start, let end)?:
@@ -246,8 +207,6 @@ public struct FixtureWeatherBackend: WeatherBackend {
         }
     }
 
-    /// Statistics elements whose day/hour/month number is in `[start, end)`,
-    /// or touched by a date interval.
     func selectIndexed<E>(_ elements: [E], by index: KeyPath<E, Int>, range: WeatherProductRange?, unit: Calendar.Component) -> [E] {
         switch range {
         case nil:
@@ -270,7 +229,6 @@ public struct FixtureWeatherBackend: WeatherBackend {
         }
     }
 
-    /// Shifts the minute forecast so that its first minute is the request's minute.
     func shiftedToMinute(_ forecast: Forecast<MinuteWeather>, now: Date) -> Forecast<MinuteWeather> {
         guard let first = forecast.forecast.first?.date else { return forecast }
         let shift = floor(now, to: 60).timeIntervalSince(first)
@@ -309,7 +267,6 @@ public struct FixtureWeatherBackend: WeatherBackend {
         return try FixtureWeatherBackend.decoder(offset: offset).decode(type, from: data)
     }
 
-    /// A decoder that reads ISO 8601 or numeric dates and adds `offset`.
     static func decoder(offset: TimeInterval) -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in

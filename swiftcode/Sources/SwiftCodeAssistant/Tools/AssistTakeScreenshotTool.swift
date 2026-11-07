@@ -1,19 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/AssistTakeScreenshotTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/AssistTakeScreenshotTool.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Interactive region-selection overlay: user drags to pick a region (Legacy captureUserSelectedRegion)
-// ADAPTATIONS:
-//   - macOS-only file (destination convention, cf. SwiftCodeTools+Screenshot.swift): Apple-framework imports wrapped in #if canImport(...); whole body guarded by #if canImport(AppKit) && canImport(ScreenCaptureKit) — on Linux the file contributes nothing and take_screenshot keeps its honest failure path.
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistArtifactRecord — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistArtifactStore.swift`)
-//   - AssistArtifactStore — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistArtifactStore.swift`)
-//   - ToolCapability — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - ToolRiskLevel — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+Screenshot.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
@@ -21,7 +5,6 @@ import CoreGraphics
 #if canImport(AppKit)
 import AppKit
 #endif
-
 
 #if canImport(AppKit) && canImport(ScreenCaptureKit)
 public struct AssistTakeScreenshotTool: AssistTool {
@@ -71,7 +54,6 @@ public struct AssistTakeScreenshotTool: AssistTool {
         let displayID = displayIDRaw.map { CGDirectDisplayID($0) }
         let purpose = input["purpose"] as? String
 
-        // Verify permission preflight
         guard AssistScreenCaptureEngine.shared.checkAuthorization(promptIfDenied: true) else {
             return AssistToolResult.failure(
                 "Screen Recording permission has not been granted. Please grant Screen Recording permission to SwiftCode in macOS System Settings > Privacy & Security > Screen Recording, then retry.",
@@ -113,7 +95,6 @@ public struct AssistTakeScreenshotTool: AssistTool {
             )
         }
 
-        // Generate artifact name with unique identifier to prevent collisions
         let timestamp = Int(Date().timeIntervalSince1970)
         let uniqueName = "screenshot_\(timestamp)_\(UUID().uuidString.prefix(8)).png"
         let description = purpose ?? "Screen capture (\(captureResult.captureMode)) at \(captureResult.width)x\(captureResult.height)"
@@ -128,7 +109,6 @@ public struct AssistTakeScreenshotTool: AssistTool {
                 workspaceRoot: context.workspaceRoot
             )
 
-            // Also maintain a well-known image.png copy in artifacts directory for backward compatibility
             _ = try? AssistArtifactStore.shared.createBinaryArtifact(
                 name: "image.png",
                 data: captureResult.pngData,

@@ -1,30 +1,3 @@
-// EcosystemViews.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/EcosystemViews.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: AnalyticsView (analytics charts/cards); IntelligenceView (intelligence audit UI); KnowledgeGraphView (graph build/open-node UI); whiteboard canvas (shapes, sticky notes, UML blocks, save/load canvas); snapshot list/detail views and restore UI; snippet detail/workspace views and explainCode; ProjectTimelineView as a view (timeline exists only as a plain list)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): BoardElement, GraphEdge, ViewThatFits.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-// Cleanup (2026-11-06, A2): KnowledgeGraphView no longer fabricates git nodes. The hardcoded
-// "feat: redesign SourceControl" commit and "Bug #104: Navigation crash" issue, and the generic
-// filler edges chaining every node together, are deleted. No repository is linked to
-// PersonalDocumentationCoordinator (its store holds documents/whiteboards/snippets only —
-// no project path, no owner/repo), so no real commits (GitService.getLog) or issues
-// (GitHubService.listIssues) can be sourced here; the graph shows only real stored items
-// and real stored relationships, and the header says so honestly. If a repository link is
-// ever added to the coordinator, add real git nodes then — never restore hardcoded ones.
-// Cleanup (2026-11-06, A5): AnalyticsView no longer fabricates numbers. The hardcoded
-// Mon–Sun bar heights, "Average 120 words/day", "+3.2% vs last period", the
-// 50 + 5-per-document health formula, the "34 tokens" card, and the hardcoded
-// directory percentages are deleted. Every value now comes from the PersonalDoc
-// store: word counts from stored documents' markdownSource, per-day bars from
-// documents' updatedAt, growth from createdAt, quality as the share of
-// documents with content, AI usage as the count of stored AI insights, and top
-// areas as document counts by module kind. Token usage is recorded nowhere in
-// the store (PersonalDocStore.logEvent exists but no caller ever records token
-// usage), so no token number is shown — the card says so instead of inventing
-// one. A document's words are attributed to the day it was last edited
-// (updatedAt); the chart caption says so.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -33,7 +6,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "EcosystemViews")
 
-// MARK: - KNOWLEDGE GRAPH VIEW
 public struct KnowledgeGraphView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -46,7 +18,7 @@ public struct KnowledgeGraphView: View {
     struct GraphNode: Identifiable {
         let id: UUID
         let label: String
-        let kind: String // "doc", "whiteboard", "snippet", "commit", "issue"
+        let kind: String
         let detail: String
     }
 
@@ -65,7 +37,6 @@ public struct KnowledgeGraphView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Controls
             HStack(spacing: 12) {
                 NativeSearchField(text: $searchText, placeholder: "Search nodes...")
                     .frame(width: 200)
@@ -78,8 +49,6 @@ public struct KnowledgeGraphView: View {
                 }
                 .frame(width: 150)
 
-                // Honest state: no repository is linked to this coordinator,
-                // so the graph has no git nodes (see buildGraph).
                 Text("Git: no repository linked")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -102,7 +71,6 @@ public struct KnowledgeGraphView: View {
 
             Divider()
 
-            // 2D Visual Canvas
             GeometryReader { geo in
                 let filteredNodes = nodes.filter { node in
                     let matchText = searchText.isEmpty || node.label.lowercased().contains(searchText.lowercased())
@@ -111,11 +79,9 @@ public struct KnowledgeGraphView: View {
                 }
 
                 ZStack {
-                    // Grid background
                     gridBackground
                         .opacity(0.3)
 
-                    // Draw relationship lines
                     Canvas { context, size in
                         for edge in edges {
                             guard let srcNode = filteredNodes.first(where: { $0.id == edge.sourceID }),
@@ -132,7 +98,6 @@ public struct KnowledgeGraphView: View {
                         }
                     }
 
-                    // Nodes representation
                     ForEach(filteredNodes) { node in
                         let point = position(for: node.id, in: geo.size)
                         VStack(spacing: 4) {
@@ -200,7 +165,6 @@ public struct KnowledgeGraphView: View {
     }
 
     private func position(for id: UUID, in size: CGSize) -> CGPoint {
-        // Deterministic pseudo-random placements to keep graph visual consistent
         let hash = Double(id.uuidString.hashValue)
         let angle = hash.truncatingRemainder(dividingBy: 360) * .pi / 180.0
         let radius = 150.0 + abs(hash.truncatingRemainder(dividingBy: 250))
@@ -237,41 +201,28 @@ public struct KnowledgeGraphView: View {
         var newNodes: [GraphNode] = []
         var newEdges: [GraphEdge] = []
 
-        // 1. Documents
         if let docs = try? coordinator.documents.fetchDocuments() {
             for doc in docs {
                 newNodes.append(GraphNode(id: doc.id, label: doc.title, kind: "doc", detail: doc.moduleKind.rawValue))
             }
         }
 
-        // 2. Whiteboards
         if let boards = try? coordinator.whiteboards.fetchWhiteboards() {
             for b in boards {
                 newNodes.append(GraphNode(id: b.id, label: b.title, kind: "whiteboard", detail: "Whiteboard Sketch"))
             }
         }
 
-        // 3. Snippets
         if let snippets = try? coordinator.snippets.fetchSnippets() {
             for s in snippets {
                 newNodes.append(GraphNode(id: s.id, label: s.title, kind: "snippet", detail: s.language))
             }
         }
 
-        // 4. Git commits/issues: none. The coordinator links no repository
-        // (no project path, no owner/repo), so there is no real source for
-        // commit or issue nodes here. Previously this added two hardcoded
-        // nodes ("feat: redesign SourceControl", "Bug #104: Navigation crash");
-        // they are deleted, not replaced — a graph with no git nodes is the
-        // honest state until a repository link exists.
-
-        // Relationships come only from the stored relationships: no generic
-        // filler edges chaining nodes together.
         if let docs = try? coordinator.documents.fetchDocuments() {
             for doc in docs {
                 if let rels = try? coordinator.relationships.fetchRelationships(for: doc.id) {
                     for rel in rels {
-                        // Attempt to link to existing document node
                         if let matchedTarget = newNodes.first(where: { $0.label.lowercased() == rel.targetName.lowercased() }) {
                             newEdges.append(GraphEdge(sourceID: doc.id, targetID: matchedTarget.id))
                         }
@@ -296,8 +247,6 @@ public struct KnowledgeGraphView: View {
     }
 }
 
-
-// MARK: - PROJECT TIMELINE VIEW
 public struct ProjectTimelineView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -311,7 +260,6 @@ public struct ProjectTimelineView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Controls
             HStack(spacing: 12) {
                 Picker("Category", selection: $selectedCategory) {
                     Text("All Entries").tag("All")
@@ -338,7 +286,6 @@ public struct ProjectTimelineView: View {
 
             Divider()
 
-            // Timeline List
             let filteredItems = items.filter { item in
                 let matchCat = selectedCategory == "All" || item.category == selectedCategory
                 let matchText = searchText.isEmpty || item.title.lowercased().contains(searchText.lowercased()) || item.detail.lowercased().contains(searchText.lowercased())
@@ -352,7 +299,6 @@ public struct ProjectTimelineView: View {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         ForEach(filteredItems) { item in
                             HStack(alignment: .top, spacing: 16) {
-                                // Dot & vertical line indicator
                                 VStack(spacing: 4) {
                                     ZStack {
                                         Circle()
@@ -436,8 +382,6 @@ public struct ProjectTimelineView: View {
     }
 }
 
-
-// MARK: - ANALYTICS DASHBOARD VIEW
 public struct AnalyticsView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -458,7 +402,6 @@ public struct AnalyticsView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header with Time Range
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Personal Productivity Analytics")
@@ -478,9 +421,6 @@ public struct AnalyticsView: View {
 
                 Divider()
 
-                // Key Performance Cards - Fully Adaptive Grid
-                // Every value is computed from the store in loadAnalytics();
-                // nothing here is a hardcoded number.
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 400), spacing: 16)], spacing: 16) {
                     analyticsCard(title: "Documentation Growth", value: "\(totalDocs) notes", desc: growthDescription, icon: "doc.text.fill", color: .blue)
                     analyticsCard(title: "Active Writing Work", value: "\(writingCount) additions", desc: "Average \(averageWordsPerDay) words/day", icon: "pencil.line", color: .green)
@@ -488,7 +428,6 @@ public struct AnalyticsView: View {
                     analyticsCard(title: "AI Project Usage", value: "\(aiInsightCount) insights", desc: "AI analyses stored · token usage is not recorded", icon: "sparkles", color: .indigo)
                 }
 
-                // Complex layout blocks - Adaptive stack (horizontal on wide screen, vertical on narrow)
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 20) {
                         statisticsGraphModule
@@ -540,9 +479,6 @@ public struct AnalyticsView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    /// What the bars count: a document's words are attributed to the day it
-    /// was last edited, because the store keeps only the current text plus
-    /// createdAt/updatedAt — there is no per-day edit history to sum exactly.
     private var chartCaption: String {
         switch timeRange {
         case "Weekly": return "Words in documents last edited each day this week."
@@ -655,8 +591,6 @@ public struct AnalyticsView: View {
         totalDocs = docs.count
         writingCount = docs.reduce(0) { $0 + $1.markdownSource.components(separatedBy: .whitespacesAndNewlines).count } / 150
 
-        // Real average words/day: total stored words over the real span the
-        // store covers, from the earliest document's creation to today.
         let totalWords = docs.reduce(0) { $0 + wordCount($1.markdownSource) }
         if let earliest = docs.map({ $0.createdAt }).min() {
             let days = max(1, calendar.dateComponents([.day], from: calendar.startOfDay(for: earliest), to: calendar.startOfDay(for: now)).day ?? 1)
@@ -665,24 +599,17 @@ public struct AnalyticsView: View {
             averageWordsPerDay = 0
         }
 
-        // Real growth: documents actually created in the last 30 days.
         let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
         let recentCount = docs.filter { $0.createdAt >= thirtyDaysAgo }.count
         growthDescription = "\(recentCount) created in the last 30 days"
 
-        // Real quality: share of documents that contain any text. (The old
-        // `50 + docs.count * 5` formula invented a score from a count.)
         let withContent = docs.filter { !$0.markdownSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
         completenessScore = totalDocs == 0 ? 0 : (withContent * 100) / totalDocs
 
-        // AI usage: the store keeps generated AI insights (PersonalDocAIInsight),
-        // so their count is the real AI-usage figure. Token counts are recorded
-        // nowhere — no token number is shown anywhere in this view.
         aiInsightCount = coordinator.store.insights.count
 
         chartBars = bars(for: timeRange, documents: docs, calendar: calendar, now: now)
 
-        // Real top areas: document counts by module kind, as a share of all docs.
         var counts: [String: Int] = [:]
         for doc in docs { counts[doc.moduleKind.rawValue, default: 0] += 1 }
         topModules = counts.sorted { $0.value > $1.value }.prefix(4).map {
@@ -690,20 +617,15 @@ public struct AnalyticsView: View {
         }
     }
 
-    /// Non-empty whitespace-separated words in a document body.
     private func wordCount(_ text: String) -> Int {
         text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
     }
 
-    /// Real per-period writing bars for the selected time range. A document's
-    /// words are attributed to the day it was last edited (updatedAt) — the
-    /// store keeps no per-day edit history, so this is the closest real
-    /// attribution available; see chartCaption.
     private func bars(for range: String, documents: [PersonalDocDocument], calendar: Calendar, now: Date) -> [(label: String, words: Int)] {
         switch range {
         case "Weekly":
             var weekCalendar = calendar
-            weekCalendar.firstWeekday = 2 // Monday
+            weekCalendar.firstWeekday = 2
             guard let weekStart = weekCalendar.date(from: weekCalendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return [] }
             let weekdaySymbols = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
             return (0..<7).map { offset in
@@ -723,7 +645,7 @@ public struct AnalyticsView: View {
                 }.reduce(0) { $0 + wordCount($1.markdownSource) }
                 return (label: "W\(week)", words: words)
             }
-        default: // Lifetime: last 6 calendar months.
+        default:
             let formatter = DateFormatter()
             formatter.dateFormat = "MMM"
             return (0..<6).reversed().map { back in
@@ -737,8 +659,6 @@ public struct AnalyticsView: View {
     }
 }
 
-
-// MARK: - PROJECT INTELLIGENCE & PROJECT MEMORY
 public struct IntelligenceView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -755,7 +675,6 @@ public struct IntelligenceView: View {
 
     public var body: some View {
         HSplitView {
-            // Left Panel: Project Intelligence Audit
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -799,7 +718,6 @@ public struct IntelligenceView: View {
             .padding()
             .frame(maxWidth: .infinity)
 
-            // Right Panel: Project Memory Oracle Q&A
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Project Memory Q&A Oracle")
@@ -877,8 +795,6 @@ public struct IntelligenceView: View {
     }
 }
 
-
-// MARK: - WHITEBOARD LIST VIEW (PANEL 2)
 struct WhiteboardListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -977,8 +893,6 @@ struct WhiteboardListView: View {
     }
 }
 
-
-// MARK: - WHITEBOARD CANVAS DETAIL VIEW (PANEL 3)
 public struct WhiteboardCanvasDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var board: PersonalDocWhiteboard? = nil
@@ -993,7 +907,7 @@ public struct WhiteboardCanvasDetailView: View {
         var x: CGFloat
         var y: CGFloat
         var title: String
-        var kind: String // "sticky", "rect", "circle", "connector", "uml"
+        var kind: String
         var colorHex: String
     }
 
@@ -1002,7 +916,6 @@ public struct WhiteboardCanvasDetailView: View {
     public var body: some View {
         VStack(spacing: 0) {
             if let board = board {
-                // Canvas Toolbar
                 HStack(spacing: 12) {
                     Text(board.title)
                         .font(.headline)
@@ -1034,12 +947,10 @@ public struct WhiteboardCanvasDetailView: View {
 
                 Divider()
 
-                // Visual Canvas Area
                 GeometryReader { geo in
                     ZStack {
-                        Color.white.opacity(0.01) // Captures gestures
+                        Color.white.opacity(0.01)
 
-                        // Infinite dot grid representation
                         Canvas { context, size in
                             let gridSpacing: CGFloat = 30
                             for x in stride(from: CGFloat(0), to: size.width, by: gridSpacing) {
@@ -1051,7 +962,6 @@ public struct WhiteboardCanvasDetailView: View {
                             }
                         }
 
-                        // Render Canvas Elements
                         ForEach(elements) { element in
                             VStack(spacing: 6) {
                                 if element.kind == "sticky" {
@@ -1223,8 +1133,6 @@ public struct WhiteboardCanvasDetailView: View {
     }
 }
 
-
-// MARK: - CODE SNIPPET LIST VIEW (PANEL 2)
 struct SnippetListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -1346,8 +1254,6 @@ struct SnippetListView: View {
     }
 }
 
-
-// MARK: - CODE SNIPPET DETAIL VIEW (PANEL 3)
 struct SnippetDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var snippet: PersonalDocSnippet? = nil
@@ -1498,8 +1404,6 @@ struct SnippetDetailView: View {
     }
 }
 
-
-// MARK: - PROJECT SNAPSHOT LIST VIEW (PANEL 2)
 struct SnapshotListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -1613,8 +1517,6 @@ struct SnapshotListView: View {
     }
 }
 
-
-// MARK: - PROJECT SNAPSHOT DETAIL VIEW (PANEL 3)
 struct SnapshotDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var snapshot: PersonalDocSnapshot? = nil
@@ -1735,8 +1637,6 @@ struct SnapshotDetailView: View {
     }
 }
 
-
-// Deprecated legacy container wrappers to preserve backwards-compatible symbols
 public struct WhiteboardsListView: View {
     let coordinator: PersonalDocumentationCoordinator
     public init(coordinator: PersonalDocumentationCoordinator) {

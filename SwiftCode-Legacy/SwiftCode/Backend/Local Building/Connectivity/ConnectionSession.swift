@@ -135,7 +135,6 @@ public final class ConnectionSession: Identifiable, @unchecked Sendable {
 
             let length = data.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
 
-            // Guard against unbounded packet frames
             guard length > 0 && length < 10_000_000 else {
                 self.logger.error("Invalid packet frame length received: \(length)")
                 Task { @MainActor in

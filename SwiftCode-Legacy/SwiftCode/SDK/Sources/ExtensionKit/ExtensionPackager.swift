@@ -49,12 +49,10 @@ public final class ExtensionPackager: Sendable {
         let archiveName = "\(manifest.id)-\(manifest.version).swiftcode-extension"
         let archivePath = outDir.root.appending(archiveName).normalizedPath
 
-        // Remove old archive if exists
         if FileManager.default.fileExists(atPath: archivePath) {
             try FileManager.default.removeItem(atPath: archivePath)
         }
 
-        // Package using zip
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
         process.currentDirectoryURL = URL(fileURLWithPath: ws.root.normalizedPath)
@@ -66,7 +64,6 @@ public final class ExtensionPackager: Sendable {
         process.waitUntilExit()
 
         if process.terminationStatus != 0 || !FileManager.default.fileExists(atPath: archivePath) {
-            // Fallback: zip everything except node_modules and .git
             let fallbackProcess = Process()
             fallbackProcess.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
             fallbackProcess.currentDirectoryURL = URL(fileURLWithPath: ws.root.normalizedPath)

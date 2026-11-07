@@ -4,7 +4,6 @@ import Testing
 
 private func value(_ q: HKQuantity?, _ unit: HKUnit) -> Double? { q?.doubleValue(for: unit) }
 
-/// C-STATS: statistics queries against the golden values of `plan.md` §3.2 and `queries.md` §6.2–§6.3.
 @Suite("C-STATS plan.md §3.2")
 struct StatisticsTests {
     @Test("§6.2 steps: whole-sample sums, result range, strict windows, duration, all time")
@@ -24,12 +23,10 @@ struct StatisticsTests {
         let two = try #require(await sum(T.at(0), T.at(2), [], [.cumulativeSum, .duration]))
         #expect(value(two.sumQuantity(), .count()) == 7100)
         #expect(value(two.duration(), .second()) == 5700)
-        // all time, A granted "past 30 days" at 2026-10-19 23:55:40Z
         let all = try #require(await a.statistics(T.steps, nil, [.cumulativeSum, .mostRecent]).0)
         #expect(value(all.sumQuantity(), .count()) == 7104)
         #expect(value(all.mostRecentQuantity(), .count()) == 2000)
         #expect(all.mostRecentQuantityDateInterval() == DateInterval(start: T.at(1, 9), end: T.at(1, 9, 30)))
-        // windows inside samples count the whole samples
         let w1 = try #require(await sum(T.at(0, 8), T.at(0, 8, 10)))
         #expect(value(w1.sumQuantity(), .count()) == 1500)
         #expect(w1.startDate == T.at(0, 8) && w1.endDate == T.at(0, 8, 15))
@@ -37,7 +34,6 @@ struct StatisticsTests {
         let w3 = try #require(await sum(T.at(0, 12), T.at(0, 12, 15)))
         #expect(value(w3.sumQuantity(), .count()) == 3000)
         #expect(w3.startDate == T.at(0, 12) && w3.endDate == T.at(0, 12, 30))
-        // option 0: only the date range
         let bare = try #require(await sum(T.at(0), T.at(1), [], []))
         #expect(bare.sumQuantity() == nil && bare.startDate == T.at(0, 8))
     }
@@ -86,7 +82,6 @@ struct StatisticsTests {
         #expect(value(await g.a.statistics(T.distance, nil, .cumulativeSum).0?.sumQuantity(), .meterUnit(with: .kilo)) == 5)
     }
 
-    /// Two body-temperature or heart-rate samples (value, start, end) on a fresh store.
     static func pair(_ type: HKQuantityType, _ unit: HKUnit, _ samples: [(Double, Date, Date)]) async throws -> HKStatistics {
         let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
@@ -99,10 +94,10 @@ struct StatisticsTests {
         let c = HKUnit.degreeCelsius()
         let t = T.at(3, 7)
         let layouts: [[(Double, Date, Date)]] = [
-            [(10, t, t), (20, t.addingTimeInterval(1800), t.addingTimeInterval(1800))],          // two instants
-            [(10, t, t), (20, t.addingTimeInterval(300), t.addingTimeInterval(900))],             // instant + 10 min
-            [(10, t, t.addingTimeInterval(60)), (20, t.addingTimeInterval(120), t.addingTimeInterval(300))],  // 1 + 3 min
-            [(10, t, t.addingTimeInterval(600)), (20, t.addingTimeInterval(300), t.addingTimeInterval(900))], // overlapping
+            [(10, t, t), (20, t.addingTimeInterval(1800), t.addingTimeInterval(1800))],
+            [(10, t, t), (20, t.addingTimeInterval(300), t.addingTimeInterval(900))],
+            [(10, t, t.addingTimeInterval(60)), (20, t.addingTimeInterval(120), t.addingTimeInterval(300))],
+            [(10, t, t.addingTimeInterval(600)), (20, t.addingTimeInterval(300), t.addingTimeInterval(900))],
         ]
         for l in layouts {
             #expect(close(value(try await Self.pair(T.bodyTemperature, c, l).averageQuantity(), c), 15, 1e-12))
@@ -128,7 +123,6 @@ struct StatisticsTests {
 
     @Test("§6.3 day-3 body temperature: avg 15, min 10, max 20, most recent 20 @07:05–07:15, duration 1740 s; [07:00, 07:05] → 10")
     func dayThree() async throws {
-        // The spec gives the results, not the layout; this layout reproduces all of them (spec question).
         let c = HKUnit.degreeCelsius()
         let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
@@ -153,12 +147,11 @@ struct StatisticsTests {
         try await store.grant(share: [type], read: [type])
         try await store.save([T.qs(type, 60, db, T.at(0, 8), T.at(0, 8, 10)), T.qs(type, 80, db, T.at(0, 9), T.at(0, 9, 10))])
         let s = try #require(await store.statistics(type, nil, .discreteAverage).0)
-        let expected = 10 * log10((1e6 + 1e8) / 2.0)   // equal weights → 76.99 dB
+        let expected = 10 * log10((1e6 + 1e8) / 2.0)
         #expect(close(value(s.averageQuantity(), db), expected, 1e-9))
     }
 }
 
-/// C-COLLECT: statistics collections (`queries.md` §6.5, `plan.md` §3.2).
 @Suite("C-COLLECT plan.md §3.2")
 struct CollectionTests {
     func sums(_ c: HKStatisticsCollection, _ dates: [Date]) -> [Double?] {
@@ -171,7 +164,6 @@ struct CollectionTests {
         let c = try await g.a.collection(T.steps, nil, .cumulativeSum, anchor: T.d0, interval: DateComponents(day: 1))
         #expect(sums(c, [T.at(0, 12), T.at(1, 12)]) == [4800, 2300])
         for d in -10 ... -7 { #expect(close(sums(c, [T.at(d, 12)])[0], 1, 1e-12)) }
-        // only buckets with data are listed; every bucket is enumerable
         #expect(c.statistics().count == 6)
         #expect(c.statistics().first?.startDate == T.at(-10))
         var visited = 0
@@ -225,7 +217,6 @@ struct CollectionTests {
     }
 }
 
-/// C-MERGE: merging across sources (`queries.md` §6.4).
 @Suite("C-MERGE queries.md §6.4")
 struct MergeTests {
     @Test("cross-source day D0 seen by B: merged 4911; B 1300; A 5111")
@@ -275,7 +266,6 @@ struct MergeTests {
         let b = try #require(g.b)
         let (s, e) = await b.statistics(T.heartRate, nil, .discreteAverage)
         #expect(s == nil && (e as NSError?)?.code == 11)
-        // B sees A's body mass (read granted) plus its own overlapping sample: plain mean of all three
         try await b.save(T.qs(T.bodyMass, 80, .gramUnit(with: .kilo), T.at(0, 7)))
         let m = try #require(await b.statistics(T.bodyMass, nil, .discreteAverage).0)
         #expect(close(value(m.averageQuantity(), .gramUnit(with: .kilo)), (70 + 70.30676 + 80) / 3))

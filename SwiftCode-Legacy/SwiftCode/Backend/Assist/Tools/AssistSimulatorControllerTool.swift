@@ -1,8 +1,3 @@
-//
-//  AssistSimulatorControllerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSimulatorControllerTool: AssistTool {

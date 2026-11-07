@@ -5,39 +5,18 @@ import Darwin
 import Glibc
 #endif
 
-// MARK: - SDKSandboxedTerminal
-//
-// Ported from Legacy `SwiftCode/SDK/Host/ServiceAdapters/Terminal/SDKSandboxedTerminal.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// THE only process-execution path for extensions. No shell ever: the
-// command is an allow-listed executable name plus arguments, run with
-// a sanitized environment, stdin closed, output byte-capped, and a
-// hard timeout (SIGTERM, 2s grace, then SIGKILL). A timeout throws
-// `.requestTimeout` — never a fabricated exit code.
-//
-// The validation rules (allow-list, argument limits, cwd confinement)
-// are the pure core covered by Legacy's `sandbox_validation_test.py`;
-// they are covered here by `SwiftCodeSDKTests` Swift tests instead.
-
 public actor SDKSandboxedTerminal {
     public static let shared = SDKSandboxedTerminal()
 
-    /// Default timeout (30s); clamped to 1…55s.
     public static let defaultTimeout: TimeInterval = 30
     public static let minTimeout: TimeInterval = 1
     public static let maxTimeout: TimeInterval = 55
-    /// Per-stream output cap (256 KiB).
     public static let outputByteLimit = 262_144
-    /// Maximum concurrent runs per extension.
     public static let maxConcurrentRunsPerExtension = 4
     public static let maxArgumentCount = 256
     public static let maxArgumentBytes = 8_192
-    /// Grace between SIGTERM and SIGKILL on timeout.
     public static let killGrace: TimeInterval = 2
 
-    /// Allow-listed executable names. Notably ABSENT: sh, bash, zsh,
-    /// env — there is no shell escape hatch.
     public static let allowedExecutableNames: Set<String> = [
         "git", "ls", "xcodebuild", "xcrun", "swift", "swiftc",
         "node", "npm", "npx", "python3", "ruby", "make", "cmake",
@@ -45,7 +24,6 @@ public actor SDKSandboxedTerminal {
         "find", "diff", "patch", "codesign", "plutil", "defaults", "ditto",
     ]
 
-    /// Directories an executable may live in (after symlink resolution).
     public static let approvedExecutableDirectories: [String] = [
         "/usr/bin", "/bin", "/usr/local/bin", "/opt/homebrew/bin", "/usr/sbin", "/sbin",
     ]
@@ -54,9 +32,6 @@ public actor SDKSandboxedTerminal {
 
     private init() {}
 
-    /// Runs `request` for `caller`. Authorizes `.terminalSandbox`
-    /// first. Returns the capped result; a timeout throws
-    /// `.requestTimeout`.
     public func run(caller: SDKCallerIdentity, request: SDKSandboxRunRequest) async throws -> SDKSandboxedResult {
         try await SDKCapabilityBroker.authorize(.terminalSandbox, for: caller)
         let executable = try Self.resolveExecutable(request.command)
@@ -77,13 +52,6 @@ public actor SDKSandboxedTerminal {
         )
     }
 
-    // MARK: - Validation (pure, unit-tested)
-
-    /// Resolves `command` to an executable path. Bare names must match
-    /// `^[A-Za-z0-9._-]{1,64}$` and be on the allow-list, then resolve
-    /// inside an approved directory. Absolute paths are symlink-resolved
-    /// and must sit inside an approved directory, be a regular
-    /// executable file, and have an allow-listed basename.
     static func resolveExecutable(_ command: String) throws -> String {
         guard !command.isEmpty, !command.contains("\0") else {
             throw SDKError(code: .invalidArgument, message: "The command is invalid.")
@@ -137,10 +105,6 @@ public actor SDKSandboxedTerminal {
         }
     }
 
-    /// Resolves the working directory: default is the project root; an
-    /// explicit directory is standardized and symlink-resolved and must
-    /// be a directory equal to or inside the scope root, else
-    /// `.projectOutOfScope`.
     static func resolveWorkingDirectory(_ requested: String?, scopeRoot: String) throws -> String {
         let scope = URL(fileURLWithPath: scopeRoot).resolvingSymlinksInPath().standardizedFileURL.path
         guard let requested, !requested.isEmpty else { return scope }
@@ -154,8 +118,6 @@ public actor SDKSandboxedTerminal {
         }
         return resolved
     }
-
-    // MARK: - Execution
 
     private static func execute(
         executable: String,
@@ -172,7 +134,6 @@ public actor SDKSandboxedTerminal {
                 process.arguments = arguments
                 process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
                 process.standardInput = FileHandle.nullDevice
-                // Sanitized environment: fixed, minimal, no caller input.
                 process.environment = [
                     "PATH": approvedExecutableDirectories.joined(separator: ":"),
                     "LANG": "en_US.UTF-8",
@@ -206,8 +167,6 @@ public actor SDKSandboxedTerminal {
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
                 stdoutCapture.append(stdoutPipe.fileHandleForReading.availableData)
                 stderrCapture.append(stderrPipe.fileHandleForReading.availableData)
-                // A timeout kill is never a fabricated exit code: the
-                // timeout path throws `.requestTimeout` instead.
                 if await holder.timedOut {
                     throw SDKError(code: .requestTimeout, message: "The sandboxed command timed out.")
                 }
@@ -241,10 +200,6 @@ public actor SDKSandboxedTerminal {
     }
 }
 
-/// Holds the running child so the timeout task can terminate it:
-/// SIGTERM first, 2s grace, then SIGKILL. The run task reports
-/// `.requestTimeout` itself once the child is gone — the timeout never
-/// fabricates an exit code.
 private actor ProcessHolder {
     private var process: Process?
     private(set) var timedOut = false
@@ -263,13 +218,8 @@ private actor ProcessHolder {
     }
 }
 
-/// Internal timeout marker. The run task is responsible for terminating
-/// the child process; the timeout only signals the race.
 private struct TimeoutSignal: Error {}
 
-/// Byte-capped pipe capture that keeps draining past the cap, so a
-/// child writing more than the limit never blocks on a full pipe. Only
-/// the first `limit` bytes are kept; `totalBytes` counts everything.
 private final class PipeCapture: @unchecked Sendable {
     private let lock = NSLock()
     private let limit: Int

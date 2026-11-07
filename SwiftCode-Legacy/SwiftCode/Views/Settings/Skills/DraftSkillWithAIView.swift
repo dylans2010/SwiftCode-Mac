@@ -11,9 +11,8 @@ struct DraftSkillWithAIView: View {
     @State private var errorMessage: String?
     @State private var showChangesPopover = false
     @State private var modificationRequest = ""
-    @State private var activeTab = 0 // 0: Prompt, 1: Preview/Markdown
+    @State private var activeTab = 0
 
-    // Track AI conversation message history so changes can be made with context
     @State private var conversationHistory: [AIMessage] = []
 
     private let systemPrompt = """
@@ -197,7 +196,6 @@ struct DraftSkillWithAIView: View {
         }
     }
 
-    // Call service to draft custom skill with optimized system prompt
     private func generateDraft() async {
         isDrafting = true
         errorMessage = nil
@@ -218,7 +216,6 @@ struct DraftSkillWithAIView: View {
                 }
             }
 
-            // Save state context for future modifications
             conversationHistory = messages + [AIMessage(role: .assistant, content: currentDraft)]
             activeTab = 1
         } catch {
@@ -227,7 +224,6 @@ struct DraftSkillWithAIView: View {
         isDrafting = false
     }
 
-    // Iterate on draft keeping track of context state
     private func iterateDraft() async {
         isDrafting = true
         errorMessage = nil
@@ -247,7 +243,6 @@ struct DraftSkillWithAIView: View {
                 }
             }
 
-            // Update conversation history
             conversationHistory = newMessages + [AIMessage(role: .assistant, content: currentDraft)]
             modificationRequest = ""
             activeTab = 1

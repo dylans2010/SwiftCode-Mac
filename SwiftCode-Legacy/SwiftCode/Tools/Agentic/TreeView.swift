@@ -21,7 +21,6 @@ public struct TreeViewTool: AgentTool {
         if result.exitCode == 0 {
             return result.stdout
         } else {
-             // Fallback if tree is not installed
              return try await manualTree(directory: directory, depth: depth)
         }
     }

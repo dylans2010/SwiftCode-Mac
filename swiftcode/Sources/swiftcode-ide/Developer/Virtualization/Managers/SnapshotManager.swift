@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Managers/SnapshotManager.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public final class VMSnapshotManager: Sendable {
@@ -18,7 +16,6 @@ public final class VMSnapshotManager: Sendable {
     }
 
     public func restoreSnapshot(vmID: UUID, snapshotID: UUID) throws {
-        // Here we'd perform the raw restore. We will update registry and post the event.
         VirtualizationEventBus.shared.post(.metadataUpdated(vmID))
     }
 

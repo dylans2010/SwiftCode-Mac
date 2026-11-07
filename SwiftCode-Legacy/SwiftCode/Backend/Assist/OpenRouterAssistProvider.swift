@@ -3,26 +3,6 @@ import os
 
 private let openRouterAssistLogger = Logger(subsystem: "com.swiftcode.app", category: "OpenRouterAssistProvider")
 
-// MARK: - OpenRouter Assist provider (formalised)
-//
-// OpenRouter was already reachable in this codebase through three
-// overlapping paths (LLMService's OpenAI-compatible chat completions,
-// OpenRouterClient, OpenRouterService). This type is the single Assist
-// entry point for provider-level concerns that none of those paths
-// owned: an explicit connection test, and a real-model validation that
-// never substitutes another model.
-//
-// What it deliberately does NOT do:
-// * It does not adopt the @openrouter/agent TypeScript SDK. That SDK
-//   owns the tool-calling loop; Assist already owns its loop (the
-//   session asks for a JSON tool request, validates it against the
-//   registry, enforces phase/permission metadata, executes the real
-//   tool, and returns the result). A model that lacks *native* function
-//   calling still works through that JSON protocol, so native tool
-//   support is reported, never used as a silent substitution gate.
-// * It never invents a model catalog. `fetchModels` delegates to
-//   OpenRouterClient, which reads the live /models endpoint.
-
 public enum OpenRouterAssistError: LocalizedError {
     case missingAPIKey
     case invalidAPIKey
@@ -55,10 +35,6 @@ public enum OpenRouterAssistError: LocalizedError {
     }
 }
 
-/// Whether a discovered OpenRouter model advertises native function
-/// calling (`supported_parameters` containing `tools`). `.unknown`
-/// means the catalog entry carried no such field — Assist's JSON tool
-/// protocol does not depend on it, so unknown is not a failure.
 public enum OpenRouterToolCallingSupport: Equatable, Sendable {
     case supports
     case doesNotSupport
@@ -69,9 +45,6 @@ public enum OpenRouterToolCallingSupport: Equatable, Sendable {
 public enum OpenRouterAssistProvider {
     private static let modelsURL = URL(string: "https://openrouter.ai/api/v1/models")!
 
-    /// Tests the saved credential against the live /models endpoint.
-    /// Returns a human-readable success summary; throws a specific
-    /// OpenRouterAssistError otherwise. Never logs or returns the key.
     public static func testConnection() async throws -> String {
         let key = OpenRouterClient.resolveOpenRouterAPIKey()
         guard !key.isEmpty else { throw OpenRouterAssistError.missingAPIKey }
@@ -92,9 +65,6 @@ public enum OpenRouterAssistProvider {
         }
     }
 
-    /// Validates that a model identifier actually exists on OpenRouter
-    /// and reports its native tool-calling support. Throws
-    /// `.modelNotFound` instead of falling back to another model.
     public static func validateModel(_ modelID: String) async throws -> OpenRouterToolCallingSupport {
         let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.contains("/") else {
@@ -120,13 +90,9 @@ public enum OpenRouterAssistProvider {
         return supported.contains("tools") ? .supports : .doesNotSupport
     }
 
-    /// Live discovered models, via the existing OpenRouterClient cache
-    /// (which reads /models). Kept here so Settings has one call site.
     public static func fetchModels() async throws -> [OpenRouterModel] {
         try await OpenRouterClient.shared.fetchModels()
     }
-
-    // MARK: - Raw /models plumbing (JSONSerialization, no new model type)
 
     private static func fetchModelsRaw(apiKey: String) async throws -> (Data, Int) {
         var request = URLRequest(url: modelsURL)

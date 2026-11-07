@@ -1,17 +1,5 @@
 import Foundation
 
-/// A sample project written for the build-server tests: a framework `Kit`
-/// (Swift, plus Objective-C with public headers in the iOS flavor), an
-/// app `App` that links it, and a unit-test bundle `AppTests` in a
-/// synchronized folder that depends on the app.
-///
-/// - `.iOS`: an iOS app (`SDKROOT = iphoneos`), mixed Swift and
-///   Objective-C, with a bridging header.
-/// - `.portable`: Swift only, `SDKROOT = macosx`, the app a command-line
-///   tool, so that it also indexes on Linux.
-///
-/// Tests use it, and `swiftcode-bsp sample <dir> [ios|portable]` writes it for
-/// trying the build server by hand.
 public enum SampleProject {
     public enum Flavor: Sendable { case iOS, portable }
 
@@ -87,8 +75,6 @@ public enum SampleProject {
 
     """
 
-    /// Writes the project into a new folder under `parent`; returns the
-    /// `.xcodeproj`.
     public static func write(_ flavor: Flavor, in parent: URL) throws -> URL {
         let fm = FileManager.default
         let dir = parent.appendingPathComponent("Sample-\(flavor == .iOS ? "iOS" : "portable")")
@@ -118,13 +104,10 @@ public enum SampleProject {
         return dir.appendingPathComponent("Sample.xcodeproj")
     }
 
-    // MARK: pbxproj
-
     static func pbxproj(_ flavor: Flavor) -> String {
         let iOS = flavor == .iOS
         var o: [(String, String)] = []
         func add(_ id: String, _ body: String) { o.append((id, body)) }
-        // Files
         add("A00000000000000000000001", "{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Greeter.swift; sourceTree = \"<group>\"; }")
         if iOS {
             add("A00000000000000000000002", "{isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Kit.h; sourceTree = \"<group>\"; }")
@@ -141,7 +124,6 @@ public enum SampleProject {
         }
         add("A0000000000000000000000A", "{isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Kit.framework; sourceTree = BUILT_PRODUCTS_DIR; }")
         add("A0000000000000000000000B", "{isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; }")
-        // Groups
         let kitFiles = iOS ? "A00000000000000000000001, A00000000000000000000002, A00000000000000000000003, A00000000000000000000004" : "A00000000000000000000001"
         let appFiles = iOS ? "A00000000000000000000005, A00000000000000000000006, A00000000000000000000007, A00000000000000000000008" : "A00000000000000000000005"
         add("B00000000000000000000001", "{isa = PBXGroup; children = (B00000000000000000000002, B00000000000000000000003, B00000000000000000000005, B00000000000000000000004); sourceTree = \"<group>\"; }")
@@ -149,7 +131,6 @@ public enum SampleProject {
         add("B00000000000000000000003", "{isa = PBXGroup; children = (\(kitFiles)); path = Kit; sourceTree = \"<group>\"; }")
         add("B00000000000000000000004", "{isa = PBXGroup; children = (A00000000000000000000009, A0000000000000000000000A, A0000000000000000000000B); name = Products; sourceTree = \"<group>\"; }")
         add("B00000000000000000000005", "{isa = PBXFileSystemSynchronizedRootGroup; path = AppTests; sourceTree = \"<group>\"; }")
-        // Build files
         add("C00000000000000000000001", "{isa = PBXBuildFile; fileRef = A00000000000000000000001; }")
         add("C00000000000000000000005", "{isa = PBXBuildFile; fileRef = A00000000000000000000005; }")
         add("C0000000000000000000000A", "{isa = PBXBuildFile; fileRef = A0000000000000000000000A; }")
@@ -159,13 +140,11 @@ public enum SampleProject {
             add("C00000000000000000000004", "{isa = PBXBuildFile; fileRef = A00000000000000000000004; }")
             add("C00000000000000000000007", "{isa = PBXBuildFile; fileRef = A00000000000000000000007; }")
         }
-        // Phases
         add("D00000000000000000000001", "{isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C00000000000000000000001\(iOS ? ", C00000000000000000000004" : "")); runOnlyForDeploymentPostprocessing = 0; }")
         add("D00000000000000000000002", "{isa = PBXHeadersBuildPhase; buildActionMask = 2147483647; files = (\(iOS ? "C00000000000000000000002, C00000000000000000000003" : "")); runOnlyForDeploymentPostprocessing = 0; }")
         add("D00000000000000000000003", "{isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C00000000000000000000005\(iOS ? ", C00000000000000000000007" : "")); runOnlyForDeploymentPostprocessing = 0; }")
         add("D00000000000000000000004", "{isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (C0000000000000000000000A); runOnlyForDeploymentPostprocessing = 0; }")
         add("D00000000000000000000005", "{isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; }")
-        // Targets
         add("E00000000000000000000001", "{isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000011; buildPhases = (D00000000000000000000002, D00000000000000000000001); buildRules = (); dependencies = (); name = Kit; productName = Kit; productReference = A0000000000000000000000A; productType = \"com.apple.product-type.framework\"; }")
         add("E00000000000000000000002", "{isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000021; buildPhases = (D00000000000000000000003, D00000000000000000000004); buildRules = (); dependencies = (E00000000000000000000011); name = App; productName = App; productReference = A00000000000000000000009; productType = \"\(iOS ? "com.apple.product-type.application" : "com.apple.product-type.tool")\"; }")
         add("E00000000000000000000003", "{isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000031; buildPhases = (D00000000000000000000005); buildRules = (); dependencies = (E00000000000000000000013); fileSystemSynchronizedGroups = (B00000000000000000000005); name = AppTests; productName = AppTests; productReference = A0000000000000000000000B; productType = \"com.apple.product-type.bundle.unit-test\"; }")
@@ -173,7 +152,6 @@ public enum SampleProject {
         add("E00000000000000000000012", "{isa = PBXContainerItemProxy; containerPortal = F00000000000000000000001; proxyType = 1; remoteGlobalIDString = E00000000000000000000001; remoteInfo = Kit; }")
         add("E00000000000000000000013", "{isa = PBXTargetDependency; target = E00000000000000000000002; targetProxy = E00000000000000000000014; }")
         add("E00000000000000000000014", "{isa = PBXContainerItemProxy; containerPortal = F00000000000000000000001; proxyType = 1; remoteGlobalIDString = E00000000000000000000002; remoteInfo = App; }")
-        // Project and configurations
         add("F00000000000000000000001", "{isa = PBXProject; attributes = {LastSwiftUpdateCheck = 2700; LastUpgradeCheck = 2700; TargetAttributes = {E00000000000000000000003 = {TestTargetID = E00000000000000000000002; }; }; }; buildConfigurationList = F00000000000000000000002; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = B00000000000000000000001; minimizedProjectReferenceProxies = 1; preferredProjectObjectVersion = 77; productRefGroup = B00000000000000000000004; projectDirPath = \"\"; projectRoot = \"\"; targets = (E00000000000000000000001, E00000000000000000000002, E00000000000000000000003); }")
         let sdk = iOS ? "SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 18.0; TARGETED_DEVICE_FAMILY = \"1,2\";" : "SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 15.0;"
         let common = "CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; GCC_C_LANGUAGE_STANDARD = gnu17; SWIFT_VERSION = 5.0; \(sdk)"

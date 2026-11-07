@@ -1,29 +1,3 @@
-// ReverseBridge.mjs — SwiftCode Assist @Reverse bridge (Node.js host).
-//
-// One request per process. Swift spawns:
-//   node ReverseBridge.mjs --rea-dir <rea-agents@6.5.0 dir>
-// writes ONE NDJSON request line to stdin, closes stdin, and reads stdout
-// to EOF. Stdout carries ONLY protocol frames (progress / result / error),
-// one JSON object per line. Diagnostics go to stderr.
-//
-// FORBIDDEN: this bridge must never use the Model Context Protocol
-// transport — no server, no client, no fallback. It talks to REA's real
-// implementation only, via two paths:
-//   1. DIRECT (preferred): dynamic import of the pinned rea-agents dist
-//      module `dist/composition/directAnalysis.js` -> runDirectAnalysis.
-//      Verified against 6.5.0: the import resolves and `inspect_artifact`
-//      returns real Evidence.
-//   2. PINNED-CLI FALLBACK (only for `inspect_with_objdump`): the direct
-//      provider does not declare that operation (verified: it returns
-//      capability_unavailable / "operation is not declared by this
-//      provider"), so the bridge spawns the pinned `rea` CLI with
-//      `--format json` and parses the Evidence envelope. This is a
-//      documented fallback for ONE operation, never presented as a
-//      direct API call, and never used for any other operation.
-// Excluded everywhere: free-form Rizin commands, Frida/GDB/Rizin-debug
-// sessions, ADB/browser/device ops, firmware extraction, and every
-// IDA/JEB/JADX-backed operation.
-
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, isAbsolute } from "node:path";
 import { spawn } from "node:child_process";
@@ -34,7 +8,6 @@ const PINNED_REA_VERSION = "6.5.0";
 const MAX_STDIN_BYTES = 1_048_576;
 const MAX_EVIDENCE_BYTES = 8_388_608;
 
-// Allow-list. Must stay in sync with EnginesReverseOperation in SwiftCodeTools+EnginesSupport.swift.
 const ALLOW_LIST = new Set([
   "inspect_artifact",
   "inspect_macho",
@@ -59,8 +32,6 @@ const OBJDUMP_OPS = new Set([
   "disassemble_all",
 ]);
 
-// Native-macOS provider operations: REA reports them unavailable off
-// macOS ("unsupported_host"). Availability is computed from the platform.
 const NATIVE_MACOS_OPS = new Set([
   "inspect_macho",
   "inspect_plist",
@@ -124,7 +95,6 @@ function resolveReaDir(argvReaDir) {
       const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
       if (pkg.name === "rea-agents" && pkg.version === PINNED_REA_VERSION) return dir;
     } catch {
-      // Not a usable REA dir; try the next candidate.
     }
   }
   return null;
@@ -160,7 +130,6 @@ function isValidEvidence(value) {
 }
 
 function objdumpAvailable() {
-  // GNU objdump presence: probe via `which`-free PATH search.
   const path = process.env.PATH ?? "";
   for (const dir of path.split(":")) {
     if (dir && existsSync(join(dir, "objdump"))) return true;
@@ -208,15 +177,11 @@ function capabilities(id) {
 }
 
 async function runDirect(reaDir, operation, targetPath, params) {
-  // Dynamic import of the pinned REA dist module. The module path is
-  // built from the verified package directory, never from a bare
-  // specifier, so no exports map or install layout is assumed.
   const directPath = join(reaDir, "dist/composition/directAnalysis.js");
   const { createDirectAnalysis } = await import(pathToFileURL(directPath).href);
   const service = createDirectAnalysis(undefined);
   const args = {};
   if (operation === "demangle_swift" && typeof params.symbol === "string" && params.symbol.length > 0) {
-    // CLI shape is `demangle-swift <path> <symbols...>`; pass the array form.
     args.symbols = [params.symbol];
   }
   const result = await service.runDirectAnalysis(targetPath, operation, args, {});
@@ -306,13 +271,10 @@ async function handleAnalyze(id, params, reaDir) {
     return;
   }
 
-  // Direct path: real REA implementation via runDirectAnalysis.
   progress(id, "running", `Running direct REA operation ${operation}`, 2);
   try {
     const result = await runDirect(reaDir, operation, targetPath, params ?? {});
     if (result && typeof result === "object" && "error" in result) {
-      // REA returns typed error payloads (e.g. capability_unavailable)
-      // instead of throwing for unsupported targets.
       const code = typeof result.code === "string" ? result.code : "reverse_upstream_error";
       const category = code === "capability_unavailable" ? "unsupportedOperation" : "upstreamFailure";
       errorFrame(id, code, category,
@@ -367,7 +329,7 @@ async function main() {
     try {
       const pkg = JSON.parse(readFileSync(join(reaDir ?? "", "package.json"), "utf8"));
       reaVersion = pkg.version ?? null;
-    } catch { /* reaDir may be null; ping still reports platform */ }
+    } catch {  }
     send({
       version: PROTOCOL_VERSION, id, type: "result",
       ping: { reaVersion, nodeVersion: process.version, platform: process.platform, bridgeVersion: PROTOCOL_VERSION },
@@ -399,6 +361,6 @@ main().catch((err) => {
   try {
     errorFrame("unknown", "reverse_bridge_crash", "bridgeFailure",
       `Bridge crashed: ${err?.message ?? String(err)}`, false);
-  } catch { /* stdout may be gone; nothing else to do */ }
+  } catch {  }
   process.exit(1);
 });

@@ -3,51 +3,8 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy docs / review / repo-tooling family (Wave 6, slice D),
-/// each driven black-box through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistApiDocsCoverageTool`,
-/// `AssistApiEndpointAuditTool`, `AssistApiSurfaceExtractTool`,
-/// `AssistReadmeGenerateTool`, `AssistReadmeLocateTool`,
-/// `AssistRepoOverviewTool`, `AssistMarkdownLinkCheckTool`,
-/// `AssistMarkdownTocGenerateTool`, `CodeReviewTool`,
-/// `AssistAutomatedRepairEngine`, `AssistAutonomousReviewEngine`,
-/// `AssistDocStringGeneratorTool`, `AssistCodeSnippetTool`,
-/// `AssistIconGeneratorTool`, `AssistColorUsageAuditTool`,
-/// `AssistColorSetBuilderTool`, `AssistStaleFilesReportTool`,
-/// `AssistChangeImpactEstimateTool`, `AssistUndoTool`,
-/// `AssistValidateChangesTool`, `AssistSessionExportTool`,
-/// `AssistSessionProgressReportTool` and `AssistToolCapabilityLookupTool`
-/// (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never on
-/// internals. Messages quoted verbatim are Legacy's. Message assertions
-/// use `firstText`, never exact `resultText ==` (structured results emit
-/// two text blocks).
-///
-/// `code_review` and `safe_undo` are the deliberate exceptions: Legacy
-/// implements them through an LLM review stage and a workspace snapshot
-/// store respectively, neither of which SwiftCode's MCP host has, so the
-/// tests assert they fail cleanly and change nothing (Wave 2
-/// `code_refactor` precedent).
-///
-/// Fixture facts used below (verified from the sample): the workspace has
-/// 5 Swift files (`Package.swift`, `Sources/Greeter/Greeter.swift`,
-/// `Sources/greet/main.swift`, `Previews/GreetingView.swift`,
-/// `Tests/GreeterTests/GreeterTests.swift`) and one `.xcstrings` file.
-/// `Greeter.swift` has 4 public declarations, all documented
-/// (`struct Greeter` line 2, `var salutation` line 4, `init` line 6,
-/// `func greeting` line 11); `api_surface_extract` counts 3 of them
-/// (its declaration pattern has no `init` kind). `Greeter` is referenced
-/// by `main.swift` (`import Greeter`, `Greeter().greeting(for:)`) and by
-/// `GreeterTests.swift` (`Greeter()`, `Greeter(salutation:)`), so its
-/// change impact is MEDIUM with 2 referencing files.
 @MainActor
 @Suite(.serialized) struct SwiftCodeReviewDocsTests {
-    /// The 23 slice-D tool IDs, in install order, verified live from each
-    /// Legacy tool's `id` (plus `CodeReviewTool` in `CodeReview.swift`,
-    /// whose registering class was confirmed by reading the file).
     static let reviewDocsIDs = ["api_docs_coverage", "api_endpoint_audit", "api_surface_extract", "automated_repair_engine",
                                 "autonomous_review_engine", "change_impact_estimate", "code_review", "code_snippet_manager",
                                 "color_usage_audit", "colorset_builder", "docstring_generator", "icon_generator_tool",
@@ -55,13 +12,9 @@ import SwiftCodeAssistant
                                 "repo_overview", "safe_undo", "safe_validate_changes", "session_export",
                                 "session_progress_report", "stale_files_report", "tool_capability_lookup"]
 
-    /// The 7 slice-D tools that write files.
     static let writingIDs = Set(["automated_repair_engine", "colorset_builder", "icon_generator_tool", "markdown_toc_generate",
                                  "readme_generate", "safe_undo", "session_export"])
 
-    /// Opens a copy of Greeter and installs the ported review/docs tools
-    /// on the server (same shape as Wave 2's `opened`; the coordinator
-    /// wires `reviewDocsTools` into `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -77,7 +30,6 @@ import SwiftCodeAssistant
         var accept = false
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -88,8 +40,6 @@ import SwiftCodeAssistant
         FileManager.default.fileExists(atPath: sample.path(rel))
     }
 
-    /// Counts the non-hidden files under the sample, skipping the same
-    /// top-level build/dependency directories `repo_overview` skips.
     func visibleFileCount(_ sample: TempSample) -> Int {
         let skipped: Set<String> = [".git", ".build", "build", "DerivedData", ".swiftpm", "Pods", "Carthage", "node_modules", ".venv"]
         var count = 0
@@ -129,14 +79,12 @@ import SwiftCodeAssistant
             #expect(tool.writes == Self.writingIDs.contains(tool.name), "writes flag for \(tool.name)")
             #expect(tool.annotations.readOnly != tool.writes, "readOnly/writes agree for \(tool.name)")
         }
-        // Verbatim Legacy descriptions, spot-checked.
         let byName = Dictionary(uniqueKeysWithValues: tools.map { ($0.name, $0) })
         #expect(byName["api_docs_coverage"]?.description == "Measures the share of public/open Swift declarations that carry documentation comments.")
         #expect(byName["code_review"]?.description == "Validates the completed implementation using an independent AI reviewer stage before finishing the task.")
         #expect(byName["safe_undo"]?.description == "Reverts the last modification made by the agent.")
         #expect(byName["session_export"]?.description == "Writes a markdown export with session metadata (title, timestamp, session ID, workspace, notes). Does not read conversation history. Refuses to overwrite unless overwrite is true.")
         #expect(byName["safe_undo"]?.annotations.destructive == true)
-        // Every tool takes the workspace parameter.
         for tool in tools {
             #expect(tool.inputSchema["properties"]?["workspace"] != nil, "workspace param for \(tool.name)")
         }
@@ -165,7 +113,6 @@ import SwiftCodeAssistant
         #expect(r.structured?["documented"]?.int == 4)
         #expect(r.structured?["coverage"]?.string == "100.0")
         #expect(r.firstText.contains("API docs coverage: 100.0% (4 of 4 public declarations documented)"))
-        // An undocumented public declaration is listed, capped by limit.
         try writeFixture(sample, "Sources/Greeter/Undocumented.swift", "public struct Undocumented {\n    public var value: Int\n}\n")
         let capped = try await host.server.callTool("api_docs_coverage", ["limit": .int(1)])
         #expect(!capped.isToolError, "\(capped.resultText)")
@@ -282,7 +229,6 @@ import SwiftCodeAssistant
         #expect(r.structured?["broken"]?.int == 1)
         #expect(r.firstText.contains("Broken internal links (1 of 2 checked):"))
         #expect(r.firstText.contains("Docs/guide.md: [Nope.md]"))
-        // A single unreadable file is skipped, not an error (Legacy).
         let missing = try await host.server.callTool("markdown_link_check", ["path": .string("Docs/Nope.md")])
         #expect(!missing.isToolError, "\(missing.resultText)")
         #expect(missing.firstText.contains("All 0 internal links resolve."))
@@ -300,12 +246,10 @@ import SwiftCodeAssistant
         var text = sample.read("Docs/notes.md")
         #expect(text.contains("<!-- TOC -->\n- [Notes](#notes)\n  - [Getting Started](#getting-started)\n    - [Details](#details)\n<!-- /TOC -->"))
         #expect(!text.contains("Too Deep"))
-        // A second run updates the block in place instead of duplicating it.
         let again = try await host.server.callTool("markdown_toc_generate", ["path": .string("Docs/notes.md")])
         #expect(!again.isToolError, "\(again.resultText)")
         text = sample.read("Docs/notes.md")
         #expect(text.components(separatedBy: "<!-- TOC -->").count == 2)
-        // No headings is a failure, not an empty TOC.
         try writeFixture(sample, "Docs/plain.md", "Just prose, no headings.\n")
         let empty = try await host.server.callTool("markdown_toc_generate", ["path": .string("Docs/plain.md")])
         #expect(empty.isToolError)
@@ -343,7 +287,6 @@ import SwiftCodeAssistant
         let lines = sample.read("Sources/Greeter/Greeter.swift").components(separatedBy: .newlines)
         #expect(lines[1] == "// AssistAutoRepair: review required")
         #expect(lines[2] == "public struct Greeter {")
-        // Lines without '.swift:' are ignored entirely.
         let none = try await host.server.callTool("automated_repair_engine", ["errors": .string("README.md:1: error: nope\n")])
         #expect(!none.isToolError, "\(none.resultText)")
         #expect(none.structured?["fix_count"]?.int == 0)
@@ -411,8 +354,6 @@ import SwiftCodeAssistant
         let unknown = try await host.server.callTool("code_snippet_manager", ["templateId": .string("nope")])
         #expect(unknown.isToolError)
         #expect(unknown.firstText.contains("Unknown templateId 'nope'. Available: observable_viewmodel, async_stream, actor_service, swiftui_glass_card"))
-        // Legacy's schema lists keychain_helper, but its switch has no
-        // such case: it fails like any unknown template.
         let keychain = try await host.server.callTool("code_snippet_manager", ["templateId": .string("keychain_helper")])
         #expect(keychain.isToolError)
         #expect(keychain.firstText.contains("Unknown templateId 'keychain_helper'."))
@@ -475,14 +416,12 @@ import SwiftCodeAssistant
         #expect(contents.contains("\"red\" : \"0.000\""))
         #expect(contents.contains("\"green\" : \"0.478\""))
         #expect(contents.contains("\"blue\" : \"1.000\""))
-        // An unparseable hex falls back to Legacy's #007AFF components.
         let fallback = try await host.server.callTool("colorset_builder", [
             "catalogPath": .string("Assets.xcassets"), "colorName": .string("Fallback"),
             "lightHex": .string("xyz"),
         ])
         #expect(!fallback.isToolError, "\(fallback.resultText)")
         #expect(sample.read("Assets.xcassets/Fallback.colorset/Contents.json").contains("\"green\" : \"0.478\""))
-        // A path-like color name is refused.
         let bad = try await host.server.callTool("colorset_builder", [
             "catalogPath": .string("Assets.xcassets"), "colorName": .string("a/b"), "lightHex": .string("#FFFFFF"),
         ])
@@ -494,8 +433,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // The sample copy may carry the checkout's old mtimes: normalise
-        // every source file to now so only the fixture below is stale.
         let sourceExts: Set<String> = ["swift", "m", "mm", "h", "c", "cpp", "hpp", "ts", "js", "py", "rs"]
         let fm = FileManager.default
         let enumerator = try #require(fm.enumerator(at: sample.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]))
@@ -508,7 +445,7 @@ import SwiftCodeAssistant
         #expect(!fresh.isToolError, "\(fresh.resultText)")
         #expect(fresh.firstText.contains("No source files older than 180 days."))
         try writeFixture(sample, "Sources/Greeter/Old.swift", "public struct Old {}\n")
-        let oldDate = Date(timeIntervalSince1970: 1_577_880_000) // 2020-01-01T12:00:00Z
+        let oldDate = Date(timeIntervalSince1970: 1_577_880_000)
         try FileManager.default.setAttributes([.modificationDate: oldDate],
                                               ofItemAtPath: sample.path("Sources/Greeter/Old.swift"))
         let r = try await host.server.callTool("stale_files_report", [:])
@@ -582,15 +519,12 @@ import SwiftCodeAssistant
         #expect(text.contains("Tool definitions live in AssistToolRegistry."))
         #expect(r.structured?["output_relative"]?.string == ".assist_session_export.md")
         #expect(!(r.structured?["session_id"]?.string ?? "").isEmpty)
-        // A second export refuses to overwrite unless overwrite is "true".
         let again = try await host.server.callTool("session_export", [:])
         #expect(again.isToolError)
         #expect(again.firstText.contains("Refusing to overwrite existing file at '.assist_session_export.md'."))
         let over = try await host.server.callTool("session_export", ["overwrite": .string("true")])
         #expect(!over.isToolError, "\(over.resultText)")
-        // The session id is stable per workspace.
         #expect(over.structured?["session_id"] == r.structured?["session_id"])
-        // An escaping output path is refused.
         let outside = try await host.server.callTool("session_export", ["outputPath": .string("../export.md"), "overwrite": .string("true")])
         #expect(outside.isToolError)
         #expect(outside.firstText.contains("Invalid outputPath: '../export.md'"))
@@ -606,7 +540,7 @@ import SwiftCodeAssistant
         #expect(none.firstText.contains("No engineering phases are registered for this session."))
         #expect(none.firstText.contains("Agent notes: never saved this session."))
         try writeFixture(sample, "agent_notes.md", "# Plan\n\nDo the thing.\n")
-        let savedDate = Date(timeIntervalSince1970: 1_774_008_000) // 2026-03-20T12:00:00Z
+        let savedDate = Date(timeIntervalSince1970: 1_774_008_000)
         try FileManager.default.setAttributes([.modificationDate: savedDate],
                                               ofItemAtPath: sample.path("agent_notes.md"))
         let saved = try await host.server.callTool("session_progress_report", [:])
@@ -633,7 +567,6 @@ import SwiftCodeAssistant
         #expect(!write.isToolError, "\(write.resultText)")
         #expect(write.structured?["riskLevel"]?.string == "safeMutation")
         #expect(write.firstText.contains("Read-only: false, Mutating: true"))
-        // An alias resolves to its target, as in Legacy's getTool.
         let aliased = try await host.server.callTool("tool_capability_lookup", ["toolId": .string("search_dir")])
         #expect(!aliased.isToolError, "\(aliased.resultText)")
         #expect(aliased.structured?["toolId"]?.string == "search_text")

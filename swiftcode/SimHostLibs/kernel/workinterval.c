@@ -1,26 +1,3 @@
-/*
- * workinterval.c - work intervals (<sys/work_interval.h>), as a kernel
- * without the scheduler feature behind them would offer: every call
- * succeeds and has no effect on scheduling.
- *
- * Clean-room SwiftCode code. Facts used: the public function names and
- * signatures of xnu's libsyscall work_interval API (Apple open source,
- * level 1): work_interval_create(&out, flags), _destroy, _join, _leave,
- * _join_port, _copy_port(interval, &port), _get_flags_from_port(port,
- * &flags), _notify, _notify_simple; 0 on success. Observed need
- * (level 3, SwiftCode runs): UIKit raises "Failed to create work interval" and
- * SpringBoard aborts when work_interval_create fails.
- *
- * A work interval here is a small record from a fixed pool (or from
- * mach_vm_allocate when the pool is used up): the creation flags, a
- * process-unique id, and a port created on first use by _copy_port.
- *
- * Work intervals made by someone else and handed over as a port (the host
- * audio service's workgroup ports, audio-host.md §10, work-intervals.md)
- * are the kernel's: _get_flags_from_port, _join_port and _leave ask the
- * kernel first (__work_interval_ctl GET_FLAGS / JOIN, as xnu's wrappers do)
- * and keep the old answers for any other port.
- */
 #include "yc_kernel.h"
 
 int mach_vm_allocate(yc_port_t task, yc_u64 *address, yc_u64 size, int flags);
@@ -28,8 +5,6 @@ int mach_port_allocate(yc_port_t task, yc_u32 right, yc_port_t *name);
 int __work_interval_ctl(yc_u32 operation, yc_u64 work_interval_id, void *arg, yc_size_t len);
 int *__error(void);
 
-/* <sys/work_interval.h>: WORK_INTERVAL_OPERATION_JOIN, _GET_FLAGS;
- * struct work_interval_create_params. */
 #define YC_WI_OP_JOIN 5u
 #define YC_WI_OP_GET_FLAGS 9u
 struct yc_wi_create_params {
@@ -38,8 +13,6 @@ struct yc_wi_create_params {
     yc_u32 flags;
 };
 
-/* One kernel call whose failure leaves errno as it was (the callers fall
- * back to the library's own answer). */
 static int yc_wi_kernel(yc_u32 operation, yc_u64 id, void *arg, yc_size_t len)
 {
     int saved = *__error();
@@ -66,7 +39,7 @@ static struct yc_work_interval *yc_wi_alloc(void)
         return &yc_wi_pool[n];
     }
     yc_u64 address = 0;
-    if (mach_vm_allocate(mach_task_self_, &address, 16384, 1 /* VM_FLAGS_ANYWHERE */) != 0) return YC_NULL;
+    if (mach_vm_allocate(mach_task_self_, &address, 16384, 1 ) != 0) return YC_NULL;
     struct yc_work_interval *w = (struct yc_work_interval *)(__UINTPTR_TYPE__)address;
     w->id = n + 1;
     return w;
@@ -80,7 +53,7 @@ YC_EXPORT int work_interval_create(struct yc_work_interval **out, yc_u32 flags)
     }
     struct yc_work_interval *w = yc_wi_alloc();
     if (w == YC_NULL) {
-        __swiftcode_set_errno(12 /* ENOMEM */);
+        __swiftcode_set_errno(12 );
         return -1;
     }
     w->flags = flags;
@@ -89,8 +62,6 @@ YC_EXPORT int work_interval_create(struct yc_work_interval **out, yc_u32 flags)
     return 0;
 }
 
-/* Records are not reused: an interval destroyed while another thread
- * still names it stays valid memory. */
 YC_EXPORT int work_interval_destroy(struct yc_work_interval *w)
 {
     (void)w;
@@ -142,8 +113,6 @@ YC_EXPORT int work_interval_get_flags_from_port(yc_port_t port, yc_u32 *flags)
     yc_u32 found = 0;
     if (port != YC_MACH_PORT_NULL && port != YC_MACH_PORT_DEAD) {
         struct yc_wi_create_params p = {0, 0, 0};
-        /* Any other port (one of this library's, from _copy_port) keeps
-         * the old answer: flags 0, a default workgroup. */
         if (yc_wi_kernel(YC_WI_OP_GET_FLAGS, port, &p, sizeof p) == 0) found = p.flags;
     }
     if (flags != YC_NULL) *flags = found;

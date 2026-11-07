@@ -1,9 +1,7 @@
 import Foundation
 
-/// What the workspace offers as context for a request.
 public struct WorkspaceContext: Sendable, Equatable {
     public struct File: Sendable, Equatable {
-        /// Workspace-relative path.
         public var path: String
         public var text: String
         public init(path: String, text: String) {
@@ -13,11 +11,9 @@ public struct WorkspaceContext: Sendable, Equatable {
     }
     public struct Selection: Sendable, Equatable {
         public var path: String
-        /// 1-based, inclusive.
         public var startLine: Int
         public var endLine: Int
         public var text: String
-        /// UTF-16 offset and length in the file (where a proposal applies).
         public var location: Int
         public var length: Int
         public init(path: String, startLine: Int, endLine: Int, text: String, location: Int, length: Int) {
@@ -44,7 +40,6 @@ public struct WorkspaceContext: Sendable, Equatable {
 
     public var workspaceName: String
     public var currentFile: File?
-    /// 1-based caret line in the current file.
     public var caretLine: Int?
     public var selection: Selection?
     public var openFiles: [File]
@@ -60,7 +55,6 @@ public struct WorkspaceContext: Sendable, Equatable {
         self.issues = issues
     }
 
-    /// Where file-less proposals from a request made here apply.
     public var proposalTarget: ProposalTarget? {
         if let s = selection, !s.text.isEmpty {
             return ProposalTarget(path: s.path, selectionLocation: s.location, selectionLength: s.length, selectionText: s.text)
@@ -69,36 +63,26 @@ public struct WorkspaceContext: Sendable, Equatable {
     }
 }
 
-/// Which context goes with a request (Settings ▸ Coding Assistant).
 public struct ContextOptions: Sendable, Equatable, Codable {
-    /// The current file (or a window of it around the caret).
     public var includeCurrentFile = true
     public var includeOpenFiles = true
     public var includeIssues = true
     public init() {}
 }
 
-/// Rough token counts: about four UTF-8 bytes per token for code and
-/// English, rounded up. Good enough to keep a prompt under a limit with a
-/// margin; providers count exactly.
 public enum TokenEstimator {
     public static func estimate(_ s: String) -> Int { (s.utf8.count + 3) / 4 }
 }
 
-/// The prompt for one request, within a token budget.
 public struct BuiltPrompt: Sendable, Equatable {
     public var instructions: String
     public var messages: [ChatMessage]
     public var estimatedTokens: Int
-    /// What went in ("Selection App.swift:3–9", "File App.swift", …) and
-    /// what did not fit; shown in the transcript's details.
     public var included: [String]
     public var omitted: [String]
 }
 
 public enum PromptBuilder {
-    /// SwiftCode's instructions: the role and the change format that
-    /// `ChangeProposal` reads.
     public static let instructions = """
     You are the coding assistant in SwiftCode, an IDE for Apple platforms. Answer questions about the user's code and \
     propose changes. Be concise; use Markdown.
@@ -114,9 +98,6 @@ public enum PromptBuilder {
     as examples and are not applied. The user reviews every proposed change before it is applied.
     """
 
-    /// The instructions in agent mode (an agent with SwiftCode's MCP server or
-    /// an ACP agent whose file writes go through SwiftCode): it may change
-    /// files through SwiftCode, and each change is reviewed.
     public static let agentInstructions = """
     You are a coding agent working in SwiftCode, an IDE for Apple platforms, on the user's workspace. Be concise; use \
     Markdown.
@@ -129,16 +110,6 @@ public enum PromptBuilder {
     workspace folder.
     """
 
-    /// Builds the request. Always included: the instructions and the new
-    /// message. Then, while the budget lasts and in this order: the
-    /// attachments, the selection, the current file (whole, or a window
-    /// around the caret or selection), earlier turns (newest first), the
-    /// issues, the other open files.
-    ///
-    /// - Parameters:
-    ///   - contextTokens: the model's context window (or the configured
-    ///     limit, whichever is smaller).
-    ///   - reservedOutput: tokens left free for the answer.
     public static func build(history: [ChatMessage], prompt: String, attachments: [Attachment], context: WorkspaceContext,
                              options: ContextOptions = .init(), contextTokens: Int, reservedOutput: Int? = nil,
                              instructions: String = Self.instructions) -> BuiltPrompt {
@@ -150,7 +121,6 @@ public enum PromptBuilder {
         var request = prompt
         let promptCost = TokenEstimator.estimate(prompt) + 8
         if promptCost > budget {
-            // The message alone is too long: keep its start.
             let keep = max(0, budget - 16) * 4
             request = String(prompt.prefix(keep))
             request += "\n[…message shortened to fit the model's context…]"
@@ -202,7 +172,6 @@ public enum PromptBuilder {
             }
         }
 
-        // Earlier turns, newest first, while they fit.
         var keptHistory: [ChatMessage] = []
         var dropped = 0
         for m in history.reversed() {
@@ -237,7 +206,6 @@ public enum PromptBuilder {
         return BuiltPrompt(instructions: instructions, messages: messages, estimatedTokens: total, included: included, omitted: omitted)
     }
 
-    /// Lines around `center` (1-based, inclusive range) that fit `tokens`.
     static func window(_ text: String, around center: (Int, Int)?, tokens: Int) -> (first: Int, last: Int, text: String)? {
         let lines = text.components(separatedBy: "\n")
         guard !lines.isEmpty, tokens > 16 else { return nil }
@@ -260,7 +228,6 @@ public enum PromptBuilder {
         return (first, last, lines[(first - 1)...(last - 1)].joined(separator: "\n"))
     }
 
-    /// A fence language for a file name.
     public static func language(for path: String) -> String {
         switch (path as NSString).pathExtension.lowercased() {
         case "swift": "swift"
@@ -281,8 +248,6 @@ public enum PromptBuilder {
     }
 }
 
-/// Editor ▸ Show Coding Tools (reference-ui-5.md §2.7 item 8), behavior
-/// after Apple's public "Using coding intelligence in the source editor".
 public enum CodingTool: String, CaseIterable, Sendable {
     case explain, document, generatePlayground, generatePreview
 
@@ -295,8 +260,6 @@ public enum CodingTool: String, CaseIterable, Sendable {
         }
     }
 
-    /// The message sent; the selection (or the file) goes with it as
-    /// context.
     public func prompt(path: String, hasSelection: Bool) -> String {
         let what = hasSelection ? "the selected code" : "the current file (\((path as NSString).lastPathComponent))"
         let lang = PromptBuilder.language(for: path)
@@ -314,8 +277,6 @@ public enum CodingTool: String, CaseIterable, Sendable {
         }
     }
 
-    /// The command applies to this file (Generate a Preview needs a Swift
-    /// file that uses SwiftUI).
     public func applies(toPath path: String, text: String) -> Bool {
         let swift = (path as NSString).pathExtension.lowercased() == "swift"
         switch self {

@@ -1,8 +1,3 @@
-//
-//  AssistStringCatalogMigratorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistStringCatalogMigratorTool: AssistTool {
@@ -47,7 +42,6 @@ public struct AssistStringCatalogMigratorTool: AssistTool {
             return .failure("Unable to read .strings content at \(srcPath)")
         }
 
-        // Parse "key" = "value";
         var stringsDict: [String: [String: Any]] = [:]
         let regex = try? NSRegularExpression(pattern: #""([^"\\]*(?:\\.[^"\\]*)*)"\s*=\s*"([^"\\]*(?:\\.[^"\\]*)*)";"#, options: [])
         let nsContent = content as NSString

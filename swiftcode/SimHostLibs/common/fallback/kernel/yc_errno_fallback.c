@@ -1,18 +1,6 @@
-/*
- * Fallback errno for libsystem_kernel, following host-libraries.md
- * section 8.5, until agent K writes the real one in SimHostLibs/kernel/.
- *
- * Clean-room SwiftCode code.
- * - __error() returns TSD slot 1 (TPIDRRO_EL0 points at slot 0) when the
- *   TSD base and the slot are non-zero, otherwise the global errno.
- * - cerror / cerror_nocancel store their argument into both locations and
- *   return -1 in x0 and x1.
- * Defining __error, cerror or cerror_nocancel in SimHostLibs/kernel/
- * suppresses this whole file (see ../../../README.md, "Fallbacks").
- */
 #include "yc_base.h"
 
-extern int errno; /* libsystem_kernel's exported global (generated data) */
+extern int errno;
 
 static int **tsd_errno_slot(void)
 {
@@ -35,7 +23,7 @@ static __int128 store_errno(int value)
     if (slot && *slot)
         **slot = value;
     errno = value;
-    return -1; /* all ones: x0 = x1 = -1 */
+    return -1;
 }
 
 YC_EXPORT __int128 cerror(int value)

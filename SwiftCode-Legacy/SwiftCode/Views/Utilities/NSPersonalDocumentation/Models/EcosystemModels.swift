@@ -6,7 +6,7 @@ public final class WhiteboardRecord {
     @Attribute(.unique) public var id: UUID
     public var projectID: UUID
     public var title: String
-    public var elementsJSON: String // Stores nodes, shapes, connectors, drawings as a JSON string
+    public var elementsJSON: String
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -35,9 +35,9 @@ public final class CodeSnippetRecord {
     public var code: String
     public var language: String
     public var category: String
-    public var tagsJSON: String // JSON array of strings
+    public var tagsJSON: String
     public var isFavorite: Bool
-    public var versionHistoryJSON: String // JSON array of old code versions
+    public var versionHistoryJSON: String
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -74,9 +74,9 @@ public final class ProjectSnapshotRecord {
     public var projectID: UUID
     public var title: String
     public var descriptionText: String
-    public var documentsJSON: String // Complete list of Document attributes at snapshot time
-    public var whiteboardsJSON: String // Complete list of WhiteboardRecord attributes
-    public var snippetsJSON: String // Complete list of CodeSnippetRecord attributes
+    public var documentsJSON: String
+    public var whiteboardsJSON: String
+    public var snippetsJSON: String
     public var createdAt: Date
 
     public init(

@@ -2,13 +2,7 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-// Frameworks, libraries, tools, bundles, app extensions, drivers,
-// packages and the Other tab (`templates.md` § "Catalog by template").
-// Texts are SwiftCode's own; product types, settings and plist keys are the
-// spec's interop facts.
-
 extension ProjectGenerator {
-    // MARK: Frameworks and libraries
 
     static func docc(_ c: GenContext, folder: String) -> [(String, String)] {
         [("\(folder)/\(c.t).docc/\(c.t).md", "# ``\(c.t)``\n\nAn overview of \(c.n).\n\n## Topics\n\n### Getting Started\n\n- <doc:\(c.t)>\n")]
@@ -18,7 +12,6 @@ extension ProjectGenerator {
         "/// \(c.n)'s public interface.\npublic struct \(c.t) {\n    public init() {}\n\n    /// A greeting from the library.\n    public func greeting() -> String {\n        \"Hello from \(c.lit)\"\n    }\n}\n"
     }
 
-    /// The Framework block.
     static func framework(_ c: GenContext) throws -> GeneratedProject {
         let sdk = c.sdk, n = c.n
         var s: [(String, PlistValue)] = [
@@ -58,7 +51,6 @@ extension ProjectGenerator {
         return r
     }
 
-    /// Adds settings to both project configurations of a generated project.
     static func addProjectSettings(_ g: inout GeneratedProject, _ extra: [(String, PlistValue)]) throws {
         guard var p = g.project else { return }
         for cfg in p.buildConfigurations(listID: p.project?.string("buildConfigurationList")) {
@@ -71,7 +63,6 @@ extension ProjectGenerator {
         g.project = p
     }
 
-    /// The Static library block.
     static func staticLibrary(_ c: GenContext) throws -> GeneratedProject {
         let n = c.n
         var s: [(String, PlistValue)] = [("PRODUCT_NAME", "$(TARGET_NAME)"), ("OTHER_LDFLAGS", "-ObjC"), ("SKIP_INSTALL", "YES")]
@@ -89,7 +80,6 @@ extension ProjectGenerator {
         return try recipe(c, [target] + tt.targets, files + tt.files, entry: files.last?.0, swift: !c.objc)
     }
 
-    /// macOS ▸ Library.
     static func macLibrary(_ c: GenContext) throws -> GeneratedProject {
         let n = c.n, t = c.t
         let dynamic = c.option(TemplateOptionID.libraryType) == "Dynamic"
@@ -115,7 +105,6 @@ extension ProjectGenerator {
         return try recipe(c, [target], files, entry: files.last?.0, swift: false)
     }
 
-    /// DriverKit ▸ Library.
     static func driverKitLibrary(_ c: GenContext) throws -> GeneratedProject {
         let dynamic = c.option(TemplateOptionID.libraryType) == "Dynamic"
         var target = ProjectRecipe.Target(name: c.n, productType: dynamic ? "com.apple.product-type.library.dynamic" : "com.apple.product-type.library.static",
@@ -126,7 +115,6 @@ extension ProjectGenerator {
         return try recipe(c, [target], [], swift: false)
     }
 
-    /// The Metal Library block.
     static func metalLibrary(_ c: GenContext) throws -> GeneratedProject {
         var target = ProjectRecipe.Target(name: c.n, productType: "com.apple.product-type.metal-library", productPath: "\(c.n).metallib",
                                           productFileType: "archive.metal-library", folders: [c.n], settings: [("PRODUCT_NAME", "$(TARGET_NAME)")],
@@ -146,8 +134,6 @@ extension ProjectGenerator {
         """
         return try recipe(c, [target], [("\(c.n)/\(c.t).metal", shader)], entry: "\(c.n)/\(c.t).metal")
     }
-
-    // MARK: macOS bundles and tools
 
     static func bundle(_ c: GenContext) throws -> GeneratedProject {
         let ext = c.option(TemplateOptionID.bundleExtension).isEmpty ? "bundle" : c.option(TemplateOptionID.bundleExtension)
@@ -266,7 +252,6 @@ extension ProjectGenerator {
         return try recipe(c, [target], files, entry: files[files.count - 2].0, swift: false)
     }
 
-    /// A bundle with an Objective-C principal class (and XIB).
     static func objcBundle(_ c: GenContext, name: String, wrapper: String, install: String, principal: String, base: String, imports: String,
                            settings extra: [(String, PlistValue)], files more: [(String, String)], body: String = "") throws -> GeneratedProject {
         let n = c.n
@@ -351,8 +336,6 @@ extension ProjectGenerator {
         return try recipe(c, [target], [("\(c.n)/\(c.n).instrpkg", pkg)], entry: "\(c.n)/\(c.n).instrpkg", swift: false)
     }
 
-    // MARK: App extensions
-
     static func extensionTarget(_ name: String, productName: String? = nil, bundleID: String, sdk: TemplateSDK?, productType: String = "com.apple.product-type.app-extension",
                                 settings extra: [(String, PlistValue)] = [], folders: [String]? = nil) -> ProjectRecipe.Target {
         var s: [(String, PlistValue)] = [("PRODUCT_NAME", .string(productName ?? "$(TARGET_NAME)")), ("PRODUCT_BUNDLE_IDENTIFIER", .string(bundleID)),
@@ -418,7 +401,6 @@ extension ProjectGenerator {
         ]
     }
 
-    /// The app half: a web page in a web view.
     static func safariAppFiles(_ c: GenContext, folder: String, mac: Bool, ios: Bool) -> [(String, String)] {
         [
             ("\(folder)/Resources/Main.html", "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width\">\n    <link rel=\"stylesheet\" href=\"Style.css\">\n    <script src=\"Script.js\" defer></script>\n</head>\n<body>\n    <p>Turn on \(c.n.xmlEscaped)'s extension in Safari's settings.</p>\n</body>\n</html>\n"),
@@ -502,7 +484,6 @@ extension ProjectGenerator {
             var ext = extensionTarget(extName, productName: mp ? "\(n) Extension" : nil, bundleID: "\(c.bundleID).Extension", sdk: sdk, settings: es,
                                       folders: mp ? [ownExt, extFolder] : [extFolder])
             if mp {
-                // The shared folder holds the extension's Info.plist.
                 ext.settings = ext.settings.map { $0.0 == "INFOPLIST_FILE" ? ($0.0, .string("\(extFolder)/Info.plist")) : $0 }
                 ext.exceptions = []
                 files.append(("\(ownExt)/.keep", ""))
@@ -513,7 +494,6 @@ extension ProjectGenerator {
         if wantMac { addApp(.macOS) }
         let tt = mp ? (targets: [ProjectRecipe.Target](), files: [(String, String)]()) : tests(c, host: n, hostSettings: targets[0].settings, hostIsApp: true, ui: true)
         var g = try recipe(c, targets + tt.targets, files + tt.files, entry: "\(extFolder)/Resources/manifest.json", projectSDK: .some(nil))
-        // The shared extension folder's Info.plist belongs to no target.
         if mp, var p = g.project, let folder = p.objects.values.first(where: { $0.isa == "PBXFileSystemSynchronizedRootGroup" && $0.string("path") == extFolder }) {
             var sets: [String] = []
             for t in p.targets where t.references("fileSystemSynchronizedGroups").contains(folder.id) {
@@ -647,7 +627,6 @@ extension ProjectGenerator {
                           entry: "\(ext)/\(c.t)AudioUnit.swift")
     }
 
-    /// A Messages app container (`application.messages`).
     static func messagesContainer(_ c: GenContext, extensionName: String, extra: [(String, PlistValue)], folder: Bool) -> ProjectRecipe.Target {
         var s = appBlock(c, bundleID: c.bundleID, swiftUI: false).filter { folder || !$0.0.hasPrefix("ASSETCATALOG") } + extra
         s.append(("TARGETED_DEVICE_FAMILY", "1,2"))
@@ -719,8 +698,6 @@ extension ProjectGenerator {
                           entry: nil, swift: false)
     }
 
-    // MARK: DriverKit
-
     static func driver(_ c: GenContext) throws -> GeneratedProject {
         let cls = c.t, n = c.n
         let files: [(String, String)] = [
@@ -747,10 +724,6 @@ extension ProjectGenerator {
         return try recipe(c, [target], files, entry: "\(n)/\(cls).cpp", swift: false)
     }
 
-    // MARK: Packages and playgrounds
-
-    /// A Package… template: SwiftPM writes the package (`swift package
-    /// init --type`), with the testing flags of the Testing System.
     static func package(_ c: GenContext, type: String) -> GeneratedProject {
         var args: [String] = []
         if c.d.fields.contains(where: { $0.id == TemplateOptionID.testingSystem }) {
@@ -765,9 +738,6 @@ extension ProjectGenerator {
         return g
     }
 
-    /// iOS ▸ App Playground: `N.swiftpm`, an app package. The manifest
-    /// declares the app product where the app-package product types exist
-    /// and an executable elsewhere, so the package builds with any SwiftPM.
     static func appPlayground(_ c: GenContext) -> GeneratedProject {
         let n = c.n
         let manifest = """
@@ -809,8 +779,6 @@ extension ProjectGenerator {
         ]
         return GeneratedProject(folderName: "\(n).swiftpm", files: files, project: nil, projectName: n, entryFile: "ContentView.swift")
     }
-
-    // MARK: Other
 
     static func externalBuildSystem(_ c: GenContext) throws -> GeneratedProject {
         let tool = c.option(TemplateOptionID.buildTool)

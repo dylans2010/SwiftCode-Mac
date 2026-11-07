@@ -1,6 +1,3 @@
-// miprobe: our own probe of how MobileInstallation's bundle model sees an app
-// bundle (Ycode stage 9, agent J). Classes and selectors by name at run time.
-//   miprobe <bundle path> [getter ...]   -> MIExecutableBundle -initWithBundleURL:error:, then getters
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
@@ -11,7 +8,7 @@ static void show(id obj, const char *name) {
   if (!m) { printf("%-32s (no method)\n", name); return; }
   char rt[64]; method_getReturnType(m, rt, sizeof rt);
   unsigned nargs = method_getNumberOfArguments(m);
-  if (nargs == 3) { // one NSError ** argument
+  if (nargs == 3) {
     NSError *err = nil;
     if (rt[0] == '@') { id v = ((id (*)(id, SEL, NSError **))objc_msgSend)(obj, s, &err); printf("%-32s %s err=%s\n", name, [[v description] UTF8String], err ? [[err description] UTF8String] : "nil"); }
     else if (rt[0] == 'B') { BOOL v = ((BOOL (*)(id, SEL, NSError **))objc_msgSend)(obj, s, &err); printf("%-32s %d err=%s\n", name, v, err ? [[err description] UTF8String] : "nil"); }

@@ -1,8 +1,3 @@
-//
-//  AssistGitConflictResolverTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistGitConflictResolverTool: AssistTool {

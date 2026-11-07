@@ -1,8 +1,3 @@
-// t_memory.m - reference counting conformance, manual retain/release
-// (specs/macos/objc-runtime.md §6-§9): counts, the side table past the
-// inline count, dealloc order, autorelease pools (nested, many pages),
-// weak variables, associated objects, objc_storeStrong, @synchronized,
-// custom retain/release, C++-style ivar destruction order.
 #include <objc/NSObject.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -49,7 +44,6 @@ static int deallocs = 0;
 static char kAssocA, kAssocB, kAssocC;
 
 int main(void) {
-    // Basic counts.
     Tracked *a = [Tracked tracked:1];
     printf("rc %lu\n", (unsigned long)[a retainCount]);
     [a retain];
@@ -59,7 +53,6 @@ int main(void) {
     [a release];
     printf("rc %lu\n", (unsigned long)[a retainCount]);
 
-    // Past the inline count (side table) and back.
     for (int i = 0; i < 40000; i++) objc_retain(a);
     printf("rc big %lu\n", (unsigned long)[a retainCount]);
     for (int i = 0; i < 40000; i++) objc_release(a);
@@ -67,7 +60,6 @@ int main(void) {
     [a release];
     printf("deallocs %d\n", deallocs);
 
-    // Autorelease pools: nested, and one with enough objects for several pages.
     void *outer = objc_autoreleasePoolPush();
     [[Tracked tracked:10] autorelease];
     void *inner = objc_autoreleasePoolPush();
@@ -88,7 +80,6 @@ int main(void) {
     }
     printf("after drain %d\n", deallocs);
 
-    // Weak variables.
     Tracked *w = [Tracked tracked:20];
     id weak1 = nil, weak2 = nil;
     objc_initWeak(&weak1, w);
@@ -101,7 +92,6 @@ int main(void) {
     printf("weak after dealloc %p %p\n", (void *)weak1, (void *)objc_loadWeakRetained(&weak1));
     objc_destroyWeak(&weak1);
 
-    // Associated objects: retained values are released with the owner.
     Tracked *owner = [Tracked tracked:30];
     Tracked *v1 = [Tracked tracked:31];
     Tracked *v2 = [Tracked tracked:32];
@@ -117,7 +107,6 @@ int main(void) {
     [owner release];
     [v2 release];
 
-    // objc_storeStrong.
     id slot = nil;
     Tracked *s1 = [Tracked tracked:40];
     objc_storeStrong(&slot, s1);
@@ -125,14 +114,12 @@ int main(void) {
     [s1 release];
     objc_storeStrong(&slot, nil);
 
-    // Custom retain/release are messaged by the ARC entry points.
     Counting *c = [Counting new];
     objc_retain(c);
     objc_release(c);
     objc_autorelease(objc_retain(c));
     printf("custom rr retains %d releases %d\n", c->retains, c->releases);
 
-    // @synchronized nests.
     int n = 0;
     @synchronized(c) {
         @synchronized(c) {
@@ -143,7 +130,6 @@ int main(void) {
     printf("synchronized %d\n", n);
     [c release];
 
-    // Classes are not counted.
     printf("class rc same %d\n", objc_retain([Tracked class]) == [Tracked class]);
     objc_release([Tracked class]);
     printf("done\n");

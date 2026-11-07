@@ -1,20 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// The host task (stage4c-contract.md §3): a Mach port space with no VM and no
-// BSD process, in the same `MachIPCSystem` as the guest tasks, used by Swift
-// code in the VMM. Host services are plain host threads that receive on
-// ports of the host task and reply. Messages between guests and host ports
-// are ordinary Mach messages (`mach-ipc.md`, `processes.md` §4): rights are
-// copied in from the sender and out into the receiver, OOL memory is a
-// snapshot, and trailers carry the sender's audit token.
-//
-// Every method may be called from any host thread that holds no kernel lock
-// (it takes the system lock itself). A blocking call (a receive with a
-// timeout other than zero, or a send to a full queue) must not be made with
-// the lock held.
-
-/// A failed host send or receive: a `mach_msg_return_t` or `kern_return_t`.
 public struct MachHostError: Error, Equatable, Sendable, CustomStringConvertible {
     public var code: UInt32
     public init(_ code: UInt32) { self.code = code }
@@ -26,35 +12,20 @@ public struct MachHostError: Error, Equatable, Sendable, CustomStringConvertible
     public static let invalidName = MachHostError(MachMsgReturn.rcvInvalidName)
 }
 
-/// A descriptor of an outgoing host message.
 public enum MachHostDescriptor: Equatable, Sendable {
-    /// A right named in the host task, with a `MACH_MSG_TYPE_*` disposition
-    /// (16 MOVE_RECEIVE, 17 MOVE_SEND, 18 MOVE_SEND_ONCE, 19 COPY_SEND,
-    /// 20 MAKE_SEND, 21 MAKE_SEND_ONCE). Name 0 / 0xFFFFFFFF send NULL / DEAD.
     case port(name: UInt32, disposition: UInt32)
-    /// Out-of-line bytes (the receiver gets a fresh region holding a copy).
-    /// `copy` is `MACH_MSG_PHYSICAL_COPY` (0) or `MACH_MSG_VIRTUAL_COPY` (1).
     case ool(data: [UInt8], copy: UInt8 = 1, volatile: Bool = false)
-    /// An out-of-line array of rights named in the host task, all with one disposition.
     case oolPorts(names: [UInt32], disposition: UInt32)
 }
 
-/// A message the host sends.
 public struct MachHostOutgoingMessage: Equatable, Sendable {
-    /// Destination name in the host task and its disposition (usually
-    /// COPY_SEND 19, MOVE_SEND 17, or MOVE_SEND_ONCE 18 for a reply).
     public var remotePort: UInt32
     public var remoteDisposition: UInt32
-    /// Reply port (`msgh_local_port`) and its disposition (0 = none;
-    /// usually MAKE_SEND_ONCE 21).
     public var localPort: UInt32
     public var localDisposition: UInt32
     public var id: Int32
     public var descriptors: [MachHostDescriptor]
-    /// The inline bytes after the descriptors. Its length must be a multiple
-    /// of 4 (`MACH_SEND_MSG_TOO_SMALL` otherwise).
     public var body: [UInt8]
-    /// `MACH_MSGH_BITS_COMPLEX`; nil = complex exactly when there are descriptors.
     public var complex: Bool?
 
     public init(remotePort: UInt32, remoteDisposition: UInt32 = MachMsgType.copySend, localPort: UInt32 = 0,
@@ -73,21 +44,14 @@ public struct MachHostOutgoingMessage: Equatable, Sendable {
     public var isComplex: Bool { complex ?? !descriptors.isEmpty }
 }
 
-/// A descriptor of a received message. Rights are already copied out into
-/// the host task: `name` is the host task's name, `type` the received type
-/// (16 PORT_RECEIVE, 17 PORT_SEND, 18 PORT_SEND_ONCE).
 public enum MachHostReceivedDescriptor: Equatable, Sendable {
     case port(name: UInt32, type: UInt32)
     case ool(data: [UInt8], copy: UInt8, volatile: Bool)
     case oolPorts(names: [UInt32], type: UInt32)
-    /// A guarded port descriptor (`MACH_MSG_GUARDED_PORT_DESCRIPTOR`): the
-    /// receive right arrives unguarded in the host task.
     case guardedPort(name: UInt32, flags: UInt16, type: UInt32)
 }
 
-/// The sender identity of a received message (`processes.md` §4.5).
 public struct MachAuditToken: Equatable, Sendable {
-    /// The eight words: auid, euid, egid, ruid, rgid, pid, asid, pid version.
     public var words: [UInt32]
     public init(words: [UInt32]) { self.words = words }
     public var auid: UInt32 { words[0] }
@@ -100,37 +64,24 @@ public struct MachAuditToken: Equatable, Sendable {
     public var pidVersion: UInt32 { words[7] }
 }
 
-/// A message the host received.
 public struct MachHostReceivedMessage: Equatable, Sendable {
-    /// `msgh_bits` as received (remote = reply type, local = destination type, COMPLEX).
     public var bits: UInt32
-    /// The reply right (`msgh_remote_port`) as a host-task name (0 = none,
-    /// 0xFFFFFFFF = dead), and its received type (0 when there is none).
     public var replyPort: UInt32
     public var replyType: UInt32
-    /// The host-task name of the port the message arrived on (`msgh_local_port`).
     public var localPort: UInt32
     public var voucher: UInt32
     public var id: Int32
     public var descriptors: [MachHostReceivedDescriptor]
-    /// The inline bytes after the descriptors.
     public var body: [UInt8]
-    /// The received size without trailer (`msgh_size`).
     public var size: UInt32
     public var seqno: UInt32
-    /// The port's context (`mach_port_context_t`) at receipt.
     public var context: UInt64
-    /// Nil for kernel-originated messages (notifications, MIG replies).
     public var sender: MachAuditToken?
 
     public var isComplex: Bool { bits & MachMsgBits.complex != 0 }
     public var isFromKernel: Bool { sender == nil }
-    /// The disposition that sends a reply on `replyPort` (MOVE_SEND_ONCE or MOVE_SEND).
     public var replyDisposition: UInt32 { replyType }
 
-    /// The message in user layout as a guest would see it (header, body
-    /// word, descriptors, inline data; no trailer), with the host task's
-    /// names and OOL addresses written as 0.
     public var wireImage: [UInt8] {
         var out = le32(bits) + le32(size) + le32(replyPort) + le32(localPort) + le32(voucher)
             + le32(UInt32(bitPattern: id))
@@ -157,17 +108,13 @@ public struct MachHostReceivedMessage: Equatable, Sendable {
     }
 }
 
-/// The host task: a Mach port space owned by Swift code in the VMM.
 public final class MachHostTask: @unchecked Sendable {
     public let lock: KernelLock
     public let system: MachIPCSystem
-    /// The underlying space (no kernel, no memory).
     let ipc: MachIPC
-    /// The receive right of the host bootstrap port, named in this task.
     public let bootstrapPort: UInt32
 
     init(lock: KernelLock, system: MachIPCSystem, log: @escaping (String) -> Void) {
-        // The lock split: the host task's state is Mach state (the port lock).
         self.lock = system.portLock ?? lock
         self.system = system
         ipc = MachIPC(lock: lock, log: log, pid: 0, uid: 0, gid: 0, system: system)
@@ -177,8 +124,6 @@ public final class MachHostTask: @unchecked Sendable {
         system.hostBootstrapObject = ipc.entries[Int(name >> 8)].port
     }
 
-    /// Diagnostics (snapshot restore, snapshot.md §9): the state of the port
-    /// that a host-task name denotes.
     public func debugPortState(_ name: UInt32) -> String {
         lock.withLock {
             let i = Int(name >> 8)
@@ -189,9 +134,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    // MARK: Identity
-
-    /// What the trailers of the host's messages say (default pid 0, uid 0, gid 0).
     public var pid: Int32 {
         get { lock.withLock { ipc.pid } }
         set { lock.withLock { ipc.pid = newValue } }
@@ -204,17 +146,11 @@ public final class MachHostTask: @unchecked Sendable {
         get { lock.withLock { ipc.gid } }
         set { lock.withLock { ipc.gid = newValue } }
     }
-    /// The trace sink (one line per host send/receive).
     public var log: (String) -> Void {
         get { lock.withLock { ipc.log } }
         set { lock.withLock { ipc.log = newValue } }
     }
 
-    // MARK: Ports
-
-    /// A new receive right; with `sendRight`, also a send right under the
-    /// same name (as `mach_port_construct` with INSERT_SEND_RIGHT).
-    /// `qlimit` sets the queue limit (default 5). Returns its name.
     public func makePort(sendRight: Bool = false, qlimit: Int? = nil) throws -> UInt32 {
         try lock.withLock {
             let flags = (sendRight ? MachPortConstruct.insertSendRight : 0) | (qlimit != nil ? MachPortConstruct.qlimit : 0)
@@ -224,9 +160,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    /// A fileport (`processes.md` §4.9) holding `file`, with one send right
-    /// named in the host task (as `fileport_makeport` gives a process).
-    /// The port lives while send rights to it exist. Returns its name.
     public func makeFileport(_ file: DarwinOpenFile) throws -> UInt32 {
         try lock.withLock {
             let p = ipc.newPort()
@@ -239,10 +172,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    /// A memory entry (`mach_make_memory_entry_64` with MAP_MEM_NAMED_CREATE)
-    /// for all of `object`, read-write, with one send right named in the
-    /// host task. Mapping it in any guest task maps the same host pages. The
-    /// entry lives while send rights to it exist. Returns its name.
     public func makeMemoryEntry(_ object: SharedMemoryObject) throws -> UInt32 {
         try lock.withLock {
             guard let (p, name) = ipc.makeKernelObjectName(.memoryEntry(serial: ipc.nextSerial())) else {
@@ -253,10 +182,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    /// The memory entry a right of the host task names (a send right
-    /// received in a message, or one made by `makeMemoryEntry`): its
-    /// shared object, the entry's offset in it, and its size. Nil for any
-    /// other name.
     public func memoryEntry(_ name: UInt32) -> (object: SharedMemoryObject, offset: UInt64, size: UInt64)? {
         lock.withLock {
             guard let e = ipc.memoryEntry(named: name) else { return nil }
@@ -264,7 +189,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    /// A new port set. Returns its name.
     public func makePortSet() throws -> UInt32 {
         try lock.withLock {
             let (kr, name) = ipc.portAllocate(right: MachPortRight.portSet)
@@ -273,7 +197,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    /// `mach_port_insert_member` / `mach_port_extract_member`.
     public func addMember(_ port: UInt32, to set: UInt32) throws {
         try check(lock.withLock { ipc.portInsertMember(port, set: set) })
     }
@@ -282,37 +205,24 @@ public final class MachHostTask: @unchecked Sendable {
         try check(lock.withLock { ipc.portExtractMember(port, set: set) })
     }
 
-    /// `mach_port_insert_right(task, name, poly, disposition)` within the
-    /// host task, e.g. `(p, p, MAKE_SEND)` adds a send right to a receive right.
     public func insertRight(_ name: UInt32, from poly: UInt32, disposition: UInt32) throws {
         try check(lock.withLock { ipc.portInsertRight(name, poly: poly, polyPoly: disposition) })
     }
 
-    /// `mach_port_destroy`: every right under the name goes (a receive right:
-    /// the port dies, or is diverted by a port-destroyed request).
     public func destroyPort(_ name: UInt32) throws {
         try check(lock.withLock { ipc.portDestroy(name) })
     }
 
-    /// `mach_port_deallocate`: one user reference of a send, send-once, or
-    /// dead name.
     public func deallocate(_ name: UInt32) throws {
         try check(lock.withLock { ipc.portDeallocate(name) })
     }
 
-    /// `mach_port_mod_refs(name, right, delta)`.
     public func modRefs(_ name: UInt32, right: UInt32, delta: Int32) throws {
         try check(lock.withLock { ipc.portModRefs(name, right: right, delta: delta) })
     }
 
-    /// The rights under a name (`MACH_PORT_TYPE_*` bits and user references), nil if none.
     public func rights(of name: UInt32) -> (type: UInt32, urefs: UInt32)? { ipc.entry(name) }
 
-    /// `mach_port_request_notification(name, id, sync, notify, MAKE_SEND_ONCE)`:
-    /// `id` is a `MachNotify` value (69 port-destroyed, 70 no-senders,
-    /// 72 dead-name, 66 send-possible); `notifyPort` is a receive right of the
-    /// host task (a send-once right is made from it), or 0 to cancel. Returns
-    /// the host-task name of the previous request's send-once right (0 if none).
     @discardableResult
     public func requestNotification(_ name: UInt32, id: Int32, sync: UInt32 = 0, notifyPort: UInt32) throws -> UInt32 {
         try lock.withLock {
@@ -333,30 +243,15 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    // MARK: Messages
-
-    /// Sends a message (`mach_msg` SEND semantics). `timeout` (nanoseconds)
-    /// bounds the wait for room in a full queue; nil waits forever, 0 never
-    /// waits. On failure after the rights were copied in, they come back
-    /// into the host task (pseudo-receive). Throws `MachHostError`.
     public func send(_ message: MachHostOutgoingMessage, timeout: UInt64? = nil) throws {
         let code = lock.withLock { ipc.hostSend(message, timeout: timeout) }
         guard code == 0 else { throw MachHostError(code) }
     }
 
-    /// Receives the next message on a receive right or a port set of the
-    /// host task. `timeout` in nanoseconds: nil waits forever, 0 polls.
-    /// Throws `MachHostError` (`.timedOut`, `.portChanged` when the port is
-    /// destroyed or moved while waiting, `.interrupted`, `.invalidName`).
     public func receive(on name: UInt32, timeout: UInt64? = nil) throws -> MachHostReceivedMessage {
         try receive(on: name, timeout: timeout, tracked: false)
     }
 
-    /// `receive`, and with `tracked` the message counts as *in hand* from
-    /// the moment it leaves the queue (under the kernel lock) until the
-    /// service calls `finishedMessage()`. A snapshot (snapshot.md §3.1 step
-    /// 3) waits until no host service holds a message in hand, so no
-    /// request is captured half served.
     public func receive(on name: UInt32, timeout: UInt64?, tracked: Bool) throws -> MachHostReceivedMessage {
         let result = lock.withLock { () -> Result<MachHostReceivedMessage, MachHostError> in
             let r = ipc.hostReceive(name, timeout: timeout)
@@ -366,16 +261,11 @@ public final class MachHostTask: @unchecked Sendable {
         return try result.get()
     }
 
-    /// Ends one `tracked` message (see `receive(on:timeout:tracked:)`).
     public func finishedMessage() { lock.withLock { inHand = max(0, inHand - 1) } }
 
-    /// Snapshots: tracked messages received and not finished. Kernel lock held.
     public var messagesInHandLocked: Int { inHand }
     private var inHand = 0
 
-    /// Replies to `request` on its reply right (MOVE_SEND_ONCE or MOVE_SEND
-    /// as received). `id` defaults to the request id + 100 (MIG). Throws
-    /// `MachHostError(MACH_SEND_INVALID_DEST)` when the request has no reply port.
     public func reply(to request: MachHostReceivedMessage, id: Int32? = nil, descriptors: [MachHostDescriptor] = [],
                       body: [UInt8] = [], timeout: UInt64? = 0) throws {
         guard MachPortName.isValid(request.replyPort) else { throw MachHostError(MachMsgReturn.sendInvalidDest) }
@@ -384,8 +274,6 @@ public final class MachHostTask: @unchecked Sendable {
                  timeout: timeout)
     }
 
-    /// Drops every right a received message brought (its reply right and
-    /// its descriptors' rights), for a message the host does not answer.
     public func discard(_ message: MachHostReceivedMessage) {
         lock.withLock {
             var names: [UInt32] = [message.replyPort]
@@ -407,13 +295,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    // MARK: Giving rights to guest tasks
-
-    /// Gives `task` a send right to the host port `name` (a receive or send
-    /// right of the host task) and stores it as special port `which`
-    /// (`TaskSpecialPort.bootstrap` = 4, …) as `task_set_special_port`
-    /// would. For the bootstrap slot, before the task runs, the right is also
-    /// installed under the well-known name `0x503`. Throws `MachHostError`.
     public func setSpecialPort(of task: MachIPC, which: Int32, to name: UInt32) throws {
         try lock.withLock {
             let disposition: UInt32
@@ -431,8 +312,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    /// Copies a right of the host task into `task`'s space (as a message
-    /// would) and returns its name there. `disposition` as for descriptors.
     public func give(_ name: UInt32, disposition: UInt32, to task: MachIPC) throws -> UInt32 {
         try lock.withLock {
             guard MachMsgType.isPortDisposition(disposition) else { throw MachHostError(MachKern.invalidValue) }
@@ -444,11 +323,6 @@ public final class MachHostTask: @unchecked Sendable {
         }
     }
 
-    /// Ends the host task: its space is destroyed as at task exit
-    /// (`processes.md` §4.6) — the host bootstrap port and every other host
-    /// receive right die; guests see dead names.
-    /// Also detaches it from the system (which breaks the reference cycle
-    /// system → host task → space → system).
     public func shutdown() {
         lock.withLock {
             ipc.terminateTask()
@@ -465,8 +339,6 @@ public final class MachHostTask: @unchecked Sendable {
 }
 
 extension MachIPCSystem {
-    /// Makes the host task (once; later calls return the same one) with the
-    /// system's kernel lock. Its first port is the host bootstrap port.
     @discardableResult
     public func makeHostTask(lock: KernelLock, log: @escaping (String) -> Void = { _ in }) -> MachHostTask {
         lock.withLock {
@@ -479,14 +351,10 @@ extension MachIPCSystem {
 }
 
 extension DarwinSystem {
-    /// The host task of this system (made on first use), sharing its lock.
     public var hostTask: MachHostTask { mach.makeHostTask(lock: lock) }
 }
 
-// MARK: - The space side
-
 extension MachIPC {
-    /// A host send (lock held). Returns a `mach_msg_return_t`.
     func hostSend(_ out: MachHostOutgoingMessage, timeout: UInt64?) -> UInt32 {
         let complex = out.isComplex
         guard out.body.count % 4 == 0 else { return MachMsgReturn.sendMsgTooSmall }
@@ -569,7 +437,6 @@ extension MachIPC {
         }
         let (code, pseudo, note) = deliver(m, options: options, timeout: ms, msg2: false)
         if let pseudo {
-            // Pseudo-receive: the rights come back into the host task.
             _ = copyout(pseudo.destination)
             _ = copyout(pseudo.reply)
             for item in pseudo.items {
@@ -584,7 +451,6 @@ extension MachIPC {
         return code
     }
 
-    /// A host receive (lock held at depth 1 when it may block).
     func hostReceive(_ name: UInt32, timeout: UInt64?) -> Result<MachHostReceivedMessage, KernError> {
         guard let i = lookup(name) else { return .failure(KernError(MachMsgReturn.rcvInvalidName)) }
         let set = entries[i].set

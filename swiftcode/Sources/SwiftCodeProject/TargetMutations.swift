@@ -1,27 +1,15 @@
 import Foundation
 import SwiftCodePlist
 
-/// Adding and deleting targets (the project editor's target list "+" and
-/// "−", reference-ui-5.md §11.1.2). Objects are laid out as
-/// `specs/formats/pbxproj.md` describes; untouched objects keep their bytes.
 extension PBXProj {
-    /// What a new native target is made of.
     public struct NewTarget: Sendable {
         public var name: String
         public var productType: String
-        /// The product file name ("App.app") and its `explicitFileType`.
         public var productPath: String
         public var productFileType: String
-        /// Settings written into every configuration of the new list.
         public var settings: [(String, PlistValue)]
-        /// Build phase `isa`s, in order.
         public var phases: [String]
-        /// A target this one depends on (by object ID), e.g. a test host.
         public var dependency: String?
-        /// Folder of sources, as a synchronized root folder the target owns
-        /// (object version 77 and later; older projects get none here: the
-        /// caller adds a group with `addSourceGroup`, which outlives the
-        /// target as the files do). Nil = none.
         public var sourceFolder: String?
 
         public init(name: String, productType: String, productPath: String, productFileType: String,
@@ -37,10 +25,6 @@ extension PBXProj {
         }
     }
 
-    /// Adds a `PBXNativeTarget` with its configuration list (one
-    /// configuration per project configuration), empty build phases, a
-    /// product reference in the products group, an optional dependency
-    /// and source folder. Returns the target's ID.
     @discardableResult
     public mutating func addTarget(_ t: NewTarget) -> String {
         func add(_ attrs: [(String, PlistValue)]) -> String {
@@ -88,8 +72,6 @@ extension PBXProj {
         return target
     }
 
-    /// Puts a group or folder in the main group, before the products
-    /// group (as new projects lay it out).
     mutating func insertInMainGroup(_ id: String) {
         guard let main = project?.string("mainGroup"), var mainGroup = self[main] else { return }
         var children = mainGroup.references("children")
@@ -99,8 +81,6 @@ extension PBXProj {
         self[main] = mainGroup
     }
 
-    /// A `PBXGroup` for a folder of sources in the main group (projects
-    /// before object version 77). Returns its ID.
     @discardableResult
     public mutating func addSourceGroup(path: String) -> String {
         let id = makeObjectID()
@@ -110,11 +90,6 @@ extension PBXProj {
         return id
     }
 
-    /// Deletes a target: its configuration list and configurations, build
-    /// phases and their build files, rules, product reference, the
-    /// dependencies other targets have on it (with their proxies), its
-    /// package product dependencies no other target uses, its synchronized
-    /// folders no other target uses, and its `TargetAttributes` entry.
     public mutating func removeTarget(_ id: String) {
         guard let t = self[id], t.isa.hasSuffix("Target") else { return }
         if let list = t.string("buildConfigurationList") {
@@ -131,7 +106,6 @@ extension PBXProj {
             self[d] = nil
         }
         let others = targets.filter { $0.id != id }
-        // Dependencies of other targets on this one.
         for var o in others {
             let gone = o.references("dependencies").filter { self[$0]?.string("target") == id }
             guard !gone.isEmpty else { continue }
@@ -153,7 +127,6 @@ extension PBXProj {
             for e in self[g]?.references("exceptions") ?? [] { self[e] = nil }
             self[g] = nil
         }
-        // Exception sets of shared folders that name this target.
         for e in objects.values where e.isa.hasSuffix("ExceptionSet") && e.string("target") == id {
             for (gid, var group) in objects where group.references("exceptions").contains(e.id) {
                 let left = group.references("exceptions").filter { $0 != e.id }
@@ -167,7 +140,6 @@ extension PBXProj {
             p["targets"] = .array(p.references("targets").filter { $0 != id }.map(PlistValue.string))
             if var attrs = p["attributes"]?.dictionary, var ta = attrs["TargetAttributes"]?.dictionary, ta[id] != nil {
                 ta[id] = nil
-                // A test target names the target it tests.
                 for k in ta.keys {
                     if var entry = ta[k]?.dictionary, entry["TestTargetID"]?.string == id { entry["TestTargetID"] = nil; ta[k] = .dictionary(entry) }
                 }

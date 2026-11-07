@@ -2,20 +2,6 @@ import Foundation
 import Observation
 import os
 
-// MARK: - Assist Artifact Store
-//
-// Central, observable registry for Assist Markdown artifacts.
-//
-// Storage convention (established by AgentNotesManager's gitignore rules):
-//   <workspaceRoot>/.assist_temp/artifacts/<snake_case_name>.md
-// `.assist_temp/` is git-ignored, so artifacts never pollute the repo.
-// `agent_notes.md` keeps its historical location at the workspace root and
-// is surfaced as a first-class artifact without being moved.
-//
-// A small JSON sidecar (`.artifacts_index.json`) persists per-artifact
-// metadata (stable id, description, creation date, kind) that cannot be
-// derived from the file alone.
-
 public enum AssistArtifactKind: String, Codable, Sendable, CaseIterable {
     case artifact
     case agentNotes = "agent_notes"
@@ -40,12 +26,9 @@ public struct AssistArtifactRecord: Codable, Sendable, Identifiable {
     public var title: String
     public var description: String
     public var kind: AssistArtifactKind
-    /// Workspace-relative path (e.g. `.assist_temp/artifacts/foo.md` or `agent_notes.md`).
     public var relativePath: String
     public var createdAt: Date
     public var modifiedAt: Date
-    /// Chat message that produced this artifact, if known. Used to link
-    /// artifacts back to the conversation that requested them.
     public var sourceMessageID: UUID? = nil
 
     public init(
@@ -107,7 +90,6 @@ public final class AssistArtifactStore: Sendable {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistArtifactStore")
     private let fileManager = FileManager.default
 
-    /// Records for the current workspace, newest first. Drives AssistArtifactsView.
     public private(set) var records: [AssistArtifactRecord] = []
     public private(set) var currentWorkspaceRoot: URL?
     public private(set) var lastRefresh: Date?
@@ -117,19 +99,11 @@ public final class AssistArtifactStore: Sendable {
         var description: String
         var kind: AssistArtifactKind
         var createdAt: Date
-        /// Chat message that produced this artifact, if known.
         var sourceMessageID: UUID? = nil
     }
 
     private init() {}
 
-    // MARK: - Kind inference
-
-    /// Strict kind inference from a normalized filename. A filename is an
-    /// execution plan only when it contains `_plan`, starts with `plan_`,
-    /// or ends with `_plan` — a bare `plan` substring (e.g.
-    /// `airplane_notes.md`) no longer classifies as a plan. An explicit
-    /// `kind` argument to `createArtifact` always wins over this inference.
     private static func inferredKind(for filename: String) -> AssistArtifactKind {
         var stem = filename.lowercased()
         if stem.hasSuffix(".md") { stem = String(stem.dropLast(3)) }
@@ -138,8 +112,6 @@ public final class AssistArtifactStore: Sendable {
         }
         return .artifact
     }
-
-    // MARK: - Locations
 
     public func artifactsDirectory(workspaceRoot: URL) -> URL {
         workspaceRoot.appendingPathComponent(".assist_temp/artifacts", isDirectory: true)
@@ -165,10 +137,6 @@ public final class AssistArtifactStore: Sendable {
         try? data.write(to: indexURL(workspaceRoot: workspaceRoot), options: .atomic)
     }
 
-    // MARK: - Refresh / discovery
-
-    /// Rebuild `records` from disk: the artifacts directory plus the
-    /// well-known `agent_notes.md` at the workspace root.
     @discardableResult
     public func refresh(workspaceRoot: URL) -> [AssistArtifactRecord] {
         currentWorkspaceRoot = workspaceRoot
@@ -199,7 +167,6 @@ public final class AssistArtifactStore: Sendable {
             }
         }
 
-        // agent_notes.md keeps its workspace-root location; surface it too.
         let notesURL = workspaceRoot.appendingPathComponent("agent_notes.md")
         if fileManager.fileExists(atPath: notesURL.path) {
             let values = try? notesURL.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
@@ -234,15 +201,6 @@ public final class AssistArtifactStore: Sendable {
         return nil
     }
 
-    // MARK: - CRUD
-
-    /// Create, update, or append a Markdown artifact. Returns the record.
-    ///
-    /// - Parameter kind: Explicit artifact kind. When nil, the kind is
-    ///   inferred from the filename (strict `_plan` rules). An explicit
-    ///   kind always wins over filename inference.
-    /// - Parameter sourceMessageID: Optional chat message that produced
-    ///   this artifact; persisted in the sidecar index.
     @discardableResult
     public func createArtifact(
         name: String,
@@ -285,7 +243,6 @@ public final class AssistArtifactStore: Sendable {
         } catch {
             throw AssistArtifactError.writeFailed(error.localizedDescription)
         }
-        // Verify the write by reading it back.
         guard let verify = try? String(contentsOf: url, encoding: .utf8), verify == finalContent else {
             throw AssistArtifactError.writeFailed("verification read-back mismatch for \(filename)")
         }
@@ -301,11 +258,9 @@ public final class AssistArtifactStore: Sendable {
         if !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             updatedEntry.description = description.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        // An explicit kind always wins, even over a previously stored kind.
         if let kind {
             updatedEntry.kind = kind
         }
-        // Persist the producing message when the caller knows it.
         if let sourceMessageID {
             updatedEntry.sourceMessageID = sourceMessageID
         }
@@ -329,8 +284,6 @@ public final class AssistArtifactStore: Sendable {
         return record
     }
 
-    /// Stores a binary artifact (such as a PNG screenshot or MOV screen recording)
-    /// in the artifact repository under `.assist_temp/artifacts/`.
     @discardableResult
     public func createBinaryArtifact(
         name: String,

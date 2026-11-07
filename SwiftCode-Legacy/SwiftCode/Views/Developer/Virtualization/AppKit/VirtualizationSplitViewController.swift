@@ -24,7 +24,6 @@ public final class VirtualizationSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // Left: Sidebar view controller
         let sidebarVC = NSHostingController(rootView: VirtualizationSidebarView())
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
         sidebarItem.minimumThickness = 220
@@ -33,7 +32,6 @@ public final class VirtualizationSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // Right: Main Area view controller
         let mainView = VirtualizationWorkspaceView()
         let mainVC = NSHostingController(rootView: mainView)
         mainVC.sizingOptions = []

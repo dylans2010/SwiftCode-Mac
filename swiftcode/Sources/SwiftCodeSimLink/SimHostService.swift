@@ -1,15 +1,3 @@
-// `swiftcode-simhost serve` (sim-link.md §6, §7): the simulator host's own
-// service. One TCP listener (control and display connections, each its own
-// handshake) and one UDP socket (the media channel). Every connection must
-// finish the handshake as a trusted client (or as the one pairing a code
-// allows) before anything it sends is read as a request; handshakes are
-// limited per address (10 a minute) and in time (5 s).
-//
-// A display connection is a relay: the host connects to the device's
-// display socket (`<home>/run/<device>.sock`) and copies the display
-// stream both ways; with the media channel on, frame and frame-timing
-// messages leave by UDP instead (§5).
-
 import Crypto
 import Foundation
 import SwiftCodeDisplayStream
@@ -38,7 +26,6 @@ public final class SimHostService: @unchecked Sendable {
     public var controlPort: Int { listener?.port ?? config.controlPort }
     public var mediaPort: Int? { media?.port }
 
-    /// Binds both sockets and starts serving.
     public func start() throws {
         devices.log = log
         let l = try LinkListener(host: config.listenHost, port: config.controlPort)
@@ -67,12 +54,6 @@ public final class SimHostService: @unchecked Sendable {
         devices.stopAll()
     }
 
-    // MARK: Accepting
-
-    /// At most 10 failed handshakes per address a minute (guessing a
-    /// pairing code, an untrusted key). Trusted clients' connections do not
-    /// count: a viewer that reconnects every second while its device starts
-    /// used up the budget and the IDE's next request was refused.
     private func allowAttempt(_ who: String) -> Bool {
         lock.withLock { Self.allows(failures: attempts[who] ?? [], now: Date()) }
     }
@@ -136,8 +117,6 @@ public final class SimHostService: @unchecked Sendable {
         }
     }
 
-    // MARK: Control
-
     private func control(_ ch: SecureChannel) {
         defer { ch.close() }
         guard (try? ch.sendJSON(LinkWelcome(ok: true, host: config.name, version: LinkDefaults.version))) != nil else { return }
@@ -151,9 +130,6 @@ public final class SimHostService: @unchecked Sendable {
         }
     }
 
-    /// What a viewer shows while the device's display is not up: it is
-    /// starting (the launcher runs, the display server is not up yet), or it
-    /// is not running.
     public static func displayNotUpNotice(device: String, state: String) -> String {
         state == "booting" ? "\(device) is starting" : "the device \(device) is not running"
     }
@@ -210,7 +186,6 @@ public final class SimHostService: @unchecked Sendable {
         }
     }
 
-    /// Receives an archive of `size` bytes into `<apps>/<app>` (replacing it).
     private func upload(_ app: String, size: Int, _ ch: SecureChannel) -> LinkResponse {
         let dest = URL(fileURLWithPath: config.appsDirectory + "/" + app)
         let tmp = URL(fileURLWithPath: config.appsDirectory + "/." + app + ".upload")
@@ -246,8 +221,6 @@ public final class SimHostService: @unchecked Sendable {
               let p = try? PropertyListSerialization.propertyList(from: d, options: [], format: nil) as? [String: Any] else { return nil }
         return p["CFBundleIdentifier"] as? String
     }
-
-    // MARK: Display relay and media
 
     final class MediaSession: @unchecked Sendable {
         let id: UInt32
@@ -295,7 +268,6 @@ public final class SimHostService: @unchecked Sendable {
         }
         guard (try? ch.sendJSON(LinkWelcome(ok: true, host: config.name, version: LinkDefaults.version,
                                             mediaSession: session?.id, mediaPort: session == nil ? nil : media?.port))) != nil else { return }
-        // The device's display socket (the client reconnects until it is up).
         guard let sim = try? DisplayConnection.connect(to: .unix(config.socketPath(device))) else {
             try? ch.send(DisplayMessage.notice(Self.displayNotUpNotice(device: device, state: devices.state(device))).encoded())
             return
@@ -315,7 +287,6 @@ public final class SimHostService: @unchecked Sendable {
             var out: [UInt8] = []
             while let msg = splitter.next() {
                 let type = msg[4]
-                // A frame view goes with its frame (the headset viewer pairs them in order, xr-viewer.md §7).
                 if let s = session, let m, type == DisplayMessageType.frame.rawValue || type == DisplayMessageType.frameTiming.rawValue
                     || type == DisplayMessageType.audio.rawValue || type == DisplayMessageType.frameView.rawValue,
                    let to = s.lock.withLock({ s.client }) {
@@ -340,7 +311,6 @@ public final class SimHostService: @unchecked Sendable {
     }
 }
 
-/// Splits a display stream into whole messages without decoding them (§2 framing).
 public struct MessageSplitter: Sendable {
     private var buffer: [UInt8] = []
     private var start = 0
@@ -353,7 +323,6 @@ public struct MessageSplitter: Sendable {
         buffer += b
     }
 
-    /// The next message (length header included), nil when incomplete.
     public mutating func next() -> [UInt8]? {
         let avail = buffer.count - start
         guard avail >= 5 else { compact(); return nil }

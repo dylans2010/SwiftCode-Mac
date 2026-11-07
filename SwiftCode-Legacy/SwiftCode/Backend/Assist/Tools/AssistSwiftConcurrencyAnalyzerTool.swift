@@ -1,8 +1,3 @@
-//
-//  AssistSwiftConcurrencyAnalyzerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSwiftConcurrencyAnalyzerTool: AssistTool {
@@ -58,20 +53,17 @@ public struct AssistSwiftConcurrencyAnalyzerTool: AssistTool {
             for (idx, line) in lines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-                // 1. Mutable global or static var outside an actor or @MainActor
                 if (trimmed.hasPrefix("public static var ") || trimmed.hasPrefix("static var ") || trimmed.hasPrefix("var ")) &&
                    !trimmed.contains("let ") && !content.contains("@MainActor") && !content.contains("actor ") {
-                    if !trimmed.contains("{") { // exclude computed properties
+                    if !trimmed.contains("{") {
                         findings.append("`\(rel):\(idx + 1)`: Mutable shared state `\(trimmed)` without `@MainActor` or `actor` isolation.")
                     }
                 }
 
-                // 2. DispatchQueue.main.sync deadlock risk
                 if trimmed.contains("DispatchQueue.main.sync") {
                     findings.append("`\(rel):\(idx + 1)`: `DispatchQueue.main.sync` call detected; high deadlock hazard on main actor.")
                 }
 
-                // 3. Unchecked Sendable
                 if trimmed.contains("@unchecked Sendable") {
                     findings.append("`\(rel):\(idx + 1)`: `@unchecked Sendable` used; verify manual synchronization mechanisms.")
                 }

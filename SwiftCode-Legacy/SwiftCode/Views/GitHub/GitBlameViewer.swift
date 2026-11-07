@@ -8,21 +8,17 @@ private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: 
 public struct GitBlameViewer: View {
     var gitViewModel: GitViewModel
 
-    // Active file selection states
     @State private var fileList: [URL] = []
     @State private var selectedFile: URL?
     @State private var fileSearchText = ""
 
-    // Blame entries & code lines
     @State private var blameLines: [BlameLineEntry] = []
     @State private var isLoadingBlame = false
     @State private var selectedLineIndex: Int?
 
-    // Search and filters
     @State private var blameSearchText = ""
     @State private var filterAuthor = ""
 
-    // Hover popovers state
     @State private var hoverCommitSHA = ""
     @State private var hoverCommitDetails: String?
     @State private var isShowingPopover = false
@@ -58,13 +54,11 @@ public struct GitBlameViewer: View {
 
     public var body: some View {
         HSplitView {
-            // Left Pane: File explorer tree
             fileSelectorSidebarPanel
                 .frame(width: 220)
                 .frame(maxHeight: .infinity)
                 .layoutPriority(1)
 
-            // Right Pane: High-fidelity code annotation editor
             blameEditorWorkspacePanel
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(2)
@@ -73,8 +67,6 @@ public struct GitBlameViewer: View {
             loadRepositoryFiles()
         }
     }
-
-    // MARK: - Left sidebar panel
 
     private var fileSelectorSidebarPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -129,12 +121,9 @@ public struct GitBlameViewer: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // MARK: - Right Blame annotations panel
-
     private var blameEditorWorkspacePanel: some View {
         VStack(spacing: 0) {
             if let file = selectedFile {
-                // Header bar details & filters
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(file.lastPathComponent)
@@ -147,7 +136,6 @@ public struct GitBlameViewer: View {
 
                     Spacer()
 
-                    // Filters
                     HStack(spacing: 8) {
                         HStack {
                             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -186,7 +174,6 @@ public struct GitBlameViewer: View {
                         description: Text("Choose a file from the sidebar to execute native git blame annotations.")
                     )
                 } else {
-                    // Main annotated view grid list
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(indexedBlameLines) { item in
@@ -195,7 +182,6 @@ public struct GitBlameViewer: View {
                                 let isSelected = selectedLineIndex == index
 
                                 HStack(spacing: 0) {
-                                    // Gutter 1: Commit SHA
                                     Button {
                                         triggerCommitPopover(sha: entry.sha)
                                     } label: {
@@ -207,7 +193,6 @@ public struct GitBlameViewer: View {
                                     .buttonStyle(.plain)
                                     .padding(.leading, 8)
 
-                                    // Gutter 2: Author Name
                                     Text(entry.author)
                                         .font(.system(size: 10, weight: .semibold))
                                         .foregroundStyle(.secondary)
@@ -215,7 +200,6 @@ public struct GitBlameViewer: View {
                                         .frame(width: 100, alignment: .leading)
                                         .padding(.leading, 8)
 
-                                    // Gutter 3: Date
                                     Text(entry.date)
                                         .font(.system(size: 9))
                                         .foregroundStyle(.tertiary)
@@ -226,14 +210,12 @@ public struct GitBlameViewer: View {
                                         .frame(height: 18)
                                         .padding(.horizontal, 8)
 
-                                    // Line Number
                                     Text("\(entry.lineNumber)")
                                         .font(.system(size: 9, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                         .frame(width: 25, alignment: .trailing)
                                         .padding(.trailing, 8)
 
-                                    // Gutter 4: Code block line
                                     Text(entry.code)
                                         .font(.system(size: 11, design: .monospaced))
                                         .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
@@ -252,7 +234,6 @@ public struct GitBlameViewer: View {
                                         pb.setString("Commit: \(entry.sha) • Author: \(entry.author) • Date: \(entry.date)", forType: .string)
                                     }
                                     Button("Jump to Commit Inspector") {
-                                        // Seamless navigation hook
                                     }
                                 }
                             }
@@ -309,8 +290,6 @@ public struct GitBlameViewer: View {
 
         return list
     }
-
-    // MARK: - Back-end blame logic execution
 
     private func loadRepositoryFiles() {
         guard let url = gitViewModel.repositoryURL else { return }
@@ -373,7 +352,6 @@ public struct GitBlameViewer: View {
                     for line in lines {
                         if line.isEmpty { continue }
 
-                        // git blame -s format: <sha> <line_num>) <code_line>
                         let parts = line.components(separatedBy: ") ")
                         if parts.count >= 2 {
                             let metadata = parts[0]
@@ -384,7 +362,7 @@ public struct GitBlameViewer: View {
                                 parsedList.append(BlameLineEntry(
                                     lineNumber: index,
                                     sha: sha,
-                                    author: "Jules", // Fallback authors
+                                    author: "Jules",
                                     date: "1 day ago",
                                     code: code
                                 ))
@@ -406,7 +384,6 @@ public struct GitBlameViewer: View {
                 }
             } catch {
                 logger.error("Blame native failed: \(error.localizedDescription)")
-                // Since we are strictly using live git data, untracked/new files have no blame details
                 self.blameLines = []
             }
             isLoadingBlame = false

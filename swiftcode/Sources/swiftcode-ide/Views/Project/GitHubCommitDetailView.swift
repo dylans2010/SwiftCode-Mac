@@ -1,26 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Legacy/CommitHistoryView.swift — `CommitDetailView` only
-//   (Legacy main ab03f681, lines 402-568)
-//
-// Destination: swiftcode-ide/Views/Project/GitHubCommitDetailView.swift.
-//
-// Adaptations (behaviour preserved unless noted):
-// * Renamed `CommitDetailView` → `GitHubCommitDetailView`: production
-//   already has a `CommitDetailView` in this module
-//   (`SourceControlEditor.swift:449`) — a shell-model view taking
-//   `detail:scm:model:colors:` for a *local* commit. That view cannot be
-//   constructed from `(commit, owner, repo)` (it needs live workspace
-//   shell models), so Legacy's GitHub-API detail view is ported under
-//   its own name and the call site in `CommitHistoryView` is rebound to
-//   it. The shell view is untouched.
-// * `GitHubService.shared.fetchCommitDetail` and its
-//   `GitHubCommitDetailResponse` / `GitHubCommitFile` types are ported in
-//   `SwiftCodeGitHub` in this same wave; the view body is otherwise
-//   verbatim (production `GitHubCommit` already exposes the nested
-//   `commit.message` / `commit.author?.name/date` view this body reads).
-// * Imports added: `SwiftCodeGitHub` (`GitHubCommit`,
-//   `GitHubService`), `SwiftCodeUI` (`ModernGroupBoxStyle`).
-
 import SwiftUI
 import SwiftCodeGitHub
 import SwiftCodeUI
@@ -47,7 +24,6 @@ struct GitHubCommitDetailView: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    // Card 1: Specs
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             labeledRow(label: "SHA Hash", value: commit.sha, icon: "tag", monospaced: true, selectable: true)
@@ -64,7 +40,6 @@ struct GitHubCommitDetailView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Message
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Commit Message")
@@ -78,7 +53,6 @@ struct GitHubCommitDetailView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 3: Diff Preview
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {

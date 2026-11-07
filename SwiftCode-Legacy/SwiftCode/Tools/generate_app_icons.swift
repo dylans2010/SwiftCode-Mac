@@ -32,17 +32,15 @@ let specs: [IconSpec] = [
     )
 ]
 
-/// Creates a macOS squircle icon (1024x1024 canvas, 824x824 squircle centered with standard drop shadow)
 func createMacSquircleIcon(from cgImage: CGImage, cropRect: CGRect) -> CGImage? {
-    // In CoreGraphics flipped coordinates, calculate crop
     let cgCropRect = CGRect(x: cropRect.origin.x, y: CGFloat(cgImage.height) - cropRect.origin.y - cropRect.size.height, width: cropRect.size.width, height: cropRect.size.height)
     guard let cropped = cgImage.cropping(to: cgCropRect) else { return nil }
-    
+
     let canvasSize: CGFloat = 1024
     let squircleSize: CGFloat = 824
-    let origin: CGFloat = (canvasSize - squircleSize) / 2.0 // 100.0
-    let cornerRadius: CGFloat = squircleSize * 0.224 // 184.576
-    
+    let origin: CGFloat = (canvasSize - squircleSize) / 2.0
+    let cornerRadius: CGFloat = squircleSize * 0.224
+
     let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
     guard let context = CGContext(
         data: nil,
@@ -53,13 +51,11 @@ func createMacSquircleIcon(from cgImage: CGImage, cropRect: CGRect) -> CGImage? 
         space: colorSpace,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     ) else { return nil }
-    
+
     context.setAllowsAntialiasing(true)
     context.setShouldAntialias(true)
     context.interpolationQuality = .high
-    
-    // Squircle rect in CoreGraphics (y=0 at bottom)
-    // Elevation shadow: offset downwards by ~12px
+
     let squircleRect = CGRect(x: origin, y: origin + 12.0, width: squircleSize, height: squircleSize)
     let squirclePath = CGPath(
         roundedRect: squircleRect,
@@ -67,8 +63,7 @@ func createMacSquircleIcon(from cgImage: CGImage, cropRect: CGRect) -> CGImage? 
         cornerHeight: cornerRadius,
         transform: nil
     )
-    
-    // Draw macOS Dock primary shadow
+
     context.saveGState()
     let shadowColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.32)
     context.setShadow(offset: CGSize(width: 0, height: -14), blur: 28, color: shadowColor)
@@ -76,8 +71,7 @@ func createMacSquircleIcon(from cgImage: CGImage, cropRect: CGRect) -> CGImage? 
     context.addPath(squirclePath)
     context.fillPath()
     context.restoreGState()
-    
-    // Secondary contact shadow
+
     context.saveGState()
     let ambientShadowColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.18)
     context.setShadow(offset: CGSize(width: 0, height: -4), blur: 8, color: ambientShadowColor)
@@ -85,28 +79,25 @@ func createMacSquircleIcon(from cgImage: CGImage, cropRect: CGRect) -> CGImage? 
     context.addPath(squirclePath)
     context.fillPath()
     context.restoreGState()
-    
-    // Clip to squircle path and draw the cropped tile
+
     context.saveGState()
     context.addPath(squirclePath)
     context.clip()
     context.draw(cropped, in: squircleRect)
-    
-    // Subtle interior edge highlight (glass bevel)
+
     context.setLineWidth(2.5)
     context.setStrokeColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.22))
     context.addPath(squirclePath)
     context.strokePath()
     context.restoreGState()
-    
+
     return context.makeImage()
 }
 
-/// Creates a full-bleed universal icon (1024x1024 edge-to-edge)
 func createFullBleedIcon(from cgImage: CGImage, cropRect: CGRect) -> CGImage? {
     let cgCropRect = CGRect(x: cropRect.origin.x, y: CGFloat(cgImage.height) - cropRect.origin.y - cropRect.size.height, width: cropRect.size.width, height: cropRect.size.height)
     guard let cropped = cgImage.cropping(to: cgCropRect) else { return nil }
-    
+
     let canvasSize: CGFloat = 1024
     let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
     guard let context = CGContext(
@@ -118,14 +109,14 @@ func createFullBleedIcon(from cgImage: CGImage, cropRect: CGRect) -> CGImage? {
         space: colorSpace,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     ) else { return nil }
-    
+
     context.setAllowsAntialiasing(true)
     context.setShouldAntialias(true)
     context.interpolationQuality = .high
-    
+
     let targetRect = CGRect(x: 0, y: 0, width: canvasSize, height: canvasSize)
     context.draw(cropped, in: targetRect)
-    
+
     return context.makeImage()
 }
 
@@ -133,7 +124,7 @@ func savePNG(image: CGImage, to path: String) {
     let url = URL(fileURLWithPath: path)
     let destDir = url.deletingLastPathComponent().path
     try? FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true)
-    
+
     guard let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else {
         print("Failed to create destination for \(path)")
         return
@@ -157,7 +148,7 @@ func resize(image: CGImage, to size: Int) -> CGImage? {
         space: colorSpace,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     ) else { return nil }
-    
+
     context.setAllowsAntialiasing(true)
     context.setShouldAntialias(true)
     context.interpolationQuality = .high
@@ -188,28 +179,24 @@ for spec in specs {
         print("Failed to load \(spec.sourcePath)")
         continue
     }
-    
+
     guard let macMaster = createMacSquircleIcon(from: cg, cropRect: spec.cropRect),
           let universalMaster = createFullBleedIcon(from: cg, cropRect: spec.cropRect) else {
         print("Failed to render master for \(spec.name)")
         continue
     }
-    
-    // 1. Save variant appiconset (e.g. AppIcon-Light, AppIcon-Dark, AppIcon-Glass, AppIcon-Tinted)
+
     let setDir = "\(baseAssetsDir)/AppIcon-\(spec.name).appiconset"
-    
-    // Save universal 1024
+
     savePNG(image: universalMaster, to: "\(setDir)/AppIcon-1024.png")
-    
-    // Save macOS sized icons
+
     for entry in macSizes {
         if let scaled = resize(image: macMaster, to: entry.pixel) {
             let filename = "icon_\(entry.point)x\(entry.point)@\(entry.scale)x.png"
             savePNG(image: scaled, to: "\(setDir)/\(filename)")
         }
     }
-    
-    // Also save preview imageset for in-app UI and dynamic icon switching
+
     let previewSetDir = "\(baseAssetsDir)/AppIcon-Preview-\(spec.name).imageset"
     try? FileManager.default.createDirectory(atPath: previewSetDir, withIntermediateDirectories: true)
     if let previewImg = resize(image: macMaster, to: 512) {
@@ -231,7 +218,6 @@ for spec in specs {
         try? previewContents.write(toFile: "\(previewSetDir)/Contents.json", atomically: true, encoding: .utf8)
     }
 
-    // Also save in primary AppIcon.appiconset
     if spec.name == "Light" {
         let primarySetDir = "\(baseAssetsDir)/AppIcon.appiconset"
         savePNG(image: universalMaster, to: "\(primarySetDir)/AppIcon-Light-1024.png")
@@ -251,4 +237,3 @@ for spec in specs {
 }
 
 print("\nDone generating all icon variants and preview imagesets!")
-

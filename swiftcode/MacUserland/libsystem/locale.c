@@ -1,14 +1,3 @@
-// locale.c - locales for SwiftCode's libSystem (specs/macos/libsystem.md §12).
-// Clean-room SwiftCode code from the C standard, POSIX and the public
-// <xlocale.h> interface.
-//
-// SwiftCode's libSystem has one set of locale data: the C/POSIX locale, with
-// UTF-8 as the multibyte encoding (wchar.c). setlocale and newlocale accept
-// "C", "POSIX", "" and any name ending in ".UTF-8"/".utf8" (reported back as
-// given) and behave like the C locale for collation, numbers and
-// classification. `locale_t` values are pointers to a small SwiftCode record;
-// LC_GLOBAL_LOCALE is (locale_t)-1 and NULL means the current locale, as in
-// <xlocale.h>.
 #include "ycl.h"
 
 enum { LC_ALL = 0, LC_COLLATE, LC_CTYPE, LC_MONETARY, LC_NUMERIC, LC_TIME, LC_MESSAGES, LC_COUNT };
@@ -21,7 +10,6 @@ static struct ycl_locale c_locale = {{"C", "C", "C", "C", "C", "C", "C"}};
 static struct ycl_locale global_locale = {{"C", "C", "C", "C", "C", "C", "C"}};
 static os_unfair_lock locale_lock;
 
-// lconv: the public <locale.h> layout.
 struct ycl_lconv {
     char *decimal_point, *thousands_sep, *grouping, *int_curr_symbol, *currency_symbol, *mon_decimal_point,
         *mon_thousands_sep, *mon_grouping, *positive_sign, *negative_sign;
@@ -61,10 +49,9 @@ YCL_EXPORT struct ycl_lconv *localeconv_l(void *locale) {
     return &c_lconv;
 }
 
-// Mask bits of newlocale (<xlocale.h>): LC_COLLATE_MASK 1 << 0 ... LC_MESSAGES_MASK 1 << 5.
 YCL_EXPORT struct ycl_locale *newlocale(int mask, const char *name, struct ycl_locale *base) {
     if (!name || !known_name(name)) {
-        ycl_errno = 2;  // ENOENT
+        ycl_errno = 2;
         return 0;
     }
     struct ycl_locale *l = base && base != &c_locale && base != (void *)-1 ? base : malloc(sizeof *l);
@@ -116,8 +103,6 @@ YCL_EXPORT int ___mb_cur_max_l(void *locale) {
 }
 
 YCL_EXPORT char *nl_langinfo(int item) {
-    // <langinfo.h>: CODESET 0, D_T_FMT 1, D_FMT 2, T_FMT 3, RADIXCHAR 50,
-    // THOUSEP 51, YESEXPR 52, NOEXPR 53, CRNCYSTR 56.
     switch (item) {
     case 0: return "UTF-8";
     case 1: return "%a %b %e %H:%M:%S %Y";
@@ -135,8 +120,6 @@ YCL_EXPORT char *nl_langinfo_l(int item, void *locale) {
     return nl_langinfo(item);
 }
 
-// --- collation (byte order in the C locale) ---
-
 YCL_EXPORT int strcoll(const char *a, const char *b) { return strcmp(a, b); }
 YCL_EXPORT int strcoll_l(const char *a, const char *b, void *locale) {
     (void)locale;
@@ -151,8 +134,6 @@ YCL_EXPORT size_t strxfrm_l(char *d, const char *s, size_t n, void *locale) {
     (void)locale;
     return strxfrm(d, s, n);
 }
-
-// --- the _l forms of classification and conversion ---
 
 int isalnum(int), isalpha(int), isblank(int), iscntrl(int), isdigit(int), isgraph(int), islower(int),
     isprint(int), ispunct(int), isspace(int), isupper(int), isxdigit(int), tolower(int), toupper(int);

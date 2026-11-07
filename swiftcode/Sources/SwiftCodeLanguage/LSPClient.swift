@@ -2,9 +2,6 @@ import Foundation
 import SwiftCodeDebug
 import SwiftCodeSubprocess
 
-/// Language Server Protocol client (JSON-RPC 2.0 over the same
-/// `Content-Length` framing DAP uses). The first server is sourcekit-lsp.
-/// See `specs/ide/language.md`.
 public final class LSPClient: @unchecked Sendable {
     public struct ResponseError: Error, Equatable, CustomStringConvertible, Sendable {
         public var method: String
@@ -13,8 +10,6 @@ public final class LSPClient: @unchecked Sendable {
         public var description: String { "\(method): \(message) (\(code))" }
     }
 
-    /// A notification from the server (`textDocument/publishDiagnostics`,
-    /// `window/logMessage`, …).
     public struct Notification: Equatable, Sendable {
         public var method: String
         public var params: JSON
@@ -36,12 +31,6 @@ public final class LSPClient: @unchecked Sendable {
         try transport.start { [weak self] data in self?.receive(data) }
     }
 
-    // MARK: JSON-RPC
-
-    /// Sends a request and waits for its answer. Cancelling the calling
-    /// task ends the wait with `CancellationError` and tells the server
-    /// (`$/cancelRequest`): a server that never answers no longer holds
-    /// the caller forever.
     @discardableResult
     public func request(_ method: String, _ params: JSON? = nil) async throws -> JSON {
         let id = takeID()
@@ -99,9 +88,6 @@ public final class LSPClient: @unchecked Sendable {
             guard let msg = try? JSON.decode(body) else { continue }
             let method = msg["method"]?.string
             if let method, let id = msg["id"] {
-                // A request from the server: answer so it does not wait.
-                // Edits the server asks for are applied by the client's
-                // owner, which listens for this method among notifications.
                 let result: JSON
                 switch method {
                 case "workspace/configuration": result = .array((msg["params"]?["items"]?.array ?? []).map { _ in .null })
@@ -139,10 +125,6 @@ public final class LSPClient: @unchecked Sendable {
 
     public func close() { transport.close() }
 
-    // MARK: Lifecycle
-
-    /// `initializationOptions` go to the server as given (sourcekit-lsp
-    /// reads its configuration options there).
     @discardableResult
     public func initialize(root: URL, initializationOptions: JSON? = nil) async throws -> JSON {
         var params: JSON = [
@@ -155,7 +137,6 @@ public final class LSPClient: @unchecked Sendable {
                     "synchronization": ["didSave": true],
                     "completion": ["completionItem": ["snippetSupport": true]],
                     "definition": ["linkSupport": false],
-                    // codeActionsInline: sourcekit-lsp attaches fix-its to diagnostics.
                     "publishDiagnostics": ["relatedInformation": true, "codeActionsInline": true],
                 ].merging(Self.refactoringCapabilities) { a, _ in a }.merging(Self.findTextDocumentCapabilities) { a, _ in a }),
                 "workspace": .object(["configuration": true, "applyEdit": true, "workspaceEdit": ["documentChanges": true]]
@@ -172,8 +153,6 @@ public final class LSPClient: @unchecked Sendable {
         return result
     }
 
-    /// `shutdown`, then `exit`, then the transport closes. A server that
-    /// does not answer within `timeout` seconds is closed anyway.
     public func shutdown(timeout: TimeInterval = 5) async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { _ = try? await self.request("shutdown") }
@@ -184,8 +163,6 @@ public final class LSPClient: @unchecked Sendable {
         notify("exit")
         close()
     }
-
-    // MARK: Documents
 
     public static func languageID(for url: URL) -> String {
         switch url.pathExtension {
@@ -204,7 +181,6 @@ public final class LSPClient: @unchecked Sendable {
         ]])
     }
 
-    /// Sends the whole new text (full synchronization).
     public func didChange(_ url: URL, text: String, version: Int) {
         notify("textDocument/didChange", [
             "textDocument": ["uri": .string(url.absoluteString), "version": .number(Double(version))],
@@ -225,14 +201,11 @@ public final class LSPClient: @unchecked Sendable {
         return (r.array ?? r["items"]?.array ?? []).map(CompletionItem.init)
     }
 
-    /// `textDocument/hover`: the documentation and declaration at a
-    /// position, as plain or Markdown text (nil when there is none).
     public func hover(_ url: URL, at p: Position) async throws -> String? {
         let r = try await request("textDocument/hover", Self.position(url, p))
         return Self.hoverText(r["contents"])
     }
 
-    /// Hover contents: MarkupContent, a MarkedString, or an array of them.
     static func hoverText(_ c: JSON?) -> String? {
         guard let c else { return nil }
         if let s = c.string { return s.isEmpty ? nil : s }
@@ -251,9 +224,6 @@ public final class LSPClient: @unchecked Sendable {
     }
 }
 
-// MARK: Model
-
-/// 0-based line and UTF-16 character offset.
 public struct Position: Equatable, Sendable, Hashable {
     public var line: Int
     public var character: Int
@@ -272,7 +242,6 @@ public struct Location: Equatable, Sendable {
     public var start: Position
     public var end: Position
     init?(_ j: JSON) {
-        // Location or LocationLink.
         guard let uri = (j["uri"] ?? j["targetUri"])?.string, let url = URL(string: uri) else { return nil }
         let range = j["range"] ?? j["targetSelectionRange"]
         self.url = url
@@ -285,12 +254,9 @@ public struct CompletionItem: Equatable, Sendable {
     public var label: String
     public var insertText: String
     public var detail: String?
-    /// Documentation text (plain or the value of MarkupContent).
     public var documentation: String?
     public var kind: Int?
-    /// The range the edit replaces, when the server gives one.
     public var replaceStart: Position?
-    /// `insertTextFormat` 2: `insertText` is an LSP snippet (`${1:x}` stops).
     public var isSnippet = false
     init(_ j: JSON) {
         isSnippet = j["insertTextFormat"]?.int == 2
@@ -314,12 +280,9 @@ public struct CompletionItem: Equatable, Sendable {
 public struct LSPDiagnostic: Equatable, Sendable {
     public var start: Position
     public var end: Position
-    /// 1 error, 2 warning, 3 information, 4 hint.
     public var severity: Int
     public var message: String
-    /// The diagnostic as sent (passed back in code-action requests).
     public var raw: JSON = .null
-    /// Fix-its sent inline (`codeActions`, a sourcekit-lsp extension).
     public var fixIts: [CodeAction] = []
     public init(_ j: JSON) {
         raw = j
@@ -330,14 +293,12 @@ public struct LSPDiagnostic: Equatable, Sendable {
         message = j["message"]?.string ?? ""
     }
 
-    /// Diagnostics of one `textDocument/publishDiagnostics` notification.
     public static func published(_ params: JSON) -> (url: URL, diagnostics: [LSPDiagnostic])? {
         guard let uri = params["uri"]?.string, let url = URL(string: uri) else { return nil }
         return (url, (params["diagnostics"]?.array ?? []).map(LSPDiagnostic.init))
     }
 }
 
-/// Finds sourcekit-lsp: `SWIFTCODE_SOURCEKIT_LSP`, `xcrun -f sourcekit-lsp`, PATH.
 public enum SourceKitLSP {
     public static func locate(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         if let explicit = environment["SWIFTCODE_SOURCEKIT_LSP"] { return explicit }

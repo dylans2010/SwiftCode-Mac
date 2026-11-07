@@ -3,11 +3,6 @@ import Testing
 import SwiftCodeSubprocess
 @testable import SwiftCodeIDECore
 
-/// The main thread never waits for git or other tools in the paths a user
-/// hits all the time: opening a workspace window, opening menus (menu
-/// validation), refreshing source-control status, opening and editing a
-/// file. Debug builds record every blocking call made on the main thread
-/// (`MainThreadGuard`); these tests fail on any.
 @MainActor
 @Suite struct MainThreadResponsivenessTests {
     static func git(_ dir: URL, _ args: String...) throws {
@@ -15,7 +10,6 @@ import SwiftCodeSubprocess
         guard r.status == 0 else { throw GitRepository.GitError(description: r.stderrText) }
     }
 
-    /// A package in a git repository with a remote, a branch, local changes.
     func repository(_ name: String) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-mainthread-\(name)-\(UUID().uuidString)")
         let sources = dir.appendingPathComponent("Sources/App")
@@ -33,16 +27,10 @@ import SwiftCodeSubprocess
         return dir
     }
 
-    /// The guard itself: a git call on the main thread is recorded (debug
-    /// builds), with the caller's stack.
     @Test func guardRecordsGitOnTheMainThread() throws {
         let dir = try repository("guard")
         defer { try? FileManager.default.removeItem(at: dir) }
         let v = MainThreadGuard.violations { _ = GitRepository(containing: dir) }
-        // On Linux, swift-testing runs @MainActor tests on a thread that
-        // Foundation does not report as the main thread
-        // (`Thread.isMainThread` is false there), so the guard, which
-        // checks that, records nothing.
         #if DEBUG && canImport(Darwin)
         try #require(v.count == 1)
         #expect(v[0].operation.contains("rev-parse"))
@@ -50,8 +38,6 @@ import SwiftCodeSubprocess
         #endif
     }
 
-    /// Changes outside SwiftCode reach the source-control refresh through
-    /// FSEvents; git's object store, lock files and build output do not.
     @Test func fileSystemWatcherReportsChanges() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-fsw-\(UUID().uuidString)").resolvingSymlinksInPath()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -63,7 +49,6 @@ import SwiftCodeSubprocess
         defer { w.stop() }
         try await Task.sleep(nanoseconds: 300_000_000)
         try "x".write(to: dir.appendingPathComponent("main.swift"), atomically: false, encoding: .utf8)
-        // Generous: other suites may keep the main queue busy for seconds.
         let deadline = Date().addingTimeInterval(60)
         while !seen.paths.contains(where: { $0.hasSuffix("main.swift") }) && Date() < deadline { try await Task.sleep(nanoseconds: 50_000_000) }
         #expect(seen.paths.contains { $0.hasSuffix("main.swift") })

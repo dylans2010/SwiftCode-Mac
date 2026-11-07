@@ -1,10 +1,3 @@
-// One app's local test store: configuration, overrides, transactions,
-// subscriptions and the scheduler (testing-session.md §2–§11).
-//
-// The store is passive and deterministic: every call first brings the
-// subscriptions up to the clock's "now" (renewals, grace and retry ends,
-// expirations, in time order), then does its work. A running client asks
-// `nextEventDate()` to know when to call `advance()` again.
 import Foundation
 import StoreKitConfiguration
 
@@ -14,7 +7,6 @@ struct PersistentState: Codable, Hashable {
     var chains: [SubscriptionChain] = []
 }
 
-/// The local test store of one bundle identifier.
 public final class AppTestStore: @unchecked Sendable {
     public let bundleID: String
     private weak var device: StoreDevice?
@@ -42,9 +34,6 @@ public final class AppTestStore: @unchecked Sendable {
         load()
     }
 
-    // MARK: - Locking, events, persistence
-
-    /// Runs `body` under the lock after catching up, then saves and delivers events.
     private func perform<T, E: Error>(_ body: () throws(E) -> T) throws(E) -> T {
         lock.lock()
         defer {
@@ -63,7 +52,6 @@ public final class AppTestStore: @unchecked Sendable {
 
     private func emit(_ record: TransactionRecord) { pendingEvents.append(.transaction(record)) }
 
-    /// Receives store events (renewals, approvals, refunds, …) until the returned token is passed to `removeObserver`.
     @discardableResult
     public func addObserver(_ observer: @escaping @Sendable (StoreEvent) -> Void) -> UUID {
         lock.withLock {
@@ -111,10 +99,6 @@ public final class AppTestStore: @unchecked Sendable {
 
     private var now: StoreMilliseconds { clock.now().storeMilliseconds }
 
-    // MARK: - Configuration (configuration-file.md §8)
-
-    /// Installs a configuration for this app (what `SKTestSession` creation and
-    /// the IDE's install-on-Run do). The store keeps its own copy with `appName` set.
     public func installConfiguration(_ configuration: StoreConfiguration, appName: String? = nil) {
         perform {
             var copy = configuration
@@ -126,7 +110,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// Removes the installed configuration (the IDE's delete request); transactions stay.
     public func removeConfiguration() {
         perform {
             configuration = nil
@@ -136,15 +119,10 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// The installed configuration (the store's copy).
     public var installedConfiguration: StoreConfiguration? { lock.withLock { configuration } }
 
-    /// The catalog of the installed configuration.
     public var catalog: Catalog? { lock.withLock { catalogCache } }
 
-    /// Uninstalling the app: deletes the configuration and the transactions
-    /// and restarts the id counter; the settings overrides survive
-    /// (simulator-baseline.md §4 item 3).
     public func uninstall() {
         perform {
             configuration = nil
@@ -155,9 +133,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Settings (configuration-file.md §6, testing-session.md §2)
-
-    /// The settings in force.
     public var settings: EffectiveSettings { lock.withLock { effectiveSettings } }
 
     private var effectiveSettings: EffectiveSettings {
@@ -177,8 +152,6 @@ public final class AppTestStore: @unchecked Sendable {
             simulatedErrors: errors)
     }
 
-    /// The overrides set through the API. Setting a property stores an
-    /// override that wins over the file until `resetToDefaultState()`.
     public var overrideSettings: SettingsOverrides {
         get { lock.withLock { overrides } }
         set {
@@ -192,14 +165,12 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// Changes one override.
     public func updateSettings(_ change: (inout SettingsOverrides) -> Void) {
         var o = overrideSettings
         change(&o)
         overrideSettings = o
     }
 
-    /// Drops every override (`resetToDefaultState()`).
     public func resetToDefaultState() { overrideSettings = SettingsOverrides() }
 
     public func setSimulatedError(_ failure: SimulatedFailure?, for api: StoreAPI) {
@@ -208,12 +179,8 @@ public final class AppTestStore: @unchecked Sendable {
 
     public func simulatedError(for api: StoreAPI) -> SimulatedFailure? { settings.simulatedErrors[api] }
 
-    // MARK: - Time
-
-    /// Processes everything due up to now (renewals, grace and retry ends, expirations).
     public func advance() { perform {} }
 
-    /// When the next renewal, grace end, retry end or expiration is due; nil if none.
     public func nextEventDate() -> Date? {
         lock.withLock { state.chains.compactMap(dueDate).min().map(Date.init(storeMilliseconds:)) }
     }
@@ -231,7 +198,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// The scheduler (testing-session.md §3): handles every due chain event in time order.
     private func catchUp() {
         let limit = now
         var steps = 0
@@ -258,7 +224,6 @@ public final class AppTestStore: @unchecked Sendable {
                 return
             }
             guard let next = catalogCache?.product(c.autoRenewProductID), next.subscription != nil else {
-                // The product is gone from the catalog: expire, intent 4 (product unavailable).
                 c.state = .expired
                 c.autoRenewEnabled = false
                 c.expirationIntent = 4
@@ -268,14 +233,11 @@ public final class AppTestStore: @unchecked Sendable {
             if s.billingRetryOnRenewalEnabled {
                 c.hasBillingIssue = true
                 if s.billingGracePeriodEnabled {
-                    // Grace: the customer keeps access; the status transaction is a
-                    // renewal whose expiration is the grace end (testing-session.md §3.2).
                     let r = renew(&c, product: next, at: t)
                     c.state = .inGracePeriod
                     c.gracePeriodExpiresDate = r.expiresDate
                     c.billingRetryEndDate = periodEnd(next.subscription!.period, from: r.expiresDate ?? t)
                 } else {
-                    // Billing retry for one period, then expiry with intent 2 (README spec question 7).
                     c.state = .inBillingRetryPeriod
                     c.billingRetryEndDate = periodEnd(next.subscription!.period, from: t)
                 }
@@ -296,7 +258,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// Creates the renewal transaction of `c` at `t` for `product` and moves the chain to it.
     @discardableResult
     private func renew(_ c: inout SubscriptionChain, product: CatalogProduct, at t: StoreMilliseconds) -> TransactionRecord {
         let sub = product.subscription!
@@ -327,7 +288,6 @@ public final class AppTestStore: @unchecked Sendable {
             product: product, reason: .renewal, originalID: c.originalID, originalPurchaseDate: c.originalPurchaseDate,
             purchaseDate: t, expiresDate: end, quantity: 1, priceMilli: applied?.priceMilli ?? product.priceMilli,
             offer: applied, token: tokenOfChain(c))
-        // A higher level of the same group already active replaces this one (testing-session.md §3.1, last row).
         if let other = state.chains.first(where: {
             $0.originalID != c.originalID && $0.groupID == c.groupID && $0.isEntitled
                 && (catalogCache?.product($0.productID)?.subscription?.level ?? Int.max) < sub.level
@@ -369,10 +329,6 @@ public final class AppTestStore: @unchecked Sendable {
             revocationPercentage: nil, hasPurchaseIssue: false, isUpgraded: false, pendingRequest: nil)
     }
 
-    // MARK: - Products and eligibility
-
-    /// `Product.products(for:)`: the configured products among `ids`, in
-    /// request order; unknown ids are left out; no configuration → empty.
     public func products(for ids: [String]) throws(StoreFailure) -> [CatalogProduct] {
         try perform { () throws(StoreFailure) -> [CatalogProduct] in
             if let f = effectiveSettings.simulatedErrors[.loadProducts] {
@@ -387,8 +343,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `isEligibleForIntroOffer(for:)`: true until the customer has had any
-    /// subscription in the group; an unknown group answers true (testing-session.md §5 item 1).
     public func isEligibleForIntroOffer(groupID: String) -> Bool { perform { introEligible(groupID) } }
 
     private func introEligible(_ groupID: String) -> Bool {
@@ -397,15 +351,10 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Purchases (testing-session.md §4–§8)
-
-    /// `Product.purchase(options:)`.
     public func purchase(productID: String, options: PurchaseOptions = PurchaseOptions()) throws(StoreFailure) -> PurchaseOutcome {
         try perform { () throws(StoreFailure) -> PurchaseOutcome in try purchaseLocked(productID, options, offDevice: false) }
     }
 
-    /// `SKTestSession.buyProduct(identifier:options:)`: a purchase made "on another
-    /// device": no sheet, no Ask to Buy, delivered through `Transaction.updates`.
     public func buyProduct(productID: String, options: PurchaseOptions = PurchaseOptions()) throws(TestSessionError) -> TransactionRecord {
         try perform { () throws(TestSessionError) -> TransactionRecord in
             guard catalogCache?.product(productID) != nil else {
@@ -459,7 +408,6 @@ public final class AppTestStore: @unchecked Sendable {
             guard ok else { throw StoreFailure(.unknown, alert: Self.unableToPurchaseAlert) }
         }
         let backdated = options.purchaseDate != nil
-        // Buying again (§4 table, §3.1).
         switch p.type {
         case .consumable:
             if let r = state.records.last(where: {
@@ -494,8 +442,6 @@ public final class AppTestStore: @unchecked Sendable {
         if s.failTransactionsEnabled && !offDevice { throw StoreFailure(.unknown) }
         var r = try create(p, options: options, reuseID: nil)
         if s.interruptedPurchasesEnabled && !offDevice {
-            // §8: the call fails, but the store keeps a failed transaction with a
-            // purchase issue that the app already sees.
             r.state = .failed
             r.hasPurchaseIssue = true
             replace(r)
@@ -510,7 +456,6 @@ public final class AppTestStore: @unchecked Sendable {
         dirty = true
     }
 
-    /// The customer's relation to a group, for code-offer eligibility.
     private func codeEligible(_ offer: CatalogOffer, groupID: String) -> Bool {
         let chains = state.chains.filter { $0.groupID == groupID }
         if chains.contains(where: \.isActive) { return offer.eligibility.contains("existing") }
@@ -522,7 +467,6 @@ public final class AppTestStore: @unchecked Sendable {
         AppliedOffer(type: o.type, identifier: o.identifier, paymentMode: o.paymentMode, period: o.totalDuration, priceMilli: milliUnits(o.price))
     }
 
-    /// The offer a new subscription starts with (testing-session.md §5).
     private func planOffer(for p: CatalogProduct, options: PurchaseOptions) throws(StoreFailure) -> CatalogOffer? {
         let sub = p.subscription!
         let eligible = introEligible(sub.groupID)
@@ -532,7 +476,7 @@ public final class AppTestStore: @unchecked Sendable {
             return offer
         }
         if let id = options.signedPromotionalOffer?.offerID ?? options.promotionalOfferID {
-            if let intro { return intro }  // §5 item 3: the introductory offer wins while eligible.
+            if let intro { return intro }
             guard let promo = sub.promotionalOffers.first(where: { $0.identifier == id }) else {
                 throw StoreFailure(.unknown, alert: Self.unableToPurchaseAlert)
             }
@@ -541,7 +485,6 @@ public final class AppTestStore: @unchecked Sendable {
         return intro
     }
 
-    /// Creates the transaction (and, for a subscription, the chain) of a new purchase.
     private func create(_ p: CatalogProduct, options: PurchaseOptions, reuseID: UInt64?) throws(StoreFailure) -> TransactionRecord {
         let start = options.purchaseDate?.storeMilliseconds ?? now
         guard let sub = p.subscription else {
@@ -579,11 +522,10 @@ public final class AppTestStore: @unchecked Sendable {
             originalPurchaseDate: start, expiresDate: end, recentStartDate: start, gracePeriodExpiresDate: nil,
             billingRetryEndDate: nil, hasBillingIssue: false, continuingOffer: continuing, pendingOffer: nil,
             isUpgradedAway: false))
-        if options.purchaseDate != nil { catchUp() }  // §3 item 4: a backdated purchase catches up at once.
+        if options.purchaseDate != nil { catchUp() }
         return state.records.first { $0.id == r.id } ?? r
     }
 
-    /// Buying a product of a group with an active subscription (testing-session.md §3.1).
     private func changeActiveSubscription(chainAt i: Int, to p: CatalogProduct, options: PurchaseOptions) throws(StoreFailure)
         -> PurchaseOutcome
     {
@@ -593,7 +535,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
         let sub = p.subscription!
         if p.id == c.productID {
-            // Same product: the current transaction; an offer code is attached to the next renewal (§5 item 4).
             if let code = options.codeOfferReferenceName,
                let offer = sub.codeOffers.first(where: { $0.identifier == code }), codeEligible(offer, groupID: sub.groupID) {
                 c.pendingOffer = ContinuingOffer(offer: applied(offer), billedPeriod: offer.period, remainingPeriods: offer.periodCount)
@@ -607,8 +548,6 @@ public final class AppTestStore: @unchecked Sendable {
         let currentLevel = currentProduct?.subscription?.level ?? Int.max
         let samePeriod = currentProduct?.subscription?.period == sub.period
         if sub.level < currentLevel || (sub.level == currentLevel && samePeriod) {
-            // Upgrade (or a same-duration crossgrade): immediate. The old
-            // transaction is marked upgraded and a new period starts now.
             var old = current
             old.isUpgraded = true
             replace(old)
@@ -633,14 +572,12 @@ public final class AppTestStore: @unchecked Sendable {
             state.chains[i] = c
             return .success(r, isRedelivery: false)
         }
-        // Downgrade, or a crossgrade to another duration: at the next renewal.
         c.autoRenewProductID = p.id
         state.chains[i] = c
         dirty = true
         return .success(current, isRedelivery: true)
     }
 
-    /// `Transaction.finish()`.
     public func finish(transactionID: UInt64) {
         perform {
             guard let i = state.records.firstIndex(where: { $0.id == transactionID }) else { return }
@@ -649,9 +586,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Lists (testing-session.md §10)
-
-    /// `SKTestSession.allTransactions()`: every transaction in id order.
     public func allTransactions() -> [TransactionRecord] { perform { state.records.sorted { $0.id < $1.id } } }
 
     private func isListed(_ r: TransactionRecord) -> Bool {
@@ -660,33 +594,26 @@ public final class AppTestStore: @unchecked Sendable {
         return true
     }
 
-    /// `Transaction.all`: newest first; finished consumables and pending Ask-to-Buy requests left out.
     public func transactionHistory() -> [TransactionRecord] {
         perform {
             state.records.filter { isListed($0) && !($0.productType == .consumable && $0.isFinished) }.sorted { $0.id > $1.id }
         }
     }
 
-    /// `Transaction.unfinished`: every unfinished transaction, renewals included.
     public func unfinishedTransactions() -> [TransactionRecord] {
         perform { state.records.filter { isListed($0) && !$0.isFinished }.sorted { $0.id > $1.id } }
     }
 
-    /// `Transaction.latest(for:)`.
     public func latestTransaction(for productID: String) -> TransactionRecord? {
         perform { state.records.filter { $0.productID == productID && isListed($0) }.max { $0.id < $1.id } }
     }
 
-    /// One transaction by id.
     public func transaction(_ id: UInt64) -> TransactionRecord? { perform { state.records.first { $0.id == id } } }
 
     private func isEntitling(_ r: TransactionRecord) -> Bool {
         !r.isRevoked && !r.isUpgraded && (r.state == .purchased || r.state == .restored || (r.state == .failed && r.hasPurchaseIssue))
     }
 
-    /// `Transaction.currentEntitlements`: one entry per non-consumable and
-    /// non-renewing product (the newest valid transaction) and per entitled
-    /// auto-renewable subscription (its current transaction); newest first.
     public func currentEntitlements() -> [TransactionRecord] {
         perform {
             var out: [TransactionRecord] = []
@@ -702,10 +629,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Subscription status (testing-session.md §3.2, formats.md §2.3)
-
-    /// `Product.SubscriptionInfo.status(for:)`: one entry per subscription of
-    /// the group, newest first. A simulated status error answers an empty list (§9).
     public func subscriptionStatuses(groupID: String) -> [SubscriptionStatusSnapshot] {
         perform {
             if effectiveSettings.simulatedErrors[.subscriptionStatus] != nil { return [] }
@@ -713,7 +636,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// The status of the subscription that contains a transaction.
     public func subscriptionStatus(forTransaction id: UInt64) -> SubscriptionStatusSnapshot? {
         perform {
             guard let r = state.records.first(where: { $0.id == id }),
@@ -742,9 +664,6 @@ public final class AppTestStore: @unchecked Sendable {
             currency: effectiveSettings.storefront.currency, eligibleWinBackOfferIDs: [])
     }
 
-    // MARK: - App-level calls
-
-    /// `AppTransaction.shared` precondition: a configuration is installed and no error is simulated.
     public func checkAppTransaction() throws(StoreFailure) {
         try perform { () throws(StoreFailure) in
             guard configuration != nil else { throw StoreFailure(.systemError(.noAccount)) }
@@ -752,14 +671,12 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `AppStore.sync()`: succeeds at once unless an error is simulated.
     public func sync() throws(StoreFailure) {
         try perform { () throws(StoreFailure) in
             if let f = effectiveSettings.simulatedErrors[.appStoreSync] { throw StoreFailure(.systemError(.unknown), simulated: f) }
         }
     }
 
-    /// Throws the simulated error of an API that only shows UI (manage subscriptions, redeem, refund request).
     public func checkSimulatedError(for api: StoreAPI) throws(StoreFailure) {
         try perform { () throws(StoreFailure) in
             guard let f = effectiveSettings.simulatedErrors[api] else { return }
@@ -775,8 +692,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// StoreKit 1 `restoreCompletedTransactions()`: a new transaction in state
-    /// `restored` for each non-consumable and active subscription (simulator-baseline.md §7).
     public func restoreCompletedTransactions() -> [TransactionRecord] {
         perform {
             guard let catalog = catalogCache else { return [] }
@@ -810,8 +725,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Test-session control (testing-session.md §2, §6–§8, §11)
-
     private func recordIndex(_ id: UInt64) throws(TestSessionError) -> Int {
         guard let i = state.records.firstIndex(where: { $0.id == id }) else {
             throw TestSessionError(.noTransactionFound, "No transaction \(id).")
@@ -837,7 +750,6 @@ public final class AppTestStore: @unchecked Sendable {
         return i
     }
 
-    /// `clearTransactions()`: removes every transaction; the id counter continues.
     public func clearTransactions() {
         perform {
             state.records = []
@@ -846,7 +758,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `deleteTransaction(identifier:)`.
     public func deleteTransaction(_ id: UInt64) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try recordIndex(id)
@@ -862,7 +773,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `refundTransaction(identifier:)` (§7): revocation now, reason 0, full refund.
     public func refundTransaction(_ id: UInt64, reason: Int = 0) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try recordIndex(id)
@@ -883,7 +793,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `expireSubscription(productIdentifier:)`: the current period ends now.
     public func expireSubscription(productID: String) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try activeChainIndex(product: productID)
@@ -894,8 +803,6 @@ public final class AppTestStore: @unchecked Sendable {
                 cur.expiresDate = t
                 state.records[ri] = cur
                 if quirks.expireLeavesFailedTransaction, let p = catalogCache?.product(c.autoRenewProductID) {
-                    // The reference leaves a failed renewal with a purchase issue
-                    // dated like the expired one (testing-session.md §2).
                     var failed = makeRecord(
                         product: p, reason: .renewal, originalID: c.originalID, originalPurchaseDate: c.originalPurchaseDate,
                         purchaseDate: cur.purchaseDate, expiresDate: t, quantity: 1, priceMilli: p.priceMilli, offer: nil,
@@ -918,7 +825,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `forceRenewalOfSubscription(productIdentifier:)`: a renewal starting now with a full period.
     public func forceRenewal(productID: String) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             guard let p = catalogCache?.product(productID) else { throw TestSessionError(.invalidProductIdentifier, "No product \(productID).") }
@@ -939,7 +845,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `disableAutoRenewForTransaction(identifier:)`: auto-renew off, expiration intent 1.
     public func disableAutoRenew(transactionID: UInt64) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try chainIndex(containing: transactionID)
@@ -949,8 +854,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `enableAutoRenewForTransaction(identifier:)`: an expired subscription
-    /// renews at once from its old expiration (no gap).
     public func enableAutoRenew(transactionID: UInt64) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try chainIndex(containing: transactionID)
@@ -968,7 +871,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `approveAskToBuyTransaction(identifier:)`: the deferred request becomes a purchase (same id), delivered as an update.
     public func approveAskToBuy(transactionID: UInt64) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try recordIndex(transactionID)
@@ -988,7 +890,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `declineAskToBuyTransaction(identifier:)`: the request fails (state 2).
     public func declineAskToBuy(transactionID: UInt64) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try recordIndex(transactionID)
@@ -1004,8 +905,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// `resolveIssueForTransaction(identifier:)`: clears a purchase issue (§8)
-    /// or a subscription's billing issue (§3.2).
     public func resolveIssue(transactionID: UInt64) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             let i = try recordIndex(transactionID)
@@ -1025,7 +924,6 @@ public final class AppTestStore: @unchecked Sendable {
             c.hasBillingIssue = false
             c.billingRetryEndDate = nil
             if c.state == .inGracePeriod {
-                // Access continues; the next renewal is due at the grace end.
                 c.state = .subscribed
                 c.gracePeriodExpiresDate = nil
             } else if c.state == .inBillingRetryPeriod, let next = catalogCache?.product(c.autoRenewProductID), next.subscription != nil {
@@ -1038,7 +936,6 @@ public final class AppTestStore: @unchecked Sendable {
         }
     }
 
-    /// The price-increase calls failed with the invalid-state error on the reference (testing-session.md §2).
     public func requestPriceIncreaseConsent(transactionID: UInt64) throws(TestSessionError) {
         try perform { () throws(TestSessionError) in
             _ = try chainIndex(containing: transactionID)

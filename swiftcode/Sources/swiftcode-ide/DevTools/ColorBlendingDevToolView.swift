@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 #if canImport(os)
 import os
@@ -14,7 +11,6 @@ final class ColorBlendingViewModel {
     var blendRatio: Double = 0.5
 
     var blendedColor: Color {
-        // Blend algorithm
         #if canImport(AppKit)
         let ns1 = NSColor(firstColor).usingColorSpace(.sRGB) ?? .black
         let ns2 = NSColor(secondColor).usingColorSpace(.sRGB) ?? .black
@@ -46,7 +42,6 @@ struct ColorBlendingDevToolView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    
 
                     VStack {
                         Text("Color 2")
@@ -55,7 +50,7 @@ struct ColorBlendingDevToolView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    
+
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -81,7 +76,7 @@ struct ColorBlendingDevToolView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                
+
             }
             .padding()
         }

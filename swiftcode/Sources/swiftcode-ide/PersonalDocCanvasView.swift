@@ -1,10 +1,3 @@
-// PersonalDocCanvasView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PersonalDocCanvasView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Editor/Preview toggle with Markdown preview; word count and reading-time footer; Save Revision button (recordVersion exists in the store but has no UI)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DocNSTextView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI

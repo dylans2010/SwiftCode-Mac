@@ -3,32 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeGitHub
 import SwiftCodeSubprocess
 
-/// The deployments console's service (gap closure, specs/ide/
-/// gap-closure-windows-artboards.md §5).
-///
-/// Legacy evidence (`SwiftCode/Views/Deployments/DeploymentsView.swift`,
-/// `SwiftCode/Backend/Deployments/`): three providers (Netlify /
-/// Vercel / GitHub Pages), a custom-domain toggle, tokens from the
-/// keychain, Deploy disabled without a token, and a log view.
-///
-/// The important Legacy fact this port keeps: **Netlify/Vercel
-/// deploy is not a provider API upload** — both managers only push
-/// the project to GitHub and return a dashboard URL; the provider's
-/// GitHub integration does the build. What makes this a real
-/// provider client anyway is the token validation: the stored
-/// Netlify/Vercel token is checked against the provider's own user
-/// endpoint before anything runs. GitHub Pages is the one real API
-/// flow in Legacy (enable Pages, ensure the workflow file, poll
-/// deployments), and it is ported as real API calls.
-///
-/// No token is ever shipped, logged, or put in a URL: tokens live
-/// in the secret store (`SecretAccount`) and travel only as an
-/// `Authorization: Bearer` header or as `git credential approve`
-/// stdin (the Wave 10 pattern). The git push is the current branch
-/// (`git push`, no forced ref) — Legacy pushed `HEAD:main`, which
-/// would overwrite `main` with whatever branch is checked out; this
-/// port does not replicate that. The window says the provider
-/// builds the default branch.
 public enum DeploymentPlatform: String, Codable, CaseIterable, Sendable {
     case netlify = "Netlify"
     case vercel = "Vercel"
@@ -36,7 +10,6 @@ public enum DeploymentPlatform: String, Codable, CaseIterable, Sendable {
 
     public var id: String { rawValue }
 
-    /// The secret-store account for this provider's token.
     var tokenAccount: String {
         switch self {
         case .netlify: return SecretAccount.netlifyToken
@@ -46,7 +19,6 @@ public enum DeploymentPlatform: String, Codable, CaseIterable, Sendable {
     }
 }
 
-/// What a deploy produced (Legacy `DeploymentResult`).
 public struct DeploymentResult: Sendable, Equatable {
     public var success: Bool
     public var url: String?
@@ -59,8 +31,6 @@ public struct DeploymentResult: Sendable, Equatable {
     }
 }
 
-/// A detected web framework (Legacy `FrameworkConfig` + `detectFramework`,
-/// ported verbatim: same files, same build commands, same outputs).
 public struct DeploymentFramework: Sendable, Equatable {
     public var name: String
     public var buildCommand: String?
@@ -93,8 +63,6 @@ public struct DeploymentFramework: Sendable, Equatable {
         return DeploymentFramework(name: "Static", buildCommand: nil, outputDirectory: ".")
     }
 
-    /// The Node build steps for the Pages workflow (Legacy
-    /// `generateBuildSteps`).
     var buildSteps: String {
         guard let buildCommand else { return "" }
         return """
@@ -140,13 +108,8 @@ public enum DeploymentError: Error, LocalizedError, Equatable {
     }
 }
 
-/// The git operations a deploy needs. The live implementation runs
-/// the git CLI; tests replace it so no real push ever happens.
 public struct GitPushClient: Sendable {
-    /// The origin remote's URL, or nil when there is none.
     public var remoteURL: @Sendable (URL) -> String?
-    /// Pushes the current branch; throws `DeploymentError.pushFailed`
-    /// with git's output on failure.
     public var push: @Sendable (URL) async throws -> Void
 
     public init(remoteURL: @escaping @Sendable (URL) -> String?,
@@ -155,11 +118,6 @@ public struct GitPushClient: Sendable {
         self.push = push
     }
 
-    /// The live client: `git remote get-url origin` + `git push`.
-    /// The stored GitHub token is seeded via `git credential approve`
-    /// on stdin first (the Wave 10 pattern — never in argv, a URL,
-    /// or a log), so an HTTPS remote can authenticate from the
-    /// user's configured credential helper.
     public static func live(store: SecretStore) -> GitPushClient {
         GitPushClient(
             remoteURL: { folder in Self.runGit(["remote", "get-url", "origin"], in: folder)?.trimmingCharacters(in: .whitespacesAndNewlines) },
@@ -178,11 +136,6 @@ public struct GitPushClient: Sendable {
             })
     }
 
-    /// The repository path of a github.com HTTPS URL (Wave 10's
-    /// `gitHubHTTPSPath`): `dylans2010/repo.git` for
-    /// `https://github.com/dylans2010/repo.git`, `""` for bare
-    /// `https://github.com`, nil for anything else. URLs with
-    /// embedded credentials are never one.
     static func gitHubHTTPSPath(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("https://"), !trimmed.contains(" "),
@@ -220,9 +173,6 @@ public struct GitPushClient: Sendable {
         }
     }
 
-    /// Runs git synchronously and returns trimmed stdout, or nil
-    /// when git cannot start. Blocking: callers run it off the main
-    /// thread (the live `push` uses a detached task).
     static func runGit(_ arguments: [String], in folder: URL) -> String? {
         guard let out = runGitWithOutput(arguments, in: folder), out.status == 0 else { return nil }
         return out.stdout
@@ -249,14 +199,12 @@ public struct GitPushClient: Sendable {
     }
 }
 
-/// GitHub Pages info (Legacy `GitHubPagesInfo`).
 public struct GitHubPagesInfo: Codable, Sendable, Equatable {
     public var url: String
     public var status: String?
     public var htmlUrl: String
 }
 
-/// One Pages deployment (Legacy `GitHubPagesDeployment`).
 public struct GitHubPagesDeployment: Codable, Sendable, Equatable {
     public var id: Int?
     public var status: String?
@@ -266,18 +214,11 @@ struct GitHubPagesDeploymentsResponse: Codable {
     var deployments: [GitHubPagesDeployment]
 }
 
-/// The deployments console's service: provider token validation,
-/// git push, and the GitHub Pages API flow. The `URLSession` and
-/// the git client are injected so tests stub the network and never
-/// push (never live network, never real credentials).
 public struct DeploymentService: Sendable {
     public var session: URLSession
     public var store: SecretStore
     public var git: GitPushClient
 
-    /// How many times the Pages poll checks, and how long between
-    /// checks (Legacy polled 60 × 10s; the window's deploy waits
-    /// less long and reports a timeout honestly instead).
     public var pagesPollAttempts = 12
     public var pagesPollInterval: TimeInterval = 5
 
@@ -288,17 +229,11 @@ public struct DeploymentService: Sendable {
         self.git = git ?? .live(store: store)
     }
 
-    /// The stored token for `platform`, or nil when none is stored.
     public func token(for platform: DeploymentPlatform) -> String? {
         store.readString(platform.tokenAccount)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Deploys the workspace folder. Logs each step through `log`,
-    /// as Legacy did. Returns `.success` with the site/dashboard
-    /// URL, or throws a `DeploymentError` (the window turns it
-    /// into the error line — a failed deploy is never reported as
-    /// a success with a guessed URL).
     public func deploy(platform: DeploymentPlatform, workspaceFolder: URL, domain: String?,
                        log: @escaping @Sendable (String) -> Void) async throws -> DeploymentResult {
         let customDomain = (domain ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -316,11 +251,6 @@ public struct DeploymentService: Sendable {
 
         switch platform {
         case .netlify, .vercel:
-            // Legacy-faithful: the token is validated against the
-            // provider's own API, then the project is pushed and
-            // the provider's GitHub integration builds it. The
-            // returned URL is the dashboard (or the custom domain),
-            // never a fabricated site URL.
             try await validateProviderToken(platform: platform, token: token)
             log("Token validated with \(platform.rawValue).")
             log("Pushing the current branch to GitHub — \(platform.rawValue) builds from its GitHub integration.")
@@ -330,7 +260,6 @@ public struct DeploymentService: Sendable {
             log("✓ Deployment triggered. Check the \(platform.rawValue) dashboard for the build status.")
             return DeploymentResult(success: true, url: url)
         case .githubPages:
-            // Legacy's real API flow (`GitHubPagesManager.deploy`).
             log("Ensuring the GitHub repository is up to date...")
             try await git.push(workspaceFolder)
             log("Checking existing GitHub Pages configuration...")
@@ -356,11 +285,6 @@ public struct DeploymentService: Sendable {
         }
     }
 
-    // MARK: - Netlify / Vercel token validation
-
-    /// `GET /api/v1/user` (Netlify) / `GET /api/v2/user` (Vercel)
-    /// with the stored token. 200 means the token is valid; 401/403
-    /// means it is rejected; anything else is a provider error.
     func validateProviderToken(platform: DeploymentPlatform, token: String) async throws {
         let url: URL = {
             switch platform {
@@ -383,8 +307,6 @@ public struct DeploymentService: Sendable {
         }
     }
 
-    // MARK: - GitHub Pages API
-
     func gitHubRequest(path: String, method: String = "GET", token: String, body: Data? = nil) -> URLRequest {
         var request = URLRequest(url: URL(string: "https://api.github.com/\(path)")!)
         request.httpMethod = method
@@ -403,8 +325,6 @@ public struct DeploymentService: Sendable {
         return try decoder.decode(type, from: data)
     }
 
-    /// `GET /repos/{o}/{r}/pages`. Throws when Pages is not
-    /// enabled (the caller treats that as "enable it").
     func getPagesInfo(owner: String, repo: String, token: String) async throws -> GitHubPagesInfo {
         let (data, response) = try await session.data(for: gitHubRequest(path: "repos/\(owner)/\(repo)/pages", token: token))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -413,8 +333,6 @@ public struct DeploymentService: Sendable {
         return try decode(GitHubPagesInfo.self, from: data)
     }
 
-    /// `POST /repos/{o}/{r}/pages` with `build_type: workflow`
-    /// (Legacy `enablePages`).
     func enablePages(owner: String, repo: String, token: String) async throws {
         let body: [String: Any] = ["build_type": "workflow", "source": ["branch": "main", "path": "/"]]
         let data = try JSONSerialization.data(withJSONObject: body)
@@ -424,11 +342,6 @@ public struct DeploymentService: Sendable {
         }
     }
 
-    /// Ensures `.github/workflows/pages.yml` exists, creating it
-    /// from the detected framework when it does not (Legacy
-    /// `ensurePagesWorkflow` + the workflow template, ported
-    /// verbatim). The contents API needs the file's SHA to update;
-    /// a 404 means "create".
     func ensurePagesWorkflow(owner: String, repo: String, token: String, framework: DeploymentFramework) async throws {
         let path = ".github/workflows/pages.yml"
         let (getData, getResponse) = try await session.data(for: gitHubRequest(path: "repos/\(owner)/\(repo)/contents/\(path)?ref=main", token: token))
@@ -453,9 +366,6 @@ public struct DeploymentService: Sendable {
         }
     }
 
-    /// The Pages workflow (Legacy's template verbatim, including
-    /// the `configure-pages` / `upload-pages-artifact` /
-    /// `deploy-pages` steps and the framework build steps).
     func pagesWorkflowContent(framework: DeploymentFramework) -> String {
         """
         name: Deploy to GitHub Pages
@@ -495,9 +405,6 @@ public struct DeploymentService: Sendable {
         """
     }
 
-    /// Polls `GET /repos/{o}/{r}/pages/deployments` until the
-    /// latest deployment succeeds, fails, or the attempts run out
-    /// (Legacy `pollDeploymentStatus`, bounded here).
     func pollDeploymentStatus(owner: String, repo: String, token: String, log: @escaping @Sendable (String) -> Void) async throws -> String {
         for _ in 1...max(1, pagesPollAttempts) {
             let (data, response) = try await session.data(for: gitHubRequest(path: "repos/\(owner)/\(repo)/pages/deployments", token: token))
@@ -516,9 +423,6 @@ public struct DeploymentService: Sendable {
 }
 
 extension DeploymentPlatform {
-    /// Where Legacy pointed after a Netlify/Vercel deploy: the
-    /// provider's dashboard (the build itself happens there, from
-    /// the GitHub integration — never a fabricated site URL).
     var dashboardURL: String {
         switch self {
         case .netlify: return "https://app.netlify.com"

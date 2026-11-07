@@ -7,38 +7,32 @@ private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: 
 struct CommitsView: View {
     var gitViewModel: GitViewModel
 
-    // Navigation and inspection state
     @State private var selectedCommitID: String?
     @State private var searchKeyword = ""
     @State private var selectedAuthor = ""
     @State private var fileFilterPath = ""
     @State private var dateFilterEnabled = false
-    @State private var dateFilterStart = Date().addingTimeInterval(-2592000) // 30 days ago
+    @State private var dateFilterStart = Date().addingTimeInterval(-2592000)
     @State private var dateFilterEnd = Date()
 
-    // Range comparison states
     @State private var isCompareMode = false
     @State private var compareStartSHA = ""
     @State private var compareEndSHA = ""
     @State private var generatedDiffOutput = ""
     @State private var isGeneratingDiff = false
 
-    // AI Commit Assistant
     @State private var aiCommitSummary = ""
     @State private var isGeneratingAISummary = false
-    @State private var inspectorTab = 0 // 0 = Stats, 1 = AI Analyst, 2 = Actions
+    @State private var inspectorTab = 0
 
-    // Rollback operations state
     @State private var isRunningGitAction = false
     @State private var gitActionProgress = ""
     @State private var gitActionLog = ""
     @State private var showRollbackSuccess = false
     @State private var hasPushed = false
 
-    // Loaded commits count for lazy scrolling
     @State private var visibleCommitsLimit = 20
 
-    // Computed filtered commit list
     private var filteredCommits: [GitCommit] {
         var list = gitViewModel.history
 
@@ -63,26 +57,21 @@ struct CommitsView: View {
 
     var body: some View {
         HSplitView {
-            // Main Left Pane: Filter, Compare Bar, Graph + Commits list
             VStack(spacing: 0) {
-                // Header filters bar
                 filtersHeaderView
 
                 Divider()
 
-                // Range comparison configuration bar
                 if isCompareMode {
                     compareRangeHeaderView
                     Divider()
                 }
 
-                // Interactive Commit List & Visual Graph
                 commitListWithGraphView
             }
             .frame(minWidth: 450, maxWidth: .infinity)
             .layoutPriority(1)
 
-            // Resizable Right Panel: Commit Inspector & Details
             commitInspectorView
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 450)
                 .layoutPriority(2)
@@ -94,8 +83,6 @@ struct CommitsView: View {
         }
     }
 
-    // MARK: - Filters Header
-
     private var filtersHeaderView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
@@ -105,7 +92,6 @@ struct CommitsView: View {
 
                 Spacer()
 
-                // Keyword Search
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Search commits...", text: $searchKeyword)
@@ -139,7 +125,6 @@ struct CommitsView: View {
                 }
             }
 
-            // Advanced filter rows
             HStack(spacing: 16) {
                 HStack {
                     Text("Author:").font(.caption).foregroundStyle(.secondary)
@@ -170,8 +155,6 @@ struct CommitsView: View {
         .padding()
         .liquidGlass(style: .subtle, cornerRadius: 10)
     }
-
-    // MARK: - Compare Range Header
 
     private var compareRangeHeaderView: some View {
         HStack(spacing: 12) {
@@ -217,8 +200,6 @@ struct CommitsView: View {
         .background(Color.purple.opacity(0.08))
     }
 
-    // MARK: - Commit list with Git Graph lanes
-
     private var commitListWithGraphView: some View {
         ScrollViewReader { proxy in
             List {
@@ -239,23 +220,19 @@ struct CommitsView: View {
                                 aiCommitSummary = ""
                             } label: {
                                 HStack(spacing: 0) {
-                                    // Custom Git Graph lanes Canvas
                                     Canvas { context, size in
                                         let h = size.height
                                         let w = size.width
                                         let midY = h / 2.0
 
-                                        // Lane configurations
                                         let mainLaneX: CGFloat = 16.0
                                         let secondaryLaneX: CGFloat = 36.0
 
-                                        // Draw continuous branch lanes
                                         var path = Path()
                                         path.move(to: CGPoint(x: mainLaneX, y: 0))
                                         path.addLine(to: CGPoint(x: mainLaneX, y: h))
                                         context.stroke(path, with: .color(.purple), lineWidth: 2)
 
-                                        // Draw merge/secondary lane if commit has multiple parents (merges)
                                         if commit.parentHashes.count > 1 {
                                             var mergePath = Path()
                                             mergePath.move(to: CGPoint(x: mainLaneX, y: midY))
@@ -265,12 +242,10 @@ struct CommitsView: View {
                                             context.fill(Path(ellipseIn: CGRect(x: secondaryLaneX - 4, y: h - 4, width: 8, height: 8)), with: .color(.green))
                                         }
 
-                                        // Draw commit circle node
                                         let circleRect = CGRect(x: mainLaneX - 5, y: midY - 5, width: 10, height: 10)
                                         let color: Color = isSelected ? .orange : .purple
                                         context.fill(Path(ellipseIn: circleRect), with: .color(color))
 
-                                        // Highlight if HEAD/Current branch tip
                                         if index == 0 {
                                             let outerRing = CGRect(x: mainLaneX - 8, y: midY - 8, width: 16, height: 16)
                                             context.stroke(Path(ellipseIn: outerRing), with: .color(.orange), lineWidth: 1.5)
@@ -278,7 +253,6 @@ struct CommitsView: View {
                                     }
                                     .frame(width: 50, height: 44)
 
-                                    // Commit details
                                     VStack(alignment: .leading, spacing: 4) {
                                         HStack(spacing: 8) {
                                             Text(commit.subject)
@@ -286,7 +260,6 @@ struct CommitsView: View {
                                                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                                                 .lineLimit(1)
 
-                                            // Verified tag if signed (hash check verified indicator)
                                             if commit.sha.count % 2 == 0 {
                                                 Label("Signed", systemImage: "checkmark.seal.fill")
                                                     .font(.system(size: 8))
@@ -297,7 +270,6 @@ struct CommitsView: View {
                                                     .cornerRadius(3)
                                             }
 
-                                            // Highlight HEAD or custom tag labels
                                             if index == 0 {
                                                 Text("HEAD")
                                                     .font(.system(size: 8, weight: .bold))
@@ -324,7 +296,6 @@ struct CommitsView: View {
 
                                     Spacer()
 
-                                    // SHA badge
                                     Text(String(commit.sha.prefix(7)))
                                         .font(.system(.caption2, design: .monospaced))
                                         .padding(.horizontal, 6)
@@ -339,7 +310,6 @@ struct CommitsView: View {
                             .id(commit.sha)
                         }
 
-                        // Lazy scroll Trigger older commits
                         if filteredCommits.count > visibleCommitsLimit {
                             Button {
                                 visibleCommitsLimit += 20
@@ -359,14 +329,11 @@ struct CommitsView: View {
         }
     }
 
-    // MARK: - Resizable Commit Inspector View
-
     private var commitInspectorView: some View {
         ScrollView {
             if let targetSHA = selectedCommitID,
                let commit = gitViewModel.history.first(where: { $0.sha == targetSHA }) {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Title Header
                     VStack(alignment: .leading, spacing: 6) {
                         Text("COMMIT SPECIFICATION")
                             .font(.caption2.bold())
@@ -413,9 +380,7 @@ struct CommitsView: View {
                     Divider()
 
                     if inspectorTab == 0 {
-                        // Tab 1: Stats
                         VStack(alignment: .leading, spacing: 12) {
-                            // Author info
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Author").font(.caption).foregroundStyle(.secondary)
                                 Text(commit.author).bold()
@@ -426,7 +391,6 @@ struct CommitsView: View {
 
                             Divider()
 
-                            // Parents Navigation
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Parent Commits").font(.caption).foregroundStyle(.secondary)
                                 if commit.parentHashes.isEmpty {
@@ -453,13 +417,11 @@ struct CommitsView: View {
 
                             Divider()
 
-                            // Changed files list & stats
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Changed Files Stats").font(.caption).foregroundStyle(.secondary)
                                 Text("3 Files modified  •  +142 additions  •  -34 deletions")
                                     .font(.caption.bold())
 
-                                // Simulated file diff tree
                                 VStack(alignment: .leading, spacing: 6) {
                                     changedFileRow(path: "Sources/SwiftCode/Views/GitHub/CommitsView.swift", adds: 88, dels: 12)
                                     changedFileRow(path: "Sources/SwiftCode/Views/GitHub/SourceControlView.swift", adds: 24, dels: 8)
@@ -469,7 +431,6 @@ struct CommitsView: View {
 
                             Divider()
 
-                            // Range Comparison results (if generated)
                             if !generatedDiffOutput.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Diff Range Comparisons")
@@ -490,7 +451,6 @@ struct CommitsView: View {
                             }
                         }
                     } else if inspectorTab == 1 {
-                        // Tab 2: AI Analyst
                         VStack(alignment: .leading, spacing: 12) {
                             Text("AI Commit Summarizer").font(.subheadline.bold())
                             Text("Let AI generate a professional code delta review for this revision commit.")
@@ -519,7 +479,6 @@ struct CommitsView: View {
                             }
                         }
                     } else {
-                        // Tab 3: Safety Actions
                         rollbackControlSection(for: commit)
                     }
                 }
@@ -553,8 +512,6 @@ struct CommitsView: View {
         .background(Color.secondary.opacity(0.04))
         .cornerRadius(4)
     }
-
-    // MARK: - Rollback controls card flat
 
     @ViewBuilder
     private func rollbackControlSection(for commit: GitCommit) -> some View {
@@ -608,8 +565,6 @@ struct CommitsView: View {
         .background(Color.red.opacity(0.04))
         .cornerRadius(6)
     }
-
-    // MARK: - Back-end Operations Executions
 
     private func executeRangeCompare() {
         isGeneratingDiff = true

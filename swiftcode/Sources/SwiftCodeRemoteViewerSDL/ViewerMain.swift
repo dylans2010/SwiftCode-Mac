@@ -1,9 +1,3 @@
-// `swiftcode-sim-viewer` on Linux (display-stream.md §13): parses the viewer's
-// options, connects (a display socket address, or SwiftCode's own link to a
-// simulator host with `--link`, sim-link.md), and runs the SDL window; with
-// `--headless` no window: the stream is received and decoded only (a probe
-// for measurements on hosts without a display).
-
 import Foundation
 import SwiftCodeDisplayStream
 import SwiftCodeRemoteViewer
@@ -136,12 +130,8 @@ public enum LinuxViewer {
         return .run(o)
     }
 
-    /// Runs the viewer; returns the exit status.
     public static func main(_ arguments: [String], connect: (@Sendable () throws -> DisplayTransport)? = nil) -> Int32 {
         signal(SIGPIPE, SIG_IGN)
-        // A parent may start us with signals blocked (a Swift program's
-        // Process inherits its thread's mask): Stop's SIGTERM must reach SDL,
-        // which turns it into a quit event.
         var none = sigset_t()
         sigemptyset(&none)
         pthread_sigmask(SIG_SETMASK, &none, nil)
@@ -155,7 +145,6 @@ public enum LinuxViewer {
         case .run(let opts): o = opts
         }
         var settings = o.settings
-        // auto: the best this host decodes that the server offers (display-stream.md §14).
         if settings.encoding == "auto" {
             settings.encoding = StreamCanvas.decodableEncodings.first ?? "zlib"
             settings.encodings = StreamCanvas.decodableEncodings
@@ -255,7 +244,6 @@ public enum LinuxViewer {
         let host = HeadlessHost()
         let s = script.map { ViewerScript(text: $0, session: session, host: host) }
         if verbose || s != nil { session.log = { [weak s] t in if let s { s.log(t) } else { FileHandle.standardOutput.write(Data((t + "\n").utf8)) } } }
-        // The "front end": drain on a timer, present at once (no window).
         let wake = DispatchSemaphore(value: 0)
         session.wake = { wake.signal() }
         session.start()

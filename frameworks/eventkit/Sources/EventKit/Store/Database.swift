@@ -1,17 +1,9 @@
-// SwiftCode's calendar database: our own SQLite schema (design.md §4), not
-// Apple's. Timed values are stored as UTC instants plus a zone name; all-day
-// and floating values as wall-clock text plus no zone.
-
 import Foundation
 
 enum FixedIDs {
-    /// Birthdays source "Other" (interface.md §2.2).
     static let birthdaySource = "______NativeStorePersistentID_______"
-    /// The "Reminders" list, the same on every device (reminders.md §2).
     static let remindersList = "3C8C2A71-84BF-4C87-8EFD-BB4827650D15"
-    /// Source "Local" shown with reminders-only access.
     static let localReminderSource = "3B242529-8F5D-47A1-9351-444101218C30"
-    /// Write-only virtual view (interface.md §2.3).
     static let virtualSource = "VIRTUAL_APP_SOURCE_UUID"
     static let virtualCalendar = "VIRTUAL_APP_CALENDAR_UUID"
 }
@@ -25,7 +17,6 @@ enum Colors {
     static let virtualCalendar = SwiftCodeRGBColor(red: 1.0, green: 0.2196, blue: 0.2353)
 }
 
-/// A stored time: a UTC instant (timed) or a wall-clock value (floating).
 struct StoredTime: Hashable {
     var utc: Double?
     var local: LocalDateTime?
@@ -41,7 +32,7 @@ struct StoredTime: Hashable {
 
 struct ItemRow: Hashable {
     var id: String
-    var kind: Int                    // 0 event, 1 reminder
+    var kind: Int
     var calendarID: String
     var eventID: String?
     var externalID: String?
@@ -112,8 +103,6 @@ final class CalendarDatabase {
         if meta("unique_id") == nil { try seedFreshDevice() }
     }
 
-    /// The fresh-device state (simulator-baseline.md §2): sources Default and
-    /// Other, calendars Calendar and Birthdays, the list Reminders.
     private func seedFreshDevice() throws {
         try conn.exec("BEGIN IMMEDIATE")
         do {
@@ -143,8 +132,6 @@ final class CalendarDatabase {
         }
     }
 
-    // MARK: Meta
-
     func meta(_ key: String) -> String? {
         (try? conn.run("SELECT value FROM meta WHERE key=?", [.text(key)]))?.first?.first?.text
     }
@@ -152,8 +139,6 @@ final class CalendarDatabase {
     func setMeta(_ key: String, _ value: String) throws {
         try conn.run("INSERT OR REPLACE INTO meta VALUES(?,?)", [.text(key), .text(value)])
     }
-
-    // MARK: Sources and calendars
 
     func sources() -> [SourceRow] {
         let rows = (try? conn.run("SELECT id, title, type FROM source ORDER BY ord, title")) ?? []
@@ -193,15 +178,12 @@ final class CalendarDatabase {
         ])
     }
 
-    /// Deletes a calendar and its items; returns the removed item identifiers.
     func deleteCalendar(_ id: String) throws -> [String] {
         let ids = try conn.run("SELECT id FROM item WHERE calendar_id=?", [.text(id)]).compactMap { $0.first?.text }
         for i in ids { try deleteItemRow(i) }
         try conn.run("DELETE FROM calendar WHERE id=?", [.text(id)])
         return ids
     }
-
-    // MARK: Items
 
     private static let itemColumns = """
         id, kind, calendar_id, event_id, external_id, master_id, title, location, notes, url, tz, all_day,
@@ -302,7 +284,6 @@ final class CalendarDatabase {
         }
     }
 
-    /// Deletes an item, its children rows and its detached occurrences.
     func deleteItemRow(_ id: String) throws {
         let detached = try conn.run("SELECT id FROM item WHERE master_id=?", [.text(id)]).compactMap { $0.first?.text }
         for d in detached { try deleteItemRow(d) }
@@ -311,8 +292,6 @@ final class CalendarDatabase {
         }
         try conn.run("DELETE FROM item WHERE id=?", [.text(id)])
     }
-
-    // MARK: Change journal
 
     func appendJournal(writer: String, mask: UInt, objectIDs: [String]) throws -> Int64 {
         try conn.run("INSERT INTO journal(writer, at, entity_mask, object_ids) VALUES(?,?,?,?)", [
@@ -329,9 +308,6 @@ final class CalendarDatabase {
     }
 }
 
-// MARK: - Date components text
-
-/// `key=value;…` text of the date components a reminder stores.
 enum ComponentsText {
     static func encode(_ c: DateComponents?) -> String? {
         guard let c else { return nil }

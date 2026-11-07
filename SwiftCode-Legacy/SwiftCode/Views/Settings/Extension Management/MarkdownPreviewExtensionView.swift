@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Markdown Preview Extension View
 struct MarkdownPreviewExtensionView: View {
     @State private var livePreviewEnabled = true
     @State private var syncScroll = true

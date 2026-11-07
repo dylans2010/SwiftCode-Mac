@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/RunFullAppView.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 import AppKit
 
@@ -16,7 +14,6 @@ public struct RunFullAppView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Execution Controls Header
             HStack(spacing: 12) {
                 Button {
                     Task {
@@ -76,10 +73,8 @@ public struct RunFullAppView: View {
                     .controlSize(.small)
                 }
 
-                // Reusable copy logs button - always available when logs exist
                 CopyLogsButton(logs: runManager.runLogs.joined(separator: "\n"))
 
-                // Active Scheme indicator
                 if let scheme = api.determineActiveScheme()?.name {
                     Text(scheme)
                         .font(.caption.bold())
@@ -94,7 +89,6 @@ public struct RunFullAppView: View {
 
             Divider()
 
-            // Compilation & Launch HUD Status Panel
             if runManager.isRunning || api.isExecuting {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -127,7 +121,6 @@ public struct RunFullAppView: View {
                 Divider()
             }
 
-            // Real-time Console Log Stream or Actual App Preview View
             if !showLogs, let hostedView = PreviewManager.shared.hostedView {
                 VStack(spacing: 12) {
                     HStack {
@@ -209,7 +202,6 @@ public struct RunFullAppView: View {
         }
     }
 
-    // Helper to color console logs based on patterns
     private func logColor(for line: String) -> Color {
         if line.contains("[ERROR]") || line.contains("error:") || line.hasPrefix("❌") {
             return .red

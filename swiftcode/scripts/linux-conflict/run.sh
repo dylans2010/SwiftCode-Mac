@@ -1,17 +1,4 @@
 #!/bin/sh
-# The Linux IDE's merge workflow and merge sheet end to end
-# (specs/ide/merge-sheet.md; issue #75): makes the Merger repository
-# (make-conflict.sh), runs swiftcode-ide on it with SWIFTCODE_IDE_CONFLICT
-# (ShellDriver+Conflicts.swift), which starts the merge of "feature" from
-# its branch row's menu and the alert, resolves Colors.swift through the
-# tokens' Choose menus and Greeting.swift by hand, clicks Merge (the merge
-# commit), then cherry-picks "pick" through the sheet and cancels a rebase
-# of "topic" from it (Abort); then checks the repository with git.
-#
-#     WAYLAND_DISPLAY=… XDG_RUNTIME_DIR=… run.sh <swiftcode-ide> <work folder> <shots prefix>
-#
-# OV_COLOR_SCHEME=dark runs it in the dark appearance. Exit 0 when every
-# check passes.
 set -u
 IDE=$1; WORK=$2; SHOTS=$3
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -23,7 +10,6 @@ LOG="$WORK/conflict-walk.log"
 SWIFTCODE_IDE_CONFLICT="$SHOTS" OV_QUIT_AFTER=${OV_QUIT_AFTER:-150} timeout 240 "$IDE" "$P" > "$LOG" 2>&1
 echo "ide exit $?"
 grep -E '^(conflict|backend|window)' "$LOG"
-
 fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got [$2], want [$3]"; fail=1; fi; }
 g() { git -C "$P" "$@"; }

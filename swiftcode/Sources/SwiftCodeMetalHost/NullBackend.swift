@@ -1,7 +1,3 @@
-// A `MetalBackend` that executes nothing: it records every call and
-// completes command buffers at once (or when told to, for ordering tests).
-// It reports `isAvailable` false, so a VMM never prefers it to a GPU.
-
 import Foundation
 
 public final class NullBackend: MetalBackend, @unchecked Sendable {
@@ -37,23 +33,15 @@ public final class NullBackend: MetalBackend, @unchecked Sendable {
     private var _pending: [Pending] = []
     private var events: [MetalHandle: UInt64] = [:]
     private var textures: Set<MetalHandle> = []
-    /// Event aliases (messageType 18) → the handle whose value they share.
     private var eventAliases: [MetalHandle: MetalHandle] = [:]
 
-    /// When true (default), `submit` calls `scheduled` and `completed(4)` before returning.
     public var completesImmediately: Bool
-    /// The value `getBytes` fills the guest region with.
     public var readBackFill: UInt8 = 0
     public var limitsValue = MetalLimits.macOSHost
-    /// When set, every texture's resource ID (and heap slot) is this plus
-    /// its handle; nil: no IDs (the default).
     public var textureIDBase: UInt64?
-    /// What `reserveHeapSlots` was given, in order.
     public private(set) var reservations: [(textures: [MetalHandle: (index: UInt32, count: UInt32)], samplers: [MetalHandle: UInt32])] = []
-    /// Called by `shutdown()` (ordering tests).
     public var onShutdown: (@Sendable () -> Void)?
     private var _shutdownCount = 0
-    /// How many times `shutdown()` was called.
     public var shutdownCount: Int { lock.withLock { _shutdownCount } }
 
     public func shutdown() {
@@ -149,7 +137,6 @@ public final class NullBackend: MetalBackend, @unchecked Sendable {
         lock.withLock { reservations.append((textures, samplers)) }
     }
 
-    /// Recorded; reports the bytes written.
     public func writeBuffer(_ handle: MetalHandle, offset: Int, _ bytes: [UInt8]) -> Bool {
         record(.writeBuffer(handle, offset: offset, bytes: bytes))
         return true
@@ -171,8 +158,6 @@ public final class NullBackend: MetalBackend, @unchecked Sendable {
         }
     }
 
-    /// Finishes the oldest pending command buffer: `scheduled` first when
-    /// asked, then `completed(status)`.
     public func completeNext(status: Int = MetalCommandBufferStatus.completed, reportScheduled: Bool = true) {
         guard let p = lock.withLock({ _pending.isEmpty ? nil : _pending.removeFirst() }) else { return }
         if reportScheduled { p.scheduled() }

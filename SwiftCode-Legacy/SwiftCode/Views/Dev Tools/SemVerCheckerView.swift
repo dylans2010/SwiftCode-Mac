@@ -28,7 +28,6 @@ struct SemVerCheckerView: View {
     }
 
     func check() {
-        // Basic SemVer regex/parser logic
         results = [
             "Valid": "Yes",
             "Major": "1",

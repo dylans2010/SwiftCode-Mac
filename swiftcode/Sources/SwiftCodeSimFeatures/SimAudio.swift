@@ -1,11 +1,5 @@
-// Sound, Output and Input (specs/simulator/simulator-features.md
-// §4.11–4.13; audio-host.md §12, §13): the two settings files the host
-// writes and the notifications the guest agent posts.
-
 import Foundation
 
-/// An audio device choice: none (muted), the host's default ("System",
-/// Use System Settings), or one host device by UID.
 public enum AudioDeviceChoice: Equatable, Sendable {
     case none
     case system
@@ -36,7 +30,6 @@ public enum AudioDeviceChoice: Equatable, Sendable {
     }
 }
 
-/// The device's audio settings as SwiftCode keeps them (DEV/swiftcode-settings.plist).
 public struct SimAudioSettings: Equatable, Sendable {
     public var volume: Int = SimAudio.defaultVolume
     public var output: AudioDeviceChoice = .system
@@ -52,17 +45,11 @@ public struct SimAudioSettings: Equatable, Sendable {
 public enum SimAudio {
     public static let defaultVolume = 60
     public static let ringerState = 1
-    /// SwiftCode's one output device (audio-host.md §13.3); there is no input device.
     public static let swiftcodeOutputUID = "dev.swiftcode.simulator.audio.output"
 
-    /// The host devices SwiftCode's audio service offers. **SwiftCode decision**: the
-    /// service has one output device and no input device, and it does not
-    /// enumerate the Linux host's devices; the choices are None, System and
-    /// that output device.
     public static let outputDevices: [(uid: String, name: String)] = [(swiftcodeOutputUID, "SwiftCode Simulator Output")]
     public static let inputDevices: [(uid: String, name: String)] = []
 
-    /// The device UID a choice resolves to (what the guest's settings file names).
     public static func resolvedUID(_ choice: AudioDeviceChoice, output: Bool) -> String {
         switch choice {
         case .none: ""
@@ -71,9 +58,6 @@ public enum SimAudio {
         }
     }
 
-    /// `DEV/data/var/run/com.apple.coresimulator.audio.plist` (§4.12).
-    /// **SwiftCode decision** (open question Q7): None is an empty UID with the
-    /// host-default flag off; System is the default device's UID with the flag on.
     public static func hostFile(_ s: SimAudioSettings) -> [String: Any] {
         ["sim_output_device_uid": resolvedUID(s.output, output: true),
          "sim_input_device_uid": resolvedUID(s.input, output: false),
@@ -81,7 +65,6 @@ public enum SimAudio {
          "useHostDefaultInputDevice": s.input == .system]
     }
 
-    /// `DEV/data/var/run/simulatoraudio/audiosettings.plist` (audio-host.md §12).
     public static func settingsFile(_ s: SimAudioSettings) -> [String: Any] {
         ["sim_input_device_uid": resolvedUID(s.input, output: false),
          "sim_output_device_uid": resolvedUID(s.output, output: true),
@@ -89,7 +72,6 @@ public enum SimAudio {
          "sim_volume": min(100, max(0, s.volume))]
     }
 
-    /// Reads the choices back from the host file (nil when absent or malformed).
     public static func settings(hostFile: [String: Any]?, settingsFile: [String: Any]?) -> SimAudioSettings {
         var s = SimAudioSettings()
         if let v = (settingsFile?["sim_volume"] as? NSNumber)?.intValue { s.volume = min(100, max(0, v)) }
@@ -104,6 +86,5 @@ public enum SimAudio {
         return s
     }
 
-    /// Volume steps of the Increase/Decrease Volume items (SwiftCode: 10).
     public static let volumeStep = 10
 }

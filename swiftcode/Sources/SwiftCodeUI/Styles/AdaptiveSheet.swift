@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// Adaptive sheet (Legacy
-/// `SwiftCode/UI/Styles/Styling/AdaptiveSheet.swift`, Dylan's own code,
-/// ported under MIT). Direct port: minimum 640×460 with the sheet
-/// liquid-glass style, desktop-optimised.
-
 public struct AdaptiveSheet<Content: View>: View {
     let content: Content
 

@@ -1,8 +1,6 @@
 import Foundation
 import AppKit
 
-// MARK: - Toolbar Item
-
 struct ToolbarTool: Identifiable, Codable, Equatable {
     let id: String
     let name: String
@@ -15,8 +13,6 @@ struct ToolbarTool: Identifiable, Codable, Equatable {
         lhs.id == rhs.id
     }
 }
-
-// MARK: - Toolbar Manager
 
 @MainActor
 final class ToolbarManager: ObservableObject {
@@ -82,7 +78,6 @@ final class ToolbarManager: ObservableObject {
 
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
            let decoded = try? JSONDecoder().decode([ToolbarTool].self, from: data) {
-            // Keep user customization for supported tools only, and drop deprecated tools.
             var merged: [ToolbarTool] = []
             var seen = Set<String>()
 
@@ -153,14 +148,10 @@ final class ToolbarManager: ObservableObject {
     ]
 }
 
-// MARK: - Notifications
-
 extension Notification.Name {
     static let toolbarToolActivated = Notification.Name("com.swiftcode.toolbarToolActivated")
     static let showProjectTemplatesOnOpen = Notification.Name("com.swiftcode.showProjectTemplatesOnOpen")
 }
-
-// MARK: - Native macOS Toolbar Customization Delegate
 
 public struct WorkspaceHubTool: Identifiable, Hashable, Sendable {
     public let id: String
@@ -188,7 +179,6 @@ public final class SwiftCodeToolbarDelegate: NSObject, NSToolbarDelegate {
 
     public static let itemPrefix = "com.swiftcode.toolbar."
 
-    // All available tools from MainToolsView and comprehensive search tools
     public static let allAvailableTools: [WorkspaceHubTool] = [
         WorkspaceHubTool(id: "terminal", name: "Terminal Console", description: "Open local shells, run background commands, manage SSH nodes, and configure terminal themes.", iconName: "terminal.fill", colorHex: "#5AC8FA", category: "Utilities", destination: "terminal"),
         WorkspaceHubTool(id: "build_settings", name: "Xcode Build Settings", description: "Manage optimization levels, target SDKs, and build parameters.", iconName: "gearshape.2.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "xcodeBuildSettings"),

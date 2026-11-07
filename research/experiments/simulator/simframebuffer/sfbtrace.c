@@ -1,20 +1,3 @@
-/*
- * sfbtrace: Ycode research interposer for the simulator framebuffer client
- * library (original Ycode code; contains no Apple code).
- *
- * Built for the iOS simulator platform and named like the real library, it is
- * loaded in its place (SIMULATOR_FRAMEBUFFER_FRAMEWORK points at it). It
- * exports the same function names (generated stubs, tramps.s) and forwards
- * every call to the real library, opened with dlopen. For each call it logs:
- * the caller's image, x0-x7 (with a safe description of each value: ObjC/CF
- * objects via CFCopyDescription, C strings, short hex of other readable
- * memory), d0-d3, and after the call x0/x1/d0-d3 plus any argument memory
- * that changed (out-parameters). Block arguments are replaced by wrapper
- * blocks so that their later invocations are logged too.
- *
- * Log: $SFBTRACE_DIR (default /tmp/sfbtrace-R4)/<process>-<pid>.log
- * Real library: $SFBTRACE_REAL (default: CoreSimulator's copy).
- */
 #include <CoreFoundation/CoreFoundation.h>
 #include <objc/runtime.h>
 #include <objc/objc.h>
@@ -59,9 +42,6 @@ static _Atomic uint64_t g_seq;
 static __thread int t_depth;
 static __thread int t_in_log;
 
-/* ---------------------------------------------------------------- safety */
-
-/* Readable, and never executable: the tool must not read any code bytes. */
 static int readable(uint64_t a, void *buf, size_t n)
 {
     if (a < 0x100000 || (a >> 47)) return 0;
@@ -101,7 +81,6 @@ static int known_class(uintptr_t c)
     return 0;
 }
 
-/* Returns the class name if v looks like a live ObjC/CF object. */
 static const char *object_class_name(uint64_t v)
 {
     uint64_t isa;
@@ -117,7 +96,6 @@ static void describe(uint64_t v)
     fprintf(g_log, "0x%llx", (unsigned long long)v);
     const char *cn = NULL;
     if (v >> 63) {
-        /* Possible tagged-pointer object: only strings and numbers are described. */
         Class c = object_getClass((id)v);
         if (c && known_class((uintptr_t)c)) {
             const char *n = class_getName(c);
@@ -167,8 +145,6 @@ static void header(const char *kind, const char *name, uint64_t seq, uint64_t lr
             t_depth * 2, "", kind, name, img);
 }
 
-/* ---------------------------------------------------------------- blocks */
-
 struct blk_desc { unsigned long reserved, size; const char *sig; };
 struct blk {
     void *isa; int32_t flags, reserved; void *invoke; struct blk_desc *desc;
@@ -206,8 +182,6 @@ static uint64_t wrap_block(uint64_t v, const char *where)
     return (uint64_t)w;
 }
 
-/* ---------------------------------------------------------------- hooks */
-
 static void log_args(struct frame *f, int first)
 {
     for (int i = first; i < 8; i++) {
@@ -220,7 +194,6 @@ static void log_args(struct frame *f, int first)
             f->d[0], f->d[1], f->d[2], f->d[3], f->d[4], f->d[5], f->d[6], f->d[7]);
 }
 
-/* Out-parameter tracking: snapshot readable non-object argument memory. */
 struct snap { uint64_t addr; unsigned char b[64]; int ok; };
 static __thread struct snap t_snaps[16][8];
 
@@ -319,8 +292,6 @@ void sfbt_blk_post(struct frame *f)
     t_in_log = 0;
 }
 
-/* ---------------------------------------------------------------- setup */
-
 __attribute__((constructor)) static void sfbt_init(void)
 {
     const char *dir = getenv("SFBTRACE_DIR");
@@ -349,7 +320,6 @@ __attribute__((constructor)) static void sfbt_init(void)
         describe(p ? *(uint64_t *)p : 0);
         fprintf(g_log, "\n");
     }
-    /* Who loaded us: image names on the current stack (no symbol names). */
     void *bt[64];
     int n = backtrace(bt, 64);
     fprintf(g_log, "   load stack:");

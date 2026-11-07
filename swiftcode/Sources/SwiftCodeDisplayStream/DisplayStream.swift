@@ -1,18 +1,10 @@
-// The display stream protocol between swiftcode-simd's display server and a
-// viewer (specs/simulator/display-stream.md). SwiftCode's own design: framed
-// binary messages over a byte stream (a Unix or TCP socket). Shared by the
-// server (Linux) and the viewer (macOS); Foundation only.
-
 import Foundation
 
 public enum DisplayStream {
-    /// The protocol name in both hellos (§3.1).
     public static let protocolName = "swiftcode-display/1"
-    /// The largest message either side accepts (§2).
     public static let maxMessageSize = 64 << 20
 }
 
-/// Message types (§2). 0x01–0x7F: server to client; 0x81–0xFF: client to server.
 public enum DisplayMessageType: UInt8, Sendable {
     case hello = 0x01
     case status = 0x02
@@ -20,25 +12,13 @@ public enum DisplayMessageType: UInt8, Sendable {
     case pong = 0x04
     case screenshot = 0x05
     case notice = 0x06
-    /// The panel shown and the fold (foldable.md "SwiftCode implementation").
     case displayState = 0x07
-    /// The answer to a command (0x90): u32 token, UTF-8 text ("ok …" or "error: …").
     case commandReply = 0x10
-    /// The server's stage times of the frame just sent (§12; only when the
-    /// client hello asked for `timing`).
     case frameTiming = 0x08
-    /// The device's sound (§15): a packet of audio with its play time.
     case audio = 0x09
-    /// The headset viewer (xr-viewer.md §4.1): the view and pose of the
-    /// next frame message, sent just before it.
     case frameView = 0x0A
-    /// Foveated streaming (xr-viewer.md §4.5): the full-resolution inset
-    /// around the gaze for the frame just sent.
     case inset = 0x0B
-    /// The headset mode's depth of the frame just sent (xr-depth.md §4; only
-    /// when the client hello asked for `xr.depthDownscale`).
     case frameDepth = 0x0C
-    /// The room's environment cube (xr-depth.md §4.3; when the client hello asked for `xr.environment`).
     case environment = 0x0D
 
     case clientHello = 0x81
@@ -49,29 +29,16 @@ public enum DisplayMessageType: UInt8, Sendable {
     case keyframeRequest = 0x86
     case screenshotRequest = 0x87
     case rotate = 0x88
-    /// u16 hinge angle 0…180, u8 flags (bit 0: one message, no sweep).
     case fold = 0x89
-    /// visionOS (visionos.md "SwiftCode implementation"; only when the hello's
-    /// `spatial` is true): the camera pose, a gaze-and-hands selection, and
-    /// a Digital Crown turn, all in the stage frame (§5.5.1).
     case pose = 0x8A
     case selection = 0x8B
     case dial = 0x8C
-    /// The headset viewer: head and eye poses (xr-viewer.md §4.1; latest wins).
     case views = 0x8D
-    /// Foveated streaming: where the eyes look in the guest's view (latest wins).
     case fovea = 0x8E
-    /// The newest frame decoded (a viewer with `frameWindow`, §4.2): the server
-    /// keeps at most that many frames unacknowledged, and takes the newest picture when one is free.
     case frameAck = 0x8F
-    /// A device command (simulator-features.md "SwiftCode implementation"): u32
-    /// token, UTF-8 words of a control-socket command ("ui appearance dark").
     case command = 0x90
 }
 
-// MARK: - Control messages (JSON)
-
-/// The server's hello (§3.1): the device and what the server accepts.
 public struct DisplayServerHello: Codable, Sendable, Equatable {
     public var `protocol`: String = DisplayStream.protocolName
     public var deviceName: String
@@ -81,44 +48,22 @@ public struct DisplayServerHello: Codable, Sendable, Equatable {
     public var scale: Double
     public var pointWidth: Double
     public var pointHeight: Double
-    /// "portrait", "portraitUpsideDown", "landscapeLeft", "landscapeRight".
     public var orientation: String
     public var encodings: [String]
     public var touch: Bool
     public var keyboard: Bool
-    /// The buttons the server delivers (names of `DisplayButton`).
     public var buttons: [String]
     public var rotation: Bool
-    /// The device folds (foldable.md): the server takes fold messages and
-    /// sends display states; nil or false otherwise.
     public var foldable: Bool?
-    /// The built-in displays (names), display 1 first; nil: just one.
     public var displays: [String]?
-    /// SwiftCode's device type id (`swiftcode-simd --device-type`, e.g. "iphone-duo")
-    /// and the runtime ("iOS 27.1"): the viewer draws the device's frame and
-    /// titles its window with them (device-hub.md "SwiftCode implementation").
-    /// Optional: older servers send neither.
     public var deviceType: String?
     public var osVersion: String?
-    /// The audio codecs the server can send (§15); nil: no audio.
     public var audio: [String]?
-    /// The server takes the visionOS input messages (pose 0x8A, selection
-    /// 0x8B, dial 0x8C; visionos.md "SwiftCode implementation"). Viewers send
-    /// them only when this is true; nil or false: an older server or a
-    /// device that is not a Vision Pro.
     public var spatial: Bool?
-    /// The simulated rooms the device offers (keys, e.g. "LivingRoomDay"),
-    /// and the active one, when known at connect time; the `vision rooms`
-    /// command answers later.
     public var rooms: [String]?
-    /// The server has the headset mode (views 0x8D, frame views 0x0A;
-    /// xr-viewer.md §4.1). Nil or false: an older server or not visionOS.
     public var xr: Bool?
-    /// The server can send each picture's depth (frame depth 0x0C; xr-depth.md §4).
     public var xrDepth: Bool?
-    /// The server can send the room's environment (0x0D; xr-depth.md §4.3).
     public var xrEnvironment: Bool?
-    /// The server honours a client's `frameWindow` (frame acks 0x8F, §4.2).
     public var frameAcks: Bool?
 
     public init(deviceName: String, model: String, pixelWidth: Int, pixelHeight: Int, scale: Double,
@@ -142,26 +87,15 @@ public struct DisplayServerHello: Codable, Sendable, Equatable {
     }
 }
 
-/// The panel the server shows and the fold (0x07; foldable.md "SwiftCode
-/// implementation"). Sent before the first frame and whenever it changes;
-/// the frames that follow are that panel's, starting with a full frame.
 public struct DisplayPanelState: Codable, Sendable, Equatable {
-    /// "LCD" (the cover / only display) or "LCD-1" (the inner panel).
     public var display: String
-    /// The panel's framebuffer pixels (native portrait) and scale: frames,
-    /// touches (in its points, native orientation) and screenshots use them.
     public var pixelWidth: Int
     public var pixelHeight: Int
     public var scale: Double
-    /// Degrees (0, 90, 180, 270) to turn the framebuffer image clockwise to
-    /// show it as the device is held.
     public var rotation: Int
-    /// The hinge angle last sent, and the one a sweep is moving to (nil: none).
     public var hingeAngle: Int
     public var targetAngle: Int?
-    /// "closed", "halfOpen", "openFlat".
     public var posture: String
-    /// The device orientation ("portrait", "landscape-left", …).
     public var orientation: String
 
     public init(display: String, pixelWidth: Int, pixelHeight: Int, scale: Double, rotation: Int, hingeAngle: Int,
@@ -180,16 +114,12 @@ public struct DisplayPanelState: Codable, Sendable, Equatable {
     public var pointWidth: Double { Double(pixelWidth) / scale }
     public var pointHeight: Double { Double(pixelHeight) / scale }
 
-    /// The rotation, 0, 90, 180 or 270.
     public var quarterTurns: Int { (((rotation % 360) + 360) % 360) / 90 }
 
-    /// The panel's size in points as shown (turned by `rotation`).
     public var shownPointSize: (width: Double, height: Double) {
         quarterTurns % 2 == 1 ? (pointHeight, pointWidth) : (pointWidth, pointHeight)
     }
 
-    /// A point of the shown (turned) picture → the panel's own points
-    /// (native orientation, origin top-left), the touch space (§5.1).
     public func nativePoint(shownX x: Double, shownY y: Double) -> (x: Double, y: Double) {
         switch quarterTurns {
         case 1: (y, pointHeight - x)
@@ -200,54 +130,26 @@ public struct DisplayPanelState: Codable, Sendable, Equatable {
     }
 }
 
-/// The client's hello (§3.2): how it wants frames.
-/// The server's notice to a viewer that another one took the display over
-/// (display-stream.md §1). A viewer that gets it does not reconnect by
-/// itself: it waits until its user takes the display back (§1.1).
 public enum DisplayNotice {
     public static let takenOver = "another viewer connected; this one is closed"
-    /// The phase a viewer reports while another one has the display.
     public static let takenOverPhase = "takenOver"
 }
 
 public struct DisplayClientHello: Codable, Sendable, Equatable {
     public var `protocol`: String = DisplayStream.protocolName
     public var client: String
-    /// Frames per second at most (1...120).
     public var maxFPS: Int
-    /// "hevc444", "hevc", "h264", "jpeg" or "zlib" (lossless BGRA).
     public var encoding: String
-    /// Every encoding this client decodes, best first (§14): the server takes
-    /// the first it offers. Nil: `encoding` alone (older clients).
     public var encodings: [String]?
-    /// JPEG quality (1...100).
     public var quality: Int
-    /// Integer downscale of the device pixels (1...4).
     public var downscale: Int
-    /// Ask for a frame timing message (0x08) after every frame (§12).
-    /// Optional: older clients and servers leave it out.
     public var timing: Bool?
-    /// The video bit rate in kbit/s (§14; nil: the server's default).
     public var videoBitrate: Int?
-    /// Constant QP for video (§14; nil or 0: by bit rate). The stream sends a
-    /// picture only when it changes, so nothing would refine a starved one.
     public var videoQP: Int?
-    /// By bit rate with this nominal picture rate: CBR with a VBV of one
-    /// picture (§14). Nil: VBR at `maxFPS`, as older clients get.
     public var videoFPS: Int?
-    /// The audio codecs the client plays, preferred first ("opus", "pcm";
-    /// §15). Nil or empty: no audio is sent.
     public var audio: [String]?
-    /// The headset viewer's request (xr-viewer.md §4.1); nil: an ordinary viewer.
     public var xr: XRClientRequest?
-    /// Flow control (§4.2): at most this many frames sent and not yet
-    /// acknowledged (0x8F). Nil or 0: as fast as the transport takes them.
     public var frameWindow: Int?
-    /// Lossless once still (§4.2.2): once the screen has not changed for a
-    /// moment, the server sends the parts it last sent lossy (JPEG, video)
-    /// again as zlib tiles, so a still picture is exact (pixel-exact text at
-    /// 1:1). SwiftCode's viewers ask for it (the initializer's default); nil
-    /// (older clients) or false: lossy pictures stay as they are.
     public var stillLossless: Bool?
 
     public init(client: String, maxFPS: Int = 60, encoding: String = "jpeg", quality: Int = 75, downscale: Int = 1) {
@@ -260,29 +162,14 @@ public struct DisplayClientHello: Codable, Sendable, Equatable {
     }
 }
 
-/// What a headset viewer asks for (xr-viewer.md §4.1).
 public struct XRClientRequest: Codable, Sendable, Equatable {
-    /// "adaptive" (mono while the head moves, the eyes in turn while it is
-    /// still), "alternate" (the eyes in turn) or "mono".
     public var stereo: String
-    /// Pictures between a pose and the picture rendered with it (nil: the server's default).
     public var latch: Int?
-    /// Alternate stereo: the least milliseconds a pose has before its picture is taken (nil: the server's default).
     public var settleMs: Int?
-    /// Foveated streaming (§4.5): the whole picture at the hello's downscale
-    /// plus a full-resolution inset of this fraction of each side around the
-    /// gaze (nil or 0: off).
     public var foveaFraction: Double?
-    /// Eye pictures (alternate, adaptive when still): each eye's guest
-    /// camera turned outwards by this many degrees (left eye left, right eye
-    /// right), so its symmetric 90° covers most of the headset's asymmetric
-    /// per-eye frustum (xr-viewer.md §4.6). Nil or 0: parallel eyes.
     public var eyeYawDegrees: Double?
 
-    /// Each picture's depth at the picture's size divided by this (2, 4 or 8;
-    /// nil or 0: no depth; xr-depth.md §4).
     public var depthDownscale: Int?
-    /// Send the room's environment now and whenever it changes (0x0D; xr-depth.md §4.3).
     public var environment: Bool?
 
     public init(stereo: String, latch: Int? = nil, settleMs: Int? = nil, depthDownscale: Int? = nil) {
@@ -290,9 +177,7 @@ public struct XRClientRequest: Codable, Sendable, Equatable {
     }
 }
 
-/// The server's status (§3.3).
 public struct DisplayStatus: Codable, Sendable, Equatable {
-    /// "booting" (no frame presented yet), "live", or "stopping".
     public var phase: String
     public var uptimeMilliseconds: Int
     public var guestFrames: Int
@@ -306,18 +191,11 @@ public struct DisplayStatus: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Frames
-
 public enum DisplayEncoding: UInt8, Sendable {
     case jpeg = 1
-    /// zlib (RFC 1950) of packed BGRA rows.
     case zlibBGRA = 2
-    /// H.264 (ITU-T H.264, Annex B byte stream): one tile covering the whole
-    /// image, one access unit; `isFull` marks an IDR picture (§14).
     case h264 = 3
-    /// HEVC 4:2:0 (ITU-T H.265, Annex B), carried as H.264 is (§14).
     case hevc = 4
-    /// HEVC 4:4:4 (Range Extensions): chroma at every pixel, for coloured UI text and edges (§14).
     case hevc444 = 5
 
     public init?(name: String) {
@@ -331,7 +209,6 @@ public enum DisplayEncoding: UInt8, Sendable {
         }
     }
 
-    /// Whole pictures through a video codec (one tile, one access unit), not tiles of pixels.
     public var isVideo: Bool { self == .h264 || self == .hevc || self == .hevc444 }
 
     public var name: String {
@@ -345,7 +222,6 @@ public enum DisplayEncoding: UInt8, Sendable {
     }
 }
 
-/// One rectangle of new pixels, in stream-image coordinates.
 public struct DisplayTile: Sendable, Equatable {
     public var x: Int, y: Int, width: Int, height: Int
     public var data: [UInt8]
@@ -355,18 +231,13 @@ public struct DisplayTile: Sendable, Equatable {
     }
 }
 
-/// A frame update (§4): tiles to draw over the previous image.
 public struct DisplayFrame: Sendable, Equatable {
     public var sequence: UInt64
     public var guestFrame: UInt64
     public var serverNanoseconds: UInt64
-    /// The newest input sequence number the server had delivered when it
-    /// read these pixels (0: none).
     public var inputSequence: UInt32
-    /// The size of the stream image (device pixels / downscale).
     public var width: Int, height: Int
     public var encoding: DisplayEncoding
-    /// The tiles cover the whole image.
     public var isFull: Bool
     public var tiles: [DisplayTile]
 
@@ -386,10 +257,6 @@ public struct DisplayFrame: Sendable, Equatable {
     public var byteCount: Int { tiles.reduce(0) { $0 + $1.data.count } }
 }
 
-/// The server's times of one frame (0x08, §12), its monotonic ns: when it
-/// saw the guest's frame record change, when it began reading the surface
-/// (scan), when the encoded frame was ready, and when the frame's last byte
-/// was handed to the socket. 0: not known (a speculative scan has no record).
 public struct DisplayFrameTiming: Sendable, Equatable {
     public var sequence: UInt64
     public var recordSeen: UInt64
@@ -402,9 +269,6 @@ public struct DisplayFrameTiming: Sendable, Equatable {
     }
 }
 
-/// One packet of the device's sound (0x09, §15): 48 kHz interleaved
-/// stereo; `playTime` is the server monotonic ns at which the device plays
-/// its first frame (the guest's output time on the host clock).
 public struct DisplayAudio: Sendable, Equatable {
     public enum Codec: UInt8, Sendable { case pcm16 = 1, opus = 2 }
     public var playTime: UInt64
@@ -419,13 +283,10 @@ public struct DisplayAudio: Sendable, Equatable {
     }
 }
 
-// MARK: - Input
-
 public enum TouchPhase: UInt8, Sendable {
     case began = 0, moved = 1, ended = 2, cancelled = 3
 }
 
-/// One finger of a touch report, in device points (§5.1).
 public struct TouchContact: Sendable, Equatable {
     public var finger: UInt8
     public var phase: TouchPhase
@@ -438,9 +299,6 @@ public struct TouchContact: Sendable, Equatable {
 
 public enum DisplayButton: UInt8, Sendable, CaseIterable {
     case home = 1, lock = 2, volumeUp = 3, volumeDown = 4, side = 5
-    /// An Action button (§5.3): a server lists "action" in its hello's
-    /// `buttons` when it takes this value (watchos.md §5.2); viewers send it
-    /// only then (an older server closes the connection on an unknown value).
     case action = 6
 
     public var name: String {
@@ -455,21 +313,14 @@ public enum DisplayButton: UInt8, Sendable, CaseIterable {
     }
 }
 
-/// A client → server input event (§5).
 public enum DisplayInput: Sendable, Equatable {
     case touch(sequence: UInt32, contacts: [TouchContact])
-    /// A keyboard key: HID usage page (7 = keyboard) and usage.
     case key(sequence: UInt32, down: Bool, usagePage: UInt16, usage: UInt16)
     case button(sequence: UInt32, button: DisplayButton, down: Bool)
-    /// visionOS: the camera pose (stage frame; identity = the default eye).
     case pose(sequence: UInt32, pose: SpatialPose)
-    /// visionOS: the gaze ray and, unless selection-only, both hands.
     case selection(sequence: UInt32, selection: SpatialSelection)
-    /// visionOS: the Digital Crown turned by `delta` (signed).
     case dial(sequence: UInt32, delta: Double)
-    /// The headset's head and eyes (xr-viewer.md §4.1).
     case views(sequence: UInt32, views: XRViews)
-    /// Where the eyes look: (u, v) in the guest's view, 0…1 from the top left.
     case fovea(sequence: UInt32, u: Float, v: Float)
 
     public var sequence: UInt32 {
@@ -478,8 +329,6 @@ public enum DisplayInput: Sendable, Equatable {
         }
     }
 }
-
-// MARK: - Messages
 
 public enum DisplayMessage: Sendable, Equatable {
     case hello(DisplayServerHello)
@@ -501,14 +350,10 @@ public enum DisplayMessage: Sendable, Equatable {
     case input(DisplayInput)
     case ping(token: UInt64)
     case keyframeRequest
-    /// Every frame up to this sequence is decoded (§4.2).
     case frameAck(sequence: UInt64)
     case screenshotRequest(token: UInt32)
-    /// 1 portrait, 2 upside down, 3 landscape left, 4 landscape right.
     case rotate(orientation: UInt8)
-    /// Move the hinge to `angle` degrees (a sweep; one message when `instant`).
     case fold(angle: UInt16, instant: Bool)
-    /// A control-socket command for the device; answered by `commandReply`.
     case command(token: UInt32, text: String)
 }
 
@@ -518,8 +363,6 @@ public enum DisplayStreamError: Error, Equatable {
     case truncated(String)
     case badJSON(String)
 }
-
-// MARK: - Encoding
 
 struct ByteWriter {
     var bytes: [UInt8] = []
@@ -605,7 +448,6 @@ extension DisplayMessage {
         }
     }
 
-    /// The message with its frame header: u32 length (type + payload), u8 type, payload.
     public func encoded() -> [UInt8] {
         var w = ByteWriter()
         func json<T: Encodable>(_ v: T) {
@@ -753,7 +595,6 @@ extension DisplayMessage {
         return out.bytes
     }
 
-    /// Decodes one message body (type byte and payload, without the length).
     public static func decode(type rawType: UInt8, payload: ArraySlice<UInt8>) throws -> DisplayMessage {
         guard let type = DisplayMessageType(rawValue: rawType) else { throw DisplayStreamError.unknownType(rawType) }
         var r = ByteReader(payload)
@@ -892,7 +733,6 @@ extension DisplayMessage {
     }
 }
 
-/// Splits a byte stream into messages (§2).
 public struct DisplayMessageParser: Sendable {
     private var buffer: [UInt8] = []
     private var start = 0
@@ -902,8 +742,6 @@ public struct DisplayMessageParser: Sendable {
     public mutating func append(_ bytes: UnsafeRawBufferPointer) { buffer.append(contentsOf: bytes) }
     public mutating func append(_ bytes: [UInt8]) { buffer += bytes }
 
-    /// The next complete message, nil when more bytes are needed. Unknown
-    /// message types are skipped (forward compatibility, §2).
     public mutating func next() throws -> DisplayMessage? {
         while true {
             let available = buffer.count - start

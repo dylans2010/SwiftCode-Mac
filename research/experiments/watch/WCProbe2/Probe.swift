@@ -1,22 +1,3 @@
-// WCProbe2: Ycode research probe (original Ycode code, no Apple code), written
-// from Apple's public WatchConnectivity documentation. One source, built for
-// the iOS simulator (-D PHONE) and the watchOS simulator (-D WATCH).
-//
-// Each side activates the default WCSession and logs one line per event:
-//   NSLog "WCP2 <side> <unix time> <event> key=value ..."
-// and appends the same line to <data container>/Documents/wcp2.log.
-//
-// The launch arguments choose what the side sends once activated:
-//   ui <n>            transferUserInfo n dictionaries
-//   file <bytes>      transferFile of a new file of that size, with metadata
-//   comp              (phone) transferCurrentComplicationUserInfo
-//   ctx               updateApplicationContext
-//   msg               one sendMessage with a reply (if reachable)
-//   (none)            only activate and log what arrives
-// Every 5 s: the session's state (activation, reachability, pending
-// content, outstanding transfers; phone: isPaired, isWatchAppInstalled,
-// isComplicationEnabled, watchDirectoryURL, remaining complication transfers).
-// Received files are copied to Documents/received/ and listed.
 import SwiftUI
 import WatchConnectivity
 

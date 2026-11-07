@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodePaywall
 
-/// Entitlement logic against fixtures. This is Legacy's rule exactly:
-/// Pro when the verified entitlement set is non-empty or the bypass
-/// flag is on, with a debug override winning over both while set.
-/// No StoreKit is involved: the state is pure.
 struct PaywallEntitlementTests {
 
     @Test("No entitlements, no bypass, no override is not Pro")
@@ -27,10 +23,6 @@ struct PaywallEntitlementTests {
 
     @Test("Any verified entitlement grants Pro, even an unknown ID — Legacy's rule")
     func unknownEntitlementIsPro() {
-        // Legacy tested only that the purchased set was non-empty, so
-        // a future App Store Connect product would grant Pro too.
-        // This test pins that faithful behaviour; narrowing the gate
-        // to catalog IDs would be a product decision, not a port.
         let state = PaywallEntitlementState(purchasedProductIDs: ["swiftcode.pro.future"])
         #expect(state.isPro)
         #expect(state.source == .entitlements)

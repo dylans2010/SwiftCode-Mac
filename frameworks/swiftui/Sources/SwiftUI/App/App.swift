@@ -6,13 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// The app model (round R7; 06-app-and-components.md §1): `App`, `Scene`,
-// `WindowGroup`, `Window`, scene modifiers, `onOpenURL`, and the actions that
-// open and dismiss windows. `App.main()` runs the application host
-// (AppHost.swift) on the default platform back end.
-
-/// An application: a value whose `body` lists its scenes. `@main` on a type
-/// conforming to `App` starts it.
 @MainActor @preconcurrency
 public protocol App {
     associatedtype Body: Scene
@@ -21,16 +14,12 @@ public protocol App {
 }
 
 extension App {
-    /// Starts the application: creates it, connects its first scene to a
-    /// window and runs the main loop until it quits.
     @MainActor @preconcurrency
     public static func main() {
         AppHost.runMain(Self.self)
     }
 }
 
-/// Part of an application's user interface with its own lifecycle (a window
-/// group, a window).
 @MainActor @preconcurrency
 public protocol Scene {
     associatedtype Body: Scene
@@ -43,7 +32,6 @@ extension Scene where Body == Never {
     public var body: Never { fatalError("\(Self.self) is a primitive scene") }
 }
 
-/// Builds scenes from the statements of an `App.body`.
 @MainActor @resultBuilder
 public struct SceneBuilder {
     public static func buildExpression<Content: Scene>(_ content: Content) -> Content { content }
@@ -55,9 +43,6 @@ public struct SceneBuilder {
     public static func buildLimitedAvailability<Content: Scene>(_ content: Content) -> Content { content }
 }
 
-// MARK: - Scene descriptions
-
-/// What the host needs to know about one scene.
 package struct SceneDescription {
     package enum Kind: Equatable { case windowGroup, window, settings }
     package var kind: Kind
@@ -68,11 +53,9 @@ package struct SceneDescription {
     package var resizable = true
     package var environment: [(inout EnvironmentValues) -> Void] = []
     package var changeObservers: [SceneChangeObserver] = []
-    /// `commands` of the scene (R11; merged into the app's menu bar).
     package var commands: [any Commands] = []
 }
 
-/// A scene-level `onChange(of:)`.
 package struct SceneChangeObserver {
     package let value: Any
     package let equal: (Any, Any) -> Bool
@@ -80,7 +63,6 @@ package struct SceneChangeObserver {
     package let action: (Any, Any) -> Void
 }
 
-/// Flattens scene values.
 @MainActor
 package protocol PrimitiveScene: Scene {
     func _collect(into scenes: inout [SceneDescription])
@@ -108,7 +90,6 @@ package enum SceneCollector {
     }
 }
 
-/// Several scenes built by one `SceneBuilder` block.
 public struct _TupleScene<T>: Scene {
     public var value: T
     public init(_ value: T) { self.value = value }
@@ -135,8 +116,6 @@ extension Optional: PrimitiveScene where Wrapped: Scene {
 
 private func plainString(_ text: Text) -> String { text.segments.map(\.string).joined() }
 
-/// A group of identical windows; on Linux the first group opens one window
-/// at launch and `openWindow(id:)` opens more.
 public struct WindowGroup<Content: View>: Scene {
     package let id: String?
     package let title: String
@@ -181,8 +160,6 @@ extension WindowGroup: PrimitiveScene {
     }
 }
 
-/// A single, unique window (a desktop scene: opened at launch when it is the
-/// first scene, otherwise with `openWindow(id:)`).
 public struct Window<Content: View>: Scene {
     package let id: String
     package let title: String
@@ -215,9 +192,6 @@ extension Window: PrimitiveScene {
     }
 }
 
-// MARK: - Scene modifiers
-
-/// A scene whose descriptions are changed by `transform`.
 public struct _ModifiedScene<Content: Scene>: Scene {
     package let content: Content
     package let transform: @MainActor (inout SceneDescription) -> Void
@@ -233,7 +207,6 @@ extension _ModifiedScene: PrimitiveScene {
     }
 }
 
-/// How a window may be resized.
 public struct WindowResizability: Sendable, Equatable {
     let kind: Int
     public static let automatic = WindowResizability(kind: 0)
@@ -246,7 +219,6 @@ extension Scene {
         _ModifiedScene(content: self, transform: t)
     }
 
-    /// The size of new windows of the scene (points).
     public func defaultSize(width: CGFloat, height: CGFloat) -> _ModifiedScene<Self> {
         modified { $0.defaultSize = CGSize(width: width, height: height) }
     }
@@ -259,7 +231,6 @@ extension Scene {
         modified { $0.resizable = resizability != .contentSize }
     }
 
-    /// Sets an environment value for the scene's views.
     public func environment<V>(_ keyPath: WritableKeyPath<EnvironmentValues, V>, _ value: V) -> _ModifiedScene<Self> {
         modified { $0.environment.append { $0[keyPath: keyPath] = value } }
     }
@@ -269,14 +240,11 @@ extension Scene {
         modified { $0.environment.append { transform(&$0[keyPath: keyPath]) } }
     }
 
-    /// Runs `action` when `value` differs between two evaluations of the
-    /// app's body (the old and new values).
     public func onChange<V: Equatable>(of value: V, initial: Bool = false,
                                        _ action: @escaping (_ oldValue: V, _ newValue: V) -> Void) -> _ModifiedScene<Self> {
         modified {
             $0.changeObservers.append(SceneChangeObserver(value: value, equal: { ($0 as? V) == ($1 as? V) },
                                                           initial: initial) { old, new in
-                // swiftlint:disable:next force_cast - stored with type V above
                 action(old as! V, new as! V)
             })
         }
@@ -288,8 +256,6 @@ extension Scene {
     }
 }
 
-// MARK: - Window actions
-
 private enum OpenWindowKey: EnvironmentKey {
     static let defaultValue = OpenWindowAction(open: { _ in })
 }
@@ -298,7 +264,6 @@ private enum DismissWindowKey: EnvironmentKey {
     static let defaultValue = DismissWindowAction(dismiss: { _ in })
 }
 
-/// Opens a window of a scene: `openWindow(id: "inspector")`.
 public struct OpenWindowAction: Sendable {
     package let open: @MainActor @Sendable (String?) -> Void
 
@@ -307,7 +272,6 @@ public struct OpenWindowAction: Sendable {
     @MainActor public func callAsFunction<D: Hashable & Codable>(id: String, value: D) { open(id) }
 }
 
-/// Closes the window that shows the view, or the windows of a scene.
 public struct DismissWindowAction: Sendable {
     package let dismiss: @MainActor @Sendable (String?) -> Void
 
@@ -326,8 +290,6 @@ extension EnvironmentValues {
         set { self[DismissWindowKey.self] = newValue }
     }
 }
-
-// MARK: - onOpenURL
 
 final class OpenURLHandlerState {
     var action: (URL) -> Void = { _ in }
@@ -357,7 +319,6 @@ struct OpenURLModifier: PrimitiveModifier {
 }
 
 extension View {
-    /// Runs `action` when the application is asked to open a URL.
     public func onOpenURL(perform action: @escaping (URL) -> Void) -> some View {
         modifier(OpenURLModifier(action: action))
     }

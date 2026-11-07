@@ -22,7 +22,6 @@ import USDStage
         {
         }
 
-
         """)
     }
 
@@ -43,7 +42,6 @@ import USDStage
         doc.redo()
         #expect(doc.prim(cube)?.attribute("size")?.value() == .double(0.5))
         #expect(throws: USDError.self) { try doc.setAttribute(cube.appendingProperty("size"), .float(1)) }
-        // Undo everything returns the original layer.
         while doc.history.canUndo { doc.undo() }
         #expect(doc.layer == SceneDocument.newScene().layer)
     }

@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// A native macOS card view that displays the current Code Review status, user explanation, and confidence.
-/// This view represents the lifecycle of the code_review tool rather than being a permanent component of the interface.
 public struct CodeAssistUserView: View {
     @ObservedObject private var manager = AssistManager.shared
 
@@ -53,8 +51,6 @@ public struct CodeAssistUserView: View {
             .liquidGlass(style: .subtle, cornerRadius: 8)
         }
     }
-
-    // MARK: - Helpers
 
     private var isReady: Bool {
         manager.currentCodeReview?.status == "task_ready"

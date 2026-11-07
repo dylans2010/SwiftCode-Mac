@@ -1,13 +1,5 @@
 import Foundation
 
-// Ported verbatim from Legacy `SwiftCode/Core/AI/OpenRouterModel.swift` (22 lines),
-// made public: `OpenRouterService.fetchModels()` returns `[OpenRouterModel]` and
-// call sites live in SwiftCodeUI / swiftcode-ide, and
-// `SettingsViewModel.availableModels` / `OpenRouterAssistProvider.fetchModels()`
-// already reference the type. Decodes directly from the /models JSON
-// (`id`, `name`, `description`; `contextLength`/`pricing` are optional and
-// absent keys decode as nil).
-
 public struct OpenRouterModel: Identifiable, Sendable, Codable {
     public let id: String
     public let name: String

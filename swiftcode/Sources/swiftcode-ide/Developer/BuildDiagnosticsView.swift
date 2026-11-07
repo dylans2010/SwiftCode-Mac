@@ -1,21 +1,3 @@
-// BuildDiagnosticsView.swift
-//
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/BuildDiagnosticsView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: PARTIAL at bc28f653 (BuildLogsView is a different, real log viewer; this diagnostics
-// step-list view was absent). Confirmed genuinely missing at 7ac654a9: no equivalent view exists.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// CLEANUP (2026-11-06, C12): Legacy's `logs` array was hardcoded sample
-// entries ("Resolving Swift Packages" 1.2s, "Compiling Module
-// SwiftCodeCore" 4.5s, "Compiling Main Target" 12.1s + a fake warning,
-// "Linking SwiftCode.app" 2.1s) — a build that never ran, presented as
-// diagnostics. Replaced with the live log stream:
-// XcodeBuildManager.shared.buildLogs (real xcodebuild output lines
-// appended as the build runs), plus the manager's live status,
-// duration, warning and error counts. Until a build has run the view
-// shows an honest empty state instead of sample rows. Lines are
-// classified only by their real content ("error:" / "warning:").
-
 import SwiftUI
 import SwiftCodeBuild
 import SwiftCodeUI
@@ -67,9 +49,6 @@ struct BuildDiagnosticsView: View {
                     description: Text("No build has run in this session. Live xcodebuild output will appear here once a build starts.")
                 )
             } else {
-                // Indexed by position: xcodebuild output can contain
-                // identical lines, so the line text itself is not a
-                // usable row identity.
                 List(Array(buildManager.buildLogs.enumerated()), id: \.offset) { _, line in
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: iconForLine(line))
@@ -95,7 +74,6 @@ struct BuildDiagnosticsView: View {
         }
     }
 
-    /// Classifies a live log line by its real content only.
     private func iconForLine(_ line: String) -> String {
         let lower = line.lowercased()
         if lower.contains("error:") { return "xmark.circle.fill" }

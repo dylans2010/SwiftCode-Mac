@@ -1,21 +1,5 @@
 import Foundation
 
-/// The shared api.github.com transport for the extended GitHub clients
-/// (`GitHubGistClient`, `GitHubReleaseClient`, `GitHubRemoteListsClient`,
-/// `GitHubIssueCommentClient`).
-///
-/// `GitHubClient` owns the same machinery as `private` methods, so a new
-/// file cannot reuse it without editing `GitHubClient.swift` — and this
-/// migration adds new files only. This transport mirrors it exactly:
-/// the same base URL, `Accept` / `X-GitHub-Api-Version` / `User-Agent`
-/// headers, Bearer token from the injected provider, rate-limit
-/// recording, and `GitHubError` mapping. The token is never stored
-/// here and never logged.
-///
-/// Ported from Legacy (`SwiftCode/Views/GitHub/` + `SwiftCode/Views/Gists/`,
-/// which each hand-rolled the same URLSession calls): the behaviour is
-/// Legacy's, the transport is shared so the four clients do not each
-/// duplicate it.
 struct GitHubRESTTransport: Sendable {
     static let baseURL = GitHubClient.baseURL
     private static let apiVersion = "2022-11-28"
@@ -25,8 +9,6 @@ struct GitHubRESTTransport: Sendable {
     let session: URLSession
     let tokenProvider: @Sendable () -> String?
 
-    /// Builds a request. `path` is already percent-encoded segment by
-    /// segment, matching `GitHubClient`'s convention.
     func request(path: String, method: String = "GET", query: [URLQueryItem] = [], body: Data? = nil) -> URLRequest {
         var components = URLComponents(url: Self.baseURL, resolvingAgainstBaseURL: false)!
         components.percentEncodedPath = "/" + path
@@ -46,8 +28,6 @@ struct GitHubRESTTransport: Sendable {
         return urlRequest
     }
 
-    /// Sends the request and decodes the body. A 204 / empty body
-    /// decodes only when `T` is `GitHubEmptyResponse`.
     func perform<T: Decodable>(_ urlRequest: URLRequest) async throws -> T {
         let data: Data
         let response: URLResponse
@@ -67,10 +47,6 @@ struct GitHubRESTTransport: Sendable {
         }
     }
 
-    /// Sends the request and ignores the body. Used for 204 endpoints
-    /// (star / unstar / mark-read) where success is the status alone.
-    /// A 404 surfaces as `.notFound`, which callers such as
-    /// `isStarred` interpret.
     func performVoid(_ urlRequest: URLRequest) async throws {
         let response: URLResponse
         do {
@@ -81,7 +57,6 @@ struct GitHubRESTTransport: Sendable {
         guard let http = response as? HTTPURLResponse else {
             throw GitHubError.network
         }
-        // The body is discarded; only the status matters here.
         try validate(http, data: Data())
     }
 
@@ -114,7 +89,6 @@ struct GitHubRESTTransport: Sendable {
         }
     }
 
-    /// GitHub's error JSON: `{"message": "...", ...}`.
     static func githubMessage(from data: Data) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let message = object["message"] as? String else {
@@ -139,13 +113,10 @@ struct GitHubRESTTransport: Sendable {
         }
     }
 
-    /// `per_page` must be 1...100 on the GitHub API.
     func clampedPerPage(_ perPage: Int) -> Int {
         min(100, max(1, perPage))
     }
 
-    /// Percent-encodes one path segment (or a whole file path: `/`
-    /// stays a separator, as in `GitHubClient`).
     func encode(_ value: String) -> String {
         value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
     }

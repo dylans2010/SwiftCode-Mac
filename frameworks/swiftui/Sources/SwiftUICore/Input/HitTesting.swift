@@ -1,19 +1,5 @@
 import Foundation
 
-// Hit testing and the per-window gesture engine (round R7).
-//
-// Hit testing walks the view tree from the root towards the point, topmost
-// subtree first (later siblings are drawn above earlier ones; an overlay
-// above its content, a background below it), and stops at the first view
-// that draws at the point: a primitive leaf (colour, shape, text, image —
-// not a spacer or an empty view) whose layout frame contains it, or a view
-// with `contentShape` covering its whole frame. `allowsHitTesting(false)`
-// removes a subtree. The result is the chain of views from the root to that
-// leaf; the gestures attached along it take part in the press (GestureRuntime).
-// Frames are the last layout pass's (model values, including offsets and
-// other render transforms as bounding boxes).
-
-/// Per-node hit-testing state of `contentShape` / `allowsHitTesting`.
 @MainActor
 package final class HitShapeState {
     package enum Kind { case contentShape, disabled }
@@ -21,26 +7,19 @@ package final class HitShapeState {
     package init(_ kind: Kind) { self.kind = kind }
 }
 
-/// Primitive state that wants hover updates (`onHover`, `onContinuousHover`).
 @MainActor
 package protocol HoverHandling: AnyObject {
-    /// `location` is in the view's local coordinates; nil when the pointer left.
     func hover(location: CGPoint?, frame: CGRect)
 }
 
-/// Primitive state that takes scroll-wheel input (scroll views, R9).
 @MainActor
 package protocol ScrollWheelHandling: AnyObject {
-    /// Returns true if the delta was used.
     func scrollWheel(delta: CGSize, location: CGPoint, frame: CGRect) -> Bool
 }
 
-/// Views whose subtree is hit only inside their own frame (scroll views
-/// clip their content, R9; modal layers).
 @MainActor
 package protocol ClipsHitTesting {}
 
-/// Gives access to a modified view's modifier value.
 @MainActor
 package protocol ModifierAccessing {
     var _anyModifier: Any { get }
@@ -50,7 +29,6 @@ extension ModifiedContent: ModifierAccessing {
     package var _anyModifier: Any { modifier }
 }
 
-/// A secondary layer that is drawn below its content.
 @MainActor
 package protocol LayerOrdering {
     var _secondaryIsBelow: Bool { get }
@@ -62,8 +40,6 @@ extension SecondaryLayerModifier: LayerOrdering {
 
 @MainActor
 package enum HitTesting {
-    /// The node's frame in window coordinates (union of its layout nodes),
-    /// mirrored when the window lays out right to left.
     package static func frame(of node: ViewNode, mirrorWidth: CGFloat?) -> CGRect? {
         var r: CGRect?
         for n in node.lastLowered {
@@ -76,7 +52,6 @@ package enum HitTesting {
         return out
     }
 
-    /// The chain from `root` to the deepest node drawing at `point`.
     package static func path(from root: ViewNode, at point: CGPoint, mirrorWidth: CGFloat?) -> [ViewNode]? {
         hit(root, point, mirrorWidth)
     }
@@ -110,34 +85,27 @@ package enum HitTesting {
     }
 }
 
-/// Routes a window's pointer input to gestures, hover and scroll handlers.
 @MainActor
 package final class GestureEngine {
     package unowned let graph: ViewGraph
     package private(set) var session: GestureSession?
     private var hovered: [(node: WeakNode, handler: any HoverHandling)] = []
-    /// Presses that started sessions (tests).
     package private(set) var sessionCount = 0
 
     package init(graph: ViewGraph) { self.graph = graph }
 
     private var mirrorWidth: CGFloat? { graph.layoutResult?.mirrorWidth }
 
-    /// The hit chain at a window point (root first).
     package func hitPath(at point: CGPoint) -> [ViewNode] {
         guard let root = graph.root else { return [] }
         return HitTesting.path(from: root, at: point, mirrorWidth: mirrorWidth) ?? []
     }
 
-    /// The next time the session needs a tick.
     package var deadline: TimeInterval? { session?.deadline }
 
     package func pointer(_ s: PointerSample, isPressed: Bool) {
         switch s.phase {
         case .down:
-            // R13: a multi-tap waiting for its next press ends when the press
-            // lands on other views (a click on a list row, then at once on a
-            // button, presses the button).
             if let current = session, !current.isFinished, current.pointersDown.isEmpty,
                current.nodes != gestureNodes(at: s.location) {
                 current.cancelAll()
@@ -164,16 +132,13 @@ package final class GestureEngine {
         if s.isFinished { session = nil }
     }
 
-    /// The pointer left the window: hovers end; a press in progress stays.
     package func pointerLeft() { updateHover(at: nil) }
 
-    /// Cancels the press in progress.
     package func cancel() {
         session?.cancelAll()
         session = nil
     }
 
-    /// Delivers a scroll-wheel step to the innermost handler under the point.
     @discardableResult
     package func scroll(delta: CGSize, at point: CGPoint) -> Bool {
         for node in hitPath(at: point).reversed() {
@@ -186,7 +151,6 @@ package final class GestureEngine {
         return false
     }
 
-    /// The views with gestures under a point.
     private func gestureNodes(at point: CGPoint) -> Set<ObjectIdentifier> {
         Set(hitPath(at: point).filter { $0.primitiveState is GestureAttachment }.map(ObjectIdentifier.init))
     }
@@ -208,9 +172,6 @@ package final class GestureEngine {
             case .normal:
                 exclusive.append(.init(recognizer: r, simultaneous: false))
             case .highPriority:
-                // Ahead of everything inside this view (the high-priority
-                // gestures of inner views were attached later, so they come
-                // after this one only if they are outside it — never here).
                 exclusive.insert(.init(recognizer: r, simultaneous: false), at: 0)
             case .simultaneous:
                 simultaneous.append(.init(recognizer: r, simultaneous: true))

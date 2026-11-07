@@ -1,23 +1,11 @@
 import Foundation
 
-// What is rendered (R6): the last layout tree with every animation applied.
-// There is no display list before R5, so this module reports, for named
-// layout nodes, the presented frame (root coordinates, left to right) and the
-// presented opacity. A node's frame is its layout frame in its parent's
-// coordinates as animated by its view's geometry animator, composed with its
-// ancestors' presented frames and with the presented values of render
-// effects (offset, scale, rotation; Animation/Effects.swift). Removed views
-// still transitioning out are included, at the place where they were last
-// laid out.
-
-/// A rendered layer: frame and opacity.
 package struct PresentedLayer: Equatable {
     package var frame: CGRect
     package var opacity: Double
 }
 
 extension ViewGraph {
-    /// Presented frames and opacities of the named layout nodes.
     package func presentedLayers() -> [String: PresentedLayer] {
         var out: [String: PresentedLayer] = [:]
         let mirror = layoutResult?.mirrorWidth
@@ -37,7 +25,6 @@ extension ViewGraph {
         return out
     }
 
-    /// The presented layer of the layout node named `name`.
     package func presented(_ name: String) -> PresentedLayer? { presentedLayers()[name] }
 
     private func rootLowering(of node: ViewNode) -> [LayoutNode] {

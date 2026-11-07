@@ -2,16 +2,6 @@ import Foundation
 import SwiftUI
 import SwiftCodeIDECore
 
-// The Settings window's grouped-card form on Linux, as the macOS IDE's
-// (`specs/ide/settings.md` R3.3, SwiftCodeUI `SettingsChrome.swift`): section
-// headers over rounded cards (#F7F7F7, radius 12), rows 37.5 tall with
-// 1-point separators inset 10, labels at the left with no colon, help
-// text under them in the secondary colour, and the controls at the right:
-// pop-ups as the value and a circular chevron button, switches 36 × 18.
-// The geometry and colours are `SettingsLayout` and `SettingsPaletteHex`,
-// shared with the macOS IDE.
-
-/// The Settings window's colours for an appearance.
 struct SettingsPalette {
     let dark: Bool
 
@@ -43,7 +33,6 @@ struct SettingsPalette {
     var switchOff: Color { color(SettingsPaletteHex.switchOff) }
 }
 
-/// The text sizes of the form.
 enum SettingsFonts {
     static let label = Font.system(size: SettingsLayout.fontSize)
     static let header = Font.system(size: SettingsLayout.fontSize, weight: .bold)
@@ -51,8 +40,6 @@ enum SettingsFonts {
     static let title = Font.system(size: SettingsLayout.titleFontSize)
 }
 
-/// A pane's form: its sections top to bottom, scrolling, 20 from the
-/// detail pane's edges.
 struct SettingsForm<Content: View>: View {
     @ViewBuilder var content: Content
     @Environment(\.colorScheme) private var scheme
@@ -60,8 +47,6 @@ struct SettingsForm<Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) { content }
-                // The first header's cap top 76 down the window: 24 under
-                // the title area, less the label's 3 above its cap top.
                 .padding(.top, SettingsLayout.firstHeaderCapTop - SettingsLayout.titleAreaHeight - 3)
                 .padding(.horizontal, SettingsLayout.cardInset)
                 .padding(.bottom, SettingsLayout.cardInset - SettingsSection<EmptyView, EmptyView>.bottomGap)
@@ -71,16 +56,12 @@ struct SettingsForm<Content: View>: View {
     }
 }
 
-/// A section: its bold header and a card of rows, then an optional note.
-/// Every row of the card is a `SettingsRow` (or `SettingsContentRow`): the
-/// card shows its separators between the rows' opaque fills.
 struct SettingsSection<Content: View, Footer: View>: View {
     var title: String?
     var content: Content
     var footer: Footer
     @Environment(\.colorScheme) private var scheme
 
-    /// A card's bottom to the next header's frame (its cap top 33 under the card).
     static var bottomGap: CGFloat { SettingsLayout.cardToHeader - 3 }
 
     init(_ title: String? = nil, @ViewBuilder content: () -> Content) where Footer == EmptyView {
@@ -103,7 +84,6 @@ struct SettingsSection<Content: View, Footer: View>: View {
                     .font(SettingsFonts.header)
                     .foregroundStyle(p.header)
                     .padding(.leading, SettingsLayout.labelInset)
-                    // The header's cap top 22.5 above the card.
                     .frame(height: 16, alignment: .leading)
                     .padding(.bottom, SettingsLayout.headerToCard + 3 - 16)
             }
@@ -118,8 +98,6 @@ struct SettingsSection<Content: View, Footer: View>: View {
     }
 }
 
-/// The rounded card: rows 1 point apart over a separator-coloured strip
-/// inset 10, so the line shows only between two rows.
 struct SettingsCard<Content: View>: View {
     @ViewBuilder var content: Content
     @Environment(\.colorScheme) private var scheme
@@ -139,8 +117,6 @@ struct SettingsCard<Content: View>: View {
     }
 }
 
-/// A card row: the label (no colon) at the left with optional help text
-/// under it, the control at the right centred on the label's line.
 struct SettingsRow<Control: View>: View {
     var title: String
     var help: String?
@@ -162,7 +138,6 @@ struct SettingsRow<Control: View>: View {
                     .foregroundStyle(p.label)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                // Centred on the label's line, whatever its height.
                 control.frame(height: Self.lineHeight)
             }
             if let help, !help.isEmpty { SettingsHelpText(text: help).padding(.top, Self.helpGap) }
@@ -173,10 +148,7 @@ struct SettingsRow<Control: View>: View {
         .background(p.card)
     }
 
-    /// The label's line.
     static var lineHeight: CGFloat { 16 }
-    /// From the label's line to the help text's: the help's first baseline
-    /// 19 under the label's.
     static var helpGap: CGFloat { SettingsLayout.helpBaselineGap - lineHeight + 3 - 2 }
 }
 
@@ -186,8 +158,6 @@ extension SettingsRow where Control == EmptyView {
     }
 }
 
-/// Help text: 11 points, the secondary colour, a 14-point pitch, at most
-/// 416 wide.
 struct SettingsHelpText: View {
     var text: String
     @Environment(\.colorScheme) private var scheme
@@ -202,7 +172,6 @@ struct SettingsHelpText: View {
     }
 }
 
-/// A card row that holds one view (a preview, a list, a row of buttons).
 struct SettingsContentRow<Content: View>: View {
     var inset = SettingsLayout.labelInset
     @ViewBuilder var content: Content
@@ -216,7 +185,6 @@ struct SettingsContentRow<Content: View>: View {
     }
 }
 
-/// A note between the cards (a section's footer style).
 struct SettingsNote: View {
     var text: String
 
@@ -227,10 +195,6 @@ struct SettingsNote: View {
     }
 }
 
-// MARK: Controls
-
-/// The switch: a 36 × 18 track (light grey off, the accent on) with a
-/// white pill knob at its leading or trailing end.
 struct SettingsSwitch: View {
     var isOn: Binding<Bool>
     var label: String
@@ -260,7 +224,6 @@ struct SettingsSwitch: View {
     }
 }
 
-/// A switch row: the title at the left, the switch at the right.
 struct CheckRow: View {
     var title: String
     var isOn: Binding<Bool>
@@ -274,9 +237,6 @@ struct CheckRow: View {
     }
 }
 
-/// A card pop-up: the value, then a 20-point circular button with up/down
-/// chevrons (its right edge 13.5 inside the card); the options open as a
-/// menu with a check at the chosen one.
 struct SettingsPopUp<Value: Hashable>: View {
     var selection: Binding<Value>
     var options: [(Value, String)]
@@ -311,7 +271,6 @@ struct SettingsPopUp<Value: Hashable>: View {
     }
 }
 
-/// A pop-up row of an enumeration's cases, titled by their raw values.
 struct CasePicker<T: RawRepresentable & CaseIterable & Hashable>: View where T.RawValue == String {
     var title: String
     var selection: Binding<T>
@@ -325,7 +284,6 @@ struct CasePicker<T: RawRepresentable & CaseIterable & Hashable>: View where T.R
     }
 }
 
-/// A pop-up row of any options.
 struct PickerRow<Value: Hashable>: View {
     var title: String
     var selection: Binding<Value>
@@ -340,7 +298,6 @@ struct PickerRow<Value: Hashable>: View {
     }
 }
 
-/// A number row with a fractional value: the value and − / +.
 struct DoubleStepperRow: View {
     var title: String
     var value: Binding<Double>
@@ -360,7 +317,6 @@ struct DoubleStepperRow: View {
     }
 }
 
-/// An integer number row.
 struct IntStepperRow: View {
     var title: String
     var value: Binding<Int>
@@ -379,7 +335,6 @@ struct IntStepperRow: View {
     }
 }
 
-/// A read-only value row (the secondary colour at the right).
 struct ValueRow: View {
     var title: String
     var value: String
@@ -394,7 +349,6 @@ struct ValueRow: View {
     }
 }
 
-/// A row that opens a sub-page: its title, an optional value and a chevron.
 struct DrillRow: View {
     var title: String
     var detail = ""
@@ -418,7 +372,6 @@ struct DrillRow: View {
     }
 }
 
-/// A sub-page's way back ("‹ Editing"), above its cards.
 struct BackRow: View {
     var title: String
     var target: String
@@ -440,7 +393,6 @@ struct BackRow: View {
     }
 }
 
-/// A small note under a section (the form's footer style).
 struct FootNote: View {
     var text: String
     var body: some View { SettingsHelpText(text: text) }

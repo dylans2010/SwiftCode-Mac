@@ -1,13 +1,4 @@
 #!/bin/sh
-# Builds the stage-8 guest probe p_metal_triangle (specs/simulator/stage8-contract.md
-# §8, milestone 8a-T) for the iOS simulator platform. Runs on macOS only.
-#   ../out/guest-tests/stage8/p_metal_triangle           arm64 command-line tool
-#   ../out/guest-tests/stage8/p_metal_triangle.metallib  its shaders, precompiled
-#       with the public Metal toolchain (the probe loads it with newLibraryWithURL:,
-#       so the guest's shader compiler service is not needed)
-# Copy the output directory to the Thor with rsync; run there with
-#   swiftcode-simd --device D --oneshot <dir>/p_metal_triangle
-# Reference run on a Mac: xcrun simctl spawn <booted device> <dir>/p_metal_triangle
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/stage8}"

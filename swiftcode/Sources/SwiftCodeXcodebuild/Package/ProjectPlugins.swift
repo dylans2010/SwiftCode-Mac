@@ -3,21 +3,7 @@ import SwiftCodeBuild
 import SwiftCodeProject
 import SwiftCodeSubprocess
 
-/// Build-tool plug-ins applied to project targets: a target's
-/// `PBXTargetDependency` whose `productRef` names a product `plugin:<name>`
-/// (`specs/ide/build-pif.md` §Plug-ins).
-///
-/// SwiftCode hosts the plug-in itself, as SwiftPM does for package targets
-/// (open-source protocol): it compiles the plug-in's sources against the
-/// toolchain's `PackagePlugin` library and SwiftCode's own `XcodeProjectPlugin`
-/// module (`XcodeProjectPluginSource`), sends the plug-in a
-/// `createXcodeProjectBuildToolCommands` message describing the project and
-/// the target, and turns the commands it answers with into custom tasks and
-/// generated source files of the target's PIF.
 public enum ProjectPlugins {
-    /// Whether this host can run plug-ins for project targets: the open
-    /// `PackagePlugin` runtime calls the project-plug-in entry point only on
-    /// Darwin.
     public static var isSupported: Bool {
         #if os(macOS)
         true
@@ -26,7 +12,6 @@ public enum ProjectPlugins {
         #endif
     }
 
-    /// One command a plug-in defined for a target.
     public struct BuildCommand: Equatable, Sendable {
         public var displayName: String?
         public var executable: String
@@ -37,21 +22,16 @@ public enum ProjectPlugins {
         public var outputFiles: [String]
     }
 
-    /// What the plug-ins applied to one target produced.
     public struct TargetOutputs: Equatable, Sendable {
-        /// The plug-ins' own PIF targets (host tools), as dependencies.
         public var pluginTargetGUIDs: [String] = []
         public var commands: [BuildCommand] = []
-        /// Files written by prebuild commands, already run.
         public var prebuildOutputs: [String] = []
         public var diagnostics: [String] = []
 
-        /// Generated files to compile (by extension).
         public var generatedSources: [String] {
             (commands.flatMap(\.outputFiles) + prebuildOutputs).filter { ProjectPlugins.isSource($0) }
         }
 
-        /// Generated files to copy as resources.
         public var generatedResources: [String] {
             (commands.flatMap(\.outputFiles) + prebuildOutputs).filter { !ProjectPlugins.isSource($0) && !ProjectPlugins.isHeader($0) }
         }
@@ -65,10 +45,8 @@ public enum ProjectPlugins {
         ["h", "hpp", "hh"].contains((path as NSString).pathExtension.lowercased())
     }
 
-    /// The key of a target in `PackageGraphPIF.pluginOutputs`.
     static func key(_ project: LoadedProject, _ targetID: String) -> String { project.url.standardizedFileURL.path + "|" + targetID }
 
-    /// Plug-ins a target applies: (product dependency id, plug-in name).
     static func applied(_ t: PBXObject, in proj: PBXProj) -> [(id: String, name: String)] {
         t.references("dependencies").compactMap { d in
             guard let ref = proj[d]?.string("productRef"), let name = proj[ref]?.string("productName"), name.hasPrefix("plugin:") else { return nil }
@@ -76,9 +54,6 @@ public enum ProjectPlugins {
         }
     }
 
-    // MARK: Running the plug-ins of a container
-
-    /// Runs every plug-in applied to a project target of the container.
     static func run(container: Container, graph: PackageGraphPIF, sourcePackages: URL, scratch: URL,
                     toolchain: Toolchain) throws -> [String: TargetOutputs] {
         var out: [String: TargetOutputs] = [:]
@@ -105,9 +80,6 @@ public enum ProjectPlugins {
                     let work = sourcePackages.appendingPathComponent("swiftcode-plugins/outputs")
                         .appendingPathComponent(p.name).appendingPathComponent(t.string("name") ?? t.id).appendingPathComponent(name)
                     try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-                    // Tools are named where SwiftPM's own build would put them;
-                    // `PackageGraphPIF.relocateHostTools` maps that folder to
-                    // the client build's products folder.
                     var tools: [String: String] = [:]
                     for tool in plugin.toolNames { tools[tool] = scratch.path + "/out/Products/Debug/" + tool }
                     let input = WireInput.message(project: p, target: t, pluginWorkDirectory: work.path, tools: tools,
@@ -130,8 +102,6 @@ public enum ProjectPlugins {
         return out
     }
 
-    /// The package that provides plug-in `name`: the product dependency's
-    /// package reference, else the first package that has such a plug-in.
     static func pluginPackage(_ refID: String, name: String, project: LoadedProject, graph: PackageGraphPIF) -> PackageGraphPIF.Package? {
         if let ref = project.proj[refID]?.string("package").flatMap({ project.proj[$0] }) {
             var identity: String?
@@ -156,23 +126,13 @@ public enum ProjectPlugins {
         }
     }
 
-    // MARK: Plug-in descriptions
-
-    /// A plug-in target as the package manifest declares it.
     struct PluginDescription {
         var targetName: String
         var sources: [URL]
-        /// Names the plug-in may look up with `tool(named:)`: its executable
-        /// target and product dependencies.
         var toolNames: [String]
-        /// The package's tools version (`6.0.0`).
         var toolsVersion: String
         var packageDirectory: String
 
-        /// From `swift package dump-package` (no resolution): the plug-in
-        /// product `name` (or a plug-in target of that name), its folder
-        /// (`Plugins/<target>` unless the manifest gives a path) and its
-        /// dependencies.
         static func load(name: String, packageDirectory: String) throws -> PluginDescription {
             let json = try PackageResolver.dumpPackage(at: URL(fileURLWithPath: packageDirectory))
             let products = json["products"] as? [[String: Any]] ?? []
@@ -201,21 +161,12 @@ public enum ProjectPlugins {
         }
     }
 
-    // MARK: The toolchain
-
-    /// The compiler and plug-in library that compile and run plug-ins.
     struct Toolchain {
-        /// `swiftc`.
         var swiftc: String
-        /// `<toolchain>/usr/lib/swift/pm/PluginAPI`: `PackagePlugin`'s module and library.
         var pluginAPI: String
-        /// The macOS SDK (nil elsewhere).
         var sdk: String?
         var binDirectory: String { URL(fileURLWithPath: swiftc).deletingLastPathComponent().path }
 
-        /// The toolchain of `swift` (the `swift` driver PackageGraphLoader
-        /// uses): on the Mac, `xcrun --find swiftc` when `swift` is the
-        /// `/usr/bin` shim.
         static func locate(swift: String) throws -> Toolchain {
             var swiftc = URL(fileURLWithPath: swift).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent("swiftc").path
             var sdk: String?
@@ -243,8 +194,6 @@ public enum ProjectPlugins {
             }
         }
 
-        /// SwiftCode's `XcodeProjectPlugin` module and library, compiled once per
-        /// source text into `<dir>/support-<hash>/`.
         func supportLibrary(in dir: URL) throws -> URL {
             let src = XcodeProjectPluginSource.text
             let out = dir.appendingPathComponent("support-" + String(MD5.hex(src + swiftc).prefix(12)))
@@ -262,8 +211,6 @@ public enum ProjectPlugins {
             return out
         }
 
-        /// Compiles a plug-in's sources into `<dir>/<package>-<plugin>-<hash>`
-        /// (the hash covers the sources, the compiler and the support module).
         func compile(_ plugin: PluginDescription, into dir: URL) throws -> URL {
             let support = try supportLibrary(in: dir)
             var hashInput = swiftc + plugin.toolsVersion + support.path
@@ -280,14 +227,11 @@ public enum ProjectPlugins {
             return exe
         }
 
-        /// Runs a plug-in: sends one message (an 8-byte little-endian length,
-        /// then JSON) and reads its messages until it exits.
         func runPlugin(_ exe: URL, message: Data, workingDirectory: String) throws -> [Reply] {
             MainThreadGuard.blockingCall("build-tool plug-in")
             let p = Process()
             p.executableURL = exe
             p.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
-            // SwiftCode's XcodeProjectPlugin module writes the commands here.
             let commandsFile = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-plugin-\(UUID().uuidString).json")
             defer { try? FileManager.default.removeItem(at: commandsFile) }
             p.environment = ProcessInfo.processInfo.environment.merging(["SWIFTCODE_PLUGIN_COMMANDS": commandsFile.path]) { $1 }
@@ -303,7 +247,6 @@ public enum ProjectPlugins {
             let group = DispatchGroup()
             group.enter()
             let errHandle = errors.fileHandleForReading
-            // A thread, not a global queue (see Subprocess.run).
             Thread { err.data = errHandle.readDataToEndOfFile(); group.leave() }.start()
             let data = output.fileHandleForReading.readDataToEndOfFile()
             try? input.fileHandleForWriting.close()
@@ -326,12 +269,7 @@ public enum ProjectPlugins {
         case diagnostic(String)
     }
 
-    // MARK: Wire format (SwiftPM's PackagePlugin protocol, open source)
-
     enum WireInput {
-        /// `{"createXcodeProjectBuildToolCommands": {context, rootProjectId,
-        /// targetId, pluginGeneratedSources, pluginGeneratedResources}}`
-        /// for one project target. Every path is its own entry with no base.
         static func message(project: LoadedProject, target: PBXObject, pluginWorkDirectory: String, tools: [String: String],
                             toolSearchDirectories: [String]) -> Data {
             var paths: [[String: Any]] = []
@@ -394,7 +332,6 @@ public enum ProjectPlugins {
     }
 
     enum WireOutput {
-        /// The plug-in's messages: each an 8-byte little-endian length and JSON.
         static func replies(in data: Data) -> [Reply] {
             var out: [Reply] = []
             var i = data.startIndex
@@ -411,10 +348,6 @@ public enum ProjectPlugins {
             return out
         }
 
-        /// The commands file of SwiftCode's XcodeProjectPlugin module: a JSON
-        /// array of `{kind: build|prebuild, displayName, executable,
-        /// arguments, environment, inputFiles, outputFiles,
-        /// outputFilesDirectory}`.
         static func commands(inFile data: Data) -> [Reply] {
             guard let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
             return list.compactMap { c in
@@ -456,8 +389,6 @@ public enum ProjectPlugins {
                                 workingDirectory: c["workingDirectory"].flatMap(path), inputFiles: [], outputFiles: [])
         }
 
-        /// A `URL` as Foundation encodes it (`{"relative": "file:///…"}`) or a
-        /// plain string; nil for other shapes.
         static func path(_ any: Any) -> String? {
             let text: String?
             if let s = any as? String { text = s } else if let d = any as? [String: Any] { text = d["relative"] as? String } else { text = nil }

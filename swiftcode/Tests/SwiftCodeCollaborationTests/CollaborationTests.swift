@@ -1,8 +1,3 @@
-// Tests for the collaboration + transfer port (Legacy -> SwiftCodeCollaboration).
-// Static only: not executed here (no Swift toolchain in this environment).
-// No network / Multipeer involved: permission presets, the serializer
-// round-trip, and the project model are pinned on local temp directories.
-
 import Foundation
 import Testing
 @testable import SwiftCodeCollaboration
@@ -76,8 +71,6 @@ struct CollaborationTests {
         #expect(package.fileEntries.contains(where: { $0.relativePath == "main.swift" && !$0.isDirectory }))
         #expect(package.checksum.count == 64)
 
-        // Tamper with the recorded checksum (not the payload bytes, which
-        // would break JSON decoding instead): the checksum must reject it.
         var json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         json["checksum"] = String(repeating: "0", count: 64)
         let tampered = try JSONSerialization.data(withJSONObject: json)

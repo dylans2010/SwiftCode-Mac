@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Providers/OperatingSystemProvider.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public protocol OperatingSystemProvider: Sendable {
@@ -14,7 +12,6 @@ public protocol OperatingSystemProvider: Sendable {
     var recommendedStorage: String { get }
     var installationNotes: String { get }
 
-    // Detailed resource metadata
     var releaseNotes: String { get }
     var minimumRequirements: String { get }
     var packageManagerGuide: String { get }
@@ -22,7 +19,6 @@ public protocol OperatingSystemProvider: Sendable {
     var securityAdvisories: String { get }
     var communityResources: String { get }
 
-    // Backward compatibility & raw specifications
     var recommendedCores: Int { get }
     var recommendedMemoryMB: Int { get }
     var recommendedStorageGB: Int { get }

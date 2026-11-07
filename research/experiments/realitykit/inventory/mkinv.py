@@ -1,5 +1,4 @@
 import re, sys
-# Build a name-only API inventory (markdown) from merged inventories.
 out=[]
 def avail_label(a):
     if not a or a=='-': return 'unannotated'

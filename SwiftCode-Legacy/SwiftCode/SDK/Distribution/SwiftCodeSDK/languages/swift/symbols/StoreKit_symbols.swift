@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: StoreKit
-
 public struct StoreKitInterface_0000: Sendable, Codable {
     public let id: String = "storekit.api.0"
     public var title: String = "StoreKit Symbol 0"

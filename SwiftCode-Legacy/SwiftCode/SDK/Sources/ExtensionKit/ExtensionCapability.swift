@@ -52,7 +52,7 @@ public enum ExtensionCapabilityID: String, Codable, Sendable, CaseIterable {
     public var isGrantable: Bool {
         switch self {
         case .assistInvoke:
-            return false // restricted deny-by-default
+            return false
         default:
             return true
         }

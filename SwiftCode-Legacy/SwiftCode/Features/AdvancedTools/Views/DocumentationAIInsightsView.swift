@@ -59,7 +59,6 @@ struct DocumentationAIInsightsView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Retry") {
-                // Retry logic if needed, currently analyzer holds state
             }
             .buttonStyle(.bordered)
         }

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// reference-ui-4.md §14 (toolbar right group, editor options) and §16 (assistant modes).
 @MainActor
 @Suite(.serialized) struct ReferenceUI4ToolbarAssistantTests {
     @Test func catalogOrderAndEnablement() {

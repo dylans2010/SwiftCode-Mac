@@ -6,17 +6,6 @@ import SwiftCodeIDEShell
 import AppKit
 #endif
 
-// The debugger's editing views (`specs/ide/debug.md` §The Linux IDE): the
-// breakpoint editor popover, the breakpoints' context menus and the
-// Breakpoint navigator's "+" menu, the disassembly and the memory browser
-// over the editor. Their state is `ShellDebugModel`'s
-// (ShellDebugModel+Editing.swift).
-
-// MARK: - The breakpoint editor popover
-
-/// The popover over the whole window, its arrow at the breakpoint (the
-/// gutter's line or the navigator's row). A click outside it, Escape or
-/// Done closes it; changes apply as they are made.
 struct BreakpointEditorLayer: View {
     var model: WorkspaceShellModel
     static let width: CGFloat = 448
@@ -57,7 +46,6 @@ struct BreakpointEditorLayer: View {
     }
 }
 
-/// The popover's raised surface (as Quick Help's).
 enum PopoverChrome {
     static func fill(_ scheme: ColorScheme) -> Color {
         scheme == .dark ? Color(.sRGB, red: 0.19, green: 0.19, blue: 0.2) : Color.white
@@ -65,7 +53,6 @@ enum PopoverChrome {
     static func edge(_ scheme: ColorScheme) -> Color { scheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.14) }
 }
 
-/// A triangle pointing left (the popover's arrow beside the gutter).
 struct PopoverArrowLeft: Shape {
     func path(in r: CGRect) -> Path {
         var p = Path()
@@ -76,11 +63,6 @@ struct PopoverArrowLeft: Shape {
     }
 }
 
-/// The editor's rows (`debug.md` §Breakpoint editing): for a line
-/// breakpoint Condition, Ignore n times before stopping, the actions (Add
-/// Action; each with its kind, "+", "−" and its text) and "Automatically
-/// continue after evaluating actions"; for a symbolic one Symbol and
-/// Condition; for an exception one the kind and Break (On Throw / On Catch).
 struct BreakpointEditorCard: View {
     var model: WorkspaceShellModel
     @FocusState private var symbolFocused: Bool
@@ -239,7 +221,6 @@ struct BreakpointEditorCard: View {
     }
 }
 
-/// A pop-up button: its title and the up-down chevron in a rounded box.
 struct PopUpMenu<Items: View>: View {
     var title: String
     var colors: ShellColors
@@ -264,10 +245,6 @@ struct PopUpMenu<Items: View>: View {
     }
 }
 
-// MARK: - Context menus and the "+" menu
-
-/// A breakpoint's context menu in the gutter: Edit Breakpoint…, Disable
-/// (Enable) Breakpoint, Delete Breakpoint, Reveal in Breakpoint Navigator.
 struct BreakpointMenuItems: View {
     var model: WorkspaceShellModel
     var breakpoint: BreakpointStore.Breakpoint
@@ -284,7 +261,6 @@ struct BreakpointMenuItems: View {
     }
 }
 
-/// A Breakpoint navigator row's context menu.
 struct BreakpointRowMenuItems: View {
     var model: WorkspaceShellModel
     var row: DebugNavigatorRow
@@ -301,9 +277,6 @@ struct BreakpointRowMenuItems: View {
     }
 }
 
-/// The Breakpoint navigator's "+" menu (`debug.md` §Breakpoint editing):
-/// the kinds this computer can stop on. The others (Runtime Issue,
-/// Constraint Error, Test Failure) need Apple's runtimes.
 struct BreakpointAddMenuItems: View {
     var model: WorkspaceShellModel
 
@@ -316,11 +289,6 @@ struct BreakpointAddMenuItems: View {
     }
 }
 
-// MARK: - Over the editor: disassembly and memory
-
-/// What covers the source editor while the debugger shows something else:
-/// the memory browser (View Memory) or the disassembly (Always Show
-/// Disassembly).
 struct DebugEditorOverlay: View {
     var model: WorkspaceShellModel
 
@@ -334,8 +302,6 @@ struct DebugEditorOverlay: View {
     }
 }
 
-/// The selected frame's instructions, read-only, the program counter's
-/// line marked as the stopped line (`debug.md` §Disassembly).
 struct DisassemblyView: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -375,8 +341,6 @@ struct DisassemblyView: View {
     }
 }
 
-/// View Memory's browser: the address field, Previous / Next Page, and
-/// 16 bytes a line (address, hex in two groups, ASCII).
 struct MemoryBrowserView: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -437,10 +401,6 @@ struct MemoryBrowserView: View {
     }
 }
 
-// MARK: - The clipboard
-
-/// Copy and Copy Value go through the shell's one clipboard path
-/// (`ShellPasteboard`: OpenViews' clipboard on Linux, AppKit's on macOS).
 @MainActor
 final class LocalDebugPasteboard: DebugPasteboard {
     weak var model: WorkspaceShellModel?

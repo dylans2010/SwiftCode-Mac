@@ -11,33 +11,8 @@ import CoreGraphics
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The real screen-recording engine for `take_screenrecord`:
-/// Legacy's `AssistScreenRecordingEngine` (`StreamRecorderSession`)
-/// ported to ScreenCaptureKit + AVAssetWriter.
-///
-/// * One recording at a time (the host holds the active session;
-///   a second call while one runs fails naming the first).
-/// * Video only: `include_audio` sets `capturesAudio` on the
-///   stream configuration, but no audio input is wired — exactly
-///   Legacy's behaviour, and never claimed otherwise.
-/// * `capture_mode: "window"` (the default) records the app's
-///   first on-screen window larger than 20×20 points; Legacy
-///   accepted `capture_mode` but always used the window filter, so
-///   `"application_display"` is a recorded deviation: it records
-///   the whole display that window is on.
-/// * H.264, 2× the window/display size with even dimensions,
-///   30 fps, cursor shown.
-/// * Linux (and any build without ScreenCaptureKit/AVFoundation)
-///   keeps the exact honest failure.
-///
-/// See `specs/ide/gap-closure-failing-tools.md` §3.
 extension SwiftCodeMCPHost {
-    /// `take_screenrecord`: resolves the app, records it for the
-    /// requested duration, and saves the artifact.
     func takeScreenrecordReal(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Argument validation runs on every platform (the tests
-        // assert these errors on Linux too); only the capture
-        // itself is macOS-only.
         guard let rawAppId = call.arguments["app_identifier"]?.string,
               !rawAppId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw MCPToolError("Missing required parameter 'app_identifier'. Provide a bundle identifier or application name.")
@@ -127,15 +102,12 @@ extension SwiftCodeMCPHost {
 
 #if canImport(ScreenCaptureKit) && canImport(AVFoundation)
 extension SwiftCodeMCPHost {
-    /// The recording currently in progress, if any.
     var screenRecordingSession: ScreenRecordingSession? {
         get { sharedScreenRecordingBox.value }
         set { sharedScreenRecordingBox.value = newValue }
     }
 }
 
-/// One in-progress ScreenCaptureKit recording: an `SCStream`
-/// feeding an `AVAssetWriter` (H.264, video only).
 final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     let outputURL: URL
     let width: Int
@@ -177,9 +149,6 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
         writer.add(writerInput)
     }
 
-    /// Rounds a dimension down to the nearest even number (H.264
-    /// requires even dimensions — Legacy's `StreamRecorderSession`
-    /// rule).
     static func even(_ value: Int) -> Int { max(2, value - (value % 2)) }
 
     func start() async throws {
@@ -190,9 +159,6 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
         try await stream.startCapture()
     }
 
-    /// Stops the stream and finishes the file. Returns the recorded
-    /// duration in seconds (first to last video frame) and the
-    /// frame count.
     func stop() async throws -> (duration: Double, frameCount: Int) {
         try await stream.stopCapture()
         writerInput.markAsFinished()
@@ -217,8 +183,6 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
         return (duration, frames)
     }
 
-    // MARK: SCStreamOutput
-
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .screen else { return }
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
@@ -235,8 +199,6 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
         writerInput.append(sampleBuffer)
     }
 
-    // MARK: SCStreamDelegate
-
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         lock.lock()
         streamError = error
@@ -244,9 +206,6 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
     }
 }
 
-/// The host's active recording, kept in a tiny box so the
-/// extension can hold it without changing `SwiftCodeMCPHost`'s
-/// stored properties (shared file — coordinator-owned).
 final class ScreenRecordingSessionsBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _value: ScreenRecordingSession?

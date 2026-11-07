@@ -26,10 +26,8 @@ import subprocess
 import sys
 import time
 
-# Modifier keysyms → wtype's modifier names.
 WTYPE_MODIFIERS = {0xffe1: "shift", 0xffe2: "shift", 0xffe3: "ctrl", 0xffe4: "ctrl",
                    0xffe9: "alt", 0xffea: "alt", 0xffeb: "logo", 0xffec: "logo"}
-
 
 def gnome_typist():
     import gi
@@ -61,10 +59,8 @@ def gnome_typist():
 
     return chord, stop
 
-
 def xdotool_chord(syms):
     subprocess.run(["xdotool", "key", "--delay", "30", "+".join(hex(s) for s in syms)], check=True)
-
 
 def wtype_chord(syms):
     mods = [WTYPE_MODIFIERS[s] for s in syms if s in WTYPE_MODIFIERS]
@@ -77,7 +73,6 @@ def wtype_chord(syms):
     for m in reversed(mods):
         args += ["-m", m]
     subprocess.run(args, check=True)
-
 
 def main():
     backend = os.environ.get("IME_KEYS", "gnome")
@@ -130,7 +125,6 @@ def main():
     if stop:
         stop()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

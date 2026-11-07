@@ -1,19 +1,12 @@
 import Foundation
 
-/// Inserting child elements byte-minimally: new lines go in at the
-/// parent's indentation plus one level, before a chosen child or last, and
-/// a self-closing parent is opened. Used by Library inserts and by
-/// inspector edits that add value elements (`interface-builder.md`
-/// §Editing, `library.md` §Insert defaults, canonical child order).
 extension IBDocument {
-    /// The byte offset where the line holding `i` starts.
     func lineStart(_ i: Int) -> Int {
         var k = i
         while k > 0, source[k - 1] != 0x0A { k -= 1 }
         return k
     }
 
-    /// Whether only spaces or tabs come before byte `i` on its line.
     func onlySpacesBefore(_ i: Int) -> Bool {
         var k = i
         while k > 0, source[k - 1] != 0x0A {
@@ -23,14 +16,10 @@ extension IBDocument {
         return true
     }
 
-    /// Lines (depth, text) as text at an indentation, each ending in a newline.
     static func text(_ lines: [(Int, String)], indent: String) -> String {
         lines.map { indent + String(repeating: "    ", count: $0.0) + $0.1 + "\n" }.joined()
     }
 
-    /// An edit adding `lines` as children of `node`, before its first child
-    /// that `before` accepts, else after the last one. A self-closing
-    /// `node` gets an end tag.
     func childInsertion(_ lines: [(Int, String)], into node: XMLSourceNode, before: (XMLSourceNode) -> Bool = { _ in false }) -> XMLEdit {
         let base = XMLEdit.indentation(of: node, in: source)
         let inner = base + "    "
@@ -50,48 +39,32 @@ extension IBDocument {
         return XMLEdit(end..<end, "\n" + Self.text(lines, indent: inner) + base)
     }
 
-    /// An edit appending `lines` to the container element `name` of `node`
-    /// (`subviews`, `items`, `prototypes`, `connections`, …), making the
-    /// container before the first child `containerBefore` accepts when it
-    /// is missing.
     func containerInsertion(_ lines: [(Int, String)], container name: String, of node: XMLSourceNode,
                             containerBefore: (XMLSourceNode) -> Bool = { _ in false }) -> XMLEdit {
         if let c = node.child(name) { return childInsertion(lines, into: c) }
         return childInsertion([(0, "<\(name)>")] + lines.map { ($0.0 + 1, $0.1) } + [(0, "</\(name)>")], into: node, before: containerBefore)
     }
 
-    /// Children that come after `subviews` in the canonical order
-    /// (`library.md` §Insert defaults, item 1): the safe area, the
-    /// background colour, constraints, then connections and the like.
     static func comesAfterSubviews(_ n: XMLSourceNode) -> Bool {
         if n.name == "viewLayoutGuide" { return n["key"] == "safeArea" }
         if n.name == "color" { return n["key"] == "backgroundColor" }
         return ["constraints", "connections", "userDefinedRuntimeAttributes", "variation", "accessibility", "keyCommands"].contains(n.name)
     }
 
-    /// Children that come after a view's kind children: `subviews` and
-    /// everything after it.
     static func comesAfterKindChildren(_ n: XMLSourceNode) -> Bool { n.name == "subviews" || comesAfterSubviews(n) }
 
-    /// Children that come after value elements (`fontDescription`,
-    /// colours, sizes): kind children and everything after them.
     static func comesAfterValues(_ n: XMLSourceNode) -> Bool {
         let values: Set<String> = ["rect", "autoresizingMask", "fontDescription", "font", "color", "nil", "size", "string", "attributedString", "inset", "point"]
         if n.name == "color" { return n["key"] == "backgroundColor" }
         return !values.contains(n.name)
     }
 
-    /// System colours named by `<color systemColor=…>`, in file order.
     var usedSystemColors: [String] {
         var used: [String] = []
         documentNode.walk { n in if n.name == "color", let s = n["systemColor"], !used.contains(s) { used.append(s) } }
         return used
     }
 
-    /// Adds `<systemColor>` resources for system colours an edit started
-    /// using (not in `before`) that the document does not define (SwiftCode's
-    /// own table of their public values). Colours the document already used
-    /// are left as they were.
     func addingSystemColorResources(since before: IBDocument) throws -> IBDocument {
         let old = Set(before.usedSystemColors)
         var defined = Set<String>()
@@ -105,8 +78,6 @@ extension IBDocument {
         return try edited([containerInsertion(lines, container: "resources", of: documentNode)])
     }
 
-    /// The colours SwiftCode can write by name, with their public component
-    /// values (as published for UIKit's system colours, light appearance).
     static let systemColorValues: [String: String] = [
         "systemBackgroundColor": "<color white=\"1\" alpha=\"1\" colorSpace=\"custom\" customColorSpace=\"genericGamma22GrayColorSpace\"/>",
         "systemGroupedBackgroundColor": "<color red=\"0.94901960784313721\" green=\"0.94901960784313721\" blue=\"0.96862745098039216\" alpha=\"1\" colorSpace=\"custom\" customColorSpace=\"sRGB\"/>",

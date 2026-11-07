@@ -2,10 +2,6 @@ import Foundation
 import OVText
 import Testing
 
-// Round R8: the text editing core (OVText `TextEditingModel` and
-// `TextLayoutGeometry`), the model EditorKit will build on. Rules: README
-// "Text editing core (R8)".
-
 @Suite("R8 text editing model")
 struct TextEditingModelTests {
     @Test func insertionReplacesTheSelection() {
@@ -37,20 +33,20 @@ struct TextEditingModelTests {
         let m = TextEditingModel(text: "let value = foo_bar(1)")
         m.setCaret(0)
         m.move(.word, forward: true)
-        #expect(m.caret == 3)                  // end of "let"
+        #expect(m.caret == 3)
         m.move(.word, forward: true)
-        #expect(m.caret == 9)                  // end of "value"
+        #expect(m.caret == 9)
         m.move(.word, forward: true)
-        #expect(m.caret == 11)                 // "=" is a word of its own
+        #expect(m.caret == 11)
         m.move(.word, forward: true)
-        #expect(m.caret == 19)                 // "foo_bar": underscores join
+        #expect(m.caret == 19)
         m.move(.word, forward: false)
         #expect(m.caret == 12)
         m.move(.word, forward: false)
         #expect(m.caret == 10)
         #expect(m.wordRange(at: 14) == 12..<19)
-        #expect(m.wordRange(at: 3) == 0..<3)   // at a word's end, that word
-        #expect(m.wordRange(at: 19) == 19..<20) // "("
+        #expect(m.wordRange(at: 3) == 0..<3)
+        #expect(m.wordRange(at: 19) == 19..<20)
         m.move(.document, forward: false, extending: false)
         m.move(.word, forward: true, extending: true)
         #expect(m.selectedText == "let")
@@ -64,7 +60,6 @@ struct TextEditingModelTests {
         m.move(.line, forward: true)
         #expect(m.caret == 13)
         #expect(m.paragraphRange(at: 6) == 4..<14)
-        // Vertical movement keeps the column on logical lines.
         m.setCaret(2)
         m.moveVertically(lines: 1)
         #expect(m.caret == 6)
@@ -95,10 +90,9 @@ struct TextEditingModelTests {
         for c in "you" { m.insert(String(c)) }
         #expect(m.text == "hello you")
         m.undo()
-        #expect(m.text.isEmpty)               // one typing run, one step
+        #expect(m.text.isEmpty)
         m.redo()
         #expect(m.text == "hello you" && m.caret == 9)
-        // Moving the caret starts a new step; so does a deletion.
         m.setCaret(5)
         m.insert(",")
         m.deleteBackward()
@@ -110,7 +104,7 @@ struct TextEditingModelTests {
         #expect(m.text == "hello you")
         #expect(m.canRedo)
         m.insert("!")
-        #expect(!m.canRedo)                   // a new edit drops the redo history
+        #expect(!m.canRedo)
     }
 
     @Test func pasteCutAndCopy() {
@@ -121,7 +115,7 @@ struct TextEditingModelTests {
         #expect(m.cut() == "ab")
         #expect(m.text == "c")
         m.paste("x\ny")
-        #expect(m.text == "x yc")             // single line: newlines become spaces
+        #expect(m.text == "x yc")
         m.undo()
         #expect(m.text == "c")
         let multi = TextEditingModel(text: "", allowsNewlines: true)
@@ -133,7 +127,7 @@ struct TextEditingModelTests {
         let m = TextEditingModel(text: "ab")
         m.setSelection(TextSelectionRange(anchor: 1, head: 2))
         m.setMarkedText("にほ", cursor: 2)
-        #expect(m.text == "a")                 // the selection was replaced
+        #expect(m.text == "a")
         #expect(String(m.displayCharacters) == "aにほ")
         #expect(m.displayMarkedRange == 1..<3)
         #expect(m.displayCaret == 3)
@@ -161,19 +155,15 @@ struct TextEditingModelTests {
         #expect(g.lineIndex(of: 3) == 0 && g.lineIndex(of: 7) == 0 && g.lineIndex(of: 8) == 1)
         let x0 = g.caret(at: 0).x, x3 = g.caret(at: 3).x, x7 = g.caret(at: 7).x
         #expect(x0 == 0 && x3 > 0 && x7 > x3)
-        // Hit testing returns the nearest caret position.
         #expect(g.offset(atX: x3 + 0.4, y: 1) == 3)
         #expect(g.offset(atX: 1000, y: 1) == 7)
         #expect(g.offset(atX: -5, y: g.lines[1].top + 2) == 8)
-        // A selection over the newline covers both lines.
         let rects = g.selectionRects(5..<11)
         #expect(rects.count == 2)
         #expect(rects[1].x == 0)
-        // Vertical movement uses visual lines and the goal x.
         let down = g.verticalMove(from: 2, lines: 1, x: nil)
         #expect(down?.offset ?? -1 >= 8)
         #expect(g.verticalMove(from: 9, lines: 1, x: nil) == nil)
-        // A trailing newline opens an empty last line.
         let l2 = Typesetter.layout([AttributedRun("ab\n", style: style)], width: nil, style: ParagraphStyle(), rounding: { $0 })
         let g2 = TextLayoutGeometry(layout: l2)
         #expect(g2.lines.count == 2 && g2.lineIndex(of: 3) == 1 && g2.caret(at: 3).x == 0)

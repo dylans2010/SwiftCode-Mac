@@ -57,10 +57,6 @@ private func fixture(_ name: String) throws -> (text: String, proj: PBXProj) {
     }
 }
 
-/// Regression over real projects that are not checked in. The manifest lists
-/// one path per line, prefixed `=` (Xcode-written: must match byte for byte)
-/// or `~` (edited by other tools: must be lossless and idempotent).
-/// Override the manifest location with `SWIFTCODE_PBXPROJ_CORPUS`.
 @Suite struct PBXProjCorpusTests {
     static let manifest: URL = {
         if let env = ProcessInfo.processInfo.environment["SWIFTCODE_PBXPROJ_CORPUS"] { return URL(fileURLWithPath: env) }

@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - TODO Highlighter Extension View
 struct TodoHighlighterExtensionView: View {
     @State private var isEnabled = true
     @State private var keywords = ["TODO", "FIXME", "MARK", "HACK", "WARNING"]

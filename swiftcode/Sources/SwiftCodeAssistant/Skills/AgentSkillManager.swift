@@ -1,12 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/AgentSkillManager.swift
-//
-// Adapted for SwiftCode: access raised to public (the type is used
-// from swiftcode-ide views — BrowseSkillsView, CreateSkillView,
-// SkillsAddView, SkillsInfoView, SkillsView — which live in another
-// module). Behaviour unchanged. `Skill`, `AgentSkillBundle` and
-// `SkillsRuntime` already live in this target.
-
 import Foundation
 
 @MainActor
@@ -56,6 +47,5 @@ public final class AgentSkillManager: ObservableObject {
 
     public func importSkillArchive(at url: URL) throws {
         print("[AgentSkillManager] Importing skill archive from \(url.path)")
-        // Actual implementation would involve ZipImporter and SkillsRuntime
     }
 }

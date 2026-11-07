@@ -5,7 +5,6 @@ struct DependencyGitHubDiscoveryView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var platformManager = DependencyPlatformManager.shared
 
-    // Filters and query state
     @State private var keyword: String = ""
     @State private var topic: String = ""
     @State private var owner: String = ""
@@ -22,7 +21,6 @@ struct DependencyGitHubDiscoveryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 Button {
                     dismiss()
@@ -107,7 +105,6 @@ struct DependencyGitHubDiscoveryView: View {
     }
 }
 
-// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
 private struct SearchParametersSidebarPanel: View {
     var platformManager: DependencyPlatformManager
     @Binding var keyword: String
@@ -294,4 +291,3 @@ private struct ContentResultsView: View {
         .background(Color(NSColor.controlBackgroundColor))
     }
 }
-

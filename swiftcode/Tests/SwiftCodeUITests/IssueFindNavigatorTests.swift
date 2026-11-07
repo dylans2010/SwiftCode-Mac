@@ -4,16 +4,12 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// specs/ide/reference-ui-2.md §1 (issue navigator), §2 (capsule), §3 (Find).
 @MainActor
 @Suite struct IssueFindNavigatorTests {
     func d(_ sev: Diagnostic.Severity, _ msg: String, _ file: String? = nil, _ line: Int = 1) -> Diagnostic {
         Diagnostic(severity: sev, message: msg, location: file.map { .init(file: $0, line: line) })
     }
 
-    /// reference-ui-6.md §5.1 (N1), §5.2.4: one file row per file under a
-    /// parent, fresh and stale issues together by line; the project row
-    /// holds the file-less issues and the files no target builds.
     @Test func groupsByProjectTargetAndFile() {
         let x = d(.error, "x", "/p/B.swift", 4), y = d(.warning, "y", "/p/A.swift"), z = d(.error, "z", "/p/B.swift", 9)
         let s = d(.error, "s", "/p/B.swift", 3), n = d(.error, "n"), loose = d(.warning, "w", "/p/Loose.swift")
@@ -36,15 +32,10 @@ import SwiftCodeBuild
         #expect(rows[1].files[0].entries.map(\.isStale) == [true, false, false])
         #expect(rows[1].countText == "4 issues" && rows[2].countText == "2 issues")
         #expect(rows[2].files.map(\.title) == ["A", "Shared"])
-        // No project row without project issues; unknown targets by name.
         let only = IssueNavigatorModel.tree([.init(y)], grouping: IssueGrouping(projectName: "P", targetOrder: []) { _ in ["Zed"] })
         #expect(only.map(\.title) == ["Zed"] && only[0].countText == "1 issue")
     }
 
-    /// reference-ui-6.md §5.1 (supersedes reference-ui-5.md §5.3.1, N9):
-    /// issues without a file, such as the project's signing warning, are
-    /// rows directly under the project row; without target information
-    /// the files go there too.
     @Test func filelessIssuesSitUnderTheProjectRow() {
         let nav = NavigatorAreaController()
         _ = nav.view
@@ -58,7 +49,6 @@ import SwiftCodeBuild
         #expect(root?.children[2].children.map(\.title) == ["bad"])
         #expect(root?.children[0].children.isEmpty == true && root?.children[0].symbol == "exclamationmark.triangle.fill")
         #expect(root?.children[1].symbol == "xmark.octagon.fill")
-        // With targets: the project row, then a row per target.
         nav.issueGrouping = { IssueGrouping(projectName: "Demo", targetOrder: ["App"]) { _ in ["App"] } }
         nav.setIssues([signing, d(.error, "bad", "/p/Main.swift")])
         #expect(nav.roots[4].map(\.title) == ["Demo", "App"] && nav.roots[4].map(\.detail) == ["1 issue", "1 issue"])
@@ -78,7 +68,6 @@ import SwiftCodeBuild
         nav.issuesBuildFinished([b], full: false, compiledFiles: [])
         let root = nav.roots[4].first
         #expect(root?.detail == "2 issues")
-        // §5.2.4: one row for the file, the stale issue in it, greyed.
         #expect(root?.children.map(\.title) == ["Main"])
         #expect(root?.children[0].children.map(\.title) == ["second", "first"])
         #expect(root?.children[0].children.last?.tint == .tertiaryLabelColor)

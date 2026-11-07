@@ -1,12 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowExecutionView.swift
-//
-// Verbatim apart from this header. `WorkflowManager` /
-// `DeveloperWorkflow` / `GitViewModel` all live in this target now
-// (`CI/WorkflowManager.swift`, `CI/WorkflowModels.swift`,
-// `SourceControl/GitViewModel.swift`); `Project` is in
-// `SwiftCodeIDECore`. `.liquidGlass` is this module's modifier.
-
 import SwiftCodeIDECore
 import SwiftUI
 import AppKit
@@ -31,7 +22,6 @@ public struct WorkflowExecutionView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Execution header title and close actions
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -59,7 +49,6 @@ public struct WorkflowExecutionView: View {
 
             Divider()
 
-            // Progress bar and details panel
             VStack(spacing: 12) {
                 HStack {
                     Text(manager.isRunning ? "Running pipeline steps..." : "Pipeline Finished")
@@ -78,9 +67,7 @@ public struct WorkflowExecutionView: View {
 
             Divider()
 
-            // Main display: split layout showing steps stepper vs scrolling logger terminal
             HSplitView {
-                // Stepper panel on left
                 VStack(spacing: 0) {
                     Text("Pipeline Steps")
                         .font(.headline)
@@ -124,7 +111,6 @@ public struct WorkflowExecutionView: View {
                 .frame(minWidth: 200, idealWidth: 260, maxWidth: 320)
                 .background(Color(NSColor.windowBackgroundColor))
 
-                // Scrolling logs terminal on right
                 VStack(spacing: 0) {
                     HStack {
                         Label("Pipeline Execution Logs", systemImage: "terminal.fill")
@@ -183,8 +169,6 @@ public struct WorkflowExecutionView: View {
         }
     }
 
-    // MARK: - Status helpers
-
     @ViewBuilder
     private func stepStatusIcon(at idx: Int) -> some View {
         if idx < manager.currentStepIndex {
@@ -198,8 +182,6 @@ public struct WorkflowExecutionView: View {
                 .foregroundStyle(.secondary)
         }
     }
-
-    // MARK: - Timer / Execution logic
 
     private func runPipelineTask() {
         elapsedTime = 0.0

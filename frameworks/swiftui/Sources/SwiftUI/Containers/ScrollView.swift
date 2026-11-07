@@ -6,49 +6,15 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// ScrollView (round R9; 06 §3, golden `scrollView`, `scrollView.horizontal`).
-//
-// Layout (golden rows): along a scroll axis the scroll view takes the
-// proposed length, or the content's when none is proposed; across it, it is
-// the content's answer to the proposed cross length. The content is
-// proposed the cross length and an unspecified length along the scroll axes,
-// placed at the top-leading corner (centred across the axis when narrower)
-// and moved by the content offset; the scroll view clips it.
-//
-// Scrolling (06 §3, SwiftCode's rules where the spec is silent):
-// - the offset runs from 0 to content − viewport per axis;
-// - a scroll view whose frame touches the safe-area boundary scrolls its
-//   content under that inset (the reference: container 382 × 644 with a
-//   34-point bottom content inset, so 678 points of rows are visible);
-// - a drag (10 points to start, 06 §7) moves the content with the finger;
-//   on release it continues at the release velocity, decelerating by 0.998
-//   per millisecond (06 §3: ≈ 0.967 per 60 Hz frame) until slower than
-//   10 points/s or at an edge (no rubber band);
-// - wheel and trackpad deltas from OVPlatform scroll at once (a notch is 10
-//   points, R7); a vertical-only scroll view also takes horizontal deltas as
-//   vertical and a horizontal-only one vertical deltas as horizontal;
-//   nested scroll views take the delta innermost first, passing it on at an
-//   edge;
-// - indicators (SwiftCode's look): 3-point capsules 3 points inside the trailing
-//   and bottom edges, at least 36 long, shown while scrolling and for 1 s
-//   after (then faded over 0.25 s), always with `.visible`.
-
-// MARK: - State
-
-/// The offset, sizes and motion of one scroll view.
 package final class ScrollViewState: @unchecked Sendable {
     package var axes: Axis.Set = .vertical
-    /// The content offset (top-leading of the visible content, content
-    /// coordinates, without the insets).
     package var offset: CGPoint = .zero
     package var contentSize: CGSize = .zero
     package var viewportSize: CGSize = .zero
-    /// Safe-area insets the content scrolls under.
     package var insets = EdgeInsets()
     package var windowFrame: CGRect?
     package var isEnabled = true
     package var indicators: (vertical: ScrollIndicatorVisibility, horizontal: ScrollIndicatorVisibility) = (.automatic, .automatic)
-    /// Where a drag started (offset at the start).
     var dragStart: CGPoint?
     weak var node: ViewNode?
     var deceleration: FrameDriver?
@@ -59,18 +25,13 @@ package final class ScrollViewState: @unchecked Sendable {
     var targetBehavior: (any ScrollTargetBehavior)?
     var positionBinding: ScrollPositionBinding?
     var lastReportedPositionID: AnyHashable?
-    /// `scrollPosition(_:)`: the request last applied, and one the content's
-    /// size may not have reached yet.
     var appliedPointSerial = 0
     var pendingPoint: CGPoint?
     var defaultAnchor: UnitPoint?
     var appliedDefaultAnchor = false
-    /// Scroll views count as scrolling for this long after the last motion.
     static let indicatorHold: TimeInterval = 1.0
 
-    /// Per-millisecond velocity ratio (06 §3).
     package static let decelerationRate: Double = 0.998
-    /// Below this speed (points per second) a fling stops.
     package static let stopSpeed: Double = 10
 
     package init() {}
@@ -90,13 +51,11 @@ package final class ScrollViewState: @unchecked Sendable {
     }
 }
 
-/// An `onScrollGeometryChange` registration.
 @MainActor
 final class ScrollGeometryObserverBox {
     var report: (ScrollGeometry) -> Void = { _ in }
 }
 
-/// A `scrollPosition(id:)` binding.
 @MainActor
 struct ScrollPositionBinding {
     let read: () -> AnyHashable?
@@ -116,7 +75,6 @@ extension ScrollViewState: ScrollViewportProviding {
 
     package func reveal(_ rect: CGRect, anchor: UnitPoint?, transaction: Transaction) {
         guard let f = windowFrame else { return }
-        // `rect` in content coordinates.
         let r = CGRect(x: rect.minX - f.minX + offset.x, y: rect.minY - f.minY + offset.y, width: rect.width, height: rect.height)
         var target = offset
         for axis in [Axis.horizontal, .vertical] where axes.contains(axis == .horizontal ? .horizontal : .vertical) {
@@ -140,7 +98,6 @@ extension ScrollViewState: ScrollViewportProviding {
         setOffset(target, animation: transaction.animation)
     }
 
-    /// Moves the content (animated with `animation`, else at once).
     package func setOffset(_ p: CGPoint, animation: Animation? = nil, stopMotion: Bool = true) {
         if stopMotion { stopDeceleration() }
         let target = clamped(p)
@@ -166,7 +123,6 @@ extension ScrollViewState: ScrollViewportProviding {
         moved()
     }
 
-    /// The offset changed: lay out again, show the indicators.
     func moved() {
         guard let node, node.isAlive else { return }
         node.graph.scheduleUpdate(transaction: Transaction())
@@ -194,7 +150,6 @@ extension ScrollViewState: ScrollViewportProviding {
         deceleration = nil
     }
 
-    /// A fling at `velocity` (points per second, offset direction).
     func decelerate(from velocity: CGSize) {
         guard let node, node.isAlive else { return }
         var v = velocity
@@ -202,7 +157,6 @@ extension ScrollViewState: ScrollViewportProviding {
         if !axes.contains(.vertical) { v.height = 0 }
         let speed = hypot(v.width, v.height)
         if let behavior = targetBehavior {
-            // Where the fling would end, adjusted by the target behaviour.
             let k = 1 / (-log(Self.decelerationRate) * 1000)
             let natural = clamped(CGPoint(x: offset.x + v.width * k, y: offset.y + v.height * k))
             var target = ScrollTarget(rect: CGRect(origin: natural, size: viewportSize))
@@ -220,7 +174,6 @@ extension ScrollViewState: ScrollViewportProviding {
             guard let self else { return (false, false) }
             let ms = max(0, (t - begin) * 1000)
             let decay = pow(Self.decelerationRate, ms)
-            // Distance travelled: ∫ v·r^t dt = v (1 − r^t) / (−ln r).
             let f = CGFloat((1 - decay) / (-lnr) / 1000)
             let p = self.clamped(CGPoint(x: start.x + v.width * f, y: start.y + v.height * f))
             let changed = p != self.offset
@@ -244,8 +197,6 @@ extension ScrollViewState: ScrollWheelHandling {
         var dx = delta.width, dy = delta.height
         if axes == .vertical && dy == 0 { dy = -dx; dx = 0 }
         if axes == .horizontal && dx == 0 { dx = -dy; dy = 0 }
-        // OVPlatform: positive y scrolls up (content moves down), positive x
-        // scrolls right.
         let target = clamped(CGPoint(x: offset.x + (axes.contains(.horizontal) ? dx : 0),
                                      y: offset.y - (axes.contains(.vertical) ? dy : 0)))
         guard target != offset else { return false }
@@ -289,8 +240,6 @@ extension ScrollViewState: GeometryObserving {
         if let pos = positionBinding { syncPosition(pos, node: node) }
     }
 
-    /// `scrollPosition(id:)`: an outside change scrolls to the ID; scrolling
-    /// writes the first visible ID.
     private func syncPosition(_ pos: ScrollPositionBinding, node: ViewNode) {
         let wanted = pos.read()
         if let wanted, wanted != lastReportedPositionID {
@@ -305,7 +254,6 @@ extension ScrollViewState: GeometryObserving {
         node.graph.queueGeometryAction { pos.write(first) }
     }
 
-    /// The ID of the first item at least half visible (lazy containers).
     private func firstVisibleID(in node: ViewNode) -> AnyHashable? {
         guard let v = visibleWindowRect else { return nil }
         var out: AnyHashable?
@@ -327,9 +275,6 @@ extension ScrollViewState: GeometryObserving {
     }
 }
 
-/// The window frame of the view with `id` below `root`: a materialised view
-/// whose key is the ID (`.id(_:)`, a `ForEach` element), else an item of a
-/// lazy container (materialised or not; its estimated frame).
 @MainActor
 func locate(_ id: AnyHashable, in root: ViewNode) -> CGRect? {
     var found: CGRect?
@@ -354,9 +299,6 @@ func locate(_ id: AnyHashable, in root: ViewNode) -> CGRect? {
     return found
 }
 
-// MARK: - ScrollView
-
-/// A scrollable view of its content (06 §3).
 public struct ScrollView<Content: View>: View {
     public var content: Content
     public var axes: Axis.Set
@@ -452,7 +394,6 @@ extension ScrollView: PrimitiveView {
         bar.draw = { rec, size in
             MainActor.assumeIsolated { drawIndicators(&rec, size: size, state: s, color: palette.indicator, environment: env) }
         }
-        // The indicator layer has no view node, so it takes no hits.
         return [viewport.overlay(bar, alignment: .center)]
     }
 }
@@ -486,8 +427,6 @@ private func drawIndicators(_ rec: inout DrawRecorder, size: CGSize, state s: Sc
     for b in bars { rec.add(.fill(Capsule().path(in: b).renderPath, .color(c), .nonZero)) }
 }
 
-/// Sizes the scroll view from the proposal and the content (golden rows) and
-/// places the press catcher and the scrolled content in its bounds.
 struct ScrollViewportBehavior: NodeBehavior {
     let axes: Axis.Set
 
@@ -509,8 +448,6 @@ struct ScrollViewportBehavior: NodeBehavior {
     }
 }
 
-/// Places the content at the top-leading corner (centred across a single
-/// axis when narrower) and moves it by the offset.
 struct ScrollOffsetBehavior: NodeBehavior {
     let axes: Axis.Set
     let offset: CGPoint
@@ -540,15 +477,12 @@ struct ScrollOffsetBehavior: NodeBehavior {
 }
 
 extension ScrollViewState {
-    /// The offset clamped to the sizes of the current layout.
     func clampedForLayout(_ p: CGPoint, viewport: CGSize) -> CGPoint {
         let mx = axes.contains(.horizontal) ? max(0, contentSize.width - viewport.width) : 0
         let my = axes.contains(.vertical) ? max(0, contentSize.height - viewport.height) : 0
         return CGPoint(x: min(max(p.x, 0), mx), y: min(max(p.y, 0), my))
     }
 }
-
-// MARK: - Environment
 
 private enum ScrollGeometryObserversKey: EnvironmentKey {
     static var defaultValue: [ScrollGeometryObserverBox] { [] }
@@ -588,8 +522,6 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Modifiers
-
 private struct ScrollGeometryChangeModifier<T: Equatable>: ViewModifier {
     let transform: (ScrollGeometry) -> T
     let action: (T, T) -> Void
@@ -621,16 +553,11 @@ private final class LastValueBox<T> {
 }
 
 extension View {
-    /// Runs `action` when the value `transform` computes from the scroll
-    /// geometry of the scroll view inside changes (first value too; once per
-    /// frame while scrolling, 06 §3).
     public func onScrollGeometryChange<T: Equatable>(for type: T.Type, of transform: @escaping (ScrollGeometry) -> T,
                                                      action: @escaping (T, T) -> Void) -> some View {
         modifier(ScrollGeometryChangeModifier(transform: transform, action: action))
     }
 
-    /// Keeps `id` bound to the first visible item of the scroll view's lazy
-    /// content; setting it scrolls that item to `anchor` (default top).
     public func scrollPosition<ID: Hashable>(id: Binding<ID?>, anchor: UnitPoint? = nil) -> some View {
         let pos = ScrollPositionBinding(read: { id.wrappedValue.map(AnyHashable.init) },
                                         write: { v in
@@ -640,24 +567,18 @@ extension View {
         return environment(\._scrollPositionBinding, pos)
     }
 
-    /// How the scroll view inside chooses where a fling comes to rest.
     public func scrollTargetBehavior<B: ScrollTargetBehavior>(_ behavior: B) -> some View {
         environment(\._scrollTargetBehavior, behavior)
     }
 
-    /// Marks the layout whose subviews are scroll targets (accepted; view
-    /// alignment uses the lazy container's items or the content's subviews).
     public func scrollTargetLayout(isEnabled: Bool = true) -> some View { self }
 
-    /// Where the scroll view inside starts (e.g. `.bottom` for logs).
     public func defaultScrollAnchor(_ anchor: UnitPoint?) -> some View {
         environment(\._defaultScrollAnchor, anchor)
     }
 
-    /// Accepted: the content is always clipped.
     public func scrollClipDisabled(_ disabled: Bool = true) -> some View { self }
 
-    /// Accepted (scroll views do not bounce on this host).
     public func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = [.vertical]) -> some View { self }
 }
 
@@ -668,16 +589,12 @@ public struct ScrollBounceBehavior: Sendable, Equatable {
     public static let basedOnSize = ScrollBounceBehavior(kind: 2)
 }
 
-// MARK: - Scroll target behaviours
-
-/// Decides where a fling comes to rest.
 @MainActor @preconcurrency
 public protocol ScrollTargetBehavior {
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext)
     typealias TargetContext = ScrollTargetBehaviorContext
 }
 
-/// What a scroll target behaviour knows about the fling.
 @MainActor
 public struct ScrollTargetBehaviorContext {
     public var originalTarget: ScrollTarget
@@ -688,7 +605,6 @@ public struct ScrollTargetBehaviorContext {
     let state: ScrollViewState
 }
 
-/// Pages of the scroll view's size.
 public struct PagingScrollTargetBehavior: ScrollTargetBehavior {
     public init() {}
     public func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
@@ -707,7 +623,6 @@ public struct PagingScrollTargetBehavior: ScrollTargetBehavior {
     }
 }
 
-/// Rests with a subview (a lazy container's item) at the leading edge.
 public struct ViewAlignedScrollTargetBehavior: ScrollTargetBehavior {
     public struct LimitBehavior: Sendable, Equatable {
         let kind: Int
@@ -752,16 +667,10 @@ extension ScrollTargetBehavior where Self == ViewAlignedScrollTargetBehavior {
     }
 }
 
-// MARK: - ScrollViewReader
-
-/// Scrolls the scroll views inside a `ScrollViewReader`.
 @MainActor
 public struct ScrollViewProxy {
     let ref: ReaderRef
 
-    /// Scrolls the first scroll view below the reader that contains the view
-    /// with `id` (06 §3: `scrollTo(500, anchor: .top)` jumps without
-    /// animation; inside `withAnimation` it animates).
     public func scrollTo<ID: Hashable>(_ id: ID, anchor: UnitPoint? = nil) {
         guard let root = ref.node, root.isAlive else { return }
         if root.graph.needsUpdate { root.graph.update() }
@@ -785,7 +694,6 @@ final class ReaderRef {
     weak var node: ViewNode?
 }
 
-/// Gives its content a proxy that scrolls the scroll views inside it.
 public struct ScrollViewReader<Content: View>: View {
     public var content: (ScrollViewProxy) -> Content
 

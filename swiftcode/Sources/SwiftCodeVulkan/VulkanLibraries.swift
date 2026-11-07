@@ -1,27 +1,6 @@
-// Graphics pipeline libraries (VK_EXT_graphics_pipeline_library) for
-// render pipelines. A render pipeline is linked from four parts, each
-// cached by what it depends on:
-//
-//   vertex input        vertex descriptor + topology class
-//   pre-rasterization   the vertex function's SPIR-V
-//   fragment shader     the fragment function's SPIR-V + sample count
-//   fragment output     attachment formats + blend state + sample count
-//
-// The fragment-shader part is the expensive one on the Thor (NVIDIA's
-// compiler costs ~3 ms per branch; QuartzCore's uber-shaders take seconds),
-// and many Metal pipelines share a fragment function with different blend
-// state, formats or topology: with libraries it is compiled once per
-// fragment function, and every pipeline is a fast link (milliseconds).
-// Parts are never destroyed before shutdown (their number is bounded by
-// the distinct functions and states). SWIFTCODE_VULKAN_NO_PIPELINE_LIBRARY=1
-// turns the path off (CVulkan.c); SWIFTCODE_VULKAN_LIBRARY_LTO=1 links with
-// link-time optimization (slower links, for comparison).
-
 import CVulkan
 import Foundation
 
-/// The library parts, with in-flight builds so that concurrent workers do
-/// not compile the same part twice.
 final class PipelineLibraryCache: @unchecked Sendable {
     let lock = NSLock()
     var parts: [String: VkPipeline] = [:]
@@ -29,7 +8,6 @@ final class PipelineLibraryCache: @unchecked Sendable {
     var building: [String: DispatchGroup] = [:]
     var stats = PipelineLibraryStatistics()
 
-    /// The part for `key`, built by `build` once (outside the lock).
     func part(_ key: String, kind: Int, _ build: () -> VkPipeline?) -> VkPipeline? {
         while true {
             lock.lock()
@@ -64,7 +42,6 @@ final class PipelineLibraryCache: @unchecked Sendable {
         return Array(parts.values)
     }
 
-    /// Empties the cache (a device reset); returns the parts to destroy.
     func removeAll() -> [VkPipeline] {
         lock.lock(); defer { lock.unlock() }
         let list = Array(parts.values)
@@ -74,7 +51,6 @@ final class PipelineLibraryCache: @unchecked Sendable {
     }
 }
 
-/// Counters per part kind: 0 vertex input, 1 pre-rasterization, 2 fragment shader, 3 fragment output, 4 link.
 public struct PipelineLibraryStatistics: Sendable {
     public static let kinds = ["vertex input", "pre-rasterization", "fragment shader", "fragment output", "link"]
     public var builds = [Int](repeating: 0, count: 5)
@@ -91,16 +67,13 @@ public struct PipelineLibraryStatistics: Sendable {
 }
 
 extension VulkanMetalBackend {
-    /// Whether render pipelines are linked from library parts.
     var usesPipelineLibraries: Bool { ctx.pointee.features.graphicsPipelineLibrary != 0 }
 
-    /// A copy of the pipeline-library counters, taken under the libraries' lock.
     public var pipelineLibraryStatistics: PipelineLibraryStatistics {
         libraries.lock.lock(); defer { libraries.lock.unlock() }
         return libraries.stats
     }
 
-    /// A render pipeline variant linked from cached library parts. Needs no backend lock.
     func linkRenderVariant(_ p: VKRenderPipeline, vertex: TranslatedShader, topologyClass cls: UInt32) -> VkPipeline? {
         var info = p.info
         info.topology = vkTopology(forClass: cls)
@@ -110,7 +83,6 @@ extension VulkanMetalBackend {
             return nil
         }
 
-        // Vertex input: the raw bytes of the binding and attribute arrays plus counts and topology.
         let viKey = "vi:" + bytesKey(&info.bindings, Int(info.bindingCount) * MemoryLayout<yvk_vertex_binding>.stride) + "/" +
             bytesKey(&info.attributes, Int(info.attributeCount) * MemoryLayout<VkVertexInputAttributeDescription>.stride) +
             "/\(info.bindingCount)/\(info.attributeCount)/\(info.topology.rawValue)"
@@ -137,7 +109,6 @@ extension VulkanMetalBackend {
             let fsKey = p.fragment.map { "fs:\(shaderKey($0))/\(info.samples.rawValue)" } ?? "fs:none/\(info.samples.rawValue)"
             guard let fsLib = libraries.part(fsKey, kind: 2, {
                 guard let fragment = p.fragment else {
-                    // Depth and stencil only: the part has no shader stage.
                     var none = yvk_shader_stage()
                     return yvk_library_fragment_shader(ctx, &none, samples, &err, err.count)
                 }
@@ -173,7 +144,6 @@ extension VulkanMetalBackend {
     static let environmentLibraryLTO = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_LIBRARY_LTO"] != nil
 
     func shaderKey(_ s: TranslatedShader) -> String {
-        // FNV-1a over 32-bit words (4× fewer steps than over bytes).
         var h: UInt64 = 0xcbf2_9ce4_8422_2325
         for w in s.spirv { h = (h ^ UInt64(w)) &* 0x0000_0100_0000_01B3 }
         return "\(String(h, radix: 16))-\(s.spirv.count)-\(s.reflection.entryPoint ?? "main")"

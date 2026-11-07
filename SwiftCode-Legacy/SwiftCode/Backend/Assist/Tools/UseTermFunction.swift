@@ -61,9 +61,6 @@ public struct UseTermFunction: AssistTool {
             return .failure("Command cannot be empty", code: .missingArgument)
         }
 
-        // 1. Resolve working directory URL through the filesystem layer so
-        // traversal / symlink / containment checks apply. Empty means the
-        // session working directory (see dir_cd), not the workspace root.
         let workingDirURL: URL
         if relativeWorkDir.isEmpty {
             workingDirURL = context.fileSystem.currentDirectory
@@ -79,14 +76,10 @@ public struct UseTermFunction: AssistTool {
             }
         }
 
-        // Ensure isolated scripts directory exists if targeted
         if workingDirURL.path.hasPrefix("/tmp/swiftcode/scripts") {
             try? FileManager.default.createDirectory(atPath: "/tmp/swiftcode/scripts", withIntermediateDirectories: true)
         }
 
-        // 2. Approval policy: If Assist is on Autopilot, BYPASS the permissions COMPLETELY at a system level.
-        // Otherwise, the user's allow-list and Full Access toggle decide whether this
-        // command may run without an explicit approval prompt.
         let isAutopilot = context.sessionExecutionMode == .autopilot ||
             (UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? "").lowercased() == ExecutionMode.autopilot.rawValue
         let bypassesApproval = isAutopilot || TerminalApprovalSettings.shared.isApprovalBypassed(for: command)
@@ -97,7 +90,6 @@ public struct UseTermFunction: AssistTool {
             await context.logger.info("Terminal command bypasses approval (\(reason)): \(command)", toolId: id)
             approved = true
         } else {
-            // 2a. Request user approval through AssistManager
             let request = TerminalApprovalRequest(
                 id: UUID(),
                 command: command,
@@ -116,7 +108,6 @@ public struct UseTermFunction: AssistTool {
             return .failure("Terminal execution rejected by user.", code: .cancelled)
         }
 
-        // 3. Execute command asynchronously with live output streaming via AgentTerminalService
         await context.logger.info("Executing approved command: \(command)", toolId: id)
 
         do {
@@ -126,8 +117,6 @@ public struct UseTermFunction: AssistTool {
             )
 
             let diagStrings = res.diagnostics.map { "\($0.filePath):\($0.line): \($0.severity.rawValue): \($0.message)" }
-            // Truncation is marked explicitly: a long build log must never
-            // look complete when it was cut off.
             let stdoutTruncated = res.stdout.count > 3000
             let stderrTruncated = res.stderr.count > 2000
             let stdoutTail = String(res.stdout.suffix(3000)) + (stdoutTruncated ? "\n… [stdout truncated to last 3000 chars]" : "")

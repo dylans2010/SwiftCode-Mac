@@ -1,7 +1,3 @@
-/* CSwiftCodeXRReprojection (specs/simulator/xr-depth.md §5). SwiftCode's own code;
- * Vulkan interfaces from the Vulkan 1.3 specification and the CVulkan
- * target's vendored headers (Apache-2.0). The shaders are SwiftCode's own GLSL
- * (shaders/), compiled to SPIR-V by scripts/xr-depth-shaders.sh. */
 #include "CSwiftCodeXRReprojection.h"
 
 #include <stdarg.h>
@@ -54,13 +50,13 @@ typedef struct {
     VkImage image; VkDeviceMemory memory; VkImageView view;
     VkFormat format; int width, height;
     VkImageLayout layout;
-    int dirty;                       /* the staging buffer holds newer content */
-    int upload_width, upload_height; /* the size of the staged content */
+    int dirty;
+    int upload_width, upload_height;
     staging stage;
-    int levels;                      /* mip levels (0, 1: one) */
-    int mipped;                      /* a full mip chain, filled after each write */
+    int levels;
+    int mipped;
     VkImageUsageFlags extra_usage;
-    VkImageView target_view;         /* level 0 as a render target, when mipped */
+    VkImageView target_view;
 } texture;
 
 enum { PIPE_ENV = 0, PIPE_CACHE = 1, PIPE_FRESH = 2, PIPES = 3 };
@@ -76,15 +72,12 @@ typedef struct {
 
 typedef struct { VkCommandBuffer cb; VkFence fence; int pending; int timed; } slot;
 
-/* What a draw samples: colour, inverse depth, inset (descriptor set). */
 typedef struct { texture *colour, *depth, *inset; VkDescriptorSet set; int stale; } source;
 
-/* One face of the world cache: colour (RGBA8 sRGB, alpha 0 = empty) and
- * inverse depth (R32F), both render targets and sampled. */
 typedef struct { texture colour, depth; VkFramebuffer framebuffer; } cache_face;
 
 struct yrp_context {
-    int own;                          /* instance and device are ours */
+    int own;
     void *lib;
     PFN_vkGetInstanceProcAddr gipa;
     VkInstance instance;
@@ -106,8 +99,7 @@ struct yrp_context {
     VkQueryPool queries;
     slot ring[RING];
     int next;
-    texture colour, depth, inset;     /* the fresh picture */
-    /* A video picture's planes and their conversion into `colour` (display-stream.md §14). */
+    texture colour, depth, inset;
     texture plane[3];
     int yuv_dirty, yuv_format;
     source yuv;
@@ -119,7 +111,7 @@ struct yrp_context {
     uint32_t colour_fb_width, colour_fb_height;
     int colour_mips_stale;
     int anisotropy;
-    texture zero_depth, empty;        /* 1 x 1 dummies: depth 0 (infinity), transparent colour */
+    texture zero_depth, empty;
     texture env[6], env_depth[6];
     int env_ready, env_step;
     float inset_rect[4];
@@ -131,7 +123,6 @@ struct yrp_context {
     pass_entry passes[MAX_PASSES]; int pass_count;
     target_entry targets[MAX_TARGETS];
     unsigned long long use_counter;
-    /* the offscreen image */
     VkImage off; VkDeviceMemory off_memory; uint32_t off_width, off_height;
     staging readback;
     double gpu_ms;
@@ -235,7 +226,6 @@ static VkImageView view_make(yrp_context *c, VkImage image, VkFormat format, VkI
     return v;
 }
 
-/* Waits for every pending submission. */
 int yrp_wait(yrp_context *c) {
     if (!c) return -1;
     for (int i = 0; i < RING; i++)
@@ -253,7 +243,6 @@ static void texture_drop(yrp_context *c, texture *t) {
     t->layout = VK_IMAGE_LAYOUT_UNDEFINED;
 }
 
-/* (Re)creates a texture at w x h (waits for the GPU first: its descriptor changes). */
 static int texture_size(yrp_context *c, texture *t, int w, int h) {
     if (t->image && t->width == w && t->height == h) return 0;
     yrp_wait(c);
@@ -273,8 +262,6 @@ static int texture_size(yrp_context *c, texture *t, int w, int h) {
     return 0;
 }
 
-/* Makes the staging buffer ready for new content of `bytes`: waits for the
- * GPU copy that last read it. */
 static void *stage_begin(yrp_context *c, texture *t, size_t bytes) {
     if (t->stage.buffer && t->stage.last_slot >= 0 && c->ring[t->stage.last_slot].pending)
         c->vkWaitForFences(c->device, 1, &c->ring[t->stage.last_slot].fence, VK_TRUE, UINT64_MAX);
@@ -294,7 +281,6 @@ int yrp_set_colour(yrp_context *c, const void *bgra, int width, int height, int 
     return 0;
 }
 
-/* A plane's rows into its staging buffer. */
 static int plane_stage(yrp_context *c, texture *t, VkFormat format, const uint8_t *src, int pitch, int width, int height, int bytes_per_texel) {
     if (t->format != format) { yrp_wait(c); texture_drop(c, t); t->format = format; }
     size_t row = (size_t)width * bytes_per_texel;
@@ -318,7 +304,7 @@ int yrp_set_colour_yuv(yrp_context *c, int format, const uint8_t *y, const uint8
     }
     c->yuv_format = format;
     c->colour.upload_width = width; c->colour.upload_height = height;
-    c->colour.dirty = 0;    /* whatever BGRA was staged is older */
+    c->colour.dirty = 0;
     c->yuv_dirty = 1;
     return 0;
 }
@@ -348,7 +334,6 @@ int yrp_set_inset(yrp_context *c, const void *bgra, int width, int height, int s
     const uint8_t *src = bgra;
     for (int r = 0; r < height; r++) memcpy(dst + (size_t)r * width * 4, src + (size_t)r * stride, (size_t)width * 4);
     c->inset.upload_width = width; c->inset.upload_height = height; c->inset.dirty = 1;
-    /* The rectangle in source uv; its soft edge (alpha) blends in the shader. */
     c->inset_rect[0] = (float)x / (float)full_width;
     c->inset_rect[1] = (float)y / (float)full_height;
     c->inset_rect[2] = (float)(x + w) / (float)full_width;
@@ -382,7 +367,6 @@ static void source_update(yrp_context *c, source *s) {
     s->stale = 0;
 }
 
-/* Descriptor sets change only while nothing in flight uses them. */
 static void sources_update(yrp_context *c) {
     int stale = c->fresh.stale;
     for (int f = 0; f < 6; f++) stale |= c->env_src[f].stale | (c->cache_size ? c->cache_src[f].stale : 0);
@@ -424,9 +408,6 @@ static void barrier_levels(yrp_context *c, VkCommandBuffer cb, VkImage image, ui
     c->vkCmdPipelineBarrier(cb, src, dst, 0, 0, NULL, 0, NULL, 1, &b);
 }
 
-/* Fills levels 1… from level 0 with linear blits (in linear light on an sRGB
- * format, Vulkan's blit rule), so minified sampling does not alias. All levels
- * end up in SHADER_READ_ONLY_OPTIMAL; level 0 is expected there, written. */
 static void record_mips(yrp_context *c, VkCommandBuffer cb, texture *t) {
     if (t->levels <= 1) return;
     const VkPipelineStageFlags shaders = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
@@ -453,7 +434,6 @@ static void record_mips(yrp_context *c, VkCommandBuffer cb, texture *t) {
                    VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, shaders);
 }
 
-/* Records the upload of a texture whose staging buffer is newer. */
 static void record_upload(yrp_context *c, VkCommandBuffer cb, texture *t, int slot_index) {
     if (!t->dirty || !t->image) return;
     barrier(c, cb, t->image, VK_IMAGE_ASPECT_COLOR_BIT, t->layout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -471,7 +451,6 @@ static void record_upload(yrp_context *c, VkCommandBuffer cb, texture *t, int sl
     t->stage.last_slot = slot_index;
 }
 
-/* The video picture's planes → the colour image's level 0, on the GPU. */
 static void record_yuv(yrp_context *c, VkCommandBuffer cb, int si) {
     if (!c->yuv_dirty || !c->colour_fb || !c->colour.image) return;
     int planes = c->yuv_format == YRP_YUV444 ? 3 : 2;
@@ -510,9 +489,6 @@ static void record_uploads(yrp_context *c, VkCommandBuffer cb, int si) {
     for (int f = 0; f < 6; f++) { record_upload(c, cb, &c->env[f], si); record_upload(c, cb, &c->env_depth[f], si); }
 }
 
-/* A graphics pipeline over the one layout: `depth` 0 none, 1 test and
- * write (GREATER: reverse-Z); `blend` alpha blending; `targets` colour
- * attachments. */
 static VkPipeline pipeline_make(yrp_context *c, VkRenderPass pass, VkShaderModule vert, VkShaderModule frag, int depth, int blend, int targets) {
     VkPipelineShaderStageCreateInfo st[2] = { { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO },
                                               { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO } };
@@ -562,8 +538,6 @@ static VkPipeline pipeline_make(yrp_context *c, VkRenderPass pass, VkShaderModul
     return p;
 }
 
-/* The eye pass for a target format: colour (cleared to black) and a
- * reverse-Z depth buffer (cleared to 0, far). */
 static pass_entry *pass_for(yrp_context *c, VkFormat format, int external_depth) {
     for (int i = 0; i < c->pass_count; i++)
         if (c->passes[i].format == format && c->passes[i].external_depth == external_depth) return &c->passes[i];
@@ -653,7 +627,6 @@ static target_entry *target_for(yrp_context *c, uint64_t image, uint64_t depth_i
     return t;
 }
 
-/* One mesh draw of a source. */
 static void draw_source(yrp_context *c, VkCommandBuffer cb, source *s, const float m[16], const float tangents[4],
                         const float inset[4], float near_distance, float ratio, int step, int mode, float fade, float gain) {
     c->vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, c->layout, 0, 1, &s->set, 0, NULL);
@@ -675,13 +648,9 @@ static void draw_source(yrp_context *c, VkCommandBuffer cb, source *s, const flo
 }
 
 static const float face_tangents[4] = { -1, 1, 1, -1 };
-/* The cache's mesh: about 384 cells a side whatever the face's size (a face is
-   drawn for every eye every frame; its triangles are most of the frame's cost). */
 static int cache_step(const yrp_context *c) { int s = c->cache_size / 384; return s < 1 ? 1 : s; }
-/* The cache faces' near: their inverse depth is YRP_CACHE_NEAR / distance. */
 #define YRP_CACHE_NEAR 0.1f
 
-/* The next ring slot, its earlier use finished (and its GPU time read). */
 static slot *slot_begin(yrp_context *c, int *index) {
     int si = c->next;
     c->next = (c->next + 1) % RING;
@@ -716,7 +685,6 @@ static int slot_submit(yrp_context *c, slot *s) {
     return 0;
 }
 
-/* Fresh textures at their staged sizes. */
 static int yuv_prepare(yrp_context *c);
 
 static int fresh_sizes(yrp_context *c) {
@@ -727,8 +695,6 @@ static int fresh_sizes(yrp_context *c) {
     return 0;
 }
 
-/* The conversion's pass (made once), its framebuffer on the colour image, and its
- * descriptors on the planes; waits only when one of those has to change. */
 static int yuv_prepare(yrp_context *c) {
     int planes = c->yuv_format == YRP_YUV444 ? 3 : 2;
     int changed = 0;
@@ -788,7 +754,6 @@ static int yuv_prepare(yrp_context *c) {
     }
     if (changed || c->yuv.stale) {
         yrp_wait(c);
-        /* 4:2:0 has no third plane: binding 2 takes the first, the shader does not read it. */
         VkDescriptorImageInfo info[3] = {
             { c->linear, c->plane[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
             { c->linear, c->plane[1].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
@@ -869,7 +834,7 @@ int yrp_render(yrp_context *c, const yrp_target *target, const yrp_frame *f) {
     VkClearValue clear[2];
     memset(clear, 0, sizeof clear);
     clear[0].color.float32[3] = 1;
-    clear[1].depthStencil.depth = 0;     /* reverse-Z: far */
+    clear[1].depthStencil.depth = 0;
     VkRenderPassBeginInfo rb = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
     rb.renderPass = pe->pass;
     rb.framebuffer = te->framebuffer;
@@ -889,11 +854,7 @@ int yrp_render(yrp_context *c, const yrp_target *target, const yrp_frame *f) {
     int has_cache = c->cache_size && f->cache_mask;
     VkClearAttachment clear_depth = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, { .depthStencil = { 0, 0 } } };
     VkClearRect whole = { { { 0, 0 }, { target->width, target->height } }, 0, 1 };
-    /* The environment is behind everything: on its calibrated box it can stand
-       in front of a wall of the picture, and of the fill at that wall's depth
-       (a pale patch of the cube where an icon has moved off the wall). */
     if (c->env_ready && f->env_mask) c->vkCmdClearAttachments(s->cb, 1, &clear_depth, 1, &whole);
-    /* The cache: depth-displaced faces, empty texels dropped. */
 #define DRAW_CACHE() do { \
         c->vkCmdBindPipeline(s->cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pe->pipeline[PIPE_CACHE]); \
         for (int i = 0; i < 6; i++) if (f->cache_mask & (1u << i)) \
@@ -901,8 +862,6 @@ int yrp_render(yrp_context *c, const yrp_target *target, const yrp_frame *f) {
                         f->fresh.edge_ratio, cache_step(c), YRP_MODE_BACKGROUND | 16, 0, 1); \
     } while (0)
     if (f->fresh_under && has_cache) {
-        /* The head moved: the guest's picture shows a smoothed pose the tag
-           only estimates, so the settled cache wins where it has content. */
         if (f->fresh_enabled) {
             c->vkCmdBindPipeline(s->cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pe->pipeline[PIPE_FRESH]);
             draw_source(c, s->cb, &c->fresh, f->fresh.matrix, f->fresh.tangents, c->inset_rect, f->fresh.near_distance,
@@ -911,7 +870,6 @@ int yrp_render(yrp_context *c, const yrp_target *target, const yrp_frame *f) {
         }
         DRAW_CACHE();
         if (f->fresh_enabled) {
-            /* The windows layer is never in the cache: over it, from the picture. */
             c->vkCmdClearAttachments(s->cb, 1, &clear_depth, 1, &whole);
             c->vkCmdBindPipeline(s->cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pe->pipeline[PIPE_FRESH]);
             draw_source(c, s->cb, &c->fresh, f->fresh.matrix, f->fresh.tangents, c->inset_rect, f->fresh.near_distance,
@@ -919,9 +877,6 @@ int yrp_render(yrp_context *c, const yrp_target *target, const yrp_frame *f) {
         }
     } else {
         if (has_cache) {
-            /* Under the cache, the picture with its disocclusions filled from
-               their far corners: an uncovered area the cache has not seen takes
-               the background's colour, not the environment's. */
             if (f->fresh_enabled && f->fresh.mode == YRP_MODE_BACKGROUND) {
                 c->vkCmdBindPipeline(s->cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pe->pipeline[PIPE_FRESH]);
                 draw_source(c, s->cb, &c->fresh, f->fresh.matrix, f->fresh.tangents, c->inset_rect, f->fresh.near_distance,
@@ -931,10 +886,8 @@ int yrp_render(yrp_context *c, const yrp_target *target, const yrp_frame *f) {
             DRAW_CACHE();
         }
         if (f->fresh_enabled) {
-            /* The fresh picture wins over the cache wherever it covers. */
             if (has_cache) c->vkCmdClearAttachments(s->cb, 1, &clear_depth, 1, &whole);
             c->vkCmdBindPipeline(s->cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pe->pipeline[PIPE_FRESH]);
-            /* Over a cache, disocclusions show the cache or the fill above (discard); alone, the background. */
             int mode = f->fresh.mode == YRP_MODE_BACKGROUND && has_cache ? YRP_MODE_DISCARD : f->fresh.mode;
             draw_source(c, s->cb, &c->fresh, f->fresh.matrix, f->fresh.tangents, c->inset_rect, f->fresh.near_distance,
                         f->fresh.edge_ratio, f->fresh.grid_step, mode | (f->fade > 0 ? 32 : 0), f->fade, 1);
@@ -945,8 +898,6 @@ int yrp_render(yrp_context *c, const yrp_target *target, const yrp_frame *f) {
     if (s->timed) c->vkCmdWriteTimestamp(s->cb, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, c->queries, (uint32_t)si * 2 + 1);
     return slot_submit(c, s);
 }
-
-/* ---- the world cache ---- */
 
 static void cache_drop(yrp_context *c) {
     yrp_wait(c);
@@ -1011,7 +962,6 @@ static int cache_pass_make(yrp_context *c) {
     return c->cache_pipeline ? 0 : -1;
 }
 
-/* Clears every cache face to empty (alpha 0, depth 0) in SHADER_READ_ONLY. */
 static int cache_reset(yrp_context *c) {
     int si;
     slot *s = slot_begin(c, &si);
@@ -1043,7 +993,6 @@ int yrp_cache_enable(yrp_context *c, int face_size) {
         VkFormat fm[2] = { VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R32_SFLOAT };
         for (int k = 0; k < 2; k++) {
             ts[k]->format = fm[k];
-            /* The colour has mips: a face's corners hold about three times the pixels per degree of its centre. */
             ts[k]->levels = k == 0 ? mip_count(face_size, face_size) : 1;
             if (image_make_levels(c, fm[k], n, n, (uint32_t)ts[k]->levels,
                                   VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -1097,14 +1046,6 @@ int yrp_cache_update(yrp_context *c, const yrp_params *p, const float face_matri
         c->vkCmdSetViewport(s->cb, 0, 1, &v);
         c->vkCmdSetScissor(s->cb, 0, 1, &sc);
         c->vkCmdBindPipeline(s->cb, VK_PIPELINE_BIND_POINT_GRAPHICS, c->cache_pipeline);
-        /* The room only. The windows layer (the depth's low bit) stays out: it
-           changes and moves, and stored here it replaced what was known of the
-           room behind it. Depth edges go in at their far side, sharp while the
-           move from the picture's viewpoint to the cache's centre has not
-           stretched them. Stretched ones are not stored: a fill kept here stays
-           in the room as a ghost beside what made it, and what lay there stays;
-           an area nothing has seen is filled when it is drawn, from the fresh
-           picture under the cache. */
         draw_source(c, s->cb, &c->fresh, face_matrix[f], p->tangents, c->inset_rect, p->near_distance, p->edge_ratio,
                     p->grid_step, YRP_MODE_DISCARD | 64, 0, 1);
         c->vkCmdEndRenderPass(s->cb);
@@ -1148,7 +1089,6 @@ int yrp_set_environment_depth(yrp_context *c, const uint16_t *q, int n) {
         if (texture_size(c, &c->env_depth[f], n, n)) return -1;
         c->env_src[f].depth = &c->env_depth[f];
     }
-    /* A step of 2 over an odd n: grid corners fall on samples j = 2 i, the last on n - 1. */
     c->env_step = 2;
     mark_stale(c);
     return 0;
@@ -1194,8 +1134,6 @@ int yrp_read(yrp_context *c, void *bgra, size_t size) {
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-
 static int load(yrp_context *c, const yrp_vulkan *vk) {
     if (vk) {
         c->gipa = (PFN_vkGetInstanceProcAddr)vk->get_instance_proc_addr;
@@ -1231,7 +1169,6 @@ static int load(yrp_context *c, const yrp_vulkan *vk) {
         VkPhysicalDevice devs[8];
         if (n > 8) n = 8;
         c->vkEnumeratePhysicalDevices(c->instance, &n, devs);
-        /* Prefer a discrete GPU, then any. */
         c->physical = devs[0];
         for (uint32_t i = 0; i < n; i++) {
             VkPhysicalDeviceProperties pr;
@@ -1275,7 +1212,7 @@ static int dummy(yrp_context *c, texture *t, VkFormat format, const uint8_t valu
     void *d = stage_begin(c, t, 4);
     if (!d) return -1;
     memcpy(d, value, bytes);
-    t->upload_width = 0;     /* the next real content sets the size */
+    t->upload_width = 0;
     t->dirty = 1;
     return 0;
 }
@@ -1295,8 +1232,6 @@ yrp_context *yrp_create(const yrp_vulkan *vk, char *error, size_t error_size) {
     VkSamplerCreateInfo si = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
     si.magFilter = si.minFilter = VK_FILTER_LINEAR;
     si.addressModeU = si.addressModeV = si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    /* Trilinear, and anisotropic where the device has it: the warp and the cache's
-       corners minify the picture, and more along one axis than the other. */
     si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     si.maxLod = VK_LOD_CLAMP_NONE;
     if (c->anisotropy) { si.anisotropyEnable = VK_TRUE; si.maxAnisotropy = 8; }
@@ -1350,7 +1285,6 @@ yrp_context *yrp_create(const yrp_vulkan *vk, char *error, size_t error_size) {
         if (c->vkCreateQueryPool(c->device, &qi, NULL, &c->queries) != VK_SUCCESS) c->queries = VK_NULL_HANDLE;
     }
     static const uint8_t black[4] = { 0, 0, 0, 0 };
-    /* The picture: mips for minified sampling, and a render target for the video conversion. */
     c->colour.mipped = 1;
     c->colour.extra_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     if (dummy(c, &c->colour, VK_FORMAT_B8G8R8A8_SRGB, black, 4) || dummy(c, &c->depth, VK_FORMAT_R16_UNORM, black, 2) ||
@@ -1368,7 +1302,6 @@ yrp_context *yrp_create(const yrp_vulkan *vk, char *error, size_t error_size) {
     c->yuv_set = set_make(c);
     if (!c->yuv_set) goto fail;
     c->yuv.stale = 1;
-    /* The environment's faces sample a transparent dummy until one arrives. */
     for (int f = 0; f < 6; f++) c->env_src[f].colour = &c->empty;
     c->gpu_ms = -1;
     return c;

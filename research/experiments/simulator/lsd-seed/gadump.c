@@ -1,7 +1,3 @@
-// gadump: our probe (stage 7, agent I4). Calls getattrlist(2) with the
-// attribute groups and options given on the command line and hex-dumps the
-// reply, so the Mac's simulator (level 3) and Ycode can be compared byte for byte.
-// Usage: gadump <path> <common> <vol> <dir> <file> <fork> <options> [bufsize]
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

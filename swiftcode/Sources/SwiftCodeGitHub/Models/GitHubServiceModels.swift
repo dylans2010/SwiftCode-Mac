@@ -1,10 +1,5 @@
 import Foundation
 
-/// A GitHub Discussion thread (`POST /graphql`, mapped by
-/// `GitHubService.fetchDiscussions`). Ported verbatim from Legacy
-/// `SwiftCode/Backend/Git/GitHubService.swift` (`DiscussionThread`), with
-/// an explicit public memberwise init — Legacy's was internal, and
-/// `DiscussionsView` (SwiftCodeUI) constructs replies itself.
 public struct DiscussionThread: Identifiable, Sendable {
     public let id: String
     public let title: String
@@ -36,9 +31,6 @@ public struct DiscussionThread: Identifiable, Sendable {
     }
 }
 
-/// One comment on a discussion thread. Ported verbatim from Legacy
-/// `SwiftCode/Backend/Git/GitHubService.swift` (`DiscussionReply`), with
-/// an explicit public memberwise init (see `DiscussionThread`).
 public struct DiscussionReply: Identifiable, Sendable {
     public let id: String
     public let author: String

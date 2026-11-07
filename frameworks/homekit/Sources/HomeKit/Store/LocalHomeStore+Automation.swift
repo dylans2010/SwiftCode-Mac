@@ -1,7 +1,3 @@
-// Action sets and triggers in the in-memory store (object-model.md §8–§9).
-// Execution of action sets is here; firing timer and event triggers is the
-// scheduler of plan.md R4 and not part of this round.
-
 import Foundation
 
 extension SwiftCodeLocalHomeStore {
@@ -158,7 +154,6 @@ extension SwiftCodeLocalHomeStore {
         return hub == HMHomeHubState.connected.rawValue ? .enabled : .disabledNoHomeHub
     }
 
-    /// The value of a write action, validated against its characteristic.
     func checkedActionValue(_ home: SwiftCodeHomeRecord, _ cid: UUID, _ value: SwiftCodeHomeValue) throws -> SwiftCodeHomeValue {
         guard let (a, s, c) = home.characteristicPath(cid) else { throw HMError(.notFound) }
         let ch = home.accessories[a].services[s].characteristics[c]
@@ -169,11 +164,6 @@ extension SwiftCodeLocalHomeStore {
         }
     }
 
-    // MARK: Trigger rules (object-model.md §9, errors.md 28, 42, 69, 70, 72)
-
-    /// Timer recurrences: only minute, hour, day and week-of-year fields; at
-    /// least 5 minutes and at most 5 weeks (SwiftCode's reading of the public
-    /// documentation; to be confirmed by plan.md HK-A08).
     public static let minimumRecurrence: TimeInterval = 5 * 60
     public static let maximumRecurrence: TimeInterval = 5 * 7 * 86_400
 
@@ -213,8 +203,6 @@ extension SwiftCodeLocalHomeStore {
         }
     }
 
-    // MARK: Execution (object-model.md §8; errors 25, 63, 64, 65)
-
     func execute(_ homeID: UUID, _ setID: UUID, _ session: Session, _ reply: @escaping Reply) {
         guard let h = state.homes.firstIndex(where: { $0.id == homeID }),
               let set = state.homes[h].actionSets.first(where: { $0.id == setID }) else {
@@ -226,7 +214,6 @@ extension SwiftCodeLocalHomeStore {
         executeStep(homeID, setID, set.actions, 0, failures: 0, reply)
     }
 
-    /// Writes action `index` (on the store queue), then the next one.
     func executeStep(_ homeID: UUID, _ setID: UUID, _ actions: [SwiftCodeActionRecord], _ index: Int, failures: Int,
                      _ reply: @escaping Reply) {
         guard index < actions.count else {

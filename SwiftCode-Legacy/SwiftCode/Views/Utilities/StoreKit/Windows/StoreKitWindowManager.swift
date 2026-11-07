@@ -12,7 +12,6 @@ public final class StoreKitWindowManager: NSObject, NSWindowDelegate {
     }
 
     public func showWindow(for fileURL: URL? = nil) {
-        // If a window for this file is already open, focus it
         if let fileURL = fileURL,
            let existing = windowControllers.first(where: { $0.associatedURL == fileURL }) {
             existing.window?.makeKeyAndOrderFront(nil)
@@ -31,8 +30,6 @@ public final class StoreKitWindowManager: NSObject, NSWindowDelegate {
         }
         windowControllers.removeAll()
     }
-
-    // MARK: - NSWindowDelegate
 
     public func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow,

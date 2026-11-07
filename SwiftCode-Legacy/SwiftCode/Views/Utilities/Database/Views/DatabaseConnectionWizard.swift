@@ -12,7 +12,6 @@ struct DatabaseConnectionWizard: View {
     @State private var databaseName = ""
     @State private var username = ""
 
-    // Supabase
     @State private var supabaseURL = ""
     @State private var supabaseAnonKey = ""
 

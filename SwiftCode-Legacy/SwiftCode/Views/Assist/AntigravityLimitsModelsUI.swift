@@ -1,12 +1,3 @@
-//
-//  AntigravityLimitsModelsUI.swift
-//  SwiftCode
-//
-//  Dedicated glass-like UI popover displaying official SDK models sorted by thinking level
-//  and real Google account allowances.
-//  Matches the compact glass styling of AssistCustomModelPickerPopover.
-//
-
 import SwiftUI
 import AppKit
 
@@ -22,7 +13,6 @@ public struct AntigravityLimitsModelsUI: View {
     @State private var showingUsageDetailsPopover: Bool = false
     @State private var selectedThinkingLevel: ThinkingLevel = .high
     @State private var hoveredModelID: String? = nil
-    // Discovered SwiftCode Cloud models (server hosts many — never a hardcoded single model).
     @State private var cloudModels: [SCCloudModelInfo] = []
 
     public enum ThinkingLevel: String, CaseIterable, Identifiable {
@@ -34,14 +24,13 @@ public struct AntigravityLimitsModelsUI: View {
 
         public var accentColor: Color {
             switch self {
-            case .low: return Color(red: 0.0, green: 0.8, blue: 0.8) // Cyan / Teal
-            case .medium: return Color(red: 0.55, green: 0.35, blue: 1.0) // Indigo / Purple
-            case .high: return Color(red: 1.0, green: 0.2, blue: 0.5) // Coral / Pink
+            case .low: return Color(red: 0.0, green: 0.8, blue: 0.8)
+            case .medium: return Color(red: 0.55, green: 0.35, blue: 1.0)
+            case .high: return Color(red: 1.0, green: 0.2, blue: 0.5)
             }
         }
     }
 
-    /// Dynamic accessor for code referencing `AntigravityLimitsModelsUI.sdkModels`
     public static var sdkModels: [AntigravitySDKModel] {
         AntigravitySDKModelFetcher.shared.models
     }
@@ -58,15 +47,12 @@ public struct AntigravityLimitsModelsUI: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header with Usage Details, Refresh & Dismiss
             headerView
 
-            // MARK: - Modern Thinking Depth Picker
             thinkingPickerSection
 
             Divider()
 
-            // MARK: - Models List
             modelsListView
         }
         .frame(width: 320, height: 380)
@@ -74,7 +60,6 @@ public struct AntigravityLimitsModelsUI: View {
         .onAppear {
             quotaService.startPeriodicRefresh()
             syncThinkingLevelWithSelection()
-            // Seed from cache, then refresh in the background when stale.
             cloudModels = SCCloudModelDiscovery.shared.models
             Task {
                 let fresh = await SCCloudModelDiscovery.shared.refreshIfStale()
@@ -89,10 +74,8 @@ public struct AntigravityLimitsModelsUI: View {
         }
     }
 
-    // MARK: - Header
     private var headerView: some View {
         HStack(spacing: 8) {
-            // Usage Details Pill / Button with Live Gauge Color & Percentage
             Button {
                 showingUsageDetailsPopover.toggle()
             } label: {
@@ -122,7 +105,6 @@ public struct AntigravityLimitsModelsUI: View {
 
             Spacer()
 
-            // Live Refresh button
             Button {
                 Task {
                     quotaService.refreshRealGoogleQuota()
@@ -143,7 +125,6 @@ public struct AntigravityLimitsModelsUI: View {
             .help("Refresh Quota & Models")
             .disabled(quotaService.isRefreshingQuota || modelFetcher.isFetching)
 
-            // Dismiss Button
             Button {
                 onDismiss()
             } label: {
@@ -158,7 +139,6 @@ public struct AntigravityLimitsModelsUI: View {
         .background(Color.primary.opacity(0.04))
     }
 
-    // MARK: - Thinking Depth Picker
     private var thinkingPickerSection: some View {
         HStack(spacing: 2) {
             ForEach(ThinkingLevel.allCases) { level in
@@ -191,7 +171,6 @@ public struct AntigravityLimitsModelsUI: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: - Models List View
     private var modelsListView: some View {
         let models = displayedModels
         return Group {
@@ -224,7 +203,6 @@ public struct AntigravityLimitsModelsUI: View {
         }
     }
 
-    // MARK: - Clean Model Row
     private func modelRow(_ model: AntigravitySDKModel) -> some View {
         let isSelected = selectedModelID == model.id || (selectedModelID.isEmpty && model.id == "gemini-3.8-flash")
         let isHovered = hoveredModelID == model.id
@@ -268,8 +246,6 @@ public struct AntigravityLimitsModelsUI: View {
         }
     }
 
-    /// Curated blurb for a cloud model row, if the model is a discovered
-    /// SwiftCode Cloud model with a known description.
     private func cloudBlurb(for model: AntigravitySDKModel) -> String? {
         guard let endpointName = SCCloudConfiguration.endpointName(forInternalID: model.id) else {
             return nil
@@ -277,17 +253,10 @@ public struct AntigravityLimitsModelsUI: View {
         return SCCloudConfiguration.blurb(forEndpointName: endpointName)
     }
 
-    // MARK: - Displayed Models (Filtered by Thinking Level)
     private var displayedModels: [AntigravitySDKModel] {
         let all = modelFetcher.models.isEmpty ? AntigravitySDKModelFetcher.seedModels : modelFetcher.models
         let matching = all.filter { $0.thinkingLevel.lowercased() == selectedThinkingLevel.rawValue.lowercased() }
         var base = matching.isEmpty ? all : matching
-        // SwiftCode Cloud Models: pinned to the top whenever the toggle is on,
-        // regardless of thinking-level filter or routing strategy. One entry per
-        // discovered model, each labeled with its real server-side name
-        // (gemma, gpt-oss, qwen, …) — never a single hardcoded model name.
-        // Until the first discovery completes, a single honest placeholder
-        // entry is shown; it resolves to the first discovered model.
         if settings.useSwiftCodeCloudModel {
             let cloudEntries: [AntigravitySDKModel]
             if cloudModels.isEmpty {
@@ -317,10 +286,8 @@ public struct AntigravityLimitsModelsUI: View {
         return base
     }
 
-    // MARK: - Usage Details Popover Content (Live Google Allowance)
     private var usageDetailsPopoverContent: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header
             HStack(spacing: 8) {
                 Image(systemName: "gauge.with.needle.fill")
                     .font(.system(size: 13, weight: .bold))
@@ -354,7 +321,6 @@ public struct AntigravityLimitsModelsUI: View {
 
             Divider()
 
-            // MARK: - Section 1: Gemini
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 4) {
                     Image(systemName: "sparkles")
@@ -385,7 +351,6 @@ public struct AntigravityLimitsModelsUI: View {
 
             Divider()
 
-            // MARK: - Section 2: Claude & GPT
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 4) {
                     Image(systemName: "cpu")
@@ -416,7 +381,6 @@ public struct AntigravityLimitsModelsUI: View {
 
             Divider()
 
-            // MARK: - Data source & refresh provenance
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     Image(systemName: "info.circle")
@@ -503,7 +467,6 @@ public struct AntigravityLimitsModelsUI: View {
         .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
     }
 
-    // MARK: - Helpers
     private func selectThinkingLevel(_ level: ThinkingLevel) {
         selectedThinkingLevel = level
 

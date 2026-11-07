@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/PreviewConfigurationView.swift` (SwiftCode-Mac migration, P-UTIL).
-// PreviewManager resolved: landed by fix W-V2 at SwiftCodeUI/VisualUIBuilder/PreviewManager.swift (from Legacy SwiftCode/Core/Preview/PreviewManager.swift); .state/.shared API matches this view.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDECore
 

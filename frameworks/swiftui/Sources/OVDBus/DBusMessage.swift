@@ -1,13 +1,5 @@
 import Foundation
 
-// Messages (D-Bus Specification 0.43, "Message Format"): the header is
-// `yyyyuua(yv)` — byte order ('l' or 'B'), message type, flags, major
-// protocol version 1, body length, serial, then header fields (code,
-// variant) — padded to 8 bytes; the body follows in the same byte order.
-// Header field codes: 1 PATH (o), 2 INTERFACE (s), 3 MEMBER (s),
-// 4 ERROR_NAME (s), 5 REPLY_SERIAL (u), 6 DESTINATION (s), 7 SENDER (s),
-// 8 SIGNATURE (g), 9 UNIX_FDS (u). Messages are at most 128 MiB.
-
 public enum DBusMessageType: UInt8, Sendable {
     case methodCall = 1
     case methodReturn = 2
@@ -15,7 +7,6 @@ public enum DBusMessageType: UInt8, Sendable {
     case signal = 4
 }
 
-/// Header flags.
 public struct DBusMessageFlags: OptionSet, Sendable, Hashable {
     public let rawValue: UInt8
     public init(rawValue: UInt8) { self.rawValue = rawValue }
@@ -24,11 +15,9 @@ public struct DBusMessageFlags: OptionSet, Sendable, Hashable {
     public static let allowInteractiveAuthorization = DBusMessageFlags(rawValue: 0x4)
 }
 
-/// One message.
 public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
     public var type: DBusMessageType
     public var flags: DBusMessageFlags = []
-    /// Set when the message is sent (or read).
     public var serial: UInt32 = 0
     public var path: String?
     public var interface: String?
@@ -42,7 +31,6 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
 
     public init(type: DBusMessageType) { self.type = type }
 
-    /// The body's signature.
     public var signature: String { body.map(\.signature).joined() }
 
     public static func methodCall(destination: String?, path: String, interface: String?, member: String,
@@ -68,7 +56,6 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
         return m
     }
 
-    /// A method return for `call`.
     public static func reply(to call: DBusMessage, body: [DBusValue] = []) -> DBusMessage {
         var m = DBusMessage(type: .methodReturn)
         m.replySerial = call.serial
@@ -77,7 +64,6 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
         return m
     }
 
-    /// An error reply for `call` (the message is the body's string).
     public static func error(to call: DBusMessage, name: String, message: String) -> DBusMessage {
         var m = DBusMessage(type: .error)
         m.replySerial = call.serial
@@ -87,7 +73,6 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
         return m
     }
 
-    /// The first string of an error's body.
     public var errorMessage: String { body.first?.stringValue ?? "" }
 
     public var description: String {
@@ -101,8 +86,6 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
         parts.append("(\(signature))")
         return parts.joined(separator: " ")
     }
-
-    // MARK: Validation
 
     func validate() throws {
         func need(_ v: String?, _ what: String) throws {
@@ -129,11 +112,8 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
         if let destination, !DBusNames.isValidBusName(destination) { throw DBusError.malformedMessage("destination \"\(destination)\"") }
     }
 
-    // MARK: Wire format
-
     public static let maximumLength = 1 << 27
 
-    /// The message's bytes (serial must be set).
     public func encoded(bigEndian: Bool = false) throws -> [UInt8] {
         guard serial != 0 else { throw DBusError.malformedMessage("serial 0") }
         try validate()
@@ -164,8 +144,6 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
         return out
     }
 
-    /// The total length of the message that starts with `prefix` (at least
-    /// 16 bytes), or nil when fewer than 16 bytes are there.
     public static func frameLength(_ prefix: ArraySlice<UInt8>) throws -> Int? {
         guard prefix.count >= 16 else { return nil }
         let b = Array(prefix.prefix(16))
@@ -187,7 +165,6 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
         return total
     }
 
-    /// Decodes one complete message.
     public static func decode(_ bytes: [UInt8]) throws -> DBusMessage {
         guard let total = try frameLength(bytes[...]), total == bytes.count else {
             throw DBusError.malformedMessage("length does not match")
@@ -233,7 +210,7 @@ public struct DBusMessage: Sendable, Equatable, CustomStringConvertible {
             case 9:
                 guard case .uint32(let n) = v else { throw DBusError.malformedMessage("UNIX_FDS type") }
                 m.unixFDs = n
-            default: break // unknown fields are ignored (spec)
+            default: break
             }
         }
         var bd = DBusDecoder(bytes, bigEndian: big, start: bodyStart, end: bytes.count, base: -bodyStart)

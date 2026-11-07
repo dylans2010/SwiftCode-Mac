@@ -1,8 +1,3 @@
-//
-//  AssistSwiftASTInspectorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSwiftASTInspectorTool: AssistTool {
@@ -44,7 +39,6 @@ public struct AssistSwiftASTInspectorTool: AssistTool {
             return .failure("File not found at path: \(path)")
         }
 
-        // Run swiftc -dump-ast
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         proc.arguments = ["swiftc", "-dump-ast", resolvedURL.path]
@@ -68,10 +62,8 @@ public struct AssistSwiftASTInspectorTool: AssistTool {
                 return .success("AST for \(path) (\(lines.count) lines):\n\n\(truncated)")
             }
         } catch {
-            // Fall through to regex-based structural AST fallback
         }
 
-        // Structural parser fallback: extracts classes, structs, enums, protocols, funcs, extensions
         guard let content = try? String(contentsOf: resolvedURL, encoding: .utf8) else {
             return .failure("Unable to read source file at \(path)")
         }

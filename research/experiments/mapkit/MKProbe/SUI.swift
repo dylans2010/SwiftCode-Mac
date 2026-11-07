@@ -1,8 +1,3 @@
-// MKProbe: SwiftUI Map modes.
-//   -mode sui     content (markers, annotation, shapes) with .automatic position;
-//                 records the camera the framework picks, then camera changes.
-//   -mode suicam  sequence of programmatic positions; MapProxy conversions.
-//   -variant      map style: standard | standard-realistic | imagery | hybrid
 import SwiftUI
 import MapKit
 

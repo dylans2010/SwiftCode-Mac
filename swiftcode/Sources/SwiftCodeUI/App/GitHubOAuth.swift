@@ -9,28 +9,6 @@ import AppKit
 import UIKit
 #endif
 
-/// "Sign in with GitHub" via OAuth (ported from Legacy's `GitHubOAuth`).
-///
-/// The flow is Legacy's: authorize at `github.com/login/oauth/authorize`
-/// (scope `repo workflow read:user`), validate the `state` (SHA-256 of 32
-/// random bytes), exchange the code at
-/// `github.com/login/oauth/access_token`, store the token, validate it
-/// with `GET /user`. The redirect URI is `swiftcode://oauth/callback` —
-/// gap-closure registers the `swiftcode://` scheme and forwards opens to
-/// `handleOpenURL(_:)`; the app shell calls that method (see the
-/// wiring list — this file does not hook itself into the app entry).
-///
-/// Rewired from Legacy's `GitHubAuth` + `APIKeyManager`: the token lives
-/// in the secret store (`SecretAccount.githubToken`, the same account
-/// `GitHubClient` reads) and validation goes through `GitHubClient`.
-/// Legacy's unused `secretID` static is dropped. The client id/secret
-/// come from the environment or a `.env` file (`GITHUB_CLIENT_ID`,
-/// `CLIENT_SECRET`) — never from the code, never from a committed file.
-/// The `.env` search includes the app-support `SwiftCode` directory (Legacy
-/// looked in `SwiftCode`).
-///
-/// macOS-only: `ASWebAuthenticationSession` with an AppKit presentation
-/// anchor. `prefersEphemeralWebBrowserSession` stays on, as in Legacy.
 @MainActor
 @Observable
 public final class GitHubOAuth: NSObject {
@@ -145,9 +123,6 @@ public final class GitHubOAuth: NSObject {
         await processCallbackURL(url, config: config)
     }
 
-    /// Handles a URL the app was opened with. Returns true when it is the
-    /// OAuth callback (scheme + host + path match the configured redirect
-    /// URI); the code exchange then runs asynchronously.
     @discardableResult
     public func handleOpenURL(_ url: URL) -> Bool {
         guard let config = GitHubOAuthConfig.load(),
@@ -161,8 +136,6 @@ public final class GitHubOAuth: NSObject {
         return true
     }
 
-    /// Whether `url` matches the configured redirect URI (scheme, host,
-    /// path). Internal so tests can cover the matching without a sign-in.
     nonisolated static func isOAuthCallback(_ url: URL, config: GitHubOAuthConfig) -> Bool {
         guard let expectedURL = URL(string: config.redirectURI) else { return false }
         return url.scheme == expectedURL.scheme
@@ -367,8 +340,6 @@ struct DotEnvLoader {
         return dictionary
     }
 
-    /// Parses `KEY=value` lines (blank lines and `#` comments skipped,
-    /// surrounding quotes stripped). Internal so tests can cover it.
     static func parse(contents: String) -> [String: String] {
         var dictionary: [String: String] = [:]
 
@@ -384,7 +355,6 @@ struct DotEnvLoader {
                 let key = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
                 var value = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Remove quotes if present
                 if (value.hasPrefix("\"") && value.hasSuffix("\"")) || (value.hasPrefix("'") && value.hasSuffix("'")) {
                     value = String(value.dropFirst().dropLast())
                 }

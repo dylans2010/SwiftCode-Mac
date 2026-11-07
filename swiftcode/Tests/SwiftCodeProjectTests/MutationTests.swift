@@ -10,7 +10,6 @@ import SwiftCodePlist
         return (text, try PBXProj(parsing: text))
     }
 
-    /// Lines of `b` that are not in `a` (a multiset difference).
     func addedLines(_ a: String, _ b: String) -> [String] {
         var pool = a.components(separatedBy: "\n")
         return b.components(separatedBy: "\n").filter { line in
@@ -27,11 +26,9 @@ import SwiftCodePlist
         let added = addedLines(text, edited)
         #expect(added.count == 2 && added.allSatisfy { $0.contains("MARKETING_VERSION = 2.0;") })
         #expect(addedLines(edited, text).allSatisfy { $0.contains("MARKETING_VERSION") })
-        // Reparse: the value is there for both configurations.
         let again = try PBXProj(parsing: edited)
         let configs = again.buildConfigurations(listID: again.targets[0].string("buildConfigurationList"))
         #expect(configs.allSatisfy { $0["buildSettings"]?.dictionary?["MARKETING_VERSION"]?.string == "2.0" })
-        // Removing an unrelated new key restores the original bytes.
         proj.setBuildSetting("SWIFTCODE_TEMP", "1", inListOf: target.id)
         proj.setBuildSetting("SWIFTCODE_TEMP", nil, inListOf: target.id)
         #expect(proj.serialized(projectName: "Hello") == edited)
@@ -49,12 +46,10 @@ import SwiftCodePlist
         #expect(edited.contains("/* Extra.swift in Sources */") && edited.contains("lastKnownFileType = sourcecode.swift; path = Extra.swift;"))
         let again = try PBXProj(parsing: edited)
         #expect(again.fileReference(ofBuildFile: bf)?.string("path") == "Extra.swift")
-        // Removing the build file, then the reference, gives back the original.
         proj.removeBuildFile(bf)
         #expect(!proj.serialized(projectName: "Hello").contains("Extra.swift in Sources"))
         proj.removeFileReference(ref)
         #expect(proj.serialized(projectName: "Hello") == text)
-        // Removing a reference also removes its build files.
         let r2 = proj.addFileReference(path: "Two.swift", to: main)
         proj.addBuildFile(fileReference: r2, to: sources.id)
         proj.removeFileReference(r2)

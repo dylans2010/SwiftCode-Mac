@@ -4,11 +4,10 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Expand API documentation for all 7 SDK modules with complete specifications
+
     doc_api = os.path.join(dest, "documentation", "api")
     os.makedirs(doc_api, exist_ok=True)
-    
+
     modules = ["SwiftCodeSDK", "ProjectKit", "BuildKit", "SourceControlKit", "WorkspaceKit", "DiagnosticsKit", "ExtensionKit"]
     print("Expanding API documentation...")
     for mod in modules:
@@ -41,7 +40,6 @@ def main():
         with open(filepath, "w") as f:
             f.write("\n".join(lines))
 
-    # 2. Additional Framework Symbols
     sym_dir = os.path.join(dest, "languages", "swift", "symbols")
     os.makedirs(sym_dir, exist_ok=True)
     print("Expanding framework symbols...")
@@ -60,7 +58,6 @@ def main():
         with open(os.path.join(sym_dir, f"{fw}_symbols.swift"), "w") as f:
             f.write("\n".join(lines))
 
-    # 3. Update Manifest Inventory
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

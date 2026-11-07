@@ -1,9 +1,3 @@
-// AgentAttachmentPickerView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Agent/AgentAttachmentPickerView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: arbitrary-file picker (NSOpenPanel, multi-select, image/file types)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftUI
 

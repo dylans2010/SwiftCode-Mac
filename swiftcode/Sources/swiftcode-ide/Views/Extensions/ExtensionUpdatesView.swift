@@ -1,12 +1,4 @@
-// ExtensionUpdatesView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Extensions v2/ExtensionUpdatesView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Updates list UI in the Extensions panel
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
-
-// MARK: - Available updates, computed against the registry
 
 public struct ExtensionUpdatesView: View {
     @ObservedObject private var manager = ExtV2Manager.shared

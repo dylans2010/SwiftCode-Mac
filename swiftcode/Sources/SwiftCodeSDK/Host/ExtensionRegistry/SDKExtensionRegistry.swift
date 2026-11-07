@@ -2,27 +2,10 @@ import Foundation
 import Crypto
 import SwiftCodeExtensions
 
-// MARK: - SDKInstalledExtension
-//
-// Ported from Legacy `SwiftCode/SDK/Host/ExtensionRegistry/SDKExtensionRegistry.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The SDK host's registry for `swiftcode.json` packages. This is a
-// SEPARATE registry from the v2 VS Code extension manager
-// (`ExtensionsV2/`): it tracks SDK packages by id/version under
-// `Extensions/<id>/<version>/`, re-validates the manifest on every
-// scan, and binds each install to a canonical SHA-256 package digest.
-//
-// Digest: CryptoKit in Legacy, swift-crypto `Crypto` here — the same
-// incremental SHA-256 API. Manifest validation delegates to
-// SwiftCodeExtensions' `SwiftCodeManifestValidator` (the strict validator,
-// spec §2.3), never a second validator.
-
 public struct SDKInstalledExtension: Sendable {
     public let id: String
     public let name: String
     public let version: String
-    /// Canonical SHA-256 hex digest of the installed tree.
     public let packageDigest: String
     public let installPath: URL
     public let installedAt: Date
@@ -43,9 +26,6 @@ public struct SDKInstalledExtension: Sendable {
     }
 }
 
-/// Host metadata record (`.sdk-install.json`). Carries no manifest —
-/// the manifest is re-read and re-validated from `swiftcode.json` on
-/// every scan, so a tampered manifest fails closed here.
 private struct SDKInstallRecord: Codable {
     var id: String
     var name: String
@@ -80,10 +60,8 @@ public actor SDKExtensionRegistry {
     public static let metadataFileName = ".sdk-install.json"
     public static let manifestFileName = "swiftcode.json"
 
-    /// Files excluded from the package digest.
     public static let digestExcludedNames: Set<String> = [".sdk-install.json"]
 
-    /// Chunk size for streaming file contents into the digest.
     public static let digestChunkSize = 10 * 1024 * 1024
 
     public static var extensionsRoot: URL {
@@ -102,13 +80,6 @@ public actor SDKExtensionRegistry {
 
     private init() {}
 
-    // MARK: - Scan
-
-    /// Re-scans the extensions root. Every version directory is
-    /// re-validated: the manifest must parse under the strict validator
-    /// and its id/version must match the directory layout. Malformed
-    /// entries are skipped and logged, never fatal. When several
-    /// versions of an id are installed, the newest (semver-aware) wins.
     public func scan() async {
         cache = [:]
         guard let idNames = try? FileManager.default.contentsOfDirectory(atPath: Self.extensionsRoot.path) else {
@@ -139,15 +110,6 @@ public actor SDKExtensionRegistry {
         cache.values.sorted { $0.id < $1.id }
     }
 
-    // MARK: - Digest
-
-    /// Canonical SHA-256 digest of the installed tree at `url`.
-    /// Entries are sorted by relative path; each contributes
-    /// `relativePath + NUL + kindByte + NUL + content`, where the kind
-    /// byte is `d` (directory), `f` (file), or `l` (symlink). File
-    /// contents stream in 10 MB chunks; symlinks contribute their
-    /// target; directories contribute nothing. `.sdk-install.json` is
-    /// excluded. The digest is stable across machines for identical trees.
     public func computeDigest(of url: URL) throws -> String {
         var hasher = SHA256()
         let rootPath = url.standardizedFileURL.path
@@ -210,11 +172,6 @@ public actor SDKExtensionRegistry {
         }
     }
 
-    // MARK: - Record install
-
-    /// Writes the install record for `ext` (atomic temp+replace, 0600,
-    /// sorted keys). Keeps the in-memory cache consistent: only a newer
-    /// version replaces a cached entry.
     public func recordInstall(_ ext: SDKInstalledExtension) throws {
         try ensureExtensionsRoot()
         let versionDir = versionDirectory(id: ext.id, version: ext.version)
@@ -237,7 +194,6 @@ public actor SDKExtensionRegistry {
 
         let recordURL = versionDir.appendingPathComponent(Self.metadataFileName, isDirectory: false)
         do {
-            // Atomic write so a crash mid-write never leaves a half record.
             let temporaryURL = versionDir.appendingPathComponent(UUID().uuidString + ".tmp")
             try data.write(to: temporaryURL, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporaryURL.path)
@@ -256,20 +212,12 @@ public actor SDKExtensionRegistry {
             )
         }
 
-        // Keep the in-memory cache consistent.
         if let existing = cache[ext.id], compareVersions(existing.version, ext.version) >= 0 {
             return
         }
         cache[ext.id] = ext
     }
 
-    // MARK: - Enable / disable
-
-    /// Flips the `enabled` flag in the `.sdk-install.json` metadata for the
-    /// extension (all installed versions). Used by the disable/enable flows;
-    /// the runtime coordinator performs the actual deactivation separately.
-    /// The `updatedAt` timestamp is left untouched — a flag flip is not an
-    /// update of the installed tree.
     public func setEnabled(_ enabled: Bool, extensionID: String) throws {
         try ensureExtensionsRoot()
         let idDir = Self.extensionsRoot.appendingPathComponent(extensionID, isDirectory: true)
@@ -314,21 +262,6 @@ public actor SDKExtensionRegistry {
         }
     }
 
-    // MARK: - Remove install record
-
-    /// Deletes the `<root>/<extensionID>/<version>/` directory tree.
-    /// Called by the uninstall flow AFTER the extension has been deactivated.
-    /// Removes the now-empty parent id directory when no versions remain,
-    /// and drops the id from the in-memory cache.
-    ///
-    /// The extension's Security namespace is wiped FIRST: every Keychain
-    /// item the extension stored via `use.Security` (all app Security IDs,
-    /// all value IDs) is deleted before the install record goes away. The
-    /// wipe is fail-closed — a Keychain failure aborts the uninstall with
-    /// `.uninstallFailed` so secrets can never silently survive an
-    /// uninstall that reported success. Revoking grants is the Studio
-    /// uninstall view's job (it calls `PermissionManager.revokeAll(for:)`
-    /// next); stored values are deleted here regardless of grant state.
     public func removeInstallRecord(extensionID: String, version: String) async throws {
         do {
             try await SDKSecurityService.shared.deleteAllValues(securityID: extensionID)
@@ -364,7 +297,6 @@ public actor SDKExtensionRegistry {
             )
         }
 
-        // Drop the empty parent id directory.
         let idDir = versionDir.deletingLastPathComponent()
         if (try? FileManager.default.contentsOfDirectory(atPath: idDir.path))?.isEmpty == true {
             try? FileManager.default.removeItem(at: idDir)
@@ -375,13 +307,7 @@ public actor SDKExtensionRegistry {
         }
     }
 
-    // MARK: - Reading one install
-
-    /// Reads and validates a single installed version directory. Returns
-    /// `nil` for anything malformed (logged), never throws — the scan must
-    /// not fail on one bad entry.
     private func readInstall(id: String, version: String, at versionDir: URL) -> SDKInstalledExtension? {
-        // 1. Host metadata record.
         let recordURL = versionDir.appendingPathComponent(Self.metadataFileName, isDirectory: false)
         guard let record = readRecord(at: recordURL) else {
             SDKLog.error("Skipping install \(id)/\(version): missing or unreadable .sdk-install.json",
@@ -394,8 +320,6 @@ public actor SDKExtensionRegistry {
             return nil
         }
 
-        // 2. Manifest: re-read AND re-validate. A tampered swiftcode.json
-        //    fails closed here — the record alone is never trusted.
         let manifestURL = versionDir.appendingPathComponent(Self.manifestFileName, isDirectory: false)
         let manifestData: Data
         do {
@@ -464,8 +388,6 @@ public actor SDKExtensionRegistry {
         }
     }
 
-    // MARK: - Layout helpers
-
     private func ensureExtensionsRoot() throws {
         do {
             try FileManager.default.createDirectory(at: Self.extensionsRoot, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -501,8 +423,6 @@ public actor SDKExtensionRegistry {
         return path
     }
 
-    /// Best-effort semver ordering for picking the newest installed version
-    /// of an id. Non-semver versions fall back to lexicographic order.
     private func compareVersions(_ lhs: String, _ rhs: String) -> Int {
         func core(_ version: String) -> [Int]? {
             let base = version.split(separator: "-", maxSplits: 1).first.map(String.init) ?? version
@@ -514,7 +434,6 @@ public actor SDKExtensionRegistry {
             for (a, b) in zip(l, r) {
                 if a != b { return a < b ? -1 : 1 }
             }
-            // Prerelease < release at equal core.
             let lPre = lhs.contains("-"), rPre = rhs.contains("-")
             if lPre != rPre { return lPre ? -1 : 1 }
             return lhs == rhs ? 0 : (lhs < rhs ? -1 : 1)

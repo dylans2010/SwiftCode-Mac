@@ -1,8 +1,3 @@
-//
-//  AssistEnvironmentVariableManagerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistEnvironmentVariableManagerTool: AssistTool {

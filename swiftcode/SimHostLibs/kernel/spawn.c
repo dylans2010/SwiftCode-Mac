@@ -1,22 +1,3 @@
-/*
- * spawn.c - posix_spawn, the posix_spawnattr_* and posix_spawn_file_actions_*
- * families of libsystem_kernel.
- *
- * Clean-room SwiftCode code. Contract: specs/simulator/processes.md section 0
- * and section 1 (1.1 return convention, 1.2 the 144-byte argument
- * descriptor, 1.4 the 248-byte attribute block and its defaults, 1.5 flags,
- * 1.6 value sets, 1.7 file actions, 1.8 port actions, 1.14 library rules);
- * stage4b-contract.md section 8. Public C signatures: the SDK <spawn.h>
- * and the private SPI names listed in specs/simulator/data/
- * host-lib-surface-kernel.json. Constants from public headers:
- * OPEN_MAX 10240, MAXPATHLEN 1024, CPU_SUBTYPE_ANY -1,
- * IOPOL_MATERIALIZE_DATALESS_FILES_ORIG 4.
- *
- * posix_spawnattr_t and posix_spawn_file_actions_t are pointers to heap
- * blocks with the layouts of section 1.4 / 1.7. The heap is libsystem_c's
- * malloc from the _libkernel_functions table (host-library-init.md 2.1),
- * or anonymous mmap memory when that table was never installed.
- */
 #include "yc_kernel.h"
 
 typedef __INT16_TYPE__ yc_i16;
@@ -29,66 +10,63 @@ typedef __INT16_TYPE__ yc_i16;
 #define YC_CPU_SUBTYPE_ANY ((yc_i32)-1)
 #define YC_IOPOL_DATALESS_ORIG 4
 #define YC_PSA_OPTION_DATALESS_IOPOLICY 0x4u
-#define YC_QOS_CLAMP_LAST 4u /* clamps 0..3 are valid (section 1.6) */
+#define YC_QOS_CLAMP_LAST 4u
 #define YC_IMPORTANCE_PORTS_MAX 128
 #define YC_REGISTERED_PORTS_MAX 3
 
 #define YC_BSD_POSIX_SPAWN 244
 
-/* ------------------------------------------------------------- layouts */
-
-/* Section 1.4: struct _posix_spawnattr, 248 bytes. */
 struct yc_spawnattr {
-    yc_i16 flags;                 /* 0 */
-    yc_i16 pad0;                  /* 2 */
-    yc_u32 sigdefault;            /* 4 */
-    yc_u32 sigmask;               /* 8 */
-    yc_i32 pgroup;                /* 12 */
-    yc_i32 binprefs[4];           /* 16 */
-    yc_i32 pcontrol;              /* 32 */
-    yc_i32 apptype;               /* 36 */
-    yc_u64 cpumonitor_percent;    /* 40 */
-    yc_u64 cpumonitor_interval;   /* 48 */
-    yc_u64 reserved;              /* 56, default 1 */
-    yc_i16 jetsam_flags;          /* 64 */
-    yc_i16 pad1;                  /* 66 */
-    yc_i32 priority;              /* 68, default -1 */
-    yc_i32 memlimit_active;       /* 72, default -1 */
-    yc_i32 memlimit_inactive;     /* 76, default -1 */
-    yc_u64 qos_clamp;             /* 80 */
-    yc_u32 darwin_role;           /* 88 */
-    yc_i32 thread_limit;          /* 92 */
-    yc_u64 max_addr;              /* 96 */
-    yc_u8 no_smt;                 /* 104 */
-    yc_u8 force_4k;               /* 105 */
-    yc_u8 tecs;                   /* 106 */
-    yc_u8 pad2;                   /* 107 */
-    yc_i32 platform;              /* 108 */
-    yc_i32 subcpuprefs[4];        /* 112, default CPU_SUBTYPE_ANY */
-    yc_u32 options;               /* 128 */
-    yc_u32 port_soft_limit;       /* 132 */
-    yc_u32 port_hard_limit;       /* 136 */
-    yc_u32 filedesc_soft_limit;   /* 140 */
-    yc_u32 filedesc_hard_limit;   /* 144 */
-    yc_u32 crash_behavior;        /* 148 */
-    yc_i32 dataless_iopolicy;     /* 152 */
-    yc_u32 pad3;                  /* 156 */
-    yc_u64 crash_behavior_deadline; /* 160 */
-    yc_u8 launch_type;            /* 168 */
-    yc_u8 pad4;                   /* 169 */
-    yc_u16 sec_flags;             /* 170 */
-    yc_u32 crash_count;           /* 172 */
-    yc_u32 throttle_timeout;      /* 176 */
-    yc_u32 kqworkloop_soft_limit; /* 180 */
-    yc_u32 kqworkloop_hard_limit; /* 184 */
-    yc_u32 conclave_mem_limit;    /* 188 */
-    struct yc_port_actions *ports; /* 192 */
-    void *mac_extensions;         /* 200 */
-    void *coalition_info;         /* 208 */
-    void *persona_info;           /* 216 */
-    void *posix_cred_info;        /* 224 */
-    char *subsystem_root_path;    /* 232, a MAXPATHLEN buffer */
-    char *conclave_id;            /* 240 */
+    yc_i16 flags;
+    yc_i16 pad0;
+    yc_u32 sigdefault;
+    yc_u32 sigmask;
+    yc_i32 pgroup;
+    yc_i32 binprefs[4];
+    yc_i32 pcontrol;
+    yc_i32 apptype;
+    yc_u64 cpumonitor_percent;
+    yc_u64 cpumonitor_interval;
+    yc_u64 reserved;
+    yc_i16 jetsam_flags;
+    yc_i16 pad1;
+    yc_i32 priority;
+    yc_i32 memlimit_active;
+    yc_i32 memlimit_inactive;
+    yc_u64 qos_clamp;
+    yc_u32 darwin_role;
+    yc_i32 thread_limit;
+    yc_u64 max_addr;
+    yc_u8 no_smt;
+    yc_u8 force_4k;
+    yc_u8 tecs;
+    yc_u8 pad2;
+    yc_i32 platform;
+    yc_i32 subcpuprefs[4];
+    yc_u32 options;
+    yc_u32 port_soft_limit;
+    yc_u32 port_hard_limit;
+    yc_u32 filedesc_soft_limit;
+    yc_u32 filedesc_hard_limit;
+    yc_u32 crash_behavior;
+    yc_i32 dataless_iopolicy;
+    yc_u32 pad3;
+    yc_u64 crash_behavior_deadline;
+    yc_u8 launch_type;
+    yc_u8 pad4;
+    yc_u16 sec_flags;
+    yc_u32 crash_count;
+    yc_u32 throttle_timeout;
+    yc_u32 kqworkloop_soft_limit;
+    yc_u32 kqworkloop_hard_limit;
+    yc_u32 conclave_mem_limit;
+    struct yc_port_actions *ports;
+    void *mac_extensions;
+    void *coalition_info;
+    void *persona_info;
+    void *posix_cred_info;
+    char *subsystem_root_path;
+    char *conclave_id;
 };
 _Static_assert(sizeof(struct yc_spawnattr) == 248, "attribute block is 248 bytes");
 _Static_assert(__builtin_offsetof(struct yc_spawnattr, jetsam_flags) == 64, "psa_jetsam_flags");
@@ -101,7 +79,6 @@ _Static_assert(__builtin_offsetof(struct yc_spawnattr, sec_flags) == 170, "psa_s
 _Static_assert(__builtin_offsetof(struct yc_spawnattr, ports) == 192, "psa_ports");
 _Static_assert(__builtin_offsetof(struct yc_spawnattr, subsystem_root_path) == 232, "subsystem root");
 
-/* Section 1.8: port actions, 24 bytes each after an 8-byte header. */
 enum {
     YC_PSPA_SPECIAL = 0,
     YC_PSPA_EXCEPTION = 1,
@@ -125,7 +102,6 @@ struct yc_port_actions {
 _Static_assert(sizeof(struct yc_port_action) == 24, "port action is 24 bytes");
 _Static_assert(sizeof(struct yc_port_actions) == 8, "port-action header is 8 bytes");
 
-/* Section 1.7: file actions, 1040 bytes each after an 8-byte header. */
 enum {
     YC_PSFA_OPEN = 0,
     YC_PSFA_CLOSE = 1,
@@ -137,7 +113,7 @@ enum {
 };
 struct yc_file_action {
     yc_i32 type;
-    yc_i32 filedes; /* or the fileport name for FILEPORT_DUP2 */
+    yc_i32 filedes;
     union {
         struct {
             yc_i32 oflag;
@@ -158,7 +134,6 @@ _Static_assert(__builtin_offsetof(struct yc_file_action, u.open.mode) == 12, "op
 _Static_assert(__builtin_offsetof(struct yc_file_action, u.open.path) == 14, "open path");
 _Static_assert(sizeof(struct yc_file_actions) == 8, "file-action header is 8 bytes");
 
-/* Section 1.2: struct _posix_spawn_args_desc, nine (size, pointer) pairs. */
 struct yc_spawn_pair {
     yc_u64 size;
     const void *ptr;
@@ -179,11 +154,9 @@ _Static_assert(sizeof(struct yc_spawn_desc) == 144, "descriptor is 144 bytes");
 typedef struct yc_spawnattr *yc_spawnattr_t;
 typedef struct yc_file_actions *yc_file_actions_t;
 
-/* ------------------------------------------------------------ helpers */
-
 static void zero_bytes(void *p, yc_size_t n)
 {
-    volatile yc_u8 *b = p; /* volatile: keep the compiler from emitting memset */
+    volatile yc_u8 *b = p;
     for (yc_size_t i = 0; i < n; i++)
         b[i] = 0;
 }
@@ -204,8 +177,6 @@ static yc_size_t string_length(const char *s)
     return n;
 }
 
-/* Copy a C string into a MAXPATHLEN buffer; ENAMETOOLONG if it does not
- * fit with its terminator. */
 static int copy_path(char *dst, const char *src)
 {
     yc_size_t n = string_length(src);
@@ -215,21 +186,18 @@ static int copy_path(char *dst, const char *src)
     return 0;
 }
 
-/* Heap blocks carry a 16-byte header that says where they came from. */
 struct yc_block {
-    yc_u64 size; /* payload size */
+    yc_u64 size;
     yc_u64 source;
 };
 #define YC_BLOCK_MALLOC 1u
 #define YC_BLOCK_MMAP 2u
-
 
 static yc_size_t mmap_length(yc_size_t payload)
 {
     return (payload + sizeof(struct yc_block) + YC_PAGE_SIZE - 1) & ~(YC_PAGE_SIZE - 1);
 }
 
-/* Zero-filled memory, or NULL. */
 static void *spawn_alloc(yc_size_t size)
 {
     const struct yc_libkernel_functions *f = yc_libkernel_fns;
@@ -268,8 +236,6 @@ static void spawn_free(void *p)
     }
 }
 
-/* A new zero-filled block of `size` bytes holding the first `keep` bytes
- * of `old` (which is freed). NULL on failure, `old` untouched. */
 static void *spawn_grow(void *old, yc_size_t keep, yc_size_t size)
 {
     void *p = spawn_alloc(size);
@@ -282,21 +248,15 @@ static void *spawn_grow(void *old, yc_size_t keep, yc_size_t size)
     return p;
 }
 
-/* The attribute block behind a posix_spawnattr_t *, or NULL. */
 static struct yc_spawnattr *attr_of(const yc_spawnattr_t *attr)
 {
     return (attr == YC_NULL) ? YC_NULL : *attr;
 }
 
-/* ------------------------------------------------------- posix_spawn */
-
 #ifdef YC_HOST_TEST
-/* The host tests record the call instead. */
 int yc_testk_posix_spawn_trap(int *pid, const char *path, const void *desc, char *const argv[], char *const envp[]);
 #define posix_spawn_trap yc_testk_posix_spawn_trap
 #else
-/* BSD 244 issued directly: the error number comes back as the result and
- * errno is not touched (section 1.1). */
 static int posix_spawn_trap(int *pid, const char *path, const struct yc_spawn_desc *desc, char *const argv[],
                             char *const envp[])
 {
@@ -315,12 +275,6 @@ static int posix_spawn_trap(int *pid, const char *path, const struct yc_spawn_de
 }
 #endif
 
-/* int posix_spawn(pid_t *pid, const char *path,
- *     const posix_spawn_file_actions_t *file_actions,
- *     const posix_spawnattr_t *attrp, char *const argv[], char *const envp[])
- * Returns 0 or an error number. With POSIX_SPAWN_SETEXEC a successful call
- * does not return. The descriptor is passed only when there are
- * attributes or at least one file action (section 1.1). */
 YC_EXPORT int YC_FN(posix_spawn)(int *pid, const char *path, const yc_file_actions_t *file_actions,
                           const yc_spawnattr_t *attrp, char *const argv[], char *const envp[])
 {
@@ -352,8 +306,6 @@ YC_EXPORT int YC_FN(posix_spawn)(int *pid, const char *path, const yc_file_actio
     return posix_spawn_trap(pid, path, have_desc ? &desc : YC_NULL, argv, envp);
 }
 
-/* ------------------------------------------------------ attribute block */
-
 YC_EXPORT int YC_FN(posix_spawnattr_init)(yc_spawnattr_t *attr)
 {
     if (attr == YC_NULL)
@@ -361,7 +313,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_init)(yc_spawnattr_t *attr)
     struct yc_spawnattr *a = spawn_alloc(sizeof *a);
     if (a == YC_NULL)
         return YC_ENOMEM;
-    /* Everything else is 0 (section 1.4). */
     a->reserved = 1;
     a->priority = -1;
     a->memlimit_active = -1;
@@ -420,7 +371,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_getpgroup)(const yc_spawnattr_t *attr, int *
     return 0;
 }
 
-/* sigset_t is a u32 on Darwin. */
 YC_EXPORT int YC_FN(posix_spawnattr_setsigdefault)(yc_spawnattr_t *attr, const yc_u32 *sigdefault)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -457,9 +407,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_getsigmask)(const yc_spawnattr_t *attr, yc_u
     return 0;
 }
 
-/* Architecture preferences (sections 1.6 and 1.14): copy up to four
- * entries, fill the rest with 0 / CPU_SUBTYPE_ANY, report the number
- * copied. */
 static int set_prefs(yc_spawnattr_t *attr, yc_size_t count, const yc_i32 *types, const yc_i32 *subtypes,
                      yc_size_t *ocount)
 {
@@ -487,7 +434,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_setarchpref_np)(yc_spawnattr_t *attr, yc_siz
     return set_prefs(attr, count, pref, subpref, ocount);
 }
 
-/* Read back up to `count` slots, stopping at the first empty one. */
 static int get_prefs(const yc_spawnattr_t *attr, yc_size_t count, yc_i32 *types, yc_i32 *subtypes,
                      yc_size_t *ocount)
 {
@@ -518,7 +464,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_getarchpref_np)(const yc_spawnattr_t *attr, 
     return get_prefs(attr, count, pref, subpref, ocount);
 }
 
-/* int posix_spawnattr_setprocesstype_np(posix_spawnattr_t *, const int) */
 YC_EXPORT int YC_FN(posix_spawnattr_setprocesstype_np)(yc_spawnattr_t *attr, const int type)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -528,8 +473,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_setprocesstype_np)(yc_spawnattr_t *attr, con
     return 0;
 }
 
-/* int posix_spawnattr_setcpumonitor(posix_spawnattr_t *, uint64_t percent,
- *     uint64_t interval) */
 YC_EXPORT int YC_FN(posix_spawnattr_setcpumonitor)(yc_spawnattr_t *attr, yc_u64 percent, yc_u64 interval)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -540,7 +483,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_setcpumonitor)(yc_spawnattr_t *attr, yc_u64 
     return 0;
 }
 
-/* int posix_spawnattr_set_qos_clamp_np(const posix_spawnattr_t *, uint64_t) */
 YC_EXPORT int YC_FN(posix_spawnattr_set_qos_clamp_np)(const yc_spawnattr_t *attr, yc_u64 clamp)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -559,7 +501,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_get_qos_clamp_np)(const yc_spawnattr_t *attr
     return 0;
 }
 
-/* int posix_spawnattr_set_darwin_role_np(const posix_spawnattr_t *, uint64_t) */
 YC_EXPORT int YC_FN(posix_spawnattr_set_darwin_role_np)(const yc_spawnattr_t *attr, yc_u64 role)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -578,8 +519,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_get_darwin_role_np)(const yc_spawnattr_t *at
     return 0;
 }
 
-/* int posix_spawnattr_setdataless_iopolicy_np(posix_spawnattr_t *,
- *     const int policy): option 0x4 plus `policy | ORIG` (section 1.14). */
 YC_EXPORT int YC_FN(posix_spawnattr_setdataless_iopolicy_np)(yc_spawnattr_t *attr, const int policy)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -590,9 +529,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_setdataless_iopolicy_np)(yc_spawnattr_t *att
     return 0;
 }
 
-/* int posix_spawnattr_set_use_sec_transition_shims_np(posix_spawnattr_t *,
- *     uint32_t flags): records the flags in psa_sec_flags (section 1.14);
- * SwiftCode's kernel ignores the field. */
 YC_EXPORT int YC_FN(posix_spawnattr_set_use_sec_transition_shims_np)(yc_spawnattr_t *attr, yc_u32 flags)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -602,8 +538,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_set_use_sec_transition_shims_np)(yc_spawnatt
     return 0;
 }
 
-/* posix_spawnattr_set_use_sanitizers_np: its effect is not specified
- * (processes.md open question 6): succeed and store nothing. */
 YC_EXPORT int YC_FN(posix_spawnattr_set_use_sanitizers_np)(yc_spawnattr_t *attr, yc_u32 flags)
 {
     (void)flags;
@@ -612,8 +546,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_set_use_sanitizers_np)(yc_spawnattr_t *attr,
     return 0;
 }
 
-/* int posix_spawnattr_set_subsystem_root_path_np(posix_spawnattr_t *,
- *     char *path): a MAXPATHLEN copy; NULL clears it (section 1.14). */
 YC_EXPORT int YC_FN(posix_spawnattr_set_subsystem_root_path_np)(yc_spawnattr_t *attr, char *path)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -635,9 +567,6 @@ YC_EXPORT int YC_FN(posix_spawnattr_set_subsystem_root_path_np)(yc_spawnattr_t *
     return copy_path(a->subsystem_root_path, path);
 }
 
-/* ------------------------------------------------------- port actions */
-
-/* Append one 24-byte action (initial room for 2, doubling). */
 static int add_port_action(struct yc_spawnattr *a, const struct yc_port_action *action)
 {
     struct yc_port_actions *p = a->ports;
@@ -665,30 +594,22 @@ static int add_port_action_of(yc_spawnattr_t *attr, yc_u32 type, yc_u32 port, yc
     return add_port_action(a, &action);
 }
 
-/* int posix_spawnattr_setspecialport_np(posix_spawnattr_t *, mach_port_t,
- *     int which) */
 YC_EXPORT int YC_FN(posix_spawnattr_setspecialport_np)(yc_spawnattr_t *attr, yc_port_t port, int which)
 {
     return add_port_action_of(attr, YC_PSPA_SPECIAL, port, (yc_u32)which, 0, 0, 0);
 }
 
-/* int posix_spawnattr_setexceptionports_np(posix_spawnattr_t *,
- *     exception_mask_t, mach_port_t, exception_behavior_t,
- *     thread_state_flavor_t) */
 YC_EXPORT int YC_FN(posix_spawnattr_setexceptionports_np)(yc_spawnattr_t *attr, yc_u32 mask, yc_port_t port,
                                                    int behavior, int flavor)
 {
     return add_port_action_of(attr, YC_PSPA_EXCEPTION, port, 0, mask, (yc_u32)behavior, (yc_u32)flavor);
 }
 
-/* int posix_spawnattr_setauditsessionport_np(posix_spawnattr_t *, mach_port_t) */
 YC_EXPORT int YC_FN(posix_spawnattr_setauditsessionport_np)(yc_spawnattr_t *attr, yc_port_t port)
 {
     return add_port_action_of(attr, YC_PSPA_AU_SESSION, port, 0, 0, 0, 0);
 }
 
-/* Append `count` actions of one type, one per port, in array order; on
- * failure the attribute is left as it was. */
 static int add_port_list(yc_spawnattr_t *attr, yc_u32 type, const yc_port_t *ports, yc_u32 count, yc_u32 max)
 {
     struct yc_spawnattr *a = attr_of(attr);
@@ -707,8 +628,6 @@ static int add_port_list(yc_spawnattr_t *attr, yc_u32 type, const yc_port_t *por
     return 0;
 }
 
-/* int posix_spawnattr_set_importancewatch_port_np(posix_spawnattr_t *,
- *     int count, mach_port_t ports[]) */
 YC_EXPORT int YC_FN(posix_spawnattr_set_importancewatch_port_np)(yc_spawnattr_t *attr, int count, yc_port_t *ports)
 {
     if (count < 0)
@@ -716,14 +635,10 @@ YC_EXPORT int YC_FN(posix_spawnattr_set_importancewatch_port_np)(yc_spawnattr_t 
     return add_port_list(attr, YC_PSPA_IMP_WATCHPORTS, ports, (yc_u32)count, YC_IMPORTANCE_PORTS_MAX);
 }
 
-/* int posix_spawnattr_set_registered_ports_np(posix_spawnattr_t *,
- *     mach_port_t ports[], uint32_t count): count <= 3. */
 YC_EXPORT int YC_FN(posix_spawnattr_set_registered_ports_np)(yc_spawnattr_t *attr, yc_port_t *ports, yc_u32 count)
 {
     return add_port_list(attr, YC_PSPA_REGISTERED_PORTS, ports, count, YC_REGISTERED_PORTS_MAX);
 }
-
-/* ------------------------------------------------------- file actions */
 
 YC_EXPORT int YC_FN(posix_spawn_file_actions_init)(yc_file_actions_t *file_actions)
 {
@@ -752,8 +667,6 @@ static int fd_ok(int fd)
     return fd >= 0 && fd < YC_OPEN_MAX;
 }
 
-/* A new zeroed action at the end of the list (growing it), or NULL with
- * *err set. */
 static struct yc_file_action *new_file_action(yc_file_actions_t *file_actions, yc_i32 type, int *err)
 {
     struct yc_file_actions *fa = *file_actions;
@@ -774,8 +687,6 @@ static struct yc_file_action *new_file_action(yc_file_actions_t *file_actions, y
     return act;
 }
 
-/* Validates, then appends; the count grows only after the action is
- * complete. */
 static int file_action_common(yc_file_actions_t *file_actions)
 {
     return (file_actions == YC_NULL || *file_actions == YC_NULL) ? YC_EINVAL : 0;
@@ -846,8 +757,6 @@ YC_EXPORT int YC_FN(posix_spawn_file_actions_addfchdir_np)(yc_file_actions_t *fi
     return add_fd_action(file_actions, YC_PSFA_FCHDIR, fd, 0);
 }
 
-/* int posix_spawn_file_actions_add_fileportdup2_np(
- *     posix_spawn_file_actions_t *, mach_port_t fileport, int newfd) */
 YC_EXPORT int YC_FN(posix_spawn_file_actions_add_fileportdup2_np)(yc_file_actions_t *file_actions, yc_port_t fileport,
                                                            int newfd)
 {

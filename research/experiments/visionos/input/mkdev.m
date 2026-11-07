@@ -1,6 +1,3 @@
-// mkdev: create a simulator device on a runtime chosen by build version (our code). simctl picks
-// one runtime per identifier; when two builds share an identifier this selects the one wanted.
-//  mkdev <name> <device type identifier> <runtime build, e.g. 24M362>
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
 #include <dlfcn.h>

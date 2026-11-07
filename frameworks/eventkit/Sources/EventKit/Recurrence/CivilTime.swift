@@ -1,7 +1,3 @@
-// Wall-clock (civil) date arithmetic in the proleptic Gregorian calendar,
-// independent of Foundation's Calendar so that the recurrence engine is
-// deterministic and fast. Day numbers count days from 1970-01-01.
-
 import Foundation
 
 enum Civil {
@@ -17,8 +13,6 @@ enum Civil {
 
     static func daysInYear(_ y: Int) -> Int { isLeap(y) ? 366 : 365 }
 
-    /// Days since 1970-01-01 for a civil date (algorithm from the public
-    /// "days from civil" derivation; valid for all years).
     static func dayNumber(_ y0: Int, _ m: Int, _ d: Int) -> Int {
         let y = m <= 2 ? y0 - 1 : y0
         let era = (y >= 0 ? y : y - 399) / 400
@@ -42,15 +36,12 @@ enum Civil {
         return (m <= 2 ? y + 1 : y, m, d)
     }
 
-    /// Weekday of a day number: 1 = Sunday … 7 = Saturday (EKWeekday raw values).
     static func weekday(_ day: Int) -> Int {
-        // 1970-01-01 was a Thursday (5).
         let r = (day + 4) % 7
         return (r < 0 ? r + 7 : r) + 1
     }
 }
 
-/// A wall-clock date and time without a zone.
 struct LocalDateTime: Hashable, Comparable, CustomStringConvertible {
     var year: Int
     var month: Int
@@ -76,7 +67,6 @@ struct LocalDateTime: Hashable, Comparable, CustomStringConvertible {
         self.init(dayNumber: Int(days), hour: Int(rem / 3600), minute: Int(rem % 3600 / 60), second: Int(rem % 60))
     }
 
-    /// The wall-clock reading of `date` in `zone` (fractions of a second dropped).
     init(date: Date, zone: TimeZone) {
         let t = date.timeIntervalSince1970.rounded(.down)
         let offset = zone.secondsFromGMT(for: Date(timeIntervalSince1970: t))
@@ -96,10 +86,6 @@ struct LocalDateTime: Hashable, Comparable, CustomStringConvertible {
 
     var startOfDay: LocalDateTime { LocalDateTime(year: year, month: month, day: day) }
 
-    /// The instant at which `zone` shows this wall-clock time. In a
-    /// daylight-saving overlap the earlier instant is used; in a gap the time
-    /// is read with the offset in force before the transition (so it moves
-    /// forward by the size of the gap).
     func date(in zone: TimeZone) -> Date {
         let naive = naiveSeconds
         func local(_ t: Int64) -> Int64 {
@@ -121,7 +107,6 @@ struct LocalDateTime: Hashable, Comparable, CustomStringConvertible {
 
     static func < (a: LocalDateTime, b: LocalDateTime) -> Bool { a.naiveSeconds < b.naiveSeconds }
 
-    /// `YYYYMMDDTHHMMSS` (RFC 5545 local DATE-TIME form).
     var description: String {
         String(format: "%04d%02d%02dT%02d%02d%02d", year, month, day, hour, minute, second)
     }
@@ -140,7 +125,6 @@ extension TimeZone {
     static let utc = TimeZone(identifier: "UTC")!
 }
 
-/// RFC 5545 UTC DATE-TIME text (`YYYYMMDDTHHMMSSZ`, second precision).
 func utcStamp(_ date: Date) -> String {
     LocalDateTime(date: date, zone: .utc).description + "Z"
 }

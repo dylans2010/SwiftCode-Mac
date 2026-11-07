@@ -1,12 +1,3 @@
-// mtlcompile.m: Ycode R8 tool (ours). Compiles a Metal source file with
-// the system Metal framework's run-time compiler (public API only) and
-// writes the result as a .metallib through MTLDynamicLibrary
-// -serializeToURL:error:. Used before the offline Metal toolchain was
-// installed; the output is a metallib of our own shaders (section 2.8).
-//
-// Build: clang -fobjc-arc -framework Metal -framework Foundation \
-//          mtlcompile.m -o <out>/mtlcompile
-// Usage: mtlcompile IN.metal OUT.metallib [installName]
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 

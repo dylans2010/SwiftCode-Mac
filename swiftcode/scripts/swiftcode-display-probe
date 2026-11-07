@@ -1,30 +1,4 @@
 #!/usr/bin/env python3
-# swiftcode-display-probe: a headless display-stream client for measuring frame
-# rate and input latency (specs/simulator/display-stream.md §10). Runs next
-# to swiftcode-simd (no ssh hop) or through a forward, with only the Python
-# standard library. Run it with `python3 -I`.
-#
-# usage: swiftcode-display-probe --connect unix:<socket>|<host>:<port> [options] <command>...
-#   --fps N --encoding jpeg|zlib --quality Q --downscale D   the client hello
-#   --timing <file>   the guest's swap timing log (SWIFTCODE_FRAMEBUFFER_TIMING=1:
-#                     DEV/data/tmp/swiftcode-framebuffer.timing); summarized per phase
-#   --json <file>     write every frame and input event as JSON lines
-#   --trace <dir>     the device's DEV/data/tmp with SWIFTCODE_DISPLAY_TIMING=1: input -> photon
-#                     stage by stage (server trace + swap log + HID event log), run on the host
-# commands (run in order):
-#   live                 wait until a frame arrives
-#   wait <s>             idle for s seconds (frames are still counted)
-#   swipe <x0> <y0> <x1> <y1> <ms> [hz]   one-finger drag in device points, moves at hz (default 120)
-#   swipes <n> <x0> <y0> <x1> <y1> <ms> <gap ms>   n swipes there and back
-#   tap <x> <y>          touch down, up 80 ms later
-#   key <usage>          page-7 key down/up
-#   button home|lock|side [hold-ms]   down, up 100 ms (or hold-ms) later (a held lock or side: Siri)
-#   mark <name>          starts a new phase (statistics are per phase)
-#   shot <path.png>      asks the server for a screenshot (full resolution) and writes it
-#   command "<words>"    a device command (0x90, e.g. "ui appearance dark"); prints the answer (0x10)
-# Prints per phase: frames received, received fps, guest frames (counter
-# delta) and guest fps, input → first frame latencies, and, with --timing,
-# the guest's swap cadence (submit intervals, target-time steps).
 import json
 import os
 import socket
@@ -33,10 +7,8 @@ import sys
 import threading
 import time
 
-
 def now():
     return time.monotonic()
-
 
 class Probe:
     def __init__(self, address, hello, json_path=None):
@@ -49,8 +21,8 @@ class Probe:
             self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.lock = threading.Lock()
         self.cond = threading.Condition(self.lock)
-        self.frames = []          # (t, seq, guestFrame, inputSeq, bytes, tiles, full)
-        self.inputs = {}          # seq -> (t, label)
+        self.frames = []
+        self.inputs = {}
         self.seq = 0
         self.closed = False
         self.phase = "start"
@@ -184,7 +156,6 @@ class Probe:
                 kb = sum(f[4] for f in fr) / 1024
                 line += f", {kb / dur:.0f} KB/s"
             print(line)
-            # input -> first frame whose input sequence covers it (labelled inputs only)
             lats = []
             for s, (ti, label, ph) in sorted(self.inputs.items()):
                 if ph != name or not label:
@@ -195,13 +166,11 @@ class Probe:
             if lats:
                 lats.sort()
                 print(f"  input -> first frame ({len(lats)}): p50 {lats[len(lats) // 2]:.0f} ms, min {lats[0]:.0f}, max {lats[-1]:.0f}")
-            # received frame intervals
             if len(fr) >= 3:
                 iv = sorted((b[0] - a[0]) * 1000 for a, b in zip(fr, fr[1:]))
                 print(f"  received intervals: p10 {iv[len(iv) // 10]:.1f} p50 {iv[len(iv) // 2]:.1f} p90 {iv[len(iv) * 9 // 10]:.1f} ms")
         if timing:
             summarize_timing(timing)
-
 
 def summarize_timing(path, freq=24e6):
     try:
@@ -219,7 +188,6 @@ def summarize_timing(path, freq=24e6):
         print(f"timing: {len(entries)} entries")
         return
     ms = lambda ticks: ticks / freq * 1000.0
-    # Only consecutive frames, in bursts (gaps of more than 200 ms split them).
     bursts, cur = [], [entries[0]]
     for e in entries[1:]:
         if e[0] == cur[-1][0] + 1 and ms(e[3] - cur[-1][3]) < 200:
@@ -256,7 +224,6 @@ def summarize_timing(path, freq=24e6):
         dur = ms(b[-1][3] - b[0][3])
         print(f"  burst frames {b[0][0]}-{b[-1][0]}: {len(b)} swaps in {dur:.0f} ms = {len(b) / max(dur / 1000, 1e-6):.1f} fps")
 
-
 def load_ring(path, size, fmt):
     try:
         data = open(path, "rb").read()
@@ -264,7 +231,6 @@ def load_ring(path, size, fmt):
         return []
     out = [struct.unpack_from(fmt, data, o) for o in range(0, len(data) - size + 1, size)]
     return sorted(e for e in out if e[0])
-
 
 def breakdown(probe, trace_path, fb_path, hid_path, freq=24e6):
     """Input -> photon, stage by stage, for the labelled inputs (display-stream.md §10)."""
@@ -285,21 +251,18 @@ def breakdown(probe, trace_path, fb_path, hid_path, freq=24e6):
         elif w[0] == "record":
             records.append((int(w[1]), int(w[2]), w[3] if len(w) > 3 else ""))
         elif w[0] == "frame":
-            # frame seq guest scan0 encoded sent bytes tiles inputseq [ab banded|single watch|poll]
             frames.append((int(w[1]), int(w[2]), int(w[3]), int(w[4]), int(w[5]), int(w[6]), w[11] if len(w) > 11 else "", w[10] if len(w) > 10 else ""))
     if not syncs:
         print("trace: no clock sync lines")
         return
-    # guest ticks -> host ns: the median offset of the sync pairs
     offs = sorted(h - g / freq * 1e9 for h, g in syncs)
     off = offs[len(offs) // 2]
     g2h = lambda g: g / freq * 1e9 + off
-    fb = load_ring(fb_path, 48, "<QQQQQQ")          # frame, target, begin, submit, complete, surface
-    hid = {e[0]: e for e in load_ring(hid_path, 32, "<QQQQ")}  # seq, received, dispatched, kind
+    fb = load_ring(fb_path, 48, "<QQQQQQ")
+    hid = {e[0]: e for e in load_ring(hid_path, 32, "<QQQQ")}
     rec_seen = {}
     for fr, t, arm in records:
         rec_seen.setdefault(fr, (t, arm))
-    # record-seen latency (host seen - guest submit), by watcher arm
     lat = {}
     for e in fb:
         if e[0] in rec_seen:
@@ -317,7 +280,6 @@ def breakdown(probe, trace_path, fb_path, hid_path, freq=24e6):
     snd = sorted((f[4] - f[3]) / 1e6 for f in frames)
     if snd:
         print(f"  send (socket write): p50 {snd[len(snd) // 2]:.2f} p90 {snd[len(snd) * 9 // 10]:.2f} ms")
-    # per labelled input
     print("  input -> photon (ms): recv->HID | HID->guest rx | rx->dispatched | ->next SwapBegin | build | submit->seen | seen->sent | sent->probe | total")
     rows = []
     for s_, (ti, label, ph) in sorted(probe.inputs.items()):
@@ -336,7 +298,7 @@ def breakdown(probe, trace_path, fb_path, hid_path, freq=24e6):
         pr = next((f for f in probe.frames if fr and f[1] == fr[0]), None)
         if not (seen and fr and pr):
             continue
-        t_probe = pr[0] * 1e9  # monotonic seconds -> ns (same clock on the host)
+        t_probe = pr[0] * 1e9
         st = [(handed - recv), (rx - handed), (disp - rx), (g2h(sw[2]) - disp), (g2h(sw[3]) - g2h(sw[2])), (seen - g2h(sw[3])), (fr[4] - seen), (t_probe - fr[4]), (t_probe - recv)]
         rows.append((label, kind, [x / 1e6 for x in st]))
     for label, kind, st in rows:
@@ -344,7 +306,6 @@ def breakdown(probe, trace_path, fb_path, hid_path, freq=24e6):
     if rows:
         med = [sorted(r[2][i] for r in rows)[len(rows) // 2] for i in range(9)]
         print("    median               " + " | ".join(f"{x:7.2f}" for x in med))
-
 
 def main(argv):
     hello = {"protocol": "swiftcode-display/1", "client": "swiftcode-display-probe", "maxFPS": 60, "encoding": "jpeg", "quality": 75, "downscale": 1}
@@ -422,7 +383,6 @@ def main(argv):
         breakdown(p, tracedir + "/swiftcode-display.trace", tracedir + "/swiftcode-framebuffer.timing", tracedir + "/swiftcode-simhid.timing")
     if p.json:
         p.json.close()
-
 
 if __name__ == "__main__":
     main(sys.argv[1:])

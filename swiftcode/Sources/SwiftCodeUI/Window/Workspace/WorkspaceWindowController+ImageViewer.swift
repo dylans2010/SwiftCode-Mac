@@ -1,14 +1,7 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Image files in the editor (`specs/ide/editor-area.md` §C.6, E.3): the
-/// image viewer replaces the text, the jump bar names the file, and the
-/// File inspector switches to the image's sections, all in one pass. The
-/// old content stays until the image is ready (checklist row 72): an
-/// ordinary file decodes before the swap; a large one swaps in when it is
-/// ready, or after `ImageViewerLayout.loadingDelay` with "Loading…".
 extension WorkspaceWindowController {
-    /// The image viewer, while an image is shown.
     public var imageViewer: ImageViewerController? {
         get { imageViewerBox.controller }
         set {
@@ -17,7 +10,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// An image still decoding, not yet swapped in (tests).
     public var pendingImageViewer: ImageViewerController? { imageViewerBox.pending }
 
     func showImage(_ url: URL) {
@@ -46,8 +38,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// The viewer, the jump bar, the inspector and the status bar change
-    /// together, in one frame.
     private func swapIn(_ c: ImageViewerController) {
         imageViewer = c
         let url = c.url
@@ -55,15 +45,12 @@ extension WorkspaceWindowController {
         editor.jumpBar.symbolTitle = "No Selection"
         inspector.imageProperties = c.properties
         inspector.show(file: url)
-        // No "Line: Col:" for an image (editor-area.md §D.7).
         debugArea.setPosition(line: 0, column: 0)
     }
 }
 
-/// Holds the image viewer for the window controller's extension.
 @MainActor
 final class ImageViewerBox {
     var controller: ImageViewerController?
-    /// An image decoding off the main thread, shown when ready.
     var pending: ImageViewerController?
 }

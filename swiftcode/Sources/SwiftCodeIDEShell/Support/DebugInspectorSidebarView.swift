@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Sidebar/DebugInspectorSidebarView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: DebugInspectorSidebarView, CallStackRow.
-
 import SwiftUI
 
 struct DebugInspectorSidebarView: View {

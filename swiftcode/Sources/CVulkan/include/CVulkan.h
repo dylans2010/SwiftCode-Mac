@@ -1,26 +1,3 @@
-/*
- * CVulkan: the C side of SwiftCode's Vulkan back end for the simulator's Metal
- * host service (specs/simulator/stage8-contract.md §5.2, owner VK).
- *
- * - Loads the Vulkan loader at run time (dlopen of libvulkan.so.1, then
- *   vkGetInstanceProcAddr / vkGetDeviceProcAddr). Nothing links against
- *   Vulkan, so macOS and hosts without a GPU build and simply report that no
- *   device is available.
- * - Creates one device with the features of specs/simulator/metal-shaders.md
- *   §4–§5 (buffer device addresses, bindless descriptor heap, dynamic
- *   rendering, synchronization2, timeline semaphores, subgroup size control,
- *   VK_EXT_external_memory_host).
- * - Offers the struct-heavy operations (device, buffers including host-memory
- *   import, images and views, samplers, pipelines, dynamic rendering,
- *   barriers, submission) as flat C calls. Swift calls simple vkCmd*
- *   functions through the dispatch table returned by yvk_fns().
- *
- * Vendored headers: Sources/CVulkan/vulkan/ (vulkan_core.h, vk_platform.h, vk_video/) are the
- * Khronos Vulkan headers, version 1.3.275 (from Ubuntu's libvulkan-dev on
- * the Thor). License: Apache-2.0 (SPDX line in each file; Copyright The
- * Khronos Group Inc.). Apache-2.0 allows redistribution with the license
- * notice kept, which the files carry unchanged.
- */
 #ifndef SWIFTCODE_CVULKAN_H
 #define SWIFTCODE_CVULKAN_H
 
@@ -33,7 +10,6 @@
 extern "C" {
 #endif
 
-/* VK_KHR_dynamic_rendering_local_read is newer than the vendored headers. */
 #ifndef VK_KHR_dynamic_rendering_local_read
 typedef struct YVKDynamicRenderingLocalReadFeatures {
     VkStructureType sType;
@@ -42,10 +18,6 @@ typedef struct YVKDynamicRenderingLocalReadFeatures {
 } YVKDynamicRenderingLocalReadFeatures;
 #define YVK_STRUCTURE_TYPE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES ((VkStructureType)1000232000)
 #endif
-
-/* ------------------------------------------------------------------ */
-/* Dispatch table                                                      */
-/* ------------------------------------------------------------------ */
 
 #define YVK_INSTANCE_FUNCTIONS(X) \
     X(vkDestroyInstance) \
@@ -161,7 +133,6 @@ typedef struct YVKDynamicRenderingLocalReadFeatures {
     X(vkCmdEndQuery) \
     X(vkCmdCopyQueryPoolResults)
 
-/* Optional device functions (extensions); NULL when not present. */
 #define YVK_OPTIONAL_DEVICE_FUNCTIONS(X) \
     X(vkGetMemoryHostPointerPropertiesEXT) \
     X(vkCmdSetPolygonModeEXT) \
@@ -183,22 +154,14 @@ typedef struct yvk_dispatch {
 #undef YVK_DECL
 } yvk_dispatch;
 
-/* The process-wide dispatch table (filled by yvk_load and yvk_context_create). */
 const yvk_dispatch *yvk_fns(void);
 
-/* Loads the Vulkan loader. Returns 0 on success, -1 with a message in err. */
 int yvk_load(char *err, size_t errlen);
 
-/* ------------------------------------------------------------------ */
-/* Device                                                              */
-/* ------------------------------------------------------------------ */
-
 typedef struct yvk_features {
-    /* Required (context creation fails without them). */
     VkBool32 bufferDeviceAddress, descriptorIndexing, dynamicRendering, synchronization2,
              timelineSemaphore, maintenance4, subgroupSizeControl, computeFullSubgroups,
              externalMemoryHost;
-    /* Optional, enabled when present. */
     VkBool32 shaderFloat16, shaderInt8, shaderInt16, shaderInt64, shaderFloat64,
              storageBuffer8BitAccess, storageBuffer16BitAccess, storagePushConstant16,
              storageInputOutput16, scalarBlockLayout, vulkanMemoryModel,
@@ -213,19 +176,9 @@ typedef struct yvk_features {
              fragmentShaderPixelInterlock, workgroupMemoryExplicitLayout, formatA8,
              dynamicRenderingLocalRead, fragmentShaderBarycentric, shaderDemoteToHelperInvocation,
              externalMemoryFd,
-             /* Exact sample counts of occlusion queries (Metal's counting
-                visibility-result mode). */
              occlusionQueryPrecise,
-             /* VK_EXT_graphics_pipeline_library with fast linking and
-                independent interpolation decorations. */
              graphicsPipelineLibrary,
-             /* VK_NV_device_diagnostic_checkpoints, enabled when present and
-                SWIFTCODE_GPU_CHECKPOINTS is not 0 (diagnostics of GPU hangs). */
              diagnosticCheckpoints,
-             /* bufferDeviceAddressCaptureReplay (unless SWIFTCODE_GPU_CAPTURE_REPLAY=0):
-                every buffer's memory is allocated with the capture-replay flag,
-                so that a device made again after a loss can give it the same
-                device address (yvk_buffer_recreate; metal-sim-protocol.md §8.7). */
              bufferCaptureReplay;
 } yvk_features;
 
@@ -235,12 +188,8 @@ typedef struct yvk_context {
     VkInstance instance;
     VkPhysicalDevice physical;
     VkDevice device;
-    VkQueue queue;                /* queues[0] */
+    VkQueue queue;
     uint32_t queueFamily;
-    /* Queues of the family (yvk_context_options.queues; at least 1). Work
-       on different queues is ordered only by semaphores, so a submission
-       that never ends holds up its own queue only (metal-sim-protocol.md
-       §8.8). */
     VkQueue queues[YVK_MAX_QUEUES];
     uint32_t queueCount;
     VkPhysicalDeviceProperties properties;
@@ -248,85 +197,57 @@ typedef struct yvk_context {
     VkDeviceSize hostPointerAlignment;
     uint32_t subgroupSize;
     yvk_features features;
-    /* The bindless heap (metal-shaders.md §4.4): set 0. */
     VkDescriptorSetLayout heapLayout;
     VkDescriptorPool heapPool;
     VkDescriptorSet heapSet;
-    uint32_t heapSampledImages;   /* binding 0: VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE[heapSampledImages] */
-    uint32_t heapStorageImages;   /* binding 1: VK_DESCRIPTOR_TYPE_STORAGE_IMAGE[heapStorageImages] */
-    uint32_t heapSamplers;        /* binding 2: VK_DESCRIPTOR_TYPE_SAMPLER[heapSamplers] (swiftcode-airc's abi.h) */
-    /* The one pipeline layout every pipeline uses: set 0 = heap, push
-       constants [0, YVK_PUSH_CONSTANT_SIZE) for all stages. */
+    uint32_t heapSampledImages;
+    uint32_t heapStorageImages;
+    uint32_t heapSamplers;
     VkPipelineLayout pipelineLayout;
     VkCommandPool commandPool;
-    /* Used by every pipeline creation (internally synchronized). */
     VkPipelineCache pipelineCache;
 } yvk_context;
 
 #define YVK_PUSH_CONSTANT_SIZE 128u
 
 typedef struct yvk_context_options {
-    uint32_t maxSampledImages;    /* 0 = default (65536, capped by the device) */
-    uint32_t maxSamplers;         /* 0 = default (4096) */
-    uint32_t maxStorageImages;    /* 0 = default (65536, capped by the device) */
-    int validation;               /* 1: enable VK_LAYER_KHRONOS_validation when installed */
-    uint32_t queues;              /* queues to create in the family (0 = 1; capped by the family and YVK_MAX_QUEUES) */
-    /* 1: a second context made while another one is in use (the GPU kick,
-       metal-sim-protocol.md §8.8): writes no function into the shared table
-       and fails unless its functions are the ones already loaded. */
+    uint32_t maxSampledImages;
+    uint32_t maxSamplers;
+    uint32_t maxStorageImages;
+    int validation;
+    uint32_t queues;
     int second;
 } yvk_context_options;
 
-/* Creates the instance, device, queue, heap and pipeline layout. Returns 0,
-   or -1 with a message (e.g. "no Vulkan loader", "missing feature X"). */
 int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *err, size_t errlen);
 void yvk_context_destroy(yvk_context *ctx);
 
-/* (Re)creates ctx->pipelineCache from earlier cache data (NULL/0: empty;
-   data from another driver or device is ignored by Vulkan). 0 or -1. */
 int yvk_pipeline_cache_create(yvk_context *ctx, const void *data, size_t size);
-/* The cache's current data: call with data NULL for the size. VkResult. */
 VkResult yvk_pipeline_cache_data(yvk_context *ctx, void *data, size_t *size);
 
-/* Format support for optimal tiling (VkFormatFeatureFlags). */
 VkFormatFeatureFlags yvk_format_features(const yvk_context *ctx, VkFormat format);
 VkFormatFeatureFlags yvk_format_buffer_features(const yvk_context *ctx, VkFormat format);
 
-/* ------------------------------------------------------------------ */
-/* Buffers                                                             */
-/* ------------------------------------------------------------------ */
-
 typedef enum yvk_memory_kind {
-    YVK_MEMORY_DEVICE = 0,       /* device-local (host-visible too if the device has such a type) */
-    YVK_MEMORY_HOST = 1,         /* host-visible, coherent, mapped */
-    YVK_MEMORY_IMPORT_HOST = 2,  /* VK_EXT_external_memory_host import of hostPointer */
+    YVK_MEMORY_DEVICE = 0,
+    YVK_MEMORY_HOST = 1,
+    YVK_MEMORY_IMPORT_HOST = 2,
 } yvk_memory_kind;
 
 typedef struct yvk_buffer {
     VkBuffer buffer;
     VkDeviceMemory memory;
-    void *mapped;                 /* host pointer when host-visible or imported, else NULL */
+    void *mapped;
     VkDeviceSize size;
     VkDeviceAddress address;
-    /* The memory's opaque capture address (0 without capture replay). */
     uint64_t captureAddress;
 } yvk_buffer;
 
-/* hostPointer and size must be multiples of ctx->hostPointerAlignment for
-   YVK_MEMORY_IMPORT_HOST. */
 int yvk_buffer_create(yvk_context *ctx, VkDeviceSize size, yvk_memory_kind kind, void *hostPointer,
                       yvk_buffer *out, char *err, size_t errlen);
-/* The same buffer on a device made again after a loss: `captureAddress` is
-   the old buffer's (yvk_buffer.captureAddress); with capture replay the new
-   buffer gets the old device address. 0, or an address the device refuses:
-   a buffer at a new address (compare out->address). */
 int yvk_buffer_recreate(yvk_context *ctx, VkDeviceSize size, yvk_memory_kind kind, void *hostPointer,
                         uint64_t captureAddress, yvk_buffer *out, char *err, size_t errlen);
 void yvk_buffer_destroy(yvk_context *ctx, yvk_buffer *buffer);
-
-/* ------------------------------------------------------------------ */
-/* Images                                                              */
-/* ------------------------------------------------------------------ */
 
 typedef struct yvk_image_info {
     VkImageType type;
@@ -353,19 +274,14 @@ typedef struct yvk_view_info {
     VkImageAspectFlags aspect;
     uint32_t baseLevel, levelCount, baseLayer, layerCount;
     VkComponentMapping components;
-    VkImageUsageFlags usage;      /* 0 = inherit from the image */
+    VkImageUsageFlags usage;
 } yvk_view_info;
 
 VkImageView yvk_view_create(yvk_context *ctx, const yvk_view_info *info, char *err, size_t errlen);
 
-/* Heap writes (layout GENERAL). */
 void yvk_heap_write_sampled(yvk_context *ctx, uint32_t index, VkImageView view);
 void yvk_heap_write_storage(yvk_context *ctx, uint32_t index, VkImageView view);
 void yvk_heap_write_sampler(yvk_context *ctx, uint32_t index, VkSampler sampler);
-
-/* ------------------------------------------------------------------ */
-/* Samplers                                                            */
-/* ------------------------------------------------------------------ */
 
 typedef struct yvk_sampler_info {
     VkFilter magFilter, minFilter;
@@ -379,17 +295,13 @@ typedef struct yvk_sampler_info {
 
 VkSampler yvk_sampler_create(yvk_context *ctx, const yvk_sampler_info *info, char *err, size_t errlen);
 
-/* ------------------------------------------------------------------ */
-/* Pipelines                                                           */
-/* ------------------------------------------------------------------ */
-
 typedef struct yvk_spec_constant {
     uint32_t id;
     uint32_t value;
 } yvk_spec_constant;
 
 typedef struct yvk_shader_stage {
-    const uint32_t *code;         /* SPIR-V words */
+    const uint32_t *code;
     size_t wordCount;
     const char *entry;
     const yvk_spec_constant *constants;
@@ -406,12 +318,12 @@ VkPipeline yvk_compute_pipeline_create(yvk_context *ctx, const yvk_shader_stage 
 typedef struct yvk_vertex_binding {
     uint32_t binding, stride;
     VkVertexInputRate inputRate;
-    uint32_t divisor;             /* instance rate only; 1 = every instance, 0 = constant */
+    uint32_t divisor;
 } yvk_vertex_binding;
 
 typedef struct yvk_graphics_info {
     yvk_shader_stage vertex;
-    yvk_shader_stage fragment;    /* code NULL: no fragment shader (see rasterizerDiscard) */
+    yvk_shader_stage fragment;
     uint32_t bindingCount;
     yvk_vertex_binding bindings[YVK_MAX_VERTEX_BINDINGS];
     uint32_t attributeCount;
@@ -423,15 +335,9 @@ typedef struct yvk_graphics_info {
     VkFormat colorFormats[YVK_MAX_COLOR_ATTACHMENTS];
     VkPipelineColorBlendAttachmentState blend[YVK_MAX_COLOR_ATTACHMENTS];
     VkFormat depthFormat, stencilFormat;
-    /* 1: no rasterization (no fragments, no depth, stencil or occlusion
-       counts). 0 with no fragment shader: depth- and stencil-only drawing. */
     int rasterizerDiscard;
 } yvk_graphics_info;
 
-/* Graphics pipeline libraries (VK_EXT_graphics_pipeline_library). Each
-   part uses the shared pipeline layout and the dynamic state list of
-   yvk_graphics_pipeline_create; yvk_library_link fast-links four parts
-   (vertex input, pre-rasterization, fragment shader, fragment output). */
 VkPipeline yvk_library_vertex_input(yvk_context *ctx, const yvk_graphics_info *info, char *err, size_t errlen);
 VkPipeline yvk_library_pre_raster(yvk_context *ctx, const yvk_shader_stage *vertex, int rasterizerDiscard,
                                   char *err, size_t errlen);
@@ -441,24 +347,15 @@ VkPipeline yvk_library_fragment_output(yvk_context *ctx, const yvk_graphics_info
 VkPipeline yvk_library_link(yvk_context *ctx, const VkPipeline *libraries, uint32_t count, int optimize,
                             char *err, size_t errlen);
 
-/* Dynamic state: viewport, scissor, cull mode, front face, primitive
-   topology, depth bias (+enable), blend constants, stencil reference /
-   compare mask / write mask / test enable / op, depth test / write /
-   compare; polygon mode and depth clamp when EDS3 provides them. */
 VkPipeline yvk_graphics_pipeline_create(yvk_context *ctx, const yvk_graphics_info *info, char *err, size_t errlen);
 
-/* ------------------------------------------------------------------ */
-/* Commands                                                            */
-/* ------------------------------------------------------------------ */
-
 VkCommandBuffer yvk_command_buffer_begin(yvk_context *ctx, char *err, size_t errlen);
-/* Resets and begins a command buffer that has completed. */
 int yvk_command_buffer_restart(yvk_context *ctx, VkCommandBuffer cb);
 void yvk_command_buffer_free(yvk_context *ctx, VkCommandBuffer cb);
 
 typedef struct yvk_attachment {
-    VkImageView view;             /* VK_NULL_HANDLE: unused */
-    VkImageView resolveView;      /* VK_NULL_HANDLE: no resolve */
+    VkImageView view;
+    VkImageView resolveView;
     VkResolveModeFlagBits resolveMode;
     VkAttachmentLoadOp load;
     VkAttachmentStoreOp store;
@@ -474,73 +371,34 @@ typedef struct yvk_rendering_info {
     yvk_attachment stencil;
 } yvk_rendering_info;
 
-/* All attachments are used in VK_IMAGE_LAYOUT_GENERAL. */
 void yvk_cmd_begin_rendering(VkCommandBuffer cb, const yvk_rendering_info *info);
 
-/* A full memory dependency: srcStages/srcAccess -> dstStages/dstAccess. */
 void yvk_cmd_memory_barrier(VkCommandBuffer cb, VkPipelineStageFlags2 srcStages, VkAccessFlags2 srcAccess,
                             VkPipelineStageFlags2 dstStages, VkAccessFlags2 dstAccess);
-/* Layout transition of a whole image (all levels and layers of aspect). */
 void yvk_cmd_image_layout(VkCommandBuffer cb, VkImage image, VkImageAspectFlags aspect,
                           VkImageLayout from, VkImageLayout to);
 
-/* Submits cb; signals the timeline semaphore with value; optionally waits
-   for (waitSemaphore, waitValue) first. Returns VkResult. */
 VkResult yvk_submit(yvk_context *ctx, VkCommandBuffer cb, VkSemaphore signal, uint64_t value,
                     VkSemaphore waitSemaphore, uint64_t waitValue);
-/* Submits cb on queue `queue` (an index below ctx->queueCount); signals
-   the timeline semaphore with value after waiting for every (waits[i],
-   waitValues[i]). Returns VkResult. */
 VkResult yvk_submit_on(yvk_context *ctx, uint32_t queue, VkCommandBuffer cb, VkSemaphore signal, uint64_t value,
                        const VkSemaphore *waits, const uint64_t *waitValues, uint32_t waitCount);
 VkSemaphore yvk_timeline_create(yvk_context *ctx, uint64_t initial);
-/* The GPU kick (metal-sim-protocol.md §8.8): runs an empty kernel on ctx
-   (a second context) and waits for it at most timeoutNs. On the Thor the
-   driver gives the GPU to it by ending another context's submission that
-   never ends (a context-switch timeout, about 4 s), after which that
-   context's waits report VK_ERROR_DEVICE_LOST at once. VkResult. */
 VkResult yvk_kick(yvk_context *ctx, uint64_t timeoutNs);
-/* Whether the GPU named deviceName (NULL: any) can present to the user's
-   window-system session: a graphics queue family with presentation support
-   (vkGet…WaylandPresentationSupportKHR for the compositor of
-   $WAYLAND_DISPLAY or wayland-0 in $XDG_RUNTIME_DIR, else
-   vkGet…XcbPresentationSupportKHR for the X server of $DISPLAY). True means
-   the GPU drives the desktop the caller runs beside (metal-sim-protocol.md
-   §8.8). 1, 0 (also: no session), or -1 without a Vulkan loader. */
 int yvk_presents_to_session(const char *deviceName);
-/* Diagnostic checkpoints (VK_NV_device_diagnostic_checkpoints; nothing
-   without it): a marker in the command stream, and after device loss the
-   last markers the queue passed, top and bottom of the pipe. Returns the
-   number written to markers/stages (at most max). */
 void yvk_cmd_checkpoint(VkCommandBuffer cb, uint64_t marker);
 uint32_t yvk_queue_checkpoints(yvk_context *ctx, uint64_t *markers, uint64_t *stages, uint32_t max);
-/* The same for queue `queue`. */
 uint32_t yvk_queue_checkpoints_on(yvk_context *ctx, uint32_t queue, uint64_t *markers, uint64_t *stages, uint32_t max);
-/* Waits until semaphore >= value or timeoutNs passes. VK_SUCCESS or VK_TIMEOUT. */
 VkResult yvk_timeline_wait(yvk_context *ctx, VkSemaphore semaphore, uint64_t value, uint64_t timeoutNs);
 uint64_t yvk_timeline_value(yvk_context *ctx, VkSemaphore semaphore);
-/* The counter and the call's result (VK_ERROR_DEVICE_LOST once the driver
-   has killed the context, which a timed-out wait does not always say). */
 VkResult yvk_timeline_query(yvk_context *ctx, VkSemaphore semaphore, uint64_t *value);
 VkResult yvk_timeline_signal(yvk_context *ctx, VkSemaphore semaphore, uint64_t value);
 
-/* Starts a helper process (the shader translator) with pipes on its stdin
-   and stdout; stderr is inherited. Every other descriptor of this process
-   is closed in the child (posix_spawn with closefrom on Linux, the
-   close-on-exec default on Darwin), without scanning /proc/self/fd in
-   this process. Returns 0, or an errno value. *toChild and *fromChild are
-   close-on-exec in this process. */
 int yvk_spawn_piped(const char *path, char *const argv[], int *pid, int *toChild, int *fromChild);
-/* Writes all bytes; a closed reader gives EPIPE, never SIGPIPE (the signal
-   is blocked in the calling thread and a pending one is consumed).
-   Returns 0 or an errno value. */
 int yvk_write_all(int fd, const void *bytes, size_t length);
-/* Reads exactly length bytes. Returns 0, an errno value, or -1 at end of file. */
 int yvk_read_exactly(int fd, void *bytes, size_t length);
-/* Ends a helper process: SIGKILL, then waits for it. */
 void yvk_end_child(int pid);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* SWIFTCODE_CVULKAN_H */
+#endif

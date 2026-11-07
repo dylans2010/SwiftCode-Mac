@@ -1,14 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/BundleSizeAnalyzerDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-//
-// CLEANUP (2026-11-06, writer D1, triage §C11): the hardcoded total
-// ("24.6 MB") and five fixed asset rows are deleted. The view now measures
-// a user-selected .app bundle on disk — executable, .car assets, nibs,
-// plists, .lproj localizations, other — and shows an honest empty state
-// until a bundle is picked. AppBundleSizeBreakdown is the shared
-// measurement source, also used by ExpandedDevTools BinarySizeAnalyzerView
-// (C22.13); both views measure from here, not from a second copy.
 import SwiftUI
 import SwiftCodeUI
 import os.log
@@ -16,13 +5,9 @@ import os.log
 import AppKit
 #endif
 
-/// A real on-disk measurement of one .app bundle, broken down by category.
-/// Sizes are allocated sizes (DevToolsDiskUsage), so the total is what the
-/// bundle actually costs on disk.
 struct AppBundleSizeBreakdown: Sendable {
     let bundleName: String
     let totalBytes: Int64
-    /// (label, bytes), in display order.
     let categories: [(label: String, bytes: Int64)]
 
     static func measure(bundle: URL) -> AppBundleSizeBreakdown {

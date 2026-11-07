@@ -1,14 +1,4 @@
 #!/bin/sh
-# Builds the benchmark (specs/macos/objc-runtime.md §12) on a Mac:
-#   <out>/bench-apple, <out>/cats<t>-apple.bundle   - the Mac's runtime
-#   <out>/bench-swiftcode, <out>/cats<t>-swiftcode.bundle   - SwiftCode's runtime, native
-#   <out>/bench, <out>/cats<t>-simd.bundle          - for swiftcode-simd --macos
-#   <out>/cats<t>-<variant>-control.bundle          - the same, sections renamed (no runtime reads them)
-#   <out>/warm.bundle                               - shared
-#
-#   sh build.sh <out dir>
-#   <out>/bench-apple <out> apple
-# python3 -I compare.py <out> [runs] runs both Mac variants alternately.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out=${1:?usage: build.sh <out dir>}
@@ -16,7 +6,6 @@ mkdir -p "$out/gen"
 TARGET=arm64-apple-macos14.0
 CC="clang -target $TARGET -O2 -fno-objc-arc"
 python3 -I "$here/gen.py" "$out/gen"
-# The SwiftCode runtime as a native dylib (build-mac.sh builds it; any program will do).
 sh "$here/build-mac.sh" "$out" "$here/../tests/t_message.m" > /dev/null
 lib="$out/libycobjc.dylib"
 $CC -c "$here/bench.m" -o "$out/bench.o"

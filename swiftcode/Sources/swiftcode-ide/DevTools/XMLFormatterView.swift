@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct XMLFormatterView: View {
@@ -15,7 +12,6 @@ struct XMLFormatterView: View {
                 Spacer()
             }
             .padding()
-            
 
             HSplitView {
                 TextEditor(text: $input)
@@ -28,7 +24,6 @@ struct XMLFormatterView: View {
     }
 
     func format() {
-        // Basic indentation-based XML formatter
         var result = ""
         var level = 0
         let tokens = input.replacingOccurrences(of: ">", with: ">\n").replacingOccurrences(of: "<", with: "\n<").components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }

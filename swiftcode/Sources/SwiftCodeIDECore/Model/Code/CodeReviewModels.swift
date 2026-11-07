@@ -1,15 +1,5 @@
 import Foundation
 
-/// Scored code-review results (Legacy `SwiftCode/Models/CodeReviewModels.swift`,
-/// Dylan's own code, ported under MIT). The destination's `CodeReviewModel`
-/// covers the diff-review UI (changes, comparison styles); this is the
-/// separate scored-report shape Legacy's review flows produced: an overall
-/// score plus a list of issues with severity, category and resolution
-/// state. It is the result type a review report is built from, not a
-/// review verdict itself — no LLM is called here.
-
-// MARK: - Code Review Result
-
 public struct CodeReviewResult: Identifiable, Codable, Sendable {
     public var id = UUID()
     public let fileName: String
@@ -38,8 +28,6 @@ public struct CodeReviewResult: Identifiable, Codable, Sendable {
         issues.filter { !$0.isResolved }.count
     }
 }
-
-// MARK: - Code Review Issue
 
 public struct CodeReviewIssue: Identifiable, Codable, Sendable {
     public var id = UUID()

@@ -34,7 +34,6 @@ public struct AssistApiDocsCoverageTool: AssistTool {
             for (i, line) in lines.enumerated() {
                 guard let p = declPattern, p.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil else { continue }
                 total += 1
-                // Look back up to 3 lines for /// or /**.
                 let back = max(0, i - 3)
                 let hasDoc = lines[back..<i].contains { l in
                     let t = l.trimmingCharacters(in: .whitespaces)

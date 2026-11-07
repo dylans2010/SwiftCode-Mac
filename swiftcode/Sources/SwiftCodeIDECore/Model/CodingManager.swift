@@ -1,6 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/CodingManager.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
-// Adaptation note: ObservableObject -> @Observable (Combine is unavailable on Linux); class and file/model APIs made public.
 import Foundation
 import Observation
 
@@ -41,21 +38,18 @@ public final class CodingManager {
         try? FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
     }
 
-    /// Ensure the Projects directory exists. Called at app startup.
     public func ensureProjectsDirectory() {
         if !fm.fileExists(atPath: projectsRoot.path) {
             try? fm.createDirectory(at: projectsRoot, withIntermediateDirectories: true)
         }
     }
 
-    /// Ensure the Models directory exists. Called at app startup.
     public func ensureModelsDirectory() {
         if !fm.fileExists(atPath: modelsRoot.path) {
             try? fm.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
         }
     }
 
-    /// List all CoreML model files (.mlmodel, .mlmodelc) in the Models directory.
     public func listModels() -> [URL] {
         let extensions: Set<String> = ["mlmodel", "mlmodelc"]
         guard let items = try? fm.contentsOfDirectory(
@@ -68,7 +62,6 @@ public final class CodingManager {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    /// Import a CoreML model file into the Models directory.
     public func importModel(from sourceURL: URL) throws -> URL {
         let fileName = sourceURL.lastPathComponent
         guard !fileName.isEmpty, !fileName.contains("/"), !fileName.hasPrefix(".") else {
@@ -87,8 +80,6 @@ public final class CodingManager {
         return resolvedDest
     }
 
-    /// Delete a CoreML model file from the Models directory.
-    // M-REST (2026-11-06): access raised to public so the ported CoreMLSettingsView (swiftcode-ide) can delete models (no behaviour change).
     public func deleteModel(named name: String) throws {
         guard !name.isEmpty, !name.contains("/"), !name.hasPrefix(".") else {
             throw CodingError.pathOutsideProject
@@ -102,9 +93,6 @@ public final class CodingManager {
         try fm.removeItem(at: resolvedURL)
     }
 
-    // MARK: - Read
-
-    /// Read file content as a string.
     func readFile(at relativePath: String, in projectDir: URL) throws -> String {
         let url = projectDir.appendingPathComponent(relativePath)
         let standardized = url.standardizedFileURL.resolvingSymlinksInPath()
@@ -115,7 +103,6 @@ public final class CodingManager {
         return try String(contentsOf: standardized, encoding: .utf8)
     }
 
-    /// Read file content asynchronously.
     nonisolated func readFileAsync(at relativePath: String, in projectDir: URL) async throws -> String {
         let url = projectDir.appendingPathComponent(relativePath).standardizedFileURL.resolvingSymlinksInPath()
         let projectStd = projectDir.standardizedFileURL.resolvingSymlinksInPath()
@@ -129,9 +116,6 @@ public final class CodingManager {
         return content
     }
 
-    // MARK: - Write
-
-    /// Write content to a file, creating intermediate directories if needed.
     func writeFile(content: String, at relativePath: String, in projectDir: URL) throws {
         let url = projectDir.appendingPathComponent(relativePath)
         let standardized = url.standardizedFileURL.resolvingSymlinksInPath()
@@ -144,9 +128,6 @@ public final class CodingManager {
         try content.write(to: standardized, atomically: true, encoding: .utf8)
     }
 
-    // MARK: - Create
-
-    /// Create a new file with optional initial content.
     func createFile(named name: String, at directoryPath: String?, in projectDir: URL, content: String = "") throws {
         let base = directoryPath.map { projectDir.appendingPathComponent($0) } ?? projectDir
         let fileURL = base.appendingPathComponent(name)
@@ -162,7 +143,6 @@ public final class CodingManager {
         try content.write(to: standardized, atomically: true, encoding: .utf8)
     }
 
-    /// Create a new directory.
     func createDirectory(named name: String, at directoryPath: String?, in projectDir: URL) throws {
         let base = directoryPath.map { projectDir.appendingPathComponent($0) } ?? projectDir
         let folderURL = base.appendingPathComponent(name)
@@ -174,9 +154,6 @@ public final class CodingManager {
         try fm.createDirectory(at: standardized, withIntermediateDirectories: false)
     }
 
-    // MARK: - Delete
-
-    /// Delete a file or directory.
     func deleteItem(at relativePath: String, in projectDir: URL) throws {
         let url = projectDir.appendingPathComponent(relativePath)
         let standardized = url.standardizedFileURL.resolvingSymlinksInPath()
@@ -190,9 +167,6 @@ public final class CodingManager {
         try fm.removeItem(at: standardized)
     }
 
-    // MARK: - Rename
-
-    /// Rename a file or directory.
     func renameItem(at relativePath: String, to newName: String, in projectDir: URL) throws {
         let oldURL = projectDir.appendingPathComponent(relativePath)
         let parentPath = (relativePath as NSString).deletingLastPathComponent
@@ -210,10 +184,6 @@ public final class CodingManager {
         try fm.moveItem(at: oldStd, to: newStd)
     }
 
-    // MARK: - Scan
-
-    /// Scan the project directory and return a list of relative file paths.
-    /// Excludes `project.json` which is internal metadata used by ProjectManager.
     func scanProjectFiles(in projectDir: URL) -> [String] {
         var files: [String] = []
         guard let enumerator = fm.enumerator(
@@ -235,16 +205,11 @@ public final class CodingManager {
         return files.sorted()
     }
 
-    // MARK: - File Existence
-
     func fileExists(at relativePath: String, in projectDir: URL) -> Bool {
         let url = projectDir.appendingPathComponent(relativePath)
         return fm.fileExists(atPath: url.standardizedFileURL.path)
     }
 
-    // MARK: - Copy
-
-    /// Copy a file within a project directory.
     func copyFile(from sourcePath: String, to destPath: String, in projectDir: URL) throws {
         let srcURL = projectDir.appendingPathComponent(sourcePath).standardizedFileURL.resolvingSymlinksInPath()
         let dstURL = projectDir.appendingPathComponent(destPath).standardizedFileURL.resolvingSymlinksInPath()
@@ -258,24 +223,18 @@ public final class CodingManager {
         try fm.copyItem(at: srcURL, to: dstURL)
     }
 
-    // MARK: - Convenience (project-name based)
-
-    /// Resolve a project directory URL from a project name.
     func projectDirectory(for projectName: String) -> URL {
         projectsRoot.appendingPathComponent(projectName)
     }
 
-    /// Read a file using project name instead of URL.
     func readFile(at relativePath: String, in project: String) throws -> String {
         try readFile(at: relativePath, in: projectDirectory(for: project))
     }
 
-    /// Write a file using project name instead of URL.
     func writeFile(content: String, to relativePath: String, in project: String) throws {
         try writeFile(content: content, at: relativePath, in: projectDirectory(for: project))
     }
 
-    /// Create a file at a relative path inside a named project.
     func createFile(at relativePath: String, in project: String) throws {
         let projectDir = projectDirectory(for: project)
         let url = projectDir.appendingPathComponent(relativePath)
@@ -291,12 +250,10 @@ public final class CodingManager {
         }
     }
 
-    /// Delete a file at a relative path inside a named project.
     func deleteFile(at relativePath: String, in project: String) throws {
         try deleteItem(at: relativePath, in: projectDirectory(for: project))
     }
 
-    /// Create a folder at a relative path inside a named project.
     func createFolder(at relativePath: String, in project: String) throws {
         let projectDir = projectDirectory(for: project)
         let url = projectDir.appendingPathComponent(relativePath)
@@ -308,17 +265,14 @@ public final class CodingManager {
         try fm.createDirectory(at: standardized, withIntermediateDirectories: true)
     }
 
-    /// Delete a folder at a relative path inside a named project.
     func deleteFolder(at relativePath: String, in project: String) throws {
         try deleteItem(at: relativePath, in: projectDirectory(for: project))
     }
 
-    /// Scan a named project and return its relative file paths.
     func scanProject(projectName: String) -> [String] {
         scanProjectFiles(in: projectDirectory(for: projectName))
     }
 
-    /// Create a new project directory with default structure.
     func createProject(named name: String) throws {
         let projectDir = projectDirectory(for: name)
         guard !fm.fileExists(atPath: projectDir.path) else {
@@ -326,16 +280,13 @@ public final class CodingManager {
         }
         try fm.createDirectory(at: projectDir, withIntermediateDirectories: true)
 
-        // Sources/
         let sourcesDir = projectDir.appendingPathComponent("Sources")
         try fm.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
 
-        // Resources/
         let resourcesDir = projectDir.appendingPathComponent("Resources")
         try fm.createDirectory(at: resourcesDir, withIntermediateDirectories: true)
     }
 
-    /// Import a zip project by extracting into the Projects directory.
     func importProject(from zipURL: URL) throws -> URL {
         let projectName = zipURL.deletingPathExtension().lastPathComponent
         let projectDir = projectDirectory(for: projectName)
@@ -346,8 +297,6 @@ public final class CodingManager {
         return projectDir
     }
 }
-
-// MARK: - Errors
 
 enum CodingError: LocalizedError {
     case pathOutsideProject

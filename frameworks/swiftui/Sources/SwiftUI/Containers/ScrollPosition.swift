@@ -5,16 +5,8 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// `ScrollPosition` and `.scrollPosition(_:)` (public API names; L2,
-// docs/PARITY.md §5.9): scrolling to a point from code. Only the point form:
-// `scrollPosition(id:)` remains the way to follow lazy items.
-
-/// A scroll view's position, set from code.
 public struct ScrollPosition: Equatable, Sendable {
-    /// The last point asked for.
     public private(set) var point: CGPoint?
-    /// Which request this is: asking for the same point again scrolls again
-    /// (the user may have scrolled away in between).
     var serial = 0
 
     public init(point: CGPoint) { self.point = point }
@@ -44,15 +36,12 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Binds the scroll view inside to `position`: `position.scrollTo(…)` moves it.
     public func scrollPosition(_ position: Binding<ScrollPosition>, anchor: UnitPoint? = nil) -> some View {
         environment(\._scrollPointBinding, position)
     }
 }
 
 extension ScrollViewState {
-    /// Applies a new request of the binding (once per serial; a request not
-    /// yet in reach of the content waits for the next layout).
     @MainActor func applyScrollPoint(_ binding: Binding<ScrollPosition>?) {
         guard let binding else { return }
         let p = binding.wrappedValue
@@ -65,7 +54,6 @@ extension ScrollViewState {
         }
     }
 
-    /// After a layout: the content may have grown to where the request was.
     @MainActor func settleScrollPoint() {
         guard let p = pendingPoint else { return }
         pendingPoint = nil

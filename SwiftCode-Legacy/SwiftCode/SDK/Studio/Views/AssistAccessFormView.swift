@@ -1,36 +1,8 @@
 import Foundation
 import SwiftUI
 
-// MARK: - AssistAccessFormView
-//
-// Studio → Assist Access: the developer-facing Assist authorization flow
-// (Docs/Intro-to-SDK.md §10 — Part B).
-//
-// Two parts in one view:
-//   1. The application form — all required fields of the Assist access
-//      application, validated field-by-field by
-//      `SDKAssistApplication.validate()` (inline per-field error text) and
-//      by `SDKAssistApplicationStore.submit` (extension-identity registry
-//      check + API-key existence check, also surfaced per field).
-//   2. The pending-applications queue — every pending application with
-//      Approve / Deny wired to `SDKAssistApplicationStore.approve` / `.deny`.
-//      Approving IS the entitlement grant path: the store grants
-//      `com.SwiftCode.developer-AI-Assist` (plus
-//      `com.SwiftCode.developer-AI-Allows-Cloud` when the application
-//      declares third-party models or off-device data) on the applicant's
-//      API key before the record is marked approved.
-//
-// Approval policy (v1): recorded self-attestation with revocation-on-abuse —
-// no human review queue; approval records the developer's answers as their
-// attestation, and abuse after approval is handled by entitlement
-// revocation (immediate at the authorization boundary, audit-logged).
-//
-// Native SwiftUI + Foundation only: no AppKit import.
-
 public struct AssistAccessFormView: View {
     public init() {}
-
-    // MARK: - Form state
 
     @State private var extensionID = ""
     @State private var displayName = ""
@@ -45,8 +17,6 @@ public struct AssistAccessFormView: View {
     @State private var dataLeavesDevice: Bool?
     @State private var dataDestination = ""
     @State private var contactEmail = ""
-
-    // MARK: - View state
 
     @State private var fieldErrors: [SDKAssistApplicationField: String] = [:]
     @State private var isSubmitting = false
@@ -81,15 +51,11 @@ public struct AssistAccessFormView: View {
         }
     }
 
-    // MARK: - Intro
-
     private var introText: some View {
         Text("Third-party apps may use Assist only after an approved Assist access application. Applications are recorded self-attestations: approval grants key-bound entitlements on the applicant's developer API key (never the manifest), and abuse after approval is handled by entitlement revocation, which takes effect immediately at the authorization boundary.")
             .font(.callout)
             .foregroundStyle(.secondary)
     }
-
-    // MARK: - Application form
 
     private var formSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -149,8 +115,6 @@ public struct AssistAccessFormView: View {
         .padding(16)
         .liquidGlass(style: .standard, cornerRadius: 12)
     }
-
-    // MARK: Form field groups
 
     private var appIdentityFields: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -236,9 +200,6 @@ public struct AssistAccessFormView: View {
         }
     }
 
-    /// A required Yes/No choice with an optional conditional follow-up text
-    /// field. `selection` stays nil until the user explicitly picks one, so
-    /// an unanswered question is a validation error, never a silent default.
     private func yesNoField(
         title: String,
         subtitle: String,
@@ -295,15 +256,11 @@ public struct AssistAccessFormView: View {
         }
     }
 
-    // MARK: - Submit
-
     @MainActor
     private func submit() async {
         fieldErrors = [:]
         notice = nil
 
-        // The record requires explicit Yes/No answers; an unanswered
-        // question is a field error, not a silent default.
         if hasOwnUI == nil {
             fieldErrors[.hasOwnUI] = "Choose Yes or No."
         }
@@ -371,8 +328,6 @@ public struct AssistAccessFormView: View {
         contactEmail = ""
         fieldErrors = [:]
     }
-
-    // MARK: - Review queue
 
     private var queueSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -528,8 +483,6 @@ public struct AssistAccessFormView: View {
             .foregroundStyle(color)
     }
 
-    // MARK: - Decide actions
-
     @MainActor
     private func approve(_ application: SDKAssistApplication) async {
         notice = nil
@@ -564,8 +517,6 @@ public struct AssistAccessFormView: View {
         }
     }
 
-    // MARK: - Loading
-
     @MainActor
     private func reload() async {
         isLoadingQueue = true
@@ -578,8 +529,6 @@ public struct AssistAccessFormView: View {
             self.selectedKeyID = nil
         }
     }
-
-    // MARK: - Shared UI helpers
 
     @ViewBuilder
     private func inlineError(_ text: String?) -> some View {
@@ -626,10 +575,6 @@ public struct AssistAccessFormView: View {
     }
 }
 
-// MARK: - LabeledTextField
-
-/// A labeled text field with inline error text, shared by the Assist access
-/// form's one-line fields.
 private struct LabeledTextField: View {
     let label: String
     let placeholder: String

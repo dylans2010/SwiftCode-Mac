@@ -3,7 +3,6 @@ import SwiftCodeIDECore
 import SwiftCodeSimFeatures
 import SwiftCodeDebug
 
-/// A row of the variables view. Children load lazily on first expansion.
 @MainActor
 public final class VariableNode: NSObject {
     public let variable: Variable
@@ -12,11 +11,8 @@ public final class VariableNode: NSObject {
     public var isExpandable: Bool { variable.variablesReference != 0 }
 }
 
-/// The bottom debug area: the debug bar, then the variables view (left)
-/// and the console (right). See `specs/ide/workspace-window.md` §Debug area.
 @MainActor
 public final class DebugAreaController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    /// Debug-bar buttons: (symbol, tooltip, action).
     public static let barButtons: [(String, String, String)] = [
         ("tag", "Activate or deactivate breakpoints", "toggleBreakpointsActive:"),
         ("play", "Continue program execution", "pauseOrContinue:"),
@@ -28,7 +24,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
     public private(set) var roots: [VariableNode] = []
     private var prefsObserver: NSObjectProtocol?
 
-    /// The console's font and colors follow the theme.
     public func applyTheme() {
         consoleView.font = Theme.consoleFont
         consoleView.textColor = Theme.consoleTextColor
@@ -37,85 +32,44 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         bottomBarBackdrop?.themeChanged()
     }
 
-    /// The console's current font (tests).
     public var consoleFont: NSFont? { _ = view; return consoleView.font }
-    /// Fetches a variable's children by reference (set by the window).
     public var loadChildren: ((Int) async -> [Variable])?
     private let varsOutline = NSOutlineView()
     let consoleView = NSTextView()
-    /// The console's input line (after the `(lldb)` prompt).
     public let consoleField = NSTextField(string: "")
     let filterPopUp = NSPopUpButton(frame: .zero, pullsDown: false)
-    /// The console filter (All / Debugger / Target Output).
     public private(set) var consoleFilter: ConsoleEntry.Filter = .all
-    /// Called with a console line to evaluate.
     public var onConsoleLine: ((String) async -> Void)?
-    /// Called when the filter changes (the window re-renders the console).
     public var onFilterChange: (() -> Void)?
-    /// Previously entered lines, oldest first.
     public private(set) var history: [String] = []
     private var historyCursor: Int?
-    /// Variables-view actions: (action, variable name, value/argument).
     public var onVariableAction: ((VariableAction, Variable) -> Void)?
     public enum VariableAction { case printDescription, copyValue, watch, watchRead, watchReadWrite, editValue, addExpression }
-    /// The variables view's Registers toggle.
     public let registersCheck = NSButton(checkboxWithTitle: "Registers", target: nil, action: nil)
     let frameLabel = NSTextField(labelWithString: "")
-    /// Debug bar, right: "Line: N Col: N" and the show/hide toggle.
     public let positionLabel = NSTextField(labelWithString: "")
-    /// The debug bar (with its top hairline). The window places it under
-    /// the editor so it stays visible while the debug area is hidden
-    /// (reference-ui.md §3, §5).
     public let debugBar = NSView()
-    /// The bar's background over the editor (macOS 26+).
     public internal(set) var bottomBarBackdrop: EditorBottomBarBackdrop?
-    /// The editor's bottom bar is translucent over the editor (macOS 26+).
     static var translucentBar: Bool { GlassBars.enabled }
-    /// The debug bar's height with its separator: 36 with the Liquid
-    /// Glass design (liquid-glass.md §2.6), 27 before.
     static var debugBarHeight: CGFloat { translucentBar ? CGFloat(WorkspaceChrome.debugBarHeight) : 27 }
-    /// The variables and console bottom bars (`specs/ide/metrics.md` §7):
-    /// one height for both, their 20-point controls centered 4 points
-    /// from the window's bottom edge. They were 24 and 20 tall, so the
-    /// console's filter field touched the window's bottom edge.
     static let bottomBarHeight = CGFloat(WorkspaceChrome.bottomBarHeight)
-    /// The bars' controls start and end this far from the column's edges.
     static let bottomBarSideInset: CGFloat = 6
-    /// Debug bar extras (DebugBarExtras.swift): the branch at the right
-    /// end, the variables' A/L badges and loading spinner.
     public let branchLabel = NSTextField(labelWithString: "")
     lazy var branchView: NSStackView = makeBranchView()
-    /// The click target over the branch glyph and name.
     public let branchButton = NSButton()
-    /// The local branches (name, current) for the branch menu, and what
-    /// choosing one does (set by the window).
     public var branchesProvider: (() -> [(String, Bool)])?
-    /// Environment Overrides of the running app (EnvironmentOverridesPanel.swift):
-    /// sends the overrides; nil when no run takes them. Set by the window.
     public var applyEnvironmentOverrides: ((EnvironmentOverrides) async -> (Bool, String))?
-    /// The overrides last applied to the running app.
     public var environmentOverrides = EnvironmentOverrides()
-    /// The run the overrides and the location belong to (the bundle id and
-    /// the run's pid; nil: no run on the SwiftCode simulator). A new run starts
-    /// with none (swiftcode-simd removes the app's overrides at its launch).
     public var simulatorRunKey: (() -> String?)?
     var overridesRunKey: String?
-    /// Simulate Location for the running app's device: the words after
-    /// `location` (`set <lat>,<lon>`, `run <scenario>`, `clear`); nil when no
-    /// run takes them. Set by the window.
     public var simulateLocationHandler: (([String]) async -> (Bool, String))?
-    /// The location item last chosen ("Don't Simulate Location" when nil).
     public var simulatedLocation: String?
     public var onSwitchBranch: ((String) -> Void)?
-    /// The debug bar's row and its far-right show/hide toggle (tests).
     public internal(set) var debugBarStack: NSStackView?
     public internal(set) var debugAreaToggle: NSButton?
 
-    /// The debug-area toggle's title and tooltip name what it does
-    /// (`reference-ui-6.md` §2.5, T7).
     public static func debugAreaToggleTitle(shown: Bool) -> String { shown ? "hide debug area" : "show debug area" }
 
-    /// Updates the debug-area toggle for the area's state.
     public func setDebugAreaShown(_ shown: Bool) {
         guard let b = debugAreaToggle else { return }
         let t = Self.debugAreaToggleTitle(shown: shown)
@@ -124,23 +78,15 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         b.setAccessibilityTitle(t)
         b.image?.accessibilityDescription = t
     }
-    /// Holds the Code Review controls while comparing (reference-ui-4 §15.1).
     public let reviewSlot = NSStackView()
     public internal(set) var variableBadges: [String: String] = [:]
     let variablesSpinner = NSProgressIndicator()
     public internal(set) var backtraceInEditor = false
-    /// Variables bottom bar (reference-ui.md §5): scope pop-up, two
-    /// toggles, filter.
     public let scopePopUp = NSPopUpButton(frame: .zero, pullsDown: false)
     public let variablesFilter = NSSearchField()
-    /// Console bottom bar: two output toggles, filter, clear, and the
-    /// buttons that show or hide each half.
-    /// Quick Look buttons (variables and console bars) and the console's
-    /// output-options button (reference-ui-2.md §9).
     public let variablesQuickLook = NSButton()
     public let consoleQuickLook = NSButton()
     public let outputOptionsButton = NSButton()
-    /// The console's metadata columns (output-options popover).
     public private(set) var metadata = ConsoleMetadata()
     public func setMetadata(_ m: ConsoleMetadata) { metadata = m; onFilterChange?() }
     public let debuggerOutputToggle = NSButton()
@@ -158,12 +104,9 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         positionLabel.stringValue = line > 0 ? "Line: \(line)  Col: \(column)" : ""
     }
     public private(set) var barButtonViews: [NSButton] = []
-    /// The variables and console bottom bars and the Print Description
-    /// button (reference-ui-5.md §8.1, §8.3).
     public private(set) var variablesBarStack: NSStackView?
     public private(set) var consoleBarStack: NSStackView?
     public private(set) var printDescriptionButton: NSButton?
-    /// The bars' items left to right, by tooltip (tests).
     public var variablesBarTitles: [String] { _ = view; return variablesBarStack?.arrangedSubviews.map { $0.toolTip ?? "" } ?? [] }
     public var consoleBarTitles: [String] { _ = view; return consoleBarStack?.arrangedSubviews.map { $0.toolTip ?? "" } ?? [] }
 
@@ -180,7 +123,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
             b.contentTintColor = .secondaryLabelColor
             if Self.extraBarButtons.contains(where: { $0.2 == action }) { b.target = self }
             if Self.placeholderBarActions.contains(action) {
-                // D4: a disabled placeholder; its action is never sent.
                 b.action = nil
                 b.target = nil
                 b.isEnabled = false
@@ -198,8 +140,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         positionLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         positionLabel.textColor = .secondaryLabelColor
         bar.addArrangedSubview(positionLabel)
-        // reference-ui-5.md §6.2: "Line: N  Col: N", the branch button,
-        // then the debug-area toggle at the far right.
         bar.addArrangedSubview(branchView)
         let hide = NSButton(image: NSImage(systemSymbolName: "rectangle.bottomthird.inset.filled", accessibilityDescription: "Hide Debug Area")!,
                             target: nil, action: Selector(("toggleDebugArea:")))
@@ -267,20 +207,14 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         icon(outputOptionsButton, "list.bullet.rectangle", "Metadata Options", #selector(showOutputOptions(_:)), toggle: false)
         filterPopUp.toolTip = "Filter options"
         consoleSearch.toolTip = "Filter"
-        // reference-ui-6.md §7 (D1): no output-kind pop-up; output filtering
-        // is the filter field's and Metadata Options' (the toggles keep
-        // `consoleFilter`).
         let consoleBar = NSStackView(views: [consoleQuickLook, outputOptionsButton, consoleSearch, clearButton, showVariablesButton, showConsoleButton])
         consoleBar.spacing = 6
         consoleBarStack = consoleBar
         consoleBar.edgeInsets = NSEdgeInsets(top: 0, left: Self.bottomBarSideInset, bottom: 0, right: Self.bottomBarSideInset)
         consoleBar.heightAnchor.constraint(equalToConstant: Self.bottomBarHeight).isActive = true
-        // §7 (D1): the command-entry line shows only during a debug session.
         let inputRule = NSBox.hairline()
         consoleInputViews = [inputRule, inputRow]
         for v in consoleInputViews { v.isHidden = true }
-        // liquid-glass.md §2.6: no separator line above the bottom bars
-        // (macOS 26+).
         let consoleBarRule = NSBox.hairline()
         consoleBarRule.isHidden = GlassBars.enabled
         let consoleColumn = NSStackView(views: [consoleScroll, inputRule, inputRow, consoleBarRule, consoleBar])
@@ -320,7 +254,7 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         scopePopUp.action = #selector(scopeChosen)
         let info = NSButton(image: NSImage(systemSymbolName: "info.circle", accessibilityDescription: "Print Description")!, target: self, action: #selector(infoClicked))
         info.isBordered = false
-        info.toolTip = "Print Description"   // reference-ui-5.md §8.1
+        info.toolTip = "Print Description"
         printDescriptionButton = info
         registersCheck.title = ""
         registersCheck.image = NSImage(systemSymbolName: "eye", accessibilityDescription: "Show registers")
@@ -363,11 +297,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         split.addArrangedSubview(varsColumn)
         split.addArrangedSubview(consoleColumn)
 
-        // liquid-glass.md §7.3, §7.4 (fidelity-council.md row 13): over
-        // the editor the bar is the editor's background, nearly opaque, so
-        // the text scrolled beneath shows only as a faint veil, under a
-        // 1-point opaque separator (#D7D7D7 in an inactive light window).
-        // Before macOS 26 it sits below the editor with a hairline.
         let topSep: NSView
         if Self.translucentBar {
             let backdrop = EditorBottomBarBackdrop()
@@ -378,8 +307,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
                 backdrop.leadingAnchor.constraint(equalTo: debugBar.leadingAnchor), backdrop.trailingAnchor.constraint(equalTo: debugBar.trailingAnchor),
             ])
             bottomBarBackdrop = backdrop
-            // The separator is the backdrop's top point; this keeps the
-            // bar's controls below it.
             topSep = NSView()
             topSep.heightAnchor.constraint(equalToConstant: 1).isActive = true
         } else {
@@ -425,20 +352,15 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         varsOutline.reloadData()
     }
 
-    /// The scope chosen in the variables bar.
     public var variableScope: VariableScope { VariableScope(rawValue: scopePopUp.indexOfSelectedItem) ?? .auto }
 
     @objc func variablesFilterChanged() { applyVariablesFilter() }
-    /// Registers show only in "All Variables, Registers, Globals and
-    /// Statics" (reference-ui-2.md §9).
     @objc func scopeChosen() {
         let all = variableScope.showsRegisters
         if Preferences.shared.showRegisters != all { Preferences.shared.showRegisters = all }
         applyVariablesFilter()
     }
 
-    /// The selected variable's value, or the console's selected text, in a
-    /// popover (only for a window on screen).
     @objc func quickLookVariable() {
         let row = varsOutline.selectedRow
         guard row >= 0, let n = varsOutline.item(atRow: row) as? VariableNode else { NSSound.beep(); return }
@@ -467,9 +389,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         p.show(relativeTo: v.bounds, of: v, preferredEdge: .maxY)
     }
 
-    /// The output-options popover: a Metadata switch and the metadata
-    /// columns. SwiftCode records Type and Timestamp; the other columns have no
-    /// data in SwiftCode's console and are shown disabled.
     @objc func showOutputOptions(_ sender: NSButton) {
         guard view.window?.isVisible == true else { return }
         let p = NSPopover()
@@ -498,7 +417,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
 
     @objc func metadataSwitched(_ s: NSSwitch) { var m = metadata; m.enabled = s.state == .on; setMetadata(m) }
     @objc func metadataColumn(_ b: NSButton) { var m = metadata; m.set(b.tag, b.state == .on); setMetadata(m) }
-    /// Selects a top-level variable row by name (tests, Print Description).
     @discardableResult
     public func selectVariable(named name: String) -> Bool {
         guard let n = roots.first(where: { $0.variable.name == name }) else { return false }
@@ -522,10 +440,8 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
     @objc public func toggleVariablesHalf() { varsHalf?.isHidden.toggle(); if varsHalf?.isHidden == true { consoleHalf?.isHidden = false } }
     @objc public func toggleConsoleHalf() { consoleHalf?.isHidden.toggle(); if consoleHalf?.isHidden == true { varsHalf?.isHidden = false } }
     @objc func consoleSearchChanged() { renderConsole() }
-    /// The variables view and console halves are shown (tests).
     public var halvesShown: (variables: Bool, console: Bool) { (!(varsHalf?.isHidden ?? false), !(consoleHalf?.isHidden ?? false)) }
 
-    /// Loads (once) and returns a node's children.
     @discardableResult
     public func expand(_ node: VariableNode) async -> [VariableNode] {
         if let c = node.children { return c }
@@ -537,9 +453,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
 
     public func setFrame(_ text: String) { frameLabel.stringValue = text }
 
-    // MARK: Console input
-
-    /// Evaluates the console line and clears it.
     public func submitConsoleLine() async {
         let line = consoleField.stringValue.trimmingCharacters(in: .whitespaces)
         guard !line.isEmpty else { return }
@@ -549,13 +462,11 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         await onConsoleLine?(line)
     }
 
-    /// The history entry `back` steps from the newest (1 = newest).
     public func historyItem(back: Int) -> String? {
         let i = history.count - back
         return history.indices.contains(i) ? history[i] : nil
     }
 
-    /// ↑ / ↓ in the input line move through the history.
     func moveHistory(older: Bool) {
         guard !history.isEmpty else { return }
         let c = historyCursor ?? history.count
@@ -575,8 +486,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         onFilterChange?()
     }
 
-    // MARK: Variables context menu
-
     @objc private func variableMenuChosen(_ item: NSMenuItem) {
         let row = varsOutline.clickedRow >= 0 ? varsOutline.clickedRow : varsOutline.selectedRow
         let node = row >= 0 ? varsOutline.item(atRow: row) as? VariableNode : nil
@@ -592,7 +501,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         onVariableAction?(.editValue, node.variable)
     }
 
-    /// Copy Value: the value on the general pasteboard.
     public static func copy(_ v: Variable) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(v.value, forType: .string)
@@ -604,7 +512,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         renderConsole()
     }
 
-    /// The console text with the bar's filter applied (matching lines).
     public var shownConsole: String { consoleView.string }
 
     func renderConsole() {
@@ -616,28 +523,21 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
         consoleView.scrollToEndOfDocument(nil)
     }
 
-    /// Pause becomes Continue while stopped.
     public func setPaused(_ paused: Bool) {
         guard let b = pauseContinueButton else { return }
         b.image = NSImage(systemSymbolName: paused ? "play" : "pause", accessibilityDescription: nil)
         b.toolTip = paused ? "Continue program execution" : "Pause program execution"
     }
 
-    /// Continue and the step buttons show only during a debug session;
-    /// the breakpoint toggle is always there (reference-ui.md §2). So does
-    /// the console's command-entry line (reference-ui-6.md §7, D1).
     public func setDebugging(_ on: Bool) {
         _ = view
         for b in barButtonViews where b.action != Selector(("toggleBreakpointsActive:")) { b.isHidden = !on }
         for v in consoleInputViews where v.isHidden == on { v.isHidden = !on }
     }
 
-    /// The console's command-entry line and the rule above it.
     private var consoleInputViews: [NSView] = []
-    /// Whether the command-entry line is shown (tests).
     public var isConsoleInputShown: Bool { _ = view; return consoleInputViews.contains { !$0.isHidden } }
 
-    /// The debug bar's Pause / Continue button.
     public var pauseContinueButton: NSButton? {
         _ = view
         return barButtonViews.first { $0.action == Selector(("pauseOrContinue:")) }
@@ -660,7 +560,6 @@ public final class DebugAreaController: NSViewController, NSOutlineViewDataSourc
     public func outlineView(_ o: NSOutlineView, viewFor c: NSTableColumn?, item: Any) -> NSView? {
         guard let node = item as? VariableNode else { return nil }
         let v = node.variable
-        // Top-level rows carry the A/L badge (reference-ui-4.md §5.5).
         if o.level(forItem: item) == 0, let badge = variableBadges[v.name] { return badgedRow(badge, v) }
         let s = NSMutableAttributedString(string: v.name, attributes: [.font: Theme.boldFont])
         if let t = v.type, !t.isEmpty, t != "<no-type>" { s.append(NSAttributedString(string: " (\(t))", attributes: [.font: Theme.font, .foregroundColor: NSColor.secondaryLabelColor])) }
@@ -682,7 +581,6 @@ extension DebugAreaController: NSTextFieldDelegate {
 }
 
 extension NSBox {
-    /// A horizontal separator line of fixed height.
     static func hairline() -> NSBox {
         let b = NSBox()
         b.boxType = .separator

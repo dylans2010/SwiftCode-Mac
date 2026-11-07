@@ -27,7 +27,6 @@ public struct AssistWriteFileTool: AssistTool {
             return .failure("Missing required parameters: 'path' and 'content' are mandatory.", code: .missingArgument)
         }
 
-        // Sandbox & Traversal Defense: Normalize workspace path
         let isIsolatedScript = path.hasPrefix("/tmp/swiftcode/scripts")
         if isIsolatedScript {
             try? FileManager.default.createDirectory(atPath: "/tmp/swiftcode/scripts", withIntermediateDirectories: true)
@@ -50,37 +49,30 @@ public struct AssistWriteFileTool: AssistTool {
             let isNewFile = !context.fileSystem.exists(at: path)
             let originalContent = isNewFile ? "" : (try? context.fileSystem.readFile(at: path)) ?? ""
 
-            // Live Diff Streamer: Broadcast edit initiation
             LiveDiffStreamer.shared.beginEdit(
                 filePath: path,
                 operationType: isNewFile ? .create : .write,
                 beforeContent: originalContent
             )
 
-            // Live Diff Streamer: Stream in-flight mutation state
             LiveDiffStreamer.shared.streamMutation(
                 filePath: path,
                 currentContent: content,
                 isFinal: false
             )
 
-            // Write updated content
             try context.fileSystem.writeFile(at: path, content: content)
 
-            // Auto-register new file on Xcode project.pbxproj
             if isNewFile {
                 _ = try? XcodeProjWriter.shared.addFileReference(filePath: path, projectURL: context.workspaceRoot)
             }
 
-            // Complete in-flight diff stream
             LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: content)
 
-            // Reconcile with verified disk state
             if let verifiedDisk = try? context.fileSystem.readFile(at: path) {
                 LiveDiffStreamer.shared.reconcileWithDisk(filePath: path, actualDiskContent: verifiedDisk)
             }
 
-            // Generate verified Unified Diff via Myers algorithm
             let diff = AssistDiffEngine.shared.generateUnifiedDiff(
                 filePath: path,
                 original: originalContent,

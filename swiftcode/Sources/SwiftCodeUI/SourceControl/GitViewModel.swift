@@ -1,7 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/ViewModels/GitViewModel.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Adaptation: Placed in SwiftCodeUI/SourceControl (not IDECore/Model): SwiftCodeIDECore has no SwiftCodeSDK dependency, so the view model lives with its views.
-// Adaptation: GitFileStatus.path is String in the destination model (URL in Legacy): wrapped with URL(fileURLWithPath:) at the three call sites.
 import Foundation
 import Observation
 import SwiftCodeIDECore

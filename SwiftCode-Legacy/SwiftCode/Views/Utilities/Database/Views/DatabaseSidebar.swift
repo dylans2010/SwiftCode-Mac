@@ -7,7 +7,6 @@ struct DatabaseSidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Connection Picker Section
             VStack(alignment: .leading, spacing: 6) {
                 Text("CONNECTION")
                     .font(.caption2.bold())
@@ -38,7 +37,6 @@ struct DatabaseSidebar: View {
 
             Divider()
 
-            // Sections Navigation List
             List(DatabaseSection.allCases, selection: $selectedSection) { section in
                 NavigationLink(value: section) {
                     HStack(spacing: 8) {

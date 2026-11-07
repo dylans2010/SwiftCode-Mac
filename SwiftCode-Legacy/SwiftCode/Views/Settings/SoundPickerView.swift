@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Animated Equalizer Wave Visualizer
-
 @MainActor
 private struct AudioEqualizerBars: View {
     @State private var animating = false
@@ -26,8 +24,6 @@ private struct AudioEqualizerBars: View {
         .onAppear { animating = true }
     }
 }
-
-// MARK: - Interactive Sound Picker with Modern UI & Hover-to-Play
 
 @MainActor
 public struct SoundPickerView: View {
@@ -124,11 +120,8 @@ public struct SoundPickerView: View {
         }
     }
 
-    // MARK: - Popover Content (Modern Unified Non-Tabbed Layout)
-
     private var popoverContent: some View {
         VStack(spacing: 0) {
-            // Header: Modern Glassmorphic Search Bar
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12, weight: .medium))
@@ -164,7 +157,6 @@ public struct SoundPickerView: View {
 
             Divider()
 
-            // Sound Items ScrollView
             ScrollView {
                 VStack(alignment: .leading, spacing: 3) {
                     if !searchText.isEmpty {
@@ -190,7 +182,6 @@ public struct SoundPickerView: View {
                             }
                         }
                     } else {
-                        // Section 1: Recommended for this event category
                         let recs = SoundCatalog.sounds(for: category)
                         if !recs.isEmpty {
                             sectionHeader("Recommended for \(category.rawValue)")
@@ -199,7 +190,6 @@ public struct SoundPickerView: View {
                             }
                         }
 
-                        // Section 2: Other Cinematic App Micro-Sounds
                         let others = SoundCatalog.customSounds.filter { !recs.contains($0) }
                         if !others.isEmpty {
                             sectionHeader("Cinematic App Sounds (\(others.count))")
@@ -208,7 +198,6 @@ public struct SoundPickerView: View {
                             }
                         }
 
-                        // Section 3: Native macOS System Sounds
                         let systemSounds = SoundCatalog.systemSounds
                         if !systemSounds.isEmpty {
                             sectionHeader("Native System Sounds (\(systemSounds.count))")
@@ -217,7 +206,6 @@ public struct SoundPickerView: View {
                             }
                         }
 
-                        // Section 4: User-Installed Sounds
                         let userSounds = SoundCatalog.discoverUserSounds()
                         if !userSounds.isEmpty {
                             sectionHeader("User Sounds (\(userSounds.count))")
@@ -230,7 +218,6 @@ public struct SoundPickerView: View {
                     Divider()
                         .padding(.vertical, 4)
 
-                    // Silent / None Option
                     noneOptionRow
                 }
                 .padding(6)
@@ -239,7 +226,6 @@ public struct SoundPickerView: View {
 
             Divider()
 
-            // Footer hint
             HStack(spacing: 6) {
                 Image(systemName: "cursorarrow.rays")
                     .font(.system(size: 10))
@@ -283,7 +269,6 @@ public struct SoundPickerView: View {
             isPopoverPresented = false
         } label: {
             HStack(spacing: 8) {
-                // Source / Category badge icon
                 Circle()
                     .fill(Color(hex: sound.source.badgeColorHex).opacity(isPlaying ? 0.25 : 0.12))
                     .frame(width: 20, height: 20)
@@ -293,7 +278,6 @@ public struct SoundPickerView: View {
                             .foregroundStyle(Color(hex: sound.source.badgeColorHex))
                     )
 
-                // Sound display name
                 Text(sound.displayName)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
@@ -307,13 +291,11 @@ public struct SoundPickerView: View {
 
                 Spacer()
 
-                // Playing wave animation indicator
                 if isPlaying {
                     AudioEqualizerBars()
                         .padding(.trailing, 2)
                 }
 
-                // Selected checkmark
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .bold))

@@ -6,7 +6,6 @@ import SwiftCodeWorkspace
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-5.md §11.3 (P11): the scheme editor's tables.
 @MainActor
 @Suite struct SchemeEditorR35Tests {
     func editor() throws -> SchemeEditorController {
@@ -36,11 +35,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(t2.titles == ["App", "AppTests"] && !t2.plusButton.isEnabled)
         #expect(e.scheme.buildEntries[1].actions == [.testing])
         #expect(e.subtitle(forAction: 0) == "2 targets")
-        // Filter.
         t2.filterField.stringValue = "tests"
         t2.filterChanged()
         #expect(e.buildTargetsTable?.titles == ["AppTests"] && e.buildTargetsTable?.filterField.stringValue == "tests")
-        // − removes the selected row.
         let t3 = try #require(e.buildTargetsTable)
         t3.table.selectRowIndexes([0], byExtendingSelection: false)
         t3.minusClicked()
@@ -59,7 +56,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     @Test func testPlansTableWithSubtitleArrowAndDefault() throws {
         let e = try editor()
         e.select(action: 2)
-        // No plans yet: the autocreated row with its subtitle.
         let t = try #require(e.testPlansTable)
         #expect(t.titles == ["App (Autocreated)"] && t.table.tableColumns.map(\.title) == ["Test Plans", "Default"])
         func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
@@ -72,7 +68,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let t2 = try #require(e.testPlansTable)
         #expect(t2.titles == ["App", "Smoke"])
         #expect(cells(t2).contains { ($0 as? NSTextField)?.stringValue == "App/App.xctestplan" })
-        // The go-to arrow opens the plan.
         var opened: URL?
         e.onOpenFile = { opened = $0 }
         let arrow = try #require(cells(t2).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "container:Smoke.xctestplan" && $0.toolTip != nil })

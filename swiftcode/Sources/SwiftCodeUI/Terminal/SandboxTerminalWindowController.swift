@@ -1,20 +1,6 @@
 import AppKit
 import Foundation
 
-// MARK: - Sandboxed terminal window (gap closure)
-//
-// The `sandbox.view` window (specs/ide/gap-closure-windows-
-// artboards.md §8): a command field + output view over
-// `SandboxedCommandRunner`. One command per run, one session per
-// window, user-opened only — there is no SDK view and no MCP
-// tool for it. This is not a shell: no `;`, `|`, `$()`, backticks
-// or any other shell syntax is ever interpreted, the command must
-// be on the allowlist, the working directory stays inside the
-// workspace, and the environment is scrubbed. The policy note at
-// the bottom of the window says exactly that.
-
-/// The sandboxed terminal's window manager: one shared window per
-/// workspace folder, raised when already open.
 @MainActor
 public final class SandboxTerminalWindowManager: NSObject {
     public static let shared = SandboxTerminalWindowManager()

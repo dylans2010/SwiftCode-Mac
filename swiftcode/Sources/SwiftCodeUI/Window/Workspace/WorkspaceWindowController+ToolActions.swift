@@ -2,15 +2,8 @@ import AppKit
 
 import SwiftCodeIDECore
 
-/// Product ▸ Delete Derived Data…, Build Documentation, Export
-/// Localizations…, Import Localizations… (`specs/ide/build.md` §IDE tool
-/// actions): panels and confirmations here, the work in
-/// `WorkspaceSession+Tools.swift`.
 extension WorkspaceWindowController {
-    // MARK: Localizations
 
-    /// Export Localizations…: a save panel for the folder to create
-    /// ("<project> Localizations"), then one `.xcloc` per language in it.
     @objc public func exportLocalizations(_ sender: Any?) {
         guard let window, window.isVisible, let project = IDEToolActions.localizationProject(session.model) else { NSSound.beep(); return }
         let panel = NSSavePanel()
@@ -25,7 +18,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Exports into `folder` (created if missing) and shows the folder.
     @discardableResult
     public func exportLocalizations(into folder: URL, runner: @escaping IDEToolActions.Runner = IDEToolActions.inProcess) async -> WorkspaceSession.ToolOutcome? {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -34,8 +26,6 @@ extension WorkspaceWindowController {
         return outcome
     }
 
-    /// Import Localizations…: an open panel for a `.xcloc` (or `.xliff`),
-    /// then the import into the project.
     @objc public func importLocalizations(_ sender: Any?) {
         guard let window, window.isVisible, IDEToolActions.localizationProject(session.model) != nil else { NSSound.beep(); return }
         let panel = NSOpenPanel()
@@ -58,9 +48,6 @@ extension WorkspaceWindowController {
         return outcome
     }
 
-    // MARK: Documentation
-
-    /// Build Documentation (⌃⇧⌘D): `docbuild`, then the archives in Finder.
     @objc public func buildDocumentation(_ sender: Any?) { Task { await buildDocumentation() } }
 
     @discardableResult
@@ -70,11 +57,6 @@ extension WorkspaceWindowController {
         return outcome
     }
 
-    // MARK: Derived data
-
-    /// Delete Derived Data…: asks, then deletes the workspace's derived data
-    /// folder. Returns the alert (shown as a sheet while the window is on
-    /// screen) once the folder is known.
     @objc public func deleteDerivedData(_ sender: Any?) { Task { await confirmDeleteDerivedData() } }
 
     @discardableResult
@@ -95,7 +77,6 @@ extension WorkspaceWindowController {
         return alert
     }
 
-    /// Deletes `folder` (the confirmed derived data) and says so in the console.
     @discardableResult
     public func deleteDerivedData(at folder: URL) -> Bool {
         let ok = IDEToolActions.deleteDerivedData(folder)
@@ -103,10 +84,6 @@ extension WorkspaceWindowController {
         return ok
     }
 
-    // MARK: Results
-
-    /// A failed action shows its last lines in a sheet; a successful one
-    /// reveals what it made in Finder.
     func presentToolOutcome(_ outcome: WorkspaceSession.ToolOutcome, title: String, reveal: [URL]) {
         guard let window else { return }
         if outcome.succeeded {
@@ -119,7 +96,6 @@ extension WorkspaceWindowController {
         alert.beginSheetModal(for: window)
     }
 
-    /// Enablement of these commands; nil = not one of them.
     func validateToolActionItem(_ item: NSMenuItem) -> Bool? {
         switch item.action {
         case #selector(exportLocalizations(_:)), #selector(importLocalizations(_:)):
@@ -132,9 +108,6 @@ extension WorkspaceWindowController {
 }
 
 extension WorkspaceWindowController {
-    /// File ▸ Open… of an `.xcresult` with a workspace window in front
-    /// (`specs/ide/testing.md` §Result bundles in the IDE): the bundle
-    /// becomes a test report, shown on its Tests page.
     @discardableResult
     public func openResultBundle(_ bundle: URL) -> BuildReport? {
         do {

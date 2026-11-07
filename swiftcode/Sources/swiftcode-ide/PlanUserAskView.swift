@@ -1,17 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/PlanUserAskView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/PlanUserAskView.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - decision-required prompt UI (question, single/multi choice rows, free-text answer, Cancel/Submit)
-// ADAPTATIONS:
-//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
-//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land. Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
-
 import SwiftUI
 import SwiftCodeAssistant
 

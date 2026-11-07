@@ -1,12 +1,3 @@
-/*
- * hidprobe: Ycode research probe (original Ycode code, no Apple code).
- * Loads the simulator HID client bundle named by argv[1] (default:
- * $SIMULATOR_HID_SYSTEM_MANAGER) as a bundle, reports its principal class and
- * whether it conforms to the manager protocol, then (in a forked child, with a
- * timeout) calls -initUsingHIDService:error: with a NULL event system and
- * prints the result and error. Run with dlsymtrace.dylib inserted to see the
- * Mach services the bundle contacts.
- */
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>

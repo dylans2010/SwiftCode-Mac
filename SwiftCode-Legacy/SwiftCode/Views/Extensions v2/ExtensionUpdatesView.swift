@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Available updates, computed against the registry
-
 public struct ExtensionUpdatesView: View {
     @ObservedObject private var manager = ExtV2Manager.shared
     @State private var isChecking = false

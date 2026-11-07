@@ -1,10 +1,6 @@
 import Foundation
 import SwiftCodePlist
 
-/// Storyboards and XIBs the templates write: SwiftCode's own minimal
-/// documents in the public Interface Builder file format (element and
-/// attribute names as in open-source projects; `templates.md` §
-/// "Storyboard interface"). Object IDs are "Ycd-<kind>-<n>".
 enum InterfaceBuilderFiles {
     enum Runtime {
         case iOS, tvOS
@@ -13,9 +9,6 @@ enum InterfaceBuilderFiles {
         var size: (Int, Int) { self == .iOS ? (393, 852) : (1920, 1080) }
     }
 
-    /// One UIKit scene: the initial view controller (`customClass` in the
-    /// app's module unless `objc`), its root view (optionally of a view
-    /// class such as `SKView`).
     static func uikitStoryboard(_ rt: Runtime, viewController: String?, module: String?, viewClass: String? = nil, launch: Bool = false,
                                 id: String = "1") -> String {
         let vcClass = viewController.map { c in " customClass=\"\(c)\"" + (module.map { " customModule=\"\($0.xmlEscaped)\" customModuleProvider=\"target\"" } ?? "") } ?? ""
@@ -52,7 +45,6 @@ enum InterfaceBuilderFiles {
         module.map { " customModule=\"\($0.xmlEscaped)\" customModuleProvider=\"target\"" } ?? ""
     }
 
-    /// The application menu with Quit (the main menu's one item).
     static func mainMenu(_ appName: String, quitTarget: String) -> String {
         let n = appName.xmlEscaped
         return """
@@ -75,10 +67,6 @@ enum InterfaceBuilderFiles {
         """
     }
 
-    /// A Cocoa storyboard: the application scene (main menu, app
-    /// delegate); with `viewController`, a window controller (initial, or
-    /// with `windowControllerID` as its storyboard identifier) whose
-    /// content is that view controller.
     static func cocoaStoryboard(appName: String, module: String?, viewController: String?, viewClass: String? = nil,
                                 windowControllerID: String? = nil) -> String {
         let mod = moduleAttributes(module)
@@ -143,9 +131,6 @@ enum InterfaceBuilderFiles {
         """
     }
 
-    /// A Cocoa XIB. `owner` is File's Owner's class; `window` adds a window
-    /// connected to the owner's (or the app delegate's) `window` outlet;
-    /// `menu` adds the main menu and the app delegate.
     static func cocoaXIB(owner: String, module: String?, appName: String, menu: Bool, window: Bool, ownerHasWindowOutlet: Bool = false) -> String {
         let mod = moduleAttributes(module)
         var objects = ""
@@ -188,8 +173,6 @@ enum InterfaceBuilderFiles {
         """
     }
 
-    /// A UIKit app's scene manifest (Info.plist), with `UISceneStoryboardFile`
-    /// when a storyboard names the first scene.
     static func sceneManifest(storyboard: String?, delegate: String = "$(PRODUCT_MODULE_NAME).SceneDelegate") -> PropertyListItem {
         var config: [(String, PropertyListItem)] = [("UISceneConfigurationName", .string("Default Configuration")),
                                                     ("UISceneDelegateClassName", .string(delegate))]

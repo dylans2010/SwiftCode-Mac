@@ -1,18 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Documentation Browser window (Wave 19 slice A)
-//
-// The standalone window for the Documentation Browser, mirroring
-// the `SQLiteExplorerWindowManager` pattern in this module: a
-// `@MainActor` shared manager owning one window controller,
-// `isReleasedWhenClosed = false` so the window is reused, and a
-// frame autosave name so its size and position persist.
-//
-// Legacy's window was 1400×900 with a 1200×800 minimum and the
-// title "Documentation - Developer Bookshelf (Offline)" — kept.
-// Spec: `specs/ide/wave19-docs.md` §6.
-
 @MainActor
 public final class DocumentationBrowserWindowManager {
     public static let shared = DocumentationBrowserWindowManager()

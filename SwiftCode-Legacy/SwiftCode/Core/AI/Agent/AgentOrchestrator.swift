@@ -18,7 +18,6 @@ public actor AgentOrchestrator {
         isCancelled = false
         pipelineLogger.info("[runTurn] Starting turn. User message: \(userMessage, privacy: .public). Attachments count: \(attachments.count).")
 
-        // Ensure skills are discovered
         let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         pipelineLogger.info("[runTurn] Discovering skills in directory: \(projectRoot.path).")
         try await SkillsRuntime.shared.discoverSkills(in: projectRoot)
@@ -81,7 +80,6 @@ public actor AgentOrchestrator {
 
             var assistantContent: [AgentMessageContent] = []
 
-            // Model Routing Selection Single Source of Truth
             let selectedModel = await MainActor.run { AppSettings.shared.selectedAssistModelID }
             let isAppleModel = selectedModel == "AFM 3 Core" || selectedModel == "AFM 3 Core Advanced"
             let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled } && isAppleModel
@@ -114,7 +112,6 @@ public actor AgentOrchestrator {
 
             var currentText = ""
 
-            // Create a placeholder assistant message that we append tokens to in real-time
             let assistantMessageId = UUID()
             await MainActor.run {
                 let initialMessage = AgentMessage(id: assistantMessageId, role: .assistant, content: [.text("")])
@@ -131,7 +128,6 @@ public actor AgentOrchestrator {
                 switch event {
                 case .text(let delta):
                     currentText += delta
-                    // Update assistant message with streaming tokens in real-time!
                     await MainActor.run {
                         if let index = session.messages.firstIndex(where: { $0.id == assistantMessageId }) {
                             session.messages[index].content = [.text(currentText)]
@@ -150,7 +146,6 @@ public actor AgentOrchestrator {
                 break
             }
 
-            // Finalize the content
             pipelineLogger.info("[runLoop] Stream consumed. Finalizing assistant content on the main actor.")
             await MainActor.run {
                 if let index = session.messages.firstIndex(where: { $0.id == assistantMessageId }) {
@@ -185,7 +180,6 @@ public actor AgentOrchestrator {
                     let args = decodeArguments(call.arguments)
                     pipelineLogger.info("[runLoop] Executing tool: \(call.name, privacy: .public). Arguments: \(call.arguments, privacy: .public).")
 
-                    // Special Tool Handling
                     if call.name == "ask_user" {
                         pipelineLogger.info("[runLoop] Tool 'ask_user' detected. Awaiting user response.")
                         await MainActor.run {

@@ -4,10 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// The Editor menu of each editor kind, transcribed from
-/// `specs/ide/reference-ui-5.md` §2.7 (source editor) and §2.8 (property
-/// list, storyboard / xib, asset catalog; other editors get the first
-/// block). Notation as in `menuBarGolden` (MenuBarGoldenTests.swift).
 let editorFirstBlockGolden = """
 Show Editor Only | ⌘↩
 —
@@ -347,7 +343,6 @@ let editorMenuGolden: [EditorKind: String] = [
             """)
     }
 
-    /// §1.9 for the Editor menu: each kind's menu against §2.7 / §2.8.
     @Test(arguments: EditorKind.allCases) func editorMenuMatchesSpec(_ kind: EditorKind) {
         MenuBarGoldenTests().withFactoryBar { _ in
             let m = MainMenu.menu("Editor", EditorMenu.items(for: kind), path: "Editor")
@@ -355,8 +350,6 @@ let editorMenuGolden: [EditorKind: String] = [
         }
     }
 
-    /// The menu bar's Editor menu is the source editor's (the generic bar)
-    /// and is rebuilt for the focused editor's kind, and back.
     @Test func menuBarEditorMenuFollowsTheFocusedKind() throws {
         try MenuBarGoldenTests().withFactoryBar { bar in
             let m = try #require(bar.item(withTitle: "Editor")?.submenu as? CommandMenu)
@@ -365,7 +358,6 @@ let editorMenuGolden: [EditorKind: String] = [
                 DynamicMenus.fillEditor(m, kind: kind)
                 #expect(m.editorKind == kind)
                 compare(renderMenu(m), canonicalGolden(editorMenuGolden[kind]!), "bar as \(kind)")
-                // Submenus keep their paths (the Refactor delegate, labels).
                 if kind == .source {
                     let refactor = m.item(withTitle: "Refactor")?.submenu
                     #expect(refactor?.delegate === RefactorMenuDelegate.shared)
@@ -374,8 +366,6 @@ let editorMenuGolden: [EditorKind: String] = [
         }
     }
 
-    /// §1.9 second test, per kind: with each Editor menu in the bar no two
-    /// items share a shortcut.
     @Test(arguments: EditorKind.allCases) func noSharedShortcutsWithEachEditorMenu(_ kind: EditorKind) throws {
         try MenuBarGoldenTests().withFactoryBar { bar in
             let m = try #require(bar.item(withTitle: "Editor")?.submenu as? CommandMenu)
@@ -398,8 +388,6 @@ let editorMenuGolden: [EditorKind: String] = [
         }
     }
 
-    /// §2.8: disabled items shown checked keep their check mark; the
-    /// performed ones get theirs from validation.
     @Test func checkedDisabledItems() throws {
         try MenuBarGoldenTests().withFactoryBar { bar in
             let m = try #require(bar.item(withTitle: "Editor")?.submenu as? CommandMenu)

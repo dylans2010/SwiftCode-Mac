@@ -1,8 +1,5 @@
 import Foundation
 
-/// A JSON value as read from an `icon.json`. Objects keep every key, known
-/// or not, so a document written back keeps what SwiftCode does not interpret
-/// (`specs/formats/icon-format.md` §2).
 public indirect enum IconJSON: Equatable, Sendable {
     case object([String: IconJSON])
     case array([IconJSON])
@@ -21,8 +18,6 @@ public indirect enum IconJSON: Equatable, Sendable {
     public subscript(key: String) -> IconJSON? { objectValue?[key] }
 }
 
-// MARK: Reading
-
 extension IconJSON {
     public struct ParseError: Error, CustomStringConvertible, Equatable {
         public var offset: Int
@@ -30,10 +25,8 @@ extension IconJSON {
         public var description: String { "JSON error at byte \(offset): \(message)" }
     }
 
-    /// Parses any valid JSON text (RFC 8259), whatever its layout.
     public static func parse(_ data: Data) throws -> IconJSON {
         var p = JSONParser(bytes: [UInt8](data))
-        // A UTF-8 byte-order mark is tolerated.
         if p.bytes.starts(with: [0xEF, 0xBB, 0xBF]) { p.i = 3 }
         let v = try p.value()
         p.skipSpace()
@@ -195,13 +188,7 @@ private struct JSONParser {
     }
 }
 
-// MARK: Writing
-
 extension IconJSON {
-    /// Icon Composer's layout (`icon-format.md` §2): two-space indentation,
-    /// `"key" : value`, keys sorted by their UTF-8 bytes, empty arrays and
-    /// objects as an opening bracket, an empty line and the closing bracket,
-    /// numbers in their shortest form. No final newline.
     public func formatted() -> String {
         var out = ""
         write(to: &out, indent: 0)
@@ -240,13 +227,10 @@ extension IconJSON {
         }
     }
 
-    /// The shortest text that reads back as the same number: integers
-    /// without a fraction, others in Swift's shortest round-trip form.
     public static func format(_ n: Double) -> String {
         guard n.isFinite else { return "0" }
         if n == n.rounded(), abs(n) < 1e15 { return String(Int64(n)) }
         var s = "\(n)"
-        // Swift writes 1e-05; JSON allows it, and so does every reader.
         if s.hasSuffix(".0") { s.removeLast(2) }
         return s
     }

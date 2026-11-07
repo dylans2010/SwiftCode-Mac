@@ -1,8 +1,3 @@
-// swiftcode-sim-viewer: a window on a SwiftCode simulator device running elsewhere
-// (swiftcode-simd --display-server; specs/simulator/display-stream.md).
-// scripts/swiftcode-sim-try starts the device on the simulator host, forwards
-// its socket, and opens this viewer.
-
 #if os(macOS)
 import AppKit
 import SwiftCodeRelease
@@ -86,7 +81,6 @@ while let a = args.next() {
 signal(SIGPIPE, SIG_IGN)
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
-// --link: the stream comes over SwiftCode's link, as `swiftcode sim remote view` opens it on Linux.
 var connector: (@Sendable () throws -> DisplayTransport)?
 if let device = linkDevice {
     do {
@@ -121,7 +115,6 @@ connection.start()
 runner?.start()
 app.run()
 #else
-// Linux: the SDL window (Sources/SwiftCodeRemoteViewerSDL, display-stream.md §13).
 import Foundation
 import SwiftCodeRelease
 import SwiftCodeRemoteViewerSDL

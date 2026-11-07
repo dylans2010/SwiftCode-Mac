@@ -1,6 +1,4 @@
 // swift-tools-version:6.0
-// axdrive: drives one app through the Accessibility API and events posted to
-// that app's process only. See ../README.md.
 import PackageDescription
 
 let package = Package(

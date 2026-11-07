@@ -1,11 +1,6 @@
 import Foundation
 
-// The "+" menu's set kinds by tag (`AssetCatalog.AddMenuTags`), shared by
-// the macOS and Linux asset catalog editors (`specs/ide/asset-catalog.md`).
-
 extension AssetCatalog {
-    /// The default name and folder extension of a "+" menu tag's new set,
-    /// nil for tags that do not make a set (folders, import, frames).
     public static func newSetName(forTag tag: Int) -> (base: String, ext: String)? {
         let t = AddMenuTags.self
         let otherIndex = tag - t.otherKindBase
@@ -23,10 +18,6 @@ extension AssetCatalog {
         }
     }
 
-    /// Creates the set a "+" menu tag names in `dir` (a folder of the
-    /// catalog, or the catalog), named `name` or uniquely after the kind
-    /// ("Image", "Image 1" …). Returns it with its group. Throws for tags
-    /// that make no set, and when the folder cannot be written.
     @discardableResult
     public func addSet(tag: Int, named name: String? = nil, in dir: URL) throws -> AssetSet {
         guard let (base, ext) = Self.newSetName(forTag: tag) else { throw CocoaError(.featureUnsupported) }
@@ -49,24 +40,17 @@ extension AssetCatalog {
         return set
     }
 
-    /// Where new items go for a selection: the selected folder, the
-    /// selected set when it holds others, else the selected set's folder;
-    /// the catalog by default.
     public func insertionDirectory(folder: URL?, set: AssetSet?) -> URL {
         if let folder { return folder }
         if let set { return set.kind.isContainer ? set.url : set.url.deletingLastPathComponent() }
         return url
     }
 
-    /// Whether a directory is a sticker pack or inside one.
     public static func isInsideStickerPack(_ dir: URL) -> Bool {
         let p = dir.standardizedFileURL.path
         return p.hasSuffix(".stickerpack") || p.contains(".stickerpack/")
     }
 
-    /// Renames a set or folder in place (the attributes inspector's Name);
-    /// the extension stays. Returns the new URL. Throws if the name is
-    /// empty, has a slash, or is taken.
     @discardableResult
     public func rename(_ item: URL, to name: String) throws -> URL {
         let n = name.trimmingCharacters(in: .whitespaces)

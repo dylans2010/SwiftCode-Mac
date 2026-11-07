@@ -2,12 +2,9 @@ import Foundation
 import Testing
 @testable import SwiftCodeProfiler
 
-/// A synthetic trace: an app image (main, work, helper, recurse) and a
-/// system image (start, memcpy, syscall), two threads, 1 ms samples.
 enum Synthetic {
     static let app = 0, sys = 1
     static func f(_ image: Int, _ offset: UInt64) -> GaugeTrace.Frame { .init(image: image, offset: offset) }
-    // Function addresses.
     static let main = f(app, 0x10), work = f(app, 0x110), helper = f(app, 0x210), recurse = f(app, 0x310)
     static let start = f(sys, 0x8), memcpy = f(sys, 0x58), syscall = f(sys, 0xA0)
 
@@ -27,8 +24,6 @@ enum Synthetic {
             $0.processes = [.init(pid: 7, name: "App")]
             $0.threads = [.init(id: 7, pid: 7, name: "", isMain: true, kind: "main"), .init(id: 8, pid: 7, name: "worker")]
         }
-        // Thread 7 (main): 6 × start>main>work (leaf in work at line 10), 2 × start>main>work>memcpy,
-        // 1 × start>main>helper, then idle 3, then 4 × start>main>work at line 11.
         var time: UInt64 = 0
         func add(_ thread: UInt64, _ frames: [GaugeTrace.Frame], _ state: GaugeTrace.SampleState = .user, n: Int = 1) {
             for _ in 0..<n {
@@ -41,7 +36,6 @@ enum Synthetic {
         add(7, [start, main, helper])
         add(7, [start, main, f(app, 0x40), syscall], .idle, n: 3)
         add(7, [start, main, f(app, 0x118)], n: 4)
-        // Thread 8: recursion recurse>recurse>recurse>helper (3), kernel time in syscall (2).
         time = 500_000
         add(8, [start, recurse, f(app, 0x320), f(app, 0x330), helper], n: 3)
         add(8, [start, syscall], .kernel, n: 2)
@@ -55,7 +49,6 @@ enum Synthetic {
     func child(_ n: CallTreeNode, _ name: String) -> CallTreeNode? { n.children.first { $0.name == name } }
 
     struct Missing: Error {}
-    /// Follows children by name.
     func node(_ n: CallTreeNode, _ names: String...) throws -> CallTreeNode {
         var c = n
         for name in names {
@@ -67,7 +60,6 @@ enum Synthetic {
 
     @Test func topDownCountsSelfAndTotal() throws {
         let tree = CallTree(trace: t)
-        // CPU samples: 6 + 2 + 1 + 4 (main thread) + 3 + 2 (worker) = 18; idle excluded.
         #expect(tree.root.total == 18)
         let start = try #require(child(tree.root, "start"))
         #expect(start.total == 18 && start.selfCount == 0)
@@ -77,7 +69,6 @@ enum Synthetic {
         #expect(work.total == 12 && work.selfCount == 10)
         #expect(child(work, "memcpy")?.selfCount == 2)
         #expect(child(start, "syscall")?.total == 2)
-        // Children by weight.
         #expect(start.children.map(\.name) == ["main", "recurse", "syscall"])
         #expect(tree.milliseconds(work.total) == 12)
         #expect(start.heaviestPath.map(\.name) == ["start", "main", "work", "memcpy"])
@@ -85,7 +76,6 @@ enum Synthetic {
 
     @Test func allStatesAndRangeAndThreadFilters() throws {
         #expect(CallTree(trace: t, filter: .init(allStates: true)).root.total == 21)
-        // [0, 8 ms): the first 8 main-thread samples and worker samples at 0.5…7.5 ms (5).
         #expect(CallTree(trace: t, filter: .init(range: 0..<8_000_000)).root.total == 8 + 5)
         #expect(CallTree(trace: t, filter: .init(threads: [8])).root.total == 5)
     }
@@ -113,7 +103,6 @@ enum Synthetic {
 
     @Test func hideSystemLibrariesChargesCallers() throws {
         let tree = CallTree(trace: t, options: .init(hideSystemLibraries: true))
-        // memcpy's 2 samples go to work; syscall (kernel) samples have no app frame: <system>.
         #expect(tree.root.children.map(\.name) == ["main", "recurse", "<system>"])
         let work = try node(tree.root, "main", "work")
         #expect(work.selfCount == 12 && work.children.isEmpty)
@@ -137,7 +126,6 @@ enum Synthetic {
         #expect(main.selfCount == 10)
         #expect(child(main, "memcpy")?.total == 2)
         let byImage = CallTree(trace: t, options: .init(chargedImages: [Synthetic.sys]))
-        // Every system frame removed: the kernel samples (only system frames) stay on the root.
         #expect(byImage.root.children.map(\.name) == ["main", "recurse"])
         #expect(byImage.root.children.first?.total == 13 && byImage.root.selfCount == 2)
     }
@@ -145,7 +133,6 @@ enum Synthetic {
     @Test func topFunctions() {
         let top = CallTree.topFunctions(trace: t)
         #expect(top.first?.name == "work" && top.first?.selfCount == 10 && top.first?.total == 12)
-        // recurse appears three times on its path but counts once per sample.
         #expect(top.first { $0.name == "recurse" }?.total == 3)
     }
 
@@ -154,7 +141,6 @@ enum Synthetic {
         #expect(fg.total == 18)
         let start = try #require(fg.boxes.first { $0.name == "start" })
         #expect(start.depth == 0 && start.start == 0 && start.width == 18)
-        // Children by name: main (13) then recurse (3) then syscall (2).
         let main = try #require(fg.boxes.first { $0.name == "main" })
         let recurse = try #require(fg.boxes.first { $0.name == "recurse" && $0.depth == 1 })
         let sys = try #require(fg.boxes.first { $0.name == "syscall" && $0.depth == 1 })
@@ -169,7 +155,6 @@ enum Synthetic {
         let a = SourceAnnotation(trace: t, function: FunctionRef(image: Synthetic.app, start: 0x100))
         #expect(a.file == "/src/app.c")
         #expect(a.samples == 12)
-        // Line 10: 6 self; line 11: 4 self + 2 calls into memcpy (return address 0x118 − 1 → line 11).
         #expect(a.lines == [.init(line: 10, selfCount: 6, total: 6), .init(line: 11, selfCount: 4, total: 6)])
         let text = a.render(source: (1...15).map { "line \($0)" }.joined(separator: "\n"), context: 1)
         #expect(text.contains("      6       6     10  line 10"))
@@ -180,7 +165,6 @@ enum Synthetic {
 @Suite struct TimelineTests {
     @Test func hangsFromMainThreadStates() {
         let t = Synthetic.trace()
-        // Main thread: 9 busy samples (0–8 ms), 3 idle, 4 busy: threshold 5 ms → one hang of 9 ms.
         let h = GaugeTimeline.hangs(t)
         #expect(h == [GaugeTrace.Hang(thread: 7, begin: 0, end: 9_000_000)])
         #expect(GaugeTimeline.hangs(t, threshold: 3_000_000).count == 2)
@@ -189,14 +173,11 @@ enum Synthetic {
     }
 
     @Test func hangsBridgeShortSampleGaps() {
-        // A busy main thread whose samples skip 3 ms (a dropped kick) and,
-        // later, 30 ms (the recorder paused): threshold 20 ms, so the
-        // short gap stays inside the hang and the long one ends it.
         var b = GaugeTraceBuilder(recording: .init(target: "t", durationNs: 100_000_000, sampleIntervalNs: 1_000_000, hangThresholdNs: 20_000_000))
         b.update { $0.threads = [.init(id: 1, pid: 1, name: "", isMain: true, kind: "main")] }
         var times: [UInt64] = Array(0..<10).map { $0 * 1_000_000 }
-        times += Array(13..<30).map { $0 * 1_000_000 }   // 3 ms gap: bridged
-        times += Array(60..<70).map { $0 * 1_000_000 }   // 30 ms gap: a new run (too short to be a hang)
+        times += Array(13..<30).map { $0 * 1_000_000 }
+        times += Array(60..<70).map { $0 * 1_000_000 }
         for t in times { b.addSample(time: t, thread: 1, state: .user, frames: []) }
         let h = GaugeTimeline.hangs(b.finish())
         #expect(h == [GaugeTrace.Hang(thread: 1, begin: 0, end: 30_000_000)])

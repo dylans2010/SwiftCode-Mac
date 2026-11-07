@@ -1,9 +1,5 @@
 import Foundation
 
-/// The read-only view of the signed-in cloud account, ported from
-/// Legacy's `CloudAuthProvider.swift`. Legacy read the shared
-/// `AuthManager` directly; this adapter reads a `CloudAuthManager`,
-/// so tests can substitute one backed by a stub transport.
 public protocol CloudAuthProviderProtocol: Sendable {
     func getActiveUser() async -> CloudUser?
     func isAuthenticated() async -> Bool
@@ -11,9 +7,6 @@ public protocol CloudAuthProviderProtocol: Sendable {
 }
 
 public final class CloudAuthProvider: CloudAuthProviderProtocol, @unchecked Sendable {
-    /// The shared adapter reads the shared auth manager. MainActor
-    /// because the manager is MainActor-isolated; pass a manager
-    /// explicitly when calling from outside the main actor.
     @MainActor public static let shared = CloudAuthProvider(manager: CloudAuthManager.shared)
 
     private let manager: CloudAuthManager
@@ -42,16 +35,6 @@ public final class CloudAuthProvider: CloudAuthProviderProtocol, @unchecked Send
     }
 }
 
-/// The `AuthenticationProvider` seam backed by the Appwrite account.
-/// Appwrite email sessions are cookie-based and have no refresh
-/// token: `CloudSession.accessToken` carries the session secret and
-/// `refreshToken` is empty (see `CloudSession`); `expiresAt` is the
-/// session's `expire` date.
-///
-/// Legacy had no guest accounts and no live session stream, so
-/// `migrateGuestAccount` throws honestly and `sessionStateChanges`
-/// yields the current session once and finishes — callers that need
-/// live updates poll `getActiveSession` after auth actions.
 public final class AppwriteAuthenticationProvider: AuthenticationProvider, @unchecked Sendable {
     private let manager: CloudAuthManager
 
@@ -113,11 +96,6 @@ public final class AppwriteAuthenticationProvider: AuthenticationProvider, @unch
     }
 }
 
-/// The `StorageProvider` seam backed by Appwrite Storage. This is
-/// what `BackupEngine` needs: `upload` / `listObjects` / `download` /
-/// `delete` on the `backups` bucket, over the client's Storage REST
-/// calls. The `path` is the Appwrite file id within the bucket; the
-/// returned string from `upload` is the created file's id.
 public struct AppwriteStorageProvider: StorageProvider {
     private let client: AppwriteAccountClient
 
@@ -164,11 +142,6 @@ public struct AppwriteStorageProvider: StorageProvider {
     }
 }
 
-/// The first concrete `CloudProvider`: real auth (Appwrite account)
-/// and real storage (Appwrite Storage), honestly-unavailable sync
-/// and database (no Appwrite database or collection backs the sync
-/// payloads — see `UnavailableSyncProvider` /
-/// `UnavailableCloudDatabase`).
 public struct AppwriteCloudProvider: CloudProvider {
     public var authentication: AuthenticationProvider
     public var sync: SyncProvider
@@ -187,8 +160,6 @@ public struct AppwriteCloudProvider: CloudProvider {
         self.database = database
     }
 
-    /// Builds the provider from one `CloudAuthManager`: its client
-    /// backs both the auth seam and the storage seam.
     public init(manager: CloudAuthManager) {
         self.authentication = AppwriteAuthenticationProvider(manager: manager)
         self.storage = AppwriteStorageProvider(client: manager.client)

@@ -1,13 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Hosts `UpdateWindowView` in a real macOS window with standard chrome
-/// (title bar and traffic-light buttons). The window is reused across
-/// offers so a second check never opens a duplicate window.
-///
-/// Closing the window with the traffic-light button is treated as a
-/// plain dismissal (not a skip, not a reminder): Sparkle is told
-/// `.dismiss` and may offer the update again on its own schedule.
 final class UpdateWindowController: NSObject, NSWindowDelegate {
     private let service: AppUpdateService
     private var window: NSWindow?
@@ -54,14 +47,6 @@ final class UpdateWindowController: NSObject, NSWindowDelegate {
     }
 }
 
-/// Commander-inspired update window, rendered with native SwiftUI.
-///
-/// Header: the real SwiftCode icon, "A new version of SwiftCode is
-/// available!", the installed version and the available version, all
-/// from the live bundle and the live appcast item — nothing here is
-/// hardcoded sample data. Release notes come from the appcast item and
-/// are shown in a scrollable area; an empty-notes feed shows a fallback
-/// line instead of invented notes.
 struct UpdateWindowView: View {
     @EnvironmentObject private var service: AppUpdateService
 
@@ -95,11 +80,8 @@ struct UpdateWindowView: View {
         .frame(minWidth: 520, minHeight: 480)
     }
 
-    // MARK: - Offer
-
     private func offerView(update: AppUpdateInfo) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack(alignment: .top, spacing: 16) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
@@ -125,7 +107,6 @@ struct UpdateWindowView: View {
 
             Divider()
 
-            // Release notes
             VStack(alignment: .leading, spacing: 8) {
                 Text("What’s new in \(update.displayVersion)")
                     .font(.headline)
@@ -178,7 +159,6 @@ struct UpdateWindowView: View {
 
             Divider()
 
-            // Actions
             VStack(alignment: .leading, spacing: 12) {
                 if !service.publicKeyConfigured {
                     Label(
@@ -234,8 +214,6 @@ struct UpdateWindowView: View {
             .padding(24)
         }
     }
-
-    // MARK: - Progress / ready / installing / error
 
     private func progressView(update: AppUpdateInfo) -> some View {
         VStack(spacing: 20) {

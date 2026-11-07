@@ -1,9 +1,3 @@
-// AgentToolCallSummaryView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Agent/AgentToolCallSummaryView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: dedicated Calling <tool> row with arguments
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct AgentToolCallSummaryView: View {

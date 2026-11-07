@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectBuildService.swift
-// Adapted for SwiftCode: XcodeBuildAPI replaced by the ConnectWorkspaceProvider seam; the canned 'Preparing dependencies' progress phase is replaced by one honest Building event.
-
 import Foundation
 import os.log
 
@@ -60,7 +56,6 @@ public final class ConnectBuildService: @unchecked Sendable {
 
         currentBuildState = .preparing
 
-        // Send Build Started event to connected sessions
         let startedPayload = ["project": project.name, "scheme": scheme]
         if let env = try? MessageEnvelope.encode(payload: startedPayload, type: .buildStarted, correlationID: envelope.messageID) {
             ConnectServer.shared.broadcast(envelope: env, requiringPermission: .buildExecute)
@@ -70,9 +65,6 @@ public final class ConnectBuildService: @unchecked Sendable {
             let startTime = Date()
             self.currentBuildState = .building
 
-            // One honest progress event: the provider reports only the final
-            // outcome, so there are no invented intermediate phases here.
-            // (Legacy streamed a canned "Preparing dependencies" phase.)
             let progress1 = ConnectBuildProgressPayload(phase: "Building", completedSteps: 0, totalSteps: 1, message: "Building \(scheme)")
             if let env = try? MessageEnvelope.encode(payload: progress1, type: .buildProgress, correlationID: envelope.messageID) {
                 ConnectServer.shared.broadcast(envelope: env, requiringPermission: .buildExecute)

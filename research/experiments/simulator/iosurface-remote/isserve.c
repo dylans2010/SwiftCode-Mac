@@ -1,10 +1,3 @@
-/*
- * isserve: run the isserver.h test server as a guest process and publish it
- * under a name of our own with bootstrap_register (original Ycode code, R5).
- * The isinterpose dylib (YC_IS_REDIRECT=<name>) then points a process's
- * IOSurface connection at it. Usage: isserve <name> [seconds]
- *        isserve -checkin <name>   (as a launchd job whose MachServices has <name>)
- */
 #include "isserver.h"
 #include <unistd.h>
 extern kern_return_t bootstrap_register(mach_port_t bp, const char *name, mach_port_t sp);

@@ -3,7 +3,6 @@ import Testing
 import SwiftCodeDebug
 @testable import SwiftCodeLanguage
 
-/// A server that reads requests and never answers (a hung language server).
 final class SilentServer: DAPTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var decoder = DAPFraming.Decoder()
@@ -20,9 +19,6 @@ final class SilentServer: DAPTransport, @unchecked Sendable {
     func push(_ msg: JSON) { receiving?(DAPFraming.frame(msg.encoded())) }
 }
 
-/// Requests end when their task is cancelled; shutdown does not wait for a
-/// server that never answers (a hung server held QuickHelpTests past its
-/// time limit for an hour).
 @Suite struct LSPCancellationTests {
     func waitFor(_ cond: () -> Bool) async -> Bool {
         let end = Date().addingTimeInterval(10)
@@ -44,7 +40,6 @@ final class SilentServer: DAPTransport, @unchecked Sendable {
         await #expect(throws: CancellationError.self) { try await task.value }
         #expect(Date().timeIntervalSince(start) < 5)
         #expect(server.received.contains { $0["method"]?.string == "$/cancelRequest" && $0["params"]?["id"] == id })
-        // A late answer for it is ignored; the next request still works.
         server.push(["jsonrpc": "2.0", "id": id, "result": "late"])
         let next = Task { try await client.request("textDocument/definition") }
         #expect(await waitFor { server.received.contains { $0["method"]?.string == "textDocument/definition" } })

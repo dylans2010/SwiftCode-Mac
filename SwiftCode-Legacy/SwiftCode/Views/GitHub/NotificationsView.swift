@@ -7,7 +7,6 @@ struct NotificationsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack {
                 Label("GitHub Notifications Inbox", systemImage: "bell.fill")
                     .font(.headline)
@@ -78,7 +77,6 @@ struct NotificationsView: View {
                 let (data, _) = try await URLSession.shared.data(for: request)
                 self.notifications = try JSONDecoder().decode([GitHubNotificationInfo].self, from: data)
             } catch {
-                // Silent catch
             }
             isFetching = false
         }

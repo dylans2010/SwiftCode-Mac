@@ -3,10 +3,6 @@ import Observation
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// Tests in the SwiftUI shell (`specs/ide/testing.md`, issue #16): the
-/// Test navigator's rows, the gutter's diamonds, running all tests or a
-/// selection, and the Report navigator's test reports, over the core's
-/// `WorkspaceSession` (discovery, `runTests`, reports). No toolkit types.
 @MainActor
 @Observable
 public final class TestShellModel {
@@ -14,17 +10,13 @@ public final class TestShellModel {
 
     public private(set) var tests: [DiscoveredTest] = []
     public private(set) var results: [DiscoveredTest: TestOutcome.Status] = [:]
-    /// Whether discovery has finished once.
     public private(set) var hasDiscovered = false
     public var collapsed: Set<String> = []
     public private(set) var selection: String?
-    /// The tests of the run in progress ([] = all); nil when none runs.
     public private(set) var running: [DiscoveredTest]?
-    /// Finished builds and test runs, newest first (the Report navigator).
     public private(set) var reports: [BuildReport] = []
     public var reportCollapsed: Set<String> = []
     public private(set) var reportSelection: String?
-    /// The report shown over the editor area, and its page.
     public private(set) var shownReport: (index: Int, page: String)?
 
     public init(session: WorkspaceSession) {
@@ -41,25 +33,17 @@ public final class TestShellModel {
             default: break
             }
         }
-        // The gutter's diamonds need the tests before the navigator is shown.
         session.discoverTests()
     }
 
-    /// Reads the sources for tests again (the navigator appears).
     public func discover() {
         session.discoverTests()
     }
 
-    /// Waits for discovery (tests, drivers).
     public func discovered() async { await session.testsDiscovered() }
 
-    // MARK: Navigator
-
-    /// "1 Test", "2 Tests".
     public static func countText(_ n: Int) -> String { "\(n) Test\(n == 1 ? "" : "s")" }
 
-    /// A parent's result: failed when any failed, else passed when any
-    /// passed, else skipped when any was; nil while none has a result.
     public static func aggregate(_ all: [TestOutcome.Status?]) -> TestOutcome.Status? {
         let known = all.compactMap { $0 }
         if known.contains(.failed) { return .failed }
@@ -67,8 +51,6 @@ public final class TestShellModel {
         return known.isEmpty ? nil : .skipped
     }
 
-    /// The diamond for a result: outlined before a run, a green check,
-    /// a red cross, or skipped.
     public static func diamond(_ s: TestOutcome.Status?) -> (symbol: String, tint: OutlineRow.Tint) {
         switch s {
         case .passed?: ("checkmark.diamond.fill", .success)
@@ -78,8 +60,6 @@ public final class TestShellModel {
         }
     }
 
-    /// A test's target: its folder's name in a package (Tests/<Target>/…),
-    /// else the project target that compiles it.
     public func target(of t: DiscoveredTest) -> String {
         if session.model.kind != .package, let name = session.model.targetName(compiling: t.file) { return name }
         let dir = URL(fileURLWithPath: t.file).deletingLastPathComponent()
@@ -90,10 +70,6 @@ public final class TestShellModel {
 
     static func testID(_ t: DiscoveredTest) -> String { "test:\(t.file)#\(t.identifier)" }
 
-    /// The navigator's rows (`reference-ui-6.md` §5.4, as the AppKit
-    /// navigator builds them): the package or project with "N Tests", each
-    /// test target, its suites, then the tests with "()", each with its
-    /// result diamond at the right.
     public var rows: [OutlineRow] {
         guard !tests.isEmpty else { return [] }
         var out: [OutlineRow] = []
@@ -136,7 +112,6 @@ public final class TestShellModel {
         return out
     }
 
-    /// The tests a row stands for: one test, a suite's, a target's, or all.
     public func tests(forRow id: String) -> [DiscoveredTest] {
         if id == "tests:root" { return tests }
         if id.hasPrefix("target:") { let n = String(id.dropFirst(7)); return tests.filter { target(of: $0) == n } }
@@ -149,7 +124,6 @@ public final class TestShellModel {
         return tests.filter { Self.testID($0) == id }
     }
 
-    /// Where a row opens: a test's line, a suite's declaration.
     public func location(ofRow id: String) -> (file: String, line: Int)? {
         let list = tests(forRow: id)
         if id.hasPrefix("test:"), let t = list.first { return (t.file, t.line) }
@@ -163,7 +137,6 @@ public final class TestShellModel {
         if on { collapsed.remove(id) } else { collapsed.insert(id) }
     }
 
-    /// Whether a row's tests are running now.
     public func isRunning(_ id: String) -> Bool {
         guard let r = running else { return false }
         if r.isEmpty { return true }
@@ -171,10 +144,6 @@ public final class TestShellModel {
         return !mine.isDisjoint(with: r)
     }
 
-    // MARK: Gutter
-
-    /// The diamonds of a file by 1-based line: each test's line, and each
-    /// suite's declaration line (its members' aggregate).
     public func diamonds(in file: String) -> [Int: TestOutcome.Status?] {
         var out: [Int: TestOutcome.Status?] = [:]
         let mine = tests.filter { $0.file == file }
@@ -185,8 +154,6 @@ public final class TestShellModel {
         return out
     }
 
-    // MARK: Running
-
     func noteRunning(_ only: [DiscoveredTest]) { running = only }
     func noteFinished() {
         running = nil
@@ -195,10 +162,6 @@ public final class TestShellModel {
         reports = session.reports
     }
 
-    // MARK: Reports
-
-    /// The Report navigator's rows (`ReportNavigatorModel`): one group per
-    /// scheme, its runs newest first, a test run's pages under it.
     public var reportRows: [OutlineRow] {
         var out: [OutlineRow] = []
         for g in ReportNavigatorModel.groups(reports) {
@@ -224,10 +187,8 @@ public final class TestShellModel {
         return out
     }
 
-    /// The pages the shell has: the tests and the log.
     public static let shownPages: Set<String> = ["Tests", "Log"]
 
-    /// The shell's symbols for the report model's.
     static func reportSymbol(_ s: String) -> String {
         switch s {
         case "doc.plaintext": "doc.text"
@@ -235,7 +196,6 @@ public final class TestShellModel {
         }
     }
 
-    /// Selects a report row: a run opens on Tests (a test run) or Log.
     public func selectReport(_ id: String) {
         reportSelection = id
         guard id.hasPrefix("report:") else { return }
@@ -250,13 +210,10 @@ public final class TestShellModel {
         if on { reportCollapsed.remove(id) } else { reportCollapsed.insert(id) }
     }
 
-    /// Opening a file hides the report.
     public func hideReport() { shownReport = nil }
 
     public var report: BuildReport? { shownReport.flatMap { reports.indices.contains($0.index) ? reports[$0.index] : nil } }
 
-    /// A test report's rows: each outcome with its suite, result, time and
-    /// failures, failed first.
     public static func reportTests(_ r: BuildReport) -> [TestOutcome] {
         r.context.tests.sorted { a, b in
             let rank: (TestOutcome.Status) -> Int = { $0 == .failed ? 0 : ($0 == .skipped ? 2 : 1) }
@@ -264,7 +221,6 @@ public final class TestShellModel {
         }
     }
 
-    /// "3 passed, 1 failed, 0 skipped".
     public static func summary(_ r: BuildReport) -> String {
         let t = r.context.tests
         let p = t.filter { $0.status == .passed }.count, f = t.filter { $0.status == .failed }.count, s = t.filter { $0.status == .skipped }.count

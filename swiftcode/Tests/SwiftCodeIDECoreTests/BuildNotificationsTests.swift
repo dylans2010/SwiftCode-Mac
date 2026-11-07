@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// `specs/ide/build-notifications.md`: the shared event decision, the
-/// notices, the route and the bezel's timing.
 @MainActor
 @Suite struct BuildNotificationsTests {
     typealias A = WorkspaceSession.Activity
@@ -15,7 +13,6 @@ import Testing
         }
         func out(_ on: Bool) -> Preferences.Event? { t.noteConsoleOutput(targetOutput: on) }
         #expect(ev(.building("Build"), false, false) == [.buildStarts])
-        // Progress texts of the same build raise nothing more.
         #expect(ev(.building("Building • 2/3"), false, false).isEmpty)
         #expect(ev(.finished("Build Succeeded"), false, false) == [.buildSucceeds])
         #expect(ev(.building("Build"), false, false) == [.buildStarts])
@@ -34,7 +31,6 @@ import Testing
         #expect(ev(.finished("Test Succeeded"), false, false) == [.testSucceeds])
         #expect(ev(.finished("Test Completed"), false, false) == [.testSucceeds])
         #expect(ev(.finished("Test Failed"), true, false) == [.testFails])
-        // A run that could not launch is not a failed build.
         #expect(ev(.finished("Run Failed"), false, false) == [.runExitsUnexpectedly])
         #expect(ev(.finished("Run failed"), false, false) == [.runExitsUnexpectedly])
         #expect(ev(.running("Running Tool"), false, false, 3) == [.runStarts])
@@ -97,8 +93,6 @@ import Testing
         #expect(t.phase(at: t0 + 1.6) == .fading)
         #expect(abs(t.opacity(at: t0 + 1.6 + 0.175) - 0.5) < 1e-9)
         #expect(t.phase(at: t0 + 1.95) == .hidden && t.opacity(at: t0 + 2) == 0)
-        // A second result replaces the first and restarts the time; the
-        // first one's timer no longer removes anything.
         let bad = BuildNotice(title: "Build Failed", symbolName: "hammer", outcome: .failed)
         let g2 = t.show(bad, at: t0 + 1.0, reduceMotion: false)
         #expect(g2 == g1 + 1 && t.notice == bad && t.showCount == 2)

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct FileSystemInspectorView: View {
@@ -26,7 +23,7 @@ struct FileSystemInspectorView: View {
                 }
             }
         }
-        
+
         .navigationTitle("FileSystem Inspector")
         .onAppear(perform: loadFiles)
         .toolbar {

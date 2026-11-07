@@ -1,7 +1,3 @@
-/// The data types of USD attribute values that can also be arrays.
-///
-/// The raw values are the type numbers of the crate (`.usdc`) format, an
-/// interop fact of OpenUSD's open-source file format.
 public enum ValueType: UInt8, Hashable, Sendable, CaseIterable {
     case bool = 1, uchar = 2, int = 3, uint = 4, int64 = 5, uint64 = 6
     case half = 7, float = 8, double = 9
@@ -14,7 +10,6 @@ public enum ValueType: UInt8, Hashable, Sendable, CaseIterable {
     case timecode = 56
     case pathExpression = 57
 
-    /// How the components of this type are stored in a `Components` buffer.
     public enum Storage: Sendable {
         case bool, integer, float, double, string
     }
@@ -29,7 +24,6 @@ public enum ValueType: UInt8, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// Scalar components per value: 3 for `float3`, 16 for `matrix4d`.
     public var componentCount: Int {
         switch self {
         case .vec2d, .vec2f, .vec2h, .vec2i: return 2
@@ -41,7 +35,6 @@ public enum ValueType: UInt8, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// The base USDA type name (`float3`, `matrix4d`, `token`).
     public var baseName: String {
         switch self {
         case .bool: return "bool"
@@ -79,13 +72,10 @@ public enum ValueType: UInt8, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// True for quaternions (text form `(real, i, j, k)`).
     public var isQuaternion: Bool { self == .quatd || self == .quatf || self == .quath }
 
-    /// True for matrices (text form of nested row tuples).
     public var isMatrix: Bool { self == .matrix2d || self == .matrix3d || self == .matrix4d }
 
-    /// Rows of a matrix type.
     public var matrixRows: Int {
         switch self {
         case .matrix2d: return 2
@@ -96,15 +86,10 @@ public enum ValueType: UInt8, Hashable, Sendable, CaseIterable {
     }
 }
 
-/// A USDA attribute type name: a value type, its role, and whether it is an
-/// array (`color3f[]` = vec3f, role Color, array).
 public struct TypeName: Hashable, Sendable, CustomStringConvertible {
     public var valueType: ValueType
-    /// The role name (`Color`, `Point`, `Normal`, `Vector`, `TextureCoordinate`,
-    /// `Frame`, `Group`) or "" for none.
     public var role: String
     public var isArray: Bool
-    /// The spelling as authored (`color3f`, `point3f`, `opaque`).
     public var name: String
 
     public var description: String { name + (isArray ? "[]" : "") }
@@ -116,7 +101,6 @@ public struct TypeName: Hashable, Sendable, CustomStringConvertible {
         self.name = name ?? valueType.baseName
     }
 
-    /// Parses `color3f[]`, `token`, `matrix4d` … Unknown names return nil.
     public init?(_ text: String) {
         var base = text
         var array = false
@@ -131,7 +115,6 @@ public struct TypeName: Hashable, Sendable, CustomStringConvertible {
     public var arrayType: TypeName { var t = self; t.isArray = true; return t }
     public var scalarType: TypeName { var t = self; t.isArray = false; return t }
 
-    /// The USDA value type names of OpenUSD's Sdf value type registry.
     static let table: [String: (ValueType, String)] = {
         var t: [String: (ValueType, String)] = [:]
         for v in ValueType.allCases where v != .pathExpression {
@@ -158,7 +141,6 @@ public struct TypeName: Hashable, Sendable, CustomStringConvertible {
         return t
     }()
 
-    /// The canonical type name for a value type without a role.
     public static func plain(_ type: ValueType, isArray: Bool = false) -> TypeName {
         TypeName(valueType: type, isArray: isArray)
     }

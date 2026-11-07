@@ -2,15 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Correctness gap closure: the real Myers diff engine
-/// (`MyersDiff`) and the `safe_undo` journal (`SafeUndoJournal`).
-/// Pure / local-disk behaviour only; no network, no credentials.
-///
-/// Diff vectors mirror Legacy's `AssistDiffEngine` expectations
-/// (unified format, 3 context lines, `@@ -a,b +c,d @@` headers):
-/// empty/empty, identical, pure insert, pure delete, interleaved,
-/// and a large file with one middle insertion (the case the old
-/// positional diff got wrong — the whole tail read as changed).
 @Suite struct CorrectnessGapDiffTests {
     @Test func emptyAgainstEmpty() {
         let r = MyersDiff.diff(old: [], new: [])
@@ -54,9 +45,6 @@ import Testing
     }
 
     @Test func middleInsertionLeavesTailEqual() {
-        // The old positional diff reported the whole tail as
-        // changed here (5 deletions + 5 insertions); Myers reports
-        // exactly one insertion.
         let old = ["a", "b", "c", "d", "e"]
         let new = ["a", "NEW", "b", "c", "d", "e"]
         let r = MyersDiff.diff(old: old, new: new)
@@ -75,7 +63,6 @@ import Testing
         #expect(r.added == 1 && r.removed == 0 && !r.usedFallback)
         let text = MyersDiff.unifiedDiff(old: old.joined(separator: "\n"), new: new.joined(separator: "\n"), file: "big.txt")
         #expect(text.contains("+INSERTED"))
-        // One hunk only (3 context lines each side), not the file.
         #expect(text.components(separatedBy: "@@").count == 3)
     }
 
@@ -87,7 +74,7 @@ import Testing
         let text = MyersDiff.unifiedDiff(old: old.joined(separator: "\n"), new: new.joined(separator: "\n"), file: "a.txt")
         #expect(text.contains("-line 2") && text.contains("+CHANGED-2"))
         #expect(text.contains("-line 27") && text.contains("+CHANGED-27"))
-        #expect(text.components(separatedBy: "@@").count == 5) // two hunk headers
+        #expect(text.components(separatedBy: "@@").count == 5)
     }
 
     @Test func hugeEditDistanceFallsBackHonestly() {

@@ -1,11 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationSidebarView.swift
-// Adapted for SwiftCode: tab selection drives the CollaborationMainView's
-// selected tab; the Active Now panel reads the real
-// CollaborationManager.activeUsers. Legacy's white text becomes
-// system-adaptive. CollaborationTab is ported in this file, as in Legacy.
-// (Marked @MainActor: the view holds a @MainActor CollaborationManager.)
-
 import SwiftUI
 import SwiftCodeCollaboration
 
@@ -37,7 +29,6 @@ public struct CollaborationSidebarView: View {
 
             Spacer()
 
-            // Active Users Mini Panel
             VStack(alignment: .leading, spacing: 12) {
                 Text("Active Now")
                     .font(.caption.bold())

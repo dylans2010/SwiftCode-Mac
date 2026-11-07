@@ -7,10 +7,8 @@ public struct CollaborationBranchGraphView: View {
     public var body: some View {
         ScrollView([.horizontal, .vertical]) {
             ZStack {
-                // Background
                 Color.black.opacity(0.1)
 
-                // Visual Graph
                 HStack(alignment: .top, spacing: 60) {
                     ForEach(manager.branches.branches) { branch in
                         BranchLine(branch: branch, manager: manager)
@@ -30,7 +28,6 @@ struct BranchLine: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Branch Header
             VStack(spacing: 4) {
                 Image(systemName: "arrow.triangle.branch")
                     .font(.headline)
@@ -42,7 +39,6 @@ struct BranchLine: View {
             .padding(10)
             .liquidGlass(style: .standard, cornerRadius: 12, tint: .blue)
 
-            // Commit Path
             VStack(spacing: 12) {
                 let commits = manager.commits.commits(for: branch.id)
                 ForEach(commits.prefix(10)) { commit in

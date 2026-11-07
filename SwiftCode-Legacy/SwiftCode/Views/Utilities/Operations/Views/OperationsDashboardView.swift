@@ -12,7 +12,6 @@ struct OperationsDashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header Banner
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Operational Command Center")
@@ -23,7 +22,6 @@ struct OperationsDashboardView: View {
                     }
                     Spacer()
 
-                    // Quick run rescan
                     Button {
                         triggerSystemRescan()
                     } label: {
@@ -34,9 +32,7 @@ struct OperationsDashboardView: View {
                 }
                 .padding(.bottom, 10)
 
-                // Top Metrics row (Health, Storage, Active Operations)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    // 1. Health card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -65,7 +61,6 @@ struct OperationsDashboardView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // 2. Storage Summary
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -95,7 +90,6 @@ struct OperationsDashboardView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // 3. Queue Tasks
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -138,9 +132,7 @@ struct OperationsDashboardView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Recent Projects and Recent Builds
                 HStack(alignment: .top, spacing: 16) {
-                    // Recent Projects Card
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Recent Projects")
@@ -195,7 +187,6 @@ struct OperationsDashboardView: View {
                     .padding()
                     .liquidGlass(style: .standard, cornerRadius: 12)
 
-                    // Recent Builds Card
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Latest Builds")

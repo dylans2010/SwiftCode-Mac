@@ -11,4 +11,3 @@ struct ProjectTreeRowView: View {
         }
     }
 }
-

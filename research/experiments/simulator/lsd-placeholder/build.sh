@@ -1,11 +1,4 @@
 #!/bin/sh
-# Builds agent J's probes (home-screen.md §3.3–§3.4, §7) for the iOS simulator
-# (macOS only). Output: $OUT (default /tmp/yc-9-J-probes). Run on the Mac with
-# `xcrun simctl spawn <throwaway device> <probe> …`, under Ycode as one-shots
-# copied into DEV/data/tmp. lstrace.dylib goes into a simulator daemon with
-# `xcrun simctl spawn <dev> launchctl setenv DYLD_INSERT_LIBRARIES <path>`
-# (LSTRACE_FILTER, LSTRACE_HIDE, LSTRACE_PATCH, LSTRACE_PATCHDIR,
-# LSTRACE_PATCHPARENT, LSTRACE_FNDR, LSTRACE_CAPSCLEAR; see the source).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-/tmp/yc-9-J-probes}"

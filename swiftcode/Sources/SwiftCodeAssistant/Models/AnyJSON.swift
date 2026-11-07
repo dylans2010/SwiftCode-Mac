@@ -1,10 +1,5 @@
 import Foundation
 
-/// A JSON value: what JSON-RPC carries for the Model Context Protocol and
-/// the Agent Client Protocol (specs/ide/coding-assistant.md, "SwiftCode
-/// implementation"). Decoding keeps booleans and numbers apart on every
-/// platform; encoding sorts keys and never writes a newline, so one value
-/// is one line of a stdio stream.
 public enum AnyJSON: Equatable, Sendable, Hashable {
     case null
     case bool(Bool)
@@ -13,8 +8,6 @@ public enum AnyJSON: Equatable, Sendable, Hashable {
     case string(String)
     case array([AnyJSON])
     case object([String: AnyJSON])
-
-    // MARK: Reading
 
     public subscript(key: String) -> AnyJSON? {
         if case .object(let o) = self { return o[key] }
@@ -32,7 +25,6 @@ public enum AnyJSON: Equatable, Sendable, Hashable {
     public var object: [String: AnyJSON]? { if case .object(let o) = self { return o }; return nil }
     public var isNull: Bool { self == .null }
 
-    /// An integer, also from a whole double (`3.0`).
     public var int: Int? {
         switch self {
         case .int(let i): return i
@@ -49,14 +41,11 @@ public enum AnyJSON: Equatable, Sendable, Hashable {
         }
     }
 
-    /// A copy with `key` set (objects only; anything else becomes an object).
     public func setting(_ key: String, _ value: AnyJSON?) -> AnyJSON {
         var o = object ?? [:]
         o[key] = value
         return .object(o)
     }
-
-    // MARK: Text
 
     public enum ParseError: Error, CustomStringConvertible, Equatable {
         case invalid(String)
@@ -75,18 +64,14 @@ public enum AnyJSON: Equatable, Sendable, Hashable {
 
     public static func parse(_ text: String) throws -> AnyJSON { try parse(Data(text.utf8)) }
 
-    /// Compact UTF-8 JSON with sorted keys (no newline anywhere).
     public func data() -> Data {
         let e = JSONEncoder()
         e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        // Encoding a AnyJSON cannot fail except for non-finite doubles,
-        // which are written as null.
         return (try? e.encode(self)) ?? Data("null".utf8)
     }
 
     public var text: String { String(decoding: data(), as: UTF8.self) }
 
-    /// Indented text (for skill files and messages people read).
     public var prettyText: String {
         let e = JSONEncoder()
         e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes, .prettyPrinted]
@@ -135,7 +120,6 @@ extension AnyJSON: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, Expr
 }
 
 extension AnyJSON {
-    /// `.string(s)`, or `.null` for nil.
     public static func optional(_ s: String?) -> AnyJSON { s.map { .string($0) } ?? .null }
     public static func optional(_ i: Int?) -> AnyJSON { i.map { .int($0) } ?? .null }
     public static func strings(_ a: [String]) -> AnyJSON { .array(a.map { .string($0) }) }

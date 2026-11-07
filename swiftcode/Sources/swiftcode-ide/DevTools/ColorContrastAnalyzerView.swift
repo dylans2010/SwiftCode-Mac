@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 import SwiftCodeUI
 
@@ -37,7 +34,6 @@ public struct ColorContrastAnalyzerView: View {
                 }
 
                 HStack(alignment: .top, spacing: 20) {
-                    // Left Input panel
                     VStack(spacing: 16) {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
@@ -79,7 +75,6 @@ public struct ColorContrastAnalyzerView: View {
                     }
                     .frame(width: 280)
 
-                    // Right Compliance metrics
                     VStack(alignment: .leading, spacing: 16) {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
@@ -120,7 +115,7 @@ public struct ColorContrastAnalyzerView: View {
             }
             .padding(24)
         }
-        
+
     }
 
     private func complianceRow(title: String, passing: Bool, req: String) -> some View {
@@ -140,7 +135,6 @@ public struct ColorContrastAnalyzerView: View {
         }
     }
 
-    // Helper functions for relative luminance
     private func relativeLuminance(from hex: String) -> Double {
         var cleaned = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if cleaned.hasPrefix("#") { cleaned.removeFirst() }

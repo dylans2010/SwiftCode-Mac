@@ -15,7 +15,7 @@ private let worktreeSwiftCode = URL(fileURLWithPath: #filePath).deletingLastPath
         let t = kinds("/// Doc\n@MainActor func f() -> Int { let s = \"a\\\"b\" // c\n return 42 } /* x /* y */ z */", .swift)
         #expect(t.map(\.0) == [.docComment, .attribute, .keyword, .typeName, .keyword, .string, .comment, .keyword, .number, .comment])
         #expect(t[5].1 == "\"a\\\"b\"")
-        #expect(t.last?.1 == "/* x /* y */ z */") // Swift block comments nest
+        #expect(t.last?.1 == "/* x /* y */ z */")
     }
 
     @Test func objcAndC() {
@@ -37,17 +37,17 @@ private let worktreeSwiftCode = URL(fileURLWithPath: #filePath).deletingLastPath
 
     @Test func breakpointGutterGestures() {
         var s = BreakpointStore()
-        s.click(file: "/a", line: 3)               // add
+        s.click(file: "/a", line: 3)
         #expect(s.breakpoint(file: "/a", line: 3)?.isEnabled == true)
-        s.click(file: "/a", line: 3)               // disable
+        s.click(file: "/a", line: 3)
         #expect(s.breakpoint(file: "/a", line: 3)?.isEnabled == false)
         s.click(file: "/a", line: 7)
-        s.move(file: "/a", from: 3, to: 5)         // drag along the gutter
+        s.move(file: "/a", from: 3, to: 5)
         #expect(s.all.map(\.line) == [5, 7])
         #expect(s.effectiveLines == ["/a": [7]])
         s.isActive = false
         #expect(s.effectiveLines == ["/a": []])
-        s.remove(file: "/a", line: 7)              // drag out
+        s.remove(file: "/a", line: 7)
         s.toggleExistence(file: "/a", line: 5)
         #expect(s.all.isEmpty)
     }
@@ -56,15 +56,12 @@ private let worktreeSwiftCode = URL(fileURLWithPath: #filePath).deletingLastPath
         var seen: [String: String] = [:]
         for c in CommandTable.allCommands where !c.key.isEmpty {
             let key = c.shortcutText
-            // performFindPanelAction: shares a selector but differs by key.
-            // The same command listed in two menus (View ▸ Editor and Editor) is not a conflict.
             #expect(seen[key] == nil || seen[key] == c.title, "\(key) used by \(seen[key] ?? "") and \(c.title)")
             seen[key] = c.title
         }
         #expect(CommandTable.command(titled: "Build")?.shortcutText == "⌘B")
         #expect(CommandTable.command(titled: "Clean Build Folder…")?.shortcutText == "⇧⌘K")
         #expect(CommandTable.command(titled: "Step Over")?.shortcutText == "F6")
-        // reference-ui-5.md §2.0: Show/Hide Inspector has no shortcut; ⌥⌘0 is Show Coding Tools….
         #expect(CommandTable.command(titled: "Show Inspector")?.shortcutText == "")
         #expect(CommandTable.command(titled: "Show Coding Tools…")?.shortcutText == "⌥⌘0")
         #expect(CommandTable.command(titled: "Breakpoints")?.shortcutText == "⌘8")

@@ -1,17 +1,3 @@
-// pinprobe: does the GPU keep reading host memory imported with
-// VK_EXT_external_memory_host when the host kernel moves or drops the
-// pages under the import while a dispatch reads them (stage8-contract.md §15.9)?
-// usage: pinprobe SPV MODE [MIB] [ROUNDS]
-//   MODE 0: nothing; 1: madvise(MADV_COLLAPSE) on the range (the host
-//   kernel copies the pages into huge pages and remaps them: page
-//   migration, as khugepaged and compaction do with THP "always");
-//   2: madvise(MADV_DONTNEED); 3: mmap(MAP_FIXED) of new anonymous memory
-//   over the range; 4: write every page from the CPU (a control).
-// The operation runs about 0.2 s after the submission; the dispatch reads
-// the range ROUNDS times (several seconds). Prints whether the dispatch
-// finished within 20 s and what the operation returned.
-// Build (from swiftcode/, on a host with Vulkan; stage8-contract.md §15):
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o X scripts/gpu-probes/X.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <errno.h>
 #include <stdio.h>
@@ -37,7 +23,6 @@ int main(int argc, char **argv) {
     yvk_shader_stage st = {spv, n / 4, "main", NULL, 0, 0};
     VkPipeline pipe = yvk_compute_pipeline_create(&ctx, &st, err, sizeof err);
     if (!pipe) { fprintf(stderr, "%s\n", err); return 1; }
-    // A 2 MiB-aligned range of small pages (no huge page yet).
     uint8_t *raw = mmap(NULL, len + (2 << 20), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     uint8_t *m = (uint8_t *)(((uintptr_t)raw + (2 << 20) - 1) & ~(uintptr_t)((2 << 20) - 1));
     madvise(m, len, MADV_NOHUGEPAGE);

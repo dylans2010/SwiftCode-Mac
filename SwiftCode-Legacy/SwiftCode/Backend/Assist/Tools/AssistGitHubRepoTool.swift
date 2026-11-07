@@ -1,38 +1,5 @@
 import Foundation
 
-// MARK: - github_repo
-//
-//  Retrieves and analyzes the actual contents of GitHub repositories:
-//  metadata, directory listings, recursive trees, individual file contents,
-//  client-side code search, and bounded full-repository retrieval.
-//
-//  Endpoints used (all validated against the live GitHub REST API):
-//    GET /repos/{owner}/{repo}                        repository metadata
-//    GET /repos/{owner}/{repo}/contents/{path}        file / directory listing
-//    GET /repos/{owner}/{repo}/git/trees/{ref}        recursive file tree
-//  File bodies come from the Contents API (base64) with a raw-download
-//  fallback for large files. Code search is performed client-side over the
-//  fetched tree + file contents so it works identically for public and
-//  private repositories.
-//
-//  Authentication: the user's existing GitHub credential
-//  (KeychainService.githubToken, "github_personal_access_token") is attached
-//  as a Bearer token when present. Public repositories work without it;
-//  private repositories return a clear authorization error when no
-//  credential is available. Tokens are never logged, never embedded in
-//  output, and never appear in error messages.
-//
-//  Security: HTTPS-only, GitHub host allow-list, per-hop redirect
-//  validation, SSRF guards, pagination, rate-limit detection with reset
-//  timing, timeouts, bounded concurrency, response-size caps, binary-file
-//  detection, and explicit truncation reporting. Repository contents are
-//  untrusted data: they are returned inside the tool result and must never
-//  override system instructions or authorize tool use.
-//
-//  This tool only READS repositories. It never executes repository code,
-//  never runs build scripts, never installs dependencies, and never
-//  modifies remote repositories.
-
 public struct AssistGitHubRepoTool: AssistTool {
     public let id = "github_repo"
     public let name = "GitHub Repository Inspector"
@@ -99,8 +66,6 @@ public struct AssistGitHubRepoTool: AssistTool {
             required: ["operation"]
         )
     }
-
-    // MARK: - Execution
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let startedAt = Date()
@@ -229,14 +194,11 @@ public struct AssistGitHubRepoTool: AssistTool {
         }
     }
 
-    // MARK: - Repo reference
-
     struct RepoReference: Sendable {
         let owner: String
         let repo: String
     }
 
-    /// Resolves owner/repo from explicit fields or a github.com URL.
     static func resolveRepo(owner: String?, repo: String?, urlString: String?) throws -> RepoReference {
         if let o = owner?.trimmingCharacters(in: .whitespacesAndNewlines), !o.isEmpty,
            let r = repo?.trimmingCharacters(in: .whitespacesAndNewlines), !r.isEmpty {
@@ -248,8 +210,6 @@ public struct AssistGitHubRepoTool: AssistTool {
             throw AssistRemoteFetchError.invalidURL("Provide 'owner' + 'repo', or a GitHub repository 'url'.")
         }
         try AssistURLGuard.validate(url, allowedHosts: ["github.com"])
-        // Accept https://github.com/{owner}/{repo}[.git][/tree/...] — only the
-        // first two path segments identify the repository.
         let segments = url.path.split(separator: "/").map(String.init).filter { !$0.isEmpty }
         guard segments.count >= 2 else {
             throw AssistRemoteFetchError.invalidURL("Could not parse owner/repo from '\(url.host ?? "")\(url.path)'.")
@@ -260,7 +220,6 @@ public struct AssistGitHubRepoTool: AssistTool {
         return RepoReference(owner: segments[0], repo: repoName)
     }
 
-    /// GitHub owner/repo naming rules; rejects traversal and injection.
     static func validateOwnerRepo(owner: String, repo: String) throws {
         let pattern = "^[A-Za-z0-9_.-]+$"
         for (label, value) in [("owner", owner), ("repo", repo)] {
@@ -270,8 +229,6 @@ public struct AssistGitHubRepoTool: AssistTool {
             }
         }
     }
-
-    // MARK: - Operations
 
     private func opRepositoryInfo(client: GitHubAPIClient, repo: RepoReference, context: AssistContext, startedAt: Date) async throws -> AssistToolResult {
         let info = try await client.repositoryInfo(owner: repo.owner, repo: repo.repo)
@@ -303,7 +260,6 @@ public struct AssistGitHubRepoTool: AssistTool {
         let resolvedRef = try await client.resolveRef(owner: repo.owner, repo: repo.repo, ref: ref)
         var entries: [GitHubContentEntry] = []
         if operation == "list_files", recursive {
-            // Recursive listing goes through the tree API (single request).
             let tree = try await client.tree(owner: repo.owner, repo: repo.repo, ref: resolvedRef, recursive: true)
             let prefix = path.isEmpty ? "" : path + "/"
             entries = tree.entries
@@ -311,7 +267,6 @@ public struct AssistGitHubRepoTool: AssistTool {
                 .prefix(maxResults)
                 .map { GitHubContentEntry(name: ($0.path as NSString).lastPathComponent, path: $0.path, type: "file", size: $0.size, downloadURL: nil) }
         } else {
-            // get_directory, or non-recursive list_files: one Contents API level.
             entries = try await client.directoryContents(owner: repo.owner, repo: repo.repo, ref: resolvedRef, path: path, maxResults: maxResults)
         }
 
@@ -488,7 +443,6 @@ public struct AssistGitHubRepoTool: AssistTool {
         let resolvedRef = try await client.resolveRef(owner: repo.owner, repo: repo.repo, ref: ref)
         let tree = try await client.tree(owner: repo.owner, repo: repo.repo, ref: resolvedRef, recursive: true)
 
-        // Classify every entry before fetching anything.
         var textFiles: [AssistGitHubTreeEntry] = []
         var skippedBinary: [String] = []
         var skippedOversize: [String] = []
@@ -502,8 +456,6 @@ public struct AssistGitHubRepoTool: AssistTool {
             textFiles.append(entry)
         }
 
-        // Prioritize: query-relevant paths first, then project configuration,
-        // then smaller files (more signal per byte).
         let queryTokens = (query ?? "").lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
         textFiles.sort { a, b in
             let aScore = Self.priorityScore(path: a.path, queryTokens: queryTokens)
@@ -588,9 +540,6 @@ public struct AssistGitHubRepoTool: AssistTool {
         String(format: "%.1fs", Date().timeIntervalSince(start))
     }
 
-    // MARK: - Path classification
-
-    /// Extensions that are never useful as decoded text.
     nonisolated static let binaryExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "icns", "tiff",
         "pdf", "zip", "gz", "tar", "bz2", "xz", "7z", "dmg", "pkg",
@@ -602,8 +551,6 @@ public struct AssistGitHubRepoTool: AssistTool {
         "xcarchive", "ipa", "appex"
     ]
 
-    /// Directory prefixes excluded from full-repository retrieval (build
-    /// artifacts, vendored dependencies, VCS metadata).
     nonisolated static let skippedDirectoryPrefixes = [
         ".git/", "node_modules/", "Pods/", "Carthage/", "DerivedData/",
         "build/", ".build/", "vendor/", "__pycache__/", ".venv/"
@@ -618,13 +565,11 @@ public struct AssistGitHubRepoTool: AssistTool {
         skippedDirectoryPrefixes.contains { path.hasPrefix($0) || path == String($0.dropLast()) }
     }
 
-    /// Text files worth searching: source, config, docs, data.
     nonisolated static func isSearchablePath(_ path: String) -> Bool {
         if isBinaryPath(path) || isSkippedDirectory(path) { return false }
         return true
     }
 
-    /// Ranking for fetch_repository: query hits > project config > docs > rest.
     nonisolated static func priorityScore(path: String, queryTokens: [String]) -> Int {
         let lower = path.lowercased()
         var score = 0
@@ -637,16 +582,11 @@ public struct AssistGitHubRepoTool: AssistTool {
         return score
     }
 
-    /// Binary sniffing on raw bytes: NUL byte or invalid UTF-8.
-    /// (The 8KB prefix probe below is a sniffing heuristic, not output
-    /// truncation — callers report truncation explicitly where it applies.)
     nonisolated static func isBinaryData(_ data: Data) -> Bool {
         if data.contains(0) { return true }
         return String(data: data.prefix(8192), encoding: .utf8) == nil && !data.isEmpty
     }
 }
-
-// MARK: - GitHub API client (internal to this tool)
 
 private struct GitHubRepoInfo: Sendable {
     let fullName: String
@@ -664,7 +604,7 @@ private struct GitHubRepoInfo: Sendable {
 
 private struct AssistGitHubTreeEntry: Sendable {
     let path: String
-    let type: String // "blob" | "tree"
+    let type: String
     let size: Int?
     let sha: String
 }
@@ -677,7 +617,7 @@ private struct GitHubTree: Sendable {
 private struct GitHubContentEntry: Sendable {
     let name: String
     let path: String
-    let type: String // "file" | "dir" | "symlink" | "submodule"
+    let type: String
     let size: Int?
     let downloadURL: String?
 }
@@ -687,15 +627,11 @@ private enum AssistGitHubFileContent: Sendable {
     case binary(size: Int, reason: String)
 }
 
-/// Thin GitHub REST client honoring the shared secure-fetch contract.
-/// The user's saved GitHub token (Keychain) is attached when present;
-/// it is never logged and never included in error strings.
 private final class GitHubAPIClient: Sendable {
     private static let hosts: Set<String> = ["api.github.com", "raw.githubusercontent.com", "objects.githubusercontent.com"]
     private static let client = AssistSecureHTTPClient()
     private static let cache = AssistRemoteResponseCache(maxEntries: 200, defaultTTL: 600)
 
-    /// The existing user-authorized credential, if the user saved one.
     private var token: String? {
         KeychainService.shared.get(forKey: KeychainService.githubToken)
     }
@@ -713,8 +649,6 @@ private final class GitHubAPIClient: Sendable {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28"
         ]
-        // Attached only in memory, only on the request; never persisted,
-        // never logged, never reflected into results or errors.
         if let token = token, !token.isEmpty {
             headers["Authorization"] = "Bearer \(token)"
         }
@@ -724,8 +658,6 @@ private final class GitHubAPIClient: Sendable {
 
     private func get(_ url: URL, acceptJSON: Bool = true) async throws -> AssistHTTPResponse {
         try Task.checkCancellation()
-        // Cache key namespaces by auth state so authed (possibly private)
-        // responses are never served to an unauthenticated context.
         let authed = !(token ?? "").isEmpty
         let key = (authed ? "auth:" : "anon:") + url.absoluteString
         if let cached = await Self.cache.get(key) {
@@ -744,8 +676,6 @@ private final class GitHubAPIClient: Sendable {
     private func encodedPath(_ path: String) -> String {
         path.split(separator: "/").map { $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String($0) }.joined(separator: "/")
     }
-
-    // MARK: Repository metadata
 
     func repositoryInfo(owner: String, repo: String) async throws -> GitHubRepoInfo {
         let response = try await get(apiURL("/repos/\(owner)/\(repo)"))
@@ -767,7 +697,6 @@ private final class GitHubAPIClient: Sendable {
         )
     }
 
-    /// Resolves nil/empty refs to the default branch; validates ref shape.
     func resolveRef(owner: String, repo: String, ref: String?) async throws -> String {
         guard let ref = ref, !ref.isEmpty else {
             return try await repositoryInfo(owner: owner, repo: repo).defaultBranch
@@ -778,8 +707,6 @@ private final class GitHubAPIClient: Sendable {
         }
         return ref
     }
-
-    // MARK: Trees
 
     func tree(owner: String, repo: String, ref: String, recursive: Bool) async throws -> GitHubTree {
         var components = URLComponents(url: apiURL("/repos/\(owner)/\(repo)/git/trees/\(encodedPath(ref))"), resolvingAgainstBaseURL: false)!
@@ -799,13 +726,9 @@ private final class GitHubAPIClient: Sendable {
         return GitHubTree(entries: entries, truncated: (d["truncated"] as? Bool) ?? false)
     }
 
-    // MARK: Contents (files & directories)
-
-    /// Directory listing with Link-header pagination.
     func directoryContents(owner: String, repo: String, ref: String, path: String, maxResults: Int) async throws -> [GitHubContentEntry] {
         var entries: [GitHubContentEntry] = []
         var page = 1
-        // Root listing has no trailing path segment.
         let basePath = path.isEmpty ? "/repos/\(owner)/\(repo)/contents" : "/repos/\(owner)/\(repo)/contents/\(encodedPath(path))"
         while entries.count < maxResults {
             var components = URLComponents(url: apiURL(basePath), resolvingAgainstBaseURL: false)!
@@ -820,9 +743,8 @@ private final class GitHubAPIClient: Sendable {
             if items.count < 100 { break }
             guard hasNextPage(response.httpResponse) else { break }
             page += 1
-            if page > 20 { break } // hard pagination bound
+            if page > 20 { break }
         }
-        // maxResults cap is reported as [truncated] by the operation handlers.
         return Array(entries.prefix(maxResults))
     }
 
@@ -830,7 +752,6 @@ private final class GitHubAPIClient: Sendable {
         guard let obj = try? AssistJSON.parse(data) else {
             throw AssistRemoteFetchError.decodingFailed("directory listing")
         }
-        // A path pointing at a file returns a single object, not an array.
         let items = AssistJSON.array(obj) ?? (AssistJSON.object(obj).map { [$0] } ?? [])
         return items.compactMap { item in
             guard let e = AssistJSON.object(item),
@@ -846,9 +767,6 @@ private final class GitHubAPIClient: Sendable {
         return link.contains("rel=\"next\"")
     }
 
-    /// File content: Contents API (base64) with a raw-download fallback for
-    /// large files the Contents API refuses. Binary files are classified,
-    /// never decoded as text.
     func fileContent(owner: String, repo: String, ref: String, path: String, maxBytes: Int) async throws -> AssistGitHubFileContent {
         var components = URLComponents(url: apiURL("/repos/\(owner)/\(repo)/contents/\(encodedPath(path))"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "ref", value: ref)]
@@ -872,7 +790,6 @@ private final class GitHubAPIClient: Sendable {
             }
             return classify(data: data, path: path, size: size, maxBytes: maxBytes)
         }
-        // Large files: the Contents API omits content — use the raw download.
         if let downloadURLString = e["download_url"] as? String,
            let downloadURL = URL(string: downloadURLString) {
             try AssistURLGuard.validate(downloadURL, allowedHosts: Self.hosts)
@@ -893,14 +810,11 @@ private final class GitHubAPIClient: Sendable {
             return .binary(size: size, reason: "not valid UTF-8 text")
         }
         if text.utf8.count > maxBytes {
-            // Explicit truncation marker: the byte budget was exceeded.
             return .text(String(text.prefix(maxBytes)) + "\n[truncated: file content exceeded the \(maxBytes)-byte budget]")
         }
         return .text(text)
     }
 }
-
-// MARK: - Test hooks (pure logic, no network)
 
 extension AssistGitHubRepoTool {
     static func testResolveRepo(owner: String?, repo: String?, url: String?) throws -> (String, String) {

@@ -3,55 +3,11 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic planning & memory tools (Wave 8, slice H),
-/// each driven black-box through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AIContextMemoryTool`,
-/// `TaskPlannerTool`, `TodoManagerTool`, `ProgressTrackerTool`,
-/// `CheckpointCreatorTool`, `RollbackChangesTool`,
-/// `QuestionHandlerTool` and `ChecklistPlanTool` (Dylan's own code,
-/// ported under MIT), registered in Legacy's Agentic registry
-/// (`SwiftCode/Tools/Agentic/ListTools.swift:137-145`). Legacy's
-/// implementations are stubs returning canned strings; the ports
-/// implement the behaviour those strings promise, grounded in real
-/// SwiftCode state.
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never on
-/// internals. Messages quoted verbatim are Legacy's; where the SwiftCode
-/// port may legitimately word a failure differently, the test asserts
-/// the behaviour plus a tolerant message match.
-///
-/// Deliberate exceptions, asserted here rather than assumed:
-/// * `ask_user` is NOT in this array: it is already served by the
-///   Wave 4 `plan-AskUser` tool through `MCPServer.toolAliases`
-///   (`ask_user` → `plan-AskUser`), asserted live below.
-/// * `checkpoint_creator` / `rollback_changes` are real, backed by
-///   their own Application Support `SwiftCodeCheckpoints/` store — NOT
-///   aliases of Wave 7's `project_snapshot` / `project_restore`,
-///   whose parameter names differ and whose store is separate.
-///   The test asserts a checkpoint round-trips a file edit and that
-///   an unknown checkpoint ID fails naming the right tool.
-/// * `questions_handle` returns a pending question-set handoff and
-///   never waits (the Wave 4 `plan-AskUser` precedent).
-/// * `progress_tracker` computes real progress from the plan store;
-///   Legacy's hardcoded `0.75` is never reproduced.
-///
-/// NOTE (coordinator decision, Wave 8): `agenticPlanningTools` is NOT
-/// wired into `installTools()` here — `SwiftCodeTools.swift` is owned by
-/// the coordinator. These tests install `agenticPlanningTools` on the
-/// host themselves (the filter-first shape from Wave 3's
-/// `SwiftCodeSearchToolsTests`), so they verify the tools, not the wiring.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticPlanningTests {
-    /// The 8 Wave 8 slice-H tool IDs. `ask_user` is deliberately
-    /// absent: it is already served as an alias of `plan-AskUser`.
     static let sliceHIDs = ["ai_context_memory", "checklist_plan", "checkpoint_creator", "progress_tracker",
                             "questions_handle", "rollback_changes", "task_planner", "todo_manager"]
 
-    /// Opens a copy of Greeter and installs the ported slice-H tools
-    /// on the server (filter-first: a plain `+=` would register them
-    /// twice once the coordinator wires them into `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -88,7 +44,6 @@ import SwiftCodeAssistant
                 #expect(!tool.annotations.destructive, "\(tool.name) must not be marked destructive")
             }
         }
-        // The host actually serves them once installed.
         let sample = try TempSample()
         defer { sample.remove() }
         let servedHost = try await opened(sample)
@@ -102,8 +57,6 @@ import SwiftCodeAssistant
         let host = SwiftCodeMCPHost()
         #expect(host.planningTools.map(\.name).contains("plan-AskUser"), "plan-AskUser must exist for the alias to resolve to")
     }
-
-    // MARK: - Context memory
 
     @Test func contextMemoryStoreRetrieveClear() async throws {
         let sample = try TempSample()
@@ -134,16 +87,12 @@ import SwiftCodeAssistant
         let afterClear = try await host.server.callTool("ai_context_memory", ["action": .string("retrieve")])
         #expect(afterClear.structured?["count"]?.int == 0)
 
-        // Unknown actions fail instead of echoing a fake result, and
-        // storing without data fails.
         let unknown = try await host.server.callTool("ai_context_memory", ["action": .string("summarize")])
         #expect(unknown.isToolError, "unknown action must fail")
         #expect(unknown.firstText.contains("summarize"))
         let noData = try await host.server.callTool("ai_context_memory", ["action": .string("store")])
         #expect(noData.isToolError, "store without data must fail")
     }
-
-    // MARK: - Task planner, checklist, progress
 
     @Test func taskPlannerChecklistAndProgressRoundTrip() async throws {
         let sample = try TempSample()
@@ -161,20 +110,15 @@ import SwiftCodeAssistant
         let taskIDs = planned.structured?["tasks"]?.array?.compactMap { $0["id"]?.string } ?? []
         #expect(taskIDs.count == 2, "task_planner must expose its task IDs so checklist_plan and progress_tracker can address them")
 
-        // A fresh plan starts at zero progress.
         let zero = try await host.server.callTool("progress_tracker", ["taskID": .string(planId!)])
         #expect(!zero.isToolError, "\(zero.resultText)")
         #expect(zero.structured?["progress"]?.double == 0.0)
         #expect(zero.structured?["status"]?.string == "queued")
         #expect(zero.firstText == "Progress for \(planId!): 0.0%")
 
-        // A second plan gets a different ID.
         let planned2 = try await host.server.callTool("task_planner", ["goal": .string("Something else")])
         #expect(planned2.structured?["planId"]?.string != planId)
 
-        // The checklist update targets the current (second) plan, so
-        // re-plan the first goal to make it current again, then update
-        // its tasks by their real IDs.
         let replanned = try await host.server.callTool("task_planner", ["goal": .string("Write the code, run the tests")])
         let currentPlanId = replanned.structured?["planId"]?.string
         #expect(currentPlanId != nil && currentPlanId != planId)
@@ -191,15 +135,12 @@ import SwiftCodeAssistant
         #expect(checklist.structured?["progress"]?.double == 0.75)
         #expect(checklist.firstText == "Checklist updated: 1 of 2 tasks completed.")
 
-        // Plan progress follows the checklist: completed (1.0) +
-        // in_progress (0.5) over 2 tasks = 0.75.
         let tracked = try await host.server.callTool("progress_tracker", ["taskID": .string(currentPlanId!)])
         #expect(!tracked.isToolError, "\(tracked.resultText)")
         #expect(tracked.structured?["progress"]?.double == 0.75)
         #expect(tracked.structured?["status"]?.string == "in_progress")
         #expect(tracked.firstText == "Progress for \(currentPlanId!): 75.0%")
 
-        // A single task ID reports that task's own progress.
         let taskTracked = try await host.server.callTool("progress_tracker", ["taskID": .string(currentTaskIDs[0])])
         #expect(!taskTracked.isToolError, "\(taskTracked.resultText)")
         #expect(taskTracked.structured?["progress"]?.double == 1.0)
@@ -207,7 +148,6 @@ import SwiftCodeAssistant
         let taskTracked2 = try await host.server.callTool("progress_tracker", ["taskID": .string(currentTaskIDs[1])])
         #expect(taskTracked2.structured?["progress"]?.double == 0.5)
 
-        // Completing the second task completes the plan.
         let updated = try await host.server.callTool("checklist_plan", ["tasks": .array([
             ["id": .string(currentTaskIDs[1]), "title": .string("run the tests"), "status": .string("completed")],
         ])])
@@ -218,7 +158,6 @@ import SwiftCodeAssistant
         let done = try await host.server.callTool("progress_tracker", ["taskID": .string(currentPlanId!)])
         #expect(done.structured?["status"]?.string == "completed")
 
-        // An unknown ID fails; nothing is invented.
         let unknown = try await host.server.callTool("progress_tracker", ["taskID": .string("no-such-task")])
         #expect(unknown.isToolError, "unknown taskID must fail")
         #expect(unknown.firstText.contains("no-such-task"))
@@ -237,7 +176,6 @@ import SwiftCodeAssistant
         #expect(checklist.structured?["completedCount"]?.int == 0)
         #expect(checklist.structured?["progress"]?.double == 0.0)
 
-        // Invalid statuses and empty task lists fail.
         let badStatus = try await host.server.callTool("checklist_plan", ["tasks": .array([
             ["id": .string("x"), "title": .string("Bad"), "status": .string("done")],
         ])])
@@ -259,8 +197,6 @@ import SwiftCodeAssistant
         #expect(steps.contains("4. Summarize outputs"))
     }
 
-    // MARK: - Todo manager
-
     @Test func todoManagerRoundTrip() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -277,7 +213,6 @@ import SwiftCodeAssistant
         let added2 = try await host.server.callTool("todo_manager", ["action": .string("add"), "todo": .string("Write a test")])
         #expect(added2.structured?["count"]?.int == 2)
 
-        // The list is a real workspace file, not just memory.
         let todosText = sample.read(".assist_temp/memory/todos.json")
         #expect(todosText.contains("Fix the greeting"))
         #expect(todosText.contains("Write a test"))
@@ -301,7 +236,6 @@ import SwiftCodeAssistant
         #expect(!removed.isToolError, "\(removed.resultText)")
         #expect(removed.structured?["count"]?.int == 1)
 
-        // Completing or removing a missing todo fails.
         let missing = try await host.server.callTool("todo_manager", ["action": .string("complete"), "todo": .string("No such todo")])
         #expect(missing.isToolError, "completing a missing todo must fail")
         #expect(missing.firstText.contains("No such todo"))
@@ -319,14 +253,12 @@ import SwiftCodeAssistant
     @Test func todoManagerIsRefusedWhenReadOnly() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        let host = try await opened(sample) // default policy: readOnly
+        let host = try await opened(sample)
         let r = try await host.server.callTool("todo_manager", ["action": .string("add"), "todo": .string("Should not land")])
         #expect(r.isToolError, "a write tool must be refused when the server is read-only")
         #expect(r.firstText == MCPServer.readOnlyMessage("todo_manager"))
         #expect(!sample.read(".assist_temp/memory/todos.json").contains("Should not land"))
     }
-
-    // MARK: - Checkpoints and rollback
 
     @Test func checkpointAndRollbackRoundTrip() async throws {
         let sample = try TempSample()
@@ -342,7 +274,6 @@ import SwiftCodeAssistant
         #expect(created.structured?["description"]?.string == "Before greeting change")
         #expect(created.firstText == "Checkpoint 'Before greeting change' created")
 
-        // Change a file, then roll back: the original content returns.
         try "struct Greeter { var salutation = \"Changed\" }\n".write(toFile: sample.path("Sources/Greeter/Greeter.swift"), atomically: true, encoding: .utf8)
         #expect(sample.read("Sources/Greeter/Greeter.swift").contains("Changed"))
         let rolled = try await host.server.callTool("rollback_changes", ["checkpointID": .string(checkpointId!)])
@@ -351,8 +282,6 @@ import SwiftCodeAssistant
         #expect(rolled.firstText == "Changes rolled back to \(checkpointId!)")
         #expect(sample.read("Sources/Greeter/Greeter.swift") == original)
 
-        // An unknown checkpoint fails and names the right tool; a
-        // project_snapshot ID is not a checkpoint either.
         let unknown = try await host.server.callTool("rollback_changes", ["checkpointID": .string("no-such-checkpoint")])
         #expect(unknown.isToolError, "unknown checkpoint must fail")
         #expect(unknown.firstText.contains("no-such-checkpoint"))
@@ -362,7 +291,7 @@ import SwiftCodeAssistant
     @Test func checkpointCreatorIsRefusedWhenReadOnly() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        let host = try await opened(sample) // default policy: readOnly
+        let host = try await opened(sample)
         let r = try await host.server.callTool("checkpoint_creator", ["description": .string("Should not land")])
         #expect(r.isToolError, "a write tool must be refused when the server is read-only")
         #expect(r.firstText == MCPServer.readOnlyMessage("checkpoint_creator"))
@@ -370,8 +299,6 @@ import SwiftCodeAssistant
         #expect(rolled.isToolError, "rollback must be refused when the server is read-only")
         #expect(rolled.firstText == MCPServer.readOnlyMessage("rollback_changes"))
     }
-
-    // MARK: - Question handoff
 
     @Test func questionsHandleReturnsPendingHandoff() async throws {
         let sample = try TempSample()
@@ -397,9 +324,6 @@ import SwiftCodeAssistant
         #expect(asked.firstText.contains("1. Which greeting style?"))
         #expect(asked.firstText.contains("2. Anything else to note?"))
 
-        // Validation: empty sets, missing fields, bad input types and
-        // selections without options all fail instead of returning a
-        // broken handoff.
         let empty = try await host.server.callTool("questions_handle", ["questions": .array([])])
         #expect(empty.isToolError, "empty questions must fail")
         let missingPrompt = try await host.server.callTool("questions_handle", ["questions": .array([

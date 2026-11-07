@@ -1,9 +1,3 @@
-// CreateNewAppAdvancedView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppAdvancedView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Architecture-pattern picker; Swift compatibility version picker; Overwrite-existing-metadata behaviour toggle; Run-tests-after-implementation toggle
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 public struct CreateNewAppAdvancedView: View {

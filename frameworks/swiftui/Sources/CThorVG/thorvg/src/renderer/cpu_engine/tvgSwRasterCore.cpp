@@ -1,30 +1,4 @@
-/*
- * Copyright (c) 2021 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
  #include "tvgSwRasterCore.h"
-
-/************************************************************************/
-/* See tvgSwRasterSimd.cpp                                              */
-/************************************************************************/
 
 #ifdef THORVG_AVX_SUPPORT
     #if defined(_MSC_VER)
@@ -59,19 +33,14 @@
     void neonRasterGaussianXYFlipBlock(const uint32_t* src, uint32_t* dst, int32_t stride);
 #endif
 
-/************************************************************************/
-/* Scalar                                                               */
-/************************************************************************/
-
 void cRasterGaussianFilterRow(uint8_t* dst, const uint8_t* src, int32_t w, int32_t dimension, float iarr)
 {
     auto end = w - 1;
-    auto i = 0;                 // current index
-    auto l = -(dimension + 1);  // left index
-    auto r = dimension;         // right index
-    int acc[4] = {0, 0, 0, 0};  // sliding accumulator
+    auto i = 0;
+    auto l = -(dimension + 1);
+    auto r = dimension;
+    int acc[4] = {0, 0, 0, 0};
 
-    // initial accumulation
     for (int x = l; x < r; ++x) {
         auto id = tvg::clamp(x, 0, end) * 4;
         acc[0] += src[id++];
@@ -79,7 +48,6 @@ void cRasterGaussianFilterRow(uint8_t* dst, const uint8_t* src, int32_t w, int32
         acc[2] += src[id++];
         acc[3] += src[id];
     }
-    // perform filtering
     for (int x = 0; x < w; ++x, ++r, ++l) {
         auto rid = tvg::clamp(r, 0, end) * 4;
         auto lid = tvg::clamp(l, 0, end) * 4;
@@ -87,7 +55,6 @@ void cRasterGaussianFilterRow(uint8_t* dst, const uint8_t* src, int32_t w, int32
         acc[1] += src[rid++] - src[lid++];
         acc[2] += src[rid++] - src[lid++];
         acc[3] += src[rid] - src[lid];
-        // ignored rounding for the performance. It should be originally: acc[idx] * iarr + 0.5f
         dst[i++] = static_cast<uint8_t>(acc[0] * iarr);
         dst[i++] = static_cast<uint8_t>(acc[1] * iarr);
         dst[i++] = static_cast<uint8_t>(acc[2] * iarr);
@@ -176,7 +143,6 @@ bool cRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const RenderReg
     const SwSpan* end;
     int32_t x, len;
 
-    //32bit channels
     if (surface->channelSize == sizeof(uint32_t)) {
         auto color = surface->join(c.r, c.g, c.b, c.a);
         uint32_t src;
@@ -190,7 +156,6 @@ bool cRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const RenderReg
                 *dst = src + ALPHA_BLEND(*dst, ialpha);
             }
         }
-    //8bit grayscale
     } else if (surface->channelSize == sizeof(uint8_t)) {
         uint8_t src;
         for (auto span = rle->fetch(bbox, &end); span < end; ++span) {
@@ -209,7 +174,6 @@ bool cRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const RenderReg
 
 bool cRasterTranslucentRect(SwSurface* surface, const RenderRegion& bbox, const RenderColor& c)
 {
-    //32bits channels
     if (surface->channelSize == sizeof(uint32_t)) {
         auto color = surface->join(c.r, c.g, c.b, c.a);
         auto buffer = surface->buf32 + (bbox.yMin * surface->stride) + bbox.xMin;
@@ -220,7 +184,6 @@ bool cRasterTranslucentRect(SwSurface* surface, const RenderRegion& bbox, const 
                 *dst = color + ALPHA_BLEND(*dst, ialpha);
             }
         }
-    //8bit grayscale
     } else if (surface->channelSize == sizeof(uint8_t)) {
         auto buffer = surface->buf8 + (bbox.yMin * surface->stride) + bbox.xMin;
         auto ialpha = ~c.a;
@@ -244,17 +207,12 @@ bool cRasterABGRtoARGB(RenderSurface* surface)
         auto dst = buffer + uint32_t(y) * surface->stride;
         for (uint32_t x = 0; x < surface->w; ++x, ++dst) {
             auto c = *dst;
-            //flip Blue, Red channels
             *dst = (c & 0xff000000) + ((c & 0x00ff0000) >> 16) + (c & 0x0000ff00) + ((c & 0x000000ff) << 16);
         }
     }
 
     return true;
 }
-
-/************************************************************************/
-/* Runtime Dispatch                                                     */
-/************************************************************************/
 
 #if defined(THORVG_AVX_SUPPORT) || defined(THORVG_NEON_SUPPORT)
     uint32_t (*rasterDownScaler)(const uint32_t*, uint32_t, uint32_t, uint32_t, float, float, int32_t, int32_t, int32_t) = cRasterDownScaler;
@@ -267,13 +225,12 @@ bool cRasterABGRtoARGB(RenderSurface* surface)
     bool (*rasterTranslucentRect)(SwSurface*, const RenderRegion&, const RenderColor&) = cRasterTranslucentRect;
     bool (*rasterABGRtoARGB)(RenderSurface*) = cRasterABGRtoARGB;
     void (*rasterGaussianFilterRow)(uint8_t*, const uint8_t*, int32_t, int32_t, float) = cRasterGaussianFilterRow;
-    void (*rasterGaussianXYFlipBlock)(const uint32_t*, uint32_t*, int32_t) = nullptr;  // A null keeps the scalar path in the caller.
+    void (*rasterGaussianXYFlipBlock)(const uint32_t*, uint32_t*, int32_t) = nullptr;
 #endif
 
 void rasterInit()
 {
 #if defined(THORVG_AVX_SUPPORT)
-    // AVX2 also requires OS support for saving XMM/YMM state.
     #if defined(_MSC_VER)
         int info[4];
         __cpuid(info, 0);

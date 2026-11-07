@@ -4,14 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// B2-RUNTIME (#68–#70): the macOS runtime wizard. The first test drives it
-/// with stand-in commands. With `SWIFTCODE_RUNTIME_SHOTS=<dir>` the second one
-/// photographs every step on this Mac (its runtimes read with `simctl
-/// runtime list -j`, read-only; nothing is added or removed), and with
-/// `SWIFTCODE_RUNTIME_TEST_HOST=<user@host>` and `SWIFTCODE_RUNTIME_TEST_DATA=<absolute
-/// folder>` (`SWIFTCODE_RUNTIME_TEST_CONFIG` for simhost.env) it runs the remote
-/// flow against that host: its checks, the setup script in report and apply
-/// mode, a fake runtime copied, stopped, resumed and removed.
 @MainActor
 @Suite(.serialized) struct RuntimeSetupWindowTests {
     struct Runner: HeadsetCommandRunner {
@@ -66,14 +58,11 @@ import Testing
         let all = Self.texts(root)
         #expect(all.contains("iOS 27.0 (24A434)"))
         #expect(all.contains { $0.contains("installed by Xcode; manage it in Xcode") })
-        // Xcode's runtime has no Remove.
         #expect(!all.contains("Remove…"))
         wc.next()
-        // Get a Runtime (#55): the routes, before Add a Runtime.
         #expect(s.step == .download && Self.find("runtime-download-platform", in: root) != nil)
         wc.next()
         #expect(s.step == .add && Self.find("runtime-choose", in: root) != nil)
-        // A disk image: the confirmation (answered No here) shows the exact command.
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let dmg = dir.appendingPathComponent("watchOS 27.0 Simulator Runtime.dmg")
         try Data().write(to: dmg)
@@ -88,15 +77,12 @@ import Testing
         #expect(alert.buttons.map(\.title) == ["Add Runtime", "Cancel"])
         wc.next()
         #expect(s.step == .finish && wc.primaryButton.title == "Done")
-        // A simulator host adds its steps.
         s.setUseHost(true)
         #expect(s.steps.contains(.host) && s.steps.contains(.prepare))
         s.show(.host)
         #expect(Self.find("runtime-host", in: root) != nil)
     }
 
-    /// The page dots stand for the steps: one per step of the target, each
-    /// with its state, the current one larger; a click jumps to its step.
     @Test func pageDotsShowTheStepsAndJump() async throws {
         let td = TestDefaults("runtime-wizard-dots")
         defer { td.remove() }
@@ -115,19 +101,15 @@ import Testing
         #expect(dots.dots[1].accessibilityLabel() == dots.dots[1].toolTip)
         dots.dots[3].performClick(nil)
         #expect(s.step == s.steps[3] && dots.dots[3].isCurrent && !dots.dots[0].isCurrent)
-        // A host's steps: more dots.
         s.setUseHost(true)
         #expect(dots.dots.count == s.steps.count)
     }
 
-    /// The content ends above the footer: the last row of a long step, scrolled
-    /// to the end, is above Back, Re-check and Continue, and so is the status line's row.
     @Test func lastRowEndsAboveTheFooter() async throws {
         let td = TestDefaults("runtime-wizard-footer")
         defer { td.remove() }
         let s = RuntimeSetupSession(machine: SetupMachine(isMac: true, architecture: "arm64"), defaults: td.defaults, folder: "/nonexistent",
                                     localRunner: Runner(answers: [("xcrun --find simctl", Self.ok("/x/simctl")), ("df -Pk", Self.ok("209715200"))]))
-        // Every host check fails or is unknown: the longest Simulator Host step.
         s.hostRunner = { _ in Runner(answers: [("uname -sm", Self.ok("Linux x86_64")), ("/dev/kvm", Self.ok("absent")), ("df -Pk", Self.ok("1"))]) }
         s.setUseHost(true)
         s.setHost(RuntimeHostSettings(destination: "tester@sim-host", dataDirectory: "/data/swiftcode"))
@@ -146,7 +128,7 @@ import Testing
             #expect(wc.scroll.convert(wc.scroll.bounds, to: nil).minY >= footerTop, "\(step): the scroll view reaches under the footer")
             func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
             let rows = all(doc).filter { ($0.identifier?.rawValue ?? "").hasPrefix("runtime-check-") }
-            if step == .prepare { continue }   // no checks until the script ran; the scroll view's frame is what counts
+            if step == .prepare { continue }
             let last = try #require(rows.max { $0.convert($0.bounds, to: nil).minY > $1.convert($1.bounds, to: nil).minY }, "\(step): no check rows")
             #expect(last.convert(last.bounds, to: nil).minY >= footerTop, "\(step): \(last.identifier?.rawValue ?? "") ends under the footer")
         }
@@ -161,13 +143,10 @@ import Testing
         let look = win.appearance
         defer { win.appearance = look }
         try await photograph(wc, name, to: out)
-        // Every step in the other appearance too.
         win.appearance = NSAppearance(named: look?.name == .darkAqua ? .aqua : .darkAqua)
         try await photograph(wc, name + (look?.name == .darkAqua ? "-light" : "-dark"), to: out)
     }
 
-    /// As the window server draws it (the glass buttons need that), placed off
-    /// the screens and behind everything; the cached drawing if that fails.
     func photograph(_ wc: RuntimeSetupWindowController, _ name: String, to out: URL) async throws {
         let win = try #require(wc.window)
         wc.assistant.finishTransition()
@@ -212,7 +191,6 @@ import Testing
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-rt-shots-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: work) }
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-        // This Mac, read-only.
         let s = RuntimeSetupSession(defaults: td.defaults, folder: work.appendingPathComponent("rt").path)
         s.setPlatform(.visionOS, on: true)
         s.setPlatform(.tvOS, on: true)
@@ -236,18 +214,15 @@ import Testing
         s.show(.finish)
         try await shot(wc, "4-finish", to: out)
 
-        // A simulator host.
         guard let host = Self.host, let data = Self.data else { return }
         s.setUseHost(true)
         var h = RuntimeHostSettings(destination: host, dataDirectory: data)
-        // The folder that holds simhost.env (SWIFTCODE_RUNTIME_TEST_CONFIG, its old name, is still read).
         let env = ProcessInfo.processInfo.environment
         h.configDirectory = env["SWIFTCODE_RUNTIME_TEST_CONFIG_DIR"] ?? env["SWIFTCODE_RUNTIME_TEST_CONFIG"] ?? ""
         s.show(.host)
         s.setHost(h)
         await settle(s)
         try await shot(wc, "5-host", to: out)
-        // Offline: a host that does not answer.
         s.setHost(RuntimeHostSettings(destination: "nobody@192.0.2.1", dataDirectory: data))
         await settle(s, timeout: 60)
         try await shot(wc, "5-host-offline", to: out)
@@ -273,7 +248,6 @@ import Testing
             #expect(s.hostSetup?.userSteps.isEmpty == true)
             try await shot(wc, "6-prepare-second-run", to: out)
         }
-        // A fake runtime of 256 MB, copied, stopped, resumed, then removed.
         let bundle = work.appendingPathComponent("iOS 27.0.simruntime")
         let rootDir = bundle.appendingPathComponent("Contents/Resources/RuntimeRoot")
         try FileManager.default.createDirectory(at: rootDir.appendingPathComponent("System/Library/CoreServices"), withIntermediateDirectories: true)
@@ -293,7 +267,6 @@ import Testing
         s.request(copy)
         try shot(alert: try #require(s.confirmation), "7-add-host-confirm", to: out)
         s.confirm()
-        // Stop after a second and a half, with some of it there.
         let began = Date()
         for _ in 0..<200 {
             try await Task.sleep(nanoseconds: 100_000_000)

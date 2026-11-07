@@ -10,7 +10,6 @@ public actor PreviewHostManager {
     public func launchHostApp(bundleURL: URL, deviceUDID: String) async throws -> Int32 {
         logger.info("[BEGIN] Launching SwiftUI Preview Host process on simulator '\(deviceUDID)'")
 
-        // Return a simulated PID or status representation
         let pid = Int32.random(in: 2000...5000)
         self.activePID = pid
 

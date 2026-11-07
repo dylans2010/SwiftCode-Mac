@@ -1,19 +1,14 @@
 import Foundation
 
-/// The object store of a `.xcresult` bundle (storage backend
-/// `fileBacked2`): `Info.plist` and a `Data` directory of content-addressed
-/// objects. See `specs/xcodebuild/result-bundle.md` §2–§3.
 public struct XCResultStore {
     public let bundle: URL
     var data: URL { bundle.appendingPathComponent("Data") }
 
-    /// Creates the bundle directory (it must not exist yet).
     public init(creating bundle: URL) throws {
         self.bundle = bundle
         try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Data"), withIntermediateDirectories: true)
     }
 
-    /// Stores one object; returns its identifier (`0~<base64url digest>`).
     @discardableResult
     public func put(_ value: XCRValue) throws -> String {
         let payload = XCRValue.encode(value)
@@ -21,12 +16,8 @@ public struct XCResultStore {
         return try putBlob(payload, refs: refs)
     }
 
-    /// Stores a file's bytes (no references).
     public func putFile(_ bytes: [UInt8]) throws -> String { try putBlob(bytes, refs: []) }
 
-    /// Stores a directory: a JSON listing `[{"name", "type": 1 file | 2
-    /// directory}]` sorted by name, its references the entries' objects in
-    /// listing order.
     public func putDirectory(_ entries: [(name: String, isDirectory: Bool, id: String)]) throws -> String {
         let sorted = entries.sorted { Array($0.name.utf8).lexicographicallyPrecedes(Array($1.name.utf8)) }
         let listing = sorted.map { ["name": $0.name, "type": $0.isDirectory ? 2 : 1] as [String: Any] }
@@ -34,7 +25,6 @@ public struct XCResultStore {
         return try putBlob([UInt8](data), refs: sorted.map(\.id))
     }
 
-    /// Stores raw bytes with the given references.
     func putBlob(_ payload: [UInt8], refs: [String]) throws -> String {
         let stored = Zstd.rawFrame(payload)
         var refBytes: [UInt8] = []
@@ -52,7 +42,6 @@ public struct XCResultStore {
         return id
     }
 
-    /// Writes `Info.plist` naming the root object.
     public func finish(root: String, created: Date = Date()) throws {
         let info: [String: Any] = [
             "dateCreated": created,
@@ -66,8 +55,6 @@ public struct XCResultStore {
         try d.write(to: bundle.appendingPathComponent("Info.plist"))
     }
 
-    /// Counts below 128 take one byte; larger ones `0x80 | n` and n
-    /// big-endian bytes.
     static func length(_ n: Int) -> [UInt8] {
         if n < 0x80 { return [UInt8(n)] }
         var bytes: [UInt8] = []
@@ -76,7 +63,6 @@ public struct XCResultStore {
         return [0x80 | UInt8(bytes.count)] + bytes
     }
 
-    /// `0~xyz…` → the version byte followed by the digest.
     static func rawID(_ id: String) -> [UInt8]? {
         guard id.hasPrefix("0~"), let d = base64urlDecode(String(id.dropFirst(2))) else { return nil }
         return [0] + d
@@ -91,10 +77,7 @@ public struct XCResultStore {
     }
 }
 
-/// A type of the result object model, with its supertypes (the names of
-/// `xcresulttool formatDescription`).
 public struct XCRType: Hashable, Sendable {
-    /// The type first, then each supertype.
     public var chain: [String]
     public init(_ chain: String...) { self.chain = chain }
     public var name: String { chain[0] }
@@ -103,7 +86,6 @@ public struct XCRType: Hashable, Sendable {
     public static let double = XCRType("Double"), date = XCRType("Date"), array = XCRType("Array")
 }
 
-/// A value of the result object model.
 public indirect enum XCRValue {
     case object(XCRType, [(String, XCRValue)])
     case scalar(XCRType, String)
@@ -115,17 +97,14 @@ public indirect enum XCRValue {
     public static func double(_ d: Double) -> XCRValue { .scalar(.double, "\(d)") }
     public static func date(_ d: Date) -> XCRValue { .scalar(.date, dateText(d)) }
 
-    /// A typed object; nil fields are left out.
     public static func obj(_ type: XCRType, _ fields: [String: XCRValue?]) -> XCRValue {
         .object(type, fields.compactMap { k, v in v.map { (k, $0) } })
     }
 
-    /// `Reference` to a stored object of the given type.
     public static func reference(_ id: String, _ target: XCRType) -> XCRValue {
         .obj(XCRType("Reference"), ["id": .string(id), "targetType": typeDefinition(target.chain[...])])
     }
 
-    /// `Reference` to a stored file or directory (no target type).
     public static func reference(_ id: String) -> XCRValue {
         .obj(XCRType("Reference"), ["id": .string(id)])
     }
@@ -136,7 +115,6 @@ public indirect enum XCRValue {
         return .obj(XCRType("TypeDefinition"), fields)
     }
 
-    /// `2026-10-16T21:52:48.296-0400` (local time).
     static func dateText(_ d: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -144,7 +122,6 @@ public indirect enum XCRValue {
         return f.string(from: d)
     }
 
-    /// Every `Reference` id inside the value.
     var referencedIDs: [String] {
         switch self {
         case .scalar: return []
@@ -155,9 +132,6 @@ public indirect enum XCRValue {
         }
     }
 
-    /// The store's text encoding: `[` type fields `]`, keys sorted, a
-    /// type spelled out (`T…`) the first time an object uses it and named
-    /// (`S<n>:name`) after that; lengths count UTF-8 bytes.
     static func encode(_ v: XCRValue) -> [UInt8] {
         var out: [UInt8] = []
         var defined = Set<String>()
@@ -209,12 +183,9 @@ public indirect enum XCRValue {
     }
 }
 
-/// Zstandard frames (RFC 8878) made of raw (stored) blocks: valid input
-/// for any decoder, without a compressor.
 enum Zstd {
     static func rawFrame(_ bytes: [UInt8]) -> [UInt8] {
         var out: [UInt8] = [0x28, 0xB5, 0x2F, 0xFD]
-        // Single segment, 4-byte content size, no checksum, no dictionary.
         out.append(0xA0)
         let n = UInt32(bytes.count)
         for i in 0..<4 { out.append(UInt8(truncatingIfNeeded: n >> (8 * UInt32(i)))) }
@@ -232,7 +203,6 @@ enum Zstd {
     }
 }
 
-/// BLAKE2b (RFC 7693) with a 64-byte digest and no key.
 enum BLAKE2b {
     static let iv: [UInt64] = [
         0x6a09e667f3bcc908, 0xbb67ae8584caa73b, 0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
@@ -305,7 +275,6 @@ enum BLAKE2b {
     }
 }
 
-/// SHA-256 (FIPS 180-4), for the argument hashes of test identifiers.
 enum SHA256 {
     static let k: [UInt32] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,

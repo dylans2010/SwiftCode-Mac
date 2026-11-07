@@ -1,14 +1,12 @@
 import SwiftUI
 
-/// Header toolbar button providing a native entry point to the Workers system from Assist.
-/// Displays "Workers · N" with active/total count badge and triggers the full dashboard.
 @MainActor
 public struct WorkersHeaderButton: View {
     @Bindable private var runtimeState = WorkerRuntimeState.shared
     @State private var showingDashboard = false
-    
+
     public init() {}
-    
+
     @ViewBuilder
     public var body: some View {
         if !runtimeState.allWorkers.isEmpty {
@@ -54,7 +52,7 @@ public struct WorkersHeaderButton: View {
             }
         }
     }
-    
+
     private var buttonTitle: String {
         let activeCount = runtimeState.activeWorkers.count
         if activeCount > 0 {

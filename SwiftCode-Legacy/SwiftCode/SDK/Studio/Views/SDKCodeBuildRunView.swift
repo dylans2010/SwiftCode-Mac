@@ -1,25 +1,10 @@
 import Foundation
 import SwiftUI
 
-// MARK: - SDKCodeBuildRunView
-//
-// Build/run toolbar + panel for the Studio code editor: a kind picker
-// (xcodebuild / npm / node), a scheme/entry field, Build/Run, and Stop —
-// all wired to `SDKCodeBuildRunner` with the active project root. Output
-// streams live into the editor console (`SDKCodeEditorState`); this view
-// only shows the running state.
-//
-// Disabled states are honest: with no project root, every action is
-// disabled with a tooltip explaining why; while a run is in flight, the
-// start controls are disabled and only Stop is enabled.
-
 public struct SDKCodeBuildRunView: View {
 
-    /// The active project root, or `nil` when no project is open. When
-    /// `nil`, all actions are disabled.
     private let projectRoot: URL?
 
-    /// The editor session whose console receives live build/run output.
     @ObservedObject private var editorState: SDKCodeEditorState
 
     private let runner: SDKCodeBuildRunner
@@ -153,8 +138,6 @@ public struct SDKCodeBuildRunView: View {
             return "Runs the script with node in the project root."
         }
     }
-
-    // MARK: - Actions
 
     private func start() {
         guard let root = projectRoot, !isRunning else { return }

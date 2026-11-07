@@ -4,8 +4,7 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Architectural & Subsystem References
+
     sec_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(sec_dir, exist_ok=True)
     guides = [
@@ -34,7 +33,6 @@ def main():
         with open(os.path.join(sec_dir, f"{slug}.md"), "w") as f:
             f.write("\n".join(lines))
 
-    # 2. Toolchain Diagnostic Rules
     rules_dir = os.path.join(dest, "resources", "diagnostics-rules", "toolchain")
     os.makedirs(rules_dir, exist_ok=True)
     print("Adding toolchain diagnostic rules...")
@@ -46,7 +44,6 @@ def main():
         with open(os.path.join(rules_dir, f"{cat}_rules.txt"), "w") as f:
             f.write("\n".join(lines))
 
-    # 3. Update components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

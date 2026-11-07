@@ -2,23 +2,12 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeSimFeatures
 
-/// Devices and Simulators: the settings of a running SwiftCode simulator
-/// (`specs/ide/devices.md` §Settings; `specs/simulator/simulator-features.md`
-/// §7.1 and "SwiftCode implementation"). Three boxes under the details, as in
-/// the reference's inspector: Appearance, Liquid Glass, Color Filter, Text
-/// Size and the five switches; Location; Sound, Output, Input. Each change
-/// is one control command through ssh (`swiftcode-sim --device DEV --control
-/// ui|accessibility|location|audio …`); a failure shows an alert titled as
-/// the reference's ("Failed to Set Appearance", …).
 extension DevicesController {
     public static let settingsStoppedMessage = "Start the simulator to customize behavior and appearance."
 
-    /// Shown for SwiftCode's remote simulator rows…
     public var settingsControlsShown: Bool { selected?.isSwiftCodeRemote == true }
-    /// …and working while the row's device runs.
     public var settingsControlsEnabled: Bool { settingsControlsShown && selected?.state == "Booted" && deviceSettings != nil }
 
-    /// Reads the device's settings.
     @discardableResult
     public func refreshSettings() -> Task<Void, Never>? {
         guard settingsControlsEnabled, settingsTask == nil, let row = selected, let deviceSettings else { return nil }
@@ -33,8 +22,6 @@ extension DevicesController {
         return task
     }
 
-    /// Sends one settings command; a failure shows `failureTitle`'s alert;
-    /// the settings are read again afterwards.
     @discardableResult
     public func applySetting(_ words: [String], failureTitle: String) -> Task<Void, Never>? {
         guard settingsControlsEnabled, let row = selected, let deviceSettings else { return nil }
@@ -60,8 +47,6 @@ extension DevicesController {
         a.addButton(withTitle: "OK")
         a.runModal()
     }
-
-    // MARK: Actions
 
     @objc func appearanceChosen(_ sender: NSPopUpButton) {
         applySetting(["ui", "appearance", sender.indexOfSelectedItem == 1 ? "dark" : "light"], failureTitle: "Failed to Set Appearance")
@@ -121,7 +106,6 @@ extension DevicesController {
         return Coordinate(argument: "\(lat.stringValue),\(lon.stringValue)")
     }
 
-    /// The location pop-up's items (§7.1): title and the command's words.
     public static var locationChoices: [(title: String, words: [String]?)] {
         var out: [(String, [String]?)] = [("None", ["clear"]), ("-", nil)]
         out += SimLocation.presets.map { ($0.name, ["set", $0.coordinate.description]) }
@@ -131,11 +115,6 @@ extension DevicesController {
         return out
     }
 
-    // MARK: The controls
-
-    /// The three settings cards (device-hub.md §11.3: Appearance … VoiceOver;
-    /// Location; Sound, Output, Input). A stopped device shows the same
-    /// cards with every row disabled, and the reason under them.
     func settingsControls() -> NSView {
         let snap = settingsSnapshot
         let enabled = settingsControlsEnabled && snap != nil && settingsTask == nil
@@ -213,11 +192,35 @@ extension DevicesController {
         }
         let output = audioPopup(SimAudio.outputDevices, current: snap?.output ?? "system", action: #selector(outputChosen(_:)))
         let input = audioPopup(SimAudio.inputDevices, current: snap?.input ?? "system", action: #selector(inputChosen(_:)))
+        let shakeBtn = NSButton(title: "Shake", target: self, action: #selector(shakeChosen(_:)))
+        shakeBtn.bezelStyle = .push
+        shakeBtn.controlSize = .small
+        let memBtn = NSButton(title: "Trigger", target: self, action: #selector(memoryPressureChosen(_:)))
+        memBtn.bezelStyle = .push
+        memBtn.controlSize = .small
+        let slowSwitch = NSSwitch()
+        slowSwitch.state = isSlowAnimationsEnabled ? .on : .off
+        slowSwitch.target = self
+        slowSwitch.action = #selector(slowAnimationsChosen(_:))
+        slowSwitch.controlSize = .small
+        let standbySwitch = NSSwitch()
+        standbySwitch.state = isStandbyModeEnabled ? .on : .off
+        standbySwitch.target = self
+        standbySwitch.action = #selector(standbyChosen(_:))
+        standbySwitch.controlSize = .small
+        let triggerRows = [
+            row("iphone.radiowaves.left.and.right", "Shake Device", shakeBtn),
+            row("memorychip", "Memory Warning", memBtn),
+            row("tortoise", "Slow Animations", slowSwitch),
+            row("moon.zzz", "Standby Mode", standbySwitch)
+        ]
+
         let stack = NSStackView(views: [
             InspectorCard(rows: first, identifier: "settings-appearance"),
             InspectorCard(rows: [row("location", "Location", location)], identifier: "settings-location"),
             InspectorCard(rows: [row("speaker.wave.2", "Sound", volume), row("hifispeaker", "Output", output), row("mic", "Input", input)],
                           identifier: "settings-sound"),
+            InspectorCard(rows: triggerRows, identifier: "settings-triggers"),
         ])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -239,10 +242,8 @@ extension DevicesController {
         return stack
     }
 
-    /// Between the inspector's cards (§11.3).
     static let cardSpacing: CGFloat = 10
 
-    /// The stopped device's reason under its disabled cards (tests).
     static func stoppedNote(in v: NSView) -> NSTextField? {
         (v as? NSStackView)?.arrangedSubviews.compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue == "settings-stopped" }
     }

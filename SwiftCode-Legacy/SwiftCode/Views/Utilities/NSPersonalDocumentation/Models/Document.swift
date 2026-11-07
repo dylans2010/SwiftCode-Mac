@@ -16,7 +16,6 @@ public final class Document {
     public var pinned: Bool
     public var archived: Bool
 
-    // Structured fields (Archetype B properties)
     public var status: String?
     public var priority: String?
     public var severity: String?

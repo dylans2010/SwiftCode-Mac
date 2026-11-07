@@ -1,6 +1,3 @@
-// Guest probe: an NSURLSession data task (specs/simulator/networking-swiftcode.md §8).
-// Usage: p_urlsession [url ...]   (default https://example.com/)
-// Prints "ok URLSession <url>: status N, B bytes, T s" or "FAIL ..." per URL.
 #import <Foundation/Foundation.h>
 
 int main(int argc, char **argv) {

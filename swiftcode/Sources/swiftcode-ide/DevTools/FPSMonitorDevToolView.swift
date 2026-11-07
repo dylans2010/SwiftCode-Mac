@@ -1,17 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/FPSMonitorDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-//
-// CLEANUP (2026-11-06, A1): updateFPS() invented its reading with
-// a random-number call in the 118...120 range, and the "Adaptive Sync Status: Enabled
-// (ProMotion)" / "Drawing Backing Engine: Metal CoreAnimation Pipeline"
-// rows were invented claims, not measurements. Replaced with real frame
-// measurement: a CVDisplayLink on the active display calls back once per
-// vsync; FPS is the rolling mean of the last 30 measured output intervals
-// and frame duration is its reciprocal. Nominal refresh rate comes from
-// CVDisplayLinkGetNominalOutputVideoRefreshPeriod and the display id from
-// CVDisplayLinkGetCurrentCGDisplay — both real. Where CoreVideo is
-// unavailable the view honestly says so instead of showing a number.
 import SwiftUI
 import SwiftCodeUI
 import os.log
@@ -20,9 +6,6 @@ import CoreVideo
 #endif
 
 #if canImport(CoreVideo)
-/// CVDisplayLink output callback: forwards each vsync timestamp to the
-/// view model on the main actor. The context is the unretained view model;
-/// the model owns the link and stops it before it can be deallocated.
 private func fpsDisplayLinkCallback(
     _ displayLink: CVDisplayLink,
     _ inNow: UnsafePointer<CVTimeStamp>,
@@ -44,14 +27,9 @@ private func fpsDisplayLinkCallback(
 @Observable
 @MainActor
 final class FPSMonitorViewModel {
-    /// Measured frames per second (rolling mean of the last 30 vsync
-    /// intervals). Nil until real frames have been observed.
     var fps: Double?
-    /// Measured mean frame duration in milliseconds. Nil until observed.
     var frameDurationMs: Double?
-    /// Nominal refresh rate of the active display, in Hz. Nil until read.
     var nominalRefreshHz: Double?
-    /// The display the link is attached to. Nil until read.
     var displayID: UInt32?
     var sampleCount: Int = 0
     var unavailableReason: String?
@@ -108,9 +86,6 @@ final class FPSMonitorViewModel {
         #endif
     }
 
-    /// Records one measured vsync timestamp. Intervals outside (0, 1s]
-    /// are discarded (first frame, or a glitch), so no invented rate can
-    /// leak in from a bad sample.
     func recordFrame(timestampSeconds: Double) {
         defer { lastTimestampSeconds = timestampSeconds }
         guard let last = lastTimestampSeconds else { return }

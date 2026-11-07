@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Dark Pro Theme Extension View
 struct DarkProThemeExtensionView: View {
     @State private var isActive = false
 

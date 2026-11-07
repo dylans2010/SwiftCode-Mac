@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Extensions settings (persisted via ExtV2Storage)
-
 public struct ExtensionSettingsView: View {
     @ObservedObject private var manager = ExtV2Manager.shared
     @State private var savedMessage: String?

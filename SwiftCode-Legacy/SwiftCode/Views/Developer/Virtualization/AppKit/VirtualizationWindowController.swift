@@ -23,7 +23,6 @@ public final class VirtualizationWindowManager: NSObject, NSWindowDelegate {
         windowController = nil
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         windowController = nil
     }

@@ -1,10 +1,6 @@
 import Foundation
 import Observation
 
-/// The installed-model registry (Legacy `OfflineModelManager`): which
-/// models are installed, which is the default, install from a Hugging Face
-/// link, remove. Keys are `SwiftCode.`-prefixed (Legacy used
-/// `ai.defaultOfflineModel`).
 @Observable
 @MainActor
 public final class OfflineModelManager {
@@ -126,27 +122,14 @@ public final class OfflineModelManager {
     }
 }
 
-/// Format detection for a downloaded model directory (Legacy
-/// `OfflineModelConverter`). Legacy's converter was a logic shell: it
-/// printed "Converting model..." and did nothing. This port does not fake
-/// the conversion — it detects the on-disk layout (MLX `weights.npz`,
-/// safetensors, GGUF) and reports whether the directory is already usable
-/// as-is; actual conversion throws `OfflineModelError.conversionUnavailable`
-/// because no converter binary or MLX runtime exists in the destination.
-/// A directory that already holds safetensors weights is reported as
-/// needing no conversion.
 public final class OfflineModelConverter: Sendable {
     public static let shared = OfflineModelConverter()
     private init() {}
 
     public enum Layout: Sendable {
-        /// MLX weights are present; nothing to convert.
         case mlxReady
-        /// Safetensors weights are present; usable as-is for safetensors readers.
         case safetensorsReady
-        /// GGUF weights are present; needs a converter that does not exist here.
         case ggufNeedsConversion
-        /// No recognised weights found.
         case unknown
     }
 

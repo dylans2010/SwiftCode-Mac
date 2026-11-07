@@ -1,12 +1,10 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Preview/PreviewDiagnostics.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import Observation
 
 public struct PreviewDiagnosticsRecord: Identifiable, Sendable {
     public let id = UUID()
     public let timestamp = Date()
-    public let category: String // "compile", "render", "cache", "error"
+    public let category: String
     public let message: String
 }
 

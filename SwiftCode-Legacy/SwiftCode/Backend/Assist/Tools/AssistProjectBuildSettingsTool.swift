@@ -116,7 +116,6 @@ public struct AssistProjectBuildSettingsTool: AssistTool {
         var index = 0
         while index < lines.count {
             guard lines[index].contains("isa = XCBuildConfiguration") else { index += 1; continue }
-            // Collect this XCBuildConfiguration block.
             var end = index
             var blockHasConfiguration = false
             while end < lines.count {
@@ -127,14 +126,12 @@ public struct AssistProjectBuildSettingsTool: AssistTool {
                 end += 1
             }
             guard blockHasConfiguration else { index = end + 1; continue }
-            // Find buildSettings = { inside this block.
             var settingsOpen: Int?
             for cursor in index...end where lines[cursor].contains("buildSettings = {") {
                 settingsOpen = cursor
                 break
             }
             guard let open = settingsOpen else { index = end + 1; continue }
-            // Replace existing key or insert after the opening line.
             var replaced = false
             var cursor = open + 1
             while cursor <= end {

@@ -1,20 +1,11 @@
-// Value records: the state a home store owns (open-design.md §2 "Store").
-// They are the storage form of the in-memory store and the wire form a future
-// `swiftcode-homed` (plan.md R4) sends to clients; the model objects of
-// object-model.md are client-side mirrors keyed by `id` (= uniqueIdentifier).
-
 import Foundation
 
 public struct SwiftCodeCharacteristicRecord: Codable, Hashable, Sendable {
     public var id: UUID
-    /// HAP instance ID within the accessory.
     public var iid: Int
-    /// Full uppercase type UUID.
     public var type: String
-    /// `HMCharacteristicProperty…` strings.
     public var properties: [String]
     public var metadata: SwiftCodeCharacteristicMetadata?
-    /// Last known value (nil until read or notified).
     public var value: SwiftCodeHomeValue?
 
     public init(id: UUID = UUID(), iid: Int, type: String, properties: [String],
@@ -52,12 +43,9 @@ public struct SwiftCodeAccessoryRecord: Codable, Hashable, Sendable {
     public var isReachable: Bool
     public var isBlocked: Bool
     public var isBridged: Bool
-    /// On a bridge: the accessories it hosts.
     public var bridgedAccessoryIDs: [UUID]
     public var supportsIdentify: Bool
-    /// The endpoint (accessory server) this accessory is reached through.
     public var endpointID: String
-    /// HAP accessory instance ID on that endpoint (1 = primary).
     public var aid: Int
     public var matterNodeID: UInt64?
 }
@@ -88,9 +76,7 @@ public struct SwiftCodeActionRecord: Codable, Hashable, Sendable {
 public struct SwiftCodeActionSetRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
-    /// `HMActionSetType…` string.
     public var type: String
-    /// In insertion order (execution order).
     public var actions: [SwiftCodeActionRecord]
     public var lastExecutionDate: Date?
     public var isExecuting: Bool
@@ -132,7 +118,6 @@ public struct SwiftCodeTriggerRecord: Codable, Hashable, Sendable {
     public var isEnabled: Bool
     public var actionSetIDs: [UUID]
     public var kind: Kind
-    /// `HMEventTriggerActivationState` raw value (event triggers).
     public var activationState: Int
 }
 
@@ -146,7 +131,6 @@ public struct SwiftCodeHomeRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var isPrimary: Bool
-    /// `roomForEntireHome` (not part of `rooms`).
     public var defaultRoom: SwiftCodeRoomRecord
     public var rooms: [SwiftCodeRoomRecord]
     public var zones: [SwiftCodeZoneRecord]
@@ -156,12 +140,10 @@ public struct SwiftCodeHomeRecord: Codable, Hashable, Sendable {
     public var triggers: [SwiftCodeTriggerRecord]
     public var users: [SwiftCodeUserRecord]
     public var currentUserID: UUID
-    /// `HMHomeHubState` raw value.
     public var hubState: Int
 
     func accessoryIndex(_ id: UUID) -> Int? { accessories.firstIndex { $0.id == id } }
 
-    /// (accessory index, service index, characteristic index) of a characteristic.
     func characteristicPath(_ id: UUID) -> (Int, Int, Int)? {
         for (a, acc) in accessories.enumerated() {
             for (s, svc) in acc.services.enumerated() {
@@ -179,7 +161,6 @@ public struct SwiftCodeHomeRecord: Codable, Hashable, Sendable {
     }
 }
 
-/// An accessory that is published but not paired (what `HMAccessoryBrowser` lists).
 public struct SwiftCodeDiscoveredAccessoryRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var endpointID: String

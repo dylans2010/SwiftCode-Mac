@@ -1,4 +1,3 @@
-// ids: FILEID, PARENTID, OBJID, PAROBJID, DEVID, MOUNTSTATUS of each path (our probe).
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>

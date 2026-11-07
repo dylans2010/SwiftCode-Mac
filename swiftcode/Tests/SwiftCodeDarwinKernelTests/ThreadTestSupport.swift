@@ -3,12 +3,10 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// A vCPU pool that only records what it was asked to start.
 final class FakeThreadHost: ThreadHost, @unchecked Sendable {
     struct Exhausted: Error {}
     private let mutex = NSLock()
     private var startsStorage: [(state: ThreadStartState, context: ThreadContext)] = []
-    /// How many threads it may start (default: unlimited).
     var limit = Int.max
 
     var starts: [(state: ThreadStartState, context: ThreadContext)] {
@@ -32,7 +30,6 @@ final class FakeThreadHost: ThreadHost, @unchecked Sendable {
     }
 
     private var kickStorage: [ThreadContext] = []
-    /// The threads whose vCPU the kernel kicked (Mach suspension).
     var kicks: [ThreadContext] {
         mutex.lock()
         defer { mutex.unlock() }
@@ -46,7 +43,6 @@ final class FakeThreadHost: ThreadHost, @unchecked Sendable {
     }
 }
 
-/// A value written by one host thread and read by another.
 final class T2Box<T>: @unchecked Sendable {
     private let mutex = NSLock()
     private var stored: T?
@@ -56,8 +52,6 @@ final class T2Box<T>: @unchecked Sendable {
     }
 }
 
-/// A kernel with a registered thread library, a fake vCPU pool, and helpers
-/// to run traps as any thread from any host thread.
 final class T2Env: @unchecked Sendable {
     static let threadStart: UInt64 = 0x2_0000_1000
     static let wqStart: UInt64 = 0x2_0000_2000
@@ -75,7 +69,6 @@ final class T2Env: @unchecked Sendable {
 
     deinit { kernel.shutdown() }
 
-    /// `bsdthread_register` with tsd_offset 224 and mach_thread_self_offset 24.
     func registerThreads() {
         let rec = Env.scratch + 0xF000
         var r = [UInt8](repeating: 0, count: 56)
@@ -88,7 +81,6 @@ final class T2Env: @unchecked Sendable {
         precondition(!f.carry && f.x[0] == 0x4000_00DF)
     }
 
-    /// One trap as `context` (main thread by default).
     @discardableResult
     func svc(_ x16: UInt64, _ args: [UInt64] = [], context: ThreadContext? = nil) -> (DarwinKernel.Outcome, TrapFrame) {
         var f = TrapFrame()
@@ -99,14 +91,12 @@ final class T2Env: @unchecked Sendable {
         return (o, f)
     }
 
-    /// x0 of a trap (errno when carry is set).
     func x0(_ x16: UInt64, _ args: [UInt64] = [], context: ThreadContext? = nil) -> UInt64 {
         svc(x16, args, context: context).1.x[0]
     }
 
     func mach(_ n: Int) -> UInt64 { UInt64(bitPattern: Int64(n)) }
 
-    // Guest memory, under the kernel lock.
     func map(_ size: UInt64) -> UInt64 {
         kernel.lock.withLock { try! space.mapAnonymous(at: nil, size: size, protection: .readWrite, hint: nil) }
     }
@@ -118,7 +108,6 @@ final class T2Env: @unchecked Sendable {
     func read(_ va: UInt64, _ n: Int) -> [UInt8] { kernel.lock.withLock { try! space.read(va: va, count: n) } }
     func isMapped(_ va: UInt64) -> Bool { kernel.lock.withLock { space.region(containing: va) != nil } }
 
-    /// Creates a pthread through `bsdthread_create`; returns its context and start state.
     @discardableResult
     func createThread(flags: UInt32 = 0x0100_0000) -> (ThreadContext, ThreadStartState) {
         let region = map(0x2_0000)
@@ -130,7 +119,6 @@ final class T2Env: @unchecked Sendable {
         return (s.context, s.state)
     }
 
-    /// Runs `body` on a new host thread; the result waits up to 10 s for it.
     func spawn<T>(_ body: @escaping @Sendable () -> T) -> () -> T? {
         let done = DispatchSemaphore(value: 0)
         let box = T2Box<T>()
@@ -142,7 +130,6 @@ final class T2Env: @unchecked Sendable {
         return { done.wait(timeout: .now() + 10) == .success ? box.value : nil }
     }
 
-    /// True once `condition` holds (polls up to `seconds`).
     func eventually(_ seconds: Double = 5, _ condition: () -> Bool) -> Bool {
         let end = Date().addingTimeInterval(seconds)
         while Date() < end {

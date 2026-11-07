@@ -1,15 +1,3 @@
-// A one-connection loopback forward to a gdb-remote stub's Unix socket
-// (specs/ide/debug.md, "The Linux IDE: apps on the simulator";
-// specs/simulator/debug-stub.md §3). lldb-dap reaches a stub only by TCP
-// (`gdb-remote-port`), while swiftcode-simd serves it on a Unix socket in the
-// simulator host's run folder. The forward listens on 127.0.0.1 with a port
-// the system picks, accepts exactly one client (then closes the listener,
-// so no other user of a shared machine can reach the stub through it), and
-// copies bytes both ways until either side closes.
-//
-// The upstream is a closure that returns a connected file descriptor, so a
-// forward over SwiftCode's link (#50) can reuse the client side.
-
 import Foundation
 #if canImport(Glibc)
 import Glibc
@@ -28,7 +16,6 @@ public final class StubForward: @unchecked Sendable {
         }
     }
 
-    /// The loopback port lldb-dap connects to.
     public let port: Int
     private let listener: Int32
     private let upstream: @Sendable () throws -> Int32
@@ -37,7 +24,6 @@ public final class StubForward: @unchecked Sendable {
     private var listening = true
     private var fds: [Int32] = []
 
-    /// Listens now; `upstream` is called when the client connects.
     public init(upstream: @escaping @Sendable () throws -> Int32) throws {
         self.upstream = upstream
         let fd = socket(AF_INET, Self.streamType, 0)
@@ -62,18 +48,14 @@ public final class StubForward: @unchecked Sendable {
         t.start()
     }
 
-    /// A forward to the stub's Unix socket at `path`.
     public convenience init(unixSocket path: String) throws {
         try self.init { try StubForward.connect(unixSocket: path) }
     }
 
-    /// Ends the forward: the listener and both connections close.
     public func close() {
         let toClose: [Int32] = lock.withLock {
             guard !closed else { return [] }
             closed = true
-            // Each descriptor is closed once: a number closed twice may by
-            // then belong to another socket of this process.
             let open = (listening ? [listener] : []) + fds
             listening = false
             fds = []
@@ -88,7 +70,6 @@ public final class StubForward: @unchecked Sendable {
 
     private func serve() {
         let client = accept(listener, nil, nil)
-        // One client only: the listener closes at once.
         let open: Bool = lock.withLock {
             if listening {
                 _ = Self.closeFD(listener)
@@ -121,7 +102,6 @@ public final class StubForward: @unchecked Sendable {
         close()
     }
 
-    /// Copies both ways until one side ends.
     static func pump(_ a: Int32, _ b: Int32) {
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         var polls = [pollfd(fd: a, events: Int16(POLLIN), revents: 0), pollfd(fd: b, events: Int16(POLLIN), revents: 0)]
@@ -142,7 +122,6 @@ public final class StubForward: @unchecked Sendable {
         }
     }
 
-    /// A connected stream socket to the Unix socket at `path`.
     public static func connect(unixSocket path: String) throws -> Int32 {
         let fd = socket(AF_UNIX, streamType, 0)
         guard fd >= 0 else { throw Failure.upstream("socket: errno \(errno)") }
@@ -168,7 +147,6 @@ public final class StubForward: @unchecked Sendable {
         return fd
     }
 
-    /// True when something listens on the Unix socket at `path`.
     public static func unixSocketAccepts(_ path: String) -> Bool {
         guard let fd = try? connect(unixSocket: path) else { return false }
         _ = closeFD(fd)

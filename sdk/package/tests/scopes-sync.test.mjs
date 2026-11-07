@@ -1,39 +1,3 @@
-// Two-way sync test for the ScopesIDLists pair.
-//
-// Enforces that `src/ScopesIDLists.ts` (TypeScript) and
-// `swiftcode/Sources/SwiftCodeSDK/Host/ScopesIDLists.swift` (host) stay identical:
-// the same capability IDs, the same scope kinds, and the same primary IPC
-// methods. It also enforces that every `kind: "view"` entry in the list
-// has a real opener registered in
-// `swiftcode/Sources/SwiftCodeSDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift` —
-// and that every registered opener has a matching `view` entry in the list.
-//
-// PARSING APPROACH (documented here so the contract is explicit):
-//   1. The TypeScript side comes from the compiled `dist/index.js`
-//      (`SCOPES_ID_LIST`, `SCOPES_BY_ID`) — run `npm run build` first,
-//      exactly like the other package tests.
-//   2. The Swift side is read from disk as text and parsed with a regex
-//      that matches the canonical single-line `ScopeEntry(...)` literal
-//      shape used in `ScopesIDLists.swift` (fields in fixed order: id,
-//      title, description, kind, ipcMethod, capabilityId, viewId —
-//      `ipcMethod`/`viewId` may be omitted entirely, defaulting to nil).
-//      If that shape ever changes, this test must be updated in the same
-//      change — the test fails loudly rather than silently comparing
-//      nothing.
-//   3. Registered view IDs are collected from
-//      `SDKViewOpenerBuiltIns.swift` (direct `register(viewID: "...")`
-//      string-literal calls and `SDK<Area>ViewOpener.register()` sibling
-//      calls, resolved by reading each sibling file's
-//      `static let viewID = "..."` line). The IDs are already wire IDs,
-//      so no enum-case mapping is needed; each one is still checked
-//      against `SDKCapabilityID`'s raw values in
-//      `swiftcode/Sources/SwiftCodeExtensions/Capabilities.swift`, so a renamed
-//      raw value breaks this test rather than the mapping.
-//
-// This test FAILS when someone adds an ID to one file and not the other —
-// that is the entire point of the ScopesIDLists pair.
-//
-// Run: `npm run build && npm test` (npm test = `node --test "tests/*.test.mjs"`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -41,7 +5,6 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
-// tests/ -> package/ -> sdk/ -> repo root (Wave 15: destination layout).
 const repoRoot = path.resolve(testsDir, "..", "..", "..");
 const swiftScopesPath = path.join(
   repoRoot,
@@ -73,20 +36,8 @@ const distUrl = pathToFileURL(
 ).href;
 const { SCOPES_ID_LIST, SCOPES_BY_ID } = await import(distUrl);
 
-/**
- * Parses the Swift `ScopesIDLists.all` table from disk. Returns the parsed
- * entries in file order. Asserts the table is non-empty and has no duplicate
- * IDs — a silent parse failure (zero entries) is itself a failure, so a
- * formatting change that breaks the regex cannot go unnoticed.
- *
- * Destination shape: single-line `ScopeEntry(...)` literals, fields in
- * fixed order; `ipcMethod` and `viewId` may be omitted (default nil).
- */
 function parseSwiftScopeEntries() {
   const src = readFileSync(swiftScopesPath, "utf8");
-  // Groups: 1 id, 2 title, 3 description, 4 kind, 5 ipcMethod raw
-  // (nil | "..." | absent), 6 ipcMethod string, 7 capability case,
-  // 8 viewId raw (nil | "..." | absent), 9 viewId string.
   const entryRe =
     /ScopeEntry\(\s*id:\s*"([^"]+)",\s*title:\s*"([^"]*)",\s*description:\s*"([^"]*)",\s*kind:\s*\.(\w+)(?:,\s*ipcMethod:\s*(nil|"([^"]*)"))?,\s*capabilityId:\s*\.(\w+)(?:,\s*viewId:\s*(nil|"([^"]*)"))?\s*\)/g;
   const entries = [];
@@ -110,13 +61,6 @@ function parseSwiftScopeEntries() {
   return entries;
 }
 
-/**
- * Maps `SDKCapabilityID` enum case names to their wire raw values by
- * parsing `case <name> = "<raw>"` in `swiftcode/Sources/SwiftCodeExtensions/
- * Capabilities.swift`. Used so the opener-registration check works with
- * wire IDs, and so a raw-value rename fails this test rather than
- * silently mismatching.
- */
 function parseCapabilityCaseMap() {
   const src = readFileSync(swiftCapabilityPath, "utf8");
   const map = new Map();
@@ -130,12 +74,6 @@ function parseCapabilityCaseMap() {
   return map;
 }
 
-/**
- * Collects the wire view IDs registered by `registerBuiltInOpeners()`:
- * direct `register(viewID: "...")` string-literal calls, plus
- * `SDK<Area>ViewOpener.register()` sibling calls (resolved by reading
- * each sibling file's `static let viewID = "..."` line).
- */
 function parseRegisteredViewIDs() {
   const src = readFileSync(swiftBuiltInsPath, "utf8");
   const ids = new Set();
@@ -204,7 +142,6 @@ describe("ScopesIDLists two-way sync", () => {
         `TS entry ${entry.id}: capabilityId must equal the entry id`,
       );
     }
-    // SCOPES_BY_ID is the same entries, keyed by id.
     assert.deepEqual(
       Object.keys(SCOPES_BY_ID).sort(),
       ids.sort(),
@@ -256,7 +193,6 @@ describe("ScopesIDLists two-way sync", () => {
         tsViewId,
         `viewId drift for ${ts.id}: TS=${tsViewId} Swift=${swift.viewId}`,
       );
-      // The typed enum case in Swift must name the same capability ID.
       const caseMap = parseCapabilityCaseMap();
       assert.ok(
         caseMap.has(swift.capabilityCase),
@@ -273,8 +209,6 @@ describe("ScopesIDLists two-way sync", () => {
   it("every view entry has a registered opener, and every registered opener has a view entry", () => {
     const caseMap = parseCapabilityCaseMap();
     const knownRawIds = new Set(caseMap.values());
-    // The registered IDs are already wire IDs; each must be a known
-    // SDKCapabilityID raw value, so a raw-value rename fails here.
     const registeredRawIds = parseRegisteredViewIDs();
     for (const id of registeredRawIds) {
       assert.ok(
@@ -299,23 +233,6 @@ describe("ScopesIDLists two-way sync", () => {
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// validate.mjs manifest vocabulary pin (Wave 16 Slice A decision)
-//
-// The 32-entry CAPABILITY_IDS mirror in sdk/cli/commands/validate.mjs is
-// the CANONICAL vocabulary for swiftcode.json `capabilities[].id` —
-// deliberately not the 34-case SDKCapabilityID enum. This block pins the
-// exact three-way relationship so any drift fails loudly:
-//   mirror (validate.mjs) == schema enum (32 entries)
-//   mirror = 26 SDKCapabilityID raw values + the 6 `use.Security.*`
-//     method scopes (which are NOT enum cases)
-//   enum cases NOT in the mirror = exactly the 8 non-manifest ids:
-//     assist.ui / assist.headless / assist.main (entitlement-only, never
-//     grantable via a manifest) and the 5 security.* method ids (enforced
-//     under the single use.Security grant, never granted separately).
-// See the DECISION comment above CAPABILITY_IDS in validate.mjs.
-// ---------------------------------------------------------------------------
 
 const validateMjsPath = path.join(
   repoRoot,
@@ -367,7 +284,6 @@ describe("validate.mjs manifest vocabulary pin", () => {
       [...schemaEnum].sort(),
       "validate.mjs CAPABILITY_IDS must match the schema capabilities[].id enum exactly",
     );
-    // The manifest cap in validate.mjs must stay in step with the schema.
     const src = readFileSync(validateMjsPath, "utf8");
     assert.ok(
       /capabilities\.length > 32/.test(src),
@@ -400,9 +316,7 @@ describe("validate.mjs manifest vocabulary pin", () => {
     const enumIds = new Set(parseCapabilityCaseMap().values());
     assert.equal(enumIds.size, 34, `SDKCapabilityID must have 34 cases, got ${enumIds.size}`);
     const excluded = [...enumIds].filter((id) => !mirror.has(id)).sort();
-    // Entitlement-only Assist variants: never grantable via a manifest.
     const entitlementOnly = ["assist.headless", "assist.main", "assist.ui"];
-    // Method scopes enforced under the single use.Security grant.
     const methodScopes = [
       "security.addValue",
       "security.deleteValue",
@@ -415,10 +329,6 @@ describe("validate.mjs manifest vocabulary pin", () => {
       [...entitlementOnly, ...methodScopes].sort(),
       "the enum ids excluded from the manifest vocabulary must be exactly the 3 entitlement-only assist.* ids + the 5 security.* method ids",
     );
-    // The excluded ids stay real runtime surface: the 5 security.* ids
-    // are ScopesIDLists entries and the 3 assist.* ids are enum cases
-    // with registry entries — this test pins only that they are not
-    // manifest-declarable, not that they do not exist.
     const tsIds = new Set(SCOPES_ID_LIST.map((e) => e.id));
     for (const id of methodScopes) {
       assert.ok(tsIds.has(id), `excluded method scope ${id} must remain a ScopesIDLists entry`);

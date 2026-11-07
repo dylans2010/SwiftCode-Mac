@@ -1,24 +1,5 @@
 import Foundation
 
-/// The `swiftcode-sdk` command-line interface, as a library entry point.
-///
-/// Legacy's `CLI/main.swift` was an `@main` struct that called `exit()`.
-/// An executable target cannot live inside the `SwiftCodeSDK` library, so this
-/// port keeps the identical command set and output, but as
-/// `run(arguments:) async -> Int32`: the executable target (see the
-/// Package.swift wiring note) wraps it in a thin `@main` that calls
-/// `exit(SwiftCodeSDKCLI.run(...))`.
-///
-/// Commands: doctor, init, validate, build, test, inspect, package,
-/// verify, docs. `--version` / `-v`, `--help` / `-h`.
-///
-/// Known Legacy defect, ported faithfully and NOT silently fixed: `test`
-/// builds a `BuildConfig` whose `additionalArguments` are `["test",
-/// "--disable-sandbox"]`, which `BuildService` appends *after* the
-/// `swift build …` arguments, producing `swift build … test
-/// --disable-sandbox` — `swift build` takes no such positional. The
-/// correct invocation is `swift test …`. Fix in the build slice; see the
-/// wave-14 slice spec draft.
 public enum SwiftCodeSDKCLI {
     public static func run(arguments: [String]) async -> Int32 {
         let args = arguments

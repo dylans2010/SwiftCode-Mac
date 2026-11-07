@@ -23,7 +23,6 @@ struct PackageDetailsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(alignment: .center) {
                 Button {
                     dismiss()
@@ -70,7 +69,6 @@ struct PackageDetailsView: View {
 
             Divider()
 
-            // Tab Selector Toolbar
             HStack {
                 ForEach(DetailTab.allCases) { tab in
                     Button {
@@ -93,7 +91,6 @@ struct PackageDetailsView: View {
 
             Divider()
 
-            // Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     switch selectedTab {
@@ -127,7 +124,6 @@ struct PackageDetailsView: View {
         }
     }
 
-    // MARK: - Overview Tab
     @ViewBuilder
     private func renderOverview() -> some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -179,7 +175,6 @@ struct PackageDetailsView: View {
         }
     }
 
-    // MARK: - README Tab
     @ViewBuilder
     private func renderReadme() -> some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -200,7 +195,6 @@ struct PackageDetailsView: View {
         }
     }
 
-    // MARK: - Manifest Tab
     @ViewBuilder
     private func renderManifest() -> some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -233,13 +227,11 @@ let package = Package(
         }
     }
 
-    // MARK: - Analytics Tab
     @ViewBuilder
     private func renderAnalytics() -> some View {
         PackageAnalyticsView(package: package)
     }
 
-    // MARK: - Activity Tab
     @ViewBuilder
     private func renderActivity() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -265,7 +257,6 @@ let package = Package(
                 .padding()
                 .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
 
-                // GitHub issues etc
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Issues & Pull Requests", systemImage: "number")
@@ -283,13 +274,11 @@ let package = Package(
         }
     }
 
-    // MARK: - Compatibility Tab
     @ViewBuilder
     private func renderCompatibility() -> some View {
         ProjectCompatibilityView(packageUrl: package.cloneUrl)
     }
 
-    // MARK: - Readme Loader
     private func loadReadme() {
         guard readmeText.isEmpty else { return }
         isLoadingReadme = true

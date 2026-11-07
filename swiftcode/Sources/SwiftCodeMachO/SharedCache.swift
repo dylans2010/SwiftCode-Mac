@@ -1,7 +1,5 @@
 import Foundation
 
-/// A dyld shared cache: a main file plus its subcache files, viewed as one
-/// virtual address space. See `specs/formats/macho-and-dyld-cache.md` §3.
 public struct SharedCache: Sendable {
     public struct Mapping: Sendable, Equatable {
         public var address: UInt64
@@ -9,7 +7,6 @@ public struct SharedCache: Sendable {
         public var fileOffset: UInt64
         public var maxProtection: Protection
         public var initialProtection: Protection
-        /// Flags from the extended table, when present.
         public var flags: UInt64
 
         public func contains(_ a: UInt64) -> Bool { a >= address && a - address < size }
@@ -19,7 +16,6 @@ public struct SharedCache: Sendable {
         }
     }
 
-    /// One cache file (main or subcache).
     public struct File: Sendable {
         public var url: URL
         public var reader: ByteReader
@@ -82,7 +78,6 @@ public struct SharedCache: Sendable {
         self.images = images
     }
 
-    /// The file and file offset that back a cache VM address.
     public func locate(_ address: UInt64) -> (file: File, offset: Int)? {
         for f in files {
             if let m = f.mappings.first(where: { $0.contains(address) }) {
@@ -92,8 +87,6 @@ public struct SharedCache: Sendable {
         return nil
     }
 
-    /// Parses the Mach-O header of a cached image. Offsets inside cached
-    /// images are VM-relative, so only the header and load commands are read.
     public func machO(for image: Image) throws(MachOError) -> MachOImage {
         guard let (file, offset) = locate(image.address) else {
             throw MachOError("image \(image.path) at \(hex(image.address)) is outside every mapping")
@@ -102,8 +95,6 @@ public struct SharedCache: Sendable {
     }
 
     public func image(path: String) -> Image? { images.first { $0.path == path } }
-
-    // MARK: - Header
 
     struct Header {
         let reader: ByteReader
@@ -117,7 +108,6 @@ public struct SharedCache: Sendable {
             guard mappingOffset >= 0x20 else { throw MachOError("header too small") }
         }
 
-        /// A header field exists only if it lies before the mapping table.
         func has(_ offset: Int, _ size: Int) -> Bool { offset + size <= mappingOffset }
 
         var architecture: String {

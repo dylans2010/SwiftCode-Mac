@@ -1,39 +1,19 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/GitHub/BuildingSystemAPI.swift
-//
-// Adapted for SwiftCode: `GitHubService` / `WorkflowRun` do not exist
-// here — the calls go to `GitHubClient` (`SwiftCodeGitHub`) with the
-// `GitHubWorkflowRun` / `GitHubWorkflowJob` / `GitHubArtifact` models,
-// and `Project` / `ProjectSessionStore` come from `SwiftCodeIDECore`.
-// `import ZIPFoundation` is dropped (not a SwiftCode dependency);
-// extraction uses ditto/unzip (see `unzip(_:to:)` below).
-// Behaviour (polling, retry, forbidden files, rename, integrity check)
-// is unchanged. Called from `PrepareCompileWaitingView`.
-// See DISPOSITIONS.md for the remaining wiring note.
-
 import Foundation
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 import SwiftCodeIDECore
 
-
-/// Coordinates retrieval of generated build assets from GitHub Actions and integrates them in the user's project.
 public final class BuildingSystemAPI: @unchecked Sendable {
     public static let shared = BuildingSystemAPI()
     private init() {}
 
     private let fm = FileManager.default
 
-    /// The GitHub API client, authenticated with the stored GitHub token
-    /// (same `defaultSecretStore()` pattern as `GitHubImporter`).
     private var gitHubClient: GitHubClient {
         let store = defaultSecretStore()
         return GitHubClient(tokenProvider: { store.readString(SecretAccount.githubToken) })
     }
 
-    /// Extract a zip without ZIPFoundation (not a SwiftCode dependency):
-    /// `/usr/bin/ditto -x -k` on macOS, `/usr/bin/unzip` elsewhere — the
-    /// same approach `ProjectZipImporter` uses.
     private func unzip(_ zipURL: URL, to destination: URL) throws {
         let process = Process()
         #if os(macOS)
@@ -95,7 +75,6 @@ public final class BuildingSystemAPI: @unchecked Sendable {
                     logCallback?(logs)
                 }
             } catch {
-                // Keep polling even if logs fail intermittently.
             }
         }
 

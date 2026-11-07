@@ -4,10 +4,6 @@ import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "GitHubIntelligenceAndOperations")
 
-// ====================================================================
-// UTILITY MODELS
-// ====================================================================
-
 public struct ChurnItem: Identifiable, Sendable, Codable {
     public var id: String { filename }
     public let filename: String
@@ -47,16 +43,12 @@ public struct KnowledgeRelationship: Identifiable, Sendable, Codable {
     }
 }
 
-// Helper operators for CG points / sizes
 extension CGSize {
     static func +(lhs: CGSize, rhs: CGSize) -> CGSize {
         CGSize(width: lhs.width + rhs.width, height: lhs.height + rhs.height)
     }
 }
 
-// ====================================================================
-// Helper to resolve git executable path safely
-// ====================================================================
 @MainActor
 func getGitExecutableURL() -> URL {
     for path in ["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"] {
@@ -67,9 +59,6 @@ func getGitExecutableURL() -> URL {
     return URL(fileURLWithPath: "/usr/bin/git")
 }
 
-// ====================================================================
-// Non-MainActor file scanners to prevent blocking UI main thread
-// ====================================================================
 actor BackgroundRepositoryScanner {
     static let shared = BackgroundRepositoryScanner()
     private init() {}
@@ -135,9 +124,6 @@ actor BackgroundRepositoryScanner {
     }
 }
 
-// ====================================================================
-// 1. REPOSITORY INTELLIGENCE VIEW
-// ====================================================================
 @MainActor
 public struct RepositoryIntelligenceView: View {
     var gitViewModel: GitViewModel
@@ -157,7 +143,6 @@ public struct RepositoryIntelligenceView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Repository Intelligence Center")
@@ -182,7 +167,6 @@ public struct RepositoryIntelligenceView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Quick Health Score Indicator
                     HStack(spacing: 20) {
                         VStack(spacing: 10) {
                             Text("Health Score")
@@ -205,7 +189,6 @@ public struct RepositoryIntelligenceView: View {
                         .background(Color(NSColor.windowBackgroundColor))
                         .cornerRadius(8)
 
-                        // Key Metrics Grid
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                             metricCard(title: "Technical Debt Indicators", value: "\(techDebtCount) Warnings", subtitle: "TODOs, FIXMEs, and deprecations", color: .orange)
                             metricCard(title: "Documentation Coverage", value: String(format: "%.1f%%", docCoverage * 100), subtitle: "Comments to Code Ratio", color: .blue)
@@ -216,7 +199,6 @@ public struct RepositoryIntelligenceView: View {
                         }
                     }
 
-                    // Hotspot Churn Detection Section
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Hotspot Detection & Churn Analysis")
                             .font(.headline)
@@ -252,7 +234,6 @@ public struct RepositoryIntelligenceView: View {
                         }
                     }
 
-                    // Security & Large Files Indicators
                     HStack(alignment: .top, spacing: 20) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Large Files Detected")
@@ -331,7 +312,6 @@ public struct RepositoryIntelligenceView: View {
             return
         }
 
-        // Offload disk intensive file walking to BackgroundRepositoryScanner Actor to avoid blocking UI main thread
         let results = await Task.detached(priority: .background) {
             await BackgroundRepositoryScanner.shared.performFilesystemScan(repoURL: repoURL)
         }.value
@@ -342,7 +322,6 @@ public struct RepositoryIntelligenceView: View {
             self.docCoverage = Double(results.totalDocComments) / Double(results.totalCodeLines)
         }
 
-        // Churn Analysis: Query Git commits logs if executable is available
         do {
             let res = try await ProcessRunnerTool.shared.run(
                 executableURL: getGitExecutableURL(),
@@ -366,7 +345,6 @@ public struct RepositoryIntelligenceView: View {
         let score = 100 - penalty
         self.healthScore = max(score, 50)
 
-        // CI Success Rate calculation
         if let proj = RepositoryContext.shared.activeProject, let repo = proj.githubRepo {
             let parts = repo.split(separator: "/")
             if parts.count == 2 {
@@ -393,9 +371,6 @@ public struct RepositoryIntelligenceView: View {
     }
 }
 
-// ====================================================================
-// 2. REPOSITORY KNOWLEDGE GRAPH VIEW
-// ====================================================================
 @MainActor
 public struct RepositoryKnowledgeGraphView: View {
     var gitViewModel: GitViewModel
@@ -418,7 +393,6 @@ public struct RepositoryKnowledgeGraphView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
             HStack {
                 TextField("Search files, branches, commits...", text: $searchPattern)
                     .textFieldStyle(.roundedBorder)
@@ -449,9 +423,7 @@ public struct RepositoryKnowledgeGraphView: View {
 
             GeometryReader { geo in
                 ZStack {
-                    // Interaction Layer
                     Canvas { context, size in
-                        // Draw relationship lines
                         for rel in filteredRelationships() {
                             guard let fromNode = nodes.first(where: { $0.id == rel.from }),
                                   let toNode = nodes.first(where: { $0.id == rel.to }) else { continue }
@@ -473,7 +445,6 @@ public struct RepositoryKnowledgeGraphView: View {
                         }
                     }
 
-                    // Interactivity overlay
                     ForEach(filteredNodes()) { node in
                         VStack(spacing: 4) {
                             ZStack {
@@ -639,9 +610,6 @@ public struct RepositoryKnowledgeGraphView: View {
     }
 }
 
-// ====================================================================
-// 3. INTERACTIVE REPOSITORY TIMELINE VIEW
-// ====================================================================
 @MainActor
 public struct InteractiveRepositoryTimelineView: View {
     var gitViewModel: GitViewModel
@@ -837,9 +805,6 @@ public struct InteractiveRepositoryTimelineView: View {
     }
 }
 
-// ====================================================================
-// 4. ADVANCED GIT OPERATIONS CENTER VIEW
-// ====================================================================
 @MainActor
 public struct AdvancedGitOperationsCenterView: View {
     var gitViewModel: GitViewModel
@@ -868,7 +833,6 @@ public struct AdvancedGitOperationsCenterView: View {
             Divider()
 
             HSplitView {
-                // Interactive controls
                 List {
                     Section("Local Commit Operations") {
                         ForEach(Array(gitViewModel.history.prefix(5)), id: \.sha) { commit in
@@ -948,7 +912,6 @@ public struct AdvancedGitOperationsCenterView: View {
                 }
                 .frame(minWidth: 400)
 
-                // Live status terminal logging output
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Operations Log Console")
                         .font(.caption)
@@ -1014,13 +977,10 @@ public struct AdvancedGitOperationsCenterView: View {
     }
 }
 
-// ====================================================================
-// 5. ADVANCED DIFF CENTER VIEW
-// ====================================================================
 @MainActor
 public struct AdvancedDiffCenterView: View {
     var gitViewModel: GitViewModel
-    @State private var viewStyle = 1 // 0: side-by-side, 1: unified
+    @State private var viewStyle = 1
     @State private var diffExplanation = "Generate AI diff breakdown explaining changes, performance implications, and risk assessment."
     @State private var whitespaceFilter = true
     @State private var leftDiffLines: [String] = []
@@ -1033,7 +993,6 @@ public struct AdvancedDiffCenterView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Picker("Presentation Mode", selection: $viewStyle) {
                     Text("Side-by-Side").tag(0)
@@ -1056,12 +1015,10 @@ public struct AdvancedDiffCenterView: View {
             Divider()
 
             HSplitView {
-                // Code Diff Area
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if viewStyle == 0 {
                             HStack(alignment: .top, spacing: 0) {
-                                // Left Side (Original / Deletions)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text("ORIGINAL")
                                         .font(.caption)
@@ -1078,7 +1035,6 @@ public struct AdvancedDiffCenterView: View {
 
                                 Divider()
 
-                                // Right Side (Updated / Additions)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text("UPDATED")
                                         .font(.caption)
@@ -1094,7 +1050,6 @@ public struct AdvancedDiffCenterView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         } else {
-                            // Unified Diff format
                             VStack(alignment: .leading, spacing: 1) {
                                 ForEach(rawDiffText.components(separatedBy: .newlines), id: \.self) { line in
                                     Text(line)
@@ -1112,7 +1067,6 @@ public struct AdvancedDiffCenterView: View {
                 }
                 .frame(minWidth: 500)
 
-                // AI Explanation panel
                 VStack(alignment: .leading, spacing: 12) {
                     Text("AI Assessment & Explanations")
                         .font(.headline)
@@ -1185,14 +1139,11 @@ public struct AdvancedDiffCenterView: View {
     }
 }
 
-// ====================================================================
-// 6. REPOSITORY SEARCH PLATFORM VIEW
-// ====================================================================
 @MainActor
 public struct RepositorySearchPlatformView: View {
     var gitViewModel: GitViewModel
     @State private var searchPattern = ""
-    @State private var searchScope = 0 // 0: Code, 1: Commits, 2: PRs, 3: Workflows
+    @State private var searchScope = 0
     @State private var useRegex = false
     @State private var searchResults: [String] = []
 
@@ -1247,7 +1198,6 @@ public struct RepositorySearchPlatformView: View {
         guard !searchPattern.isEmpty else { return }
 
         if searchScope == 2 || searchScope == 3 {
-            // Live Search pull requests or workflows via GitHub APIs
             guard let proj = RepositoryContext.shared.activeProject, let repo = proj.githubRepo else {
                 searchResults = ["No GitHub remote associated with active project."]
                 return
@@ -1275,7 +1225,6 @@ public struct RepositorySearchPlatformView: View {
             return
         }
 
-        // Search local files or commits
         guard let url = gitViewModel.repositoryURL else { return }
         var args: [String] = []
 
@@ -1302,9 +1251,6 @@ public struct RepositorySearchPlatformView: View {
     }
 }
 
-// ====================================================================
-// 7. CODE OWNERSHIP WORKSPACE VIEW
-// ====================================================================
 @MainActor
 public struct CodeOwnershipWorkspaceView: View {
     var gitViewModel: GitViewModel
@@ -1324,7 +1270,6 @@ public struct CodeOwnershipWorkspaceView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Summary header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Code Ownership & Knowledge Distribution")
@@ -1397,9 +1342,6 @@ public struct CodeOwnershipWorkspaceView: View {
     }
 }
 
-// ====================================================================
-// 8. BRANCH INTELLIGENCE VIEW
-// ====================================================================
 @MainActor
 public struct BranchIntelligenceView: View {
     var gitViewModel: GitViewModel
@@ -1461,7 +1403,6 @@ public struct BranchIntelligenceView: View {
         guard let url = gitViewModel.repositoryURL else { return }
         var temp: [BranchAnalysis] = []
 
-        // Dynamically resolve default branch name using repository settings or Git CLI
         var defaultBranch = "main"
         if let res = try? await ProcessRunnerTool.shared.run(
             executableURL: getGitExecutableURL(),
@@ -1493,7 +1434,6 @@ public struct BranchIntelligenceView: View {
                     }
                 }
             } catch {
-                // Ignore missing ref errors
             }
 
             temp.append(BranchAnalysis(name: branch.name, ahead: ahead, behind: behind))
@@ -1503,9 +1443,6 @@ public struct BranchIntelligenceView: View {
     }
 }
 
-// ====================================================================
-// 9. COMMIT INTELLIGENCE VIEW
-// ====================================================================
 @MainActor
 public struct CommitIntelligenceView: View {
     var gitViewModel: GitViewModel
@@ -1590,9 +1527,6 @@ public struct CommitIntelligenceView: View {
     }
 }
 
-// ====================================================================
-// 10. PULL REQUEST INTELLIGENCE VIEW
-// ====================================================================
 @MainActor
 public struct PullRequestIntelligenceView: View {
     @State private var reviewSummary = "No active pull requests fetched."
@@ -1675,9 +1609,6 @@ public struct PullRequestIntelligenceView: View {
     }
 }
 
-// ====================================================================
-// 11. SECURITY CENTER VIEW
-// ====================================================================
 @MainActor
 public struct SecurityCenterView: View {
     @State private var secretFindings: [String] = []
@@ -1735,7 +1666,6 @@ public struct SecurityCenterView: View {
             return
         }
 
-        // Run secret scan asynchronously on BackgroundRepositoryScanner Actor to avoid main thread hang
         let findings = await Task.detached(priority: .background) {
             await BackgroundRepositoryScanner.shared.scanSecurityVulnerabilities(repoURL: url)
         }.value
@@ -1745,9 +1675,6 @@ public struct SecurityCenterView: View {
     }
 }
 
-// ====================================================================
-// 12. COLLABORATION CENTER VIEW
-// ====================================================================
 @MainActor
 public struct CollaborationCenterView: View {
     @State private var teamBookmarks: [String] = ["Package.swift"]
@@ -1789,9 +1716,6 @@ public struct CollaborationCenterView: View {
     }
 }
 
-// ====================================================================
-// 13. WORKSPACE AUTOMATION VIEW
-// ====================================================================
 @MainActor
 public struct WorkspaceAutomationView: View {
     @State private var autoFetch = true
@@ -1831,9 +1755,6 @@ public struct WorkspaceAutomationView: View {
     }
 }
 
-// ====================================================================
-// 14. GITHUB DISCOVERY VIEW
-// ====================================================================
 @MainActor
 public struct GitHubDiscoveryView: View {
     @State private var trendingRepos: [TrendingRepo] = []
@@ -1896,9 +1817,6 @@ public struct GitHubDiscoveryView: View {
     }
 }
 
-// ====================================================================
-// 15. AI REPOSITORY ASSISTANT VIEW
-// ====================================================================
 @MainActor
 public struct AIRepositoryAssistantView: View {
     @State private var query = ""

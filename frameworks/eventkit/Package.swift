@@ -1,18 +1,13 @@
 // swift-tools-version: 6.0
-// swiftcode-eventkit: open, Linux-buildable EventKit written from specs/frameworks/eventkit/.
 import PackageDescription
 
 let package = Package(
     name: "swiftcode-eventkit",
     platforms: [.macOS(.v14)],
     products: [
-        // The library module carries the Apple framework's module name (an
-        // interop identifier) so that `import EventKit` source compiles.
         .library(name: "EventKit", targets: ["EventKit"]),
     ],
     targets: [
-        // The system SQLite 3 library (public domain): libsqlite3 from the
-        // macOS SDK, libsqlite3-dev on Linux.
         .systemLibrary(
             name: "CSQLite",
             path: "Sources/CSQLite",

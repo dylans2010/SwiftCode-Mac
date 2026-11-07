@@ -1,20 +1,10 @@
-// The viewer's settings menus (specs/simulator/simulator-features.md §7.1,
-// "SwiftCode implementation" §I.5): Accessibility, Appearance, Color Filter,
-// Location and Sound items of the Device menu, in the order and with the
-// labels of §7.1. Each item sends one control command over the display
-// stream (0x90) and shows the answer in the status line; the menus' check
-// marks come from the device's `settings` answer, read when the Device menu
-// opens.
-
 #if os(macOS)
 import AppKit
 import SwiftCodeSimFeatures
 
 @MainActor
 public final class ViewerSettingsMenu: NSObject, NSMenuDelegate, NSMenuItemValidation {
-    /// Sends a command; the closure gets the answer.
     public let send: (String, @escaping @MainActor @Sendable (String) -> Void) -> Void
-    /// Shows a result (the viewer's status line).
     public let report: (String) -> Void
     private(set) var state: SimSettingsState?
     private(set) var audio: (volume: Int, output: String, input: String)?
@@ -47,7 +37,6 @@ public final class ViewerSettingsMenu: NSObject, NSMenuDelegate, NSMenuItemValid
         return i
     }
 
-    /// The items, in §7.1's order: Accessibility ▸, Appearance ▸, Location ▸, Sound ▸ (and SwiftCode's Color Filter ▸).
     public func items() -> [NSMenuItem] {
         let accessibility = submenu("Accessibility", [
             item("Reduce Motion", "toggle reduce-motion"),
@@ -87,7 +76,6 @@ public final class ViewerSettingsMenu: NSObject, NSMenuDelegate, NSMenuItemValid
             command = "location set \(c)"
         }
         if command.hasPrefix("toggle ") {
-            // A switch: the opposite of the device's state.
             let name = String(command.dropFirst(7))
             guard let s = AccessibilitySwitch(argument: name) else { return }
             command = "accessibility \(name) \(state?.isOn(s) == true ? "off" : "on")"
@@ -99,7 +87,6 @@ public final class ViewerSettingsMenu: NSObject, NSMenuDelegate, NSMenuItemValid
         }
     }
 
-    /// Reads the device's settings (check marks).
     public func refresh() {
         send("settings") { [weak self] answer in
             guard let self, answer.hasPrefix("ok ") else { return }
@@ -114,7 +101,6 @@ public final class ViewerSettingsMenu: NSObject, NSMenuDelegate, NSMenuItemValid
 
     public func validateMenuItem(_ item: NSMenuItem) -> Bool { validate(item) }
 
-    /// Check marks from the last `settings` answer.
     public func validate(_ item: NSMenuItem) -> Bool {
         guard let command = item.representedObject as? String else { return true }
         let st = state

@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIPropertiesPanel.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Advanced visual properties sub-panel displaying gradient editors, material managers, shadow presets, and borders.
 public struct VisualUIPropertiesPanel: View {
     @Bindable var document: VisualUIDocument
 
@@ -25,7 +22,6 @@ public struct VisualUIPropertiesPanel: View {
                let node = document.scene.findNode(byID: selectedID) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        // Border Editor
                         GroupBox("Border Editor") {
                             VStack {
                                 Slider(value: $borderStroke, in: 0...10, step: 1) {
@@ -39,7 +35,6 @@ public struct VisualUIPropertiesPanel: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Shadow Editor
                         GroupBox("Shadow & Elevation") {
                             VStack {
                                 Slider(value: $shadowRadius, in: 0...20) {
@@ -53,7 +48,6 @@ public struct VisualUIPropertiesPanel: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Gradient Editor
                         GroupBox("Gradient Designer") {
                             Picker("Gradient Style", selection: $selectedGradient) {
                                 Text("None").tag("None")
@@ -68,7 +62,6 @@ public struct VisualUIPropertiesPanel: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Material presets
                         GroupBox("Material & Blur Overrides") {
                             Picker("Material Theme", selection: $selectedMaterial) {
                                 Text("None").tag("None")

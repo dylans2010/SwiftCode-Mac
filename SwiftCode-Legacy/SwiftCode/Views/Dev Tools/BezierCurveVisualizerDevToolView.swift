@@ -24,19 +24,16 @@ struct BezierCurveVisualizerDevToolView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                // Canvas visual editor
                 VStack {
                     ZStack {
                         Color(NSColor.controlBackgroundColor)
 
-                        // Draw curves
                         Path { path in
                             path.move(to: viewModel.p0)
                             path.addCurve(to: viewModel.p3, control1: viewModel.p1, control2: viewModel.p2)
                         }
                         .stroke(Color.blue, lineWidth: 3)
 
-                        // Handle lines
                         Path { path in
                             path.move(to: viewModel.p0)
                             path.addLine(to: viewModel.p1)
@@ -45,7 +42,6 @@ struct BezierCurveVisualizerDevToolView: View {
                         }
                         .stroke(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4]))
 
-                        // Handles
                         controlPoint(point: $viewModel.p0, color: .green)
                         controlPoint(point: $viewModel.p1, color: .orange)
                         controlPoint(point: $viewModel.p2, color: .orange)

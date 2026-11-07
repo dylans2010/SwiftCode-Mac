@@ -1,21 +1,3 @@
-// Build → ship → install round-trip tests for the swiftcode CLI
-// (Docs/Intro-to-SDK.md §8 Task A4).
-//
-// Exercises the REAL CLI end to end with stock node: generate an extension
-// with the real generator -> `swiftcode build` (tsc, live output) ->
-// `swiftcode package` (deterministic .swiftcode-extension with an embedded
-// digest record) -> `swiftcode install` (digest + schema verification) ->
-// run the installed entry through the real node runtime adapter.
-//
-// Also: determinism (10 packages byte-identical), tamper rejection (typed
-// DIGEST_MISMATCH), missing digest record (DIGEST_RECORD_MISSING), schema
-// violation with a valid digest (MANIFEST_INVALID), broken-TypeScript build
-// failure, and the honest xcodebuild-absent path.
-//
-// Run: `npm run build && npm test` from SwiftCode/SDK/TypeScript/package
-// (npm test = `node --test "tests/*.test.mjs"`). Everything the tests
-// touch lives under a private mkdtemp sandbox; the real
-// ~/Library/Application Support/SwiftCode/Extensions is never used.
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, execFile } from "node:child_process";
@@ -36,7 +18,6 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
-// tests/ -> package/ -> TypeScript/ -> SDK/ -> SwiftCode/ -> repo root
 const REPO = path.resolve(testsDir, "..", "..", "..", "..", "..");
 const CLI_DIR = path.join(REPO, "SwiftCode", "SDK", "TypeScript", "cli");
 const CLI = path.join(CLI_DIR, "swiftcode.mjs");
@@ -65,10 +46,6 @@ const EXT_ID = "com.example.a4-roundtrip";
 const EXT_VERSION = "0.1.0";
 
 const cliRequire = createRequire(path.join(CLI_DIR, "package.json"));
-
-// ---------------------------------------------------------------------------
-// Process helpers
-// ---------------------------------------------------------------------------
 
 function runCommand(cmd, argv, { cwd = undefined, env = {}, stdinData = null } = {}) {
   return new Promise((resolve, reject) => {
@@ -99,10 +76,6 @@ const runCli = (args, opts = {}) => runCommand(process.execPath, [CLI, ...args],
 function parseJsonEnvelope(stdout) {
   return JSON.parse(stdout);
 }
-
-// ---------------------------------------------------------------------------
-// Deterministic re-zip (mirrors the packager's archive settings)
-// ---------------------------------------------------------------------------
 
 async function rezipDeterministic(stageDir, outPath, { dropRelPaths = [] } = {}) {
   const { ZipArchive } = cliRequire("archiver");
@@ -143,10 +116,6 @@ async function rezipDeterministic(stageDir, outPath, { dropRelPaths = [] } = {})
   return outPath;
 }
 
-// ---------------------------------------------------------------------------
-// Fixture
-// ---------------------------------------------------------------------------
-
 let sandbox;
 let genDir;
 let pkgDir;
@@ -164,7 +133,6 @@ before(async () => {
   extRoot = path.join(sandbox, "extensions");
   await mkdir(pkgDir, { recursive: true });
 
-  // Real generated extension (what `swiftcode create` produces).
   const created = await runCommand(process.execPath, [
     GENERATOR,
     "--id",
@@ -217,8 +185,6 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
     const st = await stat(packagePath);
     assert.ok(st.isFile() && st.size > 0);
 
-    // The embedded digest record is present, well-formed, and describes
-    // the same content digest the packager reported.
     const { extractZip } = await import(
       pathToFileURL(path.join(CLI_DIR, "commands", "_shared.mjs")).href
     );
@@ -278,7 +244,6 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
     assert.equal(envelope.error.data.error.code, "DIGEST_MISMATCH");
     assert.match(envelope.error.data.error.message, /\[DIGEST_MISMATCH\]/);
     assert.match(r.stderr, /DIGEST_MISMATCH/);
-    // Nothing reached the controlled directory.
     assert.equal(await stat(extRoot).catch(() => null), null);
   });
 
@@ -325,9 +290,6 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
     const { makeDigestRecord, serializeDigestRecord, DIGEST_FILE_NAME } = await import(formatUrl);
     const stage = path.join(sandbox, "tamper-schema");
     await extractZip(packagePath, stage);
-    // Corrupt the manifest schema (unknown capability) but keep JSON valid,
-    // then honestly recompute the digest record so the integrity check passes
-    // and the schema validator is the layer that must catch it.
     const manifestPath = path.join(stage, "swiftcode.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     manifest.capabilities.push({ id: "mind.read", reason: "bogus" });
@@ -385,8 +347,6 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
 
   it("run: the installed entry activates through the node runtime adapter", async () => {
     const installedDir = path.join(extRoot, EXT_ID, EXT_VERSION);
-    // The installed package ships no node_modules; the host runtime
-    // supplies the SDK. Mirror that with a run dir.
     const runDir = path.join(sandbox, "rundir");
     await mkdir(path.join(runDir, "node_modules", "@swiftcode"), { recursive: true });
     await symlink(
@@ -425,8 +385,8 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
     child.on("error", (e) => {
       throw e;
     });
-    await active; // the installed entry loaded and activate() ran
-    child.stdin.end(); // host hangs up -> bounded teardown
+    await active;
+    child.stdin.end();
     const code = await closed;
     assert.equal(code, 0, `adapter exited ${code}:\n${stderr}`);
     assert.match(stdout, /"event":"extension\.ready"/);
@@ -457,8 +417,6 @@ describe("swiftcode build failure modes", () => {
       hasXcodebuild = false;
     }
     if (hasXcodebuild) {
-      // On a Mac with Xcode the real xcodebuild path runs instead; the
-      // honest-absence assertion only applies where xcodebuild is missing.
       return;
     }
     const swiftDir = path.join(sandbox, "swiftproj");
@@ -471,17 +429,11 @@ describe("swiftcode build failure modes", () => {
   });
 
   it("missing compiler is reported honestly", async () => {
-    // A TypeScript project whose node_modules has no tsc, with PATH
-    // scrubbed of node tooling, must fail with COMPILER_NOT_FOUND —
-    // never a silent success.
     const bare = path.join(sandbox, "bare-ts");
     await mkdir(bare, { recursive: true });
     await writeFile(path.join(bare, "tsconfig.json"), JSON.stringify({ compilerOptions: {} }), "utf8");
     const scrubbed = { PATH: "/usr/bin:/bin" };
     const r = await runCli(["build", bare], { env: scrubbed });
-    // /usr/bin:/bin has no tsc and no npx on this machine; either the
-    // honest missing-compiler error or (if a tsc somehow resolves) a
-    // genuine tsc failure — but never exit 0.
     assert.notEqual(r.code, 0, "build without a compiler must not succeed");
     if (/COMPILER_NOT_FOUND/.test(r.stderr)) {
       assert.match(r.stderr, /nothing was compiled/);

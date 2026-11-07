@@ -58,8 +58,6 @@ import Testing
         #expect(layer.field(FieldKey.custom, at: "/Values.extra") == nil)
     }
 
-    /// Our writer, with OpenUSD's ordering, reproduces OpenUSD's own text
-    /// output byte for byte (`scene.canonical.usda` was written by usd-core).
     @Test func canonicalOutputMatchesOpenUSD() throws {
         let layer = try Fixture.layer("scene.usda")
         let text = USDAWriter.write(layer, options: .init(sortPropertiesAndVariants: true))

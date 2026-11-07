@@ -5,7 +5,6 @@ struct OperationsSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 10) {
                 Image(systemName: "square.stack.3d.up.fill")
                     .font(.system(size: 18, weight: .bold))
@@ -26,7 +25,6 @@ struct OperationsSidebarView: View {
 
             Divider()
 
-            // List of Sidebar Items
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     SidebarSectionHeader(title: "Overview")

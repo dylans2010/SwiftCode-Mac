@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Structured diagnostics
-
 public enum ExtV2DiagnosticLevel: String, Codable, Sendable {
     case info, warning, error
 }
@@ -22,9 +20,6 @@ public struct ExtV2DiagnosticEntry: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// Append-only in-memory log plus a JSONL file, so a crash does not take
-/// the explanation of the crash with it. Never logs secrets or file
-/// contents — messages only.
 public final class ExtV2DiagnosticsService: @unchecked Sendable {
     public static let shared = ExtV2DiagnosticsService()
 

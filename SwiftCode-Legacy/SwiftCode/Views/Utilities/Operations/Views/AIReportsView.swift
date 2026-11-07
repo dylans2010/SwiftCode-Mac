@@ -8,7 +8,6 @@ struct AIReportsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header and Segmentation Tab
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("AI Engineering Assistant")
@@ -42,7 +41,6 @@ struct AIReportsView: View {
     @ViewBuilder
     private func interactiveAssistantView() -> some View {
         VStack(spacing: 0) {
-            // Conversational Scroll
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
@@ -95,7 +93,6 @@ struct AIReportsView: View {
 
             Divider()
 
-            // Recommended questions list
             VStack(alignment: .leading, spacing: 6) {
                 Text("Recommended Questions:")
                     .font(.caption2)
@@ -134,7 +131,6 @@ struct AIReportsView: View {
 
             Divider()
 
-            // Question Input field
             HStack(spacing: 12) {
                 TextField("Ask about packages, duplicates, slow builds, diagnostics...", text: $userQuestion, onCommit: sendQuestion)
                     .textFieldStyle(.plain)

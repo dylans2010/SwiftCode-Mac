@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for AppIntents
-
 public struct AppIntentsAPIEntity_0000: Sendable, Codable {
     public let id: String = "appintents.api.0"
     public var name: String = "AppIntentsEntity_0"

@@ -4,15 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The ported Legacy static-analysis tools (Wave 6, slice B) against
-/// `Samples/AgentSamples/Greeter` (a copy). Fixture facts used below
-/// (verified from the sample): the workspace has 5 Swift files
-/// (`Package.swift`, `Sources/Greeter/Greeter.swift`,
-/// `Sources/greet/main.swift`, `Previews/GreetingView.swift`,
-/// `Tests/GreeterTests/GreeterTests.swift`); `main.swift` is an entry
-/// point, and Greeter has no TODO/FIXME markers, no deprecated
-/// declarations, and no `@main` type. Fixtures live under
-/// `Analysis/` so path-scoped tools see only what the test wrote.
 @MainActor
 @Suite(.serialized) struct SwiftCodeStaticAnalysisTests {
     static let staticAnalysisIDs = ["code_lint", "swift_format_lint", "dead_code_scan", "dead_code_eliminator",
@@ -22,14 +13,9 @@ import SwiftCodeIDECore
                                     "deprecation_usage_scan", "swift_ast_inspector", "swift_concurrency_analyzer", "concurrency_audit",
                                     "entry_points_discover", "swift_migration_advisor"]
 
-    /// Opens a copy of Greeter and installs the ported static-analysis
-    /// tools on the server (same shape as Wave 3's `opened`; the
-    /// coordinator wires `staticAnalysisTools` into `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` already wires
-        // `staticAnalysisTools`, so a plain `+=` would register them twice.
         let ported = Set(host.staticAnalysisTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.staticAnalysisTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -37,7 +23,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -202,13 +187,11 @@ import SwiftCodeIDECore
     @Test func importCleanupRemovesUnusedImportThroughApproval() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // Read-only policy refuses the write tool before the handler runs.
         let readOnlyHost = try await opened(sample)
         try writeFixture(sample, "Analysis/Cleanup.swift", "import FooKit\nimport Foundation\n\nstruct Cleanup {\n    var x = 1\n}\n")
         let refused = try await readOnlyHost.server.callTool("import_cleanup", ["path": .string("Analysis/Cleanup.swift")])
         #expect(refused.isToolError && refused.firstText.contains("read-only"))
         #expect(sample.read("Analysis/Cleanup.swift").contains("import FooKit"))
-        // Allow policy: the unused import is removed, the protected one stays.
         let host = try await opened(sample, policy: .allow)
         let cleaned = try await host.server.callTool("import_cleanup", ["path": .string("Analysis/Cleanup.swift")])
         #expect(!cleaned.isToolError, "\(cleaned.resultText)")
@@ -217,7 +200,6 @@ import SwiftCodeIDECore
         #expect(cleaned.structured?["filesChanged"]?.string == "Analysis/Cleanup.swift")
         #expect(sample.read("Analysis/Cleanup.swift").contains("import FooKit") == false)
         #expect(sample.read("Analysis/Cleanup.swift").contains("import Foundation"))
-        // Second run: nothing left to remove.
         let again = try await host.server.callTool("import_cleanup", ["path": .string("Analysis/Cleanup.swift")])
         #expect(!again.isToolError && again.structured?["removedImports"]?.int == 0)
         #expect(again.firstText.contains("Nothing changed."))

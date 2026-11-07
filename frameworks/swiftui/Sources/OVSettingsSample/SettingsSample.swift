@@ -9,25 +9,6 @@ import SwiftUI
 import SwiftUICore
 #endif
 
-// The R8 sample: a settings form with text fields, toggles, a slider, a
-// stepper, pickers, a date picker, buttons, progress and a gauge in one
-// window. Run it with a display (X11 or Wayland) and libSDL3:
-//
-//   OV_SDL3_LIBRARY=<prefix>/lib/libSDL3.so.0 swift run ov-settings
-//
-// Environment switches (all optional):
-//   OV_SAMPLE_SCRIPT=1        drive every control with synthetic events
-//                             through SDL's queue (type, select, undo, pop-up
-//                             menus), print the state after each step, quit
-//   OV_SCREENSHOT_PREFIX=<p>  write <p>-light.png, <p>-dark.png (the form in
-//                             each scheme) and <p>-menu.png (a pop-up menu)
-//                             during the script
-//   OV_COLOR_SCHEME=dark      start in dark mode
-//   OV_PRINT_TARGETS=1        print the window-coordinate centres of the
-//                             controls (for external drivers such as xdotool)
-//   OV_QUIT_AFTER=<s>         print the state and quit after s seconds
-//   OV_TRACE=1                trace the app host on stderr
-
 @main
 struct SettingsApp: App {
     var body: some Scene {
@@ -43,7 +24,6 @@ func say(_ s: String) {
     FileHandle.standardOutput.write(Data((s + "\n").utf8))
 }
 
-/// Marks a control for the drivers (its frame is looked up by name).
 struct Target<Content: View>: View, NamedTarget {
     let name: String
     let content: Content
@@ -156,7 +136,6 @@ struct SettingsView: View {
     }
 }
 
-/// Automation for the done-criterion runs (see the header).
 @MainActor
 enum SettingsDriver {
     static var started = false
@@ -248,7 +227,6 @@ enum SettingsDriver {
         let prefix = env["OV_SCREENSHOT_PREFIX"]
         func step(_ label: String) { say("step \(label): \(s.describe())") }
 
-        // Text: type, select a word with a double click, replace it, undo.
         if let f = frame("name", in: w) {
             await click(host, id, CGPoint(x: f.midX, y: f.midY))
             await type(host, id, "Ada Lovelace")
@@ -269,11 +247,9 @@ enum SettingsDriver {
         await key(host, id, .tab)
         await type(host, id, "secret")
         step("tabbed to the password and typed")
-        // Toggles.
         if let f = frame("notifications", in: w) { await click(host, id, CGPoint(x: f.maxX - 30, y: f.midY)) }
         if let f = frame("sounds", in: w) { await click(host, id, CGPoint(x: f.minX + 9, y: f.midY)) }
         step("toggles")
-        // Slider: drag the thumb right.
         if let f = frame("volume", in: w) {
             let usable = f.width - 24
             var p = CGPoint(x: f.minX + 12 + CGFloat(s.volume) * usable, y: f.midY)
@@ -288,14 +264,12 @@ enum SettingsDriver {
             await pause(0.15)
         }
         step("slider dragged")
-        // Stepper: + twice, − once.
         if let f = frame("fontSize", in: w) {
             await click(host, id, CGPoint(x: f.maxX - 20, y: f.midY))
             await click(host, id, CGPoint(x: f.maxX - 20, y: f.midY))
             await click(host, id, CGPoint(x: f.maxX - 74, y: f.midY))
         }
         step("stepper")
-        // Menu picker: open the pop-up, choose the second language.
         if let f = frame("language", in: w) {
             await click(host, id, CGPoint(x: f.maxX - 30, y: f.midY))
             await pause(0.2)
@@ -312,7 +286,6 @@ enum SettingsDriver {
             }
         }
         step("language chosen from the pop-up menu")
-        // Date: open the calendar, pick the 20th.
         if let f = frame("start", in: w) {
             await click(host, id, CGPoint(x: f.maxX - 30, y: f.midY))
             await pause(0.2)
@@ -330,11 +303,9 @@ enum SettingsDriver {
             }
         }
         step("date picked")
-        // Buttons: Save twice (click, then its shortcut).
         if let f = frame("save", in: w) { await click(host, id, CGPoint(x: f.midX, y: f.midY)) }
         await key(host, id, .character("s"), .control)
         step("saved")
-        // Animation frame rate (QA B1): a spinning progress indicator for 2 s.
         s.syncing = true
         await pause(0.3)
         let f0 = w.presentedFrames, t0 = host.backend.now
@@ -345,7 +316,6 @@ enum SettingsDriver {
         s.syncing = false
         await pause(0.4)
         if let prefix { shot(w, prefix + "-light.png") }
-        // Dark mode through the segmented picker.
         if let f = frame("theme", in: w) { await click(host, id, CGPoint(x: f.maxX - f.width / 6, y: f.midY)) }
         step("theme")
         await pause(0.5)

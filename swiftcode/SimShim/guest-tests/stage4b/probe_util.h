@@ -1,7 +1,3 @@
-/* SwiftCode stage-4b probes: shared helpers (bounded waits, self re-execution).
- * Original SwiftCode code. Contract: specs/simulator/stage4b-contract.md section 1.
- * alarm() is not available in the guest, so every wait is a poll loop with
- * nanosleep or a kevent/mach_msg timeout. */
 #ifndef SWIFTCODE_PROBE_UTIL_H
 #define SWIFTCODE_PROBE_UTIL_H
 
@@ -42,8 +38,6 @@ static __attribute__((unused)) void probe_sleep_ms(long ms)
     }
 }
 
-/* The path to re-execute: argv[0] if it is a path, else dyld's idea of
- * the executable path. */
 static const char *probe_self_path(const char *argv0)
 {
     static char buf[1024];
@@ -55,9 +49,6 @@ static const char *probe_self_path(const char *argv0)
     return buf;
 }
 
-/* posix_spawn(self, mode, extra...) with optional file actions and
- * attributes. extra is a NULL-terminated list of at most 6 strings.
- * Returns the posix_spawn result; *pid gets the child's pid. */
 static __attribute__((unused)) int probe_spawn(pid_t *pid, const char *self, const posix_spawn_file_actions_t *fa,
                        const posix_spawnattr_t *attr, const char *mode, const char *const *extra)
 {
@@ -72,8 +63,6 @@ static __attribute__((unused)) int probe_spawn(pid_t *pid, const char *self, con
     return posix_spawn(pid, self, fa, attr, args, *_NSGetEnviron());
 }
 
-/* waitpid with a deadline: the reaped pid, or 0 on timeout, or -1 with
- * errno. */
 static __attribute__((unused)) pid_t probe_wait(pid_t pid, int *status, long timeout_ms)
 {
     for (long waited = 0;; waited += 5) {
@@ -86,7 +75,6 @@ static __attribute__((unused)) pid_t probe_wait(pid_t pid, int *status, long tim
     }
 }
 
-/* Wait for a child that must exit with `code`. */
 static __attribute__((unused)) void probe_expect_exit(pid_t pid, int code, const char *what)
 {
     int st = 0;
@@ -101,4 +89,4 @@ static __attribute__((unused)) void probe_expect_exit(pid_t pid, int code, const
         probe_fail("%s: wait status %#x, expected exit %d", what, st, code);
 }
 
-#endif /* SWIFTCODE_PROBE_UTIL_H */
+#endif

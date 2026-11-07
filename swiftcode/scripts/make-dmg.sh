@@ -1,43 +1,19 @@
 #!/bin/sh
-# Builds the disk image: SwiftCode.app, signed, in a styled window with an
-# Applications link, notarized when the notary variables exist. Without any
-# signing variable the same path gives an ad-hoc signed image.
-# packaging/README.md describes the interface.
-#
-# Usage: scripts/make-dmg.sh [output-dir]      (default .build-ide/dist)
-#
-# Environment (all optional; values are never printed):
-#   MACOS_CERTIFICATE_P12_BASE64, MACOS_CERTIFICATE_PASSWORD
-#       a Developer ID Application certificate; imported into a temporary
-#       keychain that is deleted at the end
-#   SWIFTCODE_SIGN_IDENTITY      an identity already in a keychain; wins over the P12
-#   NOTARY_KEY_P8_BASE64, NOTARY_KEY_ID, NOTARY_ISSUER_ID
-#       an App Store Connect API key; all three are needed to notarize, and
-#       notarizing needs a real identity
-#   APPLE_TEAM_ID            checked against the signed app when set
-#   SWIFTCODE_ARCHS              default "arm64 x86_64" (universal) here
-#   SWIFTCODE_BUILD_NUMBER, SWIFTCODE_BUILD_ROOT, SWIFTCODE_SWB_BUILD_ROOT, SWIFTCODE_ICON_ICNS   see make-app.sh
-#   SWIFTCODE_DMG_SKIP_APP=1     package the app already in <output-dir>/stage
 set -eu
 set +x
-
 here=$(cd "$(dirname "$0")" && pwd)
 swiftcode_dir=$(cd "$here/.." && pwd)
 root=$(cd "$swiftcode_dir/.." && pwd)
 macos="$root/packaging/macos"
 cd "$swiftcode_dir"
-
-# The release is universal: an Intel Mac runs the x86_64 slices.
 SWIFTCODE_ARCHS=${SWIFTCODE_ARCHS:-arm64 x86_64}
 export SWIFTCODE_ARCHS
-
 OUT=${1:-.build-ide/dist}
 VERSION=$(cat VERSION)
 VOLUME="SwiftCode $VERSION"
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 DMG="$OUT/SwiftCode-$VERSION.dmg"
-
 work=$(mktemp -d)
 keychain=""
 previous_keychains=""
@@ -52,8 +28,6 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 1' INT TERM
-
-# --- the signing identity ---------------------------------------------------
 if [ -z "${SWIFTCODE_SIGN_IDENTITY:-}" ] && [ -n "${MACOS_CERTIFICATE_P12_BASE64:-}" ]; then
     : "${MACOS_CERTIFICATE_PASSWORD:?MACOS_CERTIFICATE_PASSWORD is needed with MACOS_CERTIFICATE_P12_BASE64}"
     umask 077
@@ -78,8 +52,6 @@ if [ "$IDENTITY" = "-" ]; then
 else
     echo "make-dmg: signing with a Developer ID identity" >&2
 fi
-
-# --- the app ----------------------------------------------------------------
 STAGE="$OUT/stage"
 if [ "${SWIFTCODE_DMG_SKIP_APP:-0}" != 1 ]; then
     "$here/make-app.sh" "$STAGE" >/dev/null
@@ -89,8 +61,6 @@ if [ -n "${APPLE_TEAM_ID:-}" ] && [ "$IDENTITY" != "-" ]; then
     codesign -dvv "$APP" 2>&1 | grep -q "^TeamIdentifier=$APPLE_TEAM_ID\$" \
         || { echo "make-dmg: the app is not signed by team APPLE_TEAM_ID" >&2; exit 1; }
 fi
-
-# --- notarization helpers ---------------------------------------------------
 notarizing=0
 if [ -n "${NOTARY_KEY_P8_BASE64:-}" ] && [ -n "${NOTARY_KEY_ID:-}" ] && [ -n "${NOTARY_ISSUER_ID:-}" ]; then
     if [ "$IDENTITY" = "-" ]; then
@@ -103,13 +73,10 @@ if [ -n "${NOTARY_KEY_P8_BASE64:-}" ] && [ -n "${NOTARY_KEY_ID:-}" ] && [ -n "${
 else
     echo "make-dmg: no notary variables: not notarizing" >&2
 fi
-notary() { # notarytool arguments...
+notary() {
     xcrun notarytool "$@" --key "$work/notary-key.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
 }
-notarize() { # file
-    # Submit, wait and read the status as separate steps, each retried: a CI
-    # runner once lost its network while waiting, and a dropped connection
-    # loses nothing on Apple's side, so the script waits on the same submission.
+notarize() {
     for attempt in 1 2 3; do
         notary submit "$1" --output-format json > "$work/notary-submit.json" && break
         [ "$attempt" = 3 ] && { echo "make-dmg: notarytool submit failed" >&2; return 1; }
@@ -133,8 +100,6 @@ notarize() { # file
         return 1
     fi
 }
-
-# The app gets its own ticket, so a copy dragged out of the image opens offline.
 if [ "$notarizing" = 1 ]; then
     echo "make-dmg: notarizing the app" >&2
     ditto -c -k --keepParent "$APP" "$work/SwiftCode.zip"
@@ -142,8 +107,6 @@ if [ "$notarizing" = 1 ]; then
     xcrun stapler staple "$APP" >/dev/null
     rm -f "$work/SwiftCode.zip"
 fi
-
-# --- the image --------------------------------------------------------------
 app_kb=$(du -sk "$APP" | cut -f1)
 rw="$work/rw.dmg"
 hdiutil create -quiet -size "$((app_kb / 1024 + 64))m" -fs HFS+ -volname "$VOLUME" -ov "$rw"
@@ -165,7 +128,6 @@ mount_point=""
 rm -f "$DMG"
 hdiutil convert -quiet "$rw" -format ULFO -o "$DMG"
 rm -f "$rw"
-
 if [ "$IDENTITY" = "-" ]; then
     codesign --force --sign - "$DMG"
 else
@@ -176,7 +138,6 @@ if [ "$notarizing" = 1 ]; then
     notarize "$DMG"
     xcrun stapler staple "$DMG" >/dev/null
 fi
-
 "$macos/verify-dmg.sh" "$DMG"
 (cd "$OUT" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 ls -l "$DMG" >&2

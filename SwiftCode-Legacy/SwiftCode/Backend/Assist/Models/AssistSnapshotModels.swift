@@ -10,7 +10,7 @@ public struct AssistSnapshotMetadata: Codable {
 public struct AssistFileDiff: Codable {
     public let path: String
     public let status: DiffStatus
-    public let changes: String // Simplified diff string
+    public let changes: String
 
     public enum DiffStatus: String, Codable {
         case added

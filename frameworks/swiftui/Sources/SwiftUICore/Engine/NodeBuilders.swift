@@ -1,11 +1,6 @@
 import Foundation
 
-// Construction API for layout trees, named after the views and modifiers
-// they stand for. Round R2's views lower to these calls; tests use them
-// directly. Each modifier returns a new node wrapping the receiver.
-
 extension LayoutNode {
-    // MARK: Leaves
 
     package static func color() -> LayoutNode { LayoutNode(ShapeLeaf(.rectangle)) }
     package static func rectangle() -> LayoutNode { LayoutNode(ShapeLeaf(.rectangle)) }
@@ -34,8 +29,6 @@ extension LayoutNode {
         LayoutNode(GeometryReaderBehavior(), children: content)
     }
 
-    // MARK: Containers
-
     package static func layout<L: Layout>(_ layout: L, _ children: [LayoutNode]) -> LayoutNode {
         LayoutNode(LayoutBehavior(layout), children: children)
     }
@@ -53,8 +46,6 @@ extension LayoutNode {
     package static func zstack(alignment: Alignment = .center, _ children: [LayoutNode]) -> LayoutNode {
         layout(ZStackLayout(alignment: alignment), children)
     }
-
-    // MARK: Modifiers
 
     private func wrap(_ b: some NodeBehavior) -> LayoutNode { LayoutNode(b, children: [self]) }
 
@@ -137,7 +128,6 @@ extension LayoutNode {
 
     package func ignoresSafeArea(edges: Edge.Set = .all) -> LayoutNode { wrap(IgnoresSafeAreaBehavior(edges: edges)) }
 
-    /// Names this node so that its frame is reported in `LayoutResult`.
     package func named(_ name: String) -> LayoutNode {
         self.name = name
         return self

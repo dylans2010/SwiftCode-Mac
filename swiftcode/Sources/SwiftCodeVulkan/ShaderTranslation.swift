@@ -1,37 +1,6 @@
-// Shader translation for the Vulkan back end: what the back end needs from
-// a translated Metal function (SPIR-V plus reflection), and the client of
-// SH's `swiftcode-airc serve` (stage8-contract.md §5.2).
-//
-// The binding ABI is the one swiftcode-airc emits (swiftcode/Translator/src/abi.h,
-// "SwiftCode Metal ABI 1", metal-shaders.md §4.4); the numbers are repeated in
-// SwiftCodeMetalABI below:
-//
-//   Push constants (32 bytes, all stages):
-//     offset  0  u64  address of the vertex (or kernel) stage's argument table
-//     offset  8  u64  address of the fragment stage's argument table
-//     offset 16  u32 × 3  threads per grid (kernels: the exact Metal grid)
-//   Argument table: 192 u64 entries (1536 bytes), one per stage and draw/dispatch:
-//     0…30     buffer slot k: device address (buffer address + bound offset); 0 = nil
-//     31       device address of the function's constant data
-//     32…159   texture slot k: heap index
-//     160…175  sampler slot k: heap index
-//     176…191  constexpr sampler i: heap index
-//   Set 0 (the bindless heap): binding 0 sampled images, 1 storage images,
-//     2 samplers (runtime arrays). Heap index 0 is the null texture / sampler.
-//   Specialization constants: 0, 1, 2 threads per threadgroup; 3 total
-//     threadgroup memory bytes; 100 + n byte offset of [[threadgroup(n)]].
-//   Vertex input: Location n = Metal attribute n; the Vulkan vertex binding
-//     of a Metal vertex buffer index is that index.
-//   Clip space: the back end flips y with a negative viewport height.
-
 import CVulkan
 import Foundation
 
-/// The numbers of the binding ABI above ("SwiftCode Metal ABI 1",
-/// `metal-shaders.md` §4.4); they must match what swiftcode-airc emits.
-/// `…Entry0` is the first argument-table entry of a group and `…Slots` its
-/// entry count; `tableSize` and the `push…` values are bytes (offsets into
-/// the push-constant block); `spec…` are specialization-constant IDs.
 public enum SwiftCodeMetalABI {
     public static let version = 1
     public static let tableEntries = 192
@@ -54,21 +23,15 @@ public enum SwiftCodeMetalABI {
     public static let specThreadgroupSlot0: UInt32 = 100
 }
 
-/// The stage of a translated function.
 public enum ShaderStage: String, Codable, Sendable {
     case vertex
     case fragment
     case kernel
 }
 
-/// The reflection document `swiftcode-airc` returns with each function (the
-/// fields this back end uses; others are ignored). Keys are snake_case in
-/// JSON.
 public struct ShaderReflection: Codable, Sendable, Equatable {
     public var stage: ShaderStage
-    /// The SPIR-V entry point (the Metal function name).
     public var entryPoint: String?
-    /// The function's HASH (fragment translations link to a vertex function by it).
     public var hash: String?
     public var abi: ABIInfo?
     public var buffers: [Binding]?
@@ -78,9 +41,7 @@ public struct ShaderReflection: Codable, Sendable, Equatable {
     public var constantData: ConstantData?
     public var compute: Compute?
     public var vertexInputs: [VertexInput]?
-    /// Metal built-in inputs the function reads (`thread_position_in_grid`, …).
     public var builtins: [String]?
-    /// Features it uses (`barrier`, `derivatives`, `discard`, …).
     public var uses: [String]?
 
     public struct ABIInfo: Codable, Sendable, Equatable {
@@ -94,7 +55,6 @@ public struct ShaderReflection: Codable, Sendable, Equatable {
         public var index: Int
         public var tableEntry: Int?
         public var used: Bool?
-        /// Textures: "read", "write", "read_write" or "sample" (swiftcode-airc).
         public var access: String?
         public init(index: Int) { self.index = index }
     }
@@ -152,7 +112,6 @@ public struct ShaderReflection: Codable, Sendable, Equatable {
         self.entryPoint = entryPoint
     }
 
-    /// Decodes `swiftcode-airc`'s JSON.
     public static func decode(_ json: Data) throws -> ShaderReflection {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
@@ -160,7 +119,6 @@ public struct ShaderReflection: Codable, Sendable, Equatable {
     }
 }
 
-/// A translated function.
 public struct TranslatedShader: Sendable {
     public var spirv: [UInt32]
     public var reflection: ShaderReflection
@@ -170,18 +128,10 @@ public struct TranslatedShader: Sendable {
     }
 }
 
-/// One translation request: a single-function metallib (as the guest sent
-/// it), and for fragment functions the HASH of the vertex function it is
-/// linked with (varyings are matched by name, metal-shaders.md §4.5); the
-/// vertex function must have been translated before by the same translator.
 public struct TranslationRequest: Sendable {
     public var metallib: [UInt8]
     public var linkVertexHash: String?
-    /// The function to translate when the metallib has several (tools and tests).
     public var functionName: String?
-    /// Requests with the same affinity go to the same translator process
-    /// (a fragment function and the vertex function it links to). Default:
-    /// the metallib's own hash.
     public var affinity: UInt64?
     public init(metallib: [UInt8], linkVertexHash: String? = nil, functionName: String? = nil, affinity: UInt64? = nil) {
         self.metallib = metallib
@@ -196,12 +146,10 @@ public struct ShaderTranslationError: Error, CustomStringConvertible, Sendable {
     public init(_ d: String) { description = d }
 }
 
-/// Turns Metal functions into SPIR-V. Implementations must be thread-safe.
 public protocol ShaderTranslator: AnyObject, Sendable {
     func translate(_ request: TranslationRequest) throws -> TranslatedShader
 }
 
-/// 64-bit FNV-1a, for cache keys of shader bytes.
 func fnv1a64(_ bytes: [UInt8], seed: UInt64 = 0xcbf2_9ce4_8422_2325) -> UInt64 {
     var h = seed
     for b in bytes {
@@ -211,15 +159,12 @@ func fnv1a64(_ bytes: [UInt8], seed: UInt64 = 0xcbf2_9ce4_8422_2325) -> UInt64 {
     return h
 }
 
-/// A translator for tests and tools: functions given directly as SPIR-V,
-/// keyed by the metallib bytes that stand for them.
 public final class PrebuiltShaderTranslator: ShaderTranslator, @unchecked Sendable {
     private let lock = NSLock()
     private var shaders: [[UInt8]: TranslatedShader] = [:]
 
     public init() {}
 
-    /// Registers `shader` as the translation of `metallib` (any bytes that identify it).
     public func add(_ metallib: [UInt8], _ shader: TranslatedShader) {
         lock.lock(); defer { lock.unlock() }
         shaders[metallib] = shader
@@ -234,38 +179,21 @@ public final class PrebuiltShaderTranslator: ShaderTranslator, @unchecked Sendab
     }
 }
 
-/// The client of `swiftcode-airc serve`: one long-lived child process, binary
-/// frames over stdin/stdout (swiftcode/Translator/src/main.cpp):
-///   frame    u32 length L, then u32 header length H, H bytes of JSON, L − 4 − H payload bytes
-///   request  {"id", "op": "translate", "link_vertex": HASH?, "loop_limit": N?}; payload = the metallib
-///   response {"id", "status": "ok", "reflection": {...}}; payload = SPIR-V words,
-///            or {"status": "error", "error": {"code", "detail"}}
-/// A translator that died is restarted at the next request.
 public final class AircProcessTranslator: ShaderTranslator, @unchecked Sendable {
     public let executable: URL
     public let arguments: [String]
-    /// The loop guard every translation asks for (0: none): an invocation
-    /// may pass loop headers at most this many times in all, then each of
-    /// its loops ends (stage8-contract.md §13.3).
     public let loopLimit: UInt32
     private let lock = NSLock()
-    /// The child (pid 0: not running) and our ends of its stdin and stdout.
     private var pid: Int32 = 0
     private var toChild: Int32 = -1
     private var fromChild: Int32 = -1
     private var nextID = 1
 
-    /// `serve`, plus `--cache $SWIFTCODE_AIRC_CACHE` when that is set (swiftcode-airc's on-disk translation cache).
     public static var defaultArguments: [String] {
         if let dir = ProcessInfo.processInfo.environment["SWIFTCODE_AIRC_CACHE"], !dir.isEmpty { return ["serve", "--cache", dir] }
         return ["serve"]
     }
 
-    /// The default loop limit: $SWIFTCODE_GPU_LOOP_LIMIT when set (0 turns the
-    /// guard off), else 2^20 loop-header passes per invocation. No Metal
-    /// shader the simulator ran comes near it; an invocation stuck in a
-    /// loop stops after about a million iterations instead of holding the
-    /// GPU queue for minutes.
     public static var defaultLoopLimit: UInt32 {
         if let v = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_LOOP_LIMIT"], let n = UInt32(v) { return n }
         return 1 << 20
@@ -278,7 +206,6 @@ public final class AircProcessTranslator: ShaderTranslator, @unchecked Sendable 
         self.loopLimit = loopLimit
     }
 
-    /// Finds `swiftcode-airc`: $SWIFTCODE_AIRC, next to the running executable, or on $PATH.
     public static func locate() -> URL? {
         let env = ProcessInfo.processInfo.environment
         if let p = env["SWIFTCODE_AIRC"], FileManager.default.isExecutableFile(atPath: p) { return URL(fileURLWithPath: p) }
@@ -296,17 +223,11 @@ public final class AircProcessTranslator: ShaderTranslator, @unchecked Sendable 
         stop()
     }
 
-    /// Starts the child now (normally it starts at the first request), so
-    /// that the first pipeline does not wait for the translator to load.
     public func prestart() {
         lock.lock(); defer { lock.unlock() }
         if pid == 0 { try? start() }
     }
 
-    /// Starts the child with posix_spawn (CVulkan), not Foundation's
-    /// Process: Process.run scans /proc/self/fd in the parent, and with
-    /// several translators starting at once while the VMM opens and closes
-    /// descriptors, that scan crashed the host once (stage8-contract.md §13).
     private func start() throws {
         let argv = [executable.path] + arguments
         var cargs: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) }
@@ -320,7 +241,6 @@ public final class AircProcessTranslator: ShaderTranslator, @unchecked Sendable 
         fromChild = output
     }
 
-    /// One spawn at a time in this process.
     private static let spawnLock = NSLock()
 
     private func stop() {
@@ -387,17 +307,9 @@ public final class AircProcessTranslator: ShaderTranslator, @unchecked Sendable 
     }
 }
 
-/// Several `swiftcode-airc serve` processes, so pipelines translate in
-/// parallel. A request goes to the process its affinity selects (a fragment
-/// function and its vertex function meet in the same process, whose
-/// in-memory hash index links them).
 public final class AircTranslatorPool: ShaderTranslator, @unchecked Sendable {
     public let processes: [AircProcessTranslator]
 
-    /// `dumpDirectory` (default: $SWIFTCODE_AIRC_DUMP_DIR): each process saves
-    /// its requests and results (`serve --dump-dir`) in its own subdirectory
-    /// p0, p1, … (swiftcode-airc numbers files per process). The dumps hold guest
-    /// shader bytes: keep them on the machine that ran the guest.
     public init(executable: URL, count: Int, arguments: [String] = AircProcessTranslator.defaultArguments,
                 dumpDirectory: String? = ProcessInfo.processInfo.environment["SWIFTCODE_AIRC_DUMP_DIR"],
                 loopLimit: UInt32 = AircProcessTranslator.defaultLoopLimit) {
@@ -412,7 +324,6 @@ public final class AircTranslatorPool: ShaderTranslator, @unchecked Sendable {
         }
     }
 
-    /// Starts every process now, one after another, on a background thread.
     public func prestart() {
         let ps = processes
         Thread.detachNewThread { for p in ps { p.prestart() } }

@@ -340,7 +340,6 @@ private struct DotEnvLoader {
                 let key = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
                 var value = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Remove quotes if present
                 if (value.hasPrefix("\"") && value.hasSuffix("\"")) || (value.hasPrefix("'") && value.hasSuffix("'")) {
                     value = String(value.dropFirst().dropLast())
                 }

@@ -97,7 +97,6 @@ public final class AssistCreateNewAppTool: AssistTool {
             )
         }
 
-        // Apply starter template based on platform
         let template = selectTemplate(for: platform)
         var newProject = Project(name: appName)
         newProject.customDirectoryPath = targetDirURL.path
@@ -112,10 +111,8 @@ public final class AssistCreateNewAppTool: AssistTool {
             )
         }
 
-        // Open newly created project into active session
         await ProjectSessionStore.shared.openProject(newProject)
 
-        // Inject initial project.json metadata if needed
         let metadataDict: [String: Any] = [
             "name": appName,
             "bundleIdentifier": bundleIdentifier,

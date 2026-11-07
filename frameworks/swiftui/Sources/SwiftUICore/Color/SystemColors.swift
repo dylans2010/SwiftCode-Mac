@@ -1,14 +1,10 @@
 import Foundation
 
-/// The named colours and their resolved values per colour scheme
-/// (07-text-images-color.md §4, measured with `Color.resolve(in:)` on the
-/// reference runtime; sRGB hex, alpha last).
 package enum SystemColor: String, Hashable, Sendable, CaseIterable {
     case primary, secondary, accentColor
     case red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown
     case white, black, gray, clear
 
-    /// (light, dark) in `#RRGGBBAA`.
     package var hex: (light: String, dark: String) {
         switch self {
         case .primary: return ("#000000FF", "#FFFFFFFF")
@@ -26,7 +22,6 @@ package enum SystemColor: String, Hashable, Sendable, CaseIterable {
         case .purple: return ("#CB30E0FF", "#DB34F2FF")
         case .pink: return ("#FF2D55FF", "#FF375FFF")
         case .brown: return ("#AC7F5EFF", "#B78A66FF")
-        // Plain components do not adapt to the colour scheme.
         case .white: return ("#FFFFFFFF", "#FFFFFFFF")
         case .black: return ("#000000FF", "#000000FF")
         case .gray: return ("#8E8E93FF", "#8E8E93FF")
@@ -34,9 +29,6 @@ package enum SystemColor: String, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// Values under increased contrast, where the reference showed a change.
-    /// Only `blue` and `accentColor` were measured to change (07 §4); every
-    /// other colour keeps its standard value (an open question for the rest).
     package var increasedContrastHex: (light: String, dark: String)? {
         switch self {
         case .blue, .accentColor: return ("#1E6EF4FF", "#5CB8FFFF")

@@ -1,12 +1,5 @@
-// AIDocGenExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/AIDocGenExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: extension settings (enable, auto-trigger on new functions, usage examples, doc style Apple/Markdown/Jazzy, output format)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - AI Doc Generator Extension View
 struct AIDocGenExtensionView: View {
     @State private var isEnabled = true
     @State private var docStyle = "appleDocs"

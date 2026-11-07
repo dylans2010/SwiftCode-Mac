@@ -1,8 +1,5 @@
 import Foundation
 
-// Process policy: fixed-argv AssistArgvRunner (/usr/bin/codesign, no shell).
-// Listed in PROCESS_ALLOWLIST in Tools/validate_tools.py.
-
 public struct AssistCodeSigningDiagnoseTool: AssistTool {
     public let id = "code_signing_diagnose"
     public let name = "Code Signing Diagnose"

@@ -1,15 +1,6 @@
 import Foundation
 
-// SwiftCode's gdb-remote stub: one client connection, one process at a time,
-// all-stop (`specs/simulator/debug-stub.md` §3–§6). Packet set and reply
-// shapes: GDB's remote protocol documentation and LLDB's
-// `lldbgdbremote.md` (level 1). The host and process are protocols
-// (`GDBRemoteTarget.swift`), so the protocol logic runs and is tested
-// without a simulator.
-
-/// The byte pipe of one client.
 public protocol GDBRemoteConnection: AnyObject {
-    /// Blocks for the next bytes; nil or empty at the end of the stream.
     func receive() -> [UInt8]?
     func send(_ bytes: [UInt8])
     func close()
@@ -17,7 +8,6 @@ public protocol GDBRemoteConnection: AnyObject {
 
 public final class GDBRemoteServer: @unchecked Sendable {
     public let host: GDBRemoteHost
-    /// Called with each packet and reply, for `--debug-server-log`.
     public var log: ((String) -> Void)?
 
     private let connection: GDBRemoteConnection
@@ -27,19 +17,16 @@ public final class GDBRemoteServer: @unchecked Sendable {
     private let sendLock = NSLock()
     private let stateLock = NSLock()
 
-    // Session state (connection thread, or under `stateLock` while running).
     private var process: GDBRemoteProcess?
     private var layout = GDBRemoteARM64Layout(floatingPoint: false)
     private var running = false
     private var registerThread: UInt64?
     private var continueThread: UInt64?
-    /// The thread of the last stop.
     private var stopThread: UInt64?
     private var threadListCursor = 0
     private var savedStates: [Int: (UInt64, GDBRemoteThreadRegisters)] = [:]
     private var nextSaveID = 1
     private var waiter: Thread?
-    /// The process ended while the client was attached; its last status.
     private var exitReply: String?
 
     public init(host: GDBRemoteHost, connection: GDBRemoteConnection) {
@@ -47,13 +34,7 @@ public final class GDBRemoteServer: @unchecked Sendable {
         self.connection = connection
     }
 
-    // MARK: Serving
-
-    /// Serves the connection until the client goes away. Detaches from the
-    /// process at the end (the process keeps running).
     public func serve() {
-        // The host's process is attached at the first packet, so a
-        // connection that sends nothing (a port probe) stops nothing.
         var first = true
         while let bytes = connection.receive(), !bytes.isEmpty {
             for input in decoder.append(bytes) {
@@ -75,7 +56,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
                 }
             }
         }
-        // The client is gone: let the process run on.
         if let p = process {
             if isRunning {
                 p.interrupt()
@@ -118,10 +98,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
 
     private func error(_ e: GDBRemoteError) -> String { error(e.code, e.message) }
 
-    // MARK: Dispatch
-
-    /// Handles one packet body (unescaped bytes). `X` carries binary data,
-    /// so it is decoded before the body becomes text.
     func handle(body: [UInt8]) {
         if body.first == UInt8(ascii: "X") {
             log?("<- X… (\(body.count) bytes)")
@@ -131,7 +107,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
         handle(String(decoding: body, as: UTF8.self))
     }
 
-    /// `X<addr>,<length>:<binary>`.
     func binaryWrite(_ body: [UInt8]) -> String {
         if isRunning { return error(0x10, "the process is running") }
         guard let p = process, let colon = body.firstIndex(of: UInt8(ascii: ":")),
@@ -144,18 +119,13 @@ public final class GDBRemoteServer: @unchecked Sendable {
         return p.breakpoints.writeThrough(address, bytes) ? "OK" : error(0x0E, "cannot write memory")
     }
 
-    /// Handles one packet and sends its reply (none for a resume: the stop
-    /// reply follows when the process stops).
     func handle(_ packet: String) {
         log?("<- " + (packet.count > 200 ? String(packet.prefix(200)) + "…" : packet))
         if let text = respond(packet) { reply(text) }
     }
 
-    /// The reply to one packet; nil when it is sent later (resume) or was
-    /// sent already (binary).
     func respond(_ packet: String) -> String? {
         if isRunning {
-            // All-stop: only an interrupt makes sense while running.
             return error(0x10, "the process is running")
         }
         let (command, threadSuffix) = Self.splitThreadSuffix(packet)
@@ -190,21 +160,15 @@ public final class GDBRemoteServer: @unchecked Sendable {
         case command.hasPrefix("qsProcessInfo"):
             return processListReply()
         case command == "qC":
-            // No process yet: thread 0, which LLDB takes as "connected, no
-            // process" (as debugserver answers before a launch or attach).
             guard let p = process else { return "QC0" }
             return "QC" + String(stopThread ?? p.threadIDs().first ?? 0, radix: 16)
         case command == "qAttached":
             return process == nil ? error(0x01, "no process") : "1"
         case command == "?":
-            // No process yet: an error (as debugserver answers), so the
-            // client stays connected and attaches later.
             guard let p = process else { return exitReply ?? error(0x02, "no process") }
             let tid = stopThread ?? p.threadIDs().first ?? 0
             return stopReply(p, thread: tid)
         case command == "qfThreadInfo":
-            // No process: an error. An empty list ("l") made LLDB assume a
-            // bare-board target with pid 1.
             guard let p = process else { return error(0x02, "no process") }
             return "m" + p.threadIDs().map { String($0, radix: 16) }.joined(separator: ",")
         case command == "qsThreadInfo":
@@ -311,7 +275,7 @@ public final class GDBRemoteServer: @unchecked Sendable {
              command.hasPrefix("z2,"), command.hasPrefix("z3,"), command.hasPrefix("z4,"):
             return watchpoint(command)
         case command.hasPrefix("Z"), command.hasPrefix("z"):
-            return ""   // hardware breakpoints: not offered
+            return ""
         case command == "vCont?":
             return "vCont;c;C;s;S"
         case command.hasPrefix("vCont;"):
@@ -334,7 +298,7 @@ public final class GDBRemoteServer: @unchecked Sendable {
             exitReply = "X09"
             return "X09"
         case command == "jGetSharedCacheInfo:", command == "jGetLoadedDynamicLibrariesInfos:":
-            return "OK"   // the client's support probe
+            return "OK"
         case command.hasPrefix("jGetLoadedDynamicLibrariesInfos:"):
             return loadedImagesReply(String(command.dropFirst("jGetLoadedDynamicLibrariesInfos:".count)))
         case command == "jGetDyldProcessState":
@@ -349,8 +313,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
             return "{\"shared_cache_base_address\":\(info.base),\"shared_cache_uuid\":\"\(Self.uuidString(info.uuid))\","
                 + "\"no_shared_cache\":false,\"shared_cache_private_cache\":false}"
         case command.hasPrefix("_M"):
-            // `_M<size>,<permissions>` → the address (hex). LLDB needs it:
-            // without it, it calls mmap in the process to get memory.
             guard let p = process else { return error(0x01, "no process") }
             let parts = command.dropFirst(2).split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
             guard let first = parts.first, let size = GDBRemoteHex.number(first), size > 0, size <= 1 << 30 else { return error(0x16, "bad allocation") }
@@ -362,15 +324,12 @@ public final class GDBRemoteServer: @unchecked Sendable {
             return p.deallocateMemory(a) ? "OK" : error(0x16, "not allocated by the debugger")
         case command.hasPrefix("qXfer"), command.hasPrefix("vFile"), command.hasPrefix("j"), command.hasPrefix("q"), command.hasPrefix("Q"),
              command.hasPrefix("v"), command.hasPrefix("A"):
-            return ""   // not supported: the empty reply
+            return ""
         default:
             return ""
         }
     }
 
-    // MARK: Packets in detail
-
-    /// `p…;thread:<tid>;` → ("p…", tid).
     static func splitThreadSuffix(_ packet: String) -> (String, UInt64?) {
         guard let r = packet.range(of: ";thread:", options: .backwards), !packet.hasPrefix("vCont") else { return (packet, nil) }
         var tail = packet[r.upperBound...]
@@ -379,7 +338,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
         return (String(packet[..<r.lowerBound]), tid)
     }
 
-    /// `<addr>,<length>` in hex.
     static func addressAndLength<S: StringProtocol>(_ text: S) -> (UInt64, Int)? {
         let parts = text.split(separator: ",", maxSplits: 1)
         guard parts.count == 2, let a = GDBRemoteHex.number(parts[0]), let n = GDBRemoteHex.number(parts[1]), n <= 1 << 20 else { return nil }
@@ -424,7 +382,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
         return s
     }
 
-    /// `jGetLoadedDynamicLibrariesInfos:<json>` (debug-stub.md §4.3).
     func loadedImagesReply(_ arguments: String) -> String {
         guard let p = process else { return error(0x01, "no process") }
         guard let request = GDBRemoteImageRequest.parse(arguments) else { return error(0x16, "bad image request") }
@@ -439,7 +396,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
             for e in list where paths[e.address] == nil { paths[e.address] = e.path }
             wanted = addresses.map { ($0, paths[$0] ?? "") }
         case let .list(address, count):
-            // `dyld_image_info` = {imageLoadAddress, imageFilePath, imageFileModDate}.
             let bytes = read(address, 24 * count)
             wanted = stride(from: 0, to: bytes.count / 24 * 24, by: 24).map { o in
                 let a = GDBRemoteMachO.u64(bytes, o), pathAddress = GDBRemoteMachO.u64(bytes, o + 8)
@@ -452,18 +408,15 @@ public final class GDBRemoteServer: @unchecked Sendable {
                                    flags: 0, headerAndCommandsSize: 0, segments: [])
             }, .addressOnly)
         }
-        // Images whose header cannot be read are left out (as debugserver does).
         let images = wanted.compactMap { GDBRemoteMachO.image(at: $0.address, path: $0.path, read: read) }
         return GDBRemoteImageInfo.reply(images, request.detail)
     }
 
-    /// A NUL-terminated string of the process (1 KiB at most).
     public static func cString(at address: UInt64, read: (UInt64, Int) -> [UInt8]) -> String {
         guard address != 0 else { return "" }
         var out: [UInt8] = []
         var cursor = address
         while out.count < 1024 {
-            // Up to the end of the 256-byte block, so no read crosses into an unmapped page needlessly.
             let chunk = read(cursor, Int(256 - (cursor & 255)))
             if chunk.isEmpty { break }
             if let nul = chunk.firstIndex(of: 0) { out += chunk[..<nul]; break }
@@ -473,7 +426,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
         return String(decoding: out, as: UTF8.self)
     }
 
-    /// `Z2,<addr>,<size>` … `z4,…`: hardware watchpoints.
     private func watchpoint(_ command: String) -> String {
         guard let p = process else { return error(0x01, "no process") }
         let insert = command.hasPrefix("Z")
@@ -514,8 +466,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
         }
     }
 
-    // MARK: Resuming
-
     private func resume(legacy command: String) -> String? {
         guard let p = process else { return error(0x01, "no process") }
         let step = command.hasPrefix("s") || command.hasPrefix("S")
@@ -532,12 +482,9 @@ public final class GDBRemoteServer: @unchecked Sendable {
             _ = p.setRegisters(tid, r)
         }
         if step { return start(p, [tid: .step(signal: signal)], others: .stop) }
-        // `c` continues every thread; the signal goes to the selected one.
         return start(p, [tid: .continue(signal: signal)], others: .continue(signal: nil))
     }
 
-    /// `vCont;<action>[:<tid>];…` — the first action that names a thread
-    /// applies to it; an action without a thread applies to the others.
     private func resume(vCont text: String) -> String? {
         guard let p = process else { return error(0x01, "no process") }
         var actions: [UInt64: GDBRemoteResume] = [:]
@@ -606,9 +553,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
         return nil
     }
 
-    // MARK: Stop replies
-
-    /// The `T` packet for `thread` (LLDB's extended form).
     func stopReply(_ p: GDBRemoteProcess, thread tid: UInt64) -> String {
         let info = p.stopInfo(tid)
         let threads = p.threadIDs()
@@ -631,18 +575,15 @@ public final class GDBRemoteServer: @unchecked Sendable {
     static func reasonFields(_ reason: GDBRemoteStopReason) -> String {
         switch reason {
         case .none: ""
-        case .signal: ""   // the signal alone (SIGSTOP for an interrupt or an attach)
+        case .signal: ""
         case .breakpoint: "reason:breakpoint;"
         case .trace: "reason:trace;"
         case let .exception(text): "reason:exception;description:\(GDBRemoteHex.encode(text: text));"
         case let .watchpoint(address, index, hit):
-            // "<address in the watched range> <register> <reported address>",
-            // decimal (lldbgdbremote.md, `reason:watchpoint`).
             "reason:watchpoint;description:\(GDBRemoteHex.encode(text: "\(address) \(index) \(hit)"));"
         }
     }
 
-    /// `jThreadsInfo`: one JSON object per thread.
     func threadsInfoJSON(_ p: GDBRemoteProcess) -> String {
         var items: [String] = []
         for tid in p.threadIDs() {
@@ -674,7 +615,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
         return "[" + items.joined(separator: ",") + "]"
     }
 
-    /// 16 bytes as `XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX`.
     static func uuidString(_ b: [UInt8]) -> String {
         let h = GDBRemoteHex.encode(b).uppercased()
         let c = Array(h)
@@ -699,7 +639,6 @@ public final class GDBRemoteServer: @unchecked Sendable {
 }
 
 extension NSLock {
-    /// `withLock` on every Foundation this package builds with.
     @inline(__always) func withLockFallback<T>(_ body: () throws -> T) rethrows -> T {
         lock()
         defer { unlock() }

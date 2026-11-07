@@ -1,23 +1,9 @@
 import Foundation
 
-// MARK: - Assist integration
-//
-// Extensions register capabilities ONLY through validated descriptors
-// here, and only into the existing AssistToolRegistry — there is no
-// parallel tool system. Registration requires the `.assistTools`
-// capability to be granted; execution re-checks every capability the
-// command needs, enforces the host command timeout, and reports
-// failures as AssistToolResult failures, never as silent successes.
-// A tool id is `extv2.<extension-id>.<command>` with non-identifier
-// characters replaced, so ids are stable, unique per command, and
-// never collide with built-in tools (the registry keeps the first
-// registration on a collision and logs it).
-
 public struct ExtV2AssistCapability: Sendable {
     public let toolId: String
     public let name: String
     public let description: String
-    /// Parameter name -> JSON type ("string", "number", "boolean").
     public let parameters: [String: String]
     public let requiredParameters: [String]
     public let extensionId: String
@@ -37,9 +23,6 @@ public struct ExtV2AssistCapability: Sendable {
         self.requiredCapabilities = requiredCapabilities; self.isReadOnly = isReadOnly
     }
 
-    /// Validates an Assist input dict against the descriptor before any
-    /// execution: missing required params and wrong primitive types are
-    /// caller errors, caught here rather than inside an extension.
     public func validate(input: [String: Any]) throws {
         for required in requiredParameters {
             guard input[required] != nil else {
@@ -76,9 +59,6 @@ public enum ExtV2AssistBridge {
             requiredCapabilities: requiredCapabilities, isReadOnly: isReadOnly)
     }
 
-    /// Registers a descriptor's tool in the existing registry. Returns
-    /// false (and logs) when the extension lacks the `.assistTools`
-    /// capability — registration is a privileged act, not a default.
     @MainActor
     public static func register(
         _ descriptor: ExtV2AssistCapability,
@@ -95,10 +75,6 @@ public enum ExtV2AssistBridge {
     }
 }
 
-/// The single execution path for extension tools: validate, check
-/// permissions, route to the owning host or native plugin, and return
-/// a typed result. Host routing is by command ownership, so a tool can
-/// never execute a command belonging to a different extension.
 @MainActor
 public final class ExtV2AssistExecution {
     public static let shared = ExtV2AssistExecution()
@@ -114,10 +90,6 @@ public final class ExtV2AssistExecution {
                 try permissions.check(extensionId: descriptor.extensionId, capability: capability)
             }
         }
-        // Native plugins first: their commands live in the native registry.
-        // Existence is checked before executing, so a native command's
-        // own failure propagates instead of silently falling through
-        // to the host path.
         if ExtV2NativePluginRegistry.handler(for: descriptor.command) != nil {
             let nativeResult = try await ExtV2NativePluginRegistry.shared.executeCommand(
                 descriptor.command,
@@ -133,9 +105,6 @@ public final class ExtV2AssistExecution {
     }
 }
 
-/// AssistTool conformance for one extension capability. Stored state is
-/// Sendable (the descriptor only); execution goes through the shared
-/// execution singleton, so no host reference is stored in the tool.
 public struct ExtV2ExtensionAssistTool: AssistTool {
     public let descriptor: ExtV2AssistCapability
 

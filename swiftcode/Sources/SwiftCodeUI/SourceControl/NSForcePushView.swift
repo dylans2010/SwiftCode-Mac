@@ -1,19 +1,6 @@
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/NSForcePushView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// Force-push dialog for the current branch. Legacy drove this through
-/// `ProjectSessionStore` + `GitMenuBarCommandExecutor`; this port takes the
-/// `GitRepository` directly. The "Use force with lease (Safer)" toggle is
-/// real: on → `--force-with-lease`, off → plain `--force`, via the
-/// `forceLease` parameter added to `GitRepository.push` for this port
-/// (the destination previously only ever used `--force-with-lease`).
-///
-/// Hook: present from the source-control navigator's push menu / the
-/// `SourceControlCoordinator` (its `push(branch:remote:setUpstream:force:forceLease:)`
-/// now exposes the same options for menu/MCP callers).
 @MainActor
 public struct NSForcePushView: View {
     public var repository: GitRepository

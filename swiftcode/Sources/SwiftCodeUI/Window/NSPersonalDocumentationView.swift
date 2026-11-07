@@ -1,28 +1,9 @@
-// NSPersonalDocumentationView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/NSPersonalDocumentationView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: command palette; drag-and-drop; version-restore UI; right inspector panel; standalone window with AppKit toolbar
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeIDEShell — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DocTypeItem, PersonalDocCommandPalette.
-// (GlobalSearchView + ModuleKind resolved by H-E: GlobalSearchView ported to
-// SwiftCodeUI/Window/, ModuleKind to SwiftCodeIDECore/Model/.)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeLanguage
-// ====================================================================
-// NS PERSONAL DOCUMENTATION - MAIN ENTRY POINT (RECONSTRUCTED WORKSPACE)
-// ====================================================================
-// Reconstructed around AppKit's NSSplitViewController and NSSplitViewItem,
-// featuring a native NSWindowController, NSToolbar, NSOutlineView, NSScrollView,
-// and NSStackView/NSGridView. It provides a fluid, unconstrained multi-column
-// desktop workspace that behaves exactly like Xcode or Finder.
-// ====================================================================
 
 import SwiftUI
 import AppKit
 
-// MARK: - Native Window Manager
 @MainActor
 public final class PersonalDocWindowManager: NSObject, NSWindowDelegate {
     public static let shared = PersonalDocWindowManager()
@@ -50,13 +31,11 @@ public final class PersonalDocWindowManager: NSObject, NSWindowDelegate {
         windowController = nil
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         windowController = nil
     }
 }
 
-// MARK: - Native Window Controller
 @MainActor
 public class PersonalDocWindowController: NSWindowController {
     public let coordinator: PersonalDocumentationCoordinator
@@ -228,7 +207,6 @@ extension PersonalDocWindowController {
     }
 }
 
-// MARK: - Native Split View Controller
 public class PersonalDocSplitViewController: NSSplitViewController {
     public let coordinator: PersonalDocumentationCoordinator
 
@@ -284,7 +262,6 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // Panel 1: Sidebar (Pure AppKit Controller)
         let sidebarVC = PersonalDocSidebarViewController(coordinator: coordinator)
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
         sidebarItem.minimumThickness = 200
@@ -293,7 +270,6 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // Panel 2: Middle List Browser (SwiftUI Middle Wrapper)
         let middleView = PersonalDocMiddleWrapper(coord: coordinator)
         let middleVC = NSHostingController(rootView: middleView)
         middleVC.sizingOptions = []
@@ -305,7 +281,6 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         self.middleItem = middleItem
         addSplitViewItem(middleItem)
 
-        // Panel 3: Main Workspace / Editor (SwiftUI Main Wrapper)
         let mainView = PersonalDocMainWrapper(coord: coordinator)
         let mainVC = NSHostingController(rootView: mainView)
         mainVC.sizingOptions = []
@@ -511,7 +486,6 @@ public class PersonalDocSplitViewController: NSSplitViewController {
     }
 }
 
-// MARK: - Native Sidebar View Controller
 public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     public let coordinator: PersonalDocumentationCoordinator
     private var scrollView: NSScrollView?
@@ -617,8 +591,6 @@ public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDa
         }
     }
 
-    // MARK: - NSOutlineViewDataSource
-
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
             return nodes.count
@@ -643,8 +615,6 @@ public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDa
         }
         return false
     }
-
-    // MARK: - NSOutlineViewDelegate
 
     public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
         if let node = item as? SidebarNode {
@@ -718,8 +688,6 @@ public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDa
         }
     }
 
-    // MARK: - Drag & Drop
-
     public func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
         guard let node = item as? SidebarNode, !node.isGroup else { return nil }
         return node.title as NSString
@@ -734,7 +702,6 @@ public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDa
     }
 }
 
-// MARK: - Native Inspector View Controller
 public class PersonalDocInspectorViewController: NSViewController {
     public let coordinator: PersonalDocumentationCoordinator
     private var selectedDocumentID: UUID?
@@ -1000,7 +967,6 @@ public class PersonalDocInspectorViewController: NSViewController {
     }
 }
 
-// MARK: - AppKit-backed Native Search Field
 struct NativeSearchField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String = "Search..."
@@ -1037,7 +1003,6 @@ struct NativeSearchField: NSViewRepresentable {
     }
 }
 
-// MARK: - Native Split View Wrappers for HHostingController
 struct PersonalDocMiddleWrapper: View {
     let coord: PersonalDocumentationCoordinator
 
@@ -1115,7 +1080,6 @@ struct PersonalDocMainWrapper: View {
             case .snapshots:
                 SnapshotDetailView(coordinator: coord)
 
-            // Specialized Workspace Editors Routing
             case .apiDocumentation:
                 APIDocumentationEditor(coordinator: coord, documentID: state.selectedDocumentID)
             case .databaseDocumentation:
@@ -1166,7 +1130,6 @@ struct PersonalDocMainWrapper: View {
     }
 }
 
-// MARK: - SwiftUI View Container (Shorthand Sheet Fallback)
 public struct NSPersonalDocumentationView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
@@ -1185,7 +1148,6 @@ public struct NSPersonalDocumentationView: View {
     }
 }
 
-// MARK: - AppKit Sidebar Helpers & Nodes
 public class SidebarNode: NSObject {
     public let title: String
     public let icon: String?
@@ -1242,7 +1204,6 @@ class SidebarCellView: NSTableCellView {
 func buildSidebarNodes() -> [SidebarNode] {
     var nodes: [SidebarNode] = []
 
-    // 1. Overview
     let overview = SidebarNode(title: "OVERVIEW", isGroup: true)
     overview.children = [
         SidebarNode(title: "Dashboard", icon: "square.grid.2x2.fill", color: .systemBlue, kind: .dashboard),
@@ -1250,7 +1211,6 @@ func buildSidebarNodes() -> [SidebarNode] {
     ]
     nodes.append(overview)
 
-    // 2. Productivity Ecosystem
     let eco = SidebarNode(title: "PRODUCTIVITY ECOSYSTEM", isGroup: true)
     eco.children = [
         SidebarNode(title: "Knowledge Graph", icon: ModuleKind.knowledgeGraph.icon, color: .systemPurple, kind: .knowledgeGraph),
@@ -1263,21 +1223,18 @@ func buildSidebarNodes() -> [SidebarNode] {
     ]
     nodes.append(eco)
 
-    // 3. Libraries - Freeform Documents
     let freeform = SidebarNode(title: "FREEFORM DOCUMENTS", isGroup: true)
     freeform.children = ModuleKind.allCases.filter { $0.archetype == .freeform }.map { kind in
         SidebarNode(title: kind.rawValue, icon: kind.icon, color: .systemBlue, kind: kind)
     }
     nodes.append(freeform)
 
-    // 4. Libraries - Structured Records
     let structured = SidebarNode(title: "STRUCTURED RECORDS", isGroup: true)
     structured.children = ModuleKind.allCases.filter { $0.archetype == .structured }.map { kind in
         SidebarNode(title: kind.rawValue, icon: kind.icon, color: .systemOrange, kind: kind)
     }
     nodes.append(structured)
 
-    // 5. Libraries - Generated & Wiki
     let generated = SidebarNode(title: "GENERATED & WIKI", isGroup: true)
     var genChildren = [SidebarNode(title: "Project Wiki", icon: "globe.americas.fill", color: .systemPurple, kind: .projectWiki)]
     genChildren.append(contentsOf: ModuleKind.allCases.filter {
@@ -1300,7 +1257,6 @@ func buildSidebarNodes() -> [SidebarNode] {
     return nodes
 }
 
-// MARK: - Modernized Document Type Selection Popover
 struct DocumentCreationPopoverView: View {
     let coordinator: PersonalDocumentationCoordinator
     let onDismiss: () -> Void
@@ -1380,7 +1336,6 @@ struct DocumentCreationPopoverView: View {
             let state = coordinator.state(for: item.kind)
             state.selectedDocumentID = doc.id
         } catch {
-            // logging or ignore
         }
         onDismiss()
     }

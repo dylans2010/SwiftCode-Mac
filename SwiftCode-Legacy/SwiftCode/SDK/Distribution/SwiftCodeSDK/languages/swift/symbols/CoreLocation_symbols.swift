@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for CoreLocation
-
 public struct CoreLocationAPIEntity_0000: Sendable, Codable {
     public let id: String = "corelocation.api.0"
     public var name: String = "CoreLocationEntity_0"

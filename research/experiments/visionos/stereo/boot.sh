@@ -1,5 +1,4 @@
 #!/bin/bash
-# boot.sh <run-name> [KEY=VAL ...]: boot the test device with $INS inserted (colon list), env as SIMCTL_CHILD_KEY=VAL, wait for bootstatus.
 S=${STEREO_WORK:?set STEREO_WORK}
 U=$(cat $S/udid); N=$1; shift
 O=$S/runs/$N; mkdir -p $O

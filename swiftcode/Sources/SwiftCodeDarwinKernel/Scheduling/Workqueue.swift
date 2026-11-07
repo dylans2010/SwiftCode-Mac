@@ -1,30 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// The process workqueue (`specs/simulator/threads-and-events.md` §2;
-// `stage4a-contract.md` §5): `workq_open`, `workq_kernreturn`, worker
-// threads with the §2.6 memory layout and `start_wqthread` registers, the
-// admission rule, idle parking, and worker exit.
-//
-// SwiftCode's policy (§2.5 allows any policy that keeps the "a blocked worker
-// frees its slot" rule):
-// - overcommit, kqworkq-bucket, and workloop requests are always admitted;
-// - the manager request is admitted while no manager thread is bound;
-// - a constrained request at QoS q is admitted while fewer than N (the guest
-//   CPU count, `GuestCPUs`) constrained workers at q are running (a worker blocked in the kernel is
-//   not running);
-// - a cooperative request (`QUEUE_REQTHREADS2`) is admitted while fewer
-//   cooperative workers exist than the guest has CPUs, or while none exists
-//   at its QoS (each QoS gets one); a blocked cooperative worker still counts
-//   (§2.5 rule 5);
-// - among admissible requests the highest QoS wins;
-// - an idle worker is reused before a new one is created; an idle worker
-//   with no work for 5 s is restarted with x5 = −1 and exits.
-
-/// `pthread_priority_t` helpers (§2.4).
-///
-/// The constants are the flag bits (bits 31–24) of the same names in the
-/// §2.4 table that the kernel reads or writes.
 public enum PthreadPriority {
     public static let overcommit: UInt32 = 0x8000_0000
     public static let schedPri: UInt32 = 0x2000_0000
@@ -32,7 +8,6 @@ public enum PthreadPriority {
     public static let eventManager: UInt32 = 0x0200_0000
     public static let needsUnbind: UInt32 = 0x0100_0000
 
-    /// The thread QoS (1…6), or nil when the value has none.
     public static func qos(_ pp: UInt32) -> Int? {
         guard pp & (schedPri | eventManager) == 0 else { return nil }
         let bits = (pp >> 8) & 0x3F
@@ -40,25 +15,18 @@ public enum PthreadPriority {
         return bits.trailingZeroBitCount + 1
     }
 
-    /// The relative priority (−15…0 when valid).
     public static func relativePriority(_ pp: UInt32) -> Int { Int(Int8(bitPattern: UInt8(pp & 0xFF))) + 1 }
 
-    /// QoS + relpri 0 as a `pthread_priority_t`.
     public static func make(qos: Int, relpri: Int = 0) -> UInt32 {
         UInt32(1 << (8 + qos - 1)) | UInt32(UInt8(bitPattern: Int8(relpri - 1)))
     }
 }
 
-/// One unit of work a worker can take.
 enum WorkRequest {
-    /// `QUEUE_REQTHREADS` (or, cooperative, `QUEUE_REQTHREADS2`) at a QoS.
     case plain(qos: Int, overcommit: Bool, cooperative: Bool = false)
-    /// A kqworkq bucket (QoS 1…6, or 8 = manager) with active knotes.
     case bucket(Int)
-    /// A workloop with active knotes.
     case workloop(KQueue)
 
-    /// For trace notes: the workloop or bucket served.
     var traceTarget: String {
         switch self {
         case .plain: ""
@@ -76,30 +44,19 @@ enum WorkRequest {
     }
 }
 
-/// Workqueue bookkeeping of one worker thread.
 final class WorkerState {
     enum Phase { case running, idle, exiting }
 
-    /// The 560 KiB allocation.
     let base: UInt64
     var phase = Phase.running
-    /// Not yet started at `start_wqthread` (no `REUSE`).
     var firstRun = true
-    /// The QoS of the current request.
     var qos = 4
-    /// Counts toward the constrained parallelism limit.
     var constrained = false
-    /// Runs a cooperative request (counts toward the cooperative width
-    /// until it returns, blocked or not).
     var cooperative = false
-    /// Work handed to this (idle) worker by `pumpWorkqueue`.
     var assignment: WorkRequest?
-    /// The kqueue this worker services (a kqworkq bucket or a workloop).
     var boundQueue: KQueue?
     var boundBucket: Int?
-    /// The current run had a kevent upcall (its return may carry changes).
     var keventRun = false
-    /// Knotes delivered to this worker, suppressed until it returns.
     var delivered: [Knote] = []
     let park = WaitQueue()
 
@@ -108,28 +65,18 @@ final class WorkerState {
     static let allocationSize: UInt64 = 560 << 10
     var selfAddress: UInt64 { base + (540 << 10) }
     var stackBottom: UInt64 { base + (16 << 10) }
-    /// The event list `L` (16 × 72 bytes below `self`).
     var eventList: UInt64 { selfAddress - 1152 }
 }
 
-/// The process workqueue.
 struct WorkqueueState {
     var isOpen = false
-    /// `SETUP_DISPATCH`: (version, serial-number offset, label offset).
     var dispatchConfig: (version: UInt32, serialOffset: UInt64, labelOffset: UInt64)?
-    /// `QUEUE_NEWSPISUPP` serial-number offset.
     var newSPIOffset: UInt32 = 0
-    /// `SET_EVENT_MANAGER_PRIORITY` (the maximum seen).
     var managerPriority: UInt32 = 0
-    /// Every workqueue thread, by thread ID.
     var workers: [UInt64: ThreadContext] = [:]
-    /// Idle workers, most recently parked last.
     var idle: [ThreadContext] = []
-    /// Pending `REQTHREADS` counts by (QoS, overcommit).
     var plainPending: [PlainKey: Int] = [:]
-    /// Workloops waiting for a servicer, in request order.
     var pendingWorkloops: [KQueue] = []
-    /// A start failure was logged since the last success.
     var startFailureLogged = false
 
     struct PlainKey: Hashable {
@@ -138,21 +85,14 @@ struct WorkqueueState {
         var cooperative = false
     }
 
-    /// Constrained workers per QoS: the guest CPU count (§2.5 rule 3).
     static let parallelism = GuestCPUs.count
-    /// The cooperative pool's width: one thread per guest CPU (§2.5 rule 5).
     static let cooperativeWidth = GuestCPUs.count
     static let maxThreads = 512
-    /// Constrained workers scheduled at once, blocked ones included:
-    /// max(64, 5 × CPUs) (§2.5 rule 3). Overcommit, kevent and workloop
-    /// requests are not counted and not limited by it.
     static let maxConstrained = max(64, 5 * GuestCPUs.count)
-    /// Idle workers exit after this long with no work (5 s; tests shorten it).
     var idleTimeoutNanoseconds: UInt64 = 5_000_000_000
 }
 
 extension DarwinKernel {
-    /// `workq_kernreturn` operations.
     enum WorkqOp {
         static let threadReturn: UInt32 = 0x004
         static let newSPISupport: UInt32 = 0x010
@@ -165,8 +105,6 @@ extension DarwinKernel {
         static let setupDispatch: UInt32 = 0x400
     }
 
-    /// `start_wqthread` upcall flags (x4; `threads-and-events.md` §2.6). Each
-    /// constant is the upcall flag of the same name in the §2.6 table.
     public enum WorkqUpcall {
         public static let prioQoS: UInt64 = 0x0000_4000
         public static let prioSched: UInt64 = 0x0000_8000
@@ -181,18 +119,13 @@ extension DarwinKernel {
         public static let cooperative: UInt64 = 0x0100_0000
     }
 
-    /// The manager bucket's QoS number.
     static let managerQoS = 8
 
-    /// The process's workqueue threads.
     public var workqueueThreads: [ThreadContext] {
         lock.withLock { withEvents { workqueue.workers.values.sorted { $0.threadID < $1.threadID } } }
     }
 
-    /// The idle workqueue threads.
     public var idleWorkqueueThreads: [ThreadContext] { lock.withLock { withEvents { workqueue.idle } } }
-
-    // MARK: workq_kernreturn
 
     func workqKernreturn(_ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         let op = UInt32(truncatingIfNeeded: a[0])
@@ -229,8 +162,6 @@ extension DarwinKernel {
             return .value(0)
 
         case WorkqOp.reqThreads2:
-            // One cooperative thread per call (§2.3): ENOTSUP for a count
-            // above 1, EINVAL for the overcommit flag.
             guard workqueue.isOpen, arg2 > 0, arg2 <= 65535, let qos = PthreadPriority.qos(arg3),
                   arg3 & PthreadPriority.overcommit == 0 else { throw Failure(errno: Errno.EINVAL) }
             guard arg2 == 1 else { throw Failure(errno: Errno.ENOTSUP) }
@@ -274,12 +205,6 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: Admission
-
-    /// True when a constrained request at `qos` may start another worker.
-    /// Both limits of §2.5 rule 3: unblocked constrained workers at `qos`
-    /// below the parallelism, and constrained workers scheduled (blocked or
-    /// not) below `maxConstrained`.
     private func constrainedRoom(qos: Int) -> Bool {
         var running = 0, scheduled = 0
         for t in workqueue.workers.values {
@@ -290,8 +215,6 @@ extension DarwinKernel {
         return running < WorkqueueState.parallelism && scheduled < WorkqueueState.maxConstrained
     }
 
-    /// True when a cooperative request at `qos` may start another worker:
-    /// fewer cooperative workers than `cooperativeWidth`, or none at `qos`.
     private func cooperativeRoom(qos: Int) -> Bool {
         var total = 0, atQoS = 0
         for t in workqueue.workers.values {
@@ -306,7 +229,6 @@ extension DarwinKernel {
         kevents.workq?.buckets[Self.managerQoS]?.boundWorker != nil
     }
 
-    /// Takes the best admissible request off the queues, or nil.
     func takeWorkRequest() -> WorkRequest? {
         var best: (qos: Int, rank: Int, request: WorkRequest)?
         func consider(_ r: WorkRequest, rank: Int) {
@@ -341,7 +263,6 @@ extension DarwinKernel {
         return chosen
     }
 
-    /// Puts a request back (no thread could take it).
     func returnWorkRequest(_ r: WorkRequest) {
         switch r {
         case let .plain(qos, overcommit, cooperative):
@@ -357,8 +278,6 @@ extension DarwinKernel {
         }
     }
 
-    /// A vCPU of this process became free (the VMM, kernel lock not held):
-    /// requests that waited for one may start now.
     public func retryPendingWorkqueue() {
         lock.withLock { withEvents {
             guard termination == nil, !workqueue.plainPending.isEmpty || !workqueue.pendingWorkloops.isEmpty
@@ -367,8 +286,6 @@ extension DarwinKernel {
         } }
     }
 
-    /// Hands admissible requests to idle workers, then to new workers, until
-    /// none is left or no thread can be started.
     func pumpWorkqueue(_ mem: (any KernelGuestMemory)?) {
         eventLock?.checkHeld("the workqueue")
         guard threadRegistration != nil else { return }
@@ -377,10 +294,6 @@ extension DarwinKernel {
                 w.assignment = request
                 w.phase = .running
                 setWorkerQoS(w, for: request, ctx: worker)
-                // The bucket or workloop is this worker's from now on, not
-                // only once it runs its upcall: until then a new activation
-                // must not request (and bind) a second thread (xnu binds the
-                // thread request to the thread when it is selected).
                 switch request {
                 case let .bucket(b): if let kq = kevents.workq { bindWorker(worker, to: kq, bucket: b) }
                 case let .workloop(wl): bindWorker(worker, to: wl, bucket: nil)
@@ -390,9 +303,6 @@ extension DarwinKernel {
                 continue
             }
             guard let mem = mem ?? lastMemory else { returnWorkRequest(request); return }
-            // A fast path (`mach-ipc-locking.md` §4.5) cannot make a thread:
-            // the request waits for L0, which this thread takes once it holds
-            // no lock (before it returns or sleeps).
             if lock.callerIsFast {
                 returnWorkRequest(request)
                 lock.deferIfFast(.kernelLock(lock), tag: "new workqueue thread") { [weak self] in self?.retryPendingWorkqueue() }
@@ -412,7 +322,6 @@ extension DarwinKernel {
 
     private func setWorkerQoS(_ w: WorkerState, for request: WorkRequest, ctx: ThreadContext) {
         w.qos = request.qos
-        // The request's QoS replaces what the last run set (scheduling-policy.md §4.4).
         if SchedPolicy.qosEnabled {
             ctx.requestedQoS = 0
             ctx.dispatchOverrideQoS = 0
@@ -428,14 +337,7 @@ extension DarwinKernel {
         }
     }
 
-    /// Creates a worker for `request`. Returns false when it could not start
-    /// (the request is put back).
     private func startNewWorker(for request: WorkRequest, _ mem: any KernelGuestMemory) -> Bool {
-        // Check for a vCPU before the upcall: the upcall delivers kevents
-        // (an EV_DISPATCH knote is disabled, a Mach message is received into
-        // the new thread's stack), which cannot be undone if the thread then
-        // never runs. The request stays pending; a vCPU that becomes free
-        // pumps the queue again (`retryPendingWorkqueue`).
         guard threadHost?.canStartThread ?? false else {
             returnWorkRequest(request)
             if !workqueue.startFailureLogged {
@@ -460,7 +362,6 @@ extension DarwinKernel {
         setWorkerQoS(w, for: request, ctx: ctx)
         workqueue.workers[ctx.threadID] = ctx
         guard let start = upcall(for: request, worker: ctx, mem) else {
-            // Nothing to deliver after all: keep the thread idle-less; drop it.
             discardUnstartedWorker(ctx, mem)
             return true
         }
@@ -490,10 +391,6 @@ extension DarwinKernel {
         if let w = ctx.worker { try? mem.unmap(va: w.base, size: WorkerState.allocationSize) }
     }
 
-    // MARK: Upcalls
-
-    /// The `start_wqthread` state for `request` on `ctx`, binding it to the
-    /// request's kqueue. Nil when a kevent request has no events left.
     func upcall(for request: WorkRequest, worker ctx: ThreadContext, _ mem: any KernelGuestMemory) -> ThreadStartState? {
         guard let w = ctx.worker, let reg = threadRegistration else { return nil }
         var flags = WorkqUpcall.newSPI
@@ -546,7 +443,6 @@ extension DarwinKernel {
             pc: reg.startWorkqueueThread, sp: sp, tpidrro: w.selfAddress + tsd)
     }
 
-    /// The exit upcall: x5 = −1, QoS no higher than legacy.
     func exitUpcall(worker ctx: ThreadContext) -> ThreadStartState? {
         guard let w = ctx.worker, let reg = threadRegistration else { return nil }
         let flags = WorkqUpcall.newSPI | WorkqUpcall.prioQoS | UInt64(min(w.qos, 4)) | WorkqUpcall.reuse
@@ -568,15 +464,8 @@ extension DarwinKernel {
         }
     }
 
-    /// Detaches `ctx` from its kqueue. With `release`, the knotes delivered to
-    /// it stop being suppressed. The bucket or workloop may then request
-    /// another thread.
     func unbindWorker(_ ctx: ThreadContext, release: Bool) {
         guard let w = ctx.worker else { return }
-        // The kqueues (and buckets) of the knotes released here: a knote that
-        // stayed active while it was suppressed (a message arrived meanwhile)
-        // needs a new thread request. When the worker already unbound itself
-        // (`kevent unbind`, bsdthread_ctl), nothing else would issue it.
         let released = release ? releaseDelivered(w) : []
         guard let kq = w.boundQueue else {
             reevaluateReleased(released)
@@ -595,8 +484,6 @@ extension DarwinKernel {
         for (q, b) in released where !(q === kq && b == bucket) { reevaluateRequests(q, bucket: b) }
     }
 
-    /// Unsuppresses the knotes delivered to `w`. Returns their kqueues
-    /// (with the bucket for the workq kqueue), for `reevaluateReleased`.
     @discardableResult
     func releaseDelivered(_ w: WorkerState) -> [(KQueue, Int?)] {
         var out: [(KQueue, Int?)] = []
@@ -611,41 +498,23 @@ extension DarwinKernel {
         return out
     }
 
-    /// A released knote that stayed active while it was suppressed (a
-    /// message arrived meanwhile) needs a thread request of its own when the
-    /// worker no longer services its kqueue (it unbound itself with
-    /// `kevent unbind`): nothing else would issue one.
     func reevaluateReleased(_ released: [(KQueue, Int?)]) {
         for (q, b) in released { reevaluateRequests(q, bucket: b) }
     }
 
-    // MARK: Return, park, exit
-
-    /// The events a returning worker's next upcall carries at most (the
-    /// scan's limit; change errors count first).
     static let returnEventCapacity = 16
 
     private func workerReturn(op: UInt32, changes: UInt64, count: Int, _ call: inout CallText,
                               _ mem: any KernelGuestMemory) throws -> BSDResult {
         let ctx = current
         guard ctx.kind == .workqueue, let w = ctx.worker, w.phase == .running else { throw Failure(errno: Errno.EINVAL) }
-        // The run is over: its carried importance and sync push end (scheduling-policy.md §4.3, §4.6).
         if ctx.carriedImportance != nil || ctx.ipcPushClass >= 0 {
-            // Importance counts are port-lock state on a fast path (`mach-ipc-locking.md` §4.1).
             if let ports = system.mach.portLock {
                 ports.withLock { endServicing(ctx) }
             } else {
                 endServicing(ctx)
             }
         }
-        // Per-change errors (§2.7 step 3): as libpthread's kernel side
-        // applies a returning worker's list (stack data, immediate,
-        // parking; no ERROR_EVENTS), every change is applied, and a failed
-        // one comes back as an EV_ERROR event, first in the thread's next
-        // upcall. Before, the first failure stopped the list and was
-        // returned as the call's errno: the changes after it were lost and
-        // the library gave the thread back without them, which libdispatch
-        // later found as an inconsistent workloop ("Invalid wlh state").
         var errors: [KEventRecord] = []
         if op != WorkqOp.threadReturn {
             guard count >= 0, count == 0 || w.keventRun else { throw Failure(errno: Errno.EINVAL) }
@@ -693,7 +562,6 @@ extension DarwinKernel {
         unbindWorker(ctx, release: true)
         w.keventRun = false
         ctx.signalMask = Self.workqueueSignalMask
-        // Next work, or park.
         w.constrained = false
         w.cooperative = false
         while true {
@@ -705,12 +573,11 @@ extension DarwinKernel {
                 }
                 continue
             }
-            // Park.
             w.phase = .idle
             w.constrained = false
             w.cooperative = false
             workqueue.idle.append(ctx)
-            pumpWorkqueue(mem)  // other requests may now be admissible
+            pumpWorkqueue(mem)
             let result = w.park.wait(on: eventWaitLock, deadline: KernelClock.deadline(afterNanoseconds: workqueue.idleTimeoutNanoseconds))
             if let request = w.assignment {
                 w.assignment = nil
@@ -723,7 +590,6 @@ extension DarwinKernel {
             }
             workqueue.idle.removeAll { $0 === ctx }
             if result == .interrupted { return .value(0) }
-            // Idle for 5 s: exit.
             w.phase = .exiting
             call += " [idle 5 s: exit]"
             if let start = exitUpcall(worker: ctx) { return .restart(start) }
@@ -731,14 +597,11 @@ extension DarwinKernel {
         }
     }
 
-    /// §2.7 step 2: everything blocked except SIGILL, SIGTRAP, SIGEMT, SIGFPE,
-    /// SIGBUS, SIGSEGV, SIGSYS, SIGPIPE, SIGKILL, SIGSTOP, SIGPROF.
     static let workqueueSignalMask: UInt32 = {
         let open: [UInt32] = [4, 5, 7, 8, 10, 11, 12, 13, 9, 17, 27]
         return open.reduce(UInt32.max) { $0 & ~(1 << ($1 - 1)) }
     }()
 
-    /// A worker is terminating (`bsdthread_terminate`).
     func workqueueThreadTerminating(_ ctx: ThreadContext) {
         ctx.worker?.cooperative = false
         unbindWorker(ctx, release: true)
@@ -747,14 +610,8 @@ extension DarwinKernel {
         ctx.worker?.phase = .exiting
     }
 
-    /// The lock's blocking observer: a running constrained worker that blocks
-    /// frees its slot.
     func threadBlockingChanged(_ ctx: ThreadContext, blocking: Bool) {
-        // A pre-filter without the event lock: `worker` is set before the
-        // thread first runs and never changes; the flags are re-read below.
         guard blocking, let w0 = ctx.worker, w0.constrained else { return }
-        // Workqueue state: now if this thread's locks allow the event lock,
-        // else once they do (`mach-ipc-locking.md` §4.5).
         let pump = { [weak self] in
             guard let self, let w = ctx.worker, w.phase == .running, w.constrained else { return }
             pumpWorkqueue(nil)

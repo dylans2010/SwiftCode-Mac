@@ -4,32 +4,19 @@ import FoundationXML
 #endif
 import SwiftCodeProject
 
-/// `-exportLocalizations` / `-importLocalizations`: Xcode localization
-/// catalogs (`.xcloc`) holding XLIFF 1.2 (OASIS standard) made from the
-/// project's String Catalogs (`.xcstrings`) and `.strings` files.
-/// See `specs/xcodebuild/localization.md`.
 enum Localization {
-    // MARK: Sources
 
-    /// One localizable source of a project.
     struct Source {
         enum Kind { case catalog, strings }
         var kind: Kind
-        /// Path relative to the project folder (`Loc/Localizable.xcstrings`,
-        /// `Loc/en.lproj/Greetings.strings`).
         var relativePath: String
-        /// The file on disk (nil for synthesized catalogs).
         var file: String?
-        /// For synthesized catalogs: the catalog object.
         var synthesized: [String: Any]?
-        /// The target the file belongs to, and the group holding its sources.
         var targetID: String?
         var targetName: String?
         var groupID: String?
     }
 
-    /// The localizable resources of the project's targets, and an Info.plist
-    /// catalog for application targets with a generated Info.plist.
     static func sources(_ project: LoadedProject, developmentRegion: String, settings: [String: [String: String]]) -> [Source] {
         let proj = project.proj
         let parents = proj.parentMap()
@@ -41,7 +28,6 @@ enum Localization {
                 for bf in proj[pid]?.references("files") ?? [] {
                     guard let ref = proj[bf]?.string("fileRef"), let obj = proj[ref] else { continue }
                     if obj.isa == "PBXVariantGroup" {
-                        // The development-language member of a localized group.
                         for c in obj.references("children") {
                             guard let child = proj[c], (child.string("name") ?? "") == developmentRegion || (child.string("path") ?? "").hasPrefix(developmentRegion + ".lproj/"),
                                   (child.string("path") ?? "").hasSuffix(".strings"),
@@ -54,11 +40,9 @@ enum Localization {
                     }
                 }
             }
-            // Generated Info.plist of an application: its bundle name.
             guard let name = t.string("name"), (t.string("productType") ?? "").hasSuffix(".application"),
                   let s = settings[t.id], s["GENERATE_INFOPLIST_FILE"] == "YES" else { continue }
             let folder = FileManager.default.fileExists(atPath: dir + "/" + name) ? name + "/" : ""
-            // The group of the target's first source file.
             let firstSource = t.references("buildPhases").lazy.compactMap { proj[$0] }.first { $0.isa == "PBXSourcesBuildPhase" }?
                 .references("files").first.flatMap { proj[$0]?.string("fileRef") }
             let catalog: [String: Any] = [
@@ -82,8 +66,6 @@ enum Localization {
         return try? JSONSerialization.jsonObject(with: d) as? [String: Any]
     }
 
-    // MARK: Translation units
-
     struct Unit {
         var id: String
         var source: String
@@ -92,7 +74,6 @@ enum Localization {
         var note: String?
     }
 
-    /// XLIFF `state` for a String Catalog string-unit state.
     static func xliffState(_ catalogState: String) -> String {
         switch catalogState {
         case "needs_review": return "needs-review-l10n"
@@ -103,7 +84,6 @@ enum Localization {
         }
     }
 
-    /// String Catalog state for an XLIFF `state` (import).
     static func catalogState(_ xliffState: String?) -> String {
         switch xliffState {
         case "new", "needs-translation": return "new"
@@ -142,8 +122,6 @@ enum Localization {
         }.sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     }
 
-    // MARK: XLIFF
-
     static func escape(_ s: String, attribute: Bool = false) -> String {
         var out = s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
         if attribute { out = out.replacingOccurrences(of: "\"", with: "&quot;") }
@@ -173,8 +151,6 @@ enum Localization {
         return x
     }
 
-    /// The catalog as the source-language copy in an `.xcloc`: only the
-    /// source language's localizations.
     static func sourceCatalog(_ c: [String: Any]) -> [String: Any] {
         var c = c
         let sourceLanguage = c["sourceLanguage"] as? String ?? "en"
@@ -191,8 +167,6 @@ enum Localization {
         return c
     }
 
-    // MARK: Export
-
     static func timestamp() -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -200,8 +174,6 @@ enum Localization {
         return f.string(from: Date())
     }
 
-    /// Builds every target with the build system's `exportloc` action (string
-    /// extraction) and returns the targets' build settings.
     static func buildForStrings(_ inv: Invocation, project: LoadedProject, container: Container, context ctx: XcodebuildContext) throws(XcodebuildFailure) -> [String: [String: String]]? {
         let targets = project.targets.filter { ProjectPIF.targetKind($0) != nil }.map { SettingsTarget(project: project, target: $0) }
         var plan = Plan(container: container, scheme: nil, actions: [.build], targets: targets, configuration: inv.configuration ?? project.defaultConfigurationName,
@@ -239,7 +211,6 @@ enum Localization {
         console.out()
         console.out("Building all targets for string extraction")
         console.out()
-        // Every target is built with the export action (string extraction).
         guard let settings = try buildForStrings(inv, project: project, container: container, context: ctx) else { return ExitCode.dataError }
         log("Extracting strings from localizable files")
         let sources = sources(project, developmentRegion: development, settings: settings)
@@ -289,8 +260,6 @@ enum Localization {
         return 0
     }
 
-    // MARK: Import
-
     struct XLIFFFile {
         var original: String
         var sourceLanguage: String
@@ -298,7 +267,6 @@ enum Localization {
         var units: [Unit]
     }
 
-    /// Reads the `<file>` and `<trans-unit>` elements of an XLIFF 1.2 document.
     final class XLIFFReader: NSObject, XMLParserDelegate {
         var files: [XLIFFFile] = []
         var unit: Unit?
@@ -377,8 +345,6 @@ enum Localization {
         for f in files {
             let file = dir + "/" + f.original
             if f.original.hasSuffix(".xcstrings") {
-                // Translations go into the catalog; a catalog the build
-                // generates (Info.plist strings) is written and added.
                 let synthesized = known.first { $0.relativePath == f.original && $0.synthesized != nil }
                 var c: [String: Any]
                 if let d = FileManager.default.contents(atPath: file), let existing = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
@@ -422,7 +388,6 @@ enum Localization {
                 }
             }
         }
-        // Generated catalogs join their target's group and resources.
         if !generated.isEmpty {
             var proj = project.proj
             for g in generated {
@@ -442,7 +407,6 @@ enum Localization {
     }
 }
 
-/// `.strings` files: `"key" = "value";` pairs with `/* comments */`.
 enum StringsFile {
     struct Entry: Equatable { var key: String; var value: String; var comment: String? }
 

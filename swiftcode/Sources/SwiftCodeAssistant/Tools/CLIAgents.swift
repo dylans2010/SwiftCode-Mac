@@ -1,11 +1,6 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// Agent command-line tools the user has installed and signed in to
-/// themselves. SwiftCode only runs each tool's documented headless mode,
-/// read-only, in the workspace folder, and reads its documented event
-/// stream. It never reads, copies or changes the tool's credentials or
-/// configuration; the tool authenticates itself (coding-assistant.md §3.4).
 public enum CLIAgentKind: String, Codable, Sendable, CaseIterable {
     case claudeCode, codex, antigravity
 
@@ -27,7 +22,6 @@ public enum CLIAgentKind: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// Where to get it, for the empty state.
     public var installHint: String {
         switch self {
         case .claudeCode: "Install Claude Code and sign in once by running `claude` in Terminal."
@@ -36,8 +30,6 @@ public enum CLIAgentKind: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// The model names offered besides the tool's own default (Claude
-    /// Code's documented aliases; the others take a name typed in Settings).
     public var suggestedModels: [String] {
         switch self {
         case .claudeCode: ["sonnet", "opus", "haiku"]
@@ -45,29 +37,6 @@ public enum CLIAgentKind: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// The command line, without the executable. The prompt goes to
-    /// standard input except for Antigravity, whose documented print mode
-    /// takes it as the `-p` argument.
-    ///
-    /// - Claude Code: print mode with the stream-json event stream and
-    ///   partial messages; plan permission mode; only the read-only Read,
-    ///   Grep and Glob tools; no MCP tools; safe mode (no hooks, plugins or
-    ///   project MCP servers from the workspace); nothing saved; nothing
-    ///   that would prompt.
-    /// - Codex: `exec` with JSONL events, the read-only sandbox, no session
-    ///   files, working root `-C`.
-    /// - Antigravity: print mode with stream-json, plan mode, the terminal
-    ///   sandbox, no slash-command expansion.
-    ///
-    /// Agent mode (`mcpConfig` for Claude Code, `mcp` for Codex): SwiftCode's
-    /// MCP server is attached and its tools are allowed; the tools' own
-    /// editing stays off, so every change goes through SwiftCode's review.
-    /// Claude Code: `--mcp-config <file>` (only that server, all its tools
-    /// allowed, default permission mode); `--restricted` instead of
-    /// `--safe-mode`, which would turn the MCP server off too (restricted
-    /// mode ignores the user's and the project's settings files, so their
-    /// hooks and MCP servers, and keeps the file tools in the workspace). Codex: `-c mcp_servers.swiftcode.url`
-    /// and `bearer_token_env_var` (the token is in the child's environment).
     public func arguments(model: String?, workingDirectory: String, prompt: String, toolsEnabled: Bool = true,
                           mcp: AgentAttachment.MCPEndpoint? = nil, mcpConfig: String? = nil) -> [String] {
         let m = model.flatMap { $0.isEmpty ? nil : $0 }
@@ -106,19 +75,14 @@ public enum CLIAgentKind: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// The environment variable that carries the MCP bearer token to Codex.
     public static let mcpTokenVariable = "SWIFTCODE_MCP_TOKEN"
 
-    /// Whether the tool can take SwiftCode's MCP server (Antigravity's print
-    /// mode documents no MCP configuration).
     public var supportsAgentMode: Bool { self != .antigravity }
 
-    /// Claude Code's `--mcp-config` file for an endpoint.
     public static func claudeMCPConfig(_ e: AgentAttachment.MCPEndpoint) -> String {
         AnyJSON.object(["mcpServers": .object([e.name: ["type": "http", "url": .string(e.url), "headers": ["Authorization": .string("Bearer \(e.token)")]]])]).text
     }
 
-    /// Whether the prompt is sent on standard input.
     public var promptOnStandardInput: Bool { self != .antigravity }
 
     public func makeParser() -> CLIEventParser {
@@ -130,21 +94,11 @@ public enum CLIAgentKind: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// Turns one line of a tool's JSON event stream into chat events.
 public protocol CLIEventParser {
-    /// Events for one line. Throws when the line reports a failure.
     mutating func parse(_ line: String) throws -> [ChatEvent]
-    /// Events at the end of the stream (text that only the final record
-    /// carried).
     mutating func finish() -> [ChatEvent]
 }
 
-/// Claude Code `--output-format stream-json` (Claude Code's headless and
-/// CLI reference): `stream_event` lines carry `content_block_delta` /
-/// `text_delta` text; `assistant` messages carry whole content blocks
-/// (`text`, `tool_use`); the last line is `result` (`is_error`, `result`,
-/// `usage`); `system/api_retry` reports retries. Messages of subagents
-/// (`parent_tool_use_id` set) are not shown as text.
 public struct ClaudeCodeEventParser: CLIEventParser {
     var sawDelta = false
     var sawText = false
@@ -199,7 +153,6 @@ public struct ClaudeCodeEventParser: CLIEventParser {
     public mutating func finish() -> [ChatEvent] { [] }
 
     static func describeTool(_ name: String, _ input: [String: Any]?) -> String {
-        // Agent mode's MCP tools: "mcp__swiftcode__build" → "swiftcode: build".
         if name.hasPrefix("mcp__") {
             let parts = name.dropFirst(5).components(separatedBy: "__")
             if parts.count >= 2 {
@@ -212,12 +165,6 @@ public struct ClaudeCodeEventParser: CLIEventParser {
     }
 }
 
-/// Codex `exec --json` (Codex's non-interactive mode): JSON Lines with
-/// `thread.started`, `turn.started`, `item.started` / `item.updated` /
-/// `item.completed` (items `agent_message`, `reasoning`,
-/// `command_execution`, `file_change`, …), `turn.completed` (`usage`),
-/// `turn.failed` and `error`. Codex sends the agent's message whole, at
-/// `item.completed`.
 public struct CodexEventParser: CLIEventParser {
     var messages = 0
     public init() {}
@@ -255,10 +202,6 @@ public struct CodexEventParser: CLIEventParser {
     public mutating func finish() -> [ChatEvent] { [] }
 }
 
-/// Antigravity CLI `--output-format stream-json` (Antigravity's headless
-/// mode): `init`, then `step_update` events (`step_type`, `state`,
-/// `text_delta`, `tool_name`), then one `result` (`status`, `response`,
-/// `error`, `usage`).
 public struct AntigravityEventParser: CLIEventParser {
     var sawText = false
     public init() {}
@@ -296,8 +239,6 @@ public struct AntigravityEventParser: CLIEventParser {
     public mutating func finish() -> [ChatEvent] { [] }
 }
 
-/// Finds command-line tools on the search path and in the usual install
-/// folders (a GUI app's PATH is minimal, so the usual folders matter).
 public struct CLIToolLocator: Sendable {
     public var searchPath: [String]
     public var home: String
@@ -311,12 +252,10 @@ public struct CLIToolLocator: Sendable {
         self.isExecutable = isExecutable
     }
 
-    /// Folders checked after PATH, in order.
     public func usualFolders() -> [String] {
         var f = ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin", "\(home)/bin", "\(home)/.npm-global/bin",
                  "\(home)/.bun/bin", "\(home)/.volta/bin", "\(home)/.claude/local", "\(home)/.codex/bin", "\(home)/.antigravity/bin",
                  "/usr/bin"]
-        // nvm installs: newest Node version first.
         let nvm = "\(home)/.nvm/versions/node"
         if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvm) {
             f += versions.sorted { $0.compare($1, options: .numeric) == .orderedDescending }.map { "\(nvm)/\($0)/bin" }
@@ -338,16 +277,12 @@ public struct CLIToolLocator: Sendable {
     }
 }
 
-/// An agent tool as a provider: one subprocess per request.
 public struct CLIAgentProvider: AgentAttachable {
     public let agent: CLIAgentKind
     public var kind: ProviderKind { agent.providerKind }
-    /// The located executable (nil: not installed).
     public var executable: URL?
-    /// Arguments that replace the documented ones (tests).
     public var argumentsOverride: [String]?
 
-    /// Agent mode's attachment (SwiftCode's MCP server), when given.
     public var attachment: AgentAttachment?
 
     public init(agent: CLIAgentKind, executable: URL?, argumentsOverride: [String]? = nil) {
@@ -370,8 +305,6 @@ public struct CLIAgentProvider: AgentAttachable {
         return .ready([ModelInfo(id: "", displayName: "Default")] + agent.suggestedModels.map { ModelInfo(id: $0) })
     }
 
-    /// The child's environment: this process's, with the tool's own folder
-    /// first on PATH (tools installed with Node need `node` beside them).
     func environment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         if let token = attachment?.mcp?.token, agent == .codex { env[CLIAgentKind.mcpTokenVariable] = token }
@@ -390,8 +323,6 @@ public struct CLIAgentProvider: AgentAttachable {
             }
             let dir = request.workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser
             let prompt = request.flattenedPrompt
-            // Agent mode: Claude Code reads the MCP server from a private
-            // file (it holds the bearer token), removed after the run.
             var configFile: URL?
             if let mcp = provider.attachment?.mcp, provider.agent == .claudeCode {
                 let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-agent-\(UUID().uuidString)")
@@ -426,7 +357,6 @@ public struct CLIAgentProvider: AgentAttachable {
         }
     }
 
-    /// The exit message, with the usual cause spelled out.
     static func explain(_ e: StreamingSubprocess.ExitError) -> String {
         let tail = e.stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = tail.lowercased()

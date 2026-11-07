@@ -3,101 +3,6 @@ import SwiftCodePlist
 import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// The ported Legacy project-model / pbxproj tool family (Wave 7,
-/// slice B).
-///
-/// Behaviour source: Legacy's `AssistCreateNewAppTool`,
-/// `AssistGenerateXcodeprojTool` (in `AssistBuildProjectTool.swift`),
-/// `AssistPbxprojLintTool`, `AssistProjectBuildSettingsTool`,
-/// `AssistProjectCapabilitiesTool`, `AssistDiffTool`,
-/// `AssistProjectMutationController`, `AssistRestoreSnapshotTool`,
-/// `AssistProjectSchemeListTool`, `AssistSnapshotProjectTool`,
-/// `AssistProjectStructureMapTool`, `AssistProjectTargetAddTool`,
-/// `AssistProjectTargetListTool`, `AssistSchemeTestPlanListTool`,
-/// `AssistTargetDependenciesListTool`, `AssistTargetSourceListTool`,
-/// `AssistWorkspaceSettingsReadTool`, `AssistXcodeBuildSettingsTool`
-/// and `AssistXcodeSchemeTool` (Dylan's own code, ported under MIT).
-/// The behaviour contract is
-/// `~/SwiftCode-Migration-Workspace/scratch/wave7-slice-b-spec.md`.
-///
-/// Conventions, following Waves 1–6:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   The two tool-name aliases in this slice, `xcode_scheme` →
-///   `xcode_scheme_manager` and `build_settings` →
-///   `xcode_build_settings_inspector` (Legacy's `AssistToolRegistry`
-///   alias table), live in `MCPServer.toolAliases`, which the
-///   coordinator owns — they are not added here.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers, booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data return a plain text result instead.
-/// * Paths resolve through the session resolvers
-///   (`resolveFileReadingPath`, `fileReadingRelativePath`) and never
-///   escape the workspace, with the deviations documented in the
-///   spec: `create_new_app` confines the new project to the
-///   workspace (Legacy wrote to `~/Documents` or an arbitrary
-///   absolute path), and `projectLocation` is resolved with the
-///   strict `resolve(_:in:)` so an outside absolute path fails
-///   instead of being silently reinterpreted.
-/// * The project model is SwiftCode's own (`SwiftCodeProject`): pbxproj
-///   reads go through `PBXProj` parsing, edits through its typed
-///   mutations (`setBuildSetting`, `addFileReference`,
-///   `addBuildFile`, `removeFileReference`, `addTarget`,
-///   `addSourceGroup`), serialised with `PBXProjWriter`. No tool
-///   edits pbxproj text by line or regex insertion, and no
-///   parallel project model is built.
-/// * No `xcodebuild` is spawned anywhere in this slice. Legacy's
-///   scheme/target/settings reads ran it (macOS-only); this port
-///   reads the same facts from the parsed pbxproj and the
-///   session's own model (`WorkspaceModel.schemeNames`). Build
-///   setting values are the values as written in the pbxproj
-///   (project-level merged with target-level, target wins); no
-///   xcconfig is followed and no `$(…)` macro is expanded.
-/// * Approval gating: the seven writing tools
-///   (`create_new_app`, `generate_xcodeproj`,
-///   `project_build_settings`, `project_capabilities`,
-///   `project_mutation_controller`, `project_snapshot`,
-///   `project_target_add`) plus `project_restore` are
-///   `writes: true`. Project-file edits go through `commit()` /
-///   `approve()`; `project_snapshot` / `project_restore` use an
-///   explicit `MCPChange` + `approve()` per call (the snapshot
-///   store is outside the workspace, so `commit()` does not
-///   apply). `project_restore` is `potentiallyDestructive`.
-///   There is no Autopilot bypass.
-/// * `generate_xcodeproj` uses SwiftCode's native generator
-///   (`XcodeGenNativeGenerator`, gap closure): it reads the same
-///   `project.yml` and builds the `.xcodeproj` from SwiftCode's
-///   own project model, so no xcodegen install is needed. Legacy
-///   installed xcodegen via Homebrew without a prompt when
-///   missing; this port never installs anything. The generated
-///   files are committed one change per file through the normal
-///   write policy (like `create_new_app`). A spec that needs
-///   something outside the generator's subset fails honestly,
-///   naming the key, and suggests running xcodegen manually.
-///   It is `writes: true` (Legacy marked it `execution`) because
-///   generation writes a `.xcodeproj` bundle into the workspace,
-///   so a read-only server must refuse it.
-/// * Snapshots live in Application Support `SwiftCodeSnapshots/`
-///   (Legacy's `AssistSnapshots/` layout, renamed for SwiftCode).
-///   `project_snapshot` is `writes: true` although Legacy marked
-///   it `safeRead`, because it writes a whole-tree copy to disk.
-/// * `project_target_add` registers its target properly
-///   (`PBXProj.addTarget`: targets list, product reference,
-///   configuration list, source group). Legacy inserted the
-///   blocks as text but never registered the target, leaving an
-///   orphan; the port does not reproduce that defect.
-/// * `project_mutation_controller`'s `remove` removes matching
-///   `PBXFileReference` objects through the model instead of
-///   deleting every line containing the file string (Legacy's
-///   line filter could delete unrelated lines).
-///
-/// Wiring: this array is NOT added to `installTools()` here —
-/// `SwiftCodeTools.swift` is owned by the coordinator, which adds
-/// `+ projectModelTools` to the chain.
 extension SwiftCodeMCPHost {
     var projectModelTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -145,9 +50,6 @@ extension SwiftCodeMCPHost {
                                        "configuration": Schema.string("Build configuration, e.g. Debug or Release. Default: Debug."),
                                        "key": Schema.string("Build setting key. Required for set; optional filter for read."),
                                        "value": Schema.string("New value for the key. Required for set.")]),
-                 // No output schema: read-all, read-one and set return
-                 // different key sets, and Schema.output requires every
-                 // listed property.
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.projectModelProjectBuildSettings(call)
             },
@@ -156,9 +58,6 @@ extension SwiftCodeMCPHost {
                  input: Schema.object(["workspace": Schema.workspace,
                                        "action": Schema.string("list, enable, or disable. Default: list."),
                                        "capability": Schema.string("Capability name for enable/disable: push, icloud, appGroups, appSandbox, keychain, network.")]),
-                 // No output schema: list and enable/disable return
-                 // different key sets, and Schema.output requires every
-                 // listed property.
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.projectModelProjectCapabilities(call)
             },
@@ -271,19 +170,12 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared helpers (project model)
 
-    /// Top-level directories Legacy's workspace scan skips, checked
-    /// against the first path component exactly as
-    /// `AssistWorkspaceScan.files` does.
     nonisolated static let projectModelSkippedDirs: Set<String> = [
         ".git", ".build", "build", "DerivedData", ".swiftpm",
         "Pods", "Carthage", "node_modules", ".venv",
     ]
 
-    /// The first `project.pbxproj` under the root, in sorted-path
-    /// order (Legacy took the first in enumerator order, which is
-    /// unspecified; sorted-first is deterministic).
     nonisolated static func projectModelFindPbxproj(in root: URL) -> URL? {
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             return nil
@@ -295,8 +187,6 @@ extension SwiftCodeMCPHost {
         return found.sorted { $0.path < $1.path }.first
     }
 
-    /// Every `project.pbxproj` at depth ≤ 4, Legacy's
-    /// `project_target_list` scan.
     nonisolated static func projectModelFindPBXProjURLs(in root: URL) -> [URL] {
         var results: [URL] = []
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
@@ -313,8 +203,6 @@ extension SwiftCodeMCPHost {
         return results.sorted { $0.path < $1.path }
     }
 
-    /// The top-level `.xcworkspace` (preferred) or `.xcodeproj` in
-    /// the workspace root, Legacy's `locateProject`.
     nonisolated static func projectModelTopLevelProject(in root: URL) -> URL? {
         guard let entries = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
             return nil
@@ -325,7 +213,6 @@ extension SwiftCodeMCPHost {
         return projects.first
     }
 
-    /// Reads and parses a pbxproj, returning the model and its text.
     nonisolated static func projectModelLoadPBXProj(at url: URL) throws -> (PBXProj, String) {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {
             throw MCPToolError("Failed to read project.pbxproj.")
@@ -337,9 +224,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Files under the root with Legacy's `AssistWorkspaceScan.files`
-    /// semantics: hidden files skipped, top-level skipped dirs
-    /// skipped, optional extension filter, 20,000-file cap.
     nonisolated static func projectModelScanFiles(under root: URL, extensions: Set<String>? = nil, maxFiles: Int = 20000) -> [URL] {
         var results: [URL] = []
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
@@ -361,9 +245,6 @@ extension SwiftCodeMCPHost {
         Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
     }
 
-    /// A build-setting value as a string: plain strings as-is,
-    /// arrays space-joined (as `xcodebuild -showBuildSettings`
-    /// renders them).
     nonisolated static func projectModelSettingString(_ value: PlistValue?) -> String? {
         guard let value else { return nil }
         if let s = value.string { return s }
@@ -371,10 +252,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// The settings of one configuration: project-level first,
-    /// target-level overriding. Returns the merged map, whether the
-    /// named target was found, and whether any configuration block
-    /// with that name exists.
     nonisolated static func projectModelMergedSettings(_ proj: PBXProj, targetName: String?, configuration: String) -> (settings: [String: String], targetFound: Bool, configFound: Bool) {
         var merged: [String: String] = [:]
         var configFound = false
@@ -399,8 +276,6 @@ extension SwiftCodeMCPHost {
         return (merged, targetFound, configFound)
     }
 
-    /// The project's default configuration name (its list's
-    /// `defaultConfigurationName`, else `Debug`).
     nonisolated static func projectModelDefaultConfiguration(_ proj: PBXProj) -> String {
         if let list = proj.project?.string("buildConfigurationList"),
            let name = proj[list]?.string("defaultConfigurationName"), !name.isEmpty {
@@ -409,10 +284,6 @@ extension SwiftCodeMCPHost {
         return "Debug"
     }
 
-    /// The full path of a `PBXGroup` from the main group down
-    /// (`path`, falling back to `name`), following the parent
-    /// chain. Synchronised folders are not groups and are not
-    /// followed (Legacy's resolver only matched `PBXGroup`).
     nonisolated static func projectModelGroupPaths(_ proj: PBXProj) -> [String: String] {
         var parentOf: [String: String] = [:]
         var groups: [String: PBXObject] = [:]
@@ -437,9 +308,6 @@ extension SwiftCodeMCPHost {
         return out
     }
 
-    /// Legacy's `groupID(forFileDirectory:)`: the group whose
-    /// resolved directory exactly matches `fileDir`, else the
-    /// deepest path-prefix match. Nil when nothing matches.
     nonisolated static func projectModelGroupID(forFileDirectory fileDir: String, in proj: PBXProj) -> String? {
         let paths = projectModelGroupPaths(proj)
         guard !paths.isEmpty else { return nil }
@@ -455,8 +323,6 @@ extension SwiftCodeMCPHost {
         return best?.id
     }
 
-    /// The first `PBXSourcesBuildPhase` in project-target order
-    /// (Legacy took the first `/* Sources */` phase in file order).
     nonisolated static func projectModelSourcesPhaseID(in proj: PBXProj) -> String? {
         for target in proj.targets {
             for phase in proj.buildPhases(ofTarget: target.id) where phase.isa == "PBXSourcesBuildPhase" {
@@ -466,8 +332,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// The snapshot store: Application Support `SwiftCodeSnapshots/`
-    /// (Legacy's `AssistSnapshots/` layout, renamed for SwiftCode).
     nonisolated static func projectModelSnapshotsDirectory() throws -> URL {
         let appSupport = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let dir = appSupport.appendingPathComponent("SwiftCodeSnapshots", isDirectory: true)
@@ -477,13 +341,10 @@ extension SwiftCodeMCPHost {
         return dir
     }
 
-    /// The `.xcodeproj` name (without extension) for a pbxproj URL.
     nonisolated static func projectModelProjectName(for pbxURL: URL) -> String {
         pbxURL.deletingLastPathComponent().deletingPathExtension().lastPathComponent
     }
 
-    /// Legacy's `isValidSettingKey`: `[A-Za-z0-9_]+`, no `..`,
-    /// newline, `;`, `{` or `}`.
     nonisolated static func projectModelIsValidSettingKey(_ key: String) -> Bool {
         guard !key.isEmpty else { return false }
         if key.contains("..") || key.contains("\n") || key.contains("\r") || key.contains(";") || key.contains("{") || key.contains("}") {
@@ -505,8 +366,6 @@ extension SwiftCodeMCPHost {
         return id.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
-    /// Reads a plist dictionary, or nil when the file is not a
-    /// valid plist dictionary.
     nonisolated static func projectModelReadPlist(at url: URL) -> [String: Any]? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         var format = PropertyListSerialization.PropertyListFormat.xml
@@ -521,7 +380,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Read-only tools
 
     func projectModelPbxprojLint(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -835,14 +693,6 @@ extension SwiftCodeMCPHost {
             if let val = settings[key] {
                 return .text("\(key) = \(val)")
             }
-            // WIRING (wiring-backend): Legacy's
-            // `AssistXcodeBuildSettingsTool` ran `xcodebuild
-            // -showBuildSettings`, which resolves inherited values,
-            // xcconfig files and Xcode defaults the raw pbxproj text
-            // cannot see (e.g. SWIFT_VERSION when the project leaves
-            // it unset). The declared-settings read above is the fast
-            // path; a miss falls back to the resolved read before
-            // reporting the key missing. macOS only (`xcrun`).
             #if os(macOS)
             if let resolved = Self.projectModelResolvedBuildSettings(target: target, in: root),
                let val = resolved[key] {
@@ -851,8 +701,6 @@ extension SwiftCodeMCPHost {
             #endif
             throw MCPToolError("Build setting '\(key)' was not found in xcodebuild output.")
         }
-        // WIRING (wiring-backend): same resolved fallback when the
-        // project declares no settings at all for the configuration.
         var effectiveSettings = settings
         #if os(macOS)
         if effectiveSettings.isEmpty,
@@ -879,12 +727,6 @@ extension SwiftCodeMCPHost {
     }
 
     #if os(macOS)
-    /// WIRING (wiring-backend): Legacy `AssistXcodeBuildSettingsTool`'s
-    /// resolved read — `xcrun xcodebuild -showBuildSettings` in the
-    /// workspace, parsed exactly as Legacy parsed it (`" = "` lines).
-    /// Returns nil when xcodebuild cannot run or returns no settings,
-    /// so the caller keeps its declared-settings answer instead of
-    /// inventing one. Synchronous, as Legacy's was.
     nonisolated static func projectModelResolvedBuildSettings(target: String?, in root: URL) -> [String: String]? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
@@ -953,7 +795,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Writing tools
 
     func projectModelCreateNewApp(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -964,8 +805,7 @@ extension SwiftCodeMCPHost {
         guard let applicationDescription = call.arguments["applicationDescription"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !applicationDescription.isEmpty else {
             throw MCPToolError("Missing required parameter: applicationDescription")
         }
-        _ = applicationDescription // Required by Legacy's schema; the
-        // description is not stored anywhere in SwiftCode's project model.
+        _ = applicationDescription
         let platform = call.string("platform") ?? "macOS"
         let version = call.string("version") ?? "1.0"
         let build = call.string("build") ?? "1"
@@ -1045,8 +885,6 @@ extension SwiftCodeMCPHost {
         """)
     }
 
-    /// The embedded workspace every SwiftCode project carries (one
-    /// `self:` FileRef), as `GeneratedProject.write` writes it.
     nonisolated static let projectModelSelfWorkspace = """
     <?xml version="1.0" encoding="UTF-8"?>
     <Workspace
@@ -1075,10 +913,6 @@ extension SwiftCodeMCPHost {
         do {
             generated = try XcodeGenNativeGenerator.generate(specText: specText, specDirectory: specDirectory)
         } catch let error as XcodeGenSpecError {
-            // The spec needs something the native generator cannot
-            // make: fail honestly, naming the key, and point at a
-            // manual xcodegen run (which is the only way to build
-            // this spec).
             let xcodegen = await Self.projectModelFindXcodegen()
             let hint = xcodegen.map {
                 "xcodegen is available at \($0); run `\($0) generate --spec \(specURL.path)` in the workspace to generate this spec."
@@ -1111,8 +945,6 @@ extension SwiftCodeMCPHost {
                            summary: summary)
     }
 
-    /// Locates `xcodegen` at the known Homebrew paths or on `PATH`.
-    /// Never installs anything.
     nonisolated static func projectModelFindXcodegen() async -> String? {
         let candidates = [
             "/opt/homebrew/bin/xcodegen",
@@ -1236,9 +1068,6 @@ extension SwiftCodeMCPHost {
         guard var dict = Self.projectModelReadPlist(at: entitlementsURL) else {
             throw MCPToolError("Entitlements file '\(entitlementsURL.lastPathComponent)' is not a valid property list dictionary.")
         }
-        // The proposal's `original` is the file's text when it is
-        // XML; a binary plist has no text form, so its XML
-        // re-serialisation stands in (commit only writes `proposed`).
         let original = text(of: entitlementsURL) ?? Self.projectModelPlistXML(dict)
         if action == "enable" {
             dict[mapping.key] = mapping.defaultValue
@@ -1397,8 +1226,6 @@ extension SwiftCodeMCPHost {
                 throw MCPToolError("Missing filePath")
             }
             let fileName = (filePath as NSString).lastPathComponent
-            // Collect first, then mutate: removing while iterating the
-            // object graph would mutate during enumeration.
             let matches = proj.objects.values.filter { $0.isa == "PBXFileReference" }.filter {
                 $0.string("path") == filePath || $0.string("path") == fileName || $0.string("name") == fileName
             }.map(\.id)
@@ -1526,7 +1353,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Snapshots
 
     func projectModelProjectSnapshot(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)

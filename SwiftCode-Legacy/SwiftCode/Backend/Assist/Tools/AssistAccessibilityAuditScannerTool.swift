@@ -1,8 +1,3 @@
-//
-//  AssistAccessibilityAuditScannerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistAccessibilityAuditScannerTool: AssistTool {
@@ -58,16 +53,13 @@ public struct AssistAccessibilityAuditScannerTool: AssistTool {
             for (idx, line) in lines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-                // Check for Image(systemName: ...) without accessibilityLabel
                 if trimmed.contains("Image(systemName:") && !trimmed.contains("accessibilityLabel") && !trimmed.contains("accessibilityHidden") {
-                    // Check next few lines to see if modifier is chained
                     let nextSnippet = lines.dropFirst(idx).prefix(4).joined(separator: "\n")
                     if !nextSnippet.contains(".accessibilityLabel") && !nextSnippet.contains(".accessibilityHidden") {
                         warnings.append("`\(rel):\(idx + 1)`: SF Symbol Image has no explicit `.accessibilityLabel` or `.accessibilityHidden(true)`.")
                     }
                 }
 
-                // Check for Button with empty string or plain image label
                 if trimmed.hasPrefix("Button(\"\")") || trimmed.hasPrefix("Button(\" \")") {
                     warnings.append("`\(rel):\(idx + 1)`: Button with empty label has no VoiceOver text description.")
                 }

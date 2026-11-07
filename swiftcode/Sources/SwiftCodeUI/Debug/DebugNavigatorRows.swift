@@ -2,22 +2,9 @@ import AppKit
 import SwiftCodeDebug
 import SwiftCodeIDECore
 
-/// Builds the Debug and Breakpoint navigator trees
-/// (specs/ide/reference-ui-4.md §5.3, §6).
 @MainActor
 public enum DebugNavigatorRows {
-    // MARK: Debug navigator
 
-    /// The process row ("<product>  PID <pid>") with the gauge rows and the
-    /// threads (or queue groups) under it.
-    /// `compressed`: fold runs of system frames (the bottom bar's "Show
-    /// compressed stack frames"); `interestingOnly`: while stopped, only
-    /// the stopped thread (the one whose frames, with debug symbols, are
-    /// known) — reference-ui-5.md §5.2.
-    /// `runningBlocksOnly` (the third toggle, on by default): in the queue
-    /// view, only queues with a thread running one of their blocks; the
-    /// threads not running a queue's block ("Threads") are left out.
-    /// DAP reports no pending blocks, so there are none to list when off.
     public static func debugTree(process: DebugProcessInfo?, gauges showGauges: Bool = true, threads: [DebugThread], stoppedThread: Int?, frames: [StackFrame],
                                  byQueue: Bool, compressed: Bool = true, interestingOnly: Bool = false, runningBlocksOnly: Bool = false) -> [OutlineItem] {
         func threadItem(_ t: DebugThread) -> OutlineItem {
@@ -54,17 +41,11 @@ public enum DebugNavigatorRows {
         return [root]
     }
 
-    /// The process row's two buttons at its right (reference-ui-4.md §5.3,
-    /// D3): (symbol, tooltip, action sent up the responder chain). Their
-    /// reference functions were not observed; SwiftCode's are Pause/Continue
-    /// and Stop.
     public static let processRowButtons: [(symbol: String, toolTip: String, action: String)] = [
         ("pause.circle", "Pause or continue the process", "pauseOrContinue:"),
         ("stop.circle", "Stop the process", "stopProduct:"),
     ]
 
-    /// Frame rows: user frames (person icon), a dotted separator, the
-    /// first system frame of each collapsed run greyed.
     public static func frameItems(_ frames: [StackFrame]) -> [OutlineItem] {
         DebugPresentation.groupFrames(frames).map { row in
             switch row {
@@ -82,7 +63,6 @@ public enum DebugNavigatorRows {
         }
     }
 
-    /// Every frame, user frames marked, nothing folded.
     public static func allFrameItems(_ frames: [StackFrame]) -> [OutlineItem] {
         frames.enumerated().map { i, f in
             let user = DebugPresentation.isUserFrame(f)
@@ -93,24 +73,17 @@ public enum DebugNavigatorRows {
         }
     }
 
-    // MARK: Breakpoint navigator
-
-    /// Filters of the Breakpoint navigator's bottom bar.
     public struct BreakpointFilter: Equatable {
         public var enabledOnly = false
         public var customizedOnly = false
         public init() {}
     }
 
-    /// The "+" menu's kinds, in order.
     public static let addKinds: [(String, NavigatorAreaController.NewBreakpointKind)] = [
         ("Swift Error Breakpoint", .swiftError), ("Exception Breakpoint…", .exception), ("Symbolic Breakpoint…", .symbolic),
         ("Runtime Issue Breakpoint…", .runtimeIssue), ("Constraint Error Breakpoint", .constraintError), ("Test Failure Breakpoint", .testFailure),
     ]
 
-    /// Root "<project>  n Breakpoint(s)", the exception, symbolic and
-    /// watchpoint groups, then one group per file with rows "symbol  line",
-    /// "ID n.m" and the enabled marker.
     public static func breakpointTree(project: String, store: BreakpointStore, watchpoints: [OutlineItem], ids: [String: String],
                                       filter: BreakpointFilter = BreakpointFilter(),
                                       symbolAt: @MainActor (String, Int) -> (name: String, method: Bool)? = SourceSymbolLocator.symbol) -> [OutlineItem] {

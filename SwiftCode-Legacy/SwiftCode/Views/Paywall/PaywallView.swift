@@ -90,7 +90,6 @@ struct PaywallView: View {
                 }
                 .padding(.vertical, 20)
                 .onAppear {
-                    // Trigger load on appear in case it hasn't started
                     Task {
                         await storeManager.loadProducts()
                     }

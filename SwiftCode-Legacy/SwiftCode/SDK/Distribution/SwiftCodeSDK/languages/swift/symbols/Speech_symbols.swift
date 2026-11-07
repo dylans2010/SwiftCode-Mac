@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for Speech
-
 public struct SpeechAPIEntity_0000: Sendable, Codable {
     public let id: String = "speech.api.0"
     public var name: String = "SpeechEntity_0"

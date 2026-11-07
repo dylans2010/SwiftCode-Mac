@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderSplitViewController.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import AppKit
 import SwiftUI
 
@@ -22,7 +20,6 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
     override public func viewDidLoad() {
         super.viewDidLoad()
 
-        // Sync Visual UI Document with Active Code Document on load
         if let activeDoc = DocumentCoordinator.shared.activeDocument {
             if VisualUISettings.shared.showCompiledView {
                 document.scene.artboards.removeAll { $0.name == "Home View" && $0.rootNode.children.first?.properties["textValue"] == "Welcome to Visual UI Builder" }
@@ -62,7 +59,6 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Left Sidebar View (Native AppKit Outline View Controller)
         let leftVC = VisualUIBuilderSidebarViewController(document: document)
         let leftItem = NSSplitViewItem(sidebarWithViewController: leftVC)
         leftItem.minimumThickness = 240
@@ -72,7 +68,6 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
         self.leftItem = leftItem
         addSplitViewItem(leftItem)
 
-        // 2. Center Live Workspace View (Canvas & Previews)
         let centerVC = NSHostingController(rootView: VisualUIBuilderCenterWrapper(document: document))
         centerVC.sizingOptions = []
         centerVC.view.autoresizingMask = [.width, .height]
@@ -82,7 +77,6 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
         self.centerItem = centerItem
         addSplitViewItem(centerItem)
 
-        // 3. Right Inspector Panel
         let rightVC = NSHostingController(rootView: VisualUIBuilderInspectorWrapper(document: document))
         rightVC.sizingOptions = []
         rightVC.view.autoresizingMask = [.width, .height]
@@ -104,7 +98,6 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
     }
 }
 
-// SwiftUI wrappers to embed inside NSHostingControllers cleanly, sharing a single unified document:
 struct VisualUIBuilderSidebarWrapper: View {
     let document: VisualUIDocument
     @State private var leftSidebarTab = 0
@@ -184,7 +177,6 @@ struct VisualUIBuilderInspectorWrapper: View {
     let document: VisualUIDocument
     @State private var settings = VisualUISettings.shared
 
-    // Persist and remember the last selected section while the inspector remains open
     @AppStorage("com.swiftcode.workspace.lastSelectedInspectorSection")
     private var selectedSectionRaw = ModernInspectorSection.properties.rawValue
 
@@ -195,7 +187,6 @@ struct VisualUIBuilderInspectorWrapper: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Native SwiftUI Picker as navigation control
             HStack {
                 Label("Inspector:", systemImage: "sidebar.trailing")
                     .font(.subheadline)
@@ -219,14 +210,11 @@ struct VisualUIBuilderInspectorWrapper: View {
 
             Divider()
 
-            // State preservation when switching between sections is achieved using a ZStack with opacity
             ZStack {
-                // Properties Section
                 VisualUIInspector(document: document)
                     .opacity(selectedSection == .properties ? 1 : 0)
                     .disabled(selectedSection != .properties)
 
-                // General Section (Identical wrapper or metadata)
                 VStack(spacing: 12) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
@@ -265,7 +253,6 @@ struct VisualUIBuilderInspectorWrapper: View {
                 .opacity(selectedSection == .general ? 1 : 0)
                 .disabled(selectedSection != .general)
 
-                // Preview Section
                 VStack(spacing: 12) {
                     if let hostedView = PreviewManager.shared.hostedView {
                         Text("Active Compiled View Hosted")
@@ -286,13 +273,11 @@ struct VisualUIBuilderInspectorWrapper: View {
                 .opacity(selectedSection == .preview ? 1 : 0)
                 .disabled(selectedSection != .preview)
 
-                // Diagnostics Section
                 VStack(spacing: 0) {
                     HStack {
                         Label("Diagnostics", systemImage: "waveform.path.ecg")
                             .font(.headline)
                         Spacer()
-                        // Copy button using reusable CopyLogsButton
                         CopyLogsButton(logs: {
                             let logs = PreviewDiagnostics.shared.logs.filter { $0.category == "error" }
                             return logs.map { "[\($0.category.uppercased())] \($0.message)" }.joined(separator: "\n")
@@ -327,7 +312,6 @@ struct VisualUIBuilderInspectorWrapper: View {
                 .opacity(selectedSection == .diagnostics ? 1 : 0)
                 .disabled(selectedSection != .diagnostics)
 
-                // Runtime Section
                 VStack(spacing: 0) {
                     HStack {
                         Label("Runtime Stream", systemImage: "play.circle")
@@ -356,7 +340,6 @@ struct VisualUIBuilderInspectorWrapper: View {
                 .opacity(selectedSection == .runtime ? 1 : 0)
                 .disabled(selectedSection != .runtime)
 
-                // Build Section
                 VStack(spacing: 0) {
                     HStack {
                         Label("Build Console", systemImage: "hammer")
@@ -382,7 +365,6 @@ struct VisualUIBuilderInspectorWrapper: View {
                 .opacity(selectedSection == .build ? 1 : 0)
                 .disabled(selectedSection != .build)
 
-                // Environment Section
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         Label("Environment Variables", systemImage: "globe")
@@ -409,7 +391,6 @@ struct VisualUIBuilderInspectorWrapper: View {
                 .opacity(selectedSection == .environment ? 1 : 0)
                 .disabled(selectedSection != .environment)
 
-                // Logs Section
                 VStack(spacing: 0) {
                     PreviewLogsView()
                 }

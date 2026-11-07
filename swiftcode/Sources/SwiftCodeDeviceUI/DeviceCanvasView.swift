@@ -1,22 +1,8 @@
-// The canvas (device-hub.md §4, §11.2): the device in SwiftCode's frame,
-// centred between the top of the canvas and the control capsules, which
-// float at its bottom (8 above the window's bottom edge), and the canvas's
-// states — the live screen, a stopped simulator (its picture in the same
-// place, with Start in a glass capsule where the controls float; no name or
-// OS under it: the toolbar's title and subtitle say them), the problems
-// while the display connects, "No Selection",
-// "Multiple Devices Selected" — plus the feedback banners ("Screenshot
-// Saved", "Capturing Keyboard"), the hinge slider and the debug status
-// line. Used by the compact window (the window's size sets the scale) and
-// by the hub (Zoom to Fit, Actual Size, Zoom In / Out, scrolling when the
-// device is larger than the canvas).
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDeviceModel
 import SwiftCodeDisplayStream
 
-/// A flipped plain view (scroll document, containers).
 final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
@@ -27,42 +13,26 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
     public let mode: Mode
 
     public private(set) var session: DeviceLiveSession?
-    /// The device drawn when there is no session (a stopped simulator).
     public private(set) var stoppedSpec: DeviceFrameSpec?
     public let frameView = DeviceFrameView(geometry: DeviceFrameGeometry(spec: .iPhoneDuo))
     public let controls = DeviceControlsRow()
 
-    /// View ▸ Show / Hide Bezels.
     public var showsBezels = true { didSet { if showsBezels != oldValue { refreshGeometry() } } }
-    /// The hub's zoom (§4.2); the compact window ignores it.
     public var zoom: DeviceZoomMode = .fit { didSet { if zoom != oldValue { needsLayout = true; onZoomChange?() } } }
-    /// The debug status line (More Actions ▸ Show Frame Rate).
     public var showsStatistics = false { didSet { statsLabel.isHidden = !showsStatistics; updateStatistics() } }
-    /// Space at the top taken by the window's toolbar (content under it).
     public var topInset: CGFloat = 0 { didSet { needsLayout = true } }
-    /// Key equivalents of `DeviceCommand` are handled by the canvas (the
-    /// IDE's windows); the viewer's menus have them instead.
     public var handlesKeyEquivalents = false
-    /// A command the canvas cannot carry out itself (no session: the IDE's
-    /// ssh path), or that its owner wants to see (zoom changes).
     public var commandFallback: ((DeviceCommand) -> Bool)?
-    /// View in Headset is possible (the hub knows the headset setup); nil: never.
     public var headsetCommandEnabled: (() -> Bool)?
-    /// "Back to Desktop" while the headset has the device.
     public var headsetCommandTitle: (() -> String)?
-    /// The status view's button (Start) was clicked.
     public var onAction: (() -> Void)?
-    /// The geometry (panel, rotation, bezels) changed: the compact window reshapes.
     public var onGeometryChange: (() -> Void)?
     public var onZoomChange: (() -> Void)?
-    /// Capture Keyboard changed (the toolbar toggle follows).
     public var onCaptureChange: ((Bool) -> Void)?
 
     private let scroll = NSScrollView()
     private let document = FlippedView()
     private let messageLabel = NSTextField(labelWithString: "")
-    /// A stopped device's capsule where the controls float: Start, or a
-    /// spinner and "Starting…" while it starts (Q1).
     private let statusStack = NSStackView()
     private var statusCapsule: GlassCapsule!
     private let statusLabel = NSTextField(labelWithString: "")
@@ -79,24 +49,16 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
     private let hingeLabel = NSTextField(labelWithString: "0°")
     private var hingeStartAngle = 0
     private var message: String?
-    /// The paired-device capsule (§4.1): "Paired with <name> ›" between the
-    /// device and the control row (under the picture of a stopped device);
-    /// nil: none. `onPaired` runs when it is clicked.
     public var pairedTitle: String? { didSet { if pairedTitle != oldValue { updatePairedCapsule() } } }
     public var onPaired: (() -> Void)?
     public private(set) var pairedCapsule: GlassCapsule?
     static let pairedHeight: CGFloat = 28
     private var statusAction: String?
     private var statusBusy = false
-    /// The stopped device's name (accessibility of its picture).
     private var stoppedName = ""
-    /// The headset or another viewer has the display (device-hub.md §I.12):
-    /// the last picture dimmed under a capsule with its button.
     public private(set) var takenOverCapsule: GlassCapsule?
     private let takenOverTitle = NSTextField(labelWithString: "")
     private let takenOverButton = NSButton(title: "", target: nil, action: nil)
-    /// The capsule's button: Back to Desktop (the hub's switch) or Take Back
-    /// (default: the session reconnects).
     public var onTakeBack: (() -> Void)?
     private var restoreCameraOnHello = false
 
@@ -108,8 +70,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         scroll.hasVerticalScroller = mode == .hub
         scroll.hasHorizontalScroller = mode == .hub
         scroll.autohidesScrollers = true
-        // The canvas sits under the toolbar already (topInset): no automatic
-        // inset, so a fitted device never brings up scroll bars.
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsetsZero
         scroll.documentView = document
@@ -128,7 +88,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         addSubview(messageLabel)
         statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         statusLabel.textColor = .secondaryLabelColor
-        // On the capsule's glass, so no bezel of its own: the accent says it acts.
         actionButton.isBordered = false
         actionButton.font = .systemFont(ofSize: 13, weight: .semibold)
         actionButton.contentTintColor = .controlAccentColor
@@ -169,9 +128,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
 
     public override var isFlipped: Bool { true }
 
-    // MARK: What is shown
-
-    /// The live device.
     public func show(session s: DeviceLiveSession) {
         if session !== s {
             session?.removeObserver(self)
@@ -187,10 +143,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         refreshState()
     }
 
-    /// A device that is not running: its picture where the live device
-    /// shows, and the action button where the controls float (`action` nil:
-    /// none; `busy`: a spinner and "Starting…" instead, Q1). `name` and `os`
-    /// are the toolbar's title and subtitle, not drawn on the canvas (§11.2).
     public func showStopped(spec: DeviceFrameSpec, name: String, os: String, action: String?, busy: Bool = false) {
         detachSession()
         stoppedSpec = spec
@@ -203,7 +155,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         refreshState()
     }
 
-    /// A centred message ("No Selection", "Multiple Devices Selected").
     public func showMessage(_ text: String) {
         detachSession()
         stoppedSpec = nil
@@ -219,12 +170,9 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         setCapturesKeyboard(false)
     }
 
-    /// The stopped device's capsule and its button (tests).
     public var statusActionCapsule: GlassCapsule { statusCapsule }
     public var statusActionButton: NSButton { actionButton }
 
-    /// The canvas's current state, for tests: "message: …", "stopped",
-    /// "live", "connecting: …".
     public var stateDescription: String {
         if let message { return "message: \(message)" }
         if stoppedSpec != nil { return statusBusy ? "starting" : "stopped" }
@@ -260,11 +208,9 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         needsLayout = true
     }
 
-    /// The capsule while the headset (or another viewer) has the display.
     private func updateTakenOver() {
         let s = session
         let shown = s?.isTakenOver == true
-        // Dimmed, not gone: the capsule's glass reads against the picture.
         frameView.alphaValue = shown ? 0.55 : 1
         guard shown, let s else {
             takenOverCapsule?.removeFromSuperview()
@@ -275,7 +221,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         takenOverTitle.stringValue = s.isHeldForHeadset ? "In Headset" : "Another viewer has this device"
         takenOverTitle.font = .systemFont(ofSize: 13, weight: .semibold)
         takenOverButton.title = s.isHeldForHeadset ? "Back to Desktop" : "Take Back"
-        // On the capsule's glass, so no bezel of its own (liquid-glass-swiftcode.md §3): the accent says it acts.
         takenOverButton.isBordered = false
         takenOverButton.font = .systemFont(ofSize: 13, weight: .semibold)
         takenOverButton.contentTintColor = .controlAccentColor
@@ -317,8 +262,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         needsLayout = true
     }
 
-    // MARK: DeviceLiveSessionObserver
-
     public func session(_ s: DeviceLiveSession, changed: DeviceSessionChange) {
         guard s === session else { return }
         switch changed {
@@ -329,7 +272,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
             frameView.screen.cancelInput()
             refreshGeometry()
             refreshState()
-            // Back from the headset: the desktop's own camera again (§I.12).
             if changed == .hello, restoreCameraOnHello {
                 restoreCameraOnHello = false
                 frameView.screen.restoreSpatialCamera()
@@ -354,14 +296,8 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         statsLabel.stringValue = s.statisticsText
     }
 
-    // MARK: Scale and layout
-
-    /// The device's size in device points (frame included).
     public var deviceSize: CGSize { frameView.geometry.size }
 
-    /// The area the device is centred in (§11.2): from the toolbar's bottom
-    /// to the floating capsules' top, less the paired-device capsule above
-    /// them. A stopped device takes the same place as a running one.
     var deviceArea: CGRect {
         let b = bounds
         if mode == .compact { return CGRect(x: 0, y: topInset, width: b.width, height: max(1, b.height - topInset)) }
@@ -370,7 +306,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         return area
     }
 
-    /// Points per inch of the screen the canvas is on (nil: unknown).
     var displayPointsPerInch: Double? {
         guard let screen = window?.screen ?? NSScreen.main,
               let n = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
@@ -378,7 +313,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         return DeviceZoom.displayPointsPerInch(pointWidth: Double(screen.frame.width), millimetresWide: Double(mm.width))
     }
 
-    /// The scale used now (view points per device point).
     public var effectiveScale: Double {
         let size = deviceSize
         switch mode {
@@ -407,8 +341,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         frameView.scale = scale
         let size = CGSize(width: (deviceSize.width * scale).rounded(), height: (deviceSize.height * scale).rounded())
         scroll.frame = area
-        // Larger than the area only when the device does not fit (zoomed in):
-        // a fitted device never scrolls.
         let need = CGSize(width: size.width + 2 * DeviceZoom.fitMargin, height: size.height + 2 * DeviceZoom.fitMargin)
         let doc = CGSize(width: need.width > area.width + 1 ? need.width : area.width, height: need.height > area.height + 1 ? need.height : area.height)
         document.frame = CGRect(origin: .zero, size: doc)
@@ -420,9 +352,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         frameView.needsLayout = true
         let screenRect = frameView.screen.frame
         problemLabel.frame = screenRect.insetBy(dx: 12, dy: max(0, screenRect.height / 2 - 30))
-        // The capsules float at the bottom of the canvas, centred, 8 above
-        // the window's bottom edge (§11.1); the stopped device's Start
-        // capsule takes their place.
         let cs = controls.intrinsicContentSize
         let cy = b.height - CGFloat(DeviceControlsLayout.bottomMargin) - DeviceControlsRow.height
         controls.frame = CGRect(x: ((b.width - cs.width) / 2).rounded(), y: cy, width: cs.width, height: DeviceControlsRow.height)
@@ -433,7 +362,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
             pairedCapsule.isHidden = session == nil && stoppedSpec == nil
         }
         if stoppedSpec != nil {
-            // The capsule's content sits 4 inside each end (GlassCapsule).
             let w = statusStack.fittingSize.width + 8
             statusCapsule.frame = CGRect(x: ((b.width - w) / 2).rounded(), y: cy, width: w, height: DeviceControlsRow.height)
         }
@@ -455,8 +383,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
             hingeCapsule.frame = CGRect(x: ((b.width - w) / 2).rounded(), y: controls.frame.minY - 44, width: w, height: 34)
         }
     }
-
-    // MARK: Paired device (§4.1)
 
     private func updatePairedCapsule() {
         pairedCapsule?.removeFromSuperview()
@@ -480,16 +406,11 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
 
     @objc private func pairedClicked() { onPaired?() }
 
-    // MARK: Zoom
-
     public func zoomIn() { zoom = .scale(DeviceZoom.zoomIn(from: effectiveScale)) }
     public func zoomOut() { zoom = .scale(DeviceZoom.zoomOut(from: effectiveScale)) }
     public func zoomToFit() { zoom = .fit }
     public func zoomToActualSize() { zoom = .actual }
 
-    // MARK: Commands
-
-    /// Whether a command can be carried out now (menu validation).
     public func canPerform(_ c: DeviceCommand) -> Bool {
         if c == .viewInHeadset { return headsetCommandEnabled?() ?? false }
         guard let s = session else {
@@ -513,7 +434,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         }
     }
 
-    /// Carries out a command (controls, menus, key equivalents).
     public func perform(_ c: DeviceCommand) {
         switch c {
         case .zoomIn: zoomIn(); return
@@ -569,7 +489,6 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         if f.contains(.shift) { mods.insert(.shift) }
         if f.contains(.option) { mods.insert(.option) }
         if f.contains(.control) { mods.insert(.control) }
-        // Shift changes the character of some keys ("S" for "s").
         guard let c = DeviceCommand.bound(to: chars, modifiers: mods), canPerform(c) else { return super.performKeyEquivalent(with: event) }
         perform(c)
         return true
@@ -590,12 +509,8 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
 
     @objc private func actionClicked() { onAction?() }
 
-    // MARK: Keyboard capture
-
     public private(set) var capturesKeyboard = false
 
-    /// Capture Keyboard (§4.6): keys, shortcuts included, go to the device
-    /// while on; a notice says so; holding Escape ends it.
     public func setCapturesKeyboard(_ on: Bool) {
         let on = on && session != nil
         guard on != capturesKeyboard else { return }
@@ -625,16 +540,10 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         onCaptureChange?(on)
     }
 
-    /// The capture notice is shown (tests).
     public var showsCaptureNotice: Bool { captureBanner != nil }
 
-    // MARK: Banners
-
-    /// The feedback banner's text (tests; nil: none shown).
     public var bannerText: String? { banner == nil ? nil : bannerLabel.stringValue }
 
-    /// A glass banner over the top of the canvas for a few seconds (Q9,
-    /// SwiftCode decision: "Screenshot Saved" this way).
     public func showBanner(_ text: String, seconds: TimeInterval = 2) {
         bannerTimer?.invalidate()
         banner?.removeFromSuperview()
@@ -656,18 +565,13 @@ public final class DeviceCanvasView: NSView, DeviceLiveSessionObserver {
         }
     }
 
-    // MARK: The hinge slider (Option-drag, §4.4; Q12: it shows the angle)
-
-    /// Points of drag per degree.
     static let pointsPerDegree: CGFloat = 1.2
 
-    /// The slider is shown (tests).
     public var showsHingeSlider: Bool { hingeCapsule != nil }
 
     func hingeDrag(_ d: CGFloat?) {
         guard let s = session, s.isFoldable else { return }
         guard let d else {
-            // Released: the hinge sweeps to the angle.
             s.fold(to: hingeSlider.integerValue)
             hingeCapsule?.removeFromSuperview()
             hingeCapsule = nil

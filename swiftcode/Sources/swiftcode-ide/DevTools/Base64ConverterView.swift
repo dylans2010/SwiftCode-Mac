@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct Base64ConverterView: View {
@@ -16,7 +13,6 @@ struct Base64ConverterView: View {
             }
             .pickerStyle(.segmented)
             .padding([.top, .horizontal])
-            
 
             VStack(alignment: .leading) {
                 Text(isEncoding ? "Source Text" : "Base64 String")

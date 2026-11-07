@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import HealthKit
 
-/// C-VALIDATE: the exceptions of `errors.md` §3 and the accepted cases. Validation is
-/// exercised through the internal throwing entry points; two exit tests check that the
-/// public API really traps.
 @Suite("C-VALIDATE errors.md §3")
 struct ValidationTests {
     let start = T.at(0, 8)
@@ -55,7 +52,6 @@ struct ValidationTests {
             _ = try HKQuantitySample.makeRecord(type: T.steps, quantity: HKQuantity(unit: .count(), doubleValue: 1),
                                                 start: start, end: start.addingTimeInterval(345_601), device: nil, metadata: nil)
         }
-        // exactly the maximum is accepted (the 4-day golden sample)
         #expect((try? HKQuantitySample.makeRecord(type: T.steps, quantity: HKQuantity(unit: .count(), doubleValue: 4),
                                                   start: start, end: start.addingTimeInterval(345_600), device: nil,
                                                   metadata: nil)) != nil)
@@ -116,7 +112,6 @@ struct ValidationTests {
     @Test("errors.md §3 authorization requests: empty, non-shareable, non-readable")
     func authorizationRequests() {
         expectInvalidArgument("at least one data type") { try HKHealthStore.validateRequest(share: nil, read: []) }
-        // (characteristic types cannot even be passed for sharing in Swift: the share set holds sample types)
         expectInvalidArgument("share the following types is disallowed: HKCorrelationTypeIdentifierBloodPressure") {
             try HKHealthStore.validateRequest(share: [T.bloodPressure], read: nil)
         }

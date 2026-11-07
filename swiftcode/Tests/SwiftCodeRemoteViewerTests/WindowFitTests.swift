@@ -4,9 +4,6 @@ import SwiftCodeDeviceModel
 import SwiftCodeDisplayStream
 @testable import SwiftCodeRemoteViewer
 
-/// The Linux device window takes the device's shape on connect (B3-DEVWIN's
-/// finding; uikit-feel-swiftcode.md §8.4): no empty space around an iPhone Duo in
-/// the default 460 × 900 window, room kept for the floating capsules.
 struct WindowFitTests {
     struct Refused: Error {}
 
@@ -33,16 +30,13 @@ struct WindowFitTests {
         let scale = s.layout.scale
         let size = try #require(s.windowFitIfNeeded())
         let g = s.geometry
-        // The frame at the scale it had, the margins and the capsules' band.
         #expect(abs(size.width - (Double(g.size.width) * scale + 2 * ViewerLayout.margin)) < 1e-9)
         #expect(abs(size.height - (Double(g.size.height) * scale + 2 * ViewerLayout.margin + ViewerLayout.controlBar)) < 1e-9)
         #expect(ViewerLayout.controlBar == 36.5 + 8)
         #expect(size.width < 460 || size.height < 900)
-        // In the fitted window the fit scale is the same, and the drawing fills it.
         s.windowWidth = size.width
         s.windowHeight = size.height
         #expect(abs(s.layout.scale - scale) < 1e-9)
-        // Then the person's own resizing is left alone.
         #expect(s.windowFitIfNeeded() == nil)
         s.windowWidth = 700
         #expect(s.windowFitIfNeeded() == nil)

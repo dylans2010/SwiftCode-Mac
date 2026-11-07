@@ -2,18 +2,6 @@ import AppKit
 import SwiftCodeDeviceUI
 import SwiftCodeIDECore
 
-// Device Hub: pairs of SwiftCode's simulators (`specs/simulator/device-pairing.md`
-// P-8, §13; `specs/ide/device-hub.md` §4.1, §5.2, §I.9). A phone shows
-// "Paired with <watch> ›" between the device and its controls (the active
-// watch), a watch "Paired with <phone> ›"; the Info tab lists the pairs;
-// the row's context menu pairs a watch (an existing one or a new one),
-// unpairs (the watch is shut down and erased, P-3) and makes a watch active;
-// Add Device creates a watch, or an iPhone with a paired watch in one step.
-// Every change is one `swiftcode-sim` pairing command over ssh; the pairs are
-// then read again (`list-pairs --json`).
-
-/// One OS Version choice of a new device: a runtime root and the device
-/// types it offers.
 public struct HubRuntimeChoice: Equatable, Sendable {
     public struct TypeChoice: Equatable, Sendable {
         public var id: String
@@ -21,7 +9,6 @@ public struct HubRuntimeChoice: Equatable, Sendable {
         public init(id: String, name: String) { self.id = id; self.name = name }
     }
     public var root: String
-    /// "watchOS 27.0".
     public var title: String
     public var types: [TypeChoice]
     public init(root: String, title: String, types: [TypeChoice]) {
@@ -31,30 +18,20 @@ public struct HubRuntimeChoice: Equatable, Sendable {
     }
 }
 
-/// The hub's pairing state and the window's pairing actions.
 @MainActor
 public final class HubPairing {
-    /// The host's pairs as last read.
     public internal(set) var pairs: [RemoteDevicePair] = []
-    /// The last pairing command's outcome (the Info tab's "Pairing" row).
     public internal(set) var status: String?
-    /// The pairing command in flight (tests await it).
     public internal(set) var task: Task<Void, Never>?
 
-    /// Set by the window.
     public var readPairs: (() async -> [RemoteDevicePair]?)?
-    /// Pairs a watch with a phone (phone row, watch row).
     public var pairDevices: ((DeviceRow, DeviceRow) async -> (Bool, String))?
     public var unpairPair: ((RemoteDevicePair) async -> (Bool, String))?
     public var activatePair: ((RemoteDevicePair) async -> (Bool, String))?
-    /// Records a new device (name, type id, runtime root) and returns its row.
     public var createDevice: ((String, String, String) -> DeviceRow?)?
     public var deleteDevice: ((DeviceRow) async -> (Bool, String))?
-    /// The OS Version choices of a platform ("iOS", "watchOS").
     public var runtimeChoices: ((String) -> [HubRuntimeChoice])?
-    /// Presents a form and answers it (default: a sheet on the hub window).
     public var presentForm: ((HubDeviceForm, @escaping (Bool) -> Void) -> Void)?
-    /// Asks before a destructive change (title, text, button); default: an alert.
     public var confirm: (String, String, String) -> Bool = { title, text, button in
         let a = NSAlert()
         a.messageText = title
@@ -64,9 +41,6 @@ public final class HubPairing {
         a.alertStyle = .warning
         return a.runModal() == .alertFirstButtonReturn
     }
-    /// After Make Active on a running iPhone (device-pairing.md §14.1, P-14):
-    /// shows the note (title, text) and answers whether to restart the
-    /// iPhone now; default: an alert with Restart iPhone and Later.
     public var offerPhoneRestart: (String, String) -> Bool = { title, text in
         let a = NSAlert()
         a.messageText = title
@@ -75,7 +49,6 @@ public final class HubPairing {
         a.addButton(withTitle: "Later")
         return a.runModal() == .alertFirstButtonReturn
     }
-    /// The restart that offer started (tests await it).
     public internal(set) var restartTask: Task<Void, Never>?
     public static let restartPhoneButton = "Restart iPhone"
     var polls = 0
@@ -83,8 +56,6 @@ public final class HubPairing {
     public init() {}
 }
 
-/// Name, OS Version and Model of a new device (the New Simulator form,
-/// `device-hub.md` §2.3).
 @MainActor
 public final class HubDeviceFields {
     public let name = NSTextField()
@@ -111,13 +82,11 @@ public final class HubDeviceFields {
         return r.types[model.indexOfSelectedItem].id
     }
     public var root: String? { runtime?.root }
-    /// The name typed, else the model's name.
     public var nameValue: String {
         let t = name.stringValue.trimmingCharacters(in: .whitespaces)
         return t.isEmpty ? (model.titleOfSelectedItem ?? "") : t
     }
 
-    /// Picks a model by its name (tests).
     public func selectModel(_ name: String) { model.selectItem(withTitle: name) }
 
     var rows: [[NSView]] {
@@ -131,9 +100,6 @@ public final class HubDeviceFields {
     }
 }
 
-/// A device form: Pair Watch… (an existing watch or a new one), New Watch
-/// (Add Device ▸ Apple Watch…), an iPhone with a paired watch, or a new
-/// Apple Vision Pro (Add Device ▸ Apple Vision Pro…).
 @MainActor
 public final class HubDeviceForm: NSView {
     public enum Kind: Equatable { case pairWatch, newWatch, newPairedPhone, newVision }
@@ -141,12 +107,10 @@ public final class HubDeviceForm: NSView {
     public let title: String
     public let message: String
     public let button: String
-    /// Pair Watch…: the watches that may pair, then "New Watch".
     public let watchPopUp = NSPopUpButton(frame: .zero, pullsDown: false)
     public let watchChoices: [DeviceRow]
     public let phone: HubDeviceFields?
     public let watch: HubDeviceFields?
-    /// New Apple Vision Pro: its fields.
     public let vision: HubDeviceFields?
     public static let newWatchTitle = "New Watch"
 
@@ -201,12 +165,10 @@ public final class HubDeviceForm: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Pair Watch…: the existing watch chosen, or nil for a new one.
     public var chosenWatch: DeviceRow? {
         watchChoices.indices.contains(watchPopUp.indexOfSelectedItem) ? watchChoices[watchPopUp.indexOfSelectedItem] : nil
     }
 
-    /// Chooses an existing watch by name, or "New Watch".
     public func chooseWatch(_ name: String) {
         watchPopUp.selectItem(withTitle: name)
         updateEnabled()
@@ -224,26 +186,19 @@ public final class HubDeviceForm: NSView {
 }
 
 extension DevicesController {
-    // MARK: Pairs of a row
 
-    /// A SwiftCode phone row (an iPhone type; pairs with watches).
     func isPairablePhone(_ r: DeviceRow) -> Bool { r.isSwiftCodeRemote && r.platform == "iOS" && (r.deviceTypeID?.hasPrefix("iphone") ?? false) }
     func isSwiftCodeWatch(_ r: DeviceRow) -> Bool { r.isSwiftCodeRemote && r.platform == "watchOS" }
 
-    /// The row of a device directory.
     func remoteRow(directory: String) -> DeviceRow? { simulators.first { $0.isSwiftCodeRemote && $0.deviceDirectory == directory } }
 
-    /// A device directory's name as the hub shows it (its row), else the type's name.
     func displayName(directory: String, typeName: String) -> String { remoteRow(directory: directory)?.name ?? typeName }
 
-    /// The row's pairs (a phone's: active first; a watch's: one).
     public func pairs(of r: DeviceRow) -> [RemoteDevicePair] {
         guard let dir = r.deviceDirectory else { return [] }
         return RemotePairing(pairing.pairs).pairs(ofDirectory: dir)
     }
 
-    /// The canvas capsule's title (§4.1): "Paired with <active watch>" on a
-    /// phone, "Paired with <phone>" on a watch; nil without a pair.
     public func pairedCapsuleTitle(for r: DeviceRow) -> String? {
         guard let dir = r.deviceDirectory else { return nil }
         let p = RemotePairing(pairing.pairs)
@@ -254,7 +209,6 @@ extension DevicesController {
         return nil
     }
 
-    /// The other device of the capsule's pair (clicking it selects that row).
     func pairedPeer(of r: DeviceRow) -> DeviceRow? {
         guard let dir = r.deviceDirectory else { return nil }
         let p = RemotePairing(pairing.pairs)
@@ -262,10 +216,8 @@ extension DevicesController {
         return p.activePair(phone: dir).flatMap { remoteRow(directory: $0.watchDirectory) }
     }
 
-    /// Whether the hub offers pairing: a watchOS runtime is set up, or pairs exist.
     var pairingAvailable: Bool { !pairing.pairs.isEmpty || !(pairing.runtimeChoices?("watchOS") ?? []).isEmpty }
 
-    /// The Info tab's pairing rows.
     func pairInfoRows(for r: DeviceRow) -> [(String, String)] {
         var out: [(String, String)] = []
         guard pairingAvailable else { return out }
@@ -290,7 +242,6 @@ extension DevicesController {
         return out
     }
 
-    /// The canvas's capsule for the selection.
     func updatePairedCapsule(for r: DeviceRow?) {
         canvas.pairedTitle = r.flatMap(pairedCapsuleTitle(for:))
         canvas.onPaired = { [weak self] in
@@ -299,10 +250,6 @@ extension DevicesController {
         }
     }
 
-    // MARK: Context menu
-
-    /// The row's pairing items: a phone's Pair Watch…, Unpair and Make
-    /// Active per watch; a watch's Unpair; Delete… for a created device.
     func pairingMenuItems(for r: DeviceRow) -> [NSMenuItem] {
         var out: [NSMenuItem] = []
         let idle = pairing.task == nil
@@ -343,24 +290,15 @@ extension DevicesController {
     @objc public func newPairedPhoneChosen(_ sender: Any?) { presentNewPairedPhone() }
     @objc public func newVisionDeviceChosen(_ sender: Any?) { presentNewVisionDevice() }
 
-    /// Whether Add Device can create Apple Vision Pros (a visionOS runtime
-    /// root is set up in Settings ▸ Simulators).
     public var canCreateVisionDevices: Bool { pairing.createDevice != nil && !(pairing.runtimeChoices?("visionOS") ?? []).isEmpty }
 
-    /// Whether Add Device can create watches and paired phones (a watchOS
-    /// runtime root is set up in Settings ▸ Simulators).
     public var canCreateWatches: Bool { pairing.createDevice != nil && !(pairing.runtimeChoices?("watchOS") ?? []).isEmpty }
 
-    // MARK: Forms
-
-    /// The watches that may pair with a phone: SwiftCode watches with no pair.
     func unpairedWatches() -> [DeviceRow] {
         let p = RemotePairing(pairing.pairs)
         return simulators.filter { isSwiftCodeWatch($0) && !p.isPaired(watch: $0.deviceDirectory ?? "") }
     }
 
-    /// Pair Watch… on a phone (§I.9): an existing watch with no pair, or a new
-    /// one (name, watchOS version, model), then `swiftcode-sim pair`.
     @discardableResult
     public func presentPairWatch(phone: DeviceRow) -> HubDeviceForm {
         let form = HubDeviceForm(kind: .pairWatch, title: "Pair a Watch with “\(phone.name)”",
@@ -376,7 +314,6 @@ extension DevicesController {
         return form
     }
 
-    /// Add Device ▸ Apple Watch…: a new watch simulator.
     @discardableResult
     public func presentNewWatch() -> HubDeviceForm {
         let form = HubDeviceForm(kind: .newWatch, title: "New Watch Simulator", message: "A watch simulator of SwiftCode's. Pair it with an iPhone from the iPhone's context menu.",
@@ -388,8 +325,6 @@ extension DevicesController {
         return form
     }
 
-    /// Add Device ▸ iPhone with Paired Watch…: a new iPhone and a new
-    /// watch, paired (the phone's first pair is active).
     @discardableResult
     public func presentNewPairedPhone() -> HubDeviceForm {
         let form = HubDeviceForm(kind: .newPairedPhone, title: "New iPhone with Paired Watch",
@@ -406,9 +341,6 @@ extension DevicesController {
         return form
     }
 
-    /// Add Device ▸ Apple Vision Pro…: a new Apple Vision Pro simulator of
-    /// SwiftCode's on the host (`device-hub.md` §I.11). Its directory is made
-    /// when it first starts; Start boots it to its room.
     @discardableResult
     public func presentNewVisionDevice() -> HubDeviceForm {
         let form = HubDeviceForm(kind: .newVision, title: "New Apple Vision Pro Simulator",
@@ -422,7 +354,6 @@ extension DevicesController {
         return form
     }
 
-    /// Records a new device from a form's fields; its row.
     private func create(_ f: HubDeviceFields?) -> DeviceRow? {
         guard let f, let type = f.typeID, let root = f.root else { return nil }
         return pairing.createDevice?(f.nameValue, type, root)
@@ -443,9 +374,6 @@ extension DevicesController {
         }
     }
 
-    // MARK: Commands
-
-    /// Unpair (P-3): the watch is shut down and erased; the phone is kept.
     @discardableResult
     public func unpair(_ p: RemoteDevicePair) -> Task<Void, Never>? {
         let watch = displayName(directory: p.watchDirectory, typeName: p.watchTypeName)
@@ -455,11 +383,6 @@ extension DevicesController {
         return runPairing("Unpairing…") { await self.pairing.unpairPair?(p) ?? (false, "Pairing is not available.") }
     }
 
-    /// Makes a phone's inactive pair its active one. The registry switches,
-    /// but apps on the iPhone keep their WatchConnectivity session with the
-    /// previous watch until the iPhone restarts, as in the reference
-    /// (device-pairing.md §14.1, P-14): on a running iPhone the hub says so
-    /// and offers Restart iPhone (SwiftCode decision).
     @discardableResult
     public func activate(_ p: RemoteDevicePair) -> Task<Void, Never>? {
         runPairing("Switching the active watch…", then: { [weak self] ok in
@@ -468,8 +391,6 @@ extension DevicesController {
         }) { await self.pairing.activatePair?(p) ?? (false, "Pairing is not available.") }
     }
 
-    /// The note after Make Active (P-14) and, on a running iPhone, the offer
-    /// to restart it.
     static func phoneRestartNote(phone: String, watch: String) -> (title: String, text: String) {
         ("“\(watch)” is now the active watch of “\(phone)”.",
          "Apps on the iPhone keep using the previous watch until the iPhone restarts. Restart the iPhone now to connect its apps to “\(watch)”.")
@@ -487,7 +408,6 @@ extension DevicesController {
         pairing.restartTask = restart(phoneRow)
     }
 
-    /// Deletes a device created in the hub (its data on the host goes).
     @discardableResult
     public func delete(_ r: DeviceRow) -> Task<Void, Never>? {
         if !pairs(of: r).isEmpty {
@@ -499,7 +419,6 @@ extension DevicesController {
         return runPairing("Deleting…") { await self.pairing.deleteDevice?(r) ?? (false, "Deleting is not available.") }
     }
 
-    /// Runs one pairing change, then reads the pairs again.
     @discardableResult
     func runPairing(_ busy: String, then: (@MainActor (Bool) -> Void)? = nil,
                     _ work: @escaping @MainActor () async -> (Bool, String)) -> Task<Void, Never>? {
@@ -519,13 +438,11 @@ extension DevicesController {
         return task
     }
 
-    /// Reads the host's pairs and shows them.
     public func refreshPairs() async {
         guard let read = pairing.readPairs, let p = await read() else { return }
         setPairs(p)
     }
 
-    /// Shows a set of pairs (tests, or a listing read elsewhere).
     public func setPairs(_ p: [RemoteDevicePair]) {
         pairing.pairs = p
         guard isViewLoaded else { return }
@@ -533,13 +450,11 @@ extension DevicesController {
         updateInspector()
     }
 
-    /// The remote rows again (a device was created or deleted).
     func reloadRemoteRows() {
         if let rows = currentRemoteRows?() { setSwiftCodeRemote(rows: rows) }
         if isViewLoaded { showDetails() }
     }
 
-    /// Every eighth state poll (about 16 s) reads the pairs again while the hub shows.
     func pollPairs() {
         pairing.polls += 1
         guard pairing.polls % 8 == 0, pairing.task == nil else { return }

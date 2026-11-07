@@ -1,18 +1,7 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// The process layer of stage 4b (`specs/simulator/stage4b-contract.md` §4):
-// posix_spawn, execve, exit, wait4/waitid, kill, process groups, proc_info.
-// Semantics: `specs/simulator/processes.md` §1, §2. Owner: agent P.
-//
-// A kernel that is not the current image of a process in its system's table
-// (the stage-4a one-process machine: `DarwinKernel(fileSystem:)` without a
-// system) keeps its stage-4a behavior: `processCall` returns nil for every
-// call except `kqueue` and the fileport calls.
-
 extension DarwinKernel {
-    /// Signal numbers and `sa_flags` bits (`processes.md` conventions,
-    /// `threads-and-events.md` §5.1).
     public enum Signal {
         public static let sighup: Int32 = 1, sigint: Int32 = 2, sigquit: Int32 = 3, sigill: Int32 = 4,
                           sigtrap: Int32 = 5, sigabrt: Int32 = 6, sigfpe: Int32 = 8, sigkill: Int32 = 9, sigbus: Int32 = 10,
@@ -20,13 +9,9 @@ extension DarwinKernel {
                           sigurg: Int32 = 16, sigstop: Int32 = 17, sigtstp: Int32 = 18, sigcont: Int32 = 19,
                           sigchld: Int32 = 20, sigttin: Int32 = 21, sigttou: Int32 = 22, sigio: Int32 = 23,
                           sigwinch: Int32 = 28, siginfo: Int32 = 29, sigusr1: Int32 = 30, sigusr2: Int32 = 31
-        /// `SA_NOCLDSTOP`: no SIGCHLD when a child stops (`processes.md` §2.9).
         public static let saNoCldStop: Int32 = 0x8
-        /// `SA_NOCLDWAIT`: exiting children are reaped at once, with no zombie (§2.4).
         public static let saNoCldWait: Int32 = 0x20
-        /// Signals whose default action is to ignore them.
         static let ignoredByDefault: Set<Int32> = [sigurg, sigcont, sigchld, sigio, sigwinch, siginfo]
-        /// Signals whose default action is to stop the process.
         static let stopping: Set<Int32> = [sigstop, sigtstp, sigttin, sigttou]
 
         static let names: [Int32: String] = [
@@ -37,12 +22,9 @@ extension DarwinKernel {
             30: "SIGUSR1", 31: "SIGUSR2",
         ]
 
-        /// The `SIG*` name of `s` for trace lines, or `signal N` when the table lacks it.
         public static func name(_ s: Int32) -> String { names[s] ?? "signal \(s)" }
     }
 
-    /// BSD numbers of the process layer: the low 16 bits of `x16` for the
-    /// Darwin call each name spells.
     public enum ProcBSD {
         public static let exit = 1, wait4 = 7, kill = 37, getppid = 39, sigpending = 52, execve = 59, getpgrp = 81,
                           setpgid = 82, setsid = 147, getpgid = 151, waitid = 173, posixSpawn = 244, getsid = 310,
@@ -51,7 +33,6 @@ extension DarwinKernel {
                           procInfoExtendedID = 545
     }
 
-    /// `wait4`/`waitid` options.
     enum WaitOption {
         static let noHang: Int32 = 0x1
         static let untraced: Int32 = 0x2
@@ -63,11 +44,8 @@ extension DarwinKernel {
 
     static let ECHILD: Int32 = 10
 
-    /// This image's process record (nil for the stage-4a one-process machine
-    /// and for an image that was replaced or ended).
     var processRecord: DarwinProcess? { system.record(of: self) }
 
-    /// BSD calls the process layer owns. nil = not mine.
     func processCall(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ fallback: inout Int32,
                      _ mem: any KernelGuestMemory) throws -> BSDResult? {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
@@ -75,7 +53,6 @@ extension DarwinKernel {
         case ProcBSD.kqueue:
             return .value(try withEvents { try kqueueCall(&call) })
         case ProcBSD.fileportMakeport, ProcBSD.fileportMakefd:
-            // Forwarded to the Mach layer (`stage4b-contract.md` §3.7).
             guard let ipc = machIPC as? MachIPC else { return nil }
             call.set(n == ProcBSD.fileportMakeport ? "fileport_makeport(fd=\(int(0)), portnamep=\(hx(a[1])))"
                 : "fileport_makefd(port=\(hx(UInt32(truncatingIfNeeded: a[0]))))")
@@ -143,10 +120,6 @@ extension DarwinKernel {
         }
     }
 
-    /// `proc_info_extended_id` (callnum, pid, flavor, flags, ext_id, arg,
-    /// buffer, buffersize): flag 0x1 compares the pid version, 0x2 the
-    /// unique id; a mismatch is ESRCH (`processes.md` §2.11). Also on the
-    /// BSD fast path for the read calls (`bsd-locking.md` §13).
     func procInfoExtendedID(_ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
         let target = int(1), flags = UInt32(truncatingIfNeeded: a[3]), ext = a[4]
@@ -163,16 +136,6 @@ extension DarwinKernel {
         return r
     }
 
-    // MARK: Signals
-
-    /// Contract-pinned (§3.6): posts `signal` to this process (to `thread`
-    /// when given, as for SIGPIPE). Lock held.
-    ///
-    /// There is no handler delivery (`stage4b-contract.md` §2 item 5): the
-    /// default action is taken (terminate, ignore; stop is not modeled and
-    /// ignored; SIGCONT resumes a start-suspended process), and a signal
-    /// with a guest handler is recorded as pending. EVFILT_SIGNAL counts
-    /// every process-directed posting, even an ignored one.
     public func postSignal(_ signal: Int32, thread: ThreadContext? = nil) {
         postSignal(signal, thread: thread, sender: nil)
     }
@@ -202,13 +165,11 @@ extension DarwinKernel {
             terminateBySignal(signal)
             return
         }
-        // A guest handler: no delivery yet; the signal stays pending.
         extended.pendingSignals |= 1 << UInt32(signal - 1)
         trace("note: \(name) posted to pid \(pid): handler at \(hx(handler)) not run (no signal delivery); pending")
         signalWaiters.wakeAll()
     }
 
-    /// Ends the process as killed by `signal` (`processes.md` §2.3).
     func terminateBySignal(_ signal: Int32, message: String? = nil, status: Int32? = nil) {
         guard !isTerminating else { return }
         deathSignal = signal
@@ -221,10 +182,6 @@ extension DarwinKernel {
         }
     }
 
-    /// SIGCONT: a stopped (start-suspended) process runs: its task is
-    /// resumed once (xnu resumes the task of a stopped process), so a
-    /// process that was also `task_suspend`ed stays suspended
-    /// (threads-and-events.md §1.6).
     private func continueProcess(sender: Int32?) {
         guard let p = processRecord, p.state == .stopped else { return }
         p.state = .running
@@ -238,13 +195,10 @@ extension DarwinKernel {
         system.processes[p.ppid]?.childWaiters.wakeAll()
     }
 
-    /// `cansignal` (`processes.md` §2.9): one uid for every guest process,
-    /// so anything but pid 1 may be signalled.
     func canSignal(_ target: DarwinProcess) -> Bool {
         target.pid == pid || target.pid != DarwinSystem.initPID
     }
 
-    /// `kill` (37).
     private func kill(_ me: DarwinProcess, _ a: [UInt64], _ call: inout CallText) throws -> UInt64 {
         let target = Int32(truncatingIfNeeded: a[0]), sig = Int32(truncatingIfNeeded: a[1])
         let posix = Int32(truncatingIfNeeded: a[2])
@@ -258,7 +212,6 @@ extension DarwinKernel {
             if sig != 0 { call += " [\(Signal.name(sig)) to \(p.pid)]" }
             return 0
         }
-        // A group or a broadcast.
         let members: [DarwinProcess]
         switch target {
         case 0:
@@ -288,7 +241,6 @@ extension DarwinKernel {
         return 0
     }
 
-    /// `__pthread_kill` (328): a thread-directed signal of this process.
     private func pthreadKill(_ a: [UInt64], _ call: inout CallText) throws -> UInt64 {
         let port = UInt32(truncatingIfNeeded: a[0]), sig = Int32(truncatingIfNeeded: a[1])
         call.set("__pthread_kill(thread=\(hx(port)), sig=\(sig))")
@@ -300,7 +252,6 @@ extension DarwinKernel {
         return 0
     }
 
-    /// `terminate_with_payload` (520): SIGKILL with an exit reason.
     private func terminateWithPayload(_ me: DarwinProcess, _ a: [UInt64], _ call: inout CallText,
                                       _ mem: any KernelGuestMemory) throws -> UInt64 {
         let target = Int32(truncatingIfNeeded: a[0])
@@ -311,20 +262,14 @@ extension DarwinKernel {
         guard canSignal(p) else { throw Failure(errno: Errno.EPERM) }
         let message = "terminate_with_payload: namespace \(Int32(truncatingIfNeeded: a[1])) code \(hx(a[2])): \(reason)"
         p.exitReason = message
-        // The caller itself ends with the stage-3 status (134); its wait
-        // status is SIGKILL.
         k.terminateBySignal(Signal.sigkill, message: message, status: k === self ? Self.abortExitStatus : nil)
         return 0
     }
 
-    // MARK: wait4 / waitid
-
-    /// Children of `me` that `match` accepts, in creation order.
     private func matchingChildren(_ me: DarwinProcess, _ match: (DarwinProcess) -> Bool) -> [DarwinProcess] {
         me.children.compactMap { system.processes[$0] }.filter(match)
     }
 
-    /// `wait4` (7, 400): `processes.md` §2.6.
     private func wait4(_ me: DarwinProcess, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         var selector = Int32(truncatingIfNeeded: a[0])
         let options = Int32(truncatingIfNeeded: a[2])
@@ -360,7 +305,6 @@ extension DarwinKernel {
         }
     }
 
-    /// `waitid` (173, 416): `processes.md` §2.7.
     private func waitid(_ me: DarwinProcess, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         let idtype = Int32(truncatingIfNeeded: a[0]), id = Int32(truncatingIfNeeded: a[1])
         let infop = a[2], options = Int32(truncatingIfNeeded: a[3])
@@ -415,16 +359,12 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: Process groups and sessions
-
-    /// `setsid` (`processes.md` §2.10).
     func setsid(_ p: DarwinProcess) throws {
         guard !system.groupExists(p.pid) else { throw Failure(errno: Errno.EPERM) }
         p.sid = p.pid
         p.pgid = p.pid
     }
 
-    /// `setpgid` as `caller` (`processes.md` §2.10).
     func setpgid(caller: DarwinProcess, pid target: Int32, pgid: Int32) throws {
         guard pgid >= 0 else { throw Failure(errno: Errno.EINVAL) }
         let t: DarwinProcess

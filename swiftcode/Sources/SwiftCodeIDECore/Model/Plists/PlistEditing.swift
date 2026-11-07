@@ -1,8 +1,6 @@
 import Foundation
 import SwiftCodePlist
 
-/// Edits a property list by index path (child positions from the root).
-/// See `specs/ide/plist-editor.md`.
 public struct PlistTree: Equatable {
     public var root: PropertyListItem
 
@@ -10,7 +8,6 @@ public struct PlistTree: Equatable {
 
     public static let types = ["Array", "Dictionary", "Boolean", "Data", "Date", "Number", "String"]
 
-    /// Children of a container as (key or "Item N", value).
     public static func children(of v: PropertyListItem) -> [(key: String, value: PropertyListItem)] {
         switch v {
         case .dictionary(let d): d.map { ($0.key, $0.value) }
@@ -29,7 +26,6 @@ public struct PlistTree: Equatable {
         return cur
     }
 
-    /// Applies `f` to the container holding `path`'s last element.
     private mutating func modifyParent(of path: [Int], _ f: (inout PropertyListItem, Int) -> Void) {
         guard let last = path.last else { return }
         func walk(_ v: inout PropertyListItem, _ rest: ArraySlice<Int>) {
@@ -64,14 +60,11 @@ public struct PlistTree: Equatable {
         }
     }
 
-    /// The Value column's editable text: Data as hex bytes in angle
-    /// brackets, other values as their summary.
     public static func editText(_ v: PropertyListItem) -> String {
         if case .data(let d) = v { return "<" + d.map { String(format: "%02x", $0) }.joined() + ">" }
         return v.summary
     }
 
-    /// Parses Value-column text for an item's type; nil if it does not fit.
     public static func parse(_ text: String, as type: String) -> PropertyListItem? {
         let t = text.trimmingCharacters(in: .whitespaces)
         switch type {
@@ -96,7 +89,6 @@ public struct PlistTree: Equatable {
         }
     }
 
-    /// Changes an item's type, keeping what converts (text, numbers).
     public mutating func setType(_ type: String, at path: [Int]) {
         guard let old = item(at: path), old.typeName != type else { return }
         let converted: PropertyListItem = switch type {
@@ -125,8 +117,6 @@ public struct PlistTree: Equatable {
         return false
     }
 
-    /// Inserts a new String item after `path` (or as the first child of the
-    /// container at `path` when `asChild`). Returns the new item's path.
     @discardableResult
     public mutating func insert(after path: [Int], asChild: Bool = false) -> [Int] {
         let parentPath = asChild ? path : Array(path.dropLast())

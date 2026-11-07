@@ -8,12 +8,8 @@ import SwiftCodeProject
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// R33 (`specs/ide/reference-ui-5.md` §9): the Settings panes, their rows
-/// and defaults, and that each setting takes effect; plus destination
-/// selection by identifier (SwiftCode's remote simulator).
 @MainActor
 @Suite(.serialized) struct SettingsR33Tests {
-    /// A private Preferences installed as `shared` for `body`.
     func withPrefs(_ tag: String, _ body: (Preferences, URL) throws -> Void) throws {
         let t = TestDefaults("r33-\(tag)")
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-r33-\(tag)-\(UUID().uuidString)").resolvingSymlinksInPath()
@@ -44,8 +40,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                     osVersion: version, identifier: "\(name)-\(version)")
     }
 
-    // MARK: Destination selection by identifier
-
     @Test func choosingTheRemoteSimulatorSelectsItAndIsRemembered() throws {
         try withPrefs("dest") { p, dir in
             var remote = RemoteSimulatorSettings()
@@ -64,10 +58,8 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let groups = DestinationCatalog.groups(devices: [], simulators: [sim("iPhone 17", "26.4")])
             let wc = try window()
             wc.setDestinationGroups(groups)
-            // The two rows share a specifier but not a key.
             #expect(RemoteSimulator.destination.specifier == "generic/platform=iOS Simulator")
             let menu = try #require(wc.destinationPopUp.menu)
-            // The primary row (the runtime's default device type) keeps the old identifier.
             let primary = RemoteSimulator(settings: remote).destination
             #expect(primary.name == "iPhone Duo (SwiftCode)")
             let remoteIndex = try #require(menu.items.firstIndex { $0.title == primary.name })
@@ -80,12 +72,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(wc.session.destination == primary)
             #expect(wc.destinationPopUp.titleOfSelectedItem == primary.name)
             #expect(WorkspaceUserState.load(from: stateURL).destinations[wc.session.scheme ?? ""] == "swiftcode-remote-simulator")
-            // Reopening restores the remote simulator, not the generic one.
             let again = try window()
             again.setDestinationGroups(groups)
             #expect(again.session.destination == primary)
 
-            // The generic row still selects the generic destination.
             let i = try #require(again.destinationPopUp.menu?.items.firstIndex { $0.title.hasPrefix("Any iOS Simulator Device") })
             again.destinationPopUp.selectItem(at: i)
             again.destinationChosen(again.destinationPopUp)
@@ -96,8 +86,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(third.session.destination?.name == "Any iOS Simulator Device")
         }
     }
-
-    // MARK: Pane structure (S1–S6)
 
     @Test func generalPaneRowsAndDefaults() throws {
         let t = TestDefaults("r33-general")
@@ -132,13 +120,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(items("Testing on Simulator") == ["Automatic", "Off"])
         #expect(items("Local report history") == ["Up to 10 Reports", "Up to 20 Reports", "Up to 50 Reports", "Up to 100 Reports"])
         #expect(pane.control(NSPopUpButton.self, inRow: "Local report history")?.titleOfSelectedItem == "Up to 20 Reports")
-        // The controls write the settings.
         pane.choose("Show Minimized", inRow: "Issue presentation")
         pane.choose("Up to 5 Lines", inRow: "Bookmark navigator detail")
         pane.choose("Up to 50 Reports", inRow: "Local report history")
         pane.toggle("Stop build on first error")
         #expect(p.issuePresentation == .minimized && p.bookmarkNavigatorDetail == 5 && p.reportHistoryLimit == 50 && !p.stopBuildOnFirstError)
-        // Reset asks first.
         pane.resetClicked()
         #expect(pane.lastConfirmation == GeneralSettingsPane.resetSettingsMessage)
         _ = try WindowSnapshotTests().render(pane.view, to: "settings-general.png")
@@ -172,7 +158,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         pane.choose("Automatically", inRow: "Pin Editor Tabs")
         pane.choose("Same Document", inRow: "New Editor Tabs Open With")
         #expect(p.pinEditorTabs == .automatically && p.newEditorTabsOpenWith == .sameDocument)
-        // Click on Code and navigation routing by modifiers.
         #expect(p.codeClick(for: .option) == .quickHelp && p.codeClick(for: .command) == .definition)
         #expect(p.codeClick(for: [.command, .control]) == .definition && p.codeClick(for: []) == nil && p.codeClick(for: .shift) == nil)
         #expect(p.navigationTarget(modifiers: []) == .focusedPane && p.navigationTarget(modifiers: .option) == .newUnpinnedTab)
@@ -203,8 +188,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             "Editor overscroll", "# Line Wrapping", "Wrap lines to editor width", "Indent wrapped lines",
             "# Documentation Comments", "Fade delimiters", "Fade comment delimiters",
         ])
-        // The minimap is Editor ▸ Minimap, not a Display row; the page guide
-        // is "Show reformatting guide".
         #expect(!pane.rowTitles.contains("Minimap") && !pane.rowTitles.contains("Page guide at column"))
         #expect(pane.control(NSPopUpButton.self, inRow: "Editor overscroll")?.itemTitles == ["None", "Small", "Medium", "Large"])
         #expect(pane.control(NSPopUpButton.self, inRow: "Editor overscroll")?.titleOfSelectedItem == "Medium")
@@ -234,7 +217,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             pane.setFont(EditorTheme.FontSpec(name: "", size: 17), for: .comment)
             #expect(p.theme.tokenFonts?["comment"]?.size == 17 && Theme.font(for: .comment)?.pointSize == 17)
             #expect(Theme.font(for: .keyword) == Theme.boldFont && Theme.font(for: .string) == nil)
-            // Editor ▸ Font Size (R30) applies on top of a token's own font.
             p.sourceFontSize = p.theme.fontSize + 2
             #expect(Theme.font(for: .comment)?.pointSize == 19 && Theme.font.pointSize == CGFloat(p.theme.fontSize + 2))
             p.sourceFontSize = nil
@@ -274,9 +256,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(sims.rowTitles.contains("Warm boot from snapshot") && sims.rowTitles.contains("Lean boot"))
     }
 
-    // MARK: Settings take effect
-
-    /// A package with a few sources, opened in a window.
     func workspace(_ dir: URL, files: [String: String]) throws -> (WorkspaceWindowController, URL) {
         let src = dir.appendingPathComponent("Sources/T")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
@@ -293,7 +272,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
     @Test func generalSettingsTakeEffect() throws {
         try withPrefs("general-effect") { p, dir in
-            // Restore windows drives the system's keep-windows default for SwiftCode.
             p.restoreWindows = .always
             #expect(p.defaults.object(forKey: Preferences.keepWindowsKey) as? Bool == true)
             p.restoreWindows = .never
@@ -303,12 +281,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
             let (wc, src) = try workspace(dir, files: ["A.swift": "let a = 1\nlet b = 2\n"])
             let a = src.appendingPathComponent("A.swift").path
-            // Navigator size: row style and font.
             p.navigatorSize = .small
             #expect(wc.navigator.rowSizeStyle == .small && NavigatorAreaController.rowFontSize == 11)
             p.navigatorSize = .large
             #expect(wc.navigator.rowSizeStyle == .large && NavigatorAreaController.rowFontSize == 15)
-            // Detail lines: issues, bookmarks and find results.
             @MainActor func leaves(_ items: [OutlineItem]) -> [OutlineItem] { items.flatMap { $0.children.isEmpty ? [$0] : leaves($0.children) } }
             wc.navigator.setIssues([Diagnostic(severity: .error, message: "bad", location: .init(file: a, line: 1))])
             wc.navigator.setBookmarks([Bookmark(file: a, line: 2, label: "let b = 2")])
@@ -319,12 +295,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             p.findNavigatorDetail = 2
             wc.navigator.find("let")
             #expect(!leaves(wc.navigator.rows(3)).isEmpty && leaves(wc.navigator.rows(3)).allSatisfy { $0.maxLines == 2 })
-            // Issue presentation reaches the editors.
             wc.open(path: a, line: nil)
             #expect(!wc.editor.showsMinimizedIssues)
             p.issuePresentation = .minimized
             #expect(wc.editor.showsMinimizedIssues)
-            // Stop build on first error and the report history reach the session.
             p.stopBuildOnFirstError = false
             #expect(!wc.session.stopOnFirstError)
             p.reportHistoryLimit = 10
@@ -333,14 +307,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                 wc.session.recordReport(BuildReport(title: "Build \(i)", date: Date(), succeeded: true, log: [], errorCount: 0, warningCount: 0))
             }
             #expect(wc.session.reports.count == 10 && wc.session.reports.first?.title == "Build 11")
-            // Import, export and reset.
             let file = dir.appendingPathComponent("settings.json")
             let general = GeneralSettingsPane(prefs: p)
             try general.exportSettings(to: file)
             let json = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
             #expect(json["format"] as? String == "swiftcode-settings")
             p.resetSettings()
-            // One expectation per setting, with what is stored, so a failure names the setting and its value.
             for (key, factory) in [("issuePresentation", p.issuePresentation == .inline), ("reportHistoryLimit", p.reportHistoryLimit == 20),
                                    ("navigatorSize", p.navigatorSize == .system), ("stopBuildOnFirstError", p.stopBuildOnFirstError)] {
                 #expect(factory, "SwiftCode.\(key) after Reset: \(String(describing: p.defaults.object(forKey: "SwiftCode." + key)))")
@@ -350,7 +322,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(p.issuePresentation == .minimized && p.reportHistoryLimit == 10 && p.navigatorSize == .large && !p.stopBuildOnFirstError)
             #expect(p.issueNavigatorDetail == 1)
             #expect(throws: (any Error).self) { try p.importSettings(Data("{}".utf8)) }
-            // "Don't ask me" warnings.
             p.suppressWarning("example")
             #expect(p.isWarningSuppressed("example"))
             p.resetSuppressedWarnings()
@@ -358,10 +329,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    /// A build that reports an error, then a second one and fails. With
-    /// `waitsForCancel` the rest only comes after a long pause, so a build
-    /// that stops on its first error is cancelled first (cancelling
-    /// finishes it at once).
     final class Cancelled: @unchecked Sendable { var value = false }
     struct ErrorThenWaitEngine: BuildEngine {
         let cancelled: Cancelled
@@ -412,7 +379,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let a = src.appendingPathComponent("A.swift").path, b = src.appendingPathComponent("B.swift").path
             let c = src.appendingPathComponent("C.swift").path
             wc.openFromNavigator(path: a, line: nil, modifiers: [])
-            // New tabs: the Start Page by default, else the same document.
             wc.newTab(nil)
             #expect(wc.editorArea.tabs.count == 2 && wc.editor.fileURL == nil && wc.editor.emptyView != nil)
             wc.closeTab(nil)
@@ -420,7 +386,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.newTab(nil)
             #expect(wc.editor.fileURL?.path == a)
             wc.closeTab(nil)
-            // New panes: the same document by default, else the Start Page.
             wc.splitEditor(nil)
             #expect(wc.editorArea.tab.editors.count == 2 && wc.editor.fileURL?.path == a)
             wc.closeEditor(nil)
@@ -430,19 +395,16 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.closeEditor(nil)
             #expect(wc.editorArea.tab.editors.count == 1)
 
-            // ⌥-click: a new unpinned tab; ⌥⇧-click: the next pane (made when needed).
             wc.openFromNavigator(path: b, line: nil, modifiers: .option)
             #expect(wc.editorArea.tabs.count == 2 && wc.editor.fileURL?.path == b && !wc.editorArea.tab.isPinned)
             wc.openFromNavigator(path: c, line: nil, modifiers: [.option, .shift])
             #expect(wc.editorArea.tab.editors.count == 2 && wc.editor.fileURL?.path == c && wc.editorArea.tab.editors[0].fileURL?.path == b)
             wc.openFromNavigator(path: a, line: nil, modifiers: [.option, .shift])
             #expect(wc.editorArea.tab.editors.count == 2 && wc.editorArea.tab.editors[0].fileURL?.path == a)
-            // A double click is the same as a click (the focused pane).
             let tabs = wc.editorArea.tabs.count
             wc.openFromNavigator(path: c, line: nil, modifiers: [], clickCount: 2)
             #expect(wc.editorArea.tabs.count == tabs && wc.editor.fileURL?.path == c)
 
-            // Pin Editor Tabs: manually by default; automatically on edit.
             wc.editor.textView.insertText("// x\n", replacementRange: NSRange(location: 0, length: 0))
             #expect(!wc.editorArea.tab.isPinned)
             p.pinEditorTabs = .automatically
@@ -450,8 +412,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(wc.editorArea.tab.isPinned)
             wc.editor.textView.undoManager?.removeAllActions()
 
-            // Click on Code: ⌃⌘-click jumps to the definition; when set,
-            // Quick Help instead.
             var jumped = 0, helped = 0
             wc.editor.onJumpToDefinition = { _, _ in jumped += 1 }
             wc.editor.onQuickHelp = { _, _, _ in helped += 1 }
@@ -504,10 +464,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(e.markSeparatorLines.isEmpty && e.endifConditions.isEmpty && e.inactiveLineRanges.isEmpty)
             #expect(e.renderingColor(at: docSlashes) == nil && e.renderingColor(at: offLet) == nil)
 
-            // Overscroll: blank space after the last line (Medium by default).
             let tv = e.textView
-            // Headless: lay the whole text out, as scrolling would, and let
-            // the view size itself to it.
             let tlm = try #require(tv.textLayoutManager)
             @MainActor func height() -> CGFloat {
                 tlm.ensureLayout(for: tlm.documentRange)
@@ -523,8 +480,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(visible > 0 && medium > none && large > medium)
             #expect(abs((medium - none) - (visible * 0.5).rounded()) <= 1)
 
-            // Code structure headers: scrolled into values(), the struct and
-            // the function stay on top.
             tlm.ensureLayout(for: tlm.documentRange)
             let target = tv.lineRect(40)!
             e.scrollView.contentView.scroll(to: NSPoint(x: 0, y: target.minY))
@@ -533,7 +488,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             p.showCodeStructureHeaders = false
             #expect(e.structureHeaderLines.isEmpty)
 
-            // Convert existing files on save: CRLF becomes LF.
             let crlf = src.appendingPathComponent("CRLF.swift")
             wc.open(path: crlf.path, line: nil)
             wc.editor.textView.insertText("// edit\r\n", replacementRange: NSRange(location: 0, length: 0))

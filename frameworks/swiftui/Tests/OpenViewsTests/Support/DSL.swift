@@ -7,10 +7,6 @@ import Foundation
 @testable import SwiftUI
 #endif
 
-// A test-only spelling of layout trees that mirrors the probe sources of
-// golden-layout.md (lower-case names, because the real view types arrive in
-// round R2): `HStack { Text("A") }` is written `hstack { text("A") }`.
-
 @resultBuilder
 enum NodeBuilder {
     static func buildExpression(_ n: LayoutNode) -> [LayoutNode] { [n] }
@@ -88,14 +84,10 @@ extension TextFont {
 }
 
 extension LayoutNode {
-    /// The probe of golden-layout.md: a geometry reader in the background,
-    /// which reports its own frame (aligned to the probed view's centre
-    /// guides, explicit ones included).
     func probe(_ name: String) -> LayoutNode {
         background(LayoutNode.geometryReader().named(name))
     }
 
-    /// `.font(_:)` applied directly to a text or symbol.
     func font(_ f: TextFont) -> LayoutNode {
         if let t = behavior as? TextLeaf {
             var r = t.text
@@ -106,20 +98,17 @@ extension LayoutNode {
         fatalError("font(_:) is only supported directly on a text or image in tests")
     }
 
-    /// `.imageScale(_:)` applied directly to a symbol.
     func imageScale(_ scale: Image.Scale) -> LayoutNode {
         guard var i = behavior as? ImageLeaf else { fatalError("imageScale(_:) needs an image") }
         i.imageScale = scale
         return LayoutNode(i)
     }
 
-    /// `Image.resizable()`.
     func resizable() -> LayoutNode {
         guard let i = behavior as? ImageLeaf else { fatalError("resizable() needs an image") }
         return LayoutNode(ImageLeaf(i.source, resizable: true, font: i.font))
     }
 
-    /// `.lineLimit(_:)` applied directly to a text.
     func lineLimit(_ n: Int?) -> LayoutNode {
         guard let t = behavior as? TextLeaf else { fatalError("lineLimit(_:) needs a text") }
         var r = t.text
@@ -127,7 +116,6 @@ extension LayoutNode {
         return .text(r)
     }
 
-    /// `Text.bold()`.
     func bold() -> LayoutNode {
         guard let t = behavior as? TextLeaf else { fatalError("bold() needs a text") }
         var r = t.text

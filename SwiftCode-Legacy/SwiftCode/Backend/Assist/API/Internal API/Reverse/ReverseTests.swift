@@ -1,15 +1,3 @@
-//  ReverseTests.swift
-//  SwiftCode
-//
-//  Reverse subsystem tests, in the app's Sources (there is no XCTest
-//  target in this project). Wired into AssistRuntimeTestSuite.
-//
-//  These tests cover parsing, validation, evidence provenance, error
-//  mapping, and the allow-list. They do NOT prove real REA analysis
-//  works: the bridge's real-REA verification is the recorded
-//  out-of-repo run documented in Docs/Assist-Reverse-REA-Audit-and-Plan.md
-//  (real Evidence from inspect_artifact + inspect_with_objdump).
-
 import Foundation
 
 public enum ReverseTestSuite {
@@ -104,7 +92,6 @@ public enum ReverseTestSuite {
                     return "locations not preserved"
                 }
                 guard evidence.limitations == ["limitation one"] else { return "limitations not preserved" }
-                // No confidence supplied -> "not reported", never invented.
                 let noConfidence = """
                 {"version":1,"id":"e2","type":"result","evidence":{"evidence_id":"ev2","operation":"inspect_artifact","normalized_result":{},"limitations":[],"locations":[]}}
                 """
@@ -145,7 +132,6 @@ public enum ReverseTestSuite {
                 case .failure: break
                 case .success: return "missing target must be rejected"
                 }
-                // In-scope positive case: real file inside the workspace root.
                 let dir = FileManager.default.temporaryDirectory.appendingPathComponent("reverse-test-\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 defer { try? FileManager.default.removeItem(at: dir) }

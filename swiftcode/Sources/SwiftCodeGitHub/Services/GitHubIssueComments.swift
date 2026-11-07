@@ -1,9 +1,5 @@
 import Foundation
 
-/// A comment on an issue or pull request (`/repos/{owner}/{repo}/
-/// issues/{number}/comments`). Pull requests share the issues
-/// endpoint, so these are the conversation comments of a PR detail
-/// view too.
 public struct GitHubIssueComment: Sendable, Equatable, Decodable, Identifiable {
     public var id: Int
     public var body: String
@@ -32,12 +28,6 @@ public struct GitHubIssueComment: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// The api.github.com issue-comments client. There is no comments
-/// surface in `GitHubClient` (Wave 10), so this is the port of the
-/// comment layer of Legacy's `IssueDetailView` and
-/// `PullRequestDetailView` (`SwiftCode/Views/GitHub/`), over
-/// `GitHubRESTTransport`. Reading comments works without a token on
-/// public repositories; writing requires one.
 public struct GitHubIssueCommentClient: Sendable {
     private let transport: GitHubRESTTransport
 
@@ -45,7 +35,6 @@ public struct GitHubIssueCommentClient: Sendable {
         self.transport = GitHubRESTTransport(session: session, tokenProvider: tokenProvider)
     }
 
-    /// `GET /repos/{owner}/{repo}/issues/{number}/comments`.
     public func listIssueComments(owner: String, repo: String, number: Int, perPage: Int = 30) async throws -> [GitHubIssueComment] {
         try validateRepo(owner: owner, repo: repo)
         return try await transport.perform(transport.request(
@@ -53,7 +42,6 @@ public struct GitHubIssueCommentClient: Sendable {
             query: [URLQueryItem(name: "per_page", value: "\(transport.clampedPerPage(perPage))")]))
     }
 
-    /// `POST /repos/{owner}/{repo}/issues/{number}/comments`.
     public func createIssueComment(owner: String, repo: String, number: Int, body: String) async throws -> GitHubIssueComment {
         try validateRepo(owner: owner, repo: repo)
         guard !(transport.tokenProvider() ?? "").isEmpty else {
@@ -69,7 +57,6 @@ public struct GitHubIssueCommentClient: Sendable {
             method: "POST", body: payload))
     }
 
-    /// `PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}`.
     public func updateIssueComment(owner: String, repo: String, commentId: Int, body: String) async throws -> GitHubIssueComment {
         try validateRepo(owner: owner, repo: repo)
         guard !(transport.tokenProvider() ?? "").isEmpty else {
@@ -85,7 +72,6 @@ public struct GitHubIssueCommentClient: Sendable {
             method: "PATCH", body: payload))
     }
 
-    /// `DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}`.
     public func deleteIssueComment(owner: String, repo: String, commentId: Int) async throws {
         try validateRepo(owner: owner, repo: repo)
         guard !(transport.tokenProvider() ?? "").isEmpty else {
@@ -106,7 +92,6 @@ public struct GitHubIssueCommentClient: Sendable {
     }
 }
 
-/// The body of a create/update comment request.
 private struct CommentBody: Encodable {
     var body: String
 }

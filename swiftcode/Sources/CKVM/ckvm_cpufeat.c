@@ -1,7 +1,3 @@
-// CKVM CPU-feature helpers (see include/ckvm_cpufeat.h). Original SwiftCode code
-// over the public Linux KVM API (KVM_CREATE_VM, KVM_CREATE_VCPU,
-// KVM_ARM_PREFERRED_TARGET, KVM_ARM_VCPU_INIT, KVM_GET_ONE_REG) and the Arm
-// Architecture Reference Manual's register definitions.
 #include "ckvm_cpufeat.h"
 
 #if defined(__linux__) && defined(__aarch64__)
@@ -59,7 +55,6 @@ uint64_t ckvm_host_dczid_el0(void) {
 }
 
 uint64_t ckvm_host_fpcr_trap_probe(void) {
-    // IOE (8), DZE (9), OFE (10), UFE (11), IXE (12), IDE (15).
     const uint64_t traps = (1u << 8) | (1u << 9) | (1u << 10) | (1u << 11) | (1u << 12) | (1u << 15);
     uint64_t saved, readback;
     __asm__ volatile(

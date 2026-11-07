@@ -1,7 +1,3 @@
-// swiftcode-xr-viewer: a visionOS device of a simulator host in an OpenXR
-// headset (specs/simulator/xr-viewer.md). Connects over SwiftCode's link
-// (`--link`, sim-link.md) or to a display socket (`--connect`).
-
 import Foundation
 import SwiftCodeDisplayStream
 import SwiftCodeRelease

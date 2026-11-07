@@ -16,7 +16,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
     return nil
 }
 
-/// stage3-contract.md §4: `VMProtection`, `GuestAddressSpace`, `FakePhysicalBacking`.
 @Suite struct AddressSpaceTests {
     @Test func protectionValuesAndAttributes() {
         #expect(VMProtection.read.rawValue == 1 && VMProtection.write.rawValue == 2 && VMProtection.execute.rawValue == 4)
@@ -26,7 +25,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
         #expect(VMProtection.all.el0PageAttributes == PageAttributes(access: .el0ReadWrite, el0Execute: true))
         #expect(VMProtection.write.el0PageAttributes == PageAttributes(access: .el0ReadWrite))
         #expect(VMProtection.none.el0PageAttributes == PageAttributes(access: .el1ReadOnly))
-        // PXN is always set.
         for raw in UInt32(0)...7 { #expect(!VMProtection(rawValue: raw).el0PageAttributes.el1Execute) }
         #expect(VMProtection.readExecute.description == "r-x")
     }
@@ -36,10 +34,9 @@ private func errno(of body: () throws -> Void) -> Int32? {
         let a = try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: nil)
         #expect(a == 0x3_2000_0000)
         let b = try space.mapAnonymous(at: nil, size: 0x5000, protection: .readWrite, hint: nil)
-        #expect(b == 0x3_2000_4000)   // size rounded up to 0x8000
+        #expect(b == 0x3_2000_4000)
         let c = try space.mapAnonymous(at: nil, size: 0x4000, protection: .read, hint: nil)
         #expect(c == 0x3_2000_C000)
-        // Free the middle; a small request fills the hole, a big one goes past.
         try space.unmap(va: b, size: 0x8000)
         #expect(try space.mapAnonymous(at: nil, size: 0xC000, protection: .readWrite, hint: nil) == 0x3_2001_0000)
         #expect(try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: nil) == 0x3_2000_4000)
@@ -48,14 +45,11 @@ private func errno(of body: () throws -> Void) -> Int32? {
 
     @Test func hintIsRespectedAndClampedToBase() throws {
         let (space, _) = makeSpace()
-        // A hint below the base (even inside the shared region) is raised to the base.
         #expect(try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: 0x1_0000_0000) == 0x3_2000_0000)
         #expect(try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: 0x2_0000_0000) == 0x3_2000_4000)
-        // A hint above the base is used as given (rounded up to 16 KiB).
         #expect(try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: 0x4_0000_0001) == 0x4_0000_4000)
         #expect(try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: 0x4_0000_0000) == 0x4_0000_0000)
         #expect(try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: 0x4_0000_0000) == 0x4_0000_8000)
-        // A hint with no room above it falls back to the base.
         #expect(try space.mapAnonymous(at: nil, size: 0x8000, protection: .readWrite, hint: VMLayout.userVALimit - 0x4000)
                 == 0x3_2000_8000)
     }
@@ -69,7 +63,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
         }
         #expect(space.regions.allSatisfy { $0.end <= VMLayout.sharedRegionBase || $0.va >= VMLayout.sharedRegionEnd })
         #expect(space.anywhereExclusions.contains(VMLayout.sharedRegionBase..<VMLayout.sharedRegionEnd))
-        // More than the whole anywhere range: ENOMEM, nothing allocated.
         let total = VMLayout.userVALimit - VMLayout.anonymousVABase
         let before = space.regions
         #expect(errno { _ = try space.mapAnonymous(at: nil, size: total, protection: .read, hint: nil) } == DarwinErrnoCode.ENOMEM)
@@ -83,7 +76,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
         try space.write(va: 0x1_C000_4000, bytes: [1, 2, 3])
         let inUse = backing.anonymousBytesInUse
         #expect(inUse == 0xC000)
-        // MAP_FIXED over the middle page: the old page is released and the new one is zero.
         _ = try space.mapAnonymous(at: 0x1_C000_4000, size: 0x4000, protection: .read, hint: nil)
         #expect(try space.read(va: 0x1_C000_4000, count: 3) == [0, 0, 0])
         #expect(backing.anonymousBytesInUse == 0xC000)
@@ -91,7 +83,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
         #expect(regions.map(\.va) == [0x1_C000_0000, 0x1_C000_4000, 0x1_C000_8000])
         #expect(regions.map(\.size) == [0x4000, 0x4000, 0x4000])
         #expect(regions.map(\.protection) == [.readWrite, .read, .readWrite])
-        // The split-off pieces keep their original physical pages.
         #expect(space.pageTables.translate(0x1_C000_8000)?.pa == regions[0].gpa + 0x8000)
         #expect(space.region(containing: 0x1_C000_5000)?.protection == .read)
         #expect(space.region(containing: 0x1_C000_C000) == nil)
@@ -101,7 +92,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
         let (space, _) = makeSpace()
         #expect(errno { _ = try space.mapAnonymous(at: 0x3_2000_0001, size: 0x4000, protection: .read, hint: nil) } == DarwinErrnoCode.EINVAL)
         #expect(errno { _ = try space.mapAnonymous(at: 0x3_2000_0000, size: 0, protection: .read, hint: nil) } == DarwinErrnoCode.EINVAL)
-        // Page zero (where the EL1 identity regions live) and above the user limit.
         #expect(errno { _ = try space.mapAnonymous(at: 0x4000_0000, size: 0x4000, protection: .read, hint: nil) } == DarwinErrnoCode.ENOMEM)
         #expect(errno { _ = try space.mapAnonymous(at: VMLayout.commpageVA, size: 0x4000, protection: .read, hint: nil) } == DarwinErrnoCode.ENOMEM)
         #expect(space.regions.isEmpty)
@@ -112,22 +102,18 @@ private func errno(of body: () throws -> Void) -> Int32? {
         let (space, _) = makeSpace()
         try space.mapPermanentAnonymous(at: VMLayout.commpageVA, size: 0x4000, protection: .read)
         try space.mapPermanentAnonymous(at: VMLayout.hostPageVA, size: VMLayout.hostPageSize, protection: .readWrite)
-        // The VMM fills read-only pages with checks off.
         try space.write(va: VMLayout.commpageVA, bytes: [0xAB], checkingEL0Access: false)
         #expect(try space.read(va: VMLayout.commpageVA, count: 1) == [0xAB])
         #expect(throws: GuestMemoryError.accessDenied(va: VMLayout.commpageVA)) {
             try space.write(va: VMLayout.commpageVA, bytes: [1])
         }
-        // The guest can neither unmap, replace, nor re-protect them.
         #expect(errno { try space.unmap(va: VMLayout.hostPageVA, size: 0x4000) } == DarwinErrnoCode.EINVAL)
         #expect(errno { _ = try space.mapAnonymous(at: VMLayout.hostPageVA, size: 0x4000, protection: .read, hint: nil) } == DarwinErrnoCode.EINVAL)
         #expect(errno { try space.protect(va: VMLayout.hostPageVA, size: 0x4000, protection: .all) } == DarwinErrnoCode.EINVAL)
         let allPermanent = space.regions.allSatisfy { $0.permanent }
         #expect(allPermanent)
-        // Anywhere placement skips the host page.
         let r = try space.mapAnonymous(at: nil, size: 0x4000, protection: .read, hint: VMLayout.hostPageVA)
         #expect(r == VMLayout.anonymousVABase)
-        // A permanent mapping at the base is skipped by anywhere placement.
         try space.unmap(va: r, size: 0x4000)
         try space.mapPermanentAnonymous(at: VMLayout.anonymousVABase, size: 0x8000, protection: .read)
         #expect(try space.mapAnonymous(at: nil, size: 0x4000, protection: .read, hint: nil) == VMLayout.anonymousVABase + 0x8000)
@@ -142,14 +128,11 @@ private func errno(of body: () throws -> Void) -> Int32? {
         #expect(space.pageTables.translate(va)?.attributes == PageAttributes(access: .el0ReadWrite))
         #expect(throws: GuestMemoryError.accessDenied(va: va + 0x8000)) { try space.write(va: va + 0x8000, bytes: [1]) }
         #expect(try space.read(va: va + 0x8000, count: 3) == [9, 8, 7])
-        // A write that crosses into the read-only page changes nothing.
         #expect(throws: GuestMemoryError.accessDenied(va: va + 0x8000)) { try space.write(va: va + 0x7FFE, bytes: [5, 5, 5]) }
         #expect(try space.read(va: va + 0x7FFE, count: 2) == [0, 0])
-        // PROT_NONE: mapped (reserved) but inaccessible.
         try space.protect(va: va, size: 0x4000, protection: .none)
         #expect(throws: GuestMemoryError.accessDenied(va: va)) { _ = try space.read(va: va, count: 1) }
         #expect(space.pageTables.translate(va) != nil)
-        // mprotect over a hole is ENOMEM and changes nothing.
         #expect(errno { try space.protect(va: va + 0xC000, size: 0x8000, protection: .read) } == DarwinErrnoCode.ENOMEM)
         #expect(space.region(containing: va + 0xC000)?.protection == .readWrite)
 
@@ -159,10 +142,8 @@ private func errno(of body: () throws -> Void) -> Int32? {
         #expect(space.pageTables.translate(va + 0xC000) != nil)
         #expect(throws: GuestMemoryError.unmapped(va: va + 0x4000)) { _ = try space.read(va: va + 0x4000, count: 1) }
         #expect(backing.anonymousBytesInUse == 0x8000)
-        // Unmapping a hole succeeds.
         try space.unmap(va: va + 0x4000, size: 0x4000)
         #expect(space.regions.map(\.va) == [va, va + 0xC000])
-        // A re-allocation of freed pages reads as zero.
         let again = try space.mapAnonymous(at: nil, size: 0x8000, protection: .readWrite, hint: nil)
         #expect(again == va + 0x4000)
         #expect(try space.read(va: va + 0x8000, count: 3) == [0, 0, 0])
@@ -174,10 +155,8 @@ private func errno(of body: () throws -> Void) -> Int32? {
         _ = try space.mapAnonymous(at: nil, size: 0x4000, protection: .readWrite, hint: nil)
         #expect(space.generation == 1)
         #expect(!space.pageTables.hasDirtyTables)
-        // Root, L2, L3 were written to the arena.
         let tableWrites = backing.writeLog.filter { $0.gpa >= 0x4020_0000 && $0.gpa < 0x4420_0000 }
         #expect(tableWrites.count == 3 && tableWrites.allSatisfy { $0.count == 16384 })
-        // The written bytes equal the builder's tables.
         for t in space.pageTables.tables {
             #expect(try backing.readPhysical(gpa: t.gpa, count: 16384) == t.bytes)
         }
@@ -185,19 +164,15 @@ private func errno(of body: () throws -> Void) -> Int32? {
         try space.protect(va: 0x3_2000_0000, size: 0x4000, protection: .read)
         #expect(space.generation == 2)
         #expect(backing.writeLog.map(\.gpa) == [space.pageTables.tables[2].gpa])
-        // No-ops do not bump.
         try space.unmap(va: 0x5_0000_0000, size: 0x4000)
         try space.protect(va: 0x3_2000_0000, size: 0x4000, protection: .read)
         #expect(space.generation == 2)
         try space.unmap(va: 0x3_2000_0000, size: 0x4000)
         #expect(space.generation == 3)
-        // Failed calls do not bump.
         _ = errno { _ = try space.mapAnonymous(at: 0x1, size: 0x4000, protection: .read, hint: nil) }
         #expect(space.generation == 3)
     }
 
-    /// guest-cpu.md §4.2: only a change that removes or alters a valid
-    /// descriptor moves `tlbGeneration`; new mappings do not.
     @Test func tlbGenerationMovesOnlyForInvalidatingChanges() throws {
         guard !GuestAddressSpace.flushOnAdditions else { return }
         let (space, _) = makeSpace()
@@ -206,20 +181,16 @@ private func errno(of body: () throws -> Void) -> Int32? {
         #expect(space.tlbGeneration == 0)
         _ = try space.mapAnonymous(at: nil, size: 0x4000, protection: .read, hint: nil)
         #expect(space.generation == 2 && space.tlbGeneration == 0)
-        // Adding write access changes a valid descriptor (a TLB may hold the read-only one).
         try space.protect(va: va, size: 0x4000, protection: .read)
         #expect(space.generation == 3 && space.tlbGeneration == 1)
-        // A protect that changes nothing moves neither.
         try space.protect(va: va, size: 0x4000, protection: .read)
         #expect(space.generation == 3 && space.tlbGeneration == 1)
         try space.unmap(va: va + 0x4000, size: 0x4000)
         #expect(space.generation == 4 && space.tlbGeneration == 2)
         #expect(space.tlbRange(since: 1) == TLBRange(va: va + 0x4000, pages: 1))
-        #expect(space.tlbRange(since: 0) == nil) // two bumps: the whole TLB
-        // Unmapping a hole changes nothing.
+        #expect(space.tlbRange(since: 0) == nil)
         try space.unmap(va: va + 0x4000, size: 0x4000)
         #expect(space.generation == 4 && space.tlbGeneration == 2)
-        // A fixed mapping over an existing one replaces valid descriptors.
         _ = try space.mapAnonymous(at: va, size: 0x4000, protection: .readWrite, hint: nil)
         #expect(space.tlbGeneration == 3)
     }
@@ -236,7 +207,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
         }
         try space.flushPageTables()
         #expect(space.generation == 1)
-        // EL1 identity pages are not EL0-accessible through the address space.
         #expect(throws: GuestMemoryError.accessDenied(va: VMLayout.bootInfoGPA)) {
             _ = try space.read(va: VMLayout.bootInfoGPA, count: 1)
         }
@@ -249,7 +219,6 @@ private func errno(of body: () throws -> Void) -> Int32? {
         let file = try GuestFile.openReadOnly(hostPath: dir.host("lib.bin"))
         #expect(file.size == 0x6000)
         let (space, backing) = makeSpace()
-        // Map from offset 0x4000 (two pages; the second is past EOF after 0x2000 bytes).
         let va = try space.mapFile(file, offset: 0x4000, at: nil, size: 0x8000, protection: .readExecute, hint: nil)
         #expect(va == 0x3_2000_0000)
         #expect(try space.read(va: va, count: 0x2000) == Array(bytes[0x4000..<0x6000]))
@@ -260,15 +229,12 @@ private func errno(of body: () throws -> Void) -> Int32? {
         #expect(region.backing == .file(path: file.guestPath, offset: 0x4000, gpa: VMLayout.fileSlotGPABase))
         #expect(region.backingDescription.contains("lib.bin"))
         #expect(space.file(at: va) === file)
-        // Private: a writable mapping can be written; the host file is unchanged.
         let rw = try space.mapFile(file, offset: 0, at: 0x1_C000_0000, size: 0x4000, protection: .readWrite, hint: nil)
         try space.write(va: rw, bytes: [0xEE])
         #expect(try space.read(va: rw, count: 2) == [0xEE, bytes[1]])
         #expect(try file.read(count: 1, offset: 0) == [bytes[0]])
-        // Splitting a file chunk keeps offsets.
         try space.unmap(va: va, size: 0x4000)
         #expect(space.region(containing: va + 0x4000)?.backing == .file(path: file.guestPath, offset: 0x8000, gpa: VMLayout.fileSlotGPABase + 0x4000))
-        // Unaligned file offsets are EINVAL.
         #expect(errno { _ = try space.mapFile(file, offset: 0x100, at: nil, size: 0x4000, protection: .read, hint: nil) } == DarwinErrnoCode.EINVAL)
     }
 
@@ -292,7 +258,7 @@ private func errno(of body: () throws -> Void) -> Int32? {
         b.release(gpa: a, size: 0x4000)
         b.release(gpa: c, size: 0x8000)
         #expect(b.anonymousBytesInUse == 0)
-        #expect(try b.allocateAnonymous(size: 0xC000) == a)   // coalesced
+        #expect(try b.allocateAnonymous(size: 0xC000) == a)
         #expect(throws: FakePhysicalBackingError.self) { _ = try b.readPhysical(gpa: 0x8000_0000, count: 1) }
         #expect(try b.readPhysical(gpa: VMLayout.ramGPA, count: 4) == [0, 0, 0, 0])
     }

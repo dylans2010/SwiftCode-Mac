@@ -1,33 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Settings/MetaAssistModelsUI.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/MetaAssistModelsUI.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Meta model catalogue browser with selectable model rows and context limits
-//   - reasoning-effort control in UI (setting exists, only settable via slash command)
-//   - SCCloud rate-limiter remaining display
-//   - custom-endpoints list UI
-// ADAPTATIONS:
-//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
-//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
-//   - AssistAvailableModel — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistAvailableModel.swift`)
-//   - SCCloudConfiguration — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SCCloudDeviceFingerprint — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SCCloudModelDiscovery — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SCCloudModelInfo — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land. Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
-
-//
-//  MetaAssistModelsUI.swift
-//  SwiftCode
-//
-//  Models selection and reasoning effort control card for "Assist with Meta" (Muse SDK).
-//
-
 import SwiftUI
 import SwiftCodeAssistant
 
@@ -49,7 +19,6 @@ public struct MetaAssistModelsUI: View {
     public var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                // Header
                 HStack(spacing: 8) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 6)
@@ -111,12 +80,10 @@ public struct MetaAssistModelsUI: View {
 
                 Divider()
 
-                // Other Models with Meta SDK Bridge Card
                 otherModelsBridgeCard
 
                 Divider()
 
-                // 1. Models List
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("Available Models")
@@ -148,15 +115,12 @@ public struct MetaAssistModelsUI: View {
                             .foregroundStyle(.red)
                             .padding(.vertical, 2)
                     } else {
-                        // Scrollable list so all models fit neatly
                         ScrollView(.vertical, showsIndicators: true) {
                             VStack(spacing: 4) {
-                                // Section A: Native Meta Muse Models
                                 ForEach(models) { model in
                                     modelRow(model)
                                 }
 
-                                // Section B: Divider & All Other Models (when toggle is ON)
                                 if settings.otherModelsWithMetaSDK || settings.swiftCodeCloudWithMetaSDK {
                                     HStack(spacing: 8) {
                                         Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 1)
@@ -171,7 +135,6 @@ public struct MetaAssistModelsUI: View {
                                     }
                                     .padding(.vertical, 3)
 
-                                    // 1. SwiftCode Cloud Models
                                     ForEach(cloudModels, id: \.endpointName) { cloud in
                                         otherModelRow(
                                             id: cloud.internalID,
@@ -184,7 +147,6 @@ public struct MetaAssistModelsUI: View {
                                         )
                                     }
 
-                                    // 2. Saved Third-Party API Models
                                     let candidateOther = otherModels.filter {
                                         $0.source != .custom && $0.source != .local && !SCCloudConfiguration.isCloudModelID($0.id)
                                     }
@@ -200,7 +162,6 @@ public struct MetaAssistModelsUI: View {
                                         )
                                     }
 
-                                    // 3. Custom Model Setups
                                     let customEndpoints = CustomEndpointManager.shared.endpoints
                                     ForEach(customEndpoints) { endpoint in
                                         let eligible = AssistModelEligibilityPolicy.filterEligibleModelIDs(endpoint.models, onlyUseFreeModels: settings.onlyUseFreeModels)
@@ -226,7 +187,6 @@ public struct MetaAssistModelsUI: View {
 
                 Divider()
 
-                // 2. Thinking Models / Reasoning Effort Section
                 reasoningEffortCard
             }
             .padding(10)
@@ -236,8 +196,6 @@ public struct MetaAssistModelsUI: View {
             await loadModels()
         }
     }
-
-    // MARK: - Native Muse Model Card Row (Compact)
 
     @ViewBuilder
     private func modelRow(_ model: MetaModelItem) -> some View {
@@ -326,8 +284,6 @@ public struct MetaAssistModelsUI: View {
         }
         .buttonStyle(.plain)
     }
-
-    // MARK: - Other / Bridged Model Card Row (Compact)
 
     @ViewBuilder
     private func otherModelRow(
@@ -425,12 +381,9 @@ public struct MetaAssistModelsUI: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Other Models with Meta SDK Bridge Card (Compact)
-
     @ViewBuilder
     private var otherModelsBridgeCard: some View {
         VStack(alignment: .leading, spacing: 7) {
-            // Row 1: Other Models with Meta SDK Toggle
             HStack {
                 HStack(spacing: 5) {
                     Image(systemName: "cpu")
@@ -446,7 +399,6 @@ public struct MetaAssistModelsUI: View {
                     .controlSize(.mini)
             }
 
-            // Row 2: SwiftCode Cloud Models with Meta SDK Toggle
             HStack {
                 HStack(spacing: 5) {
                     Image(systemName: "cloud.sun.fill")
@@ -474,7 +426,6 @@ public struct MetaAssistModelsUI: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Divider()
 
-                    // Fallback toggle
                     Toggle(isOn: $settings.useOtherModelsWhenRateLimited) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Use Other Models when Rate Limited")
@@ -487,7 +438,6 @@ public struct MetaAssistModelsUI: View {
                     .toggleStyle(.switch)
                     .controlSize(.mini)
 
-                    // Free-only toggle
                     Toggle(isOn: $settings.onlyUseFreeModels) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Only Use Free Models")
@@ -502,7 +452,6 @@ public struct MetaAssistModelsUI: View {
 
                     Divider()
 
-                    // Active Bridged Model Picker
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Active Bridged Model")
                             .font(.system(size: 10, weight: .medium))
@@ -511,7 +460,6 @@ public struct MetaAssistModelsUI: View {
                         let activeModel = MuseOtherModelsBridge.shared.resolveActiveModel()
 
                         Menu {
-                            // Section 1: SwiftCode Cloud Models
                             let candidateClouds = cloudModels.isEmpty ? SCCloudModelDiscovery.shared.models : cloudModels
                             if !candidateClouds.isEmpty {
                                 Section("SwiftCode Cloud Models") {
@@ -534,7 +482,6 @@ public struct MetaAssistModelsUI: View {
                                 }
                             }
 
-                            // Section 2: Saved API Providers & Models
                             Section("Saved API Providers & Models") {
                                 ForEach(availableModels.filter { $0.source != .custom && $0.source != .local && !SCCloudConfiguration.isCloudModelID($0.id) }) { model in
                                     Button {
@@ -552,7 +499,6 @@ public struct MetaAssistModelsUI: View {
                                 }
                             }
 
-                            // Section 3: Custom Model Setups
                             let customEndpoints = CustomEndpointManager.shared.endpoints
                             if !customEndpoints.isEmpty {
                                 Section("Custom Model Setups") {
@@ -612,8 +558,6 @@ public struct MetaAssistModelsUI: View {
         .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 7))
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.primary.opacity(0.08), lineWidth: 1))
     }
-
-    // MARK: - Reasoning Effort / Thinking Models Card (Compact)
 
     @ViewBuilder
     private var reasoningEffortCard: some View {
@@ -681,8 +625,6 @@ public struct MetaAssistModelsUI: View {
                 .stroke(Color.purple.opacity(0.15), lineWidth: 1)
         )
     }
-
-    // MARK: - Helpers
 
     private func loadModels() async {
         isLoadingModels = true
@@ -770,4 +712,3 @@ public struct MetaAssistModelsUI: View {
         }
     }
 }
-

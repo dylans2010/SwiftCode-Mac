@@ -1,40 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/ExpandedDevTools.swift` (Dylan's own code; direct port authorised under MIT).
-// M-DEVTOOLS: Audit A MISSING, ported at HEAD bc28f653.
-// ADAPTATION: Defines 29 views incl. every DevToolsMainView destination Audit B listed as missing (Signing/Console/CrashLog/Simulator/etc.). ProjectResolutionService has no production definition (same dangling reference as XcodeBuildManager/EditorViewModel); EntitlementInspectorView call kept verbatim. ProjectSessionStore/CIBuildConfiguration resolve from SwiftCodeIDECore.
-//
-// CLEANUP (2026-11-06, writer D1, triage §C22): the 26 views listed below
-// previously showed hardcoded demo strings as if they were live project
-// data. Each was replaced with its real source, or an honest empty state
-// where no real source exists. Nothing here invents data any more.
-//   2  Provisioning Profile Viewer — parses ~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision via `security cms -D`.
-//   4  Build Settings Explorer — parses XCBuildConfiguration blocks out of the project's real project.pbxproj.
-//   5  XCConfig Viewer — reads the project's real *.xcconfig files.
-//   6  Signing Inspector — `security find-identity -v -p codesigning` + CODE_SIGN_* settings from project.pbxproj.
-//   7  Symbol Browser — scans the project's real .swift sources for declarations (same approach as the MCP code_index tool).
-//   8  Asset Catalog Browser — enumerates the project's real *.xcassets (appiconset/imageset/colorset/dataset/symbolset).
-//   9  Localization Explorer — enumerates the project's real *.lproj dirs and *.strings files, counting entries.
-//   10 Info.plist Editor — reads/writes the real Info.plist resolved by ProjectResolutionService.
-//   11 Package Dependency Explorer — reads the project's real Package.resolved via SwiftCodeBuild.PackageResolver.
-//   12 SPM Inspector — `swift --version` output, real Package.resolved pin count, real ~/.swiftpm/cache size.
-//   13 Binary Size Analyzer — measures a user-selected .app bundle via AppBundleSizeBreakdown (shared with BundleSizeAnalyzerDevToolView).
-//   14 Framework Inspector — framework names referenced in the project's real project.pbxproj.
-//   15 Crash Log Viewer — reads ~/Library/Logs/DiagnosticReports/*.ips and *.crash.
-//   16 Console Viewer — the app's real DeveloperLogStore (entries only ever appear when this process logs them).
-//   17 Device Log Viewer — OSLogStore entries for this process on this Mac (macOS only; honest unavailable state elsewhere).
-//   18 Simulator Manager — the production SimulatorManager.devices (xcrun simctl), with a real refresh.
-//   19 Certificate Manager — `security find-identity -v -p codesigning` (name + SHA-1 hash; find-identity reports no expiry, so none is shown).
-//   20 Keychain Inspector — SecItemCopyMatching for generic-password items; lists service/account names only, never values.
-//   21 Build Cache Manager — real size of ~/.swiftpm/cache via DevToolsDiskUsage + real FileManager.removeItem purge, then re-scan.
-//   22 Derived Data Manager — real size of ~/Library/Developer/Xcode/DerivedData + real delete, then re-scan.
-//   23 Environment Variable Editor — ProcessInfo.processInfo.environment; edits apply via setenv(3) to this process.
-//   24 Code Metrics — counts lines/files in the real workspace (same approach as the MCP code_analysis tool). No invented grade.
-//   25 Duplicate File Detector — groups workspace files by size and byte-compares with FileManager.contentsEqual; verdict only after a real scan.
-//   26 Plist Viewer — reads a user-selected .plist file (validated with PropertyListSerialization).
-//   28 Font Browser — NSFontManager.shared.availableFontFamilies (macOS only).
-//   29 Image Metadata Viewer — CGImageSourceCopyProperties of a user-selected image (macOS/ImageIO only); honest empty state until one is picked.
-// Views 1 (Entitlement Inspector), 3 (Bundle Identifier Editor) and 27 (Color Inspector) were verified legitimate and are untouched.
-// Where a view has no project context (no active project / no bundle or file picked), it shows an honest empty state, never fake rows.
-// Shell commands run off the main thread via ExpandedDevToolsShell (Foundation Process + Pipe).
 import SwiftUI
 import SwiftCodeUI
 import SwiftCodeIDECore
@@ -53,10 +16,6 @@ import OSLog
 import ImageIO
 #endif
 
-// MARK: - Expanded Developer Tools Suite
-// Fulfills the "DEV TOOLS EXPANSION" mandate with production-grade, zero-placeholder implementations.
-
-// Helper custom card style matching the design system
 private struct ModernCard<Content: View>: View {
     let title: String
     let icon: String
@@ -80,11 +39,6 @@ private struct ModernCard<Content: View>: View {
     }
 }
 
-// MARK: - Shared real-data helpers (cleanup D1)
-
-/// Runs a command-line tool to completion off the main thread and captures
-/// its output. Every `security` / `swift` / `xcrun` call in this file goes
-/// through here; nothing is ever run on the main actor.
 private enum ExpandedDevToolsShell {
     static func run(_ executable: String, _ arguments: [String], currentDirectory: URL? = nil) async -> (status: Int32, stdout: String, stderr: String) {
         await Task.detached(priority: .userInitiated) {
@@ -97,8 +51,6 @@ private enum ExpandedDevToolsShell {
             let errPipe = Pipe()
             process.standardOutput = outPipe
             process.standardError = errPipe
-            // stderr on its own thread: reading the pipes one after the
-            // other deadlocks when the child fills the second one first.
             final class Box: @unchecked Sendable { var data = Data() }
             let errBox = Box()
             let group = DispatchGroup()
@@ -123,9 +75,6 @@ private enum ExpandedDevToolsShell {
     }
 }
 
-/// Recursive file enumeration under a project root. Skips hidden files and
-/// the directories that never hold project sources (`.git`, `.build`,
-/// DerivedData, checkouts, …) so scans stay fast and honest.
 private enum ExpandedDevToolsFiles {
     static let skippedDirectoryNames: Set<String> = [".git", ".build", "DerivedData", "Pods", ".swiftpm", "node_modules", ".hg", ".svn", "checkouts"]
 
@@ -151,7 +100,6 @@ private enum ExpandedDevToolsFiles {
         }
     }
 
-    /// Directories whose name ends in `.` + `ext` (e.g. `.xcodeproj`, `.xcassets`, `.lproj`).
     static func collectDirectories(at root: URL, extension ext: String, maxCount: Int = 200) -> [URL] {
         var result: [URL] = []
         collectDirectories(at: root, extension: ext, maxCount: maxCount, into: &result)
@@ -179,11 +127,6 @@ private enum ExpandedDevToolsFiles {
     }
 }
 
-/// Minimal project.pbxproj reader: extracts the XCBuildConfiguration
-/// `buildSettings` dictionaries and the framework names the project
-/// references. The .pbxproj format is an OpenStep plist; build settings are
-/// single-line `KEY = value;` entries (multi-line list values are joined),
-/// so a brace-counting text scan is a faithful parse for these sections.
 private enum ExpandedDevToolsPbxproj {
     struct BuildConfiguration {
         let name: String
@@ -199,9 +142,7 @@ private enum ExpandedDevToolsPbxproj {
         var configs: [BuildConfiguration] = []
         var searchFrom = text.startIndex
         while let marker = text.range(of: "buildSettings = {", range: searchFrom..<text.endIndex) {
-            // The `{` is the last character of the "buildSettings = {" marker.
             let openBrace = text.index(marker.upperBound, offsetBy: -1)
-            // Brace-count from the opening brace of the buildSettings dict.
             var depth = 0
             var cursor = openBrace
             var blockEnd: String.Index?
@@ -236,7 +177,6 @@ private enum ExpandedDevToolsPbxproj {
                 settings[key] = value
                 i += 1
             }
-            // The config name (`name = Debug;`) follows the buildSettings dict in the same object.
             var name = "Unnamed"
             let tailEnd = text.index(end, offsetBy: 400, limitedBy: text.endIndex) ?? text.endIndex
             let tail = String(text[end..<tailEnd])
@@ -264,9 +204,8 @@ private enum ExpandedDevToolsPbxproj {
     }
 }
 
-/// One CODE_SIGN_* setting from the project's project.pbxproj.
 struct ExpandedDevToolsSigningSetting: Identifiable {
-    let id: String // setting key
+    let id: String
     let value: String
 
     init(key: String, value: String) {
@@ -276,10 +215,8 @@ struct ExpandedDevToolsSigningSetting: Identifiable {
 
     var key: String { id }
 }
-/// One `security find-identity -v -p codesigning` line:
-/// `  1) <SHA-1 hash> "<identity name>"`.
 struct ExpandedDevToolsSigningIdentity: Identifiable {
-    let id: String // SHA-1 hash
+    let id: String
     let name: String
 
     static func parseFindIdentity(_ output: String) -> [ExpandedDevToolsSigningIdentity] {
@@ -303,8 +240,6 @@ struct ExpandedDevToolsSigningIdentity: Identifiable {
 }
 
 #if canImport(AppKit)
-/// File picker used by the views that need the user to choose a bundle or
-/// file. macOS only; other platforms show an honest unavailable state.
 private enum ExpandedDevToolsPicker {
     static func pickFile(allowedTypes: [String], canChooseDirectories: Bool) -> URL? {
         let panel = NSOpenPanel()
@@ -317,7 +252,6 @@ private enum ExpandedDevToolsPicker {
 }
 #endif
 
-// 1. Entitlement Inspector View
 struct EntitlementInspectorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var entitlementsContent = ""
@@ -353,7 +287,7 @@ struct EntitlementInspectorView: View {
 }
 
 struct ExpandedDevToolsProvisioningProfile: Identifiable {
-    let id: String // profile UUID
+    let id: String
     let name: String
     let appID: String
     let teamID: String
@@ -362,10 +296,6 @@ struct ExpandedDevToolsProvisioningProfile: Identifiable {
     var isExpired: Bool { expiration.map { $0 < Date() } ?? false }
 }
 
-// 2. Provisioning Profile Viewer View
-// Real source: ~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision,
-// decoded with `security cms -D` and parsed as a plist (name, app ID, team,
-// expiry). Expired state is computed from the real expiry date.
 struct ProvisioningProfileViewerView: View {
     @State private var profiles: [ExpandedDevToolsProvisioningProfile] = []
     @State private var isLoading = false
@@ -439,7 +369,6 @@ struct ProvisioningProfileViewerView: View {
     }
 }
 
-// 3. Bundle Identifier Editor View
 struct BundleIdentifierEditorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var bundleID = "com.example.app"
@@ -477,9 +406,6 @@ struct BundleIdentifierEditorView: View {
     }
 }
 
-// 4. Build Settings Explorer View
-// Real source: XCBuildConfiguration blocks parsed out of the active
-// project's real project.pbxproj (see ExpandedDevToolsPbxproj).
 struct BuildSettingsExplorerView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var configurations: [ExpandedDevToolsPbxproj.BuildConfiguration] = []
@@ -552,8 +478,6 @@ struct BuildSettingsExplorerView: View {
     }
 }
 
-// 5. XCConfig Viewer View
-// Real source: the project's real *.xcconfig files, listed and read verbatim.
 struct XCConfigViewerView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var files: [URL] = []
@@ -620,10 +544,6 @@ struct XCConfigViewerView: View {
     }
 }
 
-// 6. Signing Inspector View
-// Real source: `security find-identity -v -p codesigning` for the identities
-// installed on this Mac, plus CODE_SIGN_* settings from the project's real
-// project.pbxproj. No team ID or identity is ever invented.
 struct SigningInspectorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var identities: [ExpandedDevToolsSigningIdentity] = []
@@ -705,8 +625,6 @@ struct SigningInspectorView: View {
     }
 }
 
-// MARK: - Views 7–14
-
 struct ExpandedDevToolsSymbol: Identifiable {
     let id = UUID()
     let kind: String
@@ -716,16 +634,12 @@ struct ExpandedDevToolsSymbol: Identifiable {
 }
 
 struct ExpandedDevToolsSymbolCount: Identifiable {
-    let id: String // kind
+    let id: String
     let count: Int
 
     var kind: String { id }
 }
 
-// 7. Symbol Browser View
-// Real source: a scan of the project's real .swift sources for top-level
-// declarations (class/struct/enum/protocol/actor/extension/func/typealias),
-// the same approach as the MCP code_index tool. Capped at 200 shown.
 struct SymbolBrowserView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var symbols: [ExpandedDevToolsSymbol] = []
@@ -823,10 +737,6 @@ struct ExpandedDevToolsAssetEntry: Identifiable {
     let catalog: String
 }
 
-// 8. Asset Catalog Browser View
-// Real source: the project's real *.xcassets catalogs — each
-// .appiconset / .imageset / .colorset / .dataset / .symbolset directory
-// inside a catalog is one entry.
 struct AssetCatalogBrowserView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var assets: [ExpandedDevToolsAssetEntry] = []
@@ -920,9 +830,6 @@ struct ExpandedDevToolsLocalizationFile: Identifiable {
     let entryCount: Int
 }
 
-// 9. Localization Explorer View
-// Real source: the project's real *.lproj directories and *.strings files;
-// entry counts are counted from the file contents.
 struct LocalizationExplorerView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var localizedFiles: [ExpandedDevToolsLocalizationFile] = []
@@ -1006,11 +913,6 @@ struct ExpandedDevToolsPlistRow: Identifiable {
     let isEditable: Bool
 }
 
-// 10. Info.plist Editor View
-// Real source: the project's real Info.plist, resolved by
-// ProjectResolutionService. String values are editable and Save writes the
-// plist back to disk; non-string values are shown read-only. Edits that
-// fail to save report the real error — nothing is silently swallowed.
 struct InfoPlistEditorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var rows: [ExpandedDevToolsPlistRow] = []
@@ -1116,15 +1018,11 @@ struct InfoPlistEditorView: View {
 }
 
 struct ExpandedDevToolsPackagePin: Identifiable {
-    let id: String // identity
+    let id: String
     let version: String
     let location: String
 }
 
-// 11. Package Dependency Explorer View
-// Real source: the project's real Package.resolved (project root, or the
-// .xcodeproj's xcshareddata/swiftpm copy), read via
-// SwiftCodeBuild.PackageResolver.
 struct PackageDependencyExplorerView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var packages: [ExpandedDevToolsPackagePin] = []
@@ -1195,9 +1093,6 @@ struct PackageDependencyExplorerView: View {
     }
 }
 
-// 12. Swift Package Manager Inspector View
-// Real source: `swift --version` output, the real Package.resolved pin
-// count, and the real size of ~/.swiftpm/cache.
 struct SPMInspectorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var swiftVersion = ""
@@ -1270,11 +1165,6 @@ struct SPMInspectorView: View {
     }
 }
 
-// 13. Binary Size Analyzer View
-// Real source: AppBundleSizeBreakdown.measure (shared with
-// BundleSizeAnalyzerDevToolView) measures the user-selected .app bundle on
-// disk — executable, .car assets, nibs, plists, .lproj, other — and totals
-// it. Honest empty state until a bundle is picked.
 struct BinarySizeAnalyzerView: View {
     @State private var selectedBundleURL: URL?
     @State private var breakdown: AppBundleSizeBreakdown?
@@ -1343,11 +1233,6 @@ struct BinarySizeAnalyzerView: View {
     }
 }
 
-// 14. Framework Inspector View
-// Real source: the framework names referenced in the project's real
-// project.pbxproj. (Linking against a built product with `otool -L` needs
-// a built product path, which this view does not have; the pbxproj list is
-// what the project actually declares.)
 struct FrameworkInspectorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var frameworks: [String] = []
@@ -1402,8 +1287,6 @@ struct FrameworkInspectorView: View {
     }
 }
 
-// MARK: - Views 15–22
-
 struct ExpandedDevToolsCrashLog: Identifiable, Hashable {
     let id = UUID()
     let url: URL
@@ -1411,9 +1294,6 @@ struct ExpandedDevToolsCrashLog: Identifiable, Hashable {
     let modified: Date
 }
 
-// 15. Crash Log Viewer View
-// Real source: ~/Library/Logs/DiagnosticReports/*.ips and *.crash, newest
-// first. Selecting one reads its real contents (capped at 200 KB).
 struct CrashLogViewerView: View {
     @State private var logs: [ExpandedDevToolsCrashLog] = []
     @State private var selectedLog: ExpandedDevToolsCrashLog?
@@ -1495,10 +1375,6 @@ struct CrashLogViewerView: View {
     }
 }
 
-// 16. Console Viewer View
-// Real source: the app's DeveloperLogStore — the in-process log store the
-// ported diagnostic views actually write to. Entries only ever appear when
-// this process logs them; an empty store is shown honestly.
 struct ConsoleViewerView: View {
     @State private var logger = DeveloperLogStore.shared
 
@@ -1537,11 +1413,6 @@ struct ExpandedDevToolsOSLogEntry: Identifiable {
     let message: String
 }
 
-// 17. Device Log Viewer View
-// Real source: OSLogStore entries for this process on this Mac (the device
-// this app runs on). There is no production plumbing for streaming a remote
-// device's log from this view, so it reads the local device's log and says
-// so, instead of inventing syslog lines. macOS only.
 struct DeviceLogViewerView: View {
     @State private var logs: [ExpandedDevToolsOSLogEntry] = []
     @State private var isLoading = false
@@ -1619,9 +1490,6 @@ struct DeviceLogViewerView: View {
 #endif
 }
 
-// 18. Simulator Manager View
-// Real source: the production SimulatorManager.devices (backed by
-// `xcrun simctl list`), with a real refresh.
 struct SimulatorManagerView: View {
     @State private var manager = SimulatorManager.shared
 
@@ -1659,10 +1527,6 @@ struct SimulatorManagerView: View {
     }
 }
 
-// 19. Certificate Manager View
-// Real source: `security find-identity -v -p codesigning` (same source as
-// C30 / SCOperationsSigningManager). find-identity reports no expiry date,
-// so none is shown — inventing one would be a new fake.
 struct CertificateManagerView: View {
     @State private var certificates: [ExpandedDevToolsSigningIdentity] = []
     @State private var isLoading = false
@@ -1719,11 +1583,6 @@ struct ExpandedDevToolsKeychainItem: Identifiable {
     let account: String
 }
 
-// 20. Keychain Inspector View
-// Real source: SecItemCopyMatching for generic-password items. Only the
-// service/account names are listed — values are never requested and never
-// shown. An empty keychain (or an unavailable keychain) is an honest empty
-// state; no item names are ever seeded.
 struct KeychainInspectorView: View {
     @State private var keychainItems: [ExpandedDevToolsKeychainItem] = []
     @State private var isLoading = false
@@ -1813,7 +1672,6 @@ struct KeychainInspectorView: View {
 #endif
 }
 
-// Shared real-size + real-purge behaviour for the two cache managers below.
 private struct ExpandedDevToolsCacheState {
     static func directorySizeLabel(for url: URL) -> String? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
@@ -1821,10 +1679,6 @@ private struct ExpandedDevToolsCacheState {
     }
 }
 
-// 21. Build Cache Manager View
-// Real source: DevToolsDiskUsage.allocatedSize(of: ~/.swiftpm/cache). Purge
-// really deletes the cache directory with FileManager.removeItem and then
-// re-scans; the label only changes because the disk actually changed.
 struct BuildCacheManagerView: View {
     @State private var cacheSize: String?
     @State private var isWorking = false
@@ -1894,9 +1748,6 @@ struct BuildCacheManagerView: View {
     }
 }
 
-// 22. Derived Data Manager View
-// Real source: real size of ~/Library/Developer/Xcode/DerivedData, and a
-// real FileManager.removeItem delete on Clean, followed by a re-scan.
 struct DerivedDataManagerView: View {
     @State private var size: String?
     @State private var isWorking = false
@@ -1967,17 +1818,11 @@ struct DerivedDataManagerView: View {
     }
 }
 
-// MARK: - Views 23–29
-
 struct ExpandedDevToolsEnvVar: Identifiable {
-    let id: String // key
+    let id: String
     var value: String
 }
 
-// 23. Environment Variable Editor View
-// Real source: ProcessInfo.processInfo.environment. Edits are applied to
-// this process with setenv(3) and re-read, so the displayed value is the
-// value the process actually has.
 struct EnvVarEditorView: View {
     @State private var variables: [ExpandedDevToolsEnvVar] = []
     @State private var statusMessage: String?
@@ -2034,10 +1879,6 @@ struct EnvVarEditorView: View {
     }
 }
 
-// 24. Code Metrics View
-// Real source: the workspace is scanned and counted (Swift files, total
-// lines, non-blank lines, test files) — the same approach as the MCP
-// code_analysis tool. No complexity grade is shown: none is measured.
 struct CodeMetricsView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var swiftFileCount: Int?
@@ -2113,10 +1954,6 @@ struct ExpandedDevToolsDuplicateGroup: Identifiable {
     let paths: [String]
 }
 
-// 25. Duplicate File Detector View
-// Real source: workspace files are grouped by byte size and byte-compared
-// with FileManager.contentsEqual. The verdict appears only after a real
-// scan — before that, the view says it has not scanned yet.
 struct DuplicateFileDetectorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var duplicateGroups: [ExpandedDevToolsDuplicateGroup] = []
@@ -2210,9 +2047,6 @@ struct DuplicateFileDetectorView: View {
     }
 }
 
-// 26. Property List Viewer View
-// Real source: a user-selected .plist file, read verbatim and validated
-// with PropertyListSerialization. Honest empty state until a file is picked.
 struct PlistViewerView: View {
     @State private var selectedURL: URL?
     @State private var plistContent = ""
@@ -2276,7 +2110,6 @@ struct PlistViewerView: View {
     }
 }
 
-// 27. Color Inspector View
 struct ColorInspectorView: View {
     @State private var colorHex = "#FF5733"
 
@@ -2308,9 +2141,6 @@ struct ColorInspectorView: View {
     }
 }
 
-// 28. Font Browser View
-// Real source: NSFontManager.shared.availableFontFamilies — the fonts
-// actually installed on this Mac (macOS only).
 struct FontBrowserView: View {
     @State private var fonts: [String] = []
     @State private var statusMessage: String?
@@ -2360,11 +2190,6 @@ struct ExpandedDevToolsImageMetadataRow: Identifiable {
     let value: String
 }
 
-// 29. Image Metadata Viewer View
-// Real source: CGImageSourceCopyProperties of a user-selected image
-// (macOS/ImageIO only). Honest empty state until an image is picked — no
-// format, resolution or colour space is claimed for an image that was
-// never loaded.
 struct ImageMetadataViewerView: View {
     @State private var selectedURL: URL?
     @State private var rows: [ExpandedDevToolsImageMetadataRow] = []

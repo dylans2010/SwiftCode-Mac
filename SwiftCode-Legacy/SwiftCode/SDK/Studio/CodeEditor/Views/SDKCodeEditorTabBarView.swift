@@ -1,25 +1,5 @@
-import AppKit // Color(nsColor:) for the active tab's control-background fill
+import AppKit
 import SwiftUI
-
-// MARK: - SDKCodeEditorTabBarView
-//
-// The Studio code editor's tab strip: shows open tabs, a dirty dot per
-// unsaved document, a close button per tab, and click-to-activate — all
-// wired to `SDKCodeEditorState` (`activateTab`, `closeTab`).
-//
-// WHY NOT `TabView` + `.tabViewStyle(.tabBar)`: on macOS that style renders
-// a segmented-control-style picker, not document tabs — it offers no
-// per-tab close buttons, no dirty indicators, and no horizontal scrolling
-// for many tabs. A minimal custom strip (Xcode/VS Code style, native
-// materials and controls) is the behaviorally native choice.
-//
-// REAL behaviors, no placeholders:
-// - Tabs come from `state.tabs` (tab-bar order); the active tab is
-//   `state.activeTabID`. Tapping a tab calls `state.activateTab(_:)`.
-// - The orange dot reflects `document.isDirty` for real; the × calls
-//   `state.closeTab(_:)`, which genuinely removes the tab and re-homes
-//   activation per `SDKCodeEditorState` semantics.
-// - The tooltip shows the full file path (or "Untitled").
 
 @MainActor
 public struct SDKCodeEditorTabBarView: View {
@@ -51,8 +31,6 @@ public struct SDKCodeEditorTabBarView: View {
         }
         .accessibilityLabel("Open files")
     }
-
-    // MARK: - Tab
 
     private func tabButton(_ tab: SDKCodeEditorTab) -> some View {
         let isActive = tab.id == state.activeTabID

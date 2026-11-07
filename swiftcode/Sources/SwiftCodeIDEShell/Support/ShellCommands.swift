@@ -1,60 +1,35 @@
 import Foundation
 import SwiftCodeIDECore
 
-/// The menu commands the L1 shell performs. Titles and shortcuts come from
-/// the core's `CommandTable` (by action), dynamic titles from
-/// `MenuTitles`, so the SwiftUI shell's menus match the AppKit shell's
-/// (`specs/ide/menus.md`).
 public enum ShellCommand: String, CaseIterable, Sendable {
-    // File
     case open, closeWorkspace, newProject, closeDocument, save, saveAll, revertToSaved
-    // Find (in the open file)
     case find, findAndReplace, findNext, findPrevious, useSelectionForFind
-    // Editor ▸ Structure
     case commentSelection, shiftLeft, shiftRight, moveLineUp, moveLineDown
-    // View
     case showProjectNavigator, showFindNavigator, showIssueNavigator, showDebugNavigator, showBreakpointNavigator
     case toggleNavigator, toggleInspector, toggleDebugArea, activateConsole
-    // Find
     case findInWorkspace
-    // Navigate
     case revealInProjectNavigator, goBack, goForward, nextIssue, previousIssue, jumpToLine
-    // Product
     case run, test, stop, build, clean
-    // Debug (ShellDebugModel)
     case pauseOrContinue, stepOver, stepInto, stepOut, toggleBreakpointsActive, toggleBreakpointAtCurrentLine,
          toggleBreakpointsEnabledAtCurrentLine, deleteAllBreakpoints, clearConsole
-    // Debug ▸ Console ▸ Copy Row (ShellDebugModel+Console.swift)
     case copyConsoleRowWithVisibleMetadata, copyConsoleRowWithAllMetadata, copyConsoleRowWithoutMetadata
-    // Debug ▸ Breakpoints and Debug Workflow (ShellDebugModel+Editing.swift)
     case createSwiftErrorBreakpoint, createExceptionBreakpoint, createSymbolicBreakpoint
     case toggleNavigateToSourceOnPause, toggleAlwaysShowDisassembly, viewMemory
-    // Language features (WorkspaceShellModel+Language.swift)
     case jumpToDefinition, jumpToOriginalSource, renameSymbol, showQuickHelp, findSelectedSymbol, showCallHierarchy
     case showSymbolNavigator, showFileInspector, showQuickHelpInspector
-    // Window
     case welcome, downloads, organizer
-    // SwiftCode, Help, Integrate
     case about, help, releaseNotes, reportBug, swiftBook, clone
-    // Integrate ▸ Source Control (SourceControlShellModel)
     case scmCommit, scmPush, scmPull, scmFetch, scmRefresh, scmStageAll, scmStageSelected, scmUnstageAll, scmUnstageSelected
     case scmMarkResolved, scmAddSelected, scmCherryPick, scmStash, scmDiscardAll, scmDiscardSelected
     case scmNewRepository
-    // Integrate ▸ Merge… (the merge confirmation, `SourceControlShellModel+Merge.swift`)
     case scmMerge
-    // Integrate ▸ Resolve Conflicts…, Continue, Abort (shown while an operation is stopped)
     case scmResolveConflicts, scmContinueIntegration, scmAbortIntegration
-    // View ▸ Navigators: Source Control (⌘2), Tests (⌘6), Reports (⌘9)
     case showSourceControlNavigator, showTestNavigator, showReportNavigator
-    // Product ▸ Perform Action ▸ Test Again
     case testAgain
-    // The coding assistant (WorkspaceShellModel+Assistant.swift)
     case showCodingAssistant, newConversation, jumpToNextActiveConversation
     case codingToolExplain, codingToolDocument, codingToolGeneratePlayground, codingToolGeneratePreview
-    // Editor ▸ Canvas and Editor ▸ Layout (WorkspaceShellModel+Previews.swift)
     case toggleCanvas, canvasLayoutAutomatic, canvasLayoutRight, canvasLayoutBottom
 
-    /// The `CommandTable` action (and tag) of the command.
     public var action: (selector: String, tag: Int) {
         switch self {
         case .open: ("openDocument:", 0)
@@ -112,7 +87,6 @@ public enum ShellCommand: String, CaseIterable, Sendable {
         case .createSymbolicBreakpoint: ("createSymbolicBreakpoint:", 0)
         case .toggleNavigateToSourceOnPause: ("toggleNavigateToSourceOnPause:", 0)
         case .toggleAlwaysShowDisassembly: ("toggleAlwaysShowDisassembly:", 0)
-        // The AppKit IDE does not have it yet (its table entry is "unavailable").
         case .viewMemory: ("swiftcodeUnavailableViewMemory:", 0)
         case .welcome: ("showWelcomeWindow:", 0)
         case .downloads: ("showDownloads:", 0)
@@ -144,7 +118,6 @@ public enum ShellCommand: String, CaseIterable, Sendable {
         }
     }
 
-    /// The menu the command is in (`CommandTable.menus` titles).
     public var menu: String {
         switch self {
         case .open, .closeWorkspace, .newProject, .closeDocument, .save, .saveAll, .revertToSaved: "File"
@@ -176,8 +149,6 @@ public enum ShellCommand: String, CaseIterable, Sendable {
         }
     }
 
-    /// The Integrate menu's commands by their `CommandTable` actions
-    /// (`IntegrateMenuState.actions`).
     static let integrateSelectors: [ShellCommand: String] = [
         .scmCommit: "showCommitSheet:", .scmPush: "scmPush:", .scmPull: "scmPull:", .scmFetch: "scmFetch:", .scmRefresh: "refreshFileStatus:",
         .scmStageAll: "scmStageAll:", .scmStageSelected: "scmStageSelected:", .scmUnstageAll: "scmUnstageAll:",
@@ -188,30 +159,21 @@ public enum ShellCommand: String, CaseIterable, Sendable {
         .scmAbortIntegration: "scmAbortIntegration:", .scmMerge: "scmMerge:",
     ]
 
-    /// Whether the command is one of Integrate's source-control items.
     public var isSourceControl: Bool { Self.integrateSelectors[self] != nil }
 
-    /// The core's entry for the command (nil if the table lost it; a test
-    /// checks there is one for every case).
     public var menuCommand: MenuCommand? {
         let (selector, tag) = action
         return Self.table.first { $0.action == selector && $0.tag == tag && !$0.isAlternate }
     }
 
-    /// The title in context: the generic title with the dynamic titles
-    /// applied ("Hide Navigator", "Close Package", "Find in Package").
     public func title(in context: MenuContext?) -> String {
         guard let c = menuCommand else { return rawValue }
         if self == .findInWorkspace, let ctx = context { return "Find in \(ctx.scopeName)" }
         return MenuTitles.title(for: c, in: context)
     }
 
-    /// The default shortcut with shifted punctuation spelled as ⇧ plus the
-    /// unshifted key ("⌘\"" → ⇧⌘'), the form toolkits other than AppKit
-    /// take. Nil for a command without one.
     public var shortcut: ShellShortcut? { menuCommand.flatMap(ShellShortcut.init(command:)) }
 
-    /// Every command of the core's menu bar, flattened.
     static let table: [MenuCommand] = {
         var out: [MenuCommand] = []
         func walk(_ items: [MenuItemSpec]) {
@@ -228,8 +190,6 @@ public enum ShellCommand: String, CaseIterable, Sendable {
     }()
 }
 
-/// A key and modifiers in the core's terms (`MenuCommand.Key` characters
-/// for arrows and function keys); each toolkit converts it.
 public struct ShellShortcut: Equatable, Hashable, Sendable {
     public var key: String
     public var modifiers: MenuCommand.Modifiers
@@ -238,8 +198,6 @@ public struct ShellShortcut: Equatable, Hashable, Sendable {
         self.modifiers = modifiers
     }
 
-    /// A command's shortcut in this form (nil for none): shifted
-    /// punctuation spelled as ⇧ plus the unshifted key.
     public init?(command c: MenuCommand) {
         guard !c.key.isEmpty else { return nil }
         if let base = Key.shiftedBase[c.key] { self.init(key: base, modifiers: c.modifiers.union(.shift)) } else {
@@ -247,13 +205,9 @@ public struct ShellShortcut: Equatable, Hashable, Sendable {
         }
     }
 
-    /// Menu notation (⇧⌘K), as the macOS shell shows it.
     public var text: String { Shortcut.text(key: key, modifiers: modifiers) }
 }
 
-/// The navigators L1 offers, in selector-bar order; each keeps its index
-/// in the full bar (⌘1 Project, ⌘2 Source Control, ⌘3 Symbols, ⌘4 Find,
-/// ⌘5 Issues, ⌘6 Tests, ⌘7 Debug, ⌘8 Breakpoints, ⌘9 Reports).
 public enum ShellNavigator: String, CaseIterable, Sendable, Identifiable {
     case project, sourceControl, symbols, find, issues, tests, debug, breakpoints, reports
 
@@ -273,16 +227,12 @@ public enum ShellNavigator: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
-    /// The core's name at the index; the Symbol navigator takes the third
-    /// place on Linux (SymbolNavigatorModel.swift).
     public var title: String { self == .symbols ? "Symbols" : CommandTable.navigators[selectorIndex] }
 
     public var symbolName: String {
         switch self {
         case .project: "folder"
         case .sourceControl: "arrow.triangle.branch"
-        // SwiftCode's own navigator: its own symbol (a declaration and its
-        // members), not the Bookmark navigator's.
         case .symbols: "list.bullet.indent"
         case .find: "magnifyingglass"
         case .issues: "exclamationmark.triangle"
@@ -292,14 +242,10 @@ public enum ShellNavigator: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
-    /// The selector button's tooltip (`NavigatorBars.selectorToolTips`,
-    /// with the Symbol navigator's in the Bookmark navigator's place).
     public var toolTip: String {
         self == .symbols ? "Show the Symbol navigator" : NavigatorBars.selectorToolTips[selectorIndex]
     }
 
-    /// The selector bar's buttons on Linux, in order: each place's symbol,
-    /// tooltip and accessibility title.
     public static var selectorButtons: [(symbol: String, toolTip: String, title: String)] {
         WorkspaceChrome.navigatorSymbols.indices.map { i in
             guard let n = allCases.first(where: { $0.selectorIndex == i }) else {

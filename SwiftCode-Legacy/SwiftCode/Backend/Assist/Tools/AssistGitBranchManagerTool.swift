@@ -1,8 +1,3 @@
-//
-//  AssistGitBranchManagerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistGitBranchManagerTool: AssistTool {

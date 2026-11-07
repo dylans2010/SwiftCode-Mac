@@ -1,37 +1,12 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Settings/UpdatesView.swift
-//
-// Verbatim apart from this header. Control surface for
-// `AppUpdateService` only — no version checking/downloading here.
-// `AppUpdateService` itself is staged at
-// staging-wire/missing-rest/AppUpdateService.swift (BLOCKED-ON-SPARKLE-DEP),
-// so the `@ObservedObject updates` binding dangles until Sparkle lands;
-// `NativeSettingsViews` already calls `UpdatesView()` in this module.
-// `GitHubReleaseCheck` appears only in the doc comment (removed flow).
-// `PreviousReleasesCard` / `PreviousReleasesViewModel` /
-// `GitHubReleaseItem` / `ReleaseRowView` are defined in this file.
-
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Settings destination for software updates.
-///
-/// This view is only a control surface for `AppUpdateService` (Sparkle 2).
-/// It performs no version checking, downloading or installation itself,
-/// and it no longer links out to GitHub as an install path — the old
-/// `GitHubReleaseCheck` flow (which only opened a release page) was
-/// removed with this view's rewrite.
-///
-/// The same view is embedded from `SettingsView`, `GeneralSettingsView`
-/// (as a sheet) and `NativeUpdatesSettingsView`; all three routes now
-/// reach the same updater.
 struct UpdatesView: View {
     @ObservedObject private var updates = AppUpdateService.shared
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header Panel
                 HStack(spacing: 16) {
                     ZStack {
                         Circle()
@@ -53,7 +28,6 @@ struct UpdatesView: View {
                 }
                 .padding(.horizontal, 4)
 
-                // Update Status Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
@@ -178,10 +152,8 @@ struct UpdatesView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Previous Releases Section
                 PreviousReleasesCard()
 
-                // 3. Automatic Updates Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 16) {
                         Label("Automatic Updates", systemImage: "gearshape.fill")
@@ -224,8 +196,6 @@ struct UpdatesView: View {
         .navigationTitle("Updates")
     }
 }
-
-// MARK: - Previous Releases Card & Fetcher
 
 struct GitHubReleaseItem: Identifiable, Decodable {
     let id: Int

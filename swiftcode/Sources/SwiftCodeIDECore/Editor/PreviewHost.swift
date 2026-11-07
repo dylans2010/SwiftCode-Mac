@@ -1,36 +1,7 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Core/Preview/PreviewHost.swift
-//   (Legacy main ab03f681)
-//
-// Destination: SwiftCodeIDECore/Editor/PreviewHost.swift. Verbatim apart
-// from this header and the `#if canImport(AppKit)` guard (see below).
-//
-// Why SwiftCodeIDECore, not SwiftCodePreviews or SwiftCodeUI:
-//   * SwiftCodePreviews already declares `public enum PreviewHost`
-//     (the host-process namespace); a second `PreviewHost` in that
-//     module would collide.
-//   * SwiftCodeUI references the SwiftCodePreviews enum unqualified
-//     (`PreviewHost.build`, `PreviewHost.parseReport`,
-//     `PreviewHost.Report` in RemotePreviewSession.swift and
-//     WorkspaceWindowController+LivePreviews.swift); a `PreviewHost`
-//     struct in SwiftCodeUI would shadow it there.
-//   * SwiftCodeIDECore has no `PreviewHost` type reference (only the
-//     string "SwiftCodePreviewHost"), so the Legacy names land cleanly.
-//     Legacy consumers in the Views scope (PreviewCanvasView,
-//     ArtboardSimulator, RunFullAppView, VisualUIBuilderSplitViewController,
-//     VisualUICanvasView, VisualUIPreviewPanel) use these two wrappers to
-//     host SwiftUI content and pre-instantiated AppKit views.
-//
-// Whole file is `#if canImport(AppKit)`: `NSViewRepresentable` /
-// `NSHostingView` do not exist on Linux, and SwiftCodeIDECore also builds
-// there (swiftcode-ide). No Linux stub — the types simply do not exist on
-// that platform.
-
 #if canImport(AppKit)
 import SwiftUI
 import AppKit
 
-/// A reusable, highly-optimized AppKit host that wraps and renders actual, live interactive SwiftUI views natively.
 public struct PreviewHost<Content: View>: NSViewRepresentable {
     private let content: Content
 
@@ -51,7 +22,6 @@ public struct PreviewHost<Content: View>: NSViewRepresentable {
     }
 }
 
-/// A native host that bridges pre-instantiated AppKit views into SwiftUI, utilized by the Dynamic Link Runtime.
 public struct NativePreviewHost: NSViewRepresentable {
     public let hostedView: NSView
 
@@ -76,7 +46,6 @@ public struct NativePreviewHost: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: NSView, context: Context) {
-        // Core AppKit layout handles update notifications automatically
         nsView.needsLayout = true
     }
 }

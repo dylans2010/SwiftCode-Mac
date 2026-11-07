@@ -1,13 +1,11 @@
 import Foundation
 
-/// The result of a finished process: exit code plus captured output.
 public struct DeviceConnectProcessResult: Sendable {
     public let exitCode: Int32
     public let stdout: String
     public let stderr: String
 }
 
-/// Why a process could not run.
 public enum DeviceConnectProcessError: Error, LocalizedError, Sendable {
     case executableNotFound(URL)
     case launchFailed(URL, Error)
@@ -22,24 +20,6 @@ public enum DeviceConnectProcessError: Error, LocalizedError, Sendable {
     }
 }
 
-/// The process runner for DeviceConnectKit, ported from Legacy
-/// (`SwiftCode/Views/Build/DeviceConnectKit/Core/ProcessRunner.swift`
-/// + the `ProcessRunnerTool` it delegated to, which lives outside
-/// this slice).
-///
-/// Legacy's `ProcessRunnerTool` is not in this slice, so this file
-/// implements the three operations the commands need directly on
-/// `Foundation.Process`:
-/// - `run`: capture stdout/stderr to end of file;
-/// - `runStreamingAsync`: forward lines live, resolve to exit-code 0;
-/// - `runStreaming`: forward lines live, hand the caller the
-///   `Process` to terminate (syslog streaming).
-///
-/// The commands invoke real developer tools (`/usr/bin/xcodebuild`,
-/// `/usr/bin/xcrun`, `/usr/bin/security`, `/usr/bin/sw_vers`,
-/// `/usr/bin/swift`, `/usr/bin/xcode-select`). On a machine without
-/// them `run` throws `.executableNotFound` — the failure is honest,
-/// never a fabricated result.
 public struct DeviceConnectProcessRunner: Sendable {
     public static let shared = DeviceConnectProcessRunner()
 
@@ -78,10 +58,6 @@ public struct DeviceConnectProcessRunner: Sendable {
             onStderr: onStderr
         )
         let process = running.process
-        // Poll for exit: the readability handlers deliver lines as
-        // they arrive. The buffers are flushed explicitly after the
-        // loop so no trailing partial line is lost to a race with
-        // the termination handler.
         while process.isRunning {
             if Task.isCancelled {
                 process.terminate()
@@ -111,8 +87,6 @@ public struct DeviceConnectProcessRunner: Sendable {
         ).process
     }
 
-    // MARK: - Private
-
     private static func runSync(
         executableURL: URL,
         arguments: [String],
@@ -130,9 +104,6 @@ public struct DeviceConnectProcessRunner: Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        // Both pipes are drained on background queues while the
-        // process runs: reading one to EOF first could deadlock if
-        // the other fills its buffer.
         let group = DispatchGroup()
         let stdoutBox = DataBox()
         let stderrBox = DataBox()
@@ -191,17 +162,12 @@ public struct DeviceConnectProcessRunner: Sendable {
             let data = handle.availableData
             if !data.isEmpty { stderrLines.append(data) }
         }
-        // `flush` is handed to a @Sendable termination handler, so the
-        // non-Sendable pipe file handles are carried in a Sendable box.
         let handles = StreamHandles(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
         let flush: @Sendable () -> Void = {
             handles.detach()
             stdoutLines.flush()
             stderrLines.flush()
         }
-        // Flush any partial trailing line once the process is gone.
-        // `terminationHandler` runs after the pipes close, so no
-        // line is lost.
         process.terminationHandler = { _ in flush() }
 
         do {
@@ -234,8 +200,6 @@ public struct DeviceConnectProcessRunner: Sendable {
     }
 }
 
-/// The two pipe read handles for a streaming run, boxed so the flush
-/// closure can be `@Sendable` (Foundation's `FileHandle` is not).
 private final class StreamHandles: @unchecked Sendable {
     private let stdout: FileHandle
     private let stderr: FileHandle
@@ -251,7 +215,6 @@ private final class StreamHandles: @unchecked Sendable {
     }
 }
 
-/// A locked `Data` box for the synchronous drain in `runSync`.
 private final class DataBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _data = Data()
@@ -262,8 +225,6 @@ private final class DataBox: @unchecked Sendable {
     }
 }
 
-/// Buffers pipe bytes into complete lines, delivering each line once
-/// its newline arrives. The remainder is delivered by `flush()`.
 private final class LineBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var pending = Data()

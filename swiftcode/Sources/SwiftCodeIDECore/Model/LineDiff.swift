@@ -1,7 +1,5 @@
 import Foundation
 
-/// A line diff (longest common subsequence) and its side-by-side layout.
-/// See `specs/ide/comparison.md`.
 public enum LineDiff {
     public enum Op: Equatable, Sendable {
         case same(String)
@@ -9,9 +7,7 @@ public enum LineDiff {
         case added(String)
     }
 
-    /// Edit script turning `old` into `new`.
     public static func diff(_ old: [String], _ new: [String]) -> [Op] {
-        // Trim the common prefix and suffix first; the table covers the rest.
         var start = 0
         while start < old.count, start < new.count, old[start] == new[start] { start += 1 }
         var oEnd = old.count, nEnd = new.count
@@ -29,7 +25,6 @@ public enum LineDiff {
         var i = 0, j = 0
         while i < a.count || j < b.count {
             if i < a.count, j < b.count, a[i] == b[j] { ops.append(.same(a[i])); i += 1; j += 1 }
-            // Removals before additions, as unified diffs show them.
             else if i < a.count, j == b.count || lcs[i + 1][j] >= lcs[i][j + 1] { ops.append(.removed(a[i])); i += 1 }
             else { ops.append(.added(b[j])); j += 1 }
         }
@@ -37,15 +32,12 @@ public enum LineDiff {
         return ops
     }
 
-    /// Splits text into lines on "\n"; a final newline does not add an empty
-    /// last line.
     public static func lines(_ text: String) -> [String] {
         var l = text.components(separatedBy: "\n")
         if l.last?.isEmpty == true { l.removeLast() }
         return l
     }
 
-    /// One row of the side-by-side view. A nil side is a filler row.
     public struct Row: Equatable, Sendable {
         public enum Kind: Sendable { case same, changed, removed, added }
         public var kind: Kind
@@ -57,7 +49,6 @@ public enum LineDiff {
         }
     }
 
-    /// Pairs removals with following additions as changed rows.
     public static func sideBySide(_ ops: [Op]) -> [Row] {
         var rows: [Row] = []
         var l = 0, r = 0
@@ -89,8 +80,6 @@ public enum LineDiff {
         return rows
     }
 
-    /// A unified diff body (`-`/`+`/` ` prefixed lines) with up to
-    /// `context` unchanged lines around each change.
     public static func unified(_ ops: [Op], context: Int = 3) -> String {
         let changed = ops.indices.filter { if case .same = ops[$0] { false } else { true } }
         guard !changed.isEmpty else { return "" }

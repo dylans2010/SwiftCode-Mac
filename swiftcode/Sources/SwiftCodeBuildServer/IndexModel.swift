@@ -2,8 +2,6 @@ import Foundation
 import SwiftCodeWorkspace
 import SwiftCodeXcodebuild
 
-/// The build server's view of one container: its targets and each target's
-/// settings for the build context, reloaded when the project changes.
 public final class IndexModel: @unchecked Sendable {
     public let containerURL: URL
     public let context: BuildContext
@@ -14,7 +12,6 @@ public final class IndexModel: @unchecked Sendable {
     private var headerDirectories: [Int: [String]]
     private var fingerprint: [String: String]
     private var _packages: PackageProducts?
-    /// Problems found while loading (settings that could not be resolved).
     public private(set) var diagnostics: [String] = []
 
     public init(containerURL: URL, context: BuildContext, settingsSource: IndexSettingsSource = ResolverSettingsSource()) throws {
@@ -32,10 +29,8 @@ public final class IndexModel: @unchecked Sendable {
 
     public var graph: BuildGraph { lock.withLock { _graph } }
 
-    /// The package products targets use (nil: none), from the build's PIF.
     public var packages: PackageProducts? { lock.withLock { _packages } }
 
-    /// The compile context of a target, nil when the target is unknown.
     public func compileContext(_ targetID: String) -> TargetCompileContext? {
         lock.withLock {
             guard let t = _graph.target(id: targetID), let s = settings[targetID] else { return nil }
@@ -45,8 +40,6 @@ public final class IndexModel: @unchecked Sendable {
         }
     }
 
-    /// Compiler arguments for a file in a target (the first target that
-    /// contains the file when `targetID` is nil).
     public func arguments(for file: String, targetID: String?, language: SourceLanguage? = nil) -> (arguments: [String], workingDirectory: String)? {
         let path = URL(fileURLWithPath: file).standardizedFileURL.path
         let id = targetID ?? graph.targets(containing: path).first?.id
@@ -57,8 +50,6 @@ public final class IndexModel: @unchecked Sendable {
         return (CompilerArguments.arguments(for: path, language: lang, in: ctx), ctx.projectDirectory)
     }
 
-    /// Reloads when a watched file changed; returns the identifiers of the
-    /// targets that were added, removed or changed (empty: nothing changed).
     @discardableResult
     public func reloadIfChanged(force: Bool = false) -> [String] {
         let current = lock.withLock { (fingerprint, _graph) }
@@ -88,8 +79,6 @@ public final class IndexModel: @unchecked Sendable {
         }
     }
 
-    // MARK: Loading
-
     struct Loaded {
         var graph: BuildGraph
         var settings: [String: [String: String]]
@@ -108,12 +97,10 @@ public final class IndexModel: @unchecked Sendable {
             settings = try source.settings(for: graph.targets, in: graph, context: context)
         } catch {
             diagnostics.append("settings: \(error)")
-            // One target's failure should not lose the others.
             for t in graph.targets {
                 if let s = try? source.settings(for: [t], in: graph, context: context)[t.id] { settings[t.id] = s }
             }
         }
-        // Package products: their imparted search paths and flags.
         var packages: PackageProducts?
         do { packages = try PackageProducts.load(graph) } catch { diagnostics.append("package products: \(error)") }
         if let packages {
@@ -134,7 +121,6 @@ public final class IndexModel: @unchecked Sendable {
         return Loaded(graph: graph, settings: settings, headers: headers, fingerprint: fingerprint(graph), diagnostics: diagnostics, packages: packages)
     }
 
-    /// Modification time and size of every watched path.
     static func fingerprint(_ graph: BuildGraph) -> [String: String] {
         var out: [String: String] = [:]
         for p in graph.watchedPaths() {
@@ -146,9 +132,6 @@ public final class IndexModel: @unchecked Sendable {
         return out
     }
 
-    // MARK: Context from a scheme
-
-    /// The configuration a scheme runs with (nil when the scheme is unknown).
     public static func configuration(ofScheme name: String, in containerURL: URL) -> String? {
         guard let c = try? Container.open(containerURL), let s = c.schemes().first(where: { $0.name == name }) else { return nil }
         return s.configuration(for: "LaunchAction")

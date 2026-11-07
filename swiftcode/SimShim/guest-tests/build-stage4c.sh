@@ -1,8 +1,4 @@
 #!/bin/sh
-# Builds the stage-4c guest probes (host bootstrap) for the iOS simulator
-# platform (specs/simulator/stage4c-contract.md §8). Runs on macOS only.
-#   ../out/guest-tests/stage4c/<probe>   arm64, LC_BUILD_VERSION platform 7
-# Usage: build-stage4c.sh [probe ...]   (default: every p_*.c in stage4c/)
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/stage4c}"

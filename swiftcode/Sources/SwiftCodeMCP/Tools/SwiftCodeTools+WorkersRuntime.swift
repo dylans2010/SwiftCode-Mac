@@ -2,30 +2,7 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The `use_workers` batch runtime: Legacy's validation, ported
-/// exactly, plus topological ordering and durable persistence of
-/// the batch plan, plus real execution through
-/// `WorkerScheduler.shared` (SwiftCodeAssistant) — Legacy's
-/// `UseWorkersTool.execute` steps 4–6 (record, schedule-and-execute,
-/// persist, reconcile). The scheduler's default turn runner is the
-/// real MetaAssist turn executor, so a run fails honestly (not
-/// installed / not signed in) instead of claiming a run. The
-/// `workersTestExecutor` seam still overrides execution in tests.
-/// See `specs/ide/gap-closure-failing-tools.md` §7.
-///
-/// Legacy's validation (`UseWorkersTool`, verified live):
-/// * input may be an array, a stringified JSON array, a single
-///   object, or a `{"tasks": …}` / `{"subtasks": …}` wrapper — but
-///   SwiftCode's schema validation runs before the handler, so only the
-///   array form can arrive; the other forms are unreachable here
-///   and are NOT reproduced (recorded in the spec).
-/// * each worker needs a non-empty task; tasks are truncated to
-///   500 characters (497 + "…").
-/// * duplicate names are suffixed `-2`, `-3`, …; duplicate scopes
-///   are suffixed with the worker name.
-/// * dependencies must name workers in the same batch.
 extension SwiftCodeMCPHost {
-    /// One validated worker assignment.
     struct FailingToolsWorkerAssignment: Sendable, Equatable {
         var name: String
         var task: String
@@ -34,28 +11,19 @@ extension SwiftCodeMCPHost {
         var dependencies: [String]
     }
 
-    /// A validated batch plan, ready to persist and (once a
-    /// runtime exists) to execute.
     struct FailingToolsWorkerPlan: Sendable {
         var batchID: String
         var assignments: [FailingToolsWorkerAssignment]
-        /// The assignments in dependency order.
         var order: [FailingToolsWorkerAssignment]
         var createdAt: Date
     }
 
-    /// The seam a future subagent runtime plugs into: given a
-    /// validated plan, run it and return one result line per
-    /// worker, in execution order. Nil today — the handler fails
-    /// honestly naming the missing runtime.
     protocol FailingToolsWorkerExecutor: Sendable {
         func execute(plan: FailingToolsWorkerPlan) async throws -> [String]
     }
 
     nonisolated(unsafe) static var workersTestExecutor: (any FailingToolsWorkerExecutor)?
 
-    /// Legacy's exact validation over the already-decoded array
-    /// form. Throws `MCPToolError` with Legacy's messages.
     nonisolated static func workersValidate(_ workersJSON: [AnyJSON]) throws -> [FailingToolsWorkerAssignment] {
         var seenNames: Set<String> = []
         var seenScopes: Set<String> = []
@@ -99,9 +67,6 @@ extension SwiftCodeMCPHost {
         return assignments
     }
 
-    /// Topological order by `dependencies` (a dependency runs
-    /// before its dependent). Throws naming the workers in a
-    /// dependency cycle.
     nonisolated static func workersTopologicalOrder(_ assignments: [FailingToolsWorkerAssignment]) throws -> [FailingToolsWorkerAssignment] {
         var byName: [String: FailingToolsWorkerAssignment] = [:]
         for a in assignments { byName[a.name] = a }
@@ -123,18 +88,12 @@ extension SwiftCodeMCPHost {
         return ordered
     }
 
-    /// The batch plan file: `<workspace>/.assist_temp/workers/<batch-id>.json`.
     static func workersPlanURL(batchID: String, in s: WorkspaceSession) -> URL {
         Self.folder(of: s.model)
             .appendingPathComponent(".assist_temp").appendingPathComponent("workers")
             .appendingPathComponent("\(batchID).json")
     }
 
-    /// Persists the plan as JSON (assignments, execution order,
-    /// status, timestamps) and returns the file URL. Target-file
-    /// existence is reconciled per worker: a missing target file is
-    /// recorded in the plan's `missingTargetFiles` list, not an
-    /// error — the plan is still written.
     func workersPersistPlan(_ plan: FailingToolsWorkerPlan, in s: WorkspaceSession) throws -> (url: URL, missingTargetFiles: [String: String]) {
         let root = Self.folder(of: s.model)
         var missing: [String: String] = [:]
@@ -171,15 +130,6 @@ extension SwiftCodeMCPHost {
         return (url, missing)
     }
 
-    /// `use_workers`: Legacy validation + topological order +
-    /// approval + persistence, then real execution through
-    /// `WorkerScheduler.shared` (SwiftCodeAssistant) — Legacy's
-    /// `UseWorkersTool.execute` steps 4–6 (record, schedule-and-execute,
-    /// persist, reconcile). The scheduler's default turn runner is the
-    /// real MetaAssist turn executor, so a run fails honestly (not
-    /// installed / not signed in) instead of claiming a run. The
-    /// `workersTestExecutor` seam still overrides execution in tests.
-    /// See `specs/ide/gap-closure-failing-tools.md` §7.
     func useWorkersReal(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let workersJSON = call.arguments["workers"]?.array else {
             throw MCPToolError("Invalid input: 'workers' argument is required and must contain worker assignments.")
@@ -203,14 +153,6 @@ extension SwiftCodeMCPHost {
                                 "results": .array(results.map(AnyJSON.string))],
                                summary: "Worker batch \(plan.batchID) executed (\(assignments.count) workers, plan at \(relative)):\n" + results.joined(separator: "\n"))
         }
-        // WIRING (wiring-backend): Legacy `UseWorkersTool.execute`
-        // steps 4–6 — record the batch, run it through the real
-        // scheduler, persist the worker tree, reconcile claimed file
-        // changes against the filesystem. The catalogue's assignment
-        // shape has no `role` (Legacy's default is "General
-        // Engineer") and no `preferredModel`; both keep their
-        // defaults. The plan is already persisted above, so a
-        // scheduler failure still leaves it on disk for a later run.
         let parentTaskID = UUID(uuidString: plan.batchID) ?? UUID()
         let workerAssignments = order.map { assignment in
             WorkerAssignment(name: assignment.name,
@@ -221,9 +163,6 @@ extension SwiftCodeMCPHost {
                              targetFiles: assignment.targetFiles)
         }
         WorkerPersistenceStore.shared.recordAssignments(workerAssignments)
-        // `scheduleAndExecute` is non-throwing: a worker whose turn
-        // fails reports it in its own `WorkerResult` (build /
-        // verification), so a batch never fails as a whole here.
         let results = await WorkerScheduler.shared.scheduleAndExecute(
             assignments: workerAssignments,
             parentTaskID: parentTaskID,

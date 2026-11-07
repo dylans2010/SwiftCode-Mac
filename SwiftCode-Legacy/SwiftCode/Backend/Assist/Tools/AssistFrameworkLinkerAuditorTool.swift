@@ -1,8 +1,3 @@
-//
-//  AssistFrameworkLinkerAuditorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistFrameworkLinkerAuditorTool: AssistTool {
@@ -52,7 +47,6 @@ public struct AssistFrameworkLinkerAuditorTool: AssistTool {
             } else if inFrameworksPhase && line.contains("};") {
                 inFrameworksPhase = false
             } else if inFrameworksPhase {
-                // Example: 75E911022EB7466700BEA120 /* WelcomeView in Frameworks */ = {isa = PBXBuildFile; ...
                 if let start = line.range(of: "/* "), let end = line.range(of: " in Frameworks */") {
                     let name = String(line[start.upperBound..<end.lowerBound])
                     linkedFrameworks.append(name)

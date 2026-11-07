@@ -1,9 +1,5 @@
 import Foundation
 
-/// `-showBuildSettings -scheme <scheme>` in a Swift package folder: the
-/// settings swift-build exports for each build-description target the
-/// scheme builds, from SwiftPM's PIF. See
-/// `specs/xcodebuild/show-build-settings.md` §7.
 enum PackageBuildSettings {
     typealias PIFTarget = (guid: String, name: String, type: String)
 
@@ -26,8 +22,6 @@ enum PackageBuildSettings {
         return 0
     }
 
-    /// The context's provider, else swift-build through the helper. SwiftCode's
-    /// own resolver reads projects only, so a package needs the helper.
     static func provider(_ ctx: XcodebuildContext) throws(XcodebuildFailure) -> SettingsProvider {
         if let p = ctx.settingsProvider { return p }
         guard let helper = SwiftBuildSettingsProvider.locate(environment: ctx.environment, executableDirectory: ctx.executableDirectory) else {
@@ -37,12 +31,6 @@ enum PackageBuildSettings {
         return SwiftBuildSettingsProvider(helper: helper)
     }
 
-    /// The targets of the sections, in order (§7.1): with `-target`, those
-    /// targets; else what the action builds. `build` and the other actions:
-    /// the products' targets (`<product>-product`, or the product's package
-    /// targets when it has none); the test actions add the scheme's test
-    /// bundles (`<test>-product`); `docbuild` takes the products' package
-    /// targets, as documentation is built per module.
     static func targets(package pkg: SwiftPackage, scheme: String, action: BuildAction, requested: [String],
                         pifTargets: [PIFTarget]) throws(XcodebuildFailure) -> [(guid: String, name: String)] {
         func named(_ guid: String) -> (guid: String, name: String) {
@@ -72,16 +60,10 @@ enum PackageBuildSettings {
         }
     }
 
-    /// A target by the name the sections print: a package target (the
-    /// module, `PACKAGE-TARGET:<name>`), else any build-description target
-    /// with that name (`greet-product`).
     static func target(named n: String, in pifTargets: [PIFTarget]) -> PIFTarget? {
         pifTargets.first { $0.guid == "PACKAGE-TARGET:" + n } ?? pifTargets.first { $0.name == n }
     }
 
-    /// The run destination (§7.2): `-destination` as for a build, with
-    /// `platform=Linux` naming this computer; without one, this computer:
-    /// My Mac on macOS, the Linux host on Linux.
     static func runDestination(_ spec: String?, context ctx: XcodebuildContext, isLinux: Bool = isLinuxHost) throws(XcodebuildFailure) -> RunDestination? {
         guard let spec else { return isLinux ? linux(architecture: ctx.hostArchitecture) : .hostMac(architecture: ctx.hostArchitecture) }
         let (generic, fields) = Destinations.parse(spec)
@@ -89,8 +71,6 @@ enum PackageBuildSettings {
         return generic ? nil : linux(architecture: fields["arch"] ?? ctx.hostArchitecture)
     }
 
-    /// swift-build's Linux platform and SDK (`linux`), for one architecture
-    /// as Linux names it (`aarch64`, `x86_64`).
     static func linux(architecture: String) -> RunDestination {
         let arch = architecture == "arm64" ? "aarch64" : architecture
         return RunDestination(platform: "linux", sdk: "linux", targetArchitecture: arch, supportedArchitectures: [arch])

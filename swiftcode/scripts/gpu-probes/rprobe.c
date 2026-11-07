@@ -1,16 +1,3 @@
-// rprobe: replays one captured draw of the buffer_image_blit pipeline
-// (hang capture of VulkanHangReport.swift) through CVulkan, with the
-// captured buffer bytes, and reports whether it finishes.
-// usage: rprobe CAPDIR VS FS GLOBALS ATLAS INSTANCES V1OFF FIRST_INSTANCE COUNT SCX SCY SCW SCH [GUARD]
-//   VS, FS: the capture's SPIR-V files (FS may be a patched copy that records
-//   the smallest and largest atlas index in fragment table entry 20);
-//   GLOBALS, ATLAS, INSTANCES: the capture's buffer files bound as the hang
-//   report lists them (v2 = GLOBALS+$V2OFF, f1 = GLOBALS+$F1OFF,
-//   f5 = GLOBALS+$F5OFF, f9 = ATLAS, v1 = INSTANCES+V1OFF).
-//   GUARD 1: each buffer 64 KiB into a larger allocation; 2: each buffer
-//   imported from its own host pages, as the back end imports guest memory.
-// Build (from swiftcode/, on a host with Vulkan; stage8-contract.md §15):
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o X scripts/gpu-probes/X.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,7 +17,6 @@ static gbuf load(yvk_context *ctx, const char *dir, const char *name, int guard)
     size_t n; void *d = slurp(p, &n);
     gbuf g; char err[256];
     if (guard == 2) {
-        // As the back end imports guest memory: the buffer's own pages, imported exactly.
         size_t len = (n + 65535) & ~(size_t)65535;
         void *m = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         memcpy(m, d, n);
@@ -71,7 +57,6 @@ int main(int argc, char **argv) {
     g.blend[0].colorWriteMask = 0xF;
     VkPipeline pipe;
     if (getenv("LIB") && ctx.features.graphicsPipelineLibrary) {
-        // As the back end builds render pipelines: four library parts, fast-linked.
         VkPipeline parts[4] = {yvk_library_vertex_input(&ctx, &g, err, sizeof err),
                                yvk_library_pre_raster(&ctx, &g.vertex, 0, err, sizeof err),
                                yvk_library_fragment_shader(&ctx, &g.fragment, g.samples, err, sizeof err),
@@ -88,8 +73,6 @@ int main(int argc, char **argv) {
     yvk_buffer_create(&ctx, 192 * 8, YVK_MEMORY_HOST, NULL, &tf, err, sizeof err);
     uint64_t *v = tv.mapped, *f = tf.mapped;
     memset(v, 0, 192 * 8); memset(f, 0, 192 * 8);
-    // Offsets of the globals bindings (environment V2OFF, F1OFF, F5OFF; the
-    // defaults are the first capture's).
     int v2off = getenv("V2OFF") ? atoi(getenv("V2OFF")) : 512, f1off = getenv("F1OFF") ? atoi(getenv("F1OFF")) : 5888;
     int f5off = getenv("F5OFF") ? atoi(getenv("F5OFF")) : 5120;
     v[1] = inst.addr + v1off; v[2] = glob.addr + v2off;

@@ -1,14 +1,3 @@
-// Ported verbatim from Legacy `SwiftCode/Views/Settings/BackupDetailsView.swift`
-// (Dylan's own code; direct port authorised under MIT). Destination:
-// SwiftCodeUI/App/ — next to its call site `NativeSettingsViews.swift:651`
-// (`BackupDetailsView(manifest:)` in a sheet). All dependencies already
-// exist in production with matching shapes: `BackupManifest`
-// (SwiftCodeCloud, all 6 fields used), `BackupEngine.shared.restore/
-// delete(manifest:cloudProvider:)` (SwiftCodeCloud), `RestoreResult`
-// (.isSuccess/.restoredFileCount/.errorMessage), `ModernGroupBoxStyle`
-// (SwiftCodeUI). `DetailRow` is defined in this same file (as in Legacy;
-// no production declaration existed). Only change: added
-// `import SwiftCodeCloud`.
 import SwiftUI
 import AppKit
 import os
@@ -39,7 +28,6 @@ struct BackupDetailsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // MARK: - Section 1: Detailed Metadata
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
@@ -96,8 +84,6 @@ struct BackupDetailsView: View {
                     .padding()
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
-
-                // MARK: - Section 2: Integrity & Verification
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -156,8 +142,6 @@ struct BackupDetailsView: View {
                     .padding()
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
-
-                // MARK: - Section 3: Recovery & Destruction Actions
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -222,8 +206,6 @@ struct BackupDetailsView: View {
             }
         }
     }
-
-    // MARK: - Integrity Verification
 
     private func testIntegrity() {
         isTestingIntegrity = true
@@ -327,8 +309,6 @@ struct BackupDetailsView: View {
         }
     }
 
-    // MARK: - Restore
-
     private func performRestore() {
         let alert = NSAlert()
         alert.messageText = "Restore Application State?"
@@ -378,8 +358,6 @@ struct BackupDetailsView: View {
         }
     }
 
-    // MARK: - Delete
-
     private func confirmDelete() {
         let alert = NSAlert()
         alert.messageText = "Delete Backup Snapshot?"
@@ -421,8 +399,6 @@ struct BackupDetailsView: View {
         }
     }
 }
-
-// MARK: - Subview Metadata Row Helper
 
 struct DetailRow: View {
     let label: String

@@ -1,4 +1,3 @@
-/* SwiftCode stage-4 probe: libdispatch global queues, a group, a semaphore. Original SwiftCode code. */
 #include <dispatch/dispatch.h>
 #include <stdio.h>
 

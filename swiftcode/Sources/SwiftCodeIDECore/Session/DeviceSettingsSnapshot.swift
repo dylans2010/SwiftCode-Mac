@@ -1,15 +1,12 @@
 import Foundation
 import SwiftCodeSimFeatures
 
-/// The settings of a SwiftCode remote simulator as the details pane shows them
-/// (the `settings` answer of its control socket).
 public struct DeviceSettingsSnapshot: Equatable, Sendable {
     public var state: SimSettingsState
     public var volume: Int
     public var output: String
     public var input: String
 
-    /// From a `settings` reply ("ok appearance light\n…\nvolume 60\noutput system\ninput system\n…").
     public init?(reply: String) {
         let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.hasPrefix("ok") else { return nil }

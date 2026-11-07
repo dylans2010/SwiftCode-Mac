@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// reference-ui-4.md §1–§3: Source Control navigator, commit editor,
-/// branch history, inspector sections and the Integrate menu.
 @MainActor
 @Suite(.serialized) struct SourceControlNavigatorTests {
     @Test func datesScopesAndDiffLines() {

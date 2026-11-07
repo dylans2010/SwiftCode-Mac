@@ -1,12 +1,6 @@
 import Foundation
 
-/// The api.github.com client the assistant's GitHub tools and the settings
-/// pane share. The token is optional: unauthenticated requests work for
-/// public reads at GitHub's lower rate limit. The token itself is never
-/// stored here — `tokenProvider` reads it from the secret store on each
-/// request — and it is never logged.
 public struct GitHubClient: Sendable {
-    /// The base URL is not configurable: GitHub's API lives here.
     public static let baseURL = URL(string: "https://api.github.com")!
 
     private static let apiVersion = "2022-11-28"
@@ -22,27 +16,17 @@ public struct GitHubClient: Sendable {
         self.tokenProvider = tokenProvider
     }
 
-    /// The rate-limit state from the most recent response, if it carried
-    /// rate-limit headers. Updated after every response, success or error.
-    /// The setter is non-mutating: the state lives in the locked box, so
-    /// non-mutating async methods can record it.
     public private(set) var lastRateLimit: GitHubRateLimit? {
         get { rateLimitBox.value }
         nonmutating set { rateLimitBox.value = newValue }
     }
 
-    // MARK: - Rate limit
-
-    /// `GET /rate_limit`: the caller's current core rate-limit state.
     public func rateLimit() async throws -> GitHubRateLimit {
         let response: RateLimitResponse = try await perform(request(path: "rate_limit"))
         lastRateLimit = response.rate
         return response.rate
     }
 
-    // MARK: - Users and repositories
-
-    /// `GET /user`. Requires a token.
     public func getAuthenticatedUser() async throws -> GitHubUser {
         guard !(tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -50,20 +34,17 @@ public struct GitHubClient: Sendable {
         return try await perform(request(path: "user"))
     }
 
-    /// `GET /repos/{owner}/{repo}`.
     public func getRepository(owner: String, repo: String) async throws -> GitHubRepository {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))"))
     }
 
-    /// `GET /repos/{owner}/{repo}/branches`.
     public func listBranches(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubBranch] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/branches",
                                         query: [URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
     }
 
-    /// `GET /repos/{owner}/{repo}/commits?sha={branch}`.
     public func listCommits(owner: String, repo: String, branch: String = "main", perPage: Int = 20) async throws -> [GitHubCommit] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/commits",
@@ -71,9 +52,6 @@ public struct GitHubClient: Sendable {
                                                 URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
     }
 
-    // MARK: - Files and trees
-
-    /// `GET /repos/{owner}/{repo}/contents/{path}` (optionally at `ref`).
     public func getFileContent(owner: String, repo: String, path: String, ref: String? = nil) async throws -> GitHubFileContent {
         try validateRepo(owner: owner, repo: repo)
         var query: [URLQueryItem] = []
@@ -81,10 +59,6 @@ public struct GitHubClient: Sendable {
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/contents/\(encode(path))", query: query))
     }
 
-    /// The decoded text of a file: `getFileContent` with its base64
-    /// content decoded (the API wraps lines, so newlines are stripped
-    /// first). Throws `.decoding` when the content is not valid base64
-    /// or not UTF-8.
     public func getFileText(owner: String, repo: String, path: String, ref: String? = nil) async throws -> String {
         let file = try await getFileContent(owner: owner, repo: repo, path: path, ref: ref)
         let cleaned = file.content.filter { !$0.isWhitespace }
@@ -95,7 +69,6 @@ public struct GitHubClient: Sendable {
         return text
     }
 
-    /// `GET /repos/{owner}/{repo}/git/trees/{ref}?recursive=1`.
     public func getRepoTree(owner: String, repo: String, ref: String = "main", recursive: Bool = true) async throws -> [GitHubTreeEntry] {
         try validateRepo(owner: owner, repo: repo)
         let response: TreeResponse = try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/git/trees/\(encode(ref))",
@@ -103,19 +76,6 @@ public struct GitHubClient: Sendable {
         return response.tree
     }
 
-    /// `GET /repos/{owner}/{repo}/contents/{path}` returning only
-    /// the blob SHA, or nil when the file does not exist (HTTP 404).
-    /// Other failures throw, as in the rest of the client — Legacy
-    /// returned nil for every non-200 status, which would have
-    /// hidden an expired token as "file does not exist"; this port
-    /// only treats 404 as missing. Used to decide whether
-    /// `pushFile` creates or updates.
-    /// `POST /repos/{owner}/{repo}/git/refs`: creates `branch` from
-    /// `from` (default `main`). Throws when the branch already exists
-    /// or the base branch cannot be resolved (Legacy
-    /// `ProjectBuilderManager.triggerRemoteGeneration` creates the
-    /// `build-project` branch this way and ignores an already-exists
-    /// failure).
     public func createBranch(owner: String, repo: String, branch: String, from baseBranch: String = "main") async throws {
         try validateRepo(owner: owner, repo: repo)
         struct RefResponse: Decodable { struct Object: Decodable { var sha: String }; var object: Object }
@@ -138,15 +98,6 @@ public struct GitHubClient: Sendable {
         }
     }
 
-    /// `PUT /repos/{owner}/{repo}/contents/{path}`: creates the
-    /// file, or updates it when `sha` is the blob SHA of the
-    /// current version (fetch it with `getFileSHA` first). The
-    /// content is base64-encoded by this method; callers pass plain
-    /// text. Returns the created/updated file. Pass `branch` to
-    /// target a branch other than the default (Legacy had no branch
-    /// parameter; the API supports it, so it is additive here).
-    /// Writes need `contents: write` on a fine-grained token, or
-    /// the classic `repo` scope.
     public func pushFile(owner: String, repo: String, path: String, content: String, message: String, sha: String? = nil, branch: String? = nil) async throws -> GitHubFileContent {
         try validateRepo(owner: owner, repo: repo)
         let payload = try jsonBody(PutFileBody(
@@ -160,11 +111,6 @@ public struct GitHubClient: Sendable {
         return response.content
     }
 
-    // MARK: - Workflow runs, jobs, artifacts
-
-    /// `GET /repos/{owner}/{repo}/actions/workflows`. Public
-    /// repositories are readable without a token; private ones need
-    /// `actions: read` (fine-grained) or the classic `repo` scope.
     public func listWorkflows(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubWorkflow] {
         try validateRepo(owner: owner, repo: repo)
         let response: WorkflowsResponse = try await perform(request(
@@ -173,10 +119,6 @@ public struct GitHubClient: Sendable {
         return response.workflows
     }
 
-    /// `POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun`:
-    /// re-runs a failed run. Answers 201 with no body, so the
-    /// response is validated for status only. Needs `actions: write`
-    /// (fine-grained) or the classic `repo` scope.
     public func rerunWorkflow(owner: String, repo: String, runID: Int) async throws {
         try validateRepo(owner: owner, repo: repo)
         let (data, http) = try await performRaw(request(
@@ -185,9 +127,6 @@ public struct GitHubClient: Sendable {
         try validate(http, data: data)
     }
 
-    /// `GET /repos/{owner}/{repo}/actions/runs`. Public
-    /// repositories are readable without a token; private ones need
-    /// `actions: read` (fine-grained) or the classic `repo` scope.
     public func listWorkflowRuns(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubWorkflowRun] {
         try validateRepo(owner: owner, repo: repo)
         let response: WorkflowRunsResponse = try await perform(request(
@@ -196,13 +135,11 @@ public struct GitHubClient: Sendable {
         return response.workflowRuns
     }
 
-    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}`.
     public func getWorkflowRun(owner: String, repo: String, runID: Int) async throws -> GitHubWorkflowRun {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/runs/\(runID)"))
     }
 
-    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs`.
     public func listWorkflowJobs(owner: String, repo: String, runID: Int) async throws -> [GitHubWorkflowJob] {
         try validateRepo(owner: owner, repo: repo)
         let response: WorkflowJobsResponse = try await perform(request(
@@ -210,10 +147,6 @@ public struct GitHubClient: Sendable {
         return response.jobs
     }
 
-    /// `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs`: the
-    /// log text. `URLSession` follows GitHub's redirect to the
-    /// temporary download URL automatically; the returned string is
-    /// the log (UTF-8, falling back to empty, as in Legacy).
     public func getJobLogs(owner: String, repo: String, jobID: Int) async throws -> String {
         try validateRepo(owner: owner, repo: repo)
         let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/jobs/\(jobID)/logs"))
@@ -221,13 +154,6 @@ public struct GitHubClient: Sendable {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
-    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs`: the
-    /// temporary download URL for the run's logs. GitHub answers
-    /// with a 302 to a short-lived URL; `URLSession` follows the
-    /// redirect and the final URL is returned (Legacy stopped at
-    /// the 302 with a no-redirect delegate to avoid downloading
-    /// the logs — this port follows it and returns the same URL,
-    /// at the cost of downloading the log body once).
     public func getWorkflowRunLogsURL(owner: String, repo: String, runID: Int) async throws -> URL {
         try validateRepo(owner: owner, repo: repo)
         let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/runs/\(runID)/logs"))
@@ -238,7 +164,6 @@ public struct GitHubClient: Sendable {
         return url
     }
 
-    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts`.
     public func listWorkflowArtifacts(owner: String, repo: String, runID: Int) async throws -> [GitHubArtifact] {
         try validateRepo(owner: owner, repo: repo)
         let response: GitHubArtifactsResponse = try await perform(request(
@@ -246,9 +171,6 @@ public struct GitHubClient: Sendable {
         return response.artifacts
     }
 
-    /// `GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip`:
-    /// the artifact's ZIP bytes. The caller decides where to save
-    /// them.
     public func downloadArtifact(owner: String, repo: String, artifactID: Int) async throws -> Data {
         try validateRepo(owner: owner, repo: repo)
         let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/artifacts/\(artifactID)/zip"))
@@ -256,23 +178,11 @@ public struct GitHubClient: Sendable {
         return data
     }
 
-    // MARK: - GitHub Pages
-
-    /// `GET /repos/{owner}/{repo}/pages`: the repository's Pages
-    /// configuration. Answers 404 when Pages is not enabled for the
-    /// repository — the caller treats that as "not enabled", not as
-    /// an error in the request. Needs `pages: read` (fine-grained)
-    /// or the classic `repo` scope on private repositories.
     public func getPagesInfo(owner: String, repo: String) async throws -> GitHubPagesInfo {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/pages"))
     }
 
-    /// `POST /repos/{owner}/{repo}/pages`: enables Pages with a
-    /// workflow build (`build_type: "workflow"` — the site is
-    /// deployed by a GitHub Actions workflow, as the Deploy window
-    /// sets up). Returns the new Pages configuration. Needs
-    /// `pages: write` (fine-grained) or the classic `repo` scope.
     public func enablePages(owner: String, repo: String) async throws -> GitHubPagesInfo {
         try validateRepo(owner: owner, repo: repo)
         let payload = try jsonBody(EnablePagesBody(buildType: "workflow"))
@@ -281,10 +191,6 @@ public struct GitHubClient: Sendable {
             method: "POST", body: payload))
     }
 
-    /// `GET /repos/{owner}/{repo}/pages/deployments`: the Pages
-    /// deployments, newest first. Needs `pages: read`
-    /// (fine-grained) or the classic `repo` scope on private
-    /// repositories.
     public func listPagesDeployments(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubPagesDeployment] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(
@@ -292,21 +198,12 @@ public struct GitHubClient: Sendable {
             query: [URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
     }
 
-    // MARK: - Releases
-
-    /// `GET /repos/{owner}/{repo}/releases`.
     public func listReleases(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubRelease] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/releases",
                                         query: [URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
     }
 
-    // MARK: - Repository archive and creation
-
-    /// `GET /repos/{owner}/{repo}/zipball/{branch}`: the
-    /// repository's ZIP bytes. Legacy wrote them straight to the
-    /// user's Documents folder; this client returns the bytes and
-    /// the caller chooses where to save them.
     public func downloadRepositoryZip(owner: String, repo: String, branch: String = "main") async throws -> Data {
         try validateRepo(owner: owner, repo: repo)
         let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/zipball/\(encode(branch))"))
@@ -314,11 +211,6 @@ public struct GitHubClient: Sendable {
         return data
     }
 
-    /// `POST /user/repos`: creates a repository under the
-    /// authenticated user. Needs `public_repo` (public repos) or
-    /// `repo` (private repos) on a classic token, or
-    /// `administration: write` on a fine-grained token. Returns
-    /// the created repository.
     public func createRepository(name: String, description: String, isPrivate: Bool) async throws -> GitHubRepository {
         guard !(tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -328,11 +220,6 @@ public struct GitHubClient: Sendable {
         return try await perform(request(path: "user/repos", method: "POST", body: payload))
     }
 
-    // MARK: - Issues
-
-    /// `GET /repos/{owner}/{repo}/issues`. Pull requests also appear
-    /// here (with `isPullRequest` set); pass `state` "open", "closed"
-    /// or "all".
     public func listIssues(owner: String, repo: String, state: String = "open", perPage: Int = 30, page: Int = 1) async throws -> [GitHubIssue] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/issues",
@@ -341,28 +228,23 @@ public struct GitHubClient: Sendable {
                                                 URLQueryItem(name: "page", value: "\(max(1, page))")]))
     }
 
-    /// `GET /repos/{owner}/{repo}/issues/{number}`.
     public func getIssue(owner: String, repo: String, number: Int) async throws -> GitHubIssue {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/issues/\(number)"))
     }
 
-    /// `POST /repos/{owner}/{repo}/issues`.
     public func createIssue(owner: String, repo: String, title: String, body: String?, labels: [String] = []) async throws -> GitHubIssue {
         try validateRepo(owner: owner, repo: repo)
         let payload = try jsonBody(IssueCreateBody(title: title, body: body, labels: labels))
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/issues", method: "POST", body: payload))
     }
 
-    /// `PATCH /repos/{owner}/{repo}/issues/{number}`. Only non-nil
-    /// fields are sent; the rest are left alone.
     public func updateIssue(owner: String, repo: String, number: Int, title: String?, body: String?, state: String?) async throws -> GitHubIssue {
         try validateRepo(owner: owner, repo: repo)
         let payload = try jsonBody(IssueUpdateBody(title: title, body: body, state: state))
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/issues/\(number)", method: "PATCH", body: payload))
     }
 
-    /// `GET /search/issues?q={query}`.
     public func searchIssues(query: String, perPage: Int = 30, page: Int = 1) async throws -> GitHubSearchResult<GitHubIssue> {
         try await perform(request(path: "search/issues",
                                   query: [URLQueryItem(name: "q", value: query),
@@ -370,15 +252,11 @@ public struct GitHubClient: Sendable {
                                           URLQueryItem(name: "page", value: "\(max(1, page))")]))
     }
 
-    // MARK: - Pull requests
-
-    /// `GET /repos/{owner}/{repo}/pulls/{number}`.
     public func getPullRequest(owner: String, repo: String, number: Int) async throws -> GitHubPullRequest {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/pulls/\(number)"))
     }
 
-    /// `GET /repos/{owner}/{repo}/pulls`.
     public func listPullRequests(owner: String, repo: String, state: String = "open", perPage: Int = 30) async throws -> [GitHubPullRequest] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/pulls",
@@ -386,43 +264,32 @@ public struct GitHubClient: Sendable {
                                                 URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
     }
 
-    /// `POST /repos/{owner}/{repo}/pulls`.
     public func createPullRequest(owner: String, repo: String, title: String, body: String?, head: String, base: String, draft: Bool = false) async throws -> GitHubPullRequest {
         try validateRepo(owner: owner, repo: repo)
         let payload = try jsonBody(PullRequestCreateBody(title: title, body: body, head: head, base: base, draft: draft))
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/pulls", method: "POST", body: payload))
     }
 
-    /// `GET /repos/{owner}/{repo}/pulls/{number}/files`.
     public func listPullRequestFiles(owner: String, repo: String, number: Int) async throws -> [GitHubPullRequestFile] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/pulls/\(number)/files"))
     }
 
-    /// `GET /repos/{owner}/{repo}/pulls/{number}/reviews`.
     public func listPullRequestReviews(owner: String, repo: String, number: Int) async throws -> [GitHubReview] {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/pulls/\(number)/reviews"))
     }
 
-    /// `GET /search/code?q={query}`.
     public func searchCode(query: String, perPage: Int = 30) async throws -> GitHubSearchResult<GitHubCodeItem> {
         try await perform(request(path: "search/code",
                                   query: [URLQueryItem(name: "q", value: query),
                                           URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
     }
 
-    // MARK: - Request machinery
-
     private func request(path: String, method: String = "GET", query: [URLQueryItem] = [], body: Data? = nil) -> URLRequest {
         var components = URLComponents(url: Self.baseURL, resolvingAgainstBaseURL: false)!
-        // `path` is already percent-encoded segment by segment, so set
-        // the encoded path directly (a plain `path` set would re-encode
-        // the `%` escapes).
         components.percentEncodedPath = "/" + path
         if !query.isEmpty { components.queryItems = query }
-        // Every component is percent-encoded by construction, so the URL
-        // always builds.
         var urlRequest = URLRequest(url: components.url!)
         urlRequest.httpMethod = method
         urlRequest.setValue(Self.accept, forHTTPHeaderField: "Accept")
@@ -438,8 +305,6 @@ public struct GitHubClient: Sendable {
         return urlRequest
     }
 
-    /// Sends the request, records the rate-limit headers, maps the
-    /// status, and decodes the body.
     private func perform<T: Decodable>(_ urlRequest: URLRequest) async throws -> T {
         let (data, http) = try await performRaw(urlRequest)
         try validate(http, data: data)
@@ -450,13 +315,6 @@ public struct GitHubClient: Sendable {
         }
     }
 
-    /// Sends the request and returns the raw bytes plus the HTTP
-    /// response: for endpoints whose answer is not JSON (log text,
-    /// ZIP bytes) or whose status the caller inspects itself
-    /// (`getFileSHA` treats 404 as "missing"). Records the
-    /// rate-limit headers but does NOT map the status — every
-    /// caller validates with `validate(_:data:)` (or checks the
-    /// status itself first) before using the bytes.
     private func performRaw(_ urlRequest: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let data: Data
         let response: URLResponse
@@ -474,8 +332,6 @@ public struct GitHubClient: Sendable {
 
     private func recordRateLimit(from http: HTTPURLResponse) {
         let parsed = GitHubRateLimit.parse(from: http)
-        // Only replace what the response actually said: a response with
-        // no rate-limit headers leaves the last known state alone.
         if parsed.limit != nil || parsed.remaining != nil || parsed.resetAt != nil || parsed.retryAfter != nil {
             lastRateLimit = parsed
         }
@@ -498,8 +354,6 @@ public struct GitHubClient: Sendable {
         case 422:
             return .unprocessable(message: message ?? "Unprocessable entity")
         case 403:
-            // Exhausted quota, or GitHub saying so in the message (the
-            // headers are sometimes absent on secondary limits).
             let exhausted = rate.isExhausted || (message?.lowercased().contains("rate limit") ?? false)
             if exhausted {
                 return .forbidden(message: message ?? "Rate limit exceeded", rateLimited: true, resetAt: rate.resetAt)
@@ -512,7 +366,6 @@ public struct GitHubClient: Sendable {
         }
     }
 
-    /// GitHub's error JSON: `{"message": "...", ...}`.
     private static func githubMessage(from data: Data) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let message = object["message"] as? String else {
@@ -537,7 +390,6 @@ public struct GitHubClient: Sendable {
         }
     }
 
-    /// `per_page` must be 1...100 on the GitHub API.
     private func clampedPerPage(_ perPage: Int) -> Int {
         min(100, max(1, perPage))
     }
@@ -551,17 +403,11 @@ public struct GitHubClient: Sendable {
         }
     }
 
-    /// Percent-encodes one path segment (or a whole file path: `/`
-    /// stays a separator, as in Legacy).
     private func encode(_ value: String) -> String {
         value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
     }
 }
 
-// MARK: - Private helpers
-
-/// The rate-limit state behind `lastRateLimit`. The client is a struct,
-/// so its mutable state lives in a locked box and stays `Sendable`.
 private final class RateLimitBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _value: GitHubRateLimit?
@@ -572,32 +418,26 @@ private final class RateLimitBox: @unchecked Sendable {
     }
 }
 
-/// `GET /rate_limit` wraps the state in a `rate` object.
 private struct RateLimitResponse: Decodable {
     var rate: GitHubRateLimit
 }
 
-/// `GET /repos/{owner}/{repo}/git/trees/{ref}` wraps the entries in `tree`.
 private struct TreeResponse: Decodable {
     var tree: [GitHubTreeEntry]
 }
 
-/// `POST /repos/{owner}/{repo}/issues`. Nil fields are omitted.
 private struct IssueCreateBody: Encodable {
     var title: String
     var body: String?
     var labels: [String]
 }
 
-/// `PATCH /repos/{owner}/{repo}/issues/{number}`. Nil fields are omitted,
-/// so only the fields the caller set are sent.
 private struct IssueUpdateBody: Encodable {
     var title: String?
     var body: String?
     var state: String?
 }
 
-/// `POST /repos/{owner}/{repo}/pulls`. Nil fields are omitted.
 private struct PullRequestCreateBody: Encodable {
     var title: String
     var body: String?
@@ -606,9 +446,6 @@ private struct PullRequestCreateBody: Encodable {
     var draft: Bool
 }
 
-/// `PUT /repos/{owner}/{repo}/contents/{path}`. `sha` and `branch`
-/// are omitted when nil, so a create sends only `message` +
-/// `content` and an update adds the current blob SHA.
 private struct PutFileBody: Encodable {
     var message: String
     var content: String
@@ -628,13 +465,10 @@ private struct PutFileBody: Encodable {
     }
 }
 
-/// `PUT /repos/{owner}/{repo}/contents/{path}` answers
-/// `{"content": {...}, "commit": {...}}`.
 private struct ContentsResponse: Decodable {
     var content: GitHubFileContent
 }
 
-/// `POST /user/repos`. Legacy sent `auto_init: false` too, kept here.
 private struct CreateRepositoryBody: Encodable {
     var name: String
     var description: String
@@ -648,33 +482,22 @@ private struct CreateRepositoryBody: Encodable {
     }
 }
 
-/// `GET /repos/{owner}/{repo}/actions/runs` wraps the runs in
-/// `workflow_runs`.
 private struct WorkflowRunsResponse: Decodable {
     var workflowRuns: [GitHubWorkflowRun]
 }
 
-/// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs` wraps the
-/// jobs in `jobs`.
 private struct WorkflowJobsResponse: Decodable {
     var jobs: [GitHubWorkflowJob]
 }
 
-/// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts`
-/// wraps the artifacts in `artifacts`.
 private struct GitHubArtifactsResponse: Decodable {
     var artifacts: [GitHubArtifact]
 }
 
-/// `GET /repos/{owner}/{repo}/actions/workflows` wraps the
-/// workflows in `workflows`.
 private struct WorkflowsResponse: Decodable {
     var workflows: [GitHubWorkflow]
 }
 
-/// `POST /repos/{owner}/{repo}/pages`. Only the workflow build
-/// type is supported: the Deploy window's Pages flow always
-/// deploys through Actions.
 private struct EnablePagesBody: Encodable {
     var buildType: String
 
@@ -683,28 +506,18 @@ private struct EnablePagesBody: Encodable {
     }
 }
 
-// MARK: - Repository languages, forks and stars
-// Added for the public repository browser (GitHubCodeSearchView port):
-// the language list, fork, and star/unstar, which the client did not
-// previously expose. Same-file extensions can use the private
-// `request`/`perform`/`performRaw`/`validate` helpers.
-
 extension GitHubClient {
-    /// `GET /repos/{owner}/{repo}/languages`: language names, most bytes first.
     public func listLanguages(owner: String, repo: String) async throws -> [String] {
         try validateRepo(owner: owner, repo: repo)
         let counts: [String: Int] = try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/languages"))
         return counts.keys.sorted { counts[$0, default: 0] > counts[$1, default: 0] }
     }
 
-    /// `POST /repos/{owner}/{repo}/forks`: forks into the authenticated
-    /// user's account and returns the forked repository.
     public func forkRepository(owner: String, repo: String) async throws -> GitHubRepository {
         try validateRepo(owner: owner, repo: repo)
         return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/forks", method: "POST"))
     }
 
-    /// `PUT`/`DELETE /user/starred/{owner}/{repo}`: stars or unstars.
     public func starRepository(owner: String, repo: String, starred: Bool) async throws {
         try validateRepo(owner: owner, repo: repo)
         let (_, http) = try await performRaw(request(path: "user/starred/\(encode(owner))/\(encode(repo))",
@@ -712,7 +525,6 @@ extension GitHubClient {
         try validate(http, data: Data())
     }
 
-    /// `GET /user/starred/{owner}/{repo}`: 204 = starred, 404 = not.
     public func isRepositoryStarred(owner: String, repo: String) async throws -> Bool {
         try validateRepo(owner: owner, repo: repo)
         let (_, http) = try await performRaw(request(path: "user/starred/\(encode(owner))/\(encode(repo))"))

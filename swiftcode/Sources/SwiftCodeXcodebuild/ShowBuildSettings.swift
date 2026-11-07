@@ -1,9 +1,6 @@
 import Foundation
 
-/// `-showBuildSettings [-json]`. See `specs/xcodebuild/show-build-settings.md`.
 enum ShowBuildSettings {
-    /// The provider to use: the context's, else swift-build through the
-    /// helper, else SwiftCode's own resolver (with a warning).
     static func provider(_ ctx: XcodebuildContext) -> SettingsProvider {
         if let p = ctx.settingsProvider { return p }
         if let helper = SwiftBuildSettingsProvider.locate(environment: ctx.environment, executableDirectory: ctx.executableDirectory) {
@@ -25,8 +22,6 @@ enum ShowBuildSettings {
         return 0
     }
 
-    /// One section (text) or object (`-json`) per target, in order (§1),
-    /// after the warnings for SDKs this host does not have.
     static func print(targets: [String], settings all: [[String: String]], action: BuildAction, json: Bool, console: Console) {
         #if !os(macOS)
         for w in unavailableSDKWarnings(all) { console.err(w) }
@@ -47,11 +42,6 @@ enum ShowBuildSettings {
         }
     }
 
-    /// One warning per `SDKROOT` that swift-build could not resolve to an
-    /// installed SDK (it stays a name, and `SDK_NAME` is missing), and one
-    /// when the Xcode version settings are swift-build's placeholders (a
-    /// session on a Swift toolchain, not a developer directory). On Linux that
-    /// is every Apple-platform project: their SDKs exist only on a Mac (§5.1).
     static func unavailableSDKWarnings(_ all: [[String: String]]) -> [String] {
         var seen: Set<String> = []
         var warnings: [String] = []
@@ -70,6 +60,5 @@ enum ShowBuildSettings {
         return warnings
     }
 
-    /// swift-build's Xcode build version for a session on a Swift toolchain.
     static let placeholderBuildVersion = "99T999"
 }

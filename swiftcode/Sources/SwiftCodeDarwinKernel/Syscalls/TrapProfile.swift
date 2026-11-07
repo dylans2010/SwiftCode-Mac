@@ -6,33 +6,6 @@ import Darwin
 #endif
 import SwiftCodeDarwinABI
 
-// Per-trap-number profile of the kernel lock (diagnostics, off by default).
-//
-// `SWIFTCODE_TRAP_PROFILE=<path>` turns it on. For every trap number it keeps:
-//   - count: traps that entered `DarwinKernel.handle`;
-//   - handler time: wall time inside `DarwinKernel.handle`, lock wait and
-//     WaitQueue sleeps included;
-//   - acquisitions: how often the kernel lock was taken on behalf of the trap
-//     (the first acquisition, and every re-acquisition after `unlocked`,
-//     `yield` or a WaitQueue sleep). Acquisitions per trap above 1 show
-//     traps that give the lock up and take it again;
-//   - hold time: time the kernel lock was held on behalf of the trap (the
-//     VMM's pre-trap bookkeeping runs inside the handler's acquisition; a
-//     sleep in a WaitQueue does not count, because the lock is released);
-//   - wait time: time spent in the lock call to acquire the lock for the
-//     trap (the blocking acquisition and the re-acquisition after `unlocked`
-//     and `yield`; a re-acquisition after a condition-variable wake is not
-//     separable from the sleep and is not counted), and how many of those
-//     calls found the lock taken (contended).
-// Lock activity with no trap in progress (timer and service threads) goes to
-// the "service" row.
-//
-// The table is rewritten at `<path>` every `SWIFTCODE_TRAP_PROFILE_INTERVAL`
-// seconds (default 30; `startPeriodicDump`) and at the end of the run
-// (`dump`). Each write replaces the file, so a run that is killed keeps its
-// last periodic table. `SWIFTCODE_TRAP_PROFILE_ROWS=<n>` sets how many rows each
-// of the four tables lists (default 25).
-
 public final class TrapProfile: @unchecked Sendable {
     public struct Row: Sendable {
         public var count: UInt64 = 0
@@ -44,10 +17,6 @@ public final class TrapProfile: @unchecked Sendable {
         public var contended: UInt64 = 0
         public var waitNanoseconds: UInt64 = 0
         public var maxWaitNanoseconds: UInt64 = 0
-        /// Holds during which the holder took page faults, blocked in the
-        /// host kernel (a voluntary context switch: I/O, a sleeping lock such
-        /// as mmap_lock), or was preempted (an involuntary switch), and the
-        /// hold time of those holds (`threadUsage` probe).
         public var faults: UInt64 = 0
         public var faultHolds: UInt64 = 0
         public var faultHoldNanoseconds: UInt64 = 0
@@ -59,22 +28,15 @@ public final class TrapProfile: @unchecked Sendable {
         public init() {}
     }
 
-    /// True when `SWIFTCODE_TRAP_PROFILE` names a file.
     static let profiling = getenv("SWIFTCODE_TRAP_PROFILE").map { $0.pointee != 0 } ?? false
 
-    /// The profile of this process, or nil when `SWIFTCODE_TRAP_PROFILE` is unset.
     public static let shared: TrapProfile? = {
         guard let raw = getenv("SWIFTCODE_TRAP_PROFILE") else { return nil }
-        // Name host locks for the futex report from the start (the hook
-        // lives in the ABI module, below this one).
         DebugLockNames.register = { TrapProfile.nameLock($0, $1) }
         let path = String(cString: raw)
         return path.isEmpty ? nil : TrapProfile(path: path)
     }()
 
-    /// The lock split's fine locks (`mach-ipc-locking.md` §4): hold and wait
-    /// per trap of all event locks (`<path>.events`) and of the port lock
-    /// (`<path>.ports`). Nil unless `SWIFTCODE_TRAP_PROFILE` is set.
     public static let eventLocks: TrapProfile? = shared.map { fineProfile($0.path + ".events") }
     public static let portLock: TrapProfile? = shared.map { fineProfile($0.path + ".ports") }
 
@@ -84,33 +46,24 @@ public final class TrapProfile: @unchecked Sendable {
         return p
     }
 
-    /// `SWIFTCODE_TRAP_PROFILE_INTERVAL=<seconds>`: the periodic dump interval.
     public static let dumpInterval: TimeInterval = {
         guard let raw = getenv("SWIFTCODE_TRAP_PROFILE_INTERVAL"), let v = Double(String(cString: raw)), v >= 1 else { return 30 }
         return v
     }()
 
-    /// `SWIFTCODE_TRAP_PROFILE_ROWS=<n>`: rows per table in `report` (default 25).
     public static let rowLimit: Int = {
         guard let raw = getenv("SWIFTCODE_TRAP_PROFILE_ROWS"), let v = Int(String(cString: raw)), v >= 1 else { return 25 }
         return v
     }()
 
-    /// The key of lock activity with no trap in progress.
     static let serviceKey = Int64.min
 
-    /// `SWIFTCODE_TRAP_PROFILE_PROGRAM=<name>[,<name>...]`: count only the traps
-    /// of images whose executable has one of these file names (the launcher
-    /// sets `DarwinKernel.trapProfileSelected`); every other image's lock
-    /// activity goes to one "other processes" row.
     public static let programFilter: Set<String> = {
         guard let raw = getenv("SWIFTCODE_TRAP_PROFILE_PROGRAM") else { return [] }
         return Set(String(cString: raw).split(separator: ",").map(String.init))
     }()
-    /// The key of the "other processes" row (with `programFilter`).
     static let otherProcessesKey = Int64.min + 1
 
-    /// The row key of a trap made by `kernel` (`programFilter` applied).
     static func filtered(_ key: Int64, kernel: DarwinKernel?) -> Int64 {
         guard !programFilter.isEmpty, key != serviceKey else { return key }
         return kernel?.trapProfileSelected == true ? key : otherProcessesKey
@@ -121,13 +74,8 @@ public final class TrapProfile: @unchecked Sendable {
     private var rows: [Int64: Row] = [:]
     private let started = Date()
 
-    /// More lines for the report (the VMM's own timings). Set once, before
-    /// the first dump.
     public var extraReport: (() -> String)?
 
-    /// The calling thread's counters (minor faults, major faults, voluntary
-    /// and involuntary context switches), set by the VMM before the first
-    /// trap. Nil: holds are not split by cause.
     nonisolated(unsafe) public static var threadUsage: (() -> ThreadUsage)?
 
     public struct ThreadUsage: Sendable {
@@ -139,28 +87,17 @@ public final class TrapProfile: @unchecked Sendable {
         }
     }
 
-    /// The calling thread's Linux thread id, set by the VMM (the holder
-    /// sampler reads that thread's state in /proc).
     nonisolated(unsafe) public static var currentThreadID: (() -> Int)?
 
-    /// Holder samples: "state wchan" -> count (`startHolderSampler`).
     private var holderSamples: [String: UInt64] = [:]
-    /// Not-running holder samples by trap: "trap: state wchan" -> count.
     private var waitingHolderSamples: [String: UInt64] = [:]
     private var holderSampleCount: UInt64 = 0
     private var idleSampleCount: UInt64 = 0
-    /// Samples dropped because the hold ended while they were taken.
     private var staleSampleCount: UInt64 = 0
-    /// Holder samples sleeping in a futex wait, by futex address (the first
-    /// argument in /proc/self/task/<tid>/syscall): which user-space lock
-    /// or condition the holder waits for.
     private var futexSamples: [UInt: UInt64] = [:]
-    /// Names of known locks by address (`nameLock`).
     nonisolated(unsafe) private static var lockNames: [UInt: String] = [:]
     private static let lockNamesMutex = NSLock()
 
-    /// Names the lock (or condition) at `address` in the futex report.
-    /// Profiling only: does nothing when `SWIFTCODE_TRAP_PROFILE` is unset.
     public static func nameLock(_ address: UnsafeMutableRawPointer?, _ name: String) {
         guard profiling, let address else { return }
         lockNamesMutex.lock()
@@ -170,8 +107,6 @@ public final class TrapProfile: @unchecked Sendable {
 
     public init(path: String) { self.path = path }
 
-    // MARK: Recording (called with or without the kernel lock; `mutex` is a leaf lock)
-
     func noteHandler(_ key: Int64, _ nanoseconds: UInt64) {
         mutex.lock()
         defer { mutex.unlock() }
@@ -179,7 +114,6 @@ public final class TrapProfile: @unchecked Sendable {
         rows[key, default: Row()].handlerNanoseconds &+= nanoseconds
     }
 
-    /// One acquisition of the lock ended after `nanoseconds` held.
     func noteHold(_ key: Int64, _ nanoseconds: UInt64, usage: ThreadUsage? = nil) {
         mutex.lock()
         defer { mutex.unlock() }
@@ -205,7 +139,6 @@ public final class TrapProfile: @unchecked Sendable {
         rows[key] = r
     }
 
-    /// One lock call took `nanoseconds`; `contended` when the lock was taken.
     func noteWait(_ key: Int64, _ nanoseconds: UInt64, contended: Bool) {
         mutex.lock()
         defer { mutex.unlock() }
@@ -217,9 +150,6 @@ public final class TrapProfile: @unchecked Sendable {
         rows[key] = r
     }
 
-    /// The trap key of a lock acquisition or release made for `context`.
-    /// The trap in progress wins; before the kernel takes the trap the
-    /// arriving trap is used.
     static func key(for context: ThreadContext?) -> Int64 {
         guard let context else { return serviceKey }
         if let trap = context.trapInProgress { return filtered(Int64(Int32(truncatingIfNeeded: trap.x16)), kernel: context.kernel) }
@@ -227,9 +157,6 @@ public final class TrapProfile: @unchecked Sendable {
         return serviceKey
     }
 
-    // MARK: Reporting
-
-    /// The row name of a trap key (the dispatcher's own numbering).
     public static func name(_ key: Int64) -> String {
         if key == serviceKey { return "(service: no trap)" }
         if key == otherProcessesKey { return "(other processes)" }
@@ -243,15 +170,12 @@ public final class TrapProfile: @unchecked Sendable {
         return String(format: "0x%llx", key)
     }
 
-    /// A copy of the rows (tests, reports).
     public var snapshot: [Int64: Row] {
         mutex.lock()
         defer { mutex.unlock() }
         return rows
     }
 
-    /// The table as text: the top `limit` rows by hold time, by count and by wait time.
-    /// A copy of the rows (the frame profile diffs two of them).
     public func snapshotRows() -> [Int64: Row] {
         mutex.lock()
         defer { mutex.unlock() }
@@ -328,7 +252,6 @@ public final class TrapProfile: @unchecked Sendable {
                 let holdMean = r.acquisitions == 0 ? 0 : Double(r.holdNanoseconds) / Double(r.acquisitions) / 1e3
                 let waitMean = r.waits == 0 ? 0 : Double(r.waitNanoseconds) / Double(r.waits) / 1e3
                 let share = totalHold == 0 ? 0 : 100 * Double(r.holdNanoseconds) / Double(totalHold)
-                // swiftlint:disable:next empty_count - a counter, not a collection
                 let perTrap = r.count == 0 ? 0 : Double(r.acquisitions) / Double(r.count)
                 let contendedShare = r.waits == 0 ? 0 : 100 * Double(r.contended) / Double(r.waits)
                 out += line([
@@ -352,7 +275,6 @@ public final class TrapProfile: @unchecked Sendable {
         return out
     }
 
-    /// `part` as a percentage of `whole`.
     private func within(_ part: UInt64, _ whole: UInt64) -> Double {
         whole == 0 ? 0 : 100 * Double(part) / Double(whole)
     }
@@ -366,17 +288,11 @@ public final class TrapProfile: @unchecked Sendable {
         return left ? text + fill : fill + text
     }
 
-    /// Rewrites the table at `path` (atomically: a reader never sees half a table).
     public func dump() {
         let text = report()
         try? text.write(toFile: path, atomically: true, encoding: .utf8)
     }
 
-    /// Samples the kernel-lock holder every `microseconds`: its scheduler
-    /// state (R running, S sleeping, D uninterruptible) and wait channel
-    /// from /proc/self/task/<tid>/{stat,wchan}. A holder sleeping on
-    /// `rwsem_down_read_slowpath`/`rwsem_down_write_slowpath` waits for a
-    /// sleeping kernel lock such as the process's mmap_lock.
     public func startHolderSampler(lock: KernelLock, every microseconds: UInt32) {
         let thread = Thread { [self] in
             while true {
@@ -390,25 +306,18 @@ public final class TrapProfile: @unchecked Sendable {
                 }
                 let state = Self.procField("/proc/self/task/\(tid)/stat")
                 let wchan = Self.procField("/proc/self/task/\(tid)/wchan")
-                // The third field of stat (after "pid (comm)") is the state.
                 var code = "?"
                 if let state, let close = state.lastIndex(of: ")") {
                     let rest = state[state.index(after: close)...].drop { $0 == " " }
                     if let c = rest.first { code = String(c) }
                 }
                 let key = code == "R" ? "R" : "\(code) \(wchan.flatMap { $0.isEmpty || $0 == "0" ? nil : $0 } ?? "-")"
-                // A futex wait: the syscall file names the futex word
-                // ("98 0x<uaddr> ..." on arm64 Linux).
                 var futex: UInt?
                 if code == "S", wchan?.contains("futex") == true,
                    let call = Self.procField("/proc/self/task/\(tid)/syscall")?.split(separator: " "),
                    call.count > 1, call[0] == "98", call[1].hasPrefix("0x") {
                     futex = UInt(call[1].dropFirst(2), radix: 16)
                 }
-                // The holder may have let go (and be doing something else)
-                // while its /proc files were read: holds average a few
-                // microseconds, a read takes longer. Such samples describe
-                // a thread that no longer holds the lock; drop them.
                 guard lock.holdSequence == sequence else {
                     mutex.lock(); staleSampleCount &+= 1; mutex.unlock()
                     continue
@@ -425,7 +334,6 @@ public final class TrapProfile: @unchecked Sendable {
         thread.start()
     }
 
-    /// The process's mappings (start, end, file offset, path) from /proc/self/maps.
     private static func mappings() -> [(start: UInt, end: UInt, offset: UInt, path: String)] {
         guard let text = try? String(contentsOfFile: "/proc/self/maps", encoding: .utf8) else { return [] }
         return text.split(separator: "\n").compactMap { line in
@@ -437,7 +345,6 @@ public final class TrapProfile: @unchecked Sendable {
         }
     }
 
-    /// Where `address` lies: a file mapping (name + offset) or an anonymous one.
     private static func region(_ address: UInt, _ maps: [(start: UInt, end: UInt, offset: UInt, path: String)]) -> String {
         guard let m = maps.first(where: { $0.start <= address && address < $0.end }) else { return "unmapped" }
         let name = m.path.split(separator: "/").last.map(String.init) ?? m.path
@@ -454,9 +361,6 @@ public final class TrapProfile: @unchecked Sendable {
         return String(decoding: buffer[0..<n], as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Rewrites the table at `path` every `seconds` on a background thread
-    /// (the harness ends a boot with SIGTERM, so an exit-time dump alone
-    /// would be lost).
     public func startPeriodicDump(every seconds: TimeInterval = TrapProfile.dumpInterval) {
         let thread = Thread { [self] in
             while true {

@@ -1,8 +1,3 @@
-// The control protocol on a "control" connection (sim-link.md §6): one JSON
-// request per line, one JSON response per line, in order. An `upload`
-// request is followed by its archive (DirectoryArchive) on the same
-// connection, then answered.
-
 import Foundation
 
 public struct LinkRequest: Codable, Sendable, Equatable {
@@ -17,8 +12,6 @@ public struct LinkRequest: Codable, Sendable, Equatable {
     public var size: Int?
     public var lines: Int?
     public var from: String?
-    /// `run`: the app runs with the debug stub (debug-stub.md; debug.md
-    /// "The Linux IDE: apps on the simulator").
     public var debug: Bool?
 
     public init(op: String, device: String? = nil, deviceType: String? = nil, runtime: String? = nil, app: String? = nil,
@@ -43,7 +36,6 @@ public struct LinkDeviceInfo: Codable, Sendable, Equatable {
     public var name: String
     public var deviceType: String
     public var runtime: String
-    /// "shutdown", "booting", "running", "stopping".
     public var state: String
     public var app: String?
 
@@ -62,9 +54,6 @@ public struct LinkResponse: Codable, Sendable, Equatable {
     public var log: [String]?
     public var host: String?
     public var bundleID: String?
-    /// `run` with `debug`: the host's path of the debug stub's socket. A
-    /// client on the host itself connects to it; another machine needs
-    /// the link to carry it (#50).
     public var debugSocket: String?
 
     public init(ok: Bool, error: String? = nil, message: String? = nil) { (self.ok, self.error, self.message) = (ok, error, message) }
@@ -72,7 +61,6 @@ public struct LinkResponse: Codable, Sendable, Equatable {
     public static func failure(_ e: String) -> LinkResponse { LinkResponse(ok: false, error: e) }
 }
 
-/// The ports and addresses a host uses (sim-link.md §7; every one configurable).
 public enum LinkDefaults {
     public static let controlPort = 47800
     public static let mediaPort = 47801

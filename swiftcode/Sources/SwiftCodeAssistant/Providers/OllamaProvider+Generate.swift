@@ -3,28 +3,18 @@ import Foundation
 import FoundationNetworking
 #endif
 
-// Ollama's generate, show and pull endpoints (Ollama's public API
-// documentation, docs/api.md): fill-in-the-middle for predictive code
-// completion (specs/ide/predictive-completion.md) and model downloads the
-// user asks for in Settings.
-
 extension OllamaProvider {
-    /// Where people get Ollama (shown when nothing answers at the address).
     public static let downloadURL = "https://ollama.com/download"
-    /// The one line shown with the link when Ollama is not reachable.
     public static let installHint = "Install Ollama from ollama.com/download and open it (or run `ollama serve`), then choose a model in Settings."
 
-    /// One streamed `/api/generate` line.
     public enum GenerateEvent: Sendable, Equatable {
         case text(String)
-        /// The last line: token counts and Ollama's own durations (ns).
         case done(GenerateStats)
     }
 
     public struct GenerateStats: Sendable, Equatable {
         public var promptTokens: Int?
         public var outputTokens: Int?
-        /// `load_duration`, `prompt_eval_duration`, `eval_duration`, `total_duration` (nanoseconds).
         public var loadNanoseconds: Int?
         public var promptNanoseconds: Int?
         public var evalNanoseconds: Int?
@@ -42,14 +32,10 @@ extension OllamaProvider {
         }
     }
 
-    /// A `/api/generate` request. With `suffix`, the model's own template
-    /// builds the fill-in-the-middle prompt (only models whose template
-    /// handles a suffix, capability `insert`).
     public struct GenerateRequest: Sendable, Equatable {
         public var model: String
         public var prompt: String
         public var suffix: String?
-        /// `options`: `num_predict`, `temperature`, `top_p`, `top_k`, `stop`, `num_ctx`.
         public var maxTokens: Int?
         public var temperature: Double?
         public var topP: Double?
@@ -57,7 +43,6 @@ extension OllamaProvider {
         public var repeatPenalty: Double?
         public var stop: [String]
         public var contextTokens: Int?
-        /// `keep_alive` (e.g. "30m"); nil: the server's default.
         public var keepAlive: String?
         public init(model: String, prompt: String, suffix: String? = nil, maxTokens: Int? = nil, temperature: Double? = nil,
                     topP: Double? = nil, topK: Int? = nil, repeatPenalty: Double? = nil, stop: [String] = [], contextTokens: Int? = nil, keepAlive: String? = nil) {
@@ -75,7 +60,6 @@ extension OllamaProvider {
         }
     }
 
-    /// The `/api/generate` body (streamed).
     public static func generateBody(_ r: GenerateRequest) -> [String: Any] {
         var body: [String: Any] = ["model": r.model, "prompt": r.prompt, "stream": true]
         if let s = r.suffix { body["suffix"] = s }
@@ -92,8 +76,6 @@ extension OllamaProvider {
         return body
     }
 
-    /// Streams `/api/generate`. Errors: `unreachable` (nothing at the
-    /// address), `modelNotFound` (HTTP 404), `http`, `malformed`.
     public func generate(_ request: GenerateRequest) -> AsyncThrowingStream<GenerateEvent, Error> {
         let base = baseURL
         let hint = Self.installHint
@@ -128,7 +110,6 @@ extension OllamaProvider {
         }
     }
 
-    /// The events of one NDJSON line of a streamed `/api/generate` reply.
     public static func parseGenerateLine(_ line: String) throws -> [GenerateEvent] {
         let t = line.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return [] }
@@ -145,8 +126,6 @@ extension OllamaProvider {
         return events
     }
 
-    /// The installed models (`/api/tags`); throws `unreachable` when
-    /// nothing answers.
     public func installedModels() async throws -> [ModelInfo] {
         guard let url = HTTP.url(baseURL, "api/tags") else { throw AssistantError.failed("The Ollama address “\(baseURL)” is not a valid URL.") }
         do {
@@ -158,8 +137,6 @@ extension OllamaProvider {
         }
     }
 
-    /// A model's `capabilities` from `/api/show` (e.g. `completion`,
-    /// `insert`, `tools`); nil when Ollama does not report them.
     public func capabilities(model: String) async -> [String]? {
         guard let url = HTTP.url(baseURL, "api/show"), let req = try? HTTP.jsonRequest(url, body: ["model": model]),
               let r = try? await HTTP.send(req, timeout: 5), r.status == 200 else { return nil }
@@ -170,7 +147,6 @@ extension OllamaProvider {
         JSON.object(body)?["capabilities"] as? [String]
     }
 
-    /// One `/api/pull` progress line.
     public struct PullProgress: Sendable, Equatable {
         public var status: String
         public var completed: Int?
@@ -178,8 +154,6 @@ extension OllamaProvider {
         public var fraction: Double? { total.flatMap { t in t > 0 ? Double(completed ?? 0) / Double(t) : nil } }
     }
 
-    /// Downloads `model` into Ollama (`/api/pull`, streamed). Only on the
-    /// user's explicit request.
     public func pull(model: String) -> AsyncThrowingStream<PullProgress, Error> {
         let base = baseURL
         return AsyncThrowingStream { out in

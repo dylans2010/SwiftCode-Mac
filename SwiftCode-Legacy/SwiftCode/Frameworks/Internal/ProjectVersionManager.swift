@@ -20,8 +20,6 @@ public final class ProjectVersionManager: Sendable {
         let fromVersion = manifest.versioning.schemaVersion
         let toVersion = fromVersion + 1
 
-        // Migration logic here
-
         manifest.versioning.schemaVersion = toVersion
         manifest.versioning.migrationHistory.append(
             ProjectManifest.Versioning.MigrationEntry(

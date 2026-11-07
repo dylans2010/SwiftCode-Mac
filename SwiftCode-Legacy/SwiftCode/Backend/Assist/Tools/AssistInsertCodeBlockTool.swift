@@ -33,8 +33,6 @@ public struct AssistInsertCodeBlockTool: AssistTool {
             return .failure("Missing required parameter: code")
         }
 
-        // Validate mode / pattern / line BEFORE opening a diff stream or
-        // touching the file, so a rejected call leaves no partial state.
         let insertionMode = (input["mode"] as? String ?? "line").lowercased()
         guard ["line", "before", "after"].contains(insertionMode) else {
             return .failure("Unknown mode '\(insertionMode)': expected 'line', 'before', or 'after'.")
@@ -58,9 +56,6 @@ public struct AssistInsertCodeBlockTool: AssistTool {
 
         do {
             let content = try context.fileSystem.readFile(at: path)
-            // Pattern modes must actually match; the helpers return the
-            // original content unchanged on a miss, which previously
-            // reported success while writing an unchanged file.
             if let pattern {
                 guard content.contains(pattern) else {
                     return .failure("Pattern not found in \(path): '\(pattern)'. No changes made.")

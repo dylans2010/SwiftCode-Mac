@@ -8,7 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-/// One row of golden-layout.md.
 struct GoldenCase {
     struct Fit {
         var proposal: ProposedViewSize
@@ -21,13 +20,6 @@ struct GoldenCase {
     var baselines: (first: CGFloat, last: CGFloat)?
 }
 
-/// Runs a golden case against the engine with the R3 stubs (Fixture).
-///
-/// Every check is computed on a fresh tree. A check whose computation asked
-/// the text stub for something it cannot measure exactly (a text narrower
-/// than its single line, or the baseline of a zero-size text) is *skipped*
-/// (recorded, not compared); everything else must match within the spec's
-/// tolerance of 0.01 pt (04-layout.md §9, 10-plan.md T-LAYOUT-F).
 enum Golden {
     static let tolerance: CGFloat = 0.01
 
@@ -39,8 +31,6 @@ enum Golden {
 
     static func close(_ a: CGFloat, _ b: CGFloat) -> Bool {
         if a.isInfinite || b.isInfinite { return a == b }
-        // 0.01 pt, plus the representation error of decimal golden values
-        // (21.0 against the printed 20.99 is within the tolerance).
         return abs(a - b) <= tolerance + 1e-9
     }
 
@@ -117,8 +107,6 @@ extension GoldenCase.Fit {
 
 let inf = CGFloat.infinity
 
-/// Checks one entry of the default-spacing matrix: the distance from the
-/// `from` view to the `to` view placed after it, horizontally and vertically.
 enum GoldenSpacing {
     static func check(_ id: String, from: () -> LayoutNode, to: () -> LayoutNode,
                       horizontal: CGFloat, vertical: CGFloat,

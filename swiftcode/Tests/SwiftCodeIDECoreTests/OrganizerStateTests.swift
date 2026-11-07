@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Writes `.xcarchive` bundles in the layout `specs/ide/organizer.md`
-/// reads (Info.plist and, with an application, its Products folder), with
-/// no tools: the tests run on macOS and Linux alike.
 struct ArchiveFixtures {
     let root: URL
 
@@ -35,8 +32,6 @@ struct ArchiveFixtures {
     }
 }
 
-/// The Organizer's shared state (`OrganizerState`), which the macOS and
-/// Linux Organizers both draw (`specs/ide/organizer.md`, `reference-ui-3.md` §6).
 struct OrganizerStateTests {
     let t0 = Date(timeIntervalSince1970: 1_793_000_000)
 
@@ -47,7 +42,6 @@ struct OrganizerStateTests {
         try f.make("Greeter 2", app: "Greeter", version: "1.1", build: "2", created: t0 + 3600)
         try f.make("Notes", app: "Notes", version: "2.0", build: "14", created: t0 + 1800)
         try f.make("tool", app: nil, created: t0 + 60)
-        // A folder without an Info.plist is not an archive.
         try FileManager.default.createDirectory(at: f.root.appendingPathComponent("2026-11-05/Broken.xcarchive"), withIntermediateDirectories: true)
 
         var s = OrganizerState()
@@ -84,12 +78,10 @@ struct OrganizerStateTests {
         #expect(OrganizerState.columns.map(\.title) == ["Name", "Creation Date", "Version", "Status"])
         #expect(OrganizerState.columns.map { OrganizerState.cellText(entry, column: $0.id) } == ["Greeter 1", date, "1.0 (7)", "Archived"])
 
-        // Selecting the other application's archive switches the picker.
         let rowG = s.select(archiveAt: g)
         #expect(rowG == 1 && s.selectedApp == "tool")
         #expect(s.detailRows.contains { $0 == ("Type", "Generic Archive") } && s.detailRows.contains { $0 == ("Comment", "No Description") })
         #expect(!s.canDistribute)
-        // A heading selects nothing; choosing another app drops the selection.
         s.selectRow(0)
         #expect(s.selected == nil && s.selectedRow == nil)
         s.selectRow(1)
@@ -128,7 +120,6 @@ struct OrganizerStateTests {
         #expect(moved && s.page == "Archives" && !s.canGoBack)
         moved = s.moveInHistory(-1)
         #expect(!moved)
-        // A new page drops the pages ahead.
         s.showPage("Crashes", section: "Reports")
         #expect(s.history.map(\.page) == ["Archives", "Crashes"] && !s.canGoForward)
         #expect(OrganizerSidebar.rows[s.sidebarRow ?? 0].page == "Crashes")
@@ -145,7 +136,6 @@ struct OrganizerStateTests {
     }
 
     @Test func columnsFitTheListBetweenSidebarAndDetails() {
-        // 900 − (8 + 180 + 8) − 250 = 454 points for the list.
         #expect(OrganizerState.columns.reduce(0) { $0 + $1.width } <= 454 - 16)
         #expect(Organizer.defaultArchivesDirectory.path.hasSuffix("Library/Developer/Xcode/Archives"))
     }

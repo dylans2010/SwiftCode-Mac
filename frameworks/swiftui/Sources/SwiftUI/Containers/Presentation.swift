@@ -6,38 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Presentations (round R9; 06 §6, suite T-MODAL).
-//
-// Measured (06 §6): a sheet's `onAppear` runs when the presentation starts;
-// setting `isPresented = false` slides it out and runs `onDismiss`, then
-// `onDisappear`, at the end (0.53 s later); a sheet with detents [.medium,
-// .large] floats 8 points in from the window's edges at (8, 280, 374, 356)
-// and (8, 8, 374, 636) in the reference's window (466 × 678, safe area 382 ×
-// 644); setting the detent binding resizes it with an animation; a
-// full-screen cover fills the window with the content in its safe area and
-// has the sheet's dismissal order; a popover is sized to its content.
-//
-// Design (SwiftCode's): sheets, covers, alerts and dialogs are layers of their
-// window (a presentation layer above the window's content and below its
-// pop-up overlays) with a dimming layer that takes every press, so the
-// content below is modal; Tab stays inside the innermost presentation.
-// Popovers are R8's pop-up windows. Presenting animates for 0.35 s,
-// dismissing for 0.5 s (ease-in-out), both by sliding from the bottom edge
-// (alerts and desktop dialogs fade and scale instead).
-//
-// Geometry: on the headless host (the reference phone) sheets follow the
-// detents: `.large` is (8, 8, W − 8, H − 8) in the safe area W × H; a sheet
-// of any other detent ends 8 points above the safe area's bottom, `.medium`
-// being half the window's height plus 17 points (356 at 678, the measured
-// value), `.fraction(f)` f × the large height, `.height(h)` h. On desktop
-// hosts a sheet is a card centred in the window at its content's ideal
-// size, at least 360 × 200 and at most the window less 40 points. Alerts are
-// 270 points wide (300 on desktop) and centred; dialogs are action sheets at
-// the bottom on the phone host and centred cards on desktop hosts.
-
-// MARK: - Detents
-
-/// A height a sheet can rest at.
 public struct PresentationDetent: Hashable, Sendable {
     enum Kind: Hashable, Sendable {
         case medium, large
@@ -51,7 +19,6 @@ public struct PresentationDetent: Hashable, Sendable {
     public static func height(_ h: CGFloat) -> PresentationDetent { PresentationDetent(kind: .height(h)) }
 }
 
-/// The options a presentation's content registers.
 @MainActor
 final class SheetOptions {
     var detents: [PresentationDetent] = [.large]
@@ -129,9 +96,6 @@ public struct PresentationBackgroundInteraction: Sendable, Equatable {
     public static let enabled = PresentationBackgroundInteraction(kind: 2)
 }
 
-// MARK: - The window's presentations
-
-/// One presentation of a window.
 @MainActor
 final class PresentationEntry {
     enum Kind { case sheet, cover, alert, dialog }
@@ -139,10 +103,8 @@ final class PresentationEntry {
     let kind: Kind
     var content: AnyView
     var onDismiss: (() -> Void)?
-    /// Writes the presenting binding (false when dismissed from inside).
     var setPresented: (Bool) -> Void
     let options = SheetOptions()
-    /// The presenter's environment (the card's colours follow it).
     var environment = EnvironmentValues()
     var progress: Double = 0
     var isDismissing = false
@@ -157,7 +119,6 @@ final class PresentationEntry {
     }
 }
 
-/// The presentations of a window, innermost last.
 @MainActor
 package final class PresentationCenter {
     private(set) var entries: [PresentationEntry] = []
@@ -187,8 +148,6 @@ package final class PresentationCenter {
         onChange?()
     }
 
-    /// Animates the presentation out; at the end `onDismiss` runs and the
-    /// content is removed (its `onDisappear` follows; 06 §6).
     func dismiss(_ id: ObjectIdentifier, animated: Bool = true) {
         guard let e = entry(id), !e.isDismissing else { return }
         e.isDismissing = true
@@ -233,7 +192,6 @@ package final class PresentationCenter {
     }
 }
 
-/// The layer that shows a window's presentations.
 struct PresentationLayer: View, PrimitiveView {
     let center: PresentationCenter
     let entries: [PresentationEntry]
@@ -243,8 +201,6 @@ struct PresentationLayer: View, PrimitiveView {
         center.layerNode = node
         center.graph = node.graph
         var items: [(AnyHashable, any View)] = []
-        // The detent bindings are dependencies of the layer (06 §6: setting
-        // the detent resizes the sheet).
         _ = node.trackContent { entries.map { $0.options.current } }
         for e in entries {
             e.options.owner = node
@@ -294,13 +250,11 @@ extension PresentationLayer: GraphInputComparable {
     nonisolated func _isGraphInputEqual(to other: Any) -> Bool { false }
 }
 
-/// The detents a sheet uses, captured for layout.
 struct PlacementOptions {
     let detent: PresentationDetent
     init(_ o: SheetOptions) { detent = MainActor.assumeIsolated { o.current } }
 }
 
-/// Places a presentation's card in the layer (header comment).
 struct PresentationPlacementBehavior: NodeBehavior {
     let kind: PresentationEntry.Kind
     let progress: Double
@@ -366,8 +320,6 @@ struct PresentationPlacementBehavior: NodeBehavior {
     }
 }
 
-/// A presentation's card: its background, the content, the modal press
-/// catcher behind it.
 struct PresentationCard: View {
     let entry: PresentationEntry
     let content: AnyView
@@ -389,11 +341,6 @@ struct PresentationCard: View {
     }
 }
 
-// MARK: - Modifiers
-
-/// Presents `content` in its window while `isPresented` is true. The
-/// colour scheme is read here so that a change of it (or of the presenting
-/// view) reaches the presentation, which takes the presenter's environment.
 struct PresentationModifier: ViewModifier {
     let kind: PresentationEntry.Kind
     let isPresented: Binding<Bool>
@@ -448,8 +395,6 @@ struct PresentationCore: PrimitiveModifier {
         guard let center = node.environment._windowServices?.presentations else { return }
         box.center = center
         let id = ObjectIdentifier(box)
-        // The binding is a dependency of this node (the presenting body need
-        // not read it).
         let presented = node.trackContent { isPresented.wrappedValue }
         if let e = center.entry(id), !e.isDismissing {
             if presented {
@@ -480,13 +425,11 @@ extension PresentationCore: GraphInputComparable {
 }
 
 extension View {
-    /// Presents a sheet while `isPresented` is true (06 §6).
     public func sheet<Content: View>(isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil,
                                      @ViewBuilder content: @escaping () -> Content) -> some View {
         modifier(PresentationModifier(kind: .sheet, isPresented: isPresented, onDismiss: onDismiss) { AnyView(content()) })
     }
 
-    /// Presents a sheet for `item` while it is not nil.
     public func sheet<Item: Identifiable, Content: View>(item: Binding<Item?>, onDismiss: (() -> Void)? = nil,
                                                          @ViewBuilder content: @escaping (Item) -> Content) -> some View {
         let presented = Binding<Bool>(get: { item.wrappedValue != nil }, set: { if !$0 { item.wrappedValue = nil } })
@@ -495,7 +438,6 @@ extension View {
         })
     }
 
-    /// Covers the window while `isPresented` is true.
     public func fullScreenCover<Content: View>(isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil,
                                                @ViewBuilder content: @escaping () -> Content) -> some View {
         modifier(PresentationModifier(kind: .cover, isPresented: isPresented, onDismiss: onDismiss) { AnyView(content()) })
@@ -508,8 +450,6 @@ extension View {
             item.wrappedValue.map { AnyView(content($0)) } ?? AnyView(EmptyView())
         })
     }
-
-    // MARK: Alerts
 
     public func alert<A: View>(_ titleKey: LocalizedStringKey, isPresented: Binding<Bool>,
                                @ViewBuilder actions: () -> A) -> some View {
@@ -554,8 +494,6 @@ extension View {
         })
     }
 
-    // MARK: Dialogs
-
     public func confirmationDialog<A: View>(_ titleKey: LocalizedStringKey, isPresented: Binding<Bool>,
                                             titleVisibility: Visibility = .automatic,
                                             @ViewBuilder actions: () -> A) -> some View {
@@ -584,9 +522,6 @@ extension View {
         })
     }
 
-    // MARK: Popover and inspector
-
-    /// Shows `content` in a pop-up window next to the view (R8 pop-ups).
     public func popover<Content: View>(isPresented: Binding<Bool>, attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
                                        arrowEdge: Edge? = nil, @ViewBuilder content: @escaping () -> Content) -> some View {
         modifier(PopoverModifier(isPresented: isPresented, content: { AnyView(content()) }))
@@ -602,7 +537,6 @@ extension View {
         }))
     }
 
-    /// A trailing column beside the view while `isPresented` is true.
     public func inspector<V: View>(isPresented: Binding<Bool>, @ViewBuilder content: () -> V) -> some View {
         InspectorHost(base: self, isPresented: isPresented.wrappedValue, content: content())
     }
@@ -611,13 +545,11 @@ extension View {
     public func inspectorColumnWidth(min: CGFloat? = nil, ideal: CGFloat, max: CGFloat? = nil) -> some View { self }
 }
 
-/// Where a popover attaches.
 public enum PopoverAttachmentAnchor: Sendable {
     case rect(Anchor<CGRect>.Source)
     case point(UnitPoint)
 }
 
-/// An anchor's source (bounds only).
 public struct Anchor<Value> {
     public struct Source: Sendable {
         public static var bounds: Source { Source() }
@@ -639,7 +571,6 @@ struct InspectorHost<Base: View, Content: View>: View {
     }
 }
 
-/// `popover`: a pop-up window below the view.
 struct PopoverModifier: PrimitiveModifier {
     let isPresented: Binding<Bool>
     let content: () -> AnyView
@@ -657,7 +588,6 @@ struct PopoverModifier: PrimitiveModifier {
         let open = box.handle.map { !$0.isDismissed } ?? false
         if presented && !open {
             guard let services = node.environment._windowServices, let popups = services.popups else { return }
-            // Open after this update, when the view has a frame.
             let binding = isPresented, make = content
             node.graph.queuePreferenceAction { [weak node] in
                 guard let node, node.isAlive, box.handle.map({ !$0.isDismissed }) != true,
@@ -684,7 +614,6 @@ extension PopoverModifier: GraphInputComparable {
     nonisolated func _isGraphInputEqual(to other: Any) -> Bool { false }
 }
 
-/// A popover's frame (SwiftCode): the sheet colour, a hairline, 12-point padding.
 struct PopoverChrome: View {
     let content: AnyView
     @Environment(\.colorScheme) private var scheme
@@ -698,11 +627,6 @@ struct PopoverChrome: View {
     }
 }
 
-// MARK: - Alert and dialog cards
-
-/// An alert or confirmation dialog: title, message, buttons (two side by
-/// side, otherwise one per row; cancel last). Choosing a button runs its
-/// action and dismisses.
 struct AlertCard: View {
     let title: Text?
     let message: AnyView
@@ -749,8 +673,6 @@ struct AlertCard: View {
     }
 }
 
-/// Alert buttons: the tinted label (red when destructive, semibold when
-/// cancelling); choosing one dismisses the alert.
 struct AlertButtonStyle: PrimitiveButtonStyle {
     let dismiss: () -> Void
     func makeBody(configuration: Configuration) -> some View {

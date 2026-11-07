@@ -3,155 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// The ported Legacy test-running / coverage tool family (Wave 6,
-/// slice A).
-///
-/// Behaviour source: Legacy's `AssistTestRunSingleTool`,
-/// `AssistXctestDiscoveryTool`, `AssistTestLogParseTool`,
-/// `AssistTestFlakyDetectTool`, `AssistTestCoverageReportTool`,
-/// `AssistTestCoverageReporterTool`, `AssistTestDataFactoryTool`,
-/// `AssistTestSnapshotManageTool`, `AssistTestTargetAddTool`,
-/// `AssistUITestScaffoldTool`, `AssistInterfaceSimulatorTool`,
-/// `AssistPreflightChecksTool`, `AssistPerformanceBenchmarkTool`,
-/// `AssistCompilerDiagnosticsEngine`, `AssistCrashLogParseTool` and
-/// `AssistRuntimeDiagnosticsEngine` (Dylan's own code, ported under
-/// MIT). Pure parsing/generation lives in
-/// `SwiftCodeTools+TestingSupport.swift`.
-///
-/// Conventions, following Waves 1–5:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   The one tool-name alias in this slice, `test_coverage` →
-///   `test_coverage_reporter` (Legacy's `AssistToolRegistry` alias
-///   table), lives in `MCPServer.toolAliases`, which the coordinator
-///   owns — it is not added here.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers, booleans, doubles) the way SwiftCode's other tools do —
-///   Legacy's string-only map is not reproduced. Tools whose Legacy
-///   result carries no data return a plain text result instead.
-/// * Paths resolve through the session resolvers
-///   (`resolveFileReadingPath`, `fileReadingRelativePath`) and never
-///   escape the workspace, with two deliberate, read-only
-///   exceptions documented in `specs/ide/assist-testing-running.md`:
-///   `test_coverage_reporter` searches the user's own DerivedData
-///   for `.xccovreport` files (its Legacy default) and accepts an
-///   explicit absolute report path as-is; `preflight_checks` reads
-///   the DerivedData directory and the system tool paths.
-/// * Approval gating: the four writing tools (`test_data_factory`,
-///   `test_snapshot_manage`, `test_target_add`, `ui_test_scaffold`)
-///   are `writes: true` with `safeMutation` annotations. Text writes
-///   go through `commit()`; snapshot deletions go through an
-///   explicit `MCPChange` + `approve()` per file, stopping at the
-///   first refusal. `test_snapshot_manage`'s `list` action writes
-///   nothing but is still `writes: true`, because the flag is static
-///   per tool — so in `readOnly` mode even a list call is refused
-///   in `run()`, exactly as the approval model specifies for
-///   dry-run tools. There is no Autopilot bypass.
-/// * Test execution reuses SwiftCode's own test-runner seam — the
-///   session's discovery (`discoverTests` /
-///   `testsDiscovered`) and `runTests(only:)`, the same path the
-///   `test` tool uses — never a second runner and never a shell.
-///   `test_run_single` and `test_coverage_report` therefore run
-///   through swiftcodebuild / SwiftPM, not Apple's `xcodebuild`, and
-///   work on SwiftPM packages as well as Xcode projects. Test
-///   execution itself always runs the real command and reports its
-///   actual output — no result is ever invented.
-/// * `performance_benchmark` runs its allow-listed command with
-///   the fixed-argv runner from `SwiftCodeTools+TerminalSupport.swift`
-///   (`terminalRunFixed`, off the main actor), never a shell.
-///   `test_coverage_reporter` runs the real `xcrun xccov` the same
-///   way.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `test_run_single`: no `/usr/bin/xcodebuild` is spawned and no
-///   `-only-testing:` argument is built. The test is found through
-///   the session's discovery (same matching as the `test` tool:
-///   identifier, runner identifier, bare name, suite, `Suite/name()`)
-///   and run with `runTests(only:)`. A testId that discovery cannot
-///   find fails with the `test` tool's "no test … was found"
-///   message instead of xcodebuild failing on it. `scheme` /
-///   `destination` go through `applyScheme`, so `destination` is a
-///   SwiftCode destination name/id/specifier (Legacy's default
-///   `platform=macOS` is the specifier of the "My Mac" destination
-///   and matches as-is); the shell-character guards are still
-///   checked first with Legacy's messages. The result has no
-///   `exitCode` key — SwiftCode's runner reports per-test outcomes, not
-///   a process exit code — and the output tail is the session build
-///   log's tail rather than xcodebuild's stdout tail.
-/// * `test_coverage_report`: coverage comes from the session's
-///   latest coverage rows (`latestCoverage`, gathered by
-///   `runTests` when the scheme's Test action enables it), not from
-///   parsing `xcodebuild` stdout for `%` lines, and there is no
-///   `build/TestResults.xcresult` result bundle — SwiftCode's runner
-///   writes its own reports, and no xcresult path is exposed. When
-///   the scheme does not gather coverage the tool says so plainly
-///   instead of reporting a coverage number. The `coverage` data
-///   key is the overall percent as a string (`"82.5"`, `""` when
-///   nothing was gathered), as in Legacy.
-/// * `compiler_diagnostics_engine`: the build runs through the
-///   session (`s.build(.build)` — swiftcodebuild / SwiftPM), not a
-///   directly spawned `xcodebuild`, so there is no 300 s timeout
-///   and no macOS-only gate (SwiftCode builds on Linux too). The
-///   `project` argument must name the already-open workspace;
-///   anything else fails and tells the caller to open it with
-///   `workspace_open` first. Diagnostics are the build's issues by
-///   severity, capped at 200 lines each, and the call still
-///   succeeds when the build fails — success means "diagnostics
-///   were collected", as in Legacy — with `buildFailed` and an
-///   `exitCode` derived from the build status (0 when it
-///   succeeded, 1 otherwise).
-/// * `xctest_discovery`: inventory comes from the session's
-///   discovery, filtered to XCTest (`kind == .xctest`), grouped by
-///   suite — so swift-testing `@Test` functions are not counted
-///   (Legacy only saw XCTestCase subclasses either), and a test
-///   class with no test methods does not appear (Legacy's line
-///   scan listed it with 0). Objective-C XCTest classes are found
-///   too, through the same discovery the `test` tool uses.
-/// * `test_data_factory` / `ui_test_scaffold`: Legacy's `overwrite`
-///   parameter is a string (`"true"`/`"false"`) in the schema and
-///   stays one here; a boolean `true` is also accepted by the
-///   handler when argument validation lets it through.
-/// * `test_snapshot_manage`: Legacy's `confirm` stays a string;
-///   only the exact value `"true"` (case-insensitive) cleans.
-/// * `test_coverage_reporter`: an explicit `reportPath` that is
-///   absolute is used as-is (Legacy behaviour); a relative one
-///   resolves against the workspace root. The DerivedData search
-///   is Legacy's (newest `.xccovreport`/`.xccovarchive` by
-///   modification date). Finding nothing is a success with
-///   Legacy's message, not a failure.
-/// * `interface_simulator`: Legacy's counting quirks are kept
-///   verbatim — any line carrying `.accessibilityIdentifier(` or
-///   `.accessibilityLabel(` counts toward the button total, and
-///   `.accessibilityHidden(` lines count toward the image total —
-///   because the audit's score is defined by that counting.
-/// * `test_target_add`: the pbxproj edit is computed in memory
-///   first and only written after every insert succeeds, so a
-///   missing anchor writes nothing (Legacy created the test file
-///   before checking anchors in an earlier shape; the checked-in
-///   Legacy code checks anchors first, and this port preserves the
-///   no-partial-write outcome either way). The random-ID generator
-///   fails cleanly instead of indexing out of range if it cannot
-///   produce 12 unique IDs.
-/// * `test_log_parse` / `test_flaky_detect` /
-///   `interface_simulator` / `crash_log_parse` /
-///   `runtime_diagnostics_engine`: a path the session resolver
-///   refuses fails with Legacy's own message for that tool
-///   (`logPath must be inside the workspace…`, `Cannot read crash
-///   log at: …`, …) rather than the resolver's message. A `..`
-///   that stays inside the workspace resolves (the session
-///   resolver's rule) where Legacy's per-tool resolvers rejected
-///   any `..` as text.
-/// * `runtime_diagnostics_engine`: Legacy's filesystem read threw
-///   its underlying error; this port reports `Cannot read log at:
-///   <logPath>` for any resolve/read failure.
-/// * `performance_benchmark`: Legacy waited unboundedly; this port
-///   bounds each run at 300 s through `terminalRunFixed` and fails
-///   on timeout. The `exitCodes` data key is a JSON array of
-///   integers (Legacy joined them with commas into a string).
 extension SwiftCodeMCPHost {
     var testingTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -271,8 +122,6 @@ extension SwiftCodeMCPHost {
                                        "arguments": Schema.string("Optional extra arguments, space-separated. Combined with any arguments in command."),
                                        "iterations": Schema.string("Run count. Default: 3. Maximum: 10.")],
                                       required: ["command"]),
-                 // No output schema: the seconds are doubles and this
-                 // file's Schema helper has no number type.
                  annotations: execution) { h, call in
                 try await h.testingBenchmark(call)
             },
@@ -308,7 +157,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Running tests (session seam)
 
     func testingRunSingleTest(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let testId = call.arguments["testId"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !testId.isEmpty else {
@@ -328,8 +176,6 @@ extension SwiftCodeMCPHost {
         let s = try session(for: call)
         try applyScheme(scheme, destination: destination, to: s)
         delegate?.mcpHostSaveAll()
-        // Same discovery + matching as the `test` tool: identifier,
-        // runner identifier, bare name, suite, `Suite/name()`.
         s.discoverTests()
         await s.testsDiscovered()
         let only = s.tests.filter { t in
@@ -371,9 +217,6 @@ extension SwiftCodeMCPHost {
         s.discoverTests()
         await s.testsDiscovered()
         let root = Self.folder(of: s.model).path
-        // One entry per XCTestCase subclass: its file (first seen)
-        // and its test-method count. swift-testing `@Test`
-        // functions are not XCTest and are not counted.
         var byClass: [String: (file: String, count: Int)] = [:]
         for t in s.tests where t.kind == .xctest {
             let suite = t.suite ?? t.name
@@ -458,9 +301,6 @@ extension SwiftCodeMCPHost {
         let warnings = result.issues.filter { $0.severity == .warning }
         let exitCode = result.status == .succeeded ? 0 : 1
         let buildFailed = result.status != .succeeded
-        // Success means "diagnostics were collected", not "the build
-        // passed": the build failure is explicit in the output and
-        // in the data.
         let headline = result.status == .succeeded
             ? "Compiler diagnostics collected (build succeeded)."
             : "Compiler diagnostics collected (build FAILED, exit code \(exitCode))."
@@ -470,8 +310,6 @@ extension SwiftCodeMCPHost {
                             "exitCode": .int(exitCode), "buildFailed": .bool(buildFailed)],
                            summary: headline)
     }
-
-    // MARK: - Log parsing (pure reads)
 
     func testingParseTestLog(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -726,8 +564,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n") + "\nResult: \(failures == 0 ? "all checks passed" : "\(failures) check(s) failed")")
     }
 
-    // MARK: - Execution (fixed argv, never a shell)
-
     func testingBenchmark(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let commandRaw = call.arguments["command"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !commandRaw.isEmpty else {
             throw MCPToolError("Missing required parameter: command")
@@ -795,14 +631,10 @@ extension SwiftCodeMCPHost {
         let derivedData = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Developer/Xcode/DerivedData")
         var coverageURL: URL?
         if let explicit = call.arguments["reportPath"]?.string, !explicit.isEmpty {
-            // Legacy uses an absolute path as-is; a relative path
-            // resolves against the workspace root.
             coverageURL = explicit.hasPrefix("/")
                 ? URL(fileURLWithPath: explicit)
                 : Self.folder(of: s.model).appendingPathComponent(explicit)
         } else {
-            // Most recent .xccovreport or .xccovarchive in
-            // DerivedData, by modification date.
             if let enumerator = FileManager.default.enumerator(at: derivedData, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) {
                 var candidates: [(url: URL, date: Date)] = []
                 while let item = enumerator.nextObject() as? URL {
@@ -832,8 +664,6 @@ extension SwiftCodeMCPHost {
         let snippet = lines.prefix(40).joined(separator: "\n")
         return .text("### Test Coverage Report (\(targetReport.lastPathComponent)):\n\n```\n\(snippet)\n```")
     }
-
-    // MARK: - Writes (approval-gated)
 
     func testingDataFactory(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -938,8 +768,6 @@ extension SwiftCodeMCPHost {
             if Self.testingSnapshotIsReferenced(file, in: sourceText) {
                 kept.append(rel)
             } else {
-                // One approval per deletion, before touching disk;
-                // the first refusal stops the clean.
                 try await approveFileWritingChange(tool: call.name, path: file, relativePath: rel, original: nil,
                                                    summary: "Delete unreferenced snapshot \(rel)", call: call)
                 do {
@@ -1007,8 +835,6 @@ extension SwiftCodeMCPHost {
         guard let ids = Self.testingMakePbxprojIDs(existing: pbxproj, count: 12) else {
             throw MCPToolError("Failed to generate unique pbxproj identifiers. No changes were written.")
         }
-        // Compute the whole pbxproj edit in memory first: a missing
-        // anchor must write nothing, including the test file.
         guard let modified = Self.testingInsertTestTarget(into: pbxproj, targetName: targetName, type: type, ids: ids) else {
             throw MCPToolError("Failed to insert the new target blocks into project.pbxproj. No changes were kept.")
         }

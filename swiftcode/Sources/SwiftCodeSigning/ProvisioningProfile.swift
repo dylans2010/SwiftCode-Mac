@@ -1,16 +1,11 @@
 import Foundation
 
-/// The platform a product is signed for, from the SDK.
 public enum SigningPlatform: Equatable, Sendable {
     case macOS
-    /// An iOS app built for the Mac (`SDK_VARIANT` `iosmac`).
     case macCatalyst
-    /// A simulator SDK (`iphonesimulator`, `xrsimulator`, …).
     case simulator(String)
-    /// A device SDK (`iphoneos`, `xros`, `appletvos`, `watchos`, `driverkit`).
     case device(String)
 
-    /// From an SDK canonical name (`macosx27.1`, `iphonesimulator27.0`) and variant.
     public init(sdk: String, variant: String?) {
         let base = String(sdk.prefix { $0.isLetter })
         if base == "macosx" { self = variant == "iosmac" ? .macCatalyst : .macOS }
@@ -21,13 +16,9 @@ public enum SigningPlatform: Equatable, Sendable {
     public var isMac: Bool { self == .macOS || self == .macCatalyst }
     public var isSimulator: Bool { if case .simulator = self { true } else { false } }
 
-    /// The application-identifier entitlement's key: the macOS name on the
-    /// Mac, the short one elsewhere (Apple TN3125).
     public var applicationIdentifierKey: String { isMac ? "com.apple.application-identifier" : "application-identifier" }
-    /// The debugging entitlement's key.
     public var getTaskAllowKey: String { isMac ? "com.apple.security.get-task-allow" : "get-task-allow" }
 
-    /// The `Platform` names a provisioning profile lists for this platform.
     public var profilePlatforms: [String] {
         switch self {
         case .macOS, .macCatalyst: ["OSX"]
@@ -44,9 +35,6 @@ public enum SigningPlatform: Equatable, Sendable {
     }
 }
 
-/// A provisioning profile, decoded from its CMS envelope (Apple TN3125:
-/// "Inside Code Signing: Provisioning Profiles"). SwiftCode only reads the
-/// profiles the user already has; it never creates or downloads one.
 public struct ProvisioningProfile: Equatable, Sendable {
     public var uuid: String
     public var name: String
@@ -60,10 +48,8 @@ public struct ProvisioningProfile: Equatable, Sendable {
     public var entitlements: Entitlements
     public var provisionedDevices: [String]
     public var provisionsAllDevices: Bool
-    /// SHA-1 of each certificate in `DeveloperCertificates`.
     public var certificateHashes: [String]
     public var isXcodeManaged: Bool
-    /// Where it was read from.
     public var path: String?
 
     public init(uuid: String, name: String, teamIdentifiers: [String], teamName: String? = nil, appIDName: String? = nil,
@@ -96,7 +82,6 @@ public struct ProvisioningProfile: Equatable, Sendable {
         }
     }
 
-    /// From the profile's property list (the CMS content).
     public init(propertyList data: Data, path: String? = nil) throws {
         let d = try Entitlements.fromPropertyList(data)
         guard let uuid = d["UUID"]?.stringValue else { throw DecodingError.missingKey("UUID") }
@@ -117,30 +102,24 @@ public struct ProvisioningProfile: Equatable, Sendable {
                   path: path)
     }
 
-    /// The profile's application identifier (`<prefix>.<bundle id pattern>`).
     public var applicationIdentifier: String? {
         (entitlements["application-identifier"] ?? entitlements["com.apple.application-identifier"])?.stringValue
     }
 
-    /// The team prefix of the application identifier.
     public var applicationIdentifierPrefix: String? {
         applicationIdentifier.flatMap { id in id.firstIndex(of: ".").map { String(id[..<$0]) } } ?? applicationIdentifierPrefixes.first
     }
 
-    /// The bundle-identifier pattern (`com.example.app`, `com.example.*`, `*`).
     public var bundleIdentifierPattern: String? {
         applicationIdentifier.flatMap { id in id.firstIndex(of: ".").map { String(id[id.index(after: $0)...]) } }
     }
 
-    /// Whether the application identifier is a wildcard.
     public var isWildcard: Bool { bundleIdentifierPattern?.hasSuffix("*") ?? false }
 
     public enum Kind: String, Sendable {
         case development, adHoc = "ad-hoc", enterprise, distribution
     }
 
-    /// The kind, from what the profile allows (TN3125): debugging means
-    /// development; devices without debugging, ad hoc; all devices, enterprise.
     public var kind: Kind {
         if entitlements["get-task-allow"]?.boolValue == true || entitlements["com.apple.security.get-task-allow"]?.boolValue == true { return .development }
         if provisionsAllDevices { return .enterprise }
@@ -150,19 +129,13 @@ public struct ProvisioningProfile: Equatable, Sendable {
 
     public func isExpired(at now: Date) -> Bool { expirationDate.map { $0 <= now } ?? false }
 
-    /// Whether the profile covers the bundle identifier.
     public func covers(bundleIdentifier: String) -> Bool {
         guard let pattern = bundleIdentifierPattern else { return false }
         return EntitlementPolicy.pattern(pattern, matches: bundleIdentifier)
     }
 }
 
-/// The provisioning profiles installed for the user.
 public enum ProfileStore {
-    /// Where profiles are installed: Xcode 16 and later keep them in
-    /// `~/Library/Developer/Xcode/UserData/Provisioning Profiles`; earlier
-    /// versions (and other tools) in `~/Library/MobileDevice/Provisioning Profiles`.
-    /// `SWIFTCODE_PROVISIONING_PROFILES` (folders separated by `:`) replaces both.
     public static func directories(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
         if let list = environment["SWIFTCODE_PROVISIONING_PROFILES"] {
             return list.split(separator: ":").map(String.init)
@@ -172,9 +145,6 @@ public enum ProfileStore {
                 home + "/Library/MobileDevice/Provisioning Profiles"]
     }
 
-    /// The property list inside a profile file: plain property lists (as
-    /// tests write them) are used as they are; CMS envelopes are opened
-    /// with `security cms -D` on macOS.
     public static func contents(ofFile path: String, runner: CommandRunner = .system) -> Data? {
         guard let data = FileManager.default.contents(atPath: path) else { return nil }
         if data.starts(with: Array("<?xml".utf8)) || data.starts(with: Array("bplist".utf8)) { return data }
@@ -183,7 +153,6 @@ public enum ProfileStore {
         return r.status == 0 ? r.output : nil
     }
 
-    /// Every readable profile (`*.mobileprovision`, `*.provisionprofile`) in the folders.
     public static func load(directories: [String], runner: CommandRunner = .system) -> [ProvisioningProfile] {
         var out: [ProvisioningProfile] = []
         var seen = Set<String>()

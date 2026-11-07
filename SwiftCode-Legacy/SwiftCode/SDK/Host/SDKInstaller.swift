@@ -1,49 +1,14 @@
 import Foundation
 import os.log
 
-// MARK: - SDKInstaller
-//
-// Real installer for the `@swiftcode/sdk` npm package (spec §5, "Studio
-// first-launch SDK installer").
-//
-// What it does:
-//   - Runs `npm install <url> --prefix <dir>` through a real Swift
-//     `Process`, streaming live stdout/stderr lines to the caller.
-//   - Never reports success unless `<prefix>/node_modules/@swiftcode/sdk/`
-//     `package.json` resolves AND parses with a non-empty `version`.
-//     A non-zero npm exit, a missing package.json, or an unparseable
-//     version is reported as failure carrying the REAL npm output —
-//     never a fake "installed".
-//   - Idempotent: `inspect(prefix:)` classifies an existing install as
-//     `.ok` / `.missing` / `.versionMismatch` / `.corrupt`, and the
-//     install path uses that to skip, install, or repair.
-//   - Fallback: if GitHub is unreachable, installs from an app-bundled
-//     SDK copy (parameter or Bundle.main resource) and says so honestly
-//     via `InstallResult.usedFallback`.
-//
-// Testability: the npm executable, the reachability probe, the prefix,
-// and the fallback source are all injectable via `InstallOptions`, so
-// tests can point at a stub home directory and a stub `npm` script.
-//
-// macOS 15, Swift 6. Verification and remaining release gates are
-// documented in SDK/Documentation/Release-Readiness.md.
-
 public enum SDKInstaller {
 
-    // MARK: - Configuration
-
-    /// The npm package installed.
     public static let packageName = "@swiftcode/sdk"
 
-    /// Pinned remote distribution. The exact archive is probed and verified;
-    /// unavailable or incomplete remote releases fall back to the bundled SDK.
     public static let downloadURL = URL(string: "https://raw.githubusercontent.com/dylans2010/SwiftCode-Mac/sdk-v1.0.0/SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz")!
 
-    /// The version the pinned tarball is expected to contain.
     public static let expectedVersion = "1.0.0"
 
-    /// Default install location: `~/.swiftcode/sdk`. Overridable per
-    /// call (and per test) via `InstallOptions.prefix`.
     public static var defaultPrefix: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".swiftcode/sdk", isDirectory: true)
@@ -54,27 +19,13 @@ public enum SDKInstaller {
         category: "SDKInstaller"
     )
 
-    // MARK: - Inspection
-
-    /// Classification of whatever currently lives at `prefix`.
     public enum Inspection: Sendable, Equatable {
-        /// A usable install: package.json resolves, names the right
-        /// package, and carries the expected version.
         case ok(version: String)
-        /// Nothing installed at this prefix.
         case missing
-        /// package.json resolves and parses, but the version differs
-        /// from `expectedVersion`.
         case versionMismatch(actual: String)
-        /// Something is there but it is not a usable install
-        /// (unreadable file, invalid JSON, wrong package, no version).
         case corrupt(reason: String)
     }
 
-    /// Inspects the install state at `prefix` (default
-    /// `~/.swiftcode/sdk`). Pure file-system read — no network, no
-    /// subprocess. The install path uses this to decide between
-    /// skip / install / repair.
     public static func inspect(
         prefix: URL? = nil,
         expectedVersion: String = SDKInstaller.expectedVersion
@@ -117,9 +68,6 @@ public enum SDKInstaller {
         return .ok(version: version)
     }
 
-    // MARK: - Install
-
-    /// One streamed line of installer output.
     public struct LogLine: Sendable, Equatable {
         public enum Stream: String, Sendable {
             case stdout
@@ -134,49 +82,26 @@ public enum SDKInstaller {
         }
     }
 
-    /// Options for `install(_:onLine:)`. Every external dependency is
-    /// injectable so tests can stub the home directory, the npm binary,
-    /// and the reachability probe.
     public struct InstallOptions: Sendable {
-        /// npm `--prefix`. Defaults to `~/.swiftcode/sdk`.
         public var prefix: URL = SDKInstaller.defaultPrefix
-        /// Remote tarball installed when GitHub is reachable.
         public var downloadURL: URL = SDKInstaller.downloadURL
-        /// Version the verified install must carry.
         public var expectedVersion: String = SDKInstaller.expectedVersion
-        /// Fallback source used when GitHub is unreachable: a local
-        /// `.tgz` or directory that `npm install` accepts. `nil` means
-        /// auto-detect from the app bundle.
         public var bundledFallbackURL: URL? = nil
-        /// Explicit npm binary. `nil` means resolve from known locations
-        /// plus `PATH` (see `resolveNPMExecutable()`).
         public var npmExecutable: URL? = nil
-        /// Reachability check for the download URL. `nil` means a real
-        /// `URLSession` HEAD probe.
         public var reachabilityProbe: (@Sendable (URL) async -> Bool)? = nil
-        /// Maximum seconds for one `npm install` invocation. Exceeding
-        /// it terminates the process and reports a real timeout error.
-        /// `nil` disables the timeout.
         public var timeout: TimeInterval? = 600
 
         public init() {}
     }
 
-    /// The outcome of `install(_:onLine:)`. `success` is true ONLY when
-    /// the post-install verification (`inspect`) returned `.ok`.
-    /// `usedFallback` is true ONLY when the verified install came from
-    /// the bundled fallback source rather than GitHub.
     public struct InstallResult: Sendable, Equatable {
         public var success: Bool
         public var installedVersion: String?
         public var usedFallback: Bool
         public var message: String
-        /// Full npm transcript (each entry prefixed `[stdout]`/`[stderr]`).
-        /// On failure this carries the real error text.
         public var log: [String]
     }
 
-    /// Errors that abort the install before npm can even run.
     public enum InstallerError: Error, LocalizedError, Sendable {
         case npmNotFound(searchedPaths: [String])
         case installTimedOut(seconds: TimeInterval)
@@ -194,9 +119,6 @@ public enum SDKInstaller {
         }
     }
 
-    /// Runs the install. Idempotent: an already-`.ok` prefix short-
-    /// circuits to success without spawning npm. Streams every stdout/
-    /// stderr line to `onLine` as it arrives.
     public static func install(
         options: InstallOptions = InstallOptions(),
         onLine: @escaping @Sendable (LogLine) -> Void = { _ in }
@@ -207,7 +129,6 @@ public enum SDKInstaller {
             onLine(line)
         }
 
-        // 1. Idempotent short-circuit / repair decision.
         switch inspect(prefix: options.prefix, expectedVersion: options.expectedVersion) {
         case .ok(let version):
             logger.info("SDKInstaller: already installed (\(version)) at \(options.prefix.path, privacy: .public) — skipping npm.")
@@ -226,7 +147,6 @@ public enum SDKInstaller {
             logger.info("SDKInstaller: corrupt install (\(reason, privacy: .public)) — repairing.")
         }
 
-        // 2. Locate npm.
         let npm: URL
         do {
             npm = try options.npmExecutable ?? resolveNPMExecutable()
@@ -236,8 +156,6 @@ public enum SDKInstaller {
             return InstallResult(success: false, installedVersion: nil, usedFallback: false, message: message, log: transcript.lines)
         }
 
-        // 3. Decide the source: GitHub when reachable, else the bundled
-        //    fallback — but only when it actually exists on disk.
         let probe: @Sendable (URL) async -> Bool =
             options.reachabilityProbe ?? { await defaultReachabilityProbe($0) }
         let githubReachable = await probe(options.downloadURL)
@@ -280,8 +198,6 @@ public enum SDKInstaller {
                     attemptErrors.append("The remote package version \(actual) does not match \(options.expectedVersion).")
                 }
             }
-            // A failed download or incomplete package falls through to the
-            // bundled release, including stale archives sharing a version.
             if !attemptErrors.isEmpty, fallbackExists, let fallbackURL {
                 usedFallback = true
                 attemptErrors.append("Retrying with the SDK copy bundled with SwiftCode.")
@@ -332,8 +248,6 @@ public enum SDKInstaller {
                 message: (attemptErrors + transcript.lastLines(12)).joined(separator: "\n"), log: transcript.lines)
         }
 
-        // 4. Verify: resolve package.json and require a non-empty version.
-        //    Success is reported ONLY here.
         switch inspect(prefix: options.prefix, expectedVersion: options.expectedVersion) {
         case .ok(let version):
             let sourceDescription = usedFallback
@@ -368,11 +282,6 @@ public enum SDKInstaller {
         }
     }
 
-    // MARK: - npm resolution
-
-    /// Resolves the npm binary from well-known install locations plus
-    /// every directory on `PATH`. Throws `InstallerError.npmNotFound`
-    /// with the real searched paths when nothing is executable.
     static func resolveNPMExecutable() throws -> URL {
         let fileManager = FileManager.default
         var candidates: [String] = [
@@ -396,10 +305,6 @@ public enum SDKInstaller {
         throw InstallerError.npmNotFound(searchedPaths: searched)
     }
 
-    // MARK: - Reachability
-
-    /// Real reachability probe: a HEAD request to raw.githubusercontent.com.
-    /// Only a successful response for the exact archive is usable.
     static func defaultReachabilityProbe(_ url: URL) async -> Bool {
         var request = URLRequest(url: url, timeoutInterval: 8)
         request.httpMethod = "HEAD"
@@ -415,8 +320,6 @@ public enum SDKInstaller {
         }
     }
 
-    /// The app-bundled SDK copy, when one is shipped inside the app
-    /// bundle by Distribution/bundle-sdk.sh; absence is reported honestly.
     static func defaultBundledFallbackURL() -> URL? {
         let currentDir = FileManager.default.currentDirectoryPath
         let candidates = [
@@ -429,7 +332,6 @@ public enum SDKInstaller {
         return candidates.compactMap { $0 }.first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
-    /// Explicit developer override first; otherwise use the shipped toolkit.
     static func resolveCLIURL() -> URL? {
         if let path = UserDefaults.standard.string(forKey: "com.swiftcode.sdk.cliPath"),
            !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -442,11 +344,6 @@ public enum SDKInstaller {
         return url
     }
 
-    // MARK: - Process
-
-    /// Runs `npm install <source> --prefix <prefix>`, streaming live
-    /// output. Returns npm's exit code. Throws on timeout (after
-    /// terminating the process) or when the process cannot start.
     static func runNPM(
         _ npm: URL,
         source: String,
@@ -462,9 +359,6 @@ public enum SDKInstaller {
         )
     }
 
-    /// Minimal honest `Process` wrapper: live line streaming, stdin
-    /// closed (npm can never block on a prompt), optional timeout that
-    /// terminates the process.
     static func runProcess(
         executable: URL,
         arguments: [String],
@@ -478,12 +372,8 @@ public enum SDKInstaller {
                 process.executableURL = executable
                 process.arguments = arguments
                 var environment = ProcessInfo.processInfo.environment
-                // npm commonly uses /usr/bin/env node; GUI launches have a
-                // minimal PATH even when npm was found in Homebrew.
                 environment["PATH"] = executable.deletingLastPathComponent().path + ":/opt/homebrew/bin:/usr/local/bin:" + (environment["PATH"] ?? "/usr/bin:/bin")
                 process.environment = environment
-                // Closed stdin: a spawned installer must never block
-                // waiting for interactive input.
                 process.standardInput = FileHandle.nullDevice
                 let stdoutPipe = Pipe()
                 let stderrPipe = Pipe()
@@ -506,8 +396,6 @@ public enum SDKInstaller {
                     throw error
                 }
                 process.waitUntilExit()
-                // Drain anything written between the last handler
-                // callback and process exit, then flush partial lines.
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
                 collector.append(stdoutPipe.fileHandleForReading.availableData, stream: .stdout)
@@ -532,11 +420,6 @@ public enum SDKInstaller {
     }
 }
 
-// MARK: - Private helpers
-
-/// Thread-safe line splitter: pipe chunks arrive on arbitrary threads;
-/// complete `\n`-terminated lines are forwarded, partial tails are held
-/// until `flush()`.
 private final class OutputCollector: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.swiftcode.sdkinstaller.output")
     private var pending: [SDKInstaller.LogLine.Stream: String] = [
@@ -579,7 +462,6 @@ private final class OutputCollector: @unchecked Sendable {
     }
 }
 
-/// Thread-safe transcript of everything the installer streamed.
 private final class TranscriptCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [String] = []
@@ -603,8 +485,6 @@ private final class TranscriptCollector: @unchecked Sendable {
     }
 }
 
-/// Lets the timeout task terminate a running `Process` without
-/// breaking Swift 6 actor isolation.
 private actor ProcessHandle {
     private var process: Process?
 

@@ -6,19 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Accessibility (round R10; 08 §2, suite T-AX; public API names: the
-// `accessibility…` modifiers, `AccessibilityTraits`,
-// `AccessibilityChildBehavior`, `AccessibilityActionKind`,
-// `AccessibilityAdjustmentDirection`, `AccessibilityHeadingLevel`,
-// `AccessibilityNotification`).
-//
-// The tree is built on demand from a window's view graph
-// (AccessibilityTree.swift), not kept up to date while nothing asks for it —
-// as the reference built none without an assistive technology (08 §2). The
-// modifiers below annotate their node; the builder reads the annotations,
-// the texts and images, and the controls' own annotations.
-
-/// What an accessibility element is (traits, as the public set names them).
 public struct AccessibilityTraits: OptionSet, Sendable, Hashable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
@@ -42,8 +29,6 @@ public struct AccessibilityTraits: OptionSet, Sendable, Hashable {
     public static let isTabBar = AccessibilityTraits(rawValue: 1 << 16)
 }
 
-/// How an element made with `accessibilityElement(children:)` treats the
-/// elements inside.
 public struct AccessibilityChildBehavior: Hashable, Sendable {
     enum Kind: Hashable, Sendable { case ignore, contain, combine }
     let kind: Kind
@@ -52,7 +37,6 @@ public struct AccessibilityChildBehavior: Hashable, Sendable {
     public static let combine = AccessibilityChildBehavior(kind: .combine)
 }
 
-/// The kinds of standard actions.
 public struct AccessibilityActionKind: Hashable, Sendable {
     let name: String
     public static let `default` = AccessibilityActionKind(name: "default")
@@ -73,10 +57,7 @@ public enum AccessibilityHeadingLevel: UInt, Hashable, Sendable {
     case unspecified, h1, h2, h3, h4, h5, h6
 }
 
-/// Notifications for assistive technologies.
 public enum AccessibilityNotification {
-    /// An announcement (recorded; no assistive technology listens on the
-    /// headless host).
     public struct Announcement: Sendable {
         public let text: String
         public init(_ text: String) { self.text = text }
@@ -100,21 +81,17 @@ package enum AccessibilityAnnouncements {
     package static var posted: [String] = []
 }
 
-/// The role of an element (SwiftCode's set; it maps onto AT-SPI and AccessKit
-/// roles).
 package enum AccessibilityRole: String, Sendable, Hashable {
     case window, group, staticText, image, button, toggle, slider, stepper, link, textField, secureTextField,
          progressIndicator, picker, menuButton, list, row, menuBar, menuBarItem, menu, menuItem, toolbar, dialog,
          alert, tabList, tab, scrollView, splitter
 }
 
-/// A numeric value in a range (R10 export: AT-SPI's Value interface).
 package struct AccessibilityRangeValue {
     package var current: Double
     package var minimum: Double
     package var maximum: Double
     package var step: Double
-    /// Sets the value (nil: read-only, as a progress view).
     package var set: (@MainActor (Double) -> Void)?
 
     package init(current: Double, minimum: Double, maximum: Double, step: Double, set: (@MainActor (Double) -> Void)? = nil) {
@@ -126,10 +103,6 @@ package struct AccessibilityRangeValue {
     }
 }
 
-// MARK: - Annotations
-
-/// What the modifiers of one view say (merged; the modifier nearest the
-/// view wins — SwiftCode's rule).
 package struct AccessibilityAttributes {
     package var label: String?
     package var value: String?
@@ -144,20 +117,13 @@ package struct AccessibilityAttributes {
     package var headingLevel: AccessibilityHeadingLevel?
     package var actions: [String: @MainActor () -> Void] = [:]
     package var adjust: (@MainActor (AccessibilityAdjustmentDirection) -> Void)?
-    /// Controls: the label comes only from these texts (nil: from the
-    /// children).
     package var isEnabled: Bool?
-    /// A value read when the tree is built (controls: no body dependency).
     package var dynamicValue: (@MainActor () -> String?)?
-    /// A numeric value with its range (sliders, progress; AT-SPI's Value
-    /// interface), read when the tree is built.
     package var rangeValue: (@MainActor () -> AccessibilityRangeValue?)?
-    /// Outline rows with children: expanded or collapsed.
     package var isExpanded: Bool?
 
     package init() {}
 
-    /// `inner` (nearer the view) over `self`.
     func merged(inner: AccessibilityAttributes) -> AccessibilityAttributes {
         var r = self
         r.label = inner.label ?? label
@@ -187,7 +153,6 @@ package struct AccessibilityAttributes {
     }
 }
 
-/// A view's accessibility annotation (read by the tree builder).
 package struct AccessibilityModifier: PrimitiveModifier {
     package let attributes: AccessibilityAttributes
 }
@@ -228,9 +193,6 @@ extension View {
 
     public func accessibilityHidden(_ hidden: Bool) -> some View { accessibilityAttributes { $0.hidden = hidden } }
 
-    /// Makes the view one element (`.ignore`: its own label only;
-    /// `.combine`: the labels of the elements inside joined with ", ";
-    /// `.contain`: a container of them).
     public func accessibilityElement(children: AccessibilityChildBehavior = .ignore) -> some View {
         accessibilityAttributes { $0.children = children }
     }
@@ -268,15 +230,12 @@ extension View {
         }
     }
 
-    /// Accepted (voice input is not supported).
     public func accessibilityInputLabels(_ inputLabels: [Text]) -> some View { self }
     @_disfavoredOverload
     public func accessibilityInputLabels<S: StringProtocol>(_ inputLabels: [S]) -> some View { self }
 
-    /// Accepted (no rotor).
     public func accessibilityShowsLargeContentViewer() -> some View { self }
 
-    /// A control's own annotation (role, value, actions).
     func accessibilityControl(_ role: AccessibilityRole, traits: AccessibilityTraits = [],
                               value: (@MainActor () -> String?)? = nil,
                               label: String? = nil, actions: [String: @MainActor () -> Void] = [:],
@@ -296,12 +255,7 @@ extension View {
     }
 }
 
-// MARK: - Default labels of SwiftCode's symbols
-
 package enum SymbolAccessibilityLabels {
-    /// SwiftCode's labels for its symbol set: "star.fill" is the reference's
-    /// (08 §2: "Favorite"); the others are SwiftCode's words, or the name's first
-    /// component in title case.
     static let table: [String: String] = [
         "star.fill": "Favorite", "star": "Favorite", "heart": "Love", "heart.fill": "Love",
         "magnifyingglass": "Search", "gear": "Settings", "gearshape": "Settings", "gearshape.fill": "Settings",

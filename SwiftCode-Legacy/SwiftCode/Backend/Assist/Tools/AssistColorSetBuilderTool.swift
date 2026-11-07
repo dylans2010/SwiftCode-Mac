@@ -1,8 +1,3 @@
-//
-//  AssistColorSetBuilderTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistColorSetBuilderTool: AssistTool {

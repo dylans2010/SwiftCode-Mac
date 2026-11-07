@@ -3,7 +3,6 @@ import SwiftCodeSubprocess
 import Observation
 import SwiftCodeIDECore
 
-/// What the app wants a person to read in an alert.
 public struct ShellNotice: Equatable, Sendable {
     public var title: String
     public var message: String
@@ -13,23 +12,16 @@ public struct ShellNotice: Equatable, Sendable {
     }
 }
 
-/// The Clone sheet of the Linux shell (Welcome ▸ Clone…, Integrate ▸ Clone…):
-/// a repository address and the folder to clone into. `git clone` runs off the
-/// main actor; the sheet stays up with a message until it ends.
 @MainActor
 @Observable
 public final class CloneShellModel {
     public var address = ""
-    /// The folder the clone's folder is made in.
     public var location: String
     public var isFolderDialogShown = false
     public private(set) var isRunning = false
-    /// Why the last clone failed.
     public private(set) var error: String?
 
-    /// The git program (tests pass another).
     @ObservationIgnored var git: String
-    /// Called with the clone's folder when it succeeds.
     @ObservationIgnored var finished: (URL) -> Void = { _ in }
 
     public init(location: String? = nil, git: String = HostTool.path("git")) {
@@ -41,12 +33,10 @@ public final class CloneShellModel {
 
     public var trimmedAddress: String { address.trimmingCharacters(in: .whitespacesAndNewlines) }
     public var canClone: Bool { !trimmedAddress.isEmpty && !location.isEmpty && !isRunning }
-    /// Where the clone goes.
     public var destination: URL {
         URL(fileURLWithPath: (location as NSString).expandingTildeInPath).appendingPathComponent(GitRepository.cloneFolderName(for: trimmedAddress))
     }
 
-    /// Clones; on success `finished` gets the folder, on failure `error` says why.
     @discardableResult
     public func clone() -> Task<Void, Never> {
         guard canClone else { return Task {} }
@@ -69,7 +59,6 @@ public final class CloneShellModel {
 }
 
 extension ShellAppModel {
-    /// Welcome ▸ Clone…, Integrate ▸ Clone….
     public func showClone() {
         let m = CloneShellModel()
         m.finished = { [weak self] folder in self?.cloneFinished(folder) }
@@ -78,7 +67,6 @@ extension ShellAppModel {
 
     public func cancelClone() { clone = nil }
 
-    /// Opens what was cloned; a repository with nothing to open says so.
     func cloneFinished(_ folder: URL) {
         clone = nil
         if let w = Self.workspace(in: folder) {
@@ -88,8 +76,6 @@ extension ShellAppModel {
         }
     }
 
-    /// The workspace in a folder: a `.xcworkspace`, else a `.xcodeproj`, else
-    /// the folder when it holds a `Package.swift`.
     static func workspace(in dir: URL) -> URL? {
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).sorted()
         if let w = names.first(where: { $0.hasSuffix(".xcworkspace") }) { return dir.appendingPathComponent(w) }
@@ -97,7 +83,6 @@ extension ShellAppModel {
         return names.contains("Package.swift") ? dir : nil
     }
 
-    /// Hands a link to the desktop; if nothing takes it, shows the address.
     public func openLink(_ url: URL) { openExternally(url) }
 
     public func linkCouldNotOpen(_ url: URL) {
@@ -106,7 +91,6 @@ extension ShellAppModel {
         notice = ShellNotice("Open This Address in a Browser", "No web browser could be opened. The address is \(c?.string ?? url.absoluteString)")
     }
 
-    /// The destination menu's row while no simulator host is paired.
     public func explainSimulator() {
         notice = ShellNotice("SwiftCode Simulator (\(ExperimentalNotice.label))", "\(ExperimentalNotice.simulator) Pair a host with `swiftcode sim remote pair`; its devices then show as run destinations.")
     }

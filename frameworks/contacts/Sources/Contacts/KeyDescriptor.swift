@@ -1,12 +1,6 @@
-// Key descriptors (interface.md §2.1): plain key strings and the composite
-// descriptors that formatters, vCard serialization and sorting hand out.
-
 import Foundation
 
-/// Something that names contact keys to fetch: a key string (`String` or
-/// `NSString`) or a composite descriptor.
 public protocol CNKeyDescriptor {
-    /// The plain keys this descriptor stands for (SwiftCode-internal).
     var _cnKeys: Set<String> { get }
 }
 
@@ -18,8 +12,6 @@ extension NSString: CNKeyDescriptor {
     public var _cnKeys: Set<String> { [String(describing: self)] }
 }
 
-/// A composite descriptor; describes itself as
-/// `<CNAggregateKeyDescriptor: 0x…: kind=…>`.
 final class CNAggregateKeyDescriptor: NSObject, CNKeyDescriptor {
     let kind: String
     let keys: Set<String>
@@ -46,7 +38,6 @@ func keySet(_ descriptors: [CNKeyDescriptor]) -> Set<String> {
     descriptors.reduce(into: Set<String>()) { $0.formUnion($1._cnKeys) }
 }
 
-/// Every property key of a contact.
 let allContactKeys: Set<String> = [
     CNContactIdentifierKey, CNContactTypeKey, CNContactNamePrefixKey, CNContactGivenNameKey,
     CNContactMiddleNameKey, CNContactFamilyNameKey, CNContactPreviousFamilyNameKey, CNContactNameSuffixKey,
@@ -69,13 +60,10 @@ let phoneticNameKeys: Set<String> = [
     CNContactPhoneticFamilyNameKey, CNContactPhoneticOrganizationNameKey,
 ]
 
-/// Keys read by name ordering and the delimiter (the scripts of the name parts).
 let nameOrderKeys: Set<String> = [CNContactGivenNameKey, CNContactMiddleNameKey, CNContactFamilyNameKey]
 
-/// Keys the vCard writer reads (everything it exports; not note, not images).
 let vCardKeys: Set<String> = allContactKeys.subtracting([
     CNContactNoteKey, CNContactImageDataKey, CNContactThumbnailImageDataKey, CNContactImageDataAvailableKey,
 ])
 
-/// Keys used by the name sort comparator (design.md §5).
 let comparatorKeys: Set<String> = fullNameKeys.union(phoneticNameKeys)

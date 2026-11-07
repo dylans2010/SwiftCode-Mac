@@ -1,7 +1,3 @@
-// rkprobe: does a RealityKit renderer start in a guest process of SwiftCode's
-// visionOS simulator (visionos.md §7.2 R1)? Creates a RealityRenderer
-// (public RealityKit API) and prints the result or the thrown error.
-// SwiftCode's own probe; run as a one-shot: `rkprobe [delay s]`.
 import Foundation
 import Metal
 import RealityKit

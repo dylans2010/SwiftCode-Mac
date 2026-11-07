@@ -1,8 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Editor wiring added with reference-ui-4.md §7/§9: the Quick Help links
-/// and the empty editor's Open Quickly field and Recent Files.
 extension WorkspaceWindowController {
     func wireEditorExtras(_ e: SourceEditorController) {
         QuickHelpView.onOpenFile = { [weak self] f in self?.open(path: f, line: nil) }
@@ -16,16 +14,10 @@ extension WorkspaceWindowController {
             self.showEmptyEditor(e)
             self.updateWindowTitle()
         }
-        // A new editor starts empty under "No Selection"; the Start Page is
-        // shown only where Settings ▸ Navigation's New Editor Tabs / Panes
-        // setting opens it (`newTab`, `split`; reference-ui-6.md §1.3, W4).
-        wireChangeGutter(e)  // reference-ui-5.md §6.3
-        wirePrediction(e)    // predictive-completion.md §3
+        wireChangeGutter(e)
+        wirePrediction(e)
     }
 
-    /// The empty editor: Recent Files (most recent first) and Open Quickly.
-    /// The candidates come from the workspace index (read in the
-    /// background); the view updates when a fresh read arrives.
     func showEmptyEditor(_ e: SourceEditorController) {
         let recent = Array(navigator.recentFiles.reversed()), root = Self.breadcrumbRoot(session.model.url)
         withWorkspaceCandidates { [weak self, weak e] candidates in
@@ -38,9 +30,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Calls `apply` with the last workspace index at once (empty before
-    /// the first read), then again with a fresh one read off the main
-    /// thread (every source file is read and scanned for symbols).
     func withWorkspaceCandidates(_ apply: @escaping @MainActor ([FuzzyMatch.Candidate]) -> Void) {
         let index = candidateIndex
         apply(index.value ?? [])
@@ -57,12 +46,10 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Waits for the workspace index read (tests).
     public func workspaceCandidatesIdle() async {
         while let t = candidateIndex.task { await t.value }
     }
 
-    /// The folder above the workspace's folder, so breadcrumbs start with it.
     static func breadcrumbRoot(_ url: URL) -> String {
         let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
         let folder = isDir && !["xcodeproj", "xcworkspace"].contains(url.pathExtension) ? url : url.deletingLastPathComponent()
@@ -70,7 +57,6 @@ extension WorkspaceWindowController {
     }
 }
 
-/// Open Quickly's candidates, kept between reads.
 @MainActor final class WorkspaceCandidateIndex {
     var value: [FuzzyMatch.Candidate]?
     var task: Task<Void, Never>?

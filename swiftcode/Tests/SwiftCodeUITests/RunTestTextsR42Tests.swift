@@ -8,10 +8,6 @@ import SwiftCodeProject
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// R42 (`specs/ide/reference-ui-6.md` §0): the default destination (T3,
-/// §2.4.2), the default simulator (T11, §2.4.3) and the run and test
-/// activity texts (T5, §3.2–§3.4). Simulators, `simctl`, ssh and the
-/// launcher are stand-ins.
 @MainActor
 @Suite(.serialized, .timeLimit(.minutes(5))) struct RunTestTextsR42Tests {
     func sim(_ name: String, _ version: String, type: String? = nil) -> Destination {
@@ -29,8 +25,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                               deviceFamilies: families, order: DestinationMenuModel.orderedSimulators)
     }
 
-    /// The pass-6b observation: a newer device type on 27.1 (first in the
-    /// Simulators order), the standard set on 27.0 and 26.5.
     var observedSet: [Destination] {
         [sim("Phone X", "27.1"), sim("iPhone Duo", "27.1"),
          sim("iPhone 18 Pro", "27.0"), sim("iPhone 18 Pro Max", "27.0"), sim("iPhone Air", "27.0"), sim("iPhone 17e", "27.0"),
@@ -42,7 +36,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-r42-\(tag)-\(UUID().uuidString)").resolvingSymlinksInPath()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var o = ProjectOptions()
-        // The fixtures' simulator runtimes predate V(iOS) (templates.md § Notation).
         o.deploymentTarget = "18.0"
         o.productName = "Tour"
         o.organizationIdentifier = "org.swiftcode.tests"
@@ -61,8 +54,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                          userStateURL: url.deletingLastPathComponent().appendingPathComponent("state.json"))
     }
 
-    /// Lists simulators the way `setDestinationGroups` does, without the
-    /// remote simulator rows another suite's shared settings may add.
     func list(_ wc: WorkspaceWindowController, _ groups: [DestinationGroup]) {
         wc.session.model.destinationGroups = groups
         wc.chooseDefaultDestination()
@@ -71,7 +62,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
     @Test func projectsPickTheirDefaultInTheWindow() throws {
         let sims = DestinationCatalog.groups(devices: [], simulators: observedSet)
-        // A multiplatform app (macOS in its supported platforms): My Mac.
         let multi = try project("multi") { $0.replacingOccurrences(of: "TARGETED_DEVICE_FAMILY = \"1,2\";",
                                                                     with: "SUPPORTED_PLATFORMS = \"iphoneos iphonesimulator macosx\";\n\t\t\t\tTARGETED_DEVICE_FAMILY = \"1,2\";") }
         defer { try? FileManager.default.removeItem(at: multi.dir) }
@@ -81,7 +71,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         list(wm, sims)
         #expect(wm.session.destination == .myMac)
 
-        // An iOS-only app: the newest Pro iPhone.
         let ios = try project("ios") { $0 }
         defer { try? FileManager.default.removeItem(at: ios.dir) }
         let wi = try window(ios.proj)
@@ -90,12 +79,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wi.session.destination?.name == "iPhone 18 Pro" && wi.session.destination?.osVersion == "27.0")
         #expect(wi.destinationTitle == "iPhone 18 Pro")
 
-        // An iPad-only app: an iPad.
         let pad = try project("ipad") { $0.replacingOccurrences(of: "TARGETED_DEVICE_FAMILY = \"1,2\"", with: "TARGETED_DEVICE_FAMILY = 2") }
         defer { try? FileManager.default.removeItem(at: pad.dir) }
         let wp = try window(pad.proj)
         #expect(wp.defaultDestinationTraits.deviceFamilies == ["iPad"])
-        // ("Phone X" names no family, so it would stay a candidate.)
         list(wp, DestinationCatalog.groups(devices: [], simulators: observedSet.filter { $0.name != "Phone X" }))
         #expect(wp.session.destination?.name == "iPad Air 11-inch (M4)")
     }
@@ -125,9 +112,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return app
     }
 
-    /// A Mac simulator run without the debugger: "Launching" through boot,
-    /// install and launch, then "Running … on <device>", after Stop
-    /// "Finished running … on <device>". No boot or install texts.
     @Test func simulatorRunSequence() async throws {
         let root = swiftcodeDir.appendingPathComponent(".build-ide/r42-sim-\(UUID().uuidString.prefix(8))")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -154,8 +138,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(!seen().contains { if case .running(let s) = $0 { s.contains("Booting") || s.contains("Installing") } else { false } })
     }
 
-    /// SwiftCode's remote simulator: the same sequence with the remote row's
-    /// name, no "(1 of 3)" counters, no separate upload or boot text.
     @Test func remoteSimulatorRunSequence() async throws {
         let r = try SimulatorSideR37Tests().makeRemote("r42", launcher: """
         #!/bin/sh
@@ -185,10 +167,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(!texts.contains { $0.contains(" of 3)") || $0.contains("Booting") || $0.contains("Uploading") })
     }
 
-    /// A test run with a stand-in `swift`: "Test", the build texts,
-    /// "Configuring Debugger Actions", "Testing <scheme>", then the result:
-    /// a passing selected test "Test Completed", the whole scheme "Test
-    /// Succeeded" / "Test Failed".
     @Test func testRunSequence() async throws {
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/r42-test-\(UUID().uuidString.prefix(8))")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -225,12 +203,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(building < configuring && configuring < testing)
         #expect(session.testActivityProgress == nil)
 
-        // Test Again repeats the selected run.
         seen = record(session)
         _ = await session.testAgain()
         #expect(seen().last == .finished("Test Completed"))
 
-        // The whole scheme: Succeeded / Failed.
         seen = record(session)
         _ = await session.runTests()
         #expect(seen().last == .finished("Test Succeeded"))

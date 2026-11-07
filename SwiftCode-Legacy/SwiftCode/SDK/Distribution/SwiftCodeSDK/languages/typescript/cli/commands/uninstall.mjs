@@ -1,20 +1,3 @@
-/**
- * uninstall.mjs — remove an installed SwiftCode extension (spec §3.1).
- *
- * Usage:
- *   swiftcode uninstall <id> --version <v>
- *   swiftcode uninstall <id> --all
- *
- * Non-interactive by design: removing every version requires the explicit
- * --all flag; a bare `uninstall <id>` fails with UsageError instead of
- * prompting. Mirrors SDKExtensionRegistry.removeInstallRecord: deletes the
- * <root>/<id>/<version>/ tree and drops the now-empty parent id directory.
- *
- * Note: the CLI removes installed files only. Deactivating a RUNNING
- * extension (stopping its process, clearing runtime state) is the host's
- * job — stop it in SwiftCode Studio before or after uninstalling.
- */
-
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { UsageError } from "../errors.mjs";
@@ -41,8 +24,6 @@ export async function run(args, ctx = {}) {
   const { positionals: rawPos, flags } = normalizeArgs(args);
   const positionals = [...rawPos];
 
-  // Greedy-parser defense (see install.mjs): `uninstall --all <id>`
-  // arrives as all="<id>".
   let all = false;
   if (flags.all === true || flags.all === "true") {
     all = true;
@@ -105,13 +86,11 @@ export async function run(args, ctx = {}) {
     log(`Removed ${id}@${v} (${dir})`);
   }
 
-  // Drop the now-empty parent id directory (mirrors the Swift registry).
   try {
     if ((await readdir(idDir)).length === 0) {
       await rm(idDir, { recursive: true, force: true });
     }
   } catch {
-    /* already gone */
   }
 
   if (json) return { code: 0, data: { removed } };

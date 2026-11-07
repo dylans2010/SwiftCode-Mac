@@ -4,8 +4,7 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Testing and Benchmarking Guide
+
     guides_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(guides_dir, exist_ok=True)
     with open(os.path.join(guides_dir, "testing-benchmarking-and-profiling.md"), "w") as f:
@@ -30,7 +29,6 @@ def main():
             f.write('{\n  "policyId": "SIGN-' + sid + '",\n  "hardenedRuntime": true,\n  "libraryValidation": true\n}\n')
             f.write("```\n\n")
 
-    # 2. Build Diagnostics Ruleset
     bld_rules = os.path.join(dest, "resources", "diagnostics-rules", "build")
     os.makedirs(bld_rules, exist_ok=True)
     for cat in ["compiler_flags", "linker_search_paths", "module_dependencies", "header_search"]:
@@ -41,7 +39,6 @@ def main():
         with open(os.path.join(bld_rules, f"{cat}_rules.txt"), "w") as f:
             f.write("\n".join(lines))
 
-    # 3. Update components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

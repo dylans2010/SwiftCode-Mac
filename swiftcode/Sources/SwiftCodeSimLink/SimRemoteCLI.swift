@@ -1,19 +1,3 @@
-// `swiftcode sim remote …` (sim-link.md §8): the client's command line for a
-// simulator host over SwiftCode's own link (no ssh).
-//
-//   pair <host>[:port] <code> [--name N] [--media-port P]   trust a host (code from `swiftcode-simhost pair`)
-//   identity [--name N]                       this machine's pairing file (for `swiftcode-simhost trust`)
-//   trust <file.json> [--address host:port]   trust a host from its pairing file (`swiftcode-simhost identity`)
-//   hosts | unpair <name>
-//   info | devices | log <device> [lines]     [--host N] on every command below
-//   create <device> --type T                  a device from the host's pristine copy of type T
-//   boot <device> [--cold] | shutdown <device>
-//   install <App.app>                         upload the app bundle to the host
-//   run <device> <App.app> [--bundle-id ID] [--no-view]   upload, install and launch (stops a running device first), then view
-//   view <device> [--xr] [viewer options]     open the viewer (swiftcode-sim-viewer --link …; --xr: swiftcode-xr-viewer, a headset)
-//   view <device> --xr --background | --desktop   switch a running visionOS device to the headset and back
-//                                             (the `swiftcode` CLI's HeadsetCLI; device-hub.md §I.12)
-
 import Foundation
 
 public enum SimRemoteCLI {
@@ -30,7 +14,6 @@ public enum SimRemoteCLI {
                swiftcode sim remote [--host N] view <device> --xr --background [viewer options] | --desktop [--no-window]
         """
 
-    /// The viewer to run for `view`: $SWIFTCODE_SIM_VIEWER, else next to this program, else on the PATH.
     public static func viewerPath() -> String {
         if let v = ProcessInfo.processInfo.environment["SWIFTCODE_SIM_VIEWER"], !v.isEmpty { return v }
         let me = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
@@ -38,7 +21,6 @@ public enum SimRemoteCLI {
         return FileManager.default.isExecutableFile(atPath: next) ? next : "swiftcode-sim-viewer"
     }
 
-    /// The headset viewer for `view --xr`: $SWIFTCODE_XR_VIEWER, else next to this program, else on the PATH.
     public static func xrViewerPath() -> String {
         if let v = ProcessInfo.processInfo.environment["SWIFTCODE_XR_VIEWER"], !v.isEmpty { return v }
         let me = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
@@ -46,7 +28,6 @@ public enum SimRemoteCLI {
         return FileManager.default.isExecutableFile(atPath: next) ? next : "swiftcode-xr-viewer"
     }
 
-    /// The viewer's arguments for a device of a host.
     public static func viewerArguments(host: String?, device: String, extra: [String]) -> [String] {
         ["--link", device] + (host.map { ["--host", $0] } ?? []) + extra
     }
@@ -141,7 +122,6 @@ public enum SimRemoteCLI {
                 if noView { return 0 }
                 return exec(viewerPath(), viewerArguments(host: hostName, device: device, extra: Array(a.dropFirst(2))))
             case "view":
-                // --xr: the headset viewer for a visionOS device (xr-viewer.md §7).
                 let xr = flag("--xr")
                 guard let device = a.first else { err(usage); return 64 }
                 return exec(xr ? xrViewerPath() : viewerPath(), viewerArguments(host: hostName, device: device, extra: Array(a.dropFirst())))

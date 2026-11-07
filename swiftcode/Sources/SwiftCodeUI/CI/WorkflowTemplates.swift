@@ -1,9 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowTemplates.swift
-//
-// Verbatim apart from this header. `DeveloperWorkflow` /
-// `WorkflowStep` live in this target (`CI/WorkflowModels.swift`).
-
 import Foundation
 
 public struct WorkflowTemplates {

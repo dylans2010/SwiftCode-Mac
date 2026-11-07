@@ -1,19 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/BranchGraphView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The branch-cards graph: a horizontal strip of branch cards (last
-// commit, author, current-branch marker), the per-branch list with
-// Switch / Current, last-commit and merged-from lines, and the Recent
-// Merges list. `CollaborationBranchManagementView` wraps this view; it
-// is staged here because the destination has no equivalent —
-// `swiftcode-ide/BranchGraphView.swift` is a different, internal view
-// that renders `git log --graph` as text.
-//
-// Adaptations for SwiftCode: Legacy's hardcoded dark paint / white text
-// become system-adaptive, and `.liquidGlass` (no destination
-// equivalent) becomes the system thin material, as in the sibling
-// Collaboration views.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

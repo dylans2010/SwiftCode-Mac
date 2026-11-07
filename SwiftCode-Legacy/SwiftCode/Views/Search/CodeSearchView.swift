@@ -26,7 +26,6 @@ struct CodeSearchView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Elegant Native Floating Header for Search Inputs
             VStack(spacing: 12) {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
@@ -66,7 +65,6 @@ struct CodeSearchView: View {
                 .padding(.vertical, 10)
                 .liquidGlass(style: .subtle, cornerRadius: 12)
 
-                // Inline Replace Interface
                 HStack(spacing: 10) {
                     Image(systemName: "arrow.right.arrow.left.circle")
                         .font(.body)
@@ -100,7 +98,6 @@ struct CodeSearchView: View {
 
             Divider()
 
-            // Filter Pills Row
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Toggle(isOn: $caseSensitive) {
@@ -148,7 +145,6 @@ struct CodeSearchView: View {
 
             Divider()
 
-            // Header Statistics
             if !results.isEmpty {
                 HStack {
                     Text("\(results.count) Match\(results.count == 1 ? "" : "es") Found")
@@ -169,7 +165,6 @@ struct CodeSearchView: View {
                 Divider()
             }
 
-            // Interactive Matches List
             Group {
                 if results.isEmpty && !searchQuery.isEmpty && !isSearching {
                     ContentUnavailableView {
@@ -422,7 +417,6 @@ struct CodeSearchView: View {
     }
 }
 
-// Inline toggle system to support elegant buttons
 struct ToggleSource: Identifiable {
     let id = UUID()
     let title: String

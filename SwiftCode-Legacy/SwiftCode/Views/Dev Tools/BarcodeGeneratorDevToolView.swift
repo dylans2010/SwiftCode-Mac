@@ -62,7 +62,6 @@ struct BarcodeGeneratorDevToolView: View {
                         .font(.headline)
                         .foregroundColor(.secondary)
 
-                    // Barcode simulated drawing using varying-width bars
                     HStack(spacing: 2) {
                         ForEach(0..<45, id: \.self) { index in
                             Rectangle()

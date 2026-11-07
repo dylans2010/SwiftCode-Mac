@@ -1,17 +1,14 @@
-/// Reads the crate (`.usdc`) binary format into a `Layer`.
 public enum USDCReader {
     public static func read(_ bytes: [UInt8], identifier: String = "anonymous.usdc") throws -> Layer {
         let reader = try CrateReader(bytes)
         return try reader.layer(identifier: identifier)
     }
 
-    /// True if the data starts with the crate magic `PXR-USDC`.
     public static func isCrate(_ bytes: some Collection<UInt8>) -> Bool {
         bytes.starts(with: Array("PXR-USDC".utf8))
     }
 }
 
-/// Bounds-checked little-endian cursor.
 struct ByteCursor {
     let bytes: [UInt8]
     var pos: Int
@@ -52,7 +49,6 @@ struct ByteCursor {
         return bytes[pos..<(pos + n)]
     }
 
-    /// A count read from the file, checked against the bytes left.
     mutating func count(minimumElementSize: Int = 1) throws -> Int {
         let n = try u64()
         guard n <= UInt64(bytes.count), Int(n) * minimumElementSize <= bytes.count - pos else {
@@ -97,8 +93,6 @@ final class CrateReader {
         if let s = sections["PATHS"] { try readPaths(at: s.start) }
         if let s = sections["SPECS"] { try readSpecs(at: s.start) }
     }
-
-    // MARK: Structural sections
 
     func compressedInts(_ c: inout ByteCursor, count: Int) throws -> [Int64] {
         let size = try c.count()
@@ -152,7 +146,6 @@ final class CrateReader {
         let pathIndexes = try compressedInts(&c, count: encoded)
         let elementTokens = try compressedInts(&c, count: encoded)
         let jumps = try compressedInts(&c, count: encoded)
-        // Iterative form of the tree walk: siblings are pushed on a stack.
         var stack: [(index: Int, parent: Path)] = []
         if encoded > 0 { stack.append((0, .empty)) }
         while let (start, startParent) = stack.popLast() {
@@ -198,8 +191,6 @@ final class CrateReader {
         specs = (0..<count).map { (Int(pathIndexes[$0]), Int(fieldSetIndexes[$0]), UInt32(truncatingIfNeeded: types[$0])) }
     }
 
-    // MARK: Layer
-
     func layer(identifier: String) throws -> Layer {
         var layer = Layer(identifier: identifier)
         for spec in specs {
@@ -220,8 +211,6 @@ final class CrateReader {
         }
         return layer
     }
-
-    // MARK: Values
 
     func token(_ i: Int) throws -> String {
         guard i >= 0, i < tokens.count else { throw USDError("crate: token index out of range") }
@@ -276,7 +265,6 @@ final class CrateReader {
         return try structured(type, &c)
     }
 
-    /// Reads a non-array, non-inlined structured value at the cursor.
     func structured(_ type: CrateType, _ c: inout ByteCursor) throws -> Value {
         switch type {
         case .dictionary: return .dictionary(try dictionary(&c))
@@ -316,7 +304,6 @@ final class CrateReader {
         }
     }
 
-    /// A nested value: a relative offset to its representation.
     func nestedValue(_ c: inout ByteCursor) throws -> Value {
         let start = c.pos
         let offset = Int(try c.i64())
@@ -396,8 +383,6 @@ final class CrateReader {
         return samples
     }
 
-    // MARK: Numeric and string components
-
     func readComponent(_ vt: ValueType, _ c: inout ByteCursor, into acc: inout ComponentAccumulator) throws {
         switch vt {
         case .bool: acc.bools.append(try c.u8() != 0)
@@ -413,7 +398,6 @@ final class CrateReader {
         case .double, .timecode, .vec2d, .vec3d, .vec4d, .matrix2d, .matrix3d, .matrix4d:
             for _ in 0..<vt.componentCount { acc.doubles.append(try c.f64()) }
         case .quath, .quatf, .quatd:
-            // Stored imaginary (i, j, k) then real; kept as real, i, j, k.
             var q: [Double] = []
             for _ in 0..<4 {
                 switch vt {

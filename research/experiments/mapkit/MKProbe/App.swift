@@ -1,16 +1,3 @@
-// MKProbe: our own black-box probe for MapKit (and the Core Location /
-// GeoServices pieces maps need) in the iOS Simulator. Original Ycode code; it
-// calls only public API and prints what it observes, one line per
-// observation, to stderr:   MKP [  t.ttt] <key> <values>
-//
-// Launch arguments:
-//   -mode <m>    math | map | config | gesture | annot | user | search | dir |
-//                geo | look | snap | open | sui | suicam | offline
-//   -wait N      seconds before the mode prints "done" (default per mode)
-//   -variant V   mode-specific variant (see each mode)
-//
-// Every mode ends with a line "MKP [...] done" so a driver can wait for it.
-
 import UIKit
 import SwiftUI
 import MapKit
@@ -131,7 +118,6 @@ final class ProbeVC: UIViewController {
 
 func sleep(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
 
-/// Records delegate callbacks with timestamps.
 final class MapDel: NSObject, MKMapViewDelegate {
     var log = true
     var counts: [String: Int] = [:]

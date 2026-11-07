@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgCommon.h"
 #include "tvgLock.h"
 #include "tvgTaskScheduler.h"
@@ -36,11 +14,6 @@
 #ifdef THORVG_WG_ENGINE_SUPPORT
     #include "tvgWgRenderer.h"
 #endif
-
-
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
 
 namespace tvg {
     int engineInit = 0;
@@ -76,11 +49,6 @@ static bool _buildVersionInfo(uint32_t* major, uint32_t* minor, uint32_t* micro)
     return true;
 }
 
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
-
 Result Initializer::init(uint32_t threads) noexcept
 {
     ScopedLock lock(_key);
@@ -90,12 +58,10 @@ Result Initializer::init(uint32_t threads) noexcept
 
     if (!LoaderMgr::init()) return Result::Unknown;
 
-    // TODO: TaskScheduler would hinder multithreaded use of ThorVG.
     TaskScheduler::init(threads);
 
     return Result::Success;
 }
-
 
 Result Initializer::term() noexcept
 {
@@ -124,37 +90,31 @@ Result Initializer::term() noexcept
     return Result::Success;
 }
 
-
 const char* Initializer::version(uint32_t* major, uint32_t* minor, uint32_t* micro) noexcept
 {
     if ((!major && ! minor && !micro) || _buildVersionInfo(major, minor, micro)) return THORVG_VERSION_STRING;
     return nullptr;
 }
 
-
 uint16_t THORVG_VERSION_NUMBER()
 {
     return _version;
 }
-
 
 void* operator new(std::size_t size)
 {
     return tvg::malloc(size);
 }
 
-
 void operator delete(void* ptr) noexcept
 {
     tvg::free(ptr);
 }
 
-
 void* operator new[](std::size_t size)
 {
     return tvg::malloc(size);
 }
-
 
 void operator delete[](void* ptr) noexcept
 {

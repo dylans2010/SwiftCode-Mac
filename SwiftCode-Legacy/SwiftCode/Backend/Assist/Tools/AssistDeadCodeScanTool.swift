@@ -39,7 +39,6 @@ public struct AssistDeadCodeScanTool: AssistTool {
             entries.append((relative: relativePath(url, root: context.workspaceRoot), lines: text.components(separatedBy: "\n"), text: text))
         }
 
-        // Whole-word occurrence counts across the entire scanned corpus.
         var wordCounts: [String: Int] = [:]
         let separators = CharacterSet.alphanumerics.inverted
         for entry in entries {
@@ -70,8 +69,6 @@ public struct AssistDeadCodeScanTool: AssistTool {
                     if excludedNames.contains(name) { continue }
                     if exclusionRegex.firstMatch(in: line, options: [], range: range) != nil { continue }
                     let references = wordCounts[name] ?? 0
-                    // The declaration line itself contributes one mention. A total
-                    // of 1 means nothing else in the scanned corpus mentions it.
                     if references <= 1 {
                         candidates.append((relative: entry.relative, line: index + 1, kind: kind, name: name, count: references))
                     }

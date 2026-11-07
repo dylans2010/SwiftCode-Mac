@@ -6,18 +6,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_POLISH=<prefix>: the beta 2 polish pass, end to end in a
-// package (Greeter with an asset catalog), printing "polish <step>: …" and
-// writing <prefix>-<step>.png:
-//
-//   ctrl-y (Ctrl+Y with the editor focused: Debug ▸ Deactivate
-//   Breakpoints, the Debug menu open), redo (Ctrl+Shift+Z), symbols-tooltip
-//   (⌘3's own symbol and tooltip), console-filter-menu and
-//   variables-scope-menu (pull-downs in the bottom bars), assets-add-menu
-//   (the asset catalog's "+"), console-row-menu (a console row's Copy
-//   items after a run), runtime-copy (the runtime wizard's Copy button),
-//   settings-general (the columns form), forced-light (Settings ▸
-//   Appearance Light on a dark desktop: the menu bar follows).
 extension ShellDriver {
     #if os(Linux)
     static func polish(_ app: ShellAppModel, prefix: String) async {
@@ -30,8 +18,6 @@ extension ShellDriver {
             say("polish \(step): " + OpenViewsAutomation.screenshot(window, to: "\(prefix)-\(step).png"))
         }
         let height = OpenViewsAutomation.windowSize()?.points.height ?? 0
-        // The clipboard as another program reads it (xclip on X11, where
-        // the app owns the selection while it runs), and as the app reads it.
         func clipboard() async -> String {
             await pause(0.3)
             var outside = "-"
@@ -43,7 +29,6 @@ extension ShellDriver {
                 p.standardOutput = out
                 p.standardError = FileHandle.nullDevice
                 if (try? p.run()) != nil {
-                    // xclip asks this app for the selection: keep the run loop going.
                     for _ in 0..<40 where p.isRunning { await pause(0.05) }
                     if p.isRunning { p.terminate() }
                     outside = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
@@ -51,7 +36,6 @@ extension ShellDriver {
             }
             return "copied=\"\(ShellPasteboard.lastCopied ?? "")\" app=\"\(ShellClipboard.string ?? "")\" xclip=\"\(outside)\""
         }
-        // The open pop-up's frame in the window (its texts' union).
         func popupFrame() -> CGRect? {
             let t = OpenViewsAutomation.texts().filter(\.inPopup).map(\.frame)
             guard let first = t.first else { return nil }
@@ -66,7 +50,6 @@ extension ShellDriver {
                        p.minY, p.maxY, a.minY, a.maxY, height, p.maxY <= a.minY + 1 ? "upward" : "downward", p.maxY <= height ? "yes" : "no"))
         }
 
-        // 1. Ctrl+Y with the editor focused reaches Debug ▸ Deactivate Breakpoints.
         guard let main = w.root.allFiles.first(where: { $0.name == "main.swift" })?.path else {
             say("polish: no main.swift")
             return
@@ -86,7 +69,6 @@ extension ShellDriver {
         await pause(0.3)
         say("polish ctrl-y again: breakpoints active \(w.debug.breakpoints.isActive)")
 
-        // 2. Redo is Ctrl+Shift+Z.
         await click("source")
         let length = w.editor?.buffer.length ?? 0
         OpenViewsAutomation.type("x")
@@ -102,7 +84,6 @@ extension ShellDriver {
         OpenViewsAutomation.press(.character("z"), modifiers: [.control])
         await pause(0.3)
 
-        // 3. ⌘3: the Symbol navigator's own symbol and tooltip.
         OpenViewsAutomation.press(.character("3"), modifiers: [.control])
         await pause(0.5)
         if let f = frame("selector 2") {
@@ -114,7 +95,6 @@ extension ShellDriver {
         say("polish symbols: navigator=\(w.navigator.rawValue) tooltip=\"\(OpenViewsAutomation.texts().first { $0.text.hasPrefix("Show the") }?.text ?? "none")\"")
         await shot("symbols-tooltip")
 
-        // 4. Pull-downs in the debug area's bottom bars open upward.
         w.isDebugAreaShown = true
         await pause(0.5)
         await click("console filter")
@@ -128,7 +108,6 @@ extension ShellDriver {
         OpenViewsAutomation.press(.escape)
         await pause(0.3)
 
-        // 5. The asset catalog's "+" at the window's bottom.
         if let assets = w.root.allFiles.first(where: { $0.name.hasSuffix(".xcassets") })?.path {
             w.isDebugAreaShown = false
             w.open(assets)
@@ -144,7 +123,6 @@ extension ShellDriver {
             say("polish assets-add-menu: no asset catalog")
         }
 
-        // 6. Run, then copy a console row (its menu, and Debug ▸ Console).
         w.perform(.run)
         for _ in 0..<600 where w.isBusy || !w.console.contains("Hello") { await pause(0.25) }
         w.isDebugAreaShown = true
@@ -179,7 +157,6 @@ extension ShellDriver {
             say("polish console: no output row (\(w.console.suffix(200)))")
         }
 
-        // 7. The runtime wizard's Copy buttons.
         let domain = "swiftcode-ide-polish-walk"
         UserDefaults.standard.removePersistentDomain(forName: domain)
         app.runtimeDefaults = UserDefaults(suiteName: domain) ?? .standard
@@ -198,7 +175,6 @@ extension ShellDriver {
                 }
             }
             if !copied {
-                // A host that does not answer: "Reachable" offers its ssh-copy-id command.
                 s.show(.host)
                 s.ssh = "/bin/false"
                 s.setHost(RuntimeHostSettings(destination: "nobody@swiftcode-host.invalid", dataDirectory: "/data/swiftcode"))
@@ -217,7 +193,6 @@ extension ShellDriver {
             say("polish runtime wizard closed")
         }
 
-        // 8. Settings: the columns form; the forced appearance on the menu bar.
         let saved = Preferences.shared.appearance
         OpenViewsAutomation.press(.character(","), modifiers: [.control])
         for _ in 0..<20 where OpenViewsAutomation.windowCount < 2 { await pause(0.2) }

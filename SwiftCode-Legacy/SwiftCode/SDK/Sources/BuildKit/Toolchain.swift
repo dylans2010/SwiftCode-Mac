@@ -49,7 +49,6 @@ public final class Toolchain: Sendable {
             }
         }
 
-        // Try 'which' via Process
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/which")

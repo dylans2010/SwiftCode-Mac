@@ -7,17 +7,12 @@ import Glibc
 import Darwin
 #endif
 
-/// The loopback forward to a debug stub's Unix socket (debug.md, "The
-/// Linux IDE: apps on the simulator").
 struct StubForwardTests {
-    /// A Unix socket server that answers each read with "<bytes>!" and
-    /// accepts one client.
     final class EchoStub: @unchecked Sendable {
         let path: String
         let fd: Int32
 
         init() throws {
-            // Short: sun_path holds about 100 bytes.
             path = "/tmp/ysf-\(getpid())-\(UInt32.random(in: 0...UInt32.max)).sock"
             fd = socket(AF_UNIX, StubForward.streamType, 0)
             var addr = sockaddr_un()
@@ -80,7 +75,6 @@ struct StubForwardTests {
             got += buf[0..<n]
         }
         #expect(String(decoding: got, as: UTF8.self) == "$qSupported#37!")
-        // One client only: the listener is closed once the first connects.
         var refused = false
         for _ in 0..<50 {
             if let second = Self.connectLoopback(forward.port) {
@@ -92,7 +86,6 @@ struct StubForwardTests {
             }
         }
         #expect(refused)
-        // The client's end of the forward ends when the forward closes.
         forward.close()
         #expect(forward.isClosed)
         let n = buf.withUnsafeMutableBytes { read(c, $0.baseAddress, $0.count) }

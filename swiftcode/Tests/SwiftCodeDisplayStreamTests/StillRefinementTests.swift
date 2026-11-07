@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDisplayStream
 
-/// Lossless once still (specs/simulator/display-stream.md §4.2.2; uikit-feel-swiftcode.md §8.4).
 struct StillRefinementTests {
     typealias R = StillRefinement.Rect
     static let still = StillRefinement.stillNanoseconds
@@ -18,7 +17,6 @@ struct StillRefinementTests {
         s.sentLossy([R(x: 40, y: 40, width: 10, height: 10)], at: 1_000)
         #expect(!s.isDue(at: 1_000 + Self.still - 1))
         #expect(s.isDue(at: 1_000 + Self.still))
-        // A new picture postpones it.
         s.screenChanged(at: 1_000 + Self.still / 2)
         #expect(!s.isDue(at: 1_000 + Self.still))
         #expect(s.isDue(at: 1_000 + Self.still / 2 + Self.still))
@@ -35,7 +33,6 @@ struct StillRefinementTests {
     @Test func edgeTilesAreClippedToTheImage() {
         var s = StillRefinement(width: 100, height: 70, tile: 32)
         s.sentLossy([R(x: 0, y: 0, width: 100, height: 70)], at: 0)
-        // One run per row, equal spans joined: the whole image.
         #expect(s.take() == [R(x: 0, y: 0, width: 100, height: 70)])
     }
 
@@ -44,7 +41,6 @@ struct StillRefinementTests {
         s.sentLossy([R(x: 0, y: 0, width: 64, height: 64), R(x: 160, y: 32, width: 32, height: 64)], at: 0)
         let rects = s.take()
         #expect(rects == [R(x: 0, y: 0, width: 64, height: 64), R(x: 160, y: 32, width: 32, height: 64)])
-        // No two rectangles overlap (the viewer decodes tiles in parallel).
         for (i, a) in rects.enumerated() {
             for b in rects[(i + 1)...] {
                 #expect(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y)
@@ -55,7 +51,6 @@ struct StillRefinementTests {
     @Test func losslessTilesClearOnlyWhatTheyCoverCompletely() {
         var s = StillRefinement(width: 128, height: 64, tile: 32)
         s.sentLossy([R(x: 0, y: 0, width: 128, height: 64)], at: 0)
-        // Covers tiles (1,0) and (2,0) completely and touches (0,0) and (3,0) partly.
         s.sentLossless([R(x: 16, y: 0, width: 96, height: 32)])
         #expect(s.take() == [R(x: 0, y: 0, width: 32, height: 32), R(x: 96, y: 0, width: 32, height: 32),
                              R(x: 0, y: 32, width: 128, height: 32)])

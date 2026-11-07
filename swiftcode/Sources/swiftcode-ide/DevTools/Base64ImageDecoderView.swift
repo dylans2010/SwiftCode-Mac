@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(AppKit)
 import SwiftUI
 import SwiftCodeUI
@@ -100,7 +97,7 @@ public struct Base64ImageDecoderView: View {
             }
             .padding(24)
         }
-        
+
     }
 
     private func performDecoding() {
@@ -109,7 +106,6 @@ public struct Base64ImageDecoderView: View {
 
         let trimmed = base64Input
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            // Strip common prefix wrappers (like 'data:image/png;base64,')
             .replacingOccurrences(of: "data:image/png;base64,", with: "")
             .replacingOccurrences(of: "data:image/jpeg;base64,", with: "")
             .replacingOccurrences(of: "data:image/gif;base64,", with: "")

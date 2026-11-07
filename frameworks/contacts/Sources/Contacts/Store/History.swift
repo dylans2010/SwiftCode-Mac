@@ -1,5 +1,3 @@
-// Change history (interface.md §6.2): tokens, requests, events and the visitor.
-
 import Foundation
 
 public final class CNChangeHistoryFetchRequest: CNFetchRequest, @unchecked Sendable {
@@ -13,7 +11,6 @@ public final class CNChangeHistoryFetchRequest: CNFetchRequest, @unchecked Senda
     public override init() { super.init() }
 }
 
-/// Receives history events; only the drop-everything event is required.
 public protocol CNChangeHistoryEventVisitor: AnyObject {
     func visit(_ event: CNChangeHistoryDropEverythingEvent)
     func visit(_ event: CNChangeHistoryAddContactEvent)
@@ -115,7 +112,6 @@ public final class CNChangeHistoryRemoveMemberFromGroupEvent: CNChangeHistoryEve
     public override func accept(_ visitor: CNChangeHistoryEventVisitor) { visitor.visit(self) }
 }
 
-/// Subgroups do not exist on iOS; these events are never produced.
 public final class CNChangeHistoryAddSubgroupToGroupEvent: CNChangeHistoryEvent, @unchecked Sendable {
     public let subgroup: CNGroup
     public let group: CNGroup
@@ -136,8 +132,6 @@ public final class CNChangeHistoryRemoveSubgroupFromGroupEvent: CNChangeHistoryE
     public override func accept(_ visitor: CNChangeHistoryEventVisitor) { visitor.visit(self) }
 }
 
-/// SwiftCode's history token: "YCNH1:<database id>:<journal sequence>" in UTF-8.
-/// Apps treat tokens as opaque data.
 enum HistoryToken {
     static func make(databaseID: String, seq: Int64) -> Data {
         Data("YCNH1:\(databaseID):\(seq)".utf8)

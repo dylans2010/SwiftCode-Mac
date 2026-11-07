@@ -1,10 +1,3 @@
-/* SwiftCode stage-4b probe: AF_UNIX stream socket between processes and
- * SCM_RIGHTS (processes.md section 5). The parent binds and listens on a
- * path under /tmp; the child connects, sends text, then passes the read
- * end of a pipe it has written to. The parent reads the text, then reads
- * the pipe's data through the received descriptor. Every wait is a
- * non-blocking poll loop with a deadline. Original SwiftCode code.
- * Prints: unix ok */
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -113,7 +106,6 @@ int main(int argc, char **argv)
 
     const char *extra[] = {path, NULL};
     pid_t pid = -1;
-    /* The child inherits the listening descriptor too; it only connects. */
     int err = probe_spawn(&pid, self, NULL, NULL, "child", extra);
     if (err != 0)
         probe_fail("posix_spawn: %d (%s)", err, strerror(err));
@@ -131,8 +123,6 @@ int main(int argc, char **argv)
     }
     set_nonblocking(cs);
 
-    /* Read the text and the marker byte; take the descriptor from whichever
-     * read carries the control message. */
     char data[128];
     size_t have = 0;
     int passed = -1;
@@ -180,7 +170,6 @@ int main(int argc, char **argv)
     if (passed < 0)
         probe_fail("no descriptor received");
 
-    /* Read the pipe through the passed descriptor until EOF. */
     set_nonblocking(passed);
     char pipe_data[128];
     size_t got = 0;

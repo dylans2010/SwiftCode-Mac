@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// A specialized view for visualizing the autonomous execution progress of the Assist Planner.
 public struct AssistPlannerView: View {
     @ObservedObject var planner = TasksAIPlanner.shared
 

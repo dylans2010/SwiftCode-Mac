@@ -1,12 +1,7 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/DesignerDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// M-DEVTOOLS: Audit A MISSING, ported at HEAD bc28f653.
-// ADAPTATION: HFlowLayout (no production equivalent) -> DiscoverHFlowLayout (SwiftCodeUI, public) wrapping a ForEach. OpenRouterService has no production definition (same dangling reference as AssistMainView/BuildLogsView/SearchDocumentationView); calls kept verbatim. KeychainService/AIMessage resolve from SwiftCodeAssistant (KeychainService.swift currently untracked in the tree). Analyse endpoint is Legacy's own http://50.21.181.105:4000/analyze, kept verbatim.
 import SwiftUI
 import SwiftCodeUI
 import SwiftCodeAssistant
 import os.log
-
-// MARK: - Models
 
 struct APIResponse: Codable {
     let success: Bool
@@ -34,7 +29,6 @@ struct DesignSnapshot: Codable {
         self.title = data.title
         self.screenshotBase64 = data.screenshot
 
-        // Normalize Colors: Remove duplicates, filter transparent, limit to 50
         let cleanedColors = data.colors
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { $0.lowercased() != "rgba(0, 0, 0, 0)" && $0.lowercased() != "rgba(0,0,0,0)" && !$0.isEmpty }
@@ -50,7 +44,6 @@ struct DesignSnapshot: Codable {
         }
         self.colors = uniqueColors
 
-        // Normalize Fonts: Split stacks, trim, deduplicate
         var uniqueFonts: [String] = []
         var seenFonts = Set<String>()
         for fontStack in data.fonts {
@@ -66,7 +59,6 @@ struct DesignSnapshot: Codable {
         }
         self.fonts = uniqueFonts
 
-        // Normalize Radii: Remove "0px", deduplicate
         var uniqueRadii: [String] = []
         var seenRadii = Set<String>()
         for radius in data.radii {
@@ -95,8 +87,6 @@ struct DesignSnapshot: Codable {
     }
 }
 
-// MARK: - Prompt Template Definition
-
 struct PromptTemplate: Identifiable, Hashable {
     let id: String
     let name: String
@@ -104,23 +94,18 @@ struct PromptTemplate: Identifiable, Hashable {
     let basePrompt: String
 }
 
-// MARK: - DesignerDevTool View Model
-
 @Observable
 @MainActor
 final class DesignerDevToolViewModel {
-    // URL Reverse Engineering States
     var urlString: String = ""
     var isAnalyzing: Bool = false
     var result: DesignSnapshot?
     var errorMessage: String?
 
-    // Design Studio Workspace States
-    var selectedWorkspaceTab: Int = 0 // 0 = DESIGN.md, 1 = SwiftUI Tokens, 2 = SwiftUI Components, 3 = Live Sandbox Preview, 4 = URL Analyzer
+    var selectedWorkspaceTab: Int = 0
     var userConcept: String = ""
     var selectedTemplateId: String = "saas"
 
-    // Prompt Variables
     var accentColorHex: String = "#007AFF"
     var secondaryColorHex: String = "#5856D6"
     var typographyStyle: String = "Inter, Sans-serif"
@@ -128,14 +113,12 @@ final class DesignerDevToolViewModel {
     var containerRadii: String = "8px, 12px, 16px"
     var themeMode: String = "Dark"
 
-    // Prompt History & Previews
     var promptHistory: [String] = []
     var optimizedPrompt: String = ""
     var showOptimizationComparison: Bool = false
     var isOptimizingPrompt: Bool = false
     var isGeneratingWorkspace: Bool = false
 
-    // Generated Workspace Outputs
     var designDoc: String = ""
     var swiftUITokens: String = ""
     var swiftUIComponents: String = ""
@@ -143,7 +126,6 @@ final class DesignerDevToolViewModel {
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "DesignerDevTool")
     private let analyzeURL = URL(string: "http://50.21.181.105:4000/analyze")!
 
-    // Pre-defined Design System Templates
     let templates: [PromptTemplate] = [
         PromptTemplate(
             id: "saas",
@@ -191,7 +173,6 @@ final class DesignerDevToolViewModel {
 
         let systemPrompt = "You are a senior Design Systems Architect. Optimize the provided concept into a gorgeous, extensive system prompt that forces highly-scalable, accessible AppKit & SwiftUI interfaces."
 
-        // Call OpenRouter / local fallback
         if let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !apiKey.isEmpty {
             do {
                 let response = try await OpenRouterService.shared.chat(
@@ -209,7 +190,6 @@ final class DesignerDevToolViewModel {
             }
         }
 
-        // Local fallback
         optimizedPrompt = """
         [Optimized Design Prompts]
         SYSTEM DIRECTIVE: Engineer a multi-platform SwiftUI design environment optimized primarily for macOS desktop screens.
@@ -228,7 +208,6 @@ final class DesignerDevToolViewModel {
         isGeneratingWorkspace = true
         let activePrompt = optimizedPrompt.isEmpty ? userConcept : optimizedPrompt
 
-        // ENFORCED DESIGN.md system prompt
         let designDocSystemPrompt = """
         You are a principal designer and engineering lead. You must reverse-engineer the provided prompt into a comprehensive, production-ready specification document named DESIGN.md.
         The output MUST cover all of the following exact sections with outstanding structure:
@@ -261,7 +240,6 @@ final class DesignerDevToolViewModel {
         Use strict Swift 6 and @Observable state models. Output ONLY the code block.
         """
 
-        // 1. Generate DESIGN.md
         if let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !apiKey.isEmpty {
             do {
                 designDoc = try await OpenRouterService.shared.chat(
@@ -280,7 +258,6 @@ final class DesignerDevToolViewModel {
                     systemPrompt: componentsSystemPrompt
                 )
 
-                // Add to history
                 if !promptHistory.contains(userConcept) {
                     promptHistory.insert(userConcept, at: 0)
                 }
@@ -291,7 +268,6 @@ final class DesignerDevToolViewModel {
             }
         }
 
-        // Fallbacks
         designDoc = """
         # DESIGN.md - Custom Design Specification
 
@@ -383,7 +359,6 @@ final class DesignerDevToolViewModel {
         isGeneratingWorkspace = false
     }
 
-    // URL Reverse Engineering API Action
     func analyze() async {
         guard let url = URL(string: urlString), url.scheme != nil else {
             errorMessage = "Please enter a valid URL."
@@ -413,7 +388,6 @@ final class DesignerDevToolViewModel {
                 let snapshot = DesignSnapshot(from: designData)
                 self.result = snapshot
 
-                // Load reverse-engineered parameters as default workspace tokens
                 if !snapshot.colors.isEmpty {
                     accentColorHex = snapshot.colors[0]
                     if snapshot.colors.count > 1 {
@@ -427,7 +401,6 @@ final class DesignerDevToolViewModel {
                     containerRadii = snapshot.radii.joined(separator: ", ")
                 }
 
-                // Auto transition workspace tab
                 selectedWorkspaceTab = 0
 
                 logger.info("Successfully analyzed and loaded design tokens for: \(snapshot.title)")
@@ -445,8 +418,6 @@ final class DesignerDevToolViewModel {
     }
 }
 
-// MARK: - DesignerDevToolView
-
 public struct DesignerDevToolView: View {
     @State private var viewModel = DesignerDevToolViewModel()
     @Namespace private var workspaceAnimation
@@ -455,7 +426,6 @@ public struct DesignerDevToolView: View {
 
     public var body: some View {
         HSplitView {
-            // Left Column: Prompt Architect & Variable Configurator
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Label("Design System Architect", systemImage: "wand.and.stars")
@@ -468,7 +438,6 @@ public struct DesignerDevToolView: View {
 
                     Divider()
 
-                    // Template Chooser
                     VStack(alignment: .leading, spacing: 8) {
                         Text("CHOOSE DESIGN ARCHETYPE")
                             .font(.system(size: 10, weight: .bold))
@@ -492,7 +461,6 @@ public struct DesignerDevToolView: View {
                         }
                     }
 
-                    // Prompt Concept Editor
                     VStack(alignment: .leading, spacing: 8) {
                         Text("CREATIVE DESIGN CONCEPT")
                             .font(.system(size: 10, weight: .bold))
@@ -507,7 +475,6 @@ public struct DesignerDevToolView: View {
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 1))
                     }
 
-                    // Variable Overrides
                     VStack(alignment: .leading, spacing: 14) {
                         Text("DESIGN TOKEN VARIABLE OVERRIDES")
                             .font(.system(size: 10, weight: .bold))
@@ -568,7 +535,6 @@ public struct DesignerDevToolView: View {
                         .cornerRadius(10)
                     }
 
-                    // Optimize Prompt Button
                     Button {
                         Task {
                             await viewModel.optimizePrompt()
@@ -588,7 +554,6 @@ public struct DesignerDevToolView: View {
                     .controlSize(.large)
                     .disabled(viewModel.userConcept.isEmpty || viewModel.isOptimizingPrompt)
 
-                    // Prompt comparison
                     if viewModel.showOptimizationComparison {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("AI Optimized Output Prompt Preview:")
@@ -606,7 +571,6 @@ public struct DesignerDevToolView: View {
                         .transition(.slide)
                     }
 
-                    // Main Generation Trigger Button
                     Button {
                         Task {
                             await viewModel.generateWorkspace()
@@ -631,7 +595,6 @@ public struct DesignerDevToolView: View {
                     .buttonStyle(.plain)
                     .disabled(viewModel.userConcept.isEmpty || viewModel.isGeneratingWorkspace)
 
-                    // History Section (if non-empty)
                     if !viewModel.promptHistory.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("DESIGN PROMPT HISTORY")
@@ -666,9 +629,7 @@ public struct DesignerDevToolView: View {
             .frame(minWidth: 320, maxWidth: 450)
             .background(Color(NSColor.windowBackgroundColor))
 
-            // Right Column: Professional Tabbed Design Studio Workspace
             VStack(spacing: 0) {
-                // Modern Tabbed Headers
                 HStack(spacing: 16) {
                     ForEach(["DESIGN.md", "SwiftUI Tokens", "Components", "Live Preview", "URL Analyzer"].indices, id: \.self) { idx in
                         Button {
@@ -700,7 +661,6 @@ public struct DesignerDevToolView: View {
 
                 Divider()
 
-                // Active Workspace Tab Render
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         switch viewModel.selectedWorkspaceTab {
@@ -724,8 +684,6 @@ public struct DesignerDevToolView: View {
             .frame(minWidth: 500)
         }
     }
-
-    // MARK: - Workspace Subview: DESIGN.md Spec Sheet
 
     @ViewBuilder
     private func designMarkdownWorkspace() -> some View {
@@ -761,8 +719,6 @@ public struct DesignerDevToolView: View {
         }
     }
 
-    // MARK: - Workspace Subview: SwiftUI Tokens Sheet
-
     @ViewBuilder
     private func designTokensWorkspace() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -794,8 +750,6 @@ public struct DesignerDevToolView: View {
             }
         }
     }
-
-    // MARK: - Workspace Subview: SwiftUI Components Sheet
 
     @ViewBuilder
     private func designComponentsWorkspace() -> some View {
@@ -829,8 +783,6 @@ public struct DesignerDevToolView: View {
         }
     }
 
-    // MARK: - Workspace Subview: Interactive Live Sandbox Preview
-
     @ViewBuilder
     private func interactiveLiveSandboxPreview() -> some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -847,7 +799,6 @@ public struct DesignerDevToolView: View {
             let secondColor = Color(hex: viewModel.secondaryColorHex)
 
             VStack(spacing: 16) {
-                // Interactive Banner
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "sparkles")
@@ -865,9 +816,7 @@ public struct DesignerDevToolView: View {
                 .cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(mainColor.opacity(0.3), lineWidth: 1.5))
 
-                // Structured Layout Widgets Row
                 HStack(spacing: 16) {
-                    // Card 1
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Visual Card", systemImage: "photo.fill")
                             .font(.subheadline.bold())
@@ -887,7 +836,6 @@ public struct DesignerDevToolView: View {
                     .cornerRadius(12)
                     .shadow(color: Color.black.opacity(0.1), radius: 4)
 
-                    // Card 2
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Analytical Card", systemImage: "chart.line.uptrend.xyaxis")
                             .font(.subheadline.bold())
@@ -913,8 +861,6 @@ public struct DesignerDevToolView: View {
             .cornerRadius(16)
         }
     }
-
-    // MARK: - Workspace Subview: URL Reverse Engineering Analyzer
 
     @ViewBuilder
     private func urlReverseEngineeringAnalyzer() -> some View {
@@ -979,7 +925,6 @@ public struct DesignerDevToolView: View {
 
                     Divider()
 
-                    // Color palette chips
                     Text("EXTRACTED COLORS")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -1000,7 +945,6 @@ public struct DesignerDevToolView: View {
 
                     Divider()
 
-                    // Extracted fonts
                     Text("EXTRACTED TYPOGRAPHY")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -1024,8 +968,6 @@ public struct DesignerDevToolView: View {
             }
         }
     }
-
-    // MARK: - General Utility Views
 
     @ViewBuilder
     private func emptyWorkspacePlaceholder(title: String, description: String) -> some View {

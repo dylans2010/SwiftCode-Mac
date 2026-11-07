@@ -6,24 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Pop-up windows for menus (round R8; Menu.swift). A control asks its
-// window's `WindowServices.popups` to present content; the host measures the
-// content at its ideal size, creates a pop-up menu window through OVPlatform
-// (a child of the presenting window, placed in its coordinates) and runs the
-// content in a graph of its own, like any window. The content keeps the
-// presenting view's bindings and actions, so choosing an item writes the
-// owner window's state.
-//
-// Closing (SwiftCode rules): a menu item closes the whole chain of pop-ups it is
-// in; Escape closes the pop-up it is pressed in (Left too, in a submenu); a
-// press in any other window closes every pop-up not on that window's chain
-// and is not delivered; closing or minimising the owner closes its pop-ups.
-//
-// When the window system refuses a pop-up window, the content is shown as an
-// overlay of the presenting window (the same rules; a press outside it in
-// that window closes it).
-
-/// Presents pop-ups for one window.
 @MainActor
 final class WindowPopupPresenter: PopupPresenting {
     weak var host: AppHost?
@@ -42,7 +24,6 @@ final class WindowPopupPresenter: PopupPresenting {
     }
 }
 
-/// A pop-up shown inside its window.
 package struct OverlayPopup: Identifiable {
     package let id: Int
     let content: AnyView
@@ -50,8 +31,6 @@ package struct OverlayPopup: Identifiable {
     let size: CGSize
 }
 
-/// The overlay layer of a window's pop-ups: a press catcher over the window
-/// and the pop-ups at their places.
 struct OverlayPopupLayer: View {
     let items: [OverlayPopup]
     let windowSize: CGSize
@@ -73,7 +52,6 @@ struct OverlayPopupLayer: View {
 }
 
 extension AppHost {
-    /// The pop-ups on `w`'s chain: `w` and the windows that presented it.
     private func chain(_ w: WindowHost) -> [WindowHost] {
         var out: [WindowHost] = []
         var c: WindowHost? = w
@@ -84,7 +62,6 @@ extension AppHost {
         return out
     }
 
-    /// The first pop-up of `w`'s chain (presented by a regular window).
     private func rootPopup(_ w: WindowHost) -> WindowHost {
         var r = w
         while let o = r.popupOwner, o.isPopup { r = o }
@@ -94,21 +71,14 @@ extension AppHost {
     func presentPopup(from owner: WindowHost, content: AnyView, origin requested: CGPoint, anchor: CGRect? = nil, minWidth: CGFloat,
                       chrome kind: PopupChrome = .menu, fallbackKeys: ((KeyEvent) -> Bool)? = nil,
                       onDismiss: @escaping () -> Void) -> PopupHandle? {
-        // One pop-up per owner window at a time: a new one replaces the
-        // owner's existing pop-ups.
         for p in windows where p.isPopup && p.popupOwner === owner { closePopup(p) }
         let chrome = kind == .menu ? AnyView(MenuChrome(content: content)) : content
         var env = owner.graph.environment
         env._windowServices = nil
         env._dismissPopup = nil
-        // (R13) Measured with the services the shown content gets: items
-        // that depend on the main window (View > Hide Toolbar, Show Sidebar)
-        // were left out of the measurement, and the pop-up came out too
-        // small, cutting off its first and last rows.
         var measureMain: WindowHost = owner
         while measureMain.isPopup, let o = measureMain.popupOwner { measureMain = o }
         env._popupOwnerServices = measureMain.services
-        // The content's ideal size.
         let symbols = owner.graph.layout?.symbols ?? StubSymbolProvider()
         let measure = ViewGraph(rootView: chrome, environment: env,
                                 layout: HostLayout(.proposal(.unspecified), symbols: symbols))
@@ -119,8 +89,6 @@ extension AppHost {
         size.width = max(size.width, minWidth).rounded(.up)
         size.height = size.height.rounded(.up)
         guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return nil }
-        // Kept inside the main window: the pop-up's owner chain gives its
-        // offset there (a submenu's owner is a pop-up).
         var offset = CGPoint.zero
         var main: WindowHost = owner
         while main.isPopup, let o = main.popupOwner {
@@ -141,7 +109,6 @@ extension AppHost {
         log?("pop-up \(pw.id) of \(owner.platform.id) at (\(origin.x), \(origin.y)) \(size.width)x\(size.height)")
         let box = WeakWindowBox()
         env = owner.graph.environment
-        // R11: items act on the main window that opened the chain.
         env._popupOwnerServices = main.services
         env._dismissPopup = { [weak self] in
             guard let self, let w = box.window else { return }
@@ -184,7 +151,6 @@ extension AppHost {
         return handle
     }
 
-    /// Closes a pop-up window and the pop-ups it presented.
     func closePopup(_ w: WindowHost) {
         guard w.isPopup, windows.contains(where: { $0 === w }) else { return }
         for p in windows where p.isPopup && p.popupOwner === w { closePopup(p) }
@@ -195,14 +161,10 @@ extension AppHost {
         w.platform.close()
         let action = w.popupOnDismiss
         w.popupOnDismiss = nil
-        // Keyboard focus goes back to the window that presented the pop-up.
         if let owner = w.popupOwner, windows.contains(where: { $0 === owner }) { owner.platform.activate() }
         action?()
     }
 
-    /// Closes the pop-ups that are not on the chain of the window pressed in
-    /// (and overlays of that window when the press is outside them). True if
-    /// anything was closed: the press is not delivered.
     func closePopups(outside id: PlatformWindowID, at point: CGPoint) -> Bool {
         guard let target = window(for: id) else { return false }
         let keep = chain(target)
@@ -214,8 +176,6 @@ extension AppHost {
         }
         return closed
     }
-
-    // MARK: Overlay fallback
 
     private func presentOverlay(in owner: WindowHost, content: AnyView, origin: CGPoint, size: CGSize,
                                 onDismiss: @escaping () -> Void) -> PopupHandle {
@@ -240,18 +200,11 @@ extension AppHost {
     }
 }
 
-/// A weak reference to a window created after the closures that need it.
 @MainActor
 final class WeakWindowBox {
     weak var window: WindowHost?
 }
 
-/// Where a pop-up goes so that it stays inside its main window (points of
-/// that window). Below its anchor (at the requested origin) when it fits;
-/// otherwise above the anchor when it fits there, else as far up as it
-/// must go. A pop-up beside its anchor (a submenu, origin at the anchor's
-/// trailing edge) moves up to fit, and to the anchor's leading side when it
-/// does not fit on the trailing one. Never past the left or top edge.
 enum PopupPlacement {
     static func origin(_ o: CGPoint, size: CGSize, anchor: CGRect?, bounds: CGSize) -> CGPoint {
         var p = o

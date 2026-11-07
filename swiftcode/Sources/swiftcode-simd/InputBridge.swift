@@ -1,11 +1,3 @@
-// Viewer input → guest (specs/simulator/hid-input.md). The display
-// server's input events become messages of SwiftCode's HID transport (§7) to
-// the HID bundle in backboardd (SimGuestFrameworks/SimHID): touches in
-// normalized coordinates with edge marks (§8.2), page-7 keys, and
-// consumer-page buttons (§5.5). Enabled with --display-server (or
-// --hid-bundle); otherwise SIMULATOR_HID_SYSTEM_MANAGER stays empty and the
-// boot is unchanged.
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -13,10 +5,6 @@ import SwiftCodeDarwinKernel
 import SwiftCodeDisplayStream
 import SwiftCodeHostServices
 
-/// The HID bundle directory for this run, or nil (no input). A foldable
-/// device type has it by default, display server or not: its hinge is HID
-/// input (foldable.md §5, §8.2), and every boot starts closed. So does a
-/// watch: its crown is (`swiftcode-sim --crown`, watchos.md §12).
 func hidBundlePath(_ options: Options, foldable: Bool = false) -> String? {
     if options.hidBundle == "none" { return nil }
     if let explicit = options.hidBundle { return absolutePath(explicit) }
@@ -31,8 +19,6 @@ func hidBundlePath(_ options: Options, foldable: Bool = false) -> String? {
     return built
 }
 
-/// Starts dev.swiftcode.simulator.hid and offers it in the guest bootstrap,
-/// when the device has the HID bundle.
 func startHIDService(config: ExecConfiguration, session: DeviceSession, host: MachHostTask) -> HIDHostService? {
     guard let device = config.device, device.hidBundle != nil else { return nil }
     do {
@@ -47,35 +33,23 @@ func startHIDService(config: ExecConfiguration, session: DeviceSession, host: Ma
     }
 }
 
-/// Display-stream input → HID transport messages. Touches go to the panel
-/// the viewer shows (`panel`; foldable.md §8.2 I1), in that panel's points.
 final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
     let hid: HIDHostService
-    /// The panel touches are for: its touch-message display index and its
-    /// size in points (native portrait orientation).
     var panel: () -> (display: UInt32, pointWidth: Double, pointHeight: Double)
     private var pointWidth: Double { panel().pointWidth }
     private var pointHeight: Double { panel().pointHeight }
-    /// §8.2: a contact that begins within this many points of an edge is an edge contact.
     static let edgePoints = 10.0
     static let maxContacts = 5
     private let lock = NSLock()
     private var edges = [HIDHostService.Edge](repeating: .none, count: maxContacts + 1)
     private var down = [Bool](repeating: false, count: maxContacts + 1)
     private var lastPoint = [(x: Double, y: Double)](repeating: (0, 0), count: maxContacts + 1)
-    private var keysDown = Set<UInt32>()      // page << 16 | usage
+    private var keysDown = Set<UInt32>()
     private var buttonsDown = Set<HIDUsagePair>()
-    /// The panel's pixels per point (a resting contact's one-pixel step).
     var pixelScale = 3.0
-    /// The device's buttons (DeviceButtonTable; watchos.md §5.2 on a watch).
     var family: DeviceButtonTable.Family = .phone
-    /// A Vision Pro's pose, selection and dial (VisionInput.swift); nil elsewhere.
     weak var vision: VisionInputController?
 
-    // Delivery (TouchPacing; uikit-feel-swiftcode.md §4.0): touches, keys and
-    // buttons are stamped on receipt and sent, in order, by one thread with
-    // their age, so the display server's receive thread never waits for the
-    // guest and a held-up delivery keeps its timing.
     private struct Outgoing {
         var event: HIDHostService.Event
         var received: UInt64
@@ -84,13 +58,8 @@ final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
     private var outbox: [Outgoing] = []
     private let outboxCondition = NSCondition()
     private var senderStarted = false
-    /// When the last touch message went out, and how many rest reports since (sender thread only).
     private var lastTouchSent: UInt64 = 0
     private var restReports = 0
-    /// What a resting contact sends every 16.7 ms: "off" (the default:
-    /// nothing, as the reference; uikit-feel-swiftcode.md §3.3), "pixel" (one
-    /// device pixel apart, alternately, as a digitizer's noise: UIKit then
-    /// sees the finger stop) or "unchanged" (phase 3 records). An experiment's switch.
     static let restMode = ProcessInfo.processInfo.environment["SWIFTCODE_HID_REST"] ?? "off"
 
     init(hid: HIDHostService, pointWidth: Double, pointHeight: Double) {
@@ -103,7 +72,6 @@ final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
     var buttons: [DisplayButton] { DeviceButtonTable.buttons(for: family) }
 
     static func edge(x: Double, y: Double, width: Double, height: Double) -> HIDHostService.Edge {
-        // Nearest edge within the threshold; bottom before top on ties (§8.2).
         let candidates: [(HIDHostService.Edge, Double)] = [(.bottom, height - y), (.top, y), (.left, x), (.right, width - x)]
         var best: (HIDHostService.Edge, Double)?
         for c in candidates where c.1 <= edgePoints {
@@ -122,8 +90,6 @@ final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
             enqueue(.key(usagePage: UInt32(page), usage: UInt32(usage), down: down), moveOnly: false)
             return hid.isRegistered
         case .button(_, let button, let down):
-            // A button this device lacks (a watch's volume, a non-Ultra's
-            // Action) is dropped (watchos.md §5.2).
             guard let pair = DeviceButtonTable.usage(of: button, for: family) else { return false }
             lock.withLock { if down { buttonsDown.insert(pair) } else { buttonsDown.remove(pair) } }
             enqueue(.button(usagePage: pair.page, usage: pair.usage, down: down), moveOnly: false)
@@ -135,7 +101,7 @@ final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
         case .dial(_, let delta):
             return vision?.send(dial: delta) ?? false
         case .fovea:
-            return true   // the server's foveated streaming only; never the guest
+            return true
         case .views(_, let v):
             return vision?.send(pose: v.head) ?? false
         }
@@ -172,7 +138,7 @@ final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
                 let phase: HIDHostService.Phase
                 switch c.phase {
                 case .began:
-                    if down[slot] { return nil }  // a second began for a slot that is down
+                    if down[slot] { return nil }
                     edges[slot] = Self.edge(x: x, y: y, width: pointWidth, height: pointHeight)
                     down[slot] = true
                     phase = .began
@@ -208,9 +174,6 @@ final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
         }
     }
 
-    /// The sender thread: the outbox in order (a move another move replaces
-    /// within 8 ms is dropped), each with its age; while a contact rests,
-    /// a report every 16.7 ms.
     private func senderLoop() {
         while true {
             outboxCondition.lock()
@@ -242,7 +205,6 @@ final class HIDInputBridge: GuestInputSink, @unchecked Sendable {
         }
     }
 
-    /// Every resting contact again, as a digitizer reports a still finger.
     private func sendRestReport() {
         let p = panel()
         restReports += 1

@@ -1,16 +1,10 @@
 import Foundation
 import SwiftCodeProject
 
-/// The "Resolve Package Graph" report printed before other output when a
-/// container uses Swift packages. swiftcodebuild does not resolve packages: it
-/// reports the pins recorded in `Package.resolved` and the local packages.
-/// See `specs/xcodebuild/info-commands.md` §2.3.
 enum PackageReport {
     struct Entry: Equatable {
         var name: String
         var location: String
-        /// Version, `branch (revision)`, short revision, `local`, or nil for
-        /// a package added as a folder.
         var state: String?
     }
 
@@ -21,7 +15,6 @@ enum PackageReport {
         var pins: [Entry] = []
         if let data = FileManager.default.contents(atPath: resolved.path),
            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            // Version 1 files nest the pins under "object".
             let list = obj["pins"] as? [[String: Any]] ?? (obj["object"] as? [String: Any])?["pins"] as? [[String: Any]] ?? []
             for pin in list {
                 let location = pin["location"] as? String ?? pin["repositoryURL"] as? String ?? ""
@@ -30,8 +23,6 @@ enum PackageReport {
                 let version = state["version"] as? String ?? (state["branch"] as? String).map { "\($0) (\(revision))" } ?? revision
                 var repo = URL(fileURLWithPath: location).lastPathComponent
                 if repo.hasSuffix(".git") { repo.removeLast(4) }
-                // The package's own name, when a checkout is at hand.
-                // Checkouts are named by repository or by package identity (lowercase).
                 let manifest = (try? String(contentsOfFile: checkouts + "/" + repo + "/Package.swift", encoding: .utf8))
                     ?? (try? String(contentsOfFile: checkouts + "/" + repo.lowercased() + "/Package.swift", encoding: .utf8))
                 pins.append(Entry(name: manifest.flatMap(LocalPackages.packageName) ?? repo, location: location, state: version))
@@ -42,12 +33,10 @@ enum PackageReport {
             return n(a) == n(b)
         }
         var out: [Entry] = []
-        // Direct references first, in the project's order; then the rest.
         for p in c.projects {
             let locals = LocalPackages.find(in: p)
             for ref in LocalPackages.references(in: p) {
                 if let dir = ref.local, let pkg = locals.first(where: { $0.directory == dir }), !out.contains(where: { $0.location == dir }) {
-                    // A package also added as a folder is reported as a folder.
                     out.append(Entry(name: pkg.name, location: dir, state: pkg.addedAsFolder ? nil : "local"))
                 } else if let url = ref.remote, let pin = pins.first(where: { sameRepo($0.location, url) }), !out.contains(pin) {
                     out.append(pin)
@@ -78,9 +67,6 @@ enum PackageReport {
     }
 }
 
-/// Quoting of arguments and names in log headers: a word made only of
-/// letters, digits, non-ASCII characters and `, + = - _ . /` is printed
-/// as is; anything else is put in double quotes, with `"` and `\` escaped.
 enum ShellQuote {
     static func isPlain(_ c: Character) -> Bool {
         if !c.isASCII { return true }

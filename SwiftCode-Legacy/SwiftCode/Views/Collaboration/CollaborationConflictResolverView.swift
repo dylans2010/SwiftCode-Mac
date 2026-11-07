@@ -49,13 +49,11 @@ public struct CollaborationConflictResolverView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        // Diff Preview
                         HStack(spacing: 12) {
                             diffCard(title: "Local", content: conflict.localChange, color: .blue)
                             diffCard(title: "Remote", content: conflict.remoteChange, color: .orange)
                         }
 
-                        // Resolution Actions
                         VStack(spacing: 10) {
                             resolutionButton(title: "Accept Current", icon: "arrow.uturn.backward", color: .blue) {
                                 self.manager.resolveConflict(conflict.id, using: .useCurrent, actorID: self.actorID)

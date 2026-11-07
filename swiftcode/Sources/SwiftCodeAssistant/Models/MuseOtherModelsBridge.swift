@@ -2,83 +2,9 @@ import Foundation
 import Network
 import os
 
-// MARK: - Muse other-models bridge (Wave 16, Slice B)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised
-// under MIT):
-//   * `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseOtherModelsBridge.swift`
-//     — the bridge that lets the Meta Muse SDK session run on
-//     third-party / custom / cloud models instead of Meta's own.
-//
-// What it bridges, verified live from Legacy @ d51a8f0d: the
-// Muse SDK host is pointed at a local loopback proxy
-// (`muse serve --base-url http://127.0.0.1:<port>`). The proxy
-// answers the host's model catalog (`/muse-code/models`,
-// `/models`, `/v1/models`) with the resolved other model, and
-// translates the host's `/responses` (or `/v1/responses`,
-// `/chat/completions`) calls into streaming completions from
-// that model, as `response.output_text.delta` SSE events. The
-// full Muse SDK architecture is preserved; only the model
-// behind it changes.
-//
-// What is deliberately different from Legacy:
-//   * NO `NWListener` / Network framework: the proxy is built
-//     on SwiftCode's portable `LoopbackServer` (BSD sockets, already
-//     in this target), so it stays Linux-buildable. The default
-//     port is still 19855 when free (Legacy's), otherwise any
-//     free loopback port — `LoopbackServer` binds port 0 by
-//     default and reports the real one.
-//   * NO `LLMService`, `AssistModelDiscoveryService`,
-//     `CustomEndpointManager`, `SCCloudModelDiscovery`, or
-//     `AppSettings` singletons: model resolution is pure over
-//     injected inputs. The host supplies the discovered
-//     candidates (as `AssistCandidateModel`s — the router's own
-//     type), the custom endpoints, and the cloud model ids; the
-//     bridge never reads a discovery service or settings store.
-//     The free-only filter is Legacy's
-//     `AssistModelEligibilityPolicy` (already in this target).
-//   * The catalog entry is Legacy's verbatim shape (one model,
-//     `muse-code` metadata, context 128,000, output 16,384,
-//     `reasoningEffort: "high"`, `tool_call: true`).
-//   * The SSE translation streams through an injected
-//     `streamChat` closure: the host routes the resolved model
-//     through SwiftCode's own provider dispatch
-//     (`AssistantBackends.provider(forModelID:)`), which is the
-//     SwiftCode equivalent of Legacy's `LLMService.streamChat`. The
-//     bridge never picks a provider itself and never reroutes a
-//     turn to another model.
-//   * NOT ported: `MuseOtherModelsBridge.executeTurn` as a
-//     direct LLM turn. Legacy's version streamed from
-//     `LLMService`, parsed ```tool_call blocks out of the text,
-//     and executed them through `AssistManager` — including the
-//     Autopilot rule that bypassed approvals entirely. None of
-//     those engines exists in SwiftCode, and the approval bypass
-//     must not be recreated. The SwiftCode equivalent is the proxy
-//     path (the MSP host streams through the other model) plus
-//     the host router's failover. What survives from that
-//     method as portable, testable pieces: the `<think>` token
-//     splitter (`MuseThinkingTokenizer`, Legacy's
-//     `GenerationState.processToken`) and the ```tool_call
-//     block parser (`MuseToolCallParser`, Legacy's
-//     `parseAndExecuteToolCalls` minus the execution — parsing
-//     only, names normalized through `MetaToolNameNormalizer`).
-//   * Wave 17, Slice B: the proxy lifecycle now has an owner
-//     (`MuseOtherModelsProxyController`, at the end of this
-//     file). `MuseLocalProxyServer.start` falls back to any
-//     free loopback port when the requested one is taken
-//     (Legacy's `NWListener(..., on: .any)`) and restarts when
-//     the active model changes instead of returning a stale
-//     proxy for the old model.
-
-// MARK: - Model resolution
-
-/// One non-Meta model the Muse SDK session may run on (Legacy
-/// `AssistAvailableModel`, reduced to the fields resolution
-/// reads — the full candidate type is `AssistCandidateModel`).
 public struct MuseOtherModel: Sendable, Equatable {
     public let id: String
     public let displayName: String
-    /// The provider-side model identifier.
     public let modelIdentifier: String
     public let providerName: String
     public let supportsToolCalling: Bool
@@ -112,8 +38,6 @@ public struct MuseOtherModel: Sendable, Equatable {
     }
 }
 
-/// One custom endpoint (Legacy `CustomEndpointManager` endpoint,
-/// reduced to what resolution reads).
 public struct MuseCustomEndpoint: Sendable, Equatable {
     public let name: String
     public let models: [String]
@@ -125,8 +49,6 @@ public struct MuseCustomEndpoint: Sendable, Equatable {
     }
 }
 
-/// The resolved model for a Muse SDK session (Legacy
-/// `resolveActiveModel`'s tuple).
 public struct MuseOtherModelResolution: Sendable, Equatable {
     public let modelID: String
     public let displayName: String
@@ -139,10 +61,6 @@ public struct MuseOtherModelResolution: Sendable, Equatable {
 }
 
 public enum MuseOtherModelsBridge {
-    /// Fallback catalog when nothing is discovered (Legacy
-    /// `availableOtherModels`): one free fallback, or the five
-    /// paid fallbacks. Legacy's exact ids, display names and
-    /// providers.
     public static let freeFallback = MuseOtherModel(
         id: "openrouter/free", displayName: "OpenRouter Free",
         modelIdentifier: "openrouter/free", providerName: "OpenRouter")
@@ -155,11 +73,6 @@ public enum MuseOtherModelsBridge {
         MuseOtherModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", modelIdentifier: "gemini-2.5-flash", providerName: "Google Gemini"),
     ]
 
-    /// Discovers the other models available for the Meta SDK
-    /// (Legacy `availableOtherModels`): discovered candidates
-    /// minus native Meta models (`meta_assist` provider, `muse-`
-    /// prefix), plus custom-endpoint models, plus cloud models,
-    /// then the free-only filter, then the fallbacks when empty.
     public static func availableOtherModels(
         discovered: [AssistCandidateModel],
         customEndpoints: [MuseCustomEndpoint] = [],
@@ -187,8 +100,6 @@ public enum MuseOtherModelsBridge {
                 modelIdentifier: cloudID,
                 providerName: "SwiftCode Cloud"))
         }
-        // Legacy always listed the default cloud model when no
-        // cloud model was discovered.
         if cloudModelIDs.isEmpty, !models.contains(where: { $0.modelIdentifier == SCCloudProvider.internalIDPrefix || $0.id == SCCloudProvider.internalIDPrefix }) {
             models.append(MuseOtherModel(
                 id: SCCloudProvider.internalIDPrefix,
@@ -209,12 +120,6 @@ public enum MuseOtherModelsBridge {
         return models
     }
 
-    /// Resolves the active model (Legacy `resolveActiveModel`,
-    /// same five steps): 1. the user's explicitly selected
-    /// other model; 2. the first custom endpoint's first
-    /// eligible model; 3. the user's overall selected model when
-    /// it is not a Meta model; 4. the first agent-compatible
-    /// discovered model; 5. the reliable fallback.
     public static func resolveActiveModel(
         selectedOtherModelID: String,
         selectedOtherModelProvider: String = "",
@@ -224,7 +129,6 @@ public enum MuseOtherModelsBridge {
         cloudModelIDs: [String] = [],
         onlyUseFree: Bool = false
     ) -> MuseOtherModelResolution {
-        // 1. Explicitly selected model for the Meta bridge.
         if !selectedOtherModelID.isEmpty {
             let modelID = selectedOtherModelID
             if SCCloudProvider.isCloudModelID(modelID) {
@@ -245,7 +149,6 @@ public enum MuseOtherModelsBridge {
             }
         }
 
-        // 2. First custom endpoint's first eligible model.
         if let firstEndpoint = customEndpoints.first {
             let eligible = AssistModelEligibilityPolicy.filterEligibleModelIDs(firstEndpoint.models, onlyUseFreeModels: onlyUseFree)
             if let firstModel = eligible.first {
@@ -253,7 +156,6 @@ public enum MuseOtherModelsBridge {
             }
         }
 
-        // 3. The user's overall selected model, when not Meta.
         if !generalModelID.isEmpty, !generalModelID.hasPrefix("muse-") {
             if SCCloudProvider.isCloudModelID(generalModelID) {
                 let endpoint = SCCloudProvider.endpointName(forInternalID: generalModelID) ?? "swiftcode-cloud"
@@ -269,7 +171,6 @@ public enum MuseOtherModelsBridge {
             }
         }
 
-        // 4. First agent-compatible discovered model.
         let available = availableOtherModels(
             discovered: discovered, customEndpoints: customEndpoints,
             cloudModelIDs: cloudModelIDs, onlyUseFree: onlyUseFree)
@@ -277,20 +178,12 @@ public enum MuseOtherModelsBridge {
             return MuseOtherModelResolution(modelID: best.modelIdentifier, displayName: best.displayName, provider: best.providerName)
         }
 
-        // 5. Default reliable fallback.
         return onlyUseFree
             ? MuseOtherModelResolution(modelID: "openrouter/free", displayName: "OpenRouter Free", provider: "OpenRouter")
             : MuseOtherModelResolution(modelID: "gpt-4o", displayName: "OpenAI GPT-4o", provider: "OpenAI")
     }
 }
 
-// MARK: - Thinking tokenizer
-
-/// Splits a token stream into thinking and text deltas
-/// (Legacy `GenerationState.processToken`): `<think>` tags from
-/// reasoning models open/close a thinking block; tokens inside
-/// it are thinking, the rest are text. Thread-safe; `cancel()`
-/// stops delivery.
 public final class MuseThinkingTokenizer: @unchecked Sendable {
     private let lock = NSLock()
     private var fullText = ""
@@ -305,8 +198,6 @@ public final class MuseThinkingTokenizer: @unchecked Sendable {
     public var text: String { lock.withLock { fullText } }
     public var thinking: String { lock.withLock { currentThinking } }
 
-    /// Processes one token. Exactly one of the two callbacks
-    /// fires per token (or neither, when cancelled).
     public func processToken(
         _ token: String,
         onThinkingDelta: ((String) -> Void)?,
@@ -350,11 +241,6 @@ public final class MuseThinkingTokenizer: @unchecked Sendable {
     }
 }
 
-// MARK: - Tool-call block parser
-
-/// One parsed tool call (Legacy
-/// `MuseOtherModelsBridge.ToolExecutionSummary`, minus the
-/// executed output — parsing only).
 public struct MuseParsedToolCall: Sendable, Equatable {
     public let toolName: String
     public let argumentsJSON: String
@@ -364,12 +250,6 @@ public struct MuseParsedToolCall: Sendable, Equatable {
     }
 }
 
-/// Parses ```tool_call JSON blocks out of model text (Legacy
-/// `parseAndExecuteToolCalls`, parsing half only). Names are
-/// normalized through `MetaToolNameNormalizer` against the
-/// injected MCP ids; execution is the host's job, never this
-/// parser's. Returns [] unless the text contains a
-/// ```tool_call or `<tool_call>` marker.
 public enum MuseToolCallParser {
     public static func parse(_ text: String, knownToolIDs: Set<String> = []) -> [MuseParsedToolCall] {
         guard text.contains("```tool_call") || text.contains("<tool_call>") else { return [] }
@@ -400,32 +280,9 @@ public enum MuseToolCallParser {
     }
 }
 
-// MARK: - Local loopback proxy
-
-/// The local HTTP translation proxy (Legacy
-/// `MuseLocalProxyServer`, rebuilt on `LoopbackServer`).
-///
-/// Serves the resolved other model to the Muse SDK host:
-///   * `/muse-code/models`, `/models`, `/v1/models` — the
-///     dynamic catalog with the single active model (Legacy's
-///     verbatim entry shape).
-///   * `/responses`, `/v1/responses`, `/chat/completions` —
-///     streams the model as `response.output_text.delta` SSE
-///     events, then `response.completed`.
-///   * Anything else — 404.
-///
-/// The token stream comes from the injected `streamChat`
-/// closure: the host routes the resolved model through SwiftCode's
-/// own provider dispatch. The proxy never picks a model or a
-/// provider itself.
 public final class MuseLocalProxyServer: @unchecked Sendable {
-    /// Streams one chat's tokens: model id, messages, system
-    /// prompt → the model's text tokens.
     public typealias StreamChat = @Sendable (String, [ChatMessage], String) -> AsyncThrowingStream<String, Error>
 
-    /// Legacy's default port. The server binds it when free;
-    /// otherwise `LoopbackServer` picks any free loopback port
-    /// and `serverURL` reports the real one.
     public static let defaultPort: UInt16 = 19855
 
     private let lock = NSLock()
@@ -438,9 +295,6 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
     public var serverURL: URL? { lock.withLock { server.map { URL(string: $0.baseURL)! } } }
     public var activeModel: MuseOtherModelResolution? { lock.withLock { _active } }
 
-    /// The catalog entry for the active model (Legacy's verbatim
-    /// shape: one model, `muse-code` metadata, context 128,000,
-    /// output 16,384, `reasoningEffort: "high"`).
     public static func catalogJSON(for active: MuseOtherModelResolution) -> [String: Any] {
         [
             "object": "list",
@@ -468,9 +322,6 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
         ]
     }
 
-    /// Parses a `/responses` (or `/chat/completions`) body into
-    /// chat messages (Legacy's `processRequest`: `messages[]`
-    /// first, else `input[]`; empty → a single "Hello").
     public static func parseRequestMessages(_ body: Data) -> [ChatMessage] {
         guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
             return [ChatMessage(.user, "Hello")]
@@ -495,17 +346,6 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
         return out.isEmpty ? [ChatMessage(.user, "Hello")] : out
     }
 
-    /// Starts the proxy for one active model. A running proxy for
-    /// the SAME model is returned as-is (Legacy
-    /// `ensureLocalProxyServerStarted`); a running proxy for a
-    /// DIFFERENT model is stopped and restarted, so the catalog
-    /// and the `streamChat` closure always match the active model.
-    ///
-    /// Port fallback (Legacy's `NWListener(..., on: .any)` when
-    /// 19855 was taken): the requested port is tried first, then
-    /// any free loopback port (`LoopbackServer` port 0). Only when
-    /// both fail does this throw — never a silent fallback to a
-    /// direct model run.
     public func start(active: MuseOtherModelResolution, port: UInt16 = MuseLocalProxyServer.defaultPort, streamChat: @escaping StreamChat) throws -> URL {
         if let existing = lock.withLock({ server }), lock.withLock({ _active }) == active {
             return URL(string: existing.baseURL)!
@@ -552,16 +392,8 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
                 status: 200,
                 contentType: "text/event-stream",
                 body: Data(),
-                // No `Connection: keep-alive`: LoopbackServer
-                // always answers `Connection: close`, and a
-                // second Connection header would confuse the
-                // host. Streaming still works — the stream
-                // closure writes the events, then the connection
-                // closes.
                 headers: ["Cache-Control": "no-cache"])
             response.stream = { write in
-                // The stream runs on the connection's thread: bridge
-                // it to structured concurrency with a semaphore.
                 let done = DispatchSemaphore(value: 0)
                 Task {
                     do {
@@ -572,9 +404,6 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
                         let complete = "event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n"
                         _ = write(Data(complete.utf8))
                     } catch {
-                        // The client went away or the model failed:
-                        // end the stream without fabricating a
-                        // completion.
                     }
                     done.signal()
                 }
@@ -585,8 +414,6 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
         return .text("", status: 404)
     }
 
-    /// JSON-escapes one string as a JSON string literal's inner
-    /// content (Legacy `jsonEscape`).
     static func jsonEscape(_ string: String) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: [string]),
               let json = String(data: data, encoding: .utf8),
@@ -597,33 +424,8 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
     }
 }
 
-// MARK: - Other-models proxy lifecycle (Wave 17, Slice B)
-//
-// The mode switch Legacy checked at turn time in
-// `MetaAssistProvider.executeTurn` — `otherModelsWithMetaSDK ||
-// swiftCodeCloudWithMetaSDK` — had no SwiftCode owner: the proxy
-// existed, `MetaAssistProvider.proxyBaseURL` was constructor-only,
-// and nothing ever started a proxy. This controller is that
-// owner. The host (`CodingAssistantModel`) calls it when a Meta
-// turn starts: `enable` when other-model mode is on, `disable`
-// when it is off or the provider is not Meta.
-//
-// Honest failures, and deliberately NOT Legacy's fallbacks: a
-// missing `muse` binary throws `.museNotFound` (Legacy fell back
-// to a direct `executeTurn` through `LLMService`, which has no
-// SwiftCode equivalent and whose approval bypass must not be
-// recreated); a proxy that cannot bind any port throws
-// `.proxyUnavailable`. Neither failure ever silently runs the
-// turn on Meta's own models instead.
-
-/// Why the other-models proxy could not start.
 public enum MuseOtherModelsProxyError: Error, Sendable, Equatable, LocalizedError {
-    /// No `muse` executable was found: other-model mode cannot
-    /// run without the Muse host it points at.
     case museNotFound
-    /// No loopback port could be bound (the default port is taken
-    /// AND no free port could be bound). The string is the
-    /// underlying bind error's description.
     case proxyUnavailable(String)
 
     public var errorDescription: String? {
@@ -636,15 +438,6 @@ public enum MuseOtherModelsProxyError: Error, Sendable, Equatable, LocalizedErro
     }
 }
 
-/// Owns the other-models proxy's lifetime for the whole process
-/// (one proxy, one active model — the same sharing Legacy's
-/// `MuseOtherModelsBridge.shared` had). Serialized by actor
-/// isolation: concurrent turns cannot race a restart.
-///
-/// The host owns the mode decision; this controller only owns
-/// the server. `enable` is idempotent for the same model
-/// (returns the running URL) and restarts for a different one,
-/// so `proxyBaseURL` always tracks the running proxy's real URL.
 public actor MuseOtherModelsProxyController {
     public static let shared = MuseOtherModelsProxyController()
 
@@ -652,16 +445,10 @@ public actor MuseOtherModelsProxyController {
 
     public init() {}
 
-    /// Whether the proxy is running (other-model mode is on).
     public var isEnabled: Bool { proxy.isRunning }
-    /// The running proxy's real URL, or nil when it is stopped.
-    /// The host hands this to the provider as `proxyBaseURL`.
     public var proxyBaseURL: String? { proxy.serverURL?.absoluteString }
-    /// The model the running proxy serves, or nil when stopped.
     public var activeModel: MuseOtherModelResolution? { proxy.activeModel }
 
-    /// The mode predicate (Legacy `executeTurn`'s
-    /// `isOtherActive`): either toggle turns other-model mode on.
     public static func isOtherModelModeEnabled(
         otherModelsWithMetaSDK: Bool,
         swiftCodeCloudWithMetaSDK: Bool
@@ -669,10 +456,6 @@ public actor MuseOtherModelsProxyController {
         otherModelsWithMetaSDK || swiftCodeCloudWithMetaSDK
     }
 
-    /// Starts the proxy for `resolution` (or returns the running
-    /// one when it already serves that model). Throws
-    /// `.museNotFound` when `executable` is nil and
-    /// `.proxyUnavailable` when no port can be bound.
     @discardableResult
     public func enable(
         resolution: MuseOtherModelResolution,
@@ -688,18 +471,11 @@ public actor MuseOtherModelsProxyController {
         }
     }
 
-    /// Stops the proxy (mode off, or the provider is no longer
-    /// Meta). A stopped proxy reports no URL and serves nothing.
     public func disable() {
         proxy.stop()
     }
 }
 
-
-// Ported from Legacy `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseOtherModelsBridge.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: GenerationState.
-
-// MARK: - Thread-safe Streaming State Holder
 private final class GenerationState: @unchecked Sendable {
     private let lock = NSLock()
     private var _fullGeneratedText = ""
@@ -737,7 +513,6 @@ private final class GenerationState: @unchecked Sendable {
 
         _fullGeneratedText += token
 
-        // Handle `<think>` tags emitted by reasoning models (DeepSeek-R1, QwQ, etc.)
         if token.contains("<think>") {
             _isInThinkingBlock = true
             let cleaned = token.replacingOccurrences(of: "<think>", with: "")

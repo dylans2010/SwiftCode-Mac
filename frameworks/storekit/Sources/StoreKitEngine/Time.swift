@@ -1,29 +1,23 @@
-// The store's clock and the subscription time rates (testing-session.md §2.1, §3).
 import Foundation
 import StoreKitConfiguration
 
-/// Milliseconds since 1970: the unit of every date in the store and its payloads (formats.md §2.2).
 public typealias StoreMilliseconds = Int64
 
 extension Date {
-    /// Milliseconds since 1970, rounded to the nearest millisecond.
     public var storeMilliseconds: StoreMilliseconds { StoreMilliseconds((timeIntervalSince1970 * 1000).rounded()) }
 
     public init(storeMilliseconds ms: StoreMilliseconds) { self.init(timeIntervalSince1970: TimeInterval(ms) / 1000) }
 }
 
-/// The source of "now" for the store. Tests inject a `ManualClock`.
 public protocol StoreClock: Sendable {
     func now() -> Date
 }
 
-/// The wall clock.
 public struct SystemClock: StoreClock {
     public init() {}
     public func now() -> Date { Date() }
 }
 
-/// A clock that moves only when told to.
 public final class ManualClock: StoreClock, @unchecked Sendable {
     private let lock = NSLock()
     private var current: Date
@@ -41,23 +35,19 @@ public final class ManualClock: StoreClock, @unchecked Sendable {
     }
 }
 
-/// `SKTestSession.TimeRate` raw values (testing-session.md §2.1).
 public enum TimeRate: Int, Codable, Sendable, CaseIterable {
     case realTime = 0
-    // Deprecated "x is one day" rates (iOS 14.0–15.2).
     case oneHourIsOneDay = 1
     case thirtyMinutesIsOneDay = 2
     case fiveMinutesIsOneDay = 3
     case oneMinuteIsOneDay = 4
     case thirtySecondsIsOneDay = 5
     case oneSecondIsOneDay = 6
-    // A one-month period lasts the named time; other periods scale proportionally.
     case monthlyRenewalEveryHour = 10
     case monthlyRenewalEveryThirtyMinutes = 11
     case monthlyRenewalEveryFifteenMinutes = 12
     case monthlyRenewalEveryFiveMinutes = 13
     case monthlyRenewalEveryThirtySeconds = 15
-    // Every period (week, month, year, offer periods) lasts the named time.
     case oneRenewalEveryFifteenMinutes = 1000
     case oneRenewalEveryFiveMinutes = 1001
     case oneRenewalEveryMinute = 1002
@@ -65,7 +55,6 @@ public enum TimeRate: Int, Codable, Sendable, CaseIterable {
     case oneRenewalEveryTenSeconds = 1004
     case oneRenewalEveryTwoSeconds = 1005
 
-    /// For the 1000 series: the fixed length of every period.
     var fixedPeriodMilliseconds: StoreMilliseconds? {
         switch self {
         case .oneRenewalEveryFifteenMinutes: return 900_000
@@ -78,7 +67,6 @@ public enum TimeRate: Int, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// For the 10 series: the length of a one-month period.
     var monthMilliseconds: StoreMilliseconds? {
         switch self {
         case .monthlyRenewalEveryHour: return 3_600_000
@@ -90,7 +78,6 @@ public enum TimeRate: Int, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// For the deprecated series: the length of one day.
     var dayMilliseconds: StoreMilliseconds? {
         switch self {
         case .oneHourIsOneDay: return 3_600_000
@@ -103,15 +90,6 @@ public enum TimeRate: Int, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// The end of `count` periods of `duration` starting at `start`.
-    ///
-    /// - Real time: calendar arithmetic in the device time zone (a month
-    ///   across the end of daylight saving time is 31 days plus one hour).
-    /// - 1000 series: every period lasts the named time.
-    /// - 10 series: one month lasts the named time; a year is 12 months, a
-    ///   week 7/30 of a month, a day 1/30 (README spec question 4).
-    /// - Deprecated series: one day lasts the named time; a week is 7 days, a
-    ///   month 30, a year 365.
     public func end(of duration: SubscriptionDuration, count: Int = 1, from start: StoreMilliseconds, calendar: Calendar)
         -> StoreMilliseconds
     {

@@ -1,8 +1,3 @@
-// oob: what a GPU read past an imported host buffer does on this device.
-// usage: oob SPV MODE   MODE 0: in-bounds read; 1: read the next host page (PROT_NONE);
-//                       2: read the next host page after it was made readable (not imported)
-// Build (from swiftcode/, on a host with Vulkan; stage8-contract.md §15):
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o X scripts/gpu-probes/X.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>

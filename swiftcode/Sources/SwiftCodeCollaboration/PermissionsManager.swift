@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/PermissionsManager.swift
-// Adapted for SwiftCode: Member roles + permissions. Verbatim.
-
 import Foundation
 
 public struct PermissionEvent: Equatable {

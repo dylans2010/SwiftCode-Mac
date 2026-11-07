@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Setup steps of the simulator walk (docs/SIMULATOR-UX.md): the host setup
-/// with a simulator tree the user names, and the iOS build script of a
-/// release.
 @Suite struct SimulatorUXSetupTests {
     #if os(Linux)
     static let onLinux = true
@@ -38,8 +35,6 @@ import Testing
         return (p.terminationStatus, text)
     }
 
-    /// `--sim-tree <release>/lib/swiftcode-sim`: the release's swiftcode-simhost is
-    /// found, Apply links it into the data folder, and the check passes.
     @Test(.enabled(if: onLinux)) func simTreeOfAnUnpackedReleaseBringsItsSimhost() throws {
         let dir = Self.temp()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -73,9 +68,6 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: data.appendingPathComponent("bin/swiftcode-simhost").path))
     }
 
-    /// The iOS build script of a release (bin/ next to scripts/) uses the
-    /// release's swiftcode and swiftcode-swb, names DEVELOPER_DIR only, and says
-    /// what a missing SDK needs.
     @Test func iOSBuildScriptUsesTheReleasesTools() throws {
         let dir = Self.temp()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -106,8 +98,6 @@ import Testing
         #expect(missing.status == 2 && missing.out.contains("No iOS SDK: set SWIFTCODE_USER_SDK"), "\(missing.out)")
     }
 
-    /// The launcher with a release's simulator tree (lib/swiftcode-sim): the
-    /// shader translator is next to swiftcode-simd there, not in Translator/build.
     @Test(.enabled(if: onLinux)) func launcherFindsTheReleasesShaderTranslator() throws {
         let dir = Self.temp()
         defer { try? FileManager.default.removeItem(at: dir) }

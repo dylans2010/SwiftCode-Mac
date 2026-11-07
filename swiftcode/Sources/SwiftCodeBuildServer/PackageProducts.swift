@@ -2,24 +2,11 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeXcodebuild
 
-/// Swift package products used by targets of Xcode projects. See
-/// `specs/ide/language.md` §Build server, "Package products".
-///
-/// The PIF swift-build builds the container with
-/// (`XcodePIFSource().makePIF(for:)`, which loads the package graph through
-/// SwiftPM) names each target's package products. The settings their
-/// package targets impart to clients (`impartedBuildProperties`) give the
-/// client's search paths and module arguments, and preparation builds the
-/// products with swift-build into the index arena, where the client's
-/// `-I <products>` finds their modules.
 public struct PackageProducts: @unchecked Sendable {
     public let pif: XcodePIF
-    /// Product target GUIDs per build target identifier.
     public let products: [String: [String]]
-    /// Package targets (PIF `contents`) by GUID.
     let targets: [String: [String: Any]]
 
-    /// The imparted settings the index arguments take.
     public static let impartedSettings = ["FRAMEWORK_SEARCH_PATHS", "HEADER_SEARCH_PATHS", "SWIFT_INCLUDE_PATHS", "OTHER_CFLAGS", "OTHER_SWIFT_FLAGS"]
 
     public init(pif: XcodePIF, products: [String: [String]]) {
@@ -32,7 +19,6 @@ public struct PackageProducts: @unchecked Sendable {
         self.targets = targets
     }
 
-    /// The products of every target that uses one; nil when none does.
     public static func load(_ graph: BuildGraph, source: XcodePIFSource = XcodePIFSource()) throws -> PackageProducts? {
         guard graph.targets.contains(where: { !$0.packageProducts.isEmpty }) else { return nil }
         let c = graph.container
@@ -47,9 +33,6 @@ public struct PackageProducts: @unchecked Sendable {
         return PackageProducts(pif: pif, products: products)
     }
 
-    /// The settings a target's products impart (their package targets,
-    /// transitively, products first), for one configuration: setting name →
-    /// words, without `$(inherited)`. Search paths are listed once each.
     public func imparted(for targetID: String, configuration: String) -> [String: [String]] {
         var out: [String: [String]] = [:]
         for g in groups(for: targetID, configuration: configuration) {
@@ -62,19 +45,12 @@ public struct PackageProducts: @unchecked Sendable {
         return out
     }
 
-    /// The imparted settings one package target at a time. A macro (a
-    /// host-built tool with `SWIFT_IMPLEMENTS_MACROS_FOR_MODULE_NAMES`) is
-    /// `-load-plugin-executable` of its product, which swift-build builds
-    /// into `$(BUILD_DIR)/$(CONFIGURATION)`; host-built tools impart nothing
-    /// else (their settings are for the host).
     func groups(for targetID: String, configuration: String) -> [(name: String, words: [String])] {
         var out: [(name: String, words: [String])] = []
         var seen = Set<String>(), added = Set<String>()
         var queue = products[targetID] ?? []
         var i = 0
         func add(_ name: String, _ words: [String]) {
-            // Flags keep their order and pairs (`-Xcc -I -Xcc <dir>`); a
-            // target's list is added once.
             if added.insert(name + "\u{0}" + words.joined(separator: "\u{0}")).inserted { out.append((name, words)) }
         }
         while i < queue.count {
@@ -103,9 +79,6 @@ public struct PackageProducts: @unchecked Sendable {
         return out
     }
 
-    /// A target's settings with its products' imparted settings added
-    /// (expanded with the target's own settings; a flag list with a setting
-    /// that cannot be expanded is left out whole, a search path alone).
     public func merged(_ settings: [String: String], targetID: String) -> [String: String] {
         guard products[targetID] != nil else { return settings }
         var s = settings
@@ -123,9 +96,6 @@ public struct PackageProducts: @unchecked Sendable {
         return s
     }
 
-    /// Expands `$(NAME)` and `${NAME}` from `settings`; nil when a setting
-    /// is unknown. `GENERATED_MODULEMAP_DIR` defaults to swift-build's
-    /// `$(OBJROOT)/GeneratedModuleMaps$(EFFECTIVE_PLATFORM_NAME)`.
     public static func expand(_ word: String, _ settings: [String: String]) -> String? {
         var out = ""
         var rest = Substring(word)

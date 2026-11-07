@@ -10,15 +10,12 @@ struct DatabaseQueryEditor: View {
     @State private var isExecuting = false
     @State private var explainOutput = ""
 
-    // AI co-pilot states
     @State private var aiInput = ""
     @State private var aiResponse = ""
     @State private var isGeneratingAI = false
 
-    // Tabs / Panel selectors
-    @State private var selectedEditorTab = 0 // 0 = Editor, 1 = History, 2 = Saved & Favorites
+    @State private var selectedEditorTab = 0
 
-    // Save Query Dialog states
     @State private var saveTitle = ""
     @State private var saveCategory = "General"
     @State private var saveTags = "Utility"
@@ -26,7 +23,6 @@ struct DatabaseQueryEditor: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Upper Editor Navigation / Tab switcher
             HStack {
                 Picker("", selection: $selectedEditorTab) {
                     Text("SQL Console").tag(0)
@@ -52,9 +48,7 @@ struct DatabaseQueryEditor: View {
             Divider()
 
             if selectedEditorTab == 0 {
-                // Main Console Editor View
                 VStack(spacing: 0) {
-                    // Editor Toolbar
                     HStack {
                         Button(action: runQuery) {
                             Label("Run SQL", systemImage: "play.fill")
@@ -80,7 +74,6 @@ struct DatabaseQueryEditor: View {
 
                     Divider()
 
-                    // SQL Text Editor & AI Panel Split
                     HStack(spacing: 0) {
                         VStack(spacing: 0) {
                             TextEditor(text: $query)
@@ -91,7 +84,6 @@ struct DatabaseQueryEditor: View {
 
                             Divider()
 
-                            // Stats / Errors Panel
                             if !errorMessage.isEmpty {
                                 Text(errorMessage)
                                     .foregroundColor(.red)
@@ -110,11 +102,9 @@ struct DatabaseQueryEditor: View {
 
                             Divider()
 
-                            // Results spreadsheet Viewer
                             if !queryResult.isEmpty {
                                 ScrollView([.horizontal, .vertical]) {
                                     LazyVStack(alignment: .leading, spacing: 0) {
-                                        // Header row
                                         HStack(spacing: 0) {
                                             ForEach(columns, id: \.self) { col in
                                                 Text(col)
@@ -126,7 +116,6 @@ struct DatabaseQueryEditor: View {
                                             }
                                         }
 
-                                        // Records rows
                                         ForEach(0..<queryResult.count, id: \.self) { rowIdx in
                                             let row = queryResult[rowIdx]
                                             HStack(spacing: 0) {
@@ -154,7 +143,6 @@ struct DatabaseQueryEditor: View {
                             }
                         }
 
-                        // AI Co-pilot Suggestions Sidebar panel
                         if !aiResponse.isEmpty || isGeneratingAI {
                             Divider()
 
@@ -191,10 +179,8 @@ struct DatabaseQueryEditor: View {
                     }
                 }
             } else if selectedEditorTab == 1 {
-                // SQL Query History view
                 queryHistoryPane()
             } else {
-                // Saved & Bookmarked Queries
                 savedQueriesPane()
             }
         }
@@ -229,7 +215,6 @@ struct DatabaseQueryEditor: View {
         }
     }
 
-    // MARK: - Query History Pane
     @ViewBuilder
     private func queryHistoryPane() -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -315,7 +300,6 @@ struct DatabaseQueryEditor: View {
         }
     }
 
-    // MARK: - Saved Queries Pane
     @ViewBuilder
     private func savedQueriesPane() -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -401,7 +385,6 @@ struct DatabaseQueryEditor: View {
         }
     }
 
-    // MARK: - Handlers & Actions
     private func runQuery() {
         guard let conn = connManager.activeConnection else { return }
         isExecuting = true

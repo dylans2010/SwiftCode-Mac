@@ -3,10 +3,6 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeCloud
 
-// Pure model behaviour: the SHA-256 used for deterministic user ids,
-// conflict resolution, the sync queue, error text, and date parsing.
-// No network anywhere here.
-
 private func hex(_ bytes: [UInt8]) -> String {
     bytes.map { String(format: "%02x", $0) }.joined()
 }

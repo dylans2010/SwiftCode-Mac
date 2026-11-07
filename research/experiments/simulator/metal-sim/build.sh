@@ -1,6 +1,4 @@
 #!/bin/sh
-# Build the R7 Metal-simulator research tools for the iOS simulator.
-# Usage: build.sh <output-dir>   (outside the repo; binaries are not committed)
 set -e
 OUT=${1:?output directory}
 HERE=$(cd "$(dirname "$0")" && pwd)

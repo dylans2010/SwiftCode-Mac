@@ -1,25 +1,6 @@
 import Foundation
 import SwiftUI
 
-// Code complexity, adapted from Legacy's
-// `SwiftCode/Views/AI/ComplexityAnalyzerView.swift`. The destination has
-// no complexity surface (no cyclomatic-complexity tool or view), so this
-// is a real one: it scans the Swift files under a directory and, per
-// file, counts lines, functions, and branching constructs
-// (`if`/`guard`/`for`/`while`/`switch`/`case`/`catch`/`&&`/`||`/`?:`)
-// for a cyclomatic-complexity estimate, plus the maximum brace-nesting
-// depth. Results are computed from the actual file contents, sorted
-// worst-first, and the scan runs off the main actor.
-//
-// Migration (Views/UI worklist, Legacy PARTIAL): the per-file detail sheet
-// (Legacy `fileDetailSheet`) — tapping a row opens the file's metrics with
-// the Legacy complexity band (>50 Very High, >30 High, >15 Medium, else
-// Low). The destination scanner measures lines / functions / complexity /
-// nesting depth only, so the sheet shows those metrics; Legacy's
-// non-empty/comment-line counts, class/struct counts and symbol list need
-// the scanner to record them first (not invented here).
-
-/// One file's measured complexity.
 struct ComplexityFileResult: Identifiable, Equatable {
     var id: URL { url }
     var url: URL
@@ -31,9 +12,7 @@ struct ComplexityFileResult: Identifiable, Equatable {
     var fileName: String { url.lastPathComponent }
 }
 
-/// Scans a directory tree of Swift files and ranks them by complexity.
 struct CodeComplexityView: View {
-    /// The directory to scan, or `nil` to show the empty state.
     var directory: URL?
 
     @Environment(\.colorScheme) private var scheme
@@ -124,8 +103,6 @@ struct CodeComplexityView: View {
         .onAppear { scan() }
     }
 
-    /// Legacy complexity band (`FileComplexityResult.complexityLabel`):
-    /// >50 Very High, >30 High, >15 Medium, else Low.
     private func complexityBand(for result: ComplexityFileResult) -> String {
         if result.complexity > 50 { return "Very High" }
         if result.complexity > 30 { return "High" }
@@ -133,10 +110,6 @@ struct CodeComplexityView: View {
         return "Low"
     }
 
-    /// Per-file detail sheet (Legacy `fileDetailSheet`): the file's
-    /// measured metrics with the complexity band. The destination scanner
-    /// does not record non-empty/comment lines, class/struct counts or a
-    /// symbol list, so those Legacy rows are absent rather than invented.
     private func fileDetailSheet(_ result: ComplexityFileResult, colors c: ShellColors) -> some View {
         NavigationStack {
             List {
@@ -192,10 +165,6 @@ struct CodeComplexityView: View {
     }
 }
 
-/// The file scanner behind `CodeComplexityView`. Pure Foundation so the
-/// measurement can be reasoned about without a Swift parser: comments
-/// and string literals are stripped before counting, so a `if` inside a
-/// comment or a string does not inflate the score.
 enum CodeComplexityScanner {
     static func scan(directory: URL) async -> (results: [ComplexityFileResult], fileCount: Int) {
         await Task.detached(priority: .userInitiated) {
@@ -207,8 +176,6 @@ enum CodeComplexityScanner {
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants])
             else { return (results, count) }
-            // Materialize the enumeration before iterating: a
-            // DirectoryEnumerator cannot be iterated from an async context.
             let urls = enumerator.compactMap { $0 as? URL }
             for url in urls {
                 guard url.pathExtension == "swift" else { continue }
@@ -250,8 +217,6 @@ enum CodeComplexityScanner {
         return regex.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text))
     }
 
-    /// Removes `//` and `/* */` comments and `"…"` string literals
-    /// (keeping newlines so line counts stay aligned).
     static func stripCommentsAndStrings(_ source: String) -> String {
         var out = ""
         out.reserveCapacity(source.count)

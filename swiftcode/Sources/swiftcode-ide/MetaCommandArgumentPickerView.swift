@@ -1,23 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/MetaCommandArgumentPickerView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/MetaCommandArgumentPickerView.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - dedicated argument picker UI with option choices
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
-//
-//  MetaCommandArgumentPickerView.swift
-//  SwiftCode
-//
-//  Interactive UI for selecting arguments for Meta Code slash commands,
-//  relieving users from manually typing command arguments.
-//
-
 import SwiftUI
 import SwiftCodeAssistant
 
@@ -41,7 +21,6 @@ public struct MetaCommandArgumentPickerView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
             HStack(spacing: 8) {
                 Image(systemName: command.icon)
                     .font(.system(size: 14, weight: .bold))
@@ -79,7 +58,6 @@ public struct MetaCommandArgumentPickerView: View {
 
             Divider()
 
-            // Arguments UI
             ForEach(command.arguments) { arg in
                 switch arg {
                 case .options(let name, let choices, let defaultValue):
@@ -88,7 +66,6 @@ public struct MetaCommandArgumentPickerView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.primary)
 
-                        // Choices Grid / Flow Layout
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 6)], spacing: 6) {
                             ForEach(choices, id: \.self) { choice in
                                 Button {
@@ -164,7 +141,6 @@ public struct MetaCommandArgumentPickerView: View {
                 }
             }
 
-            // Syntax helper
             HStack(spacing: 4) {
                 Image(systemName: "info.circle")
                     .font(.system(size: 9))

@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSharedFoldersView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -156,7 +154,6 @@ public struct VirtualMachineSharedFoldersView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Share Folder Inline Help Info
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)

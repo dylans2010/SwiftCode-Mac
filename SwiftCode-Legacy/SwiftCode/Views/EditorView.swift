@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// Legacy takeover signal, retained so existing observers compile.
-/// No current editor posts it anymore: swiftcode.json now renders
-/// in-pane like Localizable.xcstrings (tabs, jump bar, and workspace
-/// chrome stay put), so nothing ever hides the workspace while a
-/// manifest is on screen. userInfo: ["active": Bool].
 public extension Notification.Name {
     static let specialEditorActive = Notification.Name("com.swiftcode.specialEditorActive")
 }
@@ -42,14 +37,11 @@ struct EditorView: View {
         return url.pathExtension == "md"
     }
 
-    /// Decoded-manifest editor, not raw JSON (see SwiftCodeJSONView).
     private var isSwiftCodeJSON: Bool {
         guard let url = viewModel.activeDocument?.url else { return false }
         return url.lastPathComponent == "swiftcode.json"
     }
 
-    /// In-pane string-catalog editor, rendered like Entitlements
-    /// (tabs, jump bar, visual/raw switcher) — see LocalizingAppNewView.
     private var isXCStrings: Bool {
         guard let url = viewModel.activeDocument?.url else { return false }
         return url.pathExtension == "xcstrings"
@@ -60,7 +52,6 @@ struct EditorView: View {
         if let cached = workspaceViewModel.parsedXcodeProjects[url] {
             return cached
         }
-        // Fallback parse on-the-fly
         if let model = try? XcodeProjParse.shared.parse(projectURL: url) {
             workspaceViewModel.parsedXcodeProjects[url] = model
             return model
@@ -71,8 +62,6 @@ struct EditorView: View {
     var body: some View {
         Group {
             if viewModel.activeDocument == nil {
-                // Section: empty state. No tabs, no text view, no chrome
-                // pretending a file is open.
                 ContentUnavailableView {
                     Label("No File Selected", systemImage: "doc")
                 } description: {
@@ -80,28 +69,16 @@ struct EditorView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // In-pane for every file kind, including
-                // swiftcode.json: tabs, jump bar, and workspace
-                // chrome stay put, exactly like the Localizable
-                // (.xcstrings) view. The manifest editor never
-                // takes over the code editor anymore.
                 VStack(spacing: 0) {
-                    // Section 1: open-document tabs.
                     EditorTabBarView(viewModel: viewModel)
 
-                    // Section 2: Xcode-style jump bar — what file this is
-                    // and where it lives, so the editor never looks like
-                    // an anonymous text pane.
                     editorJumpBar
 
-                    // Section 3: visual/raw switcher, only for the file
-                    // kinds that actually have a visual editor.
                     if isInfoPlist || isEntitlements || isXCStrings {
                         editorModeBar
                         Divider()
                     }
 
-                    // Section 4: the document itself.
                     editorContent
                 }
             }
@@ -109,9 +86,6 @@ struct EditorView: View {
         .macDesktopOptimized()
     }
 
-    // MARK: - Sections
-
-    /// Xcode-style jump bar: file name, containing folder, dirty dot.
     private var editorJumpBar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -172,14 +146,8 @@ struct EditorView: View {
             let resolvedURL = url.lastPathComponent.contains("Unresolved") ? nil : url
             EntitlementsEditorView(fileURL: resolvedURL)
         } else if isXCStrings, let url = viewModel.activeDocument?.url, editorMode == .visual {
-            // In-pane, like Entitlements: tabs, jump bar, and the
-            // workspace chrome stay put. Raw mode falls through to
-            // the plain text editor below.
             LocalizingAppNewView(fileURL: url)
         } else if isSwiftCodeJSON, let url = viewModel.activeDocument?.url {
-            // In-pane, like .xcstrings above: the decoded manifest
-            // form renders inside the editor pane, under the tabs
-            // and jump bar. It never hides sidebars or the toolbar.
             SwiftCodeJSONView(fileURL: url)
         } else if isMarkdown, let url = viewModel.activeDocument?.url {
             MarkdownFileView(viewModel: viewModel, fileURL: url)

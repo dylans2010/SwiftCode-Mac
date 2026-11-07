@@ -1,32 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Security/KeychainService.swift
-//   (Legacy main ab03f681). Staged by migration subagent F2
-//   (unowned-dependency triage) — NOT yet landed in the repo.
-//
-// Destination: SwiftCodeAssistant/Models/KeychainService.swift.
-//
-// Adaptation (behaviour preserved): `import Security` dropped — the file
-// never calls any Security-framework API (no Sec* calls; the store is a
-// UserDefaults + Application Support file cache with an in-memory layer),
-// and `Security` is unavailable on Linux. Dependency: `AppError.securityError`
-// (on main, `SwiftCodeIDECore/Model/AppError.swift:10`).
-// Referenced by live main code: `SettingsViewModel` (`get`/`save(account:)`),
-// `CodexAPIKeyView` + `AssistMainView` (`get`/`set`/`delete(forKey:)` +
-// `codexUserAPIKey`), and by comments in `OpenRouterSDKProvider`,
-// `SDKRuntimeManager`, `TrustStore`, `RepoPermManager`,
-// `GoogleAccountAuthService`, `GoogleCloudSDKProcess`, `SDKGrantStore`.
-// VERIFICATION POINT: `SettingsViewModel` calls these synchronous methods
-// as `try? await ...get(account:)` / `try? await ...save(account:value:)`.
-// This port keeps Legacy's synchronous signatures (faithful); whether the
-// Swift 6 toolchain accepts the redundant `await` at those two call sites
-// — or the call sites need the `await` dropped / the methods need async
-// wrappers — must be confirmed by a build. Do not claim either way here.
-
 import Foundation
 
-/// Fast, secure local credentials cache service.
-/// Eliminates modal Keychain password dialogs on app rebuilds while persisting
-/// user credentials securely across sessions with full clear/delete capability.
 public final class KeychainService: @unchecked Sendable {
   public static let shared = KeychainService()
 
@@ -54,7 +27,6 @@ public final class KeychainService: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
 
-    // 1. Load from Application Support cache file if present
     if let fileURL = cacheFileURL,
        let data = try? Data(contentsOf: fileURL),
        let dict = try? JSONDecoder().decode([String: String].self, from: data) {
@@ -63,7 +35,6 @@ public final class KeychainService: @unchecked Sendable {
       }
     }
 
-    // 2. Load and migrate any legacy UserDefaults entries
     let allDefaults = UserDefaults.standard.dictionaryRepresentation()
     for (k, v) in allDefaults where k.hasPrefix(fallbackPrefix) {
       let rawKey = String(k.dropFirst(fallbackPrefix.count))
@@ -90,13 +61,11 @@ public final class KeychainService: @unchecked Sendable {
 
     memoryFallback[key] = value
 
-    // Save to UserDefaults
     if let data = value.data(using: .utf8) {
       let base64 = data.base64EncodedString()
       UserDefaults.standard.set(base64, forKey: fallbackPrefix + key)
     }
 
-    // Save to cache file
     persistToFileLocked()
     return true
   }
@@ -130,7 +99,6 @@ public final class KeychainService: @unchecked Sendable {
     return true
   }
 
-  /// Deletes all saved credentials from memory, cache file, and UserDefaults.
   public func clearAllCredentials() {
     lock.lock()
     defer { lock.unlock() }
@@ -153,7 +121,7 @@ public final class KeychainService: @unchecked Sendable {
 
   public func save(account: String, value: String) throws {
     guard set(value, forKey: account) else {
-      throw AppError.securityError("Failed to save credentials")
+      throw NSError(domain: "KeychainService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to save credentials"])
     }
   }
 

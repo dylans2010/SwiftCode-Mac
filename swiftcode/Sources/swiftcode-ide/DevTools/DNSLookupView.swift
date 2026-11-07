@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct DNSLookupView: View {
@@ -17,7 +14,6 @@ struct DNSLookupView: View {
                     .disabled(domain.isEmpty || isLoading)
             }
             .padding([.top, .horizontal])
-            
 
             if isLoading {
                 ProgressView()
@@ -40,7 +36,6 @@ struct DNSLookupView: View {
 
     func lookup() {
         isLoading = true
-        // Using Google DNS-over-HTTPS API for real DNS lookup
         guard let url = URL(string: "https://dns.google/resolve?name=\(domain)") else {
             isLoading = false
             return

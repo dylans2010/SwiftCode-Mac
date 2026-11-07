@@ -6,76 +6,43 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Shared pieces of the round R8 controls (10-plan.md R8; 06 §4; sizes from
-// golden-layout.md): SwiftCode's default palette, the layouts the measured sizes
-// imply, keyboard focus for controls, and the gestures controls use.
-
-// MARK: - Palette
-
 extension Color {
-    /// An sRGB colour from 0xRRGGBB and an opacity.
     init(swiftcodeHex hex: UInt32, opacity: Double = 1) {
         self.init(.sRGB, red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255,
                   blue: Double(hex & 0xFF) / 255, opacity: opacity)
     }
 }
 
-/// SwiftCode's default control look for light and dark mode (09-open-design.md
-/// §4.2). Where 07 §4 records a system colour the spec value is used
-/// (fills, separators, grouped backgrounds, placeholder text); the rest are
-/// SwiftCode's neutral choices. The accent is the environment's tint.
 struct ControlPalette {
     let dark: Bool
 
     init(_ scheme: ColorScheme) { dark = scheme == .dark }
 
-    /// systemFill (07 §4): bordered buttons, stepper and segmented tracks.
     var fill: Color { dark ? Color(swiftcodeHex: 0x787880, opacity: 0x5C / 255) : Color(swiftcodeHex: 0x787880, opacity: 0x33 / 255) }
-    /// A lighter fill (pressed overlays, slider tracks; SwiftCode).
     var subtleFill: Color { dark ? Color(swiftcodeHex: 0x787880, opacity: 0.32) : Color(swiftcodeHex: 0x787880, opacity: 0.16) }
-    /// separator (07 §4).
     var separator: Color { dark ? Color(swiftcodeHex: 0x545458, opacity: 0x80 / 255) : Color(swiftcodeHex: 0x3C3C43, opacity: 0x1F / 255) }
-    /// A stronger outline for fields and checkboxes (SwiftCode).
     var outline: Color { dark ? Color(swiftcodeHex: 0xEBEBF5, opacity: 0.3) : Color(swiftcodeHex: 0x3C3C43, opacity: 0.3) }
-    /// systemGroupedBackground / secondarySystemGroupedBackground (07 §4).
     var groupedBackground: Color { dark ? Color(swiftcodeHex: 0x000000) : Color(swiftcodeHex: 0xF2F2F7) }
     var groupedRow: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xFFFFFF) }
-    /// Text fields' and menus' background (SwiftCode).
     var fieldBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xFFFFFF) }
     var menuBackground: Color { dark ? Color(swiftcodeHex: 0x2C2C2E) : Color(swiftcodeHex: 0xFFFFFF) }
-    /// placeholderText (07 §4).
     var placeholder: Color { dark ? Color(swiftcodeHex: 0xEBEBF5, opacity: 0x4C / 255) : Color(swiftcodeHex: 0x3C3C43, opacity: 0x4C / 255) }
-    /// secondaryLabel (07 §4).
     var secondaryLabel: Color { dark ? Color(swiftcodeHex: 0xEBEBF5, opacity: 0x99 / 255) : Color(swiftcodeHex: 0x3C3C43, opacity: 0x99 / 255) }
-    /// The off track of a switch (SwiftCode).
     var switchOff: Color { dark ? Color(swiftcodeHex: 0x39393D) : Color(swiftcodeHex: 0xE5E5EA) }
-    /// Thumbs of switches and sliders (SwiftCode).
     var thumb: Color { dark ? Color(swiftcodeHex: 0xF2F2F7) : Color(swiftcodeHex: 0xFFFFFF) }
     var thumbBorder: Color { dark ? Color(swiftcodeHex: 0x000000, opacity: 0.25) : Color(swiftcodeHex: 0x000000, opacity: 0.12) }
-    /// The raised segment of a segmented picker (SwiftCode).
     var segmentSelected: Color { dark ? Color(swiftcodeHex: 0x636366) : Color(swiftcodeHex: 0xFFFFFF) }
-    /// Menu rows under the pointer (SwiftCode).
     var menuHighlight: Color { dark ? Color(swiftcodeHex: 0xFFFFFF, opacity: 0.12) : Color(swiftcodeHex: 0x000000, opacity: 0.07) }
-    /// Scroll indicators (SwiftCode, R9).
     var indicator: Color { dark ? Color(swiftcodeHex: 0xFFFFFF, opacity: 0.45) : Color(swiftcodeHex: 0x000000, opacity: 0.38) }
-    /// Selected list rows (SwiftCode, R9): the tint at 22 % / 35 %.
     var rowSelectionOpacity: Double { dark ? 0.35 : 0.22 }
-    /// The plain list and sidebar backgrounds (systemBackground and SwiftCode's
-    /// sidebar colour).
     var plainBackground: Color { dark ? Color(swiftcodeHex: 0x000000) : Color(swiftcodeHex: 0xFFFFFF) }
     var sidebarBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xF2F2F7) }
-    /// Navigation and tool bars (SwiftCode): a translucent bar colour.
     var barBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E, opacity: 0.94) : Color(swiftcodeHex: 0xF9F9F9, opacity: 0.94) }
-    /// The dimming layer behind modal presentations (SwiftCode).
     var dimming: Color { dark ? Color(swiftcodeHex: 0x000000, opacity: 0.48) : Color(swiftcodeHex: 0x000000, opacity: 0.2) }
-    /// Sheets, alerts and popovers (SwiftCode).
     var sheetBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xFFFFFF) }
     var alertBackground: Color { dark ? Color(swiftcodeHex: 0x2C2C2E) : Color(swiftcodeHex: 0xF2F2F2) }
-    /// Destructive actions: `Color.red` of 07 §4.
     var destructive: Color { .red }
 }
-
-// MARK: - Environment
 
 private enum LabelsHiddenKey: EnvironmentKey { static let defaultValue = false }
 private enum InFormKey: EnvironmentKey { static let defaultValue = false }
@@ -84,32 +51,26 @@ private enum FormStyleKindKey: EnvironmentKey { static let defaultValue = 0 }
 private enum FormColumnWidthKey: EnvironmentKey { static let defaultValue: CGFloat? = nil }
 
 extension EnvironmentValues {
-    /// Set by `labelsHidden()`: controls show no label.
     package var _labelsHidden: Bool {
         get { self[LabelsHiddenKey.self] }
         set { self[LabelsHiddenKey.self] = newValue }
     }
 
-    /// True inside a `Form` (rows, default control styles).
     package var _inForm: Bool {
         get { self[InFormKey.self] }
         set { self[InFormKey.self] = newValue }
     }
 
-    /// The form style below (`FormStyle._ovStyleKind`: 0 grouped, 1 columns).
     package var _formStyleKind: Int {
         get { self[FormStyleKindKey.self] }
         set { self[FormStyleKindKey.self] = newValue }
     }
 
-    /// Inside a `.columns` form: the width of the labels' column (labels end
-    /// at it, controls start after it). Nil elsewhere.
     package var _formColumnWidth: CGFloat? {
         get { self[FormColumnWidthKey.self] }
         set { self[FormColumnWidthKey.self] = newValue }
     }
 
-    /// True inside a menu's pop-up (buttons become menu items).
     package var _inMenu: Bool {
         get { self[InMenuKey.self] }
         set { self[InMenuKey.self] = newValue }
@@ -117,30 +78,12 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Hides the labels of controls inside (they stay for accessibility).
     public func labelsHidden() -> some View { environment(\._labelsHidden, true) }
 }
 
-// MARK: - Layouts implied by the golden sizes
-
-/// A label followed by a fixed-size control (`Toggle`, `Stepper`,
-/// `DatePicker`, a menu `Picker` in a row). Golden `toggle`, `stepper`,
-/// `datePicker.compact`: the ideal width is label + 8 + control; a proposed
-/// width is taken (never less than the label's minimum + 8 + control, so
-/// fit[0×0] of `toggle` is 69 = 8 + 61); the height is the larger of the two.
-/// The label sits at the leading edge, the control at the trailing edge,
-/// both centred vertically. A lone control (labels hidden) is its own size.
-/// The row is a standard view for spacing (golden spacing matrix).
-///
-/// In a `.columns` form (`columnWidth` set) the row is the desktop's form
-/// row instead: the label right-aligned in a column of that width (it wraps
-/// inside it), the control 8 points after the column at its natural size; a
-/// checkbox (control leading) sits after the empty column with its title.
 struct ControlRowLayout: Layout {
     var spacing: CGFloat = 8
-    /// The control comes first (checkboxes).
     var controlLeading = false
-    /// The labels' column in a `.columns` form.
     var columnWidth: CGFloat?
 
     private func parts(_ s: Subviews) -> (label: LayoutSubview?, control: LayoutSubview?) {
@@ -197,10 +140,6 @@ struct ControlRowLayout: Layout {
                      proposal: ProposedViewSize(width: w, height: bounds.height))
     }
 
-    // MARK: Columns form rows
-
-    /// The control's size after the column: its natural size, or for a
-    /// checkbox with its title, what is left of the proposed width.
     private func columnsParts(_ label: LayoutSubview?, _ control: LayoutSubview?, column: CGFloat,
                               proposal: ProposedViewSize) -> (label: CGSize, control: CGSize, title: CGSize) {
         let c = control?.sizeThatFits(.unspecified) ?? .zero
@@ -235,8 +174,6 @@ struct ControlRowLayout: Layout {
     }
 }
 
-/// A label in a `.columns` form's labels' column: its lines end at the
-/// column's edge. Elsewhere the alignment is left as it is.
 struct ColumnLabelAlignment: ViewModifier {
     let inColumn: Bool
     @Environment(\.multilineTextAlignment) private var current
@@ -246,10 +183,6 @@ struct ColumnLabelAlignment: ViewModifier {
     }
 }
 
-/// A control that takes any proposed width (unspecified: `idealWidth`) and
-/// has a fixed height: `Slider` (0 × 31), linear `ProgressView` (0 × 4),
-/// text fields (golden `textfield.*`: ideal = content). Its one subview is
-/// proposed the final size.
 struct FillWidthLayout: Layout {
     var height: CGFloat
     var idealWidth: CGFloat = 0
@@ -267,10 +200,6 @@ struct FillWidthLayout: Layout {
     }
 }
 
-// MARK: - Gestures
-
-/// A button press: pressed while down inside (with the release slop),
-/// action on release inside (06 §4: "action runs on touch-up inside").
 struct ControlPressGesture: Gesture, PrimitiveGesture {
     typealias Value = Void
     typealias Body = Never
@@ -282,8 +211,6 @@ struct ControlPressGesture: Gesture, PrimitiveGesture {
     }
 }
 
-/// Follows a press from down to up in local coordinates (slider thumbs,
-/// text selection). `accepts` decides at touch-down whether to track.
 struct ControlTrackGesture: Gesture, PrimitiveGesture {
     typealias Value = Void
     typealias Body = Never
@@ -295,19 +222,11 @@ struct ControlTrackGesture: Gesture, PrimitiveGesture {
     }
 }
 
-// MARK: - Keyboard focus for controls
-
-/// What a focused control does with a key press (true: used).
 typealias ControlKeyHandler = @MainActor (KeyEvent) -> Bool
 
-/// Registers the view as a focusable control in its window's focus system
-/// (Tab order, `focused(_:)` bindings) and keeps `isFocused` current.
-/// Disabled controls are not focusable.
 struct ControlFocusModifier: PrimitiveModifier {
     let isFocused: Binding<Bool>
     let onKey: ControlKeyHandler
-    /// Receives the registered node (containers that focus themselves on a
-    /// click, R9).
     var ref: NodeRef?
 
     private final class Registration {
@@ -343,8 +262,6 @@ extension View {
         modifier(ControlFocusModifier(isFocused: isFocused, onKey: onKey, ref: ref))
     }
 
-    /// SwiftCode's focus ring: a 2.5 pt tint outline 3 pt outside the control's
-    /// shape (09-open-design.md §4.2).
     func focusRing<S: Shape>(_ visible: Bool, _ shape: S) -> some View {
         overlay {
             if visible {
@@ -354,21 +271,14 @@ extension View {
     }
 }
 
-/// Whether a key press activates a focused button-like control.
 @MainActor
 func isActivationKey(_ k: KeyEvent) -> Bool {
     guard k.isDown, !k.modifiers.contains(.control), !k.modifiers.contains(.command) else { return false }
     return k.key == .space || k.key == .return
 }
 
-// MARK: - Keyboard shortcuts of controls
-
-/// An object whose identity stands for one control in the window's shortcut
-/// registry.
 final class ShortcutOwner {}
 
-/// Registers the control's keyboard shortcut (from `keyboardShortcut` above
-/// it) with its window.
 struct ShortcutRegistrationModifier: PrimitiveModifier {
     let owner: ShortcutOwner
     let action: @MainActor () -> Void
@@ -399,10 +309,6 @@ struct ShortcutRegistrationModifier: PrimitiveModifier {
     func _removed(node: ViewNode) { (node.primitiveState as? Registration)?.services?.shortcuts.unregister(owner) }
 }
 
-// MARK: - Type-erased configuration content
-
-/// Content handed to a style (labels of buttons, toggles, …): renders the
-/// control's own view.
 struct ErasedContent: View {
     let view: AnyView
     init(_ v: some View) { view = AnyView(v) }

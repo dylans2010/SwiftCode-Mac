@@ -1,10 +1,3 @@
-/// A lexical Swift lexer (no parser): comments (nested block comments),
-/// doc comments, strings (multi-line, raw, with interpolations), numbers,
-/// keywords, `@attributes`, `#directives`, placeholders and capitalized
-/// identifiers as type names. The structure model and the typing rules
-/// use it; highlighting uses swift-syntax's parser (`SwiftClassifier`)
-/// and falls back to this. Lexical structure: The Swift Programming
-/// Language, "Lexical Structure" (public).
 struct SwiftLineLexer: LineLexer {
     static let keywords: Set<String> = [
         "associatedtype", "class", "deinit", "enum", "extension", "fileprivate", "func", "import", "init", "inout",
@@ -17,15 +10,12 @@ struct SwiftLineLexer: LineLexer {
         "consuming", "nonisolated", "isolated", "package", "macro", "get", "set", "willSet", "didSet", "then",
         "each", "repeat", "sending", "discard",
     ]
-    /// `#` words that are compiler directives (the rest, `#selector`,
-    /// `#Preview`, `#expect`, are expressions or macros: keywords).
     static let directives: Set<String> = ["#if", "#elseif", "#else", "#endif", "#sourceLocation", "#warning", "#error"]
 
     enum Mode: UInt8 { case plain = 0, blockComment = 1, multilineString = 2 }
 
     func lex(_ l: LineText, state: inout LexState, into out: inout [SyntaxToken]) {
         var i = l.start
-        // Continue a token from the previous line.
         if state.mode == Mode.blockComment.rawValue {
             let kind = state.open ?? .comment
             i = blockCommentEnd(l, from: i, depth: &state.depth)
@@ -43,12 +33,12 @@ struct SwiftLineLexer: LineLexer {
             let c = l[i]
             let s = i
             if isSpace(c) { i += 1; continue }
-            if c == 47, l[i + 1] == 47 {   // //
+            if c == 47, l[i + 1] == 47 {
                 let doc = l[i + 2] == 47 && l[i + 3] != 47
                 out.add(doc ? .docComment : .comment, s, l.end)
                 return
             }
-            if c == 47, l[i + 1] == 42 {   // /*
+            if c == 47, l[i + 1] == 42 {
                 let doc = l[i + 2] == 42 && l[i + 3] != 42 && l[i + 3] != 47
                 var depth: Int32 = 1
                 i = blockCommentEnd(l, from: i + 2, depth: &depth)
@@ -56,10 +46,10 @@ struct SwiftLineLexer: LineLexer {
                 if depth > 0 { state = LexState(open: doc ? .docComment : .comment, mode: Mode.blockComment.rawValue, depth: depth) }
                 continue
             }
-            if c == 34 || (c == 35 && hashesThenQuote(l, i) != nil) {   // " or #"
+            if c == 34 || (c == 35 && hashesThenQuote(l, i) != nil) {
                 var hashes = 0
                 if c == 35 { hashes = hashesThenQuote(l, i)!; i += hashes }
-                if l[i + 1] == 34 && l[i + 2] == 34 {   // """
+                if l[i + 1] == 34 && l[i + 2] == 34 {
                     i += 3
                     let (end, closed) = multilineStringEnd(l, from: i, hashes: hashes)
                     out.add(.string, s, end)
@@ -76,13 +66,13 @@ struct SwiftLineLexer: LineLexer {
                 out.add(.number, s, i)
                 continue
             }
-            if c == 64, isIdentStart(l[i + 1]) {   // @attribute
+            if c == 64, isIdentStart(l[i + 1]) {
                 i += 1
                 while i < l.end, isIdentPart(l[i]) { i += 1 }
                 out.add(.attribute, s, i)
                 continue
             }
-            if c == 35, isIdentStart(l[i + 1]) {   // #directive, #keyword
+            if c == 35, isIdentStart(l[i + 1]) {
                 i += 1
                 while i < l.end, isIdentPart(l[i]) { i += 1 }
                 out.add(l.word(s, i, in: Self.directives) ? .preprocessor : .keyword, s, i)
@@ -93,7 +83,7 @@ struct SwiftLineLexer: LineLexer {
                 i = e
                 continue
             }
-            if c == 96 {   // `identifier`
+            if c == 96 {
                 i += 1
                 while i < l.end, l[i] != 96 { i += 1 }
                 i = min(i + 1, l.end)
@@ -104,7 +94,6 @@ struct SwiftLineLexer: LineLexer {
                 while i < l.end, isIdentPart(l[i]) { i += 1 }
                 if c != 36 {
                     if l.word(s, i, in: Self.keywords) {
-                        // `.default`, `.init` after a dot are member names.
                         if s > l.start, l[s - 1] == 46, l.string(s, i) != "init", l.string(s, i) != "self" { continue }
                         out.add(.keyword, s, i)
                     } else if isUpper(c), !inImportPath(l, before: s) {
@@ -117,23 +106,17 @@ struct SwiftLineLexer: LineLexer {
         }
     }
 
-    /// Declaration kinds an `import` can name (`import struct M.T`).
     static let importKinds: Set<String> = ["struct", "class", "enum", "protocol", "typealias", "func", "var", "let", "actor", "macro"]
 
-    /// Whether the name at `s` is a component of an `import` path
-    /// (`import Foundation`, `import struct Foundation.Date`): the module
-    /// path is plain text, not a type (`editor-area.md` §D.1).
     func inImportPath(_ l: LineText, before s: Int) -> Bool {
         var j = s - 1
         func skipSpaces() { while j >= l.start, isSpace(l[j]) { j -= 1 } }
-        // The word ending at `j` (inclusive), moving `j` before it.
         func previousWord() -> String? {
             let e = j + 1
             while j >= l.start, isIdentPart(l[j]) { j -= 1 }
             return e > j + 1 ? l.string(j + 1, e) : nil
         }
         skipSpaces()
-        // Earlier components: `Name.` before this one.
         while j >= l.start, l[j] == 46 {
             j -= 1
             skipSpaces()
@@ -147,14 +130,12 @@ struct SwiftLineLexer: LineLexer {
         return previousWord() == "import"
     }
 
-    /// The number of `#` before a `"` at `i`, or nil.
     func hashesThenQuote(_ l: LineText, _ i: Int) -> Int? {
         var j = i
         while l[j] == 35 { j += 1 }
         return l[j] == 34 && j > i ? j - i : nil
     }
 
-    /// The end of a block comment whose body starts at `i` (nesting).
     func blockCommentEnd(_ l: LineText, from i: Int, depth: inout Int32) -> Int {
         var j = i
         while j < l.end {
@@ -165,18 +146,16 @@ struct SwiftLineLexer: LineLexer {
         return l.end
     }
 
-    /// Whether `"` followed by `hashes` `#` closes a string at `j`.
     @inline(__always) func closes(_ l: LineText, _ j: Int, hashes: Int) -> Bool {
         for k in 0..<hashes where l[j + 1 + k] != 35 { return false }
         return true
     }
 
-    /// The end of a single-line string whose body starts at `i`.
     func stringEnd(_ l: LineText, from i: Int, hashes: Int) -> Int {
         var j = i
         while j < l.end {
             let c = l[j]
-            if c == 92, closes(l, j, hashes: hashes) {   // \ (or \#)
+            if c == 92, closes(l, j, hashes: hashes) {
                 if l[j + 1 + hashes] == 40 { j = interpolationEnd(l, from: j + 2 + hashes); continue }
                 j += 2 + hashes
                 continue
@@ -187,7 +166,6 @@ struct SwiftLineLexer: LineLexer {
         return l.end
     }
 
-    /// The end of a multi-line string body starting at `i`, and whether it closed.
     func multilineStringEnd(_ l: LineText, from i: Int, hashes: Int) -> (Int, Bool) {
         var j = i
         while j < l.end {
@@ -203,7 +181,6 @@ struct SwiftLineLexer: LineLexer {
         return (l.end, false)
     }
 
-    /// The end of `\( … )` whose body starts at `i` (nested parentheses and strings).
     func interpolationEnd(_ l: LineText, from i: Int) -> Int {
         var depth = 1
         var j = i

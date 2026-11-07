@@ -20,16 +20,13 @@ public actor GitPorcelainParser {
                     behind = Int(parts[3].dropFirst()) ?? 0
                 }
             } else if line.hasPrefix("1 ") || line.hasPrefix("2 ") {
-                // Modified/Staged etc
                 let parts = line.components(separatedBy: " ")
                 if parts.count >= 9 {
                     let statusStr = String(parts[1])
                     let path = repositoryURL.appendingPathComponent(parts[8])
-                    // SAFETY: statusStr is guaranteed to be non-empty in porcelain v2 output.
                     files.append(GitFileStatus(path: path, status: parseStatusChar(statusStr.first!), isStaged: statusStr.first != "."))
                 }
             } else if line.hasPrefix("? ") {
-                // Untracked
                 let path = repositoryURL.appendingPathComponent(String(line.dropFirst(2)))
                 files.append(GitFileStatus(path: path, status: .untracked, isStaged: false))
             }

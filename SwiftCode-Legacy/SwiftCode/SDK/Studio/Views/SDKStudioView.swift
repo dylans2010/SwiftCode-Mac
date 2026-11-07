@@ -1,11 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - SDKStudioView
-//
-// SwiftCode Studio root view — the EXCLUSIVE creation and development hub
-// for SwiftCode platform/SDK projects and extensions (spec §13.3).
-
 @MainActor
 public struct SDKStudioView: View {
     @State private var selection: SDKStudioSection

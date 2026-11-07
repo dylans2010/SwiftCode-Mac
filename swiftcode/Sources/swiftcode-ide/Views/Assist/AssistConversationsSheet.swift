@@ -1,30 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/AssistConversationsSheet.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Assist/AssistConversationsSheet.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - search field
-//   - Active/Archived tab categories
-//   - suggest-name action
-// ADAPTATIONS:
-//   - `import AppKit` wrapped in #if canImport(AppKit) (destination convention). AppKit symbol sites the wiring phase must guard for Linux: L257:NSWorkspace
-//   - Observation adaptation (fixes-observedobject): AssistManager is @Observable, now held in @State. AssistConversationHistory is still @ObservedObject — the type is undeclared (Audit F section 2), so that site is left untouched pending its port.
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistConversationHistory — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistConversationHistory.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - ConversationItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistConversationHistory.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land. Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
-
-//
-//  AssistConversationsSheet.swift
-//  SwiftCode
-//
-//  Clean, modern interface displaying conversation history with search,
-//  AFM auto-titling, name suggestion (<25 chars), archiving, deletion, and context inspection.
-//
-
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
@@ -64,7 +37,6 @@ public struct AssistConversationsSheet: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Sleek Top Controls Bar
                 VStack(spacing: 10) {
                     HStack(spacing: 12) {
                         HStack(spacing: 8) {
@@ -105,7 +77,6 @@ public struct AssistConversationsSheet: View {
 
                 Divider()
 
-                // Content Area
                 if filteredConversations.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: selectedTab == .active ? "bubble.left.and.bubble.right" : "archivebox")
@@ -161,8 +132,6 @@ public struct AssistConversationsSheet: View {
         }
     }
 
-    // MARK: - Conversation Card
-
     @ViewBuilder
     private func conversationCard(_ item: ConversationItem) -> some View {
         let isActive = item.id == history.activeConversationID
@@ -173,7 +142,6 @@ public struct AssistConversationsSheet: View {
             loadConversation(item)
         } label: {
             HStack(alignment: .top, spacing: 10) {
-                // Status / Kind Icon
                 ZStack {
                     Circle()
                         .fill(isActive ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.10))
@@ -190,7 +158,6 @@ public struct AssistConversationsSheet: View {
                 }
                 .padding(.top, 2)
 
-                // Info
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(item.title)
@@ -209,7 +176,6 @@ public struct AssistConversationsSheet: View {
 
                         Spacer()
 
-                        // Relative timestamp
                         Text(item.updatedAt, style: .relative)
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)

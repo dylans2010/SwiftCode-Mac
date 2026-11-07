@@ -2,8 +2,6 @@ import LocalKit
 import LocalKitDynamicCore
 import SwiftUI
 
-/// Links a local package's static product (with a resource bundle) and its
-/// dynamic product. Prints one line for the run log, then shows the same.
 @main
 struct LocalPackageApp: App {
     static let report = "SWIFTCODE-PKG-SAMPLE local: \(LocalKit.greeting); \(LocalKitDynamicCore.describe())"

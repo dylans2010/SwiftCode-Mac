@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 #if canImport(os)
 import os
@@ -22,7 +19,6 @@ final class DateFormatterDevToolViewModel {
 
         let isoFormatter = ISO8601DateFormatter()
         guard let date = isoFormatter.date(from: rawInput) else {
-            // Try standard date fallback
             let fallbackFormatter = DateFormatter()
             fallbackFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
             if let fDate = fallbackFormatter.date(from: rawInput) {
@@ -93,14 +89,14 @@ struct DateFormatterDevToolView: View {
                             .bold()
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            
+
                             .cornerRadius(8)
                     }
                 }
             }
             .padding()
         }
-        
+
         .navigationTitle("Date Formatter")
         .onAppear {
             viewModel.parseAndFormat()

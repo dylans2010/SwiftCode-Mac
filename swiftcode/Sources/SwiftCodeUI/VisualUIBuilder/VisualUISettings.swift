@@ -1,9 +1,6 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUISettings.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 import Observation
 
-/// Preference configurations and viewport metrics for the Visual UI workspace
 @Observable
 @MainActor
 public final class VisualUISettings {
@@ -85,7 +82,6 @@ public final class VisualUISettings {
         let timestamp = formatter.string(from: Date())
         diagnosticsLogs.append("[\(timestamp)] \(message)")
 
-        // Keep last 100 entries
         if diagnosticsLogs.count > 100 {
             diagnosticsLogs.removeFirst()
         }

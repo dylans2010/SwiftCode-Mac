@@ -1,16 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// Stage-3b BSD calls that libc and the host libraries issue once
-// `libsystem_kernel` has real wrappers: vectored I/O, user-space locks,
-// entropy, signal and resource-limit bookkeeping, code-signing queries,
-// directory enumeration, and the `*at` path calls. Numbers and argument
-// orders come from `specs/simulator/data/bsd-syscalls.json`; structure
-// layouts are the public Darwin ones (`sys/uio.h`, `sys/signal.h`,
-// `sys/resource.h`, `sys/dirent.h`). There is one thread and no signal
-// delivery yet: signal state is recorded, never acted on.
-
-/// Bookkeeping behind the stage-3b calls.
 struct ExtendedBSDState {
     struct SignalAction: Equatable {
         var handler: UInt64 = 0
@@ -24,7 +14,6 @@ struct ExtendedBSDState {
         var next = 0
     }
 
-    /// The directory cursors of one image under a leaf lock.
     final class DirectoryCursorTable: @unchecked Sendable {
         private let lock = DescriptorTableLock(name: "directory cursors")
         nonisolated(unsafe) private var table: [Int32: DirectoryCursor] = [:]
@@ -32,40 +21,25 @@ struct ExtendedBSDState {
             get { lock.withLock { table[fd] } }
             set { lock.withLock { table[fd] = newValue } }
         }
-        /// Every cursor (snapshots).
         var all: [Int32: DirectoryCursor] { lock.withLock { table } }
-        /// One section of the lock (no other lock is taken inside).
         func withLock<T>(_ body: (inout [Int32: DirectoryCursor]) throws -> T) rethrows -> T {
             try lock.withLock { try body(&table) }
         }
     }
 
     var signalMask: UInt32 = 0
-    /// Signals posted while a guest handler was installed (stage 4b: no
-    /// delivery yet, `stage4b-contract.md` §2 item 5).
     var pendingSignals: UInt32 = 0
     var signalActions: [Int32: SignalAction] = [:]
     var alternateStack: (sp: UInt64, size: UInt64, flags: Int32) = (0, 0, DarwinKernel.SignalConstant.ssDisable)
     var rlimits: [Int32: (cur: UInt64, max: UInt64)] = [
         DarwinKernel.RLimit.stack: (8 << 20, 64 << 20),
-        // As a simulator process sees on the Mac (level 3): soft 256, hard
-        // unlimited; NPROC 6000/9000.
         DarwinKernel.RLimit.nofile: (256, DarwinKernel.RLimit.infinity),
         DarwinKernel.RLimit.nproc: (6000, 9000),
         DarwinKernel.RLimit.core: (0, DarwinKernel.RLimit.infinity),
     ]
     var umask: UInt16 = 0o022
-    /// Directory cursors by descriptor: a table with a leaf lock of its own,
-    /// so `getdirentries64` and a directory's close need no L0
-    /// (`bsd-locking.md` §14). One table per image (never shared: the state
-    /// is copied only by the snapshot capture, which reads it).
     let directoryCursors = DirectoryCursorTable()
-    /// select diagnostics (`Select.swift`, `SWIFTCODE_DEBUG_SELECT_STATS=1`).
     var selectStats = SelectStats()
-    /// I/O policies (iopolicysys): process scope by iotype, thread scope by
-    /// thread id and iotype, and the darwin-background scope.
-    /// The I/O policies under a leaf lock of their own, so `iopolicysys`
-    /// needs no L0 (`bsd-locking.md` §12).
     let ioPolicyStore = IOPolicyStore()
     var ioPolicies: [Int32: Int32] {
         get { ioPolicyStore.withLock { $0.process } }
@@ -93,8 +67,6 @@ struct ExtendedBSDState {
 }
 
 extension DarwinKernel {
-    /// Extra BSD numbers handled in this file: the low 16 bits of `x16` for
-    /// the Darwin call each name spells (`specs/simulator/data/bsd-syscalls.json`).
     public enum BSD2 {
         public static let getppid = 39, sigaction = 46, sigprocmask = 48, sigaltstack = 53, umask = 60,
                           getrusage = 117, readv = 120, writev = 121, csops = 169, csopsAudittoken = 170,
@@ -112,40 +84,30 @@ extension DarwinKernel {
                           removexattr = 238, fremovexattr = 239, listxattr = 240, flistxattr = 241,
                           gettid = 286, openDprotectedNp = 216, openatDprotectedNp = 218,
                           threadSelfusage = 482
-        /// psynch calls that wait (can never be woken on one thread).
         public static let psynchWaits: [Int: String] = [
             297: "psynch_rw_longrdlock", 298: "psynch_rw_yieldwrlock", 300: "psynch_rw_upgrade",
             301: "psynch_mutexwait", 305: "psynch_cvwait", 306: "psynch_rw_rdlock", 307: "psynch_rw_wrlock",
         ]
-        /// psynch calls that wake or release (nobody ever waits).
         public static let psynchWakes: [Int: String] = [
             299: "psynch_rw_downgrade", 302: "psynch_mutexdrop", 303: "psynch_cvbroad", 304: "psynch_cvsignal",
             308: "psynch_rw_unlock", 309: "psynch_rw_unlock2", 312: "psynch_cvclrprepost",
         ]
     }
 
-    /// `getrlimit`/`setrlimit` resource numbers and `RLIM_INFINITY`, as
-    /// `sys/resource.h` defines them.
     public enum RLimit {
         public static let cpu: Int32 = 0, fsize: Int32 = 1, data: Int32 = 2, stack: Int32 = 3, core: Int32 = 4,
                           rss: Int32 = 5, memlock: Int32 = 6, nproc: Int32 = 7, nofile: Int32 = 8
         public static let infinity: UInt64 = 0x7FFF_FFFF_FFFF_FFFF
-        /// `_RLIMIT_POSIX_FLAG`, or-ed into `which` by the POSIX-conforming wrappers.
         static let posixFlag: Int32 = 0x1000
     }
 
-    /// Signal numbers and `how`/flag values for `sigprocmask` and `sigaltstack`, as
-    /// `sys/signal.h` defines them.
     public enum SignalConstant {
         public static let sigBlock: Int32 = 1, sigUnblock: Int32 = 2, sigSetmask: Int32 = 3
         public static let sigkill: Int32 = 9, sigstop: Int32 = 17
         public static let ssDisable: Int32 = 4
-        /// Signals that can never be blocked.
-        static let unblockable: UInt32 = (1 << 8) | (1 << 16)  // bits of SIGKILL and SIGSTOP
+        static let unblockable: UInt32 = (1 << 8) | (1 << 16)
     }
 
-    /// `__ulock_*` operation word: an opcode in bits 7–0 (`UL_*`) ORed with
-    /// `ULF_*` flags (`threads-and-events.md` §4.1).
     public enum ULock {
         public static let opMask: UInt32 = 0xFF
         public static let compareAndWait: UInt32 = 1
@@ -157,16 +119,13 @@ extension DarwinKernel {
         public static let noErrno: UInt32 = 0x0100_0000
     }
 
-    /// `AT_FDCWD`: the `*at` calls resolve a relative path against the working directory.
     public static let atFDCWD: Int32 = -2
     static let atSymlinkNofollow: Int32 = 0x20
     static let ETIMEDOUT: Int32 = 60
-    /// `ENOATTR` (sys/errno.h): the extended attribute does not exist.
     static let ENOATTR: Int32 = 93
     static let ENOTSOCK: Int32 = 38
     static let EDEADLK: Int32 = 11
 
-    /// `getentropy` bytes from the host's /dev/urandom.
     public static func hostEntropy(_ count: Int) -> [UInt8] {
         if let h = FileHandle(forReadingAtPath: "/dev/urandom") {
             defer { try? h.close() }
@@ -176,9 +135,6 @@ extension DarwinKernel {
         return (0..<count).map { _ in UInt8.random(in: UInt8.min...UInt8.max, using: &rng) }
     }
 
-    // MARK: Dispatch
-
-    /// Handles the stage-3b calls; nil = not handled here.
     private func extendedAttributeCall(_ n: Int, _ a: [UInt64], _ call: inout CallText,
                                        _ mem: any KernelGuestMemory) throws -> UInt64 {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
@@ -249,17 +205,6 @@ extension DarwinKernel {
             return try pollCall(a, &call, mem)
 
         case 284:
-            // access_extended(entries, size, results, uid) (xnu bsd/kern/
-            // vfs_syscalls.c and sys/unistd.h `struct accessx_descriptor`
-            // {u32 ad_name_offset; i32 ad_flags; i32 ad_pad[2]}; level 1):
-            // `size` bytes of descriptors followed by NUL-terminated names;
-            // the first descriptor's name offset marks the end of the
-            // descriptor array; an offset of 0 reuses the previous name.
-            // At most 16 KiB (ENOMEM); smaller than one descriptor plus a
-            // name, or a name offset outside the buffer: EINVAL. One int per
-            // descriptor goes to `results`: 0 or an errno. SwiftCode checks as
-            // `access` does (the object must exist; permissions are not
-            // modeled).
             let size = Int(min(a[1], 1 << 20))
             call.set("access_extended(entries=\(hx(a[0])), size=\(size), results=\(hx(a[2])), uid=\(int(3)))")
             guard size <= 16 * 1024 else { throw Failure(errno: Errno.ENOMEM) }
@@ -283,8 +228,6 @@ extension DarwinKernel {
                 do {
                     guard let path = name, !path.isEmpty else { throw Failure(errno: Errno.ENOENT) }
                     let st = try statUnlocked(path, followSymlinks: true)
-                    // ad_flags: _READ_OK 1<<9, _WRITE_OK 1<<10, _EXECUTE_OK 1<<11
-                    // (sys/unistd.h), or the plain R_OK/W_OK/X_OK bits.
                     let flags = Int32(bitPattern: buffer.readLE(UInt32.self, at: i * 16 + 4))
                     if let denied = accessDenied(st, path: path, read: flags & (4 | 1 << 9) != 0,
                                                  write: flags & (2 | 1 << 10) != 0, execute: flags & (1 | 1 << 11) != 0) {
@@ -300,16 +243,6 @@ extension DarwinKernel {
             return .value(0)
 
         case 65, 405:
-            // msync / msync_nocancel(addr, len, flags) (the msync(2) manual
-            // page, xnu bsd/kern/kern_mman.c; level 1): addr page-aligned
-            // (EINVAL), MS_ASYNC (1) and MS_SYNC (0x10) not both, no bits
-            // beyond MS_ASYNC|MS_INVALIDATE|MS_KILLPAGES|MS_DEACTIVATE|MS_SYNC
-            // (0x1f) (EINVAL), every page of the range mapped (ENOMEM).
-            // Shared file mappings are views of the host file's page cache
-            // and private ones are never written back, so there is nothing
-            // to flush: a valid call returns 0.
-            // chronod's mapped-file allocator asserts that it does
-            // (first-boot.md §6).
             let flags = int(2)
             call.set("msync(addr=\(hx(a[0])), len=\(hx(a[1])), flags=\(hx(UInt64(UInt32(bitPattern: flags)))))")
             guard a[0] & (VMLayout.pageSize - 1) == 0, flags & ~0x1F == 0, flags & 0x11 != 0x11 else {
@@ -325,13 +258,6 @@ extension DarwinKernel {
             return .value(0)
 
         case 203, 204:
-            // mlock / munlock(addr, len) (the mlock(2) manual page, xnu
-            // bsd/kern/kern_mman.c; level 1): the range, widened to whole
-            // pages, must be mapped (ENOMEM; a wrapping range EINVAL).
-            // Guest memory is host memory that is never paged out, so a
-            // valid call changes nothing and returns 0. CoreAudio's HAL
-            // client wires its IO region with mlock and refuses to start IO
-            // when that fails (audio-host.md, "SwiftCode implementation").
             call.set("\(n == 203 ? "mlock" : "munlock")(addr=\(hx(a[0])), len=\(hx(a[1])))")
             let start = a[0] & ~(VMLayout.pageSize - 1)
             let end = a[0].addingReportingOverflow(a[1])
@@ -344,31 +270,13 @@ extension DarwinKernel {
             return .value(0)
 
         case 322:
-            // iopolicysys(cmd, struct _iopol_param_t *) (xnu bsd/kern/
-            // kern_resource.c, sys/resource.h; level 1): cmd 0 sets, 1 gets
-            // {int iop_scope; int iop_iotype; int iop_policy}; scope 0
-            // process, 1 thread, 2 darwin background. SwiftCode schedules no
-            // I/O, but a policy that is set reads back (NSFileCoordinator
-            // checks the dataless-materialization policy it set). Unset
-            // policies read as 0 (IOPOL_DEFAULT).
             return .value(try ioPolicyCall(a, thread: current.threadID, &call, mem))
 
         case 89:
-            // getdtablesize(): the descriptor-table size, i.e. the soft
-            // RLIMIT_NOFILE as the file system enforces it (xnu
-            // bsd/kern/kern_descrip.c getdtablesize; level 1). xpcproxy_sim
-            // sizes its stdio setup with it.
             call.set("getdtablesize()")
             return .value(UInt64(fileSystem.maxDescriptors))
 
         case 191, 192:
-            // pathconf(path, name) / fpathconf(fd, name) (pathconf(2), names
-            // from sys/unistd.h `_PC_*`; level 1). The object must exist
-            // (ENOENT/EBADF); an unknown name is EINVAL. Values: the limits
-            // of sys/syslimits.h and what a case-sensitive, case-preserving
-            // volume with 64-bit sizes reports (the host's file systems are
-            // case-sensitive). Many daemons ask for `_PC_CASE_SENSITIVE` and
-            // `_PC_NAME_MAX` on their containers.
             let name = int(1)
             if n == 191 {
                 let path = try readPath(a[0], mem)
@@ -379,47 +287,36 @@ extension DarwinKernel {
                 _ = try fileSystem.fstat(int(0))
             }
             let values: [Int32: Int64] = [
-                1: 32767,  // _PC_LINK_MAX
-                2: 1024,  // _PC_MAX_CANON
-                3: 1024,  // _PC_MAX_INPUT
-                4: 255,  // _PC_NAME_MAX
-                5: 1024,  // _PC_PATH_MAX
-                6: 512,  // _PC_PIPE_BUF
-                7: 200112,  // _PC_CHOWN_RESTRICTED
-                8: 200112,  // _PC_NO_TRUNC
-                9: 0xFF,  // _PC_VDISABLE
-                10: 255,  // _PC_NAME_CHARS_MAX
-                11: 1,  // _PC_CASE_SENSITIVE
-                12: 1,  // _PC_CASE_PRESERVING
-                13: 0,  // _PC_EXTENDED_SECURITY_NP
-                14: 0,  // _PC_AUTH_OPAQUE_NP
-                15: 1,  // _PC_2_SYMLINKS
-                16: 4096,  // _PC_ALLOC_SIZE_MIN
-                18: 64,  // _PC_FILESIZEBITS
-                24: 1024,  // _PC_SYMLINK_MAX
-                26: 64,  // _PC_XATTR_SIZE_BITS
-                27: 0,  // _PC_MIN_HOLE_SIZE (holes not reported)
+                1: 32767,
+                2: 1024,
+                3: 1024,
+                4: 255,
+                5: 1024,
+                6: 512,
+                7: 200112,
+                8: 200112,
+                9: 0xFF,
+                10: 255,
+                11: 1,
+                12: 1,
+                13: 0,
+                14: 0,
+                15: 1,
+                16: 4096,
+                18: 64,
+                24: 1024,
+                26: 64,
+                27: 0,
             ]
             guard let value = values[name] else { throw Failure(errno: Errno.EINVAL) }
             call += " [\(value)]"
             return .value(UInt64(bitPattern: value))
 
         case 186:
-            // thread_selfcounts(kind, buf, size): the calling thread's CPU
-            // counters (instructions, cycles; xnu syscalls.master, level 1).
-            // SwiftCode keeps none and answers ENOTSUP, as a kernel built
-            // without the counters does.
             call.set("thread_selfcounts(kind=\(int(0)), buf=\(hx(a[1])), size=\(a[2]))")
-            throw Failure(errno: 45)  // ENOTSUP
+            throw Failure(errno: 45)
 
         case 96:
-            // setpriority(which, who, prio) (setpriority(2), sys/resource.h:
-            // PRIO_PROCESS 0, PRIO_PGRP 1, PRIO_USER 2, PRIO_DARWIN_THREAD 3,
-            // PRIO_DARWIN_PROCESS 4, PRIO_DARWIN_GPU 5, PRIO_DARWIN_ROLE 6;
-            // level 1). A known `which` succeeds. With the scheduling policy
-            // (scheduling-policy.md §4.4), PRIO_DARWIN_BG on the calling
-            // thread or on a process makes it darwin-bg; 0 ends that. The
-            // rest changes nothing; unknown `which` values are EINVAL.
             call.set("setpriority(which=\(int(0)), who=\(a[1]), prio=\(int(2)))")
             guard (0...6).contains(int(0)) else { throw Failure(errno: Errno.EINVAL) }
             if SchedPolicy.qosEnabled {
@@ -567,18 +464,11 @@ extension DarwinKernel {
             return signalSelf(sig, &call)
 
         case BSD2.sigsuspend, BSD2.sigsuspendNocancel:
-            // Replace the mask, wait until a signal is deliverable to this
-            // thread (none can be in stage 4a: only `KernelLock.interrupt`
-            // or the process ending wakes it), restore the mask. Always EINTR.
             let mask = UInt32(truncatingIfNeeded: a[0])
             call.set("\(n == BSD2.sigsuspend ? "sigsuspend" : "__sigsuspend_nocancel")(mask=\(hx(mask)))")
             let old = extended.signalMask
             extended.signalMask = mask & ~SignalConstant.unblockable
-            // Stage 4b: a pending signal the new mask lets through ends the
-            // wait (its handler is not run; the signal is consumed).
             var result = WaitResult.woken
-            // SNAPSHOT hook (agent SNAP, specs/simulator/snapshot.md §4.2):
-            // the mask to restore, so a snapshot can restart this wait.
             current.snapshotSigsuspendSavedMask = old
             defer { current.snapshotSigsuspendSavedMask = nil }
             while extended.pendingSignals & ~extended.signalMask == 0 {
@@ -636,11 +526,6 @@ extension DarwinKernel {
             return .value(UInt64(old))
 
         case BSD2.getrusage:
-            // struct user64_rusage (144 bytes): ru_utime and ru_stime as
-            // 16-byte timevals (i64 seconds, i32 microseconds), then 14
-            // longs (left zero). RUSAGE_SELF (0) reports the process's CPU
-            // (its host threads: guest code and the kernel work done for
-            // it); RUSAGE_CHILDREN (-1) zero (no children are accounted).
             call.set("getrusage(who=\(int(0)), rusage=\(hx(a[1])))")
             guard int(0) == 0 || int(0) == -1 else { throw Failure(errno: Errno.EINVAL) }
             var b = [UInt8](repeating: 0, count: 144)
@@ -654,8 +539,6 @@ extension DarwinKernel {
             return .value(0)
 
         case BSD2.threadSelfusage:
-            // The calling thread's CPU time (user + system) in mach
-            // absolute time units (Libc converts with the timebase).
             call.set("thread_selfusage()")
             return .value(Self.threadSelfUsage(context: current, counterFrequency: counterFrequency))
 
@@ -671,17 +554,10 @@ extension DarwinKernel {
             }
             return .value(0)
 
-        // Extended attributes (sys/xattr.h, getxattr(2), setxattr(2),
-        // listxattr(2), removexattr(2)): kept as host extended attributes
-        // (`DarwinFileSystem` "Extended attributes"). options: XATTR_NOFOLLOW
-        // 0x1, XATTR_CREATE 0x2, XATTR_REPLACE 0x4; `position` (resource
-        // forks) must be 0.
         case BSD2.getxattr, BSD2.fgetxattr, BSD2.setxattr, BSD2.fsetxattr,
              BSD2.removexattr, BSD2.fremovexattr, BSD2.listxattr, BSD2.flistxattr:
             return .value(try extendedAttributeCall(n, a, &call, mem))
 
-        // gettid (pthread_getugid_np): a thread without an override identity
-        // (every SwiftCode thread) gets ESRCH (xnu bsd/kern/kern_prot.c).
         case BSD2.gettid:
             call.set("gettid(uidp=\(hx(a[0])), gidp=\(hx(a[1])))")
             throw Failure(errno: Errno.ESRCH)
@@ -700,10 +576,6 @@ extension DarwinKernel {
             extended.directoryCursors[newFD] = nil
             return .value(UInt64(UInt32(bitPattern: newFD)))
 
-        // open_dprotected_np / openat_dprotected_np (sys/fcntl.h): an open
-        // that also names a data-protection class, which a newly created
-        // file gets (FileLocks.swift); the dpflags as on the simulator's
-        // host volume (checkDataProtectionOpen).
         case BSD2.openDprotectedNp, BSD2.openatDprotectedNp:
             let at = n == BSD2.openatDprotectedNp
             let path = try resolveAtPath(at ? int(0) : Self.atFDCWD, at ? a[1] : a[0], mem)
@@ -734,11 +606,6 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: __semwait_signal
-
-    /// Signals `mutex` (when non-zero), then waits on the semaphore `cond`
-    /// (or just sleeps when `cond` is 0) until signalled, the timeout, or an
-    /// interruption.
     private func semwaitSignal(_ a: [UInt64], _ call: inout CallText) throws -> UInt64 {
         let cond = UInt32(truncatingIfNeeded: a[0]), mutex = UInt32(truncatingIfNeeded: a[1])
         var deadline: UInt64?
@@ -747,7 +614,6 @@ extension DarwinKernel {
             guard sec >= 0, (0..<1_000_000_000).contains(nsec) else { throw Failure(errno: Errno.EINVAL) }
             var ns = sec.multipliedReportingOverflow(by: 1_000_000_000).overflow ? Int64.max : sec * 1_000_000_000 + nsec
             if Int32(truncatingIfNeeded: a[3]) == 0 {
-                // Absolute: calendar time.
                 let w = wallClock()
                 ns -= w.seconds * 1_000_000_000 + w.nanoseconds
             }
@@ -775,97 +641,62 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: statfs64
-
-    /// A guest volume's size and free space in 4096-byte blocks, and its
-    /// file counts (`statfs`, getattrlist's volume attributes).
     struct VolumeSpace: Equatable {
         var blocks: UInt64
         var available: UInt64
         var files: UInt64
         var freeFiles: UInt64
-        /// Without a host answer (fixed values; 64 GiB, half free).
         static let fallback = VolumeSpace(blocks: 1 << 24, available: 1 << 23, files: 1 << 20, freeFiles: 1 << 19)
     }
 
-    /// The host directory whose file system gives the sizes of the guest
-    /// volume mounted at `mountPoint`: of the prefixes on that volume, the
-    /// first writable one (in device mode the device directory, where the
-    /// guest's writes to "/"'s volume go), else the one mounted there, else
-    /// the first; nil when no prefix is on it. Every path of one volume thus
-    /// reports the same sizes, also its read-only parts and "/" itself (an
-    /// APFS volume reports its container's free space). `visionos.md`
-    /// §10.26.2: "/" reported 0 bytes free and Photos refused its library.
     static func volumeSpaceHostPath(mountPoint: String, prefixes: [DarwinFileSystem.Prefix]) -> String? {
         let onVolume = prefixes.filter { $0.volumeMountPoint == mountPoint }
         return (onVolume.first(where: \.writable) ?? onVolume.first(where: { $0.guestPath == mountPoint }) ?? onVolume.first)?.hostPath
     }
 
-    /// The host volume's real sizes for the guest volume at `mountPoint`
-    /// (SwiftCode decision: the guest sees the space it can really write).
     func volumeSpace(mountPoint: String) -> VolumeSpace {
         let host = Self.volumeSpaceHostPath(mountPoint: mountPoint, prefixes: fileSystem.prefixes) ?? "/"
         var vfs = statvfs()
         guard statvfs(host, &vfs) == 0, vfs.f_frsize > 0 else { return .fallback }
-        // In 4096-byte blocks (f_bsize), whatever the host's fragment size.
         let unit = UInt64(vfs.f_frsize)
         return VolumeSpace(blocks: UInt64(vfs.f_blocks).multipliedReportingOverflow(by: unit).partialValue / 4096,
                            available: UInt64(vfs.f_bavail).multipliedReportingOverflow(by: unit).partialValue / 4096,
                            files: UInt64(vfs.f_files), freeFiles: UInt64(vfs.f_ffree))
     }
 
-    /// `struct statfs` (64-bit inode form, 2168 bytes) for the VFS prefix
-    /// that serves `guestPath`: a local file system, read-only unless the
-    /// prefix is writable.
     func statfs64Bytes(guestPath: String, dev: UInt32) -> [UInt8] {
         let prefix = fileSystem.prefixes
             .filter { guestPath == $0.guestPath || guestPath.hasPrefix($0.guestPath == "/" ? "/" : $0.guestPath + "/") }
             .max { $0.guestPath.count < $1.guestPath.count }
         let mountPoint = prefix?.volumeMountPoint ?? "/"
         let readOnly = !(prefix?.writable ?? false)
-        // Sizes and free space are the host volume's, the same for every
-        // path of the guest volume (`volumeSpace`).
         let space = volumeSpace(mountPoint: mountPoint)
         let (blocks, free, files, ffree) = (space.blocks, space.available, space.files, space.freeFiles)
         var b = [UInt8](repeating: 0, count: 2168)
-        b.putLE(UInt32(4096), at: 0)                // f_bsize
-        b.putLE(Int32(1 << 20), at: 4)              // f_iosize
-        b.putLE(blocks, at: 8)                      // f_blocks
-        b.putLE(free, at: 16)                       // f_bfree
-        b.putLE(free, at: 24)                       // f_bavail
-        b.putLE(files, at: 32)                      // f_files
-        b.putLE(ffree, at: 40)                      // f_ffree
-        // f_fsid {dev, type}, as getattrlist's ATTR_CMN_FSID; the synthetic
-        // "/" (no host file, dev 0) reports the system volume's device.
+        b.putLE(UInt32(4096), at: 0)
+        b.putLE(Int32(1 << 20), at: 4)
+        b.putLE(blocks, at: 8)
+        b.putLE(free, at: 16)
+        b.putLE(free, at: 24)
+        b.putLE(files, at: 32)
+        b.putLE(ffree, at: 40)
         let fsDev = dev != 0 ? dev : (try? fileSystem.stat(prefix?.guestPath ?? "/System", followSymlinks: true).dev) ?? 1
-        b.putLE(fsDev, at: 48)                      // f_fsid.val[0]
-        b.putLE(UInt32(0x1A), at: 52)               // f_fsid.val[1]
-        b.putLE(UInt32(0), at: 56)                  // f_owner
-        b.putLE(UInt32(0x1A), at: 60)               // f_type
-        // MNT_RDONLY, MNT_LOCAL, MNT_ROOTFS for "/", MNT_DOVOLFS, MNT_JOURNALED.
+        b.putLE(fsDev, at: 48)
+        b.putLE(UInt32(0x1A), at: 52)
+        b.putLE(UInt32(0), at: 56)
+        b.putLE(UInt32(0x1A), at: 60)
         b.putLE(UInt32((readOnly ? 0x1 : 0) | 0x1000 | (mountPoint == "/" ? 0x4000 : 0) | 0x8000 | 0x80_0000), at: 64)
-        b.putLE(UInt32(1), at: 68)                  // f_fssubtype: SwiftCode decision (unverified; a level-3 probe can confirm)
-        b.put(Array("apfs".utf8), at: 72)           // f_fstypename[16]
-        b.put(Array(mountPoint.utf8.prefix(1023)), at: 88)       // f_mntonname[1024]
-        b.put(Array("swiftcode-vfs".utf8), at: 1112)    // f_mntfromname[1024]
+        b.putLE(UInt32(1), at: 68)
+        b.put(Array("apfs".utf8), at: 72)
+        b.put(Array(mountPoint.utf8.prefix(1023)), at: 88)
+        b.put(Array("swiftcode-vfs".utf8), at: 1112)
         return b
     }
 
-    // MARK: getfsstat64
-
-    /// `getfsstat64` (347; xnu vfs_syscalls.c, the getfsstat(2) manual page;
-    /// level 1): one `struct statfs` (64-bit inode form) per mounted volume.
-    /// SwiftCode's volumes are "/" (the synthetic root) and every directory
-    /// prefix, each with the `statfs64Bytes` of its root. A null buffer asks
-    /// for the count; otherwise as many entries as fit are written and their
-    /// number returned. Foundation finds the volume of a file (its
-    /// NSURLVolumeURLKey, read-only and local flags) by matching the file's
-    /// fsid here (level 3: our probe `lsd-seed/fsprobe.m`).
     func fileSystemStatList(buffer: UInt64, size: UInt64, _ call: inout CallText,
                             _ mem: any KernelGuestMemory) throws -> UInt64 {
         var mounts: [(path: String, dev: UInt32)] = []
         if let root = try? fileSystem.stat("/", followSymlinks: true) { mounts.append(("/", root.dev)) }
-        // Prefixes that are part of another volume ("/") are not listed.
         for prefix in fileSystem.prefixes where prefix.guestPath != "/" && prefix.mountPoint == nil {
             guard let st = try? fileSystem.stat(prefix.guestPath, followSymlinks: true), st.isDirectory,
                   !mounts.contains(where: { $0.path == prefix.guestPath }) else { continue }
@@ -885,18 +716,12 @@ extension DarwinKernel {
         return UInt64(count)
     }
 
-    // MARK: Signals to the process itself
-
-    /// No delivery yet: an ignored signal is dropped, a default action ends
-    /// the guest (status 128 + signal, as a shell reports it), and a caught
-    /// signal is logged and dropped.
     private func signalSelf(_ sig: Int32, _ call: inout CallText) -> BSDResult {
         let names: [Int32: String] = [1: "SIGHUP", 2: "SIGINT", 3: "SIGQUIT", 4: "SIGILL", 5: "SIGTRAP", 6: "SIGABRT",
                                       8: "SIGFPE", 9: "SIGKILL", 10: "SIGBUS", 11: "SIGSEGV", 13: "SIGPIPE", 14: "SIGALRM",
                                       15: "SIGTERM"]
         let name = names[sig] ?? "signal \(sig)"
         let handler = extended.signalActions[sig]?.handler ?? 0
-        // Signals whose default action is to ignore them.
         let ignoredByDefault: Set<Int32> = [16, 18, 20, 23, 28, 29]
         if handler == 1 || (handler == 0 && ignoredByDefault.contains(sig)) {
             call += " [\(name) ignored]"
@@ -910,8 +735,6 @@ extension DarwinKernel {
         call += " [\(name) caught by \(hx(handler)); dropped]"
         return .value(0)
     }
-
-    // MARK: readv / writev
 
     private func vectoredIO(write: Bool, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         let fd = Int32(truncatingIfNeeded: a[0])
@@ -942,8 +765,6 @@ extension DarwinKernel {
         return UInt64(data.count)
     }
 
-    // MARK: sigaction
-
     private func sigaction(_ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         let signum = Int32(truncatingIfNeeded: a[0])
         call.set("sigaction(\(signum), nsa=\(hx(a[1])), osa=\(hx(a[2])))")
@@ -953,20 +774,17 @@ extension DarwinKernel {
             guard signum != SignalConstant.sigkill, signum != SignalConstant.sigstop else {
                 throw Failure(errno: Errno.EINVAL)
             }
-            // struct __sigaction: handler, trampoline, mask (u32), flags (i32).
             let b = try mem.read(va: a[1], count: 24)
             let action = ExtendedBSDState.SignalAction(handler: b.readLE(UInt64.self, at: 0),
                                                        mask: b.readLE(UInt32.self, at: 16),
                                                        flags: b.readLE(Int32.self, at: 20))
             extended.signalActions[signum] = action
-            // SIG_IGN (or SIG_DFL of a signal ignored by default) discards pending instances.
             if action.handler == 1 || (action.handler == 0 && Signal.ignoredByDefault.contains(signum)) {
                 extended.pendingSignals &= ~(1 << UInt32(signum - 1))
             }
             call += " [handler \(hx(action.handler)) flags \(hx(UInt32(bitPattern: action.flags)))]"
         }
         if a[2] != 0 {
-            // struct sigaction: handler, mask (u32), flags (i32).
             var b: [UInt8] = []
             b.appendLE(old.handler)
             b.appendLE(old.mask)
@@ -975,8 +793,6 @@ extension DarwinKernel {
         }
         return 0
     }
-
-    // MARK: Paths relative to a directory descriptor
 
     func resolveAtPath(_ dirfd: Int32, _ pointer: UInt64, _ mem: any KernelGuestMemory) throws -> String {
         let path = try readPath(pointer, mem)
@@ -987,13 +803,6 @@ extension DarwinKernel {
         return base == "/" ? "/" + path : base + "/" + path
     }
 
-    /// `iopolicysys(cmd, struct _iopol_param_t *)` (xnu bsd/kern/
-    /// kern_resource.c, sys/resource.h; level 1): cmd 0 sets, 1 gets {int
-    /// iop_scope; int iop_iotype; int iop_policy}; scope 0 process, 1 thread,
-    /// 2 darwin background. SwiftCode schedules no I/O, but a policy that is set
-    /// reads back (NSFileCoordinator checks the dataless-materialization
-    /// policy it set). Unset policies read as 0 (IOPOL_DEFAULT). The table
-    /// has its own leaf lock; also a BSD fast path (`bsd-locking.md` §12).
     func ioPolicyCall(_ a: [UInt64], thread: UInt64, _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         let cmd = Int32(truncatingIfNeeded: a[0])
         let raw = try mem.read(va: a[1], count: 12)
@@ -1025,9 +834,6 @@ extension DarwinKernel {
         return 0
     }
 
-    /// `statfs64`, `fstatfs64`: the volume of a path or descriptor (path
-    /// resolution and `stat` need no lock). Also a BSD fast path
-    /// (`bsd-locking.md` §12).
     func statfsCall(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         let path: String
         if n == BSD2.statfs64 {
@@ -1042,13 +848,6 @@ extension DarwinKernel {
         return 0
     }
 
-    // MARK: getdirentries64
-
-    /// `struct dirent` (64-bit inodes): d_ino u64, d_seekoff u64, d_reclen
-    /// u16, d_namlen u16, d_type u8, d_name (NUL-terminated); records are
-    /// 8-byte aligned. With a buffer of at least 1024 bytes the last 4 bytes
-    /// carry the flags word (bit 0 = end of directory), as the libc reader
-    /// expects. `*position` receives the offset before the read.
     func getdirentries64(_ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         let fd = Int32(truncatingIfNeeded: a[0])
         let bufferSize = Int(min(a[2], 1 << 20))
@@ -1057,9 +856,6 @@ extension DarwinKernel {
         guard file.isDirectory else { throw Failure(errno: Errno.ENOTDIR) }
         let extendedBuffer = bufferSize >= 1024
         let capacity = extendedBuffer ? bufferSize - 4 : bufferSize
-        // One section of the cursor table's lock takes the records and moves
-        // the cursor (bsd-locking.md §14); the directory is listed outside it.
-        // A cursor that a close removed meanwhile is made again.
         var taken: (out: [UInt8], start: Int, next: Int, eof: Bool)?
         for _ in 0..<4 {
             try ensureDirectoryCursor(fd, file)
@@ -1100,10 +896,6 @@ extension DarwinKernel {
         return UInt64(out.count)
     }
 
-    /// Makes `fd`'s directory cursor for `file` when it has none (or one of
-    /// an older description): the directory is listed with no lock held
-    /// (L0 is released for it on the locked path), then installed unless
-    /// another thread installed one meanwhile.
     func ensureDirectoryCursor(_ fd: Int32, _ file: GuestFile) throws {
         if let c = extended.directoryCursors[fd], c.file === file { return }
         let entries = try listDirectory(fd: fd, file: file)
@@ -1148,37 +940,24 @@ extension DarwinKernel {
 }
 
 extension DarwinKernel {
-    /// The errno `access(2)` reports (the access(2) manual page; level 1):
-    /// EROFS for write access on a read-only volume, EACCES when the mode
-    /// bits deny the access to the guest user (uid 501; groups staff 20,
-    /// everyone 12, admin 80, as the Mac's user who runs the simulator);
-    /// nil when allowed. Execute access needs an x bit (search, for a
-    /// directory).
     func accessDenied(_ st: DarwinStat, path: String, read: Bool, write: Bool, execute: Bool) -> Int32? {
-        if write && !fileSystem.writable(guestPath: path) && st.fileType != DarwinStat.S_IFCHR { return 30 }  // EROFS
+        if write && !fileSystem.writable(guestPath: path) && st.fileType != DarwinStat.S_IFCHR { return 30 }
         let bits: UInt16
         if st.uid == DarwinFileSystem.guestUID { bits = (st.mode >> 6) & 7 }
         else if [DarwinFileSystem.guestGID, 12, 80].contains(st.gid) { bits = (st.mode >> 3) & 7 }
         else { bits = st.mode & 7 }
-        if (read && bits & 4 == 0) || (write && bits & 2 == 0) || (execute && bits & 1 == 0) { return 13 }  // EACCES
+        if (read && bits & 4 == 0) || (write && bits & 2 == 0) || (execute && bits & 1 == 0) { return 13 }
         return nil
     }
 }
 
-// MARK: Thread CPU time (`thread_selfusage`, BSD 482)
-
 extension DarwinKernel {
-    /// The calling host thread's CPU time (ns). A guest thread runs on one
-    /// host thread (its vCPU's) for its whole life.
     public static func hostThreadCPUNanoseconds() -> UInt64 {
         var t = timespec()
         guard clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) == 0 else { return 0 }
         return UInt64(t.tv_sec) * 1_000_000_000 + UInt64(t.tv_nsec)
     }
 
-    /// `thread_selfusage`: the calling guest thread's CPU time (its host
-    /// thread's time since the guest thread started there), in guest
-    /// counter ticks.
     static func threadSelfUsage(context: ThreadContext, counterFrequency: UInt64) -> UInt64 {
         let now = hostThreadCPUNanoseconds()
         let ns = now >= context.hostCPUBaseNanoseconds ? now - context.hostCPUBaseNanoseconds : now

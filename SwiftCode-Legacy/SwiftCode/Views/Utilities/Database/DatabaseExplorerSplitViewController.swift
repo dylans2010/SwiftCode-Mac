@@ -17,7 +17,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Left Sidebar Panel (Native AppKit Outline View Controller)
         let leftVC = DatabaseExplorerSidebarViewController()
         let leftItem = NSSplitViewItem(sidebarWithViewController: leftVC)
         leftItem.canCollapse = true
@@ -27,7 +26,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         self.leftItem = leftItem
         addSplitViewItem(leftItem)
 
-        // 2. Center Workspace (Tables lists, schema viewer, SQL editors, performance logs)
         let centerVC = NSHostingController(rootView: DatabaseExplorerCenterWrapper())
         centerVC.sizingOptions = []
         centerVC.view.autoresizingMask = [.width, .height]
@@ -37,7 +35,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         self.centerItem = centerItem
         addSplitViewItem(centerItem)
 
-        // 3. Right properties inspector
         let rightVC = NSHostingController(rootView: DatabaseExplorerInspectorWrapper())
         rightVC.sizingOptions = []
         rightVC.view.autoresizingMask = [.width, .height]
@@ -59,7 +56,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
     }
 }
 
-// Global shared state bridges to make wrappers cleanly compile
 @MainActor
 final class DatabaseSplitViewState {
     static let shared = DatabaseSplitViewState()
@@ -103,7 +99,6 @@ struct DatabaseExplorerCenterWrapper: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header bar
             HStack(spacing: 16) {
                 Text("Database Explorer")
                     .font(.headline)
@@ -124,7 +119,6 @@ struct DatabaseExplorerCenterWrapper: View {
 
                 Spacer()
 
-                // Native segmented control reducing sidebar reliance
                 Picker("Workspace Panel", selection: Binding(
                     get: { observableState.selectedSection },
                     set: { observableState.selectedSection = $0; DatabaseSplitViewState.shared.selectedSection = $0 }

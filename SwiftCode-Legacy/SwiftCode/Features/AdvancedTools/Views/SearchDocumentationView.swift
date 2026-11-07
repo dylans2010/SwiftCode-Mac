@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Smart Note Version Snapshot
 struct SearchNoteVersion: Identifiable, Codable, Hashable {
     let id: UUID
     var notePath: String
@@ -24,12 +23,8 @@ struct SearchProjectNote: Identifiable, Codable, Hashable {
 struct SearchDocumentationView: View {
     @ObservedObject private var settings = AppSettings.shared
 
-    // Overall view mode
-    @State private var activeWorkspaceMode = 0 // 0 = Link Summarizer, 1 = Project Notes Workspace
+    @State private var activeWorkspaceMode = 0
 
-    // ==================================================
-    // 1. LINK SUMMARIZER STATE
-    // ==================================================
     @State private var urlInput = ""
     @State private var summaryResponse = ""
     @State private var isSummarizing = false
@@ -39,24 +34,19 @@ struct SearchDocumentationView: View {
         MarkdownRenderer.shared.parse(summaryResponse)
     }
 
-    // ==================================================
-    // 2. PROJECT NOTES WORKSPACE STATE
-    // ==================================================
     @State private var notes: [SearchProjectNote] = []
     @State private var selectedNote: SearchProjectNote?
     @State private var noteEditorText = ""
     @State private var noteSearchQuery = ""
     @State private var isEditingNote = false
-    @State private var noteFilter = "All" // All, Pinned, Favorites, Todo, Meeting, Build
+    @State private var noteFilter = "All"
     @State private var isAIProcessingNote = false
     @State private var aiNoteResult = ""
     @State private var showAISheet = false
 
-    // Note Snapshots Version History
     @State private var noteVersions: [SearchNoteVersion] = []
     @State private var showVersionHistorySheet = false
 
-    // Selected Template
     @State private var selectedTemplate = "None"
 
     let noteCategories = ["General", "Todo", "Meeting", "Build"]
@@ -93,7 +83,6 @@ struct SearchDocumentationView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Main Workspace Top Navigator
                 HStack {
                     Picker("Workspace", selection: $activeWorkspaceMode) {
                         Text("Web Link Summarizer").tag(0)
@@ -110,10 +99,8 @@ struct SearchDocumentationView: View {
                 Divider()
 
                 if activeWorkspaceMode == 0 {
-                    // Link Summarizer Layout
                     linkSummarizerWorkspace()
                 } else {
-                    // Project Notes Workspace Layout
                     projectNotesWorkspace()
                 }
             }
@@ -124,13 +111,9 @@ struct SearchDocumentationView: View {
         }
     }
 
-    // ====================================================================
-    // LINK SUMMARIZER INTERFACE
-    // ====================================================================
     @ViewBuilder
     private func linkSummarizerWorkspace() -> some View {
         VStack(spacing: 0) {
-            // Top control bar
             VStack(alignment: .leading, spacing: 12) {
                 Text("Web Link & Documentation Summarizer")
                     .font(.headline)
@@ -182,7 +165,6 @@ struct SearchDocumentationView: View {
 
             Divider()
 
-            // Summarization Content Area
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if summaryResponse.isEmpty {
@@ -201,7 +183,6 @@ struct SearchDocumentationView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.top, 100)
                     } else {
-                        // Render summarized content using MarkdownBlockListView
                         MarkdownBlockListView(blocks: parsedBlocks)
                             .textSelection(.enabled)
                     }
@@ -213,7 +194,6 @@ struct SearchDocumentationView: View {
 
             Divider()
 
-            // Footer toolbar
             if !summaryResponse.isEmpty {
                 HStack {
                     Button("Clear Summary") {
@@ -290,13 +270,9 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
         }
     }
 
-    // ====================================================================
-    // PROJECT KNOWLEDGE WORKSPACE INTERFACE
-    // ====================================================================
     @ViewBuilder
     private func projectNotesWorkspace() -> some View {
         HSplitView {
-            // Left Column: Note Browser sidebar
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
@@ -368,11 +344,9 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
 
             Divider()
 
-            // Right Column: Split Note Editor & Rendered Preview Layout
             VStack(spacing: 0) {
                 if let note = selectedNote {
                     VStack(spacing: 0) {
-                        // Title bar
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
@@ -394,7 +368,6 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
 
                             Spacer()
 
-                            // Toolbar actions
                             Group {
                                 Button {
                                     toggleNoteMeta("[PINNED]")
@@ -458,7 +431,6 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
 
                         Divider()
 
-                        // Editing toolbar helpers
                         if isEditingNote {
                             HStack(spacing: 12) {
                                 Button { insertEditorText("- [ ] ") } label: { Label("Todo", systemImage: "checkmark.square") }.buttonStyle(.plain)
@@ -501,9 +473,7 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
                             Divider()
                         }
 
-                        // Split pane layout
                         HSplitView {
-                            // Editor pane
                             VStack {
                                 if isEditingNote {
                                     TextEditor(text: $noteEditorText)
@@ -524,7 +494,6 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
 
                             Divider()
 
-                            // Preview pane
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 14) {
                                     Text("DOCUMENTATION LIVE PREVIEW")
@@ -635,9 +604,6 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
         }
     }
 
-    // ====================================================================
-    // OPERATIONS LOGIC
-    // ====================================================================
     private func loadLocalNotes() {
         Task.detached(priority: .userInitiated) {
             let rootPath = FileManager.default.currentDirectoryPath
@@ -705,7 +671,6 @@ This outlines the core design specifications.
     private func saveNoteChanges() {
         guard let note = selectedNote, let idx = notes.firstIndex(where: { $0.path == note.path }) else { return }
 
-        // Save current version snapshot before overwriting
         let snap = SearchNoteVersion(id: UUID(), notePath: note.path, contentSnapshot: note.content, timestamp: Date())
         noteVersions.append(snap)
 
@@ -714,7 +679,6 @@ This outlines the core design specifications.
         selectedNote = updatedNote
         isEditingNote = false
 
-        // Write directly to project files on disk
         let projectURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let fileURL = projectURL.appendingPathComponent(note.path)
 
@@ -741,7 +705,6 @@ This outlines the core design specifications.
         selectedNote = updatedNote
         noteEditorText = currentContent
 
-        // Write back to disk
         let projectURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let fileURL = projectURL.appendingPathComponent(note.path)
         try? currentContent.write(to: fileURL, atomically: true, encoding: .utf8)
@@ -766,7 +729,6 @@ This outlines the core design specifications.
         selectedNote = updatedNote
         noteEditorText = currentContent
 
-        // Write back to disk
         let projectURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let fileURL = projectURL.appendingPathComponent(note.path)
         try? currentContent.write(to: fileURL, atomically: true, encoding: .utf8)

@@ -1,12 +1,4 @@
-// PluginManagerView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/PluginManagerView.swift` (SwiftCode-Mac migration, Views/Settings worklist; Dylan's own code, direct port authorised under MIT).
-// Verbatim. Placed in SwiftCodeUI/App/ (next to NativeSettingsViews.swift:892, which constructs it) — SwiftCodeUI cannot depend on the swiftcode-ide executable target, so the view must live here, not in swiftcode-ide.
-// Its "Create Plugin" sheet presents PluginCodeCreateView, moved here from swiftcode-ide/SDKStudio/ into SwiftCodeUI/App/ for the same reason (no call sites; swiftcode-ide already depends on SwiftCodeUI, so the move changes no dependency).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
-
-// MARK: - Plugin Manager View
 
 struct PluginManagerView: View {
     @StateObject private var pluginManager = PluginManager.shared
@@ -16,7 +8,6 @@ struct PluginManagerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 1. Installed Plugins GroupBox
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -74,7 +65,6 @@ struct PluginManagerView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Guide / How to Install GroupBox
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -111,8 +101,6 @@ struct PluginManagerView: View {
         }
     }
 
-    // MARK: - Empty State
-
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "puzzlepiece.extension")
@@ -135,8 +123,6 @@ struct PluginManagerView: View {
         .padding(.vertical, 24)
     }
 }
-
-// MARK: - Plugin Row
 
 private struct PluginRowView: View {
     let plugin: PluginManifest

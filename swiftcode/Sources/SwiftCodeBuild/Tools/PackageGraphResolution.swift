@@ -1,17 +1,12 @@
 import Foundation
 import SwiftCodeProject
 
-/// Transitive resolution and `Package.resolved` version 3. See
-/// `specs/ide/package-dependencies.md` §Resolution.
 extension PackageResolver {
-    /// A dependency a package manifest declares.
     public struct ManifestDependency: Equatable, Sendable {
         public var location: String
         public var requirement: SwiftPackageRequirement
     }
 
-    /// Remote dependencies from `swift package dump-package` (file-system
-    /// dependencies are not followed yet).
     public static func dependencies(ofPackageAt dir: URL) throws -> [ManifestDependency] {
         let json = try run("/usr/bin/env", ["swift", "package", "--package-path", dir.path, "dump-package"], in: nil)
         guard let obj = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] else { return [] }
@@ -19,7 +14,6 @@ extension PackageResolver {
             guard let sc = (d["sourceControl"] as? [[String: Any]])?.first,
                   let loc = sc["location"] as? [String: Any] else { return nil }
             let remote = loc["remote"] as? [Any]
-            // `local`: a repository on disk (a file URL in the manifest).
             let url = (remote?.first as? [String: Any])?["urlString"] as? String ?? remote?.first as? String
                 ?? (loc["local"] as? [String])?.first
             guard let url, let req = sc["requirement"] as? [String: Any] else { return nil }
@@ -38,7 +32,6 @@ extension PackageResolver {
         }
     }
 
-    /// A requirement as a half-open version interval (nil for branch/revision).
     static func interval(_ r: SwiftPackageRequirement) -> (lo: Version, hi: Version)? {
         switch r {
         case .upToNextMajor(let v):
@@ -57,10 +50,6 @@ extension PackageResolver {
         }
     }
 
-    /// Resolves the project's packages and everything they depend on. Each
-    /// package gets the highest version every requirement on it allows;
-    /// when none does, or a branch/commit meets a version rule, resolution
-    /// fails naming the requirements.
     public func resolveGraph(_ roots: [(url: String, requirement: SwiftPackageRequirement)]) throws -> [Pin] {
         struct Constraint { var requirement: SwiftPackageRequirement; var from: String }
         var constraints: [String: [Constraint]] = [:]
@@ -106,16 +95,10 @@ extension PackageResolver {
         return pins.values.sorted { $0.identity < $1.identity }
     }
 
-    /// `originHash` for `Package.resolved` version 3: SHA-256 (lowercase
-    /// hex) of the root manifests' contents followed by the root
-    /// dependencies' location strings, as SwiftPM's open source defines it.
-    /// An Xcode project has no root manifest, so only the locations count
-    /// (an OPEN QUESTION in the spec).
     public static func originHash(rootManifests: [String] = [], rootLocations: [String]) -> String {
         SHA256.hex(Array((rootManifests.joined() + rootLocations.joined()).utf8))
     }
 
-    /// `Package.resolved` version 3: `originHash`, then the pins.
     public static func resolvedFileV3(_ pins: [Pin], originHash: String) -> Data {
         let list: [[String: Any]] = pins.sorted { $0.identity < $1.identity }.map { p in
             var state: [String: Any] = ["revision": p.revision]
@@ -129,8 +112,6 @@ extension PackageResolver {
     }
 }
 
-/// A small SHA-256 (FIPS 180-4), so the hash is the same on every platform
-/// without extra dependencies.
 enum SHA256 {
     static let k: [UInt32] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,

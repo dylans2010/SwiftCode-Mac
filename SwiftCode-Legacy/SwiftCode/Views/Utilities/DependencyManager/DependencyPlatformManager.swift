@@ -45,19 +45,17 @@ public struct GitHubSearchPackage: Identifiable, Codable, Sendable {
     }
 }
 
-/// A model representing a custom user-created collection of packages.
 public struct PackageCollection: Identifiable, Codable, Hashable {
     public var id = UUID()
     public var name: String
     public var description: String
     public var packageURLs: [String]
-    public var category: String // e.g., "Networking", "Database", "UI"
+    public var category: String
     public var isPinned: Bool = false
     public var isWatchlist: Bool = false
     public var customTags: [String] = []
 }
 
-/// A model representing package metadata returned by the GitHub search or from our local catalog.
 public struct PackageMetadata: Identifiable, Codable, Hashable {
     public var id: String { cloneUrl }
     public var name: String
@@ -77,7 +75,6 @@ public struct PackageMetadata: Identifiable, Codable, Hashable {
     public var topics: [String] = []
 }
 
-/// Model for AI conversations in the package workspace.
 public struct PackageAIChat: Identifiable, Codable, Hashable {
     public var id = UUID()
     public var prompt: String
@@ -86,29 +83,26 @@ public struct PackageAIChat: Identifiable, Codable, Hashable {
     public var isFavorite: Bool = false
 }
 
-/// Model for Security Advisories.
 public struct SecurityAdvisory: Identifiable, Codable, Hashable {
     public var id = UUID()
     public var packageName: String
     public var title: String
-    public var severity: String // e.g. "High", "Critical", "Moderate"
+    public var severity: String
     public var affectedVersions: String
     public var fixedVersion: String
     public var advisoryUrl: String
     public var details: String
 }
 
-/// Model for compatibility analysis.
 public struct CompatibilityReport: Codable, Hashable {
     public var swiftVersionMatch: Bool
     public var toolsVersionMatch: Bool
     public var platformSupportMatch: Bool
     public var existingConflicts: [String]
     public var recommendations: [String]
-    public var healthScore: Int // 0-100
+    public var healthScore: Int
 }
 
-/// Dynamic dependency node for graph visualizer.
 public struct DependencyVisualNode: Identifiable, Codable, Hashable {
     public var id: String { name }
     public var name: String
@@ -127,7 +121,6 @@ public final class DependencyPlatformManager {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "DependencyPlatformManager")
     private let fm = FileManager.default
 
-    // MARK: - State Properties
     public var collections: [PackageCollection] = []
     public var favoritePackages: [String] = []
     public var watchlistPackages: [String] = []
@@ -135,20 +128,17 @@ public final class DependencyPlatformManager {
     public var continueBrowsing: [String] = []
     public var recentActivity: [String] = []
 
-    // Search & Explorer Cache
     public var searchResults: [PackageMetadata] = []
     public var trendingPackages: [PackageMetadata] = []
     public var featuredPackages: [PackageMetadata] = []
-    public var cachedReadmes: [String: String] = [:] // Key: cloneUrl -> Readme text
-    public var cachedManifests: [String: String] = [:] // Key: cloneUrl -> Package.swift syntax
+    public var cachedReadmes: [String: String] = [:]
+    public var cachedManifests: [String: String] = [:]
 
-    // Operation & Execution states
     public var isOperationRunning: Bool = false
     public var operationProgress: Double = 0.0
     public var operationStatus: String = "Idle"
     public var operationLogs: [String] = []
 
-    // AI Assistant States
     public var chatHistory: [PackageAIChat] = []
     public var savedPrompts: [String] = [
         "Recommend a high-performance network caching library for swift",
@@ -163,18 +153,15 @@ public final class DependencyPlatformManager {
         "Performance Optimization": "How can I optimize the build times of a workspace with 15+ external packages?"
     ]
 
-    // Security Center States
     public var knownAdvisories: [SecurityAdvisory] = []
     public var securityScanRunning: Bool = false
     public var securityScore: Int = 100
 
-    // MARK: - Initializer
     private init() {
         loadState()
         loadPresets()
     }
 
-    // MARK: - Persistence Keys
     private let collectionsKey = "com.swiftcode.dependencies.collections"
     private let favoritesKey = "com.swiftcode.dependencies.favorites"
     private let watchlistKey = "com.swiftcode.dependencies.watchlist"
@@ -184,7 +171,6 @@ public final class DependencyPlatformManager {
     private func loadState() {
         let defaults = UserDefaults.standard
 
-        // Favorites
         self.favoritePackages = defaults.stringArray(forKey: favoritesKey) ?? [
             "https://github.com/Alamofire/Alamofire.git",
             "https://github.com/apple/swift-algorithms.git",
@@ -193,21 +179,17 @@ public final class DependencyPlatformManager {
             "https://github.com/SDWebImage/SDWebImageSwiftUI.git"
         ]
 
-        // Watchlist
         self.watchlistPackages = defaults.stringArray(forKey: watchlistKey) ?? [
             "https://github.com/apple/swift-async-algorithms.git",
             "https://github.com/grpc/grpc-swift.git"
         ]
 
-        // Search History
         self.searchHistory = defaults.stringArray(forKey: historyKey) ?? ["Alamofire", "swift-collections", "Keychain", "sqlite"]
 
-        // Collections
         if let data = defaults.data(forKey: collectionsKey),
            let decoded = try? JSONDecoder().decode([PackageCollection].self, from: data) {
             self.collections = decoded
         } else {
-            // Seed default collections
             self.collections = [
                 PackageCollection(
                     name: "Core Networking Kit",
@@ -226,7 +208,6 @@ public final class DependencyPlatformManager {
             ]
         }
 
-        // Chat History
         if let data = defaults.data(forKey: chatKey),
            let decoded = try? JSONDecoder().decode([PackageAIChat].self, from: data) {
             self.chatHistory = decoded
@@ -248,7 +229,6 @@ public final class DependencyPlatformManager {
     }
 
     private func loadPresets() {
-        // Featured packages seed
         self.featuredPackages = [
             PackageMetadata(
                 name: "swift-collections",
@@ -284,7 +264,6 @@ public final class DependencyPlatformManager {
             )
         ]
 
-        // Trending packages seed
         self.trendingPackages = [
             PackageMetadata(
                 name: "swift-composable-architecture",
@@ -336,7 +315,6 @@ public final class DependencyPlatformManager {
             )
         ]
 
-        // Seed default Advisories
         self.knownAdvisories = [
             SecurityAdvisory(
                 packageName: "Alamofire",
@@ -371,9 +349,6 @@ public final class DependencyPlatformManager {
         ]
     }
 
-    // MARK: - Actions & Operations
-
-    /// Executes a simulated GitHub search or fetches cached result
     public func executeGitHubSearch(query: String, language: String, license: String, minStars: Int) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -391,7 +366,6 @@ public final class DependencyPlatformManager {
         operationProgress = 0.2
         operationStatus = "Connecting to GitHub Search API..."
 
-        // Add log
         operationLogs.append("Initiated search for query: '\(trimmed)' with star filter: \(minStars)")
 
         do {
@@ -402,7 +376,6 @@ public final class DependencyPlatformManager {
             var request = URLRequest(url: url)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
-            // Apply Keychain Token if present
             if let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty {
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 operationLogs.append("Authorized request using configured GitHub API token.")
@@ -447,7 +420,6 @@ public final class DependencyPlatformManager {
             logger.error("GitHub search failed: \(error.localizedDescription)")
             operationLogs.append("Search failed: \(error.localizedDescription)")
 
-            // Fallback gracefully to offline seed data rather than failing completely
             let offlineMatch = featuredPackages + trendingPackages
             self.searchResults = offlineMatch.filter { $0.name.lowercased().contains(trimmed.lowercased()) }
             operationLogs.append("Returned \(self.searchResults.count) offline-cached fallback matches.")
@@ -458,7 +430,6 @@ public final class DependencyPlatformManager {
         operationStatus = "Idle"
     }
 
-    /// Installs a package to the active project's Package.swift
     public func installPackage(url: String, requirementType: String, requirementValue: String, activeProject: Project?) async -> Bool {
         guard let project = activeProject else {
             operationLogs.append("Installation failed: No active project session.")
@@ -477,7 +448,6 @@ public final class DependencyPlatformManager {
 
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
 
-        // Read dependencies
         var dependencies: [ParsedDependency] = []
         if let content = try? String(contentsOf: packageURL, encoding: .utf8) {
             let nsContent = content as NSString
@@ -504,10 +474,8 @@ public final class DependencyPlatformManager {
             }
         }
 
-        // Remove existing duplicate if any
         dependencies.removeAll { $0.url.lowercased().replacingOccurrences(of: ".git", with: "") == url.lowercased().replacingOccurrences(of: ".git", with: "") }
 
-        // Add new dependency
         let reqType = DependencyRequirementType(rawValue: requirementType) ?? .from
         let isLocal = (requirementType == "local" || requirementType == "path")
         dependencies.append(ParsedDependency(url: url, requirementType: isLocal ? .exact : reqType, value: requirementValue, isLocal: isLocal))
@@ -546,7 +514,6 @@ let package = Package(
             ProjectSessionStore.shared.refreshFileTree(for: project)
             operationLogs.append("Successfully imported \(url) to Package.swift.")
 
-            // Cache manifest syntax
             cachedManifests[url] = packageContent
 
             if !recentActivity.contains("Imported \(url)") {
@@ -567,7 +534,6 @@ let package = Package(
         }
     }
 
-    /// Removes a package from the active project's Package.swift
     public func removePackage(url: String, activeProject: Project?) async -> Bool {
         guard let project = activeProject else { return false }
 
@@ -660,7 +626,6 @@ let package = Package(
         }
     }
 
-    // MARK: - Security Auditing
     public func executeSecurityScan(dependencies: [ParsedDependency]) async {
         securityScanRunning = true
         operationLogs.append("Initiating security audit for \(dependencies.count) dependencies...")
@@ -683,7 +648,6 @@ let package = Package(
         securityScanRunning = false
     }
 
-    // MARK: - Project Compatibility Analysis
     public func analyzeCompatibility(packageUrl: String, activeProject: Project?) -> CompatibilityReport {
         let repoName = packageUrl.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? "SelectedPackage"
 
@@ -697,14 +661,12 @@ let package = Package(
         )
 
         if let project = activeProject {
-            // Check for existing package structure
             let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
             if !FileManager.default.fileExists(atPath: packageURL.path) {
                 report.recommendations.append("The active project does not contain a Package.swift manifest yet. SwiftCode will automatically generate one upon installation.")
                 report.healthScore -= 10
             }
 
-            // High star/featured triggers
             let isPopular = featuredPackages.contains(where: { $0.cloneUrl == packageUrl }) || trendingPackages.contains(where: { $0.cloneUrl == packageUrl })
             if isPopular {
                 report.recommendations.append("\(repoName) is a highly-rated community resource. Integration path is fully tested.")
@@ -720,7 +682,6 @@ let package = Package(
         return report
     }
 
-    // MARK: - AI Assistant Queries
     public func askAIAssistant(prompt: String) async -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
@@ -739,10 +700,8 @@ Give specific package recommendations, Package.swift configurations, or dependen
 
         var aiAnswer = ""
         do {
-            // Leverage the central LLMService if available
             aiAnswer = try await LLMService.shared.generateResponse(prompt: promptWithContext, useContext: false)
         } catch {
-            // Robust offline knowledge-base fallback response
             aiAnswer = generateAIFallback(for: trimmed)
         }
 
@@ -808,7 +767,6 @@ Your request regarding **"\(prompt)"** has been analyzed.
         }
     }
 
-    // MARK: - Collections CRUD
     public func createCollection(name: String, description: String, category: String) {
         let col = PackageCollection(name: name, description: description, packageURLs: [], category: category)
         collections.append(col)
@@ -833,18 +791,15 @@ Your request regarding **"\(prompt)"** has been analyzed.
         saveState()
     }
 
-    // MARK: - Graph Generation
     public func buildDependencyGraph(dependencies: [ParsedDependency]) -> [DependencyVisualNode] {
         var nodes: [DependencyVisualNode] = []
 
-        // Root node represents the current project itself
         var rootDeps: [String] = []
 
         for dep in dependencies {
             let name = dep.url.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? dep.url
             rootDeps.append(name)
 
-            // Nested simulated children for visual richness
             var childDeps: [String] = []
             if name.lowercased().contains("composable") {
                 childDeps = ["CasePaths", "CombineSchedulers", "ConcurrencyExtras", "IdentifiedCollections"]
@@ -863,7 +818,6 @@ Your request regarding **"\(prompt)"** has been analyzed.
                 isLocal: dep.isLocal
             ))
 
-            // Map the child dependencies as leaf nodes if they are not already listed
             for child in childDeps {
                 if !nodes.contains(where: { $0.name == child }) {
                     nodes.append(DependencyVisualNode(

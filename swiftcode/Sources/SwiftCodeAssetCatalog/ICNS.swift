@@ -1,24 +1,16 @@
 import Foundation
 
-/// The `.icns` container (publicly documented; `icon-compile.md` §3): the
-/// magic `icns` and a big-endian total length, then entries of a four-byte
-/// type, a big-endian length (header included) and the data.
 public enum ICNS {
-    /// The entry types by pixel size: PNG entries, except `ic04` (16 × 16)
-    /// which holds ARGB.
     public static let types: [(type: String, pixels: Int)] = [
         ("ic04", 16), ("ic05", 32), ("ic07", 128), ("ic08", 256), ("ic09", 512), ("ic10", 1024),
         ("ic11", 32), ("ic12", 64), ("ic13", 256), ("ic14", 512),
     ]
 
-    /// The default set `actool` writes: `ic13`, `ic11`, `ic04`, `ic07`.
     public static let defaultSet = ["ic13", "ic11", "ic04", "ic07"]
-    /// `--standalone-icon-behavior all`: every size 16–1024.
     public static let fullSet = ["ic04", "ic05", "ic07", "ic08", "ic09", "ic10", "ic11", "ic12", "ic13", "ic14"]
 
     public static func pixels(for type: String) -> Int? { types.first { $0.type == type }?.pixels }
 
-    /// Writes the entries `set`, each rendered from `image(pixels)`.
     public static func write(_ set: [String], image: (Int) -> Bitmap) -> Data {
         var w = ByteWriter()
         w.tag("icns")
@@ -35,9 +27,6 @@ public enum ICNS {
         return Data(w.bytes)
     }
 
-    /// `ARGB` then the A, R, G and B planes, each run-length coded (a byte
-    /// below 0x80 copies that many plus one bytes; a byte from 0x80 repeats
-    /// the next byte `n − 125` times).
     static func argb(_ bmp: Bitmap) -> [UInt8] {
         var out = Array("ARGB".utf8)
         for plane in [3, 0, 1, 2] {
@@ -77,7 +66,6 @@ public enum ICNS {
         return out
     }
 
-    /// The entries of an icns file (type and data), for tests and `info`.
     public static func entries(_ d: Data) -> [(type: String, data: [UInt8])] {
         let b = [UInt8](d)
         guard b.count >= 8, b.starts(with: Array("icns".utf8)) else { return [] }

@@ -12,7 +12,6 @@ struct DatabaseMigrationView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                // Left Panel: Create Migration
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Generate New Migration")
                         .font(.headline)
@@ -47,7 +46,6 @@ struct DatabaseMigrationView: View {
 
                 Divider()
 
-                // Right Panel: Applied & Pending Migrations
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Migration History")
                         .font(.headline)

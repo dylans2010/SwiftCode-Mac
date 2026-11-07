@@ -1,22 +1,3 @@
-/* SwiftCode performance probe: guest thread start and wakeup latency
- * (specs/simulator/thread-latency.md section 5). Original SwiftCode code.
- *
- * Every latency is measured in the guest with mach_absolute_time (one
- * clock for every thread and process of the system):
- *   create   pthread_create to the new thread's first statement, one thread
- *            at a time (its vCPU is free again once the thread is joined);
- *   burst    in each of BURST_CHILDREN fresh processes, BURST_THREADS
- *            threads started back to back and kept alive (each needs a vCPU
- *            of its own: the creation path), then a second burst after
- *            they ended (parked vCPUs);
- *   dispatch dispatch_async_f on a global queue to the block's first
- *            statement, back to back and after 30 ms idle;
- *   sem      semaphore_signal to the waiting thread's return from
- *            semaphore_wait;
- *   cond     pthread_cond_signal to the waiting thread's return from
- *            pthread_cond_wait.
- * Prints one line per measure, "threadlat <name> n= p50= p90= p99= max=" in
- * microseconds, then "threadlat ok". */
 #include <dispatch/dispatch.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -55,8 +36,6 @@ static void report(const char *name, uint64_t *v, int n)
     fflush(stdout);
 }
 
-/* ---- create: one thread at a time ---- */
-
 static _Atomic uint64_t started_at;
 
 static void *note_start(void *arg)
@@ -79,8 +58,6 @@ static void measure_create(void)
     }
     report("create", v, ROUNDS);
 }
-
-/* ---- burst: many live threads (child process) ---- */
 
 struct burst_slot {
     uint64_t requested;
@@ -123,8 +100,6 @@ static void run_burst(const char *name)
     report(name, v, BURST_THREADS);
 }
 
-/* ---- dispatch ---- */
-
 struct dispatch_probe {
     uint64_t queued;
     uint64_t ran;
@@ -156,8 +131,6 @@ static void measure_dispatch(const char *name, int idle_ms)
     report(name, v, rounds);
 }
 
-/* ---- wakeups: Mach semaphore and pthread condition ---- */
-
 static semaphore_t sem_go, sem_back;
 static _Atomic uint64_t signalled_at;
 static uint64_t sem_v[ROUNDS];
@@ -182,7 +155,7 @@ static void measure_semaphore(void)
     pthread_t t;
     pthread_create(&t, NULL, sem_waiter, NULL);
     for (int i = 0; i < ROUNDS; i++) {
-        probe_sleep_ms(1); /* let the waiter block */
+        probe_sleep_ms(1);
         atomic_store(&signalled_at, mach_absolute_time());
         semaphore_signal(sem_go);
         if (semaphore_wait(sem_back) != KERN_SUCCESS)
@@ -194,7 +167,7 @@ static void measure_semaphore(void)
 
 static pthread_mutex_t cm = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cv = PTHREAD_COND_INITIALIZER, cv_back = PTHREAD_COND_INITIALIZER;
-static int turn; /* 0: main's turn to signal, 1: the waiter's */
+static int turn;
 static uint64_t cond_v[ROUNDS];
 
 static void *cond_waiter(void *arg)

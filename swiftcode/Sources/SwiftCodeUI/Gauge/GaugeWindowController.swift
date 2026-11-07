@@ -2,9 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProfiler
 
-/// Gauge's window (`specs/ide/profiler.md` §6): the toolbar (Record/Stop,
-/// target, elapsed time, sample rate), the track timeline, and below it the
-/// call tree, flame graph or source annotation with an inspector.
 @MainActor
 public final class GaugeWindowController: NSWindowController, NSWindowDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate, NSToolbarDelegate {
     public let model = GaugeModel()
@@ -30,13 +27,11 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
     let lowerSplit = NSSplitView()
     let recordingView = NSTextField(labelWithString: "")
 
-    /// Record (start again) and Stop, set by whoever started the recording.
     public var onRecord: (() -> Void)?
     public var onStop: (() -> Void)?
     private var clock: Timer?
     private var sampleRate = 1000
 
-    /// Open windows (they stay alive while shown).
     static var windows: [GaugeWindowController] = []
 
     public init(title: String = "Gauge") {
@@ -60,9 +55,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    // MARK: Opening
-
-    /// Opens a window for a trace file.
     @discardableResult
     public static func show(traceAt url: URL) throws -> GaugeWindowController {
         let w = GaugeWindowController(title: url.lastPathComponent)
@@ -82,7 +74,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         Self.windows.removeAll { $0 === self }
     }
 
-    /// Recording has started (the trace arrives when it ends).
     public func beginRecording(target: String, rate: Int) {
         sampleRate = rate
         window?.title = "Gauge — \(target)"
@@ -117,8 +108,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         }
     }
 
-    // MARK: Layout
-
     private func build() {
         guard let window, let content = window.contentView else { return }
         let toolbar = NSToolbar(identifier: "GaugeToolbar")
@@ -136,14 +125,12 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         rateLabel.font = .systemFont(ofSize: 11)
         rateLabel.textColor = .secondaryLabelColor
 
-        // Timeline.
         timelineScroll.documentView = timeline
         timelineScroll.hasVerticalScroller = true
         timelineScroll.drawsBackground = false
         timeline.frame = NSRect(x: 0, y: 0, width: 1200, height: timeline.preferredHeight)
         timeline.autoresizingMask = [.width]
 
-        // Call tree.
         for (id, title, width) in [("weight", "Weight", 120.0), ("self", "Self Weight", 90.0), ("symbol", "Symbol Name", 600.0)] {
             let c = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             c.title = title
@@ -181,7 +168,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         inspectorScroll.drawsBackground = false
         inspectorView.drawsBackground = false
 
-        // The bar over the lower area.
         contentPicker.target = self
         contentPicker.action = #selector(contentChosen(_:))
         contentPicker.selectedSegment = 0
@@ -261,8 +247,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         refresh()
     }
 
-    // MARK: Toolbar
-
     static let recordItem = NSToolbarItem.Identifier("gauge.record")
     static let targetItem = NSToolbarItem.Identifier("gauge.target")
     static let timeItem = NSToolbarItem.Identifier("gauge.time")
@@ -295,8 +279,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         }
         return item
     }
-
-    // MARK: Actions
 
     @objc func recordOrStop(_ sender: Any?) {
         if case .recording = model.phase { onStop?() } else { onRecord?() }
@@ -335,8 +317,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         model.content = .source
     }
 
-    // MARK: Refresh
-
     private var lastTreeIdentity: ObjectIdentifier?
 
     func refresh() {
@@ -366,7 +346,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
             timeLabel.stringValue = String(format: "%.2f s", Double(t.recording.durationNs) / 1e9)
             rateLabel.stringValue = String(format: "%.0f Hz · %d samples", 1e9 / Double(max(1, t.recording.sampleIntervalNs)), t.samples.count)
         }
-        // Option check marks.
         for item in optionsButton.menu?.items ?? [] {
             switch item.tag {
             case 1: item.state = model.options.separateByThread ? .on : .off
@@ -377,7 +356,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
             default: break
             }
         }
-        // Threads.
         if threadButton.numberOfItems == 0 {
             threadButton.addItem(withTitle: "All Threads")
             for c in model.threadChoices {
@@ -395,7 +373,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         if let tree = model.tree, ObjectIdentifier(tree.root) != lastTreeIdentity {
             lastTreeIdentity = ObjectIdentifier(tree.root)
             outline.reloadData()
-            // The heaviest path open.
             var n: CallTreeNode? = tree.root.children.first
             var depth = 0
             while let node = n, depth < 12 {
@@ -504,8 +481,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         inspectorView.textStorage?.setAttributedString(out)
     }
 
-    // MARK: Outline data source
-
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         guard let tree = model.tree else { return 0 }
         return ((item as? CallTreeNode) ?? tree.root).children.count
@@ -563,10 +538,6 @@ public final class GaugeWindowController: NSWindowController, NSWindowDelegate, 
         if model.selectedPath != n.path { model.selectedPath = n.path }
     }
 
-    // MARK: Snapshot
-
-    /// Writes a PNG of the window's contents (its frame view: toolbar and
-    /// content) — the window does not have to be on screen.
     @discardableResult
     public func writeSnapshot(to url: URL) -> Bool {
         guard let window, let view = window.contentView?.superview ?? window.contentView else { return false }

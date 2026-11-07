@@ -4,10 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// B3-WIZARD: the paged setup assistant (`liquid-glass-swiftcode.md` §11) of the
-/// runtime and headset setup windows: the centred header, Back hidden on the
-/// first step, the page dots, the column's width cap and the page change's
-/// direction (a crossfade under Reduce Motion). Nothing is put on screen.
 @MainActor
 @Suite(.serialized) struct SetupAssistantTests {
     typealias Runner = RuntimeSetupWindowTests.Runner
@@ -24,7 +20,6 @@ import Testing
         return (wc, s, td)
     }
 
-    /// A view's alignment rect in window coordinates (what layout places).
     func frame(_ v: NSView) -> NSRect {
         guard let sup = v.superview else { return v.convert(v.bounds, to: nil) }
         return sup.convert(v.alignmentRect(forFrame: v.frame), to: nil)
@@ -41,8 +36,6 @@ import Testing
         #expect(w.standardWindowButton(.miniaturizeButton)?.isHidden != false && w.standardWindowButton(.zoomButton)?.isHidden != false)
     }
 
-    /// The glyph, title and summary are centred on the window, at the spec's
-    /// distances, at the default size and in a wide window.
     @Test func headerIsCentred() throws {
         for size in [SetupAssistant.windowSize, NSSize(width: 1100, height: 700)] {
             let (wc, s, td) = runtimeWindow("assistant-header", size: size)
@@ -64,7 +57,6 @@ import Testing
         }
     }
 
-    /// Back is hidden (not just disabled) on the first step, and shown after it.
     @Test func backIsHiddenOnTheFirstStep() throws {
         let (wc, s, td) = runtimeWindow("assistant-back")
         defer { wc.window?.close(); td.remove() }
@@ -73,7 +65,6 @@ import Testing
         #expect(!wc.backButton.isHidden && wc.backButton.isEnabled && wc.primaryButton.title == "Continue")
         wc.back()
         #expect(wc.backButton.isHidden)
-        // The footer: Back leading, Re-check just before Continue at the trailing side, Continue the default button.
         wc.next()
         let root = try #require(wc.window?.contentView)
         root.layoutSubtreeIfNeeded()
@@ -84,7 +75,6 @@ import Testing
         #expect(frame(a.recheckButton).maxX <= frame(a.continueButton).minX && frame(a.recheckButton).maxX > frame(a.continueButton).minX - 12)
         #expect(a.continueButton.keyEquivalent == "\r")
 
-        // The headset window too.
         let ht = TestDefaults("assistant-back-headset")
         defer { ht.remove() }
         let hub = DevicesController(devices: [], simulators: [])
@@ -103,13 +93,11 @@ import Testing
         #expect(h.assistant.glyph.image != nil && h.assistant.titleLabel.stringValue == "Workstation")
     }
 
-    /// Every dot state has its own shape and a system colour, and its words.
     @Test func dotStatesDiffer() {
         let states: [SetupDotState] = [.ok, .missing, .unknown, .notChecked, .notApplicable]
         #expect(Set(states.map(\.title)).count == states.count)
         #expect(SetupDotState.ok.color == .systemGreen && SetupDotState.missing.color == .systemOrange && SetupDotState.unknown.color == .systemGray)
         let owner = SetupPageDots()
-        // Drawn: a filled circle, a diamond (its corners filled where a circle's are not), a ring (hollow centre).
         func pixels(_ s: SetupDotState) -> (center: CGFloat, top: CGFloat) {
             let d = SetupPageDot(index: 0, target: owner, action: #selector(SetupPageDots.clicked(_:)))
             d.set(state: s, current: true, label: "")
@@ -126,7 +114,6 @@ import Testing
         #expect(missing.top > ok.top, "the diamond's tip reaches higher than the circle")
     }
 
-    /// The dots are clickable where the window puts them (under the title bar's area).
     @Test func dotsReceiveClicks() throws {
         let (wc, _, td) = runtimeWindow("assistant-hit")
         defer { wc.window?.close(); td.remove() }
@@ -139,7 +126,6 @@ import Testing
         #expect(hit === dot)
     }
 
-    /// The column is at most 520 points wide, centred, and its grouped boxes run its width.
     @Test func columnWidthIsCapped() async throws {
         for (size, expected) in [(NSSize(width: 1200, height: 700), SetupAssistant.columnWidth), (SetupAssistant.minimumSize, SetupAssistant.columnWidth)] {
             let td = TestDefaults("assistant-column")
@@ -161,16 +147,12 @@ import Testing
             let boxes = col.arrangedSubviews.compactMap { $0 as? SetupGroupBox }
             #expect(!boxes.isEmpty)
             for b in boxes { #expect(abs(b.frame.width - frame(col).width) <= 0.5) }
-            // Hairlines between rows, none above the first.
             if let checks = boxes.first(where: { $0.identifier?.rawValue == "runtime-checks" }) {
                 #expect(checks.separators.count == checks.rows.count - 1)
             }
         }
     }
 
-    /// Continue pushes the new page in from the trailing edge, Back from the
-    /// leading edge, a dot in its step's direction; under Reduce Motion the
-    /// pages crossfade.
     @Test func pageChangeDirectionAndReduceMotion() throws {
         let (wc, s, td) = runtimeWindow("assistant-motion")
         defer { wc.window?.close(); td.remove() }
@@ -185,7 +167,6 @@ import Testing
         let leaving = try #require(a.leavingPage)
         let out = leaving.layer?.animation(forKey: SetupAssistant.animationKey) as? CABasicAnimation
         #expect((out?.toValue as? CGFloat) == -t.offset)
-        // The new step's content is there at once.
         #expect(a.titleLabel.stringValue == s.step.title)
 
         wc.back()
@@ -198,7 +179,6 @@ import Testing
         a.dots.dots[1].performClick(nil)
         #expect(a.lastTransition?.forward == false)
 
-        // A refresh on the same step does not move the page.
         let before = a.lastTransition
         a.finishTransition()
         wc.refresh()

@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Debug/DebugSession.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import SwiftCodeDebug
 

@@ -53,7 +53,6 @@ public struct XcodeShortcutsCheatsheetView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header with search & category filter
             VStack(spacing: 12) {
                 HStack {
                     Label("Xcode Keyboard Shortcuts", systemImage: "keyboard")
@@ -85,7 +84,6 @@ public struct XcodeShortcutsCheatsheetView: View {
 
             Divider()
 
-            // List of shortcuts
             List {
                 ForEach(filteredShortcuts) { item in
                     HStack {

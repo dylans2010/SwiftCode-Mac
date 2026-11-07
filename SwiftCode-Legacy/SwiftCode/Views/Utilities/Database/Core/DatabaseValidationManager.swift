@@ -4,7 +4,7 @@ public struct SchemaValidationIssue: Identifiable, Hashable {
     public let id = UUID()
     public var tableName: String
     public var message: String
-    public var severity: String // "WARNING" or "ERROR"
+    public var severity: String
 }
 
 public final class DatabaseValidationManager: Sendable {
@@ -16,7 +16,6 @@ public final class DatabaseValidationManager: Sendable {
         var issues: [SchemaValidationIssue] = []
 
         for table in tables {
-            // Check for missing primary key
             let hasPK = table.columns.contains { $0.isPrimaryKey }
             if !hasPK && !table.isView && !table.isMaterializedView {
                 issues.append(SchemaValidationIssue(
@@ -26,7 +25,6 @@ public final class DatabaseValidationManager: Sendable {
                 ))
             }
 
-            // Check for duplicate columns
             var colNames = Set<String>()
             for col in table.columns {
                 if colNames.contains(col.name) {
@@ -39,7 +37,6 @@ public final class DatabaseValidationManager: Sendable {
                 colNames.insert(col.name)
             }
 
-            // Validate relationship endpoints
             for rel in table.relationships {
                 let targetExists = tables.contains { $0.name == rel.targetTable }
                 if !targetExists {

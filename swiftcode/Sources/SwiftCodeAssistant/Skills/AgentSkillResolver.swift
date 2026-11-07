@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Assist v3 Skill Entity Model
-
 public struct DiscoveredSkill: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let name: String
@@ -40,8 +38,6 @@ public struct DiscoveredSkill: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
-// MARK: - Agent Skill Resolver
-
 public final class AgentSkillResolver: @unchecked Sendable {
     public static let shared = AgentSkillResolver()
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "AgentSkillResolver")
@@ -50,7 +46,6 @@ public final class AgentSkillResolver: @unchecked Sendable {
 
     private init() {}
 
-    /// Recursively discovers all available skills in workspace, configuration roots, and bundled resources.
     public func discoverSkills(in workspaceRoot: URL) async -> [DiscoveredSkill] {
         let rootKey = workspaceRoot.standardizedFileURL.resolvingSymlinksInPath().path
         if let cached = lastSkillScan,
@@ -62,7 +57,6 @@ public final class AgentSkillResolver: @unchecked Sendable {
         var results: [DiscoveredSkill] = []
         let fileManager = FileManager.default
 
-        // Standard discovery search roots
         let searchDirectories = [
             workspaceRoot.appendingPathComponent(".agents/skills"),
             workspaceRoot.appendingPathComponent(".skills"),
@@ -110,7 +104,6 @@ public final class AgentSkillResolver: @unchecked Sendable {
         }
     }
 
-    /// Evaluates which discovered skills are relevant to the active objective.
     public func matchSkills(for objective: String, in skills: [DiscoveredSkill]) -> [DiscoveredSkill] {
         let lowerObjective = objective.lowercased()
         var matched: [DiscoveredSkill] = []
@@ -119,14 +112,12 @@ public final class AgentSkillResolver: @unchecked Sendable {
             let lowerName = skill.name.lowercased()
             let lowerDesc = skill.description.lowercased()
 
-            // Check name, description, and tags against objective tokens
             let nameMatch = lowerObjective.contains(lowerName)
             let descMatch = lowerObjective.contains(lowerDesc) || skill.tags.contains { tag in lowerObjective.contains(tag.lowercased()) }
 
             if nameMatch || descMatch {
                 matched.append(skill)
             } else {
-                // Secondary check: keyword overlap
                 let keywords = lowerName.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count > 3 }
                 if keywords.contains(where: { lowerObjective.contains($0) }) {
                     matched.append(skill)
@@ -137,14 +128,12 @@ public final class AgentSkillResolver: @unchecked Sendable {
         return matched
     }
 
-    /// Parses YAML frontmatter and markdown sections from a SKILL.md file.
     private func parseSkill(from content: String, filePath: String) -> DiscoveredSkill? {
         let lines = content.components(separatedBy: .newlines)
 
         var metadata: [String: String] = [:]
         var bodyContent = content
 
-        // Extract YAML frontmatter if present
         if content.hasPrefix("---") {
             let parts = content.components(separatedBy: "---")
             if parts.count >= 3 {
@@ -164,13 +153,13 @@ public final class AgentSkillResolver: @unchecked Sendable {
         let description = metadata["description"] ?? lines.first(where: { !$0.isEmpty && !$0.hasPrefix("#") })?.trimmingCharacters(in: .whitespaces) ?? "Skill for \(name)"
         let author = metadata["author"] ?? "SwiftCode"
         let version = metadata["version"] ?? "1.0.0"
-        
+
         let rawTags = metadata["tags"] ?? metadata["keywords"] ?? ""
         let tags = rawTags.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\"'")) }
             .filter { !$0.isEmpty }
-            
+
         let tools = metadata["recommendedTools"]?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
         let guidance = metadata["guidance"]?.components(separatedBy: ";").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
 
@@ -187,7 +176,6 @@ public final class AgentSkillResolver: @unchecked Sendable {
         )
     }
 
-    /// Formats matching skills for system prompt context injection.
     public func formatSkillsBlock(matched: [DiscoveredSkill], totalDiscovered: Int) -> String {
         if matched.isEmpty {
             return """

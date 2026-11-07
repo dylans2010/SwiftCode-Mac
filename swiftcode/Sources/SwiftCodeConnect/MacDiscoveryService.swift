@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/MacDiscoveryService.swift
-// Adapted for SwiftCode: Bonjour discovery of Macs. Verbatim.
-
 import Foundation
 import Network
 import Observation

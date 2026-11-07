@@ -1,11 +1,3 @@
-// cpufeat_probe: prints the CPU-feature view a process gets (Ycode research).
-// Build for the iOS simulator:
-//   xcrun -sdk iphonesimulator clang -target arm64-apple-ios27.1-simulator -O1 \
-//     -o cpufeat_probe cpufeat_probe.c && codesign -s - cpufeat_probe
-// Run: xcrun simctl spawn <device> /path/to/cpufeat_probe
-// Output: every sysctl under hw. / machdep. / kern.os* (OID walk), the raw
-// bytes of hw.optional.arm.caps, and the commpage's CPU words (public layout,
-// xnu osfmk/arm/cpu_capabilities.h; commpage base 0x0000000FFFFFC000).
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -18,7 +10,7 @@ static void print_oid(int *oid, size_t len) {
     if (sysctl(q, (u_int)(len + 2), name, &nl, NULL, 0) != 0) return;
     if (strncmp(name, "hw.", 3) && strncmp(name, "machdep.", 8) &&
         strncmp(name, "kern.os", 7) && strcmp(name, "kern.version")) return;
-    q[1] = 4; // oidfmt
+    q[1] = 4;
     unsigned char fmt[256]; size_t fl = sizeof fmt;
     if (sysctl(q, (u_int)(len + 2), fmt, &fl, NULL, 0) != 0) return;
     uint32_t kind; memcpy(&kind, fmt, 4);
@@ -27,8 +19,8 @@ static void print_oid(int *oid, size_t len) {
     if (sysctl(oid, (u_int)len, buf, &bl, NULL, 0) != 0) { printf("%s = <err>\n", name); return; }
     unsigned type = kind & 0xf;
     printf("%s [%s,%zu] = ", name, f, bl);
-    if (type == 3 /*STRING*/) { printf("\"%.*s\"\n", (int)bl, buf); return; }
-    if ((type == 2 || type == 5 || type == 6) && (bl == 4 || bl == 8)) { // INT/QUAD/OPAQUE-size
+    if (type == 3 ) { printf("\"%.*s\"\n", (int)bl, buf); return; }
+    if ((type == 2 || type == 5 || type == 6) && (bl == 4 || bl == 8)) {
         if (bl == 4) { int32_t v; memcpy(&v, buf, 4); printf("%d (0x%x)\n", v, (uint32_t)v); }
         else { int64_t v; memcpy(&v, buf, 8); printf("%lld (0x%llx)\n", (long long)v, (unsigned long long)v); }
         return;
@@ -46,14 +38,12 @@ int main(void) {
         curlen = nl / sizeof(int); memcpy(cur, next, nl);
         print_oid(cur, curlen);
     }
-    // hw.optional.arm.caps as raw bytes (bit n = CAP_BIT n, LSB first).
     unsigned char caps[64]; size_t cl = sizeof caps;
     if (sysctlbyname("hw.optional.arm.caps", caps, &cl, NULL, 0) == 0) {
         printf("CAPS len=%zu bits:", cl);
         for (size_t i = 0; i < cl * 8; i++) if (caps[i / 8] & (1u << (i % 8))) printf(" %zu", i);
         printf("\n");
     } else printf("CAPS <err>\n");
-    // Commpage (read-only words; time fields skipped).
     const volatile unsigned char *cp = (const volatile unsigned char *)0x0000000FFFFFC000ULL;
     printf("COMMPAGE signature=\"%.16s\"\n", (const char *)cp);
     printf("COMMPAGE caps64@0x010=0x%016llx\n", (unsigned long long)*(const volatile uint64_t *)(cp + 0x010));

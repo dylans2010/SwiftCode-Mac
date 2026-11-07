@@ -1,10 +1,3 @@
-// CreateNewAppWizardView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppWizardView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: AI-guided wizard flow (idea to completion) and the CreateAppConfiguration model (style/navigation/persistence enums)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CreateNewAppMetadataView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 public enum CreateAppPlatform: String, CaseIterable, Identifiable, Sendable {
@@ -65,15 +58,13 @@ public struct CreateAppConfiguration: Sendable {
     public var projectLocation: String = ""
     public var applicationDescription: String = ""
 
-    // UI Preferences
     public var visualStyle: CreateAppStyle = .native
-    public var density: Double = 0.5 // 0.0 Compact <-> 1.0 Spacious
+    public var density: Double = 0.5
     public var navigation: CreateAppNavigation = .sidebar
     public var useAnimations: Bool = true
     public var prioritizeAccessibility: Bool = true
     public var persistence: CreateAppPersistence = .automatic
 
-    // Advanced Options
     public var swiftVersion: String = "5.9"
     public var architecturePreference: String = "MVVM with Observable Stores"
     public var overwriteExistingMetadata: Bool = false
@@ -91,7 +82,6 @@ public struct CreateNewAppWizardView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 Image(systemName: "wand.and.stars")
                     .font(.title2)
@@ -114,7 +104,6 @@ public struct CreateNewAppWizardView: View {
 
             Divider()
 
-            // Step Content Area
             VStack {
                 switch currentStep {
                 case 1:
@@ -134,7 +123,6 @@ public struct CreateNewAppWizardView: View {
 
             Divider()
 
-            // Footer Navigation
             HStack {
                 if currentStep > 1 {
                     Button("Back") {

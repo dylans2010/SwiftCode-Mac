@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// An alert-style UI triggered when the autonomous agent requires manual intervention.
 public struct AssistUserTakeover: View {
     let reason: String
     let onResume: () -> Void

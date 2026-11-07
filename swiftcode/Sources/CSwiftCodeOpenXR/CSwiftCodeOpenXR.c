@@ -1,6 +1,3 @@
-/* CSwiftCodeOpenXR: see include/CSwiftCodeOpenXR.h and specs/simulator/xr-viewer.md.
- * Written from the OpenXR 1.1 specification and registry (Khronos, public)
- * and the Vulkan 1.3 specification. */
 #include "CSwiftCodeOpenXR.h"
 
 #include <stdarg.h>
@@ -47,7 +44,6 @@ int yxr_available(char *error, size_t error_size) {
     return 1;
 }
 
-/* The OpenXR and Vulkan functions this file calls. */
 #define XR_FUNCS(X) \
     X(xrDestroyInstance) X(xrGetInstanceProperties) X(xrGetSystem) X(xrGetSystemProperties) \
     X(xrEnumerateViewConfigurationViews) X(xrEnumerateEnvironmentBlendModes) X(xrCreateSession) X(xrDestroySession) \
@@ -104,7 +100,6 @@ struct yxr_session {
     int gaze_at_present;
     XrFrameState frame_state;
     int in_frame;
-    /* Vulkan */
     VkInstance vk_instance;
     VkPhysicalDevice vk_physical;
     VkDevice vk_device;
@@ -115,9 +110,7 @@ struct yxr_session {
     int vk_anisotropy;
     int64_t format;
     int format_bgra;
-    eye_chain eye[14];                  /* 0, 1: the eyes; 2, 3: sprite images; 4, 5: foveal insets;
-                                           6, 7: rendered (hook b); 8, 9: depth (hook c);
-                                           10: the mono picture, 11: its inset */
+    eye_chain eye[14];
     pthread_mutex_t queue_lock;
     int depth_ext;
     uint32_t rec_w, rec_h;
@@ -163,7 +156,7 @@ static void suggest(yxr_session *s, const char *profile, const XrActionSuggested
     sb.interactionProfile = path(s, profile);
     sb.countSuggestedBindings = n;
     sb.suggestedBindings = b;
-    s->xrSuggestInteractionProfileBindings(s->instance, &sb);   /* an unknown profile is not fatal */
+    s->xrSuggestInteractionProfileBindings(s->instance, &sb);
 }
 
 static int make_action(yxr_session *s, XrAction *a, XrActionType type, const char *name, const char *label, int per_hand) {
@@ -224,8 +217,6 @@ static int setup_actions(yxr_session *s) {
         suggest(s, "/interaction_profiles/khr/simple_controller", b, sizeof b / sizeof *b);
     }
     if (s->hand_interaction) {
-        /* Pinch comes from the joints (hysteresis in the viewer); the
-         * profile gives the runtime's aim ray for hands. */
         XrActionSuggestedBinding b[] = {
             { s->aim, path(s, "/user/hand/left/input/aim/pose") }, { s->aim, path(s, "/user/hand/right/input/aim/pose") },
             { s->grip, path(s, "/user/hand/left/input/grip/pose") }, { s->grip, path(s, "/user/hand/right/input/grip/pose") },
@@ -313,7 +304,6 @@ static int vk_setup(yxr_session *s, yxr_info *info) {
     qi.queueFamilyIndex = s->vk_queue_family;
     qi.queueCount = 1;
     qi.pQueuePriorities = &prio;
-    /* Anisotropic sampling for the re-projection (xr-viewer.md §12.3), where the GPU has it. */
     VkPhysicalDeviceFeatures have, want;
     memset(&want, 0, sizeof want);
     s->vkGetPhysicalDeviceFeatures(s->vk_physical, &have);
@@ -453,8 +443,6 @@ yxr_session *yxr_open(const char *app_name, int want_session, yxr_info *info, ch
     uint32_t nf = 0;
     int64_t formats[64];
     s->xrEnumerateSwapchainFormats(s->session, 64, &nf, formats);
-    /* The stream's pixels are sRGB-encoded BGRA: an sRGB swapchain shows them
-     * as they are. B8G8R8A8 first (no swizzle), then R8G8B8A8. */
     for (uint32_t i = 0; i < nf && !s->format; i++) if (formats[i] == VK_FORMAT_B8G8R8A8_SRGB) { s->format = formats[i]; s->format_bgra = 1; }
     for (uint32_t i = 0; i < nf && !s->format; i++) if (formats[i] == VK_FORMAT_R8G8B8A8_SRGB) s->format = formats[i];
     if (!s->format) { set_error(s, "the runtime offers no 8-bit sRGB swapchain format"); goto fail; }
@@ -728,10 +716,8 @@ fail:
     return -1;
 }
 
-/* The staging buffer of eye `eye`, sized for width x height (the chain
- * made or remade), its earlier copy finished; NULL on failure. */
 static eye_chain *staging_for(yxr_session *s, int eye, int width, int height) {
-    if (!s || !s->in_frame || eye < 0 || eye > 13 || (eye >= 6 && eye <= 9) || width <= 0 || height <= 0) return NULL;   /* uploads: 0–5, 10–13 */
+    if (!s || !s->in_frame || eye < 0 || eye > 13 || (eye >= 6 && eye <= 9) || width <= 0 || height <= 0) return NULL;
     eye_chain *c = &s->eye[eye];
     if (!c->handle || c->width != (uint32_t)width || c->height != (uint32_t)height)
         if (make_chain(s, c, width, height)) return NULL;
@@ -748,7 +734,6 @@ static int copy_staging_to_swapchain(yxr_session *s, eye_chain *c, int width, in
 int yxr_upload(yxr_session *s, int eye, const void *bgra, int width, int height, int stride) {
     eye_chain *c = staging_for(s, eye, width, height);
     if (!c) return -1;
-    /* Into the staging buffer (tightly packed), swizzled when the swapchain is RGBA. */
     const uint8_t *src = bgra;
     uint8_t *dst = c->staging_map;
     size_t row = (size_t)width * 4;
@@ -782,7 +767,7 @@ static int copy_staging_to_swapchain(yxr_session *s, eye_chain *c, int width, in
     XrSwapchainImageAcquireInfo ai = { XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
     XR_CHECK(s, s->xrAcquireSwapchainImage(c->handle, &ai, &index));
     XrSwapchainImageWaitInfo wi = { XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
-    wi.timeout = 100000000;   /* 100 ms */
+    wi.timeout = 100000000;
     XR_CHECK(s, s->xrWaitSwapchainImage(c->handle, &wi));
     VkImage image = c->images[index];
     s->vkResetCommandBuffer(c->cmd, 0);
@@ -803,7 +788,6 @@ static int copy_staging_to_swapchain(yxr_session *s, eye_chain *c, int width, in
     copy.imageSubresource = (VkImageSubresourceLayers){ VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
     copy.imageExtent = (VkExtent3D){ (uint32_t)width, (uint32_t)height, 1 };
     s->vkCmdCopyBufferToImage(c->cmd, c->staging, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-    /* OpenXR expects a colour swapchain image back in COLOR_ATTACHMENT_OPTIMAL. */
     b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     b.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
     b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -850,7 +834,6 @@ int yxr_end_frame(yxr_session *s, const yxr_submit *sub) {
             pv[i].subImage.imageRect.extent = (XrExtent2Di){ (int32_t)s->eye[img].width, (int32_t)s->eye[img].height };
             pv[i].subImage.imageArrayIndex = 0;
             pv[i].next = NULL;
-            /* Hook c: the eye's depth for the runtime's reprojection. */
             if (sub->depth_valid[i] && s->depth_ext && s->eye[8 + i].handle && s->eye[8 + i].released_once) {
                 dinfo[i] = (XrCompositionLayerDepthInfoKHR){ XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR };
                 dinfo[i].subImage.swapchain = s->eye[8 + i].handle;
@@ -873,7 +856,6 @@ int yxr_end_frame(yxr_session *s, const yxr_submit *sub) {
     XrFrameEndInfo fe = { XR_TYPE_FRAME_END_INFO };
     fe.displayTime = s->frame_state.predictedDisplayTime;
     fe.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-    /* The foveal insets over the picture, same pose, their own sub-frustum. */
     if (count == 1 && sub->inset && !sub->render[0] && !sub->render[1]) {
         int ok = 1;
         for (int i = 0; i < 2; i++) {
@@ -894,7 +876,6 @@ int yxr_end_frame(yxr_session *s, const yxr_submit *sub) {
             layers[count++] = (const XrCompositionLayerBaseHeader *)&inset;
         }
     }
-    /* The sprites over it (hands), alpha-blended, both eyes. */
     if (sub && sub->sprites && s->frame_state.shouldRender) {
         int n = sub->sprite_count < YXR_MAX_SPRITES ? sub->sprite_count : YXR_MAX_SPRITES;
         for (int i = 0; i < n; i++) {
@@ -938,7 +919,6 @@ int yxr_vulkan(yxr_session *s, yxr_vulkan_handles *o) {
 void yxr_queue_lock(yxr_session *s) { if (s) pthread_mutex_lock(&s->queue_lock); }
 void yxr_queue_unlock(yxr_session *s) { if (s) pthread_mutex_unlock(&s->queue_lock); }
 
-/* Acquire the next image of slot `slot` (made at the recommended size on first use). */
 static int acquire_slot(yxr_session *s, int slot, int64_t format, int depth, uint64_t *image, int *w, int *h, int64_t *f) {
     if (!s || !s->in_frame || !s->rec_w) return -1;
     eye_chain *c = &s->eye[slot];
@@ -1009,7 +989,7 @@ void yxr_close(yxr_session *s) {
     free(s);
 }
 
-#else  /* not Linux: OpenXR is not offered */
+#else
 int yxr_upload_yuv444(yxr_session *s, int eye, const uint8_t *y, const uint8_t *u, const uint8_t *v, int p, int w, int h) { (void)s; (void)eye; (void)y; (void)u; (void)v; (void)p; (void)w; (void)h; return -1; }
 void yxr_set_gaze_at_present(yxr_session *s, int on) { (void)s; (void)on; }
 
@@ -1042,13 +1022,10 @@ const char *yxr_last_error(yxr_session *s) { (void)s; return unavailable; }
 
 #endif
 
-/* YUV → BGRA or RGBA on several threads, on any platform (the display path's
- * upload, and offscreen replays and tests). BT.709 limited range, as the
- * encoder's RGB → YUV conversion (display-stream.md §14). */
 #include <pthread.h>
 
 typedef struct {
-    const uint8_t *y, *u, *v;           /* v NULL: u is NV12's interleaved chroma */
+    const uint8_t *y, *u, *v;
     int pitch, width, row0, row1, bgra;
     uint8_t *dst;
 } yuv_job;

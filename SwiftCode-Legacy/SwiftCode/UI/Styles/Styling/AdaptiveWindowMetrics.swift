@@ -17,7 +17,6 @@ public struct AdaptiveWindowMetrics: Sendable {
 
     public init() {}
 
-    // Convenience computed properties for adaptive layout
     public var standardPadding: CGFloat { currentBreakpoint.standardPadding }
     public var standardSpacing: CGFloat { currentBreakpoint.standardSpacing }
     public var isCompact: Bool { currentBreakpoint == .compactDesktop }

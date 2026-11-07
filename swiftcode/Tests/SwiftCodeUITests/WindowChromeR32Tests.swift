@@ -7,9 +7,6 @@ import SwiftCodeProject
 @testable import SwiftCodeDebug
 @testable import SwiftCodeUI
 
-/// R32 (`specs/ide/reference-ui-5.md` §4, §5.2–§5.3, §6.1–§6.2, §7, §8):
-/// window chrome — toolbar, jump bars, debug bar, navigators' bottom bars,
-/// inspectors and the debug area's bars.
 @MainActor
 @Suite(.serialized) struct WindowChromeR32Tests {
     func tempDir(_ tag: String) throws -> URL {
@@ -18,8 +15,6 @@ import SwiftCodeProject
         return u.resolvingSymlinksInPath()
     }
 
-    /// A package "Chrome" with two Swift files; with `git`, committed in a
-    /// fresh repository (author "Ada Tester").
     func package(_ tag: String, git: Bool = false) throws -> URL {
         let dir = try tempDir(tag)
         let src = dir.appendingPathComponent("Sources/Chrome")
@@ -59,38 +54,28 @@ import SwiftCodeProject
 
     func selected(_ c: NSSegmentedControl) -> [Bool] { (0..<c.segmentCount).map { c.isSelected(forSegment: $0) } }
 
-    // MARK: T2 — Navigators | Coding Assistant
-
     @Test func leftSegmentsFollowTheLeftArea() throws {
         let dir = try package("t2")
         defer { try? FileManager.default.removeItem(at: dir) }
         let wc = try window(dir)
         let c = wc.leftPanesControl
         #expect((0..<2).map { c.toolTip(forSegment: $0) } == ["Navigators", "Coding Assistant"])
-        // At open, Navigators is selected.
         #expect(selected(c) == [true, false] && wc.shownLeftPane == .navigators)
-        // View ▸ Navigators ▸ Hide Navigator: neither.
         wc.toggleNavigator(nil)
         #expect(selected(c) == [false, false] && wc.shownLeftPane == nil)
         wc.toggleNavigator(nil)
         #expect(selected(c) == [true, false])
-        // ⌘0: Coding Assistant.
         wc.showCodingAssistant(nil)
         #expect(selected(c) == [false, true] && wc.navigator.showsCodingAssistant)
-        // ⌘4 brings the navigators back.
         let item = NSMenuItem(title: "Issues", action: nil, keyEquivalent: "")
         item.tag = 4
         wc.showNavigator(item)
         #expect(selected(c) == [true, false] && !wc.navigator.showsCodingAssistant && wc.navigator.selectedIndex == 4)
-        // Clicking the selected segment hides the area; neither is selected.
         wc.setLeftPane(codingAssistant: false)
         #expect(selected(c) == [false, false])
-        // Clicking the unselected one opens the area with that content.
         wc.setLeftPane(codingAssistant: true)
         #expect(selected(c) == [false, true])
     }
-
-    // MARK: T3 — Canvas | Assistant | Code Review
 
     @Test func editorModesAreExclusive() throws {
         let dir = try package("t3", git: true)
@@ -100,29 +85,23 @@ import SwiftCodeProject
         wc.open(path: model, line: nil)
         let c = wc.editorModesControl
         #expect((0..<3).map { c.toolTip(forSegment: $0) } == ["Show Canvas", "Show Assistant", "Show Code Review"])
-        // Canvas mode is on in a new editor (reference-ui-6.md §4.4, E10).
         #expect(selected(c) == [true, false, false] && wc.activeEditorMode == .canvas)
         wc.toggleCanvas(nil)
         #expect(selected(c) == [false, false, false] && wc.activeEditorMode == nil)
         wc.toggleCanvas(nil)
         #expect(selected(c) == [true, false, false] && wc.activeEditorMode == .canvas)
-        // Turning on the Assistant ends canvas mode.
         wc.toggleAssistant(nil)
         #expect(wc.canvas == nil && !wc.isCanvasModeOn && wc.editorArea.tab.assistant != nil)
         #expect(selected(c) == [false, true, false])
-        // Code Review while the Assistant is shown closes the assistant pane.
         #expect(wc.toggleComparison(nil))
         #expect(wc.editorArea.tab.assistant == nil && wc.editorArea.tab.editors.count == 1)
         #expect(wc.editor.isShowingComparison || wc.editor.isShowingInlineComparison)
         #expect(selected(c) == [false, false, true] && wc.activeEditorMode == .codeReview)
-        // Canvas ends Code Review.
         wc.setEditorMode(.canvas)
         #expect(!(wc.editor.isShowingComparison || wc.editor.isShowingInlineComparison) && wc.isCanvasModeOn)
         #expect(wc.activeEditorMode == .canvas && selected(c) == [true, false, false])
-        // Clicking the selected segment leaves no mode on.
         wc.setEditorMode(.canvas)
         #expect(wc.activeEditorMode == nil && selected(c) == [false, false, false])
-        // The Editor menu items mirror the same state.
         wc.setEditorMode(.assistant)
         let items = [("Canvas", #selector(WorkspaceWindowController.toggleCanvas(_:))), ("Assistant", #selector(WorkspaceWindowController.toggleAssistant(_:))),
                      ("Code Review", #selector(WorkspaceWindowController.toggleComparison(_:)))].map { NSMenuItem(title: $0.0, action: $0.1, keyEquivalent: "") }
@@ -130,19 +109,15 @@ import SwiftCodeProject
         #expect(items.map { $0.state == .on } == selected(c))
     }
 
-    // MARK: T5–T7 — tooltips, New Conversation, the pill's names
-
     @Test func toolbarCenterItems() throws {
         let dir = try package("t5")
         defer { try? FileManager.default.removeItem(at: dir) }
         let wc = try window(dir)
         let ids = wc.toolbarDefaultItemIdentifiers(NSToolbar()).map(\.rawValue)
-        // Only spacers between them (liquid-glass.md §2.2: a fixed space
-        // keeps New Conversation's circle out of the scheme's capsule).
         let between = ids[(ids.firstIndex(of: "newConversation")! + 1)..<ids.firstIndex(of: "scheme")!]
         #expect(between.allSatisfy { WorkspaceWindowController.toolbarSpacers.map(\.rawValue).contains($0) })
         let conv = try #require(wc.toolbar(NSToolbar(), itemForItemIdentifier: .init("newConversation"), willBeInsertedIntoToolbar: false))
-        #expect(conv.isEnabled && conv.label == "New Conversation" && conv.action == NSSelectorFromString("toggleNewConversationPrompt:"))   // reference-ui-6.md §9.4
+        #expect(conv.isEnabled && conv.label == "New Conversation" && conv.action == NSSelectorFromString("toggleNewConversationPrompt:"))
         let run = try #require(wc.toolbar(NSToolbar(), itemForItemIdentifier: .init("run"), willBeInsertedIntoToolbar: false)?.view as? NSSegmentedControl)
         #expect((0..<2).map { run.toolTip(forSegment: $0) } == ["Build and then run the current scheme", "Stop the running scheme or application"])
         let history = try #require(wc.toolbar(NSToolbar(), itemForItemIdentifier: .init("history"), willBeInsertedIntoToolbar: false)?.view as? NSSegmentedControl)
@@ -151,8 +126,6 @@ import SwiftCodeProject
         let names = pill.arrangedSubviews.compactMap { $0 as? NSPopUpButton }.map { $0.accessibilityLabel() ?? "" }
         #expect(names == ["Active Scheme", "Active Run Destination"])
     }
-
-    // MARK: E1, E2, E4 — jump bars
 
     @Test func jumpBarHasNoHistoryButtonsAndKeepsKeyboardMenus() throws {
         let dir = try package("e1")
@@ -163,14 +136,11 @@ import SwiftCodeProject
         #expect(titles.first == "Navigate to Related Items")
         #expect(!titles.contains { ["Back", "Forward", "Go Back", "Go Forward"].contains($0) })
         #expect(titles.contains("Model") && titles.contains("Chrome"))
-        // No issues in the workspace: no issue controls.
         #expect(wc.editor.jumpBarIssueTitles == nil && !titles.contains("Issues"))
-        // The Related Items button opens ⌃1's menu; ⌃1–⌃6 still list entries.
         wc.editor.jumpBar.relatedItemsButton?.performClick(nil)
         #expect(wc.popUpJumpBarMenu(.documentItems).items.map(\.title).contains("Model"))
         #expect(wc.popUpJumpBarMenu(.groupFiles).items.map(\.title).contains { $0.hasPrefix("Helper") })
         #expect(wc.popUpJumpBarMenu(.topLevelItems).items.count > 0)
-        // History stays in the menus and the toolbar.
         wc.open(path: dir.appendingPathComponent("Sources/Chrome/Helper.swift").path, line: nil)
         wc.goBack(nil)
         #expect(wc.editor.fileURL?.lastPathComponent == "Model.swift")
@@ -190,23 +160,19 @@ import SwiftCodeProject
         ]
         let titles = wc.editor.jumpBarTitles
         #expect(Array(titles.suffix(3)) == ["Show Previous Issue", "Issues", "Show Next Issue"])
-        // Messages start with a capital letter (reference-ui-6.md §5.2.3).
         #expect(wc.editor.jumpBarIssueTitles == ["Value is never read", "Cannot find 'x'"])
         func at() -> String { "\(wc.editor.fileURL!.lastPathComponent):\(wc.editor.currentLine)" }
         wc.editor.onNextIssue?()
         #expect(at() == "Model.swift:2")
         wc.editor.onNextIssue?()
         #expect(at() == "Model.swift:3")
-        // Then the next file's issues.
         wc.editor.onNextIssue?()
         #expect(at() == "Helper.swift:1")
         #expect(wc.editor.jumpBarIssueTitles == ["Missing return"])
-        // Wraps to the first file.
         wc.jumpToNextIssue(nil)
         #expect(at() == "Model.swift:2")
         wc.editor.onPreviousIssue?()
         #expect(at() == "Helper.swift:1")
-        // Picking from the Issues menu goes to the line.
         wc.open(path: model, line: 1)
         wc.editor.onPickIssue?(3)
         #expect(at() == "Model.swift:3")
@@ -223,25 +189,22 @@ import SwiftCodeProject
         let a = try #require(wc.editorArea.tab.assistant)
         let titles = a.jumpBarTitles
         #expect(titles.first == "Close this Editor Pane")
-        #expect(titles.dropFirst().first == "Counterparts")   // the mode pop-up
+        #expect(titles.dropFirst().first == "Counterparts")
         #expect(!titles.contains("Navigate to Related Items") && !titles.contains("Back"))
         #expect(!wc.editor.jumpBarTitles.contains("Close this Editor Pane") || wc.editor === a)
         a.jumpBar.closeButton?.performClick(nil)
         #expect(wc.editorArea.tab.assistant == nil && wc.activeEditorMode == nil)
     }
 
-    // MARK: E6 — debug bar
-
     @Test func debugBarOrderAndBranchMenu() async throws {
         let dir = try package("e6", git: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         Self.git(dir, ["branch", "feature"])
         let wc = try window(dir)
-        await wc.sourceControl.idle()   // the branch is read in the background
+        await wc.sourceControl.idle()
         let d = wc.debugArea
         let bar = try #require(d.debugBarStack)
         let views = bar.arrangedSubviews
-        // Left: the breakpoints toggle; right: position, branch, debug-area toggle.
         #expect((views.first as? NSButton)?.toolTip == "Activate or deactivate breakpoints")
         #expect(views.last === d.debugAreaToggle)
         let pos = try #require(views.firstIndex(of: d.positionLabel)), branch = try #require(views.firstIndex(of: d.branchView))
@@ -252,13 +215,11 @@ import SwiftCodeProject
         let menu = d.branchMenu()
         #expect(Set(menu.items.map(\.title)) == [current, "feature"])
         #expect(menu.items.first { $0.state == .on }?.title == current)
-        // Choosing a branch switches with git switch.
         let feature = try #require(menu.items.first { $0.title == "feature" })
         d.branchChosen(feature)
         await wc.sourceControl.idle()
         #expect(Self.git(dir, ["branch", "--show-current"]).trimmingCharacters(in: .whitespacesAndNewlines) == "feature")
         #expect(d.branchLabel.stringValue == "feature")
-        // Refused while the working tree has conflicts.
         let repo = try #require(GitRepository(containing: dir))
         Self.git(dir, ["switch", "-q", current])
         let file = dir.appendingPathComponent("Sources/Chrome/Model.swift")
@@ -273,8 +234,6 @@ import SwiftCodeProject
         #expect(Self.git(dir, ["branch", "--show-current"]).trimmingCharacters(in: .whitespacesAndNewlines) == "feature")
     }
 
-    // MARK: N6, N7, N8, N12 — bottom bars, headers, empty states, selector tooltips
-
     @Test func bottomBarsHeadersAndEmptyStatesMatchTheTable() {
         _ = NSApplication.shared
         let nav = NavigatorAreaController()
@@ -286,7 +245,6 @@ import SwiftCodeProject
         let expected: [Row] = [
             Row(left: .some(nil), toggles: ["Recent files", "Files with source-control status"],
                 tips: ["Show only recent files", "Show only files with source-control status"], on: [false, false], empty: []),
-            // Source Control: the filter alone, no options button (navigators.md round 3 §2).
             Row(left: nil, toggles: [], tips: [], on: [], empty: ["No Repository"]),
             Row(left: .some("More"), toggles: ["Incomplete Items"], tips: ["Show only incomplete items"], on: [false],
                 empty: ["No Bookmarks", "Click the '…' button to add bookmarks"]),
@@ -313,7 +271,6 @@ import SwiftCodeProject
             #expect(nav.emptyStateLines == row.empty, "navigator \(i)")
             #expect(nav.filter.placeholderString == "Filter")
         }
-        // Headers.
         nav.select(8)
         #expect((0..<2).map { nav.reportScope.toolTip(forSegment: $0) } == ["Show Local Reports", "Show Cloud Reports"] && !nav.reportScope.isHidden)
         nav.select(5)
@@ -322,7 +279,6 @@ import SwiftCodeProject
         #expect(nav.testModeControl.selectedSegment == 0 && nav.testModeControl.accessibilityLabel() == "Mode")
         nav.select(3)
         #expect(nav.findCaseToggle.toolTip == "Case Sensitive" && nav.testHeader.isHidden)
-        // Filter options list the toggles.
         nav.select(7)
         #expect(nav.filterOptionTitles == ["Show Only Modified Breakpoints", "Show Only Enabled Breakpoints"])
         nav.select(6)
@@ -337,7 +293,6 @@ import SwiftCodeProject
         let helper = dir.appendingPathComponent("Sources/Chrome/Helper.swift").path
         let nav = wc.navigator
 
-        // Bookmarks: done state from the context menu, Incomplete Items.
         wc.open(path: model, line: 2)
         let line = try #require(wc.addLineBookmark())
         wc.open(path: helper, line: nil)
@@ -358,7 +313,6 @@ import SwiftCodeProject
         nav.setToggle(2, 0, false)
         #expect(nav.rows(2).count == 2)
 
-        // Breakpoints: Modified keeps customized ones; Enabled keeps enabled ones.
         wc.session.breakpoints.click(file: model, line: 2)
         wc.session.breakpoints.click(file: helper, line: 2)
         wc.session.breakpoints.edit(file: helper, line: 2) { $0.condition = "x > 1" }
@@ -367,12 +321,11 @@ import SwiftCodeProject
         nav.setToggle(7, 0, true)
         #expect(nav.breakpointGroups.map(\.title) == ["Helper.swift"])
         nav.setToggle(7, 0, false)
-        nav.sourceControlToggle.performClick(nil)   // Enabled breakpoints
+        nav.sourceControlToggle.performClick(nil)
         #expect(nav.breakpointFilter.enabledOnly && nav.breakpointGroups.map(\.title) == ["Helper.swift"])
         nav.setToggle(7, 1, false)
         #expect(nav.breakpointGroups.count == 2)
 
-        // Issues: groups carry their file's icon.
         wc.session.packageIssues = [Diagnostic(severity: .error, message: "bad", location: .init(file: model, line: 1))]
         let group = try #require(nav.rows(4).first?.children.first)
         #expect(group.symbol == "chevron.left.forwardslash.chevron.right")
@@ -391,11 +344,9 @@ import SwiftCodeProject
         let threads = [DebugThread(id: 1, name: "Thread 1"), DebugThread(id: 2, name: "Thread 2")]
         nav.select(6)
         nav.setDebugState(threads: threads, stoppedThread: 1, frames: frames)
-        // Compressed (default): the system run folds behind a separator.
         #expect(nav.rows(6).first?.children.count == 3 && nav.rows(6).first?.children[1].isSeparator == true)
         nav.setToggle(6, 0, false)
         #expect(nav.rows(6).first?.children.map(\.title) == ["0 f0", "1 f1", "2 f2", "3 f3"])
-        // Interesting content: only the stopped thread.
         #expect(nav.rows(6).count == 2)
         nav.setToggle(6, 1, true)
         #expect(nav.rows(6).count == 1 && nav.rows(6).first?.title.hasPrefix("Thread 1") == true)
@@ -432,23 +383,18 @@ import SwiftCodeProject
         nav.testPlanName = "Chrome (Autocreated)"
         nav.select(5)
         nav.setTests(found, results: [found[0]: .passed, found[1]: .failed])
-        // Hierarchy: diamonds at the right end, not in the icon slot.
         let plan = try #require(nav.rows(5).first)
-        // reference-ui-6.md §5.4 (R45): the root is the project (no name set
-        // here: the plan's), the result glyph shows once a result exists.
         #expect(plan.title == "Chrome (Autocreated)" && plan.trailingSymbol == "xmark.diamond.fill")
         let leaves = plan.children.flatMap(\.children).flatMap { $0.children.isEmpty ? [$0] : $0.children }
         #expect(leaves.map(\.title) == ["value()", "other()", "loose()"])
         #expect(leaves.map { $0.trailingSymbol ?? "" } == ["checkmark.diamond.fill", "xmark.diamond.fill", ""])
         #expect(!leaves.contains { $0.symbol.contains("diamond") })
-        // Group by Tags: one group per tag, Untagged Tests last.
         nav.testModeControl.selectedSegment = 1
         nav.testModeControl.sendAction(nav.testModeControl.action, to: nav.testModeControl.target)
         #expect(nav.groupTestsByTags)
         let groups = try #require(nav.rows(5).first?.children)
         #expect(groups.map(\.title) == ["fast", "model", "Untagged Tests"])
         #expect(groups[1].children.map(\.title) == ["value()", "other()"] && groups[2].children.map(\.title) == ["loose()"])
-        // Recent Tests: tests of open files and of the last run.
         nav.groupTestsByTags = false
         nav.setToggle(5, 1, true)
         #expect(nav.rows(5).first?.detail == "2 Tests")
@@ -456,17 +402,13 @@ import SwiftCodeProject
         nav.setToggle(5, 1, false)
         nav.setToggle(5, 1, true)
         #expect(nav.rows(5).first?.detail == "3 Tests")
-        // Show Only Included Tests hides what the plan skips.
         nav.setToggle(5, 1, false)
         nav.skippedTests = ["loose"]
         nav.setToggle(5, 0, true)
         #expect(nav.rows(5).first?.detail == "2 Tests")
-        // Nothing left: the two-line empty state.
         nav.skippedTests = ["ModelTests/value", "ModelTests/other", "loose"]
         #expect(nav.emptyStateLines == ["No Tests", "Click the \u{2295} button to add test targets"])
     }
-
-    // MARK: N13 — Find navigator scope and recent searches
 
     @Test func findScopeWordAndRecentSearches() {
         _ = NSApplication.shared
@@ -485,8 +427,6 @@ import SwiftCodeProject
         #expect(nav.findField.searchMenuTemplate != nil)
     }
 
-    // MARK: I1–I5 — inspectors
-
     @Test func inspectorTabsAndNothingSelected() async throws {
         let dir = try package("i1")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -496,15 +436,13 @@ import SwiftCodeProject
         #expect(Array(i.tabToolTips.prefix(3)) == ["Show the File inspector", "Show the History inspector", "Show Quick Help inspector"])
         i.select(0)
         #expect(i.centeredText == "Not Applicable")
-        // Outside git: no Working Copy, no history.
         let model = dir.appendingPathComponent("Sources/Chrome/Model.swift")
         wc.open(path: model.path, line: nil)
         i.select(0)
         #expect(i.centeredText.isEmpty && !i.rowValues.map(\.0).contains("Working Copy"))
         i.select(1)
-        await i.historyIdle()   // read in the background
+        await i.historyIdle()
         #expect(i.centeredText == "No History")
-        // Quick Help with the caret on no symbol.
         i.showQuickHelp(nil)
         i.select(2)
         #expect(i.sectionTitles == ["Quick Help"] && (i.fileControls["Search Documentation"] as? NSButton)?.title == "Search Documentation")
@@ -518,9 +456,6 @@ import SwiftCodeProject
         wc.open(path: model.path, line: nil)
         let i = wc.inspector
         i.select(0)
-        // reference-ui-6.md §6 (R45, I1): a package's files show only
-        // Identity and Type and Text Settings (the Target Membership
-        // controls are covered by NavigatorInspectorR45Tests).
         #expect(i.sectionTitles == ["Identity and Type", "Text Settings"])
         let rows = Dictionary(i.rowValues, uniquingKeysWith: { a, _ in a })
         let root = Self.git(dir, ["rev-parse", "--show-toplevel"]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -542,12 +477,11 @@ import SwiftCodeProject
         wc.open(path: model.path, line: nil)
         let i = wc.inspector
         i.select(1)
-        await i.historyIdle()   // the history is read in the background
+        await i.historyIdle()
         #expect(i.centeredText.isEmpty)
         #expect(i.historyRows.map(\.author) == ["Grace Hopper", "Ada Tester"])
         #expect(i.historyRows.map(\.subject) == ["Bump the value", "Initial import"])
         #expect(i.historyRows.allSatisfy { $0.date == "Today" })
-        // Selecting a row shows that commit in Code Review against the working copy.
         i.selectHistoryRow(1)
         #expect(wc.activeEditorMode == .codeReview)
         if case .commit(let hash, _) = wc.editor.review.rightSource { #expect(hash == i.historyCommits[1].hash) } else { Issue.record("not a commit source") }
@@ -572,7 +506,6 @@ import SwiftCodeProject
         #expect(info.memberships.map(\.name) == ["Tour", "TourTests", "TourUITests"])
         #expect(info.memberships.map(\.isMember) == [true, false, false])
         #expect(i.addMembershipMenu().items.map(\.title) == ["TourTests", "TourUITests"])
-        // "+": add to TourTests (its Sources phase), saved to disk.
         let tests = info.memberships[1].targetID
         let add = try #require(i.addMembershipMenu().items.first)
         _ = add.target?.perform(add.action, with: add)
@@ -580,7 +513,6 @@ import SwiftCodeProject
         let projDir = saved.projectDirectory(xcodeprojURL: url)
         #expect(saved.targetMemberships(ofFile: view.path, projectDirectory: projDir).map(\.isMember) == [true, true, false])
         #expect(i.shownInfo?.memberships.map(\.isMember) == [true, true, false])
-        // "−": remove the selected targets.
         i.toggleMembershipSelection(tests)
         i.toggleMembershipSelection(info.memberships[0].targetID)
         #expect((i.fileControls["Remove Target"] as? NSButton)?.isEnabled == true)
@@ -590,14 +522,11 @@ import SwiftCodeProject
         #expect(wc.setTargetMembership(of: view, target: info.memberships[0].targetID, member: true))
     }
 
-    // MARK: D1, D2 — debug area bars and height
-
     @Test func debugAreaBarsAndPrintDescription() {
         _ = NSApplication.shared
         let d = DebugAreaController()
         _ = d.view
         #expect(d.variablesBarTitles == ["Variables scope", "Quick Look", "Print Description", "Filter"])
-        // reference-ui-6.md §7 (R45, D1): no output-kind pop-up.
         #expect(d.consoleBarTitles == ["Quick Look", "Metadata Options", "Filter", "Clear Console",
                                        "Show or hide the variables view", "Show or hide the console"])
         #expect(d.printDescriptionButton?.image?.accessibilityDescription == "Print Description")
@@ -622,10 +551,8 @@ import SwiftCodeProject
         }
         let wc = try make()
         #expect(wc.debugAreaHeightShown == nil)
-        // The first time: 135 points.
         wc.showDebugArea(true)
         #expect(abs((wc.debugAreaHeightShown ?? 0) - 135) <= 1)
-        // Resized, hidden, shown again: the remembered height.
         let split = wc.centerSplit.splitView
         split.setPosition(split.bounds.height - 220 - split.dividerThickness, ofDividerAt: 0)
         split.layoutSubtreeIfNeeded()
@@ -634,7 +561,6 @@ import SwiftCodeProject
         #expect(wc.debugAreaHeightShown == nil)
         wc.toggleDebugArea(nil)
         #expect(abs((wc.debugAreaHeightShown ?? 0) - 220) <= 1)
-        // A behavior that opens it uses the same height; so does a new window.
         wc.showDebugArea(false)
         let again = try make()
         #expect(abs(again.debugAreaOpeningHeight - 220) <= 1)

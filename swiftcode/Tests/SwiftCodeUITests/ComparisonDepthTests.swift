@@ -6,7 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Depth checks for specs/ide/comparison.md.
 @MainActor
 @Suite(.serialized) struct ComparisonDepthTests {
     @Test func codeReviewEditorBehaviour() throws {
@@ -29,7 +28,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                            loadDestinations: false, startLanguageService: false)
         wc.applyDefaultLayout()
         wc.open(path: main.path, line: nil)
-        // Unsaved edits are included on the right.
         wc.editor.textView.string = "let a = 1\nlet b = 2\n"
         wc.editor.comparisonStyle = .sideBySide
         #expect(wc.toggleComparison(nil))
@@ -37,16 +35,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(c.rightTitle.stringValue == "main.swift (HEAD)" && c.leftTitle.stringValue == "main.swift (Local)")
         #expect(c.rows.map(\.kind) == [.same, .added])
         #expect(c.leftView.string.contains("let b = 2"))
-        // reference-ui-4 §15.3: the working copy (left) is editable.
         #expect(c.leftView.isEditable && !c.rightView.isEditable)
-        // Each side numbers its own lines; the filler row has none.
         #expect(c.rightView.string.components(separatedBy: "\n")[1].trimmingCharacters(in: .whitespaces).isEmpty)
         #expect(c.leftView.string.contains("   2  let b = 2"))
 
-        // Opening another file returns to the normal editor.
         wc.open(path: fresh.path, line: nil)
         #expect(!wc.editor.isShowingComparison)
-        // A new file compares against an empty HEAD side.
         #expect(wc.toggleComparison(nil))
         #expect(wc.editor.comparison.rows.map(\.kind) == [.added, .added])
         #expect(wc.editor.comparison.rightTitle.stringValue == "Fresh.swift (HEAD)")

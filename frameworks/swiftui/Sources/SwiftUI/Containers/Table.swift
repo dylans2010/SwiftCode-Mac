@@ -5,39 +5,14 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Tables (round R13, left over from R9 / PARITY §5.4 R12; public API names:
-// `Table`, `TableColumn`, `TableColumnBuilder`, `TableColumnContent`,
-// `width(_:)`, `width(min:ideal:max:)`, `KeyPathComparator` sort orders).
-//
-// As the public documentation describes: a table shows one row per element
-// of its data and one column per `TableColumn`; it does not sort the data
-// itself. Clicking a sortable column's header writes the table's
-// `sortOrder` binding (that column's comparator first; clicking the first
-// column again reverses its order), and the app sorts its data when the
-// binding changes. Selection works as in `List` (one or several rows, by
-// the elements' IDs; click, Shift and Ctrl, the arrow keys).
-//
-// Look and widths (SwiftCode's): a 28-point header row with the titles in
-// footnote weight, the first sort column's chevron, and a divider between
-// columns; 24-point rows with alternating backgrounds. A column with a fixed
-// width keeps it; the others share what is left, within their minimums and
-// maximums (default minimum 40). Dragging a header divider resizes the
-// column on its left (the columns after it keep their widths; the last
-// flexible column takes up the difference).
-
-// MARK: - Columns
-
-/// One column of a table as the table uses it.
 public struct _TableColumnSpec<RowValue> {
     let id: Int
     let label: AnyView
     let cell: (RowValue) -> AnyView
-    /// The comparator a header click puts first (nil: not sortable).
     let comparator: KeyPathComparator<RowValue>?
     var width: TableColumnWidth
 }
 
-/// How wide a column is.
 public struct TableColumnWidth: Equatable, Sendable {
     var fixed: CGFloat?
     var min: CGFloat?
@@ -46,21 +21,18 @@ public struct TableColumnWidth: Equatable, Sendable {
     static let flexible = TableColumnWidth()
 }
 
-/// Columns of a table: `TableColumn`s, or a group of them from a builder.
 @MainActor @preconcurrency
 public protocol TableColumnContent {
     associatedtype TableRowValue
     var _tableColumns: [_TableColumnSpec<TableRowValue>] { get }
 }
 
-/// Several columns.
 public struct TupleTableColumnContent<RowValue>: TableColumnContent {
     public typealias TableRowValue = RowValue
     let columns: [_TableColumnSpec<RowValue>]
     public var _tableColumns: [_TableColumnSpec<RowValue>] { columns }
 }
 
-/// Builds a table's columns.
 @MainActor @resultBuilder
 public struct TableColumnBuilder<RowValue> {
     public static func buildExpression<C: TableColumnContent>(_ column: C) -> TupleTableColumnContent<RowValue>
@@ -81,8 +53,6 @@ public struct TableColumnBuilder<RowValue> {
     public static func buildLimitedAvailability(_ part: TupleTableColumnContent<RowValue>) -> TupleTableColumnContent<RowValue> { part }
 }
 
-/// One column: a title and a cell per row; sortable when it has a
-/// comparator (`Sort` is `KeyPathComparator<RowValue>`, else `Never`).
 public struct TableColumn<RowValue, Sort, Content: View, Label: View>: TableColumnContent {
     public typealias TableRowValue = RowValue
     let label: Label
@@ -96,7 +66,6 @@ public struct TableColumn<RowValue, Sort, Content: View, Label: View>: TableColu
                                  width: width)]
     }
 
-    /// A fixed width (nil: flexible).
     public func width(_ width: CGFloat?) -> TableColumn {
         var c = self
         c.width = width.map { TableColumnWidth(fixed: $0) } ?? .flexible
@@ -111,7 +80,6 @@ public struct TableColumn<RowValue, Sort, Content: View, Label: View>: TableColu
 }
 
 extension TableColumn where Sort == Never, Label == Text {
-    /// A column that is not sortable.
     public init(_ titleKey: LocalizedStringKey, @ViewBuilder content: @escaping (RowValue) -> Content) {
         label = Text(titleKey)
         self.content = content
@@ -127,7 +95,6 @@ extension TableColumn where Sort == Never, Label == Text {
 }
 
 extension TableColumn where Sort == KeyPathComparator<RowValue>, Label == Text {
-    /// A column sorted by a comparable property, with its own cells.
     public init<V: Comparable>(_ titleKey: LocalizedStringKey, value: any KeyPath<RowValue, V> & Sendable,
                                @ViewBuilder content: @escaping (RowValue) -> Content) {
         label = Text(titleKey)
@@ -143,7 +110,6 @@ extension TableColumn where Sort == KeyPathComparator<RowValue>, Label == Text {
         comparator = KeyPathComparator(value)
     }
 
-    /// A column sorted with `comparator`.
     public init(_ titleKey: LocalizedStringKey, sortUsing comparator: KeyPathComparator<RowValue>,
                 @ViewBuilder content: @escaping (RowValue) -> Content) {
         label = Text(titleKey)
@@ -153,7 +119,6 @@ extension TableColumn where Sort == KeyPathComparator<RowValue>, Label == Text {
 }
 
 extension TableColumn where Sort == KeyPathComparator<RowValue>, Content == Text, Label == Text {
-    /// A column showing and sorted by a string property.
     public init(_ titleKey: LocalizedStringKey, value: any KeyPath<RowValue, String> & Sendable) {
         label = Text(titleKey)
         let kp = UncheckedTableKeyPath(value)
@@ -175,8 +140,6 @@ private struct UncheckedTableKeyPath<Root, Value>: @unchecked Sendable {
     init(_ v: KeyPath<Root, Value>) { value = v }
 }
 
-// MARK: - Table
-
 enum TableMetrics {
     static let headerHeight: CGFloat = 28
     static let rowHeight: CGFloat = 24
@@ -185,13 +148,11 @@ enum TableMetrics {
     static let handleWidth: CGFloat = 8
 }
 
-/// Rows of data in columns.
 public struct Table<Value: Identifiable, Columns: TableColumnContent>: View where Columns.TableRowValue == Value {
     let rows: [Value]
     let columns: [_TableColumnSpec<Value>]
     let selection: TableSelection
     let sortOrder: Binding<[KeyPathComparator<Value>]>?
-    /// Widths the user set by dragging (nil: from the column specs).
     @State private var widths: [CGFloat]?
     @State private var dragBase: [CGFloat]?
     @Environment(\.colorScheme) private var scheme
@@ -213,12 +174,8 @@ public struct Table<Value: Identifiable, Columns: TableColumnContent>: View wher
         self.sortOrder = sortOrder
     }
 
-    /// The widths for a total width: fixed columns keep theirs, the others
-    /// share the rest (ideal widths first), within their limits.
     static func layout(_ columns: [_TableColumnSpec<Value>], total: CGFloat, current: [CGFloat]?) -> [CGFloat] {
         if let current, current.count == columns.count, !current.isEmpty {
-            // Keep the user's widths; the last flexible column takes up the
-            // difference.
             var w = current
             let sum = w.reduce(0, +)
             if let last = columns.lastIndex(where: { $0.width.fixed == nil }) {

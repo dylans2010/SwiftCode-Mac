@@ -1,11 +1,3 @@
-// LocalBuildView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/LocalBuildView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Detected-Macs discovery list UI; Start Build UI; remote build status/logs UI
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/LocalBuildView.swift (derived from Legacy).
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): LocalBuildDemoView, ShareLink.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeConnect
 import SwiftUI
 
@@ -215,7 +207,6 @@ struct LocalBuildView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    // Install logic
                 } label: {
                     Label("Install", systemImage: "arrow.down.circle")
                         .font(.subheadline.weight(.semibold))

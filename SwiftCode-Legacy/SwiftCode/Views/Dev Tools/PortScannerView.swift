@@ -81,7 +81,6 @@ struct PortScannerView: View {
                 completion(false)
                 connection.cancel()
             case .waiting(_):
-                // In a real scan we might timeout
                 break
             default:
                 break
@@ -90,7 +89,6 @@ struct PortScannerView: View {
 
         connection.start(queue: .global())
 
-        // Timeout after 2 seconds
         DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
             if connection.state != .ready {
                 connection.cancel()

@@ -1,9 +1,3 @@
-// A tap on a SwiftCode simulator device through its display socket
-// (specs/simulator/display-stream.md §5.1, as scripts/swiftcode-display-probe's
-// `tap`), for the debugger's automation: the ShellDriver walk and the
-// end-to-end test tap the sample app's button while the app runs under the
-// debugger. The socket is the host's `<home>/run/<device>.sock`.
-
 import Foundation
 import SwiftCodeDisplayStream
 import SwiftCodeSimLink
@@ -11,9 +5,6 @@ import SwiftCodeSimLink
 public enum SimDeviceTap {
     public struct Failure: Error, CustomStringConvertible { public let description: String }
 
-    /// Connects to `address` (`unix:<path>`), reads the server's hello, and
-    /// taps at (`x`, `y`) in device points, or the screen's centre when nil.
-    /// Returns the point tapped.
     @discardableResult
     public static func tap(address: String, x: Double? = nil, y: Double? = nil, holdMilliseconds: Int = 80) throws -> (x: Double, y: Double) {
         guard let a = DisplayAddress(address) else { throw Failure(description: "not a display address: \(address)") }
@@ -34,7 +25,6 @@ public enum SimDeviceTap {
         try c.send(.input(.touch(sequence: 1, contacts: [TouchContact(finger: 0, phase: .began, x: Float(px), y: Float(py))])))
         Thread.sleep(forTimeInterval: Double(holdMilliseconds) / 1000)
         try c.send(.input(.touch(sequence: 2, contacts: [TouchContact(finger: 0, phase: .ended, x: Float(px), y: Float(py))])))
-        // Let the server read the input before the connection closes.
         Thread.sleep(forTimeInterval: 0.3)
         return (px, py)
     }

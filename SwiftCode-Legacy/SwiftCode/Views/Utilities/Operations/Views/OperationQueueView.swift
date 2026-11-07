@@ -5,7 +5,6 @@ struct OperationQueueView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             VStack(alignment: .leading, spacing: 2) {
                 Text("Operational Task Queue")
                     .font(.title2)

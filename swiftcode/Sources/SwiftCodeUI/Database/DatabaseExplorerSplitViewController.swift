@@ -2,38 +2,6 @@ import AppKit
 import SwiftUI
 import SwiftCodeCloud
 
-/// The Database Explorer's three-pane workspace: source-list
-/// sidebar (left), section content (center), properties inspector
-/// (right).
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/DatabaseExplorerSplitViewController.swift`.
-/// The AppKit shell — the split items, their sizes and collapse
-/// behaviour, the toggle actions, and the two shared-state bridges
-/// (`DatabaseSplitViewState`, `DatabaseObservableState`) — is
-/// verbatim Legacy and fully real.
-///
-/// KNOWN FORWARD DEPENDENCY (not a placeholder): the center and
-/// inspector panes host SwiftUI views from Legacy's `Views/`
-/// family — `DatabaseSidebar`, `DatabaseDashboard`,
-/// `DatabaseTablesView`, `DatabaseSchemaView`, `DatabaseQueryEditor`,
-/// `DatabaseMigrationView`, `DatabaseBackupView`,
-/// `DatabaseImportExportView`, `DatabaseTemplatesView`,
-/// `DatabaseAIView`, `DatabasePerformanceView`, `DatabaseLogsView`,
-/// `DatabaseSettingsView`, and `DatabaseInspector` — none of which
-/// exists in this destination yet (they belong to the Views family,
-/// not to this Core/Helpers/Controllers family). This file is
-/// staged as-is and compiles once that family lands; the view
-/// names are referenced, never stubbed or redeclared here. Two of
-/// those names need care when the Views family is ported:
-/// `DatabaseDashboard` (SwiftUI view) collides by name with the
-/// `DatabaseDashboard` class already in
-/// `SwiftCodeIDECore/Model/Database/DatabaseDashboard.swift` — the
-/// Views port must qualify or rename it — and the eight sections
-/// the SQLite Explorer's `SQLiteExplorerSectionsController` already
-/// renders (dashboard, migrations, backups, import/export,
-/// templates, AI, performance, logs) must not be re-implemented a
-/// second time in the Views family.
 @MainActor
 public class DatabaseExplorerSplitViewController: NSSplitViewController {
     private var leftItem: NSSplitViewItem?
@@ -50,7 +18,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Left Sidebar Panel (Native AppKit Outline View Controller)
         let leftVC = DatabaseExplorerSidebarViewController()
         let leftItem = NSSplitViewItem(sidebarWithViewController: leftVC)
         leftItem.canCollapse = true
@@ -60,7 +27,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         self.leftItem = leftItem
         addSplitViewItem(leftItem)
 
-        // 2. Center Workspace (Tables lists, schema viewer, SQL editors, performance logs)
         let centerVC = NSHostingController(rootView: DatabaseExplorerCenterWrapper())
         centerVC.sizingOptions = []
         centerVC.view.autoresizingMask = [.width, .height]
@@ -70,7 +36,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         self.centerItem = centerItem
         addSplitViewItem(centerItem)
 
-        // 3. Right properties inspector
         let rightVC = NSHostingController(rootView: DatabaseExplorerInspectorWrapper())
         rightVC.sizingOptions = []
         rightVC.view.autoresizingMask = [.width, .height]
@@ -92,7 +57,6 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
     }
 }
 
-// Global shared state bridges to make wrappers cleanly compile
 @MainActor
 final class DatabaseSplitViewState {
     static let shared = DatabaseSplitViewState()
@@ -136,7 +100,6 @@ struct DatabaseExplorerCenterWrapper: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header bar
             HStack(spacing: 16) {
                 Text("Database Explorer")
                     .font(.headline)
@@ -157,7 +120,6 @@ struct DatabaseExplorerCenterWrapper: View {
 
                 Spacer()
 
-                // Native segmented control reducing sidebar reliance
                 Picker("Workspace Panel", selection: Binding(
                     get: { observableState.selectedSection },
                     set: { observableState.selectedSection = $0; DatabaseSplitViewState.shared.selectedSection = $0 }

@@ -1,7 +1,4 @@
-/// Generated sources for measurements and tests.
 public enum SyntaxBenchmark {
-    /// `lines` lines of Swift: doc comments, structs, properties with
-    /// strings and trailing comments, functions with interpolations.
     public static func swiftSource(lines count: Int) -> String {
         var lines: [String] = ["import Foundation", "/* A block comment", "   over two lines */"]
         var i = 0

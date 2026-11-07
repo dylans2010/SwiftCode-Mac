@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Opt-in checks against real back ends on the developer's machine. They
-/// are off unless `SWIFTCODE_LIVE_ASSISTANT` names them (comma-separated:
-/// `ollama`, `claude`, `codex`, `agy`). Each sends one short prompt; the
-/// agent tools run read-only in an empty temporary folder, Claude Code with
-/// no tools at all. They use the tools' own sign-ins and never read them.
 @Suite struct LiveSmokeTests {
     static let enabled = Set((ProcessInfo.processInfo.environment["SWIFTCODE_LIVE_ASSISTANT"] ?? "").split(separator: ",").map(String.init))
     static let prompt = "Reply with exactly one word: pong"

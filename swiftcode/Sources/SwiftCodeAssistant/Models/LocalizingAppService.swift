@@ -1,40 +1,12 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/LocalizingAppService.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Models/LocalizingAppService.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - LocalizingAppService guarded orchestrator (allowedToolIDs allowlist + runTool validation)
-//   - in-service LLM translation with chunking (translate/chunkedForLocalization/stripCodeFences)
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistFileSystem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistFileSystem.swift`)
-//   - AssistLogger — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistLogger.swift`)
-//   - AssistMemoryGraph — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistMemoryGraph.swift`)
-//   - LLMService — other agent (services-networking-cloud) (`SwiftCode/Features/AI/LLMService.swift`)
-//   - ProjectSessionStore — other agent (services-networking-cloud) (`SwiftCode/Services/ProjectSessionStore.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 
-/// The localization-only agent used by LocalizingAppNewView's
-/// "Localize App" button.
-///
-/// Hard rule, enforced in code (not just in a prompt): every file
-/// write in a localization run goes through one of these four
-/// registered Assist tools, via the same registry validation the
-/// SDK runner uses. The model is only ever asked for translation
-/// *text* (LLMService); it never touches a file, and no other tool
-/// is reachable from this service — `runTool` throws for any id
-/// outside the allowlist.
 @MainActor
 public enum LocalizingAppService {
-    /// The complete, closed toolset for app localization.
     public static let allowedToolIDs: Set<String> = [
-        "localize_app",          // scaffold: discover keys, merge catalog, update Info.plist
-        "localization_manager",  // read/add/validate localization files
-        "strings_localization",  // get/set/delete one string (writes "translated" state)
-        "localization_audit",    // read-only coverage report
+        "localize_app",
+        "localization_manager",
+        "strings_localization",
+        "localization_audit",
     ]
 
     public struct LocalizeProgress {
@@ -45,11 +17,6 @@ public enum LocalizingAppService {
 
     public typealias ProgressHandler = (LocalizeProgress) -> Void
 
-    // MARK: - Guarded tool execution
-
-    /// Executes one localization tool through registry validation.
-    /// Throws for any tool id outside `allowedToolIDs`, for failed
-    /// validation, and for unsuccessful tool results — never silently.
     public static func runTool(
         id: String,
         arguments: [String: Any],
@@ -75,9 +42,6 @@ public enum LocalizingAppService {
                 userInfo: [NSLocalizedDescriptionKey: "Tool '\(id)' is not registered. Nothing was executed."]
             )
         }
-        // V2 fix W-V2: was `ProjectSessionStore.shared.activeProject`
-        // (SwiftCodeIDECore, unreachable from this target). This service
-        // only has a workspace root, so the root itself is the project.
         let project = AssistProject(workspaceRoot: workspaceRoot)
         let context = AssistContext(
             sessionId: UUID(),
@@ -101,19 +65,6 @@ public enum LocalizingAppService {
         return result
     }
 
-    // MARK: - One-click localization
-
-    /// Fully localizes the app into `languages`:
-    /// 1. `localize_app` discovers source strings, creates/merges the
-    ///    String Catalog, and updates Info.plist localizations.
-    /// 2. The model translates every source string (batched, JSON in /
-    ///    JSON out) — translation text only, no file access.
-    /// 3. Each translation is written back with `strings_localization`
-    ///    (action `set`, state `translated`) — the only writer.
-    /// Returns a human-readable summary. Throws on scaffold failure;
-    /// a translation failure for a batch leaves that batch's strings
-    /// as "new" placeholders and is reported in the summary, never
-    /// faked with source-language text.
     public static func localizeApp(
         catalogURL: URL,
         workspaceRoot: URL,
@@ -130,8 +81,6 @@ public enum LocalizingAppService {
             ],
             workspaceRoot: workspaceRoot
         )
-        // Re-read the catalog the tool just wrote: source strings are
-        // the keys' source-language values.
         let catalog = try readCatalog(at: catalogURL)
         let sourceStrings = sourceStrings(from: catalog, sourceLanguage: sourceLanguage)
         guard !sourceStrings.isEmpty else {
@@ -179,13 +128,9 @@ public enum LocalizingAppService {
         return summary
     }
 
-    // MARK: - Catalog reading (for the editor + the AI flow)
-
     public struct CatalogEntry {
         public var key: String
         public var comment: String?
-        /// language -> (state, value). Entries with variations and no
-        /// stringUnit are represented with state "variations".
         public var localizations: [String: (state: String, value: String)]
     }
 
@@ -236,8 +181,6 @@ public enum LocalizingAppService {
         }
         return url.lastPathComponent
     }
-
-    // MARK: - Model translation (text only)
 
     private static func translate(
         batch: [(key: String, value: String)],

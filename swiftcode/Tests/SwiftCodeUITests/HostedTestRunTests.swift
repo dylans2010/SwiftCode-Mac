@@ -8,12 +8,6 @@ import SwiftCodeBuild
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Product ▸ Test (⌘U) on app-hosted tests (specs/ide/testing.md, "SwiftCode
-/// implementation"): the HostMac sample's XCTest and Swift Testing bundles
-/// run inside HostMac.app through swiftcodebuild, and the Test navigator, the
-/// gutter and the issues show their results. Needs the swift-build helper
-/// (`SWIFTCODE_SWB`) and the test agent (`swift build --product SwiftCodeTestAgent`);
-/// skipped without them.
 @MainActor
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(10))) struct HostedTestRunTests {
     static func tools() -> (swiftcodebuild: String, helper: String, agent: String)? {
@@ -27,7 +21,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return (swiftcodebuild, helper, agent)
     }
 
-    /// A copy of a sample project (tests must not write into the repository).
     static func copySample(_ name: String) throws -> URL {
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/hosted-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -36,8 +29,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return to.appendingPathComponent(name + ".xcodeproj")
     }
 
-    /// Removes the DerivedData folder a run made for a copied sample (its
-    /// result bundle line names it), so runs leave no build output behind.
     static func removeDerivedData(_ session: WorkspaceSession, sample: String) {
         for line in session.buildLog {
             guard let r = line.range(of: "/Logs/Test/") else { continue }
@@ -77,11 +68,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(status("HostMacSwiftTests/runsAfterLaunch") == .passed)
         #expect(status("HostMacSwiftTests/failsOnPurpose") == .failed)
         #expect(outcomes.contains { $0.name == "testSkipped" && $0.status == .skipped })
-        // The failures are issues at their lines.
         #expect(session.issues.contains { $0.location?.line == 24 && $0.location?.file.hasSuffix("HostMacXCTests.swift") == true })
         #expect(session.reports.first?.succeeded == false)
 
-        // One test's diamond runs only that test, inside the app.
         let file = project.deletingLastPathComponent().appendingPathComponent("HostMacXCTests/HostMacXCTests.swift").path
         wc.open(path: file, line: nil)
         let one = session.tests.filter { $0.identifier == "HostMacXCTests/testAddsInTheApp" }
@@ -90,12 +79,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(session.reports.first?.succeeded == true)
     }
 
-    /// ⌘U with the SwiftCode simulator chosen: the HostPhone sample's hosted
-    /// tests run in the app on the remote simulator and their results reach
-    /// the Test navigator. Opt-in, with the remote run test's variables
-    /// (`SWIFTCODE_E2E_REMOTE`, `SWIFTCODE_E2E_DATA`, `SWIFTCODE_E2E_RUNTIME`,
-    /// `SWIFTCODE_E2E_SIMD`, `SWIFTCODE_E2E_DEVICE`) and the simulator build of the
-    /// agent (`OUT=.build/debug SimGuestAgents/build-test-agent.sh`).
     @Test func hostedPhoneTestsRunOnTheSwiftCodeSimulator() async throws {
         let env = ProcessInfo.processInfo.environment
         let simAgent = swiftcodeDir.appendingPathComponent(".build/debug/iphonesimulator/libSwiftCodeTestAgent.dylib").path

@@ -1,8 +1,3 @@
-// MARK: - Markdown render options (Wave 19, slice C)
-//
-// Ported from Legacy `SwiftCode/Shared/Markdown/MarkdownRenderOptions.swift`
-// (Dylan's own code, ported under MIT).
-
 import Foundation
 import SwiftUI
 

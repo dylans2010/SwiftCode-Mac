@@ -1,7 +1,3 @@
-// The OpenXR side of `swiftcode-xr-viewer` (specs/simulator/xr-viewer.md §3):
-// a Swift face for CSwiftCodeOpenXR — the session, one frame's tracking as an
-// `XRTrackingSample`, per-eye uploads and the projection layer.
-
 import CSwiftCodeOpenXR
 import Foundation
 import SwiftCodeDisplayStream
@@ -24,7 +20,6 @@ extension XRFieldOfView {
     var xr: yxr_fov { yxr_fov(angle_left: Float(left), angle_right: Float(right), angle_up: Float(up), angle_down: Float(down)) }
 }
 
-/// What the runtime and the headset offer (phase 1, xr-viewer.md §2).
 public struct XRSystemInfo: Sendable, CustomStringConvertible {
     public var runtime: String, system: String, gpu: String
     public var eyeGaze: Bool, handTracking: Bool, handInteraction: Bool, fbEyeSocial: Bool, touchPro: Bool
@@ -71,22 +66,17 @@ public enum XRSessionEvent: Sendable, Equatable {
     case lost
 }
 
-/// One frame from the runtime.
 public struct XRFrameState: Sendable {
     public var displayTime: Int64
     public var displayPeriod: Int64
     public var shouldRender: Bool
     public var focused: Bool
-    /// The views' own fields of view (the headset's), for information.
     public var fov: [XRFieldOfView]
     public var sample: XRTrackingSample?
-    /// The eye gaze's sample time against the time it was located for (ns; 0: not given).
     public var gazeSampleAge: Int64 = 0
 }
 
 public final class XRSession: @unchecked Sendable {
-    /// The C session (for modules that use the hooks of CSwiftCodeOpenXR.h:
-    /// yxr_vulkan, yxr_acquire_render, yxr_queue_lock, …).
     public let handle: OpaquePointer
     public let info: XRSystemInfo
 
@@ -96,7 +86,6 @@ public final class XRSession: @unchecked Sendable {
         return (ok, text(err))
     }
 
-    /// The instance and system only (`session` false) or a full session.
     public init(appName: String = "swiftcode-xr-viewer", session: Bool) throws {
         var info = yxr_info()
         var err = [CChar](repeating: 0, count: 512)
@@ -111,7 +100,6 @@ public final class XRSession: @unchecked Sendable {
 
     public var running: Bool { yxr_running(handle) != 0 }
 
-    /// The runtime's time for now (XrTime ns; 0 when it cannot convert).
     public var xrNow: Int64 { yxr_now(handle) }
 
     public func poll() -> XRSessionEvent? {
@@ -131,18 +119,14 @@ public final class XRSession: @unchecked Sendable {
 
     public var lastError: String { String(cString: yxr_last_error(handle)) }
 
-    /// Waits for and begins a frame; the tracking at its display time.
     public func beginFrame(time: Double) throws -> XRFrameState {
         var f = yxr_frame()
         guard yxr_begin_frame(handle, &f) == 0 else { throw XRViewerError.openXR(lastError) }
-        // A gaze the runtime no longer tracks is a dropout, whatever pose it still gives
-        // (only once it has said "tracked" at all: a runtime may never set the bit).
         if f.gaze_valid != 0 {
             if f.gaze_tracked != 0 {
                 gazeEverTracked = true
                 untrackedRun = 0
             } else if gazeEverTracked {
-                // Two seconds without the bit while the pose stays valid: the runtime has stopped setting it; go by the pose.
                 untrackedRun += 1
                 if untrackedRun > 180 { gazeEverTracked = false } else { f.gaze_valid = 0; untrackedGaze += 1 }
             }
@@ -152,10 +136,8 @@ public final class XRSession: @unchecked Sendable {
 
     private var gazeEverTracked = false
     private var untrackedRun = 0
-    /// Samples the runtime gave without its tracked bit, and that were treated as dropouts.
     public private(set) var untrackedGaze = 0
 
-    /// 1: the gaze located at the present, not at the frame's display time.
     public func locateGazeAtPresent(_ on: Bool) { yxr_set_gaze_at_present(handle, on ? 1 : 0) }
 
     static func state(of f: inout yxr_frame, time: Double) -> XRFrameState {
@@ -194,36 +176,28 @@ public final class XRSession: @unchecked Sendable {
                             gazeSampleAge: f.gaze_valid != 0 && f.gaze_time != 0 ? f.display_time - f.gaze_time : 0)
     }
 
-    /// Copies a BGRA image into eye `eye`'s swapchain (between begin and end).
     public func upload(eye: Int, pixels: UnsafeRawPointer, width: Int, height: Int, bytesPerRow: Int) throws {
         guard yxr_upload(handle, Int32(eye), pixels, Int32(width), Int32(height), Int32(bytesPerRow)) == 0 else {
             throw XRViewerError.openXR(lastError)
         }
     }
 
-    /// Copies a planar 4:4:4 video picture into eye `eye`'s swapchain (converted on several threads).
     public func uploadYUV444(eye: Int, y: UnsafePointer<UInt8>, u: UnsafePointer<UInt8>, v: UnsafePointer<UInt8>, pitch: Int, width: Int, height: Int) throws {
         guard yxr_upload_yuv444(handle, Int32(eye), y, u, v, Int32(pitch), Int32(width), Int32(height)) == 0 else {
             throw XRViewerError.openXR(lastError)
         }
     }
 
-    /// Copies an NV12 video picture into eye `eye`'s swapchain (converted on
-    /// several threads).
     public func uploadNV12(eye: Int, y: UnsafePointer<UInt8>, uv: UnsafePointer<UInt8>, pitch: Int, width: Int, height: Int) throws {
         guard yxr_upload_nv12(handle, Int32(eye), y, uv, Int32(pitch), Int32(width), Int32(height)) == 0 else {
             throw XRViewerError.openXR(lastError)
         }
     }
 
-    /// Ends the frame: one projection layer, view i showing swapchain
-    /// `images[i]` at `poses[i]` (XR base space) with `fovs[i]` (none when
-    /// `images` is empty), then the sprites (the hands) over it.
     public func endFrame(images: [Int], poses: [SpatialPose], fovs: [XRFieldOfView], insets: [Int]? = nil, insetFovs: [XRFieldOfView]? = nil,
                          sprites: [XRHandSprite] = [], render: [Bool] = [false, false], depthValid: [Bool] = [false, false],
                          depthNear: Float = 0.1, depthFar: Float = 1e6) throws {
         var s = yxr_submit()
-        // Hooks for a reprojecting renderer (CSwiftCodeOpenXR.h): the rendered swapchains and depth.
         s.render = (render.first == true ? 1 : 0, render.count > 1 && render[1] ? 1 : 0)
         s.depth_valid = (depthValid.first == true ? 1 : 0, depthValid.count > 1 && depthValid[1] ? 1 : 0)
         (s.depth_near, s.depth_far) = (depthNear, depthFar)
@@ -238,7 +212,6 @@ public final class XRSession: @unchecked Sendable {
                 s.inset_fov = (insetFovs[0].xr, insetFovs[1].xr)
             }
         }
-        // A sprite's image, or its `highlight`: 3 (the right hand's layer) or 2.
         let list = sprites.prefix(Int(YXR_MAX_SPRITES)).map { yxr_sprite(pose: $0.pose.xr, size: Float($0.size), image: $0.image >= 0 ? Int32($0.image) : $0.highlight ? 3 : 2) }
         let rc = list.withUnsafeBufferPointer { b -> Int32 in
             s.sprites = b.baseAddress
@@ -255,7 +228,6 @@ public final class XRSession: @unchecked Sendable {
     public func requestExit() { yxr_request_exit(handle) }
 }
 
-/// A NUL-terminated C buffer as text.
 func text(_ buffer: [CChar]) -> String {
     String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }

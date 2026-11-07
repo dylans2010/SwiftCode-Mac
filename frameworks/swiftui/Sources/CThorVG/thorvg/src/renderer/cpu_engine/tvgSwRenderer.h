@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_SW_RENDERER_H_
 #define _TVG_SW_RENDERER_H_
 
@@ -35,7 +13,6 @@ namespace tvg
 
 struct SwRenderer : RenderMethod
 {
-    //main features
     bool preUpdate() override;
     RenderData prepare(const RenderShape& rshape, RenderData data, const Matrix& transform, const Array<RenderData>& clips, uint8_t opacity, RenderUpdateFlag flags, bool clipper) override;
     RenderData prepare(RenderSurface* surface, RenderData data, const Matrix& transform, const Array<RenderData>& clips, uint8_t opacity, FilterMethod filter, RenderUpdateFlag flags) override;
@@ -56,20 +33,17 @@ struct SwRenderer : RenderMethod
     bool intersectsImage(RenderData data, const RenderRegion& region) override;
     Result target(pixel_t* data, uint32_t stride, uint32_t w, uint32_t h, ColorSpace cs);
 
-    //composition
     SwSurface* request(int channelSize, bool square);
     RenderCompositor* target(const RenderRegion& region, ColorSpace cs, CompositionFlag flags) override;
     bool beginComposite(RenderCompositor* cmp, MaskMethod method, uint8_t opacity) override;
     bool endComposite(RenderCompositor* cmp) override;
     void clearCompositors();
 
-    //post effects
     void prepare(RenderEffect* effect, const Matrix& transform) override;
     bool region(RenderEffect* effect) override;
     bool render(RenderCompositor* cmp, const RenderEffect* effect, bool direct) override;
     void dispose(RenderEffect* effect) override;
 
-    //partial rendering
     void damage(RenderData rd, const RenderRegion& region) override;
     bool partial(bool disable) override;
     uint32_t dirtyRegions() const override;
@@ -78,16 +52,16 @@ struct SwRenderer : RenderMethod
     SwRenderer(uint32_t threads, EngineOption op);
     static bool term();
 
-    SwSurface*           surface = nullptr;           // active surface
-    SwMpool*             mpool;                       // designated memory pool
-    bool                 antiAlias;                   // anti-aliasing support
+    SwSurface*           surface = nullptr;
+    SwMpool*             mpool;
+    bool                 antiAlias;
 
 private:
-    bool                 fulldraw = true;             //buffer is cleared (need to redraw full screen)
-    bool                 rendered = false;            //draw completed and awaits sync
-    Array<SwTask*>       tasks;                       //async task list
-    Array<SwSurface*>    compositors;                 //render targets cache list
-    RenderDirtyRegion    dirtyRegion;                 //partial rendering support
+    bool                 fulldraw = true;
+    bool                 rendered = false;
+    Array<SwTask*>       tasks;
+    Array<SwSurface*>    compositors;
+    RenderDirtyRegion    dirtyRegion;
 
     ~SwRenderer();
 
@@ -96,4 +70,4 @@ private:
 
 }
 
-#endif /* _TVG_SW_RENDERER_H_ */
+#endif

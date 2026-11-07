@@ -1,19 +1,3 @@
-// Snapshot and restore of a running simulator, VMM side
-// (specs/simulator/snapshot.md §3, §6, §7, §9). Default off: nothing here
-// runs unless a SWIFTCODE_SNAPSHOT_* or SWIFTCODE_RESTORE_DIR variable is set.
-//
-// - The gates (§3.1): every image's trap handler and run check are wrapped
-//   when the image is built (`attach`); while a snapshot is pausing, a
-//   thread that reaches a trap or is kicked out of guest code at EL0 parks
-//   there with its frame and FP/SIMD state.
-// - The quiesce loop kicks running vCPUs and classifies every thread under
-//   the kernel lock until everything is settled, then captures the kernel
-//   records and the guest memory with the lock held, and resumes.
-// - The restore (§7) rebuilds the processes, launches their images
-//   suspended, replays the memory, restores the kernel objects, and starts
-//   every thread at an `svc` whose first trap the restore hook replaces with
-//   the recorded frame.
-
 #if os(Linux) && arch(arm64)
 import CKVM
 import Foundation
@@ -23,7 +7,6 @@ import SwiftCodeDarwinABI
 import SwiftCodeDarwinKernel
 import SwiftCodeHypervisor
 
-/// The settings, from the environment.
 struct SnapshotSettings {
     var directory: String?
     var atMilliseconds: [UInt64] = []
@@ -33,33 +16,12 @@ struct SnapshotSettings {
     var census = false
     var restoreDirectory: String?
     var deadlineMilliseconds: UInt64 = 5000
-    /// `SWIFTCODE_RESTORE_MEASURE=1`: restore images, memory and objects as far
-    /// as they go (shared regions skipped), print the timings, start nothing, exit.
     var measureRestore = false
-    /// `SWIFTCODE_RESTORE_LAZY=1` (§6.3): page files are mapped as guest memory
-    /// (private, copy-on-write) instead of being read up front.
     var lazyRestore = false
-    /// `SWIFTCODE_RESTORE_PREFETCH=1` (with lazy restore): a background thread
-    /// asks the host to read the page files ahead (POSIX_FADV_WILLNEED).
     var prefetch = false
-    /// `SWIFTCODE_SNAPSHOT_HOLD_APPS=<s>` (device mode, with
-    /// `SWIFTCODE_SNAPSHOT_WHEN_FILE`): the `--install-app` / `--launch` steps
-    /// wait until that snapshot is written or has failed, at most `s`
-    /// seconds, so the snapshot shows the home screen without the app (the
-    /// IDE's warm boot, specs/ide/run.md).
     var holdAppsSeconds: Int?
-    /// `SWIFTCODE_SNAPSHOT_STOP_DIR=<dir>` (device mode, §12 "Stop snapshot"):
-    /// when the run is stopped (SIGTERM, SIGINT, SIGHUP, or `--timeout-ms`)
-    /// the launched app is killed, the device settles for
-    /// `SWIFTCODE_SNAPSHOT_STOP_SETTLE_MS` (default 2000), and a snapshot is
-    /// written to `dir`; the host process then exits without running another
-    /// guest instruction, so the device directory stays exactly as the
-    /// snapshot recorded it (a restore in place, §2.7).
     var stopDirectory: String?
     var stopSettleMilliseconds: UInt64 = 2000
-    /// `SWIFTCODE_SNAPSHOT_STOP_REQUIRES=<file>`: a stop is saved only when the
-    /// file exists (the launcher creates it once the device has settled at
-    /// its home screen, §12.4); otherwise the guest shuts down cleanly.
     var stopRequiresFile: String?
 
     static func fromEnvironment() -> SnapshotSettings? {
@@ -87,16 +49,11 @@ struct SnapshotSettings {
 
 func snapLog(_ text: String) { stderrLine("swiftcode-simd: snapshot: " + text) }
 
-/// The stop trigger's signal (§12): set by the handler, read by a thread.
 enum StopSignal {
     static let received = Atomic<Int32>(0)
 }
 private func snapshotStopSignalHandler(_ sig: Int32) { StopSignal.received.store(sig, ordering: .relaxed) }
 
-/// Host ranges a lazy restore mapped from page files (§6.3). A later
-/// snapshot counts their pages as resident and dirty whatever `mincore` and
-/// the page map say: an untouched page there is a page-file page, not a
-/// zero page or a page of the original file.
 final class SnapshotOverlays: @unchecked Sendable {
     static let shared = SnapshotOverlays()
     private let lock = HostMutex(name: "snapshot overlays")
@@ -135,11 +92,9 @@ final class SnapshotOverlays: @unchecked Sendable {
     }
 }
 
-/// Lazy-restore counters (§6.3).
 struct LazyRestoreStats {
     var overlayPages = 0
     var overlayRuns = 0
-    /// Restore timing (ns): region replay (incl. shared-object fills), shared-object fills, page files.
     var regionNanoseconds: UInt64 = 0
     var sharedNanoseconds: UInt64 = 0
     var pageNanoseconds: UInt64 = 0
@@ -157,58 +112,29 @@ struct LazyRestoreStats {
 
 final class SnapshotSupport: @unchecked Sendable {
     static let shared: SnapshotSupport? = SnapshotSettings.fromEnvironment().map(SnapshotSupport.init)
-    /// After a restore: the seconds between the snapshot's creation and the
-    /// restore (the calendar's jump for the guest, §5); nil before.
     nonisolated(unsafe) var restoreCalendarGapSeconds: Int64?
 
     let settings: SnapshotSettings
-    /// True while a snapshot is pausing the guest (the gates park threads).
     private let pausing = Atomic<Bool>(false)
-    /// True while restored threads still wait for their first trap.
     private let restoring = Atomic<Bool>(false)
-    /// The file-triggered snapshot has been written or has failed
-    /// (`SWIFTCODE_SNAPSHOT_HOLD_APPS`).
     private let appsReleased = Atomic<Bool>(false)
     private let gateLock = HostMutex()
-    /// One snapshot at a time (the file trigger, the timed ones, the stop one).
     private let snapshotLock = HostMutex(name: "snapshot")
     private let gateCondition = HostCondition()
-    /// Parked threads by `ObjectIdentifier` of their context (gate lock).
     private var parked: [ObjectIdentifier: (state: SnapshotParkedThread, worker: VCPUPool.Worker)] = [:]
-    /// Restored threads waiting for their first trap (gate lock), and the
-    /// pool each was started on (a thread whose process ends before its
-    /// first trap never takes its plan: `dropEndedRestores`).
     private var pendingRestores: [ObjectIdentifier: KernelSnapshotRestore.ThreadPlan] = [:]
     private var pendingRestorePools: [ObjectIdentifier: VCPUPool] = [:]
-    /// §7 step 9: restored threads wait at their first trap until every
-    /// restored thread has its vCPU and the restore is complete.
-    /// `SWIFTCODE_RESTORE_NO_BARRIER=1` (diagnostics, the old behavior): no wait,
-    /// and a thread whose process ended fails the restore.
     private let startGate = SnapshotRestoreStartGate()
     static let noRestoreBarrier = getenv("SWIFTCODE_RESTORE_NO_BARRIER").map { String(cString: $0) == "1" } ?? false
     private var started = false
-    /// Lazy restore (§6.3): what was mapped instead of copied.
     private var lazyStats = LazyRestoreStats()
 
     init(_ settings: SnapshotSettings) { self.settings = settings }
 
-    // MARK: Host services (§2.6, §9)
-
-    /// The host services' own state, as optional `hostService` records
-    /// (tag 1: the service name). Called before the quiesce, with no lock
-    /// held, so a service's lock is never taken under the kernel lock.
     var hostServiceState: (() -> [SnapshotFields])?
-    /// After a restore, before any thread starts: the recorded
-    /// `hostService` records, for the services to take their state back.
     var restoreHostServices: (([SnapshotFieldReader]) -> Void)?
-    /// Services whose state must be read with the guest quiesced (IOSurface,
-    /// Metal): called with the kernel lock held once every thread is settled.
-    /// Returns the records, or a reason to try again.
     var quiescedServiceState: (() -> Result<[SnapshotFields], SnapshotError>)?
 
-    // MARK: Gates
-
-    /// Wraps the pool callbacks of a new image (before any of its threads runs).
     func attach(_ image: GuestImageInstance) {
         let pool = image.pool
         let trap = pool.trapHandler
@@ -242,9 +168,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }
     }
 
-    /// Forgets the restored threads whose process ended before their first
-    /// trap (their pool ended), so the first-trap check stops costing a
-    /// lock on every trap. Returns how many are still pending.
     @discardableResult
     private func dropEndedRestores() -> Int {
         gateLock.withLock {
@@ -257,13 +180,12 @@ final class SnapshotSupport: @unchecked Sendable {
         }
     }
 
-    /// The run gate: a vCPU that stopped at EL0 (a kick) parks with its registers.
     private func runGate(_ pool: VCPUPool) {
         let tid = UInt64(ckvm_gettid())
         guard let worker = pool.snapshotWorkers.workers.first(where: { $0.hostTID.load(ordering: .relaxed) == tid }),
               worker.context is ThreadContext else { return }
         let vcpu = worker.vcpu
-        guard let pstate = try? vcpu.get(.pstate), pstate & 0xF == 0 else { return }  // EL1: run on
+        guard let pstate = try? vcpu.get(.pstate), pstate & 0xF == 0 else { return }
         var frame = TrapFrame()
         for n in 0..<TrapFrame.registerCount { frame.x[n] = (try? vcpu.get(.x(n))) ?? 0 }
         frame.spEL0 = (try? vcpu.get(.spEL0)) ?? 0
@@ -275,7 +197,6 @@ final class SnapshotSupport: @unchecked Sendable {
         park(worker, kind: .resume, frame: frame)
     }
 
-    /// Parks the calling vCPU thread until the snapshot ends.
     private func park(_ worker: VCPUPool.Worker, kind: SnapshotThreadKind, frame: TrapFrame) {
         guard let context = worker.context as? ThreadContext else { return }
         var fp = [UInt8](repeating: 0, count: Int(CKVM_FP_STATE_SIZE))
@@ -289,17 +210,12 @@ final class SnapshotSupport: @unchecked Sendable {
         gateLock.unlock()
     }
 
-    // MARK: Triggers
-
-    /// The root process runs: start the triggers.
     func rootStarted(system: DarwinSystem, launcher: VMMLauncher, config: ExecConfiguration) {
         guard !started else { return }
         started = true
         let s = settings
         if s.stopDirectory != nil, config.device != nil { installStopTrigger(system: system, launcher: launcher, config: config) }
         if s.directory == nil, !s.census, let file = s.whenFile, s.holdAppsSeconds != nil, s.restoreDirectory == nil {
-            // The app steps wait for the settled home screen without a
-            // snapshot being taken then (the launcher's cold boot, §12).
             Thread.detachNewThread { [self] in
                 while access(file, F_OK) != 0 { usleep(20_000) }
                 usleep(UInt32(min(s.delayMilliseconds, 60_000) * 1000))
@@ -327,9 +243,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }
     }
 
-    /// `SWIFTCODE_SNAPSHOT_HOLD_APPS`: called by the device session before its
-    /// app steps; returns once the file-triggered snapshot is done (written
-    /// or failed), after the hold's limit, or when the run ends.
     func holdAppsUntilSnapshot(isEnding: () -> Bool) {
         guard let limit = settings.holdAppsSeconds, settings.whenFile != nil,
               settings.directory != nil || settings.stopDirectory != nil, settings.restoreDirectory == nil else { return }
@@ -344,37 +257,22 @@ final class SnapshotSupport: @unchecked Sendable {
                 : "app steps continue without the snapshot (held \(waited) s)")
     }
 
-    // MARK: Stop snapshot (§12)
-
-    /// Set by the device wiring: the pid of the app the session launched
-    /// (nil: none or not yet), whether the app steps are still running, and
-    /// the clean end of the session (launchd_sim shuts the guest down).
     var stopHooks: (appPID: () -> Int32?, appStepsRunning: () -> Bool, endSession: () -> Void)?
     private var stopContext: (system: DarwinSystem, launcher: VMMLauncher, config: ExecConfiguration)?
     private let stopTaken = Atomic<Bool>(false)
-    /// Called once when a stop signal arrives, before the save (the display
-    /// server tells its viewer that the device is stopping).
     var beforeStop: (() -> Void)?
 
-    /// Whether SIGTERM, SIGINT and SIGHUP end the run with a stop snapshot
-    /// (device mode with `SWIFTCODE_SNAPSHOT_STOP_DIR`); other signal handling
-    /// (the display server's) then defers to it.
     var handlesStopSignals: Bool { settings.stopDirectory != nil }
 
-    /// SIGTERM, SIGINT and SIGHUP end the run with a stop snapshot.
     private func installStopTrigger(system: DarwinSystem, launcher: VMMLauncher, config: ExecConfiguration) {
         gateLock.withLock { stopContext = (system, launcher, config) }
         for sig in [SIGTERM, SIGINT, SIGHUP] { _ = signal(sig, snapshotStopSignalHandler) }
         Thread.detachNewThread { [self] in
             while StopSignal.received.load(ordering: .relaxed) == 0 { usleep(50_000) }
             let sig = StopSignal.received.load(ordering: .relaxed)
-            // Gauge's trace is written before the save (profiler.md §3.1).
             GaugeRecorder.shared?.finish(reason: "stop (signal \(sig))")
             beforeStop?()
             if !stopAndSave(reason: "signal \(sig)") {
-                // No snapshot: the guest shuts down cleanly (the session
-                // ends) and the run ends as after its time limit; a guest
-                // that does not stop within 30 s ends with the host process.
                 stopHooks?.endSession()
                 sleep(30)
                 snapLog("stop: the guest did not shut down within 30 s; exiting")
@@ -383,14 +281,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }
     }
 
-    /// The stop snapshot: kills the launched app (the reference IDE's Stop
-    /// ends the app, the device keeps running), lets the device settle,
-    /// writes the snapshot to `SWIFTCODE_SNAPSHOT_STOP_DIR` and exits the host
-    /// process (status 0) without running another guest instruction.
-    /// Returns false (nothing written, the run goes on) when no stop
-    /// snapshot is configured, one was already tried, the app steps are
-    /// still running (an install half done is not a state to keep), or the
-    /// snapshot failed.
     func stopAndSave(reason: String) -> Bool {
         guard let dir = settings.stopDirectory, let ctx = gateLock.withLock({ stopContext }),
               !stopTaken.exchange(true, ordering: .acquiringAndReleasing) else { return false }
@@ -411,19 +301,12 @@ final class SnapshotSupport: @unchecked Sendable {
                 ? "reaped after \(monotonicMilliseconds() - began) ms" : "not reaped after 10 s"))
         }
         usleep(UInt32(settings.stopSettleMilliseconds * 1000))
-        // Exits after a written snapshot, with the guest still parked. The
-        // descriptors named in SWIFTCODE_SNAPSHOT_STOP_CLOSE_FDS (the launcher's
-        // device lock and boot slot) are closed first, so the next run is
-        // not held up while the host process's VMs are torn down (about
-        // 14 s on the Thor).
         let fds = (getenv("SWIFTCODE_SNAPSHOT_STOP_CLOSE_FDS").map { String(cString: $0) } ?? "").split(separator: ",").compactMap { Int32($0) }
         _ = snapshot(system: ctx.system, launcher: ctx.launcher, config: ctx.config, label: "stop", directory: dir, exit: true,
                      beforeExit: { for fd in fds where fd > 2 { close(fd) } })
         snapLog("stop: no stop snapshot")
         return false
     }
-
-    // MARK: Snapshot
 
     struct MemoryCapture {
         var regions: [SnapshotFields] = []
@@ -432,11 +315,6 @@ final class SnapshotSupport: @unchecked Sendable {
         var unsupported: [String] = []
     }
 
-    /// Quiesces, captures, writes (unless census), resumes or exits.
-    /// `directory`: where to write (default `SWIFTCODE_SNAPSHOT_DIR`); `exit`:
-    /// end the host process after a written snapshot (default
-    /// `SWIFTCODE_SNAPSHOT_EXIT`). Returns true when the snapshot was written
-    /// (or counted, for a census).
     @discardableResult
     func snapshot(system: DarwinSystem, launcher: VMMLauncher, config: ExecConfiguration, label: String,
                   directory: String? = nil, exit: Bool? = nil, beforeExit: (() -> Void)? = nil) -> Bool {
@@ -461,8 +339,6 @@ final class SnapshotSupport: @unchecked Sendable {
             attempts += 1
             let images = launcher.snapshotLiveImages
             kick(images)
-            // With the lock split, fast IPC paths do not take L0: every fine
-            // lock is held too while the system is classified and captured.
             let done: Bool = system.lock.withLock { system.lock.withAllFineLocks {
                 let pending = images.reduce(0) { $0 + $1.pool.snapshotWorkers.pendingCreations }
                 let parkedNow: [ObjectIdentifier: (state: SnapshotParkedThread, worker: VCPUPool.Worker)] = gateLock.withLock { parked }
@@ -490,7 +366,6 @@ final class SnapshotSupport: @unchecked Sendable {
                 return true
             } }
             if done {
-                // The memory directory's files (frame record), with the guest still parked.
                 if written, !settings.census { config.device?.saveMemoryDirectory() }
                 break
             }
@@ -509,9 +384,6 @@ final class SnapshotSupport: @unchecked Sendable {
             usleep(1000)
         }
         if exitAfter, !settings.census, written {
-            // No guest instruction runs after the capture: the threads stay
-            // parked (the pause ends only when this function returns), so
-            // the device directory stays as the snapshot saw it.
             snapLog("exiting after the snapshot")
             config.device?.finishMemoryDirectory()
             beforeExit?()
@@ -520,7 +392,6 @@ final class SnapshotSupport: @unchecked Sendable {
         return written || settings.census
     }
 
-    /// Kicks every worker that runs guest code (not parked, not in a handler).
     private func kick(_ images: [GuestImageInstance]) {
         let parkedWorkers: Set<ObjectIdentifier> = gateLock.withLock { Set(parked.values.map { ObjectIdentifier($0.worker) }) }
         for image in images {
@@ -532,7 +403,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }
     }
 
-    /// The capture, with the kernel lock held and every thread settled.
     private func capture(system: DarwinSystem, images: [GuestImageInstance],
                          parked: [ObjectIdentifier: (state: SnapshotParkedThread, worker: VCPUPool.Worker)],
                          classification: SnapshotClassification, config: ExecConfiguration, label: String,
@@ -550,14 +420,11 @@ final class SnapshotSupport: @unchecked Sendable {
         }
         let kernel0 = images.first?.kernel
         let capture = KernelSnapshotCapture(system: system, classification: classification)
-        // §5: the clock record is in counter units (not mach units: with the
-        // 24 MHz guest timebase mach time is the counter scaled).
         capture.capture(images: inputs, guestCounter: sysClock?.guestCounter ?? kernel0?.counter() ?? 0,
                         frequency: sysClock?.frequency ?? kernel0?.counterFrequency ?? 0,
                         bootCounter: sysClock?.bootCounter ?? kernel0?.bootCounter ?? 0)
         let kernelDone = monotonicNanoseconds()
 
-        // Guest memory.
         var memory: [(image: GuestImageInstance, id: UInt64, capture: MemoryCapture)] = []
         var unsupported = capture.unsupported
         for image in images {
@@ -566,7 +433,6 @@ final class SnapshotSupport: @unchecked Sendable {
             for u in m.unsupported { unsupported[u, default: 0] += 1 }
             memory.append((image, id, m))
         }
-        // Shared memory objects: their resident non-zero pages, by offset.
         var sharedPages: [(id: UInt64, pages: [(va: UInt64, host: UnsafeRawPointer)])] = []
         for (id, object) in capture.sharedObjects where capture.savesPages(object) {
             sharedPages.append((id, residentPages(UnsafeRawPointer(object.host), size: object.size, base: 0)))
@@ -582,14 +448,11 @@ final class SnapshotSupport: @unchecked Sendable {
             records.append(SnapshotRecord(kind: .hostService, id: UInt64(9_000_000 + i), fields: r))
         }
 
-        // Report.
         let pages = memory.reduce(0) { $0 + $1.capture.pages.count } + sharedPages.reduce(0) { $0 + $1.pages.count }
         let pageBytes = UInt64(pages) * UInt64(SnapshotPageFile.pageSize)
         snapLog("\(label): quiesced in \((quiesced - began) / 1_000_000) ms (\(attempts) attempts); kernel records "
             + "\((kernelDone - quiesced) / 1_000_000) ms, memory scan \((memoryDone - kernelDone) / 1_000_000) ms")
         snapLog("\(label): threads: " + classification.counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))
-        // Diagnostics (§12.5): replies that only a host service or a kernel
-        // object can still send when the guest runs again.
         let orphanWaits = images.flatMap { $0.kernel.snapshotReplyWaitsWithoutGuestHolder() }
         for line in orphanWaits.prefix(20) { snapLog("\(label): " + line) }
         let lostRequests = images.compactMap { image -> String? in
@@ -621,7 +484,6 @@ final class SnapshotSupport: @unchecked Sendable {
             snapLog("\(label): writing anyway (the restore will refuse the unsupported kinds)")
         }
 
-        // Files.
         let timed = settings.atMilliseconds.count > 1 && directory == settings.directory && label.hasSuffix(" ms")
         let dir = directory + (timed ? "/" + label.replacingOccurrences(of: " ", with: "") : "")
         do {
@@ -636,12 +498,6 @@ final class SnapshotSupport: @unchecked Sendable {
             let manifest = SnapshotManifest.encode(records)
             try Data(manifest).write(to: URL(fileURLWithPath: dir + "/" + SnapshotManifest.fileName))
             bytes += UInt64(manifest.count)
-            // The device directory is part of the state (files the guest
-            // wrote, and guest paths name its host path). Its path and the
-            // inode number of every file as the guest sees it are always
-            // recorded, so a restore in place or from a copy keeps them
-            // (§2.7); with SWIFTCODE_SNAPSHOT_COPY_DEVICE=1 it is also copied
-            // while the guest is paused.
             if let device = config.device {
                 try Data((device.dev + "\n").utf8).write(to: URL(fileURLWithPath: dir + "/device-path"))
                 try Self.writeDeviceInodes(device.dev, to: dir + "/device-inodes")
@@ -665,8 +521,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }
     }
 
-    // MARK: Memory
-
     private func captureMemory(_ image: GuestImageInstance, imageID: UInt64, capture: KernelSnapshotCapture) -> MemoryCapture {
         var m = MemoryCapture()
         let space = image.space, vm = image.vm
@@ -685,8 +539,6 @@ final class SnapshotSupport: @unchecked Sendable {
             let pageCount = Int(r.size / page)
             switch r.backing {
             case .unbacked:
-                // A lazy anonymous mapping's untouched part: zeros, no pages
-                // (app-launch.md §3.2); its touched blocks are regions of their own.
                 g.u64(R.kind, 1)
             case let .anonymous(gpa):
                 g.u64(R.kind, 1)
@@ -710,8 +562,6 @@ final class SnapshotSupport: @unchecked Sendable {
                 var st = stat()
                 if let file, fstat(file.hostFD, &st) == 0, st.st_nlink == 0,
                    let host = try? vm.hostPointer(gpa: gpa, count: Int(r.size)) {
-                    // The file is gone (unlinked while mapped): the mapping's
-                    // contents are saved and it comes back as anonymous memory.
                     g.u64(R.kind, 1)
                     for i in 0..<pageCount {
                         let p = UnsafeRawPointer(host + i * Int(page))
@@ -748,7 +598,6 @@ final class SnapshotSupport: @unchecked Sendable {
                         m.pages.append((r.va + UInt64(i) * page, UnsafeRawPointer(host + i * Int(page))))
                     }
                 } else {
-                    // A copy in pool memory: pages that differ from the file.
                     for i in 0..<pageCount {
                         let p = UnsafeRawPointer(host + i * Int(page))
                         let bytes = try? file?.read(count: Int(page), offset: offset + UInt64(i) * page)
@@ -776,8 +625,6 @@ final class SnapshotSupport: @unchecked Sendable {
         return m
     }
 
-    /// The resident, non-zero 16 KiB pages of host memory [host, host+size),
-    /// addressed from `base`.
     private func residentPages(_ host: UnsafeRawPointer, size: UInt64, base: UInt64) -> [(va: UInt64, host: UnsafeRawPointer)] {
         let page = SnapshotPageFile.pageSize
         let perPage = page / Int(ckvm_host_page_size())
@@ -822,26 +669,19 @@ final class SnapshotSupport: @unchecked Sendable {
         return UInt64(header.count) + UInt64(pages.count) * UInt64(SnapshotPageFile.pageSize)
     }
 
-    // MARK: Restore
-
-    /// `SWIFTCODE_RESTORE_DIR`: restores the snapshot instead of spawning the
-    /// root process. Returns the root kernel, or nil when no restore was asked.
     func restoreIfRequested(system: DarwinSystem, launcher: VMMLauncher, config: ExecConfiguration) throws -> DarwinKernel? {
         guard let dir = settings.restoreDirectory else { return nil }
         let began = monotonicNanoseconds()
-        // No new guest thread starts until the restored ones have their vCPUs (§12.4).
         PoolThreadHost.restoring.store(true, ordering: .releasing)
         defer { PoolThreadHost.restoring.store(false, ordering: .releasing) }
         let manifestData = try Data(contentsOf: URL(fileURLWithPath: dir + "/" + SnapshotManifest.fileName))
         let (created, records) = try SnapshotManifest.decode([UInt8](manifestData))
-        // §5, §12.5: how far the calendar moved while the snapshot sat on disk.
         restoreCalendarGapSeconds = max(0, Int64(Date().timeIntervalSince1970) - Int64(bitPattern: created))
         if let device = config.device, FileManager.default.fileExists(atPath: dir + "/device-inodes") {
             let n = Self.installDeviceInodes(device.dev, from: dir + "/device-inodes")
             snapLog("restore: \(n) device files keep their recorded inode numbers")
         }
         let restore = try KernelSnapshotRestore(records: records, system: system)
-        // §5: the guest counter continues at the snapshot's value.
         let offset = Hypervisor.hostCounter() &- restore.clock.guestCounter
         launcher.snapshotPresetSystemClock(offset: offset, bootHostCounter: restore.clock.bootCounter &+ offset)
 
@@ -860,7 +700,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }
         let launched = monotonicNanoseconds()
 
-        // Memory (§7 step 5).
         var pageCount = 0
         let regionRecords = records.filter { $0.knownKind == .region }
         var regionsByImage: [UInt64: [SnapshotFieldReader]] = [:]
@@ -869,11 +708,6 @@ final class SnapshotSupport: @unchecked Sendable {
             regionsByImage[g.ref(ST_Region.image), default: []].append(g)
         }
         var skippedShared = 0
-        // Every shared memory object first (made once, filled once; the
-        // images then only map them), then the images' memory, one image
-        // after the other (`SWIFTCODE_RESTORE_PARALLEL=1`: in parallel; slower on
-        // the Thor, where the host mappings serialize on the process's
-        // memory-map lock: 6.7 s against 4.0 s).
         let shmStart = monotonicNanoseconds()
         var filledShared = Set<UInt64>()
         for id in restore.sharedObjectRecords {
@@ -889,7 +723,6 @@ final class SnapshotSupport: @unchecked Sendable {
         lazyStats.sharedNanoseconds = monotonicNanoseconds() - shmStart
         let work = imageByRecord.sorted { $0.key < $1.key }
         let parallel = getenv("SWIFTCODE_RESTORE_PARALLEL").map { String(cString: $0) == "1" } ?? false
-        // (Each image is restored by one thread; the shared state is behind `results.lock`.)
         final class Results: @unchecked Sendable {
             let lock = HostMutex(name: "restore results")
             var pages = 0, skipped = 0, stats = LazyRestoreStats(), error: Error?
@@ -968,17 +801,12 @@ final class SnapshotSupport: @unchecked Sendable {
             Glibc._exit(0)
         }
 
-        // Kernel objects (§7 steps 6–7).
         let threads = try restore.restoreObjects(memory: { images[ObjectIdentifier($0)]?.space })
         for w in restore.warnings.prefix(20) { snapLog("restore warning: " + w) }
         if restore.warnings.count > 20 { snapLog("restore: \(restore.warnings.count) warnings in all") }
         let objectsDone = monotonicNanoseconds()
 
-        // Main threads that had not started (start holds, §3.2): they start
-        // from the recorded state when the image is resumed.
         system.lock.withLock {
-            // Every other image's main thread ran before the snapshot: its
-            // state comes back with the thread records, never from the build.
             for image in images.values { image.snapshotMainState = nil }
             for (kernel, s) in restore.unstartedMains {
                 images[ObjectIdentifier(kernel)]?.snapshotMainState = VCPUStartState(pc: s.pc, sp: s.sp, registers: s.registers,
@@ -986,17 +814,11 @@ final class SnapshotSupport: @unchecked Sendable {
             }
         }
 
-        // Host services take their state back before any guest thread runs (§7 step 8).
         let serviceRecords = try records.filter { $0.kind == SnapshotRecordKind.hostService.rawValue }.map { try $0.fields() }
         restoreHostServices?(serviceRecords)
         let servicesDone = monotonicNanoseconds()
 
-        // Threads (§7 step 9).
         guard let stub = Self.svcStubAddress(config.stubs) else { throw SnapshotError("no svc in the host page") }
-        // Every thread gets its vCPU first; none runs before the restore is
-        // complete (the start gate, released at the end): a thread that ran
-        // at once could end its process while that process's other threads
-        // were still being started (the "no vCPU for thread N" failures of §12).
         let startable = threads.filter { images[ObjectIdentifier($0.kernel)] != nil }
         gateLock.withLock {
             for t in startable {
@@ -1005,10 +827,6 @@ final class SnapshotSupport: @unchecked Sendable {
             }
             if !pendingRestores.isEmpty { restoring.store(true, ordering: .releasing) }
         }
-        // Diagnostics: threads that restart at a trap which can end their
-        // process (exit, kill, __pthread_kill, terminate/abort_with_payload):
-        // without the gate, the first of them to run could end its process
-        // while its other threads were still waiting for a start.
         let endingTraps: Set<UInt64> = [1, 37, 328, 520, 521]
         let ending = startable.filter { t in
             guard t.kind == .pendingTrap else { return false }
@@ -1029,7 +847,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }, describe: { t in
             let pool = images[ObjectIdentifier(t.kernel)]!.pool
             let end = pool.currentTermination.map { " (pool ended: \($0.kind) \($0.status) \($0.message))" } ?? ""
-            // Which vCPUs hold a thread that is not one of the restored ones.
             let restoredIDs = Set(startable.filter { $0.kernel === t.kernel }.map { ObjectIdentifier($0.context) })
             let d = pool.debugState
             let foreign = d.contexts.compactMap { c -> String? in
@@ -1048,18 +865,12 @@ final class SnapshotSupport: @unchecked Sendable {
             snapLog("restore: \(starts.skipped.count) threads not started: their process ended during the restore (pids \(pids))")
             dropEndedRestores()
         }
-        // §8 option 1: processes named in SWIFTCODE_RESTORE_KILL (the GPU and
-        // IOSurface clients, whose host-service state is not restored) are
-        // killed at once; launchd_sim sees them exit and relaunches the jobs.
-        // The entry `auto` names the processes the snapshot recorded as Metal
-        // clients (the `metal` host-service record).
         let killNames = Set((getenv("SWIFTCODE_RESTORE_KILL").map { String(cString: $0) } ?? "").split(separator: ",").map(String.init))
         let gpuClients = Set(serviceRecords.filter { $0.string(ST_HostService.name) == "metal" }
             .flatMap { $0.u64s(ST_HostService.pids) }.map { Int32(truncatingIfNeeded: $0) })
         if !killNames.isEmpty {
             for plan in plans {
                 let name = (plan.executablePath as NSString).lastPathComponent
-                // An entry *text* matches every name that contains text.
                 let match = killNames.contains(name) || killNames.contains("*") || killNames.contains { k in
                     k.count > 2 && k.hasPrefix("*") && k.hasSuffix("*") && name.contains(k.dropFirst().dropLast())
                 } || (killNames.contains("auto") && gpuClients.contains(plan.pid))
@@ -1069,10 +880,6 @@ final class SnapshotSupport: @unchecked Sendable {
             }
         }
         restore.restoreStartHolds()
-        // §5: the calendar moved on while the snapshot sat on disk. Every
-        // image's commpage wall-clock snapshot is taken again (the restored
-        // one pairs the capture's mach time with the capture's calendar
-        // time), so the guest's first reads give the time of now.
         system.lock.withLock {
             for plan in plans {
                 guard let publish = plan.kernel.timeOfDayPublisher else { continue }
@@ -1086,19 +893,14 @@ final class SnapshotSupport: @unchecked Sendable {
         if restore.readOnlyReopens > 0 {
             snapLog("restore: \(restore.readOnlyReopens) files opened read-write again although their mode is read-only now")
         }
-        // Thread requests the restored knotes call for (§7 step 10), and
-        // those that arrived during the restore and were kept pending.
         PoolThreadHost.restoring.store(false, ordering: .releasing)
         let requeued = system.lock.withLock { plans.reduce(0) { $0 + $1.kernel.snapshotReissueThreadRequests() } }
         if requeued > 0 { snapLog("restore: \(requeued) workloop thread requests that no queue held were issued again") }
         if !restore.unstartedMains.isEmpty || restore.heldProcessCount > 0 {
             snapLog("restore: \(restore.unstartedMains.count) images not started yet, \(restore.heldProcessCount) start holds held again")
         }
-        // §7 step 9: the restored threads run from here on.
         startGate.release()
         if !Self.noRestoreBarrier {
-            // Threads whose process ends before their first trap never take
-            // their plan: forget them once their pool has ended.
             Thread.detachNewThread { [self] in
                 for _ in 0..<600 {
                     if dropEndedRestores() == 0 { break }
@@ -1120,8 +922,6 @@ final class SnapshotSupport: @unchecked Sendable {
         return root
     }
 
-    /// `device-inodes`: one entry per file below `root`, "<inode>\t<relative
-    /// path>\0", the inode as the guest sees it.
     static func writeDeviceInodes(_ root: String, to path: String) throws {
         var out = [UInt8]()
         out.reserveCapacity(1 << 20)
@@ -1135,9 +935,6 @@ final class SnapshotSupport: @unchecked Sendable {
         try Data(out).write(to: URL(fileURLWithPath: path))
     }
 
-    /// Restore from a copy of the device directory: maps every file's new
-    /// host inode to the recorded one (§2.7). Returns the number of files
-    /// whose inode differs.
     static func installDeviceInodes(_ root: String, from path: String) -> Int {
         guard let data = FileManager.default.contents(atPath: path) else { return 0 }
         var entries: [(dev: UInt64, hostIno: UInt64, guestIno: UInt64)] = []
@@ -1153,7 +950,6 @@ final class SnapshotSupport: @unchecked Sendable {
         return entries.count
     }
 
-    /// A page file's extents and data offset.
     static func readPageFileHeader(_ path: String) throws -> ([SnapshotPageFile.Extent], UInt64) {
         guard let handle = FileHandle(forReadingAtPath: path) else { throw SnapshotError("cannot open \(path)") }
         defer { try? handle.close() }
@@ -1164,7 +960,6 @@ final class SnapshotSupport: @unchecked Sendable {
         return try SnapshotPageFile.parseHeader([UInt8](handle.readData(ofLength: Int(dataOffset))))
     }
 
-    /// Copies a page file into a shared memory object (offsets as addresses).
     private func fillPages(_ object: SharedMemoryObject, from path: String) throws {
         guard let handle = FileHandle(forReadingAtPath: path) else { return }
         defer { try? handle.close() }
@@ -1179,7 +974,6 @@ final class SnapshotSupport: @unchecked Sendable {
         }
     }
 
-    /// The address of the first `svc #0x80` in the host page's code.
     static func svcStubAddress(_ stubs: [UInt8]) -> UInt64? {
         let svc: UInt32 = 0xD400_1001
         var i = 0
@@ -1196,7 +990,6 @@ final class SnapshotSupport: @unchecked Sendable {
                                filledShared: inout Set<UInt64>, stats: inout LazyRestoreStats) throws -> Int {
         let space = image.space
         typealias R = ST_Region
-        // The fresh image's own mappings go (the permanent ones stay).
         let t0 = monotonicNanoseconds()
         for r in space.regions where !r.permanent { try space.unmap(va: r.va, size: r.size) }
         var files: [String: GuestFile] = [:]
@@ -1248,12 +1041,6 @@ final class SnapshotSupport: @unchecked Sendable {
                 _ = try? space.mapAnonymous(at: va, size: size, protection: protection, hint: nil)
             }
         }
-        // The saved pages: straight into the host memory behind each page,
-        // except pages of the shared read-only file window (the address
-        // space moves those to a private copy first). Lazy restore (§6.3):
-        // runs of pages in the anonymous pool or in a private file mapping
-        // are mapped from the page file instead (private, copy-on-write),
-        // and read when the guest first touches them.
         let t1 = monotonicNanoseconds()
         stats.regionNanoseconds += t1 - t0
         defer { stats.pageNanoseconds += monotonicNanoseconds() - t1 }
@@ -1304,20 +1091,13 @@ final class SnapshotSupport: @unchecked Sendable {
     }
 }
 
-/// The host-service record's tags (§9): `device-session` has the control
-/// channel and the session port (host-task names); `metal` has the client pids.
 enum ST_HostService {
     static let name: UInt16 = 1, channel: UInt16 = 2, session: UInt16 = 3, pids: UInt16 = 4
-    /// `scdynamicstore`: the open sessions (nested: 1 session port, 2 notify rights).
     static let sessions: UInt16 = 5
-    /// `iosurface`, `metal`, `audio`: the service's own state (nested payload, the service's tags).
     static let state: UInt16 = 6
-    /// `hid`: the host-task name of the send right to the guest HID bundle's
-    /// port (hid-input.md §7 item 6); absent while no bundle has registered.
     static let hidClient: UInt16 = 7
 }
 
-/// The region record's tags (the kernel module keeps the others).
 enum ST_Region {
     static let image: UInt16 = 1, va: UInt16 = 2, size: UInt16 = 3, protection: UInt16 = 4, kind: UInt16 = 5
     static let guestPath: UInt16 = 6, hostPath: UInt16 = 7, offset: UInt16 = 8, shared: UInt16 = 9, permanent: UInt16 = 10

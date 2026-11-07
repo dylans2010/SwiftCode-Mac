@@ -1,10 +1,4 @@
 #!/bin/sh
-# Builds the settings-features probe app FeatureProbe.app (dev.swiftcode.FeatureProbe;
-# features/FeatureProbe.m; specs/simulator/simulator-features.md "SwiftCode
-# implementation", verification) for the iOS simulator platform. Runs on macOS only.
-#   ../out/guest-tests/features/FeatureProbe.app
-# Install and launch it on the Thor with swiftcode-simd --install-app <dir>/FeatureProbe.app
-# --launch dev.swiftcode.FeatureProbe; its "probe: <ms> …" lines go to the app's stdout.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/features}"

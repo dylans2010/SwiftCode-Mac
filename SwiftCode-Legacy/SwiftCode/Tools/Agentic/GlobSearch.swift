@@ -13,7 +13,6 @@ public struct GlobSearchTool: AgentTool {
     ]
 
     public func run(pattern: String) async throws -> [String] {
-        // Simple implementation using find command
         let result = try await ProcessRunnerTool.shared.run(
             executableURL: URL(fileURLWithPath: "/usr/bin/find"),
             arguments: [".", "-name", pattern]

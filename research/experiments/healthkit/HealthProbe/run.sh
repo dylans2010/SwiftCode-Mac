@@ -1,11 +1,4 @@
 #!/bin/sh
-# Launch one HealthProbe variant with a phase on a test simulator, wait until
-# the probe prints "DONE" (or SECONDS pass), save its report and a screenshot
-# into OUTDIR, then terminate it.
-# Usage: run.sh UDID BUNDLE-ID PHASE NAME OUTDIR SECONDS [keep]
-#   keep: leave the app running (for an authorization sheet the user answers)
-# simctl's --stderr path is resolved inside the guest, so /tmp/X lands in
-# <device>/data/tmp/X on the Mac.
 set -u
 U=$1; B=$2; PH=$3; N=$4; OUT=$5; SECS=$6; KEEP=${7:-}
 mkdir -p "$OUT"

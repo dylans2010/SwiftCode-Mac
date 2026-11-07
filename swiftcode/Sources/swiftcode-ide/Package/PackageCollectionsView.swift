@@ -1,9 +1,3 @@
-// PackageCollectionsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/PackageCollectionsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: create workspace groups; export collections JSON to clipboard; import collections; remove collections
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 
@@ -24,7 +18,6 @@ struct PackageCollectionsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header Info and Global Actions Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -66,7 +59,6 @@ struct PackageCollectionsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Custom Workspaces / Presets Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Custom Workspaces / Presets", systemImage: "folder.badge.gearshape")
@@ -127,7 +119,6 @@ struct PackageCollectionsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Quick Favorites Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Quick Favorites List", systemImage: "star.fill")
@@ -165,7 +156,6 @@ struct PackageCollectionsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Ecosystem Watchlist Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Ecosystem Watchlist", systemImage: "eye.fill")

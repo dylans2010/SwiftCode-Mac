@@ -10,8 +10,6 @@ import SwiftCodeWorkspace
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// An engine that records requests, succeeds, and names a product under
-/// `derived` (swift-build's layout), so the build folder is known.
 struct ProductEngine: BuildEngine {
     let box: RecordedRequests
     let derived: String
@@ -20,8 +18,6 @@ struct ProductEngine: BuildEngine {
     func executablePath(for request: BuildRequest) -> String? { derived + "/Products/Debug/Tool" }
 }
 
-/// IDE-QUICKWINS (`docs/PARITY.md` gap 11): the menu wiring of the Product,
-/// Debug and Editor items whose features already existed.
 @MainActor
 @Suite(.serialized) struct IDEQuickWinsUITests {
     func scratch(_ name: String) -> URL {
@@ -38,7 +34,6 @@ struct ProductEngine: BuildEngine {
 
     func item(_ action: String) -> NSMenuItem { NSMenuItem(title: action, action: Selector(action), keyEquivalent: "") }
 
-    /// The items are commands now, with their reference shortcuts.
     @Test func itemsArePerformed() {
         let wired = ["deleteDerivedData:", "buildDocumentation:", "exportLocalizations:", "importLocalizations:",
                      "disableAllEnvironmentOverrides:", "toggleCodeCoverage:"] + DebugAppearanceMenu.actions
@@ -49,8 +44,6 @@ struct ProductEngine: BuildEngine {
         }
     }
 
-    /// Export / Import Localizations are enabled for a project and disabled
-    /// in a package; Build Documentation needs a scheme.
     @Test func toolItemsEnablement() throws {
         let dir = scratch("enable")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -62,8 +55,6 @@ struct ProductEngine: BuildEngine {
         #expect(pkg.validateMenuItem(item("buildDocumentation:")))
     }
 
-    /// Export Localizations… into a folder, then Import: through the window
-    /// (the panels' completions), swiftcodebuild in process.
     @Test func exportAndImportThroughTheWindow() async throws {
         let dir = scratch("loc")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -77,8 +68,6 @@ struct ProductEngine: BuildEngine {
         #expect(wc.session.reports.count == 2 && wc.session.activity == .finished("Import Localizations Succeeded"))
     }
 
-    /// Build Documentation runs docbuild for the scheme and reports the
-    /// archives under its derived data.
     @Test func buildDocumentationRunsDocbuild() async throws {
         let dir = scratch("doc")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -96,7 +85,6 @@ struct ProductEngine: BuildEngine {
         #expect(wc.session.reports.first?.title == "Build Documentation Tool")
     }
 
-    /// Delete Derived Data… names the folder and deletes it once confirmed.
     @Test func deleteDerivedData() async throws {
         let dir = scratch("dd")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -108,13 +96,11 @@ struct ProductEngine: BuildEngine {
         let alert = try #require(await wc.confirmDeleteDerivedData())
         #expect(alert.messageText == "Delete the derived data of \u{201C}Tool\u{201D}?" && alert.informativeText.hasPrefix(derived.path + " "))
         #expect(alert.buttons.map(\.title) == ["Delete", "Cancel"])
-        #expect(FileManager.default.fileExists(atPath: derived.path))  // nothing until confirmed
+        #expect(FileManager.default.fileExists(atPath: derived.path))
         #expect(wc.deleteDerivedData(at: derived) && !FileManager.default.fileExists(atPath: derived.path))
         #expect(session.console.contains("deleted the derived data at \(derived.path)"))
     }
 
-    /// Run ▸ Diagnostics edits the sanitizers (ASan's option only with
-    /// ASan); Close writes them; the next build carries the settings.
     @Test func schemeDiagnosticsReachTheBuild() async throws {
         let dir = scratch("diag")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -135,10 +121,10 @@ struct ProductEngine: BuildEngine {
         }
         let asan = try #require(check("Address Sanitizer"))
         #expect(asan.isEnabled && asan.state == .off && check("Detect use of stack after return")?.isEnabled == false)
-        #expect(check("Main Thread Checker") == nil)  // still a disabled plain row
+        #expect(check("Main Thread Checker") == nil)
         asan.performClick(nil)
         #expect(check("Detect use of stack after return")?.isEnabled == true)
-        check("Thread Sanitizer")?.performClick(nil)   // TSan turns ASan off
+        check("Thread Sanitizer")?.performClick(nil)
         #expect(check("Address Sanitizer")?.state == .off && check("Thread Sanitizer")?.state == .on)
         editor.setSanitizer(\.undefinedBehaviorSanitizer, true)
         editor.select(action: 2)
@@ -153,9 +139,6 @@ struct ProductEngine: BuildEngine {
         #expect(session.model.diagnostics(scheme: "Tool", action: .test) == SchemeDiagnostics(undefinedBehaviorSanitizer: true))
     }
 
-    /// Debug ▸ Simulate Location ▸ is the debug bar's menu: a note without
-    /// a run on the SwiftCode simulator; the places and trips with one, each
-    /// sending its location command.
     @Test func simulateLocationSubmenu() async throws {
         let dir = scratch("loc-menu")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -180,8 +163,6 @@ struct ProductEngine: BuildEngine {
         #expect(sub.items.first { $0.title == SimLocation.presets[0].name }?.state == .on)
     }
 
-    /// View Debugging ▸ Appearance and Disable All Environment Overrides
-    /// send the running app's overrides; disabled without such a run.
     @Test func appearanceAndDisableAllOverrides() async throws {
         let dir = scratch("appearance")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -202,8 +183,6 @@ struct ProductEngine: BuildEngine {
         #expect(wc.validateMenuItem(system) && system.state == .on)
     }
 
-    /// Editor ▸ Code Coverage: the gutter ribbon shows the open file's
-    /// counts from the newest coverage run.
     @Test func codeCoverageRibbon() throws {
         let prefs = IsolatedPreferences("coverage")
         defer { prefs.restore() }
@@ -220,7 +199,7 @@ struct ProductEngine: BuildEngine {
         session.recordReport(r)
         let toggle = item("toggleCodeCoverage:")
         #expect(wc.validateMenuItem(toggle) && toggle.state == .off)
-        #expect(wc.editor.gutter.coverageText(line: 2) == nil)  // off by default
+        #expect(wc.editor.gutter.coverageText(line: 2) == nil)
         wc.toggleCodeCoverage(nil)
         #expect(wc.validateMenuItem(toggle) && toggle.state == .on)
         #expect(wc.editor.gutter.coverageText(line: 1) == nil && wc.editor.gutter.coverageText(line: 2) == "5")
@@ -229,8 +208,6 @@ struct ProductEngine: BuildEngine {
         #expect(wc.editor.gutter.coverageText(line: 2) == nil && !Preferences.shared.showCodeCoverage)
     }
 
-    /// File ▸ Open… of an `.xcresult`: a test report on its Tests page; an
-    /// unreadable bundle says so.
     @Test func openResultBundle() throws {
         let dir = scratch("xcresult")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -244,8 +221,6 @@ struct ProductEngine: BuildEngine {
         #expect(wc.session.console.contains("cannot read missing.xcresult"))
     }
 
-    /// Run Repeatedly: fixed iterations, until failure, retry on failure,
-    /// with a stand-in `swift`; the Test navigator's row menu and the sheet.
     @Test func runTestsRepeatedly() async throws {
         let dir = scratch("repeat")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -269,7 +244,6 @@ struct ProductEngine: BuildEngine {
         #expect(lines.count == 3 + 1 + 3 && lines.last == "test --filter CalcTests.testBroken\\b")
         #expect(session.console.contains("SwiftCode: Retry on Failure: 3 iterations, 3 with failures."))
         #expect(session.testResults[broken] == .failed && session.testResults[adds] == .passed)
-        // Stop ends a series before its next iteration.
         session.cancelRepetition()
         #expect(session.repetitionCancelled)
 
@@ -287,12 +261,11 @@ struct ProductEngine: BuildEngine {
         mode?.selectItem(at: 2)
         max?.stringValue = "7"
         #expect(read() == TestRepetition(.retryOnFailure, maximum: 7))
-        // The Test navigator has a row menu filled by the window.
         #expect(wc.navigator.testRowMenu != nil)
         wc.navigator.select(5)
         let menu = NSMenu()
         wc.navigator.rebuildRowMenu(menu)
-        #expect(menu.items.isEmpty)  // no row selected
+        #expect(menu.items.isEmpty)
     }
 }
 
@@ -310,7 +283,6 @@ final class Calls: @unchecked Sendable {
     func add(_ a: [String], _ c: String) { lock.withLock { list.append((a, c)) } }
 }
 
-/// A macOS app project with a localized `Greetings.strings` (en, fr).
 func writeLocalizedProject(at dir: URL) throws -> URL {
     let fm = FileManager.default
     for sub in ["Loc.xcodeproj", "Loc/en.lproj", "Loc/fr.lproj"] { try fm.createDirectory(at: dir.appendingPathComponent(sub), withIntermediateDirectories: true) }
@@ -353,8 +325,6 @@ func writeLocalizedProject(at dir: URL) throws -> URL {
     return dir.appendingPathComponent("Loc.xcodeproj")
 }
 
-/// A result bundle written by swiftcodebuild's own writer: AppTests with a
-/// pass, a failure (at /src/A.swift:12) and a skip, and a Swift Testing pass.
 func writeResultBundle(at path: String) {
     func target() -> TestTarget {
         TestTarget(blueprintName: "AppTests", projectName: "App", projectRelativePath: "App.xcodeproj", blueprintIdentifier: "",

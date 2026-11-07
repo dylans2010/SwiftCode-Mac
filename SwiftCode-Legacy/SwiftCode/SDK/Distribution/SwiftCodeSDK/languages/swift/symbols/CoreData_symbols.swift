@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for CoreData
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct CoreDataSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "coredata.symbol.0"
     public var name: String = "CoreDataSymbolName_0"

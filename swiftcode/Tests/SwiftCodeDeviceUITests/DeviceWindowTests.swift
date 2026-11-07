@@ -1,9 +1,3 @@
-// The device windows (specs/ide/device-hub.md, "SwiftCode implementation"):
-// the compact window's shape and its reshaping, the canvas's states, the
-// control row's groups, the frame's button clicks, Capture Keyboard, the
-// feedback banner, the menus and their key equivalents. The session is fed
-// through its delegate calls (no server).
-
 #if os(macOS)
 import AppKit
 import Testing
@@ -13,7 +7,6 @@ import SwiftCodeDisplayStream
 
 @MainActor
 @Suite(.serialized) struct DeviceWindowTests {
-    /// A session that never connects (port 9 on loopback: not started).
     func session(type: String = "iphone-18-pro") -> DeviceLiveSession {
         let c = ViewerConnection(address: .tcp(host: "127.0.0.1", port: 9), settings: DisplayClientHello(client: "test"))
         return DeviceLiveSession(connection: c, spec: DeviceFrameSpec.named(typeID: type))
@@ -45,16 +38,12 @@ import SwiftCodeDisplayStream
         return ctx.makeImage()!
     }
 
-    /// A Vision Pro booted for the headset (device-hub.md §I.12.5): the desktop
-    /// shows the tall picture's centre at 16:9, exactly the 3840 × 2160 display's
-    /// field of view, and the pointer maps onto that crop.
     @Test func aTallVisionProShowsTheCentreAtTheDesktopsView() throws {
         let w = 2160, h = 3840
         let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         ctx.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
-        // The rows where |tan| ≤ 0.5625 at tangents (1, 1, h/w, h/w): the centre 1215 of 3840.
         ctx.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
         ctx.fill(CGRect(x: 0, y: (h - 1215) / 2, width: w, height: 1215))
         let tall = ctx.makeImage()!
@@ -73,22 +62,19 @@ import SwiftCodeDisplayStream
                                                          encoding: .jpeg, isFull: true, tiles: []), receivedAt: 0)
         let shown = try #require(s.image)
         #expect(shown.width == 2160 && shown.height == 1215)
-        // Only the centre band is left: the crop's first and last rows are red.
         let read = CGContext(data: nil, width: shown.width, height: shown.height, bitsPerComponent: 8, bytesPerRow: shown.width * 4,
                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         read.draw(shown, in: CGRect(x: 0, y: 0, width: shown.width, height: shown.height))
         let px = read.data!.assumingMemoryBound(to: UInt8.self)
-        for row in [2, 607, 1212] {  // an odd margin leaves the painted band one row off centre
+        for row in [2, 607, 1212] {
             let o = row * read.bytesPerRow + 1000 * 4
             #expect(px[o] > 200 && px[o + 2] < 50, "row \(row)")
         }
-        // The pointer: the frame's top edge is the 3840 × 2160 display's top edge (tangent 0.5625).
         let view = DeviceView()
         view.pointSize = s.shownPointSize
         let top = view.spatial.ray(x: 960, y: 0).direction
         #expect(abs(top.y / -top.z - 0.5625) < 0.001)
 
-        // A wide Vision Pro and a tall phone are shown as they come.
         hello.pixelWidth = 3840
         hello.pixelHeight = 2160
         s.connection(c, hello: hello)
@@ -127,33 +113,26 @@ import SwiftCodeDisplayStream
         #expect(win.title == "iPhone Duo" && win.subtitle == "iOS 27.1")
         let portrait = w.canvas.deviceSize
         #expect(portrait.height > portrait.width)
-        // The window is the device at 0.7 plus the margins, toolbar and controls.
         let content = win.contentLayoutRect.size, frameH = win.frame.height
         #expect(abs(Double(content.width) - (Double(portrait.width) * 0.7 + 2 * CompactWindowLayout.sideMargin)) <= 1)
-        // A drag to another width keeps the aspect.
         let proposed = win.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 400, height: 300)).size
         let size = w.windowWillResize(win, to: proposed)
         let c = win.contentRect(forFrameRect: NSRect(origin: .zero, size: size)).size
         let scale = CompactWindowLayout.scale(device: portrait, windowWidth: 400)
         #expect(c.width == 400 && abs(Double(c.height) - (Double(portrait.height) * scale + CompactWindowLayout.chromeHeight(toolbar: Double(frameH - content.height)))) <= 2)
-        // Opening the device: the inner panel, held wide → a wide window at the same scale.
         s.connection(s.connection, displayState: DisplayPanelState(display: "LCD-1", pixelWidth: 2007, pixelHeight: 2853, scale: 3, rotation: 90,
                                                                   hingeAngle: 180, targetAngle: nil, posture: "openFlat", orientation: "portrait"))
         let open = w.canvas.deviceSize
         #expect(open.width > open.height)
         #expect(win.contentLayoutRect.width > win.contentLayoutRect.height)
-        // The pose row: Rotate │ Closed · Partially Open · Open, Open highlighted.
         #expect(w.canvas.controls.groups == [[.home, .screenshot, .recordScreen], [.rotateLeft, .poseClosed, .posePartiallyOpen, .poseOpen]])
         #expect(w.canvas.controls.configuration.posture == .openFlat)
-        // Rotating (landscape left) turns the inner panel upright: a tall window.
         s.connection(s.connection, displayState: DisplayPanelState(display: "LCD-1", pixelWidth: 2007, pixelHeight: 2853, scale: 3, rotation: 180,
                                                                   hingeAngle: 180, targetAngle: nil, posture: "openFlat", orientation: "landscape-left"))
         #expect(w.canvas.deviceSize.height > w.canvas.deviceSize.width)
-        // Hiding the bezels: the screen alone.
         w.toggleBezels(nil)
         #expect(w.canvas.frameView.geometry.buttons.isEmpty)
         w.toggleBezels(nil)
-        // More Actions: bezels, frame rate, refresh.
         #expect(w.moreItems().map(\.title) == ["Hide Bezels", "Show Frame Rate", "Refresh Display"])
         w.close()
         s.close()
@@ -169,7 +148,6 @@ import SwiftCodeDisplayStream
         w.expand(nil)
         #expect(w.kind == .expanded && w.canvas.mode == .hub)
         #expect(w.toolbarDefaultItemIdentifiers(w.window!.toolbar!).contains(DeviceWindowController.zoomID))
-        // Zoom to Fit by default; Zoom In steps up from the fitted scale.
         #expect(w.canvas.zoom == .fit)
         let fitted = w.canvas.effectiveScale
         w.canvas.perform(.zoomIn)
@@ -205,15 +183,12 @@ import SwiftCodeDisplayStream
         #expect(!canvas.canPerform(.home))
         live(s, .iPhone18Pro)
         #expect(canvas.stateDescription == "live" && canvas.canPerform(.home) && canvas.canPerform(.screenshot))
-        // Not a foldable and the server does not turn it: Rotate is shown but disabled.
         #expect(canvas.controls.groups == [[.home, .screenshot, .recordScreen], [.rotateLeft]])
         #expect(canvas.controls.button(for: .rotateLeft)?.isEnabled == false && canvas.controls.button(for: .home)?.isEnabled == true)
         #expect(!canvas.canPerform(.rotateLeft) && !canvas.canPerform(.poseOpen) && canvas.canPerform(.actionButton))
-        // The frame fits the canvas with the control row under it.
         canvas.layoutSubtreeIfNeeded()
         #expect(canvas.frameView.frame.maxY <= canvas.controls.frame.minY)
         #expect(abs(canvas.frameView.frame.midX - canvas.bounds.midX) <= 1)
-        // The commands that need no device.
         canvas.perform(.zoomIn)
         #expect(canvas.zoom != .fit)
         canvas.perform(.toggleBezels)
@@ -229,14 +204,12 @@ import SwiftCodeDisplayStream
         canvas.show(session: s)
         live(s, .iPhone18Pro)
         canvas.layoutSubtreeIfNeeded()
-        // A button of the frame is hit at its rectangle (view points).
         let f = canvas.frameView
         let vol = f.geometry.buttons.first { $0.kind == .volumeUp }!.rect
         let p = NSPoint(x: vol.midX * f.scale, y: vol.midY * f.scale)
         #expect(f.hitTest(f.convert(p, to: f.superview)) === f)
         let screenPoint = NSPoint(x: f.geometry.screen.midX * f.scale, y: f.geometry.screen.midY * f.scale)
         #expect(f.hitTest(f.convert(screenPoint, to: f.superview)) === f.screen)
-        // Kinds map to the stream's buttons.
         #expect(DeviceLiveSession.displayButton(for: .side) == .lock && DeviceLiveSession.displayButton(for: .volumeDown) == .volumeDown
                 && DeviceLiveSession.displayButton(for: .action) == .side && DeviceLiveSession.displayButton(for: .top) == .lock)
         s.close()
@@ -246,7 +219,7 @@ import SwiftCodeDisplayStream
         let canvas = DeviceCanvasView(mode: .hub)
         canvas.frame = NSRect(x: 0, y: 0, width: 600, height: 700)
         canvas.setCapturesKeyboard(true)
-        #expect(!canvas.capturesKeyboard)  // nothing to capture for
+        #expect(!canvas.capturesKeyboard)
         let s = session()
         canvas.show(session: s)
         var reported: [Bool] = []
@@ -292,7 +265,6 @@ import SwiftCodeDisplayStream
         #expect(menus.viewItems().map(\.title) == ["Zoom In", "Zoom Out", "Zoom to Fit", "Physical Size", "", "Hide Bezels"])
         #expect(menus.deviceItems().map(\.title) == ["Orientation", "Keyboard", "Fold", "Room"])
         #expect(menus.deviceItems()[0].submenu!.items.map(\.title) == DeviceOrientation.allCases.map(\.title))
-        // Validation: nothing to act on without a device; the record item names its state.
         #expect(!menus.validateMenuItem(shot))
         let s = session()
         canvas.show(session: s)

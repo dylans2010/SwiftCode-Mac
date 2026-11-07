@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 VARIANTS = [
-    "coord::normalized",  # all defaults (an empty list is a declaration)
+    "coord::normalized",
     "coord::pixel",
     "address::clamp_to_edge", "address::repeat", "address::mirrored_repeat",
     "address::clamp_to_zero", "address::clamp_to_border",
@@ -39,7 +39,6 @@ kernel void k(texture2d<float> t [[texture(0)]], device float4 *o [[buffer(0)]])
 }
 """
 
-
 def main():
     d = sys.argv[1]
     for v in VARIANTS:
@@ -58,7 +57,6 @@ def main():
             continue
         a, b = (int(x) & (2**64 - 1) for x in m.groups())
         print("%-28s %016x %016x  %s" % (v or "(default)", a, b, format(a, "064b")))
-
 
 if __name__ == "__main__":
     main()

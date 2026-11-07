@@ -1,22 +1,10 @@
 import SwiftCodeDarwinABI
 
-// Sandbox extensions (specs/simulator/sandbox-extensions.md): the Sandbox
-// policy's __mac_syscall calls that the runtime's libsystem_sandbox makes
-// for sandbox_extension_issue_file (5), sandbox_extension_consume (6) and
-// sandbox_extension_release (7). SwiftCode has no sandbox, so the answer is
-// permissive, shaped as the Mac's simulator answers (level 3):
-// - issue writes a NUL-terminated token into the output buffer (argument
-//   word 4) and succeeds; the token has the Mac's field layout;
-// - consume accepts a well-formed token (EINVAL otherwise), writes handle 0
-//   to the 64-bit location word 2 points at, and succeeds;
-// - release always succeeds.
 enum SandboxCall {
     static let issueFile: Int32 = 5, consume: Int32 = 6, release: Int32 = 7
 }
 
 extension DarwinKernel {
-    /// One Sandbox-policy call; nil when SwiftCode does not answer `op` (the
-    /// caller then reports ENOPOLICY).
     func sandboxExtensionCall(_ op: Int32, arg: UInt64, _ mem: any KernelGuestMemory) throws -> UInt64? {
         switch op {
         case SandboxCall.issueFile:
@@ -28,9 +16,6 @@ extension DarwinKernel {
             guard !extensionClass.isEmpty, out != 0 else { throw Failure(errno: Errno.EINVAL) }
             let token: String
             if kind != 0, pathPointer == 0 {
-                // An issue of another kind with no path (word 1 nonzero;
-                // tccd's kTCCServiceCamera extension has kind 3): a token
-                // naming the class with an empty path (sandbox-extensions.md §4).
                 token = Self.sandboxToken(extensionClass: extensionClass, path: nil, fileSystem: fileSystem)
             } else {
                 guard pathPointer != 0 else { throw Failure(errno: Errno.EINVAL) }
@@ -38,7 +23,7 @@ extension DarwinKernel {
                 guard !path.isEmpty else { throw Failure(errno: Errno.EINVAL) }
                 token = Self.sandboxToken(extensionClass: extensionClass, path: path, fileSystem: fileSystem)
             }
-            guard token.utf8.count < 2048 else { throw Failure(errno: 63) }  // ENAMETOOLONG
+            guard token.utf8.count < 2048 else { throw Failure(errno: 63) }
             try mem.write(va: out, bytes: Array(token.utf8) + [0])
             return 0
         case SandboxCall.consume:
@@ -56,12 +41,6 @@ extension DarwinKernel {
         }
     }
 
-    /// `<64 hex>;00;00000000;00000000;00000000;<16 hex class length>;<class>;
-    /// <01 exists | 00>;<8 hex device>;<16 hex inode>;01;<path>`, the field
-    /// layout of the Mac's tokens. The first field is a SwiftCode digest of the
-    /// rest (nothing checks it: consume only checks the form).
-    /// With no path (an extension that is not for a file): `00`, 0, 0 and
-    /// an empty last field.
     static func sandboxToken(extensionClass: String, path: String?, fileSystem: DarwinFileSystem) -> String {
         func hex(_ v: UInt64, _ width: Int) -> String {
             let s = String(v, radix: 16)
@@ -82,7 +61,6 @@ extension DarwinKernel {
         return digest + ";" + body
     }
 
-    /// At least 12 `;`-separated fields, the first 64 hex digits.
     static func isWellFormedSandboxToken(_ token: String) -> Bool {
         let fields = token.split(separator: ";", omittingEmptySubsequences: false)
         guard fields.count >= 12, fields[0].utf8.count == 64 else { return false }

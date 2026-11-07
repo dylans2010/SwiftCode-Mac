@@ -1,23 +1,13 @@
 import Foundation
 import SwiftCodeIDECore
 
-/// The Source Control navigator's rows (`specs/ide/reference-ui-4.md` §2,
-/// `specs/ide/source-control.md`), toolkit-free: the same trees the AppKit
-/// navigator builds (`SourceControlNavigatorModel`), flattened into the
-/// shell's outline rows. Row ids are the keys `SourceControlRowMenu` and
-/// the model's selection use: "repository", "change:<path>",
-/// "branch:<name>", "remoteBranch:<remote>/<name>", "tag:<name>",
-/// "stash:<ref>", "remote:<name>", "group:<title>", "folder:<prefix>".
 public enum SourceControlRows {
-    /// The two modes of the navigator's segmented control.
     public static let modeTitles = ["Changes", "Repositories"]
 
-    /// The repository's name: its top-level folder's.
     public static func repositoryName(_ s: SourceControlSnapshot) -> String {
         s.repository?.root.lastPathComponent ?? ""
     }
 
-    /// " (Merging “feature”)" and the like while an operation is stopped.
     public static func integrationSuffix(_ state: GitRepository.IntegrationState) -> String {
         switch state {
         case .none: ""
@@ -29,8 +19,6 @@ public enum SourceControlRows {
         }
     }
 
-    /// A change row's title: the file name without its extension (as the
-    /// navigator shows it), or "<project> / project.xcworkspace".
     public static func changeTitle(_ path: String, root: URL?) -> String {
         let rel = root.map { path.hasPrefix($0.path + "/") ? String(path.dropFirst($0.path.count + 1)) : path } ?? path
         let comps = rel.split(separator: "/")
@@ -42,8 +30,6 @@ public enum SourceControlRows {
         return bare.isEmpty ? name : bare
     }
 
-    /// The Changes tree: "<repository>  <branch>", "Uncommitted Changes"
-    /// with the count, one row per change with its status letter.
     public static func changes(_ s: SourceControlSnapshot, collapsed: Set<String>) -> [OutlineRow] {
         guard s.repository != nil else { return [] }
         var out = [header(s, collapsed: collapsed)]
@@ -66,14 +52,10 @@ public enum SourceControlRows {
                    detailIsSecondary: true)
     }
 
-    /// The Repositories tree: Branches, Recents, Tags, Stashes, Remotes. A
-    /// name with `/` sits in a folder per prefix component.
     public static func repositories(_ s: SourceControlSnapshot, collapsed: Set<String>) -> [OutlineRow] {
         guard s.repository != nil else { return [] }
         var out = [header(s, collapsed: collapsed)]
         guard !collapsed.contains("repository") else { return out }
-        // navigators.md round 3 §2: each group its own grey filled symbol,
-        // a disclosure triangle even when empty.
         func group(_ title: String, _ children: (Int) -> [OutlineRow], empty: Bool) {
             let id = "group:" + title
             let open = !collapsed.contains(id)
@@ -108,8 +90,6 @@ public enum SourceControlRows {
         return out
     }
 
-    /// Names split on `/` into folders ("feature/observe" → feature ▸ observe);
-    /// folders first, then leaves, each sorted.
     static func foldered(_ names: [String], current: String?, key: String, symbol: String, level: Int, collapsed: Set<String>) -> [OutlineRow] {
         var leaves: [OutlineRow] = []
         var folders: [String: [String]] = [:]
@@ -120,8 +100,6 @@ public enum SourceControlRows {
                 if folders[head] == nil { order.append(head) }
                 folders[head, default: []].append(String(n[n.index(after: slash)...]))
             } else {
-                // No "(current)" and no marking: the repository row names
-                // the current branch (navigators.md round 3 §2).
                 leaves.append(OutlineRow(id: key + n, level: level, title: n, symbol: symbol, tint: .secondary, detailIsSecondary: true))
             }
         }
@@ -139,8 +117,6 @@ public enum SourceControlRows {
     }
 }
 
-/// One file's card in the commit editor: its title, status letter and the
-/// diff as numbered lines (`UnifiedDiffLines`).
 public struct ChangeCard: Identifiable, Equatable, Sendable {
     public var path: String
     public var title: String
@@ -149,7 +125,6 @@ public struct ChangeCard: Identifiable, Equatable, Sendable {
     public var lines: [UnifiedDiffLines.Line]
     public var id: String { path }
     public var symbol: String { WorkspaceChrome.fileSymbol(path) }
-    /// "+3 −1": added and removed line counts.
     public var stats: (added: Int, removed: Int) {
         (lines.filter { $0.kind == .added }.count, lines.filter { $0.kind == .removed }.count)
     }
@@ -159,11 +134,9 @@ public struct ChangeCard: Identifiable, Equatable, Sendable {
     }
 }
 
-/// The files of a commit in the history's detail pane and the inspector.
 public struct CommitDetail: Equatable, Sendable {
     public var commit: GitRepository.Commit
     public var files: [CommitFile]
-    /// Local branches containing the commit.
     public var branches: [String]
 }
 
@@ -175,8 +148,6 @@ public struct CommitFile: Equatable, Sendable, Identifiable {
     public var symbol: String { WorkspaceChrome.fileSymbol(path) }
 }
 
-/// One file of the commit sheet (Integrate ▸ Commit…): a checkbox, the
-/// status letter and the path relative to the repository.
 public struct CommitSheetFile: Identifiable, Equatable, Sendable {
     public var path: String
     public var relativePath: String
@@ -185,7 +156,6 @@ public struct CommitSheetFile: Identifiable, Equatable, Sendable {
     public var id: String { path }
 }
 
-/// The commit sheet's state.
 public struct CommitSheet: Equatable, Sendable {
     public var files: [CommitSheetFile]
     public var message = ""
@@ -195,8 +165,6 @@ public struct CommitSheet: Equatable, Sendable {
     }
 }
 
-/// A one- or two-field question (New Branch…, New Tag…, Rename…, Add
-/// Remote…, Stash Changes…).
 public struct SourceControlPrompt: Equatable, Sendable {
     public enum Purpose: Equatable, Sendable {
         case newBranch(from: String?)
@@ -204,7 +172,6 @@ public struct SourceControlPrompt: Equatable, Sendable {
         case renameBranch(String)
         case addRemote
         case stash
-        /// Export Stashed Changes as Patch File…: the stash's reference.
         case exportStash(String)
     }
 
@@ -219,14 +186,12 @@ public struct SourceControlPrompt: Equatable, Sendable {
     public var message: String
     public var fields: [Field]
     public var button: String
-    /// Whether the button applies: every field but the stash message filled.
     public var canConfirm: Bool {
         if case .stash = purpose { return true }
         return fields.allSatisfy { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
     }
 }
 
-/// A question with buttons (Check Out…, Delete…, Merge…, Discard…).
 public struct SourceControlConfirmation: Equatable, Sendable {
     public struct Choice: Equatable, Sendable {
         public var title: String

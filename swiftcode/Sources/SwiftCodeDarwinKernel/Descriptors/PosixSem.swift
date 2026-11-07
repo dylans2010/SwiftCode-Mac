@@ -1,23 +1,5 @@
 import SwiftCodeDarwinABI
 
-// POSIX named semaphores (stage 6): sem_open (268), sem_close (269),
-// sem_unlink (270), sem_wait (271), sem_trywait (272), sem_post (273).
-// Rules from xnu bsd/kern/posix_sem.c (level 1):
-// - names are at most 31 bytes (PSEMNAMLEN; ENAMETOOLONG), one system-wide
-//   namespace (here: the device's `DarwinSystem`);
-// - sem_open: without O_CREAT a missing name is ENOENT; O_CREAT|O_EXCL on an
-//   existing one EEXIST; plain O_CREAT on an existing one opens it; a new
-//   one needs 0 ≤ value ≤ SEM_VALUE_MAX (32767, EINVAL); the result is the
-//   new descriptor number, which is the `sem_t *` value; SwiftCode marks it
-//   close-on-exec as shm_open does;
-// - sem_close, sem_wait, sem_trywait, sem_post take that descriptor number;
-//   anything that is not a semaphore descriptor is EBADF;
-// - sem_wait blocks while the count is 0 (an interrupted wait is EINTR);
-//   sem_trywait then fails with EAGAIN;
-// - sem_unlink removes the name (ENOENT if absent); open descriptors keep
-//   the semaphore.
-
-/// A named semaphore.
 final class PosixSemaphore {
     let name: String
     let mode: UInt16
@@ -30,7 +12,6 @@ final class PosixSemaphore {
     }
 }
 
-/// The open file description's object of a semaphore descriptor.
 final class PosixSemDescriptor: DarwinDescriptorObject {
     let semaphore: PosixSemaphore
     init(_ semaphore: PosixSemaphore) { self.semaphore = semaphore }
@@ -100,11 +81,10 @@ extension DarwinKernel {
             _ = sem.waiters.wake(count: 1)
             return .value(0)
 
-        default:  // sem_wait, sem_trywait
+        default:
             let wait = n == PosixSemBSD.wait
             call.set("\(wait ? "sem_wait" : "sem_trywait")(\(int(0)))")
             let sem = try semaphore(int(0))
-            // swiftlint:disable:next empty_count - the semaphore value, not a collection
             while sem.count <= 0 {
                 guard wait else { throw fail(Code.EAGAIN) }
                 if sem.waiters.wait(on: lock, deadline: nil) == .interrupted { throw fail(Code.EINTR) }

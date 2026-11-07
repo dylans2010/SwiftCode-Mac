@@ -78,7 +78,6 @@ public struct AssistPlistEditTool: AssistTool {
             }
             return .success("Set key '\(key)' in '\(rawPath)'.", data: ["key": key, "value": value, "path": rawPath])
         }
-        // delete
         guard dict[key] != nil else {
             return .failure("Key '\(key)' not found in '\(rawPath)'.")
         }

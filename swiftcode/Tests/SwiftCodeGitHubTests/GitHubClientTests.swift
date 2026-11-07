@@ -2,14 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeGitHub
 
-// All fixtures are synthetic: made-up users, repositories and issues.
-// No real token is used anywhere; the stub token is a placeholder.
-
-// MARK: - Stub transport
-
-/// A URLProtocol stub: the handler answers every request from canned
-/// data, and every request the client made is recorded for assertions.
-/// No live network.
 final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?
     nonisolated(unsafe) static var requests: [URLRequest] = []
@@ -67,8 +59,6 @@ func jsonBody(of request: URLRequest) -> [String: Any] {
     return object
 }
 
-// MARK: - Fixtures
-
 let userJSON = """
 {"login":"octocat","id":1,"name":"The Octocat","avatar_url":"https://github.com/images/octocat.png","html_url":"https://github.com/octocat"}
 """
@@ -98,12 +88,8 @@ let searchCodeJSON = """
 {"total_count":1,"incomplete_results":false,"items":[{"name":"main.swift","path":"Sources/main.swift","repository":{"full_name":"octocat/Hello-World"}}]}
 """
 
-// The tests share the stub's static handler and recorded requests, so
-// they run serialized.
 @Suite("GitHubClient", .serialized)
 struct GitHubClientTests {
-
-    // MARK: - Request building
 
     @Test func repositoryRequestHasPathAndHeaders() async throws {
         let client = stubClient { _ in ok(repoJSON, headers: rateHeaders) }
@@ -213,8 +199,6 @@ struct GitHubClientTests {
         #expect(body["draft"] as? Bool == true)
     }
 
-    // MARK: - Response parsing
-
     @Test func userParses() async throws {
         let client = stubClient { _ in ok(userJSON) }
         let user = try await client.getAuthenticatedUser()
@@ -307,7 +291,6 @@ struct GitHubClientTests {
     }
 
     @Test func fileTextDecodesWrappedBase64() async throws {
-        // "hello world" base64, wrapped across lines the way the API returns it.
         let client = stubClient { _ in ok("{\"name\":\"c.txt\",\"path\":\"c.txt\",\"sha\":\"aaa\",\"size\":11,\"content\":\"aGVsbG8g\\nd29ybGQ=\\n\",\"encoding\":\"base64\"}") }
         let text = try await client.getFileText(owner: "octocat", repo: "Hello-World", path: "c.txt")
         #expect(text == "hello world")
@@ -327,8 +310,6 @@ struct GitHubClientTests {
         #expect(rate.remaining == 59)
         #expect(rate.resetAt == Date(timeIntervalSince1970: 1780000000))
     }
-
-    // MARK: - Error mapping
 
     @Test func missingTokenWithoutARequest() async throws {
         let client = stubClient(token: nil) { _ in ok(userJSON) }
@@ -365,7 +346,6 @@ struct GitHubClientTests {
         await #expect(throws: GitHubError.forbidden(message: "API rate limit exceeded", rateLimited: true, resetAt: Date(timeIntervalSince1970: 1780000000))) {
             try await client.getRepository(owner: "octocat", repo: "Hello-World")
         }
-        // The exhausted response still records the rate-limit state.
         #expect(client.lastRateLimit?.remaining == 0)
         #expect(client.lastRateLimit?.resetAt == Date(timeIntervalSince1970: 1780000000))
     }
@@ -399,8 +379,6 @@ struct GitHubClientTests {
         #expect(StubURLProtocol.requests.isEmpty)
     }
 
-    // MARK: - Rate-limit headers
-
     @Test func rateLimitHeadersAreRecordedAfterEveryResponse() async throws {
         let client = stubClient { _ in ok(repoJSON, headers: rateHeaders) }
         _ = try await client.getRepository(owner: "octocat", repo: "Hello-World")
@@ -420,8 +398,6 @@ struct GitHubClientTests {
     }
 
     @Test func tokenProviderIsReadPerRequest() async throws {
-        // A box, so the token can change between requests without
-        // capturing a mutable local in a @Sendable closure.
         final class TokenBox: @unchecked Sendable {
             var current: String?
         }

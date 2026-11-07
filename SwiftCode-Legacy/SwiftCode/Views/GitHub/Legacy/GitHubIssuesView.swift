@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - GitHub Issue Model
-
 struct LegacyGitHubIssue: Identifiable, Decodable {
     let id: Int
     let number: Int
@@ -37,8 +35,6 @@ struct LegacyGitHubIssue: Identifiable, Decodable {
     var isOpen: Bool { state == "open" }
 }
 
-// MARK: - GitHub Issues View
-
 @MainActor
 struct LegacyGitHubIssuesView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
@@ -66,7 +62,6 @@ struct LegacyGitHubIssuesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("GitHub Issues", systemImage: "exclamationmark.circle")
                     .font(.headline)
@@ -102,10 +97,8 @@ struct LegacyGitHubIssuesView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Issues List Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             if isLoading {
@@ -209,8 +202,6 @@ struct LegacyGitHubIssuesView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Empty / Error
-
     private var emptyView: some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.bubble")
@@ -243,8 +234,6 @@ struct LegacyGitHubIssuesView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 150)
     }
-
-    // MARK: - Create Issue Sheet
 
     private var createIssueSheet: some View {
         VStack(spacing: 20) {
@@ -302,8 +291,6 @@ struct LegacyGitHubIssuesView: View {
         .frame(width: 450)
     }
 
-    // MARK: - Load Issues
-
     private func loadIssues() async {
         guard !owner.isEmpty else { return }
         isLoading = true
@@ -332,8 +319,6 @@ struct LegacyGitHubIssuesView: View {
             errorMessage = error.localizedDescription
         }
     }
-
-    // MARK: - Create Issue
 
     private func createIssue() async {
         guard !owner.isEmpty else { return }
@@ -372,8 +357,6 @@ struct LegacyGitHubIssuesView: View {
         }
     }
 
-    // MARK: - Helpers
-
     private func formattedDate(_ isoString: String) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
@@ -383,8 +366,6 @@ struct LegacyGitHubIssuesView: View {
         return rel.localizedString(for: date, relativeTo: Date())
     }
 }
-
-// MARK: - Legacy Issue Detail View
 
 @MainActor
 struct LegacyIssueDetailView: View {
@@ -406,7 +387,6 @@ struct LegacyIssueDetailView: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    // Card 1: Issue Specifications
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Text(issue.title)
@@ -441,7 +421,6 @@ struct LegacyIssueDetailView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Description
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -462,7 +441,6 @@ struct LegacyIssueDetailView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 3: External View
                     if let url = URL(string: issue.htmlUrl) {
                         GroupBox {
                             Link(destination: url) {

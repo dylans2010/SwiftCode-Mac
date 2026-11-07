@@ -8,8 +8,8 @@ public struct DeveloperWorkflow: Identifiable, Codable, Sendable {
     public var category: String
     public var isFavorite: Bool = false
     public var steps: [WorkflowStep] = []
-    public var customCommands: String = "" // CLI Canvas custom commands content
-    public var useCLIOnly: Bool = false   // Toggle to bypass guided builder steps
+    public var customCommands: String = ""
+    public var useCLIOnly: Bool = false
 
     public init(name: String, description: String, icon: String, category: String, steps: [WorkflowStep] = []) {
         self.name = name
@@ -26,12 +26,11 @@ public struct WorkflowStep: Identifiable, Codable, Sendable {
     public var description: String
     public var icon: String
     public var category: String
-    public var estimatedDuration: Double // in seconds
+    public var estimatedDuration: Double
     public var inputs: [String: String] = [:]
     public var isOptional: Bool = false
     public var retryCount: Int = 0
 
-    // Asynchronous terminal background execution properties
     public var command: String = ""
     public var workingDirectory: String = ""
     public var environmentVariables: String = ""

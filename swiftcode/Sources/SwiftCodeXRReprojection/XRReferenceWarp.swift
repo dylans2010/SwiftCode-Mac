@@ -1,44 +1,26 @@
-// The CPU reference of the GPU re-projection (specs/simulator/xr-depth.md
-// §5.2): the same grid, the same matrix, the same depth-edge rule and fill
-// modes, rasterised in software. Tests check the GPU against it, and the
-// viewer measures the disoccluded area with it at low resolution.
-
 import Foundation
 import SwiftCodeDisplayStream
 
 public enum XRFillMode: Int32, Sendable {
-    /// Triangles across a depth edge stay a rubber sheet (colours smeared between both sides).
     case stretch = 0
-    /// At the background's depth, sampled at their own place while unstretched (so a picture at its
-    /// own viewpoint shows as sent), and once stretched in one colour of the background, read half a
-    /// cell past their farthest corner, away from the nearest.
     case background = 1
-    /// At the background's depth and sharp until the move stretches them past `XRWarpSettings.dropStretch`,
-    /// then dropped (holes stay black, or show what lies behind: the world cache).
     case discard = 2
 }
 
 public struct XRWarpSettings: Equatable, Sendable {
-    /// Depth texels per grid cell.
     public var gridStep: Int = 2
-    /// A triangle crosses a depth edge when its farthest / nearest distance is above this.
     public var edgeRatio: Double = 1.08
     public var mode: XRFillMode = .background
-    /// Discard mode: the stretch beyond which a triangle across a depth edge goes.
     public static let dropStretch = 1.5
     public init(gridStep: Int = 2, edgeRatio: Double = 1.08, mode: XRFillMode = .background) {
         (self.gridStep, self.edgeRatio, self.mode) = (gridStep, edgeRatio, mode)
     }
 }
 
-/// The result of a reference warp.
 public struct XRWarpResult: Sendable {
     public var width: Int, height: Int
-    /// BGRA, rows top to bottom; uncovered pixels (0, 0, 0, 0).
     public var pixels: [UInt8]
-    /// Inverse depth per pixel (destination near), 0 uncovered.
     public var depth: [Float]
-    /// Pixels drawn, and of them drawn by triangles the move stretched across a depth edge (the disoccluded area).
     public var covered: Int, stretched: Int
 
     public var stretchedFraction: Double { covered > 0 ? Double(stretched) / Double(covered) : 0 }
@@ -50,8 +32,6 @@ public struct XRWarpResult: Sendable {
 }
 
 public enum XRReferenceWarp {
-    /// Re-projects `colour` (BGRA, `colourWidth` × `colourHeight`) with its
-    /// depth from `source` to `destination` at `width` × `height`.
     public static func warp(colour: [UInt8], colourWidth: Int, colourHeight: Int, depth: XRDepthImage,
                             source: XRViewGeometry, destination: XRViewGeometry, width: Int, height: Int,
                             settings: XRWarpSettings = XRWarpSettings()) -> XRWarpResult {
@@ -61,7 +41,6 @@ public enum XRReferenceWarp {
         let m = XRReprojection.matrix(from: source, to: destination)
         let step = max(1, settings.gridStep)
         let gw = max(2, depth.width / step + 1), gh = max(2, depth.height / step + 1)
-        // Every grid point once: its uv, depth sample and clip position.
         struct Vertex { var u: Double, v: Double, q: UInt16, x: Double, y: Double, z: Double, w: Double }
         var grid: [Vertex] = []
         grid.reserveCapacity(gw * gh)
@@ -85,8 +64,7 @@ public enum XRReferenceWarp {
             let dmax = ds.max()!, dmin = ds.min()!
             let edge = dmax > dmin * settings.edgeRatio + 1e-6
             let far = ds.firstIndex(of: dmin)!
-            guard vs.allSatisfy({ $0.w > 1e-9 }) else { return }    // the reference does not clip
-            // How far the move stretched it: its sides against the same sides flat at the far depth.
+            guard vs.allSatisfy({ $0.w > 1e-9 }) else { return }
             var stretch = 1.0
             if edge && settings.mode != .stretch {
                 let flat = vs.map { m.apply(source.point(u: $0.u, v: $0.v, q: vs[far].q)) }
@@ -123,7 +101,6 @@ public enum XRReferenceWarp {
                     let z = edge && settings.mode != .stretch ? farZ : w0 * sz[0] + w1 * sz[1] + w2 * sz[2]
                     let idx = py * width + px
                     guard z > Double(out.depth[idx]) || mark[idx] == 0 else { continue }
-                    // Perspective-correct uv.
                     let iw = w0 / vs[0].w + w1 / vs[1].w + w2 / vs[2].w
                     var u = (w0 * vs[0].u / vs[0].w + w1 * vs[1].u / vs[1].w + w2 * vs[2].u / vs[2].w) / iw
                     var v = (w0 * vs[0].v / vs[0].w + w1 * vs[1].v / vs[1].w + w2 * vs[2].v / vs[2].w) / iw

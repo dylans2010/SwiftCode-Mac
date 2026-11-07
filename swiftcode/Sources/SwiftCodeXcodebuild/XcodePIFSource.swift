@@ -1,18 +1,11 @@
 import Foundation
 import SwiftCodeBuild
 
-/// `XcodePIF` as the PIF source of SwiftCodeBuild's swift-build engine, so the
-/// IDE and swiftcodebuild send swift-build the same PIF (reference GUID scheme,
-/// workspace path, every target kind). See `specs/ide/build-pif.md`.
 public struct XcodePIFSource: PIFSource {
-    /// The `SourcePackages` folder (package checkouts, the generated package
-    /// root); nil: `PackageGraphLoader.defaultSourcePackages(for:)`, the
-    /// folder of the IDE's checkouts.
     public var sourcePackagesDirectory: URL?
 
     public init(sourcePackagesDirectory: URL? = nil) { self.sourcePackagesDirectory = sourcePackagesDirectory }
 
-    /// Loads a project (with its sub-projects) or a workspace.
     public static func container(for request: BuildRequest) throws -> Container {
         switch request.container {
         case .project(let path): return try ContainerLocator.loadProjectContainer(URL(fileURLWithPath: path).standardizedFileURL)
@@ -21,10 +14,6 @@ public struct XcodePIFSource: PIFSource {
         }
     }
 
-    /// The PIF of a request's container with its package graph: what the
-    /// build sends to swift-build. Also the entry point for clients that ask
-    /// swift-build about a target (compiler arguments for a build server):
-    /// serialize it, and name targets by `XcodePIF.targetGUID(_:_:)`.
     public func makePIF(for request: BuildRequest) throws -> XcodePIF {
         let container = try Self.container(for: request)
         let dir = sourcePackagesDirectory ?? PackageGraphLoader.defaultSourcePackages(for: container.url)
@@ -37,11 +26,8 @@ public struct XcodePIFSource: PIFSource {
         return (data, targets)
     }
 
-    /// With the synchronized-folder warnings of each target
-    /// (`XcodePIF.synchronizedFolderWarnings`).
     public func pifWithWarnings(for request: BuildRequest) throws -> (data: Data, targets: [String], warnings: [String: [String]]) {
         let pif = try makePIF(for: request)
-        // The container's own targets (the build target is chosen by name).
         let targets = pif.container.projects.flatMap { $0.targets.filter { ProjectPIF.targetKind($0) != nil }.compactMap { $0.string("name") } }
         var warnings: [String: [String]] = [:]
         for p in pif.container.projects {
@@ -53,17 +39,12 @@ public struct XcodePIFSource: PIFSource {
         return (try pif.serialized(), targets, warnings)
     }
 
-    /// Whether swift-build can build the request from this PIF (the IDE's
-    /// `FallbackEngine` test): packages always; projects and workspaces that
-    /// load, whose package products (if any) are all in the package graph,
-    /// and that apply no build-tool plug-in to a project target.
     public static func supports(_ request: BuildRequest) -> Bool {
         if case .package = request.container { return true }
         guard let container = try? container(for: request) else { return false }
         return unsupportedFeatures(container).isEmpty
     }
 
-    /// What the PIF cannot express for a container, one line per item.
     public static func unsupportedFeatures(_ container: Container) -> [String] {
         var out: [String] = []
         for p in container.projects {
@@ -80,15 +61,10 @@ public struct XcodePIFSource: PIFSource {
     }
 }
 
-/// Exported build settings from swift-build through the `swiftcode-swb`
-/// helper, for SwiftCodeBuild's `XcodebuildEngine.settingsSource` (so the IDE
-/// does not run `xcodebuild -showBuildSettings`). Targets: all targets of
-/// the container's projects, the scheme's target first when it names one.
 public struct SwiftBuildSettingsSource: BuildSettingsSource {
     public var helper: String
     public init(helper: String) { self.helper = helper }
 
-    /// `SWIFTCODE_SWB`, then `swiftcode-swb` on PATH.
     public static func locate(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         SwiftBuildSettingsProvider.locate(environment: environment, executableDirectory: nil)
     }

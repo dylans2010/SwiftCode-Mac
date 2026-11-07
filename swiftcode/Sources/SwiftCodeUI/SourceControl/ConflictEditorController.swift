@@ -1,36 +1,22 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The three-way conflict editor (`specs/ide/comparison.md`, "SwiftCode
-/// implementation"): for a conflicted file, base / ours (left) / theirs
-/// (right) shown two at a time in the comparison view, a choice per hunk
-/// (Left, Right, Left + Right, Right + Left, Base, Edit), the merged
-/// result below, Mark as Resolved, and Continue or Abort for the
-/// operation in progress. The same controller compares and merges any
-/// two or three files (Compare Files, SwiftCode's file-merge tool).
 @MainActor
 public final class ConflictEditorController: NSViewController, NSTextViewDelegate {
     public enum Source {
-        /// A repository's conflicted files.
         case repository(GitRepository)
-        /// Two files, or three with a common ancestor.
         case files(left: URL, right: URL, ancestor: URL?)
     }
 
-    /// Which two of the three versions the comparison view shows.
     public typealias Pair = ConflictEditorState.Pair
     public static let pairTitles = ConflictEditorState.pairTitles
     public static let choiceTitles = ConflictEditorState.choiceTitles
 
     public let source: Source
-    /// Everything the editor shows, shared with the Linux IDE
-    /// (`ConflictEditorState`).
     public private(set) var state: ConflictEditorState
-    /// Conflicted files (repository) and the shown one.
     public var files: [String] { state.files }
     public var currentFile: String? { state.currentFile }
     public var document: MergeDocument? { state.document }
-    /// The selected hunk (index into `document.hunks`).
     public var currentHunk: Int? { state.currentHunk }
     public var pair: Pair { state.pair }
     public var integration: GitRepository.IntegrationState { state.integration }
@@ -57,14 +43,9 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
     let resultScroll = NSScrollView()
     public let resultTitle = NSTextField(labelWithString: "Result")
 
-    /// A file was marked resolved (the window refreshes git's status).
     public var onResolved: (() -> Void)?
     public var onContinue: (() -> Void)?
     public var onAbort: (() -> Void)?
-    /// A background git read or write, while one runs. Every task is
-    /// tracked until its own body has finished (it removes itself as its
-    /// last step), so `idle()` never finds a finished task still listed:
-    /// waiting on one would spin the main actor.
     public var loading: Task<Void, Never>? { pending.values.first }
     private var pending: [Int: Task<Void, Never>] = [:]
     private var nextPending = 0
@@ -91,8 +72,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
     var repository: GitRepository? { if case .repository(let r) = source { r } else { nil } }
     public var isComparingFiles: Bool { repository == nil }
     var hasBase: Bool { state.hasBase }
-
-    // MARK: View
 
     public override func loadView() {
         let root = PanelBackgroundView(frame: NSRect(x: 0, y: 0, width: 900, height: 620))
@@ -192,10 +171,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         reloadFiles()
     }
 
-    // MARK: Loading
-
-    /// Re-reads the list of conflicted files (repository) or the files
-    /// (Compare Files), then shows the focused or first one.
     public func reloadFiles() {
         switch source {
         case .files(let l, let r, let a):
@@ -231,8 +206,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         }
     }
 
-    /// The window's latest snapshot: picks up conflicts resolved or added
-    /// elsewhere without re-reading the shown file.
     public func update(integration: GitRepository.IntegrationState, conflicted: [String]) {
         guard repository != nil, loading == nil else { return }
         if case .show(let next) = state.update(integration: integration, conflicted: conflicted) {
@@ -242,7 +215,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         render()
     }
 
-    /// Shows one conflicted file (repository mode).
     public func show(file: String?) async {
         guard let repo = repository else { return }
         state.currentFile = file
@@ -251,14 +223,12 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         let generation = showGeneration
         await track { [weak self] in
             let doc = await Task.detached { repo.mergeDocument(forConflictedFile: file) }.value
-            // A later show replaced this one.
             guard let self, generation == self.showGeneration, self.currentFile == file else { return }
             self.state.load(doc)
             self.render()
         }.value
     }
 
-    /// Runs `body` on the main actor as a tracked task (see `loading`).
     @discardableResult
     func track(_ body: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
         nextPending += 1
@@ -271,15 +241,10 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         return t
     }
 
-    /// Waits until no read or write runs (tests). Each wait suspends on an
-    /// unfinished task, so the main actor stays free.
     public func idle() async {
         while let t = pending.values.first { await t.value }
     }
 
-    // MARK: Hunks
-
-    /// Selects a hunk and shows it.
     public func selectHunk(_ h: Int?) {
         state.selectHunk(h)
         render()
@@ -288,22 +253,17 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
     @objc public func nextHunk(_ sender: Any?) { state.nextHunk(); render() }
     @objc public func previousHunk(_ sender: Any?) { state.previousHunk(); render() }
 
-    /// Applies a choice to the selected hunk; after a decision the next
-    /// undecided conflict is selected.
     public func choose(_ choice: MergeDocument.Choice) {
         state.choose(choice)
         render()
     }
 
-    /// Edit: the selected hunk's text becomes hand-written; the editor
-    /// below the bar shows it.
     public func beginEditing() {
         state.beginEditing()
         hunkEditor.string = state.editedText
         render()
     }
 
-    /// Replaces the selected hunk's hand-written text.
     public func setEditedText(_ text: String) {
         guard isEditing else { return }
         hunkEditor.string = text
@@ -337,10 +297,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         Task { await show(file: files[i]) }
     }
 
-    // MARK: Actions
-
-    /// Mark as Resolved: writes the result and stages the file, then shows
-    /// the next conflicted file.
     @objc public func markResolved(_ sender: Any?) { Task { await markResolved() } }
 
     @discardableResult
@@ -364,7 +320,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
     @objc public func continueIntegration(_ sender: Any?) { onContinue?() }
     @objc public func abortIntegration(_ sender: Any?) { onAbort?() }
 
-    /// Compare Files: writes the merged result.
     @objc public func saveMerge(_ sender: Any?) {
         let panel = NSSavePanel()
         if case .files(let l, _, _) = source { panel.directoryURL = l.deletingLastPathComponent(); panel.nameFieldStringValue = l.lastPathComponent }
@@ -377,7 +332,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         }
     }
 
-    /// Writes the result; refused while conflicts are unresolved.
     public func save(to url: URL) throws {
         guard let doc = document else { return }
         guard doc.isResolved else {
@@ -385,8 +339,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         }
         try doc.result.write(to: url, atomically: true, encoding: .utf8)
     }
-
-    // MARK: Rendering
 
     func render() {
         guard isViewLoaded else { return }
@@ -431,7 +383,6 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
     func renderComparison() {
         let c = state.comparison
         comparison.show(old: c.old, new: c.new, oldTitle: c.oldTitle, newTitle: c.newTitle)
-        // Scroll both columns to the selected hunk's first row.
         guard let row = state.comparisonRow(in: comparison.rows) else { return }
         scroll(comparison.leftView, toLine: row)
     }
@@ -461,12 +412,9 @@ public final class ConflictEditorController: NSViewController, NSTextViewDelegat
         tv.scrollRangeToVisible(NSRange(location: min(offset, text.length), length: 0))
     }
 
-    /// The result text as shown (tests).
     public var resultText: String { resultView.string }
 }
 
-/// A window comparing and merging two or three files (SwiftCode ▸ Open
-/// Developer Tool ▸ Compare Files…).
 @MainActor
 public final class CompareFilesWindowController: NSWindowController {
     public let editor: ConflictEditorController
@@ -494,7 +442,6 @@ public final class CompareFilesWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Opens a window for the files and keeps it until it closes.
     @discardableResult
     public static func show(left: URL, right: URL, ancestor: URL? = nil, display: Bool = true) -> CompareFilesWindowController {
         let c = CompareFilesWindowController(left: left, right: right, ancestor: ancestor)
@@ -506,7 +453,6 @@ public final class CompareFilesWindowController: NSWindowController {
         return c
     }
 
-    /// Asks for the left and right files, then optionally an ancestor.
     public static func choose() {
         func pick(_ message: String, prompt: String) -> URL? {
             let p = NSOpenPanel()
@@ -525,7 +471,5 @@ public final class CompareFilesWindowController: NSWindowController {
 }
 
 extension AppCommands {
-    /// SwiftCode ▸ Open Developer Tool ▸ Compare Files…: two files, or three
-    /// with an ancestor, in a merge window.
     @objc public func compareFiles(_ sender: Any?) { CompareFilesWindowController.choose() }
 }

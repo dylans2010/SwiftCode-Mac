@@ -1,16 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/GitNotInstalledView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// Shown when git is not installed on the machine, so the source-control
-/// features cannot run. Legacy-only styling (`.sourceControlEmbedded()`,
-/// `ModernGroupBoxStyle()`) dropped; the wording is kept.
-///
-/// Hook: show this from the source-control navigator's empty state when
-/// `GitRepository.isGitInstalled()` (SwiftCodeIDECore) is false, or when a
-/// repository open fails because no git executable was found.
 @MainActor
 public struct GitNotInstalledView: View {
     public init() {}

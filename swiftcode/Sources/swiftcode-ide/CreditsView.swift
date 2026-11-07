@@ -1,10 +1,3 @@
-// CreditsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/CreditsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: live GitHub contributor profiles (dylans2010, aoyn1xw) with followers, public repos, avatars and profile links
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AsyncImage, URLError.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 #if canImport(AppKit)
@@ -24,7 +17,6 @@ struct CreditsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Contributors Header Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {

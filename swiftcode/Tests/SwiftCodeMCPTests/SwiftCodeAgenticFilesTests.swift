@@ -4,31 +4,13 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic file & search tools against
-/// `Samples/AgentSamples/Greeter` (a copy). Fixture facts used below
-/// (verified from the sample): the workspace has 5 Swift files
-/// (`Package.swift`, `Sources/Greeter/Greeter.swift`,
-/// `Sources/greet/main.swift`, `Previews/GreetingView.swift`,
-/// `Tests/GreeterTests/GreeterTests.swift`) and one `.xcstrings` file.
-/// `Greeter.swift` is 14 lines plus a trailing newline: `struct
-/// Greeter` at line 2, `var salutation` at line 4, `init` at line 6,
-/// `func greeting` at line 11. `main.swift` imports `Greeter` and
-/// calls `Greeter().greeting(for:)` at line 4. `GreetingView.swift`
-/// is `struct GreetingView: View` at line 4. `GreeterTests.swift` is
-/// `final class GreeterTests: XCTestCase` at line 4, with
-/// `testSalutation` at line 9 and a `salutation:` argument at line 10.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticFilesTests {
     static let agenticFilesIDs = ["read_multiple_files", "search_files", "find_text", "replace_text", "grep", "glob_search"]
 
-    /// Opens a copy of Greeter and installs the ported Agentic files
-    /// tools on the server (same shape as Wave 3's `opened`; the
-    /// coordinator wires `agenticFilesTools` into `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 3 shape): `installTools()` already wires
-        // `agenticFilesTools`, so a plain `+=` would register them twice.
         let ported = Set(host.agenticFilesTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.agenticFilesTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -36,7 +18,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -82,9 +63,6 @@ import SwiftCodeIDECore
             let outputKeys = tool.outputSchema?["properties"]?.object?.keys.sorted() ?? []
             #expect(outputKeys == expectedOutputs[tool.name], "\(tool.name) output keys: \(outputKeys)")
         }
-        // The host serves them once installed (the coordinator wires
-        // `agenticFilesTools` into `installTools()`; filter-first so they are
-        // not registered twice).
         let installed = Set(host.agenticFilesTools.map(\.name))
         host.server.tools = host.server.tools.filter { !installed.contains($0.name) } + host.agenticFilesTools
         let served = host.server.tools.map(\.name)
@@ -109,13 +87,10 @@ import SwiftCodeIDECore
         #expect(files[1]["content"]?.string?.contains("let package = Package(") == true)
         #expect(found.firstText.hasPrefix("--- FILE: Sources/Greeter/Greeter.swift ---\n/// Makes greetings."))
         #expect(found.firstText.contains("--- FILE: Package.swift ---\n// swift-tools-version: 5.9"))
-        // A missing file fails the whole call, as in Legacy.
         let gone = try await host.server.callTool("read_multiple_files", ["paths": .array([.string("Sources/Greeter/Greeter.swift"), .string("nope.swift")])])
         #expect(gone.isToolError && gone.resultText.contains("Failed to read file at nope.swift"))
-        // An empty-string entry is rejected.
         let blank = try await host.server.callTool("read_multiple_files", ["paths": .array([.string("")])])
         #expect(blank.isToolError && blank.resultText.contains("paths[0] must be a non-empty string path."))
-        // A path outside the workspace is refused.
         let outside = try await host.server.callTool("read_multiple_files", ["paths": .array([.string("../escape.txt")])])
         #expect(outside.isToolError && outside.resultText.contains("is outside the workspace folder"))
     }
@@ -129,20 +104,15 @@ import SwiftCodeIDECore
         #expect(found.structured?["files"]?.array?.compactMap(\.string) == ["Sources/Greeter/Greeter.swift", "Tests/GreeterTests/GreeterTests.swift"])
         #expect(found.structured?["count"]?.int == 2)
         #expect(found.firstText == "Found 2 file(s) matching 'Greeter' in .")
-        // The match is a case-sensitive substring of the file name.
         let lower = try await host.server.callTool("search_files", ["directory": .string("."), "pattern": .string("greeter")])
         #expect(!lower.isToolError && lower.structured?["files"]?.array?.isEmpty == true && lower.structured?["count"]?.int == 0)
         #expect(lower.firstText == "No files matching 'greeter' found in .")
-        // Scoped to the directory: only the Tests file matches there.
         let scoped = try await host.server.callTool("search_files", ["directory": .string("Tests"), "pattern": .string("Greeter")])
         #expect(scoped.structured?["files"]?.array?.compactMap(\.string) == ["Tests/GreeterTests/GreeterTests.swift"])
-        // A missing directory fails explicitly (Legacy silently returned empty).
         let gone = try await host.server.callTool("search_files", ["directory": .string("Nope"), "pattern": .string("x")])
         #expect(gone.isToolError && gone.resultText.contains("Directory not found: Nope"))
-        // A file is not a directory.
         let file = try await host.server.callTool("search_files", ["directory": .string("Package.swift"), "pattern": .string("x")])
         #expect(file.isToolError && file.resultText.contains("Not a directory: Package.swift"))
-        // A path outside the workspace is refused.
         let outside = try await host.server.callTool("search_files", ["directory": .string(".."), "pattern": .string("x")])
         #expect(outside.isToolError && outside.resultText.contains("is outside the workspace folder"))
     }
@@ -155,17 +125,13 @@ import SwiftCodeIDECore
         #expect(!found.isToolError, "\(found.resultText)")
         #expect(found.structured?["results"]?.string == "Sources/Greeter/Greeter.swift: 4, 6, 7, 12\nTests/GreeterTests/GreeterTests.swift: 10")
         #expect(found.firstText == "Text search results for 'salutation' in .:")
-        // Case-sensitive: the uppercase form matches nothing.
         let upper = try await host.server.callTool("find_text", ["directory": .string("."), "text": .string("SALUTATION")])
         #expect(!upper.isToolError && upper.structured?["results"]?.string == "")
         #expect(upper.firstText == "No matches found.")
-        // Capital-S matches only `testSalutation` (line 9 of the tests).
         let capital = try await host.server.callTool("find_text", ["directory": .string("."), "text": .string("Salutation")])
         #expect(capital.structured?["results"]?.string == "Tests/GreeterTests/GreeterTests.swift: 9")
-        // Scoped to Sources: only Greeter.swift reports.
         let scoped = try await host.server.callTool("find_text", ["directory": .string("Sources"), "text": .string("salutation")])
         #expect(scoped.structured?["results"]?.string == "Sources/Greeter/Greeter.swift: 4, 6, 7, 12")
-        // A missing directory fails explicitly.
         let gone = try await host.server.callTool("find_text", ["directory": .string("Nope"), "text": .string("x")])
         #expect(gone.isToolError && gone.resultText.contains("Directory not found: Nope"))
     }
@@ -182,16 +148,13 @@ import SwiftCodeIDECore
         #expect(replaced.structured?["path"]?.string == "notes.txt")
         #expect(replaced.firstText == "Successfully replaced text in notes.txt")
         #expect(sample.read("notes.txt") == "baz bar baz\nbaz\n")
-        // An absent target succeeds with a zero count and no rewrite.
         let absent = try await host.server.callTool("replace_text",
                                                     ["path": .string("notes.txt"), "target": .string("zzz"), "replacement": .string("q")])
         #expect(!absent.isToolError && absent.structured?["replacementCount"]?.int == 0)
         #expect(sample.read("notes.txt") == "baz bar baz\nbaz\n")
-        // An empty target is rejected (Legacy would corrupt the file).
         let empty = try await host.server.callTool("replace_text",
                                                    ["path": .string("notes.txt"), "target": .string(""), "replacement": .string("q")])
         #expect(empty.isToolError && empty.resultText.contains("Target must not be empty."))
-        // A missing file fails.
         let gone = try await host.server.callTool("replace_text",
                                                   ["path": .string("nope.txt"), "target": .string("a"), "replacement": .string("b")])
         #expect(gone.isToolError && gone.resultText.contains("Failed to read file at nope.txt"))
@@ -201,13 +164,11 @@ import SwiftCodeIDECore
         let sample = try TempSample()
         defer { sample.remove() }
         try writeFixture(sample, "notes.txt", "foo bar foo\n")
-        // A reviewing policy that refuses every change.
         let host = try await opened(sample, policy: .review { _ in false })
         let refused = try await host.server.callTool("replace_text",
                                                      ["path": .string("notes.txt"), "target": .string("foo"), "replacement": .string("baz")])
         #expect(refused.isToolError && refused.firstText == MCPServer.rejectedMessage)
         #expect(sample.read("notes.txt") == "foo bar foo\n")
-        // A read-only server refuses before the handler runs.
         let readOnlyHost = try await opened(sample)
         let blocked = try await readOnlyHost.server.callTool("replace_text",
                                                              ["path": .string("notes.txt"), "target": .string("foo"), "replacement": .string("baz")])
@@ -223,7 +184,6 @@ import SwiftCodeIDECore
         let outside = try await host.server.callTool("replace_text",
                                                      ["path": .string("../escape.txt"), "target": .string("a"), "replacement": .string("b")])
         #expect(outside.isToolError && outside.resultText.contains("is outside the workspace folder"))
-        // A path that stays inside via `..` is allowed (Wave 1 rule).
         let inside = try await host.server.callTool("replace_text",
                                                     ["path": .string("Sources/../notes.txt"), "target": .string("foo"), "replacement": .string("baz")])
         #expect(!inside.isToolError, "\(inside.resultText)")
@@ -243,19 +203,15 @@ import SwiftCodeIDECore
             Tests/GreeterTests/GreeterTests.swift:10:         XCTAssertEqual(Greeter(salutation: "Hi").greeting(for: "Bo"), "Hi, Bo!")
             """)
         #expect(found.firstText == #"Grep search completed for 'greeting\(for'"#)
-        // Case-sensitive: the uppercase form matches nothing.
         let upper = try await host.server.callTool("grep", ["pattern": .string("SALUTATION"), "directory": .string(".")])
         #expect(!upper.isToolError && upper.structured?["results"]?.string == "")
-        // Scoped to Tests: only the test file reports.
         let scoped = try await host.server.callTool("grep", ["pattern": .string(#"greeting\(for"#), "directory": .string("Tests")])
         #expect(scoped.structured?["results"]?.string == """
             Tests/GreeterTests/GreeterTests.swift:6:         XCTAssertEqual(Greeter().greeting(for: "Ada"), "Hello, Ada!")
             Tests/GreeterTests/GreeterTests.swift:10:         XCTAssertEqual(Greeter(salutation: "Hi").greeting(for: "Bo"), "Hi, Bo!")
             """)
-        // An invalid pattern fails with the regex error, never a partial result.
         let invalid = try await host.server.callTool("grep", ["pattern": .string("["), "directory": .string(".")])
         #expect(invalid.isToolError && invalid.resultText.contains("Regex search failed:"))
-        // A missing directory fails explicitly.
         let gone = try await host.server.callTool("grep", ["pattern": .string("x"), "directory": .string("Nope")])
         #expect(gone.isToolError && gone.resultText.contains("Directory not found: Nope"))
     }
@@ -276,12 +232,9 @@ import SwiftCodeIDECore
                                                                               "Tests/GreeterTests/GreeterTests.swift"])
         let strings = try await host.server.callTool("glob_search", ["pattern": .string("*.xcstrings")])
         #expect(strings.structured?["files"]?.array?.compactMap(\.string) == ["Strings/Localizable.xcstrings"])
-        // No matches is a success with an empty list.
         let none = try await host.server.callTool("glob_search", ["pattern": .string("zzz*")])
         #expect(!none.isToolError && none.structured?["files"]?.array?.isEmpty == true && none.structured?["count"]?.int == 0)
         #expect(none.firstText == "No files matching 'zzz*' found.")
-        // A pattern containing `/` matches nothing: the match is against
-        // the file name only, as `find -name` does.
         let slashed = try await host.server.callTool("glob_search", ["pattern": .string("Sources/*.swift")])
         #expect(!slashed.isToolError && slashed.structured?["count"]?.int == 0)
     }

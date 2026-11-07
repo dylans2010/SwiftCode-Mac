@@ -24,18 +24,15 @@ struct GitHubCodeSearchView: View {
 
     @State private var mode: SearchMode = .local
 
-    // MARK: - Local Search State
     @State private var localQuery = ""
     @State private var localResults: [String] = []
     @State private var isLocalSearching = false
 
-    // MARK: - GitHub Discover State
     @State private var discoverQuery = ""
     @State private var discoverType: DiscoverType = .repositories
     @State private var isDiscoverSearching = false
     @State private var discoverResults: [DiscoverResultItem] = []
 
-    // Advanced Filters
     @State private var filterLanguage = ""
     @State private var filterLicense = ""
     @State private var filterStars = ""
@@ -44,14 +41,12 @@ struct GitHubCodeSearchView: View {
     @State private var filterOrg = ""
     @State private var filterTopic = ""
     @State private var filterArchived = false
-    @State private var filterVisibility = "all" // "all", "public", "private"
+    @State private var filterVisibility = "all"
 
-    // Sheet Selection for Browser
     @State private var selectedRepoFullName: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            // Mode Picker
             Picker("Search Mode", selection: $mode) {
                 ForEach(SearchMode.allCases) { item in
                     Text(item.rawValue).tag(item)
@@ -77,8 +72,6 @@ struct GitHubCodeSearchView: View {
             PublicRepositoryBrowserView(repoFullName: selection.fullName)
         }
     }
-
-    // MARK: - Local Search Pane
 
     private var localSearchPane: some View {
         VStack(spacing: 0) {
@@ -160,17 +153,13 @@ struct GitHubCodeSearchView: View {
                 }
                 self.localResults = matched
             } catch {
-                // Silent catch
             }
             isLocalSearching = false
         }
     }
 
-    // MARK: - GitHub Discover Pane
-
     private var discoverPane: some View {
         HSplitView {
-            // Left Filters HUD
             VStack(alignment: .leading, spacing: 14) {
                 Text("ADVANCED FILTERS")
                     .font(.caption2.bold())
@@ -222,7 +211,6 @@ struct GitHubCodeSearchView: View {
             .frame(width: 220)
             .background(Color(NSColor.windowBackgroundColor))
 
-            // Right Search & Results
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     Picker("Search For", selection: $discoverType) {
@@ -297,7 +285,6 @@ struct GitHubCodeSearchView: View {
     private func triggerDiscoverSearch() {
         guard !discoverQuery.isEmpty else { return }
 
-        // Build composite query: e.g. "myQuery + language:Swift + stars:>500"
         var queryParts = [discoverQuery]
 
         if !filterLanguage.isEmpty { queryParts.append("language:\(filterLanguage)") }
@@ -342,7 +329,6 @@ struct GitHubCodeSearchView: View {
 
                 let (data, _) = try await URLSession.shared.data(for: request)
 
-                // Decoders
                 let decoder = JSONDecoder()
                 decoder.keyDecodingStrategy = .convertFromSnakeCase
 
@@ -470,8 +456,6 @@ struct GitHubCodeSearchView: View {
     }
 }
 
-// MARK: - Helper Models
-
 struct RepoSelection: Identifiable {
     var id: String { fullName }
     let fullName: String
@@ -527,9 +511,6 @@ struct DiscoverResultRow: View {
     }
 }
 
-// ====================================================================
-// PUBLIC REPOSITORY BROWSER SHEET
-// ====================================================================
 @MainActor
 struct PublicRepositoryBrowserView: View {
     let repoFullName: String
@@ -541,14 +522,12 @@ struct PublicRepositoryBrowserView: View {
     @State private var branches: [GitHubBranch] = []
     @State private var activeTab: BrowserTab = .overview
 
-    // Files state
     @State private var fileTree: [GitHubTreeEntry] = []
     @State private var selectedFilePath = ""
     @State private var selectedFileContent = ""
     @State private var isLoadingFiles = false
     @State private var isDownloading = false
 
-    // Actions state
     @State private var isStarred = false
     @State private var isWatching = false
 
@@ -569,7 +548,6 @@ struct PublicRepositoryBrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(repoFullName)
@@ -631,12 +609,9 @@ struct PublicRepositoryBrowserView: View {
         }
     }
 
-    // MARK: - Overview Pane
-
     private var overviewPane: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Description and topics
                 if let meta {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(meta.description ?? "No description provided.")
@@ -662,7 +637,6 @@ struct PublicRepositoryBrowserView: View {
                     .cornerRadius(8)
                 }
 
-                // Repo Actions Section
                 VStack(alignment: .leading, spacing: 10) {
                     Text("REPOSITORY ACTIONS")
                         .font(.caption2.bold())
@@ -707,7 +681,6 @@ struct PublicRepositoryBrowserView: View {
                     }
                 }
 
-                // README Preview
                 VStack(alignment: .leading, spacing: 10) {
                     Text("README.md")
                         .font(.headline)
@@ -732,11 +705,8 @@ struct PublicRepositoryBrowserView: View {
         }
     }
 
-    // MARK: - Files Pane (Live Source Browser)
-
     private var filesPane: some View {
         HSplitView {
-            // Files Tree Navigation
             VStack(spacing: 0) {
                 if isLoadingFiles {
                     ProgressView().controlSize(.small).padding()
@@ -762,7 +732,6 @@ struct PublicRepositoryBrowserView: View {
             }
             .frame(width: 250)
 
-            // Content Viewer
             VStack(alignment: .leading, spacing: 0) {
                 if selectedFilePath.isEmpty {
                     ContentUnavailableView(
@@ -781,7 +750,6 @@ struct PublicRepositoryBrowserView: View {
                     Divider()
 
                     ScrollView {
-                        // Support Image preview
                         let isImage = selectedFilePath.hasSuffix(".png") || selectedFilePath.hasSuffix(".jpg") || selectedFilePath.hasSuffix(".jpeg") || selectedFilePath.hasSuffix(".gif")
 
                         if isImage {
@@ -807,8 +775,6 @@ struct PublicRepositoryBrowserView: View {
         }
     }
 
-    // MARK: - Commits Pane
-
     private var commitsPane: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -821,8 +787,6 @@ struct PublicRepositoryBrowserView: View {
             .padding()
         }
     }
-
-    // MARK: - Releases Pane
 
     private var releasesPane: some View {
         ScrollView {
@@ -837,8 +801,6 @@ struct PublicRepositoryBrowserView: View {
         }
     }
 
-    // MARK: - Actions Helpers
-
     private func loadRepositoryInfo() {
         guard let (owner, repo) = ownerAndRepo else { return }
 
@@ -848,15 +810,12 @@ struct PublicRepositoryBrowserView: View {
                 self.meta = fetchedMeta
                 self.selectedBranch = fetchedMeta.defaultBranch ?? "main"
 
-                // Load README
                 if let readme = try? await GitHubService.shared.getFileContent(owner: owner, repo: repo, path: "README.md") {
                     self.readmeContent = readme
                 }
 
-                // Load Tree
                 loadRepoTree()
             } catch {
-                // silent failure
             }
         }
     }
@@ -870,7 +829,6 @@ struct PublicRepositoryBrowserView: View {
                 let tree = try await GitHubService.shared.getRepoTree(owner: owner, repo: repo, branch: selectedBranch)
                 self.fileTree = tree
             } catch {
-                // keeps tree empty
             }
             isLoadingFiles = false
         }
@@ -924,7 +882,6 @@ struct PublicRepositoryBrowserView: View {
                 alert.addButton(withTitle: "OK")
                 alert.runModal()
             } catch {
-                // silent catch
             }
         }
     }
@@ -975,13 +932,10 @@ struct PublicRepositoryBrowserView: View {
 
                 _ = try await URLSession.shared.data(for: request)
             } catch {
-                // fallback toggle
             }
         }
     }
 }
-
-// MARK: - Live Commits Subview
 
 @MainActor
 struct LiveCommitsHistoryListView: View {
@@ -1036,14 +990,11 @@ struct LiveCommitsHistoryListView: View {
                 let list = try await GitHubService.shared.listCommits(owner: owner, repo: repo)
                 self.commits = list
             } catch {
-                // keep list empty
             }
             isLoading = false
         }
     }
 }
-
-// MARK: - Live Releases Subview
 
 @MainActor
 struct LiveReleasesListView: View {
@@ -1103,14 +1054,11 @@ struct LiveReleasesListView: View {
                 decoder.dateDecodingStrategy = .iso8601
                 self.releases = try decoder.decode([GitHubReleaseInfo].self, from: data)
             } catch {
-                // keep list empty
             }
             isLoading = false
         }
     }
 }
-
-// MARK: - Simple HFlowLayout Helper (unique name to avoid redeclarations!)
 
 struct DiscoverHFlowLayout: Layout {
     var spacing: CGFloat

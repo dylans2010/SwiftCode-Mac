@@ -1,8 +1,5 @@
 import Foundation
 
-// Value-type records: the form objects take in the store and on the (future)
-// client↔daemon wire. Public classes are thin immutable wrappers over them.
-
 struct SourceRecord: Codable, Hashable, Sendable {
     var bundleIdentifier: String
     var name: String
@@ -28,8 +25,6 @@ struct DeviceRecord: Codable, Hashable, Sendable {
     var udiDeviceIdentifier: String?
 }
 
-/// A metadata value: the four value classes HealthKit accepts (`interface.md` §4),
-/// with numbers kept as integer, floating point or boolean so they round-trip.
 enum MetadataValue: Codable, Hashable, Sendable {
     case string(String)
     case int(Int64)
@@ -67,10 +62,8 @@ enum MetadataValue: Codable, Hashable, Sendable {
         }
     }
 
-    /// Classify an app-supplied value; nil when its class is not allowed.
     static func from(_ value: Any) -> MetadataValue? {
         let t = type(of: value)
-        // swiftlint:disable force_cast - each line checks `t` first
         if t == Bool.self { return .bool(value as! Bool) }
         if t == Int.self { return .int(Int64(value as! Int)) }
         if t == Int64.self { return .int(value as! Int64) }
@@ -81,7 +74,6 @@ enum MetadataValue: Codable, Hashable, Sendable {
         if t == UInt32.self { return .int(Int64(value as! UInt32)) }
         if t == Double.self { return .double(value as! Double) }
         if t == Float.self { return .double(Double(value as! Float)) }
-        // swiftlint:enable force_cast
         if let q = value as? HKQuantity { return .quantity(value: q.value, unit: q.unit.unitString) }
         if let d = value as? Date { return .date(d.t) }
         if let s = value as? String { return .string(s) }
@@ -126,31 +118,24 @@ struct WorkoutRecord: Codable, Hashable, Sendable {
     var totalFlightsClimbed: QuantityValueRecord?
 }
 
-/// One stored object (sample).
 struct ObjectRecord: Codable, Hashable, Sendable {
     var uuid: UUID
     var kind: RecordKind
     var type: String
     var start: Double
     var end: Double
-    /// Assigned by the store when saved.
     var revision: SourceRevisionRecord?
     var device: DeviceRecord?
     var metadata: [String: MetadataValue]?
 
-    // quantity samples
-    var value: Double = 0          // in `unit`
+    var value: Double = 0
     var unit: String = ""
-    var ref: Double = 0            // in the reference unit of the type's dimension
+    var ref: Double = 0
     var count: Int = 1
-    // category samples
     var categoryValue: Int = 0
-    // correlations
     var members: [ObjectRecord]?
-    // workouts
     var workout: WorkoutRecord?
 
-    // assigned by the store
     var anchor: Int64 = 0
     var correlationParent: UUID?
     var workoutParent: UUID?
@@ -164,11 +149,9 @@ struct ObjectRecord: Codable, Hashable, Sendable {
     }
     var syncVersion: Double? { metadata?[HKMetadataKeySyncVersion]?.number }
 
-    /// Every record in this object (itself plus correlation members).
     var flattened: [ObjectRecord] { [self] + (members ?? []).flatMap(\.flattened) }
 }
 
-/// A deletion record (`queries.md` §4): UUID, the deleted object's metadata.
 struct TombstoneRecord: Codable, Hashable, Sendable {
     var anchor: Int64
     var uuid: UUID

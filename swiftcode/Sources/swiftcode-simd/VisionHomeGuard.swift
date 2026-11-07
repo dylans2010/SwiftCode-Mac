@@ -1,42 +1,12 @@
-// The visionOS shell watch and home guard (visionos.md §10.21, §10.26). At
-// the end of a first boot two guest processes raced: assistantd, once its
-// start-up was done, asked the shell (SurfBoard) to open Siri's orb pre-warm
-// scene, and the shell, once the device was unlocked and the cover sheet was
-// gone, brings up the home view (RealityLauncher) unless a foreground scene
-// "will be running". A request that reached the shell after data migration
-// was allowed after the unlock, Siri's pre-warm scene was in the foreground
-// at the resume, and nothing brought the home view up later. On the
-// reference the pre-warm comes 90 s or more after the home view (§9 Q27).
-//
-// The fix (§10.26.1): assistantd's start hold lasts until the shell is
-// ready (`DarwinSystem.shellReadyHoldLabels`, `markShellReady`). This
-// thread marks the shell ready when RealityLauncher runs or at the room's
-// first lit frame, whichever comes first, in every visionOS device run.
-//
-// In a run without an app launch of its own it then stays as the home
-// guard, a fallback that logs whenever it acts: when the shell has not
-// launched RealityLauncher `delay` seconds after the first lit frame, it
-// presses Home once through the HID service (what a user of the simulator
-// does), and again `delay` seconds later if there is still no
-// RealityLauncher, at most `maxPresses` times. It never presses while
-// RealityLauncher runs (a press then would close the home view).
-// `SWIFTCODE_VISIONOS_HOME_GUARD=0` turns the guard off,
-// `SWIFTCODE_VISIONOS_HOME_GUARD_S` sets `delay`, `SWIFTCODE_VISIONOS_SHELL_HOLD`
-// the held jobs.
-
 import Foundation
 
-/// The guard's decisions, apart from frames, processes and HID (tested).
 struct VisionHomeGuardPolicy: Equatable {
     var delay: Double = 60
     var maxPresses = 2
 
     enum Action: Equatable {
-        /// Check again later.
         case wait
-        /// Press Home now.
         case press
-        /// Done: the home view was launched, or every press was used.
         case stop
     }
 
@@ -48,8 +18,6 @@ struct VisionHomeGuardPolicy: Equatable {
         self.maxPresses = maxPresses
     }
 
-    /// `secondsSinceRoom`: seconds since the first lit frame (nil: none yet);
-    /// `launcherRunning`: a RealityLauncher process exists.
     mutating func step(secondsSinceRoom: Double?, launcherRunning: Bool) -> Action {
         if launcherRunning { return .stop }
         guard let t = secondsSinceRoom else { return .wait }
@@ -61,7 +29,6 @@ struct VisionHomeGuardPolicy: Equatable {
         return .press
     }
 
-    /// From the environment: nil when the guard is off.
     static func fromEnvironment(_ env: [String: String] = ProcessInfo.processInfo.environment) -> VisionHomeGuardPolicy? {
         if env["SWIFTCODE_VISIONOS_HOME_GUARD"] == "0" { return nil }
         var p = VisionHomeGuardPolicy()
@@ -69,18 +36,12 @@ struct VisionHomeGuardPolicy: Equatable {
         return p
     }
 
-    /// The jobs whose start hold lasts until the shell is ready (the room's
-    /// first lit frame or the home view launched; visionos.md §10.26.1):
-    /// Siri's assistant daemon, whose orb pre-warm otherwise races the
-    /// shell's home resume. `SWIFTCODE_VISIONOS_SHELL_HOLD`: a comma-separated
-    /// list instead, `0` none.
     static func shellReadyHoldLabels(_ env: [String: String] = ProcessInfo.processInfo.environment) -> Set<String> {
         guard let v = env["SWIFTCODE_VISIONOS_SHELL_HOLD"] else { return ["com.apple.assistantd"] }
         if v == "0" || v.isEmpty { return [] }
         return Set(v.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
     }
 
-    /// Whether `path` is the home view's executable.
     static func isLauncher(_ path: String) -> Bool { path.hasSuffix("/RealityLauncher.app/RealityLauncher") }
 }
 
@@ -90,11 +51,6 @@ import SwiftCodeHostServices
 import SwiftCodeHypervisor
 
 enum VisionHomeGuard {
-    /// Starts the watcher thread of a visionOS device run: it marks the
-    /// shell ready at the room's first lit frame or when the home view runs
-    /// (releasing the shell-ready holds), and with a `policy` (a run without
-    /// an app launch of its own) it is also the home guard, a fallback that
-    /// logs every press.
     static func start(policy: VisionHomeGuardPolicy?, statePath: String, surfaces: IOSurfaceHostService,
                       hid: HIDHostService?, system: DarwinSystem) {
         let thread = Thread {

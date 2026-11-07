@@ -1,9 +1,5 @@
-// SUIProbe modes: persistence, environment and colours, accessibility,
-// localization, images and symbols, gestures, and miscellaneous services.
 import SwiftUI
 import UIKit
-
-// MARK: persistence
 
 struct PersistProbe: View {
     @AppStorage("launchCount") var launches = 0
@@ -31,8 +27,6 @@ struct PersistProbe: View {
         }
     }
 }
-
-// MARK: environment, colours, live setting changes
 
 func colorRow(_ c: Color, _ e: EnvironmentValues) -> String {
     let r = c.resolve(in: e)
@@ -87,7 +81,6 @@ struct EnvProbe: View {
                     var e = EnvironmentValues(); e.colorScheme = scheme
                     for (n, c) in probeColors { log("color.\(scheme).\(n)", colorRow(c, e)) }
                 }
-                // UIKit high-contrast variants for comparison
                 for (n, c) in [("label", UIColor.label), ("systemBlue", UIColor.systemBlue), ("systemBackground", UIColor.systemBackground), ("systemRed", UIColor.systemRed)] {
                     for (sn, style) in [("light", UIUserInterfaceStyle.light), ("dark", .dark)] {
                         let tc = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: style), UITraitCollection(accessibilityContrast: .high)])
@@ -97,13 +90,10 @@ struct EnvProbe: View {
                         log("color.ui.highContrast.\(sn).\(n)", "\(f4(Double(red))),\(f4(Double(g))),\(f4(Double(b))),\(f4(Double(a)))")
                     }
                 }
-                // the driver changes appearance (t≈3), content size (t≈6), contrast (t≈9), then reverts (t≈12)
                 after(15) { finish() }
             }
     }
 }
-
-// MARK: accessibility
 
 @MainActor func dumpAccessibility(_ label: String) {
     guard let ws = UIApplication.shared.connectedScenes.first as? UIWindowScene, let w = ws.windows.first(where: { $0.isKeyWindow }) ?? ws.windows.first else { return }
@@ -160,8 +150,6 @@ struct A11yProbe: View {
     }
 }
 
-// MARK: localization
-
 struct L10nProbe: View {
     @Environment(\.locale) var locale
     @Environment(\.layoutDirection) var dir
@@ -188,8 +176,6 @@ struct L10nProbe: View {
         }
     }
 }
-
-// MARK: images and symbols
 
 struct ImagesProbe: View {
     @State var bounce = 0
@@ -225,8 +211,6 @@ struct ImagesProbe: View {
         }
     }
 }
-
-// MARK: gestures
 
 struct GestureProbe: View {
     @State var dragging = false
@@ -264,8 +248,6 @@ struct GestureProbe: View {
         .onAppear { after(16) { finish() } }
     }
 }
-
-// MARK: services touched by common app code
 
 struct ServicesProbe: View {
     @State var trigger = 0

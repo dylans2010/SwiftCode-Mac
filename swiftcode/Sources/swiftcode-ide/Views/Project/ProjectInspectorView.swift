@@ -3,21 +3,8 @@ import SwiftCodeIDECore
 import UniformTypeIdentifiers
 import os
 
-/// Project Inspector — Legacy's `ProjectInspectorView` +
-/// `ProjectArchitectureGraph`, rebuilt in SwiftCode style on top of
-/// `InspectorProjectScanner`.
-///
-/// Tabs: Overview (counts + health), Project (targets, schemes, signing
-/// summary, build settings, dependencies), Analytics (file/folder metrics),
-/// File Detail (per-file metadata), Graph (folders / targets / packages),
-/// AI Review (needs a text provider — the view takes one as a closure; with
-/// none it says so), Actions (export the Markdown report and JSON metrics
-/// into the project directory).
 public struct ProjectInspectorView: View {
     public var rootURL: URL
-    /// Text generation for AI Review. Wire the coding assistant's provider
-    /// here; nil shows an honest "not configured" state instead of a fake
-    /// review.
     public var textProvider: ((String) async throws -> String)?
 
     @State private var scanner = InspectorProjectScanner()
@@ -319,10 +306,6 @@ public struct ProjectInspectorView: View {
         }
     }
 }
-
-
-// Ported from Legacy `SwiftCode/Views/Utilities/ProjectInspector/ProjectInspectorView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: InspectorSettingsGroup, InspectorSigningRow, ProjectInspectorFlowLayout.
 
 private struct InspectorSettingsGroup: Identifiable {
     var id: String { name }

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Appends fixed-width numbers in either byte order.
 struct ByteWriter {
     var bytes: [UInt8] = []
 
@@ -25,7 +24,6 @@ struct ByteWriter {
     }
     mutating func append(_ b: [UInt8]) { bytes += b }
     mutating func append(_ d: Data) { bytes += d }
-    /// `s` in UTF-8, NUL-padded (or cut) to `length` bytes.
     mutating func padded(_ s: String, _ length: Int) {
         var b = Array(s.utf8.prefix(length))
         b += [UInt8](repeating: 0, count: length - b.count)
@@ -39,7 +37,6 @@ struct ByteWriter {
     }
 }
 
-/// Reads fixed-width numbers from a byte range; out-of-range reads throw.
 struct ByteReader {
     let bytes: [UInt8]
     var offset: Int
@@ -92,7 +89,6 @@ struct ByteReader {
         return v
     }
     mutating func tag() throws -> String { String(decoding: try take(4), as: UTF8.self) }
-    /// A NUL-padded string field.
     mutating func padded(_ n: Int) throws -> String {
         let b = try take(n)
         return String(decoding: b.prefix { $0 != 0 }, as: UTF8.self)

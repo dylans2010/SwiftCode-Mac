@@ -1,27 +1,3 @@
-// ylaunch: Ycode guest-side app install/launch helper (research probe, our own code).
-//
-// Runs inside the iOS simulator guest (xcrun simctl spawn <dev> /tmp/.../ylaunch ...).
-// Links only Foundation and Security. Private interfaces are reached by name at
-// run time (objc_getClass / dlsym), as an interop client. Calls are guarded with
-// respondsToSelector: so a missing interface is reported, not crashed on.
-// build.sh links ylaunch.entitlements into __TEXT,__entitlements; open-fbs needs it.
-//
-// Subcommands:
-//   avail                          report which candidate classes/selectors/symbols exist
-//   methods <Class> [filter]       list selector names and ObjC type encodings of a class (metadata only)
-//   entcheck <entitlement>         SecTaskCopyValueForEntitlement on this process, by audit token
-//   implementors <selector>        list classes whose instances implement a selector (metadata only)
-//   symbol <framework> <name>      dlsym a string constant and print its value
-//   install <path.app> [bundleid]  LSApplicationWorkspace installApplication:withOptions:error:
-//   uninstall <bundleid>           LSApplicationWorkspace uninstallApplication:withOptions:
-//   install-ix <path.app>          IXAppInstallCoordinator +installApplication:consumeSource:options:completion:
-//                                  (options: MIInstallOptions from {PackageType=Developer};
-//                                   YLAUNCH_PACKAGE_TYPE overrides the package type)
-//   uninstall-ix <bundleid>        IXAppInstallCoordinator +uninstallAppWithBundleID:error:
-//   lookup <bundleid>              LSApplicationProxy: installed? bundle + data container URLs
-//   open-ls <bundleid>             LSApplicationWorkspace openApplicationWithBundleID:
-//   open-fbs <bundleid> [--out P] [--err P] [--env K=V]... [--arg A]... [--wait]
-//                                  FBSOpenApplicationService openApplication:withOptions:completion:
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
@@ -117,7 +93,7 @@ static void implementors(const char *selName) {
     Class *all = objc_copyClassList(&n);
     for (unsigned i = 0; i < n; i++) {
         unsigned mc = 0;
-        Method *m = class_copyMethodList(all[i], &mc);   // own methods only, no +initialize
+        Method *m = class_copyMethodList(all[i], &mc);
         for (unsigned j = 0; j < mc; j++)
             if (method_getName(m[j]) == sel) { out(@"%s (%s)", class_getName(all[i]), class_getImageName(all[i])); break; }
         free(m);
@@ -125,7 +101,6 @@ static void implementors(const char *selName) {
     free(all);
 }
 
-// macOS public SecTask prototypes (the iOS SDK exports these but has no header).
 typedef struct __SecTask *SecTaskRef;
 extern SecTaskRef SecTaskCreateWithAuditToken(CFAllocatorRef, audit_token_t);
 extern CFTypeRef SecTaskCopyValueForEntitlement(SecTaskRef, CFStringRef, CFErrorRef *);
@@ -170,8 +145,6 @@ static int install(NSString *path, NSString *bid) {
     return ok ? 0 : 1;
 }
 
-// Describe a block argument whose type we do not know: only dereference values
-// that point into a malloc zone (heap objects); print everything else raw.
 static NSString *describeArg(void *p) {
     if (!p) return @"nil";
     if (malloc_zone_from_ptr(p)) {
@@ -186,9 +159,6 @@ static int installIX(NSString *path) {
     SEL s = sel_registerName("installApplication:consumeSource:options:completion:");
     if (!ix || !class_respondsToSelector(object_getClass(ix), s)) { out(@"install-ix: unavailable"); return 2; }
     const char *pt = getenv("YLAUNCH_PACKAGE_TYPE");
-    // The options argument is an MIInstallOptions object (passing a plain dictionary
-    // raises "unrecognized selector installTargetType"). Built from the legacy
-    // options dictionary, the same keys the host bridge logs.
     NSDictionary *legacy = @{@"PackageType": pt ? @(pt) : @"Developer"};
     Class mio = objc_getClass("MIInstallOptions");
     id opts = ((id (*)(id, SEL, id))objc_msgSend)([mio alloc],

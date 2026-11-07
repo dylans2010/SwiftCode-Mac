@@ -1,11 +1,3 @@
-/**
- * hello.test.mjs — smoke test for the generated standalone project.
- *
- * Runs the compiled entry point for real and asserts its output contains
- * the package name read from the real package.json. Bare `node --test`
- * (see package.json) discovers this file; the entry point must be built
- * (`npm run build`) before `npm test`.
- */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

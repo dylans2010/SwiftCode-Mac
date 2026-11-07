@@ -1,14 +1,5 @@
 import SwiftUI
 
-// MARK: - Info.plist Structured Sections
-//
-// UI-only editors for the well-known Info.plist domains (identity, icons,
-// orientations, App Transport Security, URL types, document types, UTI
-// declarations, background modes, device capabilities, privacy descriptions).
-// Every control reads and writes the real InfoPlistEditor model — there is no
-// raw text/XML editing anywhere in this file.
-
-/// The sidebar sections of the Info.plist editor.
 public enum PlistSidebarSection: String, CaseIterable, Identifiable {
     case identity = "Identity"
     case privacy = "Privacy & Permissions"
@@ -42,10 +33,6 @@ public enum PlistSidebarSection: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Shared Binding Helpers
-
-/// String binding for a top-level key. Reads "" when the key is absent so the
-/// field stays empty without creating the key until the user commits a value.
 func plistTopLevelString(_ editor: InfoPlistEditor, key: String) -> Binding<String> {
     Binding(
         get: { editor.entries[key] as? String ?? "" },
@@ -53,8 +40,6 @@ func plistTopLevelString(_ editor: InfoPlistEditor, key: String) -> Binding<Stri
     )
 }
 
-/// String-array binding for a top-level key. Tolerates the [Any] bridging form
-/// that PropertyListSerialization produces.
 func plistTopLevelStringArray(_ editor: InfoPlistEditor, key: String) -> Binding<[String]> {
     Binding(
         get: { (editor.entries[key] as? [Any])?.compactMap { $0 as? String } ?? [] },
@@ -62,7 +47,6 @@ func plistTopLevelStringArray(_ editor: InfoPlistEditor, key: String) -> Binding
     )
 }
 
-/// String binding into a nested dictionary binding.
 func nestedPlistString(_ dict: Binding<[String: Any]>, key: String) -> Binding<String> {
     Binding(
         get: { dict.wrappedValue[key] as? String ?? "" },
@@ -70,7 +54,6 @@ func nestedPlistString(_ dict: Binding<[String: Any]>, key: String) -> Binding<S
     )
 }
 
-/// String-array binding into a nested dictionary binding.
 func nestedPlistStringArray(_ dict: Binding<[String: Any]>, key: String) -> Binding<[String]> {
     Binding(
         get: { (dict.wrappedValue[key] as? [Any])?.compactMap { $0 as? String } ?? [] },
@@ -78,7 +61,6 @@ func nestedPlistStringArray(_ dict: Binding<[String: Any]>, key: String) -> Bind
     )
 }
 
-/// Boolean binding into a nested dictionary binding.
 private func plistDictBool(_ dict: Binding<[String: Any]>, key: String) -> Binding<Bool> {
     Binding(
         get: { dict.wrappedValue[key] as? Bool ?? false },
@@ -86,11 +68,6 @@ private func plistDictBool(_ dict: Binding<[String: Any]>, key: String) -> Bindi
     )
 }
 
-// MARK: - Shared Section Primitives
-
-/// Text field that edits a local draft and commits to the model on Return or
-/// focus loss, so typing does not flood the editor's undo stack with an entry
-/// per keystroke. External model changes (undo/redo) sync back while unfocused.
 struct PlistCommitTextField: View {
     @Binding var value: String
     var prompt: String = ""
@@ -117,7 +94,6 @@ struct PlistCommitTextField: View {
     }
 }
 
-/// Labeled row: icon + title/subtitle on the left, custom content on the right.
 struct PlistLabeledRow<Content: View>: View {
     let symbol: String
     let title: String
@@ -149,8 +125,6 @@ struct PlistLabeledRow<Content: View>: View {
     }
 }
 
-/// A labeled text row bound to a top-level string key, with optional inline
-/// validation and a remove (unset) affordance when the key is present.
 struct PlistKeyTextRow: View {
     let editor: InfoPlistEditor
     let key: String
@@ -178,8 +152,6 @@ struct PlistKeyTextRow: View {
     }
 }
 
-/// Icon-only button that removes a key (resets it to the unset state).
-/// Renders nothing when the key is absent.
 struct PlistRemoveKeyButton: View {
     let editor: InfoPlistEditor
     let key: String
@@ -198,7 +170,6 @@ struct PlistRemoveKeyButton: View {
     }
 }
 
-/// Neutral validation note used across plist editors.
 struct PlistValidationNote: View {
     let message: String
 
@@ -216,7 +187,6 @@ struct PlistValidationNote: View {
     }
 }
 
-/// Editable list of strings bound to a string array.
 struct PlistStringListEditor: View {
     @Binding var items: [String]
     var prompt: String = "Value"
@@ -265,9 +235,6 @@ struct PlistStringListEditor: View {
     }
 }
 
-/// Renders an "Add" button when the key is absent; otherwise the content plus a
-/// remove affordance. Used for optional structured keys (ATS, orientations,
-/// icon files, ...).
 struct PlistOptionalKeyBlock<Content: View>: View {
     let editor: InfoPlistEditor
     let key: String
@@ -300,7 +267,6 @@ struct PlistOptionalKeyBlock<Content: View>: View {
     }
 }
 
-/// One toggleable string value in a PlistStringSetEditor.
 struct PlistStringOption: Identifiable {
     let id: String
     let name: String
@@ -308,8 +274,6 @@ struct PlistStringOption: Identifiable {
     let symbol: String
 }
 
-/// Toggle list bound to membership in a top-level string array. Toggling the
-/// last option off removes the key entirely.
 struct PlistStringSetEditor: View {
     let editor: InfoPlistEditor
     let key: String
@@ -365,8 +329,6 @@ struct PlistStringSetEditor: View {
     }
 }
 
-/// Shell for editing a top-level array of dictionaries (URL types, document
-/// types, UTI declarations). Preserves non-dictionary entries in the array.
 struct PlistDictArrayEditor<Row: View>: View {
     let editor: InfoPlistEditor
     let key: String
@@ -426,7 +388,6 @@ struct PlistDictArrayEditor<Row: View>: View {
     }
 }
 
-/// Card shell for one dictionary entry inside a PlistDictArrayEditor.
 struct PlistDictRowCard<Content: View>: View {
     let items: Binding<[Any]>
     let index: Int
@@ -467,8 +428,6 @@ struct PlistDictRowCard<Content: View>: View {
     }
 }
 
-// MARK: - 1. Bundle Identity
-
 struct IdentitySectionView: View {
     let editor: InfoPlistEditor
 
@@ -504,8 +463,6 @@ struct IdentitySectionView: View {
     }
 }
 
-// MARK: - 2. Icons & Launch
-
 struct IconsLaunchSectionView: View {
     let editor: InfoPlistEditor
 
@@ -532,8 +489,6 @@ struct IconsLaunchSectionView: View {
         .formStyle(.grouped)
     }
 }
-
-// MARK: - 3. Interface Orientations
 
 struct OrientationsSectionView: View {
     let editor: InfoPlistEditor
@@ -619,8 +574,6 @@ struct OrientationsSectionView: View {
         }
     }
 }
-
-// MARK: - 4. App Transport Security
 
 struct ATSSectionView: View {
     let editor: InfoPlistEditor
@@ -822,8 +775,6 @@ struct ATSExceptionDomainRow: View {
     }
 }
 
-// MARK: - 5. URL Types
-
 struct URLTypesSectionView: View {
     let editor: InfoPlistEditor
 
@@ -861,8 +812,6 @@ struct URLTypesSectionView: View {
         .formStyle(.grouped)
     }
 }
-
-// MARK: - 6. Document Types
 
 struct DocumentTypesSectionView: View {
     let editor: InfoPlistEditor
@@ -944,8 +893,6 @@ struct DocumentTypesSectionView: View {
     }
 }
 
-// MARK: - 7. Exported / Imported Type Declarations
-
 struct TypeDeclarationsSectionView: View {
     let editor: InfoPlistEditor
 
@@ -1006,8 +953,6 @@ struct TypeDeclarationsSectionView: View {
     }
 }
 
-// MARK: - 8. Background Modes
-
 struct BackgroundModesSectionView: View {
     let editor: InfoPlistEditor
 
@@ -1044,8 +989,6 @@ struct BackgroundModesSectionView: View {
         .formStyle(.grouped)
     }
 }
-
-// MARK: - 9. Required Device Capabilities
 
 struct DeviceCapabilitiesSectionView: View {
     let editor: InfoPlistEditor
@@ -1119,8 +1062,6 @@ struct DeviceCapabilitiesSectionView: View {
         .formStyle(.grouped)
     }
 }
-
-// MARK: - 10. Privacy Usage Descriptions
 
 struct PrivacySectionView: View {
     let editor: InfoPlistEditor

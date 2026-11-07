@@ -1,28 +1,3 @@
-/**
- * validate.mjs — `swiftcode validate [dir] [--json]`
- *
- * Fast local structural validation of an extension's swiftcode.json plus the
- * package-level checks from spec §7.2 (entrypoint safety/existence, no
- * path traversal, no symlinks escaping the package root, no .env/node_modules
- * shipped).
- *
- * This mirrors the REAL manifest schema at
- * sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json
- * (patterns, enums, length bounds, required fields, additionalProperties).
- * Every violation is collected and reported — never just the first.
- *
- * IMPORTANT: this is the fast local check. The Swift host performs the
- * authoritative strict validation at install time (unknown capabilities are
- * rejected with UNKNOWN_CAPABILITY, incompatible SDK ranges with
- * INCOMPATIBLE_SDK_VERSION, etc.). A "valid" result here means the manifest
- * is well-formed, not that the host will accept or trust the package.
- *
- * Reusable entry point for other commands (e.g. `package`, `dev`):
- *   import { validateExtension } from "./validate.mjs";
- *   const { valid, problems, warnings, manifest } =
- *     await validateExtension(dir, { checkEntrypointExists: true });
- */
-
 import { UsageError } from "../errors.mjs";
 import { PACKAGE_KINDS } from "./_package-format.mjs";
 import { lstat, readdir, readFile, readlink, stat } from "node:fs/promises";
@@ -59,10 +34,6 @@ Options:
   --json    machine-readable output (the dispatcher wraps the result)`,
 };
 
-// ---------------------------------------------------------------------------
-// Schema mirror (sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json)
-// ---------------------------------------------------------------------------
-
 const ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z][A-Za-z0-9-]*)+$/;
 const SEMVER_PATTERN =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$/;
@@ -95,37 +66,6 @@ const REQUIRED_TOP_LEVEL = [
   "capabilities",
 ];
 
-// Capability IDs across the canonical SDK registry (SDKCapability.swift + ScopesIDLists.ts).
-//
-// DECISION (Wave 16, Slice A — canonical manifest vocabulary, pinned by
-// `sdk/package/tests/scopes-sync.test.mjs` "validate.mjs manifest
-// vocabulary pin"): this 32-entry mirror IS the canonical vocabulary for
-// `swiftcode.json` `capabilities[].id`, and it is deliberately NOT the
-// 34-case `SDKCapabilityID` enum. Verified live in both repos:
-//   - The mirror's set is identical to the JSON schema enum in
-//     `sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json` (and to
-//     Legacy's schema + Legacy `validate.mjs`) — 26 SDK enum ids + the 6
-//     `use.Security.*` method scopes below.
-//   - The 8 enum ids NOT admitted here are non-manifest by design:
-//     `assist.ui` / `assist.headless` / `assist.main` are entitlement-only
-//     (Legacy `SDKCapabilityInfo.grantableInCurrentRelease == false`,
-//     unlocked by the key-bound entitlement flow, never by a grant), and
-//     the 5 `security.*` method ids (`security.addValue`,
-//     `security.hasValue`, `security.listValueIDs`, `security.deleteValue`,
-//     `security.useValue`) are enforced under the single `use.Security`
-//     grant, never granted separately. Admitting them would bless manifests
-//     the broker must then deny. They remain real enum cases and real
-//     `ScopesIDLists` entries (runtime scope surface), just not
-//     manifest-declarable.
-//   - No manifest in the wild declares any of the 8 (Legacy
-//     `ExampleManifests`, `Examples/RepositoryBuildExtension`, destination
-//     `sdk/templates/extension-typescript`, destination example manifest).
-//   - Known Legacy divergence, recorded not fixed: the host validator's
-//     `supportedCapabilities` (registry 34 ∪ scopes 32 = the 34 enum ids)
-//     admits the 8 but NOT the 6 `use.Security.*` method scopes, while this
-//     mirror + the schema admit the 6 but not the 8. The two sides disagree
-//     in opposite directions; this mirror follows the schema (fast local
-//     check) and the Swift host remains authoritative at install time.
 const CAPABILITY_IDS = [
   "project.read",
   "workspace.read",
@@ -162,12 +102,7 @@ const CAPABILITY_IDS = [
 ];
 const CAPABILITY_SET = new Set(CAPABILITY_IDS);
 
-// Basenames treated as secret-bearing: warned on, never shipped.
 const ENV_BASENAME_RE = /^\.env(\.|$)/;
-
-// ---------------------------------------------------------------------------
-// Problem collection
-// ---------------------------------------------------------------------------
 
 function makeCollector() {
   const problems = [];
@@ -201,7 +136,7 @@ function checkRequired(obj, required, c, base) {
 }
 
 function checkString(c, base, value, { minLength = 0, maxLength = Infinity, pattern = null, patternHint = "" } = {}) {
-  if (value === undefined) return false; // missing-field error already recorded by checkRequired
+  if (value === undefined) return false;
   if (typeof value !== "string") {
     c.error(base, `must be a string`);
     return false;
@@ -221,15 +156,10 @@ function checkString(c, base, value, { minLength = 0, maxLength = Infinity, patt
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// Structural validation (mirrors the JSON schema)
-// ---------------------------------------------------------------------------
-
 function validateStructure(manifest, c) {
   checkUnknownKeys(manifest, TOP_LEVEL_KEYS, c, "");
   checkRequired(manifest, REQUIRED_TOP_LEVEL, c, "");
 
-  // manifestVersion
   if (manifest.manifestVersion !== undefined) {
     if (!Number.isInteger(manifest.manifestVersion)) {
       c.error("manifestVersion", "must be an integer");
@@ -238,7 +168,6 @@ function validateStructure(manifest, c) {
     }
   }
 
-  // id — reverse-DNS, schema pattern (allows uppercase; NOT lowercase-only)
   checkString(c, "id", manifest.id, {
     maxLength: 128,
     pattern: ID_PATTERN,
@@ -275,7 +204,7 @@ function validateStructure(manifest, c) {
 
 function validateRuntime(runtime, c) {
   const base = "runtime";
-  if (runtime === undefined) return; // missing-field error already recorded
+  if (runtime === undefined) return;
   if (!isObject(runtime)) {
     c.error(base, "must be an object");
     return;
@@ -429,17 +358,11 @@ function validateContributes(contributes, c) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Package-level checks (spec §7.2 — filesystem reality)
-// ---------------------------------------------------------------------------
-
 function isWithinRoot(root, target) {
   const resolved = path.resolve(target);
   return resolved === root || resolved.startsWith(root + path.sep);
 }
 
-/** Walk the whole tree (pruning node_modules/.git); report symlinks escaping
- *  root and .env files. Lexical resolution — works for dangling links too. */
 async function walkTree(root, c) {
   const PRUNE = new Set(["node_modules", ".git"]);
 
@@ -465,14 +388,13 @@ async function walkTree(root, c) {
         try {
           target = await readlink(entryAbs);
         } catch {
-          /* unreadable below */
         }
         if (target === null) {
           c.error(entryRel, "unreadable symlink");
         } else if (!isWithinRoot(root, path.resolve(path.dirname(entryAbs), target))) {
           c.error(entryRel, `symlink escapes the package root -> ${target} (PATH_TRAVERSAL)`);
         }
-        continue; // never descend through symlinks
+        continue;
       }
       if (ENV_BASENAME_RE.test(entry.name)) {
         c.warn(entryRel, "secret-bearing file will NOT be shipped in the package (excluded by the packager)");
@@ -486,13 +408,6 @@ async function walkTree(root, c) {
   await walk(root, "");
 }
 
-/**
- * Validate the extension rooted at dir.
- * options.checkEntrypointExists (default true): set false when the caller
- *   will build dist/ right after (the `package` command's pre-build check).
- * Returns { valid, problems, warnings, manifest } — manifest is the parsed
- * object when JSON parsing succeeded, else null.
- */
 export async function validateExtension(dir, options = {}) {
   const { checkEntrypointExists = true } = options;
   const c = makeCollector();
@@ -524,8 +439,6 @@ export async function validateExtension(dir, options = {}) {
 
   validateStructure(manifest, c);
 
-  // $schema: a relative pointer must resolve to a file shipped in the package
-  // (spec §7.1 — dead schema references are rejected at install time).
   if (typeof manifest.$schema === "string") {
     const ref = manifest.$schema;
     const isUrl = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(ref);
@@ -544,7 +457,6 @@ export async function validateExtension(dir, options = {}) {
     }
   }
 
-  // Entrypoint existence (inside the validated package root).
   const entrypoint = manifest?.runtime && typeof manifest.runtime.entrypoint === "string" ? manifest.runtime.entrypoint : null;
   if (entrypoint && ENTRYPOINT_PATTERN.test(entrypoint) && !path.isAbsolute(entrypoint)) {
     const abs = path.join(root, entrypoint);
@@ -561,13 +473,11 @@ export async function validateExtension(dir, options = {}) {
         );
       }
     }
-    // The entrypoint must never resolve into node_modules (never shipped).
     if (isWithinRoot(path.join(root, "node_modules"), abs)) {
       c.error("runtime.entrypoint", "entrypoint must not live under node_modules/ (never shipped)");
     }
   }
 
-  // Symlink containment + .env warnings across the whole tree.
   await walkTree(root, c);
 
   return {
@@ -578,7 +488,6 @@ export async function validateExtension(dir, options = {}) {
   };
 }
 
-/** Human-readable multi-line report of all problems (and warnings). */
 export function formatValidationReport(manifestPath, problems, warnings) {
   const lines = [`invalid: ${manifestPath} — ${problems.length} problem${problems.length === 1 ? "" : "s"}:`];
   for (const p of problems) {

@@ -1,4 +1,3 @@
-/* Ycode stage-4 probe: libdispatch global queues, a group, a semaphore. Original Ycode code. */
 #include <dispatch/dispatch.h>
 #include <stdio.h>
 

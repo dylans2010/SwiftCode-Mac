@@ -1,5 +1,4 @@
 #!/bin/sh
-# Builds our probes for the iOS simulator platform (macOS only). Output: $OUT (default /tmp/yc-i4-probes).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-/tmp/yc-i4-probes}"

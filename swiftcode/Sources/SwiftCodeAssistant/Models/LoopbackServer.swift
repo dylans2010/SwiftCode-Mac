@@ -5,14 +5,9 @@ import Glibc
 import Darwin
 #endif
 
-/// A tiny HTTP/1.1 server on 127.0.0.1 for the OAuth redirect (RFC 8252
-/// §7.3 loopback redirect). One request per connection; the handler gets
-/// the request and returns the response. Tests also use it as a stand-in
-/// for model servers and token endpoints.
 public final class LoopbackServer: @unchecked Sendable {
     public struct Request: Sendable {
         public var method: String
-        /// The request target, e.g. `/auth/callback?code=…`.
         public var target: String
         public var headers: [String: String]
         public var body: Data
@@ -23,7 +18,6 @@ public final class LoopbackServer: @unchecked Sendable {
             for i in q { out[i.name] = i.value ?? "" }
             return out
         }
-        /// The fields of a form-encoded body.
         public var form: [String: String] {
             guard let q = URLComponents(string: "http://h/?" + String(decoding: body, as: UTF8.self).replacingOccurrences(of: "+", with: "%20"))?.queryItems
             else { return [:] }
@@ -37,13 +31,8 @@ public final class LoopbackServer: @unchecked Sendable {
     public struct Response: Sendable {
         public var status: Int
         public var headers: [String: String]
-        /// Body parts, written one after another (with `delay` seconds
-        /// between them) so tests can stream.
         public var chunks: [Data]
         public var delay: TimeInterval
-        /// A body written while it is produced (server-sent events): called
-        /// on the connection's thread after the head and the chunks; `write`
-        /// returns false once the client has gone.
         public var stream: (@Sendable (_ write: @escaping @Sendable (Data) -> Bool) -> Void)?
         public init(status: Int = 200, contentType: String = "text/plain; charset=utf-8", body: Data = Data(), chunks: [Data]? = nil,
                     delay: TimeInterval = 0, headers: [String: String] = [:]) {
@@ -71,7 +60,6 @@ public final class LoopbackServer: @unchecked Sendable {
     private let lock = NSLock()
     private var stopped = false
 
-    /// Binds 127.0.0.1:`port` (0 = any free port) and starts accepting.
     public init(port: UInt16 = 0, handler: @escaping Handler) throws {
         #if canImport(Glibc)
         let s = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
@@ -103,7 +91,6 @@ public final class LoopbackServer: @unchecked Sendable {
 
     deinit { stop() }
 
-    /// `http://127.0.0.1:<port>`.
     public var baseURL: String { "http://127.0.0.1:\(port)" }
 
     public func stop() {
@@ -113,7 +100,6 @@ public final class LoopbackServer: @unchecked Sendable {
         lock.unlock()
         guard !was else { return }
         shutdown(fd, Int32(SHUT_RDWR))
-        // Wake a blocked accept() (close alone does not on every system).
         #if canImport(Glibc)
         let w = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
         #else

@@ -1,48 +1,25 @@
-// SDKCodeEditorView.swift
-//
-// Ported from Legacy `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: NSTextView-based editor (SDKCodeEditorTextView + Coordinator textDidChange/scheduleHighlight); Line-number ruler (SDKCodeEditorLineNumberRuler); Live plain syntax highlighting (SDKPlainSyntaxHighlighter) and navigation-target caret application
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeLanguage
-import AppKit // NSScrollView, NSTextView, NSRulerView, NSSavePanel
+import AppKit
 import Foundation
 import SwiftUI
-import UniformTypeIdentifiers // UTType for the save panel
-
-// MARK: - SDKCodeEditorView
-//
-// The editor surface for the Studio code editor's active tab: a real
-// AppKit `NSTextView` (typing, selection, and undo all work natively) with
-// debounced, off-main-thread syntax highlighting, a live line-number
-// gutter, line/column navigation, Save-As retargeting, and external
-// modification conflict resolution.
+import UniformTypeIdentifiers
 
 @MainActor
 public struct SDKCodeEditorView: View {
     @ObservedObject var state: SDKCodeEditorState
 
-    /// Token source for highlighting. Protocol-typed so the sibling
-    /// `SDKKeywordHighlighter` plugs in with no dependency on its file.
     var highlighter: any SDKSyntaxHighlighter
 
-    /// Editor font size in points; always the monospaced system font.
     var fontSize: CGFloat
 
-    /// Shared find coordinator, when the parent composes this view with
-    /// `SDKCodeFindBarView`. `nil` keeps the view fully standalone.
     var findCoordinator: SDKCodeFindCoordinator?
 
-    /// Bridges find requests to whichever tab's `NSTextView` is live.
-    /// `@StateObject` so it survives tab switches (only the inner
-    /// representable is re-keyed per tab).
     @StateObject private var findAdapter = SDKCodeEditorFindAdapter()
 
     @State private var saveErrorMessage: String = ""
     @State private var showSaveError: Bool = false
 
-    /// Designated initializer: explicit highlighter.
     public init(
         state: SDKCodeEditorState,
         highlighter: any SDKSyntaxHighlighter,
@@ -55,7 +32,6 @@ public struct SDKCodeEditorView: View {
         self.findCoordinator = findCoordinator
     }
 
-    /// Convenience initializer: plain (unhighlighted) rendering.
     public init(
         state: SDKCodeEditorState,
         fontSize: CGFloat = 13,
@@ -99,7 +75,6 @@ public struct SDKCodeEditorView: View {
         }
         .background(Color(nsColor: .textBackgroundColor))
         .overlay(alignment: .topLeading) {
-            // Invisible button existing only to host ⌘S.
             Button("Save") { saveActiveDocument() }
                 .keyboardShortcut("s", modifiers: .command)
                 .opacity(0)
@@ -127,8 +102,6 @@ public struct SDKCodeEditorView: View {
         }
     }
 
-    // MARK: - External Modification Banner
-
     private func externalModificationBanner(for tab: SDKCodeEditorTab) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -151,8 +124,6 @@ public struct SDKCodeEditorView: View {
         .padding(6)
     }
 
-    // MARK: - Save (⌘S)
-
     private func saveActiveDocument() {
         guard let tab = state.activeTab else { return }
         let text = tab.document.text
@@ -163,8 +134,6 @@ public struct SDKCodeEditorView: View {
         }
     }
 
-    /// Untitled buffers go through a real `NSSavePanel` and retarget the
-    /// tab to the newly saved URL.
     private func saveUntitled(text: String, language: SDKCodeLanguage, tabID: UUID) {
         let panel = NSSavePanel()
         panel.title = "Save Untitled Document"
@@ -181,8 +150,6 @@ public struct SDKCodeEditorView: View {
         write(text, to: url, displayName: url.lastPathComponent, tabID: tabID, isUntitledSaveAs: true)
     }
 
-    /// Writes UTF-8 to disk for real, then clears the dirty flag via
-    /// `markSaved(tabID:)` or `retargetTab(_:to:)`. Failures are reported, never swallowed.
     private func write(_ text: String, to url: URL, displayName: String, tabID: UUID, isUntitledSaveAs: Bool) {
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
@@ -199,8 +166,6 @@ public struct SDKCodeEditorView: View {
             showSaveError = true
         }
     }
-
-    // MARK: - Placeholder
 
     private var editorPlaceholder: some View {
         VStack(spacing: 8) {
@@ -219,8 +184,6 @@ public struct SDKCodeEditorView: View {
         .accessibilityLabel("No file open")
     }
 }
-
-// MARK: - SDKCodeEditorTextView
 
 @MainActor
 struct SDKCodeEditorTextView: NSViewRepresentable {
@@ -243,7 +206,6 @@ struct SDKCodeEditorTextView: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.contentView.postsBoundsChangedNotifications = true
 
-        // Dedicated text system: storage -> layout -> container -> view.
         let textStorage = NSTextStorage()
         let layoutManager = NSLayoutManager()
         let textContainer = NSTextContainer(
@@ -383,8 +345,6 @@ struct SDKCodeEditorTextView: NSViewRepresentable {
         Coordinator()
     }
 
-    // MARK: - Coordinator
-
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         weak var textView: NSTextView?
@@ -412,8 +372,6 @@ struct SDKCodeEditorTextView: NSViewRepresentable {
             self.onTextChange = onTextChange
         }
 
-        // MARK: NSTextViewDelegate
-
         func textDidChange(_ notification: Notification) {
             guard let changed = notification.object as? NSTextView,
                   changed === textView else { return }
@@ -421,8 +379,6 @@ struct SDKCodeEditorTextView: NSViewRepresentable {
             ruler?.needsDisplay = true
             scheduleHighlight()
         }
-
-        // MARK: Highlight pipeline
 
         func scheduleHighlight(afterNanoseconds delay: UInt64 = 250_000_000) {
             highlightTask?.cancel()
@@ -473,8 +429,6 @@ struct SDKCodeEditorTextView: NSViewRepresentable {
         }
     }
 }
-
-// MARK: - SDKCodeEditorLineNumberRuler
 
 @MainActor
 final class SDKCodeEditorLineNumberRuler: NSRulerView {
@@ -557,8 +511,6 @@ final class SDKCodeEditorLineNumberRuler: NSRulerView {
     }
 }
 
-// MARK: - SDKCodeEditorFindAdapter
-
 @MainActor
 final class SDKCodeEditorFindAdapter: SDKCodeFindableEditor, ObservableObject {
     weak var textView: NSTextView?
@@ -579,8 +531,6 @@ final class SDKCodeEditorFindAdapter: SDKCodeFindableEditor, ObservableObject {
         _ = textView.window?.makeFirstResponder(textView)
     }
 }
-
-// MARK: - SDKPlainSyntaxHighlighter
 
 struct SDKPlainSyntaxHighlighter: SDKSyntaxHighlighter {
     func highlight(_ text: String, language: SDKCodeLanguage) -> [SDKToken] {

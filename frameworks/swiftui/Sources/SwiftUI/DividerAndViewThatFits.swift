@@ -5,9 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-/// `Divider` (04-layout.md §2): a hairline one device pixel thick. Outside a
-/// horizontal stack it is horizontal (width = proposal, `nil` → 10); inside
-/// an `HStack` it turns vertical and takes the proposed height (`nil` → 10).
 package struct DividerLeaf: NodeBehavior {
     package init() {}
 
@@ -20,8 +17,6 @@ package struct DividerLeaf: NodeBehavior {
     }
 }
 
-/// `ViewThatFits` (04 §6): the first child whose ideal size fits the
-/// proposal along the constrained axes; if none fits, the last child.
 package struct ViewThatFitsBehavior: NodeBehavior {
     package var axes: Axis.Set
 

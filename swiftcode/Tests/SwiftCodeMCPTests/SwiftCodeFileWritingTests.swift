@@ -3,51 +3,14 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy file-writing / editing / conversion tools (Wave 2),
-/// each driven black-box through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistWriteFileTool`,
-/// `AssistCreateFileTool`, `AssistAppendFileTool`, `AssistDeleteFileTool`,
-/// `AssistDeleteDirectoryTool`, `AssistCreateDirectoryTool`,
-/// `AssistCopyFileTool`, `AssistMoveFileTool`, `AssistRenameFileTool`,
-/// `AssistReplaceInFileTool`, `AssistInsertCodeBlockTool`,
-/// `AssistMultiFileEditTool`, `AssistFormatCodeTool`,
-/// `AssistGenerateFileTool`, `AssistRefactorTool`,
-/// `AssistRegexReplaceInFilesTool`, `AssistPlistEditTool`,
-/// `AssistDataMutationTools` (format_json_file, csv_to_json, json_to_csv,
-/// plist_to_json, json_to_plist, batch_rename_files) and
-/// `AssistGenerateFileChecksumTool` (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never on
-/// internals. Messages quoted verbatim are Legacy's; where the SwiftCode port
-/// may legitimately word a failure differently (path-safety wording),
-/// the test asserts the behaviour plus a tolerant message match.
-///
-/// `code_refactor` is the deliberate exception: Legacy implements it as
-/// an OpenAI-LLM call (API key + network), which has no faithful local
-/// port, so the test asserts it fails cleanly and changes nothing.
-///
-/// NOTE (coordinator decision, Wave 2): `file_write` collides by name
-/// with SwiftCode's pre-existing native `file_write` in `contentTools`.
-/// Per the Wave 1 `file_read` precedent and catalogue §28, the
-/// existing registration is ALIGNED with Legacy behaviour in place —
-/// there is exactly one `file_write`, served from `contentTools`, so
-/// `fileWritingTools` holds the other 23 Wave 2 tools and `opened()`
-/// keeps the native (aligned) `file_write` installed.
 @MainActor
 @Suite(.serialized) struct SwiftCodeFileWritingTests {
-    /// The 24 Wave 2 tool IDs, verified live from the Legacy registry
-    /// (`AssistToolRegistry.registerAllTools` + each tool's `id`).
     static let wave2IDs = ["batch_rename_files", "code_format", "code_generate", "code_insert", "code_multi_edit",
                            "code_refactor", "code_replace", "csv_to_json", "dir_create", "dir_delete", "file_append",
                            "file_copy", "file_create", "file_delete", "file_move", "file_rename", "file_write",
                            "format_json_file", "generate_file_checksum", "json_to_csv", "json_to_plist", "plist_edit",
                            "plist_to_json", "regex_replace_in_files"]
 
-    /// Opens a copy of Greeter and installs the ported writing tools on
-    /// the server (same shape as Wave 1's `opened`, plus the
-    /// `file_write` collision handling above).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly, withArtifacts: Bool = false) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -64,7 +27,6 @@ import SwiftCodeAssistant
         var accept = false
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -87,9 +49,6 @@ import SwiftCodeAssistant
     @Test func toolsAreListedWithLegacySchemas() async throws {
         let host = SwiftCodeMCPHost()
         let tools = host.fileWritingTools
-        // 23 here: `file_write` is the 24th Wave 2 tool but lives in
-        // `contentTools`, aligned in place (catalogue §28) — the
-        // served check below asserts all 24 IDs are installed.
         #expect(tools.count == 23, "expected 23 Wave 2 tools in fileWritingTools, got \(tools.map(\.name))")
         #expect(tools.map(\.name).sorted() == Self.wave2IDs.filter { $0 != "file_write" }.sorted())
         let expectedRequired: [String: [String]] = [
@@ -117,15 +76,11 @@ import SwiftCodeAssistant
                 #expect(!tool.annotations.destructive, "\(tool.name) must not be marked destructive")
             }
         }
-        // The host actually serves them (needs `fileWritingTools` wired
-        // into `installTools`).
         let sample = try TempSample()
         defer { sample.remove() }
         let servedHost = try await opened(sample)
         let served = servedHost.server.tools.map(\.name)
         for id in Self.wave2IDs { #expect(served.contains(id), "\(id) is not installed on the server") }
-        // Exactly one file_write is served: the aligned registration
-        // in contentTools (catalogue §28), not a second registration.
         #expect(served.filter { $0 == "file_write" }.count == 1)
         let servedFileWrite = servedHost.server.tools.first { $0.name == "file_write" }
         #expect(servedFileWrite?.inputSchema["required"]?.array?.compactMap(\.string) == ["path", "content"])
@@ -147,7 +102,6 @@ import SwiftCodeAssistant
         #expect(updated.firstText == "Updated existing file: WritingTests/hello.txt (2 lines)")
         #expect(sample.read("WritingTests/hello.txt") == "Hello again\n")
 
-        // Legacy's writeFile creates missing parent directories.
         let deep = try await host.server.callTool("file_write", ["path": .string("WritingTests/Deep/Nested/file.txt"),
                                                                  "content": .string("deep\n")])
         #expect(!deep.isToolError, "\(deep.resultText)")
@@ -158,7 +112,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
-        // Intermediate directories are created, like Legacy.
         let created = try await host.server.callTool("file_create", ["path": .string("WritingTests/New/Dir/created.txt"),
                                                                      "content": .string("A\nB\n")])
         #expect(!created.isToolError, "\(created.resultText)")
@@ -175,7 +128,6 @@ import SwiftCodeAssistant
         #expect(!replaced.isToolError, "\(replaced.resultText)")
         #expect(sample.read("WritingTests/New/Dir/created.txt") == "Replaced\n")
 
-        // Content defaults to "" when omitted.
         let empty = try await host.server.callTool("file_create", ["path": .string("WritingTests/empty.txt")])
         #expect(!empty.isToolError, "\(empty.resultText)")
         #expect(exists(sample, "WritingTests/empty.txt") && sample.read("WritingTests/empty.txt") == "")
@@ -190,11 +142,8 @@ import SwiftCodeAssistant
                                                                       "content": .string("two\n")])
         #expect(!appended.isToolError, "\(appended.resultText)")
         #expect(appended.firstText == "Successfully appended to file: WritingTests/log.txt")
-        // Appended verbatim: no separator or newline is added.
         #expect(sample.read("WritingTests/log.txt") == "one\ntwo\n")
 
-        // Legacy reads the file first: appending to a missing file fails,
-        // it does not create it.
         let missing = try await host.server.callTool("file_append", ["path": .string("WritingTests/ghost.txt"),
                                                                      "content": .string("boo\n")])
         #expect(missing.isToolError && missing.resultText.contains("Failed to append to file at WritingTests/ghost.txt"))
@@ -214,11 +163,9 @@ import SwiftCodeAssistant
         #expect(deleted.firstText == "Successfully deleted file: WritingTests/doomed.txt")
         #expect(!exists(sample, "WritingTests/doomed.txt"))
 
-        // Missing files are a failure, not a silent success.
         let missing = try await host.server.callTool("file_delete", ["path": .string("WritingTests/doomed.txt")])
         #expect(missing.isToolError && missing.firstText == "No file at WritingTests/doomed.txt — nothing to delete.")
 
-        // A non-empty directory is deleted with all its contents.
         let dirDeleted = try await host.server.callTool("dir_delete", ["path": .string("WritingTests/Dir")])
         #expect(!dirDeleted.isToolError, "\(dirDeleted.resultText)")
         #expect(dirDeleted.firstText == "Successfully deleted directory: WritingTests/Dir")
@@ -237,7 +184,6 @@ import SwiftCodeAssistant
         #expect(created.firstText == "Successfully created directory: WritingTests/A/B/C")
         var isDir: ObjCBool = false
         #expect(FileManager.default.fileExists(atPath: sample.path("WritingTests/A/B/C"), isDirectory: &isDir) && isDir.boolValue)
-        // Creating an existing directory succeeds (no error).
         let again = try await host.server.callTool("dir_create", ["path": .string("WritingTests/A/B/C")])
         #expect(!again.isToolError, "\(again.resultText)")
     }
@@ -304,7 +250,6 @@ import SwiftCodeAssistant
         #expect(sample.read("WritingTests/copy.txt") == "original\n")
         #expect(sample.read("WritingTests/orig.txt") == "original\n")
 
-        // An existing destination is never overwritten by copy or move.
         let copyClash = try await host.server.callTool("file_copy", ["source": .string("WritingTests/orig.txt"),
                                                                      "destination": .string("WritingTests/taken.txt")])
         #expect(copyClash.isToolError && copyClash.resultText.contains("Destination already exists: WritingTests/taken.txt"))
@@ -327,7 +272,6 @@ import SwiftCodeAssistant
         #expect(renamed.firstText == "Successfully renamed file to: renamed.txt")
         #expect(!exists(sample, "WritingTests/moved.txt") && sample.read("WritingTests/renamed.txt") == "original\n")
 
-        // newName must be a single file name, not a path.
         let badName = try await host.server.callTool("file_rename", ["oldPath": .string("WritingTests/renamed.txt"),
                                                                      "newName": .string("../evil.txt")])
         #expect(badName.isToolError && badName.firstText == "Invalid newName '../evil.txt': must be a single file name, not a path.")
@@ -343,8 +287,6 @@ import SwiftCodeAssistant
         defer { sample.remove() }
         try writeFixture(sample, "WritingTests/orig.txt", "original\n")
         let host = try await opened(sample, policy: .allow)
-        // Unlike file_write/file_create, copy does NOT create missing
-        // parent directories (Legacy's copyFile has no parent creation).
         let copied = try await host.server.callTool("file_copy", ["source": .string("WritingTests/orig.txt"),
                                                                   "destination": .string("WritingTests/NoSuchDir/dest.txt")])
         #expect(copied.isToolError && copied.resultText.contains("Failed to copy file"))
@@ -362,11 +304,8 @@ import SwiftCodeAssistant
                                                                     "content": .string("escaped\n")])
         #expect(escaped.isToolError)
         #expect(escaped.resultText.contains("outside the workspace") || escaped.resultText.contains("traversal"))
-        // Nothing was written outside the fixture workspace (the parent
-        // of the Greeter copy is the temp root).
         #expect(!FileManager.default.fileExists(atPath: sample.root.appendingPathComponent("escape.txt").path))
 
-        // A delete aimed outside must not touch the sample either.
         let deleteEscape = try await host.server.callTool("file_delete", ["path": .string("../Package.swift")])
         #expect(deleteEscape.isToolError)
         #expect(deleteEscape.resultText.contains("outside the workspace") || deleteEscape.resultText.contains("traversal"))
@@ -391,7 +330,6 @@ import SwiftCodeAssistant
                 && missing.firstText == "Target snippet not found in 'WritingTests/replace.swift'. Please re-read the file with 'file_read' to inspect the exact existing lines before attempting replacement. Target snippet was: 'let q = 9'")
         #expect(sample.read("WritingTests/replace.swift") == "let x = 1\nlet y = 1\nlet z = 3\n")
 
-        // "1" occurs twice: ambiguous without allowMultiple.
         let ambiguous = try await host.server.callTool("code_replace", ["path": .string("WritingTests/replace.swift"),
                                                                         "target": .string("1"), "replacement": .string("9")])
         #expect(ambiguous.isToolError
@@ -418,14 +356,12 @@ import SwiftCodeAssistant
         #expect(byLine.firstText == "Code block inserted into WritingTests/insert.swift")
         #expect(sample.read("WritingTests/insert.swift") == "alpha\nINSERTED\nbeta\ngamma")
 
-        // "after" inserts directly after the first pattern occurrence.
         let after = try await host.server.callTool("code_insert", ["path": .string("WritingTests/insert.swift"),
                                                                    "code": .string("AFTER"), "mode": .string("after"),
                                                                    "pattern": .string("beta")])
         #expect(!after.isToolError, "\(after.resultText)")
         #expect(sample.read("WritingTests/insert.swift") == "alpha\nINSERTED\nbeta\nAFTER\ngamma")
 
-        // "before" inserts directly before the first pattern occurrence.
         let before = try await host.server.callTool("code_insert", ["path": .string("WritingTests/insert.swift"),
                                                                     "code": .string("BEFORE"), "mode": .string("before"),
                                                                     "pattern": .string("gamma")])
@@ -459,8 +395,6 @@ import SwiftCodeAssistant
         #expect(sample.read("WritingTests/multi-a.txt") == "whole new\n")
         #expect(sample.read("WritingTests/multi-b.txt") == "new value\n")
 
-        // Not atomic, like Legacy: earlier edits persist when a later
-        // one fails, and the failure names what was already applied.
         let partial = try await host.server.callTool("code_multi_edit", ["edits": .array([
             .object(["path": .string("WritingTests/multi-a.txt"), "content": .string("v2\n")]),
             .object(["path": .string("WritingTests/multi-b.txt"), "search": .string("not-there"), "replace": .string("x")]),
@@ -474,10 +408,7 @@ import SwiftCodeAssistant
     @Test func generateFileChecksum() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // Standard "abc" test vectors (FIPS 180), no trailing newline.
         try writeFixture(sample, "WritingTests/abc.txt", "abc")
-        // Read-only server: the checksum tool writes nothing, so it
-        // must work with the default read-only policy.
         let host = try await opened(sample)
         let sums = try await host.server.callTool("generate_file_checksum", ["path": .string("WritingTests/abc.txt")])
         #expect(!sums.isToolError, "\(sums.resultText)")
@@ -515,7 +446,6 @@ import SwiftCodeAssistant
         #expect(roundTripped["version"] as? Int == 1)
         #expect(roundTripped["enabled"] as? Bool == true)
 
-        // plist_edit: set one key, then read it back.
         let set = try await host.server.callTool("plist_edit", ["path": .string("WritingTests/app.plist"),
                                                                 "action": .string("set"), "key": .string("name"),
                                                                 "value": .string("Renamed")])
@@ -525,7 +455,6 @@ import SwiftCodeAssistant
                                                                 "action": .string("get"), "key": .string("name")])
         #expect(!get.isToolError, "\(get.resultText)")
         #expect(get.firstText == "Key 'name' = Renamed in 'WritingTests/app.plist'.")
-        // The edit landed on disk: converting again shows the new value.
         let back2 = try await host.server.callTool("plist_to_json", ["path": .string("WritingTests/app.plist"),
                                                                      "destination": .string("WritingTests/app-roundtrip2.json")])
         #expect(!back2.isToolError, "\(back2.resultText)")
@@ -542,7 +471,6 @@ import SwiftCodeAssistant
         try writeFixture(sample, "WritingTests/people.csv", "name,age\nAda,36\nGrace,31\n")
         let host = try await opened(sample, policy: .allow)
 
-        // Default destination: <path>.json next to the CSV.
         let toJson = try await host.server.callTool("csv_to_json", ["path": .string("WritingTests/people.csv")])
         #expect(!toJson.isToolError, "\(toJson.resultText)")
         #expect(toJson.firstText == "Successfully converted CSV `WritingTests/people.csv` to JSON at `WritingTests/people.json` (2 records parsed).")
@@ -555,10 +483,8 @@ import SwiftCodeAssistant
                                                                    "destination": .string("WritingTests/people-out.csv")])
         #expect(!toCsv.isToolError, "\(toCsv.resultText)")
         #expect(toCsv.firstText == "Successfully converted JSON `WritingTests/people.json` to CSV at `WritingTests/people-out.csv` (2 rows, 2 columns).")
-        // Headers are the sorted union of keys; every value is quoted.
         #expect(sample.read("WritingTests/people-out.csv") == "\"age\",\"name\"\n\"36\",\"Ada\"\n\"31\",\"Grace\"\n")
 
-        // A JSON object (not an array) cannot become CSV.
         try writeFixture(sample, "WritingTests/not-array.json", "{\"a\":1}")
         let notArray = try await host.server.callTool("json_to_csv", ["path": .string("WritingTests/not-array.json")])
         #expect(notArray.isToolError && notArray.firstText == "JSON root must be a non-empty array of objects to convert to CSV.")
@@ -600,7 +526,6 @@ import SwiftCodeAssistant
         let formatted = try await host.server.callTool("format_json_file", ["path": .string("WritingTests/min.json")])
         #expect(!formatted.isToolError, "\(formatted.resultText)")
         #expect(formatted.resultText.contains("Successfully formatted and validated JSON file at `WritingTests/min.json`"))
-        // Pretty-printed with sorted keys: "a" precedes "b", on its own line.
         let text = sample.read("WritingTests/min.json")
         #expect(text.contains("\n"))
         let aAt = try #require(text.range(of: "\"a\"")?.lowerBound)
@@ -617,8 +542,6 @@ import SwiftCodeAssistant
     @Test func codeFormatNormalizes() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // Tabs, trailing whitespace, and a run of blank lines; no trailing
-        // newline, so Legacy's simpleFormat ends the file with exactly one.
         try writeFixture(sample, "WritingTests/messy.swift", "func f() {\n\tlet x = 1   \n\n\n    return x\n}")
         let host = try await opened(sample, policy: .allow)
         let formatted = try await host.server.callTool("code_format", ["path": .string("WritingTests/messy.swift")])
@@ -652,9 +575,6 @@ import SwiftCodeAssistant
         let viewText = sample.read("WritingTests/Generated/Badge.swift")
         #expect(viewText.contains("struct Badge: View") && viewText.contains("#Preview"))
 
-        // The test template is an honest scaffold: it fails until a real
-        // assertion replaces it. (The @testable module line is not
-        // asserted: Legacy derives it from the Xcode project name.)
         let test = try await host.server.callTool("code_generate", ["path": .string("WritingTests/Generated/WidgetTests.swift"),
                                                                     "template": .string("test")])
         #expect(!test.isToolError, "\(test.resultText)")
@@ -662,7 +582,6 @@ import SwiftCodeAssistant
         #expect(testText.contains("import XCTest") && testText.contains("final class WidgetTests: XCTestCase")
                 && testText.contains("XCTFail(\"Not implemented"))
 
-        // Refuses to overwrite, and unknown templates are a failure.
         let existing = try await host.server.callTool("code_generate", ["path": .string("WritingTests/Generated/Widget.swift"),
                                                                         "template": .string("swift_struct")])
         #expect(existing.isToolError && existing.firstText == "Target file already exists: WritingTests/Generated/Widget.swift")
@@ -675,9 +594,6 @@ import SwiftCodeAssistant
     @Test func codeRefactorFailsCleanlyWithoutLLM() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // Legacy implements code_refactor as an OpenAI-LLM call (API key
-        // + network): there is no faithful local port. The SwiftCode tool
-        // must fail cleanly and change nothing, not invent a refactoring.
         try writeFixture(sample, "WritingTests/refactor.swift", "let x = 1\n")
         let host = try await opened(sample, policy: .allow)
         let refactored = try await host.server.callTool("code_refactor", ["path": .string("WritingTests/refactor.swift"),
@@ -739,7 +655,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
-        // code_format takes no required arguments, so it is excluded.
         for id in Self.wave2IDs where id != "code_format" {
             let r = try await host.server.callTool(id, [:])
             #expect(r.isToolError && r.resultText.contains("missing the required argument"), "\(id): \(r.resultText)")

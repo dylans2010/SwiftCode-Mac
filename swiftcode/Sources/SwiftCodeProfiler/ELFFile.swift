@@ -1,9 +1,5 @@
 import Foundation
 
-/// The parts of a 64-bit little-endian ELF file a profiler needs
-/// (`specs/ide/profiler.md` §3.2): loadable segments, function symbols
-/// (`.symtab`, else `.dynsym`), the GNU build id, and the DWARF line
-/// sections.
 public struct ELFFile: Sendable {
     public struct Segment: Sendable, Equatable {
         public var offset: UInt64
@@ -32,10 +28,7 @@ public struct ELFFile: Sendable {
     public let machine: UInt16
     public let segments: [Segment]
     public let sections: [Section]
-    /// Function symbols (STT_FUNC with a value), sorted by address; sizes
-    /// from the symbol, else up to the next symbol.
     public let functions: [(address: UInt64, size: UInt64, name: String)]
-    /// The GNU build id as hex, when present.
     public let buildID: String?
     let bytes: [UInt8]
 
@@ -53,7 +46,7 @@ public struct ELFFile: Sendable {
         type = try c.u16()
         machine = try c.u16()
         _ = try c.u32()
-        _ = try c.u64() // entry
+        _ = try c.u64()
         let phoff = Int(try c.u64())
         let shoff = Int(try c.u64())
         _ = try c.u32()
@@ -93,7 +86,6 @@ public struct ELFFile: Sendable {
         }
         sections = secs
 
-        // Functions: .symtab (type 2) when present, else .dynsym (11).
         var fns: [(UInt64, UInt64, String)] = []
         if let symtab = secs.first(where: { $0.type == 2 }) ?? secs.first(where: { $0.type == 11 }), Int(symtab.link) < secs.count {
             let strs = secs[Int(symtab.link)]
@@ -135,14 +127,12 @@ public struct ELFFile: Sendable {
         buildID = bid
     }
 
-    /// A section's bytes (empty when absent or compressed).
     public func sectionBytes(_ name: String) -> [UInt8] {
         guard let s = sections.first(where: { $0.name == name }), s.type != 8, s.flags & 0x800 == 0,
               Int(s.offset) + Int(s.size) <= bytes.count else { return [] }
         return Array(bytes[Int(s.offset)..<(Int(s.offset) + Int(s.size))])
     }
 
-    /// The function containing a link-time address.
     public func function(containing address: UInt64) -> (address: UInt64, size: UInt64, name: String)? {
         var low = 0, high = functions.count
         while low < high {
@@ -154,17 +144,13 @@ public struct ELFFile: Sendable {
         return address < f.address &+ f.size ? f : nil
     }
 
-    /// The load bias of a mapping: runtime address − link-time address, for
-    /// a mapping of this file at `start` from file offset `fileOffset`.
     public func loadBias(mappingStart start: UInt64, fileOffset: UInt64) -> UInt64 {
-        if type == 2 { return 0 } // ET_EXEC: fixed addresses
+        if type == 2 { return 0 }
         let seg = segments.first { fileOffset >= ($0.offset & ~0xFFF) && fileOffset < $0.offset + max($0.fileSize, 1) } ?? segments.first
         guard let s = seg else { return start &- fileOffset }
-        // runtime(start) corresponds to vaddr s.vaddr + (fileOffset − s.offset).
         return start &- (s.vaddr &+ fileOffset &- s.offset)
     }
 
-    /// DWARF lines of the file (empty table when it has none).
     public func lineTable() -> DWARFLineTable {
         let line = sectionBytes(".debug_line")
         guard !line.isEmpty else { return DWARFLineTable() }

@@ -32,23 +32,11 @@ extension SwiftCodeMCPHost {
                  output: Schema.output(["runId": Schema.str, "state": Schema.str]), annotations: execute) { h, call in
                 try await h.stop(call)
             },
-            // ALIGNED (Wave 5): SwiftCode's registration, extended to
-            // cover Legacy's `simulator_list` (`AssistSimulatorListTool`,
-            // `simctl list devices -j`). The SwiftCode keys keep their
-            // meaning; `appleSimulators` carries Legacy's listing
-            // (empty when `xcrun` is absent). See
-            // `specs/ide/assist-artboards-media-tools.md` (Part A §3).
             tool("simulator_list", "List simulators",
                  "The simulators available to this IDE: the SwiftCode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent).",
                  input: Schema.object([:]), output: Schema.output(["simulators": Schema.anyArray, "configured": Schema.bool, "appleSimulators": Schema.anyArray])) { h, _ in
                 await h.simulatorList()
             },
-            // ALIGNED (Wave 5): SwiftCode's registration, extended with
-            // Legacy's `simulator_boot` parameters (`udid`, `action`
-            // from `AssistSimulatorBootTool`). Without a `udid` it
-            // boots the SwiftCode Simulator as before; with one it runs
-            // `simctl boot`/`shutdown` on the Apple simulator and
-            // verifies the resulting state.
             tool("simulator_boot", "Boot simulator",
                  "Starts a SwiftCode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead.",
                  input: Schema.object(["simulator": simulatorArg,
@@ -88,8 +76,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: Runs on this computer
-
     func run(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         try applyScheme(call.string("scheme"), destination: call.string("destination"), to: s)
@@ -114,8 +100,6 @@ extension SwiftCodeMCPHost {
         return try await launchHost(exe, arguments: call.strings("arguments") ?? [], directory: Self.folder(of: s.model), wait: wait)
     }
 
-    /// `<…>/App.app` from the bundle's executable (`App.app/App` or
-    /// `App.app/Contents/MacOS/App`).
     nonisolated static func appBundlePath(fromExecutable p: String) -> String? {
         if let r = p.range(of: ".app/", options: .backwards) { return String(p[..<r.lowerBound]) + ".app" }
         return p.hasSuffix(".app") ? p : nil
@@ -137,7 +121,6 @@ extension SwiftCodeMCPHost {
             if d.isEmpty { h.readabilityHandler = nil } else { run.append(d) }
         }
         p.terminationHandler = { proc in
-            // The output still in the pipe, then the status.
             pipe.fileHandleForReading.readabilityHandler = nil
             if case let rest?? = try? pipe.fileHandleForReading.readToEnd(), !rest.isEmpty { run.append(rest) }
             run.finish(proc.terminationStatus)
@@ -158,7 +141,6 @@ extension SwiftCodeMCPHost {
                                  structured: ["runId": .string(id), "state": .string(state), "output": .strings(out),
                                               "exitStatus": r.status.map { .int(Int($0)) } ?? .null])
         }
-        // A simulator run: the session's run state and console.
         let state = simulatorState()
         let out = simulatorLines(tail: tail)
         return MCPToolResult(content: [.textBlock("\(id): \(state)\n" + out.joined(separator: "\n"))],
@@ -196,8 +178,6 @@ extension SwiftCodeMCPHost {
         return runResult(id)
     }
 
-    // MARK: The SwiftCode Simulator (remote)
-
     func remoteSettings() throws -> RemoteSimulatorSettings {
         guard let r = remoteSimulator, r.isConfigured else {
             throw MCPToolError("no SwiftCode Simulator host is set up. In the IDE: Settings ▸ Simulators. For `swiftcode mcp`: --simulator-config <file.json> or the SWIFTCODE_MCP_SIM_* variables (see `swiftcode mcp --help`).")
@@ -217,9 +197,6 @@ extension SwiftCodeMCPHost {
     }
 
     func simulatorList() async -> MCPToolResult {
-        // The aligned Apple section (Legacy's `simctl list`): empty
-        // when `xcrun` is absent, never an error — the SwiftCode keys
-        // keep their meaning either way.
         let apple = await Self.appleSimulators()
         let appleJSON: [AnyJSON] = apple.map { a in
             ["name": .string(a.name), "udid": .string(a.udid), "state": .string(a.state),
@@ -272,8 +249,6 @@ extension SwiftCodeMCPHost {
     }
 
     func simulatorBoot(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // The aligned Apple path (Legacy's `AssistSimulatorBootTool`):
-        // a UDID routes to `simctl` instead of the SwiftCode Simulator.
         if let rawUdid = call.string("udid") {
             let udid = rawUdid.trimmingCharacters(in: .whitespacesAndNewlines)
             guard UUID(uuidString: udid) != nil else {
@@ -286,7 +261,6 @@ extension SwiftCodeMCPHost {
             return try await simctlBootOrShutdown(udid: udid, action: rawAction, call: call)
         }
         if let rawAction = call.string("action") {
-            // An action without a UDID has no Apple device to act on.
             throw MCPToolError("Invalid action: '\(rawAction)'. Pass a udid to boot or shut down an Apple simulator with simctl.")
         }
         let r = try remote(named: call.string("simulator"))
@@ -321,7 +295,6 @@ extension SwiftCodeMCPHost {
         if let open = session {
             s = open
         } else {
-            // No workspace: a session over the app's folder holds the run.
             s = WorkspaceSession(model: try Self.placeholderModel(near: URL(fileURLWithPath: path)))
             session = s
             observe(s)
@@ -330,7 +303,6 @@ extension SwiftCodeMCPHost {
         return try await launchOnSimulator(app: URL(fileURLWithPath: path), destination: r.destination, session: s, wait: wait, remote: r)
     }
 
-    /// A minimal workspace model for runs made without an open workspace.
     static func placeholderModel(near app: URL) throws -> WorkspaceModel {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-mcp-run-\(ProcessInfo.processInfo.processIdentifier)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

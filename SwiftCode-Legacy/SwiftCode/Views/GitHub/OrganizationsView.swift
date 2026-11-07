@@ -7,7 +7,6 @@ struct OrganizationsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack {
                 Label("GitHub Organizations", systemImage: "building.2.fill")
                     .font(.headline)
@@ -81,7 +80,6 @@ struct OrganizationsView: View {
                 let (data, _) = try await URLSession.shared.data(for: request)
                 self.organizations = try JSONDecoder().decode([GitHubOrgInfo].self, from: data)
             } catch {
-                // Silent catch
             }
             isFetching = false
         }

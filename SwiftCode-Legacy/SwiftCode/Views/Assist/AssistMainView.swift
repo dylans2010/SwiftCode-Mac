@@ -4,7 +4,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistMainView")
 
-/// Highly-optimized, native desktop-first macOS experience for the SwiftCode Assist conversation workspace.
 public struct AssistMainView: View {
     @StateObject private var manager = AssistManager.shared
     @State private var inputText: String = ""
@@ -21,42 +20,32 @@ public struct AssistMainView: View {
     @State private var isProcessingFiles = false
     @State private var fetchedOpenRouterModels: [OpenRouterModel] = []
 
-    // Message Queue State
     @State private var editingQueueId: UUID? = nil
     @State private var editingQueueText: String = ""
     @State private var isQueueExpanded: Bool = true
 
-    // Apple Intelligence Prompt Enhancement Alert
     @State private var showEnhancementError = false
     @State private var enhancementErrorMessage: String? = nil
 
-    // Codex Integration
     @Bindable private var bridgeManager = CodexBridgeManager.shared
 
-    // Onboarding / Connection triggers
     @State private var showConnectCodex = false
     @State private var showingCodexSetup = false
 
-    // Destructive Actions Approval Workflow
     @State private var pendingActionName: String = "Terminal Execution"
     @State private var pendingActionDetails: String = "rm -rf build/"
     @State private var alwaysAllowThisSession: Bool = false
 
-    // Mode selection: Chat Mode (Read-Only) vs. Agent Mode (Autonomous)
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
 
-    // Execution Mode: Plan vs Autopilot
     @AppStorage("com.swiftcode.assist.executionMode") private var executionModeRaw: String = ExecutionMode.autopilot.rawValue
 
-    // Assist Configuration
     @AppStorage("com.swiftcode.assist.enableCodeReview") private var enableCodeReview = true
 
-    // Create New App Wizard Sheet
     @State private var showCreateNewAppSheet = false
     @State private var showConversationsSheet = false
     @State private var showReverseFillOut = false
 
-    // Composer @ and / systems
     @State private var selectedExplicitSkills: [SkillDescriptor] = []
     @State private var selectedExplicitMCPServers: [String] = []
     @State private var selectedExplicitFiles: [AgentFileContext] = []
@@ -72,7 +61,6 @@ public struct AssistMainView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack(spacing: 12) {
                 Button {
                     searchConversationText = ""
@@ -122,7 +110,6 @@ public struct AssistMainView: View {
 
                 Spacer()
 
-                // Create New App Trigger
                 Button {
                     showCreateNewAppSheet = true
                 } label: {
@@ -132,10 +119,8 @@ public struct AssistMainView: View {
                 .buttonStyle(.plain)
                 .help("Create New App Wizard")
 
-                // Workers Trigger (Native Assist Workers Entry)
                 WorkersHeaderButton()
 
-                // Real Execution Plan Trigger (Strictly hidden until a real execution plan exists)
                 if !AgentNotesManager.shared.currentNotesMarkdown.isEmpty || TasksAIPlanner.shared.currentPlan != nil {
                     Button {
                         showAgentNotesSheet = true
@@ -156,7 +141,6 @@ public struct AssistMainView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
 
-                // Artifacts Trigger (native Markdown deliverable library)
                 Button {
                     showArtifactsSheet = true
                 } label: {
@@ -174,10 +158,8 @@ public struct AssistMainView: View {
                 .buttonStyle(.plain)
                 .help("Browse Saved Artifacts")
 
-                // Feedback Trigger
                 AssistHeaderFeedbackButton()
 
-                // Diagnostics Trigger
                 Button {
                     showDiagnosticsSheet = true
                 } label: {
@@ -206,11 +188,9 @@ public struct AssistMainView: View {
                     Spacer()
                 }
             } else {
-                // Native macOS Conversation ScrollView
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            // Search bar
                             HStack {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundStyle(.secondary)
@@ -231,9 +211,6 @@ public struct AssistMainView: View {
                             .padding(.horizontal, 12)
                             .padding(.top, 8)
 
-                            // Native Conversational Chat Bubbles
-                            // Notice messages (warnings/errors) render as their own
-                            // tappable yellow/red cards, not plain bubbles.
                             ForEach(filteredMessages) { message in
                                 if let composio = message.composioExecution {
                                     AgentUseComposio(metadata: composio)
@@ -292,7 +269,6 @@ public struct AssistMainView: View {
 
             Divider()
 
-            // Terminal Execution Approval Overlay
             if let request = manager.pendingTerminalRequest {
                 let isDestructive = request.modifiesRepo || request.command.contains("rm ") || request.command.contains("git reset") || request.command.contains("git clean") || request.command.contains("delete") || request.command.contains("remove")
 
@@ -451,7 +427,6 @@ public struct AssistMainView: View {
                 .transition(.move(edge: .bottom))
             }
 
-            // Bottom input controls
             VStack(spacing: 8) {
                 if !attachedFiles.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -709,8 +684,6 @@ public struct AssistMainView: View {
             let hasActiveToolActivity = lastMessage?.activityGroup?.tools.contains {
                 $0.status == .pending || $0.status == .running || $0.status == .retrying
             } == true
-            // Derive from the request phase (single source of truth), not
-            // from string-matching the activity label.
             let isStreamingChatResponse = lastMessage?.role == .assistant &&
                 lastMessage?.content.isEmpty == false && manager.requestPhase == .receivingResponse
             let isActivelyThinking = lastMessage?.role == .assistant &&
@@ -722,13 +695,10 @@ public struct AssistMainView: View {
         }
     }
 
-    // MARK: - Queued Messages View
-
     @ViewBuilder
     private var queuedMessagesView: some View {
         if !manager.queuedMessages.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                // Header
                 HStack(spacing: 8) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 13, weight: .semibold))
@@ -770,7 +740,6 @@ public struct AssistMainView: View {
                 }
                 .padding(.horizontal, 4)
 
-                // List
                 if isQueueExpanded {
                     VStack(spacing: 6) {
                         ForEach(Array(manager.queuedMessages.enumerated()), id: \.element.id) { index, item in
@@ -798,7 +767,6 @@ public struct AssistMainView: View {
 
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 8) {
-                // Index badge
                 Text("#\(index + 1)")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .padding(.horizontal, 6)
@@ -957,7 +925,6 @@ public struct AssistMainView: View {
 
     private var inputArea: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Selected explicit context chips (@MCP, @Files, /Skills)
             AssistComposerChipsBar(
                 selectedSkills: $selectedExplicitSkills,
                 selectedMCPServers: $selectedExplicitMCPServers,
@@ -1102,7 +1069,6 @@ public struct AssistMainView: View {
                 } else if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
                     let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
-                        // Send Now button (interrupts active turn and continues conversation immediately)
                         Button {
                             let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
                             let files = attachedFiles
@@ -1134,7 +1100,6 @@ public struct AssistMainView: View {
                         .buttonStyle(.plain)
                         .help("Interrupt current turn and send immediately")
 
-                        // Queue button (queues message to send once current completes)
                         Button(action: submitMessage) {
                             HStack(spacing: 3) {
                                 Image(systemName: "plus.circle.fill")
@@ -1228,9 +1193,6 @@ public struct AssistMainView: View {
         guard !text.isEmpty && !isProcessingFiles else { return }
 
         let filesToSend = attachedFiles
-        // Parse @Reverse here so the structured invocation rides on the
-        // envelope (provider paths, history) in addition to the text the
-        // intent classifier routes on.
         let envelope = AssistTaskEnvelope(
             userMessage: text,
             explicitSkills: selectedExplicitSkills,
@@ -1310,8 +1272,6 @@ public struct AssistMainView: View {
         composerTriggerMode = nil
     }
 
-    /// Opens the ReverseFillOutView popover so the user can configure
-    /// target artifact, analysis operation, and investigation query via a Form.
     private func selectReverse() {
         consumeTrailingToken(prefix: "@")
         composerTriggerMode = nil
@@ -1372,7 +1332,6 @@ public struct AssistMainView: View {
         var modelsList: [DynamicModelOption] = []
         let filter = AssistModelFilter.shared
 
-        // 1. Apple Foundation Models
         if filter.isEnabled(AppleFoundationModel.afm3Core.rawValue) {
             modelsList.append(DynamicModelOption(
                 modelID: AppleFoundationModel.afm3Core.rawValue,
@@ -1394,7 +1353,6 @@ public struct AssistMainView: View {
             ))
         }
 
-        // 2. HuggingFace Local Models
         let localModels = OfflineModelManager.shared.installedModels
         for m in localModels {
             if filter.isEnabled(m.modelName) {
@@ -1409,7 +1367,6 @@ public struct AssistMainView: View {
             }
         }
 
-        // 3. Custom endpoint/link models
         let customEndpoints = CustomEndpointManager.shared.endpoints
         for endpoint in customEndpoints {
             if endpoint.showInPopup {
@@ -1428,7 +1385,6 @@ public struct AssistMainView: View {
             }
         }
 
-        // 4. OpenRouter Cloud Models (Fallback Presets or fetched)
         if !fetchedOpenRouterModels.isEmpty {
             for m in fetchedOpenRouterModels {
                 if filter.isEnabled(m.id) {
@@ -1507,12 +1463,6 @@ public struct AssistMainView: View {
     }
 }
 
-// MARK: - Subviews
-
-/// Warning/error notice message: yellow for warnings, red for errors.
-/// Tappable to expand/collapse. When the notice carries a ServerErrorDetail,
-/// a "(Server Error)" button opens a dialog showing the raw API exchange —
-/// endpoint, status code, timestamp, verbatim response body — all copyable.
 private struct AssistNoticeView: View {
     let message: AssistMessage
     @State private var expanded = false
@@ -1567,9 +1517,6 @@ private struct AssistNoticeView: View {
     }
 }
 
-/// Small dialog showing a model API error exactly as the server returned it.
-/// Nothing here is hardcoded: endpoint, status code, timestamp, and the
-/// verbatim response body all come from the live HTTP exchange.
 private struct ServerErrorDialog: View {
     let detail: ServerErrorDetail
     @Environment(\.dismiss) private var dismiss
@@ -1688,12 +1635,10 @@ private struct AssistChatBubble: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                // 0. AssistInfoView at the top of user message when a slash/at command or envelope was used
                 if message.role == .user {
                     AssistInfoView(envelope: message.envelope, messageText: message.content)
                 }
 
-                // 1. Inline collapsible thought inspector/disclosure, outside the main response bubble
                 if let thinking = message.thinkingContent, !thinking.isEmpty {
                     MetaAssistThinkingUI(
                         thinkingContent: thinking,
@@ -1702,11 +1647,9 @@ private struct AssistChatBubble: View {
                     )
                 }
 
-                // 2. Main response bubble
                 if hasContent || hasActivity || hasAttachments {
 
                 VStack(alignment: .leading, spacing: 8) {
-                    // Memory Save Card if save_to_memory or manage_memory executed
                     if let memoryTool = message.activityGroup?.tools.first(where: { $0.toolId == "save_to_memory" || $0.toolId == "manage_memory" }) {
                         AssistMemoryUI(
                             key: memoryTool.purpose.isEmpty ? "Context Stored in Memory" : memoryTool.purpose,
@@ -1715,16 +1658,10 @@ private struct AssistChatBubble: View {
                         )
                     }
 
-                    // 1. Native Live Activity Feed (Default: MuseCallsNativeToolsUI)
                     if let activity = message.activityGroup, activity.hasContent {
                         MuseCallsNativeToolsUI(activityGroup: activity)
                     }
 
-                    // 1b. SDK-backed tool activity. Shown only under the
-                    // SDK run's own transcript message, with that run's
-                    // session events. The provider view is chosen by the
-                    // run's kind, and each event renders in exactly one
-                    // provider view (see the views' provider filter).
                     if message.id == manager.agentSession.sdkMessageId,
                        let sdkSessionId = manager.agentSession.sdkSessionId,
                        let sdkKind = manager.agentSession.sdkSessionKind {
@@ -1741,7 +1678,6 @@ private struct AssistChatBubble: View {
                         }
                     }
 
-                    // 2. Streamed / Completed Assistant Markdown Message
                     if !message.content.isEmpty {
                         let blocks = MarkdownParser.shared.parse(message.content)
                         if blocks.isEmpty {
@@ -1755,7 +1691,6 @@ private struct AssistChatBubble: View {
                         }
                     }
 
-                    // 3. Expandable Activity Details (Files modified diffs, etc.)
                     if let activity = message.activityGroup, !activity.files.isEmpty {
                         if !isMetaMessage {
                             AssistActivityView(activityGroup: activity)
@@ -1800,8 +1735,6 @@ private struct AssistChatBubble: View {
     }
 }
 
-// MARK: - Assist Message Action Bar (Copy, Retry, Feedback)
-
 private struct AssistMessageActionBar: View {
     let message: AssistMessage
     @ObservedObject private var manager = AssistManager.shared
@@ -1815,7 +1748,6 @@ private struct AssistMessageActionBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                // Copy Button
                 Button {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
@@ -1844,7 +1776,6 @@ private struct AssistMessageActionBar: View {
                 .buttonStyle(.plain)
                 .help("Copy message content to clipboard")
 
-                // Retry Button
                 Button {
                     retryMessage()
                 } label: {
@@ -1863,7 +1794,6 @@ private struct AssistMessageActionBar: View {
                 .disabled(manager.isProcessing)
                 .help("Regenerate response from preceding user prompt")
 
-                // Thumbs-up Button (positive feedback — no package generated)
                 Button {
                     AssistUserActionLog.record(.positiveFeedback(messageID: message.id))
                     AssistFeedbackVoteLog.recordPositive(
@@ -1903,7 +1833,6 @@ private struct AssistMessageActionBar: View {
                 .buttonStyle(.plain)
                 .help("Mark this response as helpful")
 
-                // Feedback Button (thumbs-down: opens the feedback sheet)
                 Button {
                     showFeedbackSheet = true
                 } label: {
@@ -1922,7 +1851,6 @@ private struct AssistMessageActionBar: View {
                 .disabled(isGeneratingFeedback)
                 .help("Generate diagnostic files in Feedback Info for this response")
 
-                // Open in Finder Button (when feedback is ready)
                 if let url = generatedFeedbackURL {
                     Button {
                         AssistFeedbackService.shared.openInFinder(url: url)
@@ -1944,7 +1872,6 @@ private struct AssistMessageActionBar: View {
                 }
             }
 
-            // Loading bar while generating feedback files
             if isGeneratingFeedback {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
@@ -2039,8 +1966,6 @@ private struct AssistMessageActionBar: View {
         }
     }
 }
-
-// MARK: - Assist Feedback Sheet (thumbs-down: category + comment + severity)
 
 private struct AssistFeedbackSheet: View {
     let message: AssistMessage
@@ -2138,8 +2063,6 @@ private struct AssistFeedbackSheet: View {
     }
 }
 
-// MARK: - Assist Header Feedback Button
-
 private struct AssistHeaderFeedbackButton: View {
     @ObservedObject private var feedbackService = AssistFeedbackService.shared
     @State private var generatedURL: URL? = nil
@@ -2195,8 +2118,6 @@ private struct AssistHeaderFeedbackButton: View {
         }
     }
 }
-
-// MARK: - Live Activity Feed
 
 private struct AssistLiveActivityFeed: View {
     let activityGroup: AssistActivityGroup
@@ -2357,7 +2278,6 @@ private struct AssistLiveActivityFeed: View {
                 .buttonStyle(.plain)
             }
 
-            // Workers summary if any
             ForEach(activityGroup.workers) { worker in
                 HStack(spacing: 6) {
                     if worker.status == .running {
@@ -2388,7 +2308,6 @@ private struct AssistLiveActivityFeed: View {
                 }
             }
 
-            // Builds summary if any
             ForEach(activityGroup.builds) { build in
                 HStack(spacing: 6) {
                     if build.status == .running {
@@ -2419,7 +2338,6 @@ private struct AssistLiveActivityFeed: View {
                 }
             }
 
-            // Tests summary if any
             ForEach(activityGroup.tests) { test in
                 HStack(spacing: 6) {
                     if test.status == .running {
@@ -2453,8 +2371,6 @@ private struct AssistLiveActivityFeed: View {
         .padding(.vertical, 2)
     }
 }
-
-// MARK: - AppKit Popup Menu Helpers
 
 @MainActor
 final class ModelPopupMenuHelper {
@@ -2516,8 +2432,6 @@ private final class ModelMenuTarget: NSObject {
         }
     }
 }
-
-// MARK: - Execution Mode Sheet
 
 struct ExecutionModeSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -2647,12 +2561,6 @@ struct ExecutionModeSheet: View {
     }
 }
 
-// MARK: - SDK Model Provider List
-
-/// Lists the models fetched live from the active SDK provider
-/// (OpenCode, OpenRouter or Hermes). Nothing is hardcoded: the list
-/// is whatever the provider reports, and the user's pick is stored
-/// in `selectedAssistModelID`.
 struct SDKModelProviderList: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var settings = AppSettings.shared
@@ -2756,8 +2664,6 @@ struct SDKModelProviderList: View {
     }
 }
 
-// MARK: - Diagnostics Sheet
-
 struct DiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var manager: AssistManager
@@ -2772,7 +2678,6 @@ struct DiagnosticsSheet: View {
         let events = DiagnosticEventBus.shared.events
 
         let filtered = events.filter { event in
-            // Search text filter
             if !searchText.isEmpty {
                 let term = searchText.lowercased()
                 guard event.message.lowercased().contains(term) ||
@@ -2782,12 +2687,10 @@ struct DiagnosticsSheet: View {
                 }
             }
 
-            // Severity filter
             if selectedSeverity != "All" {
                 guard event.severity == selectedSeverity else { return false }
             }
 
-            // Provider filter
             if selectedProvider != "All" {
                 guard event.provider.lowercased().contains(selectedProvider.lowercased()) else { return false }
             }
@@ -2795,7 +2698,6 @@ struct DiagnosticsSheet: View {
             return true
         }
 
-        // Group by category, order most-recent-first (chronologically descending)
         let sorted = filtered.sorted { $0.timestamp > $1.timestamp }
         return Dictionary(grouping: sorted, by: { $0.category })
     }
@@ -2812,7 +2714,6 @@ struct DiagnosticsSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Diagnostics", systemImage: "terminal")
                     .font(.headline)
@@ -2859,7 +2760,6 @@ struct DiagnosticsSheet: View {
                                 .controlSize(.small)
                             }
 
-                            // Interactive Filters
                             HStack(spacing: 12) {
                                 Picker("Severity:", selection: $selectedSeverity) {
                                     ForEach(severities, id: \.self) { sev in
@@ -2878,7 +2778,6 @@ struct DiagnosticsSheet: View {
                                 .controlSize(.small)
                             }
 
-                            // Unified Log Search Filter
                             HStack {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundColor(.secondary)
@@ -2967,10 +2866,6 @@ struct DiagnosticsSheet: View {
     }
 }
 
-/// Expandable inline diagnostic for errors and warnings. The collapsed row
-/// shows a one-line summary; expanding reveals the full message plus
-/// diagnostic context (when it was recorded, which request phase was
-/// active) and a copy button. Warnings render amber, errors red.
 private struct AssistInlineDiagnostic: View {
     enum Severity {
         case error
@@ -3059,8 +2954,6 @@ private struct AssistInlineError: View {
     }
 }
 
-// MARK: - Custom Model Picker Popover (Section 2 "Available Models" Card Integration)
-
 struct AssistCustomModelPickerPopover: View {
     let selectedModelID: String
     let onSelect: (AssistAvailableModel) -> Void
@@ -3091,7 +2984,6 @@ struct AssistCustomModelPickerPopover: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 8) {
                 Label("Available Models", systemImage: "sparkles")
                     .font(.system(size: 13, weight: .bold))
@@ -3131,7 +3023,6 @@ struct AssistCustomModelPickerPopover: View {
             .padding(.vertical, 10)
             .background(Color.primary.opacity(0.04))
 
-            // Search Bar
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
@@ -3159,7 +3050,6 @@ struct AssistCustomModelPickerPopover: View {
 
             Divider()
 
-            // Models List (Grouped by Provider exactly as in Available Models card)
             let groups = discoveryService.modelsByProvider
             if groups.isEmpty {
                 VStack(spacing: 8) {
@@ -3191,7 +3081,6 @@ struct AssistCustomModelPickerPopover: View {
 
                             if !filteredModels.isEmpty {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    // Provider Header
                                     HStack {
                                         Text(group.providerName)
                                             .font(.system(size: 10, weight: .bold))
@@ -3205,7 +3094,6 @@ struct AssistCustomModelPickerPopover: View {
                                     .padding(.horizontal, 8)
                                     .padding(.top, 4)
 
-                                    // Models in Provider
                                     ForEach(filteredModels) { model in
                                         AssistModelPickerRow(
                                             model: model,
@@ -3247,12 +3135,10 @@ private struct AssistModelPickerRow: View {
             onSelect()
         } label: {
             HStack(spacing: 8) {
-                // Status dot
                 Circle()
                     .fill(statusColor)
                     .frame(width: 6, height: 6)
 
-                // Info
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(model.displayName)
@@ -3314,4 +3200,3 @@ private struct AssistModelPickerRow: View {
         }
     }
 }
-

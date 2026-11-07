@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - AI Refactor Extension View
 struct AIRefactorExtensionView: View {
     @State private var isEnabled = true
     @State private var suggestionMode = "inline"

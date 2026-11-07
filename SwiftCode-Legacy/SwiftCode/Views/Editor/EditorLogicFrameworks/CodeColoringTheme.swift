@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Code Coloring Theme
-
 struct CodeColoringTheme: Identifiable, Equatable {
     let id: String
     var name: String
@@ -16,8 +14,6 @@ struct CodeColoringTheme: Identifiable, Equatable {
     var lineHighlightColor: Color
     var selectionColor: Color
     var cursorColor: Color
-
-    // MARK: - Built-in Themes
 
     static let dark = CodeColoringTheme(
         id: "dark",
@@ -119,7 +115,6 @@ struct CodeColoringTheme: Identifiable, Equatable {
 
     @MainActor
     static func theme(for id: String) -> CodeColoringTheme {
-        // First try to resolve custom Theme colors dynamically in real-time
         if let appTheme = ThemeManager.shared.theme(for: id) {
             return CodeColoringTheme(
                 id: appTheme.id,
@@ -138,7 +133,6 @@ struct CodeColoringTheme: Identifiable, Equatable {
             )
         }
 
-        // Fallback to presets
         switch id {
         case "light":
             return .github

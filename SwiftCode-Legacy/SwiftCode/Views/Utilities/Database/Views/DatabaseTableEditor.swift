@@ -14,7 +14,6 @@ struct DatabaseTableEditor: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Create New Table")
                     .font(.headline)

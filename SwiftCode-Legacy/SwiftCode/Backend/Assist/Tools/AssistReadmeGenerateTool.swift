@@ -33,14 +33,12 @@ public struct AssistReadmeGenerateTool: AssistTool {
             return .failure("File already exists at \(rawPath). Pass overwrite: true to replace it.")
         }
         let projectName = root.lastPathComponent
-        // Build systems.
         var systems: [String] = []
         let fm = FileManager.default
         if fm.fileExists(atPath: root.appendingPathComponent("Package.swift").path) { systems.append("SwiftPM") }
         if (try? fm.contentsOfDirectory(atPath: root.path))?.contains(where: { $0.hasSuffix(".xcworkspace") }) == true { systems.append("Xcode workspace") }
         else if (try? fm.contentsOfDirectory(atPath: root.path))?.contains(where: { $0.hasSuffix(".xcodeproj") }) == true { systems.append("Xcode project") }
         if fm.fileExists(atPath: root.appendingPathComponent("Podfile").path) { systems.append("CocoaPods") }
-        // Targets from pbxproj.
         var targets: [String] = []
         if let pbxproj = AssistWorkspaceScan.findPbxproj(in: root),
            let text = try? String(contentsOf: pbxproj, encoding: .utf8),

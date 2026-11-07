@@ -34,7 +34,6 @@ public final class CollaborationNotificationManager: ObservableObject {
         let notification = CollaborationNotification(title: title, body: body, category: category)
         notifications.insert(notification, at: 0)
 
-        // Potential for local notification push here
     }
 
     public func markAsRead(_ id: UUID) {

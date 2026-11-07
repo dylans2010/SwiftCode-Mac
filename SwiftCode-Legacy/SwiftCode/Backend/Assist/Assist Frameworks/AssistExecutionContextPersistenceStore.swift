@@ -1,6 +1,5 @@
 import Foundation
 
-/// Stores and retrieves persistent context across execution sessions
 @MainActor
 public final class AssistExecutionContextPersistenceStore {
     private let context: AssistContext
@@ -23,7 +22,6 @@ public final class AssistExecutionContextPersistenceStore {
         self.context = context
     }
 
-    /// Saves current context state
     public func saveContext(
         goal: String,
         completedTasks: [String],
@@ -53,7 +51,6 @@ public final class AssistExecutionContextPersistenceStore {
         }
     }
 
-    /// Loads saved context
     public func loadContext() -> PersistentContext? {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
               let persistentContext = try? JSONDecoder().decode(PersistentContext.self, from: data) else {
@@ -62,12 +59,10 @@ public final class AssistExecutionContextPersistenceStore {
         return persistentContext
     }
 
-    /// Clears persisted context
     public func clearContext() {
         UserDefaults.standard.removeObject(forKey: storageKey)
     }
 
-    /// Checks if there is a restorable context for the given session
     public func hasRestorableContext(for sessionID: UUID) -> Bool {
         guard let persisted = loadContext() else { return false }
         return persisted.sessionId == sessionID.uuidString

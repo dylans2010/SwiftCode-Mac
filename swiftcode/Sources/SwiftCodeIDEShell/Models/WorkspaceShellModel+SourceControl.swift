@@ -1,8 +1,6 @@
 import Foundation
 import SwiftCodeIDECore
 
-/// What the source-control model asks of its window: the open files'
-/// text (change bars), saving before a commit, opening a file.
 extension WorkspaceShellModel {
     func connectSourceControl() {
         let scm = sourceControl
@@ -12,6 +10,5 @@ extension WorkspaceShellModel {
         scm.refresh()
     }
 
-    /// The current branch for the debug bar (nil outside git).
     public var currentBranch: String? { sourceControl.snapshot.currentBranch }
 }

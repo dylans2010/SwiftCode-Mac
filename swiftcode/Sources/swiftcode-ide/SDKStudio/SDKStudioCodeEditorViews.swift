@@ -4,27 +4,6 @@ import SwiftUI
 import SwiftCodeExtensions
 import SwiftCodeSDKStudio
 
-// MARK: - Code editor shell
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorShellView.swift`
-// (+ `SDKCodeEditorView`, `SDKCodeEditorTabBarView`,
-// `SDKCodeFileNavigatorView`, `SDKCodeFindBarView`, `SDKCodeConsoleView`,
-// `SDKCodeSnippetLibraryView`, `SDKCodeProjectRootView`,
-// `SDKCodeBuildRunView`).
-//
-// SwiftCode deviation — hosting SwiftCode's editor: the full Canvas editor
-// (`SourceEditorView`) needs a `WorkspaceShellModel` session, which the
-// Studio pane does not own. The Studio pane therefore edits through the
-// Studio buffer (`SDKCodeDocument`, the value-type document Legacy used)
-// in a plain `TextEditor`, with SwiftCode's editor machinery around it —
-// find via `SDKCodeFindCoordinator`, highlighting tokens from
-// `SDKKeywordHighlighter` shown in the token strip, save/disk-change via
-// `SDKCodeEditorState`, and build/run via `SDKCodeBuildRunner`. Embedding
-// the Canvas editor is recorded as follow-up in the Studio spec draft.
-// Find caret movement is a known gap of the `TextEditor` surface: the
-// coordinator computes real matches and the bar reports them, but moving
-// the caret to a match needs the AppKit editor view.
-
 @MainActor
 struct SDKCodeEditorShellView: View {
     @Bindable var editorState: SDKCodeEditorState
@@ -278,13 +257,6 @@ struct SDKCodeEditorShellView: View {
     }
 }
 
-// MARK: - Find adapter
-//
-// Bridges the active tab's text into `SDKCodeFindCoordinator`. Caret
-// movement is a no-op: the `TextEditor` surface cannot select a UTF-16
-// range (that needs the AppKit editor view); the coordinator still
-// computes real matches and the find bar reports them.
-
 @MainActor
 private final class SDKCodeFindAdapter: SDKCodeFindableEditor {
     weak var editorState: SDKCodeEditorState?
@@ -297,11 +269,6 @@ private final class SDKCodeFindAdapter: SDKCodeFindableEditor {
 
     func selectFindRange(_ range: Range<Int>) {}
 }
-
-// MARK: - Tab bar
-//
-// Legacy: `SDKCodeEditorTabBarView.swift` — one button per tab, dirty
-// dot, close button, "Untitled document" fallback title.
 
 struct SDKCodeEditorTabBarView: View {
     @Bindable var editorState: SDKCodeEditorState
@@ -340,13 +307,6 @@ struct SDKCodeEditorTabBarView: View {
         .frame(height: 30)
     }
 }
-
-// MARK: - File navigator
-//
-// Legacy: `SDKCodeFileNavigatorView.swift` — lazy tree over the project
-// root (directories first, hidden files and `node_modules` skipped),
-// open-on-click, reveal/create via the model. Directory picking is a
-// path field (pure SwiftUI target — no `NSOpenPanel` in `swiftcode-ide`).
 
 struct SDKCodeFileNavigatorView: View {
     @Bindable var editorState: SDKCodeEditorState
@@ -474,10 +434,6 @@ private struct SDKCodeFileTreeRow: View {
     }
 }
 
-// MARK: - Project root row
-//
-// Legacy: `SDKCodeProjectRootView.swift`.
-
 struct SDKCodeProjectRootView: View {
     let rootURL: URL?
     let onSelectRoot: (URL) -> Void
@@ -509,15 +465,6 @@ struct SDKCodeProjectRootView: View {
         onSelectRoot(URL(fileURLWithPath: path))
     }
 }
-
-// MARK: - Find bar
-//
-// Legacy: `SDKCodeFindBarView.swift` — field bound to
-// `SDKCodeEditorState.findQuery`, case-sensitivity toggle, previous/next,
-// match summary. Matches come from `SDKCodeFindCoordinator` over the
-// active tab's text; the coordinator's editor hook is wired by the shell
-// through `findableText` (see the note on caret movement in the shell
-// header).
 
 struct SDKCodeFindBarView: View {
     @Bindable var coordinator: SDKCodeFindCoordinator
@@ -561,11 +508,6 @@ struct SDKCodeFindBarView: View {
     }
 }
 
-// MARK: - Console
-//
-// Legacy: `SDKCodeConsoleView.swift` — follow-output toggle, copy
-// selected, stream badges, auto-scroll to latest.
-
 struct SDKCodeConsoleView: View {
     @Bindable var editorState: SDKCodeEditorState
     @State private var followOutput = true
@@ -595,7 +537,7 @@ struct SDKCodeConsoleView: View {
                                     .background(streamColor(entry.stream).opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
                                 Text(entry.text)
                                     .font(.caption.monospaced())
-                                    
+
                             }
                             .id(entry.id)
                         }
@@ -627,8 +569,6 @@ struct SDKCodeConsoleView: View {
         }
     }
 }
-
-// MARK: - Diagnostics panel
 
 struct SDKCodeDiagnosticsView: View {
     @Bindable var editorState: SDKCodeEditorState
@@ -685,12 +625,6 @@ struct SDKCodeDiagnosticsView: View {
         }
     }
 }
-
-// MARK: - Snippet library
-//
-// Legacy: `SDKCodeSnippetLibraryView.swift` — search, category filter,
-// TypeScript/Swift/manifest variants, copy, insert into editor, insert
-// capability into the manifest.
 
 struct SDKCodeSnippetLibraryView: View {
     @Bindable var editorState: SDKCodeEditorState
@@ -764,7 +698,7 @@ struct SDKCodeSnippetLibraryView: View {
                         if expandedSnippetIDs.contains(snippet.id) {
                             Text(snippet.executableCode(for: selectedVariant))
                                 .font(.caption.monospaced())
-                                
+
                                 .padding(6)
                                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
                         }
@@ -781,13 +715,6 @@ struct SDKCodeSnippetLibraryView: View {
         }
     }
 }
-
-// MARK: - Build / run
-//
-// Legacy: `SDKCodeBuildRunView.swift` — kind picker, scheme/entry field,
-// start/stop, "already in progress" guard. The shell embeds the same
-// controls in its toolbar; this standalone view is kept for the section
-// wiring Legacy used.
 
 struct SDKCodeBuildRunView: View {
     @Bindable var editorState: SDKCodeEditorState

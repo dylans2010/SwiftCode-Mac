@@ -1,72 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Tools/AssistToolRegistry.swift`).
-// MOVED here by MCP-DEP (2026-11-06, decision (b) in staging-wire/mcp-dep/DISPOSITIONS.md):
-// SwiftCodeAssistant cannot import SwiftCodeMCP (MCP depends on Assistant — a reverse
-// dep would be a cycle), and the registry's whole dependency closure lives here
-// (AssistTool in this target; ToolCapability in AssistToolRouter.swift;
-// ToolValidationResult in AssistErrorRecoveryEngine.swift). MCP keeps using it
-// through its own import of this target.
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - dynamic register/unregister
-//   - tool health tracking (ToolHealth/ToolHealthStatus)
-//   - read-only result caching (get/setCachedResult)
-//   - schema caching (cachedSchema/invalidateSchemaCache)
-//   - capability index / toolsForCapability
-// ADAPTATIONS:
-//   - MOVED 2026-11-06 (MCP-DEP): file moved SwiftCodeMCP -> SwiftCodeAssistant;
-//     the cross-target import was dropped (same target now); `registerAllTools()`
-//     removed — it listed ~291 concrete tool types, 274 of which exist nowhere
-//     in the tree yet and 17 of which live in SwiftCodeMCP (unimportable from
-//     here). Enrolment is split by module: MCP tools enrol from
-//     SwiftCodeMCP/Tools/AssistToolRegistry+MCPTools.swift; each further tool enrols
-//     via register(_:) as it lands. The registry mechanics are unchanged.
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistAccessLevelAuditTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAccessLevelAuditTool.swift`)
-//   - AssistAccessibilityAuditScannerTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAccessibilityAuditScannerTool.swift`)
-//   - AssistAccessibilityAuditTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAccessibilityAuditTool.swift`)
-//   - AssistApiDocsCoverageTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistApiDocsCoverageTool.swift`)
-//   - AssistApiEndpointAuditTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistApiEndpointAuditTool.swift`)
-//   - AssistApiSurfaceExtractTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistApiSurfaceExtractTool.swift`)
-//   - AssistAppendFileTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAppendFileTool.swift`)
-//   - AssistArtboardCreateTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistArtboardCreateTool.swift`)
-//   - AssistArtboardDeleteTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistArtboardDeleteTool.swift`)
-//   - AssistArtboardGetTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistArtboardGetTool.swift`)
-//   - AssistArtboardListTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistArtboardListTool.swift`)
-//   - AssistArtboardRunAppTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistArtboardRunAppTool.swift`)
-//   - AssistArtboardUpdateTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistArtboardUpdateTool.swift`)
-//   - AssistAssetCatalogListTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAssetCatalogListTool.swift`)
-//   - AssistAssetCatalogTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAssetCatalogTool.swift`)
-//   - AssistAssetImageAddTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAssetImageAddTool.swift`)
-//   - AssistAutoFixErrorsTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAutoFixErrorsTool.swift`)
-//   - AssistAutomatedRepairEngine — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAutomatedRepairEngine.swift`)
-//   - AssistAutonomousReviewEngine — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAutonomousReviewEngine.swift`)
-//   - AssistBatchRenameFilesTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistDataMutationTools.swift`)
-//   - AssistBinaryPlistConverterTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBinaryPlistConverterTool.swift`)
-//   - AssistBinarySizeReportTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBinarySizeReportTool.swift`)
-//   - AssistBreakdownTaskTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBreakdownTaskTool.swift`)
-//   - AssistBuildConfigurationListTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBuildConfigurationListTool.swift`)
-//   - AssistBuildLogAnalyzeTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBuildLogAnalyzeTool.swift`)
-//   - AssistBuildPhaseScriptsListTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBuildPhaseScriptsListTool.swift`)
-//   - AssistBuildProjectTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBuildProjectTool.swift`)
-//   - AssistBuildSettingsDiffTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBuildSettingsDiffTool.swift`)
-//   - AssistBuildSystemDetectTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBuildSystemDetectTool.swift`)
-//   - AssistBundleResourceAuditorTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistBundleResourceAuditorTool.swift`)
-//   - AssistCallHierarchyTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCallHierarchyTool.swift`)
-//   - AssistCarthageCartfileInspectorTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCarthageCartfileInspectorTool.swift`)
-//   - AssistChangeDirectoryTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistChangeDirectoryTool.swift`)
-//   - AssistChangeImpactEstimateTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistChangeImpactEstimateTool.swift`)
-//   - AssistClearMemoryTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistClearMemoryTool.swift`)
-//   - AssistClipboardManagerTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistClipboardManagerTool.swift`)
-//   - AssistCodeCommentExtractTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCodeCommentExtractTool.swift`)
-//   - AssistCodeMetricsTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCodeMetricsTool.swift`)
-//   - AssistCodeMutationEngine — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCodeMutationEngine.swift`)
-//   - AssistCodeSigningDiagnoseTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCodeSigningDiagnoseTool.swift`)
-//   - ... and 236 more (full list in assist/DISPOSITIONS.md).
-// WIRING / REGISTRATION: Dynamic registry: MCPServer tools catalogue stays the live registry until wired; instantiate AssistToolRegistry.shared and register legacy tools as they land; enrolment is split by module (see init()).
-
 import Foundation
 
 public enum ToolHealthStatus: String, Codable, Sendable {
@@ -105,7 +36,6 @@ public final class AssistToolRegistry {
     private var schemaCache: [String: String] = [:]
     private var registryVersion: Int = 0
 
-    // Read-only result cache for runtime idempotency
     private var readOnlyResultCache: [String: (result: String, timestamp: Date)] = [:]
     private var lastMutationTimestamp: Date = Date.distantPast
 
@@ -128,15 +58,6 @@ public final class AssistToolRegistry {
         readOnlyResultCache[semanticKey] = (result: result, timestamp: Date())
     }
 
-    /// Assistant-side tools enrol here at `init()` so both a fresh
-    /// `AssistToolRegistry()` and `.shared` contain them (the
-    /// `AssistRuntimeTestSuite` constructs fresh registries and resolves
-    /// tools off `.shared`). MCP-defined tools still enrol separately in
-    /// `AssistToolRegistry+MCPTools.swift` (`registerMCPTools()`, called
-    /// once at MCP startup), because this target cannot import SwiftCodeMCP.
-    /// Enrolment lives with the tools: each further Assistant-side tool
-    /// registers itself in `registerAssistantTools()` (see
-    /// `AssistToolRegistry+AssistantTools.swift`) as it lands.
     public init() {
         registerAssistantTools()
     }
@@ -145,9 +66,6 @@ public final class AssistToolRegistry {
     private var cachedToolSchemas: [[String: Any]]?
 
     public func register(_ tool: AssistTool) {
-        // Never silently overwrite on a duplicate ID: the first registration
-        // wins and the collision is logged, so a duplicate is loud, not a
-        // last-wins surprise.
         if tools[tool.id] != nil {
             print("[AssistToolRegistry] Duplicate tool ID '\(tool.id)' — keeping the first registration.")
             return
@@ -424,7 +342,6 @@ public final class AssistToolRegistry {
 
         var normalizedArgs = arguments
 
-        // Common parameter aliases
         if normalizedArgs["path"] == nil {
             if let p = normalizedArgs["filePath"] ?? normalizedArgs["file_path"] ?? normalizedArgs["targetFile"] ?? normalizedArgs["file"] {
                 normalizedArgs["path"] = p
@@ -451,7 +368,6 @@ public final class AssistToolRegistry {
             }
         }
 
-        // Default helpers for terminal execution
         if tool.id == "use_terminal" {
             if normalizedArgs["explanation"] == nil {
                 normalizedArgs["explanation"] = "Execute command"
@@ -464,8 +380,7 @@ public final class AssistToolRegistry {
             }
         }
 
-        // Automatic path relativization
-        let projectRoot = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? ""
+        let projectRoot = FileManager.default.currentDirectoryPath
         for pathKey in ["path", "filePath", "sourcePath", "destinationPath", "source", "destination", "oldPath", "newName", "workingDirectory", "project"] {
             if var rawPath = normalizedArgs[pathKey] as? String {
                 if !projectRoot.isEmpty && rawPath.hasPrefix(projectRoot) {
@@ -499,12 +414,6 @@ public final class AssistToolRegistry {
             }
         }
 
-        // ".." is rejected for path keys, with two containment-checked
-        // exceptions: dir_cd (its ".." means "parent", clamped at the root by
-        // AssistFileSystem) and use_terminal's workingDirectory (resolved
-        // through AssistFileSystem by UseTermFunction). Both are still
-        // containment-checked downstream; the rejection here is defense in
-        // depth for keys with no downstream containment check.
         if tool.id != "dir_cd" {
             for pathKey in ["path", "filePath", "sourcePath", "destinationPath", "source", "destination", "oldPath", "newName", "project"] {
                 if let path = normalizedArgs[pathKey] as? String {

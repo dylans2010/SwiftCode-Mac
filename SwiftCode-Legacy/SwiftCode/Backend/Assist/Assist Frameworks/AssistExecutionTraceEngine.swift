@@ -1,6 +1,5 @@
 import Foundation
 
-/// Traces execution path for debugging and analysis
 @MainActor
 public final class AssistExecutionTraceEngine {
     private let context: AssistContext
@@ -30,7 +29,6 @@ public final class AssistExecutionTraceEngine {
         self.context = context
     }
 
-    /// Records a trace event
     public func recordEvent(
         iteration: Int,
         type: EventType,
@@ -46,23 +44,19 @@ public final class AssistExecutionTraceEngine {
         )
         trace.append(entry)
 
-        // Also log to assist logger
         Task {
             await context.logger.info("[\(type.rawValue)] \(description)", toolId: "ExecutionTrace")
         }
     }
 
-    /// Gets the full trace log
     public func getTrace() -> [TraceEntry] {
         return trace
     }
 
-    /// Gets trace for a specific iteration
     public func getTrace(forIteration iteration: Int) -> [TraceEntry] {
         return trace.filter { $0.iteration == iteration }
     }
 
-    /// Exports trace to formatted string
     public func exportTrace() -> String {
         var output = "=== ASSIST EXECUTION TRACE ===\n\n"
 
@@ -79,7 +73,6 @@ public final class AssistExecutionTraceEngine {
         return output
     }
 
-    /// Clears the trace
     public func clearTrace() {
         trace.removeAll()
     }

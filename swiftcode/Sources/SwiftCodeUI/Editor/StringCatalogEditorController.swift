@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The String Catalog editor: a languages sidebar (with progress), and a
-/// Key | Default Localization | Comment | <language> | State table. Edits
-/// are written to the file at once. See `specs/ide/string-catalog.md`.
 @MainActor
 public final class StringCatalogEditorController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
     public let url: URL
@@ -14,7 +11,6 @@ public final class StringCatalogEditorController: NSViewController, NSTableViewD
     let table = NSTableView()
     public let addLanguagePopUp = NSPopUpButton(frame: .zero, pullsDown: true)
 
-    /// Languages offered by + (codes); the menu shows their localized names.
     public static let commonLanguages = ["ar", "de", "es", "fr", "hi", "it", "ja", "ko", "nl", "pl", "pt-BR", "ru", "sv", "tr", "uk", "zh-Hans", "zh-Hant"]
 
     public init(url: URL) throws {
@@ -106,14 +102,11 @@ public final class StringCatalogEditorController: NSViewController, NSTableViewD
         try? catalog.data().write(to: url, options: .atomic)
     }
 
-    // MARK: Editing API (also used by tests)
-
     public func select(language code: String) {
         language = code
         reload()
     }
 
-    /// Called when a language is added (the window adds it to the project).
     public var onAddLanguage: ((String) -> Void)?
 
     public func addLanguage(_ code: String) {
@@ -146,18 +139,10 @@ public final class StringCatalogEditorController: NSViewController, NSTableViewD
         reload()
     }
 
-    // MARK: Refresh from source
-
-    /// The source files to extract from (the window gives the catalog's
-    /// targets' sources); nil or empty: every source file under the
-    /// catalog's folder.
     public var sourceFiles: (() -> [String])?
     public private(set) var refreshButton: NSButton?
-    /// What the last refresh changed.
     public private(set) var lastRefresh: StringCatalog.MergeSummary?
 
-    /// Extracts the strings of this catalog's table from the sources and
-    /// merges them (`specs/ide/string-catalog.md`, "SwiftCode implementation").
     @discardableResult
     public func refreshFromSource() -> StringCatalog.MergeSummary {
         var files = sourceFiles?() ?? []
@@ -182,8 +167,6 @@ public final class StringCatalogEditorController: NSViewController, NSTableViewD
         while catalog.keys.contains("New Key \(n)") { n += 1 }
         addKey("New Key \(n)")
     }
-
-    // MARK: Tables
 
     public func numberOfRows(in t: NSTableView) -> Int { t === sidebar ? catalog.languages.count : rows.count }
 

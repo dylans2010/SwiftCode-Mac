@@ -4,7 +4,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// specs/ide/reference-ui-3.md §1, §2.
 @Suite struct ProjectEditorReferenceTests {
     static let pbxproj = """
     // !$*UTF8*$!

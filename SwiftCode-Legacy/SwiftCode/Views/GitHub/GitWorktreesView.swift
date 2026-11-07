@@ -4,23 +4,19 @@ import AppKit
 struct GitWorktreesView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
 
-    // Core Managers & ViewModel Reference
     @State private var manager = WorktreeManager.shared
 
-    // UI state
     @State private var selectedWorktree: GitWorktree? = nil
     @State private var searchQuery = ""
     @State private var filterCategory = "All"
     @State private var sortOption: SortOption = .name
 
-    // Guided wizard creation states
     @State private var showCreateWizard = false
     @State private var newWorktreePath = ""
     @State private var newWorktreeBranch = ""
     @State private var isCreatingNewBranch = false
     @State private var customNewBranchName = ""
 
-    // Additional sheets
     @State private var showLockReasonSheet = false
     @State private var lockReasonText = ""
     @State private var worktreeToLock: GitWorktree? = nil
@@ -37,7 +33,6 @@ struct GitWorktreesView: View {
         var id: String { rawValue }
     }
 
-    // Filter categories mapping
     let filterCategories = [
         "All", "Main Worktrees", "Dirty", "Clean", "Locked", "Favorites"
     ]
@@ -46,7 +41,6 @@ struct GitWorktreesView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // GroupBox 1: Global Actions & Utilities
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -97,7 +91,6 @@ struct GitWorktreesView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // GroupBox 2: Catalog & Filter Section
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -107,7 +100,6 @@ struct GitWorktreesView: View {
                                 Spacer()
                             }
 
-                            // Search & Sort parameters
                             HStack(spacing: 12) {
                                 HStack {
                                     Image(systemName: "magnifyingglass")
@@ -138,7 +130,6 @@ struct GitWorktreesView: View {
                                 .frame(width: 140)
                             }
 
-                            // Filter Category picker
                             Picker("Filter Category", selection: $filterCategory) {
                                 ForEach(filterCategories, id: \.self) { cat in
                                     Text(cat).tag(cat)
@@ -148,7 +139,6 @@ struct GitWorktreesView: View {
 
                             Divider()
 
-                            // Worktree List Rows
                             if manager.isRefreshing && manager.worktrees.isEmpty {
                                 HStack {
                                     Spacer()
@@ -180,7 +170,6 @@ struct GitWorktreesView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // GroupBox 3: Selected Worktree Inspector & Details
                     if let wt = selectedWorktree {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
@@ -290,7 +279,6 @@ struct GitWorktreesView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // GroupBox 4: Background Execution Log Stream
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -349,8 +337,6 @@ struct GitWorktreesView: View {
         }
     }
 
-    // MARK: - Row Subview
-
     private func worktreeRow(_ wt: GitWorktree) -> some View {
         let isSelected = selectedWorktree?.path == wt.path
         let isActive = sessionStore.activeProject?.directoryURL.path == wt.path
@@ -395,7 +381,6 @@ struct GitWorktreesView: View {
                     .foregroundStyle(.red)
             }
 
-            // Favorite/Pin actions
             Button {
                 manager.toggleFavorite(for: wt)
             } label: {
@@ -413,8 +398,6 @@ struct GitWorktreesView: View {
         }
         .padding(.vertical, 4)
     }
-
-    // MARK: - Guided Wizard Creation Sheet
 
     private var creationWizardView: some View {
         VStack(spacing: 0) {
@@ -482,8 +465,6 @@ struct GitWorktreesView: View {
         .frame(width: 580, height: 460)
     }
 
-    // MARK: - Lock Reason Sheet
-
     private var lockReasonInputSheet: some View {
         VStack(spacing: 16) {
             Text("Lock Worktree")
@@ -511,7 +492,6 @@ struct GitWorktreesView: View {
                                     try await manager.lockWorktree(worktreePath: wt.path, reason: lockReasonText, repositoryURL: activeURL)
                                 }
                             } catch {
-                                // Handled via log stream
                             }
                             showLockReasonSheet = false
                             worktreeToLock = nil
@@ -526,12 +506,9 @@ struct GitWorktreesView: View {
         .frame(width: 380, height: 200)
     }
 
-    // MARK: - Filtering & Sorting Logic
-
     private var filteredWorktrees: [GitWorktree] {
         var list = manager.worktrees
 
-        // Search Filter
         if !searchQuery.isEmpty {
             let q = searchQuery.lowercased()
             list = list.filter {
@@ -541,7 +518,6 @@ struct GitWorktreesView: View {
             }
         }
 
-        // Category Filter
         switch filterCategory {
         case "Main Worktrees":
             list = list.filter { $0.isMain }
@@ -557,7 +533,6 @@ struct GitWorktreesView: View {
             break
         }
 
-        // Sorting
         switch sortOption {
         case .branch:
             list.sort { ($0.branch ?? "") < ($1.branch ?? "") }
@@ -577,8 +552,6 @@ struct GitWorktreesView: View {
 
         return list
     }
-
-    // MARK: - Actions Operations
 
     private func refreshWorktrees() {
         if let activeURL = sessionStore.activeProject?.directoryURL {
@@ -621,7 +594,6 @@ struct GitWorktreesView: View {
                     repositoryURL: activeURL
                 )
             } catch {
-                // Already reported to logs
             }
         }
     }
@@ -668,8 +640,6 @@ struct GitWorktreesView: View {
         }
     }
 }
-
-// MARK: - Supporting FlowLayout for Buttons
 
 private struct WorktreeFlowLayout: Layout {
     var spacing: CGFloat

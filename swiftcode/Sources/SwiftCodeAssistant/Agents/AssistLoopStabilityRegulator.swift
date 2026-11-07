@@ -1,12 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `Backend/Assist/Assist Frameworks/AssistLoopStabilityRegulator.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
-// Dependency of _AssistCriticalAutonomousEngine (stability phase). Ledger SUPERSEDED by SwiftCodeAssistant/Providers/MetaAssistTurnExecutor.swift — that is a turn executor, not a stability regulator class; it exposes no StabilityIssue/recordExecution API. Ported verbatim.
-// Remaining deps (now staged in AssistModels.swift by the parallel port — see _notes/agent-models-decisions.md): AssistContext (logger), AssistExecutionPlan, ValidationResult (staged in _AssistCriticalValidationEngine.swift); AssistTakeoverSessionState (staged in AssistTaskContinuationEngine.swift).
-
 import Foundation
 
-/// Regulates autonomous loop behavior to prevent instability
 @MainActor
 public final class AssistLoopStabilityRegulator {
     private let context: AssistContext
@@ -35,7 +28,6 @@ public final class AssistLoopStabilityRegulator {
         self.context = context
     }
 
-    /// Records an execution iteration
     public func recordExecution(
         iteration: Int,
         goal: String,
@@ -63,7 +55,6 @@ public final class AssistLoopStabilityRegulator {
         }
     }
 
-    /// Consecutive failed iterations at the tail of the execution history
     public var consecutiveFailures: Int {
         var count = 0
         for record in executionHistory.reversed() {
@@ -73,11 +64,9 @@ public final class AssistLoopStabilityRegulator {
         return count
     }
 
-    /// Detects stability issues in execution loop
     public func detectStabilityIssues() async -> StabilityIssue {
         guard executionHistory.count >= 3 else { return .none }
 
-        // Check 1: Infinite loop (identical plans repeating)
         let recentPlans = Array(executionHistory.suffix(8))
         let planHashes = recentPlans.map { $0.planHash }
         if Set(planHashes).count == 1 && recentPlans.count >= 8 {
@@ -85,7 +74,6 @@ public final class AssistLoopStabilityRegulator {
             return .infiniteLoop(reason: "Same plan generated 8 times in a row")
         }
 
-        // Check 2: Oscillation (alternating between 2-3 states)
         if recentPlans.count >= 6 {
             let pattern = recentPlans.map { $0.planHash }
             if isOscillating(pattern) {
@@ -94,7 +82,6 @@ public final class AssistLoopStabilityRegulator {
             }
         }
 
-        // Check 3: No progress (all recent iterations failing)
         let recentResults = Array(executionHistory.suffix(15))
         let allFailing = recentResults.allSatisfy { !$0.wasSuccessful }
         if allFailing && recentResults.count >= 15 {
@@ -102,7 +89,6 @@ public final class AssistLoopStabilityRegulator {
             return .noProgress(iterations: recentResults.count)
         }
 
-        // Check 4: Repetitive feedback (same errors repeating)
         let recentFeedbacks = Array(executionHistory.suffix(8)).map { $0.validationFeedback }
         let uniqueFeedbacks = Set(recentFeedbacks)
         if uniqueFeedbacks.count == 1 && recentFeedbacks.count >= 5 {
@@ -127,7 +113,6 @@ public final class AssistLoopStabilityRegulator {
         let tail = Array(pattern.suffix(6))
         let tailCount = tail.count
 
-        // Check 2-state oscillation on the tail: [..., A, B, A, B]
         if tailCount >= 4 {
             let n = tailCount
             if tail[n - 4] == tail[n - 2] && tail[n - 3] == tail[n - 1] && tail[n - 4] != tail[n - 3] {
@@ -135,7 +120,6 @@ public final class AssistLoopStabilityRegulator {
             }
         }
 
-        // Check 3-state oscillation on the tail: [A, B, C, A, B, C]
         if tailCount >= 6 {
             if tail[0] == tail[3] && tail[1] == tail[4] && tail[2] == tail[5] {
                 return true
@@ -145,7 +129,6 @@ public final class AssistLoopStabilityRegulator {
         return false
     }
 
-    /// Resets stability tracking
     public func reset() {
         executionHistory.removeAll()
     }

@@ -1,13 +1,9 @@
 import SwiftUI
 
-// MARK: - SF Symbol Model
-
 struct SFSymbolItem: Identifiable, Hashable {
-    let id: String // the symbol name itself
+    let id: String
     var name: String { id }
 }
-
-// MARK: - Symbol Loader
 
 @MainActor
 final class SFSymbolStore: ObservableObject {
@@ -19,7 +15,6 @@ final class SFSymbolStore: ObservableObject {
     }
 
     private func loadSymbols() {
-        // Load from bundled JSON file
         guard let url = Bundle.main.url(forResource: "sf_symbols_full", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let names = try? JSONDecoder().decode([String].self, from: data),
@@ -48,8 +43,6 @@ final class SFSymbolStore: ObservableObject {
     }
 }
 
-// MARK: - Rendering Mode
-
 enum SymbolRenderingMode: String, CaseIterable, Identifiable {
     case monochrome = "Monochrome"
     case hierarchical = "Hierarchical"
@@ -58,8 +51,6 @@ enum SymbolRenderingMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 }
-
-// MARK: - Symbol Weight
 
 enum SymbolWeightOption: String, CaseIterable, Identifiable {
     case ultraLight = "Ultra Light"
@@ -103,8 +94,6 @@ enum SymbolWeightOption: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Symbol Scale
-
 enum SymbolScaleOption: String, CaseIterable, Identifiable {
     case small = "Small"
     case medium = "Medium"
@@ -129,8 +118,6 @@ enum SymbolScaleOption: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - SF Symbol Browser View
-
 struct SFSymbolBrowserView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = SFSymbolStore.shared
@@ -153,7 +140,6 @@ struct SFSymbolBrowserView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search bar
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -185,7 +171,6 @@ struct SFSymbolBrowserView: View {
 
                 Divider().opacity(0.3)
 
-                // Symbol grid
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 8) {
                         ForEach(filteredSymbols) { symbol in
@@ -236,8 +221,6 @@ struct SFSymbolBrowserView: View {
     }
 }
 
-// MARK: - Symbol Customization View
-
 struct SymbolCustomizationView: View {
     let symbol: SFSymbolItem
     @Environment(\.dismiss) private var dismiss
@@ -253,13 +236,11 @@ struct SymbolCustomizationView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Live Preview
                     livePreview
                         .padding(.top, 12)
 
                     Divider().opacity(0.3)
 
-                    // Rendering Mode
                     settingsSection("Rendering Mode") {
                         Picker("Mode", selection: $renderingMode) {
                             ForEach(SymbolRenderingMode.allCases) { mode in
@@ -269,7 +250,6 @@ struct SymbolCustomizationView: View {
                         .pickerStyle(.segmented)
                     }
 
-                    // Weight
                     settingsSection("Weight") {
                         Picker("Weight", selection: $weight) {
                             ForEach(SymbolWeightOption.allCases) { w in
@@ -280,7 +260,6 @@ struct SymbolCustomizationView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    // Scale
                     settingsSection("Scale") {
                         Picker("Scale", selection: $scale) {
                             ForEach(SymbolScaleOption.allCases) { s in
@@ -290,7 +269,6 @@ struct SymbolCustomizationView: View {
                         .pickerStyle(.segmented)
                     }
 
-                    // Colors (shown for palette mode)
                     if renderingMode == .palette {
                         settingsSection("Colors") {
                             HStack(spacing: 16) {
@@ -310,7 +288,6 @@ struct SymbolCustomizationView: View {
 
                     Divider().opacity(0.3)
 
-                    // Code snippet
                     settingsSection("SwiftUI Code") {
                         Text(generatedCode)
                             .font(.system(size: 12, design: .monospaced))
@@ -320,7 +297,6 @@ struct SymbolCustomizationView: View {
                             .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                     }
 
-                    // Action Buttons
                     VStack(spacing: 10) {
                         Button {
                             NSPasteboard.general.clearContents()
@@ -380,8 +356,6 @@ struct SymbolCustomizationView: View {
         }
     }
 
-    // MARK: - Live Preview
-
     private var livePreview: some View {
         VStack(spacing: 12) {
             Text("Preview")
@@ -415,8 +389,6 @@ struct SymbolCustomizationView: View {
         }
     }
 
-    // MARK: - Code Generation
-
     private var generatedCode: String {
         var code = "Image(systemName: \"\(symbol.name)\")\n"
         switch renderingMode {
@@ -438,8 +410,6 @@ struct SymbolCustomizationView: View {
         }
         return code
     }
-
-    // MARK: - Helpers
 
     private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -1,14 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// CPU feature publication (specs/simulator/cpu-features.md). One feature
-// set, derived from the guest vCPU's ID registers with the Arm
-// architecture's field thresholds and a deny list, feeds all three places
-// guest code looks: the `hw.optional.arm.caps` bytes, the
-// `hw.optional.*` names and the commpage capability word.
-
-/// The ID registers the derivation reads (§4.1). KVM_GET_ONE_REG reads all
-/// but `ctr` and `dczid`, which KVM passes through and the VMM reads at EL0.
 public enum IDRegister: String, CaseIterable, Sendable {
     case midr = "MIDR_EL1"
     case pfr0 = "ID_AA64PFR0_EL1"
@@ -24,7 +16,6 @@ public enum IDRegister: String, CaseIterable, Sendable {
     case ctr = "CTR_EL0"
     case dczid = "DCZID_EL0"
 
-    /// The system-register encoding (op0, op1, CRn, CRm, op2).
     public var encoding: (op0: UInt32, op1: UInt32, crn: UInt32, crm: UInt32, op2: UInt32) {
         switch self {
         case .midr: (3, 0, 0, 0, 0)
@@ -43,11 +34,9 @@ public enum IDRegister: String, CaseIterable, Sendable {
         }
     }
 
-    /// The registers read from the vCPU (the rest come from the host's EL0).
     public static let vcpuRead: [IDRegister] = [.midr, .pfr0, .pfr1, .zfr0, .smfr0, .isar0, .isar1, .isar2, .mmfr0, .mmfr1, .mmfr2]
 }
 
-/// Values of the ID registers (a missing one reads as 0: no feature).
 public struct GuestIDRegisters: Equatable, Sendable, CustomStringConvertible {
     public var values: [IDRegister: UInt64]
 
@@ -58,7 +47,6 @@ public struct GuestIDRegisters: Equatable, Sendable, CustomStringConvertible {
         set { values[r] = newValue }
     }
 
-    /// The unsigned 4-bit field at bits [lsb+3:lsb].
     public func field(_ r: IDRegister, _ lsb: Int) -> UInt64 { (self[r] >> UInt64(lsb)) & 0xF }
 
     public var description: String {
@@ -67,10 +55,6 @@ public struct GuestIDRegisters: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Bit numbers of `hw.optional.arm.caps` (§2.3; ABI, never renumbered).
-///
-/// Each constant is the bit of the `FEAT_*` feature its name spells (`names`
-/// gives the full list, including bits without a constant).
 public enum CapsBit {
     public static let flagM = 0, flagM2 = 1, fhm = 2, dotProd = 3, sha3 = 4, rdm = 5, lse = 6, sha256 = 7
     public static let sha512 = 8, sha1 = 9, aes = 10, pmull = 11, specres = 12, sb = 13, frintts = 14, lrcpc = 15
@@ -85,12 +69,9 @@ public enum CapsBit {
     public static let fpSyncExceptions = 73
     public static let sveB16B16 = 91
 
-    /// `CAP_BIT_NB`: the number of bits; the vector is ⌈97 / 8⌉ = 13 bytes.
     public static let count = 97
-    /// The size of the caps bit vector in bytes.
     public static let byteCount = (count + 7) / 8
 
-    /// The `hw.optional.arm.<name>` of every bit that has a public name (§2.3).
     public static let names: [(bit: Int, name: String)] = [
         (0, "FEAT_FlagM"), (1, "FEAT_FlagM2"), (2, "FEAT_FHM"), (3, "FEAT_DotProd"), (4, "FEAT_SHA3"),
         (5, "FEAT_RDM"), (6, "FEAT_LSE"), (7, "FEAT_SHA256"), (8, "FEAT_SHA512"), (9, "FEAT_SHA1"),
@@ -111,38 +92,33 @@ public enum CapsBit {
         (72, "FEAT_MTE_NO_ADDRESS_TAGS"), (73, "FP_SyncExceptions"), (91, "FEAT_SVE_B16B16"),
     ]
 
-    /// The public name of `bit`, or nil when the bit has none.
     public static func name(_ bit: Int) -> String? { names.first { $0.bit == bit }?.name }
 
-    /// The deny list (§4.3): never published, whatever the ID registers say.
     public static let denied: CPUFeatureSet = {
         var s = CPUFeatureSet()
-        for b in 40...48 { s.insert(b) }                       // SME
-        for b in 52...57 { s.insert(b) }                       // SME_*
-        for b in 60...63 { s.insert(b) }                       // MTE
-        for b in 69...72 { s.insert(b) }                       // MTE_*
-        for b in [pauth, pauth2, fpac, fpacCombine, pacimp] { s.insert(b) }   // pointer authentication
+        for b in 40...48 { s.insert(b) }
+        for b in 52...57 { s.insert(b) }
+        for b in 60...63 { s.insert(b) }
+        for b in 69...72 { s.insert(b) }
+        for b in [pauth, pauth2, fpac, fpacCombine, pacimp] { s.insert(b) }
         s.insert(wfxt)
-        s.insert(ecv)                                          // deferred until the shim decodes CNTVCTSS/CNTPCTSS
+        s.insert(ecv)
         s.insert(specres); s.insert(specres2)
-        for b in [37, 38, 39, 59] { s.insert(b) }              // no public meaning
+        for b in [37, 38, 39, 59] { s.insert(b) }
         for b in 74...90 { s.insert(b) }
         for b in 92...96 { s.insert(b) }
-        s.insert(sveB16B16)                                    // the vCPU has no SVE
+        s.insert(sveB16B16)
         return s
     }()
 }
 
-/// A set of `hw.optional.arm.caps` bits.
 public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
-    /// Bits 0…63 and 64…127.
     public var low: UInt64 = 0
     public var high: UInt64 = 0
 
     public init() {}
     public init(bits: [Int]) { for b in bits { insert(b) } }
 
-    /// The 13-byte vector: bit n is bit n % 8 of byte n / 8.
     public init(capsBytes: [UInt8]) {
         for (i, byte) in capsBytes.prefix(16).enumerated() {
             for j in 0..<8 where byte & (1 << j) != 0 { insert(8 * i + j) }
@@ -182,7 +158,6 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
     public var isEmpty: Bool { low == 0 && high == 0 }
     public var bits: [Int] { (0..<128).filter(contains) }
 
-    /// `hw.optional.arm.caps`: ⌈CAP_BIT_NB / 8⌉ = 13 bytes.
     public var capsBytes: [UInt8] {
         (0..<CapsBit.byteCount).map { i in
             let word = i < 8 ? low : high
@@ -190,7 +165,6 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// 16 bytes (low then high, little-endian): the snapshot record's form.
     public var storedBytes: [UInt8] {
         var b: [UInt8] = []
         b.appendLE(low)
@@ -204,16 +178,10 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
         high = b.readLE(UInt64.self, at: 8)
     }
 
-    /// The names of the bits, or `bit<n>` for an unnamed one.
     public var names: [String] { bits.map { CapsBit.name($0) ?? "bit\($0)" } }
 
     public var description: String { capsBytes.map { String(format: "%02x", $0) }.joined(separator: " ") }
 
-    // MARK: Derivation (§4.2)
-
-    /// The features the ID registers show, before the deny list.
-    /// `fpcrTrapBits`: the trap-enable bits the FPCR probe read back as 1
-    /// (FP_SyncExceptions needs all six).
     public static func derive(from r: GuestIDRegisters, fpcrTrapBits: UInt64) -> CPUFeatureSet {
         var s = CPUFeatureSet()
         func set(_ bit: Int, _ on: Bool) { if on { s.insert(bit) } }
@@ -221,7 +189,6 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
         let isar0 = { (lsb: Int) in r.field(.isar0, lsb) }
         let isar1 = { (lsb: Int) in r.field(.isar1, lsb) }
         let isar2 = { (lsb: Int) in r.field(.isar2, lsb) }
-        // ISAR0.
         set(C.flagM, isar0(52) >= 1); set(C.flagM2, isar0(52) >= 2)
         set(C.fhm, isar0(48) >= 1)
         set(C.dotProd, isar0(44) >= 1)
@@ -232,8 +199,6 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
         set(C.sha256, isar0(12) >= 1); set(C.sha512, isar0(12) >= 2)
         set(C.sha1, isar0(8) >= 1)
         set(C.aes, isar0(4) >= 1); set(C.pmull, isar0(4) >= 2)
-        // ISAR1. SPECRES also needs SCTLR_EL1.EnRCTX, which the shim never
-        // sets: it is denied below anyway.
         set(C.specres, isar1(40) >= 1); set(C.specres2, isar1(40) >= 2)
         set(C.sb, isar1(36) >= 1)
         set(C.frintts, isar1(32) >= 1)
@@ -246,16 +211,13 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
         set(C.dpb, isar1(0) >= 1); set(C.dpb2, isar1(0) >= 2)
         set(C.bf16, isar1(44) >= 1); set(C.ebf16, isar1(44) >= 2)
         set(C.i8mm, isar1(52) >= 1)
-        // ISAR2.
         set(C.wfxt, isar2(0) >= 2)
         set(C.rpres, isar2(4) >= 1)
         set(C.cssc, isar2(52) >= 1)
         set(C.hbc, isar2(20) >= 1)
-        // MMFR0–2.
         set(C.ecv, r.field(.mmfr0, 60) >= 1)
         set(C.afp, r.field(.mmfr1, 44) == 1)
         set(C.lse2, r.field(.mmfr2, 32) >= 1)
-        // PFR0, PFR1.
         set(C.csv3, r.field(.pfr0, 60) >= 1)
         set(C.csv2, r.field(.pfr0, 56) >= 1)
         set(C.dit, r.field(.pfr0, 48) >= 1)
@@ -267,17 +229,12 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
         set(C.bti, r.field(.pfr1, 0) >= 1)
         set(C.sme, r.field(.pfr1, 24) >= 1); set(C.sme2, r.field(.pfr1, 24) >= 2)
         set(C.mte, r.field(.pfr1, 8) >= 1)
-        // FPCR probe: IOE, DZE, OFE, UFE, IXE, IDE all read back as 1.
         set(C.fpSyncExceptions, fpcrTrapBits & CPUFeatureSet.fpcrTrapEnableBits == CPUFeatureSet.fpcrTrapEnableBits)
         return s
     }
 
-    /// FPCR IOE (8), DZE (9), OFE (10), UFE (11), IXE (12), IDE (15).
     public static let fpcrTrapEnableBits: UInt64 = 0x9F00
 
-    // MARK: Commpage (§2.5)
-
-    /// Commpage capability masks and the caps bit each one mirrors.
     public static let commpagePairs: [(bit: Int, mask: UInt64)] = [
         (CapsBit.fp16, 0x8), (CapsBit.advSIMD, 0x100), (CapsBit.advSIMDHPFPCvt, 0x200),
         (CapsBit.fhm, 0x4000), (CapsBit.lse, 0x0200_0000), (CapsBit.crc32, 0x0400_0000), (CapsBit.sha512, 0x8000_0000),
@@ -289,13 +246,9 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
         (CapsBit.csv3, 1 << 56), (CapsBit.dit, 1 << 57), (CapsBit.fpSyncExceptions, 1 << 58),
         (CapsBit.sme, 1 << 59), (CapsBit.sme2, 1 << 60),
     ]
-    /// kHasARMv8Crypto: AES, PMULL, SHA1 and SHA256 together.
     public static let commpageCrypto: UInt64 = 0x0100_0000
-    /// kHasUCNormalMemory (a kernel memory-type capability; §4.4, Q4).
     public static let commpageUCNormalMemory: UInt64 = 0x800
 
-    /// The commpage bits this set gives (no cache-line, CPU-count or kUP
-    /// bits, no base bits; `CommpageBuilder` adds those).
     public var commpageBits: UInt64 {
         var w: UInt64 = 0
         for (bit, mask) in Self.commpagePairs where contains(bit) { w |= mask }
@@ -304,24 +257,18 @@ public struct CPUFeatureSet: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-/// The host's cache description (per core; §4.5).
 public struct CacheGeometry: Equatable, Sendable {
     public var l1i: Int
     public var l1d: Int
     public var l2: Int
-    /// CPUs that share one L2.
     public var cpusPerL2: Int
 
     public init(l1i: Int, l1d: Int, l2: Int, cpusPerL2: Int) {
         self.l1i = l1i; self.l1d = l1d; self.l2 = l2; self.cpusPerL2 = cpusPerL2
     }
 
-    /// Used when the host does not describe its caches (64 KiB, 64 KiB, 1 MiB).
     public static let fallback = CacheGeometry(l1i: 64 << 10, l1d: 64 << 10, l2: 1 << 20, cpusPerL2: 1)
 
-    /// Reads `<cpu>/cache/index*/{level,type,size,shared_cpu_list}` (Linux
-    /// sysfs, e.g. `/sys/devices/system/cpu/cpu0`). Missing values keep the
-    /// fallback's.
     public static func read(cpuDirectory: String) -> CacheGeometry {
         var g = fallback
         let fm = FileManager.default
@@ -346,7 +293,6 @@ public struct CacheGeometry: Equatable, Sendable {
         return g
     }
 
-    /// "64K", "1024K", "2M", "512" → bytes.
     static func parseSize(_ s: String) -> Int? {
         guard let last = s.last else { return nil }
         let scale: Int = switch last { case "K": 1 << 10; case "M": 1 << 20; case "G": 1 << 30; default: 1 }
@@ -354,7 +300,6 @@ public struct CacheGeometry: Equatable, Sendable {
         return Int(digits).map { $0 * scale }
     }
 
-    /// The number of CPUs in a list such as "0-3,8".
     static func cpuCount(_ list: String) -> Int {
         list.split(separator: ",").reduce(0) { n, part in
             let ends = part.split(separator: "-").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
@@ -364,12 +309,7 @@ public struct CacheGeometry: Equatable, Sendable {
     }
 }
 
-/// What the guest is told about its CPU (§4): the feature set, and the
-/// CPU values that do not depend on it. `install` it before the first
-/// image (the sysctl table and the commpage read `current`).
 public struct GuestCPUProfile: Equatable, Sendable {
-    /// `SWIFTCODE_CPU_FEATURES`: `on` publishes the derived set, `off` the
-    /// minimal one (caps all 0, no feature names, the base commpage bits).
     public enum Mode: String, Sendable {
         case off, on
         public static let defaultMode = Mode.on
@@ -380,24 +320,16 @@ public struct GuestCPUProfile: Equatable, Sendable {
     }
 
     public var mode: Mode
-    /// The ID registers it was derived from (nil: none were read).
     public var registers: GuestIDRegisters?
-    /// The features the registers show, before the deny list.
     public var derived: CPUFeatureSet
-    /// `derived` minus the deny list: what this host may publish.
     public var allowed: CPUFeatureSet
-    /// The coherency line size (`hw.cachelinesize`, commpage 0x026).
     public var cacheLineSize: Int
     public var caches: CacheGeometry
-    /// `hw.tbfrequency`: the guest's mach timebase frequency.
     public var timebaseFrequency: UInt64
-    /// `machdep.cpu.brand_string`.
     public var brand: String
 
-    /// What the guest is told: `allowed` with the switch on, nothing off.
     public var published: CPUFeatureSet { mode == .on ? allowed : CPUFeatureSet() }
 
-    /// Optional commpage bits beyond `CommpageBuilder`'s base bits.
     public var commpageOptionalBits: UInt64 {
         guard mode == .on, !published.isEmpty else { return 0 }
         return published.commpageBits | CPUFeatureSet.commpageUCNormalMemory
@@ -415,12 +347,10 @@ public struct GuestCPUProfile: Equatable, Sendable {
         self.brand = brand
     }
 
-    /// No registers read (no KVM, unit tests): nothing published.
     public static let minimal = GuestCPUProfile(
         mode: .off, registers: nil, derived: CPUFeatureSet(), cacheLineSize: 64, caches: .fallback,
         timebaseFrequency: GuestTimebase.appleFrequency, brand: "SwiftCode VM")
 
-    /// The profile for these registers (§4.1 steps 2–5).
     public static func make(registers: GuestIDRegisters, fpcrTrapBits: UInt64, mode: Mode, caches: CacheGeometry,
                             hostCounterFrequency: UInt64) -> GuestCPUProfile {
         GuestCPUProfile(mode: mode, registers: registers,
@@ -430,8 +360,6 @@ public struct GuestCPUProfile: Equatable, Sendable {
                         brand: brandString(midr: registers[.midr]))
     }
 
-    /// CTR_EL0.CWG (log2 words; 0 = not reported), else DminLine; 64 when
-    /// neither is set.
     public static func coherencyLineSize(ctr: UInt64) -> Int {
         let cwg = Int((ctr >> 24) & 0xF), dminLine = Int((ctr >> 16) & 0xF)
         if cwg != 0 { return 4 << cwg }
@@ -439,7 +367,6 @@ public struct GuestCPUProfile: Equatable, Sendable {
         return 64
     }
 
-    /// A SwiftCode name from MIDR_EL1 (no Apple product name, AGENTS.md rule 5).
     public static func brandString(midr: UInt64) -> String {
         let implementer = (midr >> 24) & 0xFF, part = (midr >> 4) & 0xFFF
         guard midr != 0 else { return "SwiftCode VM" }
@@ -451,16 +378,12 @@ public struct GuestCPUProfile: Equatable, Sendable {
         return "SwiftCode VM (implementer 0x\(String(implementer, radix: 16)) part 0x\(String(part, radix: 16)))"
     }
 
-    // MARK: The process-wide profile
-
     private static let lock = NSLock()
     nonisolated(unsafe) private static var installed = GuestCPUProfile.minimal
     nonisolated(unsafe) private static var table: SysctlTable?
 
-    /// The profile every new image uses.
     public static var current: GuestCPUProfile { lock.withLock { installed } }
 
-    /// Sets `current` (the VMM, once, before the first image).
     public static func install(_ profile: GuestCPUProfile) {
         lock.withLock {
             installed = profile
@@ -468,7 +391,6 @@ public struct GuestCPUProfile: Equatable, Sendable {
         }
     }
 
-    /// The sysctl table for `current` and `GuestCPUs.count` (built once per install).
     static var currentTable: SysctlTable {
         lock.withLock {
             if let table { return table }
@@ -478,7 +400,6 @@ public struct GuestCPUProfile: Equatable, Sendable {
         }
     }
 
-    /// One line for the log: mode, caps, commpage bits, registers.
     public var summary: String {
         var line = "CPU features \(mode.rawValue): caps [\(published)] commpage +0x\(String(commpageOptionalBits, radix: 16))"
         line += " (allowed [\(allowed)], derived [\(derived)]); line \(cacheLineSize); L1I \(caches.l1i) L1D \(caches.l1d) L2 \(caches.l2)"
@@ -487,25 +408,17 @@ public struct GuestCPUProfile: Equatable, Sendable {
         return line
     }
 
-    // MARK: sysctl names
-
-    /// The legacy `hw.optional.*` names and the caps bit each one equals
-    /// (§2.4). `nil`: always 1 while features are published.
     public static let legacyNames: [(name: String, bit: Int?)] = [
         ("floatingpoint", CapsBit.advSIMD), ("neon", CapsBit.advSIMD), ("neon_hpfp", CapsBit.advSIMDHPFPCvt),
         ("neon_fp16", CapsBit.fp16), ("armv8_crc32", CapsBit.crc32), ("armv8_gpi", CapsBit.pacimp),
         ("armv8_1_atomics", CapsBit.lse), ("armv8_2_fhm", CapsBit.fhm), ("armv8_2_sha512", CapsBit.sha512),
         ("armv8_2_sha3", CapsBit.sha3), ("armv8_3_compnum", CapsBit.fcma), ("ucnormal_mem", nil), ("arm64", nil),
     ]
-    /// MIB numbers of the named feature entries (below the hashed range of
-    /// `SysctlTable.optionalMIBBase`).
     static let featureMIBBase: Int32 = 0x3000
     static let legacyMIBBase: Int32 = 0x3100
 }
 
 extension SysctlTable {
-    /// The table for `profile` with `cpuCount` guest CPUs (stage3-contract.md
-    /// §8 plus cpu-features.md §4.4–4.5).
     static func make(profile p: GuestCPUProfile, cpuCount: Int) -> SysctlTable {
         let n = Int64(cpuCount)
         var e = baseEntries(cpuCount: cpuCount)
@@ -521,7 +434,6 @@ extension SysctlTable {
         e.append(Entry(name: "hw.perflevel0.l2cachesize", mib: [6, 1020], value: .integer(Int64(p.caches.l2), size: 4)))
         e.append(Entry(name: "hw.perflevel0.cpusperl2", mib: [6, 1021], value: .integer(Int64(p.caches.cpusPerL2), size: 4)))
         e.append(Entry(name: "hw.perflevel0.name", mib: [6, 1022], value: .string("Performance")))
-        // {CPUs sharing memory, L1, L2, 0 ×7} and {memory, L1D, L2, 0 ×7}.
         var config: [UInt8] = [], sizes: [UInt8] = []
         for v in [UInt64(cpuCount), 1, UInt64(p.caches.cpusPerL2)] + [UInt64](repeating: 0, count: 7) { config.appendLE(v) }
         for v in [Stage3Layout.memorySize, UInt64(p.caches.l1d), UInt64(p.caches.l2)] + [UInt64](repeating: 0, count: 7) { sizes.appendLE(v) }

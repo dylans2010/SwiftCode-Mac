@@ -1,11 +1,3 @@
-//
-//  SkillDiscoveryService.swift
-//  SwiftCode
-//
-//  Discovers external skills across Codex, Claude, VS Code, Antigravity, and other ecosystems,
-//  and safely imports them into SwiftCode's authoritative persistent Skills directory.
-//
-
 import Foundation
 import os
 import CryptoKit
@@ -33,7 +25,6 @@ public final class SkillDiscoveryService: ObservableObject {
 
     private init() {
         Task {
-            // Run background discovery shortly after launch without blocking startup
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             await self.discoverAndImportAll()
         }
@@ -46,8 +37,6 @@ public final class SkillDiscoveryService: ObservableObject {
             discoveryLogs.removeFirst(discoveryLogs.count - 100)
         }
     }
-
-    // MARK: - Orchestrated Discovery & Import Pipeline
 
     public func discoverAndImportAll() async {
         guard !isDiscovering else { return }
@@ -80,8 +69,6 @@ public final class SkillDiscoveryService: ObservableObject {
         await SkillIndex.shared.rebuildIndex()
     }
 
-    // MARK: - Safe Import into SwiftCode Application Support
-
     public func importDiscoveredSkills(_ candidates: [DiscoveredSkillCandidate]) async -> Int {
         let destinationBaseDir = SkillIndex.shared.authoritativeSkillsDirectory
         let fm = fileManager
@@ -107,7 +94,6 @@ public final class SkillDiscoveryService: ObservableObject {
         destinationBaseDir: URL,
         fileManager: FileManager
     ) throws -> Bool {
-        // Sanitize skill name to prevent directory traversal or malformed folder names
         let sanitizedName = candidate.name
             .replacingOccurrences(of: "..", with: "")
             .replacingOccurrences(of: "/", with: "-")
@@ -116,7 +102,6 @@ public final class SkillDiscoveryService: ObservableObject {
 
         guard !sanitizedName.isEmpty else { return false }
 
-        // Security: Guarantee the destination path is canonically contained within destinationBaseDir
         let targetDirectoryURL = destinationBaseDir.appendingPathComponent(sanitizedName, isDirectory: true).standardized
         let canonicalBase = destinationBaseDir.standardized.path
 
@@ -125,9 +110,7 @@ public final class SkillDiscoveryService: ObservableObject {
             return false
         }
 
-        // Check if destination skill directory already exists
         if fileManager.fileExists(atPath: targetDirectoryURL.path) {
-            // Deduplication Check: Read existing and candidate SKILL.md
             let existingSkillFile = targetDirectoryURL.appendingPathComponent("SKILL.md")
             if fileManager.fileExists(atPath: existingSkillFile.path),
                let existingData = try? Data(contentsOf: existingSkillFile),
@@ -137,10 +120,8 @@ public final class SkillDiscoveryService: ObservableObject {
                 let candidateHash = SHA256.hash(data: candidateData)
 
                 if existingHash == candidateHash {
-                    // Identical content; skip redundant write
                     return true
                 } else {
-                    // Content differs: Conflict handling. Suffix with source provider
                     let conflictName = "\(sanitizedName)-\(candidate.sourceKind.rawValue.lowercased())"
                     let conflictDirectoryURL = destinationBaseDir.appendingPathComponent(conflictName, isDirectory: true).standardized
                     if !fileManager.fileExists(atPath: conflictDirectoryURL.path) {
@@ -152,12 +133,10 @@ public final class SkillDiscoveryService: ObservableObject {
             }
         }
 
-        // Fresh import
         try copyDirectorySafely(from: candidate.rootDirectoryURL, to: targetDirectoryURL, sourceCandidate: candidate)
         return true
     }
 
-    /// Recursively copies directory or single file while protecting against symlink escapes
     private func copyDirectorySafely(from sourceURL: URL, to destURL: URL, sourceCandidate: DiscoveredSkillCandidate) throws {
         let fm = fileManager
         try fm.createDirectory(at: destURL, withIntermediateDirectories: true)
@@ -172,7 +151,6 @@ public final class SkillDiscoveryService: ObservableObject {
 
             while let fileURL = enumerator?.nextObject() as? URL {
                 let resourceVals = try? fileURL.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey])
-                // Never copy unresolved external symlinks
                 if resourceVals?.isSymbolicLink == true {
                     continue
                 }
@@ -193,7 +171,6 @@ public final class SkillDiscoveryService: ObservableObject {
                 }
             }
         } else {
-            // Source is a standalone file (e.g. foo.SKILL.md)
             let destFile = destURL.appendingPathComponent("SKILL.md")
             if fm.fileExists(atPath: destFile.path) {
                 try fm.removeItem(at: destFile)
@@ -201,7 +178,6 @@ public final class SkillDiscoveryService: ObservableObject {
             try fm.copyItem(at: sourceCandidate.skillFileURL, to: destFile)
         }
 
-        // Write metadata sidecar tracking original origin
         let metadataSidecar = destURL.appendingPathComponent("metadata.json")
         let metadata: [String: Any] = [
             "name": sourceCandidate.name,
@@ -215,8 +191,6 @@ public final class SkillDiscoveryService: ObservableObject {
         }
     }
 }
-
-// MARK: - Filesystem Scanner for Multi-Ecosystem Discovery
 
 private struct SkillDiscoveryScanner: Sendable {
     private var fileManager: FileManager { FileManager.default }
@@ -233,7 +207,6 @@ private struct SkillDiscoveryScanner: Sendable {
     public func discoverKnownProviders() -> [DiscoveredSkillCandidate] {
         var results: [DiscoveredSkillCandidate] = []
 
-        // 1. Claude Skills
         let claudeLocations = [
             homeURL.appendingPathComponent(".claude/skills"),
             homeURL.appendingPathComponent("Library/Application Support/Claude/skills")
@@ -242,7 +215,6 @@ private struct SkillDiscoveryScanner: Sendable {
             results.append(contentsOf: scanDirectory(url, sourceKind: .claude, sourceName: "Claude Skills"))
         }
 
-        // 2. Codex Skills
         let codexLocations = [
             homeURL.appendingPathComponent(".codex/skills"),
             homeURL.appendingPathComponent(".codex/extensions")
@@ -251,7 +223,6 @@ private struct SkillDiscoveryScanner: Sendable {
             results.append(contentsOf: scanDirectory(url, sourceKind: .codex, sourceName: "Codex Skills"))
         }
 
-        // 3. VS Code & Cursor Skills
         let vscodeLocations = [
             homeURL.appendingPathComponent(".vscode/skills"),
             homeURL.appendingPathComponent("Library/Application Support/Code/User/skills"),
@@ -262,7 +233,6 @@ private struct SkillDiscoveryScanner: Sendable {
             results.append(contentsOf: scanDirectory(url, sourceKind: .vscode, sourceName: "VS Code / Cursor Skills"))
         }
 
-        // 4. Antigravity / Gemini Skills
         let antigravityLocations = [
             homeURL.appendingPathComponent(".gemini/config/skills"),
             homeURL.appendingPathComponent(".gemini/antigravity-ide/builtin/skills"),
@@ -272,7 +242,6 @@ private struct SkillDiscoveryScanner: Sendable {
             results.append(contentsOf: scanDirectory(url, sourceKind: .antigravity, sourceName: "Antigravity SDK Skills"))
         }
 
-        // 5. OpenCode / Agent Ecosystems
         let agentLocations = [
             homeURL.appendingPathComponent(".agents/skills"),
             homeURL.appendingPathComponent(".config/skills")
@@ -290,7 +259,6 @@ private struct SkillDiscoveryScanner: Sendable {
     }
 
     public func discoverConfiguredLocations() -> [DiscoveredSkillCandidate] {
-        // Any custom paths configured in UserDefaults
         var results: [DiscoveredSkillCandidate] = []
         if let customPaths = UserDefaults.standard.stringArray(forKey: "com.swiftcode.custom_skills_paths") {
             for path in customPaths {
@@ -302,7 +270,6 @@ private struct SkillDiscoveryScanner: Sendable {
     }
 
     public func discoverAdditionalCompatibleLocations() -> [DiscoveredSkillCandidate] {
-        // Active workspace project skills
         var results: [DiscoveredSkillCandidate] = []
         if let projectURL = self.projectURL {
             let candidates = [
@@ -331,7 +298,6 @@ private struct SkillDiscoveryScanner: Sendable {
         for item in contents {
             var itemIsDir: ObjCBool = false
             if fileManager.fileExists(atPath: item.path, isDirectory: &itemIsDir), itemIsDir.boolValue {
-                // Check if this subfolder contains a SKILL.md or SKILLS.md
                 let skillFile1 = item.appendingPathComponent("SKILL.md")
                 let skillFile2 = item.appendingPathComponent("SKILLS.md")
                 let skillFile3 = item.appendingPathComponent("skill.md")

@@ -37,7 +37,6 @@ public struct AssistDeviceListTool: AssistTool {
             return .failure("No connected devices found (devicectl returned an empty device list). Connect a device and trust this Mac, then try again.")
         }
 
-        // Fallback: xctrace text listing.
         let (xctraceExit, xctraceStdout, xctraceStderr) = runProcess(
             executablePath: xcrunPath,
             arguments: ["xctrace", "list", "devices"],

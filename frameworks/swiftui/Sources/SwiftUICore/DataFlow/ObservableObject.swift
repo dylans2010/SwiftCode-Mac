@@ -1,27 +1,13 @@
 import Foundation
 
-// `ObservableObject` models (03 §3): dependency granularity is the whole
-// object — any change published through `objectWillChange` re-runs every view
-// that observes the object (`@ObservedObject`, `@StateObject`,
-// `@EnvironmentObject`), whether or not its body read anything from it.
-//
-// On Apple hosts the protocol and `@Published` come from Combine (re-exported,
-// as the reference SDK makes them visible through `import SwiftUI`). Linux has
-// no Combine, so this module provides the same names with the subset of
-// behaviour the view graph needs: `objectWillChange` with `send()` and
-// `sink(receiveValue:)`, `@Published` (which sends `objectWillChange` before
-// each change), `AnyCancellable`.
-
 #if canImport(Combine)
 @_exported import Combine
 
-/// Subscribes to an object's will-change notifications.
 package func subscribeToObjectWillChange<O: ObservableObject>(_ object: O, _ handler: @escaping () -> Void) -> AnyCancellable {
     object.objectWillChange.sink { _ in handler() }
 }
 #else
 
-/// Something that can be subscribed to.
 public protocol Publisher<Output, Failure> {
     associatedtype Output
     associatedtype Failure: Error
@@ -29,12 +15,9 @@ public protocol Publisher<Output, Failure> {
 }
 
 extension Publisher where Failure == Never {
-    /// Calls `receiveValue` with every value published until the returned
-    /// token is cancelled or released.
     public func sink(receiveValue: @escaping (Output) -> Void) -> AnyCancellable { _subscribe(receiveValue) }
 }
 
-/// A subscription token: cancels on `cancel()` or when released.
 public final class AnyCancellable: Hashable, @unchecked Sendable {
     private var onCancel: (() -> Void)?
 
@@ -54,7 +37,6 @@ public final class AnyCancellable: Hashable, @unchecked Sendable {
     public func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(self)) }
 }
 
-/// Subscriber list shared by the publishers below.
 package final class SubscriberList<Output>: @unchecked Sendable {
     private let lock = NSLock()
     private var next = 0
@@ -84,7 +66,6 @@ package final class SubscriberList<Output>: @unchecked Sendable {
     }
 }
 
-/// The default `objectWillChange` publisher.
 public final class ObservableObjectPublisher: Publisher, @unchecked Sendable {
     public typealias Output = Void
     public typealias Failure = Never
@@ -98,15 +79,12 @@ public final class ObservableObjectPublisher: Publisher, @unchecked Sendable {
     public func _subscribe(_ receive: @escaping (Output) -> Void) -> AnyCancellable { list.add(receive) }
 }
 
-/// A class whose changes views observe as a whole.
 public protocol ObservableObject: AnyObject {
     associatedtype ObjectWillChangePublisher: Publisher = ObservableObjectPublisher
         where ObjectWillChangePublisher.Failure == Never
     var objectWillChange: ObjectWillChangePublisher { get }
 }
 
-/// Per-object default publishers (objects cannot get stored properties from
-/// a protocol extension).
 private final class PublisherTable: @unchecked Sendable {
     private let lock = NSLock()
     private var table: [ObjectIdentifier: (object: Weak, publisher: ObservableObjectPublisher)] = [:]
@@ -130,7 +108,6 @@ extension ObservableObject where ObjectWillChangePublisher == ObservableObjectPu
     public var objectWillChange: ObservableObjectPublisher { publisherTable.publisher(for: self) }
 }
 
-/// A property of an `ObservableObject` that announces its changes.
 @propertyWrapper
 public struct Published<Value> {
     package final class Storage: @unchecked Sendable {
@@ -147,11 +124,9 @@ public struct Published<Value> {
     @available(*, unavailable, message: "@Published is only available on properties of classes")
     public var wrappedValue: Value {
         get { fatalError() }
-        // swiftlint:disable:next unused_setter_value - the API shape has a setter that does nothing here
         set { fatalError() }
     }
 
-    /// Publishes the property's new values.
     public struct Publisher: SwiftUICore.Publisher {
         public typealias Output = Value
         public typealias Failure = Never
@@ -164,7 +139,6 @@ public struct Published<Value> {
 
     public var projectedValue: Publisher {
         get { Publisher(storage: storage) }
-        // swiftlint:disable:next unused_setter_value - the API shape has a setter that does nothing here
         set {}
     }
 
@@ -194,9 +168,6 @@ package func subscribeToObjectWillChange<O: ObservableObject>(_ object: O, _ han
 }
 #endif
 
-// MARK: - Property wrappers that observe objects
-
-/// The graph-side record of a node's subscription to one object.
 package final class ObjectSubscription {
     package var objectID: ObjectIdentifier?
     package var cancellable: AnyCancellable?
@@ -213,10 +184,8 @@ package final class ObjectSubscription {
     }
 }
 
-/// An object owned elsewhere that this view observes.
 @propertyWrapper
 public struct ObservedObject<ObjectType: ObservableObject>: DynamicProperty {
-    /// Bindings to the object's properties (`$model.name`).
     @dynamicMemberLookup
     public struct Wrapper {
         package let root: ObjectType
@@ -266,9 +235,6 @@ private final class StateObjectSlot<ObjectType: ObservableObject> {
     init(_ object: ObjectType) { self.object = object }
 }
 
-/// An observable object owned by the view identity: created once, from the
-/// first value's initialiser expression, and kept for the identity's
-/// lifetime.
 @propertyWrapper
 public struct StateObject<ObjectType: ObservableObject>: DynamicProperty {
     package let box: StateObjectBox<ObjectType>
@@ -321,7 +287,6 @@ package final class EnvironmentObjectBox<ObjectType: AnyObject>: @unchecked Send
     package init() {}
 }
 
-/// An observable object supplied by an ancestor with `environmentObject(_:)`.
 @propertyWrapper
 public struct EnvironmentObject<ObjectType: ObservableObject>: DynamicProperty {
     @dynamicMemberLookup
@@ -350,7 +315,6 @@ extension EnvironmentObject: GraphDynamicProperty {
     package func _install(in node: ViewNode, slot: Int) {
         let object = node.environment[environmentObject: ObjectType.self]
         box.object = object
-        // Which object the environment holds is itself a dependency.
         node.addEnvironmentDependency(key: AnyHashable(ObjectIdentifier(EnvironmentObjectKey<ObjectType>.self)),
                                       value: object.map { ObjectIdentifier($0) } as Any,
                                       read: { $0[environmentObject: ObjectType.self].map { ObjectIdentifier($0) } as Any })
@@ -366,7 +330,6 @@ extension EnvironmentObject: GraphInputComparable {
 }
 
 extension View {
-    /// Supplies an `ObservableObject` to the subtree's `@EnvironmentObject`s.
     public func environmentObject<T: ObservableObject>(_ object: T) -> some View {
         modifier(EnvironmentTransformModifier(label: "environmentObject \(T.self)", value: AnyHashable(ObjectIdentifier(object))) {
             $0[environmentObject: T.self] = object

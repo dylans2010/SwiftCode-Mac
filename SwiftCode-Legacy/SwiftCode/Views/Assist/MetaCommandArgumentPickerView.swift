@@ -1,11 +1,3 @@
-//
-//  MetaCommandArgumentPickerView.swift
-//  SwiftCode
-//
-//  Interactive UI for selecting arguments for Meta Code slash commands,
-//  relieving users from manually typing command arguments.
-//
-
 import SwiftUI
 
 public struct MetaCommandArgumentPickerView: View {
@@ -28,7 +20,6 @@ public struct MetaCommandArgumentPickerView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
             HStack(spacing: 8) {
                 Image(systemName: command.icon)
                     .font(.system(size: 14, weight: .bold))
@@ -66,7 +57,6 @@ public struct MetaCommandArgumentPickerView: View {
 
             Divider()
 
-            // Arguments UI
             ForEach(command.arguments) { arg in
                 switch arg {
                 case .options(let name, let choices, let defaultValue):
@@ -75,7 +65,6 @@ public struct MetaCommandArgumentPickerView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.primary)
 
-                        // Choices Grid / Flow Layout
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 6)], spacing: 6) {
                             ForEach(choices, id: \.self) { choice in
                                 Button {
@@ -151,7 +140,6 @@ public struct MetaCommandArgumentPickerView: View {
                 }
             }
 
-            // Syntax helper
             HStack(spacing: 4) {
                 Image(systemName: "info.circle")
                     .font(.system(size: 9))

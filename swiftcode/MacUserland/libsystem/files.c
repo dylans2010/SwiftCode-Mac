@@ -1,9 +1,3 @@
-// files.c - removefile(3), the standard directory search paths
-// (sysdir(3)) and UUIDs (uuid(3)) for SwiftCode's libSystem
-// (specs/macos/libsystem.md §12). Clean-room SwiftCode code from the public
-// headers <removefile.h>, <sysdir.h> and <uuid/uuid.h> and their manual
-// pages (constants, callback protocol and the documented directory
-// layout of a Mac).
 #include "ycl.h"
 
 int rmdir(const char *);
@@ -25,8 +19,6 @@ YCL_EXPORT int strncasecmp_l(const char *a, const char *b, size_t n, void *local
     (void)locale;
     return strncasecmp(a, b, n);
 }
-
-// --- removefile ---
 
 typedef int (*removefile_callback)(void *state, const char *path, void *context);
 
@@ -89,8 +81,6 @@ YCL_EXPORT int removefile_cancel(struct removefile_state *s) {
     return 0;
 }
 
-// Returns 0 to go on, -1 to stop (errno set). `top` is the path the caller
-// named (kept with RF_KEEP_PARENT).
 static int remove_tree(struct removefile_state *s, char *path, uint32_t flags, int top) {
     if (s->cancelled) {
         ycl_errno = YCL_ECANCELED;
@@ -165,8 +155,6 @@ YCL_EXPORT int removefile(const char *path, struct removefile_state *state, uint
     return remove_tree(s, buf, flags, 1);
 }
 
-// --- sysdir: user-domain paths begin with "~" (the caller expands it) ---
-
 enum { DOM_USER = 1, DOM_LOCAL = 2, DOM_NETWORK = 4, DOM_SYSTEM = 8 };
 
 static const struct {
@@ -205,15 +193,13 @@ static const struct {
 };
 enum { SEARCH_PATHS = sizeof search_paths / sizeof search_paths[0] };
 
-// The directory sets of the "all" values.
 static int matches(unsigned dir, unsigned entry_dir) {
     if (dir == entry_dir) return 1;
-    if (dir == 100) return entry_dir == 1 || entry_dir == 2 || entry_dir == 3 || entry_dir == 4;  // all applications
-    if (dir == 101) return entry_dir == 5 || entry_dir == 6;                                    // all libraries
+    if (dir == 100) return entry_dir == 1 || entry_dir == 2 || entry_dir == 3 || entry_dir == 4;
+    if (dir == 101) return entry_dir == 5 || entry_dir == 6;
     return 0;
 }
 
-// The state: directory (bits 0-7), domain mask (8-11), next table index + 1 (12-).
 YCL_EXPORT unsigned sysdir_start_search_path_enumeration(unsigned dir, unsigned long mask) {
     return (dir & 0xFF) | (unsigned)((mask & 0xF) << 8) | (1u << 12);
 }
@@ -221,7 +207,6 @@ YCL_EXPORT unsigned sysdir_start_search_path_enumeration(unsigned dir, unsigned 
 YCL_EXPORT unsigned sysdir_get_next_search_path_enumeration(unsigned state, char *path) {
     unsigned dir = state & 0xFF, mask = (state >> 8) & 0xF, index = (state >> 12);
     if (!index) return 0;
-    // Domains are reported in order: user, local, network, system.
     for (unsigned domain = DOM_USER; domain <= DOM_SYSTEM; domain <<= 1) {
         if (!(mask & domain)) continue;
         for (unsigned i = 0; i < SEARCH_PATHS; i++) {
@@ -235,8 +220,6 @@ YCL_EXPORT unsigned sysdir_get_next_search_path_enumeration(unsigned state, char
     return 0;
 }
 
-// --- UUIDs ---
-
 YCL_EXPORT void uuid_clear(unsigned char uu[16]) { memset(uu, 0, 16); }
 YCL_EXPORT void uuid_copy(unsigned char dst[16], const unsigned char src[16]) { memcpy(dst, src, 16); }
 YCL_EXPORT int uuid_compare(const unsigned char a[16], const unsigned char b[16]) { return memcmp(a, b, 16); }
@@ -246,7 +229,6 @@ YCL_EXPORT int uuid_is_null(const unsigned char uu[16]) {
     return 1;
 }
 
-// Random (version 4) UUIDs; the time-based form is random too.
 YCL_EXPORT void uuid_generate_random(unsigned char out[16]) {
     arc4random_buf(out, 16);
     out[6] = (unsigned char)((out[6] & 0x0F) | 0x40);

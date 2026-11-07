@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectGitService.swift
-// Adapted for SwiftCode: GitService replaced by the ConnectWorkspaceProvider seam (git via the provider; /usr/bin/git helper in ConnectWorkspaceProvider).
-
 import Foundation
 import os.log
 

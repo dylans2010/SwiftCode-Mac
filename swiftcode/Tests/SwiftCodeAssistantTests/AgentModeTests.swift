@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// A stand-in ACP agent in this process, on a pair of pipes.
 final class StandInACPAgent: @unchecked Sendable {
     let toAgent = Pipe(), fromAgent = Pipe()
     let peer: JSONRPCPeer
@@ -52,7 +51,6 @@ final class StandInACPAgent: @unchecked Sendable {
 
     func update(_ u: AnyJSON) { peer.notify("session/update", ["sessionId": "s1", "update": u]) }
 
-    /// Thinks, plans, reads a file, asks to edit it, writes it, reports.
     func turn(_ prompt: String) async throws -> AnyJSON {
         update(["sessionUpdate": "agent_thought_chunk", "content": ["type": "text", "text": "Reading the file.\n\n"]])
         update(["sessionUpdate": "plan", "entries": [["content": "Read a.txt", "priority": "high", "status": "completed"],
@@ -80,7 +78,6 @@ final class StandInACPAgent: @unchecked Sendable {
         return ["stopReason": "end_turn"]
     }
 
-    /// The client's end of the connection.
     func connect(_ handlers: ACPClientHandlers) -> ACPConnection {
         ACPConnection(readFrom: fromAgent.fileHandleForReading.fileDescriptor, writeTo: toAgent.fileHandleForWriting.fileDescriptor, handlers: handlers)
     }
@@ -110,7 +107,6 @@ final class StandInACPAgent: @unchecked Sendable {
         #expect(info["agentInfo"]?["name"] == "stand-in")
         let session = try await c.newSession(cwd: root, mcp: [AgentAttachment.MCPEndpoint(url: "http://127.0.0.1:9/mcp", token: "T")])
         #expect(session == "s1")
-        // The agent supports HTTP MCP servers: SwiftCode's is passed with its bearer token.
         let mcp = agent.calls.first { $0.hasPrefix("mcp:") } ?? ""
         #expect(mcp.contains("\"type\":\"http\"") && mcp.contains("Bearer T") && mcp.contains("\"name\":\"swiftcode\""))
 
@@ -132,7 +128,6 @@ final class StandInACPAgent: @unchecked Sendable {
     @Test func aRejectedWriteIsAnErrorForTheAgentAndReadOnlyHandlersDeclinePermission() async throws {
         let root = try Self.workspace()
         defer { try? FileManager.default.removeItem(at: root) }
-        // Allowed, but the proposal is rejected.
         let agent = StandInACPAgent(root: root)
         let c = agent.connect(ACPClientHandlers(readTextFile: { try String(contentsOfFile: $0, encoding: .utf8) },
                                                 writeTextFile: { _, _ in false }, requestPermission: { _, o in o.first?.id }))
@@ -140,7 +135,6 @@ final class StandInACPAgent: @unchecked Sendable {
         var text = ""
         for try await e in c.prompt(session: try await c.newSession(cwd: root), text: "x") { if case .message(let t) = e { text += t } }
         #expect(text.contains("refused: The change to a.txt was not accepted in SwiftCode's review"))
-        // Read-only: permission declined, nothing written.
         let agent2 = StandInACPAgent(root: root)
         let c2 = agent2.connect(.readOnly(root: root))
         try await c2.initialize()
@@ -163,8 +157,6 @@ final class StandInACPAgent: @unchecked Sendable {
         #expect(CommandLineWords.split("agent --acp 'a b' \"c\"") == ["agent", "--acp", "a b", "c"])
     }
 
-    /// A shell-script ACP agent (fixed request ids: initialize 0,
-    /// session/new 1, session/prompt 2) run as a subprocess.
     @Test func theACPProviderRunsAnAgentProcess() async throws {
         let tools = try StandInTools()
         let script = tools.dir.appendingPathComponent("acp-agent")
@@ -189,7 +181,6 @@ final class StandInACPAgent: @unchecked Sendable {
         #expect(r.text == "Answer.")
         #expect(r.events.contains(.activity("Search…")))
         let new = try AnyJSON.parse(tools.recorded("new", "json").trimmingCharacters(in: .whitespacesAndNewlines))
-        // The agent does not take HTTP MCP servers: none passed.
         #expect(new["params"]?["mcpServers"] == [] && new["params"]?["cwd"]?.string?.hasSuffix(tools.dir.lastPathComponent) == true)
         let prompt = try AnyJSON.parse(tools.recorded("prompt", "json").trimmingCharacters(in: .whitespacesAndNewlines))
         #expect(prompt["params"]?["prompt"]?[0]?["text"]?.string?.contains("Q?") == true)
@@ -207,7 +198,6 @@ final class StandInACPAgent: @unchecked Sendable {
 
     @Test func agentModeAttachesSwiftCodeMCPToClaudeCodeAndCodex() async throws {
         let tools = try StandInTools()
-        // Claude Code: copies its MCP config while it runs.
         let claude = tools.dir.appendingPathComponent("claude")
         try """
         #!/bin/sh
@@ -230,12 +220,10 @@ final class StandInACPAgent: @unchecked Sendable {
         #expect(config["mcpServers"]?["swiftcode"]?["url"] == "http://127.0.0.1:4242/mcp")
         #expect(config["mcpServers"]?["swiftcode"]?["headers"]?["Authorization"] == "Bearer secret-token")
         #expect(tools.recorded("mcp", "mode").hasPrefix("-rw-------"))
-        // The token is in the file, not on the command line, and the file is gone.
         #expect(!args.joined().contains("secret-token"))
         let configPath = args[args.firstIndex(of: "--mcp-config")! + 1]
         #expect(!FileManager.default.fileExists(atPath: configPath))
 
-        // Codex: -c overrides; the token in the environment.
         let codex = tools.dir.appendingPathComponent("codex")
         try """
         #!/bin/sh
@@ -252,7 +240,6 @@ final class StandInACPAgent: @unchecked Sendable {
         #expect(cargs.contains("mcp_servers.swiftcode.bearer_token_env_var=\"SWIFTCODE_MCP_TOKEN\""))
         #expect(cargs.contains("read-only") && cargs.last == "-")
         #expect(tools.recorded("codex", "token") == "secret-token")
-        // Antigravity documents no MCP configuration: unchanged.
         let agy = CLIAgentProvider(agent: .antigravity, executable: codex).attaching(AgentAttachment(mcp: endpoint))
         #expect((agy as? CLIAgentProvider)?.attachment == nil)
     }

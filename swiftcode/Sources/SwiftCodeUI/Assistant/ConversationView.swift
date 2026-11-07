@@ -2,25 +2,13 @@ import AppKit
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// One conversation's transcript and message field (coding-assistant.md
-/// §4): the back end's status, the transcript (Markdown, code blocks,
-/// proposals), the attachment chips, and the message field with the attach
-/// menu, the provider and model pull-down and Send / Stop. The Coding
-/// Assistant pane shows the selected conversation; a conversation opened
-/// in an editor tab or pane (File ▸ New ▸ Conversation in New Tab / in
-/// Editor Pane, reference-ui-6.md §9.5) shows that one only.
 @MainActor
 public final class ConversationView: NSView {
     public let model: CodingAssistantModel
-    /// The conversation shown; nil follows the list's selection.
     public let fixedID: UUID?
-    /// Opens a proposal's review sheet (the window applies accepted changes).
     public var onReviewProposal: ((ChangeProposal, ConversationMessage, UUID) -> Void)?
-    /// Opens Settings ▸ Coding Assistant.
     public var onOpenSettings: (() -> Void)?
-    /// The current file and selection, for the attach menu.
     public var attachmentSource: (() -> (file: Attachment?, selection: Attachment?))?
-    /// The shown conversation's title changed (an editor's jump bar follows it).
     public var onTitleChange: ((String) -> Void)?
 
     public let providerPopUp = NSPopUpButton(frame: .zero, pullsDown: true)
@@ -34,12 +22,8 @@ public final class ConversationView: NSView {
     public let attachButton = NSPopUpButton(frame: .zero, pullsDown: true)
     public let planLabel = NSTextField(labelWithString: "Using ChatGPT plan · Manage usage in ChatGPT settings")
     let chips = NSStackView()
-    /// Attachments for the next message.
     public private(set) var pendingAttachments: [Attachment] = []
-    /// The slash-command popup, while open (gap closure §1.4).
     private var slashPopup: SlashCommandPopupController?
-    /// Set while a slash commit writes into the composer, so the
-    /// resulting text change does not reopen the popup.
     private var isApplyingSlashCommit = false
     private var renderedID: UUID?
     private var renderedCount = 0
@@ -57,12 +41,10 @@ public final class ConversationView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The conversation shown.
     public var conversationID: UUID? { fixedID ?? model.selectedID }
     public var conversation: Conversation? { conversationID.flatMap(model.conversation) }
 
     func build() {
-        // Status (back end not running, no models, …).
         statusLabel.font = .systemFont(ofSize: 11)
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.isSelectable = true
@@ -75,7 +57,6 @@ public final class ConversationView: NSView {
         statusBox.addArrangedSubview(statusLabel)
         statusBox.addArrangedSubview(statusButtons)
 
-        // Transcript.
         transcript.orientation = .vertical
         transcript.alignment = .leading
         transcript.spacing = 10
@@ -90,7 +71,6 @@ public final class ConversationView: NSView {
         transcriptScroll.autohidesScrollers = true
         transcriptScroll.setAccessibilityLabel("Transcript")
 
-        // Composer.
         messageView.isRichText = false
         messageView.font = .systemFont(ofSize: NSFont.systemFontSize)
         messageView.onSubmit = { [weak self] in self?.sendClicked() }
@@ -107,9 +87,6 @@ public final class ConversationView: NSView {
         messageView.autoresizingMask = [.width]
         messageView.textContainer?.widthTracksTextView = true
         AttachMenu.configure(attachButton, target: self, action: #selector(attachChosen(_:)))
-        // The provider and model (the header's pull-down before
-        // reference-ui-6.md §9.2 left the header to New Conversation and
-        // New Group).
         providerPopUp.controlSize = .small
         providerPopUp.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         providerPopUp.isBordered = false
@@ -165,8 +142,6 @@ public final class ConversationView: NSView {
         ])
     }
 
-    // MARK: Updates
-
     func apply(_ change: CodingAssistantModel.Change) {
         switch change {
         case .list:
@@ -197,15 +172,12 @@ public final class ConversationView: NSView {
         onTitleChange?(t)
     }
 
-    // MARK: Provider and model
-
     func reloadProviderMenu() {
         providerPopUp.menu = ProviderMenu.build(model, target: self, choose: #selector(menuChoice(_:)),
                                                 checkAgain: #selector(refreshClicked), settings: #selector(settingsClicked))
         providerPopUp.toolTip = "Model: \(model.sourceLabel)"
     }
 
-    /// The model choices in the pull-down, as "Provider/Model" (tests).
     public var modelChoiceTitles: [String] { ProviderMenu.choiceTitles(providerPopUp.menu) }
 
     @objc func menuChoice(_ item: NSMenuItem) {
@@ -216,10 +188,6 @@ public final class ConversationView: NSView {
     @objc func refreshClicked() { model.refreshAvailability() }
     @objc func settingsClicked() { onOpenSettings?() }
 
-    // MARK: Status / empty state
-
-    /// The text shown above the transcript when the chosen back end can't
-    /// be used (nil when it can).
     public var statusText: String? { statusBox.isHidden ? nil : statusLabel.stringValue }
 
     func updateStatus() {
@@ -250,8 +218,6 @@ public final class ConversationView: NSView {
         statusBox.isHidden = false
     }
 
-    // MARK: Transcript
-
     func renderTranscript(force: Bool) {
         let conv = conversation
         let messages = conv?.messages ?? []
@@ -273,7 +239,6 @@ public final class ConversationView: NSView {
             }
             for m in messages { addMessageView(m, conversation: conv!.id) }
         } else if let last = messages.last, let lastView = transcript.arrangedSubviews.last {
-            // Streaming: rebuild only the last message.
             lastView.removeFromSuperview()
             addMessageView(last, conversation: conv!.id)
         }
@@ -300,10 +265,7 @@ public final class ConversationView: NSView {
         v.widthAnchor.constraint(equalTo: transcript.widthAnchor, constant: -16).isActive = true
     }
 
-    /// The transcript's message views (tests).
     public var messageViews: [MessageView] { transcript.arrangedSubviews.compactMap { $0 as? MessageView } }
-
-    // MARK: Composer
 
     func updateComposer() {
         let running = conversationID.map(model.isRunning) ?? false
@@ -317,27 +279,16 @@ public final class ConversationView: NSView {
         messageView.needsDisplay = true
     }
 
-    // MARK: Slash-command popup (gap closure §1.4)
-
-    /// The popup only opens for Assist with Meta as the active
-    /// provider and `useMetaSlashCommands` on; otherwise "/" is
-    /// just text.
     private var slashCommandsEnabled: Bool {
         model.providerKind == .metaAssist && model.settings.useMetaSlashCommands
     }
 
-    /// The query after the `/` of the composer's last
-    /// whitespace-delimited token, when that token starts with
-    /// `/`. Empty when the token is just "/" (show all commands);
-    /// nil when no slash token is being typed.
     private var slashQuery: String? {
         guard let token = messageView.string.split(whereSeparator: \.isWhitespace).last,
               token.hasPrefix("/") else { return nil }
         return String(token.dropFirst())
     }
 
-    /// The composer text changed: show, refresh, or hide the
-    /// slash-command popup for the token being typed.
     private func slashTextChanged() {
         guard !isApplyingSlashCommit, slashCommandsEnabled,
               let query = slashQuery else {
@@ -355,16 +306,10 @@ public final class ConversationView: NSView {
         }
     }
 
-    /// A key event for the popup while it is open: ↑↓ move,
-    /// Return commits, Escape dismisses. False when the popup is
-    /// closed (the composer handles the key normally).
     private func slashKeyDown(_ event: NSEvent) -> Bool {
         slashPopup?.handleKeyDown(event) ?? false
     }
 
-    /// A slash command was committed: the full command text goes
-    /// into the composer; effect commands are sent immediately,
-    /// anything else stays in the input for editing.
     private func slashCommit(text: String, sendImmediately: Bool) {
         isApplyingSlashCommit = true
         messageView.string = text
@@ -419,7 +364,6 @@ public final class ConversationView: NSView {
     public func focusMessageField() { window?.makeFirstResponder(messageView) }
 }
 
-/// The paperclip pull-down: attach the current file or the selection.
 enum AttachMenu {
     @MainActor static func configure(_ b: NSPopUpButton, target: AnyObject, action: Selector) {
         b.isBordered = false
@@ -435,9 +379,6 @@ enum AttachMenu {
     }
 }
 
-/// The provider and model pull-down's menu: "Provider · Model" as its
-/// title, each back end with its state and its models under it (the
-/// current one checked), then Check Again and Coding Assistant Settings….
 @MainActor
 enum ProviderMenu {
     final class Choice: NSObject {
@@ -460,8 +401,6 @@ enum ProviderMenu {
             header.isEnabled = false
             menu.addItem(header)
             let models = a?.models ?? []
-            // A back end that is not ready can still be chosen: the pane
-            // then says how to make it ready.
             for m in models.isEmpty ? [ModelInfo(id: "", displayName: "Choose \(kind.displayName)")] : models {
                 let item = NSMenuItem(title: m.displayName.isEmpty ? "Default" : m.displayName, action: choose, keyEquivalent: "")
                 item.indentationLevel = 1
@@ -500,22 +439,14 @@ enum ProviderMenu {
     }
 }
 
-/// The message field: Return sends, ⇧Return (or ⌥Return) adds a line.
 public final class ComposerTextView: NSTextView {
     var onSubmit: (() -> Void)?
-    /// Escape (the prompt popover closes).
     var onCancel: (() -> Void)?
-    /// The text changed (typing, paste, or a programmatic set).
-    /// The slash-command popup listens here.
     var onTextChange: (() -> Void)?
-    /// A key event before the composer handles it. Return true
-    /// when the event is consumed (the slash-command popup owns
-    /// ↑↓, Return, and Escape while it is open).
     var onKeyDown: ((NSEvent) -> Bool)?
     var placeholder = "" { didSet { needsDisplay = true } }
 
     public override func cancelOperation(_ sender: Any?) {
-        // NSTextView has no `cancelOperation:` of its own: pass it up the chain.
         if let onCancel { onCancel() } else { _ = nextResponder?.tryToPerform(#selector(cancelOperation(_:)), with: sender) }
     }
 
@@ -543,16 +474,12 @@ public final class ComposerTextView: NSTextView {
     }
 }
 
-/// One message in the transcript.
 public final class MessageView: NSStackView {
     public let message: ConversationMessage
     public let proposals: [ChangeProposal]
     var onReview: ((ChangeProposal) -> Void)?
-    /// Continue after a cut-off reply.
     var onContinue: (() -> Void)?
-    /// The cut-off note's Continue button (tests).
     public private(set) var continueButton: NSButton?
-    /// The proposal buttons, by proposal (tests).
     public private(set) var reviewButtons: [NSButton] = []
 
     init(message: ConversationMessage, proposals: [ChangeProposal]) {
@@ -607,7 +534,6 @@ public final class MessageView: NSStackView {
             }
         }
         if message.isCutOff == true {
-            // Quiet: one secondary line and a small Continue button.
             let l = NSTextField(wrappingLabelWithString: "The reply was cut off at the output limit (Settings ▸ Coding Assistant ▸ Most output tokens).")
             l.textColor = .secondaryLabelColor
             l.font = .systemFont(ofSize: 11)
@@ -627,7 +553,6 @@ public final class MessageView: NSStackView {
             l.isSelectable = true
             addArrangedSubview(l)
         }
-        // Text wraps at the transcript's width; code boxes fill it.
         for v in arrangedSubviews {
             v.translatesAutoresizingMaskIntoConstraints = false
             if v is NSTextField || v is NSStackView {
@@ -643,7 +568,6 @@ public final class MessageView: NSStackView {
         if markdown, let a = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
             let m = NSMutableAttributedString(a)
             m.addAttribute(.font, value: NSFont.systemFont(ofSize: NSFont.systemFontSize), range: NSRange(location: 0, length: m.length))
-            // Inline code and emphasis keep their styles.
             a.runs.forEach { run in
                 guard let intent = run.inlinePresentationIntent else { return }
                 let r = NSRange(run.range, in: a)

@@ -1,22 +1,3 @@
-/* SwiftCode guest probe: CPU feature publication (specs/simulator/cpu-features.md
- * §5 and §7.1). Original SwiftCode code; the instruction encodings come from the
- * public Arm Architecture Reference Manual (assembled by clang).
- *
- *   1. prints the CPU sysctls and the commpage capability words;
- *   2. checks the §5 invariants (names = caps bits, commpage = caps bits,
- *      legacy names, cache line, CPU counts, deny list, timebase);
- *   3. runs one instruction per feature in a child process (re-executing
- *      itself: "p_cpufeat insn <name>") and records executed / SIGILL; a
- *      published feature must execute, a hidden one should SIGILL cleanly
- *      (a hidden one that executes is reported, not failed: the hardware
- *      has it and the guest was simply not told);
- *   4. DIT, SSBS and FPCR (FZ, DN, and AH/FIZ/NEP when AFP is published)
- *      survive a BSD trap, a Mach trap, a page fault, a yield, a sleep and
- *      another thread's run; a new thread starts with DIT = 0 and FPCR = 0
- *      even after an earlier thread changed them;
- *   5. bzero/memset at many alignments and lengths keep guard bytes intact,
- *      and DC ZVA zeroes exactly the DCZID_EL0 block.
- * Prints "cpufeat ok ..." or "cpufeat FAIL <n> ..." as its last line. */
 #include <mach/mach_time.h>
 #include <pthread.h>
 #include <sched.h>
@@ -43,8 +24,6 @@ static void fail(const char *fmt, ...)
     failures++;
 }
 
-/* ---- sysctl helpers ---- */
-
 static long sys_int(const char *name, int *ok)
 {
     uint64_t v = 0;
@@ -55,8 +34,6 @@ static long sys_int(const char *name, int *ok)
 }
 
 static int caps_bit(const uint8_t *caps, int bit) { return (caps[bit / 8] >> (bit % 8)) & 1; }
-
-/* ---- the caps names (§2.3) ---- */
 
 struct named { int bit; const char *name; };
 static const struct named names[] = {
@@ -74,7 +51,6 @@ static const struct named names[] = {
 };
 #define NNAMES (int)(sizeof names / sizeof names[0])
 
-/* Deny list (§4.3). */
 static int denied(int bit)
 {
     if (bit >= 40 && bit <= 48) return 1;
@@ -88,7 +64,6 @@ static int denied(int bit)
     return (bit >= 74 && bit <= 90) || (bit >= 92 && bit <= 96);
 }
 
-/* Commpage masks and their caps bits (§2.5). */
 struct pair { int bit; uint64_t mask; };
 static const struct pair pairs[] = {
     {34, 0x8}, {49, 0x100}, {50, 0x200}, {2, 0x4000}, {6, 0x02000000}, {51, 0x04000000}, {8, 0x80000000},
@@ -98,8 +73,6 @@ static const struct pair pairs[] = {
     {31, 1ull << 55}, {32, 1ull << 56}, {33, 1ull << 57}, {73, 1ull << 58}, {40, 1ull << 59}, {41, 1ull << 60},
 };
 #define NPAIRS (int)(sizeof pairs / sizeof pairs[0])
-
-/* ---- instructions (one per feature) ---- */
 
 static uint64_t scratch[64] __attribute__((aligned(256)));
 
@@ -140,10 +113,9 @@ INSN(t_sme, "smstart\n smstop\n", "r"(0) : "memory")
 INSN(t_sve, "rdvl x0, #1\n", "r"(0) : "x0")
 INSN(t_mte, "irg x0, sp\n", "r"(0) : "x0")
 INSN(t_specres, "cfp rctx, %0\n", "r"(0ull) : "memory")
-INSN(t_wfxt, "mov x0, #0\n .inst 0xd5031000\n", "r"(0) : "x0")       /* WFET x0 (deadline 0: returns at once) */
+INSN(t_wfxt, "mov x0, #0\n .inst 0xd5031000\n", "r"(0) : "x0")
 INSN(t_ecv, "mrs x0, cntvctss_el0\n", "r"(0) : "x0")
 
-/* FPCR.AH (bit 1) reads back as written. Exit 3 when it does not. */
 static void t_afp(void)
 {
     uint64_t old, v;
@@ -154,7 +126,6 @@ static void t_afp(void)
     if (!(v & 2)) exit(3);
 }
 
-/* FP_SyncExceptions: the six trap-enable bits read back as 1. */
 static void t_fpsync(void)
 {
     uint64_t old, v;
@@ -180,8 +151,6 @@ static const struct insn insns[] = {
     {"MTE:irg", 60, t_mte}, {"FP_SyncExceptions:fpcr", 73, t_fpsync}, {"SVE:rdvl", -1, t_sve},
 };
 #define NINSNS (int)(sizeof insns / sizeof insns[0])
-
-/* ---- DIT / SSBS / FPCR round trips ---- */
 
 static uint64_t rd_dit(void) { uint64_t v; __asm__ volatile(ARCH "mrs %0, dit" : "=r"(v)); return v; }
 static uint64_t rd_ssbs(void) { uint64_t v; __asm__ volatile(ARCH "mrs %0, ssbs" : "=r"(v)); return v; }
@@ -219,7 +188,7 @@ static void *dirty_thread(void *arg)
 {
     (void)arg;
     __asm__ volatile(ARCH "msr dit, #1\n msr ssbs, #1");
-    wr_fpcr((1u << 24) | (3u << 22) | (1u << 25));    /* FZ, RMode RZ, DN */
+    wr_fpcr((1u << 24) | (3u << 22) | (1u << 25));
     return NULL;
 }
 
@@ -239,25 +208,25 @@ static void state_round_trip(int afp, int dit, int ssbs)
            (unsigned long long)saved.ssbs, (unsigned long long)saved.fpcr);
     if (dit) __asm__ volatile(ARCH "msr dit, #1");
     if (ssbs) __asm__ volatile(ARCH "msr ssbs, #1");
-    uint64_t fpcr = (1u << 24) | (1u << 25);           /* FZ, DN */
-    if (afp) fpcr |= 1u | 2u | 4u;                     /* FIZ, AH, NEP */
+    uint64_t fpcr = (1u << 24) | (1u << 25);
+    if (afp) fpcr |= 1u | 2u | 4u;
     wr_fpcr(fpcr);
     struct state want = now_state();
     if (dit && !(want.dit & (1u << 24))) fail("DIT did not read back as set (%#llx)", (unsigned long long)want.dit);
     if (ssbs && !(want.ssbs & (1u << 12))) fail("SSBS did not read back as set (%#llx)", (unsigned long long)want.ssbs);
     if (want.fpcr != fpcr) fail("FPCR read back %#llx, wrote %#llx", (unsigned long long)want.fpcr, (unsigned long long)fpcr);
 
-    (void)svc_bsd(20);                                  /* getpid: a BSD trap */
+    (void)svc_bsd(20);
     check_state("a BSD trap", want);
-    (void)svc_bsd(-3);                                  /* mach_absolute_time: a Mach trap */
+    (void)svc_bsd(-3);
     check_state("a Mach trap", want);
-    (void)mach_absolute_time();                         /* the in-place (fast) path */
+    (void)mach_absolute_time();
     check_state("mach_absolute_time()", want);
     size_t big = 64u << 20;
     char *p = mmap(NULL, big, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     if (p == MAP_FAILED) fail("mmap: %s", strerror(errno));
     else {
-        p[big / 2] = 1;                                 /* first touch: a page fault */
+        p[big / 2] = 1;
         check_state("a page fault", want);
         munmap(p, big);
     }
@@ -270,7 +239,6 @@ static void state_round_trip(int afp, int dit, int ssbs)
     pthread_join(t, NULL);
     check_state("another thread's run and a join", want);
 
-    /* New threads: start clean even after a thread that set everything. */
     int dirty_new = 0;
     for (int round = 0; round < 4; round++) {
         pthread_create(&t, NULL, dirty_thread, NULL);
@@ -291,8 +259,6 @@ static void state_round_trip(int afp, int dit, int ssbs)
     wr_fpcr(saved.fpcr);
     printf("state: round trips %s; new threads clean in %d/4 rounds\n", failures > before ? "FAILED (see FAIL lines)" : "ok", 4 - dirty_new);
 }
-
-/* ---- ZVA safety (§6, §7.1) ---- */
 
 static void zva_safety(long line)
 {
@@ -335,8 +301,6 @@ static void zva_safety(long line)
     free(buf);
 }
 
-/* ---- main ---- */
-
 static int run_child(const char *self, const char *name)
 {
     pid_t pid;
@@ -361,7 +325,6 @@ int main(int argc, char **argv)
     const char *self = probe_self_path(argv[0]);
     int only_insn = argc >= 2 && strcmp(argv[1], "--insn-only") == 0;
 
-    /* 1. sysctls and commpage. */
     uint8_t caps[16];
     memset(caps, 0xEE, sizeof caps);
     size_t clen = 0;
@@ -414,7 +377,6 @@ int main(int argc, char **argv)
     printf("commpage: capabilities64 %#llx capabilities %#x ncpus %u cache line %u cpufamily %#x\n",
            (unsigned long long)cap64, cap32, ncpus, cline, family);
 
-    /* 2. Invariants (§5). */
     for (int i = 0; i < NNAMES; i++) {
         char full[96];
         snprintf(full, sizeof full, "hw.optional.arm.%s", names[i].name);
@@ -461,7 +423,6 @@ int main(int argc, char **argv)
         fail("inv8: hw.tbfrequency %ld x %u / %u is not 10^9", tbf, tb.numer, tb.denom);
     printf("invariants 1-6, 8: %s\n", failures ? "see FAIL lines" : "ok");
 
-    /* 3. Instructions. */
     int published_ok = 0, published_bad = 0, hidden_sigill = 0, hidden_exec = 0;
     for (int i = 0; i < NINSNS; i++) {
         int pub = insns[i].bit >= 0 && caps_bit(caps, insns[i].bit);
@@ -488,9 +449,7 @@ int main(int argc, char **argv)
            published_ok, published_bad, hidden_sigill, hidden_exec);
 
     if (!only_insn) {
-        /* 4. State. */
         state_round_trip(caps_bit(caps, 29), caps_bit(caps, 33), caps_bit(caps, 35));
-        /* 5. ZVA. */
         zva_safety(line);
     }
 

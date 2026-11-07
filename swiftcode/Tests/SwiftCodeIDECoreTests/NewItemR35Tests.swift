@@ -7,8 +7,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// reference-ui-5.md §11.3 (P10): template contents, the save step's Group
-/// and Targets, and Choose Template…'s empty workspace window.
 @MainActor
 @Suite struct NewItemR35Tests {
     #if os(macOS)
@@ -64,7 +62,6 @@ import SwiftCodeProject
                             }
                         }
                     }
-                    // Source templates write non-empty files.
                     if section.title == "Source" {
                         for u in urls { #expect(((try? Data(contentsOf: u))?.count ?? 0) > 0, "\(entry.title) is empty") }
                     }
@@ -73,9 +70,6 @@ import SwiftCodeProject
         }
     }
 
-    /// The Source templates compile (Swift, C, C++, Objective-C, Metal when
-    /// the toolchain has it). They are macOS templates: they need the macOS
-    /// SDK's headers and modules, so this runs on macOS only.
     @Test(.enabled(if: Self.hasMacSDK)) func sourceTemplatesBuild() throws {
         let dir = try temp("build")
         defer { try? FileManager.default.removeItem(at: dir) }

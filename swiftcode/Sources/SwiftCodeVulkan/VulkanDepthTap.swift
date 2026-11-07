@@ -1,51 +1,15 @@
-// The depth tap for the headset viewer (specs/simulator/xr-depth.md §3).
-// SwiftCode's own design; it reads only what SwiftCode's own replay knows (render
-// pass attachments, their sizes, formats, sample counts and clear values,
-// and which images each command buffer reads and writes), never the guest's
-// shaders.
-//
-// While a viewer asks for depth (`XRDepthTap.shared.request`), every render
-// pass of the display's size with a depth attachment is a candidate:
-//   - a single-sampled one (the room pass: backboardd's own colour target
-//     with its Depth32Float) replaces the command buffer's capture;
-//   - a multisampled one (the windows pass, resolving into the windows
-//     layer) merges into it, nearest wins, counting only texels whose
-//     resolved colour is opaque enough (a layer's transparent parts write
-//     depth too: the rectangle under a home icon's name held the wall's and
-//     the television's pixels at the icon's depth); its depth store is
-//     forced to STORE (the guest discards it).
-// At the pass's end a small compute dispatch (shaders/depth_tap.comp)
-// reduces the depth to 1/n per axis (nearest of each block), as 16-bit
-// inverse depth, into a host-visible buffer of the tap's ring, then writes
-// the capture's serial behind it. Nothing waits: the guest's work and the
-// copy share the command buffer.
-//
-// Provenance pairs a capture with the picture: images a command buffer
-// writes take its capture's serial, or the newest serial among the images it
-// reads (wakeboardd's compose reads the layers backboardd wrote); an
-// IOSurface written so carries the serial, and the display server asks for
-// the depth of the surface it presents.
-//
-// The room's environment cube (RGBA16Float, 256², 9 levels, shader-read
-// only) is copied (one level) into a host buffer every 2 s while a viewer
-// wants it; the server sends it when its content changes (message 0x0D).
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
 
-/// One captured depth image (16-bit inverse depth, rows top to bottom).
 public struct XRDepthCapture: Sendable {
     public var serial: UInt64
     public var width: Int, height: Int
     public var samples: [UInt16]
-    /// Passes merged into it: room (single-sampled) and windows (multisampled).
     public var roomPasses: Int, windowsPasses: Int
-    /// The host's monotonic ns when the command buffer was recorded.
     public var recordedAt: UInt64
 }
 
-/// The room's environment cube, one level, as RGBA16F half floats (faces +X … −Z).
 public struct XREnvironmentCapture: Sendable {
     public var serial: UInt64
     public var size: Int
@@ -54,7 +18,6 @@ public struct XREnvironmentCapture: Sendable {
     public var hash: UInt64
 }
 
-/// What the display server asks of the GPU backend, and what it gets.
 public final class XRDepthTap: @unchecked Sendable {
     public static let shared = XRDepthTap()
 
@@ -66,21 +29,15 @@ public final class XRDepthTap: @unchecked Sendable {
     fileprivate var environment: XREnvironmentCapture?
     fileprivate var counters = (passes: 0, captures: 0, dispatches: 0, forcedStores: 0)
     static let log = ProcessInfo.processInfo.environment["SWIFTCODE_XR_DEPTH_LOG"] == "1"
-    /// SWIFTCODE_XR_DEPTH_WINDOWS=0: the room's depth only (the windows pass is not merged).
     static let windows = ProcessInfo.processInfo.environment["SWIFTCODE_XR_DEPTH_WINDOWS"] != "0"
-    /// SWIFTCODE_XR_DEPTH_ALPHA: the least alpha of the windows layer whose depth
-    /// counts (xr-depth.md §3.1; 0: every texel, as before).
     static let windowsAlphaMin = Float(ProcessInfo.processInfo.environment["SWIFTCODE_XR_DEPTH_ALPHA"] ?? "") ?? 0.25
 
-    /// Depth at the picture's size / `downscale` (0: off).
     public func request(downscale n: Int) { lock.withLock { downscale = n > 0 ? min(16, n) : 0 } }
     public func request(environment on: Bool) { lock.withLock { wantsEnvironment = on } }
 
     var currentDownscale: Int { lock.withLock { downscale } }
     var environmentWanted: Bool { lock.withLock { wantsEnvironment } }
 
-    /// The newest finished capture whose provenance reached `surface` (nil:
-    /// none), else the newest finished capture with `exact` false.
     public func depth(forSurface surface: UInt32) -> (capture: XRDepthCapture, exact: Bool)? {
         lock.withLock {
             if let s = surfaceSerials[surface], let c = captures.last(where: { $0.serial == s }) { return (c, true) }
@@ -105,12 +62,11 @@ public final class XRDepthTap: @unchecked Sendable {
     fileprivate func note(_ f: (inout (passes: Int, captures: Int, dispatches: Int, forcedStores: Int)) -> Void) { lock.withLock { f(&counters) } }
 }
 
-/// The backend's side of the tap (under the backend's lock).
 final class DepthTapState {
     struct Slot {
         var buffer = yvk_buffer()
         var bytes = 0
-        var serial: UInt64 = 0          // 0: free / not yet finished
+        var serial: UInt64 = 0
         var width = 0, height = 0
         var roomPasses = 0, windowsPasses = 0
         var recordedAt: UInt64 = 0
@@ -121,19 +77,14 @@ final class DepthTapState {
     var slots: [Slot] = Array(repeating: Slot(), count: 4)
     var next = 0
     var serial: UInt64 = 0
-    /// The slot the command buffer being recorded captures into.
     var current: Int?
-    /// Our own sampled views of depth images (depth aspect), by image.
     struct View { weak var image: VKImage?; var view: VkImageView?; var slot: UInt32 }
     var views: [ObjectIdentifier: View] = [:]
-    /// Provenance: image → capture serial.
     var imageSerials: [ObjectIdentifier: UInt64] = [:]
-    /// The environment cube and its copy.
     weak var cube: VKTexture?
     var cubeBuffer = yvk_buffer()
     var cubeBytes = 0
     var cubeSerial: UInt64 = 0
-    /// The cube's top level (256²): at 128² the surround was a blur of 1.4 texels per degree wherever the cache had nothing yet.
     var cubeLevel = 0
     var cubeCopyPending = false
     var nextCubeCopy: UInt64 = 0
@@ -142,14 +93,11 @@ final class DepthTapState {
     var logged = 0
 }
 
-/// A pass the tap reduces at its end.
 struct DepthTapPass {
     var texture: VKTexture
     var width: Int, height: Int
     var multisampled: Bool
     var standardZ: Bool
-    /// The windows pass's resolved colour, of the depth's size: the texels
-    /// whose depth counts are the opaque ones (nil: all).
     var alpha: VKTexture?
 }
 
@@ -161,9 +109,6 @@ extension VulkanMetalBackend {
         return t
     }
 
-    /// A device reset (VulkanDeviceReset.swift) before the old device goes:
-    /// the tap's objects are freed and its state starts over (captures in
-    /// flight are lost; the next frames capture again on the new device).
     func depthTapDeviceLost(_ device: VkDevice?) {
         guard let t = depthTapStorage as? DepthTapState else { return }
         if let p = t.pipeline { fn.vkDestroyPipeline!(device, p, nil) }
@@ -183,9 +128,6 @@ extension VulkanMetalBackend {
         log("depth tap: reset with the device")
     }
 
-    // MARK: Command buffers
-
-    /// The start of a command buffer's replay.
     func depthTapBegin(_ mcb: MetalCommandBuffer) {
         guard XRDepthTap.shared.currentDownscale > 0 || XRDepthTap.shared.environmentWanted || depthTapStorage != nil else { return }
         let t = tap
@@ -193,14 +135,10 @@ extension VulkanMetalBackend {
         collectFinishedCaptures(t)
     }
 
-    /// The end of a command buffer's replay (still recording into `rec`):
-    /// the capture's serial behind its data, the provenance of what it
-    /// wrote, and the environment copy when one is due.
     func depthTapEnd(_ mcb: MetalCommandBuffer, _ rec: Recording) {
         guard let t = depthTapStorage as? DepthTapState else { return }
         var serial: UInt64?
         if let i = t.current {
-            // The data, then the serial (the reader checks it before and after copying).
             barrier(rec.cb)
             var s = t.slots[i].serial
             fn.vkCmdUpdateBuffer!(rec.cb, t.slots[i].buffer.buffer, VkDeviceSize(t.slots[i].bytes), 8, &s)
@@ -212,10 +150,6 @@ extension VulkanMetalBackend {
         if XRDepthTap.shared.environmentWanted { environmentCopy(rec, t) }
     }
 
-    // MARK: Render passes
-
-    /// Before a render pass begins: whether the tap reduces its depth, with
-    /// the depth's store forced to STORE when the guest discards it.
     func depthTapPassBegin(_ d: MetalRenderPassDescriptor, _ info: inout yvk_rendering_info, width: Int, height: Int,
                            draws: Bool) -> DepthTapPass? {
         guard draws, XRDepthTap.shared.currentDownscale > 0, width >= 1024, height >= 576,
@@ -224,14 +158,12 @@ extension VulkanMetalBackend {
         guard !t.failed else { return nil }
         let multisampled = tex.image.samples > 1
         if multisampled && !XRDepthTap.windows { return nil }
-        // A multisampled pass counts only when its colour resolves (the windows layer).
         if multisampled && !d.colorAttachments.contains(where: { $0.attachment.resolveTexture != nil }) { return nil }
         XRDepthTap.shared.note { $0.passes += 1 }
         if info.depth.store != VK_ATTACHMENT_STORE_OP_STORE {
             info.depth.store = VK_ATTACHMENT_STORE_OP_STORE
             XRDepthTap.shared.note { $0.forcedStores += 1 }
         }
-        // Reverse-Z clears to 0 (far); a pass that clears depth to 1 uses standard Z.
         let standardZ = a.loadAction == MetalLoadAction.clear && d.clearDepth > 0.5
         if XRDepthTap.log && t.logged < 40 {
             t.logged += 1
@@ -247,16 +179,12 @@ extension VulkanMetalBackend {
         return DepthTapPass(texture: tex, width: width, height: height, multisampled: multisampled, standardZ: standardZ, alpha: alpha)
     }
 
-    /// After a tapped pass ended: the reduction into the command buffer's capture.
     func depthTapPassEnd(_ p: DepthTapPass, _ rec: Recording) {
         let t = tap
         let n = XRDepthTap.shared.currentDownscale
         guard n > 0, let pipeline = tapPipeline(t), let slotIndex = tapView(p.texture, t) else { return }
         let alphaSlot = p.alpha.flatMap { tapView($0, t) }
         let ow = (p.width + n - 1) / n, oh = (p.height + n - 1) / n
-        // The first tapped pass of a command buffer starts a capture; a later
-        // single-sampled pass (the room) replaces it, a multisampled one (the
-        // windows) merges into it.
         let bytes = ((ow + 1) / 2) * 4 * oh
         var merge = false
         if let i = t.current, t.slots[i].width == ow, t.slots[i].height == oh, t.slots[i].bytes >= bytes {
@@ -291,8 +219,6 @@ extension VulkanMetalBackend {
         XRDepthTap.shared.note { $0.dispatches += 1 }
     }
 
-    // MARK: Resources
-
     private func tapPipeline(_ t: DepthTapState) -> VkPipeline? {
         if let p = t.pipeline { return p }
         var err = [CChar](repeating: 0, count: 512)
@@ -307,12 +233,9 @@ extension VulkanMetalBackend {
         return p
     }
 
-    /// Our sampled view of a texture's image (depth aspect for a depth
-    /// format, else colour; level 0, layer 0) in a heap slot of our own.
     private func tapView(_ tex: VKTexture, _ t: DepthTapState) -> UInt32? {
         let id = ObjectIdentifier(tex.image)
         if let v = t.views[id], v.image === tex.image { return v.slot }
-        // Views of images that are gone: their slots back.
         for (k, v) in t.views where v.image == nil {
             let view = v.view, slot = v.slot
             t.views[k] = nil
@@ -339,7 +262,6 @@ extension VulkanMetalBackend {
         return slot
     }
 
-    /// A ring slot with at least `bytes` (+ 8 for the serial), not in use.
     private func tapSlot(_ t: DepthTapState, bytes: Int) -> Int? {
         let i = t.next
         t.next = (t.next + 1) % t.slots.count
@@ -354,13 +276,11 @@ extension VulkanMetalBackend {
             t.slots[i].buffer = b
             t.slots[i].bytes = bytes
         }
-        // Not finished until the GPU writes the serial behind the data.
         t.slots[i].buffer.mapped.map { ($0 + t.slots[i].bytes).storeBytes(of: UInt64(0), as: UInt64.self) }
         t.slots[i].published = false
         return i
     }
 
-    /// Captures whose serial the GPU wrote: copied out for the display server.
     func collectFinishedCaptures(_ t: DepthTapState) {
         for i in t.slots.indices where !t.slots[i].published && t.slots[i].serial != 0 {
             guard let base = t.slots[i].buffer.mapped else { continue }
@@ -382,8 +302,6 @@ extension VulkanMetalBackend {
         }
         environmentCollect(t)
     }
-
-    // MARK: Provenance
 
     private func depthTapProvenance(_ mcb: MetalCommandBuffer, serial own: UInt64?, _ t: DepthTapState) {
         var reads = Set<ObjectIdentifier>(), writes: [VKImage] = []
@@ -427,9 +345,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    // MARK: The environment cube
-
-    /// A new texture: the room's environment cube if it looks like one.
     func depthTapNoteTexture(_ tex: VKTexture) {
         guard tex.textureType == MetalTextureType.typeCube, tex.metalFormat == 115, tex.image.width == 256, tex.image.levels == 9,
               tex.metalUsage == MetalTextureUsage.shaderRead else { return }
@@ -470,7 +385,6 @@ extension VulkanMetalBackend {
         guard (base + bytes).load(as: UInt64.self) == t.cubeSerial else { return }
         t.cubeCopyPending = false
         let data = [UInt8](UnsafeRawBufferPointer(start: base, count: bytes))
-        // FNV-1a of every 64th byte: a change of the room changes it.
         var h: UInt64 = 0xcbf29ce484222325
         var i = 0
         while i < data.count { h = (h ^ UInt64(data[i])) &* 0x100000001b3; i += 61 }

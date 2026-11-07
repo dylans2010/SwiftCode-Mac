@@ -1,39 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Offline Models/MLXSwift Foundation/UniversalModelLoader.swift
-//   (Legacy commit d51a8f0d)
-//
-// All 16 types from the Legacy file are ported: UniversalLoadedModel,
-// UniversalModelLoaderError, UniversalModelLoader, RawConfig, CodingKeys
-// (nested in RawConfig), HuggingFaceModelConfig, WeightSource,
-// ArchitectureRegistry, Builder (nested typealias),
-// RegisteredArchitecture, GenericMLXArchitectureBuilders,
-// GenericTransformerConfig, GenericMLXTransformerLoader,
-// GenericTransformerModel, JSONBackedTokenizer, FileBackedTokenizer.
-// The reconciliation table's two "already matched" names (Builder,
-// CodingKeys) were false positives: no `typealias Builder` exists in the
-// destination, and the destination's `CodingKeys` enums are nested inside
-// unrelated types (Conversation, HuggingFaceAPI, OfflineModelStorage,
-// CodexSession), so neither collides with the nested names here.
-//
-// MLX GAP (see MLXIntegration.swift): the loader's discovery work is
-// real — config.json parsing, tokenizer-file detection, safetensors
-// weight detection — and runs without MLX. The final step, building an
-// executable model, needs the MLX runtime, which is not linked here.
-// `GenericTransformerModel.generate` therefore throws
-// `MLXRuntimeError.runtimeUnavailable` instead of Legacy's placeholder
-// behaviour (echoing the prompt tokens back as "generated" output,
-// which would have been fake inference presented as real). The model
-// still carries its validated architecture, transformer config and
-// weight-file list, so once MLX is added the builder can hand those to
-// the real MLX loader without changing this file's public shape.
-//
-// Tokenizer note: JSONBackedTokenizer / FileBackedTokenizer encode and
-// decode at the UTF-8 byte level, exactly as Legacy wrote them. That is
-// a byte-level fallback, not a real BPE/WordPiece tokenizer: token IDs
-// produced here do not match the model's vocabulary. Real tokenization
-// needs the model's tokenizer implementation (or MLX's), which is part
-// of the same MLX gap.
-
 import Foundation
 
 public struct UniversalLoadedModel: Sendable {
@@ -327,12 +291,6 @@ private struct GenericTransformerModel: OfflineLanguageModel {
 
     func generate(tokens: [Int]) -> AsyncThrowingStream<Int, Error> {
         AsyncThrowingStream { continuation in
-            // MLX GAP: there is no MLX runtime in this target, so no
-            // token can honestly be generated. Legacy echoed the prompt
-            // tokens back here as a placeholder inference path; that
-            // output was not model output, so it is not reproduced.
-            // Loading the model (config + weights validated by the
-            // loader) still succeeds; generation throws.
             continuation.finish(throwing: MLXRuntimeError.runtimeUnavailable(
                 details: "Cannot generate with the '\(architecture)' model: the MLX Swift packages are not a dependency of SwiftCodeAssistant, so no MLX runtime is linked."
             ))

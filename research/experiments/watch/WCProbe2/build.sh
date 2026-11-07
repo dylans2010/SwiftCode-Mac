@@ -1,6 +1,4 @@
 #!/bin/sh
-# Build WCP2.app (iOS simulator) with WCP2Watch.app embedded at WCP2.app/Watch/.
-# Our own code; ad-hoc signed. Usage: build.sh OUTDIR
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}
@@ -53,6 +51,5 @@ cat > "$PHONE/Info.plist" <<PL
 </dict></plist>
 PL
 codesign -f -s - "$PHONE" >/dev/null 2>&1
-# A standalone copy of the watch app for direct installs on the watch.
 cp -R "$WATCH" "$OUT/WCP2Watch.app"
 echo "built $PHONE"

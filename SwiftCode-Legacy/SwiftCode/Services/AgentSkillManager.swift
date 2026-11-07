@@ -47,6 +47,5 @@ final class AgentSkillManager: ObservableObject {
 
     func importSkillArchive(at url: URL) throws {
         print("[AgentSkillManager] Importing skill archive from \(url.path)")
-        // Actual implementation would involve ZipImporter and SkillsRuntime
     }
 }

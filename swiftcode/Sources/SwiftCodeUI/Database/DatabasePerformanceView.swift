@@ -1,34 +1,14 @@
-// DatabasePerformanceView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/Views/DatabasePerformanceView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: interactive query-performance analyzer UI (EXPLAIN QUERY PLAN plus timing plus full-scan detection); the model method exists but is not wired to any action
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DatabaseConnectionManager.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// CLEANUP (2026-11-06, C14): Legacy's view invented its resource
-// numbers on every diagnostics run — cpuUsageSim =
-// Double.random(in: 1.2...8.9), memoryUsageSim =
-// Double.random(in: 15.1...45.8) — shown in "Simulated CPU Usage" /
-// "Memory Footprint" cards. The cards and the simulated values are
-// deleted outright (this view is in the SwiftCodeUI module, where the
-// swiftcode-ide Mach helpers are not visible, and the cards added no
-// real signal). What remains is only what SQLite itself reports:
-// file size, PRAGMA integrity_check, per-table row/index counts, and
-// EXPLAIN QUERY PLAN output with real timings.
 import SwiftUI
 
 struct DatabasePerformanceView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
-    @State private var selectedTab = 0 // 0 = Health Dashboard & Monitor, 1 = Performance Analyzer
+    @State private var selectedTab = 0
 
-    // Health States
     @State private var dbSizeStr = "Calculating..."
     @State private var integrityResult = "Check Pending"
     @State private var tablesStatList: [[String: String]] = []
     @State private var isCalculatingHealth = false
 
-    // Analyzer States
     @State private var analyzerQuery = "SELECT * FROM users WHERE email = 'alex@example.com';"
     @State private var explainRows: [String] = []
     @State private var queryDurationMicroseconds: Double = 0
@@ -66,7 +46,6 @@ struct DatabasePerformanceView: View {
         }
     }
 
-    // MARK: - Health Dashboard Pane
     @ViewBuilder
     private func healthDashboardPane() -> some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -163,7 +142,6 @@ struct DatabasePerformanceView: View {
         }
     }
 
-    // MARK: - Performance Analyzer Pane
     @ViewBuilder
     private func performanceAnalyzerPane() -> some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -256,7 +234,6 @@ struct DatabasePerformanceView: View {
         }
     }
 
-    // MARK: - Handlers & Operations
     private func runDiagnostics() {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite, let path = conn.sqliteFilePath else { return }
 
@@ -264,7 +241,6 @@ struct DatabasePerformanceView: View {
 
         Task {
             do {
-                // 1. Calculate File size
                 let url = URL(fileURLWithPath: path)
                 if let attr = try? FileManager.default.attributesOfItem(atPath: url.path),
                    let size = attr[.size] as? UInt64 {
@@ -274,15 +250,12 @@ struct DatabasePerformanceView: View {
                     dbSizeStr = "0 KB"
                 }
 
-                // 2. Perform Integrity check
                 let integrityRows = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: "PRAGMA integrity_check;")
                 integrityResult = integrityRows.first?.values.first ?? "Error"
 
-                // 3. Get table stats
                 let tableList = try DatabaseManager.shared.fetchSQLiteTables(filePath: path)
                 var list: [[String: String]] = []
                 for t in tableList {
-                    // Check if indexes exist on this table
                     let indexQuery = "PRAGMA index_list(\(t.name));"
                     let indexRows = try? DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: indexQuery)
                     let hasIndex = !(indexRows?.isEmpty ?? true)
@@ -316,7 +289,6 @@ struct DatabasePerformanceView: View {
 
         Task {
             do {
-                // Measure pure explain query plan
                 let explainSql = "EXPLAIN QUERY PLAN " + analyzerQuery
                 let rows = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: explainSql)
 
@@ -333,7 +305,6 @@ struct DatabasePerformanceView: View {
                         let lowerDetail = detail.lowercased()
                         if lowerDetail.contains("scan") {
                             containsScan = true
-                            // Try to extract scanned table
                             let parts = lowerDetail.components(separatedBy: " ")
                             if let idx = parts.firstIndex(of: "scan"), idx + 1 < parts.count {
                                 scannedTable = parts[idx + 1]

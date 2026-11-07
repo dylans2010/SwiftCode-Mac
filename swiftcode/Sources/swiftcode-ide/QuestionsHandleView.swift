@@ -1,10 +1,3 @@
-// QuestionsHandleView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Agent/QuestionsHandleView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: multi-question form UI (per-question answer fields, option select, Submit All)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AgentPendingQuestionSet.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct QuestionsHandleView: View {

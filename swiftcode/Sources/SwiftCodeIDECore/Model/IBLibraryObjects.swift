@@ -3,13 +3,7 @@ import CoreGraphics
 #endif
 import Foundation
 
-/// The object icons of the Library and the Document Outline
-/// (`interface-builder.md` §Outline icons): drawn by SwiftCode from the word
-/// descriptions in the spec, as shapes in a 16 × 16 box (origin top-left).
-/// Both IDEs draw the same shapes: the macOS editor with AppKit paths, the
-/// Linux IDE with a canvas. No artwork files.
 public struct IBIcon: Equatable, Sendable {
-    /// A fixed colour (icons look the same in light and dark).
     public struct Paint: Equatable, Sendable {
         public var r, g, b, a: Double
         public init(_ r: Double, _ g: Double, _ b: Double, _ a: Double = 1) { self.r = r; self.g = g; self.b = b; self.a = a }
@@ -35,28 +29,20 @@ public struct IBIcon: Equatable, Sendable {
     }
 
     public enum Shape: Equatable, Sendable {
-        /// A rounded rectangle, filled and/or stroked (dashed when asked).
         case rect(CGRect, radius: CGFloat, fill: Paint?, stroke: Paint?, width: CGFloat, dashed: Bool)
         case oval(CGRect, fill: Paint?, stroke: Paint?, width: CGFloat)
-        /// Connected lines (closed: a polygon outline).
         case lines([CGPoint], stroke: Paint, width: CGFloat, closed: Bool)
         case polygon([CGPoint], fill: Paint)
-        /// An arc of a circle, angles in degrees, clockwise from 3 o'clock (y down).
         case arc(center: CGPoint, radius: CGFloat, from: CGFloat, to: CGFloat, stroke: Paint, width: CGFloat)
-        /// Text centered on a point.
         case text(String, center: CGPoint, size: CGFloat, bold: Bool, color: Paint)
     }
 
     public var shapes: [Shape]
     public init(_ shapes: [Shape]) { self.shapes = shapes }
 
-    // MARK: Building blocks
-
     static func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
     static func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> CGRect { CGRect(x: x, y: y, width: w, height: h) }
-    /// The rounded square most icons stand on.
     static func tile(_ fill: Paint, border: Paint? = nil) -> Shape {
-        // Black and dark tiles get a faint light rim so they read on dark backgrounds.
         let rim = border ?? (fill == .black || fill == .dark ? Paint(1, 1, 1, 0.22) : nil)
         return .rect(r(1, 1, 14, 14), radius: 3, fill: fill, stroke: rim, width: 0.75, dashed: false)
     }
@@ -69,47 +55,31 @@ public struct IBIcon: Equatable, Sendable {
         .rect(r(x, y, w, h), radius: radius, fill: nil, stroke: c, width: width, dashed: false)
     }
     static func letter(_ s: String, _ c: Paint, size: CGFloat = 10) -> Shape { .text(s, center: p(8, 8), size: size, bold: true, color: c) }
-    /// A white cube outline (SceneKit, objects).
     static func cube(_ c: Paint, _ w: CGFloat = 1) -> [Shape] {
         [.lines([p(8, 3.5), p(12, 5.5), p(12, 10.5), p(8, 12.5), p(4, 10.5), p(4, 5.5)], stroke: c, width: w, closed: true),
          line([p(4, 5.5), p(8, 7.5), p(12, 5.5)], c, w), line([p(8, 7.5), p(8, 12.5)], c, w)]
     }
-    /// Corner brackets: the AR mark.
     static func arMark(_ c: Paint) -> [Shape] {
         [line([p(3, 5), p(3, 3), p(5, 3)], c, 1), line([p(11, 3), p(13, 3), p(13, 5)], c, 1),
          line([p(3, 11), p(3, 13), p(5, 13)], c, 1), line([p(11, 13), p(13, 13), p(13, 11)], c, 1)]
     }
-    /// A dark bar across the middle (navigation bar, toolbar, tab bar).
     static func bar(_ marks: [Shape]) -> IBIcon { IBIcon([box(1, 4, 14, 8, .dark, radius: 2)] + marks) }
-    /// A blue gesture glyph on no tile.
     static func gesture(_ marks: [Shape]) -> IBIcon { IBIcon(marks) }
 
-    // MARK: Icons
-
-    /// Generic views: a white rounded square with a thin blue-grey border.
     public static let view = IBIcon([tile(.white, border: .border)])
-    /// Safe Area and other layout guides: a grey dashed square.
     public static let layoutGuide = IBIcon([.rect(r(2, 2, 12, 12), radius: 1.5, fill: nil, stroke: .gray, width: 1, dashed: true)])
-    /// Objects: a blue-grey cube.
     public static let object = IBIcon([.polygon([p(8, 2), p(13.5, 4.8), p(13.5, 11.2), p(8, 14), p(2.5, 11.2), p(2.5, 4.8)], fill: .border)] + cube(.white, 0.9).map {
         if case .lines(let pts, _, let w, let closed) = $0, closed { return .lines(pts.map { p(8 + ($0.x - 8) * 1.3, 8 + ($0.y - 8) * 1.3) }, stroke: .white, width: w, closed: true) }
         return $0
     })
-    /// The controller row: a yellow circle with a white mark.
     public static let controller = IBIcon([.oval(r(1, 1, 14, 14), fill: .yellow, stroke: nil, width: 0), frame(5, 5, 6, 6, .white, width: 1.25, radius: 1)])
-    /// First Responder: an orange square with a white "1".
     public static let firstResponder = IBIcon([tile(.orange), letter("1", .white)])
-    /// Exit: an orange square with an arrow leaving a box.
     public static let exit = IBIcon([tile(.orange), line([p(9, 4.5), p(5, 4.5), p(5, 11.5), p(9, 11.5)], .white, 1.25),
                                      line([p(7.5, 8), p(12.5, 8)], .white, 1.25), line([p(10.5, 6), p(12.5, 8), p(10.5, 10)], .white, 1.25)])
-    /// Storyboard Entry Point: a pale blue circle with a right-pointing arrow.
     public static let entryPoint = IBIcon([.oval(r(1, 1, 14, 14), fill: .paleBlue, stroke: nil, width: 0),
                                            line([p(4.5, 8), p(11, 8)], .blue, 1.5), line([p(8.5, 5.5), p(11, 8), p(8.5, 10.5)], .blue, 1.5)])
-    /// Constraint rows: an I-beam.
     public static let constraint = IBIcon([line([p(8, 3), p(8, 13)], .blue, 1.25), line([p(5.5, 3), p(10.5, 3)], .blue, 1.25), line([p(5.5, 13), p(10.5, 13)], .blue, 1.25)])
 
-    /// A scene: a yellow rounded square with a lighter top strip carrying
-    /// three small marks, and a white glyph naming the controller kind.
     public static func scene(_ controllerElement: String?) -> IBIcon {
         var s: [Shape] = [tile(.yellow), .rect(r(1, 1, 14, 4), radius: 2, fill: .yellowLight, stroke: nil, width: 0, dashed: false),
                           dot(4, 3, 1.3, .yellow), dot(6.5, 3, 1.3, .yellow), dot(9, 3, 1.3, .yellow)]
@@ -127,7 +97,6 @@ public struct IBIcon: Equatable, Sendable {
         return IBIcon(s)
     }
 
-    /// The icon for a Library kind.
     public static func of(_ kind: IBDocument.NewObject) -> IBIcon {
         switch kind {
         case .label: return of(element: "label")
@@ -163,7 +132,6 @@ public struct IBIcon: Equatable, Sendable {
         return IBIcon(s)
     }
 
-    /// The icon for an element (the outline's objects).
     public static func of(element e: String, key: String? = nil, object o: IBDocument.Object? = nil) -> IBIcon {
         let w = Paint.white, b = Paint.blue
         switch e {
@@ -266,7 +234,6 @@ public struct IBIcon: Equatable, Sendable {
         return s
     }
 
-    /// The outline icon for an object.
     public static func of(object o: IBDocument.Object, in d: IBDocument) -> IBIcon {
         if o.element == "scene" { return scene(o.children.first { d.isController($0) }?.element) }
         if o.element == "placeholder", o.attribute("placeholderIdentifier") == "IBFirstResponder" || o.attribute("sceneMemberID") == "firstResponder" { return firstResponder }
@@ -275,7 +242,6 @@ public struct IBIcon: Equatable, Sendable {
         return of(element: o.element, key: o.key, object: o)
     }
 
-    /// The outline icon for a row.
     public static func of(row: IBOutlineRow, in d: IBDocument) -> IBIcon {
         switch row.kind {
         case .constraints, .constraint: return constraint
@@ -286,14 +252,10 @@ public struct IBIcon: Equatable, Sendable {
 }
 
 extension IBDocument.NewObject {
-    /// The kind's Library icon.
     public var icon: IBIcon { IBIcon.of(self) }
 }
 
 extension IBIcon {
-    /// The glyph of one choice in an icon row (`interface-builder.md`
-    /// "icons (…)"): text alignment, content alignment and border style,
-    /// drawn by SwiftCode in the label colour (`ink`).
     public static func choiceGlyph(attribute: String, value: String, ink: Paint = .dark) -> IBIcon? {
         let c = ink
         func bars(_ xs: [(CGFloat, CGFloat)]) -> [Shape] { xs.enumerated().map { line([p($0.element.0, 4 + CGFloat($0.offset) * 2.7), p($0.element.1, 4 + CGFloat($0.offset) * 2.7)], c, 1.1) } }

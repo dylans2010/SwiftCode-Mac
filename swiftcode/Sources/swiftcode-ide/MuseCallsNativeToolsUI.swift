@@ -1,38 +1,8 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/MuseCallsNativeToolsUI.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/MuseCallsNativeToolsUI.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - native-vs-Muse tool cards
-//   - Open Assist Workers Dashboard link
-//   - per-tool parameter display
-// ADAPTATIONS:
-//   - `import AppKit` wrapped in #if canImport(AppKit) (destination convention). AppKit symbol sites the wiring phase must guard for Linux: L265:NSString, L270:NSString, L275:NSString, L619:NSPasteboard, L620:NSPasteboard
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistActivityGroup — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - FileActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - ToolActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
-//
-//  MuseCallsNativeToolsUI.swift
-//  SwiftCode
-//
-//  Dedicated modern UI displayed when calling SwiftCode's native tools.
-//  Strictly hides raw JSON schemas and raw tool call payloads using `hidesToolSchemaOnUI`,
-//  displaying only clean human-readable narrative, status, duration, diffs, collapsible cards,
-//  and dedicated SF Symbols for EVERY registered tool.
-//
-
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
 #endif
 import SwiftCodeAssistant
-
-// MARK: - Muse Calls Native Tools UI Root View
 
 public struct MuseCallsNativeToolsUI: View {
     public let activityGroup: AssistActivityGroup
@@ -54,7 +24,6 @@ public struct MuseCallsNativeToolsUI: View {
             let museTools = tools.filter { $0.isMuseSDKTool }
 
             VStack(alignment: .leading, spacing: 12) {
-                // 1. SwiftCode Native Tools Section
                 if !nativeTools.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         nativeHeaderBadge(
@@ -75,7 +44,6 @@ public struct MuseCallsNativeToolsUI: View {
                     }
                 }
 
-                // 2. Muse SDK Tools Section (Dedicated distinct UI)
                 if !museTools.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         museHeaderBadge(
@@ -232,8 +200,6 @@ public struct MuseCallsNativeToolsUI: View {
     }
 }
 
-// MARK: - Muse Native Tool Card
-
 public struct MuseNativeToolCard: View {
     public let tool: ToolActivityItem
     public let fileDiffs: [FileActivityItem]
@@ -271,13 +237,7 @@ public struct MuseNativeToolCard: View {
                lower.contains("schema")
     }
 
-    // MARK: - Complex Schema Stripping & Humanization Function
-
-    /// Complex function that fully strips down the tool schema from showing it on the UI.
-    /// Transforms JSON schemas, argument dictionaries, and raw identifiers into clean,
-    /// natural human-readable text for users without exposing raw schemas or internal IDs.
     public static func hidesToolSchemaOnUI(rawText: String, arguments: [String: Any] = [:], toolId: String = "") -> String {
-        // 1. If arguments are present, construct a clean narrative from key domain parameters
         if !arguments.isEmpty {
             let normalizedId = toolId.lowercased().replacingOccurrences(of: "-", with: "_")
 
@@ -320,10 +280,8 @@ public struct MuseNativeToolCard: View {
             }
         }
 
-        // 2. If rawText is provided, strip schema artifacts, JSON brackets, and internal tool signatures
         var cleaned = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Strip JSON schema keywords and markdown code fences
         cleaned = cleaned.replacingOccurrences(of: "```json", with: "")
         cleaned = cleaned.replacingOccurrences(of: "```", with: "")
 
@@ -346,7 +304,6 @@ public struct MuseNativeToolCard: View {
         }
 
         if hasSchemaMarker {
-            // Attempt to parse out human-friendly values rather than dumping schema
             if let data = cleaned.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let desc = json["description"] as? String, !desc.isEmpty {
@@ -356,13 +313,11 @@ public struct MuseNativeToolCard: View {
                     return msg
                 }
             }
-            // Strip raw braces and quotes if json parsing was ambiguous
             cleaned = cleaned.replacingOccurrences(of: "{", with: "")
                 .replacingOccurrences(of: "}", with: "")
                 .replacingOccurrences(of: "\"", with: "")
         }
 
-        // Remove raw internal IDs from text
         cleaned = cleaned.replacingOccurrences(of: "file_read", with: "file read")
             .replacingOccurrences(of: "file_write", with: "file write")
             .replacingOccurrences(of: "code_replace", with: "code edit")
@@ -375,19 +330,13 @@ public struct MuseNativeToolCard: View {
     }
 
     private func humanReadableTitle(for rawId: String) -> String {
-        // Canonical title from ToolCallMap (covers every registered tool).
         ToolCallMap.descriptor(for: rawId).title
     }
 
-    // MARK: - SF Symbols for EVERY Tool
-
     public static func sfSymbol(for toolId: String) -> String {
-        // Canonical symbol from ToolCallMap (covers every registered tool).
-        // Kept as a static accessor for existing callers.
         ToolCallMap.descriptor(for: toolId).symbolName
     }
 
-    /// Subtle per-tool tint for the SF symbol, from ToolCallMap.
     public static func tint(for toolId: String) -> Color {
         ToolCallMap.descriptor(for: toolId).tint
     }
@@ -395,7 +344,6 @@ public struct MuseNativeToolCard: View {
     private var cleanParameters: [(key: String, value: String)] {
         var params: [(key: String, value: String)] = []
 
-        // Extract clean key-values from semantic key or purpose, strictly ignoring raw schemas
         if let semKey = tool.semanticKey, !semKey.isEmpty {
             let parts = semKey.components(separatedBy: "|")
             for part in parts.dropFirst() {
@@ -410,7 +358,6 @@ public struct MuseNativeToolCard: View {
             }
         }
 
-        // If semantic key had no structured params, attempt to extract relevant path or command
         if params.isEmpty {
             if let extractedPath = extractRelevantPath(from: tool.purpose) {
                 params.append((key: "Target", value: extractedPath))
@@ -488,29 +435,24 @@ public struct MuseNativeToolCard: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Main Summary Row Button (Collapsible trigger)
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     isOpen.toggle()
                 }
             } label: {
                 HStack(spacing: 8) {
-                    // Status Icon
                     statusIcon
 
-                    // Tool Kind SF Symbol (ToolCallMap: per-tool symbol + subtle tint)
                     Image(systemName: Self.sfSymbol(for: tool.toolId))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Self.tint(for: tool.toolId))
                         .frame(width: 16, height: 16)
 
-                    // Human-Readable Title
                     Text(displayTitle)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
 
-                    // Key Parameter Pills (Clean Target Info)
                     if let firstParam = cleanParameters.first {
                         Text("\(firstParam.key): \(firstParam.value)")
                             .font(.system(size: 10, design: .monospaced))
@@ -523,7 +465,6 @@ public struct MuseNativeToolCard: View {
 
                     Spacer(minLength: 4)
 
-                    // Diffs Indicator Badge
                     if let diff = matchingDiff, (diff.addedLines > 0 || diff.deletedLines > 0) {
                         HStack(spacing: 3) {
                             if diff.addedLines > 0 {
@@ -542,14 +483,12 @@ public struct MuseNativeToolCard: View {
                         .background(Color.secondary.opacity(0.1), in: Capsule())
                     }
 
-                    // Duration Tag
                     if tool.duration > 0 {
                         Text(String(format: "%.1fs", tool.duration))
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.tertiary)
                     }
 
-                    // Rotation Chevron
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -561,13 +500,11 @@ public struct MuseNativeToolCard: View {
             }
             .buttonStyle(.plain)
 
-            // Expanded Collapsible Details Card
             if isOpen {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
                         .opacity(0.35)
 
-                    // Human-Readable Narrative (Stripping raw schemas)
                     let narrative = Self.hidesToolSchemaOnUI(rawText: tool.purpose, toolId: tool.toolId)
                     if !narrative.isEmpty && narrative != displayTitle {
                         Text(narrative)
@@ -576,12 +513,10 @@ public struct MuseNativeToolCard: View {
                             .padding(.horizontal, 4)
                     }
 
-                    // Specialized Worker Card if this is a `use_workers` invocation
                     if isWorkerTool {
                         workerOrchestrationDetailsView
                     }
 
-                    // Clean Parameters View (No Schemas, Only Values)
                     if !cleanParameters.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("ACTION PARAMETERS")
@@ -608,7 +543,6 @@ public struct MuseNativeToolCard: View {
                         .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
                     }
 
-                    // Clean Output Result (Formatted Text, Fully Scrollable)
                     if !tool.result.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -689,8 +623,6 @@ public struct MuseNativeToolCard: View {
                 .stroke(Color.secondary.opacity(0.14), lineWidth: 0.75)
         )
     }
-
-    // MARK: - Dedicated Worker Orchestration Subview
 
     @ViewBuilder
     private var workerOrchestrationDetailsView: some View {

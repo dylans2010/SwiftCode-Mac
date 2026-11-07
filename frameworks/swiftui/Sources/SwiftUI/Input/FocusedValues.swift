@@ -7,29 +7,10 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Focused values (round R11; public API: `FocusedValueKey`, `FocusedValues`,
-// `focusedValue(_:_:)`, `focusedSceneValue(_:_:)`, `@FocusedValue`,
-// `@FocusedBinding`, `focusedObject`, `@FocusedObject`). They let commands
-// (menu items) and other views read values published by the part of the
-// window that has keyboard focus, typically to enable or disable a command.
-//
-// Design (SwiftCode's): each window has a `FocusedValuesCenter` (observable). A
-// `focusedValue` modifier registers its value with the center; after every
-// update of the window the center recomputes the current values: it walks
-// from the focused view up through its ancestors and takes, for each key,
-// the innermost publication on that chain; keys with no publication on the
-// chain then take a `focusedSceneValue` of the window (the last one
-// registered). With nothing focused only scene values are present. Readers
-// depend on the center through Observation, so a reader's body runs again
-// only when the set of publications it sees changes (publisher, key, value
-// generation). Pop-up windows (menus) read their owner window's center.
-
-/// A key for a value published with `focusedValue(_:_:)`.
 public protocol FocusedValueKey {
     associatedtype Value
 }
 
-/// The values published by the focused part of a window.
 public struct FocusedValues {
     var storage: [ObjectIdentifier: Any] = [:]
 
@@ -43,7 +24,6 @@ public struct FocusedValues {
 
 extension FocusedValues: @unchecked Sendable {}
 
-/// One `focusedValue` / `focusedSceneValue` registration.
 @MainActor
 final class FocusedValuePublication {
     weak var node: ViewNode?
@@ -62,11 +42,9 @@ final class FocusedValuePublication {
     }
 }
 
-/// The focused values of one window.
 @MainActor
 @Observable
 package final class FocusedValuesCenter {
-    /// The current values (readers depend on this).
     package private(set) var values = FocusedValues()
 
     @ObservationIgnored private var publications: [ObjectIdentifier: FocusedValuePublication] = [:]
@@ -91,7 +69,6 @@ package final class FocusedValuesCenter {
 
     func withdraw(_ owner: AnyObject) { publications[ObjectIdentifier(owner)] = nil }
 
-    /// Recomputes the values for the focused node (nil: nothing focused).
     package func recompute(focused: ViewNode?) {
         publications = publications.filter { $0.value.node?.isAlive == true }
         var byNode: [ObjectIdentifier: [FocusedValuePublication]] = [:]
@@ -110,8 +87,6 @@ package final class FocusedValuesCenter {
         }
         for p in publications.values.filter(\.isScene).sorted(by: { $0.order < $1.order })
         where p.node?.isInSuspendedSubtree == false {
-            // Scene values fill keys the focus chain does not publish; a
-            // later registration replaces an earlier one.
             if let c = chosen[p.keyID], !c.isScene { continue }
             chosen[p.keyID] = p
         }
@@ -131,14 +106,11 @@ private enum FocusedValuesCenterKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    /// The window's focused values (pop-ups carry their owner's).
     package var _focusedValues: FocusedValuesCenter? {
         get { self[FocusedValuesCenterKey.self] }
         set { self[FocusedValuesCenterKey.self] = newValue }
     }
 }
-
-// MARK: - Publishing
 
 final class FocusedValuePublisherState {
     weak var center: FocusedValuesCenter?
@@ -181,19 +153,14 @@ private func equalAny<A: Equatable>(_ a: A, _ b: Any) -> Bool {
 }
 
 extension View {
-    /// Publishes `value` for `keyPath` while this view (or a view inside it)
-    /// has keyboard focus.
     public func focusedValue<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value) -> some View {
         modifier(FocusedValueModifier(keyPath: keyPath, value: value, isScene: false))
     }
 
-    /// Publishes `value` (nil withdraws it) while this view has focus.
     public func focusedValue<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value?) -> some View {
         modifier(FocusedValueModifier(keyPath: keyPath, value: value, isScene: false))
     }
 
-    /// Publishes `value` for `keyPath` while the window is shown, wherever the
-    /// focus is in it.
     public func focusedSceneValue<Value>(_ keyPath: WritableKeyPath<FocusedValues, Value?>, _ value: Value) -> some View {
         modifier(FocusedValueModifier(keyPath: keyPath, value: value, isScene: true))
     }
@@ -202,8 +169,6 @@ extension View {
         modifier(FocusedValueModifier(keyPath: keyPath, value: value, isScene: true))
     }
 
-    /// Publishes an observable object (read with `@FocusedObject` or
-    /// `@FocusedValue(Type.self)`).
     public func focusedObject<T: AnyObject>(_ object: T?) -> some View {
         modifier(FocusedValueModifier(keyPath: \FocusedValues.[_objectKey: ObjectIdentifier(T.self)], value: object.map { $0 as AnyObject },
                                       isScene: false))
@@ -214,24 +179,18 @@ extension View {
                                       isScene: true))
     }
 
-    /// `focusedValue(_ object:)` for `@Observable` models (read with
-    /// `@FocusedValue(Type.self)`).
     public func focusedValue<T: AnyObject & Observable>(_ object: T?) -> some View { focusedObject(object) }
 
     public func focusedSceneValue<T: AnyObject & Observable>(_ object: T?) -> some View { focusedSceneObject(object) }
 }
 
 extension FocusedValues {
-    /// Storage for published objects, one slot per type.
     subscript(_objectKey type: ObjectIdentifier) -> AnyObject? {
         get { storage[type] as? AnyObject }
         set { storage[type] = newValue }
     }
 }
 
-// MARK: - Reading
-
-/// Reads a value published by the focused part of the window.
 @propertyWrapper
 public struct FocusedValue<Value>: DynamicProperty {
     let box: FocusedReadBox
@@ -250,7 +209,6 @@ public struct FocusedValue<Value>: DynamicProperty {
     @MainActor public var wrappedValue: Value? { read(box.values) }
 }
 
-/// Reads a binding published by the focused part of the window.
 @propertyWrapper
 public struct FocusedBinding<Value>: DynamicProperty {
     let box: FocusedReadBox
@@ -274,7 +232,6 @@ public struct FocusedBinding<Value>: DynamicProperty {
     }
 }
 
-/// Reads an object published with `focusedObject(_:)`.
 @propertyWrapper
 public struct FocusedObject<ObjectType: AnyObject>: DynamicProperty {
     let box = FocusedReadBox()
@@ -282,7 +239,6 @@ public struct FocusedObject<ObjectType: AnyObject>: DynamicProperty {
     @MainActor public var wrappedValue: ObjectType? { box.values[_objectKey: ObjectIdentifier(ObjectType.self)] as? ObjectType }
 }
 
-/// Where a focused-value reader finds its window's values.
 final class FocusedReadBox: @unchecked Sendable {
     weak var node: ViewNode?
     @MainActor var values: FocusedValues { node?.environment._focusedValues?.values ?? FocusedValues() }

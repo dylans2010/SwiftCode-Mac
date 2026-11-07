@@ -1,15 +1,3 @@
-/* SwiftCode warm-boot persistence probe (specs/simulator/snapshot.md §12): an
- * iOS app that counts its own launches in three places an app's data lives,
- * so a run shows whether the previous runs' data survived. Original SwiftCode
- * code; public UIKit, Foundation and Security interfaces only.
- *
- * At launch it reads, then writes back incremented:
- *   - NSUserDefaults key "runs" (cfprefsd, the container's Library/Preferences),
- *   - Documents/runs.txt in its data container,
- *   - a generic-password keychain item (service "dev.swiftcode.snap-persist").
- * One line each on stdout, "snap-persist: <store> before=<n> after=<n+1>",
- * then "snap-persist: home <NSHomeDirectory()>" and "snap-persist: done".
- * A missing value reads as 0; a keychain error prints its OSStatus. */
 #import <Security/Security.h>
 #import <UIKit/UIKit.h>
 

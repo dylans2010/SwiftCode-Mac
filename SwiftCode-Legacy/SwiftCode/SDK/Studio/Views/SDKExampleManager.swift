@@ -1,29 +1,12 @@
 import Foundation
 import SwiftUI
 
-// MARK: - SDKExampleManager
-//
-// Managed launcher and resolver for the bundled `RepositoryBuildExtension`
-// SDK example (Phase 3 & Phase 4).
-//
-// WHAT IT DOES:
-// 1. Resolves the authoritative bundled example source directory across app
-//    bundle locations and relative repository development paths.
-// 2. Prepares a writable user-managed copy at `~/.swiftcode/projects/RepositoryBuildExtension`
-//    (or `ProjectSessionStore.shared.projectsDirectory`) without modifying
-//    signed application bundle resources.
-// 3. Validates required manifests (`swiftcode.json`, `package.json`).
-// 4. Registers/imports the example as a Platform Project in `ProjectSessionStore`.
-// 5. Handles duplicate clicks gracefully: reuses the existing managed example,
-//    bringing it into active workspace state.
-
 @MainActor
 public final class SDKExampleManager: ObservableObject {
     public static let shared = SDKExampleManager()
 
     private init() {}
 
-    /// Resolves the bundled `RepositoryBuildExtension` example directory.
     public static func defaultBundledExampleURL() -> URL? {
         let currentDir = FileManager.default.currentDirectoryPath
         let candidates = [
@@ -38,7 +21,6 @@ public final class SDKExampleManager: ObservableObject {
         }
     }
 
-    /// Prepares, registers, and opens the RepositoryBuildExtension SDK example project.
     @discardableResult
     public func launchExampleProject() async throws -> Project {
         guard let sourceURL = Self.defaultBundledExampleURL() else {
@@ -53,12 +35,10 @@ public final class SDKExampleManager: ObservableObject {
         let projectsDir = ProjectSessionStore.shared.projectsDirectory
         let targetURL = projectsDir.appendingPathComponent("RepositoryBuildExtension")
 
-        // 1. Copy example to managed user workspace if not present
         if !fm.fileExists(atPath: targetURL.path) {
             try fm.createDirectory(at: projectsDir, withIntermediateDirectories: true)
             try fm.copyItem(at: sourceURL, to: targetURL)
         } else {
-            // Repair essential config if missing
             let targetManifest = targetURL.appendingPathComponent("swiftcode.json")
             if !fm.fileExists(atPath: targetManifest.path) {
                 let sourceManifest = sourceURL.appendingPathComponent("swiftcode.json")
@@ -68,7 +48,6 @@ public final class SDKExampleManager: ObservableObject {
             }
         }
 
-        // 2. Validate required configuration
         let manifestURL = targetURL.appendingPathComponent("swiftcode.json")
         guard fm.fileExists(atPath: manifestURL.path) else {
             throw NSError(
@@ -78,10 +57,8 @@ public final class SDKExampleManager: ObservableObject {
             )
         }
 
-        // 3. Register or retrieve project in ProjectSessionStore
         let project = try await ProjectSessionStore.shared.importProject(from: targetURL, name: "Repository Build Extension")
 
-        // 4. Open project
         await ProjectSessionStore.shared.openProject(project)
 
         return project

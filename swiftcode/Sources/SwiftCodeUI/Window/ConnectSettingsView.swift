@@ -1,10 +1,3 @@
-// ConnectSettingsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/ConnectSettingsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Connect host settings UI: connection port config; Bonjour advertising toggle; nearby iOS devices list; manual connect; connected/trusted devices; session diagnostics
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): UInt16.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeConnect
 import SwiftUI
 
@@ -63,7 +56,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 1. This Mac Section
     private var thisMacSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 14) {
@@ -165,7 +157,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 2. Nearby Devices (Discovered iOS)
     private var nearbyDevicesSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -244,7 +235,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 3. Manual Connection Section
     private var manualConnectSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -293,7 +283,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 4. Connected Devices Section
     private var connectedDevicesSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -358,7 +347,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 5. Trusted Devices Section
     private var trustedDevicesSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -441,7 +429,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 6. Diagnostics Section
     private var diagnosticsSection: some View {
         GroupBox {
             DisclosureGroup(isExpanded: $showDiagnostics) {
@@ -504,7 +491,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - Actions
     private func applyPortChange() {
         guard let port = UInt16(portInputString), ConnectProtocol.validPortRange.contains(port) else {
             portErrorMessage = "Invalid port number. Please enter a port between \(ConnectProtocol.validPortRange.lowerBound) and \(ConnectProtocol.validPortRange.upperBound)."

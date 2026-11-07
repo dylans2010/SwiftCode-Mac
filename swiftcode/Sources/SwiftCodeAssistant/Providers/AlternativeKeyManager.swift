@@ -1,16 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AlternativeKeyManager.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed by fix W-V2 (A6 slice: AssistManager needs AlternativeKeyManager).
-// Adaptation (one): `import CryptoKit` -> `import Crypto` (swift-crypto; same SHA256 API;
-// added to this target in Package.swift). CryptoKit is Apple-only; the only CryptoKit
-// use in this file is the SHA-256 key hash.
-
-//
-//  AlternativeKeyManager.swift
-//  SwiftCode
-//
-//  Secure credential manager and automatic rotation engine for alternative Gemini API keys.
-//
-
 import Foundation
 import Crypto
 import Observation
@@ -109,8 +96,6 @@ public final class AlternativeKeyManager: Sendable {
         loadMetadata()
     }
 
-    // MARK: - Key Hashing & Masking
-
     public static func maskKey(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 8 else {
@@ -137,8 +122,6 @@ public final class AlternativeKeyManager: Sendable {
     private func keychainAccount(for id: UUID) -> String {
         "\(keychainPrefix)\(id.uuidString)"
     }
-
-    // MARK: - Import & Management
 
     @discardableResult
     public func importRawKeys(_ text: String) -> KeyImportResult {
@@ -231,8 +214,6 @@ public final class AlternativeKeyManager: Sendable {
             keys[i].orderIndex = i
         }
     }
-
-    // MARK: - Key Retrieval & Rotation
 
     public func getActiveOrNextKey() -> (key: String, metadata: AlternativeKeyMetadata)? {
         if let activeId = activeKeyId, let idx = keys.firstIndex(where: { $0.id == activeId }) {
@@ -333,8 +314,6 @@ public final class AlternativeKeyManager: Sendable {
         }
         saveMetadata()
     }
-
-    // MARK: - Persistence (Metadata Only)
 
     private func saveMetadata() {
         if let data = try? JSONEncoder().encode(keys) {

@@ -1,13 +1,5 @@
 import SwiftCodeDarwinABI
 
-// Task-level Mach state between tasks (`processes.md` §3, §4.6–§4.8,
-// stage4b-contract.md §5): stored special, registered, and exception ports;
-// inheritance and spawn port actions; task lookup by port and by pid; and
-// task termination. Callers hold the kernel lock.
-
-/// `task_special_port_t` numbers (`processes.md` §3.2): the `which` argument
-/// of `task_get_special_port`/`task_set_special_port`, one per `TASK_*_PORT`
-/// its name spells.
 public enum TaskSpecialPort {
     public static let kernel: Int32 = 1
     public static let host: Int32 = 2
@@ -20,31 +12,21 @@ public enum TaskSpecialPort {
     public static let resourceNotify: Int32 = 11
 }
 
-/// Exception-port constants (`processes.md` §4.8).
 public enum MachException {
-    /// Valid exception mask: types 1–13.
     public static let validMask: UInt32 = 0x3FFE
-    /// Slots per task, including the unused 0.
     public static let slotCount = 14
-    /// Behavior flag bits that may be ORed into a behavior.
     public static let behaviorFlags: UInt32 = 0x8000_0000 | 0x4000_0000 | 0x2000_0000
-    /// Valid base behaviors: DEFAULT … STATE_IDENTITY_PROTECTED.
     public static let behaviors: ClosedRange<UInt32> = 1...5
 
-    /// Whether `b`, with its flag bits removed, is one of the valid base behaviors.
     public static func isValidBehavior(_ b: UInt32) -> Bool { behaviors.contains(b & ~behaviorFlags) }
 }
 
-/// One exception-port slot: a send right with its behavior and flavor.
 struct ExceptionSlot {
     var port: CarriedRight = .null
     var behavior: UInt32 = 0
     var flavor: UInt32 = 0
 }
 
-/// The ports a task stores (`processes.md` §3.2): host, bootstrap, access,
-/// debug-control, resource-notify, three registered ports, and 14 exception
-/// slots. Every port is a send right (or NULL/DEAD) the kernel holds.
 struct TaskPortSlots {
     var host: CarriedRight = .null
     var bootstrap: CarriedRight = .null
@@ -55,21 +37,14 @@ struct TaskPortSlots {
     var exceptions = [ExceptionSlot](repeating: ExceptionSlot(), count: MachException.slotCount)
 }
 
-/// What a `task` argument names.
 enum TaskLookup {
     case task(MachIPC)
-    /// No send right under the name (or a dead name): the routine's message
-    /// could not be sent.
     case invalidDest
-    /// A right to something that is not a task control port.
     case notTask
 }
 
 extension MachIPC {
-    // MARK: Task lookup
 
-    /// The task a send right under `name` stands for, when it is a task
-    /// control port of a live task.
     func taskControl(named name: UInt32) -> TaskLookup {
         guard MachPortName.isValid(name), let i = lookup(name), entries[i].bits & T.send != 0,
               let p = entries[i].port else { return .invalidDest }
@@ -78,8 +53,6 @@ extension MachIPC {
         return .task(task)
     }
 
-    /// The pid of a task and the live space of a pid, through the process
-    /// table of the kernel's system (`processes.md` §3.5).
     func space(forPID pid: Int32) -> MachIPC? {
         if pid == (kernel?.pid ?? self.pid), !isTerminated { return self }
         guard let k = kernel?.system.kernel(forPID: pid), let ipc = k.machIPC as? MachIPC,
@@ -89,9 +62,6 @@ extension MachIPC {
 
     var currentPID: Int32 { kernel?.pid ?? pid }
 
-    // MARK: Slots
-
-    /// A new copy of a stored send right (for get and inheritance).
     func copySend(_ r: CarriedRight) -> CarriedRight {
         if case let .send(p) = r {
             p.srights += 1
@@ -100,7 +70,6 @@ extension MachIPC {
         return r
     }
 
-    /// The port of a task flavor, created lazily for read/inspect.
     func flavorPort(_ object: MachKernelObject) -> IPCPort {
         switch object {
         case .taskName: return taskNamePort
@@ -122,8 +91,6 @@ extension MachIPC {
         }
     }
 
-    /// `task_get_special_port` on this task: a new right (copy) for the
-    /// caller, or a `kern_return_t` (`processes.md` §3.2).
     func getSpecialPort(_ which: Int32) -> Result<CarriedRight, KernError> {
         if isTerminated { return .failure(KernError(MachKern.failure)) }
         switch which {
@@ -140,7 +107,6 @@ extension MachIPC {
         }
     }
 
-    /// Checks `task_set_special_port(which)` without changing anything.
     func checkSetSpecialPort(_ which: Int32) -> UInt32 {
         if isTerminated { return MachKern.failure }
         switch which {
@@ -154,9 +120,6 @@ extension MachIPC {
         }
     }
 
-    /// `task_set_special_port` on this task with a copied-in right. On
-    /// success the slot owns `right` and the old right is released; on
-    /// failure the caller still owns `right`.
     func setSpecialPort(_ which: Int32, _ right: CarriedRight) -> UInt32 {
         let kr = checkSetSpecialPort(which)
         guard kr == MachKern.success else { return kr }
@@ -171,15 +134,12 @@ extension MachIPC {
         return MachKern.success
     }
 
-    /// Replaces the three registered ports (they own `rights`).
     func setRegisteredPorts(_ rights: [CarriedRight]) {
         let old = slots.registered
         slots.registered = (0..<3).map { $0 < rights.count ? rights[$0] : .null }
         old.forEach(release)
     }
 
-    /// Sets the exception slots in `mask` to (`right`, behavior, flavor): each
-    /// slot gets its own send right; `right` itself is consumed.
     func setExceptionPorts(mask: UInt32, _ right: CarriedRight, behavior: UInt32, flavor: UInt32) -> UInt32 {
         guard mask & ~MachException.validMask == 0 else { return MachKern.invalidArgument }
         if right.port != nil, !MachException.isValidBehavior(behavior) { return MachKern.invalidArgument }
@@ -192,7 +152,6 @@ extension MachIPC {
         return MachKern.success
     }
 
-    /// The stored exception port of one type (tests and tracing).
     public func exceptionPort(type: Int) -> (name: UInt32, behavior: UInt32, flavor: UInt32)? {
         lock.withLock {
             guard (1..<MachException.slotCount).contains(type) else { return nil }
@@ -202,11 +161,6 @@ extension MachIPC {
         }
     }
 
-    // MARK: Well-known names in a new space
-
-    /// Makes the well-known names `0x303` (host) and `0x503` (bootstrap) hold
-    /// a send right to the current host and bootstrap slots (`processes.md`
-    /// §3.3, SwiftCode normative). Used when a task is created, before it runs.
     func syncWellKnownNames() {
         sync(index: 3, stored: slots.host)
         sync(index: 5, stored: slots.bootstrap)
@@ -217,13 +171,12 @@ extension MachIPC {
         if case let .send(p) = stored, p.active { target = p } else { target = nil }
         if index < entries.count, entries[index].inUse {
             if let target, entries[index].port === target, entries[index].bits & T.send != 0 { return }
-            // Drop the seeded right under the well-known name.
             let e = entries[index]
             if e.bits == T.send, let p = e.port {
                 freeName(index)
                 releaseSend(p)
             } else {
-                return  // the guest's own entry: leave it
+                return
             }
         }
         guard let target else { return }
@@ -232,13 +185,6 @@ extension MachIPC {
         if index >= nextFresh { nextFresh = index + 1 }
     }
 
-    // MARK: Inheritance and spawn port actions (contract-pinned, §3.7)
-
-    /// Contract-pinned (stage 4b §3.7): copies `parent`'s host, bootstrap,
-    /// access, registered, and exception ports (types 1–13) into this new task
-    /// as send-right copies (`processes.md` §3.3); debug-control and
-    /// resource-notify start null. Spawn: parent = the spawner; exec: parent =
-    /// the old image (call this before `parent.terminateTask()`). Lock held.
     public func inheritTaskPorts(from parent: MachIPC) {
         lock.withLock {
             let old = slots
@@ -264,15 +210,8 @@ extension MachIPC {
         }
     }
 
-    /// Contract-pinned (stage 4b §3.7): applies `posix_spawn` port actions to
-    /// this new task (`processes.md` §1.8), after inheritance. Every named
-    /// port is copied in from `caller`'s space as COPY_SEND; NULL and DEAD
-    /// pass through. Throws `DarwinErrnoError(EINVAL)` for an unknown type,
-    /// an exceeded limit, a name without a send right, or a failed special /
-    /// exception setting; rights copied in but not kept are released. Lock held.
     public func applySpawnPortActions(_ actions: [SpawnPortAction], from caller: MachIPC) throws {
         try lock.withLock {
-            // 1. Count the types first.
             var exceptions = 0, watches = 0, registered = 0, ptrauth = 0
             for a in actions {
                 switch a.kind {
@@ -287,7 +226,6 @@ extension MachIPC {
             guard exceptions <= 14, watches <= 128, registered <= 3, ptrauth <= 1 else {
                 throw DarwinErrnoError(DarwinErrnoCode.EINVAL)
             }
-            // 2. Copy every right in from the caller (COPY_SEND).
             var rights: [CarriedRight] = []
             for a in actions {
                 if !MachPortName.isValid(a.port) {
@@ -300,7 +238,6 @@ extension MachIPC {
                 }
                 rights.append(r)
             }
-            // 3. Check what can fail before changing anything.
             for a in actions {
                 switch a.kind {
                 case .special:
@@ -317,8 +254,6 @@ extension MachIPC {
                 default: break
                 }
             }
-            // 4. Apply. SPECIAL in order (a repeated `which` keeps the last);
-            //    REGISTERED in action order; the rest are dropped.
             var registeredRights: [CarriedRight] = []
             for (a, r) in zip(actions, rights) {
                 switch a.kind {
@@ -341,35 +276,20 @@ extension MachIPC {
         }
     }
 
-    // MARK: Termination (processes.md §4.6)
-
-    /// Contract-pinned (stage 4b §3.7): tears the task down in
-    /// `processes.md` §4.6 order — its kernel ports stop resolving; its space
-    /// is destroyed (receive rights first, in index order: ports die or are
-    /// diverted by port-destroyed requests; then the other entries: send
-    /// rights released with no-senders, send-once rights destroyed with
-    /// send-once notifications, armed dead-name requests cancelled with
-    /// port-deleted notifications, port sets destroyed); then its stored
-    /// special/registered/exception ports are released; finally its kernel
-    /// ports (task, name, threads, semaphores) die. Every notification is
-    /// queued before this returns (so before NOTE_EXIT). Lock held.
     public func terminateTask() {
         lock.withLock {
             guard !isTerminated else { return }
-            // 1. Kernel ports stop resolving to the task.
             isTerminated = true
             messageQueuedHandler = nil
             receiveRightGoneHandler = nil
-            // Keep the identity for anything that still asks after the kernel is freed.
             if let k = kernel {
                 pid = k.pid
                 pidVersion = k.pidVersion
             }
-            // 2. The space: receive rights first, in index order.
             for i in entries.indices where entries[i].inUse && entries[i].bits & T.receive != 0 {
                 guard let p = entries[i].port else { continue }
                 let hadSend = entries[i].bits & T.send != 0
-                freeName(i)  // cancels this entry's dead-name request (port-deleted)
+                freeName(i)
                 p.receiver = nil
                 removeFromAllSets(p)
                 p.changeStamp = nextStamp()
@@ -377,7 +297,6 @@ extension MachIPC {
                 if hadSend { p.srights -= 1 }
                 destroyReceive(p)
             }
-            // Then every other entry, in index order.
             for i in entries.indices where entries[i].inUse {
                 let e = entries[i]
                 freeName(i)
@@ -393,7 +312,6 @@ extension MachIPC {
             }
             reverse = [:]
             specialReplyPorts = [:]
-            // 3. Stored special, registered, and exception ports.
             let old = slots
             slots = TaskPortSlots()
             for r in [old.host, old.bootstrap, old.access, old.debugControl, old.resourceNotify] + old.registered {
@@ -403,7 +321,6 @@ extension MachIPC {
             let threadSlots = threadExceptions
             threadExceptions = [:]
             threadSlots.values.forEach { $0.forEach { release($0.port) } }
-            // 4. The task's own kernel ports die: holders elsewhere see dead names.
             for p in [taskPort, taskNamePort, mainThreadPort] + [taskReadPort, taskInspectPort].compactMap({ $0 })
                 + ownedKernelPorts {
                 portDeath(p)

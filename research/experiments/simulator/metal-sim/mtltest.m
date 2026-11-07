@@ -1,31 +1,3 @@
-/*
- * mtltest: our own Metal test program for the iOS simulator (original Ycode
- * code, R7). Written against the public Metal, IOSurface, and QuartzCore API.
- * Each test is a subcommand; several can be given in order. When run under
- * mslog.dylib, every test puts a marker into the recorder's log.
- *
- * Usage: mtltest <test> [<test> ...]
- *   info            device properties, families, limits, formats
- *   buffer          buffers in each storage mode, CPU write, no-copy buffer
- *   texture         textures (formats, storage modes, mipmaps), replace and get bytes
- *   clear           render pass that clears a 64x64 BGRA texture to (1,0,0,1), read back
- *   clear2          the same with (0,0.5,1,1) on 32x16 RGBA8 (field variation)
- *   triangle        source library, render pipeline, one draw, read back
- *   triangle2       the same pipeline, different vertex data and viewport
- *   compute         source library, compute pipeline, dispatch, read back
- *   fc              function constants and specialization
- *   blit            buffer and texture copies, fill, mipmap generation
- *   metallib <p>    library from a precompiled metallib file, compute dispatch
- *   iosurface       texture over an IOSurface, clear it, read the surface
- *   heap            heap, resources from it
- *   depth           depth-stencil state and a depth texture in a render pass
- *   sampler         sampler states
- *   event           shared event signal/wait, fence, completion handlers
- *   error           a source library with an error; a pipeline with a bad function
- *   layer           CAMetalLayer: next drawable, clear, present
- *   icb             indirect command buffer
- *   argbuf          argument buffer (argument encoder)
- */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <IOSurface/IOSurfaceRef.h>

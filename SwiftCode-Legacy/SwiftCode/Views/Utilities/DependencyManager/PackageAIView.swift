@@ -16,7 +16,6 @@ struct PackageAIView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header Info card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -37,7 +36,6 @@ struct PackageAIView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Prompt Templates card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Prompt Templates & Presets", systemImage: "square.stack.3d.up")
@@ -73,7 +71,6 @@ struct PackageAIView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Interactive Chat Input Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Send Custom Prompt", systemImage: "paperplane")
@@ -100,7 +97,6 @@ struct PackageAIView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Conversation History card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Conversation Logs", systemImage: "text.bubble")
@@ -118,7 +114,6 @@ struct PackageAIView: View {
                             VStack(spacing: 16) {
                                 ForEach(filteredChatHistory) { chat in
                                     VStack(alignment: .leading, spacing: 10) {
-                                        // User block
                                         HStack(alignment: .top, spacing: 8) {
                                             Image(systemName: "person.circle.fill")
                                                 .foregroundColor(.secondary)
@@ -142,7 +137,6 @@ struct PackageAIView: View {
                                             .buttonStyle(.plain)
                                         }
 
-                                        // AI response block
                                         HStack(alignment: .top, spacing: 8) {
                                             Image(systemName: "sparkles")
                                                 .foregroundColor(.blue)

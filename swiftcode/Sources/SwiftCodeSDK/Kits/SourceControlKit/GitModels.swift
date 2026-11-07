@@ -9,10 +9,6 @@ public struct GitFileStatus: Codable, Sendable, Equatable {
         case renamed = "renamed"
         case copied = "copied"
         case ignored = "ignored"
-        /// Unmerged (`U` in porcelain v1/v2): the file has merge
-        /// conflicts. Added for `GitPorcelainParser` (Legacy's
-        /// `GitFileStatus.Status.conflicted`); `SDKSourceControlAdapter`
-        /// has its own `.conflicted` on `SDKFileChangeStatus`.
         case conflicted = "conflicted"
     }
 
@@ -59,9 +55,6 @@ public struct GitCommit: Codable, Sendable {
     public let authorEmail: String
     public let date: Date
     public let message: String
-    // V10: parent hashes (Legacy's GitCommit carried them; the ported CommitsView
-    // navigates parents and GitService.getLog parses them from `%P`). Defaulted so
-    // existing callers and Codable decoding are unaffected.
     public let parentHashes: [String]
 
     public init(

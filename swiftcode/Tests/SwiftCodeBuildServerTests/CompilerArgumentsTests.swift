@@ -3,7 +3,6 @@ import Testing
 @testable import SwiftCodeBuildServer
 import SwiftCodeXcodebuild
 
-/// Argument generation, one setting at a time (no SDK or compiler needed).
 @Suite struct CompilerArgumentsTests {
     static let base: [String: String] = [
         "PRODUCT_MODULE_NAME": "App",
@@ -32,13 +31,10 @@ import SwiftCodeXcodebuild
         CompilerArguments.swift(for: "/p/App/A.swift", in: ctx(extra, target: t, linux: linux))
     }
 
-    /// True if `needle` appears in `args` as consecutive elements.
     static func has(_ args: [String], _ needle: String...) -> Bool {
         guard needle.count <= args.count else { return false }
         return (0...(args.count - needle.count)).contains { Array(args[$0..<($0 + needle.count)]) == needle }
     }
-
-    // MARK: Swift
 
     @Test func moduleSourcesSDKAndTriple() {
         let a = Self.swift()
@@ -58,12 +54,9 @@ import SwiftCodeXcodebuild
         #expect(triple(["PLATFORM_NAME": "xrsimulator", "XROS_DEPLOYMENT_TARGET": "26.0"]) == "arm64-apple-xros26.0-simulator")
         #expect(triple(["PLATFORM_NAME": "watchsimulator", "WATCHOS_DEPLOYMENT_TARGET": "11.0"]) == "arm64-apple-watchos11.0-simulator")
         #expect(triple(["PLATFORM_NAME": "appletvos", "TVOS_DEPLOYMENT_TARGET": "18.0"]) == "arm64-apple-tvos18.0")
-        // No deployment target: the SDK's version.
         #expect(triple(["IPHONEOS_DEPLOYMENT_TARGET": "", "SDK_VERSION": "27.0"]) == "arm64-apple-ios27.0-simulator")
-        // swift-build's exported pieces win.
         #expect(triple(["LLVM_TARGET_TRIPLE_OS_VERSION": "ios17.0", "LLVM_TARGET_TRIPLE_SUFFIX": "-simulator", "LLVM_TARGET_TRIPLE_VENDOR": "apple"])
             == "arm64-apple-ios17.0-simulator")
-        // Linux: the host triple, no SDK or frameworks.
         #expect(triple(["CURRENT_ARCH": "x86_64"], linux: true) == "x86_64-unknown-linux-gnu")
         #expect(triple([:], linux: true) == "aarch64-unknown-linux-gnu")
         let linux = Self.swift(linux: true)
@@ -96,7 +89,6 @@ import SwiftCodeXcodebuild
         #expect(Self.has(a, "-Xcc", "-isystem", "-Xcc", "/sys/include"))
         #expect(Self.has(a, "-Fsystem", "/sys/fw"))
 
-        // `dir/**` adds the folders below `dir`.
         let dir = try freshScratch("recursive")
         try FileManager.default.createDirectory(at: dir.appendingPathComponent("a/b"), withIntermediateDirectories: true)
         let paths = Self.ctx(["HEADER_SEARCH_PATHS": dir.path + "/**"]).searchPaths("HEADER_SEARCH_PATHS")
@@ -107,7 +99,6 @@ import SwiftCodeXcodebuild
         let a = Self.swift(["SWIFT_OBJC_BRIDGING_HEADER": "App/App-Bridging-Header.h"])
         #expect(Self.has(a, "-import-objc-header", "/p/App/App-Bridging-Header.h"))
         #expect(!a.contains("-import-underlying-module"))
-        // A framework with public headers imports its own Clang module.
         let fw = Self.target("com.apple.product-type.framework", sources: ["/p/Kit/K.swift", "/p/Kit/L.m"],
                              headers: [.init(path: "/p/Kit/Kit.h", visibility: .public)])
         let k = Self.ctx(["PRODUCT_MODULE_NAME": "Kit"], target: fw)
@@ -115,7 +106,6 @@ import SwiftCodeXcodebuild
         #expect(CompilerArguments.swift(for: "/p/Kit/K.swift", in: k).contains("-import-underlying-module"))
         #expect(CompilerArguments.clang(for: "/p/Kit/L.m", language: .objectiveC, in: k.with(["CLANG_ENABLE_MODULES": "YES"]))
             .contains("-fmodule-name=Kit"))
-        // Project headers only: no module.
         let app = Self.target(headers: [.init(path: "/p/App/H.h", visibility: .project)])
         #expect(!Self.ctx(target: app).exportsClangModule)
     }
@@ -126,7 +116,6 @@ import SwiftCodeXcodebuild
         #expect(Self.swift(["APPLICATION_EXTENSION_API_ONLY": "YES"]).contains("-application-extension"))
         #expect(Self.swift(["SWIFT_LIBRARIES_ONLY": "YES"]).contains("-parse-as-library"))
         #expect(!Self.swift().contains("-parse-as-library"))
-        // One file: a library unless it is main.swift.
         #expect(Self.swift(target: Self.target(sources: ["/p/App/A.swift"])).contains("-parse-as-library"))
         #expect(!Self.swift(target: Self.target(sources: ["/p/App/main.swift"])).contains("-parse-as-library"))
         #expect(!Self.swift(["SWIFT_DISABLE_PARSE_AS_LIBRARY": "YES"], target: Self.target(sources: ["/p/App/A.swift"]))
@@ -146,11 +135,9 @@ import SwiftCodeXcodebuild
             let a = Self.swift(s)
             return a.indices.filter { a[$0] == "-enable-upcoming-feature" }.map { a[$0 + 1] }
         }
-        // Approachable Concurrency: five features in Swift 5 mode, two in Swift 6.
         #expect(features(["SWIFT_APPROACHABLE_CONCURRENCY": "YES", "SWIFT_VERSION": "5.0"]).count == 5)
         #expect(features(["SWIFT_APPROACHABLE_CONCURRENCY": "YES", "SWIFT_VERSION": "6.0"])
             == ["InferIsolatedConformances", "NonisolatedNonsendingByDefault"])
-        // Bare slash regex: on (Swift 5) unless turned off; implied by Swift 6.
         #expect(Self.swift(["SWIFT_VERSION": "5.0"]).contains("-enable-bare-slash-regex"))
         #expect(!Self.swift(["SWIFT_VERSION": "5.0", "SWIFT_ENABLE_BARE_SLASH_REGEX": "NO"]).contains("-enable-bare-slash-regex"))
         #expect(!Self.swift(["SWIFT_VERSION": "6.0"]).contains("-enable-bare-slash-regex"))
@@ -170,8 +157,6 @@ import SwiftCodeXcodebuild
         #expect(Self.has(a, "-I", "/Dev/Platforms/iPhoneSimulator.platform/Developer/usr/lib"))
         #expect(!Self.swift(["PLATFORM_DIR": "/Dev/Platforms/iPhoneSimulator.platform"]).contains { $0.contains("Developer/Library/Frameworks") })
     }
-
-    // MARK: Clang
 
     @Test func clangObjectiveC() {
         let t = Self.target(sources: ["/p/App/A.swift", "/p/App/H.m"])
@@ -193,7 +178,6 @@ import SwiftCodeXcodebuild
         #expect(Self.has(a, "-F", "/dd/Products/Debug-iphonesimulator"))
         #expect(Self.has(a, "-include", "/p/App/Prefix.pch"))
         #expect(Array(a.suffix(4)) == ["-c", "/p/App/H.m", "-o", "/dd/Obj/App.build/Objects-normal/arm64/H.o"])
-        // A header gets the target's arguments, no output.
         let h = CompilerArguments.arguments(for: "/p/App/H.h", language: .objectiveC, in: c)
         #expect(h.last == "/p/App/H.h" && !h.contains("-c"))
     }
@@ -211,8 +195,6 @@ import SwiftCodeXcodebuild
         #expect(CompilerArguments.languageStandard("compiler-default").isEmpty)
     }
 
-    // MARK: Helpers
-
     @Test func settingWords() {
         #expect(SettingWords.split("a  b\t\"c d\" 'e f' g\\ h") == ["a", "b", "c d", "e f", "g h"])
         #expect(SettingWords.split("") == [])
@@ -223,7 +205,6 @@ import SwiftCodeXcodebuild
         #expect(PlatformChoice.baseName("iPhoneOS18.0.sdk") == "iphoneos")
         #expect(PlatformChoice.baseName("/X/MacOSX27.2.sdk") == "macosx")
         #expect(PlatformChoice.baseName("iphonesimulator27.0") == "iphonesimulator")
-        // Device SDKs index as simulators; the destination wins on its family.
         #expect(PlatformChoice.sdk(sdkroot: "iphoneos", supportedPlatforms: "", destinationSDK: nil) == "iphonesimulator")
         #expect(PlatformChoice.sdk(sdkroot: "iphoneos", supportedPlatforms: "", destinationSDK: "iphoneos") == "iphoneos")
         #expect(PlatformChoice.sdk(sdkroot: "macosx", supportedPlatforms: "", destinationSDK: "iphonesimulator") == "macosx")

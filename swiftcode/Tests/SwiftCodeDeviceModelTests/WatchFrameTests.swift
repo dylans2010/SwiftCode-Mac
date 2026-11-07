@@ -1,15 +1,8 @@
-// watchOS W2 (specs/simulator/watchos.md §3.1, §7.2 W2; specs/ide/device-hub.md
-// §4.3): the thirteen watch types as the device windows see them, the frame
-// SwiftCode draws round a watch (body from the corner radii, the Digital Crown
-// and the side button on the right edge, the Action button on an Ultra),
-// the viewer's sizes for a watch, and the hub's family for watch rows.
-
 import Foundation
 import Testing
 @testable import SwiftCodeDeviceModel
 
 @Suite struct WatchFrameTests {
-    /// watchos.md §3.1: id, model, screen pixels, corner radius, Ultra.
     static let table: [(String, String, Int, Int, Double, Bool)] = [
         ("apple-watch-series-12-46mm", "Watch8,3", 416, 496, 50, false),
         ("apple-watch-series-12-42mm", "Watch8,4", 374, 446, 44, false),
@@ -39,16 +32,13 @@ import Testing
             #expect(p.uprightPointSize == CGSize(width: Double(w) / 2, height: Double(h) / 2), "\(id)")
         }
         #expect(DeviceFrameSpec.appleWatchSeries12_46mm.typeID == "apple-watch-series-12-46mm")
-        // Phones and iPads still rotate and have volume buttons.
         #expect(DeviceFrameSpec.iPhone18Pro.rotates && DeviceFrameSpec.iPadA16.hasVolumeButtons && !DeviceFrameSpec.visionPro.rotates)
     }
 
     @Test func theHelloFindsTheWatch() {
-        // By type id, by model, by size (the first type of that size).
         #expect(DeviceFrameSpec.matching(typeID: "apple-watch-se-3-40mm", pixelWidth: 1, pixelHeight: 1, scale: 1).typeID == "apple-watch-se-3-40mm")
         #expect(DeviceFrameSpec.matching(model: "Watch8,1", pixelWidth: 1, pixelHeight: 1, scale: 2).typeID == "apple-watch-ultra-4-49mm")
         #expect(DeviceFrameSpec.matching(pixelWidth: 416, pixelHeight: 496, scale: 2) == .appleWatchSeries12_46mm)
-        // An unknown watch-sized screen or watch model is drawn as a watch.
         let small = DeviceFrameSpec.matching(pixelWidth: 400, pixelHeight: 480, scale: 2)
         #expect(small.typeID == "unknown" && small.family == .watch && small.panels[0].pixelsPerInch == 326)
         let model = DeviceFrameSpec.matching(model: "Watch9,9", pixelWidth: 500, pixelHeight: 600, scale: 2)
@@ -62,7 +52,6 @@ import Testing
         let g = DeviceFrameGeometry(spec: .appleWatchSeries12_46mm)
         let b = DeviceFrameGeometry.band(.watch), m = DeviceFrameGeometry.margin(.watch)
         #expect(m == DeviceFrameGeometry.crownProtrusion && b == 16)
-        // 416 × 496 @2 = 208 × 248 points.
         #expect(g.screen == CGRect(x: m + b, y: m + b, width: 208, height: 248))
         #expect(g.body == CGRect(x: m, y: m, width: 208 + 2 * b, height: 248 + 2 * b))
         #expect(g.size == CGSize(width: 208 + 2 * b + 2 * m, height: 248 + 2 * b + 2 * m))
@@ -70,14 +59,11 @@ import Testing
         #expect(g.buttons.map(\.kind) == [.crown, .sideButton])
         let crown = try #require(g.buttons.first { $0.kind == .crown }).rect
         let side = try #require(g.buttons.first { $0.kind == .sideButton }).rect
-        // Both stand out of the right edge; the crown further, above the side button.
         #expect(crown.minX < g.body.maxX && crown.maxX == g.body.maxX + DeviceFrameGeometry.crownProtrusion)
         #expect(side.minX < g.body.maxX && side.maxX == g.body.maxX + DeviceFrameGeometry.protrusion)
         #expect(crown.maxY < side.minY && crown.width > side.width && side.height > crown.height)
-        // Everything fits the drawing; the screen is at its centre.
         for btn in g.buttons { #expect(CGRect(origin: .zero, size: g.size).contains(btn.rect), "\(btn.kind)") }
         #expect(g.screen.midX == g.size.width / 2 && g.screen.midY == g.size.height / 2)
-        // Hit testing and titles.
         #expect(g.button(at: CGPoint(x: crown.maxX - 1, y: crown.midY)) == .crown)
         #expect(g.button(at: CGPoint(x: side.midX, y: side.midY)) == .sideButton)
         #expect(DeviceFrameGeometry.ButtonKind.crown.title == "Digital Crown" && DeviceFrameGeometry.ButtonKind.sideButton.title == "Side Button")
@@ -106,21 +92,16 @@ import Testing
 
     @Test func compactWindowAndZoomForAWatch() {
         let g = DeviceFrameGeometry(spec: .appleWatchSeries12_46mm)
-        // 256 × 296 points with the frame.
         #expect(g.size == CGSize(width: 256, height: 296))
-        // The default window is the minimum width; the watch fills it with the side margins.
         let s = CompactWindowLayout.defaultScale(device: g.size)
         #expect(abs(s - (CompactWindowLayout.minimumWidth - 2 * CompactWindowLayout.sideMargin) / 256) < 1e-9)
         let c = CompactWindowLayout.contentSize(device: g.size, scale: s)
         #expect(Double(c.width) == CompactWindowLayout.minimumWidth)
         #expect(Double(c.height) == (296 * s + CompactWindowLayout.chromeHeight()).rounded(), "\(c) \(s)")
-        // Resizing keeps the aspect.
         let wide = CompactWindowLayout.constrainedContentSize(device: g.size, proposed: CGSize(width: 512 + 34, height: 10))
         #expect(wide.width == 546 && wide.height == (296 * 2 + CompactWindowLayout.chromeHeight()).rounded())
-        // Physical size: 2 pixels a point at 326 per inch.
         let p = DeviceZoom.physical(panel: DeviceFrameSpec.appleWatchSeries12_46mm.panels[0], displayPointsPerInch: 110)
         #expect(abs(p - 2.0 / 326 * 110) < 1e-9)
-        // Zoom to Fit in a hub canvas 580 × 800 less the control row.
         let fit = DeviceZoom.fit(g.size, in: CGSize(width: 580, height: 800 - 57))
         #expect(abs(fit - min((580 - 48) / 256.0, (743 - 48) / 296.0)) < 1e-9)
     }

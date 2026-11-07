@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Swift Formatter Extension View
 struct SwiftFormatterExtensionView: View {
     @State private var formatOnSave = true
     @State private var indentWidth = 4

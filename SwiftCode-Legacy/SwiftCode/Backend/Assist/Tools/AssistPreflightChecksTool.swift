@@ -18,24 +18,18 @@ public struct AssistPreflightChecksTool: AssistTool {
         let fm = FileManager.default
         let root = context.workspaceRoot
         var checks: [(String, Bool, String)] = []
-        // 1. Workspace exists and is writable.
         let writable = fm.isWritableFile(atPath: root.path)
         checks.append(("Workspace writable", writable, root.path))
-        // 2. xcodebuild present.
         let xcodebuild = fm.isExecutableFile(atPath: "/usr/bin/xcodebuild")
         checks.append(("xcodebuild available", xcodebuild, "/usr/bin/xcodebuild"))
-        // 3. swift present.
         let swift = fm.isExecutableFile(atPath: "/usr/bin/swift")
         checks.append(("swift available", swift, "/usr/bin/swift"))
-        // 4. codesign present.
         let codesign = fm.isExecutableFile(atPath: "/usr/bin/codesign")
         checks.append(("codesign available", codesign, "/usr/bin/codesign"))
-        // 5. DerivedData parent reachable.
         let dd = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Developer/Xcode/DerivedData")
         var ddIsDir: ObjCBool = false
         let ddOk = fm.fileExists(atPath: dd.path, isDirectory: &ddIsDir)
         checks.append(("DerivedData reachable", ddOk, dd.path))
-        // 6. Free disk space on the workspace volume.
         var diskGB = -1.0
         var diskOk = false
         if let attrs = try? fm.attributesOfFileSystem(forPath: root.path),
@@ -44,7 +38,6 @@ public struct AssistPreflightChecksTool: AssistTool {
             diskOk = diskGB >= 5.0
         }
         checks.append(("Free disk ≥ 5 GB", diskOk, diskGB < 0 ? "unknown" : String(format: "%.1f GB free", diskGB)))
-        // 7. .assist_temp artifact storage: writable if it exists, or creatable.
         let temp = root.appendingPathComponent(".assist_temp")
         var tempIsDir: ObjCBool = false
         let tempExists = fm.fileExists(atPath: temp.path, isDirectory: &tempIsDir)

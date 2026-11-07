@@ -2,7 +2,6 @@ import Foundation
 import UserNotifications
 import AppKit
 
-/// Tool for posting genuine macOS system notifications and alerts for long-running Assist tasks or build completions.
 public struct AssistSystemNotificationTool: AssistTool {
     public let id = "system_notification_tool"
     public let name = "Post macOS System Notification"
@@ -19,10 +18,9 @@ public struct AssistSystemNotificationTool: AssistTool {
         let message = (arguments["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             ?? (arguments["body"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             ?? "Task completed."
-        let soundName = arguments["sound"] as? String ?? "default" // "default", "none", or sound file name
+        let soundName = arguments["sound"] as? String ?? "default"
         let isCritical = arguments["critical"] as? Bool ?? false
 
-        // Check if UserNotifications authorization is available, otherwise deliver via osascript AppleScript fallback
         let center = UNUserNotificationCenter.current()
         var deliveredViaUN = false
         var authStatusDescription = "unknown"
@@ -54,7 +52,6 @@ public struct AssistSystemNotificationTool: AssistTool {
         case .denied:
             authStatusDescription = "denied"
         case .notDetermined:
-            // Request authorization
             do {
                 let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
                 if granted {
@@ -81,13 +78,12 @@ public struct AssistSystemNotificationTool: AssistTool {
             authStatusDescription = "unknown_status"
         }
 
-        // If UNNotificationCenter was not delivered (e.g. ad-hoc signed or denied in CLI environment), trigger AppleScript notification fallback
         var scriptDelivered = false
         if !deliveredViaUN {
             let escapedTitle = title.replacingOccurrences(of: "\"", with: "\\\"")
             let escapedSubtitle = subtitle.replacingOccurrences(of: "\"", with: "\\\"")
             let escapedBody = message.replacingOccurrences(of: "\"", with: "\\\"")
-            
+
             var scriptText = "display notification \"\(escapedBody)\" with title \"\(escapedTitle)\""
             if !escapedSubtitle.isEmpty {
                 scriptText += " subtitle \"\(escapedSubtitle)\""
@@ -95,7 +91,7 @@ public struct AssistSystemNotificationTool: AssistTool {
             if soundName.lowercased() != "none" {
                 scriptText += " sound name \"Submarine\""
             }
-            
+
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
             process.arguments = ["-e", scriptText]

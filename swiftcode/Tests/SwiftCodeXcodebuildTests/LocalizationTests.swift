@@ -33,7 +33,6 @@ import Testing
         #expect(fr.map(\.id) == ["Hello", "Unused"])
         #expect(fr[0].target == "Bonjour" && fr[0].state == "needs-review-l10n" && fr[0].note == "Greeting")
         #expect(fr[1].source == "Unused value" && fr[1].target == nil && fr[1].note == nil)
-        // The source language: keys without a value are new, with the key as text.
         let en = Localization.units(catalog: catalog, language: "en")
         #expect(en[0].target == "Hello" && en[0].state == "new")
         #expect(en[1].target == "Unused value" && en[1].state == "translated")
@@ -56,8 +55,6 @@ import Testing
         #expect(Localization.escape("a<b>&\"", attribute: true) == "a&lt;b&gt;&amp;&quot;")
     }
 
-    /// Export to `fr.xcloc`, translate, import (no helper: string extraction
-    /// and the generated Info.plist catalog are skipped).
     @Test func exportAndImport() throws {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-loc-\(UUID().uuidString)")
@@ -76,7 +73,6 @@ import Testing
         #expect(xliff.contains("<target>Au revoir</target>") && xliff.contains("<target state=\"needs-review-l10n\">Bonjour</target>"))
         #expect(fm.fileExists(atPath: dir.path + "/out/fr.xcloc/Source Contents/Loc/Localizable.xcstrings"))
         #expect(fm.fileExists(atPath: dir.path + "/out/fr.xcloc/contents.json"))
-        // A translator's edits come back into the catalog and the .strings file.
         xliff = xliff.replacingOccurrences(of: "<target>Au revoir</target>", with: "<target>Salut</target>")
             .replacingOccurrences(of: "<target state=\"needs-review-l10n\">Bonjour</target>", with: "<target state=\"translated\">Bonjour !</target>")
         try xliff.write(to: xliffPath, atomically: true, encoding: .utf8)
@@ -90,7 +86,6 @@ import Testing
     }
 }
 
-/// An application with a String Catalog and a localized .strings file.
 let locProjectText = """
 // !$*UTF8*$!
 {

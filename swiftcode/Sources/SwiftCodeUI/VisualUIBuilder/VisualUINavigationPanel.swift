@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUINavigationPanel.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Navigation flow editor displaying active transitions, destinations, and sheet triggers
 public struct VisualUINavigationPanel: View {
     let document: VisualUIDocument
     let node: VisualComponentNode

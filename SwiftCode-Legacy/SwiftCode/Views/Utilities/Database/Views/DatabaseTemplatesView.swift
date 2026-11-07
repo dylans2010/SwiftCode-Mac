@@ -7,10 +7,8 @@ struct DatabaseTemplatesView: View {
     @State private var alertMessage = ""
     @State private var showingAlert = false
 
-    // Panel tab selection
-    @State private var selectedTab = 0 // 0 = Layout Templates, 1 = Seed Data Generator
+    @State private var selectedTab = 0
 
-    // Seed Generator states
     @State private var tablesList: [DatabaseTable] = []
     @State private var selectedSeedTable = ""
     @State private var rowsCountToGenerate = 25
@@ -27,7 +25,6 @@ struct DatabaseTemplatesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Mode Selectors
             Picker("", selection: $selectedTab) {
                 Text("Database Structural Templates").tag(0)
                 Text("Synthetic Seed Data Generator").tag(1)
@@ -39,7 +36,6 @@ struct DatabaseTemplatesView: View {
             Divider()
 
             if selectedTab == 0 {
-                // Templates Grid List
                 VStack(spacing: 0) {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -100,7 +96,6 @@ struct DatabaseTemplatesView: View {
                     }
                 }
             } else {
-                // Seed Data Generator View
                 seedGeneratorPane()
             }
         }
@@ -117,7 +112,6 @@ struct DatabaseTemplatesView: View {
         }
     }
 
-    // MARK: - Seed Data Generator UI Pane
     @ViewBuilder
     private func seedGeneratorPane() -> some View {
         ScrollView {
@@ -196,7 +190,6 @@ struct DatabaseTemplatesView: View {
         }
     }
 
-    // MARK: - Logic Operations
     private func loadTablesList() {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite, let path = conn.sqliteFilePath else { return }
         Task {

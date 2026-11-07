@@ -1,9 +1,3 @@
-// MARK: - Markdown render cache (Wave 19, slice C)
-//
-// Ported from Legacy `SwiftCode/Shared/Markdown/MarkdownRenderCache.swift`
-// (Dylan's own code, ported under MIT). LRU cache backing
-// `MarkdownRenderer.render(markdown:options:)`.
-
 import Foundation
 import SwiftUI
 

@@ -5,8 +5,8 @@ public struct SCDependencyItem: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let name: String
     public let version: String
-    public let type: String // "Swift Package", "Local Package", "Binary Framework", "Git Repository"
-    public var status: String // "Up to date", "Update Available"
+    public let type: String
+    public var status: String
     public let homepage: String
     public let license: String
 
@@ -118,14 +118,11 @@ public final class DependencyManager {
 
         guard let project = ProjectSessionStore.shared.activeProject else { return }
 
-        // Read real Package.swift if exists
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
         if FileManager.default.fileExists(atPath: packageURL.path),
            let contents = try? String(contentsOf: packageURL, encoding: .utf8) {
 
-            // Simple parser for package dependency rules
             if contents.contains(".package") {
-                // Find all packages using simple pattern matching
                 let lines = contents.components(separatedBy: .newlines)
                 for line in lines {
                     if line.contains("url:") {
@@ -147,7 +144,6 @@ public final class DependencyManager {
             }
         }
 
-        // Add standard fallback dependencies if empty
         if dependencies.isEmpty {
             dependencies.append(SCDependencyItem(
                 name: "ZIPFoundation",
@@ -173,9 +169,9 @@ public struct SCDevice: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public let name: String
     public let model: String
-    public let platform: String // "iOS", "macOS", "visionOS"
+    public let platform: String
     public let osVersion: String
-    public var status: String // "Connected", "Offline", "Simulated"
+    public var status: String
 
     public init(id: String, name: String, model: String, platform: String, osVersion: String, status: String) {
         self.id = id
@@ -210,7 +206,7 @@ public final class SCOperationsDeviceManager {
 public struct SCSigningCertificate: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public let name: String
-    public let type: String // "Development", "Distribution"
+    public let type: String
     public let expirationDate: Date
     public var isValid: Bool
 
@@ -235,7 +231,6 @@ public final class SCOperationsSigningManager {
     }
 
     public func refreshCertificates() {
-        // Query keychain or fallback on typical developer configuration
         self.certificates = [
             SCSigningCertificate(
                 id: "CERT-DEV-001",
@@ -287,7 +282,6 @@ public final class VirtualizationIntegration {
     }
 
     public func refreshVMs() {
-        // Query the real VirtualizationStateStore for actual VM instances and map them
         let storeVMs = VirtualizationStateStore.shared.virtualMachines
         self.virtualMachines = storeVMs.map { vm in
             SCVirtualMachine(
@@ -305,7 +299,6 @@ public final class VirtualizationIntegration {
             )
         }
 
-        // Seed default if empty to maintain seamless out-of-the-box system indicators
         if self.virtualMachines.isEmpty {
             self.virtualMachines = [
                 SCVirtualMachine(name: "Default Ubuntu Server Host", os: "Ubuntu", ramMB: 4096, cores: 2, status: "Stopped", uptime: 0, storageGB: 40, ipAddress: "192.168.64.2", snapshotCount: 1, attachedProjectsCount: 1),
@@ -327,7 +320,6 @@ public final class BackupIntegration {
     }
 
     public func refreshBackups() {
-        // Look inside localized project archives or backups folder
         let fm = FileManager.default
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let backupsDir = appSupport.appendingPathComponent("SwiftCode/Backups")
@@ -379,7 +371,6 @@ public final class CloudIntegration {
     }
 
     public func refreshCloudStatus() {
-        // Bridge with AuthManager and CloudManager
         if AuthManager.shared.isAuthenticated {
             self.isConnected = true
             self.cloudUser = AuthManager.shared.currentUser?.email ?? "Developer"

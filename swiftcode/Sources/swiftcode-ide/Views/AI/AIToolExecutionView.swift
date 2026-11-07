@@ -1,9 +1,3 @@
-// AIToolExecutionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/AIToolExecutionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: structured Tools Executed list with per-tool source name/colour; formatted tool arguments per execution
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftUI
 

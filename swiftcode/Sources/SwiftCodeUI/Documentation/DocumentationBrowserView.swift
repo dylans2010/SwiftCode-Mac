@@ -7,36 +7,6 @@ import SQLite3
 import WebKit
 import os
 
-// MARK: - Documentation Browser (Wave 19 slice A)
-//
-// The offline Documentation Browser window content: the 57-topic
-// offline cache (fetched live once from the public DocC endpoints,
-// served offline afterwards) behind Legacy's workspace shape —
-// sidebar navigation, search + filters, web pane or native card,
-// Snippet Library and AI Co-Pilot tabs.
-//
-// Ported from Legacy's `DocumentationBrowserView.swift` (Dylan's
-// own code, MIT) into destination style, with the differences the
-// spec records: no bundled Documentation Assets tree (dropped —
-// Apple resources), no hardcoded `/Users/dylan/…` data-dir fallback,
-// no `python3 -m http.server` "Open in Safari" (opens the live
-// URL instead), no fake AI tab (real `LLMToolCompletionService`),
-// bookmarks/recents/history persisted (Legacy's were session-only
-// @State), and the load error rendered (Legacy set
-// `databaseLoadError` and never displayed it).
-//
-// Spec: `specs/ide/wave19-docs.md` §6.
-//
-// Cleanup C27 (2026-11-06): the seeded "user" history is deleted — the model
-// used to pre-fill favorites with ["VStack", "URLSession", "View", "Task"] on
-// first launch, and the legacy `NativeDocumentationBrowserWorkspaceView` below
-// seeded favorites / searchHistory / recentlyViewed with fixed symbol names,
-// presenting them as the user's own. Both now start empty and persist only
-// what the user actually does, in UserDefaults (favorites under
-// `com.swiftcode.documentation.favorites`, recents under
-// `com.swiftcode.documentation.recents`, search history under
-// `com.swiftcode.documentation.searchHistory`).
-
 public struct DocumentationBrowserView: View {
     @State private var model = DocumentationBrowserModel()
 
@@ -52,39 +22,32 @@ public struct DocumentationBrowserView: View {
     }
 }
 
-// MARK: - Model
-
 @MainActor
 @Observable
 final class DocumentationBrowserModel {
-    // Cache state.
     var symbols: [DocSymbol] = []
     var cachedCount = 0
     var failedCount = 0
     var totalCount = DocumentationCatalogue.topics.count
     var lastFetch: Date?
-    /// Rendered in the detail (Legacy set this and never showed it).
     var loadError: String?
     var isDownloading = false
     var downloadDone = 0
     var downloadCurrent = ""
     var downloadFailures: [String] = []
 
-    // Navigation.
     var selectedPath = ""
     var historyPaths: [String] = [""]
     var historyIndex = 0
     var recents: [String] = []
     var favorites: Set<String> = []
 
-    // Filters (sidebar flat list).
     var searchText = ""
     var selectedCategory = DocumentationBrowserCategory.all
     var selectedFramework = "All"
     var selectedPlatform = "All"
     var favoritesOnly = false
 
-    // Detail.
     var tab = DocumentationBrowserTab.docs
     var detailMode = DocumentationDetailMode.web
 
@@ -97,7 +60,6 @@ final class DocumentationBrowserModel {
 
     init() {
         let defaults = UserDefaults.standard
-        // C27: start empty — never seed favorites the user never added.
         favorites = Set(defaults.stringArray(forKey: DefaultsKey.favorites) ?? [])
         if let savedHistory = defaults.stringArray(forKey: DefaultsKey.history), !savedHistory.isEmpty {
             historyPaths = savedHistory
@@ -116,7 +78,6 @@ final class DocumentationBrowserModel {
         return symbols.first { $0.docPath == selectedPath }
     }
 
-    /// The web pane's path (no leading slash; "" = home).
     var webPath: String {
         selectedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
@@ -127,8 +88,6 @@ final class DocumentationBrowserModel {
     }
 
     var filteredSymbols: [DocSymbol] {
-        // 57 rows: the filter is synchronous (no debounce — Legacy's
-        // 80 ms debounce was for a corpus orders of magnitude larger).
         symbols.filter { symbol in
             if favoritesOnly && !favorites.contains(symbol.name) { return false }
             if selectedCategory != .all && symbol.kind != selectedCategory.kindValue { return false }
@@ -153,8 +112,6 @@ final class DocumentationBrowserModel {
         lastFetch = status.lastFetch
         let loaded = await cache.loadSymbols()
         symbols = loaded
-        // The rendered load error: a cached topic whose page file
-        // is missing or unparseable, or an unreadable index.
         if let indexURL = await cache.indexURL, FileManager.default.fileExists(atPath: indexURL.path),
            await cache.loadIndex() == nil {
             loadError = "The documentation cache index could not be read. Download the topics again to rebuild it."
@@ -166,10 +123,6 @@ final class DocumentationBrowserModel {
         }
     }
 
-    /// Downloads all 57 topics, one at a time, reporting progress.
-    /// Failed topics are recorded with their reason and never
-    /// invented; a second download retries only the failures (the
-    /// cache already holds the rest).
     func downloadAll() {
         guard !isDownloading else { return }
         isDownloading = true
@@ -179,9 +132,6 @@ final class DocumentationBrowserModel {
         Task {
             do {
                 _ = try await DocumentationCache.shared.fetchAll { done, total, topic, result in
-                    // The progress closure runs on the main actor
-                    // (the fetchAll contract), so model state is
-                    // safe to touch directly.
                     self.downloadDone = done
                     self.downloadCurrent = topic.name
                     if !result.cached {
@@ -196,8 +146,6 @@ final class DocumentationBrowserModel {
         }
     }
 
-    /// A navigation (sidebar, hub card, or a link in the web pane).
-    /// Records history (truncating any forward branch) and recents.
     func select(path: String) {
         guard path != selectedPath else { return }
         selectedPath = path
@@ -216,9 +164,6 @@ final class DocumentationBrowserModel {
         }
     }
 
-    /// A navigation that came from the web pane itself (a clicked
-    /// link). Same as `select`, minus the reload loop: the web
-    /// view's coordinator already recorded the URL it loaded.
     func selectFromWeb(path: String) {
         select(path: "/" + path)
     }
@@ -287,8 +232,6 @@ enum DocumentationBrowserCategory: String, CaseIterable {
         }
     }
 }
-
-// MARK: - Sidebar
 
 private struct DocumentationBrowserSidebarView: View {
     @Bindable var model: DocumentationBrowserModel
@@ -446,8 +389,6 @@ private struct DocumentationBrowserSidebarView: View {
     }
 }
 
-// MARK: - Detail
-
 private struct DocumentationBrowserDetailView: View {
     @Bindable var model: DocumentationBrowserModel
 
@@ -553,8 +494,6 @@ private struct DocumentationBrowserDetailView: View {
     }
 }
 
-// MARK: - Hub home
-
 private struct DocumentationBrowserHubView: View {
     @Bindable var model: DocumentationBrowserModel
 
@@ -618,8 +557,6 @@ private struct DocumentationBrowserHubView: View {
         }
     }
 }
-
-// MARK: - Native card
 
 private struct DocumentationSymbolDetailView: View {
     var symbol: DocSymbol
@@ -706,16 +643,12 @@ private struct DocumentationSymbolDetailView: View {
     }
 }
 
-
-// Ported from Legacy `SwiftCode/Features/AdvancedTools/Views/DocumentationBrowserView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: CodeSnippet, DocSymbolsLoader, NativeDocumentationBrowserWorkspaceView, DocCURLSchemeHandler, DocCWebViewController, OfflineDocumentationViewerContainer, OfflineDocumentationWKWebView, DocFlowLayout. Not ported from this file (already declared elsewhere): DataCache.
-
 struct CodeSnippet: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var title: String
     var code: String
-    var language: String // "Swift", "SQL", "Markdown", "AI Prompt"
-    var category: String // "Templates", "Utility", "Algorithm"
+    var language: String
+    var category: String
     var tags: [String]
     var isFavorite: Bool
     var createdAt: Date
@@ -730,13 +663,11 @@ final class DocSymbolsLoader {
     private static var symbolIndex: [String: DocSymbol] = [:]
     private static var resolvedAssetsDirectory: URL? = nil
 
-    /// Resolves the absolute file URL to the offline "Documentation Assets" directory.
     static func getDocumentationAssetsURL() -> URL? {
         if let resolved = resolvedAssetsDirectory, FileManager.default.fileExists(atPath: resolved.path) {
             return resolved
         }
 
-        // 1. Check in Bundle.main resources
         if let bundleDir = Bundle.main.url(forResource: "Documentation Assets", withExtension: nil),
            FileManager.default.fileExists(atPath: bundleDir.path) {
             resolvedAssetsDirectory = bundleDir
@@ -748,7 +679,6 @@ final class DocSymbolsLoader {
             return resURL
         }
 
-        // 2. Check development workspace & standard known paths
         let currentDir = FileManager.default.currentDirectoryPath
         let candidates: [URL] = [
             URL(fileURLWithPath: currentDir).appendingPathComponent("SwiftCode/Resources/Documentation Assets"),
@@ -767,7 +697,6 @@ final class DocSymbolsLoader {
         return nil
     }
 
-    /// Loads and indexes all documentation on device completely offline.
     static func loadSymbols() async throws -> [DocSymbol] {
         if let cached = cachedSymbols, !cached.isEmpty {
             logger.info("Returning \(cached.count) cached on-device doc symbols")
@@ -787,7 +716,6 @@ final class DocSymbolsLoader {
         }
 
         if let assetsURL = getDocumentationAssetsURL() {
-            // Attempt 1: Load from the bundled Documentation.sqlite database in Documentation Assets
             let dbURL = assetsURL.appendingPathComponent("Documentation.sqlite")
             if FileManager.default.fileExists(atPath: dbURL.path) {
                 do {
@@ -799,7 +727,6 @@ final class DocSymbolsLoader {
                 }
             }
 
-            // Attempt 2: Index the documentation topic files in Documentation Assets (fills any gaps)
             let dataDir = assetsURL.appendingPathComponent("data/documentation/developerdocumentation")
             if FileManager.default.fileExists(atPath: dataDir.path) {
                 do {
@@ -812,7 +739,6 @@ final class DocSymbolsLoader {
             }
         }
 
-        // Attempt 3: Load from bundled DocSymbols.json (which contains the indexed symbols)
         if let jsonURL = Bundle.main.url(forResource: "DocSymbols", withExtension: "json") ??
             getDocumentationAssetsURL()?.deletingLastPathComponent().appendingPathComponent("DocSymbols.json") {
             do {
@@ -837,7 +763,6 @@ final class DocSymbolsLoader {
         throw LoaderError.fileNotFound
     }
 
-    /// Reads all documentation symbols from the bundled Documentation.sqlite database.
     private static func loadFromSQLiteDatabase(at dbURL: URL) throws -> [DocSymbol] {
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
@@ -891,7 +816,6 @@ final class DocSymbolsLoader {
         return symbols
     }
 
-    /// Reads and indexes documentation JSON topic files directly into DocSymbol models
     private static func indexFromDocumentationDataDirectory(_ dir: URL, assetsBaseURL: URL) throws -> [DocSymbol] {
         let fileURLs = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
@@ -940,7 +864,6 @@ final class DocSymbolsLoader {
             if seenNames.contains(rawTitle) { continue }
             seenNames.insert(rawTitle)
 
-            // Determine Framework
             var framework = "General"
             if let hierarchy = json["hierarchy"] as? [String: Any],
                let paths = hierarchy["paths"] as? [[String]],
@@ -965,13 +888,11 @@ final class DocSymbolsLoader {
                 else { framework = "Swift" }
             }
 
-            // Extract Abstract
             var abstract = ""
             if let abstractList = json["abstract"] as? [[String: Any]] {
                 abstract = abstractList.compactMap { $0["text"] as? String }.joined(separator: " ")
             }
 
-            // Extract primary sections (declaration & code sample)
             var kind = "class"
             var syntax = ""
             var codeSamples: [String] = []
@@ -1010,7 +931,6 @@ final class DocSymbolsLoader {
                 "import \(framework)\n\n// Demonstrating \(rawTitle)\nlet instance = \"\(rawTitle) ready on device\"\nprint(instance)" :
                 codeSamples.joined(separator: "\n\n")
 
-            // Extract See Also
             var seeAlso: [String] = []
             if let seeAlsoSecs = json["seeAlsoSections"] as? [[String: Any]] {
                 for sec in seeAlsoSecs {
@@ -1070,7 +990,6 @@ final class DocSymbolsLoader {
         return symbolIndex[name.lowercased()]
     }
 
-    /// Resolves local file URL for offline documentation preview of a symbol
     static func localDocumentationURL(for symbol: DocSymbol) -> URL? {
         guard let assetsURL = getDocumentationAssetsURL() else { return nil }
         let directHTML = assetsURL.appendingPathComponent("documentation/developerdocumentation/\(symbol.name.lowercased())/index.html")
@@ -1084,7 +1003,6 @@ final class DocSymbolsLoader {
         return nil
     }
 
-    /// Loads all 5 canonical documentation sections from offline assets with fallback
     static func loadDocumentationSections() -> [DocCSectionData] {
         if let assetsURL = getDocumentationAssetsURL() {
             let jsonURL = assetsURL.appendingPathComponent("index/index.json")
@@ -1327,7 +1245,6 @@ final class DocSymbolsLoader {
 struct NativeDocumentationBrowserWorkspaceView: View {
     private static let logger = Logger(subsystem: "com.swiftcode.assist", category: "DocumentationBrowser")
 
-    // Search and filter states (100% on-device)
     @State private var searchQuery = ""
     @State private var debouncedSearchQuery = ""
     @State private var selectedCategory = "All"
@@ -1335,27 +1252,21 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @State private var selectedPlatform = "All"
     @State private var selectedKind = "All"
 
-    // Core selection — C27: start empty and persist only real user actions
-    // (UserDefaults; same favorites/recents keys the main model uses).
-    // Nothing here is pre-filled with symbol names.
     @State private var selectedSymbol: DocSymbol? = nil
     @State private var favorites: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "com.swiftcode.documentation.favorites") ?? [])
     @State private var searchHistory: [String] = UserDefaults.standard.stringArray(forKey: "com.swiftcode.documentation.searchHistory") ?? []
     @State private var recentlyViewed: [String] = UserDefaults.standard.stringArray(forKey: "com.swiftcode.documentation.recents") ?? []
 
-    // Asynchronous on-device indexing tasks
     @State private var isSearching = false
     @State private var symbols: [DocSymbol] = []
     @State private var isLoadingDatabase = false
     @State private var databaseLoadError: String? = nil
 
-    // Detail Pane Presentation Mode (Native Inspector vs Offline Web Viewer) - default to webViewer
     @State private var detailPresentationMode: DetailViewMode = .webViewer
     @State private var activeWebPath: String = "/documentation/developerdocumentation"
     @State private var activeCustomArchiveURL: URL? = nil
     @StateObject private var webController = DocCWebViewController()
 
-    // Canonical Documentation Sections (Loaded from offline index.json)
     @State private var documentationSections: [DocCSectionData] = DocSymbolsLoader.loadDocumentationSections()
     @State private var expandedFrameworks: Set<String> = ["SwiftUI", "UIKit"]
 
@@ -1365,10 +1276,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         var id: String { rawValue }
     }
 
-    // Workspace Zones
-    @State private var selectedWorkspaceTab = "Apple Docs" // "Apple Docs", "Local Notes", "Snippets", "AI Assistant"
+    @State private var selectedWorkspaceTab = "Apple Docs"
 
-    // Snippet library
     @State private var snippets: [CodeSnippet] = []
     @State private var selectedSnippet: CodeSnippet? = nil
     @State private var snippetSearchQuery = ""
@@ -1379,12 +1288,10 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @State private var snippetEditorTags = ""
     @State private var isEditingSnippet = false
 
-    // Offline AI Assistant Console states
     @State private var aiSelectedPromptPreset = "Explain this API."
     @State private var aiConsoleOutput = ""
     @State private var isAIProcessing = false
 
-    // Layout configuration lists
     let categories = ["All", "Classes", "Structs", "Protocols", "Functions", "Articles"]
     let frameworks = [
         "All", "SwiftUI", "Swift", "Foundation", "AppKit", "UIKit",
@@ -1453,7 +1360,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Workspace top navigation bar
             HStack(spacing: 14) {
                 Picker("Workspace Zone", selection: $selectedWorkspaceTab) {
                     Text("Apple Docs").tag("Apple Docs")
@@ -1465,7 +1371,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 .frame(width: 440)
 
                 if selectedWorkspaceTab == "Apple Docs" {
-                    // WebKit Navigation controls
                     HStack(spacing: 4) {
                         Button {
                             webController.goBack()
@@ -1518,7 +1423,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                         .help("Documentation Home (All Technologies)")
                     }
 
-                    // Presentation mode switcher: labelsHidden prevents vertical text wrapping
                     Picker("", selection: $detailPresentationMode) {
                         ForEach(DetailViewMode.allCases) { mode in
                             Text(mode.rawValue).tag(mode)
@@ -1565,7 +1469,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
                 Spacer()
 
-                // Offline Status Indicator
                 HStack(spacing: 6) {
                     Circle()
                         .fill(Color.green)
@@ -1578,7 +1481,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 .padding(.vertical, 4)
                 .background(Color.green.opacity(0.12), in: Capsule())
 
-                // Standalone pop-out window button
                 Button {
                     DocumentationBrowserWindowManager.shared.showWindow()
                 } label: {
@@ -1652,7 +1554,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             webController.load(url: target)
         }
 
-        // Try to identify a symbol from the URL components
         let components = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
         if let last = components.last, let matched = DocSymbolsLoader.lookupSymbol(last) {
             selectedSymbol = matched
@@ -1670,16 +1571,12 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         }
     }
 
-    // MARK: - Apple Docs Workspace Zone
-
     @ViewBuilder
     private func appleDocsWorkspaceView() -> some View {
         HSplitView {
-            // Unified Apple Developer Documentation Sidebar
             documentationSidebarView()
                 .frame(minWidth: 280, idealWidth: 320, maxWidth: 400)
 
-            // Right Pane: Details / Offline Documentation View
             Group {
                 if detailPresentationMode == .webViewer {
                     OfflineDocumentationViewerContainer(
@@ -1706,7 +1603,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @ViewBuilder
     private func documentationSidebarView() -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Search Input Field
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.subheadline)
@@ -1737,7 +1633,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             Divider()
 
             if !debouncedSearchQuery.isEmpty {
-                // Search Results
                 List(filteredSymbols, selection: $selectedSymbol) { sym in
                     Button {
                         selectSymbolItem(sym)
@@ -1771,7 +1666,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 .listStyle(.sidebar)
             } else {
                 List {
-                    // Overview Section
                     Section {
                         Button {
                             selectedCategory = "All"
@@ -1853,7 +1747,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                             Text("Recently Viewed").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                         }
                     } else {
-                        // RENDER ALL 5 CANONICAL SECTIONS
                         ForEach(documentationSections) { section in
                             Section {
                                 ForEach(section.collections) { collection in
@@ -2010,11 +1903,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         try? task.run()
     }
 
-    // MARK: - Snippet Library Workspace Zone
-
     @ViewBuilder
     private func snippetLibraryWorkspaceView() -> some View {
-        // Left Column: Snippets List
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "magnifyingglass")
@@ -2059,7 +1949,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         }
         .frame(width: 280)
 
-        // Right Column: Details & Snippet Editor
         VStack(spacing: 0) {
             if let snip = selectedSnippet {
                 ScrollView {
@@ -2180,11 +2069,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         }
     }
 
-    // MARK: - Local AI Assistant Workspace Zone (100% Offline)
-
     @ViewBuilder
     private func aiAssistantWorkspaceView() -> some View {
-        // Left Column: AI Actions Options
         VStack(alignment: .leading, spacing: 14) {
             Text("On-Device AI Actions")
                 .font(.headline)
@@ -2230,7 +2116,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         .frame(width: 260)
         .background(Color(NSColor.windowBackgroundColor))
 
-        // Right Column: Local Prompt Execution Console
         VStack(spacing: 0) {
             HStack {
                 TextField("Custom or pre-selected prompt...", text: $aiSelectedPromptPreset)
@@ -2362,8 +2247,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
 """
     }
 
-    // MARK: - Details Panel Helpers
-
     private func symbolDetailsPane(_ sym: DocSymbol) -> some View {
         Group {
             if detailPresentationMode == .webViewer {
@@ -2411,7 +2294,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
     private func nativeSymbolDetailCard(_ sym: DocSymbol) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                // Title Area
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
                         Text(sym.name)
@@ -2433,7 +2315,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
 
                 Divider()
 
-                // Overview Description
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Overview")
                         .font(.title2.bold())
@@ -2443,7 +2324,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                         .foregroundColor(.primary)
                 }
 
-                // Declaration Syntax & Copy Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -2471,14 +2351,12 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Dynamic Relationships Explorer Graph Card
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Symbol Relationships Graph")
                         .font(.title2.bold())
 
                     GroupBox {
                         HStack(spacing: 0) {
-                            // Ancestors / Inherits
                             VStack(alignment: .center, spacing: 8) {
                                 Text("INHERITS FROM")
                                     .font(.system(size: 9, weight: .bold))
@@ -2496,7 +2374,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                             Image(systemName: "chevron.right")
                                 .foregroundStyle(.secondary.opacity(0.4))
 
-                            // Current Class/Struct
                             VStack(alignment: .center, spacing: 8) {
                                 Text("CURRENT SYMBOL")
                                     .font(.system(size: 9, weight: .bold))
@@ -2514,7 +2391,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                             Image(systemName: "chevron.right")
                                 .foregroundStyle(.secondary.opacity(0.4))
 
-                            // Conformances
                             VStack(alignment: .center, spacing: 8) {
                                 Text("CONFORMS TO")
                                     .font(.system(size: 9, weight: .bold))
@@ -2536,7 +2412,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Sample Playground Code block
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("Usage Sample Playground")
@@ -2563,7 +2438,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                         )
                 }
 
-                // Detailed Platform Support Grid
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Detailed Platform Support")
                         .font(.title2.bold())
@@ -2601,7 +2475,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                     }
                 }
 
-                // Related APIs (See Also) Interactive Navigation
                 if !sym.seeAlso.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("See Also & Related APIs")
@@ -2663,7 +2536,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
     private func documentationHubHomeView() -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                // Main visual greeting banner
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Text("DEVELOPER BOOKSHELF")
@@ -2688,7 +2560,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                 }
                 .padding(.bottom, 4)
 
-                // Quick launch banner for official DocC web catalog
                 Button {
                     detailPresentationMode = .webViewer
                 } label: {
@@ -2734,7 +2605,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                 }
                 .buttonStyle(.plain)
 
-                // Grid of Frameworks
                 VStack(alignment: .leading, spacing: 14) {
                     Text("CHOOSE A FRAMEWORK")
                         .font(.system(size: 12, weight: .bold))
@@ -2804,12 +2674,9 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
         .buttonStyle(.plain)
     }
 
-    // MARK: - Search Filtering Logic
-
     private var filteredSymbols: [DocSymbol] {
         var list = symbols
 
-        // Overview Selection Filters
         if selectedCategory == "Favorites" {
             list = list.filter { favorites.contains($0.name) }
         } else if selectedCategory == "Recent" {
@@ -2821,7 +2688,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
             }
         }
 
-        // Search Query Filter
         if !debouncedSearchQuery.isEmpty {
             let q = debouncedSearchQuery.lowercased()
             list = list.filter {
@@ -2832,17 +2698,14 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
             }
         }
 
-        // Framework Filter
         if selectedFramework != "All" {
             list = list.filter { $0.framework == selectedFramework }
         }
 
-        // Platform Filter
         if selectedPlatform != "All" {
             list = list.filter { $0.platforms[selectedPlatform] != nil }
         }
 
-        // Kind Filter
         if selectedKind != "All" {
             list = list.filter { $0.kind.lowercased() == selectedKind.lowercased() }
         }
@@ -2854,8 +2717,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
         if snippetSearchQuery.isEmpty { return snippets }
         return snippets.filter { $0.title.localizedCaseInsensitiveContains(snippetSearchQuery) || $0.code.localizedCaseInsensitiveContains(snippetSearchQuery) }
     }
-
-    // MARK: - Actions Operations
 
     private func triggerAsynchronousSearch(_ query: String) {
         isSearching = true
@@ -2933,8 +2794,6 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
             }
         }
     }
-
-    // MARK: - Snippet Persistences
 
     private func loadSnippets() {
         if let data = UserDefaults.standard.data(forKey: CodeSnippet.storageKey),
@@ -3051,7 +2910,6 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
         var fileURL: URL? = nil
         var isDir: ObjCBool = false
 
-        // 1. Check custom archive directory if provided
         if let custom = customArchiveDirectory {
             let candidate = custom.appendingPathComponent(relativePath)
             if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir) {
@@ -3064,7 +2922,6 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
             }
         }
 
-        // 2. Check assets directory
         if fileURL == nil {
             let candidate = assetsDirectory.appendingPathComponent(relativePath)
             if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir) {
@@ -3077,7 +2934,6 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
             }
         }
 
-        // 3. Check inside DeveloperDocumentation.doccarchive subfolder
         if fileURL == nil {
             let archiveCandidate = assetsDirectory.appendingPathComponent("DeveloperDocumentation.doccarchive").appendingPathComponent(relativePath)
             if FileManager.default.fileExists(atPath: archiveCandidate.path, isDirectory: &isDir) {
@@ -3089,7 +2945,6 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
             }
         }
 
-        // 4. Fallback to index.html for SPA documentation routes
         if fileURL == nil, url.path.hasPrefix("/documentation") || url.path.hasPrefix("/tutorials") || url.path.isEmpty || url.path == "/" {
             let spaCandidate = customArchiveDirectory?.appendingPathComponent("index.html") ?? assetsDirectory.appendingPathComponent("index.html")
             if FileManager.default.fileExists(atPath: spaCandidate.path) {

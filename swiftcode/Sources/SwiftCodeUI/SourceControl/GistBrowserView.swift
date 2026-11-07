@@ -3,26 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeGitHub
 import SwiftCodeIDECore
 
-/// The gist browser: the authenticated user's gists and starred
-/// gists, one gist's files with editing, comments, revisions, and a
-/// line diff between a revision and the current file.
-///
-/// This is the port of Legacy's whole Gists surface
-/// (`SwiftCode/Views/Gists/GistsView.swift`, `GistDetailView.swift`,
-/// `CreateGistView.swift`, `GistDiffView.swift`,
-/// `GistRevisionsView.swift`, `Components/GistRowView.swift`,
-/// `GistCommentSectionView.swift`, `GistFileEditorView.swift`,
-/// `GistFileTabBar.swift`, `MarkdownToolbar.swift`): the same flows,
-/// rebuilt in SwiftCode style (default accent, no Legacy orange) on the
-/// new `GitHubGistClient`. There was no gist surface in SwiftCode at
-/// all — no client, no UI.
-///
-/// The token comes from the secret store (`SecretAccount.githubToken`,
-/// set in Settings > Accounts). Without one the browser shows an
-/// honest "sign in" state instead of fake gists. Hosting and menu
-/// wiring are on the integration list: this view is presented with
-/// `NSHostingController`, as `SettingsPanes.swift` already does for
-/// `PaywallView`.
 @MainActor
 struct GistBrowserView: View {
     @State private var model = GistBrowserModel()
@@ -83,9 +63,6 @@ enum GistScope: Hashable {
     case mine, starred
 }
 
-/// The gist browser's state. Each load reads the token fresh from
-/// the secret store, so signing in (or out) in Settings > Accounts
-/// takes effect on the next refresh without relaunching.
 @Observable
 @MainActor
 final class GistBrowserModel {
@@ -124,9 +101,6 @@ final class GistBrowserModel {
                 gists = try await client().listStarredGists()
             }
             starredIDs = Set(await withTaskGroup(of: String?.self) { group in
-                // The client is hoisted out: the group tasks are
-                // nonisolated, so they cannot capture the
-                // MainActor-isolated model.
                 let gistClient = self.client()
                 for gist in gists {
                     group.addTask {
@@ -416,10 +390,6 @@ private struct GistCreateView: View {
     }
 }
 
-/// The diff between one revision and the current file contents,
-/// computed with SwiftCode's Myers diff (`MyersDiff`): added lines in
-/// green, removed lines in red, unchanged lines plain. The revision
-/// is fetched live (`GET /gists/{id}/{sha}`); nothing is fabricated.
 private struct GistDiffView: View {
     var gist: GitHubGist
     var revision: GitHubGistRevision

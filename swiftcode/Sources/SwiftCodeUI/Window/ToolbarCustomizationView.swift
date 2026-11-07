@@ -1,25 +1,6 @@
-// Ported from Legacy `SwiftCode/Views/Toolbar/ToolbarCustomizationView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
-// Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
-// BLOCKED references (left intact):
-// - ToolbarManager / ToolbarTool (Legacy `SwiftCode/Models/ToolbarItem.swift`):
-//   RESOLVED — landed by A4 in SwiftCodeUI/Window/ToolbarItem.swift.
-// - ToolbarSettings (Legacy settings type): RESOLVED by fix W-V2 — landed in
-//   SwiftCodeUI/Editor/ToolbarSettings.swift.
-// - SwiftCodeToolbarDelegate.presentCustomizationPalette() (the audit notes the
-//   CommandTable menu item exists with no handler anywhere).
-// - ExtensionsView (Legacy `Views/ExtensionsView.swift`, PARTIAL, another scope).
-// Wiring: the "Customize Toolbar..." command (CommandTable) should present this
-// view; it is the UI half of the toolbar-customization feature whose model half
-// (ToolbarItem.swift) has no owner yet.
-
 import SwiftUI
 
 struct ToolbarCustomizationView: View {
-    // V2 fix W-V2: ToolbarManager / ToolbarSettings are @Observable, not
-    // ObservableObject — @StateObject / @EnvironmentObject do not exist for
-    // them. @State owns the shared manager; @Environment reads the settings
-    // the host injects (`.environment(ToolbarSettings...)` at the parent).
     @State private var toolbarManager = ToolbarManager.shared
     @Environment(ToolbarSettings.self) private var toolbarSettings: ToolbarSettings
     @Environment(\.dismiss) private var dismiss
@@ -28,7 +9,6 @@ struct ToolbarCustomizationView: View {
     var body: some View {
         NavigationStack {
             List {
-                // Native macOS NSToolbar Palette Quick Trigger
                 Section {
                     Button {
                         dismiss()
@@ -59,7 +39,6 @@ struct ToolbarCustomizationView: View {
                     Text("Native Customizer")
                 }
 
-                // Extensions quick access
                 Section {
                     Button {
                         showExtensions = true
@@ -86,7 +65,6 @@ struct ToolbarCustomizationView: View {
                 } header: {
                     Text("Extensions")
                 }
-
 
                 Section("Display") {
                     Toggle("Show Tool Name", isOn: $toolbarSettings.showToolNames)

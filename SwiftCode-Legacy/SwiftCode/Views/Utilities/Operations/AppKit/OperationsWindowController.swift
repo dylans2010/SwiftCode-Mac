@@ -23,7 +23,6 @@ public final class OperationsWindowManager: NSObject, NSWindowDelegate {
         windowController = nil
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         windowController = nil
     }
@@ -134,7 +133,6 @@ extension OperationsWindowController {
     }
 }
 
-// MARK: - Native Split View Controller
 @MainActor
 public class OperationsSplitViewController: NSSplitViewController {
     private var sidebarItem: NSSplitViewItem?
@@ -151,7 +149,6 @@ public class OperationsSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // Sidebar Panel
         let sidebarVC = NSHostingController(rootView: OperationsSidebarView())
         sidebarVC.sizingOptions = []
         sidebarVC.view.autoresizingMask = [.width, .height]
@@ -162,7 +159,6 @@ public class OperationsSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // Main Workspace Panel
         let mainVC = NSHostingController(rootView: OperationsWorkspaceView())
         mainVC.sizingOptions = []
         mainVC.view.autoresizingMask = [.width, .height]
@@ -172,7 +168,6 @@ public class OperationsSplitViewController: NSSplitViewController {
         self.mainItem = mainItem
         addSplitViewItem(mainItem)
 
-        // Inspector Panel (starts collapsed)
         let inspectorVC = NSHostingController(rootView: SCInspectorView())
         inspectorVC.sizingOptions = []
         inspectorVC.view.autoresizingMask = [.width, .height]

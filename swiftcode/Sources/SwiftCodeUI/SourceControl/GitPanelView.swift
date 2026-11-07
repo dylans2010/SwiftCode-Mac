@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/Legacy/GitPanelView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 import SwiftUI
 
 @MainActor
@@ -9,7 +7,6 @@ struct GitPanelView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Git Workspace Navigation", systemImage: "arrow.triangle.branch")
                     .font(.headline)
@@ -27,10 +24,8 @@ struct GitPanelView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Selected Tab view card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {

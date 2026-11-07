@@ -6,34 +6,15 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Menus (round R8): `Menu` and the pop-up menu window that `Menu` and menu
-// `Picker`s open. The pop-up is a window of its own, created through
-// OVPlatform as a pop-up menu of the presenting window (SDL3 pop-up windows on
-// X11 and Wayland; the headless back end keeps it in memory); when the window
-// system refuses one, the content is shown as an overlay inside the window
-// (AppHost.swift). Inside a pop-up, buttons and toggles are menu items, a
-// nested `Menu` opens a submenu at its row's trailing edge, and choosing an
-// item closes the whole chain. Escape closes the pop-up, the arrow keys move
-// between items, Space and Return choose; a press outside closes it.
-//
-// Look (SwiftCode, 09 §4.2): a rectangle in the menu background colour with a
-// hairline outline, 5 points above and below the rows; rows 26 points high
-// with an 18-point slot for check marks.
-
-// MARK: - Dismissal
-
 private enum PopupDismissKey: EnvironmentKey { static let defaultValue: (@MainActor () -> Void)? = nil }
 
 extension EnvironmentValues {
-    /// Closes the pop-up chain the view is in (menu items call it).
     package var _dismissPopup: (@MainActor () -> Void)? {
         get { self[PopupDismissKey.self] }
         set { self[PopupDismissKey.self] = newValue }
     }
 }
 
-/// A weak reference to the view node a modifier sits on (to read its window
-/// frame when a control opens a pop-up).
 final class NodeRef {
     weak var node: ViewNode?
     @MainActor var windowFrame: CGRect? { node.flatMap { HitTesting.frame(of: $0, mirrorWidth: nil) } }
@@ -45,15 +26,12 @@ struct NodeCaptureModifier: PrimitiveModifier {
     func _updated(old: NodeCaptureModifier, node: ViewNode) { ref.node = node }
 }
 
-/// Holds the pop-up a control opened.
 @MainActor
 final class PopupBox {
     var handle: PopupHandle?
     var isOpen: Bool { handle.map { !$0.isDismissed } ?? false }
 }
 
-/// Opens `content` as a pop-up below (or, for submenus, beside) the view of
-/// `ref`.
 @MainActor
 func openPopup(services: WindowServices?, ref: NodeRef, box: PopupBox, submenu: Bool, minWidth: CGFloat? = nil,
                onDismiss: @escaping () -> Void = {}, content: AnyView) {
@@ -75,7 +53,6 @@ enum MenuMetrics {
     static let horizontalPadding: CGFloat = 10
 }
 
-/// The frame of a pop-up menu around its rows.
 struct MenuChrome<Content: View>: View {
     let content: Content
     @Environment(\.colorScheme) private var scheme
@@ -94,21 +71,16 @@ struct MenuChrome<Content: View>: View {
     }
 }
 
-// MARK: - Menu items
-
-/// The primitive style buttons get inside a pop-up.
 struct MenuItemButtonStyle: PrimitiveButtonStyle {
     func makeBody(configuration: Configuration) -> some View { MenuItemButton(configuration: configuration) }
 }
 
-/// One row of a menu.
 struct MenuRow<Label: View>: View {
     let label: Label
     let checked: Bool
     let trailing: AnyView?
     let isDestructive: Bool
     let action: @MainActor () -> Void
-    /// Choosing the row closes the pop-up (false for submenu rows).
     var closes = true
     @Environment(\._dismissPopup) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -153,7 +125,6 @@ struct MenuRow<Label: View>: View {
 
 struct MenuItemButton: View {
     let configuration: PrimitiveButtonStyleConfiguration
-    /// The item's keyboard shortcut, shown at the trailing end (R11).
     @Environment(\._keyboardShortcut) private var shortcut
     var body: some View {
         let c = configuration
@@ -173,9 +144,6 @@ struct MenuItemToggle: View {
     }
 }
 
-// MARK: - Menu
-
-/// A control that shows a pop-up menu of actions.
 public struct Menu<Label: View, Content: View>: View {
     let label: Label
     let content: Content
@@ -202,9 +170,6 @@ public struct Menu<Label: View, Content: View>: View {
 
     public var body: some View {
         if inCommandHost {
-            // R13: in the window's commands host (never laid out) the items
-            // are built too, so the keyboard shortcuts of a submenu's items
-            // work before the menu has been opened, as in a desktop menu bar.
             control
             content.environment(\._inMenu, true)
         } else {
@@ -234,7 +199,6 @@ public struct Menu<Label: View, Content: View>: View {
     }
 }
 
-/// A style chosen by value (the menu styles map onto button looks).
 enum AnyPrimitiveStyleBox: PrimitiveButtonStyle {
     case bordered, borderless
     func makeBody(configuration: Configuration) -> some View {
@@ -262,9 +226,6 @@ extension Menu where Label == _TitleAndIconLabel {
     }
 }
 
-// MARK: - Menu styles
-
-/// What a menu style draws.
 public struct MenuStyleConfiguration {
     public struct Label: View {
         let content: AnyView
@@ -279,7 +240,6 @@ public struct MenuStyleConfiguration {
 
 @MainActor @preconcurrency
 public protocol MenuStyle {
-    /// SwiftCode's style identifier: 0 borderless (automatic), 1 button.
     var _ovStyleKind: Int { get }
 }
 

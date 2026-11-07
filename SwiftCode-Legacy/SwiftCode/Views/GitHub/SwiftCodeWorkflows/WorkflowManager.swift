@@ -24,7 +24,6 @@ public final class WorkflowManager {
 
     private var storageURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        // INVARIANT: applicationSupportDirectory is always available on macOS
         let appSupport = paths[0]
         let directory = appSupport.appendingPathComponent("SwiftCode/Workflows", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -33,7 +32,6 @@ public final class WorkflowManager {
 
     private var historyStorageURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        // INVARIANT: applicationSupportDirectory is always available on macOS
         let appSupport = paths[0]
         let directory = appSupport.appendingPathComponent("SwiftCode/Workflows", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -87,8 +85,6 @@ public final class WorkflowManager {
         }
     }
 
-    // MARK: - Workflow Management actions
-
     public func createWorkflow(name: String, description: String, icon: String, category: String, steps: [WorkflowStep] = []) {
         let newFlow = DeveloperWorkflow(name: name, description: description, icon: icon, category: category, steps: steps)
         workflows.append(newFlow)
@@ -115,8 +111,6 @@ public final class WorkflowManager {
         }
     }
 
-    // MARK: - Variables Resolver
-
     public func resolveVariables(_ input: String, project: Project, gitViewModel: GitViewModel) -> String {
         var output = input
 
@@ -136,8 +130,6 @@ public final class WorkflowManager {
 
         return output
     }
-
-    // MARK: - Live Execution Engine
 
     public func runWorkflow(_ workflow: DeveloperWorkflow, project: Project, gitViewModel: GitViewModel) async {
         guard !isRunning else { return }
@@ -224,7 +216,6 @@ public final class WorkflowManager {
         currentExecutionLog += "\n=== Pipeline \(overallSuccess ? "Passed" : "Failed") ===\n"
         currentExecutionLog += "Total Duration: \(String(format: "%.1f", elapsed)) seconds"
 
-        // Log to history
         let historyEntry = WorkflowHistoryEntry(
             workflowName: workflow.name,
             duration: elapsed,
@@ -249,10 +240,8 @@ public final class WorkflowManager {
             }
         }
 
-        // Resolve generic smart variables
         cmdToRun = resolveVariables(cmdToRun, project: project, gitViewModel: gitViewModel)
 
-        // Resolve custom accumulated output variables
         for (varName, varVal) in workflowVariables {
             cmdToRun = cmdToRun.replacingOccurrences(of: "$(\(varName))", with: varVal)
             cmdToRun = cmdToRun.replacingOccurrences(of: "{{\(varName)}}", with: varVal)

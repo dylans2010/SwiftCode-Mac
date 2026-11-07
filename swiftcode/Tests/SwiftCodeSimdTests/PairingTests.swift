@@ -3,9 +3,6 @@ import Testing
 import SwiftCodeSimFeatures
 @testable import swiftcode_simd
 
-/// PAIR-HOST (device-pairing.md P-1 … P-4, §8): what the pairing commands
-/// read from device directories, how they find a device, the unpair erase,
-/// and the pairing agent's launchd job.
 @Suite(.serialized) struct PairingDeviceDirectoryTests {
     func makeSet() throws -> String {
         let set = NSTemporaryDirectory() + "pairset-\(UUID().uuidString)"
@@ -36,12 +33,10 @@ import SwiftCodeSimFeatures
         let info = try PairingDeviceDirectory.info(dir: phone, set: set)
         #expect(info.family == .phone && info.directory == "p18" && info.osVersion == "27.0")
         #expect(info.typeName == DeviceType.iPhone18Pro.name)
-        // The UDID a boot recorded wins over the one the path gives.
         #expect(info.udid == DeviceLayout.stableUDID(for: phone))
         let recorded = "12345678-90AB-CDEF-1234-567890ABCDEF"
         try Data((recorded.lowercased() + "\n").utf8).write(to: URL(fileURLWithPath: phone + "/swiftcode-udid"))
         #expect(PairingDeviceDirectory.udid(of: phone) == recorded)
-        // A directory that never booted has no type: refused.
         let fresh = set + "/fresh"
         try FileManager.default.createDirectory(atPath: fresh, withIntermediateDirectories: true)
         #expect(throws: PairingDeviceDirectory.NoDeviceType.self) { try PairingDeviceDirectory.info(dir: fresh, set: set) }
@@ -82,7 +77,6 @@ import SwiftCodeSimFeatures
         try PairingDeviceDirectory.erase(watch)
         #expect(try FileManager.default.contentsOfDirectory(atPath: watch).sorted() == ["swiftcode-device-type", "swiftcode-udid"])
         #expect(DeviceLayout.recordedDeviceType(in: watch) == DeviceType.appleWatchSeries12_46mm.id)
-        // Nothing left beside the device.
         #expect(try FileManager.default.contentsOfDirectory(atPath: set) == ["w12"])
     }
 

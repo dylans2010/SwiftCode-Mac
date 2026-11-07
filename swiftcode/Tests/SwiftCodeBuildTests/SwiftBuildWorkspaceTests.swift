@@ -36,7 +36,6 @@ import SwiftCodeProject
         guard let tool = SwiftBuildEndToEndTests.swbuild else { return }
         let engine = SwiftBuildEngine(swbuild: tool)
 
-        // In-project dependencies: building Tool builds Core and Kit first.
         let dir = ideScratch.appendingPathComponent("swiftbuild-multi")
         let proj = try writeMultiProject(at: dir)
         let req = BuildRequest(container: .project(proj.path), scheme: "Tool", destination: "platform=macOS",
@@ -54,7 +53,6 @@ import SwiftCodeProject
         p.waitUntilExit()
         #expect(String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self) == "core=42\n")
 
-        // A workspace with two projects: the app's scheme builds the app.
         let wsDir = ideScratch.appendingPathComponent("swiftbuild-ws")
         let ws = try writeWorkspace(at: wsDir)
         let wreq = BuildRequest(container: .workspace(ws.path), scheme: "SmokeApp", destination: "platform=macOS",

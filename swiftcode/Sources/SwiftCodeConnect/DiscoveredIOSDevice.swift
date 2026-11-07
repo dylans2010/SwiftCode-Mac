@@ -1,10 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/DiscoveredIOSDevice.swift
-// Adapted for SwiftCode: Discovered iOS device model. Verbatim.
-
 import Foundation
 
-/// Represents a SwiftCode iOS device discovered via Bonjour advertisement or resolved network endpoint.
 public struct DiscoveredIOSDevice: Identifiable, Sendable, Equatable, Hashable {
     public let id: String
     public let name: String

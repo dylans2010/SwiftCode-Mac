@@ -4,7 +4,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 
 extension ProjectEditorController {
-    /// The Identity grid with each row's "+" or "→".
     func identityBody(_ t: String) -> NSView {
         func accessory(_ row: ProjectEditorModel.IdentityRow) -> NSButton {
             let inInfo = model.identityRowInInfo(row, target: t, configuration: configuration)
@@ -56,7 +55,6 @@ extension ProjectEditorController {
         if parts[0] == "reveal" { revealSetting(row.setting) } else { addIdentityKeyToInfo(row) }
     }
 
-    /// "+" of an Identity row.
     public func addIdentityKeyToInfo(_ row: ProjectEditorModel.IdentityRow) {
         guard let t = selectedTarget else { return }
         try? model.addIdentityKeyToInfo(row, target: t, configuration: configuration)
@@ -64,7 +62,6 @@ extension ProjectEditorController {
         showTab()
     }
 
-    /// "→": Build Settings, All, filtered to the setting, its row selected.
     public func revealSetting(_ name: String) {
         filter = .all
         search = name
@@ -74,8 +71,6 @@ extension ProjectEditorController {
             settingsTable.scrollRowToVisible(row)
         }
     }
-
-    // MARK: Supported Destinations and Minimum Deployments
 
     @objc func destinationPlusClicked(_ b: NSButton) {
         guard let t = selectedTarget, let w = view.window, w.isVisible else { return }

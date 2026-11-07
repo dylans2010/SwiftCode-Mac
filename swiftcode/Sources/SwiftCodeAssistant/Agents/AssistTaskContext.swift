@@ -1,22 +1,5 @@
-// Ported from SwiftCode-Legacy SwiftCode/Backend/Assist/AssistTaskContext.swift (Dylan's own code;
-// direct port authorised under MIT). Legacy commit d51a8f0d; destination
-// SwiftCode-Mac main f5de49dd. Landed on main by fix agent W-V2 (baseline bc28f653).
-// Dependency of staged AssistModels.swift (AssistMessage.envelope:
-// AssistTaskEnvelope). Ported verbatim. Depends on destination SkillDescriptor
-// (SwiftCodeAssistant/Skills/SkillDescriptor.swift) and staged AgentFileContext +
-// ReverseInvocation (ReverseModels.swift).
-// See staging-ma/assist-core/_notes/agent-feedback-decisions.md.
-//
-//  AssistTaskContext.swift
-//  SwiftCode
-//
-//  Structured task envelope encapsulating user message, explicit skills, MCP selections,
-//  slash command directives, and file context.
-//
-
 import Foundation
 
-/// Structured execution state submitted from the Assist composer to the execution runtime.
 public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
     public let id: UUID
     public let userMessage: String
@@ -29,8 +12,6 @@ public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
     public var executedResources: [String]?
     public var taskRule: String?
     public var metadata: [String: String]?
-    /// Structured `@Reverse` invocation parsed from the composer text
-    /// (see ReverseCommandParser). Nil for ordinary messages.
     public var reverseInvocation: ReverseInvocation?
 
     public init(

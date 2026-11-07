@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct PercentageCalculatorView: View {
@@ -21,7 +18,7 @@ struct PercentageCalculatorView: View {
                     .fontWeight(.bold)
             }
             .padding()
-            
+
             .textFieldStyle(.roundedBorder)
 
             Button("Calculate") {

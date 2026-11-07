@@ -1,7 +1,3 @@
-/*
- * COVSDL: run-time loading of SDL3 and two helpers that need C (see
- * include/ov_sdl.h). Original code; SDL is used only through its public API.
- */
 #include "ov_sdl.h"
 
 #include <dlfcn.h>
@@ -130,7 +126,6 @@ int ov_sdl_display_fd(const OVSDLAPI *api, SDL_Window *window) {
     if (props == 0) return -1;
     void *x11 = api->GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
     if (x11 != NULL) {
-        /* SDL opened libX11 itself; RTLD_NOLOAD finds that copy without loading another. */
         void *lib = dlopen("libX11.so.6", RTLD_LAZY | RTLD_NOLOAD);
         int (*connection_number)(void *) = lib ? (int (*)(void *))dlsym(lib, "XConnectionNumber") : NULL;
         if (connection_number) return connection_number(x11);
@@ -153,7 +148,6 @@ int ov_sdl_x11_focus(const OVSDLAPI *api, SDL_Window *window) {
     if (xid == 0) return 0;
     void *lib = dlopen("libX11.so.6", RTLD_LAZY | RTLD_NOLOAD);
     if (lib == NULL) return 0;
-    /* Xlib: XSetInputFocus(display, window, RevertToParent = 2, CurrentTime = 0), XFlush. */
     int (*set_focus)(void *, unsigned long, int, unsigned long) =
         (int (*)(void *, unsigned long, int, unsigned long))dlsym(lib, "XSetInputFocus");
     int (*flush)(void *) = (int (*)(void *))dlsym(lib, "XFlush");
@@ -163,13 +157,8 @@ int ov_sdl_x11_focus(const OVSDLAPI *api, SDL_Window *window) {
     return 1;
 }
 
-/* ---- Vulkan surface probe -------------------------------------------------
- * Minimal declarations of the Vulkan 1.0 structures and entry points used
- * below, written from the Vulkan specification (Khronos). Handles are opaque
- * pointers (dispatchable) or the SDL typedef (VkSurfaceKHR).
- */
 typedef struct ov_VkApplicationInfo {
-    int32_t sType; /* VK_STRUCTURE_TYPE_APPLICATION_INFO = 0 */
+    int32_t sType;
     const void *pNext;
     const char *pApplicationName;
     uint32_t applicationVersion;
@@ -179,7 +168,7 @@ typedef struct ov_VkApplicationInfo {
 } ov_VkApplicationInfo;
 
 typedef struct ov_VkInstanceCreateInfo {
-    int32_t sType; /* VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO = 1 */
+    int32_t sType;
     const void *pNext;
     uint32_t flags;
     const ov_VkApplicationInfo *pApplicationInfo;
@@ -231,7 +220,7 @@ int ov_vk_probe_surface(const OVSDLAPI *api, SDL_Window *window, char *report, s
         snprintf(report, report_len, "vkCreateInstance missing");
         return -3;
     }
-    ov_VkApplicationInfo app = { 0, NULL, "OpenViews", 1, "OpenViews", 1, (1u << 22) /* 1.0 */ };
+    ov_VkApplicationInfo app = { 0, NULL, "OpenViews", 1, "OpenViews", 1, (1u << 22)  };
     ov_VkInstanceCreateInfo info = { 1, NULL, 0, &app, 0, NULL, ext_count, exts };
     ov_VkInstance instance = NULL;
     int32_t r = create_instance(&info, NULL, &instance);
@@ -260,7 +249,6 @@ int ov_vk_probe_surface(const OVSDLAPI *api, SDL_Window *window, char *report, s
         if (count > 16) count = 16;
         enumerate(instance, &count, devices);
         for (uint32_t i = 0; i < count; i++) {
-            /* VkPhysicalDeviceProperties: five uint32 fields, then deviceName[256]. */
             unsigned char buf[2048];
             memset(buf, 0, sizeof buf);
             if (props) props(devices[i], buf);

@@ -1,9 +1,3 @@
-// AVSync: a test app for the display stream's sound (display-stream.md §15).
-// A tap turns the screen white and starts a 1 kHz tone at the same moment,
-// both for 200 ms, so a viewer can measure the offset between the picture
-// and the sound it receives. The tone is made here (no resources). UIKit
-// only: it builds on Linux, where the SDK's SwiftUI macros have no plug-in.
-
 import AVFoundation
 import UIKit
 
@@ -17,7 +11,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-/// The scene life cycle (required by the iOS 27 SDK's UIKit).
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
@@ -30,7 +23,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// A 200 ms, 1 kHz sine with 2 ms fades, played through AVAudioEngine.
 final class Beeper {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()

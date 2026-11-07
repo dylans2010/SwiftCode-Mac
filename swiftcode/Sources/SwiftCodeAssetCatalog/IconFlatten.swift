@@ -1,18 +1,6 @@
 import Foundation
 import SwiftCodeIcon
 
-/// The flattened bitmaps of an `.icon` (`icon-compile.md` §5) until the
-/// ICON-RENDER round exists: pre-rendered PNGs from a folder, or SwiftCode's
-/// placeholder render (the background fill with the PNG layers drawn flat;
-/// SVG layers and the Liquid Glass look are not drawn).
-///
-/// Folder naming (SwiftCode's own): `<appearance>[-<platform>][-<pixels>].png`,
-/// appearance `default` (also `light`, `any`), `dark` or `tinted`, platform
-/// `ios`, `macos` or `watchos`. The most specific file wins and is resized
-/// when its size differs. A missing dark image falls back to the default
-/// one, a missing tinted image to a grey version of it. An opaque macOS
-/// image is taken as the square design and gets the macOS shape; one with
-/// transparency is used as the finished icon.
 public struct IconBitmapSource: Sendable {
     public var package: IconPackage?
     public var folder: URL?
@@ -48,9 +36,6 @@ public struct IconBitmapSource: Sendable {
         return nil
     }
 
-    /// The flattened icon for a platform and appearance at `pixels` square:
-    /// iOS and watchOS an opaque full-bleed square, macOS the finished icon
-    /// (rounded rectangle with a shadow, on transparency).
     public func bitmap(_ p: IconPlatform, _ a: IconAppearance, pixels: Int) throws -> Bitmap {
         if folder != nil {
             if let u = file(p, a, pixels) {
@@ -72,10 +57,7 @@ public struct IconBitmapSource: Sendable {
     }
 }
 
-/// SwiftCode's placeholder icon render.
 public enum IconPlaceholder {
-    /// The square design: background, then visible groups and layers bottom
-    /// first (PNG artwork only), at `pixels` square.
     public static func square(_ package: IconPackage, _ p: IconPlatform, _ a: IconAppearance, pixels: Int) -> Bitmap {
         let doc = package.document.resolved(a, p)
         let bg = IconBackground(doc.background, appearance: a)
@@ -144,7 +126,6 @@ public enum IconPlaceholder {
         }
     }
 
-    /// A grey version (luminance), standing in for the tinted look.
     public static func tinted(_ b: Bitmap) -> Bitmap {
         var out = b.rgba
         for i in stride(from: 0, to: out.count, by: 4) {
@@ -157,10 +138,6 @@ public enum IconPlaceholder {
         return Bitmap(width: b.width, height: b.height, rgba: out)
     }
 
-    /// The finished macOS icon: the square design in an 824-pt rounded
-    /// rectangle at (100, 100) of the 1024-pt canvas, with a soft shadow
-    /// below it, on transparency (`icon-compile.md` §5). The corner radius
-    /// (22.5 % of the edge) and the shadow are SwiftCode's approximation.
     public static func macOSShape(_ design: Bitmap, pixels: Int) -> Bitmap {
         let k = Double(pixels) / 1024
         let inner = max(1, Int((824 * k).rounded()))
@@ -186,7 +163,6 @@ public enum IconPlaceholder {
                     let s = (ay * inner + ax) * 4
                     r8 = Double(art.rgba[s]); g8 = Double(art.rgba[s + 1]); b8 = Double(art.rgba[s + 2])
                 }
-                // The shape over its shadow (black), straight alpha out.
                 let a = cover + shadow * (1 - cover)
                 if a > 0 {
                     out[o] = UInt8((r8 * cover / a).rounded())
@@ -199,9 +175,6 @@ public enum IconPlaceholder {
         return Bitmap(width: pixels, height: pixels, rgba: out)
     }
 
-    /// The placeholder for a platform: the design square (watchOS: its
-    /// 1088-pt canvas scaled into the square), with the macOS shape on macOS
-    /// and a grey version for the tinted appearance.
     public static func render(_ package: IconPackage, _ p: IconPlatform, _ a: IconAppearance, pixels: Int) -> Bitmap {
         let design = p == .macOS ? square(package, .macOS, a, pixels: max(1, Int((824 * Double(pixels) / 1024).rounded())))
             : square(package, p, a, pixels: pixels)

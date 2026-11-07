@@ -4,8 +4,7 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Sandboxing and Virtualization Guide
+
     guides_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(guides_dir, exist_ok=True)
     with open(os.path.join(guides_dir, "sandboxing-and-virtualization-architecture.md"), "w") as f:
@@ -19,7 +18,6 @@ def main():
             f.write('{\n  "specId": "CONTAINER-' + sid + '",\n  "status": "ENFORCED",\n  "isolationLevel": "RESTRICTED"\n}\n')
             f.write("```\n\n")
 
-    # 2. TypeScript Schemas & Configurations
     ts_schemas = os.path.join(dest, "languages", "typescript", "schemas")
     os.makedirs(ts_schemas, exist_ok=True)
     for name in ["extension_tsconfig_schema", "runtime_adapter_protocol_schema", "package_json_schema"]:
@@ -41,7 +39,6 @@ def main():
         with open(os.path.join(ts_schemas, f"{name}.json"), "w") as f:
             json.dump(schema, f, indent=2)
 
-    # 3. Update components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

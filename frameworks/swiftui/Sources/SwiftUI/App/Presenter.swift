@@ -7,32 +7,14 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Frame presentation through round R5's compositors (`OVRender/Compositor.swift`;
-// 09-open-design.md §3.6). Each window is a `RenderSurface`: a window created
-// for Vulkan offers `.vulkan` (the compositor creates its instance and asks
-// the window for the `VkSurfaceKHR`), any other window `.software` (finished
-// CPU frames go to the window's surface). Once per display tick the host
-// lowers the laid-out graph to a display list (`ViewGraph.displayList()`) and
-// calls `Compositor.render`. If no compositor can be made for a software
-// window, frames are rasterised with R5's `SoftwareRasterizer` and presented
-// directly. The application host picks Vulkan windows when a Vulkan
-// compositor works (AppHost.swift, `OV_RENDERER`).
-
-/// Draws a window's current state.
 @MainActor
 package protocol FramePresenter: AnyObject {
     func present(_ window: WindowHost)
-    /// The window's pixel size or scale changed.
     func surfaceDidResize()
-    /// The window is about to be destroyed.
     func invalidate()
-    /// The last presented frame, read back.
     func readback() -> PixelBuffer?
 }
 
-/// A platform window as R5's render surface. OVRender's protocols are not
-/// actor-isolated; the host and its compositor use them on the main thread
-/// only (09-open-design.md §3.6), hence the unchecked conformance.
 final class WindowRenderSurface: RenderSurface, OVRender.VulkanSurfaceProvider, SoftwareSurfaceProvider,
     @unchecked Sendable {
     nonisolated(unsafe) let window: any PlatformWindow
@@ -73,13 +55,10 @@ final class WindowRenderSurface: RenderSurface, OVRender.VulkanSurfaceProvider, 
     }
 }
 
-/// Presents frames through R5's compositor, or R5's CPU rasteriser while no
-/// compositor is available.
 @MainActor
 package final class CompositorPresenter: FramePresenter {
     let surface: WindowRenderSurface
     package private(set) var compositor: (any Compositor)?
-    /// Why there is no compositor (the CPU path is used).
     package private(set) var compositorError: String?
     private let rasterizer = SoftwareRasterizer()
     package private(set) var lastFrame: PixelBuffer?
@@ -87,8 +66,6 @@ package final class CompositorPresenter: FramePresenter {
     init(window: any PlatformWindow, preference: CompositorPreference? = nil) {
         surface = WindowRenderSurface(window)
         do {
-            // A Vulkan window takes the Vulkan compositor or nothing (a CPU
-            // compositor cannot present to it); other windows the software one.
             let pref = preference ?? (window.vulkan != nil ? .vulkan : .automatic)
             compositor = try makeCompositor(for: surface, preference: pref)
         } catch {
@@ -96,7 +73,6 @@ package final class CompositorPresenter: FramePresenter {
         }
     }
 
-    /// "vulkan: …", "software" (R5's compositors) or "cpu-rasterizer".
     package var description: String { compositor?.backendDescription ?? "cpu-rasterizer" }
 
     private static func renderColor(_ c: Color.Resolved) -> RenderColor {
@@ -121,7 +97,6 @@ package final class CompositorPresenter: FramePresenter {
                 self.compositor = nil
             }
         }
-        // A Vulkan window has no CPU surface to fall back to.
         guard window.platform.vulkan == nil else { return }
         let image = rasterizer.render(frame, size: surface.pixelSize)
         let buffer = PixelBuffer(width: image.size.width, height: image.size.height, bytes: image.rgba)

@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Snippet Library Extension View
 struct SnippetLibraryExtensionView: View {
     @State private var tabExpansionEnabled = true
     @State private var showSuggestionsInline = true

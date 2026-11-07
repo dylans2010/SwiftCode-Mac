@@ -1,15 +1,5 @@
-// The HealthKit type table of SwiftCode's health tools (specs/simulator/
-// health-simulation.md §3, §8.3 H-9): per sample type its kind, unit
-// dimension, aggregation, duration limits, whether apps may save it, the
-// category values it allows and the metadata it requires. The rows are
-// `specs/frameworks/healthkit/identifiers.md`'s quantity and category tables
-// (generated from them; identifiers and limits are interop facts), the
-// read-only list is health-simulation.md §3.2, the store codes and units are
-// §3.1 and §6.3.
-
 import Foundation
 
-/// The unit family a quantity type accepts (identifiers.md "dimension").
 public enum HealthDimension: String, Sendable, CaseIterable {
     case energy, time, scalar, temperature, massConcentration, pressure, mass, speed, frequency, power, volume, length
     case conductance, soundPressureLevel, effortScore, pharmacology, volumeFlow, energyRatePerMass, vo2Rate
@@ -22,25 +12,17 @@ public enum HealthTypeKind: String, Sendable {
 public struct HealthType: Sendable, Equatable {
     public let identifier: String
     public let kind: HealthTypeKind
-    /// Quantities: the accepted unit family.
     public let dimension: HealthDimension?
     public let cumulative: Bool
     public let maximumDuration: Double?
     public let minimumDuration: Double?
-    /// Whether an app may save it (false: the 26 read-only types, §3.2).
     public let writable: Bool
-    /// Categories: the allowed values (nil: any integer ≥ 0 is not checked).
     public let categoryValues: [Int]?
-    /// Categories: the value names (`HKCategoryValueSleepAnalysisAsleepCore`) → value.
     public let categoryNames: [String: Int]
-    /// Metadata keys a sample must carry (§3.3; the public documentation).
     public let requiredMetadata: [String]
-    /// The store's type code (§6.3), where known.
     public let storeCode: Int?
-    /// The unit the store keeps the quantity in (§3.1), where known.
     public let storeUnit: String?
 
-    /// The identifier without its `HK…TypeIdentifier` prefix (`HeartRate`).
     public var shortName: String {
         for p in ["HKQuantityTypeIdentifier", "HKCategoryTypeIdentifier", "HKDataTypeIdentifier"] where identifier.hasPrefix(p) {
             return String(identifier.dropFirst(p.count))
@@ -50,7 +32,6 @@ public struct HealthType: Sendable, Equatable {
 }
 
 public enum HealthTypes {
-    // (identifier, dimension, cumulative, maximum duration s, minimum duration s)
     static let quantityRows: [(String, HealthDimension, Bool, Double?, Double?)] = [
         ("HKQuantityTypeIdentifierActiveEnergyBurned", .energy, true, 345600, nil),
         ("HKQuantityTypeIdentifierAppleExerciseTime", .time, true, 345600, nil),
@@ -174,7 +155,6 @@ public enum HealthTypes {
         ("HKQuantityTypeIdentifierWaterTemperature", .temperature, false, 345600, nil),
         ("HKQuantityTypeIdentifierWorkoutEffortScore", .effortScore, false, 345600, nil),
     ]
-    // (identifier, string value, maximum duration s)
     static let categoryRows: [(String, String, Double?)] = [
         ("HKCategoryTypeIdentifierAbdominalCramps", "HKCategoryTypeIdentifierAbdominalCramps", 1209600),
         ("HKCategoryTypeIdentifierAcne", "HKCategoryTypeIdentifierAcne", 1209600),
@@ -250,7 +230,6 @@ public enum HealthTypes {
         ("HKCategoryTypeIdentifierWheezing", "HKCategoryTypeIdentifierWheezing", 345600),
     ]
 
-    /// The 26 types apps may read but not save (health-simulation.md §3.2).
     public static let readOnly: Set<String> = [
         "HKQuantityTypeIdentifierAppleExerciseTime", "HKQuantityTypeIdentifierAppleMoveTime", "HKQuantityTypeIdentifierAppleStandTime",
         "HKQuantityTypeIdentifierAppleSleepingWristTemperature", "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances",
@@ -270,7 +249,6 @@ public enum HealthTypes {
     public static let workout = "HKWorkoutTypeIdentifier"
     public static let workoutRoute = "HKWorkoutRouteTypeIdentifier"
 
-    /// Store type codes seen (health-simulation.md §6.3).
     public static let storeCodes: [String: Int] = [
         "HKQuantityTypeIdentifierHeartRate": 5, "HKQuantityTypeIdentifierStepCount": 7, "HKQuantityTypeIdentifierDistanceWalkingRunning": 8,
         "HKQuantityTypeIdentifierActiveEnergyBurned": 10, "HKQuantityTypeIdentifierOxygenSaturation": 14,
@@ -280,7 +258,6 @@ public enum HealthTypes {
         "HKCategoryTypeIdentifierSleepApneaEvent": 276,
     ]
 
-    /// Store units (health-simulation.md §3.1 "Kind, store unit"; §6.2: heart rate in count/s).
     public static let storeUnits: [String: String] = [
         "HKQuantityTypeIdentifierHeartRate": "count/s", "HKQuantityTypeIdentifierRestingHeartRate": "count/min",
         "HKQuantityTypeIdentifierWalkingHeartRateAverage": "count/min", "HKQuantityTypeIdentifierHeartRateVariabilitySDNN": "ms",
@@ -296,8 +273,6 @@ public enum HealthTypes {
         "HKQuantityTypeIdentifierHeadphoneAudioExposure": "dBASPL", "HKQuantityTypeIdentifierVO2Max": "mL/(kg*min)",
     ]
 
-    // Category value sets (identifiers.md "Enumerations"; which enumeration a
-    // type takes is the public documentation's).
     static let notApplicable = ["HKCategoryValueNotApplicable": 0]
     static let severity = ["HKCategoryValueSeverityUnspecified": 0, "HKCategoryValueSeverityNotPresent": 1, "HKCategoryValueSeverityMild": 2,
                            "HKCategoryValueSeverityModerate": 3, "HKCategoryValueSeveritySevere": 4]
@@ -348,18 +323,15 @@ public enum HealthTypes {
                                    "HKCategoryValueProgesteroneTestResultIndeterminate": 3],
         "BleedingAfterPregnancy": vaginalBleeding, "BleedingDuringPregnancy": vaginalBleeding, "BleedingAfterMenopause": vaginalBleeding,
     ]
-    /// Required metadata (§3.3 and the public documentation).
     static let requiredMetadata: [String: [String]] = [
         "HKQuantityTypeIdentifierInsulinDelivery": ["HKInsulinDeliveryReason"],
         "HKCategoryTypeIdentifierMenstrualFlow": ["HKMenstrualCycleStart"],
         "HKCategoryTypeIdentifierSexualActivity": [],
     ]
 
-    /// Every type by identifier.
     public static let all: [String: HealthType] = {
         var out: [String: HealthType] = [:]
         for (id, dim, cumulative, maxD, minD) in quantityRows {
-            // Audio exposure: "minimum duration … 0.001" (§3.3).
             let minimum = minD == 0 ? 0.001 : minD
             out[id] = HealthType(identifier: id, kind: .quantity, dimension: dim, cumulative: cumulative, maximumDuration: maxD,
                                  minimumDuration: minimum, writable: !readOnly.contains(id), categoryValues: nil, categoryNames: [:],
@@ -383,16 +355,12 @@ public enum HealthTypes {
         return out
     }()
 
-    /// Symptom types (the severity enumeration): the category types of iOS
-    /// 13.6/14.0 that are not in another set.
     static func isSymptom(_ short: String) -> Bool {
         !["AppleStandHour", "SleepAnalysis", "MindfulSession", "ToothbrushingEvent", "HandwashingEvent", "SexualActivity",
           "AppleWalkingSteadinessEvent", "SleepApneaEvent", "HypertensionEvent"].contains(short)
             && !short.hasSuffix("Event") && !short.hasSuffix("Cycles") && !short.hasSuffix("Periods")
     }
 
-    /// A type by its full identifier, its short name (`HeartRate`), or a
-    /// lowercase-hyphenated alias (`heart-rate`, `sleep`, `spo2`).
     public static func type(named name: String) -> HealthType? {
         if let t = all[name] { return t }
         let key = name.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: "_", with: "").lowercased()
@@ -409,9 +377,6 @@ public enum HealthTypes {
         "apnea": "HKCategoryTypeIdentifierSleepApneaEvent",
     ]
 
-    /// A category value given as an integer or a name: the full enumeration
-    /// case name, or its suffix after the type's enumeration prefix
-    /// (`AsleepCore`, `asleepcore`); sleep also takes `core`, `deep`, `rem`, `awake`, `inbed`, `asleep`.
     public static func categoryValue(_ text: String, for type: HealthType) -> Int? {
         let t = text.trimmingCharacters(in: .whitespaces)
         if let n = Int(t) { return n }
@@ -429,8 +394,6 @@ public enum HealthTypes {
         return nil
     }
 
-    /// The writable types an agent asks to share (and read): quantities and
-    /// categories apps may save, and workouts with their routes.
     public static var agentShareTypes: [String] {
         all.values.filter { $0.writable && ($0.kind == .quantity || $0.kind == .category || $0.kind == .workout) }
             .map(\.identifier).sorted() + [workoutRoute]

@@ -2,17 +2,12 @@ import Foundation
 import SwiftCodeProject
 import SwiftCodeSubprocess
 
-/// Resolves a project's Swift package references with git and SwiftPM's
-/// public command line, and writes `Package.resolved`. See
-/// `specs/ide/package-dependencies.md` §Resolution.
 public struct PackageResolver: Sendable {
     public struct ResolveError: Error, CustomStringConvertible {
         public var description: String
         public init(_ d: String) { description = d }
     }
 
-    /// A semantic version `major.minor.patch` (pre-release/build text kept
-    /// for display; pre-releases sort before their release).
     public struct Version: Comparable, Hashable, Sendable, CustomStringConvertible {
         public var major: Int, minor: Int, patch: Int
         public var prerelease: String
@@ -33,7 +28,6 @@ public struct PackageResolver: Sendable {
         }
     }
 
-    /// One entry of `Package.resolved`.
     public struct Pin: Equatable, Sendable {
         public var identity: String
         public var location: String
@@ -52,14 +46,10 @@ public struct PackageResolver: Sendable {
         }
     }
 
-    /// Where checkouts go (`<DerivedData>/<project>/SourcePackages/checkouts`).
     public var checkoutsDirectory: URL
 
     public init(checkoutsDirectory: URL) { self.checkoutsDirectory = checkoutsDirectory }
 
-    // MARK: Versions
-
-    /// Tag names that are versions, from `git ls-remote --tags`.
     public static func availableVersions(url: String) throws -> [(Version, tag: String)] {
         let out = try git(["ls-remote", "--tags", url], in: nil)
         var seen = Set<String>()
@@ -72,8 +62,6 @@ public struct PackageResolver: Sendable {
         }.sorted { $0.0 < $1.0 }
     }
 
-    /// The highest version the rule allows, ignoring pre-releases unless
-    /// the rule names one.
     public static func select(_ r: SwiftPackageRequirement, from versions: [(Version, tag: String)]) -> (Version, tag: String)? {
         func ok(_ v: Version) -> Bool {
             switch r {
@@ -93,16 +81,12 @@ public struct PackageResolver: Sendable {
         return versions.last { ok($0.0) }
     }
 
-    // MARK: Resolution
-
-    /// Package identity: the lowercased last URL/path component without `.git`.
     public static func identity(of location: String) -> String {
         var last = location.split(separator: "/").last.map(String.init) ?? location
         if last.hasSuffix(".git") { last.removeLast(4) }
         return last.lowercased()
     }
 
-    /// Clones (or updates) a remote package and checks out what the rule selects.
     public func resolve(url: String, requirement: SwiftPackageRequirement) throws -> Pin {
         let id = Self.identity(of: url)
         let dir = checkoutsDirectory.appendingPathComponent(id)
@@ -129,10 +113,6 @@ public struct PackageResolver: Sendable {
         return Pin(identity: id, location: url, revision: rev, version: version, branch: branch, checkout: dir)
     }
 
-    /// Brings `<checkouts>/<identity>` to a pinned revision: clones the
-    /// repository when the checkout is missing and fetches when the
-    /// revision is not there yet. Nothing is fetched when HEAD already is
-    /// the revision.
     @discardableResult
     public func checkout(identity: String, location: String, revision: String) throws -> URL {
         let dir = checkoutsDirectory.appendingPathComponent(identity)
@@ -152,13 +132,9 @@ public struct PackageResolver: Sendable {
         return dir
     }
 
-    /// The pins of a `Package.resolved` file (versions 1 to 3); nil when the
-    /// file is missing or unreadable. A pin's `checkout` is
-    /// `<checkouts>/<identity>`.
     public func readResolvedFile(_ url: URL) -> [Pin]? {
         guard let data = FileManager.default.contents(atPath: url.path),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        // Version 1 nests the pins under "object" and names its fields differently.
         let list = obj["pins"] as? [[String: Any]] ?? (obj["object"] as? [String: Any])?["pins"] as? [[String: Any]] ?? []
         return list.compactMap { p in
             guard let location = p["location"] as? String ?? p["repositoryURL"] as? String,
@@ -169,7 +145,6 @@ public struct PackageResolver: Sendable {
         }
     }
 
-    /// The project's remote references as resolution roots.
     public static func roots(of proj: PBXProj) -> [(url: String, requirement: SwiftPackageRequirement)] {
         proj.packageReferences.compactMap { ref in
             guard case .remote(let url, let r) = ref.location else { return nil }
@@ -177,13 +152,10 @@ public struct PackageResolver: Sendable {
         }
     }
 
-    /// Resolves every remote reference of a project and their dependencies.
-    /// Local packages need no pin.
     public func resolve(_ proj: PBXProj) throws -> [Pin] {
         try resolveGraph(Self.roots(of: proj))
     }
 
-    /// Product names a package declares, from `swift package dump-package`.
     public static func products(ofPackageAt dir: URL) throws -> [String] {
         let json = try run("/usr/bin/env", ["swift", "package", "--package-path", dir.path, "dump-package"], in: nil)
         guard let obj = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
@@ -191,7 +163,6 @@ public struct PackageResolver: Sendable {
         return products.compactMap { $0["name"] as? String }
     }
 
-    /// `Package.resolved` (format version 2) for pins, sorted by identity.
     public static func resolvedFile(_ pins: [Pin]) -> Data {
         let list: [[String: Any]] = pins.sorted { $0.identity < $1.identity }.map { p in
             var state: [String: Any] = ["revision": p.revision]
@@ -203,12 +174,10 @@ public struct PackageResolver: Sendable {
         return data + Data("\n".utf8)
     }
 
-    /// `<project>.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
     public static func resolvedFileURL(xcodeprojURL: URL) -> URL {
         xcodeprojURL.appendingPathComponent("project.xcworkspace/xcshareddata/swiftpm/Package.resolved")
     }
 
-    /// Resolves and writes `Package.resolved` next to the project.
     @discardableResult
     public func resolveAndWrite(_ proj: PBXProj, xcodeprojURL: URL) throws -> [Pin] {
         let pins = try resolve(proj)
@@ -219,15 +188,10 @@ public struct PackageResolver: Sendable {
         return pins
     }
 
-    // MARK: Processes
-
     static func git(_ args: [String], in dir: URL?) throws -> String {
         try run("/usr/bin/env", ["git"] + args, in: dir, environment: ["GIT_TERMINAL_PROMPT": "0"])
     }
 
-    /// `swift package dump-package` of the package at `dir` (the manifest
-    /// as JSON; nothing is resolved). SwiftPM's scratch files go to a
-    /// temporary folder, not into the package.
     public static func dumpPackage(at dir: URL, swift: String = "/usr/bin/env") throws -> [String: Any] {
         let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-dump-package-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: scratch) }
@@ -239,8 +203,6 @@ public struct PackageResolver: Sendable {
         return obj
     }
 
-    /// Runs a tool and returns its standard output; throws with its standard
-    /// error when it exits with a nonzero status.
     public static func run(_ exe: String, _ args: [String], in dir: URL?, environment: [String: String] = [:]) throws -> String {
         MainThreadGuard.blockingCall("\(exe) \(args.prefix(2).joined(separator: " "))")
         let p = Process()

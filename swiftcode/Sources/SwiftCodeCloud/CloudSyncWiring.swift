@@ -1,18 +1,10 @@
 import Foundation
 
-/// Static utility to wire existing local persistence systems to the
-/// actor-isolated `CloudSyncEngine`. Ported from Legacy's
-/// `CloudSyncWiring.swift`.
-///
-/// The wiring only *queues* changes; whether they ever leave the
-/// device depends on the sync engine having a provider (see
-/// `CloudSyncEngine`), which Legacy never configured.
 @MainActor
 public final class CloudSyncWiring {
     public static let shared = CloudSyncWiring()
     private init() {}
 
-    /// Registers a change in a local table with the Sync Engine.
     public func recordChanged(tableName: String, recordID: String, payload: [String: String], isDeleted: Bool = false) {
         Task {
             await CloudSyncEngine.shared.queueLocalUpdate(
@@ -25,10 +17,6 @@ public final class CloudSyncWiring {
     }
 }
 
-// MARK: - Local Serialization for AI Chats & Agent History
-
-/// High-fidelity struct representing an AI Chat Message to persist
-/// locally. Ported verbatim from Legacy's `CloudSyncWiring.swift`.
 public struct SerializedChatMessage: Codable, Sendable, Identifiable {
     public let id: UUID
     public let role: String
@@ -43,12 +31,6 @@ public struct SerializedChatMessage: Codable, Sendable, Identifiable {
     }
 }
 
-/// High-fidelity persistent store manager for AI Chat History and
-/// Agent History. Ported verbatim from Legacy's
-/// `CloudSyncWiring.swift`: one JSON file per session under
-/// `Application Support/SwiftCode/Chats/`, and every save also
-/// registers a `chat_history` change with the sync engine (which
-/// queues it; see the note on `CloudSyncWiring`).
 public final class LocalChatHistoryStore: @unchecked Sendable {
     public static let shared = LocalChatHistoryStore()
     private init() {}
@@ -66,7 +48,6 @@ public final class LocalChatHistoryStore: @unchecked Sendable {
             let data = try JSONEncoder().encode(messages)
             try data.write(to: fileURL)
 
-            // Submit record change to sync engine
             let payload: [String: String] = [
                 "session_id": sessionID,
                 "message_count": "\(messages.count)",
@@ -80,8 +61,6 @@ public final class LocalChatHistoryStore: @unchecked Sendable {
                 )
             }
         } catch {
-            // Legacy logged with NSLog and continued; there is no
-            // logger in this target, so a failed save is silent.
         }
     }
 

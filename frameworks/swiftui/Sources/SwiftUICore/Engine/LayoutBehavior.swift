@@ -1,8 +1,5 @@
 import Foundation
 
-/// Drives any `Layout` (built-in stacks and user layouts alike) as a node
-/// behaviour. The layout's cache lives in the node and is created on first
-/// use.
 package struct LayoutBehavior<L: Layout>: NodeBehavior {
     package var layout: L
 

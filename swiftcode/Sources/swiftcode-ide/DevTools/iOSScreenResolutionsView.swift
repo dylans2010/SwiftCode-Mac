@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct DeviceResolution: Identifiable, Hashable {
@@ -55,7 +52,6 @@ public struct iOSScreenResolutionsView: View {
                 .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
             }
             .padding()
-            
 
             Divider()
 
@@ -97,6 +93,6 @@ public struct iOSScreenResolutionsView: View {
             }
             .listStyle(.inset)
         }
-        
+
     }
 }

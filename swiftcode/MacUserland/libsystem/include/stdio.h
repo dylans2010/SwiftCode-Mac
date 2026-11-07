@@ -1,4 +1,3 @@
-/* SwiftCode freestanding <stdio.h>: the stream functions libunwind uses. */
 #ifndef YCL_STDIO_H
 #define YCL_STDIO_H
 #include <stdarg.h>

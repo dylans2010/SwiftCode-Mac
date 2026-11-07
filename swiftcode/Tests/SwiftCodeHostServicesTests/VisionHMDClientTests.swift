@@ -1,7 +1,3 @@
-// The host end of vhmdd (visionos.md §5.5.3, §5.5.4; VisionHMDClient), driven
-// against a fake vhmdd in a second host task: the connection hand-shake, the
-// `cmd` dictionaries in the sim-to-host encoding, replies and events.
-
 import Foundation
 import Testing
 @testable import SwiftCodeDarwinKernel
@@ -19,8 +15,6 @@ import SwiftCodeXPC
         #expect(VisionHMDClient.knownRooms.count == 6)
     }
 
-    /// A fake vhmdd: answers get_pose with its pose, keeps set_pose's, and for
-    /// request_environments / set_active_environment sends the events of §5.5.4.
     final class FakeVHMDD: @unchecked Sendable {
         let task: MachHostTask
         let service: UInt32
@@ -95,22 +89,17 @@ import SwiftCodeXPC
         let client = VisionHMDClient(host: host, find: { try guestTask.give(fake.service, disposition: MachMsgType.makeSend, to: host.ipc) },
                                      log: { line in logLock.withLock { logs.append(line) } })
         defer { client.stop() }
-        // Identity after boot (§5.5.3).
         #expect(try client.getPose() == .identity)
-        // set_pose: the same matrix comes back from get_pose.
         let pose = SpatialPose(position: SpatialVector(0.5, 0.2, -1), rotation: SpatialQuaternion(axis: SpatialVector(0, 1, 0), radians: 0.3))
         try client.setPoseNow(pose)
         let back = try client.getPose()
         #expect((back.position - pose.position).length < 1e-6 && (back.forward - pose.forward).length < 1e-5)
-        // The queued path (latest wins) reaches vhmdd too.
         client.setPose(SpatialPose(position: SpatialVector(0, 0, 2)))
         let deadline = Date().addingTimeInterval(5)
         while client.posesSent < 1 && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
         #expect(try client.getPose().position == SpatialVector(0, 0, 2))
-        // Rooms: the list arrives as an event after the empty reply.
         let rooms = try client.requestEnvironments()
         #expect(rooms.map(\.key) == ["LivingRoomDay", "MuseumDay"])
-        // A live switch waits for synthetic_environment_did_load.
         #expect(try client.setActiveEnvironment("MuseumDay", wait: 5) == "")
         #expect(client.activeRoom == "MuseumDay")
         #expect(fake.lock.withLock { fake.sawSim2Host && fake.commands.contains("set_active_environment") })

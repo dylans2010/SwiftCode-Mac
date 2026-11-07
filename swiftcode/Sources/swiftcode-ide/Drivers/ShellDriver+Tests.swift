@@ -7,11 +7,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_TESTS=<prefix>: a walk through testing (B2-SCM, issue #16) on a
-// Swift package with XCTest and Swift Testing tests: the Test navigator,
-// Product ▸ Test from the menu, the results, the failures in the Issue
-// navigator and the editor, a gutter diamond and a navigator row's run
-// button, and the run's report. Writes <prefix>-tests-<state>.png.
 extension ShellDriver {
     #if os(Linux)
     static func testsWalk(_ app: ShellAppModel, prefix: String) async {
@@ -37,20 +32,16 @@ extension ShellDriver {
         await click("selector 5")
         await t.discovered()
         await shot("navigator")
-        // Product ▸ Test with the pointer.
         await clickText("Product", inPopup: false)
         await clickText("Test", inPopup: true)
         await waitRun()
         await shot("results")
         say("tests log: \(w.buildLog.suffix(4).joined(separator: " | "))")
-        // The failures in the Issue navigator.
         await click("selector 4")
         await shot("issues")
-        // A failing test's line: its diamond and the failure in the editor.
         await click("selector 5")
         await clickNavigatorRow("testGreetAllFails()")
         await shot("gutter")
-        // The diamond of a passing test runs it alone.
         if let test = t.tests.first(where: { $0.name == "testCustomGreeting" }) {
             w.open(test.file, line: test.line)
             await pause(0.6)
@@ -59,14 +50,12 @@ extension ShellDriver {
             await waitRun()
             await shot("diamond-run")
         }
-        // The selected row's run button.
         await clickNavigatorRow("greetsByName()")
         await pause(0.4)
         await shot("row-selected")
         await click("test run greetsByName()")
         await waitRun()
         await shot("row-run")
-        // The report.
         await click("selector 8")
         await pause(0.4)
         await shot("reports")

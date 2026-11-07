@@ -58,18 +58,15 @@ public struct AssistSecurityAuditTool: AssistTool {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.hasPrefix("//") { continue }
 
-                // 1. Plain HTTP URLs (ATS violation)
                 if trimmed.contains("\"http://") && !trimmed.contains("localhost") && !trimmed.contains("127.0.0.1") {
                     findings.append("\(relPath):\(idx + 1) [ATS] Insecure plaintext HTTP URL detected: '\(trimmed)'. Upgrade to HTTPS.")
                 }
 
-                // 2. Hardcoded secret / token patterns
                 let lower = trimmed.lowercased()
                 if (lower.contains("api_key = \"") || lower.contains("apikey = \"") || lower.contains("secret = \"") || lower.contains("password = \"")) && !trimmed.contains("\"\"") {
                     findings.append("\(relPath):\(idx + 1) [Credential] Potential hardcoded credential or secret assignment. Use Keychain or Environment variables.")
                 }
 
-                // 3. Sensitive logging
                 if trimmed.contains("print(\"token") || trimmed.contains("print(\"password") || trimmed.contains("print(\"apiKey") {
                     findings.append("\(relPath):\(idx + 1) [Privacy] Sensitive credential leaked into debug console print statement.")
                 }

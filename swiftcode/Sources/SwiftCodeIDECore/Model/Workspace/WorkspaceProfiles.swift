@@ -1,14 +1,6 @@
 import Foundation
 import Observation
 
-/// A named workspace profile: a build configuration plus environment
-/// variables and preferences (Legacy `WorkspaceProfile` /
-/// `WorkspaceProfilesManager`, Dylan's own code, ported under MIT).
-/// Profiles persist in UserDefaults under `SwiftCode.`-prefixed keys (Legacy
-/// used `com.swiftcode.` keys). A profile is a saved selection, not a
-/// build-system override: switching profiles records usage and exposes the
-/// active profile for the build UI to read; applying a profile's
-/// environment to a build is the caller's job.
 public struct WorkspaceProfile: Identifiable, Codable, Equatable, Hashable, Sendable {
     public let id: UUID
     public var name: String

@@ -3,7 +3,7 @@ import Foundation
 public struct SimulatorCommand: Sendable, Identifiable {
     public let id = UUID()
     public let name: String
-    public let executable: String // e.g. "/usr/bin/xcrun" or "/usr/bin/xcode-select"
+    public let executable: String
     public let arguments: [String]
     public let timeout: TimeInterval
     public let timestamp = Date()
@@ -14,8 +14,6 @@ public struct SimulatorCommand: Sendable, Identifiable {
         self.arguments = arguments
         self.timeout = timeout
     }
-
-    // Phase 4 command mappings:
 
     public static func determineDeveloperDirectory() -> SimulatorCommand {
         SimulatorCommand(name: "Determine Developer Directory", executable: "/usr/bin/xcode-select", arguments: ["-p"], timeout: 10.0)
@@ -49,12 +47,9 @@ public struct SimulatorCommand: Sendable, Identifiable {
         SimulatorCommand(name: "List Everything", executable: "/usr/bin/xcrun", arguments: ["simctl", "list", "--json"], timeout: 30.0)
     }
 
-    // Legacy standard list devices:
     public static func listDevices() -> SimulatorCommand {
         SimulatorCommand(name: "List Devices", executable: "/usr/bin/xcrun", arguments: ["simctl", "list", "-j"], timeout: 20.0)
     }
-
-    // Core device control command mappings:
 
     public static func boot(udid: String) -> SimulatorCommand {
         SimulatorCommand(name: "Boot Device", executable: "/usr/bin/xcrun", arguments: ["simctl", "boot", udid], timeout: 30.0)

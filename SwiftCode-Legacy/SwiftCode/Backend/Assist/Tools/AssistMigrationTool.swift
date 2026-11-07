@@ -58,17 +58,14 @@ public struct AssistMigrationTool: AssistTool {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.hasPrefix("//") { continue }
 
-                // 1. Mutable global / static variable (Strict concurrency violation in Swift 6)
                 if (trimmed.hasPrefix("public static var ") || trimmed.hasPrefix("static var ")) && !trimmed.contains("{") {
                     warnings.append("\(relPath):\(idx + 1) [Swift 6] Mutable static variable 'static var' without actor isolation violates strict concurrency. Protect with actor or mark 'nonisolated(unsafe)'.")
                 }
 
-                // 2. ObservableObject vs @Observable
                 if trimmed.contains(": ObservableObject") {
                     warnings.append("\(relPath):\(idx + 1) [Swift 6 / Observation] Uses legacy 'ObservableObject'. Recommend migrating to Swift modern '@Observable'.")
                 }
 
-                // 3. @Published properties
                 if trimmed.contains("@Published ") {
                     warnings.append("\(relPath):\(idx + 1) [Swift 6 / Observation] Legacy '@Published' property wrapper. In Swift Observation framework, properties are observable by default.")
                 }

@@ -1,24 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/AssistMemoryUI.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Assist/AssistMemoryUI.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - memory management UI (Saved to Memory banner, category browser, Manage view)
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - UserMemoryView — other agent (views-native-ui) (`SwiftCode/Views/Settings/UserMemoryView.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
-//
-//  AssistMemoryUI.swift
-//  SwiftCode
-//
-//  Visual card rendered in Assist when memory is automatically or explicitly saved.
-//  Informs the user of what knowledge was stored in UserMemory.md.
-//
-
 import SwiftUI
 import SwiftCodeAssistant
 

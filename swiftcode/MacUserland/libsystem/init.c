@@ -1,11 +1,6 @@
-// init.c - libSystem's initializer, the program globals, exit and abort
-// (specs/macos/libsystem.md §3, §6). Clean-room SwiftCode code; the init
-// interfaces of the host libraries come from
-// specs/simulator/host-library-init.md §1-§2.
 #include "ycl.h"
 #include "yc_dyld_api.h"
 
-// Set by SwiftCode's dyld before any initializer runs (dyld.md §7.2).
 YCL_EXPORT const struct yc_dyld_api *swiftcode_dyld_api;
 
 YCL_EXPORT long __stack_chk_guard = 0x59434C4755415244L;
@@ -21,8 +16,6 @@ static const struct program_vars *vars;
 static int fallback_argc;
 static char **fallback_argv, **fallback_environ;
 static const char *fallback_progname = "";
-// The program name as the public variable <stdlib.h> code may read; it is
-// the storage _NSGetProgname points at once libSystem is initialized.
 YCL_EXPORT const char *__progname = "";
 
 YCL_EXPORT int *_NSGetArgc(void) { return vars ? vars->argc : &fallback_argc; }
@@ -46,8 +39,6 @@ YCL_EXPORT int _NSGetExecutablePath(char *buf, uint32_t *size) {
     memcpy(buf, path, need);
     return 0;
 }
-
-// --- the tables handed to the host libraries (host-library-init.md §2) ---
 
 static void no_cancel(int error) { (void)error; }
 
@@ -93,8 +84,6 @@ __attribute__((constructor)) static void libsystem_initializer(int argc, char **
     ycl_dispatch_init();
     ycl_errno = 0;
 }
-
-// --- exit and abort ---
 
 enum { MAX_HANDLERS = 64 };
 static struct {
@@ -150,7 +139,7 @@ YCL_EXPORT void exit(int status) {
 }
 
 YCL_EXPORT void abort(void) {
-    kill(getpid(), 6 /* SIGABRT */);
+    kill(getpid(), 6 );
     _exit(134);
 }
 

@@ -1,6 +1,5 @@
 import Foundation
 
-/// The assistant's settings (no secrets: those are in a `SecretStore`).
 public struct AssistantSettings: Codable, Sendable, Equatable {
     public enum OpenAIAuth: String, Codable, Sendable, CaseIterable { case chatGPT, apiKey }
 
@@ -8,122 +7,32 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     public var ollamaURL = OllamaProvider.defaultBaseURL
     public var llamaCppURL = ChatCompletionsProvider.defaultBaseURL
     public var openAIURL = OpenAIProvider.defaultBaseURL
-    /// OpenRouter's API root (Wave 9).
     public var openRouterURL = OpenRouterProvider.defaultBaseURL
-    /// The local OpenCode server's address (Wave 9).
     public var openCodeURL = OpenCodeProvider.defaultBaseURL
-    /// The OpenCode agent every session names (Wave 15: Legacy
-    /// `OpenCodeConfiguration.agentName`, default `"swiftcode"`).
-    /// It must be configured server-side with every permission
-    /// denied, so the server returns JSON tool requests for SwiftCode
-    /// to run instead of executing tools itself.
     public var openCodeAgentName = OpenCodeProvider.defaultAgentName
-    /// The free-text custom model ID (Wave 15: Legacy
-    /// `AssistModelManager.customModelID` / `AppSettings.customModel`).
-    /// A bare ID stored here is user-provided by definition; provider
-    /// IDs arrive as `provider/model` or via a discovered record.
     public var customModelID = ""
-    /// SwiftCode Cloud's base URL (Wave 9). Empty by default: no
-    /// endpoint is shipped, and the provider reports unconfigured
-    /// until Dylan enters a real one.
     public var scCloudURL = ""
     public var openAIAuth: OpenAIAuth = .chatGPT
-    /// The chosen model per provider (raw value → model ID; "" = the
-    /// tool's default).
     public var models: [String: String] = [:]
-    /// A path per agent tool that replaces the search (raw value → path).
     public var toolPaths: [String: String] = [:]
-    /// The most tokens a request may use, whatever the model allows.
     public var contextLimit = 32_768
     public var context = ContextOptions()
-    /// The ChatGPT plan notice was shown (the first sign-in disclosure).
     public var shownPlanNotice = false
-    /// The ACP agent's command line ("<executable> <arguments…>").
     public var acpCommand = ""
-    /// Agent mode: agent tools and ACP agents get SwiftCode's MCP server and may
-    /// change files, each change reviewed as a proposal (off: they only
-    /// read and propose, coding-assistant.md §3.4).
     public var agentMode = true
-    /// Output limit and sampling for the model servers (Ollama, llama.cpp,
-    /// OpenAI); unset values are not sent.
     public var generation = GenerationOptions.assistantDefault
-    /// How a request picks its model (Wave 15: Legacy
-    /// `AppSettings.assistModelRoutingStrategy`). `.providerDefault`
-    /// uses the provider + model chosen in Settings;
-    /// `.appModels` considers every eligible model from every
-    /// provider when a turn fails over. Legacy's third strategy,
-    /// `"rotation"` (Gemini key rotation through the Antigravity SDK
-    /// catalog), has no SwiftCode equivalent and decodes to
-    /// `.providerDefault`.
     public var routingStrategy: AssistRoutingStrategy = .providerDefault
-    /// "Automatically Switch Models" (Wave 15: Legacy
-    /// `assistAutomaticallySwitchModels`, default true). When off,
-    /// a turn failure never silently substitutes another model: the
-    /// router returns nil and the caller waits on / retries the
-    /// selected model.
     public var automaticallySwitchModels = true
-    /// "Use Provider Models" (Wave 15: Legacy
-    /// `assistUseProviderModels`, default false). When on, selection
-    /// and failover may never pick a user-provided (custom) model,
-    /// even as a fallback.
     public var useProviderModelsOnly = false
-    /// "Only Use Free Models" (Wave 15: Legacy `onlyUseFreeModels`,
-    /// default false). When on, a model is eligible only when its ID
-    /// contains "free" (see `AssistModelEligibilityPolicy`).
     public var onlyUseFreeModels = false
-    /// "Use SwiftCode's Cloud Model" (Wave 15: Legacy
-    /// `useSwiftCodeCloudModel`, default false). When on, the cloud
-    /// model is eligible under every routing strategy and bypasses
-    /// provider credentials entirely.
     public var useSwiftCodeCloudModel = false
-    /// The Meta reasoning effort for `turn/start` (Wave 16:
-    /// Legacy `AppSettings.metaReasoningEffort`, default
-    /// `"high"`). The `/effort` slash command updates it through
-    /// the host; the provider reads it at `send` time.
     public var metaReasoningEffort = "high"
-    /// Whether typing "/" lists Meta's slash commands (Legacy:
-    /// `AppSettings.useMetaSlashCommands`, UserDefaults
-    /// `assist.useMetaSlashCommands`, default true). Off: "/…"
-    /// text is sent to the model as-is.
     public var useMetaSlashCommands = true
-    /// The longest a Meta turn may run before SwiftCode stops the
-    /// Muse host and fails it (Wave 17:
-    /// `MetaAssistTurnExecutor.defaultTurnTimeout`, 300s).
-    /// Legacy had no turn timeout; the value is the budget, not
-    /// a deadline the host is expected to hit. 0 disables the
-    /// timeout. No Settings UI yet — the coordinator (or a
-    /// later slice) adds the control; the default applies
-    /// until then.
     public var metaTurnTimeoutSeconds: TimeInterval = MetaAssistTurnExecutor.defaultTurnTimeout
-    /// "Gemini Key Rotation" (Wave 16: Legacy
-    /// `AppSettings.alternativeKeysEnabled`, default false). When
-    /// on, a rate-limited Gemini turn rotates to the next stored
-    /// alternative key (`GeminiKeyRotationManager`) instead of
-    /// failing over to the next model. Off by default: rotation
-    /// only happens when Dylan has stored alternative keys and
-    /// switched this on.
     public var alternativeKeysEnabled = false
-    /// "Use Other Models with Meta SDK" (Wave 17: Legacy
-    /// `AppSettings.otherModelsWithMetaSDK`, UserDefaults
-    /// `assist.otherModelsWithMetaSDK`, default false). When on,
-    /// a Meta turn runs through the local other-models proxy
-    /// (`MuseOtherModelsProxyController`) instead of Meta's own
-    /// models: the resolved other model serves the Muse host.
     public var metaUseOtherModels = false
-    /// "Use SwiftCode Cloud Model with Meta SDK" (Wave 17:
-    /// Legacy `AppSettings.swiftCodeCloudWithMetaSDK`,
-    /// UserDefaults `assist.swiftCodeCloudWithMetaSDK`, default
-    /// false). Same proxy path as `metaUseOtherModels`, for the
-    /// cloud model. Either toggle turns other-model mode on.
     public var metaUseCloudModelWithMeta = false
-    /// The explicitly selected other model for the Meta bridge
-    /// (Wave 17: Legacy `AppSettings.metaSelectedOtherModelID`,
-    /// UserDefaults `assist.metaSelectedOtherModelID`, default
-    /// ""). Empty means "resolve one" (`MuseOtherModelsBridge.
-    /// resolveActiveModel`).
     public var metaSelectedOtherModelID = ""
-    /// The provider of the explicitly selected other model
-    /// (Wave 17: Legacy `metaSelectedOtherModelProvider`).
     public var metaSelectedOtherModelProvider = ""
 
     public init() {}
@@ -132,7 +41,6 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     public mutating func setModel(_ m: String?, for p: ProviderKind) { models[p.rawValue] = m }
 
     public init(from decoder: Decoder) throws {
-        // Missing keys keep their defaults (settings saved by older builds).
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AssistantSettings()
         provider = (try? c.decode(ProviderKind.self, forKey: .provider)) ?? d.provider
@@ -169,7 +77,6 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     }
 }
 
-/// Makes providers from settings and finds which back ends can be used.
 public struct AssistantBackends: Sendable {
     public var settings: AssistantSettings
     public var store: SecretStore
@@ -206,13 +113,10 @@ public struct AssistantBackends: Sendable {
         case .openCode:
             return OpenCodeProvider(baseURL: settings.openCodeURL)
         case .hermes:
-            return HermesProvider(locator: locator, secretStore: store)
+            return HermesProvider()
         case .foundationModels:
             return FoundationModelsProvider()
         case .scCloud:
-            // The fingerprint is provisioned (once, then stored) only
-            // when an endpoint is actually configured, so merely
-            // surveying providers never writes to the keychain.
             let fingerprint: String?
             if settings.scCloudURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 fingerprint = nil
@@ -228,24 +132,10 @@ public struct AssistantBackends: Sendable {
             return MetaAssistProvider(locator: locator, reasoningEffort: settings.metaReasoningEffort,
                                       turnTimeoutSeconds: settings.metaTurnTimeoutSeconds)
         case .anthropic:
-            // WIRING (wiring-backend): the direct Messages API client.
-            // No `anthropicURL` setting exists — the client defaults to
-            // `https://api.anthropic.com/v1` and the key comes from the
-            // secret store, as in Legacy.
             return AnthropicProvider(apiKey: store.readString(SecretAccount.anthropicKey))
         }
     }
 
-    /// The provider a stored model identifier belongs to (Wave 15:
-    /// Legacy `AssistProviderConfiguration.AssistProviderSelection`).
-    /// Prefixed IDs win first — `hermes:`, `opencode:`,
-    /// `swiftcode-cloud:` — so a stored OpenCode model can never be
-    /// misreported (and misrouted) as a direct provider model.
-    /// Every other identifier keeps the routing the name-based
-    /// specification already gives it, so existing selections are
-    /// unaffected. The model identifier remains the routing source
-    /// of truth for a running session; the persisted provider
-    /// picker (`settings.provider`) is kept in sync by Settings.
     public func providerKind(forModelID storedID: String) -> ProviderKind {
         if HermesModelID.isHermesModelID(storedID) { return .hermes }
         if OpenCodeModelID.isOpenCodeModelID(storedID) { return .openCode }
@@ -253,13 +143,10 @@ public struct AssistantBackends: Sendable {
         return AssistModelSpecification.specification(for: storedID).provider
     }
 
-    /// The back end for a stored model identifier, through the
-    /// existing `provider(_:)` dispatch — no second dispatcher.
     public func provider(forModelID storedID: String) -> AssistantProvider {
         provider(providerKind(forModelID: storedID))
     }
 
-    /// Every back end's availability, checked concurrently.
     public func survey() async -> [ProviderKind: ProviderAvailability] {
         await withTaskGroup(of: (ProviderKind, ProviderAvailability).self) { group in
             for k in ProviderKind.allCases {
@@ -272,7 +159,6 @@ public struct AssistantBackends: Sendable {
         }
     }
 
-    /// The empty state when nothing can be used.
     public static let noBackendText = """
     The coding assistant needs a model. Use one of these:
     • Ollama: install it from ollama.com, then run `ollama pull qwen2.5-coder` in Terminal.

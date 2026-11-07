@@ -3,19 +3,12 @@ import SwiftCodePlist
 import SwiftCodeProject
 import SwiftCodeSubprocess
 
-/// What a template generates: the project folder's files, the pbxproj
-/// (nil for packages) and the initial file.
 public struct GeneratedProject {
-    /// The folder created under the chosen location ("N", or "N.swiftpm").
     public var folderName: String
-    /// Paths relative to the folder; a path ending in "/" is an empty folder.
     public var files: [(String, String)]
     public var project: PBXProj?
-    /// The project's name (`N.xcodeproj`).
     public var projectName: String
-    /// The file the editor shows first (relative to the folder).
     public var entryFile: String?
-    /// A package made by `swift package init` (written by SwiftPM).
     public var packageInit: (type: String, arguments: [String])?
 
     public init(folderName: String, files: [(String, String)], project: PBXProj?, projectName: String, entryFile: String?) {
@@ -26,12 +19,10 @@ public struct GeneratedProject {
         self.entryFile = entryFile
     }
 
-    /// The file names of the folder, sorted (tests).
     public var paths: [String] { files.map(\.0).sorted() }
 
     public func contents(_ path: String) -> String? { files.first { $0.0 == path }?.1 }
 
-    /// The embedded workspace every project carries (one `self:` FileRef).
     static let selfWorkspace = """
     <?xml version="1.0" encoding="UTF-8"?>
     <Workspace
@@ -43,8 +34,6 @@ public struct GeneratedProject {
 
     """
 
-    /// Writes `<location>/<folderName>/…`; returns what to open. Fails
-    /// without writing anything when the folder exists and is not empty.
     @discardableResult
     public func write(in location: URL) throws -> URL {
         let root = location.appendingPathComponent(folderName, isDirectory: true)
@@ -75,8 +64,6 @@ public struct GeneratedProject {
     }
 }
 
-/// Runs SwiftPM's `swift package init` (the Package… templates' content is
-/// SwiftPM's own, `templates.md` § "Package…").
 enum SwiftPackageInit {
     struct Failure: Error, CustomStringConvertible {
         var description: String
@@ -110,13 +97,7 @@ public enum ProjectGeneratorError: LocalizedError, CustomStringConvertible, Equa
     }
 }
 
-/// Writes projects from (template, options) following `templates.md` §
-/// "Template catalog". Every generated file's text is SwiftCode's own;
-/// setting names and values, product types and plist keys are interop
-/// facts from the spec.
 public enum ProjectGenerator {
-    /// Generates without touching the disk (packages made by SwiftPM are
-    /// written by `GeneratedProject.write`).
     public static func generate(_ d: ProjectTemplateDescriptor, _ form: TemplateOptionsForm, team: String? = nil) throws -> GeneratedProject {
         guard d.isAvailable else { throw ProjectGeneratorError.unavailable(d.title) }
         guard form.isNextEnabled else { throw ProjectGeneratorError.invalid(form.issues) }
@@ -156,25 +137,20 @@ public enum ProjectGenerator {
         }
     }
 
-    /// Generates and writes `<location>/<name>/…`; returns what to open.
     @discardableResult
     public static func create(_ d: ProjectTemplateDescriptor, _ form: TemplateOptionsForm, in location: URL) throws -> URL {
         try generate(d, form).write(in: location)
     }
 }
 
-/// The values a generator reads (`templates.md` § Notation).
 struct GenContext {
     let d: ProjectTemplateDescriptor
     let f: TemplateOptionsForm
     var team: String?
 
-    /// `N`.
     var n: String { f.productName }
-    /// `T`: the C-identifier form of `N`.
     var t: String { n.templateTypeName }
     var module: String { n.templateModuleName }
-    /// `B`.
     var bundleID: String { f.bundleIdentifier }
     var sdk: TemplateSDK { d.sdk }
     var lit: String { n.swiftLiteral }
@@ -195,14 +171,11 @@ struct GenContext {
     func option(_ id: String) -> String { f.value(id) }
     func on(_ id: String) -> Bool { f.bool(id) }
 
-    /// A copyright line (SwiftCode's own wording).
     var copyright: String {
         let year = Calendar(identifier: .gregorian).component(.year, from: Date())
         return "© \(year) \(organizationName.isEmpty ? n : organizationName)"
     }
 }
-
-// MARK: - Common blocks (`templates.md` § "Common target blocks")
 
 extension ProjectGenerator {
     static func json(_ body: String) -> String { "{\n  \(body)\n}\n" }
@@ -216,7 +189,6 @@ extension ProjectGenerator {
 
     static let macIconSizes = ["16x16", "32x32", "128x128", "256x256", "512x512"]
 
-    /// `Assets.xcassets`: an accent color and the platforms' icon sets.
     static func assets(_ folder: String, platforms: [String]) -> [(String, String)] {
         var out = [("\(folder)/Assets.xcassets/Contents.json", json(info)),
                    ("\(folder)/Assets.xcassets/AccentColor.colorset/Contents.json", json(#""colors" : [ { "idiom" : "universal" } ],\#n  "# + info))]
@@ -233,7 +205,6 @@ extension ProjectGenerator {
             out.append(("\(folder)/Assets.xcassets/AppIcon.appiconset/Contents.json",
                         json(#""images" : [ \#(slots.joined(separator: ", ")) ],\#n  "# + info)))
         }
-        // visionOS and tvOS: a solid image stack (front, middle, back layers).
         if platforms.contains("visionOS") || platforms.contains("tvOS") {
             let stack = "\(folder)/Assets.xcassets/AppIcon.solidimagestack"
             let layers = ["Front", "Middle", "Back"]
@@ -248,7 +219,6 @@ extension ProjectGenerator {
         return out
     }
 
-    /// The App target block (any platform).
     static func appBlock(_ c: GenContext, bundleID: String, swiftUI: Bool, icon: Bool = true) -> [(String, PlistValue)] {
         var s: [(String, PlistValue)] = [
             ("PRODUCT_NAME", "$(TARGET_NAME)"), ("PRODUCT_BUNDLE_IDENTIFIER", .string(bundleID)), ("GENERATE_INFOPLIST_FILE", "YES"),
@@ -263,7 +233,6 @@ extension ProjectGenerator {
     static let iPhoneOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
     static let iPadOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
 
-    /// iOS app additions.
     static func iosAdditions(swiftUILifecycle: Bool) -> [(String, PlistValue)] {
         var s: [(String, PlistValue)] = [
             ("TARGETED_DEVICE_FAMILY", "1,2"), ("LD_RUNPATH_SEARCH_PATHS", ["$(inherited)", "@executable_path/Frameworks"]),
@@ -277,7 +246,6 @@ extension ProjectGenerator {
         return s
     }
 
-    /// macOS app additions.
     static func macAdditions(_ c: GenContext, cocoa: Bool, document: Bool = false, suffix: String = "") -> [(String, PlistValue)] {
         var s: [(String, PlistValue)] = [
             ("ENABLE_APP_SANDBOX\(suffix)", "YES"), ("ENABLE_USER_SELECTED_FILES\(suffix)", document ? "readwrite" : "readonly"),
@@ -288,7 +256,6 @@ extension ProjectGenerator {
         return s
     }
 
-    /// The Multiplatform App's platform settings (§ Multiplatform ▸ App).
     static func multiplatformApp(_ c: GenContext) -> [(String, PlistValue)] {
         var s: [(String, PlistValue)] = [("SDKROOT", "auto"), ("SUPPORTED_PLATFORMS", .string(TemplateSDK.multiplatform.supportedPlatforms)),
                                          ("TARGETED_DEVICE_FAMILY", "1,2,7")]
@@ -306,7 +273,6 @@ extension ProjectGenerator {
         return s
     }
 
-    /// The settings a platform's app target gets for `sdk`.
     static func platformApp(_ c: GenContext, sdk: TemplateSDK, swiftUILifecycle: Bool, document: Bool = false) -> [(String, PlistValue)] {
         switch sdk.sdkroot {
         case "iphoneos": return iosAdditions(swiftUILifecycle: swiftUILifecycle)
@@ -325,7 +291,6 @@ extension ProjectGenerator {
         }
     }
 
-    /// Icon-set platforms for a target SDK.
     static func iconPlatforms(_ sdk: TemplateSDK) -> [String] {
         switch sdk.sdkroot {
         case "auto": ["iOS", "macOS"]
@@ -338,7 +303,6 @@ extension ProjectGenerator {
         }
     }
 
-    /// Settings of the tested target that test bundles repeat.
     static func repeatedPlatform(_ settings: [(String, PlistValue)], deployment: Bool) -> [(String, PlistValue)] {
         settings.filter { k, _ in
             ["TARGETED_DEVICE_FAMILY", "SUPPORTED_PLATFORMS", "SDKROOT"].contains(k) || (deployment && k.hasSuffix("_DEPLOYMENT_TARGET"))
@@ -389,8 +353,6 @@ extension ProjectGenerator {
         """
     }
 
-    /// Test components (§ "Test components"): the unit-test target (and,
-    /// with `ui`, the UI-test target) for `host`.
     static func tests(_ c: GenContext, host: String, hostSettings: [(String, PlistValue)], hostIsApp: Bool, ui: Bool, sdk: TemplateSDK? = nil)
         -> (targets: [ProjectRecipe.Target], files: [(String, String)]) {
         guard c.testing != .none else { return ([], []) }
@@ -401,7 +363,6 @@ extension ProjectGenerator {
         let unit = "\(host)Tests"
         var us = common + [("PRODUCT_BUNDLE_IDENTIFIER", .string(org + "Tests"))] + repeatedPlatform(hostSettings, deployment: hostIsApp)
         if hostIsApp {
-            // App-hosted unit tests copy the app's deployment target.
             for row in (sdk ?? c.sdk).platformRow where row.0 != "SDKROOT" && !us.contains(where: { $0.0 == row.0 }) { us.append(row) }
             let macHost = (sdk ?? c.sdk).sdkroot == "macosx"
             us += [("BUNDLE_LOADER", "$(TEST_HOST)"),
@@ -423,8 +384,6 @@ extension ProjectGenerator {
         return (targets, files)
     }
 
-    /// A recipe → generated project. A single-SDK project carries the
-    /// platform row at project level.
     static func recipe(_ c: GenContext, _ targets: [ProjectRecipe.Target], _ files: [(String, String)], entry: String? = nil,
                        projectSDK: TemplateSDK?? = .none, swift: Bool = true) throws -> GeneratedProject {
         var r = ProjectRecipe(name: c.n, targets: targets, files: files)
@@ -441,8 +400,6 @@ extension ProjectGenerator {
         return GeneratedProject(folderName: c.n, files: files, project: try r.makeProject(), projectName: c.n, entryFile: entry)
     }
 
-    /// Storage files (§ Storage) for an app folder; the CloudKit variant
-    /// adds entitlements, Info.plist and settings.
     static func storage(_ c: GenContext, folder: String, sdk: TemplateSDK) -> (files: [(String, String)], settings: [(String, PlistValue)], exceptions: [String]) {
         let kind = c.option(TemplateOptionID.storage)
         let cloud = c.on(TemplateOptionID.hostInCloudKit) && kind != "None"
@@ -516,7 +473,6 @@ extension ProjectGenerator {
         return (files, settings, exceptions)
     }
 
-    /// One app target.
     static func appTarget(_ name: String, settings: [(String, PlistValue)], sdk: TemplateSDK? = nil, exceptions: [String] = [],
                           folders: [String]? = nil, swift: Bool = true) -> ProjectRecipe.Target {
         var t = ProjectRecipe.Target(name: name, productType: "com.apple.product-type.application", productPath: "\(name).app",

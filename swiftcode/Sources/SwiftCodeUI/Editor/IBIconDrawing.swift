@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Draws an `IBIcon` (shapes in a 16 × 16 box, IBLibraryObjects.swift) with
-/// AppKit: the Library's 34-point object icons and the Document Outline's
-/// 16-point ones. The Linux IDE draws the same shapes on a canvas.
 enum IBIconDrawing {
     static func color(_ p: IBIcon.Paint) -> NSColor { NSColor(srgbRed: p.r, green: p.g, blue: p.b, alpha: p.a) }
 
@@ -47,7 +44,6 @@ enum IBIconDrawing {
             color(fill).setFill()
             p.fill()
         case .arc(let center, let radius, let from, let to, let stroke, let width):
-            // Flipped drawing: angles run clockwise on screen as given.
             let p = NSBezierPath()
             p.appendArc(withCenter: center, radius: radius, startAngle: from, endAngle: to, clockwise: false)
             p.lineWidth = width

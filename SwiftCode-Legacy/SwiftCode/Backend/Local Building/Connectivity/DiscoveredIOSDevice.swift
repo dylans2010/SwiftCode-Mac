@@ -1,6 +1,5 @@
 import Foundation
 
-/// Represents a SwiftCode iOS device discovered via Bonjour advertisement or resolved network endpoint.
 public struct DiscoveredIOSDevice: Identifiable, Sendable, Equatable, Hashable {
     public let id: String
     public let name: String

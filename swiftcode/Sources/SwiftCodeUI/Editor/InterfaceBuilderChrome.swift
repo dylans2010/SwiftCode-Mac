@@ -1,10 +1,5 @@
 import AppKit
 
-/// Interface Builder chrome (reference-ui-4.md §11): the jump bar, the
-/// document outline column with its Filter at the bottom, and the canvas
-/// bottom bar (outline toggle, +, issues, appearance, orientation,
-/// layout; device pop-up; zoom − n% +; update frames, align, pin,
-/// resolve, embed in).
 @MainActor
 final class IBCanvasBar: NSView {
     let outlineToggle = IBCanvasBar.button("sidebar.left", "Hide Document Outline")
@@ -32,7 +27,6 @@ final class IBCanvasBar: NSView {
 
     var left: [NSButton] { [outlineToggle, addButton, issues, appearanceToggle, orientationToggle, layoutButton] }
     var right: [NSButton] { [updateFrames, align, pin, resolve, embed] }
-    /// Tooltips in bar order (tests).
     var itemTitles: [String] {
         left.map { $0.toolTip ?? "" } + ["device:" + (devicePopUp.titleOfSelectedItem ?? "")] + ["−", zoomLabel.stringValue, "+"] + right.map { $0.toolTip ?? "" }
     }
@@ -58,7 +52,6 @@ final class IBCanvasBar: NSView {
 }
 
 extension InterfaceBuilderController {
-    /// Device pop-up choices: iOS documents list phones and tablets.
     public var deviceChoices: [String] {
         document.isFlippedRuntime ? ["iPhone 16", "iPhone 16 Pro", "iPhone 16 Pro Max", "iPhone SE (3rd generation)", "iPad (A16)", "iPad Pro 11-inch", "iPad Pro 13-inch"] : ["Mac"]
     }
@@ -126,7 +119,6 @@ extension InterfaceBuilderController {
     @objc func filterChanged(_ f: NSSearchField) { outlineFilter = f.stringValue }
     @objc func magnificationChanged() { bar.zoomLabel.stringValue = zoomText }
 
-    /// The outline toggle in the canvas bar.
     @objc public func toggleOutline(_ sender: Any?) {
         _ = view
         outlineColumn.isHidden.toggle()
@@ -136,7 +128,6 @@ extension InterfaceBuilderController {
 
     @objc func showLibraryFromBar(_ sender: Any?) { NSApp.sendAction(Selector(("showLibrary:")), to: nil, from: sender) }
 
-    /// Appearance toggle: the canvas renders dark or light.
     @objc public func toggleCanvasAppearance(_ sender: Any?) {
         let dark = canvas.appearance?.name == .darkAqua
         canvas.appearance = NSAppearance(named: dark ? .aqua : .darkAqua)
@@ -146,11 +137,8 @@ extension InterfaceBuilderController {
     @objc public func toggleOrientation(_ sender: Any?) { canvas.landscape.toggle() }
     @objc func deviceChosen(_ p: NSPopUpButton) { canvas.deviceName = p.titleOfSelectedItem ?? "" }
     @objc func pinClicked(_ sender: Any?) { _ = showAddConstraints(sender) }
-    /// Update Frames: nothing to move while frames are written as stored.
     @objc func updateFramesClicked(_ sender: Any?) { canvas.needsDisplay = true }
 
-    /// Align, Resolve, Embed In, Layout: menus of their commands; ones
-    /// SwiftCode does not perform are disabled.
     @objc func menuClicked(_ sender: NSButton) {
         let items: [String]
         switch sender {

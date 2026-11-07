@@ -1,8 +1,3 @@
-//
-//  AssistProcessMonitorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistProcessMonitorTool: AssistTool {

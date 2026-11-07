@@ -1,6 +1,5 @@
 import Foundation
 
-/// Central manager that maps toolbar button IDs to their correct destination.
 @MainActor
 final class ToolbarActionManager {
     static let shared = ToolbarActionManager()
@@ -68,7 +67,6 @@ final class ToolbarActionManager {
         case deviceConnect
         case virtualization
 
-        // Sidebar & Inspector additions
         case debugSessions
         case bookmarksSidebar
         case breakpointsSidebar

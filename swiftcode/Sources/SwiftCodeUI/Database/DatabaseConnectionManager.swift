@@ -2,19 +2,6 @@ import Combine
 import Foundation
 import SwiftCodeCloud
 
-/// The saved database connections, keyed by connection.
-///
-/// Ported verbatim from Legacy's
-/// `Views/Utilities/Database/Core/DatabaseConnectionManager.swift`
-/// with one deliberate storage change: Legacy persisted the
-/// connection list in `UserDefaults` under
-/// `com.swiftcode.database.connections`; this port persists it as
-/// JSON in Application Support
-/// (`SwiftCode/Databases/connections.json`), where a credential-
-/// bearing record belongs, and migrates a Legacy `UserDefaults`
-/// record into that file on first load. The default connection —
-/// a local SQLite file at `SwiftCode/Databases/default.db` — is
-/// created exactly as Legacy created it.
 @MainActor
 public final class DatabaseConnectionManager: ObservableObject {
     public static let shared = DatabaseConnectionManager()
@@ -22,15 +9,11 @@ public final class DatabaseConnectionManager: ObservableObject {
     @Published public var connections: [DatabaseConnection] = []
     @Published public var activeConnection: DatabaseConnection?
 
-    /// The directory that holds the default database file and the
-    /// persisted connection list.
     public static var databasesDirectory: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport.appendingPathComponent("SwiftCode/Databases", isDirectory: true)
     }
 
-    /// Legacy `UserDefaults` key, read once to migrate connections
-    /// saved by the Legacy app. Never written by this port.
     private static let legacyUserDefaultsKey = "com.swiftcode.database.connections"
 
     private var connectionsFileURL: URL {
@@ -86,7 +69,6 @@ public final class DatabaseConnectionManager: ObservableObject {
             self.connections = decoded
             return
         }
-        // One-time migration from Legacy's UserDefaults storage.
         if let data = UserDefaults.standard.data(forKey: Self.legacyUserDefaultsKey),
            let decoded = try? JSONDecoder().decode([DatabaseConnection].self, from: data) {
             self.connections = decoded
@@ -102,9 +84,6 @@ public final class DatabaseConnectionManager: ObservableObject {
             let encoded = try JSONEncoder().encode(connections)
             try encoded.write(to: connectionsFileURL, options: .atomic)
         } catch {
-            // Persistence is best-effort: the in-memory list stays
-            // authoritative for this session, and the next launch
-            // re-reads whatever did land on disk.
         }
     }
 }

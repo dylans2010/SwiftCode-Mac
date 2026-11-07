@@ -4,25 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic code-generation & analysis tools
-/// (Wave 8, slice F) against `Samples/AgentSamples/Greeter` (a
-/// copy). Fixture facts used below (verified from the sample):
-/// the workspace has 5 Swift files (`Package.swift`,
-/// `Sources/Greeter/Greeter.swift`, `Sources/greet/main.swift`,
-/// `Previews/GreetingView.swift`,
-/// `Tests/GreeterTests/GreeterTests.swift`) and one `.xcstrings`
-/// file; no README, no LICENSE, no `Package.resolved`, no
-/// hardcoded secrets, no `http://` endpoints.
-/// `Greeter.swift` is 14 lines plus a trailing newline: `struct
-/// Greeter` at line 2, `func greeting` at line 11, no import.
-/// `GreetingView.swift` imports SwiftUI, `struct GreetingView:
-/// View` at line 4. `GreeterTests.swift` is `final class
-/// GreeterTests: XCTestCase` at line 4 with `testGreeting` at
-/// line 5 and `testSalutation` at line 9. Across the 5 Swift
-/// files: 68 lines (44 code, 10 comment, 14 blank), 5 decision
-/// points (all the word `for`: the `greeting(for:)` parameter
-/// label and one doc comment), 6 declarations (struct x2, class
-/// x1, func x3), 0 force unwraps, 0 TODO markers.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticCodeTests {
     static let agenticCodeIDs = ["generate_code", "refactor_code", "explain_code", "review_code", "detect_bugs",
@@ -30,16 +11,9 @@ import SwiftCodeIDECore
                                  "generate_documentation", "generate_comments", "code_analysis", "code_index",
                                  "project_indexing", "project_audit", "security_scan", "license_scan"]
 
-    /// Opens a copy of Greeter and installs the ported Agentic
-    /// code tools on the server (same shape as Wave 3's `opened`;
-    /// the coordinator wires `agenticCodeTools` into
-    /// `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` will wire
-        // `agenticCodeTools`, so a plain `+=` would register them
-        // twice once the coordinator does.
         let ported = Set(host.agenticCodeTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.agenticCodeTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -47,7 +21,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -123,16 +96,10 @@ import SwiftCodeIDECore
             let outputKeys = tool.outputSchema?["properties"]?.object?.keys.sorted() ?? []
             #expect(outputKeys == expectedOutputs[tool.name], "\(tool.name) output keys: \(outputKeys)")
         }
-        // The host serves them once installed (the coordinator wires
-        // `agenticCodeTools` into `installTools()`; filter-first so
-        // they are not registered twice).
         let installed = Set(host.agenticCodeTools.map(\.name))
         host.server.tools = host.server.tools.filter { !installed.contains($0.name) } + host.agenticCodeTools
         let served = host.server.tools.map(\.name)
         for id in Self.agenticCodeIDs { #expect(served.contains(id), "\(id) is not installed on the server") }
-        // The four tools this slice does NOT register: two are
-        // already served by earlier waves under the same ID, and
-        // two are duplicates whose targets are already served.
         #expect(served.contains("call_hierarchy"), "call_hierarchy must already be served (Wave 3)")
         #expect(served.contains("dependency_graph"), "dependency_graph must already be served (Wave 3)")
         #expect(served.contains("semantic_query_engine"), "semantic_query_engine must already be served (Wave 3)")
@@ -196,14 +163,11 @@ import SwiftCodeIDECore
         #expect(r.structured?["findingCount"]?.int == 1)
         #expect((r.structured?["findings"]?.string ?? "").contains("line 4 [force unwrap (!)]"))
         #expect(r.firstText.contains("1 finding(s)"))
-        // Boolean negation and `!` inside string literals are not
-        // force unwraps.
         let clean = "struct Foo {\n    func bar(flag: Bool) -> String {\n        if !flag { return \"Hello, Ada!\" }\n        return \"ok\"\n    }\n}"
         let ok = try await host.server.callTool("detect_bugs", ["code": .string(clean)])
         #expect(!ok.isToolError, "\(ok.firstText)")
         #expect(ok.structured?["findingCount"]?.int == 0)
         #expect(ok.firstText.contains("no bug patterns found"))
-        // try!, as!, fatalError are each reported with their kind.
         let forced = "let a = try! foo()\nlet b = foo() as! Bar\nfatalError(\"boom\")"
         let forcedResult = try await host.server.callTool("detect_bugs", ["code": .string(forced)])
         #expect(forcedResult.structured?["findingCount"]?.int == 3)
@@ -211,7 +175,6 @@ import SwiftCodeIDECore
         #expect(forcedFindings.contains("[force try (try!)]"))
         #expect(forcedFindings.contains("[force cast (as!)]"))
         #expect(forcedFindings.contains("[fatalError / preconditionFailure call]"))
-        // An empty catch block is reported.
         let emptyCatch = "do {\n    try foo()\n} catch {\n}"
         let catchResult = try await host.server.callTool("detect_bugs", ["code": .string(emptyCatch)])
         #expect((catchResult.structured?["findings"]?.string ?? "").contains("[empty catch block]"))
@@ -274,7 +237,6 @@ import SwiftCodeIDECore
         #expect(symbols.contains("func greeting — Sources/Greeter/Greeter.swift:11"))
         #expect(symbols.contains("func testSalutation — Tests/GreeterTests/GreeterTests.swift:9"))
         #expect(r.firstText.contains("Project code indexed successfully at .: 6 symbols across 5 files."))
-        // A single file scopes the index to that file.
         let one = try await host.server.callTool("code_index", ["projectPath": .string("Sources/Greeter/Greeter.swift")])
         #expect(one.structured?["fileCount"]?.int == 1)
         #expect(one.structured?["symbolCount"]?.int == 2)

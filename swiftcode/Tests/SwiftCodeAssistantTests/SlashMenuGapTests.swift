@@ -2,14 +2,8 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Gap-closure tests for the slash-command menu (specs/ide/
-/// gap-closure-windows-artboards.md §1): the manager's search
-/// and execution dispatcher, the popup's palette state, the
-/// `useMetaSlashCommands` default, and the router's turn-failure
-/// failover that the popup's `/model` host effect feeds into.
 @Suite("Slash menu gap tests")
 struct SlashMenuGapTests {
-    // MARK: - Search
 
     @Test("Empty query returns the whole catalog")
     func searchEmptyReturnsAll() {
@@ -34,8 +28,6 @@ struct SlashMenuGapTests {
         #expect(manager.searchCommands(query: "zzz-no-such-command").isEmpty)
         #expect(manager.searchCommands(query: "session").contains { $0.id == "clear" })
     }
-
-    // MARK: - Execution dispatcher
 
     @Test("Effect commands return Legacy's verbatim text and a host-side effect")
     func effectCommandsReturnVerbatimText() {
@@ -75,8 +67,6 @@ struct SlashMenuGapTests {
         #expect(argEffect == .insertText("/review staged"))
     }
 
-    // MARK: - Palette state
-
     @Test("Palette starts on the first match and wraps on move up/down")
     func paletteSelectionWraps() {
         var state = SlashCommandPaletteState(manager: MetaSlashCommandManager(), query: "")
@@ -113,7 +103,6 @@ struct SlashMenuGapTests {
         #expect(state.commitText(argument: nil) == "Cleared Assist session.")
         #expect(state.shouldSendImmediately(argument: nil) == true)
 
-        // A plain command stays in the input for editing.
         let plainManager = MetaSlashCommandManager(commands: [
             MetaSlashCommand(
                 id: "review", name: "/review", title: "Review", description: "Review the diff",
@@ -124,14 +113,10 @@ struct SlashMenuGapTests {
         #expect(plain.shouldSendImmediately(argument: nil) == false)
     }
 
-    // MARK: - Defaults
-
     @Test("Slash commands are on by default")
     func slashCommandsOnByDefault() {
         #expect(AssistantSettings().useMetaSlashCommands == true)
     }
-
-    // MARK: - Router failover (the /model host effect's other end)
 
     private func candidates() -> [AssistCandidateModel] {
         [

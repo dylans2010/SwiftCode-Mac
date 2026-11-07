@@ -1,16 +1,6 @@
 import Foundation
 import Observation
 
-// Ported from Legacy `SwiftCode/Backend/Developer/InternalLoggingManager.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed verbatim by a parallel agent; adapted by fix W-V2 (A6 slice: LLMService and
-// OpenRouterService both call InternalLoggingManager.shared.log).
-// Adaptation (one): Combine -> Observation. SwiftCodeAssistant has no Combine (see
-// AssistModelManager's header for the in-tree convention): ObservableObject + @Published
-// become @Observable + plain stored vars; log() stays sync non-isolated with the
-// DispatchQueue.main.async appends as in Legacy. Types stay internal — the only
-// callers (LLMService, OpenRouterService) live in this target.
-
-
 struct LogEntry: Identifiable {
     let id = UUID()
     let timestamp: Date

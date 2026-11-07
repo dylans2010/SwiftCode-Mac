@@ -1,10 +1,3 @@
-/* A baseline JPEG decoder of our own (camera-host.md §4.3), written from
- * ITU-T T.81 (ISO/IEC 10918-1): sequential DCT, Huffman coding, 8-bit
- * samples, 1 or 3 components with sampling factors 1 or 2, interleaved or
- * single-component scans, restart intervals. Motion-JPEG frames from UVC
- * cameras may leave out DHT; the tables of T.81 Annex K.3 are then used.
- * Output: one plane per component at its own sampling (no upsampling, no
- * colour conversion; convert.c does that). */
 #include "CSwiftCodeCamera.h"
 
 #include <math.h>
@@ -19,9 +12,9 @@ enum { ERR_DATA = -1, ERR_UNSUPPORTED = -2, ERR_MEMORY = -3 };
 
 typedef struct {
     int present;
-    uint8_t lookup_len[512]; /* 9-bit fast path: code length (0: slow path) */
+    uint8_t lookup_len[512];
     uint8_t lookup_val[512];
-    int32_t maxcode[18];     /* largest code of each length, -1 when none */
+    int32_t maxcode[18];
     int32_t valptr[17];
     int32_t mincode[17];
     uint8_t values[256];
@@ -33,11 +26,11 @@ typedef struct {
     int dc_pred;
     uint8_t *plane;
     int stride, rows;
-    int bw, bh; /* blocks covering the component (without MCU padding) */
+    int bw, bh;
 } component;
 
 struct ycam_jpeg {
-    uint16_t q[4][64]; /* in zigzag order */
+    uint16_t q[4][64];
     int q_present[4];
     huffman dc[4], ac[4];
     component comp[3];
@@ -45,13 +38,12 @@ struct ycam_jpeg {
     int restart;
     uint8_t *buffer;
     size_t capacity;
-    /* bit reader */
     const uint8_t *p, *end;
     uint64_t bits;
     int nbits;
     int marker_hit;
-    float aan[64];     /* AAN prescale, natural order: s(u) s(v) / 8, s(0) = 1, s(k) = sqrt 2 cos(k pi/16) */
-    float qf[4][64];   /* dequantizers with the prescale, natural order */
+    float aan[64];
+    float qf[4][64];
 };
 
 static const uint8_t zigzag[64] = {
@@ -59,7 +51,6 @@ static const uint8_t zigzag[64] = {
     41, 34, 27, 20, 13, 6,  7,  14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23,
     30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
 
-/* T.81 Annex K.3, tables K.3 to K.6. */
 static const uint8_t k3_dc_luma_bits[16] = {0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0};
 static const uint8_t k4_dc_chroma_bits[16] = {0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
 static const uint8_t k3_dc_values[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
@@ -86,7 +77,6 @@ static const uint8_t k6_ac_chroma_values[162] = {
     0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda,
     0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa};
 
-/* Builds the canonical code (T.81 Annex C) and the 9-bit fast table. */
 static int build_huffman(huffman *t, const uint8_t bits[16], const uint8_t *values) {
     int total = 0;
     for (int i = 0; i < 16; i++) total += bits[i];
@@ -145,8 +135,6 @@ void ycam_jpeg_free(ycam_jpeg *d) {
     free(d);
 }
 
-/* MARK: Bit reader (F.2.2.5: 0xFF is followed by a stuffed 0x00) */
-
 static inline void fill(ycam_jpeg *d) {
     while (d->nbits <= 56) {
         uint8_t byte = 0;
@@ -157,7 +145,7 @@ static inline void fill(ycam_jpeg *d) {
                 if (next == 0x00) {
                     d->p += 2;
                 } else {
-                    d->marker_hit = 1; /* leave the marker in place; read zeros */
+                    d->marker_hit = 1;
                     byte = 0;
                 }
             } else {
@@ -187,7 +175,7 @@ static inline int decode_symbol(ycam_jpeg *d, const huffman *t) {
         d->nbits -= len;
         return t->lookup_val[peek];
     }
-    int32_t code = (int32_t)(d->bits >> 54); /* 10 bits */
+    int32_t code = (int32_t)(d->bits >> 54);
     for (len = 10; len <= 16; len++) {
         if (code <= t->maxcode[len]) {
             d->bits <<= len;
@@ -202,11 +190,6 @@ static inline int decode_symbol(ycam_jpeg *d, const huffman *t) {
 
 static inline int extend(int v, int s) { return v < (1 << (s - 1)) ? v - (1 << s) + 1 : v; }
 
-/* MARK: Blocks */
-
-/* One 8-point pass of the scaled IDCT of Arai, Agui and Nakajima (inputs
- * prescaled by `aan`), reading every `is`-th input and writing every
- * `os`-th output. */
 static inline void idct_pass(const float *i, int is, float *o, int os) {
     float t0 = i[0], t1 = i[2 * is], t2 = i[4 * is], t3 = i[6 * is];
     float t10 = t0 + t2, t11 = t0 - t2, t13 = t1 + t3, t12 = (t1 - t3) * 1.414213562f - t13;
@@ -234,8 +217,6 @@ static inline void idct_pass(const float *i, int is, float *o, int os) {
     o[3 * os] = t3 - t4;
 }
 
-/* The inverse DCT of a prescaled block (natural order), level-shifted by
- * 128 and clamped (T.81 A.3.3). */
 static void idct_store(const float in[64], uint8_t *out, int stride) {
     float tmp[64], row[8];
     for (int u = 0; u < 8; u++) {
@@ -270,7 +251,7 @@ static int decode_block(ycam_jpeg *d, component *c, uint8_t *out) {
         if (rs < 0) return ERR_DATA;
         int r = rs >> 4, size = rs & 15;
         if (size == 0) {
-            if (r != 15) break; /* EOB */
+            if (r != 15) break;
             k += 16;
             continue;
         }
@@ -282,8 +263,6 @@ static int decode_block(ycam_jpeg *d, component *c, uint8_t *out) {
     idct_store(coef, out, c->stride);
     return 0;
 }
-
-/* MARK: Segments */
 
 static inline int u16(const uint8_t *p) { return p[0] << 8 | p[1]; }
 
@@ -324,7 +303,7 @@ static int read_sof(ycam_jpeg *d, const uint8_t *p, int len) {
     d->height = u16(p + 1);
     d->width = u16(p + 3);
     d->ncomp = p[5];
-    if (d->width == 0 || d->height == 0) return ERR_UNSUPPORTED; /* DNL not supported */
+    if (d->width == 0 || d->height == 0) return ERR_UNSUPPORTED;
     if (d->ncomp != 1 && d->ncomp != 3) return ERR_UNSUPPORTED;
     if (len < 6 + 3 * d->ncomp) return ERR_DATA;
     d->hmax = d->vmax = 1;
@@ -364,7 +343,6 @@ static int read_sof(ycam_jpeg *d, const uint8_t *p, int len) {
     return 0;
 }
 
-/* Restart (F.2.2.5): drop the bit buffer, expect RSTn, reset DC predictions. */
 static int restart(ycam_jpeg *d) {
     d->bits = 0;
     d->nbits = 0;
@@ -376,7 +354,6 @@ static int restart(ycam_jpeg *d) {
     return 0;
 }
 
-/* One scan; *consumed is how far the entropy-coded data went. */
 static int read_scan(ycam_jpeg *d, const uint8_t *p, int len, const uint8_t *data_end, const uint8_t **after) {
     if (d->ncomp == 0 || len < 1) return ERR_DATA;
     int ns = p[0];
@@ -423,7 +400,6 @@ static int read_scan(ycam_jpeg *d, const uint8_t *p, int len, const uint8_t *dat
                 count++;
             }
     }
-    /* Skip to the next marker that is not a stuffed byte or a restart. */
     const uint8_t *q = d->p;
     while (q + 1 < data_end && !(q[0] == 0xFF && q[1] != 0x00 && !(q[1] >= 0xD0 && q[1] <= 0xD7))) q++;
     *after = q;
@@ -432,7 +408,7 @@ static int read_scan(ycam_jpeg *d, const uint8_t *p, int len, const uint8_t *dat
 
 int ycam_jpeg_decode(ycam_jpeg *d, const uint8_t *data, size_t size) {
     if (!d || !data || size < 4 || data[0] != 0xFF || data[1] != 0xD8) return ERR_DATA;
-    ensure_defaults(d); /* a stream's DHT replaces them */
+    ensure_defaults(d);
     memset(d->q_present, 0, sizeof d->q_present);
     d->ncomp = 0;
     d->restart = 0;
@@ -443,7 +419,7 @@ int ycam_jpeg_decode(ycam_jpeg *d, const uint8_t *data, size_t size) {
         int marker = p[1];
         p += 2;
         if (marker == 0xFF || marker == 0x00 || (marker >= 0xD0 && marker <= 0xD7)) { if (marker == 0xFF) p--; continue; }
-        if (marker == 0xD9) break; /* EOI */
+        if (marker == 0xD9) break;
         if (p + 2 > end) return ERR_DATA;
         int len = u16(p) - 2;
         if (len < 0 || p + 2 + len > end) return ERR_DATA;
@@ -469,7 +445,7 @@ int ycam_jpeg_decode(ycam_jpeg *d, const uint8_t *data, size_t size) {
             p = after;
             continue;
         }
-        default: break; /* APPn, COM, DNL, ... */
+        default: break;
         }
         if (r) return r;
         p = body + len;

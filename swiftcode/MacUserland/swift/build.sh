@@ -1,37 +1,7 @@
 #!/bin/sh
-# Builds the Swift part of SwiftCode's macOS userland (specs/macos/swift-runtime.md):
-# the Swift runtime and standard library for arm64-apple-macos (with
-# Objective-C interop on SwiftCode's runtime), Concurrency, Synchronization,
-# Observation, string processing and Regex, the Darwin and os overlays,
-# LLVM's libc++ and libc++abi, and swift-foundation's FoundationEssentials;
-# all linked against SwiftCode's libSystem and libobjc link stubs.
-#
-#   sh swift/build.sh            everything (after sh build.sh)
-#   sh swift/build.sh sample     only the Foundation sample (after a full run)
-#
-# Runs on a Mac: it compiles against the macOS SDK's C headers (interface
-# facts only; no Apple library is linked) with the toolchain's swiftc and
-# clang. Needs MacUserland/out/tbd (from sh build.sh, on Linux or a Mac),
-# cmake 3.29+, ninja, git and python3.
-#
-# Results:
-#   out/sdk                         SwiftCode's macOS SDK for compiling programs:
-#                                   the macOS SDK's usr/include, SwiftCode's link
-#                                   stubs, SwiftCode's Swift modules
-#   out/root/usr/lib/swift          the Swift libraries (install names
-#                                   /usr/lib/swift/lib*.dylib)
-#   out/root/usr/lib/libc++.1.dylib LLVM's libc++ with libc++abi
-#   out/root/usr/share/licenses     the licence and notice of each project
-#   out/samples/foundation, concurrency  the stage-B samples (macos-apps.md §9.4)
-#
-# Sources (fetched by sources.sh into out/src unless SOURCES names a
-# directory with them) are used unmodified except for the patches in
-# swift/patches, applied to the fetched checkouts.
-
 set -eu
 LC_ALL=C
 export LC_ALL
-
 here=$(cd "$(dirname "$0")" && pwd)
 mu=$(cd "$here/.." && pwd)
 out="$mu/out"
@@ -42,42 +12,35 @@ sdk="$out/sdk"
 root="$out/root"
 JOBS=${JOBS:-8}
 MACOS_MIN=14.0
-FOUNDATION_MIN=26.0   # swift-foundation's own deployment target
-
+FOUNDATION_MIN=26.0
 die() {
     echo "swift/build.sh: error: $*" >&2
     exit 1
 }
 say() { echo "swift/build.sh: $*"; }
-
 [ "$(uname -s)" = Darwin ] || die "runs on a Mac (it needs the macOS SDK's headers)"
 [ -f "$out/tbd/libSystem.tbd" ] || die "no $out/tbd/libSystem.tbd: run sh build.sh first"
 APPLE_SDK=${APPLE_SDK:-$(xcrun --show-sdk-path)}
 SWIFTC=${SWIFTC:-$(xcrun -f swiftc)}
 CLANG=${CLANG:-$(xcrun -f clang)}
 CLANGXX=${CLANGXX:-$(xcrun -f clang++)}
-
 fetch_sources() {
     sh "$mu/sources.sh" "$src" swift llvm-project swift-foundation swift-collections swift-foundation-icu \
         swift-experimental-string-processing
-    # SwiftCode's patches, applied once.
     for patch in "$here"/patches/*.patch; do
         name=$(basename "$patch" .patch)
         case $name in
         swift-foundation-*) dir="$src/swift-foundation" ;;
-        swift-platform-*) continue ;;  # applied to copies (build_overlays)
+        swift-platform-*) continue ;;
         *) die "patch $name: unknown project" ;;
         esac
         if ! (cd "$dir" && git apply --reverse --check "$patch" 2>/dev/null); then
             (cd "$dir" && git apply "$patch") || die "applying $name failed"
         fi
     done
-    # The new runtime build copies the standard library sources into place.
     (cd "$src/swift/Runtimes" && cmake -DStringProcessing_ROOT_DIR="$src" -P Resync.cmake > /dev/null) \
         || die "Resync.cmake failed"
 }
-
-# SwiftCode's SDK: the macOS SDK's headers, SwiftCode's stubs and Swift modules.
 make_sdk() {
     mkdir -p "$sdk/usr/lib/swift"
     ln -sfn "$APPLE_SDK/usr/include" "$sdk/usr/include"
@@ -90,8 +53,6 @@ make_sdk() {
    "PlatformFamilyName": "macOS"}}}
 EOF
     cp "$out/tbd/libSystem.tbd" "$sdk/usr/lib/libSystem.tbd"
-    # The libSystem sub-libraries (aliases that re-export libSystem,
-    # build.sh): stubs with libSystem's symbols under their own names.
     mkdir -p "$sdk/usr/lib/system"
     for lib in libdispatch libsystem_c libsystem_m libsystem_malloc libsystem_blocks libsystem_info libunwind libcompiler_rt; do
         sed "s#/usr/lib/libSystem.B.dylib#/usr/lib/system/$lib.dylib#" "$out/tbd/libSystem.tbd" > "$sdk/usr/lib/system/$lib.tbd"
@@ -100,10 +61,6 @@ EOF
     xcrun nm -gU -j "$root/usr/lib/libobjc.A.dylib" > "$build/objc.syms"
     python3 -I "$mu/tools/macho_tool.py" tbd "$sdk/usr/lib/libobjc.tbd" /usr/lib/libobjc.A.dylib "$build/objc.syms"
 }
-
-# cmake_runtime <name> <source dir> [extra cmake arguments]: one project of
-# the Swift repository's runtime build (Runtimes/), for arm64 macOS with
-# Objective-C interop, installed into the stage.
 cmake_runtime() {
     name=$1
     dir=$2
@@ -114,8 +71,6 @@ cmake_runtime() {
     cache="$src/swift/Runtimes/Core/cmake/caches/Vendors/Apple"
     printf 'set(CMAKE_OSX_DEPLOYMENT_TARGET %s CACHE STRING "")\nset(SwiftCore_TARGET_VARIANT_DEPLOYMENT_TARGET 17.0 CACHE STRING "")\n' \
         "$MACOS_MIN" > "$b/first.cmake"
-    # Headers come from the macOS SDK (through SwiftCode's SDK), link stubs from
-    # SwiftCode's SDK, so a missing libSystem function fails the link.
     (cd "$b" && SDKROOT=macosx cmake -G Ninja "$dir" -Wno-dev -C first.cmake -C "$cache/arm64-MacOSX.cmake" \
         -DCMAKE_TOOLCHAIN_FILE="$cache/Darwin.toolchain.cmake" -DCMAKE_OSX_SYSROOT="$sdk" \
         -DCMAKE_C_COMPILER="$CLANG" -DCMAKE_CXX_COMPILER="$CLANGXX" -DCMAKE_Swift_COMPILER="$SWIFTC" \
@@ -126,21 +81,9 @@ cmake_runtime() {
         || die "building $name failed (see $build/$name.log)"
     say "$name"
 }
-
 build_runtime() {
     rm -rf "$stage"
-    # The runtime's Objective-C interop sources include the public headers
-    # of CoreFoundation and Foundation (which include CoreGraphics' and
-    # others') for declarations. The macOS SDK's framework headers are on
-    # the C, C++ and Objective-C search paths for this build only; nothing
-    # from any framework is linked (the runtime looks Foundation's classes
-    # up by name, and only if a Foundation is loaded).
     frameworks="$APPLE_SDK/System/Library/Frameworks"
-    # Core: the runtime, the standard library and Concurrency (its global
-    # executor is libdispatch's, i.e. SwiftCode's dispatch in libSystem).
-    # Off: Apple's CrashReporter, os_signpost tracing, the backtracer,
-    # libmalloc zones, the back-deployment symbols and the toolchain's
-    # SwiftDirectRuntime archive (an Apple binary).
     cmake_runtime Core "$src/swift/Runtimes/Core" -DSwiftCore_ENABLE_CONCURRENCY=ON \
         -DCMAKE_C_FLAGS="-iframework $frameworks" -DCMAKE_CXX_FLAGS="-iframework $frameworks" \
         -DCMAKE_OBJC_FLAGS="-iframework $frameworks" -DCMAKE_OBJCXX_FLAGS="-iframework $frameworks" \
@@ -149,17 +92,12 @@ build_runtime() {
         -DSwiftCore_OPTIMIZATION_REMARKS=OFF -DSwiftCore_ENABLE_BACKDEPLOYMENT_SUPPORT=OFF \
         -DSwiftCore_HAS_DARWIN_LIBMALLOC=OFF -DSwiftCore_ENABLE_RUNTIME_FUNCTION_COUNTERS=OFF
 }
-
-# The Supplemental libraries import Darwin: they come after the overlays.
 build_supplemental() {
     for lib in Synchronization Observation StringProcessing; do
         cmake_runtime "$lib" "$src/swift/Runtimes/Supplemental/$lib" \
             -DSwiftCore_DIR="$stage/lib/cmake/SwiftCore"
     done
 }
-
-# Every library in the stage gets the install name /usr/lib/swift/<leaf>,
-# and every @rpath reference between them the same absolute path, as on a Mac.
 fix_install_names() {
     for lib in "$@"; do
         leaf=$(basename "$lib")
@@ -169,7 +107,6 @@ fix_install_names() {
         done
     done
 }
-
 install_runtime_into_sdk() {
     lib="$sdk/usr/lib/swift"
     rm -rf "$lib"
@@ -181,8 +118,6 @@ install_runtime_into_sdk() {
     done
     fix_install_names "$lib"/*.dylib
 }
-
-# swiftmod <Module> <sources...>: a library-evolution Swift module in the SDK.
 swiftmod() {
     module=$1
     shift
@@ -199,11 +134,6 @@ swiftmod() {
         || die "building the $module overlay failed (see $build/mod-$module.log)"
     say "$module overlay"
 }
-
-# The Darwin overlay: the Swift project's shared platform sources (patched
-# for Darwin, swift/patches/swift-platform-darwin.patch) and SwiftCode's
-# Darwin.swift; the os overlay is SwiftCode's; _Builtin_float is the Swift
-# project's.
 build_overlays() {
     p="$build/platform"
     rm -rf "$p"
@@ -217,8 +147,6 @@ build_overlays() {
     swiftmod Darwin "$here/Darwin/Darwin.swift" "$p/stdlib/public/Platform/Platform.swift" \
         "$p/stdlib/public/Platform/Math.swift" "$p/stdlib/public/Platform/TiocConstants.swift" "$p/tgmath.swift"
     swiftmod os "$here/os/os.swift"
-    # <float.h> constants (the Swift project's ClangOverlays/float.swift.gyb);
-    # the Supplemental build looks for its link stub.
     python3 "$src/swift/utils/gyb" -DCMAKE_SDK=OSX -o "$p/float.swift" \
         "$src/swift/stdlib/public/ClangOverlays/float.swift.gyb" || die "gyb failed"
     swiftmod _Builtin_float "$p/float.swift"
@@ -226,9 +154,6 @@ build_overlays() {
     python3 -I "$mu/tools/macho_tool.py" tbd "$sdk/usr/lib/swift/libswift_Builtin_float.tbd" \
         /usr/lib/swift/libswift_Builtin_float.dylib "$build/float.syms"
 }
-
-# LLVM's libc++ and libc++abi as static archives, linked into one
-# /usr/lib/libc++.1.dylib against SwiftCode's libSystem.
 build_libcxx() {
     b="$build/libcxx"
     rm -rf "$b"
@@ -250,13 +175,10 @@ build_libcxx() {
     python3 -I "$mu/tools/macho_tool.py" tbd "$sdk/usr/lib/libc++.tbd" /usr/lib/libc++.1.dylib "$build/cxx.syms"
     say "libc++"
 }
-
 build_foundation() {
     b="$build/foundation"
     rm -rf "$b"
     mkdir -p "$b"
-    # FoundationEssentials only: FoundationInternationalization (ICU) and
-    # the Foundation macros are not built (macos-apps.md §9.4).
     (cd "$b" && cmake -G Ninja "$src/swift-foundation" -Wno-dev -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=YES \
         -DCMAKE_OSX_SYSROOT="$sdk" -DCMAKE_OSX_DEPLOYMENT_TARGET="$FOUNDATION_MIN" -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DCMAKE_C_COMPILER="$CLANG" -DCMAKE_CXX_COMPILER="$CLANGXX" -DCMAKE_Swift_COMPILER="$SWIFTC" \
@@ -276,18 +198,15 @@ build_foundation() {
             [ -f "$b/swift/$m.$ext" ] && cp "$b/swift/$m.$ext" "$sdk/usr/lib/swift/$m.swiftmodule/arm64-apple-macos.$ext"
         done
     done
-    # The C shims' module map, for clients that import FoundationEssentials.
     rm -rf "$sdk/usr/lib/swift/_FoundationCShims"
     cp -R "$src/swift-foundation/Sources/_FoundationCShims/include" "$sdk/usr/lib/swift/_FoundationCShims"
     fix_install_names "$sdk/usr/lib/swift/libFoundationEssentials.dylib"
     say "FoundationEssentials"
 }
-
 install_root() {
     mkdir -p "$root/usr/lib/swift"
     rm -f "$root"/usr/lib/swift/*.dylib
     cp "$sdk"/usr/lib/swift/*.dylib "$root/usr/lib/swift/"
-    # Licences and notices (Apache-2.0 asks for both to travel with the binaries).
     lic="$root/usr/share/licenses"
     rm -rf "$lic"
     for project in swift llvm-project swift-foundation swift-collections swift-experimental-string-processing; do
@@ -298,7 +217,6 @@ install_root() {
     done
     say "installed into $root"
 }
-
 build_sample() {
     mkdir -p "$out/samples"
     for name in foundation concurrency; do
@@ -309,7 +227,6 @@ build_sample() {
         say "samples/$name"
     done
 }
-
 case "${1:-all}" in
 all)
     mkdir -p "$build"

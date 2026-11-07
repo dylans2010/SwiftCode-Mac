@@ -1,9 +1,3 @@
-// ProjectArchitectureGraph.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/ProjectInspector/ProjectArchitectureGraph.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Dependencies / Frameworks / Services graph types; node connections; visual graph canvas with zoom/pan; node search and selection detail
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -28,9 +22,9 @@ public enum GraphType: String, CaseIterable, Sendable, Identifiable {
 public struct GraphNode: Identifiable, Hashable, Sendable {
     public let id: String
     public let label: String
-    public let type: String // "layer", "file", "service", "framework", "package", "folder"
+    public let type: String
     public let details: String
-    public let connections: [String] // IDs of connected nodes
+    public let connections: [String]
 }
 
 public struct ProjectArchitectureGraph: View {
@@ -41,14 +35,12 @@ public struct ProjectArchitectureGraph: View {
     @State private var offset: CGSize = .zero
     @State private var searchNodeQuery = ""
 
-    // Nodes definitions dynamically generated from InspectorProjectScanner
     private func getNodes(for type: GraphType) -> [GraphNode] {
         switch type {
         case .folders:
             var nodes = [
                 GraphNode(id: "root", label: scanner.projectName, type: "folder", details: "Project Root folder containing \(scanner.totalFiles) files and \(scanner.totalFolders) directories.", connections: [])
             ]
-            // Map largest folders scanned dynamically
             let folders = scanner.largestFolders
             for f in folders {
                 nodes.append(GraphNode(
@@ -68,7 +60,6 @@ public struct ProjectArchitectureGraph: View {
             } else {
                 nodes.append(GraphNode(id: "spm", label: "Swift Packages (None)", type: "package", details: "No local Package.swift files resolved.", connections: []))
             }
-            // Dynamic check for integrations
             if scanner.sqlCount > 0 {
                 nodes.append(GraphNode(id: "sqlite", label: "SQLite DB Service", type: "package", details: "Detected \(scanner.sqlCount) local SQLite migrations or templates.", connections: ["spm"]))
             }
@@ -111,7 +102,6 @@ public struct ProjectArchitectureGraph: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header configuration
             HStack {
                 Picker("Graph View Type", selection: $selectedGraphType) {
                     ForEach(GraphType.allCases) { type in
@@ -140,11 +130,9 @@ public struct ProjectArchitectureGraph: View {
             Divider()
 
             HSplitView {
-                // Left side: Zoomable and pannable Graph Canvas
                 ZStack {
                     Color(NSColor.controlBackgroundColor)
 
-                    // Node canvas wrapper
                     ScrollView([.horizontal, .vertical]) {
                         VStack(spacing: 40) {
                             ForEach(filteredNodes) { node in
@@ -197,7 +185,6 @@ public struct ProjectArchitectureGraph: View {
                         .scaleEffect(scale)
                     }
 
-                    // Canvas controls overlay
                     VStack {
                         Spacer()
                         HStack {
@@ -212,7 +199,6 @@ public struct ProjectArchitectureGraph: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                // Right side: Detail connection inspector
                 VStack(alignment: .leading, spacing: 16) {
                     if let node = selectedNode {
                         Text("Node Inspector")
@@ -250,7 +236,6 @@ public struct ProjectArchitectureGraph: View {
 
                         Divider()
 
-                        // Connected outputs
                         Text("CONNECTIONS & DEPENDENTS")
                             .font(.caption2.bold())
                             .foregroundStyle(.secondary)

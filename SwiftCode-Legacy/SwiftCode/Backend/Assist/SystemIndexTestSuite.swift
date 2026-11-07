@@ -1,14 +1,3 @@
-//
-//  SystemIndexTestSuite.swift
-//  SwiftCode
-//
-//  Targeted tests for SystemIndex (instruction indexing/retrieval), the
-//  Markdown rendering repair, and the unified request-phase state model.
-//
-//  Follows the same pattern as AssistRuntimeTestSuite: runAllTests() returns
-//  [RuntimeTestCaseResult] for aggregation by AssistRuntimeTestSuite.
-//
-
 import Foundation
 import os
 
@@ -47,8 +36,6 @@ public final class SystemIndexTestSuite: Sendable {
                               duration: Date().timeIntervalSince(start))
     }
 
-    // MARK: - Parsing
-
     func testDocumentParsing() -> RuntimeTestCaseResult {
         let start = Date()
         let text = """
@@ -82,7 +69,7 @@ public final class SystemIndexTestSuite: Sendable {
 
     func testChunking() -> RuntimeTestCaseResult {
         let start = Date()
-        let paragraph = String(repeating: "Lorem ipsum dolor sit amet. ", count: 8) // ~200 chars
+        let paragraph = String(repeating: "Lorem ipsum dolor sit amet. ", count: 8)
         let text = (0..<60).map { "Paragraph \($0).\n\n\(paragraph)" }.joined(separator: "\n\n")
         let chunks = SystemIndexService.chunkText(text, maxChars: 3000)
         let sizesOK = chunks.allSatisfy { $0.count <= 3400 }
@@ -98,8 +85,6 @@ public final class SystemIndexTestSuite: Sendable {
                                       : "Chunking failed (count=\(chunks.count), sizesOK=\(sizesOK), overlapOK=\(overlapOK)).",
                       start: start)
     }
-
-    // MARK: - Classification & ranking
 
     func testCategoryClassification() -> RuntimeTestCaseResult {
         let start = Date()
@@ -170,14 +155,11 @@ public final class SystemIndexTestSuite: Sendable {
                                                    : "Ledger bookkeeping failed.", start: start)
     }
 
-    // MARK: - Live index (bundled System Assets)
-
     func testSafeguardsSurviveTinyBudget() async -> RuntimeTestCaseResult {
         let start = Date()
         await SystemIndexService.shared.ensureReady()
         let query = InstructionQueryContext(userText: "tell me a joke", taskCategory: .general, maxTokens: 50)
         let res = await SystemIndexService.shared.retrieve(for: query)
-        // Mandatory safeguards are never silently dropped for budget reasons.
         let passed = res.safeguardsIncluded && res.budgetExceeded
         return result(testName: "SystemIndex: Safeguards Survive Budget", passed: passed,
                       message: passed ? "Safeguards preserved under a 50-token budget (exceeded flag set)."
@@ -207,23 +189,18 @@ public final class SystemIndexTestSuite: Sendable {
     func testNoResultVsIndexFailure() async -> RuntimeTestCaseResult {
         let start = Date()
         await SystemIndexService.shared.ensureReady()
-        // A nonsense query against a healthy index yields low/empty results —
-        // which must differ from an index failure (explicit notes).
         let query = InstructionQueryContext(userText: "zxqv wjbx kplm qwertyuiop",
                                             taskCategory: .general, maxTokens: 4000)
         let res = await SystemIndexService.shared.retrieve(for: query)
         let status = await SystemIndexService.shared.status()
         let indexHealthy: Bool
         if case .ready = status { indexHealthy = true } else { indexHealthy = false }
-        // Healthy index + nonsense query: only baseline sections (score 0+boost), no failure notes.
         let failureNotes = res.notes.filter { $0.contains("unavailable") || $0.contains("failed") }
         let passed = indexHealthy && failureNotes.isEmpty
         return result(testName: "SystemIndex: No-Result vs Failure", passed: passed,
                       message: passed ? "Nonsense query returned \(res.retrievals.count) baseline section(s), no failure notes."
                                       : "notes=\(res.notes).", start: start)
     }
-
-    // MARK: - Markdown rendering
 
     func testMarkdownInlineSourcePreserved() -> RuntimeTestCaseResult {
         let start = Date()
@@ -258,7 +235,6 @@ public final class SystemIndexTestSuite: Sendable {
 
     func testMarkdownStreamingFenceBalancing() -> RuntimeTestCaseResult {
         let start = Date()
-        // Partial stream: unclosed fence must still parse as a code block.
         let blocks = MarkdownParser.shared.parse("Here is code:\n```swift\nlet x = 1")
         let hasCode = blocks.contains {
             if case .codeBlock = $0 { return true }
@@ -273,8 +249,6 @@ public final class SystemIndexTestSuite: Sendable {
                       message: passed ? "Unclosed fence parsed as code block."
                                       : "Blocks: \(blocks.map(\.id)).", start: start)
     }
-
-    // MARK: - Request phase model
 
     func testRequestPhaseTerminalStates() -> RuntimeTestCaseResult {
         let start = Date()
@@ -291,11 +265,6 @@ public final class SystemIndexTestSuite: Sendable {
                                       : "Phase model mismatch.", start: start)
     }
 
-    // MARK: - Session instruction assembly (canonical baseline)
-
-    /// The new canonical baseline (routing index + Identity + Safeguards)
-    /// must be carried into SDK sessions in full — Identity and Safeguards
-    /// are mandatory and must never be stripped by section extraction.
     func testRuntimeInstructionsPreservesBaseline() -> RuntimeTestCaseResult {
         let start = Date()
         let baseline = """
@@ -327,7 +296,6 @@ public final class SystemIndexTestSuite: Sendable {
                                       : "Baseline was stripped from session instructions.", start: start)
     }
 
-    /// Greetings must not load the instruction corpus at all.
     func testRuntimeInstructionsGreetingFastPath() -> RuntimeTestCaseResult {
         let start = Date()
         let baseline = "# ASSIST IDENTITY & OPERATING NORMS\nYou are Assist."
@@ -345,10 +313,6 @@ public final class SystemIndexTestSuite: Sendable {
                                       : "Greeting loaded instructions.", start: start)
     }
 
-    // MARK: - Timeout error
-
-    /// The timeout error's message must survive `localizedDescription`
-    /// (LocalizedError conformance), never degrading to a generic string.
     func testTimeoutErrorLocalizedDescription() -> RuntimeTestCaseResult {
         let start = Date()
         let error: Error = AssistRequestTimeoutError.timedOut(180)
@@ -359,8 +323,6 @@ public final class SystemIndexTestSuite: Sendable {
                       message: passed ? "Custom timeout message preserved: \"\(text.prefix(60))…\""
                                       : "Message degraded: \"\(text)\"", start: start)
     }
-
-    // MARK: - Request generation
 
     func testRequestGenerationEquality() -> RuntimeTestCaseResult {
         let start = Date()
@@ -373,11 +335,6 @@ public final class SystemIndexTestSuite: Sendable {
                                       : "Generation equality broken.", start: start)
     }
 
-    // MARK: - Queue envelope preservation
-
-    /// A queued message must not silently lose the composer's task envelope
-    /// (explicit skills / MCP servers / files), including across Codable
-    /// round-trips.
     func testQueuedMessagePreservesEnvelope() -> RuntimeTestCaseResult {
         let start = Date()
         let envelope = AssistTaskEnvelope(
@@ -403,8 +360,6 @@ public final class SystemIndexTestSuite: Sendable {
                       start: start)
     }
 
-    // MARK: - Dynamic Runtime Assets (Objective B)
-
     func testDynamicRuntimeAssetsFileAddModifyDelete() async -> RuntimeTestCaseResult {
         let start = Date()
         let fm = FileManager.default
@@ -419,10 +374,8 @@ public final class SystemIndexTestSuite: Sendable {
                 }
             }
 
-            // 1. Configure custom assets directory
             await SystemIndexService.shared.setCustomAssetsDirectory(tempDir)
 
-            // 2. Add initial file: UsingApp.md
             let usingAppURL = tempDir.appendingPathComponent("UsingApp.md")
             let initialContent = "# UsingApp\n\nInitial version for app interaction."
             try initialContent.write(to: usingAppURL, atomically: true, encoding: .utf8)
@@ -435,7 +388,6 @@ public final class SystemIndexTestSuite: Sendable {
                               message: "Expected 1 document, found \(initialDiag.documentCount)", start: start)
             }
 
-            // 3. Edit UsingApp.md
             let updatedContent = "# UsingApp\n\nUpdated version with custom workflow for Finder navigation."
             try updatedContent.write(to: usingAppURL, atomically: true, encoding: .utf8)
             await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
@@ -451,7 +403,6 @@ public final class SystemIndexTestSuite: Sendable {
                               message: "Updated content not reflected in assetText", start: start)
             }
 
-            // 4. Add a brand new file without recompiling: UsingSystem.md
             let usingSystemURL = tempDir.appendingPathComponent("UsingSystem.md")
             let newDocContent = "# UsingSystem\n\nSystem capabilities and environment instructions."
             try newDocContent.write(to: usingSystemURL, atomically: true, encoding: .utf8)
@@ -463,7 +414,6 @@ public final class SystemIndexTestSuite: Sendable {
                               message: "Expected 2 documents after adding UsingSystem.md, found \(afterAddDiag.documentCount)", start: start)
             }
 
-            // 5. Add a nested file in a subdirectory
             let subDir = tempDir.appendingPathComponent("nested", isDirectory: true)
             try fm.createDirectory(at: subDir, withIntermediateDirectories: true)
             let nestedDocURL = subDir.appendingPathComponent("AdvancedTools.md")
@@ -476,7 +426,6 @@ public final class SystemIndexTestSuite: Sendable {
                               message: "Expected 3 documents after adding nested document, found \(afterNestedDiag.documentCount)", start: start)
             }
 
-            // 6. Delete a file: delete UsingApp.md
             try fm.removeItem(at: usingAppURL)
             await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
 
@@ -491,7 +440,6 @@ public final class SystemIndexTestSuite: Sendable {
                               message: "Deleted document still returned by assetText", start: start)
             }
 
-            // 7. Rename UsingSystem.md -> SystemGuide.md
             let renamedURL = tempDir.appendingPathComponent("SystemGuide.md")
             try fm.moveItem(at: usingSystemURL, to: renamedURL)
             await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
@@ -507,7 +455,6 @@ public final class SystemIndexTestSuite: Sendable {
                               message: "Renamed document identity not updated", start: start)
             }
 
-            // Reset back to default
             await SystemIndexService.shared.setCustomAssetsDirectory(nil)
 
             return result(

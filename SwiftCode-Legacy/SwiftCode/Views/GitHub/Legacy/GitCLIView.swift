@@ -11,11 +11,9 @@ struct GitCLIView: View {
     @State private var output = "Welcome to Git CLI.\nChoose a preset command or enter custom arguments below."
     @State private var isRunning = false
 
-    // Themes & Presets
     @State private var selectedTheme: TerminalTheme = .midnight
     @State private var showPresetsPopover = false
 
-    // Ask AI States
     @State private var showAIPopover = false
     @State private var aiQuery = ""
     @State private var aiResponse = ""
@@ -46,7 +44,6 @@ struct GitCLIView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Git CLI Terminal", systemImage: "terminal.fill")
                     .font(.headline)
@@ -55,7 +52,6 @@ struct GitCLIView: View {
                 Spacer()
 
                 HStack(spacing: 12) {
-                    // Ask AI Button
                     Button {
                         showAIPopover = true
                     } label: {
@@ -148,10 +144,8 @@ struct GitCLIView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Card 1: Preset Command Panel
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Preset Git Commands", systemImage: "terminal.fill")
@@ -181,7 +175,6 @@ struct GitCLIView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Custom Execute Command Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Custom Git Executor", systemImage: "terminal")
@@ -203,7 +196,6 @@ struct GitCLIView: View {
                                         runCustomCommand()
                                     }
 
-                                // Advanced Presets popover
                                 Button {
                                     showPresetsPopover = true
                                 } label: {
@@ -257,7 +249,6 @@ struct GitCLIView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 3: Console Terminal Output
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Console Terminal Output", systemImage: "text.alignleft")
@@ -354,8 +345,6 @@ struct GitCLIView: View {
             }
         }
     }
-
-    // MARK: - Ask AI Generation
 
     private func generateGitCommand() {
         let query = aiQuery.trimmingCharacters(in: .whitespacesAndNewlines)

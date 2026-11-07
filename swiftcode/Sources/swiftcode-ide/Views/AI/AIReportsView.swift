@@ -1,9 +1,3 @@
-// AIReportsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/AIReportsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: interactive AI assistant chat (sendQuestion plus recommended questions); static engineering scan reports
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 
@@ -15,7 +9,6 @@ struct AIReportsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header and Segmentation Tab
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("AI Engineering Assistant")
@@ -49,7 +42,6 @@ struct AIReportsView: View {
     @ViewBuilder
     private func interactiveAssistantView() -> some View {
         VStack(spacing: 0) {
-            // Conversational Scroll
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
@@ -102,7 +94,6 @@ struct AIReportsView: View {
 
             Divider()
 
-            // Recommended questions list
             VStack(alignment: .leading, spacing: 6) {
                 Text("Recommended Questions:")
                     .font(.caption2)
@@ -141,7 +132,6 @@ struct AIReportsView: View {
 
             Divider()
 
-            // Question Input field
             HStack(spacing: 12) {
                 TextField("Ask about packages, duplicates, slow builds, diagnostics...", text: $userQuestion, onCommit: sendQuestion)
                     .textFieldStyle(.plain)

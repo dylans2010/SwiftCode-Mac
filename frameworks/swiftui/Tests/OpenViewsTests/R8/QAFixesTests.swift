@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Fixes from the real-desktop QA run of 2026-10-30 (report B1, B2, B4):
-// animation frames are presented, strokes take no hits, duplicate SDL
-// clicks are dropped.
-
-/// Counts the frames a window presents.
 @MainActor
 final class CountingPresenter: FramePresenter {
     var presented = 0
@@ -54,8 +49,6 @@ struct QAFixesTests {
         host.run(until: 0.5)
         let before = presenter.presented
         host.run(until: 1.5)
-        // A render-effect animation (repeatForever rotation) presents every
-        // display frame: 60 Hz for 1 s.
         let perSecond = presenter.presented - before
         #expect(perSecond >= 58 && perSecond <= 62)
     }
@@ -74,7 +67,6 @@ struct QAFixesTests {
         h.tap(a.center, at: 1.0)
         h.tap(b.center, at: 1.5)
         #expect(log.entries == ["row 1", "row 2"])
-        // A stroked shape with a content shape takes hits again.
         let log2 = EventLog()
         let h2 = Harness {
             Circle().stroke(Color.black).frame(width: 50, height: 50)
@@ -86,16 +78,12 @@ struct QAFixesTests {
 
     @Test func duplicateClicksAreDropped() {
         var f = MouseButtonFilter()
-        // One physical click delivered as two pairs 0.2 ms apart.
         do { let ok = f.accept(button: 1, down: true, time: 1.0, x: 10, y: 10); #expect(ok) }
         do { let ok = f.accept(button: 1, down: false, time: 1.05, x: 10, y: 10); #expect(ok) }
         do { let ok = f.accept(button: 1, down: true, time: 1.0502, x: 10, y: 10); #expect(!ok) }
         do { let ok = f.accept(button: 1, down: false, time: 1.0504, x: 10, y: 10); #expect(!ok) }
-        // A real double click (100 ms later) passes.
         do { let ok = f.accept(button: 1, down: true, time: 1.15, x: 10, y: 10); #expect(ok) }
         do { let ok = f.accept(button: 1, down: false, time: 1.2, x: 10, y: 10); #expect(ok) }
-        // A second press while down is dropped; a release we did not see
-        // pressed passes.
         do { let ok = f.accept(button: 3, down: true, time: 2, x: 0, y: 0); #expect(ok) }
         do { let ok = f.accept(button: 3, down: true, time: 2.001, x: 0, y: 0); #expect(!ok) }
         do { let ok = f.accept(button: 2, down: false, time: 3, x: 0, y: 0); #expect(ok) }
@@ -103,8 +91,6 @@ struct QAFixesTests {
 
     @Test func clicksReadLateAreNotTakenForDuplicates() {
         var f = MouseButtonFilter()
-        // A double click read after a long frame: both pairs carry about the
-        // time they were read.
         for (i, down) in [true, false, true, false].enumerated() {
             let ok = f.accept(button: 1, down: down, time: 5 + Double(i) * 0.0001, x: 10, y: 10, timeIsReliable: false)
             #expect(ok)

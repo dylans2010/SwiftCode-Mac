@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// Gauge's signpost agent in a device (specs/ide/profiler.md §3.1): staged
-/// into DEV/data/Library/SwiftCode/lib, inserted after any other inserted
-/// library, its signpost file in the guest's /tmp.
 @Suite struct GaugeAgentEnvironmentTests {
     @Test func insertedLibrariesAreJoined() {
         let merged = DeviceLayout.mergingInsertedLibraries(

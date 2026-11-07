@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimulatorInstallationService.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import os
 
@@ -13,7 +11,6 @@ public actor SimulatorInstallationService {
         logger.info("[BEGIN] Installing application package from '\(path)' on simulator '\(udid)'")
         let startTime = Date()
 
-        // Validate path format
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else {
             throw SimulatorError.invalidApplicationBundle(path: path, reason: "The package file does not exist at the specified path.")

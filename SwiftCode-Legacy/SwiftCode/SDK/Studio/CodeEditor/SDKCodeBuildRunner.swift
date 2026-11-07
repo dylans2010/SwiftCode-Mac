@@ -2,33 +2,18 @@ import CryptoKit
 import Darwin
 import Foundation
 
-// MARK: - SDKCodeBuildRunner
-//
-// Executes `SDKBuildRunRequest`s for real, validates `swiftcode.json` and
-// capability declarations against source files, parses structured compiler
-// diagnostics (TypeScript `tsc` and Swift/Clang `xcodebuild`), and streams
-// stdout/stderr into the editor console LIVE, line by line, via
-// `SDKCodeEditorState.appendConsole(_:)`.
-
 public actor SDKCodeBuildRunner {
     public static let shared = SDKCodeBuildRunner()
 
-    /// Host-owned identity the Studio editor presents to the managed build
-    /// service. Distinct from every extension ID, so the service's
-    /// one-build-per-extension slot never collides with extension builds.
     public static let hostExtensionID = "studio.editor"
 
-    /// Stable digest for the host identity.
     public static let hostPackageDigest: String = {
         let digest = SHA256.hash(data: Data("swiftcode.sdk.studio.editor".utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }()
 
-    /// Pinned executable lookup for local (npm/node) runs.
     private static let envExecutablePath = "/usr/bin/env"
 
-    /// Grace period between SIGTERM and SIGKILL when cancelling a local
-    /// (npm/node) process that ignores termination.
     private static let cancelGraceNanoseconds: UInt64 = 3_000_000_000
 
     private enum ActiveEntry {
@@ -40,11 +25,6 @@ public actor SDKCodeBuildRunner {
 
     public init() {}
 
-    // MARK: - Public API
-
-    /// Validates the project at `projectRoot` (manifest schema, semantic rules,
-    /// capability declarations vs. source usage, and entrypoints) and populates
-    /// `editorState.diagnostics`. Returns `true` when zero errors are found.
     @discardableResult
     public func validateProject(at projectRoot: URL, into editorState: SDKCodeEditorState) async -> Bool {
         await editorState.saveAllModifiedTabs()
@@ -57,7 +37,6 @@ public actor SDKCodeBuildRunner {
         await emit(.system("Validating project at \(root.lastPathComponent)…"), to: editorState)
 
         guard fm.fileExists(atPath: manifestURL.path) else {
-            // Standalone project without swiftcode.json: check basic structure.
             let packageJSON = root.appendingPathComponent("package.json")
             let swiftFiles = (try? fm.contentsOfDirectory(atPath: root.path))?.filter { $0.hasSuffix(".swift") || $0.hasSuffix(".xcodeproj") } ?? []
             if !fm.fileExists(atPath: packageJSON.path) && swiftFiles.isEmpty {
@@ -95,8 +74,6 @@ public actor SDKCodeBuildRunner {
             return false
         }
 
-        // For pre-build validation we validate structural/semantic rules and capability registry membership;
-        // runtime entrypoint existence is checked as a warning before build (since `npm run build` produces `dist/index.js`).
         let manifest = try? SDKManifestValidator.validate(data: data)
         let rawDiagnostics = SDKManifestValidator.validateWithDiagnostics(
             data: data,
@@ -136,7 +113,6 @@ public actor SDKCodeBuildRunner {
             )
         }
 
-        // Cross-check source capability references against declared manifest capabilities.
         if let manifest {
             let declaredIDs = Set(manifest.capabilities.map(\.id))
             let sourceDiags = Self.scanSourceCapabilityUsage(in: root, declaredCapabilities: declaredIDs)
@@ -167,10 +143,6 @@ public actor SDKCodeBuildRunner {
         }
     }
 
-    /// Executes `request` for real, streaming output lines into
-    /// `editorState` as they arrive. Does not return until the run reaches
-    /// a terminal state (or the request fails to start); the caller keeps
-    /// `request.taskID` and uses `cancel(taskID:)` to stop it early.
     public func run(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
         guard active[request.taskID] == nil else {
             await emit(.system("Build/run ignored: task \(request.taskID.uuidString) is already in flight."), to: editorState)
@@ -197,8 +169,6 @@ public actor SDKCodeBuildRunner {
         }
     }
 
-    /// Genuine cancellation: terminates the underlying build handle or
-    /// process for `taskID`.
     public func cancel(taskID: UUID) async {
         guard let entry = active[taskID] else { return }
         switch entry {
@@ -209,12 +179,9 @@ public actor SDKCodeBuildRunner {
         }
     }
 
-    /// Whether `taskID` currently has a run in flight.
     public func isRunning(taskID: UUID) -> Bool {
         active[taskID] != nil
     }
-
-    // MARK: - Managed xcodebuild path
 
     private func runManagedBuild(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
         let taskID = request.taskID
@@ -300,13 +267,10 @@ public actor SDKCodeBuildRunner {
         }
     }
 
-    // MARK: - Local process path (npm / node)
-
     private func runLocalProcess(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
         let taskID = request.taskID
         let root = request.projectRoot
 
-        // If building a TypeScript extension/project and node_modules does not exist yet, run `npm install` first.
         if request.kind == .typescriptExtension {
             let nodeModules = root.appendingPathComponent("node_modules")
             let packageJSON = root.appendingPathComponent("package.json")
@@ -386,7 +350,6 @@ public actor SDKCodeBuildRunner {
         if outcome.cancelled {
             await emit(.system("\(label) — cancelled."), to: editorState)
         } else if outcome.reason == .exit, outcome.exitCode == 0 {
-            // Post-build entrypoint verification for extensions with swiftcode.json
             let manifestURL = root.appendingPathComponent("swiftcode.json")
             if request.kind == .typescriptExtension,
                let data = try? Data(contentsOf: manifestURL),
@@ -425,14 +388,10 @@ public actor SDKCodeBuildRunner {
         return candidate
     }
 
-    // MARK: - Compiler & Source Diagnostic Parsing
-
-    /// Parses a single output line from `tsc` or `swiftc`/`xcodebuild` into a structured `SDKEditorDiagnostic`.
     public nonisolated static func parseCompilerDiagnostic(line: String, projectRoot: URL) -> SDKEditorDiagnostic? {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        // 1. TypeScript `tsc` format: `src/index.ts(12,5): error TS2322: Message`
         if let match = trimmed.firstMatch(of: #/^(.+?)\((\d+),(\d+)\):\s*(error|warning)\s+(TS\d+):\s*(.+)$/#) {
             let relPath = String(match.1)
             let lineNum = Int(match.2) ?? 1
@@ -452,7 +411,6 @@ public actor SDKCodeBuildRunner {
             )
         }
 
-        // 2. TypeScript pretty format: `src/index.ts:12:5 - error TS2322: Message`
         if let match = trimmed.firstMatch(of: #/^(.+?):(\d+):(\d+)\s*-\s*(error|warning)\s+(TS\d+):\s*(.+)$/#) {
             let relPath = String(match.1)
             let lineNum = Int(match.2) ?? 1
@@ -472,7 +430,6 @@ public actor SDKCodeBuildRunner {
             )
         }
 
-        // 3. Swift / Clang format: `/path/to/File.swift:42:10: error: Message`
         if let match = trimmed.firstMatch(of: #/^(.+\.(?:swift|m|mm|c|cpp|h|ts|js)):(\d+):(\d+):\s*(error|warning|note):\s*(.+)$/#) {
             let rawPath = String(match.1)
             let lineNum = Int(match.2) ?? 1
@@ -502,8 +459,6 @@ public actor SDKCodeBuildRunner {
         return root.appendingPathComponent(path).standardizedFileURL
     }
 
-    /// Scans TypeScript source files under `src/` for capability IDs or SDK namespace calls that
-    /// are not declared in `swiftcode.json`, returning actionable warnings with line numbers.
     private nonisolated static func scanSourceCapabilityUsage(
         in projectRoot: URL,
         declaredCapabilities: Set<String>
@@ -558,13 +513,9 @@ public actor SDKCodeBuildRunner {
         return results
     }
 
-    // MARK: - Console sink
-
     private func emit(_ entry: SDKConsoleEntry, to editorState: SDKCodeEditorState) async {
         await editorState.appendConsole(entry)
     }
-
-    // MARK: - LocalProcessSession
 
     private actor LocalProcessSession {
         typealias LineSink = @Sendable (SDKConsoleEntry) -> Void
@@ -737,8 +688,6 @@ public actor SDKCodeBuildRunner {
             }
         }
     }
-
-    // MARK: - LocalProcessOutcome
 
     private struct LocalProcessOutcome: Sendable {
         let exitCode: Int32

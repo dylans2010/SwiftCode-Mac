@@ -3,17 +3,9 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The merge sheet (`specs/ide/merge-sheet.md` §2–§9), drawn from the
-/// core's `ConflictEditorState` as the AppKit `MergeSheetController` draws
-/// it: white, corner radius 16, a soft shadow; one bordered content box 20
-/// inside its sides and 11.5 below its top holding the file list (198), the
-/// jump bar over both panes, the two aligned panes with the gutter between
-/// them and the ruler, and the footer row with the change stepper; then
-/// Cancel and Merge, 84 wide, 12 apart, 21.5 below the box.
 struct MergeSheetView: View {
     var scm: SourceControlShellModel
     var editor: ConflictEditorShellModel
-    /// The sheet is going away: its buttons do nothing more.
     var isClosing: Bool
     @Environment(\.colorScheme) private var scheme
 
@@ -62,8 +54,6 @@ struct MergeSheetView: View {
     }
 }
 
-/// The bordered box (§2): a 1-point #BFBFBF border and square corners; the
-/// file list, a 1-point rule, then the jump bar, the panes and the footer.
 struct MergeContentBox: View {
     var scm: SourceControlShellModel
     var editor: ConflictEditorShellModel
@@ -109,8 +99,6 @@ struct MergeContentBox: View {
     }
 }
 
-/// SwiftCode's own glyphs for the sheet (no system artwork): a Swift file's
-/// orange, a folder's blue.
 enum MergeGlyphs {
     static let swiftOrange: UInt32 = 0xF26B33
 
@@ -119,7 +107,6 @@ enum MergeGlyphs {
     }
 }
 
-/// A small right-pointing chevron, the path separator (§4.1, §8).
 struct MergePathSeparator: View {
     var color: Color
 
@@ -134,12 +121,6 @@ struct MergePathSeparator: View {
     }
 }
 
-// MARK: - File list (§3)
-
-/// "Hierarchical | Flat", 24-point rows with a flush full-width selection
-/// (#0064E1), the red "C" badge in a white square, and the Filter field at
-/// the bottom. A file row's context menu has Mark as Resolved (SwiftCode's
-/// choice).
 struct MergeFileList: View {
     @Bindable var editor: ConflictEditorShellModel
     var palette: MergeSheetPalette
@@ -255,11 +236,6 @@ struct MergeFileList: View {
     }
 }
 
-// MARK: - Jump bar (§4.1)
-
-/// One bar over both panes: the grid symbol, a divider, back and forward,
-/// the path to the file and "No Selection"; at the right end, over the
-/// right pane, the conflict navigator (previous, the conflict mark, next).
 struct MergeJumpBar: View {
     var editor: ConflictEditorShellModel
     var palette: MergeSheetPalette
@@ -294,7 +270,6 @@ struct MergeJumpBar: View {
                     .padding(.leading, 11.5)
                     Spacer(minLength: 0)
                 }
-                // The conflict navigator, ending 16 before the box's edge.
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
                     Button { editor.previousHunk() } label: {
@@ -326,11 +301,6 @@ struct MergeJumpBar: View {
     }
 }
 
-// MARK: - Footer (§8)
-
-/// The row under both panes: each side's repository › branch › date,
-/// author, short hash ("(HEAD)" on the left), and "‹ n/m ›" centred on the
-/// gutter.
 struct MergeFooter: View {
     var editor: ConflictEditorShellModel
     var palette: MergeSheetPalette

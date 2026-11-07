@@ -4,10 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Review… (coding-assistant.md §5.3): "Change <file>: +a −r lines" (or
-/// "Create <path>"), the file's current text on the left and the text with
-/// the change on the right, both read-only, changed lines tinted and
-/// paired; Reject (Esc) and Accept (Return), or Create File.
 struct AssistantReviewSheet: View {
     var assistant: ShellAssistantModel
     var review: AssistantChangeReview
@@ -95,7 +91,6 @@ struct AssistantReviewSheet: View {
     }
 }
 
-/// The pane's sheet and alert in the workspace window.
 struct AssistantPrompts: ViewModifier {
     @Bindable var assistant: ShellAssistantModel
 

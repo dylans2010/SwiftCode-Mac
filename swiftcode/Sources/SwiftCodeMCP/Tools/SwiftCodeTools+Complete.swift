@@ -2,8 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeCompletion
 
-/// `complete`: one predictive code completion (specs/ide/predictive-completion.md §7),
-/// from the backend in SwiftCode's settings (`SwiftCode.predictiveCompletion`).
 extension SwiftCodeMCPHost {
     var completionTools: [MCPTool] {
         [

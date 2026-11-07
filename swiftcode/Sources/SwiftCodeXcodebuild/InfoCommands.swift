@@ -3,8 +3,6 @@ import SwiftCodeProject
 import SwiftCodeWorkspace
 import SwiftCodeSettings
 
-/// `-version`, `-showsdks`, `-list`, `-showdestinations`, `-showTestPlans`.
-/// See `specs/xcodebuild/info-commands.md`.
 enum InfoCommands {
     static var versionText: String { "\(SwiftCodeVersion.product) \(SwiftCodeVersion.version)\nBuild version \(SwiftCodeVersion.build)" }
 
@@ -82,8 +80,6 @@ enum InfoCommands {
         return 0
     }
 
-    /// Platforms the plan's targets build for (raw `SUPPORTED_PLATFORMS`,
-    /// else the platform of `SDKROOT`).
     static func supportedPlatforms(_ plan: Plan, context ctx: XcodebuildContext) -> Set<String> {
         var out: Set<String> = []
         let catalog = ctx.developerDirectory.map { SDKCatalog(developerDirectory: $0) }
@@ -96,7 +92,6 @@ enum InfoCommands {
             let sdkroot = r.settings["SDKROOT"]
             let base = catalog?.lookup(sdkroot)?.canonicalName.prefix { !$0.isNumber }.description ?? sdkroot
             if !base.isEmpty { out.insert(base) }
-            // A device SDK implies its simulator.
             let sims = ["iphoneos": "iphonesimulator", "appletvos": "appletvsimulator", "watchos": "watchsimulator", "xros": "xrsimulator"]
             if let s = sims[base] { out.insert(s) }
         }

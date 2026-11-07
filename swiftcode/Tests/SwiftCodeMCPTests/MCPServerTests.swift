@@ -7,7 +7,6 @@ import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
 @Suite struct MCPServerTests {
-    /// A server with an echo tool and a write tool.
     static func server(policy: MCPWritePolicy = .readOnly) -> MCPServer {
         let s = MCPServer(name: "t", version: "1", instructions: "Use the tools.")
         s.tools = [
@@ -36,7 +35,6 @@ import SwiftCodeAssistant
         #expect(r["serverInfo"]?["name"] == "t" && r["instructions"] == "Use the tools.")
         #expect(r["capabilities"]?["tools"] != nil && r["capabilities"]?["prompts"] != nil)
         #expect(c.legacyVersion == "2025-06-18")
-        // An unknown version: the newest legacy revision; no resultType on legacy results.
         let r2 = try await s.handle(method: "initialize", params: ["protocolVersion": "2024-01-01"], connection: c)
         #expect(r2["protocolVersion"] == "2025-11-25" && r2["resultType"] == nil)
     }
@@ -49,7 +47,6 @@ import SwiftCodeAssistant
         #expect(d["resultType"] == "complete" && d["_meta"]?[MCPServer.serverInfoKey]?["name"] == "t")
         let list = try await s.handle(method: "tools/list", params: ["_meta": modernMeta], connection: c)
         #expect(list["resultType"] == "complete" && list["tools"]?.array?.count == 2)
-        // Unsupported version: -32022 with the supported list.
         do {
             _ = try await s.handle(method: "tools/list", params: ["_meta": [MCPServer.protocolVersionKey: "1900-01-01", MCPServer.clientCapabilitiesKey: [:]]],
                                    connection: c)
@@ -58,7 +55,6 @@ import SwiftCodeAssistant
             #expect(e.code == -32022 && e.data?["requested"]?.string == "1900-01-01")
             #expect(e.data?["supported"]?.array?.contains(.string("2025-11-25")) == true)
         }
-        // Missing client capabilities: invalid params.
         await #expect(throws: JSONRPCError.self) {
             try await s.handle(method: "tools/list", params: ["_meta": [MCPServer.protocolVersionKey: .string(MCPServer.modernVersion)]], connection: c)
         }
@@ -97,7 +93,6 @@ import SwiftCodeAssistant
         let p = try await s.handle(method: "prompts/get", params: ["name": "p", "arguments": ["x": "it"]], connection: c)
         #expect(p["messages"]?[0]?["content"]?["text"] == "do it")
         await #expect(throws: JSONRPCError.self) { try await s.handle(method: "prompts/get", params: ["name": "p"], connection: c) }
-        // No resource source: an empty list; reading fails with the era's code.
         #expect(try await s.handle(method: "resources/list", params: nil, connection: c)["resources"] == [])
         do {
             _ = try await s.handle(method: "resources/read", params: ["uri": "file:///x"], connection: c)
@@ -226,8 +221,6 @@ import SwiftCodeAssistant
             let props = l["inputSchema"]?["properties"]?.object ?? [:]
             for r in l["inputSchema"]?["required"]?.array?.compactMap(\.string) ?? [] { #expect(props[r] != nil, "\(t.name).\(r)") }
             for (k, v) in props { #expect(v["type"] != nil && v["description"]?.string?.isEmpty == false, "\(t.name).\(k)") }
-            // `plan-AskUser` is the one documented exception to snake_case:
-            // Legacy's registry keeps the hyphenated ID by design.
             #expect(t.name == "plan-AskUser" || t.name.range(of: "^[a-z_]+$", options: .regularExpression) != nil)
             #expect(!t.description.isEmpty && !t.title.isEmpty)
             if let o = l["outputSchema"] { #expect(o["type"] == "object", "\(t.name)") }
@@ -342,7 +335,6 @@ import SwiftCodeAssistant
         get.setValue("Bearer \(t.token)", forHTTPHeaderField: "Authorization")
         let (_, gr) = try await URLSession.shared.data(for: get)
         #expect((gr as? HTTPURLResponse)?.statusCode == 405)
-        // A notification: 202, no body.
         #expect(try await Self.post(t, ["jsonrpc": "2.0", "method": "notifications/initialized"]).0 == 202)
     }
 
@@ -357,14 +349,12 @@ import SwiftCodeAssistant
         #expect(s2 == 200)
         let r2 = try AnyJSON.parse(b2)
         #expect(r2["result"]?["structuredContent"]?["text"] == "hi" && r2["result"]?["resultType"] == "complete")
-        // Headers must match the body; a base64 Mcp-Name is decoded first.
         #expect(try await Self.post(t, call, headers: Self.modernHeaders("tools/call", name: "other")).0 == 400)
         #expect(try await Self.post(t, call, headers: Self.modernHeaders("tools/call", name: "=?base64?ZWNobw==?=")).0 == 200)
         var wrongVersion = Self.modernHeaders("tools/call", name: "echo")
         wrongVersion["MCP-Protocol-Version"] = "2025-11-25"
         let (s3, b3, _) = try await Self.post(t, call, headers: wrongVersion)
         #expect(s3 == 400 && b3.contains("-32020"))
-        // Unknown method (modern): 404 with -32601; unsupported version: 400 with -32022.
         let (s4, b4, _) = try await Self.post(t, ["jsonrpc": "2.0", "id": 3, "method": "nope", "params": ["_meta": modernMeta]],
                                               headers: Self.modernHeaders("nope"))
         #expect(s4 == 404 && b4.contains("-32601"))

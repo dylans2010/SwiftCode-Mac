@@ -1,18 +1,5 @@
 import SwiftUI
 
-/// Applies a `PreviewState` to a preview as environment (Legacy
-/// `SwiftCode/Core/Preview/PreviewEnvironment.swift`, Dylan's own
-/// code, ported under MIT).
-///
-/// Legacy applied only color scheme, dynamic type, locale, layout
-/// direction, and display scale. This extends the modifier to the
-/// rest of `PreviewState`, which the destination's canvas never
-/// applied: high contrast (`.colorSchemeContrast`), bold text
-/// (`.legibilityWeight`), reduce motion
-/// (`.accessibilityReduceMotion`), custom dimensions (frame), and
-/// safe-area insets (`.safeAreaInset`). The state defaults match
-/// Legacy's (`localization "en"`, portrait, scale 1, iPhone 16 Pro
-/// safe areas).
 @MainActor
 public struct PreviewEnvironmentModifier: ViewModifier {
     let state: PreviewState

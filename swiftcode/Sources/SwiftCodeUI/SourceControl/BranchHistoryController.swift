@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// A branch's history in the editor area (`reference-ui-4.md` §2.5–§2.6):
-/// a scope bar with a filter, one row per commit, and a commit detail pane
-/// below once a commit is selected.
 @MainActor
 public final class BranchHistoryController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public let repository: GitRepository
@@ -11,7 +8,6 @@ public final class BranchHistoryController: NSViewController, NSTableViewDataSou
     public let scopeBar = NSSegmentedControl(labels: HistoryScope.titles, trackingMode: .selectOne, target: nil, action: nil)
     public let filterField = NSSearchField()
     public let table = NSTableView()
-    /// Every commit of the branch (newest first) and those shown.
     public private(set) var allCommits: [GitRepository.Commit] = []
     public private(set) var shown: [GitRepository.Commit] = []
     public private(set) var selectedCommit: GitRepository.Commit?
@@ -24,10 +20,8 @@ public final class BranchHistoryController: NSViewController, NSTableViewDataSou
     private var detailHeight: NSLayoutConstraint!
     public var onSelectCommit: ((GitRepository.Commit?) -> Void)?
     var now: () -> Date = Date.init
-    /// The background read of the log, while it runs.
     public private(set) var loading: Task<Void, Never>?
     private var loadGeneration = 0
-    /// The inspector rows of the selection, while they are read.
     var inspectorLoading: Task<Void, Never>?
 
     public init(repository: GitRepository, ref: String) {
@@ -119,7 +113,6 @@ public final class BranchHistoryController: NSViewController, NSTableViewDataSou
         reload()
     }
 
-    /// Re-reads the branch's log in the background, then refilters.
     public func reload() {
         let repo = repository, ref = ref
         loadGeneration += 1
@@ -133,7 +126,6 @@ public final class BranchHistoryController: NSViewController, NSTableViewDataSou
         }
     }
 
-    /// Waits for the log and the inspector rows (tests).
     public func idle() async {
         while true {
             if let t = loading { await t.value; continue }
@@ -153,7 +145,6 @@ public final class BranchHistoryController: NSViewController, NSTableViewDataSou
     public func setScope(_ s: HistoryScope) { scopeBar.selectedSegment = s.rawValue; refilter() }
     public func setFilter(_ text: String) { filterField.stringValue = text; refilter() }
 
-    /// Selects a commit (or none): shows or hides the detail pane.
     public func select(_ commit: GitRepository.Commit?) {
         selectedCommit = commit
         if let c = commit, let row = shown.firstIndex(of: c), table.selectedRow != row {
@@ -180,7 +171,6 @@ public final class BranchHistoryController: NSViewController, NSTableViewDataSou
 
     public func numberOfRows(in tableView: NSTableView) -> Int { shown.count }
 
-    /// Row texts: author, badges, subject, short hash, relative day.
     public func rowTexts(_ i: Int) -> (author: String, badges: [String], subject: String, hash: String, day: String) {
         let c = shown[i]
         return (c.authorName, c.branches + c.tags, c.subject, c.shortHash, GitDates.relativeDay(c.date, now: now()))
@@ -244,17 +234,13 @@ public final class BranchHistoryController: NSViewController, NSTableViewDataSou
     }
 }
 
-/// The inspector's Source Control tab: Branch and Commit sections
-/// (`reference-ui-4.md` §2.5–§2.6).
 @MainActor
 public enum SourceControlInspector {
-    /// Rows of the Branch section: Name, Remote, Remote Branch.
     public nonisolated static func branchRows(repository: GitRepository, branch: String) -> [(String, String)] {
         [("Name", branch), ("Remote", repository.remote(of: branch) ?? "No Remote"),
          ("Remote Branch", repository.upstream(of: branch) ?? "No Remote Branch")]
     }
 
-    /// Rows of the Commit section.
     public nonisolated static func commitRows(repository: GitRepository, commit c: GitRepository.Commit) -> [(String, String)] {
         let branches = repository.branches(containing: c.hash)
         let files = repository.files(in: c.hash).map { "\($0.status.rawValue)  \($0.path)" }
@@ -278,7 +264,6 @@ public enum SourceControlInspector {
                 key.font = .systemFont(ofSize: 11)
                 key.textColor = .secondaryLabelColor
                 if k == "Files", !v.isEmpty {
-                    // reference-ui-4.md §2.6 (P16): icon, name, status letter.
                     stack.addArrangedSubview(key)
                     for f in fileRows(v) { stack.addArrangedSubview(fileRowView(f)) }
                     continue
@@ -294,7 +279,6 @@ public enum SourceControlInspector {
         return stack
     }
 
-    /// One Files row: the file's icon, its name and its status letter.
     public struct FileRow: Equatable, Sendable {
         public var symbol: String
         public var name: String
@@ -302,7 +286,6 @@ public enum SourceControlInspector {
         public var status: String
     }
 
-    /// The Files rows of a commit ("M  path" lines from `commitRows`).
     public static func fileRows(_ text: String) -> [FileRow] {
         text.split(separator: "\n").map { line in
             let parts = line.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
@@ -312,7 +295,6 @@ public enum SourceControlInspector {
         }
     }
 
-    /// SwiftCode's own icon for a file, by type (SF Symbols).
     public static func fileSymbol(_ path: String) -> String {
         switch (path as NSString).pathExtension.lowercased() {
         case "swift": "swift"

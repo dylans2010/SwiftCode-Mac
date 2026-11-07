@@ -3,12 +3,7 @@ import SwiftCodeDebug
 import SwiftCodeIDECore
 import SwiftCodeSimFeatures
 
-/// The paused debug bar's extra buttons, path and branch; the variables
-/// view's badges and spinner; the highlighted "killed" console line
-/// (specs/ide/reference-ui-4.md §1.2, §5.4–5.6).
 extension DebugAreaController {
-    /// After Step Out: Backtrace in Editor, View Hierarchy, Memory Graph,
-    /// Environment Overrides, Simulate Location.
     public static let extraBarButtons: [(String, String, String)] = [
         ("list.bullet.indent", "Enable Backtrace in Editor", "toggleBacktraceInEditor:"),
         ("square.3.layers.3d.down.right", "Debug View Hierarchy", "debugViewHierarchy:"),
@@ -17,8 +12,6 @@ extension DebugAreaController {
         ("location", "Simulate Location", "simulateLocation:"),
     ]
 
-    /// The branch button: a branch glyph and the branch name; it opens a
-    /// menu of the local branches (reference-ui-5.md §6.2).
     func makeBranchView() -> NSStackView {
         let glyph = NSImageView(image: NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Branch")!)
         glyph.contentTintColor = .secondaryLabelColor
@@ -37,7 +30,6 @@ extension DebugAreaController {
         v.spacing = 3
         v.isHidden = true
         v.toolTip = Self.branchButtonToolTip
-        // The button covers the glyph and the name, so a click anywhere opens the menu.
         v.addSubview(button)
         NSLayoutConstraint.activate([
             button.leadingAnchor.constraint(equalTo: v.leadingAnchor), button.trailingAnchor.constraint(equalTo: v.trailingAnchor),
@@ -48,7 +40,6 @@ extension DebugAreaController {
 
     public static let branchButtonToolTip = "Shows a list of available branches"
 
-    /// The branch menu: the local branches, the current one checked.
     public func branchMenu() -> NSMenu {
         let menu = NSMenu(title: "Branches")
         for (name, current) in branchesProvider?() ?? [] {
@@ -69,21 +60,18 @@ extension DebugAreaController {
 
     @objc func branchChosen(_ item: NSMenuItem) { onSwitchBranch?(item.title) }
 
-    /// Shows (or with nil removes) the Code Review controls in the bar.
     public func setReviewControls(_ v: NSView?) {
         _ = view
         for old in reviewSlot.arrangedSubviews where old !== v { old.removeFromSuperview() }
         if let v, v.superview !== reviewSlot { v.removeFromSuperview(); reviewSlot.addArrangedSubview(v) }
     }
 
-    /// The current git branch at the bar's right end (hidden when none).
     public func setBranch(_ name: String?) {
         _ = view
         branchLabel.stringValue = name ?? ""
         branchView.isHidden = name == nil
     }
 
-    /// "<process> › Thread <n> › <index> <function>" while paused.
     public func setPath(_ path: String) {
         guard !path.isEmpty else { return }
         setFrame(path)
@@ -118,7 +106,6 @@ extension DebugAreaController {
         if on { variablesSpinner.startAnimation(nil) } else { variablesSpinner.stopAnimation(nil) }
     }
 
-    /// "A name: Type = value" with the letter in a small badge.
     func badgedRow(_ badge: String, _ v: Variable) -> NSView {
         let tint: NSColor = badge == "A" ? .systemPurple : .systemBlue
         let s = NSMutableAttributedString(string: " \(badge) ", attributes: [.font: NSFont.boldSystemFont(ofSize: 10), .foregroundColor: NSColor.white,
@@ -132,13 +119,11 @@ extension DebugAreaController {
         return f
     }
 
-    /// The row text of a top-level variable (tests).
     public func variableRowText(_ name: String) -> String? {
         guard let n = roots.first(where: { $0.variable.name == name }) else { return nil }
         return variableBadges[name].map { DebugPresentation.variableRow(badge: $0, n.variable) }
     }
 
-    /// "Debug session ended with code 9: killed" is drawn highlighted.
     func highlightKilledLine() {
         guard let storage = consoleView.textStorage else { return }
         let text = storage.string as NSString
@@ -150,16 +135,11 @@ extension DebugAreaController {
         }
     }
 
-    // MARK: Extra buttons
-
     @objc func toggleBacktraceInEditor(_ sender: NSButton) {
         backtraceInEditor.toggle()
         sender.contentTintColor = backtraceInEditor ? .controlAccentColor : .secondaryLabelColor
     }
 
-    /// Debug View Hierarchy and Debug Memory Graph (D4) stay disabled
-    /// placeholders until the simulator can capture them
-    /// (`reference-ui-5.md` §0, R37): listed in the bar, never enabled.
     public static let placeholderBarActions: Set<String> = ["debugViewHierarchy:", "debugMemoryGraph:"]
 
     @objc func showEnvironmentOverrides(_ sender: NSButton) {
@@ -175,9 +155,6 @@ extension DebugAreaController {
         p.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
-    /// Simulate Location (`simulator-features.md` §7.1's places, the trips,
-    /// Apple; the debugged app's device): a menu; without a run that takes it,
-    /// "Don't Simulate Location" and a note.
     public func simulateLocationMenu() -> NSMenu {
         syncWithRun()
         let menu = NSMenu()
@@ -205,7 +182,6 @@ extension DebugAreaController {
         return menu
     }
 
-    /// A new run (or none) starts with no overrides and no simulated location.
     func syncWithRun() {
         let key = simulatorRunKey?()
         if key != overridesRunKey {

@@ -1,14 +1,11 @@
 import Foundation
 
-/// A `.xcscheme` document: which targets to build and how to run, test,
-/// profile, analyze, and archive them. See `specs/formats/xcscheme.md`.
 public struct Scheme: Sendable {
     public enum Action: String, CaseIterable, Sendable {
         case testing = "Testing", running = "Running", profiling = "Profiling"
         case archiving = "Archiving", analyzing = "Analyzing"
     }
 
-    /// A pointer from a scheme to a target in some project.
     public struct BuildableReference: Equatable, Sendable {
         public var buildableIdentifier: String
         public var blueprintIdentifier: String
@@ -84,8 +81,6 @@ public struct Scheme: Sendable {
 
     public func serialized() -> String { XcodeXML.write(document) }
 
-    // MARK: - Views
-
     public var buildEntries: [BuildEntry] {
         (document.child("BuildAction")?.child("BuildActionEntries")?.children("BuildActionEntry") ?? []).compactMap { e in
             guard let ref = e.child("BuildableReference") else { return nil }
@@ -104,21 +99,17 @@ public struct Scheme: Sendable {
         }
     }
 
-    /// Test plans referenced by the test action (`container:`-relative paths).
     public var testPlans: [(reference: String, isDefault: Bool)] {
         (document.child("TestAction")?.child("TestPlans")?.children("TestPlanReference") ?? []).map {
             ($0["reference"] ?? "", $0["default"] == "YES")
         }
     }
 
-    /// The build configuration an action uses (`"Debug"` for run/test/analyze
-    /// and `"Release"` for profile/archive when unspecified).
     public func configuration(for action: String) -> String {
         if let c = document.child(action)?["buildConfiguration"] { return c }
         return ["ProfileAction", "ArchiveAction"].contains(action) ? "Release" : "Debug"
     }
 
-    /// The target the launch action runs.
     public var launchTarget: BuildableReference? {
         guard let launch = document.child("LaunchAction") else { return nil }
         let runnable = launch.child("BuildableProductRunnable") ?? launch.child("MacroExpansion")
@@ -138,11 +129,6 @@ public struct Scheme: Sendable {
         }
     }
 
-    // MARK: - Discovery
-
-    /// Schemes stored in a project or workspace bundle. Shared schemes come
-    /// from `xcshareddata/xcschemes`. User schemes come from
-    /// `xcuserdata/<user>.xcuserdatad/xcschemes`. Sorted by name.
     public static func discover(in container: URL, user: String = NSUserName()) -> [Scheme] {
         let fm = FileManager.default
         func load(_ dir: URL, shared: Bool) -> [Scheme] {
@@ -156,9 +142,6 @@ public struct Scheme: Sendable {
         return (shared + mine).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
-    /// The scheme Xcode generates for a target when a project has none.
-    /// Only the build and launch structure is produced. Attribute defaults
-    /// beyond those that select targets are not modeled yet.
     public static func autocreated(for target: BuildableReference, isTestBundle: Bool, isRunnable: Bool) -> Scheme {
         let entry = XMLNode("BuildActionEntry", attributes: [
             ("buildForTesting", "YES"), ("buildForRunning", isTestBundle ? "NO" : "YES"),
@@ -185,7 +168,6 @@ public struct Scheme: Sendable {
         children.append(XMLNode("AnalyzeAction", attributes: [("buildConfiguration", "Debug")]))
         children.append(XMLNode("ArchiveAction", attributes: [("buildConfiguration", "Release"), ("revealArchiveInOrganizer", "YES")]))
         let doc = XMLNode("Scheme", attributes: [("version", "1.7")], children: children)
-        // swiftlint:disable:next force_try - parses XML this function just wrote
         var s = try! Scheme(parsing: XcodeXML.write(doc), name: target.blueprintName, isShared: false)
         s.url = nil
         return s

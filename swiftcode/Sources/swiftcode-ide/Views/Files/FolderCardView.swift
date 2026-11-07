@@ -1,10 +1,3 @@
-// FolderCardView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Dashboard/FolderCardView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Per-folder card showing project count
-// Ambiguous type reference(s) defined in several modules, import left out: ProjectFolder.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 

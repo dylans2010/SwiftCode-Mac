@@ -8,7 +8,6 @@ struct DependencyManagerView: View {
     @State private var platformManager = DependencyPlatformManager.shared
     @State private var activeDependencies: [ParsedDependency] = []
 
-    // Quick Actions
     @State private var activeQuickMessage: String?
     @State private var showQuickMessage = false
 
@@ -16,7 +15,6 @@ struct DependencyManagerView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 28) {
-                    // Central Banner
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
@@ -42,10 +40,8 @@ struct DependencyManagerView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Main Dashboard Grid of Feature Cards
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 340, maximum: .infinity))], spacing: 20) {
 
-                        // Card 1: Package Explorer
                         NavigationLink(destination: PackageExplorerView()) {
                             renderDashboardCard(
                                 title: "Package Explorer",
@@ -57,13 +53,11 @@ struct DependencyManagerView: View {
                                 activity: "Last update: Today",
                                 quickActionLabel: "Browse Featured",
                                 quickAction: {
-                                    // Quick action
                                 }
                             )
                         }
                         .buttonStyle(.plain)
 
-                        // Card 2: GitHub Discovery
                         NavigationLink(destination: DependencyGitHubDiscoveryView()) {
                             renderDashboardCard(
                                 title: "GitHub Discovery Engine",
@@ -79,7 +73,6 @@ struct DependencyManagerView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // Card 3: AI Assistant Co-Designer
                         NavigationLink(destination: PackageAIView()) {
                             renderDashboardCard(
                                 title: "AI Assistant Co-Designer",
@@ -95,7 +88,6 @@ struct DependencyManagerView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // Card 4: Collections & Presets
                         NavigationLink(destination: PackageCollectionsView()) {
                             renderDashboardCard(
                                 title: "Custom Workspaces & Presets",
@@ -111,7 +103,6 @@ struct DependencyManagerView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // Card 5: Dependency Graph Visualizer
                         NavigationLink(destination: DependencyVisualizerView()) {
                             renderDashboardCard(
                                 title: "Dependency Graph Visualizer",
@@ -127,7 +118,6 @@ struct DependencyManagerView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // Card 6: Security Center
                         NavigationLink(destination: DependencySecurityCenterView()) {
                             renderDashboardCard(
                                 title: "Ecosystem Security & Audit",
@@ -146,7 +136,6 @@ struct DependencyManagerView: View {
                         .buttonStyle(.plain)
                     }
 
-                    // Active Manifest Panel
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -216,7 +205,6 @@ struct DependencyManagerView: View {
         }
     }
 
-    // MARK: - Dashboard Card Builder
     @ViewBuilder
     private func renderDashboardCard(
         title: String,
@@ -282,7 +270,6 @@ struct DependencyManagerView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    // MARK: - Local Manifest Sync Helper
     private func refreshActiveManifest() {
         guard let project = sessionStore.activeProject else { return }
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")

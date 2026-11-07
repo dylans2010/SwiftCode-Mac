@@ -1,21 +1,12 @@
 import Foundation
 
-/// The workspace text search: files searched in parallel, results
-/// delivered in file order as each one finishes, binaries and very large
-/// files skipped, unsaved editor text searched instead of the file on
-/// disk, cancellable. See `specs/ide/navigators.md` §Find navigator,
-/// "SwiftCode implementation".
 public enum FindEngine {
     public struct Request: Sendable {
         public var query: FindQuery
         public var files: [FindCandidate]
-        /// Unsaved editor text by path; searched instead of the file.
         public var buffers: [String: String]
-        /// Stop after this many matches (the file that reaches it is kept whole).
         public var limit: Int
-        /// Files larger than this are skipped.
         public var maxFileSize: Int
-        /// Worker threads (at most the active processors).
         public var concurrency: Int
 
         public init(query: FindQuery, files: [FindCandidate], buffers: [String: String] = [:], limit: Int = 1000,
@@ -36,13 +27,9 @@ public enum FindEngine {
     public struct Summary: Equatable, Sendable {
         public var files: [WorkspaceSearch.FileResult] = []
         public var matchCount = 0
-        /// Files read and searched (buffers included).
         public var searchedFiles = 0
-        /// Files skipped as binary (a NUL byte in the first 8 KB, a known
-        /// binary extension, or text that is not UTF-8 or UTF-16).
         public var skippedBinary = 0
         public var skippedLarge = 0
-        /// The search stopped at the match limit.
         public var truncated = false
         public var cancelled = false
         public var elapsed: TimeInterval = 0
@@ -54,7 +41,6 @@ public enum FindEngine {
         case finished(Summary)
     }
 
-    /// Stops a running search; checked between files.
     public final class Cancellation: @unchecked Sendable {
         private let lock = NSLock()
         private var flag = false
@@ -63,7 +49,6 @@ public enum FindEngine {
         public var isCancelled: Bool { lock.withLock { flag } }
     }
 
-    /// Extensions never read (images, archives, objects, media, fonts).
     public static let binaryExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "tif", "tiff", "bmp", "heic", "ico", "icns", "webp", "psd", "pdf", "car",
         "zip", "gz", "tgz", "xz", "bz2", "7z", "rar", "tar", "dmg", "pkg", "ipa", "aar", "jar",
@@ -72,9 +57,6 @@ public enum FindEngine {
         "ttf", "otf", "woff", "woff2", "sqlite", "db", "realm", "mlmodel", "mlmodelc", "usdz", "reality",
     ]
 
-    /// Searches synchronously (the work runs on `concurrency` threads).
-    /// `onFile` gets each file with matches, in request order, before the
-    /// call returns.
     public static func search(_ r: Request, cancellation: Cancellation = Cancellation(),
                               onFile: (@Sendable (WorkspaceSearch.FileResult) -> Void)? = nil) -> Summary {
         let start = Date()
@@ -90,7 +72,6 @@ public enum FindEngine {
                 guard let i = state.claim() else { return }
                 let outcome = searchFile(r.files[i].path, request: r, matcher: matcher)
                 state.finish(i, outcome) { result in
-                    // In order, under the state's lock.
                     guard !state.summary.truncated else { return }
                     state.summary.files.append(result)
                     state.summary.matchCount += result.matches.count
@@ -108,8 +89,6 @@ public enum FindEngine {
         return summary
     }
 
-    /// Searches on a background thread; events arrive as files finish.
-    /// Ending the stream (or cancelling its task) stops the search.
     public static func stream(_ r: Request) -> AsyncStream<Event> {
         let cancellation = Cancellation()
         return AsyncStream { continuation in
@@ -121,8 +100,6 @@ public enum FindEngine {
             }
         }
     }
-
-    // MARK: One file
 
     enum Outcome { case matches([WorkspaceSearch.Match]), none, binary, large }
 
@@ -140,9 +117,6 @@ public enum FindEngine {
         return m.isEmpty ? .none : .matches(m)
     }
 
-    /// The file's text: UTF-16 with a byte-order mark, else UTF-8 without
-    /// NUL bytes in the first 8 KB. Returns "" (nothing to search) when
-    /// the byte pre-check rules the file out, nil for a binary file.
     static func decode(_ data: Data, matcher: FindMatcher) -> String? {
         if data.count >= 2, (data[0] == 0xFF && data[1] == 0xFE) || (data[0] == 0xFE && data[1] == 0xFF) {
             return String(data: data, encoding: .utf16)
@@ -157,8 +131,6 @@ public enum FindEngine {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Shared between the workers: the next file to claim, finished
-    /// outcomes waiting for their turn, and the summary built in order.
     final class SearchState: @unchecked Sendable {
         private let lock = NSLock()
         private var next = 0
@@ -181,7 +153,6 @@ public enum FindEngine {
             }
         }
 
-        /// Records an outcome and delivers every outcome now in order.
         func finish(_ i: Int, _ outcome: Outcome, deliver: (WorkspaceSearch.FileResult) -> Void) {
             lock.lock()
             defer { lock.unlock() }

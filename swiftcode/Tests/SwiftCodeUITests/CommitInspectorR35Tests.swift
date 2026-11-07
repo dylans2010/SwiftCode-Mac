@@ -3,8 +3,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeUI
 
-/// reference-ui-4.md §2.6 (reference-ui-5.md §11.6, P16): the Commit
-/// section's Files rows carry file icons, names and status letters.
 @MainActor
 @Suite struct CommitInspectorR35Tests {
     @Test func filesRowsHaveIconsNamesAndStatus() {

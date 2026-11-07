@@ -1,9 +1,3 @@
-// SimulatorDeviceInformationView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorDeviceInformationView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: dedicated device-information view (label/value info rows)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 

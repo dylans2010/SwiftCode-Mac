@@ -1,7 +1,3 @@
-// Host-side locking for the multi-vCPU VMM (stage4a-contract.md §2): a mutex
-// and a condition variable over pthreads. Portable (macOS and Linux), so the
-// types also exist where the KVM backend does not.
-
 #if canImport(Glibc)
 import Glibc
 #elseif canImport(Darwin)
@@ -9,7 +5,6 @@ import Darwin
 #endif
 import SwiftCodeDarwinABI
 
-/// A non-recursive pthread mutex.
 public final class HostMutex: @unchecked Sendable {
     let mutex: UnsafeMutablePointer<pthread_mutex_t>
 
@@ -19,7 +14,6 @@ public final class HostMutex: @unchecked Sendable {
         pthread_mutex_init(mutex, nil)
     }
 
-    /// A mutex named in profiles (`DebugLockNames`).
     public convenience init(name: String) {
         self.init()
         DebugLockNames.register?(UnsafeMutableRawPointer(mutex), name)
@@ -40,8 +34,6 @@ public final class HostMutex: @unchecked Sendable {
     }
 }
 
-/// A condition variable used with a `HostMutex`. Deadlines use
-/// CLOCK_REALTIME on Darwin and CLOCK_MONOTONIC on Linux.
 public final class HostCondition: @unchecked Sendable {
     let condition: UnsafeMutablePointer<pthread_cond_t>
 
@@ -64,10 +56,8 @@ public final class HostCondition: @unchecked Sendable {
         condition.deallocate()
     }
 
-    /// Waits (the caller holds `mutex`).
     public func wait(_ mutex: HostMutex) { pthread_cond_wait(condition, mutex.mutex) }
 
-    /// Waits until signalled or `milliseconds` pass. Returns false on timeout.
     @discardableResult
     public func wait(_ mutex: HostMutex, milliseconds: UInt64) -> Bool {
         var now = timespec()

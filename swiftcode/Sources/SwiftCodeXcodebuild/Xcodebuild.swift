@@ -3,33 +3,24 @@ import SwiftCodeRelease
 import SwiftCodeProject
 import SwiftCodeWorkspace
 
-/// SwiftCode's own version, printed by `-version` in the reference tool's
-/// two-line format. See `specs/xcodebuild/info-commands.md` §1.
 public enum SwiftCodeVersion {
     public static let product = "SwiftCode"
     public static let version = SwiftCodeRelease.version
     public static let build = SwiftCodeRelease.version
 }
 
-/// Everything a run depends on besides the arguments.
 public struct XcodebuildContext {
     public var cwd: String
     public var environment: [String: String]
-    /// Printed in the "Command line invocation" header.
     public var toolPath: String
     public var developerDirectory: String?
     public var home: String
-    /// The DerivedData folder (`-IDECustomDerivedDataLocation=<dir>`); nil =
-    /// `~/Library/Developer/Xcode/DerivedData`.
     public var derivedDataLocation: String?
-    /// The folder that holds each container's DerivedData folder.
     public var derivedDataRoot: String { derivedDataLocation ?? home + "/Library/Developer/Xcode/DerivedData" }
     public var user: String
     public var hostArchitecture: String
     public var console: Console
-    /// Overrides how settings are evaluated (tests); nil = automatic.
     public var settingsProvider: SettingsProvider?
-    /// Directory of the running executable (to find helper tools).
     public var executableDirectory: String?
 
     public init(cwd: String, environment: [String: String], toolPath: String, developerDirectory: String?,
@@ -47,7 +38,6 @@ public struct XcodebuildContext {
         self.executableDirectory = executableDirectory
     }
 
-    /// The context of the current process.
     public static func current(console: Console = .standard()) -> XcodebuildContext {
         let env = ProcessInfo.processInfo.environment
         let exe = URL(fileURLWithPath: CommandLine.arguments.first ?? "swiftcodebuild")
@@ -66,7 +56,6 @@ public struct XcodebuildContext {
 }
 
 public enum Xcodebuild {
-    /// Runs one command line; returns the exit status.
     public static func run(_ arguments: [String], context: XcodebuildContext) -> Int32 {
         let console = context.console
         defer { console.flushDeferred() }
@@ -114,7 +103,6 @@ public enum Xcodebuild {
         if inv.has("-version") { return try InfoCommands.version(inv, sdks: sdks, context: ctx) }
         if inv.has("-showsdks") { return InfoCommands.showsdks(inv, sdks: sdks, context: ctx) }
 
-        // Checks that need no container.
         if inv.project != nil && inv.workspace != nil {
             throw XcodebuildFailure("You cannot specify both an Xcode project and a workspace.", exitCode: ExitCode.usage)
         }
@@ -159,7 +147,6 @@ public enum Xcodebuild {
             console.warning("Ignoring provided run destination because no scheme was passed.")
         }
 
-        // test-without-building from a test run file needs no container.
         if let run = inv.value("-xctestrun") {
             guard inv.actions == [.testWithoutBuilding] || inv.actions.isEmpty || inv.actions == [.test] else {
                 throw Xcodebuild.unsupported("-xctestrun with actions other than test-without-building")
@@ -202,8 +189,6 @@ public enum Xcodebuild {
     }
 }
 
-/// What a scheme or legacy invocation resolves to: targets, configuration,
-/// parameters. See `specs/xcodebuild/show-build-settings.md` §2.
 struct Plan {
     var container: Container
     var scheme: Scheme?
@@ -215,31 +200,19 @@ struct Plan {
     var arena: Arena?
     var runDestination: RunDestination?
     var synthesized: [(String, String)] = []
-    /// Tests collect code coverage (scheme setting or -enableCodeCoverage).
     var coverage = false
-    /// A Swift package opened directly: SwiftPM's build description and
-    /// the targets a scheme builds and tests (`packages.md`).
     struct PackageBuild {
         var pif: String
         var build: [String]
         var tests: [String]
-        /// Package targets (name, absolute folder, is a test target), for coverage.
         var targets: [(name: String, path: String, isTest: Bool)] = []
-        /// What `docbuild` builds: the products' package targets.
         var documentation: [String] = []
-        /// The scheme's library products for coverage (name, package framework).
         var coverageLibraries: [(name: String, framework: String)] = []
     }
     var package: PackageBuild?
-    /// The build system action when it is not the scheme action's
-    /// (`exportloc` for localization export).
     var parameterAction: String?
-    /// `regular` or `legacy` build locations, when not decided by the scheme.
     var locationStyle: String?
 
-    /// The build system's action for a command-line action: swift-build has
-    /// no test actions (a test run builds with `build`), and evaluates no
-    /// settings for an action it does not know.
     static func buildSystemAction(_ action: BuildAction) -> String {
         switch action {
         case .test, .buildForTesting, .testWithoutBuilding: "build"
@@ -257,8 +230,6 @@ struct Plan {
         return p
     }
 
-    /// Where `archive` builds: `<Intermediates>/ArchiveIntermediates/<scheme>/…`
-    /// (`specs/xcodebuild/archive.md` §2).
     struct ArchiveLocations {
         var base: String
         var dstroot: String { base + "/InstallationBuildProductsLocation" }
@@ -267,7 +238,6 @@ struct Plan {
         var precomps: String { base + "/PrecompiledHeaders" }
         var settings: [(String, String)] {
             [("DSTROOT", dstroot), ("OBJROOT", objroot), ("SYMROOT", symroot), ("SHARED_PRECOMPS_DIR", precomps),
-             // Folders the distribution steps read, and archive-only switches.
              ("ASSET_PACK_FOLDER_PATH", dstroot + "/OnDemandResources"),
              ("ASSETCATALOG_COMPILER_FLATTENED_APP_ICON_PATH", symroot + "/ProductIcon.png"),
              ("MESSAGES_APPLICATION_EXTENSION_SUPPORT_FOLDER_PATH", symroot + "/MessagesApplicationExtensionSupport"),
@@ -289,7 +259,6 @@ struct Plan {
         var overrides: [(String, String)] = []
         if !inv.archs.isEmpty { overrides.append(("ARCHS", inv.archs.joined(separator: " "))) }
         if let sdk { overrides.append(("SDKROOT", inv.sdk!.contains("/") ? sdk.path : sdk.canonicalName)) }
-        // Later assignments of the same name win.
         for (k, v) in inv.overrides {
             overrides.removeAll { $0.0 == k }
             overrides.append((k, v))
@@ -331,7 +300,6 @@ struct Plan {
                               !targets.contains(where: { $0.target.id == t.id && $0.project.url == p.url }) else { continue }
                         targets.append(SettingsTarget(project: p, target: t))
                     }
-                    // A scheme with test plans builds the plan's enabled targets.
                     if let file = TestActions.testPlanFile(inv, scheme: scheme, container: container) {
                         for e in file.entries where e.enabled {
                             for p in container.projects {
@@ -363,7 +331,6 @@ struct Plan {
             let (dest, deviceSettings) = try Destinations.runDestination(for: inv.destinations, targets: targets, configuration: configuration, overrides: overrides,
                                                                          generic: schemeAction == .archiving, context: ctx)
             var synthesized = deviceSettings
-            // Code coverage: from the scheme, or -enableCodeCoverage YES|NO.
             let coverage = schemeAction != .archiving && (inv.value("-enableCodeCoverage").map { $0.uppercased() == "YES" } ?? AutocreatedScheme.collectsCoverage(scheme))
             if coverage {
                 let buildFolder = URL(fileURLWithPath: arena.buildProductsPath).deletingLastPathComponent().path
@@ -381,7 +348,6 @@ struct Plan {
         var targets: [SettingsTarget] = []
         if inv.has("-alltargets") {
             targets = main.targets.filter { ProjectPIF.targetKind($0) != nil }.map { SettingsTarget(project: main, target: $0) }
-            // The reference tool lists the first target once more at the end.
             if let first = targets.first { targets.append(first) }
         } else if !inv.targets.isEmpty {
             for n in inv.targets {
@@ -403,8 +369,6 @@ struct Plan {
                     overrides: overrides, xcconfig: xcconfig, arena: nil, runDestination: nil)
     }
 
-    /// "Build settings from command line:" and "…from configuration file …"
-    /// sections (cli.md §3, show-build-settings.md §1).
     func printCommandLineSettings(_ console: Console) {
         if !overrides.isEmpty {
             console.out("Build settings from command line:")
@@ -419,10 +383,7 @@ struct Plan {
     }
 }
 
-/// Paths as the reference tool prints them.
 enum PathText {
-    /// `/private/tmp/x` → `/tmp/x` (also `/private/var`, `/private/etc`):
-    /// the top-level name is a link into `/private`.
     static func withoutPrivatePrefix(_ p: String) -> String {
         guard p.hasPrefix("/private/") else { return p }
         let rest = p.dropFirst("/private".count)
@@ -433,7 +394,6 @@ enum PathText {
     }
 }
 
-/// The plain `NAME = value` lines of an xcconfig, for the header listing.
 enum XcconfigListing {
     static func assignments(path: String) -> [(String, String)] {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }

@@ -4,8 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeDebug
 @testable import SwiftCodeIDECore
 
-/// Stale issues (reference-ui-5.md §5.3.2, N10) and the Debug navigator's
-/// process row (§11.6, D3).
 @MainActor
 @Suite struct StaleIssuesAndProcessRowTests {
     func d(_ msg: String, _ file: String?) -> Diagnostic {
@@ -16,19 +14,14 @@ import SwiftCodeDebug
         var m = IssueNavigatorModel()
         let a = d("a", "/p/A.swift"), b = d("b", "/p/B.swift"), n = d("n", nil)
         m.finishBuild([a, b, n], full: false, compiledFiles: ["A.swift", "B.swift"])
-        // During the next build the earlier issues stay, shown stale.
         m.startBuild()
         #expect(m.entries(fresh: []).map(\.isStale) == [true, true, true])
         #expect(m.capsuleCounts(fresh: []).warnings == 3)
-        // It compiled A only: A's issue is gone, B's stays stale, the
-        // file-less one is gone.
         m.finishBuild([], full: false, compiledFiles: ["A.swift"])
         #expect(!m.isBuilding)
         #expect(m.stale == [b])
-        // A later build that compiles B drops it.
         m.finishBuild([], full: false, compiledFiles: ["B.swift"])
         #expect(m.stale.isEmpty)
-        // Unknown compile set: every unreported issue goes.
         m.finishBuild([a], full: false, compiledFiles: [])
         m.finishBuild([], full: false, compiledFiles: nil)
         #expect(m.stale.isEmpty)

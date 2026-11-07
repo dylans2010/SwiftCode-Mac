@@ -1,6 +1,3 @@
-// intrinsics.cpp: lowering of air.* and llvm.* calls (metal-shaders.md
-// sections 3.9, 4.6 and 4.7). Operand layouts come from our own probe
-// shaders (tests/shaders/*.metal compiled with the public toolchain).
 #include "translator_impl.h"
 
 #include "llvm/IR/Constants.h"
@@ -11,9 +8,6 @@ using namespace llvm;
 namespace airc {
 
 static unsigned numElements(Type *T) { return T->isVectorTy() ? cast<FixedVectorType>(T)->getNumElements() : 1; }
-
-// ---------------------------------------------------------------------------
-// Bindless heap (abi.h)
 
 std::string Translator::imageType(const ImageKind &k, bool storage) {
     std::string st = k.sampled == 'f' ? E.tFloat(32) : k.sampled == 'i' ? E.tSInt(32) : E.tInt(32);
@@ -59,13 +53,6 @@ std::string Translator::heapImage(const std::string &handle, const ImageKind &k,
     return img;
 }
 
-// sRGB textures written or read through their storage view (metal-shaders.md
-// section 4.4, visionos.md section 10.21): the back end gives such a texture
-// a storage view in the unorm format of the same layout and sets bit 32 of
-// its handle (the heap index is the low 32 bits). Metal encodes linear to
-// sRGB on a write to an sRGB texture and decodes on a read (IEC 61966-2-1);
-// for a handle with the bit set the translated function does it in software
-// (alpha is linear). `handle` is the 64-bit texture value, `v` a vec4 of f32.
 std::string Translator::srgbStorage(const std::string &handle, const std::string &v, bool encode) {
     std::string i64 = E.tInt(64), b = E.tBool(), f32 = E.tFloat(32);
     std::string v3 = E.tVec(f32, 3), v4 = E.tVec(f32, 4), b3 = E.tVec(b, 3), b4 = E.tVec(b, 4);
@@ -77,13 +64,11 @@ std::string Translator::srgbStorage(const std::string &handle, const std::string
     std::string c = E.ext(v3, "FClamp", {rgb, c3("0x0p+0"), c3("0x1p+0")});
     std::string conv;
     if (encode) {
-        // c <= 0.0031308 ? 12.92 c : 1.055 c^(1/2.4) - 0.055
         std::string lo = E.op("OpFMul", v3, {c, c3("0x1.9d70a4p+3")});
         std::string p = E.ext(v3, "Pow", {c, c3("0x1.aaaaaap-2")});
         std::string hi = E.op("OpFSub", v3, {E.op("OpFMul", v3, {p, c3("0x1.0e147ap+0")}), c3("0x1.c28f5cp-5")});
         conv = E.op("OpSelect", v3, {E.op("OpFOrdLessThanEqual", b3, {c, c3("0x1.9a5c38p-9")}), lo, hi});
     } else {
-        // c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055)^2.4
         std::string lo = E.op("OpFMul", v3, {c, c3("0x1.3d0722p-4")});
         std::string base = E.op("OpFMul", v3, {E.op("OpFAdd", v3, {c, c3("0x1.c28f5cp-5")}), c3("0x1.e54edcp-1")});
         std::string hi = E.ext(v3, "Pow", {base, c3("0x1.333334p+1")});
@@ -122,18 +107,15 @@ std::string Translator::heapSampler(const std::string &handle) {
     return s;
 }
 
-// ---------------------------------------------------------------------------
-// Textures
-
 namespace {
 struct TexName {
-    std::string op;      // sample, sample_compare, gather, gather_compare, read, write, get_width, ...
+    std::string op;
     bool depth = false;
     bool grad = false;
     ImageKind kind;
     std::string dimToken;
 };
-}  // namespace
+}
 
 static bool parseTexName(StringRef n, TexName &t) {
     static const char *ops[] = {"sample_compare", "gather_compare", "sample", "gather", "read", "write",
@@ -224,11 +206,9 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         return true;
     }
 
-    // Result element type: {<4 x T>, i8} or {T, i8} for depth.
     Type *valT = RT->isStructTy() ? RT->getStructElementType(0) : nullptr;
     std::string sampledT = k.sampled == 'f' ? f32 : k.sampled == 'i' ? E.tSInt(32) : u32;
     std::string v4 = E.tVec(sampledT, 4);
-    // Converts a vec4 of the image's sampled type to the AIR value type.
     auto finish = [&](const std::string &v4val) {
         std::string v = v4val;
         Type *el = valT->getScalarType();
@@ -247,11 +227,8 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         std::string r = E.op("OpCompositeConstruct", type(RT), {v, E.constant(E.tInt(8), "0")});
         bind(C, r);
     };
-    // Coordinates with the array layer appended (as float for sampling).
     auto coordWithLayer = [&](Value *coord, Value *layer, bool asFloat, std::string c = "") {
         if (c.empty()) {
-            // Image coordinates are 32-bit (ushort coordinates and half
-            // coordinates are widened).
             c = val(coord);
             Type *CT = coord->getType();
             if (CT->getScalarType()->isIntegerTy() && CT->getScalarSizeInBits() != 32) c = castInt(c, CT, 32, false);
@@ -268,14 +245,12 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         parts.push_back(l);
         return E.op("OpCompositeConstruct", E.tVec(et, n + 1), parts);
     };
-    // Offset image operand: ConstOffset when constant non-zero, Offset otherwise.
     auto offsetOperand = [&](Value *off, std::string &ops, std::vector<std::string> &opv) {
         if (!off) return;
         std::string o;
         if (auto *Cst = dyn_cast<Constant>(off)) {
             if (Cst->isNullValue()) return;
             ops += ops.empty() ? "ConstOffset" : "|ConstOffset";
-            // Offsets are 32-bit signed integers (ushort forms carry i16).
             Type *OT = off->getType();
             if (OT->getScalarSizeInBits() != 32) {
                 Type *I32 = Type::getInt32Ty(C->getContext());
@@ -308,21 +283,10 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
     };
 
     if (t.op == "calculate_clamped_lod" || t.op == "calculate_unclamped_lod") {
-        // The texture members calculate_clamped_lod(sampler, coord) and
-        // calculate_unclamped_lod(sampler, coord) of the public Metal
-        // Shading Language (level 1). Accepted only in the form
-        // texture, sampler, float coordinate, [i32] -> float (the operand
-        // order and trailing i32 of the sampling intrinsics,
-        // metal-shaders.md section 3.9; the guest's RealityKit materials
-        // send the form with the i32, visionos.md section 10.11), in
-        // fragment functions (implicit derivatives). SPIR-V
-        // OpImageQueryLod returns (level that would be accessed, after
-        // clamping to the mip range; LOD before clamping).
         bool trailing = C->arg_size() == 4 && arg(3)->getType()->isIntegerTy(32);
         if ((C->arg_size() != 3 && !trailing) || !arg(1)->getType()->isPointerTy() ||
             !arg(2)->getType()->getScalarType()->isFloatingPointTy() || !RT->isFloatingPointTy())
         {
-            // The declared operand and result types, for the spec question.
             std::string sig;
             llvm::raw_string_ostream os(sig);
             os << " (operand form: ";
@@ -346,12 +310,6 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         return true;
     }
     if (t.op == "sample" || t.op == "sample_compare" || t.op == "gather" || t.op == "gather_compare") {
-        // Operands are recognized by type, so forms with or without the
-        // observed i1 flags, offsets and trailing i32 all parse:
-        // texture, sampler, [depth: i32], coordinate (float), [layer],
-        // [reference], then in order: [grad: dPdx, dPdy, min-LOD], [i1],
-        // [offset (int)], [i1 explicit-LOD, float LOD/bias, float min-LOD],
-        // [gather: i32 component], [i32].
         std::vector<Value *> operands(C->arg_begin(), C->arg_end());
         size_t i = 0;
         auto need = [&](bool ok, const char *what) {
@@ -363,7 +321,7 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         Value *smp = operands[i++];
         if (t.depth && i < operands.size() && operands[i]->getType()->isIntegerTy(32) && i + 1 < operands.size() &&
             operands[i + 1]->getType()->getScalarType()->isFloatingPointTy())
-            i++;  // i32 1 (as observed)
+            i++;
         need(i < operands.size() && operands[i]->getType()->getScalarType()->isFloatingPointTy(), "coordinate");
         Value *coord = operands[i++];
         Value *layer = nullptr;
@@ -378,9 +336,6 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
             dPdy = operands[i++];
             minLod = operands[i++];
         }
-        // The rest: i1 flags, an integer offset (vector, or scalar for 1D),
-        // floats (LOD or bias, then min-LOD), integers (gather component,
-        // trailing i32).
         std::vector<Value *> flags, floats, ints;
         for (; i < operands.size(); i++) {
             Type *T = operands[i]->getType();
@@ -391,7 +346,7 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
             else need(false, "unexpected operand type");
         }
         if (!offset && !cube && k.dim == "1D" && !ints.empty() && ints.size() >= 2) {
-            offset = ints.front();  // 1D: scalar offset before the trailing i32
+            offset = ints.front();
             ints.erase(ints.begin());
         }
         if (t.op == "sample" || t.op == "sample_compare") {
@@ -429,7 +384,6 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
             finish(r);
             return true;
         }
-        // Sampling.
         bool useExplicit = explicitLod || !fragment || t.grad;
         if (t.grad) {
             ops = "Grad";
@@ -445,8 +399,6 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
             opv = {val(lodOrBias)};
         }
         if (offset && !isa<Constant>(offset)) {
-            // Vulkan allows non-constant offsets only for gathers: move the
-            // offset into the coordinates (texel size of level 0).
             E.caps.insert("ImageQuery");
             unsigned n = numElements(coord->getType());
             std::string it = E.tVec(u32, n + (k.arrayed ? 1 : 0));
@@ -488,20 +440,17 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
     }
 
     if (t.op == "read") {
-        // By type: texture, [read sampler], [depth: i32 1], coordinate
-        // (integer), [layer or face], then [sample] (MS) or [offset
-        // (vector)] [LOD], and a trailing access i32 when present.
         std::vector<Value *> operands(C->arg_begin(), C->arg_end());
         auto need = [&](bool ok, const char *what) {
             if (!ok) fail("unsupported-intrinsic", name.str() + " (operand form: " + what + ")");
         };
         size_t i = 0;
         Value *tex = operands[i++];
-        if (i < operands.size() && operands[i]->getType()->isPointerTy()) i++;  // read sampler
+        if (i < operands.size() && operands[i]->getType()->isPointerTy()) i++;
         unsigned cdim = (k.dim == "1D" ? 1 : k.dim == "3D" ? 3 : 2);
         if (t.depth && i + 1 < operands.size() && operands[i]->getType()->isIntegerTy(32) && numElements(operands[i + 1]->getType()) == cdim &&
             cdim > 1)
-            i++;  // i32 1 (as observed)
+            i++;
         need(i < operands.size() && operands[i]->getType()->getScalarType()->isIntegerTy(), "coordinate");
         Value *coord = operands[i++];
         Value *layer = (k.arrayed || cube) ? (need(i < operands.size(), "layer"), operands[i++]) : nullptr;
@@ -509,7 +458,6 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         std::vector<Value *> rest(operands.begin() + (long)i, operands.end());
         unsigned access = 0;
         if (rest.size() >= 2 || (k.ms && rest.size() == 2)) {
-            // The last operand is the access qualifier.
             if (auto *A = dyn_cast<ConstantInt>(rest.back())) { access = (unsigned)A->getZExtValue(); rest.pop_back(); }
         }
         for (Value *v : rest) {
@@ -521,10 +469,7 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         if (k.ms) need(sample != nullptr, "sample index");
         if (!k.ms && !lod) lod = ConstantInt::get(Type::getInt32Ty(C->getContext()), 0);
         if (lod && !lod->getType()->isIntegerTy(32)) {
-            // i16 LODs (ushort forms) widen in the image operands below.
         }
-        // Cube faces cannot be fetched from a sampled image: cube reads use
-        // the storage view (coordinates x, y, face).
         bool storage = access == 3 || access == 2 || cube;
         if (cube && k.arrayed) fail("unsupported-feature", "read from a cube array texture");
         std::string handle = val(tex);
@@ -552,8 +497,6 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
     }
 
     if (t.op == "write") {
-        // By type: texture, coordinate, [layer or face], value (the 4-element
-        // vector), then [LOD] and a trailing access i32 when present.
         std::vector<Value *> operands(C->arg_begin(), C->arg_end());
         auto need = [&](bool ok, const char *what) {
             if (!ok) fail("unsupported-intrinsic", name.str() + " (operand form: " + what + ")");
@@ -568,10 +511,8 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         need(i < operands.size() && operands[i]->getType()->isVectorTy(), "value");
         Value *value = operands[i++];
         std::vector<Value *> rest(operands.begin() + (long)i, operands.end());
-        if (rest.size() >= 2 || (k.ms && !rest.empty())) rest.pop_back();  // access
+        if (rest.size() >= 2 || (k.ms && !rest.empty())) rest.pop_back();
         Value *lod = (!k.ms && !rest.empty()) ? rest[0] : nullptr;
-        // Storage views are per mip level: level L of the texture whose
-        // handle is h is storage-heap index h + L (abi.h).
         std::string handle = val(tex);
         if (lod && !(isa<ConstantInt>(lod) && cast<ConstantInt>(lod)->isZero())) {
             handle = E.op("OpIAdd", E.tInt(64), {handle, E.op("OpUConvert", E.tInt(64), {castInt(val(lod), lod->getType(), 32, false)})});
@@ -588,15 +529,12 @@ bool Translator::callTexture(CallInst *C, StringRef name) {
         if (n != 4) fail("unsupported-feature", "texture write of " + printType(VT));
         if (k.sampled == 'i') v = E.op("OpBitcast", v4, {v});
         if (k.sampled == 'f' && !k.depth && !k.ms) v = srgbStorage(val(tex), v, true);
-        if (experiment("imgwrite")) return true;  // bisection: texture writes dropped
+        if (experiment("imgwrite")) return true;
         E.stmt("OpImageWrite " + img + " " + coords + " " + v);
         return true;
     }
     return false;
 }
-
-// ---------------------------------------------------------------------------
-// SIMD-group and quad-group operations (section 4.6)
 
 bool Translator::callSimd(CallInst *C, StringRef name) {
     StringRef n = name;
@@ -618,7 +556,7 @@ bool Translator::callSimd(CallInst *C, StringRef name) {
     Type *RT = C->getType();
     std::string t = RT->isVoidTy() ? "" : type(RT);
     std::string u32 = E.tInt(32);
-    std::string scope = E.u32(3);  // Subgroup
+    std::string scope = E.u32(3);
     Type *ET = RT->getScalarType();
     bool isFloat = ET->isFloatingPointTy();
     bool isBool = ET->isIntegerTy(1);
@@ -634,7 +572,6 @@ bool Translator::callSimd(CallInst *C, StringRef name) {
     };
     if (ET->getScalarSizeInBits() < 32 && !isBool) uses.insert("subgroup_extended_types");
     static const std::map<std::string, std::pair<const char *, const char *>> arith = {
-        // op -> (integer, float) opcode suffix
         {"sum", {"IAdd", "FAdd"}}, {"product", {"IMul", "FMul"}}, {"and", {"BitwiseAnd", nullptr}},
         {"or", {"BitwiseOr", nullptr}}, {"xor", {"BitwiseXor", nullptr}}};
     std::string o = op.str();
@@ -644,8 +581,6 @@ bool Translator::callSimd(CallInst *C, StringRef name) {
     std::string clustered;
     if (quad && group == "Reduce") { group = "ClusteredReduce"; clustered = " " + E.u32(4); }
     if (quad && group != "ClusteredReduce") {
-        // Quad prefix scans: two shuffle-up steps inside the quad
-        // (Hillis-Steele), then a shift for the exclusive form.
         static const std::map<std::string, std::pair<const char *, const char *>> bin = {
             {"sum", {"OpIAdd", "OpFAdd"}}, {"product", {"OpIMul", "OpFMul"}}};
         auto b = bin.find(o);
@@ -699,7 +634,6 @@ bool Translator::callSimd(CallInst *C, StringRef name) {
         return true;
     }
     if (o == "shuffle_up" || o == "shuffle_down") {
-        // Lanes whose source is outside the group (quad) keep their own value (Metal).
         unsigned width = quad ? 4 : 32;
         std::string l = lane();
         std::string within = quad ? E.op("OpBitwiseAnd", u32, {l, E.u32(3)}) : l;
@@ -729,9 +663,6 @@ bool Translator::callSimd(CallInst *C, StringRef name) {
         return true;
     }
     if (o == "shuffle_and_fill_down" || o == "shuffle_and_fill_up") {
-        // (data, fill, delta, modulo): lane i of each modulo-sized block takes
-        // data[i + delta] when inside the block, else fill[i + delta - modulo]
-        // (up: data[i - delta], else fill[i - delta + modulo]).
         std::string l = lane();
         std::string m = C->arg_size() > 3 ? toLane(3) : E.u32(quad ? 4 : 32);
         std::string d = toLane(2);
@@ -787,9 +718,6 @@ bool Translator::callSimd(CallInst *C, StringRef name) {
     fail("unsupported-intrinsic", name.str());
 }
 
-// ---------------------------------------------------------------------------
-// Atomics: air.atomic.<global|local>.<op>[.s|.u].<T>(ptr, [value], order, scope, i32, i1)
-
 bool Translator::callAtomic(CallInst *C, StringRef name) {
     StringRef n = name;
     if (!n.consume_front("air.atomic.")) return false;
@@ -814,8 +742,8 @@ bool Translator::callAtomic(CallInst *C, StringRef name) {
     std::string ptr;
     if (local) ptr = workgroupElement(val(P), bits);
     else ptr = psbPointer(val(P), it, bits);
-    std::string scope = E.u32(local ? 2 : 1);  // Workgroup : Device
-    std::string sem = E.u32(0);                  // relaxed (Metal's only order for most atomics)
+    std::string scope = E.u32(local ? 2 : 1);
+    std::string sem = E.u32(0);
     uses.insert("atomics");
     bool fl = VT->isFloatingPointTy();
     auto toInt = [&](Value *V) {
@@ -861,17 +789,6 @@ bool Translator::callAtomic(CallInst *C, StringRef name) {
     return true;
 }
 
-// Compare-exchange: air.atomic.<global|local>.cmpxchg.<weak|strong>.<T>.
-// Operands (metal-shaders.md section 3.9; the guest's form is
-// i32 (ptr addrspace(1), ptr, i32, i32, i32, i32, i1)): the atomic object,
-// a pointer to the expected value (MSL's `expected` argument, updated with
-// the value found when the exchange fails), the desired value, then i32
-// operands (memory orders, scope) and an i1, which carry nothing Vulkan's
-// relaxed atomics need. Result: success as 1 or 0 (an i1 result: true or
-// false). A strong exchange satisfies the weak form (which may fail
-// spuriously; this one fails only on a mismatch). Forms with the expected
-// value passed by value (result: the value found, or {found, i1}) are
-// accepted too.
 bool Translator::callAtomicCompareExchange(CallInst *C, StringRef name, bool local) {
     if (C->arg_size() < 3) fail("unsupported-intrinsic", name.str() + " (operand form)");
     Value *P = C->getArgOperand(0), *Exp = C->getArgOperand(1), *Des = C->getArgOperand(2);
@@ -886,8 +803,8 @@ bool Translator::callAtomicCompareExchange(CallInst *C, StringRef name, bool loc
     uses.insert("atomics");
     std::string it = E.tInt(bits);
     std::string ptr = local ? workgroupElement(val(P), bits) : psbPointer(val(P), it, bits);
-    std::string scope = E.u32(local ? 2 : 1);  // Workgroup : Device
-    std::string sem = E.u32(0);                  // relaxed
+    std::string scope = E.u32(local ? 2 : 1);
+    std::string sem = E.u32(0);
     unsigned eas = byPointer ? Exp->getType()->getPointerAddressSpace() : 0;
     std::string expected = byPointer ? scalarLoad(val(Exp), eas, ET, bits / 8) : val(Exp);
     bool fl = ET->isFloatingPointTy();
@@ -896,16 +813,10 @@ bool Translator::callAtomicCompareExchange(CallInst *C, StringRef name, bool loc
     std::string old = E.op("OpAtomicCompareExchange", it, {ptr, scope, sem, sem, asInt(val(Des)), expectedInt});
     std::string ok = E.op("OpIEqual", E.tBool(), {old, expectedInt});
     std::string oldT = fl ? E.op("OpBitcast", type(ET), {old}) : old;
-    // On success the value found equals `expected`, so storing it always is
-    // MSL's "expected is updated on failure".
     if (byPointer) scalarStore(val(Exp), eas, ET, oldT, bits / 8);
     Type *RT = C->getType();
     if (RT->isVoidTy()) return true;
     if (RT->isIntegerTy(1)) { bind(C, ok); return true; }
-    // With `expected` passed by pointer the value found is already in
-    // *expected, so an integer result is MSL's bool: 1 on success, 0 on
-    // failure (the guest's form returns i32). Passed by value, a result of
-    // the value type is the value found.
     if (RT->isIntegerTy() && (byPointer || RT != ET)) {
         bind(C, E.op("OpSelect", type(RT), {ok, constant(ConstantInt::get(RT, 1)), constant(ConstantInt::get(RT, 0))}));
         return true;
@@ -918,9 +829,6 @@ bool Translator::callAtomicCompareExchange(CallInst *C, StringRef name, bool loc
     }
     fail("unsupported-intrinsic", name.str() + " (result type)");
 }
-
-// ---------------------------------------------------------------------------
-// Math (GLSL.std.450) and integer helpers
 
 bool Translator::callMath(CallInst *C, StringRef name) {
     StringRef n = name;
@@ -982,7 +890,6 @@ bool Translator::callMath(CallInst *C, StringRef name) {
         }
         if (o == "ctpop" || o == "ctlz" || o == "cttz" || o == "bitreverse" || o == "bswap" || o == "fshl" || o == "fshr" ||
             o == "uadd" || o == "usub" || o == "sadd" || o == "ssub") {
-            // handled by the integer section below with the AIR names
             if (o == "ctpop") o = "popcount";
             else if (o == "ctlz") o = "clz";
             else if (o == "cttz") o = "ctz";
@@ -996,7 +903,6 @@ bool Translator::callMath(CallInst *C, StringRef name) {
         }
     }
 
-    // Float math.
     if (isFloat) {
         static const std::map<std::string, const char *> unary = {
             {"fabs", "FAbs"}, {"abs", "FAbs"}, {"ceil", "Ceil"}, {"floor", "Floor"}, {"trunc", "Trunc"}, {"fract", "Fract"},
@@ -1062,7 +968,6 @@ bool Translator::callMath(CallInst *C, StringRef name) {
         fail("unsupported-intrinsic", name.str());
     }
     if (o == "sincos" && C->arg_size() == 2) {
-        // sincos(x, cos out-pointer) -> sin
         Value *P = C->getArgOperand(1);
         Type *XT = C->getArgOperand(0)->getType();
         std::string xt = type(XT);
@@ -1073,7 +978,6 @@ bool Translator::callMath(CallInst *C, StringRef name) {
     }
     if (isFloat) return false;
 
-    // Integer helpers.
     if (!ST->isIntegerTy()) return false;
     unsigned w = ST->getIntegerBitWidth();
     Type *I32 = RT->getWithNewType(Type::getInt32Ty(C->getContext()));
@@ -1089,7 +993,6 @@ bool Translator::callMath(CallInst *C, StringRef name) {
         return glsl(g, {E.ext(t, g, {a[0], a[1]}), a[2]});
     }
     if (w == 64 && (o == "popcount" || o == "clz" || o == "ctz")) {
-        // On the 32-bit halves.
         Type *I64 = RT;
         std::string lo = E.op("OpUConvert", t32, {a[0]});
         std::string hi = E.op("OpUConvert", t32, {E.op("OpShiftRightLogical", t, {a[0], splatI(I64, 32)})});
@@ -1123,7 +1026,7 @@ bool Translator::callMath(CallInst *C, StringRef name) {
         return true;
     }
     if (o == "clz") {
-        std::string msb = E.ext(t32, "FindUMsb", {widen(a[0], false)});  // -1 for 0
+        std::string msb = E.ext(t32, "FindUMsb", {widen(a[0], false)});
         std::string r = E.op("OpISub", t32, {splatI(I32, 31), msb});
         if (w != 32) r = E.op("OpISub", t32, {r, splatI(I32, 32 - w)});
         bind(C, narrow(r));
@@ -1152,7 +1055,6 @@ bool Translator::callMath(CallInst *C, StringRef name) {
         return true;
     }
     if (o == "rotate" || o == "fshl" || o == "fshr") {
-        // rotate(x, n) == fshl(x, x, n)
         std::string x = a[0], y = o == "rotate" ? a[0] : a[1], s = o == "rotate" ? a[1] : a[2];
         std::string m = E.op("OpBitwiseAnd", t, {s, splatI(RT, w - 1)});
         std::string inv = E.op("OpBitwiseAnd", t, {E.op("OpISub", t, {splatI(RT, w), m}), splatI(RT, w - 1)});
@@ -1209,9 +1111,6 @@ bool Translator::callMath(CallInst *C, StringRef name) {
     return false;
 }
 
-// ---------------------------------------------------------------------------
-// Dispatcher
-
 static std::string fmtHex(uint64_t v) {
     char b[24];
     snprintf(b, sizeof b, "%llu", (unsigned long long)v);
@@ -1252,12 +1151,8 @@ void Translator::call(CallInst *C) {
         return;
     }
     if (n == "airc.loop_budget") {
-        // One more loop-header pass of this invocation; true once the
-        // count exceeds the limit (prepare.cpp, insertLoopGuards). The
-        // count is a Private variable of its own (initialized to zero per
-        // invocation), so the compiler can keep it in a register.
         if (loopBudgetVar.empty()) {
-            std::string pt = E.tPtr("Private", u32), zero = E.u32(0);  // declared before the variable
+            std::string pt = E.tPtr("Private", u32), zero = E.u32(0);
             loopBudgetVar = E.fresh();
             E.globals << loopBudgetVar << " = OpVariable " << pt << " Private " << zero << "\n";
             E.interface.push_back(loopBudgetVar);
@@ -1276,11 +1171,9 @@ void Translator::call(CallInst *C) {
         std::string s = arg(0);
         Type *ST = S->getType();
         if (p.size() > 6) {
-            // Rounding or saturation qualifiers are not lowered yet.
             fail("unsupported-intrinsic", n.str());
         }
         if (ST->isIntOrIntVectorTy(1)) {
-            // bool -> number
             Constant *one = dk == 'f' ? ConstantFP::get(RT, 1.0) : ConstantInt::get(RT, 1);
             bind(C, E.op("OpSelect", t, {s, constant(one), constant(Constant::getNullValue(RT))}));
             return;
@@ -1312,11 +1205,6 @@ void Translator::call(CallInst *C) {
     }
     if (n == "air.discard_fragment") {
         if (EI.stage == Stage::Kernel) {
-            // Metal accepts a kernel whose code calls discard_fragment only
-            // when specialization removes the call (observed on the Mac: the
-            // function with the call still reachable fails with "uses illegal
-            // function"). Here the call sits on a path guarded by a function
-            // constant, so it is never executed: no operation.
             uses.insert("discard_in_kernel_ignored");
             return;
         }
@@ -1330,8 +1218,6 @@ void Translator::call(CallInst *C) {
     if (n.starts_with("air.dfdx") || n.starts_with("air.dfdy") || n.starts_with("air.fwidth")) {
         if (EI.stage == Stage::Vertex) fail("unsupported-feature", "derivatives in a vertex function");
         if (EI.stage == Stage::Kernel) {
-            // Quad-group derivatives in kernels: quads of consecutive
-            // thread indices (VK_KHR_compute_shader_derivatives, linear).
             E.caps.insert("ComputeDerivativeGroupLinearKHR");
             E.exts.insert("SPV_KHR_compute_shader_derivatives");
             uses.insert("compute_derivatives_linear");
@@ -1358,11 +1244,11 @@ void Translator::call(CallInst *C) {
     if (n == "air.wg.barrier" || n == "air.simdgroup.barrier" || n == "air.mem.barrier") {
         auto *Fl = dyn_cast<ConstantInt>(C->getArgOperand(0));
         unsigned flags = Fl ? (unsigned)Fl->getZExtValue() : 7;
-        unsigned sem = 0x8;  // AcquireRelease
-        if (flags & 1) sem |= 0x40;   // UniformMemory: device buffers
-        if (flags & 2) sem |= 0x100;  // WorkgroupMemory
-        if (flags & 4) sem |= 0x800;  // ImageMemory
-        if (flags & 8) sem |= 0x100;  // imageblock memory (threadgroup memory here)
+        unsigned sem = 0x8;
+        if (flags & 1) sem |= 0x40;
+        if (flags & 2) sem |= 0x100;
+        if (flags & 4) sem |= 0x800;
+        if (flags & 8) sem |= 0x100;
         if (flags == 0) sem = 0;
         bool sg = n == "air.simdgroup.barrier";
         std::string exec = E.u32(sg ? 3 : 2);
@@ -1373,7 +1259,6 @@ void Translator::call(CallInst *C) {
         return;
     }
     {
-        // Built-ins as functions: air.get_<name>[.<type>]([i32 dimension]).
         static const std::map<std::string, std::pair<std::string, unsigned>> fb = {
             {"thread_index_in_simdgroup", {"SubgroupLocalInvocationId", 1}}, {"simdgroup_index_in_threadgroup", {"SubgroupId", 1}},
             {"simdgroups_per_threadgroup", {"NumSubgroups", 1}}, {"dispatch_simdgroups_per_threadgroup", {"NumSubgroups", 1}},
@@ -1425,12 +1310,10 @@ void Translator::call(CallInst *C) {
             };
             std::vector<std::string> comps;
             if (k == "unorm.rgb10a2") {
-                // Red in bits 0-9 (the RGB10A2 layout).
                 for (auto f : {std::pair<unsigned, unsigned>{0, 10}, {10, 10}, {20, 10}, {30, 2}})
                     comps.push_back(E.op("OpFDiv", f32, {E.op("OpConvertUToF", f32, {field(f.first, f.second)}),
                                                        E.constant(f32, f.second == 10 ? "0x1.ff8p+9" : "0x1.8p+1")}));
             } else {
-                // Unsigned small floats: 6/6/5-bit mantissas, 5-bit exponents, red in bits 0-10.
                 auto small = [&](unsigned sh, unsigned mbits) {
                     std::string m = E.op("OpConvertUToF", f32, {field(sh, mbits)});
                     std::string e = field(sh + mbits, 5);
@@ -1450,11 +1333,10 @@ void Translator::call(CallInst *C) {
             return;
         }
         if (k == "unorm.rgb9e5" && !pack) {
-            // Shared-exponent RGB (the E5B9G9R9 layout: red in bits 0-8).
             std::string x = castInt(arg(0), C->getArgOperand(0)->getType(), 32, false);
             std::string e = E.op("OpBitwiseAnd", u32, {E.op("OpShiftRightLogical", u32, {x, E.u32(27)}), E.u32(31)});
             std::string ef = E.op("OpConvertUToF", f32, {e});
-            std::string scale = E.ext(f32, "Exp2", {E.op("OpFSub", f32, {ef, E.constant(f32, "0x1.8p+4")})});  // 2^(e - 24)
+            std::string scale = E.ext(f32, "Exp2", {E.op("OpFSub", f32, {ef, E.constant(f32, "0x1.8p+4")})});
             std::vector<std::string> c3;
             for (unsigned sh : {0u, 9u, 18u})
                 c3.push_back(E.op("OpFMul", f32, {E.op("OpConvertUToF", f32, {E.op("OpBitwiseAnd", u32, {E.op("OpShiftRightLogical", u32, {x, E.u32(sh)}), E.u32(511)})}), scale}));
@@ -1465,7 +1347,6 @@ void Translator::call(CallInst *C) {
         }
         if (k == "unorm.rgb565") {
             if (pack) {
-                // (r, g, b) in [0, 1] -> r in bits 0-4, g 5-10, b 11-15 (checked against Metal on the Mac).
                 Type *XT = C->getArgOperand(0)->getType();
                 std::string x = arg(0);
                 std::string v3f = E.tVec(f32, 3);
@@ -1547,9 +1428,6 @@ void Translator::call(CallInst *C) {
         return;
     }
     if (n.starts_with("air.is_uniform")) {
-        // Whether the value is the same in every active thread of the SIMD
-        // group (a dynamically uniform value is; the reverse is a safe
-        // approximation for code that only uses it to pick a fast path).
         E.caps.insert("GroupNonUniformVote");
         bind(C, E.op("OpGroupNonUniformAllEqual", E.tBool(), {E.u32(3), arg(0)}));
         return;
@@ -1579,8 +1457,6 @@ void Translator::call(CallInst *C) {
         return;
     }
     if (n.starts_with("air.is_function_constant_defined")) {
-        // The guest resolves function constants; a host translation treats
-        // every constant as defined.
         bind(C, E.boolean(true));
         return;
     }
@@ -1594,4 +1470,4 @@ void Translator::call(CallInst *C) {
     fail("unsupported-intrinsic", n.str());
 }
 
-}  // namespace airc
+}

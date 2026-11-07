@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/CodeForArtboard.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
 public struct CodeForArtboard: View {
@@ -18,7 +16,6 @@ public struct CodeForArtboard: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Edit Artboard Source")
@@ -39,7 +36,6 @@ public struct CodeForArtboard: View {
 
             Divider()
 
-            // Native SwiftUI TextEditor
             TextEditor(text: $draftSource)
                 .font(.system(.body, design: .monospaced))
                 .scrollContentBackground(.hidden)
@@ -49,7 +45,6 @@ public struct CodeForArtboard: View {
 
             Divider()
 
-            // Footer
             HStack {
                 Spacer()
                 Button("Cancel") {

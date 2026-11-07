@@ -5,113 +5,6 @@ import FoundationNetworking
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy Engines / Web / Reverse tool family (Wave 5).
-///
-/// Behaviour source: Legacy's `AssistCodeMutationEngine`,
-/// `AssistDependencyResolutionEngine`,
-/// `AssistExternalResourceGateway`, `AssistPatchApplicationEngine`,
-/// `AssistFetchDocumentationTool`, `ReverseToolAdapter` (+
-/// `ReverseTargetValidator`, `ReverseModels`) and
-/// `AssistXcodeProjectResolver.locate` (Dylan's own code, ported
-/// under MIT), plus `AssistTool.swift` for the capability/risk/
-/// permission defaults and `AssistToolRegistry.swift` for the
-/// registration order. The 6 IDs below were verified live from the
-/// Legacy registry (`registerAllTools` + each tool's `id`); the map's
-/// 4 + 1 + 1 list was confirmed exactly, with no additions or
-/// removals.
-///
-/// Conventions, following Wave 1 (`SwiftCodeTools+FileReading.swift`),
-/// Wave 2 (`SwiftCodeTools+FileWriting.swift`), Wave 3
-/// (`SwiftCodeTools+Git.swift`, `SwiftCodeTools+Search.swift`) and Wave 4
-/// (`SwiftCodeTools+Terminal.swift`):
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool.
-///   Descriptions are Legacy's verbatim. Structured data keeps
-///   Legacy's keys, with typed JSON values (integers and booleans)
-///   the way SwiftCode's other tools do — Legacy's string-only map is
-///   not reproduced.
-/// * Risk → annotations follows the catalogue §1.3 table, extended
-///   the way Wave 3 extended it for `.execution` (`readOnly:
-///   false, idempotent: false`, `writes: true`):
-///   `safeRead` → read-only/idempotent, `writes: false`;
-///   `safeMutation` → `readOnly: false, idempotent: true`,
-///   `writes: true`; `execution` → `readOnly: false, idempotent:
-///   false`, `writes: true`; `externalSideEffect` →
-///   `readOnly: false, idempotent: false, openWorld: true`,
-///   `writes: true`. `fetch_documentation` is a network read, so
-///   it uses the `system_notification_tool` precedent: read-only
-///   and idempotent, but `openWorld: true`.
-/// * The two file-mutating engines write through `commit()`, so
-///   they go through SwiftCode's approval gate like every other write
-///   tool. There is no Autopilot bypass: Legacy's
-///   `AssistPermissionsManager` Autopilot mode is NOT ported.
-/// * `dependency_resolution_engine` runs `xcodebuild` as a fixed
-///   argument vector via `terminalRunFixed` (never a shell), after
-///   the approval gate, exactly as Legacy runs it via
-///   `AssistArgvRunner`.
-///
-/// Implemented (6): `code_mutation_engine`,
-/// `patch_application_engine`, `dependency_resolution_engine`
-/// (macOS only — Legacy's own `#else` branch),
-/// `external_resource_gateway`, `fetch_documentation`, and
-/// `reverse_analyze` — the last runs through the Node.js bridge
-/// (`ReverseBridge.mjs` in `SwiftCodeTools+ReverseBridge.swift`),
-/// which dynamically imports the pinned `rea-agents@6.5.0`
-/// package. A missing Node, REA dir, or bridge resource fails
-/// honestly naming exactly which piece is missing; nothing is
-/// downloaded or installed.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `code_mutation_engine` / `patch_application_engine` resolve
-///   `path` with `resolveFileWritingPath` (relative to the
-///   workspace root, never the session directory; absolute paths
-///   must stay inside the workspace, where Legacy allowed any
-///   absolute path through its filesystem layer subject to its
-///   own permission checks). The mutation itself is Legacy's
-///   exact logic, including the symbol-body brace counting and
-///   the naive line-by-line diff (not a Myers diff — SwiftCode has no
-///   Myers engine yet, see the Wave 2 note).
-/// * `dependency_resolution_engine` resolves the project with
-///   Legacy's `AssistXcodeProjectResolver.locate` (top-level
-///   `.xcworkspace` preferred over `.xcodeproj`,
-///   alphabetically-first). Legacy's `packageURL` is a report
-///   label only — the tool resolves the project's existing
-///   dependencies and never adds a package; the port keeps that.
-///   The run goes through SwiftCode's approval gate, which Legacy
-///   does not have for this tool (its Autopilot mode would have
-///   bypassed approval entirely).
-/// * `external_resource_gateway` uses `SwiftCodeAssistant.HTTP.send`
-///   (the codebase's proven one-shot request helper) instead of
-///   `URLSession.shared.data(for:)`, which nothing in this
-///   codebase uses. Behaviour is Legacy's: HTTPS only, 30 s
-///   timeout, non-2xx is a failure, the body must be valid JSON,
-///   returned pretty-printed with sorted keys.
-/// * `fetch_documentation` keeps Legacy's DocC-JSON-first /
-///   HTML-fallback pipeline, candidate probing, 24 h cache, and
-///   20,000-character output cap. Differences: `AssistJSON` /
-///   `AssistSecureHTTPClient` / `AssistRemoteResponseCache` are
-///   replaced by `JSONSerialization` walks and the
-///   `EnginesHTTP` fetch in `SwiftCodeTools+EnginesSupport.swift`
-///   (same per-hop redirect allow-list, enforced by a
-///   `URLSessionTaskDelegate`); response-size caps are enforced
-///   after download instead of during transfer; Legacy's
-///   `AssistContext.logger` calls have no SwiftCode equivalent and
-///   are dropped. Content-type checking is by parse success
-///   (a non-DocC payload falls through to the HTML fallback),
-///   not by header.
-/// * `reverse_analyze` keeps Legacy's full validation chain and
-///   runs the analysis through the Node.js bridge
-///   (`ReverseBridge.mjs`, `SwiftCodeTools+ReverseBridge.swift`):
-///   one request per process, stdout frames validated (version 1,
-///   matching id, type in progress/result/error), Evidence
-///   rendered as Markdown. The one wording change is the
-///   out-of-scope remediation, which says "open the containing
-///   project in SwiftCode" where Legacy says "in SwiftCode".
-///   Cancellation is the timeout only (the full REA subsystem's
-///   manager lifecycle, field-specific Evidence formatter, and
-///   ReverseTests are not ported).
 extension SwiftCodeMCPHost {
     var engineTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -192,7 +85,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - `code_mutation_engine`
 
     func mutateCode(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -238,8 +130,6 @@ extension SwiftCodeMCPHost {
                            summary: "Applied minimal mutation to \(path)")
     }
 
-    // MARK: - `patch_application_engine`
-
     func applyPatch(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let path = call.string("path") else {
@@ -269,8 +159,6 @@ extension SwiftCodeMCPHost {
         return .structured(["diff": .string(diff)], summary: "Patch applied to \(path)")
     }
 
-    // MARK: - `dependency_resolution_engine`
-
     func resolveDependencies(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let packageURL = call.string("packageURL") else {
@@ -281,11 +169,6 @@ extension SwiftCodeMCPHost {
         guard let located = EnginesXcodeProject.locate(in: root) else {
             throw MCPToolError("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root; cannot resolve package dependencies.")
         }
-        // Approval gate before running xcodebuild: resolving fetches
-        // packages over the network and writes into DerivedData and
-        // the package cache. Legacy has no gate here (its Autopilot
-        // mode bypasses approval entirely); the port does not
-        // reproduce that bypass.
         try await terminalApproveChange(tool: call.name,
                                         summary: "Resolve Swift Package dependencies for \(packageURL) (xcodebuild -resolvePackageDependencies)",
                                         in: s, call: call)
@@ -315,17 +198,10 @@ extension SwiftCodeMCPHost {
         #endif
     }
 
-    // MARK: - `external_resource_gateway`
-
     func fetchExternalResource(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // No workspace is needed: the fetch goes to an external URL,
-        // not to the open project. The `workspace` argument is
-        // accepted and ignored, like `fetch_documentation`.
         guard let urlString = call.string("url"), let url = URL(string: urlString) else {
             throw MCPToolError("Missing or invalid url")
         }
-        // Scheme allow-list: only HTTPS. file:// would read local files
-        // (SSRF / local-file read) behind what used to be a safeRead label.
         guard url.scheme?.lowercased() == "https", url.host != nil else {
             throw MCPToolError("Only HTTPS URLs with a host are allowed (got '\(urlString)').")
         }
@@ -337,8 +213,6 @@ extension SwiftCodeMCPHost {
         } catch {
             throw MCPToolError("Fetch failed: \(error.localizedDescription)")
         }
-        // Non-2xx is a failure even with a JSON body: a 404/500 payload is
-        // not the requested resource.
         guard (200...299).contains(response.status) else {
             throw MCPToolError("HTTP \(response.status) from \(urlString).")
         }
@@ -356,13 +230,8 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - `fetch_documentation`
 
     func fetchDocumentation(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // No workspace is needed: documentation comes from
-        // developer.apple.com, not from the open project. The
-        // `workspace` argument is accepted and ignored, like Wave 4's
-        // other non-workspace tools.
         let startedAt = Date()
         let rawQuery = (call.arguments["query"]?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let rawURL = (call.arguments["url"]?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -410,8 +279,6 @@ extension SwiftCodeMCPHost {
                 case .rateLimited:
                     throw MCPToolError("Apple documentation endpoint rate-limited the request. Try again shortly.")
                 default:
-                    // Non-recoverable per-candidate failures: try the next
-                    // candidate before giving up, but remember the error.
                     lastNotFoundDetail = fetchDocumentationFailure(error)
                     continue
                 }
@@ -440,8 +307,6 @@ extension SwiftCodeMCPHost {
                            summary: "Retrieved \(pages.count) Apple documentation page(s) via \(retrieval) in \(duration)s.")
     }
 
-    /// Legacy's `fetchFailure`: rejected URLs are input errors, the
-    /// rest are fetch failures.
     func fetchDocumentationFailure(_ error: EnginesHTTPError) -> String {
         switch error {
         case .invalidURL(let message):
@@ -461,9 +326,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Tries DocC JSON first, then the HTML fallback, for one
-    /// candidate. Returns nil when the candidate does not resolve to
-    /// documentation.
     func fetchDocumentationCandidate(candidate: EnginesDocs.Candidate, language: String,
                                      includeExamples: Bool) async throws -> EnginesDocs.Page? {
         do {
@@ -474,12 +336,11 @@ extension SwiftCodeMCPHost {
         } catch let error as EnginesHTTPError {
             switch error {
             case .badStatus(let code) where code == 404:
-                break // fall through to the HTML fallback below
+                break
             default:
                 throw error
             }
         }
-        // DocC JSON missing or unparseable: try the HTML page itself.
         do {
             return try await fetchDocumentationHTMLFallback(candidate: candidate)
         } catch let error as EnginesHTTPError {
@@ -509,18 +370,11 @@ extension SwiftCodeMCPHost {
             finalURL = fetched.finalURL
             await EnginesDocCache.shared.set(cacheKey, data: data, finalURL: finalURL)
         }
-        // The JSON endpoint 404s with an HTML body for unknown paths; the
-        // status check above already rejects non-2xx, so reaching here
-        // means we hold a DocC payload (or something unparseable, which
-        // returns nil and falls through to HTML).
         return EnginesDocs.parseDocCJSON(data: data, canonicalURL: candidate.canonicalURL,
                                          finalJSONURL: finalURL, language: language,
                                          includeExamples: includeExamples)
     }
 
-    /// Fetches the HTML page when no DocC JSON exists and extracts
-    /// whatever static content Apple publishes (title, meta
-    /// description, body text).
     func fetchDocumentationHTMLFallback(candidate: EnginesDocs.Candidate) async throws -> EnginesDocs.Page? {
         let cacheKey = "dochtml:" + candidate.docPath
         let html: String
@@ -560,23 +414,17 @@ extension SwiftCodeMCPHost {
         )
     }
 
-    // MARK: - `reverse_analyze` (via the Node.js bridge)
-
     func reverseAnalyze(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
-        // 1. Operation allow-list.
         let operationRaw = (call.arguments["operation"]?.string ?? EnginesReverseOperation.inspectArtifact.rawValue)
             .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let operation = EnginesReverseOperation(rawValue: operationRaw) else {
             throw MCPToolError("Unsupported Reverse operation '\(operationRaw)'. Allow-listed: \(EnginesReverseOperation.allCases.map(\.rawValue).joined(separator: ", ")).")
         }
-        // 2. Task screening (REA disclaimer boundary).
         let task = call.arguments["task"]?.string ?? ""
         if let refusal = EnginesReverseValidator.refusalMessage(forTask: task) {
             throw MCPToolError(refusal)
         }
-        // 3. Target / scope validation — own checks, never the
-        // Autopilot bypass, never the generic path relativizer.
         let targetPath: String
         switch EnginesReverseValidator.validateTarget(path: call.arguments["targetPath"]?.string,
                                                       workspaceRoot: Self.folder(of: s.model)) {
@@ -585,7 +433,6 @@ extension SwiftCodeMCPHost {
         case .failure(let error):
             throw MCPToolError(error.message)
         }
-        // 4. objdump sub-operation: fixed enum only.
         if operation == .inspectWithObjdump {
             let raw = (call.arguments["objdumpOperation"]?.string ?? EnginesReverseObjdumpOperation.fileHeaders.rawValue)
                 .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -593,17 +440,8 @@ extension SwiftCodeMCPHost {
                 throw MCPToolError("Invalid objdumpOperation '\(raw)'. Fixed choices: \(EnginesReverseObjdumpOperation.allCases.map(\.rawValue).joined(separator: ", ")).")
             }
         }
-        // 5. Symbol for demangle_swift (validated as present-or-absent;
-        // the value itself needs no check) and 6. timeout clamp.
         let symbol = call.string("symbol")
         let timeout = EnginesReverseValidator.clampTimeout(call.arguments["timeoutSeconds"])
-        // 7. The analysis itself: one request per process through
-        // the Node.js bridge (`ReverseBridge.mjs`, see
-        // `SwiftCodeTools+ReverseBridge.swift`), which dynamically
-        // imports the pinned `rea-agents@6.5.0` package (or the
-        // pinned `rea` CLI for objdump). Nothing is downloaded or
-        // installed; a missing Node, REA dir, or bridge resource
-        // fails honestly naming exactly which piece is missing.
         let objdumpOp: String? = operation == .inspectWithObjdump
             ? (call.arguments["objdumpOperation"]?.string ?? EnginesReverseObjdumpOperation.fileHeaders.rawValue)
             : nil

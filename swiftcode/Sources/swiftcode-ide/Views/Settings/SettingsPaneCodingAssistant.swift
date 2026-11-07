@@ -4,15 +4,7 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Settings ▸ Coding Assistant (coding-assistant.md §6), the macOS pane's
-/// sections and rows: the provider, the local model servers, OpenAI, the
-/// agent tools, an ACP agent, agent mode, the context, the output limits
-/// and the privacy note. Settings are the shared `AssistantSettings` (user
-/// defaults); keys go to the secret store (§7: on Linux one 0600 file per
-/// key under `~/.config/swiftcode/secrets`), and the pane never shows a saved
-/// key, only that one is saved.
 struct CodingAssistantSettingsPane: View {
-    /// Bumped when a key is saved or removed (the store is not observed).
     @State private var secretsRevision = 0
     @State private var message = ""
     @State private var accountStatus: OpenAIAccount.Status?
@@ -20,8 +12,6 @@ struct CodingAssistantSettingsPane: View {
     var services: CodingAssistantServices { CodingAssistantServices.shared }
     var prefs: Preferences { services.preferences ?? .shared }
 
-    /// A binding to one assistant setting; setting it posts
-    /// `Preferences.didChange`, so open panes check their back ends again.
     func value<T>(_ key: WritableKeyPath<AssistantSettings, T>) -> Binding<T> {
         let prefs = prefs
         return Binding(get: { prefs.codingAssistant[keyPath: key] }, set: { v in
@@ -169,7 +159,6 @@ struct CodingAssistantSettingsPane: View {
         }
     }
 
-    /// A key was saved or removed, or the sign-in changed.
     func changed(_ note: String) {
         message = note
         secretsRevision &+= 1
@@ -198,8 +187,6 @@ struct CodingAssistantSettingsPane: View {
     }
 }
 
-/// A text field that applies its value on Return (an address applied at
-/// every keystroke would check the back ends at every keystroke).
 struct CommitField: View {
     var title: String
     var value: String
@@ -223,8 +210,6 @@ struct CommitField: View {
     }
 }
 
-/// A key: a secure field with Save and Remove. The saved key is never
-/// shown; the field's placeholder says one is saved.
 struct SecretRow: View {
     var title: String
     var account: String

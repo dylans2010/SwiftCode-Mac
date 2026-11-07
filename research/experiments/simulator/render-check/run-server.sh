@@ -1,19 +1,4 @@
 #!/bin/sh
-# R6: capture through the host-side IOSurface service. Boots a throwaway device
-# with R5's isinterpose (Metal names denied, IOSurface connections redirected to
-# our service when it exists) and the capture framebuffer; then, per variant,
-# loads isdump (R5's test server + dump by surface ID) as a user/501 job,
-# restarts backboardd and SpringBoard against it, and captures the home screen,
-# Settings and the probe app twice: by the framebuffer (client mapping) and by
-# the service (its own memory, by the surface ID the framebuffer reported).
-# Original Ycode script.
-#
-# Usage: run-server.sh <udid> <build dir> <run dir> <variant> [--boot]
-#   variant: a name; env RC_REFUSE (Method list for YC_SRV_REFUSE), RC_NOSTATE=1, RC_FREEZESEED=1,
-#            RC_SFBOPTS="K=V K=V" (written to <run>/opts for the restarted backboardd),
-#            RC_MODE=tick: instead of home/Settings/probe, launch TickApp and measure
-#            presentation for 10 s (frames in the window, two captures 3 s apart);
-#            RC_TICKWIN=n measures n windows of 10 s
 set -e
 UDID=${1:?udid}; B=${2:?build}; R=${3:?run dir}; V=${4:?variant}; BOOT=${5:-}
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +15,6 @@ if [ "$BOOT" = "--boot" ]; then
   xcrun simctl boot "$UDID"
   echo "booted; waiting 60 s"; sleep 60
 fi
-# per-variant framebuffer switches for the restarted backboardd
 rm -f "$R/opts"; for kv in $RC_SFBOPTS; do echo "$kv" >> "$R/opts"; done
 UP=$(printf '../%.0s' $(seq 1 16))
 PL="$R/$V/job.plist"
@@ -56,15 +40,15 @@ sleep 2
 L=$(xcrun simctl spawn "$UDID" launchctl print user/501)
 BB=$(echo "$L" | awk '$NF=="com.apple.backboardd"{print $1}' | head -1)
 SB=$(echo "$L" | awk '$NF=="com.apple.SpringBoard"{print $1}' | head -1)
-T0=$(date +%s); touch "$R/t0.mark"   # crash reports newer than this
+T0=$(date +%s); touch "$R/t0.mark"
 echo "variant $V refuse=[$RC_REFUSE] nostate=[$RC_NOSTATE] freezeseed=[$RC_FREEZESEED] sfbopts=[$RC_SFBOPTS]: killing backboardd $BB SpringBoard $SB"
 echo "# variant $V restart" >> "$R/frames.log"
 kill -9 "$BB" "$SB"
 sleep 45
 xcrun simctl spawn "$UDID" log show --last 50s --style compact \
   --predicate 'process == "backboardd" AND eventMessage CONTAINS[c] "screen size"' 2>/dev/null | tail -1 | cut -c1-200
-t30() { perl -e 'alarm shift; exec @ARGV' 30 "$@"; }   # bound simctl calls that can hang when presentation stalls
-both() {   # both <name>: framebuffer snap, then service dump of the same surface
+t30() { perl -e 'alarm shift; exec @ARGV' 30 "$@"; }
+both() {
   rm -f "$R/$1.txt"; echo "$1" > "$R/snap"
   for i in $(seq 1 40); do [ -f "$R/$1.txt" ] && break; sleep 0.25; done
   sleep 0.5
@@ -80,7 +64,7 @@ if [ "$RC_MODE" = tick ]; then
   xcrun simctl install "$UDID" "$B/YcodeTick.app"
   t30 xcrun simctl launch "$UDID" dev.ycode.r6.tick || echo "tick launch failed or timed out"
   sleep 5
-  for w in $(seq 1 ${RC_TICKWIN:-1}); do   # RC_TICKWIN: number of 10 s windows (long-run check)
+  for w in $(seq 1 ${RC_TICKWIN:-1}); do
     F0=$(grep -c '^frame' "$R/frames.log"); sleep 10; F1=$(grep -c '^frame' "$R/frames.log")
     echo "tick: window $w: frames presented in 10 s: $((F1 - F0))"
   done

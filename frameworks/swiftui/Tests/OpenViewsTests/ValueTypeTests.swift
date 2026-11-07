@@ -6,8 +6,6 @@ import Testing
 @testable import SwiftUICore
 #endif
 
-// Round R1: value types and math (10-plan.md §2 R1).
-
 @Suite("R1 geometry")
 struct GeometryTests {
     @Test("Angle converts degrees and radians")
@@ -36,7 +34,6 @@ struct GeometryTests {
         let e = EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4)
         #expect(e.inset(by: 1, edges: .horizontal) == EdgeInsets(top: 1, leading: 3, bottom: 3, trailing: 5))
         #expect(EdgeInsets() == EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-        // Rounding to the pixel grid of a scale-3 display (04 §9).
         let r = EdgeInsets(top: 20.29, leading: 0.2, bottom: 10.4, trailing: -0.2).rounded(toMultipleOf: 1.0 / 3)
         #expect(r.approximates(EdgeInsets(top: 61.0 / 3, leading: 1.0 / 3, bottom: 31.0 / 3, trailing: -1.0 / 3), epsilon: 1e-9))
         let up = EdgeInsets(top: 20.29, leading: 0, bottom: 0, trailing: 0).rounded(.up, toMultipleOf: 1.0 / 3)
@@ -50,7 +47,6 @@ struct GeometryTests {
         #expect(ProposedViewSize.unspecified == ProposedViewSize(width: nil, height: nil))
         #expect(ProposedViewSize.infinity == ProposedViewSize(width: .infinity, height: .infinity))
         #expect(ProposedViewSize(CGSize(width: 3, height: 4)) == ProposedViewSize(width: 3, height: 4))
-        // `nil` becomes 10 by default, the answer shapes give (04 §1).
         #expect(ProposedViewSize(width: 50, height: nil).replacingUnspecifiedDimensions() == CGSize(width: 50, height: 10))
         #expect(ProposedViewSize.unspecified.replacingUnspecifiedDimensions(by: CGSize(width: 1, height: 2)) == CGSize(width: 1, height: 2))
     }
@@ -75,7 +71,6 @@ struct GeometryTests {
         #expect(d[VerticalAlignment.top] == 0)
         #expect(d[VerticalAlignment.center] == 10)
         #expect(d[VerticalAlignment.bottom] == 20)
-        // Without text, baselines default to the bottom edge (golden `geometryReader`).
         #expect(d[VerticalAlignment.firstTextBaseline] == 20)
         #expect(d[VerticalAlignment.lastTextBaseline] == 20)
         #expect(d[explicit: VerticalAlignment.firstTextBaseline] == nil)
@@ -132,7 +127,6 @@ struct ColorTests {
         return e
     }
 
-    /// 07-text-images-color.md §4 (light, dark).
     static let table: [(String, Color, String, String)] = [
         ("primary", .primary, "#000000FF", "#FFFFFFFF"),
         ("secondary", .secondary, "#3C3C4399", "#EBEBF599"),
@@ -187,7 +181,6 @@ struct ColorTests {
         let mid = Color.Resolved(colorSpace: .sRGBLinear, red: 0.214, green: 0.214, blue: 0.214)
         #expect(abs(mid.red - 0.5) < 0.001)
         #expect(abs(mid.linearRed - 0.214) < 1e-5)
-        // Display P3 red lies outside sRGB: extended components.
         let p3 = Color.Resolved(colorSpace: .displayP3, red: 1, green: 0, blue: 0)
         #expect(abs(p3.red - 1.0931) < 0.002)
         #expect(abs(p3.green - (-0.2267)) < 0.002)
@@ -198,7 +191,6 @@ struct ColorTests {
 
 @Suite("R1 timing curves (T-CURVE)")
 struct UnitCurveTests {
-    /// 05-animation.md §2, values at t = 0, 0.1, …, 1.
     static let table: [(String, UnitCurve, [Double])] = [
         ("linear", .linear, (0...10).map { Double($0) / 10 }),
         ("easeIn", .easeIn, [0, 0.0170, 0.0623, 0.1296, 0.2149, 0.3154, 0.4291, 0.5548, 0.6916, 0.8394, 1]),
@@ -301,9 +293,6 @@ struct SpringTests {
 
     @Test("Settling durations of the reference (open rule)")
     func settling() {
-        // 05 §3 lists settlingDuration 0.8 (smooth), 0.8768 (snappy), 1.0447
-        // (bouncy); the rule behind these numbers is not in the spec yet, so
-        // ours (last time 0.1 % away from the target) differs.
         withKnownIssue("settlingDuration rule is an open spec question") {
             #expect(abs(Spring.smooth.settlingDuration - 0.8) < 1e-3)
             #expect(abs(Spring.snappy.settlingDuration - 0.8768) < 1e-3)

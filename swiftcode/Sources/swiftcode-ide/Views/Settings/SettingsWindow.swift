@@ -5,14 +5,10 @@ import SwiftCodeCompletion
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Follows `Preferences` for the views that draw with it: editors redraw with
-/// a new font, theme or tab width, open buffers take the typing settings,
-/// the menus take changed shortcuts and the windows the appearance.
 @MainActor
 @Observable
 final class ShellPreferences {
     static let shared = ShellPreferences()
-    /// Bumped on every change of the preferences.
     private(set) var revision = 0
     @ObservationIgnored private var observer: NSObjectProtocol?
 
@@ -28,33 +24,21 @@ final class ShellPreferences {
         Self.persist()
     }
 
-    /// A setting stored outside `Preferences` changed (the build system,
-    /// predictive completion, completion while typing): redraw and save.
     func touch() {
         revision &+= 1
         Self.persist()
     }
 
-    /// Writes the user defaults now: swift-corelibs-foundation keeps them
-    /// in memory until asked, and an app that is quit or killed would
-    /// lose the change.
     static func persist() { UserDefaults.standard.synchronize() }
 
-    /// Completions open by themselves after a "." (off by default for the
-    /// beta; Ctrl+Space and Escape always ask).
     static var completionWhileTyping: Bool {
         UserDefaults.standard.object(forKey: completionKey) as? Bool ?? false
     }
     static let completionKey = "SwiftCode.linuxCompletionWhileTyping"
 
-    /// The source font's size: the user's, else the theme's.
     static var fontSize: Double { Preferences.shared.sourceFontSize ?? Preferences.shared.theme.fontSize }
 }
 
-/// The panes of the Settings window, in the reference's order
-/// (`specs/ide/settings.md` R3.2, `SettingsPaneOrder.linux`): the macOS
-/// IDE's without Simulators (SwiftCode's own pane, macOS only). Components
-/// shows its empty state.
 enum ShellSettingsPane: String, CaseIterable, Identifiable {
     case general, appearance, accounts, codingAssistant, behaviors, navigation, notifications, editing, shortcuts, sourceControl, components, locations
 
@@ -77,7 +61,6 @@ enum ShellSettingsPane: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The sidebar icon (names OpenViews draws).
     var symbol: String {
         switch self {
         case .general: "gearshape"
@@ -96,7 +79,6 @@ enum ShellSettingsPane: String, CaseIterable, Identifiable {
     }
 }
 
-/// Which pane shows, the back/forward history and each pane's sub-page.
 @MainActor
 @Observable
 final class ShellSettingsModel {
@@ -105,14 +87,10 @@ final class ShellSettingsModel {
     private(set) var pane: ShellSettingsPane = .general
     private(set) var back: [ShellSettingsPane] = []
     private(set) var forward: [ShellSettingsPane] = []
-    /// Editing's sub-page.
     var editingPage: EditingSettingsPane.Page = .main
-    /// Behaviors' open event (nil: the event list).
     var behaviorEvent: Preferences.Event?
-    /// Accounts' sheet (+ shows it).
     var isAccountsSheetShown = false
 
-    /// Shows a pane (recorded for back/forward).
     func select(_ p: ShellSettingsPane) {
         guard p != pane else { return }
         back.append(pane)
@@ -133,18 +111,10 @@ final class ShellSettingsModel {
     }
 }
 
-/// The Settings window (Ctrl+,), as the macOS IDE's (`specs/ide/settings.md`
-/// R3.1–R3.3): 710 × 452, the pane list flush at the left (179.5 wide,
-/// 32-point rows, accent-tinted symbols, labels aligned), a 0.5-point
-/// divider, and the selected pane's grouped cards under the back/forward
-/// capsule and the pane's title. The settings are the portable
-/// `Preferences` (user defaults under `SwiftCode.` keys) both IDEs and
-/// `swiftcode complete` read; every change applies at once.
 struct ShellSettingsView: View {
     @Bindable var model = ShellSettingsModel.shared
     @Environment(\.colorScheme) private var scheme
 
-    /// The window's size (the macOS IDE's).
     static let size = SettingsLayout.windowSize
     static let sidebarWidth = SettingsLayout.sidebarWidth
 
@@ -167,7 +137,6 @@ struct ShellSettingsView: View {
         .shellTarget("settings")
     }
 
-    /// The title area's height.
     static let titleHeight = SettingsLayout.titleAreaHeight
 
     func sidebar(_ p: SettingsPalette) -> some View {
@@ -181,7 +150,6 @@ struct ShellSettingsView: View {
                                 .fill(p.selection)
                                 .padding(.horizontal, SettingsLayout.selectionInset)
                         }
-                        // The symbol centred on x 29, the label at x 47 on every row.
                         SettingsSidebarSymbol(pane: pane, color: on ? Color.white : p.symbol)
                             .frame(width: 2 * SettingsLayout.symbolCenterX, alignment: .center)
                         Text(verbatim: pane.title)
@@ -203,8 +171,6 @@ struct ShellSettingsView: View {
         .padding(.top, SettingsLayout.sidebarTop)
     }
 
-    /// The title area: the back/forward capsule at x 187.5 (7.5 into the
-    /// detail pane) and the pane's title 12.5 after it, centred on y 26.
     func titleRow(_ p: SettingsPalette) -> some View {
         let cap = SettingsLayout.capsuleFrame
         return HStack(spacing: 0) {
@@ -219,7 +185,6 @@ struct ShellSettingsView: View {
                 .shellTarget("settings title")
             Spacer(minLength: 0)
         }
-        // The capsule's centre (y 25.75) on the title's line (y 26).
         .padding(.top, cap.minY)
         .frame(height: Self.titleHeight, alignment: .top)
     }
@@ -228,8 +193,8 @@ struct ShellSettingsView: View {
         switch model.pane {
         case .general: GeneralSettingsPane()
         case .appearance: AppearanceSettingsPane()
-        case .accounts: AccountsSettingsPane(model: model)   // SettingsPaneAccounts.swift
-        case .codingAssistant: CodingAssistantSettingsPane()   // SettingsPaneCodingAssistant.swift
+        case .accounts: AccountsSettingsPane(model: model)
+        case .codingAssistant: CodingAssistantSettingsPane()
         case .behaviors: BehaviorsSettingsPane(model: model)
         case .navigation: NavigationSettingsPane()
         case .notifications: NotificationsSettingsPane()
@@ -242,9 +207,6 @@ struct ShellSettingsView: View {
     }
 }
 
-/// A pane's sidebar symbol: OpenViews' artwork where it has one, else
-/// SwiftCode's own drawing of the spec's description (a circle half light, half
-/// dark; a diamond sign with a turning arrow; a keyboard; a drive).
 struct SettingsSidebarSymbol: View {
     var pane: ShellSettingsPane
     var color: Color
@@ -286,7 +248,6 @@ struct SettingsSidebarSymbol: View {
     }
 }
 
-/// The left half of a disc.
 struct SettingsHalfDisc: Shape {
     nonisolated func path(in r: CGRect) -> Path {
         var p = Path()
@@ -297,7 +258,6 @@ struct SettingsHalfDisc: Shape {
     }
 }
 
-/// An arrow going up, then turning right.
 struct SettingsTurnArrow: Shape {
     nonisolated func path(in r: CGRect) -> Path {
         var p = Path()
@@ -311,7 +271,6 @@ struct SettingsTurnArrow: Shape {
     }
 }
 
-/// A keyboard's keys: two rows of small keys and a space bar.
 struct SettingsKeyboardKeys: Shape {
     nonisolated func path(in r: CGRect) -> Path {
         var p = Path()
@@ -326,9 +285,6 @@ struct SettingsKeyboardKeys: Shape {
     }
 }
 
-/// The back/forward capsule: a near-white capsule with a faint rim and a
-/// soft shadow, a divider at its centre, a chevron in each half (#AEAEAE
-/// when there is no history).
 struct SettingsNavigationCapsule: View {
     var model: ShellSettingsModel
     @Environment(\.colorScheme) private var scheme
@@ -364,7 +320,6 @@ struct SettingsNavigationCapsule: View {
     }
 }
 
-/// A chevron, 8 × 14.5, pointing left or right.
 struct SettingsChevron: Shape {
     var left: Bool
 
@@ -383,29 +338,19 @@ struct SettingsChevron: Shape {
     }
 }
 
-// MARK: Shared pieces of the panes (the cards: SettingsCards.swift)
-
-/// A binding to one setting of `Preferences.shared`; setting it posts
-/// `Preferences.didChange`.
 @MainActor
 func setting<T>(_ key: ReferenceWritableKeyPath<Preferences, T>) -> Binding<T> {
     Binding(get: { Preferences.shared[keyPath: key] }, set: { Preferences.shared[keyPath: key] = $0 })
 }
 
 extension View {
-    /// Applies Settings ▸ Appearance (System, Light or Dark) to a window's
-    /// content; System leaves the desktop's choice.
     func shellAppearance() -> some View { modifier(ShellAppearanceModifier()) }
 }
 
 struct ShellAppearanceModifier: ViewModifier {
     func body(content: Content) -> some View {
-        // swiftlint:disable:next redundant_discardable_let - a view builder (observes the revision)
         let _ = ShellPreferences.shared.revision
         let a = Preferences.shared.appearance
-        // The whole window follows it: on Linux OpenViews applies the
-        // request to the window's root, so the in-window menu bar, the
-        // toolbar and the pop-ups take the forced appearance too.
         content.preferredColorScheme(a == .system ? nil : (a == .dark ? .dark : .light))
     }
 }

@@ -1,12 +1,8 @@
-// EKSource and EKCalendar (interface.md §2.2–§2.3).
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// An RGB color in the device RGB space; SwiftCode's portable form of a
-/// calendar color (on Apple platforms `cgColor` mirrors it).
 public struct SwiftCodeRGBColor: Hashable, Sendable {
     public var red: Double
     public var green: Double
@@ -81,8 +77,6 @@ public class EKCalendar: EKObject {
         self.saved = saved ? row : nil
     }
 
-    /// A new, unsaved calendar or reminder list (type local, no source, no
-    /// color until saved).
     public convenience init(for entityType: EKEntityType, eventStore: EKEventStore) {
         let row = CalendarRow(id: UUID().uuidString, sourceID: nil, title: "", type: EKCalendarType.local.rawValue,
                               entityMask: entityType == .event ? EKEntityMask.event.rawValue : EKEntityMask.reminder.rawValue,
@@ -115,7 +109,6 @@ public class EKCalendar: EKObject {
     public var supportedEventAvailabilities: EKCalendarEventAvailabilityMask { [] }
     public var allowedEntityTypes: EKEntityMask { EKEntityMask(rawValue: fields.entityMask) }
 
-    /// The calendar color as RGB components (nil on a new calendar until saved).
     public var swiftcodeColor: SwiftCodeRGBColor? {
         get { fields.color }
         set { fields.color = newValue }

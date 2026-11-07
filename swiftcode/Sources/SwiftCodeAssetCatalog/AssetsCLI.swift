@@ -1,9 +1,6 @@
 import Foundation
 import SwiftCodeIcon
 
-/// `swiftcode assets` (`specs/formats/assets-car.md` and `icon-format.md`,
-/// "SwiftCode implementation"): compile catalogs and icons, dump a car, and
-/// read, check and convert `.icon` documents.
 public enum AssetsCLI {
     public static let usage = """
     usage: swiftcode assets compile <inputs (.xcassets, .icon)…> --output <dir> [--platform P] [--target-device D]…
@@ -20,7 +17,6 @@ public enum AssetsCLI {
 
     """
 
-    /// SwiftCode's compiler version, reported to swift-build by `--version`.
     public static let version = (bundle: "1", short: "1.0")
 
     static func err(_ s: String) { FileHandle.standardError.write(Data((s.hasSuffix("\n") ? s : s + "\n").utf8)) }
@@ -38,9 +34,6 @@ public enum AssetsCLI {
         }
     }
 
-    // MARK: compile
-
-    /// actool flags that take a value and that SwiftCode reads but does not use.
     static let ignoredWithValue: Set<String> = [
         "--output-format", "--enable-on-demand-resources", "--development-region", "--bundle-identifier",
         "--generate-swift-asset-symbol-extensions", "--generate-asset-symbol-framework-support",
@@ -103,8 +96,6 @@ public enum AssetsCLI {
             i += 1
         }
         if printVersion {
-            // swift-build reads `com.apple.<tool file name>.version`; the build
-            // hook names its wrapper `actool`. The numbers are SwiftCode's own.
             let v = ["bundle-version": version.bundle, "short-bundle-version": version.short]
             if format == "xml1" { emitPlist(["com.apple.actool.version": v]) } else {
                 print("/* com.apple.actool.version */\n    bundle-version: \(version.bundle)\n    short-bundle-version: \(version.short)")
@@ -112,8 +103,6 @@ public enum AssetsCLI {
             return 0
         }
         if printTags {
-            // swift-build asks which asset tags the catalogs use (on-demand
-            // resources); SwiftCode writes none.
             emitPlist(["com.apple.actool.asset-tag-combinations": [Any]()])
             return 0
         }
@@ -131,7 +120,6 @@ public enum AssetsCLI {
         if let d = try? PropertyListSerialization.data(fromPropertyList: obj, format: .xml, options: 0) { FileHandle.standardOutput.write(d) }
     }
 
-    /// Prints actool's three sections (`icon-compile.md` §1).
     static func report(_ r: AssetCompiler.Result, format: String) {
         let errors = r.diagnostics.filter { $0.kind == .error }
         let notices = r.diagnostics.filter { $0.kind != .error }
@@ -156,8 +144,6 @@ public enum AssetsCLI {
         FileHandle.standardOutput.write(Data(out.utf8))
     }
 
-    /// The symbol-generation step (`GenerateAssetSymbols`): SwiftCode does not
-    /// generate asset symbols yet; it writes valid, empty files.
     static func writeSymbolStubs(swift: URL?, objc: URL?, index: URL?, format: String) -> Int32 {
         let fm = FileManager.default
         var outs: [URL] = []
@@ -183,8 +169,6 @@ public enum AssetsCLI {
         return 0
     }
 
-    // MARK: info
-
     static func info(_ args: [String]) -> Int32 {
         guard let path = args.first(where: { !$0.hasPrefix("-") }) else { err(usage); return 2 }
         do {
@@ -203,7 +187,6 @@ public enum AssetsCLI {
         }
     }
 
-    /// A car as JSON and as text lines.
     public static func describe(_ car: CARFile) -> (json: IconJSON, lines: [String]) {
         var lines: [String] = []
         let h = car.header
@@ -268,8 +251,6 @@ public enum AssetsCLI {
         ])
         return (json, lines)
     }
-
-    // MARK: icon
 
     static func option(_ args: [String], _ name: String) -> String? {
         guard let k = args.firstIndex(of: name), k + 1 < args.count else { return nil }

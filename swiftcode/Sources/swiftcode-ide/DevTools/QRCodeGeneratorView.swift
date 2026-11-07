@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/QRCodeGeneratorView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 import SwiftUI
 import CoreImage.CIFilterBuiltins
 import SwiftCodeUI

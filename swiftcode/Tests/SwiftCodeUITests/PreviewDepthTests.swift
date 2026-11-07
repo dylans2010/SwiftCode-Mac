@@ -9,7 +9,6 @@ import SwiftCodeProject
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// The swift-build helper built in this checkout, if any.
 var localSwbuild: String? {
     let p = swiftcodeDir.appendingPathComponent("Tools/swiftcode-swb/.build/debug/swbuild").path
     return SwiftBuildEngine.locate() ?? (FileManager.default.isExecutableFile(atPath: p) ? p : nil)
@@ -39,11 +38,7 @@ var localSwbuild: String? {
         #expect(props == ["@State var count = 3"] && content.contains("Text(") && !content.contains("@Previewable"))
     }
 
-    /// A target that depends on another target and has a resource: linked
-    /// through its library product, `Bundle.module` works, `@Previewable`
-    /// state works, light and dark both render.
     @Test func linkedTargetWithResourcesPreviewableAndDark() async throws {
-        // Heavy work (builds, debugger, language server) takes turns across test processes.
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { heavy.unlock() }
         let pkg = dir("linked")
@@ -90,9 +85,7 @@ var localSwbuild: String? {
         #expect(try Data(contentsOf: out[0].png) != Data(contentsOf: out[1].png))
     }
 
-    /// The project path: a SwiftUI view in an app target.
     @Test func projectAppTarget() async throws {
-        // Heavy work (builds, debugger, language server) takes turns across test processes.
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { heavy.unlock() }
         let root = dir("project")
@@ -118,10 +111,7 @@ var localSwbuild: String? {
         #expect(try nonBlankPixels(out[0].png) > 5)
     }
 
-    /// The swift-build engine path, and warm incremental refreshes (times
-    /// are printed for the report).
     @Test func swiftBuildPathAndWarmRefresh() async throws {
-        // Heavy work (builds, debugger, language server) takes turns across test processes.
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { heavy.unlock() }
         guard let tool = localSwbuild else { print("swbuild not built; skipping"); return }
@@ -141,19 +131,16 @@ var localSwbuild: String? {
         let first = try await offMain { try renderer.render(module: module, file: file, previews: PreviewDiscovery.previews(in: previewSource), swiftBuild: tool) { timesBox.append($0) } }
         #expect(first.count == 3)
         for r in first { #expect(try nonBlankPixels(r.png) > 50) }
-        // swift-build products land in the host's .swiftcode-build folder.
         #expect(FileManager.default.fileExists(atPath: dir("swb-work").path) == false || true)
         let edited = previewSource.replacingOccurrences(of: "Color.blue", with: "Color.red")
         try write(edited, file)
         let second = try await offMain { try renderer.render(module: module, file: file, previews: PreviewDiscovery.previews(in: edited), swiftBuild: tool) { timesBox.append($0) } }
         #expect(second.count == 3)
-        // Unchanged → nothing to rebuild.
         _ = try await offMain { try renderer.render(module: module, file: file, previews: PreviewDiscovery.previews(in: edited), swiftBuild: tool) { timesBox.append($0) } }
         let times = timesBox.values
         print("PREVIEW-TIMING swift-build first=\(times[0].total)s edit=\(times[1].total)s unchanged=\(times[2].total)s")
-        #expect(times[2].build < times[0].build) // unchanged: no recompilation
+        #expect(times[2].build < times[0].build)
 
-        // The same with SwiftPM.
         let spmBox = TimingBox()
         let r2 = PreviewRenderer(workDirectory: dir("spm-work"))
         _ = try await offMain { try r2.render(module: module, file: file, previews: PreviewDiscovery.previews(in: edited)) { spmBox.append($0) } }
@@ -164,10 +151,6 @@ var localSwbuild: String? {
     }
 }
 
-/// Runs blocking work (a preview build, a host request) off the main
-/// actor, so the other suites' main-actor tests keep running meanwhile. It
-/// gets a thread of its own, never a cooperative-pool thread: in a full run
-/// the pool is busy, and blocking work queued there started a minute late.
 func offMain<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
     try await withCheckedThrowingContinuation { (k: CheckedContinuation<T, any Error>) in
         let t = Thread { k.resume(with: Result { try body() }) }
@@ -176,7 +159,6 @@ func offMain<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async thro
     }
 }
 
-/// Timings reported from the renderer's thread.
 final class TimingBox: @unchecked Sendable {
     private let lock = NSLock()
     private var list: [PreviewRenderer.Timing] = []

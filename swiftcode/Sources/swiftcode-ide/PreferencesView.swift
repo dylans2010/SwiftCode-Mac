@@ -1,9 +1,3 @@
-// PreferencesView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/PreferencesView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: session capture/restore; workflow automation (createWorkflow); automated actions (archive compression on limit)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 
@@ -13,11 +7,9 @@ struct PreferencesView: View {
     @State private var enableTelemetry = true
     @State private var maxArchiveCount = 10
 
-    // Session states
     @State private var sessionManager = WorkspaceSessionManager.shared
     @State private var newSessionName = ""
 
-    // Automation states
     @State private var automation = AutomationEngine.shared
     @State private var newWorkflowName = ""
     @State private var selectedTrigger = "Project Opened"
@@ -36,7 +28,6 @@ struct PreferencesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Operations Preferences & Workflows")
                         .font(.title2)
@@ -47,7 +38,6 @@ struct PreferencesView: View {
                 }
                 .padding(.bottom, 10)
 
-                // 1. General Preferences
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Automated Actions")
@@ -68,7 +58,6 @@ struct PreferencesView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Workspace Session Snapshotting
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Workspace Session Manager")
@@ -130,7 +119,6 @@ struct PreferencesView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Workflow Automation Engine
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Development Workflow Automation")
@@ -139,7 +127,6 @@ struct PreferencesView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        // Create Workflow Subform
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Create Automated Workflow")
                                 .font(.subheadline)
@@ -157,7 +144,6 @@ struct PreferencesView: View {
                                 .frame(width: 250)
                             }
 
-                            // Actions Multi-select checkboxes
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Select Action Sequences:")
                                     .font(.caption)
@@ -197,7 +183,6 @@ struct PreferencesView: View {
 
                         Divider()
 
-                        // Existing workflows list
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Active Automation Workflows")
                                 .font(.subheadline)

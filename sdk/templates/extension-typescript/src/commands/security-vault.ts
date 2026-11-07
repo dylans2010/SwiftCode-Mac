@@ -1,10 +1,5 @@
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 
-/**
- * "security-vault" command.
- *
- * Lists stored secret IDs in the extension's Keychain vault under its security ID.
- */
 export function createSecurityVaultCommand(context: SwiftCodeContext) {
   return {
     id: "security-vault",

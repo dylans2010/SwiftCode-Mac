@@ -2,17 +2,6 @@ import Foundation
 import SwiftUI
 import AppKit
 
-// MARK: - SDKStudioLogsView
-//
-// Studio log inspector (spec Docs/Intro-to-SDK.md §16): three panes over the
-// real log pipelines —
-//   - User:       `SDKUserLogger.shared` sanitized in-memory entries (§16.1).
-//   - Developer:  `SDKDeveloperLogger.shared` verbose JSON lines from
-//                 `~/.swiftcode/logs/developer-sdk.log` (§16.2).
-//   - Audit:      `SDKAuditLog.shared` durable security audit events (§16.3).
-//
-// All data shown is live from the real loggers; there is no sample content.
-
 public struct SDKStudioLogsView: View {
     private enum Segment: String, CaseIterable, Identifiable {
         case user = "User"
@@ -48,8 +37,6 @@ public struct SDKStudioLogsView: View {
         }
     }
 }
-
-// MARK: - User logs pane (§16.1)
 
 private struct UserLogsPane: View {
     @State private var entries: [SDKUserLogEntry] = []
@@ -87,7 +74,6 @@ private struct UserLogsPane: View {
     }
 
     private func reload() {
-        // `SDKUserLogger` reads are synchronous in-memory snapshots.
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         entries = query.isEmpty
             ? SDKUserLogger.shared.recentEntries()
@@ -130,8 +116,6 @@ private struct UserLogsPane: View {
         }
     }
 }
-
-// MARK: - Developer logs pane (§16.2)
 
 private struct DeveloperLogsPane: View {
     @State private var searchText = ""
@@ -212,8 +196,6 @@ private struct DeveloperLogsPane: View {
         }
     }
 }
-
-// MARK: - Audit logs pane (§16.3)
 
 private struct AuditLogsPane: View {
     @State private var events: [SDKAuditEvent] = []
@@ -336,8 +318,6 @@ private struct AuditLogsPane: View {
     }
 }
 
-// MARK: - Shared chrome
-
 private func emptyState(_ message: String) -> some View {
     ContentUnavailableView {
         Label(message, systemImage: "doc.text.magnifyingglass")
@@ -360,7 +340,6 @@ private func humanized(_ rawValue: String) -> String {
         .capitalized
 }
 
-// Stable list identity for `SDKUserLogEntry` (no `id` field on the type).
 private extension SDKUserLogEntry {
     var correlationIdAndTimestamp: String {
         "\(correlationId)-\(timestamp.timeIntervalSinceReferenceDate)-\(title)-\(message.hashValue)"

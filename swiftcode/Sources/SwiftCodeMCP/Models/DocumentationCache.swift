@@ -4,49 +4,14 @@ import SwiftCodeIDECore
 import FoundationNetworking
 #endif
 
-// MARK: - Offline documentation cache (Wave 19 slice A)
-//
-// The 57-topic offline cache for the Documentation Browser. Legacy
-// bundled a 476-file `Documentation Assets` tree (Apple Xcode
-// framework `Resources/` + Apple documentation content copied
-// verbatim) — dropped, not copied. The rewrite fetches the same 57
-// topics live from the public DocC endpoints the destination
-// already uses, stores the raw payloads locally, and serves them
-// offline from the cache.
-//
-// Fetch path (no new HTTP client, no new endpoint):
-// `EnginesDocs.resolveCandidates` → `SearchHTTP.fetch` (the
-// `SearchWebTestTransport.session` seam for tests) →
-// `EnginesDocs.parseDocCJSON`. When no resolved candidate fetches,
-// the builder falls back to `SearchDocs.search` (framework-root
-// `references` index + ranking) and fetches the best exact-title
-// hit. A topic that resolves through neither path is recorded
-// `failed` with the reason — the batch never fails whole for one
-// topic, and a failed topic is never invented.
-//
-// Layout (Application Support, the `LibraryCodeSnippetStore`
-// convention): `SwiftCode/DocumentationCache/index.json` +
-// `pages/<slug>.json` (one raw DocC JSON payload per cached topic).
-// The index is JSON, not Legacy's sqlite: 57 rows need no FTS5
-// index, in-memory filtering is instant, and the destination has
-// no sqlite writer in this layer (its only `SQLiteDatabase` is the
-// HealthStore's). Legacy's sqlite schema is documented in
-// `specs/ide/wave19-docs.md` §8 as the reference format.
-//
-// Spec: `specs/ide/wave19-docs.md` §§3–5, 7.
-
-/// One topic's entry in the cache index.
 public struct DocumentationCacheTopic: Codable, Sendable, Hashable {
     public var name: String
     public var kind: String
     public var framework: String
-    /// Real DocC path without the leading slash, e.g.
-    /// "documentation/swiftui/vstack".
     public var docPath: String
     public var canonicalURL: URL?
     public var fetchedAt: Date?
     public var status: Status
-    /// Why the topic is not cached (only when `status == .failed`).
     public var failure: String?
 
     public enum Status: String, Codable, Sendable {
@@ -70,7 +35,6 @@ public struct DocumentationCacheTopic: Codable, Sendable, Hashable {
     }
 }
 
-/// The cache index file (`index.json`).
 public struct DocumentationCacheIndex: Codable, Sendable {
     public var version: Int
     public var fetchedAt: Date?
@@ -83,7 +47,6 @@ public struct DocumentationCacheIndex: Codable, Sendable {
     }
 }
 
-/// The result of fetching one catalogue topic.
 public struct DocumentationFetchResult: Sendable {
     public var topic: DocCatalogueTopic
     public var cached: Bool
@@ -98,15 +61,9 @@ public struct DocumentationFetchResult: Sendable {
     }
 }
 
-/// The offline documentation cache. An actor: `fetchAll` updates
-/// the index after each topic, and concurrent fetches must not
-/// interleave the read-modify-write.
 public actor DocumentationCache {
     public static let shared = DocumentationCache()
 
-    /// The cache root. Production: Application
-    /// Support/SwiftCode/DocumentationCache. Tests inject a temp
-    /// directory.
     public let directory: URL?
 
     public init(directory: URL? = DocumentationCache.defaultDirectory()) {
@@ -121,8 +78,6 @@ public actor DocumentationCache {
             .appendingPathComponent("DocumentationCache", isDirectory: true)
     }
 
-    // MARK: - Paths
-
     public var indexURL: URL? { directory?.appendingPathComponent("index.json") }
 
     public func pageURL(for name: String) -> URL? {
@@ -130,10 +85,7 @@ public actor DocumentationCache {
             .appendingPathComponent(Self.slug(for: name) + ".json")
     }
 
-    /// The page-file slug for a topic name.
     public static func slug(for name: String) -> String { name.lowercased() }
-
-    // MARK: - Index
 
     public func loadIndex() -> DocumentationCacheIndex? {
         guard let url = indexURL,
@@ -152,8 +104,6 @@ public actor DocumentationCache {
         try? data.write(to: url, options: .atomic)
     }
 
-    /// Cached / failed / total counts and the last fetch date, for
-    /// the browser's status pill. No cache yet reads as 0/0/57.
     public func cacheStatus() -> (cached: Int, failed: Int, total: Int, lastFetch: Date?) {
         let index = loadIndex()
         let topics = index?.topics ?? []
@@ -163,12 +113,6 @@ public actor DocumentationCache {
                 index?.fetchedAt)
     }
 
-    // MARK: - Loading symbols from the cache
-
-    /// Builds `[DocSymbol]` from the index + stored page payloads.
-    /// A topic whose page file is missing or unparseable is skipped
-    /// (never a crash, never an invented symbol). Sorted by name,
-    /// as Legacy did. Returns `[]` when nothing is cached yet.
     public func loadSymbols() -> [DocSymbol] {
         guard let index = loadIndex() else { return [] }
         var symbols: [DocSymbol] = []
@@ -185,8 +129,6 @@ public actor DocumentationCache {
         return symbols
     }
 
-    /// The cached page payload for a DocC path, if the topic is
-    /// cached. `docPath` may carry a leading slash.
     public func pageData(forDocPath docPath: String) -> Data? {
         let clean = docPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         guard let index = loadIndex(),
@@ -199,16 +141,6 @@ public actor DocumentationCache {
         return try? Data(contentsOf: url)
     }
 
-    // MARK: - Fetching
-
-    /// Fetches every catalogue topic, one at a time (polite: no
-    /// parallel hammering of Apple's endpoint), updating the index
-    /// after each topic so a crash keeps partial progress.
-    /// `progress` reports (done, total, topic, result) after each
-    /// topic; it runs on the main actor (the browser's model owns
-    /// the progress state). Never throws for a topic failure — the
-    /// result carries it; throws only when there is no cache
-    /// directory at all.
     public func fetchAll(
         progress: (@MainActor (Int, Int, DocCatalogueTopic, DocumentationFetchResult) -> Void)? = nil
     ) async throws -> [DocumentationFetchResult] {
@@ -227,9 +159,6 @@ public actor DocumentationCache {
         return results
     }
 
-    /// Fetches one topic (candidates, then the search fallback),
-    /// stores its raw DocC JSON, and records the outcome. Never
-    /// throws for a fetch failure — the result carries it.
     public func fetchTopic(_ topic: DocCatalogueTopic) async -> DocumentationFetchResult {
         guard directory != nil else {
             return DocumentationFetchResult(topic: topic, cached: false,
@@ -240,7 +169,7 @@ public actor DocumentationCache {
             for candidate in candidates {
                 do {
                     guard let data = try await fetchRawJSON(candidate: candidate) else {
-                        continue // 404: this candidate does not resolve; try the next.
+                        continue
                     }
                     return store(topic: topic, data: data, candidate: candidate)
                 } catch let error as EnginesHTTPError {
@@ -248,12 +177,11 @@ public actor DocumentationCache {
                         return DocumentationFetchResult(topic: topic, cached: false,
                                                         failure: "Apple documentation endpoint rate-limited the request. Try again shortly.")
                     }
-                    continue // badStatus / tooLarge / timeout: try the next candidate.
+                    continue
                 } catch {
                     continue
                 }
             }
-            // Fallback: the framework-root references index + ranking.
             if let hit = try? await SearchDocs.search(query: topic.name, framework: topic.framework, symbolOnly: false).first,
                hit.title.lowercased() == topic.name.lowercased()
                 || URL(string: hit.url)?.lastPathComponent.lowercased() == topic.name.lowercased(),
@@ -282,10 +210,6 @@ public actor DocumentationCache {
         }
     }
 
-    /// Fetches one candidate's raw DocC JSON. 404 → nil (the
-    /// candidate does not resolve); 429 → `rateLimited`; other
-    /// non-2xx → `badStatus`. The `SearchHTTP` seam applies, so
-    /// tests stub this without a live fetch.
     private func fetchRawJSON(candidate: EnginesDocs.Candidate) async throws -> Data? {
         let fetched = try await SearchHTTP.fetch(
             SearchHTTP.get(candidate.doccJSONURL, accept: "application/json"),
@@ -298,9 +222,6 @@ public actor DocumentationCache {
         return fetched.data
     }
 
-    /// Parses + converts a fetched payload, stores the raw JSON,
-    /// and returns the fetch result. A payload that does not parse
-    /// as DocC is a failure, not a cached topic.
     private func store(topic: DocCatalogueTopic, data: Data,
                        candidate: EnginesDocs.Candidate) -> DocumentationFetchResult {
         guard Self.symbol(from: data, topic: topic, canonicalURL: candidate.canonicalURL) != nil else {
@@ -323,8 +244,6 @@ public actor DocumentationCache {
         return DocumentationFetchResult(topic: topic, cached: true, canonicalURL: candidate.canonicalURL)
     }
 
-    /// Records one fetch result in the index (read-modify-write;
-    /// the actor serializes concurrent fetchers).
     private func record(_ result: DocumentationFetchResult) {
         var index = loadIndex() ?? DocumentationCacheIndex()
         let entry = DocumentationCacheTopic(
@@ -343,14 +262,6 @@ public actor DocumentationCache {
         saveIndex(index)
     }
 
-    // MARK: - DocC JSON → DocSymbol
-
-    /// Converts a fetched DocC JSON payload into a `DocSymbol`.
-    /// Pure (no I/O): tests drive it from canned fixtures. Returns
-    /// nil when the payload does not parse as DocC. `canonicalURL`
-    /// is the fetched page's real URL (the search-fallback hit's
-    /// path can differ from the catalogue's derived path); when
-    /// nil it is derived from the topic.
     public nonisolated static func symbol(from data: Data, topic: DocCatalogueTopic, canonicalURL: URL? = nil) -> DocSymbol? {
         let candidate = EnginesDocs.Candidate(docPath: topic.docPath)
         let canonical = canonicalURL ?? candidate.canonicalURL
@@ -366,10 +277,6 @@ public actor DocumentationCache {
         let (inheritsFrom, conformsTo) = relationships(in: root)
         let codeSample: String = {
             guard let first = page.examples.first else { return "" }
-            // Examples arrive fenced (```swift … ```) from the
-            // parser; the sample is the code without the fence.
-            // A page with no code listing has no sample — the UI
-            // hides the section instead of showing a stub.
             var lines = first.components(separatedBy: "\n")
             if lines.first?.hasPrefix("```") == true { lines.removeFirst() }
             if lines.last?.hasPrefix("```") == true { lines.removeLast() }
@@ -388,10 +295,6 @@ public actor DocumentationCache {
         )
     }
 
-    /// DocC `kind` → the browser's kind. `article`/`overview` stay
-    /// articles; a `symbol` infers from its first declaration line
-    /// (Legacy's indexer rule); anything else defaults to
-    /// `"class"`, Legacy's default.
     public nonisolated static func inferKind(doccKind: String, declarations: [String]) -> String {
         switch doccKind {
         case "article", "overview": return "article"
@@ -410,11 +313,6 @@ public actor DocumentationCache {
         }
     }
 
-    /// `"iOS 13.0+"` entries → `[platform: version]` (version
-    /// without the `+`). An entry with no version falls back to
-    /// the framework default for that platform. Empty when the
-    /// page lists no availability at all — then the caller uses
-    /// the framework defaults wholesale.
     public nonisolated static func parsePlatforms(_ availability: [String], framework: String) -> [String: String] {
         guard !availability.isEmpty else {
             return DocumentationCatalogue.platformDefaults[framework] ?? [:]
@@ -433,9 +331,6 @@ public actor DocumentationCache {
         return out
     }
 
-    /// `relationshipsSections` → (inheritsFrom, conformsTo).
-    /// The titles come from the `references` dictionary; an
-    /// identifier with no reference is skipped, never invented.
     public nonisolated static func relationships(in root: [String: Any]) -> (String?, [String]) {
         guard let sections = root["relationshipsSections"] as? [[String: Any]],
               let references = root["references"] as? [String: Any] else {
@@ -465,16 +360,6 @@ public actor DocumentationCache {
         }
     }
 
-    // MARK: - DocC → HTML (the web pane's renderer)
-
-    /// Renders a `docc://` path from the cache as a self-contained
-    /// HTML page (no JavaScript, no external resources, no Apple
-    /// CSS/JS — SwiftCode's own small renderer over the cached
-    /// DocC JSON). The home path renders the framework list; an
-    /// unknown path renders a 404 page naming the path; a topic
-    /// whose page file is missing renders a "not cached yet" page.
-    /// Related links become `docc://` links so navigation stays
-    /// in-app.
     public func renderedHTML(docPath: String) -> String {
         let clean = docPath.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         if clean.isEmpty || clean == "documentation" || clean == "documentation/developerdocumentation" {
@@ -608,8 +493,6 @@ public actor DocumentationCache {
         """
     }
 
-    /// Plain HTML escaping for rendered DocC text. No templating
-    /// engine, no interpolation of unescaped content.
     public nonisolated static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")

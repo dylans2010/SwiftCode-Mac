@@ -1,17 +1,5 @@
 import Foundation
 
-// MARK: - Worker Events (ported from Legacy)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised under
-// MIT): `SwiftCode/Backend/Assist/Subagents/Models/WorkerEvent.swift`
-// — the worker event timeline types. Logic, public API names, and
-// Codable shapes are Legacy-verbatim.
-//
-// Destination: `SwiftCodeAssistant` (SwiftPM target, depends only on
-// `SwiftCodeSubprocess`). No new imports: Foundation only.
-// `Worker.eventHistory` in `WorkerModels.swift` (same module) is the
-// consumer of these types.
-
 public enum WorkerEventType: String, Codable, Sendable, CaseIterable {
     case workerCreated = "WorkerCreated"
     case workerQueued = "WorkerQueued"
@@ -87,7 +75,6 @@ public struct WorkerEvent: Identifiable, Codable, Sendable {
         self.metadata = metadata
     }
 
-    /// Clean human-readable presentation for event timeline
     public var formattedTimestamp: String {
         let formatter = DateFormatter()
         formatter.timeStyle = .medium

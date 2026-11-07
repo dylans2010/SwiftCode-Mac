@@ -1,9 +1,3 @@
-// ARProbe: black-box probe of ARKit's public API behaviour on a simulator.
-// Our own code. It calls only public ARKit/UIKit/SceneKit/SpriteKit API and
-// prints one "ARPROBE ..." line per observation to stderr.
-//
-// Launch arguments:
-//   -ui scn|sk|coach|none   which view to leave on screen after the API probes
 #import <UIKit/UIKit.h>
 #import <ARKit/ARKit.h>
 #import <SceneKit/SceneKit.h>
@@ -163,7 +157,6 @@ static void ProbeConfigClass(Class C) {
 }
 
 static void ProbeSetters(void) {
-    // Write 1/YES to every scalar property and read it back: does the object store values?
     for (Class C in ConfigClasses()) {
         ARConfiguration *cfg = [[C alloc] init];
         NSMutableArray *res = [NSMutableArray array];
@@ -205,13 +198,12 @@ static void ProbeSetUnsupportedSemantics(void) {
         P(@"set planeDetection=%lu envTex=%ld ok", (unsigned long)c.planeDetection, (long)c.environmentTexturing);
     } @catch (NSException *ex) { P(@"set plane/env EXCEPTION %@: %@", ex.name, ex.reason); }
     @try {
-        c.detectionImages = nil; // null_resettable
+        c.detectionImages = nil;
         P(@"detectionImages after nil=%@", c.detectionImages ? [NSString stringWithFormat:@"set(count=%lu)", (unsigned long)c.detectionImages.count] : @"nil");
     } @catch (NSException *ex) { P(@"detectionImages nil EXCEPTION %@", ex.reason); }
 }
 
 static void ProbeData(void) {
-    // Anchors
     simd_float4x4 m = matrix_identity_float4x4;
     m.columns[3] = (simd_float4){ 0.1f, 0.2f, -0.5f, 1 };
     ARAnchor *a = [[ARAnchor alloc] initWithName:@"probe" transform:m];
@@ -254,19 +246,16 @@ static void ProbeData(void) {
     ARGeoAnchor *g2 = [[ARGeoAnchor alloc] initWithCoordinate:CLLocationCoordinate2DMake(37.3349, -122.0090) altitude:10];
     P(@"geoanchor(alt) altitude=%f altitudeSource=%ld", g2.altitude, (long)g2.altitudeSource);
 
-    // Raycast query
     ARRaycastQuery *q = [[ARRaycastQuery alloc] initWithOrigin:(simd_float3){ 0, 0, 0 } direction:(simd_float3){ 0, 0, -2 }
                                                 allowingTarget:ARRaycastTargetEstimatedPlane alignment:ARRaycastTargetAlignmentAny];
     P(@"raycastquery dir=(%f,%f,%f) target=%ld align=%ld", q.direction.x, q.direction.y, q.direction.z, (long)q.target, (long)q.targetAlignment);
 
-    // Face geometry from blend shapes
     ARFaceGeometry *fg = [[ARFaceGeometry alloc] initWithBlendShapes:@{}];
     P(@"facegeometry(neutral)=%@ vertexCount=%lu triangleCount=%lu texCount=%lu", fg ? @"ok" : @"nil", (unsigned long)fg.vertexCount,
       (unsigned long)fg.triangleCount, (unsigned long)fg.textureCoordinateCount);
     ARFaceGeometry *fg2 = [[ARFaceGeometry alloc] initWithBlendShapes:@{ ARBlendShapeLocationJawOpen : @1.0 }];
     P(@"facegeometry(jawOpen)=%@", fg2 ? @"ok" : @"nil");
 
-    // Skeleton definitions
     for (ARSkeletonDefinition *def in @[ ARSkeletonDefinition.defaultBody3DSkeletonDefinition ?: (id)[NSNull null],
                                          ARSkeletonDefinition.defaultBody2DSkeletonDefinition ?: (id)[NSNull null] ]) {
         if ((id)def == [NSNull null]) { P(@"skeletondef nil"); continue; }
@@ -289,7 +278,6 @@ static void ProbeData(void) {
         }
     }
 
-    // Classification / matte generator
     P(@"ARPlaneAnchor.isClassificationSupported=%d", ARPlaneAnchor.isClassificationSupported);
     id<MTLDevice> dev = MTLCreateSystemDefaultDevice();
     P(@"metal device=%@", dev ? dev.name : @"nil");
@@ -304,7 +292,6 @@ static void ProbeData(void) {
         P(@"ARSCNPlaneGeometry=%@", spg ? @"ok" : @"nil");
     }
 
-    // Reference images
     size_t W = 256, H = 256;
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef ctx = CGBitmapContextCreate(NULL, W, H, 8, W * 4, cs, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
@@ -326,7 +313,6 @@ static void ProbeData(void) {
     P(@"referenceImagesInGroupNamed(missing)=%@", [ARReferenceImage referenceImagesInGroupNamed:@"NoSuchGroup" bundle:nil]);
     CGImageRelease(img); CGImageRelease(flat); CGContextRelease(ctx); CGColorSpaceRelease(cs);
 
-    // Reference object from a bogus archive
     NSURL *bogus = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"bogus.arobject"]];
     [[NSData dataWithBytes:"not an archive" length:14] writeToURL:bogus atomically:YES];
     err = nil;
@@ -336,12 +322,10 @@ static void ProbeData(void) {
     ro = [[ARReferenceObject alloc] initWithArchiveURL:[NSURL fileURLWithPath:@"/nonexistent.referenceobject"] error:&err];
     P(@"refobject(missing)=%@ err=%@", ro ? @"ok" : @"nil", ErrDesc(err));
 
-    // World map from garbage
     err = nil;
     ARWorldMap *wm = [NSKeyedUnarchiver unarchivedObjectOfClass:[ARWorldMap class] fromData:[NSData dataWithBytes:"xx" length:2] error:&err];
     P(@"worldmap(garbage)=%@ err=%@", wm ? @"ok" : @"nil", ErrDesc(err));
 
-    // Camera authorisation and devices
     P(@"AVCapture video auth=%ld audio auth=%ld defaultVideoDevice=%@", (long)[AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo],
       (long)[AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio], [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo]);
     P(@"Info NSCameraUsageDescription=%@ UIRequiredDeviceCapabilities=%@",
@@ -528,7 +512,6 @@ static void SessionCallsWhileFailed(void) {
     NSString *probe = [NSUserDefaults.standardUserDefaults stringForKey:@"probe"] ?: @"all";
     P(@"BEGIN probe=%@ system=%@ %@ model=%@", probe, UIDevice.currentDevice.systemName, UIDevice.currentDevice.systemVersion, UIDevice.currentDevice.model);
     if ([probe isEqualToString:@"consts"]) {
-        // String values of public constants (interop identifiers).
         P(@"const ARErrorDomain=%@ ARReferenceObjectArchiveExtension=%@", ARErrorDomain, ARReferenceObjectArchiveExtension);
         P(@"const ARSCNDebugOptionShowWorldOrigin=%llu ARSCNDebugOptionShowFeaturePoints=%llu",
           (unsigned long long)ARSCNDebugOptionShowWorldOrigin, (unsigned long long)ARSCNDebugOptionShowFeaturePoints);
@@ -554,7 +537,6 @@ static void SessionCallsWhileFailed(void) {
           ARSkeletonJointNameRoot, ARSkeletonJointNameHead, ARSkeletonJointNameLeftHand, ARSkeletonJointNameRightHand,
           ARSkeletonJointNameLeftFoot, ARSkeletonJointNameRightFoot, ARSkeletonJointNameLeftShoulder, ARSkeletonJointNameRightShoulder);
         P(@"const ARSkeletonJointNameForRecognizedPointKey(head)=%@", ARSkeletonJointNameForRecognizedPointKey(@"head_joint"));
-        // Byte layout of the archived transform: rotation about z by 90 degrees plus a translation.
         simd_float4x4 m = matrix_identity_float4x4;
         m.columns[0] = (simd_float4){ 0, 1, 0, 0 };
         m.columns[1] = (simd_float4){ -1, 0, 0, 0 };
@@ -581,7 +563,6 @@ static void SessionCallsWhileFailed(void) {
         ProbeSetUnsupportedSemantics();
         ProbeSetters();
         ProbeData();
-        // Sessions: default world tracking on main queue, every configuration, a custom queue, reruns.
         RunSession(@"world-main", [ARWorldTrackingConfiguration new], nil, 0);
         int i = 0;
         for (Class C in ConfigClasses()) {
@@ -596,7 +577,6 @@ static void SessionCallsWhileFailed(void) {
         @try { sem.frameSemantics = ARFrameSemanticSceneDepth; RunSession(@"world-scenedepth", sem, nil, 0); }
         @catch (NSException *ex) { P(@"world-scenedepth EXCEPTION %@", ex.reason); }
         SessionCallsWhileFailed();
-        // Re-run the first session after failure, then pause.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             ARSession *s = gKeep.firstObject;
             P(@"[world-main] after 2s currentFrame=%@ configuration=%@", s.currentFrame ? @"set" : @"nil",

@@ -1,10 +1,3 @@
-// SkillsAddView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Skills/SkillsAddView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Draft with AI; Browse Skills (presets); import of zipped skill archives (.zip)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, DraftSkillWithAIView, FileImporterRepresentableView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -17,7 +10,6 @@ struct SkillsAddView: View {
     @State private var showImporter = false
     @State private var importError: String?
 
-    // Sheets/Modals controllers
     @State private var showCreateManual = false
     @State private var showDraftWithAI = false
     @State private var showBrowseLibrary = false
@@ -26,7 +18,6 @@ struct SkillsAddView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header Block
                     HStack(spacing: 16) {
                         ZStack {
                             Circle()
@@ -50,9 +41,7 @@ struct SkillsAddView: View {
 
                     Divider()
 
-                    // Workflows Options Grid (Adaptive layout)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 400))], spacing: 20) {
-                        // 1. Manual Creation Card
                         Button {
                             showCreateManual = true
                         } label: {
@@ -79,7 +68,6 @@ struct SkillsAddView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // 2. Draft with AI Card
                         Button {
                             showDraftWithAI = true
                         } label: {
@@ -106,7 +94,6 @@ struct SkillsAddView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // 3. Browse Skills Card
                         Button {
                             showBrowseLibrary = true
                         } label: {
@@ -134,7 +121,6 @@ struct SkillsAddView: View {
                         .buttonStyle(.plain)
                     }
 
-                    // 4. Archive Upload Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {

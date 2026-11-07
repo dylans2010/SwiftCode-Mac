@@ -11,14 +11,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R13 (docs/PARITY.md §5.8, "What OpenViews lacked"): the gaps the
-// Linux IDE shell found. Custom toolbar content, submenu shortcuts in
-// `commands`, `task(id:)` on a view that appears with the new ID, selection
-// IDs of outline rows and initial expansion, identifiers inside list rows,
-// the symbols the shell uses.
-
-// MARK: - 1. Custom ToolbarContent
-
 struct RunStopItems: ToolbarContent {
     let log: CommandLog
     var body: some ToolbarContent {
@@ -39,8 +31,6 @@ struct WindowItems: ToolbarContent {
         }
     }
 }
-
-// MARK: - 2. Submenus in commands
 
 struct SubmenuCommands: Commands {
     var body: some Commands {
@@ -68,8 +58,6 @@ struct SubmenuApp: App {
             .commands { SubmenuCommands() }
     }
 }
-
-// MARK: - 3. task(id:)
 
 @MainActor
 @Observable
@@ -108,8 +96,6 @@ struct FocusOnTaskView: View {
     }
 }
 
-// MARK: - 4. Outline rows
-
 struct TreeItem: Identifiable, Hashable {
     let id: String
     var children: [TreeItem]?
@@ -123,8 +109,6 @@ let shellTree: [TreeItem] = [
     TreeItem(id: "README.md"),
 ]
 
-/// The shell's pattern: a `ForEach` whose rows are a `DisclosureGroup` or a
-/// leaf, with no tags.
 struct UntaggedOutline: View {
     let box: SelectionBox<String?>
     @State private var selection: String?
@@ -168,7 +152,6 @@ struct InitiallyExpandedOutline: View {
 @MainActor
 @Suite("R13 shell gaps")
 struct ShellGapTests {
-    // 1
     @Test func customToolbarContentTypesShowTheirBodies() {
         let h = CommandsHarness(menuBar: false) {
             Text("Content")
@@ -196,13 +179,11 @@ struct ShellGapTests {
                     }
                 }
         }
-        // The title stays in the accessibility tree, not on screen.
         #expect(h.textFrame("Inspector") == nil)
         let tree = AccessibilityTree.build(h.main)
         #expect(tree.flattened.contains { $0.role == .button && $0.label == "Inspector" })
     }
 
-    // 2
     @Test func submenuShortcutsWorkBeforeTheMenuIsOpened() {
         let backend = HeadlessBackend(scale: 1)
         CommandLog.shared.entries = []
@@ -218,18 +199,14 @@ struct ShellGapTests {
             host.run(until: t + 0.01)
         }
         key(.character("1"), .control, 1)
-        key(.character("4"), .control, 1.1)          // disabled: nothing
-        key(.character("9"), [.control, .shift], 1.2) // two levels down
+        key(.character("4"), .control, 1.1)
+        key(.character("9"), [.control, .shift], 1.2)
         #expect(CommandLog.shared.entries == ["project", "deep"])
-        // No menu was opened for that.
         let anyPopup = host.windows.contains { $0.isPopup }
         #expect(!anyPopup)
     }
 
     @Test func theViewMenuPopupFitsItsItems() {
-        // DocumentCommands adds SidebarCommands; the toolbar adds Hide
-        // Toolbar: both depend on the main window, and the pop-up must be
-        // measured with them (it was cut off before R13).
         let h = CommandsHarness {
             NavigationSplitView { Text("Side") } detail: { Text("Detail") }
                 .toolbar { ToolbarItem(placement: .primaryAction) { Text("Item") } }
@@ -243,14 +220,11 @@ struct ShellGapTests {
         }
     }
 
-    // 3
     @Test func taskWithIDRunsOnAViewThatAppearsInTheSameUpdate() async {
         let log = Log()
         let model = ShellLikeModel()
         let g = ViewGraph.rendered(TaskOnAppearingView(model: model, log: log))
         #expect(log.take().isEmpty)
-        // One update switches the navigator and bumps the request, as the
-        // shell's Find in Workspace does.
         model.navigator = 1
         model.focusRequests = 1
         g.update()
@@ -275,7 +249,6 @@ struct ShellGapTests {
         #expect(h.window.services.focus.focusedClient != nil)
     }
 
-    // 4
     @Test func untaggedOutlineRowsAndFoldersAreSelectable() {
         let box = SelectionBox<String?>()
         let h = Harness(size: CGSize(width: 300, height: 400)) { UntaggedOutline(box: box) }
@@ -285,7 +258,6 @@ struct ShellGapTests {
         #expect(box.value == "main.swift")
         h.tap(sources.center, at: 1.3)
         #expect(box.value == "Sources")
-        // The keyboard walks every row, folders included.
         h.key(.downArrow, at: 1.5)
         #expect(box.value == "main.swift")
         h.key(.upArrow, at: 1.6)
@@ -300,14 +272,12 @@ struct ShellGapTests {
         let h = Harness(size: CGSize(width: 300, height: 400)) { InitiallyExpandedOutline(box: box) }
         #expect(frameOfText("Package.swift", h.window.graph) != nil)
         #expect(frameOfText("main.swift", h.window.graph) == nil)
-        // The user's choice wins afterwards.
         guard let greeter = frameOfText("Greeter", h.window.graph) else { Issue.record("Greeter"); return }
         h.tap(CGPoint(x: greeter.minX - 10, y: greeter.midY), at: 1.0)
         h.run(until: 1.3)
         #expect(frameOfText("Package.swift", h.window.graph) == nil)
     }
 
-    // 5
     @Test func identifiersInsideListRowsReachTheTreeAndTheATSPIExport() {
         let box = SelectionBox<String?>()
         let h = CommandsHarness(menuBar: false) { UntaggedOutline(box: box) }
@@ -315,7 +285,6 @@ struct ShellGapTests {
         let rows = tree.flattened.filter { $0.role == .row }
         let ids = Set(rows.compactMap(\.identifier))
         #expect(ids.isSuperset(of: ["row Greeter", "row Package.swift", "row Sources", "row main.swift", "row README.md"]))
-        // The identified element is the whole row.
         if let row = rows.first(where: { $0.identifier == "row main.swift" }), let text = h.textFrame("main.swift") {
             #expect(row.frame.contains(CGPoint(x: text.midX, y: text.midY)) && row.frame.width > text.width)
         }
@@ -325,7 +294,6 @@ struct ShellGapTests {
         #expect(nodes.contains { $0.identifier == "row main.swift" })
     }
 
-    // 7
     @Test func theShellsSymbolsAreDrawn() {
         for name in ["chevron.left.forwardslash.chevron.right", "folder.badge.gearshape", "square.stack.3d.up",
                      "sidebar.right", "gearshape.2", "list.bullet.rectangle"] {

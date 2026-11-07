@@ -1,4 +1,3 @@
-// prepare.cpp: LLVM passes and the structured-control-flow plan.
 #include "prepare.h"
 
 #include "error.h"
@@ -45,8 +44,6 @@ using namespace llvm;
 
 namespace airc {
 
-// Replaces every constant expression operand of F's instructions by an
-// equivalent instruction (GEPs and casts of globals, mostly).
 static void lowerConstantExprs(Function &F) {
     std::function<Value *(ConstantExpr *, Instruction *)> materialize = [&](ConstantExpr *CE, Instruction *before) -> Value * {
         Instruction *I = CE->getAsInstruction();
@@ -69,8 +66,6 @@ static void lowerConstantExprs(Function &F) {
     }
 }
 
-// Constant-length memcpy/memmove/memset become loads and stores; other
-// lengths become loops (LLVM's LowerMemIntrinsics).
 static void expandMemIntrinsics(Function &F) {
     std::vector<MemIntrinsic *> work;
     for (BasicBlock &B : F)
@@ -100,7 +95,6 @@ static void expandMemIntrinsics(Function &F) {
                 }
             }
             auto *MT = dyn_cast<MemTransferInst>(MI);
-            // memmove with overlap: load everything first, then store.
             std::vector<Value *> loaded;
             for (uint64_t off = 0; off < len; off += unit) {
                 if (!MT) break;
@@ -137,12 +131,6 @@ static void insertGridGuard(Function &F) {
     B.CreateCondBr(c, out, rest);
 }
 
-// Function constants and values derived from them live in mutable
-// address-space-2 globals that the static initializer (section
-// "air.static_init") fills. Run the initializer at the start of F and turn
-// those globals into private memory, so SROA leaves SSA values computed
-// from the initializer globals (which the emitter maps to specialization
-// constants).
 static void rewritePointer(Value *old, Value *newPtr) {
     std::vector<User *> users(old->user_begin(), old->user_end());
     for (User *U : users) {
@@ -171,7 +159,6 @@ static void rewritePointer(Value *old, Value *newPtr) {
 }
 
 static void runStaticInitializers(Module &M, Function &F) {
-    // Function constants with values (specialized): their loads are constants.
     for (GlobalVariable &G : M.globals())
         if (G.hasSection() && G.getSection() == "air.fc_initializer" && G.hasInitializer() && !isa<UndefValue>(G.getInitializer())) {
             std::vector<User *> users(G.user_begin(), G.user_end());
@@ -197,7 +184,7 @@ static void runStaticInitializers(Module &M, Function &F) {
     for (GlobalVariable *G : written)
         for (User *U : G->users()) {
             if (auto *I = dyn_cast<Instruction>(U)) used |= I->getFunction() == &F;
-            else used = true;  // constant expressions: check conservatively
+            else used = true;
         }
     if (!used) return;
     IRBuilder<> B(&*F.getEntryBlock().getFirstInsertionPt());
@@ -206,7 +193,6 @@ static void runStaticInitializers(Module &M, Function &F) {
         I->removeFnAttr(Attribute::NoInline);
         I->addFnAttr(Attribute::AlwaysInline);
     }
-    // Inline, then move the globals into allocas.
     PassBuilder PB;
     LoopAnalysisManager LAM;
     FunctionAnalysisManager FAM;
@@ -221,9 +207,6 @@ static void runStaticInitializers(Module &M, Function &F) {
     MPM.addPass(AlwaysInlinerPass(false));
     MPM.run(M, MAM);
     lowerConstantExprs(F);
-    // Selects of pointers into these globals: sink the select below GEPs and
-    // loads (select c, p, q)[i] -> select c, p[i], q[i]; loads of globals
-    // can be speculated.
     std::function<void(SelectInst *)> sink = [&](SelectInst *S) {
         std::vector<User *> users(S->user_begin(), S->user_end());
         for (User *U : users) {
@@ -260,7 +243,6 @@ static void runStaticInitializers(Module &M, Function &F) {
         for (User *U : users) {
             auto *I = dyn_cast<Instruction>(U);
             if (!I || I->getFunction() != &F) continue;
-            // Rewrite this user only.
             Value *tmp = nullptr;
             (void)tmp;
             if (auto *L = dyn_cast<LoadInst>(I)) {
@@ -288,13 +270,6 @@ static void runStaticInitializers(Module &M, Function &F) {
     }
 }
 
-// Helpers kept out of line (emitted as SPIR-V functions marked DontInline):
-// the Thor's driver compile time grows faster than linearly with function
-// size and honours DontInline (measured: a helper called 13 times compiled
-// in 42 ms out of line, 213 ms inlined). A helper qualifies when it is
-// called from several places and is not small, and when nothing in it
-// depends on the entry function (static-initializer globals, interpolants,
-// by-value aggregates, recursion).
 static std::vector<Function *> chooseOutOfLine(Module &M, Function &F) {
     std::vector<Function *> keep;
     if (getenv("AIRC_INLINE_ALL")) return keep;
@@ -316,7 +291,6 @@ static std::vector<Function *> chooseOutOfLine(Module &M, Function &F) {
                             work.push_back(H);
                         }
     }
-    // Globals the static initializer writes (function-constant values).
     std::set<const GlobalVariable *> written;
     for (Function &G : M)
         if (!G.isDeclaration() && G.getSection() == "air.static_init")
@@ -328,7 +302,7 @@ static std::vector<Function *> chooseOutOfLine(Module &M, Function &F) {
     std::function<bool(Function *, std::set<Function *> &)> eligible = [&](Function *H, std::set<Function *> &stack) -> bool {
         auto m = eligibleMemo.find(H);
         if (m != eligibleMemo.end()) return m->second;
-        if (!stack.insert(H).second) return false;  // recursion
+        if (!stack.insert(H).second) return false;
         bool ok = !H->isVarArg();
         for (Argument &A : H->args())
             if (A.hasByValAttr() || A.hasStructRetAttr() || A.hasInAllocaAttr()) ok = false;
@@ -369,42 +343,17 @@ static std::vector<Function *> chooseOutOfLine(Module &M, Function &F) {
     return keep;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers entered under divergent control flow (stage8-contract.md §13.3).
-//
-// The Thor's driver compiles a DontInline function as a real call. When the
-// lanes of one subgroup take different paths and two groups of them are
-// inside out-of-line functions at the same time, the subgroup can stop for
-// good: measured with the guest driver's `astc` kernel, two threads of one
-// subgroup decoding blocks of different kinds never finish, the same two
-// threads in different subgroups finish at once, and the kernel with its
-// two helpers inlined (or without DontInline) finishes. So a helper stays
-// out of line only when every call to it runs in uniform control flow: all
-// the subgroup's remaining lanes call it together.
-//
-// The analysis is conservative (anything not shown uniform is divergent):
-//  - values: the entry function's non-pointer arguments (thread positions,
-//    stage inputs) and every argument of a helper are divergent; loads from
-//    private or threadgroup memory, atomics and calls that read memory or
-//    depend on the lane are divergent; anything computed from a divergent
-//    value is divergent;
-//  - control: a conditional branch or switch on a divergent value makes
-//    every block reachable from it before its immediate post-dominator
-//    divergent (this covers the bodies of loops with a divergent exit), and
-//    phis in those blocks or at that post-dominator are divergent;
-//  - the grid guard's branch (`airc.grid_oob`) does not count: lanes outside
-//    the grid return at once and never call anything.
 namespace {
 struct Divergence {
     std::set<const Value *> values;
-    std::set<const BasicBlock *> blocks;  // executed under divergent control
+    std::set<const BasicBlock *> blocks;
 
     static bool laneDependentCall(const CallBase *C) {
         const Function *G = C->getCalledFunction();
         if (!G) return true;
         StringRef n = G->getName();
         if (n == "airc.grid_oob") return false;
-        if (!G->isDeclaration()) return true;  // helpers kept out of line
+        if (!G->isDeclaration()) return true;
         if (!C->doesNotAccessMemory()) return true;
         if (!(n.starts_with("llvm.") || n.starts_with("air."))) return true;
         for (const char *k : {"simd", "quad", "thread", "get_", "lane", "random", "dfd", "fwidth", "interpolat", "sample", "read", "atomic"})
@@ -458,14 +407,10 @@ struct Divergence {
     }
 
 private:
-    std::set<const BasicBlock *> divergentBranches, joins;  // joins: post-dominators of divergent branches
+    std::set<const BasicBlock *> divergentBranches, joins;
 };
-}  // namespace
+}
 
-// Inlines every helper of `keep` that some function of `all` calls under
-// divergent control flow (see above), until no such call is left; the
-// callers are cleaned up again after inlining. Returns the helpers still
-// out of line.
 static std::vector<Function *> inlineDivergentHelpers(Function &F, std::vector<Function *> keep, FunctionAnalysisManager &FAM,
                                                       const std::function<void(Function &)> &cleanup) {
     for (bool changed = true; changed && !keep.empty();) {
@@ -486,8 +431,6 @@ static std::vector<Function *> inlineDivergentHelpers(Function &F, std::vector<F
         for (Function *H : keep)
             if (!divergent.count(H)) left.push_back(H);
         keep = left;
-        // Inline every call to these helpers in the functions that remain,
-        // again after each round: an inlined body may call another of them.
         std::set<Function *> touched;
         std::vector<Function *> callers{&F};
         callers.insert(callers.end(), keep.begin(), keep.end());
@@ -519,23 +462,13 @@ static std::vector<Function *> inlineDivergentHelpers(Function &F, std::vector<F
     return keep;
 }
 
-// The per-function pipeline after inlining: scalar replacement, clean-up,
-// memory intrinsics, then the CFG normalizations for structured control
-// flow.
 static void cleanupFunction(Function &F, FunctionAnalysisManager &FAM) {
-    // Pure AIR intrinsics (math, conversions) may run speculatively, so that
-    // CFG simplification can turn small branches into selects (the Thor's
-    // driver compile time grows with the number of branches).
     if (!getenv("AIRC_NO_SPECULATE"))
         for (Function &D : *F.getParent())
             if (D.isDeclaration() && D.getName().starts_with("air.") && D.doesNotAccessMemory() && !D.isConvergent() &&
                 !D.getName().starts_with("air.discard"))
                 D.addFnAttr(Attribute::Speculatable);
     {
-        // Scalar replacement and light clean-up: constant propagation, dead
-        // code, CFG simplification (branches on specialized function
-        // constants disappear here). No InstCombine: it would introduce
-        // LLVM intrinsics outside the lowered set.
         FunctionPassManager FPM;
         FPM.addPass(SROAPass(SROAOptions::PreserveCFG));
         if (!getenv("AIRC_NO_SIMPLIFY")) {
@@ -558,28 +491,12 @@ static size_t condBranches(Function &F) {
     return n;
 }
 
-// Loop guard (stage8-contract.md §13.3): every loop header first calls
-// the marker `airc.loop_budget`, which the emitter lowers to "count one
-// more loop iteration of this invocation and say whether the count is now
-// over the limit"; when it is, the header leaves the loop through one of
-// its exit blocks. The count is per invocation and shared by every loop
-// of every function, so after it runs out each loop ends at its next
-// header and the invocation finishes along an acyclic path: a kernel whose
-// loop would never end (for example a trip count that skips past its
-// bound) costs at most the limit instead of stalling the GPU queue.
-// Values the exit block's phis would take from inside the loop are zero
-// on the guard edge (the results of a stopped invocation are not
-// meaningful anyway). Runs after FixIrreducible, so every cycle has a
-// loop header, and in LCSSA form, so no value defined in the loop is used
-// past an exit except through such a phi. Loops whose trip count scalar
-// evolution bounds by a constant (the usual `for (i = 0; i < 4; i++)`)
-// end by themselves and get no guard, so they keep their known trip count.
 static void insertLoopGuards(Function &F, FunctionAnalysisManager &FAM) {
     DominatorTree DT(F);
     LoopInfo LI(DT);
     if (LI.empty()) return;
     for (Loop *L : LI) formLCSSARecursively(*L, DT, &LI, nullptr);
-    std::vector<std::pair<BasicBlock *, BasicBlock *>> guards;  // header, exit
+    std::vector<std::pair<BasicBlock *, BasicBlock *>> guards;
     {
         TargetLibraryInfoImpl TLII(Triple(F.getParent()->getTargetTriple()));
         TargetLibraryInfo TLI(TLII, &F);
@@ -588,8 +505,8 @@ static void insertLoopGuards(Function &F, FunctionAnalysisManager &FAM) {
         for (Loop *L : LI.getLoopsInPreorder()) {
             SmallVector<BasicBlock *, 4> exits;
             L->getUniqueExitBlocks(exits);
-            if (exits.empty()) continue;  // no way out at all: nothing to branch to
-            if (SE.getSmallConstantMaxTripCount(L) != 0) continue;  // bounded
+            if (exits.empty()) continue;
+            if (SE.getSmallConstantMaxTripCount(L) != 0) continue;
             guards.push_back({L->getHeader(), exits[0]});
         }
     }
@@ -624,7 +541,7 @@ static void structureFunction(Function &F, FunctionAnalysisManager &FAM, bool lo
         FPM.run(F, FAM);
     }
     removeUnreachableBlocks(F);
-    lowerConstantExprs(F);  // the passes may fold new ones
+    lowerConstantExprs(F);
     std::string err;
     raw_string_ostream os(err);
     if (verifyFunction(F, &os)) fail("internal", "LLVM verifier after preparation: " + os.str());
@@ -632,7 +549,6 @@ static void structureFunction(Function &F, FunctionAnalysisManager &FAM, bool lo
 
 bool prepareFunction(Module &M, Function &F, bool gridGuard, const std::function<void(Function &)> &afterInline,
                      std::vector<Function *> *helpers, bool loopGuard) {
-    // 1. Inline every defined function into F, except helpers kept out of line.
     std::vector<Function *> keep = chooseOutOfLine(M, F);
     std::set<Function *> keepSet(keep.begin(), keep.end());
     bool calls = false;
@@ -663,8 +579,6 @@ bool prepareFunction(Module &M, Function &F, bool gridGuard, const std::function
         MPM.addPass(AlwaysInlinerPass(false));
         MPM.run(M, MAM);
     }
-    // Function-constant globals are now used by F itself (helpers that use
-    // them are never kept out of line).
     runStaticInitializers(M, F);
     std::vector<Function *> all{&F};
     all.insert(all.end(), keep.begin(), keep.end());
@@ -676,7 +590,6 @@ bool prepareFunction(Module &M, Function &F, bool gridGuard, const std::function
                         if (!H->isDeclaration() && !keepSet.count(H))
                             fail("unsupported-feature", "call that could not be inlined: " + H->getName().str());
 
-    // 2. Constant expressions, memory intrinsics, unreachable blocks.
     for (Function *G : all) {
         lowerConstantExprs(*G);
         if (afterInline) afterInline(*G);
@@ -692,9 +605,6 @@ bool prepareFunction(Module &M, Function &F, bool gridGuard, const std::function
     }
     if (gridGuard) insertGridGuard(F);
 
-    // 3. Per-function clean-up and structuring. Helpers called under
-    // divergent control flow are inlined after the clean-up (which leaves
-    // the SSA form the divergence analysis needs).
     for (Function *G : all) cleanupFunction(*G, FAM);
     if (!keep.empty() && !getenv("AIRC_OUTLINE_DIVERGENT")) {
         keep = inlineDivergentHelpers(F, keep, FAM, [&](Function &G) { cleanupFunction(G, FAM); });
@@ -710,9 +620,6 @@ bool prepareFunction(Module &M, Function &F, bool gridGuard, const std::function
     return gridGuard;
 }
 
-// ---------------------------------------------------------------------------
-// Structured control flow plan (SPIR-V 2.11 structured control flow).
-
 namespace {
 struct Analysis {
     DominatorTree DT;
@@ -720,7 +627,7 @@ struct Analysis {
     LoopInfo LI;
     explicit Analysis(Function &F) : DT(F), PDT(F), LI(DT) {}
 };
-}  // namespace
+}
 
 static BasicBlock *unreachableBlock(Function &F) {
     BasicBlock *B = BasicBlock::Create(F.getContext(), "merge.unreachable", &F);
@@ -733,10 +640,6 @@ StructurePlan planStructure(Function &F) {
     for (int iter = 0; iter < 2000; iter++) {
         for (BasicBlock *U : synthetic) U->eraseFromParent();
         synthetic.clear();
-        // Loops: the back-edge block must not be the header itself, and a
-        // header's conditional branch must leave the loop (OpLoopMerge
-        // covers it); otherwise the branch starts a selection in a block of
-        // its own. All loops are fixed in one pass.
         {
             DominatorTree DT(F);
             LoopInfo LI(DT);
@@ -758,7 +661,7 @@ StructurePlan planStructure(Function &F) {
         }
         Analysis A(F);
         StructurePlan plan;
-        std::map<BasicBlock *, std::vector<BasicBlock *>> claims;  // merge -> headers
+        std::map<BasicBlock *, std::vector<BasicBlock *>> claims;
         ReversePostOrderTraversal<Function *> RPOT(&F);
         std::map<BasicBlock *, unsigned> rpoIndex;
         for (BasicBlock *B : RPOT) {
@@ -780,20 +683,18 @@ StructurePlan planStructure(Function &F) {
                 }
                 plan.headers[B] = c;
                 claims[c.merge].push_back(B);
-                // The continue target belongs to this loop only: no inner
-                // construct may merge there.
                 claims[c.cont].push_back(B);
                 continue;
             }
             auto *Br = dyn_cast<BranchInst>(T);
             if (!Br || Br->isUnconditional()) continue;
             BasicBlock *s0 = Br->getSuccessor(0), *s1 = Br->getSuccessor(1);
-            if (s0 == s1) continue;  // no real choice; emitted as OpBranch
+            if (s0 == s1) continue;
             auto exitOrCont = [&](BasicBlock *S) {
                 return L && (S == L->getUniqueExitBlock() || S == L->getLoopLatch() || S == L->getHeader());
             };
             bool e0 = exitOrCont(s0), e1 = exitOrCont(s1);
-            if (L && B == L->getLoopLatch()) continue;  // the back-edge block: header or exit
+            if (L && B == L->getLoopLatch()) continue;
             if (e0 && e1) continue;
             Construct c;
             if (e0) c.merge = s1;
@@ -809,14 +710,10 @@ StructurePlan planStructure(Function &F) {
             plan.headers[B] = c;
             claims[c.merge].push_back(B);
         }
-        // A block can be the merge of one construct only; a merge must be
-        // dominated by its header. Split the innermost claimant's edges.
-        // Splits are collected on this analysis and applied together.
         std::vector<std::pair<BasicBlock *, SmallVector<BasicBlock *, 8>>> splits;
         for (auto &cl : claims) {
             BasicBlock *M = cl.first;
             if (M->getTerminator() && isa<UnreachableInst>(M->getTerminator()) && pred_empty(M) && cl.second.size() > 1) {
-                // Synthetic merges: give each claimant its own.
                 for (size_t i = 1; i < cl.second.size(); i++) {
                     BasicBlock *U = unreachableBlock(F);
                     synthetic.push_back(U);
@@ -827,7 +724,6 @@ StructurePlan planStructure(Function &F) {
             std::vector<BasicBlock *> hs = cl.second;
             BasicBlock *needsSplit = nullptr;
             if (hs.size() > 1) {
-                // Innermost: the latest claimant in reverse post-order.
                 needsSplit = hs[0];
                 for (BasicBlock *h : hs)
                     if (rpoIndex[h] > rpoIndex[needsSplit]) needsSplit = h;
@@ -843,7 +739,6 @@ StructurePlan planStructure(Function &F) {
         }
         for (auto &sp : splits) SplitBlockPredecessors(sp.first, sp.second, ".merge");
         if (!splits.empty()) continue;
-        // Unreachable merges go last.
         for (BasicBlock *U : synthetic)
             if (pred_empty(U)) plan.order.push_back(U);
         return plan;
@@ -851,4 +746,4 @@ StructurePlan planStructure(Function &F) {
     fail("structurize-failed", "no fixed point");
 }
 
-}  // namespace airc
+}

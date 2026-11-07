@@ -45,7 +45,6 @@ public struct AssistDuplicateCodeScanTool: AssistTool {
             )
         }
 
-        // Map normalized block key -> locations (file, start line).
         var windows: [String: [(file: String, line: Int)]] = [:]
         for url in files {
             guard let text = readFile(url) else { continue }
@@ -58,8 +57,6 @@ public struct AssistDuplicateCodeScanTool: AssistTool {
             }
         }
 
-        // Keep groups seen in at least two locations, sorted earliest-first so
-        // the deduplication below keeps the first window of each duplicated block.
         var groups: [(key: String, locations: [(file: String, line: Int)])] = []
         for (key, locations) in windows where locations.count >= 2 {
             groups.append((key: key, locations: locations))
@@ -71,8 +68,6 @@ public struct AssistDuplicateCodeScanTool: AssistTool {
             return $0.locations.count > $1.locations.count
         }
 
-        // Drop windows that are a shifted continuation of an already-kept group:
-        // every location shifted by the same positive offset.
         var kept: [(key: String, locations: [(file: String, line: Int)])] = []
         for group in groups {
             var isContinuation = false

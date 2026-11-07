@@ -2,43 +2,9 @@ import Foundation
 import Testing
 @testable import SwiftCodeMCP
 
-/// The gap-closure search tools (family 3): `web_search` against
-/// the DuckDuckGo Instant Answer API, `documentation_search` /
-/// `api_reference_search` against Apple's published DocC JSON, and
-/// `package_search` against the Swift Package Index search page
-/// with the GitHub public repository search as fallback.
-///
-/// Behaviour source: Legacy `SwiftCode/Tools/Agentic/WebSearch.swift`,
-/// `DocumentationSearch.swift`, `APIReferenceSearch.swift`,
-/// `PackageSearch.swift` (Dylan's own code, ported under MIT).
-///
-/// The FIXTURES below are canned (that is the point: the tests
-/// must not touch the live network); the IMPLEMENTATION under test
-/// is not — it parses real endpoint payloads and fails honestly
-/// when a backend has nothing. No test performs a live network
-/// fetch and no test reads a real credential: every request goes
-/// through `StubSearchProtocol` via `SearchWebTestTransport.session`
-/// (the `gitHubTestSession` shape from Wave 10).
-///
-/// The handlers are driven directly (`host.searchWeb(...)` etc.)
-/// rather than through `server.callTool`: the four registrations
-/// still point at Wave 8's honest-fail handlers in
-/// `SwiftCodeTools+AgenticNetwork.swift` until the coordinator applies
-/// the rewiring patch (see the slice report). The registration
-/// itself — IDs, Legacy descriptions, schemas — is therefore
-/// covered by `SwiftCodeAgenticNetworkTests.toolsAreRegisteredWithLegacySchemas`,
-/// and these tests cover the new behaviour the patch wires in.
-///
-/// No Swift toolchain exists in this environment, so these tests
-/// are static-checked only here; `swift test` stays pending on
-/// Dylan's Mac.
 @MainActor
 @Suite(.serialized) struct SearchToolsGapTests {
-    // MARK: - Stub transport
 
-    /// The first text block of a handler result (the human-readable
-    /// summary; `.structured` emits the summary first, then the JSON
-    /// mirror).
     static func firstText(_ result: MCPToolResult) -> String {
         result.content.first?["text"]?.string ?? ""
     }
@@ -57,10 +23,6 @@ import Testing
         SearchWebTestTransport.session = nil
     }
 
-    /// Runs `body`, expecting an `MCPToolError` whose message
-    /// satisfies `check`. (`#expect(throws:)` has no message
-    /// predicate in this swift-testing version, so the check is
-    /// spelled out here instead of in every test.)
     static func expectToolError(_ what: String, _ check: (String) -> Bool,
                                 _ body: @escaping @MainActor () async throws -> MCPToolResult) async {
         do {
@@ -73,7 +35,6 @@ import Testing
         }
     }
 
-    /// A stub answer for one host+path, 404 for anything else.
     static func stubFor(_ routes: [String: (status: Int, body: String)]) -> @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data) {
         { request in
             let key = (request.url?.host ?? "") + (request.url?.path ?? "")
@@ -84,12 +45,6 @@ import Testing
         }
     }
 
-    // MARK: - Fixtures (canned HTTP payloads)
-
-    /// A DuckDuckGo Instant Answer payload in the shape the live
-    /// API returns: an abstract, a direct answer, `Results`, and
-    /// `RelatedTopics` including one nested `Topics` group and one
-    /// duplicate URL (dropped by the parser).
     static let ddgFixture = """
     {
       "Abstract": "Swift is a programming language.",
@@ -111,16 +66,11 @@ import Testing
     }
     """
 
-    /// An empty Instant Answer payload: the API understood the
-    /// query shape but has no summary for it.
     static let ddgEmptyFixture = """
     {"Abstract": "", "AbstractText": "", "AbstractURL": "", "AbstractSource": "",
      "Answer": "", "AnswerType": "", "Results": [], "RelatedTopics": []}
     """
 
-    /// A minimal DocC render-JSON page in the shape of
-    /// `documentation/swiftui/view.json`: `kind` symbol, a title,
-    /// an abstract, and one availability entry.
     static func doccFixture(kind: String, title: String, abstract: String) -> String {
         """
         {
@@ -138,8 +88,6 @@ import Testing
         """
     }
 
-    /// A framework root DocC JSON: only the `references` index
-    /// matters for the title search.
     static let doccRootFixture = """
     {
       "kind": "technology",
@@ -160,10 +108,6 @@ import Testing
     }
     """
 
-    /// A Swift Package Index search page in the shape the live page
-    /// returns: two entries in `<ul id="package-list">`, one with
-    /// an `&amp;` entity in its summary and a comma in its star
-    /// count.
     static let spiFixture = """
     <section class="search-results"><p>Results for &ldquo;<strong>argument parser</strong>&rdquo;&hellip;</p>
     <div class="two-column mobile-reversed"><section class="package-results"><h4>Matching packages</h4>
@@ -171,8 +115,6 @@ import Testing
     </section></div></section>
     """
 
-    /// A GitHub repository search payload in the shape the live API
-    /// returns.
     static let gitHubSearchFixture = """
     {"total_count": 2, "incomplete_results": false, "items": [
       {"id": 241928033, "name": "swift-argument-parser", "full_name": "apple/swift-argument-parser",
@@ -188,8 +130,6 @@ import Testing
     {"total_count": 0, "incomplete_results": false, "items": []}
     """
 
-    // MARK: - DuckDuckGo parsing (pure)
-
     @Test func ddgParsesAbstractTopicsAndNestedGroups() {
         let answer = SearchWebDDG.parse(data: Data(Self.ddgFixture.utf8))
         #expect(answer != nil)
@@ -197,8 +137,6 @@ import Testing
         #expect(answer.abstract.hasPrefix("Swift is a high-level"))
         #expect(answer.abstractURL == "https://en.wikipedia.org/wiki/Swift_(programming_language)")
         #expect(answer.abstractSource == "Wikipedia")
-        // Direct result + two related topics; the duplicate swift.org
-        // URL inside the nested group is dropped.
         #expect(answer.results.count == 3)
         #expect(answer.results[0].url == "https://www.swift.org/")
         #expect(answer.results.contains { $0.url.contains("Objective-C") })
@@ -217,8 +155,6 @@ import Testing
         #expect(url?.absoluteString.contains("format=json") == true)
         #expect(url?.absoluteString.contains("swift%20language") == true)
     }
-
-    // MARK: - web_search handler (stubbed transport)
 
     @Test func webSearchReturnsInstantAnswer() async throws {
         Self.installSearchStub(Self.stubFor(["api.duckduckgo.com/": (200, Self.ddgFixture)]))
@@ -273,8 +209,6 @@ import Testing
         }
     }
 
-    // MARK: - documentation_search / api_reference_search (stubbed transport)
-
     @Test func docsSearchResolvesDottedQuery() async throws {
         let view = Self.doccFixture(kind: "symbol", title: "View",
                                     abstract: "A view that displays content.")
@@ -302,13 +236,9 @@ import Testing
         ]))
         defer { Self.resetSearchStub() }
         let host = SwiftCodeMCPHost()
-        // The same stubbed page IS documentation, so
-        // documentation_search returns it …
         let docs = try await host.searchDocumentation(MCPToolCall(name: "documentation_search",
                                                                   arguments: ["query": .string("SwiftUI.View")]))
         #expect(docs.structured?["count"]?.int == 1)
-        // … but api_reference_search keeps only symbol pages, and
-        // says so instead of returning the article as a reference.
         await Self.expectToolError("article is not an API symbol", { $0.contains("not API symbols") }) {
             try await host.searchAPIReference(MCPToolCall(name: "api_reference_search",
                                                           arguments: ["query": .string("SwiftUI.View")]))
@@ -331,9 +261,6 @@ import Testing
             name: "documentation_search",
             arguments: ["query": .string("View"), "framework": .string("SwiftUI")]))
         #expect(!result.isError)
-        // The resolved candidate (View) plus the framework root's
-        // title match (View Fundamentals); Button does not match
-        // the term "view" and is not fetched.
         #expect(result.structured?["count"]?.int == 2)
         let text = Self.firstText(result)
         #expect(text.contains("## 1. View"))
@@ -342,7 +269,6 @@ import Testing
     }
 
     @Test func docsSearchSingleTokenWithoutFrameworkFailsHonestly() async throws {
-        // No stub: the resolver throws before any fetch.
         let host = SwiftCodeMCPHost()
         await Self.expectToolError("single-token query", { $0.contains("Provide 'framework'") }) {
             try await host.searchDocumentation(MCPToolCall(name: "documentation_search",
@@ -367,8 +293,6 @@ import Testing
         #expect(SearchDocs.score(title: "Button", abstract: "A control.", query: "View", terms: ["view"]) == 0)
     }
 
-    // MARK: - package_search: SPI parsing (pure)
-
     @Test func spiParsesPackageList() {
         let hits = SearchPackages.parseSPIHTML(Self.spiFixture)
         #expect(hits.count == 2)
@@ -378,7 +302,6 @@ import Testing
         #expect(hits[0].stars == 3802)
         #expect(hits[0].activity == "Active 12 days ago")
         #expect(hits[0].url == "https://swiftpackageindex.com/apple/swift-argument-parser")
-        // The &amp; entity in the second summary decodes to &.
         #expect(hits[1].summary == "Parsing & more, for CLIs")
         #expect(hits[1].stars == 42)
     }
@@ -397,8 +320,6 @@ import Testing
         #expect(SearchPackages.parseGitHubJSON(Data("{\"nope\": true}".utf8)) == nil)
     }
 
-    // MARK: - package_search handler (stubbed transport)
-
     @Test func packageSearchPrefersSPI() async throws {
         Self.installSearchStub(Self.stubFor([
             "swiftpackageindex.com/search": (200, Self.spiFixture),
@@ -411,7 +332,6 @@ import Testing
         #expect(result.structured?["count"]?.int == 2)
         #expect(result.structured?["source"]?.string == "swift-package-index")
         #expect(Self.firstText(result).contains("swift-argument-parser"))
-        // No GitHub request was made.
         #expect(StubSearchProtocol.requests.allSatisfy { $0.url?.host == "swiftpackageindex.com" })
     }
 
@@ -468,10 +388,6 @@ import Testing
     }
 }
 
-/// A URLProtocol stub for the search tools (same shape as
-/// `StubGitHubProtocol` in TestSupport): the handler answers every
-/// request from canned data, and every request the client made is
-/// recorded for assertions. No live network.
 final class StubSearchProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?
     nonisolated(unsafe) static var requests: [URLRequest] = []

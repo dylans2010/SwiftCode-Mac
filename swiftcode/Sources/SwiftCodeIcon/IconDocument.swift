@@ -1,16 +1,12 @@
 import Foundation
 
-// MARK: Appearances, idioms, platforms (§5, §6)
-
 public enum IconAppearance: String, CaseIterable, Sendable {
     case light, dark, tinted
 }
 
-/// The `idiom` of a specialization entry.
 public enum IconIdiom: String, CaseIterable, Sendable {
     case square, macOS, watchOS, iOS
 
-    /// `square` is iOS and macOS; the others only their own platform.
     public func applies(to platform: IconPlatform) -> Bool {
         switch self {
         case .square: platform == .iOS || platform == .macOS
@@ -21,15 +17,12 @@ public enum IconIdiom: String, CaseIterable, Sendable {
     }
 }
 
-/// The platforms an `.icon` renders for (§8: no tvOS or visionOS).
 public enum IconPlatform: String, CaseIterable, Sendable {
     case iOS, macOS, watchOS
 
-    /// The canvas edge in points: 1024 for squares, 1088 for the watch circle.
     public var canvasSize: Double { self == .watchOS ? 1088 : 1024 }
 }
 
-/// The six renditions (§7) and the appearance whose entries each uses (§5).
 public enum IconRendition: String, CaseIterable, Sendable {
     case `default` = "Default", dark = "Dark"
     case tintedLight = "TintedLight", tintedDark = "TintedDark", clearLight = "ClearLight", clearDark = "ClearDark"
@@ -43,9 +36,6 @@ public enum IconRendition: String, CaseIterable, Sendable {
     }
 }
 
-// MARK: Specializations (§5)
-
-/// One entry of `K-specializations`.
 public struct IconSpecialization<Value: IconValue>: Equatable, Sendable {
     public var appearance: IconAppearance?
     public var idiom: IconIdiom?
@@ -82,20 +72,15 @@ public struct IconSpecialization<Value: IconValue>: Equatable, Sendable {
         return .object(o)
     }
 
-    /// Whether the entry applies to an appearance on a platform.
     public func matches(_ a: IconAppearance, _ p: IconPlatform) -> Bool {
         (appearance == nil || appearance == a) && (idiom.map { $0.applies(to: p) } ?? true)
     }
 
-    /// SwiftCode's precedence (the spec leaves idiom against appearance open):
-    /// an appearance match outranks an idiom match, and a platform's own
-    /// idiom outranks `square`.
     var specificity: Int {
         (appearance != nil ? 4 : 0) + (idiom == nil ? 0 : idiom == .square ? 1 : 2)
     }
 }
 
-/// A specializable key `K`: its plain value and its `K-specializations`.
 public struct IconSpecialized<Value: IconValue>: Equatable, Sendable {
     public var value: Value?
     public var specializations: [IconSpecialization<Value>]?
@@ -107,7 +92,6 @@ public struct IconSpecialized<Value: IconValue>: Equatable, Sendable {
 
     public var isAbsent: Bool { value == nil && specializations == nil }
 
-    /// Reads `key` and `key-specializations` out of `o` (removing them).
     init(_ key: String, from o: inout [String: IconJSON], path: String) throws {
         if let v = o.removeValue(forKey: key) { value = try Value(json: v, path: sub(path, key)) }
         let sk = key + "-specializations"
@@ -122,27 +106,20 @@ public struct IconSpecialized<Value: IconValue>: Equatable, Sendable {
         if let specializations { o[key + "-specializations"] = .array(specializations.map(\.json)) }
     }
 
-    /// The value for an appearance and platform: the most specific matching
-    /// specialization (file order breaks ties), else the plain value; nil
-    /// when nothing applies (the caller's default then holds).
     public func resolve(_ appearance: IconAppearance, _ platform: IconPlatform) -> Value? {
         let matching = (specializations ?? []).filter { $0.matches(appearance, platform) }
         if let best = matching.max(by: { $0.specificity < $1.specificity }) {
-            // max(by:) returns the last of equals; take the first instead.
             return matching.first { $0.specificity == best.specificity }?.value
         }
         return value
     }
 
-    /// The entry the resolution picked among specializations only.
     func resolveSpecialization(_ appearance: IconAppearance, _ platform: IconPlatform, appearanceOnly: IconAppearance? = nil) -> Value? {
         let matching = (specializations ?? []).filter { $0.matches(appearance, platform) && (appearanceOnly == nil || $0.appearance == appearanceOnly) }
         guard let top = matching.map(\.specificity).max() else { return nil }
         return matching.first { $0.specificity == top }?.value
     }
 }
-
-// MARK: Layers (§3.3)
 
 public struct IconLayer: Equatable, Sendable {
     public var name: String?
@@ -193,8 +170,6 @@ public struct IconLayer: Equatable, Sendable {
         return .object(o)
     }
 }
-
-// MARK: Groups (§3.2)
 
 public struct IconGroup: Equatable, Sendable {
     public var name: String?
@@ -268,8 +243,6 @@ public struct IconGroup: Equatable, Sendable {
     }
 }
 
-// MARK: Supported platforms (§6)
-
 public struct IconSupportedPlatforms: Equatable, Sendable {
     public enum Squares: Equatable, Sendable {
         case shared
@@ -285,7 +258,6 @@ public struct IconSupportedPlatforms: Equatable, Sendable {
         self.extra = [:]
     }
 
-    /// The Xcode multiplatform template's value.
     public static let multiplatform = IconSupportedPlatforms(squares: .shared, circles: [.watchOS])
 
     init(json: IconJSON, path: String) throws {
@@ -317,7 +289,6 @@ public struct IconSupportedPlatforms: Equatable, Sendable {
         return .object(o)
     }
 
-    /// The platforms the editor previews (the build does not filter by them).
     public var platforms: [IconPlatform] {
         var out: [IconPlatform] = []
         switch squares {
@@ -330,14 +301,11 @@ public struct IconSupportedPlatforms: Equatable, Sendable {
     }
 }
 
-// MARK: Document (§3.1)
-
 public struct IconDocument: Equatable, Sendable {
     public var fill: IconSpecialized<IconFill>
     public var groups: [IconGroup]
     public var supportedPlatforms: IconSupportedPlatforms?
     public var colorSpaceForUntaggedSVGColors: String?
-    /// Keys SwiftCode does not interpret (`material-strength`, …), kept.
     public var extra: [String: IconJSON]
 
     public init(fill: IconFill? = nil, groups: [IconGroup] = [], supportedPlatforms: IconSupportedPlatforms? = nil) {
@@ -357,7 +325,6 @@ public struct IconDocument: Equatable, Sendable {
         if let cs = o.removeValue(forKey: "color-space-for-untagged-svg-colors") {
             let p = "color-space-for-untagged-svg-colors"
             let s = try String(json: cs, path: p)
-            // Icon Composer rejects "srgb" here (§3.1); the full value set is open.
             guard s != "srgb" else { throw IconError(p, "Invalid color space for untagged SVG colors") }
             colorSpaceForUntaggedSVGColors = s
         }
@@ -379,6 +346,5 @@ public struct IconDocument: Equatable, Sendable {
         return .object(o)
     }
 
-    /// `icon.json` in Icon Composer's layout.
     public func data() -> Data { json.formattedData() }
 }

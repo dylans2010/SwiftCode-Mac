@@ -2,14 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// Wave 16, Slice B: Muse Code MSP bridge + lifecycle + slash
-// commands + other-models bridge + turn executor. Fixtures only:
-// no live `muse` binary, no real credentials. The one live
-// process test drives a fixture Python script masquerading as
-// `muse` (skipped when python3 is absent).
-
 @Suite(.serialized) struct MetaAssistBridgeTests {
-    // MARK: - Helpers
 
     static func absentLocator() -> CLIToolLocator {
         CLIToolLocator(environment: ["PATH": ""], home: "/nonexistent-meta-test-home",
@@ -27,19 +20,10 @@ import Testing
         let dir = try tempDir()
         let configDir = dir.appendingPathComponent(".config/muse")
         try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        // An empty auth file: existence only, never read.
         try "{}".write(to: configDir.appendingPathComponent("auth.json"), atomically: true, encoding: .utf8)
         return dir
     }
 
-    /// A fixture `muse` script: a Python NDJSON host that
-    /// answers initialize / model/list / session/start /
-    /// session/resume / turn/start / turn/cancel /
-    /// approval/decide, logs every received method to
-    /// `FAKE_MUSE_LOG`, and emits a canned turn (two text
-    /// deltas, then turn/completed). Set `FAKE_MUSE_APPROVAL=1`
-    /// to emit an `approval/requested` notification before the
-    /// turn completes.
     static let fakeMuseScript = """
         #!/usr/bin/env python3
         import sys, json, os
@@ -96,9 +80,6 @@ import Testing
                 send({"jsonrpc": "2.0", "id": rid, "error": {"code": -32601, "message": "Method not found: " + method}})
         """
 
-    /// Installs the fixture `muse` into a temp dir and returns
-    /// the dir, the log path, and a locator that finds it. The
-    /// caller must remove the dir afterwards.
     static func installFakeMuse(approval: Bool = false) throws -> (dir: URL, log: URL, locator: CLIToolLocator) {
         let dir = try tempDir()
         let script = dir.appendingPathComponent("muse")
@@ -106,10 +87,6 @@ import Testing
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         let log = dir.appendingPathComponent("methods.log")
         var environment: [String: String] = ["PATH": dir.path]
-        // The fake reads its flags from the environment at spawn;
-        // the bridge inherits the parent environment, so set them
-        // on this process for the test's duration. The suite is
-        // serialized, so no other test can observe them mid-flight.
         if approval { _ = setenv("FAKE_MUSE_APPROVAL", "1", 1) }
         _ = setenv("FAKE_MUSE_LOG", log.path, 1)
         let locator = CLIToolLocator(environment: environment, home: dir.path)
@@ -121,8 +98,6 @@ import Testing
         unsetenv("FAKE_MUSE_LOG")
     }
 
-    /// Records permission prompts (the requestPermission closure
-    /// is @Sendable, so it cannot mutate a captured var).
     final class PermissionAskedBox: @unchecked Sendable {
         private let lock = NSLock()
         private var items: [(String, [AgentAttachment.PermissionOption])] = []
@@ -138,23 +113,19 @@ import Testing
         FileManager.default.fileExists(atPath: "/usr/bin/python3")
     }
 
-    // MARK: - UUIDv7
-
     @Test func uuidv7ShapeAndVersion() {
         let id = MuseUUIDv7.generate()
         let parts = id.split(separator: "-")
         #expect(parts.count == 5)
         #expect(parts[0].count == 8 && parts[1].count == 4 && parts[2].count == 4 && parts[3].count == 4 && parts[4].count == 12)
-        #expect(parts[2].first == "7") // version 7
-        #expect(["8", "9", "a", "b"].contains(String(parts[3].first!))) // RFC 9562 variant
+        #expect(parts[2].first == "7")
+        #expect(["8", "9", "a", "b"].contains(String(parts[3].first!)))
         #expect(MuseUUIDv7.generate() != id)
         let ms = MuseUUIDv7.timestampMilliseconds(of: id)
         #expect(ms != nil)
         let now = UInt64(Date().timeIntervalSince1970 * 1000)
         #expect(ms! <= now && now - ms! < 60_000)
     }
-
-    // MARK: - Bridge argv / environment
 
     @Test func bridgeArguments() {
         #expect(MuseCodeMSPBridge.hostArguments(baseURL: nil) == ["serve"])
@@ -174,12 +145,9 @@ import Testing
             try await bridge.startHost(executable: URL(fileURLWithPath: "/nonexistent/muse"), workspaceRoot: "/tmp")
             Issue.record("expected startHost to throw")
         } catch {
-            // Any launch failure is fine; the host never started.
             #expect(await bridge.isRunning == false)
         }
     }
-
-    // MARK: - Tool-name normalization
 
     @Test func normalizeToolName() {
         let known: Set<String> = ["file_read", "file_write", "plan-AskUser", "use_terminal"]
@@ -201,20 +169,14 @@ import Testing
             MetaNormalizedToolName(name: "use_terminal", source: .alias))
         let unmapped = MetaToolNameNormalizer.normalize("some_future_tool")
         #expect(unmapped == MetaNormalizedToolName(name: "some_future_tool", source: .passthrough))
-        // Without an injected registry, a real MCP name is
-        // recorded as unmapped, never claimed to exist.
         #expect(MetaToolNameNormalizer.normalize("file_read").source == .passthrough)
     }
-
-    // MARK: - Notification routing (fixtures, no process)
 
     @Test func notificationRouting() {
         var tracker: [String: MetaTurnItemState] = [:]
         var unmapped: [String] = []
         let known: Set<String> = ["file_read"]
 
-        // Tool start: normalized, described, unmapped recorded
-        // for the unknown name.
         let started = MetaTurnNotificationRouter.route(
             method: "item/started",
             params: ["item": ["itemId": "c-1", "kind": "toolCall", "tool": "muse.read_file",
@@ -223,9 +185,8 @@ import Testing
         #expect(started.contains(.toolStarted(callID: "c-1", toolName: "file_read",
                                               argumentsJSON: "{\"path\": \"Sources/App.swift\"}", isMuseTool: true)))
         #expect(started.contains(.activity("file_read: Sources/App.swift")))
-        #expect(unmapped.isEmpty) // file_read resolved via the registry
+        #expect(unmapped.isEmpty)
 
-        // Tool stdout delta: tracked, never chat text.
         let delta = MetaTurnNotificationRouter.route(
             method: "item/delta",
             params: ["itemId": "c-1", "field": "output", "delta": "ok\n"],
@@ -233,7 +194,6 @@ import Testing
         #expect(delta == [.toolProgress(callID: "c-1", message: "ok")])
         #expect(tracker["c-1"]?.output == "ok\n")
 
-        // Unknown tool name is recorded exactly once.
         _ = MetaTurnNotificationRouter.route(
             method: "item/started",
             params: ["item": ["itemId": "c-2", "kind": "toolCall", "tool": "muse.future_tool", "args": "{}"]],
@@ -246,7 +206,6 @@ import Testing
             tracker: &tracker, unmappedToolNames: &unmapped, knownToolIDs: known, activeTurnID: "t-1")
         #expect(unmapped == ["future_tool"])
 
-        // Text, thinking, and completion.
         var tracker2: [String: MetaTurnItemState] = ["i-1": MetaTurnItemState(kind: "agentMessage", tool: nil, args: "")]
         var unmapped2: [String] = []
         #expect(MetaTurnNotificationRouter.route(
@@ -263,7 +222,6 @@ import Testing
             tracker: &tracker2, unmappedToolNames: &unmapped2, knownToolIDs: known, activeTurnID: "t-1") ==
             [.turnCompleted(turnID: "t-1")])
 
-        // Unqueue only settles this turn; another turn's id is ignored.
         #expect(MetaTurnNotificationRouter.route(
             method: "turn/unqueued", params: ["turnId": "other"],
             tracker: &tracker2, unmappedToolNames: &unmapped2, knownToolIDs: known, activeTurnID: "t-1") == [.ignored])
@@ -272,7 +230,6 @@ import Testing
             tracker: &tracker2, unmappedToolNames: &unmapped2, knownToolIDs: known, activeTurnID: "t-1") ==
             [.turnUnqueued(turnID: "t-1")])
 
-        // Model change and approval request.
         #expect(MetaTurnNotificationRouter.route(
             method: "session/modelChanged", params: ["modelId": "muse-spark-1.3"],
             tracker: &tracker2, unmappedToolNames: &unmapped2, knownToolIDs: known, activeTurnID: "t-1") ==
@@ -290,8 +247,6 @@ import Testing
             tracker: &tracker2, unmappedToolNames: &unmapped2, knownToolIDs: known, activeTurnID: "t-1") == [.ignored])
     }
 
-    // MARK: - Model-list / session parsing
-
     @Test func parseModelList() {
         let response: AnyJSON = [
             "result": ["models": [
@@ -303,7 +258,7 @@ import Testing
         let models = MetaAssistTurnExecutor.parseModelList(response)
         #expect(models?.map(\.modelId) == ["muse-wonder-1.0", "muse-spark-1.3"])
         #expect(models?.first?.contextLimit == 1007997)
-        #expect(models?.last?.contextLimit == 1_000_000) // Legacy default
+        #expect(models?.last?.contextLimit == 1_000_000)
         #expect(MetaAssistTurnExecutor.parseModelList(["result": ["models": []]]) == nil)
         #expect(MetaAssistTurnExecutor.parseModelList([:]) == nil)
     }
@@ -340,14 +295,9 @@ import Testing
             instructions: "Be helpful.", history: history, prompt: "turn 13")
         #expect(prompt.hasPrefix("Be helpful."))
         #expect(prompt.contains("# CURRENT USER REQUEST\nturn 13"))
-        // Last 12 turns only (turns 1–12; the duplicate of the
-        // current prompt, "turn 13", is excluded from history and
-        // appears exactly once, as the request).
         #expect(prompt.components(separatedBy: "[User]:").count - 1 == 12)
         #expect(prompt.components(separatedBy: "turn 13").count - 1 == 1)
     }
-
-    // MARK: - Slash commands
 
     @Test func slashCatalog() {
         #expect(MetaSlashCommandManager.builtInCommands.count == 36)
@@ -394,7 +344,7 @@ import Testing
         #expect(skills.map(\.id) == ["skill-replica-architect", "skill-my_skill"])
         #expect(skills[0].title == "Replica Architect")
         #expect(skills[0].description == "Designs replica architectures")
-        #expect(skills[1].description == "Short desc") // fourth field fallback
+        #expect(skills[1].description == "Short desc")
         #expect(skills[0].isTerminalSkill && skills[0].category == "Meta Skills")
 
         var manager = MetaSlashCommandManager()
@@ -402,7 +352,6 @@ import Testing
         #expect(manager.commands.count == 36 + 2)
         #expect(manager.lastCapturedAt != nil)
         #expect(!manager.mergeCapturedSkills([]))
-        // A second capture replaces the old terminal skills.
         let again = MetaSlashCommandManager.parseSkillsList("only-one\t skill\t x\t y\t One\n")
         #expect(manager.mergeCapturedSkills(again))
         #expect(manager.commands.count == 36 + 1)
@@ -421,10 +370,8 @@ import Testing
         await manager.captureCommandsFromTerminal(executable: URL(fileURLWithPath: "/bin/true")) { _ in
             throw MuseCodeCLIError.timeout
         }
-        #expect(manager.commands.count == 37) // failure keeps the catalog
+        #expect(manager.commands.count == 37)
     }
-
-    // MARK: - Other models
 
     @Test func otherModelsResolution() {
         let discovered = [
@@ -432,30 +379,23 @@ import Testing
             AssistCandidateModel(id: "muse-wonder-1.0", displayName: "Meta muse-wonder-1.0",
                                  provider: .metaAssist, modelIdentifier: "muse-wonder-1.0"),
         ]
-        // Meta models are excluded from the other-models list.
         let available = MuseOtherModelsBridge.availableOtherModels(discovered: discovered, cloudModelIDs: ["swiftcode-cloud:atlas"])
         #expect(available.map(\.modelIdentifier) == ["gpt-4o", "swiftcode-cloud:atlas"])
-        // Free-only keeps only "free" ids, then the free fallback.
         let freeOnly = MuseOtherModelsBridge.availableOtherModels(discovered: discovered, onlyUseFree: true)
         #expect(freeOnly.map(\.modelIdentifier) == ["openrouter/free"])
-        // Nothing discovered at all: the paid fallbacks.
         #expect(MuseOtherModelsBridge.availableOtherModels(discovered: []).map(\.modelIdentifier) ==
             ["gpt-4o", "gpt-4o-mini", "claude-3-7-sonnet-20250219", "gemini-2.5-pro", "gemini-2.5-flash"])
 
         let endpoints = [MuseCustomEndpoint(name: "Local", models: ["local-model"])]
-        // Step 1: explicit selection wins.
         #expect(MuseOtherModelsBridge.resolveActiveModel(
             selectedOtherModelID: "gpt-4o", discovered: discovered, customEndpoints: endpoints) ==
             MuseOtherModelResolution(modelID: "gpt-4o", displayName: "GPT-4o", provider: "OpenAI"))
-        // Step 2: first custom endpoint model.
         #expect(MuseOtherModelsBridge.resolveActiveModel(
             selectedOtherModelID: "", discovered: discovered, customEndpoints: endpoints) ==
             MuseOtherModelResolution(modelID: "local-model", displayName: "Local: local-model", provider: "Custom Model Setup"))
-        // Step 3: the general model, when it is not Meta.
         #expect(MuseOtherModelsBridge.resolveActiveModel(
             selectedOtherModelID: "", generalModelID: "gpt-4o", discovered: discovered) ==
             MuseOtherModelResolution(modelID: "gpt-4o", displayName: "GPT-4o", provider: "OpenAI"))
-        // Step 5: fallback when nothing is available.
         #expect(MuseOtherModelsBridge.resolveActiveModel(selectedOtherModelID: "") ==
             MuseOtherModelResolution(modelID: "gpt-4o", displayName: "OpenAI GPT-4o", provider: "OpenAI"))
         #expect(MuseOtherModelsBridge.resolveActiveModel(selectedOtherModelID: "", onlyUseFree: true) ==
@@ -475,7 +415,7 @@ import Testing
         #expect(tokenizer.text == "plain <think>deep thought</think>answer")
         tokenizer.cancel()
         tokenizer.processToken("more", onThinkingDelta: { thinking += $0 }, onTextDelta: { text += $0 })
-        #expect(text == "plain answer") // cancelled: nothing delivered
+        #expect(text == "plain answer")
     }
 
     @Test func toolCallParser() {
@@ -509,7 +449,6 @@ import Testing
         #expect(proxy.isRunning)
         #expect(proxy.activeModel == active)
 
-        // Catalog.
         let catalogRequest = URLRequest(url: url.appendingPathComponent("/v1/models"))
         let catalog = try await HTTP.send(catalogRequest, timeout: 10)
         #expect(catalog.status == 200)
@@ -520,7 +459,6 @@ import Testing
         #expect(meta?["family"] as? String == "custom-bridge")
         #expect((meta?["limit"] as? [String: Any])?["context"] as? Int == 128_000)
 
-        // SSE translation.
         var sseRequest = URLRequest(url: url.appendingPathComponent("/responses"))
         sseRequest.httpMethod = "POST"
         sseRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -533,12 +471,9 @@ import Testing
         #expect(sse.text.contains("Hello "))
         #expect(sse.text.contains("response.completed"))
 
-        // Unknown path: 404.
         let missing = try await HTTP.send(URLRequest(url: url.appendingPathComponent("/nope")), timeout: 10)
         #expect(missing.status == 404)
     }
-
-    // MARK: - Lifecycle (fresh bridge, sleeping fixture binary)
 
     @Test func lifecycleMonitoringAndRestart() async throws {
         let dir = try Self.tempDir()
@@ -557,20 +492,17 @@ import Testing
         #expect(await manager.isMonitoring)
         await manager.stopEngine()
         #expect(await manager.stoppedIntentionally)
-        // An intentional stop suppresses the restart.
         #expect(await manager.healthCheckOnce() == false)
         #expect(await manager.restartCount == 0)
         try await manager.startEngine(workspaceRoot: dir.path, executable: sleeper)
         #expect(await manager.stoppedIntentionally == false)
         #expect(await bridge.isRunning)
-        // Unexpected exit: the health check restarts, once per
-        // throttle window.
         await bridge.stopHost()
         #expect(await bridge.isRunning == false)
         #expect(await manager.healthCheckOnce() == true)
         #expect(await manager.restartCount == 1)
         #expect(await bridge.isRunning)
-        #expect(await manager.healthCheckOnce() == false) // already running
+        #expect(await manager.healthCheckOnce() == false)
         await manager.stopMonitoring()
         #expect(await manager.isMonitoring == false)
         await bridge.stopHost()
@@ -583,8 +515,6 @@ import Testing
         #expect(await bridge.isRunning == false)
         #expect(await manager.healthCheckOnce() == false)
     }
-
-    // MARK: - End to end against the fixture `muse`
 
     @Test func providerListsLiveModelsAndRunsTurn() async throws {
         guard Self.pythonAvailable() else { return }
@@ -618,7 +548,6 @@ import Testing
         #expect(await executor.activeSessionID == "sess-1")
         #expect(await executor.lastTurnUnmappedToolNames.isEmpty)
 
-        // A second turn resumes the session.
         let (text2, _) = try await collect(provider.send(request))
         #expect(text2 == "Hello world")
     }
@@ -644,8 +573,6 @@ import Testing
                                   workingDirectory: dir)
         let (text, _) = try await collect(provider.send(request))
         #expect(text == "Hello world")
-        // The host was asked, and the decision was abort: no
-        // attachment means no user to ask, so deny by default.
         let logged = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
         #expect(logged.contains("approval/decide"))
     }
@@ -716,7 +643,6 @@ import Testing
             for try await _ in provider.send(request) { }
             Issue.record("expected send to throw")
         } catch let error as AssistantError {
-            // Absent binary is checked first.
             guard case .failed(let message) = error else {
                 Issue.record("expected failed, got \(error)")
                 return

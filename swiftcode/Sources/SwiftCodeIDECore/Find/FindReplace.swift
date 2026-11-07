@@ -1,13 +1,9 @@
 import Foundation
 
-/// Replace mode of the Find navigator: which matches are replaced (per
-/// match and per file), the preview of each, and Replace All. See
-/// `specs/ide/navigators.md` §Find navigator, "SwiftCode implementation".
 public struct ReplacePlan: Equatable, Sendable {
     public struct File: Equatable, Sendable {
         public var path: String
         public var matches: [WorkspaceSearch.Match]
-        /// One flag per match: replaced or left alone.
         public var included: [Bool]
         public var isIncluded: Bool { included.contains(true) }
         public var includedCount: Int { included.filter { $0 }.count }
@@ -17,14 +13,12 @@ public struct ReplacePlan: Equatable, Sendable {
     public var replacement: String
     public var files: [File]
 
-    /// Every match starts included.
     public init(query: FindQuery, replacement: String, results: [WorkspaceSearch.FileResult]) {
         self.query = query
         self.replacement = replacement
         files = results.map { File(path: $0.path, matches: $0.matches, included: Array(repeating: true, count: $0.matches.count)) }
     }
 
-    /// Includes or leaves out one match, or (`match` nil) all of a file's.
     public mutating func setIncluded(_ on: Bool, file: Int, match: Int? = nil) {
         guard files.indices.contains(file) else { return }
         if let m = match {
@@ -38,9 +32,6 @@ public struct ReplacePlan: Equatable, Sendable {
     public var includedCount: Int { files.reduce(0) { $0 + $1.includedCount } }
     public var includedFileCount: Int { files.filter(\.isIncluded).count }
 
-    /// The text that replaces a match: the replacement as typed, or for a
-    /// regular expression the template with `$0`…`$9` (and `\` escapes)
-    /// expanded from the match's groups.
     public func replacementText(for m: WorkspaceSearch.Match, in text: String) -> String {
         guard query.kind == .regularExpression, let regex = query.matcher()?.expression else { return replacement }
         let ns = text as NSString
@@ -51,7 +42,6 @@ public struct ReplacePlan: Equatable, Sendable {
         return regex.replacementString(for: r, in: text, offset: 0, template: replacement)
     }
 
-    /// The match's line before and after replacing that match alone.
     public func preview(file: Int, match: Int, text: String) -> (before: String, after: String) {
         let m = files[file].matches[match]
         let ns = text as NSString
@@ -66,9 +56,6 @@ public struct ReplacePlan: Equatable, Sendable {
         return (before.trimmingCharacters(in: .whitespacesAndNewlines), after.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    /// One file's new text. Matches whose text is no longer at their range
-    /// (the file changed since the search) are left alone and counted as
-    /// stale; overlapping matches keep the first.
     public func newText(file: Int, text: String) -> (text: String, replaced: Int, stale: Int) {
         let f = files[file]
         let ns = text as NSString
@@ -86,8 +73,6 @@ public struct ReplacePlan: Equatable, Sendable {
         return (out as String, picked.count, stale)
     }
 
-    /// Replace All: every included match of every file, through `io`.
-    /// Returns the transaction to record for undo.
     public func apply(_ io: ReplaceIO) -> ReplaceTransaction {
         var t = ReplaceTransaction(title: "Replace \(includedCount) Occurrence\(includedCount == 1 ? "" : "s")")
         for (i, f) in files.enumerated() where f.isIncluded {
@@ -105,8 +90,6 @@ public struct ReplacePlan: Equatable, Sendable {
     }
 }
 
-/// How Replace reads and writes a file: an open editor's text (an
-/// unsaved buffer included) or the file on disk.
 public struct ReplaceIO {
     public var read: (String) -> String?
     public var write: (String, String) -> Bool
@@ -115,7 +98,6 @@ public struct ReplaceIO {
         self.write = write
     }
 
-    /// Files on disk only (UTF-8).
     public static var disk: ReplaceIO {
         ReplaceIO(read: { try? String(contentsOfFile: $0, encoding: .utf8) },
                   write: { path, text in (try? text.write(toFile: path, atomically: true, encoding: .utf8)) != nil })
@@ -129,21 +111,15 @@ public struct ReplaceChange: Equatable, Sendable {
     public var count: Int
 }
 
-/// One Replace All: the files it changed, and those it could not.
 public struct ReplaceTransaction: Equatable, Sendable {
     public var title: String
     public var changes: [ReplaceChange] = []
-    /// Files with matches that were no longer there.
     public var stale: [String] = []
-    /// Files that could not be read or written.
     public var failed: [String] = []
     public var replacedCount: Int { changes.reduce(0) { $0 + $1.count } }
     public init(title: String) { self.title = title }
 }
 
-/// Undo and redo of Replace All across files: one step restores every
-/// file of the transaction. A file edited since is left alone (a
-/// conflict) so no later work is lost.
 public final class ReplaceHistory {
     public struct Outcome: Equatable, Sendable {
         public var restored: [String] = []
@@ -163,7 +139,6 @@ public final class ReplaceHistory {
         redoStack.removeAll()
     }
 
-    /// Restores the text before the last Replace All.
     @discardableResult
     public func undo(_ io: ReplaceIO) -> Outcome {
         guard let t = undoStack.popLast() else { return Outcome() }
@@ -171,7 +146,6 @@ public final class ReplaceHistory {
         return Self.restore(t, io, toOriginal: true)
     }
 
-    /// Replays the last undone Replace All.
     @discardableResult
     public func redo(_ io: ReplaceIO) -> Outcome {
         guard let t = redoStack.popLast() else { return Outcome() }
@@ -179,9 +153,6 @@ public final class ReplaceHistory {
         return Self.restore(t, io, toOriginal: false)
     }
 
-    /// Puts every file of a transaction back to its text before
-    /// (`toOriginal`) or after the replace; a file whose current text is
-    /// neither expected one is a conflict and stays as it is.
     public static func restore(_ t: ReplaceTransaction, _ io: ReplaceIO, toOriginal: Bool) -> Outcome {
         let from: KeyPath<ReplaceChange, String> = toOriginal ? \.newText : \.oldText
         let to: KeyPath<ReplaceChange, String> = toOriginal ? \.oldText : \.newText

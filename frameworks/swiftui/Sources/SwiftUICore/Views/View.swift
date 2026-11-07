@@ -1,11 +1,5 @@
 import Foundation
 
-// Views are values (03-architecture.md §1): a struct whose stored properties
-// are its inputs and whose `body` computes another view. Primitive views have
-// `Never` bodies and are interpreted by the graph runtime (Graph/), which
-// keeps the long-lived identities and their state.
-
-/// A piece of user interface: a value whose `body` describes its content.
 @MainActor @preconcurrency
 public protocol View {
     associatedtype Body: View
@@ -18,26 +12,15 @@ extension Never: View {
 }
 
 extension View where Body == Never {
-    /// Primitive views have no body; the runtime interprets them.
     public var body: Never { fatalError("\(Self.self) is a primitive view and has no body") }
 }
 
-// MARK: - The runtime's view of primitives
-
-/// A view the graph runtime interprets directly (stacks, text, modifiers, …).
-///
-/// `_makeChildren` reconciles the node's children with this (new) value;
-/// `_refresh` is called when the node did not receive a new value but its
-/// environment changed or a descendant was invalidated; `_lower` turns the
-/// node into layout nodes for the R3 engine; `_preferences` reduces the
-/// subtree's preference values (03 §7).
 @MainActor
 package protocol PrimitiveView: View where Body == Never {
     func _makeChildren(node: ViewNode, old: Self?, transaction: Transaction)
     func _refresh(node: ViewNode, environmentChanged: Bool, transaction: Transaction)
     func _lower(node: ViewNode) -> [LayoutNode]
     func _preferences(node: ViewNode) -> PreferenceValues
-    /// The node is being removed (before its children).
     func _removed(node: ViewNode)
 }
 
@@ -53,11 +36,6 @@ extension PrimitiveView {
     package func _removed(node: ViewNode) {}
 }
 
-// MARK: - ViewBuilder
-
-/// Builds one static view type from the statements of a closure (03 §1):
-/// several children → `TupleView`, `if`/`else` → `_ConditionalContent`,
-/// `if` alone → `Optional`, `switch` → nested conditionals.
 @MainActor @resultBuilder
 public struct ViewBuilder {
     public static func buildBlock() -> EmptyView { EmptyView() }
@@ -83,10 +61,6 @@ public struct ViewBuilder {
     public static func buildLimitedAvailability<Content: View>(_ content: Content) -> AnyView { AnyView(content) }
 }
 
-// MARK: - Structural views
-
-/// A view with no content: zero size, no spacing, left out by containers
-/// (04-layout.md §2).
 public struct EmptyView: View, Sendable {
     public init() {}
     public typealias Body = Never
@@ -97,8 +71,6 @@ extension EmptyView: PrimitiveView {
     package func _lower(node: ViewNode) -> [LayoutNode] { [] }
 }
 
-/// Several views built by one `ViewBuilder` block. Child *i* has structural
-/// identity "element *i*".
 public struct TupleView<T>: View {
     public var value: T
     public init(_ value: T) { self.value = value }
@@ -118,8 +90,6 @@ extension TupleView: PrimitiveView {
     }
 }
 
-/// The result of `if`/`else` in a `ViewBuilder`: one of two views. Each branch
-/// is a different identity (03 §2).
 public struct _ConditionalContent<TrueContent: View, FalseContent: View>: View {
     package enum Storage {
         case trueContent(TrueContent)
@@ -152,8 +122,6 @@ extension Optional: PrimitiveView where Wrapped: View {
     }
 }
 
-/// A type-erased view. A change of the wrapped view's type is a change of
-/// identity.
 public struct AnyView: View {
     package let storage: any View
 
@@ -177,8 +145,6 @@ extension AnyView: PrimitiveView {
     }
 }
 
-/// Groups views without affecting layout: modifiers applied to a group apply
-/// to each of its views.
 public struct Group<Content> {
     package let content: Content
     public typealias Body = Never
@@ -194,8 +160,6 @@ extension Group: PrimitiveView where Content: View {
     }
 }
 
-/// Explicit identity: `view.id(value)` (03 §2). A new value is a new
-/// identity — new state, and an appear/disappear pair.
 package struct IDView<Content: View, ID: Hashable>: View {
     package let content: Content
     package let id: ID
@@ -209,6 +173,5 @@ extension IDView: PrimitiveView {
 }
 
 extension View {
-    /// Gives the view an explicit identity.
     public func id<ID: Hashable>(_ id: ID) -> some View { IDView(content: self, id: id) }
 }

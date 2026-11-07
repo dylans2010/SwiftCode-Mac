@@ -1,17 +1,8 @@
 import Foundation
 
-// The toolkit-free parts of Settings that both IDEs use: the AppKit panes
-// (SwiftCodeUI) and the SwiftUI panes of the Linux IDE (swiftcode-ide). See
-// `specs/ide/settings.md`.
-
-/// How shortcuts are written: the macOS menus' symbols ("⇧⌘K") or the
-/// Linux menus' words ("Ctrl+Shift+K"). On Linux ⌘ is Ctrl, ⌥ is Alt and
-/// ⌃⌘ is Super+Ctrl; ⌃ alone is Ctrl too, so ⌘K and ⌃K are one keystroke
-/// there.
 public enum ShortcutNotation: Sendable {
     case mac, linux
 
-    /// The notation of the host the code runs on.
     public static var host: ShortcutNotation {
         #if os(Linux)
         .linux
@@ -20,7 +11,6 @@ public enum ShortcutNotation: Sendable {
         #endif
     }
 
-    /// A shortcut as the host's menus show it ("" for none).
     public func text(key: String, modifiers: MenuCommand.Modifiers) -> String {
         guard !key.isEmpty else { return "" }
         switch self {
@@ -39,16 +29,13 @@ public enum ShortcutNotation: Sendable {
         }
     }
 
-    /// A command's shortcut in this notation.
     public func text(_ c: MenuCommand) -> String { text(key: c.key, modifiers: c.modifiers) }
 
-    /// Equal for two spellings of one keystroke in this notation.
     func canonical(key: String, modifiers: MenuCommand.Modifiers) -> String {
         guard !key.isEmpty else { return "" }
         return self == .mac ? Shortcut.canonical(key: key, modifiers: modifiers) : text(key: key, modifiers: modifiers)
     }
 
-    /// Key names of the Linux menus where they differ from the symbols.
     static let linuxKeyNames: [String: String] = [
         Key.up: "Up", Key.down: "Down", Key.left: "Left", Key.right: "Right", Key.return: "Enter", Key.space: "Space",
         Key.delete: "Backspace", Key.tab: "Tab",
@@ -56,11 +43,6 @@ public enum ShortcutNotation: Sendable {
 }
 
 extension KeyBindings {
-    /// Reads a shortcut typed in Settings ▸ Shortcuts, in either notation:
-    /// symbols ("⌃⇧⌘K", "⌘↩", "F6") or words joined by "+" ("Ctrl+Shift+K";
-    /// Ctrl and Cmd are ⌘, Super and Control are ⌃, Alt and Option are ⌥).
-    /// Empty text means no shortcut (an empty key). Nil for text that is
-    /// not one key with modifiers.
     public static func parse(_ text: String) -> (key: String, modifiers: MenuCommand.Modifiers)? {
         let t = text.trimmingCharacters(in: .whitespaces)
         if t.isEmpty { return ("", []) }
@@ -68,7 +50,6 @@ extension KeyBindings {
         var mods: MenuCommand.Modifiers = []
         var rest: String
         if words {
-            // "Ctrl++" is Ctrl and the + key.
             var parts = t.split(separator: "+", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
             if t.hasSuffix("++") { parts.removeLast(2); parts.append("+") }
             rest = parts.removeLast()
@@ -93,8 +74,6 @@ extension KeyBindings {
         return (key, mods)
     }
 
-    /// The key a name stands for: a symbol or word ("↩", "Enter", "F6",
-    /// "Up") or one character (letters lowercased).
     static func keyName(_ name: String) -> String? {
         if name.isEmpty { return nil }
         if let (k, _) = Key.names.first(where: { $0.value == name }) { return k }
@@ -106,8 +85,6 @@ extension KeyBindings {
         return name.lowercased()
     }
 
-    /// Other commands with the keystroke, as `conflicts(key:modifiers:excluding:_:)`
-    /// but comparing in `notation` (on Linux ⌘K and ⌃K are one keystroke).
     public static func conflicts(key: String, modifiers: MenuCommand.Modifiers, excluding id: String, in notation: ShortcutNotation,
                                  _ prefs: Preferences = .shared) -> [Entry] {
         guard !key.isEmpty else { return [] }
@@ -118,9 +95,6 @@ extension KeyBindings {
         }
     }
 
-    /// Sets (or clears, with an empty key) a command's shortcut unless
-    /// another command has it in `notation`; returns those commands
-    /// (nothing is saved when there are any).
     @discardableResult
     public static func set(_ id: String, key: String, modifiers: MenuCommand.Modifiers, in notation: ShortcutNotation,
                            _ prefs: Preferences = .shared) -> [Entry] {
@@ -132,7 +106,6 @@ extension KeyBindings {
         return []
     }
 
-    /// The refusal text for a conflict, naming the commands and their menus.
     public static func conflictMessage(_ conflicts: [Entry]) -> String {
         guard !conflicts.isEmpty else { return "" }
         return "Already used by " + conflicts.map { "\($0.title) (\($0.menu))" }.joined(separator: ", ")
@@ -140,16 +113,13 @@ extension KeyBindings {
 }
 
 extension Preferences.Behavior {
-    /// The actions a behavior can take, as the Behaviors pane offers them.
     public static func addableActions() -> [String] {
         CommandTable.navigators.map { "Navigator: \($0)" } + [Preferences.showDebuggerAction, Preferences.hideDebuggerAction,
             Preferences.hideDebuggerIfNoOutputAction, Preferences.notifyAction] + soundNames.map { "Play Sound: \($0)" }
     }
 
-    /// The sounds a behavior can play (names of the host's system sounds).
     public static let soundNames = ["Glass", "Basso", "Hero"]
 
-    /// Adds the action titled `action` (one of `addableActions()`).
     public mutating func add(action: String) {
         if action.hasPrefix("Navigator: ") { showNavigator = CommandTable.navigators.firstIndex(of: String(action.dropFirst(11))) }
         else if action == Preferences.showDebuggerAction { showDebugArea = true }
@@ -159,7 +129,6 @@ extension Preferences.Behavior {
         else if action.hasPrefix("Play Sound: ") { sound = String(action.dropFirst(12)) }
     }
 
-    /// Removes the action titled `action` (one of `actionTitles`).
     public mutating func remove(action: String) {
         if action.hasPrefix("Navigator: ") { showNavigator = nil }
         else if action == Preferences.hideDebuggerIfNoOutputAction { hideDebugAreaIfNoOutput = false }
@@ -170,7 +139,6 @@ extension Preferences.Behavior {
 }
 
 extension Preferences.Event {
-    /// The event as a Notifications row ("Build succeeds").
     public var notificationTitle: String {
         let s = rawValue.replacingOccurrences(of: "When ", with: "")
         return s.prefix(1).uppercased() + s.dropFirst()
@@ -178,8 +146,6 @@ extension Preferences.Event {
 }
 
 extension Preferences {
-    /// Edits the selected theme when it is a user theme (built-ins are
-    /// left alone) and saves it; false for a built-in or a failed save.
     @discardableResult
     public func editSelectedTheme(_ f: (inout EditorTheme) -> Void) -> Bool {
         var t = theme
@@ -189,11 +155,7 @@ extension Preferences {
     }
 }
 
-/// Git's global configuration (Settings ▸ Source Control shows the author,
-/// read-only).
 public enum GitGlobalConfig {
-    /// `git config --global --get <key>`; nil when unset or git is missing.
-    /// Runs a process: call it off the main thread.
     public static func value(_ key: String) -> String? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")

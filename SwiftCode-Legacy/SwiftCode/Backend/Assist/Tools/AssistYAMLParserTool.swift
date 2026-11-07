@@ -1,8 +1,3 @@
-//
-//  AssistYAMLParserTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistYAMLParserTool: AssistTool {

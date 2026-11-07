@@ -2,7 +2,6 @@ import Foundation
 import SwiftCodeProject
 import SwiftCodeWorkspace
 
-/// A loaded project, with its file location.
 public struct LoadedProject: @unchecked Sendable {
     public var url: URL
     public var proj: PBXProj
@@ -21,13 +20,10 @@ public struct LoadedProject: @unchecked Sendable {
 
     public func target(named n: String) -> PBXObject? { proj.targets.first { $0.string("name") == n } }
 
-    /// True if the project's `TargetAttributes` give the target a
-    /// `TestTargetID` (the target its tests run in).
     public func hasTestHost(_ t: PBXObject) -> Bool {
         proj.project?["attributes"]?.dictionary?["TargetAttributes"]?.dictionary?[t.id]?.dictionary?["TestTargetID"] != nil
     }
 
-    /// Projects referenced from this one (`projectReferences`), absolute.
     public var subprojectURLs: [URL] {
         let dir = directory
         let parents = proj.parentMap()
@@ -39,28 +35,19 @@ public struct LoadedProject: @unchecked Sendable {
     }
 }
 
-/// The project or workspace a command works on.
 public struct Container: @unchecked Sendable {
     public enum Kind: Sendable { case project, workspace }
     public var kind: Kind
-    /// Absolute path of the `.xcodeproj` or `.xcworkspace`.
     public var url: URL
     public var name: String { displayName ?? url.deletingPathExtension().lastPathComponent }
-    /// The projects, in workspace order (for a project: itself first, then
-    /// the projects it references, recursively).
     public var projects: [LoadedProject]
-    /// A name other than the bundle's (a Swift package's own name).
     public var displayName: String?
 
-    /// The workspace PIF path: `X.xcworkspace`, or the implicit
-    /// `X.xcodeproj/project.xcworkspace`.
     public var workspacePath: URL { kind == .workspace ? url : url.appendingPathComponent("project.xcworkspace") }
-    /// The directory project paths are relative to (for PIF GUIDs).
     public var baseDirectory: URL { url.deletingLastPathComponent() }
 
     public var mainProject: LoadedProject? { kind == .project ? projects.first : nil }
 
-    /// Schemes visible in this container (see info-commands.md §2).
     public func schemes(user: String = NSUserName()) -> [Scheme] {
         var bundles: [URL] = []
         if kind == .workspace { bundles.append(url) }
@@ -69,19 +56,14 @@ public struct Container: @unchecked Sendable {
         var out: [Scheme] = []
         for (i, b) in bundles.enumerated() {
             var found = Scheme.discover(in: b, user: user)
-            // A project without any scheme files gets one generated scheme
-            // per target, test bundles excepted.
             if found.isEmpty, let p = projects.first(where: { $0.url == b }), kind == .workspace || i == 0 {
                 found = p.targets.compactMap { t -> Scheme? in
-                    // A test bundle hosted by another target belongs to
-                    // that target's scheme.
                     guard t.string("name") != nil, !(Self.isTestBundle(t) && p.hasTestHost(t)) else { return nil }
                     return AutocreatedScheme.make(for: t, in: p, containerName: b.lastPathComponent)
                 }
             }
             for s in found where seen.insert(s.name).inserted { out.append(s) }
         }
-        // Local Swift packages referenced by the projects add their schemes.
         for p in projects {
             for pkg in LocalPackages.find(in: p) {
                 for name in pkg.schemeNames where seen.insert(name).inserted {
@@ -100,14 +82,11 @@ public struct Container: @unchecked Sendable {
         ["com.apple.product-type.bundle.unit-test", "com.apple.product-type.bundle.ui-testing"].contains(t.string("productType") ?? "")
     }
 
-    /// Finds the project that contains a scheme's buildable reference.
     public func project(for ref: Scheme.BuildableReference, schemeBundle: URL?) -> LoadedProject? {
         let c = ref.referencedContainer
         if c.hasPrefix("container:") {
             let rel = String(c.dropFirst("container:".count))
             let base = schemeBundle.map { b -> URL in
-                // Container paths are relative to the directory holding the
-                // project or workspace bundle the scheme lives in.
                 let bundle = b.path.components(separatedBy: "/xcshareddata/").first.map { URL(fileURLWithPath: $0) }
                     ?? b.path.components(separatedBy: "/xcuserdata/").first.map { URL(fileURLWithPath: $0) } ?? b
                 return bundle.deletingLastPathComponent()
@@ -121,7 +100,6 @@ public struct Container: @unchecked Sendable {
 }
 
 enum ContainerLocator {
-    /// Opens the container named by `-project`/`-workspace`, or found in `cwd`.
     static func open(_ inv: Invocation, cwd: String) throws(XcodebuildFailure) -> Container {
         func absolute(_ p: String) -> URL {
             URL(fileURLWithPath: p.hasPrefix("/") ? p : cwd + "/" + p).standardizedFileURL
@@ -176,7 +154,6 @@ enum ContainerLocator {
         }
     }
 
-    /// A project plus the projects it references (depth first, each once).
     static func loadProjectContainer(_ url: URL) throws(XcodebuildFailure) -> Container {
         let main = try loadProject(url)
         var projects = [main]
@@ -208,21 +185,13 @@ enum ContainerLocator {
     }
 }
 
-/// Swift packages stored next to a project and referenced from it: an
-/// `XCLocalSwiftPackageReference`, or a folder reference whose directory
-/// holds a `Package.swift`. See info-commands.md §2.
 struct LocalPackage {
     var directory: String
     var products: [String]
     var name: String
-    /// Referenced by an `XCLocalSwiftPackageReference` (reported `@ local`)
-    /// rather than by a folder reference.
     var isPackageReference: Bool
-    /// Also (or only) added to the project as a folder.
     var addedAsFolder = false
     var testTargets: [String] = []
-    /// One scheme per library or executable product; a package added as a
-    /// folder also has one per test target not named `<product>Tests`.
     var schemeNames: [String] {
         guard addedAsFolder else { return products }
         return products + testTargets.filter { t in !products.contains { $0 + "Tests" == t } && !products.contains(t) }
@@ -230,8 +199,6 @@ struct LocalPackage {
 }
 
 enum LocalPackages {
-    /// A project's package references in `packageReferences` order: local
-    /// directories, or remote repository URLs.
     static func references(in p: LoadedProject) -> [(local: String?, remote: String?)] {
         let projectDir = p.url.deletingLastPathComponent()
         return (p.proj.project?.references("packageReferences") ?? []).compactMap { id in
@@ -262,7 +229,6 @@ enum LocalPackages {
         return out
     }
 
-    /// Test target names written literally in the manifest.
     static func testTargetNames(_ manifest: String) -> [String] {
         guard let re = try? NSRegularExpression(pattern: #"\.testTarget\s*\(\s*name\s*:\s*"([^"]+)""#) else { return [] }
         let ns = manifest as NSString
@@ -274,7 +240,6 @@ enum LocalPackages {
         return out
     }
 
-    /// Product names written literally in the manifest.
     static func productNames(_ manifest: String) -> [String] {
         var out: [String] = []
         let pattern = #"\.(library|executable)\s*\(\s*name\s*:\s*"([^"]+)""#

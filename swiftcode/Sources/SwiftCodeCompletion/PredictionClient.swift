@@ -1,22 +1,14 @@
 import Foundation
 
-/// A finished suggestion with its timings.
 public struct PredictionResult: Sendable, Equatable {
-    /// The shaped suggestion ("" when nothing should be shown).
     public var text: String
-    /// The model's output as received (up to where the request stopped).
     public var raw: String
     public var model: String?
-    /// From sending the request to the first output text (milliseconds).
     public var firstTokenMilliseconds: Double?
-    /// From sending the request to the suggestion (milliseconds).
     public var totalMilliseconds: Double
-    /// The request was stopped once the suggestion reached a boundary.
     public var stoppedEarly: Bool
 }
 
-/// Sends one request and shapes the streamed output; stops the request as
-/// soon as the suggestion reached a boundary (predictive-completion.md §4.3).
 public struct PredictionClient: Sendable {
     public var backend: PredictionBackend
     public var shaper: SuggestionShaper
@@ -26,9 +18,6 @@ public struct PredictionClient: Sendable {
         self.shaper = shaper
     }
 
-    /// The suggestion for `request`. `onUpdate` sees the shaped text as it
-    /// grows (on the caller's actor). Throws `PredictionError`, or
-    /// `CancellationError` when the calling task is cancelled.
     public func complete(_ request: PredictionRequest, isolation: isolated (any Actor)? = #isolation,
                          onUpdate: ((String) -> Void)? = nil) async throws -> PredictionResult {
         let clock = ContinuousClock()

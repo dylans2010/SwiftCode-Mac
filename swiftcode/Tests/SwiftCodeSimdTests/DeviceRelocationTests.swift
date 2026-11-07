@@ -2,11 +2,7 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// A copied or moved device directory (specs/simulator/app-launch.md §3.3).
 struct DeviceRelocationTests {
-    /// A scratch directory outside the paths the guest has of its own
-    /// (/tmp, /var, /private: the temporary directory is there on both
-    /// hosts, and no device path may be): the package's .build.
     private func scratch() throws -> String {
         let dir = FileManager.default.currentDirectoryPath + "/.build/swiftcode-reloc-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
@@ -15,8 +11,6 @@ struct DeviceRelocationTests {
 
     private let fm = FileManager.default
 
-    /// A device directory with data, a record (unless nil) and a device
-    /// store naming `storePath`'s containers plus a system-only store.
     private func makeDevice(_ dev: String, record: String?, storePath: String) throws {
         let lsd = dev + "/data/var/db/lsd"
         try fm.createDirectory(atPath: lsd, withIntermediateDirectories: true)
@@ -40,7 +34,6 @@ struct DeviceRelocationTests {
         #expect(DeviceLayout.foreignDevicePath(in: bytes, current: "") == "/old/dev")
         #expect(DeviceLayout.foreignDevicePath(in: Data("no containers here".utf8), current: "/x") == nil)
         #expect(DeviceLayout.foreignDevicePath(in: Data(), current: "/x") == nil)
-        // The marker at the very end, a partial marker, and a second path after the current one.
         #expect(DeviceLayout.foreignDevicePath(in: Data("/a/data/Containers/".utf8), current: "/b") == "/a")
         #expect(DeviceLayout.foreignDevicePath(in: Data("/a/data/Contain".utf8), current: "/b") == nil)
         let two = Data("/cur/data/Containers/x\u{0}/other/data/Containers/y".utf8)
@@ -57,10 +50,8 @@ struct DeviceRelocationTests {
         copy.guestDev = copy.resolveGuestDevicePath()
         #expect(copy.guestDev == old)
         try copy.handleRelocation()
-        // No store removed; the record keeps the guest path.
         #expect(copy.launchServicesStoreFiles().count == 2)
         #expect(DeviceLayout.recordedGuestDevicePath(in: new) == old)
-        // The guest sees DEV at the guest path; the host works in DEV.
         #expect(copy.guestPath(new + "/data/tmp/x") == old + "/data/tmp/x")
         #expect(copy.guestPath(new) == old)
         #expect(copy.guestPath("/rr/usr/bin/x") == "/rr/usr/bin/x")
@@ -72,7 +63,6 @@ struct DeviceRelocationTests {
         #expect(paths.contains(old + "/data/Library/LaunchDaemons"))
         #expect(!paths.contains { $0.hasPrefix(new + "/") })
         #expect(copy.memoryGuestPath == old + "/swiftcode-memory")
-        // A copy of the copy keeps it too.
         let third = root + "/third"
         try fm.copyItem(atPath: new, toPath: third)
         #expect(layout(third).resolveGuestDevicePath() == old)
@@ -89,7 +79,6 @@ struct DeviceRelocationTests {
         try l.handleRelocation()
         #expect(l.launchServicesStoreFiles().count == 2)
         #expect(DeviceLayout.recordedGuestDevicePath(in: dev) == first)
-        // New data (no store, no record): its own path.
         let fresh = root + "/fresh"
         try fm.createDirectory(atPath: fresh, withIntermediateDirectories: true)
         #expect(layout(fresh).resolveGuestDevicePath() == fresh)
@@ -98,8 +87,6 @@ struct DeviceRelocationTests {
     @Test func storeNamingAnotherPathIsRebuilt() throws {
         let root = try scratch()
         defer { try? fm.removeItem(atPath: root) }
-        // The record gives the data's guest path, but the device store names
-        // a third device (data put together from two devices).
         let dev = root + "/dev", other = root + "/other"
         try makeDevice(dev, record: other, storePath: root + "/third")
         var l = layout(dev)
@@ -109,7 +96,6 @@ struct DeviceRelocationTests {
         let left = l.launchServicesStoreFiles().map { ($0 as NSString).lastPathComponent }
         #expect(left == ["SystemDataOnly-com.apple.LaunchServices-1-v2.csstore"])
         #expect(DeviceLayout.recordedGuestDevicePath(in: dev) == other)
-        // The store lsd writes at the guest path is kept at the next boot.
         try Data((other + "/data/Containers/Data/Application/B").utf8)
             .write(to: URL(fileURLWithPath: l.launchServicesStorePath + "/com.apple.LaunchServices-1-v2.csstore"))
         var next = layout(dev)
@@ -135,8 +121,6 @@ struct DeviceRelocationTests {
     @Test func ownRecordWithAForeignStoreIsRebuilt() throws {
         let root = try scratch()
         defer { try? fm.removeItem(atPath: root) }
-        // The record names DEV itself, but the store still names the device
-        // the data came from (a record set by hand, data copied over).
         let dev = root + "/dev", origin = root + "/origin"
         try makeDevice(dev, record: dev, storePath: origin)
         var l = layout(dev)
@@ -165,7 +149,6 @@ struct DeviceRelocationTests {
             var l = layout(dev)
             l.guestDev = l.resolveGuestDevicePath()
             #expect(l.guestDev == dev, "\(bad)")
-            // The old rule applies: the store naming the other path goes.
             try l.handleRelocation()
             #expect(l.launchServicesStoreFiles().count == 1, "\(bad)")
             try fm.removeItem(atPath: dev)

@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDEShell
 
-/// Package discovery: the pure graph/compatibility logic, the GitHub URL
-/// parsing, and the persisted collections/favorites state.
-/// The store tests share one state file, so the suite runs serially.
 @Suite(.serialized)
 @MainActor
 struct PackageDiscoveryTests {

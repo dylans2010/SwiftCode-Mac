@@ -4,19 +4,13 @@ import Testing
 import SwiftCodeBuild
 import SwiftCodeProject
 
-/// `swiftcode/Samples/SyncFolderSamples` (IDE-SMALL).
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 private let sampleProject = swiftcodeDir.appendingPathComponent("Samples/SyncFolderSamples/SyncFolderSamples.xcodeproj")
 
-/// Synchronized folders expanded into the PIF's group tree and build phases
-/// (`specs/ide/build-pif.md` §Synchronized folders).
 @Suite struct SynchronizedFolderPIFTests {
-    /// The PIF of the sample, with lookups by name and GUID.
     struct Loaded {
         var pif: XcodePIF
         var objects: [[String: Any]]
-        /// File and group GUID → path relative to the project folder (a
-        /// variant group: its localized path).
         var paths: [String: String] = [:]
         var types: [String: String] = [:]
 
@@ -40,7 +34,6 @@ private let sampleProject = swiftcodeDir.appendingPathComponent("Samples/SyncFol
             try #require(objects.compactMap { $0["contents"] as? [String: Any] }.first { $0["name"] as? String == name && $0["buildPhases"] != nil })
         }
 
-        /// A target's phases as (type, [path of each build file]).
         func phases(_ name: String) throws -> [(type: String, files: [String])] {
             try (target(name)["buildPhases"] as? [[String: Any]] ?? []).map { phase in
                 (String((phase["type"] as? String ?? "").split(separator: ".").last ?? ""),
@@ -74,12 +67,10 @@ private let sampleProject = swiftcodeDir.appendingPathComponent("Samples/SyncFol
         #expect(phases[2].files == ["SyncApp/Assets.xcassets", "SyncApp/Data/note.txt", "SyncApp/Docs", "SyncApp/Extra.strings",
                                     "SyncApp/Localizable.xcstrings"])
         #expect(phases[3].files == ["SyncApp/Extras/extra.txt"])
-        // `.lproj` files are one variant group with a file per region.
         let variant = try #require(l.paths.first { $0.value == "SyncApp/Extra.strings" }?.key)
         #expect(l.types[variant] == "variantGroup")
         #expect(Set(l.paths.filter { $0.value.hasSuffix(".lproj/Extra.strings") }.map(\.value))
             == ["SyncApp/de.lproj/Extra.strings", "SyncApp/en.lproj/Extra.strings"])
-        // The explicit folder is one item, not expanded.
         #expect(!l.paths.values.contains("SyncApp/Docs/about.txt"))
     }
 
@@ -99,7 +90,6 @@ private let sampleProject = swiftcodeDir.appendingPathComponent("Samples/SyncFol
         let l = try Loaded()
         let w = l.pif.synchronizedFolderWarnings(targetNames: ["EmptyTool"])
         #expect(w == ["Target \u{201C}EmptyTool\u{201D} compiles no source files: its synchronized folders (\u{201C}EmptyTool\u{201D}) hold none that it builds."])
-        // swift-build's engine gets the warnings with the PIF.
         let source = XcodePIFSource(sourcePackagesDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-sync-pif-packages"))
         let request = BuildRequest(container: .project(sampleProject.path), scheme: "EmptyTool", action: .build)
         let (_, targets, warnings) = try source.pifWithWarnings(for: request)
@@ -107,8 +97,6 @@ private let sampleProject = swiftcodeDir.appendingPathComponent("Samples/SyncFol
         #expect(warnings["EmptyTool"] == w && warnings["SyncTool"] == nil)
     }
 
-    /// A target with no build phases at all (hand-written and generated
-    /// projects) still gets its folder's sources; a missing folder warns.
     @Test func missingPhasesAreAddedAndMissingFoldersWarn() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-sync-pif-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -138,7 +126,6 @@ private let sampleProject = swiftcodeDir.appendingPathComponent("Samples/SyncFol
         }
         """.write(to: proj.appendingPathComponent("project.pbxproj"), atomically: true, encoding: .utf8)
         let l = try Loaded(proj)
-        // A tool takes no resources, so only a Sources phase is added.
         #expect(try l.phases("Tool").map(\.type) == ["sources"])
         #expect(try l.phases("Tool")[0].files == ["Src/main.swift"])
         let w = l.pif.synchronizedFolderWarnings(targetNames: ["Lost"])
@@ -147,17 +134,12 @@ private let sampleProject = swiftcodeDir.appendingPathComponent("Samples/SyncFol
         #expect(w.last?.contains("compiles no source files") == true)
     }
 
-    /// swift-build's own generator rejects synchronized folders instead of
-    /// describing their targets with no files.
     @Test func builtInGeneratorRejectsSynchronizedFolders() throws {
         let proj = try PBXProj(contentsOf: sampleProject)
         #expect(throws: PIFGenerator.GenerationError.self) { try PIFGenerator(proj: proj, xcodeprojURL: sampleProject).pif() }
     }
 }
 
-/// The sample built by swiftcodebuild through swift-build (skipped without the
-/// `swiftcode-swb` helper): the products run and print what their folders gave
-/// them; a target with no sources warns.
 @Suite(.serialized, .timeLimit(.minutes(10))) struct SynchronizedFolderBuildTests {
     @Test func samplesBuildAndRun() throws {
         #if os(macOS)

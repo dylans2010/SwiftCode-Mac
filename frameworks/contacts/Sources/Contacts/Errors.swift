@@ -1,7 +1,3 @@
-// CNErrorDomain errors and the two Contacts exceptions
-// (specs/frameworks/contacts/errors.md). Codes and user-info keys are the
-// contract; the English messages are SwiftCode's own wording.
-
 import Foundation
 
 public struct CNError: Error, @unchecked Sendable {
@@ -37,8 +33,6 @@ public struct CNError: Error, @unchecked Sendable {
     }
 
     public let code: Code
-    /// The full user-info dictionary (CNInvalidRecords, CNInvalidRecordIdentifiers,
-    /// CNKeyPaths, NSLocalizedDescription, NSLocalizedFailureReason).
     public let userInfo: [String: Any]
 
     public init(_ code: Code, userInfo: [String: Any] = [:]) {
@@ -51,7 +45,6 @@ public struct CNError: Error, @unchecked Sendable {
 
     public static var errorDomain: String { CNErrorDomain }
 
-    // Swift overlay accessors (README.md "Framework layout facts").
     public var affectedRecords: [AnyObject]? { userInfo[CNErrorUserInfoAffectedRecordsKey] as? [AnyObject] }
     public var affectedRecordIdentifiers: [String]? { userInfo[CNErrorUserInfoAffectedRecordIdentifiersKey] as? [String] }
     public var keyPaths: [String]? { userInfo[CNErrorUserInfoKeyPathsKey] as? [String] }
@@ -63,7 +56,6 @@ public struct CNError: Error, @unchecked Sendable {
     public static var predicateInvalid: Code { .predicateInvalid }
     public static var vCardMalformed: Code { .vCardMalformed }
 
-    /// SwiftCode's short description for a code.
     static func message(for code: Code) -> String {
         switch code {
         case .communicationError: return "Could not reach the contacts service"
@@ -108,7 +100,6 @@ public struct CNError: Error, @unchecked Sendable {
     }
 }
 
-/// Pattern matching in `catch CNError.recordDoesNotExist { … }`.
 public func ~= (code: CNError.Code, error: any Error) -> Bool {
     guard let error = error as? CNError else { return false }
     return error.code == code
@@ -124,18 +115,8 @@ extension CNError: LocalizedError {
     public var failureReason: String? { userInfo[NSLocalizedFailureReasonErrorKey] as? String }
 }
 
-// MARK: - Exceptions
-
-/// Not a declared constant (errors.md §3 names the exception by its string).
 let propertyInvalidTypeExceptionName = "CNPropertyInvalidTypeException"
 
-/// An Objective-C style exception of the framework (errors.md §3).
-///
-/// Swift cannot raise Objective-C exceptions portably. By default a raise
-/// stops the process (`fatalError`) with "<name>: <reason>". Inside
-/// `CNException.catching { … }` a raise is recorded instead, the offending
-/// call returns an empty value without side effects, and `catching`
-/// throws the first recorded exception.
 public struct CNException: Error, Equatable, CustomStringConvertible, Sendable {
     public let name: String
     public let reason: String
@@ -160,7 +141,6 @@ public struct CNException: Error, Equatable, CustomStringConvertible, Sendable {
         var first: CNException?
     }
 
-    /// Runs `body`; throws the first exception it raised.
     @discardableResult
     public static func catching<T>(_ body: () throws -> T) throws -> T {
         let dict = Thread.current.threadDictionary
@@ -180,7 +160,6 @@ public struct CNException: Error, Equatable, CustomStringConvertible, Sendable {
         return result
     }
 
-    /// Raises `self`: records it inside `catching`, otherwise stops the process.
     func raise() {
         if let cap = Thread.current.threadDictionary[CNException.captureKey] as? Capture, cap.depth > 0 {
             if cap.first == nil { cap.first = self }

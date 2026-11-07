@@ -1,12 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `Backend/Assist/Assist Frameworks/AssistFailureRootCauseAnalyzer.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
-// Dependency of _AssistCriticalAutonomousEngine (root-cause phase). Ledger marks this file SUPERSEDED by SwiftCodeMCP/Tools/SwiftCodeTools+Planning.swift, but that is an MCP tool surface in SwiftCodeMCP — a module SwiftCodeAssistant cannot import — and it exposes no AssistFailureRootCauseAnalyzer class API; the staged autonomous engine calls analyze(step:) -> RootCauseAnalysis. Ported so the engine's own subsystem layer exists in its own target, not as a competing MCP implementation.
-// Remaining deps (now staged in AssistModels.swift by the parallel port — see _notes/agent-models-decisions.md): AssistContext (logger), AssistExecutionStep (+ .result?.error).
-
 import Foundation
 
-/// Analyzes failures to determine root causes for better recovery
 @MainActor
 public final class AssistFailureRootCauseAnalyzer {
     private let context: AssistContext
@@ -21,7 +14,6 @@ public final class AssistFailureRootCauseAnalyzer {
         self.context = context
     }
 
-    /// Analyzes a failed step to determine root cause
     public func analyze(step: AssistExecutionStep) async -> RootCauseAnalysis {
         await context.logger.info("Analyzing failure for step: \(step.toolId)", toolId: "RootCauseAnalyzer")
 
@@ -31,7 +23,6 @@ public final class AssistFailureRootCauseAnalyzer {
         var contributingFactors: [String] = []
         var suggestedFixes: [String] = []
 
-        // Pattern matching for common error types
         if errorMessage.contains("file not found") || errorMessage.contains("does not exist") {
             primaryCause = "Missing file or directory"
             contributingFactors.append("File path may be incorrect")

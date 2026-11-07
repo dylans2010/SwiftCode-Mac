@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Git Blame Extension View
 struct GitBlameExtensionView: View {
     @State private var showInlineBlame = true
     @State private var blameFormat = "relative"

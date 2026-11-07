@@ -1,7 +1,3 @@
-// ga: our probe (stage 7): getattrlist volume attributes (ATTR_VOL_UUID) with
-// and without ATTR_VOL_INFO, on a volume root and on a plain directory.
-// Build: xcrun --sdk iphonesimulator clang -target arm64-apple-ios27.0-simulator -o /tmp/ga ga.c
-// Run:   xcrun simctl spawn booted /tmp/ga <path>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>

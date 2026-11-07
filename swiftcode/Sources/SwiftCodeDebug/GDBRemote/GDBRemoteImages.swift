@@ -1,14 +1,5 @@
 import Foundation
 
-// The images of a Darwin process as LLDB's `jGetLoadedDynamicLibrariesInfos`
-// packet reports them (`specs/simulator/debug-stub.md` §4.3). Each image's
-// Mach-O header and load commands are read from the process's memory; the
-// field names and the JSON shape follow LLDB's `lldbgdbremote.md` and the
-// reader of the reply in LLDB's open-source `DynamicLoaderDarwin.cpp`
-// (Apache-2.0 with LLVM exception). Mach-O structures: the public
-// `mach-o/loader.h` layouts.
-
-/// One loaded Mach-O image.
 public struct GDBRemoteImageInfo: Equatable, Sendable {
     public struct Segment: Equatable, Sendable {
         public var name: String
@@ -35,11 +26,8 @@ public struct GDBRemoteImageInfo: Equatable, Sendable {
     public var cpusubtype: UInt32
     public var filetype: UInt32
     public var flags: UInt32
-    /// The header and its load commands (`sizeof_mh_and_loadcmds`).
     public var headerAndCommandsSize: UInt32
     public var segments: [Segment]
-    /// The platform of `LC_BUILD_VERSION` (or an `LC_VERSION_MIN_*`) as LLDB
-    /// names it (`iossimulator`, `ios`, `macosx`, ...), and its minimum OS.
     public var minimumOSName: String?
     public var minimumOSVersion: String?
 
@@ -61,7 +49,6 @@ public struct GDBRemoteImageInfo: Equatable, Sendable {
     }
 }
 
-/// How much `jGetLoadedDynamicLibrariesInfos` reports per image.
 public enum GDBRemoteImageDetail: Equatable, Sendable {
     case addressOnly, addressName, addressNameUUID, full
 }
@@ -71,15 +58,10 @@ public enum GDBRemoteMachO {
     static let segment64: UInt32 = 0x19
     static let uuidCommand: UInt32 = 0x1B
     static let buildVersion: UInt32 = 0x32
-    /// LC_VERSION_MIN_* → the platform they stand for.
     static let versionMin: [UInt32: UInt32] = [0x24: 1, 0x25: 2, 0x2F: 3, 0x30: 4]
-    /// MH_DYLINKER.
     public static let fileTypeDylinker: UInt32 = 7
-    /// Load commands larger than this are not read.
     static let maxCommandBytes = 1 << 20
 
-    /// LLDB's name for a `PLATFORM_*` number (public `mach-o/loader.h`;
-    /// the names LLDB's reply reader takes).
     public static func platformName(_ platform: UInt32) -> String? {
         switch platform {
         case 1: "macosx"
@@ -98,15 +80,11 @@ public enum GDBRemoteMachO {
         }
     }
 
-    /// `xxxx.yy.zz` nibbles → "x.y" or "x.y.z".
     public static func versionString(_ v: UInt32) -> String {
         let major = v >> 16, minor = (v >> 8) & 0xFF, patch = v & 0xFF
         return patch == 0 ? "\(major).\(minor)" : "\(major).\(minor).\(patch)"
     }
 
-    /// The image whose 64-bit Mach-O header is at `address`, read with
-    /// `read` (fewer bytes than asked: unreadable). nil when no valid
-    /// header is there.
     public static func image(at address: UInt64, path: String, read: (UInt64, Int) -> [UInt8]) -> GDBRemoteImageInfo? {
         let header = read(address, 32)
         guard header.count == 32, u32(header, 0) == magic64 else { return nil }
@@ -155,11 +133,7 @@ public enum GDBRemoteMachO {
     }
 }
 
-/// `jGetLoadedDynamicLibrariesInfos:<json>`: what the client asks for.
 public struct GDBRemoteImageRequest: Equatable, Sendable {
-    /// Every image (`fetch_all_solibs`), or the images at these addresses
-    /// (`solib_addresses`), or `count` images of the `dyld_image_info` array
-    /// at `listAddress` (the OS X 10.11 form).
     public enum Selection: Equatable, Sendable {
         case all
         case addresses([UInt64])
@@ -168,8 +142,6 @@ public struct GDBRemoteImageRequest: Equatable, Sendable {
     public var selection: Selection
     public var detail: GDBRemoteImageDetail
 
-    /// Parses the packet's arguments (the text after the colon). nil: not
-    /// a request (an empty argument is the client's support probe).
     public static func parse(_ text: String) -> GDBRemoteImageRequest? {
         guard let data = text.data(using: .utf8),
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
@@ -200,7 +172,6 @@ public struct GDBRemoteImageRequest: Equatable, Sendable {
 }
 
 extension GDBRemoteImageInfo {
-    /// The image's entry of the reply, at `detail`.
     public func json(_ detail: GDBRemoteImageDetail) -> String {
         var fields = ["\"load_address\":\(loadAddress)"]
         if detail == .addressOnly { return "{" + fields.joined(separator: ",") + "}" }
@@ -223,14 +194,11 @@ extension GDBRemoteImageInfo {
         return "{" + fields.joined(separator: ",") + "}"
     }
 
-    /// The whole reply: `{"images":[…]}`.
     public static func reply(_ images: [GDBRemoteImageInfo], _ detail: GDBRemoteImageDetail) -> String {
         "{\"images\":[" + images.map { $0.json(detail) }.joined(separator: ",") + "]}"
     }
 }
 
-/// libdyld's process states (`jGetDyldProcessState`), with the names LLDB
-/// compares (`DynamicLoaderMacOS::IsFullyInitialized`).
 public enum GDBRemoteDyldState: Int, Sendable, CaseIterable {
     case notStarted = 0x00
     case dyldInitialized = 0x10

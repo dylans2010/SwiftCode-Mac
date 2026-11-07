@@ -1,13 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectTerminalService.swift
-// Adapted for SwiftCode: Legacy ran the command through the Assist internals
-// (UseTermFunction + AssistContextBuilder + AssistMemoryGraph). Those are
-// Autopilot-era plumbing and are not ported. The command runs here through
-// Foundation's Process (/bin/zsh -c) in the project root — the same
-// mechanism SwiftCode's own terminal uses (no PTY). The dangerous-command
-// classification is kept as a logged warning, and the request is already
-// gated on the .terminalExecute permission at registration.
-
 import Foundation
 import os.log
 
@@ -45,9 +35,6 @@ public final class ConnectTerminalService: @unchecked Sendable {
             logger.warning("Remote terminal command from \(session.deviceName ?? "iOS") looks destructive: \(payload.command)")
         }
 
-        // Working directory: the request's, when it stays inside the project;
-        // otherwise the project root. Path traversal out of the project is
-        // refused, matching the file service's boundary rule.
         var workingDirectory = project.directoryURL
         if let requested = payload.workingDirectory, !requested.isEmpty {
             let candidate = project.directoryURL.appendingPathComponent(requested).standardizedFileURL

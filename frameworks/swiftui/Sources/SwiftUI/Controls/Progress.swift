@@ -5,15 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// ProgressView and Gauge (round R8). Golden `progress.spinner`: 20 × 20 at
-// every proposal; `progress.linear`: 0 × 4 unproposed, the proposed width
-// otherwise. Golden `gauge` (linear capacity, the default): the label above
-// a 16-point bar row with the default spacing between them (12.33 × 46.98
-// for "G" = 20.33 + 10.64 + 16; 0 × 26.64 at 0 × 0).
-
-// MARK: - ProgressView
-
-/// A view that shows the progress of a task, determinate or not.
 public struct ProgressView<Label: View, CurrentValueLabel: View>: View {
     let fraction: Double?
     let label: Label?
@@ -32,7 +23,6 @@ public struct ProgressView<Label: View, CurrentValueLabel: View>: View {
                 DefaultProgressViewStyle().makeBody(configuration: c)
             }
         }
-        // R10 (08 §2): value as a percentage, updates frequently.
         .accessibilityControl(.progressIndicator, traits: .updatesFrequently,
                               value: { fraction.map { "\(Int(($0 * 100).rounded()))%" } },
                               rangeValue: { fraction.map { AccessibilityRangeValue(current: $0 * 100, minimum: 0, maximum: 100, step: 1) } })
@@ -46,14 +36,12 @@ private func fractionOf<V: BinaryFloatingPoint>(_ value: V?, _ total: V) -> Doub
 }
 
 extension ProgressView where Label == EmptyView, CurrentValueLabel == EmptyView {
-    /// Indeterminate.
     public init() {
         fraction = nil
         label = nil
         currentValueLabel = nil
     }
 
-    /// Determinate; a nil value is indeterminate.
     public init<V: BinaryFloatingPoint>(value: V?, total: V = 1.0) {
         fraction = fractionOf(value, total)
         label = nil
@@ -112,7 +100,6 @@ extension ProgressView where Label == Text, CurrentValueLabel == EmptyView {
     }
 }
 
-/// What a progress style draws.
 public struct ProgressViewStyleConfiguration {
     public struct Label: View {
         let content: AnyView
@@ -124,7 +111,6 @@ public struct ProgressViewStyleConfiguration {
         public var body: AnyView { content }
     }
 
-    /// 0…1, or nil when indeterminate.
     public let fractionCompleted: Double?
     public var label: Label?
     public var currentValueLabel: CurrentValueLabel?
@@ -156,7 +142,6 @@ extension View {
     }
 }
 
-/// Indeterminate: circular; determinate: linear.
 public struct DefaultProgressViewStyle: ProgressViewStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -168,7 +153,6 @@ public struct DefaultProgressViewStyle: ProgressViewStyle {
     }
 }
 
-/// A bar 4 points high (golden), filling the width.
 public struct LinearProgressViewStyle: ProgressViewStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -176,7 +160,6 @@ public struct LinearProgressViewStyle: ProgressViewStyle {
     }
 }
 
-/// A 20 × 20 spinner (golden) when indeterminate, a ring when determinate.
 public struct CircularProgressViewStyle: ProgressViewStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -211,7 +194,6 @@ struct LinearProgressBody: View {
                     if let f = configuration.fractionCompleted {
                         Capsule().fill(.tint).frame(width: w * CGFloat(f))
                     } else {
-                        // Indeterminate: a segment sweeping across (SwiftCode).
                         Capsule().fill(.tint).frame(width: w * 0.3)
                             .offset(x: sweep ? w * 0.7 : 0)
                     }
@@ -289,9 +271,6 @@ struct CircularProgressBody: View {
     }
 }
 
-// MARK: - Gauge
-
-/// A view that shows a value within a range.
 public struct Gauge<Label: View, CurrentValueLabel: View, BoundsLabel: View, MarkedValueLabels: View>: View {
     let fraction: Double
     let label: Label
@@ -379,7 +358,6 @@ public struct GaugeStyleConfiguration {
         public var body: AnyView { content }
     }
 
-    /// The value as a fraction of the range (0…1).
     public var value: Double
     public var label: Label
     public var currentValueLabel: CurrentValueLabel?
@@ -413,7 +391,6 @@ extension View {
     }
 }
 
-/// Label above a capacity bar (the default).
 public struct LinearCapacityGaugeStyle: GaugeStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -428,7 +405,6 @@ public struct DefaultGaugeStyle: GaugeStyle {
     }
 }
 
-/// A compact bar with the label in caption size.
 public struct AccessoryLinearCapacityGaugeStyle: GaugeStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -436,7 +412,6 @@ public struct AccessoryLinearCapacityGaugeStyle: GaugeStyle {
     }
 }
 
-/// A ring with the current value inside (44 × 44, SwiftCode).
 public struct AccessoryCircularCapacityGaugeStyle: GaugeStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {

@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeXcodebuild
 
-/// Placement of target-level warnings, destination listings and local
-/// package schemes (`specs/xcodebuild/build-actions.md`, `info-commands.md`,
-/// `packages.md`).
 @Suite struct ParityDetailTests {
     @Test func deferredTargetWarnings() {
         let capture = CapturingConsole()
@@ -24,19 +21,14 @@ import Testing
         let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-26-4":[{"name":"iPad mini","udid":"A","isAvailable":true},{"name":"iPad Pro","udid":"B","isAvailable":true},{"name":"Gone","udid":"G","isAvailable":false}],"com.apple.CoreSimulator.SimRuntime.tvOS-26-5":[{"name":"Apple TV","udid":"C","isAvailable":true}]}}"#
         let runtimes = #"{"runtimes":[{"identifier":"com.apple.CoreSimulator.SimRuntime.iOS-26-4","version":"26.4.1"}]}"#
         let e = Simulators.entries(devicesJSON: Data(devices.utf8), runtimesJSON: Data(runtimes.utf8))
-        // Platform order, then names in byte order ("Pro" before "mini"); full runtime versions.
         #expect(e.map(\.udid) == ["C", "B", "A"])
         #expect(e[1].os == "26.4.1" && e[0].os == "26.5" && e[0].platform == "tvOS Simulator")
     }
 
-    /// device-pairing.md §14.2: a watchOS scheme lists a phone whose active
-    /// paired watch is a watchOS simulator as the phone itself; the watches
-    /// under their own names; an iOS scheme is unchanged.
     @Test func phoneWithActiveWatchIsAWatchSchemeDestination() {
         let devices = #"{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-27-0":[{"name":"iPhone 18 Pro","udid":"P1","isAvailable":true},{"name":"iPhone 18","udid":"P2","isAvailable":true},{"name":"iPhone Air","udid":"P3","isAvailable":true}],"com.apple.CoreSimulator.SimRuntime.watchOS-27-0":[{"name":"Watch A","udid":"W1","isAvailable":true},{"name":"Watch B","udid":"W2","isAvailable":true}]}}"#
         let runtimes = #"{"runtimes":[{"identifier":"com.apple.CoreSimulator.SimRuntime.iOS-27-0","version":"27.0"},{"identifier":"com.apple.CoreSimulator.SimRuntime.watchOS-27-0","version":"27.0"}]}"#
         let sims = Simulators.entries(devicesJSON: Data(devices.utf8), runtimesJSON: Data(runtimes.utf8))
-        // P1 + W1 active; P2's pair inactive; P3's watch is not an available simulator.
         let pairs = #"{"pairs":{"A":{"watch":{"name":"Watch A","udid":"W1","state":"Shutdown"},"phone":{"name":"iPhone 18 Pro","udid":"P1","state":"Booted"},"state":"(active, disconnected)"},"B":{"watch":{"name":"Watch B","udid":"W2"},"phone":{"name":"iPhone 18","udid":"P2"},"state":"(inactive, disconnected)"},"C":{"watch":{"name":"Gone","udid":"W9"},"phone":{"name":"iPhone Air","udid":"P3"},"state":"(active, connected)"}}}"#
         let phones = Simulators.phonesWithActiveWatch(pairsJSON: Data(pairs.utf8), simulators: sims)
         #expect(phones == ["P1"])

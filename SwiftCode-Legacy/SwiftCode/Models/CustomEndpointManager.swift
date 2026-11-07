@@ -34,8 +34,6 @@ final class CustomEndpointManager {
     var endpoints: [SavedCustomEndpoint] = [] {
         didSet {
             save()
-            // M-4: endpoint edits change the model catalog — refresh discovery
-            // so added/removed endpoints are reflected immediately.
             Task { await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true) }
         }
     }
@@ -67,12 +65,10 @@ final class CustomEndpointManager {
         load()
     }
 
-    /// Manually deletes an endpoint by ID. This is the only way endpoints can be removed.
     func deleteEndpoint(id: UUID) {
         endpoints.removeAll { $0.id == id }
         if endpoints.isEmpty {
             UserDefaults.standard.set(true, forKey: manuallyClearedKey)
-            // Also write empty state to persistent storage
             try? Data("[]".utf8).write(to: homeDirectoryURL, options: .atomic)
             if let appSupport = appSupportURL {
                 try? Data("[]".utf8).write(to: appSupport, options: .atomic)
@@ -85,22 +81,17 @@ final class CustomEndpointManager {
     func save() {
         guard let data = try? JSONEncoder().encode(endpoints) else { return }
 
-        // 1. UserDefaults
         UserDefaults.standard.set(data, forKey: userDefaultsKey)
 
         if !endpoints.isEmpty {
             UserDefaults.standard.set(false, forKey: manuallyClearedKey)
 
-            // 2. Persistent Home Directory (~/.swiftcode/custom_endpoints.json)
-            // Survives app deletion, Xcode DerivedData wipes, and app rebuilds
             try? data.write(to: homeDirectoryURL, options: .atomic)
 
-            // 3. Application Support (Secondary backup)
             if let appSupport = appSupportURL {
                 try? data.write(to: appSupport, options: .atomic)
             }
 
-            // 4. macOS Keychain (Tertiary backup - persists across bundle deletion)
             if let jsonString = String(data: data, encoding: .utf8) {
                 KeychainService.shared.set(jsonString, forKey: keychainKey)
             }
@@ -108,7 +99,6 @@ final class CustomEndpointManager {
     }
 
     func load() {
-        // Priority 1: Check UserDefaults
         if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
            let decoded = try? JSONDecoder().decode([SavedCustomEndpoint].self, from: data),
            !decoded.isEmpty {
@@ -117,11 +107,8 @@ final class CustomEndpointManager {
             return
         }
 
-        // Check if user manually deleted all endpoints previously
         let wasManuallyCleared = UserDefaults.standard.bool(forKey: manuallyClearedKey)
 
-        // Priority 2: Persistent Home Directory (~/.swiftcode/custom_endpoints.json)
-        // This is the primary safety net when app is deleted or rebuilt
         if FileManager.default.fileExists(atPath: homeDirectoryURL.path),
            let fileData = try? Data(contentsOf: homeDirectoryURL),
            let decoded = try? JSONDecoder().decode([SavedCustomEndpoint].self, from: fileData) {
@@ -136,7 +123,6 @@ final class CustomEndpointManager {
             }
         }
 
-        // Priority 3: Application Support Directory
         if let appSupport = appSupportURL,
            FileManager.default.fileExists(atPath: appSupport.path),
            let fileData = try? Data(contentsOf: appSupport),
@@ -148,7 +134,6 @@ final class CustomEndpointManager {
             return
         }
 
-        // Priority 4: macOS Keychain Backup
         if let keychainJson = KeychainService.shared.get(forKey: keychainKey),
            let kcData = keychainJson.data(using: .utf8),
            let decoded = try? JSONDecoder().decode([SavedCustomEndpoint].self, from: kcData),

@@ -1,39 +1,12 @@
-// The software rasteriser: display lists to pixels with ThorVG's CPU engine
-// (09-open-design.md §5.1; vendored as CThorVG, MIT). It is the reference
-// renderer for image tests, the headless back end, and the content source of
-// the Vulkan compositor's layers.
-//
-// Mapping (09 §3.6 lists what ThorVG cannot do):
-// - fill / stroke → a Shape with the path (quadratic segments become cubics);
-//   colours and gradients → solid fills and Linear/Radial/Conic gradients.
-// - glyph runs → one Shape with the outlines of all glyphs (cached per
-//   source and glyph), filled with the run's paint. (R13) A run in a solid
-//   colour under a translation and uniform scale is drawn once into an image
-//   at its device size and sub-pixel phase (1/64 pixel, ThorVG's own
-//   precision) and then placed as a Picture at whole pixels: scrolling text
-//   (an editor's lines) reuses the images instead of filling thousands of
-//   glyph outlines every frame. The images are kept by run content, size,
-//   colour and phase (least recently used ones go past 48 MB).
-// - images → a Picture loaded from pixels decoded once per `RenderImage`.
-// - groups → a Scene with the transform, opacity, blend method, clip shapes
-//   (nested scenes when there are several), an alpha mask scene, and scene
-//   effects (Gaussian blur, drop shadow).
-// Colours are composited in the sRGB transfer space with premultiplied
-// 8-bit channels, as ThorVG does.
-
 import CThorVG
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// ThorVG's engine is global; it is initialised once (no worker threads, so
-/// rendering is deterministic).
 private let thorvgReady: Bool = tvg_engine_init(0) == TVG_RESULT_SUCCESS
 
-/// Rasterises display lists on the CPU. Not thread-safe: use one per thread.
 public final class SoftwareRasterizer {
-    /// Decoded image pixels (premultiplied ABGR8888 words) per image.
     private final class DecodedImage {
         weak var image: RenderImage?
         let size: PixelSize
@@ -51,12 +24,9 @@ public final class SoftwareRasterizer {
         let glyph: UInt32
     }
 
-    /// A glyph run drawn into premultiplied ABGR8888 pixels (R13).
     private final class RunImage {
         let words: UnsafeMutableBufferPointer<UInt32>
         let width: Int, height: Int
-        /// The image's top-left corner relative to the whole-pixel part of
-        /// the run's device origin.
         let originX: Int, originY: Int
         var lastUse = 0
         init(width: Int, height: Int, originX: Int, originY: Int) {
@@ -73,12 +43,12 @@ public final class SoftwareRasterizer {
 
     private struct RunKey: Hashable {
         let source: ObjectIdentifier
-        let size: Int64            // device pixels per em × 64
+        let size: Int64
         let shear: Int32
         let color: UInt32
-        let phaseX: Int8, phaseY: Int8 // 1/64 pixel
+        let phaseX: Int8, phaseY: Int8
         let glyphs: [UInt32]
-        let offsets: [Int32]       // device positions relative to the first glyph × 64, x then y
+        let offsets: [Int32]
     }
 
     private var images: [ObjectIdentifier: DecodedImage] = [:]
@@ -86,33 +56,24 @@ public final class SoftwareRasterizer {
     private var runImages: [RunKey: RunImage] = [:]
     private var runImageBytes = 0
     private var renderCount = 0
-    /// The transform from the item being converted to device pixels.
     private var deviceTransform = RenderTransform.identity
-    /// Run images drawn and reused, and runs seen for the first time, in
-    /// the last call (tests, benchmarks).
     public private(set) var runImageStats = (drawn: 0, reused: 0, firstSeen: 0)
     private var seenRuns: Set<RunKey> = []
-    /// The canvas run images are drawn with (reused).
     private var runCanvas: Tvg_Canvas?
-    /// R13: whether solid glyph runs go through the run image cache.
     public var cachesGlyphRuns = true
     private var glyphSources: [ObjectIdentifier: GlyphSourceRef] = [:]
-    /// Things ThorVG could not render in the last call (reported once each).
     public private(set) var unsupported: Set<String> = []
 
     public init() {}
 
     deinit { if let c = runCanvas { tvg_canvas_destroy(c) } }
 
-    /// Renders `frame` into a new image of `size` pixels.
     public func render(_ frame: RenderFrame, size: PixelSize) -> PixelImage {
         var image = PixelImage(size: size)
         render(frame.displayList, into: &image, scale: frame.scale, background: frame.background, region: nil)
         return image
     }
 
-    /// Renders `list` into `image`. With `region`, only those pixels are
-    /// cleared and redrawn; the rest of `image` is kept.
     public func render(_ list: DisplayList, into image: inout PixelImage, scale: Double,
                        background: RenderColor, region: PixelRect?) {
         unsupported = []
@@ -146,8 +107,6 @@ public final class SoftwareRasterizer {
         pruneCaches()
     }
 
-    // MARK: - Items
-
     private func paint(for item: DisplayItem) -> Tvg_Paint? {
         switch item.content {
         case let .fill(path, paint, rule):
@@ -176,9 +135,6 @@ public final class SoftwareRasterizer {
         deviceTransform = outerTransform.concatenating(g.transform)
         defer { deviceTransform = outerTransform }
         for c in g.children { if let p = paint(for: c) { tvg_scene_add(content, p) } }
-        // Clips and the mask are in the group's local coordinates (the
-        // children's), so they apply to untransformed wrapper scenes; the
-        // transform goes on the outermost scene.
         var node = content
         var wrapped = false
         func wrap() {
@@ -221,7 +177,6 @@ public final class SoftwareRasterizer {
             case let .shadow(color, radius, x, y):
                 let (r, gg, b, a) = color.rgba8
                 let distance = (x * x + y * y).squareRoot()
-                // ThorVG measures the shadow direction clockwise from "up".
                 var angle = atan2(x, -y) * 180 / .pi
                 if angle < 0 { angle += 360 }
                 tvg_scene_add_effect_drop_shadow(node, Int32(r), Int32(gg), Int32(b), Int32(a), angle, distance, max(radius / 2, 0.01), 100)
@@ -264,7 +219,6 @@ public final class SoftwareRasterizer {
                 glyphs[gk] = outline
             }
             if outline.isEmpty { continue }
-            // Design units (y up) → item coordinates (y down) at the origin.
             let t = RenderTransform(a: s, b: 0, c: -run.shear * s, d: -s, tx: p.x, ty: p.y)
             all.elements.append(contentsOf: outline.applying(t).elements)
         }
@@ -281,7 +235,6 @@ public final class SoftwareRasterizer {
         return o
     }
 
-    /// The run as a Picture of its cached image (nil: draw it as a shape).
     private func cachedRunPicture(_ run: RenderGlyphRun) -> Tvg_Paint? {
         let t = deviceTransform
         guard case .color(let color) = run.paint, t.b == 0, t.c == 0, t.a > 0, abs(t.a - t.d) < 1e-9,
@@ -308,17 +261,11 @@ public final class SoftwareRasterizer {
             image = cached
             runImageStats.reused += 1
         } else if !seenRuns.contains(key) {
-            // First sighting: drawn as a shape (a page jump shows only new
-            // lines; drawing them into images would cost more than it
-            // saves). Seen again in a later call, it gets its image.
             seenRuns.insert(key)
             if seenRuns.count > 50_000 { seenRuns.removeAll(keepingCapacity: true) }
             runImageStats.firstSeen += 1
             return nil
         } else {
-            // The outlines exactly as the shape path draws them (item
-            // coordinates under the device transform), moved by whole
-            // pixels into the image, so that the coverage is the same.
             let s = run.size / src.unitsPerEm
             var all = RenderPath()
             for (gl, p) in zip(run.glyphs, run.positions) {
@@ -357,8 +304,6 @@ public final class SoftwareRasterizer {
             tvg_paint_rel(pic)
             return nil
         }
-        // In the item's coordinates: device (whole + origin) maps back
-        // through the device transform's inverse.
         tvg_picture_set_size(pic, Float(Double(image.width) / scale), Float(Double(image.height) / scale))
         tvg_picture_set_filter(pic, TVG_FILTER_METHOD_NEAREST)
         let lx = p0.x + (whole.x + Double(image.originX) - device.x) / scale
@@ -367,8 +312,6 @@ public final class SoftwareRasterizer {
         tvg_paint_set_transform(pic, &m)
         return pic
     }
-
-    // MARK: - Paths and paints
 
     private func shape(_ path: RenderPath) -> Tvg_Paint? {
         guard !path.isEmpty, let s = tvg_shape_new() else { return nil }
@@ -461,8 +404,6 @@ public final class SoftwareRasterizer {
             return g
         case let .radialGradient(s, c, r0, r1, sp):
             guard let g = tvg_radial_gradient_new() else { return nil }
-            // ThorVG's radial gradient runs from the focal radius (0) to the
-            // outer radius (1); SwiftUI's start radius maps to the focal one.
             tvg_radial_gradient_set(g, Float(c.x), Float(c.y), Float(max(r1, 0.0001)), Float(c.x), Float(c.y), Float(max(0, min(r0, r1))))
             let cs = stops(s)
             tvg_gradient_set_color_stops(g, cs, UInt32(cs.count))
@@ -477,9 +418,6 @@ public final class SoftwareRasterizer {
         }
     }
 
-    /// Maps stops of a sweep shorter than a full turn onto ThorVG's full
-    /// turn. SwiftCode's choice for the uncovered part: the end colour up to the
-    /// middle of the gap, the start colour after it.
     static func conicStops(_ s: [RenderGradientStop], sweep: Double) -> [RenderGradientStop] {
         let turn = 2 * Double.pi
         guard sweep > 0, sweep < turn - 1e-9, let first = s.first, let last = s.last else { return s }
@@ -520,8 +458,6 @@ public final class SoftwareRasterizer {
                    e31: 0, e32: 0, e33: 1)
     }
 
-    // MARK: - Images
-
     private func decode(_ img: RenderImage) -> DecodedImage? {
         let key = ObjectIdentifier(img)
         if let d = images[key], d.image === img { return d }
@@ -535,8 +471,6 @@ public final class SoftwareRasterizer {
         return d
     }
 
-    /// The pixels of an image (premultiplied RGBA8); PNG and JPEG are decoded
-    /// by ThorVG's loaders (lodepng and jpgd).
     public static func decodePixels(_ img: RenderImage) -> PixelImage? {
         switch img.source {
         case .pixels(let p): return p
@@ -545,7 +479,6 @@ public final class SoftwareRasterizer {
         }
     }
 
-    /// Decodes PNG or JPEG bytes to premultiplied RGBA8.
     public static func decode(_ data: Data, mime: String) -> PixelImage? {
         guard thorvgReady, let pic = tvg_picture_new() else { return nil }
         let ok = data.withUnsafeBytes { raw -> Bool in
@@ -578,8 +511,6 @@ public final class SoftwareRasterizer {
 
     private func pruneCaches() {
         images = images.filter { $0.value.image != nil }
-        // Run images: the least recently used go past 48 MB (the images of
-        // this call are kept: ThorVG has read them by now).
         let limit = 48 << 20
         if runImageBytes > limit {
             let byAge = runImages.sorted { $0.value.lastUse < $1.value.lastUse }
@@ -598,7 +529,6 @@ public final class SoftwareRasterizer {
         let (r, g, b, a) = color.rgba8
         let pr = UInt8((Int(r) * Int(a) + 127) / 255), pg = UInt8((Int(g) * Int(a) + 127) / 255), pb = UInt8((Int(b) * Int(a) + 127) / 255)
         let w = image.size.width
-        // One 32-bit word per pixel (R, G, B, A in memory order).
         var word: UInt32 = 0
         withUnsafeMutableBytes(of: &word) { $0[0] = pr; $0[1] = pg; $0[2] = pb; $0[3] = a }
         image.rgba.withUnsafeMutableBytes { raw in

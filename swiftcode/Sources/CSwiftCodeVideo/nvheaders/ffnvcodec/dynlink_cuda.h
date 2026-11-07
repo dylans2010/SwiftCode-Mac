@@ -1,30 +1,3 @@
-/*
- * This copyright notice applies to this header file only:
- *
- * Copyright (c) 2016
- *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the software, and to permit persons to whom the
- * software is furnished to do so, subject to the following
- * conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- */
-
 #if !defined(FFNV_DYNLINK_CUDA_H) && !defined(CUDA_VERSION)
 #define FFNV_DYNLINK_CUDA_H
 
@@ -70,9 +43,6 @@ typedef enum cudaError_enum {
     CUDA_ERROR_UNKNOWN = 999
 } CUresult;
 
-/**
- * Device properties (subset)
- */
 typedef enum CUdevice_attribute_enum {
     CU_DEVICE_ATTRIBUTE_CLOCK_RATE = 13,
     CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT = 14,
@@ -294,15 +264,10 @@ typedef struct CUDA_TEXTURE_DESC_st {
     int reserved[12];
 } CUDA_TEXTURE_DESC;
 
-/* Unused type */
 typedef struct CUDA_RESOURCE_VIEW_DESC_st CUDA_RESOURCE_VIEW_DESC;
 
 typedef unsigned int GLenum;
 typedef unsigned int GLuint;
-/*
- * Prefix type name to avoid collisions. Clients using these types
- * will include the real headers with real definitions.
- */
 typedef int32_t ffnv_EGLint;
 typedef void *ffnv_EGLStreamKHR;
 

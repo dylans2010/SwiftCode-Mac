@@ -1,10 +1,5 @@
-// Actions, action sets and triggers (object-model.md §8–§9).
-
 import Foundation
 
-// MARK: - Actions
-
-/// Abstract action.
 open class HMAction: NSObject, @unchecked Sendable {
     public let uniqueIdentifier: UUID
     weak var actionSet: HMActionSet?
@@ -17,7 +12,6 @@ open class HMAction: NSObject, @unchecked Sendable {
     func apply(_ r: SwiftCodeActionRecord, characteristic: HMCharacteristic?) {}
     func record() -> Result<SwiftCodeActionRecord, HMError> { .failure(HMError(.invalidClass)) }
 
-    /// A mirror for an action another client created.
     static func make(_ r: SwiftCodeActionRecord, characteristic: HMCharacteristic?) -> HMAction {
         guard let c = characteristic else { return HMAction(id: r.id) }
         switch r.targetValue {
@@ -30,8 +24,6 @@ open class HMAction: NSObject, @unchecked Sendable {
     }
 }
 
-/// Writes `targetValue` to `characteristic` when its action set runs.
-/// An action belongs to one action set (30 otherwise).
 open class HMCharacteristicWriteAction<TargetValueType: NSCopying>: HMAction, @unchecked Sendable {
     public private(set) var characteristic: HMCharacteristic
     public private(set) var targetValue: TargetValueType
@@ -59,7 +51,6 @@ open class HMCharacteristicWriteAction<TargetValueType: NSCopying>: HMAction, @u
         }
     }
 
-    /// Changes the value (validated against the characteristic's metadata).
     public func updateTargetValue(_ targetValue: TargetValueType, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home = actionSet?.home else {
             self.targetValue = targetValue
@@ -82,16 +73,12 @@ open class HMCharacteristicWriteAction<TargetValueType: NSCopying>: HMAction, @u
     }
 }
 
-// MARK: - Action sets
-
 open class HMActionSet: NSObject, @unchecked Sendable {
     public let uniqueIdentifier: UUID
     public private(set) var name = ""
-    /// `HMActionSetType…` string.
     public private(set) var actionSetType = HMActionSetTypeUserDefined
     public private(set) var isExecuting = false
     public private(set) var lastExecutionDate: Date?
-    /// The actions, in the order they were added (execution order).
     var actionList: [HMAction] = []
     weak var home: HMHome?
 
@@ -117,7 +104,6 @@ open class HMActionSet: NSObject, @unchecked Sendable {
         home.connection.simple(.renameActionSet(home: home.uniqueIdentifier, actionSet: uniqueIdentifier, name: name), completion)
     }
 
-    /// Adds a write action; its value is validated before any I/O (43–46).
     public func addAction(_ action: HMAction, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         if let owner = action.actionSet, owner !== self { fail(completion, .actionInAnotherActionSet); return }
@@ -147,10 +133,6 @@ open class HMActionSet: NSObject, @unchecked Sendable {
     public func removeAction(_ action: HMAction) async throws { try await asyncCall { removeAction(action, completionHandler: $0) } }
 }
 
-// MARK: - Triggers
-
-/// Base trigger. Apps create `HMTimerTrigger` or `HMEventTrigger` objects and
-/// add them with `HMHome.addTrigger`; until then updates apply locally.
 open class HMTrigger: NSObject, @unchecked Sendable {
     public let uniqueIdentifier: UUID
     public internal(set) var name: String
@@ -185,8 +167,6 @@ open class HMTrigger: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Sends an update of an added trigger (the new state goes to the store;
-    /// the mirror changes when the store confirms), or applies it locally.
     func change(_ completion: @escaping (Error?) -> Void, apply: () -> Void, revert: () -> Void) {
         guard let home else { apply(); onMain { completion(nil) }; return }
         apply()
@@ -213,7 +193,6 @@ open class HMTrigger: NSObject, @unchecked Sendable {
                                                            actionSet: actionSet.uniqueIdentifier), completion)
     }
 
-    /// Enabling needs at least one action set (26).
     public func enable(_ enable: Bool, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         home.connection.simple(.enableTrigger(home: home.uniqueIdentifier, trigger: uniqueIdentifier, enabled: enable), completion)
@@ -227,11 +206,9 @@ open class HMTrigger: NSObject, @unchecked Sendable {
     public func enable(_ enable: Bool) async throws { try await asyncCall { self.enable(enable, completionHandler: $0) } }
 }
 
-/// Fires at `fireDate`, optionally repeating (object-model.md §9).
 open class HMTimerTrigger: HMTrigger, @unchecked Sendable {
     public private(set) var fireDate: Date
     public private(set) var recurrence: DateComponents?
-    /// Always nil (the time-zone variant is deprecated; simulator-baseline.md §7).
     public var timeZone: TimeZone? { nil }
     public var recurrenceCalendar: Calendar? { nil }
 
@@ -263,13 +240,11 @@ open class HMTimerTrigger: HMTrigger, @unchecked Sendable {
         if case .timer(let f, let rec) = r.kind { fireDate = f; recurrence = rec }
     }
 
-    /// Past dates fail (28); dates must be on a whole minute (70).
     public func updateFireDate(_ fireDate: Date, completionHandler completion: @escaping (Error?) -> Void) {
         let old = self.fireDate
         change(completion, apply: { self.fireDate = fireDate }, revert: { self.fireDate = old })
     }
 
-    /// Recurrence limits: 69, 42, 72 (object-model.md §9).
     public func updateRecurrence(_ recurrence: DateComponents?, completionHandler completion: @escaping (Error?) -> Void) {
         let old = self.recurrence
         change(completion, apply: { self.recurrence = recurrence }, revert: { self.recurrence = old })
@@ -281,14 +256,10 @@ open class HMTimerTrigger: HMTrigger, @unchecked Sendable {
     }
 }
 
-/// Fires on events, optionally ending on end events, limited to recurrences
-/// and a predicate (object-model.md §9). Runs on the home hub, which the
-/// store plays (`homeHubState` connected); without one it stays disabled.
 open class HMEventTrigger: HMTrigger, @unchecked Sendable {
     public private(set) var events: [HMEvent] = []
     public private(set) var endEvents: [HMEvent] = []
     public private(set) var recurrences: [DateComponents]?
-    /// Kept by this client only in this round (not stored; README "Deferred").
     public private(set) var predicate: NSPredicate?
     public private(set) var executeOnce = false
     public private(set) var triggerActivationState: HMEventTriggerActivationState = .disabled
@@ -355,7 +326,6 @@ open class HMEventTrigger: HMTrigger, @unchecked Sendable {
         change(completion, apply: { self.executeOnce = executeOnce }, revert: { self.executeOnce = old })
     }
 
-    /// The predicate stays with this client in this round.
     public func updatePredicate(_ predicate: NSPredicate?, completionHandler completion: @escaping (Error?) -> Void) {
         self.predicate = predicate
         onMain { completion(nil) }

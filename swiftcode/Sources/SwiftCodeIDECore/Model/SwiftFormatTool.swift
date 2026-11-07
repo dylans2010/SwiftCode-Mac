@@ -1,12 +1,7 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// Editor ▸ Structure ▸ Format Selection / Format File
-/// (`specs/ide/reference-ui-5.md` §6.4): runs the toolchain's open-source
-/// `swift-format` (swiftlang/swift-format, Apache 2.0) as a separate tool;
-/// SwiftCode links none of its code.
 public enum SwiftFormatTool {
-    /// `swift-format` on the PATH, else the active toolchain's (`xcrun --find`).
     public static func locate() -> URL? {
         if let override = ProcessInfo.processInfo.environment["SWIFTCODE_SWIFT_FORMAT"], !override.isEmpty {
             return FileManager.default.isExecutableFile(atPath: override) ? URL(fileURLWithPath: override) : nil
@@ -31,8 +26,6 @@ public enum SwiftFormatTool {
         p.standardInput = input == nil ? FileHandle.nullDevice : inp
         guard (try? p.run()) != nil else { return nil }
         if let input {
-            // Write from another thread so a large output cannot block us; a
-            // thread of its own, not a global queue (see Subprocess.run).
             let data = Data(input.utf8)
             let w = inp.fileHandleForWriting
             Thread { w.write(data); try? w.close() }.start()
@@ -54,8 +47,6 @@ public enum SwiftFormatTool {
         }
     }
 
-    /// Formats `text` (a Swift file named `fileName`, for configuration
-    /// lookup); `lines` limits it to a 1-based line range.
     public static func format(_ text: String, fileName: String, lines: ClosedRange<Int>? = nil, tool: URL? = locate()) -> Result<String, Failure> {
         guard let tool else { return .failure(.toolNotFound) }
         var args = ["format", "--assume-filename", fileName]

@@ -1,11 +1,7 @@
-// Ported from Legacy `SwiftCode/Views/Editor/CodeEditorView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: CodeEditorView, EditorCodeFormatter, TextEditorRepresentable, LineNumberView, CodeEditorTextView, CodingToolMenuPayload.
-
 import AppKit
 import SwiftUI
 import UIKit
 
-// MARK: - Code Editor View
 struct CodeEditorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var settings: AppSettings
@@ -150,8 +146,6 @@ struct CodeEditorView: View {
         }
     }
 
-    // MARK: - Assist Diff Banner
-
     @ViewBuilder
     private func assistDiffBanner(_ diff: ProjectSessionStore.AssistFileDiff) -> some View {
         HStack(spacing: 8) {
@@ -218,8 +212,6 @@ struct CodeEditorView: View {
         )
     }
 
-    // MARK: - File Tabs Bar
-
     private var fileTabsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 1) {
@@ -274,8 +266,6 @@ struct CodeEditorView: View {
             sessionStore.openFile(node)
         }
     }
-
-    // MARK: - Editor Action Bar (Breadcrumb + Format)
 
     private var editorActionBar: some View {
         HStack(spacing: 0) {
@@ -420,8 +410,6 @@ struct CodeEditorView: View {
         )
     }
 
-    // MARK: - Subviews
-
     private var searchBar: some View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
@@ -545,8 +533,6 @@ struct CodeEditorView: View {
         }
         .presentationDetents([.medium])
     }
-
-    // MARK: - Actions
 
     @State private var pendingSaveTask: Task<Void, Never>?
 
@@ -806,9 +792,6 @@ final class LineNumberView: NSView {
             let useAttrs = (i % 5 == 0 || i == 1) ? activeAttrs : attrs
             let labelSize = label.size(withAttributes: useAttrs)
             let x = bounds.width - labelSize.width - 8
-            // Align baseline with the code line: topInset + (line-1) * lineHeight
-            // Drawing with `draw(at:)` places top-left of the glyph at the given point.
-            // Shift down by (lineHeight - labelSize.height) / 2 to vertically centre.
             let codeLine_y = topInset + CGFloat(i - 1) * lineHeight
             let y = codeLine_y + (lineHeight - labelSize.height) / 2
             label.draw(at: CGPoint(x: x, y: y), withAttributes: useAttrs)
@@ -821,11 +804,8 @@ final class CodeEditorTextView: NSTextView {
     var filePath: String = "File.swift"
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        // Preserve standard macOS contextual menu:
-        // Cut, Copy, Paste, Share, Font, Spelling and Grammar, Speech, Services, etc.
         guard let menu = super.menu(for: event) else { return nil }
 
-        // Capture current selected text or fallback to line/symbol under cursor
         var effectiveRange = self.selectedRange()
         let nsString = self.string as NSString
         var selectedCode = ""
@@ -833,7 +813,6 @@ final class CodeEditorTextView: NSTextView {
         if effectiveRange.length > 0 && effectiveRange.location + effectiveRange.length <= nsString.length {
             selectedCode = nsString.substring(with: effectiveRange)
         } else if nsString.length > 0 {
-            // If no range is selected, find the character index under the click event
             let mousePoint = self.convert(event.locationInWindow, from: nil)
             let charIndex = self.characterIndexForInsertion(at: mousePoint)
             if charIndex < nsString.length {
@@ -846,10 +825,8 @@ final class CodeEditorTextView: NSTextView {
             }
         }
 
-        // Add standard separator before Coding Tools
         menu.addItem(NSMenuItem.separator())
 
-        // Create the Coding Tools menu item with submenu
         let codingToolsRoot = NSMenuItem(title: "Coding Tools", action: nil, keyEquivalent: "")
         if let icon = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Coding Tools") {
             codingToolsRoot.image = icon

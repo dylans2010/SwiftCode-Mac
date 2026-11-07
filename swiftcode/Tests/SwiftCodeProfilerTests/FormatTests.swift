@@ -13,7 +13,6 @@ import Testing
         t.hangs = [.init(thread: 7, begin: 0, end: 9_000_000)]
         t.presents = [1, 2, 3]
         t.gpu = [.init(pid: 7, process: "App", submit: 5, end: 9, gpuNs: 3)]
-        // An absolute kernel address does not fit a double: written as hex.
         var b = GaugeTraceBuilder(recording: t.recording)
         b.update { $0 = t }
         let kernelFrame = b.frameID(.init(image: -1, offset: 0xFFFF_0000_0000_1234))
@@ -35,7 +34,6 @@ import Testing
             #expect(e.description.contains("newer"))
         }
         #expect(throws: (any Error).self) { try GaugeTraceCodec.decode(Data([0x1F, 0x8B, 0, 0])) }
-        // A sample naming a stack that does not exist.
         let bad = Data("{\"format\":\"swiftcode-gauge-trace\",\"version\":1,\"samples\":{\"time\":[1],\"thread\":[1],\"stack\":[5],\"state\":[\"user\"]}}".utf8)
         #expect(throws: GaugeTraceCodec.Failure.self) { try GaugeTraceCodec.decode(bad) }
     }
@@ -46,7 +44,6 @@ import Testing
     }
 }
 
-/// DWARF line programs built by hand (DWARF 4 and 5 encodings).
 @Suite struct DWARFLineTests {
     static func uleb(_ v: UInt64) -> [UInt8] {
         var v = v, out: [UInt8] = []
@@ -73,7 +70,6 @@ import Testing
 
     @Test func version4() {
         let tail: [UInt8] = Array("/src".utf8) + [0, 0] + Array("a.c".utf8) + [0, 1, 0, 0, 0]
-        // set_address 0x1000; advance_line 9; copy; special (+8 bytes, +1 line); advance_pc 1×4; end_sequence.
         let program = Self.setAddress(0x1000) + [3, 9, 1, 47, 2, 1, 0, 1, 1]
         let table = DWARFLineTable(debugLine: Self.unit(version: 4, headerTail: tail, program: program))
         #expect(table.lookup(0x1000)! == ("/src/a.c", 10))
@@ -89,11 +85,8 @@ import Testing
         var tail: [UInt8] = [1] + Self.uleb(1) + Self.uleb(0x1F) + Self.uleb(2) + Self.le(UInt32(0)) + Self.le(UInt32(7))
         tail += [2] + Self.uleb(1) + Self.uleb(0x08) + Self.uleb(2) + Self.uleb(0x0B) + Self.uleb(2)
         tail += Array("main.swift".utf8) + [0, 0] + Array("util.h".utf8) + [0, 1]
-        // set_address 0x2000; set_file 1; advance_line 4; copy; special (+4, +1);
-        // set_file 0; advance_pc 1×4; advance_line 9; copy; advance_pc 1×4; end_sequence.
         let program = Self.setAddress(0x2000) + [4, 1, 3, 4, 1, 20 + 13, 4, 0, 2, 1, 3, 9, 1, 2, 1, 0, 1, 1]
         let two = Self.unit(version: 5, headerTail: tail, program: program)
-        // Two units: the same unit twice at another address checks the file numbering of the second unit.
         let table = DWARFLineTable(debugLine: two, lineStrings: lineStr)
         #expect(table.lookup(0x2000)! == ("/build/inc/util.h", 5))
         #expect(table.lookup(0x2005)!.line == 6)
@@ -102,7 +95,6 @@ import Testing
     }
 }
 
-/// A minimal ELF64 file: one PT_LOAD, .text, .symtab, .strtab, .shstrtab, a build id.
 @Suite struct ELFTests {
     static func le<T: FixedWidthInteger>(_ v: T) -> [UInt8] { withUnsafeBytes(of: v.littleEndian) { Array($0) } }
 
@@ -114,7 +106,6 @@ import Testing
         }
         let symtab = sym(0, 0, 0, 0, 0) + sym(1, 0x12, 1, 0x401000, 0x40) + sym(10, 0x12, 1, 0x401040, 0) + sym(15, 0x11, 1, 0x402000, 8)
         let note: [UInt8] = le(UInt32(4)) + le(UInt32(4)) + le(UInt32(3)) + Array("GNU\0".utf8) + [0xDE, 0xAD, 0xBE, 0xEF]
-        // Layout: header (64), phdr (56) at 64, then data from 0x100.
         var body: [UInt8] = []
         let textOff = 0x100, textSize = 0x80
         var file = [UInt8](repeating: 0, count: textOff)
@@ -149,11 +140,9 @@ import Testing
         #expect(elf.type == 3 && elf.machine == 62)
         #expect(elf.functions.map(\.name) == ["hot_loop", "main"])
         #expect(elf.function(containing: 0x401010)?.name == "hot_loop")
-        // main has no size: up to the end (16 bytes when it is the last).
         #expect(elf.function(containing: 0x401045)?.name == "main")
         #expect(elf.function(containing: 0x402000) == nil)
         #expect(elf.buildID == "deadbeef")
-        // A PIE mapped at 0x7f0000400000 from offset 0: bias = start − vaddr.
         #expect(elf.loadBias(mappingStart: 0x7F00_0040_0000, fileOffset: 0) == 0x7F00_0000_0000)
         #expect(throws: ELFFile.Failure.self) { try ELFFile(bytes: [UInt8](repeating: 0, count: 100)) }
     }
@@ -194,20 +183,16 @@ import Testing
     }
 }
 
-/// `nlist_64` symbol tables in a synthetic Mach-O (SwiftCodeMachO.SymbolTable).
 @Suite struct MachOSymbolTests {
     static func le<T: FixedWidthInteger>(_ v: T) -> [UInt8] { withUnsafeBytes(of: v.littleEndian) { Array($0) } }
     static func name16(_ s: String) -> [UInt8] { Array(s.utf8.prefix(16)) + [UInt8](repeating: 0, count: 16 - min(16, s.utf8.count)) }
 
-    /// __TEXT (vm 0x1_0000_0000) with __text at +0x400 (0x100 bytes),
-    /// __LINKEDIT at file 0x1000 holding the symbols and strings.
     static func make(uuid: [UInt8] = Array(0..<16)) -> [UInt8] {
         let strings: [UInt8] = [0x20, 0] + Array("_main\0_compute\0_data\0ltmp0\0".utf8)
         func nlist(_ strx: UInt32, _ type: UInt8, _ sect: UInt8, _ value: UInt64) -> [UInt8] { le(strx) + [type, sect] + le(UInt16(0)) + le(value) }
         let syms = nlist(2, 0x0F, 1, 0x1_0000_0400) + nlist(8, 0x0F, 1, 0x1_0000_0440) + nlist(17, 0x0F, 2, 0x1_0000_0600)
             + nlist(23, 0x0E, 1, 0x1_0000_0480) + nlist(2, 0x24, 1, 0x1_0000_0400)
         var cmds: [UInt8] = []
-        // LC_SEGMENT_64 __TEXT with __text (code) and __const (data).
         let text: [UInt8] = le(UInt32(0x19)) + le(UInt32(72 + 2 * 80)) + name16("__TEXT") + le(UInt64(0x1_0000_0000)) + le(UInt64(0x1000))
             + le(UInt64(0)) + le(UInt64(0x1000)) + le(UInt32(5)) + le(UInt32(5)) + le(UInt32(2)) + le(UInt32(0))
             + name16("__text") + name16("__TEXT") + le(UInt64(0x1_0000_0400)) + le(UInt64(0x100)) + le(UInt32(0x400)) + le(UInt32(2))
@@ -229,10 +214,9 @@ import Testing
     @Test func functionsFromNlist() throws {
         let table = try SymbolTable(file: ByteReader(Data(Self.make())))
         #expect(table.textAddress == 0x1_0000_0000)
-        // _data is in a non-code section; ltmp0 is a local label; the N_STAB entry is skipped.
         #expect(table.functions.map(\.name) == ["main", "compute"])
         #expect(table.functions[0].size == 0x40)
-        #expect(table.functions[1].size == 0xC0) // to the section's end
+        #expect(table.functions[1].size == 0xC0)
         #expect(table.function(containing: 0x1_0000_0450)?.name == "compute")
         #expect(table.function(containing: 0x1_0000_0500) == nil)
     }

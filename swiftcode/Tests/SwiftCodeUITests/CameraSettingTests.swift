@@ -4,9 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Settings ▸ Simulators ▸ Camera (specs/simulator/camera.md "SwiftCode
-/// implementation", specs/ide/run.md): off by default and not passed; once
-/// chosen, every run passes `--camera <mode>` (the device keeps the last value).
 @MainActor @Suite struct CameraSettingTests {
     @Test func cameraIsOffAndUnsaidUntilChosen() throws {
         let t = TestDefaults("camera-setting")
@@ -27,19 +24,15 @@ import Testing
             .hasSuffix(" '--camera' 'on'"))
         pane.choose("Synthetic pattern", inRow: "Camera")
         #expect(RemoteSimulatorSettings.load(t.defaults).camera == "synthetic")
-        // Turned off again: said explicitly, so the device forgets its camera.
         pane.choose("Off", inRow: "Camera")
         s = RemoteSimulatorSettings.load(t.defaults)
         #expect(s.camera == "off" && s.cameraChosen)
         #expect(RemoteSimulator(settings: s).cameraArguments == ["--camera", "off"])
-        // An unknown stored value reads as off.
         t.defaults.set("bogus", forKey: "SwiftCode.remote.camera")
         #expect(RemoteSimulatorSettings.load(t.defaults).camera == "off")
     }
 }
 
-/// Device Hub ▸ a SwiftCode simulator ▸ Settings ▸ Camera (specs/ide/devices.md
-/// §Camera): the same setting as Settings ▸ Simulators, on SwiftCode rows only.
 @MainActor @Suite struct CameraDevicesTests {
     @Test func swiftcodeRowsShowTheSharedCameraSetting() {
         let t = TestDefaults("camera-devices")
@@ -65,13 +58,11 @@ import Testing
         s = RemoteSimulatorSettings.load(t.defaults)
         #expect(s.camera == "on" && s.cameraChosen && c.cameraTitle == "Host webcam")
         #expect(RemoteSimulator(settings: s).cameraArguments == ["--camera", "on"])
-        // The hub's Start passes it too.
         #expect(RemoteSimulator(settings: s).startCommand.hasSuffix(" '--camera' 'on'"))
         c.chooseCamera("Nonsense")
         #expect(RemoteSimulatorSettings.load(t.defaults).camera == "on")
         c.chooseCamera("Off")
         #expect(RemoteSimulatorSettings.load(t.defaults).camera == "off")
-        // Other simulators have no SwiftCode camera.
         c.select(row: 1)
         #expect(!c.cameraControlsShown)
     }

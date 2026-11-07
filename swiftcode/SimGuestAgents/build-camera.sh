@@ -1,13 +1,4 @@
 #!/bin/sh
-# Builds SwiftCode's guest capture layer libSwiftCodeCamera.dylib (camera/;
-# specs/simulator/camera.md "SwiftCode implementation") for the iOS simulator
-# platform. Runs on macOS only (the iOS simulator SDK's public headers and
-# stubs). The library links no capture framework: AVFoundation is reached
-# at run time, once the app has it.
-#   out/libSwiftCodeCamera.dylib
-# Copy it into the guest-tools directory on the simulator host (next to
-# ylaunch) or pass swiftcode-simd --camera-library; with the device's camera on,
-# swiftcode-simd stages it into the device and the kernel inserts it into apps.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/out}"

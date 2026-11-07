@@ -1,10 +1,3 @@
-# posegen.py (our code, OBS-VISION-FOV): vhid script lines for pose experiments (target 300).
-#  step <deg> [hold_ms]                 one pose, yaw deg, then hold
-#  tstep <x_m> [hold_ms]                one pose, translation x, then hold
-#  repeat <deg> <hz> <dur_ms>           the same yaw pose sent at hz for dur_ms
-#  ramp <deg> <hz> <dur_ms> [hold_ms]   yaw from 0 to deg linearly over dur_ms, sent at hz
-#  sine <amp_deg> <freq_hz> <hz> <dur_ms>  yaw = amp*sin(2*pi*f*t), sent at hz
-#  home [hold_ms]                       identity
 import sys, math
 def pose(deg, tx=0.0):
     h = math.radians(deg) / 2

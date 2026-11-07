@@ -23,7 +23,6 @@ struct RepositoryDetailView: View {
         @Bindable var contextBindable = context
 
         List {
-            // Display Preference Control Section
             Section(header: Text("GitHub Data Display Mode").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Choose the scope of GitHub information shown throughout the workspace:")
@@ -41,7 +40,6 @@ struct RepositoryDetailView: View {
                 .liquidGlass(style: .subtle, cornerRadius: 12)
             }
 
-            // Local Details Info Section
             Section(header: Text("Local Workspace Status").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
                 VStack(alignment: .leading, spacing: 8) {
                     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
@@ -80,7 +78,6 @@ struct RepositoryDetailView: View {
             }
 
             if let details = context.cachedMetadata {
-                // Connected Remote Details Section
                 Section(header: Text("Connected Repository Details").font(.system(size: 10, weight: .bold)).foregroundStyle(.green)) {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -99,7 +96,6 @@ struct RepositoryDetailView: View {
 
                         Divider()
 
-                        // Clone URLs
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Clone URLs")
                                 .font(.subheadline.bold())
@@ -180,7 +176,6 @@ struct RepositoryDetailView: View {
                         }
                         .font(.subheadline)
 
-                        // Languages list
                         if !context.loadedLanguages.isEmpty {
                             Divider()
                             VStack(alignment: .leading, spacing: 6) {
@@ -198,7 +193,6 @@ struct RepositoryDetailView: View {
                             }
                         }
 
-                        // Topics list
                         if let topics = details.topics, !topics.isEmpty {
                             Divider()
                             VStack(alignment: .leading, spacing: 6) {
@@ -218,7 +212,6 @@ struct RepositoryDetailView: View {
 
                         Divider()
 
-                        // Key Statistics
                         HStack(spacing: 20) {
                             statIndicator(title: "Stars", value: "\(details.stargazersCount)", icon: "star.fill", color: .yellow)
                             statIndicator(title: "Forks", value: "\(details.forksCount)", icon: "arrow.branch", color: .orange)
@@ -237,7 +230,6 @@ struct RepositoryDetailView: View {
                     .padding(.vertical, 4)
                 }
             } else if let repo = context.connectedRepository {
-                // Connection without metadata loaded Section
                 Section(header: Text("Linked Remote Details").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Linked Remote: \(repo)")
@@ -268,7 +260,6 @@ struct RepositoryDetailView: View {
                     .padding(.vertical, 4)
                 }
             } else {
-                // Connect Repository Section
                 Section(header: Text("Connect Repository").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Connect an existing GitHub repository by name:")
@@ -349,8 +340,6 @@ struct RepositoryDetailView: View {
         .padding(.vertical, 6)
         .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
     }
-
-    // MARK: - Actions Helper
 
     private func connectRepository(_ repoName: String) {
         guard let project = project else { return }
@@ -446,7 +435,6 @@ struct RepositoryDetailView: View {
     }
 }
 
-// Simple Helper for Horizontal Flow Layout of Topics
 struct HFlowLayout: View {
     let spacing: CGFloat
     let items: [AnyView]
@@ -461,7 +449,6 @@ struct HFlowLayout: View {
     }
 
     var body: some View {
-        // Safe cross-platform fallback for dynamic grid topics display
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: spacing) {
             ForEach(0..<items.count, id: \.self) { index in
                 items[index]

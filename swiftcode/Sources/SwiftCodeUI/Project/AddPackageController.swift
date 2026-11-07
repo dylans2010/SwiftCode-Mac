@@ -1,10 +1,6 @@
 import AppKit
 import SwiftCodeProject
 
-/// File ▸ Add Package Dependencies…: a URL or path field, a dependency
-/// rule with its version fields, then (after the package is fetched) a
-/// product list with the target each is added to. See
-/// `specs/ide/package-dependencies.md` §Add Package sheet.
 @MainActor
 public final class AddPackageController: NSViewController {
     public enum Rule: Int, CaseIterable {
@@ -33,10 +29,7 @@ public final class AddPackageController: NSViewController {
     private let upperLabel = NSTextField(labelWithString: "to")
     private let targets: [String]
 
-    /// (location, rule) → the package's products, or an error text.
-    /// Fetching may clone: the window runs it off the main thread.
     public var onFetch: ((String, SwiftPackageRequirement) async -> Result<[String], Error>)?
-    /// (chosen products, target) after the package is fetched.
     public var onLink: (([String], String) -> Void)?
     public private(set) var fetchedProducts: [String]?
 
@@ -103,7 +96,6 @@ public final class AddPackageController: NSViewController {
 
     private enum Version { static func isVersion(_ s: String) -> Bool { s.first?.isNumber == true } }
 
-    /// The requirement the rule and fields describe.
     public var requirement: SwiftPackageRequirement {
         let v = valueField.stringValue.trimmingCharacters(in: .whitespaces)
         switch rule {
@@ -116,8 +108,6 @@ public final class AddPackageController: NSViewController {
         }
     }
 
-    /// First click fetches the package and lists its products (all
-    /// checked); the second links the checked ones and closes.
     @objc public func addClicked() {
         guard adding == nil else { return }
         adding = Task { [weak self] in
@@ -126,10 +116,8 @@ public final class AddPackageController: NSViewController {
         }
     }
 
-    /// The fetch started by Add Package, while it runs.
     public private(set) var adding: Task<Void, Never>?
 
-    /// Add Package's step: fetch (first) or link (second).
     public func add() async {
         loadViewIfNeeded()
         if fetchedProducts == nil {

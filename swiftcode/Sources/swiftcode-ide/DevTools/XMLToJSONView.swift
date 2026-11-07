@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct XMLToJSONView: View {
@@ -15,7 +12,6 @@ struct XMLToJSONView: View {
                     .buttonStyle(.borderedProminent)
             }
             .padding()
-            
 
             HSplitView {
                 TextEditor(text: $xmlInput)
@@ -28,7 +24,6 @@ struct XMLToJSONView: View {
     }
 
     func convert() {
-        // Simplified XML to JSON logic for demonstration
         var dict: [String: Any] = [:]
         let lines = xmlInput.components(separatedBy: .newlines)
 

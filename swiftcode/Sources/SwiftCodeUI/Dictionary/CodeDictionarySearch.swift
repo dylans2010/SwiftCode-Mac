@@ -1,9 +1,3 @@
-// CodeDictionarySearch.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/CodeDictionarySearch.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: curated suggestion chips (VStack/HStack/State/...); category filter (All/UI/Concurrency/Git/Tooling)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import AppKit
 
@@ -14,7 +8,6 @@ public struct CodeDictionarySearch: View {
     @State private var hoveredItem: String? = nil
     @State private var selectedCategory = "All"
 
-    // List of common search suggestions
     private let suggestions = [
         "VStack", "HStack", "ZStack", "State", "Binding", "Observable", "Task",
         "Actor", "URLSession", "JSONDecoder", "NavigationStack", "Environment",
@@ -41,7 +34,6 @@ public struct CodeDictionarySearch: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Spotlight-style Search Input Header
             HStack(spacing: 14) {
                 Image(systemName: "sparkles")
                     .font(.title2)
@@ -78,7 +70,6 @@ public struct CodeDictionarySearch: View {
 
             Divider()
 
-            // Category filter pills
             HStack(spacing: 8) {
                 ForEach(categories, id: \.self) { cat in
                     Button {
@@ -102,11 +93,9 @@ public struct CodeDictionarySearch: View {
 
             Divider()
 
-            // Spotlight Results & Suggestions List
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if query.isEmpty {
-                        // Recent Searches section
                         let recents = DictionaryManager.shared.history.prefix(5)
                         if !recents.isEmpty {
                             VStack(alignment: .leading, spacing: 10) {
@@ -125,7 +114,6 @@ public struct CodeDictionarySearch: View {
                             .padding(.top, 14)
                         }
 
-                        // Static suggestions section
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 Image(systemName: "sparkles")
@@ -141,7 +129,6 @@ public struct CodeDictionarySearch: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                     } else {
-                        // Instant filtering section
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 Image(systemName: "magnifyingglass")
@@ -154,7 +141,6 @@ public struct CodeDictionarySearch: View {
                                 suggestionRow(sug, isRecent: false)
                             }
 
-                            // Raw query search row
                             suggestionRow("Search for \"\(query)\"...", actualQuery: query, isRecent: false, isCustomQuery: true)
                         }
                         .padding(.horizontal, 16)
@@ -228,7 +214,6 @@ public struct CodeDictionarySearch: View {
         let trimmed = targetQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        // Update active text and execute search
         CodingDictionaryCoordinator.shared.searchText = trimmed
         CodingDictionaryCoordinator.shared.showingSpotlight = false
         DictionaryManager.shared.search(query: trimmed)

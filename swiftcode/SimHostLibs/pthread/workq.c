@@ -1,39 +1,3 @@
-/*
- * workq.c - the workqueue side of SwiftCode's libsystem_pthread: the worker
- * entry (_pthread_wqthread, called by start_wqthread in entry.S), the
- * callback registration that libdispatch calls (pthread_workqueue_setup and
- * the older _pthread_workqueue_init* forms), thread requests, and
- * workloops with scheduling parameters.
- *
- * Clean-room SwiftCode code, from specs/simulator/threads-and-events.md
- * sections 2.1-2.9 (workq_kernreturn operations, the SETUP_DISPATCH
- * record, the priority encoding, the worker memory layout, the
- * start_wqthread register state and upcall flags, the return/reuse/exit
- * rules, kqueue_workloop_ctl), host-library-init.md section 6.3, and
- * stage4a-contract.md sections 5 and 7.
- *
- * Worker lifecycle. The kernel creates every worker and enters
- * start_wqthread with x0 = self, x1 = port, x2 = stack bottom, x3 = event
- * list or 0, x4 = upcall flags, x5 = event count or -1. On the first run
- * (no REUSE flag) this library builds the pthread_t in place at self; on
- * every run it sets TSD slot 4 from the flags and calls one libdispatch
- * callback:
- *
- *   WORKLOOP: workloop_cb(&id, &events, &n), id from x3 - 8, then
- *             workq_kernreturn(THREAD_WORKLOOP_RETURN, events, n);
- *   KEVENT:   kevent_cb(&events, &n), then THREAD_KEVENT_RETURN;
- *   plain:    workq_cb(pthread_priority_t), then THREAD_RETURN.
- *
- * The *_RETURN calls do not return on success: the kernel restarts the
- * thread at start_wqthread for the next piece of work, or parks it. x5 = -1
- * asks the thread to exit; it then leaves through bsdthread_terminate like
- * any detached thread, giving the kernel back its 560 KiB region.
- *
- * The configuration record that pthread_workqueue_setup receives
- * (threads-and-events.md addendum, 48 bytes): u32 flags @0, u32 version @4
- * (1 or 2), kevent_cb @8, workloop_cb @16, workq_cb @24, u64
- * queue_serialno_offs @32, u64 queue_label_offs @40 (version 2 only).
- */
 #include "yc_pthread.h"
 
 typedef void (*yc_workq_fn)(yc_u64 priority);
@@ -46,9 +10,6 @@ static int errno_or(int fallback)
     return e ? e : fallback;
 }
 
-/* ---- the worker entry ---------------------------------------------------- */
-
-/* The pthread_priority_t of an upcall (threads-and-events.md 2.6). */
 static yc_u64 upcall_priority(yc_u32 flags)
 {
     yc_u64 pp = 0;
@@ -72,11 +33,8 @@ static yc_u64 upcall_priority(yc_u32 flags)
     return pp;
 }
 
-/* First run: builds the pthread_t of a kernel-created worker in place. */
 static void worker_setup(yc_pthread_t self, yc_u32 port, yc_uintptr_t stackbottom)
 {
-    /* Zero the whole block by hand: a memset here becomes a call to bzero,
-     * which this library does not import. */
     volatile yc_u64 *w = (volatile yc_u64 *)self;
     for (yc_size_t i = 0; i < sizeof *self / 8; i++)
         w[i] = 0;
@@ -87,8 +45,6 @@ static void worker_setup(yc_pthread_t self, yc_u32 port, yc_uintptr_t stackbotto
     self->sig = (long)((yc_uintptr_t)self ^ __yc_pt.munge_token);
     self->stackaddr = (yc_uintptr_t)self;
     self->stackbottom = stackbottom;
-    /* The kernel's region: guard page below the stack, the pthread_t at
-     * the top; given back to the kernel when the worker exits. */
     self->freeaddr = stackbottom - YC_WQ_GUARD_SIZE;
     self->freesize = (((yc_uintptr_t)self + YC_PTHREAD_SIZE + YC_PAGE_SIZE - 1) & ~(YC_PAGE_SIZE - 1)) -
                      self->freeaddr;
@@ -105,7 +61,6 @@ static void worker_setup(yc_pthread_t self, yc_u32 port, yc_uintptr_t stackbotto
     __yc_list_add(self);
 }
 
-/* A later run: state that must not leak from the previous work item. */
 static void worker_reuse(yc_pthread_t self)
 {
     self->cleanup_stack = YC_NULL;
@@ -115,7 +70,6 @@ static void worker_reuse(yc_pthread_t self)
     self->name[0] = 0;
 }
 
-/* Takes one pending cooperative request at this QoS (see addthreads). */
 static yc_bool take_cooperative(yc_u32 qos)
 {
     if (qos < 1 || qos > 6)
@@ -131,8 +85,6 @@ static yc_bool take_cooperative(yc_u32 qos)
 static YC_NORETURN void worker_return(int op, void *events, int nevents)
 {
     YC_KFN(__workq_kernreturn)(op, events, nevents, 0);
-    /* The kernel refused the change list: give the thread back without it
-     * (the events stay registered), then as a plain worker. */
     if (op != YC_WQOPS_THREAD_RETURN) {
         YC_KFN(__workq_kernreturn)(op, YC_NULL, 0, 0);
         YC_KFN(__workq_kernreturn)(YC_WQOPS_THREAD_RETURN, YC_NULL, 0, 0);
@@ -154,7 +106,7 @@ YC_EXPORT YC_NORETURN void YC_FN(_pthread_wqthread)(yc_pthread_t self, yc_u32 kp
     else
         worker_reuse(self);
 
-    if (nevents == -1) /* the kernel retires this worker */
+    if (nevents == -1)
         __yc_thread_exit(self, YC_NULL);
 
     yc_u64 pp = upcall_priority(flags);
@@ -178,7 +130,7 @@ YC_EXPORT YC_NORETURN void YC_FN(_pthread_wqthread)(yc_pthread_t self, yc_u32 kp
             yc_u64 id = *(const yc_u64 *)((const char *)events - 8);
             cb(&id, &events, &n);
         } else {
-            n = 0; /* the kernel's scan failed: nothing to run */
+            n = 0;
         }
         worker_return(YC_WQOPS_THREAD_WORKLOOP_RETURN, events, n);
     }
@@ -198,9 +150,6 @@ YC_EXPORT YC_NORETURN void YC_FN(_pthread_wqthread)(yc_pthread_t self, yc_u32 kp
     worker_return(YC_WQOPS_THREAD_RETURN, YC_NULL, 0);
 }
 
-/* ---- registration --------------------------------------------------------- */
-
-/* The SETUP_DISPATCH record (threads-and-events.md 2.3, 24 bytes). */
 struct __attribute__((packed, aligned(4))) yc_wq_dispatch_config {
     yc_u32 version;
     yc_u32 flags;
@@ -210,9 +159,6 @@ struct __attribute__((packed, aligned(4))) yc_wq_dispatch_config {
 _Static_assert(sizeof(struct yc_wq_dispatch_config) == 24, "SETUP_DISPATCH record is 24 bytes");
 #define YC_WQ_DISPATCH_CONFIG_VERSION 2
 
-/* Registers the callbacks once. A second registration with the same
- * callbacks succeeds; different ones get EBUSY. `newapi` selects the
- * SETUP_DISPATCH record; otherwise the legacy NEWSPISUPP form is used. */
 static int register_callbacks(void *workq, void *kevent, void *workloop, yc_bool newapi, yc_u64 serialno,
                               yc_u64 label)
 {
@@ -233,8 +179,6 @@ static int register_callbacks(void *workq, void *kevent, void *workloop, yc_bool
     }
     if (r == -1) {
         int e = errno_or(YC_EINVAL);
-        /* A kernel without the workqueue still lets programs that never
-         * request a worker run; anything else is a real refusal. */
         if (e != YC_ENOSYS) {
             __yc_unlock(&__yc_pt.workq_lock);
             return e;
@@ -260,12 +204,12 @@ YC_EXPORT int YC_FN(pthread_workqueue_setup)(const void *config, yc_size_t size)
     yc_u32 flags = hdr[0], version = hdr[1];
     if (version < 1 || version > 2)
         return YC_EINVAL;
-    yc_size_t need = version >= 2 ? 48 : 40; /* version 1 ends before label_offs */
+    yc_size_t need = version >= 2 ? 48 : 40;
     if (size < need)
         return YC_EINVAL;
     if (flags != 0)
         return YC_ENOTSUP;
-    void *const *cbs = (void *const *)((const char *)config + 8); /* kevent, workloop, workq */
+    void *const *cbs = (void *const *)((const char *)config + 8);
     const yc_u64 *offs = (const yc_u64 *)((const char *)config + 32);
     return register_callbacks(cbs[2], cbs[0], cbs[1], 1, offs[0], version >= 2 ? offs[1] : 0);
 }
@@ -290,8 +234,6 @@ YC_EXPORT int YC_FN(_pthread_workqueue_init)(void *func, int offset, int flags)
 
 YC_EXPORT int YC_FN(_pthread_workqueue_supported)(void)
 {
-    /* The SwiftCode baseline (host-library-init.md 6.4) if registration did
-     * not happen, because libdispatch treats 0 as fatal. */
     yc_i64 f = YC_LOAD(&__yc_pt.features);
     return f > 0 ? (int)f : 0x4000001F;
 }
@@ -308,10 +250,6 @@ YC_EXPORT int YC_FN(_pthread_workqueue_allow_send_signals)(int sig)
     return 0;
 }
 
-/* ---- thread requests ------------------------------------------------------ */
-
-/* Keeps what the kernel reads from a request priority: the QoS, the
- * relative priority, and the overcommit type (section 2.3, 2.4). */
 static int request_priority(yc_u64 pp, yc_bool keep_overcommit)
 {
     yc_u64 keep = YC_PP_QOS_MASK | YC_PP_RELPRI_MASK | (keep_overcommit ? YC_PP_OVERCOMMIT : 0);
@@ -330,14 +268,6 @@ YC_EXPORT int YC_FN(_pthread_workqueue_addthreads)(int numthreads, yc_u64 priori
     return 0;
 }
 
-/* Cooperative requests (REQTHREADS2, one thread per call). A kernel without
- * the cooperative pool refuses them; SwiftCode then asks for a constrained
- * worker at that QoS and marks the next plain worker of that QoS
- * cooperative, so the cooperative root queue is still drained. Once the
- * kernel has refused with ENOTSUP or ENOSYS (it has no cooperative pool;
- * that never changes while the process runs), later requests skip the
- * REQTHREADS2 trap and go straight to the fallback (host-libraries.md
- * section 11.6). */
 YC_EXPORT int YC_FN(_pthread_workqueue_add_cooperativethreads)(int numthreads, yc_u64 priority)
 {
     if (!YC_LOAD_ACQ(&__yc_pt.workq_ready))
@@ -373,7 +303,6 @@ YC_EXPORT int YC_FN(_pthread_workqueue_add_cooperativethreads)(int numthreads, y
 
 YC_EXPORT int YC_FN(_pthread_workqueue_should_narrow)(yc_u64 priority)
 {
-    /* Only a constrained workqueue thread may ask (section 2.3). */
     yc_pthread_t self = __yc_self();
     if (!(self->flags & YC_TF_WORKQ) || (self->tsd[YC_TSD_QOS] & YC_PP_OVERCOMMIT))
         return 0;
@@ -387,8 +316,6 @@ YC_EXPORT int YC_FN(_pthread_workqueue_set_event_manager_priority)(yc_u64 priori
         return errno_or(YC_EINVAL);
     return 0;
 }
-
-/* ---- workloops with fixed scheduling parameters (section 2.9) ------------- */
 
 struct __attribute__((packed)) yc_workloop_params {
     yc_i32 version;

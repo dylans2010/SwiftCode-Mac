@@ -1,18 +1,4 @@
 #!/bin/sh
-# R5: restart backboardd and SpringBoard of a throwaway device against the
-# isserve test server, run as a user/501 launchd job, and report whether they
-# come up. Original Ycode script.
-#
-# Preconditions: the device was booted with
-#   SIMCTL_CHILD_DYLD_INSERT_LIBRARIES=<out>/isinterpose.dylib
-#   SIMCTL_CHILD_YC_IS_DIR=<capture dir>
-#   SIMCTL_CHILD_YC_IS_REDIRECT=dev.ycode.R5.iosurface
-#   SIMCTL_CHILD_YC_IS_DENY='com.apple.metal.simulator*,com.apple.gputools.service.simulator'
-#   SIMCTL_CHILD_SIMULATOR_FRAMEBUFFER_FRAMEWORK=<R4 headless SimFramebuffer>
-#
-# Usage: run-fake-restart.sh <udid> <out dir with isserve> <capture dir> [refuse list] [extra env K=V]
-# The job path is written with "../" components because launchd_sim resolves
-# job program paths under the runtime root.
 set -e
 UDID=${1:?udid}; OUT=${2:?out}; CAP=${3:?capture dir}; REFUSE=${4:-}; EXTRA=${5:-}
 UP=$(printf '../%.0s' $(seq 1 16))

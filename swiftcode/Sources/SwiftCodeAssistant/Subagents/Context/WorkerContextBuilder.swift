@@ -1,20 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Skill discovery (ported from Legacy `AgentSkillResolver`)
-//
-// Legacy's `WorkerContextBuilder` called `AgentSkillResolver.shared` for
-// skill discovery / matching / prompt formatting. That resolver is not in
-// this target, so its three algorithms are ported here as file-private
-// helpers over a file-private skill value — same search roots, same
-// `SKILL.md` filename rules, same YAML-frontmatter parsing, same
-// name/description/tag/keyword matching, same prompt block format — so
-// the builder's behaviour is unchanged without depending on a type that
-// does not exist yet. When `AgentSkillResolver` (or the destination's
-// `SkillDiscoveryService`/`SkillIndex`) is wired for workers, these
-// helpers can be replaced; the prompt this builder produces stays the same.
-
-/// A skill discovered from a `SKILL.md` file on disk.
 private struct WorkerDiscoveredSkill: Identifiable, Sendable, Hashable {
     let id: UUID
     let name: String
@@ -218,9 +204,6 @@ public final class WorkerContextBuilder: Sendable {
         return allSwiftFiles.filter { !targetSet.contains($0) }.sorted()
     }
 
-    // MARK: - Skill discovery (Legacy `AgentSkillResolver` algorithms)
-
-    /// Recursively discovers all available skills in workspace, configuration roots, and bundled resources.
     private func discoverSkills(in workspaceRoot: URL) async -> [WorkerDiscoveredSkill] {
         let rootKey = workspaceRoot.standardizedFileURL.resolvingSymlinksInPath().path
         if let cached = lastSkillScan,
@@ -232,7 +215,6 @@ public final class WorkerContextBuilder: Sendable {
         var results: [WorkerDiscoveredSkill] = []
         let fileManager = FileManager.default
 
-        // Standard discovery search roots
         let searchDirectories = [
             workspaceRoot.appendingPathComponent(".agents/skills"),
             workspaceRoot.appendingPathComponent(".skills"),
@@ -275,7 +257,6 @@ public final class WorkerContextBuilder: Sendable {
         }
     }
 
-    /// Evaluates which discovered skills are relevant to the active objective.
     private func matchSkills(for objective: String, in skills: [WorkerDiscoveredSkill]) -> [WorkerDiscoveredSkill] {
         let lowerObjective = objective.lowercased()
         var matched: [WorkerDiscoveredSkill] = []
@@ -284,14 +265,12 @@ public final class WorkerContextBuilder: Sendable {
             let lowerName = skill.name.lowercased()
             let lowerDesc = skill.description.lowercased()
 
-            // Check name, description, and tags against objective tokens
             let nameMatch = lowerObjective.contains(lowerName)
             let descMatch = lowerObjective.contains(lowerDesc) || skill.tags.contains { tag in lowerObjective.contains(tag.lowercased()) }
 
             if nameMatch || descMatch {
                 matched.append(skill)
             } else {
-                // Secondary check: keyword overlap
                 let keywords = lowerName.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count > 3 }
                 if keywords.contains(where: { lowerObjective.contains($0) }) {
                     matched.append(skill)
@@ -302,14 +281,12 @@ public final class WorkerContextBuilder: Sendable {
         return matched
     }
 
-    /// Parses YAML frontmatter and markdown sections from a SKILL.md file.
     private func parseSkill(from content: String, filePath: String) -> WorkerDiscoveredSkill? {
         let lines = content.components(separatedBy: .newlines)
 
         var metadata: [String: String] = [:]
         var bodyContent = content
 
-        // Extract YAML frontmatter if present
         if content.hasPrefix("---") {
             let parts = content.components(separatedBy: "---")
             if parts.count >= 3 {
@@ -352,7 +329,6 @@ public final class WorkerContextBuilder: Sendable {
         )
     }
 
-    /// Formats matching skills for system prompt context injection.
     private func formatSkillsBlock(matched: [WorkerDiscoveredSkill], totalDiscovered: Int) -> String {
         if matched.isEmpty {
             return """

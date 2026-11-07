@@ -1,6 +1,3 @@
-// Shared helpers. Every home, accessory and value here is made up; no real
-// accessory or network is touched.
-
 import Foundation
 import Testing
 @testable import HomeKit
@@ -8,21 +5,16 @@ import Testing
 let mainKey = DispatchSpecificKey<Bool>()
 private let mainKeyOnce: Void = { DispatchQueue.main.setSpecific(key: mainKey, value: true) }()
 
-/// True on the main queue (checks the queue, not the thread: on Linux the
-/// main queue may be served by another thread).
 func onMainQueue() -> Bool {
     _ = mainKeyOnce
     return DispatchQueue.getSpecific(key: mainKey) == true
 }
 
-/// Lets everything queued on the main queue so far run.
 func flushMain() async {
     _ = mainKeyOnce
     await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in DispatchQueue.main.async { c.resume() } }
 }
 
-/// Drains the store queue and the main queue a few times (prompt answers,
-/// initial loads, fan-out to other managers).
 func settle(_ store: SwiftCodeLocalHomeStore) async {
     for _ in 0..<3 {
         store.sync {}
@@ -30,7 +22,6 @@ func settle(_ store: SwiftCodeLocalHomeStore) async {
     }
 }
 
-/// Polls until `condition` holds (events that pass through an accessory's queue).
 func eventually(_ store: SwiftCodeLocalHomeStore, timeout: Double = 5, _ condition: () -> Bool) async -> Bool {
     let end = Date().addingTimeInterval(timeout)
     while Date() < end {
@@ -51,7 +42,6 @@ func newStore(noAccount: Bool = false, hub: HMHomeHubState = .connected, url: UR
     SwiftCodeLocalHomeStore(configuration: .init(persistenceURL: url, simulateNoAccount: noAccount, hubState: hub, consent: consent))
 }
 
-/// A manager whose first homes callback has arrived.
 func loadedManager(_ store: SwiftCodeLocalHomeStore, _ c: SwiftCodeHomeClient = client(),
                    delegate: HMHomeManagerDelegate? = nil) async -> HMHomeManager {
     let m = HMHomeManager(swiftcodeStore: store, client: c)
@@ -60,13 +50,10 @@ func loadedManager(_ store: SwiftCodeLocalHomeStore, _ c: SwiftCodeHomeClient = 
     return m
 }
 
-/// Managers of fixtures, kept for the whole run: as with the system
-/// framework, model objects work only while their manager is alive.
 private let keepLock = NSLock()
 nonisolated(unsafe) private var keptManagers: [HMHomeManager] = []
 private func keep(_ m: HMHomeManager) { keepLock.lock(); keptManagers.append(m); keepLock.unlock() }
 
-/// A store, a manager (kept alive) and one home.
 func homeFixture(_ name: String = "Test Home", store: SwiftCodeLocalHomeStore = newStore()) async throws
     -> (SwiftCodeLocalHomeStore, HMHomeManager, HMHome) {
     let m = await loadedManager(store)
@@ -75,7 +62,6 @@ func homeFixture(_ name: String = "Test Home", store: SwiftCodeLocalHomeStore = 
     return (store, m, h)
 }
 
-/// Publishes `endpoint` and adds it to `home` through the browser path.
 @discardableResult
 func pair(_ endpoint: SwiftCodeAccessoryEndpoint, into home: HMHome, store: SwiftCodeLocalHomeStore) async throws -> HMAccessory {
     store.publish(endpoint)
@@ -93,7 +79,6 @@ func characteristic(_ accessory: HMAccessory, _ type: String) -> HMCharacteristi
     accessory.services.flatMap(\.characteristics).first { $0.characteristicType == type }!
 }
 
-/// Expects an `HMError` with `code` (domain HMErrorDomain).
 func expectCode(_ code: HMError.Code, sourceLocation: SourceLocation = #_sourceLocation, _ body: () async throws -> Void) async {
     do {
         try await body()
@@ -106,7 +91,6 @@ func expectCode(_ code: HMError.Code, sourceLocation: SourceLocation = #_sourceL
     }
 }
 
-/// Records delegate callbacks in order, and whether each came on the main queue.
 final class Recorder: HMHomeManagerDelegate, HMHomeDelegate, HMAccessoryDelegate, HMAccessoryBrowserDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var _log: [String] = []
@@ -122,13 +106,11 @@ final class Recorder: HMHomeManagerDelegate, HMHomeDelegate, HMAccessoryDelegate
         lock.unlock()
     }
 
-    // HMHomeManagerDelegate
     func homeManager(_ manager: HMHomeManager, didUpdate status: HMHomeManagerAuthorizationStatus) { note("auth \(status.rawValue)") }
     func homeManagerDidUpdateHomes(_ manager: HMHomeManager) { note("homes \(manager.homes.count)") }
     func homeManager(_ manager: HMHomeManager, didAdd home: HMHome) { note("add home \(home.name)") }
     func homeManager(_ manager: HMHomeManager, didRemove home: HMHome) { note("remove home \(home.name)") }
 
-    // HMHomeDelegate
     func homeDidUpdateName(_ home: HMHome) { note("home name \(home.name)") }
     func home(_ home: HMHome, didAdd accessory: HMAccessory) { note("add accessory \(accessory.name)") }
     func home(_ home: HMHome, didRemove accessory: HMAccessory) { note("remove accessory \(accessory.name)") }
@@ -149,7 +131,6 @@ final class Recorder: HMHomeManagerDelegate, HMHomeDelegate, HMAccessoryDelegate
     func home(_ home: HMHome, didAdd trigger: HMTrigger) { note("add trigger \(trigger.name)") }
     func home(_ home: HMHome, didUpdate trigger: HMTrigger) { note("update trigger \(trigger.name)") }
 
-    // HMAccessoryDelegate
     func accessoryDidUpdateName(_ accessory: HMAccessory) { note("accessory name \(accessory.name)") }
     func accessoryDidUpdateReachability(_ accessory: HMAccessory) { note("reachable \(accessory.isReachable)") }
     func accessory(_ accessory: HMAccessory, service: HMService, didUpdateValueFor characteristic: HMCharacteristic) {
@@ -159,7 +140,6 @@ final class Recorder: HMHomeManagerDelegate, HMHomeDelegate, HMAccessoryDelegate
     }
     func accessory(_ accessory: HMAccessory, didUpdateNameFor service: HMService) { note("service name \(service.name)") }
 
-    // HMAccessoryBrowserDelegate
     func accessoryBrowser(_ browser: HMAccessoryBrowser, didFindNewAccessory accessory: HMAccessory) { note("found \(accessory.name)") }
     func accessoryBrowser(_ browser: HMAccessoryBrowser, didRemoveNewAccessory accessory: HMAccessory) { note("lost \(accessory.name)") }
 }

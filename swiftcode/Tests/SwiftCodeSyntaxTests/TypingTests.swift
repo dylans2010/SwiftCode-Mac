@@ -4,13 +4,11 @@ import Testing
 
 private let spaces4 = TypingOptions()
 
-/// Return at the `|` mark.
 private func ret(_ s: String, _ lang: SyntaxLanguage = .swift, _ o: TypingOptions = spaces4) -> String? {
     let (text, sel) = marked(s)
     return render(text, TypingRules.newline(in: SyntaxDocument(text: text, language: lang), selection: sel, options: o))
 }
 
-/// Types `c` at the `|` mark (the text already holds it for the electric rules).
 private func type(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift, closers: Set<Int> = [], _ o: TypingOptions = spaces4) -> String? {
     let (text, sel) = marked(s)
     return render(text, TypingRules.insert(c, in: SyntaxDocument(text: text, language: lang), selection: sel, options: o, pendingClosers: closers)?.edit)
@@ -21,9 +19,7 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
     return render(text, TypingRules.reindentAfterTyping(c, in: SyntaxDocument(text: text, language: lang), caret: sel.location, options: spaces4))
 }
 
-/// Typing rules (`specs/ide/source-editor.md`, "SwiftCode implementation", Typing).
 @Suite struct TypingTests {
-    // MARK: Return
 
     @Test func returnIndentsAfterAnOpener() {
         #expect(ret("func f() {|") == "func f() {\n    |")
@@ -80,8 +76,6 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
         #expect(ret("plain|", .markdown) == "plain\n|")
     }
 
-    // MARK: Re-indent while typing
-
     @Test func closersCaseDefaultAndElseReindent() {
         #expect(electric("}", "if a {\n    b\n    }|") == "if a {\n    b\n}|")
         #expect(electric(":", "switch x {\n    case 1:|") == "switch x {\ncase 1:|")
@@ -90,7 +84,6 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
         #expect(electric("f", "int f() {\n    #endif|", .c) == "int f() {\n#endif|")
         #expect(electric("/", "<a>\n    </|", .xml) == "<a>\n</|")
         #expect(electric("i", "if x; then\n    a\n    fi|", .shell) == "if x; then\n    a\nfi|")
-        // Not a trigger: the closer is not first on the line, or the word goes on.
         #expect(electric("}", "if a {\n    b }|") == nil)
         #expect(electric("e", "    #els|e") == nil)
         #expect(electric("s", "    cases|") == nil)
@@ -135,7 +128,6 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
         }
 
         """)
-        // Tabs, preprocessor at column 0 in C, nested XML.
         let c = "int f() {\n#if A\nreturn 1;\n  #endif\n}\n"
         let dc = SyntaxDocument(text: c, language: .c)
         #expect(dc.reindent(lines: 0...4, options: IndentOptions(unit: "\t"), selection: NSRange())?.applied(to: c) == "int f() {\n#if A\n\treturn 1;\n#endif\n}\n")
@@ -146,11 +138,8 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
         let sh = "if a; then\nb\nelse\nc\nfi\n"
         #expect(SyntaxDocument(text: sh, language: .shell).reindent(lines: 0...5, options: IndentOptions(), selection: NSRange())?.applied(to: sh)
                 == "if a; then\n    b\nelse\n    c\nfi\n")
-        // YAML and Markdown are left alone.
         #expect(SyntaxDocument(text: "a:\nb: 1\n", language: .yaml).reindent(lines: 0...1, options: IndentOptions(), selection: NSRange()) == nil)
     }
-
-    // MARK: Brackets and quotes
 
     @Test func openersInsertTheirCloser() {
         #expect(type("(", "f|") == "f(|)")
@@ -162,12 +151,12 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
     }
 
     @Test func noPairingWhereItWouldBeWrong() {
-        #expect(type("(", "f|oo") == nil)            // before a word
+        #expect(type("(", "f|oo") == nil)
         #expect(type("\"", "a|b") == nil)
-        #expect(type("(", "// note |") == nil)       // in a comment
-        #expect(type("\"", "let s = \"a |\"") == nil) // in a string: closes it
-        #expect(type("'", "don|", .c) == nil)          // an apostrophe
-        #expect(type("'", "let c = |") == nil)         // not a Swift quote
+        #expect(type("(", "// note |") == nil)
+        #expect(type("\"", "let s = \"a |\"") == nil)
+        #expect(type("'", "don|", .c) == nil)
+        #expect(type("'", "let c = |") == nil)
         var o = spaces4
         o.autoClose = false
         #expect(type("(", "f|", .swift, o) == nil)
@@ -176,7 +165,6 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
     @Test func closersAreSteppedOver() {
         #expect(type(")", "f(|)", closers: [2]) == "f()|")
         #expect(type("\"", "\"a|\"", closers: [2]) == "\"a\"|")
-        // Only closers inserted automatically.
         #expect(type(")", "f(|)", closers: []) == nil)
         let r = TypingRules.insert("]", in: SyntaxDocument(text: "[]", language: .swift), selection: NSRange(location: 1, length: 0), options: spaces4, pendingClosers: [1])
         #expect(r?.steppedOver == 1)
@@ -205,32 +193,25 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
         #expect(TypingRules.adjust([5], editing: NSRange(location: 6, length: 1), replacementLength: 1) == [5])
     }
 
-    // MARK: Tab
-
     @Test func tabFollowsTheSetting() {
         func tab(_ s: String, _ k: TabKeyBehavior, backward: Bool = false, _ o: IndentOptions = IndentOptions()) -> String? {
             let (text, sel) = marked(s)
             let opts = TypingOptions(indent: o, tabKey: k)
             return render(text, TypingRules.tab(in: SyntaxDocument(text: text, language: .swift), selection: sel, backward: backward, options: opts))
         }
-        // In leading whitespace: to the computed indentation, then one step more.
         #expect(tab("if a {\n|b\n}", .indentsInLeadingWhitespace) == "if a {\n    |b\n}")
         #expect(tab("if a {\n    |b\n}", .indentsInLeadingWhitespace) == "if a {\n        |b\n}")
-        #expect(tab("if a {\n  |  b\n}", .indentsInLeadingWhitespace) == "if a {\n    |b\n}")   // to the text
-        #expect(tab("if a {\n|\n}", .indentsInLeadingWhitespace) == "if a {\n    |\n}")          // a blank line
-        #expect(tab("let x|", .indentsInLeadingWhitespace) == "let x   |")      // to the next stop
+        #expect(tab("if a {\n  |  b\n}", .indentsInLeadingWhitespace) == "if a {\n    |b\n}")
+        #expect(tab("if a {\n|\n}", .indentsInLeadingWhitespace) == "if a {\n    |\n}")
+        #expect(tab("let x|", .indentsInLeadingWhitespace) == "let x   |")
         #expect(tab("|func", .indentsInLeadingWhitespace, IndentOptions(usesTabs: true)) == "\t|func")
-        // Always: re-indent wherever the insertion point is.
         #expect(tab("if a {\nb|c\n}", .indentsAlways) == "if a {\n    b|c\n}")
         #expect(tab("if a {\n    b|c\n}", .indentsAlways) == nil)
         #expect(tab("ab|", .insertsIndentation) == "ab    |")
-        // Several lines shift; Shift-Tab shifts left.
         #expect(tab("|a\nb|", .indentsInLeadingWhitespace) == "|    a\n    b|")
         #expect(tab("    a|", .indentsInLeadingWhitespace, backward: true) == "a|")
         #expect(tab("|    a\n    b\n|", .indentsAlways, backward: true) == "|a\nb|\n")
     }
-
-    // MARK: Comments
 
     @Test func commentToggling() {
         func toggle(_ s: String, _ lang: SyntaxLanguage) -> String? {
@@ -248,8 +229,6 @@ private func electric(_ c: String, _ s: String, _ lang: SyntaxLanguage = .swift)
         #expect(toggle("|one\ntwo|", .markdown) == "|<!-- one\ntwo -->|")
         #expect(toggle("text|", .plain) == nil)
     }
-
-    // MARK: Structure
 
     @Test func structureIgnoresCommentsAndStrings() {
         let t = "f(\"(\", /* ) */ x) { [1] }\n#define Y {\n"

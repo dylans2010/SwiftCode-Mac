@@ -1,10 +1,6 @@
 import Foundation
 
-/// Editor placeholders: `<#text#>` tokens in source text. See
-/// `specs/ide/source-editor.md` §Placeholders.
 public enum Placeholders {
-    /// Ranges of every `<#…#>` token (UTF-16), in order. A token does not
-    /// span lines and is not empty.
     public static func ranges(in text: String) -> [NSRange] {
         let ns = text as NSString
         var out: [NSRange] = []
@@ -27,17 +23,14 @@ public enum Placeholders {
         return out
     }
 
-    /// The token's text without the delimiters.
     public static func text(of range: NSRange, in text: String) -> String {
         (text as NSString).substring(with: NSRange(location: range.location + 2, length: range.length - 4))
     }
 
-    /// The token at or containing `offset` (insertion points strictly inside).
     public static func token(containing offset: Int, in text: String) -> NSRange? {
         ranges(in: text).first { offset > $0.location && offset < NSMaxRange($0) }
     }
 
-    /// The next token after the selection (wrapping), or the previous one.
     public static func next(from selection: NSRange, in text: String, backward: Bool = false) -> NSRange? {
         let all = ranges(in: text)
         guard !all.isEmpty else { return nil }
@@ -47,15 +40,11 @@ public enum Placeholders {
         return all.first { $0.location >= NSMaxRange(selection) && $0 != selection } ?? all.first
     }
 
-    /// Converts an LSP snippet (`${1:name}`, `$1`, `$0`, `\$`) to text with
-    /// `<#…#>` tokens. Numbered stops without a default become `<#value#>`;
-    /// `$0` (the final position) is dropped.
     public static func fromLSPSnippet(_ s: String) -> String {
         var out = ""
         let it = Array(s)
         var i = 0
         func parseBody(_ end: inout Int) -> String {
-            // Reads to the matching `}` from `end` (already past `${n:`).
             var depth = 1, body = ""
             while end < it.count {
                 let c = it[end]

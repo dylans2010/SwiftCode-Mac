@@ -1,9 +1,3 @@
-// DebugSessionsSidebarView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Sidebar/DebugSessionsSidebarView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: multi-session list UI; explicit terminate-session action
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 

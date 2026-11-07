@@ -2,21 +2,13 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// Edit ▸ Sort ▸ By Name / By Type.
 public enum NavigatorSortOrder: Sendable {
-    /// Display names in Finder order, groups and files mixed.
     case name
-    /// Groups and folders first, then files by extension, each by name.
     case type
 }
 
 extension ProjectFileOperations {
-    // MARK: Delete
 
-    /// Edit ▸ Delete: removes the items' references (and, for groups,
-    /// everything under them), and with `moveToTrash` moves their files
-    /// to the trash. Items with no reference of their own (in a
-    /// synchronized folder, in a package) can only go to the trash.
     public mutating func delete(_ items: [ProjectItem], moveToTrash: Bool) throws -> ProjectEdit {
         for item in items {
             switch item {
@@ -39,7 +31,6 @@ extension ProjectFileOperations {
                     emptyFolders += paths.folders
                 }
             }
-            // Outer items first; skip anything inside an item already trashed.
             var done: [String] = []
             for p in trash.map({ URL(fileURLWithPath: $0).standardizedFileURL.path }).sorted() where !done.contains(where: { RelativePath.isInside(p, $0) }) {
                 guard FileManager.default.fileExists(atPath: p) else { continue }
@@ -48,7 +39,6 @@ extension ProjectFileOperations {
                 done.append(p)
             }
             for item in items { if case .object(let id) = item { ops.proj.removeTree(id) } }
-            // A group's folder goes too once nothing is left in it (inner first).
             for f in emptyFolders.reversed() where FileManager.default.fileExists(atPath: f) && !done.contains(where: { RelativePath.isInside(f, $0) }) {
                 let left = ((try? FileManager.default.contentsOfDirectory(atPath: f)) ?? []).filter { $0 != ".DS_Store" }
                 if left.isEmpty { try ops.journal.perform(.trash(URL(fileURLWithPath: f))) }
@@ -57,28 +47,17 @@ extension ProjectFileOperations {
         }
     }
 
-    /// What trashing an object moves to the trash: a reference's file, a
-    /// synchronized folder or model bundle as a whole; for a group, its
-    /// members' files, and its own folder (when it has one) if that ends
-    /// up empty.
     func trashPaths(_ id: String) -> (files: [String], folders: [String]) {
         guard let obj = project?[id], let path = resolved(id), !path.hasPrefix("$(") else { return ([], []) }
         switch obj.isa {
         case "PBXFileReference", "PBXFileSystemSynchronizedRootGroup", "XCVersionGroup": return ([path], [])
         case "PBXGroup", "PBXVariantGroup":
             let kids = obj.references("children").map(trashPaths)
-            // Outer folders first; the caller tries them inner first.
             return (kids.flatMap(\.files), (obj.string("path") != nil ? [path] : []) + kids.flatMap(\.folders))
         default: return ([], [])
         }
     }
 
-    // MARK: Rename
-
-    /// Renames a file, group or folder: on disk when it has a location
-    /// there, and in the project (`path`'s last component, or `name` for a
-    /// group without a folder). Exception sets follow renamed items in a
-    /// synchronized folder.
     public mutating func rename(_ item: ProjectItem, to newName: String) throws -> ProjectEdit {
         let newName = try Self.validate(newName)
         return try edit("Rename") { ops in [try ops.renameItem(item, to: newName)] }
@@ -123,12 +102,6 @@ extension ProjectFileOperations {
         }
     }
 
-    // MARK: Move
-
-    /// Drag and drop in the navigator (and Edit ▸ Paste ▸ Move Item Here):
-    /// moves items into a group or folder at `index`. Files move on disk
-    /// when the destination has a folder of its own; otherwise their paths
-    /// are rewritten so they keep pointing at the same files.
     public mutating func move(_ items: [ProjectItem], to container: ProjectItem, at index: Int? = nil) throws -> ProjectEdit {
         try edit("Move") { ops in
             var out: [ProjectItem] = []
@@ -147,8 +120,6 @@ extension ProjectFileOperations {
             switch item {
             case .object(let x): return try moveObject(x, into: group, at: index)
             case .disk(let p):
-                // Out of a synchronized folder into a group: the item gets a
-                // reference, in the targets that had it.
                 let members = membershipTargets(ofDiskItem: p)
                 let new = destDir.appendingPathComponent((p as NSString).lastPathComponent)
                 if let s = synchronizedFolder(containing: p), !s.relative.isEmpty { proj.rewriteExceptionPaths(in: s.folder, from: s.relative, to: nil) }
@@ -159,7 +130,6 @@ extension ProjectFileOperations {
                                            options: AddFilesOptions(action: .reference, grouping: .folders, targets: members ?? [])))
             }
         }
-        // Into a folder on disk (a synchronized folder, a package folder).
         switch item {
         case .disk(let p):
             guard !RelativePath.isInside(destDir.path, p) else { throw NavigatorEditError.notAllowed("A folder cannot move into itself") }
@@ -191,14 +161,11 @@ extension ProjectFileOperations {
         }
     }
 
-    /// The targets a disk item belongs to through its synchronized folder
-    /// (nil outside one).
     func membershipTargets(ofDiskItem p: String) -> [String]? {
         guard isProject, synchronizedFolder(containing: p) != nil else { return nil }
         return proj.targetMemberships(ofFile: p, projectDirectory: rootDirectory).filter(\.isMember).map(\.targetID)
     }
 
-    /// Moves an object into a classic group.
     mutating func moveObject(_ x: String, into group: String, at index: Int?) throws -> ProjectItem {
         let main = proj.groupID(proj.rootObject)
         guard x != main, proj[x] != nil else { throw NavigatorEditError.notAllowed("The project cannot move") }
@@ -208,7 +175,6 @@ extension ProjectFileOperations {
             if g == x { throw NavigatorEditError.notAllowed("A group cannot move into itself") }
             a = parents[g]
         }
-        // Where everything under `x` is now, to keep pointing at it.
         var oldPaths: [String: String] = [:]
         func record(_ id: String) {
             if let p = proj.resolvedPath(of: id, projectDirectory: rootDirectory, parents: parents), !p.hasPrefix("$(") { oldPaths[id] = p }
@@ -220,8 +186,6 @@ extension ProjectFileOperations {
         if let d = proj.detachChild(x), d.group == group, let j = index, d.index < j { index = j - 1 }
         proj.insertChild(x, into: group, at: index)
         parents = proj.parentMap()
-        // On disk: into the destination group's own folder, when the item
-        // sits directly in its old group's folder.
         let destDir = proj.resolvedPath(of: group, projectDirectory: rootDirectory, parents: parents) ?? rootDirectory.path
         let folderBacked = group == main || proj[group]?.string("path") != nil
         var diskMove: (String, String)?
@@ -235,8 +199,6 @@ extension ProjectFileOperations {
             moved[old] = new
             diskMove = (old, new)
         }
-        // Rewrite `<group>` paths, top down, so each item resolves to where
-        // its file now is.
         func expected(_ p: String) -> String {
             guard let d = diskMove, RelativePath.isInside(p, d.0) else { return p }
             return d.1 + p.dropFirst(d.0.count)
@@ -256,10 +218,6 @@ extension ProjectFileOperations {
         return .object(x)
     }
 
-    // MARK: Group and Folder from Selection
-
-    /// File ▸ New ▸ Group from Selection (with or without a folder): a new
-    /// group in the items' group, at the first item's place, holding them.
     public mutating func groupFromSelection(_ items: [ProjectItem], named name: String, withFolder: Bool) throws -> ProjectEdit {
         let name = try Self.validate(name)
         let (parent, first, ids) = try sharedGroup(items)
@@ -274,10 +232,8 @@ extension ProjectFileOperations {
         }
     }
 
-    /// Group from Selection applies: the items share a classic group.
     public func canGroup(_ items: [ProjectItem]) -> Bool { (try? sharedGroup(items)) != nil }
 
-    /// Folder from Selection applies: items in one folder, or files in one group.
     public func canMakeFolder(from items: [ProjectItem]) -> Bool {
         let disks = items.compactMap { if case .disk(let p) = $0 { p } else { nil } }
         if !disks.isEmpty {
@@ -288,8 +244,6 @@ extension ProjectFileOperations {
         return ids.allSatisfy { isa($0) == "PBXFileReference" }
     }
 
-    /// The classic group all items are in, the first one's index, and the
-    /// items in group order.
     func sharedGroup(_ items: [ProjectItem]) throws -> (String, Int, [String]) {
         let ids = items.compactMap { if case .object(let id) = $0 { id } else { nil } }
         guard isProject, !ids.isEmpty, ids.count == items.count else { throw NavigatorEditError.notAllowed("Select items in one group") }
@@ -300,11 +254,6 @@ extension ProjectFileOperations {
         return (parent, kids.firstIndex(of: ordered[0]) ?? 0, ordered)
     }
 
-    /// File ▸ New ▸ Folder from Selection: a new folder holding the items.
-    /// Items in a folder move into a new subfolder. File references in a
-    /// group move into a new synchronized folder there, which joins every
-    /// target any of them was in; a file not in one of those targets gets
-    /// an exception for it.
     public mutating func folderFromSelection(_ items: [ProjectItem], named name: String) throws -> ProjectEdit {
         let name = try Self.validate(name)
         let disks = items.compactMap { if case .disk(let p) = $0 { p } else { nil } }
@@ -342,10 +291,6 @@ extension ProjectFileOperations {
         }
     }
 
-    // MARK: Sort
-
-    /// Edit ▸ Sort ▸ By Name / By Type: reorders a group's children (one
-    /// level). Folders on disk are always shown sorted.
     public mutating func sort(_ container: ProjectItem, by order: NavigatorSortOrder) throws -> ProjectEdit {
         guard let group = classicGroup(container) else { throw NavigatorEditError.notAllowed("Only groups can be sorted") }
         return try edit(order == .name ? "Sort by Name" : "Sort by Type") { ops in
@@ -357,7 +302,6 @@ extension ProjectFileOperations {
                 let folder = ["PBXGroup", "PBXFileSystemSynchronizedRootGroup"].contains(ops.isa(id))
                 return (folder ? 0 : 1, folder ? "" : (n as NSString).pathExtension.lowercased(), n)
             }
-            // The Products group keeps its place at the end of the main group.
             let sortable = kids.filter { $0 != products }
             let sorted = sortable.sorted { a, b in
                 let ka = key(a), kb = key(b)

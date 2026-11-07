@@ -1,12 +1,8 @@
 import Foundation
 import SwiftCodeMachO
 
-/// Adding images, symbols and source lines to a trace
-/// (`specs/ide/profiler.md` §3.2, §4.2, §4.3, §7 `symbolicate`).
 public enum GaugeSymbolicator {
-    // MARK: Linux mappings
 
-    /// One executable mapping of `/proc/<pid>/maps`.
     public struct Mapping: Sendable, Equatable, Hashable {
         public var start: UInt64
         public var end: UInt64
@@ -20,7 +16,6 @@ public enum GaugeSymbolicator {
         }
     }
 
-    /// Executable, file-backed mappings of a `/proc/<pid>/maps` text.
     public static func parseMaps(_ text: String) -> [Mapping] {
         text.split(separator: "\n").compactMap { line in
             let f = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
@@ -34,9 +29,6 @@ public enum GaugeSymbolicator {
         }
     }
 
-    /// Places every absolute frame in an ELF image of `mappings`, adds the
-    /// images (kind `app` for `appPaths` and files under `appDirectories`,
-    /// else `system`) with the symbols and lines of the offsets used.
     public static func resolveELF(_ b: inout GaugeTraceBuilder, mappings: [Mapping], appPaths: Set<String>, appDirectories: [String]) {
         let t = b.trace
         var byPath: [String: (elf: ELFFile?, bias: UInt64, low: UInt64, high: UInt64)] = [:]
@@ -90,10 +82,9 @@ public enum GaugeSymbolicator {
                 if let id = imageIDs[p.path] { tr.frames[fid] = GaugeTrace.Frame(image: id, offset: p.vaddr) }
             }
         }
-        b.resolveAbsoluteFrames { _ in nil } // rebuild the frame index
+        b.resolveAbsoluteFrames { _ in nil }
     }
 
-    /// Adds line entries for `offsets` and `offset − 1` from a lazily built table.
     static func addLines(_ image: inout GaugeTrace.Image, offsets: Set<UInt64>, addressBase: UInt64 = 0,
                          table: () -> DWARFLineTable) {
         let lt = table()
@@ -115,9 +106,6 @@ public enum GaugeSymbolicator {
         image.lines = entries.values.sorted { $0.offset < $1.offset }
     }
 
-    // MARK: Mach-O images and dSYMs
-
-    /// The slices of a (possibly fat) Mach-O file: (offset, image).
     public static func machOSlices(_ reader: ByteReader) -> [(offset: Int, image: MachOImage)] {
         guard let magic = try? reader.u32BE(0) else { return [] }
         if magic == MachO.fatMagic || magic == MachO.fatMagic64 {
@@ -133,8 +121,6 @@ public enum GaugeSymbolicator {
         return (try? MachOImage(reader, at: 0)).map { [(0, $0)] } ?? []
     }
 
-    /// Mach-O files under `roots` (files, `.dSYM` bundles, app bundles,
-    /// directories searched two levels deep) by UUID.
     public static func machOFiles(in roots: [URL]) -> [String: URL] {
         var out: [String: URL] = [:]
         func consider(_ url: URL) {
@@ -160,9 +146,6 @@ public enum GaugeSymbolicator {
         return out
     }
 
-    /// Re-symbolicates Mach-O images of a trace from local files matched by
-    /// UUID (dSYMs preferred: their symbol tables have local symbols, and
-    /// their DWARF gives lines). Returns the names of images that changed.
     @discardableResult
     public static func symbolicateMachO(_ t: inout GaugeTrace, searching roots: [URL]) -> [String] {
         let files = machOFiles(in: roots)
@@ -179,7 +162,6 @@ public enum GaugeSymbolicator {
         return changed
     }
 
-    /// Symbols and lines from one Mach-O slice (a binary or a dSYM).
     static func apply(_ image: inout GaugeTrace.Image, reader: ByteReader, slice: (offset: Int, image: MachOImage), offsets: Set<UInt64>) -> Bool {
         guard let table = try? SymbolTable(file: reader, at: slice.offset) else { return false }
         let text = table.textAddress
@@ -193,7 +175,6 @@ public enum GaugeSymbolicator {
             }
         }
         guard !covered.isEmpty else { return false }
-        // The new symbols replace the old ones they overlap.
         for s in covered {
             for (k, old) in symbols where old.start < s.end && s.start < old.end { symbols.removeValue(forKey: k) }
         }
@@ -214,12 +195,6 @@ public enum GaugeSymbolicator {
         return true
     }
 
-    // MARK: Swift names
-
-    /// Demangles Swift names with `swift-demangle --simplified` and C++
-    /// names (`_Z…`, block invocations `__Z…_block_invoke`) with `c++filt`
-    /// or `llvm-cxxfilt`, when the tools are found (PATH, then `xcrun
-    /// --find`). Returns how many names changed.
     @discardableResult
     public static func demangle(_ t: inout GaugeTrace, tool: String? = nil) -> Int {
         var swift: Set<String> = [], cxx: Set<String> = []
@@ -233,7 +208,6 @@ public enum GaugeSymbolicator {
             map.merge(runFilter(exe, ["--simplified"], swift.sorted()), uniquingKeysWith: { a, _ in a })
         }
         if !cxx.isEmpty, let exe = findTool(["llvm-cxxfilt", "c++filt"]) {
-            // A block invocation keeps its extra underscore ("___Z…_block_invoke").
             let list = cxx.sorted()
             let fed = list.map { $0.hasPrefix("__Z") && !$0.hasPrefix("___Z") ? "_" + $0 : $0 }
             let out = runFilter(exe, [], fed)
@@ -248,7 +222,6 @@ public enum GaugeSymbolicator {
         return n
     }
 
-    /// Runs a line filter over names: name → output line (unchanged lines left out).
     static func runFilter(_ exe: String, _ args: [String], _ list: [String]) -> [String: String] {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: exe)

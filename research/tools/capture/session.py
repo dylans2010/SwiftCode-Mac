@@ -51,15 +51,10 @@ WINCAP_DIR = REPO / "tools" / "capture" / "wincap"
 AXDRIVE_DIR = HERE / "axdrive"
 sys.path.insert(0, str(REPO / "tools" / "capture"))
 
-# AppKit ignores posted keys, clicks and drags in an app that is not frontmost,
-# and menu items that act on a window are disabled while the app has no main
-# window; these need the foreground. press, set, hover and scroll (through AX
-# scroll bars) work in the background.
 FOCUS_ACTIONS = {"menu", "key", "text", "click", "drag"}
 ACTION_KINDS = {"open", "press", "set", "select", "menu", "key", "text", "click", "hover", "scroll", "drag", "wait",
                 "resize", "run", "move"}
 COUNCIL_FPS = 120
-
 
 def build_version(binary):
     """(minos, sdk) from the executable's LC_BUILD_VERSION, via vtool."""
@@ -67,17 +62,14 @@ def build_version(binary):
     fields = dict(line.split(None, 1) for line in map(str.strip, out.splitlines()) if line and " " in line)
     return fields.get("minos", "?").strip(), fields.get("sdk", "?").strip()
 
-
 def major(version):
     try:
         return int(str(version).split(".")[0])
     except ValueError:
         return 0
 
-
 def macos_version():
     return subprocess.run(["sw_vers", "-productVersion"], capture_output=True, text=True).stdout.strip()
-
 
 def stamp_sdk(src, dest):
     """Copy src to dest with LC_BUILD_VERSION's SDK set to the SDK it was
@@ -89,10 +81,8 @@ def stamp_sdk(src, dest):
                    check=True, capture_output=True)
     subprocess.run(["codesign", "--force", "--sign", "-", str(dest)], check=True, capture_output=True)
 
-
 def log(*parts):
     print("session:", *parts, file=sys.stderr, flush=True)
-
 
 def tool(directory: pathlib.Path, name: str) -> pathlib.Path:
     binary = directory / ".build" / "debug" / name
@@ -101,7 +91,6 @@ def tool(directory: pathlib.Path, name: str) -> pathlib.Path:
         subprocess.run(["swift", "build", "--package-path", str(directory)], check=True,
                        stdout=sys.stderr)
     return binary
-
 
 class Driver:
     """axdrive, bound to one PID."""
@@ -123,7 +112,6 @@ class Driver:
             raise RuntimeError(f"axdrive {' '.join(args)}: {out.get('error', out)}")
         return out
 
-
 def match_args(spec):
     """{"role": "AXButton", "description~": "Inspector", "index": 1} -> axdrive options."""
     args = []
@@ -136,7 +124,6 @@ def match_args(spec):
             args += ["--match", f"{key}={value}"]
     return args
 
-
 def point_args(action, key):
     target = action[key]
     if isinstance(target, list):
@@ -144,7 +131,6 @@ def point_args(action, key):
     if isinstance(target, dict) and "at" in target:
         return ["--at", f"{target['at'][0]},{target['at'][1]}"]
     return match_args(target)
-
 
 def substitute(value, names):
     if isinstance(value, str):
@@ -156,7 +142,6 @@ def substitute(value, names):
     if isinstance(value, dict):
         return {k: substitute(v, names) for k, v in value.items()}
     return value
-
 
 class Target:
     def __init__(self, name, spec, args):
@@ -212,7 +197,6 @@ class Target:
                                  "so the session stamps it again.")
         return self.app_path
 
-
 def choose_display(ax, wanted, allow_1x):
     """The display the test window goes on, decided before anything is
     launched. Default: the built-in Retina display, which must be free."""
@@ -239,10 +223,8 @@ def choose_display(ax, wanted, allow_1x):
         raise SystemExit("the chosen display is 1x; pass --allow-1x to accept 1x captures")
     return main
 
-
 def win_display(script):
     return script.get("window", {}).get("display", "builtin")
-
 
 class Session:
     def __init__(self, script_path, args):
@@ -260,8 +242,6 @@ class Session:
         self.fps = 60
         if args.council:
             args.allow_focus = True
-
-    # ------------------------------------------------------------ setup
 
     def check_permissions(self):
         w = subprocess.run([str(self.wincap), "check"], capture_output=True, text=True)
@@ -299,8 +279,6 @@ class Session:
 
     def launch(self, target: Target, documents):
         ax = Driver(self.axdrive)
-        # Match by bundle path, not only by ID: other copies of the same app
-        # (another Xcode version) may be open and are left alone.
         app_dir = str(target.app_path.resolve()) + "/"
         ours = lambda a: a.get("path", "").startswith(app_dir)
         running = [a for a in ax.run("apps", "--bundle", target.bundle_id)["apps"] if ours(a)]
@@ -310,8 +288,6 @@ class Session:
                              "starts itself. Quit that one first.")
         frontmost = next((a for a in ax.run("apps")["apps"] if a["active"]), None)
         if target.spec.get("reset_defaults"):
-            # Only the capture wrapper's own domain: restored window frames would
-            # put the window wherever the last session left it.
             subprocess.run(["defaults", "delete", target.bundle_id], capture_output=True)
         t0 = time.time()
         extra = target.spec.get("launch_args", [])
@@ -361,8 +337,6 @@ class Session:
                              "(did a full-screen app take it over?)")
         return {**placed["window"], "id": chosen["id"]}
 
-    # ------------------------------------------------------------ actions
-
     def act(self, ax: Driver, action, names, project_dir, focus):
         kind = next((k for k in action if k in ACTION_KINDS), None)
         if kind is None:
@@ -371,8 +345,6 @@ class Session:
             return {"ok": False, "skipped": "needs focus: run with \"focus\": \"foreground\" and --allow-focus"}
         a = substitute(action, names)
         window = ["--window", a["window"]] if "window" in a else list(self.ax_window)
-        # In the foreground, pointer and wheel events go through the system's
-        # event stream (axdrive --route tap); AppKit ignores them posted to a PID.
         route = ["--route", "tap"] if focus == "foreground" else []
         if kind == "wait":
             time.sleep(float(a["wait"]))
@@ -417,15 +389,11 @@ class Session:
             return ax.run("drag", "--from", f"{d['from'][0]},{d['from'][1]}", "--to", f"{d['to'][0]},{d['to'][1]}",
                           "--duration", str(a.get("duration", 0.4)), *window, *route, check=False)
         if kind == "run":
-            # A command in the project copy (for example `git merge`), for an
-            # app that has no menu path for that step.
             start = time.time()
             proc = subprocess.run([str(x) for x in a["run"]], cwd=project_dir, capture_output=True, text=True)
             return {"ok": proc.returncode == 0 or a.get("allow_fail", False), "wall_start": start, "wall": time.time(),
                     "exit_status": proc.returncode, "output": (proc.stdout + proc.stderr)[-400:]}
         if kind == "move":
-            # Put another window of the app (Settings) on the session's display:
-            # [x, y] from the display's top left; "window" picks it by title.
             dx, dy = self.display["frame"][:2]
             x, y = a["move"]
             return ax.run("window", *window, "--position", f"{dx + x},{dy + y}", "--raise", check=False)
@@ -433,8 +401,6 @@ class Session:
             w, h = a["resize"]
             return ax.run("window", "--size", f"{w},{h}", *window, check=False)
         raise ValueError(kind)
-
-    # ------------------------------------------------------------ capture
 
     def still(self, pid, path, mode, select=None):
         r = subprocess.run([str(self.wincap), "still", "--pid", str(pid), "--mode", mode, *(select or self.window_select),
@@ -469,8 +435,6 @@ class Session:
         out, err = proc.communicate(timeout=60)
         events = [json.loads(line) for line in out.splitlines() if line.strip()]
         return next((e for e in events if e.get("event") == "done"), {"error": err.strip()})
-
-    # ------------------------------------------------------------ run
 
     def run_target(self, target: Target):
         spec = target.spec
@@ -513,8 +477,6 @@ class Session:
         }
         try:
             if "wait_title" in win and win["wait_title"] is None:
-                # The first window's title is not known in advance (a tool
-                # window showing whatever it showed last): wait for any.
                 time.sleep(float(win.get("first_window_wait", 5.0)))
             else:
                 ax.run("wait", "--window", substitute(win.get("wait_title", title), names), "--timeout",
@@ -524,7 +486,6 @@ class Session:
             setup = self.script.get("setup", [])
             setup = self.script.get("per_target_setup", {}).get(target.name, setup)
             if focus == "foreground" and setup:
-                # Setup menus and keys (opening a tool window) need the front.
                 ax.run("activate", check=False)
                 time.sleep(0.5)
             for action in setup:
@@ -542,7 +503,7 @@ class Session:
                 if step.get("only") and target.name not in step["only"]:
                     continue
                 if self.args.steps and step["id"] not in self.args.steps.split(","):
-                    continue  # a re-run of some steps keeps their numbers
+                    continue
                 step = {**step, **step.get("per_target", {}).get(target.name, {})}
                 step = {**step, **step.get("per_focus", {}).get(focus, {})}
                 manifest["steps"].append(self.run_step(index, step, ax, pid, names, project_dir, focus, target_dir))
@@ -562,17 +523,12 @@ class Session:
         sid = f"{index:02d}-{step['id']}"
         log(f"step {sid}")
         rec = {**self.script.get("record", {}), **(step.get("record") or {}), "fps": self.fps}
-        # "record": {"video": false, "mode": "app"} keeps the still's mode without a video.
         record = step.get("record", True) is not False and rec.get("video", True)
         stills = step.get("still", "both")
         mode = rec.get("mode", "window")
-        # "capture_title": this step records another window of the app (Settings),
-        # chosen by title, instead of the session window.
         select = ["--title", substitute(step["capture_title"], names)] if step.get("capture_title") else None
         entry = {"index": index, "id": step["id"], "note": step.get("note", ""), "actions": [], "ok": True}
         if focus == "foreground":
-            # Something else may have taken the front since the last step;
-            # take it back before the stills and the recording start.
             if not ax.run("activate", check=False).get("active"):
                 log("  could not bring the app to the front")
             time.sleep(0.3)
@@ -634,7 +590,6 @@ class Session:
             log(f"comparison: {index}")
         log(f"done: {self.out}")
 
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("script")
@@ -651,7 +606,6 @@ def main():
     ap.add_argument("--no-compare", action="store_true")
     args = ap.parse_args()
     Session(args.script, args).run()
-
 
 if __name__ == "__main__":
     main()

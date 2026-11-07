@@ -5,7 +5,6 @@ import Testing
 
 @MainActor
 @Suite(.serialized, .heavyIntegration) struct DebuggerChromeTests {
-    // MARK: Pure rules
 
     @Test func titlesAndAnnotation() {
         #expect(DebugPresentation.runningTitle("Shapes") == "Running Shapes")
@@ -34,7 +33,6 @@ import Testing
         #expect(rows.count == 4)
         #expect(rows[2] == .separator)
         if case .frame(let i, _, let user) = rows[3] { #expect(i == 2 && !user) } else { Issue.record("no system frame") }
-        // Without user frames, everything is listed.
         #expect(DebugPresentation.groupFrames([f(0, nil), f(1, nil)]).count == 2)
     }
 

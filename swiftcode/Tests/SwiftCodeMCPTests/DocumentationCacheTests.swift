@@ -3,33 +3,8 @@ import SwiftCodeIDECore
 import Testing
 @testable import SwiftCodeMCP
 
-/// Wave 19, Slice A: tests for the offline documentation cache
-/// (`DocumentationCache` + `DocumentationCatalogue` +
-/// `DocumentationSymbols`).
-///
-/// Behaviour source: Legacy `Documentation.sqlite` (57 rows,
-/// verified read-only with python3 sqlite3) and
-/// `SwiftCode/Resources/DocSymbols.json` (same 57 names), plus the
-/// destination's own live DocC fetch path (`EnginesDocs` /
-/// `SearchDocs` / `SearchHTTP`).
-///
-/// The FIXTURES below are canned (that is the point: the tests must
-/// not touch the live network); the IMPLEMENTATION under test is
-/// not — it parses real DocC render-JSON payloads, resolves
-/// candidates the way the live path does, and fails honestly when a
-/// topic does not resolve. Every request goes through
-/// `StubSearchProtocol` via `SearchWebTestTransport.session` (the
-/// `SearchToolsGapTests` shape, reused here — same test target).
-/// Each test uses its own temp directory as the cache root, so no
-/// test touches Application Support or another test's cache.
-///
-/// No Swift toolchain exists in this environment, so these tests
-/// are static-checked only here; `swift test` stays pending on
-/// Dylan's Mac.
 @MainActor
 @Suite(.serialized) struct DocumentationCacheTests {
-
-    // MARK: - Stub transport (same shape as SearchToolsGapTests)
 
     func installSearchStub(_ handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)) {
         StubSearchProtocol.requests = []
@@ -45,7 +20,6 @@ import Testing
         SearchWebTestTransport.session = nil
     }
 
-    /// A stub answer for one host+path, 404 for anything else.
     func stubFor(_ routes: [String: (status: Int, body: String)]) -> @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data) {
         { request in
             let key = (request.url?.host ?? "") + (request.url?.path ?? "")
@@ -56,15 +30,6 @@ import Testing
         }
     }
 
-    // MARK: - Fixtures (canned DocC render-JSON)
-
-    /// A VStack page in the shape of the live DocC JSON for
-    /// `documentation/swiftui/vstack`: a symbol with one
-    /// declaration, metadata availability, a discussion paragraph,
-    /// one Swift code listing, a "Conforms To" relationship, and a
-    /// "See Also" section. The payload is synthetic test data — it
-    /// exercises the parser and the conversion, and makes no claim
-    /// about the live page's current wording.
     let vstackFixture = """
     {
       "kind": "symbol",
@@ -100,10 +65,7 @@ import Testing
     }
     """
 
-    /// Valid JSON that is not DocC (no `metadata`, no `abstract`).
     let notDoccJSON = "{\"hello\": \"world\"}"
-
-    // MARK: - Helpers
 
     func makeTempCache() -> (DocumentationCache, URL) {
         let dir = FileManager.default.temporaryDirectory
@@ -115,15 +77,12 @@ import Testing
         DocumentationCatalogue.topics.first { $0.name == "VStack" }!
     }
 
-    // MARK: - Catalogue
-
     @Test("The catalogue holds the 57 sqlite-verified topics across 12 frameworks")
     func catalogueHas57Topics() {
         #expect(DocumentationCatalogue.topics.count == 57)
         #expect(DocumentationCatalogue.frameworks.count == 12)
         #expect(Set(DocumentationCatalogue.topics.map(\.name)).count == 57, "topic names must be unique")
         #expect(Set(DocumentationCatalogue.topics.map(\.framework)).count == 12)
-        // Spot checks against the sqlite (name, kind, framework).
         let byName = Dictionary(uniqueKeysWithValues: DocumentationCatalogue.topics.map { ($0.name, $0) })
         #expect(byName["VStack"]?.kind == "struct")
         #expect(byName["VStack"]?.framework == "SwiftUI")
@@ -133,7 +92,6 @@ import Testing
         #expect(byName["URLSession"]?.framework == "Foundation")
         #expect(byName["Model"]?.framework == "SwiftData")
         #expect(byName["MTLDevice"]?.framework == "Metal")
-        // Every topic's docPath is a real DocC path under its framework.
         for topic in DocumentationCatalogue.topics {
             #expect(topic.docPath.hasPrefix("documentation/\(topic.framework.lowercased())"),
                     "docPath \(topic.docPath) must live under its framework")
@@ -149,8 +107,6 @@ import Testing
         #expect(listed.count == 57)
     }
 
-    // MARK: - Conversion
-
     @Test("DocC JSON converts to a DocSymbol: kind, platforms, relationships, fenced sample, see-also")
     func symbolConversionFromDocCJSON() {
         let symbol = try #require(DocumentationCache.symbol(from: Data(vstackFixture.utf8), topic: vstackTopic()))
@@ -163,8 +119,6 @@ import Testing
         #expect(symbol.platforms["macOS"] == "10.15")
         #expect(symbol.inheritsFrom == nil)
         #expect(symbol.conformsTo == ["View"])
-        // The code sample is the listing with its fences stripped;
-        // a page with no listing has an empty sample (never a stub).
         #expect(symbol.codeSample == "VStack {\n    Text(\"Hello\")\n}")
         #expect(symbol.seeAlso.contains("HStack"))
         #expect(symbol.seeAlso.contains("ZStack"))
@@ -196,15 +150,11 @@ import Testing
         let parsed = DocumentationCache.parsePlatforms(["iOS 13.0+", "macOS 10.15"], framework: "SwiftUI")
         #expect(parsed["iOS"] == "13.0")
         #expect(parsed["macOS"] == "10.15")
-        // No version at all → the framework default for that platform.
         let defaulted = DocumentationCache.parsePlatforms(["iOS"], framework: "SwiftUI")
         #expect(defaulted["iOS"] == "13.0")
-        // No availability at all → the whole framework default table.
         let empty = DocumentationCache.parsePlatforms([], framework: "SwiftUI")
         #expect(empty == DocumentationCatalogue.platformDefaults["SwiftUI"])
     }
-
-    // MARK: - Fetching and storage (stubbed transport)
 
     @Test("An empty cache loads nothing and reports 0 of 57")
     func emptyCacheLoadsNothing() async {
@@ -232,13 +182,11 @@ import Testing
         #expect(result.failure == nil)
         #expect(result.canonicalURL?.path == "/documentation/swiftui/vstack")
 
-        // The raw payload is on disk, and the index records it.
         let pageURL = await cache.pageURL(for: "VStack")
         #expect(pageURL.map { FileManager.default.fileExists(atPath: $0.path) } == true)
         let index = await cache.loadIndex()
         #expect(index?.topics.first { $0.name == "VStack" }?.status == .cached)
 
-        // And it loads back as the converted symbol.
         let symbols = await cache.loadSymbols()
         #expect(symbols.count == 1)
         #expect(symbols.first?.name == "VStack")
@@ -249,7 +197,6 @@ import Testing
 
     @Test("A topic that resolves nowhere fails honestly and caches nothing")
     func fetchTopic404FailsHonestly() async {
-        // Every candidate 404s; the framework-index fallback 404s too.
         installSearchStub(stubFor([:]))
         defer { resetSearchStub() }
         let (cache, dir) = makeTempCache()
@@ -259,7 +206,6 @@ import Testing
         #expect(!result.cached)
         #expect(result.failure?.contains("VStack") == true)
         #expect(await cache.loadSymbols().isEmpty)
-        // The failure is recorded in the index, not swallowed.
         let status = await cache.cacheStatus()
         #expect(status.failed == 1)
         let index = await cache.loadIndex()
@@ -279,8 +225,6 @@ import Testing
         #expect(!result.cached)
         #expect(result.failure?.lowercased().contains("rate-limit") == true)
     }
-
-    // MARK: - Rendering
 
     @Test("The renderer serves home, framework, topic, and 404 pages from the cache")
     func renderedHTML() async {
@@ -311,8 +255,6 @@ import Testing
         #expect(unknown.contains("Page not found"))
         #expect(unknown.contains("documentation/swiftui/nonexistent"))
 
-        // A known topic whose fetch failed says so instead of 404ing:
-        // it is in the index (failed) but has no cached page file.
         let textTopic = DocumentationCatalogue.topics.first { $0.name == "Text" }!
         let textResult = await cache.fetchTopic(textTopic)
         #expect(!textResult.cached)

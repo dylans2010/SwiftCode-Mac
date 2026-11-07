@@ -1,9 +1,3 @@
-// SettingsViewModel.swift
-//
-// Ported from Legacy `SwiftCode/ViewModels/SettingsViewModel.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: clearCache (whole-caches-directory delete)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import Observation
 
@@ -69,7 +63,6 @@ public class SettingsViewModel {
     }
 
     public func clearCache() {
-        // Implementation for clearing caches
         let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
         if let url = cacheURL {
             try? FileManager.default.removeItem(at: url)

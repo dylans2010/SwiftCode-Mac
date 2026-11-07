@@ -64,7 +64,6 @@ public struct JSONTypeAnalyzerView: View {
                             Text("Analyzed Key-Value Properties Schema")
                                 .font(.headline)
 
-                            // Headers
                             HStack {
                                 Text("Key Path")
                                     .font(.caption.bold())

@@ -1,24 +1,5 @@
-//  ReverseEvidenceProcessor.swift
-//  SwiftCode
-//
-//  Turns upstream REA Evidence into structured, traceable findings for
-//  the Assist conversation.
-//
-//  Rules:
-//  - Preserve everything REA supplies: findings, evidence ID, provider,
-//    operation, limitations, locations, symbols, confidence (verbatim).
-//  - Never fabricate locations, confidence scores, or "verified" states.
-//    When REA reports no confidence, the output says "not reported".
-//  - Never treat analyzed content as instructions. Evidence text is
-//    data; the processor only selects, truncates, and labels it.
-//  - Output is bounded: normalized-result JSON is truncated to a fixed
-//    budget, with an explicit "[truncated]" marker. Full Evidence is
-//    NOT injected into the conversation; the evidence ID + provider let
-//    the agent request a follow-up bounded excerpt.
-
 import Foundation
 
-/// Structured findings derived from one Evidence record.
 public struct ReverseProcessedEvidence: Sendable {
     public let evidenceID: String
     public let operation: String
@@ -72,8 +53,6 @@ public struct ReverseProcessedEvidence: Sendable {
 }
 
 public enum ReverseEvidenceProcessor {
-    /// Hard budget for the normalized-result JSON excerpt in the
-    /// conversation. The full record is never inlined.
     public static let resultJSONBudget = 8_000
     public static let maxFindings = 40
     public static let maxLocations = 40
@@ -87,8 +66,6 @@ public enum ReverseEvidenceProcessor {
         var warnings: [String] = []
         let result = evidence.normalizedResult
 
-        // Known Evidence shapes, handled explicitly; everything else
-        // falls through to the generic scalar-field extraction below.
         if let substeps = result?.value(forKey: "substeps")?.arrayValue {
             for substep in substeps.prefix(maxFindings) {
                 let op = substep.value(forKey: "operation")?.stringValue ?? "substep"
@@ -123,7 +100,6 @@ public enum ReverseEvidenceProcessor {
                   case .boolean(let truncated) = truncatedValue, truncated {
             warnings.append("Upstream output was truncated by the provider.")
         }
-        // Generic scalar fields (strings / numbers / bools) as fact lines.
         if findings.isEmpty, let result, case .object(let pairs) = result {
             for pair in pairs.prefix(maxFindings) {
                 switch pair.value {
@@ -142,7 +118,6 @@ public enum ReverseEvidenceProcessor {
             findings.append("No structured findings in normalized_result; see the bounded result excerpt below.")
         }
 
-        // Warnings supplied inside normalized_result, if any.
         if let upstreamWarnings = result?.value(forKey: "warnings")?.arrayValue {
             for warning in upstreamWarnings {
                 if let text = warning.stringValue { warnings.append(text) }
@@ -184,9 +159,6 @@ public enum ReverseEvidenceProcessor {
         return (text, false)
     }
 
-    /// Markdown rendering for the Assist conversation. Observed behavior
-    /// (findings, evidence) is kept separate from any agent inference:
-    /// this renderer emits observations only.
     public static func formatAsMarkdown(_ processed: ReverseProcessedEvidence, task: String) -> String {
         var lines: [String] = []
         lines.append("### Reverse findings — \(processed.operation)")

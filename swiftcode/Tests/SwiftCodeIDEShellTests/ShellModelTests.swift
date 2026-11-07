@@ -6,7 +6,6 @@ import SwiftCodeEditorKit
 @testable import SwiftCodeIDEShell
 import SwiftCodeSyntax
 
-/// A package on disk for one test.
 struct TempPackage {
     let url: URL
 
@@ -31,7 +30,6 @@ struct TempPackage {
     func remove() { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
 }
 
-/// A build engine that replays a fixed log and issues.
 struct ScriptedEngine: BuildEngine {
     var lines: [String]
     var issues: [Diagnostic]
@@ -49,7 +47,6 @@ struct ScriptedEngine: BuildEngine {
 
 @MainActor
 @Suite struct ShellModelTests {
-    // MARK: Project navigator
 
     @Test func packageTreeMirrorsTheCoreWithItsInitialExpansion() throws {
         let pkg = try TempPackage()
@@ -57,13 +54,11 @@ struct ScriptedEngine: BuildEngine {
         let m = try WorkspaceShellModel(url: pkg.url, engine: ScriptedEngine(lines: [], issues: []))
         #expect(m.root.name == "Demo")
         #expect(m.root.children?.map(\.name) == ["Package.swift", "Sources", "Tests", "README.md"])
-        // Files are leaves; folders have children.
         #expect(m.root.children?.first?.children == nil)
         #expect(m.root.children?[1].children?.map(\.name) == ["Demo", "DemoCore"])
-        // Root, Sources and Tests start expanded (reference-ui-6.md §5.3, N4), their children collapsed.
         let sources = try #require(m.root.children?[1]), tests = try #require(m.root.children?[2])
         #expect(m.expanded == [m.root.id, sources.id, tests.id])
-        #expect(m.root.symbolName == "shippingbox")  // a package, as in the AppKit navigator
+        #expect(m.root.symbolName == "shippingbox")
         #expect(m.root.find(id: sources.id)?.name == "Sources")
         #expect(m.root.allFiles.count == 5)
         #expect(m.schemes == ["Demo"])
@@ -82,11 +77,10 @@ struct ScriptedEngine: BuildEngine {
         let editor = try #require(m.editor)
         editor.buffer.refineHighlighting()
         let layout = EditorLineLayout(tabWidth: 4, advance: 7)
-        #expect(editor.buffer.lineCount == 6)   // After the final newline, the empty line an editor shows.
+        #expect(editor.buffer.lineCount == 6)
         #expect(layout.displayLine(0, in: editor.buffer).runs.contains { $0.role == .keyword && $0.text.contains("public") })
         #expect(layout.displayLine(2, in: editor.buffer).runs.contains { $0.role == .comment })
         #expect(m.windowTitle == "Demo — Greeting.swift")
-        // Reveal: collapse everything, then Navigate ▸ Reveal in Project Navigator.
         m.expanded = []
         m.navigator = .find
         m.revealInProjectNavigator()
@@ -111,8 +105,6 @@ struct ScriptedEngine: BuildEngine {
         #expect(m.document?.language == .markdown)
     }
 
-    // MARK: Find
-
     @Test func findInWorkspaceReturnsRowsPerFileAndOpensAMatch() async throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -123,7 +115,6 @@ struct ScriptedEngine: BuildEngine {
         m.runFind()
         await m.waitForFind()
         #expect(!m.isSearching)
-        // Greeting.swift (1), main.swift (1), GreetingTests.swift has none ("greets"), README.md (1); ignoring case.
         #expect(m.findRows.map(\.name) == ["main.swift", "Greeting.swift", "README.md"])
         #expect(m.findCountText == "3 results in 3 files")
         let match = try #require(m.findRows.first { $0.name == "Greeting.swift" }?.matches.first)
@@ -131,15 +122,12 @@ struct ScriptedEngine: BuildEngine {
         #expect(m.findRows.first { $0.name == "Greeting.swift" }?.title == "Greeting.swift  (1)")
         m.findSelection = match.id
         #expect(m.document?.name == "Greeting.swift" && m.markedLine == 1)
-        // Matching case leaves out the README's "greeting".
         m.findIgnoreCase = false
         m.findText = "Greeting"
         m.runFind()
         await m.waitForFind()
         #expect(m.findCountText == "2 results in 2 files")
     }
-
-    // MARK: Build and issues
 
     @Test func buildFillsTheLogAndTheIssueNavigatorAndStepsThroughIssues() async throws {
         let pkg = try TempPackage(error: true)
@@ -157,17 +145,14 @@ struct ScriptedEngine: BuildEngine {
         #expect(m.buildLog.contains("[1/3] Compiling Demo main.swift"))
         #expect(m.isDebugAreaShown && m.debugPane == .buildLog)
         #expect(m.issueCounts.errors == 2 && m.issueCounts.warnings == 1)
-        // A failed build shows the Issue navigator.
         #expect(m.navigator == .issues)
         if case .finished(let s) = m.activity { #expect(s == "Build Failed") } else { Issue.record("activity \(m.activity)") }
         #expect(m.activityText.hasPrefix("Build Failed \u{2022} Today at "))
-        // The package's targets group the files (IssueNavigatorModel.tree); the file-less error is the project's.
         #expect(m.issueGroups.map(\.title) == ["Demo", "Demo", "DemoCore"])
         #expect(m.issueGroups[0].issues.map(\.message) == ["Link failed"])
         #expect(m.issueGroups[1].files.map(\.title) == ["main"])
         let all = m.allIssues
         #expect(Set(all.map(\.id)).count == all.count)
-        // ⌘' steps in the navigator's order (the project row's own issue first), opening each issue's line; ⇧⌘' goes back, wrapping.
         #expect(all.map(\.message) == ["Link failed", "Cannot find 'missing' in scope", "Variable was never used"])
         m.perform(.nextIssue)
         #expect(m.issueSelection == all[0].id && m.document == nil)
@@ -199,8 +184,6 @@ struct ScriptedEngine: BuildEngine {
         #expect(ShellCommand.findInWorkspace.title(in: m.menuContext) == "Find in Package")
         #expect(ShellCommand.findInWorkspace.title(in: nil) == "Find in Workspace")
     }
-
-    // MARK: App
 
     @Test func appOpensFromAPathRecordsItAndClosesBackToWelcome() throws {
         let pkg = try TempPackage()
@@ -236,7 +219,6 @@ struct ScriptedEngine: BuildEngine {
         var seen: [ShellShortcut: ShellCommand] = [:]
         for c in ShellCommand.allCases {
             #expect(c.menuCommand != nil, "\(c) has no CommandTable entry")
-            // Save All and View Memory: the AppKit IDE lists them unavailable; this shell performs them.
             #expect(c.menuCommand?.isAvailable == true || c == .saveAll || c == .viewMemory, "\(c) is unavailable in the core")
             if let s = c.shortcut {
                 #expect(seen[s] == nil, "\(c) and \(seen[s].map { "\($0)" } ?? "") share \(s.text)")
@@ -247,7 +229,6 @@ struct ScriptedEngine: BuildEngine {
         #expect(ShellCommand.findInWorkspace.shortcut?.text == "⇧⌘F")
         #expect(ShellCommand.showFindNavigator.shortcut?.text == "⌘4")
         #expect(ShellCommand.showIssueNavigator.shortcut?.text == "⌘5")
-        // ⌘" is ⇧⌘' for toolkits that take unshifted keys.
         #expect(ShellCommand.previousIssue.shortcut == ShellShortcut(key: "'", modifiers: [.command, .shift]))
         #expect(ShellCommand.goBack.shortcut == ShellShortcut(key: Key.left, modifiers: [.command, .control]))
         #expect(ShellCommand.toggleNavigator.shortcut == nil)
@@ -277,7 +258,6 @@ struct ScriptedEngine: BuildEngine {
         #expect(runs.first { $0.text == "let" }?.role == .keyword)
         #expect(runs.first { $0.text == "12" }?.role == .number)
         #expect(runs.last?.role == .comment)
-        // Identifiers draw in the plain color.
         #expect(runs.contains { $0.role == nil && $0.text.contains("x") })
         var col = 2
         #expect(SourceDocument.expandTabs("a\tb", column: &col) == "a b" && col == 5)
@@ -294,14 +274,11 @@ struct ScriptedEngine: BuildEngine {
     }
 
     @Test func paletteFollowsTheSelectedTheme() throws {
-        // "SwiftCode Default" (the AppKit editor's default): the system colors
-        // as values, per appearance.
         let light = SourcePalette.forAppearance(dark: false), dark = SourcePalette.forAppearance(dark: true)
         #expect(light.background.hex == "#FFFFFF" && dark.background.hex == "#1E1E1E")
         #expect(light.color(.keyword) == WorkspaceChrome.defaultThemeColors(dark: false).tokens["keyword"])
         #expect(dark.color(.keyword) == WorkspaceChrome.defaultThemeColors(dark: true).tokens["keyword"])
         #expect(light.color(nil) == light.foreground && light.color(.identifier) == light.foreground)
-        // A theme with its own colors: those.
         let paper = try #require(EditorTheme.builtIns.first { $0.name == "SwiftCode Paper" })
         let p = SourcePalette.forAppearance(dark: true, theme: paper)
         #expect(p.background.hex == "#FBF8F1" && p.color(.keyword).hex == "#8A2D5E")
@@ -354,9 +331,6 @@ struct ScriptedEngine: BuildEngine {
     }
 }
 
-/// The chrome the shell draws from the AppKit IDE's rules
-/// (`WorkspaceChrome`, `docs/PARITY.md` §5.10): outline rows, the jump bar,
-/// the File inspector, the menu bar's shortcuts.
 @MainActor
 @Suite struct ShellChromeTests {
     @Test func projectRowsAreTheAppKitOutlinesRows() throws {
@@ -364,8 +338,6 @@ struct ScriptedEngine: BuildEngine {
         defer { pkg.remove() }
         let m = try WorkspaceShellModel(url: pkg.url, engine: ScriptedEngine(lines: [], issues: []))
         let rows = OutlineRows.project(m.root, expanded: m.expanded, hideExtensions: true)
-        // The package, its manifest without extension, Sources and Tests
-        // expanded with their (collapsed) target folders.
         #expect(rows.map(\.title) == ["Demo", "Package", "Sources", "Demo", "DemoCore", "Tests", "DemoCoreTests", "README"])
         #expect(rows.map(\.level) == [0, 1, 1, 2, 2, 1, 2, 1])
         #expect(rows[0].symbol == "shippingbox" && rows[1].symbol == "chevron.left.forwardslash.chevron.right")
@@ -415,8 +387,6 @@ struct ScriptedEngine: BuildEngine {
     }
 
     @Test func everyMenuCommandHasAShortcutTheToolkitsTake() {
-        // A command listed in two menus (Developer Documentation) keeps one
-        // shortcut; two different commands never share one.
         var seen: [ShellShortcut: (title: String, action: String)] = [:]
         func walk(_ items: [MenuItemSpec]) {
             for i in items {

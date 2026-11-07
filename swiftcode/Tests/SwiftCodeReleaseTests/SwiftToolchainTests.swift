@@ -2,9 +2,6 @@ import Foundation
 import Testing
 import SwiftCodeRelease
 
-/// The Swift toolchain the `swiftcode-swb` helper names to swift-build on Linux
-/// (`specs/xcodebuild/show-build-settings.md` §3). The file system and the
-/// compiler are stand-ins, so every case runs on every host.
 @Suite struct SwiftToolchainTests {
     static let swiftlyRoot = "/home/u/.local/share/swiftly/toolchains/6.4.2"
 
@@ -32,7 +29,6 @@ import SwiftCodeRelease
         let found = SwiftToolchain.locate(environment: ["SWIFTCODE_SWIFT_TOOLCHAIN": "/tc", "PATH": "/usr/bin"],
                                           isExecutable: files.contains, realPath: { $0 }, targetInfo: { _ in nil })
         #expect(found == "/tc")
-        // A folder without the compiler is ignored.
         let ignored = SwiftToolchain.locate(environment: ["SWIFTCODE_SWIFT_TOOLCHAIN": "/empty", "PATH": "/usr/bin"],
                                             isExecutable: files.contains, realPath: { $0 }, targetInfo: { _ in nil })
         #expect(ignored == "/")
@@ -46,8 +42,6 @@ import SwiftCodeRelease
         #expect(found == "/opt/swift")
     }
 
-    /// swiftly's proxy, and the Flatpak's wrapper for the host's swiftly
-    /// toolchain in the home folder: the compiler says where it is.
     @Test func aProxyIsAskedForItsRuntime() {
         for proxy in ["/home/u/.local/share/swiftly/bin", "/app/libexec/swiftcode-host"] {
             var asked: [String] = []
@@ -59,8 +53,6 @@ import SwiftCodeRelease
         }
     }
 
-    /// A host toolchain this process cannot see (the Flatpak and a toolchain
-    /// in the host's `/usr`), and no compiler at all.
     @Test func nothingIsFoundWithoutAVisibleCompiler() {
         let wrapper = "/app/libexec/swiftcode-host"
         let unseen = SwiftToolchain.locate(environment: ["PATH": wrapper], isExecutable: [wrapper + "/swift"].contains, realPath: { $0 },

@@ -1,11 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Get a Runtime (#55, `runtime-downloads.md` §6.1): on a Mac the routes in
-/// order — Xcode's own tool, SwiftCode's direct download, a runtime you have —
-/// each a short section with its one button; the button opens the sheet with
-/// the exact command. While a route runs, a bar, the phase, Cancel and the
-/// tool's output take the step's top; a failure shows its words and Retry.
 extension RuntimeSetupWindowController {
     var downloads: RuntimeDownloadModel { session.downloads }
 
@@ -193,8 +188,6 @@ extension RuntimeSetupWindowController {
         }
         return out
     }
-
-    // MARK: Actions
 
     @objc func downloadPlatformChanged(_ sender: NSPopUpButton) {
         let i = sender.selectedItem?.tag ?? 0

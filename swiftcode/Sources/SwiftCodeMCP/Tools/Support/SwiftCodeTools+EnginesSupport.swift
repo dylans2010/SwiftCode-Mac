@@ -5,25 +5,7 @@ import FoundationNetworking
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-// MARK: - Engines support (Wave 5)
-//
-// Pure helpers for the Engines / Web / Reverse tools in
-// `SwiftCodeTools+Engines.swift`, kept separate so they can be unit-tested
-// without a server. The behaviour source is Legacy's
-// `AssistCodeMutationEngine`, `AssistPatchApplicationEngine`,
-// `AssistDependencyResolutionEngine`,
-// `AssistXcodeProjectResolver.locate`,
-// `AssistExternalResourceGateway`, `AssistFetchDocumentationTool`,
-// and `ReverseToolAdapter` + `ReverseTargetValidator` (Dylan's own
-// code, ported under MIT).
-
-// MARK: - Code mutation
-
 enum EnginesMutation {
-    /// Legacy's `AssistCodeMutationEngine.symbolBodyRange`: the first
-    /// occurrence of the symbol name, then the first `{` after it,
-    /// brace-counted to the matching `}`. The range starts at the
-    /// symbol name itself, so the declaration line is replaced too.
     static func symbolBodyRange(for symbol: String, in content: String) -> Range<String.Index>? {
         guard let symbolRange = content.range(of: symbol) else { return nil }
         guard let braceStart = content[symbolRange.upperBound...].firstIndex(of: "{") else { return nil }
@@ -44,35 +26,22 @@ enum EnginesMutation {
     }
 }
 
-// MARK: - Patch diff
-
 enum EnginesPatch {
-    /// Legacy's `AssistPatchApplicationEngine.unifiedDiff`, now
-    /// rendered by the real Myers engine (`MyersDiff`, gap closure)
-    /// instead of the naive line-by-line diff.
     static func unifiedDiff(old: String, new: String, file: String) -> String {
         MyersDiff.unifiedDiff(old: old, new: new, file: file)
     }
 }
-
-// MARK: - Xcode project location
 
 enum EnginesXcodeProject {
     struct Located: Sendable {
         var url: URL
         var isWorkspace: Bool
 
-        /// The `xcodebuild -project/-workspace` argument pair.
         var xcodebuildArgs: [String] {
             isWorkspace ? ["-workspace", url.path] : ["-project", url.path]
         }
     }
 
-    /// Legacy's `AssistXcodeProjectResolver.locate(in:)`: the user's
-    /// `.xcworkspace` or `.xcodeproj` at the top level of the workspace
-    /// root. Prefers a workspace over a project; within one kind the
-    /// alphabetically-first bundle wins. Returns nil when no project
-    /// bundle is present.
     static func locate(in workspaceRoot: URL) -> Located? {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
@@ -92,10 +61,6 @@ enum EnginesXcodeProject {
     }
 }
 
-// MARK: - HTTP fetch (docs + gateway transport)
-
-/// Failures of the engines HTTP fetch, mirroring Legacy's
-/// `AssistRemoteFetchError` cases the tools actually surface.
 enum EnginesHTTPError: Error, Sendable {
     case invalidURL(String)
     case badStatus(Int)
@@ -106,8 +71,6 @@ enum EnginesHTTPError: Error, Sendable {
     case fetchFailed(String)
 }
 
-/// One fetched response: body, the URL after redirects, the status,
-/// and the Content-Type header when the server sent one.
 struct EnginesFetchedResponse: Sendable {
     var data: Data
     var finalURL: URL
@@ -115,11 +78,6 @@ struct EnginesFetchedResponse: Sendable {
     var contentType: String?
 }
 
-/// A `URLSessionTaskDelegate` that only allows redirects onto hosts in
-/// `allowedHosts` (`nil` = any host). Legacy's
-/// `AssistSecureHTTPClient` validates every hop; this is the same
-/// rule expressed as a delegate, in the shape of
-/// `SwiftCodeAssistant.HTTP.StreamDelegate`.
 final class EnginesRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     let allowedHosts: Set<String>?
     init(allowedHosts: Set<String>?) { self.allowedHosts = allowedHosts }
@@ -137,21 +95,6 @@ final class EnginesRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked S
 }
 
 enum EnginesHTTP {
-    /// Sends `request` and returns the whole response, following only
-    /// redirects onto `allowedHosts`. Cancelling the calling task
-    /// cancels the request (the `SwiftCodeAssistant.HTTP.send` shape:
-    /// `dataTask` + continuation + cancellation holder, because
-    /// swift-corelibs-foundation has no `URLSession.bytes` and the
-    /// async `data(for:)` is not used anywhere in this codebase).
-    /// Rejects bodies over `maxBytes` instead of buffering them
-    /// unboundedly.
-    ///
-    /// `session`, when given, is used as-is (no redirect guard is
-    /// attached: a session's delegate is fixed at creation). Only
-    /// the search tools' test seam passes one
-    /// (`SearchWebTestTransport.session`); production callers pass
-    /// nil and get the ephemeral session with the redirect guard.
-    /// A caller-supplied session is never invalidated here.
     static func fetch(_ request: URLRequest, maxBytes: Int, allowedHosts: Set<String>?,
                       session: URLSession? = nil) async throws -> EnginesFetchedResponse {
         if let session {
@@ -163,8 +106,6 @@ enum EnginesHTTP {
         return try await fetch(request, maxBytes: maxBytes, using: live)
     }
 
-    /// The shared request core: one `dataTask` with cancellation and
-    /// the body cap, over whichever session the caller supplied.
     private static func fetch(_ request: URLRequest, maxBytes: Int, using session: URLSession) async throws -> EnginesFetchedResponse {
         let holder = EnginesTaskHolder()
         do {
@@ -223,12 +164,9 @@ final class EnginesTaskHolder: @unchecked Sendable {
     }
 }
 
-// MARK: - fetch_documentation: DocC JSON + HTML fallback
-
 enum EnginesDocs {
     static let appleHosts: Set<String> = ["developer.apple.com"]
 
-    /// e.g. "documentation/swiftui/view".
     struct Candidate: Sendable {
         let docPath: String
         var canonicalURL: URL {
@@ -242,7 +180,6 @@ enum EnginesDocs {
     struct Page: Sendable {
         var title: String
         var canonicalURL: URL
-        /// "docc-json" | "html-fallback".
         var retrievalMethod: String
         var abstract: String
         var declarations: [String]
@@ -252,13 +189,6 @@ enum EnginesDocs {
         var relatedLinks: [(title: String, url: String)]
     }
 
-    // MARK: Candidate resolution
-
-    /// Legacy's `AssistFetchDocumentationTool.resolveCandidates`,
-    /// ported verbatim: an explicit URL resolves to exactly one
-    /// candidate; a query (+ optional framework) probes likely DocC
-    /// paths. A single-token query without a framework cannot be
-    /// resolved to a path reliably, so it throws instead of guessing.
     static func resolveCandidates(query: String, urlString: String, framework: String?) throws -> [Candidate] {
         if !urlString.isEmpty {
             guard let url = URL(string: urlString) else {
@@ -272,14 +202,11 @@ enum EnginesDocs {
             guard path.hasPrefix("documentation/") || path == "documentation" else {
                 throw EnginesHTTPError.invalidURL("URL is not an Apple documentation page: \(url.host ?? "")")
             }
-            // Strip locale prefixes like /de/documentation/... — DocC
-            // JSON is locale-independent.
             var docPath = path
             let segments = path.split(separator: "/").map(String.init)
             if segments.count > 1, segments[0].count == 2, segments[1] == "documentation" {
                 docPath = segments.dropFirst().joined(separator: "/")
             }
-            // Strip anchors — they are not part of the DocC path.
             docPath = docPath.split(separator: "#").first.map(String.init) ?? docPath
             return [Candidate(docPath: docPath)]
         }
@@ -297,7 +224,6 @@ enum EnginesDocs {
         if let fw = framework?.trimmingCharacters(in: .whitespacesAndNewlines), !fw.isEmpty {
             let f = fw.lowercased().replacingOccurrences(of: " ", with: "")
             if words.count == 1 && words[0] == f {
-                // The query IS the framework name: fetch the framework root page.
                 return [Candidate(docPath: "documentation/\(f)")]
             }
             if dotted.count >= 2 {
@@ -306,7 +232,6 @@ enum EnginesDocs {
             if words.count >= 2 && words[0] == f {
                 add("documentation/" + words.joined(separator: "/"))
             }
-            // Symbol within the framework: "View" + SwiftUI -> documentation/swiftui/view
             let symbolSlug = words.filter { $0 != f }.joined(separator: "/")
             if !symbolSlug.isEmpty { add("documentation/\(f)/\(symbolSlug)") }
             add("documentation/\(f)")
@@ -318,8 +243,6 @@ enum EnginesDocs {
             if words.count >= 2 {
                 add("documentation/" + words.joined(separator: "/"))
             }
-            // Single-token queries without a framework cannot be resolved to a
-            // path reliably; report honestly rather than guessing.
         }
 
         guard !ordered.isEmpty else {
@@ -330,13 +253,6 @@ enum EnginesDocs {
         return Array(ordered.prefix(4)).map { Candidate(docPath: $0) }
     }
 
-    // MARK: DocC JSON parsing
-
-    /// Parses a DocC render-JSON payload into a structured page.
-    /// Returns nil when the payload does not look like documentation
-    /// (schema drift guard). Legacy's
-    /// `AssistFetchDocumentationTool.parseDocCJSON`, with
-    /// `AssistJSON` replaced by `JSONSerialization` walks.
     static func parseDocCJSON(data: Data, canonicalURL: URL, finalJSONURL: URL,
                               language: String, includeExamples: Bool) -> Page? {
         guard let root = try? JSONSerialization.jsonObject(with: data),
@@ -354,8 +270,6 @@ enum EnginesDocs {
 
         let abstract = richText(obj["abstract"])
 
-        // Canonical URL follows JSON redirects: map the final JSON URL back to
-        // its documentation page (strip the /tutorials/data prefix and .json).
         var canonical = canonicalURL
         let finalString = finalJSONURL.absoluteString
         if let range = finalString.range(of: "https://developer.apple.com/tutorials/data/") {
@@ -425,7 +339,6 @@ enum EnginesDocs {
             }
         }
 
-        // Availability: metadata.platforms[] entries {name, introducedAt}.
         var availability: [String] = []
         if let platforms = metadata["platforms"] as? [[String: Any]] {
             for p in platforms {
@@ -441,8 +354,6 @@ enum EnginesDocs {
             availability = Array(Set(platformsFromDeclarations)).sorted()
         }
 
-        // Related links: seeAlsoSections + relationshipsSections, resolved via
-        // the references dictionary. Only documentation URLs are kept.
         var relatedLinks: [(title: String, url: String)] = []
         if let references = obj["references"] as? [String: Any] {
             let linkSections = ((obj["seeAlsoSections"] as? [Any]) ?? []) + ((obj["relationshipsSections"] as? [Any]) ?? [])
@@ -484,9 +395,6 @@ enum EnginesDocs {
         )
     }
 
-    /// DocC render-JSON rich text: inline-content nodes carry their text
-    /// in a "text" field, or nest further "inlineContent". Strings pass
-    /// through; anything else contributes nothing.
     static func richText(_ value: Any?) -> String {
         guard let value else { return "" }
         if let s = value as? String { return s }
@@ -498,8 +406,6 @@ enum EnginesDocs {
         if let arr = value as? [Any] { return arr.map { richText($0) }.joined() }
         return ""
     }
-
-    // MARK: HTML fallback
 
     static func htmlTitle(_ html: String) -> String? {
         guard let range = html.range(of: "<title>", options: .caseInsensitive),
@@ -528,14 +434,12 @@ enum EnginesDocs {
 
     static func htmlBodyText(_ html: String) -> String {
         var text = html
-        // Drop scripts, styles, and head content.
         for tag in ["script", "style", "head", "nav", "header", "footer"] {
             while let open = text.range(of: "<\(tag)", options: .caseInsensitive),
                   let close = text.range(of: "</\(tag)>", options: .caseInsensitive, range: open.upperBound..<text.endIndex) {
                 text.removeSubrange(open.lowerBound..<close.upperBound)
             }
         }
-        // Strip remaining tags, decode a few entities, collapse whitespace.
         text = text.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
         for (entity, char) in ["&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&nbsp;": " "] {
             text = text.replacingOccurrences(of: entity, with: char)
@@ -544,10 +448,6 @@ enum EnginesDocs {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: Rendering
-
-    /// Legacy's `AssistFetchDocumentationTool.renderResults`, ported
-    /// verbatim.
     static func render(pages: [Page], platform: String?, query: String) -> String {
         var out: [String] = []
         out.append("# Apple Developer Documentation — \"\(query)\"")
@@ -603,10 +503,6 @@ enum EnginesDocs {
     }
 }
 
-/// In-memory DocC/HTML response cache (Legacy's
-/// `AssistRemoteResponseCache`, max 100 entries, 24 h TTL), so a
-/// repeated documentation lookup does not re-fetch. Keyed by the
-/// "docjson:" / "dochtml:" cache keys Legacy uses.
 actor EnginesDocCache {
     struct Entry: Sendable {
         var data: Data
@@ -641,12 +537,6 @@ actor EnginesDocCache {
     }
 }
 
-// MARK: - reverse_analyze: operation allow-list + target validation
-
-/// Legacy's `ReverseOperation` (`ReverseModels.swift`): the full
-/// allow-list. `direct` = the pinned REA dist module; `pinnedCLI` =
-/// the pinned `rea` CLI — used ONLY for objdump, because the direct
-/// provider does not declare it.
 enum EnginesReverseOperation: String, CaseIterable, Sendable {
     case inspectArtifact = "inspect_artifact"
     case inspectMacho = "inspect_macho"
@@ -661,8 +551,6 @@ enum EnginesReverseOperation: String, CaseIterable, Sendable {
     case inspectWithObjdump = "inspect_with_objdump"
 }
 
-/// Legacy's `ReverseObjdumpOperation`: the fixed sub-operation enum
-/// for `inspect_with_objdump`.
 enum EnginesReverseObjdumpOperation: String, CaseIterable, Sendable {
     case fileHeaders = "file_headers"
     case sectionHeaders = "section_headers"
@@ -673,11 +561,6 @@ enum EnginesReverseObjdumpOperation: String, CaseIterable, Sendable {
     case disassembleAll = "disassemble_all"
 }
 
-/// Legacy's `ReverseTargetValidator` (`ReverseCommandParser.swift`),
-/// ported verbatim: scope rule + REA-disclaimer task screening.
-/// Validation failures return the full Legacy message (message +
-/// "\nRemediation: ..." when Legacy supplies one).
-/// A target-scope refusal carrying the user-facing message.
 struct ReverseValidationError: Error, CustomStringConvertible, Sendable {
     let message: String
     var description: String { message }
@@ -728,7 +611,6 @@ enum EnginesReverseValidator {
                 remediation: "Analyze a copy in your project, Downloads, Desktop, or Documents instead."
             )
         }
-        // Dot-directories under home (e.g. ~/.ssh) are never in scope.
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         if resolvedPath.hasPrefix(home + "/.") {
             return fail(
@@ -768,9 +650,6 @@ enum EnginesReverseValidator {
         return .success(resolvedPath)
     }
 
-    /// Screens task text against the REA disclaimer refusal boundary.
-    /// Returns the Legacy refusal message when the task asks for a
-    /// refused use, else nil.
     static func refusalMessage(forTask task: String) -> String? {
         let lower = task.lowercased()
         for pattern in refusalPatterns where lower.contains(pattern) {
@@ -779,9 +658,6 @@ enum EnginesReverseValidator {
         return nil
     }
 
-    /// Legacy's timeout clamp for `reverse_analyze` (default 300,
-    /// clamped to 10...1800 seconds). Accepts an integer or a
-    /// floating-point argument, as the schema declares `number`.
     static func clampTimeout(_ value: AnyJSON?) -> TimeInterval {
         let raw: Double?
         if let d = value?.double { raw = d } else if let i = value?.int { raw = Double(i) } else { raw = nil }

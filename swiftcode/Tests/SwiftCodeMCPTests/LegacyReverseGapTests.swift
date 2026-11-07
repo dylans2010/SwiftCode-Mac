@@ -2,38 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeMCP
 
-// MARK: - Legacy Reverse gap tests (Wave 18)
-//
-// Ported from Legacy
-// `SwiftCode/Backend/Assist/API/Internal API/Reverse/ReverseTests.swift`
-// (Dylan's own code; direct port authorised under MIT), adapted to the
-// SwiftCode shape: Legacy's Reverse subsystem lives in SwiftCode as the
-// `reverse_analyze` MCP tool (`SwiftCodeTools+Engines.swift` /
-// `SwiftCodeTools+EnginesSupport.swift`: `EnginesReverseOperation`,
-// `EnginesReverseObjdumpOperation`, `EnginesReverseValidator`).
-//
-// What is ported here — the checks `SwiftCodeEnginesToolsTests` does NOT
-// already cover at the tool level:
-//   - the allow-list itself (exactly 11 operations, no forbidden
-//     execution surface);
-//   - the objdump sub-operation list;
-//   - the target validator called directly (system path, traversal,
-//     relative path, missing target, in-scope file);
-//   - the disclaimer refusal boundary called directly.
-//
-// What is deliberately NOT ported (no SwiftCode equivalent exists):
-//   - the `@Reverse` message parser (4 checks): SwiftCode takes structured
-//     `reverse_analyze` arguments; there is no message parser.
-//   - the JSON bridge request/response encoding, evidence decoding,
-//     and error-payload mapping (3 checks): SwiftCode uses the native REA
-//     subsystem, not Legacy's `ReverseBridge` JSON protocol.
-//   - the `ReverseBridge.mjs` script check: no bridge script ships
-//     in SwiftCode (see the deviation note in `SwiftCodeTools+Engines.swift`).
-//
-// No Swift toolchain exists in this environment, so these tests have
-// NOT been compiled or run — statically verified only. On Dylan's Mac:
-// run with `swift test --filter LegacyReverseGapTests`.
-
 @Suite struct LegacyReverseGapTests {
 
     @Test func reverseAllowListHasElevenOperationsAndNoForbiddenSurface() {
@@ -46,8 +14,6 @@ import Testing
             "inspect_managed_members", "inspect_sqlite_database",
             "inspect_with_objdump",
         ])
-        // Legacy's allow-list check: no execution surface and no
-        // licensed-tool client may ever appear in the list.
         let forbidden = [
             "execute", "frida", "gdb", "ida", "jeb", "jadx", "adb",
             "firmware", "instrument", "mcp", "rizin",

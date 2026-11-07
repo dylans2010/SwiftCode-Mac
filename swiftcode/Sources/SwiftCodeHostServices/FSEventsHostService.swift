@@ -1,18 +1,3 @@
-// The host's file-event service `com.apple.FSEvents` (fsevents-host.md):
-// the server side of the guest's public FSEvents API. Wire protocol from
-// the spec (§2–§5, level 3): MIG requests 66000 (register a stream), 66001
-// (FlushSync, on the stream port), 66002 (device UUID), 66003 (current
-// event id), 66004 (last id before a time), 66006 (Stop, on the stream
-// port), replies id + 100, and one-way event messages 67000 to the client
-// port each stream registers. Written from the spec; no Apple code.
-//
-// SwiftCode's events come from SwiftCode's own VFS (`FileChangeFeed`): every change
-// a guest process makes to its file system is reported with the process,
-// the kind of change and the object's type, so the service can give the
-// Darwin flags of §3.4 (including OwnEvent and IgnoreSelf, which need the
-// process) without watching the host. Changes made on the host behind the
-// guest's back are not reported (fsevents-host.md, "SwiftCode implementation").
-
 import Dispatch
 import Foundation
 import SwiftCodeDarwinABI
@@ -20,11 +5,7 @@ import SwiftCodeDarwinKernel
 
 public final class FSEventsHostService: @unchecked Sendable {
     public static let serviceName = "com.apple.FSEvents"
-    /// `SWIFTCODE_DEBUG_NO_FSEVENTS=1`: no service (the guest's look-ups fail
-    /// with 1102, as before the service existed).
     public static let disabled = getenv("SWIFTCODE_DEBUG_NO_FSEVENTS").map { String(cString: $0) == "1" } ?? false
-    /// `SWIFTCODE_FSEVENTS_NO_CHANGES=1`: the minimal service of §7 (streams are
-    /// accepted, HistoryDone is sent, no change events).
     public static let changesDisabled = getenv("SWIFTCODE_FSEVENTS_NO_CHANGES").map { String(cString: $0) == "1" } ?? false
 
     enum ID {
@@ -32,8 +13,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         static let lastIDBeforeTime: Int32 = 66004, stop: Int32 = 66006, events: Int32 = 67000
     }
 
-    /// The service's own flag bits (§3.4); the client turns them into
-    /// `kFSEventStreamEventFlag*`.
     public enum Wire {
         public static let created: UInt32 = 0x1, removed: UInt32 = 0x2, inodeMetadata: UInt32 = 0x4, renamed: UInt32 = 0x8
         public static let modified: UInt32 = 0x10, createdDirectory: UInt32 = 0x80, changeOwner: UInt32 = 0x100
@@ -42,7 +21,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         public static let directory: UInt32 = 0x0100_0000, historyDone: UInt32 = 0x0800_0000, dropped: UInt32 = 0x4000_0000
     }
 
-    /// `kFSEventStreamCreateFlag*` (FSEvents.h).
     enum CreateFlag {
         static let noDefer: UInt32 = 0x2, ignoreSelf: UInt32 = 0x8, fileEvents: UInt32 = 0x10, markSelf: UInt32 = 0x20
         static let extendedData: UInt32 = 0x40
@@ -52,28 +30,14 @@ public final class FSEventsHostService: @unchecked Sendable {
     static let migBadID: Int32 = -303, migBadArguments: Int32 = -304
     static let ndr: [UInt8] = [0, 0, 0, 0, 1, 0, 0, 0]
     static let unknownDevice = "NO-UUID-UNKNOWN-DEVICE"
-    /// Event ids are reserved in steps of this size: the state file is
-    /// written once per step, and an id is never issued twice even when a
-    /// boot ends without saving.
     static let idReservation: UInt64 = 10_000
     static let firstEventID: UInt64 = 1000
-    /// Events per 67000 message.
     static let batchLimit = 1024
 
     public struct Configuration {
-        /// The service's state (the store's UUID, the event-id reservation);
-        /// nil: kept in memory only.
         public var statePath: String?
-        /// The guest's volumes with an event store: device (st_dev) → its
-        /// mount point in the guest. Streams relative to a device use it;
-        /// 66002 answers a UUID for these devices only.
         public var volumes: [UInt32: String]
-        /// The canonical guest path of a path (symbolic links resolved;
-        /// a path that does not exist: its nearest existing ancestor's
-        /// canonical path plus the rest). nil: paths are used as given.
         public var canonicalPath: ((String) -> String)?
-        /// The inode number and document ID of a canonical guest path, for
-        /// `kFSEventStreamCreateFlagUseExtendedData`; nil when it is gone.
         public var identity: ((String) -> (inode: UInt64, documentID: UInt32)?)?
 
         public init(statePath: String? = nil, volumes: [UInt32: String] = [:], canonicalPath: ((String) -> String)? = nil,
@@ -85,21 +49,17 @@ public final class FSEventsHostService: @unchecked Sendable {
         }
     }
 
-    /// One started stream.
     final class Stream {
         let port: UInt32
         let client: UInt32
         let pid: Int32
         let dev: UInt32
-        /// (registered form, canonical absolute guest path) of each path.
         let paths: [(registered: String, canonical: String)]
         let exclusions: [String]
         let flags: UInt32
         let latencyMicroseconds: UInt64
         var stopped = false
         var lastID: UInt64 = 0
-        /// Coalesced events waiting for the latency: path (registered
-        /// form) → wire flags, in first-seen order.
         var pending: [String: UInt32] = [:]
         var order: [String] = []
         var due: UInt64?
@@ -121,7 +81,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         var fileEvents: Bool { flags & CreateFlag.fileEvents != 0 }
     }
 
-    /// One event of a 67000 message.
     struct Event: Equatable {
         var path: String
         var flags: UInt32
@@ -135,25 +94,17 @@ public final class FSEventsHostService: @unchecked Sendable {
     private let portSet: UInt32
     private let log: (String) -> Void
     private let configuration: Configuration
-    /// Streams, ids and pending events. A leaf: nothing else is locked or
-    /// called while it is held (the VFS reports changes with the kernel lock
-    /// held, so `lock` must never wait for the kernel).
     private let lock = NSLock()
-    /// Taken around taking a stream's events and sending them, so a stream's
-    /// messages leave in id order.
     private let sendLock = NSLock()
     private let wake = NSCondition()
-    /// Set (under `wake`) when a stream got its first pending event.
     private var woken = false
     private var stopping = false
-    /// The service is the VFS's change observer (started).
     private var feeding = false
     private var streams: [UInt32: Stream] = [:]
     private var lastIssuedID: UInt64 = firstEventID
     private var reservedID: UInt64 = firstEventID
     public let storeUUID: String
     private var logged: [Int32: Int] = [:]
-    /// Statistics.
     public private(set) var requestCount = 0
     public private(set) var eventCount = 0
 
@@ -164,8 +115,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         servicePort = try host.makePort(sendRight: true, qlimit: 64)
         portSet = try host.makePortSet()
         try host.addMember(servicePort, to: portSet)
-        // The store: one UUID per device's data, kept across boots; event ids
-        // continue after the last reservation.
         var uuid: String?
         var reserved = Self.firstEventID
         if let path = configuration.statePath, let data = FileManager.default.contents(atPath: path),
@@ -210,8 +159,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         wake.unlock()
     }
 
-    // MARK: State
-
     private func saveState() {
         guard let path = configuration.statePath else { return }
         let plist: [String: Any] = ["UUID": storeUUID, "ReservedEventID": NSNumber(value: reservedID)]
@@ -219,7 +166,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
     }
 
-    /// The next event id. `lock` held.
     private func issueID() -> UInt64 {
         lastIssuedID += 1
         if lastIssuedID >= reservedID {
@@ -230,8 +176,6 @@ public final class FSEventsHostService: @unchecked Sendable {
     }
 
     public var currentEventID: UInt64 { lock.withLock { lastIssuedID } }
-
-    // MARK: Requests
 
     private func run() {
         while !lock.withLock({ stopping }) {
@@ -278,7 +222,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         case (ID.currentID, false):
             reply(m, body: Self.ndr + fseRet(0) + fseLE64(currentEventID))
         case (ID.lastIDBeforeTime, false):
-            // No history is kept: no event is known before any time.
             reply(m, body: Self.ndr + fseRet(0) + fseLE64(0))
         case (ID.flush, true):
             let id = flush(m.localPort)
@@ -300,8 +243,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         }
     }
 
-    /// 66002's answer: the store UUID for a device with a store, otherwise
-    /// `NO-UUID-UNKNOWN-DEVICE` and NUL bytes (36 bytes, no NUL after a UUID).
     func uuidField(device: UInt32) -> [UInt8] {
         let text = configuration.volumes[device] != nil && device != 0 ? storeUUID : Self.unknownDevice
         var bytes = Array(text.utf8.prefix(36))
@@ -309,7 +250,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         return bytes
     }
 
-    /// The parts of a 66000 request (§3.1), or nil when it is malformed.
     struct Registration: Equatable {
         var client: UInt32
         var dev: UInt32
@@ -351,7 +291,6 @@ public final class FSEventsHostService: @unchecked Sendable {
             reply(m, body: Self.ndr + fseRet(Self.migBadArguments))
             return
         }
-        // Paths: absolute, or relative to the device's mount point.
         let mount = r.dev == 0 ? nil : configuration.volumes[r.dev]
         func absolute(_ p: String) -> String? {
             if r.dev == 0 { return p.hasPrefix("/") ? p : nil }
@@ -396,13 +335,10 @@ public final class FSEventsHostService: @unchecked Sendable {
         }
         do {
             try host.reply(to: m, descriptors: [.port(name: port, disposition: MachMsgType.makeSend)], body: [])
-            // The stream ends with its last send right (the reply made one).
             _ = try host.requestNotification(port, id: MachNotify.noSenders, sync: 1, notifyPort: port)
         } catch {
             log("fsevents: register reply failed: \(error)")
         }
-        // History: none is kept, so a stream that asks for events since an
-        // id gets only HistoryDone, with that id (§5 step 3).
         if r.sinceWhen != Self.sinceNow, let first = r.paths.first {
             sendLock.withLock {
                 _ = send(stream, [Event(path: first, flags: Wire.historyDone, id: r.sinceWhen)])
@@ -423,8 +359,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         let (any, fed) = lock.withLock { (streams.values.contains { !$0.stopped && !$0.paths.isEmpty }, feeding) }
         if fed { FileChangeFeed.setListening(any) }
     }
-
-    // MARK: Changes
 
     static func wireFlags(_ c: FileChange) -> UInt32 {
         var f: UInt32
@@ -451,8 +385,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         path == root || path.hasPrefix(root == "/" ? "/" : root + "/")
     }
 
-    /// A change from the VFS (any thread, maybe with the kernel lock held):
-    /// queued for every stream that watches it.
     func changed(_ c: FileChange) {
         let now = DispatchTime.now().uptimeNanoseconds
         var signal = false
@@ -464,12 +396,10 @@ public final class FSEventsHostService: @unchecked Sendable {
                 if own && s.flags & CreateFlag.ignoreSelf != 0 { continue }
                 var flags = Self.wireFlags(c)
                 if own && s.flags & CreateFlag.markSelf != 0 { flags |= Wire.ownEvent }
-                // The path in the stream's registered form.
                 let base = match.registered.count > 1 && match.registered.hasSuffix("/")
                     ? String(match.registered.dropLast()) : match.registered
                 var path = base + String(c.path.dropFirst(match.canonical.count))
                 if !s.fileEvents {
-                    // Directory-level: the directory that changed, with "/".
                     if let slash = path.lastIndex(of: "/"), slash != path.startIndex {
                         path = String(path[...slash])
                     } else {
@@ -490,7 +420,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         if signal { wakeDelivery() }
     }
 
-    /// The delivery thread: sends each stream's events when they are due.
     private func deliver() {
         while !lock.withLock({ stopping }) {
             let now = DispatchTime.now().uptimeNanoseconds
@@ -510,8 +439,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         }
     }
 
-    /// Sends a stream's pending events now; returns the id of the last event
-    /// sent to the stream (66001's answer).
     @discardableResult
     func flush(_ port: UInt32) -> UInt64 {
         sendLock.withLock {
@@ -538,10 +465,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         }
     }
 
-    /// Sends events to a stream's client port (one-way 67000 messages, at
-    /// most `batchLimit` events each). A full client queue drops them: the
-    /// stream's next event carries MustScanSubDirs | UserDropped. `sendLock`
-    /// held, `lock` not.
     private func send(_ s: Stream, _ events: [Event]) -> Bool {
         var events = events
         if s.flags & CreateFlag.extendedData != 0, let identity = configuration.identity {
@@ -575,7 +498,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         return ok
     }
 
-    /// The descriptors and body of a 67000 message (§3.2).
     static func eventMessage(_ events: [Event], extended: Bool) -> (descriptors: [MachHostDescriptor], body: [UInt8]) {
         var offsets: [UInt8] = [], flags: [UInt8] = [], ids: [UInt8] = [], records: [UInt8] = []
         for e in events {
@@ -590,10 +512,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         return ([.ool(data: offsets), .ool(data: flags), .ool(data: ids), .ool(data: records)], body)
     }
 
-    // MARK: Snapshot (snapshot.md §2.6)
-
-    /// The streams for a snapshot: host-task names of the stream and client
-    /// ports, and what each watches.
     public struct StreamRecord: Equatable, Sendable {
         public var port: UInt32, client: UInt32, pid: Int32, dev: UInt32
         public var registered: [String], canonical: [String], exclusions: [String]
@@ -616,10 +534,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         }
     }
 
-    /// After a restore: the host task holds the recorded stream ports
-    /// (receive rights) and client ports (send rights) under their recorded
-    /// names again; the streams are served as before (events pending at the
-    /// save are not replayed).
     public func restoreStreams(_ list: [StreamRecord]) {
         lock.withLock {
             for r in list {
@@ -634,8 +548,6 @@ public final class FSEventsHostService: @unchecked Sendable {
         for r in list { try? host.addMember(r.port, to: portSet) }
         updateListening()
     }
-
-    // MARK: Helpers
 
     private func reply(_ m: MachHostReceivedMessage, body: [UInt8]) {
         do {

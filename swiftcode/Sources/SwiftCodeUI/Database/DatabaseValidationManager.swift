@@ -1,14 +1,11 @@
 import Foundation
 import SwiftCodeCloud
 
-/// One schema problem found by validation: which table, what is
-/// wrong, and whether it blocks use (`"ERROR"`) or is advisory
-/// (`"WARNING"`).
 public struct SchemaValidationIssue: Identifiable, Hashable {
     public let id = UUID()
     public var tableName: String
     public var message: String
-    public var severity: String // "WARNING" or "ERROR"
+    public var severity: String
 
     public init(tableName: String, message: String, severity: String) {
         self.tableName = tableName
@@ -17,14 +14,6 @@ public struct SchemaValidationIssue: Identifiable, Hashable {
     }
 }
 
-/// Pure schema checks over `DatabaseTable` values: no database
-/// access, no state, safe to call from anywhere.
-///
-/// Ported verbatim from Legacy's
-/// `Views/Utilities/Database/Core/DatabaseValidationManager.swift`.
-/// Checks, per table: a non-view table has a primary key; no
-/// column name is declared twice; every relationship's target
-/// table exists and its target column exists on that table.
 public final class DatabaseValidationManager: Sendable {
     public static let shared = DatabaseValidationManager()
 
@@ -34,7 +23,6 @@ public final class DatabaseValidationManager: Sendable {
         var issues: [SchemaValidationIssue] = []
 
         for table in tables {
-            // Check for missing primary key
             let hasPK = table.columns.contains { $0.isPrimaryKey }
             if !hasPK && !table.isView && !table.isMaterializedView {
                 issues.append(SchemaValidationIssue(
@@ -44,7 +32,6 @@ public final class DatabaseValidationManager: Sendable {
                 ))
             }
 
-            // Check for duplicate columns
             var colNames = Set<String>()
             for col in table.columns {
                 if colNames.contains(col.name) {
@@ -57,7 +44,6 @@ public final class DatabaseValidationManager: Sendable {
                 colNames.insert(col.name)
             }
 
-            // Validate relationship endpoints
             for rel in table.relationships {
                 let targetExists = tables.contains { $0.name == rel.targetTable }
                 if !targetExists {

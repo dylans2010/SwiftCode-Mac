@@ -42,7 +42,6 @@ public struct AssistLocalizationTool: AssistTool {
             return .failure("Unsupported localization file type '\(ext)'. Expected .strings, .stringsdict, or .xcstrings.")
         }
 
-        // list_languages works against the file plus its sibling locale files.
         if lowered == "list_languages" {
             return listLanguages(fileURL: fileURL, ext: ext, workspaceRoot: context.workspaceRoot)
         }
@@ -51,13 +50,12 @@ public struct AssistLocalizationTool: AssistTool {
             return validate(fileURL: fileURL, ext: ext)
         }
 
-        // read_key / add_translation
         switch ext {
         case "xcstrings":
             return handleXCStrings(fileURL: fileURL, action: lowered, key: input["key"] as? String, value: input["translation"] as? String, locale: localeForXCStrings(fileURL: fileURL))
         case "stringsdict":
             return handleStringsDict(fileURL: fileURL, action: lowered, key: input["key"] as? String, value: input["translation"] as? String)
-        default: // strings
+        default:
             if lowered == "add_translation" {
                 guard let key = input["key"] as? String, !key.isEmpty,
                       let translation = input["translation"] as? String else {
@@ -84,8 +82,6 @@ public struct AssistLocalizationTool: AssistTool {
         }
     }
 
-    // MARK: - list_languages
-
     private func listLanguages(fileURL: URL, ext: String, workspaceRoot: URL) -> AssistToolResult {
         var languages = Set<String>()
         let fileManager = FileManager.default
@@ -103,7 +99,6 @@ public struct AssistLocalizationTool: AssistTool {
             languages.insert(own)
         }
 
-        // Sibling locale files (en.lproj, es.lproj, …) in the workspace.
         if let enumerator = fileManager.enumerator(at: workspaceRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
             for case let url as URL in enumerator {
                 let last = url.lastPathComponent
@@ -132,8 +127,6 @@ public struct AssistLocalizationTool: AssistTool {
         return nil
     }
 
-    // MARK: - validate (per file type)
-
     private func validate(fileURL: URL, ext: String) -> AssistToolResult {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return .failure("File does not exist at: \(fileURL.lastPathComponent)")
@@ -155,7 +148,7 @@ public struct AssistLocalizationTool: AssistTool {
                 return .failure("Validation failed: \(fileURL.lastPathComponent) is not a valid property list.")
             }
             return .success("Validation passed for \(fileURL.lastPathComponent). Valid property list.")
-        default: // strings
+        default:
             guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
                 return .failure("Cannot read \(fileURL.lastPathComponent)")
             }
@@ -184,8 +177,6 @@ public struct AssistLocalizationTool: AssistTool {
             }
         }
     }
-
-    // MARK: - .strings write path
 
     private func addStringsTranslation(fileURL: URL, key: String, translation: String) -> AssistToolResult {
         let fileManager = FileManager.default
@@ -221,8 +212,6 @@ public struct AssistLocalizationTool: AssistTool {
         return .success("Successfully \(replaced ? "updated" : "added") translation for '\(key)' in \(fileURL.lastPathComponent).")
     }
 
-    // MARK: - .stringsdict (read + validate; writes refused honestly)
-
     private func handleStringsDict(fileURL: URL, action: String, key: String?, value: String?) -> AssistToolResult {
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let data = try? Data(contentsOf: fileURL),
@@ -238,12 +227,8 @@ public struct AssistLocalizationTool: AssistTool {
             }
             return .success("Found localization entry for '\(key)': \(entry)")
         }
-        // add_translation on a .stringsdict requires a plural/format-rule dictionary, not a
-        // plain string; silently writing a plain string would corrupt the format rules.
         return .failure("add_translation is not supported for .stringsdict files: entries are plural/format-rule dictionaries, not plain strings. Use the .xcstrings String Catalog (or a .strings file) for plain string translations.")
     }
-
-    // MARK: - .xcstrings read/write
 
     private func localeForXCStrings(fileURL: URL) -> String {
         localeFromLproj(fileURL: fileURL) ?? "en"
@@ -274,7 +259,6 @@ public struct AssistLocalizationTool: AssistTool {
             return .success("Key '\(key)' (\(locale)) = \"\(found)\" in \(fileURL.lastPathComponent).", data: ["key": key, "value": found, "locale": locale, "file": fileURL.lastPathComponent])
         }
 
-        // add_translation
         guard let key = key, !key.isEmpty, let value = value else {
             return .failure("key and translation parameters are required for add_translation")
         }
@@ -295,8 +279,6 @@ public struct AssistLocalizationTool: AssistTool {
         }
         return .success("Successfully added translation for '\(key)' (\(locale)) in \(fileURL.lastPathComponent).")
     }
-
-    // MARK: - .strings line parsing
 
     private func parseStringsLine(_ line: String) -> (key: String, value: String)? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)

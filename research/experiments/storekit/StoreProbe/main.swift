@@ -1,11 +1,3 @@
-// StoreProbe: Ycode's own black-box probe for StoreKit Testing in the iOS
-// simulator. One launch runs one phase (launch argument "-phase NAME") and
-// prints one observation per line to stderr, ending with "DONE".
-// Products come from our own configuration file YcodeProbe.storekit, loaded
-// with SKTestSession (launch argument "-session 1", the default) or from the
-// scheme/Xcode path (when "-session 0").
-// Full JWS strings are written to Documents/jws-*.txt for offline decoding.
-
 import UIKit
 import StoreKit
 import StoreKitTest
@@ -34,8 +26,6 @@ var session: SKTestSession?
 var products: [String: Product] = [:]
 weak var rootVC: UIViewController?
 var jwsCounter = 0
-
-// MARK: helpers
 
 func withTimeout<T>(_ secs: Double, _ op: @escaping () async throws -> T) async -> Result<T, Error>? {
     await withTaskGroup(of: Result<T, Error>?.self) { g in
@@ -86,8 +76,6 @@ func saveJWS(_ tag: String, _ jws: String) {
     }
 }
 
-// Which combination of the vendor identifier and the nonce hashes (SHA-384)
-// to the deviceVerification value? Prints the matching candidate names.
 func checkDV(_ dv: String, _ nonce: String) -> String {
     guard let want = Data(base64Encoded: dv), let idfv = UIDevice.current.identifierForVendor,
           let nu = UUID(uuidString: nonce) else { return "no idfv/nonce" }
@@ -223,8 +211,6 @@ func sessionCall(_ what: String, _ f: () throws -> Void) {
     do { try f(); say("session.\(what) ok") } catch { say("session.\(what) error \(errDesc(error))") }
 }
 
-// MARK: phases
-
 func phaseEnv() async {
     say("canMakePayments=\(AppStore.canMakePayments)")
     switch await withTimeout(20, { await Storefront.current }) {
@@ -284,7 +270,6 @@ func phaseBuy() async {
     case .failure(let e)?: say("AppTransaction error \(errDesc(e))")
     case nil: say("AppTransaction TIMEOUT")
     }
-    // SKTestSession.buyProduct (outside the app's purchase API)
     if let s = session {
         do { let t = try await s.buyProduct(identifier: pro); say("session.buyProduct pro -> \(txLine(t))") } catch { say("session.buyProduct error \(errDesc(error))") }
         do { let t = try await s.buyProduct(identifier: "dev.ycode.skprobe.bogus"); say("session.buyProduct bogus -> \(t.id)") } catch { say("session.buyProduct bogus error \(errDesc(error))") }
@@ -306,7 +291,7 @@ func phaseFinishAll() async {
 func phaseSub() async {
     guard let s = session else { return }
     s.resetToDefaultState(); s.clearTransactions(); s.disableDialogs = true
-    let rate = Int(arg("rate") ?? "1003") ?? 1003  // oneRenewalEveryThirtySeconds
+    let rate = Int(arg("rate") ?? "1003") ?? 1003
     s.timeRate = SKTestSession.TimeRate(rawValue: rate) ?? .realTime
     say("timeRate set \(s.timeRate.rawValue)")
     await load()
@@ -319,14 +304,12 @@ func phaseSub() async {
     await sleep(wait)
     await dumpStatus("afterWait", group: plusGroup)
     await dumpAll("afterWait")
-    // crossgrade/upgrade/downgrade
     _ = await buy(yearly, tag: "crossgrade-yearly")
     await dumpStatus("afterYearly", group: plusGroup)
     _ = await buy(lite, tag: "downgrade-lite")
     await dumpStatus("afterLite", group: plusGroup)
     _ = await buy(weekly, tag: "other-group")
     await dumpStatus("extra", group: extraGroup)
-    // auto-renew off
     if let cur = s.allTransactions().last(where: { $0.productIdentifier.hasPrefix(P + "plus") }) {
         sessionCall("disableAutoRenew(\(cur.identifier))") { try s.disableAutoRenewForTransaction(identifier: cur.identifier) }
         await sleep(2)
@@ -343,7 +326,6 @@ func phaseSub() async {
     await sleep(2)
     await dumpStatus("weeklyExpired", group: extraGroup)
     say("eligible extra after expire=\(await Product.SubscriptionInfo.isEligibleForIntroOffer(for: extraGroup))")
-    // billing retry + grace
     s.shouldEnterBillingRetryOnRenewal = true
     s.billingGracePeriodIsEnabled = arg("grace") == "1"
     say("billingRetry on, grace=\(s.billingGracePeriodIsEnabled); waiting 40s")
@@ -457,7 +439,6 @@ func phaseFail() async {
     case .failure(let e)?: say("AppStore.sync fail \(errDesc(e))")
     case nil: say("AppStore.sync TIMEOUT")
     }
-    // interrupted purchase
     s.interruptedPurchasesEnabled = true
     let r = await buy(pro, tag: "interrupted")
     say("interrupted result tx=\(String(describing: r?.id))")
@@ -476,7 +457,6 @@ func phaseOffers() async {
     await load()
     _ = await buy(monthly, [Product.PurchaseOption.promotionalOffer(id: "plus.promo3")] as Set, tag: "testPromo")
     await dumpStatus("promo", group: plusGroup)
-    // real promotional-offer API with a made-up signature
     if let p = products[monthly], let o = p.subscription?.promotionalOffers.first, let oid = o.id {
         _ = await buy(monthly, [.promotionalOffer(offerID: oid, keyID: "YCODETEST1", nonce: UUID(), signature: Data(repeating: 1, count: 64), timestamp: Int(Date().timeIntervalSince1970 * 1000))], tag: "signedPromo")
     }

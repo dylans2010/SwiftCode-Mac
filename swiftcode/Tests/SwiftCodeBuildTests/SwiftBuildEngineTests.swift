@@ -40,19 +40,12 @@ import Testing
         let params = try JSONSerialization.jsonObject(with: inv.parameters) as! [String: Any]
         #expect(params["configurationName"] as? String == "Release")
         var table = ((params["overrides"] as! [String: Any])["commandLine"] as! [String: Any])["table"] as! [String: String]
-        // Off macOS the asset compiler hook (AssetCompilerHookTests) adds ASSETCATALOG_EXEC when it finds `swiftcode`.
         table["ASSETCATALOG_EXEC"] = nil
-        // Off macOS the String Catalog hook (StringsCompilerHookTests) sets the input encoding of compiled tables.
         table["STRINGS_FILE_INPUT_ENCODING"] = nil
         #expect(table == ["SDK_STAT_CACHE_ENABLE": "NO", "CODE_SIGN_IDENTITY": "-", "ENTITLEMENTS_DESTINATION": "", "ENTITLEMENTS_REQUIRED": "NO", "FOO": "1"])
-        // No destination means My Mac: the host architecture only.
         #expect((params["activeRunDestination"] as? [String: Any])?["targetArchitecture"] as? String == SwiftBuildEngine.hostArchitecture)
     }
 
-    /// A simulator destination is a run destination of that simulator's SDK
-    /// (visionos.md §10.21), so host tools (macros, plug-in tools) still build
-    /// for the Mac; there is no SDKROOT override, and one on the command line
-    /// is passed as given. A generic destination builds every architecture.
     @Test func simulatorDestinationsChooseTheSimulatorSDK() throws {
         #expect(SwiftBuildEngine.simulatorSDK(for: "generic/platform=visionOS Simulator") == "xrsimulator")
         #expect(SwiftBuildEngine.simulatorSDK(for: "platform=iOS Simulator,name=iPhone 18 Pro") == "iphonesimulator")
@@ -80,8 +73,6 @@ import Testing
     }
 }
 
-/// Builds the tool project with a real `swbuild` (from `SWIFTCODE_SWBUILD`, PATH,
-/// or the probe build under .build-ide). Skipped when none is available.
 @Suite(.serialized, .timeLimit(.minutes(5))) struct SwiftBuildEndToEndTests {
     static var swbuild: String? {
         SwiftBuildEngine.locate() ?? {
@@ -111,7 +102,6 @@ import Testing
         run.waitUntilExit()
         #expect(String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self) == "hello from swift-build\n")
 
-        // A broken source: structured errors with location and fix-it.
         try "#include <stdio.h>\nint main(void) { undefined_call(); return 0 }\n"
             .write(to: dir.appendingPathComponent("Tool/main.c"), atomically: true, encoding: .utf8)
         let bad = await engine.start(request).run()
@@ -123,7 +113,6 @@ import Testing
     }
 }
 
-/// reference-ui-6.md §3.2 (T4): the task counts behind "Building • n/m".
 @Suite struct BuildTaskCountTests {
     @Test func swiftBuildMessagesCountTasks() {
         var r = SwiftBuildMessageReader()

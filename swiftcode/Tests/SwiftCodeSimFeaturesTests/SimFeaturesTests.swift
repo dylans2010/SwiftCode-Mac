@@ -2,17 +2,13 @@ import Foundation
 import Testing
 @testable import SwiftCodeSimFeatures
 
-/// FEAT (specs/simulator/simulator-features.md §4, "SwiftCode implementation"):
-/// the per-feature preference writes and setter notifications, the getters,
-/// the location sequences and files, the audio files, the channel's frames,
-/// the command grammar and the environment overrides.
 struct SimFeatureMappingTests {
     func keys(_ p: SettingsPlan) -> [String] { p.writes.map { "\($0.domain) \($0.key)=\($0.value?.description ?? "-")" } }
 
     @Test func appearanceWritesTheStyleMode() {
         let dark = SimFeatureMapping.plan(for: .appearance(.dark))
         #expect(keys(dark) == ["com.apple.uikitservices.userInterfaceStyleMode UserInterfaceStyleMode=2"])
-        #expect(dark.notifications.isEmpty)  // SpringBoard announces the change (Q8)
+        #expect(dark.notifications.isEmpty)
         #expect(SimFeatureMapping.plan(for: .appearance(.light)).writes[0].value == .int(1))
     }
 
@@ -20,7 +16,6 @@ struct SimFeatureMappingTests {
         let p = SimFeatureMapping.plan(for: .liquidGlass(opacity: 0.4, look: .tinted))
         #expect(keys(p) == ["com.apple.UIKit UIViewGlassTintAmount=0.4", "com.apple.UIKit UIViewGlassLegibilitySetting=1"])
         #expect(p.notifications == ["UIViewGlassTintAmountUpdateNotification", "UIViewGlassLegibilityUpdateNotification"])
-        // clear is the absent key; an opacity alone posts one notification.
         #expect(SimFeatureMapping.plan(for: .liquidGlass(opacity: nil, look: .clear)).writes[0].value == nil)
         #expect(SimFeatureMapping.plan(for: .liquidGlass(opacity: 2, look: nil)).writes == [PreferenceWrite("com.apple.UIKit", "UIViewGlassTintAmount", .real(1))])
     }
@@ -39,7 +34,6 @@ struct SimFeatureMappingTests {
         #expect(g.writes.contains(PreferenceWrite("com.apple.Accessibility", "GrayscaleDisplay", .int(1))))
         #expect(g.writes.contains(PreferenceWrite("com.apple.mediaaccessibility", "__Color__.MADisplayFilterType", .int(1))))
         #expect(!g.writes.contains { $0.key.hasSuffix("Intensity") })
-        // Intensity is clamped to 0.25…1 and defaults to 1.
         #expect(SimFeatureMapping.plan(for: .colorFilter(.tritanopia, intensity: 0.1)).writes[2] ==
                 PreferenceWrite("com.apple.mediaaccessibility", "MADisplayFilterBlueColorCorrectionIntensity", .real(0.25)))
         #expect(SimFeatureMapping.plan(for: .colorFilter(.deuteranopia, intensity: nil)).writes[2].value == .real(1))
@@ -83,12 +77,11 @@ struct SimFeatureMappingTests {
         #expect(vo.waitForVoiceOver == true && vo.startServices == ["com.apple.VoiceOverTouch"])
         #expect(SimFeatureMapping.plan(for: .accessibility(.voiceOver, false)).startServices.isEmpty)
         #expect(SettingsChannel.apply(vo)["startServices"] as? [String] == ["com.apple.VoiceOverTouch"])
-        // After a boot: start the screen reader only when enabled and not running.
         var state = SimSettingsState()
         #expect(SimFeatureMapping.bootPlan(state) == nil)
         state.switches[.voiceOver] = true
         #expect(SimFeatureMapping.bootPlan(state)?.startServices == ["com.apple.VoiceOverTouch"])
-        state.voiceOverRunning = true   // a key left over from a killed reader
+        state.voiceOverRunning = true
         #expect(SimFeatureMapping.bootPlan(state)?.startServices == ["com.apple.VoiceOverTouch"])
         state.switches[.voiceOver] = false
         let clean = SimFeatureMapping.bootPlan(state)
@@ -110,7 +103,6 @@ struct SimFeatureMappingTests {
         let s = SimSettingsState(values: v)
         #expect(s.appearance == .dark && s.contentSize == .extraLarge && s.colorFilter == .deuteranopia)
         #expect(s.colorFilterIntensity == 0.5 && s.isOn(.reduceMotion) && !s.isOn(.showBorders) && s.voiceOverRunning)
-        // Absent keys are the defaults; the lines round-trip.
         #expect(SimSettingsState(values: [:]) == SimSettingsState())
         #expect(SimSettingsState(lines: s.lines) == s)
         #expect(SimFeatureMapping.stateReads.count == Set(SimFeatureMapping.stateReads).count)
@@ -191,7 +183,6 @@ struct SimAudioTests {
         #expect(SimAudio.settingsFile(none)["sim_volume"] as? Int == 100)
         let dev = SimAudioSettings(volume: 30, output: .device("X:output"), input: .system)
         #expect(SimAudio.settingsFile(dev)["sim_output_device_uid"] as? String == "X:output")
-        // Read back.
         for s in [def, SimAudioSettings(volume: 30, output: .none, input: .none), dev] {
             #expect(SimAudio.settings(hostFile: SimAudio.hostFile(s), settingsFile: SimAudio.settingsFile(s)) == s)
         }
@@ -205,7 +196,7 @@ struct SettingsChannelTests {
         let plan = SimFeatureMapping.plan(for: .liquidGlass(opacity: 0.5, look: .clear))
         var buffer = SettingsChannel.frame(["id": 7] .merging(SettingsChannel.apply(plan)) { a, _ in a })!
         let second = SettingsChannel.frame(SettingsChannel.read(SimFeatureMapping.stateReads))!
-        buffer += second.prefix(3)   // a partial frame stays
+        buffer += second.prefix(3)
         let frames = try SettingsChannel.takeFrames(&buffer)
         #expect(frames.count == 1 && buffer.count == 3)
         let m = frames[0]
@@ -303,7 +294,6 @@ struct SimSettingsCommandTests {
         #expect(o.sections.appearance == .dark && o.sections.accessibility?[.grayscale] == true && o.sections.dynamicType == nil)
         let w = o.commandWords(bundleID: "a.b")
         #expect(w.prefix(3) == ["overrides", "a.b", "appearance=dark"] && w.contains("dynamic-type=none") && w.contains("smart-invert=off"))
-        // The words parse back to the same overrides.
         var back = EnvironmentOverrides()
         guard case .overrides(_, let req) = try SimSettingsCommand.parse(w) else { Issue.record("not overrides"); return }
         back.apply(req)

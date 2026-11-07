@@ -1,18 +1,3 @@
-/* pmustat: count Arm PMU events of a command and all its threads (Linux arm64
- * host tool for specs/simulator/guest-cpu.md). Original SwiftCode code, written
- * from perf_event_open(2) and the Arm PMUv3 common event numbers (Arm
- * Architecture Reference Manual, D24.11). Works with perf_event_paranoid = 2:
- * user-mode events only (exclude_kernel), on our own child process.
- *
- *   cc -O2 -o pmustat pmustat.c
- *   pmustat [-g] [-s 1|2|3] -- command [args...]
- *     -g  count only while a vCPU of the command runs guest code
- *         (exclude_host); without it, guest EL0 and host EL0 are both counted
- *         (EL1, the guest's shim, and the host kernel are excluded)
- *     -s  event set (default 1)
- * Prints "pmu <event> <count>" lines (scaled when the kernel multiplexed),
- * then derived ratios and the child's user/system CPU seconds, to stderr.
- * SIGTERM, SIGINT and SIGHUP are passed on to the command. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <linux/perf_event.h>
@@ -40,7 +25,6 @@ static const struct ev set3[] = {
     {"br_mis_pred_retired", 0x22}, {"l1i_cache_refill", 0x01}, {"exc_taken", 0x09}};
 
 static volatile pid_t child_pid;
-/* SIGTERM, SIGINT and SIGHUP go on to the command (a harness stops it through us). */
 static void forward(int sig) { if (child_pid > 0) kill(child_pid, sig); }
 
 static int pmu_type(void)

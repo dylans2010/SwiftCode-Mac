@@ -1,25 +1,5 @@
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/RepositoryExplorerView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The missing slice of the repository explorer: custom collections,
-/// favorites, pinned, and archived repositories, with a manage-collections
-/// sheet.
-///
-/// Legacy kept these in un-persisted `@State` (`favorites` / `pinned` /
-/// `archived` sets and a `customCollections` dictionary keyed by project
-/// name, seeded with Personal / Work / Archived). This port persists them
-/// in UserDefaults through `RepositoryCollectionStore`, keyed by the
-/// project's path so renames don't lose the metadata.
-///
-/// The destination's project list lives in the Organizer
-/// (`RecentProjects` / `ProjectRegistryStore`); this view is driven by a
-/// lightweight `RepositoryCollectionProject` list the host maps from its
-/// own model, so it does not depend on the Organizer's types.
-///
-/// Hook: host beside the Organizer / welcome window's project list, or as
-/// the explorer sidebar when the repository browser is built out.
 @MainActor
 public final class RepositoryCollectionStore: ObservableObject {
     @Published public private(set) var favorites: Set<String> = []
@@ -100,8 +80,6 @@ public final class RepositoryCollectionStore: ObservableObject {
     }
 }
 
-/// One project row for the collections view; the host maps its own project
-/// model (Organizer / `ProjectRegistryEntry`) into this shape.
 public struct RepositoryCollectionProject: Identifiable, Hashable {
     public var id: String { path }
     public var name: String
@@ -162,7 +140,7 @@ public struct RepositoryCollectionsView: View {
         case .archived: list = list.filter { store.archived.contains($0.path) }
         }
         switch sortBy {
-        case .recent: break // input order is the Organizer's recency order
+        case .recent: break
         case .name: list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         }
         return list
@@ -302,7 +280,6 @@ public struct RepositoryCollectionsView: View {
     }
 }
 
-/// Create / rename / delete custom collections.
 @MainActor
 public struct ManageCollectionsSheet: View {
     @ObservedObject public var store: RepositoryCollectionStore

@@ -1,5 +1,3 @@
-// The fixture backend (plan.md R3, design.md §2–§3) and the Linux
-// CoreLocation shim (design.md §2).
 import CoreLocation
 import Foundation
 import Testing
@@ -19,7 +17,7 @@ struct FixtureBackendTests {
 
     @Test("Rebase by days: a request a week later sees the same weather shifted to its own day")
     func rebaseDays() async throws {
-        let clock = TestClock(fixtureAnchor.addingTimeInterval(7 * 86_400 + 3 * 3600))  // 2026-01-22T15:00Z
+        let clock = TestClock(fixtureAnchor.addingTimeInterval(7 * 86_400 + 3 * 3600))
         let (service, _) = try makeService(clock: clock)
         let (daily, hourly, minute, current) = try await service.weather(
             for: fixtureLocation, including: .daily, .hourly, .minute, .current)
@@ -72,7 +70,6 @@ struct FixtureBackendTests {
         await #expect(throws: WeatherError.unknown) {
             _ = try await service.monthlyStatistics(for: fixtureLocation, including: .temperature)
         }
-        // Default expiration without an expiration table: one hour.
         let current = try await service.weather(for: fixtureLocation, including: .current)
         #expect(current.metadata.expirationDate == clock.now.addingTimeInterval(3600))
     }
@@ -121,7 +118,6 @@ struct CoreLocationShimTests {
     func distance() {
         let a = CLLocation(latitude: 0, longitude: 0)
         let b = CLLocation(latitude: 0, longitude: 1)
-        // One degree of longitude at the equator: about 111.2 km.
         #expect(abs(a.distance(from: b) - 111_195) < 600)
         #expect(a.distance(from: a) == 0)
     }

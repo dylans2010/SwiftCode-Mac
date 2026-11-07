@@ -1,93 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Logs/LoggingAndAnalyticsManagers.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SCActivityItem, SCQueuedTask, SCAIInsightReport, WorkspaceAnalytics, AIEngineeringAssistant, ResourceMonitor, AutomationEngine, WorkspaceSessionManager, EngineeringReportManager, WorkspaceIntelligence, WorkspaceTimelineManager, LoggingCenter, AIEngineeringReports, TimelineManager, OperationQueueManager, NotificationCenterManager, PerformanceManager.
-//
-// CLEANUP (2026-11-06, triage §A1–A3) — fabricated telemetry deleted:
-// - A1 `ResourceMonitor`: host CPU/memory/disk/network were `Double.random`
-//   offsets plus invented VM/task-count multipliers. Now read live: Mach
-//   `host_statistics` (CPU load, VM page counts) + `task_info` (this
-//   process's resident memory), `FileManager` filesystem attributes (disk),
-//   `getifaddrs` byte counters (network, MB since this monitor started).
-//   `hostGPUUsage` is now `Double?` (`nil` = unavailable): macOS exposes
-//   no public host-GPU-utilization API — Metal has no utilization
-//   property, and per-command-buffer counter sampling measures only this
-//   app's own command buffers, not host GPU % — so nothing is invented.
-//   `DevToolsSystemMetrics` (swiftcode-ide target) could not be wired in:
-//   SwiftCodeIDEShell does not depend on that target, so the same Mach
-//   pattern is implemented here as file-private helpers.
-// - A2 `PerformanceManager`: initial cpuUsage 14.5 / ramUsageGB 2.4 /
-//   averageBuildDuration 4.2 and the 4 s `Double.random` loop are gone.
-//   CPU/RAM now come from the same live Mach readings; build durations
-//   are computed from `BuildHistoryManager`'s real build records
-//   (0.0 = no build recorded yet, never a made-up duration).
-// - A3 `TimelineManager` (and the identical block in
-//   `WorkspaceTimelineManager`): the fabricated "Workspace Command
-//   Center Initialized" event dated one hour ago is gone; an empty
-//   timeline stays empty. The VM/dependency rows in
-//   `WorkspaceTimelineManager.refresh` also no longer pretend to have
-//   happened 2 min / 1 h ago — they are dated when the refresh logs
-//   them, which is when the check actually ran.
-//
-// CLEANUP (2026-11-06, writer D5) — fabricated analytics deleted:
-// - `WorkspaceAnalytics`: no-build fallback of 100.0% success rate is
-//   gone (0.0 = no builds recorded yet, same "0 = no data" convention as
-//   A2's build durations); no-active-project fallback of 1200 lines of
-//   code is gone (0 = nothing counted).
-// - `WorkspaceIntelligence`: doc-coverage 0.72 / test-coverage 0.65 /
-//   storage-growth count × 3 MB / "Improving (Clean compiles are 12%
-//   faster)" baselines are gone. Doc coverage is the real scanned ratio
-//   (0.0 when nothing was scanned); test coverage is 0.0 (no .xcresult /
-//   xccov source is wired — 0.0 means "no data", not a measured 0%);
-//   storage growth is 0 (no prior snapshot is stored to compare
-//   against); the build trend is computed from real build records
-//   (recent-half vs earlier-half mean duration, with the percentage
-//   computed from those durations, "No build history" under 2 builds).
-// - `NotificationCenterManager`: the four seeded notifications are gone
-//   ("Certificate expires in 365 days", "ZIPFoundation v0.9.19 →
-//   v0.9.22", "DerivedData is taking 12.4 GB", "Cloud Sync Connected").
-//   Notifications are now derived from real state only: keychain
-//   certificates expiring within 30 days (via
-//   `SCOperationsSigningManager`), measured DerivedData ≥ 5 GB and
-//   measured free disk < 5 GB (via `SCOperationsStorageManager`), and
-//   cloud-connected only while actually authenticated. Storage values
-//   reflect the latest completed measurement — call `loadNotifications()`
-//   again after a recalculation to refresh them. D3's A1–A3 fixes above
-//   (ResourceMonitor / PerformanceManager / TimelineManager) were verified
-//   still intact and are untouched.
-//
-// CLEANUP (2026-11-06, writer D6) — invented assistant claims and fake
-// latency deleted:
-// - `AIEngineeringAssistant.askQuestion` slept 1.2 s before answering a
-//   locally generated response. The sleep is gone: the response is
-//   generated from local state with no I/O, so it answers immediately.
-// - `generateResponse` asserted "boost speeds by up to 18%" and
-//   "reclaiming up to 40% of wasted build storage". Both percentages
-//   were invented. The speed answer now points at the measured average
-//   build duration as the baseline to re-measure against; the storage
-//   answer now names the measured DerivedData size that purging would
-//   free. The package answer's hardcoded "Update 'ZIPFoundation'"
-//   recommendation is gone too: it now names the packages this
-//   workspace actually reports as "Update Available" (none, now that
-//   `DependencyManager` reports "Unknown" instead of stamping a status),
-//   or says so.
-// - Other `Task.sleep` sites, checked in context:
-//   * `ResourceMonitor` 2.0 s — legitimate telemetry polling interval.
-//     Left alone.
-//   * `PerformanceManager` 4.0 s — legitimate telemetry polling
-//     interval. Left alone.
-//   * `AutomationEngine.triggerWorkflow` 0.3 s — sleep-and-report-
-//     success stub: it logged each workflow action as "completed"
-//     without executing anything (actions are free-text names with no
-//     executor). The loop is deleted; triggering still records the real
-//     "Automation Triggered" event, but nothing is claimed completed.
-//     Wiring a real action executor is the blocker, not a sleep.
-//   * `AIEngineeringReports.generateReport` 0.6 s — fake "thinking"
-//     delay before real work (the file scan that follows is genuine).
-//     Removed; the report generates immediately.
-// - D3's A1–A3 fixes (ResourceMonitor / PerformanceManager /
-//   TimelineManager) and D5's WorkspaceAnalytics / WorkspaceIntelligence
-//   / NotificationCenterManager fixes were verified still intact and are
-//   untouched.
-
 import Foundation
 #if os(macOS)
 import Darwin
@@ -98,7 +8,7 @@ public struct SCActivityItem: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let title: String
     public let detail: String
-    public let category: String // "Build", "Archive", "Import", "Backup", "Diagnostics", "Release", "VM", "Project"
+    public let category: String
     public let date: Date
 
     public init(id: UUID = UUID(), title: String, detail: String, category: String, date: Date = Date()) {
@@ -113,8 +23,8 @@ public struct SCActivityItem: Identifiable, Codable, Sendable, Hashable {
 public struct SCQueuedTask: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let name: String
-    public var progress: Double // 0.0 to 1.0
-    public var status: String // "Queued", "Executing", "Completed", "Failed"
+    public var progress: Double
+    public var status: String
 
     public init(id: UUID = UUID(), name: String, progress: Double = 0.0, status: String = "Queued") {
         self.id = id
@@ -127,10 +37,10 @@ public struct SCQueuedTask: Identifiable, Codable, Sendable, Hashable {
 public struct SCAIInsightReport: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let title: String
-    public let type: String // "Optimization", "Dead Code", "Size", "Package"
+    public let type: String
     public let message: String
     public let linesOfCodeImpacted: Int?
-    public let severity: String // "High", "Medium", "Low"
+    public let severity: String
 
     public init(id: UUID = UUID(), title: String, type: String, message: String, linesOfCodeImpacted: Int? = nil, severity: String) {
         self.id = id
@@ -150,7 +60,6 @@ public final class WorkspaceAnalytics {
     public var totalProjects: Int = 0
     public var totalFiles: Int = 0
     public var totalArchives: Int = 0
-    /// Mean success rate of recorded builds; 0.0 = no builds recorded yet.
     public var averageBuildSuccessRate: Double = 0.0
     public var totalLinesOfCode: Int = 0
 
@@ -166,16 +75,12 @@ public final class WorkspaceAnalytics {
 
         let builds = BuildHistoryManager.shared.buildRecords
         if builds.isEmpty {
-            // No builds recorded: no success rate exists. 0.0 means "no
-            // data", not a measured 0% (the old 100.0 asserted perfection
-            // with zero evidence).
             self.averageBuildSuccessRate = 0.0
         } else {
             let succeededCount = builds.filter { $0.status == "Succeeded" }.count
             self.averageBuildSuccessRate = (Double(succeededCount) / Double(builds.count)) * 100.0
         }
 
-        // Offload file reading line counts
         if let active = ProjectSessionStore.shared.activeProject {
             let rootDir = active.directoryURL
             Task.detached(priority: .background) {
@@ -196,8 +101,6 @@ public final class WorkspaceAnalytics {
                 }
             }
         } else {
-            // No active project: nothing was counted. 0 means "no data",
-            // not a measured zero (the old 1200 was invented).
             self.totalLinesOfCode = 0
         }
     }
@@ -219,7 +122,6 @@ public final class AIEngineeringAssistant {
     public var isAnalyzing: Bool = false
 
     private init() {
-        // Welcome message
         conversation = [
             Message(
                 id: UUID(),
@@ -236,8 +138,6 @@ public final class AIEngineeringAssistant {
 
         isAnalyzing = true
 
-        // No artificial delay: the response is generated locally from
-        // workspace state with no I/O, so it answers immediately.
         Task {
             let responseText = generateResponse(for: question.lowercased())
             let aiMsg = Message(id: UUID(), isUser: false, text: responseText, date: Date())
@@ -286,8 +186,6 @@ public final class AIEngineeringAssistant {
         }
 
         if question.contains("package") || question.contains("dependency") || question.contains("graph") {
-            // Names only packages this workspace actually reports as
-            // having an update available — never a hardcoded package name.
             let outdated = DependencyManager.shared.dependencies.filter { $0.status == "Update Available" }
             let action = outdated.isEmpty
                 ? "No package in this workspace reports an available update."
@@ -359,35 +257,22 @@ public final class AIEngineeringAssistant {
 public final class ResourceMonitor {
     public static let shared = ResourceMonitor()
 
-    // Host telemetry — all values are live readings, never invented.
-    // A value of 0 means "no reading yet / unavailable on this platform",
-    // never a measured zero. GPU has no live source (see below).
     public var hostCPUUsage: Double = 0.0
     public var hostMemoryUsedGB: Double = 0.0
     public var hostMemoryTotalGB: Double = 0.0
     public var hostDiskUsedGB: Double = 0.0
     public var hostDiskTotalGB: Double = 0.0
-    /// MB sent since this monitor started (getifaddrs byte counters).
     public var hostNetworkSentMB: Double = 0.0
-    /// MB received since this monitor started (getifaddrs byte counters).
     public var hostNetworkRecvMB: Double = 0.0
-    /// Host GPU utilization — always `nil`: macOS exposes no public API
-    /// for it (Metal has no utilization property; counter sampling only
-    /// measures this app's own command buffers). Displayed as
-    /// unavailable, never as a fabricated percentage.
     public var hostGPUUsage: Double? = nil
 
-    // Subsystem activities
     public var activeCompilationsCount: Int = 0
     public var activeIndexingCount: Int = 0
     public var activeAIActivityCount: Int = 0
 
-    /// Cumulative interface byte counters at monitor start; network
-    /// values above are deltas from this baseline.
     private var networkBaseline: (sent: UInt64, received: UInt64)?
 
     private init() {
-        // Total physical RAM is a fixed hardware fact, not a sample.
         hostMemoryTotalGB = Double(ProcessInfo.processInfo.physicalMemory) / 1024 / 1024 / 1024
         startUpdateLoop()
     }
@@ -397,11 +282,8 @@ public final class ResourceMonitor {
             while true {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
 
-                // Read from actual state
                 let activeTaskCount = OperationsCoordinator.shared.activeTaskCount
 
-                // Live host readings; a failed read leaves the previous
-                // real value in place instead of inventing a replacement.
                 if let cpu = Self.hostCPULoadPercent() {
                     self.hostCPUUsage = cpu
                 }
@@ -415,8 +297,6 @@ public final class ResourceMonitor {
                 #if os(macOS)
                 if let totals = Self.networkByteTotals() {
                     if let baseline = networkBaseline {
-                        // 32-bit interface counters can wrap; a wrapped
-                        // counter restarts from the current value.
                         let sent = totals.sent >= baseline.sent ? totals.sent - baseline.sent : totals.sent
                         let received = totals.received >= baseline.received ? totals.received - baseline.received : totals.received
                         self.hostNetworkSentMB = Double(sent) / 1024 / 1024
@@ -434,14 +314,6 @@ public final class ResourceMonitor {
         }
     }
 
-    // MARK: - Live host readings (Mach / FileManager / getifaddrs)
-    //
-    // Same Mach pattern as `DevToolsSystemMetrics` (swiftcode-ide target,
-    // which this module cannot depend on), implemented here instead.
-    // Every helper returns `nil` where the platform has no equivalent,
-    // so callers show "no reading" instead of inventing numbers.
-
-    /// Overall host CPU busy percentage (user + system + nice), 0–100.
     static func hostCPULoadPercent() -> Double? {
         #if os(macOS)
         var info = host_cpu_load_info()
@@ -464,7 +336,6 @@ public final class ResourceMonitor {
         #endif
     }
 
-    /// Host memory in use (active + inactive + wired pages), in GB.
     static func hostMemoryUsedGB() -> Double? {
         #if os(macOS)
         var vmInfo = vm_statistics()
@@ -485,7 +356,6 @@ public final class ResourceMonitor {
         #endif
     }
 
-    /// This process's resident memory, in megabytes.
     static func taskResidentMemoryMB() -> Double? {
         #if os(macOS)
         var taskInfo = mach_task_basic_info()
@@ -502,7 +372,6 @@ public final class ResourceMonitor {
         #endif
     }
 
-    /// Disk usage of the volume holding the user's home directory.
     static func diskUsageGB() -> (used: Double, total: Double)? {
         guard let attrs = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
               let total = (attrs[.systemSize] as? NSNumber)?.doubleValue,
@@ -513,8 +382,6 @@ public final class ResourceMonitor {
     }
 
     #if os(macOS)
-    /// Cumulative bytes sent/received across all non-loopback interfaces
-    /// (getifaddrs `if_data` counters).
     static func networkByteTotals() -> (sent: UInt64, received: UInt64)? {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
@@ -544,8 +411,8 @@ public final class AutomationEngine {
     public struct Workflow: Codable, Identifiable, Sendable {
         public let id: UUID
         public var name: String
-        public var trigger: String // "Project Opened", "Build Finished", "Device Connected", "VM Started", "Archive Exported", "Diagnostics Completed", "Backup Completed"
-        public var actions: [String] // "Start VM", "Open Terminal", "Run npm install", "Run backend", "Launch browser", "Start AI assistant"
+        public var trigger: String
+        public var actions: [String]
         public var isActive: Bool
     }
 
@@ -562,7 +429,6 @@ public final class AutomationEngine {
 
     public func loadWorkflows() {
         guard FileManager.default.fileExists(atPath: workflowsURL.path) else {
-            // Seed a few default workflows so it is fully populated out-of-the-box
             self.workflows = [
                 Workflow(
                     id: UUID(),
@@ -610,12 +476,6 @@ public final class AutomationEngine {
                 category: "Diagnostics Completed"
             )
 
-            // Actions are recorded names only ("Start VM", "Run npm
-            // install", …) and no executor exists for them, so nothing
-            // is logged as completed. The old loop slept 0.3 s per
-            // action and then logged each one as completed without
-            // executing anything — a sleep-and-report-success stub —
-            // and is deleted, not reworded.
         }
     }
 
@@ -727,12 +587,10 @@ public final class WorkspaceSessionManager {
     }
 
     public func restoreSession(_ session: SavedSession) {
-        // Restore running VMs if stopped
         for vmID in session.runningVMIDs {
             VirtualizationStateStore.shared.updateVMStatus(vmID, to: .running)
         }
 
-        // Restore active projects
         if let activeID = session.activeProjectID,
            let project = ProjectSessionStore.shared.projects.first(where: { $0.id == activeID }) {
             Task {
@@ -770,7 +628,7 @@ public final class EngineeringReportManager {
     public struct EngineeringReport: Codable, Identifiable, Sendable {
         public let id: UUID
         public let title: String
-        public let type: String // "Weekly", "Monthly", "Storage", "Dependency", "Build", "Workspace", "Performance", "Security", "Documentation", "Code Quality"
+        public let type: String
         public let date: Date
         public var contentHTML: String
         public var metrics: [String: String]
@@ -899,7 +757,6 @@ public final class WorkspaceIntelligence {
     public var sharedAssets: [String] = []
     public var buildDependencies: [String: [String]] = [:]
 
-    // Scan results
     public var duplicateResources: [String] = []
     public var duplicateSourceFiles: [String] = []
     public var duplicateSymbols: [String] = []
@@ -908,7 +765,6 @@ public final class WorkspaceIntelligence {
     public var storageGrowthBytes: Int64 = 0
     public var buildTrends: String = "Stable"
 
-    // Metadata scans
     public var swiftVersions: [String: String] = [:]
     public var sdkCompatibility: [String: String] = [:]
     public var deploymentTargets: [String: String] = [:]
@@ -925,7 +781,6 @@ public final class WorkspaceIntelligence {
         isAnalyzing = true
         let projects = ProjectSessionStore.shared.projects
 
-        // 1. Clean previous runs
         projectRelationships.removeAll()
         sharedPackages.removeAll()
         sharedFrameworks.removeAll()
@@ -938,9 +793,8 @@ public final class WorkspaceIntelligence {
         sdkCompatibility.removeAll()
         deploymentTargets.removeAll()
 
-        // 2. Map actual project settings
         var allPackageNames: [String: Int] = [:]
-        var allFileNames: [String: [String]] = [:] // Name -> Path list
+        var allFileNames: [String: [String]] = [:]
         var totalSwiftCommentsCount = 0
         var totalSwiftLinesOfCode = 0
 
@@ -952,15 +806,12 @@ public final class WorkspaceIntelligence {
             sdkCompatibility[projectName] = project.ciBuildConfiguration?.platform.rawValue ?? "macOS"
             deploymentTargets[projectName] = project.ciBuildConfiguration?.deploymentTarget ?? "15.0"
 
-            // Track binary size history of existing archives
             let projectArchives = ArchiveManager.shared.archives.filter { $0.projectName == projectName }
             binarySizeHistory[projectName] = projectArchives.map { $0.binarySize }
 
-            // Build history analysis
             let projectBuilds = BuildHistoryManager.shared.buildRecords.filter { $0.projectName == projectName }
             buildHistoryAnalytics[projectName] = projectBuilds.count
 
-            // Package discovery
             let packageURL = rootURL.appendingPathComponent("Package.swift")
             if FileManager.default.fileExists(atPath: packageURL.path),
                let contents = try? String(contentsOf: packageURL, encoding: .utf8) {
@@ -983,7 +834,6 @@ public final class WorkspaceIntelligence {
                 }
             }
 
-            // Scan for duplicate resources/sources & comments (doc coverage)
             let fm = FileManager.default
             if let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
                 while let fileURL = enumerator.nextObject() as? URL {
@@ -1008,7 +858,6 @@ public final class WorkspaceIntelligence {
             }
         }
 
-        // 3. Extract duplicates
         for (filename, paths) in allFileNames {
             if paths.count > 1 {
                 if filename.hasSuffix(".swift") {
@@ -1019,27 +868,19 @@ public final class WorkspaceIntelligence {
             }
         }
 
-        // Extract shared packages
         for (pkg, count) in allPackageNames {
             if count > 1 {
                 sharedPackages.append(pkg)
             }
         }
 
-        // 4. Calculate ratio metrics
         if totalSwiftLinesOfCode > 0 {
             docCoverageRatio = min(1.0, Double(totalSwiftCommentsCount) / Double(totalSwiftLinesOfCode) * 5.0)
         } else {
-            // No Swift lines scanned: no coverage figure exists. 0.0 means
-            // "no data", not a measured 0% (the old 0.72 "realistic
-            // baseline" was invented).
             docCoverageRatio = 0.0
         }
-        // No coverage source is wired (no .xcresult / xccov parsing), so
-        // there is no measured test-coverage figure. 0.0 means "no data".
         testCoverageRatio = 0.0
 
-        // Map relationships
         for (proj, deps) in buildDependencies {
             for dep in deps {
                 if allPackageNames[dep] ?? 0 > 1 {
@@ -1048,20 +889,12 @@ public final class WorkspaceIntelligence {
             }
         }
 
-        // Growth needs a prior snapshot to compare against; none is
-        // stored, so no growth figure is reported. 0 means "no
-        // measurement", not "zero growth" (the old count × 3 MB was
-        // invented). The trend is computed from real build records.
         storageGrowthBytes = 0
         buildTrends = Self.buildTrend(from: BuildHistoryManager.shared.buildRecords)
 
         isAnalyzing = false
     }
 
-    /// Trend from real build records: mean duration of the recent half of
-    /// recorded builds vs the earlier half. Fewer than two builds (or no
-    /// usable durations) means no trend can be computed. A percentage,
-    /// when shown, is computed from those real durations — never asserted.
     private static func buildTrend(from records: [SCBuildRecord]) -> String {
         let sorted = records.sorted { $0.date < $1.date }
         guard sorted.count >= 2 else { return "No build history" }
@@ -1094,8 +927,6 @@ public final class WorkspaceTimelineManager {
     public func refresh() {
         events.removeAll()
 
-        // 1. Gather all actual activity records
-        // Builds
         for b in BuildHistoryManager.shared.buildRecords {
             events.append(SCActivityItem(
                 title: "Build \(b.status)",
@@ -1105,7 +936,6 @@ public final class WorkspaceTimelineManager {
             ))
         }
 
-        // Archives
         for a in ArchiveManager.shared.archives {
             events.append(SCActivityItem(
                 title: "Archive Created",
@@ -1115,7 +945,6 @@ public final class WorkspaceTimelineManager {
             ))
         }
 
-        // Backups
         for b in BackupIntegration.shared.backups {
             events.append(SCActivityItem(
                 title: "Backup Created",
@@ -1125,8 +954,6 @@ public final class WorkspaceTimelineManager {
             ))
         }
 
-        // VMs — the event is this refresh logging the VM's *current*
-        // state, so it is dated when the check ran, not backdated.
         for vm in VirtualizationStateStore.shared.virtualMachines {
             let statusStr = vm.status.rawValue
             events.append(SCActivityItem(
@@ -1137,7 +964,6 @@ public final class WorkspaceTimelineManager {
             ))
         }
 
-        // Project Opens / Creation
         for p in ProjectSessionStore.shared.projects {
             events.append(SCActivityItem(
                 title: "Project Opened",
@@ -1153,7 +979,6 @@ public final class WorkspaceTimelineManager {
             ))
         }
 
-        // Dependencies — dated when this refresh evaluated them.
         for d in DependencyManager.shared.dependencies {
             events.append(SCActivityItem(
                 title: "Dependency Evaluated",
@@ -1162,9 +987,6 @@ public final class WorkspaceTimelineManager {
                 date: Date()
             ))
         }
-
-        // An empty timeline stays empty: no fabricated "initialized"
-        // event is ever appended (cleanup 2026-11-06, triage §A3).
 
         events.sort { $0.date > $1.date }
     }
@@ -1208,7 +1030,6 @@ public final class LoggingCenter {
         logs.removeAll()
         switch activeLogType {
         case "Build":
-            // Load real-time logs from XcodeBuildAPI or the latest build
             let buildLogs = XcodeBuildAPI.shared.currentLogs
             if buildLogs.isEmpty {
                 logs = ["[SYSTEM] No build logs recorded in this session. Start a build to capture live standard streams."]
@@ -1271,8 +1092,6 @@ public final class AIEngineeringReports {
         isAnalyzing = true
         insights.removeAll()
 
-        // No artificial delay: the file scan below is real local work
-        // with no async operation to wait for, so it runs immediately.
         guard let project = ProjectSessionStore.shared.activeProject else {
             insights.append(SCAIInsightReport(
                 title: "No Project Loaded",
@@ -1287,7 +1106,6 @@ public final class AIEngineeringReports {
         let rootURL = project.directoryURL
         let fm = FileManager.default
 
-        // Real code analysis
         var largeFiles: [String] = []
         var swiftFilesCount = 0
         var classesDeclared: Set<String> = []
@@ -1307,7 +1125,6 @@ public final class AIEngineeringReports {
                 }
 
                 if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
-                    // Simple pattern scanning for class declarations vs usage
                     let lines = content.components(separatedBy: .newlines)
                     for line in lines {
                         if line.contains("struct ") || line.contains("class ") {
@@ -1324,7 +1141,6 @@ public final class AIEngineeringReports {
             }
         }
 
-        // Generate actual recommendations
         if !largeFiles.isEmpty {
             insights.append(SCAIInsightReport(
                 title: "Extremely Large Source Files Detected",
@@ -1335,7 +1151,6 @@ public final class AIEngineeringReports {
             ))
         }
 
-        // Check if SwiftUI previews exist
         insights.append(SCAIInsightReport(
             title: "Swift 6 Concurrency Optimizations",
             type: "Optimization",
@@ -1344,7 +1159,6 @@ public final class AIEngineeringReports {
             severity: "Medium"
         ))
 
-        // Check duplicate dependencies
         let deps = DependencyManager.shared.dependencies
         if deps.count > 3 {
             insights.append(SCAIInsightReport(
@@ -1383,7 +1197,6 @@ public final class TimelineManager {
     public func refresh() {
         activityItems.removeAll()
 
-        // Gather builds
         for b in BuildHistoryManager.shared.buildRecords {
             activityItems.append(SCActivityItem(
                 title: "Build \(b.status)",
@@ -1393,7 +1206,6 @@ public final class TimelineManager {
             ))
         }
 
-        // Gather archives
         for a in ArchiveManager.shared.archives {
             activityItems.append(SCActivityItem(
                 title: "Archive Created",
@@ -1403,7 +1215,6 @@ public final class TimelineManager {
             ))
         }
 
-        // Gather backups
         for b in BackupIntegration.shared.backups {
             activityItems.append(SCActivityItem(
                 title: "Local Backup Created",
@@ -1412,9 +1223,6 @@ public final class TimelineManager {
                 date: b.date
             ))
         }
-
-        // An empty timeline stays empty: no fabricated "initialized"
-        // event is ever appended (cleanup 2026-11-06, triage §A3).
 
         activityItems.sort { $0.date > $1.date }
     }
@@ -1464,20 +1272,9 @@ public final class NotificationCenterManager {
         loadNotifications()
     }
 
-    /// Notifications derived from real state only — nothing is seeded.
-    /// Sources: keychain certificates expiring within 30 days (real
-    /// identities from `SCOperationsSigningManager`), measured DerivedData
-    /// size and measured free disk space (via
-    /// `SCOperationsStorageManager`), and cloud-connected only while
-    /// actually authenticated. An empty list means nothing currently needs
-    /// attention, not that nothing was checked. Storage figures reflect
-    /// the latest completed measurement; call this again after a
-    /// recalculation to refresh them.
     public func loadNotifications() {
         var fresh: [SCNotification] = []
 
-        // Certificates expiring soon (30-day window is a policy choice;
-        // the dates and names come from the real keychain identities).
         let now = Date()
         let calendar = Calendar.current
         for cert in SCOperationsSigningManager.shared.certificates {
@@ -1497,7 +1294,6 @@ public final class NotificationCenterManager {
                 type: "Certificate"))
         }
 
-        // DerivedData size (real measured size; 5 GB is a policy threshold).
         let derivedGB = SCOperationsStorageManager.shared.derivedDataGB
         if derivedGB >= 5.0 {
             fresh.append(SCNotification(
@@ -1506,8 +1302,6 @@ public final class NotificationCenterManager {
                 type: "Storage"))
         }
 
-        // Low free disk (real filesystem attributes; 0 means no reading
-        // yet, so it never triggers a warning before the first measurement).
         let freeGB = SCOperationsStorageManager.shared.totalSystemFreeGB
         if freeGB > 0, freeGB < 5.0 {
             fresh.append(SCNotification(
@@ -1516,7 +1310,6 @@ public final class NotificationCenterManager {
                 type: "Storage"))
         }
 
-        // Cloud sync state (real auth state — shown only when signed in).
         if AuthManager.shared.isAuthenticated {
             fresh.append(SCNotification(
                 title: "Cloud Sync Connected",
@@ -1554,13 +1347,9 @@ public final class NotificationCenterManager {
 public final class PerformanceManager {
     public static let shared = PerformanceManager()
 
-    /// Live host CPU load % (Mach `host_statistics`); 0 = no reading yet.
     public var cpuUsage: Double = 0.0
-    /// This process's resident memory in GB (Mach `task_info`); 0 = no reading yet.
     public var ramUsageGB: Double = 0.0
-    /// Duration of the most recent real build record; 0 = no build recorded yet.
     public var lastBuildDuration: TimeInterval = 0.0
-    /// Mean duration of all real build records; 0 = no build recorded yet.
     public var averageBuildDuration: TimeInterval = 0.0
 
     private init() {
@@ -1571,14 +1360,12 @@ public final class PerformanceManager {
         Task {
             while true {
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
-                // Direct context mutation because startTelemetryLoop runs under @MainActor task context
                 if let cpu = ResourceMonitor.hostCPULoadPercent() {
                     self.cpuUsage = cpu
                 }
                 if let residentMB = ResourceMonitor.taskResidentMemoryMB() {
                     self.ramUsageGB = residentMB / 1024.0
                 }
-                // Build durations come from real build records only.
                 let records = BuildHistoryManager.shared.buildRecords
                 if let latest = records.first {
                     self.lastBuildDuration = latest.duration

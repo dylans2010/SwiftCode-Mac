@@ -2,85 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy memory / context tool family (Wave 4, Memory
-/// slice): 9 tools, verified live from Legacy's
-/// `AssistToolRegistry` (`register()` lines 122–125, 135, 167–170)
-/// and the `id` properties of the tool files under
-/// `SwiftCode/Backend/Assist/Tools/`.
-///
-/// Behaviour source: Legacy `AssistStoreMemoryTool`,
-/// `AssistRetrieveMemoryTool`, `AssistClearMemoryTool`,
-/// `AssistContextSnapshotTool`, `AssistContextPersistenceStore`,
-/// `AssistSaveToMemoryTool`, `AssistViewMemoryTool`,
-/// `AssistManageMemoryTool` and `AssistConversationContextTool`
-/// (Dylan's own code, ported under MIT). All nine are implemented —
-/// none is honestly-failing and none is BLOCKED. The stores, the
-/// format code and the deliberate deviations live in
-/// `SwiftCodeTools+MemorySupport.swift`; this file only adds the tools.
-///
-/// Conventions, following Waves 1–3:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Structured
-///   data keeps Legacy's keys, with typed JSON values (integers and
-///   booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. The human-readable summary
-///   is Legacy's success message verbatim, except where the spec
-///   draft records a changed path (see below).
-/// * Legacy's registry aliases (`memory_save` / `save_memory` →
-///   `save_to_memory`, `memory_view` → `view_memory`,
-///   `memory_manage` → `manage_memory`, `conversation_context` →
-///   `conversation_context_manager`) live in
-///   `MCPServer.toolAliases`, which this wave does not touch — the
-///   coordinator owns that table.
-/// * Annotations follow the catalogue §1.3 risk table
-///   (`safeRead` → read-only/idempotent, `safeMutation` →
-///   `writes: true`/idempotent, `potentiallyDestructive` →
-///   `writes: true`/destructive), with two behaviour-driven
-///   exceptions: `mem_context_snapshot` mints a fresh snapshot key
-///   on every call, so it is not idempotent; and
-///   `conversation_context_manager`'s `update_summary` appends, so
-///   it is not idempotent either.
-/// * Approval gating: the four file-writing handlers
-///   (`context_persistence_store` set/delete, `save_to_memory`,
-///   `manage_memory` add/edit/delete/clear,
-///   `conversation_context_manager` update_summary) write through
-///   `commit()` — the Wave 1 helper — exactly like the Wave 2
-///   file-writing tools, so IDE review mode works and
-///   `MCPServer.run` already refuses them when the server is
-///   read-only. The three in-memory-only tools (`mem_store`,
-///   `mem_clear`, `mem_context_snapshot`) register `writes: true`,
-///   so the server-level gate still refuses them when read-only;
-///   they have no file change to propose, so there is no
-///   `commit()` / `approve()` call — presenting a fabricated file
-///   change to the IDE's proposal review would misrepresent the
-///   change. This matches `dir_cd`'s session-state precedent
-///   (mutating host state with no approval call). The read-only
-///   actions of the mixed tools (`context_persistence_store` get,
-///   `conversation_context_manager` read) request no approval but
-///   the tools are still registered `writes: true`, so
-///   `MCPServer.run` refuses them in read-only server mode — the
-///   same treatment Wave 3 gives its mixed git tools.
-///   There is no Autopilot bypass anywhere in this file.
-///
-/// Deliberate deviations from Legacy, recorded here (full detail
-/// in the spec draft and in `SwiftCodeTools+MemorySupport.swift`):
-///
-/// * The durable user memory (`save_to_memory`, `view_memory`,
-///   `manage_memory`) is per-workspace
-///   (`.assist_temp/memory/UserMemory.md`), not Legacy's
-///   app-global `~/Library/Application Support/SwiftCode/
-///   UserMemory.md`, so one workspace's memory never leaks into
-///   another's. Same Markdown format; no SwiftCode default seed.
-/// * The conversation context (`conversation_context_manager`) is
-///   one file per workspace
-///   (`.assist_temp/memory/conversation_context.md`), not one
-///   `<uuid>.context.md` per conversation under Application
-///   Support — the MCP host has no conversation identity.
-/// * `mem_context_snapshot` reports `latest_snapshot: "none"`;
-///   SwiftCode has no snapshot store.
-/// * `save_to_memory`'s success message names the real workspace
-///   file instead of Legacy's app-global path.
 extension SwiftCodeMCPHost {
     var memoryTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -174,8 +95,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: Session memory graph (in-memory only, never persisted)
-
     func storeMemory(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let key = try call.require("key")
@@ -207,19 +126,12 @@ extension SwiftCodeMCPHost {
         let workspace = memoryWorkspaceKey(in: s)
         let sessionID = SwiftCodeMemoryGraphStore.shared.sessionID(workspace: workspace)
         let marker = UUID().uuidString
-        // WIRING (wiring-backend): Legacy's `AssistContextSnapshotTool`
-        // names the latest snapshot from `AssistSnapshotFunctions`
-        // (SwiftCodeAssistant, on main). When no snapshot exists the
-        // store reports "none", exactly as Legacy did with an empty
-        // list; a failure to read the store is not invented history.
         let latestSnapshot = (try? AssistSnapshotFunctions.listSnapshots())?.first?.id ?? "none"
         let payload = "session=\(sessionID.uuidString)\nworkspace=\(workspace)\nlatest_snapshot=\(latestSnapshot)"
         SwiftCodeMemoryGraphStore.shared.store(workspace: workspace, key: "context_snapshot:\(marker)", value: payload)
         return .structured(["snapshot_key": .string("context_snapshot:\(marker)"), "latest_snapshot": .string(latestSnapshot)],
                            summary: "Context snapshot captured")
     }
-
-    // MARK: Persistent context store (workspace JSON file)
 
     func persistentContextStore(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -247,14 +159,10 @@ extension SwiftCodeMCPHost {
             return .structured(["key": .string(key), "action": .string("delete"), "value": .string("")],
                                summary: "Deleted key \(key)")
         default:
-            // Legacy's default case is a get, for any action string
-            // other than set/delete.
             return .structured(["key": .string(key), "action": .string("get"), "value": .string(db[key] ?? "")],
                                summary: "Retrieved context for key \(key)")
         }
     }
-
-    // MARK: Durable user memory (workspace UserMemory.md)
 
     func saveToMemory(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -360,9 +268,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Legacy's `UserMemoryManager.saveMemory` upsert: a key match is
-    /// case-insensitive; a match updates value, category and
-    /// timestamp, otherwise the entry is appended.
     private func upsertUserMemoryEntry(_ entries: inout [SwiftCodeUserMemoryEntry], key: String, value: String, category: String) {
         if let idx = entries.firstIndex(where: { $0.key.caseInsensitiveCompare(key) == .orderedSame }) {
             entries[idx].value = value
@@ -372,8 +277,6 @@ extension SwiftCodeMCPHost {
             entries.append(SwiftCodeUserMemoryEntry(key: key, value: value, category: category, updatedAt: Date()))
         }
     }
-
-    // MARK: Conversation context (workspace context file)
 
     func conversationContext(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)

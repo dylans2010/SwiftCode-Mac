@@ -1,11 +1,6 @@
 import Foundation
 import OVDBus
 
-// The interface descriptions the exporter publishes (introspection and
-// `Properties.GetAll`). Names and signatures are those of the public
-// at-spi2-core interface XML (`xml/*.xml`); only members the exporter
-// answers are listed.
-
 enum ATSPIInterfaces {
     typealias I = DBusInterfaceDescription
     typealias P = DBusInterfaceDescription.Property

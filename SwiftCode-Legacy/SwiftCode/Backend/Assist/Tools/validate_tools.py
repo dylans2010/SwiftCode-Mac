@@ -40,15 +40,12 @@ import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[4]  # SwiftCode-Mac/
+REPO = Path(__file__).resolve().parents[4]
 ASSIST = REPO / "SwiftCode/Backend/Assist"
 TOOLS_DIR = ASSIST / "Tools"
 CATALOG = ASSIST / "Functions/System Assets/AvailableTools.md"
 REGISTRY = ASSIST / "AssistToolRegistry.swift"
 
-# Files allowed to spawn processes, with the justification for each.
-# Everything else in Tools/ must not contain Process(, ProcessRunnerTool,
-# AgentTerminalService, AssistArgvRunner, /bin/bash, /bin/sh.
 PROCESS_ALLOWLIST = {
     "UseTermFunction.swift": "use_terminal — the sole model-facing terminal tool",
     "AssistBuildProjectTool.swift": "project_build + generate_xcodeproj — approval-exempt fixed-argv xcodebuild/xcodegen",
@@ -58,10 +55,6 @@ PROCESS_ALLOWLIST = {
     "AssistVersionControlOperator.swift": "version_control_operator — approval-exempt fixed-argv git",
     "AssistToolingSupport.swift": "AssistArgvRunner — the shared fixed-argv runner itself (not a tool)",
     "AssistXcodeProjectResolver.swift": "read-only `xcodebuild -list -json` via fixed argv",
-    # Union with main's 60+ tool files (verified: every entry below runs a
-    # fixed system executable via Process() + argv array — no shell string,
-    # no model-chosen executable, except performance_benchmark whose
-    # executable is restricted to its own 5-entry allowlist).
     "AssistArchiveTools.swift": "zip_file / unzip_file / tar / gzip — fixed /usr/bin/ditto, /usr/bin/tar, /usr/bin/gzip, argv array",
     "AssistBinaryPlistConverterTool.swift": "binary_plist_converter — fixed /usr/bin/plutil, argv array",
     "AssistDeviceListTool.swift": "device_list — fixed /usr/bin/xcrun (devicectl/xctrace), argv array",
@@ -110,13 +103,8 @@ PROCESS_ALLOWLIST = {
     "AssistXcodeToolchainInfoTool.swift": "xcode_toolchain_info — fixed /usr/bin/xcodebuild via AssistArgvRunner, argv array",
 }
 
-# Shell-executable patterns. The /bin/sh and /bin/bash patterns are
-# boundary-aware: "/usr/bin/shasum" must NOT match (it is a fixed-argv
-# checksum executable, not a shell). A match requires the shell name to
-# end at a non-word character (quote, space, end of line, ...).
 SHELL_PATTERNS = [r"/bin/(?:ba)?sh(?![A-Za-z0-9_])", r'"-lc"', r"'-lc'"]
 
-# safeRead tools with a documented, intentional write side effect.
 READONLY_WRITE_EXCEPTIONS = {
     "project_snapshot": "copies the workspace to a snapshot directory (documented)",
 }
@@ -126,33 +114,26 @@ MUTATION_PATTERNS = [r"\.writeFile\(", r"removeItem\(", r"createDirectory\(", r"
 failures = []
 warnings = []
 
-
 def fail(msg):
     failures.append(msg)
     print(f"FAIL {msg}")
-
 
 def warn(msg):
     warnings.append(msg)
     print(f"WARN {msg}")
 
-
 def ok(msg):
     print(f"PASS {msg}")
-
 
 def parse_tool_file(path):
     text = path.read_text()
     ids = re.findall(r'public (?:let|var) id(?::\s*String)?\s*=\s*"([^"]+)"', text)
-    # Some tools declare their ID via a static constant, e.g.
-    # ReverseToolAdapter: `public static let toolID = "reverse_analyze"`.
     ids += re.findall(r'public static let toolID\s*=\s*"([^"]+)"', text)
     risk = None
     m = re.search(r"riskLevel[^.]*\.\s*(\w+)", text)
     if m:
         risk = m.group(1)
     return ids, risk, text
-
 
 def balanced_dict_keys(text, open_bracket_idx):
     """String-literal keys of the [...] dict literal opening at open_bracket_idx.
@@ -207,7 +188,6 @@ def balanced_dict_keys(text, open_bracket_idx):
         i += 1
     return keys
 
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=str(REPO))
@@ -222,10 +202,8 @@ def main():
         "REGISTRY": repo / "SwiftCode/Backend/Assist/AssistToolRegistry.swift",
     })
 
-    # --- 1. Registry completeness -------------------------------------
     registry_text = REGISTRY.read_text()
     registered = re.findall(r"register\(\s*(\w+)\(\)\s*\)", registry_text)
-    # Map struct names -> ids by scanning tool files.
     struct_to_ids = {}
     id_to_file = {}
     for path in sorted(TOOLS_DIR.glob("*.swift")):
@@ -233,8 +211,6 @@ def main():
         for tid in ids:
             id_to_file.setdefault(tid, path.name)
     workers = ASSIST / "Subagents/Tools/UseWorkersTool.swift"
-    # Tools declared outside Tools/: the native Reverse adapter lives in
-    # API/Internal API/Reverse/ but is registered like any other tool.
     extra_tool_files = [ASSIST / "API/Internal API/Reverse/ReverseToolAdapter.swift"]
     if workers.exists():
         ids, _, _ = parse_tool_file(workers)
@@ -246,10 +222,6 @@ def main():
             for tid in ids:
                 id_to_file.setdefault(tid, str(extra.relative_to(ASSIST)))
 
-    # Struct names registered: register(X()) -> find the file declaring
-    # struct/class X, and take the IDs declared in that file. (A file may
-    # hold 2 tools, e.g. the build file; the union across registered
-    # structs is what the completeness check needs.)
     struct_to_file = {}
     for path in sorted(list(TOOLS_DIR.glob("*.swift")) + [workers] + extra_tool_files):
         text = path.read_text()
@@ -278,14 +250,12 @@ def main():
     else:
         ok("registry: no duplicate register() calls")
 
-    # --- 2. ID uniqueness + shape -------------------------------------
     seen = {}
     dup = False
     for tid, fname in id_to_file.items():
         if tid in seen:
             dup = True
         seen[tid] = fname
-    # Count raw declarations to catch same-file duplicates.
     all_ids = []
     for path in sorted(list(TOOLS_DIR.glob("*.swift")) + [workers] + extra_tool_files):
         ids, _, _ = parse_tool_file(path)
@@ -302,7 +272,6 @@ def main():
     else:
         ok("ids: all IDs match ^[A-Za-z][A-Za-z0-9_-]*$")
 
-    # --- 3. Docs completeness -----------------------------------------
     catalog_text = CATALOG.read_text()
     catalog_section = catalog_text.split("## Cloud Toolkit")[0]
     doc_entries = {}
@@ -325,8 +294,6 @@ def main():
         fname = id_to_file.get(tid)
         if not fname:
             continue
-        # Filenames with a "/" are relative to ASSIST (Subagents/..., API/...);
-        # bare filenames live in Tools/.
         fpath = (ASSIST / fname) if "/" in fname else (TOOLS_DIR / fname)
         _, risk, _ = parse_tool_file(fpath)
         if risk and risk != doc_risk:
@@ -336,7 +303,6 @@ def main():
     else:
         ok("docs: catalog risk labels match implementations")
 
-    # --- 4. file_read lines -------------------------------------------
     fr = TOOLS_DIR / "AssistReadFileTool.swift"
     fr_text = fr.read_text()
     if '"lines"' in fr_text and 'input["lines"]' in fr_text:
@@ -344,7 +310,6 @@ def main():
     else:
         fail("file_read: lines parameter missing from schema or execute()")
 
-    # --- 5. Terminal exclusivity --------------------------------------
     proc_pat = re.compile(r"Process\(|ProcessRunnerTool|AgentTerminalService|AssistArgvRunner")
     shell_violations = []
     for path in sorted(TOOLS_DIR.glob("*.swift")):
@@ -352,8 +317,6 @@ def main():
         if proc_pat.search(text):
             if path.name not in PROCESS_ALLOWLIST:
                 fail(f"terminal: {path.name} spawns processes but is not in the approval-exempt allowlist")
-            # Shell-pattern check ignores //-comments (docs mention /bin/bash
-            # to forbid it); only code counts.
             code = "\n".join(
                 line.split("//")[0] for line in text.splitlines()
             )
@@ -366,7 +329,6 @@ def main():
         ok("terminal: no shell-string execution (/bin/bash, /bin/sh, -lc) in Tools/")
     ok(f"terminal: process-spawning allowlist has {len(PROCESS_ALLOWLIST)} entries (explicit)")
 
-    # --- 6. suggestedNextActions --------------------------------------
     bad_suggestions = []
     for path in sorted(TOOLS_DIR.glob("*.swift")):
         text = path.read_text()
@@ -382,18 +344,14 @@ def main():
     else:
         ok("suggestedNextActions: all suggested IDs are registered")
 
-    # --- 7. isReadOnly honesty ----------------------------------------
     dishonest = []
     for tid, fname in id_to_file.items():
-        # Filenames with a "/" are relative to ASSIST (Subagents/..., API/...);
-        # bare filenames live in Tools/.
         fpath = (ASSIST / fname) if "/" in fname else (TOOLS_DIR / fname)
         _, risk, text = parse_tool_file(fpath)
         if risk != "safeRead":
             continue
         if tid in READONLY_WRITE_EXCEPTIONS:
             continue
-        # Only inspect the execute() body, not the whole file.
         m = re.search(r"func execute\(.*?\n    \}", text, re.DOTALL)
         body = m.group(0) if m else text
         for mp in MUTATION_PATTERNS:
@@ -404,12 +362,6 @@ def main():
     else:
         ok("readonly: no safeRead tool calls file-mutation APIs in execute()")
 
-    # --- 8. data-dict key standardization (WARNING) --------------------
-    # data-dict keys used in Tools/ should come from the AssistToolDataKey
-    # standard set (parsed live from AssistModels.swift so newly added keys
-    # are picked up) or be documented in AvailableTools.md. Ad-hoc keys
-    # silently break consumers that key off structured data (e.g.
-    # AssistToolResultFormatter's file-range metadata).
     standard_keys = set()
     models_text = (ASSIST / "AssistModels.swift").read_text()
     m_key_enum = re.search(r"enum AssistToolDataKey[^{]*\{(.*?)\n\}", models_text, re.DOTALL)
@@ -422,7 +374,6 @@ def main():
     catalog_full = CATALOG.read_text()
     nonstandard = {}
     for path in sorted(TOOLS_DIR.glob("*.swift")):
-        # Strip //-comments (docs mention data: [...] to forbid it); only code counts.
         code = "\n".join(line.split("//")[0] for line in path.read_text().splitlines())
         for dm in re.finditer(r"(?:\bdata|\bresultData)\s*:\s*\[", code):
             for key in balanced_dict_keys(code, dm.end() - 1):
@@ -434,10 +385,6 @@ def main():
     if not nonstandard:
         ok("datakeys: all data-dict keys are standard or documented")
 
-    # --- 9. silent output truncation (WARNING) ------------------------
-    # .prefix() on tool output strings without a nearby truncation marker
-    # makes a cut payload look complete to the model. The canonical
-    # serializer (AssistToolResultFormatter) marks every truncation.
     trunc_marker = re.compile(r"truncat|\[truncated|…", re.IGNORECASE)
     outputish = re.compile(r"\boutput\s*:|\bdata\s*:|\.success\(|\.failure\(|reportToolCompleted|recap\b")
     silent_trunc = 0
@@ -457,10 +404,6 @@ def main():
     if not silent_trunc:
         ok("truncation: no unmarked .prefix() truncation of tool output")
 
-    # --- 10. failure error codes (WARNING) ----------------------------
-    # .failure() calls should carry a machine-readable AssistToolErrorCode
-    # (code:) so AssistToolResultFormatter can render Error [...]/Recovery.
-    # Aggregated per file to keep the output readable.
     missing_code = {}
     for path in sorted(TOOLS_DIR.glob("*.swift")):
         lines = path.read_text().splitlines()
@@ -481,11 +424,6 @@ def main():
     if not missing_code:
         ok("errorcode: every .failure() carries an AssistToolErrorCode")
 
-    # --- 11. ToolCallMap coverage -------------------------------------
-    # Every registered tool ID must have a presentation entry in
-    # SwiftCode/Views/Assist/ToolCallMap.swift (the UI bridge for native
-    # tool calls), and every map entry must resolve to a registered tool.
-    # Normalization matches ToolCallMap.descriptor(for:): lowercase, "-" -> "_".
     toolcallmap = repo / "SwiftCode/Views/Assist/ToolCallMap.swift"
     if not toolcallmap.exists():
         fail("toolcallmap: SwiftCode/Views/Assist/ToolCallMap.swift missing")
@@ -518,7 +456,6 @@ def main():
     if args.strict and warnings:
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

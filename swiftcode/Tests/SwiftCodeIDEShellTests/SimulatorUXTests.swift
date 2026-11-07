@@ -5,8 +5,6 @@ import SwiftCodeIDECore
 import SwiftCodeSimLink
 @testable import SwiftCodeIDEShell
 
-/// The fixes of the simulator walk (docs/SIMULATOR-UX.md) on the Linux
-/// shell's remote run: a host without devices, boot progress, Stop.
 @Suite(.serialized) struct SimulatorUXTests {
     @Test func aHostWithoutDevicesOffersTheDeviceRunMakes() throws {
         let d = try #require(ShellRemoteRun.newDeviceDestination(host: "thor", deviceTypes: ["iphone-duo", "iphone-18-pro", "ipad-a16"],
@@ -25,7 +23,6 @@ import SwiftCodeSimLink
         #expect(m.hasPrefix("P stopped on thor before its display came up.") && m.hasSuffix("  a\n  swiftcode-simd: no runtime"))
     }
 
-    /// Stop before the device window opens ends the build's process.
     @Test func cancelEndsTheBuildProcess() async throws {
         let cancel = RemoteRunCancel()
         let started = Date()
@@ -38,8 +35,6 @@ import SwiftCodeSimLink
         #expect(Date().timeIntervalSince(started) < 10)
     }
 
-    // MARK: A host over loopback
-
     final class Lines: @unchecked Sendable {
         private let lock = NSLock()
         private var items: [String] = []
@@ -50,9 +45,6 @@ import SwiftCodeSimLink
         var phases: [RemoteRunPhase] { lock.withLock { phaseItems } }
     }
 
-    /// A simulator host on loopback whose launcher is a stand-in: after
-    /// `delay` seconds it makes the display socket's path (the host then
-    /// reports the device running), or, with `fail`, prints a line and exits.
     func host(delay: Double, fail: Bool = false, appLaunchAfter: Double? = nil) throws -> (SimHostService, LinkClient, LinkHost, URL) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-simux-\(UUID().uuidString)")
         let home = dir.appendingPathComponent("home")
@@ -111,8 +103,6 @@ import SwiftCodeSimLink
         #expect(lines.text.contains("iPhone-18-Pro is running ("))
     }
 
-    /// With an app, the run waits past the display for the app to open
-    /// (the device's log), so "Running" does not show during the boot.
     @Test func aRunWaitsForTheAppToOpen() async throws {
         let (service, client, h, dir) = try host(delay: 0.5, appLaunchAfter: 2.5)
         defer {
@@ -159,8 +149,6 @@ import SwiftCodeSimLink
 }
 
 extension SimulatorUXTests {
-    /// The build script is found from a swift-build product folder too
-    /// (`.build/out/Products/Debug-linux-x86_64/swiftcode-ide`).
     @Test func toolsRootFromEveryBuildLayout() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-tools-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

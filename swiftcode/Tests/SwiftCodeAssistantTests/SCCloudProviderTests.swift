@@ -2,12 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// SCCloud: SwiftCode's own hosted models against a configurable endpoint.
-/// All network traffic here goes to a loopback stand-in server, never to a
-/// real endpoint — the Legacy endpoint is dead and no default is shipped.
-/// Fixture values are obviously fake (`ssc_test-…`, `https://sccloud.example.invalid`).
 @Suite struct SCCloudProviderTests {
-    /// An obviously-fake device fingerprint, used only as a fixture.
     static let fakeFingerprint = "ssc_test-fingerprint-for-unit-tests-only"
 
     @Test func unconfiguredReportsHonestUnavailability() async {
@@ -18,11 +13,8 @@ import Testing
         #expect(hint.contains("endpoint URL"))
         #expect(hint.contains("Settings"))
 
-        // A non-URL and a non-HTTPS, non-loopback URL are equally unconfigured.
         #expect(!SCCloudProvider(baseURL: "not a url").isConfigured)
         #expect(!SCCloudProvider(baseURL: "ftp://sccloud.example.invalid").isConfigured)
-        // A well-formed HTTPS URL counts as configured even though nothing
-        // answers there — availability then reports it as not running.
         #expect(SCCloudProvider(baseURL: "https://sccloud.example.invalid").isConfigured)
         guard case .notRunning(let hint) = await SCCloudProvider(baseURL: "https://sccloud.example.invalid").availability() else {
             Issue.record("expected notRunning for an unreachable configured endpoint"); return

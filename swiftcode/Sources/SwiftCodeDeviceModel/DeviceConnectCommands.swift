@@ -1,17 +1,5 @@
 import Foundation
 
-/// The DeviceConnectKit commands, ported from Legacy
-/// (`SwiftCode/Views/Build/DeviceConnectKit/Commands/`): one small
-/// struct per developer-tool invocation (`xcodebuild`, `xcrun
-/// xcdevice` / `devicectl` / `simctl`, `xcode-select`, `security`,
-/// `sw_vers`, `swift`). Each runs a real tool through
-/// `DeviceConnectProcessRunner` and reports the real result.
-///
-/// One deviation from Legacy: `BuildProjectCommand` no longer reads
-/// `ProjectSessionStore.shared.activeProject` for a saved SDK — that
-/// Legacy app type is not in this slice, and SDK selection belongs
-/// to SwiftCode's build system (`SwiftCodeXcodebuild`). The `-sdk` override
-/// is dropped; the build uses the project's own settings.
 public struct BuildProjectCommand {
     public init() {}
 
@@ -224,7 +212,6 @@ public struct InstallApplicationCommand {
     ) async throws -> Bool {
         let xcrunURL = URL(fileURLWithPath: "/usr/bin/xcrun")
 
-        // Check if device is a simulator
         let isSim = await isSimulator(udid: deviceUDID)
 
         if isSim {
@@ -244,7 +231,6 @@ public struct InstallApplicationCommand {
             return simSuccess
         }
 
-        // Physical device installation via devicectl
         let args = [
             "devicectl", "device", "install", "app",
             "--device", deviceUDID,
@@ -275,7 +261,6 @@ public struct InstallApplicationCommand {
                 return true
             }
 
-            // Fallback to simctl if devicectl failed due to simulator / non-CoreDevice device
             if errorFlag.hadCoreDeviceError {
                 onProgress("[Recovery] Device does not support devicectl. Retrying via xcrun simctl...")
                 _ = try? await DeviceConnectProcessRunner.shared.run(
@@ -293,7 +278,6 @@ public struct InstallApplicationCommand {
 
             return false
         } catch {
-            // Secondary fallback attempt
             onProgress("[Recovery] Error running devicectl (\(error.localizedDescription)). Attempting simctl fallback...")
             let fallbackSuccess = try await DeviceConnectProcessRunner.shared.runStreamingAsync(
                 executableURL: xcrunURL,
@@ -328,7 +312,6 @@ public struct LaunchApplicationCommand {
 
         let isSim = await isSimulator(udid: deviceUDID)
         if isSim {
-            // Ensure simulator booted
             _ = try? await DeviceConnectProcessRunner.shared.run(
                 executableURL: xcrunURL,
                 arguments: ["simctl", "boot", deviceUDID]
@@ -500,7 +483,6 @@ public struct StopApplicationCommand {
             if res.exitCode == 0 {
                 return true
             }
-            // Fallback attempt
             let simRes = try? await DeviceConnectProcessRunner.shared.run(
                 executableURL: xcrunURL,
                 arguments: ["simctl", "terminate", deviceUDID, bundleIdentifier]
@@ -544,7 +526,6 @@ public struct ValidateEnvironmentCommand {
         var derivedData: String? = nil
         var swiftVersion: String? = nil
 
-        // 1. macOS version
         do {
             let res = try await DeviceConnectProcessRunner.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/sw_vers"), arguments: ["-productVersion"])
             macOSVersion = res.exitCode == 0 ? res.stdout.trimmingCharacters(in: .whitespacesAndNewlines) : "macOS Unknown"
@@ -552,37 +533,30 @@ public struct ValidateEnvironmentCommand {
             macOSVersion = "macOS Unknown"
         }
 
-        // 2. Xcode Select path
         do {
             let res = try await DeviceConnectProcessRunner.shared.run(executableURL: xcodeSelectURL, arguments: ["-p"])
             if res.exitCode == 0 {
                 xcodePath = res.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         } catch {
-            // xcode-select not available; xcodePath stays nil.
         }
 
-        // 3. Xcode Version
         do {
             let res = try await DeviceConnectProcessRunner.shared.run(executableURL: xcodebuildURL, arguments: ["-version"])
             if res.exitCode == 0 {
                 xcodeVersion = res.stdout.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
             }
         } catch {
-            // xcodebuild not available; xcodeVersion stays nil.
         }
 
-        // 4. Swift version
         do {
             let res = try await DeviceConnectProcessRunner.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/swift"), arguments: ["--version"])
             if res.exitCode == 0 {
                 swiftVersion = res.stdout.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: .newlines).first
             }
         } catch {
-            // swift not available; swiftVersion stays nil.
         }
 
-        // 5. Check SDKs
         do {
             let res = try await DeviceConnectProcessRunner.shared.run(executableURL: xcodebuildURL, arguments: ["-showsdks"])
             if res.exitCode == 0 {
@@ -591,10 +565,8 @@ public struct ValidateEnvironmentCommand {
                 hasSimulatorSDK = out.contains("iphonesimulator")
             }
         } catch {
-            // Could not fetch SDK list.
         }
 
-        // 6. Signing check (security find-identity)
         do {
             let res = try await DeviceConnectProcessRunner.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/security"), arguments: ["find-identity", "-v", "-p", "codesigning"])
             isSigningSetup = res.exitCode == 0 && res.stdout.contains("matching identities")

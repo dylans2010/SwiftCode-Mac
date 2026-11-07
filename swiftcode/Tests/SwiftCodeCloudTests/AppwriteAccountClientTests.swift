@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeCloud
 
-// Request building, response parsing against hand-written fixtures,
-// error mapping, session-cookie capture, and OAuth URL/callback
-// handling. No live network: every test runs through StubURLProtocol.
-
 struct AppwriteAccountClientTests {
 
     @Test("Session creation posts email/password and captures the session secret from Set-Cookie")

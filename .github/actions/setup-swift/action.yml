@@ -31,7 +31,7 @@ runs:
           libz3-dev pkg-config tzdata unzip zlib1g-dev
     - name: Restore the Swift toolchain
       if: runner.os == 'Linux'
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ~/.swift-toolchain
         key: swift-${{ inputs.swift-version }}-${{ runner.os }}-${{ runner.arch }}-ubuntu24.04

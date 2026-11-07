@@ -3,51 +3,8 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic network / packages / GitHub tools
-/// (Wave 8, slice D), each driven black-box through the server's real
-/// write-policy path against a copy of
-/// `Samples/AgentSamples/Greeter`, plus pure-logic tests for the
-/// Package.swift manifest surgery in
-/// `SwiftCodeTools+AgenticNetwork.swift`.
-///
-/// Behaviour source: Legacy `SwiftCode/Tools/Agentic/FetchURL.swift`,
-/// `DownloadFile.swift`, `UploadFile.swift`, `HTTPRequest.swift`,
-/// `WebSearch.swift`, `DocumentationSearch.swift`,
-/// `APIReferenceSearch.swift`, `PackageSearch.swift`,
-/// `DependencyAudit.swift`, `InstallDependencies.swift`,
-/// `UpdateDependencies.swift`, `RemoveDependencies.swift`,
-/// `CreatePullRequest.swift`, `ReviewPullRequest.swift`,
-/// `ReadPullRequest.swift`, `ReadIssues.swift`, `CreateIssue.swift`,
-/// `UpdateIssue.swift`, `SearchIssues.swift` (Dylan's own code, ported
-/// under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never
-/// on internals. Messages quoted verbatim are Legacy's; where the
-/// SwiftCode port may legitimately word a failure differently
-/// (workspace confinement, HTTPS-only, honest-failure wording), the
-/// test asserts the behaviour plus a tolerant message match. Message
-/// assertions compare `firstText`, never `resultText` with exact
-/// equality: `MCPToolResult.structured(_:summary:)` emits two text
-/// blocks.
-///
-/// Platform notes: this machine has no Swift toolchain and the tests
-/// run on Linux here, so `install_dependencies` /
-/// `update_dependencies` assert Legacy's exact "Swift not found"
-/// failure only when `/usr/bin/swift` is absent (on a machine with a
-/// toolchain the run path would fetch packages over the network, so
-/// it is not exercised in tests). No test performs a live network
-/// fetch: `fetch_url`, `download_file`, `upload_file`, and
-/// `http_request` are covered up to the point where they would touch
-/// the network (argument validation, HTTPS allow-list, workspace
-/// confinement, approval gating); their live behaviour stays pending
-/// on Dylan's Mac. The seven GitHub tools run against a URLProtocol
-/// stub (`installGitHubStub` in TestSupport): fixture JSON, no live
-/// network; the missing-token and approval-refusal paths are covered
-/// without a token or an approval.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticNetworkTests {
-    /// The 19 Wave 8 slice D Agentic tool IDs, verified live from
-    /// each Legacy file's `static let identifier`.
     static let agenticNetworkIDs = ["fetch_url", "download_file", "upload_file", "http_request",
                                     "web_search", "documentation_search", "api_reference_search", "package_search",
                                     "dependency_audit", "install_dependencies", "update_dependencies",
@@ -55,18 +12,9 @@ import SwiftCodeAssistant
                                     "read_pull_request", "read_issues", "create_issue", "update_issue",
                                     "search_issues"]
 
-    /// Opens a copy of Greeter and installs the ported Agentic
-    /// network tools on the server (same shape as Wave 5's `opened`;
-    /// the coordinator wires `agenticNetworkTools` into
-    /// `installTools()`). Defaults to `.allow`: most slice D tools
-    /// are `writes: true`, so the read-only policy refuses them
-    /// before they run.
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 5 shape): `installTools()` may already
-        // wire `agenticNetworkTools`, so a plain `+=` would register
-        // them twice.
         let ported = Set(host.agenticNetworkTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.agenticNetworkTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -74,15 +22,12 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// A host with the ported Agentic network tools installed but no
-    /// workspace open, for the tools that must not need one.
     func bareHost() -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         let ported = Set(host.agenticNetworkTools.map(\.name))
@@ -138,14 +83,11 @@ import SwiftCodeAssistant
             "search_issues": ["query"],
         ]
         for tool in tools {
-            // Legacy's description, verbatim.
             #expect(tool.description == expectedDescriptions[tool.name], "\(tool.name) description: \(tool.description)")
             #expect(tool.inputSchema["properties"]?["workspace"] != nil, "\(tool.name) is missing the workspace parameter")
             let required = tool.inputSchema["required"]?.array?.compactMap(\.string) ?? []
             #expect(required == expectedRequired[tool.name], "\(tool.name) required: \(required)")
         }
-        // Read-only network fetch; everything else that touches the
-        // outside world or the filesystem is a gated write/execution.
         #expect(tools.first { $0.name == "fetch_url" }?.annotations.readOnly == true)
         #expect(tools.first { $0.name == "fetch_url" }?.annotations.openWorld == true)
         for name in ["download_file", "upload_file", "http_request", "install_dependencies",
@@ -160,17 +102,12 @@ import SwiftCodeAssistant
                      "read_issues", "search_issues"] {
             #expect(tools.first { $0.name == name }?.annotations.readOnly == true, "\(name) is a read-only tool")
         }
-        // The six GitHub tools that take a repository offer it as an
-        // optional parameter (`read_issues` already requires it);
-        // no required parameter changed in Wave 10.
         for name in ["create_pull_request", "review_pull_request", "read_pull_request",
                      "create_issue", "update_issue", "search_issues"] {
             #expect(tools.first { $0.name == name }?.inputSchema["properties"]?["repository"] != nil,
                     "\(name) must offer the optional repository parameter")
         }
     }
-
-    // MARK: - `fetch_url`
 
     @Test func fetchURLRequiresURL() async throws {
         let host = bareHost()
@@ -192,8 +129,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError)
         #expect(r.firstText.contains("Only HTTPS URLs with a host are allowed"))
     }
-
-    // MARK: - `download_file`
 
     @Test func downloadFileRequiresArguments() async throws {
         let host = bareHost()
@@ -233,8 +168,6 @@ import SwiftCodeAssistant
         #expect(dotdot.firstText.contains("must be inside the workspace"))
         #expect(!FileManager.default.fileExists(atPath: "/tmp/agentic-network-evil.bin"))
     }
-
-    // MARK: - `upload_file`
 
     @Test func uploadFileRequiresArguments() async throws {
         let host = bareHost()
@@ -277,8 +210,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("must be inside the workspace"))
     }
 
-    // MARK: - `http_request`
-
     @Test func httpRequestRequiresArguments() async throws {
         let host = bareHost()
         let missingBoth = try await host.server.callTool("http_request", [:])
@@ -319,8 +250,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError)
         #expect(r.firstText.contains("Header 'X-Count' must be a string."))
     }
-
-    // MARK: - Honestly failing: search tools
 
     @Test func webSearchFailsHonestly() async throws {
         let host = bareHost()
@@ -377,8 +306,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("no clean bill of health was invented"))
     }
 
-    // MARK: - `install_dependencies` / `update_dependencies`
-
     @Test func installDependenciesValidates() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -412,10 +339,6 @@ import SwiftCodeAssistant
     }
 
     @Test func installDependenciesNeedsSwiftToolchain() async throws {
-        // On this machine there is no Swift toolchain, so the run
-        // fails before any network fetch. On a machine with a
-        // toolchain the run path would fetch packages over the
-        // network, so it is deliberately not exercised in tests.
         guard !FileManager.default.fileExists(atPath: "/usr/bin/swift") else { return }
         let sample = try TempSample()
         defer { sample.remove() }
@@ -435,12 +358,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("Swift not found at /usr/bin/swift."))
     }
 
-    // MARK: - `remove_dependencies`
-
-    /// A fixture package with three dependencies: one matched by URL
-    /// last component, one matched by an explicit `name:`, and one
-    /// unrelated; two targets reference the first and third by
-    /// `.product(…)` and the second by a bare string.
     static let fixtureManifest = """
         // swift-tools-version: 5.9
         import PackageDescription
@@ -533,9 +450,6 @@ import SwiftCodeAssistant
     }
 
     @Test func removeDependenciesHandlesLastEntry() async throws {
-        // Removing the last entry must take the preceding comma with
-        // it, leaving a valid manifest: the second removal here takes
-        // the last remaining entry of the same fixture.
         var manifest = Self.fixtureManifest
         #expect(SwiftCodeMCPHost.agenticNetworkRemovePackage(named: "Alamofire", from: &manifest))
         #expect(SwiftCodeMCPHost.agenticNetworkRemovePackage(named: "ArgumentParser", from: &manifest) == false,
@@ -566,10 +480,6 @@ import SwiftCodeAssistant
         #expect(SwiftCodeMCPHost.agenticNetworkRemovePackage(named: "b", from: &manifest) == false)
     }
 
-    // MARK: - GitHub tools (Wave 10: wired to the real GitHub API)
-
-    /// Fixture JSON for the GitHub tools (sibling `SwiftCodeGitHubTests`
-    /// shapes, synthetic data, no real token anywhere).
     static let gitHubIssueJSON = """
         {"number":42,"title":"Fix the crash","body":"Steps to reproduce","state":"open","user":{"login":"octocat"},"labels":[],"created_at":"2024-01-15T10:30:00Z","updated_at":"2024-01-16T10:30:00Z","html_url":"https://github.com/octocat/Hello-World/issues/42"}
         """
@@ -592,9 +502,6 @@ import SwiftCodeAssistant
         {"total_count":1,"incomplete_results":false,"items":[{"number":1,"title":"Found a bug","body":"Steps","state":"open","user":{"login":"octocat"},"labels":[],"created_at":"2024-01-15T10:30:00Z","updated_at":"2024-01-16T10:30:00Z","html_url":"https://github.com/octocat/Hello-World/issues/1"}]}
         """
 
-    /// The stub's pull-request routes (PR + files + reviews) for
-    /// `read_pull_request` / `review_pull_request`. Nonisolated: it
-    /// is passed as the stub's `@Sendable` handler.
     nonisolated static func gitHubPullRequestStub(_ request: URLRequest) -> (status: Int, headers: [String: String], body: Data) {
         switch request.url?.path {
         case "/repos/octocat/Hello-World/pulls/2": return gitHubStubOK(gitHubPullRequestJSON)
@@ -604,8 +511,6 @@ import SwiftCodeAssistant
         }
     }
 
-    /// A Swift package folder whose git remote `origin` is `origin`
-    /// (no commits: only `git remote get-url origin` runs).
     func makeGitHubRepo(origin: String) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-github-\(UUID().uuidString)")
         let sources = dir.appendingPathComponent("Sources/App")
@@ -626,8 +531,6 @@ import SwiftCodeAssistant
         return dir
     }
 
-    /// Opens a plain folder (not a `TempSample`) and installs the
-    /// Agentic network tools on the server.
     func openGitHubDir(_ dir: URL, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy

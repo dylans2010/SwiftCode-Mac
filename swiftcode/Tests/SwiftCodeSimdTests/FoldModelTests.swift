@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// FOLD (specs/simulator/foldable.md §3, §8): the host's hinge model, its
-/// sweeps, the panel it predicts, the saved record, the per-display frame
-/// records, and how a panel's picture is turned.
 struct FoldModelTests {
     @Test func sweepsEndOnTheTarget() {
         let open = FoldModel.sweep(from: 0, to: 180)
@@ -13,38 +10,31 @@ struct FoldModelTests {
         #expect(close.last == 0 && close == close.sorted(by: >))
         #expect(FoldModel.sweep(from: 0, to: 180, instant: true) == [180])
         #expect(FoldModel.sweep(from: 90, to: 90) == [90])
-        #expect(FoldModel.sweep(from: 0, to: 3) == [1, 2, 3])  // equal neighbours once
+        #expect(FoldModel.sweep(from: 0, to: 3) == [1, 2, 3])
         #expect(FoldModel.sweep(from: 0, to: 400).last == 180)
-        // About 30 ms apart over about 0.5 s.
         #expect(abs(open.count * FoldModel.sweepStepMilliseconds - FoldModel.sweepMilliseconds) <= FoldModel.sweepStepMilliseconds)
     }
 
     @Test func panelFollowsTheSwapPoints() {
         var m = FoldModel()
         #expect(!m.innerActive && m.posture == .closed)
-        m.moved(to: 40)          // a quick sweep that stops at 40°: stays on the cover
+        m.moved(to: 40)
         #expect(!m.innerActive)
         m.moved(to: 0)
-        m.moved(to: 90)          // Half Open: inner
+        m.moved(to: 90)
         #expect(m.innerActive && m.posture == .halfOpen)
-        m.moved(to: 85)          // closing, still at 85° or more: inner
+        m.moved(to: 85)
         #expect(m.innerActive)
-        m.moved(to: 75)          // closing to 84° or less: the cover
+        m.moved(to: 75)
         #expect(!m.innerActive)
         m.moved(to: 180)
         #expect(m.innerActive && m.posture == .openFlat)
-        m.moved(to: 120)         // fold avoidance: stays inner
+        m.moved(to: 120)
         #expect(m.innerActive)
         m.moved(to: 0)
         #expect(!m.innerActive && m.posture == .closed)
     }
 
-    /// The commanded-target thresholds (foldable.md §3.3, §10.3, §10.4):
-    /// the reference's measurements (opening to 85° or more → inner, to 75°
-    /// or less → cover; closing from open flat to 85° or 90° → inner, to 80°
-    /// or less → cover) and SwiftCode's own between them (opening to 76–84° →
-    /// cover; closing to 81–84° → cover). Half Open ends on the inner panel
-    /// from both sides.
     @Test func commandedTargetThresholds() {
         #expect(FoldModel.openingSwapAngle == 85 && FoldModel.closingSwapAngle == 84)
         for (target, inner) in [(60, false), (75, false), (76, false), (80, false), (84, false), (85, true), (90, true), (180, true)] {
@@ -102,7 +92,6 @@ struct FoldModelTests {
     }
 
     @Test func activePanelUsesTheModelAndTheGuestsBacklight() {
-        // The inner panel is published by default (not with SWIFTCODE_FOLD_DISPLAYS=0; §10.4).
         #expect(DeviceType.iPhoneDuo.panels.count == (DeviceType.foldDisplaysEnabled ? 2 : 1))
         #expect(DeviceType.iPhone18Pro.panels.count == 1 && !DeviceType.iPhone18Pro.isFoldable && DeviceType.iPhoneDuo.isFoldable)
         let inner = DeviceType.iPhoneDuo.secondDisplay!
@@ -113,14 +102,11 @@ struct FoldModelTests {
         #expect(activePanel(panels, model: m, records: [nil, nil]).name == "LCD")
         m.moved(to: 180)
         #expect(activePanel(panels, model: m, records: [nil, nil]).name == "LCD-1")
-        // The guest turned the inner backlight off and the cover's on: the cover.
         let lit = FrameRecord(surface: 1, frame: 1, backlight: 2), dark = FrameRecord(surface: 2, frame: 1, backlight: 0)
         #expect(activePanel(panels, model: m, records: [lit, dark]).name == "LCD")
         #expect(activePanel(panels, model: nil, records: []).name == "LCD")
-        // Frames (§10.4): the predicted panel is black, the other lit → the other.
         #expect(activePanel(panels, model: m, records: [nil, nil], black: [false, true]).name == "LCD")
         #expect(activePanel(panels, model: m, records: [nil, nil], black: [true, false]).name == "LCD-1")
-        // Both black, or a panel without frames: the model decides.
         #expect(activePanel(panels, model: m, records: [nil, nil], black: [true, true]).name == "LCD-1")
         #expect(activePanel(panels, model: m, records: [nil, nil], black: [false, nil]).name == "LCD-1")
         var closed = FoldModel()
@@ -132,16 +118,13 @@ struct FoldModelTests {
     @Test func blackFrames() {
         let w = 100, h = 60, row = 104 * 4
         var px = [UInt8](repeating: 0, count: row * h)
-        // Alpha alone does not light a frame.
         for y in 0..<h { for x in 0..<w { px[y * row + x * 4 + 3] = 255 } }
         #expect(px.withUnsafeBytes { PanelPicture.isBlack($0.baseAddress!, width: w, height: h, bytesPerRow: row) })
-        // One lit pixel on the grid (the bottom-right corner) lights it.
         px[(h - 1) * row + (w - 1) * 4 + 1] = 9
         #expect(!px.withUnsafeBytes { PanelPicture.isBlack($0.baseAddress!, width: w, height: h, bytesPerRow: row) })
     }
 
     @Test func pictureTurns() {
-        // 2 × 1 RGBA: A B → turned 90° clockwise it is 1 × 2: A over B.
         let a: [UInt8] = [1, 1, 1, 1], b: [UInt8] = [2, 2, 2, 2]
         let r90 = PanelPicture.rotate(rgba: a + b, width: 2, height: 1, degrees: 90)
         #expect(r90.width == 1 && r90.height == 2 && r90.pixels == a + b)

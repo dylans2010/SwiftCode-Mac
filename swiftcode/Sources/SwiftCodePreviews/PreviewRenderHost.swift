@@ -3,27 +3,12 @@ import Foundation
 import CoreGraphics
 #endif
 
-/// A small Swift package that renders one `#Preview` to a PNG through
-/// OpenViews, the open SwiftUI port (`frameworks/swiftui`, round R5), with
-/// no window and no GPU: `swiftcode preview --render` on Linux (and on macOS,
-/// where the file's `import SwiftUI` is pointed at the port's renamed
-/// modules). See specs/ide/previews.md.
-///
-/// The package holds the previewed file with every `#Preview` blanked out
-/// (lines kept, so diagnostics keep their line numbers) and `@main`
-/// removed, plus a `main.swift` that evaluates the chosen preview's body as
-/// a view builder and writes `ImageRenderer.pngData` to the path given as
-/// its first argument.
 public enum PreviewRenderHost {
-    /// The size a preview is rendered at when it has no layout trait: a
-    /// phone-sized canvas (SwiftCode's choice for headless rendering).
     public static let defaultCanvas = CGSize(width: 393, height: 852)
 
-    /// Files of the package (relative path → contents).
     public static func files(source text: String, preview: PreviewDeclaration, all previews: [PreviewDeclaration],
                              openViewsPath: String, scale: Double = 2, appleHost: Bool) -> [String: String] {
         guard case .macro(let body) = preview.kind else { return [:] }
-        // Blank every #Preview, keeping newlines.
         var units = Array(text.utf16)
         for p in previews {
             guard let r = p.range, r.location >= 0, r.location + r.length <= units.count else { continue }
@@ -91,8 +76,6 @@ public enum PreviewRenderHost {
         return ["Package.swift": manifest, "Sources/PreviewHost/Preview.swift": file, "Sources/PreviewHost/main.swift": main]
     }
 
-    /// `import SwiftUI` → `import OpenViews` (and SwiftUICore → OpenViewsCore)
-    /// for Apple hosts, where the port's modules are renamed.
     static func rewriteImports(_ text: String) -> String {
         text.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
             let t = line.trimmingCharacters(in: .whitespaces)
@@ -106,8 +89,6 @@ public enum PreviewRenderHost {
         "\"" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
     }
 
-    /// The OpenViews package: `$SWIFTCODE_OPENVIEWS`, else `frameworks/swiftui`
-    /// found by walking up from each of `starts`.
     public static func locateOpenViews(environment: [String: String], starts: [URL]) -> URL? {
         let fm = FileManager.default
         if let p = environment["SWIFTCODE_OPENVIEWS"], fm.fileExists(atPath: p + "/Package.swift") { return URL(fileURLWithPath: p) }

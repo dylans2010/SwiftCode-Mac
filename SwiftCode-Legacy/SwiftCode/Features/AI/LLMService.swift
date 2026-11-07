@@ -39,8 +39,8 @@ public enum LLMProvider: String, CaseIterable, Codable {
         case .google: return URL(string: "https://generativelanguage.googleapis.com/v1beta/openai")!
         case .mistral: return URL(string: "https://api.mistral.ai/v1")!
         case .qwen: return URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1")!
-        case .offline: return URL(string: "http://localhost")! // Not used for offline
-        case .codex: return URL(string: "http://localhost:3003/v1")! // Node bridge port
+        case .offline: return URL(string: "http://localhost")!
+        case .codex: return URL(string: "http://localhost:3003/v1")!
         }
     }
 }
@@ -204,8 +204,7 @@ public final class LLMService: Sendable {
     public func resolvedRoutingProvider() throws -> LLMProvider {
         let isFMEnabled = FoundationModels.shared.isEnabled
         if isFMEnabled {
-            // If Foundation Models is enabled, we bypass others
-            return .offline // Or any placeholder since we intercept
+            return .offline
         }
 
         let mode = AIRoutingMode.from(rawValue: UserDefaults.standard.string(forKey: aiRoutingModeKey))
@@ -267,10 +266,6 @@ public final class LLMService: Sendable {
         return key
     }
 
-    /// Effective credential for a request. The provider's API key (or explicit
-    /// override) wins; for the Google provider a valid OAuth session supplies the
-    /// bearer token instead. Returns "" when the user holds neither — never
-    /// invents a credential and never mixes credential kinds.
     private func resolveEffectiveCredential(for provider: LLMProvider, keyOverride: String? = nil) async -> String {
         let key = retrieveAPIKey(for: provider, from: keyOverride)
         if !key.isEmpty { return key }
@@ -289,7 +284,7 @@ public final class LLMService: Sendable {
 
     private func hasServerAPIKey(for provider: LLMProvider) -> Bool {
         guard provider != .offline else { return false }
-        if provider == .codex { return true } // Managed by bridge token setup
+        if provider == .codex { return true }
         let key = retrieveAPIKey(for: provider)
         return !key.isEmpty
     }
@@ -353,8 +348,6 @@ public final class LLMService: Sendable {
         }
         return (try? resolvedRoutingProvider()) ?? .openRouter
     }
-
-    // MARK: - Core Methods
 
     public func sendChatRequestWithSequenceFallback(prompt: String, messages: [AIMessage]) async throws -> LLMResponse {
         let startTime = Date()
@@ -717,10 +710,6 @@ public final class LLMService: Sendable {
             return try await runOfflineResponse(messages: messages)
         }
 
-        // OAuth-aware credential resolution (mirrors the streaming path): the API
-        // key (or explicit override) wins, otherwise a valid Google OAuth session
-        // supplies the bearer token — setupHeaders already transports ya29.
-        // tokens correctly. Never an API-key error while a valid session exists.
         let actualKey = await resolveEffectiveCredential(for: provider, keyOverride: key)
         guard !actualKey.isEmpty else {
             logError("[sendChatRequest] Missing API key / credentials for \(provider.rawValue).")
@@ -978,13 +967,6 @@ public final class LLMService: Sendable {
                 return
             }
 
-            // N-1: the effective credential is the API key first, then a valid
-            // Google OAuth session for the Google provider. The Chat Mode
-            // validator now permits OAuth-only users, so this gate must honor
-            // the session too — otherwise validation passes and the request
-            // still dies with an auth-flavored invalidKey error. setupHeaders
-            // already transports ya29. Bearer tokens correctly (Authorization
-            // header + x-goog-user-project).
             let key = await resolveEffectiveCredential(for: provider)
             guard !key.isEmpty else {
                 logError("[streamChat] Missing API key / credentials for stream.")
@@ -1110,7 +1092,6 @@ public final class LLMService: Sendable {
             }
         }
 
-        // Default: OpenRouter / standard streaming
         logInfo("[streamChatCompletion] Streaming via default provider \(provider.rawValue).")
         return AsyncThrowingStream { continuation in
             Task {
@@ -1246,8 +1227,6 @@ public final class LLMService: Sendable {
         return decoded.data.map { $0.id }
     }
 
-    // MARK: - Helpers
-
     private func setupHeaders(for request: inout URLRequest, provider: LLMProvider, key: String) {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
@@ -1258,9 +1237,6 @@ public final class LLMService: Sendable {
         case .google:
             if key.hasPrefix("ya29.") || (key.contains(".") && !key.starts(with: "AIza")) {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-                // H-4: the Developer API's OAuth contract requires the quota
-                // project on every request. Without it, Settings > Assist >
-                // Available Models deterministically 403s on a valid session.
                 let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !quotaProject.isEmpty {
                     request.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
@@ -1355,8 +1331,6 @@ public final class LLMService: Sendable {
         }
     }
 }
-
-// MARK: - Decodable Structures
 
 private struct ModelListResponse: Decodable {
     struct ModelData: Decodable {

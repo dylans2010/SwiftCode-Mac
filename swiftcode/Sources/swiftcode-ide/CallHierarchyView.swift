@@ -3,10 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Find ▸ Find Call Hierarchy in the Find navigator (`refactoring.md`
-/// §Find): the function at the caret, its callers and their callers as a
-/// tree, each row a disclosure triangle, the function's letter badge, its
-/// name and its file and line; a row opens the declaration.
 struct CallHierarchyOutline: View {
     var model: CallHierarchyModel
     @Environment(\.colorScheme) private var scheme

@@ -1,63 +1,42 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Welcome window (`specs/ide/reference-ui-5.md` §3.1, L1, L2): shown
-/// at launch when there is no document to open, and by Window ▸ Welcome to
-/// SwiftCode (⇧⌘1). SwiftCode's icon, name and version; Open…, Clone… and a New
-/// Project pull-down; the Recent Projects list.
 @MainActor
 public final class WelcomeWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     public static let size = NSSize(width: 480, height: 632)
     public static let title = "Welcome to SwiftCode"
     public static let recentProjectsTitle = "Recent Projects"
     public static let buttonTitles = ["Open…", "Clone…", "New Project"]
-    /// reference-ui-6.md §1.4 (W5): the buttons row's widths, height,
-    /// spacing and top (from the window's top); the close button's size and
-    /// offset from the top left.
     public static let buttonWidths: [CGFloat] = [107, 107, 130]
     public static let buttonHeight: CGFloat = 36
     public static let buttonSpacing: CGFloat = 8
     public static let buttonsTop: CGFloat = 242
     public static let closeButtonSize: CGFloat = 36
     public static let closeButtonInset: CGFloat = 20
-    /// liquid-glass.md §2.10: the recent list's box, from the window's top
-    /// left (macOS 26 and later).
     public static let recentsBoxFrame = NSRect(x: 60, y: 295, width: 360, height: 277)
-    /// metrics.md §13.4: the app name is bold with capitals 13 points
-    /// tall; its baseline 38 and the version line's 19 above the buttons.
     public static let nameCapHeight: CGFloat = 13
     public static let nameBaselineAboveButtons: CGFloat = 38
     public static let versionBaselineAboveButtons: CGFloat = 19
-    /// metrics.md §16.3 (checklist row 80): the icon's drawn square is 98
-    /// points, its bottom 15.5 above the name's capitals. The image keeps
-    /// its own margin (the field spans 100–924 of 1024), so its view is
-    /// larger by that.
     public static let iconVisibleSide: CGFloat = 98
     public static let iconGapAboveName: CGFloat = 15.5
     static var iconMarginFraction: CGFloat { CGFloat(ProductIconGeometry.fieldMin / ProductIconGeometry.side) }
     public static var iconFrameSide: CGFloat {
         iconVisibleSide / CGFloat((ProductIconGeometry.fieldMax - ProductIconGeometry.fieldMin) / ProductIconGeometry.side)
     }
-    /// The icon view's top, from the window's top.
     public static var iconFrameTop: CGFloat {
         let capTop = buttonsTop - nameBaselineAboveButtons - nameCapHeight
         return capTop - iconGapAboveName + iconFrameSide * iconMarginFraction - iconFrameSide
     }
-    /// metrics.md §13.4: recent rows on a 47-point pitch; the separators
-    /// run under the text (from its leading edge) to 14 points before the
-    /// box's right edge.
     public static let recentRowPitch: CGFloat = 47
     public static let recentTextLeading: CGFloat = 56
     public static let recentSeparatorTrailing: CGFloat = 14
 
-    /// The bold system font whose capitals are `capHeight` tall.
     static func nameFont(capHeight: CGFloat = nameCapHeight) -> NSFont {
         let unit = NSFont.systemFont(ofSize: 100, weight: .bold).capHeight / 100
         return .systemFont(ofSize: (capHeight / max(0.01, unit) * 4).rounded() / 4, weight: .bold)
     }
 
     public let recents: RecentProjects
-    /// The list's entries, newest first (the same as File ▸ Open Recent).
     public private(set) var entries: [URL] = []
 
     public let iconView = NSImageView()
@@ -65,29 +44,21 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
     public let versionLabel = NSTextField(labelWithString: "")
     public let openButton = NSButton(title: "Open…", target: nil, action: nil)
     public let cloneButton = NSButton(title: "Clone…", target: nil, action: nil)
-    /// A pull-down: its first item is the button's title.
     public let newProjectButton = NSPopUpButton(frame: .zero, pullsDown: true)
     public let table = RecentProjectsTable()
-    /// The round close button at the top left (no traffic lights, W5).
     public let closeButton: NSButton = RoundButton()
-    /// The rounded inset box holding the recent list, and its scroll view.
     public let recentsBox: NSView = RecentsBoxView()
     public let recentsScroll = NSScrollView()
     let emptyLabel = NSTextField(labelWithString: "No Recent Projects")
 
-    /// Opens a workspace; the completion reports success. Tests replace it.
     public var openWorkspace: (URL, @escaping (Bool) -> Void) -> Void = { url, done in
         NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { doc, _, error in
             if let error { NSApp.presentError(error) }
             done(doc != nil)
         }
     }
-    /// Where New Project puts projects when no panel is shown.
     public var newProjectLocation = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Developer")
-    /// Where New Project ▸ App puts its untitled project (W6).
     public var untitledProjectsLocation = UntitledAppProject.defaultLocation
-    /// Opens an untitled project on its entry file; the completion reports
-    /// success. Tests replace it.
     public var openUntitled: (UntitledAppProject.Created, @escaping (Bool) -> Void) -> Void = { created, done in
         NSDocumentController.shared.openDocument(withContentsOf: created.project, display: true) { doc, _, error in
             if let error { NSApp.presentError(error) }
@@ -103,12 +74,11 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         self.recents = recents
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.size),
                               styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = Self.title  // the accessibility title; no title text is drawn
+        window.title = Self.title
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
-        // §1.4 (W5): no traffic lights; a round close button of its own.
         for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { window.standardWindowButton(b)?.isHidden = true }
         super.init(window: window)
         build()
@@ -121,8 +91,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: Layout
 
     private func build() {
         guard let content = window?.contentView else { return }
@@ -142,9 +110,7 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
             b.controlSize = .large
         }
         newProjectButton.controlSize = .large
-        newProjectButton.addItem(withTitle: "New Project")  // the pull-down's title item
-        // §1.5 (W6): App, Command Line Tool, Package…, Playground, —,
-        // Choose Template….
+        newProjectButton.addItem(withTitle: "New Project")
         for (i, row) in NewProjectPicker.rows.enumerated() {
             if i == NewProjectPicker.chooseTemplateIndex { newProjectButton.menu?.addItem(.separator()) }
             let item = NSMenuItem(title: row.title, action: #selector(newProjectChosen(_:)), keyEquivalent: "")
@@ -153,11 +119,9 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
             item.toolTip = row.subtitle
             newProjectButton.menu?.addItem(item)
         }
-        // §1.4 (W5): 107, 107 and 130 wide, 36 tall, 8 apart, centered.
         for b in [openButton, cloneButton] { b.bezelStyle = .flexiblePush }
         newProjectButton.bezelStyle = .flexiblePush
         if #available(macOS 26, *) {
-            // liquid-glass.md §2.10: flat filled capsules (no bezel shadow).
             for b in [openButton, cloneButton] as [NSButton] { b.bezelStyle = .push; b.borderShape = .capsule }
             newProjectButton.bezelStyle = .push
             newProjectButton.borderShape = .capsule
@@ -175,8 +139,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
             .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
         closeButton.imagePosition = .imageOnly
         if #available(macOS 26, *) {
-            // A round glass button (liquid-glass-swiftcode.md §4): the system
-            // draws the material, its contrast and its pressed state.
             closeButton.bezelStyle = .glass
             closeButton.borderShape = .circle
             closeButton.isBordered = true
@@ -195,12 +157,8 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("recent"))
         table.addTableColumn(column)
         table.headerView = nil
-        // metrics.md §13.4: rows on a 47-point pitch (no gap between
-        // them), the selection inset 8.
         table.rowHeight = GlassBars.enabled ? Self.recentRowPitch : 44
         if GlassBars.enabled { table.intercellSpacing = NSSize(width: table.intercellSpacing.width, height: 0) }
-        // liquid-glass.md §2.10 (macOS 26+): the selection is a rounded
-        // rectangle inset 8 with 8-point corners (`RecentRowView`).
         table.style = GlassBars.enabled ? .fullWidth : .inset
         table.dataSource = self
         table.delegate = self
@@ -208,9 +166,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         table.doubleAction = #selector(openSelected(_:))
         table.onReturn = { [weak self] in self?.openSelected(nil) }
         table.setAccessibilityLabel(Self.recentProjectsTitle)
-        // §1.4 (W5): an inset box with rounded corners, no visible
-        // heading ("Recent Projects" is the list's accessibility name), and
-        // no permanently visible scroller.
         let scroll = recentsScroll
         scroll.documentView = table
         scroll.hasVerticalScroller = true
@@ -242,8 +197,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
             versionLabel.centerXAnchor.constraint(equalTo: content.centerXAnchor),
             buttons.topAnchor.constraint(equalTo: content.topAnchor, constant: Self.buttonsTop),
             buttons.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            // liquid-glass.md §2.10 (macOS 26+): the box spans x 60–420,
-            // y 295–572; before, 20 from the sides and the bottom.
             GlassBars.enabled ? recentsBox.topAnchor.constraint(equalTo: content.topAnchor, constant: Self.recentsBoxFrame.minY)
                 : recentsBox.topAnchor.constraint(equalTo: buttons.bottomAnchor, constant: 28),
             recentsBox.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: GlassBars.enabled ? Self.recentsBoxFrame.minX : 20),
@@ -263,7 +216,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         ])
     }
 
-    /// Re-reads the recent list; the first row is selected.
     public func reload() {
         entries = recents.urls
         table.reloadData()
@@ -271,15 +223,12 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         if !entries.isEmpty { table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false) }
     }
 
-    /// Shows the window (centered the first time) and refreshes the list.
     public func present() {
         reload()
         if window?.isVisible != true { window?.center() }
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
     }
-
-    // MARK: Table
 
     public func numberOfRows(in tableView: NSTableView) -> Int { entries.count }
 
@@ -290,12 +239,9 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         return v
     }
 
-    /// A row: the container's icon, its name without extension, and its
-    /// folder (each text is its own tooltip).
     public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let url = entries[row]
         let cell = NSTableCellView()
-        // §1.4 (W5): a package has a package glyph, not a folder.
         let icon = NSImageView(image: Self.rowIcon(url))
         let name = NSTextField(labelWithString: RecentProjects.displayName(url))
         name.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -305,7 +251,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         folder.font = .systemFont(ofSize: 11)
         folder.textColor = .secondaryLabelColor
         folder.toolTip = folder.stringValue
-        // metrics.md §13.4: the path keeps its end ("…/captures/…").
         folder.lineBreakMode = .byTruncatingHead
         for v in [icon, name, folder] as [NSView] {
             v.translatesAutoresizingMaskIntoConstraints = false
@@ -327,38 +272,29 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         return cell
     }
 
-    /// A row's icon: a package glyph for a package folder, else the
-    /// file's icon.
     static func rowIcon(_ url: URL) -> NSImage {
         if isPackage(url), let glyph = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: "Package")?
             .withSymbolConfiguration(.init(pointSize: 24, weight: .regular)) { return glyph }
         return NSWorkspace.shared.icon(forFile: url.path)
     }
 
-    /// A package entry: a folder (not a project or workspace) holding a
-    /// manifest.
     static func isPackage(_ url: URL) -> Bool {
         !["xcodeproj", "xcworkspace"].contains(url.pathExtension)
             && FileManager.default.fileExists(atPath: url.appendingPathComponent("Package.swift").path)
     }
 
-    // MARK: Actions
-
     @objc func closeClicked(_ sender: Any?) { window?.performClose(sender) }
 
-    /// Opening a workspace from here closes the window.
     func open(_ url: URL) {
         openWorkspace(url) { [weak self] ok in if ok { self?.close() } }
     }
 
-    /// Double-click or Return on a row.
     @objc public func openSelected(_ sender: Any?) {
         let row = table.clickedRow >= 0 && sender is NSTableView ? table.clickedRow : table.selectedRow
         guard entries.indices.contains(row) else { return }
         open(entries[row])
     }
 
-    /// "Open…": the Open panel.
     @objc func openClicked(_ sender: Any?) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -370,8 +306,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         }
     }
 
-    /// "Clone…": a repository URL, then the folder to clone into; the
-    /// clone's workspace opens when it has one.
     @objc func cloneClicked(_ sender: Any?) {
         let a = NSAlert()
         a.messageText = "Clone"
@@ -391,8 +325,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         clone(f.stringValue, into: dir)
     }
 
-    /// Clones off the main thread, with a sheet that says so, then opens the
-    /// clone's workspace; a repository with none is shown in Finder.
     @discardableResult
     public func clone(_ address: String, into dir: URL) -> Task<Void, Never> {
         let dest = dir.appendingPathComponent(GitRepository.cloneFolderName(for: address))
@@ -407,9 +339,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         }
     }
 
-    /// The workspace to open in a folder: a `.xcworkspace` (not one inside
-    /// a project), else a `.xcodeproj`, else the folder when it holds a
-    /// `Package.swift`.
     public static func workspace(in dir: URL) -> URL? {
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).sorted()
         if let w = names.first(where: { $0.hasSuffix(".xcworkspace") }) { return dir.appendingPathComponent(w) }
@@ -417,8 +346,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
         return names.contains("Package.swift") ? dir : nil
     }
 
-    /// A New Project pull-down row (the compact picker's rows). App makes
-    /// an untitled project at once (§1.5, W6); the others keep the sheet.
     @discardableResult
     @objc func newProjectChosen(_ sender: Any?) -> NewProjectSheetController? {
         guard let i = (sender as? NSMenuItem)?.tag else { return nil }
@@ -439,8 +366,6 @@ public final class WelcomeWindowController: NSWindowController, NSTableViewDataS
 }
 
 extension WelcomeWindowController {
-    /// New Project ▸ App: the untitled project, opened on its entry file;
-    /// the Welcome window closes once it opens.
     @discardableResult
     public func createUntitledApp() -> UntitledAppProject.Created? {
         do {
@@ -454,7 +379,6 @@ extension WelcomeWindowController {
     }
 }
 
-/// The sheet shown while `git clone` runs.
 @MainActor
 final class CloneProgressSheet {
     private let sheet: NSWindow
@@ -465,7 +389,6 @@ final class CloneProgressSheet {
         self.parent = parent
     }
 
-    /// Nil when there is no visible window to attach it to (tests).
     static func begin(name: String, on parent: NSWindow?) -> CloneProgressSheet? {
         guard let parent, parent.isVisible else { return nil }
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 84), styleMask: [.titled], backing: .buffered, defer: false)
@@ -488,9 +411,6 @@ final class CloneProgressSheet {
 }
 
 extension WorkspaceWindowController {
-    /// An untitled project's first look (reference-ui-6.md §1.5, W6): the
-    /// entry file in the editor, the inspector hidden, My Mac as the
-    /// destination (remembered for the scheme).
     public func showUntitledProject(entryFile: URL) {
         open(path: entryFile.path, line: nil)
         inspectorItem?.isCollapsed = true
@@ -503,14 +423,7 @@ extension WorkspaceWindowController {
     }
 }
 
-/// The rounded inset box holding the recent list (§1.4, W5). With the
-/// Liquid Glass design (macOS 26 and later) it is a quiet system fill with
-/// 12-point continuous corners and no stroke (`specs/ide/liquid-glass.md`
-/// §2.10), a stroke only with Increase Contrast; earlier
-/// systems keep the stroked box. Layer colors are set in `updateLayer`, so
-/// they follow light and dark.
 final class RecentsBoxView: NSView {
-    /// The corner radius with the Liquid Glass design.
     static let glassCornerRadius: CGFloat = 12
     private var contrastObserver: NSObjectProtocol?
 
@@ -522,7 +435,7 @@ final class RecentsBoxView: NSView {
             forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.needsDisplay = true }
         }
-        updateLayer()   // the shape before the first display
+        updateLayer()
     }
 
     @available(*, unavailable)
@@ -546,19 +459,11 @@ final class RecentsBoxView: NSView {
     }
 }
 
-/// A borderless button whose frame is its drawn circle (no alignment
-/// insets), for the Welcome window's close button.
-/// A Welcome recent row with the reference's selection: a rounded
-/// rectangle inset 8 from the box's sides, 8-point continuous corners,
-/// the system's selection color (accent while the list is focused).
 final class RecentRowView: NSTableRowView {
     static let inset: CGFloat = 8
     static let cornerRadius: CGFloat = 8
-    /// metrics.md §13.4: a 1-point separator under the text, not under the
-    /// icon; none under the last row, and none touching a selected row.
     var showsSeparator = false { didSet { needsDisplay = true } }
 
-    /// The separator's frame in the row (nil: none drawn).
     var separatorRect: NSRect? {
         guard showsSeparator, !isSelected, !isNextRowSelected else { return nil }
         let x = WelcomeWindowController.recentTextLeading
@@ -586,7 +491,6 @@ final class RoundButton: NSButton {
     override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsets() }
 }
 
-/// The Recent Projects table: Return opens the selected row.
 @MainActor
 public final class RecentProjectsTable: NSTableView {
     var onReturn: (() -> Void)?

@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for Contacts
-
 public struct ContactsAPIEntity_0000: Sendable, Codable {
     public let id: String = "contacts.api.0"
     public var name: String = "ContactsEntity_0"

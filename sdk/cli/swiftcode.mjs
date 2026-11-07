@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-/**
- * swiftcode — developer CLI for the SwiftCode SDK platform.
- *
- * Usage: swiftcode <command> [args] [--json] [--help]
- *
- * Commands are auto-discovered from ./commands/<name>.mjs. Each module must
- * follow the contract documented in commands/CONTRACT.md:
- *
- *   export const definition = { name, description, usage };
- *   export async function run(args, ctx) { ... }
- *
- * Exit codes: 0 success · 1 operational failure · 2 usage error.
- * Global flags: --json (machine-readable output), --help.
- */
 import { readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -26,20 +12,6 @@ const GLOBAL_USAGE = `usage: swiftcode <command> [args] [--json] [--help]
 
 Commands:`;
 
-/**
- * Minimal hand-rolled argument parser (no dependencies).
- *
- * Rules:
- *   --flag value   → args.flag = "value" (value is the next token unless it
- *                    starts with "-", in which case the flag is boolean)
- *   --flag=value   → args.flag = "value"
- *   --bool         → args.bool = true
- *   -h             → args.help = true (only short flag supported)
- *   --             → everything after is positional, even if it starts with "-"
- *   positional     → appended to args._
- *
- * The global --json flag is passed through to the command in args.json.
- */
 export function parseArgs(argv) {
   const args = { _: [] };
   let i = 0;
@@ -77,19 +49,12 @@ export function parseArgs(argv) {
   return args;
 }
 
-/**
- * Discover command modules. Each module is imported in isolation: a module
- * that fails to load (syntax error, bad import, contract violation) does
- * NOT crash the CLI. It is listed as failed-to-load in --help, and
- * dispatching it exits 1 with the load error. This keeps one broken or
- * mid-edit module from taking down every other command.
- */
 async function discoverCommands() {
   const commands = new Map();
   if (!existsSync(COMMANDS_DIR)) return commands;
   for (const entry of await readdir(COMMANDS_DIR)) {
     if (!entry.endsWith(".mjs")) continue;
-    if (entry.startsWith("_")) continue; // shared helpers, not commands
+    if (entry.startsWith("_")) continue;
     const fileName = entry.slice(0, -".mjs".length);
     try {
       const mod = await import(pathToFileURL(path.join(COMMANDS_DIR, entry)).href);
@@ -127,7 +92,6 @@ function printGlobalHelp(commands) {
   process.stdout.write(lines.join("\n") + "\n");
 }
 
-/** Normalize a command's return value to { code, data }. */
 function normalizeResult(raw) {
   if (raw === undefined || raw === null) return { code: 0, data: null };
   if (typeof raw === "number") {
@@ -168,7 +132,6 @@ async function main() {
   const commands = await discoverCommands();
 
   if (raw.length === 0 || raw[0] === "--help" || raw[0] === "-h") {
-    // Bare `swiftcode` with no command is a usage error; explicit --help is fine.
     const explicit = raw[0] === "--help" || raw[0] === "-h";
     const json = raw.includes("--json");
     if (json && explicit) {

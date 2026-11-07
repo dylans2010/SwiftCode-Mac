@@ -23,7 +23,6 @@ struct CommitHistoryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Commit History", systemImage: "clock.arrow.circlepath")
                     .font(.headline)
@@ -43,7 +42,6 @@ struct CommitHistoryView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     if isLoading && commits.isEmpty {
@@ -64,7 +62,6 @@ struct CommitHistoryView: View {
                     } else if commits.isEmpty {
                         emptyView
                     } else {
-                        // Card 1: Branch Metadata Overview
                         GroupBox {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
@@ -84,7 +81,6 @@ struct CommitHistoryView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // Card 2: Timeline Directory
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 ForEach(Array(commits.enumerated()), id: \.element.id) { index, commit in
@@ -229,8 +225,6 @@ struct CommitHistoryView: View {
         .disabled(isOperating)
     }
 
-    // MARK: - Amend Sheet
-
     private var amendSheet: some View {
         VStack(spacing: 20) {
             HStack {
@@ -278,8 +272,6 @@ struct CommitHistoryView: View {
         .padding(24)
         .frame(width: 450)
     }
-
-    // MARK: - Empty / Error Views
 
     private var emptyView: some View {
         GroupBox {
@@ -396,8 +388,6 @@ struct CommitHistoryView: View {
     }
 }
 
-// MARK: - Commit Detail View (with inline diff preview)
-
 @MainActor
 struct CommitDetailView: View {
     let commit: GitHubCommit
@@ -421,7 +411,6 @@ struct CommitDetailView: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    // Card 1: Specs
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             labeledRow(label: "SHA Hash", value: commit.sha, icon: "tag", monospaced: true, selectable: true)
@@ -438,7 +427,6 @@ struct CommitDetailView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Message
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Commit Message")
@@ -452,7 +440,6 @@ struct CommitDetailView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 3: Diff Preview
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {

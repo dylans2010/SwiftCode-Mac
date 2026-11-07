@@ -1,24 +1,3 @@
-/*
- * cond.c - condition variables and their attributes of SwiftCode's
- * libsystem_pthread.
- *
- * Clean-room SwiftCode code, from POSIX pthread_cond_wait(3) and friends, the
- * Darwin pthread_cond_timedwait_relative_np and pthread_cond_signal_thread_np
- * documentation, and the static-initializer signature in
- * host-library-init.md section 5.3.
- *
- * Design: a sequence counter. A waiter registers, samples the counter,
- * releases the mutex, and sleeps in the kernel while the counter is
- * unchanged (UL_COMPARE_AND_WAIT); signal and broadcast bump the counter
- * and wake one or all sleepers. Spurious wake-ups are allowed by POSIX.
- *
- * Every wait blocks in the kernel (threads-and-events.md section 4.1); a
- * timed wait sleeps until its deadline and returns ETIMEDOUT.
- *
- * Layout of pthread_cond_t (48 bytes; SwiftCode's own after the signature):
- *   +0 sig ('COND' or the static initializer), +8 sequence, +12 waiters,
- *   +16 the mutex last used, +24 pshared.
- */
 #include "yc_pthread.h"
 
 YC_HIDDEN int __yc_mutex_release_all(void *m);
@@ -51,8 +30,6 @@ static yc_bool cond_valid(const struct yc_cond *c)
     long s = YC_LOAD_ACQ(&c->sig);
     return s == YC_SIG_COND || s == YC_SIG_COND_INIT;
 }
-
-/* ---- attributes --------------------------------------------------------- */
 
 YC_EXPORT int YC_FN(pthread_condattr_init)(struct yc_condattr *a)
 {
@@ -87,8 +64,6 @@ YC_EXPORT int YC_FN(pthread_condattr_setpshared)(struct yc_condattr *a, int psha
     a->pshared = (yc_u32)pshared;
     return 0;
 }
-
-/* ---- condition variables ------------------------------------------------ */
 
 YC_EXPORT int YC_FN(pthread_cond_init)(struct yc_cond *c, const struct yc_condattr *a)
 {
@@ -134,11 +109,10 @@ YC_EXPORT int YC_FN(pthread_cond_broadcast)(struct yc_cond *c)
 
 YC_EXPORT int YC_FN(pthread_cond_signal_thread_np)(struct yc_cond *c, yc_pthread_t t)
 {
-    (void)t; /* waking any waiter is a permitted (spurious) wake-up */
+    (void)t;
     return cond_wake(c, t != YC_NULL);
 }
 
-/* timeout_ns: 0 = no timeout; otherwise relative nanoseconds (>= 1). */
 static int cond_wait(struct yc_cond *c, void *m, yc_u64 timeout_ns, yc_bool cancelable)
 {
     if (!cond_valid(c) || m == YC_NULL)
@@ -163,8 +137,6 @@ static int cond_wait(struct yc_cond *c, void *m, yc_u64 timeout_ns, yc_bool canc
     return 0;
 }
 
-/* Converts an absolute CLOCK_REALTIME deadline to a relative timeout.
- * Returns 0 and sets *ns (>= 1), or an error (EINVAL, ETIMEDOUT). */
 static int deadline_to_relative(const struct yc_timespec *abs, yc_u64 *ns)
 {
     if (abs == YC_NULL || abs->tv_nsec < 0 || abs->tv_nsec >= 1000000000l || abs->tv_sec < 0)

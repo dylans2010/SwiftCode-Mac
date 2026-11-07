@@ -1,20 +1,7 @@
 import Foundation
 import SwiftUI
 
-// MARK: - SDKGrantManagerView
-//
-// Studio surface for inspecting and revoking capability grants held by one
-// installed extension (spec Docs/Intro-to-SDK.md §8). Grants are read from
-// `SDKGrantStore.shared` and include revoked tombstones, so this view also
-// serves as the audit trail. Revocation stamps `revokedAt` and takes effect
-// at the host authorization boundary immediately; records are never
-// deleted. Reinstalling or changing the package content does not silently
-// inherit grants for a different package identity — re-approval is
-// required (spec §8.7).
-
 public struct SDKGrantManagerView: View {
-
-    // MARK: - State
 
     private let extensionID: String
 
@@ -29,13 +16,9 @@ public struct SDKGrantManagerView: View {
         case failed(String)
     }
 
-    // MARK: - Init
-
     public init(extensionID: String) {
         self.extensionID = extensionID
     }
-
-    // MARK: - Body
 
     public var body: some View {
         Group {
@@ -91,8 +74,6 @@ public struct SDKGrantManagerView: View {
         }
     }
 
-    // MARK: - Loading
-
     private func load() async {
         do {
             let installed = try await SDKExtensionRegistry.shared.scan()
@@ -122,8 +103,6 @@ public struct SDKGrantManagerView: View {
         }
     }
 
-    // MARK: - Content
-
     private func grantsContent(extensionName: String, grants: [SDKGrantRecord]) -> some View {
         Form {
             Section("About grants") {
@@ -144,8 +123,6 @@ public struct SDKGrantManagerView: View {
         .formStyle(.grouped)
         .textSelection(.enabled)
     }
-
-    // MARK: - Grant rows
 
     private func grantRow(for grant: SDKGrantRecord) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -203,8 +180,6 @@ public struct SDKGrantManagerView: View {
             .background(color.opacity(0.15), in: Capsule())
             .foregroundStyle(color)
     }
-
-    // MARK: - Helpers
 
     @MainActor private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()

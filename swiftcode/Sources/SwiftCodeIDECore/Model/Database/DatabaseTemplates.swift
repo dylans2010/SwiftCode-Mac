@@ -1,19 +1,6 @@
 import Foundation
 import SwiftCodeHealthStore
 
-/// Templates — Legacy's `Core/DatabaseTemplateManager.swift` +
-/// `Models/DatabaseTemplate.swift` (+ the `DatabaseTable` /
-/// `DatabaseColumn` / `DatabaseRelationship` models they use),
-/// ported to SQLite.
-///
-/// Legacy's seeded templates declare provider-generic types
-/// (`UUID`, `VARCHAR(255)`, `TIMESTAMP`); the definitions are kept
-/// verbatim and `createSQL` maps them to SQLite types
-/// (`DatabaseSQL.sqliteType`), so the same template produces valid
-/// SQLite here and valid Postgres/MySQL elsewhere. Templates are
-/// stored under `com.swiftcode.database.templates` (Legacy's key was
-/// `com.swiftcode.database.templates`).
-
 public struct DatabaseTemplateColumn: Codable, Sendable, Equatable, Hashable {
     public var name: String
     public var type: String
@@ -109,7 +96,6 @@ public final class DatabaseTemplateManager {
         }
     }
 
-    /// Legacy's two seeded templates, definitions verbatim.
     public static var seededTemplates: [DatabaseTemplate] {
         [
             DatabaseTemplate(
@@ -167,9 +153,6 @@ public final class DatabaseTemplateManager {
         }
     }
 
-    /// The `CREATE TABLE` statements for a template, with its
-    /// provider-generic types mapped to SQLite types and its
-    /// relationships as `FOREIGN KEY` clauses.
     public static func createSQL(for template: DatabaseTemplate) -> String {
         template.tables.map { table in
             var parts: [String] = table.columns.map { column in
@@ -196,8 +179,6 @@ public final class DatabaseTemplateManager {
         }.joined(separator: "\n")
     }
 
-    /// Creates the template's tables in the database, in one
-    /// transaction. Fails honestly if a table already exists.
     public func apply(_ template: DatabaseTemplate, to db: SQLiteDatabase) throws {
         try db.transaction {
             try db.execute(Self.createSQL(for: template))

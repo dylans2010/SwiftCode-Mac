@@ -6,20 +6,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// Settings ▸ Accounts automation (OpenViews only), started from ShellDriver:
-//
-//   SWIFTCODE_IDE_ACCOUNTS=<p>  open Settings with Ctrl+,, check the pane list's
-//                           order, click Accounts in it, photograph the page
-//                           (<p>-accounts.png), click + and photograph the
-//                           sheet (<p>-accounts-sheet.png), dismiss it with
-//                           OK, then the same two in the Dark appearance
-//                           (<p>-dark-accounts*.png). Prints one
-//                           "accounts: …" line per step and "accounts: ok"
-//                           or "accounts: FAILED …" at the end.
-//
-// Run it with XDG_CONFIG_HOME pointing at a scratch folder: the appearance
-// it sets is written to the user defaults.
-
 #if os(Linux)
 @MainActor
 enum AccountsDriver {

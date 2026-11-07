@@ -1,9 +1,3 @@
-// SkillsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Skills/SkillsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: preset-skills section; uploaded-skills section; tag filtering
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftUI
 
@@ -69,7 +63,6 @@ struct SkillsView: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)) {
                     if filteredUploaded.isEmpty {
-                        // FIX: Explicitly render an empty state row inside the section to guarantee it shows
                         HStack(spacing: 8) {
                             Image(systemName: "brain.slash")
                                 .foregroundColor(.secondary)

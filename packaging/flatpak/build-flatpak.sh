@@ -1,16 +1,5 @@
 #!/bin/sh
-# Builds SwiftCode-<version>-<arch>.flatpak and the same files as a relocatable
-# SwiftCode-<version>-<arch>.tar.xz, from the committed tree. packaging/README.md
-# describes the interface.
-#
-# Usage: packaging/flatpak/build-flatpak.sh [output-dir]    (default packaging/flatpak/out)
-#
-# Environment (all optional):
-#   SWIFTCODE_SOURCE_REF   the commit to package (default HEAD)
-#   SWIFTCODE_SOURCE_TAR   a tar of the same paths, instead of git archive
-#   SWIFTCODE_FLATPAK_WORK the work folder (default packaging/flatpak/.work)
 set -eu
-
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 id=io.github.MarcoDotIO.Ycode
@@ -18,21 +7,16 @@ out=${1:-$here/out}
 work=${SWIFTCODE_FLATPAK_WORK:-$here/.work}
 version=$(cat "$root/swiftcode/VERSION")
 arch=$(flatpak --default-arch)
-
 mkdir -p "$out" "$work/manifest/source"
 out=$(cd "$out" && pwd)
 work=$(cd "$work" && pwd)
-
 if command -v desktop-file-validate >/dev/null 2>&1; then
     desktop-file-validate "$here/$id.desktop"
 fi
 if command -v appstreamcli >/dev/null 2>&1; then
     appstreamcli validate --no-net "$here/$id.metainfo.xml"
 fi
-
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-# The package is built from committed files only: no research/, no local files.
 if [ -n "${SWIFTCODE_SOURCE_TAR:-}" ]; then
     cp "$SWIFTCODE_SOURCE_TAR" "$work/manifest/source/swiftcode-source.tar"
 else
@@ -45,30 +29,21 @@ if [ "$arch" = aarch64 ]; then
 else
     cp "$here/$id.yml" "$work/manifest/$id.yml"
 fi
-
-# flatpak-builder's cache knows a local archive only by its path and hash: without
-# the hash, a new commit would reuse the previous commit's build.
 source_sha=$(sha256sum "$work/manifest/source/swiftcode-source.tar" | cut -d' ' -f1)
 sed -i "s|^        path: source/swiftcode-source.tar\$|&\n        sha256: $source_sha|" "$work/manifest/$id.yml"
 grep -q "sha256: $source_sha" "$work/manifest/$id.yml" || { echo "build-flatpak: could not pin the source" >&2; exit 1; }
-
 flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse --arch="$arch" \
     --state-dir="$work/state" --repo="$work/repo" "$work/build" "$work/manifest/$id.yml"
-
 bundle="$out/SwiftCode-$version-$arch.flatpak"
 flatpak build-bundle --arch="$arch" --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
     "$work/repo" "$bundle" "$id"
 (cd "$out" && sha256sum "$(basename "$bundle")" > "$(basename "$bundle").sha256")
-
-# The same files as a relocatable tarball, for a wrapper that takes the release
-# as it is. It needs this runtime's libraries (or a host with its glibc or newer).
 top="SwiftCode-$version-$arch"
 tarball="$out/$top.tar.xz"
 epoch=$(git -C "$root" log -1 --format=%ct "${SWIFTCODE_SOURCE_REF:-HEAD}" 2>/dev/null || cat "$root/.source-date-epoch" 2>/dev/null || echo 0)
 tar --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner \
     --transform "s,^files,$top," -C "$work/build" -cf - files | xz -T0 -6 > "$tarball"
 (cd "$out" && sha256sum "$top.tar.xz" > "$top.tar.xz.sha256")
-
 ls -l "$bundle" "$tarball"
 echo "$bundle"
 echo "$tarball"

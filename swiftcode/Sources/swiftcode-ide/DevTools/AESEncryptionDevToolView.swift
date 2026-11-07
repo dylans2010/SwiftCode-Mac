@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(CryptoKit)
 import SwiftUI
 import CryptoKit
@@ -12,7 +9,7 @@ import os
 @MainActor
 final class AESEncryptionDevToolViewModel {
     var plainText: String = ""
-    var keyString: String = "My32ByteSecretKeyForEncryption!!" // 32 bytes
+    var keyString: String = "My32ByteSecretKeyForEncryption!!"
     var cipherText: String = ""
     var decryptedText: String = ""
     var errorMessage: String?
@@ -87,7 +84,6 @@ struct AESEncryptionDevToolView: View {
 
                 Divider()
 
-                // Encryption Part
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Plaintext Input")
                         .font(.headline)
@@ -102,7 +98,6 @@ struct AESEncryptionDevToolView: View {
                     .buttonStyle(.borderedProminent)
                 }
 
-                // Decryption Part
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Ciphertext (Base64 combined format)")
                         .font(.headline)
@@ -139,9 +134,9 @@ struct AESEncryptionDevToolView: View {
                         Text(viewModel.decryptedText)
                             .font(.system(.body, design: .monospaced))
                             .padding()
-                            
+
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            
+
                             .cornerRadius(8)
                     }
                 }

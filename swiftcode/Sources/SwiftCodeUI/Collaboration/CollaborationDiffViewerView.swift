@@ -1,16 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/CollaborationDiffViewerView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Inline / side-by-side diff viewer with per-line colouring. Not in the
-// migration worklists, but staged here because `CommitManagerView`,
-// `CollaborationPullRequestView` and `BranchWorkspaceView` all navigate
-// to it — without it those views do not compile. `DiffViewerTestView`
-// (Legacy's debug helper in the same file) is ported with it.
-//
-// Adaptations for SwiftCode: `.liquidGlass` (no destination equivalent)
-// on the mode picker becomes the system thin material; otherwise
-// verbatim.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

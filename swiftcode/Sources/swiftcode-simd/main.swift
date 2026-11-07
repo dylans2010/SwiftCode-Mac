@@ -1,124 +1,6 @@
-// swiftcode-simd: the SwiftCode micro-VM monitor.
-//
-//   swiftcode-simd --exec <macho> --runtime-root <dir> [--run-dir <dir>] [--trace]
-//              [--timeout-ms N] [--max-exits N] [--shim <shim.bin>]
-//              [--host-stubs <host_stubs.bin>] [--host-libs <dir>] [--repeat N]
-//              [--env K=V]... [--exec-args <arg>...]
-//   swiftcode-simd --device <dir> --runtime-root <dir> [--udid <UDID>] [--job-path <dir>]...
-//              [--oneshot "/guest/program arg..."]... [--runtime-job <label>]...
-//              [--env K=V]... [--trace] [--keep-going] [--timeout-ms N] [--exec-args <arg>...]
-//   swiftcode-simd --shim <shim.bin> --el0 <el0.bin> [--trace] [--timeout-ms N] [--max-exits N]
-//   swiftcode-simd --kvm-smoke
-//   swiftcode-simd --camera-list | --camera-probe [options]   (CameraCommand.swift)
-//
-// Stage 2 (`--el0`): boots the EL1 shim in a KVM vCPU with the page tables,
-// boot info, and EL0 image laid out as in specs/simulator/vm-shim-protocol.md,
-// then serves the shim's doorbell exits with DarwinTrapDispatcher.
-//
-// Stage 3a (`--exec`): builds a Darwin process image as in
-// specs/simulator/stage3-contract.md (main executable and dyld_sim mapped
-// with SwiftCodeMachO, the SwiftCode host page, the kernel argument block, the
-// commpage), boots it at the host page's `_swiftcode_launch`, and serves traps
-// with the SwiftCodeDarwinKernel dispatcher.
-//
-// Stage 3a-ii (specs/simulator/host-libraries.md): SwiftCode's three host
-// libraries (`--host-libs`, default `SimHostLibs/out` next to the package)
-// appear in the guest as `/usr/lib/system/libsystem_{kernel,platform,pthread}.dylib`,
-// and the VMM builds the main thread's pthread/TSD block before boot
-// (TPIDRRO_EL0 = block + 224).
-//
-// Stage 4b (specs/simulator/stage4b-contract.md §2, §7): every guest process
-// of the device runs in this one host process, one KVM VM per image
-// (`ImageLauncher.swift`, the kernel's `ProcessLauncher`), supervised by
-// `ExecHost.swift`. The host exits when the root process (pid 100, the
-// `--exec` program) exits. `--repeat N` (debug) runs the root process N
-// times in sequence in one host process and reports host threads, RSS, and
-// open fds, to prove that VM teardown leaks nothing.
-//
-// Stage 4c (specs/simulator/stage4c-contract.md §2, §3; `DeviceMode.swift`):
-// `--device` boots a simulated device: SwiftCode writes the device directory and
-// the bootstrap plist, starts the runtime's `launchd_sim` as the root
-// process with the host bootstrap port (a port of the VMM's host task) as
-// its bootstrap special port, and logs every message sent to that port.
-// `--exec-args` takes every remaining argument as more argv for the root
-// program; `--env K=V` adds or replaces an environment variable.
-//
-// Stage 4c-iii (stage4c-contract.md §9), stage 7 (stage7-contract.md §3.2):
-// `--oneshot "/bin/launchctl print system"` runs the program once as a
-// one-shot of launchd_sim's control channel (704 spawn, 705 waitpid;
-// launch-sim-control.md §3.6), with stdout/stderr as fileports of
-// DEV/data/tmp/swiftcode-oneshot-<n>.{out,err}. A program path inside DEV or RR
-// is used as is; any other absolute path is under RR. The outputs and exit
-// statuses are printed at the end of the run. `--runtime-job <label>` copies
-// RR's `<label>.plist` (LaunchDaemons, LaunchAngels, Developer LaunchDaemons)
-// into DEV/swiftcode-jobs, which is rebuilt on every boot and appended to the job
-// paths. `--job-path` directories outside DEV and RR are served read-only at
-// their own guest path.
-//
-// The control channel: right after the 708 → 808 exchange the host binds the
-// session (700) with a port it keeps; the bootstrap plist says
-// `RequireDomainBinding = true`. At the end of a device run the host destroys
-// the session port and launchd_sim shuts the guest down and exits 0
-// (launch-sim-control.md §3.1); `--debug-no-session-end` keeps the old end
-// (every process is killed at --timeout-ms).
-//
-// Stage 7 (stage7-contract.md §3.2 item 3; app-install-launch.md §4.6):
-// `--install-app <host .app>` copies the bundle into DEV/data/tmp/swiftcode-apps
-// and installs it with the guest helper `ylaunch install` (InstallCoordination)
-// run as a one-shot; `--launch <bundle id>` then opens it with `ylaunch open`
-// (FrontBoardServices, debug options) with stdout/stderr in
-// /tmp/swiftcode-app.{out,err} (DEV/data/tmp), plus `--app-arg`/`--app-env`, and `--app-url` (a URL the app is asked to open).
-// Both outputs are printed at the end. `ylaunch` is taken from
-// `--guest-tools <dir>` (default: <shim dir>/guest-tests/stage7, as built by
-// SimShim/guest-tests/build-stage7.sh) and copied to DEV/data/tmp/swiftcode-tools.
-//
-// SIMULATOR_FRAMEBUFFER_FRAMEWORK names SwiftCode's headless SimFramebuffer
-// library (SimGuestFrameworks/build.sh; specs/simulator/simframebuffer.md),
-// copied to DEV/swiftcode-frameworks: `--framebuffer-library <binary>`, default
-// SimGuestFrameworks/out/SimFramebuffer.framework/SimFramebuffer next to the
-// shim's SimShim directory when it exists; `none` leaves the variable empty.
-// The VMM serves com.apple.IOSurface.Remote (iosurface-remote.md), registered
-// with 701 before any job starts. `--screenshot <path.png>` writes the
-// presented display buffer as a PNG at the end of the run (before the
-// session ends); `--screenshot-at S` (repeatable) also at S seconds, as
-// <path>-<S>s.png; `--display LCD|LCD-1|active` (or `--display=…`) picks the
-// panel of a foldable (default: the one shown, foldable.md §8.3 E3).
-// `--display-server <address>` serves the presented
-// display live and takes viewer input (DisplayServer.swift;
-// specs/simulator/display-stream.md); with it, SIGTERM, SIGINT and SIGHUP
-// end the device session cleanly instead of killing the VMM.
-//
-// Stage 6 (stage6-contract.md §1): `--runtime-paths` puts CoreSimulator's
-// four job directories first in `Paths` (RR/System/Library/LaunchDaemons,
-// RR/System/Library/LaunchAngels, RR/Developer/Library/LaunchDaemons,
-// DEV/data/Library/LaunchDaemons; launchd-sim.md §4.1); `--oneshot-delay S`
-// makes the one-shots start S seconds after the bind, e.g. a `launchctl
-// list` near the end of a boot.
-//
-// `--debug-plist-bool KEY=true|false` replaces a top-level boolean of the
-// bootstrap plist (SwiftCode writes `RequireDomainBinding` false: it has no
-// session bind yet, and with true launchd_sim defers every `system` job).
-//
-// The default `--exec` run directory (under the host's temporary directory)
-// is removed at exit unless `--keep-run-dir`; an explicit `--run-dir` is kept.
-//
-// `--keep-going` (with --trace) logs unimplemented traps and library
-// functions but resumes the guest instead of exiting 72/73.
-//
-// Exit status: the root process's exit status (128 + signal when a signal
-// ended it). Device mode: `--timeout-ms` (default 120 000) is the length of
-// the run, and reaching it while launchd_sim still runs exits 0 (every guest
-// process is stopped first); launchd_sim exiting earlier gives its status as
-// above. Otherwise: 70 for a fatal guest trap; 71 for an
-// unexpected VM exit or the watchdog; 72 for the first unimplemented trap in
-// --trace mode; 73 for the first unimplemented host-library function in
-// --trace mode; 134 for abort_with_payload; 64 for bad usage; 66 for
-// unreadable input; 1 for host (KVM) failures.
-
 import SwiftCodeDarwinABI
 import SwiftCodeHypervisor
 
-// Camera diagnostics (CameraCommand.swift) run on every host; no VM starts.
 runCameraCommandIfRequested(CommandLine.arguments)
 
 #if os(Linux) && arch(arm64)
@@ -191,140 +73,74 @@ struct Options {
     var shimPath: String?
     var el0Path: String?
     var execPath: String?
-    /// `--macos <binary>`: a macOS program on SwiftCode's macOS userland (MacOSMode.swift).
     var macOSPath: String?
-    /// `--macos-root <dir>`: the macOS userland root (default MacUserland/out/root).
     var macOSRoot: String?
     var runtimeRoot: String?
     var runDir: String?
-    /// Keep the default run directory at exit (it is removed otherwise).
     var keepRunDir = false
     var hostStubsPath: String?
     var hostLibsPath: String?
     var trace = false
-    /// With --trace: log unimplemented traps and library functions, but resume.
     var keepGoing = false
-    /// Debug aid: unimplemented host-library functions whose call the VMM
-    /// completes itself (x0 = value, return to LR), to look past them.
     var libfuncReturns: [String: UInt64] = [:]
     var kvmSmoke = false
-    /// Stage-2 multi-vCPU check: run the self-test on N vCPUs at once, R rounds.
     var vcpus: Int?
     var rounds = 2
     var timeoutMilliseconds: UInt64?
     var maxExits: Int?
-    /// Stage 4c device mode: the device directory, its UDID, job directories.
     var devicePath: String?
-    /// The device type (`--device-type`; ipad.md §4.3 R1). Nil: the
-    /// runtime platform's default (visionos.md V-1).
     var deviceType: DeviceType?
     var udid: String?
     var jobPaths: [String] = []
-    /// Device mode: one-shot programs (argv split on spaces, run through the
-    /// control channel) and runtime job plists by label (in DEV/swiftcode-jobs).
     var oneshots: [[String]] = []
     var runtimeJobs: [String] = []
-    /// Device mode: CoreSimulator's four job directories (launchd-sim.md §4.1).
     var runtimePaths = false
-    /// Device mode: one-shots start this many seconds after the bind.
     var oneshotDelay: Int?
-    /// Debug: at the end of a device run, kill every process instead of
-    /// ending the control session (launchd_sim's clean shutdown).
     var debugNoSessionEnd = false
-    /// PNG captures of the display (`--screenshot PATH`, at the end of the
-    /// run; `--screenshot-at S`, repeatable: PATH with `-<S>s` before `.png`).
     var screenshotPath: String?
-    /// Record the first-boot data migration as done before the boot.
     var skipFirstBootMigration = false
     var screenshotTimes: [Int] = []
-    /// The panel `--screenshot` captures (`--display`; nil: the one shown).
     var screenshotDisplay: String?
-    /// The display server's address (`--display-server`; display-stream.md).
     var displayServer: DisplayAddress?
-    /// SwiftCode's HID bundle (`--hid-bundle`; hid-input.md): "none" = no input.
     var hidBundle: String?
-    /// visionOS: the room for this boot (`--room <key>`; visionos.md §5.5.4).
     var visionRoom: String?
-    /// Debug: start no Metal host service.
     var debugNoMetal = false
-    /// The shader translator (`swiftcode-airc`) for the Metal back end; nil:
-    /// $SWIFTCODE_AIRC, next to this executable, or on $PATH.
     var metalTranslator: String?
-    /// Persistent GPU caches: <dir>/vulkan-pipelines.bin
-    /// ($SWIFTCODE_VULKAN_PIPELINE_CACHE) and <dir>/airc ($SWIFTCODE_AIRC_CACHE).
     var gpuCacheDirectory: String?
-    /// `--no-gpu-cache`: no persistent GPU caches (every boot translates and
-    /// compiles its shaders again).
     var noGPUCache = false
-    /// Debug: offer no host services (IOSurface) to the guest.
     var debugNoHostServices = false
-    /// Stage 7: install a host `.app`, launch a bundle id, with these
-    /// arguments and environment; `ylaunch` comes from `guestTools`.
     var installApp: String?
     var launchBundleID: String?
     var appArguments: [String] = []
     var appURL: String?
     var appEnvironment: [String] = []
     var guestTools: String?
-    /// SwiftCode's guest settings agent (`--settings-agent <binary> | none`;
-    /// default: `swiftcode-settings-agent` in the guest tools, else SimGuestAgents/out).
     var settingsAgent: String?
-    /// SwiftCode's guest pairing agent (`--pairing-agent <binary> | none`;
-    /// default: `swiftcode-pairing-agent` in the guest tools, else SimGuestAgents/out).
     var pairingAgent: String?
-    /// SwiftCode's guest health agent (`--health-agent <SwiftCodeHealth.app> | none`;
-    /// default: `SwiftCodeHealth.app` in the guest tools, else SimGuestAgents/out).
     var healthAgent: String?
-    /// Launch the app with SwiftCode's Environment Overrides library (`--environment-overrides`).
     var environmentOverrides = false
-    /// Gauge (`--profile <path>` and companions; GaugeRecorder.swift, specs/ide/profiler.md §3.1).
     var profile: GaugeOptions?
-    /// The debug stub (`--debug-server`; DebugStub.swift, specs/simulator/debug-stub.md).
     var debugServer: DebugServerOptions?
-    /// The headless SimFramebuffer library (`--framebuffer-library`; "none" = empty variable).
     var framebufferLibrary: String?
-    /// The device's camera (`--camera`, `--camera-position`, `--camera-library`;
-    /// CameraDevice.swift): nil keeps the device's setting.
     var camera: String?
     var cameraPosition: String?
     var cameraLibrary: String?
-    /// Debug: the identity (pid, uid, gid) the host task's messages carry.
     var debugHostIdentity: (pid: Int32, uid: UInt32, gid: UInt32)?
-    /// Debug: at the end of a device run, report every image's vCPUs
-    /// (running, parked, blocked in which trap), as --trace does.
     var debugThreadReport = false
-    /// Debug: trace only these pids (as --trace --keep-going would).
     var tracePIDs: Set<Int32> = []
-    /// Debug: trace every image of these executables (file name).
     var traceNames: Set<String> = []
-    /// Debug: replace top-level booleans of the bootstrap plist.
     var plistBoolOverrides: [String: Bool] = [:]
-    /// Debug: the logging host bootstrap service drops requests (instead of
-    /// keeping them unanswered).
     var debugBootstrapDiscard = false
-    /// --exec mode: use the host bootstrap port and its logging service as
-    /// in device mode (the log goes to <run dir>/swiftcode-host-bootstrap.log).
     var hostBootstrap = false
-    /// More argv for the root program (after argv[0], or after the plist path).
     var execArguments: [String] = []
-    /// Environment additions/overrides for the root program ("K=V").
     var environment: [String] = []
-    /// Debug: run the --exec root process this many times in sequence.
     var repeatCount = 1
-    /// Debug (VMM concurrency): also launch this many independent images
-    /// (pids 900...; each its own one-process kernel, outside the root's
-    /// process table) of `--debug-extra-exec` (default: the --exec program).
     var debugExtraImages = 0
     var debugExtraExec: String?
-    /// Debug: arguments after argv[0] for the extra images.
     var debugExtraArguments: [String] = []
-    /// Debug: the host waits for the extra images instead of stopping them
-    /// when the root process exits.
     var debugExtraWait = false
 }
 
-/// Writes all of `text` to a file descriptor, unbuffered (guest output and the
-/// trap log interleave in order).
 func writeFD(_ fd: Int32, _ text: String) { writeFD(fd, Array(text.utf8)) }
 
 func writeFD(_ fd: Int32, _ bytes: [UInt8]) {
@@ -348,9 +164,6 @@ func die(_ message: String, status: Int32) -> Never {
 
 func hex(_ value: UInt64) -> String { "0x" + String(value, radix: 16) }
 
-/// `--oneshot` words: split at spaces, except inside single or double
-/// quotes (the quotes are removed), so a `log stream --predicate '…'`
-/// one-shot can carry a predicate with spaces.
 func splitCommandLine(_ line: String) -> [String] {
     var words: [String] = [], word = "", quote: Character?, inWord = false
     for c in line {
@@ -506,9 +319,6 @@ func parseOptions(_ arguments: [String]) -> Options {
         case "--framebuffer-library": options.framebufferLibrary = value(for: argument)
         case "--camera": options.camera = value(for: argument)
         case "--vision-display":
-            // A Vision Pro's display size (device-hub.md §I.12; xr-viewer.md §4.4):
-            // 2160x3840 for the headset; read at boot (it is an argument, so a
-            // warm-boot snapshot of another size is not restored).
             let v = value(for: argument)
             guard v.split(separator: "x").compactMap({ Int($0) }).count == 2 else { die("--vision-display needs <width>x<height>", status: 64) }
             setenv("SWIFTCODE_VISION_SCREEN", v, 1)
@@ -542,7 +352,6 @@ func parseOptions(_ arguments: [String]) -> Options {
             print(usage)
             exit(0)
         case "--list-device-types":
-            // For scripts (scripts/swiftcode-sim-serve): the one list of types.
             for type in DeviceType.all { print(type.id) }
             exit(0)
         default:
@@ -568,7 +377,6 @@ func readFile(_ path: String) -> [UInt8] {
     return bytes
 }
 
-/// Prints the vCPU state after an unexpected exit.
 func dumpVCPU(_ vcpu: VCPU) {
     var parts: [String] = []
     func add(_ name: String, _ read: () throws -> UInt64) {
@@ -589,9 +397,6 @@ func dumpVCPU(_ vcpu: VCPU) {
     }
 }
 
-// MARK: - Stage 2
-
-/// The value the VMM puts in TPIDRRO_EL0 and passes to the self-test in x0.
 let initialTPIDRRO: UInt64 = 0x0000_0001_5943_0000
 
 func runStage2(_ options: Options) throws -> Never {
@@ -607,12 +412,8 @@ func runStage2(_ options: Options) throws -> Never {
 
     let vm = try VirtualMachine(ramGPA: VMLayout.ramGPA, ramSize: Int(VMLayout.ramSize))
 
-    // Stage-1 tables (§3): EL1 identity regions, then EL0 regions backed by
-    // consecutive pages of the EL0 pool.
     var tables = PageTableBuilder(tableArenaGPA: VMLayout.pageTableArenaGPA, tableArenaSize: Int(VMLayout.pageTableArenaSize))
     for region in VMLayout.el1Regions { try tables.mapIdentity(region) }
-    // With --vcpus the vCPU slots (stage4a-contract.md §4) take the start of
-    // the stage-2 EL0 pool; the EL0 pages follow them.
     let multi = options.vcpus != nil
     if multi { try tables.mapIdentity(VCPUSlots.region) }
     var nextPoolGPA = multi ? VCPUSlots.baseGPA + VCPUSlots.regionSize : VMLayout.el0PoolGPA
@@ -628,12 +429,10 @@ func runStage2(_ options: Options) throws -> Never {
     }
     for table in tables.tables { try vm.write(gpa: table.gpa, bytes: table.bytes) }
 
-    // Images.
     try vm.write(gpa: VMLayout.shimGPA, bytes: shim)
     let loader = TranslatedGuestMemory(vm: vm, pageTables: tables, enforceEL0Permissions: false)
     try loader.write(va: VMLayout.selfTestImageVA, bytes: el0Image)
 
-    // Boot info (§4).
     let bootInfo = BootInfo(
         ttbr0EL1: tables.rootGPA,
         el0EntryPC: VMLayout.selfTestImageVA,
@@ -653,7 +452,6 @@ func runStage2(_ options: Options) throws -> Never {
         try runStage2Pool(options, vm: vm, tables: tables, shimSize: shim.count, count: count, timeout: timeout, maxExits: maxExits)
     }
 
-    // vCPU reset state.
     let vcpu = try vm.makeVCPU()
     try vcpu.set(.pc, VMLayout.shimEntryGPA)
     try vcpu.set(.pstate, VMLayout.el1BootPSTATE)
@@ -690,7 +488,6 @@ func runStage2(_ options: Options) throws -> Never {
                 if options.trace { stderrLine("swiftcode-simd: guest exited with status \(status) after \(vcpu.exitCount) VM exits") }
                 Glibc.exit(status)
             case let .fatal(message):
-                // The dispatcher's message carries the decoded ESR and the frame dump.
                 die("fatal guest trap:\n\(message)", status: VMLayout.fatalExitStatus)
             }
         case .watchdog:
@@ -703,13 +500,8 @@ func runStage2(_ options: Options) throws -> Never {
     }
 }
 
-/// `--vcpus N`: the self-test runs on N vCPUs at once (one host thread
-/// each), `--rounds` times. A thread's `exit(0)` parks its vCPU; later
-/// rounds reuse the parked vCPUs. Exercises the stage-4a pool: lazy vCPU
-/// creation while others run, per-vCPU slots, concurrent traps, and reuse.
 func runStage2Pool(_ options: Options, vm: VirtualMachine, tables: PageTableBuilder, shimSize: Int,
                    count: Int, timeout: UInt64, maxExits: Int) throws -> Never {
-    // Only the first slot region is mapped here (stage 2).
     let pool = try VCPUPool(vm: vm, bootTemplate: BootInfo(ttbr0EL1: tables.rootGPA, el0EntryPC: 0),
                             limit: VCPUSlots.lowCount, maxExitsPerVCPU: maxExits)
     stderrLine("swiftcode-simd: KVM_CAP_MAX_VCPUS \(vm.maxVCPUs), KVM_CAP_NR_VCPUS \(vm.recommendedVCPUs); pool capacity \(pool.capacity)")
@@ -745,7 +537,6 @@ func runStage2Pool(_ options: Options, vm: VirtualMachine, tables: PageTableBuil
         for _ in 0..<count {
             guard try pool.start(state, context: nil) != nil else { die("round \(round): the vCPU pool is exhausted", status: 71) }
         }
-        // Wait until every thread of the round exited and parked its vCPU.
         while true {
             if let end = pool.currentTermination { die(end.message, status: end.status) }
             if lock.withLock({ finished }) == round * count && pool.parkedCount == count { break }
@@ -762,39 +553,21 @@ func runStage2Pool(_ options: Options, vm: VirtualMachine, tables: PageTableBuil
     exit(0)
 }
 
-// Boot priority (boot-profile.md §8.6, scheduling-policy.md §7.4, §7.5): a
-// device run uses thread QoS with the cgroup host backend, so the UI path
-// (SpringBoard, boosted daemons) gets the host CPUs a cold boot saturates.
-// On by default for device runs since 2026-10-27 (lock holders are raised to
-// their waiters' class, class 0 is weighted, §4.7); `SWIFTCODE_BOOT_PRIORITY=0`
-// turns it off. An explicit SWIFTCODE_SCHED_QOS wins. Without a delegable cgroup
-// (or a user service manager to make one) the backend reports itself
-// unavailable and stays off.
 if CommandLine.arguments.contains("--device"), getenv("SWIFTCODE_BOOT_PRIORITY").map({ String(cString: $0) != "0" }) ?? true,
    getenv("SWIFTCODE_SCHED_QOS") == nil {
     setenv("SWIFTCODE_SCHED_QOS", "1", 0)
     setenv("SWIFTCODE_HOST_SCHED", "cgroup", 0)
     SchedPolicy.qosEnabled = true
 }
-// A command for a running device (FoldControl.swift, SettingsClient.swift): nothing else starts.
 if isHealthClient(CommandLine.arguments) { runHealthClient(CommandLine.arguments) }
 if isSettingsClient(CommandLine.arguments) { runSettingsClient(CommandLine.arguments) }
-// The pairing commands (PairingCommand.swift): nothing else starts.
 if isPairingCommand(CommandLine.arguments) { runPairingCommand(CommandLine.arguments) }
 if isControlClient(CommandLine.arguments) { runControlClient(CommandLine.arguments) }
-// A privacy change for a device (CameraDevice.swift): nothing else starts.
 if isPrivacyClient(CommandLine.arguments) { runPrivacyClient(CommandLine.arguments) }
-// Scheduling policy (scheduling-policy.md §4.7): with SWIFTCODE_HOST_SCHED=cgroup
-// the VMM may re-execute itself in a delegated cgroup before anything starts.
 HostSched.prepareProcess()
 SwiftCodeRelease.handleVersionFlag(tool: "swiftcode-simd")
 var options = parseOptions(CommandLine.arguments)
-// guest-cpu.md §4.2: without CTR_EL0.DIC a TLB flush also does the I-cache
-// invalidation a reused code page needs, so page-table additions flush too.
 if !VCPUPool.hostHasDIC { GuestAddressSpace.flushOnAdditions = true }
-// The warm-boot launcher (`SWIFTCODE_EXIT_WITH_PARENT=1`, snapshot.md §12.5):
-// should it end without stopping this process, SIGTERM (a stop) comes
-// instead, so the device is not left running without its launcher.
 if getenv("SWIFTCODE_EXIT_WITH_PARENT").map({ String(cString: $0) == "1" }) ?? false {
     _ = ckvm_signal_on_parent_death(SIGTERM)
 }
@@ -807,15 +580,10 @@ if DebugAccessGuard.enabled {
     stderrLine("swiftcode-simd: debug: reader/writer check on interval maps")
 }
 if getenv("SWIFTCODE_DEBUG_HWWATCH").map({ String(cString: $0) == "1" }) ?? false {
-    // Diagnostics: hardware write watchpoints on the backings' allocator maps.
     DebugHardwareWatch.arm = { HardwareWatchpoint.arm($0, $1) }
     DebugHardwareWatch.disarm = { HardwareWatchpoint.disarm($0) }
     stderrLine("swiftcode-simd: debug: hardware write watch on allocator map elements")
 }
-// A device boot keeps its GPU caches by default (stage8-contract.md §13),
-// as the reference simulator keeps its Metal shader caches across boots:
-// the second boot translates and compiles nothing it has seen before.
-// Variables set by the caller win.
 var gpuCacheDirectory = options.gpuCacheDirectory
 if gpuCacheDirectory == nil, !options.noGPUCache, options.devicePath != nil, !options.debugNoMetal,
    getenv("SWIFTCODE_VULKAN_PIPELINE_CACHE") == nil, getenv("SWIFTCODE_AIRC_CACHE") == nil {
@@ -825,8 +593,6 @@ if gpuCacheDirectory == nil, !options.noGPUCache, options.devicePath != nil, !op
     gpuCacheDirectory = base + "/swiftcode/gpu"
 }
 if let dir = gpuCacheDirectory, !options.noGPUCache {
-    // Before any other thread starts: the Metal back end and swiftcode-airc read
-    // these variables.
     let absolute = dir.hasPrefix("/") ? dir : FileManager.default.currentDirectoryPath + "/" + dir
     do {
         try FileManager.default.createDirectory(atPath: absolute + "/airc", withIntermediateDirectories: true)
@@ -842,7 +608,6 @@ do {
         exit(0)
     }
     if let macOS = options.macOSPath {
-        // specs/macos/macos-apps.md §3: an --exec run of a macOS program.
         guard options.execPath == nil, options.devicePath == nil else { die("--macos excludes --exec and --device", status: 64) }
         MacOSMode.enabled = true
         options.execPath = macOS

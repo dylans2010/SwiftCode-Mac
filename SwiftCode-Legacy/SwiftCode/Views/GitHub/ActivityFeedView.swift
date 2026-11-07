@@ -15,7 +15,6 @@ struct ActivityFeedView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack {
                 Label("Repository Activity Feed", systemImage: "bolt.fill")
                     .font(.headline)
@@ -87,7 +86,6 @@ struct ActivityFeedView: View {
                 let (data, _) = try await URLSession.shared.data(for: request)
                 self.events = try JSONDecoder().decode([GitHubEventInfo].self, from: data)
             } catch {
-                // Silent catch
             }
             isFetching = false
         }

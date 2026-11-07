@@ -74,7 +74,6 @@ final class WorkspaceProfilesManager {
         profiles.removeAll { $0.id == profile.id }
     }
 
-    /// Stamps the profile with the current date/time as its last usage.
     func recordUsage(_ profile: WorkspaceProfile) {
         var updated = profile
         updated.lastUsed = Date()

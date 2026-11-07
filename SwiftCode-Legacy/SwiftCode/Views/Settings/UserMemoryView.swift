@@ -1,11 +1,3 @@
-//
-//  UserMemoryView.swift
-//  SwiftCode
-//
-//  Settings and manual management interface for UserMemory.md.
-//  Enables developers to view, search, add, edit, and delete durable context memories.
-//
-
 import SwiftUI
 import AppKit
 
@@ -18,7 +10,6 @@ public struct UserMemoryView: View {
     @State private var showingAddSheet = false
     @State private var editingEntry: UserMemoryEntry? = nil
 
-    // Add entry sheet state
     @State private var newKey = ""
     @State private var newValue = ""
     @State private var newCategory = "Preferences"
@@ -39,7 +30,6 @@ public struct UserMemoryView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 12) {
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 16, weight: .semibold))
@@ -80,7 +70,6 @@ public struct UserMemoryView: View {
 
             Divider()
 
-            // Search Bar & Stats
             HStack(spacing: 10) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
@@ -114,7 +103,6 @@ public struct UserMemoryView: View {
 
             Divider()
 
-            // List of Entries
             if memoryManager.entries.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "brain")
@@ -277,7 +265,7 @@ private struct EditMemorySheetView: View {
             Form {
                 Section("Edit Memory Entry") {
                     TextField("Key", text: $key)
-                        .disabled(true) // Key is identity
+                        .disabled(true)
                     TextField("Value", text: $value, axis: .vertical)
                         .lineLimit(3...6)
                     TextField("Category", text: $category)

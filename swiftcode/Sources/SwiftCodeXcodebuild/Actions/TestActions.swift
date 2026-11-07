@@ -2,22 +2,13 @@ import Foundation
 import SwiftCodeProject
 import SwiftCodeWorkspace
 
-/// `test`, `test-without-building` and the test half of
-/// `build-for-testing`. Tests run in the platform's own `xctest` runner;
-/// swift-testing tests run there too (the testing library hooks into it).
-/// See `specs/xcodebuild/test-actions.md`.
 enum TestActions {
     struct Outcome {
-        /// Results per test bundle, in run order.
         struct TargetRun {
             var target: TestTarget
             var results: [TestCaseResult]
-            /// A selection (`-only-testing`, a plan's selected tests) was applied.
             var selected: Bool
-            /// swift-testing suites in the order they started.
-            /// When each swift-testing function started (an order index).
             var starts: [String: Int] = [:]
-            /// The runner's console output (for the bundle's diagnostics).
             var output = ""
         }
         var targets: [TargetRun] = []
@@ -25,14 +16,10 @@ enum TestActions {
         var errors: [String] = []
         var startedAt = Date()
         var endedAt = Date()
-        /// Code coverage of the run (coverage on and a profile merged).
         var coverage: CoverageData?
         var succeeded: Bool { errors.isEmpty && !results.contains { $0.status == .failed } }
     }
 
-    // MARK: Targets
-
-    /// The scheme's test plan: `-testPlan`, else the default plan reference.
     static func testPlan(_ inv: Invocation, plan: Plan) throws(XcodebuildFailure) -> (name: String, file: TestPlanFile?, isDefault: Bool) {
         guard let scheme = plan.scheme else { return ("", nil, true) }
         let refs = scheme.testPlans
@@ -56,7 +43,6 @@ enum TestActions {
         return (scheme.name, nil, true)
     }
 
-    /// The test bundles of a scheme run, located through their build settings.
     static func targets(_ inv: Invocation, plan: Plan, testPlan: TestPlanFile?, context ctx: XcodebuildContext) throws(XcodebuildFailure) -> [TestTarget] {
         if let package = plan.package { return try packageTargets(package, plan: plan, context: ctx) }
         guard let scheme = plan.scheme else { return [] }
@@ -103,19 +89,12 @@ enum TestActions {
         }
     }
 
-    /// Each target once per test plan configuration that runs
-    /// (`-only-test-configuration`, `-skip-test-configuration`), with the
-    /// configuration's environment, arguments, repetition, language and
-    /// region. A plan with one configuration does not name it in results.
     static func expand(_ targets: [TestTarget], plan testPlan: TestPlanFile?, _ inv: Invocation) -> [TestTarget] {
         var out = expandConfigurations(targets, plan: testPlan, inv)
         if let r = commandLineRepetition(inv) { for i in out.indices { out[i].repetition = r } }
         return out
     }
 
-    /// `-test-iterations N`, `-retry-tests-on-failure` (at most N, else 3
-    /// tries), `-run-tests-until-failure` (at most N, else 100); they replace
-    /// the plan's repetition (`man xcodebuild`).
     static func commandLineRepetition(_ inv: Invocation) -> TestPlanFile.Repetition? {
         let n = inv.value("-test-iterations").flatMap(Int.init).map { max(1, $0) }
         if inv.has("-retry-tests-on-failure") { return .init(mode: .retryOnFailure, count: n ?? 3) }
@@ -143,7 +122,6 @@ enum TestActions {
         return out
     }
 
-    /// The test bundles of a package scheme, from their build settings.
     static func packageTargets(_ package: Plan.PackageBuild, plan: Plan, context ctx: XcodebuildContext) throws(XcodebuildFailure) -> [TestTarget] {
         guard !package.tests.isEmpty else { return [] }
         guard let helper = SwiftBuildSettingsProvider.locate(environment: ctx.environment, executableDirectory: ctx.executableDirectory) else {
@@ -167,8 +145,6 @@ enum TestActions {
         }
     }
 
-    /// The SwiftCode simulator a `-destination` names, from the `SWIFTCODE_SIM_*`
-    /// variables (`RemoteTestHost.Settings`); nil for other destinations.
     static func remoteSimulator(_ inv: Invocation, context ctx: XcodebuildContext) throws(XcodebuildFailure) -> RemoteTestHost.Settings? {
         guard inv.destinations.contains(where: RemoteTestHost.isSwiftCodeSimulator) else { return nil }
         guard let s = RemoteTestHost.Settings.from(environment: ctx.environment) else {
@@ -178,8 +154,6 @@ enum TestActions {
         return s
     }
 
-    /// The test plan file a scheme's test action uses (`-testPlan`, else
-    /// the default reference), without a plan.
     static func testPlanFile(_ inv: Invocation, scheme: Scheme, container: Container) -> TestPlanFile? {
         let refs = scheme.testPlans
         let wanted = inv.value("-testPlan")
@@ -191,9 +165,6 @@ enum TestActions {
         return TestPlanFile(path: base.appendingPathComponent(rel).path)
     }
 
-    // MARK: Selection
-
-    /// `-only-testing` / `-skip-testing` values: `Target[/Class[/method]]`.
     static func applySelection(_ inv: Invocation, to targets: [TestTarget]) -> [TestTarget] {
         func split(_ id: String) -> (target: String, rest: String) {
             guard let slash = id.firstIndex(of: "/") else { return (id, "") }
@@ -216,8 +187,6 @@ enum TestActions {
         return out
     }
 
-    /// XCTest classes and methods of a bundle, from SwiftPM's open-source
-    /// `swiftpm-xctest-helper` (shipped in the toolchain).
     static func xctestListing(_ t: TestTarget, context ctx: XcodebuildContext) -> [String: [String]] {
         guard let dev = ctx.developerDirectory else { return [:] }
         let helper = dev + "/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm/swiftpm-xctest-helper"
@@ -240,17 +209,14 @@ enum TestActions {
         return classes
     }
 
-    /// swift-testing tests of a bundle (through `swiftcodebuild __list-swift-tests`).
     static func swiftListing(_ t: TestTarget, context ctx: XcodebuildContext) -> [SwiftTestingBridge.TestRecord] {
         guard FileManager.default.isExecutableFile(atPath: ctx.toolPath) else { return [] }
         let r = run(ctx.toolPath, ["__list-swift-tests", t.executablePath], environment: testEnvironment(t, ctx))
         return r.status == 0 ? SwiftTestingBridge.parse(r.output) : []
     }
 
-    /// The `-XCTest` argument for a target's selection, or nil to run all.
     static func filter(_ t: TestTarget, xctests: [String: [String]], swiftTests: [SwiftTestingBridge.TestRecord]) -> String? {
         if t.only.isEmpty && t.skip.isEmpty { return nil }
-        // Normalize `Class/method()` (test plans, XCTest) to `Class/method`.
         func norm(_ id: String) -> String {
             let parts = id.split(separator: "/", maxSplits: 1).map(String.init)
             if parts.count == 2, xctests[parts[0]] != nil, parts[1].hasSuffix("()") { return parts[0] + "/" + parts[1].dropLast(2) }
@@ -267,7 +233,6 @@ enum TestActions {
                 let skipped = methods.filter { skip.contains(cls + "/" + $0) }
                 units += skipped.isEmpty ? [cls] : methods.filter { !skipped.contains($0) }.map { cls + "/" + $0 }
             }
-            // swift-testing: top-level suites and free functions.
             var tops: [String] = []
             for r in swiftTests {
                 let top = String(r.path.split(separator: "/").first ?? "")
@@ -284,8 +249,6 @@ enum TestActions {
         return units.map { t.moduleName + "." + $0 }.joined(separator: ",")
     }
 
-    // MARK: Running
-
     static func testEnvironment(_ t: TestTarget, _ ctx: XcodebuildContext) -> [String: String] {
         var env = ctx.environment
         let platform = (ctx.developerDirectory ?? "") + "/Platforms/MacOSX.platform/Developer"
@@ -293,9 +256,6 @@ enum TestActions {
         env["DYLD_LIBRARY_PATH"] = t.productsDirectory + ":" + platform + "/usr/lib"
         env["__XCODE_BUILT_PRODUCTS_DIR_PATHS"] = t.productsDirectory
         for (k, v) in t.environment { env[k] = v }
-        // A bundle built with coverage writes `default.profraw` into the
-        // current directory when no profile path is given; keep such
-        // stray profiles next to the products instead.
         if env["LLVM_PROFILE_FILE"] == nil { env["LLVM_PROFILE_FILE"] = t.productsDirectory + "/stray-%p.profraw" }
         return env
     }
@@ -329,10 +289,6 @@ enum TestActions {
         return (p.terminationStatus, String(decoding: all, as: UTF8.self))
     }
 
-    /// Runs every target's tests, echoing the runners' output unless quiet.
-    /// With `profileDirectory` (coverage on), each runner writes its raw
-    /// profile to `<dir>/<device id>/<UUID>-<pid>.profraw` and the profiles
-    /// are merged into `Coverage.profdata` there afterwards.
     static func execute(_ targets: [TestTarget], quiet: Bool, context ctx: XcodebuildContext, profileDirectory: String? = nil,
                         remoteSimulator: RemoteTestHost.Settings? = nil) -> Outcome {
         var outcome = Outcome()
@@ -344,13 +300,11 @@ enum TestActions {
         let profiles = profileDirectory.map { $0 + "/" + (Destinations.macProvisioningUDID() ?? "local") }
         if let profiles {
             try? FileManager.default.createDirectory(atPath: profiles, withIntermediateDirectories: true)
-            // Profiles of earlier runs are not part of this one.
             for f in (try? FileManager.default.contentsOfDirectory(atPath: profiles)) ?? [] where f.hasSuffix(".profraw") || f == "Coverage.profdata" {
                 try? FileManager.default.removeItem(atPath: profiles + "/" + f)
             }
         }
         defer { if let profiles { mergeProfiles(in: profiles, developerDirectory: dev) } }
-        // Hosted targets for the SwiftCode simulator run together, per host app, after the rest.
         var remote: [TestTarget] = []
         for var t in targets {
             if let profiles { t.environment["LLVM_PROFILE_FILE"] = profiles + "/" + UUID().uuidString + "-%p.profraw" }
@@ -365,10 +319,6 @@ enum TestActions {
                 runHostedLocally(t, quiet: quiet, context: ctx, outcome: &outcome)
                 continue
             }
-            // Tool-hosted bundles, and UI test bundles: those run in the
-            // platform's xctest runner too (SwiftCode has no UI automation
-            // service; tests that drive an app through XCUIApplication fail
-            // with XCTest's own message, testing.md "SwiftCode implementation").
             runToolHosted(t, xctest: xctest, quiet: quiet, context: ctx, outcome: &outcome)
         }
         if let remoteSimulator, !remote.isEmpty {
@@ -378,9 +328,6 @@ enum TestActions {
         return outcome
     }
 
-    /// A bundle in the platform's `xctest` runner; a plan's repetition
-    /// runs it again (fixed iterations, until a failure, or the failing
-    /// tests again until they pass).
     static func runToolHosted(_ t: TestTarget, xctest: String, quiet: Bool, context ctx: XcodebuildContext, outcome: inout Outcome) {
         let console = ctx.console
         let bundle = t.isUITest ? uiBundlePath(t) : t.bundlePath
@@ -431,9 +378,6 @@ enum TestActions {
         outcome.targets.append(.init(target: t, results: results, selected: !t.only.isEmpty, starts: starts, output: output))
     }
 
-    /// One result per test (and test case) after repetitions: a retried
-    /// test has the status of its last try; otherwise a test failed when
-    /// any iteration failed. Durations add up.
     static func collapseRepetitions(_ results: [TestCaseResult], mode: TestPlanFile.Repetition.Mode?) -> [TestCaseResult] {
         guard let mode, mode != .none else { return results }
         var order: [String] = []
@@ -455,13 +399,8 @@ enum TestActions {
         return order.compactMap { merged[$0] }
     }
 
-    /// A UI test bundle: swift-build builds it into
-    /// `<PRODUCT_NAME>-Runner.app/…/PlugIns`; swiftcodebuild runs it from there.
     static func uiBundlePath(_ t: TestTarget) -> String { t.bundlePath }
 
-    /// The test plan's language and region as the host's argument-domain
-    /// defaults (`-AppleLanguages (<language>)`, `-AppleLocale
-    /// <language>_<region>`), for runs inside an app.
     static func languageArguments(_ t: TestTarget) -> [String] {
         guard t.testHost != nil || t.isUITest else { return [] }
         var a: [String] = []
@@ -470,7 +409,6 @@ enum TestActions {
         return a
     }
 
-    /// `llvm-profdata merge` of the raw profiles into `Coverage.profdata`.
     static func mergeProfiles(in dir: String, developerDirectory dev: String) {
         let raws = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".profraw") }.sorted()
         guard !raws.isEmpty else { return }
@@ -479,7 +417,6 @@ enum TestActions {
         _ = run(tool, ["merge", "-o", dir + "/Coverage.profdata"] + raws.map { dir + "/" + $0 }, environment: ProcessInfo.processInfo.environment)
     }
 
-    /// The closing report: session line, failing tests, banner.
     static func report(_ outcome: Outcome, action: BuildAction, resultBundle: String?, quiet: Bool, console: Console) -> Bool {
         if !quiet, let resultBundle {
             console.out()

@@ -1,12 +1,7 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// SwiftCode's remote simulator in Devices and Simulators: its row, the fold
-/// controls of a foldable one (`foldable.md` §8.3) and Erase All
-/// Content and Settings… (`run.md` §Warm boot item 7; the Devices window
-/// spec, `devices.md`, has no erase command yet: see the round's report).
 extension WorkspaceWindowController {
-    /// Whether a workspace window runs an app on the remote simulator.
     static var remoteSimulatorInUse: Bool {
         NSApp?.windows.contains { w in
             guard let wc = w.windowController as? WorkspaceWindowController, case .remote = wc.session.simulatorRun?.target else { return false }
@@ -14,20 +9,15 @@ extension WorkspaceWindowController {
         } ?? false
     }
 
-    /// Adds the remote simulator's row (when it is set up) and the erase
-    /// action to a Devices and Simulators controller. `ssh` replaces the
-    /// ssh program (tests).
     func configureSwiftCodeRemoteDevice(_ c: DevicesController, defaults: UserDefaults = Preferences.shared.defaults, ssh: String? = nil) {
         let settings = RemoteSimulatorSettings.load(defaults)
         guard settings.isConfigured else { return }
-        // The run in this window, else any window's (one remote run at a time per device).
         let busy: (RemoteSimulator) -> Bool = { [weak self] remote in
             if let r = self?.session.simulatorRun, case .remote = r.target {
                 return r.remote?.remoteDevicePath == nil || r.remote?.remoteDevicePath == remote.remoteDevicePath
             }
             return Self.remoteSimulatorInUse
         }
-        // Running: a run uses it, or it was started from the hub.
         let running: (RemoteSimulator) -> Bool = { busy($0) || RemoteDeviceSessions.shared.isRunning($0) }
         c.setSwiftCodeRemote(rows: RemoteSimulator.hub(settings).map { DeviceRow.swiftcodeRemote($0, running: running($0)) })
         c.currentRemoteRows = {
@@ -38,7 +28,6 @@ extension WorkspaceWindowController {
             if let ssh { settings.ssh = ssh }
             return RemoteSimulator.hub(settings).first { "\(settings.destination):\($0.remoteDevicePath)" == row.identifier }
         }
-        // Start / Shut Down from the hub (device-hub.md "SwiftCode implementation").
         c.startDevice = { [weak self] row in
             guard let remote = remoteFor(row) else { return (false, "Set the remote simulator in Settings ▸ Simulators first.") }
             if busy(remote) { return (false, "\(row.name) is running an app.") }
@@ -52,7 +41,6 @@ extension WorkspaceWindowController {
                 await RemoteDeviceSessions.shared.shutDown(remote, force: force)
                 return (true, "Shut down")
             }
-            // A run uses it: Shut Down is the run's Stop.
             if let self, let run = self.session.simulatorRun, case .remote = run.target, run.remote?.remoteDevicePath == remote.remoteDevicePath {
                 self.session.stopSimulatorRun(remote: remote)
                 return (true, "Stopping the run")
@@ -61,22 +49,16 @@ extension WorkspaceWindowController {
         }
         c.makeDisplayLink = { row in
             guard let remote = remoteFor(row) else { return nil }
-            // The compact window's title is the device type's name (its row
-            // adds " (SwiftCode)"): it leaves room for the Expand │ More capsule.
             return RemoteDisplayLink(remote: remote, name: remote.target?.deviceType.name ?? row.name, os: "\(row.platform) \(row.osVersion)")
         }
         c.headset.visionDisplay = (get: { RemoteSimulatorSettings.load(defaults).visionDisplay },
                                    set: { v in var s = RemoteSimulatorSettings.load(defaults); s.visionDisplay = v; s.save(defaults) })
-        // A Vision Pro in a headset (device-hub.md §I.12): the viewer host
-        // reaches the device's display socket on the simulator host by ssh.
         c.headset.route = { [weak c] row in
             guard let remote = remoteFor(row) else { return nil }
             let fromViewer = c?.headsetSettings.simulatorHostFromViewer ?? ""
             return .sshSocket(destination: fromViewer.isEmpty ? remote.settings.destination : fromViewer, socket: remote.displaySocketPath)
         }
-        // The camera of SwiftCode's simulators (camera.md "SwiftCode implementation"): the same setting as Settings ▸ Simulators.
         c.cameraSetting = DevicesController.cameraSetting(defaults)
-        // Pairs of phones and watches (device-pairing.md §13).
         configureRemotePairing(c, defaults: defaults, ssh: ssh)
         c.eraseDevice = { [weak self, weak c] row in
             guard let self else { return (false, "The workspace was closed.") }
@@ -91,7 +73,6 @@ extension WorkspaceWindowController {
             if result.0 { c?.updateSwiftCodeRemote(DeviceRow.swiftcodeRemote(remote, running: false)) }
             return result
         }
-        // Fold, hinge and rotation of a running iPhone Duo (foldable.md §8.3 E1).
         c.foldDevice = { [weak self] row, words in
             guard let self else { return (false, "The workspace was closed.") }
             var settings = RemoteSimulatorSettings.load(defaults)
@@ -101,8 +82,6 @@ extension WorkspaceWindowController {
             }
             return await self.session.controlRemoteSimulator(remote: remote, words)
         }
-        // Appearance, accessibility, location and sound of a running SwiftCode
-        // simulator (devices.md §Settings): the same control path.
         c.deviceSettings = { [weak self] row, words in
             guard let self else { return (false, "The workspace was closed.") }
             var settings = RemoteSimulatorSettings.load(defaults)

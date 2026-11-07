@@ -4,17 +4,6 @@ import Observation
 import FoundationNetworking
 #endif
 
-/// Downloads an offline model's files from Hugging Face into the storage
-/// directory (Legacy `OfflineModelDownloader`). Behaviour change, stated
-/// plainly: Legacy streamed each file to disk with a
-/// `URLSessionDownloadDelegate`; this port downloads with
-/// `URLSession.data(from:)` and writes the bytes out, because the delegate
-/// download task is not portable to the Linux build of this target. Large
-/// model files therefore buffer in memory during download. Progress,
-/// speed, remaining-time, cancellation, pending-download resume and the
-/// installed-metadata write are otherwise Legacy's own. There is no
-/// notification on completion: Legacy called a `NotificationManager` that
-/// does not exist in the destination.
 @Observable
 @MainActor
 public final class OfflineModelDownloader {
@@ -241,10 +230,6 @@ public final class OfflineModelDownloader {
         }
     }
 }
-
-
-// Ported from Legacy `SwiftCode/Backend/Offline Models/OfflineModelDownloader.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: DownloadTaskDelegate.
 
 private final class DownloadTaskDelegate: NSObject, URLSessionDownloadDelegate {
     private let modelFolderName: String

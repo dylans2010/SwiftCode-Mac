@@ -1,8 +1,3 @@
-//
-//  AssistCoreDataModelInspectorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistCoreDataModelInspectorTool: AssistTool {
@@ -47,7 +42,6 @@ public struct AssistCoreDataModelInspectorTool: AssistTool {
             return .success("No .xcdatamodeld Core Data models found in the workspace.")
         }
 
-        // Find contents file inside the current version
         var contentsURL: URL?
         if let subitems = try? FileManager.default.contentsOfDirectory(at: modelURL, includingPropertiesForKeys: nil) {
             for sub in subitems {
@@ -65,7 +59,6 @@ public struct AssistCoreDataModelInspectorTool: AssistTool {
             return .success("Found model at \(modelURL.lastPathComponent), but contents XML was unreadable.")
         }
 
-        // Simple XML attribute and entity parsing
         var entities: [String: [String]] = [:]
         let entityRegex = try? NSRegularExpression(pattern: #"<entity name="([^"]+)""#, options: [])
         let attributeRegex = try? NSRegularExpression(pattern: #"<attribute name="([^"]+)"[^>]*attributeType="([^"]+)""#, options: [])

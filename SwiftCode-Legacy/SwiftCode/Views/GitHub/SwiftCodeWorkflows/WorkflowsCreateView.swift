@@ -4,7 +4,6 @@ struct WorkflowsCreateView: View {
     let project: Project?
     @Environment(\.dismiss) private var dismiss
 
-    // Trigger specifications
     @State private var triggerPush = true
     @State private var triggerPR = false
     @State private var triggerSchedule = false
@@ -13,7 +12,6 @@ struct WorkflowsCreateView: View {
     @State private var branchFilters = "main, develop"
     @State private var tagFilters = "v*"
 
-    // Job specs
     @State private var selectedOS = "macos-latest"
     @State private var matrixBuilds = false
     @State private var matrixOSList = "macos-latest, ubuntu-latest"
@@ -21,7 +19,6 @@ struct WorkflowsCreateView: View {
     @State private var permissionsRead = true
     @State private var permissionsWrite = false
 
-    // Steps configuration
     @State private var checkoutStep = true
     @State private var setupXcode = true
     @State private var setupNode = false
@@ -31,13 +28,11 @@ struct WorkflowsCreateView: View {
     @State private var artifactName = "build-output"
     @State private var artifactPath = ".build/"
 
-    // Advanced Specs
     @State private var customContainers = ""
     @State private var customServices = ""
     @State private var envVariables = "DEVELOPER_DIR=/Applications/Xcode.app"
     @State private var secretNames = "GH_TOKEN, COCOAPODS_KEY"
 
-    // YAML state
     @State private var validationErrors: String? = nil
     @State private var showSuccessAlert = false
     @State private var successMsg = ""
@@ -45,7 +40,6 @@ struct WorkflowsCreateView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header Panel
                 GroupBox {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -62,7 +56,6 @@ struct WorkflowsCreateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 1: Workflow Triggers
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Triggers & Event Filters", systemImage: "bolt.fill")
@@ -101,7 +94,6 @@ struct WorkflowsCreateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 2: Job environment and Matrix targets
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Job Runner & Concurrency Matrix", systemImage: "cpu")
@@ -140,7 +132,6 @@ struct WorkflowsCreateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 3: Job steps hierarchy
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Job Steps Hierarchy", systemImage: "list.number")
@@ -176,7 +167,6 @@ struct WorkflowsCreateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 4: Secure environment variables and Secrets
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Secure Environments & Secrets", systemImage: "lock.fill")
@@ -205,7 +195,6 @@ struct WorkflowsCreateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 5: YAML Live editor preview
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Generated workflow.yml Live Preview", systemImage: "doc.text.fill")
@@ -241,7 +230,6 @@ struct WorkflowsCreateView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Action buttons
                 HStack(spacing: 16) {
                     Button("Save Workflow to .github/workflows/") {
                         saveWorkflowFile()
@@ -271,13 +259,10 @@ struct WorkflowsCreateView: View {
         }
     }
 
-    // MARK: - YAML Generator Logic
-
     private func generateYAMLString() -> String {
         var yaml = ""
         yaml += "name: Visual Created CI\n\n"
 
-        // 1. Triggers
         yaml += "on:\n"
         if triggerPush {
             yaml += "  push:\n"
@@ -306,7 +291,6 @@ struct WorkflowsCreateView: View {
         }
         yaml += "\n"
 
-        // 2. Global Environment variables
         let envs = envVariables.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         if !envs.isEmpty {
             yaml += "env:\n"
@@ -319,11 +303,9 @@ struct WorkflowsCreateView: View {
             yaml += "\n"
         }
 
-        // 3. Permissions
         yaml += "permissions:\n"
         yaml += "  contents: \(permissionsWrite ? "write" : "read")\n\n"
 
-        // 4. Jobs block
         yaml += "jobs:\n"
         yaml += "  build-and-test:\n"
         yaml += "    runs-on: \(selectedOS)\n"
@@ -383,22 +365,18 @@ struct WorkflowsCreateView: View {
         return yaml
     }
 
-    // MARK: - Save Workflow File
-
     private func saveWorkflowFile() {
         guard let proj = project else {
             self.validationErrors = "Validation Error: No project associated with the session."
             return
         }
 
-        // Validate YAML basic syntax (must have name, jobs, and steps)
         let yamlContent = generateYAMLString()
         if !yamlContent.contains("name:") || !yamlContent.contains("jobs:") || !yamlContent.contains("steps:") {
             self.validationErrors = "Validation Error: The generated YAML fails to conform to GitHub Actions structural configurations."
             return
         }
 
-        // Check if there are unclosed curly braces
         if yamlContent.components(separatedBy: "${{").count != yamlContent.components(separatedBy: "}}").count {
             self.validationErrors = "Validation Error: Mismatched expression syntax '${{' or '}}' detected."
             return
@@ -421,8 +399,6 @@ struct WorkflowsCreateView: View {
         }
     }
 
-    // MARK: - Reopen Existing Workflow
-
     private func loadExistingWorkflow() {
         guard let proj = project else { return }
         let fileURL = proj.directoryURL.appendingPathComponent(".github/workflows/workflow.yml")
@@ -430,7 +406,6 @@ struct WorkflowsCreateView: View {
         if FileManager.default.fileExists(atPath: fileURL.path),
            let content = try? String(contentsOf: fileURL, encoding: .utf8) {
 
-            // Reopen values based on existing tags
             if content.contains("push:") { self.triggerPush = true }
             if content.contains("pull_request:") { self.triggerPR = true }
             if content.contains("workflow_dispatch:") { self.triggerManual = true }

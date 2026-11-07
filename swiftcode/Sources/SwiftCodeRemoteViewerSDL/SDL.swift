@@ -1,12 +1,3 @@
-// The SDL 3 functions the Linux viewer uses, resolved at run time with
-// dlopen (no SDL headers or library at build time; SDL is zlib-licensed,
-// libsdl-org/SDL release 3.4). Signatures and the event layouts below are
-// SDL 3's public API (SDL_video.h, SDL_render.h, SDL_events.h; checked
-// against the 3.4.18 headers OpenViews vendors in
-// frameworks/swiftui/Sources/COVSDL). The library is found as OpenViews
-// finds it: $SWIFTCODE_SDL3_LIBRARY, $OV_SDL3_LIBRARY, the loader's search path,
-// ~/.local/lib.
-
 import Foundation
 #if canImport(Glibc)
 import Glibc
@@ -14,14 +5,12 @@ import Glibc
 
 public struct SDLRect { public var x, y, w, h: Int32 }
 public struct SDLFRect { public var x, y, w, h: Float }
-/// SDL_Vertex: position, colour (0…1), texture coordinate.
 public struct SDLVertex {
     public var x, y: Float
     public var r, g, b, a: Float
     public var u, v: Float
 }
 
-/// SDL_Event (a 128-byte union) and the fields read from it.
 public struct SDLEvent {
     public var raw = [UInt8](repeating: 0, count: 128)
     public init() {}
@@ -34,25 +23,21 @@ public struct SDLEvent {
     public func f32(_ o: Int) -> Float { raw.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: Float.self) } }
     public func pointer(_ o: Int) -> UnsafeRawPointer? { raw.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UnsafeRawPointer?.self) } }
 
-    // SDL_KeyboardEvent
     public var keyScancode: Int32 { i32(24) }
     public var keyMod: UInt16 { u16(32) }
     public var keyDown: Bool { u8(36) != 0 }
     public var keyRepeat: Bool { u8(37) != 0 }
-    // SDL_MouseMotionEvent / SDL_MouseButtonEvent
     public var motionX: Float { f32(28) }
     public var motionY: Float { f32(32) }
     public var motionState: UInt32 { u32(24) }
     public var buttonIndex: UInt8 { u8(24) }
     public var buttonX: Float { f32(28) }
     public var buttonY: Float { f32(32) }
-    // SDL_MouseWheelEvent
     public var wheelX: Float { f32(24) }
     public var wheelY: Float { f32(28) }
     public var wheelFlipped: Bool { u32(32) == 1 }
     public var wheelMouseX: Float { f32(36) }
     public var wheelMouseY: Float { f32(40) }
-    // SDL_WindowEvent
     public var windowData1: Int32 { i32(20) }
     public var windowData2: Int32 { i32(24) }
 }
@@ -133,11 +118,8 @@ public final class SDL: @unchecked Sendable {
     let RenderReadPixels: @convention(c) (VP, UnsafeRawPointer?) -> VP?
     let ConvertSurface: @convention(c) (VP, UInt32) -> VP?
     let DestroySurface: @convention(c) (VP) -> Void
-    /// SDL_GetSystemTheme (0 unknown, 1 light, 2 dark; it follows the
-    /// desktop's portal); optional: nil when the library lacks it.
     let GetSystemTheme: (@convention(c) () -> Int32)?
 
-    /// The library's path when loaded.
     public let path: String
 
     public static func candidates() -> [String] {
@@ -213,7 +195,6 @@ public final class SDL: @unchecked Sendable {
 
     public var error: String { GetError().map { String(cString: $0) } ?? "" }
 
-    /// The desktop's colour scheme (nil: unknown; call after Init).
     public var systemDark: Bool? {
         switch GetSystemTheme?() {
         case 1: false
@@ -222,7 +203,6 @@ public final class SDL: @unchecked Sendable {
         }
     }
 
-    /// SDL_Surface: flags, format, w, h, pitch, pixels (SDL_surface.h).
     public static func surfaceInfo(_ s: UnsafeMutableRawPointer) -> (format: UInt32, w: Int, h: Int, pitch: Int, pixels: UnsafeRawPointer?) {
         let format = s.load(fromByteOffset: 4, as: UInt32.self)
         let w = Int(s.load(fromByteOffset: 8, as: Int32.self))

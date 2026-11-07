@@ -3,19 +3,10 @@ import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The first-run setup window (wiring-views): hosts `SCSetupOnboard`
-/// (Overview → Git Executable → GitHub Token) in its own window, shown
-/// once at launch by `offerIfNeeded()` when git is not installed or no
-/// GitHub token is stored — the hook `SCSetupOnboard`'s header names.
-/// "Continue" (`onFinished`) closes the window into the workspace; the
-/// window is closable without finishing, in which case the offer
-/// recurs on the next launch until git and a token are both present.
 @MainActor
 public final class SCSetupOnboardWindowController: NSWindowController, NSWindowDelegate {
     private static var retained: SCSetupOnboardWindowController?
 
-    /// Shows the setup wizard when its precondition holds; false when
-    /// git is installed and a GitHub token is already stored.
     @discardableResult
     public static func offerIfNeeded() -> Bool {
         guard !GitRepository.isGitInstalled()

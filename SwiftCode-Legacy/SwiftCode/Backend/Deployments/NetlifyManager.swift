@@ -17,7 +17,6 @@ final class NetlifyManager: @unchecked Sendable {
 
             logHandler("Preparing repository and pushing changes...")
 
-            // Re-implementing the core logic here for independence
             let repoPrepared = try await prepareGitHubRepository(project: project, logHandler: logHandler)
 
             guard repoPrepared else {

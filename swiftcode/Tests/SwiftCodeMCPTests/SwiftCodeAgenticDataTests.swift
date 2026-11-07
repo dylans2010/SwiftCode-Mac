@@ -4,18 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic data / environment / secrets / UI /
-/// profiling tools (Wave 8, slice G) against
-/// `Samples/AgentSamples/Greeter` (a copy). Static checks only —
-/// no Swift toolchain runs in this environment; the tests below
-/// are written to the same shape as the other SwiftCodeMCP suites and
-/// run on Dylan's Mac / CI.
-///
-/// Fixture facts: `Greeter.swift` is 14 lines plus a trailing
-/// newline. The SQLite fixtures are built with the `sqlite3` CLI
-/// (present on macOS and on the Linux test host); a test that
-/// needs it returns early when the CLI is absent, since the tool
-/// itself then fails honestly naming the missing CLI.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticDataTests {
     static let agenticDataIDs = ["parse_json", "parse_yaml", "parse_xml", "parse_markdown", "sql_query",
@@ -24,16 +12,9 @@ import SwiftCodeIDECore
                                  "ui_inspector", "accessibility_inspector", "performance_profiler", "memory_profiler",
                                  "network_inspector", "crash_analyzer", "symbolicate_crash_logs"]
 
-    /// Opens a copy of Greeter and installs the ported Agentic
-    /// data tools on the server (same shape as Wave 3's
-    /// `opened`; the coordinator wires `agenticDataTools` into
-    /// `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` already
-        // wires `agenticDataTools`, so a plain `+=` would
-        // register them twice.
         let ported = Set(host.agenticDataTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.agenticDataTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -41,7 +22,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -50,7 +30,6 @@ import SwiftCodeIDECore
 
     var sqlite3Available: Bool { FileManager.default.isExecutableFile(atPath: "/usr/bin/sqlite3") }
 
-    /// Runs the `sqlite3` CLI once to build a fixture database.
     func runSQLite3(_ dbPath: String, _ sql: String) throws {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -62,9 +41,6 @@ import SwiftCodeIDECore
         #expect(p.terminationStatus == 0, "sqlite3 fixture setup failed for \(sql)")
     }
 
-    /// Builds the shared SQLite fixture: a `users` table, a
-    /// `posts` table with a foreign key to it, a view and an
-    /// index. Returns the workspace-relative database path.
     func makeDatabaseFixture(_ sample: TempSample) throws -> String {
         let dbPath = sample.path("data/test.db")
         try FileManager.default.createDirectory(at: URL(fileURLWithPath: dbPath).deletingLastPathComponent(),
@@ -100,7 +76,6 @@ import SwiftCodeIDECore
         for tool in tools {
             #expect(tool.title == expectedTitles[tool.name], "title for \(tool.name)")
         }
-        // Verbatim Legacy descriptions.
         let expectedDescriptions: [String: String] = [
             "parse_json": "Parses a JSON string.", "parse_yaml": "Parses a YAML string.",
             "parse_xml": "Parses an XML string.", "parse_markdown": "Parses a Markdown string.",
@@ -125,7 +100,6 @@ import SwiftCodeIDECore
         #expect(requiredParams(of: tools, "manage_secrets") == ["action", "key"])
         #expect(requiredParams(of: tools, "read_environment_variables") == [])
         #expect(requiredParams(of: tools, "performance_profiler") == ["pid"])
-        // The three writers are write-gated; the reads are not.
         for name in ["database_migration", "update_environment_variables", "manage_secrets", "open_browser",
                      "browser_automation"] {
             #expect(tools.first { $0.name == name }?.writes == true, "\(name) must be writes: true")
@@ -137,8 +111,6 @@ import SwiftCodeIDECore
     }
 
     @Test func takeScreenshotIsAlreadyServed() {
-        // SwiftCode already has `take_screenshot` (Wave 4); the
-        // Agentic ID must not register a second tool.
         let host = SwiftCodeMCPHost()
         #expect(host.server.tools.contains { $0.name == "take_screenshot" })
         #expect(!host.agenticDataTools.contains { $0.name == "take_screenshot" })
@@ -329,23 +301,19 @@ import SwiftCodeIDECore
         let check = try await host.server.callTool("sql_query", ["query": .string("SELECT label FROM migrated"),
                                                                  "databasePath": .string("data/mig.db")])
         #expect(!check.isToolError && check.structured?["rows"]?[0]?["label"] == "first")
-        // A failing statement surfaces the sqlite3 error.
         try writeFixture(sample, "data/bad.sql", "CREATE TABLE x(y);\nBAD STATEMENT HERE;\n")
         let bad = try await host.server.callTool("database_migration", ["databasePath": .string("data/mig2.db"),
                                                                         "migrationPath": .string("data/bad.sql")])
         #expect(bad.isToolError && bad.firstText.contains("Applying migration"))
-        // An empty migration file fails before anything runs.
         try writeFixture(sample, "data/empty.sql", "\n")
         let empty = try await host.server.callTool("database_migration", ["databasePath": .string("data/mig3.db"),
                                                                           "migrationPath": .string("data/empty.sql")])
         #expect(empty.isToolError && empty.firstText.contains("Migration file is empty"))
-        // A read-only server refuses the migration before the handler runs.
         let readOnlyHost = try await opened(sample)
         let refused = try await readOnlyHost.server.callTool("database_migration",
                                                              ["databasePath": .string("data/mig4.db"),
                                                               "migrationPath": .string("data/migration.sql")])
         #expect(refused.isToolError)
-        // A rejected approval fails the migration.
         let rejectingHost = try await opened(sample, policy: .review { _ in false })
         let rejected = try await rejectingHost.server.callTool("database_migration",
                                                                ["databasePath": .string("data/mig5.db"),
@@ -362,7 +330,6 @@ import SwiftCodeIDECore
         let names = r.structured?["names"]?.array?.compactMap(\.string) ?? []
         #expect(names.contains("PATH"))
         #expect(r.structured?["count"]?.int == names.count)
-        // No KEY=value pair may leak: the whole result carries no '='.
         #expect(!r.resultText.contains("="))
         #expect(r.firstText.contains("names only"))
     }
@@ -376,7 +343,6 @@ import SwiftCodeIDECore
                                                ["variables": .object([key: .string("hello")])])
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.firstText.contains("Environment variables updated"))
-        // The new name is visible to a later read; the value is not.
         let read = try await host.server.callTool("read_environment_variables")
         #expect(read.structured?["names"]?.array?.compactMap(\.string).contains(key) == true)
         #expect(!read.resultText.contains("hello"))
@@ -408,23 +374,18 @@ import SwiftCodeIDECore
                                                                     "key": .string("agentic-data-test-key")])
         #expect(!got.isToolError, "\(got.resultText)")
         #expect(got.firstText.contains("Secret exists"))
-        // The value never appears in any tool output.
         #expect(!got.resultText.contains("s3cr3t-value-must-not-appear"))
         let noValue = try await host.server.callTool("manage_secrets", ["action": .string("save"),
                                                                         "key": .string("agentic-data-test-key")])
         #expect(noValue.isToolError && noValue.firstText.contains("Missing required parameter: value"))
         let unknown = try await host.server.callTool("manage_secrets", ["action": .string("delete"),
                                                                         "key": .string("agentic-data-test-key")])
-        // Legacy's answer for an unknown action is the plain
-        // "No result" string, not an error.
         #expect(!unknown.isToolError && unknown.firstText.contains("No result"))
     }
 
     @Test func openBrowserRejectsNonHTTPURLs() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // `.allow` so the handler runs its validation instead of
-        // the read-only policy refusing the write tool first.
         let host = try await opened(sample, policy: .allow)
         let bad = try await host.server.callTool("open_browser", ["url": .string("not a url")])
         #expect(bad.isToolError && bad.firstText.contains("Invalid URL"))
@@ -473,7 +434,6 @@ import SwiftCodeIDECore
         let host = try await opened(sample)
         let r = try await host.server.callTool("network_inspector")
         if r.isToolError {
-            // Neither lister installed: the honest failure names one.
             #expect(r.firstText.contains("netstat") || r.firstText.contains("ss"))
         } else {
             #expect((r.structured?["connectionCount"]?.int ?? -1) >= 0)
@@ -531,9 +491,6 @@ import SwiftCodeIDECore
                                                       "dsymPath": .string("Build/MyApp.dSYM")])
         #expect(missing.isToolError && missing.firstText.contains("dSYM not found"))
 #if os(Linux)
-        // No `atos` on Linux: an existing (but empty) dSYM fails
-        // naming the missing prerequisite. The macOS `atos` path
-        // is unverified here; see the spec.
         try FileManager.default.createDirectory(at: URL(fileURLWithPath: sample.path("Build/MyApp.dSYM")),
                                                 withIntermediateDirectories: true)
         let linux = try await host.server.callTool("symbolicate_crash_logs",

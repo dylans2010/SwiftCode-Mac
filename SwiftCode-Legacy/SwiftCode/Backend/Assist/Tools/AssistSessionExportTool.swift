@@ -48,8 +48,6 @@ public struct AssistSessionExportTool: AssistTool {
         markdown += "Tool definitions live in AssistToolRegistry. This export contains session metadata only.\n\n"
         markdown += "## Notes\n\n"
         markdown += notes.isEmpty ? "_No notes provided._\n" : notes + "\n"
-        // Deliberately no conversation-history access: this tool exports
-        // metadata supplied in its inputs plus the session context only.
 
         do {
             try markdown.data(using: .utf8)?.write(to: outputURL, options: [.atomic])

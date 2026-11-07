@@ -1,8 +1,5 @@
 import Foundation
 
-/// Errors from the GitHub REST API client. Messages name the fix where
-/// there is one (a missing or rejected token points at the settings pane
-/// that holds it); they never include the token.
 public enum GitHubError: Error, LocalizedError, Equatable {
     case missingToken
     case unauthorized

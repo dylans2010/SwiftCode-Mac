@@ -3,8 +3,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.mcp", category: "UseMCP")
 
-// MARK: - MCP Execution Metadata for Timeline Rendering
-
 public struct MCPExecutionMetadata: Codable, Sendable, Identifiable {
     public let id: UUID
     public let serverName: String
@@ -38,8 +36,6 @@ public struct MCPExecutionMetadata: Codable, Sendable, Identifiable {
         self.timestamp = timestamp
     }
 }
-
-// MARK: - UseMCP Assist Tool
 
 @MainActor
 public final class UseMCP: AssistTool {
@@ -83,7 +79,6 @@ public final class UseMCP: AssistTool {
 
         let manager = MCPServerManager.shared
 
-        // Allow discovery of all configured MCP servers and their tools
         if serverName.lowercased() == "list" || toolName.lowercased() == "list_servers" {
             if manager.servers.isEmpty {
                 return .success("No MCP servers are currently configured in SwiftCode Settings.")
@@ -110,7 +105,6 @@ public final class UseMCP: AssistTool {
             return .failure("MCP Server '\(serverName)' not found or not configured in settings.")
         }
 
-        // Auto-connect if currently disconnected
         if server.status != .connected {
             do {
                 try await manager.connect(server: server)
@@ -138,7 +132,6 @@ public final class UseMCP: AssistTool {
             }
         }
 
-        // Return tool listing if specifically requested for this server
         if toolName.lowercased() == "list_tools" {
             let updatedServer = manager.servers.first(where: { $0.id == server.id }) ?? server
             var result = "### Available tools on MCP server '\(updatedServer.displayName)':\n"
@@ -152,7 +145,6 @@ public final class UseMCP: AssistTool {
             return .success(result)
         }
 
-        // Parse arguments JSON
         let data = argsString.data(using: .utf8) ?? Data()
         guard let decodedArgsObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return .failure("Arguments must be a valid JSON-serialized object string.")
@@ -181,7 +173,6 @@ public final class UseMCP: AssistTool {
         var mcpMessage = AssistMessage(role: .system, content: "Running MCP Tool...", attachments: nil)
         mcpMessage.mcpExecution = initialMetadata
 
-        // Append message to AssistManager
         AssistManager.shared.messages.append(mcpMessage)
 
         func updateLiveOutput(output: String, isExecuting: Bool = true, success: Bool = false) {

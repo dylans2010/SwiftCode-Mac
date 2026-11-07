@@ -8,7 +8,7 @@ public enum VirtualizationEvent: Sendable {
     case restarted(UUID)
     case error(UUID, String)
     case log(UUID, String)
-    case statUpdate(UUID, Double, Double, Double, Double) // CPU, RAM, Network, Disk
+    case statUpdate(UUID, Double, Double, Double, Double)
     case metadataUpdated(UUID)
     case registryChanged
 }

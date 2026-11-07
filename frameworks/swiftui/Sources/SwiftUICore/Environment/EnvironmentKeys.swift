@@ -1,29 +1,21 @@
 import Foundation
 
-// Environment values whose defaults 08-environment-accessibility-localization.md
-// §1 lists (the values an app read at the scene root of the reference
-// device). Platform hosts (R7, R10) replace them with live values.
-
-/// Size classes.
 public enum UserInterfaceSizeClass: Hashable, Sendable {
     case compact
     case regular
 }
 
-/// Horizontal alignment of lines of text.
 public enum TextAlignment: Hashable, CaseIterable, Sendable {
     case leading
     case center
     case trailing
 }
 
-/// Font weight adjustment for legibility (Bold Text setting).
 public enum LegibilityWeight: Hashable, Sendable {
     case regular
     case bold
 }
 
-/// Size of controls.
 public enum ControlSize: Hashable, CaseIterable, Sendable {
     case mini
     case small
@@ -32,7 +24,6 @@ public enum ControlSize: Hashable, CaseIterable, Sendable {
     case extraLarge
 }
 
-/// Reasons to redact content.
 public struct RedactionReasons: OptionSet, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -95,7 +86,6 @@ extension EnvironmentValues {
         get { self[VerticalSizeClassKey.self] }
         set { self[VerticalSizeClassKey.self] = newValue }
     }
-    /// The default font of text in this environment (nil: body).
     public var font: Font? {
         get { self[FontKey.self] }
         set { self[FontKey.self] = newValue }
@@ -182,10 +172,7 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Modifiers that write environment values
-
 extension View {
-    /// Sets the default font for text in this view (03 §6: inner overrides outer).
     public func font(_ font: Font?) -> some View { environment(\.font, font) }
 
     public func lineLimit(_ number: Int?) -> some View { environment(\.lineLimit, number) }

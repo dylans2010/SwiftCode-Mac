@@ -1,21 +1,11 @@
-// The simulator's settings features (specs/simulator/simulator-features.md
-// §4, "SwiftCode implementation"): what each change writes in the guest's
-// preferences and which notifications the setter posts. Pure data, shared
-// by swiftcode-simd (which sends the plans to its guest settings agent), the
-// IDE and the viewer (labels and values), and the tests.
-
 import Foundation
 
-// MARK: - Preference values and plans
-
-/// A preference value as the guest's preferences API stores it.
 public enum PrefValue: Equatable, Sendable, CustomStringConvertible {
     case bool(Bool)
     case int(Int)
     case real(Double)
     case string(String)
 
-    /// The Foundation object (property-list encoding).
     public var plistObject: Any {
         switch self {
         case .bool(let b): b
@@ -25,7 +15,6 @@ public enum PrefValue: Equatable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// A property-list object back as a value (nil for other types).
     public init?(plistObject o: Any) {
         if let s = o as? String { self = .string(s); return }
         #if canImport(Darwin)
@@ -72,7 +61,6 @@ public enum PrefValue: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// One key in one preference domain: set to a value, or removed (nil).
 public struct PreferenceWrite: Equatable, Sendable, CustomStringConvertible {
     public var domain: String
     public var key: String
@@ -87,7 +75,6 @@ public struct PreferenceWrite: Equatable, Sendable, CustomStringConvertible {
     public var description: String { "\(domain) \(key) = \(value?.description ?? "(removed)")" }
 }
 
-/// A key to read back.
 public struct PreferenceRead: Hashable, Sendable {
     public var domain: String
     public var key: String
@@ -95,18 +82,13 @@ public struct PreferenceRead: Hashable, Sendable {
         self.domain = domain
         self.key = key
     }
-    /// The name a read's answer is filed under ("domain|key").
     public var tag: String { domain + "|" + key }
 }
 
-/// What applying one change means in the guest: preference writes (through
-/// cfprefsd), then the setter's Darwin notifications, in this order.
 public struct SettingsPlan: Equatable, Sendable {
     public var writes: [PreferenceWrite] = []
     public var notifications: [String] = []
-    /// VoiceOver: wait (best effort) until the screen reader reports this state.
     public var waitForVoiceOver: Bool?
-    /// Mach services whose on-demand jobs the agent starts after the posts.
     public var startServices: [String] = []
 
     public init(writes: [PreferenceWrite] = [], notifications: [String] = [], waitForVoiceOver: Bool? = nil,
@@ -124,8 +106,6 @@ public struct SettingsPlan: Equatable, Sendable {
         startServices += other.startServices
     }
 }
-
-// MARK: - Domains and keys (§4)
 
 public enum SimPrefs {
     public static let styleDomain = "com.apple.uikitservices.userInterfaceStyleMode"
@@ -151,14 +131,11 @@ public enum SimPrefs {
     public static let voiceOverTouch = "VoiceOverTouchEnabled"
     public static let accessibilityEnabled = "AccessibilityEnabled"
     public static let applicationAccessibility = "ApplicationAccessibilityEnabled"
-    /// VoiceOver's own running flag (written by the screen reader, `vot`).
     public static let voiceOverRunning = "VOTIsRunningKey"
     public static let voiceOverDomain = "com.apple.VoiceOverTouch"
-    /// The screen reader's Mach service (its job starts on demand).
     public static let voiceOverService = "com.apple.VoiceOverTouch"
 }
 
-/// Setter notifications (§4; the system's own reactions are not posted by SwiftCode).
 public enum SimNotifications {
     public static let styleChanged = "com.apple.UIKit.SystemUIServiceUserInterfaceStyleNotification"
     public static let glassTint = "UIViewGlassTintAmountUpdateNotification"
@@ -176,24 +153,18 @@ public enum SimNotifications {
     public static let backgroundContrast = "com.apple.accessibility.enhance.background.contrast.status"
     public static let volume = "com.apple.springboard.volumestate"
     public static let audioDevices = "com.apple.CoreSimulator.audio.devices_changed"
-    /// The notifications the reference's IDE watches to refresh its controls
-    /// (§7.1); SwiftCode's agent forwards them to the host.
     public static let watched = [
         styleChanged, contentSize, "UIViewGlassLegibilityDidChangeNotification",
         "com.apple.accessibility.cache.button.shapes.enabled", "com.apple.accessibility.voiceovertouch.status",
         "com.apple.accessibility.grayscale", "com.apple.accessibility.red-color-filter",
         "com.apple.accessibility.green-color-filter", "com.apple.accessibility.blue-color-filter",
-        // SwiftCode also watches these (the switches of §4.5–4.8 changed in the guest's Settings).
         "com.apple.accessibility.cache.reduce.motion", "com.apple.accessibility.cache.darken.system.colors.enabled",
         "com.apple.accessibility.cache.enhance.background.contrast",
     ]
 }
 
-// MARK: - Feature values
-
 public enum Appearance: String, CaseIterable, Sendable {
     case light, dark
-    /// `UserInterfaceStyleMode` (§4.1).
     public var mode: Int { self == .light ? 1 : 2 }
     public init?(mode: Int) {
         switch mode {
@@ -205,8 +176,6 @@ public enum Appearance: String, CaseIterable, Sendable {
     public var title: String { self == .light ? "Light" : "Dark" }
 }
 
-/// The 12 text sizes, in order (§4.4). `rawValue` is the `simctl ui
-/// content_size` name.
 public enum ContentSize: String, CaseIterable, Sendable {
     case extraSmall = "extra-small", small, medium, large, extraLarge = "extra-large"
     case extraExtraLarge = "extra-extra-large", extraExtraExtraLarge = "extra-extra-extra-large"
@@ -218,7 +187,6 @@ public enum ContentSize: String, CaseIterable, Sendable {
     static let suffixes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL",
                            "AccessibilityM", "AccessibilityL", "AccessibilityXL", "AccessibilityXXL", "AccessibilityXXXL"]
     public var index: Int { Self.allCases.firstIndex(of: self)! }
-    /// `UIPreferredContentSizeCategoryName`.
     public var categoryName: String { "UICTContentSizeCategory" + Self.suffixes[index] }
     public init?(categoryName: String) {
         guard categoryName.hasPrefix("UICTContentSizeCategory"),
@@ -226,15 +194,12 @@ public enum ContentSize: String, CaseIterable, Sendable {
         self = Self.allCases[i]
     }
     public var isAccessibility: Bool { index >= 7 }
-    /// Increment and decrement stop at the ends (§4.4).
     public func stepped(by delta: Int) -> ContentSize { Self.allCases[min(Self.allCases.count - 1, max(0, index + delta))] }
-    /// SwiftCode's labels (the IDE's slider, the viewer's menu).
     public var title: String {
         ["Extra Small", "Small", "Medium", "Large (Default)", "Extra Large", "Extra Extra Large",
          "Extra Extra Extra Large", "Accessibility Medium", "Accessibility Large", "Accessibility Extra Large",
          "Accessibility Extra Extra Large", "Accessibility Extra Extra Extra Large"][index]
     }
-    /// Accepts the simctl names and the category names.
     public init?(argument: String) {
         if let s = ContentSize(rawValue: argument.lowercased().replacingOccurrences(of: "_", with: "-")) { self = s; return }
         if let s = ContentSize(categoryName: argument) { self = s; return }
@@ -242,10 +207,6 @@ public enum ContentSize: String, CaseIterable, Sendable {
     }
 }
 
-/// Color filters (§4.3). **SwiftCode decision** (open question Q3): the filter
-/// type codes are bits — grayscale 1, protanopia 2 (the observed code),
-/// deuteranopia 4, tritanopia 8 — and each colour filter has its own
-/// intensity key, Red/Green/Blue `ColorCorrectionIntensity`.
 public enum ColorFilter: String, CaseIterable, Sendable {
     case none, protanopia, deuteranopia, tritanopia, grayscale
 
@@ -262,7 +223,6 @@ public enum ColorFilter: String, CaseIterable, Sendable {
         guard let f = Self.allCases.first(where: { $0.typeCode == typeCode }) else { return nil }
         self = f
     }
-    /// The intensity key of a colour filter (nil for none and grayscale).
     public var intensityKey: String? {
         switch self {
         case .protanopia: "MADisplayFilterRedColorCorrectionIntensity"
@@ -271,7 +231,6 @@ public enum ColorFilter: String, CaseIterable, Sendable {
         default: nil
         }
     }
-    /// The per-filter notification the setter posts (§4.3).
     public var notification: String? {
         switch self {
         case .protanopia: "com.apple.accessibility.red-color-filter"
@@ -280,7 +239,6 @@ public enum ColorFilter: String, CaseIterable, Sendable {
         default: nil
         }
     }
-    /// The labels of §7.1.
     public var title: String {
         switch self {
         case .none: "None"
@@ -308,7 +266,6 @@ public enum GlassLook: String, CaseIterable, Sendable {
     case clear, tinted
 }
 
-/// The switches of §4.5–4.9.
 public enum AccessibilitySwitch: String, CaseIterable, Sendable {
     case reduceMotion = "reduce-motion"
     case increaseContrast = "increase-contrast"
@@ -335,7 +292,6 @@ public enum AccessibilitySwitch: String, CaseIterable, Sendable {
             self = s
         }
     }
-    /// The key the getter reads.
     public var key: String {
         switch self {
         case .reduceMotion: SimPrefs.reduceMotion
@@ -347,7 +303,6 @@ public enum AccessibilitySwitch: String, CaseIterable, Sendable {
     }
 }
 
-/// One change of a device setting.
 public enum SimSetting: Equatable, Sendable {
     case appearance(Appearance)
     case liquidGlass(opacity: Double?, look: GlassLook?)
@@ -357,21 +312,14 @@ public enum SimSetting: Equatable, Sendable {
     case accessibility(AccessibilitySwitch, Bool)
 }
 
-// MARK: - The mapping (§4)
-
 public enum SimFeatureMapping {
     private static func ax(_ key: String, _ on: Bool) -> PreferenceWrite {
         PreferenceWrite(SimPrefs.accessibility, key, .int(on ? 1 : 0))
     }
 
-    /// The writes and setter notifications of one change.
     public static func plan(for setting: SimSetting) -> SettingsPlan {
         switch setting {
         case .appearance(let a):
-            // §4.1: the key. The reference's setter goes through UIKit's style
-            // service; under SwiftCode (Q8) writing the key through cfprefsd is
-            // enough: SpringBoard sees it, posts the style notification
-            // itself and apps flip, so the setter posts nothing.
             return SettingsPlan(writes: [PreferenceWrite(SimPrefs.styleDomain, SimPrefs.styleKey, .int(a.mode))])
         case .liquidGlass(let opacity, let look):
             var p = SettingsPlan()
@@ -401,7 +349,6 @@ public enum SimFeatureMapping {
             p.writes.append(ax(SimPrefs.grayscale, filter == .grayscale))
             p.writes.append(ax(SimPrefs.grayscaleChecked, true))
             p.notifications = [SimNotifications.filterChanged, SimNotifications.filterForceUpdate]
-            // The per-filter name; turning a filter off announces all three.
             if let n = filter.notification {
                 p.notifications.append(n)
             } else if filter == .none {
@@ -411,7 +358,6 @@ public enum SimFeatureMapping {
         case .contentSize(let size):
             var p = SettingsPlan(writes: [PreferenceWrite(SimPrefs.uikit, SimPrefs.contentSize, .string(size.categoryName))],
                                  notifications: [SimNotifications.contentSize])
-            // simctl sets the extended range with an accessibility size (§4.4).
             if size.isAccessibility {
                 p.writes.append(PreferenceWrite(SimPrefs.preferencesFramework, SimPrefs.extendedRange, .bool(true)))
             }
@@ -422,8 +368,6 @@ public enum SimFeatureMapping {
         case .accessibility(let s, let on):
             switch s {
             case .reduceMotion:
-                // §4.5: pointer effect scaling goes off with it; SwiftCode
-                // removes that key again when Reduce Motion is turned off.
                 return SettingsPlan(writes: [ax(SimPrefs.reduceMotion, on),
                                              PreferenceWrite(SimPrefs.accessibility, SimPrefs.pointerScaling, on ? .int(0) : nil)],
                                     notifications: [SimNotifications.axCache, SimNotifications.reduceMotion])
@@ -440,28 +384,16 @@ public enum SimFeatureMapping {
                                              ax(SimPrefs.applicationAccessibility, on)],
                                     notifications: [SimNotifications.axCache, SimNotifications.appAXCache, SimNotifications.appStatus],
                                     waitForVoiceOver: on,
-                                    // **SwiftCode decision** (§I.9): the screen reader's job is
-                                    // started on demand through its Mach service; under SwiftCode
-                                    // nothing else asks for it, so the agent does.
                                     startServices: on ? [SimPrefs.voiceOverService] : [])
             }
         }
     }
 
-    /// Whether a setting survives a reboot (§5). Color filters do not.
     public static func persists(_ setting: SimSetting) -> Bool {
         if case .colorFilter = setting { return false }
         return true
     }
 
-    /// What the agent does when it connects after a boot (**SwiftCode decision**,
-    /// §I.9). No screen reader runs yet at that point, so VoiceOver's running
-    /// key, if set, is left over from a device that was stopped without the
-    /// reader ending (SwiftCode ends a device's processes with a kill). With
-    /// VoiceOver enabled: start the reader's on-demand job, as a live switch
-    /// does (the reader rewrites the key). With it disabled: remove a
-    /// left-over running key. Nothing else is reapplied (the preferences
-    /// persist on their own).
     public static func bootPlan(_ state: SimSettingsState) -> SettingsPlan? {
         if state.isOn(.voiceOver) { return SettingsPlan(startServices: [SimPrefs.voiceOverService]) }
         guard state.voiceOverRunning else { return nil }
@@ -469,7 +401,6 @@ public enum SimFeatureMapping {
                                      PreferenceWrite(SimPrefs.voiceOverDomain, SimPrefs.voiceOverRunning, nil)])
     }
 
-    /// Every key the getters read (§6 item 3).
     public static let stateReads: [PreferenceRead] = [
         PreferenceRead(SimPrefs.styleDomain, SimPrefs.styleKey),
         PreferenceRead(SimPrefs.uikit, SimPrefs.glassTint),
@@ -485,7 +416,6 @@ public enum SimFeatureMapping {
          PreferenceRead(SimPrefs.voiceOverDomain, SimPrefs.voiceOverRunning)]
 }
 
-/// The device's settings as read back (absent keys read as the defaults).
 public struct SimSettingsState: Equatable, Sendable {
     public var appearance: Appearance = .light
     public var glassOpacity: Double?
@@ -499,7 +429,6 @@ public struct SimSettingsState: Equatable, Sendable {
 
     public init() {}
 
-    /// From the answers of `SimFeatureMapping.stateReads` (tag → value).
     public init(values: [String: PrefValue]) {
         func v(_ d: String, _ k: String) -> PrefValue? { values[PreferenceRead(d, k).tag] }
         if let m = v(SimPrefs.styleDomain, SimPrefs.styleKey)?.intValue, let a = Appearance(mode: m) { appearance = a }
@@ -521,7 +450,6 @@ public struct SimSettingsState: Equatable, Sendable {
 
     public func isOn(_ s: AccessibilitySwitch) -> Bool { switches[s] ?? false }
 
-    /// One line per setting, `name value` (the control socket's `settings` answer).
     public var lines: [String] {
         var out = ["appearance \(appearance.rawValue)",
                    "liquid-glass \(glassOpacity.map { String(format: "%.2f", $0) } ?? "default") \(glassLook.rawValue)",
@@ -533,7 +461,6 @@ public struct SimSettingsState: Equatable, Sendable {
         return out
     }
 
-    /// Parses `lines` back (the IDE reads the control socket's answer).
     public init(lines: [String]) {
         self.init()
         for line in lines {

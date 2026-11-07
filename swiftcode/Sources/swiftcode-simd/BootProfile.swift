@@ -1,19 +1,3 @@
-// swiftcode-simd: the boot profile (diagnostics, off by default;
-// specs/simulator/performance-contract.md §2.5).
-//
-// `SWIFTCODE_BOOT_PROFILE=<path>` turns it on:
-//   - <path>.samples: every `SWIFTCODE_BOOT_PROFILE_INTERVAL_MS` (default 500)
-//     one line: host CPU of the whole process in the interval (guest mode,
-//     host kernel, VMM user code; in cores), host threads runnable (R) and
-//     in uninterruptible sleep (D), guest threads by state (in guest code,
-//     in a trap handler, blocked in a kernel wait), kernel-lock busy share,
-//     live images, and the images that used the most CPU in the interval.
-//   - <path> (at the end of the run): one row per process image (launch,
-//     build, first guest instruction, libSystem milestone, end, teardown;
-//     its vCPU threads' CPU split, KVM exits, faults, run-queue wait, thread
-//     start latency, kernel-lock time), and the same summed by program.
-// The run must end by itself (`--timeout-ms`) for the table to be written.
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -35,10 +19,8 @@ final class BootProfile: @unchecked Sendable {
 
     init(path: String) { self.path = path }
 
-    /// The launcher (for the prebuilt-VM counters in the report).
     weak var launcherForReport: VMMLauncher?
 
-    /// Turns on the counters the profile reads. Call before the first image.
     func enable() {
         VCPUPool.profiling = true
         KernelLock.profileProcesses = true
@@ -48,34 +30,19 @@ final class BootProfile: @unchecked Sendable {
         ns == 0 ? "-" : String(format: "%.3f", Double(ns &- startNs) / 1e9)
     }
 
-    // MARK: Guest PC samples
-
-    /// `SWIFTCODE_BOOT_PROFILE_PC_HZ=<n>` (default 0 = off): guest PC samples
-    /// per second of every vCPU in guest code, by image (<path>.pcs).
     static let pcHz: UInt32 = getenv("SWIFTCODE_BOOT_PROFILE_PC_HZ").flatMap { UInt32(String(cString: $0)) } ?? 0
     private let pcLock = HostMutex(name: "boot profile PCs")
-    /// "program|image" -> samples; "program|image+0xNNN000" (4 KiB buckets).
     private var pcImages: [String: UInt64] = [:]
     private var pcBuckets: [String: UInt64] = [:]
     private var pcTotal: UInt64 = 0
-    /// "pc-offset lr-offset" -> samples, for the loader (`dyld_sim`).
     private var loaderSamples: [String: UInt64] = [:]
 
-    /// `SWIFTCODE_BOOT_PROFILE_PC_RAW=<program>` (with `…_PC_HZ`): instead of
-    /// the by-image table, the samples of that program go to <path>.pcraw as one line, "host-ns pid
-    /// pc lr ra0 ra1 …" (hex guest addresses, the frame-pointer chain as
-    /// read at the sample), for a timeline of what one process ran
-    /// (visionos.md §10.7; symbolized offline in the guest).
     static let rawProgram: String? = getenv("SWIFTCODE_BOOT_PROFILE_PC_RAW").map { String(cString: $0) }.flatMap { $0.isEmpty ? nil : $0 }
     private lazy var rawFile: FileHandle? = {
         FileManager.default.createFile(atPath: path + ".pcraw", contents: nil)
         return FileHandle(forWritingAtPath: path + ".pcraw")
     }()
 
-    /// The timeline sampler (`SWIFTCODE_BOOT_PROFILE_PC_RAW`): kicks only that
-    /// program's vCPUs, waits for each sample (they land within
-    /// microseconds) and writes it at once, so the samples are as dense as
-    /// `…_PC_HZ` allows. It replaces the by-image sampler.
     private func startRawSampler(launcher: VMMLauncher, program: String) {
         let thread = Thread { [self] in
             let interval = UInt32(1_000_000 / max(1, Self.pcHz))
@@ -123,20 +90,14 @@ final class BootProfile: @unchecked Sendable {
             var pending: [(image: GuestImageInstance, worker: VCPUPool.Worker, count: UInt64)] = []
             while true {
                 usleep(interval)
-                // Collect the samples asked for last time (the kick lands within microseconds).
                 for p in pending where p.worker.sampleCount.load(ordering: .acquiring) != p.count {
                     let pc = p.worker.samplePC.load(ordering: .relaxed)
                     let program = (p.image.record.executable as NSString).lastPathComponent
                     let (image, offset) = p.image.attributeForProfile(pc)
-                    // Loader samples in detail: PC and return address offsets
-                    // (<path>.loader; symbolized offline from the symbol table).
                     var loaderKey: String?
                     if image == "dyld_sim" {
                         let (lrImage, lrOffset) = p.image.attributeForProfile(p.worker.sampleLR.load(ordering: .relaxed))
                         loaderKey = String(format: "0x%llx ", offset) + (lrImage == "dyld_sim" ? String(format: "0x%llx", lrOffset) : lrImage)
-                        // Up to six more callers through the frame-pointer
-                        // chain (read now; the thread may have moved on, so
-                        // this is approximate).
                         for ra in p.worker.sampleStack {
                             let (raImage, raOffset) = p.image.attributeForProfile(ra)
                             loaderKey! += " " + (raImage == "dyld_sim" ? String(format: "0x%llx", raOffset) : raImage)
@@ -161,8 +122,6 @@ final class BootProfile: @unchecked Sendable {
         thread.start()
     }
 
-    /// The PC table: by image (all programs), by program and image, and the
-    /// hottest 4 KiB buckets.
     private func pcReport() -> String {
         let (images, buckets, total) = pcLock.withLock { (pcImages, pcBuckets, pcTotal) }
         guard total > 0 else { return "" }
@@ -178,17 +137,10 @@ final class BootProfile: @unchecked Sendable {
         return out
     }
 
-    // MARK: Trap costs (`SWIFTCODE_BOOT_PROFILE_TRAPS=1`)
-
-    /// Per trap number, before and after the image's libSystem milestone:
-    /// count, wall time in `handleTrap` (lock waits included), and the
-    /// handling thread's user and system CPU (getrusage, µs) and minor
-    /// faults. Task-local traps included. Two getrusage calls per trap.
     static let trapCosts = shared != nil
         && (getenv("SWIFTCODE_BOOT_PROFILE_TRAPS").map { String(cString: $0) == "1" } ?? false)
     struct TrapCost { var count: UInt64 = 0; var wallNs: UInt64 = 0; var userUs: UInt64 = 0; var sysUs: UInt64 = 0; var faults: UInt64 = 0 }
     private let costLock = HostMutex(name: "boot profile trap costs")
-    /// Key: trap number (faults -1000) * 2 + (1 before the milestone).
     private var costs: [Int64: TrapCost] = [:]
 
     func recordTrapCost(number: Int64, preMilestone: Bool, wallNs: UInt64,
@@ -206,9 +158,6 @@ final class BootProfile: @unchecked Sendable {
         }
     }
 
-    /// Arguments of chosen traps (`SWIFTCODE_BOOT_PROFILE_TRAPS=1`; guest-cpu.md
-    /// §6): how often each distinct key (a sysctl name, a proc_info flavor,
-    /// an madvise advice) was asked for.
     private var argCounts: [String: UInt64] = [:]
     func recordTrapArgs(_ key: String) {
         costLock.withLock { argCounts[key, default: 0] &+= 1 }
@@ -230,15 +179,11 @@ final class BootProfile: @unchecked Sendable {
             let pre = key & 1 == 1
             let number = (key - (pre ? 1 : 0)) / 2
             out += "# \(pre ? "pre" : "post"),\(number),\(c.count),\(c.wallNs / 1_000_000),\(c.userUs / 1000),\(c.sysUs / 1000),\(c.faults),"
-                // swiftlint:disable:next empty_count - a counter, not a collection
                 + "\(c.count == 0 ? 0 : c.wallNs / c.count / 1000)\n"
         }
         return out
     }
 
-    // MARK: The sampler
-
-    /// Starts the sampler thread (writes <path>.samples).
     func startSampler(launcher: VMMLauncher, lock: KernelLock) {
         let thread = Thread { [self] in
             guard let out = fopen(path + ".samples", "w") else { return }
@@ -267,7 +212,6 @@ final class BootProfile: @unchecked Sendable {
                         guard let ctx = w.context as? ThreadContext else { continue }
                         if !w.inHandler.load(ordering: .relaxed) { inGuest += 1 } else if ctx.blockedInKernel { blocked += 1 } else {
                             inHandler += 1
-                            // A long busy handler (not a kernel wait): which trap.
                             let age = nowMs &- w.handlerSince.load(ordering: .relaxed)
                             if age >= 200 {
                                 long.append("\((image.record.executable as NSString).lastPathComponent):\(image.pid):"
@@ -307,7 +251,6 @@ final class BootProfile: @unchecked Sendable {
         thread.start()
     }
 
-    /// The number of host mappings (VMAs) of this process (/proc/self/maps lines).
     static func hostMappingCount() -> Int {
         guard let f = fopen("/proc/self/maps", "r") else { return -1 }
         defer { fclose(f) }
@@ -321,18 +264,14 @@ final class BootProfile: @unchecked Sendable {
         return n
     }
 
-    /// The whole process's CPU times (clock ticks): user (guest included),
-    /// system, guest.
     private func processTimes() -> (user: UInt64, system: UInt64, guest: UInt64) {
         guard let text = try? String(contentsOfFile: "/proc/self/stat", encoding: .utf8),
               let close = text.lastIndex(of: ")") else { return (0, 0, 0) }
         let f = text[text.index(close, offsetBy: 2)...].split(separator: " ")
-        // After "pid (comm) ": f[0] = state (field 3); utime 14, stime 15, guest_time 43.
         guard f.count > 40 else { return (0, 0, 0) }
         return (UInt64(f[11]) ?? 0, UInt64(f[12]) ?? 0, UInt64(f[40]) ?? 0)
     }
 
-    /// Host threads of this process runnable (R) and in uninterruptible sleep (D).
     private func hostThreadStates() -> (Int, Int) {
         guard let tids = try? FileManager.default.contentsOfDirectory(atPath: "/proc/self/task") else { return (0, 0) }
         var r = 0, d = 0
@@ -343,9 +282,6 @@ final class BootProfile: @unchecked Sendable {
         return (r, d)
     }
 
-    // MARK: The report
-
-    /// Writes the per-image table and the per-program sums to `path`.
     func writeReport(records: [ImageRecord]) {
         let ticks = Double(hostClockTicks)
         func s(_ t: UInt64) -> String { String(format: "%.3f", Double(t) / ticks) }
@@ -353,9 +289,7 @@ final class BootProfile: @unchecked Sendable {
         func span(_ from: UInt64, _ to: UInt64) -> String { from == 0 || to == 0 ? "-" : ms(to &- from) }
         var out = "# swiftcode boot profile: \(records.count) images, \(String(format: "%.1f", Double(monotonicNanoseconds() &- startNs) / 1e9)) s\n"
         out += "# " + BackingStats.report + "\n"
-        // Thread-start and wakeup latency (thread-latency.md §2).
         out += "# latency (SWIFTCODE_VCPU_WARM=\(VCPUPool.warmTarget), SWIFTCODE_WAKE_AFTER_UNLOCK=\(KernelLock.wakeAfterUnlock ? 1 : 0)): "
-            // swiftlint:disable:next empty_count - sample counts, not collections
             + (VCPUPool.startLatency + VCPUPool.creationPhases + [KernelLock.wakeLatency]).filter { $0.count > 0 }.map(\.summary).joined(separator: " | ") + "\n"
         out += "# " + (launcherForReport?.prebuilt.report ?? "") + "; host mappings now \(Self.hostMappingCount())\n"
         if let arena = SharedFileArena.shared {

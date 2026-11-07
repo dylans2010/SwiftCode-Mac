@@ -1,8 +1,5 @@
 import AppKit
 
-/// Building blocks of the project editor's tabs (reference-ui-3.md §1):
-/// collapsible sections with a disclosure triangle, and small tables with
-/// column headers, an empty text and +/− buttons.
 @MainActor
 final class CollapsibleSection: NSStackView {
     let title: String
@@ -43,14 +40,12 @@ final class CollapsibleSection: NSStackView {
         onToggle?(body.isHidden)
     }
 
-    /// Collapses or expands as a click on the triangle would.
     func setCollapsed(_ c: Bool) {
         disclosure.state = c ? .off : .on
         toggled()
     }
 }
 
-/// A fixed-height table of prebuilt cell views.
 @MainActor
 final class StaticTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     let table = NSTableView()
@@ -60,7 +55,6 @@ final class StaticTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     let emptyLabel: NSTextField?
     var plusButton: NSButton?
     var minusButton: NSButton?
-    /// Owner object ID (a build phase) and per-row object IDs.
     var identifier: String?
     var itemIDs: [String] = []
 
@@ -93,8 +87,6 @@ final class StaticTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         container.orientation = .vertical
         container.alignment = .leading
         container.spacing = 2
-        // The scroll view tiles its own subviews, so the placeholder lives
-        // in a wrapper on top of it rather than inside it.
         let frame = NSView()
         frame.translatesAutoresizingMaskIntoConstraints = false
         frame.addSubview(scroll)
@@ -107,8 +99,6 @@ final class StaticTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
             e.textColor = .tertiaryLabelColor
             e.alignment = .center
             e.translatesAutoresizingMaskIntoConstraints = false
-            // The placeholder sits in the table body: the area below the
-            // column header, centered both ways. A guide spans that body.
             frame.addSubview(e)
             let body = NSLayoutGuide()
             frame.addLayoutGuide(body)
@@ -139,7 +129,6 @@ final class StaticTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         return rows[row][i]
     }
 
-    /// Text of every cell (tests).
     var texts: [[String]] {
         rows.map { $0.map { v in
             if let f = v as? NSTextField { return f.stringValue }

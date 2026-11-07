@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 
-/// Logical execution stages for grouping Assist tool activity items.
 public enum ToolExecutionStage: String, CaseIterable, Identifiable, Sendable {
     case gitOperations = "Git Operations"
     case buildAndTest = "Build & Verification"
@@ -43,7 +42,6 @@ public enum ToolExecutionStage: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// A grouped collection of tool activity items belonging to the same stage.
 public struct ToolExecutionGroup: Identifiable {
     public let stage: ToolExecutionStage
     public var tools: [ToolActivityItem]

@@ -28,7 +28,6 @@ public class StoreKitSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Left Sidebar
         let leftSidebarView = StoreKitSidebarView().environment(session)
         let leftVC = NSHostingController(rootView: leftSidebarView)
         leftVC.view.autoresizingMask = [.width, .height]
@@ -40,7 +39,6 @@ public class StoreKitSplitViewController: NSSplitViewController {
         self.leftItem = leftItem
         addSplitViewItem(leftItem)
 
-        // 2. Center Workspace Editor
         let centerWorkspaceView = StoreKitCenterWorkspaceView().environment(session)
         let centerVC = NSHostingController(rootView: centerWorkspaceView)
         centerVC.sizingOptions = []
@@ -51,7 +49,6 @@ public class StoreKitSplitViewController: NSSplitViewController {
         self.centerItem = centerItem
         addSplitViewItem(centerItem)
 
-        // 3. Right Properties Inspector
         let rightInspectorView = StoreKitInspectorView().environment(session)
         let rightVC = NSHostingController(rootView: rightInspectorView)
         rightVC.sizingOptions = []
@@ -64,7 +61,6 @@ public class StoreKitSplitViewController: NSSplitViewController {
         self.rightItem = rightItem
         addSplitViewItem(rightItem)
 
-        // Restore split configurations or defaults
         restoreLayoutStates()
     }
 
@@ -91,14 +87,12 @@ public class StoreKitSplitViewController: NSSplitViewController {
     }
 }
 
-// Wrapper for center panel managing editor routing based on Session's selection state
 struct StoreKitCenterWorkspaceView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var simulationService = StoreKitSimulationService.shared
 
     var body: some View {
         VStack(spacing: 0) {
-            // Workspace Status Indicator Bar / Breadcrumb Navigation
             HStack(spacing: 8) {
                 Image(systemName: "square.grid.2x2")
                     .foregroundColor(.accentColor)
@@ -128,7 +122,6 @@ struct StoreKitCenterWorkspaceView: View {
                         .background(Color.yellow.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
                 }
 
-                // Error Diagnostics Indicator Badge
                 let issuesCount = StoreKitValidationService.shared.validate(config: session.activeConfig).count
                 if issuesCount > 0 {
                     HStack(spacing: 4) {

@@ -30,7 +30,6 @@ struct CloudAuthViews: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    /// Header Branding Card
                     GroupBox {
                         VStack(spacing: 8) {
                             Image(systemName: "icloud.fill")
@@ -52,7 +51,6 @@ struct CloudAuthViews: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    /// Credentials Entry Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Account Details")
@@ -134,7 +132,6 @@ struct CloudAuthViews: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    /// Social Providers Card
                     if mode != .forgotPassword {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
@@ -159,7 +156,6 @@ struct CloudAuthViews: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    /// Toggle View mode button
                     Button {
                         withAnimation {
                             switchMode()
@@ -313,8 +309,6 @@ struct CloudAuthViews: View {
         return errStr
     }
 }
-
-/// MARK: - Google and GitHub Branded Buttons
 
 struct BrandedGoogleButton: View {
     let action: () -> Void

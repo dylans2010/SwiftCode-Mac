@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeGoogleAuth
 
-// The token-endpoint client: request building, tolerant token
-// parsing, error mapping, userinfo, and tokeninfo. No live network:
-// every test runs through StubURLProtocol.
-
 struct GoogleTokenClientTests {
 
     @Test("The code exchange posts the PKCE form body and decodes the tokens")

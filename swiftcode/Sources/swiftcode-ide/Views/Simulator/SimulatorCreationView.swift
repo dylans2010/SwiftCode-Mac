@@ -1,9 +1,3 @@
-// SimulatorCreationView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorCreationView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: create-simulator form (name + device type + runtime selection, simctl create)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
@@ -34,7 +28,6 @@ struct SimulatorCreationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Create New Simulator", systemImage: "iphone.badge.play")
                     .font(.headline)
@@ -47,10 +40,8 @@ struct SimulatorCreationView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Card 1: Device Configuration
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -86,7 +77,6 @@ struct SimulatorCreationView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Target SDK Runtime Picker (The 4-State UI)
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -111,7 +101,6 @@ struct SimulatorCreationView: View {
                 }
             }
 
-            // Footer Actions
             HStack {
                 Spacer()
                 Button("Create Device") {

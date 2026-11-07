@@ -1,26 +1,3 @@
-// Shut-down seeding of samples HealthKit does not let apps save
-// (health-simulation.md §6.2–§6.5, §8.6 H-13…H-15, round HEALTH-3).
-//
-// One row each in `objects`, `samples` and the kind table
-// (`quantity_samples`, `category_samples`, `ecg_samples`) of
-// healthdb_secure.sqlite, with the provenance of the device's own system
-// source made on this device (`sync_provenance` 0), `objects.type` 1, a
-// fresh UUID and the next `data_id`. Quantities are stored in the type's
-// store unit (§3.1: AFib burden as a fraction, wrist temperature in degC,
-// breathing disturbances as a count). ECGs get the stored classification of
-// §6.5's table, the average heart rate in bpm, the symptoms status and an
-// **empty voltage payload**: no waveform (H-14; the payload format is not
-// known). Dates are seconds since 2001 (§6.2).
-//
-// The provenance: a `data_provenances` row of the system source with
-// `sync_provenance` 0 is reused when there is one. Otherwise one is made by
-// copying a row of this device (the agent's, made when it saved samples, or
-// any local one) with `source_id` set to the system source and `device_id`
-// to the device's own `source_devices` row; the copy takes every column of
-// the row it copies, so SwiftCode needs to know only the documented ones.
-//
-// Only types whose store code the spec records can be seeded (§6.3).
-
 import Foundation
 import SwiftCodeSimFeatures
 
@@ -54,12 +31,10 @@ public enum HealthSeedError: Error, CustomStringConvertible, Equatable {
 }
 
 extension HealthStore {
-    /// Stored ECG classification for a public one (§6.5: 3→1, 4→2, 6→3, 5→4, 1→5, 2→6, 0→0).
     public static func storedECGClassification(_ value: Int) -> Int {
         [0: 0, 1: 3, 2: 4, 3: 6, 4: 5, 5: 1, 6: 2][value] ?? 0
     }
 
-    /// The system source's `sources` ROWID (`local_device` 1).
     public func systemSourceID() throws -> Int? {
         try open().query("SELECT ROWID FROM sources WHERE local_device = 1 ORDER BY ROWID LIMIT 1").first?.first?.int
     }
@@ -69,17 +44,14 @@ extension HealthStore {
         return try SQLiteDatabase(path: protectedPath)
     }
 
-    /// The columns of a table (to copy a row whole).
     static func columns(_ db: SQLiteDatabase, _ table: String) throws -> [String] {
         try db.query("PRAGMA table_info(\(table))").compactMap { $0.count > 1 ? $0[1].text : nil }
     }
 
-    /// The device's own `source_devices` row for `model` ("Watch", "iPhone").
     func deviceRow(model: String) throws -> Int? {
         try open().query("SELECT ROWID FROM source_devices WHERE model = ? ORDER BY ROWID LIMIT 1", [.text(model)]).first?.first?.int
     }
 
-    /// A local provenance of the system source (made when missing; see the header).
     func systemProvenance(_ db: SQLiteDatabase, system: Int, model: String) throws -> (Int64, Bool) {
         if let p = try db.query("SELECT ROWID FROM data_provenances WHERE source_id = ? AND sync_provenance = 0 ORDER BY ROWID LIMIT 1",
                                 [.int(Int64(system))]).first?.first?.int {
@@ -107,8 +79,6 @@ extension HealthStore {
         return (id, true)
     }
 
-    /// Seeds `samples` (read-only or any type with a known code). `model` is
-    /// the device's `HKDevice` model ("Watch" on a watch, "iPhone" on a phone).
     @discardableResult
     public func seed(_ samples: [HealthSample], model: String, now: Date = Date()) throws -> HealthSeedResult {
         for s in samples {

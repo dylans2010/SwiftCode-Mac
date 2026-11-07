@@ -1,25 +1,12 @@
-// Capture of the kernel personality's objects into snapshot records
-// (specs/simulator/snapshot.md §2.3, §2.4, §6). Runs with the kernel lock
-// held, after `KernelSnapshotQuiesce.classify` said the system is settled.
-// Objects get ids in a first pass and are encoded in a second, so records may
-// reference each other freely (the restore creates every object before it
-// fills any).
-
 import Foundation
 import SwiftCodeDarwinABI
 
-/// One image's input from the VMM.
 public struct SnapshotImageInput {
-    /// The image's kernel.
     public let kernel: DarwinKernel
-    /// Threads held by the VMM's gates, by `ObjectIdentifier` of their context.
     public var parked: [ObjectIdentifier: SnapshotParkedThread]
-    /// FP/SIMD state of the vCPU of a blocked thread.
     public var fpState: (ThreadContext) -> [UInt8]?
-    /// The image was launched suspended and its main thread has not started.
     public var mainStart: SnapshotMainStart?
 
-    /// Collects one image's input; `mainStart` is nil once the main thread has started.
     public init(kernel: DarwinKernel, parked: [ObjectIdentifier: SnapshotParkedThread],
                 fpState: @escaping (ThreadContext) -> [UInt8]?, mainStart: SnapshotMainStart? = nil) {
         self.kernel = kernel
@@ -29,23 +16,15 @@ public struct SnapshotImageInput {
     }
 }
 
-/// Builds the records of one snapshot.
 public final class KernelSnapshotCapture {
-    /// The system being captured.
     public let system: DarwinSystem
-    /// The quiesce result the capture works from (its blocked threads and refusals).
     public let classification: SnapshotClassification
-    /// Census: object counts by kind.
     public private(set) var counts: [String: Int] = [:]
-    /// Objects the restore cannot rebuild, by kind (the snapshot is refused
-    /// for writing, a census just reports them).
     public private(set) var unsupported: [String: Int] = [:]
-    /// The records built by `capture`, ready for `SnapshotManifest.encode`.
     public private(set) var records: [SnapshotRecord] = []
 
     private var nextID: UInt64 = 100
     private var ids: [ObjectIdentifier: UInt64] = [:]
-    /// Objects to encode, in discovery order.
     private var ports: [IPCPort] = []
     private var portSets: [IPCPortSet] = []
     private var semaphores: [KernelSemaphore] = []
@@ -53,9 +32,7 @@ public final class KernelSnapshotCapture {
     private var hostFiles: [GuestFile] = []
     private var pipes: [KernelPipe] = []
     private var kqueues: [(KQueue, DarwinKernel)] = []
-    /// Shared memory objects (memory entries, shared mappings), with their ids.
     public private(set) var sharedObjects: [(id: UInt64, object: SharedMemoryObject)] = []
-    /// After `capture`: a newly seen shared object gets its record at once.
     private var recordsDone = false
     private var spaces: [MachIPC] = []
     private var objectFiles: [ObjectIdentifier: DarwinOpenFile] = [:]
@@ -65,12 +42,9 @@ public final class KernelSnapshotCapture {
     private var posixSemaphores: [PosixSemaphore] = []
     private let hostNowNs = KernelClock.now()
 
-    /// The fixed record id of the system record.
     public static let systemID: UInt64 = 1
-    /// The fixed record id of the clock record.
     public static let clockID: UInt64 = 2
 
-    /// Prepares a capture of `system`; `capture` then runs with the kernel lock held.
     public init(system: DarwinSystem, classification: SnapshotClassification) {
         self.system = system
         self.classification = classification
@@ -79,7 +53,6 @@ public final class KernelSnapshotCapture {
     func count(_ kind: String, _ n: Int = 1) { counts[kind, default: 0] += n }
     func refuse(_ kind: String) { unsupported[kind, default: 0] += 1 }
 
-    /// The id of an object (assigned on first sight). `isNew` tells the caller to enqueue it.
     private func id(of object: AnyObject) -> (id: UInt64, isNew: Bool) {
         let key = ObjectIdentifier(object)
         if let v = ids[key] { return (v, false) }
@@ -88,18 +61,13 @@ public final class KernelSnapshotCapture {
         return (nextID, true)
     }
 
-    /// The id of an object already seen (0 = none or unseen).
     func existingID(_ object: AnyObject?) -> UInt64 {
         guard let object else { return 0 }
         return ids[ObjectIdentifier(object)] ?? 0
     }
 
-    /// The record id of `kernel`'s image record, or 0 if the capture has not seen it.
     public func imageID(of kernel: DarwinKernel) -> UInt64 { existingID(kernel) }
-    /// The record id of the thread record for `context`, or 0 if the capture has not seen it.
     public func threadID(of context: ThreadContext) -> UInt64 { existingID(context) }
-
-    // MARK: Discovery
 
     private func see(_ p: IPCPort?) {
         guard let p else { return }
@@ -190,7 +158,6 @@ public final class KernelSnapshotCapture {
             } else if let sock = o as? InetSocket {
                 if id(of: sock).isNew { inetSockets.append(sock) }
             } else if o is RouteSocket || o is KernelControlSocket {
-                // Stateless but for unread answers, which are dropped.
             } else if let shm = o as? PosixShmDescriptor {
                 see(shm.segment)
             } else if let sem = o as? PosixSemDescriptor {
@@ -247,18 +214,12 @@ public final class KernelSnapshotCapture {
         }
     }
 
-    // MARK: Capture
-
-    /// Captures the system and `images`. `clock`: the guest counter and its frequency now.
     public func capture(images: [SnapshotImageInput], guestCounter: UInt64, frequency: UInt64, bootCounter: UInt64) {
-        // The system is quiesced (no other thread runs): the lock split's
-        // checks are off while every object is read (`mach-ipc-locking.md` §4.2).
         let threadLocks = KernelThreadLocks.current
         let wasQuiesced = threadLocks.quiesced
         threadLocks.quiesced = true
         defer { threadLocks.quiesced = wasQuiesced }
         precondition(system.lock.isHeldByCurrentThread, "capture needs the kernel lock")
-        // Pass 1: ids.
         let processes = system.processes.values.sorted { $0.pid < $1.pid }
         for p in processes { _ = id(of: p) }
         for input in images {
@@ -292,7 +253,6 @@ public final class KernelSnapshotCapture {
             }
         }
 
-        // Pass 2: records.
         var sys = SnapshotFields()
         sys.u64(ST.System.lastPID, UInt64(bitPattern: Int64(system.lastPID)))
         sys.u64(ST.System.nextPIDVersion, UInt64(system.nextPIDVersion))
@@ -366,7 +326,6 @@ public final class KernelSnapshotCapture {
         recordsDone = true
     }
 
-    /// The record id of a shared memory object (registered on first sight).
     public func sharedObjectID(_ o: SharedMemoryObject) -> UInt64 {
         let (oid, isNew) = id(of: o)
         guard isNew else { return oid }
@@ -378,8 +337,6 @@ public final class KernelSnapshotCapture {
         return oid
     }
 
-    /// Shared objects whose pages the VMM saves (anonymous ones, and file
-    /// views of files that are gone).
     public func savesPages(_ o: SharedMemoryObject) -> Bool {
         guard o.isFileView else { return true }
         guard let src = o.snapshotFileSource else { return false }
@@ -389,7 +346,6 @@ public final class KernelSnapshotCapture {
     private func encodeShared(_ o: SharedMemoryObject, id: UInt64) -> SnapshotRecord {
         var f = SnapshotFields()
         f.u64(ST.SharedMemory.size, o.size)
-        // A view of a file that is gone is restored as plain shared memory.
         f.bool(ST.SharedMemory.file, o.isFileView && !savesPages(o))
         f.u64(ST.SharedMemory.serial, o.serial)
         if let src = o.snapshotFileSource {
@@ -401,13 +357,9 @@ public final class KernelSnapshotCapture {
         return SnapshotRecord(kind: .sharedMemory, id: id, fields: f)
     }
 
-    /// A port's queue as the image has it: its messages, then the messages
-    /// of blocked senders whose send completes in the image (§4.2).
     private func queuedMessages(_ p: IPCPort) -> [KMessage] {
         Array(p.messages.all) + p.snapshotPendingSends.filter { classification.blocked[$0.context]?.queuedSend == true }.map(\.message)
     }
-
-    // MARK: Encoders (sockets, POSIX objects, locks, IOKit)
 
     private func encode(_ u: DescriptorUser) -> SnapshotFields {
         var g = SnapshotFields()
@@ -431,8 +383,6 @@ public final class KernelSnapshotCapture {
         f.ref(U.peer, existingID(s.peer))
         if let l = s.logSink { f.string(U.logSink, l) }
         var flags: UInt64 = 0
-        // Bit 6: the host end of a host-provided answering socket (the DNS
-        // service); the restore resets that connection.
         for (bit, on) in [s.isConnected, s.cantReceiveMore, s.cantSendMore, s.closed, s.isListening, s.noSigPipe,
                           s.hostEndpoint != nil].enumerated() where on {
             flags |= 1 << UInt64(bit)
@@ -566,8 +516,6 @@ public final class KernelSnapshotCapture {
         return g
     }
 
-    // MARK: Encoders
-
     private func encode(_ p: DarwinProcess) -> SnapshotRecord {
         var f = SnapshotFields()
         typealias T = ST.Process
@@ -641,8 +589,6 @@ public final class KernelSnapshotCapture {
         if let v = k.exitValue { f.i64(T.exitValue, Int64(v)) }
         if let v = k.deathSignal { f.i64(T.deathSignal, Int64(v)) }
         f.list(T.sysctl, k.sysctl.entries.map(encode))
-        // A sigsuspend that restarts sets its mask again; the image keeps the
-        // mask from before it (the lowest thread id wins when several wait).
         var extended = k.extended
         if let saved = k.threadsByPort.values.sorted(by: { $0.threadID < $1.threadID })
             .compactMap({ classification.blocked[ObjectIdentifier($0)]?.savedSignalMask }).first {
@@ -687,7 +633,6 @@ public final class KernelSnapshotCapture {
         f.u64(T.mainThreadID, k.mainThread.threadID)
         records.append(SnapshotRecord(kind: .image, id: existingID(k), fields: f))
 
-        // Threads.
         for t in k.threadsByPort.values.sorted(by: { $0.threadID < $1.threadID }) {
             records.append(encodeThread(t, kernel: k, input: input))
         }
@@ -786,7 +731,6 @@ public final class KernelSnapshotCapture {
         }
         g.u64(W.newSPIOffset, UInt64(w.newSPIOffset))
         g.u64(W.managerPriority, UInt64(w.managerPriority))
-        // Idle workers whose park is restarted are not idle (§4.1).
         g.u64s(W.idle, w.idle.filter { classification.blocked[ObjectIdentifier($0)]?.idleWorker != true }.map { existingID($0) })
         g.list(W.plainPending, w.plainPending.sorted { ($0.key.qos, $0.key.overcommit ? 1 : 0) < ($1.key.qos, $1.key.overcommit ? 1 : 0) }.map { key, n in
             var h = SnapshotFields()
@@ -1118,9 +1062,6 @@ public final class KernelSnapshotCapture {
         return g
     }
 
-    /// The path the host file has now, when it still has one and it is the
-    /// same file (Linux: the `/proc/self/fd` link follows renames). Nil
-    /// when unknown or unlinked.
     static func currentHostPath(_ fd: Int32) -> String? {
         #if os(Linux)
         var buffer = [CChar](repeating: 0, count: 4097)
@@ -1136,9 +1077,6 @@ public final class KernelSnapshotCapture {
         #endif
     }
 
-    /// The guest path of a host file that moved from `old` (guest path
-    /// `guestPath`) to `new`: the part both paths share at their end is
-    /// the path below the prefix that maps one to the other.
     static func guestPath(of new: String, renamedFrom old: String, guestPath: String) -> String {
         if old == guestPath { return new }
         let o = old.split(separator: "/", omittingEmptySubsequences: false)
@@ -1150,7 +1088,6 @@ public final class KernelSnapshotCapture {
         return guestBase + new.dropFirst(hostBase.count)
     }
 
-    /// The host file's modification time (seconds) as `fstat` reports it now.
     static func currentModificationTime(_ fd: Int32) -> Int64? {
         var st = stat()
         guard fstat(fd, &st) == 0 else { return nil }
@@ -1164,10 +1101,6 @@ public final class KernelSnapshotCapture {
     private func encode(_ g: GuestFile) -> SnapshotRecord {
         typealias T = ST.HostFile
         var f = SnapshotFields()
-        // A file renamed while open (an atomic save: write "x.tmp", rename
-        // it to "x", close later) is recorded under its current name, so
-        // the restore reopens the file the process has open, not a path
-        // that no longer exists.
         var guestPath = g.guestPath, hostPath = g.hostPath
         if let moved = Self.currentHostPath(g.hostFD), moved != hostPath {
             count("open file renamed")
@@ -1177,13 +1110,9 @@ public final class KernelSnapshotCapture {
         f.string(T.guestPath, guestPath)
         f.string(T.hostPath, hostPath)
         f.u64(T.size, g.size)
-        // The modification time now (not when the file was opened), so a
-        // restore reports only files that changed after the snapshot.
         f.i64(T.mtime, Self.currentModificationTime(g.hostFD) ?? g.stat.mtime.sec)
         let writable = openFiles.contains { o in o.guestFile === g && o.isWritable }
         f.bool(T.writable, writable)
-        // A file unlinked while open has no path to reopen: its bytes go
-        // into the snapshot and the restore makes an unlinked copy.
         var st = stat()
         if fstat(g.hostFD, &st) == 0, st.st_nlink == 0 {
             count("unlinked open file")
@@ -1289,7 +1218,6 @@ public final class KernelSnapshotCapture {
         f.bool(T.overcommit, q.requestOvercommit)
         f.bool(T.fixedPriority, q.fixedPriority)
         f.bool(T.createReference, q.createReference)
-        // A sync knote whose waiter restarts its kevent call is made again by it.
         let kept = q.knotes.filter { kn in
             !(kn.isSyncKnote && !kn.syncWaiters.isEmpty
               && kn.syncWaiters.waitingContexts.allSatisfy { classification.blocked[ObjectIdentifier($0)] != nil })

@@ -1,12 +1,4 @@
 #!/bin/sh
-# Builds SwiftCode's hosted-test agent, libSwiftCodeTestAgent.dylib
-# (Sources/SwiftCodeTestAgent and Sources/CSwiftCodeTestAgentLoader; specs/ide/testing.md
-# "SwiftCode implementation"), for the iOS simulator platform. Runs on macOS
-# only (the iOS simulator SDK). The agent links neither XCTest nor Testing.
-#   out/iphonesimulator/libSwiftCodeTestAgent.dylib
-# swiftcodebuild finds it in iphonesimulator/ next to itself, or through
-# SWIFTCODE_TEST_AGENT_IPHONESIMULATOR:
-#   OUT=.build/debug SimGuestAgents/build-test-agent.sh      (from swiftcode/)
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 src="$here/../Sources"

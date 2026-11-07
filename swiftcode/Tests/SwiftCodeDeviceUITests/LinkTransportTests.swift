@@ -4,11 +4,7 @@ import Testing
 import SwiftCodeDisplayStream
 @testable import SwiftCodeDeviceUI
 
-/// The macOS device window over a transport other than a socket address
-/// (`swiftcode-sim-viewer --link`, the Linux viewer's link, docs/SIMULATOR-UX.md):
-/// the connection says hello through it and reads the server's answer.
 @Suite(.serialized) struct LinkTransportTests {
-    /// A transport that answers the client's hello with a server hello.
     final class Loop: DisplayTransport, @unchecked Sendable {
         let lock = NSLock()
         var sent: [[UInt8]] = []

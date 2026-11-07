@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeGoogleAuth
 
-// The error classifier: each kind, the matching order (scope before
-// missing secret before quota before API key before credentials),
-// and the diagnostic summary. Pure string matching, no network.
-
 struct GoogleAuthErrorClassificationTests {
 
     @Test("ACCESS_TOKEN_SCOPE_INSUFFICIENT classifies as scopeInsufficient and keeps the stored scopes")

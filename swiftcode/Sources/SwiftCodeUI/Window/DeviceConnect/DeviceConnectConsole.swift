@@ -1,11 +1,3 @@
-// DeviceConnectConsole.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/DeviceConnectKit/Views/Console/DeviceConnectConsole.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: severity filter picker; Copy Logs action
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Console/DeviceConnectConsole.swift (derived from Legacy).
-// Ambiguous type reference(s) defined in several modules, import left out: Severity.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeDeviceModel
 import SwiftUI
 
@@ -26,7 +18,6 @@ public struct DeviceConnectConsole: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header bar / selectors
             HStack {
                 Picker("Console Output", selection: $consoleManager.selectedConsoleTab) {
                     Text("Build Compiler").tag(0)
@@ -37,7 +28,6 @@ public struct DeviceConnectConsole: View {
 
                 Spacer()
 
-                // Severity Filter
                 Picker("Severity", selection: $filterSeverity) {
                     Text("All").tag(nil as DeviceLog.Severity?)
                     Text("Info").tag(DeviceLog.Severity.info as DeviceLog.Severity?)
@@ -46,7 +36,6 @@ public struct DeviceConnectConsole: View {
                 }
                 .frame(width: 150)
 
-                // Copy Logs button
                 Button(action: {
                     let logsText = filteredLogs.map { log in
                         "[\(formattedTime(log.timestamp))] [\(log.severity.rawValue)] \(log.message)"
@@ -59,7 +48,6 @@ public struct DeviceConnectConsole: View {
                 .buttonStyle(.bordered)
                 .help("Copy all visible console logs to clipboard")
 
-                // Clear button
                 Button(action: { consoleManager.clearLogs() }) {
                     Label("Clear", systemImage: "trash")
                 }
@@ -80,7 +68,6 @@ public struct DeviceConnectConsole: View {
 
             Divider()
 
-            // Log output list
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {

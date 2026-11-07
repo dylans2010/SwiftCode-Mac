@@ -1,9 +1,3 @@
-// ExportProjView.swift
-//
-// Ported from Legacy `SwiftCode/Views/ExportProjView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: User-facing Export Project sheet/UI (destination picker, progress, error display)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -85,7 +79,6 @@ struct ExportProjView: View {
                     try await exportManager.exportProject(project, to: url)
                     dismiss()
                 } catch {
-                    // Error is handled by ExportProjManager
                 }
             }
         }

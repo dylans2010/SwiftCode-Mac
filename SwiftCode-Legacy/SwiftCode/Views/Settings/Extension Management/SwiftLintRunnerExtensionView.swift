@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - SwiftLint Runner Extension View
 struct SwiftLintRunnerExtensionView: View {
     @State private var lintOnType = true
     @State private var showGutterIcons = true

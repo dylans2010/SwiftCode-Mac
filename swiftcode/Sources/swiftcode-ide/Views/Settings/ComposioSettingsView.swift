@@ -3,21 +3,7 @@ import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-// Composio settings, adapted from Legacy's
-// `SwiftCode/Views/Settings/ComposioSettingsView.swift` onto the
-// destination's Composio client (`SwiftCodeMCP/SwiftCodeTools+ComposioClient.swift`,
-// gap-closure). The client reads its API key from the secret store
-// account `composio.api-key` (then `COMPOSIO_API_KEY`, then the
-// Composio CLI login); this view manages exactly that secret-store
-// entry — set, replace, or delete it — and reports whether a key is
-// present. It never displays the stored key value.
-
-/// Manage the Composio API key used by the `use_composio` tool.
 struct ComposioSettingsView: View {
-    /// The secret-store account the Composio client reads; kept as a
-    /// literal here because the canonical constant lives on the MCP
-    /// client (`SwiftCodeTools+ComposioClient.composioSecretAccount`),
-    /// which this target does not depend on.
     static let secretAccount = "composio.api-key"
 
     @Environment(\.colorScheme) private var scheme

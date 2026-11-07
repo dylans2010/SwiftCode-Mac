@@ -1,7 +1,3 @@
-/// A USDZ package: an uncompressed ZIP archive whose first entry is the
-/// root layer and whose entry data start on 64-byte boundaries (OpenUSD's
-/// USDZ specification). Only stored (method 0) entries are read or written;
-/// archives larger than 4 GiB (ZIP64) are not supported.
 public struct USDZArchive: Sendable, Equatable {
     public struct Entry: Sendable, Equatable {
         public var name: String
@@ -19,7 +15,6 @@ public struct USDZArchive: Sendable, Equatable {
 
     static let layerExtensions: Set<String> = ["usda", "usdc", "usd"]
 
-    /// The root layer: the first entry, which must be a USD layer.
     public var rootLayer: Entry? {
         guard let first = entries.first, USDZArchive.layerExtensions.contains(first.name.fileExtension) else { return nil }
         return first
@@ -27,11 +22,8 @@ public struct USDZArchive: Sendable, Equatable {
 
     public func entry(named name: String) -> Entry? { entries.first { $0.name == name } }
 
-    // MARK: Reading
-
     public static func read(_ bytes: [UInt8]) throws -> USDZArchive {
         var c = ByteCursor(bytes)
-        // End of central directory: search backwards for its signature.
         var eocd = -1
         var i = bytes.count - 22
         while i >= max(0, bytes.count - 22 - 0xFFFF) {
@@ -44,23 +36,23 @@ public struct USDZArchive: Sendable, Equatable {
         guard eocd >= 0 else { throw USDError("usdz: no ZIP end-of-central-directory record") }
         c.pos = eocd + 10
         let count = Int(try c.uint(2))
-        _ = try c.u32() // directory size
+        _ = try c.u32()
         let directoryOffset = Int(try c.u32())
         guard directoryOffset != 0xFFFF_FFFF else { throw USDError("usdz: ZIP64 archives are not supported") }
         c.pos = directoryOffset
         var entries: [Entry] = []
         for _ in 0..<count {
             guard try c.u32() == 0x0201_4B50 else { throw USDError("usdz: bad central directory entry") }
-            c.pos += 6 // versions, flags
+            c.pos += 6
             let method = try c.uint(2)
-            c.pos += 4 // time, date
+            c.pos += 4
             let crc = try c.u32()
             let compressedSize = Int(try c.u32())
             let size = Int(try c.u32())
             let nameLength = Int(try c.uint(2))
             let extraLength = Int(try c.uint(2))
             let commentLength = Int(try c.uint(2))
-            c.pos += 8 // disk, attributes
+            c.pos += 8
             let localOffset = Int(try c.u32())
             let name = String(decoding: try c.slice(nameLength), as: UTF8.self)
             c.pos += extraLength + commentLength
@@ -80,9 +72,6 @@ public struct USDZArchive: Sendable, Equatable {
         return USDZArchive(entries: entries)
     }
 
-    // MARK: Writing
-
-    /// Writes the archive with each entry's data aligned to 64 bytes.
     public func write() -> [UInt8] {
         var out: [UInt8] = []
         var central: [UInt8] = []
@@ -93,7 +82,6 @@ public struct USDZArchive: Sendable, Equatable {
         func put32(_ v: UInt32, _ buffer: inout [UInt8]) {
             for k in 0..<4 { buffer.append(UInt8(truncatingIfNeeded: v >> (8 * UInt32(k)))) }
         }
-        // 1980-01-01 00:00 in DOS format keeps output reproducible.
         let dosTime = 0
         let dosDate = (0 << 9) | (1 << 5) | 1
         for entry in entries {
@@ -106,7 +94,6 @@ public struct USDZArchive: Sendable, Equatable {
             if unaligned != 0 {
                 var padding = 64 - unaligned
                 if padding < 4 { padding += 64 }
-                // Extra field: id 0x1986 (the padding id used by usdzip), then zeros.
                 put16(0x1986, &extra)
                 put16(padding - 4, &extra)
                 extra += [UInt8](repeating: 0, count: padding - 4)
@@ -158,7 +145,6 @@ public struct USDZArchive: Sendable, Equatable {
         return out
     }
 
-    /// Offsets of each entry's data in a written archive (for checks).
     public static func dataOffsets(_ bytes: [UInt8]) throws -> [String: Int] {
         var result: [String: Int] = [:]
         var c = ByteCursor(bytes)
@@ -178,7 +164,6 @@ public struct USDZArchive: Sendable, Equatable {
     }
 }
 
-/// CRC-32 (IEEE 802.3, as ZIP uses).
 public enum CRC32 {
     static let table: [UInt32] = (0..<256).map { n in
         var c = UInt32(n)
@@ -194,7 +179,6 @@ public enum CRC32 {
 }
 
 extension String {
-    /// The lowercase extension after the last `.` of the last path component.
     var fileExtension: String {
         let last = split(separator: "/").last.map(String.init) ?? self
         guard let dot = last.lastIndex(of: ".") else { return "" }

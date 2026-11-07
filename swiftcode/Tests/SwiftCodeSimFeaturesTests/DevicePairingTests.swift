@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeSimFeatures
 
-/// PAIR-HOST (specs/simulator/device-pairing.md §2, §3, §7 P-1 … P-5, §8):
-/// the pair records and their rules, the listing, the order of the host's
-/// requests while both devices run, and the link frames.
 struct DevicePairStoreTests {
     let phone = PairingDevice(udid: "11111111-1111-1111-1111-111111111111", directory: "p18", family: .phone,
                               typeName: "iPhone 18 Pro", osVersion: "27.0")
@@ -38,11 +35,9 @@ struct DevicePairStoreTests {
         let second = try s.pair(watch2, phone, newID: make)
         #expect(first.active && !second.active)
         #expect(s.activePair(ofPhone: phone.udid)?.id == first.id)
-        // Unpairing the active pair activates no other (§2.2) …
         _ = try s.unpair(first.id)
         #expect(s.activePair(ofPhone: phone.udid) == nil)
         #expect(s.pair(second.id)?.active == false)
-        // … and a new pair of a phone with no active pair is active.
         let third = try s.pair(watch, phone, newID: make)
         #expect(third.active)
     }
@@ -109,7 +104,6 @@ struct DevicePairStoreTests {
         #expect(entry?["active"] as? Bool == true)
         #expect(entry?["companion"] as? String == phone.udid)
         #expect(entry?["gizmo"] as? String == watch.udid.uppercased())
-        // A refused command leaves the file as it was.
         #expect(throws: PairingError.self) { try DevicePairStore.update(set: dir) { try $0.pair(watch, phone2) } }
         #expect(try DevicePairStore.load(set: dir).pairs == [made])
     }
@@ -151,18 +145,13 @@ struct PairingSequencerTests {
     @Test func theReferenceOrderWhenBothDevicesRun() {
         var s = PairingSequencer()
         #expect(s.setPairs([(peer, true, false)]).isEmpty)
-        // At boot, once the agent is up: remove-unpaired with the host's pairs.
         #expect(s.agentConnected() == [.agent(.removeUnpaired(hostPaired: [peer]))])
-        // Nothing is registered before the control session is bound and the peer runs.
         #expect(s.linkUp(peer: peer).isEmpty)
         #expect(s.controlBound() == [.register(peer: peer)])
-        // 701 done: tell the peer; the agent waits for the peer's endpoint.
         #expect(s.registered(peer: peer, ok: true) == [.announceRegistered(peer: peer)])
         #expect(!s.state(of: peer).connected)
-        // Both endpoints: connect, then set-active (§3.1, §3.2).
         #expect(s.peerRegistered(peer: peer) == [.agent(.connect(peer: peer)), .agent(.setActive(peer: peer, previouslyPaired: false))])
         #expect(s.state(of: peer).connected)
-        // Nothing twice.
         #expect(s.controlBound().isEmpty)
         #expect(s.peerRegistered(peer: peer).isEmpty)
     }
@@ -173,10 +162,9 @@ struct PairingSequencerTests {
         _ = s.controlBound()
         #expect(s.linkUp(peer: peer) == [.register(peer: peer)])
         _ = s.registered(peer: peer, ok: true)
-        #expect(s.peerRegistered(peer: peer).isEmpty)  // no agent yet
+        #expect(s.peerRegistered(peer: peer).isEmpty)
         #expect(s.agentConnected() == [.agent(.removeUnpaired(hostPaired: [peer])), .agent(.connect(peer: peer)),
                                        .agent(.setActive(peer: peer, previouslyPaired: true))])
-        // A restarted agent gets the requests again.
         s.agentDisconnected()
         #expect(s.agentConnected() == [.agent(.removeUnpaired(hostPaired: [peer])), .agent(.connect(peer: peer)),
                                        .agent(.setActive(peer: peer, previouslyPaired: true))])
@@ -190,7 +178,6 @@ struct PairingSequencerTests {
         _ = s.linkUp(peer: peer)
         _ = s.registered(peer: peer, ok: true)
         #expect(s.peerRegistered(peer: peer) == [.agent(.connect(peer: peer))])
-        // pair-activate while both run.
         #expect(s.setPairs([(peer, true, false)]) == [.agent(.setActive(peer: peer, previouslyPaired: false))])
     }
 
@@ -203,11 +190,9 @@ struct PairingSequencerTests {
         _ = s.registered(peer: peer, ok: true)
         _ = s.peerRegistered(peer: peer)
         s.activated(peer: peer, ok: true)
-        // §11.1, P-11: the survivor's agent gets disconnect.
         #expect(s.linkDown(peer: peer) == [.unregister(peer: peer), .agent(.disconnect(peer: peer))])
         #expect(!s.state(of: peer).connected)
         #expect(s.linkDown(peer: peer).isEmpty)
-        // The peer boots again: register, then connect and set-active (paired before: a switch).
         #expect(s.linkUp(peer: peer) == [.register(peer: peer)])
         _ = s.registered(peer: peer, ok: true)
         #expect(s.peerRegistered(peer: peer) == [.agent(.connect(peer: peer)), .agent(.setActive(peer: peer, previouslyPaired: true))])
@@ -218,17 +203,13 @@ struct PairingSequencerTests {
         _ = s.setPairs([(peer, true, false)])
         _ = s.controlBound()
         #expect(s.linkUp(peer: peer) == [.register(peer: peer)])
-        #expect(s.linkDown(peer: peer) == [.unregister(peer: peer)])  // 701 was on its way
+        #expect(s.linkDown(peer: peer) == [.unregister(peer: peer)])
         #expect(s.registered(peer: peer, ok: true) == [.unregister(peer: peer)])
         #expect(s.registered(peer: peer, ok: false).isEmpty)
     }
 
-    /// P-11: `pair-activate` of a pair whose watch does not run sends a
-    /// switch-only set-active at once; the full set-active follows when the
-    /// watch runs. A pair's first reading at boot sends nothing.
     @Test func activatingAPairWhoseWatchIsDownSwitchesAtOnce() {
         let other = "22222222-0000-4000-8000-000000000002"
-        // SWIFTCODE_PAIRING_SWITCH_ABSENT=defer (§12.2): nothing until the watch runs.
         var d = PairingSequencer()
         d.switchAbsentPeers = false
         _ = d.setPairs([(peer, true, true), (other, false, true)])
@@ -238,25 +219,20 @@ struct PairingSequencerTests {
         #expect(d.linkUp(peer: other) == [.register(peer: other)])
         _ = d.registered(peer: other, ok: true)
         #expect(d.peerRegistered(peer: other) == [.agent(.connect(peer: other)), .agent(.setActive(peer: other, previouslyPaired: true))])
-        // The default: the switch-only set-active at once.
         var s = PairingSequencer()
         #expect(s.switchAbsentPeers)
         #expect(s.setPairs([(peer, true, true), (other, false, true)]).isEmpty)
         _ = s.agentConnected()
         _ = s.controlBound()
-        // pair-activate other (not running): switch only, at once.
         #expect(s.setPairs([(peer, false, true), (other, true, true)]) == [.agent(.switchTo(peer: other))])
-        #expect(s.setPairs([(peer, false, true), (other, true, true)]).isEmpty)  // not twice
-        // The watch boots: the normal order.
+        #expect(s.setPairs([(peer, false, true), (other, true, true)]).isEmpty)
         #expect(s.linkUp(peer: other) == [.register(peer: other)])
         _ = s.registered(peer: other, ok: true)
         #expect(s.peerRegistered(peer: other) == [.agent(.connect(peer: other)), .agent(.setActive(peer: other, previouslyPaired: true))])
-        // Activated while the agent is not up: sent when it comes.
         var t = PairingSequencer()
         _ = t.setPairs([(peer, true, true), (other, false, false)])
         #expect(t.setPairs([(peer, false, true), (other, true, false)]).isEmpty)
         #expect(t.agentConnected() == [.agent(.removeUnpaired(hostPaired: [other, peer].sorted())), .agent(.switchTo(peer: other))])
-        // A new pair that is active at once (the phone's first): no switch; it pairs when the watch runs.
         var u = PairingSequencer()
         _ = u.agentConnected()
         #expect(u.setPairs([(peer, true, false)]).isEmpty)
@@ -272,7 +248,6 @@ struct PairingSequencerTests {
         _ = s.peerRegistered(peer: peer)
         #expect(s.unpaired(peer: peer) == [.agent(.unpair(peer: peer)), .agent(.disconnect(peer: peer)), .unregister(peer: peer)])
         #expect(s.hostPaired.isEmpty && s.peers.isEmpty)
-        // Unpaired while the peer was not running: nothing to do in the guest.
         var t = PairingSequencer()
         _ = t.setPairs([(peer, true, false)])
         _ = t.agentConnected()
@@ -300,7 +275,6 @@ struct PairLinkFrameTests {
         buffer += b.dropFirst(3)
         #expect(try PairLinkFrame.decode(&buffer).map { $0["type"] as? String } == ["registered"])
         #expect(buffer.isEmpty)
-        // A frame without a type, or too large, is refused.
         let body = try PropertyListSerialization.data(fromPropertyList: ["x": 1], format: .binary, options: 0)
         var bad = [0, 0, 0, UInt8(body.count)] + [UInt8](body)
         #expect(throws: SettingsChannel.ChannelError.notADictionary) { try PairLinkFrame.decodeFirst(&bad) }
@@ -316,7 +290,6 @@ struct PairLinkFrameTests {
     }
 
     @Test func aSixteenMebibyteRelayRequestFitsAndMoreDoesNot() throws {
-        // The relay's largest request (§10.2): 16 MiB of out-of-line bytes with its keys.
         let request: [String: Any] = ["type": "relay-request", "seq": 1, "generation": 1, "id": 1000, "reply": true,
                                       "body": Data(count: 12), "ool": [Data(repeating: 0xA5, count: 16 << 20)],
                                       "sent": NSNumber(value: UInt64.max)]

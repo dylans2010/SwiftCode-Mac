@@ -3,61 +3,34 @@ import SwiftCodeBuild
 import SwiftCodeDebug
 import SwiftCodeIDECore
 
-/// A row in any navigator outline.
 public final class OutlineItem: NSObject {
     public let title: String
     public let symbol: String
     public let tint: NSColor?
     public var children: [OutlineItem]
-    /// Where selecting the row goes.
     public let path: String?
     public let line: Int?
     public let frameID: Int?
     public let reportIndex: Int?
-    /// Source-control letter shown at the row's right (M, A, ?, …).
     public var badge: String?
-    /// A report row's page (test runs), see `setReports`.
     public var reportPage: String?
-    /// Secondary text after the title ("3 issues").
     public var detail: String?
-    /// Wrap the title to this many lines (0: one truncated line); the
-    /// selected row shows all of it.
     public var maxLines = 0
-    /// Debugger rows: greyed text, middle truncation, a dotted separator,
-    /// and a breakpoint's enabled marker at the right (DebugNavigatorRows).
     public var dimmed = false
     public var middleTruncation = false
     public var isSeparator = false
     public var enabledMarker: Bool?
-    /// Source Control navigator routing key (see SourceControlNavigatorModel).
     public var scmKey: String?
-    /// A disclosure triangle even with no children (the Repositories
-    /// view's groups, navigators.md round 3 §2).
     public var alwaysExpandable = false
-    /// Project navigator rows: the row's kind and its key for the saved
-    /// expansion (`NavigatorNode.expansionKey`).
     public var nodeKind: NavigatorNode.Kind?
-    /// A project-tree row's location on disk, folders and groups included
-    /// (`path` is only set on rows that open something).
     public var nodePath: String?
     public var expansionKey: String?
-    /// A project-tree row's pbxproj object (`NavigatorNode.objectID`):
-    /// what the file operations act on.
     public var objectID: String?
-    /// A glyph at the row's right end (the Test navigator's status
-    /// diamonds, a done bookmark's check).
     public var trailingSymbol: String?
     public var trailingTint: NSColor?
-    /// The bookmark a Bookmark navigator row shows.
     public var bookmark: Bookmark?
-    /// A level bar before the badge, 0…1 (the Debug navigator's Energy
-    /// Impact gauge).
     public var level: Double?
-    /// Small buttons at the row's right end (the Debug navigator's process
-    /// row): symbol, tooltip and the action sent up the responder chain.
     public var rowButtons: [(symbol: String, toolTip: String, action: String)] = []
-    /// A Find navigator result row: its file and match in the results
-    /// (`match` nil for the file row; FindNavigator.swift).
     public var findIndex: (file: Int, match: Int?)?
 
     public init(title: String, symbol: String, tint: NSColor? = nil, children: [OutlineItem] = [], path: String? = nil, line: Int? = nil,
@@ -72,13 +45,10 @@ public final class OutlineItem: NSObject {
         self.line = line
     }
 
-    /// SF Symbol names by file kind (looked up at runtime through the public API).
     static func symbol(for node: NavigatorNode) -> String { WorkspaceChrome.symbol(for: node) }
 
-    /// The file-type glyph of a file name or path.
     static func fileSymbol(_ name: String) -> String { WorkspaceChrome.fileSymbol(name) }
 
-    /// A row icon's colour (nil: the accent colour).
     static func color(_ t: WorkspaceChrome.IconTint) -> NSColor? {
         switch t {
         case .orange: .systemOrange
@@ -96,10 +66,7 @@ public final class OutlineItem: NSObject {
 
     public convenience init(_ node: NavigatorNode) { self.init(node, hideExtensions: false) }
 
-    /// `hideExtensions`: file rows without their extension (Settings ▸
-    /// General ▸ File Extensions ▸ Hide All).
     public convenience init(_ node: NavigatorNode, hideExtensions: Bool) {
-        // Files open in the editor; a project row opens the project editor.
         let opens = node.kind == .file || node.path?.hasSuffix(".xcodeproj") == true
         let title = hideExtensions && node.kind == .file ? (node.name as NSString).deletingPathExtension : node.name
         self.init(title: title.isEmpty ? node.name : title, symbol: Self.symbol(for: node),
@@ -112,35 +79,24 @@ public final class OutlineItem: NSObject {
     }
 }
 
-/// The left navigator area: a selector bar of nine navigators above the
-/// selected navigator's content, with a filter field at the bottom. See
-/// `specs/ide/navigators.md`.
 @MainActor
 public final class NavigatorAreaController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     public static let symbols = WorkspaceChrome.navigatorSymbols
 
     public private(set) var selectedIndex = 0
     public var onOpen: ((String, Int?) -> Void)?
-    /// Set while the window selects the row of a file it opened.
     let selectionFromOpen = FlagBox()
     private var scrollerStyleObserver: NSObjectProtocol?
 
     private(set) var roots: [[OutlineItem]] = Array(repeating: [], count: CommandTable.navigators.count)
-    /// Each navigator's filter text (the field shows the selected one's).
     private var filterTexts: [Int: String] = [:]
-    /// The selected navigator's rows with its filter applied (navigators
-    /// other than Project; Project filters through `applyProjectFilter`).
     private var filteredRoots: [OutlineItem]?
     var shownRoots: [OutlineItem] { filteredRoots ?? roots[selectedIndex] }
 
-    /// The rows the selected navigator shows (tests).
     public var shownRows: [OutlineItem] { shownRoots }
-    /// The selector buttons' tooltips (tests).
     public var selectorToolTips: [String] { buttons.map { $0.toolTip ?? "" } }
-    /// The left pull-down button of the bottom bar (nil while hidden; tests).
     public var leftButtonToolTip: String?? { addBreakpointButton.isHidden ? nil : .some(addBreakpointButton.toolTip) }
 
-    /// Keeps rows whose title contains the text, and parents of such rows.
     func refilter() {
         let t = (filterTexts[selectedIndex] ?? "").lowercased()
         guard selectedIndex != 0, !t.isEmpty else { filteredRoots = nil; return }
@@ -164,7 +120,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         filteredRoots = roots[selectedIndex].compactMap(keep)
     }
 
-    /// Sets the selected navigator's filter text.
     public func setFilter(_ text: String) {
         _ = view
         filter.stringValue = text
@@ -173,23 +128,15 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
     private let selector = NSStackView()
     private var buttons: [NSButton] = []
     let outline = NavigatorOutlineView()
-    /// The outline and the selector (tests: row metrics).
     var outlineView: NSOutlineView { outline }
     var navigatorOutline: NavigatorOutlineView { outline }
-    /// The selector bar as drawn: its glass capsule (macOS 26+), or the
-    /// selector itself.
     var selectorView: NSView { GlassBars.enabled ? selectorGlass : selector }
-    /// liquid-glass.md §2.3: the selector's glass capsule, the "+" circle,
-    /// the filter capsule and the selected tab's pill.
     let selectorGlass = GlassBars.capsule()
     let plusGlass = GlassBars.capsule()
     let filterGlass = GlassBars.capsule()
-    /// The blurred rows under the selector capsule (+SelectorBackdrop.swift).
     let selectorBackdrop = SelectorBackdropView()
     let selectorBackdropObserver = ObserverBox()
     let selectorPill = SelectionPillView()
-    /// The outline runs under the glass bars (no header shown) or is
-    /// clipped below the header rows (§3.1, §2.7).
     var clippedScrollConstraints: [NSLayoutConstraint] = []
     var underBarsScroll: [NSLayoutConstraint] = []
     let measuredOutlineTopPadding = OutlinePaddingBox()
@@ -197,20 +144,11 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
     var scrollClipView: NSView { scrollClip }
     var selectorButtons: [NSButton] { buttons }
     private let scroll = NSScrollView()
-    /// Clips the outline's scroll view at the header's bottom (N3).
     private let scrollClip = NSView()
     private let emptyLabel = NSTextField(wrappingLabelWithString: "")
-    /// The bottom bar's filter field, its leading options menu, and the
-    /// in-field toggles (reference-ui.md §2). Both sit inside the field
-    /// (reference-ui-6.md §5.6, N7).
     public let filter: NSSearchField = NavigatorFilterField()
-    /// The Coding Assistant pane's container (coding-assistant.md §4); the
-    /// window puts the assistant's view in it (`assistantContent`).
     public let assistantContainer = NSView()
-    /// Called the first time the Coding Assistant pane is shown, so the
-    /// window can create the assistant only when it is used.
     public var onShowCodingAssistant: (() -> Void)?
-    /// The view shown in the Coding Assistant pane.
     public var assistantContent: NSView? {
         didSet {
             oldValue?.removeFromSuperview()
@@ -225,7 +163,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             ])
         }
     }
-    /// The left area's content changed (navigators ↔ Coding Assistant).
     public var onContentChange: (() -> Void)?
     public var showsCodingAssistant = false {
         didSet {
@@ -238,55 +175,38 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         }
     }
     public let filterOptions: NSPopUpButton = NavigatorOptionsButton(frame: .zero, pullsDown: true)
-    /// The in-field toggles of the selected navigator, left to right
-    /// (`NavigatorBars.specs`); unused ones are hidden.
     public let recentToggle: NSButton = NavigatorFilterToggle()
     public let sourceControlToggle: NSButton = NavigatorFilterToggle()
     public let thirdToggle: NSButton = NavigatorFilterToggle()
     public var toggleButtons: [NSButton] { [recentToggle, sourceControlToggle, thirdToggle] }
     let rowMenu = NSMenu(title: "Row")
-    /// The Test navigator's row menu (Run Repeatedly…; set by the window).
     public var testRowMenu: (() -> [NSMenuItem])?
-    /// The Source Control navigator's row menu for a row key (set by the window).
     public var sourceControlRowMenu: ((String) -> [NSMenuItem])?
-    /// Project navigator file operations (NavigatorAreaController+ProjectOps.swift).
     public var projectOps = ProjectNavigatorHooks()
     let renameDelegate = NavigatorRenameDelegate()
     var draggedRows: [OutlineItem] = []
-    /// Items Edit ▸ Cut marked for Edit ▸ Paste ▸ Move Item Here, with their project.
     public var itemsToMove: (project: String?, items: [ProjectItem])?
     let toggleStack = NSStackView()
     private var filterAfterLeftButton: NSLayoutConstraint!
     private var filterAtEdge: NSLayoutConstraint!
-    /// The Test navigator's header: the test-plan pop-up and the Mode
-    /// radio buttons (Group by Test Hierarchy | Group by Tags).
     public let testHeader = NSStackView()
     public let testPlanPopUp = NSPopUpButton(frame: .zero, pullsDown: false)
     public let testModeControl = NSSegmentedControl(images: [NSImage(systemSymbolName: "list.bullet.indent", accessibilityDescription: NavigatorBars.testModes[0])!,
                                                              NSImage(systemSymbolName: "tag", accessibilityDescription: NavigatorBars.testModes[1])!],
                                                     trackingMode: .selectOne, target: nil, action: nil)
-    /// Source Control navigator: Changes | Repositories (reference-ui-4.md §2).
     public let sourceControlMode = NSSegmentedControl(labels: SourceControlNavigatorModel.modeTitles, trackingMode: .selectOne, target: nil, action: nil)
     public var onSourceControlMode: ((SourceControlNavigatorModel.Mode) -> Void)?
-    /// A Source Control navigator row was clicked (its scmKey).
     public var onSourceControlRow: ((String) -> Void)?
-    /// Files opened in this window (the Recent files toggle).
     public var recentFiles: [String] = [] { didSet { if filterRecent { applyProjectFilter() } } }
     public var filterRecent = false { didSet { syncToggleStates(); applyProjectFilter() } }
     public var filterSourceControl = false { didSet { syncToggleStates(); applyProjectFilter() } }
     public var filterText = "" { didSet { applyProjectFilter() } }
     private var unfilteredProject: [OutlineItem] = []
-    /// Symbols of the workspace's files (no navigator since Bookmarks took
-    /// its place; used by the jump bar and Open Quickly).
     public private(set) var symbolRows: [OutlineItem] = []
-    /// The "+" button's menu per navigator (set by the window).
     public var addMenuItems: ((Int) -> [NSMenuItem])?
-    /// The Find navigator's query field, shown only for that navigator.
     public let findField = NSSearchField()
     private var findHeight: NSLayoutConstraint!
     private var optionsHeight: NSLayoutConstraint!
-    /// Find header (reference-ui-2.md §3): Mode › Kind › Match pop-ups and
-    /// the "Aa" match-case toggle; under the field, the scope pop-up.
     public let findMode = NSPopUpButton(frame: .zero, pullsDown: false)
     public let findStyle = NSPopUpButton(frame: .zero, pullsDown: false)
     public let findMatch = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -296,9 +216,7 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
     public static let findKinds = ["Text", "Multiple Words", "Regular Expression", "Symbols", "Ancestor Types", "Descendent Types",
                                    "Conforming Types", "Call Hierarchy", "Asset References"]
     public static let findMatches = ["Containing", "Matching Word", "Starting With", "Ending With"]
-    /// The kinds SwiftCode implements (Asset References is listed disabled).
     static let supportedKinds = Set(FindQuery.Kind.allCases.filter(\.isAvailable).map(\.rawValue))
-    /// Replace mode, the count line and the search state (FindNavigator.swift).
     let findUI = FindNavigatorUI()
     private let findOptions = NSStackView()
     private var scopeHeight: NSLayoutConstraint!
@@ -308,11 +226,9 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
     private var reportScopeTop: NSLayoutConstraint!
     private var scrollTop: NSLayoutConstraint!
     private var reportScopeHeight: NSLayoutConstraint!
-    /// The selected scope (`SwiftCodeIDECore.FindScope`).
     public typealias FindScope = SwiftCodeIDECore.FindScope
     public private(set) var findScopeValue: FindScope = .workspace
     var lastResultFiles: [String] = []
-    /// Called to list the groups containing the selected file, outermost first.
     public var containingGroups: (() -> [(name: String, path: String)])?
     var lastQuery = ""
 
@@ -331,12 +247,9 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         }
     }
 
-    /// The Find field's placeholder is the current kind ("Text", "Regular
-    /// Expression", …; reference-ui-6.md §5.5, N6).
     func updateFindPlaceholder() {
         findField.placeholderString = findStyle.titleOfSelectedItem ?? Self.findKinds[0]
     }
-    /// The workspace tree, for find and symbols.
     var workspaceRoot: NavigatorNode?
     public var onOpenReport: ((Int) -> Void)?
 
@@ -358,10 +271,8 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             let b = NSButton(image: img, target: self, action: #selector(selectorClicked(_:)))
             b.isBordered = false
             b.tag = i
-            b.toolTip = NavigatorBars.selectorToolTips[i]   // reference-ui-5.md §5.2
+            b.toolTip = NavigatorBars.selectorToolTips[i]
             b.setButtonType(.toggle)
-            // reference-ui-6.md §5.6 (N8): the tab keeps its title (and its
-            // glyph) whether or not it is selected.
             b.alternateImage = img
             b.setAccessibilityTitle(name)
             buttons.append(b)
@@ -384,20 +295,12 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         scroll.documentView = outline
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
-        // The system's scroller style, never a forced one (metrics.md §12.2).
         scroll.scrollerStyle = NSScroller.preferredScrollerStyle
         scrollerStyleObserver = NotificationCenter.default.addObserver(forName: NSScroller.preferredScrollerStyleDidChangeNotification,
                                                                       object: nil, queue: .main) { [weak scroll] _ in
             MainActor.assumeIsolated { scroll?.scrollerStyle = NSScroller.preferredScrollerStyle }
         }
         scroll.drawsBackground = false
-        // reference-ui-6.md §5.3 (N3): the first row sits `firstRowGap`
-        // below the selector. The scroll view's top content inset puts it
-        // there (`updateOutlineInsets`), measured against where the outline
-        // draws its first row: the source-list style pads that row by an
-        // amount that depends on where the outline sits (none in the
-        // window's sidebar, 10 points in a plain window), so no padding is
-        // assumed. Scrolled rows clip at the container's top.
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsets()
         scrollClip.clipsToBounds = true
@@ -422,7 +325,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         filter.action = #selector(filterChanged)
         filterOptions.isBordered = false
         filterOptions.addItem(withTitle: "")
-        // §5.6 (N7): a funnel glyph with a chevron, inside the field.
         filterOptions.item(at: 0)?.image = NavigatorFilterField.optionsGlyph
         (filterOptions.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
         filterOptions.imagePosition = .imageOnly
@@ -448,7 +350,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         findField.sendsWholeSearchString = true
         findField.target = self
         findField.action = #selector(findSubmitted)
-        // §5.4: the search field keeps a recent-search history.
         findField.maximumRecents = 10
         findField.searchMenuTemplate = Self.recentSearchesMenu()
         for (i, (p, titles)) in [(findMode, Self.findModes), (findStyle, Self.findKinds), (findMatch, Self.findMatches)].enumerated() {
@@ -457,7 +358,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             p.controlSize = .small
             p.font = .systemFont(ofSize: 10)
             p.isBordered = false
-            // reference-ui-6.md §5.5 (N6): path components, no pop-up arrows.
             (p.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
             p.target = self
             p.action = #selector(findOptionChanged)
@@ -473,7 +373,7 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         findCaseToggle.setButtonType(.pushOnPushOff)
         findCaseToggle.bezelStyle = .inline
         findCaseToggle.font = .systemFont(ofSize: 10)
-        findCaseToggle.toolTip = "Case Sensitive"   // reference-ui-5.md §5.2
+        findCaseToggle.toolTip = "Case Sensitive"
         findCaseToggle.target = self
         findCaseToggle.action = #selector(findOptionChanged)
         let spacer = NSView()
@@ -490,7 +390,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         findScope.menu?.delegate = self
         rebuildScopeMenu()
         addBreakpointButton.isBordered = false
-        // The "+" alone, centred in its circle: no pull-down arrow (metrics.md §15).
         (addBreakpointButton.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
         addBreakpointButton.imagePosition = .imageOnly
         addBreakpointButton.menu?.delegate = self
@@ -499,21 +398,17 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             v.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(v)
         }
-        installFindControls(in: root)   // FindNavigator.swift
+        installFindControls(in: root)
         if glass {
-            // Above the outline (which scrolls beneath them), below the
-            // controls they carry.
             for g in [selectorGlass, plusGlass, filterGlass] {
                 g.translatesAutoresizingMaskIntoConstraints = false
                 root.addSubview(g, positioned: .above, relativeTo: scrollClip)
             }
             root.addSubview(selector, positioned: .above, relativeTo: selectorGlass)
-            installSelectorBackdrop(in: root)   // liquid-glass.md §9.2 (+SelectorBackdrop.swift)
+            installSelectorBackdrop(in: root)
             root.addSubview(selectorPill, positioned: .below, relativeTo: selector)
-            sep.alphaValue = 0   // no line under the floating bar
+            sep.alphaValue = 0
         }
-        // The header rows between the selector and the outline; a hidden
-        // one takes no room (N3).
         findOptionsTop = findOptions.topAnchor.constraint(equalTo: sep.bottomAnchor, constant: 2)
         findFieldTop = findField.topAnchor.constraint(equalTo: findOptions.bottomAnchor, constant: 2)
         findScopeTop = findScope.topAnchor.constraint(equalTo: findUI.replaceRow.bottomAnchor, constant: 2)
@@ -523,9 +418,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
                                                                  constant: glass ? Self.plusToFilter + Self.filterInset : 2)
         filterAtEdge = filter.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: glass ? 6 + Self.filterInset : 6)
         NSLayoutConstraint.activate([
-            // Below the toolbar: the sidebar runs the window's full height
-            // (liquid-glass-swiftcode.md §2). liquid-glass.md §2.3: inside a
-            // 30-point glass capsule 6 points from the area's sides.
             selector.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: glass ? GlassBars.topOffset + 2 : 2),
             selector.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: glass ? 10 : 4),
             selector.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: glass ? -10 : -4),
@@ -544,7 +436,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             reportScopeTop,
             reportScope.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             sourceControlMode.topAnchor.constraint(equalTo: reportScope.topAnchor),
-            // Across the navigator, 9 from each side (navigators.md round 3 §2).
             sourceControlMode.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Self.modeControlInset),
             sourceControlMode.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -Self.modeControlInset),
             sourceControlMode.heightAnchor.constraint(equalTo: reportScope.heightAnchor),
@@ -563,8 +454,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             addBreakpointButton.centerYAnchor.constraint(equalTo: filter.centerYAnchor),
             addBreakpointButton.widthAnchor.constraint(equalToConstant: glass ? Self.plusSize.width : 34),
             filterAfterLeftButton,
-            // §5.6 (N7): the options pull-down at the field's leading end,
-            // the toggles at its trailing end, both inside it.
             filterOptions.leadingAnchor.constraint(equalTo: filter.leadingAnchor, constant: NavigatorFilterField.optionsLeading),
             filterOptions.centerYAnchor.constraint(equalTo: filter.centerYAnchor),
             filterOptions.widthAnchor.constraint(equalToConstant: NavigatorFilterField.optionsWidth),
@@ -572,9 +461,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             toggleStack.trailingAnchor.constraint(equalTo: filter.trailingAnchor, constant: -4),
             toggleStack.centerYAnchor.constraint(equalTo: filter.centerYAnchor),
         ])
-        // The toggles as tall as the small field, so they sit exactly
-        // inside it whatever the glyph's height and the screen's backing
-        // scale (`NavigatorFilterToggle`).
         NSLayoutConstraint.activate(toggleButtons.map { $0.heightAnchor.constraint(equalToConstant: NavigatorFilterField.toggleHeight) } + [
             glass ? filter.centerYAnchor.constraint(equalTo: root.bottomAnchor, constant: -7 - GlassBars.height / 2)
                 : filter.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -4),
@@ -615,22 +501,14 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         select(0)
     }
 
-    // MARK: Content
-
-    /// The project tree, then the Package Dependencies section (if any).
     public func setProjectTree(_ node: NavigatorNode, packages: NavigatorNode? = nil) {
         workspaceRoot = node
         let hide = Preferences.shared.fileExtensions == .hide
         unfilteredProject = [OutlineItem(node, hideExtensions: hide)] + (packages.map { [OutlineItem($0, hideExtensions: hide)] } ?? [])
-        // The rebuilt rows keep the last status letters (the source-control
-        // status is read in the background and arrives once per change).
         applyBadges()
         applyProjectFilter()
     }
 
-    /// The project tree with the bottom bar's filters applied: file rows
-    /// whose name contains the text, opened in this window (Recent), or
-    /// with a source-control status; groups stay when a row under them does.
     func applyProjectFilter() {
         let text = filterText.lowercased()
         let active = !text.isEmpty || filterRecent || filterSourceControl
@@ -661,17 +539,11 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if isViewLoaded && selectedIndex == 0 { if active { outline.expandItem(nil, expandChildren: true) } else { restoreProjectExpansion() } }
     }
 
-    // MARK: Project navigator expansion (reference-ui-5.md §5.1, N4)
-
-    /// The saved expansion (expansion keys); nil at first open, when the
-    /// root and its first group are expanded.
     public var savedProjectExpansion: [String]?
-    /// Called when the user expands or collapses a project row.
     public var onProjectExpansionChange: (([String]) -> Void)?
     private var restoringExpansion = false
     var projectFilterActive: Bool { !filterText.isEmpty || filterRecent || filterSourceControl }
 
-    /// Expands the project rows: the saved set, or the first-open default.
     func restoreProjectExpansion() {
         guard let root = workspaceRoot else { return }
         let keys = Set(savedProjectExpansion ?? NavigatorTree.initiallyExpanded(root))
@@ -686,7 +558,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         expand(roots[0])
     }
 
-    /// The expansion keys of the expanded project rows, in tree order.
     public var projectExpansion: [String] {
         guard isViewLoaded, selectedIndex == 0 else { return savedProjectExpansion ?? [] }
         var out: [String] = []
@@ -721,14 +592,10 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
     @objc private func toggleClicked(_ b: NSButton) {
         setToggle(selectedIndex, b.tag, !toggleValue(selectedIndex, b.tag))
     }
-    /// Filter options ▸ a toggle's item (tag = toggle index).
     @objc private func toggleMenuChosen(_ item: NSMenuItem) {
         setToggle(selectedIndex, item.tag, !toggleValue(selectedIndex, item.tag))
     }
 
-    /// The bottom bar of navigator `index` (reference-ui-5.md §5.2): the
-    /// left pull-down (or none, and the filter takes the width), the
-    /// in-field toggles, the filter's placeholder and options menu.
     func configureToggles(_ index: Int) {
         let spec = NavigatorBars.specs[index]
         rebuildFilterOptionsMenu()
@@ -742,13 +609,11 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             b.toolTip = t.toolTip
         }
         syncToggleStates()
-        // The left button.
         let left = spec.left
         addBreakpointButton.isHidden = left == .none
         plusGlass.isHidden = left == .none || showsCodingAssistant
         filterAfterLeftButton.isActive = left != .none
         filterAtEdge.isActive = left == .none
-        // The text and the clear button keep clear of the toggles.
         let shown = CGFloat(toggleButtons.filter { !$0.isHidden }.count)
         (filter as? NavigatorFilterField)?.trailingInset = shown == 0
             ? 0 : shown * NavigatorFilterField.toggleWidth + (shown - 1) * toggleStack.spacing + 4
@@ -761,13 +626,11 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         addBreakpointButton.toolTip = tip
     }
 
-    /// The toggle buttons show the selected navigator's values.
     func syncToggleStates() {
         guard isViewLoaded else { return }
         for (i, b) in toggleButtons.enumerated() where !b.isHidden { b.state = toggleValue(selectedIndex, i) ? .on : .off }
     }
 
-    /// The value of toggle `i` of navigator `nav`.
     public func toggleValue(_ nav: Int, _ i: Int) -> Bool {
         switch (nav, i) {
         case (0, 0): filterRecent
@@ -787,7 +650,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         }
     }
 
-    /// Sets toggle `i` of navigator `nav` and refilters that navigator.
     public func setToggle(_ nav: Int, _ i: Int, _ on: Bool) {
         switch (nav, i) {
         case (0, 0): filterRecent = on
@@ -809,15 +671,11 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if nav == selectedIndex { rebuildFilterOptionsMenu() }
     }
 
-    /// The empty state the selected navigator shows now (no lines when it
-    /// has rows or has no empty state).
     public var emptyStateLines: [String] {
         guard isViewLoaded, !emptyLabel.isHidden else { return [] }
         return emptyLabel.stringValue.components(separatedBy: "\n")
     }
 
-    /// The "+" menu: the window's items for this navigator, else (for
-    /// Breakpoints) the breakpoint kinds.
     func rebuildAddMenu() {
         guard let menu = addBreakpointButton.menu else { return }
         menu.removeAllItems()
@@ -835,12 +693,8 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         }
     }
 
-    /// The "+" menu's titles (tests).
     public var addMenuTitles: [String] { (addBreakpointButton.menu?.items.dropFirst() ?? []).map(\.title) }
 
-    /// Bookmarks navigator: by file, then each bookmark (line and label).
-    /// Done bookmarks carry a check badge; Incomplete Items hides them
-    /// (reference-ui-5.md §5.2).
     public func setBookmarks(_ list: [Bookmark]) {
         allBookmarks = list
         let shown = bookmarksIncompleteOnly ? list.filter { $0.done != true } : list
@@ -859,23 +713,12 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if selectedIndex == 2 { outline.expandItem(nil, expandChildren: true) }
     }
 
-    /// The workspace name (the Issue navigator's project row when no
-    /// `issueGrouping` is set).
     public var workspaceName = ""
-    /// Where issues are grouped by target (reference-ui-6.md §5.1); nil:
-    /// every issue goes under one project row named `workspaceName`.
     public var issueGrouping: (() -> IssueGrouping)?
-    /// Issue navigator toggles (reference-ui-2.md §1): only issues from
-    /// open documents and recently built sources; only errors.
     public var issuesRecentOnly = false { didSet { syncToggleStates(); setIssues(allIssues) } }
     public var issuesErrorsOnly = false { didSet { syncToggleStates(); setIssues(allIssues) } }
     private var allIssues: [Diagnostic] = []
 
-    /// Issue navigator (reference-ui-6.md §5.1, N1): the project row with
-    /// its own issues, then one row per target, each with "n issue(s)" as
-    /// secondary text; under a target one row per file (named without its
-    /// extension, by name), and under it the issues by line, wrapping to
-    /// the Issue navigator detail setting.
     public func setIssues(_ issues: [Diagnostic]) {
         allIssues = issues
         issueModel.errorsOnly = issuesErrorsOnly
@@ -894,7 +737,7 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         let grouping = issueGrouping?() ?? IssueGrouping(projectName: name)
         roots[4] = IssueNavigatorModel.tree(entries, grouping: grouping).map { g in
             let files = g.files.map { f in
-                OutlineItem(title: f.title, symbol: OutlineItem.fileSymbol(f.file), children: f.entries.map(issueRow))   // §5.3.3
+                OutlineItem(title: f.title, symbol: OutlineItem.fileSymbol(f.file), children: f.entries.map(issueRow))
             }
             let row = OutlineItem(title: g.title, symbol: g.kind == .project ? (isPackage ? "shippingbox" : "folder.badge.gearshape") : "app.dashed",
                                   children: g.entries.map(issueRow) + files)
@@ -906,23 +749,17 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if selectedIndex == 4 { outline.expandItem(nil, expandChildren: true) }
     }
 
-    /// Stale tracking and filter tokens (reference-ui-2.md §1.5, §1.8).
     public var issueModel = IssueNavigatorModel()
-    /// Call when a build finishes; `full` clears stale issues;
-    /// `compiledFiles` are the file names it compiled (nil: unknown).
     public func issuesBuildFinished(_ issues: [Diagnostic], full: Bool, compiledFiles: Set<String>? = nil) {
         issueModel.finishBuild(issues, full: full, compiledFiles: compiledFiles)
         setIssues(issues)
     }
 
-    /// Call when a build starts: the last build's issues stay, stale.
     public func issuesBuildStarted() {
         issueModel.startBuild()
         setIssues(allIssues)
     }
 
-    /// The filter-options menu for the Issue navigator (§1.8), else the
-    /// Project navigator's items.
     func rebuildFilterOptionsMenu() {
         guard let menu = filterOptions.menu else { return }
         while menu.items.count > 1 { menu.removeItem(at: 1) }
@@ -942,18 +779,15 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
                 add(t.menuTitle, #selector(toggleMenuChosen(_:)), tag: i, state: toggleValue(selectedIndex, i))
             }
             if selectedIndex == 6 {
-                // The process view options (reference-ui-4.md §5.3).
                 menu.addItem(.separator())
                 add("View Process by Queue", #selector(debugViewOptionChosen(_:)), tag: 0, state: showThreadsByQueue)
                 add("Show Gauges", #selector(debugViewOptionChosen(_:)), tag: 1, state: showsGauges)
             }
         }
     }
-    /// The filter-options menu's titles (tests).
     public var filterOptionTitles: [String] { (filterOptions.menu?.items.dropFirst() ?? []).map { $0.isSeparatorItem ? "-" : $0.title } }
 
     @objc func issueFilterChosen(_ item: NSMenuItem) { chooseIssueFilter(tag: item.tag) }
-    /// Applies a filter-options item by tag (section * 10 + index).
     public func chooseIssueFilter(tag: Int) {
         switch tag {
         case 0: issueModel.deprecationOnly.toggle()
@@ -968,7 +802,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
     }
 
     public enum NewBreakpointKind { case exception, swiftError, symbolic, runtimeIssue, constraintError, testFailure }
-    /// The breakpoint navigator's + menu.
     public var onAddBreakpoint: ((NewBreakpointKind) -> Void)?
     let addBreakpointButton = NSPopUpButton(frame: .zero, pullsDown: true)
 
@@ -984,19 +817,14 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if selectedIndex == 7 { outline.expandItem(nil, expandChildren: true) }
     }
 
-    /// Runs a workspace search and shows the results grouped by file
-    /// (FindNavigator.swift).
     public func find(_ query: String) { runFind(query) }
 
-    /// Shows the Find navigator's rows (FindNavigator.swift builds them).
     func setFindRows(_ rows: [OutlineItem]) {
         roots[3] = rows
         reloadIfShowing(3)
         if selectedIndex == 3 { outline.expandItem(nil, expandChildren: true) }
     }
 
-    /// Shows a symbol search (references or call hierarchy) in the Find
-    /// navigator: a heading row, then its tree.
     public func showSymbolResults(title: String, symbol: String, children: [OutlineItem]) {
         _ = view
         roots[3] = [OutlineItem(title: title, symbol: symbol, children: children)]
@@ -1006,13 +834,11 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
 
     @objc private func findSubmitted() { submitFind() }
 
-    /// The Find field's recent searches, newest first (§5.4).
     public var recentSearches: [String] { findField.recentSearches }
     public func noteRecentSearch(_ q: String) {
         findField.recentSearches = Array(([q] + findField.recentSearches.filter { $0 != q }).prefix(findField.maximumRecents))
     }
 
-    /// The search field's menu: Recent Searches, the entries, Clear.
     static func recentSearchesMenu() -> NSMenu {
         let m = NSMenu(title: "Recent Searches")
         let title = NSMenuItem(title: "Recent Searches", action: nil, keyEquivalent: "")
@@ -1033,14 +859,10 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         return m
     }
 
-    /// The scope menu (reference-ui-2.md §3.5): the workspace (Package or
-    /// Project), its dependencies (disabled), Current Find Results,
-    /// Containing Groups of the selected file, then SwiftCode's Open Files and
-    /// the saved custom scopes, and Custom Scopes… (the editor).
     func rebuildScopeMenu() {
         guard let menu = findScope.menu else { return }
         menu.removeAllItems()
-        let unit = isPackage ? "Package" : (isWorkspace ? "Workspace" : "Project")   // reference-ui-5.md §5.4
+        let unit = isPackage ? "Package" : (isWorkspace ? "Workspace" : "Project")
         func add(_ title: String, enabled: Bool, tag: Int, path: String? = nil) {
             let i = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             i.isEnabled = enabled
@@ -1078,8 +900,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         }
     }
 
-    /// Whether the workspace is a package (scope titles say "Package"), or
-    /// a workspace file ("Workspace"); otherwise a project ("Project").
     public var isPackage = false
     public var isWorkspace = false
 
@@ -1096,14 +916,12 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         case 2: if let p = item.representedObject as? String { setFindScope(.group(p)) }
         case 3: setFindScope(.openFiles)
         case 4: if let n = item.representedObject as? String { setFindScope(.custom(n)) }
-        case 5: editCustomScopes()   // FindNavigator.swift
+        case 5: editCustomScopes()
         default: setFindScope(.workspace)
         }
     }
-    /// Changing an option re-runs the last search (FindNavigator.swift).
     @objc private func findOptionChanged() { findOptionsDidChange() }
 
-    /// Collects the workspace's symbols: files with their declarations.
     public func refreshSymbols() {
         guard let root = workspaceRoot else { return }
         symbolRows = root.allFiles.compactMap { file -> OutlineItem? in
@@ -1120,8 +938,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         }
     }
 
-    /// Letter badges in our own style: C class, S struct, E enum, P protocol,
-    /// X extension, A actor, F function, T typealias, M macro.
     static func symbolGlyph(_ k: SymbolScanner.Symbol.Kind) -> String {
         switch k {
         case .class, .interface, .implementation: "c.square.fill"
@@ -1148,11 +964,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         }
     }
 
-    /// Report navigator (reference-ui-2.md §4): one group per scheme,
-    /// then "Package"; rows "<action>  <day>, <time>", newest first, with an
-    /// error badge when failed; a test run is "<scheme>/<plan>" with
-    /// Insights, Coverage, Tests, Log and Build under it. The Local | Cloud
-    /// switch and the clock (recent only) toggle filter the rows.
     public func setReports(_ reports: [BuildReport]) {
         allReports = reports
         let location: ReportLocation = reportScope.selectedSegment == 1 ? .cloud : .local
@@ -1172,36 +983,22 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if selectedIndex == 8 { outline.expandItem(nil, expandChildren: false); for g in shownRoots { outline.expandItem(g) } }
     }
     private var allReports: [BuildReport] = []
-    /// The Report navigator's clock toggle: only reports from the last day.
     public var reportsRecentOnly = false { didSet { syncToggleStates(); setReports(allReports) } }
     @objc private func reportScopeChanged() { setReports(allReports) }
 
-    /// Report navigator's Local | Cloud control (Cloud: not available).
     public let reportScope = NSSegmentedControl(labels: ["Local", "Cloud"], trackingMode: .selectOne, target: nil, action: nil)
-    /// Called with a report and a page ("Insights", "Coverage", "Tests", "Log", "Build").
     public var onOpenReportPage: ((Int, String) -> Void)?
 
-    /// The Test navigator: files, then classes/suites, then tests, each
-    /// with a diamond showing the last result.
-    /// The test plan's name (the Test navigator's root).
     public var testPlanName = "Tests" {
         didSet { if isViewLoaded { testPlanPopUp.removeAllItems(); testPlanPopUp.addItem(withTitle: testPlanName) } }
     }
-    /// The test target a file belongs to.
     public var testTarget: ((String) -> String)?
 
-    /// Test navigator (reference-ui-2.md §6, reference-ui-6.md §5.4): the
-    /// project or package, then each test target, then suites and test
-    /// functions with parentheses; the root, target and suite rows add
-    /// "N Tests".
     public func setTests(_ tests: [DiscoveredTest], results: [DiscoveredTest: TestOutcome.Status]) {
         lastTests = (tests, results)
         refreshTests()
     }
 
-    /// The Test navigator from the last tests, with its toggles and mode
-    /// applied (reference-ui-5.md §5.2). Status diamonds sit at the rows'
-    /// right end.
     func refreshTests() {
         var (tests, results) = lastTests
         if testsIncludedOnly { tests = tests.filter { !skippedTests.contains($0.identifier) } }
@@ -1209,7 +1006,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
             let open = Set(recentFiles)
             tests = tests.filter { open.contains($0.file) || results[$0] != nil }
         }
-        // §5.4 (N5): the result glyph shows once a result exists.
         func diamond(_ s: TestOutcome.Status?) -> (String?, NSColor?) {
             switch s {
             case .passed?: ("checkmark.diamond.fill", .systemGreen)
@@ -1255,7 +1051,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if tests.isEmpty {
             roots[5] = []
         } else if groupTestsByTags {
-            // Group by Tags: one group per swift-testing tag, then Untagged Tests.
             var texts: [String: String] = [:]
             var byTag: [String: [DiscoveredTest]] = [:]
             var untagged: [DiscoveredTest] = []
@@ -1282,17 +1077,11 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if selectedIndex == 5 { outline.expandItem(nil, expandChildren: true) }
     }
 
-    /// The Test navigator's root row: the project or package name; the
-    /// plan stays in the header pop-up (reference-ui-6.md §5.4).
     var testRootTitle: String { workspaceName.isEmpty ? testPlanName : workspaceName }
     var testRootSymbol: String { isPackage ? "shippingbox" : "folder.badge.gearshape" }
 
-    /// "1 Test", "2 Tests" (§5.4).
     public static func testCountText(_ n: Int) -> String { "\(n) Test\(n == 1 ? "" : "s")" }
 
-    /// A parent's result: the aggregate of its children's last results —
-    /// failed when any failed, else passed when any passed, else skipped
-    /// when any was skipped; nil while none has a result (§5.4).
     public static func aggregateTestStatus(_ all: [TestOutcome.Status?]) -> TestOutcome.Status? {
         let known = all.compactMap { $0 }
         if known.contains(.failed) { return .failed }
@@ -1300,12 +1089,8 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         return known.isEmpty ? nil : .skipped
     }
 
-    /// Source-control state for badges: absolute path → letter.
     private var fileBadges: [String: String] = [:]
 
-    /// Badges in the project navigator (M, A, ?, D, R, C), on file rows
-    /// only: never on the project, group or folder rows
-    /// (`reference-ui-5.md` §5.1, N3).
     public func setFileStatus(_ status: [String: GitRepository.FileStatus]) {
         fileBadges = status.mapValues(\.rawValue)
         defer { if filterSourceControl { applyProjectFilter() } }
@@ -1326,20 +1111,15 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         onSourceControlMode?(SourceControlNavigatorModel.Mode(rawValue: sourceControlMode.selectedSegment) ?? .changes)
     }
 
-    /// Replaces the Source Control navigator's tree (Changes or Repositories).
     public func setSourceControlRoots(_ items: [OutlineItem]) {
         let expanded = expandedSourceControlKeys()
         roots[1] = items
         reloadIfShowing(1)
-        if selectedIndex == 1 { expandSourceControlRows(keeping: expanded) }   // +Repositories.swift
+        if selectedIndex == 1 { expandSourceControlRows(keeping: expanded) }
     }
 
-    /// Selects the Source Control row with `key` (shown navigator only);
-    /// false when it is not there.
-    /// Whether the outline carries the row context menu (tests).
     public var hasRowMenu: Bool { outline.menu === rowMenu }
 
-    /// The selected Source Control row's key (branch:<name>, …).
     public var selectedSourceControlKey: String? {
         guard isViewLoaded, selectedIndex == 1, outline.selectedRow >= 0 else { return nil }
         return (outline.item(atRow: outline.selectedRow) as? OutlineItem)?.scmKey
@@ -1356,8 +1136,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         return false
     }
 
-    /// The Source Control navigator: the repository, then Branches, Tags
-    /// and Remotes (current branch marked).
     public func setRepository(name: String, branches: [GitRepository.Ref], tags: [GitRepository.Ref],
                               remotes: [GitRepository.Remote], remoteBranches: [GitRepository.Ref]) {
         let branchRows = branches.map { OutlineItem(title: $0.isCurrent ? "\($0.name) (current)" : $0.name, symbol: "arrow.triangle.branch") }
@@ -1375,42 +1153,25 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if selectedIndex == 1 { outline.expandItem(nil, expandChildren: true) }
     }
 
-    /// The Debug navigator: threads, each with its frames (only the stopped
-    /// thread's frames are fetched). Rows carry the frame id in `line`'s
-    /// place through `frameID`.
-    /// Debug navigator: group threads by dispatch queue instead of listing them.
     public var showThreadsByQueue = false
-    /// Debug navigator toggles (reference-ui-5.md §5.2): fold system
-    /// frames (on), only the stopped thread and threads with user frames,
-    /// only running blocks in the queue view (on).
     public var compressedStackFrames = true { didSet { refreshDebugTree() } }
     public var interestingContentOnly = false { didSet { refreshDebugTree() } }
     public var runningBlocksOnly = true { didSet { refreshDebugTree() } }
-    /// Bookmark navigator: hide done bookmarks.
     public var bookmarksIncompleteOnly = false { didSet { setBookmarks(allBookmarks) } }
     var allBookmarks: [Bookmark] = []
-    /// A bookmark row's context menu changed its done state.
     public var onSetBookmarkDone: ((Bookmark, Bool) -> Void)?
-    /// Test navigator: only tests the active plan includes; only tests of
-    /// open files and of the last run.
     public var testsIncludedOnly = false { didSet { refreshTests() } }
     public var testsRecentOnly = false { didSet { refreshTests() } }
-    /// Tests the active test plan skips (identifiers); the autocreated plan skips none.
     public var skippedTests: Set<String> = [] { didSet { refreshTests() } }
-    /// Group by Test Hierarchy (false) or Group by Tags (true).
     public var groupTestsByTags = false { didSet { testModeControl.selectedSegment = groupTestsByTags ? 1 : 0; refreshTests() } }
     var lastTests: ([DiscoveredTest], [DiscoveredTest: TestOutcome.Status]) = ([], [:])
-    /// Debugger navigators' state (see NavigatorAreaController+Debug.swift).
     public var debugProcess: DebugProcessInfo?
     public var showsGauges = true
     var lastDebugState: ([DebugThread], Int?, [StackFrame]) = ([], nil, [])
-    /// Adapter breakpoint ids ("n.m") by "file:line".
     public var breakpointIDs: [String: String] = [:]
     public var breakpointFilter = DebugNavigatorRows.BreakpointFilter()
-    /// A click on a breakpoint row's enabled marker.
     public var onToggleBreakpointEnabled: ((String, Int) -> Void)?
     var lastBreakpointStoreForDebug: BreakpointStore? { lastBreakpointStore }
-    /// Watchpoints shown in the Breakpoint navigator.
     private var watchpointRows: [OutlineItem] = []
     private var lastBreakpointStore: BreakpointStore?
 
@@ -1433,7 +1194,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
 
     public var onSelectFrame: ((Int) -> Void)?
 
-    /// The current rows of a navigator (for tests).
     public func rows(_ index: Int) -> [OutlineItem] { roots[index] }
 
     private func reloadIfShowing(_ i: Int) {
@@ -1442,8 +1202,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         outline.reloadData()
         updateEmpty()
     }
-
-    // MARK: Selection
 
     public func select(_ index: Int) {
         selectedIndex = index
@@ -1454,16 +1212,12 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         scopeHeight?.constant = index == 3 ? 18 : 0
         let headerBar = index == 8 || index == 1 || index == 5
         reportScopeHeight?.constant = headerBar ? 20 : 0
-        // Hidden header rows take no spacing either (N3).
         for c in [findOptionsTop, findFieldTop, findScopeTop] as [NSLayoutConstraint?] { c?.constant = index == 3 ? 2 : 0 }
         reportScopeTop?.constant = headerBar ? 2 : 0
         scrollTop?.constant = headerBar || index == 3 ? 4 : 0
         reportScope.isHidden = index != 8
         sourceControlMode.isHidden = index != 1
         testHeader.isHidden = index != 5
-        // Bookmark rows (Mark as Done), project rows (the file operations),
-        // test rows and Source Control rows (merge-sheet.md §1.1) have a
-        // context menu.
         outline.menu = [0, 1, 2, 5].contains(index) ? rowMenu : nil
         configureProjectOperations(index)
         findScope.isHidden = index != 3
@@ -1480,8 +1234,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         updateEmpty()
     }
 
-    /// The navigator's empty state (reference-ui-5.md §5.2): a title and,
-    /// for some, a second line in smaller text.
     private func updateEmpty() {
         let lines = NavigatorBars.specs[selectedIndex].emptyState
         emptyLabel.isHidden = !shownRoots.isEmpty || lines.isEmpty
@@ -1499,35 +1251,25 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
 
     @objc private func selectorClicked(_ sender: NSButton) { select(sender.tag) }
 
-    /// The selected row's file, if any.
     public var selectedPath: String? {
         guard isViewLoaded, outline.selectedRow >= 0 else { return nil }
         return (outline.item(atRow: outline.selectedRow) as? OutlineItem)?.path
     }
 
-    /// The selected row, if any (Product ▸ Perform Action ▸ Test runs the
-    /// tests selected in the Test navigator).
     public var selectedItem: OutlineItem? {
         guard isViewLoaded, outline.selectedRow >= 0 else { return nil }
         return outline.item(atRow: outline.selectedRow) as? OutlineItem
     }
 
-    /// The row above the selected one (its group or folder), if any.
     public var selectedItemParent: OutlineItem? {
         guard let item = selectedItem else { return nil }
         return outline.parent(forItem: item) as? OutlineItem
     }
 
-    /// A project row selected by any route other than a click (the
-    /// keyboard, Accessibility's selected rows) opens its file, as a click
-    /// does (`editor-area.md` §C.6; #71). A click opens through
-    /// `rowClicked` (with its modifiers); a selection the window made for
-    /// an opened file opens nothing.
     func openSelectedProjectFile() {
         guard selectedIndex == 0, !selectionFromOpen.value, outline.selectedRowIndexes.count == 1,
               let item = outline.item(atRow: outline.selectedRow) as? OutlineItem, let path = item.path,
               item.nodeKind == .file || path.hasSuffix(".xcodeproj") else { return }
-        // A click in the outline right now: `rowClicked` opens it.
         if let e = NSApp.currentEvent, [.leftMouseDown, .leftMouseUp, .rightMouseDown, .otherMouseDown].contains(e.type),
            e.window === outline.window, ProcessInfo.processInfo.systemUptime - e.timestamp < 1,
            outline.bounds.contains(outline.convert(e.locationInWindow, from: nil)) { return }
@@ -1546,11 +1288,9 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         if let r = item.reportIndex {
             if let page = item.reportPage { onOpenReportPage?(r, page) } else { onOpenReport?(r) }
         }
-        if selectedIndex == 3, item.findIndex?.match != nil { openFindRow(item); return }   // FindNavigator.swift
+        if selectedIndex == 3, item.findIndex?.match != nil { openFindRow(item); return }
         if let path = item.path { onOpen?(path, item.line) }
     }
-
-    // MARK: Outline data source
 
     public func outlineView(_ o: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         (item as? OutlineItem)?.children.count ?? shownRoots.count
@@ -1626,8 +1366,6 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
         return cell
     }
 
-    /// The row: the measured selection band, and an accessibility row
-    /// titled with the row's name (`navigators.md` "Council round 2" §4).
     public func outlineView(_ o: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
         let row = NavigatorRowView()
         if let item = item as? OutlineItem {
@@ -1643,13 +1381,10 @@ extension NavigatorAreaController: NSMenuDelegate {
         if menu === findScope.menu { rebuildScopeMenu() } else if menu === rowMenu { rebuildRowMenu(menu) } else { rebuildAddMenu() }
     }
 
-    /// The row context menu: for a bookmark, Mark as Done / Not Done; for
-    /// project rows, the file operations (`projectRowMenu`).
     func rebuildRowMenu(_ menu: NSMenu) {
         menu.removeAllItems()
         if selectedIndex == 0 { rebuildProjectRowMenu(menu); return }
         if selectedIndex == 1 {
-            // The Source Control navigator: by the clicked row's key.
             let clicked = outline.clickedRow
             if clicked >= 0, !outline.selectedRowIndexes.contains(clicked) { outline.selectRowIndexes([clicked], byExtendingSelection: false) }
             let row = clicked >= 0 ? clicked : outline.selectedRow
@@ -1658,7 +1393,6 @@ extension NavigatorAreaController: NSMenuDelegate {
             return
         }
         if selectedIndex == 5 {
-            // A right click outside the selection acts on the clicked row.
             let clicked = outline.clickedRow
             if clicked >= 0, !outline.selectedRowIndexes.contains(clicked) { outline.selectRowIndexes([clicked], byExtendingSelection: false) }
             for item in testRowMenu?() ?? [] { menu.addItem(item) }
@@ -1671,9 +1405,6 @@ extension NavigatorAreaController: NSMenuDelegate {
 }
 
 extension NavigatorAreaController {
-    /// "Thread N — name": the adapter already formats names as
-    /// "Thread <index>{ name = …}{ queue = …}" (debug.md), so that index is
-    /// used and the rest becomes the detail; other names follow the id.
     public static func threadTitle(_ t: DebugThread) -> String {
         let name = t.name.trimmingCharacters(in: .whitespaces)
         if name.hasPrefix("Thread ") {
@@ -1695,8 +1426,6 @@ func + (a: NSAttributedString, b: NSAttributedString) -> NSAttributedString {
 }
 
 extension NavigatorAreaController {
-    /// Wrapped rows (issues) are as tall as their text: up to `maxLines`
-    /// lines, or all of it when selected.
     public func outlineView(_ o: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
         guard let item = item as? OutlineItem, item.maxLines > 0 else { return o.rowHeight }
         let width = max(80, o.bounds.width - o.indentationPerLevel * CGFloat(o.level(forItem: item) + 1) - 30)
@@ -1711,7 +1440,6 @@ extension NavigatorAreaController {
     public func outlineViewSelectionDidChange(_ notification: Notification) {
         openSelectedProjectFile()
         if selectedIndex == 3 { findSelectionChanged() }
-        // The selected issue (bookmark, find result) grows to show all of it.
         guard [2, 3, 4].contains(selectedIndex) else { return }
         outline.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<outline.numberOfRows))
         let visible = outline.rows(in: outline.visibleRect)
@@ -1719,12 +1447,7 @@ extension NavigatorAreaController {
     }
 }
 
-/// Settings ▸ General ▸ Navigator size and the navigators' detail lines
-/// (reference-ui-5.md §9.1).
 extension NavigatorAreaController {
-    /// The effective size: "Use System Setting" follows the system's
-    /// sidebar size (`NSTableViewDefaultSizeMode`: 1 small, 2 medium,
-    /// 3 large; medium when unset).
     static var effectiveSize: Preferences.NavigatorSize {
         switch Preferences.shared.navigatorSize {
         case .system:
@@ -1741,39 +1464,23 @@ extension NavigatorAreaController {
         switch effectiveSize { case .small: .small; case .large: .large; default: .medium }
     }
 
-    /// The row font size: 11 / 13 / 15 points for small / medium / large.
     public static var rowFontSize: CGFloat {
         switch effectiveSize { case .small: 11; case .large: 15; default: 13 }
     }
 
-    /// The navigator size the rows follow (tests). The outline itself uses
-    /// a custom row height, `rowHeight`.
     public var rowSizeStyle: NSTableView.RowSizeStyle { Self.rowSizeStyle }
 
-    /// reference-ui-6.md §5.3 (N3): rows are 22 points tall at the medium
-    /// size (the reference's default); SwiftCode's reading for small and large
-    /// follows the font sizes.
     public static var rowHeight: CGFloat {
         switch effectiveSize { case .small: 18; case .large: 26; default: 22 }
     }
-    /// The gap from the selector's bottom to the first row's top (§5.3).
     static let firstRowGap: CGFloat = 7
-    /// From the selector's bottom to the outline's scroll view with no
-    /// header shown: 2 points, then the 1-point rule.
     static let selectorToContent: CGFloat = 3
-    /// The first row's top below the top of the outline's clipping
-    /// container when the outline does not run under the bars: 7 below the
-    /// selector with no header shown, and the same 4 points below the
-    /// header rows (Find, Source Control, Tests, Reports) when they are.
     static let clipToFirstRow: CGFloat = firstRowGap - selectorToContent
 
-    /// `metrics.md` §12.1: every level steps 14 (triangle, icon, label);
-    /// the icon's left edge at 27 + 14 × level, the label at 48 + 14 × level.
     static let indentation: CGFloat = 14
     static let iconInset: CGFloat = 1
     static let iconToLabel: CGFloat = 5
 
-    /// Row pitch: the custom height and no spacing between rows.
     func applyRowMetrics() {
         outline.indentationPerLevel = Self.indentation
         outline.rowSizeStyle = .custom
@@ -1781,7 +1488,6 @@ extension NavigatorAreaController {
         outline.intercellSpacing = NSSize(width: outline.intercellSpacing.width, height: 0)
     }
 
-    /// Re-applies the size and the detail lines to the shown rows.
     public func applyDisplayPreferences() {
         guard isViewLoaded else { return }
         let p = Preferences.shared

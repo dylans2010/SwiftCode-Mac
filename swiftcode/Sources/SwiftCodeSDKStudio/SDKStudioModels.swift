@@ -2,16 +2,6 @@ import Foundation
 import SwiftCodeExtensions
 import SwiftCodeSDK
 
-// MARK: - First-launch choice
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKFirstLaunchInstallerView.swift`
-// (`SDKStudioFirstLaunchChoice`). Records whether the user installed,
-// declined, or asked to be reminded later; `shouldPrompt` is true only
-// while nothing is recorded and the SDK is not already installed. The
-// install check itself is the Host slice's `SDKInstaller.inspect()` —
-// this type takes the installed flag as a parameter so Studio stays
-// testable without the installer.
-
 public enum SDKStudioFirstLaunchChoice {
     private static let choiceKey = "com.swiftcode.sdk.studio.firstLaunchChoice"
     private static let installedValue = "installed"
@@ -47,14 +37,6 @@ public enum SDKStudioFirstLaunchChoice {
     }
 }
 
-// MARK: - Installer seam
-//
-// Legacy: `SwiftCode/SDK/Host/SDKInstaller.swift` (Host slice). Studio
-// needs only: installed?, install with live log lines, and the default
-// prefix. `SDKStudioInstallerHost` below adapts the real Host installer;
-// `SDKStudioInstallerUnavailable` remains as the honest placeholder for
-// tests and for builds without the installer.
-
 public enum SDKStudioInstallerStatus: Equatable, Sendable {
     case ok(version: String)
     case notInstalled
@@ -82,9 +64,6 @@ public protocol SDKStudioInstaller: Sendable {
     func bundledFallbackURL() -> URL?
 }
 
-/// The placeholder the Studio UI used before the Host slice landed the
-/// real installer: every operation honestly reports "not available".
-/// Kept for tests; the Studio views now use `SDKStudioInstallerHost`.
 public struct SDKStudioInstallerUnavailable: SDKStudioInstaller {
     public static let expectedVersion: String = SDKVersion.current.description
     public static let defaultPrefix: URL = {
@@ -100,12 +79,6 @@ public struct SDKStudioInstallerUnavailable: SDKStudioInstaller {
     public func bundledFallbackURL() -> URL? { nil }
 }
 
-/// The live installer adapter (Wave 14 coordinator): delegates to the
-/// Host slice's real `SDKInstaller` (idempotent npm install of
-/// `@swiftcode/sdk`, pinned GitHub release with bundled fallback).
-/// No bundled tarball ships in-repo, so `bundledFallbackURL()` is nil
-/// and the installer honestly reports the fallback as unavailable when
-/// the remote download fails.
 public struct SDKStudioInstallerHost: SDKStudioInstaller {
     public static let expectedVersion: String = SDKInstaller.expectedVersion
     public static let defaultPrefix: URL = SDKInstaller.defaultPrefix
@@ -134,18 +107,6 @@ public struct SDKStudioInstallerHost: SDKStudioInstaller {
 
     public func bundledFallbackURL() -> URL? { nil }
 }
-
-// MARK: - Project wizard and scaffold
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKStudioProjectsView.swift`
-// (`WizardConfig`, `WizardField`, `Validators`, `ScaffoldEngine`).
-// Three wizards, field-for-field: New Extension (id, name, version,
-// description, outDir, sdkPackage), New TypeScript Project (name, slug,
-// version, description, outDir), New Swift Project (name, bundleId,
-// outDir). Validation mirrors the rules in
-// `SwiftCode/SDK/TypeScript/cli/create-extension.mjs`. The scaffold
-// writer refuses a non-empty target and refuses any template path that
-// escapes the target (containment anchor, verbatim rule).
 
 public enum SDKStudioWizardKind: String, Sendable, CaseIterable {
     case newExtension
@@ -365,9 +326,6 @@ public enum SDKStudioScaffoldError: Error, Sendable {
 }
 
 public enum SDKStudioScaffold {
-    /// Auto-detects the local `@swiftcode/sdk` package directory: the
-    /// `SWIFTCODE_SDK_PACKAGE` environment variable, then the app bundle's
-    /// `SwiftCodeSDK` resources, then the installed SDK prefix.
     public static func defaultSDKPackageDir() -> String? {
         if let env = ProcessInfo.processInfo.environment["SWIFTCODE_SDK_PACKAGE"], !env.isEmpty { return env }
         if let bundled = Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/node_modules/@swiftcode/sdk").path,
@@ -378,9 +336,6 @@ public enum SDKStudioScaffold {
         return nil
     }
 
-    /// Creates a project from `config` + `values` at
-    /// `values["outDir"]`, writing the scaffold files. Returns the
-    /// target directory and the written relative paths.
     public static func create(config: SDKStudioWizardConfig, values: [String: String],
                              progress: (String) -> Void = { _ in }) throws -> (target: URL, written: [String]) {
         guard let outDir = values["outDir"], !outDir.isEmpty else {
@@ -552,10 +507,6 @@ public enum SDKStudioScaffold {
     }
 }
 
-// MARK: - Recent projects
-//
-// Legacy: `SDKStudioProjectsView` (`com.swiftcode.sdk.studio.recentProjects`).
-
 public enum SDKStudioRecentProjects {
     private static let key = "com.swiftcode.sdk.studio.recentProjects"
     public static let maxEntries = 20
@@ -578,18 +529,6 @@ public enum SDKStudioRecentProjects {
         defaults.removeObject(forKey: key)
     }
 }
-
-// MARK: - Grant store seam
-//
-// Legacy: `SwiftCode/SDK/Host/CapabilityBroker/Grants/SDKGrantStore.swift`
-// (`SDKGrantRecord` with package digest, scope, granted-by, expiry, and a
-// never-cleared revoked tombstone). SwiftCode's `PermissionManager`
-// (`SwiftCodeExtensions/Capabilities.swift`) is the Host slice's live grant
-// store: `grants.json`, deny-by-default, revoke effective on next call —
-// but it keeps no tombstones, no package digests, and no extension display
-// names. The Studio grant manager therefore talks to this protocol; the
-// adapter below synthesizes records from live grants (revoked records are
-// absent — the tombstone gap is reported to the coordinator, not faked).
 
 public struct SDKStudioGrantRecord: Identifiable, Sendable, Hashable {
     public let id: UUID
@@ -641,13 +580,6 @@ public protocol SDKStudioGrantStore: Sendable {
     func revokeAll(for extensionID: String) async throws
 }
 
-/// Live-grant adapter over `PermissionManager`: records are synthesized
-/// from currently-granted capabilities (mapped from the v2 runtime
-/// capabilities back to the SDK ids they enforce), merged with the
-/// revoked tombstones kept in the Host slice's `SDKGrantStore` (S-2).
-/// Revocation is real and immediate in the live store; the tombstone is
-/// stamped in the record store best-effort (a tombstone failure never
-/// fails the revoke itself — the grant is already gone).
 public struct SDKPermissionManagerGrantStore: SDKStudioGrantStore {
     private let permissions: PermissionManager
     private let grantRecords: SDKGrantStore
@@ -668,9 +600,6 @@ public struct SDKPermissionManagerGrantStore: SDKStudioGrantStore {
                                          grantedBy: "user-approval")
                 }
         }
-        // Revoked history from the durable record store (tombstones are
-        // kept forever; a re-granted capability appears twice — once
-        // live, once revoked — which is the audit trail).
         let stored = await grantRecords.grants(for: extensionID)
         for tombstone in stored where tombstone.revokedAt != nil {
             records.append(SDKStudioGrantRecord(
@@ -699,15 +628,11 @@ public struct SDKPermissionManagerGrantStore: SDKStudioGrantStore {
     }
 
     public func revokeAll(for extensionID: String) async throws {
-        // Capture the live grants first: only capabilities that were
-        // actually held get a tombstone.
         let live = permissions.grantedCapabilities(for: extensionID)
         let liveSDKCapabilities = Set(SDKCapabilityID.allCases.filter { sdk in
             ExtensionCapability.v2Capabilities(for: sdk).contains(where: { live.contains($0) })
         })
         permissions.revokeAll(for: extensionID)
-        // Stamp every record the store holds for this extension, plus a
-        // tombstone for each live-only capability (no record yet).
         try? await grantRecords.revokeAll(for: extensionID)
         for sdk in liveSDKCapabilities {
             await stampTombstone(extensionID: extensionID, capability: sdk,
@@ -715,11 +640,6 @@ public struct SDKPermissionManagerGrantStore: SDKStudioGrantStore {
         }
     }
 
-    /// Stamps a revocation tombstone for one capability: revokes any
-    /// record the store already holds, and appends a tombstone record
-    /// when the grant lived only in the flat store. Best-effort — the
-    /// live revoke above already happened, so a record-store failure
-    /// must not surface as a revoke failure.
     private func stampTombstone(extensionID: String, capability: SDKCapabilityID,
                                 packageDigest: String, packageVersion: String) async {
         let installed = await SDKExtensionRegistry.shared.installedExtension(id: extensionID)
@@ -735,16 +655,6 @@ public struct SDKPermissionManagerGrantStore: SDKStudioGrantStore {
         }
     }
 }
-
-// MARK: - Developer API keys seam
-//
-// Legacy: `SwiftCode/SDK/Host/APIKeys/SDKAPIKey.swift` +
-// `SDKAPIKeyStore.swift` (HMAC-SHA256 `sc_dev_live_` / `sc_dev_test_`
-// secrets against a Keychain device key; metadata only is stored, the
-// secret itself is never persisted; revocation is immediate; three v1
-// scopes `apps:create`, `apps:publish`, `capabilities:request`).
-// `SDKHostAPIKeyStore` below adapts the real Host store; Studio talks to
-// this protocol so the API Keys view never invents its own key storage.
 
 public struct SDKStudioAPIKeyScope: Sendable, Hashable, RawRepresentable, Codable {
     public let rawValue: String
@@ -815,21 +725,12 @@ public enum SDKStudioAPIKeyStoreError: Error, Sendable {
 }
 
 public protocol SDKStudioAPIKeyStore: Sendable {
-    /// Creates a key and returns its metadata plus the secret, shown
-    /// exactly once. The secret is never stored.
     func createKey(label: String, isLive: Bool, scopes: Set<SDKStudioAPIKeyScope>,
                    expiresAt: Date?) async throws -> (key: SDKStudioAPIKey, secret: String)
     func list() async throws -> [SDKStudioAPIKey]
     func revoke(id: UUID) async throws
 }
 
-/// The live key-store adapter (Wave 14 coordinator): delegates to the
-/// Host slice's real `SDKAPIKeyStore` (HMAC-SHA256 secrets against a
-/// Keychain device key; metadata only is persisted). Scope and
-/// entitlement values cross the boundary by raw string — both sides
-/// accept any non-empty string — and `isLive` is derived from the key
-/// prefix (`sc_dev_live_` vs `sc_dev_test_`), which is the same
-/// information the Host store records.
 public struct SDKHostAPIKeyStore: SDKStudioAPIKeyStore {
     private let store: SDKAPIKeyStore
 
@@ -874,14 +775,6 @@ public struct SDKHostAPIKeyStore: SDKStudioAPIKeyStore {
     }
 }
 
-// MARK: - Security values seam
-//
-// Legacy: `SDKSecurityManagerView` lists per-app `use.Security` values
-// (add / delete / delete-all) backed by the host security store. SwiftCode
-// has no `use.Security` store yet (the Host slice owns it); Studio
-// talks to this protocol and shows an honest unavailable state until
-// the Host slice provides an implementation.
-
 public struct SDKStudioSecurityApp: Identifiable, Sendable {
     public let id: String
     public let displayName: String
@@ -901,15 +794,6 @@ public protocol SDKStudioSecurityStore: Sendable {
     func deleteAllValues(forApp appID: String) async throws
 }
 
-/// The live security-store adapter (S-4): delegates to the Host slice's
-/// real `SDKSecurityService` (§5 of the SDK spec). `listApps` uses the
-/// host's `listAllApps` enumeration (metadata only — values are never
-/// returned). `store` is the HOST-side entry: the Studio user typed the
-/// secret into the sheet, so it goes straight to `KeychainSDK.addValue`
-/// (the extension-facing `addValue` collects through the host secure
-/// prompt instead and never receives plaintext); `promptText` is unused
-/// here because the value was already collected. `appID` is the
-/// namespaced Security ID (`<extensionID>.<appSecurityID>`).
 public struct SDKHostSecurityStore: SDKStudioSecurityStore {
     public init() {}
 
@@ -945,17 +829,6 @@ public struct SDKHostSecurityStore: SDKStudioSecurityStore {
     }
 }
 
-// MARK: - Assist access application seam
-//
-// Legacy: `AssistAccessFormView` submits an Assist access application
-// (`SDKAssistApplication`, Host slice) for an extension + developer key:
-// variant, own-UI, third-party models, data-leaves-device, contact. The
-// form model below carries the validated application; `submit` (S-5)
-// sends it to the Host slice's `SDKAssistApplicationStore` — the API key
-// secret is passed in-memory only and never stored on this model — and
-// approval stays a separate host action. Studio never approves
-// applications itself.
-
 public struct SDKStudioAssistAccessApplication: Sendable, Codable {
     public enum Variant: String, Sendable, Codable {
         case newApplication = "New Application"
@@ -966,8 +839,6 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
     public let displayName: String
     public let keyID: String?
     public let variant: Variant
-    /// The SDK variant the application is for (Host `SDKAssistSDKVariant`).
-    /// Defaults to the UI variant, matching Legacy's form default.
     public let sdkVariant: SDKAssistSDKVariant
     public let usageDescription: String
     public let hasOwnUI: Bool
@@ -998,14 +869,6 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
         self.contactEmail = contactEmail
     }
 
-    /// Builds the Host slice's application field for the given key ID.
-    /// The ID comes from the presented secret (see `submit(apiKeySecret:)`:
-    /// extracted — unverified, naming only — from the secret the caller
-    /// holds; the store verifies the secret authoritatively and binds
-    /// only on a match). The secret itself is never a stored property:
-    /// it lives only in the form's in-memory `SecureField` for the
-    /// duration of the submit call. The comma-separated third-party
-    /// model list is split into individual names.
     public func makeField(apiKeyID: UUID) -> SDKAssistApplication.Field {
         SDKAssistApplication.Field(
             extensionID: extensionID,
@@ -1025,19 +888,6 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
             contactEmail: contactEmail)
     }
 
-    /// Submits the application to the Host slice's
-    /// `SDKAssistApplicationStore` (S-5): validates the fields, requires
-    /// the extension to be installed, and verifies the presented secret
-    /// against the Keychain-backed key store. The secret proves possession
-    /// of the key the application binds to and is dropped after
-    /// verification — the persisted record carries only the key ID.
-    /// Returns the stored application (status `pending`); approval is a
-    /// separate host action (`SDKAssistApplicationStore.approve`) that
-    /// grants the entitlements by key ID alone. Throws `SDKError` on any
-    /// failure — the secret is never included in an error. If this model
-    /// names a key (`keyID`, the existing-application variant) and the
-    /// presented secret names a different one, submission is rejected:
-    /// the secret must belong to the key being bound.
     public func submit(apiKeySecret: String) async throws -> SDKAssistApplication {
         guard let idString = SDKAPIKeyCodec.extractPresentedKeyID(from: apiKeySecret),
               let apiKeyID = UUID(uuidString: idString) else {
@@ -1049,10 +899,6 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
         return try await SDKAssistApplicationStore.shared.submit(makeField(apiKeyID: apiKeyID), apiKeySecret: apiKeySecret)
     }
 
-    /// Field errors keyed by field name, mirroring Legacy's form
-    /// validation. Empty means submittable. The usage-description
-    /// minimum matches the Host field rule
-    /// (`SDKAssistApplication.minimumUsageDescriptionLength`).
     public func validationErrors() -> [String: String] {
         var errors: [String: String] = [:]
         if extensionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1080,15 +926,6 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
         return errors
     }
 }
-
-// MARK: - User logs
-//
-// Legacy: `SwiftCode/SDK/Runtime/Diagnostics/SDKUserLogger.swift`
-// (sanitized in-memory entries) as read by `SDKStudioLogsView`'s User
-// pane. Secrets are never logged: entries carry a redacted message only.
-// The Developer pane reads SwiftCode's `DiagnosticsService`; the Audit pane
-// has no SwiftCode equivalent yet (`SDKAuditLog` is Host slice) and is
-// reported as such in the Studio spec draft.
 
 public enum SDKStudioUserLogLevel: String, Sendable, Codable, CaseIterable {
     case info

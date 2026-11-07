@@ -3,32 +3,8 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// `use_extension` wired to the Extensions v2 host (Wave 11 Slice C).
-///
-/// Behaviour source: `specs/ide/extensions-platform.md` §7.2 (the
-/// 11-action contract: confirm rule, limit clamping, 8,000-char cap,
-/// error mapping) and §5.4 (the single Wave 2 approval gate).
-///
-/// The tests are black-box through the server (the Wave 4 shape:
-/// assertions on the tool RESULT, never on internals) because this
-/// test target does not depend on `SwiftCodeExtensions` — the host is
-/// reached only through the handler. The sample-plugin fixture tests
-/// (list/details/diagnostics against a registered sample plugin)
-/// therefore live with the host's own tests instead; what this file
-/// covers black-box is: validation, the `confirm: true` rule,
-/// `run_xcode_command`'s file + selection validation and its
-/// sort-lines end-to-end behaviour (the sort-lines command is
-/// registered by the manager's init, so it is always present), and
-/// the not-installed / empty answers for unknown extensions.
-///
-/// Assertions use `firstText` (never exact `resultText ==`):
-/// `MCPToolResult.structured(_:summary:)` emits two text blocks.
 @MainActor
 @Suite(.serialized) struct SwiftCodeExtensionToolTests {
-    /// Opens a copy of Greeter and installs the ported terminal tools
-    /// on the server (same shape as `SwiftCodeTerminalToolsTests.opened`).
-    /// Defaults to `.allow`: `use_extension` is `writes: true`, so
-    /// the read-only policy refuses it before it runs.
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -39,14 +15,11 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
-
-    // MARK: - Host-independent validation
 
     @Test func unknownActionFails() async throws {
         let sample = try TempSample()
@@ -60,8 +33,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // The confirm check fires before the extension/host lookups,
-        // so these need no installed extension to prove the rule.
         let cases: [[String: AnyJSON]] = [
             ["action": .string("activate"), "extensionId": .string("x.y")],
             ["action": .string("execute"), "extensionId": .string("x.y"), "command": .string("c")],
@@ -78,9 +49,6 @@ import SwiftCodeAssistant
             let explicit = try await host.server.callTool("use_extension", denied)
             #expect(explicit.isToolError && explicit.firstText.contains("requires confirm: true"), "\(denied)")
         }
-        // `deactivate` needs neither: it is classified read-only
-        // (spec §5.4), so it passes the confirm check and reaches the
-        // host, which deactivates (a no-op for an unknown id).
         let deact = try await host.server.callTool("use_extension", ["action": .string("deactivate"),
                                                                      "extensionId": .string("x.y")])
         #expect(!deact.isToolError && deact.firstText.contains("Deactivated x.y."), "\(deact.firstText)")
@@ -111,8 +79,6 @@ import SwiftCodeAssistant
                                                                    "file": .string("Lines.txt")])
         #expect(run.isToolError && run.firstText.contains("requires 'command'"))
     }
-
-    // MARK: - `run_xcode_command` file + selection validation (no host needed)
 
     @Test func runXcodeCommandRejectsAbsoluteAndEscapingFiles() async throws {
         let sample = try TempSample()
@@ -145,7 +111,6 @@ import SwiftCodeAssistant
                                             "command": .string("com.swiftcode.xcode.sortLines"), "confirm": .bool(true),
                                             "file": .string("Lines.txt"), "selection": .object(selection)])
         }
-        // Lines.txt is 3 lines + a trailing empty line ("cherry\nbanana\napple\n").
         let pastEnd = try await call(selection: ["startLine": .int(0), "startColumn": .int(0),
                                                  "endLine": .int(99), "endColumn": .int(0)])
         #expect(pastEnd.isToolError && pastEnd.firstText.contains("out of bounds"), "\(pastEnd.firstText)")
@@ -157,8 +122,6 @@ import SwiftCodeAssistant
         #expect(reversed.isToolError && reversed.firstText.contains("starts after it ends"), "\(reversed.firstText)")
     }
 
-    // MARK: - Real host, black-box
-
     @Test func listAnswersWithActionAndCount() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -167,15 +130,8 @@ import SwiftCodeAssistant
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.structured?["action"]?.string == "list")
         #expect((r.structured?["count"]?.int ?? -1) >= 0)
-        // `limit` clamps: 0 becomes 1, 999 becomes 200 — either way
-        // the call succeeds.
         let clamped = try await host.server.callTool("use_extension", ["action": .string("list"), "limit": .int(0)])
         #expect(!clamped.isToolError, "\(clamped.resultText)")
-        // Deviation from spec §7.2's NSNumber truncation, forced by
-        // SwiftCode's server-wide schema validation (`argumentProblem`
-        // runs in `run()` before the handler): a non-whole numeric
-        // limit never reaches the handler — it fails as a type error.
-        // Whole doubles (3.0) still coerce through `.int`.
         let fractional = try await host.server.callTool("use_extension", ["action": .string("list"), "limit": .double(12.7)])
         #expect(fractional.isToolError && fractional.firstText.contains("must be of type integer"), "\(fractional.firstText)")
     }
@@ -186,8 +142,6 @@ import SwiftCodeAssistant
         let host = try await opened(sample)
         let r = try await host.server.callTool("use_extension", ["action": .string("list_xcode_commands")])
         #expect(!r.isToolError, "\(r.resultText)")
-        // The manager's init registers the sort-lines command, and the
-        // handler touches the manager before reading the registry.
         #expect(r.firstText.contains("com.swiftcode.xcode.sortLines"))
     }
 
@@ -206,8 +160,6 @@ import SwiftCodeAssistant
             let r = try await host.server.callTool("use_extension", args)
             #expect(r.isToolError && r.firstText.contains("is not installed"), "\(args): \(r.firstText)")
         }
-        // `diagnostics` does not guard on installed (spec §7.2): an
-        // unknown id simply has no entries.
         let d = try await host.server.callTool("use_extension", ["action": .string("diagnostics"),
                                                                  "extensionId": .string("no.such")])
         #expect(!d.isToolError && d.firstText.contains("No diagnostics recorded for no.such."), "\(d.firstText)")
@@ -230,8 +182,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("3 lines"))
         let onDisk = sample.read("Lines.txt")
         #expect(onDisk.components(separatedBy: .newlines).prefix(3) == ["apple", "banana", "cherry"])
-        // A second run over the already-sorted lines changes nothing
-        // and writes nothing.
         let again = try await host.server.callTool("use_extension",
                                                    ["action": .string("run_xcode_command"),
                                                     "extensionId": .string("x.y"),

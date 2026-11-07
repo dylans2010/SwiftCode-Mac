@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Product ▸ Test on the SwiftCode simulator hands swiftcodebuild the simulator's
-/// host through `SWIFTCODE_SIM_*` (specs/ide/testing.md, "SwiftCode implementation").
 @Suite struct RemoteTestEnvironmentTests {
     @Test func variablesFollowTheRunSettings() {
         var s = RemoteSimulatorSettings(destination: "<user>@<host>", dataDirectory: "/data", runtimeRoot: "/rt/iOS 27.0/RuntimeRoot",

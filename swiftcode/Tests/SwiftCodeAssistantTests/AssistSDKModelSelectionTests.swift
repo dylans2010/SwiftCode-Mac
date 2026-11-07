@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// MARK: - SDK model selection (Wave 16, Slice D)
-//
-// Fixtures only: no live network, no real API keys, no real
-// providers. Fake keys are assembled from parts so no source
-// line carries a key-shaped literal (see scan-public).
-
 @Suite struct AssistSDKModelSelectionTests {
     static func candidate(
         _ id: String,
@@ -31,8 +25,6 @@ import Testing
     static func catalog() -> AntigravitySDKCatalog {
         AntigravitySDKCatalog()
     }
-
-    // MARK: - Session configuration
 
     @Test func buildConfigForGeminiModel() {
         let model = Self.candidate("google/gemini-2.5-flash", supportsSubagents: true)
@@ -79,8 +71,6 @@ import Testing
         #expect(config.executionMode == "api_key")
     }
 
-    // MARK: - selectModelForSDK
-
     @Test func selectModelForSDKCloudShortCircuit() async {
         let router = AssistModelRouter()
         let result = await router.selectModelForSDK(
@@ -103,9 +93,6 @@ import Testing
             Self.candidate("claude-sonnet-4-6"),
             Self.candidate("gemini-3.8-flash-high"),
         ]
-        // The selected id is not in the catalog: the first
-        // configured catalog model wins (catalog order: the
-        // high flash variant is the first seed).
         let result = await router.selectModelForSDK(
             preferredID: "some-unlisted-model",
             strategy: .providerDefault,
@@ -142,9 +129,6 @@ import Testing
             useCloudModel: false,
             catalog: Self.catalog()
         )
-        // An explicit provider/model id is used as-is, even
-        // though it is not a catalog id; the catalog does not
-        // know it, so it is synthesized from the name.
         #expect(result.model.id == "anthropic/claude-sonnet-4-5")
         #expect(result.model.isSynthetic == true)
     }
@@ -164,7 +148,6 @@ import Testing
         )
         #expect(result.model.id == "anthropic/claude-sonnet-4-5")
         #expect(result.model.isSynthetic == false)
-        // No match: the first discovered candidate wins.
         let fallback = await router.selectModelForSDK(
             preferredID: "no-such-model",
             strategy: .appModels,
@@ -174,8 +157,6 @@ import Testing
         )
         #expect(fallback.model.id == "anthropic/claude-sonnet-4-5")
     }
-
-    // MARK: - Rotation-aware failover
 
     static func fakeKey(_ tag: String) -> String {
         "AI" + "za" + tag + String(repeating: "7", count: 28)
@@ -203,8 +184,6 @@ import Testing
         #expect(result?.continuationPrompt.contains("Rotated to next Gemini API key") == true)
         #expect(result?.continuationPrompt.contains("partial work") == true)
         #expect(result?.config.executionMode == "api_key")
-        // The first key was marked rate-limited; the active key
-        // is now the second one.
         #expect(await rotation.activeKeyId != nil)
         #expect(await rotation.keys.first { $0.maskedValue.hasSuffix("7777") && $0.state == .rateLimited } != nil)
     }
@@ -214,8 +193,6 @@ import Testing
         let rotation = GeminiKeyRotationManager(store: MemorySecretStore())
         _ = await rotation.importKeys(Self.fakeKey("solo"))
         let failed = Self.candidate("google/gemini-2.5-flash")
-        // A different provider: quota failover excludes the whole
-        // failed provider, so the next model must not share it.
         let next = Self.candidate("gpt-4o", provider: .openAI)
         let result = await router.handleTurnFailureWithKeyRotation(
             failedModel: failed,

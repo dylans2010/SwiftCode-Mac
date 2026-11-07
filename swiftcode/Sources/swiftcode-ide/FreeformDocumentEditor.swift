@@ -1,9 +1,3 @@
-// FreeformDocumentEditor.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/FreeformDocumentEditor.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: insertTOC (table-of-contents insertion)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftUI
 

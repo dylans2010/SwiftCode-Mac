@@ -1,8 +1,6 @@
 import Foundation
 import CSQLite
 
-/// Minimal wrapper over the system SQLite library. Not thread-safe: the engine
-/// uses one connection from its own serial queue.
 final class SQLiteDatabase {
     struct Failure: Error, CustomStringConvertible {
         let message: String
@@ -12,7 +10,6 @@ final class SQLiteDatabase {
     private var db: OpaquePointer?
     private var statements: [String: OpaquePointer] = [:]
 
-    /// `path == nil` opens a private in-memory database.
     init(path: String?) throws {
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
         let rc = sqlite3_open_v2(path ?? ":memory:", &db, flags, nil)
@@ -100,7 +97,6 @@ final class SQLiteDatabase {
         }
     }
 
-    /// Run a statement without results.
     @discardableResult
     func run(_ sql: String, _ args: [Value] = []) throws -> Int {
         let s = try prepare(sql)

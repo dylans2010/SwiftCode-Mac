@@ -1,12 +1,5 @@
 import Foundation
 
-/// The project snippet library (Legacy `LibraryCodeSnippet` /
-/// `LibrarySnippetCategory` / `LibraryCodeSnippetStore`, Dylan's own code,
-/// ported under MIT). Snippets persist as JSON in
-/// Application Support/SwiftCode/snippets.json (Legacy used a UserDefaults key).
-/// The store seeds the same two snippets Legacy seeded on first launch.
-/// Export is a JSON file write, not a `FileDocument`: the SwiftUI shell
-/// has no exporter wired to this store yet (see the wiring list).
 public struct LibraryCodeSnippet: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var title: String

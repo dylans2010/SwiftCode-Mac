@@ -1,65 +1,36 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// select (BSD 93) and pselect (BSD 394), with their `_nocancel` forms (407,
-// 395; `BSD.nocancelAliases` maps them). The semantics are in
-// `specs/simulator/select.md`: descriptor bitmaps of `nd` bits in 32-bit
-// words, read/write readiness over SwiftCode's descriptor objects, no
-// exceptional conditions, a timeout (NULL waits, zero polls), EBADF for a set
-// bit naming a closed descriptor, EINTR when the thread is interrupted.
-//
-// A select that finds nothing ready blocks on a private `WaitQueue` with
-// the kernel lock released. It registers a readiness observer on every
-// watched descriptor object (the mechanism kevent's EVFILT_READ/WRITE knotes
-// use), so a state change wakes it; it then scans again.
-//
-// Before this, select was unimplemented: a guest that sleeps with
-// `select(nd, sets, &timeout)` got ENOSYS at once and spun (SpringBoard:
-// ~764k calls per boot, 21 s of kernel-lock hold). The first version of
-// this file was the speed analyst S's prototype (candidate C4).
-
 enum SelectBSD {
     static let select = 93
     static let pselect = 394
-    /// poll (230; poll_nocancel 417 is an alias).
     static let poll = 230
-    /// `__DARWIN_NFDBITS`: bits per `fd_mask` word (`sys/_types/_fd_def.h`).
     static let wordBits = 32
-    /// The largest `tv_sec` a timeout may have (select(2): "too large").
     static let maxSeconds: Int64 = 100_000_000
-    /// The three sets, in argument order.
     static let readKind = 0, writeKind = 1, exceptKind = 2
 }
 
-/// Diagnostics for select (`SWIFTCODE_DEBUG_SELECT_STATS=1`): per image, how
-/// select is called and how its waits end. Printed every `reportEvery` calls.
 struct SelectStats {
     static let enabled = getenv("SWIFTCODE_DEBUG_SELECT_STATS").map { String(cString: $0) == "1" } ?? false
     static let reportEvery: UInt64 = 5000
 
     var calls: UInt64 = 0
-    /// nd == 0 or no set given: a pure sleep.
     var sleeps: UInt64 = 0
-    /// A zero timeout.
     var polls: UInt64 = 0
-    /// NULL timeout (wait forever).
     var forever: UInt64 = 0
     var readyAtOnce: UInt64 = 0
     var blocked: UInt64 = 0
     var wakeups: UInt64 = 0
-    /// Wakeups after which nothing was ready (the wait went on).
     var emptyWakeups: UInt64 = 0
     var timeouts: UInt64 = 0
     var interrupted: UInt64 = 0
     var errors: UInt64 = 0
     var waitedNs: UInt64 = 0
-    /// Timeout histogram: 0, <1 ms, <10 ms, <100 ms, <1 s, longer, NULL.
     var timeoutHistogram: [UInt64] = [0, 0, 0, 0, 0, 0, 0]
     var maxND: Int32 = 0
 }
 
 extension DarwinKernel {
-    /// select (93) and pselect (394).
     func selectCall(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         let isPselect = n == SelectBSD.pselect
         let requested = Int32(truncatingIfNeeded: a[0])
@@ -81,13 +52,10 @@ extension DarwinKernel {
         let stats = SelectStats.enabled
         guard requested >= 0 else { throw Failure(errno: Errno.EINVAL) }
 
-        // The timeout: nil = wait forever; 0 = poll.
         var timeoutNs: UInt64?
         if a[4] != 0 {
             let t = try mem.read(va: a[4], count: 16)
             let seconds = t.readLE(Int64.self, at: 0)
-            // select: `struct timeval` (tv_usec is an int32 at +8);
-            // pselect: `struct timespec` (tv_nsec is an int64 at +8).
             let sub = isPselect ? t.readLE(Int64.self, at: 8) : Int64(t.readLE(Int32.self, at: 8))
             let limit: Int64 = isPselect ? 1_000_000_000 : 1_000_000
             guard seconds >= 0, seconds <= SelectBSD.maxSeconds, sub >= 0, sub < limit else {
@@ -108,7 +76,6 @@ extension DarwinKernel {
             extended.selectStats.timeoutHistogram[bucket] += 1
         }
 
-        // pselect's mask replaces the signal mask for the call.
         var savedMask: UInt32?
         if isPselect, a[5] != 0 {
             let mask = try mem.read(va: a[5], count: 4).readLE(UInt32.self, at: 0)
@@ -117,10 +84,6 @@ extension DarwinKernel {
         }
         defer { if let savedMask { extended.signalMask = savedMask } }
 
-        // As xnu clamps `nd` to the size of its descriptor table, SwiftCode
-        // clamps it to the highest open descriptor + 1: set bits past it are
-        // ignored, and only `howmany(nd, 32)` words of each set are read and
-        // written back.
         var nd = requested
         if nd > 0, pointers.contains(where: { $0 != 0 }) {
             nd = min(nd, (fileSystem.openDescriptors.last ?? -1) + 1)
@@ -132,22 +95,16 @@ extension DarwinKernel {
             given[k] = (0..<words).map { raw.readLE(UInt32.self, at: $0 * 4) }
         }
 
-        // The descriptors asked about (a set bit for one that is not open is EBADF).
         var watched = try selectWatchedDescriptors(given, nd: nd)
         let deadline = timeoutNs.map { KernelClock.deadline(afterNanoseconds: $0) }
 
         var result = selectScan(given, watched)
-        // swiftlint:disable:next empty_count - the ready-descriptor count, not a collection
         if result.count > 0 || timeoutNs == 0 {
-            // swiftlint:disable:next empty_count - the ready-descriptor count, not a collection
             if stats, result.count > 0 { extended.selectStats.readyAtOnce += 1 }
             return try selectFinish(result, pointers, &call, mem)
         }
         if isPselect, extended.pendingSignals & ~extended.signalMask != 0 { throw Failure(errno: Self.EINTR) }
 
-        // Wait for a readiness change, the deadline, or an interruption. The
-        // observers run with the kernel lock held, and this thread holds it
-        // from the scan above until `wait` queues it, so no change is missed.
         let queue = WaitQueue()
         var tokens: [(KernelDescriptorObject, Int)] = []
         var seen = Set<ObjectIdentifier>()
@@ -171,25 +128,19 @@ extension DarwinKernel {
                 return try selectFinish(result, pointers, &call, mem)
             case .woken:
                 if stats { extended.selectStats.wakeups += 1 }
-                // A descriptor closed meanwhile is EBADF, as on the first scan.
                 watched = try selectWatchedDescriptors(given, nd: nd)
                 result = selectScan(given, watched)
-                // swiftlint:disable:next empty_count - the ready-descriptor count, not a collection
                 if result.count > 0 { return try selectFinish(result, pointers, &call, mem) }
                 if stats { extended.selectStats.emptyWakeups += 1 }
             }
         }
     }
 
-    /// One descriptor named in the sets.
     struct SelectWatched {
         var fd: Int32
-        /// nil: a host file or the console (always ready).
         var object: DarwinDescriptorObject?
     }
 
-    /// The open descriptors named by set bits below `nd`, ascending; EBADF
-    /// when one is not open.
     private func selectWatchedDescriptors(_ given: [[UInt32]], nd: Int32) throws -> [SelectWatched] {
         var union: [UInt32] = []
         for set in given where !set.isEmpty {
@@ -203,7 +154,6 @@ extension DarwinKernel {
                 bits &= bits - 1
                 let fd = Int32(w * SelectBSD.wordBits + bit)
                 guard fd < nd else { break }
-                // nil object: a host file or the console; a throw: not open.
                 let object: DarwinDescriptorObject?
                 do { object = try fileSystem.object(for: fd) } catch { throw Failure(errno: Errno.EBADF) }
                 out.append(SelectWatched(fd: fd, object: object))
@@ -212,8 +162,6 @@ extension DarwinKernel {
         return out
     }
 
-    /// Which of the asked-for descriptors are ready: the output sets (same
-    /// word counts as the input) and the number of bits set in them.
     private func selectScan(_ given: [[UInt32]], _ watched: [SelectWatched]) -> (count: Int, sets: [[UInt32]]) {
         var out: [[UInt32]] = given.map { [UInt32](repeating: 0, count: $0.count) }
         var count = 0
@@ -226,15 +174,10 @@ extension DarwinKernel {
                     count += 1
                 }
             }
-            // No descriptor has an exceptional condition (no out-of-band data).
         }
         return (count, out)
     }
 
-    /// Readiness of one descriptor: a host file or the console is always
-    /// ready; a pipe, socket or kqueue by its state (end of file and a
-    /// vanished peer count as ready, so the next call does not block); any
-    /// other object is never ready.
     static func selectReady(_ object: DarwinDescriptorObject?, write: Bool) -> Bool {
         guard let object else { return true }
         guard let o = object as? KernelDescriptorObject else { return false }
@@ -242,7 +185,6 @@ extension DarwinKernel {
         return r.ready || r.eof
     }
 
-    /// Writes the result sets back (every set given) and returns the count.
     private func selectFinish(_ result: (count: Int, sets: [[UInt32]]), _ pointers: [UInt64], _ call: inout CallText,
                               _ mem: any KernelGuestMemory) throws -> BSDResult {
         for k in 0..<3 where pointers[k] != 0 {
@@ -269,13 +211,6 @@ extension DarwinKernel {
         FileHandle.standardError.write(Data(line.utf8))
     }
 
-    // MARK: poll
-
-    /// `poll(fds, nfds, timeout)` (BSD 230): xnu's semantics over the same
-    /// readiness as select (networking-swiftcode.md §2.4). A negative fd is
-    /// skipped; a closed one gets POLLNVAL; a host file or the console is
-    /// always readable and writable; end of file adds POLLHUP (and the read
-    /// bits asked for). The wait is the select wait (observers, no polling).
     func pollCall(_ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         let count = Int(UInt32(truncatingIfNeeded: a[1]))
         let timeout = Int32(truncatingIfNeeded: a[2])
@@ -347,7 +282,6 @@ extension DarwinKernel {
     }
 }
 
-/// `poll.h` bits.
 enum PollBits {
     static let `in`: Int16 = 0x1, pri: Int16 = 0x2, out: Int16 = 0x4, err: Int16 = 0x8, hup: Int16 = 0x10,
                nval: Int16 = 0x20, rdNorm: Int16 = 0x40, rdBand: Int16 = 0x80, wrBand: Int16 = 0x100

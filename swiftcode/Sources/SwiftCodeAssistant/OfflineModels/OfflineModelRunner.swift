@@ -1,26 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Offline Models/OfflineModelRunner.swift
-//   (Legacy commit d51a8f0d)
-//
-// Runs an installed offline model end to end: conversion check, then
-// load, then streaming generation. `OfflineModelConverter` is the
-// destination's existing one (OfflineModelManager.swift) — it detects
-// the on-disk layout and throws `OfflineModelError.conversionUnavailable`
-// for GGUF, because no converter binary or MLX runtime exists here.
-// Installed-model state itself lives in `OfflineModelManager` /
-// `OfflineModelsStorage`; this runner does not keep a second registry.
-//
-// MLX GAP (see MLXIntegration.swift): `generateResponse` /
-// `streamResponse` throw `MLXRuntimeError.runtimeUnavailable` through
-// the loaded model until the MLX packages are added to Package.swift.
-// The load path, the already-loaded fast path, and the streaming
-// assembly are all real.
-//
-// Adaptation notes: Legacy was `ObservableObject` with an
-// `NSError(domain: "OfflineModelRunner", code: 1, …)` for "no model
-// loaded"; the destination uses `@Observable` and typed errors, so this
-// follows that convention (`MLXRuntimeError.modelNotLoaded`).
-
 import Foundation
 import Observation
 

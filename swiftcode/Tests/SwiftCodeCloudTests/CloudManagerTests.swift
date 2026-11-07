@@ -3,11 +3,6 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeCloud
 
-// The auth manager and cloud manager against the stub transport:
-// login / restore / logout flows, session-secret persistence in a
-// MemorySecretStore (never the real keychain), and CloudManager's
-// sync semantics. No live network, no real credentials.
-
 @MainActor
 struct CloudManagerTests {
 
@@ -49,7 +44,6 @@ struct CloudManagerTests {
         #expect(auth.currentSession?.id == "sess_1")
         #expect(store.readString(SecretAccount.appwriteSessionSecret) == "stub-secret-123")
         #expect(store.readString(SecretAccount.appwriteUserID) == "user_1")
-        // The session creation set the cookie; the account fetch sent it back.
         let accountRequest = StubURLProtocol.requests.first(where: { $0.url?.path == "/v1/account" })
         #expect(accountRequest?.value(forHTTPHeaderField: "Cookie") == "a_session_6a670d0b0022e5f964b4=stub-secret-123")
     }
@@ -74,7 +68,6 @@ struct CloudManagerTests {
             if request.url?.path == "/v1/account" { return ok(userWithoutSwiftCodeIDJSON) }
             return ok("{}")
         }
-        // Seed the client with a stored secret so restore proceeds.
         auth.client.sessionSecret = "stub-secret-123"
         await auth.restoreSession()
         #expect(auth.isAuthenticated == true)
@@ -189,7 +182,6 @@ struct CloudManagerTests {
         let engine = CloudSyncEngine(testAuthManager: auth)
         await engine.setSyncEnabled(true)
         await engine.triggerSync()
-        // Let any spawned sync task settle.
         try? await Task.sleep(nanoseconds: 100_000_000)
         let stats = await engine.getStatistics()
         #expect(stats.totalUploadCount == 0)
@@ -207,8 +199,6 @@ struct CloudManagerTests {
         await engine.setProvider(AppwriteCloudProvider(manager: auth))
         await engine.setSyncEnabled(true)
         await engine.triggerSync()
-        // The cycle runs on a task: give it time to hit the
-        // unavailable sync provider and record the failure.
         try? await Task.sleep(nanoseconds: 500_000_000)
         let stats = await engine.getStatistics()
         #expect(stats.conflictCount == 1)

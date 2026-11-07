@@ -1,22 +1,3 @@
-/*
- * sync.c - os_sync_wait_on_address and os_sync_wake_by_address_* of SwiftCode's
- * libsystem_platform (weak-only surface, host-library-surface.md section 3).
- *
- * Clean-room SwiftCode code, from the public <os/os_sync_wait_on_address.h>
- * interface:
- *   int os_sync_wait_on_address(void *addr, uint64_t value, size_t size, flags);
- *   int os_sync_wait_on_address_with_deadline(addr, value, size, flags,
- *                                             os_clockid_t clockid, uint64_t deadline);
- *   int os_sync_wait_on_address_with_timeout(addr, value, size, flags,
- *                                            os_clockid_t clockid, uint64_t timeout_ns);
- *   int os_sync_wake_by_address_any(void *addr, size_t size, flags);
- *   int os_sync_wake_by_address_all(void *addr, size_t size, flags);
- * size is 4 or 8, addr is aligned to size, the only flag is SHARED (1) and
- * the only clock is OS_CLOCK_MACH_ABSOLUTE_TIME (32). Waits return the
- * number of remaining waiters (>= 0) or -1 with errno; wakes return 0 or
- * -1 with errno (ENOENT when nobody was waiting).
- * They are built on __ulock_wait2 / __ulock_wake.
- */
 #include "yc_platform.h"
 
 #define OS_SYNC_SHARED 1u
@@ -70,7 +51,6 @@ YC_EXPORT int YC_FN(os_sync_wait_on_address_with_timeout)(void *addr, yc_u64 val
     return do_wait(addr, value, size, flags, timeout_ns);
 }
 
-/* Mach absolute ticks to nanoseconds without 128-bit division. */
 static yc_u64 ticks_to_ns(yc_u64 ticks, struct yc_mach_timebase_info tb)
 {
     if (tb.numer == tb.denom || tb.denom == 0)

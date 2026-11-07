@@ -1,8 +1,5 @@
 import Foundation
 
-/// A question the agent asks the user mid-turn (Legacy
-/// `SwiftCode/Core/AI/Agent/AgentPendingQuestion.swift`, Dylan's own code,
-/// ported under MIT).
 public struct AgentPendingQuestion: Identifiable, Codable, Sendable {
     public let id: UUID
     public let question: String
@@ -20,8 +17,6 @@ public struct AgentPendingQuestion: Identifiable, Codable, Sendable {
     }
 }
 
-/// A set of questions submitted together (Legacy
-/// `AgentPendingQuestionSet.swift`).
 public struct AgentPendingQuestionSet: Identifiable, Codable, Sendable {
     public let id: UUID
     public let questions: [AgentPendingQuestion]
@@ -32,21 +27,6 @@ public struct AgentPendingQuestionSet: Identifiable, Codable, Sendable {
     }
 }
 
-/// The stored pending-question state the destination was missing:
-/// `plan-AskUser` returned a `questionId` but never blocked and kept
-/// no answer flow. This store holds the pending question (or set)
-/// and the turn resumes when `submitAnswer` / `submitAnswers` is
-/// called — `awaitAnswer` suspends the agent turn until then.
-///
-/// Wiring: `SwiftCodeMCPHost.askUser` registers each question it
-/// returns here (see the patched `SwiftCodeTools+Planning.swift`);
-/// the IDE's question UI calls `submitAnswer(questionId:answer:)` (or
-/// `submitAnswers` for a set) when the user replies. An agent turn
-/// awaiting an answer suspends on `awaitAnswer(questionId:)` and
-/// resumes with the answer; cancelling the turn calls `cancel`
-/// instead so the waiter resumes with a cancellation rather than
-/// hanging. `AgentTurnState.awaitingUserAnswer` is the matching
-/// session state.
 public actor PendingQuestionStore {
     public static let shared = PendingQuestionStore()
 
@@ -82,8 +62,6 @@ public actor PendingQuestionStore {
     public var pendingQuestionIDs: [UUID] { Array(pending.keys) }
     public var pendingSetIDs: [UUID] { Array(pendingSets.keys) }
 
-    /// Suspends until the user answers `id` (or the turn is
-    /// cancelled). Returns the answer text.
     public func awaitAnswer(questionId: UUID) async throws -> String {
         if let answer = answers[questionId] { return answer }
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
@@ -91,8 +69,6 @@ public actor PendingQuestionStore {
         }
     }
 
-    /// Suspends until the user answers every question of set `id`.
-    /// Returns one answer per question id.
     public func awaitAnswers(setId: UUID) async throws -> [UUID: String] {
         if let answered = setAnswers[setId] { return answered }
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[UUID: String], Error>) in
@@ -100,8 +76,6 @@ public actor PendingQuestionStore {
         }
     }
 
-    /// The user's answer to one pending question. Resumes any waiter
-    /// and removes the question from the pending list.
     public func submitAnswer(questionId: UUID, answer: String) {
         answers[questionId] = answer
         pending.removeValue(forKey: questionId)
@@ -110,7 +84,6 @@ public actor PendingQuestionStore {
         }
     }
 
-    /// The user's answers to a whole question set, keyed by question id.
     public func submitAnswers(setId: UUID, answers: [UUID: String]) {
         setAnswers[setId] = answers
         for (questionId, answer) in answers {
@@ -126,8 +99,6 @@ public actor PendingQuestionStore {
         }
     }
 
-    /// The turn was cancelled while waiting: every waiter for `id`
-    /// resumes with a cancellation instead of hanging.
     public func cancel(questionId: UUID) {
         pending.removeValue(forKey: questionId)
         for continuation in waiters.removeValue(forKey: questionId) ?? [] {

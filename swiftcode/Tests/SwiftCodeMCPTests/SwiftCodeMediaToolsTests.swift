@@ -3,58 +3,18 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy image tools (Wave 5), each driven black-box
-/// through the server's real write-policy path against a copy of
-/// `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistImageEncodeBase64Tool`,
-/// `AssistImageGetDimensionsTool`, `AssistImageExtractMetadataTool`
-/// (`AssistImageInspectionTools.swift`) and
-/// `AssistImageDecodeBase64Tool`, `AssistImageConvertFormatTool`,
-/// `AssistImageGenerateThumbnailTool`, `AssistSvgToPngTool`
-/// (`AssistImageMutationTools.swift`) — Dylan's own code, ported
-/// under MIT.
-///
-/// Assertions are on the tool RESULT (message + on-disk state),
-/// never on internals. Messages quoted verbatim are Legacy's; where
-/// the SwiftCode port may legitimately word a failure differently
-/// (path-safety wording), the test asserts the behaviour plus a
-/// tolerant message match.
-///
-/// Platform notes: this machine has no Swift toolchain and the
-/// tests run on Linux here, so the three macOS-only raster tools
-/// (`image_convert_format`, `image_generate_thumbnail`,
-/// `svg_to_png`) assert their exact "only available on macOS"
-/// failure on Linux. Their real macOS behaviour — AppKit decode /
-/// encode, ImageIO thumbnails, AppKit SVG rendering — stays pending
-/// on Dylan's Mac (see the Wave 5 report). `image_get_dimensions`
-/// and the Linux half of `image_extract_metadata` run the
-/// pure-Foundation header parser here, so they are genuinely
-/// exercised on Linux; the macOS ImageIO paths of those two tools
-/// are likewise pending on Dylan's Mac.
 @MainActor
 @Suite(.serialized) struct SwiftCodeMediaToolsTests {
-    /// The 7 Wave 5 image tool IDs, verified live from the Legacy
-    /// registry (`AssistToolRegistry.registerAllTools` + each
-    /// tool's `id`).
     static let mediaIDs = ["image_convert_format", "image_decode_base64", "image_encode_base64",
                            "image_extract_metadata", "image_generate_thumbnail", "image_get_dimensions",
                            "svg_to_png"]
 
-    /// A 1×1 transparent PNG (grayscale + alpha, 8-bit), as Base64.
     static let onePixelPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAwMCAO+ip1sAAAAASUVORK5CYII="
     static var onePixelPNG: Data { Data(base64Encoded: onePixelPNGBase64)! }
 
-    /// Opens a copy of Greeter and installs the ported media tools
-    /// on the server (same shape as Wave 2's `opened`; the
-    /// coordinator wires `mediaTools` into `installTools()`).
-    /// Defaults to `.allow`: the four write tools are `writes: true`,
-    /// so the read-only policy refuses them before they run.
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` may already
-        // wire `mediaTools`, so a plain `+=` would register them twice.
         let ported = Set(host.mediaTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.mediaTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -62,22 +22,18 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// Writes binary fixture data directly.
     func writeDataFixture(_ sample: TempSample, _ rel: String, _ data: Data) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
     }
 
-    /// A minimal 1×1 JPEG: SOI, JFIF APP0 (unit 0, density 1×1),
-    /// SOF0 (8-bit, 1×1, 3 components), EOI.
     static var onePixelJPEG: Data {
         Data([
             0xFF, 0xD8,
@@ -87,87 +43,78 @@ import SwiftCodeAssistant
         ])
     }
 
-    /// A minimal 1×1 GIF89a with a `hello` comment extension.
     static var onePixelGIF: Data {
         Data([
-            0x47, 0x49, 0x46, 0x38, 0x39, 0x61, // GIF89a
-            0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, // LSD: 1×1, GCT flag, 2 colours
-            0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, // GCT (2 entries)
-            0x21, 0xFE, 0x05, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x00, // comment "hello"
-            0x3B, // trailer
+            0x47, 0x49, 0x46, 0x38, 0x39, 0x61,
+            0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF,
+            0x21, 0xFE, 0x05, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x00,
+            0x3B,
         ])
     }
 
-    /// A minimal 1×1 24-bit BMP (BITMAPINFOHEADER, 72 DPI).
     static var onePixelBMP: Data {
         let bytes: [UInt8] = [
-            0x42, 0x4D, // BM
-            0x36, 0x00, 0x00, 0x00, // file size 54
-            0x00, 0x00, 0x00, 0x00, // reserved
-            0x36, 0x00, 0x00, 0x00, // data offset 54
-            0x28, 0x00, 0x00, 0x00, // DIB size 40
-            0x01, 0x00, 0x00, 0x00, // width 1
-            0x01, 0x00, 0x00, 0x00, // height 1
-            0x01, 0x00, // planes 1
-            0x18, 0x00, // bit count 24
-            0x00, 0x00, 0x00, 0x00, // compression 0
-            0x00, 0x00, 0x00, 0x00, // image size 0
-            0x13, 0x0B, 0x00, 0x00, // x pixels per metre 2835
-            0x13, 0x0B, 0x00, 0x00, // y pixels per metre 2835
-            0x00, 0x00, 0x00, 0x00, // colours 0
-            0x00, 0x00, 0x00, 0x00, // important colours 0
+            0x42, 0x4D,
+            0x36, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x36, 0x00, 0x00, 0x00,
+            0x28, 0x00, 0x00, 0x00,
+            0x01, 0x00, 0x00, 0x00,
+            0x01, 0x00, 0x00, 0x00,
+            0x01, 0x00,
+            0x18, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x13, 0x0B, 0x00, 0x00,
+            0x13, 0x0B, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
         ]
         return Data(bytes)
     }
 
-    /// A minimal 2×3 little-endian TIFF (IFD: width 2, height 3).
     static var tinyTIFF: Data {
         Data([
-            0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, // II, 42, IFD at 8
-            0x02, 0x00, // 2 entries
-            0x00, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, // tag 256 LONG 1 = 2
-            0x01, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, // tag 257 LONG 1 = 3
-            0x00, 0x00, 0x00, 0x00, // next IFD 0
+            0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00,
+            0x02, 0x00,
+            0x00, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+            0x01, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
         ])
     }
 
-    /// A minimal 5×3 WebP (VP8X, alpha flag set).
     static var tinyWebP: Data {
         Data([
-            0x52, 0x49, 0x46, 0x46, 0x16, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, // RIFF size 22 WEBP
-            0x56, 0x50, 0x38, 0x58, 0x0A, 0x00, 0x00, 0x00, // VP8X size 10
-            0x10, 0x00, 0x00, 0x00, // flags (alpha), reserved
-            0x04, 0x00, 0x00, // width - 1 = 4
-            0x02, 0x00, 0x00, // height - 1 = 2
+            0x52, 0x49, 0x46, 0x46, 0x16, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+            0x56, 0x50, 0x38, 0x58, 0x0A, 0x00, 0x00, 0x00,
+            0x10, 0x00, 0x00, 0x00,
+            0x04, 0x00, 0x00,
+            0x02, 0x00, 0x00,
         ])
     }
 
-    /// The 1×1 PNG with a `Comment`/`hello` tEXt chunk inserted
-    /// after IHDR (CRC fields zeroed — the parser does not verify
-    /// them, and neither does the test's claim).
     static var pngWithTextChunk: Data {
-        var bytes = [UInt8](onePixelPNG.prefix(33)) // signature + IHDR chunk
-        bytes += [0x00, 0x00, 0x00, 0x0D] // tEXt length 13
-        bytes += [0x74, 0x45, 0x58, 0x74] // "tEXt"
+        var bytes = [UInt8](onePixelPNG.prefix(33))
+        bytes += [0x00, 0x00, 0x00, 0x0D]
+        bytes += [0x74, 0x45, 0x58, 0x74]
         bytes += [UInt8]("Comment\0hello".utf8)
-        bytes += [0x00, 0x00, 0x00, 0x00] // CRC (unchecked)
-        bytes += [0x00, 0x00, 0x00, 0x00] // IEND length 0
-        bytes += [0x49, 0x45, 0x4E, 0x44] // "IEND"
-        bytes += [0x00, 0x00, 0x00, 0x00] // CRC (unchecked)
+        bytes += [0x00, 0x00, 0x00, 0x00]
+        bytes += [0x00, 0x00, 0x00, 0x00]
+        bytes += [0x49, 0x45, 0x4E, 0x44]
+        bytes += [0x00, 0x00, 0x00, 0x00]
         return Data(bytes)
     }
 
-    /// A minimal JPEG carrying an EXIF APP1 segment whose IFD0
-    /// holds one ASCII tag: Make = "Cam".
     static var jpegWithEXIF: Data {
         Data([
             0xFF, 0xD8,
-            0xFF, 0xE1, 0x00, 0x22, // APP1, length 34
-            0x45, 0x78, 0x69, 0x66, 0x00, 0x00, // "Exif\0\0"
-            0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, // II, 42, IFD at 8
-            0x01, 0x00, // 1 entry
-            0x0F, 0x01, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x43, 0x61, 0x6D, 0x00, // tag 271 ASCII 4 = "Cam\0"
-            0x00, 0x00, 0x00, 0x00, // next IFD 0
+            0xFF, 0xE1, 0x00, 0x22,
+            0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+            0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00,
+            0x01, 0x00,
+            0x0F, 0x01, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x43, 0x61, 0x6D, 0x00,
+            0x00, 0x00, 0x00, 0x00,
             0xFF, 0xD9,
         ])
     }
@@ -196,8 +143,6 @@ import SwiftCodeAssistant
             "image_get_dimensions": ["colorModel", "depth", "format", "hasAlpha", "height", "path", "width"],
             "svg_to_png": ["destination", "height", "size", "width"],
         ]
-        // Legacy risk → annotations: the three read tools are
-        // read-only; the four write tools are safeMutation writes.
         let readOnlyIDs: Set<String> = ["image_encode_base64", "image_extract_metadata", "image_get_dimensions"]
         for tool in tools {
             #expect(tool.title == expectedTitles[tool.name])
@@ -305,7 +250,6 @@ import SwiftCodeAssistant
         let host = try await opened(sample)
         let r = try await host.server.callTool("image_get_dimensions", ["path": .string("icon.png")])
         #expect(!r.isToolError, "\(r.resultText)")
-        // The fixture is grayscale + alpha, 8-bit: Gray, alpha yes.
         #expect(r.structured?["width"]?.int == 1)
         #expect(r.structured?["height"]?.int == 1)
         #expect(r.structured?["format"]?.string == "public.png")

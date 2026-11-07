@@ -3,41 +3,12 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic execution / build-runner tools (Wave 8,
-/// slice B), each driven black-box through the server's real
-/// write-policy path against a copy of
-/// `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `RunLinterTool`, `RunFormatterTool`,
-/// `RunTypeCheckerTool`, `RunStaticAnalysisTool`,
-/// `RunBenchmarkTool`, `RunApplicationTool`,
-/// `StopRunningProcessTool`, `GetProcessLogsTool` and
-/// `ReadBuildLogsTool` (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state),
-/// never on internals. Message assertions use `firstText`, never
-/// an exact equality against `resultText` (structured results emit two text
-/// blocks). Tests that run a real toolchain are gated on
-/// `canBuildPackages`, like the `test` tool's own tests; tests
-/// that need SwiftLint / SwiftFormat are gated on the binary being
-/// on `PATH`. Nothing here claims a build passed without running
-/// one.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticExecutionTests {
-    /// The 9 slice-B tool IDs registered here (8 PORTED + 1
-    /// HONESTLY-FAILING), verified live from each Legacy tool
-    /// file's `identifier`. The other 5 slice IDs are already
-    /// served: `run_build` / `run_tests` by existing aliases,
-    /// `xcode_build` / `execute_terminal_command` by proposed
-    /// aliases, `swift_package_manager` by the registered Assist
-    /// tool of the same ID (see
-    /// `specs/ide/agentic-execution-draft.md`).
     static let sliceBIDs = ["run_linter", "run_formatter", "run_type_checker", "run_static_analysis",
                             "run_benchmark", "run_application", "stop_running_process", "get_process_logs",
                             "read_build_logs"]
 
-    /// Resolves a program the way the implementation does (PATH
-    /// search), for gating tests on the external binary.
     static func programOnPath(_ name: String) -> String? {
         let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
         for dir in path.split(separator: ":") {
@@ -47,17 +18,9 @@ import SwiftCodeAssistant
         return nil
     }
 
-    /// Opens a copy of Greeter and installs the ported Agentic
-    /// execution tools on the server (same shape as Wave 7's
-    /// `opened`; the coordinator wires `agenticExecutionTools`
-    /// into `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` does not
-        // wire `agenticExecutionTools` yet, so a plain `+=` would
-        // be safe today — but filter-first keeps the test correct
-        // once the coordinator wires it in.
         let ported = Set(host.agenticExecutionTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.agenticExecutionTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -65,7 +28,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -130,8 +92,6 @@ import SwiftCodeAssistant
         }
     }
 
-    // MARK: - `read_build_logs` (pure read, fully testable)
-
     @Test func readBuildLogsReadsDotBuildLog() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -168,8 +128,6 @@ import SwiftCodeAssistant
         #expect(file.firstText.contains("not a directory"))
     }
 
-    // MARK: - `get_process_logs` (honestly failing)
-
     @Test func getProcessLogsFailsNamingMissingBuffer() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -180,8 +138,6 @@ import SwiftCodeAssistant
         let missing = try await host.server.callTool("get_process_logs", [:])
         #expect(missing.isToolError)
     }
-
-    // MARK: - `stop_running_process` (real kill, approval-gated)
 
     @Test func stopRunningProcessTerminatesSleep() async throws {
         let sample = try TempSample()
@@ -224,7 +180,7 @@ import SwiftCodeAssistant
     @Test func writeToolsAreRefusedWhenReadOnly() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        let host = try await opened(sample) // default policy: .readOnly
+        let host = try await opened(sample)
         let formatted = try await host.server.callTool("run_formatter", ["path": .string("Sources/Greeter/Greeter.swift")])
         #expect(formatted.isToolError)
         #expect(formatted.firstText.contains("read-only"))
@@ -233,27 +189,21 @@ import SwiftCodeAssistant
         #expect(stopped.firstText.contains("read-only"))
     }
 
-    // MARK: - Validation paths (no toolchain needed)
-
     @Test func runToolsRejectBadArguments() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Missing required params.
         for (name, args) in [("run_linter", [:]), ("run_type_checker", [:]), ("run_benchmark", [:]),
                              ("run_application", ["projectPath": .string(".")])] as [(String, [String: AnyJSON])] {
             let r = try await host.server.callTool(name, args)
             #expect(r.isToolError, "\(name) must fail without its required params")
         }
-        // A file is not a project directory.
         let file = try await host.server.callTool("run_type_checker", ["projectPath": .string("Package.swift")])
         #expect(file.isToolError)
         #expect(file.firstText.contains("not a directory"))
-        // A missing path fails before any binary is resolved.
         let gone = try await host.server.callTool("run_linter", ["path": .string("NoSuchFile.swift")])
         #expect(gone.isToolError)
         #expect(gone.firstText.contains("does not exist"))
-        // A target that is not a bare name is refused before swift runs.
         let spaced = try await host.server.callTool("run_application", ["projectPath": .string("."), "target": .string("my target")])
         #expect(spaced.isToolError)
         #expect(spaced.firstText.contains("bare target name"))
@@ -261,8 +211,6 @@ import SwiftCodeAssistant
         #expect(flag.isToolError)
         #expect(flag.firstText.contains("bare target name"))
     }
-
-    // MARK: - SwiftLint / SwiftFormat (gated on the binary)
 
     @Test func runLinterNeedsSwiftLint() async throws {
         let sample = try TempSample()
@@ -282,9 +230,6 @@ import SwiftCodeAssistant
         guard Self.programOnPath("swiftlint") != nil else { return }
         try writeFixture(sample, "LintMe.swift", "public struct LintMe {\n    public let value: Int = 1\n}\n")
         let r = try await host.server.callTool("run_linter", ["path": .string("LintMe.swift")])
-        // SwiftLint either passes the file (exit 0, structured
-        // result) or reports violations (an honest error carrying
-        // the exit code) — either way the real binary ran.
         if r.isToolError {
             #expect(r.firstText.contains("exit code"))
         } else {
@@ -315,8 +260,6 @@ import SwiftCodeAssistant
         #expect(read(sample, "BadFormat.swift").contains("let x = 1"))
     }
 
-    // MARK: - Swift runs (gated on `canBuildPackages`)
-
     @Test func runTypeCheckerBuildsTests() async throws {
         guard canBuildPackages else { return }
         let sample = try TempSample()
@@ -342,8 +285,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Greeter has no `benchmark` executable target, so the real
-        // `swift run -c release benchmark` fails — honestly.
         let r = try await host.server.callTool("run_benchmark", ["projectPath": .string(".")])
         #expect(r.isToolError)
         #expect(r.firstText.contains("exit code"))

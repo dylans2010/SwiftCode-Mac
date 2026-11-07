@@ -1,12 +1,10 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimulatorConfiguration.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 
 public struct SimulatorConfiguration: Codable, Hashable, Sendable {
-    public var preferredOrientation: String // Portrait, Landscape
+    public var preferredOrientation: String
     public var connectHardwareKeyboard: Bool
     public var showFrameRateCounter: Bool
-    public var defaultRuntimePlatform: String // iOS, tvOS, watchOS, visionOS
+    public var defaultRuntimePlatform: String
     public var maxConsoleLogLines: Int
 
     public init(

@@ -1,24 +1,13 @@
 import Foundation
 
-/// Each navigator's bottom bar, header and empty state
-/// (`specs/ide/reference-ui-5.md` §5.2): the left pull-down button, the
-/// in-field toggles with their titles, tooltips and defaults, and the
-/// two-line empty state.
 public struct NavigatorBarSpec: Equatable, Sendable {
-    /// The pull-down at the bar's left end.
     public enum LeftButton: Equatable, Sendable {
-        /// None: the filter takes the full width.
         case none
-        /// "+", with its tooltip (nil: none observed).
         case add(String?)
-        /// "…" (more).
         case more
-        /// A pull-down whose contents are still to observe.
         case pullDown
     }
 
-    /// An in-field toggle: its accessibility title, tooltip, glyph, the
-    /// filter-options menu title, and whether it starts on.
     public struct Toggle: Equatable, Sendable {
         public var title: String
         public var toolTip: String
@@ -36,11 +25,9 @@ public struct NavigatorBarSpec: Equatable, Sendable {
 
     public var left: LeftButton
     public var toggles: [Toggle]
-    /// The empty state's lines (none, one or two).
     public var emptyState: [String]
 }
 public enum NavigatorBars {
-    /// The selector buttons' tooltips, exactly (§5.2).
     public static let selectorToolTips = [
         "Show the Project navigator", "Show the Source Control navigator", "Show the Bookmark navigator", "Show the Find navigator",
         "Show the Issue navigator", "Show the Test navigator", "Show the Debug Navigator", "Show the Breakpoints Navigator",
@@ -49,38 +36,28 @@ public enum NavigatorBars {
 
     public static let filterPlaceholder = "Filter"
 
-    /// Per navigator, in selector order.
     public static let specs: [NavigatorBarSpec] = {
         typealias T = NavigatorBarSpec.Toggle
         return [
-            // Project
             .init(left: .add(nil), toggles: [
                 T("Recent files", "Show only recent files", "clock", menu: "Show Only Recent Files"),
                 T("Files with source-control status", "Show only files with source-control status", "plusminus.circle",
                   menu: "Show Only Files with Source-Control Status"),
             ], emptyState: []),
-            // Source Control: the filter alone across the bar, no "+" or
-            // options button (navigators.md round 3 §2); SwiftCode keeps its
-            // "No Repository".
             .init(left: .none, toggles: [], emptyState: ["No Repository"]),
-            // Bookmarks
             .init(left: .more, toggles: [
                 T("Incomplete Items", "Show only incomplete items", "checklist", menu: "Show Only Incomplete Items"),
             ], emptyState: ["No Bookmarks", "Click the '…' button to add bookmarks"]),
-            // Find: a plain filter, no empty state.
             .init(left: .none, toggles: [], emptyState: []),
-            // Issues
             .init(left: .none, toggles: [
                 T("Show only latest issues", "Show only issues from open documents and recently built sources", "clock",
                   menu: "Show Only Latest Issues"),
                 T("Only errors", "Show only errors", "xmark.octagon", menu: "Show Only Errors"),
             ], emptyState: ["No Issues"]),
-            // Tests
             .init(left: .add("Add a new test target or class"), toggles: [
                 T("Show Only Included Tests", "Show Only Included Tests", "checkmark.circle", menu: "Show Only Included Tests"),
                 T("Recent Tests", "Show only recent tests and open documents", "clock", menu: "Show Only Recent Tests"),
             ], emptyState: ["No Tests", "Click the \u{2295} button to add test targets"]),
-            // Debug
             .init(left: .none, toggles: [
                 T("Show compressed stack frames", "Show only stack frames with debug symbols and between libraries",
                   "arrow.down.right.and.arrow.up.left", menu: "Show Compressed Stack Frames", on: true),
@@ -89,31 +66,22 @@ public enum NavigatorBars {
                 T("Show only running blocks", "Show only running blocks when in Queues view", "play.circle",
                   menu: "Show Only Running Blocks", on: true),
             ], emptyState: ["No Debug Session"]),
-            // Breakpoints
             .init(left: .add("Create a breakpoint"), toggles: [
                 T("Modified breakpoints", "Show only modified breakpoints", "slider.horizontal.3", menu: "Show Only Modified Breakpoints"),
                 T("Enabled breakpoints", "Show only enabled breakpoints", "checkmark.circle", menu: "Show Only Enabled Breakpoints"),
             ], emptyState: ["No Breakpoints"]),
-            // Reports
             .init(left: .pullDown, toggles: [
                 T("Recent reports filter", "Show only recent reports", "clock", menu: "Show Only Recent Reports"),
             ], emptyState: ["No Logs"]),
         ]
     }()
 
-    /// The Report navigator's Local | Cloud tooltips.
     public static let reportScopeToolTips = ["Show Local Reports", "Show Cloud Reports"]
-    /// The Test navigator's Mode radio buttons.
     public static let testModes = ["Group by Test Hierarchy", "Group by Tags"]
-    /// The Test navigator's test-plan pop-up width (reference-ui-6.md §5.4).
     public static let testPlanPopUpWidth: CGFloat = 194
-    /// The group of tests without tags, last in Group by Tags.
     public static let untaggedTests = "Untagged Tests"
 }
-/// swift-testing tags of a test, read from its `@Test(… .tags(…) …)` and
-/// its suite's `@Suite(… .tags(…) …)` attributes.
 public enum TestTags {
-    /// Tag names in `.tags(.a, .b, Tag.c)` inside `attribute` text.
     public static func names(inAttribute attribute: String) -> [String] {
         guard let r = attribute.range(of: ".tags(") else { return [] }
         var depth = 1
@@ -129,8 +97,6 @@ public enum TestTags {
         }
     }
 
-    /// The attribute text right above a declaration line (1-based): the
-    /// lines going up from it while they belong to attributes.
     static func attributes(above line: Int, in lines: [Substring]) -> String {
         guard line >= 1, line <= lines.count else { return "" }
         var out: [Substring] = [lines[line - 1]]
@@ -144,7 +110,6 @@ public enum TestTags {
         return out.joined(separator: "\n")
     }
 
-    /// The test's tags and its suite's, without duplicates, in order.
     public static func tags(of test: DiscoveredTest, text: String) -> [String] {
         guard test.kind == .swiftTesting else { return [] }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)

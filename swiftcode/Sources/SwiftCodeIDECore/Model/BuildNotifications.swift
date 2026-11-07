@@ -1,19 +1,8 @@
 import Foundation
 
-// Settings ▸ Behaviors, shared by both IDEs (`specs/ide/build-notifications.md`):
-// which Behaviors events an activity change raises, what the "Notify with
-// bezel or system notification" action shows, where it shows it, and the
-// bezel's timing.
-
-/// Turns the session's activity changes into Behaviors events
-/// (`settings.md` Behaviors, `build-notifications.md` §1). One per
-/// workspace window.
 public struct BehaviorEventTracker {
-    /// The activity before the last change.
     public private(set) var previous: WorkspaceSession.Activity?
-    /// The program printed something in the current run.
     public private(set) var runPrintedOutput = false
-    /// Console entries that existed when the current run started.
     public private(set) var consoleEntriesAtRunStart = 0
 
     public init() {}
@@ -30,9 +19,6 @@ public struct BehaviorEventTracker {
         return false
     }
 
-    /// The events raised by the activity becoming `a`, in the order their
-    /// actions run. `hasErrors` / `hasWarnings`: the issues the session
-    /// shows now; `consoleEntries`: the console's entry count now.
     public mutating func events(for a: WorkspaceSession.Activity, hasErrors: Bool, hasWarnings: Bool,
                                 consoleEntries: Int = 0) -> [Preferences.Event] {
         var out: [Preferences.Event] = []
@@ -57,7 +43,6 @@ public struct BehaviorEventTracker {
         return out
     }
 
-    /// The events for a finished activity's text.
     public static func finishedEvents(_ s: String, hasErrors: Bool, hasWarnings: Bool) -> [Preferences.Event] {
         let lower = s.lowercased()
         if lower.contains("run failed") || s.contains("exited unexpectedly") { return [.runExitsUnexpectedly] }
@@ -70,9 +55,6 @@ public struct BehaviorEventTracker {
         return []
     }
 
-    /// The program printed during a run: "When running generates output",
-    /// once per run. `targetOutput`: the console has program output after
-    /// `consoleEntriesAtRunStart`.
     public mutating func noteConsoleOutput(targetOutput: Bool) -> Preferences.Event? {
         guard Self.isRunning(previous), !runPrintedOutput, targetOutput else { return nil }
         runPrintedOutput = true
@@ -80,8 +62,6 @@ public struct BehaviorEventTracker {
     }
 }
 
-/// What a notification shows: the bezel's or the system notification's
-/// title, and the bezel's glyph (a symbol name both IDEs can draw).
 public struct BuildNotice: Equatable, Sendable {
     public enum Outcome: Sendable { case succeeded, failed, other }
     public var title: String
@@ -95,8 +75,6 @@ public struct BuildNotice: Equatable, Sendable {
 }
 
 public enum BuildNotificationPolicy {
-    /// What the Notify action of `event` shows; `activity` is the finished
-    /// activity text when there is one (§2).
     public static func notice(for event: Preferences.Event, activity: String?) -> BuildNotice {
         func result(_ suffix: String) -> String? { activity.flatMap { $0.hasSuffix(suffix) ? $0 : nil } }
         switch event {
@@ -115,7 +93,6 @@ public enum BuildNotificationPolicy {
         }
     }
 
-    /// The notices for `events` whose behavior has the Notify action.
     @MainActor
     public static func notices(for events: [Preferences.Event], activity: WorkspaceSession.Activity,
                                preferences: Preferences = .shared) -> [BuildNotice] {
@@ -124,10 +101,8 @@ public enum BuildNotificationPolicy {
         return events.filter { preferences.behavior($0).notify }.map { notice(for: $0, activity: text) }
     }
 
-    /// Where a notification goes (§3).
     public enum Route: Equatable, Sendable { case bezel, systemNotification }
 
-    /// The window's state when a notification is due.
     public struct WindowState: Equatable, Sendable {
         public var isVisible: Bool
         public var isMinimized: Bool
@@ -139,7 +114,6 @@ public enum BuildNotificationPolicy {
             self.isKey = isKey
             self.appIsActive = appIsActive
         }
-        /// A window the user is looking at.
         public static let frontmost = WindowState(isVisible: true, isKey: true, appIsActive: true)
     }
 
@@ -148,10 +122,6 @@ public enum BuildNotificationPolicy {
     }
 }
 
-/// The bezel's timing and replacement (§4): shown at once, fully visible
-/// for `visibleDuration`, then faded over `fadeDuration` (none with Reduce
-/// Motion) and removed. A new notice replaces the current one and restarts
-/// the time; each show has a generation so a stale timer does nothing.
 public struct BezelTimeline: Equatable, Sendable {
     public static let visibleDuration: TimeInterval = 1.6
     public static let fadeDuration: TimeInterval = 0.35
@@ -162,12 +132,10 @@ public struct BezelTimeline: Equatable, Sendable {
     public private(set) var shownAt: Date?
     public private(set) var generation = 0
     public private(set) var reduceMotion = false
-    /// How many notices were shown (replacements included).
     public private(set) var showCount = 0
 
     public init() {}
 
-    /// Shows `n` now (replacing any current notice); returns its generation.
     @discardableResult
     public mutating func show(_ n: BuildNotice, at now: Date, reduceMotion: Bool) -> Int {
         notice = n
@@ -178,10 +146,8 @@ public struct BezelTimeline: Equatable, Sendable {
         return generation
     }
 
-    /// The fade for the current show: none with Reduce Motion.
     public var currentFadeDuration: TimeInterval { reduceMotion ? 0 : Self.fadeDuration }
 
-    /// Seconds from the show until the fade starts, and until removal.
     public var fadeStartsAfter: TimeInterval { Self.visibleDuration }
     public var removedAfter: TimeInterval { Self.visibleDuration + currentFadeDuration }
 
@@ -194,7 +160,6 @@ public struct BezelTimeline: Equatable, Sendable {
         return .hidden
     }
 
-    /// 1 while shown, falling linearly to 0 over the fade, 0 when hidden.
     public func opacity(at t: Date) -> Double {
         switch phase(at: t) {
         case .hidden: return 0
@@ -205,8 +170,6 @@ public struct BezelTimeline: Equatable, Sendable {
         }
     }
 
-    /// Removes the notice if `generation` is still the current show.
-    /// Returns whether it did.
     @discardableResult
     public mutating func expire(generation g: Int) -> Bool {
         guard g == generation, notice != nil else { return false }

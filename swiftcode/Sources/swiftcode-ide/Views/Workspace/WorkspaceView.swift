@@ -5,17 +5,10 @@ import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import os
 
-/// The workspace window (`workspace-window.md` §Areas), laid out as the
-/// AppKit IDE lays it out (`docs/PARITY.md` §5.10): three columns, the
-/// navigator (290), the editor over the debug area, and the inspector
-/// (260), each running the full height of the window with its part of the
-/// toolbar in a 52-point band at its top (the AppKit window's toolbar
-/// tracks the split view's columns the same way).
 struct WorkspaceView: View {
     @Bindable var model: WorkspaceShellModel
     var app: ShellAppModel
     @Environment(\.colorScheme) private var scheme
-    /// View ▸ Navigators ▸ Show Developer Tools… (`showDevTools:` in CommandTable): the DevTools hub sheet.
     @State private var isDevToolsShown = false
 
     var body: some View {
@@ -36,8 +29,8 @@ struct WorkspaceView: View {
             }
         }
         .overlay { BuildBezelOverlay(notifier: model.notifier) }
-        .overlay { BreakpointEditorLayer(model: model) }   // DebugEditors.swift
-        .overlay { MergeOverlayLayer(scm: model.sourceControl, app: app) }   // MergeOverlay.swift: the merge alert and sheet
+        .overlay { BreakpointEditorLayer(model: model) }
+        .overlay { MergeOverlayLayer(scm: model.sourceControl, app: app) }
         .navigationTitle(model.windowTitle)
         .modifier(EditorPrompts(model: model))
         .modifier(LanguageSheets(model: model, app: app))
@@ -48,25 +41,16 @@ struct WorkspaceView: View {
     }
 }
 
-/// Posted to open the DevTools hub sheet (`.showDevTools`): the menu item's
-/// `showDevTools:` action (`WorkspaceWindowController+DevTools.swift`, mirroring
-/// `showCollaboration:`) posts it through the responder chain. See `CommandTable`
-/// View ▸ Navigators.
 extension Notification.Name {
     static let showDevTools = Notification.Name("com.swiftcode.showDevTools")
 }
 
-// MARK: - Toolbar bands
-
-/// The navigator column's toolbar: Navigators | Coding Assistant, then
-/// Run | Stop at the column's end (`liquid-glass.md` §2.2).
 struct NavigatorToolbar: View {
     var model: WorkspaceShellModel
 
     var body: some View {
         let lp = WorkspaceChrome.leftPanes, rs = WorkspaceChrome.runStop
         HStack(spacing: 0) {
-            // Navigators | Coding Assistant: clicking the shown one hides the area.
             let navigatorsOn = model.isNavigatorShown && !model.assistant.isShown
             GlassSegments(segments: [
                 .init(symbol: lp.symbols[0], help: navigatorsOn ? "Hide the Navigator" : "Show the Navigator", isOn: navigatorsOn,
@@ -81,17 +65,12 @@ struct NavigatorToolbar: View {
                 .init(symbol: rs.symbols[1], help: rs.toolTips[1], isEnabled: model.isEnabled(.stop), target: "tb stop") { model.perform(.stop) },
             ], segmentWidth: 34)
         }
-        // The AppKit window keeps its first 96 points for the window's
-        // buttons; the shell keeps the same room so the items line up.
         .padding(.leading, 96)
         .padding(.trailing, 8.5)
         .frame(height: CGFloat(WorkspaceChrome.toolbarHeight) - 1)
     }
 }
 
-/// The center column's toolbar: Back | Forward, the activity view; New
-/// Conversation and the scheme › destination capsule (with the issue
-/// counts); Add Editor and Editor Options, then the editor modes.
 struct CenterToolbar: View {
     @Bindable var model: WorkspaceShellModel
     var app: ShellAppModel
@@ -106,7 +85,7 @@ struct CenterToolbar: View {
                 ActivityView(model: model)
                     .padding(.leading, 4)
                 Spacer(minLength: 8)
-                NewConversationToolbarButton(assistant: model.assistant)   // AssistantPane.swift
+                NewConversationToolbarButton(assistant: model.assistant)
                 SchemeCapsule(model: model, app: app)
                     .padding(.leading, 8)
                 Spacer(minLength: 8)
@@ -129,8 +108,6 @@ struct CenterToolbar: View {
     }
 }
 
-/// The workspace's glyph, then two lines: the name and the activity
-/// (`reference-ui-6.md` §3.1); idle, only the name, centered.
 struct ActivityView: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -155,8 +132,6 @@ struct ActivityView: View {
     }
 }
 
-/// Scheme › destination as two pop-ups in one capsule, and the issue
-/// counts in it when there are any (`liquid-glass.md` §2.2).
 struct SchemeCapsule: View {
     @Bindable var model: WorkspaceShellModel
     var app: ShellAppModel
@@ -220,7 +195,6 @@ struct SchemeCapsule: View {
     }
 }
 
-/// The inspector column's toolbar: the inspector toggle at its end.
 struct InspectorToolbar: View {
     var model: WorkspaceShellModel
 
@@ -237,11 +211,6 @@ struct InspectorToolbar: View {
     }
 }
 
-// MARK: - Columns
-
-/// The editor over the debug area, under the center toolbar. With the
-/// navigator or the inspector hidden, their toolbar items join this band
-/// (as the AppKit toolbar keeps them).
 struct CenterColumn: View {
     var model: WorkspaceShellModel
     var app: ShellAppModel
@@ -267,8 +236,6 @@ struct CenterColumn: View {
     }
 }
 
-/// What editing asks in the window: a save that needs the user, closing a
-/// file with unsaved changes, Jump to Line.
 struct EditorPrompts: ViewModifier {
     @Bindable var model: WorkspaceShellModel
 
@@ -298,10 +265,6 @@ struct EditorPrompts: ViewModifier {
     }
 }
 
-
-// Ported from Legacy `SwiftCode/Views/WorkspaceView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: WorkspaceTool.
-
 struct WorkspaceTool: Identifiable, Codable, Hashable {
     let id: String
     let name: String
@@ -309,5 +272,5 @@ struct WorkspaceTool: Identifiable, Codable, Hashable {
     let iconName: String
     let colorHex: String
     let category: String
-    let destination: String // RawValue of ToolbarActionManager.SheetDestination
+    let destination: String
 }

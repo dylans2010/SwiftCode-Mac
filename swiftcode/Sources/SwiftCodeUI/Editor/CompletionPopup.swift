@@ -2,9 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// The popup view: up to eight rows (kind letter, label, detail) drawn
-/// directly, the selected row highlighted, and an optional documentation
-/// line at the bottom.
 @MainActor
 final class CompletionPopupView: NSView {
     var model = CompletionModel() { didSet { keepSelectionVisible(); needsDisplay = true } }
@@ -13,10 +10,8 @@ final class CompletionPopupView: NSView {
     static let maxRows = 8
     static let docHeight: CGFloat = 22
     static let padding: CGFloat = 3
-    /// Index of the first row shown.
     private(set) var firstVisible = 0
 
-    /// Height for the visible rows plus the documentation line, if any.
     static func height(rows: Int, hasDoc: Bool) -> CGFloat {
         CGFloat(min(rows, maxRows)) * rowHeight + 2 * padding + (hasDoc ? docHeight : 0)
     }
@@ -70,7 +65,6 @@ final class CompletionPopupView: NSView {
         }
     }
 
-    /// The row index under a point, if any.
     func row(at p: NSPoint) -> Int? {
         let i = firstVisible + Int(floor((p.y - Self.padding) / Self.rowHeight))
         return p.y >= Self.padding && i < min(model.visible.count, firstVisible + Self.maxRows) ? i : nil
@@ -88,19 +82,18 @@ final class CompletionPopupView: NSView {
         needsDisplay = true
     }
 
-    /// LSP CompletionItemKind → one letter (our own badge style).
     static func kindLetter(_ kind: Int?) -> String {
         switch kind {
-        case 2, 3, 4: "M"     // method, function, constructor
-        case 5, 10: "P"       // field, property
-        case 6: "V"           // variable
-        case 7: "C"           // class
-        case 8: "R"           // interface/protocol
-        case 9: "K"           // module
-        case 13: "E"          // enum
-        case 14: "K"          // keyword
-        case 20: "e"          // enum member
-        case 22: "S"          // struct
+        case 2, 3, 4: "M"
+        case 5, 10: "P"
+        case 6: "V"
+        case 7: "C"
+        case 8: "R"
+        case 9: "K"
+        case 13: "E"
+        case 14: "K"
+        case 20: "e"
+        case 22: "S"
         default: "·"
         }
     }

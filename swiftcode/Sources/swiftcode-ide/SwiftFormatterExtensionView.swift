@@ -1,12 +1,5 @@
-// SwiftFormatterExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/SwiftFormatterExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: formatter settings panel (format on save, indent width, spaces vs tabs, max line length)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - Swift Formatter Extension View
 struct SwiftFormatterExtensionView: View {
     @State private var formatOnSave = true
     @State private var indentWidth = 4

@@ -3,9 +3,6 @@ import USDCore
 import USDShade
 import USDStage
 
-/// A problem found in a scene. The reference tools drop many of these
-/// silently (`specs/tools/scene-composer/compile.md` §2.5), so the composer
-/// reports them.
 public struct SceneDiagnostic: Equatable, Sendable, CustomStringConvertible {
     public enum Severity: String, Sendable, Comparable {
         case error, warning
@@ -14,7 +11,6 @@ public struct SceneDiagnostic: Equatable, Sendable, CustomStringConvertible {
     }
 
     public var severity: Severity
-    /// A short stable identifier (`missing-asset`, `unknown-component`…).
     public var code: String
     public var path: Path
     public var message: String
@@ -31,12 +27,10 @@ public struct SceneDiagnostic: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Structural checks of a scene layer and its composed stage.
 public enum SceneValidator {
     public static func validate(_ layer: Layer, stage: Stage, catalogue: ComponentCatalogue = .realityKit,
                                 library: MaterialXLibrary = .standard) -> [SceneDiagnostic] {
         var out: [SceneDiagnostic] = []
-        // Layer conventions (scene-usd.md §1).
         if let name = layer.defaultPrim {
             if !layer.hasSpec(at: Path.root.appendingChild(name)) && stage.prim(at: Path.root.appendingChild(name)) == nil {
                 out.append(.init(.error, "default-prim", .root, "defaultPrim \"\(name)\" does not exist"))
@@ -50,7 +44,6 @@ public enum SceneValidator {
         if let m = layer.metersPerUnit, !(m > 0) {
             out.append(.init(.error, "meters-per-unit", .root, "metersPerUnit must be positive"))
         }
-        // Prims and properties (composing the whole stage).
         for prim in stage.traverse(.all) {
             out += checkPrim(prim, stage: stage)
         }
@@ -119,15 +112,11 @@ public enum SceneValidator {
         return out
     }
 
-    /// Material checks: MaterialX interfaces plus the RealityKit rules of
-    /// `materials.md` (unknown nodes load as a grey fallback material).
     static func checkMaterial(_ path: Path, stage: Stage, library: MaterialXLibrary) -> [SceneDiagnostic] {
         guard let net = try? ShadeNetwork(stage: stage, material: path) else { return [] }
         var out: [SceneDiagnostic] = []
         for d in net.validate(library: library) {
             let nodePath = d.node.isEmpty ? path : net.path(of: d.node)
-            // RealityKit node definitions are not bundled in this round:
-            // report their ids as unchecked rather than unknown.
             if let node = net.node(d.node), node.id.hasPrefix("ND_realitykit_") || node.id.hasPrefix("ND_RealityKit") || node.id.hasPrefix("ND_MTL_") {
                 if d.message.hasPrefix("unknown node definition") {
                     out.append(.init(.warning, "material-node", nodePath, "\(node.id) is not in the bundled MaterialX library; not checked"))

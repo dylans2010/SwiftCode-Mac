@@ -1,11 +1,3 @@
-// `swiftcode-simd --device DEV --health <words…>` (health-simulation.md §8.3
-// H-7, "SwiftCode implementation"): one `health` command for the device. A
-// running device gets it through its control socket (HealthHost answers);
-// a shut-down device takes the store edits at once (grant, revoke, seed:
-// a backup first, then the edit) and answers status from its files. Exit 0
-// for "ok", 1 for an error, 64 for bad usage, 69 for a command that needs a
-// running device (or a shut-down one).
-
 import Foundation
 import SwiftCodeHealthStore
 import SwiftCodeSimFeatures
@@ -37,7 +29,6 @@ func runHealthClient(_ arguments: [String]) -> Never {
     let device = absolutePath(dev)
     let command: HealthCommand
     do { command = try HealthCommand.parse(words) } catch { die("\(error)", status: 64) }
-    // Host files: absolute for the device's swiftcode-simd.
     switch command {
     case .importFile(let path, _), .seedFile(let path):
         if let k = words.firstIndex(of: path) { words[k] = absolutePath(path) }
@@ -78,7 +69,6 @@ func isHealthClient(_ arguments: [String]) -> Bool { false }
 func runHealthClient(_ arguments: [String]) -> Never { fatalError("the health client runs on Linux arm64 only") }
 #endif
 
-/// `health` commands of a shut-down device: its store and files directly.
 enum OfflineHealth {
     static func handle(_ command: HealthCommand, dev: String, now: Date = Date()) -> String {
         let files = HealthDeviceFiles(dev: dev)
@@ -100,7 +90,6 @@ enum OfflineHealth {
         case .grant(var id), .revoke(var id):
             let isGrant: Bool = { if case .grant = command { return true } else { return false } }()
             let verb = isGrant ? "grant" : "revoke"
-            // A watch app's rows are its companion's (health-simulation.md §12.1).
             var note = ""
             if let companion = HealthWatchApps.companion(of: id, deviceData: dev + "/data") {
                 note = " (\(id) is a watch app: its HealthKit access is recorded under its companion \(companion))"

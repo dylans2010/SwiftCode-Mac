@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/CollaborationCodeReviewManager.swift
-// Adapted for SwiftCode: In-app code review workflow. Verbatim.
-
 import Foundation
 
 public struct ReviewEvent: Equatable {

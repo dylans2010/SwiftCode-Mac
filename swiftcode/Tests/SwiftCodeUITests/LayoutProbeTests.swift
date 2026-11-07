@@ -5,10 +5,6 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// The layout probe's measuring (`LayoutProbe`, `specs/ide/metrics.md`
-/// §14) in the test runner: the same window as `UISpacingTests`, so the
-/// probe in the app and the tests read the same values. On the system the
-/// metrics were taken on, every measure meets its spec.
 @MainActor
 @Suite(.serialized) struct LayoutProbeTests {
     @Test func workspaceMeasuresMeetTheSpec() throws {
@@ -52,7 +48,6 @@ import SwiftCodeProject
         #expect(gap.ok == true, "the circle ends \(gap.value) before the sidebar")
     }
 
-    /// The report's JSON keeps every field the table script reads.
     @Test func reportEncodes() throws {
         var report = LayoutProbe.Report(macOS: "x", macOSVersion: "27.2.0", backingScale: 2, screen: nil, glass: true, shown: false)
         report.frames["a"] = LayoutProbe.Frame(x: 1, y: 2, w: 3, h: 4)

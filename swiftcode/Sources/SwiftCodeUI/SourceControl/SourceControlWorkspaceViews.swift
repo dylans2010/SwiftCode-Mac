@@ -1,34 +1,9 @@
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/SourceControlView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The two SwiftUI pieces of the standalone source-control workspace:
-///
-/// - `ConflictResolverWorkspaceView`: lists the working tree's conflicted
-///   files and routes each one to the conflict resolver. Legacy drove this
-///   through `GitViewModel` + `GitConflictResolverView`; this port reads
-///   `GitRepository.status()` (files with `.conflicted`) and hands the
-///   chosen file to `onResolveFile`, which the host wires to the
-///   destination's conflict editor (`ConflictEditorController` /
-///   `ConflictEditorShellModel` — AppKit, already in the destination).
-/// - `UnifiedDiffView`: the working tree's unified diff. Legacy rendered
-///   `GitDiffHunk`s from `GitViewModel.getDiff()` through a legacy
-///   `GitDiffView`; this port loads `[DiffHunk]` from the staged
-///   `GitRepository.diffHunks()` (Group A) and renders them inline with
-///   +/- colouring (the destination has no `GitDiffView`).
-///
-/// The AppKit window shell (`SourceControlWindowController` /
-/// `SourceControlWindowManager` in Legacy) is NOT ported here: the
-/// destination's source control lives in the workspace window's navigator.
-/// Hook: to restore a separate window, host `SourceControlNavigator` in
-/// its own window via `WorkspaceWindowController` and embed these views
-/// in it; until then they are usable as panes in the navigator.
 @MainActor
 public struct ConflictResolverWorkspaceView: View {
     public var repository: GitRepository
-    /// Open the destination conflict editor for this (repository-relative) path.
     public var onResolveFile: (String) -> Void
 
     @State private var conflictedFiles: [String] = []
@@ -134,7 +109,6 @@ public struct ConflictResolverWorkspaceView: View {
     }
 }
 
-/// The working tree's unified diff, rendered hunk by hunk.
 @MainActor
 public struct UnifiedDiffView: View {
     public var repository: GitRepository

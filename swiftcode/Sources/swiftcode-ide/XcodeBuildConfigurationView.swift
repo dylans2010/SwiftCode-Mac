@@ -1,10 +1,3 @@
-// XcodeBuildConfigurationView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/Xcode Build/XcodeBuildConfigurationView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: toolchain-path configuration UI (enter path, Detect Default, validate, save settings)
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/Xcode Build/XcodeBuildConfigurationView.swift (derived from Legacy).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 @MainActor

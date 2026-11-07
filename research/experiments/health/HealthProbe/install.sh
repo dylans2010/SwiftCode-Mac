@@ -1,8 +1,4 @@
 #!/bin/zsh
-# Install the signed HealthProbe build on the paired iPhone and Apple Watch with devicectl.
-# Both devices must be unlocked, in Developer Mode and trusted by this Mac.
-# Device identifiers are looked up at run time; they and the device names are not printed.
-# devicectl's own output goes to HP_LOG (default ~/Library/Logs/HealthProbe-install.log).
 set -euo pipefail
 cd "${0:A:h}"
 DERIVED="${HP_DERIVED:-$HOME/Library/Developer/Xcode/DerivedData/HealthProbe-research}"

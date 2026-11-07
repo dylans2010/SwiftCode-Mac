@@ -4,10 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// R42 (`specs/ide/reference-ui-6.md` §0): the default destination (T3,
-/// §2.4.2), the default simulator (T11, §2.4.3) and the run and test
-/// activity texts (T5, §3.2–§3.4). Simulators, `simctl`, ssh and the
-/// launcher are stand-ins.
 @MainActor
 @Suite(.serialized, .timeLimit(.minutes(5))) struct RunTestTextsR42Tests {
     func sim(_ name: String, _ version: String, type: String? = nil) -> Destination {
@@ -25,8 +21,6 @@ import SwiftCodeProject
                                               deviceFamilies: families, order: DestinationMenuModel.orderedSimulators)
     }
 
-    /// The pass-6b observation: a newer device type on 27.1 (first in the
-    /// Simulators order), the standard set on 27.0 and 26.5.
     var observedSet: [Destination] {
         [sim("Phone X", "27.1"), sim("iPhone Duo", "27.1"),
          sim("iPhone 18 Pro", "27.0"), sim("iPhone 18 Pro Max", "27.0"), sim("iPhone Air", "27.0"), sim("iPhone 17e", "27.0"),
@@ -34,23 +28,15 @@ import SwiftCodeProject
          sim("iPhone 18 Pro", "26.5"), sim("iPhone 17 Pro", "26.5")]
     }
 
-    // MARK: T11 — default simulator
-
     @Test func newestProIPhoneOnTheNewestRuntimeThatHasOne() {
-        // §2.4.3 acceptance: "iPhone 18 Pro" on 27.0, not the 27.1 rows that come first.
         let d = pick(observedSet)
         #expect(d.name == "iPhone 18 Pro" && d.osVersion == "27.0")
         #expect(DestinationMenuModel.submenuTitle(d) == "iPhone 18 Pro 27.0")
-        // Without any Pro iPhone: the first row of the Simulators section.
-        // (Within a runtime iPhones come first, so that is "iPhone Duo" on
-        // 27.1; "Phone X" names no family.)
         let noPro = observedSet.filter { DestinationCatalog.proIPhoneGeneration(of: $0) == nil }
         #expect(pick(noPro) == DestinationMenuModel.orderedSimulators(noPro).first)
         #expect(pick(noPro).name == "iPhone Duo" && pick(noPro).osVersion == "27.1")
-        // The deployment target leaves out runtimes below it.
         #expect(pick(observedSet, target: "27.1").name == "iPhone Duo")
         #expect(pick(observedSet + [sim("iPhone 17 Pro", "27.1")], target: "27.1").name == "iPhone 17 Pro")
-        // No candidate: the generic simulator.
         #expect(pick([], target: "18.0").name == "Any iOS Simulator Device")
     }
 
@@ -59,8 +45,6 @@ import SwiftCodeProject
         for name in ["iPhone 18 Pro Max", "iPhone Air", "iPhone 17e", "iPhone 18", "Phone X", "iPad Pro 13-inch (M5)"] {
             #expect(DestinationCatalog.proIPhoneGeneration(of: sim(name, "27.0")) == nil, "\(name)")
         }
-        // A renamed simulator keeps its type; a type that is not a Pro
-        // iPhone wins nothing by its name.
         #expect(DestinationCatalog.proIPhoneGeneration(of: sim("Work phone", "27.0", type: "iPhone-18-Pro")) == 18)
         #expect(DestinationCatalog.proIPhoneGeneration(of: sim("iPhone 19 Pro", "27.0", type: "iPhone-Air")) == nil)
         let renamed = [sim("iPhone 17 Pro", "27.0", type: "iPhone-17-Pro"), sim("Work phone", "26.5", type: "iPhone-18-Pro")]
@@ -68,7 +52,6 @@ import SwiftCodeProject
         #expect(DestinationCatalog.deviceFamily(of: sim("Work phone", "26.5", type: "iPhone-18-Pro")) == "iPhone")
         #expect(DestinationCatalog.deviceFamily(of: sim("Tablet", "26.5", type: "iPad-Pro-13-inch-M5")) == "iPad")
         #expect(DestinationCatalog.deviceFamily(of: sim("Phone X", "27.1")) == nil)
-        // simctl's listing carries the type.
         let json = Data("""
         {"devices": {"com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
           {"udid": "U1", "name": "Mine", "isAvailable": true, "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro"}]}}
@@ -83,43 +66,29 @@ import SwiftCodeProject
         #expect(DestinationCatalog.deviceFamilies(targetedDeviceFamily: "2") == ["iPad"])
         #expect(DestinationCatalog.deviceFamilies(targetedDeviceFamily: nil) == nil)
         #expect(DestinationCatalog.deviceFamilies(targetedDeviceFamily: "7") == nil)
-        // An iPad-only app: no Pro iPhone, the first iPad.
         let named = observedSet.filter { $0.name != "Phone X" }
         #expect(pick(named, families: ["iPad"]).name == "iPad Air 11-inch (M4)")
-        // Unknown families stay candidates.
         #expect(pick([sim("Phone X", "27.1"), sim("iPad Air", "27.0")], families: ["iPad"]).name == "Phone X")
     }
 
-    /// SwiftCode's simulator rows (one per runtime root and device type) are
-    /// rows of the Simulators section and rank there: by runtime, then by
-    /// family and name, so a local simulator of the same type and runtime
-    /// comes first; a newer runtime of the Pro type wins wherever it is.
     @Test func swiftcodeSimulatorRowsRankWithLocalSimulators() {
         let swiftcode18 = remoteRow(.iPhone18Pro, "27.0"), duo = remoteRow(.iPhoneDuo, "27.1", root: "/rr2"), ipad = remoteRow(.iPadA16, "27.0")
         #expect(swiftcode18.name == "iPhone 18 Pro (SwiftCode)" && DestinationCatalog.proIPhoneGeneration(of: swiftcode18) == 18)
         #expect(DestinationCatalog.proIPhoneGeneration(of: duo) == nil && DestinationCatalog.deviceFamily(of: ipad) == "iPad")
-        // Same type and runtime: the local simulator.
         #expect(pick([swiftcode18, duo, ipad, sim("iPhone 18 Pro", "27.0")]).identifier == "iPhone 18 Pro-27.0")
-        // Only an older runtime locally: SwiftCode's 27.0 row.
         let d = pick([swiftcode18, duo, ipad, sim("iPhone 18 Pro", "26.5"), sim("iPhone 17 Pro", "26.5")])
         #expect(d.isSwiftCodeRemoteSimulator && d.name == "iPhone 18 Pro (SwiftCode)")
-        // SwiftCode's rows alone, no Pro type: the first row (iPhone Duo on 27.1).
         #expect(pick([duo, ipad]).name == "iPhone Duo (SwiftCode)")
-        // A row whose runtime version is not read yet sorts as the newest.
         let unread = remoteRow(.iPhone18Pro, nil)
         #expect(pick([unread, sim("iPhone 18 Pro", "26.5"), sim("iPhone 17", "27.0")]).isSwiftCodeRemoteSimulator)
         #expect(pick([unread, sim("iPhone 18 Pro", "27.0")]).identifier == "iPhone 18 Pro-27.0")
     }
-
-    // MARK: T3 — macOS-capable products default to My Mac
 
     @Test func multiplatformAppDefaultsToMyMac() {
         #expect(pick(observedSet, mac: true) == .myMac)
         #expect(DestinationCatalog.defaultDestination(platform: "macOS", deploymentTarget: nil, simulators: observedSet) == .myMac)
         #expect(DestinationCatalog.defaultDestination(platform: nil, deploymentTarget: nil, simulators: observedSet) == .myMac)
     }
-
-    // MARK: T5 — run texts
 
     @Test func runTextsHaveNoCounters() {
         #expect(WorkspaceSession.RunActivityText.launching("Tour") == "Launching Tour")
@@ -131,7 +100,6 @@ import SwiftCodeProject
             #expect(RemoteSimulator.status(p, app: "Tour", device: "iPhone Duo (SwiftCode)") == "Launching Tour")
         }
         #expect(RemoteSimulator.status(.running, app: "Tour", device: "iPhone Duo (SwiftCode)") == "Running Tour on iPhone Duo (SwiftCode)")
-        // Accepted actions show their names (§3.2).
         #expect(WorkspaceSession.BuildActivityText.accepted(.test) == "Test" && WorkspaceSession.BuildActivityText.accepted(.analyze) == "Analyze")
         #expect(WorkspaceSession.BuildPresentation(action: .analyze, subject: "Tour").running == "Analyze")
         #expect(WorkspaceSession.BuildActivityText.isBuild("Analyze"))
@@ -146,8 +114,6 @@ import SwiftCodeProject
         return app
     }
 
-    // MARK: T5 — test texts
-
     @Test func testProgressMovesForwardThroughTheTestTexts() {
         let p = TestActivityProgress(subject: "Calc")
         #expect(p.text == "Test")
@@ -157,7 +123,6 @@ import SwiftCodeProject
         let texts = lines.compactMap { p.feed($0) }
         #expect(texts == ["Building \u{2022} 0/3", "Building \u{2022} 1/3", "Building \u{2022} 2/3", "Configuring Debugger Actions", "Testing Calc"])
         #expect(p.phase == .testing)
-        // xcodebuild: step headers, "Testing started", XCTest lines; swift-testing's run start.
         let x = TestActivityProgress(subject: "App")
         let xt = ["CompileSwift normal arm64 /p/A.swift", "Ld /p/App normal", "** TEST BUILD SUCCEEDED **", "Testing started",
                   "Test Suite 'All tests' started"].compactMap { x.feed($0) }

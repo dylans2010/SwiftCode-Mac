@@ -1,49 +1,5 @@
 import Foundation
 
-// XPC object serialization and bootstrap pipe-routine messages
-// (`specs/simulator/bootstrap-wire.md` §2–§4). Owner: agent X (stage 4c-ii).
-// Pure Swift: no Mach or kernel dependency. A message is (id, body bytes,
-// [XPCWireDescriptor]); the caller maps descriptors to its Mach API.
-//
-// API summary (names are stable):
-//
-//   XPCObject            .null .bool .int64 .uint64 .double .date(ns) .data
-//                        .string .uuid(UUID) .fd(XPCPort)
-//                        .sharedMemory(size:port:) .sendRight(XPCPort)
-//                        .receiveRight(XPCPort) .largeData(length:port:)
-//                        .array([XPCObject]) .dictionary(XPCDict)
-//                        accessors: boolValue int64Value uint64Value
-//                        integerValue stringValue uuidValue dataValue
-//                        arrayValue dictionaryValue port, ports (depth-first)
-//                        helpers: .send(name, disposition:) .receive(name, disposition:)
-//   XPCPort              (name, disposition): a host-task name; on decode the
-//                        received type (16/17/18), on encode the disposition
-//   XPCDisposition       moveReceive 16 … makeSendOnce 21 (MACH_MSG_TYPE_*)
-//   XPCDict        ordered [Entry(key, value)] in wire order;
-//                        subscript by key (first match), keys, count
-//   XPCWireDescriptor    .port(name:disposition:) .ool(bytes:)
-//                        .oolPorts(names:disposition:) .guardedPort(name:disposition:)
-//   XPCWire              encode(_ root) throws -> XPCWireEncoding(body, descriptors)
-//                        decode(body:descriptors:) throws -> XPCObject
-//                        encodePayload / decodePayload(_:ports:)
-//   XPCWireError         thrown for any malformed input (never a crash)
-//   XPCPipe              routineBit 0x40000000, replyID 0x20000000,
-//                        oneWayID 0x10000000
-//   XPCPipeMessage       (id, descriptors, body): isComplex, messageSize,
-//                        msghID, request(routine:_:), oneWay(_:),
-//                        decodeDictionary()
-//   XPCPipeRequest       init(id:body:descriptors:hasReplyPort:) throws
-//                        routine, isOneWay, hasReplyPort, dictionary, ports,
-//                        knownRoutine, type handle name flags targetPID
-//                        instance lookupHandle port, description
-//   XPCPipeReply         dictionary(_:) error(_:) sendRight(_:disposition:key:)
-//                        receiveRight(_:disposition:key:) empty()
-//   XPCBootstrapRoutine  203 parent … 828 printDomain
-//   XPCBootstrapDomain   system 1, user 2, pid 5, listener 6, requester 7
-//   XPCBootstrapError    1100–1103, 126; errno 1, 3, 37, 45
-//   XPCBootstrap         launchdSimServiceRequestID 708 / ReplyID 808
-
-/// `MACH_MSG_TYPE_*` dispositions (when sending) and received types.
 public enum XPCDisposition {
     public static let moveReceive: UInt32 = 16
     public static let moveSend: UInt32 = 17
@@ -51,16 +7,11 @@ public enum XPCDisposition {
     public static let copySend: UInt32 = 19
     public static let makeSend: UInt32 = 20
     public static let makeSendOnce: UInt32 = 21
-    /// Received types.
     public static let portReceive: UInt32 = 16
     public static let portSend: UInt32 = 17
     public static let portSendOnce: UInt32 = 18
 }
 
-/// A right carried by a port-bearing object. `name` is a name in the
-/// sender's or receiver's port space (for SwiftCode, the host task).
-/// `disposition` is the `MACH_MSG_TYPE_*` value to send it with (encode),
-/// or the received type (decode: 16 receive, 17 send, 18 send-once).
 public struct XPCPort: Equatable, Hashable, Sendable, CustomStringConvertible {
     public var name: UInt32
     public var disposition: UInt32
@@ -73,47 +24,31 @@ public struct XPCPort: Equatable, Hashable, Sendable, CustomStringConvertible {
     public var description: String { "0x" + String(name, radix: 16) + "/" + String(disposition) }
 }
 
-/// An XPC value as it travels in a pipe-routine message
-/// (`bootstrap-wire.md` §3.2). Port-bearing values (`fd`, `sharedMemory`,
-/// `sendRight`, `receiveRight`, `largeData`) carry an `XPCPort`; on the
-/// wire they match the message's port descriptors in depth-first order.
 public indirect enum XPCObject: Equatable, Sendable {
     case null
     case bool(Bool)
     case int64(Int64)
     case uint64(UInt64)
     case double(Double)
-    /// Tag `0x7000`: the int64 given to the date setter (nanoseconds).
     case date(Int64)
-    /// Inline data (at most `XPCWire.inlineDataLimit` bytes).
     case data([UInt8])
     case string(String)
     case uuid(UUID)
-    /// A file descriptor; travels as a port descriptor (a send right).
     case fd(XPCPort)
-    /// Shared memory of `size` bytes; the port is a send right to the memory.
     case sharedMemory(size: UInt32, port: XPCPort)
-    /// Tag `0xD000`.
     case sendRight(XPCPort)
-    /// Tag `0x15000`.
     case receiveRight(XPCPort)
-    /// Data longer than `XPCWire.inlineDataLimit` bytes: the bytes are in a
-    /// memory object sent as a port descriptor.
     case largeData(length: UInt32, port: XPCPort)
     case array([XPCObject])
     case dictionary(XPCDict)
 
-    /// A send right to send with `disposition` (default `MAKE_SEND`).
     public static func send(_ name: UInt32, disposition: UInt32 = XPCDisposition.makeSend) -> XPCObject {
         .sendRight(XPCPort(name: name, disposition: disposition))
     }
 
-    /// A receive right to send with `disposition` (default `MOVE_RECEIVE`).
     public static func receive(_ name: UInt32, disposition: UInt32 = XPCDisposition.moveReceive) -> XPCObject {
         .receiveRight(XPCPort(name: name, disposition: disposition))
     }
-
-    // MARK: Accessors
 
     public var boolValue: Bool? { if case let .bool(v) = self { v } else { nil } }
     public var int64Value: Int64? { if case let .int64(v) = self { v } else { nil } }
@@ -125,7 +60,6 @@ public indirect enum XPCObject: Equatable, Sendable {
     public var arrayValue: [XPCObject]? { if case let .array(v) = self { v } else { nil } }
     public var dictionaryValue: XPCDict? { if case let .dictionary(v) = self { v } else { nil } }
 
-    /// An int64 or uint64 value as a bit pattern (lenient integer read).
     public var integerValue: UInt64? {
         switch self {
         case let .uint64(v): v
@@ -134,7 +68,6 @@ public indirect enum XPCObject: Equatable, Sendable {
         }
     }
 
-    /// The right of a port-bearing object, nil for any other object.
     public var port: XPCPort? {
         switch self {
         case let .fd(p), let .sendRight(p), let .receiveRight(p): p
@@ -143,10 +76,8 @@ public indirect enum XPCObject: Equatable, Sendable {
         }
     }
 
-    /// Whether this object itself (not its children) uses a port descriptor.
     public var isPortBearing: Bool { port != nil }
 
-    /// Every right in this object, in depth-first (wire descriptor) order.
     public var ports: [XPCPort] {
         var out: [XPCPort] = []
         collectPorts(into: &out)
@@ -161,8 +92,6 @@ public indirect enum XPCObject: Equatable, Sendable {
         }
     }
 
-    /// Replaces the ports in depth-first order with `ports[k]` (k-th port).
-    /// Returns nil when the count differs from the object's port count.
     public func bindingPorts(_ ports: [XPCPort]) -> XPCObject? {
         var index = 0
         let result = rebinding(ports, &index)
@@ -200,9 +129,6 @@ public indirect enum XPCObject: Equatable, Sendable {
     }
 }
 
-/// An XPC dictionary as it travels: entries in wire order, looked up by key.
-/// Writers may use any order (`bootstrap-wire.md` §3.3); equality is
-/// order-sensitive (wire equality).
 public struct XPCDict: Equatable, Sendable, Sequence {
     public struct Entry: Equatable, Sendable {
         public var key: String
@@ -221,8 +147,6 @@ public struct XPCDict: Equatable, Sendable, Sequence {
     public var isEmpty: Bool { entries.isEmpty }
     public var keys: [String] { entries.map(\.key) }
 
-    /// The first value with this key. Setting replaces the first entry with
-    /// this key, or appends; setting nil removes every entry with this key.
     public subscript(key: String) -> XPCObject? {
         get { entries.first { $0.key == key }?.value }
         set {
@@ -238,7 +162,6 @@ public struct XPCDict: Equatable, Sendable, Sequence {
         }
     }
 
-    /// Appends an entry without checking for an existing key (wire order).
     public mutating func append(key: String, value: XPCObject) {
         entries.append(Entry(key: key, value: value))
     }
@@ -264,11 +187,7 @@ extension XPCObject: ExpressibleByStringLiteral, ExpressibleByBooleanLiteral, Ex
     public init(nilLiteral: ()) { self = .null }
 }
 
-// MARK: Description
-
 extension XPCObject: CustomStringConvertible {
-    /// A one-line readable form for logs: uint64 as `7`, int64 as `7i`,
-    /// strings quoted, rights as `send(0x103/17)`.
     public var description: String {
         switch self {
         case .null: return "null"

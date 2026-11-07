@@ -6,9 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Regression: with a panel-backed editor (project or plist editor) shown,
-/// the jump bar used to come out blank in window captures, because the
-/// panel painted the whole dirty rect it was given, past its own bounds.
 @MainActor
 @Suite(.serialized) struct JumpBarRenderingTests {
     @Test func jumpBarDrawsAboveAPanelEditor() throws {

@@ -1,5 +1,3 @@
-// gpu-data.h: test inputs shared by the Mac oracle (mtl-oracle.m) and the
-// Thor runner (airc-gpu.c), so both sides compute on identical data.
 #pragma once
 
 #include <stdint.h>
@@ -14,7 +12,6 @@ static inline void gd_add_inputs(float *a, float *b, uint32_t n) {
     }
 }
 
-// 64 records of struct Pair { float4 a; uint2 b; float c; } (32 bytes).
 static inline void gd_pairs(uint32_t *w) {
     for (uint32_t r = 0; r < 64; r++)
         for (uint32_t k = 0; k < 8; k++) {
@@ -27,7 +24,6 @@ static inline void gd_pairs(uint32_t *w) {
         }
 }
 
-// Texture 0: 16 x 16 RGBA32F, texel (x, y) = (x, y, x + y, 1) / 16 (alpha 1).
 static inline void gd_tex0(float *t) {
     for (int y = 0; y < 16; y++)
         for (int x = 0; x < 16; x++) {
@@ -39,13 +35,11 @@ static inline void gd_tex0(float *t) {
         }
 }
 
-// Texture 2: 16 x 16 R32Uint, texel (x, y) = x * 16 + y.
 static inline void gd_tex2(uint32_t *t) {
     for (int y = 0; y < 16; y++)
         for (int x = 0; x < 16; x++) t[y * 16 + x] = (uint32_t)(x * 16 + y);
 }
 
-// Texture 3: 4 x 4 x 4 RGBA8Unorm, texel (x, y, z) = (60x, 60y, 60z, 255).
 static inline void gd_tex3(uint8_t *t) {
     for (int z = 0; z < 4; z++)
         for (int y = 0; y < 4; y++)
@@ -59,7 +53,6 @@ static inline void gd_tex3(uint8_t *t) {
 }
 
 static inline uint16_t gd_half(float f) {
-    // Exact for the values used here (multiples of 1/4 in [0, 1]).
     uint32_t b;
     memcpy(&b, &f, 4);
     if (f == 0.0f) return 0;
@@ -67,8 +60,6 @@ static inline uint16_t gd_half(float f) {
     return (uint16_t)((e << 10) | m);
 }
 
-// Render test: a quad as a triangle strip; per vertex float2 position at
-// offset 0 and half4 colour at offset 8 (stride 16).
 static inline void gd_vertices(uint8_t *v) {
     static const float pos[4][2] = {{-0.75f, -0.75f}, {0.75f, -0.75f}, {-0.75f, 0.75f}, {0.75f, 0.75f}};
     static const float col[4][4] = {{1.0f, 0.5f, 0.25f, 1.0f}, {0.5f, 1.0f, 0.5f, 1.0f}, {0.25f, 0.5f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}};
@@ -81,7 +72,6 @@ static inline void gd_vertices(uint8_t *v) {
     }
 }
 
-// Render test texture: 8 x 8 RGBA8Unorm, texel (x, y) = (32x, 32y, 128, 255).
 static inline void gd_draw_texture(uint8_t *t) {
     for (int y = 0; y < 8; y++)
         for (int x = 0; x < 8; x++) {
@@ -93,7 +83,6 @@ static inline void gd_draw_texture(uint8_t *t) {
         }
 }
 
-// Argument-buffer test data: 256 floats.
 static inline void gd_argbuf_data(float *d) {
     for (int i = 0; i < 256; i++) d[i] = (float)i * 0.5f;
 }

@@ -1,21 +1,5 @@
 import Foundation
 
-// MARK: - SDKCapabilityID
-//
-// The fixed capability registry (spec Docs/Intro-to-SDK.md §8.1,
-// ADR SwiftCode/SDK/Documentation/SDK-Architecture.md §7).
-// This registry is FIXED for Phase 1+: do not rename or remove cases.
-// Additive cases require a minor SDK version bump and a Compatibility.md entry.
-//
-// Raw values are the exact capability IDs used in manifests, grant records,
-// and IPC messages. They are part of the wire contract: never change them.
-//
-// ID naming: the registry carries two historical conventions. The original
-// Phase 1 IDs use kebab-case `domain.action` (e.g. `"source-control.read"`);
-// the later platform-capability IDs use `<area>.<View>` camel/Pascal form
-// (e.g. `"db.ExploreView"`). Both spellings are valid, case-sensitive wire
-// IDs — match them verbatim and never normalize or re-case them.
-
 public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case projectRead = "project.read"
     case workspaceRead = "workspace.read"
@@ -29,20 +13,8 @@ public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case credentialsUse = "credentials.use"
     case useSecurity = "use.Security"
     case assistInvoke = "assist.invoke"
-    // Entitlement-only Assist SDK variants (Docs/Intro-to-SDK.md §11–§12,
-    // task B2/B3). These are NEVER grantable through the manifest: only a
-    // verified `com.SwiftCode.developer-AI-Assist` entitlement on the
-    // developer's API key unlocks them, enforced at the capability broker
-    // and IPC dispatcher (sibling task). Keep deny-by-default intact.
     case assistUI = "assist.ui"
     case assistHeadless = "assist.headless"
-    // The viewId the `assistSDK.UI` variant opens through `ui.openView`
-    // (assist.viewId rule, task B2): `SDKViewOpenerBuiltIns.swift`
-    // registers no Assist view, so the agreed viewId is the literal
-    // `"assist.main"`. Registered by `SDKAssistUIOpener` at SDK bootstrap
-    // (not in BuiltIns — see that file for the scopes-sync rationale).
-    // Entitlement-only like the other Assist variants: never grantable
-    // through the manifest.
     case assistMainView = "assist.main"
     case dbExploreView = "db.ExploreView"
     case ciVisualWF = "ci.VisualWF"
@@ -65,58 +37,29 @@ public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case securityUseValue = "security.useValue"
 }
 
-// MARK: - SDKCapabilityRisk
-
-/// Risk tier for a capability. Drives approval-UX presentation and the
-/// built-in Developer API Key scope requirements (spec §8.2.1).
 public enum SDKCapabilityRisk: String, Sendable, Codable {
-    /// Read-only, safe metadata. No mutation, no content access.
     case low = "low"
 
-    /// Broader read access (file contents, UI surface). No mutation.
     case medium = "medium"
 
-    /// Mutation, execution, network, or secret use. Always requires an
-    /// explicit grant; privileged capabilities also require an authenticated
-    /// Developer API Key with explicit scopes (spec §8.2.1).
     case high = "high"
 
-    /// Not grantable in this release. Any request is denied with a typed
-    /// `ASSIST_DENIED` error and recorded as an audit event (ADR §9).
     case restricted = "restricted"
 }
 
-// MARK: - SDKCapabilityInfo
-
-/// Human-readable, user-facing description of one capability.
-///
-/// The `description`, `grantsSummary`, and `doesNotGrant` fields power the
-/// approval UX (spec §8.3): explain the practical effects in plain language
-/// and never bury what a capability does — or does not — allow.
 public struct SDKCapabilityInfo: Sendable {
-    /// The capability identifier (wire-stable raw value).
     public let id: SDKCapabilityID
 
-    /// Short user-facing title, e.g. "Source control reading".
     public let title: String
 
-    /// Plain-language practical effects, 1–3 sentences.
     public let description: String
 
-    /// What this capability allows.
     public let grantsSummary: String
 
-    /// What this capability explicitly does NOT allow.
     public let doesNotGrant: String
 
-    /// Risk tier driving approval UX and API-key scope requirements.
     public let risk: SDKCapabilityRisk
 
-    /// Whether the host may grant this capability in the current release.
-    /// `false` for `assist.invoke` (ADR §9) and for the entitlement-only
-    /// Assist variants `assist.ui` / `assist.headless`, which are unlocked
-    /// by the key-bound entitlement flow (Docs/Intro-to-SDK.md §12),
-    /// never by a grant.
     public let grantableInCurrentRelease: Bool
 
     public init(
@@ -138,18 +81,9 @@ public struct SDKCapabilityInfo: Sendable {
     }
 }
 
-// MARK: - SDKCapabilityRegistry
-
-/// Authoritative lookup for the fixed capability registry.
-///
-/// `info(for:)` uses an exhaustive switch, so adding a new `SDKCapabilityID`
-/// case without adding its info fails to compile — the registry cannot
-/// silently drift out of sync with the ID set.
 public enum SDKCapabilityRegistry {
-    /// All registered capabilities, in spec §8.1 table order.
     public static let all: [SDKCapabilityInfo] = SDKCapabilityID.allCases.map(info(for:))
 
-    /// User-facing info for a capability ID. Total: every case is covered.
     public static func info(for id: SDKCapabilityID) -> SDKCapabilityInfo {
         switch id {
         case .projectRead:
@@ -495,30 +429,15 @@ public enum SDKCapabilityRegistry {
         }
     }
 
-    /// User-facing info for a raw capability ID string, e.g. from a manifest.
-    /// Returns `nil` when the ID is not a known capability; the host's strict
-    /// validator maps that to `SDKErrorCode.unknownCapability` (P1b).
     public static func info(forRawValue rawValue: String) -> SDKCapabilityInfo? {
         guard let id = SDKCapabilityID(rawValue: rawValue) else { return nil }
         return info(for: id)
     }
 
-    /// Whether the capability is privileged for developer-API-key scope
-    /// enforcement (spec §8.2.1): high-risk capabilities (network requests,
-    /// custom builds, credential use, workspace/source-control writes, task
-    /// execution) additionally require the `capabilities:request` scope on
-    /// a session-presented developer API key. `.restricted` (Assist,
-    /// including the entitlement-only `assist.ui` / `assist.headless`
-    /// variants) is not "privileged" in this sense — it is deny-by-default
-    /// and never grantable, so the broker rejects it unconditionally
-    /// before any scope logic runs; the entitled path is enforced
-    /// separately at the dispatcher (sibling task).
     public static func isPrivileged(_ id: SDKCapabilityID) -> Bool {
         info(for: id).risk == .high
     }
 }
-
-// MARK: - SDKCapability (Studio-facing descriptor)
 
 public enum SDKCapabilityCategory: String, Sendable, Codable, CaseIterable {
     case project, workspace, sourceControl, build, ui, security, ai, system

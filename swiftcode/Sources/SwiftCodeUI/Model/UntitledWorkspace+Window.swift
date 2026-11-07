@@ -2,7 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 
 extension NewProjectFlow {
-    /// The empty workspace window the template sheet sits on.
     @MainActor
     static func emptyWorkspaceWindow() -> WorkspaceWindowController {
         let wc = WorkspaceWindowController(session: WorkspaceSession(model: .untitled()), loadDestinations: false, startLanguageService: false,

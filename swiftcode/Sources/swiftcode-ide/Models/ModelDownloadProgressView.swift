@@ -1,9 +1,3 @@
-// ModelDownloadProgressView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/ModelDownloadProgressView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: download speed (MB/s); ETA; size progress in MB; session activity log
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftUI
 import AppKit
@@ -22,8 +16,6 @@ struct ModelDownloadProgressView: View {
     @State private var didCopyError = false
     @State private var hasCompleted = false
 
-    // Real-time metrics, read from the downloader (see pollRealProgress).
-    // totalBytesExpected is 0 until the downloader reports a real total.
     @State private var speedMBs: Double = 0.0
     @State private var bytesWritten: Int64 = 0
     @State private var totalBytesExpected: Int64 = 0
@@ -75,7 +67,6 @@ struct ModelDownloadProgressView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            // Header Info
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -101,7 +92,6 @@ struct ModelDownloadProgressView: View {
 
             Divider()
 
-            // Custom Progress Section
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Downloading weights file...")
@@ -117,7 +107,6 @@ struct ModelDownloadProgressView: View {
                     .progressViewStyle(.linear)
                     .tint(.orange)
 
-                // Sub-metrics grid
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     HStack {
                         Image(systemName: "speedometer")
@@ -176,7 +165,6 @@ struct ModelDownloadProgressView: View {
                 .liquidGlass(style: .subtle, cornerRadius: 8)
             }
 
-            // Interactive logs
             DisclosureGroup(isExpanded: $showLogs) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
@@ -290,12 +278,6 @@ struct ModelDownloadProgressView: View {
         logHistory.append("[\(timestamp)] \(text)")
     }
 
-    /// Polls the downloader's real metrics instead of simulating them.
-    /// Bytes written and total come straight from `OfflineModelDownloader`
-    /// (which counts bytes actually received against the model's real
-    /// total); speed is the measured average — bytes received divided by
-    /// real elapsed time. Nothing here is invented: when the total is
-    /// still unknown it stays 0 and the UI says so.
     private func pollRealProgress() {
         Task {
             while !hasCompleted && downloader.isDownloading {

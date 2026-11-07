@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIHierarchy.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Document scene outline explorer showing the exact structural tree, allowing nodes to be locked, hidden, duplicated, and structured recursively.
 public struct VisualUIHierarchy: View {
     @Bindable var document: VisualUIDocument
 
@@ -38,8 +35,6 @@ public struct VisualUIHierarchy: View {
     }
 }
 
-// MARK: - Recursive Node Row Representation
-
 struct HierarchyNodeRow: View {
     let node: VisualComponentNode
     let depth: Int
@@ -49,13 +44,10 @@ struct HierarchyNodeRow: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            // Self Item
             HStack(spacing: 8) {
-                // Indentation Spacer
                 Spacer()
                     .frame(width: CGFloat(depth * 14))
 
-                // Chevron for expansion
                 if !node.children.isEmpty {
                     Button {
                         isExpanded.toggle()
@@ -70,7 +62,6 @@ struct HierarchyNodeRow: View {
                         .frame(width: 10)
                 }
 
-                // Component Icon & Title
                 Image(systemName: node.type.systemIcon)
                     .foregroundColor(isSelected ? .white : .accentColor)
 
@@ -81,9 +72,7 @@ struct HierarchyNodeRow: View {
 
                 Spacer()
 
-                // Actions: Hide, Lock, Delete
                 HStack(spacing: 6) {
-                    // Hide toggle
                     Button {
                         node.isHidden.toggle()
                         VisualUISettings.shared.addLog("Toggled visibility of \(node.name)")
@@ -93,7 +82,6 @@ struct HierarchyNodeRow: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Lock toggle
                     Button {
                         node.isLocked.toggle()
                         VisualUISettings.shared.addLog("Toggled lock on \(node.name)")
@@ -103,7 +91,6 @@ struct HierarchyNodeRow: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Context Quick Actions Menu
                     Menu {
                         Button {
                             duplicateNode()
@@ -136,7 +123,6 @@ struct HierarchyNodeRow: View {
                 selectNode()
             }
 
-            // Child Rows
             if isExpanded && !node.children.isEmpty {
                 ForEach(node.children) { child in
                     HierarchyNodeRow(

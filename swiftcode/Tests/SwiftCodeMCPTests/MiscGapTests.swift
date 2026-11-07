@@ -2,19 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeMCP
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter MiscGapTests`.
-//
-// Gap-closure misc tests for the native `generate_xcodeproj`
-// generator (specs/ide/gap-closure-misc.md §1): the generator
-// directly (spec parsing, the generated project, the honest
-// failures) and through the real `generate_xcodeproj` tool on a
-// host (the tool writes the `.xcodeproj` into the workspace, and
-// regeneration succeeds with the original text present for the
-// review diff). No xcodegen anywhere: the generator under test is
-// SwiftCode's own.
-
 @Suite("Misc gap tests — native XcodeGen generator")
 @MainActor
 struct MiscGapTests {
@@ -29,8 +16,6 @@ struct MiscGapTests {
             sources: [DemoApp]
         """
 
-    /// A temp workspace with one Swift source dir, like
-    /// `SwiftCodeProjectModelTests.fixtureProject`.
     private func sampleWithSource() throws -> TempSample {
         let sample = try TempSample()
         let sourceURL = sample.url.appendingPathComponent("DemoApp/App.swift")
@@ -39,9 +24,6 @@ struct MiscGapTests {
         return sample
     }
 
-    /// Opens the temp dir as a package workspace with the ported
-    /// project tools installed (the `SwiftCodeProjectModelTests`
-    /// `openedPackage` shape).
     private func openedPackage(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -51,8 +33,6 @@ struct MiscGapTests {
         #expect(!r.isToolError, "\(r.resultText)")
         return host
     }
-
-    // MARK: - The generator directly
 
     @Test("A minimal app spec generates a project, a scheme, and a pbxproj naming the app")
     func minimalAppSpecGenerates() throws {
@@ -131,8 +111,6 @@ struct MiscGapTests {
             #expect(error.localizedDescription.contains("bundleIdPrefix"))
         }
     }
-
-    // MARK: - Through the real tool
 
     @Test("generate_xcodeproj writes the .xcodeproj into the workspace")
     func toolWritesXcodeproj() async throws {

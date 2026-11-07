@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectFileService.swift
-// Adapted for SwiftCode: ProjectSessionStore replaced by the ConnectWorkspaceProvider seam; file list is a live directory enumeration (Legacy used its cached FileNode tree).
-
 import Foundation
 import os.log
 
@@ -37,9 +33,6 @@ public final class ConnectFileService: @unchecked Sendable {
             return
         }
 
-        // Legacy listed the project's cached FileNode tree. SwiftCode has no
-        // cached tree, so the top level of the project directory is
-        // enumerated live (directories first, then files, each by name).
         let items: [ConnectFileItem]
         do {
             let urls = try FileManager.default.contentsOfDirectory(
@@ -81,7 +74,6 @@ public final class ConnectFileService: @unchecked Sendable {
             return
         }
 
-        // Prevent path traversal attacks (e.g. ../../)
         guard !relativePath.contains("..") else {
             ConnectServer.shared.sendError(code: "INVALID_PATH", message: "Path traversal is strictly prohibited.", correlationID: envelope.messageID, on: session)
             return

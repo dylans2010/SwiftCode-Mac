@@ -1,9 +1,3 @@
-// sbext: our probe of the simulator's sandbox-extension calls (stage 7,
-// specs/simulator/sandbox-extensions.md). Calls the exported functions
-// sandbox_extension_issue_file / _consume / _release (interop names; the
-// prototypes are our own declarations) and prints what comes back.
-// Usage: sbext <class> <path> [flags]
-//        sbext consume <token>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>

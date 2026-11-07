@@ -1,14 +1,10 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Mac Helpers/BuildModels.swift
-// Adapted for SwiftCode: Connect wire models (BuildRequest/BuildResponse/BuildStatusMessage). Verbatim.
-
 import Foundation
 
 public struct BuildRequest: Codable {
     public let projectName: String
     public let platform: String
     public let configuration: String
-    public let projectData: Data // Compressed project files
+    public let projectData: Data
 
     public init(projectName: String, platform: String = "iOS", configuration: String = "Release", projectData: Data) {
         self.projectName = projectName

@@ -1,6 +1,3 @@
-/// Character-level scanning for the USDA text format: whitespace and
-/// comments (`#`, `//`, `/* */`), identifiers, numbers, quoted strings,
-/// asset references and path references.
 struct USDAScanner {
     let bytes: [UInt8]
     var pos = 0
@@ -14,7 +11,6 @@ struct USDAScanner {
         return i < bytes.count ? bytes[i] : nil
     }
 
-    /// Line and column (1-based) of the current position.
     var location: (line: Int, column: Int) {
         var line = 1
         var column = 1
@@ -29,15 +25,14 @@ struct USDAScanner {
         return USDError("usda:\(l):\(c): \(message)")
     }
 
-    /// Skips spaces, newlines, comments and statement separators (`;`).
     mutating func skip() {
         while let b = peek() {
             switch b {
             case 0x20, 0x09, 0x0A, 0x0D, 0x3B:
                 pos += 1
-            case 0x23: // '#'
+            case 0x23:
                 skipToEndOfLine()
-            case 0x2F: // '/'
+            case 0x2F:
                 if peek(1) == 0x2F {
                     skipToEndOfLine()
                 } else if peek(1) == 0x2A {
@@ -57,7 +52,6 @@ struct USDAScanner {
         while let b = peek(), b != 0x0A { pos += 1 }
     }
 
-    /// Skips trivia and consumes `char` if it is next.
     mutating func consume(_ char: Character) -> Bool {
         skip()
         guard let b = peek(), b == char.asciiValue! else { return false }
@@ -69,7 +63,6 @@ struct USDAScanner {
         guard consume(char) else { throw error("expected '\(char)'") }
     }
 
-    /// The next non-trivia byte, without consuming it.
     mutating func next() -> UInt8? {
         skip()
         return peek()
@@ -83,7 +76,6 @@ struct USDAScanner {
         isIdentStart(b) || (b >= 0x30 && b <= 0x39)
     }
 
-    /// A plain identifier, or nil (position unchanged).
     mutating func identifier() -> String? {
         skip()
         guard let b = peek(), USDAScanner.isIdentStart(b) else { return nil }
@@ -92,7 +84,6 @@ struct USDAScanner {
         return String(decoding: bytes[start..<pos], as: UTF8.self)
     }
 
-    /// Peeks the next identifier without consuming it.
     mutating func peekIdentifier(skipping count: Int = 0) -> String? {
         let saved = pos
         defer { pos = saved }
@@ -100,7 +91,6 @@ struct USDAScanner {
         return identifier()
     }
 
-    /// `a:b:c` (property names) — also accepts `a::b` (type names).
     mutating func namespacedName() -> String? {
         guard var name = identifier() else { return nil }
         while peek() == 0x3A {
@@ -130,7 +120,6 @@ struct USDAScanner {
         }
     }
 
-    /// Consumes `keyword` if it is the next identifier.
     mutating func consumeKeyword(_ keyword: String) -> Bool {
         let saved = pos
         if identifier() == keyword { return true }
@@ -138,7 +127,6 @@ struct USDAScanner {
         return false
     }
 
-    /// A number literal as text (`-1.5e3`, `inf`, `-inf`, `nan`), or nil.
     mutating func numberText() -> String? {
         skip()
         let start = pos
@@ -191,15 +179,11 @@ struct USDAScanner {
         }
     }
 
-    // MARK: Strings
-
-    /// True if a quoted string starts next.
     mutating func atString() -> Bool {
         skip()
         return peek() == 0x22 || peek() == 0x27
     }
 
-    /// A single-, double- or triple-quoted string with escapes evaluated.
     mutating func quotedString() throws -> String {
         skip()
         guard let quote = peek(), quote == 0x22 || quote == 0x27 else { throw error("expected a string") }
@@ -231,7 +215,7 @@ struct USDAScanner {
                 case 0x62: out.append(0x08)
                 case 0x66: out.append(0x0C)
                 case 0x76: out.append(0x0B)
-                case 0x78: // \xNN
+                case 0x78:
                     var value: UInt8 = 0
                     for _ in 0..<2 {
                         guard let h = peek(), let v = USDAScanner.hexValue(h) else { break }
@@ -239,7 +223,7 @@ struct USDAScanner {
                         pos += 1
                     }
                     out.append(value)
-                case 0x30...0x37: // octal \NNN
+                case 0x30...0x37:
                     var value = Int(e - 0x30)
                     for _ in 0..<2 {
                         guard let o = peek(), o >= 0x30 && o <= 0x37 else { break }
@@ -267,14 +251,11 @@ struct USDAScanner {
         }
     }
 
-    // MARK: Asset and path references
-
     mutating func atAsset() -> Bool {
         skip()
         return peek() == 0x40
     }
 
-    /// `@path@` or `@@@path@@@` (with `\@@@` escapes).
     mutating func assetRef() throws -> String {
         skip()
         guard peek() == 0x40 else { throw error("expected an asset path") }
@@ -289,7 +270,6 @@ struct USDAScanner {
                     continue
                 }
                 if b == 0x40, peek(1) == 0x40, peek(2) == 0x40 {
-                    // Up to two extra '@' before the closing triple belong to the path.
                     var extra = 0
                     while peek(3 + extra) == 0x40 && extra < 2 { extra += 1 }
                     out += Array(repeating: 0x40, count: extra)
@@ -318,7 +298,6 @@ struct USDAScanner {
         return peek() == 0x3C
     }
 
-    /// `<path>` or `<>` (the empty path).
     mutating func pathRef() throws -> Path {
         skip()
         guard peek() == 0x3C else { throw error("expected a path reference") }

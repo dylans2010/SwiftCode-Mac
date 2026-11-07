@@ -1,22 +1,9 @@
-// The headset onboarding's checklist (specs/ide/device-hub.md §I.12): what
-// must be in place on the workstation that runs the headset viewer and on
-// the headset, each with its state, the reason and the exact fix. Portable:
-// the macOS hub, the Linux shell and `swiftcode sim headset check` show the same
-// list. Everything here only looks: a check runs read-only commands through
-// a `HeadsetCommandRunner`; a fix is text for the user to run, or an action
-// that runs only when the user clicks it. Nothing ever runs sudo.
-//
-// WiVRn and its headset client are external GPLv3 programs, never bundled
-// with SwiftCode; what is said about them comes from WiVRn's user documentation
-// and from its running server's public D-Bus properties (§I.12 sources).
-
 import Foundation
 import SwiftCodeSubprocess
 #if canImport(Glibc)
 import Glibc
 #endif
 
-/// A shell command's result on the viewer host.
 public struct HeadsetCommandResult: Sendable, Equatable {
     public var status: Int32
     public var output: String
@@ -25,17 +12,13 @@ public struct HeadsetCommandResult: Sendable, Equatable {
         self.output = output
     }
     public var ok: Bool { status == 0 }
-    /// The shell's "command not found".
     public var notFound: Bool { status == 127 }
 }
 
-/// Runs a shell command line on the viewer host. Stand-ins answer in tests.
 public protocol HeadsetCommandRunner: Sendable {
     func run(_ command: String) async -> HeadsetCommandResult
 }
 
-/// Where the viewer runs: this machine (Linux), or a Linux PC reached by ssh
-/// with a key (the hub on a Mac: WiVRn does not run on macOS).
 public enum HeadsetViewerHost: Sendable, Equatable {
     case thisMachine
     case ssh(String)
@@ -50,23 +33,16 @@ public enum HeadsetViewerHost: Sendable, Equatable {
     }
 }
 
-/// How the headset reaches WiVRn on the workstation.
 public enum HeadsetConnectionKind: String, Sendable, CaseIterable, Codable {
     case usb, wifi
     public var title: String { self == .usb ? "USB cable" : "Wi-Fi" }
 }
 
-/// What the user chose for the headset; one set per SwiftCode installation.
 public struct HeadsetSettings: Sendable, Equatable, Codable {
-    /// The ssh destination of the viewer host (empty: this machine on Linux, none on a Mac).
     public var viewerHost = ""
-    /// The viewer on that host: a path, or a name on its PATH.
     public var viewerPath = "swiftcode-xr-viewer"
     public var connection = HeadsetConnectionKind.usb
-    /// The ssh destination of the simulator host as the viewer host sees it
-    /// (empty: the same destination the hub uses).
     public var simulatorHostFromViewer = ""
-    /// More options for the viewer (`xr-viewer.md` §7), split at spaces.
     public var viewerOptions = "--foveate"
 
     public init() {}
@@ -82,7 +58,6 @@ public struct HeadsetSettings: Sendable, Equatable, Codable {
         if let data = try? JSONEncoder().encode(self) { d.set(data, forKey: Self.key) }
     }
 
-    /// The viewer host these settings name when the hub runs on `platform`.
     public func host(hubIsLinux: Bool) -> HeadsetViewerHost {
         let dest = viewerHost.trimmingCharacters(in: .whitespaces)
         if !dest.isEmpty { return .ssh(dest) }
@@ -90,33 +65,24 @@ public struct HeadsetSettings: Sendable, Equatable, Codable {
     }
 }
 
-/// A check's state.
 public enum HeadsetCheckState: String, Sendable, Equatable {
     case ok, missing, unknown
 }
 
-/// The one way to put a check right.
 public enum HeadsetFix: Sendable, Equatable {
-    /// A command the user runs in a terminal on the viewer host (shown with a Copy button; never run by SwiftCode).
     case command(String)
-    /// Words: something done by hand, on the headset or a phone.
     case instructions(String)
-    /// Offers "Install on Headset…"; runs `adb install` only after the user read `HeadsetClientPackage`.
     case installClient(HeadsetClientPackage)
-    /// Offers "Connect" (the WiVRn dashboard's way: `adb reverse` and the `wivrn+tcp://` link).
     case connect
 }
 
-/// WiVRn's headset client as SwiftCode offers to install it.
 public struct HeadsetClientPackage: Sendable, Equatable {
     public var version: String
     public var url: String
-    /// The release's published SHA-256, when SwiftCode knows it.
     public var sha256: String?
     public static let license = "GPLv3"
     public static let storeURL = "https://www.meta.com/experiences/7959676140827574/"
 
-    /// The published digests of the releases SwiftCode has looked at (GitHub's release API).
     static let knownDigests = ["26.9": "1df6649ec77224fcc821af0ab4897222bdf3d7eb6ce6ad636461336724111331"]
 
     public init(version: String) {
@@ -125,7 +91,6 @@ public struct HeadsetClientPackage: Sendable, Equatable {
         sha256 = Self.knownDigests[version]
     }
 
-    /// What the confirmation shows before anything is downloaded.
     public var explanation: String {
         "WiVRn's headset app, version \(version), from WiVRn's own releases:\n\(url)\n\n"
             + "WiVRn is a separate program (\(Self.license)); it is not part of SwiftCode and SwiftCode does not bundle it. "
@@ -136,7 +101,6 @@ public struct HeadsetClientPackage: Sendable, Equatable {
     }
 }
 
-/// The checklist's items, in their order.
 public enum HeadsetCheckID: String, Sendable, CaseIterable {
     case viewerHost, vulkan, openXRLoader, openXRRuntime, wivrnInstalled, wivrnRunning, xrViewer, simulatorRoute
     case adb, headsetUSB, clientApp, clientVersion
@@ -164,7 +128,6 @@ public enum HeadsetCheckID: String, Sendable, CaseIterable {
     }
 }
 
-/// One line of the checklist.
 public struct HeadsetCheck: Sendable, Equatable, Identifiable {
     public let id: HeadsetCheckID
     public var state: HeadsetCheckState
@@ -180,7 +143,6 @@ public struct HeadsetCheck: Sendable, Equatable, Identifiable {
     }
 }
 
-/// The onboarding's steps: each groups some checks.
 public enum HeadsetSetupStep: Int, Sendable, CaseIterable {
     case viewerHost, workstation, headset, tracking, connect
 
@@ -215,17 +177,14 @@ public enum HeadsetSetupStep: Int, Sendable, CaseIterable {
     }
 }
 
-/// Status of the hub's capsule (device-hub.md §I.12).
 public enum HeadsetStatus: String, Sendable, Equatable {
     case notSetUp = "Not Set Up"
     case ready = "Ready"
     case inHeadset = "In Headset"
 }
 
-/// A full round of checks.
 public struct HeadsetReport: Sendable, Equatable {
     public var checks: [HeadsetCheck]
-    /// `adb -s` of the headset; the app's package; the server's version (for the actions).
     public var serial: String?
     public var clientPackage: String?
     public var serverVersion: String?
@@ -236,9 +195,6 @@ public struct HeadsetReport: Sendable, Equatable {
     public func check(_ id: HeadsetCheckID) -> HeadsetCheck? { checks.first { $0.id == id } }
     public func checks(in step: HeadsetSetupStep) -> [HeadsetCheck] { step.checks.compactMap(check) }
 
-    /// Checks whose failure stops View in Headset. A connection that has not
-    /// happened yet does not: View in Headset connects first. Eye tracking
-    /// is optional (selection falls back to a controller or the head).
     static let optional: Set<HeadsetCheckID> = [.connection, .eyeTracking, .handTracking]
 
     public var isReady: Bool {
@@ -248,7 +204,6 @@ public struct HeadsetReport: Sendable, Equatable {
     public var isConnected: Bool { check(.connection)?.state == .ok }
     public var status: HeadsetStatus { isReady ? .ready : .notSetUp }
 
-    /// The first check to look at (the first step with a blocking problem).
     public var firstProblemStep: HeadsetSetupStep {
         for s in HeadsetSetupStep.allCases where checks(in: s).contains(where: { !Self.optional.contains($0.id) && $0.state != .ok && $0.blocksWhenUnknown }) { return s }
         return .connect
@@ -256,9 +211,6 @@ public struct HeadsetReport: Sendable, Equatable {
 }
 
 extension HeadsetCheck {
-    /// An unknown state that cannot be told apart from a problem. The checks
-    /// that may be unknown and still work: over Wi-Fi the USB items, and a
-    /// runtime that WiVRn will take over when the headset connects.
     var blocksWhenUnknown: Bool {
         switch id {
         case .headsetUSB, .adb, .clientApp, .clientVersion, .openXRRuntime, .vulkan, .simulatorRoute: state != .unknown
@@ -267,16 +219,11 @@ extension HeadsetCheck {
     }
 }
 
-/// The route from the viewer host to the device's display socket.
 public enum HeadsetRoute: Sendable, Equatable {
-    /// SwiftCode's link: the viewer host is paired with the simulator host.
     case link(device: String, host: String?)
-    /// An ssh forward from the viewer host to the device's socket on the simulator host.
     case sshSocket(destination: String, socket: String)
 }
 
-/// Runs the checks. Only read-only commands are used (`adb shell pm list`,
-/// `dumpsys`, `getprop`, `busctl get-property`).
 public struct HeadsetChecker: Sendable {
     public var host: HeadsetViewerHost
     public var settings: HeadsetSettings
@@ -290,19 +237,15 @@ public struct HeadsetChecker: Sendable {
         self.runner = runner
     }
 
-    /// The WiVRn client's package names, by how it was installed (WiVRn's README).
     public static let clientPackages = ["org.meumeu.wivrn.github", "org.meumeu.wivrn", "org.meumeu.wivrn.github.nightly",
                                         "org.meumeu.wivrn.github.nighly", "org.meumeu.wivrn.github.testing", "org.meumeu.wivrn.local"]
     public static let wivrnManifest = "/usr/share/openxr/1/openxr_wivrn.json"
-    /// USB vendor id of Meta's headsets.
     public static let metaVendor = "2833"
 
-    /// A read of the WiVRn server's D-Bus property (empty when there is no server).
     public static func busProperty(_ name: String) -> String {
         "XDG_RUNTIME_DIR=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}\" busctl --user get-property io.github.wivrn.Server /io/github/wivrn/Server io.github.wivrn.Server \(name)"
     }
 
-    /// The commands' words, kept together so that tests and the spec name them.
     public enum Command {
         public static let uname = "uname -s"
         public static let vulkan = "vulkaninfo --summary 2>/dev/null"
@@ -355,8 +298,6 @@ public struct HeadsetChecker: Sendable {
         return report
     }
 
-    // MARK: The viewer host
-
     func checkHost() async -> HeadsetCheck {
         switch host {
         case .none:
@@ -374,8 +315,6 @@ public struct HeadsetChecker: Sendable {
             return HeadsetCheck(.viewerHost, .missing, "Could not log in to \(d) with an ssh key.", fix: .command("ssh-copy-id \(d)"))
         }
     }
-
-    // MARK: The workstation
 
     func checkVulkan() async -> HeadsetCheck {
         let r = await runner.run(Command.vulkan)
@@ -408,8 +347,6 @@ public struct HeadsetChecker: Sendable {
         let manifest = await runner.run(Command.manifest).ok
         if active.ok, active.output.localizedCaseInsensitiveContains("wivrn") { return HeadsetCheck(.openXRRuntime, .ok, "active_runtime.json names WiVRn") }
         if manifest {
-            // wivrn-server makes itself the active runtime while a headset is
-            // connected, and the viewer can name its manifest for itself.
             let what = active.ok ? "Another runtime is active now." : "No runtime is active now."
             return HeadsetCheck(.openXRRuntime, .ok, "\(what) WiVRn takes over while the headset is connected, and the viewer names WiVRn's manifest for itself; your configuration stays as it is.")
         }
@@ -459,8 +396,6 @@ public struct HeadsetChecker: Sendable {
         }
     }
 
-    // MARK: The headset
-
     func checkADB() async -> HeadsetCheck {
         let r = await runner.run(Command.adb)
         if r.ok { return HeadsetCheck(.adb, .ok, r.output.trimmed) }
@@ -470,14 +405,12 @@ public struct HeadsetChecker: Sendable {
         return HeadsetCheck(.adb, .missing, "adb is not installed.", fix: .command("sudo apt install adb"))
     }
 
-    /// One line of `adb devices -l`.
     struct ADBDevice { var serial: String; var state: String; var model: String? }
 
     static func parseDevices(_ text: String) -> [ADBDevice] {
         text.split(separator: "\n").dropFirst().compactMap { line in
             let words = line.split(whereSeparator: \.isWhitespace).map(String.init)
             guard words.count >= 2, !line.hasPrefix("*"), !words[0].hasPrefix("emulator-") else { return nil }
-            // "no permissions (…)" is more than one word.
             let state = words[1] == "no" ? "no permissions" : words[1]
             let model = words.first { $0.hasPrefix("model:") }.map { String($0.dropFirst(6)) }
             return ADBDevice(serial: words[0], state: state, model: model)
@@ -493,7 +426,6 @@ public struct HeadsetChecker: Sendable {
         }
         let list = await runner.run(Command.devices)
         let all = Self.parseDevices(list.output)
-        // A Quest when several are listed.
         let d = all.first { $0.model?.contains("Quest") == true } ?? all.first
         let plug = "Connect the headset to the viewer host with a USB cable."
         switch d?.state {
@@ -538,7 +470,6 @@ public struct HeadsetChecker: Sendable {
             let d = await runner.run("adb -s \(serial.shellQuoted) shell dumpsys package \(p) | grep -m1 versionName")
             if let v = d.output.split(separator: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines), d.ok { versions.append((p, v)) }
         }
-        // The client must be the server's version (WiVRn's README): take the one that is.
         let matching = versions.first { $0.version == serverVersion }
         let pick = matching ?? versions.first ?? (found[0], "")
         let app = HeadsetCheck(.clientApp, .ok, pick.package)
@@ -548,9 +479,6 @@ public struct HeadsetChecker: Sendable {
         return (app, HeadsetCheck(.clientVersion, .missing, "The app is \(pick.version), the server \(serverVersion); they must be the same version.", fix: install), pick.package)
     }
 
-    // MARK: Tracking and connection
-
-    /// What the running server says; nil where it says nothing.
     struct BusState { var connected: Bool?; var hands: Bool?; var eyes: Bool?; var systemName: String? }
 
     func readBus() async -> BusState {
@@ -572,7 +500,6 @@ public struct HeadsetChecker: Sendable {
         return s
     }
 
-    /// Runtime permission → granted, from `dumpsys package`.
     func readPermissions(serial: String?, package: String?) async -> [String: Bool] {
         guard let serial, let package else { return [:] }
         let d = await runner.run("adb -s \(serial.shellQuoted) shell dumpsys package \(package) | grep -E 'TRACKING.*granted='")
@@ -582,14 +509,11 @@ public struct HeadsetChecker: Sendable {
             guard let colon = t.firstIndex(of: ":") else { continue }
             let granted = t[colon...].contains("granted=true")
             let name = String(t[..<colon])
-            // A later, per-user line is the one that counts.
             out[name] = granted
         }
         return out
     }
 
-    // The menu names are from Meta's public pages, which differ by software
-    // version (device-hub.md §I.12 Evidence); not checked on a headset.
     static let handsHelp = "On the headset: Settings ▸ Movement tracking ▸ Hand and body tracking (the name varies by software version); and allow it for WiVRn when its app asks."
     static let eyesHelp = "On the headset: Settings ▸ Movement tracking ▸ Eye tracking (Settings ▸ Hands and eyes on some software versions); then Settings ▸ Privacy and safety ▸ App permissions ▸ Eye Tracking, on for WiVRn."
 
@@ -626,15 +550,12 @@ public struct HeadsetChecker: Sendable {
     }
 }
 
-/// The actions the user can click. Each returns the exact command it runs.
 public enum HeadsetActions {
-    /// USB, as WiVRn's documentation shows it: the port reversed, then the app opened on the server's link.
     public static func connectCommand(serial: String, package: String) -> String {
         let s = serial.shellQuoted
         return "adb -s \(s) reverse tcp:9757 tcp:9757 && adb -s \(s) shell am start -a android.intent.action.VIEW -d wivrn+tcp://localhost \(package.shellQuoted)"
     }
 
-    /// Downloads WiVRn's own release on the viewer host, checks it, `adb install`s it, removes it.
     public static func installCommand(serial: String, package p: HeadsetClientPackage) -> String {
         let verify = p.sha256.map { " && echo \"\($0)  $d/WiVRn-release.apk\" | sha256sum -c -" } ?? ""
         return "d=$(mktemp -d) && curl -fL --retry 2 -o \"$d/WiVRn-release.apk\" \(p.url.shellQuoted)\(verify)"
@@ -648,7 +569,6 @@ extension String {
         guard let i = firstIndex(of: "=") else { return "" }
         return self[index(after: i)...].trimmingCharacters(in: .whitespaces)
     }
-    /// One shell word.
     public var shellQuoted: String {
         let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "@%+=:,./-_"))
         if !isEmpty, unicodeScalars.allSatisfy({ safe.contains($0) }) { return self }
@@ -656,7 +576,6 @@ extension String {
     }
 }
 
-/// A command on this machine (`/bin/sh -c`).
 public struct LocalHeadsetRunner: HeadsetCommandRunner {
     public var timeout: TimeInterval
     public init(timeout: TimeInterval = 15) { self.timeout = timeout }
@@ -666,8 +585,6 @@ public struct LocalHeadsetRunner: HeadsetCommandRunner {
     }
 }
 
-/// A command on the viewer host through ssh: a key only (`BatchMode`), one
-/// shared connection for the checks' many short commands.
 public struct SSHHeadsetRunner: HeadsetCommandRunner {
     public var destination: String
     public var ssh: String
@@ -680,25 +597,17 @@ public struct SSHHeadsetRunner: HeadsetCommandRunner {
     }
 
     public var arguments: [String] {
-        // A short path: a Unix socket's holds 104 bytes with ssh's temporary suffix
-        // (macOS's temporary directory is too long). ssh makes the socket 0600.
         let control = "/tmp/swiftcode-\(getuid())-%C"
         return ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "ControlMaster=auto", "-o", "ControlPath=\(control)", "-o", "ControlPersist=60", destination]
     }
 
     public func run(_ command: String) async -> HeadsetCommandResult {
-        // ssh's own failure (255) must not look like the command's answer.
         var r = await HeadsetProcess.run(ssh, arguments + ["--", command], timeout: timeout)
         if r.status == 255 { r.output = "" }
         return r
     }
 }
 
-/// One command, with `posix_spawn` and not Foundation's `Process`: on Linux a
-/// `Process` reports its exit only once everything that inherited its internal
-/// descriptors has closed them, and a command here may leave the headset viewer
-/// running detached. The command's end is the end: its exit, then what is left in
-/// the pipe. The pipe's write end is close-on-exec but for the child's stdout.
 enum HeadsetProcess {
     static func run(_ program: String, _ arguments: [String], timeout: TimeInterval) async -> HeadsetCommandResult {
         await withCheckedContinuation { (k: CheckedContinuation<HeadsetCommandResult, Never>) in

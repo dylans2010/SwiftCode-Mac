@@ -26,7 +26,6 @@ final class CharacterEscaperViewModel {
     }
 
     func unescape() {
-        // Simple unescape conversion
         var result = escapedText
         result = result.replacingOccurrences(of: "\\\"", with: "\"")
         result = result.replacingOccurrences(of: "\\\\", with: "\\")

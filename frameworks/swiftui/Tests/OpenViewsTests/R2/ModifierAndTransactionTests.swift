@@ -8,9 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 03-architecture.md §6 (modifier order) and 05-animation.md §4.1
-// (transaction scoping), on views lowered to the R3 engine.
-
 @MainActor
 func layoutFrames<V: View>(_ view: V, proposal: ProposedViewSize = ProposedViewSize(width: 300, height: 500))
     -> (size: CGSize, frames: [String: CGRect]) {
@@ -71,8 +68,6 @@ struct ModifierOrderTests {
     }
 }
 
-// MARK: - Transactions
-
 @MainActor
 final class SeenTransactions {
     var a: [Animation?] = []
@@ -118,7 +113,6 @@ struct TransactionTests {
         seen.b = []
         change()
         g.update()
-        // swiftlint:disable:next redundant_nil_coalescing - flattens a double optional
         return (seen.a.last ?? nil, seen.b.last ?? nil)
     }
 

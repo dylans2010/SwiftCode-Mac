@@ -1,52 +1,3 @@
-// main.cpp: swiftcode-airc, the SwiftCode AIR -> SPIR-V translator (stage 8a, agent
-// SH). Clean-room implementation from specs/simulator/metal-shaders.md and
-// metal-sim-protocol.md section 6, LLVM (Apache-2.0 WITH LLVM-exception)
-// and SPIRV-Tools (Apache-2.0).
-//
-// Usage:
-//   swiftcode-airc version
-//   swiftcode-airc list IN.metallib
-//   swiftcode-airc decls IN.metallib...   (declared air.* functions and signatures, counted per module)
-//   swiftcode-airc translate IN.metallib|IN.bc [-f NAME] [-o OUT.spv] [-r OUT.json] [-S OUT.spvasm]
-//              [--opt] [--link-vertex VS.metallib[:NAME]] [--link LIB.metallib]...
-//              [--constant INDEX=VALUE]... [--cache DIR] [--loop-limit N]
-//   swiftcode-airc serve [--cache DIR] [--timeout SECONDS] [--no-isolate] [--dump-dir DIR]
-//   swiftcode-airc replay DIR [--changed-only]
-//   swiftcode-airc corpus [--json REPORT.json] [--quiet] [--timeout SECONDS] [--opt] [--loop-limit N] [--library LIB.metallib]... PATH...
-//
-// Exit status: 0 success, 1 translation error (a JSON error document is
-// printed on stdout by `translate`), 2 usage or I/O error.
-//
-// Serve protocol (stdin/stdout, binary frames, little-endian):
-//   frame    = u32 length L, then L bytes: u32 header length H, H bytes of
-//              JSON header, L - 4 - H bytes of payload
-//   request  : header {"id": any, "op": "translate" | "ping" | "version" |
-//              "shutdown", "function": NAME?, "link_vertex": HASH?,
-//              "varyings": {MATCH: LOCATION}?, "constants": {INDEX: VALUE}?,
-//              "linked": [SIZE...]? (the payload ends with linked metallibs
-//              of these sizes: visible functions the function calls),
-//              "optimize": BOOL?, "assembly": BOOL?, "loop_limit": N?};
-//              payload = the metallib
-//              (functionIR)
-//   --dump-dir DIR saves every translate request as NNNNNN.request.json
-//   (header), NNNNNN.payload (payload as received) and NNNNNN.result.json
-//   (status, error, key, stage, time); `replay DIR` runs them again in order.
-//   Each translation runs in a forked child (a crash or a timeout becomes
-//   an "internal" error reply; the server keeps running) unless
-//   --no-isolate.
-//   response : header {"id": same, "status": "ok", "cached": BOOL,
-//              "key": CACHE_KEY, "reflection": {...}, "assembly"?: TEXT} and
-//              payload = SPIR-V words; or header {"id", "status": "error",
-//              "error": {"code", "detail", "function"}} and no payload.
-//   "link_vertex" names the HASH of a vertex function this server
-//   translated before: a fragment function's inputs then get the Locations
-//   of that function's outputs with the same match strings. Cache keys use
-//   the SHA-256 of the module bytes plus every option that changes output.
-//
-// Debugging aids (environment): AIRC_DUMP=FILE (SPIR-V text before
-// validation), AIRC_DUMP_LL=FILE (LLVM IR after preparation), AIRC_STATS=1
-// (phase times and sizes on stderr), AIRC_NO_SIMPLIFY=1 (skip the clean-up
-// passes).
 #include "cache.h"
 #include "error.h"
 #include "json.h"
@@ -105,7 +56,6 @@ static Json errorJson(const Error &e, const std::string &fn) {
     return j;
 }
 
-// Picks the function: by name, or the only one.
 static const MetallibFunction &pick(const Metallib &lib, const std::string &name) {
     if (!name.empty()) {
         const MetallibFunction *f = lib.find(name);
@@ -116,17 +66,16 @@ static const MetallibFunction &pick(const Metallib &lib, const std::string &name
     return lib.functions[0];
 }
 
-// One translation with the cache (shared by translate and serve).
 struct Request {
     std::string function;
-    std::string linkVertex;       // HASH of a vertex function translated before
+    std::string linkVertex;
     std::map<std::string, unsigned> varyings;
     bool haveVaryings = false;
     bool optimize = false;
     bool assembly = false;
-    uint32_t loopLimit = 0;                // loop guard (0: none)
-    std::map<unsigned, double> constants;  // function constant values by index
-    std::vector<std::string> linked;       // metallibs of linked (visible) functions
+    uint32_t loopLimit = 0;
+    std::map<unsigned, double> constants;
+    std::vector<std::string> linked;
 };
 
 struct Reply {
@@ -148,11 +97,6 @@ static bool isBitcode(const std::string &d) {
                              ((uint8_t)d[0] == 0xDE && (uint8_t)d[1] == 0xC0 && (uint8_t)d[2] == 0x17 && (uint8_t)d[3] == 0x0B));
 }
 
-// The identity of this translator build, part of every cache key: the
-// version string plus the size and modification time of the running
-// executable, so that a rebuilt translator never reads translations an
-// earlier build made (the version string alone does not change between
-// builds). Computed once.
 static const std::string &buildIdentity() {
     static const std::string id = [] {
         std::string s = kTranslatorVersion;
@@ -173,7 +117,6 @@ static const std::string &buildIdentity() {
 static Job planRequest(Cache &cache, const std::string &metallib, const Request &rq) {
     Job j;
     if (isBitcode(metallib)) {
-        // A bare AIR module (tests): the function must be named.
         if (rq.function.empty()) fail("bad-request", "a bitcode input needs a function name");
         j.module = metallib;
         j.computed = j.hash = sha256Hex(j.module);
@@ -204,13 +147,9 @@ static Job planRequest(Cache &cache, const std::string &metallib, const Request 
         opts.varyings = rq.varyings;
         opts.haveVaryings = true;
     }
-    // The key uses the SHA-256 computed from the module bytes (equal to
-    // HASH for well-formed input) so that altered modules never hit.
     std::string keyText = buildIdentity() + "|" + j.computed + "|" + j.name + "|" + (opts.optimize ? "O" : "-");
     if (opts.loopLimit) keyText += "|loop" + std::to_string(opts.loopLimit);
     if (!rq.linked.empty()) {
-        // Linked functions: calls to <name>.MTL_VISIBLE_FN_REF (and other
-        // external functions) resolve to functions of these metallibs.
         auto libs = std::make_shared<std::vector<Metallib>>();
         for (const std::string &l : rq.linked) {
             libs->push_back(parseMetallib(l));
@@ -259,8 +198,6 @@ static Reply translateRequest(Cache &cache, const std::string &metallib, const R
     return finish(cache, j, translate(j.module, j.name, j.hash, j.type, j.opts));
 }
 
-// Runs one translation in a child process (crash and hang isolation for
-// input that comes from the guest); the result travels back over a pipe.
 static bool writeAll(int fd, const void *buf, size_t n);
 static TranslateResult translateIsolated(const Job &j, int timeoutSeconds) {
     int fds[2];
@@ -326,8 +263,6 @@ static TranslateResult translateIsolated(const Job &j, int timeoutSeconds) {
     return t;
 }
 
-// ---------------------------------------------------------------------------
-
 static int cmdList(int argc, char **argv) {
     if (argc < 1) return 2;
     std::string data;
@@ -379,7 +314,6 @@ static int cmdTranslate(int argc, char **argv) {
             rq.linked.push_back(d);
         }
         else if (a == "--constant") {
-            // INDEX=VALUE: specialize a function constant
             std::string kv = next();
             size_t eq = kv.find('=');
             if (eq == std::string::npos) { fprintf(stderr, "swiftcode-airc: --constant INDEX=VALUE\n"); return 2; }
@@ -420,9 +354,6 @@ static int cmdTranslate(int argc, char **argv) {
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// serve
-
 static bool readAll(int fd, void *buf, size_t n) {
     char *p = (char *)buf;
     while (n) {
@@ -451,7 +382,6 @@ static bool sendFrame(const Json &header, const void *payload, size_t n) {
     return writeAll(1, &total, 4) && writeAll(1, &hl, 4) && writeAll(1, h.data(), h.size()) && (n == 0 || writeAll(1, payload, n));
 }
 
-// Fills a Request from a serve header; `payload` keeps the main metallib.
 static bool parseRequest(const Json &req, std::string &payload, Request &rq) {
     rq.function = req.getString("function");
     rq.linkVertex = req.getString("link_vertex");
@@ -459,7 +389,6 @@ static bool parseRequest(const Json &req, std::string &payload, Request &rq) {
     rq.assembly = req.getBool("assembly");
     rq.loopLimit = (uint32_t)req.getNumber("loop_limit");
     if (const Json *ls = req.get("linked")) {
-        // Payload = the main metallib, then the linked metallibs of these sizes.
         size_t tail = 0;
         for (auto &n : ls->arr) tail += (size_t)n.num;
         if (tail > payload.size()) return false;
@@ -479,8 +408,6 @@ static bool parseRequest(const Json &req, std::string &payload, Request &rq) {
     return true;
 }
 
-// serve --dump-dir: every translate request (header and payload, as
-// received) and its outcome, for offline replay (`swiftcode-airc replay`).
 static void dumpExchange(const std::string &dir, unsigned seq, const Json &req, const std::string &payload, const Json &rsp, double ms) {
     char base[32];
     snprintf(base, sizeof base, "/%06u", seq);
@@ -516,7 +443,6 @@ static int cmdServe(int argc, char **argv) {
     unsigned seq = 0;
     if (!dumpDir.empty()) {
         mkdir(dumpDir.c_str(), 0755);
-        // Continue numbering after earlier sessions in the same directory.
         if (DIR *d = opendir(dumpDir.c_str())) {
             while (dirent *e = readdir(d)) {
                 unsigned n = 0;
@@ -527,7 +453,7 @@ static int cmdServe(int argc, char **argv) {
     }
     for (;;) {
         uint32_t total = 0, hl = 0;
-        if (!readAll(0, &total, 4)) return 0;  // EOF: the host closed the pipe
+        if (!readAll(0, &total, 4)) return 0;
         if (total < 4 || total > (256u << 20)) { fprintf(stderr, "swiftcode-airc serve: bad frame length %u\n", total); return 2; }
         std::string frame(total, '\0');
         if (!readAll(0, &frame[0], total)) return 2;
@@ -601,11 +527,6 @@ static int cmdServe(int argc, char **argv) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// corpus: translate every function of every metallib under the given paths,
-// each in a child process (a crash or a hang counts as a failure), and
-// report statistics. Nothing is written except the report.
-
 static void collect(const std::string &path, std::vector<std::string> &files) {
     struct stat st;
     if (stat(path.c_str(), &st) != 0) return;
@@ -632,7 +553,7 @@ static int cmdCorpus(int argc, char **argv) {
     bool quiet = false, optimize = false;
     uint32_t loopLimit = 0;
     int timeout = 120;
-    std::vector<Metallib> libraries;  // --library: extra metallibs that define linked functions
+    std::vector<Metallib> libraries;
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "--library") && i + 1 < argc) {
             std::string d;
@@ -680,7 +601,6 @@ static int cmdCorpus(int argc, char **argv) {
                     o.wrapVisible = true;
                     o.optimize = optimize;
                     o.loopLimit = loopLimit;
-                    // Link visible functions of the same library on demand.
                     o.resolveVisible = [&](const std::string &name, std::string &module) {
                         if (const MetallibFunction *g = lib.find(name)) {
                             module = lib.module(*g);
@@ -784,9 +704,6 @@ static int cmdCorpus(int argc, char **argv) {
     return 0;
 }
 
-// decls: the declared air.* functions of every module with their LLVM
-// signatures (names and types only), counted over the modules, for
-// intrinsic inventories.
 static int cmdDecls(int argc, char **argv) {
     std::map<std::string, int> counts;
     for (int a = 0; a < argc; a++) {
@@ -814,8 +731,6 @@ static int cmdDecls(int argc, char **argv) {
     return 0;
 }
 
-// replay DIR: runs the requests a `serve --dump-dir` saved, in order, in one
-// cache (so link_vertex resolves as it did), and compares the outcomes.
 static int cmdReplay(int argc, char **argv) {
     if (argc < 1) { fprintf(stderr, "usage: swiftcode-airc replay DIR [--changed-only]\n"); return 2; }
     std::string dir = argv[0];
@@ -871,7 +786,6 @@ static int cmdReplay(int argc, char **argv) {
 
 int main(int argc, char **argv) {
     if (const char *o = getenv("AIRC_LLVM_OPTIONS")) {
-        // Experiments: LLVM options such as pass thresholds.
         std::vector<std::string> words;
         std::istringstream ss(o);
         for (std::string w; ss >> w;) words.push_back(w);

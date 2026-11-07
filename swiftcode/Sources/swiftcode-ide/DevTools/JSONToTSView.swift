@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct JSONToTSView: View {
@@ -20,7 +17,6 @@ struct JSONToTSView: View {
                     .buttonStyle(.borderedProminent)
             }
             .padding()
-            
 
             HSplitView {
                 TextEditor(text: $jsonInput)

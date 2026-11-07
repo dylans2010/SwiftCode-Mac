@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_RENDER_H_
 #define _TVG_RENDER_H_
 
@@ -40,7 +18,6 @@ using pixel_t = uint32_t;
 
 #define DASH_PATTERN_THRESHOLD 0.001f
 
-//TODO: Separate Color & Opacity for more detailed conditional check
 enum RenderUpdateFlag : uint16_t
 {
     None = 0,
@@ -53,11 +30,11 @@ enum RenderUpdateFlag : uint16_t
     GradientStroke = 1 << 6,
     Blend = 1 << 7,
     Clip = 1 << 8,
-    Children = 1 << 9,  // Force update propagation to child paints
+    Children = 1 << 9,
     All = 0xffff
 };
 
-enum CompositionFlag : uint8_t {Invalid = 0, Opacity = 1, Blending = 2, Masking = 4, PostProcessing = 8};  //Composition Purpose
+enum CompositionFlag : uint8_t {Invalid = 0, Opacity = 1, Blending = 2, Masking = 4, PostProcessing = 8};
 
 static inline void operator|=(RenderUpdateFlag& a, const RenderUpdateFlag b)
 {
@@ -77,17 +54,17 @@ static inline bool operator&(const EngineOption a, const EngineOption b)
 struct RenderSurface
 {
     union {
-        pixel_t* data = nullptr;    //system based data pointer
-        uint32_t* buf32;            //for explicit 32bits channels
-        uint8_t*  buf8;             //for explicit 8bits grayscale
+        pixel_t* data = nullptr;
+        uint32_t* buf32;
+        uint8_t*  buf8;
     };
-    Key key;                        //a reserved lock for the thread safety
+    Key key;
     uint32_t stride = 0;
     uint32_t w = 0, h = 0;
     ColorSpace cs = ColorSpace::Unknown;
     uint8_t channelSize = 0;
-    bool premultiplied = false;         //Alpha-premultiplied
-    bool opaque = false;                // If true, the alpha channel can be ignored.
+    bool premultiplied = false;
+    bool opaque = false;
 
     RenderSurface() = default;
     RenderSurface(const RenderSurface* rhs);
@@ -108,7 +85,6 @@ struct RenderRegion : Region
     static constexpr RenderRegion intersect(const RenderRegion& lhs, const RenderRegion& rhs)
     {
         RenderRegion ret = {std::max(lhs.xMin, rhs.xMin), std::max(lhs.yMin, rhs.yMin), std::min(lhs.xMax, rhs.xMax), std::min(lhs.yMax, rhs.yMax)};
-        // Not intersected: collapse to zero-area region
         if (ret.xMin > ret.xMax) ret.xMax = ret.xMin;
         if (ret.yMin > ret.yMax) ret.yMax = ret.yMin;
         return ret;
@@ -164,18 +140,17 @@ struct RenderRegion : Region
     uint32_t h() const { return (uint32_t) sh(); }
 };
 
-
 #ifdef THORVG_PARTIAL_RENDER_SUPPORT
     struct RenderDirtyRegion
     {
     public:
-        static constexpr const int PARTITIONING = 16;   //must be N*N
+        static constexpr const int PARTITIONING = 16;
         bool support = true;
 
         void init(uint32_t w, uint32_t h);
         void commit();
         bool add(const RenderRegion& bbox);
-        bool add(const RenderRegion& prv, const RenderRegion& cur);  //collect the old and new dirty regions together
+        bool add(const RenderRegion& prv, const RenderRegion& cur);
         void clear();
 
         bool deactivate(bool on)
@@ -214,8 +189,8 @@ struct RenderRegion : Region
         struct Partition
         {
             RenderRegion region;
-            Array<RenderRegion> list[2];  //double buffer swapping
-            uint8_t current = 0;  //double buffer swapping list index. 0 or 1
+            Array<RenderRegion> list[2];
+            uint8_t current = 0;
         };
 
         Key key;
@@ -225,7 +200,7 @@ struct RenderRegion : Region
 #else
     struct RenderDirtyRegion
     {
-        static constexpr const int PARTITIONING = 16;   //must be N*N
+        static constexpr const int PARTITIONING = 16;
         bool support = true;
 
         void init(uint32_t w, uint32_t h) {}
@@ -245,7 +220,6 @@ struct RenderRegion : Region
     };
 #endif
 
-
 struct RenderPath
 {
     Array<PathCommand> cmds;
@@ -253,7 +227,6 @@ struct RenderPath
 
     void dismiss()
     {
-        // If you moved the data manually, destroy the RenderPath instance safely
         cmds.data = nullptr;
         pts.data = nullptr;
     }
@@ -271,7 +244,6 @@ struct RenderPath
 
     void close()
     {
-        //Don't close multiple times.
         if (cmds.count > 0 && cmds.last() == PathCommand::Close) return;
         cmds.push(PathCommand::Close);
     }
@@ -503,9 +475,9 @@ struct RenderEffect
 struct RenderEffectGaussianBlur : RenderEffect
 {
     float sigma;
-    uint8_t direction; //0: both, 1: horizontal, 2: vertical
-    uint8_t border;    //0: duplicate, 1: wrap
-    uint8_t quality;   //0 ~ 100  (optional)
+    uint8_t direction;
+    uint8_t border;
+    uint8_t quality;
 
     static RenderEffectGaussianBlur* gen(va_list& args)
     {
@@ -525,24 +497,20 @@ struct RenderEffectMotionBlur : RenderEffect
     float angle;
     uint8_t quality;
 
-    // computes the transformed blur offset and quality-based sample count
     bool update(const Matrix& transform, Point& offset, int& samples)
     {
         valid = false;
 
-        // transform the local blur vector, without translating it.
         auto radian = tvg::deg2rad(angle);
         auto vx = distance * cosf(radian);
         auto vy = distance * sinf(radian);
         offset = {transform.e11 * vx + transform.e12 * vy, transform.e21 * vx + transform.e22 * vy};
 
-        // avoid spurious one-pixel expansion at exact cardinal angles.
         if (fabsf(offset.x) < 0.001f) offset.x = 0.0f;
         if (fabsf(offset.y) < 0.001f) offset.y = 0.0f;
         auto length = std::max(fabsf(offset.x), fabsf(offset.y));
         if (tvg::zero(length)) return false;
 
-        // confirm the samples count; Uniform midpoint samples, including the original position.
         auto density = 0.25f + quality * 0.0075f;
         samples = 2 * int(std::min(128.0f, ceilf(length * density * 0.5f))) + 1;
         valid = true;
@@ -562,18 +530,17 @@ struct RenderEffectMotionBlur : RenderEffect
 
 struct RenderEffectDropShadow : RenderEffect
 {
-    uint8_t color[4];  //rgba
+    uint8_t color[4];
     float angle;
     float distance;
     float sigma;
-    uint8_t quality;   //0 ~ 100  (optional)
+    uint8_t quality;
 
     bool update(const Matrix& transform, Point& offset)
     {
         valid = (color[3] != 0);
         if (!valid) return false;
 
-        // Transform the offset as a direction, without translation.
         const auto radian = tvg::deg2rad(90.0f - angle);
         const auto x = distance * cosf(radian);
         const auto y = -distance * sinf(radian);
@@ -599,7 +566,7 @@ struct RenderEffectDropShadow : RenderEffect
 
 struct RenderEffectFill : RenderEffect
 {
-    uint8_t color[4];  //rgba
+    uint8_t color[4];
 
     static RenderEffectFill* gen(va_list& args)
     {
@@ -615,9 +582,9 @@ struct RenderEffectFill : RenderEffect
 
 struct RenderEffectTint : RenderEffect
 {
-    uint8_t black[3];  //rgb
-    uint8_t white[3];  //rgb
-    uint8_t intensity; //0 - 255
+    uint8_t black[3];
+    uint8_t white[3];
+    uint8_t intensity;
 
     static RenderEffectTint* gen(va_list& args)
     {
@@ -636,10 +603,10 @@ struct RenderEffectTint : RenderEffect
 
 struct RenderEffectTritone : RenderEffect
 {
-    uint8_t shadow[3];       //rgb
-    uint8_t midtone[3];      //rgb
-    uint8_t highlight[3];    //rgb
-    uint8_t blender = 0;     //0 ~ 255
+    uint8_t shadow[3];
+    uint8_t midtone[3];
+    uint8_t highlight[3];
+    uint8_t blender = 0;
 
     static RenderEffectTritone* gen(va_list& args)
     {
@@ -666,16 +633,14 @@ private:
     Key key;
 
 protected:
-    RenderRegion vport;         //viewport
+    RenderRegion vport;
 
 public:
-    //common implementation
     uint32_t ref();
     uint32_t unref();
     RenderRegion viewport();
     bool viewport(const RenderRegion& vp);
 
-    //main features
     virtual ~RenderMethod() {}
     virtual bool preUpdate() = 0;
     virtual RenderData prepare(const RenderShape& rshape, RenderData data, const Matrix& transform, const Array<RenderData>& clips, uint8_t opacity, RenderUpdateFlag flags, bool clipper) = 0;
@@ -696,18 +661,15 @@ public:
     virtual bool intersectsShape(RenderData data, const RenderRegion& region) = 0;
     virtual bool intersectsImage(RenderData data, const RenderRegion& region) = 0;
 
-    //composition
     virtual RenderCompositor* target(const RenderRegion& region, ColorSpace cs, CompositionFlag flags) = 0;
     virtual bool beginComposite(RenderCompositor* cmp, MaskMethod method, uint8_t opacity) = 0;
     virtual bool endComposite(RenderCompositor* cmp) = 0;
 
-    //post effects
     virtual void prepare(RenderEffect* effect, const Matrix& transform) = 0;
     virtual bool region(RenderEffect* effect) = 0;
     virtual bool render(RenderCompositor* cmp, const RenderEffect* effect, bool direct) = 0;
     virtual void dispose(RenderEffect* effect) = 0;
 
-    //partial rendering
     virtual void damage(RenderData rd, const RenderRegion& region) = 0;
     virtual bool partial(bool disable) = 0;
     virtual uint32_t dirtyRegions() const = 0;
@@ -724,7 +686,6 @@ static inline bool MASK_REGION_MERGING(MaskMethod method)
         case MaskMethod::Subtract:
         case MaskMethod::Intersect:
             return false;
-        //these might expand the rendering region
         case MaskMethod::Add:
         case MaskMethod::Difference:
         case MaskMethod::Lighten:
@@ -767,7 +728,6 @@ static inline ColorSpace MASK_TO_COLORSPACE(RenderMethod* renderer, MaskMethod m
         case MaskMethod::Lighten:
         case MaskMethod::Darken:
             return ColorSpace::Grayscale8;
-        //TODO: Optimize Luma/InvLuma colorspace to Grayscale8
         case MaskMethod::Luma:
         case MaskMethod::InvLuma:
             return renderer->colorSpace();
@@ -784,4 +744,4 @@ static inline uint8_t MULTIPLY(uint8_t c, uint8_t a)
 
 }
 
-#endif //_TVG_RENDER_H_
+#endif

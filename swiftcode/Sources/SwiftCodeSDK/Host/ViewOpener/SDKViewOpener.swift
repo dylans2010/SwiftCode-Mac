@@ -1,20 +1,5 @@
 import Foundation
 
-// MARK: - SDKViewOpener
-//
-// Ported from Legacy `SwiftCode/SDK/Host/ViewOpener/SDKViewOpener.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The view-opener registry: extensions open host views by ID through
-// `ui.openView`, and the registry maps IDs to host-provided openers.
-// The registry performs NO authorization — the IPC dispatcher
-// authorizes the view's own capability before calling `open`.
-//
-// ADAPTATION: Legacy's `ViewOpener` was a synchronous closure. The
-// SwiftCode host seam is asynchronous (window presentation may await the
-// workspace), so the opener is `async throws` here.
-
-/// An opener for one host view. Runs on the main actor (it presents UI).
 public typealias ViewOpener = @MainActor @Sendable () async throws -> Void
 
 public actor SDKViewOpener {
@@ -24,8 +9,6 @@ public actor SDKViewOpener {
 
     private init() {}
 
-    /// Registers an opener for `viewID`. Last registration wins; there
-    /// is no unregister — views stay openable for the host's lifetime.
     public func register(viewID: String, opener: @escaping ViewOpener) {
         openers[viewID] = opener
     }
@@ -34,8 +17,6 @@ public actor SDKViewOpener {
         openers[viewID] != nil
     }
 
-    /// Opens a registered view. Unregistered → `.serviceUnavailable`.
-    /// The opener's own typed error propagates unchanged.
     public func open(viewID: String) async throws {
         guard let opener = openers[viewID] else {
             throw SDKError(
@@ -48,37 +29,17 @@ public actor SDKViewOpener {
     }
 }
 
-// MARK: - SDKViewHost
-//
-// The SwiftCodeUI seam every view opener delegates to. SwiftCodeUI installs its
-// implementation at startup; until then every open throws
-// `.serviceUnavailable` naming the missing seam — honestly, never a
-// fake window.
-//
-// Legacy's built-in openers drove Legacy app window managers
-// (`DatabaseExplorerWindowManager`, …) and toolbar-notification
-// bridges (`ToolbarActionManager`, `com.swiftcode.toolbarToolActivated`)
-// that do not exist in SwiftCode. Those managers are NOT re-ported here:
-// the opener logic (view ID → host open call, project requirement)
-// is ported, and the actual window is the host's job behind this seam.
-
-/// The host UI's side of view opening. One method, dispatched by view
-/// ID — the host owns the mapping from SDK view IDs to its windows.
 public protocol SDKViewHost: Sendable {
     func open(viewID: String) async throws
 }
 
-/// Holds the installed host UI seam (or none).
 public final class SDKViewHostRegistry: @unchecked Sendable {
     public static let shared = SDKViewHostRegistry()
 
-    /// Installed by SwiftCodeUI at startup. `nil` until then.
     public var host: (any SDKViewHost)?
 
     private init() {}
 
-    /// Opens `viewID` through the installed host, or throws
-    /// `.serviceUnavailable` naming the missing seam.
     public func open(viewID: String) async throws {
         guard let host else {
             throw SDKError(
@@ -90,7 +51,6 @@ public final class SDKViewHostRegistry: @unchecked Sendable {
         try await host.open(viewID: viewID)
     }
 
-    /// Opens the Assist main view through the installed host.
     public func openAssistMainView() async throws {
         try await open(viewID: SDKAssistUIOpener.assistMainViewID)
     }

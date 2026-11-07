@@ -3,29 +3,6 @@ import AppKit
 import UniformTypeIdentifiers
 import SwiftCodeIDECore
 
-// MARK: - Workspace profiles (Wave 19, slice C)
-//
-// Ported from Legacy `SwiftCode/Features/AdvancedTools/Views/WorkspaceProfilesView.swift`
-// (Dylan's own code, ported under MIT). The model and manager already live
-// in the destination (`SwiftCodeIDECore/Model/WorkspaceProfiles.swift`:
-// `WorkspaceProfile`, `WorkspaceProfilesManager.shared`); this file is only
-// the view. Behaviour is Legacy's, verbatim: filter/search/sort, create /
-// rename / duplicate / favourite / delete, activate, JSON import/export,
-// and a detail card for the selected (or active, or first) profile.
-//
-// Destination notes:
-// * `ModernGroupBoxStyle` is ported in this slice
-//   (`SwiftCodeUI/Notes/ModernGroupBoxStyle.swift`) — it did not exist in
-//   the destination even though the bulk DevTools views already call it.
-// * A profile is a saved selection, not a build-system override: switching
-//   records usage and exposes the active profile for the build UI to read;
-//   applying a profile's environment to a build is the caller's job
-//   (see `WorkspaceProfiles.swift`).
-// * Reachability (menu entry / hub) is the parent's integration step;
-//   see INTEGRATION.md.
-
-// MARK: - Export document
-
 private struct ProfilesExportDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
 
@@ -44,19 +21,15 @@ private struct ProfilesExportDocument: FileDocument {
     }
 }
 
-// MARK: - View
-
 public struct WorkspaceProfilesView: View {
     @State private var manager = WorkspaceProfilesManager.shared
     @Environment(\.dismiss) private var dismiss
 
-    // Filter state
     @State private var searchQuery = ""
     @State private var selectedCategory = "All"
     @State private var sortOption = "Name"
     @State private var selectedProfile: WorkspaceProfile? = nil
 
-    // Create / edit sheet state
     @State private var showEditSheet = false
     @State private var isCreatingNew = false
     @State private var draftName = ""
@@ -64,13 +37,11 @@ public struct WorkspaceProfilesView: View {
     @State private var draftEnvironmentVariables = ""
     @State private var draftIsFavorite = false
 
-    // Import / export state
     @State private var isImporting = false
     @State private var exportDocument: ProfilesExportDocument? = nil
     @State private var isExporting = false
     @State private var importError = false
 
-    // Delete confirmation
     @State private var profilePendingDelete: WorkspaceProfile? = nil
 
     let categories = ["All", "Favorites", "Development", "Production", "Staging"]
@@ -154,8 +125,6 @@ public struct WorkspaceProfilesView: View {
             }
         }
     }
-
-    // MARK: - Cards
 
     private var headerCard: some View {
         GroupBox {
@@ -444,8 +413,6 @@ public struct WorkspaceProfilesView: View {
         }
     }
 
-    // MARK: - Create / edit sheet
-
     private var editProfileSheet: some View {
         VStack(spacing: 0) {
             HStack {
@@ -509,8 +476,6 @@ public struct WorkspaceProfilesView: View {
         .frame(minWidth: 460, minHeight: 440)
     }
 
-    // MARK: - Filtering & summaries
-
     private var filteredProfiles: [WorkspaceProfile] {
         var list = manager.profiles
 
@@ -563,8 +528,6 @@ public struct WorkspaceProfilesView: View {
         }
         return parts.joined(separator: " • ")
     }
-
-    // MARK: - Operations
 
     private func prepareCreate() {
         draftName = ""
@@ -655,8 +618,6 @@ public struct WorkspaceProfilesView: View {
             selectedProfile = nil
         }
     }
-
-    // MARK: - Import / export
 
     private func importProfiles(from url: URL) {
         let didAccess = url.startAccessingSecurityScopedResource()

@@ -116,7 +116,6 @@ public final class SnapshotManager {
     }
 
     public func createSnapshot(title: String, description: String, documents: [Document], whiteboards: [WhiteboardRecord], snippets: [CodeSnippetRecord]) throws -> ProjectSnapshotRecord {
-        // Safe serialization helper
         func serialize<T: Encodable>(_ value: T) -> String {
             guard let data = try? JSONEncoder().encode(value) else { return "[]" }
             return String(data: data, encoding: .utf8) ?? "[]"
@@ -193,11 +192,9 @@ public final class SnapshotManager {
             let tagsJSON: String
         }
 
-        // Decode snapshot states
         guard let docData = snapshot.documentsJSON.data(using: .utf8),
               let docSnaps = try? JSONDecoder().decode([DocSnapshot].self, from: docData) else { return }
 
-        // 1. Restore Documents
         let existingDocs = try docManager.fetchDocuments()
         for doc in existingDocs {
             try docManager.deleteDocument(doc)
@@ -212,7 +209,6 @@ public final class SnapshotManager {
             try docManager.updateDocument(doc)
         }
 
-        // 2. Restore Whiteboards
         if let boardData = snapshot.whiteboardsJSON.data(using: .utf8),
            let boardSnaps = try? JSONDecoder().decode([BoardSnapshot].self, from: boardData) {
             let existingBoards = try whiteboardManager.fetchWhiteboards()
@@ -227,7 +223,6 @@ public final class SnapshotManager {
             }
         }
 
-        // 3. Restore Snippets
         if let snippetData = snapshot.snippetsJSON.data(using: .utf8),
            let snippetSnaps = try? JSONDecoder().decode([SnippetSnapshot].self, from: snippetData) {
             let existingSnippets = try snippetManager.fetchSnippets()
@@ -249,7 +244,7 @@ public struct TimelineItem: Identifiable, Sendable {
     public let id: UUID
     public let title: String
     public let detail: String
-    public let category: String // "document", "git", "build", "whiteboard", "snippet", "ai"
+    public let category: String
     public let date: Date
     public let author: String
     public let tags: [String]
@@ -269,7 +264,6 @@ public final class EcosystemTimelineManager {
     public func fetchTimeline(docManager: DocumentManager, whiteboardManager: WhiteboardManager, snippetManager: SnippetManager) throws -> [TimelineItem] {
         var items: [TimelineItem] = []
 
-        // 1. Documents
         let docs = try docManager.fetchDocuments()
         for doc in docs {
             items.append(TimelineItem(
@@ -283,7 +277,6 @@ public final class EcosystemTimelineManager {
             ))
         }
 
-        // 2. Whiteboards
         let boards = try whiteboardManager.fetchWhiteboards()
         for b in boards {
             items.append(TimelineItem(
@@ -297,7 +290,6 @@ public final class EcosystemTimelineManager {
             ))
         }
 
-        // 3. Snippets
         let snippets = try snippetManager.fetchSnippets()
         for s in snippets {
             items.append(TimelineItem(
@@ -311,7 +303,6 @@ public final class EcosystemTimelineManager {
             ))
         }
 
-        // 4. Simulated Build Logs and Git Commits for higher-fidelity timeline integration
         items.append(TimelineItem(
             id: UUID(),
             title: "Git Commit: refactor(navigation): Simplify workspace layout",

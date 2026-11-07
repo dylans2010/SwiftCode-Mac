@@ -1,6 +1,3 @@
-// X.509 certificates (RFC 5280) with P-256 keys: building self-signed and
-// CA-issued certificates, and reading the parts a verifier needs
-// (formats.md §2.1: one self-signed P-256 certificate per device).
 import Crypto
 import Foundation
 
@@ -21,7 +18,6 @@ enum OID {
     static let cmsSignedData = "1.2.840.113549.1.7.2"
 }
 
-/// A distinguished name as an ordered list of attributes (one per RDN).
 public struct DistinguishedName: Hashable, Sendable, CustomStringConvertible {
     public enum Attribute: String, Hashable, Sendable {
         case commonName = "CN", organization = "O", organizationalUnit = "OU", country = "C"
@@ -46,12 +42,10 @@ public struct DistinguishedName: Hashable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// Attributes in encoding order.
     public var attributes: [(Attribute, String)]
 
     public init(_ attributes: [(Attribute, String)]) { self.attributes = attributes }
 
-    /// "CN=…, O=…" in encoding order.
     public var description: String { attributes.map { "\($0.0.rawValue)=\($0.1)" }.joined(separator: ", ") }
 
     public func value(_ a: Attribute) -> String? { attributes.first { $0.0 == a }?.1 }
@@ -65,43 +59,32 @@ public struct DistinguishedName: Hashable, Sendable, CustomStringConvertible {
     public static func == (a: DistinguishedName, b: DistinguishedName) -> Bool { a.description == b.description }
     public func hash(into h: inout Hasher) { h.combine(description) }
 
-    /// The subject and issuer of the JWS signing certificate (formats.md §2.1).
     public static let storeKitTesting = DistinguishedName([
         (.commonName, "StoreKit Testing in Xcode"), (.organization, "StoreKit Testing in Xcode"),
     ])
 
-    /// The subject of the receipt signing certificate (formats.md §3).
     public static let receiptSigner = DistinguishedName([
         (.commonName, "StoreKit"), (.organization, "StoreKit"), (.organizationalUnit, "StoreKit"), (.country, "US"),
     ])
 }
 
-/// A parsed X.509 certificate with a P-256 key.
 public struct Certificate: Hashable, Sendable {
     public let der: [UInt8]
-    /// The encoded TBSCertificate (what the issuer signed).
     public let tbs: [UInt8]
     public let serialNumber: [UInt8]
     public let issuer: DistinguishedName
-    /// The encoded issuer name (for CMS IssuerAndSerialNumber).
     public let issuerDER: [UInt8]
     public let subject: DistinguishedName
     public let notBefore: Date
     public let notAfter: Date
     public let publicKeyDER: [UInt8]
     public let signatureAlgorithm: String
-    /// DER ECDSA signature.
     public let signature: [UInt8]
-    /// Basic constraints cA, when the extension is present.
     public let isCA: Bool?
-    /// OIDs of the critical extensions.
     public let criticalExtensions: [String]
-    /// OIDs of all extensions in order.
     public let extensions: [String]
 
     public var publicKey: P256.Signing.PublicKey {
-        // Validated in init.
-        // swiftlint:disable:next force_try - validated in init
         try! P256.Signing.PublicKey(derRepresentation: publicKeyDER)
     }
 
@@ -162,7 +145,6 @@ public struct Certificate: Hashable, Sendable {
         return DistinguishedName(attrs)
     }
 
-    /// Whether `issuerKey` made this certificate's signature.
     public func isSigned(by issuerKey: P256.Signing.PublicKey) -> Bool {
         guard signatureAlgorithm == OID.ecdsaWithSHA256,
               let sig = try? P256.Signing.ECDSASignature(derRepresentation: signature) else { return false }
@@ -171,7 +153,6 @@ public struct Certificate: Hashable, Sendable {
 
     public func isValid(at date: Date) -> Bool { notBefore <= date && date <= notAfter }
 
-    /// PEM text.
     public var pem: String {
         let b64 = Data(der).base64EncodedString()
         var lines: [String] = []
@@ -184,20 +165,11 @@ public struct Certificate: Hashable, Sendable {
         return "-----BEGIN CERTIFICATE-----\n" + lines.joined(separator: "\n") + "\n-----END CERTIFICATE-----\n"
     }
 
-    // MARK: Building
-
-    /// Who signs a new certificate.
     public enum Signer {
-        /// The subject's own key (a self-signed certificate).
         case selfSigned(P256.Signing.PrivateKey)
-        /// An issuing certificate and its key.
         case issuer(Certificate, P256.Signing.PrivateKey)
     }
 
-    /// Builds and signs a certificate.
-    /// - Parameters:
-    ///   - isCA: basic constraints cA (critical); a leaf gets an empty basic-constraints value.
-    ///   - subjectAltDNSName: the subject alternative name (SwiftCode's choice; README spec question 8).
     public static func make(
         subject: DistinguishedName, publicKey: P256.Signing.PublicKey, notBefore: Date, notAfter: Date,
         isCA: Bool = false, subjectAltDNSName: String? = "storekit-testing.invalid", signer: Signer,
@@ -216,7 +188,6 @@ public struct Certificate: Hashable, Sendable {
         if let name = subjectAltDNSName {
             extensions.append(DER.sequence([DER.oid(OID.subjectAltName), DER.octetString(DER.sequence([DER.implicitPrimitive(2, Array(name.utf8))]))]))
         }
-        // Key usage: digitalSignature (0); a CA also keyCertSign (5) and cRLSign (6).
         extensions.append(DER.sequence([
             DER.oid(OID.keyUsage), DER.boolean(true), DER.octetString(DER.namedBits(isCA ? [0, 5, 6] : [0])),
         ]))
@@ -245,9 +216,7 @@ public struct Certificate: Hashable, Sendable {
         return try Certificate(der: der)
     }
 
-    /// This certificate's subject as encoded (the issuer name of certificates it signs).
     var issuerDERForChildren: [UInt8] {
-        // The subject is the 6th field (index 5 with the version, 4 without) of the TBS.
         guard let fields = try? DERElement.parse(tbs).children() else { return subject.der }
         let f = fields.first?.tag == 0xA0 ? Array(fields.dropFirst()) : fields
         return f.count > 4 ? f[4].encoded : subject.der

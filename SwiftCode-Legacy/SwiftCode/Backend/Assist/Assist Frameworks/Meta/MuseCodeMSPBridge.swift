@@ -1,10 +1,3 @@
-//
-//  MuseCodeMSPBridge.swift
-//  SwiftCode
-//
-//  IPC Bridge and session transport for Muse Code MSP protocol ("Assist with Meta").
-//
-
 import Foundation
 
 public struct MspError: Error, LocalizedError, @unchecked Sendable {
@@ -113,9 +106,7 @@ public enum MuseUUIDv7 {
         bytes[4] = UInt8((ms >> 8) & 0xFF)
         bytes[5] = UInt8(ms & 0xFF)
 
-        // Version 7: (0x70 | (random & 0x0F))
         bytes[6] = 0x70 | (bytes[6] & 0x0F)
-        // Variant 1 (RFC 9562): (0x80 | (random & 0x3F))
         bytes[8] = 0x80 | (bytes[8] & 0x3F)
 
         return String(
@@ -238,7 +229,7 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
 
         let jsonData = try JSONSerialization.data(withJSONObject: payload)
         var lineData = jsonData
-        lineData.append(Data([0x0A])) // newline delimitation
+        lineData.append(Data([0x0A]))
 
         let responseString = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
             pendingContinuations[reqId] = continuation
@@ -284,7 +275,7 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
     private func handleIncomingData(_ data: Data) {
         incomingBuffer.append(data)
 
-        let newlineDelimiter = Data([0x0A]) // '\n'
+        let newlineDelimiter = Data([0x0A])
         while let range = incomingBuffer.range(of: newlineDelimiter) {
             let lineData = incomingBuffer.subdata(in: 0..<range.lowerBound)
             incomingBuffer.removeSubrange(0..<range.upperBound)
@@ -299,18 +290,15 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
             let method = json["method"] as? String
 
             if let rawId = rawId, let method = method {
-                // 1. Incoming Server Request (e.g. approval/request)
                 let params = json["params"] as? [String: Any] ?? [:]
                 if let customHandler = serverRequestHandler, let response = customHandler(rawId, method, params) {
                     try? sendResponse(id: rawId, result: response)
                 } else if method == "approval/request" {
-                    // Muse SDK Cookbook: immediately acknowledge approval/request with {} ("I am handling this")
                     try? sendResponse(id: rawId, result: [:])
                 } else {
                     try? sendRPCError(id: rawId, code: -32601, message: "Method not found: \(method)")
                 }
             } else if let rawId = rawId {
-                // 2. Response to a client request
                 let idString = String(describing: rawId)
                 if let cont = pendingContinuations.removeValue(forKey: idString) {
                     if let error = json["error"] as? [String: Any] {
@@ -331,7 +319,6 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
                     }
                 }
             } else if let method = method {
-                // 3. Server Notification (e.g. item/delta, item/completed, turn/completed, session/modelChanged)
                 let params = json["params"] as? [String: Any] ?? [:]
                 notificationHandler?(method, params)
             }

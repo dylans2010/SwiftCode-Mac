@@ -1,18 +1,4 @@
-// Ported verbatim from Legacy `SwiftCode/Views/Extensions v2/ExtensionSidebarRow.swift`
-// (Dylan's own code; direct port authorised under MIT). Destination:
-// SwiftCodeExtensions — the `ExtV2*` names resolve here via the
-// typealiases in `ExtV2Manager.swift` (`ExtV2ExtensionMetadata =
-// ExtensionMetadata`, `ExtV2State = ExtensionState`). Used cross-module
-// by `ExtensionsHomeView` (SwiftCodeUI :108,128) and `ExtensionsSearchView`
-// (swiftcode-ide :47), hence public.
 import SwiftUI
-
-// MARK: - One extension row, used by search, installed, and updates lists
-//
-// The row shows only real state: the record's state (never a guessed
-// one), the registry metadata, and the install action appropriate to
-// that state. Installing shows progress and disables the button so a
-// duplicate install cannot start.
 
 public struct ExtensionSidebarRow: View {
     public let metadata: ExtV2ExtensionMetadata

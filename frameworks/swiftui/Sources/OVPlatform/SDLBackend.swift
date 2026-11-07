@@ -5,25 +5,6 @@ import Foundation
 import CoreGraphics
 #endif
 
-// The SDL3 back end (09-open-design.md §4): windows on X11 or Wayland
-// (whichever SDL picks; `SDL_VIDEO_DRIVER=x11|wayland` forces one), pointer,
-// touch, wheel, keyboard, text input and input-method composition, the
-// clipboard, a software frame path through the window surface, and the
-// Vulkan surface interface for the compositor.
-//
-// Coordinates. SDL reports window coordinates; their relation to pixels
-// depends on the window system (Wayland: logical units with a pixel density;
-// X11: pixels with a content scale). OpenViews works in points: the window's
-// display scale (pixels per point) is SDL's display scale, and window
-// coordinates convert with density / scale.
-//
-// Sleeping. The window system's connection (the X11 or Wayland display's
-// file descriptor) is watched by a dispatch source on the main queue, so the
-// run loop can sleep in the main run loop and wake for either window-system
-// input or main-queue work (main-actor tasks). Without that descriptor it
-// polls in 10 ms slices.
-
-/// The loaded SDL3 function table.
 @MainActor
 enum SDLLibrary {
     private static var cached: OVSDLAPI?
@@ -42,7 +23,6 @@ enum SDLLibrary {
     static var loadedPath: String { String(cString: ov_sdl_loaded_path()) }
 }
 
-/// A window backed by an `SDL_Window`.
 @MainActor
 public final class SDLWindow: PlatformWindow {
     let sdl: OVSDLAPI
@@ -63,7 +43,6 @@ public final class SDLWindow: PlatformWindow {
         self.popupParent = popupParent
     }
 
-    /// The title last set (read by the AT-SPI export).
     private var storedTitle = ""
 
     func rememberTitle(_ t: String) { storedTitle = t }
@@ -76,7 +55,6 @@ public final class SDLWindow: PlatformWindow {
         }
     }
 
-    /// Window size in SDL window coordinates.
     var windowCoordinateSize: (Int32, Int32) {
         var w: Int32 = 0, h: Int32 = 0
         _ = sdl.GetWindowSize(handle, &w, &h)
@@ -94,7 +72,6 @@ public final class SDLWindow: PlatformWindow {
         return s > 0 ? s : 1
     }
 
-    /// Points per SDL window coordinate.
     var pointsPerCoordinate: Double {
         let (w, _) = windowCoordinateSize
         guard w > 0 else { return 1 }
@@ -124,7 +101,6 @@ public final class SDLWindow: PlatformWindow {
         _ = sdl.MinimizeWindow(handle)
     }
 
-    /// SDL's window position (X11: screen pixels; Wayland gives none).
     public var screenOrigin: CGPoint? {
         guard !isClosed else { return nil }
         var x: Int32 = 0, y: Int32 = 0
@@ -139,8 +115,6 @@ public final class SDLWindow: PlatformWindow {
         _ = ov_sdl_x11_focus(&api, handle)
     }
 
-    /// Shrinks the window to the usable area of its display and moves it
-    /// inside (QA B5: a default size at scale 2 ran off the screen).
     func fitToDisplay() {
         let display = sdl.GetDisplayForWindow(handle)
         guard display != 0 else { return }
@@ -204,7 +178,6 @@ public final class SDLWindow: PlatformWindow {
         isTextInputActive = false
     }
 
-    /// The window system connection's descriptor, or -1.
     var displayFileDescriptor: Int32 {
         var api = sdl
         return ov_sdl_display_fd(&api, handle)
@@ -219,7 +192,6 @@ public final class SDLWindow: PlatformWindow {
     }
 }
 
-/// The Vulkan surface interface of an SDL window.
 @MainActor
 final class SDLVulkanSurface: PlatformVulkanSurface {
     let sdl: OVSDLAPI
@@ -262,7 +234,6 @@ final class SDLVulkanSurface: PlatformVulkanSurface {
     }
 }
 
-/// Clipboard text through SDL.
 @MainActor
 final class SDLClipboard: PlatformClipboard {
     let sdl: OVSDLAPI
@@ -280,7 +251,6 @@ final class SDLClipboard: PlatformClipboard {
     var hasText: Bool { sdl.HasClipboardText() }
 }
 
-/// The SDL3 back end.
 @MainActor
 public final class SDLBackend: PlatformBackend {
     let sdl: OVSDLAPI
@@ -289,46 +259,30 @@ public final class SDLBackend: PlatformBackend {
     private var open: [SDLWindow] = []
     private let syntheticType: UInt32
     private var synthetic: [Int: PlatformEvent] = [:]
-    /// Last size reported per window (SDL sends RESIZED and
-    /// PIXEL_SIZE_CHANGED for one resize: report a size once).
     private var reportedSizes: [PlatformWindowID: CGSize] = [:]
     private var buttonFilter = MouseButtonFilter()
-    /// SDL's mouse id for events synthesised from touches (`SDL_TOUCH_MOUSEID`).
     static let touchMouseID = UInt32.max
     private var syntheticSeq = 0
     private var displaySource: DispatchSourceRead?
     private var displaySourceSuspended = false
     private var keepAlive: Timer?
 
-    /// Loads libSDL3 and initialises its video subsystem.
     public init() throws {
         let sdl = try SDLLibrary.load()
         self.sdl = sdl
-        // Touches arrive as touches (no synthesized mouse events) and the
-        // last window closing does not quit by itself (the app host decides).
         _ = sdl.SetHint("SDL_TOUCH_MOUSE_EVENTS", "0")
         _ = sdl.SetHint("SDL_MOUSE_TOUCH_EVENTS", "0")
         _ = sdl.SetHint("SDL_QUIT_ON_LAST_WINDOW_CLOSE", "0")
         _ = sdl.SetHint("SDL_APP_NAME", "OpenViews")
-        // Text fields draw an input method's uncommitted text themselves
-        // (marked text at the caret) and leave the candidate list to the
-        // input method. Without this, SDL's X11 driver asks XIM for no
-        // composition events and the text being composed shows only in the
-        // input method's own window (issue 23).
         _ = sdl.SetHint("SDL_IME_IMPLEMENTED_UI", "composition")
         guard sdl.Init(UInt32(SDL_INIT_VIDEO)) else {
             throw PlatformError.unavailable((sdl.GetError().map { String(cString: $0) } ?? ""))
         }
         let driver = sdl.GetCurrentVideoDriver().map { String(cString: $0) } ?? "unknown"
         name = "sdl:\(driver)"
-        // X11 has a native software framebuffer (shared-memory images); without
-        // this hint SDL may route window surfaces through an OpenGL renderer
-        // and re-create the window to do so (a hide/show at start-up).
         if driver == "x11" { _ = sdl.SetHint("SDL_FRAMEBUFFER_ACCELERATION", "0") }
         clipboard = SDLClipboard(sdl: sdl)
         syntheticType = sdl.RegisterEvents(1)
-        // R10: desktop settings (environment, settings file, portal, SDL's
-        // system theme); changes arrive as `.settingsChanged`.
         let reader = DesktopSettingsReader()
         settingsReader = reader
         reader.systemDark = Self.theme(sdl.GetSystemTheme())
@@ -339,7 +293,6 @@ public final class SDLBackend: PlatformBackend {
 
     public var settings: PlatformSettings { settingsReader?.current ?? PlatformSettings() }
 
-    /// Where the settings came from (diagnostics).
     public var settingsSources: [String] { settingsReader?.sources ?? [] }
 
     private static func theme(_ t: SDL_SystemTheme) -> Bool? {
@@ -350,7 +303,6 @@ public final class SDLBackend: PlatformBackend {
         }
     }
 
-    /// The SDL version that was loaded, as "major.minor.micro", and its file.
     public var libraryDescription: String {
         let v = Int(sdl.GetVersion())
         return "\(v / 1_000_000).\((v / 1_000) % 1_000).\(v % 1_000) (\(SDLLibrary.loadedPath))"
@@ -364,9 +316,6 @@ public final class SDLBackend: PlatformBackend {
 
     public func makeWindow(_ configuration: WindowConfiguration) throws -> any PlatformWindow {
         if configuration.vulkan && !vulkanLoaded {
-            // The compositor and SDL must use the same Vulkan loader
-            // (09-open-design.md §3.6): SWIFTCODE_VULKAN_LIBRARY names it, else the
-            // system's default.
             let path = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_LIBRARY"]
             if !sdl.Vulkan_LoadLibrary(path) {
                 throw PlatformError.vulkan(sdl.GetError().map { String(cString: $0) } ?? "no Vulkan loader")
@@ -374,13 +323,8 @@ public final class SDLBackend: PlatformBackend {
             vulkanLoaded = true
         }
         if let parentID = configuration.popupParent {
-            // A pop-up menu (SDL_CreatePopupWindow): offsets and size in the
-            // parent's window coordinates.
             guard let parent = window(parentID) else { throw PlatformError.windowCreationFailed("no parent window") }
             let k = parent.pointsPerCoordinate
-            // Not focusable: the parent keeps the keyboard and the host
-            // routes keys to its pop-ups (on X11 without a window manager the
-            // focus otherwise fell to the root window when a pop-up closed).
             var pflags = OV_SDL_WINDOW_POPUP_MENU | OV_SDL_WINDOW_NOT_FOCUSABLE
             if configuration.highPixelDensity { pflags |= OV_SDL_WINDOW_HIGH_PIXEL_DENSITY }
             guard let h = sdl.CreatePopupWindow(parent.handle, Int32((configuration.popupOrigin.x / k).rounded()),
@@ -404,8 +348,6 @@ public final class SDLBackend: PlatformBackend {
         }
         let w = SDLWindow(sdl: sdl, handle: h, vulkan: configuration.vulkan, backend: self)
         w.rememberTitle(configuration.title)
-        // Window systems that measure windows in pixels (X11) get the size in
-        // points scaled to the display.
         if abs(w.pointsPerCoordinate - 1) > 0.01 { w.setSize(configuration.size) }
         w.fitToDisplay()
         _ = sdl.ShowWindow(h)
@@ -418,8 +360,6 @@ public final class SDLBackend: PlatformBackend {
 
     private func window(_ id: UInt32) -> SDLWindow? { open.first { $0.id == id } }
 
-    // MARK: Waiting
-
     private func watchDisplay(of w: SDLWindow) {
         guard displaySource == nil else { return }
         let fd = w.displayFileDescriptor
@@ -427,9 +367,6 @@ public final class SDLBackend: PlatformBackend {
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated {
-                // Wake the run loop; SDL reads the connection when the loop
-                // pumps. Suspended until then so a readable descriptor does
-                // not fire again and again.
                 guard let self, !self.displaySourceSuspended else { return }
                 self.displaySourceSuspended = true
                 self.displaySource?.suspend()
@@ -437,18 +374,12 @@ public final class SDLBackend: PlatformBackend {
         }
         source.resume()
         displaySource = source
-        // Keeps the main run loop from reporting itself empty.
         let timer = Timer(timeInterval: 86_400, repeats: true) { _ in }
         RunLoop.main.add(timer, forMode: .default)
         keepAlive = timer
     }
 
     public func waitForEvents(until deadline: TimeInterval?) -> [PlatformEvent] {
-        // Event times are when SDL read the events, not when they happened.
-        // Events that queued while the app was busy (a long frame) all look
-        // simultaneous: two quick clicks 0.1 ms apart. Times count as
-        // reliable when the previous read was recent or the loop slept until
-        // the events came; the duplicate-click filter compares only those.
         var out = drain(timesAreReliable: now - lastDrain < Self.busyGap)
         if !out.isEmpty { return out }
         let waitStart = now
@@ -456,8 +387,6 @@ public final class SDLBackend: PlatformBackend {
             let date = deadline.map { Date(timeIntervalSinceNow: max(0, $0 - now)) } ?? Date.distantFuture
             _ = RunLoop.main.run(mode: .default, before: date)
         } else {
-            // No descriptor to watch: wait for SDL in slices, serving the main
-            // queue between them.
             let remaining = deadline.map { max(0, $0 - now) } ?? 0.01
             _ = sdl.WaitEventTimeout(nil, Int32(min(10, max(0, remaining * 1_000)).rounded(.up)))
             _ = RunLoop.main.run(mode: .default, before: Date())
@@ -466,8 +395,6 @@ public final class SDLBackend: PlatformBackend {
         return out
     }
 
-    /// Longer than this between two reads of the event queue, and the
-    /// events read carry unreliable times.
     static let busyGap: TimeInterval = 0.02
     private var lastDrain: TimeInterval = 0
     private var eventTimesAreReliable = true
@@ -487,8 +414,6 @@ public final class SDLBackend: PlatformBackend {
         }
         return out
     }
-
-    // MARK: Translation
 
     private static func modifiers(_ m: UInt16) -> KeyModifiers {
         var r: KeyModifiers = []
@@ -553,10 +478,8 @@ public final class SDLBackend: PlatformBackend {
         buttonFilter.accept(button: button, down: down, time: t, x: Double(x), y: Double(y), timeIsReliable: eventTimesAreReliable)
     }
 
-    /// The modifier keys held at the last key event.
     private var heldModifiers: KeyModifiers = []
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private func translate(_ e: inout SDL_Event) -> PlatformEvent? {
         let type = e.type
         let t = Double(e.common.timestamp) / 1e9
@@ -585,8 +508,6 @@ public final class SDLBackend: PlatformBackend {
             guard let w = window(e.window.windowID) else { return nil }
             return .window(w.id, .scaleChanged(w.scale))
         case SDL_EVENT_KEY_DOWN.rawValue, SDL_EVENT_KEY_UP.rawValue:
-            // SDL's pointer events carry no modifiers: the keyboard's last state
-            // goes with them (shift-click).
             heldModifiers = Self.modifiers(e.key.mod)
             return .key(KeyEvent(window: e.key.windowID, key: Self.key(e.key.key), isDown: e.key.down,
                                  isRepeat: e.key.repeat, modifiers: Self.modifiers(e.key.mod), timestamp: t))
@@ -597,7 +518,6 @@ public final class SDLBackend: PlatformBackend {
                                                  cursor: Int(e.edit.start), selectionLength: Int(e.edit.length),
                                                  timestamp: t))
         case SDL_EVENT_MOUSE_MOTION.rawValue:
-            // Touches arrive as finger events; skip SDL's mouse copies.
             guard e.motion.which != Self.touchMouseID, let w = window(e.motion.windowID) else { return nil }
             let pressed = e.motion.state & 1 != 0
             return .pointer(PointerEvent(window: w.id, pointer: 0, kind: .mouse, phase: .moved,
@@ -617,7 +537,6 @@ public final class SDLBackend: PlatformBackend {
                 dy = -dy
             }
             let precise = dx.rounded() != dx || dy.rounded() != dy
-            // A wheel notch scrolls 10 points (our choice; open in 06 §3).
             return .scroll(ScrollEvent(window: w.id, location: w.toPoints(x: e.wheel.mouse_x, y: e.wheel.mouse_y),
                                        delta: CGSize(width: dx * 10, height: dy * 10), isPrecise: precise,
                                        timestamp: t))
@@ -644,10 +563,6 @@ public final class SDLBackend: PlatformBackend {
         }
     }
 
-    // MARK: Synthetic events
-
-    /// Mouse and key events go through SDL's queue as SDL events (and so
-    /// through the translation above); the others as user events.
     public func post(_ event: PlatformEvent) {
         var e = SDL_Event()
         let ts = sdl.GetTicksNS()
@@ -705,21 +620,10 @@ public final class SDLBackend: PlatformBackend {
         if displaySourceSuspended { displaySource?.resume() }
         displaySource = nil
         keepAlive?.invalidate()
-        // With a Vulkan loader in the process, leave SDL (and its X11 or
-        // Wayland connection) up: a vendor driver's exit handler still talks
-        // to the display after this (the NVIDIA GLX library aborted with
-        // "buffer overflow detected" in xcb once SDL_Quit had closed it).
         if !vulkanLoaded { sdl.Quit() }
     }
 }
 
-/// Drops duplicate mouse button events: a press of a button that is already
-/// down, and a press (with its release) that follows a release of the same
-/// button at the same place within `duplicateInterval` (QA B4: SDL 3.4.18 on
-/// some X servers delivers one click as two press/release pairs 0.1–0.3 ms
-/// apart; no person clicks twice within 4 ms). Only events whose times are
-/// reliable are compared: events read late (after a long frame) all carry
-/// about the same time, and a quick double click would lose its second click.
 public struct MouseButtonFilter: Sendable {
     public static let duplicateInterval = 0.004
     private var down: Set<UInt8> = []
@@ -728,7 +632,6 @@ public struct MouseButtonFilter: Sendable {
 
     public init() {}
 
-    /// Whether to deliver the event.
     public mutating func accept(button: UInt8, down isDown: Bool, time t: Double, x: Double, y: Double,
                                 timeIsReliable: Bool = true) -> Bool {
         if isDown {
@@ -741,7 +644,6 @@ public struct MouseButtonFilter: Sendable {
             return true
         }
         if dropped.remove(button) != nil { return false }
-        // A release without a press we saw (pressed outside) passes through.
         guard down.remove(button) != nil else { return true }
         lastRelease[button] = (t, x, y)
         return true

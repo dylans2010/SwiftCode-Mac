@@ -1,29 +1,18 @@
-// The device's sound on the display stream (display-stream.md §15): the
-// audio service's output blocks (`AudioHostService.deliver`: 512 frames of
-// 48 kHz Float32 stereo with their host play time) are cut into 5 ms
-// packets, encoded with Opus (low delay, in-band FEC; libopus loaded at run
-// time) or sent as 16-bit PCM, and sent with their play time on the
-// server's monotonic clock, the clock of the frame timings. Silent packets
-// are not sent. The audio service's thread only queues; encoding and
-// sending happen on this pipe's thread.
-
 #if os(Linux) && arch(arm64)
 import CSwiftCodeCodec
 import Foundation
 import SwiftCodeDisplayStream
 
 final class DisplayAudioPipe: @unchecked Sendable {
-    static let rate = 48_000, channels = 2, packetFrames = 240  // 5 ms
+    static let rate = 48_000, channels = 2, packetFrames = 240
     let codec: DisplayAudio.Codec
     private let send: (DisplayMessage) -> Bool
     private let cond = NSCondition()
     private var queue: [([Float], UInt64)] = []
     private var stopped = false
     private var encoder: UnsafeMutableRawPointer?
-    // Statistics.
     private(set) var packetsSent = 0, silentSkipped = 0, bytesSent = 0, dropped = 0
 
-    /// Opus when both sides have it and the client lists it first, else PCM.
     static func choose(client: [String]?) -> DisplayAudio.Codec? {
         guard let client, !client.isEmpty else { return nil }
         for c in client {
@@ -47,10 +36,8 @@ final class DisplayAudioPipe: @unchecked Sendable {
 
     deinit { swiftcodec_opus_encoder_free(encoder) }
 
-    /// From the audio service's thread: never blocks on the network.
     func push(_ samples: [Float], at: UInt64) {
         cond.withLock {
-            // A stalled connection must not grow the queue: keep at most 200 ms.
             if queue.count > 20 { queue.removeFirst(); dropped += 1 }
             queue.append((samples, at))
             cond.signal()
@@ -61,7 +48,7 @@ final class DisplayAudioPipe: @unchecked Sendable {
 
     private func run() {
         var pending: [Float] = []
-        var pendingAt: UInt64 = 0   // play time of pending[0]
+        var pendingAt: UInt64 = 0
         let frameNs = { (frames: Int) -> UInt64 in UInt64(frames) * 1_000_000_000 / UInt64(Self.rate) }
         var out = [UInt8](repeating: 0, count: 4000)
         while true {
@@ -73,7 +60,6 @@ final class DisplayAudioPipe: @unchecked Sendable {
             }
             guard let batch else { return }
             for (samples, at) in batch {
-                // A block that does not continue the pending audio (a gap, a restart) starts afresh.
                 let expected = pendingAt &+ frameNs(pending.count / Self.channels)
                 if pending.isEmpty || at > expected &+ 1_000_000 || expected > at &+ 1_000_000 {
                     pending.removeAll(keepingCapacity: true)

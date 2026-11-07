@@ -1,13 +1,10 @@
-// malloc.c - SwiftCode libSystem's allocator (specs/macos/libsystem.md §5).
-// Clean-room SwiftCode code: size-class free lists over 1 MB anonymous
-// mappings, one lock, a 16-byte header per block.
 #include "ycl.h"
 
 enum {
     HEADER = 16,
-    SMALL_LIMIT = 1024,            // classes 1..64: 16-byte steps
+    SMALL_LIMIT = 1024,
     SMALL_CLASSES = SMALL_LIMIT / 16,
-    MEDIUM_LIMIT = 65536,          // classes 65..70: 2 KB .. 64 KB
+    MEDIUM_LIMIT = 65536,
     NCLASSES = SMALL_CLASSES + 7,
     ARENA = 1 << 20,
     PAGE = 16384,
@@ -15,8 +12,6 @@ enum {
 #define BIG_CLASS 0xFFFFu
 #define ALIGNED_MARK 0xA11Eu
 
-// The header in front of every block: the class, and for a big block its
-// mapping size; for an aligned block, the distance back to the real one.
 struct header {
     uint32_t klass;
     uint32_t mark;
@@ -97,7 +92,6 @@ static void *allocate(size_t n) {
 
 static struct header *header_of(void *p) { return (struct header *)((uint8_t *)p - HEADER); }
 
-// The block a pointer belongs to (undoing posix_memalign's offset).
 static void *real_block(void *p) {
     struct header *h = header_of(p);
     if (h->mark == ALIGNED_MARK) return (uint8_t *)p - h->extra;
@@ -114,7 +108,7 @@ YCL_EXPORT void free(void *p) {
         munmap(h, (size_t)h->extra);
         return;
     }
-    if (h->klass == 0 || h->klass > NCLASSES) abort();  // not one of ours
+    if (h->klass == 0 || h->klass > NCLASSES) abort();
     os_unfair_lock_lock(&heap_lock);
     struct free_block *f = p;
     f->next = free_lists[h->klass];
@@ -139,7 +133,7 @@ YCL_EXPORT void *calloc(size_t count, size_t size) {
         return 0;
     }
     void *p = allocate(n);
-    if (p && header_of(p)->klass != BIG_CLASS) memset(p, 0, n);  // fresh mappings are already zero
+    if (p && header_of(p)->klass != BIG_CLASS) memset(p, 0, n);
     return p;
 }
 

@@ -7,7 +7,6 @@ struct WorkspaceAnalyticsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Workspace Analytics & Intelligence")
@@ -28,7 +27,6 @@ struct WorkspaceAnalyticsView: View {
                 }
                 .padding(.bottom, 10)
 
-                // Intelligence summary card
                 GroupBox(label: Text("Workspace Intelligence Insights").font(.headline)) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 24) {
@@ -76,7 +74,6 @@ struct WorkspaceAnalyticsView: View {
 
                         Divider()
 
-                        // Lists of duplicate sources and shared packages
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Redundancy & Sharing Audits:")
                                 .font(.subheadline)
@@ -123,7 +120,6 @@ struct WorkspaceAnalyticsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Large cards grid
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {

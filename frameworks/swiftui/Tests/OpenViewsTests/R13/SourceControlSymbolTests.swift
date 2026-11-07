@@ -1,8 +1,6 @@
 import OVRender
 import Testing
 
-// The Linux IDE's Source Control, Test and Report navigators must not fall
-// back to the question-mark stand-in: the symbols they use.
 @Suite struct SourceControlSymbolTests {
     static let names = [
         "externaldrive", "tray", "arrow.uturn.backward", "clock.arrow.circlepath", "square.and.pencil", "diamond", "diamond.fill",

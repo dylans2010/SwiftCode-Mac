@@ -1,48 +1,27 @@
 import Foundation
 import SwiftCodeProject
 
-/// Builds the settings stack for a target (or the project) of a pbxproj:
-///
-///     defaults < builtins < project xcconfig < project < target xcconfig < target < overrides
-///
-/// See `specs/build-settings.md` §3.
 public struct ProjectSettingsBuilder {
-    /// The parsed project.
     public var proj: PBXProj
-    /// The `.xcodeproj` bundle; relative paths resolve against its parent.
     public var xcodeprojURL: URL
-    /// The `.xcodeproj` name without the extension (`PROJECT_NAME`).
     public var projectName: String
-    /// The lowest level (platform, SDK, and spec defaults). Empty for now.
-    /// Callers can supply one.
     public var defaults = SettingsLevel(name: "defaults")
-    /// Command-line style overrides (`NAME=value`), the highest level.
     public var overrides: [String: String] = [:]
-    /// Replaces a `<DEVELOPER_DIR>` prefix in xcconfig include paths; when
-    /// nil, such an include is skipped with a diagnostic.
     public var developerDirectory: String?
-    /// Resolves an `SDKROOT` value to an installed SDK.
     public var sdkLookup: (String) -> SDKCatalog.SDK? = { _ in nil }
 
-    /// Takes `projectName` from the last path component of `xcodeprojURL`.
     public init(proj: PBXProj, xcodeprojURL: URL) {
         self.proj = proj
         self.xcodeprojURL = xcodeprojURL
         projectName = xcodeprojURL.deletingPathExtension().lastPathComponent
     }
 
-    /// The result of `resolve(target:configuration:)`.
     public struct Resolved {
-        /// The evaluator over the full level stack.
         public var settings: BuildSettings
-        /// The levels above `builtins` (the ones the project defines).
         public var definedLevelNames: [String]
-        /// Missing configurations and unreadable or invalid xcconfig files,
-        /// found while building the stack.
         public var diagnostics: [String]
     }
 
-    /// Resolves settings for `targetName` (nil = project level) in `configuration`.
     public func resolve(target targetName: String?, configuration: String) throws -> Resolved {
         var diagnostics: [String] = []
         let projectDir = proj.projectDirectory(xcodeprojURL: xcodeprojURL)
@@ -53,8 +32,6 @@ public struct ProjectSettingsBuilder {
             return t
         }
 
-        // A configuration missing from the project falls back to the
-        // project's default configuration, for every level.
         let projectConfigs = proj.buildConfigurations(listID: project.string("buildConfigurationList"))
         var configuration = configuration
         if !projectConfigs.contains(where: { $0.string("name") == configuration }),
@@ -114,9 +91,6 @@ public struct ProjectSettingsBuilder {
             }))
         }
 
-        // The SDK condition depends on SDKROOT, which is itself a setting:
-        // resolve once without it, then again with the canonical SDK name.
-        // An SDK that is not installed matches by its literal SDKROOT value.
         var context: ConditionContext = ["config": configuration, "variant": "normal"]
         let sdkroot = BuildSettings(levels: stack, context: context)["SDKROOT"]
         let sdk = sdkLookup(sdkroot)
@@ -131,8 +105,6 @@ public struct ProjectSettingsBuilder {
         return Resolved(settings: settings, definedLevelNames: Array(defined), diagnostics: diagnostics)
     }
 
-    /// The xcconfig a configuration is based on. It is either a file reference
-    /// or (Xcode 16+) a path relative to a synchronized folder.
     func xcconfigPath(_ cfg: PBXObject, projectDir: URL, parents: [String: String]) -> String? {
         if let ref = cfg.string("baseConfigurationReference") {
             return proj.resolvedPath(of: ref, projectDirectory: projectDir, parents: parents)
@@ -160,9 +132,6 @@ public enum SettingsError: Error, CustomStringConvertible {
 import SwiftCodePlist
 
 extension PlistValue {
-    /// A build-setting value as text. Arrays are joined with spaces, and
-    /// elements that contain whitespace are quoted, as in `buildSettings`
-    /// lists.
     var settingText: String? {
         switch self {
         case .string(let s): s

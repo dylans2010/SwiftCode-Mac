@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for AppKit
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct AppKitSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "appkit.symbol.0"
     public var name: String = "AppKitSymbolName_0"

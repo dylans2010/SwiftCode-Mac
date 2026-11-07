@@ -1,29 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/API/Internal API/Reverse/ReverseTests.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCPTests (`swiftcode/Tests/SwiftCodeMCPTests/ReverseTests.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - 8 of 11 checks: parser invocation/prose-rejection/lowercase-bare cases, bridge request/response encoding, evidence-decoding provenance, bridge error mapping, bridge-script surface checks
-// ADAPTATIONS:
-//   - Added test-target import(s): import SwiftCodeAssistant, import SwiftCodeMCP (RuntimeTestCaseResult lives in SwiftCodeAssistant — staged alongside as RuntimeTestHarness.swift).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - ReverseCommandParser — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/API/Internal API/Reverse/ReverseCommandParser.swift`)
-//   - ReverseTargetValidator — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/API/Internal API/Reverse/ReverseCommandParser.swift`)
-// WIRING / REGISTRATION: Test target: adapt cases to swift-testing like SwiftCodeMCPTests/LegacyReverseGapTests.swift, or wire runAll() into the in-app harness (AssistRuntimeTestSuite, unowned).
-
-//  ReverseTests.swift
-//  SwiftCode
-//
-//  Reverse subsystem tests, in the app's Sources (there is no XCTest
-//  target in this project). Wired into AssistRuntimeTestSuite.
-//
-//  These tests cover parsing, validation, evidence provenance, error
-//  mapping, and the allow-list. They do NOT prove real REA analysis
-//  works: the bridge's real-REA verification is the recorded
-//  out-of-repo run documented in Docs/Assist-Reverse-REA-Audit-and-Plan.md
-//  (real Evidence from inspect_artifact + inspect_with_objdump).
-
 import Foundation
 import SwiftCodeMCP
 import SwiftCodeAssistant
@@ -120,7 +94,6 @@ public enum ReverseTestSuite {
                     return "locations not preserved"
                 }
                 guard evidence.limitations == ["limitation one"] else { return "limitations not preserved" }
-                // No confidence supplied -> "not reported", never invented.
                 let noConfidence = """
                 {"version":1,"id":"e2","type":"result","evidence":{"evidence_id":"ev2","operation":"inspect_artifact","normalized_result":{},"limitations":[],"locations":[]}}
                 """
@@ -161,7 +134,6 @@ public enum ReverseTestSuite {
                 case .failure: break
                 case .success: return "missing target must be rejected"
                 }
-                // In-scope positive case: real file inside the workspace root.
                 let dir = FileManager.default.temporaryDirectory.appendingPathComponent("reverse-test-\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 defer { try? FileManager.default.removeItem(at: dir) }

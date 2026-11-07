@@ -1,31 +1,16 @@
 import Foundation
 
-// The XPC serialization of `bootstrap-wire.md` §3 and the payload placement
-// of §2.3. Written from the spec's tables only.
-
-/// A Mach descriptor as this library sees it, independent of any Mach API.
-/// On encode, `disposition` is the `MACH_MSG_TYPE_*` to send with; on
-/// decode, it is the received type (16 receive, 17 send, 18 send-once).
 public enum XPCWireDescriptor: Equatable, Sendable {
-    /// A 12-byte port descriptor (type 0).
     case port(name: UInt32, disposition: UInt32)
-    /// An out-of-line memory descriptor (type 1) and its bytes.
     case ool(bytes: [UInt8])
-    /// An out-of-line ports descriptor (type 2). Not used by XPC payloads;
-    /// present so a received message maps totally. Decoding rejects it.
     case oolPorts(names: [UInt32], disposition: UInt32)
-    /// A guarded port descriptor (type 4). Not seen in captures; decoding
-    /// treats it as a port descriptor.
     case guardedPort(name: UInt32, disposition: UInt32)
 
-    /// Size in a 64-bit user message: 12 for a port, 16 otherwise.
     public var wireSize: Int {
         if case .port = self { 12 } else { 16 }
     }
 }
 
-/// The serialized form of an object: inline payload plus port descriptors
-/// (in depth-first order of the port-bearing objects).
 public struct XPCWireEncoding: Equatable, Sendable {
     public var body: [UInt8]
     public var descriptors: [XPCWireDescriptor]
@@ -35,32 +20,21 @@ public struct XPCWireEncoding: Equatable, Sendable {
     }
 }
 
-/// A reason to reject a payload or an object to be encoded.
 public enum XPCWireError: Error, Equatable, Sendable, CustomStringConvertible {
-    /// Fewer bytes than needed at this payload offset.
     case truncated(offset: Int)
     case badMagic(UInt32)
     case badVersion(UInt32)
     case unknownTag(UInt32, offset: Int)
-    /// A dictionary or array byte length that does not fit or does not match its entries.
     case badLength(offset: Int)
-    /// A string whose length is 0 or whose last byte is not NUL.
     case badString(offset: Int)
     case invalidUTF8(offset: Int)
-    /// A dictionary key without a terminating NUL in bounds.
     case unterminatedKey(offset: Int)
     case nestingTooDeep(offset: Int)
-    /// The payload needs a k-th port descriptor that the message lacks.
     case missingPortDescriptor(index: Int)
-    /// The message has port descriptors that no object uses.
     case unusedDescriptors(expected: Int, actual: Int)
-    /// A descriptor of a kind that cannot stand for a port-bearing object here.
     case unexpectedDescriptor(index: Int)
-    /// No inline payload and no OOL descriptor.
     case noPayload
-    /// The root is not a dictionary (pipe messages need one).
     case rootNotDictionary
-    // Encoding.
     case keyContainsNUL(String)
     case inlineDataTooLarge(Int)
     case largeDataTooSmall(UInt32)
@@ -91,17 +65,11 @@ public enum XPCWireError: Error, Equatable, Sendable, CustomStringConvertible {
 }
 
 public enum XPCWire {
-    /// `?cpx`, written by SwiftCode.
     public static let magic: UInt32 = 0x7870_633F
-    /// `@cpx`, also accepted.
     public static let alternateMagic: UInt32 = 0x7870_6340
-    /// `!CPX`: the magic of connections marked sim2host
-    /// (iosurface-remote.md §2.1); accepted, and written on request.
     public static let sim2hostMagic: UInt32 = 0x5850_4321
     public static let version: UInt32 = 5
-    /// Data longer than this travels as a memory-object port (§3.2).
     public static let inlineDataLimit = 16384
-    /// Containers nested deeper than this are rejected on decode.
     public static let maximumDepth = 64
 
     public enum Tag {
@@ -122,18 +90,11 @@ public enum XPCWire {
         public static let receiveRight: UInt32 = 0x15000
     }
 
-    // MARK: Encoding
-
-    /// Serializes `root` (normally a dictionary) with magic `?cpx` and
-    /// version 5. The descriptors are the rights of the port-bearing
-    /// objects, in the order they are written, with each `XPCPort`'s
-    /// disposition.
     public static func encode(_ root: XPCObject, magic: UInt32 = XPCWire.magic) throws -> XPCWireEncoding {
         let body = try encodePayload(root, magic: magic)
         return XPCWireEncoding(body: body, descriptors: root.ports.map { .port(name: $0.name, disposition: $0.disposition) })
     }
 
-    /// The payload bytes only (header and root object).
     public static func encodePayload(_ root: XPCObject, magic: UInt32 = XPCWire.magic) throws -> [UInt8] {
         var w = Writer()
         w.u32(magic)
@@ -142,13 +103,6 @@ public enum XPCWire {
         return w.bytes
     }
 
-    // MARK: Decoding
-
-    /// Decodes a message's payload. `body` is the inline bytes after the
-    /// descriptors. If it is empty, the payload is the first `.ool`
-    /// descriptor (§2.3) and the remaining descriptors are the ports.
-    /// Otherwise every descriptor must be a port descriptor. The k-th
-    /// port-bearing object gets the k-th port descriptor.
     public static func decode(body: [UInt8], descriptors: [XPCWireDescriptor]) throws -> XPCObject {
         var payload = body
         var ports: [XPCPort] = []
@@ -169,10 +123,6 @@ public enum XPCWire {
         return try decodePayload(payload, ports: ports)
     }
 
-    /// Decodes payload bytes (header and root object), binding the k-th
-    /// port-bearing object to `ports[k]`. Bytes after the root object are
-    /// ignored (an OOL region is rounded up). With `ports == nil`, each
-    /// right gets `XPCPort(name: k, disposition: 0)` (its descriptor index).
     public static func decodePayload(_ payload: [UInt8], ports: [XPCPort]?) throws -> XPCObject {
         var r = Reader(bytes: payload, ports: ports)
         let m = try r.u32()
@@ -185,8 +135,6 @@ public enum XPCWire {
         }
         return root
     }
-
-    // MARK: Writer
 
     struct Writer {
         var bytes: [UInt8] = []
@@ -260,13 +208,10 @@ public enum XPCWire {
         }
     }
 
-    // MARK: Reader
-
     struct Reader {
         let bytes: [UInt8]
         let ports: [XPCPort]?
         var offset = 0
-        /// Bytes at or after `end` are outside the current container.
         var end: Int
         var portIndex = 0
 
@@ -294,7 +239,6 @@ public enum XPCWire {
             return lo | UInt64(try u32()) << 32
         }
 
-        /// Skips padding to the next 4-byte boundary (within bounds).
         mutating func align() throws {
             let n = (4 - offset % 4) % 4
             _ = try take(n)
@@ -366,7 +310,6 @@ public enum XPCWire {
                 let outerEnd = end
                 end = offset + length
                 let count = Int(try u32())
-                // Every entry takes at least 4 bytes.
                 guard count <= (end - offset) / 4 else { throw XPCWireError.badLength(offset: lengthAt) }
                 let result: XPCObject
                 if tag == Tag.array {
@@ -391,8 +334,6 @@ public enum XPCWire {
             }
         }
     }
-
-    // MARK: UUID bytes
 
     static func uuidBytes(_ u: UUID) -> [UInt8] {
         withUnsafeBytes(of: u.uuid) { Array($0) }

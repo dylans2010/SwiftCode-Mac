@@ -2,7 +2,6 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// SwiftCode's own file templates. See `specs/ide/templates.md`.
 public enum BuiltInFileTemplate: String, CaseIterable, Sendable {
     case swiftFile = "Swift File"
     case swiftClass = "Swift Class"
@@ -11,7 +10,6 @@ public enum BuiltInFileTemplate: String, CaseIterable, Sendable {
     case empty = "Empty File"
     case propertyList = "Property List"
 
-    /// File name → contents for a template and a name.
     public func files(named name: String) -> [(String, String)] {
         switch self {
         case .swiftFile: [("\(name).swift", "import Foundation\n")]
@@ -41,12 +39,7 @@ public enum NewFileError: LocalizedError, CustomStringConvertible {
     }
 }
 
-/// Creates new files on disk from templates and, inside a project, adds
-/// them to the matching group and build phases. See `specs/ide/templates.md`.
 public enum FileCreator {
-    /// Writes a template's files into `directory`, and (for a project) adds
-    /// them to the group of that folder and compiled ones to the first
-    /// target's Compile Sources. Returns the new files.
     @discardableResult
     public static func create(_ template: BuiltInFileTemplate, name: String, in directory: URL,
                               project: inout PBXProj?, xcodeprojURL: URL?, targets: [String]? = nil) throws -> [URL] {
@@ -55,17 +48,10 @@ public enum FileCreator {
         return try write(template.files(named: name), in: directory, project: &project, xcodeprojURL: xcodeprojURL, targets: targets)
     }
 
-    /// Files whose build phase is Compile Sources, and Copy Bundle Resources.
     static let sourceExtensions: Set<String> = ["swift", "m", "mm", "c", "cc", "cpp", "metal", "s", "xcdatamodeld", "intentdefinition", "docc"]
     static let resourceExtensions: Set<String> = ["xcassets", "storyboard", "xib", "xcstrings", "strings", "stringsdict", "xcprivacy", "json",
                                                   "geojson", "gpx", "rtf", "scnassets", "scn", "sks", "bundle", "xcstickers", "icon", "gamekit"]
 
-    /// Writes files (paths relative to `directory`; a path through a
-    /// folder makes that folder, one ending in "/" is an empty folder) and
-    /// adds each top-level item to the project: a file reference in the
-    /// folder's group, and for `targets` (nil: compiled files go to the
-    /// first target with Compile Sources) the matching build phase.
-    /// Returns the top-level items.
     @discardableResult
     public static func write(_ files: [(String, String)], in directory: URL, project: inout PBXProj?, xcodeprojURL: URL?,
                              targets: [String]? = nil) throws -> [URL] {
@@ -92,7 +78,6 @@ public enum FileCreator {
         let dir = directory.standardizedFileURL.path
         let projectDir = proj.projectDirectory(xcodeprojURL: xcodeprojURL)
         let parents = proj.parentMap()
-        // A synchronized folder picks the files up by itself.
         let synced = proj.objects.values.filter { $0.isa == "PBXFileSystemSynchronizedRootGroup" }
             .compactMap { proj.resolvedPath(of: $0.id, projectDirectory: projectDir, parents: parents) }
         if synced.contains(where: { dir == $0 || dir.hasPrefix($0 + "/") }) { return urls }
@@ -121,14 +106,11 @@ public enum FileCreator {
     }
 }
 
-/// SwiftCode's own project templates. See `specs/ide/templates.md`.
 public enum ProjectTemplate: String, CaseIterable, Sendable {
     case commandLineTool = "macOS Command Line Tool"
     case app = "macOS App"
     case swiftPackage = "Swift Package"
 
-    /// Creates `<location>/<name>/…` and returns what to open (the
-    /// `.xcodeproj` or the package folder).
     public func create(name: String, organization: String, in location: URL) throws -> URL {
         let name = name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { throw NewFileError.emptyName }
@@ -193,14 +175,11 @@ public enum ProjectTemplate: String, CaseIterable, Sendable {
         }
     }
 
-    /// Creates the project for an options-step Finish: iOS ▸ App uses the
-    /// iOS App generator; everything else the name/organization form.
     public func create(platform: String, options: ProjectOptions, in location: URL) throws -> URL {
         if self == .app && platform == "iOS" { return try IOSAppTemplate.create(options: options, in: location) }
         return try create(name: options.productName, organization: options.organizationIdentifier, in: location)
     }
 
-    /// A one-target project built object by object.
     static func makeProject(name: String, source: String, app: Bool, bundlePrefix: String) throws -> PBXProj {
         var p = try PBXProj(parsing: "// !$*UTF8*$!\n{ archiveVersion = 1; classes = {}; objectVersion = 77; objects = {}; rootObject = 000000000000000000000000; }\n")
         func obj(_ attrs: [(String, PlistValue)]) -> String {
@@ -256,19 +235,12 @@ public enum ProjectTemplate: String, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Template sheets (specs/ide/reference-ui-3.md §5)
-
-/// One cell of a template sheet's icon grid.
 public struct TemplateEntry: Equatable, Sendable {
     public var title: String
-    /// The name the save step preselects.
     public var defaultName: String
-    /// The file extension SwiftCode writes ("" = none).
     public var fileExtension: String
     public var symbol: String
-    /// The project template's identifier (New Project sheets; "" otherwise).
     public var templateID = ""
-    /// One line describing the template (shown below the grid).
     public var summary = ""
     public init(_ title: String, defaultName: String = "File", ext: String = "", symbol: String = "doc") {
         self.title = title
@@ -277,7 +249,6 @@ public struct TemplateEntry: Equatable, Sendable {
         self.symbol = symbol
     }
 
-    /// SwiftCode's own template for the entry, when one exists.
     public var fileTemplate: BuiltInFileTemplate? {
         switch title {
         case "Swift File": .swiftFile
@@ -289,7 +260,6 @@ public struct TemplateEntry: Equatable, Sendable {
         }
     }
 
-    /// File name → contents for a name chosen in the save step.
     public func files(named name: String) -> [(String, String)] {
         if let t = fileTemplate { return t.files(named: name) }
         let file = fileExtension.isEmpty || name.hasSuffix("." + fileExtension) ? name : "\(name).\(fileExtension)"
@@ -306,14 +276,10 @@ public struct TemplateSection: Equatable, Sendable {
     }
 }
 
-/// The new-file sheet's catalog: platform tabs, sections, filter.
 public enum FileTemplateCatalog {
-    /// The sheet's heading line.
     public static let heading = "Choose a template for your new file:"
-    /// The platform tabs, in order.
     public static let platforms = ["iOS", "macOS", "watchOS", "tvOS", "visionOS", "DriverKit"]
 
-    /// The template sections listed under a platform tab.
     public static func sections(platform: String) -> [TemplateSection] {
         func e(_ t: String, _ ext: String, _ name: String = "File", _ sym: String = "doc") -> TemplateEntry {
             TemplateEntry(t, defaultName: name, ext: ext, symbol: sym)
@@ -368,7 +334,6 @@ public enum FileTemplateCatalog {
         ]
     }
 
-    /// The sections filtered by title; empty sections are dropped.
     public static func sections(platform: String, filter: String) -> [TemplateSection] {
         let f = filter.trimmingCharacters(in: .whitespaces)
         guard !f.isEmpty else { return sections(platform: platform) }
@@ -378,9 +343,6 @@ public enum FileTemplateCatalog {
         }
     }
 
-    /// Writes an entry's files into `directory` (and the project), as
-    /// `FileCreator` does for SwiftCode's own templates; other entries write
-    /// `TemplateContents` (an empty file when it has none).
     @discardableResult
     public static func create(_ entry: TemplateEntry, name: String, in directory: URL, platform: String = "iOS",
                               project: inout PBXProj?, xcodeprojURL: URL?, targets: [String]? = nil) throws -> [URL] {
@@ -391,8 +353,6 @@ public enum FileTemplateCatalog {
                                      xcodeprojURL: xcodeprojURL, targets: targets)
     }
 
-    /// The files (paths relative to the destination, and contents) an
-    /// entry writes for `name`: a path ending in "/" is an empty folder.
     public static func files(_ entry: TemplateEntry, name: String, platform: String = "iOS") throws -> [(String, String)] {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { throw NewFileError.emptyName }
@@ -402,7 +362,6 @@ public enum FileTemplateCatalog {
     }
 }
 
-/// The step a template sheet is on: Previous is disabled on the first.
 public struct TemplateSheetSteps: Equatable, Sendable {
     public var count: Int
     public var index = 0
@@ -413,15 +372,12 @@ public struct TemplateSheetSteps: Equatable, Sendable {
     public mutating func previous() { index = max(index - 1, 0) }
 }
 
-/// File ▸ New ▸ Project…'s compact picker.
 public enum NewProjectPicker {
-    /// The picker's title.
     public static let header = "New Project"
     public struct Row: Equatable, Sendable {
         public var title: String
         public var subtitle: String
     }
-    /// The picker rows, in order; see `template(forRow:)`.
     public static let rows: [Row] = [
         Row(title: "App", subtitle: "SwiftUI app for iPhone, iPad, Mac & Vision Pro"),
         Row(title: "Command Line Tool", subtitle: "Terminal program for macOS"),
@@ -429,10 +385,8 @@ public enum NewProjectPicker {
         Row(title: "Playground", subtitle: "Explore previews & playgrounds in a Swift file"),
         Row(title: "Choose Template…", subtitle: "Other apps, libraries, and games…"),
     ]
-    /// The index in `rows` of "Choose Template…", which opens the full sheet.
     public static let chooseTemplateIndex = 4
 
-    /// SwiftCode's own template behind a row (nil: the template sheet).
     public static func template(forRow i: Int) -> ProjectTemplate? {
         switch i {
         case 0: .app
@@ -443,18 +397,13 @@ public enum NewProjectPicker {
     }
 }
 
-/// The New Project template sheet's catalog.
 public enum ProjectTemplateCatalog {
-    /// The sheet's heading line.
     public static let heading = "Choose a template for your new project:"
-    /// The platform tabs, in order.
     public static let platforms = ["Multiplatform", "iOS", "macOS", "watchOS", "tvOS", "visionOS", "DriverKit", "Other"]
     static let lastKey = "SwiftCodeLastProjectTemplate"
 
-    /// The template sections listed under a platform tab (`ProjectTemplates`).
     public static func sections(platform: String) -> [TemplateSection] { ProjectTemplates.sections(platform: platform) }
 
-    /// SwiftCode's own template for a sheet choice (nil: not yet supported).
     public static func template(platform: String, title: String) -> ProjectTemplate? {
         switch (platform, title) {
         case (_, "App"): .app
@@ -464,7 +413,6 @@ public enum ProjectTemplateCatalog {
         }
     }
 
-    /// The last selected template ("platform/title"), preselected next time.
     public static func lastSelection(_ d: UserDefaults) -> (platform: String, title: String) {
         let raw = d.string(forKey: lastKey) ?? ""
         if let t = ProjectTemplates.all.first(where: { $0.id == raw }) { return (t.platform, t.title) }
@@ -472,13 +420,11 @@ public enum ProjectTemplateCatalog {
         guard parts.count == 2, platforms.contains(parts[0]) else { return ("iOS", "App") }
         return (parts[0], parts[1])
     }
-    /// Stores the chosen template for `lastSelection(_:)`.
     public static func setLastSelection(platform: String, title: String, _ d: UserDefaults) {
         d.set("\(platform)/\(title)", forKey: lastKey)
     }
 }
 
-/// The options step ("Choose options for your new project:").
 public struct ProjectOptions: Equatable, Sendable {
     public static let heading = "Choose options for your new project:"
     public enum Interface: String, CaseIterable, Sendable { case swiftUI = "SwiftUI", storyboard = "Storyboard" }
@@ -497,11 +443,9 @@ public struct ProjectOptions: Equatable, Sendable {
     public var testing = Testing.swiftTesting
     public var storage = Storage.none
     public var hostInCloudKit = false
-    /// Replaces the SDK version as the deployment target (nil: `V(iOS)`).
     public var deploymentTarget: String?
     public init() {}
 
-    /// Derived; "<org>.ProductName" while the name is empty.
     public var bundleIdentifier: String {
         let n = productName.trimmingCharacters(in: .whitespaces)
         let id = n.isEmpty ? "ProductName" : String(n.map { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." ? $0 : "-" })
@@ -516,33 +460,19 @@ public struct ProjectOptions: Equatable, Sendable {
     }
 }
 
-/// The Welcome window's New Project ▸ App (`specs/ide/reference-ui-6.md`
-/// §1.5, W6): an untitled multiplatform SwiftUI app created at once, with
-/// no sheet, in SwiftCode's own untitled-projects folder. The file contents
-/// are SwiftCode's own; the setting names and values are interop facts
-/// (`specs/formats/pbxproj.md`).
 public enum UntitledAppProject {
-    /// The folder's base name ("Untitled Project", then "… 2", "… 3").
     public static let folderName = "Untitled Project"
-    /// The app target, its synchronized folder and the project's name.
     public static let targetName = "MyApp"
-    /// The newest SDK major (the deployment targets).
     public static let deploymentTarget = "27.0"
-    /// A placeholder bundle identifier that needs no team.
     public static let bundleIdentifier = "com.example.MyApp"
-    /// SDK "auto" builds for every supported platform.
     public static let supportedPlatforms = "iphoneos iphonesimulator macosx xros xrsimulator"
-    /// iPhone, iPad, Apple Vision (device families 1, 2, 7).
     public static let deviceFamilies = "1,2,7"
 
-    /// SwiftCode's untitled-projects folder in the user's Library.
     public static var defaultLocation: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Developer/SwiftCode/Untitled Projects", isDirectory: true)
     }
 
-    /// The first free folder under `base`: "Untitled Project", then
-    /// "Untitled Project 2", …
     public static func freeFolder(in base: URL) -> URL {
         var n = 1
         while true {
@@ -553,13 +483,11 @@ public enum UntitledAppProject {
         }
     }
 
-    /// The created project and the file the window opens with.
     public struct Created: Equatable, Sendable {
         public var project: URL
         public var entryFile: URL
     }
 
-    /// Creates the project in a free folder under `base`.
     public static func create(in base: URL = defaultLocation) throws -> Created {
         let root = freeFolder(in: base)
         let fm = FileManager.default
@@ -575,7 +503,6 @@ public enum UntitledAppProject {
         return Created(project: projURL, entryFile: root.appendingPathComponent("\(t)/\(t).swift"))
     }
 
-    /// The synchronized folder's files (paths under the project folder).
     static func files() -> [(String, String)] {
         let t = targetName
         return [
@@ -619,7 +546,6 @@ public enum UntitledAppProject {
         ]
     }
 
-    /// One app target whose sources are the synchronized folder.
     static func makeProject() throws -> PBXProj {
         var p = try PBXProj(parsing: "// !$*UTF8*$!\n{ archiveVersion = 1; classes = {}; objectVersion = 77; objects = {}; rootObject = 000000000000000000000000; }\n")
         func obj(_ attrs: [(String, PlistValue)]) -> String {
@@ -682,24 +608,9 @@ public enum UntitledAppProject {
     }
 }
 
-// MARK: - Legacy project-template manager (Audit A PARTIAL)
-
-/// The Legacy name for `LegacyProjectTemplateManager`.
-///
-/// Legacy `SwiftCode/Services/ProjectTemplateManager.swift` was already
-/// ported as `LegacyProjectTemplateManager` (Model/NewProject/…) with all 17
-/// templates verbatim: a verbatim `ProjectTemplateManager` class cannot live
-/// in this module because `ProjectTemplate` (the Legacy template struct) would
-/// collide with the public `ProjectTemplate` enum above. This alias restores
-/// the Legacy name — `ProjectTemplateManager.shared.templates` and
-/// `applyTemplate` — for call sites such as `ProjectTemplateView`.
 public typealias ProjectTemplateManager = LegacyProjectTemplateManager
 
 extension LegacyProjectTemplateManager {
-    /// Legacy-signature apply: writes the template's files into the
-    /// project's directory (`Project.directoryURL`), using the project's name
-    /// for the `(String) -> String` file contents. Delegates to the
-    /// directory-based `applyTemplate(_:projectName:to:)`.
     @MainActor
     public func applyTemplate(_ template: LegacyProjectTemplate, to project: Project) throws {
         try applyTemplate(template, projectName: project.name, to: project.directoryURL)

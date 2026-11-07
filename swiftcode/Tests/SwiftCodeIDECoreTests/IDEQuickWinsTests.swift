@@ -9,18 +9,12 @@ import SwiftCodeWorkspace
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// IDE-QUICKWINS: the models behind the wired Product, Debug and Editor
-/// items (`docs/PARITY.md` gap 11).
 @MainActor
 @Suite(.serialized) struct IDEQuickWinsTests {
     func scratch(_ name: String) -> URL {
         swiftcodeDir.appendingPathComponent(".build-ide/quickwins/\(name)-\(UUID().uuidString)")
     }
 
-    // MARK: Diagnostics
-
-    /// The sanitizers read and write the action's attributes; ASan and
-    /// TSan exclude each other; stack use after return needs ASan.
     @Test func schemeDiagnosticsAttributes() throws {
         let dir = scratch("diag")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -39,7 +33,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             && text.contains("enableUBSanitizer = \"YES\"") && !text.contains("enableThreadSanitizer"))
         let back = try Scheme(contentsOf: url, isShared: true)
         #expect(back.diagnostics() == d && back.diagnostics(for: "TestAction").isEmpty)
-        // TSan turns ASan (and its option) off; turning it off removes the attributes.
         d.set(\.threadSanitizer, true)
         #expect(d == SchemeDiagnostics(threadSanitizer: true, undefinedBehaviorSanitizer: true))
         d.set(\.addressSanitizer, true)
@@ -49,9 +42,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(!off.serialized().contains("Sanitizer"))
     }
 
-    /// Builds get the swift-build settings of the scheme action that
-    /// applies (Run for build and analyze, Test for test builds, none for
-    /// clean); runs get ASan's stack-use-after-return option.
     @Test func diagnosticsReachBuildsAndRuns() throws {
         let dir = scratch("diag-build")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -70,7 +60,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(settings(.analyze) == settings(.build))
         #expect(settings(.test) == ["ENABLE_THREAD_SANITIZER=YES"] && settings(.buildForTesting) == settings(.test))
         #expect(settings(.clean).isEmpty)
-        // A package has no scheme file: nothing.
         #expect(SchemeDiagnostics.schemeAction(for: .clean) == nil)
         let session = WorkspaceSession(model: model)
         session.scheme = "Tool"
@@ -82,10 +71,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(e == ["ASAN_OPTIONS": "detect_stack_use_after_return=1"])
     }
 
-    // MARK: Tool actions
-
-    /// The command lines of Export / Import Localizations and Build
-    /// Documentation; the languages; what the logs name.
     @Test func toolActionCommandLines() throws {
         let p = URL(fileURLWithPath: "/w/App.xcodeproj")
         #expect(IDEToolActions.exportArguments(project: p, to: URL(fileURLWithPath: "/w/App Localizations"), languages: ["en", "fr"])
@@ -104,13 +89,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         defer { try? FileManager.default.removeItem(at: dir) }
         let proj = try writeToolProject(at: dir)
         let model = try WorkspaceModel(url: proj)
-        // developmentRegion en, knownRegions (en, Base) in the fixture.
         #expect(IDEToolActions.exportLanguages(model.projects[proj.path]) == ["en"])
         #expect(IDEToolActions.localizationProject(model) == proj)
     }
 
-    /// The archives under a docbuild's derived data; the derived data
-    /// folder of both build-folder layouts; deleting it.
     @Test func archivesAndDerivedData() throws {
         let dir = scratch("dd")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -126,10 +108,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(IDEToolActions.derivedDataFolder(buildFolder: swb) == swb)
         #expect(IDEToolActions.derivedDataFolder(buildFolder: xcb).path == "/dd/App-abc")
         #expect(IDEToolActions.deleteDerivedData(dir) && !fm.fileExists(atPath: dir.path))
-        #expect(IDEToolActions.deleteDerivedData(dir))  // already gone
+        #expect(IDEToolActions.deleteDerivedData(dir))
     }
 
-    /// A tool action: the activity texts, the report, the products.
     @Test func toolActionRecordsAReport() async throws {
         let dir = scratch("tool")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -146,7 +127,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let bad = await session.buildDocumentation { _, _ in (65, "xcodebuild: error: no\n** BUILD DOCUMENTATION FAILED **") }
         #expect(bad?.succeeded == false && bad?.products == [])
         #expect(session.activity == .finished("Build Documentation Failed") && session.reports.first?.errorCount == 1)
-        // A package has no project to localize.
         let pkg = scratch("tool-pkg")
         defer { try? FileManager.default.removeItem(at: pkg) }
         try FileManager.default.createDirectory(at: pkg, withIntermediateDirectories: true)
@@ -155,9 +135,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(await ps.exportLocalizations(to: pkg) == nil && IDEToolActions.localizationProject(ps.model) == nil)
     }
 
-    /// Export and import through swiftcodebuild in this process: a project with
-    /// a localized `.strings` group gives `fr.xcloc`; a translated XLIFF
-    /// comes back into `fr.lproj`.
     @Test func exportAndImportLocalizationsInProcess() async throws {
         let dir = scratch("loc")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -178,10 +155,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(session.reports.map(\.title) == ["Import Localizations Loc", "Export Localizations Loc"])
     }
 
-    // MARK: Result bundles
-
-    /// An `.xcresult` read back as a test report: outcomes, failures as
-    /// issues, the report kind.
     @Test func resultBundleReport() throws {
         let dir = scratch("xcresult")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -194,8 +167,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(r.context.issues.first?.message == "XCTAssertEqual failed" && r.context.issues.first?.location?.line == 12)
         #expect(throws: (any Error).self) { try ResultBundleReport.report(dir.appendingPathComponent("none.xcresult")) }
     }
-
-    // MARK: Repetitions
 
     @Test func repetitionModes() {
         let a = DiscoveredTest(file: "/t/A.swift", suite: "A", name: "testOne", line: 3, kind: .xctest)
@@ -216,8 +187,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(TestRepetition.summary(iterations: 3, failedIterations: 1, mode: .fixed) == "SwiftCode: Fixed Iterations: 3 iterations, 1 with failures.")
     }
 
-    // MARK: Appearance
-
     @Test func debugAppearanceItems() {
         var o = EnvironmentOverrides()
         o.values[.boldText] = "on"
@@ -230,12 +199,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(DebugAppearanceMenu.titles.count == DebugAppearanceMenu.actions.count)
     }
 
-    // MARK: Coverage
-
-    /// Line counts from llvm-cov segments and from swiftcodebuild's summary;
-    /// the session finds a file's counts in the newest coverage report.
     @Test func coverageLines() throws {
-        // A function on lines 1–3 run twice, an unexecuted branch on line 2.
         let segments: [[Any]] = [[1, 10, 2, true, true, false], [2, 5, 0, true, true, false], [2, 9, 2, true, false, false], [3, 2, 0, false, false, false]]
         #expect(Coverage.lineCounts(llvmCovSegments: segments) == [2, 2, 2])
         let summary = Data(#"{"targets":[{"name":"Calc","coveredLines":2,"executableLines":3,"files":[{"path":"/w/Calc/A.swift","coveredLines":2,"executableLines":3,"lines":[-1,4,0,4]}]}]}"#.utf8)
@@ -264,7 +228,6 @@ final class Calls: @unchecked Sendable {
     func add(_ a: [String], _ c: String) { lock.withLock { list.append((a, c)) } }
 }
 
-/// A macOS app project with a localized `Greetings.strings` (en, fr).
 func writeLocalizedProject(at dir: URL) throws -> URL {
     let fm = FileManager.default
     for sub in ["Loc.xcodeproj", "Loc/en.lproj", "Loc/fr.lproj"] { try fm.createDirectory(at: dir.appendingPathComponent(sub), withIntermediateDirectories: true) }
@@ -307,8 +270,6 @@ func writeLocalizedProject(at dir: URL) throws -> URL {
     return dir.appendingPathComponent("Loc.xcodeproj")
 }
 
-/// A result bundle written by swiftcodebuild's own writer: AppTests with a
-/// pass, a failure (at /src/A.swift:12) and a skip, and a Swift Testing pass.
 func writeResultBundle(at path: String) {
     func target() -> TestTarget {
         TestTarget(blueprintName: "AppTests", projectName: "App", projectRelativePath: "App.xcodeproj", blueprintIdentifier: "",

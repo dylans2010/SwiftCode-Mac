@@ -2,15 +2,7 @@ import Foundation
 import SwiftCodeDebug
 import SwiftCodeSubprocess
 
-/// Connects sourcekit-lsp to SwiftCode's build server for a project or
-/// workspace: a private folder holds the connection file
-/// (`.bsp/swiftcode.json`) that names `swiftcode-bsp`, and the language server is
-/// opened on that folder. sourcekit-lsp then starts the build server and
-/// asks it for targets, sources and compiler arguments. See
-/// `specs/ide/language.md` §Build server.
 public enum BuildServerLaunch {
-    /// The setting (`UserDefaults`, default on): Settings key
-    /// `SwiftCode.buildServer`. `SWIFTCODE_BUILD_SERVER=0` turns it off for one run.
     public static let defaultsKey = "SwiftCode.buildServer"
 
     public static func isEnabled(environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -19,9 +11,6 @@ public enum BuildServerLaunch {
         return defaults.object(forKey: defaultsKey) as? Bool ?? true
     }
 
-    /// The build server executable: `SWIFTCODE_BSP`, else `swiftcode-bsp` next to
-    /// the running executable or in the app bundle's `Contents/Helpers`,
-    /// else on `PATH`.
     public static func locate(environment: [String: String] = ProcessInfo.processInfo.environment,
                               executableURL: URL? = Bundle.main.executableURL) -> String? {
         let fm = FileManager.default
@@ -38,13 +27,8 @@ public enum BuildServerLaunch {
         return nil
     }
 
-    /// sourcekit-lsp's options for a folder SwiftCode prepared. SwiftCode wrote the
-    /// folder's connection file itself (naming its own build server), so
-    /// it skips sourcekit-lsp's workspace-trust prompt for workspace-scoped
-    /// configuration (`bypassWorkspaceTrust`; older servers ignore the key).
     public static let initializationOptions: JSON = ["bypassWorkspaceTrust": true]
 
-    /// The build server's command line for a container.
     public static func argv(server: String, container: URL, scheme: String? = nil, destination: String? = nil) -> [String] {
         var a = ["serve", container.standardizedFileURL.path]
         if let scheme { a += ["--scheme", scheme] }
@@ -52,7 +36,6 @@ public enum BuildServerLaunch {
         return HostTool.commandOnHost(tool: server, arguments: a)
     }
 
-    /// The connection file's contents (the BSP connection protocol).
     public static func configJSON(argv: [String]) -> JSON {
         [
             "name": "SwiftCode",
@@ -63,10 +46,6 @@ public enum BuildServerLaunch {
         ]
     }
 
-    /// The folder sourcekit-lsp opens for a container: under the user's
-    /// caches (`~/Library/Caches/SwiftCode/BuildServer` on macOS,
-    /// `$XDG_CACHE_HOME/swiftcode/build-server` on Linux), one per container,
-    /// so that nothing is written into the project.
     public static func workspaceFolder(for container: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
         let home = environment["HOME"] ?? NSHomeDirectory()
         #if os(macOS)
@@ -79,7 +58,6 @@ public enum BuildServerLaunch {
         return URL(fileURLWithPath: root).appendingPathComponent("\(name)-\(hash(path))")
     }
 
-    /// Writes `<folder>/.bsp/swiftcode.json`; returns the file.
     @discardableResult
     public static func writeConfig(argv: [String], into folder: URL) throws -> URL {
         let dir = folder.appendingPathComponent(".bsp")
@@ -89,9 +67,6 @@ public enum BuildServerLaunch {
         return file
     }
 
-    /// Prepares the folder to open sourcekit-lsp on for a project or
-    /// workspace; nil when the setting is off, the container is a package
-    /// (sourcekit-lsp reads packages itself) or the server is not found.
     public static func prepareWorkspaceFolder(container: URL, scheme: String? = nil, destination: String? = nil,
                                               environment: [String: String] = ProcessInfo.processInfo.environment,
                                               defaults: UserDefaults = .standard) -> URL? {
@@ -106,7 +81,6 @@ public enum BuildServerLaunch {
         return folder
     }
 
-    /// FNV-1a, 64 bits, as 16 hex digits (a stable folder name, not security).
     static func hash(_ s: String) -> String {
         var h: UInt64 = 0xcbf2_9ce4_8422_2325
         for b in s.utf8 {

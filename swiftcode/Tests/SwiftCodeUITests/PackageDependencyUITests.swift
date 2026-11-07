@@ -7,8 +7,6 @@ import SwiftCodeProject
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// A package `Kit` (products Kit, KitTools) in a git repository with tags
-/// 1.0.0 and 1.1.0: the "remote" for package tests. Never the network.
 func makeLocalPackageRemote(in dir: URL) throws -> URL {
     let repo = dir.appendingPathComponent("remote/Kit")
     try FileManager.default.createDirectory(at: repo.appendingPathComponent("Sources/Kit"), withIntermediateDirectories: true)
@@ -56,7 +54,6 @@ func makeLocalPackageRemote(in dir: URL) throws -> URL {
         wc.packageCheckoutsDirectory = dir.appendingPathComponent("SourcePackages/checkouts")
         wc.window?.appearance = NSAppearance(named: .aqua)
         wc.applyDefaultLayout()
-        // The fixture's package shows in the navigator (unresolved: no version).
         #expect(wc.navigator.rows(0).map(\.title) == ["Hello", "Package Dependencies"])
         #expect(wc.navigator.rows(0)[1].children.map(\.title) == ["swift-argument-parser"])
 
@@ -67,7 +64,6 @@ func makeLocalPackageRemote(in dir: URL) throws -> URL {
         pe.removePackage("0F0000000000000000000001")
         #expect(pe.packageRows.isEmpty)
 
-        // Remote (a file:// git URL), up to next minor from 1.0.0 → 1.0.0.
         let sheet = try #require(wc.addPackageDependencies(nil))
         _ = sheet.view
         sheet.locationField.stringValue = remote.absoluteString
@@ -78,7 +74,7 @@ func makeLocalPackageRemote(in dir: URL) throws -> URL {
         #expect(sheet.fetchedProducts == ["Kit", "KitTools"])
         sheet.productChecks[1].state = .off
         await sheet.add()
-        await wc.packageWork?.value   // resolution runs in the background
+        await wc.packageWork?.value
         let pbx = try String(contentsOf: proj.appendingPathComponent("project.pbxproj"), encoding: .utf8)
         #expect(pbx.contains("kind = upToNextMinorVersion;") && pbx.contains("/* XCRemoteSwiftPackageReference \"Kit\" */"))
         #expect(pbx.contains("/* Kit in Frameworks */") && !pbx.contains("KitTools"))
@@ -86,10 +82,9 @@ func makeLocalPackageRemote(in dir: URL) throws -> URL {
         #expect(resolved.contains("\"version\" : \"1.0.0\""))
         let section = try #require(wc.navigator.rows(0).last)
         #expect(section.title == "Package Dependencies" && section.children.map(\.title) == ["Kit 1.0.0"])
-        #expect(section.children[0].children.map(\.title).contains("Package"))  // extensions hidden by default
+        #expect(section.children[0].children.map(\.title).contains("Package"))
         #expect(pe.packageRows.map(\.products) == [["Kit"]])
 
-        // Local path, relative to the project directory.
         let local = try #require(wc.addPackageDependencies(nil))
         _ = local.view
         local.locationField.stringValue = remote.path
@@ -129,7 +124,6 @@ func makeLocalPackageRemote(in dir: URL) throws -> URL {
         let resolved = try String(contentsOf: proj.appendingPathComponent("project.xcworkspace/xcshareddata/swiftpm/Package.resolved"), encoding: .utf8)
         #expect(resolved.contains("\"originHash\" : ") && resolved.contains("\"version\" : 3"))
 
-        // Adding a String Catalog language adds it to knownRegions.
         let strings = dir.appendingPathComponent("Hello/Localizable.xcstrings")
         try FileManager.default.createDirectory(at: strings.deletingLastPathComponent(), withIntermediateDirectories: true)
         try StringCatalog().data().write(to: strings)

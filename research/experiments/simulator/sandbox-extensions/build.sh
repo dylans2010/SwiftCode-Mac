@@ -1,5 +1,4 @@
 #!/bin/sh
-# Builds sbext for the iOS simulator. Usage: build.sh <output dir outside the repo>
 set -e
 OUT=${1:?output directory}
 HERE=$(cd "$(dirname "$0")" && pwd)

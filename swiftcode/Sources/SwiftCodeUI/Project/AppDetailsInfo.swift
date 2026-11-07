@@ -1,16 +1,7 @@
-// AppDetailsInfo.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/AppDetailsInfo.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: inspector wrapper embedding project details with Skip/Continue flow
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/AppDetailsInfo.swift (derived from Legacy).
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): VisualEffectView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import AppKit
 
 public struct AppDetailsInfo: View {
-    // Legacy bindings maintained for compatibility with WorkspaceView
     @Binding var appName: String
     @Binding var bundleIdentifier: String
     @Binding var marketingVersion: String
@@ -40,7 +31,6 @@ public struct AppDetailsInfo: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // High fidelity statistics header for Sidebar panel
             HStack(spacing: 12) {
                 Image(systemName: "info.circle.fill")
                     .font(.title2)

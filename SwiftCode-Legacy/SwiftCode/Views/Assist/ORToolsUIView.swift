@@ -1,48 +1,13 @@
-//
-//  ORToolsUIView.swift
-//  SwiftCode
-//
-//  Native tool-call activity from the OpenRouter Agent SDK.
-//
-//  Visual language follows the Muse tool cards (MuseSDKToolCall):
-//  12pt semibold rounded titles, 10–11pt secondary text, a collapsible
-//  card per call with a rotating chevron, a tinted state badge, a
-//  running progress indicator, and a scrollable monospaced result block.
-//  The tint is purple, the OpenRouter identity, against Muse's blue and
-//  the native tools' green.
-//
-//  Wiring (the parent owns this; this view renders only): the parent
-//  observes `SDKToolEventStore` and passes a snapshot,
-//  `ORToolsUIView(events: store.events(for: sessionId))`. The view takes
-//  a plain array on purpose: rendering never touches a store, a client,
-//  or any async work, so a streaming session cannot freeze the UI.
-//  Rows are keyed by `toolCallId` (never by index or by `id`), so a
-//  merge updates a row in place without duplicating it or losing its
-//  expansion state.
-//
-//  Provider routing (integration correction to the original source
-//  filter): the view renders every event whose serving provider is
-//  "openrouter", whatever its tool source. In an SDK run, a
-//  SwiftCode-native call bridged through the OpenRouter Agent SDK still
-//  belongs to that run's view — the native plan UI does not render SDK
-//  runs — while `source` continues to drive execution routing and is
-//  shown per row. Each event still renders in exactly one provider
-//  view, never both. Tool names are displayed exactly as reported
-//  by the runtime.
-
 import SwiftUI
 import AppKit
 
 public struct ORToolsUIView: View {
-    /// Snapshot of tool events for one session. May contain other
-    /// providers' events; only this provider's rows are rendered.
     public let events: [SDKToolEvent]
 
     public init(events: [SDKToolEvent]) {
         self.events = events
     }
 
-    /// This provider's rows only, in first-seen order (the store's order).
     private var toolEvents: [SDKToolEvent] {
         events.filter { $0.provider == "openrouter" }
     }
@@ -98,17 +63,12 @@ public struct ORToolsUIView: View {
     }
 }
 
-// MARK: - One OpenRouter tool call
-
 private struct ORToolCallRow: View {
     let event: SDKToolEvent
 
     @State private var isOpen: Bool = false
     @State private var isCopied: Bool = false
 
-    /// Parsed key/value rows from the (redacted) arguments, when the
-    /// arguments are a JSON object. Nil for non-object arguments, which
-    /// fall back to the plain redacted text block.
     private var argumentRows: [(key: String, value: String)]? {
         guard let data = event.safeArguments.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -162,11 +122,6 @@ private struct ORToolCallRow: View {
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
 
-                    // Per-row source badge: the header says "OpenRouter
-                    // Tools" for the whole panel, but a combined run
-                    // also renders SwiftCode-source rows here. Without
-                    // the badge a SwiftCode row was indistinguishable
-                    // from a provider row.
                     Text(sourceLabel(for: event.source))
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
@@ -314,10 +269,6 @@ private struct ORToolCallRow: View {
 
                     if event.state == .failed || event.state == .cancelled {
                         VStack(alignment: .leading, spacing: 4) {
-                            // Cancelled is not an error: the old code
-                            // rendered both under an "Error" heading
-                            // in red, so a user-initiated cancel
-                            // looked like a tool failure.
                             Text(event.state == .cancelled ? "Cancelled" : "Error")
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                                 .foregroundStyle(event.state == .cancelled ? Color.secondary : Color.red)

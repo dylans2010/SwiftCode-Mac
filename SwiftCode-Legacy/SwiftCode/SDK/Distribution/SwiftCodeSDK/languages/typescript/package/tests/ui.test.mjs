@@ -1,12 +1,3 @@
-// ui.openView wire-contract tests for @swiftcode/sdk.
-//
-// Covers the new `context.ui` API (backed by the Swift host's
-// `SDKIPCDispatcher` "ui.openView" route): the context sends exactly
-// `ui.openView` with a `{viewId}` payload, rejects blank view IDs
-// client-side with INVALID_ARGUMENT, and surfaces host denials as typed
-// errors. Uses the same scripted-fake-host pattern as cloudmodel.test.mjs.
-//
-// Run: `npm run build && npm test` (npm test = `node --test "tests/*.test.mjs"`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";

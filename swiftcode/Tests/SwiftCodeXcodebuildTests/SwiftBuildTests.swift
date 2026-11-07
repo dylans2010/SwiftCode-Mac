@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeXcodebuild
 
-/// End-to-end through swift-build, with the `swiftcode-swb` helper from
-/// `SWIFTCODE_SWB` or the local scratch build (see swiftcode/Tools/swiftcode-swb).
-/// Skipped when no helper is available.
 @Suite(.serialized, .timeLimit(.minutes(10))) struct SwiftBuildEndToEndTests {
     static var helper: String? {
         let env = ProcessInfo.processInfo.environment
@@ -22,7 +19,6 @@ import Testing
         var ctx = XcodebuildContext.current(console: capture.console)
         ctx.cwd = cwd
         ctx.environment["SWIFTCODE_SWB"] = helper
-        // The built tool lists swift-testing tests in a child process.
         let built = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(".build/debug/swiftcodebuild").path
         ctx.toolPath = FileManager.default.isExecutableFile(atPath: built) ? built : "/usr/local/bin/swiftcodebuild"
@@ -35,8 +31,6 @@ import Testing
         guard let helper = Self.helper else { return }
         let proj = try writeMultiProject()
         let dir = proj.deletingLastPathComponent().path
-        // Settings come from swift-build: hundreds of them, with the
-        // reference tool's GUID scheme and legacy build locations.
         let s = run(["-showBuildSettings", "-json", "-target", "App"], cwd: dir, helper: helper)
         #expect(s.code == 0)
         let list = try JSONSerialization.jsonObject(with: Data(s.out.utf8)) as? [[String: Any]]
@@ -46,7 +40,6 @@ import Testing
         #expect(settings["BUILT_PRODUCTS_DIR"] == dir + "/build/Debug")
         #expect(settings["MY_BASE"] == "base")
 
-        // Build the scheme (the tool links the library it depends on), run it.
         let dd = dir + "/DerivedData"
         let b = run(["-scheme", "App", "-derivedDataPath", dd, "build"], cwd: dir, helper: helper)
         #expect(b.code == 0, "\(b.err)")
@@ -57,7 +50,6 @@ import Testing
         #expect(c.code == 0 && c.out.contains("** CLEAN SUCCEEDED **"))
         #expect(!FileManager.default.fileExists(atPath: dd + "/Build/Products/Debug/App"))
 
-        // A compile error fails with exit 65 and the failure summary.
         try "int main(void) { return x; }\n".write(toFile: dir + "/App/main.c", atomically: true, encoding: .utf8)
         let f = run(["-scheme", "App", "-derivedDataPath", dd, "-quiet", "build"], cwd: dir, helper: helper)
         #expect(f.code == 65)
@@ -66,7 +58,6 @@ import Testing
         #endif
     }
 
-    /// `xcrun xcresulttool get <args> --path <bundle>` as JSON, when the tool exists.
     func xcresulttool(_ args: [String], _ bundle: String) -> [String: Any]? {
         #if os(macOS)
         guard FileManager.default.isExecutableFile(atPath: "/usr/bin/xcrun") else { return nil }
@@ -84,7 +75,6 @@ import Testing
         let proj = try writeMultiProject()
         let dir = proj.deletingLastPathComponent().path
         let dd = dir + "/DerivedData"
-        // A build writes the bundle and says so before the banner.
         let bundle = dir + "/build.xcresult"
         let b = run(["-scheme", "App", "-derivedDataPath", dd, "-resultBundlePath", bundle, "build"], cwd: dir, helper: helper)
         #expect(b.code == 0, "\(b.err)")
@@ -95,11 +85,9 @@ import Testing
             #expect(results["status"] as? String == "succeeded")
             #expect(results["actionTitle"] as? String == "Build \"App\"")
         }
-        // An existing bundle is an error before anything runs.
         let again = run(["-scheme", "App", "-derivedDataPath", dd, "-resultBundlePath", bundle, "build"], cwd: dir, helper: helper)
         #expect(again.code == 64 && again.out.isEmpty && again.err.hasPrefix("xcodebuild: error: Existing file at -resultBundlePath"))
 
-        // archive: the installed tool under Products, the plist keys.
         let archive = dir + "/App.xcarchive"
         let a = run(["-scheme", "App", "-derivedDataPath", dd, "-archivePath", archive, "archive"], cwd: dir, helper: helper)
         #expect(a.code == 0, "\(a.err)")
@@ -109,7 +97,6 @@ import Testing
         let info = try #require(NSDictionary(contentsOfFile: archive + "/Info.plist") as? [String: Any])
         #expect(info["ArchiveVersion"] as? Int == 2 && info["Name"] as? String == "App" && info["SchemeName"] as? String == "App")
         #expect(info["ApplicationProperties"] == nil)
-        // A tool archive cannot be exported.
         let options = dir + "/export.plist"
         try (try PropertyListSerialization.data(fromPropertyList: ["method": "mac-application"], format: .xml, options: 0)).write(to: URL(fileURLWithPath: options))
         let x = run(["-exportArchive", "-archivePath", archive, "-exportPath", dir + "/out", "-exportOptionsPlist", options], cwd: dir, helper: helper)
@@ -128,7 +115,6 @@ import Testing
         #expect(t.code == 65, "\(t.err)")
         #expect(t.out.contains("Test Case '-[CalcTests.AddTests testAdd]' passed"))
         #expect(t.out.contains("Test session results, code coverage, and logs:\n\t\(bundle)\n\n"))
-        // Not a terminal: "Testing started" comes last.
         #expect(t.out.hasSuffix("Testing started\n"))
         #expect(t.err.contains("Failing tests:\n\tFailingTests.testWrong()\n\tSwiftFailing.wrong()\n\n** TEST FAILED **"), "\(t.err)")
         if let summary = xcresulttool(["test-results", "summary"], bundle) {
@@ -137,7 +123,6 @@ import Testing
             #expect(summary["skippedTests"] as? Int == 1)
             #expect(summary["passedTests"] as? Int == 6)
         }
-        // build-for-testing writes a test run file; running it needs no project.
         let bft = run(["-scheme", "CalcTests", "-derivedDataPath", dd, "build-for-testing"], cwd: dir, helper: helper)
         #expect(bft.code == 0 && bft.out.contains("** TEST BUILD SUCCEEDED **"))
         let products = dd + "/Build/Products"
@@ -146,14 +131,12 @@ import Testing
         #expect(twb.code == 0, "\(twb.err)")
         #expect(twb.out.contains("** TEST EXECUTE SUCCEEDED **"))
         #expect(twb.out.contains(dd + "/Logs/Test/Test-CalcTests-"))
-        // docbuild: a documentation archive per module, next to the products.
         let doc = run(["-scheme", "CalcKit", "-derivedDataPath", dd, "docbuild"], cwd: dir, helper: helper)
         #expect(doc.code == 0 && doc.out.contains("** BUILD DOCUMENTATION SUCCEEDED **"), "\(doc.err)")
         #expect(FileManager.default.fileExists(atPath: products + "/Debug/CalcKit.doccarchive/data"))
         #endif
     }
 
-    /// A copy of a TestHostSamples project (tests do not write into the repository).
     static func copyHostSample(_ name: String) throws -> URL {
         let swiftcode = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-host-\(UUID().uuidString)")
@@ -162,10 +145,6 @@ import Testing
         return dir.appendingPathComponent(name)
     }
 
-    /// Hosted tests built for a simulator: swift-build embeds the testing
-    /// libraries in the host app (testing.md, "Building"). A UI test bundle
-    /// is signed with entitlements from SwiftCode's signing (signing.md §4.1),
-    /// not an entitlement set the PIF makes up.
     @Test func hostedTestBuildsEmbedTestingLibrariesAndSignUITests() throws {
         #if os(macOS)
         guard let helper = Self.helper else { return }
@@ -175,7 +154,6 @@ import Testing
         let dd = phone.path + "/DerivedData"
         let b = run(["-project", "HostPhone.xcodeproj", "-scheme", "HostPhone", "-destination", "platform=iOS Simulator,name=SwiftCode Simulator,arch=arm64",
                      "-derivedDataPath", dd, "build-for-testing"], cwd: phone.path, helper: helper)
-        // Without the iOS simulator SDK the build cannot run here.
         if b.err.contains("SDK") && b.code != 0 { return }
         #expect(b.code == 0, "\(b.err)")
         let frameworks = dd + "/Build/Products/Debug-iphonesimulator/HostPhone.app/Frameworks"
@@ -193,13 +171,10 @@ import Testing
         let xcent = macDD + "/Build/Intermediates.noindex/HostMac.build/Debug/HostMacUITests.build/HostMacUITests.xctest.xcent"
         let entitlements = NSDictionary(contentsOfFile: xcent) as? [String: Any]
         #expect(entitlements?["com.apple.security.get-task-allow"] as? Bool == true)
-        // Mac hosts keep swift-build's default: no copies (DYLD_FRAMEWORK_PATH at run time).
         #expect(!fm.fileExists(atPath: macDD + "/Build/Products/Debug/HostMac.app/Contents/Frameworks/XCTest.framework"))
         #endif
     }
 
-    /// A Swift package folder: schemes, the destination requirement, build
-    /// and test through SwiftPM's build description.
     @Test func packageFolder() throws {
         #if os(macOS)
         guard let helper = Self.helper else { return }
@@ -245,7 +220,6 @@ import Testing
         let t = run(["-scheme", "Tools-Package", "-destination", "platform=macOS", "-derivedDataPath", dd, "test"], cwd: cwd, helper: helper)
         #expect(t.code == 0, "\(t.err)")
         #expect(t.out.contains("Test Case '-[GreetKitTests.GreetKitTests testGreeting]' passed") && t.out.contains("** TEST SUCCEEDED **"))
-        // The package folder itself is left as it was.
         #expect(try fm.contentsOfDirectory(atPath: cwd).sorted() == ["Package.swift", "Sources", "Tests"])
         #endif
     }

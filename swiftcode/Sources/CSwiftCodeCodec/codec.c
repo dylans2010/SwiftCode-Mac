@@ -1,5 +1,3 @@
-/* CSwiftCodeCodec (see include/CSwiftCodeCodec.h). Uses only the public libjpeg
- * and zlib interfaces, resolved with dlopen/dlsym. */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
@@ -24,8 +22,6 @@ void swiftcodec_name_thread(const char *name) {
     pthread_setname_np(pthread_self(), buf);
 #endif
 }
-
-/* ---- zlib ---- */
 
 typedef int (*compress2_fn)(unsigned char *, unsigned long *, const unsigned char *, unsigned long, int);
 typedef unsigned long (*compressBound_fn)(unsigned long);
@@ -101,8 +97,6 @@ uint32_t swiftcodec_crc32(uint32_t crc, const uint8_t *src, size_t n) {
     return ~crc;
 }
 
-/* ---- downscale ---- */
-
 void swiftcodec_downscale_bgra(const uint8_t *src, size_t srcBytesPerRow, int srcWidth, int srcHeight, int factor,
                            uint8_t *dst, size_t dstBytesPerRow) {
     if (factor < 1) factor = 1;
@@ -136,8 +130,6 @@ void swiftcodec_downscale_bgra(const uint8_t *src, size_t srcBytesPerRow, int sr
     }
 }
 
-/* ---- JPEG ---- */
-
 #if defined(__has_include)
 #if __has_include(<jpeglib.h>)
 #define SWIFTCODEC_HAVE_JPEG_HEADER 1
@@ -158,7 +150,6 @@ static struct {
     void (*finish)(j_compress_ptr);
     void (*destroy)(j_compress_ptr);
     int ok;
-    /* Decompression (the viewer's side). */
     void (*d_create)(j_decompress_ptr, int, size_t);
     void (*d_mem_src)(j_decompress_ptr, const unsigned char *, unsigned long);
     int (*d_read_header)(j_decompress_ptr, boolean);
@@ -347,7 +338,7 @@ int swiftcodec_jpeg_decode_bgra(const uint8_t *data, size_t size, int width, int
     return 0;
 }
 
-#else /* no jpeglib.h at build time */
+#else
 
 int swiftcodec_jpeg_available(void) { return 0; }
 

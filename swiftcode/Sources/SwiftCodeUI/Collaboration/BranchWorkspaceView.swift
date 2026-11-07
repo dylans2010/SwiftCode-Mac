@@ -1,19 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/BranchWorkspaceView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The branch workspace: current-branch workspace files with an inline
-// editor, pending changes with stage/unstage and diff links, commit /
-// discard / reset actions, branch creation, and PR creation from a
-// prepared payload. Not in the migration worklists, but staged here
-// because `CollaborationMainView` (batch 2) instantiates it for its
-// `.branches` tab and it exists nowhere in the destination — without it
-// the tab does not compile.
-//
-// Adaptations for SwiftCode: Legacy's hardcoded dark paint / white text
-// become system-adaptive, and `.liquidGlass` (no destination
-// equivalent) becomes the system thin material, as in the sibling
-// Collaboration views.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

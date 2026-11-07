@@ -3,13 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-// Stage 4b descriptors (`specs/simulator/stage4b-contract.md` §6): pipes,
-// dup/dup2/fcntl, blocking and waking, and the trap-level glue.
-
-/// One process image for descriptor tests: a kernel over a fake physical
-/// backing, a read-only prefix and a writable `/tmp`-like prefix at a
-/// temporary directory, and a scratch region. Several share one
-/// `DarwinSystem` when `system` is given.
 final class DEnv: @unchecked Sendable {
     static let scratch: UInt64 = 0x1_0000_0000
     static let scratchSize: UInt64 = 0x40000
@@ -19,8 +12,6 @@ final class DEnv: @unchecked Sendable {
     let sink: Sink
     let root: String
 
-    /// A new image. With `parent`, it joins the parent's system and gets a
-    /// child copy of its file system (as spawn does).
     init(parent: DEnv? = nil, pid: Int32 = 100) throws {
         let sink = Sink()
         self.sink = sink
@@ -43,7 +34,6 @@ final class DEnv: @unchecked Sendable {
         _ = try space.mapAnonymous(at: Self.scratch, size: Self.scratchSize, protection: .readWrite, hint: nil)
     }
 
-    /// The writable directory (guest path).
     var writable: String { root + "/w" }
 
     struct Result {
@@ -51,9 +41,7 @@ final class DEnv: @unchecked Sendable {
         var x1: UInt64
         var carry: Bool
         var outcome: DarwinKernel.Outcome
-        /// The value, or nil on failure.
         var value: UInt64? { carry ? nil : x0 }
-        /// The errno, or nil on success.
         var errno: Int32? { carry ? Int32(truncatingIfNeeded: x0) : nil }
         var fd: Int32 { Int32(truncatingIfNeeded: x0) }
     }
@@ -74,28 +62,24 @@ final class DEnv: @unchecked Sendable {
     func u32(_ va: UInt64) -> UInt32 { UInt32(truncatingIfNeeded: le(get(va, 4))) }
     func i32(_ va: UInt64) -> Int32 { Int32(bitPattern: u32(va)) }
 
-    /// write(fd, text) through the trap.
     @discardableResult
     func write(_ fd: Int32, _ text: String, at va: UInt64 = DEnv.scratch + 0x1000) -> Result {
         put(Array(text.utf8), at: va)
         return call(4, [UInt64(fd), va, UInt64(text.utf8.count)])
     }
 
-    /// read(fd, count) through the trap; the text read (nil on failure).
     func read(_ fd: Int32, _ count: Int = 256, at va: UInt64 = DEnv.scratch + 0x2000) -> (Result, String?) {
         let r = call(3, [UInt64(fd), va, UInt64(count)])
         guard let n = r.value else { return (r, nil) }
         return (r, String(decoding: get(va, Int(n)), as: UTF8.self))
     }
 
-    /// pipe() → (read fd, write fd).
     func pipe() -> (Int32, Int32) {
         let r = call(42)
         precondition(!r.carry, "pipe failed")
         return (Int32(truncatingIfNeeded: r.x0), Int32(truncatingIfNeeded: r.x1))
     }
 
-    /// sigaction(sig, SIG_IGN).
     func ignore(_ signal: Int32) {
         let va = Self.scratch + 0x3F000
         var b = [UInt8](repeating: 0, count: 24)
@@ -105,8 +89,6 @@ final class DEnv: @unchecked Sendable {
     }
 }
 
-/// Runs `body` on a new host thread; `wait` returns its result (or nil
-/// after the timeout).
 final class HostThread<T>: @unchecked Sendable {
     private let done = DispatchSemaphore(value: 0)
     private let mutex = NSLock()
@@ -141,23 +123,18 @@ final class HostThread<T>: @unchecked Sendable {
         let (r, w) = e.pipe()
         #expect(r == 3 && w == 4)
         #expect(e.write(w, "hello").value == 5)
-        // fstat: S_IFIFO | 0660, the buffered count.
         let st = DEnv.scratch + 0x4000
         #expect(e.call(339, [UInt64(r), st]).value == 0)
         let stat = try #require(DarwinStat(decodingStat64: e.get(st, 144)))
         #expect(stat.mode == DarwinStat.S_IFIFO | 0o660 && stat.size == 5 && stat.blksize == 16384)
-        // F_GETFL: the access modes.
         #expect(e.call(92, [UInt64(r), 3, 0]).value == 0)
         #expect(e.call(92, [UInt64(w), 3, 0]).value == 1)
         #expect(e.read(r, 3).1 == "hel")
         #expect(e.read(r).1 == "lo")
-        // Wrong direction: EBADF.
         #expect(e.read(w).0.errno == 9)
         #expect(e.write(r, "x").errno == 9)
-        // No seeking.
         #expect(e.call(199, [UInt64(r), 0, 1]).errno == 29)
         #expect(e.call(153, [UInt64(r), DEnv.scratch, 1, 0]).errno == 29)
-        // Writer gone: end of file.
         #expect(e.call(6, [UInt64(w)]).value == 0)
         let (eof, text) = e.read(r)
         #expect(eof.value == 0 && text == "")
@@ -170,7 +147,6 @@ final class HostThread<T>: @unchecked Sendable {
         e.ignore(13)
         #expect(e.write(w, "x").errno == 32)
         #expect(!e.kernel.isTerminating)
-        // F_SETNOSIGPIPE suppresses it on the description.
         let e2 = try DEnv()
         let (r2, w2) = e2.pipe()
         e2.call(6, [UInt64(r2)])
@@ -178,7 +154,6 @@ final class HostThread<T>: @unchecked Sendable {
         #expect(e2.call(92, [UInt64(w2), 74, 0]).value == 1)
         #expect(e2.write(w2, "x").errno == 32)
         #expect(!e2.kernel.isTerminating)
-        // Default action: the process is killed by SIGPIPE.
         let e3 = try DEnv()
         let (r3, w3) = e3.pipe()
         e3.call(6, [UInt64(r3)])
@@ -189,11 +164,9 @@ final class HostThread<T>: @unchecked Sendable {
     @Test func nonBlockingAndCapacity() throws {
         let e = try DEnv()
         let (r, w) = e.pipe()
-        // F_SETFL O_NONBLOCK on both ends.
         #expect(e.call(92, [UInt64(r), 4, 4]).value == 0)
-        #expect(e.call(92, [UInt64(r), 3, 0]).value == 4)  // O_RDONLY | O_NONBLOCK
+        #expect(e.call(92, [UInt64(r), 3, 0]).value == 4)
         #expect(e.read(r).0.errno == 35)
-        // FIONBIO on the write end.
         e.put([1, 0, 0, 0], at: DEnv.scratch + 0x100)
         #expect(e.call(54, [UInt64(w), 0x8004_667E, DEnv.scratch + 0x100]).value == 0)
         let chunk = [UInt8](repeating: 0x61, count: 0x10000)
@@ -201,7 +174,6 @@ final class HostThread<T>: @unchecked Sendable {
         #expect(e.call(4, [UInt64(w), DEnv.scratch + 0x10000, 40000]).value == 40000)
         #expect(e.call(4, [UInt64(w), DEnv.scratch + 0x10000, 40000]).value == UInt64(65536 - 40000))
         #expect(e.call(4, [UInt64(w), DEnv.scratch + 0x10000, 1]).errno == 35)
-        // FIONREAD.
         #expect(e.call(54, [UInt64(r), 0x4004_667F, DEnv.scratch + 0x100]).value == 0)
         #expect(e.u32(DEnv.scratch + 0x100) == 65536)
     }
@@ -212,18 +184,16 @@ final class HostThread<T>: @unchecked Sendable {
         let d = e.call(41, [UInt64(w)]).fd
         #expect(d == 5)
         #expect(e.call(90, [UInt64(w), 20]).value == 20)
-        let c = e.call(92, [UInt64(w), 67, 30])  // F_DUPFD_CLOEXEC
+        let c = e.call(92, [UInt64(w), 67, 30])
         #expect(c.value == 30)
-        #expect(e.call(92, [30, 1, 0]).value == 1)  // F_GETFD
+        #expect(e.call(92, [30, 1, 0]).value == 1)
         #expect(e.call(92, [20, 1, 0]).value == 0)
-        #expect(e.call(92, [UInt64(w), 0, 10]).value == 10)  // F_DUPFD
+        #expect(e.call(92, [UInt64(w), 0, 10]).value == 10)
         #expect(e.call(92, [UInt64(w), 0, 300]).errno == 22)
         #expect(e.call(41, [77]).errno == 9)
         #expect(e.call(90, [77, 3]).errno == 9)
-        // FIOCLEX on any descriptor.
         #expect(e.call(54, [20, 0x2000_6601, 0]).value == 0)
         #expect(e.call(92, [20, 1, 0]).value == 1)
-        // Every write end must close before EOF.
         for fd in [w, d, 20, 30] { e.call(6, [UInt64(fd)]) }
         e.call(92, [UInt64(r), 4, 4])
         #expect(e.read(r).0.errno == 35)
@@ -254,7 +224,7 @@ final class HostThread<T>: @unchecked Sendable {
         let (r, w) = e.pipe()
         let reader = HostThread { e.read(r, 16, at: DEnv.scratch + 0x5000) }
         Thread.sleep(forTimeInterval: 0.15)
-        #expect(reader.result == nil)  // still blocked
+        #expect(reader.result == nil)
         #expect(e.write(w, "wake").value == 4)
         let got = try #require(reader.wait())
         #expect(got.1 == "wake")
@@ -300,7 +270,7 @@ final class HostThread<T>: @unchecked Sendable {
         #expect(e.call(12, [path]).value == 0)
         #expect(e.kernel.fileSystem.cwd == e.writable)
         e.putString("f", at: path)
-        let fd = e.call(5, [path, 0x0201, 0o644]).fd  // O_WRONLY | O_CREAT, cwd-relative
+        let fd = e.call(5, [path, 0x0201, 0o644]).fd
         #expect(fd >= 3)
         #expect(e.call(10, [path]).value == 0)
         #expect(e.call(10, [path]).errno == 2)

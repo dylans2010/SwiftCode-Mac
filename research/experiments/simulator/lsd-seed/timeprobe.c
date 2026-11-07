@@ -1,5 +1,3 @@
-// timeprobe: our probe (stage 7, agent I4). Prints the wall clock and
-// mach_absolute_time over a few seconds, and times 100000 calls of each.
 #include <stdio.h>
 #include <sys/time.h>
 #include <unistd.h>

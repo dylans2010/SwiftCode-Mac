@@ -3,7 +3,6 @@ import Testing
 @testable import SwiftCodeMetalHost
 import SwiftCodeXPC
 
-/// The service logic (spec §2–§9) driven with synthetic messages.
 @Suite struct CoreTests {
     final class Fixture: @unchecked Sendable {
         let backend: NullBackend
@@ -22,7 +21,6 @@ import SwiftCodeXPC
             core.transport = transport
         }
 
-        /// Opens the three connections (ports 0x100 + type, event port 0x200) and returns the processRef.
         @discardableResult
         func connect(base: UInt32 = 0x100, eventPort: UInt32 = 0x200) -> UInt64 {
             var processRef: UInt64 = 0
@@ -46,17 +44,12 @@ import SwiftCodeXPC
         }
     }
 
-    /// messageTypes 17 and 18 (visionos.md §10.6.5): a shared event's
-    /// handle is a host port; opening it in another process gives a new ref
-    /// naming the same event; the port lives while any ref does.
     @Test func sharedEventHandlesNameOneEventAcrossProcesses() {
         let f = Fixture()
         f.connect()
         f.connect(base: 0x300, eventPort: 0x400)
-        // Process A: a shared event (op 28), value 7 (op 30).
         #expect(f.replyData(Build.message(12, Build.record(28) { $0.u32(0) })) == [1, 0, 0, 0, 0, 0, 0, 0])
         _ = f.send(Build.message(12, Build.record(30) { $0.u32(1); $0.u64(7) }), on: 0)
-        // 17: a send right (MAKE_SEND) and labelTraceID 0; the same port twice.
         let h1 = f.send(["messageType": .uint64(17), "eventRef": .uint64(1)], on: 1).reply ?? [:]
         guard case let .sendRight(port)? = h1["eventPort"] else {
             Issue.record("no eventPort in \(h1)")
@@ -65,7 +58,6 @@ import SwiftCodeXPC
         #expect(port.disposition == XPCDisposition.makeSend && h1["labelTraceID"]?.uint64Value == 0)
         let h2 = f.send(["messageType": .uint64(17), "eventRef": .uint64(1)], on: 1).reply ?? [:]
         #expect(h2["eventPort"]?.port?.name == port.name)
-        // 18 in process B: a new ref, a backend alias of A's event.
         let open = Build.message(18, Build.record(40) { $0.u32(0) }, [("eventPort", .sendRight(XPCPort(name: port.name, disposition: 17)))])
         #expect(f.send(open, on: 1, base: 0x300).reply?["replyData"]?.dataValue == [1, 0, 0, 0, 0, 0, 0, 0])
         let calls = f.backend.calls
@@ -75,24 +67,18 @@ import SwiftCodeXPC
             return
         }
         #expect(orig == ha && hb != ha)
-        // A value set through one ref is read through the other.
         let v = f.replyData(Build.message(12, Build.record(41) { $0.u32(1) }), on: 0, base: 0x300)
         #expect(Build.u64(v, 0) == 7)
         _ = f.send(Build.message(12, Build.record(30) { $0.u32(1); $0.u64(9) }), on: 0, base: 0x300)
         #expect(Build.u64(f.replyData(Build.message(12, Build.record(41) { $0.u32(1) }), on: 0), 0) == 9)
-        // Releasing A's ref keeps the port; releasing B's destroys it.
         _ = f.send(Build.message(14, Build.record(1013) { $0.u32(1) }), on: 1)
         #expect(f.transport.destroyedEventPorts.isEmpty)
         _ = f.send(Build.message(14, Build.record(1013) { $0.u32(1) }), on: 1, base: 0x300)
         #expect(f.transport.destroyedEventPorts == [port.name])
-        // 18 with a port that names nothing: a fresh event, counted as refused.
         #expect(f.send(open, on: 1, base: 0x300).reply?["replyData"]?.dataValue == [1, 0, 0, 0, 0, 0, 0, 0])
         if case .createEvent = f.backend.calls.last {} else { Issue.record("no fresh event: \(f.backend.calls.last as Any)") }
         #expect(f.core.statistics.refused["18"] == 1)
-        // 17 of an unknown ref: no port.
         #expect(f.send(["messageType": .uint64(17), "eventRef": .uint64(9)], on: 1).reply?["eventPort"] == nil)
-        // 18 with eventPort MACH_PORT_NULL (`newSharedEventWithHandle:nil`,
-        // visionos.md §10.12.2): an empty dictionary, no event, not refused.
         let callCount = f.backend.calls.count
         let null = Build.message(18, Build.record(40) { $0.u32(0) }, [("eventPort", .sendRight(XPCPort(name: 0, disposition: 17)))])
         #expect(f.send(null, on: 1, base: 0x300).reply == [:])
@@ -100,8 +86,6 @@ import SwiftCodeXPC
         #expect(f.backend.calls.count == callCount && f.core.statistics.refused["18"] == 1 && f.core.nullEventOpenings == 2)
     }
 
-    /// A process that ends with an exported event gives its port back once
-    /// no ref remains.
     @Test func exportedEventPortEndsWithTheLastRef() {
         let f = Fixture()
         f.connect()
@@ -120,10 +104,8 @@ import SwiftCodeXPC
         let b = f.connect(base: 0x300, eventPort: 0x400)
         #expect(a != b)
         #expect(f.core.statistics.processes == 2)
-        // A message before the hand-shake gets an empty reply.
         f.core.connectionOpened(0x999, clientPort: 0)
         #expect(f.core.handle(["messageType": .uint64(7)], connection: 0x999).reply == [:])
-        // The process ends with its last connection.
         f.core.connectionClosed(0x100)
         f.core.connectionClosed(0x101)
         #expect(f.core.statistics.processes == 2)
@@ -140,10 +122,8 @@ import SwiftCodeXPC
         #expect(shared.reply?["bufferRef"]?.uint64Value == 1 && shared.retained == [shm])
         let priv = f.send(["messageType": .uint64(1), "length": .uint64(4096), "options": .uint64(0x20), "bufferIndex": .uint64(0)], on: 1)
         #expect(priv.reply?["bufferRef"]?.uint64Value == 2 && priv.retained.isEmpty)
-        // A texture after two buffers gets ref 3 (§3); reply u32 ref.
         let tex = Build.record(1) { $0.append(Build.textureWords(usage: 5, format: 80, width: 64, height: 32)) }
         #expect(f.replyData(Build.message(8, tex)) == [3, 0, 0, 0])
-        // Samplers and depth-stencil states count on their own.
         let sampler = Build.record(3) { $0.append(MetalDescriptorCodec.encodeSampler(MetalSamplerDescriptor())) }
         #expect(f.replyData(Build.message(8, sampler)) == [1, 0, 0, 0])
         let ds = Build.record(4) { $0.append(MetalDescriptorCodec.encodeDepthStencil(MetalDepthStencilDescriptor())) }
@@ -156,12 +136,10 @@ import SwiftCodeXPC
             return
         }
         #expect(desc.width == 64 && desc.pixelFormat == 80 && Set([h1, h2, h3]).count == 3)
-        // Release the texture (1001) and create again: ref 3 again, new handle.
         _ = f.send(Build.message(14, Build.record(1001) { $0.u32(3) }), on: 1)
         #expect(f.backend.calls.last == .release(h3))
         #expect(f.replyData(Build.message(8, tex)) == [3, 0, 0, 0])
         if case let .createTexture(h4, _, _) = f.backend.calls.last { #expect(h4 != h3) } else { Issue.record("no texture") }
-        // Releasing the shared buffer drops its memory right.
         _ = f.send(Build.message(14, Build.record(1000) { $0.u32(1) }), on: 1)
         #expect(f.transport.dropped == [shm] && f.backend.calls.last == .release(h1))
         _ = block
@@ -170,17 +148,14 @@ import SwiftCodeXPC
     @Test func functionsPipelinesAndDeviceOps() throws {
         let f = Fixture()
         f.connect()
-        // messageType 15: functionIR + op 15 with three u32 0; reply u32 ref, u32 0.
         let fn = Build.record(15) { $0.u32(0); $0.u32(0); $0.u32(0) }
         let ir = [UInt8](repeating: 0x4D, count: 3000)
         #expect(f.replyData(Build.message(15, fn, [("functionIR", .data(ir))])) == [1, 0, 0, 0, 0, 0, 0, 0])
         #expect(f.replyData(Build.message(15, fn, [("functionIR", .data(ir))])) == [2, 0, 0, 0, 0, 0, 0, 0])
-        // Render pipeline (op 14) on connection 2.
         let payload = MetalKeyedPayloadBuilder.renderPipeline(top: [(1, 1), (2, 2)], label: "quad",
                                                               colorAttachments: [[(0, 0), (1, 80), (2, 1), (4, 5), (7, 5)]])
         let rp = Build.record(14) { $0.u32(0); $0.u32(UInt32(payload.count)); $0.append(payload) }
         #expect(f.replyData(Build.message(12, rp), on: 2) == [1, 0, 0, 0, 0, 0, 0, 0])
-        // Compute pipeline (op 11): 24-byte reply, u16 1024, u16 32.
         let cpPayload = MetalKeyedPayloadBuilder.object([(0, 2)])
         let cp = Build.record(11) { $0.u32(0); $0.u32(UInt32(cpPayload.count)); $0.append(cpPayload) }
         let cpReply = f.replyData(Build.message(12, cp), on: 2)
@@ -193,12 +168,9 @@ import SwiftCodeXPC
         }
         #expect(desc.label == "quad" && desc.vertexFunction == f1 && desc.fragmentFunction == f2 && fcp == f2)
         #expect(desc.colorAttachments.first?.destinationRGBBlendFactor == 5)
-        // Op 37 on connection 0: four u64 from the backend, z at least 512
-        // (the guest driver keeps its own cap of 512, visionos.md §10.6.1).
         f.backend.limitsValue = MetalLimits(maxThreadsPerThreadgroup: (256, 128, 64), maxThreadgroupMemoryLength: 8192)
         let limits = f.replyData(Build.message(12, Build.record(37) { $0.u32(0) }), on: 0)
         #expect((0..<4).map { Build.u64(limits, $0) } == [256, 128, 512, 8192])
-        // Texture views: op 7 and op 27 with a swizzle.
         let tex = Build.record(1) { $0.append(Build.textureWords(usage: 1, format: 80, width: 8, height: 8, levels: 4)) }
         #expect(f.replyData(Build.message(8, tex)) == [1, 0, 0, 0])
         #expect(f.replyData(Build.message(12, Build.record(7) { $0.u32(0); $0.u32(1); $0.u32(81) })) == [2, 0, 0, 0, 0, 0, 0, 0])
@@ -209,7 +181,6 @@ import SwiftCodeXPC
         if case let .createTextureView(_, _, v) = f.backend.calls.last {
             #expect(v == MetalTextureViewDescriptor(pixelFormat: 80, textureType: 2, levels: 1..<3, slices: 0..<1, swizzle: [5, 4, 3, 2]))
         } else { Issue.record("no view") }
-        // Heaps: op 20, heap buffer 24, size queries 23, 31, 32.
         #expect(f.replyData(Build.message(12, Build.record(20) { $0.u32(0); $0.u64(1 << 20); $0.u16(0x20); $0.u16(0) }))
                 == [1, 0, 0, 0, 0, 0, 0, 0])
         #expect(f.replyData(Build.message(12, Build.record(24) { $0.u32(0); $0.u32(1); $0.u64(1000); $0.u64(0); $0.u64(0x20) }))
@@ -224,8 +195,6 @@ import SwiftCodeXPC
             $0.append(Build.textureWords(usage: 1, format: 80, width: 256, height: 256, levels: 9))
         }))
         #expect(Build.u64(tsize, 0) >= 349_524 && Build.u64(tsize, 1) == 128)
-        // The wire form of ops 21 and 22: descriptor words 1–8 without word 0
-        // (a 1×1 RGBA8 2D texture as RealityKit asks for it; visionos.md §10).
         let words18 = Array(Build.textureWords(usage: 0, format: 70, width: 1, height: 1, levels: 1).dropFirst(4))
         #expect(words18.count == 32)
         let tsize32 = f.replyData(Build.message(12, Build.record(22) { $0.append(words18) }))
@@ -235,23 +204,16 @@ import SwiftCodeXPC
         }))
         #expect(heapTexture.count == 8 && Build.u32(heapTexture, 0) != 0)
         #expect(f.core.statistics.refused["12:22"] == nil)
-        // Events: op 28, CPU set (30) and get (41); fences (13); gpuAddress (38).
         #expect(f.replyData(Build.message(12, Build.record(28) { $0.u32(0) })) == [1, 0, 0, 0, 0, 0, 0, 0])
         _ = f.send(Build.message(12, Build.record(30) { $0.u32(1); $0.u64(42) }), on: 0)
         #expect(Build.u64(f.replyData(Build.message(12, Build.record(41) { $0.u32(1) }), on: 0), 0) == 42)
         #expect(f.replyData(Build.message(12, Build.record(13) { $0.u32(0) })) == [1, 0, 0, 0, 0, 0, 0, 0])
         #expect(Build.u64(f.replyData(Build.message(12, Build.record(38) { $0.u32(4) })), 0) >= 0x100_0000_0000)
         #expect(Build.u64(f.replyData(Build.message(12, Build.record(33) { $0.u32(80) })), 0) == 16)
-        // An unknown op is refused with an empty reply.
         #expect(f.send(Build.message(12, Build.record(29) { $0.u32(0) }), on: 1).reply == [:])
         #expect(f.core.statistics.refused["12:29"] == 1)
     }
 
-    /// Op 19 (visionos.md §10.20.7): a set call of kind 0 names the argument
-    /// buffer and offset; a buffer member (kind 1) is written there as the
-    /// buffer's GPU address plus the call's offset. This encoder's layout
-    /// sent no description, so the member lands at the index × 8 (the
-    /// fallback; layouts with one: ArgumentLayoutTests).
     @Test func argumentEncoderSetCallsWriteTheirMembers() {
         let f = Fixture()
         f.connect()
@@ -285,8 +247,6 @@ import SwiftCodeXPC
         #expect(f.core.statistics.refused["12:19"] == nil)
     }
 
-    /// Op 22 follows the rule fitted to the reference's answers and op 20
-    /// grants heaps in 16 KiB units (visionos.md §10.8.3).
     @Test func heapSizesFollowTheReferenceRule() {
         func answer(_ format: UInt32, _ w: Int, _ h: Int = 1, type: UInt8 = MetalTextureType.type2D, depth: Int = 1,
                     levels: Int = 1, array: Int = 1, usage: UInt16) -> (UInt64, UInt64) {
@@ -296,7 +256,6 @@ import SwiftCodeXPC
             return (a.size, a.align)
         }
         let read = MetalTextureUsage.shaderRead, write = MetalTextureUsage.shaderWrite, rt: UInt16 = 4
-        // The texture manager's 29 answers (RGBA8Unorm 70, RGBA16Float 115, RGBA8Uint 73, R8Uint 13, BGRA8Unorm 80).
         #expect(answer(70, 1, 1, usage: 0) == (128, 128))
         #expect(answer(115, 1, 1, type: MetalTextureType.typeCube, usage: read) == (768, 128))
         #expect(answer(70, 1, 1, type: MetalTextureType.type3D, depth: 1, usage: read) == (128, 128))
@@ -307,14 +266,12 @@ import SwiftCodeXPC
         #expect(answer(70, 1, 1, usage: read | write) == (128, 128))
         #expect(answer(13, 1024, 1024, usage: read | rt) == (1_081_344, 128))
         #expect(answer(80, 4096, 4096, usage: read | rt) == (67_633_152, 128))
-        // Further examples of the rule.
         #expect(answer(70, 4096, 4096, usage: 0).0 == 67_108_864)
         #expect(answer(70, 4096, 4096, usage: write).0 == 67_108_864)
         #expect(answer(70, 1920, 1080, usage: 0).0 == 8_355_840)
         #expect(answer(70, 1920, 1080, usage: read).0 == 8_486_912)
         #expect(answer(115, 3840, 2160, usage: rt).0 == 67_371_008)
         #expect(answer(70, 1000, 1000, usage: read).0 == 4_227_072)
-        // The engine's two heaps as the reference grants them.
         #expect(MetalHostCore.grantedHeapSize(28_032) == 32_768)
         #expect(MetalHostCore.grantedHeapSize(67_633_280) == 67_649_536)
         #expect(MetalHostCore.grantedHeapSize(1) == 16_384)
@@ -326,17 +283,11 @@ import SwiftCodeXPC
         #expect(Build.u64(hs, 0) == 32_768 && Build.u64(hs, 1) == 32_768 && Build.u64(hs, 2) == 0)
     }
 
-    /// wakeboardd's request: 2D array, BGRA8Unorm_sRGB 3840 × 2160, ShaderRead | RenderTarget, private.
     static let wakeboarddLayer: [UInt8] = [
         0x00, 0x00, 0x00, 0x00, 0x43, 0x05, 0x51, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x70, 0x08, 0x00, 0x00,
         0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00]
 
-    /// messageType 19 (a shared texture, metal-sim-protocol.md §5.10): op 42
-    /// carries the descriptor; the host makes a surface whose creation
-    /// properties describe the texture (`kMetalRegistryID` = the hand-shake
-    /// `registryID`), allocation = op 22's size + 16, and replies with
-    /// exactly its port and the texture's ref.
     @Test func sharedTextureGetsAHostSurface() {
         let f = Fixture()
         f.connect()
@@ -367,17 +318,11 @@ import SwiftCodeXPC
         } else {
             Issue.record("no texture")
         }
-        // 64 × 64 BGRA8 ShaderRead → 16 528; 1 × 1 → 144 (visionos.md §10.10.2).
         _ = f.send(Build.message(19, Build.record(42) { $0.append(Build.textureWords(usage: 1, format: 80, width: 64, height: 64)) }), on: 1)
         _ = f.send(Build.message(19, Build.record(42) { $0.append(Build.textureWords(usage: 1, format: 80, width: 1, height: 1)) }), on: 1)
         #expect(f.surfaces.made.map(\.allocation) == [33_947_664, 16_528, 144])
     }
 
-    /// messageType 20 (metal-sim-protocol.md §5.11): opening a handle, in the
-    /// creating process and in a second one, gives a new ref over the same
-    /// GPU image and replies with the ref and descriptor words 1–8 (hazard
-    /// tracking "tracked"); the label is logged; a surface without `kMetal…`
-    /// properties, or an unknown port, gets an empty reply.
     @Test func sharedTextureHandleOpensTheSameImage() {
         let f = Fixture()
         f.connect()
@@ -396,7 +341,6 @@ import SwiftCodeXPC
         #expect(Set(r.keys) == ["replyData"])
         let data = r["replyData"]?.dataValue ?? []
         #expect(data.count == 36)
-        // Process B's first resource ref; words 1–8 as message 19's, options 0x0220.
         #expect(Build.u32(data, 0) == 1 && Build.u32(data, 1) == 0x0051_0543 && Build.u32(data, 2) == 3840
                 && Build.u32(data, 3) == 2160 && Build.u32(data, 4) == 1 && Build.u32(data, 5) == 0x0001_0001
                 && Build.u32(data, 6) == 0x0220_0001 && Build.u32(data, 7) == 0 && Build.u32(data, 8) == 0)
@@ -406,11 +350,8 @@ import SwiftCodeXPC
             Issue.record("no alias of the shared texture: \(f.backend.calls.last.map { "\($0)" } ?? "none")")
         }
         #expect(f.logs.contains { $0.contains("shared texture opened") && $0.contains(label) })
-        // The same process opens its own handle: a second ref there.
         let own = open(0x100, label: nil)
         #expect(Build.u32(own["replyData"]?.dataValue ?? [], 0) == 2)
-        // Release the creator's texture: the handle in B still names the image, and
-        // a later opening aliases B's.
         _ = f.send(Build.message(14, Build.record(1000) { $0.u32(1) }), on: 1)
         _ = f.send(Build.message(14, Build.record(1000) { $0.u32(2) }), on: 1)
         _ = open(0x100, label: nil)
@@ -419,9 +360,7 @@ import SwiftCodeXPC
         } else {
             Issue.record("no alias after the release")
         }
-        // Snapshots wait while opened handles exist.
         #expect(f.core.snapshotBusyReason?.contains("shared-texture") == true)
-        // A surface with only kMetalRegistryID, and an unknown port: empty replies.
         f.surfaces.described[0x9100] = MetalSurfaceDescription(id: 77, numbers: ["kMetalRegistryID": f.core.registryID])
         var d = Build.message(20, Build.record(43) { $0.u32(0) })
         d["iosurface"] = .sendRight(XPCPort(name: 0x9100, disposition: 17))
@@ -430,9 +369,6 @@ import SwiftCodeXPC
         #expect(f.send(d, on: 1).reply == [:])
     }
 
-    /// messageType 20 for a surface a guest made with the `kMetal…`
-    /// properties: a texture over the surface's memory, with the descriptor
-    /// the properties give (64 × 64 BGRA8Unorm 2D: word 1 0x00500542).
     @Test func sharedTextureHandleOfAGuestSurface() {
         let f = Fixture()
         f.connect()
@@ -458,13 +394,11 @@ import SwiftCodeXPC
         f.connect()
         let tex = Build.record(1) { $0.append(Build.textureWords(usage: 1, format: 70, width: 3, height: 4)) }
         #expect(f.replyData(Build.message(8, tex)) == [1, 0, 0, 0])
-        // §5.3: 3×4 RGBA8, bytes per row 32 → 108 pixel bytes.
         let head = MetalDescriptorCodec.RegionHead(texture: 1, region: MetalRegion(width: 3, height: 4), level: 0, slice: 0,
                                                    bytesPerRow: 32, bytesPerImage: 128)
         let up = Build.record(2) { MetalDescriptorCodec.encodeRegionHead(head, into: &$0); $0.append([UInt8](repeating: 7, count: 108)) }
         #expect(up.count == 8 + 84 + 108)
         #expect(f.send(Build.message(9, up), on: 1).reply == [:])
-        // A large upload by memory entry.
         let big = Build.record(2) {
             MetalDescriptorCodec.encodeRegionHead(.init(texture: 1, region: MetalRegion(width: 194, height: 237), level: 0, slice: 0,
                                                         bytesPerRow: 784, bytesPerImage: 0), into: &$0)
@@ -474,7 +408,6 @@ import SwiftCodeXPC
         let (entry, _) = f.memory.entry(length: 196_608, bytes: big)
         _ = f.send(Build.message(9, nil, [("command", .largeData(length: UInt32(big.count), port: XPCPort(name: entry, disposition: 17)))]),
                    on: 1)
-        // getBytes into a shared region on connection 0.
         let (shm, block) = f.memory.entry(length: 16384)
         let down = Build.record(5) { MetalDescriptorCodec.encodeRegionHead(head, into: &$0); $0.u64(108) }
         f.backend.readBackFill = 0xEE
@@ -503,16 +436,13 @@ import SwiftCodeXPC
         let o = f.send(Build.message(13, rec, [("iosurface", .sendRight(XPCPort(name: 0x5005, disposition: 17)))]), on: 1)
         #expect(o.reply?["replyData"]?.dataValue == [1, 0, 0, 0, 0, 0, 0, 0] && o.retained == [0x5005])
         guard case let .createTexture(h, _, 9?)? = f.backend.calls.last else { Issue.record("no IOSurface texture"); return }
-        // An unknown surface still gets a texture (host memory) and a ref.
         let o2 = f.send(Build.message(13, rec, [("iosurface", .sendRight(XPCPort(name: 0x6006, disposition: 17)))]), on: 1)
         #expect(o2.reply?["replyData"]?.dataValue == [2, 0, 0, 0, 0, 0, 0, 0])
         #expect(f.backend.calls.last.map { if case .createTexture(_, _, nil) = $0 { true } else { false } } == true)
-        // Release (1001) drops the surface port.
         _ = f.send(Build.message(14, Build.record(1001) { $0.u32(1) }), on: 1)
         #expect(f.transport.dropped == [0x5005] && f.backend.calls.last == .release(h))
     }
 
-    /// Records a command buffer with render, compute and blit work.
     static func submission(_ cbRef: UInt64, queue: UInt64 = 1) -> XPCDict {
         let render = Build.segment(kind: 0, [
             Build.record(26) { $0.append(Build.renderPass(colors: [(0, 1, 2, 1, [0, 0, 1, 1])], width: 64, height: 64)) },
@@ -546,8 +476,6 @@ import SwiftCodeXPC
         #expect(f.core.statistics.submissions == 2 && f.core.statistics.completedEvents == 2)
     }
 
-    /// Diagnostics: the hand-shake sender's guest pid, the per-process
-    /// summary, and one log line per unmodelled pipeline key.
     @Test func diagnosticsSummaryAndUnknownPipelineKeys() {
         let f = Fixture()
         for type in 0..<3 as Range<UInt32> {
@@ -562,7 +490,6 @@ import SwiftCodeXPC
         #expect(lines.count == 1)
         #expect(lines.first?.contains("guest pid 124") == true && lines.first?.contains("1 submitted") == true
                 && lines.first?.contains("1 completed") == true && lines.first?.contains("0 outstanding") == true)
-        // A render pipeline with keys 6 and 7 (not modelled) logs each key once.
         let payload = MetalKeyedPayloadBuilder.renderPipeline(top: [(1, 1), (6, 3), (7, 9)])
         let rp = Build.record(14) { $0.u32(0); $0.u32(UInt32(payload.count)); $0.append(payload) }
         _ = f.replyData(Build.message(12, rp), on: 2)
@@ -577,26 +504,21 @@ import SwiftCodeXPC
         _ = f.send(["messageType": .uint64(7), "maxCommandBufferCount": .uint64(64)], on: 1)
         for cb in 1...4 as ClosedRange<UInt64> { _ = f.send(Self.submission(cb), on: 0) }
         f.core.drainEvents()
-        #expect(f.transport.events.isEmpty)  // nothing before the backend says so (§9)
-        // 1: completed without a scheduled report → 100 then 101.
+        #expect(f.transport.events.isEmpty)
         f.backend.completeNext(reportScheduled: false)
-        // 2: scheduled reported, completed with an error status.
         f.backend.completeNext(status: 5)
-        // 3: scheduled only (the frame's surface writes are done), 101 later.
         let p = f.backend.pending
         p[0].scheduled()
         f.core.drainEvents()
         #expect(f.transport.summary == [[100, 1, 3], [101, 1, 4], [100, 2, 3], [101, 2, 5], [100, 3, 3]])
         p[0].completed(4)
-        p[0].scheduled()  // a late or repeated report changes nothing
+        p[0].scheduled()
         p[0].completed(4)
         f.core.drainEvents()
         #expect(f.transport.summary.suffix(1) == [[101, 3, 4]] && f.transport.events.count == 6)
     }
 
     @Test func completionsRacingWithProcessEnd() {
-        // Completions arrive on many threads while the process ends: events
-        // read the process state under the lock, and none go out after the end.
         let f = Fixture(completesImmediately: false)
         f.connect(eventPort: 0x777)
         _ = f.send(["messageType": .uint64(7), "maxCommandBufferCount": .uint64(64)], on: 1)
@@ -610,11 +532,10 @@ import SwiftCodeXPC
                 pending[i].completed(4)
             }
         }
-        for p in pending { p.completed(4) }  // after the end: nothing more is sent
+        for p in pending { p.completed(4) }
         let sent = f.transport.events.count
         usleep(50_000)
         #expect(f.transport.events.count == sent && f.transport.events.allSatisfy { $0.port == 0x777 })
-        // Each command buffer that got events got 100 before 101.
         var seen: [UInt64: [UInt64]] = [:]
         for e in f.transport.summary { seen[e[1], default: []].append(e[0]) }
         #expect(seen.values.allSatisfy { $0 == [100, 101] || $0 == [100] })
@@ -650,10 +571,7 @@ import SwiftCodeXPC
     }
 }
 
-/// Objects whose backend create call is still running when the process
-/// ends must be released once the call returns (no leaked GPU objects).
 @Suite struct CreateAfterEndTests {
-    /// Forwards to a NullBackend; `createBuffer` and `createFunction` wait at a gate.
     final class GatedBackend: MetalBackend, @unchecked Sendable {
         let inner = NullBackend()
         let entered = DispatchSemaphore(value: 0)
@@ -702,7 +620,6 @@ import SwiftCodeXPC
                                 connection: 0x100 + type).reply!
             processRef = r["processRef"]!.uint64Value!
         }
-        // A finished object, then a shared buffer and a function whose creates are stalled.
         _ = core.handle(Build.message(8, Build.record(3) { $0.append(MetalDescriptorCodec.encodeSampler(MetalSamplerDescriptor())) }),
                         connection: 0x101)
         let (shm, _) = memory.entry(length: 16384)
@@ -717,10 +634,9 @@ import SwiftCodeXPC
                             connection: 0x102)
         }
         backend.entered.wait()
-        // The process ends while both creates are in the backend.
         for c in 0x100...0x102 as ClosedRange<UInt32> { core.connectionClosed(c) }
         let releasedAtEnd = backend.inner.calls.filter { if case .release = $0 { true } else { false } }.count
-        #expect(releasedAtEnd == 1)  // only the sampler: the others are not created yet
+        #expect(releasedAtEnd == 1)
         backend.gate.signal(); backend.gate.signal()
         done.wait()
         let calls = backend.inner.calls

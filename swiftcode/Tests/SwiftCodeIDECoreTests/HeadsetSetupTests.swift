@@ -2,12 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// XR-HUB (`specs/ide/device-hub.md` §I.12): the headset checklist against a
-/// stand-in viewer host (commands answered by their words), the actions'
-/// exact commands, the viewer's plan, and the switch's state machine. No
-/// network, no headset, nothing installed.
 struct StandInRunner: HeadsetCommandRunner {
-    /// (substring of the command, answer): the first match answers; else status 1.
     var answers: [(String, HeadsetCommandResult)]
     let log = CommandLog()
 
@@ -25,7 +20,6 @@ struct StandInRunner: HeadsetCommandRunner {
 
     static func ok(_ s: String = "") -> HeadsetCommandResult { HeadsetCommandResult(status: 0, output: s) }
 
-    /// A complete, working workstation with a Quest Pro on USB and WiVRn 26.9 on both sides.
     static var ready: [(String, HeadsetCommandResult)] {
         [("uname", ok("Linux\n")),
          ("vulkaninfo", ok("GPU0:\n\tdeviceType = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU\n\tdeviceName = NVIDIA GeForce RTX 4060 Ti\nGPU1:\n\tdeviceType = PHYSICAL_DEVICE_TYPE_CPU\n\tdeviceName = llvmpipe\n")),
@@ -49,7 +43,6 @@ struct StandInRunner: HeadsetCommandRunner {
          ("SystemName", ok("s \"Meta Quest Pro\"\n"))]
     }
 
-    /// The ready host with some answers replaced (first match wins: prepend).
     static func ready(with overrides: [(String, HeadsetCommandResult)]) -> StandInRunner { StandInRunner(answers: overrides + ready) }
 }
 
@@ -68,7 +61,6 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(r.isReady && r.isConnected && r.status == .ready)
         #expect(r.check(.vulkan)?.reason == "NVIDIA GeForce RTX 4060 Ti")
         #expect(r.check(.headsetUSB)?.reason == "Quest Pro")
-        // The app that matches the server's version is the one used.
         #expect(r.clientPackage == "org.meumeu.wivrn.github" && r.serial == "230YC01DBS006V" && r.serverVersion == "26.9")
         #expect(r.check(.connection)?.reason == "Meta Quest Pro")
         #expect(r.firstProblemStep == .connect)
@@ -80,7 +72,6 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(r.check(.viewerHost)?.reason.contains("does not run on macOS") == true)
         #expect(r.checks.dropFirst().allSatisfy { $0.state == .unknown })
         #expect(!r.isReady && r.status == .notSetUp && r.firstProblemStep == .viewerHost)
-        // Linux: this machine; a Mac without a host: none.
         #expect(HeadsetSettings().host(hubIsLinux: true) == .thisMachine)
         #expect(HeadsetSettings().host(hubIsLinux: false) == .none)
     }
@@ -108,7 +99,6 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(r.check(.xrViewer)?.state == .missing)
         if case .instructions(let w)? = r.check(.xrViewer)?.fix { #expect(w.contains("swift build -c release --product swiftcode-xr-viewer")) } else { Issue.record("no build words") }
         #expect(!r.isReady && r.firstProblemStep == .workstation)
-        // SwiftCode never runs these: every fix that installs is a command shown, and only commands carry sudo.
         for c in r.checks { if case .command(let cmd)? = c.fix, cmd.contains("apt") { #expect(cmd.hasPrefix("sudo ")) } }
     }
 
@@ -116,7 +106,6 @@ struct StandInRunner: HeadsetCommandRunner {
         let r = await check(StandInRunner.ready(with: [("vulkaninfo", HeadsetCommandResult(status: 127)),
                                                        ("active_runtime.json", StandInRunner.ok("{\"runtime\": {\"name\": \"Monado\"}}"))]))
         #expect(r.check(.vulkan)?.state == .unknown && r.check(.vulkan)?.fix == .command("sudo apt install vulkan-tools"))
-        // WiVRn's manifest is there: it takes over while connected, and the viewer names it for itself.
         #expect(r.check(.openXRRuntime)?.state == .ok && r.check(.openXRRuntime)?.reason.contains("Another runtime") == true)
         #expect(r.isReady)
     }
@@ -155,10 +144,8 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(permissions?.state == .missing && permissions?.reason.contains("may not open") == true)
         let offline = await usb("230YC01DBS006V offline\n")
         #expect(offline?.reason == "adb says offline.")
-        // An emulator is not a headset.
         let emulator = await usb("emulator-5554 device\n", lsusb: false)
         #expect(emulator?.reason == "Not connected.")
-        // No adb: missing over USB, optional over Wi-Fi.
         let noADB = await check(StandInRunner.ready(with: [("command -v adb", HeadsetCommandResult(status: 1))]))
         #expect(noADB.check(.adb)?.fix == .command("sudo apt install adb") && !noADB.isReady)
         let wifi = await check(StandInRunner.ready(with: [("command -v adb", HeadsetCommandResult(status: 1)), ("lsusb", HeadsetCommandResult(status: 1))]),
@@ -174,18 +161,15 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(p.version == "26.9" && p.url == "https://github.com/WiVRn/WiVRn/releases/download/v26.9/WiVRn-release.apk")
         #expect(p.sha256 == "1df6649ec77224fcc821af0ab4897222bdf3d7eb6ce6ad636461336724111331")
         #expect(p.explanation.contains("GPLv3") && p.explanation.contains("not part of SwiftCode") && p.explanation.contains("Meta Store"))
-        // Only the older app: a version mismatch with the matching install offered.
         let old = await check(StandInRunner.ready(with: [("pm list packages", StandInRunner.ok("package:org.meumeu.wivrn\n"))]))
         #expect(old.check(.clientApp)?.state == .ok && old.clientPackage == "org.meumeu.wivrn")
         #expect(old.check(.clientVersion)?.state == .missing && old.check(.clientVersion)?.reason == "The app is 26.6, the server 26.9; they must be the same version.")
         #expect(old.check(.clientVersion)?.fix == .installClient(HeadsetClientPackage(version: "26.9")))
-        // A release SwiftCode has no checksum for: said so before anything is downloaded.
         #expect(HeadsetClientPackage(version: "27.0").sha256 == nil)
         #expect(HeadsetClientPackage(version: "27.0").explanation.contains("not verified"))
     }
 
     @Test func trackingStates() async {
-        // Before the headset connects: the permissions decide.
         let before = await check(StandInRunner.ready(with: [("HeadsetConnected", StandInRunner.ok("b false\n"))]))
         #expect(before.check(.handTracking)?.state == .unknown && before.check(.eyeTracking)?.state == .unknown)
         #expect(before.check(.connection)?.state == .missing && before.check(.connection)?.fix == .connect)
@@ -195,20 +179,15 @@ struct StandInRunner: HeadsetCommandRunner {
             ("TRACKING.*granted", StandInRunner.ok("com.oculus.permission.HAND_TRACKING: granted=false\ncom.oculus.permission.EYE_TRACKING: granted=false\n"))]))
         #expect(denied.check(.handTracking)?.state == .missing && denied.check(.eyeTracking)?.state == .missing)
         if case .instructions(let w)? = denied.check(.eyeTracking)?.fix { #expect(w.contains("App permissions ▸ Eye Tracking")) } else { Issue.record("no words") }
-        // Optional: Ready stays.
         #expect(denied.isReady)
-        // A headset without eye tracking.
         let quest3 = await check(StandInRunner.ready(with: [
             ("adb devices -l", StandInRunner.ok("List of devices attached\n2G0Y device usb:1-1 model:Quest_3 \n")),
             ("HeadsetConnected", StandInRunner.ok("b false\n"))]))
         #expect(quest3.check(.eyeTracking)?.reason.contains("Quest 3 has no eye tracking") == true)
-        // Connected, the server says what it offers.
         let noEyes = await check(StandInRunner.ready(with: [("EyeGaze", StandInRunner.ok("b false\n"))]))
         #expect(noEyes.check(.eyeTracking)?.state == .missing)
-        // No server answering on D-Bus.
         let noBus = await check(StandInRunner.ready(with: [("busctl", HeadsetCommandResult(status: 1))]))
         #expect(noBus.check(.connection)?.state == .unknown)
-        // Over Wi-Fi, connecting is the headset's own choice.
         let wifi = await check(StandInRunner.ready(with: [("HeadsetConnected", StandInRunner.ok("b false\n"))]), connection: .wifi)
         if case .instructions? = wifi.check(.connection)?.fix {} else { Issue.record("Wi-Fi should explain") }
     }
@@ -237,17 +216,13 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(HeadsetStatus.allCases.map(\.rawValue) == ["Not Set Up", "Ready", "In Headset"])
     }
 
-    /// ssh refuses a control path of 104 bytes or more (`%C` is 40 characters, plus its temporary suffix).
     @Test func sshControlPathFits() throws {
         let args = SSHHeadsetRunner(destination: "tester@workstation").arguments
         let path = try #require(args.first { $0.hasPrefix("ControlPath=") }).dropFirst("ControlPath=".count)
         #expect(path.replacingOccurrences(of: "%C", with: String(repeating: "x", count: 40)).utf8.count + 17 < 104)
     }
 
-    /// A command's end is the shell's exit, even when something it left detached keeps the pipe.
     @Test func aDetachedProcessDoesNotHoldACommand() async {
-        // The child outlives any plausible run by far, so a slow machine
-        // cannot pass or fail this by timing alone; it is ended afterwards.
         let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent("detached-\(UUID().uuidString)")
         defer { killChild(in: pidFile) }
         let t0 = Date()
@@ -273,7 +248,6 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(m.handle(.viewerStarted).isEmpty && m.state == .enteringHeadset)
         #expect(m.handle(.viewerPhase(.waitingForHeadset)).isEmpty)
         #expect(m.handle(.viewerPhase(.streaming)).isEmpty && m.state == .inHeadset && m.isInHeadset)
-        // A second View in Headset does nothing.
         #expect(m.handle(.viewInHeadset).isEmpty)
         #expect(m.handle(.backToDesktop) == [.resumeDesktopStream, .stopViewer] && m.state == .returningToDesktop)
         #expect(m.handle(.viewerStoppedConfirmed).isEmpty && m.state == .desktop)
@@ -289,7 +263,6 @@ struct StandInRunner: HeadsetCommandRunner {
         _ = m.handle(.viewerStoppedConfirmed)
         _ = m.handle(.viewInHeadset)
         _ = m.handle(.viewerPhase(.streaming))
-        // The wearer quit, or another viewer took over.
         let ended = m.handle(.viewerPhase(.stopped))
         #expect(m.state == .desktop && ended.first == .resumeDesktopStream)
         _ = m.handle(.viewInHeadset)
@@ -297,7 +270,6 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(m.handle(.deviceStopped).isEmpty)
     }
 
-    /// A launcher whose viewer streams after `streamsAfter` polls.
     final class StandInLauncher: HeadsetViewerLauncher, @unchecked Sendable {
         let lock = NSLock()
         var calls: [String] = []
@@ -329,7 +301,7 @@ struct StandInRunner: HeadsetCommandRunner {
         let l = StandInLauncher()
         let d = Desktop()
         let c = HeadsetSwitchController(launcher: l, desktop: d)
-        c.pollInterval = 3600  // polled by hand
+        c.pollInterval = 3600
         await c.viewInHeadset()
         #expect(c.state == .enteringHeadset && d.calls == ["hold"] && l.calls == ["start"])
         await c.tick()
@@ -369,7 +341,6 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(s.contains("export XR_RUNTIME_JSON=/usr/share/openxr/1/openxr_wivrn.json"))
         #expect(s.contains("$S nohup /opt/swiftcode/swiftcode-xr-viewer --connect \"unix:$D/display.sock\" --state-file \"$D/state.json\" --foveate"))
         #expect(!s.contains("sudo") && !s.contains("--record"))
-        // Stop: only the recorded PIDs, only when they are still those programs.
         #expect(p.stopCommand.contains("[ \"$(cat /proc/$p/comm 2>/dev/null)\" = swiftcode-xr-viewer ]; then kill -TERM \"$p\""))
         #expect(p.stopCommand.contains("= ssh ]; then kill -TERM \"$f\""))
         #expect(!p.stopCommand.contains("pkill") && !p.stopCommand.contains("killall"))
@@ -380,8 +351,6 @@ struct StandInRunner: HeadsetCommandRunner {
         #expect(HeadsetViewerPlan.parseState("garbage") == HeadsetViewerState(phase: .absent))
     }
 
-    /// The plan's shell, run for real on this machine with a stand-in viewer
-    /// (a shell script that writes the state file and ends on SIGTERM).
     @Test func viewerPlanRunsLocally() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("headset-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -410,7 +379,6 @@ struct StandInRunner: HeadsetCommandRunner {
         await l.stop()
         #expect(await l.state().phase == .stopped)
         #else
-        // macOS has no /proc: stop's PID check refuses, so end the stand-in by its recorded PID here.
         let pid = await LocalHeadsetRunner().run("cat \"${XDG_RUNTIME_DIR:-/tmp}/swiftcode-headset/\(plan.device)/viewer.pid\"").output.trimmed
         _ = await LocalHeadsetRunner().run("kill -TERM \(pid)")
         try await Task.sleep(nanoseconds: 300_000_000)

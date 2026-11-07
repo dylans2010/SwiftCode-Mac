@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for WidgetKit
-
 public struct WidgetKitAPIEntity_0000: Sendable, Codable {
     public let id: String = "widgetkit.api.0"
     public var name: String = "WidgetKitEntity_0"

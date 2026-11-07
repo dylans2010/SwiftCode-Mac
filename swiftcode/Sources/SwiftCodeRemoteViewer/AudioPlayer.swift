@@ -1,20 +1,3 @@
-// The viewer's side of the device's sound (display-stream.md §15): packets
-// are decoded (Opus, with loss concealment and in-band FEC, or PCM) and
-// placed on the output's sample timeline at their play time: the server's
-// play time mapped to this machine's clock (ClockSync) plus a fixed target
-// delay. The video is presented as soon as it is decoded; the audio keeps
-// the device's own timing, delayed by the target, so the A/V offset is the
-// target minus the video's capture → presented time (both measured).
-//
-// The output is PulseAudio's simple API (PipeWire's pulse server on current
-// desktops), or a null output paced by the monotonic clock; either can also
-// be written to a WAV file (what was sent to the speaker, for checks).
-// Clock drift between the output device and the monotonic clock is taken up
-// by placing each packet where its play time says, snapping it to the end
-// of the previous packet when within 2 ms (no clicks), and re-placing it
-// when the two have drifted further apart (a small jump; resampling is
-// follow-up work).
-
 import CSwiftCodeCodec
 import Foundation
 import SwiftCodeDisplayStream
@@ -24,7 +7,6 @@ public final class AudioPlayer: @unchecked Sendable {
     public enum Output: String, Sendable { case pulse, null }
 
     public let output: Output
-    /// Added to each packet's play time (ms).
     public let targetMilliseconds: Double
     public var muted = false
     public var volume: Float = 1
@@ -32,16 +14,12 @@ public final class AudioPlayer: @unchecked Sendable {
     private let lock = NSLock()
     private var ring: [Float]
     private let ringFrames = 48_000 * 2
-    /// The next frame index to be written to the output, and when it plays (client ns).
     private var writeIndex: Int64 = 0
     private var writeIndexPlaysAt: UInt64 = 0
     private var started = false
     private var stopped = false
     private var lastEnd: Int64?
-    /// Delay added on top of the target when packets came too late for the
-    /// output's own latency (ns; grows, never shrinks within a session).
     public private(set) var extraDelay: UInt64 = 0
-    /// The output's latency last measured (ns).
     public private(set) var outputLatency: UInt64 = 0
     private var decoder: UnsafeMutableRawPointer?
     private var lastServerEnd: UInt64?
@@ -51,15 +29,10 @@ public final class AudioPlayer: @unchecked Sendable {
     private let wavPath: String?
     public var log: @Sendable (String) -> Void = { _ in }
 
-    // Statistics.
     public private(set) var packets = 0, lostPackets = 0, latePackets = 0, concealed = 0, recovered = 0, resyncs = 0, underrunChunks = 0
-    /// Per packet: ms between its arrival and its (target) play time on this machine's clock.
     public private(set) var margins: [Double] = []
-    /// Per packet: ms between the server's play time (mapped) and the arrival (negative: early).
     public private(set) var arrivals: [Double] = []
-    /// The first audible frame: when it reached the speaker queue and when it plays.
     public private(set) var firstSound: (written: UInt64, plays: UInt64, serverPlay: UInt64)?
-    /// When sound starts after at least 50 ms of silence: the time it plays (client ns).
     public var onsets: [UInt64] { lock.withLock { onsetTimes } }
     private var onsetTimes: [UInt64] = []
 
@@ -72,10 +45,8 @@ public final class AudioPlayer: @unchecked Sendable {
 
     deinit { swiftcodec_opus_decoder_free(decoder) }
 
-    /// The codecs to ask the server for, best first.
     public static var codecs: [String] { (swiftcodec_opus_available() != 0 ? ["opus"] : []) + ["pcm"] }
 
-    /// Opens the output and starts the writer thread; false when the pulse output cannot open.
     @discardableResult
     public func start() -> Bool {
         if output == .pulse {
@@ -99,10 +70,6 @@ public final class AudioPlayer: @unchecked Sendable {
         finishWAV()
     }
 
-    // MARK: Packets (connection thread)
-
-    /// A packet that arrived at client time `arrival`; `clientPlay` is its
-    /// play time on this machine's clock (nil before the clock is known: dropped).
     public func receive(_ a: DisplayAudio, arrival: UInt64, clientPlay: UInt64?) {
         guard a.channels == Self.channels, a.sampleRate == Self.rate, a.frames > 0, a.frames <= 5760 else { return }
         var pcm = [Float](repeating: 0, count: a.frames * Self.channels)
@@ -114,7 +81,6 @@ public final class AudioPlayer: @unchecked Sendable {
         case .opus:
             if decoder == nil { decoder = swiftcodec_opus_decoder_new(Int32(Self.rate), Int32(Self.channels)) }
             guard let decoder else { return }
-            // One packet missing just before this one (by play time): recover it from this one's FEC.
             let frameNs = UInt64(a.frames) * 1_000_000_000 / UInt64(Self.rate)
             if let prev = lastServerEnd, a.playTime > prev + frameNs / 2, a.playTime < prev + frameNs * 3 / 2 {
                 var f = [Float](repeating: 0, count: a.frames * Self.channels)
@@ -128,9 +94,6 @@ public final class AudioPlayer: @unchecked Sendable {
         guard let clientPlay else { return }
         lock.lock()
         defer { lock.unlock() }
-        // The earliest a frame placed now can play is the output's latency
-        // away: a packet that would be late moves the whole sound later
-        // (an adaptive jitter buffer that only grows; at most 200 ms).
         var play = clientPlay + UInt64(targetMilliseconds * 1e6) + extraDelay
         if started, play < writeIndexPlaysAt + 2_000_000, extraDelay < 200_000_000 {
             extraDelay = min(200_000_000, extraDelay + (writeIndexPlaysAt + 2_000_000 - play))
@@ -147,12 +110,11 @@ public final class AudioPlayer: @unchecked Sendable {
         var index = writeIndex + Int64(((Double(play) - Double(writeIndexPlaysAt)) / frameNs).rounded())
         if let end = lastEnd {
             let gap = index - end
-            if abs(gap) <= Int64(Self.rate / 500) { index = end }          // within 2 ms: continuous
-            else if abs(gap) < Int64(Self.rate / 50) { resyncs += 1 }       // 2–20 ms: drift, re-placed (a gap after silence is not counted)
+            if abs(gap) <= Int64(Self.rate / 500) { index = end }
+            else if abs(gap) < Int64(Self.rate / 50) { resyncs += 1 }
         }
         if let f = fecPCM, index - Int64(a.frames) >= writeIndex { place(f, at: index - Int64(a.frames)) }
         if index < writeIndex {
-            // Its time has passed (partly): keep what is still ahead.
             latePackets += 1
             let skip = Int(writeIndex - index)
             guard skip < a.frames else { lastEnd = index + Int64(a.frames); return }
@@ -166,10 +128,9 @@ public final class AudioPlayer: @unchecked Sendable {
         }
     }
 
-    /// Writes frames into the ring at a timeline index (under the lock).
     private func place(_ pcm: [Float], at index: Int64) {
         let frames = pcm.count / Self.channels
-        guard index + Int64(frames) - writeIndex < Int64(ringFrames) else { return }  // too far ahead
+        guard index + Int64(frames) - writeIndex < Int64(ringFrames) else { return }
         for f in 0..<frames {
             let slot = Int((index + Int64(f)) % Int64(ringFrames)) * Self.channels
             ring[slot] = pcm[f * 2]
@@ -177,10 +138,8 @@ public final class AudioPlayer: @unchecked Sendable {
         }
     }
 
-    // MARK: Output (writer thread)
-
     private func writer() {
-        let chunk = 240  // 5 ms
+        let chunk = 240
         var buffer = [Float](repeating: 0, count: chunk * Self.channels)
         let started0 = viewerNanoseconds()
         var written: Int64 = 0
@@ -188,7 +147,6 @@ public final class AudioPlayer: @unchecked Sendable {
         var silentSince: UInt64 = 0
         while !lock.withLock({ stopped }) {
             let now = viewerNanoseconds()
-            // When the next frame written will play.
             let latency: UInt64
             if let pulse {
                 let l = swiftcodec_pulse_latency_us(pulse)
@@ -211,12 +169,10 @@ public final class AudioPlayer: @unchecked Sendable {
                 writeIndex += Int64(chunk)
                 audible = buffer.contains { abs($0) > 0.01 }
                 if audible, !prevAudible, writeIndexPlaysAt > silentSince + 50_000_000 {
-                    // Where in the chunk the sound starts.
                     let first = (0..<chunk).first { abs(buffer[$0 * 2]) > 0.01 || abs(buffer[$0 * 2 + 1]) > 0.01 } ?? 0
                     onsetTimes.append(writeIndexPlaysAt + UInt64(first) * 1_000_000_000 / UInt64(Self.rate))
                 }
                 if audible { silentSince = writeIndexPlaysAt + UInt64(chunk) * 1_000_000_000 / UInt64(Self.rate) }
-                // Sound stopped although later sound is already placed: a hole (late or lost packets).
                 if !audible, prevAudible, let end = lastEnd, end > writeIndex { underrunChunks += 1 }
             }
             prevAudible = audible
@@ -235,7 +191,6 @@ public final class AudioPlayer: @unchecked Sendable {
             if let pulse {
                 _ = buffer.withUnsafeBufferPointer { swiftcodec_pulse_write(pulse, $0.baseAddress, Int32(chunk), Int32(Self.channels)) }
             } else {
-                // Real time: the null output plays chunk k at started0 + k × 5 ms.
                 written += Int64(chunk)
                 let due = started0 + UInt64(written) * 1_000_000_000 / UInt64(Self.rate)
                 let n = viewerNanoseconds()
@@ -244,8 +199,6 @@ public final class AudioPlayer: @unchecked Sendable {
         }
         if let pulse { swiftcodec_pulse_close(pulse) }
     }
-
-    // MARK: WAV
 
     static func wavHeader(frames: Int) -> Data {
         var d = Data()
@@ -267,7 +220,6 @@ public final class AudioPlayer: @unchecked Sendable {
         self.wav = nil
     }
 
-    /// One line of statistics.
     public var summary: String {
         lock.withLock {
             "audio: \(packets) packets, \(latePackets) late, \(recovered) recovered by FEC, \(resyncs) re-placed, \(underrunChunks) holes; "

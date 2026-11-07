@@ -4,9 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// reference-ui-5.md §11.2 (P7) and §7.6 (I6): folders as outline rows,
-/// every "+" item creatable, and the attributes inspector as a fourth
-/// inspector tab.
 @MainActor
 @Suite struct AssetCatalogR35Tests {
     func catalog() throws -> URL {
@@ -38,11 +35,9 @@ import Testing
         e.toggleRow(id: "Brand")
         #expect(e.rows.map(\.name) == ["Brand", "Logo"])
         e.toggleRow(id: "Brand")
-        // A filter keeps the matches and their folders.
         e.setFilter("star")
         #expect(e.rows.map(\.name) == ["Brand", "Icons", "Star"])
         e.setFilter("")
-        // A folder row selects the folder; its inspector edits the namespace.
         #expect(e.selectRow(id: "Brand/Icons"))
         #expect(e.selected == nil && e.selectedFolder?.lastPathComponent == "Icons")
         let ns = try #require(e.inspectorControls["Provides Namespace"] as? NSButton)
@@ -50,7 +45,6 @@ import Testing
         try e.setProvidesNamespace(true)
         #expect(try json(e.selectedFolder!).contains("\"provides-namespace\" : true"))
         #expect((e.inspectorControls["Provides Namespace"] as? NSButton)?.state == .on)
-        // New items go into the selected folder.
         let set = try e.addSet(kind: 1)
         #expect(set.url.deletingLastPathComponent().lastPathComponent == "Icons" && e.selected?.name == "Color")
         #expect(e.rows.contains { $0.id == "Brand/Icons/Color.colorset" && $0.depth == 2 })
@@ -71,7 +65,6 @@ import Testing
         let all = titles(AssetCatalog.addMenu())
         #expect(all.count == 25)
         for t in all { #expect(AssetCatalogEditorController.creatable[t] != nil, "\(t)") }
-        // Sticker items are enabled only inside a sticker pack.
         #expect(e.addMenuItems["Sticker"]?.isEnabled == false && e.addMenuItems["Image Set"]?.isEnabled == true)
         e.select("Logo")
         let pack = try e.addSet(kind: AssetCatalogEditorController.creatable["Sticker Pack"]!)
@@ -84,7 +77,6 @@ import Testing
         let seq = try #require(e.selected)
         #expect(seq.kind == .stickerSequence && seq.url.deletingLastPathComponent().pathExtension == "stickerpack")
         #expect(try json(seq.url).contains("\"filename\" : \"frame1.png\""))
-        // Run every other item from the top level.
         e.select("Logo")
         for t in all where !["Sticker", "Sticker Sequence", "Sticker Sequence Frame", "Import…", "Folder from Selection"].contains(t) {
             let before = e.catalog.outline().count
@@ -92,7 +84,6 @@ import Testing
             e.addAsset(tag: AssetCatalogEditorController.creatable[t]!)
             #expect(e.catalog.outline().count > before, "\(t)")
         }
-        // Folder from Selection moves the selected set into a new folder.
         e.select("Logo")
         let folder = try #require(try e.folderFromSelection())
         #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("Logo.imageset").path))
@@ -133,14 +124,12 @@ import Testing
         let ae = try #require(wc.assetEditor)
         #expect(wc.inspector.tabNames == CommandTable.inspectors + ["Attributes"])
         #expect(wc.inspector.selectedIndex == CommandTable.inspectors.count)
-        // The inspector no longer sits inside the editor.
         func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
         #expect(!all(ae.view).contains { $0.identifier?.rawValue == "inspector" })
         ae.select("Accent")
         let attrs = try #require(ae.attributesView)
         #expect(all(wc.inspector.view).contains { $0 === attrs })
         #expect(all(attrs).contains { ($0 as? NSTextField)?.stringValue == "Color Set" })
-        // Leaving the catalog removes the tab.
         wc.open(path: src.appendingPathComponent("main.swift").path, line: nil)
         #expect(wc.assetEditor == nil && wc.inspector.tabNames == CommandTable.inspectors)
     }

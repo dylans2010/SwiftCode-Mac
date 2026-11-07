@@ -8,10 +8,6 @@ import SwiftCodeProject
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECoreTests/Fixtures/NavigatorOps")
 
-/// The project navigator's file operations driven through the window:
-/// menus, the context menu, inline rename, Delete, drag and drop, Add
-/// Files, new files and undo (`specs/ide/navigators.md` §SwiftCode
-/// implementation). The sample is the one of `NavigatorOperationTests`.
 @MainActor
 @Suite(.serialized) struct ProjectNavigatorOperationsTests {
     static let navGroup = "0D0000000000000000000002"
@@ -60,7 +56,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
             return wc
         }
 
-        /// The project file on disk.
         var written: String { (try? String(contentsOf: xcodeproj.appendingPathComponent("project.pbxproj"), encoding: .utf8)) ?? "" }
         var base: String { (try? String(contentsOf: fixtures.appendingPathComponent("Base.pbxproj"), encoding: .utf8)) ?? "" }
         func exists(_ rel: String) -> Bool { FileManager.default.fileExists(atPath: dir.appendingPathComponent(rel).path) }
@@ -75,7 +70,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
 
     func outline(_ wc: WorkspaceWindowController) -> NSOutlineView { wc.navigator.outlineView }
 
-    /// Selects the rows whose object IDs (or paths) are given.
     @discardableResult
     func select(_ wc: WorkspaceWindowController, ids: [String] = [], paths: [String] = []) -> [OutlineItem] {
         wc.navigator.selectProjectRows { row in
@@ -96,8 +90,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         return wc.validateMenuItem(i)
     }
 
-    // MARK: Menus
-
     @Test func fileAndEditMenuItemsArePerformed() throws {
         let file = CommandTable.menus.first { $0.0 == "File" }!.1
         guard case .submenu(_, let new)? = file.first else { Issue.record("no New submenu"); return }
@@ -114,15 +106,12 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         let s = try Sample()
         defer { s.remove() }
         let wc = try s.window()
-        // No selection: groups, folders and sorting are disabled; Add Files is not.
         for a in ["newGroup:", "newGroupFromSelection:", "newFolder:", "newFolderFromSelection:", "sortByName:"] { #expect(!validated(wc, a), "\(a)") }
         #expect(validated(wc, "addFiles:"))
-        // Two files in one group: everything applies.
         select(wc, ids: [Self.model, Self.toolMain])
         for a in ["newGroup:", "newGroupWithoutFolder:", "newGroupFromSelection:", "newFolder:", "newFolderFromSelection:", "sortByType:",
                   "deleteNavigatorSelection:"] { #expect(validated(wc, a), "\(a)") }
         #expect(!validated(wc, "renameNavigatorSelection:"))
-        // A file in the synchronized folder: no groups; Folder from Selection works.
         select(wc, paths: [s.path("Shared/Debug.swift")])
         #expect(wc.projectSelectionIsInFolder)
         #expect(!validated(wc, "newGroup:") && validated(wc, "newFolderFromSelection:") && validated(wc, "renameNavigatorSelection:"))
@@ -140,13 +129,10 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
                            "New Group", "New Group without Folder", "New Group from Selection", "New Group from Selection without Folder",
                            "New Folder", "New Folder from Selection", "Sort by Name", "Sort by Type", "Find in Selected File…"])
         #expect(menu.item(withTitle: "Delete")?.isEnabled == true)
-        // In a folder the group and sort items are left out.
         select(wc, paths: [s.path("Shared/Debug.swift")])
         wc.navigator.rebuildRowMenu(menu)
         #expect(menu.item(withTitle: "New Group") == nil && menu.item(withTitle: "Sort by Name") == nil && menu.item(withTitle: "New Folder") != nil)
     }
-
-    // MARK: Groups and folders, with undo
 
     @Test func newGroupWritesTheProjectAndUndoes() throws {
         let s = try Sample()
@@ -156,7 +142,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         let edit = try #require(wc.newNavigatorGroup(withFolder: true))
         guard case .object(let id)? = edit.result.first else { Issue.record("no group"); return }
         #expect(s.written.contains("\(id) /* New Group */ = {") && s.exists("Nav/New Group"))
-        // The new group sits after Model.swift and is selected.
         let proj = try PBXProj(contentsOf: s.xcodeproj)
         #expect(proj[Self.navGroup]?.references("children").dropFirst(2).first == id)
         #expect(wc.navigator.selectedProjectRows.map(\.objectID) == [id])
@@ -196,15 +181,12 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         #expect(inner.path == s.path("Shared/New Folder") && s.written == before)
     }
 
-    // MARK: Rename
-
     @Test func inlineRenameRenamesTheFileAndTheEditorFollows() throws {
         let s = try Sample()
         defer { s.remove() }
         let wc = try s.window()
         wc.open(path: s.path("Nav/Model.swift"), line: nil)
         let row = try #require(select(wc, ids: [Self.model]).first)
-        // Return starts the rename.
         let ret = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
                                                 characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36))
         outline(wc).keyDown(with: ret)
@@ -214,7 +196,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         #expect(s.written.contains("path = Store.swift;") && !s.written.contains("Model.swift"))
         #expect(wc.editor.fileURL?.lastPathComponent == "Store.swift")
         #expect(wc.navigator.selectedProjectRows.map(\.nodePath) == [s.path("Nav/Store.swift")])
-        // The field starts from the full name even where extensions are hidden.
         #expect(wc.navigator.editableName(try #require(wc.navigator.selectedProjectRows.first)) == "Store.swift")
         wc.window?.undoManager?.undo()
         #expect(s.exists("Nav/Model.swift") && s.written == s.base && wc.editor.fileURL?.lastPathComponent == "Model.swift")
@@ -235,14 +216,11 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         #expect(status.contains("R  Nav/Model.swift -> Nav/Store.swift"), "\(status)")
     }
 
-    // MARK: Delete
-
     @Test func deleteKeyAsksThenTrashesAndUndoRestores() throws {
         let s = try Sample()
         defer { s.remove() }
         let wc = try s.window()
         select(wc, ids: [Self.support])
-        // Without a visible window Delete asks nothing and changes nothing.
         let del = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
                                                 characters: "\u{7F}", charactersIgnoringModifiers: "\u{7F}", isARepeat: false, keyCode: 51))
         outline(wc).keyDown(with: del)
@@ -254,13 +232,10 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         #expect(wc.window?.undoManager?.undoActionName == "Move to Trash")
         wc.window?.undoManager?.undo()
         #expect(s.exists("Nav/Helpers.swift") && s.written == s.base)
-        // Remove References keeps the file.
         select(wc, ids: [Self.toolMain])
         _ = try #require(wc.deleteNavigatorItems(moveToTrash: false))
         #expect(s.exists("Nav/ToolMain.swift") && !s.written.contains("ToolMain.swift"))
     }
-
-    // MARK: Drag and drop
 
     @Test func dragMovesRowsIntoGroupsAndFolders() throws {
         let s = try Sample()
@@ -269,10 +244,8 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         let o = outline(wc)
         let readme = try #require(row(wc, id: "0B0000000000000000000003"))
         let root = try #require(wc.navigator.rows(0).first)
-        // Files and groups can be dragged; the project row cannot.
         #expect(wc.navigator.outlineView(o, pasteboardWriterForItem: readme) != nil)
         #expect(wc.navigator.outlineView(o, pasteboardWriterForItem: root) == nil)
-        // A drop on a file lands after it in its group.
         let model = try #require(row(wc, id: Self.model))
         let target = try #require(wc.navigator.dropTarget(model, NSOutlineViewDropOnItemIndex))
         #expect(target.0.objectID == Self.navGroup && target.1 == 2)
@@ -282,14 +255,11 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         #expect(try PBXProj(contentsOf: s.xcodeproj)[Self.navGroup]?.references("children").first == "0B0000000000000000000003")
         wc.window?.undoManager?.undo()
         #expect(s.exists("README.md") && s.written == s.base)
-        // Into the synchronized folder: the reference goes, Nav gets an exception.
         let tool = try #require(row(wc, id: Self.toolMain))
         let shared = try #require(row(wc, id: Self.shared))
         _ = try #require(wc.moveNavigatorRows([tool], to: shared, at: nil))
         #expect(s.exists("Shared/ToolMain.swift") && s.written.contains("Exceptions for \"Shared\" folder in \"Nav\" target"))
     }
-
-    // MARK: Add Files and new files
 
     @Test func addFilesReferencesOrCopies() throws {
         let s = try Sample()
@@ -301,7 +271,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         #expect(s.exists("Nav/Notes.txt") && s.written.contains("/* Notes.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Notes.txt;"))
         wc.window?.undoManager?.undo()
         #expect(!s.exists("Nav/Notes.txt") && s.written == s.base && FileManager.default.fileExists(atPath: notes.path))
-        // The accessory reads back what it shows.
         let acc = AddFilesAccessory(project: try PBXProj(contentsOf: s.xcodeproj),
                                     options: AddFilesOptions(action: .reference, grouping: .folders, targets: ["0E0000000000000000000002"]))
         #expect(acc.options == AddFilesOptions(action: .reference, grouping: .folders, targets: ["0E0000000000000000000002"]))
@@ -312,7 +281,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         let s = try Sample()
         defer { s.remove() }
         let wc = try s.window()
-        // Support has no folder: its files live in Nav/, yet the file joins Support.
         select(wc, ids: [Self.support])
         #expect(wc.newFileDirectory.path == s.path("Nav"))
         let urls = try wc.createFile(entry: TemplateEntry("Swift File"), name: "Tool", targets: ["Nav"])
@@ -373,12 +341,9 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         #expect(validated(wc, "convertToFolder:") && wc.preflightConversionToFolder(nil).isEmpty)
         _ = try #require(wc.convertNavigatorSelection(toFolder: true))
         #expect(try PBXProj(contentsOf: s.xcodeproj).objects(isa: "PBXFileSystemSynchronizedRootGroup").count == 1)
-        // Nav holds a group without a folder.
         select(wc, ids: [Self.navGroup])
         #expect(wc.preflightConversionToFolder(nil) == ["“Support” is not in its group's folder."])
     }
-
-    // MARK: Packages
 
     @Test func packageRowsRenameAndTrashOnDisk() throws {
         let r32 = WindowChromeR32Tests()
@@ -397,7 +362,6 @@ private let fixtures = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECo
         select(wc, paths: [dir.appendingPathComponent("Sources/Chrome/Helpers.swift").path])
         _ = try #require(wc.deleteNavigatorItems(moveToTrash: true))
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("Sources/Chrome/Helpers.swift").path))
-        // Both edits happened in one event, so one undo takes back both.
         wc.window?.undoManager?.undo()
         #expect(FileManager.default.fileExists(atPath: helper))
     }

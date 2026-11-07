@@ -1,7 +1,3 @@
-// foundation.swift - the stage-B sample (specs/macos/macos-apps.md §9.4):
-// Date, JSONEncoder and JSONDecoder, FileManager, from swift-foundation's
-// FoundationEssentials on SwiftCode's macOS userland. Built by swift/build.sh;
-// run-samples.sh checks its output against foundation.expected.
 import FoundationEssentials
 import Darwin
 
@@ -16,7 +12,6 @@ struct Item: Codable, Equatable {
 @main
 struct StageB {
     static func main() throws {
-        // Date
         let epoch = Date(timeIntervalSince1970: 1_700_000_000)
         print("Date:", epoch.timeIntervalSinceReferenceDate, epoch.timeIntervalSince1970)
         print("Later than 2023:", Date() > epoch)
@@ -24,7 +19,6 @@ struct StageB {
         print("One day:", span, "s")
         print("ISO 8601:", epoch.formatted(.iso8601))
 
-        // JSONEncoder and JSONDecoder
         let items = [
             Item(name: "apple", count: 3, price: 0.5, tags: ["fruit", "red"], created: epoch),
             Item(name: "bread", count: 1, price: 2.25, tags: [], created: epoch.addingTimeInterval(3600)),
@@ -41,7 +35,6 @@ struct StageB {
         let dict = try JSONDecoder().decode([String: Double].self, from: Data(#"{"pi": 3.14159, "e": 2.71828}"#.utf8))
         print("Decoded:", dict.sorted { $0.key < $1.key })
 
-        // FileManager
         let fm = FileManager.default
         let base = URL(fileURLWithPath: fm.temporaryDirectory.path).appendingPathComponent("swiftcode-stage-b-\(getpid())")
         try fm.createDirectory(at: base.appendingPathComponent("sub/deeper"), withIntermediateDirectories: true)

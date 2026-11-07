@@ -2,12 +2,6 @@ import type { SwiftCodeContext } from "@swiftcode/sdk";
 import { createInspectRepositoryCommand } from "./commands/inspect-repository.js";
 import { createRunBuildCommand } from "./commands/run-build.js";
 
-/**
- * Live command registrations owned by this activation. Every registration is
- * disposed when the extension deactivates, and also unwound if activation
- * fails partway through, so a partially-initialized extension never leaves
- * commands behind.
- */
 const registrations: Array<{ dispose(): void }> = [];
 
 export async function activate(context: SwiftCodeContext): Promise<void> {

@@ -4,24 +4,16 @@ import SwiftCodeProject
 import SwiftCodeSubprocess
 import SwiftCodeWorkspace
 
-/// File ▸ New ▸ Project…'s steps as one portable model, driven by the
-/// AppKit sheet, the Linux shell's sheet and tests (`specs/ide/templates.md`
-/// § "Template chooser", § "Options step"): the template step (tab,
-/// filter, sectioned grid, the per-tab memory), the options step (the
-/// template's form) and what the next New Project starts from.
 public struct NewProjectFlowModel: Equatable, Sendable {
     public enum Step: Equatable, Sendable { case template, options }
-    /// The New Project chooser or the Package… chooser.
     public enum Chooser: String, Equatable, Sendable { case project, package }
 
-    /// The save step's remembered folder and Git checkbox (§ Persistence, § Save step).
     public static let saveFolderKey = Keys.saveFolder
     public static let gitKey = Keys.git
 
     public static let templateHeading = ProjectTemplateCatalog.heading
     public static let optionsHeading = ProjectOptions.heading
 
-    /// § Persistence keys (SwiftCode's own names).
     enum Keys {
         static func tab(_ c: Chooser) -> String { c == .project ? "SwiftCodeNewProjectTab" : "SwiftCodeNewPackageTab" }
         static func template(_ c: Chooser, _ tab: String) -> String { "\(c == .project ? "SwiftCodeNewProjectTemplate" : "SwiftCodeNewPackageTemplate").\(tab)" }
@@ -29,7 +21,6 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         static let saveFolder = "SwiftCodeNewProjectLocation"
         static let pickerRow = "SwiftCodeNewProjectPickerRow"
         static let git = "SwiftCodeNewProjectCreateGitRepository"
-        /// The older single-template key ("<tab>/<title>" or an identifier).
         static let legacy = "SwiftCodeLastProjectTemplate"
     }
 
@@ -37,16 +28,10 @@ public struct NewProjectFlowModel: Equatable, Sendable {
     public private(set) var step = Step.template
     public private(set) var platform: String
     public private(set) var filter = ""
-    /// The selected template (nil when the filter hides every template).
     public private(set) var selected: ProjectTemplateDescriptor?
-    /// The options of the selected template.
     public private(set) var form: TemplateOptionsForm
-    /// The template last selected on each tab ("<Section>/<Template>").
     private var perTab: [String: String] = [:]
-    /// Option values shared by every template (§ Persistence): each
-    /// template's options start from them when still allowed.
     public private(set) var sharedValues: [String: String]
-    /// The Team pop-up's value (rule 8; not a template option).
     public var team = "None"
 
     var catalog: TemplateChooserCatalog { chooser == .project ? ProjectTemplates.projects : ProjectTemplates.packages }
@@ -73,8 +58,6 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         return catalog.templates(platform: tab).first { $0.memoryKey == key }
     }
 
-    /// The model the last New Project left (§ Persistence): its tab, that
-    /// tab's template, the shared option values.
     public init(defaults: UserDefaults, chooser: Chooser = .project) {
         let catalog = chooser == .project ? ProjectTemplates.projects : ProjectTemplates.packages
         var perTab: [String: String] = [:]
@@ -89,7 +72,6 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         self.init(chooser: chooser, platform: tab, template: template, sharedValues: shared, perTab: perTab)
     }
 
-    /// Stores the tab, the tab's template and the shared option values.
     public func remember(in defaults: UserDefaults) {
         defaults.set(platform, forKey: Keys.tab(chooser))
         for (t, v) in perTab { defaults.set(v, forKey: Keys.template(chooser, t)) }
@@ -103,7 +85,6 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         sections.flatMap(\.entries).compactMap { e in catalog.templates.first { $0.id == e.templateID } }
     }
 
-    /// Switching tabs selects the tab's remembered template.
     public mutating func setPlatform(_ p: String) {
         guard catalog.tabs.contains(p), step == .template else { return }
         platform = p
@@ -118,7 +99,6 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         choose(visibleTemplates.first)
     }
 
-    /// Selects a template (identifier, "<Tab>/<Name>" or name on this tab).
     @discardableResult
     public mutating func select(_ key: String) -> Bool {
         guard step == .template, let d = catalog.find(key, platform: platform) ?? catalog.find(key) else { return false }
@@ -133,7 +113,6 @@ public struct NewProjectFlowModel: Equatable, Sendable {
     }
 
     private mutating func choose(_ d: ProjectTemplateDescriptor?) {
-        // Values chosen so far carry over (shared namespace).
         sharedValues.merge(form.persistedValues) { $1 }
         if form.productName.isEmpty == false { sharedValues[TemplateOptionID.productName] = form.value(TemplateOptionID.productName) }
         selected = d
@@ -142,19 +121,13 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         form = d.makeForm(sharedValues)
     }
 
-    // MARK: Options
-
     public mutating func setOption(_ id: String, _ value: String) {
         if id == TemplateOptionID.team { team = value; return }
         form.set(id, value)
     }
 
-    // MARK: Buttons
-
     public var isPreviousEnabled: Bool { step == .options }
 
-    /// Next on the template step: a template SwiftCode can create is selected.
-    /// On the options step: the form has no issues.
     public var isNextEnabled: Bool {
         switch step {
         case .template: selected?.isAvailable == true
@@ -162,14 +135,11 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         }
     }
 
-    /// The line below the grid: the template's summary, why it cannot be
-    /// created, or the filter's empty state.
     public var templateCaption: String {
         guard let s = selected else { return "No templates match “\(filter)”." }
         return s.unavailableReason ?? s.summary
     }
 
-    /// Next. Returns true when the save step should open.
     @discardableResult
     public mutating func next() -> Bool {
         guard isNextEnabled else { return false }
@@ -182,37 +152,27 @@ public struct NewProjectFlowModel: Equatable, Sendable {
         }
     }
 
-    /// Previous keeps the values (rule 10).
     public mutating func previous() {
         guard step == .options else { return }
         sharedValues.merge(form.persistedValues) { $1 }
         step = .template
     }
 
-    /// Opens the options step for a template directly (picker rows).
     public mutating func jump(to key: String) {
         step = .template
         filter = ""
         if select(key) { _ = next() }
     }
 
-    /// The save step's default name: the product name, or a package
-    /// template's default (MyLibrary, …).
     public var defaultSaveName: String {
         let n = form.productName
         return n.isEmpty ? (selected?.defaultSaveName ?? "") : n
     }
 }
 
-/// The compact picker's rows (`templates.md` § "Compact picker rows").
 extension NewProjectPicker {
-    /// The rows' internal values, in order.
     public static let rowValues = ["app", "commandLineTool", "package", "playground", "template"]
 
-    /// The template a row opens on the options step: Command Line Tool;
-    /// Playground opens App Playground (SwiftCode's choice: the reference's is
-    /// OPEN). App is the untitled project, Package… the package chooser,
-    /// Choose Template… the full sheet.
     public static func templateID(forRow i: Int) -> String? {
         switch i {
         case 1: "macos.command-line-tool"
@@ -221,7 +181,6 @@ extension NewProjectPicker {
         }
     }
 
-    /// Stores the last chosen row (§ Persistence).
     public static func remember(row i: Int, in defaults: UserDefaults) {
         if rowValues.indices.contains(i) { defaults.set(rowValues[i], forKey: NewProjectFlowModel.Keys.pickerRow) }
     }
@@ -231,23 +190,13 @@ extension NewProjectPicker {
     }
 }
 
-// MARK: - Save step
-
-/// The save step's choices: Save As, Where, Create Git repository, and
-/// Add to (an open project or workspace) with its Group.
 public struct NewProjectSaveOptions: Equatable, Sendable {
     public var location: URL
-    /// The folder's name; nil uses the template's (the product name).
     public var saveAs: String?
     public var createGitRepository = true
-    /// An `.xcworkspace` or `.xcodeproj` the new project is added to.
     public var addTo: URL?
-    /// In `addTo`: the group (a workspace group's location path, or a
-    /// project group's object ID); nil is the top level.
     public var group: String?
-    /// Add to = a project: save both in a new workspace (else a sub-project reference).
     public var newWorkspaceForProject = true
-    /// `DEVELOPMENT_TEAM` (nil or "None": no team).
     public var team: String?
 
     public init(location: URL, saveAs: String? = nil, createGitRepository: Bool = true, addTo: URL? = nil, group: String? = nil) {
@@ -259,28 +208,21 @@ public struct NewProjectSaveOptions: Equatable, Sendable {
     }
 }
 
-/// One entry of the save step's Group pop-up.
 public struct NewProjectGroupChoice: Equatable, Sendable {
     public var title: String
     public var depth: Int
-    /// `NewProjectSaveOptions.group`.
     public var key: String?
 }
 
-/// Creates a project from the flow: writes it, makes the Git repository,
-/// and adds it to a workspace or project.
 public enum NewProjectCreator {
     public struct Created: Equatable, Sendable {
-        /// The `.xcodeproj` or package folder to open.
         public var openURL: URL
         public var folder: URL
         public var entryFile: URL?
-        /// Set when the Git step failed (the project is still created).
         public var gitWarning: String?
         public var addedTo: URL?
     }
 
-    /// The Group pop-up's entries for an `addTo` container.
     public static func groups(in container: URL) -> [NewProjectGroupChoice] {
         if container.pathExtension == "xcworkspace" {
             guard let ws = try? Workspace(contentsOf: container.path) else { return [] }
@@ -311,7 +253,6 @@ public enum NewProjectCreator {
         return out
     }
 
-    /// The generated project with the save step's folder name applied.
     public static func generate(_ d: ProjectTemplateDescriptor, _ form: TemplateOptionsForm, saveAs: String?, team: String? = nil) throws -> GeneratedProject {
         var g = try ProjectGenerator.generate(d, form, team: team)
         if let s = saveAs?.trimmingCharacters(in: .whitespaces), !s.isEmpty {
@@ -320,8 +261,6 @@ public enum NewProjectCreator {
         return g
     }
 
-    /// Writes the project; runs Git; adds it to the container. Blocks
-    /// (Git runs as a subprocess): call it off the main thread.
     public static func create(_ d: ProjectTemplateDescriptor, _ form: TemplateOptionsForm, save: NewProjectSaveOptions,
                               gitEnvironment: [String: String]? = nil) throws -> Created {
         let g = try generate(d, form, saveAs: save.saveAs, team: save.team)
@@ -335,9 +274,6 @@ public enum NewProjectCreator {
         return created
     }
 
-    /// `git init`, every created file staged, one commit "Initial Commit"
-    /// (§ Save step). No repository is made inside an existing work tree.
-    /// Returns a warning when Git is missing or a step fails.
     static func initializeRepository(_ folder: URL, environment: [String: String]?) -> String? {
         let git = [HostTool.path("git"), "/usr/local/bin/git", "/opt/homebrew/bin/git"].first { FileManager.default.isExecutableFile(atPath: $0) }
         guard let git else { return "Git was not found; no repository was created." }
@@ -358,13 +294,6 @@ public enum NewProjectCreator {
         return nil
     }
 
-    /// Adds the new project (or package folder) to a workspace (a
-    /// `FileRef` in the group) or to a project. For a project the
-    /// reference asks whether to save both in a new workspace (§ Save
-    /// step); with `newWorkspace` SwiftCode makes `<project>.xcworkspace` next
-    /// to it holding both, otherwise it adds a file reference in the group
-    /// (a sub-project or a local package folder). Returns the container
-    /// that now holds the new project.
     @discardableResult
     public static func add(_ item: URL, to container: URL, group: String?, newWorkspace: Bool = false) throws -> URL {
         if container.pathExtension == "xcodeproj", newWorkspace {
@@ -381,8 +310,6 @@ public enum NewProjectCreator {
             let dataURL = container.appendingPathComponent("contents.xcworkspacedata")
             var ws = try Workspace(contentsOf: container.path)
             let base = container.deletingLastPathComponent()
-            // Workspace group locations nest: the path is relative to the
-            // group it sits in.
             var groupDir = base.standardizedFileURL.path
             var path: [Int] = []
             if let group {
@@ -427,7 +354,6 @@ public enum NewProjectCreator {
         return container
     }
 
-    /// `path` relative to the directory `base` ("../x" when outside it).
     static func relativePath(_ path: String, from base: String) -> String {
         let a = URL(fileURLWithPath: path).standardizedFileURL.pathComponents
         let b = URL(fileURLWithPath: base).standardizedFileURL.pathComponents
@@ -438,7 +364,6 @@ public enum NewProjectCreator {
 }
 
 extension Workspace.Location {
-    /// The location's path, for a group's title.
     var displayPath: String {
         switch self {
         case .group(let p), .container(let p), .absolute(let p), .developer(let p), .selfReference(let p): (p as NSString).lastPathComponent

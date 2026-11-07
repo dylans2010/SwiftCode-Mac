@@ -1,34 +1,3 @@
-// Two-way sync test for the ScopesIDLists pair.
-//
-// Enforces that `src/ScopesIDLists.ts` (TypeScript) and
-// `SwiftCode/SDK/Host/ScopesIDLists.swift` (host) stay identical: the same
-// capability IDs, the same scope kinds, and the same primary IPC methods.
-// It also enforces that every `kind: "view"` entry in the list has a real
-// opener registered in `SDKViewOpenerBuiltIns.swift` — and that every
-// registered opener has a matching `view` entry in the list.
-//
-// PARSING APPROACH (documented here so the contract is explicit):
-//   1. The TypeScript side comes from the compiled `dist/index.js`
-//      (`SCOPES_ID_LIST`, `SCOPES_BY_ID`) — run `npm run build` first,
-//      exactly like the other package tests.
-//   2. The Swift side is read from disk as text and parsed with regexes
-//      that match the canonical `ScopeEntry(...)` literal shape used in
-//      `ScopesIDLists.swift` (fields in fixed order: id, title,
-//      description, kind, ipcMethod, capabilityId, viewId). If that shape
-//      ever changes, this test must be updated in the same change — the
-//      test fails loudly rather than silently comparing nothing.
-//   3. Registered view IDs are collected from
-//      `SDKViewOpenerBuiltIns.swift` (direct `register(viewID: .case)`
-//      calls, `(.case, "toolID")` notification-bridge tuples, and
-//      `SDK<Area>ViewOpener.capabilityID` sibling references whose case is
-//      read from the sibling file). Enum case names are mapped to wire IDs
-//      through `SDKCapability.swift`'s `case <name> = "<raw>"` lines, so a
-//      renamed raw value breaks this test rather than the mapping.
-//
-// This test FAILS when someone adds an ID to one file and not the other —
-// that is the entire point of the ScopesIDLists pair.
-//
-// Run: `npm run build && npm test` (npm test = `node --test "tests/*.test.mjs"`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -36,8 +5,6 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
-// tests/ -> SwiftCode/SDK/TypeScript/package/tests/, so the repo root is
-// five levels up.
 const repoRoot = path.resolve(testsDir, "..", "..", "..", "..", "..");
 const swiftScopesPath = path.join(
   repoRoot,
@@ -68,16 +35,8 @@ const distUrl = pathToFileURL(
 ).href;
 const { SCOPES_ID_LIST, SCOPES_BY_ID } = await import(distUrl);
 
-/**
- * Parses the Swift `ScopesIDLists.all` table from disk. Returns the parsed
- * entries in file order. Asserts the table is non-empty and has no duplicate
- * IDs — a silent parse failure (zero entries) is itself a failure, so a
- * formatting change that breaks the regex cannot go unnoticed.
- */
 function parseSwiftScopeEntries() {
   const src = readFileSync(swiftScopesPath, "utf8");
-  // Canonical ScopeEntry(...) literal shape; fields in fixed order. `nil`
-  // maps to null; quoted strings map to their contents.
   const entryRe =
     /ScopeEntry\(\s*\n\s*id:\s*"([^"]+)",\s*\n\s*title:\s*"([^"]*)",\s*\n\s*description:\s*"([^"]*)",\s*\n\s*kind:\s*\.(\w+),\s*\n\s*ipcMethod:\s*(nil|"([^"]*)"),\s*\n\s*capabilityId:\s*\.(\w+),\s*\n\s*viewId:\s*(nil|"([^"]*)")\s*\n?\)/g;
   const entries = [];
@@ -101,12 +60,6 @@ function parseSwiftScopeEntries() {
   return entries;
 }
 
-/**
- * Maps `SDKCapabilityID` enum case names to their wire raw values by
- * parsing `case <name> = "<raw>"` in SDKCapability.swift. Used so the
- * opener-registration check works with wire IDs, and so a raw-value
- * rename fails this test rather than silently mismatching.
- */
 function parseCapabilityCaseMap() {
   const src = readFileSync(swiftCapabilityPath, "utf8");
   const map = new Map();
@@ -120,13 +73,6 @@ function parseCapabilityCaseMap() {
   return map;
 }
 
-/**
- * Collects the enum case names of every view ID registered by
- * `registerBuiltInOpeners()`: direct `register(viewID: .case)` calls, the
- * `(.case, "toolID")` notification-bridge tuples, and sibling
- * `SDK<Area>ViewOpener.capabilityID` references (resolved by reading the
- * sibling file's `capabilityID = .case` line).
- */
 function parseRegisteredViewCases() {
   const src = readFileSync(swiftBuiltInsPath, "utf8");
   const cases = new Set();
@@ -207,7 +153,6 @@ describe("ScopesIDLists two-way sync", () => {
         `TS entry ${entry.id}: capabilityId must equal the entry id`,
       );
     }
-    // SCOPES_BY_ID is the same entries, keyed by id.
     assert.deepEqual(
       Object.keys(SCOPES_BY_ID).sort(),
       ids.sort(),
@@ -259,7 +204,6 @@ describe("ScopesIDLists two-way sync", () => {
         tsViewId,
         `viewId drift for ${ts.id}: TS=${tsViewId} Swift=${swift.viewId}`,
       );
-      // The typed enum case in Swift must name the same capability ID.
       const caseMap = parseCapabilityCaseMap();
       assert.ok(
         caseMap.has(swift.capabilityCase),

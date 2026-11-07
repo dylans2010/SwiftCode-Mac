@@ -1,19 +1,6 @@
-// Ported from SwiftCode-Legacy SwiftCode/Backend/Assist/AgentPhaseCoordinator.swift (Dylan's own code;
-// direct port authorised under MIT). Legacy commit d51a8f0d; destination
-// SwiftCode-Mac main f5de49dd. Staged only — not yet integrated.
-// Full port (flag 2): `AgentPhaseCoordinator` appended below, verbatim from Legacy
-// except the three `DiagnosticEventBus.shared.logEvent(...)` calls, which are
-// dropped — `DiagnosticEventBus` (Legacy `SwiftCode/Backend/Assist/DiagnosticEvent.swift`)
-// does not exist in the destination or this staging tree (manifest: missing
-// dependency). The `os.Logger` calls in the same methods are kept, so the
-// phase record is still emitted; re-add bus logging when DiagnosticEventBus lands.
-// See staging-ma/assist-core/_fragments/assist-root-MANIFEST.md for the
-// dependency/blocker list.
 import Foundation
 import Observation
 import os
-
-// MARK: - Assist v3 Task Phase Model
 
 public enum PhaseStatus: String, Codable, Sendable {
     case pending = "Pending"
@@ -68,8 +55,6 @@ public struct TaskPhase: Identifiable, Codable, Sendable {
         return end.timeIntervalSince(start)
     }
 }
-
-// MARK: - Standard Assist Engineering Phases
 
 public enum StandardEngineeringPhases {
     public static func defaultLifecycle() -> [TaskPhase] {
@@ -424,7 +409,6 @@ public enum StandardEngineeringPhases {
             ("PHASE_348_FINAL_PR_DESCRIPTION", "Final PR Description", "Document PR deliverables."),
             ("PHASE_349_KNOWN_LIMITATIONS", "Known Limitations", "Document genuine limitations."),
             ("PHASE_350_FINAL_DEFINITION_OF_DONE_AUDIT", "Final Definition-of-Done Audit", "Sign off on Assist v3 completion."),
-            // MARK: - Assist v4 Continuous Takeover Workstream
             ("PHASE_351_GOAL_EXPANSION_AUDIT", "Goal Expansion Audit", "Audit AssistGoalExpansionEngine, state representation, and execution paths."),
             ("PHASE_352_GOAL_EXPANSION_STATE", "Goal Expansion State", "Implement multi-goal state model, graph, and lifecycle tracking."),
             ("PHASE_353_GOAL_EXPANSION_SESSION_INTEGRATION", "Goal Expansion Session Integration", "Wire AssistGoalExpansionEngine directly into AssistAgentSession execution loop."),
@@ -437,7 +421,6 @@ public enum StandardEngineeringPhases {
             ("PHASE_360_TAKEOVER_RUNTIME_TEST", "Takeover Runtime Test", "Verify end-to-end multi-goal execution on real multi-step tasks."),
             ("PHASE_361_TAKEOVER_FAILURE_RECOVERY", "Takeover Failure Recovery", "Handle goal execution failures with circuit breakers and fallback recovery."),
             ("PHASE_362_TAKEOVER_REGRESSION", "Takeover Regression", "Verify regression suite and stability under continuous takeover."),
-            // MARK: - Assist v4 Live Myers Diff Streamer Workstream
             ("PHASE_363_DIFF_ARCHITECTURE_AUDIT", "Diff Architecture Audit", "Audit file modification tools, diff generation, and UI change summary."),
             ("PHASE_364_MYERS_ALGORITHM", "Myers Diff Algorithm", "Implement authentic O(ND) Myers difference algorithm with path backtracking."),
             ("PHASE_365_BEFORE_STATE_CAPTURE", "Before-State Capture", "Accurately capture prior file contents and line metrics before mutations."),
@@ -453,7 +436,6 @@ public enum StandardEngineeringPhases {
             ("PHASE_375_DIFF_UI", "Diff UI", "Enhance AgentChangeSummaryView with live streaming indicators and syntax diffs."),
             ("PHASE_376_RUNTIME_DIFF_TEST", "Runtime Diff Test", "Verify live diff streaming during actual file write and replace operations."),
             ("PHASE_377_DIFF_REGRESSION", "Diff Regression", "Run diff verification suite and check edge cases (empty files, binary, multiline)."),
-            // MARK: - Assist v4 Offline Model Fallback Provider Workstream
             ("PHASE_378_PROVIDER_FALLBACK_AUDIT", "Provider Fallback Audit", "Audit remote model adapters, error handling, and local model infrastructure."),
             ("PHASE_379_CONNECTIVITY_DETECTION", "Connectivity Detection", "Detect network disconnects, DNS errors, timeouts, and provider 5xx outages."),
             ("PHASE_380_FAILURE_CLASSIFICATION", "Failure Classification", "Classify remote transport failures into structured root causes."),
@@ -469,7 +451,6 @@ public enum StandardEngineeringPhases {
             ("PHASE_390_OFFLINE_RUNTIME_TEST", "Offline Runtime Test", "Verify seamless transition to local model upon simulated network drop."),
             ("PHASE_391_CONTEXT_PRESERVATION_TEST", "Context Preservation Test", "Verify zero context loss during offline fallback transition."),
             ("PHASE_392_FALLBACK_REGRESSION", "Fallback Regression", "Verify fallback stability and prompt normalization across providers."),
-            // MARK: - Assist v4 Cross-System & Acceptance Suite
             ("PHASE_393_END_TO_END_CROSS_SYSTEM_INTEGRATION", "End-to-End Cross-System Integration", "Verify takeover + live diff + offline fallback combined workflow."),
             ("PHASE_394_REAL_WORLD_ACCEPTANCE_TESTS", "Real-World Acceptance Tests", "Execute Tests 1-10 covering bugs, compilation, runtime, and full apps.")
         ]
@@ -489,8 +470,6 @@ public enum StandardEngineeringPhases {
         return phases
     }
 }
-
-// MARK: - Agent Phase Coordinator
 
 @Observable
 @MainActor
@@ -596,7 +575,6 @@ public final class AgentPhaseCoordinator: Sendable {
         let index = resolvePhaseIndex(for: phaseId)
         let resolvedId = phases[index].phaseId
 
-        // Auto-skip pending dependencies so execution never stalls
         for dep in phases[index].dependencies {
             if let depIdx = phases.firstIndex(where: { $0.phaseId == dep }),
                phases[depIdx].status == .pending {

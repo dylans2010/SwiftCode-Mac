@@ -1,15 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/AgentUseComposio.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Agent/AgentUseComposio.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - tool-call row UI (RUNNING/SUCCESS/FAILED status, duration, arguments payload, details toggle, Composio dashboard link)
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
 import SwiftUI
 import SwiftCodeAssistant
 
@@ -25,7 +13,6 @@ public struct AgentUseComposio: View {
     public var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                // Header row
                 HStack(alignment: .center, spacing: 8) {
                     Image(systemName: toolkitIcon(for: metadata.toolkit))
                         .font(.headline)
@@ -57,7 +44,6 @@ public struct AgentUseComposio: View {
 
                     Spacer()
 
-                    // Pulse/Execution Status
                     if metadata.isExecuting {
                         HStack(spacing: 5) {
                             ProgressView()
@@ -94,7 +80,6 @@ public struct AgentUseComposio: View {
                     }
                 }
 
-                // Log ID and Latency Bar
                 HStack(spacing: 12) {
                     if let logId = metadata.logId, !logId.isEmpty {
                         Link(destination: URL(string: "https://dashboard.composio.dev/~/project/logs")!) {
@@ -117,7 +102,6 @@ public struct AgentUseComposio: View {
 
                     Spacer()
 
-                    // Expand / Collapse Details Button
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             isExpanded.toggle()
@@ -133,7 +117,6 @@ public struct AgentUseComposio: View {
                     .buttonStyle(.plain)
                 }
 
-                // Output / Arguments View
                 if isExpanded {
                     Divider()
 

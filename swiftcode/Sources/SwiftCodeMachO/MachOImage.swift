@@ -1,6 +1,5 @@
 import Foundation
 
-/// A parsed 64-bit Mach-O image. See `specs/formats/macho-and-dyld-cache.md` §2.
 public struct MachOImage: Sendable {
     public enum FileType: UInt32, Sendable {
         case object = 1, executable = 2, dylib = 6, dylinker = 7, bundle = 8, dsym = 0xA, kextBundle = 0xB, fileSet = 0xC
@@ -47,8 +46,6 @@ public struct MachOImage: Sendable {
         public var platform: Platform? { Platform(rawValue: platformRaw) }
     }
 
-    /// A `__LINKEDIT` blob referenced by a load command (code signature, fixups, …).
-    /// LC_SYMTAB (`mach-o/loader.h`): `symoff`, `nsyms`, `stroff`, `strsize`.
     public struct SymtabCommand: Sendable, Equatable {
         public var symbolOffset: UInt32
         public var symbolCount: UInt32
@@ -71,38 +68,25 @@ public struct MachOImage: Sendable {
     public var dylinker: String?
     public var uuid: UUID?
     public var buildVersion: BuildVersion?
-    /// Entry point offset from the start of `__TEXT` (LC_MAIN).
     public var entryOffset: UInt64?
     public var rpaths: [String] = []
     public var codeSignature: LinkEditData?
     public var chainedFixups: LinkEditData?
     public var exportsTrie: LinkEditData?
-    /// LC_SYMTAB: the symbol table and its strings (offsets into `__LINKEDIT`'s
-    /// file range; `SymbolTable` reads them).
     public var symtab: SymtabCommand?
-    /// LC_FUNCTION_STARTS.
     public var functionStarts: LinkEditData?
-    /// Nonzero `cryptid` in LC_ENCRYPTION_INFO_64. SwiftCode never decrypts.
     public var isEncrypted = false
-    /// Load commands SwiftCode does not interpret, by command number.
     public var otherCommands: [UInt32] = []
 
     public var fileType: FileType? { FileType(rawValue: fileTypeRaw) }
     public var isArm64: Bool { cpuType == MachO.cpuTypeARM64 }
 
-    /// Whether a simulator can run this image as an executable's slice
-    /// (watchos.md W-3): plain arm64 (not arm64e, which needs pointer
-    /// authentication), built for a simulator platform (iOS 7, tvOS 8,
-    /// watchOS 9, visionOS 12) or with no platform recorded. A spawn of
-    /// anything else fails with EBADARCH, as the reference's "Bad CPU type in
-    /// executable" for watchOS's arm64e device binary (platform 4).
     public var isRunnableInSimulator: Bool {
         guard isArm64, MachO.isPlainARM64(cpuSubtype: cpuSubtype) else { return false }
         if let raw = buildVersion?.platformRaw { return Platform(rawValue: raw)?.isSimulator == true }
         return true
     }
 
-    /// Parses the image whose header starts at `offset` in `reader`.
     public init(_ reader: ByteReader, at offset: Int = 0) throws(MachOError) {
         let magic = try reader.u32(offset)
         guard magic == MachO.magic64 else {
@@ -201,7 +185,6 @@ public struct MachOImage: Sendable {
     public func segment(named name: String) -> Segment? { segments.first { $0.name == name } }
 }
 
-/// Constants from `specs/formats/macho-and-dyld-cache.md`.
 public enum MachO {
     public static let magic64: UInt32 = 0xFEEDFACF
     public static let fatMagic: UInt32 = 0xCAFEBABE
@@ -209,13 +192,8 @@ public enum MachO {
     public static let cpuTypeARM64: UInt32 = 0x0100000C
     public static let cpuTypeX86_64: UInt32 = 0x01000007
 
-    /// An arm64 subtype without pointer authentication: `ALL` (0) or `V8`
-    /// (1), the low 24 bits (host-library-loading.md §2). arm64e (2) and its
-    /// variants are not.
     public static func isPlainARM64(cpuSubtype: UInt32) -> Bool { cpuSubtype & 0x00FF_FFFF <= 1 }
 
-    /// Architecture name from CPU type and subtype. The low 24 bits of the
-    /// subtype select the variant; the high byte holds capability flags.
     public static func architectureName(cpuType: UInt32, cpuSubtype: UInt32) -> String {
         let sub = cpuSubtype & 0x00FF_FFFF
         switch cpuType {
@@ -224,8 +202,6 @@ public enum MachO {
             case 0: return "arm64"
             case 1: return "arm64v8"
             case 2: return "arm64e"
-            // Newer variants (Apple's lipo prints e.g. "arm64e.x1" for 12)
-            // have no published name mapping; show the raw subtype.
             default: return "arm64.subtype\(sub)"
             }
         case cpuTypeX86_64:
@@ -256,7 +232,6 @@ public enum MachO {
     static let lcDyldChainedFixups: UInt32 = 0x8000_0034
 }
 
-/// A file that is either a thin Mach-O or a universal (fat) container.
 public struct MachOFile: Sendable {
     public struct Slice: Sendable {
         public var cpuType: UInt32
@@ -264,7 +239,6 @@ public struct MachOFile: Sendable {
         public var offset: Int
         public var size: Int
 
-        /// `arm64`, `arm64e`, `arm64e.x<N>`, `x86_64`, or the raw CPU type.
         public var name: String { MachO.architectureName(cpuType: cpuType, cpuSubtype: cpuSubtype) }
     }
 
@@ -299,7 +273,6 @@ public struct MachOFile: Sendable {
         }
     }
 
-    /// The slice named `architecture` (`arm64`, `arm64e`, `x86_64`, …).
     public func image(architecture: String) throws(MachOError) -> MachOImage {
         guard let s = slices.first(where: { $0.name == architecture }) else {
             throw MachOError("no \(architecture) slice (have \(slices.map(\.name).joined(separator: ", ")))")
@@ -307,8 +280,6 @@ public struct MachOFile: Sendable {
         return try MachOImage(reader, at: s.offset)
     }
 
-    /// The first slice of a CPU type. For arm64 the plain `arm64` slice is
-    /// preferred over arm64e variants.
     public func image(cpuType: UInt32 = MachO.cpuTypeARM64) throws(MachOError) -> MachOImage {
         let candidates = slices.filter { $0.cpuType == cpuType }
         guard let s = candidates.first(where: { $0.cpuSubtype & 0x00FF_FFFF == 0 }) ?? candidates.first else {

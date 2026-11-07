@@ -3,8 +3,6 @@ import SwiftCodeIDECore
 import SwiftCodeProject
 import SwiftCodeWorkspace
 
-/// An editable list with an enable checkbox per row and one or two text
-/// columns (arguments; environment variable name and value).
 @MainActor
 final class EditableListView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     struct Row: Equatable { var enabled: Bool; var fields: [String] }
@@ -12,8 +10,6 @@ final class EditableListView: NSView, NSTableViewDataSource, NSTableViewDelegate
     var onChange: (([Row]) -> Void)?
     let columns: [String]
     let table = NSTableView()
-    /// Centered placeholder shown while the list is empty, e.g.
-    /// "No Environment Variables" (reference-ui-2.md §7).
     let emptyLabel = NSTextField(labelWithString: "")
 
     init(title: String, columns: [String], emptyText: String? = nil) {
@@ -114,7 +110,6 @@ final class EditableListView: NSView, NSTableViewDataSource, NSTableViewDelegate
     }
 }
 
-/// The scheme editor sheet (⌘<). See `specs/ide/schemes.md`.
 @MainActor
 public final class SchemeEditorController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     public static let actions: [(title: String, element: String, symbol: String)] = [
@@ -124,15 +119,11 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
     ]
     public static let runTabs = ["Info", "Arguments", "Options", "Diagnostics"]
 
-    /// An action's subtitle in the list: its configuration, or for Build
-    /// "N targets".
     public func subtitle(forAction a: Int) -> String {
         if a == 0 { let n = scheme.buildEntries.count; return "\(n) target\(n == 1 ? "" : "s")" }
         return scheme.configuration(for: Self.actions[a].element)
     }
 
-    /// One row of the left column. Each action has a disclosure; expanded
-    /// it shows Pre-actions, the action itself, then Post-actions.
     public enum ListRow: Equatable {
         case action(Int), preActions(Int), main(Int), postActions(Int)
         public var action: Int {
@@ -167,11 +158,8 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
 
     public internal(set) var scheme: Scheme
     let configurations: [String]
-    /// Targets the Build table's "+" offers (set by the window).
     public var availableTargets: [Scheme.BuildableReference] = []
-    /// Opens a file (a test plan's go-to arrow).
     public var onOpenFile: ((URL) -> Void)?
-    /// The folder `container:` paths start from, when the scheme has no file.
     public var containerDirectoryOverride: URL?
     var buildTargetsFilter = ""
     var testPlansFilter = ""
@@ -207,8 +195,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         let col = NSTableColumn(identifier: .init("a"))
         actionList.addTableColumn(col)
         actionList.headerView = nil
-        // Plain style: source-list selection uses a material that does not
-        // draw in offscreen captures (it showed as a black bar).
         actionList.style = .plain
         actionList.backgroundColor = .clear
         actionList.selectionHighlightStyle = .regular
@@ -277,11 +263,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         select(action: startSelection.action, tab: startSelection.tab)
     }
 
-    // MARK: Selection
-
-    /// The tabs of an action's detail (reference-ui-2.md §7): Run has
-    /// Info, Arguments, Options, Diagnostics; Profile Info, Arguments,
-    /// Options; the others none.
     public static func tabs(forAction a: Int) -> [String] {
         switch a {
         case 1: runTabs
@@ -290,8 +271,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         }
     }
 
-    /// Where the sheet opens (the window passes the last action and tab
-    /// used, so the sheet reopens there); `onSelect` reports changes.
     public var startSelection: (action: Int, tab: Int) = (1, 0)
     public var onSelect: ((Int, Int) -> Void)?
 
@@ -334,10 +313,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         }
     }
 
-    // MARK: Panes (reference-ui-2.md §7)
-
-    /// A row whose control SwiftCode shows with its default but cannot change
-    /// (no scheme attribute for it in SwiftCode's specs): disabled.
     private func fixed(_ label: String, _ control: NSView) -> NSView {
         if let c = control as? NSControl, !((control as? NSTextField).map { $0.isEditable == false && $0.isBezeled == false } ?? false) {
             c.isEnabled = false
@@ -386,8 +361,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         pane.addArrangedSubview(fixed("Override Architectures", popUp(["Match Run Destination"])))
         pane.addArrangedSubview(fixed("Build Debugging", check("Task Backtraces", false)))
         pane.addArrangedSubview(fixed("", check("Modules Report", false)))
-        // Targets | Analyze | Test | Run | Profile | Archive, with +/−
-        // and a filter (reference-ui-5.md §11.3, P11).
         let order: [Scheme.Action] = [.analyzing, .testing, .running, .profiling, .archiving]
         let entries = scheme.buildEntries.filter { buildTargetsFilter.isEmpty || $0.reference.blueprintName.localizedCaseInsensitiveContains(buildTargetsFilter) }
         let rows = entries.map { e -> [NSView] in
@@ -443,8 +416,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         pane.addArrangedSubview(fixed("Expand Variables Based On", popUp([scheme.launchTarget?.blueprintName ?? "None"])))
     }
 
-    /// Run ▸ Options rows with their defaults; only the working directory
-    /// maps to scheme attributes SwiftCode knows.
     public static let runOptionRows: [(String, String)] = [
         ("Core Location", "Allow Location Simulation"), ("App Data", "None"), ("Routing App Coverage File", "None"),
         ("GameKit Configuration", "Enable Debug Mode"), ("StoreKit Configuration", "None"), ("GPU Frame Capture", "Automatically"),
@@ -512,10 +483,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         pane.addArrangedSubview(fixedEnabled("Working Directory", NSStackView(views: [c, f])))
     }
 
-    /// Run ▸ Diagnostics (reference-ui-2.md §7.3), with defaults. The
-    /// sanitizer rows edit the action's attributes (`SchemeDiagnostics`,
-    /// schemes.md §Diagnostics); the other rows have no scheme attribute in
-    /// SwiftCode's specs and are shown disabled.
     public static let diagnosticRows: [(section: String, title: String, on: Bool, indent: Bool)] = [
         ("Runtime Sanitization", "Address Sanitizer", false, false), ("", "Detect use of stack after return", false, true),
         ("", "Thread Sanitizer", false, false), ("", "Undefined Behavior Sanitizer", false, false),
@@ -530,13 +497,11 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         ("Core AI", "Include Model Debug Information", false, false),
     ]
 
-    /// The editable sanitizer rows and the attribute each one sets.
     public static let sanitizerRows: [String: WritableKeyPath<SchemeDiagnostics, Bool>] = [
         "Address Sanitizer": \.addressSanitizer, "Detect use of stack after return": \.stackUseAfterReturn,
         "Thread Sanitizer": \.threadSanitizer, "Undefined Behavior Sanitizer": \.undefinedBehaviorSanitizer,
     ]
 
-    /// A sanitizer checkbox of `element`'s Diagnostics.
     private func sanitizerCheck(_ title: String, indent: Bool, element: String) -> NSButton {
         let key = Self.sanitizerRows[title]!
         let d = scheme.diagnostics(for: element)
@@ -554,8 +519,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         setSanitizer(key, b.state == .on, for: b.element)
     }
 
-    /// Turns a sanitizer of `element` on or off (ASan and TSan exclude each
-    /// other) and redraws the pane.
     public func setSanitizer(_ key: WritableKeyPath<SchemeDiagnostics, Bool>, _ on: Bool, for element: String = "LaunchAction") {
         var d = scheme.diagnostics(for: element)
         d.set(key, on)
@@ -591,12 +554,9 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         lldb.placeholderString = "$(SRCROOT)/LLDBInitFile"
         lldb.isEnabled = false
         pane.addArrangedSubview(fixed("LLDB Init File", lldb))
-        // The test action's own sanitizers (schemes.md §Diagnostics).
         for (n, r) in Self.diagnosticRows.prefix(4).enumerated() {
             pane.addArrangedSubview(fixedEnabled(n == 0 ? "Diagnostics" : "", sanitizerCheck(r.title, indent: r.indent, element: element)))
         }
-        // Test Plans | Default, rows with a subtitle and a go-to arrow,
-        // +/− and a filter (§11.3).
         var rows: [[NSView]] = []
         var ids: [String] = []
         for p in scheme.testPlans {
@@ -636,7 +596,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         return NSStackView(views: [label, popup])
     }
 
-    /// Sets an action's build configuration (the pop-up's action).
     public func setConfiguration(_ name: String, for element: String) {
         scheme.setConfiguration(name, for: element)
     }
@@ -659,21 +618,18 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
 
     @objc private func tabChosen() { select(action: selectedAction, tab: tabs.selectedSegment) }
 
-    /// The bottom bar's Shared checkbox (moves the file; see Manage Schemes).
     public let sharedCheck = NSButton(checkboxWithTitle: "Shared", target: nil, action: nil)
     @objc private func sharedToggled(_ b: NSButton) {
         do { try scheme.setShared(b.state == .on) } catch { b.state = scheme.isShared ? .on : .off; NSSound.beep() }
     }
     @objc private func manage() { onManage?() }
 
-    /// Close writes the scheme if it changed, then dismisses.
     @objc public func closeSheet() {
         try? scheme.save()
         onClose?(scheme)
         if presentingViewController != nil { dismiss(nil) }
     }
 
-    /// Replaces the arguments (as the table would) — for tests and scripting.
     public func setArguments(_ args: [Scheme.Argument]) {
         arguments.rows = args.map { .init(enabled: $0.isEnabled, fields: [$0.value]) }
         arguments.onChange?(arguments.rows)
@@ -693,8 +649,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
         b.textColor = .secondaryLabelColor
         return NSStackView(views: [a, b])
     }
-
-    // MARK: Action list
 
     public func numberOfRows(in tableView: NSTableView) -> Int { listRows.count }
 
@@ -728,7 +682,6 @@ public final class SchemeEditorController: NSViewController, NSTableViewDataSour
     }
 }
 
-/// Manage Schemes: name, container and the Shared checkbox.
 @MainActor
 public final class ManageSchemesController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     public private(set) var schemes: [Scheme]
@@ -774,7 +727,6 @@ public final class ManageSchemesController: NSViewController, NSTableViewDataSou
         view = root
     }
 
-    /// The Shared checkbox: moves the file between shared and user data.
     public func setShared(_ shared: Bool, at index: Int, user: String = NSUserName()) throws {
         try schemes[index].setShared(shared, user: user)
         if isViewLoaded { table.reloadData() }
@@ -800,7 +752,6 @@ public final class ManageSchemesController: NSViewController, NSTableViewDataSou
             b.tag = row
             return b
         case "container":
-            // …/<Container>.xcodeproj/xcshareddata/xcschemes/X.xcscheme
             let comps = s.url?.pathComponents ?? []
             let container = comps.last { $0.hasSuffix(".xcodeproj") || $0.hasSuffix(".xcworkspace") } ?? ""
             return NSTextField(labelWithString: container)
@@ -810,10 +761,6 @@ public final class ManageSchemesController: NSViewController, NSTableViewDataSou
     }
 }
 
-/// A row of the scheme editor's action list. Draws the source-list
-/// selection itself (accent color when the list is focused, the
-/// unemphasized selection color otherwise) so it never falls back to a
-/// dark bar, and tells its cell to use contrasting text.
 @MainActor
 final class SchemeActionRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
@@ -827,8 +774,6 @@ final class SchemeActionRowView: NSTableRowView {
     }
 }
 
-/// Icon, bold title and configuration subtitle; colors follow the row's
-/// background style.
 @MainActor
 final class SchemeActionCell: NSTableCellView {
     let icon = NSImageView()
@@ -879,7 +824,6 @@ final class SchemeActionCell: NSTableCellView {
     }
 }
 
-/// A Diagnostics checkbox that knows its attribute and action element.
 final class SanitizerBox: NSButton {
     var key: WritableKeyPath<SchemeDiagnostics, Bool>?
     var element = "LaunchAction"

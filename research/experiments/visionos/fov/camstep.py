@@ -1,10 +1,3 @@
-# camstep.py (our code, OBS-VISION-FOV 2026-11-01): the rendered camera's yaw per presented frame.
-# usage: python3 -I camstep.py <frames.bin> <sent.txt> [--ref N] [--fov 90] [--row 0] [--csv out.csv] [--quiet]
-# frames.bin: camrec's samples (rows of each presented frame, every 2nd pixel, luma).
-# sent.txt: vhid STAMP output ("SENT <mach> <ts in message>").
-# For each frame: yaw (deg) of the camera relative to frame --ref, from the best shift of the row
-# resampled to view angle (pinhole, horizontal FOV --fov), and the time (ms) since the latest SENT.
-# Positive yaw = the picture moved right = the camera turned left.
 import struct, sys, math, argparse
 import numpy as np
 ap = argparse.ArgumentParser(); ap.add_argument('frames'); ap.add_argument('sent'); ap.add_argument('--ref', type=int, default=0)
@@ -38,7 +31,7 @@ for i, row in enumerate(R):
     sub = 0
     if 0 < b < len(cs) - 1:
         c0, c1, c2 = cs[b - 1], cs[b], cs[b + 1]; den = c0 - 2 * c1 + c2; sub = 0.5 * (c0 - c2) / den if den else 0
-    yaw = -((b - K) + sub) * STEP   # s(x) = ref(x + k): picture moved left by k when k > 0
+    yaw = -((b - K) + sub) * STEP
     import bisect; j = bisect.bisect_right(sent, T[i]) - 1
     since = (T[i] - sent[j]) * a.tick / 1e6 if j >= 0 else float('nan')
     dt = (T[i] - T[i - 1]) * a.tick / 1e6 if i else 0

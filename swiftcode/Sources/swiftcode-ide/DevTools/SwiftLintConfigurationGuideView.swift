@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 import SwiftCodeUI
 
@@ -48,7 +45,6 @@ public struct SwiftLintConfigurationGuideView: View {
                 }
 
                 HStack(alignment: .top, spacing: 20) {
-                    // Controls
                     VStack(spacing: 16) {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
@@ -91,7 +87,6 @@ public struct SwiftLintConfigurationGuideView: View {
                     }
                     .frame(width: 300)
 
-                    // Code examples preview
                     VStack(spacing: 16) {
                         ForEach(rules) { item in
                             GroupBox {
@@ -135,6 +130,6 @@ public struct SwiftLintConfigurationGuideView: View {
             }
             .padding(24)
         }
-        
+
     }
 }

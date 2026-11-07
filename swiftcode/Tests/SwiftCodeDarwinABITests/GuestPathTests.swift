@@ -2,11 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// `GuestPath` gives the results of the `NSString` path helpers it replaces
-/// in the kernel (the table holds Darwin Foundation's answers; Linux
-/// Foundation traps on some of these inputs, so it is not used as the oracle).
 @Suite struct GuestPathTests {
-    /// (path, last component, path without its last component)
     static let samples: [(String, String, String)] = [
         ("/a/b", "b", "/a"), ("/a/b/", "b", "/a"), ("/a", "a", "/"), ("/", "/", "/"), ("", "", ""),
         ("a", "a", ""), ("a/b", "b", "a"), ("/a//b", "b", "/a"), ("//a", "a", "/"),
@@ -23,7 +19,6 @@ import Testing
     }
 
     #if canImport(Darwin)
-    /// On Darwin the table itself is checked against Foundation.
     @Test func tableMatchesFoundation() {
         for (path, last, parent) in Self.samples {
             #expect((path as NSString).lastPathComponent == last, "\(path)")

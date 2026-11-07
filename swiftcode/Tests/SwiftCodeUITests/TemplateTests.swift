@@ -16,7 +16,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try? FileManager.default.removeItem(at: location)
         try FileManager.default.createDirectory(at: location, withIntermediateDirectories: true)
 
-        // New Project through the compact picker's Command Line Tool row.
         let host = try WorkspaceModel(url: try WindowSnapshotTests().samplePackage())
         let hostWindow = WorkspaceWindowController(session: WorkspaceSession(model: host), loadDestinations: false, startLanguageService: false)
         let td = TestDefaults("new-project")
@@ -31,20 +30,16 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         sheet.nextClicked()
         let toolProj = try #require(hostWindow.lastCreatedProject)
         #expect(toolProj.lastPathComponent == "Hello Tool.xcodeproj")
-        // Creating it again fails without touching anything.
         sheet.nextClicked()
         #expect(hostWindow.lastNewProjectError?.contains("already exists") == true)
-        // The template is remembered for next time.
         let last = ProjectTemplateCatalog.lastSelection(td.defaults)
         #expect(last.platform == "macOS" && last.title == "Command Line Tool")
         let appProj = try ProjectTemplate.app.create(name: "Viewer", organization: "org.swiftcode.tests", in: location)
         let pkg = try ProjectTemplate.swiftPackage.create(name: "Kit", organization: "", in: location)
 
-        // The generated project file round-trips byte for byte.
         let text = try String(contentsOf: toolProj.appendingPathComponent("project.pbxproj"), encoding: .utf8)
         #expect(try PBXProj(parsing: text).serialized(projectName: "Hello Tool") == text)
 
-        // Generated projects build with swift-build (when swbuild is available).
         let probe = swiftcodeDir.appendingPathComponent("Tools/swiftcode-swb/.build/debug/swbuild").path
         if let tool = SwiftBuildEngine.locate() ?? (FileManager.default.isExecutableFile(atPath: probe) ? probe : nil) {
             let engine = SwiftBuildEngine(swbuild: tool)
@@ -56,7 +51,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             }
         }
 
-        // New File inside the tool project: added to its group and target.
         let session = WorkspaceSession(model: try WorkspaceModel(url: toolProj))
         let wc = WorkspaceWindowController(session: session, loadDestinations: false, startLanguageService: false)
         wc.window?.appearance = NSAppearance(named: .aqua)
@@ -72,7 +66,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         _ = try WindowSnapshotTests().render(fileSheet.view, to: "new-file-sheet.png")
         _ = try wc.createFile(entry: try #require(fileSheet.selectedEntry), name: "Widget")
         let pbx = try String(contentsOf: toolProj.appendingPathComponent("project.pbxproj"), encoding: .utf8)
-        // The tool's folder is synchronized: new files need no project change.
         #expect(!pbx.contains("Widget.m"))
         let folder = toolProj.deletingLastPathComponent().appendingPathComponent("Hello Tool")
         #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("Widget.m").path))

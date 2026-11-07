@@ -3,29 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// The gap-closure implementations of the four Agentic search tools
-/// (family 3: SEARCH TOOLS).
-///
-/// Behaviour source: Legacy `SwiftCode/Tools/Agentic/WebSearch.swift`,
-/// `DocumentationSearch.swift`, `APIReferenceSearch.swift`,
-/// `PackageSearch.swift` (Dylan's own code, ported under MIT).
-/// Legacy's IDs, descriptions, and required parameters are kept
-/// verbatim; each tool gains optional parameters only
-/// (`framework`/`limit`), the Wave 10 `repository` precedent.
-/// The network clients and parsers live in
-/// `SwiftCodeTools+SearchWebSupport.swift`; the wiring that points the
-/// four registrations in `SwiftCodeTools+AgenticNetwork.swift` at these
-/// handlers is coordinator-owned (this file must not edit it).
-///
-/// All four tools are read-only network reads (`openWorld`), need
-/// no workspace, and never write. No result is ever invented:
-/// `web_search` fails honestly when the DuckDuckGo Instant Answer
-/// API has nothing for the query, the documentation tools fail
-/// honestly when no DocC page resolves, and `package_search`
-/// returns an empty result (count 0) only when both backends
-/// answered and found no match.
 extension SwiftCodeMCPHost {
-    // MARK: - `web_search`
 
     func searchWeb(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let query = call.string("query") else {
@@ -40,12 +18,6 @@ extension SwiftCodeMCPHost {
         }
         let results = Array(answer.results.prefix(limit))
         guard !answer.abstract.isEmpty || !answer.answer.isEmpty || !results.isEmpty else {
-            // The Instant Answer API genuinely has nothing for this
-            // query. That is not "no web results exist" — the API
-            // only answers topics with a summary — so fail honestly
-            // and name what would answer it instead of returning an
-            // empty success that reads as a searched-and-found-
-            // nothing.
             throw MCPToolError(
                 "DuckDuckGo's keyless Instant Answer API has no summary or related results for '\(query)'. " +
                 "It answers topics with a summary; it is not a full ranked web search, and DuckDuckGo's html/lite " +
@@ -100,8 +72,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - `documentation_search` / `api_reference_search`
-
     func searchDocumentation(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await searchDocs(call, symbolOnly: false)
     }
@@ -122,8 +92,6 @@ extension SwiftCodeMCPHost {
         } catch let error as EnginesHTTPError {
             switch error {
             case .invalidURL(let message):
-                // The resolver's own message already names what it
-                // needs (a framework or an exact URL).
                 throw MCPToolError(message)
             case .rateLimited:
                 throw MCPToolError("Apple documentation endpoint rate-limited the request. Try again shortly.")
@@ -160,8 +128,6 @@ extension SwiftCodeMCPHost {
         return .structured(["results": .string(formatted), "count": .int(shown.count)],
                            summary: lines.joined(separator: "\n"))
     }
-
-    // MARK: - `package_search`
 
     func searchPackage(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let query = call.string("query") else {

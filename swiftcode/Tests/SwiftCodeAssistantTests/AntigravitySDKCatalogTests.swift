@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// MARK: - Antigravity SDK catalog (Wave 16, Slice D)
-//
-// Fixtures only: the `agy` binary is never executed here (the
-// seed catalog and the pure parsers are what is tested).
-
 @Suite struct AntigravitySDKCatalogTests {
     @Test func seedCatalogIsLegacyVerbatim() {
         let seeds = AntigravitySDKCatalog.seedModels

@@ -1,5 +1,3 @@
-// C-ENGINE part 3: offers, Ask to Buy, refunds, purchase issues and
-// simulated errors (testing-session.md §5–§9, §11; simulator-baseline.md §8 R1, A1, F1, O1).
 import Foundation
 import Testing
 import StoreKitConfiguration
@@ -29,7 +27,6 @@ struct OfferTests {
         let chain = store.allTransactions().filter { $0.originalID == promo.id }
         #expect(chain.map(\.priceMilli) == [1990, 1990, 1990, 3990])
         #expect(chain.map { $0.offer?.type } == [.promotional, .promotional, .promotional, nil])
-        // An unknown offer id fails with the alert (once the intro no longer applies).
         try store.expireSubscription(productID: ID.monthly)
         #expect(throws: StoreFailure(.unknown, alert: StoreAlert(title: "Unable to Purchase", message: "Contact the developer for more information."))) {
             try store.purchase(productID: ID.monthly, options: PurchaseOptions(promotionalOfferID: "nope"))
@@ -43,7 +40,6 @@ struct OfferTests {
         #expect(throws: StoreFailure(.unknown, alert: StoreAlert(title: "Unable to Purchase", message: "Contact the developer for more information."))) {
             try store.purchase(productID: ID.monthly, options: PurchaseOptions(signedPromotionalOffer: offer))
         }
-        // With a verifier that accepts it, the purchase goes through (intro first while eligible).
         device.promotionalOfferVerifier = { o, ctx in o.keyID == "KEY1" && ctx.productID == ID.monthly && ctx.bundleID == ID.app }
         #expect(try store.purchase(productID: ID.monthly, options: PurchaseOptions(signedPromotionalOffer: offer)).record.offer?.type == .introductory)
     }
@@ -70,7 +66,6 @@ struct OfferTests {
         let (_, _, store) = makeStore(rate: .oneRenewalEveryTenSeconds)
         let r = try store.purchase(productID: ID.weekly, options: PurchaseOptions(codeOfferReferenceName: "CODEFREE")).record
         #expect(r.offer?.type == .introductory && r.offer?.paymentMode == .payUpFront && r.priceMilli == 990)
-        // A code the product has, for a new customer: applied to the purchase.
         let m = try store.purchase(productID: ID.monthly, options: PurchaseOptions(codeOfferReferenceName: "CODEFREE")).record
         #expect(m.offer?.type == .code && m.offer?.identifier == "CODEFREE" && m.priceMilli == 0)
         #expect(m.expiresDate! - m.purchaseDate == 10_000)
@@ -99,7 +94,7 @@ struct OfferTests {
         #expect(store.allTransactions().filter { $0.originalID == weekly.id }.count == 1)
         let s = store.subscriptionStatuses(groupID: ID.extra)[0]
         #expect(s.state == .expired && s.renewal.expirationIntent == 1)
-        #expect(store.allTransactions().filter { $0.productID == ID.yearly }.count == 1)  // a year has not passed
+        #expect(store.allTransactions().filter { $0.productID == ID.yearly }.count == 1)
     }
 }
 
@@ -123,7 +118,6 @@ struct AskToBuyTests {
         #expect(store.currentEntitlements().map(\.id) == [pro.id])
         try store.declineAskToBuy(transactionID: coins.id)
         #expect(store.transaction(coins.id)?.state == .failed)
-        // The reference still delivered and listed the declined consumable (open question 6).
         #expect(log.transactions.map(\.id) == [pro.id, coins.id])
         #expect(store.transactionHistory().map(\.id) == [pro.id, coins.id].sorted(by: >))
         #expect(throws: TestSessionError.self) { try store.approveAskToBuy(transactionID: coins.id) }
@@ -171,10 +165,8 @@ struct RefundTests {
         #expect(store.currentEntitlements().isEmpty)
         let status = store.subscriptionStatuses(groupID: ID.plus)[0]
         #expect(status.state == .revoked && status.renewal.autoRenewStatus == 0 && status.renewal.expirationIntent != nil)
-        // The refunded, finished consumable is not listed; refunds reach the app as updates.
         #expect(!store.transactionHistory().contains { $0.id == coins.id })
         #expect(log.transactions.map(\.id) == [pro.id, coins.id, monthly.id])
-        // No renewals after a refund.
         clock.advance(by: 30)
         #expect(store.allTransactions().count == 3)
     }
@@ -221,7 +213,6 @@ struct FailureTests {
             #expect(throws: StoreFailure(.unknown, simulated: .generic(generic))) { try store.purchase(productID: ID.coins) }
         }
         #expect(store.allTransactions().isEmpty)
-        // With dialogs disabled the alert still appears (the alert is part of the failure).
         #expect(store.settings.disableDialogs)
     }
 

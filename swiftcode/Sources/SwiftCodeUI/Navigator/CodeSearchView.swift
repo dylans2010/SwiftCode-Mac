@@ -1,11 +1,3 @@
-// CodeSearchView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Search/CodeSearchView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: per-file-extension filter chips (All/swift/json/plist/yaml/html); highlighted match snippets in results
-// Ambiguous type reference(s) defined in several modules, import left out: Configuration.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): FileNode.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeSubprocess
 import SwiftUI
@@ -36,7 +28,6 @@ struct CodeSearchView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Elegant Native Floating Header for Search Inputs
             VStack(spacing: 12) {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
@@ -76,7 +67,6 @@ struct CodeSearchView: View {
                 .padding(.vertical, 10)
                 .liquidGlass(style: .subtle, cornerRadius: 12)
 
-                // Inline Replace Interface
                 HStack(spacing: 10) {
                     Image(systemName: "arrow.right.arrow.left.circle")
                         .font(.body)
@@ -110,7 +100,6 @@ struct CodeSearchView: View {
 
             Divider()
 
-            // Filter Pills Row
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Toggle(isOn: $caseSensitive) {
@@ -158,7 +147,6 @@ struct CodeSearchView: View {
 
             Divider()
 
-            // Header Statistics
             if !results.isEmpty {
                 HStack {
                     Text("\(results.count) Match\(results.count == 1 ? "" : "es") Found")
@@ -179,7 +167,6 @@ struct CodeSearchView: View {
                 Divider()
             }
 
-            // Interactive Matches List
             Group {
                 if results.isEmpty && !searchQuery.isEmpty && !isSearching {
                     ContentUnavailableView {
@@ -432,7 +419,6 @@ struct CodeSearchView: View {
     }
 }
 
-// Inline toggle system to support elegant buttons
 struct ToggleSource: Identifiable {
     let id = UUID()
     let title: String

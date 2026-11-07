@@ -6,35 +6,9 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// File dialogs (round R13; public API names: `fileImporter`, `fileExporter`,
-// `FileDocument`, `FileDocumentConfiguration`, `fileDialogDefaultDirectory`,
-// `fileDialogMessage`, `fileDialogConfirmationLabel`, `UTType`).
-//
-// Design (SwiftCode's): the dialog is OpenViews' own, drawn in the window as a
-// sheet (the "open panel" of a Linux app on OpenViews; no desktop portal is
-// used). It lists one folder: a bar with Back (to the enclosing folder) and
-// the folder's path, the entries sorted by name (hidden files left out), and
-// a "Go to" field that takes a path (Return opens a folder or chooses a
-// file). Folders open with a double click or Return; a folder whose
-// extension names one of the allowed types (a package, such as a project
-// bundle) is chosen like a file. Entries that are not allowed are dimmed and
-// cannot be chosen. The exporter adds a name field and asks before replacing
-// a file. Escape cancels.
-//
-// `UTType` is OpenViews' own small type registry (the system's
-// UniformTypeIdentifiers is not available on Linux): the public type
-// identifiers of the common types, their file name extensions and
-// conformance, plus dynamic types for other extensions.
-
-// MARK: - UTType
-
-/// A uniform type: an identifier, its file name extensions and the types it
-/// conforms to.
 public struct UTType: Hashable, Sendable, CustomStringConvertible {
     public let identifier: String
-    /// Extensions, the preferred one first.
     let extensions: [String]
-    /// Direct supertypes (identifiers).
     let parents: [String]
     public let isDynamic: Bool
 
@@ -53,14 +27,11 @@ public struct UTType: Hashable, Sendable, CustomStringConvertible {
     public var isDeclared: Bool { !isDynamic }
     public var isPublic: Bool { identifier.hasPrefix("public.") }
 
-    /// The registered type with this identifier.
     public init?(_ identifier: String) {
         guard let t = UTType.registry[identifier] else { return nil }
         self = t
     }
 
-    /// The registered type for this extension, else a dynamic type that
-    /// conforms to `supertype`.
     public init?(filenameExtension ext: String, conformingTo supertype: UTType = .data) {
         let e = ext.lowercased()
         guard !e.isEmpty, !e.contains("/") else { return nil }
@@ -72,18 +43,15 @@ public struct UTType: Hashable, Sendable, CustomStringConvertible {
                   isDynamic: true)
     }
 
-    /// A type the app declares.
     public init(exportedAs identifier: String, conformingTo parent: UTType? = nil) {
         self = UTType.registry[identifier]
             ?? UTType(identifier: identifier, extensions: [], parents: [(parent ?? .data).identifier])
     }
 
-    /// A type another app declares.
     public init(importedAs identifier: String, conformingTo parent: UTType? = nil) {
         self.init(exportedAs: identifier, conformingTo: parent)
     }
 
-    /// The types this one conforms to (itself excluded).
     public var supertypes: Set<UTType> {
         var out: Set<UTType> = []
         var queue = parents
@@ -101,8 +69,6 @@ public struct UTType: Hashable, Sendable, CustomStringConvertible {
     public func isSupertype(of other: UTType) -> Bool { other.conforms(to: self) }
     public func isSubtype(of other: UTType) -> Bool { conforms(to: other) }
 
-    // The public types (identifiers and extensions are interoperability
-    // facts of the public type system).
     public static let item = UTType(identifier: "public.item", extensions: [], parents: [])
     public static let content = UTType(identifier: "public.content", extensions: [], parents: [])
     public static let data = UTType(identifier: "public.data", extensions: [], parents: ["public.item"])
@@ -146,8 +112,6 @@ public struct UTType: Hashable, Sendable, CustomStringConvertible {
         return d
     }()
 
-    /// The type of a file or folder on disk (packages: a folder whose
-    /// extension one of `packages` names).
     static func of(_ url: URL, isDirectory: Bool, packages: [UTType] = []) -> UTType {
         let ext = url.pathExtension.lowercased()
         if isDirectory {
@@ -158,11 +122,7 @@ public struct UTType: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-// MARK: - FileWrapper (Linux)
-
 #if !canImport(Darwin)
-/// A file or folder as data (corelibs Foundation has no `FileWrapper`;
-/// regular files and folders only).
 open class FileWrapper {
     public enum Kind { case regular(Data), directory([String: FileWrapper]) }
     var kind: Kind
@@ -227,9 +187,6 @@ open class FileWrapper {
 }
 #endif
 
-// MARK: - FileDocument
-
-/// A document a file dialog reads and writes.
 @preconcurrency
 public protocol FileDocument {
     static var readableContentTypes: [UTType] { get }
@@ -254,8 +211,6 @@ public struct FileDocumentWriteConfiguration {
     public let existingFile: FileWrapper?
 }
 
-// MARK: - Dialog options in the environment
-
 private enum FileDialogDirectoryKey: EnvironmentKey { static let defaultValue: URL? = nil }
 private enum FileDialogMessageKey: EnvironmentKey { static let defaultValue: String? = nil }
 private enum FileDialogConfirmationKey: EnvironmentKey { static let defaultValue: String? = nil }
@@ -277,17 +232,14 @@ extension EnvironmentValues {
     }
 }
 
-/// Errors the dialogs report.
 public enum FileDialogError: Error, Equatable {
     case notAllowed(URL)
     case writeFailed(String)
 }
 
 extension View {
-    /// The folder a file dialog in this view opens in.
     public func fileDialogDefaultDirectory(_ url: URL?) -> some View { environment(\._fileDialogDirectory, url) }
 
-    /// A message the dialog shows under its title.
     public func fileDialogMessage(_ message: Text?) -> some View {
         environment(\._fileDialogMessage, message?.plainString)
     }
@@ -297,7 +249,6 @@ extension View {
         environment(\._fileDialogMessage, String(message))
     }
 
-    /// The title of the dialog's confirm button.
     public func fileDialogConfirmationLabel(_ label: Text?) -> some View {
         environment(\._fileDialogConfirmation, label?.plainString)
     }
@@ -307,22 +258,18 @@ extension View {
         environment(\._fileDialogConfirmation, String(label))
     }
 
-    /// Asks for a file (or folder) of `allowedContentTypes` to open.
     public func fileImporter(isPresented: Binding<Bool>, allowedContentTypes: [UTType],
                              onCompletion: @escaping (Result<URL, any Error>) -> Void) -> some View {
         modifier(FileDialogModifier(isPresented: isPresented, mode: .open(types: allowedContentTypes, multiple: false),
                                     complete: { r in onCompletion(r.map { $0[0] }) }, cancelled: {}))
     }
 
-    /// Asks for one or several files to open.
     public func fileImporter(isPresented: Binding<Bool>, allowedContentTypes: [UTType], allowsMultipleSelection: Bool,
                              onCompletion: @escaping (Result<[URL], any Error>) -> Void) -> some View {
         modifier(FileDialogModifier(isPresented: isPresented, mode: .open(types: allowedContentTypes, multiple: allowsMultipleSelection),
                                     complete: onCompletion, cancelled: {}))
     }
 
-    /// Like `fileImporter(isPresented:allowedContentTypes:allowsMultipleSelection:onCompletion:)`, and
-    /// `onCancellation` runs when the dialog is dismissed without a choice.
     public func fileImporter(isPresented: Binding<Bool>, allowedContentTypes: [UTType], allowsMultipleSelection: Bool,
                              onCompletion: @escaping (Result<[URL], any Error>) -> Void,
                              onCancellation: @escaping () -> Void) -> some View {
@@ -330,7 +277,6 @@ extension View {
                                     complete: onCompletion, cancelled: onCancellation))
     }
 
-    /// Asks where to save `document` and writes it there.
     public func fileExporter<D: FileDocument>(isPresented: Binding<Bool>, document: D?, contentType: UTType,
                                               defaultFilename: String? = nil,
                                               onCompletion: @escaping (Result<URL, any Error>) -> Void) -> some View {
@@ -345,8 +291,6 @@ extension View {
                                            complete: { r in onCompletion(r.map { $0[0] }) }, cancelled: {}))
     }
 }
-
-// MARK: - The dialog
 
 enum FileDialogMode {
     case open(types: [UTType], multiple: Bool)
@@ -375,7 +319,6 @@ struct FileDialogModifier: ViewModifier {
     }
 }
 
-/// One entry of the listed folder.
 struct FilePanelEntry: Identifiable, Hashable {
     let url: URL
     let isFolder: Bool
@@ -385,7 +328,6 @@ struct FilePanelEntry: Identifiable, Hashable {
     var name: String { url.lastPathComponent }
 }
 
-/// The dialog's state and rules (no view types; tested directly).
 @MainActor
 @Observable
 final class FilePanelModel {
@@ -396,7 +338,6 @@ final class FilePanelModel {
     var goTo = ""
     var name = ""
     private(set) var error: String?
-    /// The file the exporter asks about replacing.
     private(set) var confirmReplace: URL?
 
     init(mode: FileDialogMode, start: URL) {
@@ -413,8 +354,6 @@ final class FilePanelModel {
         reload()
     }
 
-    /// A folder URL by its standardized path (no trailing slash), so that
-    /// folders compare equal however they were reached.
     static func normalized(_ url: URL) -> URL {
         var p = url.standardizedFileURL.path
         while p.count > 1 && p.hasSuffix("/") { p.removeLast() }
@@ -435,7 +374,6 @@ final class FilePanelModel {
 
     var isSave: Bool { if case .save = mode { return true } else { return false } }
 
-    /// Whether folders themselves can be chosen.
     var foldersAllowed: Bool { allowedTypes.contains { UTType.folder.conforms(to: $0) } }
 
     func isAllowed(_ type: UTType) -> Bool { allowedTypes.contains { type.conforms(to: $0) } }
@@ -471,7 +409,6 @@ final class FilePanelModel {
         if parent.path != folder.path { open(folder: parent) }
     }
 
-    /// The parts of the folder's path, root first.
     var pathComponents: [(name: String, url: URL)] {
         var out: [(String, URL)] = []
         var u = folder
@@ -486,7 +423,6 @@ final class FilePanelModel {
 
     var selectedEntries: [FilePanelEntry] { entries.filter { selection.contains($0.url) } }
 
-    /// The URLs the confirm button would choose (nil: it cannot).
     var choice: [URL]? {
         if isSave {
             let n = name.trimmingCharacters(in: .whitespaces)
@@ -499,7 +435,6 @@ final class FilePanelModel {
         return sel.map(\.url)
     }
 
-    /// The confirm button opens the selected folder instead of choosing.
     var confirmEntersFolder: Bool {
         let sel = selectedEntries
         return sel.count == 1 && sel[0].isFolder && (!sel[0].isAllowed || isSave)
@@ -507,8 +442,6 @@ final class FilePanelModel {
 
     var canConfirm: Bool { confirmEntersFolder || choice != nil }
 
-    /// A double click (or Return) on an entry: folders open, allowed files
-    /// are chosen. Returns the choice to finish with.
     func activate(_ e: FilePanelEntry) -> [URL]? {
         if e.isFolder {
             open(folder: e.url)
@@ -521,7 +454,6 @@ final class FilePanelModel {
         return e.isAllowed ? [e.url] : nil
     }
 
-    /// The confirm button. Returns the choice to finish with.
     func confirm() -> [URL]? {
         if confirmEntersFolder, let e = selectedEntries.first {
             open(folder: e.url)
@@ -537,7 +469,6 @@ final class FilePanelModel {
 
     func cancelReplace() { confirmReplace = nil }
 
-    /// The "Go to" field: a folder opens, an allowed file is chosen.
     func goToPath() -> [URL]? {
         var p = goTo.trimmingCharacters(in: .whitespaces)
         guard !p.isEmpty else { return nil }
@@ -574,7 +505,6 @@ final class FilePanelModel {
     }
 }
 
-/// The dialog's view.
 struct FilePanel: View {
     let finish: (Result<[URL], any Error>?) -> Void
     let message: String?

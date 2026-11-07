@@ -1,10 +1,3 @@
-// DatabaseMigrationView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/Views/DatabaseMigrationView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: in-view migration generator form (name plus up/down SQL); per-migration apply/rollback from the history list
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DatabaseConnectionManager.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -20,7 +13,6 @@ struct DatabaseMigrationView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                // Left Panel: Create Migration
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Generate New Migration")
                         .font(.headline)
@@ -55,7 +47,6 @@ struct DatabaseMigrationView: View {
 
                 Divider()
 
-                // Right Panel: Applied & Pending Migrations
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Migration History")
                         .font(.headline)

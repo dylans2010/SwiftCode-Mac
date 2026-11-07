@@ -1,9 +1,3 @@
-// OperationsDependencyManagerView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/OperationsDependencyManagerView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: dependency items with versions/status; refreshDependencies
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 
@@ -13,7 +7,6 @@ struct OperationsDependencyManagerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Dependencies")

@@ -1,23 +1,16 @@
-// Object descriptors of the Metal host protocol (metal-sim-protocol.md
-// §5, §7) as backend-neutral values. Enum-valued fields keep the public
-// Metal API's raw values (MTLPixelFormat, MTLTextureType, …; level 1).
-
 import Foundation
 
-/// `MTLStorageMode` (`MTLResourceOptions` bits 4–7).
 public enum MetalStorageMode: UInt8, Sendable {
     case shared = 0
     case managed = 1
     case `private` = 2
     case memoryless = 3
 
-    /// From `MTLResourceOptions`; unknown modes read as private.
     public init(resourceOptions: UInt64) {
         self = MetalStorageMode(rawValue: UInt8((resourceOptions >> 4) & 0xF)) ?? .private
     }
 }
 
-/// A region of a texture: origin and size in texels.
 public struct MetalRegion: Equatable, Sendable, CustomStringConvertible {
     public var x: Int, y: Int, z: Int
     public var width: Int, height: Int, depth: Int
@@ -28,7 +21,6 @@ public struct MetalRegion: Equatable, Sendable, CustomStringConvertible {
     public var description: String { "(\(x),\(y),\(z) \(width)x\(height)x\(depth))" }
 }
 
-/// `MTLPixelFormat` raw values and what the service needs to know of them.
 public enum MetalPixelFormat {
     public static let invalid: UInt32 = 0
     public static let a8Unorm: UInt32 = 1
@@ -58,7 +50,6 @@ public enum MetalPixelFormat {
     public static let bgr10XR: UInt32 = 554
     public static let bgr10XRSRGB: UInt32 = 555
 
-    /// Bytes per texel of an uncompressed format, nil when unknown or block-compressed.
     public static func bytesPerPixel(_ format: UInt32) -> Int? {
         switch format {
         case 1, 10, 11, 12, 13, 14, 253: return 1
@@ -71,7 +62,6 @@ public enum MetalPixelFormat {
     }
 }
 
-/// `MTLTextureType` raw values.
 public enum MetalTextureType {
     public static let type1D: UInt8 = 0
     public static let type1DArray: UInt8 = 1
@@ -85,7 +75,6 @@ public enum MetalTextureType {
     public static let typeTextureBuffer: UInt8 = 9
 }
 
-/// `MTLTextureUsage` bits.
 public enum MetalTextureUsage {
     public static let shaderRead: UInt16 = 0x1
     public static let shaderWrite: UInt16 = 0x2
@@ -93,7 +82,6 @@ public enum MetalTextureUsage {
     public static let pixelFormatView: UInt16 = 0x10
 }
 
-/// A texture descriptor (spec §5.2: 36 bytes, nine words).
 public struct MetalTextureDescriptor: Equatable, Sendable {
     public var textureType: UInt8
     public var pixelFormat: UInt32
@@ -101,14 +89,10 @@ public struct MetalTextureDescriptor: Equatable, Sendable {
     public var mipmapLevelCount: Int
     public var sampleCount: Int
     public var arrayLength: Int
-    /// `MTLTextureUsage` (low 8 bits travel).
     public var usage: UInt16
-    /// `MTLResourceOptions` (16 bits): cache mode, storage mode, hazard tracking.
     public var resourceOptions: UInt16
     public var allowGPUOptimizedContents: Bool
-    /// Word 1 bits 4 and 5 (seen on some IOSurface textures; meaning open).
     public var flags: UInt8
-    /// Words 7–8 (open; always 0 in captures).
     public var reserved: UInt64
 
     public var storageMode: MetalStorageMode { MetalStorageMode(resourceOptions: UInt64(resourceOptions)) }
@@ -131,13 +115,11 @@ public struct MetalTextureDescriptor: Equatable, Sendable {
     }
 }
 
-/// A texture view (device ops 7, 8, 27). Nil fields keep the parent's value.
 public struct MetalTextureViewDescriptor: Equatable, Sendable {
     public var pixelFormat: UInt32
     public var textureType: UInt8?
     public var levels: Range<Int>?
     public var slices: Range<Int>?
-    /// One `MTLTextureSwizzle` byte per channel r, g, b, a (op 27); nil = identity.
     public var swizzle: [UInt8]?
 
     public init(pixelFormat: UInt32, textureType: UInt8? = nil, levels: Range<Int>? = nil, slices: Range<Int>? = nil,
@@ -150,7 +132,6 @@ public struct MetalTextureViewDescriptor: Equatable, Sendable {
     }
 }
 
-/// A sampler (spec §5.5). Values are the `MTLSampler*` raw values.
 public struct MetalSamplerDescriptor: Equatable, Sendable {
     public var minFilter: UInt8 = 0
     public var magFilter: UInt8 = 0
@@ -165,14 +146,11 @@ public struct MetalSamplerDescriptor: Equatable, Sendable {
     public var lodMinClamp: Float = 0
     public var lodMaxClamp: Float = .greatestFiniteMagnitude
     public var supportArgumentBuffers = false
-    /// Packed-word bit 4 (open).
     public var bit4 = false
 
     public init() {}
 }
 
-/// One face's stencil state (spec §5.6). Values are `MTLCompareFunction`
-/// and `MTLStencilOperation` raw values.
 public struct MetalStencilDescriptor: Equatable, Sendable {
     public var compareFunction: UInt8
     public var stencilFailureOperation: UInt8
@@ -191,9 +169,7 @@ public struct MetalStencilDescriptor: Equatable, Sendable {
     }
 }
 
-/// A depth-stencil state (spec §5.6).
 public struct MetalDepthStencilDescriptor: Equatable, Sendable {
-    /// `MTLCompareFunction` (default 7 Always).
     public var depthCompareFunction: UInt8 = 7
     public var depthWriteEnabled = false
     public var frontFaceStencil: MetalStencilDescriptor?
@@ -201,29 +177,23 @@ public struct MetalDepthStencilDescriptor: Equatable, Sendable {
     public init() {}
 }
 
-/// A render pipeline's color attachment (spec §7.2). Defaults are the
-/// Metal API's (fields that travel only when different from them).
 public struct MetalColorAttachmentDescriptor: Equatable, Sendable {
     public var index: Int
     public var pixelFormat: UInt32 = 0
     public var blendingEnabled = false
-    /// `MTLBlendFactor`: 0 Zero, 1 One, … ; `MTLBlendOperation`: 0 Add, …
     public var sourceRGBBlendFactor: UInt32 = 1
     public var destinationRGBBlendFactor: UInt32 = 0
     public var rgbBlendOperation: UInt32 = 0
     public var sourceAlphaBlendFactor: UInt32 = 1
     public var destinationAlphaBlendFactor: UInt32 = 0
     public var alphaBlendOperation: UInt32 = 0
-    /// `MTLColorWriteMask` (default 0xF All).
     public var writeMask: UInt32 = 0xF
     public init(index: Int) { self.index = index }
 }
 
-/// A vertex descriptor (spec §7.2).
 public struct MetalVertexDescriptor: Equatable, Sendable {
     public struct Attribute: Equatable, Sendable {
         public var index: Int
-        /// `MTLVertexFormat`.
         public var format: UInt32 = 0
         public var offset: Int = 0
         public var bufferIndex: Int = 0
@@ -231,19 +201,16 @@ public struct MetalVertexDescriptor: Equatable, Sendable {
     }
     public struct Layout: Equatable, Sendable {
         public var bufferIndex: Int
-        /// `MTLVertexStepFunction` (default 1 PerVertex).
         public var stepFunction: UInt32 = 1
         public var stepRate: Int = 1
         public var stride: Int = 0
         public init(bufferIndex: Int) { self.bufferIndex = bufferIndex }
     }
     public var attributes: [Attribute] = []
-    /// As sent: may repeat a buffer index (one element per attribute).
     public var layouts: [Layout] = []
     public init() {}
 }
 
-/// A render pipeline (op 14, spec §7.2). Function fields are handles.
 public struct MetalRenderPipelineDescriptor: Equatable, Sendable {
     public var label: String?
     public var vertexFunction: MetalHandle?
@@ -254,14 +221,11 @@ public struct MetalRenderPipelineDescriptor: Equatable, Sendable {
     public var colorAttachments: [MetalColorAttachmentDescriptor] = []
     public var depthAttachmentPixelFormat: UInt32 = 0
     public var stencilAttachmentPixelFormat: UInt32 = 0
-    /// `MTLPrimitiveTopologyClass` (0 Unspecified).
     public var inputPrimitiveTopology: UInt32 = 0
-    /// Top-level keys the decoder does not know (key → value as sent).
     public var unknownKeys: [UInt8: UInt64] = [:]
     public init() {}
 }
 
-/// `MTLPrimitiveType`, `MTLIndexType`, `MTLLoadAction`, `MTLStoreAction`.
 public enum MetalPrimitiveType {
     public static let point: UInt32 = 0
     public static let line: UInt32 = 1

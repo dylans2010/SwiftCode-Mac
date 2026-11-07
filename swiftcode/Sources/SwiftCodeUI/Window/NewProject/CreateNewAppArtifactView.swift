@@ -1,9 +1,3 @@
-// CreateNewAppArtifactView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppArtifactView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: App-summary artifact screen after creation
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 public struct CreateNewAppArtifactView: View {

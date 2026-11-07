@@ -1,30 +1,4 @@
-/*
- * Copyright (c) 2021 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgSwRasterCore.h"
-
-/************************************************************************/
-/* AVX2                                                                 */
-/************************************************************************/
 
 #ifdef THORVG_AVX_SUPPORT
 
@@ -34,8 +8,6 @@
 
 static __m256i avxScalePixels(__m256i pixels, __m256i factors)
 {
-    // Each 32-bit lane contains one pixel and a factor in [0, 256].
-    // Scale alternating channels in 16-bit lanes without unpacking the pixels.
     const auto mask = _mm256_set1_epi32(0x00ff00ff);
     factors = _mm256_or_si256(factors, _mm256_slli_epi32(factors, 16));
     auto even = _mm256_mullo_epi16(_mm256_and_si256(pixels, mask), factors);
@@ -45,7 +17,6 @@ static __m256i avxScalePixels(__m256i pixels, __m256i factors)
 
 uint32_t avxRasterDownScaler(const uint32_t* img, uint32_t stride, uint32_t w, TVG_UNUSED uint32_t h, float sx, TVG_UNUSED float sy, int32_t miny, int32_t maxy, int32_t n)
 {
-    // At most 4*4 pixels contribute, so each channel sum fits in uint16_t.
     auto sum = _mm_setzero_si128();
 
     auto minx = static_cast<int32_t>(sx) - n;
@@ -100,19 +71,15 @@ void avxRasterSolidPixels(uint32_t* dst, uint32_t* src, uint32_t len, uint8_t op
 void avxRasterSolidPixel32(uint32_t* dst, uint32_t val, uint32_t offset, int32_t len)
 {
     if (len <= 0) return;
-    // 1. calculate how many iterations we need to cover the length
     uint32_t iterations = len / N_32BITS_IN_256REG;
     uint32_t avxFilled = iterations * N_32BITS_IN_256REG;
 
-    // 2. set the beginning of the array
     dst += offset;
 
-    // 3. fill the octets
     for (uint32_t i = 0; i < iterations; ++i, dst += N_32BITS_IN_256REG) {
         _mm256_storeu_si256((__m256i*)dst, _mm256_set1_epi32(val));
     }
 
-    // 4. fill leftovers (in the first step we have to set the pointer to the place where the avx job is done)
     int32_t leftovers = len - avxFilled;
     while (leftovers--) *dst++ = val;
 }
@@ -122,7 +89,6 @@ bool avxRasterTranslucentRect(SwSurface* surface, const RenderRegion& bbox, cons
     auto h = bbox.h();
     auto w = bbox.w();
 
-    // 32bits channels
     if (surface->channelSize == sizeof(uint32_t)) {
         auto color = surface->join(c.r, c.g, c.b, c.a);
         auto buffer = surface->buf32 + (bbox.yMin * surface->stride) + bbox.xMin;
@@ -141,7 +107,6 @@ bool avxRasterTranslucentRect(SwSurface* surface, const RenderRegion& bbox, cons
                 dst[x] = color + ALPHA_BLEND(dst[x], ialpha);
             }
         }
-    // 8bit grayscale
     } else if (surface->channelSize == sizeof(uint8_t)) {
         auto buffer = surface->buf8 + (bbox.yMin * surface->stride) + bbox.xMin;
         const auto ialpha = static_cast<uint8_t>(~c.a);
@@ -173,7 +138,6 @@ bool avxRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const RenderR
     const SwSpan* end;
     int32_t x, len;
 
-    // 32bit channels
     if (surface->channelSize == sizeof(uint32_t)) {
         auto color = surface->join(c.r, c.g, c.b, c.a);
         uint32_t src;
@@ -196,7 +160,6 @@ bool avxRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const RenderR
                 dst[i] = src + ALPHA_BLEND(dst[i], ialpha);
             }
         }
-    // 8bit grayscale
     } else if (surface->channelSize == sizeof(uint8_t)) {
         const auto mask = _mm256_set1_epi16(0x00ff);
         const auto ialpha = static_cast<uint8_t>(~c.a);
@@ -259,7 +222,6 @@ void avxRasterPremultiply(uint32_t* buffer, uint32_t width)
     for (; width - x >= 8; x += 8) {
         auto pixels = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(buffer + x));
         auto alpha = _mm256_srli_epi32(pixels, 24);
-        // A factor of 256 preserves opaque pixels; other pixels use alpha / 256.
         auto factors = _mm256_sub_epi32(alpha, _mm256_cmpeq_epi32(alpha, full));
         auto result = avxScalePixels(pixels, factors);
         result = _mm256_blendv_epi8(result, pixels, alphaMask);
@@ -325,7 +287,6 @@ void avxRasterGaussianFilterRow(uint8_t* dst, const uint8_t* src, int32_t w, int
 
 void avxRasterGaussianXYFlipBlock(const uint32_t* src, uint32_t* dst, int32_t stride)
 {
-    // Transpose one complete 8x8 block using four 4x4 tiles.
     for (int32_t x = 0; x < 8; x += 4) {
         for (int32_t y = 0; y < 8; y += 4) {
             auto s = src + x + y * stride;
@@ -348,15 +309,10 @@ void avxRasterGaussianXYFlipBlock(const uint32_t* src, uint32_t* dst, int32_t st
 
 #endif
 
-/************************************************************************/
-/* Neon                                                                 */
-/************************************************************************/
-
 #ifdef THORVG_NEON_SUPPORT
 
 #include <arm_neon.h>
 
-// TODO: Verify MSVC ARM64 NEON header and intrinsic compatibility, including the Meson probe.
 #if defined(__ARM_64BIT_STATE) || defined(_M_ARM64)
     #define TVG_AARCH64 1
 #else
@@ -429,9 +385,6 @@ void neonRasterPremultiply(uint32_t* buffer, uint32_t width)
 
 uint32_t neonRasterDownScaler(const uint32_t* img, uint32_t stride, uint32_t w, TVG_UNUSED uint32_t h, float sx, TVG_UNUSED float sy, int32_t miny, int32_t maxy, int32_t n)
 {
-    // Each clipped span is at most 2*n; stepping by floor(n/2)+1 takes at most 4 samples per axis.
-    // At most 4*4 pixels contribute, so each channel sum is <= 16*255=4080 and fits in uint16_t.
-    // vaddw_u8 widens and accumulates 8-bit channels into uint16x8_t in one instruction.
     uint16x8_t sum = vdupq_n_u16(0);
 
     auto minx = static_cast<int32_t>(sx) - n;
@@ -513,7 +466,6 @@ bool neonRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const Render
     const SwSpan* end;
     int32_t x, len;
 
-    // 32bit channels
     if (surface->channelSize == sizeof(uint32_t)) {
         auto color = surface->join(c.r, c.g, c.b, c.a);
         uint32_t src;
@@ -529,7 +481,6 @@ bool neonRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const Render
             auto ialpha = IA(src);
 
             if ((((uintptr_t)dst) & 0x7) != 0) {
-                // fill not aligned byte
                 *dst = src + ALPHA_BLEND(*dst, ialpha);
                 vDst = (uint8x8_t*)(dst + 1);
                 align = 1;
@@ -548,7 +499,6 @@ bool neonRasterTranslucentRle(SwSurface* surface, const SwRle* rle, const Render
             auto leftovers = (len - align) % 2;
             if (leftovers > 0) dst[len - 1] = src + ALPHA_BLEND(dst[len - 1], ialpha);
         }
-    // 8bit grayscale
     } else if (surface->channelSize == sizeof(uint8_t)) {
         const auto ialpha = static_cast<uint8_t>(~c.a);
         const auto vIalpha = vdup_n_u8(ialpha);
@@ -581,7 +531,6 @@ bool neonRasterTranslucentRect(SwSurface* surface, const RenderRegion& bbox, con
     auto h = bbox.h();
     auto w = bbox.w();
 
-    // 32bits channels
     if (surface->channelSize == sizeof(uint32_t)) {
         auto color = surface->join(c.r, c.g, c.b, c.a);
         auto buffer = surface->buf32 + (bbox.yMin * surface->stride) + bbox.xMin;
@@ -595,7 +544,6 @@ bool neonRasterTranslucentRect(SwSurface* surface, const RenderRegion& bbox, con
             auto dst = &buffer[y * surface->stride];
 
             if ((((uintptr_t)dst) & 0x7) != 0) {
-                // fill not aligned byte
                 *dst = color + ALPHA_BLEND(*dst, ialpha);
                 vDst = (uint8x8_t*)(dst + 1);
                 align = 1;
@@ -611,7 +559,6 @@ bool neonRasterTranslucentRect(SwSurface* surface, const RenderRegion& bbox, con
             auto leftovers = (w - align) % 2;
             if (leftovers > 0) dst[w - 1] = color + ALPHA_BLEND(dst[w - 1], ialpha);
         }
-    // 8bit grayscale
     } else if (surface->channelSize == sizeof(uint8_t)) {
         auto buffer = surface->buf8 + (bbox.yMin * surface->stride) + bbox.xMin;
         const auto ialpha = static_cast<uint8_t>(~c.a);
@@ -693,7 +640,6 @@ void neonRasterGaussianFilterRow(uint8_t* dst, const uint8_t* src, int32_t w, in
 
 void neonRasterGaussianXYFlipBlock(const uint32_t* src, uint32_t* dst, int32_t stride)
 {
-    // Transpose one complete 8x8 block using four 4x4 tiles.
     for (int32_t x = 0; x < 8; x += 4) {
         for (int32_t y = 0; y < 8; y += 4) {
             auto s = src + x + y * stride;

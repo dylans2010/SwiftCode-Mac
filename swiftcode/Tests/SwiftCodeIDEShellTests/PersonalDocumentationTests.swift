@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDEShell
 
-/// Personal Documentation store: CRUD, search, version history, templates,
-/// export/import and the local analyzer. The store writes under a temporary
-/// directory while `IDEProcess.isTestProcess` is true.
 @MainActor
 struct PersonalDocumentationTests {
     private func makeStore() -> PersonalDocStore {
@@ -98,8 +95,6 @@ struct PersonalDocumentationTests {
         let kept = store.createDocument(title: "Kept", kind: .scratchpad)
         _ = store.createDocument(title: "Dropped", kind: .scratchpad)
         let snapshot = store.createSnapshot(title: "S", description: "")
-        // The snapshot holds both documents; archive one by hand, then
-        // restore a snapshot that only holds the kept document.
         var dropped = store.fetchDocuments(for: .scratchpad).first { $0.title == "Dropped" }!
         dropped.archived = true
         store.updateDocument(dropped)

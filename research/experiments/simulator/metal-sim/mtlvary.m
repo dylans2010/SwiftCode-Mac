@@ -1,24 +1,3 @@
-/*
- * mtlvary: field-separation runs for the R7 probe (original Ycode code).
- * Public Metal API only. Each subcommand encodes calls with distinctive
- * argument values; in render encoders every call is preceded by a separator
- * (setBlendColorRed:<n> green:0 blue:0 alpha:0), in blit encoders by
- * fillBuffer:<sep> range:{n,1} value:0xEE, so that records can be matched to
- * calls. The list of calls is printed to stdout in order.
- *
- * Usage: mtlvary <test> [...]
- *   render      render-encoder call matrix
- *   rp <n>      render pass descriptor variant n (0..7)
- *   compute     compute-encoder call matrix
- *   blit        blit-encoder call matrix
- *   pso <n>     render pipeline descriptor variant n (0..7)
- *   tex         texture descriptor variants
- *   sampler     sampler descriptor variants
- *   ds          depth-stencil descriptor variants
- *   big         one render encoder with more than 64 KiB of commands
- *   many        20 command buffers in flight
- *   bytes       setVertexBytes / setFragmentBytes sizes
- */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <dlfcn.h>
@@ -159,7 +138,6 @@ static void t_render(void)
     sep(re, "drawIndexed tri count 0x12345 u16 ib off 0x10"); [re drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:0x12345 indexType:MTLIndexTypeUInt16 indexBuffer:ib indexBufferOffset:0x10];
     sep(re, "drawIndexed tri count 0x66 u16 off 0x20 inst 0x77"); [re drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:0x66 indexType:MTLIndexTypeUInt16 indexBuffer:ib indexBufferOffset:0x20 instanceCount:0x77];
     sep(re, "drawIndexed tri count 0x66 u16 off 0x20 inst 0x77 baseVertex 0x55 baseInst 0x44"); [re drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:0x66 indexType:MTLIndexTypeUInt16 indexBuffer:ib indexBufferOffset:0x20 instanceCount:0x77 baseVertex:0x55 baseInstance:0x44];
-    // Instanced indexed draws with values that separate 16- and 32-bit fields (agent H, 2026-10-13).
     sep(re, "drawIndexed tri count 4 u16 off 0x10 inst 0x200"); [re drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:4 indexType:MTLIndexTypeUInt16 indexBuffer:ib indexBufferOffset:0x10 instanceCount:0x200];
     sep(re, "drawIndexed tri count 4 u16 off 0x10 inst 0x12345"); [re drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:4 indexType:MTLIndexTypeUInt16 indexBuffer:ib indexBufferOffset:0x10 instanceCount:0x12345];
     sep(re, "drawIndexed tri count 4 u16 off 0x10 inst 1 baseVertex 0x200 baseInst 0"); [re drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:4 indexType:MTLIndexTypeUInt16 indexBuffer:ib indexBufferOffset:0x10 instanceCount:1 baseVertex:0x200 baseInstance:0];

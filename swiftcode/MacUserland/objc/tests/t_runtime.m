@@ -1,7 +1,3 @@
-// t_runtime.m - objc/runtime.h introspection and class construction
-// (specs/macos/objc-runtime.md §4): names, sizes, ivars and offsets,
-// property attributes, protocols, method lists and type encodings,
-// selectors, runtime-built classes, object_setClass, ivar sliding.
 #include <objc/NSObject.h>
 #include <objc/runtime.h>
 #include <objc/message.h>

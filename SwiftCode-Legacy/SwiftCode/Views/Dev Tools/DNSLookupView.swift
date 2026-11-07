@@ -37,7 +37,6 @@ struct DNSLookupView: View {
 
     func lookup() {
         isLoading = true
-        // Using Google DNS-over-HTTPS API for real DNS lookup
         guard let url = URL(string: "https://dns.google/resolve?name=\(domain)") else {
             isLoading = false
             return

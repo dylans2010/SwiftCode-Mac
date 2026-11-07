@@ -1,7 +1,3 @@
-// The file-event service's streams in a snapshot's host-service record
-// (snapshot.md §9; fsevents-host.md, "SwiftCode implementation"): one nested
-// entry per stream, under ST_HostService.sessions.
-
 #if os(Linux) && arch(arm64)
 import SwiftCodeDarwinKernel
 import SwiftCodeHostServices

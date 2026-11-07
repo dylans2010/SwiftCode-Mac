@@ -29,8 +29,7 @@ public struct AssistExplainCodeTool: AssistTool {
         do {
             let content = try context.fileSystem.readFile(at: path)
 
-            // LLM-powered explanation
-            let provider = AssistModelProvider.openAI // Default for now
+            let provider = AssistModelProvider.openAI
             let apiKey = await provider.storedAPIKey()
 
             let prompt = """
@@ -47,7 +46,6 @@ public struct AssistExplainCodeTool: AssistTool {
             if response.success {
                 return .success("Explanation for \(path)", data: ["explanation": response.content])
             } else {
-                // Fallback to static analysis if LLM fails
                 let lines = content.components(separatedBy: .newlines)
                 let summary = "File: \(path), Lines: \(lines.count). (LLM explanation failed: \(response.error ?? "unknown"))"
                 return .success("Static analysis for \(path)", data: ["explanation": summary])

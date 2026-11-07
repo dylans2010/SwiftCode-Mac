@@ -1,29 +1,11 @@
 import Foundation
 import Synchronization
 
-// Font discovery and matching.
-//
-// Sources, in order: faces registered directly, the fonts bundled with this
-// module (Noto Sans and Noto Sans Mono Regular and Bold, Resources/Fonts/
-// OFL.txt; Inter Regular, Medium, SemiBold and Bold, Inter-OFL.txt; all SIL
-// OFL 1.1),
-// and font directories. Directories are scanned lazily (only the name, head
-// and OS/2 tables are read until a face is used). On Linux the default
-// directories are the XDG / fontconfig ones; on Apple hosts no system
-// directory is scanned, and families of Apple's system fonts are refused
-// everywhere: OpenViews must not use or ship them (09-open-design.md §5.2).
-//
-// Matching follows the CSS Fonts Level 4 font-matching order: family, then
-// width, then style (italic), then weight.
-
-/// The design of a system font (SwiftUI's `Font.Design`).
 public enum FontDesignClass: Hashable, Sendable {
     case `default`, serif, rounded, monospaced
 }
 
-/// What a text run asks for.
 public struct FontRequest: Hashable, Sendable {
-    /// A family name (custom fonts); nil for the system UI font of `design`.
     public var family: String?
     public var design: FontDesignClass
     public var traits: FontTraits
@@ -35,7 +17,6 @@ public struct FontRequest: Hashable, Sendable {
     }
 }
 
-/// A face found in a directory, not loaded yet.
 struct FaceDescriptor: Sendable {
     let url: URL
     let index: Int
@@ -45,8 +26,6 @@ struct FaceDescriptor: Sendable {
 }
 
 public final class FontCatalog: @unchecked Sendable {
-    /// Family names tried for each design, in order; the first family that
-    /// exists in the catalog wins. The UI family is the bundled Noto Sans.
     public static let defaultFamilies: [FontDesignClass: [String]] = [
         .default: ["Noto Sans"],
         .rounded: ["Nunito", "Noto Sans"],
@@ -54,8 +33,6 @@ public final class FontCatalog: @unchecked Sendable {
         .monospaced: ["Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans"],
     ]
 
-    /// Family-name prefixes never used (Apple's system fonts; names starting
-    /// with "." are private system families).
     public static let refusedFamilyPrefixes = ["SF Pro", "SF Compact", "SF Mono", "SF Arabic", "SF Hebrew",
                                               "SF Armenian", "SF Georgian", "New York", "San Francisco",
                                               "System Font", "AppleSystemUI"]
@@ -68,31 +45,23 @@ public final class FontCatalog: @unchecked Sendable {
         var faces: [any FontFace] = []
         var pendingDirectories: [URL] = []
         var descriptors: [FaceDescriptor] = []
-        var loaded: [String: any FontFace] = [:]   // url#index → face
+        var loaded: [String: any FontFace] = [:]
         var matchCache: [FontRequest: any FontFace] = [:]
         var fallbackCache: [UInt32: (any FontFace)?] = [:]
     }
     private let state = Mutex(State())
     private let familyTable: Mutex<[FontDesignClass: [String]]>
-    /// Family names tried per design (see `defaultFamilies`).
     public var families: [FontDesignClass: [String]] { familyTable.withLock { $0 } }
 
     public init(families: [FontDesignClass: [String]] = FontCatalog.defaultFamilies) {
         familyTable = Mutex(families)
     }
 
-    /// The families a design's system font is looked up in, first match
-    /// wins; an app sets its UI family once at launch, before any text is
-    /// laid out (for example `["Inter 24pt", "Noto Sans"]` for `.default`:
-    /// Inter is bundled for desktop apps whose text should measure close to
-    /// a desktop UI font).
     public func setFamilies(_ names: [String], for design: FontDesignClass) {
         familyTable.withLock { $0[design] = names }
         state.withLock { $0.matchCache = [:] }
     }
 
-    /// The shared catalog: bundled fonts, and on Linux the system font
-    /// directories.
     public static let shared: FontCatalog = {
         let c = FontCatalog()
         c.addBundledFonts()
@@ -102,14 +71,11 @@ public final class FontCatalog: @unchecked Sendable {
         return c
     }()
 
-    /// The bundled faces only (deterministic: tests use this).
     public static let bundled: FontCatalog = {
         let c = FontCatalog()
         c.addBundledFonts()
         return c
     }()
-
-    // MARK: Registration
 
     public func add(_ face: any FontFace) {
         guard !FontCatalog.isRefused(family: face.familyName) else { return }
@@ -120,7 +86,6 @@ public final class FontCatalog: @unchecked Sendable {
         }
     }
 
-    /// Adds every face of a font file (`.ttf`, `.otf`, `.ttc`).
     public func addFont(at url: URL) throws {
         let data = try Data(contentsOf: url, options: .mappedIfSafe)
         let count = data.count >= 12 && String(decoding: data.prefix(4), as: UTF8.self) == "ttcf"
@@ -128,8 +93,6 @@ public final class FontCatalog: @unchecked Sendable {
         for i in 0..<count { add(try OpenTypeFace(data: data, index: i)) }
     }
 
-    /// Registers a directory to scan (recursively) when a request is not
-    /// satisfied by the faces registered so far.
     public func addDirectory(_ url: URL) {
         state.withLock {
             $0.pendingDirectories.append(url)
@@ -142,9 +105,6 @@ public final class FontCatalog: @unchecked Sendable {
         guard let dir = Bundle.module.url(forResource: "Fonts", withExtension: nil),
               let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
         else { return }
-        // Noto first: the first registered faces are the fallbacks for
-        // scalars the requested face lacks, and stay what they were before
-        // Inter was bundled.
         func key(_ u: URL) -> String { (u.lastPathComponent.hasPrefix("Inter") ? "1" : "0") + u.lastPathComponent }
         for f in files.sorted(by: { key($0) < key($1) })
         where ["ttf", "otf", "ttc"].contains(f.pathExtension.lowercased()) {
@@ -152,8 +112,6 @@ public final class FontCatalog: @unchecked Sendable {
         }
     }
 
-    /// `$XDG_DATA_HOME/fonts`, `~/.local/share/fonts`, `~/.fonts`,
-    /// `/usr/local/share/fonts`, `/usr/share/fonts`.
     public func addSystemFontDirectories() {
         let env = ProcessInfo.processInfo.environment
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -166,12 +124,8 @@ public final class FontCatalog: @unchecked Sendable {
         for d in dirs { addDirectory(d) }
     }
 
-    // MARK: Lookup
-
-    /// All faces known so far (directories not yet scanned are not included).
     public var registeredFaces: [any FontFace] { state.withLock { $0.faces } }
 
-    /// The best face for a request.
     public func face(for request: FontRequest) -> (any FontFace)? {
         if let f = state.withLock({ $0.matchCache[request] }) { return f }
         let names = request.family.map { [$0] } ?? (families[request.design] ?? families[.default] ?? [])
@@ -187,14 +141,6 @@ public final class FontCatalog: @unchecked Sendable {
         return result
     }
 
-    /// A face that has a glyph for `scalar`, preferring `near`'s traits.
-    ///
-    /// Among the directories' faces, one that OpenViews can draw comes
-    /// first: CFF-flavoured faces have the glyph but no outlines OpenViews
-    /// reads (Outlines.swift), so text set in them is invisible. A Linux
-    /// system often has CJK only in CFF collections (Noto Sans CJK) ahead of
-    /// a TrueType one (Droid Sans Fallback) in path order. A CFF face is
-    /// still the answer when no other face has the glyph, for measuring.
     public func fallback(for scalar: Unicode.Scalar, near traits: FontTraits) -> (any FontFace)? {
         if let cached = state.withLock({ $0.fallbackCache[scalar.value] }) { return cached }
         var found = registeredFaces.first { $0.glyph(for: scalar) != nil }
@@ -230,11 +176,8 @@ public final class FontCatalog: @unchecked Sendable {
         return candidates[best].load()
     }
 
-    /// Index of the best candidate (CSS Fonts 4 §5.2: width, style, weight).
     public static func bestMatch(_ candidates: [FontTraits], for want: FontTraits) -> Int {
         var idx = Array(candidates.indices)
-        // Width: exact; else narrower first for normal-or-narrower requests,
-        // wider first otherwise.
         let widths = Set(idx.map { candidates[$0].width })
         let w: Int
         if widths.contains(want.width) {
@@ -245,10 +188,8 @@ public final class FontCatalog: @unchecked Sendable {
             w = widths.filter { $0 > want.width }.min() ?? widths.max()!
         }
         idx = idx.filter { candidates[$0].width == w }
-        // Style.
         let italic = idx.filter { candidates[$0].isItalic == want.isItalic }
         if !italic.isEmpty { idx = italic }
-        // Weight.
         let weights = Set(idx.map { candidates[$0].weight })
         let d = want.weight
         let chosen: Int
@@ -265,8 +206,6 @@ public final class FontCatalog: @unchecked Sendable {
         }
         return idx.first { candidates[$0].weight == chosen }!
     }
-
-    // MARK: Directory scanning
 
     private func scanPendingDirectories() {
         let dirs: [URL] = state.withLock {
@@ -294,7 +233,6 @@ public final class FontCatalog: @unchecked Sendable {
         return f
     }
 
-    /// Names and traits of the faces in a file, reading only small tables.
     static func describe(_ url: URL) -> [FaceDescriptor] {
         guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return [] }
         let d = FontBytes(data)

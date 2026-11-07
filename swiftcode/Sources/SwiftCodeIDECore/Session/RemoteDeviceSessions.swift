@@ -1,11 +1,6 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// Devices started from the hub (Start), keyed by device path. A started
-/// device runs until Shut Down (with warm boot it is saved, as at a run's
-/// Stop) or until SwiftCode quits (SwiftCode decision for "Stop simulators on
-/// quit", device-hub.md §2.3 Q3). A run on a started device shuts it
-/// down first (the launcher holds one run of a device at a time).
 @MainActor
 public final class RemoteDeviceSessions {
     public static let shared = RemoteDeviceSessions()
@@ -27,21 +22,16 @@ public final class RemoteDeviceSessions {
     private var entries: [String: Entry] = [:]
     private var quitObserver: NSObjectProtocol?
 
-    /// SwiftCode quits: every started device is shut down (SIGINT to its
-    /// launcher, which saves it with warm boot; Q3, SwiftCode decision). The
-    /// signals are sent before the app exits; the saves finish on the host.
     func shutDownAllForQuit() {
         for e in entries.values where !e.done {
             if let pid = e.pid { _ = e.remote.signalRemote(pid, signal: "INT") } else { e.process.signal(SIGINT) }
         }
     }
-    /// The launcher's lines (the console of the window that started it).
     public var output: (String) -> Void = { _ in }
 
     public func isRunning(_ remote: RemoteSimulator) -> Bool { entries[remote.remoteDevicePath] != nil }
     public var runningDevicePaths: Set<String> { Set(entries.keys) }
 
-    /// Starts the device; false when it runs already or cannot be started.
     @discardableResult
     public func start(_ remote: RemoteSimulator) -> Bool {
         guard remote.settings.isConfigured, entries[remote.remoteDevicePath] == nil else { return false }
@@ -73,9 +63,6 @@ public final class RemoteDeviceSessions {
         return true
     }
 
-    /// Shut Down (SIGINT to the launcher: with warm boot the device is
-    /// saved) or Force Shut Down (SIGKILL to swiftcode-simd's shell: no save);
-    /// returns when the launcher has ended (or after the stop grace).
     public func shutDown(_ remote: RemoteSimulator, force: Bool = false) async {
         guard let e = entries[remote.remoteDevicePath], !e.done else { return }
         e.stopping = true
@@ -93,7 +80,6 @@ public final class RemoteDeviceSessions {
         if !e.done { await withCheckedContinuation { e.exited.append($0) } }
     }
 
-    /// Shuts every started device down (SwiftCode quits).
     public func shutDownAll() async {
         for e in entries.values { await shutDown(e.remote) }
     }

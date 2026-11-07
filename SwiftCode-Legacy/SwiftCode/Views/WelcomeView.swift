@@ -12,7 +12,6 @@ public struct SwiftCodeWelcomeView: View {
     @State private var sheetInitialMode: NewProjectSheetView.SelectionMode = .create
     @State private var selectedProjectID: UUID?
 
-    // Project action confirmations
     @State private var activeConfirmation: ActiveConfirmation?
     @State private var showConfirmationAlert = false
     @State private var errorMessage: String?
@@ -50,30 +49,21 @@ public struct SwiftCodeWelcomeView: View {
 
     public var body: some View {
         ZStack {
-            // Background Window Accessor for strict styling enforcement
             WelcomeWindowAccessor { window in
                 windowHolder.window = window
                 applyWelcomeWindowStyle(to: window)
             }
 
-            // Main Two-Column Layout (Matching Screenshot: 800 x 480)
             HStack(spacing: 0) {
-                // Left Column: App Branding & Quick Actions
                 leftPane
                     .frame(width: 470)
                     .frame(maxHeight: .infinity)
 
-                // Right Column: Recent Projects List (no divider line so it never shows)
                 rightPane
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // No top bar, ever: the native titlebar buttons are all
-            // hidden in applyWelcomeWindowStyle, and this custom
-            // close control is the only window control. It sits where
-            // the traffic lights used to be, inside the content, so
-            // no titlebar strip can ever reappear above it.
             VStack {
                 HStack {
                     Button(action: closeWelcomeWindow) {
@@ -94,7 +84,6 @@ public struct SwiftCodeWelcomeView: View {
                 }
                 Spacer()
             }
-            // Loading / Error Overlay
             loadingOverlay
         }
         .frame(width: 800, height: 480)
@@ -161,8 +150,6 @@ public struct SwiftCodeWelcomeView: View {
         }
     }
 
-    // MARK: - Left Column (Hero & Action Buttons)
-
     private var leftPane: some View {
         ZStack {
             VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
@@ -170,18 +157,14 @@ public struct SwiftCodeWelcomeView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // No top spacer: content starts at the very top of the view.
-                // App Icon centered in a squircle with shadow
                 appIconView
                     .padding(.top, 12)
 
-                // Title: "SwiftCode"
                 Text("SwiftCode")
                     .font(.system(size: 32, weight: .bold, design: .default))
                     .foregroundStyle(Color.white)
                     .padding(.top, 14)
 
-                // Subtitle: Version dynamically pulled from Bundle info
                 Text(versionString)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Color.white.opacity(0.65))
@@ -189,7 +172,6 @@ public struct SwiftCodeWelcomeView: View {
 
                 Spacer().frame(height: 32)
 
-                // Buttons List (matching the screenshot pill style)
                 VStack(spacing: 12) {
                     WelcomePillButton(
                         title: "Create Project",
@@ -249,21 +231,16 @@ public struct SwiftCodeWelcomeView: View {
         .shadow(color: Color.black.opacity(0.35), radius: 14, x: 0, y: 7)
     }
 
-    // MARK: - Right Column (Recent Projects)
-
     private var rightPane: some View {
         ZStack {
-            // Frosted liquid glass background with desktop transparency (.hudWindow has deeper frosted diffusion than .sidebar)
             VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                 .ignoresSafeArea()
 
-            // Translucent frosted glass diffusion layer
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .opacity(0.08)
                 .ignoresSafeArea()
 
-            // Subtle luminous highlight gradient overlay for Apple glass depth
             LinearGradient(
                 colors: [
                     Color.white.opacity(0.04),
@@ -321,8 +298,6 @@ public struct SwiftCodeWelcomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Context Menu
-
     @ViewBuilder
     private func projectContextMenu(for project: Project) -> some View {
         Button {
@@ -360,12 +335,6 @@ public struct SwiftCodeWelcomeView: View {
         }
     }
 
-    // MARK: - Actions & Helpers
-
-    /// Closes the welcome window. When it is the last main window,
-    /// AppDelegate terminates the app — so this custom control is
-    /// the welcome screen's close-app button, with no titlebar
-    /// button involved at any point.
     private func closeWelcomeWindow() {
         if let window = windowHolder.window {
             window.close()
@@ -414,10 +383,7 @@ public struct SwiftCodeWelcomeView: View {
         showError = true
     }
 
-    // MARK: - Window Configuration (Strict Screenshot Parity)
-
     private func applyWelcomeWindowStyle(to window: NSWindow) {
-        // Never apply welcome window style to Settings or auxiliary windows
         guard window != NativeSettingsWindowController.shared.window,
               window.frameAutosaveName != "NativeSafariSettingsWindow",
               window.frameAutosaveName != "SettingsMainWindow" else {
@@ -440,7 +406,6 @@ public struct SwiftCodeWelcomeView: View {
         window.isMovableByWindowBackground = true
         window.toolbar = nil
 
-        // The WelcomeView is NOT allowed to be minimized, resized or full screen
         if window.styleMask.contains(.resizable) || window.styleMask.contains(.miniaturizable) || !window.styleMask.contains(.fullSizeContentView) {
             window.styleMask.remove([.resizable, .miniaturizable])
             window.styleMask.insert([.titled, .closable, .fullSizeContentView])
@@ -452,12 +417,6 @@ public struct SwiftCodeWelcomeView: View {
         window.showsResizeIndicator = false
         window.collectionBehavior = []
 
-        // No titlebar strip, ever: every native traffic-light button
-        // is hidden, including close. The in-content custom close
-        // button above is the only close control. Keeping .titled
-        // (rather than going borderless) preserves key-window
-        // behavior; with a transparent titlebar and hidden buttons
-        // the strip itself is invisible.
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.standardWindowButton(.closeButton)?.isHidden = true
@@ -483,7 +442,6 @@ public struct SwiftCodeWelcomeView: View {
         window.backgroundColor = nil
         window.showsResizeIndicator = true
         window.isMovableByWindowBackground = false
-        // Workspace titlebar strip hidden: no separate title/titlebar band above the toolbar.
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
@@ -512,8 +470,6 @@ public struct SwiftCodeWelcomeView: View {
             await sessionStore.openProject(project)
         }
     }
-
-    // MARK: - Loading Overlay
 
     @ViewBuilder
     private var loadingOverlay: some View {
@@ -576,10 +532,7 @@ public struct SwiftCodeWelcomeView: View {
     }
 }
 
-// MARK: - Typealias for seamless compatibility
 public typealias WelcomeView = SwiftCodeWelcomeView
-
-// MARK: - Pill Button Component (Dark Rounded Pill Matching Screenshot)
 
 struct WelcomePillButton: View {
     let title: String
@@ -627,8 +580,6 @@ struct WelcomePillButton: View {
         }
     }
 }
-
-// MARK: - Recent Project Row (Matching Active Blue Card from Screenshot)
 
 struct RecentProjectRow: View {
     let project: Project
@@ -725,8 +676,6 @@ struct RecentProjectRow: View {
         }
     }
 }
-
-// MARK: - Window Accessor Representable
 
 struct WelcomeWindowAccessor: NSViewRepresentable {
     let onWindow: (NSWindow) -> Void

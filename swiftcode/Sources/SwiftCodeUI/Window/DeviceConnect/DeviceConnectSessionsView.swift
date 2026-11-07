@@ -1,10 +1,3 @@
-// DeviceConnectSessionsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/DeviceConnectKit/Views/Sessions/DeviceConnectSessionsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Clear History action; per-session build status in the status badge pair
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Sessions/DeviceConnectSessionsView.swift (derived from Legacy).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 public struct DeviceConnectSessionsView: View {

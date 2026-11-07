@@ -1,32 +1,3 @@
-/*
- * sfbcapture: Ycode research prototype R6 (original Ycode code, no Apple code).
- * R4's headless stand-in for the simulator framebuffer library
- * (../simframebuffer/sfbheadless.c, written from specs/simulator/simframebuffer.md)
- * plus frame capture: it records the IOSurface of every submitted swap and can
- * save the pixels of the last presented surface. It contacts no Mach service.
- *
- * Env (all optional):
- *   SFBH_LOG=<file>        log calls (as sfbheadless)
- *   SFBH_NO_CALLBACK=1     never complete a swap (as sfbheadless)
- *   SFBH_NO_SWAPCHAIN=1    refuse swapchains (as sfbheadless)
- *   SFBC_DIR=<dir>         capture directory. Writes <dir>/frames.log, one line per
- *                          submitted swap: seq, ticks, surface id, size, bytes per row,
- *                          format, seed, and (every SFBC_STATS-th frame, default 1) a
- *                          sampled pixel summary. A capture thread polls
- *                          <dir>/snap every 250 ms; when it exists, its first line is a
- *                          name N, and the last presented surface is saved as
- *                          <dir>/N.raw (rows of bytes-per-row bytes, height rows) and
- *                          <dir>/N.txt (key=value header); then snap is removed.
- *   SFBC_NO_LOCK=1         read surfaces without IOSurfaceLock (default: read-only lock)
- *   SFBC_DELAY_CB=<ms>     complete each swap after this delay (default 0)
- *   <SFBC_DIR>/opts        optional file of K=V lines, read when the library loads and
- *                          applied with setenv in this process only (lets a restarted
- *                          backboardd get different switches without a new boot)
- *
- * CF object model: three CF runtime classes (declarations below follow the
- * public CF open-source CFRuntime.h). IOSurface calls are the public API
- * (IOSurfaceRef.h).
- */
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOSurface/IOSurfaceRef.h>
 #include <sys/stat.h>
@@ -43,7 +14,6 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-/* ---- CF runtime declarations (CF open source, CFRuntime.h) ---- */
 typedef struct {
     CFIndex version;
     const char *className;
@@ -62,7 +32,6 @@ extern CFTypeID _CFRuntimeRegisterClass(const ycode_CFRuntimeClass *cls);
 extern CFTypeRef _CFRuntimeCreateInstance(CFAllocatorRef a, CFTypeID t, CFIndex extra, unsigned char *cat);
 typedef struct { uintptr_t isa; uint64_t info; } ycode_CFRuntimeBase;
 
-/* ---- logging ---- */
 static FILE *g_log;
 static void logf_(const char *fmt, ...)
 {
@@ -71,10 +40,9 @@ static void logf_(const char *fmt, ...)
     fputc('\n', g_log); fflush(g_log);
 }
 
-/* ---- objects ---- */
 typedef struct { double width, height; } SizeD;
 
-struct mode_record {           /* 35 bytes written, layout as observed */
+struct mode_record {
     uint32_t mode_id, width, height, scale, field16, pixel_format, field24, refresh_x100;
     uint8_t b32, b33, b34;
 } __attribute__((packed));
@@ -84,7 +52,7 @@ struct conn {
     uint32_t id;
     CFStringRef name;
     dispatch_queue_t queues[3];
-    void *handlers[3];      /* connected, updated, disconnected (block copies) */
+    void *handlers[3];
 };
 struct display {
     ycode_CFRuntimeBase base;
@@ -101,20 +69,17 @@ struct swapchain {
     void *ctx;
     void (^callback)(CFErrorRef, struct swapchain *, uint64_t, uint64_t, void *);
     dispatch_queue_t queue;
-    IOSurfaceRef pending;      /* added in the current swap (retained) */
+    IOSurfaceRef pending;
     uint32_t pending_count;
 };
 
-/* ---- capture state ---- */
 static const char *g_cap_dir;
 static FILE *g_frames;
 static pthread_mutex_t g_cap_mu = PTHREAD_MUTEX_INITIALIZER;
-static IOSurfaceRef g_last;          /* last presented surface (retained) */
+static IOSurfaceRef g_last;
 static uint64_t g_seq, g_last_seq, g_last_ticks;
 static long g_stats_every = 1;
 
-/* Sampled summary of a BGRA surface: a 64x64 grid; counts non-zero colour and
- * distinct-looking samples, and the mean B,G,R,A. Reads through the client mapping. */
 static void summarize(IOSurfaceRef s, char *out, size_t n)
 {
     uint32_t fmt = IOSurfaceGetPixelFormat(s);
@@ -218,9 +183,6 @@ static void capture_init(void)
     if (g_frames) fprintf(g_frames, "# pid %d loaded ticks %llu\n", getpid(), (unsigned long long)mach_absolute_time());
 }
 
-/* The capture thread starts with the first presented frame, so only the
- * presenting process (backboardd) answers snap requests; other processes that
- * load the library (CoreSimulator's bridge) never do. */
 static void capture_start_thread(void)
 {
     static dispatch_once_t once;
@@ -241,7 +203,7 @@ static void capture_present(struct swapchain *s)
     uint64_t now = mach_absolute_time();
     pthread_mutex_lock(&g_cap_mu);
     IOSurfaceRef old = g_last;
-    g_last = surf;           /* takes the pending reference */
+    g_last = surf;
     uint64_t seq = ++g_seq;
     g_last_seq = seq; g_last_ticks = now;
     pthread_mutex_unlock(&g_cap_mu);
@@ -302,13 +264,11 @@ __attribute__((constructor)) static void init(void)
     logf_("sfbheadless loaded: %ux%u scale %u pitch %u", d->width, d->height, d->scale, d->pitch);
 }
 
-/* ---- type IDs ---- */
 EXPORT CFTypeID SFBConnectionGetTypeID(void) { return g_conn_t; }
 EXPORT CFTypeID SFBDisplayGetTypeID(void) { return g_disp_t; }
 EXPORT CFTypeID SFBSwapchainGetTypeID(void) { return g_sc_t; }
 EXPORT const char *simFramebufferGetStructName(uint64_t v) { logf_("simFramebufferGetStructName(%llu)", v); return "unknown"; }
 
-/* ---- connection ---- */
 EXPORT struct conn *SFBConnectionCreate(CFAllocatorRef a, CFStringRef name)
 {
     struct conn *c = (struct conn *)_CFRuntimeCreateInstance(a, g_conn_t, sizeof(struct conn) - sizeof(ycode_CFRuntimeBase), NULL);
@@ -353,10 +313,9 @@ EXPORT void *SFBConnectionCreateDisplay(struct conn *c, ...) { logf_("SFBConnect
 EXPORT bool SFBConnectionUpdateDisplay(struct conn *c, ...) { logf_("SFBConnectionUpdateDisplay"); return false; }
 EXPORT bool SFBConnectionRemoveDisplay(struct conn *c, ...) { logf_("SFBConnectionRemoveDisplay"); return false; }
 
-/* ---- display ---- */
 static void fill_mode(struct display *d, void *out)
 {
-    struct mode_record m = { 1, d->width, d->height, d->scale, 1, 0x42475241 /* BGRA */, 2, 6000, 1, 1, 1 };
+    struct mode_record m = { 1, d->width, d->height, d->scale, 1, 0x42475241 , 2, 6000, 1, 1, 1 };
     if (out) memcpy(out, &m, sizeof m);
 }
 EXPORT CFStringRef SFBDisplayGetName(struct display *d) { return d->name; }
@@ -391,7 +350,7 @@ EXPORT bool SFBDisplaySetBrightnessFactor(struct display *d, ...) { logf_("SetBr
 
 EXPORT struct swapchain *SFBDisplayCreateSwapchain(struct display *d, uint64_t mode, CFDictionaryRef opts, CFErrorRef *err)
 {
-    if (getenv("SFBH_NO_SWAPCHAIN")) {   /* experiment: refuse swapchains */
+    if (getenv("SFBH_NO_SWAPCHAIN")) {
         logf_("SFBDisplayCreateSwapchain refused (SFBH_NO_SWAPCHAIN)");
         if (err) *err = CFErrorCreate(NULL, CFSTR("SimFramebufferClientErrorDomain"), 2, NULL);
         return NULL;
@@ -408,12 +367,11 @@ EXPORT struct swapchain *SFBDisplayCreateSwapchain(struct display *d, uint64_t m
     return s;
 }
 
-/* ---- swapchain ---- */
 EXPORT uint32_t SFBSwapchainGetID(struct swapchain *s) { return s->id; }
 EXPORT uint32_t SFBSwapchainGetDisplayID(struct swapchain *s) { return s->display->id; }
 EXPORT uint32_t SFBSwapchainGetConnectionID(struct swapchain *s) { return s->display->connection_id; }
 EXPORT SizeD SFBSwapchainGetFramebufferSize(struct swapchain *s) { return (SizeD){ s->display->width, s->display->height }; }
-EXPORT uint32_t SFBSwapchainGetPixelFormat(struct swapchain *s) { return 0x42475241; /* 'BGRA' */ }
+EXPORT uint32_t SFBSwapchainGetPixelFormat(struct swapchain *s) { return 0x42475241;  }
 EXPORT uint32_t SFBSwapchainGetColorspace(struct swapchain *s) { return 1; }
 EXPORT uint32_t SFBSwapchainGetHDRMode(struct swapchain *s) { return 1; }
 EXPORT uint32_t SFBSwapchainGetPresentationMode(struct swapchain *s) { return (uint32_t)s->presentation_mode; }
@@ -426,7 +384,6 @@ EXPORT bool SFBSwapchainSwapBegin(struct swapchain *s, uint64_t t, CFErrorRef *e
     s->pending_count = 0;
     return true;
 }
-/* (swapchain, surface, source rect d0-d3, destination rect d4-d7, two integers) */
 EXPORT bool SFBSwapchainSwapAddSurface(struct swapchain *s, IOSurfaceRef surface, uint64_t a, uint64_t b)
 {
     s->pending_count++;
@@ -447,7 +404,7 @@ EXPORT bool SFBSwapchainSwapSubmit(struct swapchain *s, CFErrorRef *err)
     static long submits;
     if (++submits % 100 == 1) logf_("SFBSwapchainSwapSubmit #%ld", submits);
     capture_present(s);
-    if (getenv("SFBH_NO_CALLBACK")) return true;   /* experiment: never complete swaps */
+    if (getenv("SFBH_NO_CALLBACK")) return true;
     CFRetain(s);
     const char *dl = getenv("SFBC_DELAY_CB");
     long delay_ms = dl ? atol(dl) : 0;

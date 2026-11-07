@@ -1,21 +1,8 @@
-// Restore of the kernel personality from snapshot records
-// (specs/simulator/snapshot.md §7 steps 3, 4, 6, 7). The VMM drives it:
-// `makeProcesses` before the images are launched (suspended), then
-// `restoreObjects` once every image's memory is back, then it starts the
-// returned threads.
-
 import Foundation
 import SwiftCodeDarwinABI
 
-/// Rebuilds the kernel personality from snapshot records (`snapshot.md` §7).
-/// The VMM calls `makeProcesses`, launches the images suspended, calls
-/// `restoreObjects` once their memory is back, starts the returned threads,
-/// then calls `restoreStartHolds`.
 public final class KernelSnapshotRestore {
-    /// One live image to launch suspended: its restored kernel and process, and
-    /// the guest and host paths of its executable.
     public struct ImagePlan {
-        /// The image's record id in the snapshot.
         public let recordID: UInt64
         public let kernel: DarwinKernel
         public let pid: Int32
@@ -23,21 +10,15 @@ public final class KernelSnapshotRestore {
         public let hostExecutablePath: String
     }
 
-    /// One thread for the VMM to start (§7 step 9): its frame and FP/SIMD state
-    /// go into the vCPU, and `kind` says whether it resumes or re-enters its trap.
     public struct ThreadPlan {
         public let kernel: DarwinKernel
         public let context: ThreadContext
         public let kind: SnapshotThreadKind
         public let frame: TrapFrame
         public let fp: [UInt8]
-        /// What the thread was blocked in, for the restore's report (empty if none).
         public let note: String
     }
 
-    /// The snapshot's clock record (§5). `guestCounter`, `frequency` and
-    /// `bootCounter` are in guest counter units; `hostNanoseconds` is host
-    /// monotonic time at the capture.
     public struct Clock {
         public var guestCounter: UInt64
         public var hostNanoseconds: UInt64
@@ -45,17 +26,13 @@ public final class KernelSnapshotRestore {
         public var bootCounter: UInt64
     }
 
-    /// The system that receives the restored processes and objects.
     public let system: DarwinSystem
     private var records: [UInt64: SnapshotRecord] = [:]
     private var fields: [UInt64: SnapshotFieldReader] = [:]
     private var byKind: [UInt16: [UInt64]] = [:]
-    /// The clock record, read by `init`; the VMM sets the system clock offset from it.
     public private(set) var clock: Clock
-    /// Problems found while restoring that did not stop it (one line each).
     public private(set) var warnings: [String] = []
 
-    // The objects made for record ids.
     private var kernels: [UInt64: DarwinKernel] = [:]
     private var processes: [UInt64: DarwinProcess] = [:]
     private var ports: [UInt64: IPCPort] = [:]
@@ -73,22 +50,15 @@ public final class KernelSnapshotRestore {
     private var sharedObjects: [UInt64: SharedMemoryObject] = [:]
     private let sharedObjectsLock = NSRecursiveLock()
     private var rootFileSystem: DarwinFileSystem?
-    /// Live host-task objects that stand for recorded ones.
     private var reusedPorts = Set<ObjectIdentifier>()
     private var reusedSets = Set<ObjectIdentifier>()
     private var sockets: [UInt64: UnixSocket] = [:]
     private var inetSockets: [UInt64: InetSocket] = [:]
     private var shmSegments: [UInt64: PosixShmSegment] = [:]
     private var posixSemaphores: [UInt64: PosixSemaphore] = [:]
-    /// Processes in a start hold at the snapshot (process, label, ns held).
     private var heldProcesses: [(DarwinProcess, String, UInt64)] = []
-    /// Images whose main thread had not started (§3.2 `unstarted`): the VMM
-    /// keeps them suspended with this start state; resuming them (a start
-    /// hold's release, `task_resume`) starts it.
     public private(set) var unstartedMains: [(kernel: DarwinKernel, start: SnapshotMainStart)] = []
 
-    /// After the threads were started: the start holds of the snapshot are
-    /// held again, with the time they had already been held counted.
     public func restoreStartHolds() {
         system.lock.withLock {
             for (p, label, elapsed) in heldProcesses where p.state != .zombie && !p.exiting {
@@ -98,20 +68,11 @@ public final class KernelSnapshotRestore {
             }
         }
     }
-    /// The number of processes that were in a start hold at the snapshot.
     public var heldProcessCount: Int { heldProcesses.count }
     private let restoreNowNs = KernelClock.now()
-    /// Calendar-time EVFILT_TIMER knotes whose deadline was set from the
-    /// wall clock at the restore (§5), for the restore's report.
     public private(set) var wallClockTimers = 0
-    /// Files opened read-write again although their mode had lost its
-    /// write bit since the guest opened or mapped them (`openWritableAgain`).
     public private(set) var readOnlyReopens = 0
 
-    /// Indexes `list` and reads the clock and system records.
-    /// Throws `SnapshotError` if a record kind is unknown to this build, the clock
-    /// or system record is missing, or the snapshot needs CPU features this host
-    /// does not offer (`cpu-features.md` §9.4).
     public init(records list: [SnapshotRecord], system: DarwinSystem) throws {
         self.system = system
         for r in list {
@@ -126,8 +87,6 @@ public final class KernelSnapshotRestore {
         clock = Clock(guestCounter: c.u64(ST.Clock.guestCounter), hostNanoseconds: c.u64(ST.Clock.hostNanoseconds),
                       frequency: c.u64(ST.Clock.frequency), bootCounter: c.u64(ST.Clock.bootCounter))
         guard let s = fields[KernelSnapshotCapture.systemID] else { throw SnapshotError("snapshot has no system record") }
-        // cpu-features.md §9.4: the snapshot's guests may use every feature
-        // they were told about; this host must offer all of them.
         let recorded = s.bytes(ST.System.cpuFeatures)
         if !recorded.isEmpty {
             let missing = CPUFeatureSet(storedBytes: recorded).subtracting(GuestCPUProfile.current.allowed)
@@ -141,19 +100,11 @@ public final class KernelSnapshotRestore {
     private func ids(_ kind: SnapshotRecordKind) -> [UInt64] { byKind[kind.rawValue] ?? [] }
     private func f(_ id: UInt64) -> SnapshotFieldReader { fields[id]! }
 
-    /// Rebases a deadline stored as (deadline − snapshot host time).
     private func rebased(_ relative: Int64) -> UInt64 {
         relative <= 0 ? restoreNowNs : restoreNowNs &+ UInt64(relative)
     }
 
-    // MARK: Step 3–4: the process table and the kernels
-
-    /// Restores the system scalars and the process table, and makes one
-    /// `DarwinKernel` per live image (with a file system from
-    /// `makeFileSystem`). Lock taken.
     public func makeProcesses(makeFileSystem: () -> DarwinFileSystem) throws -> [ImagePlan] {
-        // Mach state (the host and bootstrap ports, the audit session) is
-        // the port lock's as well as L0's (`restoreObjects`).
         try system.lock.withLock { try system.lock.withAllFineLocks {
             let s = f(KernelSnapshotCapture.systemID)
             typealias S = ST.System
@@ -214,8 +165,6 @@ public final class KernelSnapshotRestore {
                 let imageID = r.ref(P.image)
                 guard imageID != 0, let image = fields[imageID] else { continue }
                 typealias I = ST.Image
-                // One root file system; the others are its copies, so every
-                // process shares one socket namespace, as after spawns.
                 let fs: DarwinFileSystem
                 if let root = rootFileSystem { fs = root.makeChildCopy(newProcess: true) } else {
                     fs = makeFileSystem()
@@ -234,15 +183,11 @@ public final class KernelSnapshotRestore {
         } }
     }
 
-    /// The process record of a restored image (to attach its launch handle).
     public func setLaunchedImage(_ image: any LaunchedImage, for kernel: DarwinKernel) {
         system.lock.withLock { system.record(of: kernel)?.image = image }
     }
 
-    /// The shared memory object of a record (made empty on first use; the
-    /// VMM fills its pages and maps it, §7 step 5).
     public func sharedObject(forRecord id: UInt64) throws -> SharedMemoryObject {
-        // The VMM restores images' memory in parallel.
         sharedObjectsLock.lock()
         defer { sharedObjectsLock.unlock() }
         if let o = sharedObjects[id] { return o }
@@ -250,7 +195,6 @@ public final class KernelSnapshotRestore {
             throw SnapshotError("no shared memory record \(id)")
         }
         if r.bool(ST.SharedMemory.file) {
-            // A shared view of a host file: map the file again (its bytes are in the file).
             typealias M = ST.SharedMemory
             guard let guestPath = r.string(M.guestPath), let fs = kernels.values.first?.fileSystem else {
                 throw SnapshotError("shared memory \(id): a host-file view without its source")
@@ -282,21 +226,9 @@ public final class KernelSnapshotRestore {
         return o
     }
 
-    /// The ids of every shared memory record.
     public var sharedObjectRecords: [UInt64] { ids(.sharedMemory) }
 
-    // MARK: Step 6–7: every other object
-
-    /// Restores every object. `memory`: each image's address space. Lock taken.
     public func restoreObjects(memory: (DarwinKernel) -> (any KernelGuestMemory)?) throws -> [ThreadPlan] {
-        // No guest thread runs while objects are rebuilt, but the host
-        // services do: their threads use the host task's ports and send to
-        // guest ports under the port lock and the event locks alone
-        // (`mach-ipc-locking.md` §4), not under L0. The rebuild therefore
-        // holds every fine lock as well, as the capture does (§12.5: with
-        // L0 alone, a host service's receive loop raced the rebuild of the
-        // host task's name table and of the restored kqueues, and the
-        // corrupted heap crashed the host later).
         let threadLocks = KernelThreadLocks.current
         let wasQuiesced = threadLocks.quiesced
         threadLocks.quiesced = true
@@ -310,10 +242,8 @@ public final class KernelSnapshotRestore {
             try fillOpenFiles()
             let plans = try fillImages()
             restoreImportance()
-            // Host service threads blocked on reused objects look again.
             for p in ports.values where reusedPorts.contains(ObjectIdentifier(p)) && !p.messages.isEmpty { p.receiveWaiters.wakeAll() }
             for s in portSets.values where reusedSets.contains(ObjectIdentifier(s)) { s.waiters.wakeAll() }
-            // Counters last: the restore's own allocations came first.
             let s = f(KernelSnapshotCapture.systemID)
             system.mach.serialCounter = max(system.mach.serialCounter, s.u64(ST.System.serialCounter))
             system.mach.stampCounter = max(system.mach.stampCounter, s.u64(ST.System.stampCounter))
@@ -322,10 +252,6 @@ public final class KernelSnapshotRestore {
         } }
     }
 
-    /// Importance (`scheduling-policy.md` §4.3) from the restored ports,
-    /// messages and threads: each port's queued importance credits its
-    /// target again, and each servicing thread's carried importance counts.
-    /// Lock held.
     private func restoreImportance() {
         for p in processes.values { p.importanceBoosts = 0 }
         guard let ipc = spaces.values.first else { return }
@@ -345,10 +271,7 @@ public final class KernelSnapshotRestore {
         }
     }
 
-    /// Phase 1: an empty object for every record.
     private func makeShells() throws {
-        // Spaces: an image's space is the one its kernel made; a space without
-        // an image (a dead task still named by a port) gets a detached one.
         for id in ids(.machSpace) {
             let r = f(id)
             let space: MachIPC
@@ -356,11 +279,6 @@ public final class KernelSnapshotRestore {
                 space = s
             } else if r.bool(ST.Space.isHostTask) || (r.ref(ST.Space.image) == 0 && r.u64(ST.Space.spaceID) == 1),
                       let host = system.mach.hostTask {
-                // (Snapshots before the isHostTask flag: the host task is the first space made.)
-                // The host task of the new run: its services already made
-                // their ports, under the same names (they are made in the
-                // same order). Those live objects stand for the recorded
-                // ones, so the service threads blocked on them keep working.
                 space = host.ipc
                 for e in r.list(ST.Space.entries) {
                     let i = Int(e.u64(ST.Space.index))
@@ -380,7 +298,6 @@ public final class KernelSnapshotRestore {
             }
             spaces[id] = space
             spaceIDMap[r.u64(ST.Space.spaceID)] = space.spaceID
-            // The ports the space made at init stand for the recorded ones.
             ports[r.ref(ST.Space.taskPort)] = space.taskPort
             ports[r.ref(ST.Space.taskNamePort)] = space.taskNamePort
             ports[r.ref(ST.Space.mainThreadPort)] = space.mainThreadPort
@@ -505,7 +422,6 @@ public final class KernelSnapshotRestore {
             t.kernel = k
             threads[id] = t
         }
-        // A main thread that had ended before the snapshot is not live.
         for (imageID, k) in kernels {
             let mainRecorded = ids(.thread).contains { f($0).ref(ST.Thread.image) == imageID && f($0).bool(ST.Thread.isMain) }
             if !mainRecorded { k.threadsByPort[k.mainThread.portName] = nil }
@@ -565,21 +481,8 @@ public final class KernelSnapshotRestore {
         }
     }
 
-    /// `SWIFTCODE_RESTORE_LENIENT=1`: a host file that is gone is replaced (an
-    /// empty file, anonymous shared memory) instead of failing the restore.
     public static let lenient = getenv("SWIFTCODE_RESTORE_LENIENT").map { String(cString: $0) == "1" } ?? false
 
-    /// A host file with `bytes`, already unlinked (as the original was).
-    /// Opens `guestPath` again for reading and writing, as the guest's
-    /// description or shared view had it. The guest may have taken the
-    /// file's write permission away after it opened or mapped the file
-    /// (Spotlight makes its finished index files mode 0400 while they stay
-    /// mapped shared and writable, §12.5), and then O_RDWR fails with
-    /// EACCES although the guest's access is still read-write. For a file
-    /// of this host user whose owner-write bit is clear, the bit is set for
-    /// the open and the mode is put back at once; the open description
-    /// keeps its access, as the guest's did. Nothing else runs during the
-    /// restore, so no one sees the brief change. `restoredModes` counts it.
     func openWritableAgain(_ opener: DarwinFileSystem, guestPath: String, hostPath: String?) throws -> Int32 {
         do {
             return try opener.open(guestPath, flags: DarwinOpen.O_RDWR, mode: 0)
@@ -831,7 +734,6 @@ public final class KernelSnapshotRestore {
         }
     }
 
-    /// A recorded `DescriptorUser` (its kernel by pid).
     private func user(_ g: SnapshotFieldReader?) -> DescriptorUser {
         let pid = g?.i32(1) ?? 0
         return DescriptorUser(pid: pid, pidVersion: g?.u32(2) ?? 0, uid: g?.u32(3) ?? 0, gid: g?.u32(4) ?? 0,
@@ -843,7 +745,6 @@ public final class KernelSnapshotRestore {
     }
 
     private func fillOpenFiles() throws {
-        // OFD and flock locks are released when their description goes.
         for id in ids(.openFile) where f(id).bool(ST.OpenFile.lockHandler) {
             guard let o = openFiles[id] else { continue }
             let key = ObjectIdentifier(o)
@@ -855,7 +756,6 @@ public final class KernelSnapshotRestore {
             }
             _ = system.fileLocks.watch(key)
         }
-        // Sockets.
         for id in ids(.unixSocket) {
             let r = f(id)
             typealias U = ST.Socket
@@ -899,13 +799,9 @@ public final class KernelSnapshotRestore {
                 }
             }
         }
-        // The host end of a DNS service connection cannot be restored: the
-        // connection is reset (the guest's end reads EOF; the client
-        // connects again).
         for id in ids(.unixSocket) where f(id).u64(ST.Socket.flags) & (1 << 6) != 0 {
             sockets[id]?.close()
         }
-        // System tables: POSIX names, IOKit, file locks.
         let s = f(KernelSnapshotCapture.systemID)
         typealias S = ST.System
         system.posixShmSegments = [:]
@@ -986,7 +882,6 @@ public final class KernelSnapshotRestore {
             if let x = r.nested(I.extended) { k.extended = try extended(x) }
             k.lastMemory = memories[ObjectIdentifier(k)]
 
-            // Threads of this image.
             for id in ids(.thread) where f(id).ref(ST.Thread.image) == imageID {
                 guard let t = threads[id] else { continue }
                 let tr = f(id)
@@ -1024,7 +919,6 @@ public final class KernelSnapshotRestore {
                 }
             }
 
-            // ulocks (no waiters).
             k.ulocks = [:]
             for g in r.list(I.ulocks) {
                 let q = ULockQueue(opcode: g.u32(ST.ULock.opcode))
@@ -1032,7 +926,6 @@ public final class KernelSnapshotRestore {
                 k.ulocks[g.u64(ST.ULock.address)] = q
             }
 
-            // The workqueue.
             if let w = r.nested(I.workqueue) {
                 typealias W = ST.Workqueue
                 k.workqueue.isOpen = w.bool(W.isOpen)
@@ -1049,7 +942,6 @@ public final class KernelSnapshotRestore {
                 k.workqueue.idleTimeoutNanoseconds = w.u64(W.idleTimeout, default: k.workqueue.idleTimeoutNanoseconds)
             }
 
-            // kqueues of this image.
             k.kevents.workq = kqueues[r.ref(I.workqKQueue)]
             k.kevents.machportIndex = nil
             k.kevents.workloops = [:]
@@ -1069,9 +961,7 @@ public final class KernelSnapshotRestore {
                 if let t = ports[id]?.mkTimer { k.kevents.mkTimers[ObjectIdentifier(t)] = t }
             }
 
-            // Descriptors.
             k.fileSystem.closeAll()
-            // The table's size first: a raised limit may hold high descriptors.
             k.fileSystem.maxDescriptors = r.i32(I.maxDescriptors, default: k.fileSystem.maxDescriptors)
             for g in r.list(I.descriptors) {
                 typealias D = ST.Descriptor
@@ -1206,10 +1096,7 @@ public final class KernelSnapshotRestore {
                     k.noteDescriptorWatch(kn.ident, 1)
                 }
                 if kn.filter == EVFilter.signal { k.signalKnoteCount.wrappingAdd(1, ordering: .relaxed) }
-                // Re-attach what the filter registered with other objects.
                 if kn.timerDeadline != nil, kn.filter == EVFilter.timer {
-                    // §5: a calendar-time timer is due by the wall clock,
-                    // which moved on while the snapshot sat on disk.
                     if let d = k.wallClockTimerDeadline(fflags: kn.fflags, data: kn.data) {
                         kn.timerDeadline = d
                         wallClockTimers += 1
@@ -1219,10 +1106,6 @@ public final class KernelSnapshotRestore {
                 if EVFilter.isReadiness(kn.filter),
                    let file = openFiles[n.ref(N.object)], let o = file.object as? KernelDescriptorObject {
                     kn.object = o
-                    // The registration's observer: it takes the image's
-                    // event lock (§12.5; this copy did not, and a socket's
-                    // readiness change under L0 then changed the kqueue and
-                    // the workqueue without it).
                     kn.observerToken = o.addReadinessObserver(k.readinessObserver(for: kn))
                 }
                 if kn.filter == EVFilter.proc, !kn.procExited, !kn.dropped,
@@ -1236,23 +1119,10 @@ public final class KernelSnapshotRestore {
 }
 
 extension DarwinKernel {
-    /// After a restore, once the threads run (snapshot.md §7 step 10):
-    /// issues every thread request that the restored knotes call for and
-    /// hands pending requests to workers. A request that was issued before
-    /// the snapshot but whose worker was not started yet, or an activation
-    /// whose request the capture did not see, would otherwise wait for the
-    /// next activation of the same bucket or workloop, which may never come
-    /// (a reply that a client waits for sits in a queue nobody services).
-    /// Kernel lock held.
     @discardableResult
     public func snapshotReissueThreadRequests() -> Int {
         guard termination == nil else { return 0 }
-        // The kqueues and the workqueue are the event lock's (host services
-        // deliver messages under it, not under L0: §12.5).
         return withEvents {
-            // A workloop marked as requested that no queue holds would never
-            // be requested again (`reevaluateRequests` issues a request only
-            // when none is marked): it is requested afresh.
             let lost = lostWorkloopRequests()
             for kq in lost {
                 kq.requested = false
@@ -1265,15 +1135,11 @@ extension DarwinKernel {
         }
     }
 
-    /// Workloops marked as having a thread request that is in no queue and
-    /// has no servicer (diagnostics and the restore's repair, §12.5). Event
-    /// lock (or every lock) held.
     func lostWorkloopRequests() -> [KQueue] {
         kevents.workloops.values.filter { kq in
             kq.requested && kq.servicer == nil && !workqueue.pendingWorkloops.contains { $0 === kq }
         }
     }
 
-    /// `lostWorkloopRequests().count`, for a snapshot's report (every lock held).
     public var snapshotLostWorkloopRequestCount: Int { lostWorkloopRequests().count }
 }

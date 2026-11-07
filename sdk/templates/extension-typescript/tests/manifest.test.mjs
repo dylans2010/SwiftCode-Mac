@@ -1,6 +1,3 @@
-// Manifest contract tests — run with `node --test tests/` AFTER `npm run build`.
-// Reads the real swiftcode.json and asserts the Phase-1 capability set and
-// Assist posture required of every generated extension.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";

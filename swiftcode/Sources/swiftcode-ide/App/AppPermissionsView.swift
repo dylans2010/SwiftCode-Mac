@@ -17,19 +17,6 @@ import CoreGraphics
 import AppKit
 #endif
 
-// App permissions, adapted from Legacy's
-// `SwiftCode/Views/Settings/AppPermsView.swift`. The destination has no
-// permissions surface, so this is a real status dashboard: it reads
-// each permission's actual authorization state from the system
-// frameworks (camera/microphone via AVFoundation, speech recognition
-// via Speech, screen recording via CoreGraphics, notifications via
-// UserNotifications) and reports it; granting happens in System
-// Settings, which the view opens on macOS. Every framework is
-// `canImport`-gated so the view still builds where the framework is
-// absent, and on those platforms the row honestly reports the check
-// as unavailable instead of inventing a status.
-
-/// One permission row: its current system authorization state.
 struct AppPermissionStatus: Identifiable {
     var id: String { name }
     var name: String
@@ -37,7 +24,6 @@ struct AppPermissionStatus: Identifiable {
     var granted: Bool?
 }
 
-/// Read-only dashboard of the app's system permission states.
 struct AppPermissionsView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var statuses: [AppPermissionStatus] = []
@@ -155,7 +141,6 @@ struct AppPermissionsView: View {
 }
 
 #if canImport(AVFoundation)
-/// Human-readable word for an `AVAuthorizationStatus` value.
 private func authorizationWord(_ status: AVAuthorizationStatus) -> String {
     switch status {
     case .authorized: return "authorized"
@@ -168,7 +153,6 @@ private func authorizationWord(_ status: AVAuthorizationStatus) -> String {
 #endif
 
 #if canImport(Speech)
-/// Human-readable word for an `SFSpeechRecognizerAuthorizationStatus` value.
 private func speechAuthorizationWord(_ status: SFSpeechRecognizerAuthorizationStatus) -> String {
     switch status {
     case .authorized: return "authorized"

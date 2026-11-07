@@ -1,9 +1,3 @@
-// wchar.c - wide-character strings and conversions for SwiftCode's libSystem
-// (specs/macos/libsystem.md §12). Clean-room SwiftCode code from the C
-// standard. wchar_t is a 32-bit int on Darwin. Multibyte text is UTF-8 in
-// every locale SwiftCode's libSystem knows (locale.c), so mbrtowc and wcrtomb
-// convert UTF-8; numeric conversions narrow the digits to ASCII and use the
-// narrow functions.
 #include "ycl.h"
 
 typedef int wchar_t_;
@@ -11,7 +5,7 @@ typedef struct {
     unsigned char bytes[4];
     unsigned count, need;
     char reserved[120];
-} mbstate;  // the public mbstate_t is 128 bytes
+} mbstate;
 
 YCL_EXPORT size_t wcslen(const wchar_t_ *s) {
     size_t n = 0;
@@ -99,8 +93,6 @@ YCL_EXPORT size_t wcsxfrm(wchar_t_ *d, const wchar_t_ *s, size_t n) {
     return len;
 }
 
-// --- UTF-8 multibyte conversions ---
-
 YCL_EXPORT size_t mbrtowc(wchar_t_ *pwc, const char *s, size_t n, void *ps) {
     static mbstate internal;
     mbstate *st = ps ? ps : &internal;
@@ -118,7 +110,7 @@ YCL_EXPORT size_t mbrtowc(wchar_t_ *pwc, const char *s, size_t n, void *ps) {
             }
             unsigned need = b >= 0xF0 && b < 0xF5 ? 4 : b >= 0xE0 ? 3 : b >= 0xC2 && b < 0xE0 ? 2 : 0;
             if (!need) {
-                ycl_errno = 92;  // EILSEQ
+                ycl_errno = 92;
                 return (size_t)-1;
             }
             st->need = need;
@@ -281,9 +273,6 @@ YCL_EXPORT int wcwidth(wchar_t_ c) {
     return 1;
 }
 
-// --- numbers from wide strings: narrow the leading ASCII, convert, map
-//     the end pointer back ---
-
 double strtod(const char *, char **);
 float strtof(const char *, char **);
 long double strtold(const char *, char **);
@@ -326,7 +315,6 @@ WIDE_TO_INTEGER(long long, wcstoll, strtoll(buf, &e, base))
 WIDE_TO_INTEGER(unsigned long, wcstoul, strtoull(buf, &e, base))
 WIDE_TO_INTEGER(unsigned long long, wcstoull, strtoull(buf, &e, base))
 
-// swprintf: format narrow, then widen (UTF-8 decoded).
 int vsnprintf(char *, size_t, const char *, va_list);
 
 YCL_EXPORT int vswprintf(wchar_t_ *out, size_t n, const wchar_t_ *format, va_list args) {
@@ -367,8 +355,6 @@ YCL_EXPORT size_t wcsxfrm_l(wchar_t_ *d, const wchar_t_ *s, size_t n, void *loca
     return wcsxfrm(d, s, n);
 }
 
-// --- wide characters on byte streams (UTF-8) ---
-
 int fgetc(FILE *);
 int fputc(int, FILE *);
 int ungetc(int, FILE *);
@@ -401,8 +387,6 @@ YCL_EXPORT int fgetwc(FILE *f) {
 YCL_EXPORT int getwc(FILE *f) { return fgetwc(f); }
 YCL_EXPORT int getwchar(void) { return fgetwc(__stdinp); }
 
-// Only one byte can be pushed back on SwiftCode's streams, so only ASCII wide
-// characters can be returned to a stream.
 YCL_EXPORT int ungetwc(int wc, FILE *f) {
     if (wc < 0 || wc >= 0x80) return WEOF_;
     return ungetc(wc, f) < 0 ? WEOF_ : wc;

@@ -1,20 +1,6 @@
 import SwiftUI
 import Observation
 
-/// Adaptive layout engine (Legacy
-/// `SwiftCode/UI/Styles/Styling/AdaptiveLayoutEngine.swift`, Dylan's own
-/// code, ported under MIT).
-///
-/// Adapted: Legacy used `ObservableObject` + Combine (`@Published`,
-/// `@EnvironmentObject`); no Combine exists anywhere in
-/// `swiftcode-ide` / `SwiftCodeUI` / `SwiftCodeIDECore`, so this is
-/// `@Observable` (Observation framework) and is read with
-/// `@Environment(AdaptiveLayoutEngine.self)` (see
-/// `MacDesktopOptimized.swift`) and installed with
-/// `.environment(AdaptiveLayoutEngine.shared)` (see
-/// `StylingBootstrap.configureEnvironment`). The update rule is
-/// Legacy's: metrics are replaced only when the width/height moved
-/// by more than 1pt, fullscreen changed, or the appearance changed.
 @Observable
 @MainActor
 public final class AdaptiveLayoutEngine {

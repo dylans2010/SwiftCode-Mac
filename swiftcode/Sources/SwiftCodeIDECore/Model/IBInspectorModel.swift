@@ -1,10 +1,5 @@
 import Foundation
 
-/// The Interface Builder inspectors as data (reference-ui-4.md §13): the
-/// sections and rows for Identity, Attributes, Size and Connections, each
-/// editable row naming the XML attribute it reads and writes. Attribute
-/// names are storyboard file-format facts and public UIKit property names
-/// (§18 item 1).
 public struct IBInspectorSection: Equatable {
     public var title: String
     public var rows: [IBInspectorRow]
@@ -12,52 +7,23 @@ public struct IBInspectorSection: Equatable {
 }
 
 public enum IBInspectorRow: Equatable {
-    /// A text field writing `attribute` on object `target` (nil value removes).
     case text(label: String, target: String, attribute: String, value: String, placeholder: String)
-    /// A checkbox; `onValue`/`offValue` are what is written (nil = removed).
     case toggle(label: String, target: String, attribute: String, isOn: Bool, onValue: String?, offValue: String?)
-    /// A pop-up of values; the first option is the default (written as removal).
     case choice(label: String, target: String, attribute: String, options: [String], value: String)
-    /// Read-only.
     case info(label: String, value: String)
-    /// A runtime attribute row (key path, type, value).
     case runtimeAttribute(keyPath: String, type: String, value: String)
-    /// A constraint: "<kind> to: <item>" with its ID (Edit button).
     case constraint(text: String, id: String)
-    /// A connection row: name, the other end (empty = unconnected), the
-    /// connection ID (× disconnects), ending in a connection circle.
     case connection(name: String, other: String, id: String?)
-    /// A frame component (X, Y, Width, Height) with a stepper; edits the
-    /// object's `<rect key="frame">`.
     case frameValue(label: String, target: String, component: String, value: String)
-    /// Extend Edges ▸ Under Top / Bottom Bars: one edge of the controller's
-    /// `edgesForExtendedLayout`.
     case edgeToggle(label: String, target: String, edge: String, isOn: Bool)
-    // The Attributes inspector's controls (`interface-builder.md` §Reference
-    // Attributes inspector). `key` is the row's label on the left (empty when
-    // a check box continues the group above). `target` is an object ID, or a
-    // path to a keyed child element (`id>textInputTraits@textInputTraits`,
-    // see `IBValueEditing.swift`); attributes starting with "@" are edits
-    // SwiftCode works out (segment count, font, child elements).
-    /// A check box titled `title`; `onValue` / `offValue` are written (nil removes).
     case check(key: String, title: String, target: String, attribute: String, isOn: Bool, onValue: String?, offValue: String?)
-    /// A pop-up showing `titles` for the stored `values`; choosing writes the
-    /// value (an empty value removes the attribute).
     case popUp(key: String, target: String, attribute: String, values: [String], titles: [String], value: String)
-    /// A number field with a stepper (an empty field removes the attribute).
     case number(key: String, target: String, attribute: String, value: String, placeholder: String)
-    /// Two or four captioned number fields on one row.
     case numbers(key: String, fields: [IBNumberField])
-    /// A combo box (image or scene name): a field with the name as its grey
-    /// placeholder and a pop-up arrow.
     case combo(key: String, target: String, attribute: String, value: String, placeholder: String)
-    /// A colour pop-up (a swatch and a name) for `<color key=colorKey>`.
     case color(key: String, target: String, colorKey: String, value: String)
-    /// A row of icon toggles; one value is selected.
     case icons(key: String, target: String, attribute: String, values: [String], titles: [String], value: String)
-    /// A sub-heading inside a section ("Background Configuration").
     case subheading(String)
-    /// A table with + and − (Key Commands, Scope Titles), as its rows.
     case list(key: String, items: [String])
 
     public var label: String {
@@ -74,8 +40,6 @@ public enum IBInspectorRow: Equatable {
         }
     }
 
-    /// The left-hand label (check boxes and edge toggles show theirs in
-    /// the box's title).
     public var key: String {
         switch self {
         case .check(let k, _, _, _, _, _, _): return k
@@ -84,7 +48,6 @@ public enum IBInspectorRow: Equatable {
         }
     }
 
-    /// The object or path the row edits, and the attribute.
     public var binding: (target: String, attribute: String)? {
         switch self {
         case .text(_, let t, let a, _, _), .toggle(_, let t, let a, _, _, _), .choice(_, let t, let a, _, _), .check(_, _, let t, let a, _, _, _),
@@ -96,7 +59,6 @@ public enum IBInspectorRow: Equatable {
     }
 }
 
-/// One field of a `numbers` row.
 public struct IBNumberField: Equatable, Sendable {
     public var caption: String
     public var target: String
@@ -124,9 +86,6 @@ extension IBDocument {
         }
     }
 
-    // MARK: Generic attribute edits
-
-    /// Sets (nil removes) one attribute of an object.
     public func settingAttribute(_ name: String, _ value: String?, of id: String) throws -> IBDocument {
         if name.hasPrefix("@") { return try settingVirtual(name, value, of: id) }
         if name.hasPrefix("color.") { return try settingColor(value, key: String(name.dropFirst(6)), of: id) }
@@ -135,15 +94,10 @@ extension IBDocument {
         return try edited([XMLEdit.setAttribute(name, value, on: o.node, in: source)])
     }
 
-    /// Is Initial View Controller: the document's `initialViewController`.
     public func settingInitial(_ id: String?) throws -> IBDocument {
         try edited([XMLEdit.setAttribute("initialViewController", id, on: documentNode, in: source)])
     }
 
-    // MARK: User Defined Runtime Attributes
-
-    /// The object's User Defined Runtime Attributes, in file order; empty
-    /// for an unknown ID.
     public func runtimeAttributes(of id: String) -> [RuntimeAttribute] {
         guard let n = byID[id]?.node.child("userDefinedRuntimeAttributes") else { return [] }
         return n.children.filter { $0.name == "userDefinedRuntimeAttribute" }.map {
@@ -152,8 +106,6 @@ extension IBDocument {
         }
     }
 
-    /// Adds `<userDefinedRuntimeAttribute type keyPath value/>` (creating
-    /// the container as the object's first child element when absent).
     public func addingRuntimeAttribute(_ a: RuntimeAttribute, to id: String) throws -> IBDocument {
         guard let o = byID[id] else { return self }
         var line = "<userDefinedRuntimeAttribute type=\"\(XMLSource.encode(a.type))\" keyPath=\"\(XMLSource.encode(a.keyPath))\""
@@ -166,7 +118,6 @@ extension IBDocument {
         }
         let base = XMLEdit.indentation(of: o.node, in: source) + "    "
         if o.node.selfClosing {
-            // `<x …/>` → `<x …>` + container + `</x>`.
             let close = o.node.startTag.upperBound
             let tagEnd = XMLEdit(close - 2..<close, ">\n" + base + "<userDefinedRuntimeAttributes>\n" + base + "    " + line + "\n" + base
                                  + "</userDefinedRuntimeAttributes>\n" + XMLEdit.indentation(of: o.node, in: source) + "</\(o.element)>")
@@ -176,8 +127,6 @@ extension IBDocument {
         return try edited([XMLEdit(at..<at, "\n" + base + "<userDefinedRuntimeAttributes>\n" + base + "    " + line + "\n" + base + "</userDefinedRuntimeAttributes>")])
     }
 
-    /// Removes the runtime attribute `keyPath`, and the container element when
-    /// it was the last one. Returns `self` when there is nothing to remove.
     public func removingRuntimeAttribute(_ keyPath: String, of id: String) throws -> IBDocument {
         guard let c = byID[id]?.node.child("userDefinedRuntimeAttributes"),
               let n = c.children.first(where: { $0["keyPath"] == keyPath }) else { return self }
@@ -185,10 +134,6 @@ extension IBDocument {
         return try edited([XMLEdit(lineRange(of: doomed), "")])
     }
 
-    // MARK: Connections
-
-    /// Removes a connection element (outlet, action, segue) by ID; an
-    /// emptied `connections` element goes too.
     public func removingConnection(_ id: String) throws -> IBDocument {
         var hit: XMLSourceNode?
         documentNode.walk { n in
@@ -198,15 +143,11 @@ extension IBDocument {
         return try edited(removals([n]))
     }
 
-    // MARK: Sections
-
-    /// The segue kinds the Attributes inspector offers, in menu order.
     public static let segueKinds = ["Relationship", "Show", "Show Detail", "Present Modally", "Present As Popover", "Embed",
                                     "Push (deprecated)", "Modal (deprecated)", "Custom"]
 
     func isController(_ o: Object) -> Bool { o.element.hasSuffix("Controller") || o.attribute("sceneMemberID") == "viewController" }
 
-    /// The base class an object's Class field shows as its placeholder.
     public static func baseClass(_ element: String) -> String {
         let ios = ["viewController": "UIViewController", "view": "UIView", "label": "UILabel", "button": "UIButton",
                    "imageView": "UIImageView", "textField": "UITextField", "navigationController": "UINavigationController",
@@ -214,7 +155,6 @@ extension IBDocument {
         return ios[element] ?? "UI" + words(element).replacingOccurrences(of: " ", with: "")
     }
 
-    /// The Identity inspector's sections for object `id`; empty when unknown.
     public func identitySections(_ id: String) -> [IBInspectorSection] {
         guard let o = byID[id] else { return [] }
         var out = [IBInspectorSection("Custom Class", [
@@ -242,13 +182,11 @@ extension IBDocument {
         return out
     }
 
-    /// `<extendedEdge key="edgesForExtendedLayout" top=… bottom=…/>`; absent = all edges.
     func extendedEdge(_ o: Object, _ edge: String) -> Bool {
         guard let n = o.node.children.first(where: { $0["key"] == "edgesForExtendedLayout" }) else { return true }
         return n[edge] == "YES"
     }
 
-    /// "<kind> to: <item>" for a constraint seen from `id`.
     public func constraintSummary(_ c: Constraint, from id: String) -> String {
         let mine = c.firstItem == id
         let attr = mine ? c.firstAttribute : (c.secondAttribute ?? c.firstAttribute)
@@ -266,7 +204,6 @@ extension IBDocument {
         return "\(kind) to: \(name(other))"
     }
 
-    /// The Size inspector's sections for object `id`; empty when unknown.
     public func sizeSections(_ id: String) -> [IBInspectorSection] {
         guard let o = byID[id] else { return [] }
         if isController(o) { return [IBInspectorSection("Simulated Size", [.info(label: "Simulated Size", value: "Fixed")])] }
@@ -309,7 +246,6 @@ extension IBDocument {
         return out
     }
 
-    /// The Connections inspector's sections for object `id`; empty when unknown.
     public func connectionsSections(_ id: String) -> [IBInspectorSection] {
         guard let o = byID[id] else { return [] }
         func rows(_ k: Connection.Kind) -> [IBInspectorRow] { o.connections.filter { $0.kind == k }.map { .connection(name: $0.name, other: name($0.other), id: $0.id) } }
@@ -332,7 +268,6 @@ extension IBDocument {
         return out
     }
 
-    /// Segue `kind` attribute → the menu title.
     public static func segueTitle(_ kind: String) -> String {
         ["relationship": "Relationship", "show": "Show", "showDetail": "Show Detail", "presentation": "Present Modally",
          "popoverPresentation": "Present As Popover", "embed": "Embed", "push": "Push (deprecated)", "modal": "Modal (deprecated)",
@@ -340,17 +275,12 @@ extension IBDocument {
     }
 }
 
-// MARK: Value-only child elements (reference-ui-4.md §13 leftovers, P14)
-
 extension IBDocument {
-    /// A value-only child element's attributes (`<color key="textColor" …/>`).
     func property(_ o: Object, _ element: String, key: String) -> [String: String]? {
-        // Properties are recorded as "<element> (<key>)" without the key.
         guard let p = o.properties.first(where: { $0.0 == "\(element) (\(key))" }) else { return nil }
         return Dictionary(p.1.map { ($0.0, $0.1) }, uniquingKeysWith: { a, _ in a })
     }
 
-    /// "Label Color" for a named system color, "Custom" for components.
     func colorDescription(_ o: Object, key: String, default d: String) -> String {
         guard let c = property(o, "color", key: key) else { return d }
         if let name = c["systemColor"] ?? c["name"] { return Self.words(name).capitalized }
@@ -358,7 +288,6 @@ extension IBDocument {
         return "Custom"
     }
 
-    /// "System 17.0", "Headline", or "Default".
     func fontDescription(_ o: Object) -> String {
         guard let f = property(o, "fontDescription", key: "fontDescription") else { return "Default" }
         if let style = f["style"] { return Self.words(style.replacingOccurrences(of: "UICTFontTextStyle", with: "")).capitalized }
@@ -367,20 +296,16 @@ extension IBDocument {
         return [type, size].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
-    /// Layout Margins: Default, Fixed (`layoutMargins` insets) or Language
-    /// Directional (`directionalLayoutMargins`).
     func layoutMargins(_ o: Object) -> String {
         if property(o, "directionalEdgeInsets", key: "directionalLayoutMargins") != nil { return "Language Directional" }
         if property(o, "edgeInsets", key: "layoutMargins") != nil { return "Fixed" }
         return "Default"
     }
 
-    /// Key commands (`<keyCommand input=… action=…/>` children of `keyCommands`).
     func keyCommands(_ o: Object) -> [(input: String, action: String)] {
         (o.node.child("keyCommands")?.children ?? []).filter { $0.name == "keyCommand" }.map { ($0["input"] ?? "", $0["action"] ?? "") }
     }
 
-    /// Writes one frame component.
     public func settingFrameComponent(_ component: String, _ value: CGFloat, of id: String) throws -> IBDocument {
         guard let f = byID[id]?.frame else { return self }
         var r = f
@@ -393,9 +318,6 @@ extension IBDocument {
         return try settingFrame(r, of: id)
     }
 
-    /// Under Top / Bottom Bars: edits `<extendedEdge key="edgesForExtendedLayout">`.
-    /// Absent means every edge; the element, once written, lists the edges
-    /// that stay included.
     public func settingExtendedEdge(_ edge: String, _ on: Bool, of id: String) throws -> IBDocument {
         guard let o = byID[id] else { return self }
         if let n = o.node.children.first(where: { $0.name == "extendedEdge" && $0["key"] == "edgesForExtendedLayout" }) {

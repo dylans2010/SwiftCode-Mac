@@ -31,14 +31,12 @@ struct GitHubIntegrationView: View {
     @State private var isValidatingRepo = false
     @State private var repoValidationError: String?
 
-    // Repo Picker (Fetch)
     @State private var showRepoPicker = false
     @State private var isFetchingRepos = false
     @State private var userRepos: [GitHubRepoSummary] = []
     @State private var repoFetchError: String?
     @State private var repoSearchQuery = ""
 
-    // Navigation to modular GitHub views
     @State private var showBranchManagement = false
     @State private var showCommitHistory = false
     @State private var showPullRequest = false
@@ -60,7 +58,6 @@ struct GitHubIntegrationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("GitHub Integration", systemImage: "folder.fill.badge.gearshape")
                     .font(.headline)
@@ -71,7 +68,6 @@ struct GitHubIntegrationView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {
@@ -154,8 +150,6 @@ struct GitHubIntegrationView: View {
         .onAppear { loadSavedCredentials() }
     }
 
-    // MARK: - Auth Section
-
     private var authSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -223,8 +217,6 @@ struct GitHubIntegrationView: View {
             }
         }
     }
-
-    // MARK: - GitHub Modules Section
 
     private var githubModulesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -307,8 +299,6 @@ struct GitHubIntegrationView: View {
         }
         .buttonStyle(.plain)
     }
-
-    // MARK: - Repository Section
 
     private var repositorySection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -450,8 +440,6 @@ struct GitHubIntegrationView: View {
         }
     }
 
-    // MARK: - Branches Section
-
     private var branchesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -495,8 +483,6 @@ struct GitHubIntegrationView: View {
             }
         }
     }
-
-    // MARK: - Push Section
 
     private var pushSection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -543,8 +529,6 @@ struct GitHubIntegrationView: View {
         }
     }
 
-    // MARK: - Advanced Actions Section
-
     private var advancedActionsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -588,8 +572,6 @@ struct GitHubIntegrationView: View {
         .liquidGlass(style: .subtle, cornerRadius: 12)
     }
 
-    // MARK: - Workflow Section
-
     private var workflowSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -620,8 +602,6 @@ struct GitHubIntegrationView: View {
             }
         }
     }
-
-    // MARK: - Create Repo Sheet
 
     private var createRepoSheet: some View {
         Form {
@@ -656,8 +636,6 @@ struct GitHubIntegrationView: View {
         .padding(24)
         .frame(width: 450)
     }
-
-    // MARK: - Repo Picker Sheet
 
     private var filteredRepos: [GitHubRepoSummary] {
         if repoSearchQuery.isEmpty { return userRepos }
@@ -738,8 +716,6 @@ struct GitHubIntegrationView: View {
         .padding(24)
         .frame(width: 400, height: 450)
     }
-
-    // MARK: - Actions
 
     private func loadSavedCredentials() {
         if let saved = KeychainService.shared.get(forKey: KeychainService.githubToken) {
@@ -960,8 +936,6 @@ struct GitHubIntegrationView: View {
     }
 }
 
-// MARK: - Branch Row
-
 struct BranchRow: View {
     let branch: GitHubBranch
     let isActive: Bool
@@ -993,8 +967,6 @@ struct BranchRow: View {
         .buttonStyle(.plain)
     }
 }
-
-// MARK: - Workflow Run Row
 
 struct WorkflowRunRow: View {
     let run: WorkflowRun

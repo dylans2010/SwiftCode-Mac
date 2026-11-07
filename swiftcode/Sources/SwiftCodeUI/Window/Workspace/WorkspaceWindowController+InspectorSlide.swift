@@ -2,19 +2,11 @@ import AppKit
 import QuartzCore
 import SwiftCodeIDECore
 
-/// Showing and hiding the inspector (`specs/ide/editor-area.md` §C.7,
-/// `fidelity-council.md` row 9): the inspector slides rigidly by its
-/// width while the editor resizes live, every frame, over about 215 ms on
-/// the measured progress curve. The divider moves one display frame at a
-/// time from the press; the inspector's contents keep their width pinned to
-/// the divider, so nothing in them reflows.
 extension WorkspaceWindowController {
-    /// View ▸ Inspectors ▸ Show / Hide Inspector, and the toolbar button.
     @objc public func toggleInspector(_ sender: Any?) {
         slideInspector(show: inspectorItem.isCollapsed)
     }
 
-    /// Whether a slide is running (tests).
     public var isInspectorSliding: Bool { inspectorSlide.link != nil }
 
     func slideInspector(show: Bool) {
@@ -40,8 +32,6 @@ extension WorkspaceWindowController {
             inspectorItem.minimumThickness = 1
         }
         inspector.beginRigidSlide(width: width)
-        // The contents are laid out and drawn at their width before the
-        // first frame, so the inspector never slides in blank.
         inspector.view.layoutSubtreeIfNeeded()
         inspector.view.displayIfNeeded()
         state.from = show ? total - divider - 1 : total - divider - width
@@ -71,8 +61,6 @@ extension WorkspaceWindowController {
     var inspectorSlide: InspectorSlideState { inspectorSlideBox }
 }
 
-/// A running slide: the divider's travel, the curve's clock, the display
-/// link that steps it.
 @MainActor
 final class InspectorSlideState: NSObject {
     var link: CADisplayLink?
@@ -84,13 +72,9 @@ final class InspectorSlideState: NSObject {
     var lastWidth: CGFloat?
     var onFrame: ((CGFloat) -> Void)?
 
-    /// The measured duration (`EditorMetrics.inspectorSlideDuration`).
     static let duration = EditorMetrics.inspectorSlideDuration
 
     @objc func step(_ link: CADisplayLink) {
-        // Times are those of the frames being drawn; the first sets the
-        // clock (the press), and motion starts after the measured delay
-        // (editor-area.md §D.5), on the ease-in-out curve.
         let now = link.targetTimestamp
         guard let start else { start = now; onFrame?(0); return }
         let elapsed = now - start

@@ -2,36 +2,6 @@ import Foundation
 import Observation
 import StoreKitConfiguration
 
-/// The `.storekit` editor's document model: a `StoreConfiguration`
-/// (frameworks/storekit's `StoreKitConfiguration` — the `.storekit` file
-/// model, which owns parsing and encoding; this file never parses JSON
-/// itself), edited in place, with undo/redo, validation, fixes, snapshots,
-/// templates, search and the simulation session.
-///
-/// Ported from Legacy's `Views/Utilities/StoreKit/` (13 files, 4,661
-/// lines): the workspace session (`StoreKitWorkspaceManager.swift` — undo
-/// stacks capped at 50, default workspace, 5 templates, recent files are
-/// the workspace's job, not the document's), the validation service
-/// (`StoreKitValidationService.swift` — health score, fix types), the
-/// editors' product/group/offer/localization edits, and the sidebar's
-/// sections. The AppKit window/split-view chrome (`StoreKitWindowController`,
-/// `StoreKitWindowManager`, `StoreKitSplitViewController`) is not
-/// reproduced: SwiftCode's workspace window hosts the editor. The asset editor
-/// (`StoreKitAssetEditorView`, local image names) has no `.storekit`
-/// equivalent — the format carries no images — so it is not reproduced.
-/// Legacy's own `StoreKitConfig` schema is NOT the real `.storekit`
-/// format (prices as numbers, unprefixed settings keys, `version: [Int]`,
-/// type `"AutoRenewableSubscription"`, plural offer arrays); files Legacy
-/// wrote in that schema are imported by `StoreKitLegacyImport`, never
-/// treated as real `.storekit` files.
-///
-/// A file that carries App Store Connect synchronization keys
-/// (`_applicationInternalID`, …) is read-only in the editor
-/// (`StoreConfiguration.isSynchronized`); edits are refused with a
-/// problem message instead of silently rewriting a synced file.
-
-/// One sidebar section, mirroring Legacy's `StoreKitSidebarView` sections
-/// and target sections.
 public enum StoreKitEditorSection: String, CaseIterable, Identifiable, Sendable {
     case dashboard = "Dashboard"
     case explorer = "Explorer"
@@ -100,15 +70,12 @@ public enum StoreKitEditorSection: String, CaseIterable, Identifiable, Sendable 
     }
 }
 
-/// Where a product lives in the file.
 public enum StoreKitProductLocation: Equatable, Hashable, Sendable {
     case product(Int)
     case nonRenewing(Int)
     case subscription(group: Int, index: Int)
 }
 
-/// One validation finding, with the fix Legacy offered for it where the
-/// framework's rule has one.
 public struct StoreKitEditorIssue: Identifiable, Equatable, Sendable {
     public var id: String { rule + "|" + path }
     public enum Severity: String, Sendable { case error, warning, suggestion }
@@ -129,9 +96,6 @@ public struct StoreKitEditorIssue: Identifiable, Equatable, Sendable {
     }
 }
 
-/// A one-click repair for a validation finding (Legacy's
-/// `ValidationFixType`, adapted to the real format: prices are decimal
-/// strings, identifiers are product IDs, group links are group IDs).
 public enum StoreKitEditorFix: String, Sendable {
     case generateMissingLocalization = "Generate Missing English Localization"
     case fixPrice = "Set Price to Default ($0.99)"
@@ -140,7 +104,6 @@ public enum StoreKitEditorFix: String, Sendable {
     case fixMismatchGroup = "Re-align Group ID"
 }
 
-/// A saved revision of the configuration (Legacy's `SKVersionRevision`).
 public struct StoreKitSnapshot: Identifiable, Hashable, Sendable {
     public var id: UUID
     public var timestamp: Date
@@ -155,7 +118,6 @@ public struct StoreKitSnapshot: Identifiable, Hashable, Sendable {
     }
 }
 
-/// What changed between two configurations (Legacy's `StoreKitCompareView`).
 public struct StoreKitConfigurationDifference: Sendable {
     public var addedProductIDs: [String]
     public var removedProductIDs: [String]
@@ -173,7 +135,6 @@ public struct StoreKitConfigurationDifference: Sendable {
     public var isEmpty: Bool { addedProductIDs.isEmpty && removedProductIDs.isEmpty && changedProductIDs.isEmpty }
 }
 
-/// A saved product filter (Legacy's `SKSmartFilter`).
 public struct StoreKitSmartFilter: Identifiable, Equatable, Sendable {
     public var id: UUID
     public var name: String
@@ -189,9 +150,6 @@ public struct StoreKitSmartFilter: Identifiable, Equatable, Sendable {
         self.productType = productType
     }
 
-    /// Whether a product passes the filter. Prices are the file's decimal
-    /// display-price strings; a product with no parseable price passes a
-    /// price bound only when the bound is absent.
     public func matches(_ product: ConfiguredProduct) -> Bool {
         if let type = productType, product.type?.rawValue != type { return false }
         let price = product.displayPrice.flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }
@@ -208,46 +166,27 @@ public struct StoreKitSmartFilter: Identifiable, Equatable, Sendable {
 @MainActor
 @Observable
 public final class StoreKitEditorModel {
-    /// The file on disk, if the editor was opened on one.
     public let url: URL?
-    /// The live configuration. All edits go through `mutate(_:)` so the
-    /// undo stack and dirty flag stay correct.
     public private(set) var configuration: StoreConfiguration
-    /// Whether the file ends with a newline (preserved on save, as
-    /// `ConfigurationDocument` does).
     public private(set) var trailingNewline: Bool
-    /// Whether the in-memory configuration differs from disk.
     public private(set) var isDirty = false
-    /// Why the last edit, load or save was refused.
     public private(set) var problem: String?
 
-    /// Sets the problem message (the Raw Source view reports a bad JSON
-    /// paste this way).
     public func setProblem(_ message: String) { problem = message }
 
-    /// Clears the problem banner.
     public func clearProblem() { problem = nil }
-    /// The sidebar section showing.
     public var selectedSection: StoreKitEditorSection = .dashboard
-    /// The selected product's ID, for the inspector.
     public var selectedProductID: String?
-    /// The selected subscription group's ID.
     public var selectedGroupID: String?
-    /// The search text filtering the product lists.
     public var searchText = ""
-    /// The in-memory purchase simulator (Legacy's
-    /// `StoreKitSimulationService`, ported to the real format).
     public let simulation: StoreKitSimulationSession
-    /// Saved revisions, newest first.
     public private(set) var snapshots: [StoreKitSnapshot] = []
-    /// Saved product filters.
     public var customFilters: [StoreKitSmartFilter] = [
         StoreKitSmartFilter(name: "Premium Offers Only", minPrice: Decimal(9.99), productType: "RecurringSubscription")
     ]
     private var undoStack: [StoreConfiguration] = []
     private var redoStack: [StoreConfiguration] = []
 
-    /// Opens `url`.
     public init(url: URL, simulationCacheDirectory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first) throws {
         self.url = url
         let document = try ConfigurationDocument(contentsOf: url)
@@ -257,8 +196,6 @@ public final class StoreKitEditorModel {
         simulation.installConfiguration(configuration)
     }
 
-    /// A new empty configuration (the framework's template: default
-    /// settings, no products, version 4.0, a fresh identifier).
     public init(simulationCacheDirectory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first) {
         self.url = nil
         configuration = StoreConfiguration.template()
@@ -267,9 +204,6 @@ public final class StoreKitEditorModel {
         simulation.installConfiguration(configuration)
     }
 
-    /// An in-memory document over an existing configuration (tests).
-    /// The simulation session is in-memory only unless a cache
-    /// directory is given.
     public init(configuration: StoreConfiguration, simulationCacheDirectory: URL? = nil) {
         self.url = nil
         self.configuration = configuration
@@ -278,47 +212,33 @@ public final class StoreKitEditorModel {
         simulation.installConfiguration(configuration)
     }
 
-    /// A synchronized file (App Store Connect keys present) is read-only
-    /// in the editor.
     public var isReadOnly: Bool { configuration.isSynchronized }
 
-    // MARK: - Persistence
-
-    /// The file's bytes in canonical form.
     public func data() -> Data {
         ConfigurationDocument(configuration: configuration, trailingNewline: trailingNewline).data()
     }
 
-    /// The file as sorted pretty-printed JSON text (the Raw Source view).
     public func jsonText() -> String { String(data: data(), encoding: .utf8) ?? "" }
 
-    /// Replaces the configuration from JSON text; throws the framework's
-    /// `ConfigurationReadError` when it is not a `.storekit` file.
     public func setJSONText(_ text: String) throws {
         let parsed = try StoreConfiguration(data: Data(text.utf8))
         mutate { $0 = parsed }
     }
 
-    /// Writes the file atomically.
     public func save() throws {
         guard let url else { throw StoreKitEditorError.noFile }
         try data().write(to: url, options: .atomic)
         isDirty = false
     }
 
-    /// Writes to a different file.
     public func save(to newURL: URL) throws {
         try data().write(to: newURL, options: .atomic)
         isDirty = false
     }
 
-    // MARK: - Undo / redo (Legacy's `StoreKitWorkspaceSession`, cap 50)
-
     public var canUndo: Bool { !undoStack.isEmpty }
     public var canRedo: Bool { !redoStack.isEmpty }
 
-    /// Records the current configuration, applies `edit`, marks dirty.
-    /// Refused (with `problem` set) for synchronized files.
     public func mutate(_ edit: (inout StoreConfiguration) -> Void) {
         guard !isReadOnly else {
             problem = "This configuration was synchronized with App Store Connect and is read-only."
@@ -352,9 +272,6 @@ public final class StoreKitEditorModel {
         simulation.log("Redid action.")
     }
 
-    // MARK: - Products
-
-    /// Every product with its location, in file order.
     public var allProducts: [(location: StoreKitProductLocation, product: ConfiguredProduct)] {
         var out: [(StoreKitProductLocation, ConfiguredProduct)] = []
         for (i, p) in (configuration.products ?? []).enumerated() { out.append((.product(i), p)) }
@@ -391,7 +308,6 @@ public final class StoreKitEditorModel {
         }
     }
 
-    /// The products of the section's list, filtered by the search text.
     public func products(in section: StoreKitEditorSection) -> [(location: StoreKitProductLocation, product: ConfiguredProduct)] {
         let base: [(StoreKitProductLocation, ConfiguredProduct)]
         switch section {
@@ -411,8 +327,6 @@ public final class StoreKitEditorModel {
         }
     }
 
-    /// The next free numeric internal identifier (one past the largest
-    /// internal ID used by any product or offer).
     public func nextInternalID() -> String {
         let used = allProducts.flatMap { (_, p) -> [String?] in
             var ids: [String?] = [p.internalID]
@@ -424,7 +338,6 @@ public final class StoreKitEditorModel {
         return String((used.max() ?? 0) + 1)
     }
 
-    /// The next free numeric subscription-group identifier.
     public func nextGroupID() -> String {
         let used = (configuration.subscriptionGroups ?? []).compactMap(\.id).compactMap(Int.init)
         return String((used.max() ?? 0) + 1)
@@ -438,7 +351,6 @@ public final class StoreKitEditorModel {
         return "\(base)-\(n)"
     }
 
-    /// A new product of the given kind, appended in the right list.
     @discardableResult
     public func addProduct(kind: ProductKind = .nonConsumable) -> StoreKitProductLocation {
         let id = uniqueProductID(base: "com.example.newproduct")
@@ -456,8 +368,6 @@ public final class StoreKitEditorModel {
                 c.nonRenewingSubscriptions = (c.nonRenewingSubscriptions ?? []) + [product]
                 location = .nonRenewing((c.nonRenewingSubscriptions ?? []).count - 1)
             default:
-                // A subscription needs a group; without one it lands in
-                // `products` and validation flags the misplaced type.
                 c.products = (c.products ?? []) + [product]
                 location = .product((c.products ?? []).count - 1)
             }
@@ -466,7 +376,6 @@ public final class StoreKitEditorModel {
         return location
     }
 
-    /// Removes the product at a location (no-op for an out-of-range index).
     public func removeProduct(at location: StoreKitProductLocation) {
         mutate { c in
             switch location {
@@ -485,7 +394,6 @@ public final class StoreKitEditorModel {
         }
     }
 
-    /// Duplicates a product with a fresh product ID and internal ID.
     @discardableResult
     public func duplicateProduct(at location: StoreKitProductLocation) -> StoreKitProductLocation? {
         guard var copy = product(at: location) else { return nil }
@@ -520,8 +428,6 @@ public final class StoreKitEditorModel {
         return newLocation
     }
 
-    // MARK: - Subscription groups
-
     @discardableResult
     public func addGroup(name: String = "New Group") -> Int {
         let group = SubscriptionGroup(id: nextGroupID(), name: name, localizations: [], subscriptions: [])
@@ -543,7 +449,6 @@ public final class StoreKitEditorModel {
         }
     }
 
-    /// A new auto-renewable subscription in a group, at the next level.
     @discardableResult
     public func addSubscription(to groupIndex: Int, period: String = "P1M") -> StoreKitProductLocation? {
         guard let group = configuration.subscriptionGroups?[safe: groupIndex], let groupID = group.id else { return nil }
@@ -568,10 +473,6 @@ public final class StoreKitEditorModel {
         return location
     }
 
-    // MARK: - Offers & localizations
-
-    /// A new offer on a subscription: introductory (one only), promotional
-    /// or code.
     public func addOffer(to location: StoreKitProductLocation, kind: StoreKitOfferKind) {
         guard var product = product(at: location) else { return }
         let offer = Offer(internalID: nextInternalID(), paymentMode: .free, subscriptionPeriod: "P1W",
@@ -613,7 +514,6 @@ public final class StoreKitEditorModel {
         setProduct(product, at: location)
     }
 
-    /// Adds an empty localization for a locale to a product.
     public func addLocalization(locale: String, to location: StoreKitProductLocation) {
         guard var product = product(at: location) else { return }
         guard !(product.localizations ?? []).contains(where: { $0.locale == locale }) else { return }
@@ -623,22 +523,16 @@ public final class StoreKitEditorModel {
         setProduct(product, at: location)
     }
 
-    /// The localization matrix: every (product, localization) pair, for
-    /// the Localization section (Legacy's `Localization Matrix`).
     public var localizationRows: [(location: StoreKitProductLocation, product: ConfiguredProduct, localization: Localization)] {
         allProducts.flatMap { (loc, p) in
             (p.localizations ?? []).map { (loc, p, $0) }
         }
     }
 
-    // MARK: - Settings & storefronts
-
     public func setSettings(_ settings: Settings) {
         mutate { $0.settings = settings }
     }
 
-    /// Common storefronts for the storefront picker (ISO 3166-1 alpha-3
-    /// code + currency); the field itself takes any three-letter code.
     public static let commonStorefronts: [(code: String, name: String, currency: String)] = [
         ("USA", "United States", "USD"), ("CAN", "Canada", "CAD"), ("MEX", "Mexico", "MXN"),
         ("GBR", "United Kingdom", "GBP"), ("FRA", "France", "EUR"), ("DEU", "Germany", "EUR"),
@@ -648,10 +542,6 @@ public final class StoreKitEditorModel {
         ("BRA", "Brazil", "BRL"), ("CHE", "Switzerland", "CHF"), ("SWE", "Sweden", "SEK"),
     ]
 
-    // MARK: - Validation
-
-    /// The framework's findings, mapped to editor issues with Legacy's
-    /// categories and fixes, plus Legacy's empty-group suggestion.
     public func validationIssues() -> [StoreKitEditorIssue] {
         var issues = configuration.validate().map { issue in
             StoreKitEditorIssue(severity: issue.severity == .error ? .error : .warning,
@@ -672,8 +562,6 @@ public final class StoreKitEditorModel {
     public var warnings: [StoreKitEditorIssue] { validationIssues().filter { $0.severity == .warning } }
     public var isValid: Bool { errors.isEmpty }
 
-    /// Legacy's health score: 100, minus 15 per error, 8 per warning,
-    /// 3 per suggestion, clamped to 0…100.
     public var healthScore: Int {
         let issues = validationIssues()
         var score = 100
@@ -709,8 +597,6 @@ public final class StoreKitEditorModel {
         }
     }
 
-    /// Applies a one-click fix at a finding's path. Returns false when
-    /// the path no longer resolves.
     @discardableResult
     public func applyFix(_ fix: StoreKitEditorFix, at path: String) -> Bool {
         guard let location = Self.location(for: path) else { return false }
@@ -743,10 +629,6 @@ public final class StoreKitEditorModel {
         return true
     }
 
-    /// Resolves a validation path (`products[0]`,
-    /// `subscriptionGroups[1].subscriptions[0]`,
-    /// `nonRenewingSubscriptions[0]`, or a path with a trailing key)
-    /// to a product location.
     static func location(for path: String) -> StoreKitProductLocation? {
         let parts = path.split(separator: ".").map(String.init)
         guard let first = parts.first else { return nil }
@@ -763,24 +645,16 @@ public final class StoreKitEditorModel {
         return nil
     }
 
-    // MARK: - Snapshots & compare
-
-    /// Saves the current configuration as a named revision.
     public func snapshot(reason: String) {
         snapshots.insert(StoreKitSnapshot(reason: reason, configuration: configuration), at: 0)
         simulation.log("Saved version snapshot: \(reason).")
     }
 
-    /// Restores a snapshot (undoable).
     public func restore(_ snapshot: StoreKitSnapshot) {
         mutate { $0 = snapshot.configuration }
         simulation.log("Restored version snapshot: \(snapshot.reason).")
     }
 
-    /// The difference between the current configuration and another
-    /// (Legacy's `StoreKitCompareView`). Duplicate product IDs keep the
-    /// first occurrence on each side, so an invalid file cannot crash
-    /// the comparison.
     public func difference(from other: StoreConfiguration) -> StoreKitConfigurationDifference {
         func byID(_ products: [ConfiguredProduct]) -> [String: ConfiguredProduct] {
             var out: [String: ConfiguredProduct] = [:]
@@ -805,14 +679,8 @@ public final class StoreKitEditorModel {
                                                changedProductIDs: changed, priceChanges: prices)
     }
 
-    // MARK: - Templates & default workspace
-
-    /// Legacy's five starter templates, rewritten in the real `.storekit`
-    /// format (Legacy's template products carried no internal IDs and its
-    /// subscription type string was wrong; these carry both correctly).
     public static let templateNames = ["Premium Unlock", "Pro Version", "Consumables / Tips", "Streaming Service", "Mixed Catalog"]
 
-    /// Replaces the configuration with a template (undoable).
     public func applyTemplate(named name: String) {
         let config: StoreConfiguration
         switch name {
@@ -890,11 +758,6 @@ public final class StoreKitEditorModel {
         simulation.log("Applied template: '\(name)'.")
     }
 
-    /// Legacy's default workspace: a lifetime unlock, an AI-credits
-    /// consumable, and a Pro group with a monthly subscription — in the
-    /// real format (Legacy's default identifier,
-    /// `"default_storekit_config"`, is not a valid 8-hex identifier, so
-    /// the template's fresh identifier is used instead).
     public func loadDefaultWorkspace() {
         var config = StoreConfiguration.template()
         config.products = [
@@ -924,7 +787,6 @@ public final class StoreKitEditorModel {
     }
 }
 
-/// Which offer list a new offer joins.
 public enum StoreKitOfferKind: Sendable {
     case introductory
     case promotional
@@ -942,8 +804,6 @@ public enum StoreKitEditorError: Error, CustomStringConvertible {
 }
 
 private extension StoreConfiguration {
-    /// A copy with the given product lists (templates build on
-    /// `StoreConfiguration.template()`).
     func with(products: [ConfiguredProduct]? = nil, nonRenewingSubscriptions: [ConfiguredProduct]? = nil,
               subscriptionGroups: [SubscriptionGroup]? = nil) -> StoreConfiguration {
         var copy = self

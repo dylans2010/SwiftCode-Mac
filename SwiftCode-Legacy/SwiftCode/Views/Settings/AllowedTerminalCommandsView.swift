@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// Assist Settings > Terminal Command Approvals.
-///
-/// Lets the user maintain the allow-list of terminal commands that Assist's
-/// `use_terminal` tool may run WITHOUT an approval prompt, plus the
-/// "Full Access" master switch that bypasses approval for every command.
 struct AllowedTerminalCommandsView: View {
     @ObservedObject private var approvalSettings = TerminalApprovalSettings.shared
     @State private var newCommand = ""
@@ -31,7 +26,6 @@ struct AllowedTerminalCommandsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 1. Full Access card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -64,7 +58,6 @@ struct AllowedTerminalCommandsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Global Bulk Action Bar
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -102,7 +95,6 @@ struct AllowedTerminalCommandsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Preset Terminal Commands card (AT LEAST 50 preset terminal commands)
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -119,7 +111,6 @@ struct AllowedTerminalCommandsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        // Search & Category Filters
                         HStack(spacing: 8) {
                             HStack {
                                 Image(systemName: "magnifyingglass")
@@ -158,7 +149,6 @@ struct AllowedTerminalCommandsView: View {
                             }
                         }
 
-                        // Presets List
                         VStack(spacing: 6) {
                             if filteredPresets.isEmpty {
                                 HStack {
@@ -246,7 +236,6 @@ struct AllowedTerminalCommandsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 4. Allowed Commands card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -263,7 +252,6 @@ struct AllowedTerminalCommandsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        // Add custom command row
                         HStack(spacing: 8) {
                             TextField("e.g. git status  —  or  git  (allows all git commands)", text: $newCommand)
                                 .textFieldStyle(.roundedBorder)
@@ -317,7 +305,6 @@ struct AllowedTerminalCommandsView: View {
                             }
                         }
 
-                        // Matching rules footer
                         VStack(alignment: .leading, spacing: 4) {
                             Text("How matching works")
                                 .font(.caption.bold())
@@ -344,8 +331,6 @@ struct AllowedTerminalCommandsView: View {
             Text("Assist will be able to run any terminal command on this Mac without asking you first, in every session until you disable this.")
         }
     }
-
-    // MARK: - Private
 
     private var fullAccessBinding: Binding<Bool> {
         Binding(

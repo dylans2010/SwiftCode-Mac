@@ -1,25 +1,3 @@
-/*
- * sysctl.c - libsystem_kernel's __sysctl (BSD 202) and issetugid (BSD 327)
- * with answers given in the library when the kernel allows it
- * (fast-traps.md section 5a, guest-cpu.md section 6).
- *
- * Clean-room SwiftCode code. SwiftCode's kernel answers these calls from fixed
- * data (specs/simulator/stage3-contract.md section 8, its sysctl table):
- *  - the name-to-OID query, sysctl({0, 3}, old, oldlenp, name, namelen):
- *    the MIB of a name never changes while the process runs;
- *  - kern.boottime ({1, 21}): fixed for the life of the simulated system;
- *  - issetugid: always 0 (guest credentials never change).
- * With the commpage's YC_FAST_SYSCTL_CACHE bit, the first answer of each
- * name-to-OID query and of kern.boottime comes from the trap and is kept in
- * the library; later identical queries are answered from that copy with the
- * kernel's copy-out rules (a size query when old is NULL, EINVAL without
- * oldlenp, ENOMEM when the buffer is too small). libc's sysctlbyname makes
- * both traps for every call (a boot asked for kern.boottime 105,000 times).
- * With YC_FAST_LOCAL_CALLS, issetugid answers 0 without the trap.
- * Unlike the kernel, a cache hit reads the caller's name and length
- * pointers directly: a bad pointer faults in the caller instead of
- * returning EFAULT.
- */
 #include "yc_kernel.h"
 
 static long yc_sysctl_trap(int *name, yc_u32 namelen, void *old, yc_size_t *oldlenp, void *new, yc_size_t newlen,
@@ -49,7 +27,6 @@ static void yc_copy_bytes(void *to, const void *from, yc_size_t n)
         d[i] = s[i];
 }
 
-/* The kernel's copy-out: 0 or an errno. */
 static int yc_copy_out(const void *bytes, yc_size_t len, void *old, yc_size_t *oldlenp)
 {
     if (old == YC_NULL) {
@@ -70,9 +47,9 @@ static int yc_copy_out(const void *bytes, yc_size_t len, void *old, yc_size_t *o
 #define YC_OID_NAME 96
 #define YC_OID_MIB 12
 struct yc_oid_slot {
-    yc_u32 state; /* 0 empty, 1 being written, 2 ready */
+    yc_u32 state;
     yc_u32 namelen;
-    yc_u32 miblen; /* bytes */
+    yc_u32 miblen;
     int mib[YC_OID_MIB];
     char name[YC_OID_NAME];
 };
@@ -97,7 +74,6 @@ static int yc_same(const char *a, const char *b, yc_u32 n)
     return 1;
 }
 
-/* The slot of `name` (ready), or NULL. */
 static struct yc_oid_slot *yc_oid_find(const char *name, yc_u32 n)
 {
     yc_u32 h = yc_name_hash(name, n);
@@ -122,7 +98,7 @@ static void yc_oid_insert(const char *name, yc_u32 n, const void *mib, yc_u32 mi
         yc_u32 empty = 0;
         if (!__atomic_compare_exchange_n(&s->state, &empty, 1, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
             if (empty == 2 && s->namelen == n && yc_same(s->name, name, n))
-                return; /* another thread kept it */
+                return;
             continue;
         }
         s->namelen = n;
@@ -143,7 +119,6 @@ YC_EXPORT int __sysctl(int *name, yc_u32 namelen, void *old, yc_size_t *oldlenp,
     yc_u32 n = 0;
     if (cache && namelen == 2 && name != YC_NULL) {
         if (name[0] == 0 && name[1] == 3 && new != YC_NULL && newlen > 0 && newlen <= YC_OID_NAME) {
-            /* The kernel's key: the name bytes without trailing NULs. */
             n = (yc_u32)newlen;
             while (n > 0 && ((const char *)new)[n - 1] == 0)
                 n--;
@@ -186,7 +161,6 @@ YC_EXPORT int __sysctl(int *name, yc_u32 namelen, void *old, yc_size_t *oldlenp,
     return (int)r;
 }
 
-/* int issetugid(void): BSD 327, which never fails; SwiftCode's kernel answers 0. */
 YC_EXPORT int issetugid(void)
 {
     if (yc_commpage_u8(YC_COMM_FAST_FLAGS) & YC_FAST_LOCAL_CALLS)

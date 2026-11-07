@@ -1,5 +1,3 @@
-// Milestone A sample: printf, argv, environment, exit status
-// (specs/macos/macos-apps.md §9.1). SwiftCode's own test program.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

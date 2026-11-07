@@ -1,19 +1,5 @@
 import Foundation
 
-/// Project structure for preview entry resolution (Legacy
-/// `SwiftCode/Core/Preview/PreviewProjectScanner.swift`, Dylan's own
-/// code, ported under MIT).
-///
-/// The target-membership filter is adapted: Legacy read it from
-/// `ProjectResolutionService` (selected target + parsed projects),
-/// which does not exist in the destination, and this target does not
-/// depend on `SwiftCodeProject`, so the scanner cannot read
-/// `project.pbxproj` itself. The caller passes the target's files
-/// explicitly (`targetFiles`, computed with `PBXProj` by code in
-/// `SwiftCodeIDECore` / `SwiftCodeMCP`); with no `targetFiles` the
-/// whole directory is scanned. Adding `SwiftCodeProject` to this
-/// target's dependencies would let the scanner compute the set
-/// itself — recorded in the disposition as the wiring hook.
 public struct PreviewProjectStructure: Sendable {
     public let swiftFiles: [URL]
     public let swiftUIViewTypes: [String]
@@ -24,11 +10,6 @@ public struct PreviewProjectStructure: Sendable {
 public final class PreviewProjectScanner: Sendable {
     public init() {}
 
-    /// Scans `projectDirectory` for `.swift` files, the `@main` App
-    /// entry, `View` types, and per-file imports. When `targetFiles`
-    /// is supplied, only those files (plus `activeFilePath`, when
-    /// given) are kept — Legacy's active-target filter, with the
-    /// file set computed by the caller (see the header note).
     public func scan(projectDirectory: URL, activeFilePath: String? = nil, targetFiles: Set<URL>? = nil) async throws -> PreviewProjectStructure {
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(at: projectDirectory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
@@ -60,7 +41,6 @@ public final class PreviewProjectScanner: Sendable {
             dependencies[fileURL] = importedModules
         }
 
-        // Apply target membership filtering
         var filteredSwiftFiles = swiftFiles
         if let targetFiles {
             filteredSwiftFiles = swiftFiles.filter { fileURL in

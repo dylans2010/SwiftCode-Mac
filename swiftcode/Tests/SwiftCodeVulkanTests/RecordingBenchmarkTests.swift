@@ -1,10 +1,3 @@
-// Recording cost (opt-in: SWIFTCODE_VULKAN_BENCH=1; needs the GPU host): a
-// command buffer shaped like the render server's frames (many small passes,
-// a pipeline change and fresh bindings before every draw) recorded again
-// and again, with the per-part host times of `SWIFTCODE_METAL_RECORD_PROFILE`.
-// Prints the CPU time per command buffer and per draw for the fast path and
-// for `SWIFTCODE_METAL_RECORD_FAST=0` (stage8-contract.md §15).
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
@@ -13,8 +6,6 @@ import Testing
 @Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_BENCH"] == "1" && VK.available,
                              "SWIFTCODE_VULKAN_BENCH=1 on a Vulkan GPU host"))
 struct RecordingBenchmarkTests {
-    /// One frame: `passes` passes of `draws` draws each, every draw with its
-    /// own pipeline, buffers, a texture and a sampler.
     static func frame(target: MetalHandle, offscreen: [MetalHandle], pipelines: [MetalHandle], buffer: MetalHandle,
                       texture: MetalHandle, sampler: MetalHandle, passes: Int, draws: Int) -> [MetalPass] {
         var out: [MetalPass] = []
@@ -77,7 +68,7 @@ struct RecordingBenchmarkTests {
             b.submit(cb, scheduled: {}, completed: { _ in done.signal() })
             _ = done.wait(timeout: .now() + 10)
         }
-        for _ in 0..<10 { run() }  // pipelines built, caches warm
+        for _ in 0..<10 { run() }
         let before = b.stats.recording
         for _ in 0..<rounds { run() }
         let after = b.stats.recording
@@ -87,8 +78,6 @@ struct RecordingBenchmarkTests {
     }
 
     @Test func recordingCostPerDraw() throws {
-        // The shared backend reads the switches at its creation; a second one
-        // with the other setting gives the comparison.
         let fast = try measure(VK.backend, rounds: 200)
         print(String(format: "recording (fast %@): %.3f ms per command buffer, %.2f µs per draw", VK.backend.options.recordFast ? "on" : "off",
                      fast.perCB, fast.perDraw))

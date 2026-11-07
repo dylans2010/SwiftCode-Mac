@@ -1,10 +1,3 @@
-// OnboardingView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Onboarding/OnboardingView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: the three-step tabbed splash to features to welcome flow
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): OnboardingFeaturesView, OnboardingSplashView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 #if canImport(AppKit)
 import AppKit

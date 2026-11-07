@@ -1,9 +1,3 @@
-// SimulatorConsoleView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorConsoleView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: search text; auto-scroll toggle; export-to-file; simctl log streaming
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
@@ -23,7 +17,6 @@ struct SimulatorConsoleView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Console Output & Streaming", systemImage: "terminal.fill")
                     .font(.headline)
@@ -54,7 +47,6 @@ struct SimulatorConsoleView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

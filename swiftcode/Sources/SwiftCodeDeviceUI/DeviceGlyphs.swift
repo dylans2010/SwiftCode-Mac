@@ -1,26 +1,12 @@
-// SwiftCode's own device glyphs (AGENTS.md rule 5: no trademark-shaped
-// symbols, so no product symbols such as the phone or tablet SF Symbols):
-// simple outlines drawn as template images, so a view tints them. Used by
-// the hub's sidebar rows (§5.2: coloured with a lit screen while running,
-// grey otherwise) and the iPhone Duo's pose buttons (§4.4: Closed is a
-// closed phone, Open a flat tablet). The watch glyph is a generic wrist
-// watch: a rounded square face with a short strap above and below and a
-// small knob on its right side.
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDeviceModel
 
 public enum DeviceGlyph: String, Sendable, CaseIterable {
-    /// A phone, upright.
     case phone
-    /// A tablet, upright.
     case tablet
-    /// A headset: a wide visor.
     case headset
-    /// The iPhone Duo open flat: a wide panel with its hinge.
     case openFlat
-    /// A wrist watch: a rounded face, straps, a knob.
     case watch
 
     public static func of(_ family: DeviceFamily) -> DeviceGlyph {
@@ -32,7 +18,6 @@ public enum DeviceGlyph: String, Sendable, CaseIterable {
         }
     }
 
-    /// A template image `size` points tall; `lit` fills the screen.
     @MainActor
     public func image(height: CGFloat = 16, lit: Bool = false) -> NSImage {
         let (aspect, radius): (CGFloat, CGFloat) = switch self {
@@ -72,8 +57,6 @@ public enum DeviceGlyph: String, Sendable, CaseIterable {
         return img
     }
 
-    /// The watch: a face 0.58 of the height, centred, a knob on its right,
-    /// straps narrower than the face from it to the top and bottom edges.
     private static func drawWatch(in rect: NSRect, line: CGFloat, lit: Bool) {
         NSColor.black.setStroke()
         let knob: CGFloat = max(1.5, rect.width * 0.12)
@@ -81,7 +64,6 @@ public enum DeviceGlyph: String, Sendable, CaseIterable {
         let face = NSRect(x: rect.minX + line / 2, y: rect.midY - faceH / 2, width: faceW, height: faceH)
         let r = faceW * 0.30
         let strapW = faceW * 0.62
-        // Each strap: an open three-sided outline from the face to an edge.
         let left = face.midX - strapW / 2, right = face.midX + strapW / 2
         for (from, edge) in [(face.minY, rect.minY + line / 2), (face.maxY, rect.maxY - line / 2)] {
             let strap = NSBezierPath()

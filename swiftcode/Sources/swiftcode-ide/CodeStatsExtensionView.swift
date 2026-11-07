@@ -1,12 +1,5 @@
-// CodeStatsExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/CodeStatsExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: current-file live stats (lines, characters, functions); project totals panel
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - Code Stats Extension View
 struct CodeStatsExtensionView: View {
     var body: some View {
         Form {

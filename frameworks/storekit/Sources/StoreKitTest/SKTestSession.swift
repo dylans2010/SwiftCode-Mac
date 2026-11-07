@@ -1,12 +1,8 @@
-// StoreKitTest: `SKTestSession` and friends as a thin client of the engine's
-// control interface (design.md §4 item 5; testing-session.md §2, §9, §11).
 import Foundation
 @_spi(SwiftCode) import StoreKit
 import StoreKitConfiguration
 import StoreKitEngine
 
-/// `SKTestErrorDomain` errors (errors.md §3). The reference returned another
-/// form for every failing control call; `swiftcodeObservedError` gives it for parity checks.
 public struct SKTestError: CustomNSError, Hashable, Sendable {
     public enum Code: Int, Hashable, Sendable {
         case serviceUnavailable = 0, invalidProductIdentifier, invalidProductType, invalidURL, fileNotFound
@@ -27,8 +23,6 @@ public struct SKTestError: CustomNSError, Hashable, Sendable {
     public var errorCode: Int { code.rawValue }
     public var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: detail] }
 
-    /// The form the reference returned: `SKServiceErrorDomain` 2 with an
-    /// underlying `SKInternalErrorDomain` 17 and `client-environment-type` = `Xcode` (testing-session.md §11).
     public var swiftcodeObservedError: NSError {
         NSError(domain: TestSessionError.observedDomain, code: TestSessionError.observedCode, userInfo: [
             NSUnderlyingErrorKey: NSError(domain: TestSessionError.observedUnderlyingDomain, code: TestSessionError.observedUnderlyingCode),
@@ -37,7 +31,6 @@ public struct SKTestError: CustomNSError, Hashable, Sendable {
     }
 }
 
-/// A transaction as the test session sees it (testing-session.md §6, §10 item 2).
 open class SKTestTransaction: NSObject, @unchecked Sendable {
     public let identifier: UInt
     public let productIdentifier: String
@@ -49,7 +42,6 @@ open class SKTestTransaction: NSObject, @unchecked Sendable {
     public let pendingAskToBuyConfirmation: Bool
     public let autoRenewingEnabled: Bool
     public let pendingPriceIncreaseConsent = false
-    /// 0 for an original purchase, like the reference (do not rely on it).
     public let originalTransactionIdentifier: UInt
 
     init(_ r: TransactionRecord, autoRenewing: Bool) {
@@ -66,9 +58,7 @@ open class SKTestTransaction: NSObject, @unchecked Sendable {
     }
 }
 
-/// The local test store's control API for the calling app.
 open class SKTestSession: NSObject, @unchecked Sendable {
-    /// `SKTestSession.TimeRate` (testing-session.md §2.1).
     public enum TimeRate: Int, Sendable, CaseIterable {
         case realTime = 0
         case oneHourIsOneDay = 1, thirtyMinutesIsOneDay = 2, fiveMinutesIsOneDay = 3, oneMinuteIsOneDay = 4
@@ -82,7 +72,6 @@ open class SKTestSession: NSObject, @unchecked Sendable {
     let runtime: SwiftCodeStoreKit
     var store: AppTestStore { runtime.store }
 
-    /// Loads `<name>.storekit` from the main bundle (or any loaded bundle) and installs it for this app.
     public convenience init(configurationFileNamed name: String) throws {
         let bundles = [Bundle.main] + Bundle.allBundles
         guard let url = bundles.lazy.compactMap({ $0.url(forResource: name, withExtension: "storekit") }).first else {
@@ -91,7 +80,6 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         try self.init(contentsOf: url)
     }
 
-    /// Loads a configuration file and installs it for this app (configuration-file.md §8 item 1).
     public init(contentsOf url: URL) throws {
         guard url.isFileURL else { throw SKTestError(.invalidURL, detail: "\(url) is not a file URL.") }
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -105,8 +93,6 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         super.init()
         runtime.store.installConfiguration(configuration, appName: ProcessInfo.processInfo.processName)
     }
-
-    // MARK: Properties (persisted per app until resetToDefaultState)
 
     open var storefront: String {
         get { store.settings.storefront.countryCode }
@@ -148,19 +134,15 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         set { store.updateSettings { $0.billingGracePeriodEnabled = newValue } }
     }
 
-    /// Deprecated on the reference (iOS 14–17); replaced by simulated errors.
     open var failTransactionsEnabled: Bool {
         get { store.settings.failTransactionsEnabled }
         set { store.updateSettings { $0.failTransactionsEnabled = newValue } }
     }
 
-    // MARK: Control calls
-
     private func control(_ body: () throws(TestSessionError) -> Void) throws {
         do { try body() } catch { throw SKTestError(error) }
     }
 
-    /// Every transaction of the app in id order, including finished, failed and pending ones.
     open func allTransactions() -> [SKTestTransaction] {
         store.allTransactions().map { r in
             let renewing = r.productType == .autoRenewable
@@ -169,10 +151,8 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Removes every transaction; the id counter continues.
     open func clearTransactions() { store.clearTransactions() }
 
-    /// Drops every property override.
     open func resetToDefaultState() { store.resetToDefaultState() }
 
     open func deleteTransaction(identifier: UInt) throws {
@@ -223,12 +203,10 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         try control { () throws(TestSessionError) in try store.declinePriceIncrease(transactionID: UInt64(identifier)) }
     }
 
-    /// An off-device purchase, delivered through `Transaction.updates` (testing-session.md §2).
     open func buyProduct(productIdentifier: String) throws {
         try control { () throws(TestSessionError) in _ = try store.buyProduct(productID: productIdentifier) }
     }
 
-    /// An off-device purchase with purchase options (including `purchaseDate(_:renewalBehavior:)`).
     @discardableResult
     public func buyProduct(identifier: String, options: Set<Product.PurchaseOption> = []) async throws -> Transaction {
         var o = PurchaseOptions()
@@ -253,9 +231,6 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         return result.unsafePayloadValue
     }
 
-    // MARK: Simulated errors (testing-session.md §9)
-
-    /// Sets (or with nil clears) the simulated error of one API.
     public func setSimulatedError<API: FailableStoreKitAPI>(_ error: API.Failure?, forAPI api: API) async {
         store.setSimulatedError(error?.swiftcodeFailure, for: api.swiftcodeAPI)
     }
@@ -266,18 +241,14 @@ open class SKTestSession: NSObject, @unchecked Sendable {
 }
 
 extension Product.PurchaseOption {
-    /// What happens after a backdated purchase.
     public enum SubscriptionRenewalBehavior: Hashable, Sendable, Codable {
         case renewUntilNow, cancelImmediately
     }
 
-    /// An unsigned promotional offer (local testing only).
     public static func promotionalOffer(id: String) -> Product.PurchaseOption { .init(kind: .unsignedPromotionalOffer(id)) }
 
-    /// An offer code by its reference name (local testing only).
     public static func codeOffer(referenceName: String) -> Product.PurchaseOption { .init(kind: .codeOffer(referenceName)) }
 
-    /// A backdated purchase (local testing only, testing-session.md §3 item 4).
     public static func purchaseDate(_ date: Date, renewalBehavior: SubscriptionRenewalBehavior = .renewUntilNow) -> Product.PurchaseOption {
         .init(kind: .purchaseDate(date, renewalBehavior == .renewUntilNow ? .renewUntilNow : .cancelImmediately))
     }

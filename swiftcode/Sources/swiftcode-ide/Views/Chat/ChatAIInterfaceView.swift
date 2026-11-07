@@ -1,12 +1,3 @@
-// ChatAIInterfaceView.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/ChatAIInterfaceView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: /explain quick command; /fix quick command; /plan quick command; chat-mode toggle
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): none remaining —
-// ChatMessageBubble / SlashCommandList / TypingIndicatorBubble / AssistantSectionHeader /
-// AssistantPrimaryButtonStyle / assistantGlassCard() landed in swiftcode-ide/Views/Chat/ChatUIComponents.swift (S-FLAGS).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeAssistant
 
@@ -56,13 +47,6 @@ struct ChatAIInterfaceView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            // Rebound (S-FLAGS): the production `ChatMessage`
-                            // (`SwiftCodeAssistant/Core.swift`) has no `id`
-                            // by design — do not add a stored `id` to it
-                            // (it would change its Equatable/Codable
-                            // behaviour for every provider). Iterate by
-                            // index instead; indices are stable here
-                            // because messages are only appended.
                             ForEach(controller.messages.indices, id: \.self) { index in
                                 ChatMessageBubble(message: controller.messages[index])
                                     .id(index)

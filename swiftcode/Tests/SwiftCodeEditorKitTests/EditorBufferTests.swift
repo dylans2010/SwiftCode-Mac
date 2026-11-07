@@ -32,7 +32,6 @@ import SwiftCodeSyntax
         #expect(b.text == "abc" && b.caret == 1)
         b.deleteForward()
         #expect(b.text == "ac" && b.caret == 1)
-        // A flag is two scalars and four units, one cluster.
         let f = buffer("x🇺🇳y", caret: 5, plain: true)
         f.deleteBackward()
         #expect(f.text == "xy" && f.caret == 1)
@@ -96,10 +95,10 @@ import SwiftCodeSyntax
     @Test func wordAndLineSelection() {
         let b = buffer("foo.bar  baz\nnext", plain: true)
         #expect(b.wordRange(at: 1) == 0..<3)
-        #expect(b.wordRange(at: 3) == 0..<3)      // Between a word and punctuation: the word.
+        #expect(b.wordRange(at: 3) == 0..<3)
         #expect(b.wordRange(at: 7) == 4..<7)
         #expect(b.wordRange(at: 8) == 7..<9)
-        #expect(b.wordRange(at: 12) == 9..<12)    // The line's end: the word before.
+        #expect(b.wordRange(at: 12) == 9..<12)
         b.selectLine(at: 2)
         #expect(b.selectedText == "foo.bar  baz\n")
         b.selectLine(at: 15)
@@ -203,7 +202,7 @@ import SwiftCodeSyntax
         b.redo()
         #expect(!b.isDirty)
         b.undo()
-        b.insertText("c")   // A different text than the one saved.
+        b.insertText("c")
         #expect(b.isDirty)
         #expect(b.text == "ac")
     }
@@ -235,7 +234,6 @@ import SwiftCodeSyntax
             case 5: b.setCaret(p); b.tab(backward: false)
             default: b.setSelection(EditorSelection(anchor: p, head: min(b.length, p + 7))); _ = b.cutText()
             }
-            // The tokens' line index matches the text after each edit.
             #expect(b.lineCount == b.text.utf16.filter { $0 == 10 }.count + 1)
             texts.append(b.text)
         }
@@ -245,8 +243,6 @@ import SwiftCodeSyntax
         while b.canRedo { b.redo() }
         #expect(b.text == final)
     }
-
-    // MARK: Typing rules
 
     @Test func bracketsPairStepOverAndDeleteTogether() {
         let b = buffer("")
@@ -309,8 +305,6 @@ import SwiftCodeSyntax
         #expect(b.text == "")
     }
 
-    // MARK: Marked text
-
     @Test func markedTextStaysOutOfTheTextUntilCommitted() {
         let b = buffer("ab", caret: 1, plain: true)
         b.setMarkedText("に", cursor: 1)
@@ -330,8 +324,6 @@ import SwiftCodeSyntax
         #expect(b.text == "" && b.markedText == "x")
     }
 
-    // MARK: Read-only
-
     @Test func aReadOnlyBufferRefusesEveryChange() {
         let b = buffer("abc", caret: 1, plain: true)
         b.isReadOnly = true
@@ -348,8 +340,6 @@ import SwiftCodeSyntax
         #expect(b.text == "abc" && !b.isDirty && b.selection == EditorSelection(anchor: 0, head: 3))
     }
 
-    // MARK: Line layout
-
     @Test func tabsAndWideCharactersMapToX() {
         let b = buffer("\tab\nx\ty\n日本z", plain: true)
         let l = EditorLineLayout(tabWidth: 4, advance: 10) { $0 == "日" || $0 == "本" ? 20 : 10 }
@@ -358,7 +348,7 @@ import SwiftCodeSyntax
         #expect(l.offset(atX: 44, line: 0, in: b) == 1)
         #expect(l.offset(atX: 18, line: 0, in: b) == 0)
         #expect(l.offset(atX: 22, line: 0, in: b) == 1)
-        #expect(l.x(ofOffset: 4 + 2, in: b) == 40)                 // "x\t" ends at the tab stop.
+        #expect(l.x(ofOffset: 4 + 2, in: b) == 40)
         let line2 = b.document.lineStart(2)
         #expect(l.x(ofOffset: line2 + 2, in: b) == 40)
         #expect(l.offset(atX: 41, line: 2, in: b) == line2 + 2)
@@ -383,10 +373,9 @@ import SwiftCodeSyntax
         #expect(EditorKeyBindings.command(.backspace, [.primary]) == .deleteBackward(.word))
         #expect(EditorKeyBindings.command(.character("z"), [.primary]) == .undo)
         #expect(EditorKeyBindings.command(.character("z"), [.primary, .shift]) == .redo)
-        // Ctrl+Y is Debug ▸ Deactivate Breakpoints (⌘Y), not Redo.
         #expect(EditorKeyBindings.command(.character("y"), [.primary]) == nil)
-        #expect(EditorKeyBindings.command(.character("s"), [.primary]) == nil)      // The menu's.
-        #expect(EditorKeyBindings.command(.character("a"), []) == nil)              // Text.
+        #expect(EditorKeyBindings.command(.character("s"), [.primary]) == nil)
+        #expect(EditorKeyBindings.command(.character("a"), []) == nil)
         #expect(EditorKeyBindings.command(.tab, [.shift]) == .tab(backward: true))
         #expect(EditorKeyBindings.command(.insert, [.shift]) == .paste)
     }

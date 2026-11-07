@@ -1,84 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/ProjectSessionStore.swift (Legacy main ab03f681)
-//
-// Destination: SwiftCodeIDECore/Model/ProjectSessionStore.swift.
-//
-// The store's missing coordinator methods are ported alongside it in
-// `Session/ProjectOpeningCoordinator+LegacyLoad.swift` (same target):
-// the landed `ProjectOpeningCoordinator` opens `WorkspaceSession`s and
-// has no `loadProjectWithTimeout(url:)` / `buildFileTreeInternal(at:)`,
-// so those two Legacy coordinator methods land as an extension there
-// rather than being re-implemented here.
-//
-// Adaptations (behaviour preserved unless noted):
-// * Access raised deliberately: Legacy's store was internal in a
-//   single-module app; in the destination its callers live in other
-//   targets (`SwiftCodeAssistant`, `SwiftCodeIDEShell`, `SwiftCodeUI`,
-//   `swiftcode-ide`), so the class is `public` and every member those
-//   call sites use is public (see DISPOSITIONS.md for the member list).
-//   Only the genuinely internal machinery stays private: `logger`,
-//   `fm`, `coordinator`, `sessions`, `openingTask`,
-//   `currentFileLoadTask`, `persistProjectList`,
-//   `scaffoldIntroProjectIfNeeded`, `loadOrCreateProject`,
-//   `refreshSwiftCodeSessionJSONCopy`,
-//   `refreshSwiftCodeProjectJSONCopy`, `saveMetadata`, `readFileContent`,
-//   `decodeText`, `generateSwiftTemplate`. `init()` stays internal;
-//   `shared` is the access point.
-// * `import SwiftUI` dropped (no SwiftUI type is used in this file);
-//   `import SwiftCodeAssistant` added (`AppSettings`),
-//   `import SwiftCodeProject` added (`PBXProj`),
-//   `import SwiftCodeWorkspace` added (`Scheme`). All three are already
-//   dependencies of SwiftCodeIDECore in Package.swift.
-// * The nested `AssistFileDiff` is NOT redefined: it already exists at
-//   top level in this module as `AssistSessionFileDiff`
-//   (`Model/ProjectTrustAndDiff.swift`, same shape, same memberwise init)
-//   and the store's properties and `recordAssistFileMutation` use that
-//   type verbatim. (Renamed from `AssistFileDiff` by fixes-jsonvalue:
-//   `SwiftCodeAssistant` defines a snapshot `AssistFileDiff` of a
-//   different shape; see staging-wire/fixes-jsonvalue/DISPOSITIONS.md.)
-// * The nested `ScprojTrustStore` is NOT redefined: the single
-//   definition lives in `SwiftCodeIDEShell/ScprojTrustStore.swift`
-//   (identical API) and the store never calls it internally. (The
-//   duplicate copy that used to live at top level in this module was
-//   removed — see `Model/ProjectTrustAndDiff.swift` header.)
-// * `ensureSwiftCodeJSON` no longer constructs `SDKManifest`: that type
-//   lives in SwiftCodeExtensions as the renamed `SwiftCodeManifest`,
-//   which SwiftCodeIDECore does not depend on — and the Extensions
-//   type would emit the same keys for this input, so instead the
-//   manifest is written by private nested Codable structs at the foot
-//   of this file (`SwiftCodeManifestJSON` et al.) that mirror Legacy's
-//   `SDKManifest` shape exactly and are encoded with the same
-//   `JSONEncoder` settings Legacy used (`.prettyPrinted, .sortedKeys`,
-//   no `.withoutEscapingSlashes`), so the bytes written to
-//   `swiftcode.json` are unchanged.
-// * `importProject` no longer calls `XcodeBuildAPI` / `XcodeProjParse`:
-//   - `XcodeBuildAPI` has no definition anywhere — not in Legacy, not
-//     on main — so there is nothing to port. Scheme discovery uses the
-//     destination-native equivalent: the imported root's own `.xcscheme`
-//     files (`Scheme.discover(in:)`, SwiftCodeWorkspace), falling back
-//     to `[name]` exactly as Legacy's `?? [name]` did.
-//   - `XcodeProjParse` (Legacy, 552 lines, its own PBX model) is
-//     replaced by the destination's own pbxproj parser, `PBXProj`
-//     (SwiftCodeProject): `targets` for target names and the
-//     `XCBuildConfiguration` objects for the first
-//     `PRODUCT_BUNDLE_IDENTIFIER`, the same lookup Legacy did
-//     (`DestinationMenu.swift` uses the identical access shape).
-//   See DISPOSITIONS.md for both.
-// * `openProject` still calls
-//   `LocalizationCore.shared.scanProjectFiles(projectURL:)` verbatim.
-//   `LocalizationCore` now exists on main (SwiftCodeIDECore/Model/
-//   LocalizationCore.swift, ported from Legacy's 488-line file).
-// * `decodeText` is a `private static func` (was an instance method):
-//   `readFileContent` calls it from a detached task, and a detached
-//   task must not capture the MainActor-isolated store under Swift 6
-//   strict concurrency. The function is pure, so this changes no
-//   behaviour.
-// * `ProjectOpenError` is the top-level type in this module
-//   (`Model/ProjectOpenError.swift`) — reused, not redefined. Note the
-//   landed `ProjectOpeningCoordinator` also declares a *nested*
-//   `ProjectOpenError` with different cases; the two types are
-//   unrelated and the store only ever uses the top-level one.
-
 import Foundation
 import Observation
 import os.log
@@ -109,7 +28,7 @@ public enum ProjectOpeningState: Equatable {
 
 @Observable
 public final class ProjectSession: Codable, @unchecked Sendable {
-    public let id: UUID // matches project.id
+    public let id: UUID
     public var projectRootPath: String
     public var activeFileNode: FileNode?
     public var activeFileContent: String = ""
@@ -117,13 +36,11 @@ public final class ProjectSession: Codable, @unchecked Sendable {
     public var modifiedFilePaths: Set<String> = []
     public var fileLoadError: String?
 
-    // Editor State
     public var cursorPosition: Int = 0
     public var scrollPosition: Double = 0.0
-    public var selectionRangeText: String? // Codable representation of NSRange
+    public var selectionRangeText: String?
     public var foldingState: [String: Bool] = [:]
 
-    // Navigation State
     public var expandedNodeIDs: Set<String> = []
     public var selectedNodeID: String?
     public var lastOpenedFile: String?
@@ -157,7 +74,6 @@ public final class ProjectSession: Codable, @unchecked Sendable {
         selectionRangeText = try container.decodeIfPresent(String.self, forKey: .selectionRangeText)
         foldingState = try container.decodeIfPresent([String: Bool].self, forKey: .foldingState) ?? [:]
 
-        // Decode navigation states with default fallbacks
         let expandedArr = try container.decodeIfPresent([String].self, forKey: .expandedNodeIDs) ?? []
         expandedNodeIDs = Set(expandedArr)
         selectedNodeID = try container.decodeIfPresent(String.self, forKey: .selectedNodeID)
@@ -182,7 +98,6 @@ public final class ProjectSession: Codable, @unchecked Sendable {
         try container.encode(selectionRangeText, forKey: .selectionRangeText)
         try container.encode(foldingState, forKey: .foldingState)
 
-        // Encode navigation states
         try container.encode(Array(expandedNodeIDs), forKey: .expandedNodeIDs)
         try container.encode(selectedNodeID, forKey: .selectedNodeID)
         try container.encode(lastOpenedFile, forKey: .lastOpenedFile)
@@ -217,10 +132,8 @@ public final class ProjectSessionStore {
         return nil
     }
 
-    // Active session reference
     public var activeSession: ProjectSession?
 
-    // Store all sessions in memory
     private var sessions: [UUID: ProjectSession] = [:]
 
     public var activeFileNode: FileNode? {
@@ -244,15 +157,8 @@ public final class ProjectSessionStore {
         set { activeSession?.fileLoadError = newValue }
     }
 
-    // MARK: - Assist File Mutation & Diff Presentation
-
-    // `AssistSessionFileDiff` is the top-level type in `Model/ProjectTrustAndDiff.swift`
-    // (Legacy's nested struct, ported there by batch A2) — not redefined here.
-
     public var activeFileDiff: AssistSessionFileDiff? = nil
     public var showDiffBanner: Bool = false
-
-    // MARK: - Initializer
 
     init() {
         loadProjects()
@@ -262,10 +168,6 @@ public final class ProjectSessionStore {
         if let existing = sessions[project.id] {
             return existing
         }
-        // SwiftCode/session.json is the open-time copy (see
-        // ensureSwiftCodeMetadataOnOpen); the root session.json is
-        // kept as the fallback so projects opened before SwiftCode/
-        // existed still resume exactly where they left off.
         let candidates = [
             project.directoryURL.appendingPathComponent("SwiftCode/session.json"),
             project.directoryURL.appendingPathComponent("session.json"),
@@ -290,18 +192,12 @@ public final class ProjectSessionStore {
         }
     }
 
-    /// Keeps the SwiftCode/session.json copy in sync when the
-    /// project has a SwiftCode/ directory. Best-effort: the root
-    /// session.json is the source of truth, and a failed copy must
-    /// never fail a save.
     private func refreshSwiftCodeSessionJSONCopy(session: ProjectSession, data: Data) {
         let dir = URL(fileURLWithPath: session.projectRootPath).appendingPathComponent("SwiftCode")
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else { return }
         try? data.write(to: dir.appendingPathComponent("session.json"), options: .atomic)
     }
-
-    // MARK: - Library Management
 
     public var projectsDirectory: URL {
         CodingManager.shared.projectsRoot
@@ -318,13 +214,11 @@ public final class ProjectSessionStore {
     func loadProjects() {
         let fm = FileManager.default
 
-        // 1. Load from UserDefaults
         var loaded: [Project] = []
         if let data = UserDefaults.standard.data(forKey: Self.projectListKey) {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             if let decoded = try? decoder.decode([Project].self, from: data) {
-                // Verify each project still exists on disk
                 for project in decoded {
                     if fm.fileExists(atPath: project.directoryURL.path) {
                         loaded.append(project)
@@ -333,7 +227,6 @@ public final class ProjectSessionStore {
             }
         }
 
-        // 2. Also scan projectsDirectory (default or custom save directory) to find any untracked project folders
         if let contents = try? fm.contentsOfDirectory(
             at: projectsDirectory,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -344,7 +237,6 @@ public final class ProjectSessionStore {
             for url in contents {
                 guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
-                // Skip if already loaded
                 if loaded.contains(where: {
                     $0.directoryURL.standardizedFileURL.path == url.standardizedFileURL.path
                 }) {
@@ -420,8 +312,6 @@ public final class ProjectSessionStore {
         }
     }
 
-    /// Persists the full build-metadata block (identity, versioning, signing,
-    /// deployment, Swift version, configuration overrides, Xcode setting overrides).
     public func updateProjectBuildMetadata(_ metadata: ProjectBuildSettings, for project: Project) {
         if let idx = projects.firstIndex(where: { $0.id == project.id }) {
             projects[idx].buildSettings = metadata
@@ -435,10 +325,6 @@ public final class ProjectSessionStore {
         }
     }
 
-    /// Renames the project metadata without moving anything on disk. Only safe
-    /// for projects whose directory does not derive from the name
-    /// (customDirectoryPath projects). Default-root projects must use
-    /// renameProject(_:to:) so the folder moves with the name.
     public func updateProjectName(_ name: String, for project: Project) {
         let sanitized = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sanitized.isEmpty else { return }
@@ -454,8 +340,6 @@ public final class ProjectSessionStore {
         }
     }
 
-    // MARK: - Session Actions
-
     private var openingTask: Task<Void, Never>?
 
     public func openProject(_ project: Project) async {
@@ -470,22 +354,13 @@ public final class ProjectSessionStore {
                 let loadedProject = try await coordinator.loadProjectWithTimeout(url: project.directoryURL)
                 if Task.isCancelled { return }
 
-                // Get or create independent session
                 let session = self.getOrCreateSession(for: loadedProject)
                 self.activeSession = session
 
                 state = .ready(loadedProject)
 
-                // Opening a project (not just creating one) creates
-                // its SwiftCode/ metadata directory with
-                // swiftcode.json, session.json, and project.json
-                // derived from this project. Best-effort: a failure
-                // here must never fail the open itself, and existing
-                // files are never overwritten — only missing ones
-                // are created, and the project.json copy is refreshed.
                 self.ensureSwiftCodeMetadataOnOpen(for: loadedProject, session: session)
 
-                // Reset and isolate DocumentCoordinator state to prevent Project A vs B loading bug
                 DocumentCoordinator.shared.projectURL = loadedProject.directoryURL
                 DocumentCoordinator.shared.activeDocument = nil
                 DocumentCoordinator.shared.visualUIDocument = nil
@@ -494,10 +369,8 @@ public final class ProjectSessionStore {
                 DocumentCoordinator.shared.previewSession = nil
                 DocumentCoordinator.shared.inspectorSelection = nil
 
-                // Auto-discover and decode .xcstrings localization files immediately on project open
                 LocalizationCore.shared.scanProjectFiles(projectURL: loadedProject.directoryURL)
 
-                // Update last opened date in library
                 if let idx = self.projects.firstIndex(where: { $0.id == project.id }) {
                     var updated = self.projects[idx]
                     updated.lastOpened = Date()
@@ -522,7 +395,6 @@ public final class ProjectSessionStore {
         state = .idle
         activeSession = nil
 
-        // Completely reset DocumentCoordinator
         DocumentCoordinator.shared.projectURL = nil
         DocumentCoordinator.shared.activeDocument = nil
         DocumentCoordinator.shared.visualUIDocument = nil
@@ -542,11 +414,9 @@ public final class ProjectSessionStore {
         state = .cancelled
     }
 
-    // MARK: - CRUD Operations
-
     public func createProject(name: String) throws -> Project {
         let sanitized = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !sanitized.isEmpty else { throw ProjectOpenError.pathNotFound } // Reusing or should define specific CRUD errors
+        guard !sanitized.isEmpty else { throw ProjectOpenError.pathNotFound }
 
         let projectDir = projectsDirectory.appendingPathComponent(sanitized)
         guard !fm.fileExists(atPath: projectDir.path) else {
@@ -555,11 +425,6 @@ public final class ProjectSessionStore {
 
         try fm.createDirectory(at: projectDir, withIntermediateDirectories: true)
 
-        // New projects get a SwiftCode/ metadata directory. It holds
-        // swiftcode.json (the manifest) and a project.json copy; the
-        // root project.json written below stays the open-time source
-        // of truth, and the copy is refreshed on every later save
-        // (see refreshSwiftCodeProjectJSONCopy).
         try fm.createDirectory(at: projectDir.appendingPathComponent("SwiftCode"), withIntermediateDirectories: true)
 
         var project = Project(name: sanitized)
@@ -568,7 +433,6 @@ public final class ProjectSessionStore {
         project.transferConfiguration = .owner
 #endif
 
-        // Apply default organization prefix to the bundle identifier
         let prefix = AppSettings.shared.defaultOrganization
         let suffix = prefix.hasSuffix(".") ? "" : "."
         let bundleID = "\(prefix)\(suffix)\(sanitized.lowercased().replacingOccurrences(of: " ", with: "-"))"
@@ -580,9 +444,6 @@ public final class ProjectSessionStore {
             bundleIdentifier: bundleID
         )
 
-        // saveMetadataInPlace (not the root-only saveMetadata) so
-        // the fresh project also gets its SwiftCode/swiftcode.json
-        // manifest and its SwiftCode/project.json copy immediately.
         try saveMetadataInPlace(project)
         projects.insert(project, at: 0)
         return project
@@ -649,12 +510,6 @@ public final class ProjectSessionStore {
     }
 
     public func ensureSwiftCodeJSON(for project: Project, at directoryURL: URL) {
-        // When the project has a SwiftCode/ metadata directory, the
-        // manifest lives there — not at the project root. Opening a
-        // project creates that directory (see
-        // ensureSwiftCodeMetadataOnOpen), so pre-SwiftCode/ projects
-        // gain it on first open; a root manifest is copied in first
-        // rather than discarded, and is never deleted.
         let swiftCodeDir = directoryURL.appendingPathComponent("SwiftCode")
         var isDir: ObjCBool = false
         let manifestDir = (fm.fileExists(atPath: swiftCodeDir.path, isDirectory: &isDir) && isDir.boolValue)
@@ -674,9 +529,6 @@ public final class ProjectSessionStore {
 
         let rawSlug = project.name.lowercased().replacingOccurrences(of: " ", with: "-")
         let sanitizedID = "com.swiftcode.project.\(rawSlug)"
-        // Written with the private nested manifest structs at the foot
-        // of this file (Legacy's `SDKManifest` shape, same encoder
-        // settings), so the bytes are unchanged by the port.
         let manifest = SwiftCodeManifestJSON(
             manifestVersion: 1,
             id: sanitizedID,
@@ -697,17 +549,6 @@ public final class ProjectSessionStore {
         }
     }
 
-    /// Creates (or completes) the project's SwiftCode/ metadata
-    /// directory on open. Contents, all derived from the opened
-    /// project — never invented from another project:
-    /// - `SwiftCode/project.json`: a copy of the root project.json
-    ///   (the root file stays the open-time source of truth).
-    /// - `SwiftCode/swiftcode.json`: the root manifest copied in
-    ///   when one exists and the copy does not, otherwise created
-    ///   by ensureSwiftCodeJSON (which also refreshes its name).
-    /// - `SwiftCode/session.json`: a copy of the active session.
-    /// Existing files are never overwritten, except the
-    /// project.json copy, which is refreshed like every save.
     public func ensureSwiftCodeMetadataOnOpen(for project: Project, session: ProjectSession) {
         let swiftCodeDir = project.directoryURL.appendingPathComponent("SwiftCode")
         try? fm.createDirectory(at: swiftCodeDir, withIntermediateDirectories: true)
@@ -724,11 +565,8 @@ public final class ProjectSessionStore {
             let projectEncoder = JSONEncoder()
             projectEncoder.dateEncodingStrategy = .iso8601
             let projectData = try projectEncoder.encode(project)
-            // Root project.json is written by saveMetadata, not here;
-            // only the SwiftCode/ copy is refreshed on open.
             refreshSwiftCodeProjectJSONCopy(for: project, data: projectData)
         } catch {
-            // Best-effort: a failed copy never fails the open.
         }
         ensureSwiftCodeJSON(for: project, at: project.directoryURL)
         if let sessionData = try? JSONEncoder().encode(session) {
@@ -736,10 +574,6 @@ public final class ProjectSessionStore {
         }
     }
 
-    /// Keeps the SwiftCode/project.json copy in sync when the project
-    /// has a SwiftCode/ directory. Best-effort by design: the root
-    /// project.json is the source of truth, and a failed copy must
-    /// never fail a save.
     private func refreshSwiftCodeProjectJSONCopy(for project: Project, data: Data) {
         let dir = project.directoryURL.appendingPathComponent("SwiftCode")
         var isDir: ObjCBool = false
@@ -761,7 +595,6 @@ public final class ProjectSessionStore {
         let isAccessing = url.startAccessingSecurityScopedResource()
         defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
 
-        // Determine project root directory
         var rootURL = url
         if url.pathExtension == "xcodeproj" || url.pathExtension == "xcworkspace" {
             rootURL = url.deletingLastPathComponent()
@@ -769,7 +602,6 @@ public final class ProjectSessionStore {
 
         let pathStr = rootURL.path
 
-        // 1. Prevent duplicates: check if directory is already imported
         if let existing = projects.first(where: {
             let existingPath = $0.customDirectoryPath ?? (CodingManager.shared.projectsRoot.appendingPathComponent($0.name).path)
             return existingPath == pathStr
@@ -777,17 +609,8 @@ public final class ProjectSessionStore {
             return existing
         }
 
-        // 2. Automatically determine and extract all metadata
         let name = customName ?? rootURL.lastPathComponent
 
-        // Scan schemes. Legacy read the schemes of the active project
-        // through `XcodeBuildAPI.shared.discoverActiveProject()`; that
-        // type has no definition anywhere (not in Legacy, not on main),
-        // so there is nothing to port. The destination equivalent is
-        // the imported root's own schemes: the `.xcscheme` files inside
-        // any `.xcodeproj` / `.xcworkspace` bundle at the root
-        // (`Scheme.discover(in:)`, SwiftCodeWorkspace). With none,
-        // Legacy's `?? [name]` fallback applies.
         let fmContents = try? FileManager.default.contentsOfDirectory(at: rootURL, includingPropertiesForKeys: nil)
         let schemes: [String] = {
             let containers = (fmContents ?? []).filter { $0.pathExtension == "xcodeproj" || $0.pathExtension == "xcworkspace" }
@@ -795,21 +618,11 @@ public final class ProjectSessionStore {
             return found.isEmpty ? [name] : found
         }()
 
-        // Try parsing bundle ID using the destination's own pbxproj
-        // parser (`PBXProj`, SwiftCodeProject) — Legacy's
-        // `XcodeProjParse` (552 lines, its own PBX model) is superseded
-        // by it. Target names come from the project's target list; the
-        // bundle identifier is the first PRODUCT_BUNDLE_IDENTIFIER
-        // across the XCBuildConfiguration objects, the same lookup
-        // Legacy did (`DestinationMenu.swift` uses the identical
-        // access shape).
         var bundleID = "com.example.\(name.lowercased())"
         var targetsList: [String] = []
         if let xcodeproj = fmContents?.first(where: { $0.pathExtension == "xcodeproj" }) {
             if let parsed = try? PBXProj(contentsOf: xcodeproj) {
                 targetsList = parsed.targets.compactMap { $0.string("name") }
-                // `targetsList` is assigned and never read below, exactly
-                // as in Legacy — kept for fidelity.
                 for config in parsed.objects(isa: "XCBuildConfiguration") {
                     if let bid = config["buildSettings"]?.dictionary?["PRODUCT_BUNDLE_IDENTIFIER"]?.string {
                         bundleID = bid
@@ -819,7 +632,6 @@ public final class ProjectSessionStore {
             }
         }
 
-        // Create CI build configuration
         let ciConfig = CIBuildConfiguration(
             platform: .iOS,
             deploymentTarget: "16.0",
@@ -836,37 +648,17 @@ public final class ProjectSessionStore {
         project.transferConfiguration = .owner
 #endif
 
-        // Scan files at initial level
         project.files = try await coordinator.buildFileTreeInternal(at: rootURL, relativeTo: rootURL)
 
-        // Save metadata file in-place inside the project folder
         try saveMetadataInPlace(project)
 
-        // Add to active library list and persist
         projects.insert(project, at: 0)
 
-        // Create its own independent session
         _ = getOrCreateSession(for: project)
 
         return project
     }
 
-    // MARK: - Finder-opened .scproj packages
-
-    // Trust granted from the Finder-open trust alert lives in
-    // `SwiftCodeIDEShell.ScprojTrustStore` (identical API to Legacy's
-    // nested enum) — not redefined here. A
-    // trusted package path opens without prompting again; trust is per
-    // directory path, is only ever granted from that alert, and is
-    // forgotten when the package is deleted through the same alert.
-
-    /// Opens a `.scproj` package directory from Finder, after the
-    /// trust alert in SwiftCodeApp has approved it. A package is a
-    /// directory holding `project.json` (at its root, or inside
-    /// `SwiftCode/` for the new layout). Unlike `importProject`,
-    /// this never mints a new project id or overwrites the package's
-    /// own metadata with an imported copy: the package's project is
-    /// the project that opens.
     public func openScprojPackage(at url: URL) async throws -> Project {
         let isAccessing = url.startAccessingSecurityScopedResource()
         defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
@@ -898,9 +690,6 @@ public final class ProjectSessionStore {
 
         var resolved: Project
         if var project = decoded {
-            // Point the decoded project at the package wherever it
-            // lives on disk; without this, directoryURL would resolve
-            // through the projects root and miss the package.
             project.customDirectoryPath = url.path
             project.lastOpened = Date()
             resolved = project
@@ -929,7 +718,6 @@ public final class ProjectSessionStore {
             let name = url.lastPathComponent
             var project = Project(name: name)
 
-            // Apply default organization prefix to the bundle identifier
             let prefix = AppSettings.shared.defaultOrganization
             let suffix = prefix.hasSuffix(".") ? "" : "."
             let bundleID = "\(prefix)\(suffix)\(name.lowercased().replacingOccurrences(of: " ", with: "-"))"
@@ -945,8 +733,6 @@ public final class ProjectSessionStore {
             return project
         }
     }
-
-    // MARK: - File Operations
 
     private var currentFileLoadTask: Task<Void, Never>?
 
@@ -977,7 +763,6 @@ public final class ProjectSessionStore {
                 guard !Task.isCancelled, self.activeFileNode?.id == nodeId else { return }
                 self.activeFileContent = content
             } catch is CancellationError {
-                // Ignore cancellation
             } catch {
                 guard !Task.isCancelled, self.activeFileNode?.id == nodeId else { return }
                 self.activeFileContent = ""
@@ -1048,9 +833,6 @@ public final class ProjectSessionStore {
         }.value
     }
 
-    // Static (was an instance method in Legacy) so `readFileContent`'s
-    // detached task does not capture the MainActor-isolated store; the
-    // function is pure, so this changes no behaviour.
     private static func decodeText(from data: Data) -> String? {
         if let s = String(data: data, encoding: .utf8) { return s }
         if let s = String(data: data, encoding: .utf16LittleEndian) { return s }
@@ -1091,11 +873,8 @@ public final class ProjectSessionStore {
     }
 
     public func saveAll() {
-        // Implementation for saving all open modified files
         for node in openFileTabs {
             if modifiedFilePaths.contains(node.path) {
-                // In a real scenario we'd need the content for each tab.
-                // Assuming activeFileContent is for activeFileNode.
                 if node.id == activeFileNode?.id {
                     saveCurrentFile(content: activeFileContent)
                 }
@@ -1218,8 +997,6 @@ public final class ProjectSessionStore {
         }
     }
 
-    // MARK: - Helpers
-
     private func saveMetadata(_ project: Project) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -1269,21 +1046,6 @@ struct \(structName): View {
 }
 """
     }
-
-    // MARK: - swiftcode.json writer
-
-    // Private mirror of Legacy's `SDKManifest` shape
-    // (`SwiftCode/SDK/Contracts/Manifest/SDKManifest.swift`), used only
-    // by `ensureSwiftCodeJSON`. The manifest type already on main
-    // (`SwiftCodeManifest` in SwiftCodeExtensions) is the renamed SDK
-    // Studio model, which this target does not depend on; these nested
-    // structs keep the store's writer self-contained while emitting
-    // byte-identical JSON for this input (same fields, same values,
-    // same `JSONEncoder` settings as Legacy: `.prettyPrinted,
-    // .sortedKeys`, no `.withoutEscapingSlashes`). `contributes` is
-    // nil and `unknownFields` is empty in Legacy's construction, so
-    // neither key is emitted — exactly as Legacy's custom `encode`
-    // did (`encodeIfPresent` / empty-dict skip).
 
     private struct SwiftCodeManifestJSON: Codable {
         var manifestVersion: Int

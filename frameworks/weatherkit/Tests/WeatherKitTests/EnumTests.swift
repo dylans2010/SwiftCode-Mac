@@ -1,6 +1,3 @@
-// C-ENUM (plan.md §2): raw values, descriptions, accessibility descriptions,
-// symbol names, abbreviations and UV ranges against api.md §3.8 and the
-// English output of behavior.md §6.
 import Foundation
 import Testing
 @testable import WeatherKit

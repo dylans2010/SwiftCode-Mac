@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/Views/DatabaseStatisticsView.swift` (SwiftCode-Mac migration, P-UTIL).
-// Uses DatabaseFormatter.formatMB (SwiftCodeUI/Database) and .liquidGlass (same module).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 
 struct DatabaseStatisticsView: View {

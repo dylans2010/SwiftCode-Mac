@@ -1,15 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/TaskProgressView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/TaskProgressView.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - task-objectives checklist with per-step icons and status badges
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
 import SwiftUI
 import SwiftCodeAssistant
 
@@ -64,7 +52,6 @@ public struct TaskProgressView: View {
     }
 
     private func stepIcon(for step: PlanStep) -> some View {
-        // Find if this step is completed (is it in completedActions?)
         let isCompleted = agentSession.state.completedActions.contains(step.description)
         return Group {
             if isCompleted {

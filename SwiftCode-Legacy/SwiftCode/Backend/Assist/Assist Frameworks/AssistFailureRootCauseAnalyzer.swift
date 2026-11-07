@@ -1,6 +1,5 @@
 import Foundation
 
-/// Analyzes failures to determine root causes for better recovery
 @MainActor
 public final class AssistFailureRootCauseAnalyzer {
     private let context: AssistContext
@@ -15,7 +14,6 @@ public final class AssistFailureRootCauseAnalyzer {
         self.context = context
     }
 
-    /// Analyzes a failed step to determine root cause
     public func analyze(step: AssistExecutionStep) async -> RootCauseAnalysis {
         await context.logger.info("Analyzing failure for step: \(step.toolId)", toolId: "RootCauseAnalyzer")
 
@@ -25,7 +23,6 @@ public final class AssistFailureRootCauseAnalyzer {
         var contributingFactors: [String] = []
         var suggestedFixes: [String] = []
 
-        // Pattern matching for common error types
         if errorMessage.contains("file not found") || errorMessage.contains("does not exist") {
             primaryCause = "Missing file or directory"
             contributingFactors.append("File path may be incorrect")

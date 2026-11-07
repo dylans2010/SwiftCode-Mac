@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Kotlin Support Extension View
 struct KotlinSupportExtensionView: View {
     @State private var isEnabled = true
     @State private var kotlinVersion = "1.9"

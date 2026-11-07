@@ -1,25 +1,3 @@
-/**
- * build.mjs — `swiftcode build [dir] [--json] [--project <path>] [--scheme <name>]`
- *
- * Compiler-like build for an extension project, with live compiler output:
- *
- *   - TypeScript projects (tsconfig.json): runs the TypeScript compiler.
- *     The compiler is resolved as <dir>/node_modules/.bin/tsc, then a
- *     PATH `tsc`, then `npx --no-install tsc` (never a silent download).
- *     When none is available the command fails honestly and names every
- *     location it checked — it never pretends to have compiled.
- *   - Swift projects (*.xcodeproj / *.xcworkspace / Package.swift / *.swift
- *     sources): runs `xcodebuild`. When xcodebuild is absent (this Linux
- *     environment, CI without Xcode, ...) the command reports that
- *     honestly instead of faking a build: Swift builds require macOS with
- *     Xcode. The xcodebuild invocation itself is real and is exercised on
- *     Dylan's Mac.
- *
- * In human mode the compiler's stdout/stderr stream live (stdio inherit).
- * In --json mode the output is captured and returned in `data.output` so
- * stdout stays parseable.
- */
-
 import { UsageError } from "../errors.mjs";
 import { spawn } from "node:child_process";
 import { lstat, readdir, stat } from "node:fs/promises";
@@ -55,11 +33,6 @@ function isJson(args) {
   return args.json === true || args.json === "true";
 }
 
-/**
- * Run a child process. Resolves { code, output, spawnError } — never
- * rejects on a bad exit code. When capture is false, the child's stdio is
- * inherited so output streams live.
- */
 export function runCompiler(cmd, argv, cwd, capture) {
   return new Promise((resolve) => {
     let child;
@@ -95,20 +68,14 @@ async function exists(p) {
   }
 }
 
-/** Resolve the TypeScript compiler for dir: [displayName, cmd, argv]. */
 export async function findTypeScriptCompiler(dir) {
   const localTsc = path.join(dir, "node_modules", ".bin", "tsc");
   if (await exists(localTsc)) {
     return { display: localTsc, cmd: localTsc, argv: ["-p", "tsconfig.json"] };
   }
-  return null; // PATH tsc / npx are probed by spawn (ENOENT → next candidate)
+  return null;
 }
 
-/**
- * Compile TypeScript sources in dir.
- * Returns { compiler, code, output }. Throws PackageError(COMPILER_NOT_FOUND)
- * when no compiler exists; the caller decides how to report a bad exit code.
- */
 export async function compileTypeScript(dir, { capture = false } = {}) {
   const candidates = [];
   const local = await findTypeScriptCompiler(dir);
@@ -125,7 +92,7 @@ export async function compileTypeScript(dir, { capture = false } = {}) {
     const result = await runCompiler(candidate.cmd, candidate.argv, dir, capture);
     if (result.spawnError) {
       lastSpawnError = result.spawnError;
-      continue; // compiler not present at this candidate — try the next
+      continue;
     }
     return { compiler: candidate.display, code: result.code, output: result.output };
   }
@@ -140,7 +107,6 @@ export async function compileTypeScript(dir, { capture = false } = {}) {
 
 const PRUNE_DIRS = new Set(["node_modules", ".git", "dist", ".build"]);
 
-/** True when dir looks like a Swift project (xcodeproj/workspace/Package.swift/*.swift). */
 export async function looksLikeSwiftProject(dir) {
   let top;
   try {
@@ -158,7 +124,6 @@ export async function looksLikeSwiftProject(dir) {
       return true;
     }
   }
-  // Bounded recursive search for *.swift sources (pruned).
   const stack = [dir];
   while (stack.length > 0) {
     const current = stack.pop();
@@ -210,7 +175,6 @@ async function resolveScheme(projectPath) {
     const schemes = parsed?.project?.schemes;
     if (Array.isArray(schemes) && schemes.length > 0) return schemes[0];
   } catch {
-    /* fall through */
   }
   return null;
 }

@@ -2,34 +2,8 @@ import AppKit
 import SwiftCodeMCP
 import SwiftCodePreviews
 
-/// The Artboards window (gap closure, specs/ide/
-/// gap-closure-windows-artboards.md §12): the visual UI builder
-/// for the workspace's artboards.
-///
-/// The model is the gap-closure Artboards format: 57 component
-/// types in a tree (`ArtboardComponentNode`), one
-/// `ArtboardDocument` per workspace persisted by `ArtboardStore`
-/// to Application Support `SwiftCode/Artboards/` as a
-/// `.swiftcode-artboard` file — never inside the workspace. The
-/// window lists the artboards, edits the active artboard's
-/// component tree (add / delete / duplicate / lock / hide /
-/// properties), edits the artboard's device/appearance/source,
-/// and renders the active artboard's custom SwiftUI source
-/// on demand through `PreviewRenderRunner`.
-///
-/// There is no live preview session: rendering is on demand only
-/// (the Render Preview button), off the main thread, and an
-/// artboard with no custom SwiftUI source says so instead of
-/// rendering nothing. Every mutation saves immediately and tells
-/// the MCP host to reload from the store, so the `artboard_*`
-/// tools see the window's edits.
-///
-/// The controller's artboardDocument operations are plain methods, so
-/// tests drive them without showing the window.
 @MainActor
 public final class ArtboardWindowController: NSWindowController {
-    /// Device frames the picker offers. The frame is a free
-    /// string in the record; these are just the common ones.
     public static let deviceFrames = [
         "iPhone 16 Pro", "iPhone 16", "iPhone SE",
         "iPad Pro", "iPad", "Apple Watch",
@@ -38,24 +12,19 @@ public final class ArtboardWindowController: NSWindowController {
     public let workspaceFolder: URL
     private let host: SwiftCodeMCPHost?
 
-    /// The workspace's artboardDocument. Setting it saves.
     public var artboardDocument: ArtboardDocument {
         didSet { saveDocument() }
     }
 
-    /// The active artboard, if any.
     public var activeArtboard: ArtboardRecord? {
         guard let id = artboardDocument.activeArtboardID else { return nil }
         return artboardDocument.artboards.first { $0.id == id }
     }
 
-    /// The selected component node's id, if any.
     public private(set) var selectedNodeID: UUID?
 
-    /// The last-rendered preview image, if any (tests).
     public private(set) var previewImage: NSImage?
 
-    /// The current status text (tests).
     public private(set) var statusText = ""
 
     private let artboardTable = NSTableView()
@@ -93,20 +62,12 @@ public final class ArtboardWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    // MARK: - Document operations
-
-    /// Mutates the artboardDocument through a copy and reassigns it, so
-    /// `artboardDocument`'s didSet saves. (Mutating `artboardDocument.artboards`
-    /// in place would not trigger didSet — the save would silently
-    /// not happen.)
     private func mutateDocument(_ update: (inout ArtboardDocument) -> Void) {
         var copy = artboardDocument
         update(&copy)
         artboardDocument = copy
     }
 
-    /// Adds an artboard (with Legacy's default root) and makes it
-    /// active. Returns it.
     @discardableResult
     public func addArtboard(name: String, deviceFrame: String = "iPhone 16 Pro") -> ArtboardRecord {
         let record = ArtboardRecord(
@@ -121,8 +82,6 @@ public final class ArtboardWindowController: NSWindowController {
         return record
     }
 
-    /// Deletes an artboard. The active id moves to the first
-    /// remaining artboard, if any.
     public func deleteArtboard(id: UUID) {
         mutateDocument { doc in
             doc.artboards.removeAll { $0.id == id }
@@ -134,7 +93,6 @@ public final class ArtboardWindowController: NSWindowController {
         reloadAll()
     }
 
-    /// Makes an artboard active.
     public func selectArtboard(id: UUID) {
         guard artboardDocument.artboards.contains(where: { $0.id == id }) else { return }
         mutateDocument { doc in doc.activeArtboardID = id }
@@ -142,9 +100,6 @@ public final class ArtboardWindowController: NSWindowController {
         reloadAll()
     }
 
-    /// Adds a component of `type` under the selected container
-    /// node (or the root when nothing suitable is selected).
-    /// Returns the new node, or nil when there is no artboard.
     @discardableResult
     public func addComponent(type: ArtboardComponentType, name: String? = nil) -> ArtboardComponentNode? {
         guard var artboard = activeArtboard else { return nil }
@@ -164,7 +119,6 @@ public final class ArtboardWindowController: NSWindowController {
         return node
     }
 
-    /// Deletes a component. The root node cannot be deleted.
     public func deleteComponent(id: UUID) {
         guard var artboard = activeArtboard, id != artboard.rootNode.id else { return }
         artboard.rootNode = artboard.rootNode.removeNode(id: id)
@@ -173,8 +127,6 @@ public final class ArtboardWindowController: NSWindowController {
         reloadAll()
     }
 
-    /// Duplicates a component (the copy gets a fresh id) as a
-    /// sibling after the original.
     @discardableResult
     public func duplicateComponent(id: UUID) -> ArtboardComponentNode? {
         guard var artboard = activeArtboard, id != artboard.rootNode.id,
@@ -187,7 +139,6 @@ public final class ArtboardWindowController: NSWindowController {
         return copy
     }
 
-    /// Updates one component node in place.
     public func updateComponent(id: UUID, _ update: (inout ArtboardComponentNode) -> Void) {
         guard var artboard = activeArtboard else { return }
         artboard.rootNode = artboard.rootNode.updateNode(id: id, update)
@@ -195,7 +146,6 @@ public final class ArtboardWindowController: NSWindowController {
         reloadAll()
     }
 
-    /// Updates the active artboard's own fields.
     public func updateArtboard(_ update: (inout ArtboardRecord) -> Void) {
         guard var artboard = activeArtboard else { return }
         update(&artboard)
@@ -203,17 +153,12 @@ public final class ArtboardWindowController: NSWindowController {
         reloadAll()
     }
 
-    /// Reloads the artboardDocument from the store (discarding unsaved
-    /// window edits).
     public func reload() {
         artboardDocument = ArtboardStore.load(forWorkspace: workspaceFolder) ?? ArtboardDocument()
         selectedNodeID = activeArtboard?.rootNode.id
         reloadAll()
     }
 
-    /// Saves the artboardDocument to the store and tells the MCP host to
-    /// reload from it. Returns false (with the status set) when
-    /// the save fails.
     @discardableResult
     public func saveDocument() -> Bool {
         do {
@@ -233,7 +178,6 @@ public final class ArtboardWindowController: NSWindowController {
         }
     }
 
-    /// Inserts `node` as a sibling after `id` in the tree.
     private func insertSibling(_ node: ArtboardComponentNode, after id: UUID, in root: ArtboardComponentNode) -> ArtboardComponentNode {
         var root = root
         if let index = root.children.firstIndex(where: { $0.id == id }) {
@@ -244,11 +188,6 @@ public final class ArtboardWindowController: NSWindowController {
         return root
     }
 
-    // MARK: - Preview rendering
-
-    /// Renders the active artboard's custom SwiftUI source on
-    /// demand, off the main thread. An artboard with no source
-    /// says so instead of rendering nothing.
     public func renderPreview() {
         guard let artboard = activeArtboard else {
             setStatus("No artboard is selected.")
@@ -295,18 +234,13 @@ public final class ArtboardWindowController: NSWindowController {
         }
     }
 
-    // MARK: - Status
-
     private func setStatus(_ text: String) {
         statusText = text
         statusLabel.stringValue = text
     }
 
-    // MARK: - UI
-
     private func buildContent() {
         guard let contentView = window?.contentView else { return }
-        // Left: artboard list.
         let artboardColumn = NSStackView()
         artboardColumn.orientation = .vertical
         artboardColumn.spacing = 6
@@ -331,7 +265,6 @@ public final class ArtboardWindowController: NSWindowController {
         artboardButtons.spacing = 6
         artboardColumn.addArrangedSubview(artboardButtons)
 
-        // Middle: component tree.
         let componentColumn = NSStackView()
         componentColumn.orientation = .vertical
         componentColumn.spacing = 6
@@ -361,7 +294,6 @@ public final class ArtboardWindowController: NSWindowController {
         componentButtons.spacing = 6
         componentColumn.addArrangedSubview(componentButtons)
 
-        // Right: inspector.
         let inspectorColumn = NSStackView()
         inspectorColumn.orientation = .vertical
         inspectorColumn.spacing = 6
@@ -409,7 +341,6 @@ public final class ArtboardWindowController: NSWindowController {
         inspectorScroll.hasVerticalScroller = true
         inspectorColumn.addArrangedSubview(inspectorScroll)
 
-        // Main row.
         let mainRow = NSStackView(views: [artboardColumn, componentColumn, inspectorColumn])
         mainRow.orientation = .horizontal
         mainRow.spacing = 8
@@ -417,7 +348,6 @@ public final class ArtboardWindowController: NSWindowController {
         artboardColumn.widthAnchor.constraint(equalToConstant: 200).isActive = true
         inspectorColumn.widthAnchor.constraint(equalToConstant: 280).isActive = true
 
-        // Preview row: the last render + the render button.
         previewImageView.imageScaling = .scaleProportionallyUpOrDown
         previewImageView.wantsLayer = true
         previewImageView.layer?.borderWidth = 1
@@ -483,8 +413,6 @@ public final class ArtboardWindowController: NSWindowController {
         return scroll
     }
 
-    // MARK: - Refresh
-
     private func reloadAll() {
         artboardTable.reloadData()
         componentOutline.reloadData()
@@ -539,8 +467,6 @@ public final class ArtboardWindowController: NSWindowController {
         sourceView.string = artboard.customSwiftUISource ?? ""
     }
 
-    // MARK: - Actions
-
     @objc private func addArtboardClicked() {
         addArtboard(name: "Artboard \(artboardDocument.artboards.count + 1)")
     }
@@ -551,7 +477,6 @@ public final class ArtboardWindowController: NSWindowController {
     }
 
     @objc private func artboardDoubleClicked() {
-        // Double-click renames: focus the inspector's name field.
         window?.makeFirstResponder(nameField)
     }
 
@@ -601,8 +526,6 @@ public final class ArtboardWindowController: NSWindowController {
     }
 }
 
-// MARK: - NSTableView / NSOutlineView
-
 extension ArtboardWindowController: NSTableViewDataSource, NSTableViewDelegate {
     public func numberOfRows(in tableView: NSTableView) -> Int {
         artboardDocument.artboards.count
@@ -638,7 +561,7 @@ extension ArtboardWindowController: NSOutlineViewDataSource, NSOutlineViewDelega
         if let id = item as? UUID, let node = root.node(id: id) {
             return node.children.count
         }
-        return 1 // the root node itself
+        return 1
     }
 
     public func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
@@ -680,8 +603,6 @@ extension ArtboardWindowController: NSOutlineViewDataSource, NSOutlineViewDelega
         refreshInspector()
     }
 }
-
-// MARK: - Text editing
 
 extension ArtboardWindowController: NSTextFieldDelegate, NSTextViewDelegate {
     public func controlTextDidEndEditing(_ notification: Notification) {
@@ -730,19 +651,12 @@ extension ArtboardWindowController: NSWindowDelegate {
     }
 }
 
-/// One Artboards window per workspace (the same shape as the
-/// deploy / CI / virtualization window managers): a second open
-/// for the same workspace focuses the existing window.
 @MainActor
 public final class ArtboardWindowManager: NSObject {
     public static let shared = ArtboardWindowManager()
 
     private var controllers: [String: ArtboardWindowController] = [:]
 
-    /// Shows the workspace's Artboards window (creating it the
-    /// first time). `host` is the workspace window's MCP host, so
-    /// window edits reach the `artboard_*` tools; nil opens the
-    /// window standalone.
     public func showWindow(workspaceFolder: URL, host: SwiftCodeMCPHost? = nil) {
         let key = workspaceFolder.standardizedFileURL.path
         if let existing = controllers[key] {

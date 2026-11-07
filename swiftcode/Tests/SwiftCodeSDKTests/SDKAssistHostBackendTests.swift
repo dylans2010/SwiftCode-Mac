@@ -2,26 +2,8 @@ import XCTest
 @testable import SwiftCodeSDK
 import SwiftCodeAssistant
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter SDKAssistHostBackendTests`.
-//
-// Wave 16, Slice C: tests for the safe Assist backend attachment
-// (`SDKAssistHostBackend`). The adapter is tested directly (below the
-// service's entitlement/ownership checks, which
-// `SDKAssistEnforcementTests` already covers): what request it builds,
-// what it returns, what it refuses, and what it never leaks.
-// Fixtures use clearly-fake marker strings (no real credentials,
-// no live network, no real provider keys).
-
-// MARK: - SDKAssistHostBackendTests
-
 final class SDKAssistHostBackendTests: XCTestCase {
 
-    // MARK: - Fakes
-
-    /// A scripted provider: records every request, then plays back
-    /// scripted events (or throws `sendError`).
     private final class FakeAssistantProvider: AssistantProvider, @unchecked Sendable {
         let kind: ProviderKind
         var availabilityResult: ProviderAvailability = .ready([ModelInfo(id: "fake-model")])
@@ -52,8 +34,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
         }
     }
 
-    /// An echo provider: answers with the request's last message, so
-    /// caller-isolation tests can tell whose turn a reply belongs to.
     private final class EchoAssistantProvider: AssistantProvider, @unchecked Sendable {
         let kind: ProviderKind = .ollama
 
@@ -77,8 +57,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
             SDKAssistProviderResolution(provider: provider, modelID: modelID)
         }
     }
-
-    // MARK: - Helpers
 
     private func makeSession(
         extensionID: String = "com.example.test",
@@ -110,8 +88,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
         }
     }
 
-    // MARK: - Request construction (only the extension's own session)
-
     func testCompleteSendsOnlyTheExtensionSession() async throws {
         let provider = FakeAssistantProvider(
             kind: .ollama,
@@ -126,19 +102,11 @@ final class SDKAssistHostBackendTests: XCTestCase {
         XCTAssertEqual(text, "done")
         XCTAssertEqual(provider.receivedRequests.count, 1)
         let request = provider.receivedRequests[0]
-        // Instructions are the session's own system prompt.
         XCTAssertEqual(request.instructions, "Be brief.")
-        // Messages are the session's own history plus the new message —
-        // nothing else, no host conversation.
         XCTAssertEqual(request.messages.map(\.content), ["first question", "first answer", "second question"])
         XCTAssertEqual(request.messages.map(\.role), [.user, .assistant, .user])
-        // No working directory: no provider may run tools for the turn.
         XCTAssertNil(request.workingDirectory)
-        // The resolved model is the one requested.
         XCTAssertEqual(request.model, "fake-model")
-        // The request carries no credential field by construction
-        // (ChatRequest has no key member); the provider holds the
-        // host's key opaquely and the extension never sees it.
     }
 
     func testCompleteUsesDefaultInstructionsWithoutSystemPrompt() async throws {
@@ -151,8 +119,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
         XCTAssertNil(provider.receivedRequests[0].model)
     }
 
-    // MARK: - Caller isolation
-
     func testCallerACannotSeeCallerBResults() async throws {
         let backend = SDKAssistHostBackend(resolver: FakeResolver(provider: EchoAssistantProvider(), modelID: nil))
         let sessionA = makeSession(extensionID: "com.example.alpha")
@@ -164,8 +130,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
         XCTAssertFalse(textA.contains("beta"))
         XCTAssertFalse(textB.contains("alpha"))
     }
-
-    // MARK: - Streaming
 
     func testStreamDropsHostActivityAndEndsWithEmptyDelta() async throws {
         let provider = FakeAssistantProvider(
@@ -183,8 +147,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
         for try await delta in await backend.stream(session: makeSession(), message: "hi") {
             deltas.append(delta)
         }
-        // Text deltas only, then the final empty string signalling
-        // completion. The host activity line never reaches the caller.
         XCTAssertEqual(deltas, ["Hel", "lo", ""])
         XCTAssertFalse(deltas.joined().contains("Reading"))
     }
@@ -192,8 +154,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
     func testStreamWithoutResolverFails() async throws {
         let backend = SDKAssistHostBackend(resolver: nil)
         var events: [SDKAssistStreamEvent] = []
-        // The backend stream itself throws on iteration when no
-        // resolver is installed.
         do {
             for try await delta in await backend.stream(session: makeSession(), message: "hi") {
                 events.append(.delta(delta))
@@ -204,8 +164,6 @@ final class SDKAssistHostBackendTests: XCTestCase {
         }
         XCTAssertTrue(events.isEmpty)
     }
-
-    // MARK: - Refusals
 
     func testProviderKindPartitionCoversAllCases() {
         let allowed = SDKAssistHostBackend.textCompletionProviderKinds

@@ -1,8 +1,3 @@
-// The Linux canvas's OpenViews host and payloads (specs/ide/previews.md
-// §Linux, "The Linux canvas"). The end-to-end render needs a toolchain and
-// OpenViews built in release (minutes the first time): it runs on Linux when
-// SWIFTCODE_PREVIEW_OPENVIEWS_TESTS=1.
-
 import Foundation
 import Testing
 @testable import SwiftCodePreviews
@@ -37,7 +32,6 @@ import Testing
         let s = try PreviewPayloadGenerator.generate(moduleFiles: [file], previewed: [PreviewedFile(url: file, previews: previews)],
                                                      kit: .openViews, into: dir.appendingPathComponent("src"))
         let copy = try String(contentsOf: s.files[0], encoding: .utf8)
-        // Wrappers return views, appended to the file's copy (fileprivate types stay visible); no UIKit or AppKit.
         #expect(copy.contains("@MainActor func __swiftcodePreview_0() -> AnyView { __swiftcodeHost {"))
         #expect(copy.contains("struct __SwiftCodePreviewView_1: View {\n    @State var n = 1"))
         #expect(!copy.contains("UIKit") && !copy.contains("AppKit") && !copy.contains("#Preview"))
@@ -45,10 +39,8 @@ import Testing
         #expect(support.contains("@_cdecl(\"swiftcode_preview_render\")"))
         #expect(support.contains("case 1: return __swiftcodePreview_1()"))
         #expect(support.contains("DynamicTypeSize.allCases") && support.contains("ImageRenderer"))
-        // Lines still map back into the #Preview body.
         let map = try #require(s.lineMaps[s.files[0].path])
         #expect(map.fileLine(map.bodies[0].copyLine) == previews[0].bodyLine)
-        // The UIKit and AppKit kits are unchanged.
         #expect(PreviewPayloadGenerator.supportFile(platform: .iOS, count: 1).contains("UIHostingController"))
         #expect(PreviewPayloadGenerator.supportFile(kit: .appKit, count: 1).contains("NSHostingController"))
     }
@@ -64,7 +56,6 @@ import Testing
                                                          moduleName: "Cards", moduleFlags: ["-I", "/b"])
         #expect(Array(args.prefix(9)) == ["-emit-library", "-module-name", "Cards", "-parse-as-library", "-wmo", "-Onone", "-gnone", "-D", "DEBUG"])
         #expect(args.contains("-I") && args.suffix(3) == ["-o", "/w/payload-3.so", "/w/src/0_Card.swift"])
-        // One folder per OpenViews checkout and host version.
         let a = PreviewOpenViewsHost.packageDirectory(cacheRoot: URL(fileURLWithPath: "/c"), openViews: URL(fileURLWithPath: "/x/swiftui"))
         let b = PreviewOpenViewsHost.packageDirectory(cacheRoot: URL(fileURLWithPath: "/c"), openViews: URL(fileURLWithPath: "/y/swiftui"))
         #expect(a != b && a.path.hasPrefix("/c/swiftcode/preview-host/v\(PreviewOpenViewsHost.sourceVersion)-"))
@@ -88,10 +79,9 @@ import Testing
         let joined = flags.joined(separator: " ")
         #expect(joined.contains("-fmodule-map-file=") && joined.contains("CThorVG.build/module.modulemap") && joined.contains("OVRender.modulemap"))
         #expect(joined.contains("-I" + ov.appendingPathComponent("Sources/COVSDL/include").path))
-        #expect(!joined.contains("OVText"))   // no include folder: nothing
+        #expect(!joined.contains("OVText"))
     }
 
-    /// A host stand-in: a shell script that answers each request line.
     func scriptHost(_ body: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-fakehost-\(UUID().uuidString).sh")
         try "#!/bin/sh\necho 'SWIFTCODE-PREVIEW started'\n\(body)\n".write(to: url, atomically: true, encoding: .utf8)
@@ -117,7 +107,6 @@ import Testing
         let h2 = try PreviewHostProcess(executable: hang)
         #expect(h2.send(PreviewOpenViewsHost.Request(generation: 1, payload: "/p.so", items: []), newPayload: true) == nil)
         #expect(!h2.isRunning)
-        // A host that is gone answers nothing (and does not end the test with SIGPIPE).
         #expect(h2.send(PreviewOpenViewsHost.Request(generation: 2, payload: "/p.so", items: []), newPayload: false) == nil)
     }
 
@@ -125,7 +114,7 @@ import Testing
         #expect(PreviewDiscovery.needsUIKit(text: "import UIKit\n#Preview { UILabel() }\n"))
         #expect(PreviewDiscovery.needsUIKit(text: "@preconcurrency import UIKit\n"))
         #expect(PreviewDiscovery.needsUIKit(text: "import SwiftUI\n#Preview { let c = UIViewController(); return c }\n"))
-        #expect(!PreviewDiscovery.needsUIKit(text: "import SwiftUI\n#Preview { Text(\"UILabel\") }\n"))   // a string, not code
+        #expect(!PreviewDiscovery.needsUIKit(text: "import SwiftUI\n#Preview { Text(\"UILabel\") }\n"))
         #expect(!PreviewDiscovery.needsUIKit(text: "// import UIKit\nimport SwiftUI\n#Preview { Text(\"x\") }\n"))
         #expect(!PreviewDiscovery.needsUIKit(text: "import SwiftUI\nstruct UIThing {}\n#Preview { Text(\"x\") }\n"))
     }
@@ -142,8 +131,6 @@ import Testing
 }
 
 #if os(Linux)
-/// Builds the real host against the repository's OpenViews and renders a
-/// payload: the first run builds OpenViews in release (minutes).
 @Suite(.timeLimit(.minutes(60)), .enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_PREVIEW_OPENVIEWS_TESTS"] == "1"))
 struct OpenViewsHostEndToEndTests {
     @Test func aPayloadRendersLightAndDarkPicturesAndAnEditReloads() throws {
@@ -182,9 +169,7 @@ struct OpenViewsHostEndToEndTests {
             }
         }
         print("OpenViews preview: compile + render light and dark: \(times.map { String(format: "%.2f", $0) }) s")
-        // An edit's payload: well under the 2 s budget on an idle machine.
         #expect(times.dropFirst().allSatisfy { $0 < 10 })
-        // A compile error maps back to the file's line.
         let bad = "import SwiftUI\n#Preview { Text(nope) }\n"
         try bad.write(to: file, atomically: true, encoding: .utf8)
         let s = try PreviewPayloadGenerator.generate(moduleFiles: [file], previewed: [PreviewedFile(url: file, previews: PreviewDiscovery.previews(in: bad))],
@@ -200,7 +185,6 @@ struct OpenViewsHostEndToEndTests {
 }
 #endif
 
-/// UIKit previews from Linux: the SDK copy and the bundled-plan host (issue #84).
 @Suite(.timeLimit(.minutes(2))) struct IOSToolchainTests {
     @Test func theToolchainIsFoundInTheUsersSDKCopyOrSaysWhatIsMissing() throws {
         let fm = FileManager.default

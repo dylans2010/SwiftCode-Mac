@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2023 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_TEXT_H
 #define _TVG_TEXT_H
 
@@ -35,7 +13,7 @@ namespace tvg
 struct TextImpl : Text
 {
     Paint::Impl impl;
-    Shape* shape;   //text shape
+    Shape* shape;
     FontLoader* loader = nullptr;
     FontMetrics fm;
     char* utf8 = nullptr;
@@ -75,9 +53,8 @@ struct TextImpl : Text
         auto loader = static_cast<FontLoader*>(name ? LoaderMgr::font(name) : LoaderMgr::anyfont());
         if (!loader) return Result::InsufficientCondition;
 
-        //Same resource has been loaded.
         if (this->loader == loader) {
-            this->loader->sharing--;  //make it sure the reference counting.
+            this->loader->sharing--;
             return Result::Success;
         } else if (this->loader) {
             this->loader->release(fm);
@@ -181,7 +158,6 @@ struct TextImpl : Text
 
         auto scale = fm.scale;
 
-        //transform the gradient coordinates based on the final scaled font.
         auto fill = to<ShapeImpl>(shape)->rs.fill;
         if (fill && to<ShapeImpl>(shape)->impl.marked(RenderUpdateFlag::Gradient)) {
             if (fill->type() == Type::LinearGradient) {
@@ -250,7 +226,6 @@ struct TextImpl : Text
     {
         if (!name || (size == 0 && data)) return Result::InvalidArguments;
 
-        // unload font
         if (!data) {
             if (LoaderMgr::retrieve(LoaderMgr::font(name))) return Result::Success;
             return Result::InsufficientCondition;
@@ -264,4 +239,4 @@ struct TextImpl : Text
 
 }
 
-#endif //_TVG_TEXT_H
+#endif

@@ -3,10 +3,6 @@ import Testing
 @testable import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// A project with a `Localizable` table in two variant groups (`.strings`
-/// in en and de, `.stringsdict` in de),
-/// for Edit ▸ Convert ▸ To String Catalogs… (specs/ide/string-catalog.md,
-/// "SwiftCode implementation").
 struct LegacyStringsSample {
     static let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/StringTables/App.pbxproj")
     static var pbxproj: String { (try? String(contentsOf: fixture, encoding: .utf8)) ?? "" }
@@ -72,7 +68,6 @@ struct LegacyStringsSample {
         let table = try #require(ops.legacyStringTables().first)
         var edit = try ops.convertToStringCatalogs([table])
         #expect(edit.actionName == "Convert to String Catalog")
-        // The catalog replaces the variant groups, in the same group and target.
         let proj = try #require(ops.project)
         let text = proj.serialized(projectName: "App")
         #expect(!text.contains("PBXVariantGroup") && !text.contains("Localizable.strings in Resources"))
@@ -80,13 +75,11 @@ struct LegacyStringsSample {
         #expect(text.contains("lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = \"<group>\";"))
         #expect(proj["5D0000000000000000000041"]?.references("children").count == 2)
         #expect(edit.result.count == 1)
-        // On disk: the catalog, and the old files and empty .lproj folders gone.
         #expect(s.exists("App/Localizable.xcstrings") && !s.exists("App/en.lproj") && !s.exists("App/de.lproj"))
         let c = try StringCatalog(data: Data(contentsOf: s.dir.appendingPathComponent("App/Localizable.xcstrings")))
         #expect(c.sourceLanguage == "en" && c.keys == ["%d files", "Hello"] && c.languages == ["en", "de"])
         #expect(c.rows(language: "de").map(\.state) == [.variesByPlural, .translated])
         #expect(c.json["strings"]?["Hello"]?["comment"]?.stringValue == "Greeting")
-        // Converting again is refused: the catalog exists.
         #expect(throws: NavigatorEditError.self) { _ = try ops.convertToStringCatalogs([table]) }
 
         let before = try edit.undo(bin: s.bin)

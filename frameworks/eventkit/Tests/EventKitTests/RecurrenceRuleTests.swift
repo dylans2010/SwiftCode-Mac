@@ -1,5 +1,3 @@
-// C-EK-REC: rule model, validation and text form (recurrence.md §1–§3).
-
 import Foundation
 import Testing
 @testable import EventKit

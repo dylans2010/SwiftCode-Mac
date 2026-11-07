@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import os.log
 
-/// Strongly typed metadata model representing a fully resolved workspace/project structure
 public struct ResolvedProjectMetadata: Sendable, Hashable {
     public let rootURL: URL
     public let projectName: String
@@ -16,7 +15,6 @@ public struct ResolvedProjectMetadata: Sendable, Hashable {
     public let buildDestination: String
 }
 
-/// Error types that can be encountered during project resolution
 public enum ProjectResolutionError: Error, LocalizedError, Sendable {
     case activeProjectNotFound
     case resolutionFailed(String)
@@ -31,7 +29,6 @@ public enum ProjectResolutionError: Error, LocalizedError, Sendable {
     }
 }
 
-/// Centralized, reusable project resolution service to detect and parse active workspace state
 @Observable
 @MainActor
 public final class ProjectResolver: Sendable {
@@ -41,12 +38,9 @@ public final class ProjectResolver: Sendable {
 
     private init() {}
 
-    /// Automatically discovers and resolves the current project metadata from the active session or open files.
-    /// Never relies on hardcoded or placeholder values, and never requires manual selection if a workspace is already open.
     public func resolveActiveProject() throws -> ResolvedProjectMetadata {
         let fm = FileManager.default
 
-        // 1. Locate root URL through various active pathways
         var potentialRootURL: URL? = nil
 
         if let activeProject = ProjectSessionStore.shared.activeProject {
@@ -56,14 +50,12 @@ public final class ProjectResolver: Sendable {
             potentialRootURL = coordProjURL
             logger.info("Located active project from coordinator project URL: \(coordProjURL.path)")
         } else if let activeDocURL = DocumentCoordinator.shared.activeDocument?.url {
-            // Find parent directory containing workspace markers (Package.swift, .xcodeproj, .xcworkspace, project.json)
             potentialRootURL = findWorkspaceAncestor(of: activeDocURL)
             if let root = potentialRootURL {
                 logger.info("Resolved project root by tracing active document ancestor: \(root.path)")
             }
         }
 
-        // 2. Validate we discovered a directory
         guard let rootURL = potentialRootURL else {
             throw ProjectResolutionError.activeProjectNotFound
         }
@@ -73,7 +65,6 @@ public final class ProjectResolver: Sendable {
             throw ProjectResolutionError.resolutionFailed("Resolved path '\(rootURL.path)' does not exist or is not a folder.")
         }
 
-        // 3. Scan root files to identify format capabilities
         let projectName = rootURL.lastPathComponent
         let packageSwiftURL = rootURL.appendingPathComponent("Package.swift")
         let isSwiftPackage = fm.fileExists(atPath: packageSwiftURL.path)
@@ -92,7 +83,6 @@ public final class ProjectResolver: Sendable {
         let isXcodeProject = xcodeprojURL != nil
         let isXcodeWorkspace = xcworkspaceURL != nil
 
-        // 4. Determine build destination and root variables
         let buildRootURL = rootURL.appendingPathComponent("build")
         let buildDestination = XcodeBuildManager.shared.selectedDestination
 
@@ -109,13 +99,11 @@ public final class ProjectResolver: Sendable {
             buildDestination: buildDestination
         )
 
-        // Keep DocumentCoordinator synchronized
         DocumentCoordinator.shared.projectURL = rootURL
 
         return metadata
     }
 
-    /// Recursively traces directories up to find active Package.swift or Xcode project files
     private func findWorkspaceAncestor(of url: URL) -> URL? {
         let fm = FileManager.default
         var currentURL = url.deletingLastPathComponent()

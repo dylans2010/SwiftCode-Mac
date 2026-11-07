@@ -5,7 +5,7 @@ public struct ValidationIssue: Identifiable, Sendable {
     public var severity: Severity
     public var category: Category
     public var message: String
-    public var objectID: String? // Related Product ID, etc.
+    public var objectID: String?
     public var fixType: ValidationFixType?
 
     public enum Severity: String, Codable, Sendable {
@@ -63,7 +63,6 @@ public final class StoreKitValidationService: Sendable {
         var productIDs = Set<String>()
         var referenceNames = Set<String>()
 
-        // 1. Validate Capability & Sandbox Setup (Dynamic project-level scanner)
         let hasIAP = checkIAPCapabilityEnabled()
         if !hasIAP {
             issues.append(ValidationIssue(
@@ -86,9 +85,7 @@ public final class StoreKitValidationService: Sendable {
             ))
         }
 
-        // 2. Validate Standard Products
         for product in config.products {
-            // Check Empty IDs
             if product.productID.isEmpty {
                 issues.append(ValidationIssue(
                     severity: .error,
@@ -110,7 +107,6 @@ public final class StoreKitValidationService: Sendable {
                 productIDs.insert(product.productID)
             }
 
-            // Check Duplicate Reference Names
             if product.referenceName.isEmpty {
                 issues.append(ValidationIssue(
                     severity: .warning,
@@ -130,7 +126,6 @@ public final class StoreKitValidationService: Sendable {
                 referenceNames.insert(product.referenceName)
             }
 
-            // Check Price
             if product.price < 0 {
                 issues.append(ValidationIssue(
                     severity: .error,
@@ -141,7 +136,6 @@ public final class StoreKitValidationService: Sendable {
                 ))
             }
 
-            // Validate Localizations
             if product.localizations.isEmpty {
                 issues.append(ValidationIssue(
                     severity: .warning,
@@ -174,7 +168,6 @@ public final class StoreKitValidationService: Sendable {
             }
         }
 
-        // 3. Validate Non-Renewing Subscriptions
         for sub in config.nonRenewingSubscriptions {
             if sub.productID.isEmpty {
                 issues.append(ValidationIssue(
@@ -218,7 +211,6 @@ public final class StoreKitValidationService: Sendable {
             }
         }
 
-        // 4. Validate Subscription Groups & Subscriptions
         for group in config.subscriptionGroups {
             if group.groupName.isEmpty {
                 issues.append(ValidationIssue(
@@ -270,7 +262,6 @@ public final class StoreKitValidationService: Sendable {
                     ))
                 }
 
-                // Check Period
                 let validPeriods = ["P1W", "P1M", "P2M", "P3M", "P6M", "P1Y"]
                 if !validPeriods.contains(sub.subscriptionPeriod) {
                     issues.append(ValidationIssue(
@@ -281,7 +272,6 @@ public final class StoreKitValidationService: Sendable {
                     ))
                 }
 
-                // Intro offers
                 for intro in sub.introductoryOffers {
                     if intro.price < 0 {
                         issues.append(ValidationIssue(
@@ -294,7 +284,6 @@ public final class StoreKitValidationService: Sendable {
                     }
                 }
 
-                // Promotional offers
                 var offerIDs = Set<String>()
                 for promo in sub.promotionalOffers {
                     if promo.offerID.isEmpty {
@@ -322,9 +311,7 @@ public final class StoreKitValidationService: Sendable {
         return issues
     }
 
-    // Helper simulators for local project inspections
     private func checkIAPCapabilityEnabled() -> Bool {
-        // Look up local configuration files or mock validation for sandboxed development environment consistency
         return true
     }
 

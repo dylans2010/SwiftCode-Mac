@@ -1,11 +1,7 @@
-// JSON <-> typed model, and the file-level reader/writer.
 import Foundation
 
-/// Errors reading a configuration file.
 public enum ConfigurationReadError: Error, Equatable, Sendable, CustomStringConvertible {
-    /// The bytes are not JSON.
     case syntax(JSONSyntaxError)
-    /// The top-level value is not an object.
     case notAnObject
 
     public var description: String {
@@ -16,8 +12,6 @@ public enum ConfigurationReadError: Error, Equatable, Sendable, CustomStringConv
     }
 }
 
-/// Takes known keys out of an object; whatever remains is the `extra` dictionary.
-/// A key whose value has the wrong type stays in the remainder.
 struct ObjectReader {
     var remaining: [String: JSONValue]
 
@@ -55,7 +49,6 @@ struct ObjectReader {
         return out
     }
 
-    /// An array whose every element is an object, decoded with `make`.
     mutating func objects<T>(_ key: String, _ make: ([String: JSONValue]) -> T) -> [T]? {
         guard case .array(let a)? = remaining[key] else { return nil }
         var out: [T] = []
@@ -71,7 +64,6 @@ struct ObjectReader {
     }
 }
 
-/// Builds an object from known properties plus `extra`. Known properties win.
 struct ObjectBuilder {
     var object: [String: JSONValue]
 
@@ -90,11 +82,7 @@ struct ObjectBuilder {
     var json: JSONValue { .object(object) }
 }
 
-// MARK: - Model <-> JSON
-
 extension StoreConfiguration {
-    /// Decodes the model from a parsed JSON object (never fails for an object;
-    /// unexpected values are preserved in `extra`).
     public init(object: [String: JSONValue]) {
         var r = ObjectReader(object)
         identifier = r.string("identifier")
@@ -108,7 +96,6 @@ extension StoreConfiguration {
         extra = r.remaining
     }
 
-    /// Reads a configuration file's bytes.
     public init(data: Data) throws {
         let value: JSONValue
         do { value = try JSONParser.parse(data) } catch let e as JSONSyntaxError { throw ConfigurationReadError.syntax(e) }
@@ -116,10 +103,8 @@ extension StoreConfiguration {
         self.init(object: o)
     }
 
-    /// Reads a configuration file.
     public init(contentsOf url: URL) throws { try self.init(data: Data(contentsOf: url)) }
 
-    /// The JSON form (unordered; the writer sorts).
     public var json: JSONValue {
         var b = ObjectBuilder(extra: extra)
         b.set("identifier", identifier)
@@ -133,7 +118,6 @@ extension StoreConfiguration {
         return b.json
     }
 
-    /// The file's bytes in the sorted pretty-printed form of configuration-file.md §1.
     public func data(writer: JSONWriter = JSONWriter()) -> Data { writer.data(json) }
 }
 
@@ -327,14 +311,8 @@ extension Policy {
     }
 }
 
-// MARK: - File level
-
-/// A configuration file as read from disk: the model plus the one layout
-/// detail the model does not carry (whether the file ends with a newline), so
-/// that writing back an unmodified file reproduces its bytes.
 public struct ConfigurationDocument: Hashable, Sendable {
     public var configuration: StoreConfiguration
-    /// Whether the text ends with a newline after the closing brace.
     public var trailingNewline: Bool
 
     public init(configuration: StoreConfiguration, trailingNewline: Bool = false) {
@@ -349,7 +327,6 @@ public struct ConfigurationDocument: Hashable, Sendable {
 
     public init(contentsOf url: URL) throws { try self.init(data: Data(contentsOf: url)) }
 
-    /// The file's bytes in the canonical form.
     public func data() -> Data { configuration.data(writer: JSONWriter(trailingNewline: trailingNewline)) }
 
     public func write(to url: URL) throws { try data().write(to: url, options: .atomic) }

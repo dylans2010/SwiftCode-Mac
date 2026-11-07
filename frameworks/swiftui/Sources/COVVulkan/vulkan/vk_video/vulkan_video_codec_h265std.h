@@ -1,25 +1,10 @@
 #ifndef VULKAN_VIDEO_CODEC_H265STD_H_
 #define VULKAN_VIDEO_CODEC_H265STD_H_ 1
 
-/*
-** Copyright 2015-2024 The Khronos Group Inc.
-**
-** SPDX-License-Identifier: Apache-2.0
-*/
-
-/*
-** This header is generated from the Khronos Vulkan XML API Registry.
-**
-*/
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-
-// vulkan_video_codec_h265std is a preprocessor guard. Do not pass it to API calls.
 #define vulkan_video_codec_h265std 1
 #include "vulkan_video_codecs_common.h"
 #define STD_VIDEO_H265_CPB_CNT_LIST_SIZE  32
@@ -437,7 +422,6 @@ typedef struct StdVideoH265PictureParameterSet {
     const StdVideoH265ScalingLists*               pScalingLists;
     const StdVideoH265PredictorPaletteEntries*    pPredictorPaletteEntries;
 } StdVideoH265PictureParameterSet;
-
 
 #ifdef __cplusplus
 }

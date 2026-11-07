@@ -1,25 +1,12 @@
 import Foundation
 
-/// Fill-in-the-middle prompt formats for servers that take a plain prompt
-/// (`/v1/completions`). Each format is the special-token layout its model
-/// family publishes on its own model card (predictive-completion.md §6.3);
-/// Ollama and llama-server build the prompt from the model's own template
-/// and metadata instead, so they need none of this.
 public enum FIMFormat: String, Codable, Sendable, CaseIterable {
-    /// Picked from the model's name; `chat` when nothing matches.
     case auto
-    /// `<|fim_prefix|>…<|fim_suffix|>…<|fim_middle|>`, with the repo-level
-    /// `<|repo_name|>`/`<|file_sep|>` layout for related files (Qwen2.5-Coder).
     case qwen
-    /// `<fim_prefix>…<fim_suffix>…<fim_middle>`, `<file_sep>` (StarCoder2, Granite Code).
     case starCoder
-    /// `<PRE> … <SUF>… <MID>` (Code Llama).
     case codeLlama
-    /// `<｜fim▁begin｜>…<｜fim▁hole｜>…<｜fim▁end｜>` (DeepSeek-Coder).
     case deepSeek
-    /// `[SUFFIX]…[PREFIX]…` (suffix first).
     case suffixFirst
-    /// No FIM tokens: `/v1/chat/completions` with an instruction.
     case chat
 
     public var displayName: String {
@@ -34,7 +21,6 @@ public enum FIMFormat: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// The format a model name suggests (family names in the model ID).
     public static func detect(model: String) -> FIMFormat {
         let m = model.lowercased()
         if m.contains("qwen") { return .qwen }
@@ -47,7 +33,6 @@ public enum FIMFormat: String, Codable, Sendable, CaseIterable {
 
     public func resolved(model: String) -> FIMFormat { self == .auto ? Self.detect(model: model) : self }
 
-    /// The prompt for `context` (nil for `chat` and `auto`).
     public func prompt(_ c: CompletionContext, repository: String = "workspace") -> String? {
         switch self {
         case .auto, .chat: return nil
@@ -73,7 +58,6 @@ public enum FIMFormat: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// Stop strings: the format's own special tokens.
     public var stop: [String] {
         switch self {
         case .auto, .chat: []
@@ -85,7 +69,6 @@ public enum FIMFormat: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// The chat fallback's instruction and message.
     public static func chatMessages(_ c: CompletionContext) -> [[String: String]] {
         let lang = c.language ?? ""
         return [

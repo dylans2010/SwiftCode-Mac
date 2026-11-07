@@ -87,7 +87,6 @@ NSString *g = MyLocalizedString(@"Custom", @"custom macro");
         let e = StringExtractor.extractSwift(sampleView, file: "ContentView.swift")
         #expect(e.map(\.key) == ["Title", "%lld items", "Save", "Inbox", "Enabled", "Qualified", "Home", "Help text"])
         #expect(e[1].comment == "Item count" && e[5].table == "Extra")
-        // Without SwiftUI support only the other calls are found.
         #expect(StringExtractor.extractSwift(sampleView, options: .init(swiftUI: false)).isEmpty)
     }
 
@@ -167,7 +166,6 @@ NSString *g = MyLocalizedString(@"Custom", @"custom macro");
             ("extractionState", .string("extracted_with_value")),
             ("localizations", .object([("en", .object([("stringUnit", .object([("state", .string("new")), ("value", .string("Its value"))]))]))])),
         ]))
-        // Merging the same strings again changes nothing.
         let before = c.data()
         #expect(c.merge(extracted: found).isEmpty)
         #expect(c.data() == before)
@@ -252,16 +250,13 @@ NSString *g = MyLocalizedString(@"Custom", @"custom macro");
         #expect(photos?["substitutions"]?["photos"]?["argNum"] == .number("2"))
         #expect(photos?["substitutions"]?["photos"]?["variations"]?["plural"]?["other"]?["stringUnit"]?["value"]?.stringValue == "%arg Fotos")
         #expect(s["Tap"]?["localizations"]?["de"]?["variations"]?["device"]?["mac"]?["stringUnit"]?["value"]?.stringValue == "Klicken")
-        // The written catalog parses again to the same document.
         #expect(try StringCatalog(data: c.data()).json == c.json)
 
-        // Compiled back, the German table means what the original did.
         let de = StringCatalogCompiler.compile(c).tables.first { $0.language == "de" }!
         #expect(de.strings.map(\.key) == ["Bye", "Hello"])
         let dict = Dictionary(de.stringsdict, uniquingKeysWith: { a, _ in a })
         #expect(dict["%d files"]?["count"]?["other"]?.string == "%d Dateien")
         #expect(dict["%d files"]?["count"]?["NSStringFormatValueTypeKey"]?.string == "d")
-        // The variable takes the second argument in order: no positions needed.
         #expect(dict["%@ shared %d photos"]?["NSStringLocalizedFormatKey"]?.string == "%@ hat %#@photos@ geteilt")
         #expect(dict["%@ shared %d photos"]?["photos"]?["other"]?.string == "%d Fotos")
         #expect(dict["Tap"] == .dict([("NSStringDeviceSpecificRuleType", .dict([("mac", .string("Klicken")), ("other", .string("Tippen"))]))]))
@@ -296,12 +291,10 @@ NSString *g = MyLocalizedString(@"Custom", @"custom macro");
         let src = StringSymbolGenerator.swiftSource(c, table: "Localizable")
         #expect(src.contains("static func apples(arg1: String, apples: Int) -> LocalizedStringResource {"))
         #expect(src.contains(#"LocalizedStringResource("Apples", defaultValue: "\(arg1) has \(apples)", table: "Localizable""#))
-        // A catalog without manual keys gives a file with no symbols.
         #expect(!StringSymbolGenerator.swiftSource(StringCatalog(), table: "T").contains("extension"))
     }
 
     #if os(macOS)
-    /// The generated file type-checks (the Mac's own Swift compiler, building our sample).
     @Test func generatedSourceTypeChecks() throws {
         let dir = try tempDir("symbols")
         defer { try? FileManager.default.removeItem(at: dir) }

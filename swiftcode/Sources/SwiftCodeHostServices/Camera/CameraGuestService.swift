@@ -1,19 +1,3 @@
-// The guest-facing camera endpoint `dev.swiftcode.camera` (camera.md §7.2 B and
-// "SwiftCode implementation"; wire format in CameraGuestProtocol.swift). It is
-// registered into the guest only when the device's camera is turned on
-// (CameraOptIn). It announces the host camera as one capture device, starts
-// and stops streams for guest processes, and sends each frame of the host
-// camera layer (CameraHostService, camera-host.md) to the streaming process
-// as a message naming a host-made IOSurface, with its presentation time in
-// guest mach ticks. Flow control: a delivered frame's surface stays held
-// until the guest releases it (request 4), so the ring never overwrites a
-// frame the guest still reads; with no free surface the host drops the new
-// frame and the next one carries the count.
-//
-// One guest process streams at a time (§7.2 C, step 10): a second process
-// starting a stream interrupts the first, which gets the camera back when
-// the second stops or ends.
-
 import CSwiftCodeCamera
 import Foundation
 import SwiftCodeDarwinABI
@@ -21,7 +5,6 @@ import SwiftCodeDarwinKernel
 
 public final class CameraGuestService: @unchecked Sendable {
     public static let serviceName = CameraGuestProtocol.serviceName
-    /// `SWIFTCODE_DEBUG_CAMERA=1`: one line per request.
     static let debug = getenv("SWIFTCODE_DEBUG_CAMERA").map { String(cString: $0) == "1" } ?? false
 
     public let servicePort: UInt32
@@ -29,45 +12,34 @@ public final class CameraGuestService: @unchecked Sendable {
     let notifyPort: UInt32
     let host: MachHostTask
     let camera: CameraHostService
-    /// The host camera selection (`CameraHostService.resolve`).
     public let selection: String
     public let presentation: CameraGuestPresentation
     let log: (String) -> Void
     let lock = NSLock()
     private var stopping = false
-    /// Frames each stream may hold before the host drops (the ring).
     public var ringSize = 8
 
-    /// Guest mach time now and its frequency (set by the VMM; the default is
-    /// the host's 24 MHz timebase on the monotonic clock, as for audio).
     private var guestClock: @Sendable () -> (ticks: UInt64, frequency: UInt64) = { (MachTimebase.now(), MachTimebase.frequency) }
     public func setGuestClock(_ clock: @escaping @Sendable () -> (ticks: UInt64, frequency: UInt64)) {
         lock.withLock { guestClock = clock }
     }
 
     struct Client {
-        /// The host-task name of the send right to the client's frame port.
         var port: UInt32
         var pid: Int32
         var streamID: UInt32
         var configuration: CameraConfiguration
     }
 
-    /// Streaming clients by frame-port name.
     private var clients: [UInt32: Client] = [:]
-    /// The client the camera streams to, and the interrupted ones (latest last).
     private var active: UInt32?
     private var waiting: [UInt32] = []
     private var nextStreamID: UInt32 = 1
-    /// Increases at each camera start; frames of an older start are not sent.
     private var generation: UInt64 = 0
-    /// Frames the guest holds, by sequence (the active stream).
     private var outstanding: [UInt64: CameraFrame] = [:]
-    /// Frames the guest could not take (its queue was full) since the last sent one.
     private var unsent = 0
     private var device: CameraDevice?
 
-    /// Statistics.
     public private(set) var requests = 0
     public private(set) var framesSent = 0
     public private(set) var framesNotSent = 0
@@ -95,7 +67,6 @@ public final class CameraGuestService: @unchecked Sendable {
         t.start()
     }
 
-    /// Ends the service: the stream stops and the camera is released.
     public func stop() {
         lock.withLock { stopping = true }
         camera.stop()
@@ -104,8 +75,6 @@ public final class CameraGuestService: @unchecked Sendable {
     public var isStreaming: Bool { camera.isRunning }
     public var activeStreamID: UInt32? { lock.withLock { active.flatMap { clients[$0]?.streamID } } }
     public var heldFrames: Int { lock.withLock { outstanding.count } }
-
-    // MARK: The service thread
 
     private func run() {
         log("camera: serving \(Self.serviceName) (camera \(selection), shown as \(presentation.placement.rawValue))")
@@ -184,17 +153,12 @@ public final class CameraGuestService: @unchecked Sendable {
         }
     }
 
-    // MARK: Devices
-
-    /// The device list (request 1). No device when the selection names none.
     func devicesPlist() -> [String: Any] {
         let found: CameraDevice? = isStreaming ? lock.withLock({ device }) : (try? CameraHostService.resolve(selection))
         lock.withLock { if let found { device = found } }
         guard let found else { return ["version": Int(CameraGuestProtocol.version), "devices": [Any]()] }
         return CameraGuestFormats.plist(device: found, presentation: presentation)
     }
-
-    // MARK: Streams
 
     struct StartResult {
         var words: [UInt32]
@@ -209,7 +173,6 @@ public final class CameraGuestService: @unchecked Sendable {
         let fps = fpsMilli == 0 ? 30 : Double(fpsMilli) / 1000
         let config = CameraConfiguration(width: width, height: height, framesPerSecond: fps, output: format, ringSize: ringSize,
                                          holdFramesUntilReleased: true, syntheticWhileAbsent: false)
-        // Who had the camera, and the client record for this port.
         let (isNew, previous, streamID) = lock.withLock { () -> (Bool, UInt32?, UInt32) in
             let isNew = clients[port] == nil
             var c = clients[port] ?? Client(port: port, pid: pid, streamID: nextStreamID, configuration: config)
@@ -221,10 +184,8 @@ public final class CameraGuestService: @unchecked Sendable {
             return (isNew, previous, c.streamID)
         }
         if isNew {
-            // Its death tells that the client process ended.
             _ = try? host.requestNotification(port, id: MachNotify.deadName, notifyPort: notifyPort)
         } else {
-            // The request brought another reference to a right we keep.
             try? host.deallocate(port)
         }
         if let previous, previous != port {
@@ -245,14 +206,12 @@ public final class CameraGuestService: @unchecked Sendable {
             case .busy?, .permission?: CameraGuestProtocol.Status.busy
             default: CameraGuestProtocol.Status.failed
             }
-            // The client is not kept; whoever was interrupted gets it back.
             removeClient(port, reason: nil, resume: false)
             if !isStreaming { resumeNext() }
             return StartResult(words: [status, 0, 0, 0, 0, 0], keptPort: isNew ? port : nil)
         }
     }
 
-    /// (Re)starts the camera for `port`'s client.
     private func open(port: UInt32, _ config: CameraConfiguration) throws -> CameraStreamFormat {
         camera.stop()
         let gen = lock.withLock { () -> UInt64 in
@@ -277,8 +236,6 @@ public final class CameraGuestService: @unchecked Sendable {
         }
     }
 
-    /// Request 3 or the client's end: the stream goes; an interrupted
-    /// client gets the camera back.
     private func stopStream(id: UInt32, reason: String) -> UInt32 {
         guard let port = lock.withLock({ clients.first { $0.value.streamID == id }?.key }) else {
             return CameraGuestProtocol.Status.badRequest
@@ -302,8 +259,6 @@ public final class CameraGuestService: @unchecked Sendable {
             log("camera: stream \(client.streamID) of pid \(client.pid) ended (\(reason)); \(framesSent) frames sent, "
                 + "\(framesNotSent) not taken, \(framesReleased) released")
         }
-        // Our send right; the dead-name request is cancelled (its send-once
-        // right comes back and is dropped).
         if client != nil {
             if let previous = try? host.requestNotification(port, id: MachNotify.deadName, notifyPort: 0),
                MachPortName.isValid(previous) { try? host.deallocate(previous) }
@@ -315,7 +270,6 @@ public final class CameraGuestService: @unchecked Sendable {
         if resume { resumeNext() }
     }
 
-    /// The most recently interrupted client that still exists gets the camera.
     private func resumeNext() {
         while let next = lock.withLock({ waiting.popLast() }) {
             guard let c = lock.withLock({ clients[next] }) else { continue }
@@ -347,19 +301,14 @@ public final class CameraGuestService: @unchecked Sendable {
             return
         }
         let name = CameraGuestProtocol.word(m.body, 0)
-        // The notification's own reference to the dead name.
         try? host.deallocate(name)
         if lock.withLock({ clients[name] != nil }) {
             removeClient(name, reason: "its process ended", resume: true)
         }
     }
 
-    // MARK: Frames and events (capture thread)
-
     func deliver(_ frame: CameraFrame, generation gen: UInt64) {
         let clock = lock.withLock { guestClock }
-        // The camera's clock (CLOCK_MONOTONIC, camera-host.md §3.4) read
-        // around the guest clock.
         let before = UInt64(ycam_monotonic_ns())
         let reading = clock()
         let after = UInt64(ycam_monotonic_ns())
@@ -375,7 +324,6 @@ public final class CameraGuestService: @unchecked Sendable {
         let words = CameraGuestProtocol.frameWords(stream: target.stream, frame: frame,
                                                    presentationTicks: time.ticks(atHostNanoseconds: frame.presentationTime),
                                                    durationTicks: time.ticks(forNanoseconds: frame.duration), dropped: target.dropped)
-        // Recorded before the send: the guest may release it at once.
         lock.withLock { outstanding[frame.sequence] = frame }
         do {
             try host.send(MachHostOutgoingMessage(remotePort: target.port, remoteDisposition: MachMsgType.copySend,
@@ -386,7 +334,6 @@ public final class CameraGuestService: @unchecked Sendable {
                 framesSent += 1
             }
         } catch {
-            // The guest's queue is full (or its port died): the frame is dropped.
             let held = lock.withLock { () -> Bool in
                 unsent += 1
                 framesNotSent += 1

@@ -1,7 +1,6 @@
 import GreetMacros
 import SwiftUI
 
-/// Uses a Swift macro from a local package; the macro runs in the compiler.
 @main
 struct MacroApp: App {
     static let report = "SWIFTCODE-PKG-SAMPLE macro: " + #greeting("SwiftCode")

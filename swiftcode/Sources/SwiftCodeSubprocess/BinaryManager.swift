@@ -1,6 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Binaries/BinaryManager.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
-// Adaptation note: Legacy-internal types made public; the iOS-only #else throw is dropped — Foundation.Process runs on macOS and Linux alike.
 import Foundation
 
 public struct BinaryExecutionResult {
@@ -70,26 +67,16 @@ public actor BinaryManager {
         return try await run(.graphviz, arguments: ["-Tsvg", dotURL.path, "-o", outputPath])
     }
 
-    /// Outcome of the Graphviz availability check / install attempt.
     public enum GraphvizAvailability: Sendable {
-        /// `dot` was already on PATH (or bundled).
         case available
-        /// `dot` was missing and Homebrew just installed it successfully.
         case installedNow
-        /// `dot` is missing and Homebrew itself is not installed, so we cannot
-        /// install it automatically. Carries install guidance for the UI.
         case brewMissing
-        /// `dot` is missing and the `brew install graphviz` attempt failed.
         case installFailed(String)
     }
 
-    /// Ensures Graphviz (`dot`) is usable, installing it via Homebrew when it
-    /// is missing. Never shells out through /bin/sh — brew is launched with a
-    /// fixed executable path and an argv array.
     public func ensureGraphvizAvailable() async -> GraphvizAvailability {
         if await validate(binary: .graphviz) { return .available }
 
-        // Drop any stale negative cache entry before re-probing.
         binaryCache[.graphviz] = nil
 
         let brewCandidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]

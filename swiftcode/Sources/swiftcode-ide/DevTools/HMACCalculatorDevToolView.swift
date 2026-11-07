@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(CryptoKit)
 import SwiftUI
 import CryptoKit
@@ -85,7 +82,7 @@ struct HMACCalculatorDevToolView: View {
             }
             .padding()
         }
-        
+
         .navigationTitle("HMAC Calculator")
         .onAppear {
             viewModel.computeHMAC()

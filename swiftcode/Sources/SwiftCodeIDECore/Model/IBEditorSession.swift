@@ -3,35 +3,22 @@ import CoreGraphics
 #endif
 import Foundation
 
-/// The four inspectors an Interface Builder document adds after File,
-/// History and Quick Help (`interface-builder.md` §Layout).
 public enum IBInspectorTab: Int, CaseIterable, Sendable {
     case identity, attributes, size, connections
     public var title: String { ["Identity", "Attributes", "Size", "Connections"][rawValue] }
-    /// The tab's symbol name (drawn by the platform's symbol set; SwiftCode's
-    /// own drawings on Linux).
     public var symbol: String { ["person.crop.rectangle", "slider.horizontal.3", "ruler", "arrow.right.circle"][rawValue] }
 }
 
-/// One Document Outline row (`interface-builder.md` §Outline): an object, a
-/// "Constraints" group, one constraint, or the storyboard entry point.
 public struct IBOutlineRow: Identifiable, Equatable, Sendable {
     public enum Kind: Equatable, Sendable { case scene, view, object, constraints, constraint, entryPoint }
-    /// Unique in the outline: the object ID, `constraints:<owner>`,
-    /// `constraint:<id>` or `entry:<scene>`.
     public var id: String
     public var kind: Kind
-    /// The object the row stands for (nil for groups and the entry point).
     public var objectID: String?
-    /// The constraint the row stands for.
     public var constraintID: String?
     public var title: String
-    /// Kind badge after a subview named by its content ("Label").
     public var badge: String?
     public var children: [IBOutlineRow]
 
-    /// The row and its descendants matching `query` (case-insensitive), or
-    /// nil when none does.
     public func filtered(_ query: String) -> IBOutlineRow? {
         let kids = children.compactMap { $0.filtered(query) }
         guard title.localizedCaseInsensitiveContains(query) || !kids.isEmpty else { return nil }
@@ -41,34 +28,17 @@ public struct IBOutlineRow: Identifiable, Equatable, Sendable {
     }
 }
 
-/// The Interface Builder editor's state without any toolkit: the document,
-/// the selection, undo and redo, the outline rows, the canvas layout and
-/// every edit the editor offers. The macOS editor (`InterfaceBuilderController`)
-/// and the Linux IDE's both drive one, so both write the same bytes. Each
-/// edit splices only what changes, is written to the file at once (when
-/// `writesFile`), and keeps the selection; opening never writes. See
-/// `specs/ide/interface-builder.md`.
 public final class IBEditorSession {
     public let url: URL
-    /// Whether edits are written to `url` (off for documents not from a file).
     public var writesFile: Bool
     public private(set) var document: IBDocument
-    /// The selected object's ID.
     public private(set) var selectedID: String?
-    /// The selected constraint (an outline row), if any.
     public private(set) var selectedConstraint: String?
-    /// The outline's Filter (bottom of the column).
     public var outlineFilter = ""
-    /// The segment the Attributes inspector's Segment pop-up shows (a
-    /// segmented control's rows edit that segment).
     public private(set) var inspectorSegment = 0
-    /// The canvas layout of the current document.
     public private(set) var layout: IBCanvasLayout
-    /// Why the last write failed, if it did.
     public private(set) var problem: String?
-    /// Bumped on every change of document or selection (views wait on it).
     public private(set) var revision = 0
-    /// Number of writes to the file (drivers and tests wait on it).
     public private(set) var saveCount = 0
     private var undoStack: [[UInt8]] = []
     private var redoStack: [[UInt8]] = []
@@ -81,16 +51,12 @@ public final class IBEditorSession {
         selectedID = Self.firstView(in: document)?.id ?? document.roots.first?.id
     }
 
-    /// Opens the file at `url` (read only until the first edit).
     public convenience init(url: URL) throws {
         self.init(document: try IBDocument(url: url), url: url, writesFile: true)
     }
 
-    // MARK: Selection
-
     public var selected: IBDocument.Object? { selectedID.flatMap { document.byID[$0] } }
 
-    /// The first view of the document (what opening selects).
     public static func firstView(in d: IBDocument) -> IBDocument.Object? {
         func first(_ o: IBDocument.Object) -> IBDocument.Object? {
             if o.isView { return o }
@@ -113,14 +79,10 @@ public final class IBEditorSession {
         revision += 1
     }
 
-    /// Selects what an outline row stands for.
     public func select(row: IBOutlineRow) {
         if let c = row.constraintID { selectConstraint(c) } else if let o = row.objectID { select(id: o) }
     }
 
-    // MARK: Outline
-
-    /// The Document Outline, filtered by `outlineFilter`.
     public var outlineRows: [IBOutlineRow] {
         let all = document.roots.map(row)
         let q = outlineFilter.trimmingCharacters(in: .whitespaces)
@@ -141,8 +103,6 @@ public final class IBEditorSession {
         return IBOutlineRow(id: o.id, kind: kind, objectID: o.id, title: document.outlineTitle(o), badge: document.outlineBadge(o), children: kids)
     }
 
-    /// Outline titles, depth-first with two spaces per level (tests);
-    /// with `badges`, "title [badge]".
     public func outlineTitles(badges: Bool = false) -> [String] {
         var out: [String] = []
         func walk(_ r: IBOutlineRow, _ d: Int) {
@@ -153,7 +113,6 @@ public final class IBEditorSession {
         return out
     }
 
-    /// The jump bar's path down to the selection (file name first).
     public var jumpBarPath: [String] {
         guard let o = selected else { return [url.lastPathComponent] }
         var path = [url.lastPathComponent] + document.outlinePath(to: o)
@@ -163,11 +122,6 @@ public final class IBEditorSession {
         return path
     }
 
-    // MARK: Editing
-
-    /// Replaces the document with an edited one: records undo, writes the
-    /// file, re-lays the canvas and keeps the selection. False when nothing
-    /// changed.
     @discardableResult
     public func commit(_ next: IBDocument) -> Bool {
         guard next.source != document.source else { return false }
@@ -177,7 +131,6 @@ public final class IBEditorSession {
         return true
     }
 
-    /// Applies an edit; false when it changed nothing or failed.
     @discardableResult
     public func apply(_ f: (IBDocument) throws -> IBDocument) -> Bool {
         guard let d = try? f(document) else { return false }
@@ -208,7 +161,6 @@ public final class IBEditorSession {
     public var canUndo: Bool { !undoStack.isEmpty }
     public var canRedo: Bool { !redoStack.isEmpty }
 
-    /// Restores the bytes before the last edit.
     public func undo() {
         guard let prev = undoStack.popLast(), let d = try? IBDocument(data: Data(prev)) else { return }
         redoStack.append(document.source)
@@ -221,13 +173,11 @@ public final class IBEditorSession {
         replace(with: d)
     }
 
-    /// Sets the selected (or given) object's stored frame.
     public func setFrame(_ f: CGRect, of id: String? = nil) {
         guard let id = id ?? selectedID else { return }
         apply { try $0.settingFrame(f, of: id) }
     }
 
-    /// Sets a frame given in canvas root coordinates (move or resize).
     public func setRootFrame(_ r: CGRect, of id: String) {
         guard let f = document.storedFrame(forRootFrame: r, of: id) else { return }
         setFrame(f, of: id)
@@ -241,8 +191,6 @@ public final class IBEditorSession {
         apply { try $0.settingExtendedEdge(edge, on, of: id) }
     }
 
-    /// ⌫: deletes the selected constraint, else the selected object (not a
-    /// scene's root view or a top-level object). False when nothing was.
     @discardableResult
     public func deleteSelection() -> Bool {
         if let c = selectedConstraint {
@@ -256,7 +204,6 @@ public final class IBEditorSession {
         return done
     }
 
-    /// Moves a view into another view (Document Outline drag).
     @discardableResult
     public func move(_ id: String, into parent: String) -> Bool {
         guard let next = try? document.moving(id, into: parent), commit(next) else { return false }
@@ -266,15 +213,12 @@ public final class IBEditorSession {
 
     public func setConstant(_ v: CGFloat, ofConstraint id: String) { apply { try $0.settingConstant(v, ofConstraint: id) } }
 
-    /// Adds constraints to the selected view. Returns the new IDs.
     @discardableResult
     public func addConstraints(_ spec: IBDocument.NewConstraints) -> [String] {
         guard let o = selected, let (next, ids) = try? document.addingConstraints(spec, to: o.id), commit(next) else { return [] }
         return ids
     }
 
-    /// The Add New Constraints values prefilled for the selected view: the
-    /// spacing to the nearest neighbor on each side, and its size.
     public var suggestedConstraints: (spacing: [IBDocument.Edge: (neighbor: String, value: CGFloat)], size: CGSize)? {
         guard let o = selected, o.parent?.isView == true, let f = o.frame else { return nil }
         var spacing: [IBDocument.Edge: (String, CGFloat)] = [:]
@@ -290,15 +234,12 @@ public final class IBEditorSession {
     public func setEnabled(_ b: Bool) { if let id = selectedID { apply { try $0.settingEnabled(b, of: id) } } }
     public func setAlignment(_ s: String) { if let id = selectedID { apply { try $0.settingAlignment(s, of: id) } } }
 
-    /// Writes an attribute (nil or empty removes); `initialViewController`
-    /// goes on the document element.
     public func setAttribute(_ name: String, _ value: String?, of id: String) {
         if name == "initialViewController" { apply { try $0.settingInitial(value) }; return }
         if name == "@segmentIndex" { inspectorSegment = value.flatMap(Int.init) ?? 0; revision += 1; return }
         apply { try $0.settingAttribute(name, value.flatMap { $0.isEmpty ? nil : $0 }, of: id) }
     }
 
-    /// A toggle row of an inspector section, switched on or off.
     public func setToggle(_ row: IBInspectorRow, on: Bool) {
         switch row {
         case .toggle(_, let target, let attr, _, let onValue, let offValue), .check(_, _, let target, let attr, _, let onValue, let offValue):
@@ -308,20 +249,16 @@ public final class IBEditorSession {
         }
     }
 
-    /// A choice row set to `value`; the first option is the default and is
-    /// written as removal.
     public func setChoice(_ row: IBInspectorRow, _ value: String) {
         switch row {
         case .choice(_, let target, let attr, let options, _): setAttribute(attr, value == options.first ? nil : value, of: target)
         case .popUp(_, let target, let attr, let values, let titles, _), .icons(_, let target, let attr, let values, let titles, _):
-            // `value` may be a stored value or its title.
             let v = values.contains(value) ? value : titles.firstIndex(of: value).map { values[$0] } ?? value
             setAttribute(attr, v, of: target)
         default: break
         }
     }
 
-    /// A colour pop-up set to a choice by title ("Default" removes the colour).
     public func setColor(_ row: IBInspectorRow, _ title: String) {
         guard case .color(_, let target, let key, _) = row else { return }
         apply { try $0.settingColor(title, key: key, of: target) }
@@ -332,7 +269,6 @@ public final class IBEditorSession {
         apply { try $0.addingRuntimeAttribute(.init(keyPath: keyPath, type: type, value: value), to: id) }
     }
 
-    /// The next free default key path for the + of User Defined Runtime Attributes.
     public var nextRuntimeKeyPath: String {
         let n = document.runtimeAttributes(of: selectedID ?? "").count
         return n == 0 ? "keyPath" : "keyPath\(n + 1)"
@@ -343,15 +279,8 @@ public final class IBEditorSession {
         apply { try $0.removingRuntimeAttribute(keyPath, of: id) }
     }
 
-    /// The × on a connected outlet's capsule.
     public func disconnect(_ connectionID: String) { apply { try $0.removingConnection(connectionID) } }
 
-    /// Inserts a Library object. A view goes into the view under a canvas
-    /// point (or the selected view, else the first root view), centered on
-    /// the point, at its default size (bars take the parent's width); a
-    /// cell's or effect view's content view takes it in their place. Other
-    /// kinds go next to the selection (`IBInserting.swift`). Selects and
-    /// returns the new ID; nil when nothing can hold the object.
     @discardableResult
     public func insert(_ kind: IBDocument.NewObject, atCanvasPoint p: CGPoint? = nil) -> String? {
         let ios = document.isFlippedRuntime
@@ -376,7 +305,6 @@ public final class IBEditorSession {
         return id
     }
 
-    /// The selected object's inspector sections (`IBInspectorModel.swift`).
     public func inspectorSections(_ t: IBInspectorTab) -> [IBInspectorSection] {
         guard let o = selected else { return [] }
         switch t {
@@ -387,9 +315,6 @@ public final class IBEditorSession {
         }
     }
 
-    /// The Attributes inspector's Control rows for a view (§Layout): Title
-    /// (when the object has one), Placeholder (text fields), Alignment,
-    /// Enabled and Hidden.
     public var controlState: IBControlState? {
         guard let o = selected, o.isView, o.parent != nil else { return nil }
         let alignment = document.alignment(of: o.id) ?? (["textField", "label"].contains(o.element) ? "natural" : nil)
@@ -399,9 +324,7 @@ public final class IBEditorSession {
     }
 }
 
-/// What the Attributes inspector's Control block shows for a view.
 public struct IBControlState: Equatable, Sendable {
-    /// Alignment pop-up choices, in menu order (`interface-builder.md` §Layout).
     public static let alignments = ["left", "center", "right", "justified", "natural"]
     public var title: String?
     public var placeholder: String?

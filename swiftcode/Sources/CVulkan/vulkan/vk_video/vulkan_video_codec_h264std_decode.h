@@ -1,25 +1,10 @@
 #ifndef VULKAN_VIDEO_CODEC_H264STD_DECODE_H_
 #define VULKAN_VIDEO_CODEC_H264STD_DECODE_H_ 1
 
-/*
-** Copyright 2015-2024 The Khronos Group Inc.
-**
-** SPDX-License-Identifier: Apache-2.0
-*/
-
-/*
-** This header is generated from the Khronos Vulkan XML API Registry.
-**
-*/
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-
-// vulkan_video_codec_h264std_decode is a preprocessor guard. Do not pass it to API calls.
 #define vulkan_video_codec_h264std_decode 1
 #include "vulkan_video_codec_h264std.h"
 
@@ -68,7 +53,6 @@ typedef struct StdVideoDecodeH264ReferenceInfo {
     uint16_t                                reserved;
     int32_t                                 PicOrderCnt[STD_VIDEO_DECODE_H264_FIELD_ORDER_COUNT_LIST_SIZE];
 } StdVideoDecodeH264ReferenceInfo;
-
 
 #ifdef __cplusplus
 }

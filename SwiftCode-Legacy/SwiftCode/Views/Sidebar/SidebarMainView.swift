@@ -8,10 +8,6 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
     case agent = "bubble.left.and.exclamationmark.bubble.right.fill"
     case workflows = "square.stack.3d.down.right"
     case terminal = "terminal"
-    // No extensions case: Extensions no longer lives in the
-    // workspace sidebar. It opens from the code-editor toolbar
-    // (WorkspaceView, next to the Assist button) as its own sheet,
-    // so it gets full width instead of a squeezed sidebar column.
 
     var id: String { rawValue }
 
@@ -35,7 +31,6 @@ struct SidebarMainView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Icon Sidebar (Visual Sidebar)
             VStack(spacing: 12) {
                 ForEach(MainSidebarItem.allCases) { item in
                     Button(action: { selectedItem = item }) {
@@ -73,7 +68,6 @@ struct SidebarMainView: View {
 
             Divider()
 
-            // Content View (Actual Navigation Column Content)
             VStack(spacing: 0) {
                 HStack {
                     Text(selectedItem.title)

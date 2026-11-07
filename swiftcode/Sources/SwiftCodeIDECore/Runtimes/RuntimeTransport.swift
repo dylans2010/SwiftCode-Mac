@@ -1,21 +1,10 @@
-// HTTP for route B (`runtime-downloads.md` §1, §4, §6.2): the index GET with
-// its ETag, the asset query POST, and the payload download, resumable with an
-// HTTP range. `CurlTransport` runs the system's curl as a separate program on
-// macOS and Linux alike: it resumes into the partial file, its TLS store is
-// the system's, and the asset service's Apple root is given to it explicitly
-// (`RuntimeTrust`). Tests answer with stand-ins. Errors, keys and the
-// key-scrubbing rule live here too.
-
 import Foundation
 
-/// What went wrong, in words for the user (already scrubbed of keys).
 public enum RuntimeDownloadError: Error, Equatable, Sendable, CustomStringConvertible {
     case badIndex(String)
     case noRuntime(String)
-    /// A legacy entry behind Apple's developer sign-in (§6.4: never automated).
     case needsSignIn(String)
     case network(String)
-    /// The asset service would not answer this computer (§4.1 O1).
     case refused(String)
     case noAsset(String)
     case untrusted(String)
@@ -50,7 +39,6 @@ public enum RuntimeDownloadError: Error, Equatable, Sendable, CustomStringConver
         }
     }
 
-    /// Whether Retry can help.
     public var isRetryable: Bool {
         switch self {
         case .noRuntime, .needsSignIn, .refused, .noAsset, .decryptor: false
@@ -59,9 +47,6 @@ public enum RuntimeDownloadError: Error, Equatable, Sendable, CustomStringConver
     }
 }
 
-/// The archive's decryption key from the asset record (§4.2). It prints as
-/// "<redacted>" everywhere; `RuntimeSecrets` scrubs its text forms from
-/// anything shown or logged. Never written to disk, never on a command line.
 public struct RuntimeArchiveKey: Sendable, Equatable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
     public let bytes: [UInt8]
 
@@ -76,7 +61,6 @@ public struct RuntimeArchiveKey: Sendable, Equatable, CustomStringConvertible, C
     public var debugDescription: String { "<redacted>" }
     public var customMirror: Mirror { Mirror(self, children: [:]) }
 
-    /// The forms the key can take in text.
     var textForms: [String] {
         let b64 = Data(bytes).base64EncodedString()
         let url = b64.replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
@@ -86,21 +70,17 @@ public struct RuntimeArchiveKey: Sendable, Equatable, CustomStringConvertible, C
             let bare = f.replacingOccurrences(of: "=", with: "")
             if bare != f { forms.append(bare) }
         }
-        // JSON escapes a slash as "\/".
         if b64.contains("/") { forms.append(b64.replacingOccurrences(of: "/", with: "\\/")) }
         return forms
     }
 
-    /// The key as hex, for the decryptor's standard input only.
     var hexForStandardInput: String { bytes.map { String(format: "%02x", $0) }.joined() }
 }
 
-/// Removes every key SwiftCode holds from text before it is shown or logged.
 public enum RuntimeSecrets {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var keys: [RuntimeArchiveKey] = []
 
-    /// A key in use; scrubbed from all text until `forget`.
     public static func register(_ k: RuntimeArchiveKey) { lock.withLock { if !keys.contains(k) { keys.append(k) } } }
     public static func forget(_ k: RuntimeArchiveKey) { lock.withLock { keys.removeAll { $0 == k } } }
 
@@ -111,13 +91,11 @@ public enum RuntimeSecrets {
                 out = out.replacingOccurrences(of: form, with: "<redacted>")
             }
         }
-        // A key field whatever its value (a JSON or plist line that names it).
         out = out.replacingOccurrences(of: #"("?ArchiveDecryptionKey"?\s*[:=]\s*"?)[^",\s<}]+"#, with: "$1<redacted>", options: .regularExpression)
         return out
     }
 }
 
-/// One HTTP answer.
 public struct RuntimeHTTPResponse: Sendable {
     public var status: Int
     public var body: Data
@@ -129,7 +107,6 @@ public struct RuntimeHTTPResponse: Sendable {
     }
 }
 
-/// Stops a long step: the download, the decryption, the disk-image reader.
 public final class RuntimeCancellation: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
@@ -146,7 +123,6 @@ public final class RuntimeCancellation: @unchecked Sendable {
         for h in hs { h() }
     }
 
-    /// Runs `h` on cancel (at once when already cancelled); the token removes it.
     @discardableResult
     func onCancel(_ h: @escaping @Sendable () -> Void) -> UUID {
         let id = UUID()
@@ -165,17 +141,11 @@ public final class RuntimeCancellation: @unchecked Sendable {
 }
 
 public protocol RuntimeTransport: Sendable {
-    /// A GET (conditional when `etag` is given: 304 means unchanged).
     func get(_ url: URL, etag: String?) async throws -> RuntimeHTTPResponse
-    /// A JSON POST; `caFile` is the one root certificate (PEM) the server must chain to.
     func post(_ url: URL, json: Data, headers: [String: String], caFile: String?) async throws -> RuntimeHTTPResponse
-    /// Appends the bytes from `offset` to the file (an HTTP range when
-    /// `offset` > 0). Returns when the transfer ends; the file keeps what
-    /// arrived, so a later call resumes.
     func download(_ url: URL, to file: String, from offset: Int64, cancel: RuntimeCancellation) async throws
 }
 
-/// The system's curl, as a separate program.
 public struct CurlTransport: RuntimeTransport {
     public var curl: String
     public var userAgent: String
@@ -231,9 +201,6 @@ public struct CurlTransport: RuntimeTransport {
     public func download(_ url: URL, to file: String, from offset: Int64, cancel: RuntimeCancellation) async throws {
         try cancel.check()
         if offset == 0 { FileManager.default.createFile(atPath: file, contents: nil) }
-        // -C appends to the file from `offset`; -f fails on an HTTP error; a
-        // server that ignores the range makes curl stop (33) rather than
-        // append the whole file again.
         let args = [curl, "-sS", "-f", "-L", "-A", userAgent, "--retry", "2", "--speed-limit", "1024", "--speed-time", "60",
                     "-C", String(offset), "-o", file, url.absoluteString]
         let p = SetupProcess(args)
@@ -247,7 +214,6 @@ public struct CurlTransport: RuntimeTransport {
         }
     }
 
-    /// The last value of a header in a dump (redirects leave several blocks).
     static func header(_ name: String, in dump: String) -> String? {
         var found: String?
         for line in dump.split(whereSeparator: \.isNewline) {

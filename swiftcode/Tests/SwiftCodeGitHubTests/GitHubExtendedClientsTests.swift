@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeGitHub
 
-// Fixtures are synthetic: made-up gists, releases, notifications and
-// comments. No real token is used anywhere; the stub token is a
-// placeholder. The `StubURLProtocol` / `json` / `ok` helpers live in
-// `GitHubClientTests.swift` in this same target.
-
 private func stubSession(
     handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)
 ) -> URLSession {

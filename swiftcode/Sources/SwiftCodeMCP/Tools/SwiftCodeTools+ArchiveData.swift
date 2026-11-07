@@ -2,93 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy archive and data tool families (Wave 5,
-/// slice: Archive + Data).
-///
-/// Behaviour source: Legacy's `AssistZipFileTool`,
-/// `AssistUnzipFileTool`, `AssistTarArchiveCreateTool`,
-/// `AssistTarArchiveExtractTool`, `AssistGzipCompressTool`,
-/// `AssistGzipDecompressTool` (`AssistArchiveTools.swift`),
-/// `AssistBinaryPlistConverterTool`
-/// (`AssistBinaryPlistConverterTool.swift`),
-/// `AssistJsonValidateTool` (`AssistJsonValidateTool.swift`),
-/// `AssistJSONValidatorTool` (`AssistJSONValidatorTool.swift`),
-/// `AssistYAMLParserTool` (`AssistYAMLParserTool.swift`) and
-/// `AssistYamlValidateTool` (`AssistYamlValidateTool.swift`) —
-/// Dylan's own code, ported under MIT. See
-/// `specs/ide/assist-artboards-media-tools.md` (Part B).
-///
-/// Conventions, following Waves 1–4:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases (`source`, `sourcePath`,
-///   `destinationPath`, `dest`, `archive`, `archivePath`) are NOT
-///   supported: SwiftCode's argument validation rejects unknown
-///   arguments before the handler runs (same as Waves 1–2).
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers and booleans) the way SwiftCode's other tools do —
-///   Legacy's string-only map is not reproduced. Tools whose
-///   Legacy result carries no data return a plain text result.
-/// * Path resolution: every tool here uses the strict
-///   `resolveFileWritingPath` (trim; reject empty, NUL, a leading
-///   `~` and any `..`; plain relative paths resolve against the
-///   workspace root, never the session directory) — the same
-///   shape as Legacy's archive resolver and the private
-///   resolvers of `json_validate` / `yaml_validate`. (Legacy's
-///   `json_validator_tool`, `yaml_parser_tool` and
-///   `binary_plist_converter` resolved against the workspace root
-///   with no confinement at all — absolute paths anywhere were
-///   accepted. The port confines them to the workspace; see
-///   "Deliberate deviations".) No path is ever allowed to escape
-///   the workspace.
-/// * Approval gating: every writing handler gates BEFORE touching
-///   disk. Archive subprocesses and binary writes go through
-///   `approveFileWritingChange` (the Wave 2 helper); text writes
-///   (`json_validate` / `json_validator_tool` /
-///   `yaml_validate` format-with-write) go through `commit()`.
-///   `MCPServer.run` already refuses `writes: true` tools when
-///   the server is read-only; the approval call is still
-///   required. There is no Autopilot bypass.
-/// * Subprocesses are fixed argument vectors, never a shell.
-///   `tar` and `gzip` run `/usr/bin/tar` and `/usr/bin/gzip` on
-///   both platforms, with Legacy's argv verbatim. `zip` /
-///   `unzip` run Legacy's `/usr/bin/ditto` on macOS and the
-///   system `zip` / `unzip` tools on Linux (see below).
-///   `binary_plist_converter` does NOT shell out to `plutil`
-///   (macOS-only, and absent on Linux): it round-trips through
-///   `PropertyListSerialization`, which reads and writes both
-///   XML and binary plists on every platform.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `zip_file` / `unzip_file` on Linux use `/usr/bin/zip -r`
-///   and `/usr/bin/unzip -q -o` instead of `/usr/bin/ditto`,
-///   which does not exist on Linux. The failure messages name
-///   `zip` / `unzip` instead of `ditto` on Linux. When neither
-///   `zip` nor `unzip` is installed, the tool fails honestly
-///   naming the missing command instead of faking an archive.
-///   `ditto`'s `--sequesterRsrc` resource-fork handling has no
-///   Linux equivalent and is not reproduced there.
-/// * `binary_plist_converter` uses `PropertyListSerialization`
-///   instead of `plutil -convert`. The observable result is the
-///   same for valid plists (the file is rewritten in the target
-///   format); the `format` argument is validated explicitly
-///   (`xml1` / `binary1` only) instead of being passed through
-///   to `plutil`, and the write is approval-gated (Legacy
-///   converted in place with no gate).
-/// * `json_validator_tool` and `yaml_parser_tool` gain the
-///   workspace confinement Legacy lacked (see above).
-/// * `json_validate`, `json_validator_tool` and `yaml_validate`
-///   are registered `writes: true` (Legacy risk `safeMutation`),
-///   following the Wave 2 precedent for conditional writers
-///   (`batch_rename_files` dry-run, `regex_replace_in_files`
-///   dry-run): a read-only server refuses even a validate-only
-///   call. The write itself is additionally approval-gated.
-/// * `yaml_validate`'s `format` normalizes indentation to 2
-///   spaces per level exactly like Legacy; it does not reflow
-///   or re-quote values, because Legacy's formatter does not
-///   either.
 extension SwiftCodeMCPHost {
     var archiveTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -210,11 +123,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: - Archive subprocess helpers
-
-    /// Runs a fixed-argv subprocess off the main actor (the
-    /// runner blocks on its pipes), with a 120-second timeout.
-    /// `nil` when the process cannot start at all.
     func archiveRunFixed(_ executable: String, _ args: [String],
                          workingDirectory: URL? = nil) async -> TerminalFixedRun? {
         (await Task.detached {
@@ -222,10 +130,6 @@ extension SwiftCodeMCPHost {
         }.value)
     }
 
-    /// Like `archiveRunFixed`, but captures stdout as raw `Data`
-    /// (gzip's `-c` output is a binary payload, and decoding it
-    /// as UTF-8 would corrupt it). Returns the exit code, the raw
-    /// stdout bytes, stderr text, and whether the run timed out.
     nonisolated static func archiveRunCapturingData(_ executable: String, _ args: [String],
                                                     timeout: TimeInterval = 120) -> (exitCode: Int32, stdout: Data, stderr: String, timedOut: Bool)? {
         let p = Process()
@@ -236,9 +140,6 @@ extension SwiftCodeMCPHost {
         p.standardError = errPipe
         p.standardInput = FileHandle.nullDevice
         do { try p.run() } catch { return nil }
-        // stderr on its own thread: reading the two pipes one after
-        // the other deadlocks when the child fills the second one
-        // first (the `terminalRunFixed` shape).
         final class Box: @unchecked Sendable { var data = Data() }
         let errBox = Box()
         let group = DispatchGroup()
@@ -257,19 +158,14 @@ extension SwiftCodeMCPHost {
         return (p.terminationStatus, outData, String(decoding: errBox.data, as: UTF8.self), timedOut.value)
     }
 
-    /// The size of a file in bytes (0 when it cannot be read).
     nonisolated static func archiveFileSize(of url: URL) -> Int {
         Int((try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0)
     }
 
-    /// The top-level item count of a directory (0 when it cannot
-    /// be listed) — Legacy's `extractedCount`.
     nonisolated static func archiveTopLevelCount(of url: URL) -> Int {
         (try? FileManager.default.contentsOfDirectory(atPath: url.path))?.count ?? 0
     }
 
-    /// Creates a directory (with parents) after approval, or
-    /// throws the Legacy-shaped failure.
     func archiveCreateDirectory(_ url: URL, what: String) throws {
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -279,11 +175,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Archive handlers
-
 extension SwiftCodeMCPHost {
-    /// `zip_file`: ditto on macOS (Legacy verbatim); the system
-    /// `zip` tool on Linux, where ditto does not exist.
     func zipFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceRaw = try fileReadingRequiredString(call, "path")
@@ -315,9 +207,6 @@ extension SwiftCodeMCPHost {
         guard FileManager.default.isExecutableFile(atPath: "/usr/bin/zip") else {
             throw MCPToolError("zip_file needs the `zip` command-line tool, which is not installed on this system.")
         }
-        // `zip -r` runs with the source's parent as its working
-        // directory so the archive holds the item's own name, the
-        // way ditto's archive does.
         guard let run = await archiveRunFixed("/usr/bin/zip",
                                               ["-r", "-q", destURL.path, sourceURL.lastPathComponent],
                                               workingDirectory: sourceURL.deletingLastPathComponent()) else {
@@ -336,8 +225,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully compressed `\(sourceRaw)` into `\(destRaw)` (\(size) bytes).")
     }
 
-    /// `unzip_file`: ditto on macOS (Legacy verbatim); the system
-    /// `unzip` tool on Linux, where ditto does not exist.
     func unzipFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceRaw = try fileReadingRequiredString(call, "path")
@@ -385,9 +272,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully extracted `\(sourceRaw)` into `\(destRaw)` (\(count) extracted items).")
     }
 
-    /// `tar_archive_create`: system tar, Legacy's argv verbatim
-    /// (`-czf`/`-cf` + `-C` parent + item name). The gzip flag
-    /// defaults to true for `.tar.gz` / `.tgz` destinations.
     func tarArchiveCreate(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceRaw = try fileReadingRequiredString(call, "path")
@@ -424,8 +308,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully created tar archive `\(destRaw)` (\(size) bytes).")
     }
 
-    /// `tar_archive_extract`: system tar, Legacy's argv verbatim
-    /// (`-xf` archive `-C` destination).
     func tarArchiveExtract(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceRaw = try fileReadingRequiredString(call, "path")
@@ -458,9 +340,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully extracted archive `\(sourceRaw)` into `\(destRaw)` (\(count) extracted items).")
     }
 
-    /// `gzip_compress_file`: `gzip -c -k -f`, capturing the
-    /// compressed bytes from stdout and writing them to the
-    /// destination (default `<path>.gz`).
     func gzipCompressFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceRaw = try fileReadingRequiredString(call, "path")
@@ -499,10 +378,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully compressed `\(sourceRaw)` to `\(destRaw)` (\(run.stdout.count) bytes).")
     }
 
-    /// `gzip_decompress_file`: `gzip -d -c -k -f`, capturing the
-    /// decompressed bytes from stdout and writing them to the
-    /// destination (default: the `.gz` suffix removed, or
-    /// `<path>.decompressed` when there is none).
     func gzipDecompressFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceRaw = try fileReadingRequiredString(call, "path")
@@ -548,14 +423,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Data handlers
-
 extension SwiftCodeMCPHost {
-    /// `binary_plist_converter`: reads the plist (XML or binary)
-    /// and rewrites it in the target format with
-    /// `PropertyListSerialization` — no `plutil` subprocess, so
-    /// this works on Linux too. The write is approval-gated;
-    /// Legacy converted in place with no gate.
     func convertBinaryPlist(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -600,10 +468,6 @@ extension SwiftCodeMCPHost {
         return .text("Successfully converted `\(raw)` to \(format) format.")
     }
 
-    /// `json_validate`: validates, and on `format` returns a
-    /// pretty-printed sorted-keys preview — writing it back only
-    /// when `write` is true (Legacy's `write` is the string
-    /// `"true"`; a JSON boolean is accepted too).
     func validateJson(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -656,10 +520,6 @@ extension SwiftCodeMCPHost {
                            summary: "Valid JSON in \(rel). Formatted preview returned without writing.")
     }
 
-    /// `json_validator_tool`: validates (no fragments allowed,
-    /// unlike `json_validate`), reports the top-level type, and
-    /// on `formatInPlace` rewrites the file pretty-printed with
-    /// sorted keys.
     func validateJsonTool(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -696,8 +556,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// `yaml_parser_tool`: Legacy's tab check + key listing,
-    /// reported as Markdown. Read-only; no data keys.
     func parseYaml(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -741,13 +599,6 @@ extension SwiftCodeMCPHost {
         return .text(report)
     }
 
-    /// `yaml_validate`: Legacy's heuristic validation (tab
-    /// indentation, unbalanced brackets/quotes, duplicate
-    /// top-level keys, mapping lines without a colon) and its
-    /// 2-spaces-per-level formatter. Writes back only when
-    /// `write` is true and validation passes. There is no full
-    /// YAML parser in SwiftCode — the heuristic IS Legacy's
-    /// behaviour, ported verbatim.
     func validateYaml(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -797,8 +648,6 @@ extension SwiftCodeMCPHost {
                            summary: "YAML validation passed (heuristic — no full YAML parser) in \(rel). Formatted preview returned without writing.")
     }
 
-    /// Legacy's `boolValue`: a JSON boolean, or the strings
-    /// `"true"` / `"1"` / `"yes"` (case-insensitive).
     nonisolated static func dataBoolValue(_ value: AnyJSON?) -> Bool {
         if let b = value?.bool { return b }
         if let s = value?.string {
@@ -809,14 +658,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Legacy's YAML heuristic (ported verbatim)
-
 extension SwiftCodeMCPHost {
-    /// Legacy `AssistYamlValidateTool.validateYAML`: tab
-    /// indentation, unbalanced quotes/brackets (quote-aware,
-    /// comment-aware, block-scalar-aware), duplicate top-level
-    /// keys, and mapping lines without a colon. Document markers
-    /// (`---` / `...`) reset the top-level key set.
     nonisolated static func dataValidateYAML(_ text: String) -> [String] {
         var errors: [String] = []
         let rawLines = text.components(separatedBy: "\n")
@@ -959,8 +801,6 @@ extension SwiftCodeMCPHost {
         return errors
     }
 
-    /// Legacy `AssistYamlValidateTool.isBlockScalarHeader`: a
-    /// mapping value (or list item) starting with `|` or `>`.
     nonisolated static func dataIsBlockScalarHeader(_ stripped: String, isListItem: Bool) -> Bool {
         let content: String
         if isListItem {
@@ -975,11 +815,6 @@ extension SwiftCodeMCPHost {
         return true
     }
 
-    /// Legacy `AssistYamlValidateTool.formatYAML`: re-indents to
-    /// 2 spaces per level (the step is the file's smallest
-    /// positive indent when it is at least 2, else 2). Block
-    /// scalar bodies keep their original indentation; blank
-    /// lines stay blank.
     nonisolated static func dataFormatYAML(_ text: String) -> String {
         let rawLines = text.components(separatedBy: "\n")
         let lines = rawLines.map { $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }

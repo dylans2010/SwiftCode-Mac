@@ -4,9 +4,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// A package with an XCTest class and a Swift Testing suite, and a stand-in
-/// for `swift` that prints a test run's output (Linux forms) and records
-/// its arguments.
 struct TestPackage {
     let pkg: TempPackage
     var url: URL { pkg.url }
@@ -95,10 +92,8 @@ struct TestPackage {
         #expect(rows.map(\.title).contains("GreetingXCTests"))
         #expect(rows.map(\.title).contains("GreetingSwiftTests"))
         #expect(rows.map(\.title).contains("testGreetsAll()"))
-        // The free function test sits under its target, without a suite.
         let free = try #require(rows.first { $0.title == "greets()" })
         #expect(free.level == 2)
-        // Before a run every diamond is outlined.
         #expect(Set(rows.compactMap(\.trailingSymbol)) == ["diamond"])
     }
 
@@ -119,18 +114,15 @@ struct TestPackage {
         #expect(status("greetsEveryone") == .failed)
         #expect(t.rows.first { $0.title == "GreetingXCTests" }?.trailingSymbol == "xmark.diamond.fill")
         #expect(t.rows.first { $0.title == "testGreets()" }?.trailingTint == .success)
-        // Failures are issues at their lines, with whole paths.
         let issues = m.allIssues.filter { $0.severity == .error }
         let xc = p.path("Tests/DemoCoreTests/GreetingXCTests.swift"), st = p.path("Tests/DemoCoreTests/GreetingSwiftTests.swift")
         #expect(issues.contains { $0.file == xc && $0.line == 10 && $0.message.hasPrefix("XCTAssertEqual failed") })
         #expect(issues.contains { $0.file == st && $0.line == 9 })
-        // The gutter: a red diamond on the failing test and its suite.
         m.open(xc)
         let lines = m.testDiamonds
         #expect(lines[5] == .some(.passed))
         #expect(lines[9] == .some(.failed))
         #expect(lines[4] == .some(.failed))
-        // The run is in the Report navigator, with its Tests page.
         let reportRow = try #require(t.reportRows.first { $0.id.hasPrefix("report:") })
         t.selectReport(reportRow.id)
         #expect(t.shownReport?.page == "Tests")
@@ -138,7 +130,6 @@ struct TestPackage {
         #expect(TestShellModel.summary(report) == "2 passed, 2 failed")
         #expect(TestShellModel.reportTests(report).first?.status == .failed)
         #expect(t.reportRows.contains { $0.title == "Tests" && $0.trailing == "2" })
-        // Opening a file hides the report.
         m.open(st)
         #expect(t.shownReport == nil)
         #expect(m.isEnabled(.testAgain))
@@ -154,16 +145,13 @@ struct TestPackage {
         var args = try String(contentsOf: p.argsFile, encoding: .utf8)
         #expect(args.contains("test --filter GreetingXCTests.testGreets\\b"))
         #expect(!args.contains("testGreetsAll"))
-        // Only the test that ran has a result.
         #expect(t.results.count == 1)
-        // A suite's declaration line runs its tests.
         m.open(p.path("Tests/DemoCoreTests/GreetingSwiftTests.swift"))
         #expect(m.session.testsForDiamond(file: p.path("Tests/DemoCoreTests/GreetingSwiftTests.swift"), line: 3).count == 2)
         let suite = try #require(t.rows.first { $0.title == "GreetingSwiftTests" })
         _ = await m.runTests(t.tests(forRow: suite.id))
         args = try String(contentsOf: p.argsFile, encoding: .utf8)
         #expect(args.contains("--filter GreetingSwiftTests.greetsByName\\b --filter GreetingSwiftTests.greetsEveryone\\b"))
-        // Test Again repeats the last selection.
         await m.testAgain()
         #expect(try String(contentsOf: p.argsFile, encoding: .utf8) == args)
     }

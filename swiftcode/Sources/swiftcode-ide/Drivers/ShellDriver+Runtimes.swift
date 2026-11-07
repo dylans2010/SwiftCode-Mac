@@ -6,16 +6,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_RUNTIME_WALK=<prefix>: the simulator runtime wizard, every step
-// and state, photographed as <prefix>-runtime-<n>-<state>.png. The host is
-// SWIFTCODE_IDE_RUNTIME_HOST (ssh destination), SWIFTCODE_IDE_RUNTIME_DATA (its
-// data folder) and SWIFTCODE_IDE_RUNTIME_CONFIG (simhost.env's folder);
-// SWIFTCODE_IDE_RUNTIME_SSH replaces ssh and SWIFTCODE_IDE_RUNTIME_RSYNC rsync (a
-// loopback ssh that runs the command on
-// this machine lets one computer play the host); SWIFTCODE_IDE_RUNTIME_FAKE is
-// a runtime bundle to copy, stop, resume and remove. Without a host only the
-// steps of this computer are taken. The wizard's choices go to a throwaway
-// defaults domain.
 extension ShellDriver {
     #if os(Linux)
     static func runtimeWalk(_ app: ShellAppModel, prefix: String) async {
@@ -29,7 +19,6 @@ extension ShellDriver {
             var t = 0.0
             while (s.isChecking || s.running != nil) && t < limit { await pause(0.2); t += 0.2 }
         }
-        // With a project open: the destinations of a paired host that is offline.
         if let w = app.workspace {
             say("runtime destinations: \(w.destinations.map(\.name))")
             await click("tb destination")
@@ -68,7 +57,6 @@ extension ShellDriver {
         var host = RuntimeHostSettings(destination: dest, dataDirectory: data)
         host.configDirectory = env["SWIFTCODE_IDE_RUNTIME_CONFIG"] ?? ""
         s.show(.host)
-        // A host that does not answer: its rows are unknown, with the reason.
         let realSSH = s.ssh
         s.ssh = "/usr/bin/ssh"
         s.setHost(RuntimeHostSettings(destination: "nobody@192.0.2.1", dataDirectory: data))
@@ -134,10 +122,6 @@ extension ShellDriver {
         OpenViewsAutomation.terminate()
     }
 
-    /// The paged assistant (`liquid-glass-swiftcode.md` §11): Back hidden on the
-    /// first step, the dots (count, state, a click jumps), Continue and Back
-    /// (a frame 0.1 s into each page change; with `OV_REDUCE_MOTION=1` the
-    /// crossfade's), and the header's centring.
     static func pagedAssistant(_ s: RuntimeSetupSession, prefix: String, shot: (String) async -> Void) async {
         s.show(.target)
         await pause(0.6)
@@ -147,7 +131,6 @@ extension ShellDriver {
             + "title centre=\(frame("runtime title").map { "\($0.midX)" } ?? "-") glyph=\(frame("runtime glyph").map { "\($0)" } ?? "-") "
             + "continue=\(frame("runtime continue").map { "\($0)" } ?? "-")")
         say("assistant: states=\(s.steps.map { RuntimeSetupSheet.stateWords(s.state(of: $0)) }) dot frames=\(dots.map { "\(Int($0.midX))" })")
-        // Mid-page-change frames: clicked without the driver's usual pause.
         func press(_ name: String) async {
             guard let f = frame(name) else { say("no target \(name)"); return }
             await OpenViewsAutomation.click(at: CGPoint(x: f.midX, y: f.midY))

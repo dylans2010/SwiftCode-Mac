@@ -1,5 +1,3 @@
-// Milestone A sample: file I/O through stdio and the raw descriptor calls
-// (specs/macos/macos-apps.md §9.1). SwiftCode's own test program.
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>

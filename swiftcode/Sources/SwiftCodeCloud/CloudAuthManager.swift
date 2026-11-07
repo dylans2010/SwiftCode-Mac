@@ -1,39 +1,10 @@
 import Foundation
 import SwiftCodeAssistant
 
-/// The sign-in state for the SwiftCode cloud account, ported from
-/// Legacy's `AuthManager` (`Services/Appwrite/AuthManager.swift`,
-/// 415 lines) onto the REST client.
-///
-/// Legacy talked to Appwrite through the Apple SDK (`Account`), which
-/// kept the session in its own cookie jar and opened OAuth in a web
-/// auth session. This manager keeps the same observable state and
-/// the same flows, but the transport is `AppwriteAccountClient` and
-/// the session secret lives in the secret store
-/// (`SecretAccount.appwriteSessionSecret`).
-///
-/// Differences from Legacy, all deliberate and recorded in
-/// `specs/ide/cloud-accounts.md`:
-/// - `deleteAccount` works: the REST API supports `DELETE /account`,
-///   where the SDK did not (Legacy always threw a 405).
-/// - `authError` carries the user-facing message
-///   (`AppwriteError.userFacingMessage`, Legacy's
-///   `CloudAuthViews.mapErrorToUserMessage` mapping), not the raw
-///   server text.
-/// - OAuth cannot complete until the app registers the
-///   `appwrite-callback-<project>` URL scheme and delivers callbacks
-///   to `handleOAuthCallback(_:)`; until then `beginOAuth` waits for
-///   a callback that never arrives and times out after 5 minutes
-///   instead of pretending the flow finished.
-/// - The SwiftCode id is generated with the system random-number
-///   generator instead of `SecRandomCopyBytes` (portable; the
-///   CryptoKit SHA-256 fallback Legacy had is unnecessary here).
 @MainActor
 public final class CloudAuthManager {
     public static let shared = CloudAuthManager()
 
-    /// How long `beginOAuth` waits for the app to deliver the
-    /// browser callback before giving up.
     public static let oauthTimeout: TimeInterval = 300
 
     public private(set) var currentUser: AppwriteUser?
@@ -55,9 +26,6 @@ public final class CloudAuthManager {
     ) {
         var client = client
         self.store = store
-        // Restore the persisted session secret into the client before
-        // wiring the change callback, so the initial set does not
-        // rewrite the store.
         client.sessionSecret = store.readString(SecretAccount.appwriteSessionSecret)
         client.onSessionSecretChanged = { [store] secret in
             if let secret {
@@ -69,13 +37,6 @@ public final class CloudAuthManager {
         self.client = client
     }
 
-    // MARK: - Session restoration
-
-    /// Restores the active Appwrite session when one exists. Reads
-    /// the stored session secret, fetches the account, and ensures a
-    /// `swiftcode_id` exists in the user's prefs — creating and
-    /// storing one when it does not. A failed restore clears all
-    /// local state (and the stored user id), exactly as Legacy did.
     public func restoreSession() async {
         isLoading = true
         authError = nil
@@ -93,8 +54,6 @@ public final class CloudAuthManager {
                 do {
                     _ = try await client.updatePrefs(["swiftcode_id": newID])
                 } catch {
-                    // Keep the id locally even when the prefs write
-                    // fails; Legacy logged and continued the same way.
                 }
             }
 
@@ -109,10 +68,6 @@ public final class CloudAuthManager {
         }
     }
 
-    // MARK: - Email and password authentication
-
-    /// Signs in with an email address and password, then restores the
-    /// session (which fetches the user and ensures `swiftcode_id`).
     public func login(email: String, password: SecureString) async throws {
         isLoading = true
         authError = nil
@@ -128,7 +83,6 @@ public final class CloudAuthManager {
         }
     }
 
-    /// Creates an account and signs in immediately afterward.
     public func createAccount(email: String, password: SecureString) async throws {
         isLoading = true
         authError = nil
@@ -143,25 +97,10 @@ public final class CloudAuthManager {
         }
     }
 
-    // MARK: - OAuth
-
-    /// The browser URL that starts an OAuth2 sign-in for `provider`.
-    /// The host opens it (see `beginOAuth`); the provider redirects
-    /// back to the `appwrite-callback-<project>://` scheme.
     public func oauthAuthorizeURL(for provider: AppwriteOAuthProvider) -> URL? {
         client.oauthAuthorizeURL(provider: provider)
     }
 
-    /// Starts a Google or GitHub OAuth sign-in: opens the authorize
-    /// URL in the browser and waits for the app to deliver the
-    /// callback to `handleOAuthCallback(_:)`.
-    ///
-    /// Honestly unavailable until the app registers the
-    /// `appwrite-callback-<project>` URL scheme and forwards opened
-    /// URLs here: without that plumbing the wait times out after
-    /// `oauthTimeout` (5 minutes) with
-    /// `.oauthCallbackTimeout` instead of ever completing. Never
-    /// fakes a completed OAuth flow.
     public func beginOAuth(
         provider: AppwriteOAuthProvider,
         openURL: @escaping @Sendable (URL) -> Bool
@@ -220,12 +159,6 @@ public final class CloudAuthManager {
         }
     }
 
-    /// Delivers a URL the app was opened with on the
-    /// `appwrite-callback-<project>` scheme. When a `beginOAuth`
-    /// wait is pending, the callback resumes it and this returns nil.
-    /// Otherwise the parsed callback is returned for the host to act
-    /// on (a recovery or verification link opened from an email).
-    /// Returns nil when the URL is not an Appwrite callback at all.
     @discardableResult
     public func handleOAuthCallback(_ url: URL) -> AppwriteOAuthCallback? {
         guard let callback = client.parseOAuthCallback(url) else { return nil }
@@ -238,9 +171,6 @@ public final class CloudAuthManager {
         return callback
     }
 
-    // MARK: - Password recovery
-
-    /// Requests a password reset email.
     public func forgotPassword(email: String) async throws {
         isLoading = true
         authError = nil
@@ -256,7 +186,6 @@ public final class CloudAuthManager {
         }
     }
 
-    /// Completes a password reset using the emailed recovery token.
     public func resetPassword(userId: String, secret: String, password: SecureString) async throws {
         isLoading = true
         authError = nil
@@ -271,9 +200,6 @@ public final class CloudAuthManager {
         }
     }
 
-    // MARK: - Email verification
-
-    /// Sends a verification email to the current user.
     public func sendVerificationEmail() async throws {
         do {
             let redirectURL = "\(client.configuration.callbackScheme)://verify"
@@ -283,8 +209,6 @@ public final class CloudAuthManager {
         }
     }
 
-    /// Completes email verification, then restores the session so the
-    /// verified state is visible.
     public func verifyEmail(userId: String, secret: String) async throws {
         do {
             try await client.updateVerification(userId: userId, secret: secret)
@@ -294,9 +218,6 @@ public final class CloudAuthManager {
         }
     }
 
-    // MARK: - Account management
-
-    /// Changes the authenticated user's email address.
     public func changeEmail(newEmail: String, password: SecureString) async throws {
         do {
             _ = try await client.updateEmail(email: newEmail, password: password.value())
@@ -306,7 +227,6 @@ public final class CloudAuthManager {
         }
     }
 
-    /// Changes the authenticated user's password.
     public func changePassword(oldPassword: SecureString, newPassword: SecureString) async throws {
         do {
             _ = try await client.updatePassword(password: newPassword.value(), oldPassword: oldPassword.value())
@@ -315,11 +235,6 @@ public final class CloudAuthManager {
         }
     }
 
-    /// Deletes the authenticated user's account. Unlike Legacy —
-    /// whose Apple SDK could not expose self-deletion, so
-    /// `deleteAccount` always threw a 405 — the REST API supports
-    /// `DELETE /account`, so this deletes for real and then clears
-    /// local state. Destructive and irreversible.
     public func deleteAccount() async throws {
         do {
             try await client.deleteAccount()
@@ -330,9 +245,6 @@ public final class CloudAuthManager {
         clearLocalState()
     }
 
-    /// Ends the active Appwrite session and clears local
-    /// authentication state. A server-side failure to end the session
-    /// does not stop the local sign-out, as in Legacy.
     public func logout() async {
         isLoading = true
         authError = nil
@@ -349,9 +261,6 @@ public final class CloudAuthManager {
         try? store.delete(SecretAccount.appwriteUserID)
     }
 
-    // MARK: - Stable database user ID
-
-    /// Generates a deterministic UUID from a string using SHA-256.
     public func deterministicUUID(from string: String) -> UUID {
         let hash = SHA256Digest.hash(Data(string.utf8))
         return UUID(uuid: (
@@ -362,8 +271,6 @@ public final class CloudAuthManager {
         ))
     }
 
-    /// Returns a deterministic UUID representing the current user's
-    /// database key.
     public func dbUserID(from swiftCodeID: String) -> UUID {
         let cleanID = swiftCodeID
             .replacingOccurrences(of: "sc_id=", with: "")
@@ -371,22 +278,11 @@ public final class CloudAuthManager {
         return deterministicUUID(from: cleanID)
     }
 
-    /// Compatibility entry point for existing callers.
-    ///
-    /// Remote profile synchronization was removed with the external
-    /// cloud-profile integration. The authoritative authentication
-    /// profile remains in Appwrite.
     @available(*, deprecated, message: "Remote profile synchronization is not configured.")
     public func syncUserProfile() async {
         guard currentUser != nil, swiftCodeID != nil else { return }
     }
 
-    // MARK: - SwiftCode ID generation
-
-    /// Generates a cryptographically secure SwiftCode ID:
-    /// `sc_id=` followed by 32 uppercase hex digits from 16 random
-    /// bytes. Legacy used `SecRandomCopyBytes`; the system random
-    /// number generator is the portable equivalent.
     private func generateSwiftCodeID() -> String {
         var generator = SystemRandomNumberGenerator()
         let bytes = (0..<16).map { _ in UInt8.random(in: 0...255, using: &generator) }

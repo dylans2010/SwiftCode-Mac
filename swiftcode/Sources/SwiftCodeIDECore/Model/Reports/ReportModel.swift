@@ -2,47 +2,29 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeXcodebuild
 
-// Testable models behind the Report navigator, the build log and the test
-// report pages. See `specs/ide/reference-ui-2.md` §4–§6.
-
-/// Where a report ran: the Report navigator's Local | Cloud switch.
 public enum ReportLocation: String, Sendable { case local = "Local", cloud = "Cloud" }
 
-/// What a report records.
 public enum ReportKind: String, Sendable {
     case build = "Build", clean = "Clean", test = "Test", analyze = "Analyze"
-    /// A package operation ("Resolve Packages", "Reload Package…").
     case package = "Package"
 }
 
 extension BuildReport {
-    /// The scheme the report belongs to (the container name without one).
     public var schemeName: String { context.scheme ?? context.containerName }
-    /// What the report records (build, test, package operation, …).
     public var kind: ReportKind { context.kind }
 }
 
-// MARK: - Report navigator (§4)
-
-/// The Report navigator's rows, grouping and filters
-/// (`specs/ide/reference-ui-2.md` §4).
 public enum ReportNavigatorModel {
-    /// The pages under a test run, in order.
     public static let testPages = ["Insights", "Coverage", "Tests", "Log", "Build"]
-    /// Reports younger than this count as recent (the clock toggle).
     public static let recentInterval: TimeInterval = 24 * 3600
 
     public struct Row: Equatable, Sendable {
         public var title: String
-        /// Secondary text: "Today, 3:46 AM" for runs, "84.0%" for Coverage.
         public var detail: String?
         public var symbol: String
         public var failed: Bool
-        /// The error badge at the right end.
         public var badge: String?
-        /// Index into the report list the rows were made from.
         public var index: Int
-        /// The page a child row opens; nil opens the report's default page.
         public var page: String?
         public var children: [Row] = []
     }
@@ -53,8 +35,6 @@ public enum ReportNavigatorModel {
         public var rows: [Row]
     }
 
-    /// Groups: one per scheme in order of their newest report, then
-    /// "Package"; rows newest first.
     public static func groups(_ reports: [BuildReport], location: ReportLocation = .local, recentOnly: Bool = false,
                               now: Date = Date(), dayAndTime: (Date) -> String = ReportFormat.dayAndTime) -> [Group] {
         let shown = reports.enumerated()
@@ -105,25 +85,19 @@ public enum ReportNavigatorModel {
         }
     }
 
-    /// The page a row opens: test runs open on Insights, others on the log.
     public static func defaultPage(_ r: BuildReport) -> String { r.kind == .test ? "Insights" : "Log" }
 }
-
-// MARK: - Build log (§5)
 
 public struct BuildLogStep: Equatable, Sendable {
     public var title: String
     public var duration: TimeInterval?
     public var issues: [Diagnostic] = []
     public var children: [BuildLogStep] = []
-    /// The raw lines (the transcript button).
     public var transcript: [String] = []
 
     public var errorCount: Int { issues.filter { $0.severity == .error }.count + children.reduce(0) { $0 + $1.errorCount } }
     public var warningCount: Int { issues.filter { $0.severity == .warning }.count + children.reduce(0) { $0 + $1.warningCount } }
-    /// Issue-count badge text, nil when clean.
     public var badge: String? { let n = errorCount + warningCount; return n > 0 ? "\(n)" : nil }
-    /// "Compiling main.swift  0.1 seconds".
     public var displayTitle: String { duration.map { "\(title)  \(ReportFormat.seconds($0)) seconds" } ?? title }
 }
 
@@ -133,12 +107,9 @@ public struct BuildLogSection: Equatable, Sendable {
     public var title: String { "Build target \(target)" }
 }
 
-/// The build log page: sections per target, nested steps, the message
-/// filter and the footer (`specs/ide/reference-ui-2.md` §5).
 public enum BuildLogModel {
     public enum Messages: Int, Sendable { case all = 0, issues = 1, errors = 2 }
 
-    /// "Project Demo | Configuration Debug | Destination My Mac | SDK macOS 27.2".
     public static func subtitle(_ c: ReportContext) -> String {
         var parts = ["\(c.containerKind) \(c.containerName)", "Configuration \(c.configuration)"]
         if !c.destination.isEmpty { parts.append("Destination \(c.destination)") }
@@ -146,7 +117,6 @@ public enum BuildLogModel {
         return parts.joined(separator: " | ")
     }
 
-    /// Footer line 1 and 2: "Build failed 10/17/26, 3:46 AM  2.0 seconds" / "1 error, 0 warnings".
     public static func footer(_ r: BuildReport) -> (String, String) {
         let verb = r.kind == .clean ? "Clean" : "Build"
         let first = "\(verb) \(r.succeeded ? "succeeded" : "failed") \(ReportFormat.footerDate(r.date))  \(ReportFormat.seconds(r.context.duration)) seconds"
@@ -154,11 +124,6 @@ public enum BuildLogModel {
         return (first, "\(e) error\(e == 1 ? "" : "s"), \(w) warning\(w == 1 ? "" : "s")")
     }
 
-    /// Splits a log into target sections of group steps, each holding its
-    /// task, which holds the task's issues. Reads SwiftPM (`[3/7] Compiling
-    /// Mod a.swift`, `Linking Tool`) and xcodebuild (`CompileSwift … (in
-    /// target 'T' from project 'P')`) forms; other lines join the current
-    /// task's transcript. Issues without a task go to an "Issues" step.
     public static func sections(_ r: BuildReport) -> [BuildLogSection] {
         let fallback = r.context.scheme ?? r.context.containerName
         var sections: [BuildLogSection] = []
@@ -168,10 +133,6 @@ public enum BuildLogModel {
             sections.append(BuildLogSection(target: target, steps: []))
             return sections.count - 1
         }
-        // Durations: a step runs from its task line to the next task line
-        // (or the end of the operation), from the lines' arrival times.
-        // Neither SwiftPM nor xcodebuild prints per-task times, so this is
-        // the time the log shows the step as current.
         let times = r.context.logTimes.count == r.log.count ? r.context.logTimes : nil
         var open: (section: Int, step: Int, start: TimeInterval)?
         func close(at end: TimeInterval) {
@@ -184,7 +145,6 @@ public enum BuildLogModel {
         for (index, line) in r.log.enumerated() {
             if let d = DiagnosticParser.parseLine(line), d.severity != .note {
                 let file = d.location.map { URL(fileURLWithPath: $0.file).lastPathComponent }
-                // The task that compiled the file, else the current one.
                 var at: (Int, Int)?
                 if let file {
                     outer: for (si, s) in sections.enumerated() {
@@ -203,9 +163,6 @@ public enum BuildLogModel {
             }
             if let (target, group, task, duration) = task(line, isPackage: r.context.containerKind == "Package") {
                 let si = section(target)
-                // swift-build's progress lines ("[19 / 23] Greeter-product")
-                // repeat one task: one step, with every line in its
-                // transcript; issues after them are not that task's.
                 if Self.isProgressLine(line) {
                     if let ti = sections[si].steps.firstIndex(where: { $0.title == group }) {
                         sections[si].steps[ti].children[0].transcript.append(line)
@@ -236,9 +193,6 @@ public enum BuildLogModel {
         return sections
     }
 
-    /// The "All" scope: this build's sections, then the carried-over steps
-    /// it did not run again (matched by title within a target), in their
-    /// targets' sections.
     public static func merge(_ recent: [BuildLogSection], _ carried: [BuildLogSection]) -> [BuildLogSection] {
         var out = recent
         for c in carried {
@@ -252,8 +206,6 @@ public enum BuildLogModel {
         return out.filter { !$0.steps.isEmpty || out.count == 1 }
     }
 
-    /// The steps a new build of the same scheme carries over from `previous`
-    /// (its own and those it carried), less the ones `current` ran.
     public static func carriedOver(from previous: BuildReport, into current: BuildReport) -> [BuildLogSection] {
         let all = merge(sections(previous), previous.context.carriedOver)
         let now = sections(current)
@@ -264,25 +216,18 @@ public enum BuildLogModel {
         }
     }
 
-    /// A swift-build progress line: "[19 / 23] <target>" (spaces round the slash).
     static func isProgressLine(_ line: String) -> Bool {
         let s = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard s.hasPrefix("["), let close = s.firstIndex(of: "]") else { return false }
-        // swift-build sets the slash between thin spaces (U+2009).
         let inside = s[s.index(after: s.startIndex)..<close]
         let parts = inside.split(separator: "/").map { $0.trimmingCharacters(in: .whitespaces) }
         return inside.contains(where: \.isWhitespace) && parts.count == 2 && parts.allSatisfy { Int($0) != nil }
     }
 
-    /// (target, group title, task title, duration) for a task line.
     static func task(_ line: String, isPackage: Bool) -> (String, String, String, TimeInterval?)? {
-        // (A progress line may start with a carriage return.)
         let s = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        // SwiftPM: "[3/7] Compiling Demo main.swift other.swift"
         if s.hasPrefix("["), let close = s.firstIndex(of: "]") {
             let words = s[s.index(after: close)...].split(separator: " ").map(String.init)
-            // swift-build (SwiftPM 6.4): "[19 / 23] Greeter-product", the
-            // target being built; a product's target links it.
             let progressWords = s[s.index(after: close)...].split(whereSeparator: \.isWhitespace)
             if isProgressLine(s), progressWords.count == 1 {
                 let name = String(progressWords[0])
@@ -310,7 +255,6 @@ public enum BuildLogModel {
             let name = URL(fileURLWithPath: String(s.dropFirst(8))).lastPathComponent
             return (isPackage ? "\(name)-product" : name, "Linking \(name)", "Link \(name)", nil)
         }
-        // xcodebuild: "<Command> args… (in target 'T' from project 'P')"
         guard let r = s.range(of: " (in target '") else { return nil }
         let rest = s[r.upperBound...]
         guard let q = rest.firstIndex(of: "'") else { return nil }
@@ -329,9 +273,6 @@ public enum BuildLogModel {
         }
     }
 
-    /// Steps the scope bar shows. All Issues keeps steps with issues;
-    /// Errors Only keeps errors; the text filter matches titles and issue
-    /// messages. Sections left empty are dropped (except the last one).
     public static func filter(_ sections: [BuildLogSection], messages: Messages, text: String = "") -> [BuildLogSection] {
         func keep(_ step: BuildLogStep) -> BuildLogStep? {
             var s = step
@@ -354,8 +295,6 @@ public enum BuildLogModel {
         }
     }
 
-    /// Plain-text lines of shown steps, for tests and Export: section
-    /// title, then steps indented by depth with their badges.
     public static func outline(_ sections: [BuildLogSection]) -> [String] {
         var out: [String] = []
         func add(_ s: BuildLogStep, _ depth: Int) {
@@ -371,18 +310,12 @@ public enum BuildLogModel {
     }
 }
 
-// MARK: - Coverage (§6.5)
-
-/// Line coverage for one file or target.
 public struct CoverageItem: Equatable, Sendable {
     public var name: String
     public var coveredLines: Int
     public var executableLines: Int
     public var files: [CoverageItem] = []
-    /// A file row's absolute path, when the coverage data names it.
     public var path: String?
-    /// A file row's execution count per line, from line 1 (-1: not
-    /// executable); nil without line data. The editor's coverage ribbon.
     public var lineCounts: [Int]?
     public init(name: String, coveredLines: Int, executableLines: Int, files: [CoverageItem] = [], path: String? = nil, lineCounts: [Int]? = nil) {
         self.name = name
@@ -396,20 +329,15 @@ public struct CoverageItem: Equatable, Sendable {
     public var isTestBundle: Bool { name.hasSuffix("Tests") || name.hasSuffix(".xctest") }
 }
 
-/// The Coverage page of a test report: totals and per-target rows.
 public enum CoverageModel {
-    /// A coverage fraction (0...1) as "NN.N%".
     public static func percent(_ f: Double) -> String { String(format: "%.1f%%", f * 100) }
 
-    /// The whole run's line coverage (test bundles excluded), nil without data.
     public static func total(_ targets: [CoverageItem]) -> Double? {
         let t = targets.filter { !$0.isTestBundle }
         let exec = t.reduce(0) { $0 + $1.executableLines }
         return exec == 0 ? nil : Double(t.reduce(0) { $0 + $1.coveredLines }) / Double(exec)
     }
 
-    /// Rows the page shows: targets (test bundles only when asked) and
-    /// files whose name matches the filter.
     public static func rows(_ targets: [CoverageItem], showTestBundles: Bool, filter: String = "") -> [CoverageItem] {
         targets.filter { showTestBundles || !$0.isTestBundle }.compactMap { t in
             guard !filter.isEmpty, !t.name.localizedCaseInsensitiveContains(filter) else { return t }
@@ -419,9 +347,6 @@ public enum CoverageModel {
         }
     }
 
-    /// Reads `swift test --enable-code-coverage` / llvm-cov export JSON
-    /// (`data[0].files[].filename`, `summary.lines.{count,covered}`),
-    /// grouping files by the directory under `Sources/` or `Tests/`.
     public static func parseLLVMCovExport(_ data: Data) -> [CoverageItem] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let first = (root["data"] as? [[String: Any]])?.first,
@@ -447,8 +372,6 @@ public enum CoverageModel {
 }
 
 extension CoverageModel {
-    /// Reads the summary swiftcodebuild writes when `SWIFTCODE_COVERAGE_SUMMARY`
-    /// names a path (targets with their files, line counts per file).
     public static func parseSwiftCodebuildSummary(_ data: Data) -> [CoverageItem] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let targets = root["targets"] as? [[String: Any]] else { return [] }
@@ -464,9 +387,6 @@ extension CoverageModel {
     }
 }
 
-// MARK: - Test report (§6.3, §6.4)
-
-/// The test report's summary page (`specs/ide/reference-ui-2.md` §6).
 public enum TestReportModel {
     public struct Summary: Equatable, Sendable {
         public var title: String
@@ -475,10 +395,8 @@ public enum TestReportModel {
         public var total: String
         public var passed: Int
         public var failed: Int
-        /// Table rows: (name, passed, failed, isDevice).
         public var configurations: [ConfigurationRow]
         public var failuresHeader: String
-        /// "squareArea()  Expectation failed: …".
         public var failures: [String]
     }
 
@@ -487,7 +405,6 @@ public enum TestReportModel {
         public var passed: Int
         public var failed: Int
         public var isDevice: Bool
-        /// Bar widths as shares of the row total.
         public var passedShare: Double { passed + failed == 0 ? 0 : Double(passed) / Double(passed + failed) }
         public var failedShare: Double { passed + failed == 0 ? 0 : Double(failed) / Double(passed + failed) }
     }
@@ -496,10 +413,8 @@ public enum TestReportModel {
         (c.tests.filter { $0.status == .passed }.count, c.tests.filter { $0.status == .failed }.count)
     }
 
-    /// "<scheme>/<test plan>", using the scheme name when there is no plan.
     public static func title(_ r: BuildReport) -> String { "\(r.schemeName)/\(r.context.plan ?? r.schemeName)" }
 
-    /// The summary page's header, counts, configuration rows and failures.
     public static func summary(_ r: BuildReport) -> Summary {
         let c = r.context
         let (p, f) = counts(c)
@@ -518,14 +433,12 @@ public enum TestReportModel {
                        failures: failing.map { "\($0.name)()  \(splitExpansion($0.failures.first?.message ?? "").0)" })
     }
 
-    /// "1 failed and 1 passed · Test plan with 1 test target".
     public static func testsHeader(_ r: BuildReport) -> String {
         let (p, f) = counts(r.context)
         let k = max(1, r.context.testTargets)
         return "\(f) failed and \(p) passed · Test plan with \(k) test target\(k == 1 ? "" : "s")"
     }
 
-    /// The filter pop-up titles.
     public static func filterTitles(_ r: BuildReport) -> [String] {
         let (_, f) = counts(r.context)
         return ["Failed Tests (\(f))", "Failed Runs (\(f))", r.context.destination.isEmpty ? "My Mac" : r.context.destination,
@@ -541,16 +454,12 @@ public enum TestReportModel {
         public var depth: Int
     }
 
-    /// "0.00076s".
     public static func duration(_ s: TimeInterval) -> String {
         var t = String(format: "%.5g", s)
         if t.contains("e") { t = String(format: "%.6f", s) }
         return t + "s"
     }
 
-    /// Rows from target to test, each failing test followed by its
-    /// failure rows and their expansions. `failedOnly` is the Failed Tests
-    /// filter; `text` matches test names.
     public static func testRows(_ r: BuildReport, failedOnly: Bool = false, text: String = "") -> [TestRow] {
         let c = r.context
         let tests = c.tests.filter { (!failedOnly || $0.status == .failed) && (text.isEmpty || $0.name.localizedCaseInsensitiveContains(text)) }
@@ -574,8 +483,6 @@ public enum TestReportModel {
         return rows
     }
 
-    /// A multi-line failure message: the first line, then the expectation's
-    /// evaluated expansion (the remaining lines).
     static func splitExpansion(_ m: String) -> (String, String?) {
         let lines = m.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
         guard lines.count > 1 else { return (m, nil) }

@@ -31,15 +31,12 @@ for fn in sorted(os.listdir(hdr_dir)):
     if not fn.endswith('.h'):
         continue
     t = strip_comments(open(os.path.join(hdr_dir, fn), encoding='utf-8').read())
-    # constants
     for m in re.finditer(r'MK_EXTERN\s+(?:const\s+)?([A-Za-z_]\w*)\s*(?:\*\s*)?const\s+(MK\w+)([^;]*);', t):
         i, d = avail(m.group(3))
         out['constants'].append({'file': fn, 'kind': m.group(1), 'name': m.group(2), 'ios': i, 'deprecated': d})
-    # functions
     for m in re.finditer(r'MK_EXTERN\s+[^;(]*?\b(MK\w+)\s*\(([^;]*);', t):
         i, d = avail(m.group(2))
         out['functions'].append({'file': fn, 'name': m.group(1), 'ios': i, 'deprecated': d})
-    # enums
     for m in re.finditer(r'typedef\s+NS_(?:ENUM|OPTIONS|CLOSED_ENUM)\s*\(\s*\w+\s*,\s*(\w+)\s*\)\s*\{(.*?)\}([^;]*);', t, flags=re.S):
         name, body, tail = m.group(1), m.group(2), m.group(3)
         cases, cur, known = [], -1, {}
@@ -83,7 +80,6 @@ for fn in sorted(os.listdir(hdr_dir)):
             cases.append({'name': cname, 'value': val, 'ios': i, 'deprecated': d})
         i, d = avail(tail)
         out['enums'].append({'file': fn, 'name': name, 'ios': i, 'deprecated': d, 'cases': cases})
-    # classes and protocols
     for m in re.finditer(r'((?:MK_EXTERN\s+)?(?:API_\w+\([^@]*?\)\s*|MK_\w+\s*|NS_\w+(?:\([^)]*\))?\s*)*)@(interface|protocol)\s+(\w+)\b(?!\s*[;,])\s*(?:\(\s*(\w*)\s*\))?\s*(?::\s*(\w+))?(.*?)@end', t, flags=re.S):
         pre, kind, name, category, sup, body = m.groups()
         if kind == 'protocol' and body.strip().startswith(';'):

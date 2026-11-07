@@ -1,9 +1,5 @@
 import Foundation
 
-/// Writes `Assets.car` (`specs/formats/assets-car.md`, tier 1 of §9):
-/// CARHEADER, EXTENDED_METADATA, KEYFORMAT, APPEARANCEKEYS, FACETKEYS and
-/// RENDITIONS. RENDITIONS uses fixed-length keys with the leaf key copies of
-/// §2.4, as `actool` does.
 public struct CARWriter: Sendable {
     public struct WriteError: Error, CustomStringConvertible {
         public var message: String
@@ -14,7 +10,6 @@ public struct CARWriter: Sendable {
     public var deploymentTarget: String
     public var compression: CARCompression
     public var renditions: [CARRendition] = []
-    /// SwiftCode's own strings for the two version fields of CARHEADER (§3.1).
     public var mainVersion = "@(#)PROGRAM:SwiftCode  PROJECT:SwiftCodeAssetCatalog-1"
     public var versionString = "SwiftCode asset catalog compiler"
     public var authoringTool = "SwiftCode asset catalog compiler"
@@ -27,12 +22,8 @@ public struct CARWriter: Sendable {
 
     public mutating func add(_ r: CARRendition) { renditions.append(r) }
 
-    /// A rendition key as stored: each attribute value as a little-endian u16.
     static func keyBytes(_ k: [UInt16]) -> [UInt8] { k.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] } }
 
-    /// A 16-bit identifier per asset name: a hash of the name (stable across
-    /// builds), moved on by one on a collision, never 0. Names are taken in
-    /// byte order so the result does not depend on insertion order.
     public static func identifiers(for names: [String]) -> [String: UInt16] {
         var used = Set<UInt16>()
         var out: [String: UInt16] = [:]
@@ -47,8 +38,6 @@ public struct CARWriter: Sendable {
         return out
     }
 
-    /// The facet part of an asset: 220 when it has icon images, else the
-    /// kind of its first rendition (§4.3).
     static func facetPart(_ rs: [CARRendition]) -> UInt16 {
         rs.contains { $0.content.part == CARPart.iconImage } ? CARPart.iconImage : rs.first?.content.part ?? CARPart.image
     }
@@ -58,7 +47,6 @@ public struct CARWriter: Sendable {
         let ids = Self.identifiers(for: names)
         let format = platform.keyFormat
 
-        // Keys and records.
         var entries: [(key: [UInt16], value: [UInt8])] = []
         var seen = Set<[UInt16]>()
         for r in renditions {
@@ -66,8 +54,6 @@ public struct CARWriter: Sendable {
             a[.element] = carCatalogElement
             a[.part] = r.content.part
             a[.identifier] = ids[r.name]!
-            // Scale 1 unless given (colours, multisize lists): the runtime's
-            // lookups do not find renditions with scale 0.
             if a[.scale] == nil || a[.scale] == 0 { a[.scale] = 1 }
             let key = format.map { a[$0] ?? 0 }
             guard seen.insert(key).inserted else {
@@ -75,10 +61,6 @@ public struct CARWriter: Sendable {
             }
             entries.append((key, CSI.record(r, platform: platform, compression: compression)))
         }
-        // The runtime searches RENDITIONS comparing the key bytes as they are
-        // stored (little-endian u16s, memcmp), so the entries go in byte
-        // order, not in numeric attribute order (found with AppKit loading
-        // our own cars; see the spec's "SwiftCode implementation").
         entries.sort { Self.keyBytes($0.key).lexicographicallyPrecedes(Self.keyBytes($1.key)) }
 
         var bom = BOMWriter()
@@ -91,7 +73,6 @@ public struct CARWriter: Sendable {
         for f in format { kf.u32le(f.rawValue) }
         bom.addVariable("KEYFORMAT", bytes: kf.bytes)
 
-        // APPEARANCEKEYS: every appearance used, plus entry 0 (§4.4).
         var appearances: [String: UInt16] = [platform.appearanceName(.any): 0]
         for r in renditions {
             if let n = r.attributes[.appearance], n != 0,
@@ -106,7 +87,6 @@ public struct CARWriter: Sendable {
             return (Array(k.utf8), w.bytes)
         }, keys: .variable)
 
-        // FACETKEYS: asset name → element, part, identifier (§4.3).
         var byName: [String: [CARRendition]] = [:]
         for r in renditions { byName[r.name, default: []].append(r) }
         let fkeys = byName.keys.sorted { Array($0.utf8).lexicographicallyPrecedes(Array($1.utf8)) }
@@ -126,25 +106,23 @@ public struct CARWriter: Sendable {
         return bom.data()
     }
 
-    /// CARHEADER (§3.1), 436 bytes.
     func header(renditionCount: Int) -> [UInt8] {
         var w = ByteWriter()
         w.tag("RATC")
-        w.u32le(1010)       // CoreUI version
-        w.u32le(17)         // storage version
-        w.u32le(0)          // storage timestamp
+        w.u32le(1010)
+        w.u32le(17)
+        w.u32le(0)
         w.u32le(UInt32(renditionCount))
         w.padded(mainVersion, 128)
         w.padded(versionString, 256)
-        w.zeros(16)         // UUID
-        w.u32le(0)          // associated checksum
-        w.u32le(2)          // schema version
-        w.u32le(1)          // colour space: sRGB
+        w.zeros(16)
+        w.u32le(0)
+        w.u32le(2)
+        w.u32le(1)
         w.u32le(platform.keySemantics)
         return w.bytes
     }
 
-    /// EXTENDED_METADATA (§3.2), 1028 bytes.
     func metadata() -> [UInt8] {
         var w = ByteWriter()
         w.tag("META")
@@ -156,7 +134,6 @@ public struct CARWriter: Sendable {
     }
 }
 
-/// CSI rendition records (§5–§7).
 enum CSI {
     static func record(_ r: CARRendition, platform: CARPlatform, compression: CARCompression) -> [UInt8] {
         var tlv = ByteWriter()
@@ -184,9 +161,6 @@ enum CSI {
             entry(1004) { $0.u32le(0); $0.f32le(1) }
             entry(1006) { $0.u32le(1) }
             entry(1007) { $0.u32le(width * 4) }
-            // CELM version 2 and 3 draw as opaque (alpha ignored); app-icon
-            // bitmaps are opaque on the iOS family and use 3 like actool,
-            // everything with transparency uses 1 (SwiftCode finding, assets-car.md §I.2).
             let version: UInt32 = { if case .iconImage = r.content { return platform.celmVersion }; return 1 }()
             payload.append(celm(bmp, version: version, compression: compression))
         case .color(let c):
@@ -219,12 +193,12 @@ enum CSI {
         w.u32le(scale)
         w.append(pixelFormat)
         w.u32le(colorSpace)
-        w.u32le(0)                      // modification time
+        w.u32le(0)
         w.u16le(r.content.layout)
         w.u16le(0)
         w.padded(r.renditionName, 128)
         w.u32le(UInt32(tlv.count))
-        w.u32le(1)                      // bitmap count
+        w.u32le(1)
         w.u32le(0)
         w.u32le(UInt32(payload.count))
         w.append(tlv.bytes)
@@ -232,8 +206,6 @@ enum CSI {
         return w.bytes
     }
 
-    /// CELM pixels (§7.3): premultiplied BGRA rows; compression 4 cuts the
-    /// image into chunks of `height / 3` rows (the last takes the rest).
     static func celm(_ bmp: Bitmap, version: UInt32, compression: CARCompression) -> [UInt8] {
         let pixels = bmp.premultipliedBGRA
         var w = ByteWriter()

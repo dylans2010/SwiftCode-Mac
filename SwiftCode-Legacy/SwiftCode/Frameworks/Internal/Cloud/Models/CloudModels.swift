@@ -1,13 +1,11 @@
 import Foundation
 
-/// Defines the strategy for merging or overwriting divergent changes during sync conflict resolution.
 public enum ConflictResolutionStrategy: String, Codable, Sendable, CaseIterable {
     case chooseLocal = "choose_local"
     case chooseCloud = "choose_cloud"
     case merge = "merge"
 }
 
-/// Represents an active authenticated cloud user session.
 public struct CloudSession: Codable, Sendable, Equatable {
     public let userID: String
     public let email: String
@@ -40,7 +38,6 @@ public struct CloudSession: Codable, Sendable, Equatable {
     }
 }
 
-/// Represents a registered device linked to the user's cloud account.
 public struct CloudDevice: Codable, Sendable, Equatable, Identifiable {
     public var id: String { deviceID }
     public let deviceID: String
@@ -58,7 +55,6 @@ public struct CloudDevice: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// Represents a synchronization payload holding raw data, tables, and conflict revision fields.
 public struct SyncPayload: Codable, Sendable, Equatable, Identifiable {
     public var id: String { recordID }
     public let recordID: String
@@ -88,7 +84,6 @@ public struct SyncPayload: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// Represents the synchronization metadata anchoring table/collection sync points.
 public struct SyncMetadata: Codable, Sendable, Equatable, Identifiable {
     public var id: String { tableName }
     public let tableName: String
@@ -112,7 +107,6 @@ public struct SyncMetadata: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// Represents conflict details found between local and cloud records.
 public struct CloudConflict: Codable, Sendable, Equatable, Identifiable {
     public var id: String { "\(tableName)-\(recordID)" }
     public let tableName: String
@@ -142,7 +136,6 @@ public struct CloudConflict: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// Compilation metrics and realtime counters compiled during session sync executions.
 public struct CloudStatistics: Codable, Sendable, Equatable {
     public var totalUploadCount: Int
     public var totalDownloadCount: Int

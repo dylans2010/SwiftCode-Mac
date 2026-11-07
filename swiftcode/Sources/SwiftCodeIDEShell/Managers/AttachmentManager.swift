@@ -1,9 +1,3 @@
-// AttachmentManager.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AttachmentManager.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: fileExists(relativePath:) attachment existence check
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import SwiftData
 

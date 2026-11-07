@@ -1,15 +1,9 @@
 import Foundation
 
-/// The BOM container (`specs/formats/assets-car.md` §2): numbered blocks,
-/// named variables and B-trees, all big-endian.
 public struct BOMWriter {
-    /// How a tree stores its keys (§2.4).
     public enum KeyStorage: Equatable, Sendable {
-        /// Keys in their own blocks; the header says `0xFFFFFFFF`.
         case variable
-        /// Keys in their own blocks, all `n` bytes; every leaf carries copies.
         case fixed(Int)
-        /// The key is a 32-bit number stored in the entry itself.
         case inline
     }
 
@@ -35,9 +29,6 @@ public struct BOMWriter {
 
     public mutating func addVariable(_ name: String, bytes: [UInt8]) { addVariable(name, block: addBlock(bytes)) }
 
-    /// Writes a tree as `name`. `entries` must be sorted the way readers
-    /// search them (§2.4); a leaf holds at most `(blockSize − 12) / 8`
-    /// entries, and several leaves hang under one branch root.
     public mutating func addTree(_ name: String, entries: [(key: [UInt8], value: [UInt8])],
                                  keys: KeyStorage, blockSize: Int = 4096) {
         let headerBlock = reserveBlock()
@@ -71,7 +62,6 @@ public struct BOMWriter {
                 w.u32be(p.key)
             }
             if case .fixed(let n) = keys {
-                // The copies readers compare against (§2.4).
                 w.zeros(4)
                 for e in chunk { w.append(e.key) }
                 let size = blockSize + chunk.count * n
@@ -122,9 +112,6 @@ public struct BOMWriter {
         addVariable(name, block: headerBlock)
     }
 
-    /// The file: header, blocks from offset 512 on 16-byte boundaries, the
-    /// variables, then the block table (at least 256 entries, 20 zero bytes
-    /// after it).
     public func data() -> Data {
         var w = ByteWriter()
         w.zeros(512)
@@ -173,7 +160,6 @@ public struct BOMWriter {
     }
 }
 
-/// Reads a BOM file: blocks, variables and trees.
 public struct BOMReader {
     public struct FormatError: Error, CustomStringConvertible {
         public var message: String
@@ -229,7 +215,6 @@ public struct BOMReader {
                         inlineKeys: h[20] == 1, keyLength: h.u32be(at: 21))
     }
 
-    /// One leaf's entries and, for fixed-length keys, the key copies it carries.
     public struct Leaf {
         public var block: UInt32
         public var forward: UInt32
@@ -238,8 +223,6 @@ public struct BOMReader {
         public var keyCopies: [[UInt8]]
     }
 
-    /// The leaves in order: down the first child of each branch, then along
-    /// the forward links.
     public func leaves(_ name: String) throws -> [Leaf] {
         let info = try treeInfo(name)
         var node = info.root
@@ -273,8 +256,6 @@ public struct BOMReader {
         return out
     }
 
-    /// Every entry of a tree in order, keys and values as bytes (an inline
-    /// key comes back as its four big-endian bytes).
     public func tree(_ name: String) throws -> [(key: [UInt8], value: [UInt8])] {
         let info = try treeInfo(name)
         var out: [(key: [UInt8], value: [UInt8])] = []

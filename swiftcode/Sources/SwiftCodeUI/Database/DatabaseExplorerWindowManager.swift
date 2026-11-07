@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/DatabaseExplorerWindowManager.swift` (SwiftCode-Mac migration, P-UTIL).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import AppKit
 import SwiftUI
 

@@ -1,9 +1,4 @@
 #!/bin/sh
-# Run one RKProbe mode on a booted test simulator and save its log and a screenshot.
-# Usage: run.sh <device-udid> <build-dir> <out-dir> <mode> [max-seconds]
-# The run ends when the log shows the mode's end markers (or after max-seconds).
-# (simctl launch --stdout=<file> did not create the file for our scratch paths,
-#  so the console of `simctl launch --console` is captured instead.)
 DEV=$1; BUILD=$2; OUT=$3; MODE=$4; MAX=${5:-150}
 mkdir -p "$OUT"
 LOG="$OUT/$MODE.log"

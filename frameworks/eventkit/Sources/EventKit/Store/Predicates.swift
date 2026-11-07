@@ -1,7 +1,3 @@
-// Event and reminder predicates (interface.md §3.6, reminders.md §4). They
-// are NSPredicate subclasses so that the public signatures match; the store
-// evaluates them itself.
-
 import Foundation
 
 class EKStorePredicate: NSPredicate {
@@ -64,7 +60,6 @@ final class EKReminderPredicate: EKStorePredicate {
     override var description: String { "ReminderPredicate" }
 }
 
-/// Opaque identifier of an asynchronous reminder fetch.
 final class EKReminderFetchRequest: NSObject, @unchecked Sendable {
     private let lock = NSLock()
     private var _cancelled = false

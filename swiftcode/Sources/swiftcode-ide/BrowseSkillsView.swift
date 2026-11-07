@@ -1,9 +1,3 @@
-// BrowseSkillsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Skills/BrowseSkillsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: 20 bundled preset skills library with install-to-agent
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeUI
 import SwiftUI
@@ -106,7 +100,6 @@ struct BrowseSkillsView: View {
         var loaded: [AgentSkillBundle] = []
         let parser = SkillsParser()
 
-        // Explicit list of all 20 bundled preset markdown assets
         let files = [
             "avfoundation_processing.SKILLS.md", "combine_streams.SKILLS.md", "core_graphics.SKILLS.md",
             "coredata_thread_safety.SKILLS.md", "custom_layouts.SKILLS.md", "gcd_vs_async_await.SKILLS.md",
@@ -117,13 +110,9 @@ struct BrowseSkillsView: View {
             "urlsession_networking.SKILLS.md", "xctest_unit_testing.SKILLS.md"
         ]
 
-        // Load files relative to active bundles or path locations
         let baseDir = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/Presets")
-        // Check both local bundles or fallback directly on resource paths
         for file in files {
-            // Find bundled file
             let url = Bundle.main.url(forResource: file, withExtension: nil) ?? baseDir.appendingPathComponent(file)
-            // Try direct path fallback first
             let directPath = "SwiftCode/Views/Settings/Skills/Presets/\(file)"
             do {
                 let content: String

@@ -1,13 +1,6 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/LogManager.swift
-// Adapted for SwiftCode: Legacy's LogManager, renamed DeploymentLogStore (its only job was deployment logs). DeploymentLogLine is defined here: Legacy defined it in Views/Deployments/DeploymentLogsView.swift (the Views slice), so it is re-declared locally rather than imported. ObservableObject -> @Observable.
-
 import Foundation
 import Observation
 
-/// One line of deployment output. (Legacy defined this in
-/// `Views/Deployments/DeploymentLogsView.swift`; it is declared here so the
-/// store is self-contained.)
 public struct DeploymentLogLine: Identifiable, Sendable {
     public let id = UUID()
     public let timestamp: Date
@@ -21,8 +14,6 @@ public struct DeploymentLogLine: Identifiable, Sendable {
     }
 }
 
-/// The deployment log. Legacy's `LogManager` existed only for this: a
-/// single append-only list of deployment lines the Deploy UI reads.
 @Observable
 @MainActor
 public final class DeploymentLogStore: Sendable {

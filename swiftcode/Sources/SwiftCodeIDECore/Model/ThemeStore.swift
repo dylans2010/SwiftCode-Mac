@@ -1,11 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Persistence/ThemeStore.swift
-// Adapted for SwiftCode: Onto SwiftCode's own EditorTheme (Preferences.swift), not Legacy's Core/Theme/EditorTheme — different struct, different shape (SwiftCode themes are .swiftcodetheme files with #RRGGBB hex colours, read via EditorTheme.read / written via theme.write(to:)). Legacy theme files (.json, Legacy shape) do NOT decode here. PathTool replaced by FileManager's Application Support directory.
-
 import Foundation
 
-/// User themes on disk: scans a Themes directory for `*.swiftcodetheme` files
-/// and decodes them with SwiftCode's own `EditorTheme` (see `Preferences.swift`).
 public actor ThemeStore {
     public static let shared = ThemeStore()
 

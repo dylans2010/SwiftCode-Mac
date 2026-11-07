@@ -1,13 +1,3 @@
-// p_rb_render: Ycode stage-8 test probe (original Ycode code).
-//
-// Renders a fixed SwiftUI view with the public ImageRenderer API and writes
-// a PNG. SwiftUI draws through its own renderer, which uses Metal for
-// drawing groups, blurs, shadows, gradients and shader effects; this
-// checks those paths through Ycode's Metal host against the Mac.
-//
-// Usage: p_rb_render [OUT.png [SCALE]]
-// Prints one line per step and "rb ok" at the end, or "rb FAIL: ...".
-
 import CoreGraphics
 import Foundation
 import ImageIO

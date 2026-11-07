@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/ProjectTransferSerializer.swift
-// Adapted for SwiftCode: Legacy's Project replaced by CollaborationProject. NOTE: the package JSON shape changes (CollaborationProject instead of Legacy's full Project model), so packages written by Legacy SwiftCode do not decode here.
-
 import Foundation
 import CryptoKit
 

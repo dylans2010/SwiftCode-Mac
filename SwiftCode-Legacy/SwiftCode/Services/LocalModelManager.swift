@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Local Model Info
-
 struct LocalModelInfo: Identifiable {
     let id: String
     var name: String
@@ -34,8 +32,6 @@ struct LocalModelInfo: Identifiable {
     }
 }
 
-// MARK: - Local Model Manager
-
 @MainActor
 final class LocalModelManager: ObservableObject {
     static let shared = LocalModelManager()
@@ -54,15 +50,11 @@ final class LocalModelManager: ObservableObject {
         Task { await scanModels() }
     }
 
-    // MARK: - Directory
-
     private func ensureModelsDirectory() {
         try? FileManager.default.createDirectory(
             at: modelsDirectory, withIntermediateDirectories: true
         )
     }
-
-    // MARK: - Scan
 
     func scanModels() async {
         isScanning = true
@@ -104,11 +96,7 @@ final class LocalModelManager: ObservableObject {
         models = found.sorted { $0.name < $1.name }
     }
 
-    // MARK: - Load / Unload
-
     func loadModel(_ model: LocalModelInfo) {
-        // On iOS, CoreML models are loaded on-demand via MLModel API.
-        // This sets the active model preference for AISuggestionEngine.
         loadedModelId = model.id
         AppSettings.shared.coreMLSelectedModel = model.fileName
         AppSettings.shared.coreMLEnabled = true
@@ -127,15 +115,11 @@ final class LocalModelManager: ObservableObject {
         }
     }
 
-    // MARK: - Delete
-
     func deleteModel(_ model: LocalModelInfo) throws {
         try FileManager.default.removeItem(at: model.url)
         models.removeAll { $0.id == model.id }
         if loadedModelId == model.id { unloadCurrentModel() }
     }
-
-    // MARK: - Import
 
     func importModel(from sourceURL: URL) throws {
         let destination = modelsDirectory.appendingPathComponent(sourceURL.lastPathComponent)

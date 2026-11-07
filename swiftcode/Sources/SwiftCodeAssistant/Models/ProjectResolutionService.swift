@@ -2,6 +2,16 @@ import Foundation
 import Observation
 import os.log
 
+public struct Project: Identifiable, Sendable {
+    public var id: String { name }
+    public let name: String
+    public let directoryURL: URL
+    public init(name: String, directoryURL: URL) {
+        self.name = name
+        self.directoryURL = directoryURL
+    }
+}
+
 private let logger = Logger(subsystem: "com.swiftcode.Services", category: "ProjectResolution")
 
 @Observable
@@ -9,10 +19,8 @@ private let logger = Logger(subsystem: "com.swiftcode.Services", category: "Proj
 public final class ProjectResolutionService: Sendable {
     public static let shared = ProjectResolutionService()
 
-    /// The active project's cached Xcode projects parsed models
     public var parsedProjects: [URL: XcodeProjModel] = [:]
 
-    /// Currently selected target ID
     public var selectedTargetID: String? {
         didSet {
             logger.info("Selected target changed to: \(self.selectedTargetID ?? "None", privacy: .public)")
@@ -21,7 +29,6 @@ public final class ProjectResolutionService: Sendable {
 
     private init() {}
 
-    /// Updates cached project models for the current active project path
     public func updateParsedProjects(with models: [URL: XcodeProjModel]) {
         for (url, model) in models {
             self.parsedProjects[url] = model
@@ -31,7 +38,6 @@ public final class ProjectResolutionService: Sendable {
         }
     }
 
-    /// Resolves the URL to the Info.plist file directly from an XcodeProjModel and optional target UUID.
     public func resolveInfoPlist(for model: XcodeProjModel, targetID: String? = nil) -> URL? {
         updateParsedProjects(with: [model.projectURL: model])
         let tid = targetID ?? selectedTargetID ?? model.targets.first?.uuid
@@ -39,7 +45,6 @@ public final class ProjectResolutionService: Sendable {
         let projectDir = model.projectURL.deletingLastPathComponent()
 
         if let target = target {
-            // 1. Check build settings for INFOPLIST_FILE
             let configs = model.buildConfigurations
             for config in configs {
                 if let rawPath = config.buildSettings["INFOPLIST_FILE"] {
@@ -54,7 +59,6 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // 2. Check PBXFileReferences
             for fileRef in model.fileReferences {
                 if let name = fileRef.name, name == "Info.plist", let path = fileRef.path {
                     let expanded = expandXcodeBuildVariables(path, target: target, projectDir: projectDir)
@@ -68,24 +72,20 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // 3. Known standard locations for target
             let targetPlist = projectDir.appendingPathComponent(target.name).appendingPathComponent("Info.plist")
             if isRegularFile(at: targetPlist) {
                 return targetPlist
             }
         }
 
-        // 4. Root Info.plist
         let rootPlist = projectDir.appendingPathComponent("Info.plist")
         if isRegularFile(at: rootPlist) {
             return rootPlist
         }
 
-        // 5. Recursive fallback scan (excluding build directories and internal bundles)
         return scanForFirstFile(named: "Info.plist", in: projectDir)
     }
 
-    /// Resolves the URL to the entitlements file directly from an XcodeProjModel and optional target UUID.
     public func resolveEntitlements(for model: XcodeProjModel, targetID: String? = nil) -> URL? {
         updateParsedProjects(with: [model.projectURL: model])
         let tid = targetID ?? selectedTargetID ?? model.targets.first?.uuid
@@ -93,7 +93,6 @@ public final class ProjectResolutionService: Sendable {
         let projectDir = model.projectURL.deletingLastPathComponent()
 
         if let target = target {
-            // 1. Check build settings for CODE_SIGN_ENTITLEMENTS
             let configs = model.buildConfigurations
             for config in configs {
                 if let rawPath = config.buildSettings["CODE_SIGN_ENTITLEMENTS"] {
@@ -108,7 +107,6 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // 2. Check PBXFileReferences
             for fileRef in model.fileReferences {
                 if let name = fileRef.name, name.hasSuffix(".entitlements"), let path = fileRef.path {
                     let expanded = expandXcodeBuildVariables(path, target: target, projectDir: projectDir)
@@ -122,7 +120,6 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // 3. Known standard locations for target
             let targetEnt = projectDir.appendingPathComponent(target.name).appendingPathComponent("\(target.name).entitlements")
             if isRegularFile(at: targetEnt) {
                 return targetEnt
@@ -133,22 +130,17 @@ public final class ProjectResolutionService: Sendable {
             }
         }
 
-        // 4. Recursive scan for *.entitlements
         return scanForFirstFileWithExtension("entitlements", in: projectDir)
     }
 
-    /// Resolves the URL to the Info.plist file of the currently selected target.
-    /// Never returns any internal SwiftCode bundle/source files or directory URLs.
     public func resolveInfoPlist(for project: Project) -> URL? {
         let targetID = selectedTargetID ?? parsedProjects.values.first?.targets.first?.uuid
         let projectDir = project.directoryURL
 
-        // Find the target inside any parsed project model
         for (_, model) in parsedProjects {
             let target = (targetID != nil ? model.targets.first(where: { $0.uuid == targetID }) : nil) ?? model.targets.first
             guard let activeTarget = target else { continue }
 
-            // Check target build settings in configurations
             for config in model.buildConfigurations {
                 if let plistPath = config.buildSettings["INFOPLIST_FILE"] {
                     let clean = expandXcodeBuildVariables(plistPath, target: activeTarget, projectDir: projectDir)
@@ -162,7 +154,6 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // Fallback: search for Info.plist belonging to this target by searching PBXFileReferences
             for fileRef in model.fileReferences {
                 if let name = fileRef.name, name == "Info.plist", let path = fileRef.path {
                     let clean = expandXcodeBuildVariables(path, target: activeTarget, projectDir: projectDir)
@@ -176,26 +167,20 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // Known target folder
             let candidate = projectDir.appendingPathComponent(activeTarget.name).appendingPathComponent("Info.plist")
             if isRegularFile(at: candidate) {
                 return candidate
             }
         }
 
-        // Root Info.plist
         let rootCandidate = projectDir.appendingPathComponent("Info.plist")
         if isRegularFile(at: rootCandidate) {
             return rootCandidate
         }
 
-        // Project directory fallback: search ONLY within the currently opened project's directory,
-        // strictly excluding internal SwiftCode app files unless the opened project IS SwiftCode.
         return scanForFirstFile(named: "Info.plist", in: projectDir, isSelfProject: project.name.lowercased() == "swiftcode")
     }
 
-    /// Resolves the URL to the entitlements file of the currently selected target.
-    /// Never returns any internal SwiftCode bundle/source files or directory URLs.
     public func resolveEntitlements(for project: Project) -> URL? {
         let targetID = selectedTargetID ?? parsedProjects.values.first?.targets.first?.uuid
         let projectDir = project.directoryURL
@@ -217,7 +202,6 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // Fallback: search PBXFileReferences
             for fileRef in model.fileReferences {
                 if let name = fileRef.name, name.hasSuffix(".entitlements"), let path = fileRef.path {
                     let clean = expandXcodeBuildVariables(path, target: activeTarget, projectDir: projectDir)
@@ -231,7 +215,6 @@ public final class ProjectResolutionService: Sendable {
                 }
             }
 
-            // Known target name entitlements
             let targetEnt = projectDir.appendingPathComponent(activeTarget.name).appendingPathComponent("\(activeTarget.name).entitlements")
             if isRegularFile(at: targetEnt) {
                 return targetEnt
@@ -244,8 +227,6 @@ public final class ProjectResolutionService: Sendable {
 
         return scanForFirstFileWithExtension("entitlements", in: projectDir, isSelfProject: project.name.lowercased() == "swiftcode")
     }
-
-    // MARK: - Private Helpers
 
     private func isRegularFile(at url: URL) -> Bool {
         var isDir: ObjCBool = false

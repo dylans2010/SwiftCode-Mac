@@ -1,13 +1,3 @@
-// Decrypting and unpacking an asset archive (`runtime-downloads.md` §4.3
-// step 3, owner decision O2): with the key Apple's asset service returned to
-// this user. On macOS: the system's public Apple Archive API. On Linux:
-// python-aea (MIT, kinnay/AEA), an open-source Apple Encrypted Archive
-// implementation, run as a separate program in a Python environment of
-// SwiftCode's own; it decrypts to a pipe and SwiftCode's `AppleArchiveReader`
-// unpacks the stream. The key reaches the decryptor on its standard input
-// only (never a command line, the environment or a file) and is scrubbed
-// from everything it prints.
-
 import Foundation
 #if canImport(AppleArchive)
 import AppleArchive
@@ -16,25 +6,19 @@ import System
 #endif
 
 public protocol RuntimeArchiveExpander: Sendable {
-    /// A line for the confirmation: what decrypts.
     var title: String { get }
-    /// Decrypts `archive` with `key` and unpacks it into `folder`;
-    /// `progress` gets the bytes written so far.
     @discardableResult
     func expand(_ archive: String, key: RuntimeArchiveKey?, into folder: String, cancel: RuntimeCancellation,
                 progress: @escaping @Sendable (Int64) -> Void) async throws -> AppleArchiveReader.Stats
 }
 
-/// python-aea in a virtual environment (Linux; any host with Python 3.11+).
 public struct PythonAEAExpander: RuntimeArchiveExpander {
     public static let package = "python-aea"
     public static let version = "1.1.0"
-    /// The environment's Python.
     public var python: String
 
     public init(python: String) { self.python = python }
 
-    /// `$SWIFTCODE_AEA_PYTHON`, else the environment in SwiftCode's runtime folder.
     public static func defaultPython(folder: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
         if let p = environment["SWIFTCODE_AEA_PYTHON"], !p.isEmpty { return p }
         return environmentFolder(folder) + "/bin/python3"
@@ -42,22 +26,17 @@ public struct PythonAEAExpander: RuntimeArchiveExpander {
 
     public static func environmentFolder(_ folder: String) -> String { folder + "/.tools/python-aea" }
 
-    /// The commands that make the environment (no root; the user's own folder).
     public static func installCommand(folder: String, python3: String = "python3") -> String {
         let env = environmentFolder(folder)
         return "\(python3) -m venv \(env.shellQuoted) && \((env + "/bin/pip").shellQuoted) install --disable-pip-version-check -q \(package)==\(version)"
     }
 
-    /// Checks the module loads; prints its version line on success.
     public static func checkCommand(python: String) -> String {
         "\(python.shellQuoted) -I -c 'import aea, importlib.metadata as m; print(\"python-aea\", m.version(\"python-aea\"))'"
     }
 
     public var title: String { "python-aea \(Self.version) (MIT), run as a separate program" }
 
-    /// SwiftCode's own few lines around python-aea: the key (hex) arrives on
-    /// standard input, the plain archive leaves on standard output, one
-    /// line of error on standard error.
     static let helper = """
     import sys
     try:
@@ -90,7 +69,6 @@ public struct PythonAEAExpander: RuntimeArchiveExpander {
         return try await Task.detached { try Self.decryptAndUnpack(python: python, archive: archive, key: key, folder: folder, cancel: cancel, progress: progress) }.value
     }
 
-    /// The decryptor's run and the reader, on the calling thread.
     static func decryptAndUnpack(python: String, archive: String, key: RuntimeArchiveKey, folder: String, cancel: RuntimeCancellation,
                                  progress: @escaping @Sendable (Int64) -> Void) throws -> AppleArchiveReader.Stats {
         let p = Process()
@@ -102,7 +80,6 @@ public struct PythonAEAExpander: RuntimeArchiveExpander {
         p.standardError = errors
         let errText = LockedText()
         try p.run()
-        // Standard error, read to its end on its own thread.
         let drained = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             errText.append(String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self))
@@ -139,7 +116,6 @@ final class LockedText: @unchecked Sendable {
 }
 
 #if canImport(AppleArchive)
-/// The system's Apple Archive API decrypts (macOS); SwiftCode's reader unpacks.
 public struct SystemAppleArchiveExpander: RuntimeArchiveExpander {
     public init() {}
 
@@ -192,8 +168,6 @@ public struct SystemAppleArchiveExpander: RuntimeArchiveExpander {
 #endif
 
 public enum RuntimeExpanders {
-    /// The platform's expander: the system's on macOS, python-aea elsewhere
-    /// (`SWIFTCODE_AEA_PYTHON` forces python-aea on a Mac, for tests).
     public static func standard(folder: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> any RuntimeArchiveExpander {
         #if canImport(AppleArchive)
         if environment["SWIFTCODE_AEA_PYTHON"] == nil { return SystemAppleArchiveExpander() }

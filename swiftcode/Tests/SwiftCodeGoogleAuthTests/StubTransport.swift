@@ -3,15 +3,6 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeGoogleAuth
 
-// All fixtures are synthetic: made-up users, tokens, ADC files and
-// Antigravity entries. No real token, secret or credential is used
-// anywhere; stub tokens are placeholders such as "stub-access-token".
-
-// MARK: - Stub transport
-
-/// A URLProtocol stub: the handler answers every request from canned
-/// data, and every request the client made is recorded for assertions.
-/// No live network.
 final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?
     nonisolated(unsafe) static var requests: [URLRequest] = []
@@ -41,9 +32,6 @@ func stubSession() -> URLSession {
     return URLSession(configuration: config)
 }
 
-/// Installs `handler` as the stub transport and returns a token
-/// client backed by it. The handler sees every request the client
-/// makes; `StubURLProtocol.requests` records them in order.
 func stubTokenClient(
     handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)
 ) -> GoogleTokenClient {
@@ -58,12 +46,10 @@ func ok(_ body: String, headers: [String: String] = [:]) -> (status: Int, header
     (200, headers, json(body))
 }
 
-/// A Google token-endpoint error body.
 func tokenError(_ status: Int, error: String, description: String) -> (status: Int, headers: [String: String], body: Data) {
     (status, [:], json("{\"error\":\"\(error)\",\"error_description\":\"\(description)\"}"))
 }
 
-/// The form body of a request, decoded into key/value pairs.
 func formBodyPairs(of request: URLRequest) -> [String: String] {
     guard let data = request.httpBody, let string = String(data: data, encoding: .utf8) else { return [:] }
     var pairs: [String: String] = [:]
@@ -76,34 +62,23 @@ func formBodyPairs(of request: URLRequest) -> [String: String] {
     return pairs
 }
 
-// MARK: - Test fixtures
-
-/// A token-endpoint success body. Placeholder tokens only.
 let stubTokensJSON = """
     {"access_token":"stub-access-token","expires_in":3600,"refresh_token":"stub-refresh-token",\
     "scope":"https://www.googleapis.com/auth/cloud-platform openid","token_type":"Bearer",\
     "id_token":"stub-id-token"}
     """
 
-/// A token-endpoint success body with `expires_in` as a double.
 let stubTokensDoubleExpiryJSON = """
     {"access_token":"stub-access-token","expires_in":3600.0,"refresh_token":"stub-refresh-token",\
     "token_type":"Bearer"}
     """
 
-/// A token-endpoint success body with `expires_in` as a string and
-/// no refresh token (Google does not rotate one on every refresh).
 let stubTokensStringExpiryJSON = """
     {"access_token":"stub-refreshed-token","expires_in":"3600","token_type":"Bearer"}
     """
 
-/// A userinfo success body. Placeholder email only.
 let stubUserinfoJSON = "{\"email\":\"dylan@example.com\",\"verified_email\":true}"
 
-// MARK: - Service scaffolding
-
-/// A fresh temp directory to use as the service's home directory,
-/// so ADC discovery never sees the real `~/.config/gcloud`.
 func makeTempHome() throws -> URL {
     let home = FileManager.default.temporaryDirectory
         .appendingPathComponent("SwiftCodeGoogleAuthTests-\(UUID().uuidString)")
@@ -111,16 +86,11 @@ func makeTempHome() throws -> URL {
     return home
 }
 
-/// A fresh UserDefaults suite for one test, so the explicitly-signed-out
-/// flag and client-id override never leak between tests.
 func makeTestDefaults() -> (UserDefaults, String) {
     let name = "SwiftCodeGoogleAuthTests-\(UUID().uuidString)"
     return (UserDefaults(suiteName: name) ?? .standard, name)
 }
 
-/// A service wired to the stub transport, an in-memory secret store,
-/// a temp home, and a fresh defaults suite. Never touches the real
-/// keychain, the real home directory, or the network.
 @MainActor
 func makeTestService(
     store: MemorySecretStore = MemorySecretStore(),
@@ -137,23 +107,18 @@ func makeTestService(
         environment: environment,
         homeDirectory: home,
         userDefaults: defaults,
-        // Neutralize the ambient seams: tests must never read the
-        // real keychain or run the real gcloud CLI.
         antigravityFetcher: { nil },
         gcloudTokenProvider: { _ in nil },
         restoreSession: restoreSession
     )
 }
 
-/// Writes a file under the temp home, creating parents as needed.
 func writeFixture(_ content: String, relativePath: String, home: URL) throws {
     let url = home.appendingPathComponent(relativePath)
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try content.write(to: url, atomically: true, encoding: .utf8)
 }
 
-/// Stores a signed-in session in the store: access token + expiry +
-/// refresh token + scope + email.
 func storeSession(
     in store: MemorySecretStore,
     accessToken: String = "stub-access-token",

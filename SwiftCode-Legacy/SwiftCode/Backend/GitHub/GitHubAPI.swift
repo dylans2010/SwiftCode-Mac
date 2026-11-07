@@ -6,7 +6,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
 
     private let baseURL = URL(string: "https://api.github.com")!
 
-
     func getAuthenticatedUser() async throws -> GitHubUser {
         let url = baseURL.appendingPathComponent("user")
         let request = GitHubAuth.shared.authorizedRequest(url: url)
@@ -14,7 +13,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         try validateResponse(response, data: data)
         return try snakeCaseDecoder().decode(GitHubUser.self, from: data)
     }
-
 
     func getRepository(owner: String, repo: String) async throws -> GitHubRepoDetail {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)")
@@ -24,7 +22,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         return try snakeCaseDecoder().decode(GitHubRepoDetail.self, from: data)
     }
 
-
     func listBranches(owner: String, repo: String) async throws -> [GitHubBranch] {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/branches")
         let request = GitHubAuth.shared.authorizedRequest(url: url)
@@ -32,8 +29,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         try validateResponse(response, data: data)
         return try JSONDecoder().decode([GitHubBranch].self, from: data)
     }
-
-    // MARK: - Commits
 
     func listCommits(owner: String, repo: String, branch: String = "main", perPage: Int = 20) async throws -> [GitHubCommit] {
         var components = URLComponents(
@@ -49,8 +44,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         try validateResponse(response, data: data)
         return try snakeCaseDecoder().decode([GitHubCommit].self, from: data)
     }
-
-    // MARK: - File Operations
 
     func getFileContent(owner: String, repo: String, path: String) async throws -> String {
         guard let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
@@ -97,8 +90,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         try validateResponse(response, data: data)
     }
 
-    // MARK: - Repository Tree
-
     func getRepoTree(owner: String, repo: String, branch: String = "main") async throws -> [GitHubTreeEntry] {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/git/trees/\(branch)")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
@@ -108,8 +99,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         try validateResponse(response, data: data)
         return try JSONDecoder().decode(GitHubTreeResponse.self, from: data).tree
     }
-
-    // MARK: - Workflow Runs
 
     func listWorkflowRuns(owner: String, repo: String) async throws -> [WorkflowRun] {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs")
@@ -134,8 +123,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         return logsURL
     }
 
-    // MARK: - Workflow Artifacts
-
     func listWorkflowArtifacts(owner: String, repo: String, runID: Int) async throws -> [GitHubArtifact] {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs/\(runID)/artifacts")
         let request = GitHubAuth.shared.authorizedRequest(url: url)
@@ -151,8 +138,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         try validateResponse(response, data: data)
         return data
     }
-
-    // MARK: - Workflow Jobs
 
     func listWorkflowJobs(owner: String, repo: String, runID: Int) async throws -> [WorkflowJob] {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs/\(runID)/jobs")
@@ -170,8 +155,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
-    // MARK: - Workflow Run (Single)
-
     func getWorkflowRun(owner: String, repo: String, runID: Int) async throws -> WorkflowRun {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs/\(runID)")
         let request = GitHubAuth.shared.authorizedRequest(url: url)
@@ -180,8 +163,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         return try snakeCaseDecoder().decode(WorkflowRun.self, from: data)
     }
 
-    // MARK: - Releases
-
     func listReleases(owner: String, repo: String) async throws -> [GitHubRelease] {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/releases")
         let request = GitHubAuth.shared.authorizedRequest(url: url)
@@ -189,8 +170,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         try validateResponse(response, data: data)
         return try snakeCaseDecoder().decode([GitHubRelease].self, from: data)
     }
-
-    // MARK: - Download ZIP
 
     func downloadRepositoryZip(owner: String, repo: String, branch: String = "main") async throws -> URL {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/zipball/\(branch)")
@@ -208,8 +187,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         return destURL
     }
 
-    // MARK: - Create Repository
-
     func createRepository(name: String, description: String, isPrivate: Bool) async throws -> GitHubRepo {
         let url = baseURL.appendingPathComponent("user/repos")
         var request = GitHubAuth.shared.authorizedRequest(url: url, method: "POST")
@@ -226,8 +203,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
         return try JSONDecoder().decode(GitHubRepo.self, from: data)
     }
 
-    // MARK: - Validation
-
     func validateResponse(_ response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw GitHubAPIError.invalidResponse }
         guard (200...299).contains(http.statusCode) else {
@@ -235,8 +210,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
             throw GitHubAPIError.apiError(statusCode: http.statusCode, body: body)
         }
     }
-
-    // MARK: - Helpers
 
     private func snakeCaseDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
@@ -246,8 +219,6 @@ final class GitHubAPIBackend: @unchecked Sendable {
     }
 }
 
-// MARK: - No-Redirect Delegate
-
 private final class NoRedirectSessionDelegate: NSObject, URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
@@ -256,8 +227,6 @@ private final class NoRedirectSessionDelegate: NSObject, URLSessionTaskDelegate 
         newRequest request: URLRequest
     ) async -> URLRequest? { nil }
 }
-
-// MARK: - Errors
 
 enum GitHubAPIError: LocalizedError {
     case missingToken

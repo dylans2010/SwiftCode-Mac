@@ -1,10 +1,3 @@
-// InfoProjView.swift
-//
-// Ported from Legacy `SwiftCode/Views/InfoProjView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Name/Slug/Created/Updated/Last Opened; Display Name; Platform, Deployment Target, Default Config
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): VisualEffectView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -97,13 +90,10 @@ struct InfoProjView: View {
 
     private func loadManifest() async {
         do {
-            // In a real scenario, we'd get the URL from project.directoryURL
-            // For now, we'll try to generate a temporary one or use the coordinator
             let packageURL = await project.directoryURL
             if ProjectFileManager.shared.exists(at: packageURL.appendingPathComponent("manifest.json")) {
                 self.manifest = try ProjectCoordinator.shared.getManifest(for: packageURL)
             } else {
-                // Fallback: create a manifest from project model if it doesn't exist
                 self.manifest = ManifestProjManager.shared.createInitialManifest(for: project)
             }
         } catch {

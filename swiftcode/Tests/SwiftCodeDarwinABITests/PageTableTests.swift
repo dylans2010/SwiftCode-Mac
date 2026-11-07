@@ -9,36 +9,26 @@ private let el0Data = PageAttributes(access: .el0ReadWrite)
 private let el0RO = PageAttributes(access: .el0ReadOnly)
 
 @Suite struct DescriptorTests {
-    // Leaf bits by hand: AttrIndx[4:2], AP[7:6], SH[9:8]=11 (0x300), AF bit 10
-    // (0x400), PXN bit 53 (0x0020_0000_0000_0000), UXN bit 54
-    // (0x0040_0000_0000_0000), type bits[1:0]=11.
 
     @Test func el1DataPage() {
-        // AP 00, AttrIndx 0, PXN and UXN.
         #expect(PageTableBuilder.pageDescriptor(pa: 0x4010_0000, attributes: el1Data) == 0x0060_0000_4010_0703)
     }
 
     @Test func el1CodePage() {
-        // PXN clear, UXN set.
         #expect(PageTableBuilder.pageDescriptor(pa: 0x4000_0000, attributes: el1Code) == 0x0040_0000_4000_0703)
     }
 
     @Test func devicePage() {
-        // AttrIndx 1 → bit 2.
         #expect(PageTableBuilder.pageDescriptor(pa: 0x0900_0000, attributes: device) == 0x0060_0000_0900_0707)
     }
 
     @Test func el0Pages() {
-        // AP 11 → 0xC0; PXN set, UXN clear.
         #expect(PageTableBuilder.pageDescriptor(pa: 0x4100_0000, attributes: el0Code) == 0x0020_0000_4100_07C3)
-        // AP 01 → 0x40; both XN.
         #expect(PageTableBuilder.pageDescriptor(pa: 0x4100_4000, attributes: el0Data) == 0x0060_0000_4100_4743)
-        // AP 11, both XN.
         #expect(PageTableBuilder.pageDescriptor(pa: 0x4100_8000, attributes: el0RO) == 0x0060_0000_4100_87C3)
     }
 
     @Test func el1ReadOnlyPage() {
-        // AP 10 → 0x80.
         let ro = PageAttributes(access: .el1ReadOnly)
         #expect(PageTableBuilder.pageDescriptor(pa: 0x4000_4000, attributes: ro) == 0x0060_0000_4000_4783)
     }
@@ -52,7 +42,6 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
     }
 
     @Test func tableDescriptor() {
-        // Address bits [47:14] plus bits[1:0] = 11; no attribute bits.
         #expect(PageTableBuilder.tableDescriptor(nextTableGPA: 0x4020_4000) == 0x4020_4003)
         #expect(PageTableBuilder.tableDescriptor(nextTableGPA: 0xFF_FFFF_C000) == 0xFF_FFFF_C003)
     }
@@ -109,24 +98,20 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
         var b = PageTableBuilder()
         try b.map(va: 0x0900_0000, pa: 0x0900_0000, size: 0x4000, attributes: device)
         #expect(b.tableCount == 3)
-        // Root[0] → L2 at slot 1; L2[4] → L3 at slot 2; L3[1024] → the page.
         #expect(b.descriptor(tableGPA: 0x4020_0000, index: 0) == 0x4020_4003)
         #expect(b.descriptor(tableGPA: 0x4020_4000, index: 4) == 0x4020_8003)
         #expect(b.descriptor(tableGPA: 0x4020_8000, index: 1024) == 0x0060_0000_0900_0707)
         let t = b.tables
         #expect(t.map(\.gpa) == [0x4020_0000, 0x4020_4000, 0x4020_8000])
         #expect(t.allSatisfy { $0.bytes.count == 16384 })
-        // Little-endian bytes of root entry 0 and of L3 entry 1024.
         #expect(Array(t[0].bytes[0..<8]) == [0x03, 0x40, 0x20, 0x40, 0, 0, 0, 0])
         #expect(Array(t[2].bytes[(1024 * 8)..<(1024 * 8 + 8)]) == [0x07, 0x07, 0x00, 0x09, 0, 0, 0x60, 0])
-        // Every other byte is zero.
         #expect(t[0].bytes[8...].allSatisfy { $0 == 0 })
         #expect(t[1].bytes.enumerated().allSatisfy { i, v in (32..<40).contains(i) || v == 0 })
     }
 
     @Test func tablesAreShared() throws {
         var b = PageTableBuilder()
-        // Two pages under the same L3 table, then one in a new L2 slot.
         try b.map(va: 0x1_0000_0000, pa: 0x4100_0000, size: 0x8000, attributes: el0Data)
         #expect(b.tableCount == 3)
         try b.map(va: 0x1_0200_0000, pa: 0x4100_8000, size: 0x4000, attributes: el0Data)
@@ -165,7 +150,6 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
         #expect(b.translate(0x1_6FFF_FFF8)?.pa == 0x4101_7FF8)
         #expect(b.translate(0xF_FFFF_C000)?.pa == 0x4101_8000)
 
-        // Unmapped addresses.
         for va: UInt64 in [0, 0x0900_4000, 0x4012_0000, 0x1_0000_8000, 0x1_6FFE_C000, 0xF_FFFF_8000, 1 << 47, UInt64.max] {
             #expect(b.translate(va) == nil, "\(hex(va))")
         }
@@ -199,7 +183,6 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
         #expect(throws: PageTableError.physicalAddressOutOfRange(pa: 1 << 40, size: 0x4000)) {
             try b.map(va: 0x1_0000_0000, pa: 1 << 40, size: 0x4000, attributes: el0Data)
         }
-        // The very last page of the VA space is fine.
         #expect(throws: Never.self) {
             try b.map(va: (1 << 47) - 0x4000, pa: 0x4100_0000, size: 0x4000, attributes: el0Data)
         }
@@ -210,18 +193,15 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
         var b = PageTableBuilder()
         try b.map(va: 0x1_0000_8000, pa: 0x4100_0000, size: 0x4000, attributes: el0Data)
         let before = b.tables.map(\.bytes)
-        // The new range's third page collides; nothing from it may stay mapped.
         #expect(throws: PageTableError.alreadyMapped(va: 0x1_0000_8000)) {
             try b.map(va: 0x1_0000_0000, pa: 0x4200_0000, size: 0xC000, attributes: el0Code)
         }
         #expect(b.translate(0x1_0000_0000) == nil)
         #expect(b.translate(0x1_0000_4000) == nil)
         #expect(b.tables.map(\.bytes) == before)
-        // Identical remaps are rejected too.
         #expect(throws: PageTableError.alreadyMapped(va: 0x1_0000_8000)) {
             try b.map(va: 0x1_0000_8000, pa: 0x4100_0000, size: 0x4000, attributes: el0Data)
         }
-        // A failed map that would allocate tables leaves the count unchanged.
         try b.map(va: 0x20_0000_0000, pa: 0x4300_0000, size: 0x4000, attributes: el0Data)
         let count = b.tableCount
         #expect(throws: PageTableError.alreadyMapped(va: 0x20_0000_0000)) {
@@ -243,7 +223,6 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
         try three.map(va: 0, pa: 0x4100_0000, size: 0x4000, attributes: el0Data)
         #expect(three.rootGPA == 0x4100_0000)
         #expect(three.tables.map(\.gpa) == [0x4100_0000, 0x4100_4000, 0x4100_8000])
-        // Same L3 table: fine. New L3 table: no room.
         try three.map(va: 0x4000, pa: 0x4100_4000, size: 0x4000, attributes: el0Data)
         #expect(throws: PageTableError.arenaExhausted(capacity: 3)) {
             try three.map(va: 0x200_0000, pa: 0x4100_8000, size: 0x4000, attributes: el0Data)
@@ -259,7 +238,6 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
             try b.map(va: r.va, pa: pool, size: r.size, attributes: r.attributes)
             pool += r.size
         }
-        // L1 + L2(0) + L3 for: doorbell, shim/data, tables ×4, image, stack, commpage.
         #expect(b.tableCount <= 16)
         #expect(b.tables.allSatisfy { $0.gpa >= 0x4020_0000 && $0.gpa + 0x4000 <= 0x40A0_0000 })
     }
@@ -274,7 +252,6 @@ private let el0RO = PageAttributes(access: .el0ReadOnly)
     func make() throws -> (TranslatingGuestMemory, RAM) {
         let ram = RAM()
         var b = PageTableBuilder()
-        // Two virtually contiguous pages backed by physically swapped pages.
         try b.map(va: 0x1_0000_0000, pa: 0x4100_4000, size: 0x4000, attributes: el0Data)
         try b.map(va: 0x1_0000_4000, pa: 0x4100_0000, size: 0x4000, attributes: el0Data)
         try b.map(va: 0x1_0000_8000, pa: 0x4100_8000, size: 0x4000, attributes: el0RO)

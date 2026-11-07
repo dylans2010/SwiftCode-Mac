@@ -1,14 +1,11 @@
 import Foundation
 
-/// A property-list value for `BinaryPlist`, including the keyed-archive
-/// `uid` type that `PropertyListSerialization` cannot create portably.
 enum BPlist: Equatable {
     case string(String)
     case int(Int)
     case data([UInt8])
     case uid(Int)
     case array([BPlist])
-    /// Keys are written in sorted (byte) order.
     case dict([(String, BPlist)])
 
     static func == (a: BPlist, b: BPlist) -> Bool {
@@ -24,9 +21,6 @@ enum BPlist: Equatable {
     }
 }
 
-/// A writer for the `bplist00` binary property-list format (as documented
-/// in CoreFoundation's open-source `CFBinaryPList.c` header comment): the
-/// same value gives the same bytes on every platform.
 enum BinaryPlist {
     private enum Node {
         case leaf(BPlist)
@@ -93,7 +87,6 @@ enum BinaryPlist {
         return out
     }
 
-    /// 1, 2, 4 or 8: the bytes an unsigned value needs.
     static func byteCount(_ n: Int) -> Int {
         n <= 0xFF ? 1 : n <= 0xFFFF ? 2 : n <= 0xFFFF_FFFF ? 4 : 8
     }
@@ -102,30 +95,22 @@ enum BinaryPlist {
         (0..<size).reversed().map { UInt8(truncatingIfNeeded: UInt64(bitPattern: Int64(n)) >> (8 * UInt64($0))) }
     }
 
-    /// Integers: unsigned in 1, 2 or 4 bytes; signed in 8 (negative values).
     static func integer(_ n: Int) -> [UInt8] {
         let size = n < 0 ? 8 : byteCount(n)
         let power: UInt8 = size == 1 ? 0 : size == 2 ? 1 : size == 4 ? 2 : 3
         return [0x10 | power] + bigEndian(n, size: size)
     }
 
-    /// A type marker with its count in the low nibble, or `F` and an integer.
     static func marker(_ type: UInt8, _ count: Int) -> [UInt8] {
         count < 15 ? [type << 4 | UInt8(count)] : [type << 4 | 0xF] + integer(count)
     }
 }
 
-/// An `NSKeyedArchiver`-format archive built by hand (`$archiver`,
-/// `$version`, `$top`, `$objects` with `$null` first, objects as dictionaries
-/// with a `$class` reference, class dictionaries with `$classname` and
-/// `$classes`). Strings and class dictionaries are shared by value; an
-/// object's class dictionary follows the objects its fields refer to.
 struct KeyedArchive {
     private(set) var objects: [BPlist] = [.string("$null")]
     private var strings: [String: Int] = [:]
     private var classes: [String: Int] = [:]
 
-    /// A shared string object.
     mutating func string(_ s: String) -> BPlist {
         if let i = strings[s] { return .uid(i) }
         objects.append(.string(s))
@@ -133,8 +118,6 @@ struct KeyedArchive {
         return .uid(objects.count - 1)
     }
 
-    /// An object of the class `chain[0]` (`chain` up to `NSObject`); `fields`
-    /// encodes its values in order.
     mutating func object(_ chain: [String], _ fields: (inout KeyedArchive) -> [(String, BPlist)]) -> BPlist {
         objects.append(.string(""))
         let i = objects.count - 1
@@ -161,7 +144,6 @@ struct KeyedArchive {
         object(["NSMutableData", "NSData", "NSObject"]) { _ in [("NS.data", .data(bytes))] }
     }
 
-    /// The archive with `root` as its root object, as a binary property list.
     func encoded(root: BPlist) -> [UInt8] {
         BinaryPlist.encode(.dict([
             ("$archiver", .string("NSKeyedArchiver")),

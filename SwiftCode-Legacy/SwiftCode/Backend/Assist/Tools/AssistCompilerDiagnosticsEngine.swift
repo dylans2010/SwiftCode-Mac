@@ -34,8 +34,6 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
             return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root.")
         }
         let scheme = await AssistXcodeProjectResolver.resolveScheme(for: located, explicit: input["scheme"] as? String)
-        // Argument vector — never a shell string: a crafted scheme name is an
-        // inert argument here, not executable shell.
         let args = located.xcodebuildArgs + ["-scheme", scheme, "-configuration", "Debug", "build"]
         let run: AssistArgvRunner.Result
         do {
@@ -54,8 +52,6 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
         var diagnostics = parseDiagnostics(run.output)
         diagnostics["exitCode"] = "\(run.exitCode)"
         diagnostics["buildFailed"] = run.exitCode == 0 ? "false" : "true"
-        // Success means "diagnostics were collected", not "the build passed":
-        // the build failure is explicit in the output and in the data.
         let headline = run.exitCode == 0
             ? "Compiler diagnostics collected (build succeeded)."
             : "Compiler diagnostics collected (build FAILED, exit code \(run.exitCode))."

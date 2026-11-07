@@ -1,6 +1,3 @@
-// translator_impl.h: the translator's internal state, shared by
-// translate.cpp (module structure, memory, instructions, stage interface)
-// and intrinsics.cpp (air.* and llvm.* calls).
 #pragma once
 
 #include "abi.h"
@@ -23,25 +20,17 @@
 
 namespace airc {
 
-// Address spaces (metal-shaders.md section 3.3).
 enum AddrSpace : unsigned { kPrivate = 0, kDevice = 1, kConstant = 2, kThreadgroup = 3, kImageblock = 4 };
 
-// An image type in the bindless heap.
 struct ImageKind {
-    std::string dim;        // 1D, 2D, 3D, Cube, Buffer
+    std::string dim;
     bool arrayed = false, ms = false, depth = false;
-    char sampled = 'f';     // f float, i int, u uint
+    char sampled = 'f';
 };
 
 struct Translator {
     llvm::Module &M;
     llvm::Function &F;
-    // Hang bisection (diagnostics only, never set in production):
-    // AIRC_EXP=psb,tex,demote,simd,imgwrite changes the translation of the
-    // entry point named by AIRC_EXP_FN (every function when unset): device
-    // loads read zero, texture reads and samples return zero, discard is a
-    // no-op, SIMD reductions return the lane's own value, texture writes are
-    // dropped.
     bool experiment(const char *what) const;
     bool nullGuardLoad(llvm::Value *P, bool all) const;
     std::string tableAddrHere();
@@ -50,62 +39,51 @@ struct Translator {
     const llvm::DataLayout &DL;
     const TranslateOptions &opts;
     Emitter E;
-    StructurePlan plan;                         // of the function being emitted
-    // Helpers kept out of line (SPIR-V functions marked DontInline).
+    StructurePlan plan;
     std::vector<llvm::Function *> helpers;
     std::map<llvm::Function *, StructurePlan> helperPlans;
     std::map<const llvm::Function *, std::string> fnIds;
-    llvm::Function *cur = nullptr;              // the function being emitted
-
+    llvm::Function *cur = nullptr;
 
     std::map<const llvm::Value *, std::string> vals;
     std::map<const llvm::BasicBlock *, std::string> labels;
 
-    // Interface.
-    std::string pcVar, tableAddr;              // push-constant block, this stage's table address
-    std::map<unsigned, std::string> tableLoads;  // entry -> u64 id (prologue)
-    std::map<std::string, std::string> builtins; // BuiltIn name -> variable
+    std::string pcVar, tableAddr;
+    std::map<unsigned, std::string> tableLoads;
+    std::map<std::string, std::string> builtins;
     struct Output { std::string var; llvm::Type *type; std::string ioType; };
     std::vector<Output> outputs;
-    std::string wgSizeId, specX, specY, specZ;   // kernels
+    std::string wgSizeId, specX, specY, specZ;
     unsigned nextFragmentLocation = 0;
 
-    // Memory.
     std::map<const llvm::AllocaInst *, uint64_t> allocaOffset;
     uint64_t privateBytes = 0;
     std::string arenaVar;
-    std::string loopBudgetVar;                  // Private u32 loop-header count (loop guard)
+    std::string loopBudgetVar;
     std::map<const llvm::GlobalVariable *, uint64_t> wgStaticOffset;
     uint64_t wgStaticBytes = 0;
-    std::vector<unsigned> wgSlots;              // [[threadgroup(n)]] slots used
-    std::string wgBytesId;                      // u32 id of the total size (constant or spec constant)
+    std::vector<unsigned> wgSlots;
+    std::string wgBytesId;
     bool wgDynamic = false;
-    std::map<unsigned, std::string> wgVars;     // element width -> Workgroup variable
+    std::map<unsigned, std::string> wgVars;
     std::map<const llvm::GlobalVariable *, uint64_t> constDataOffset;
-    std::string constData;                      // bytes of the constant-data blob
+    std::string constData;
     std::map<const llvm::GlobalVariable *, unsigned> constexprSamplerIndex;
     std::vector<ConstexprSampler> samplers;
     std::map<const llvm::GlobalVariable *, FunctionConstant> fconsts;
-    std::map<const llvm::GlobalVariable *, std::string> globalAddr;  // prologue ids
+    std::map<const llvm::GlobalVariable *, std::string> globalAddr;
 
-    // Compute imageblocks (explicit or implicit layout), kept in threadgroup
-    // memory after the static threadgroup variables: pixel (x, y) at
-    // imageblockBase + (y * width + x) * stride; width x height = the
-    // threadgroup size.
     bool hasImageblock = false;
     uint64_t ibStride = 0;
     std::vector<uint64_t> ibFieldOffsets;
     uint64_t imageblockBase() const { return wgStaticBytesAligned(); }
 
-    // Interpolant fragment inputs (interpolant<T, ...>): argument -> variable.
     struct Interpolant { std::string var, ioType; unsigned n = 1; bool half = false; };
     std::map<const llvm::Value *, Interpolant> interpolants;
 
-    // Heap variables by key.
     std::map<std::string, std::string> heapVars;
 
-    // Reflection facts gathered during translation.
-    std::set<std::string> uses;                 // "discard", "derivatives", "subgroup", "barrier", ...
+    std::set<std::string> uses;
     Json jBuffers = Json::array(), jTextures = Json::array(), jSamplers = Json::array();
     Json jVertexInputs = Json::array(), jVaryings = Json::array(), jBuiltins = Json::array();
     Json jInputAttachments = Json::array();
@@ -116,7 +94,6 @@ struct Translator {
     Translator(llvm::Module &m, llvm::Function &f, EntryInfo ei, const TranslateOptions &o)
         : M(m), F(f), EI(std::move(ei)), DL(m.getDataLayout()), opts(o) {}
 
-    // translate.cpp
     std::string run();
     std::string type(llvm::Type *T);
     std::string constant(llvm::Constant *C);
@@ -150,7 +127,6 @@ struct Translator {
     std::string fitBuiltin(const std::string &v, const std::string &vType, unsigned n, llvm::Type *T);
     Json reflection();
 
-    // intrinsics.cpp
     void call(llvm::CallInst *C);
     bool callTexture(llvm::CallInst *C, llvm::StringRef name);
     bool callSimd(llvm::CallInst *C, llvm::StringRef name);
@@ -163,8 +139,7 @@ struct Translator {
     std::string heapSampler(const std::string &handle);
 };
 
-// Helpers.
 bool isSignedTypeName(const std::string &metalType);
 std::string printType(llvm::Type *T);
 
-}  // namespace airc
+}

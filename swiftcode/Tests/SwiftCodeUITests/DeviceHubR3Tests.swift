@@ -6,15 +6,6 @@ import SwiftCodeDisplayStream
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Council round 3 on the Device Hub (`specs/ide/device-hub.md` §11.2–§11.4,
-/// checklist rows 66 and 67): the Settings inspector's cards on a 43-point
-/// pitch, one card holding the message when SwiftCode offers no settings, no
-/// empty scroll track; the toolbar without "»" at 1100 points, Add Device
-/// and Filter hidden with the sidebar, the resize toggle beside Capture
-/// Keyboard, a plain "i" tab. With `SWIFTCODE_B3_DEVWIN_SHOTS=<dir>` it also
-/// saves light and dark pictures of the window; with
-/// `SWIFTCODE_B3_DEVWIN_DISPLAY=<host:port>` (a running SwiftCode simulator's display
-/// server, e.g. forwarded from the simulator host) the canvas shows it live.
 @MainActor
 @Suite(.serialized) struct DeviceHubR3Tests {
     static let duo = DeviceRow(name: "iPhone Duo (SwiftCode)", identifier: "h:/data/devices/b3-devwin-duo", platform: "iOS", osVersion: "27.1",
@@ -33,7 +24,6 @@ import SwiftCodeDisplayStream
             hub.makeDisplayLink = { r in RemoteDisplayLink(address: a, spec: .iPhoneDuo, name: r.name, os: "iOS 27.1") }
         }
         let w = hub.makeWindow()
-        // Off the Window menu (MenuBarGoldenTests reads it in the same process).
         w.isExcludedFromWindowsMenu = true
         w.setFrameAutosaveName("")
         hub.splitView.autosaveName = nil
@@ -57,23 +47,20 @@ import SwiftCodeDisplayStream
         w.contentView?.layoutSubtreeIfNeeded()
         settle()
         let cards = Self.views(InspectorCard.self, in: w.contentView!)
-        #expect(cards.count == 3)   // the three settings cards (no camera setting in this window)
+        #expect(cards.count == 3)
         let inspector = hub.inspectorVC.view
         for c in cards {
             let r = c.convert(c.bounds, to: inspector)
             #expect(r.width == 260 && abs(r.minX - 10) < 0.5 && abs(inspector.bounds.width - r.maxX - 10) < 0.5)
             #expect(c.layer?.cornerRadius == 12)
         }
-        // Rows 42 tall with a 1-point separator: 9, 1 and 3 rows.
         #expect(cards.prefix(3).map { $0.frame.height } == [386, 42, 128])
         let first = cards[0]
         #expect(first.rowRect(1).minY - first.rowRect(0).minY == 43 && first.rowRect(0).height == 42)
-        // Each row: the symbol 13.5 inside, the label 38 inside, the control at the trailing edge.
         for (i, r) in first.rows.enumerated() {
             #expect(abs(r.control.frame.midY - first.rowRect(i).midY) <= 1)
             #expect(r.control.frame.maxX <= 260 - 13 + 0.5 && r.control.frame.minX > 38)
         }
-        // Cards 10 apart.
         let tops = cards.prefix(3).map { $0.convert($0.bounds, to: inspector) }
         #expect(abs(tops[1].minY - tops[0].maxY - 10) < 0.5 || abs(tops[0].minY - tops[1].maxY - 10) < 0.5)
     }
@@ -100,19 +87,12 @@ import SwiftCodeDisplayStream
         settle()
         let tb = try #require(w.toolbar)
         func item(_ id: NSToolbarItem.Identifier) -> NSToolbarItem? { tb.items.first { $0.itemIdentifier == id } }
-        // The resize toggle shares Capture Keyboard's capsule, disabled (§4.7).
         let group = try #require(item(DeviceHubToolbar.captureGroup) as? NSToolbarItemGroup)
         tb.validateVisibleItems()
         #expect(group.subitems.map(\.label) == ["Capture Keyboard", "Enter resize mode"])
         #expect(group.subitems[0].isEnabled && !group.subitems[1].isEnabled)
-        // A plain "i" for Info.
         let tabs = try #require(item(DeviceHubToolbar.tabs) as? NSToolbarItemGroup)
         #expect(tabs.subitems.last?.image?.accessibilityDescription == "Info" && DeviceHubToolbar.tabSymbols.last == "info")
-        // "Nothing overflows at 1100" needs the window 1100 wide. A smaller
-        // screen clamps it (CI's runner has a 1024-point screen, where two
-        // items overflow); then it is a known issue that reports what
-        // overflowed. The layout probe measures the same on other systems
-        // (hub.booted.toolbar.overflowedAt1100: none on macOS 27.0 and 27.2).
         let fullWidth = w.frame.width >= 1100
         func expectFits(_ what: String) {
             let over = Self.overflowed(tb).map(\.rawValue)
@@ -121,7 +101,6 @@ import SwiftCodeDisplayStream
             } when: { !fullWidth }
         }
         expectFits("with the sidebar")
-        // Hide the sidebar: Add Device and Filter go with it; everything else fits (no "»").
         hub.toggleHubSidebar(nil)
         settle(0.8)
         #expect(!hub.sidebarShown)
@@ -134,7 +113,6 @@ import SwiftCodeDisplayStream
         if #available(macOS 15.0, *) { #expect(item(DeviceHubToolbar.add)?.isHidden == false) }
     }
 
-    /// Light and dark pictures of the hub (the sidebar hidden as in round 3).
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_B3_DEVWIN_SHOTS"] != nil))
     func pictures() async throws {
         let dir = ProcessInfo.processInfo.environment["SWIFTCODE_B3_DEVWIN_SHOTS"]!
@@ -147,7 +125,6 @@ import SwiftCodeDisplayStream
         hub.selectInspectorTab(.settings)
         hub.splitViewItems[0].isCollapsed = true
         w.contentView?.layoutSubtreeIfNeeded()
-        // Wait for the live picture when a display server is given.
         for _ in 0..<150 where hub.canvas.stateDescription != "live" && hub.makeDisplayLink != nil { settle(0.2) }
         settle(1.5)
         #expect(!hub.sidebarShown)
@@ -158,14 +135,12 @@ import SwiftCodeDisplayStream
             Self.shot(w, URL(fileURLWithPath: dir).appendingPathComponent("hub-\(name).png"))
             hub.selectInspectorTab(.settings)
         }
-        // A stopped device: Start where the capsules float, no label.
         hub.select(row: hub.rows.firstIndex { $0.identifier == Self.other.identifier }!)
         for (name, look) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             w.appearance = NSAppearance(named: look)
             settle(0.6)
             Self.shot(w, URL(fileURLWithPath: dir).appendingPathComponent("hub-other-\(name).png"))
         }
-        // A stopped SwiftCode simulator: Start in the capsules' place.
         hub.select(row: hub.rows.firstIndex { $0.identifier == Self.stopped.identifier }!)
         for (name, look) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             w.appearance = NSAppearance(named: look)
@@ -175,7 +150,6 @@ import SwiftCodeDisplayStream
         #expect(FileManager.default.fileExists(atPath: dir + "/hub-light.png"))
     }
 
-    /// The toolbar's items that went into its overflow menu ("»").
     static func overflowed(_ tb: NSToolbar) -> [NSToolbarItem.Identifier] {
         let shown = tb.items.filter { i in
             if #available(macOS 15.0, *), i.isHidden { return false }

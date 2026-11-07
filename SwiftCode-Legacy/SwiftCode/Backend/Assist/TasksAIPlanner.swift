@@ -1,7 +1,6 @@
 import Foundation
 import Combine
 
-/// A high-trust task planning engine that decomposes user intent into executable steps.
 @MainActor
 public final class TasksAIPlanner: ObservableObject {
     public static let shared = TasksAIPlanner()
@@ -11,7 +10,6 @@ public final class TasksAIPlanner: ObservableObject {
 
     private init() {}
 
-    /// Generates a structured multi-step plan based on user intent.
     public func generatePlan(intent: String, context: AssistContext, complexity: PlanComplexity = .moderate) async throws -> AssistExecutionPlan {
         isPlanning = true
         defer { isPlanning = false }
@@ -147,7 +145,6 @@ public final class TasksAIPlanner: ObservableObject {
         }
     }
 
-    /// Provides a basic fallback plan if the AI fails to generate one.
     public func fallbackPlan(intent: String) -> AssistExecutionPlan {
         var plan = AssistExecutionPlan(goal: intent)
         plan.steps = [
@@ -159,7 +156,6 @@ public final class TasksAIPlanner: ObservableObject {
         return plan
     }
 
-    /// Updates the status of a specific step in the current plan.
     public func updateStep(id: UUID, status: AssistExecutionStatus, result: AssistToolResult? = nil) {
         guard var plan = currentPlan else { return }
         if let index = plan.steps.firstIndex(where: { $0.id == id }) {
@@ -220,7 +216,6 @@ public final class TasksAIPlanner: ObservableObject {
             }
             return plan
         } catch {
-            // Last ditch attempt: if it's a simple list but not proper JSON, try to extract goal at least
             if response.contains("goal") {
                  return fallbackPlan(intent: "Refined Task: \(jsonStr.prefix(100))...")
             }

@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for CoreMotion
-
 public struct CoreMotionAPIEntity_0000: Sendable, Codable {
     public let id: String = "coremotion.api.0"
     public var name: String = "CoreMotionEntity_0"

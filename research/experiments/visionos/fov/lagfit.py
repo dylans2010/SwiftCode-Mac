@@ -1,8 +1,3 @@
-# lagfit.py (our code, OBS-VISION-FOV): picture yaw against the commanded yaw for continuous pose streams.
-# usage: python3 -I lagfit.py <run dir> [--offset deg]   (sent.txt, script.txt, yaw.csv)
-# The commanded yaw at time t is the last pose sent at or before t (by the message's own send time).
-# Fits the delay L (ms) and gain g minimising sum (picture(t) - g * cmd(t - L))^2 over the frames while poses
-# were being sent; prints L, g, the RMS error, and for a sine the amplitude ratio.
 import sys, csv, math, os, bisect
 import numpy as np
 d = sys.argv[1]; off = float(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[2] == '--offset' else 0.0

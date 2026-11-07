@@ -1,14 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Build/LocalBuildService.swift
-// Adapted for SwiftCode — honestly. Legacy built the real URLRequest, then slept
-// 2s/3s/1s and returned "Fake IPA Content for <name>" as the IPA ("In a real
-// networked environment, we'd use URLSession... we will simulate"). The fake
-// is NOT ported: this version performs the real URLSession POST to
-// http://<mac.host>:<port>/build with the BuildRequest, decodes the
-// BuildResponse, and saves the IPA via ProjectPackager on success. The
-// `Project` parameter became an explicit project URL + name (SwiftCode has no
-// Legacy `Project` model); the log/progress reporting is unchanged.
-
 import Foundation
 import Observation
 
@@ -25,9 +14,6 @@ public final class LocalBuildService {
         self.session = URLSession(configuration: .default)
     }
 
-    /// Builds `projectName` (at `projectURL`) on the discovered Mac and
-    /// returns the saved IPA URL, or nil when the remote build fails.
-    /// Throws for packaging / transport errors.
     public func startBuild(on mac: DiscoveredMac, projectURL: URL, projectName: String) async throws -> URL? {
         isBuilding = true
         buildLogs = []
@@ -36,7 +22,6 @@ public final class LocalBuildService {
 
         addLog("Connecting to \(mac.name)...")
 
-        // Prepare project data
         addLog("Packaging project files...")
         let projectData = try await Task.detached {
             try await ProjectPackager.shared.packageProject(at: projectURL)

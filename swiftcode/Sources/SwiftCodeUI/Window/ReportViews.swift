@@ -2,7 +2,6 @@ import AppKit
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// A row of the build log outline: a target section, a step, or an issue.
 final class BuildLogNode: NSObject {
     let title: String
     var subtitle: String?
@@ -35,8 +34,6 @@ final class BuildLogNode: NSObject {
     }
 }
 
-/// The build log (reference-ui-2.md §5): a scope bar, one section per
-/// target with nested steps (badges and transcript buttons), and a footer.
 @MainActor
 public final class BuildLogView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate {
     public let report: BuildReport
@@ -46,7 +43,6 @@ public final class BuildLogView: NSView, NSOutlineViewDataSource, NSOutlineViewD
     let outline = NSOutlineView()
     let sections: [BuildLogSection]
     var nodes: [BuildLogNode] = []
-    /// Steps whose transcript is shown.
     var expandedTranscripts: Set<ObjectIdentifier> = []
 
     public init(report: BuildReport) {
@@ -94,19 +90,14 @@ public final class BuildLogView: NSView, NSOutlineViewDataSource, NSOutlineViewD
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The first section's title and every section's subtitle (§5.2).
     public var sectionTitle: String { sections.first?.title ?? "Build target \(report.schemeName)" }
     public var sectionSubtitle: String { BuildLogModel.subtitle(report.context) }
-    /// The footer's two lines (§5.4).
     public var footerLines: (String, String) { BuildLogModel.footer(report) }
 
-    /// Sections the bar's settings show: All adds the steps carried over
-    /// from earlier builds; Recent is this build's steps only.
     public var shownSections: [BuildLogSection] {
         let base = scope.selectedSegment == 1 ? sections : BuildLogModel.merge(sections, report.context.carriedOver)
         return BuildLogModel.filter(base, messages: BuildLogModel.Messages(rawValue: kind.selectedSegment) ?? .issues, text: filter.stringValue)
     }
-    /// The shown outline as indented text (tests, Export).
     public var shownLines: [String] { BuildLogModel.outline(shownSections) }
 
     @objc func refresh() {
@@ -204,24 +195,17 @@ public final class BuildLogView: NSView, NSOutlineViewDataSource, NSOutlineViewD
     }
 }
 
-/// A test run's report pages (reference-ui-2.md §6): Summary (Insights),
-/// Tests, Coverage.
 @MainActor
 public final class TestReportView: NSView {
     public enum Page: String { case summary = "Insights", tests = "Tests", coverage = "Coverage" }
     public let report: BuildReport
     public let page: Page
     let stack = NSStackView()
-    /// Tests page: the Failed Tests filter, and the text filter (both pages).
     public var failedOnly = false { didSet { rebuild() } }
-    /// Tests page: the other filter pop-ups (reference-ui-5.md §11.3, P12).
     public var filters = TestReportFilters() { didSet { rebuild() } }
-    /// Tests page: the filter pop-ups, in order (tests).
     public private(set) var filterPopUps: [NSPopUpButton] = []
-    /// Coverage page: targets shown expanded to their files.
     public var expandedCoverage: Set<String> = [] { didSet { rebuild() } }
     public let filter = NSSearchField()
-    /// Coverage page: Show Test Bundles.
     public let showTestBundles = NSButton(checkboxWithTitle: "Show Test Bundles", target: nil, action: nil)
 
     public var passed: Int { TestReportModel.summary(report).passed }
@@ -260,7 +244,6 @@ public final class TestReportView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Lines of text the page shows (tests).
     public private(set) var lines: [String] = []
 
     @objc func filterChanged() { rebuild() }
@@ -358,7 +341,6 @@ public final class TestReportView: NSView {
 
     @objc func failedFilterPicked(_ sender: NSMenuItem) { failedOnly = sender.tag == 1 }
 
-    /// The checked item of filter pop-up `i`.
     func selectedFilterItem(_ i: Int) -> Int {
         switch i {
         case 0: failedOnly ? 1 : 0
@@ -369,7 +351,6 @@ public final class TestReportView: NSView {
         }
     }
 
-    /// Picks item `item` of filter pop-up `menu` (as a click would).
     public func pickFilter(menu: Int, item: Int) {
         let menus = TestReportFilters.menus(report)
         guard menus.indices.contains(menu), menus[menu].items.indices.contains(item) else { return }
@@ -385,7 +366,6 @@ public final class TestReportView: NSView {
 
     @objc func filterItemPicked(_ sender: NSMenuItem) { pickFilter(menu: sender.tag / 100, item: sender.tag % 100) }
 
-    /// Expands or collapses a target row of the Coverage page.
     public func toggleCoverage(_ target: String) {
         if expandedCoverage.contains(target) { expandedCoverage.remove(target) } else { expandedCoverage.insert(target) }
     }
@@ -397,7 +377,6 @@ public final class TestReportView: NSView {
         s.addArrangedSubview(NSStackView(views: [showTestBundles, filter]))
         var rows: [[NSView]] = [[label("Name", bold: true), label("Coverage", bold: true), label("Executable Lines", bold: true)]]
         let items = CoverageModel.rows(report.context.coverage, showTestBundles: showTestBundles.state == .on, filter: filter.stringValue)
-        // Target rows expand to their files (a filter shows matches open).
         for t in items {
             let open = expandedCoverage.contains(t.name) || (!filter.stringValue.isEmpty && !t.name.localizedCaseInsensitiveContains(filter.stringValue))
             for (item, depth) in [(t, 0)] + (open ? t.files.map { ($0, 1) } : []) {
@@ -426,7 +405,6 @@ public final class TestReportView: NSView {
     }
 }
 
-/// A proportional bar with its value (summary table, coverage column).
 final class ShareBar: NSView {
     let share: Double, color: NSColor
     init(share: Double, text: String, color: NSColor) {
@@ -450,7 +428,6 @@ final class ShareBar: NSView {
     }
 }
 
-/// The Tests card's ring: passed and failed shares around the total.
 final class RingView: NSView {
     let passed: Int, failed: Int
     init(passed: Int, failed: Int) {

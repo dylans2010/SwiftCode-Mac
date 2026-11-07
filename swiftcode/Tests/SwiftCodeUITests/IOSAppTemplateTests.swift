@@ -33,7 +33,6 @@ import SwiftCodeProject
         return o
     }
 
-    /// Finish on the options step (the compact picker's App row) creates it.
     @Test func finishCreatesIOSApp() throws {
         _ = NSApplication.shared
         let dir = try tempDir()
@@ -44,7 +43,6 @@ import SwiftCodeProject
         defer { td.remove() }
         wc.templateDefaults = td.defaults
         wc.newProjectLocation = dir
-        // Choose Template… ▸ iOS ▸ App (the picker's App row is the untitled project).
         let sheet = wc.chooseProjectTemplate()
         #expect(sheet.select(templateID: "ios.app"))
         sheet.nextClicked()

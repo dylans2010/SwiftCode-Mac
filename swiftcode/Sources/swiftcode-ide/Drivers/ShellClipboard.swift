@@ -5,9 +5,6 @@ import SwiftCodeIDEShell
 import AppKit
 #endif
 
-/// The system clipboard for the shell's Copy buttons and Copy items: on
-/// Linux OpenViews' clipboard (SDL's, the one text fields use), on macOS the
-/// general pasteboard.
 @MainActor
 enum ShellClipboard {
     static func copy(_ s: String) {
@@ -19,7 +16,6 @@ enum ShellClipboard {
         #endif
     }
 
-    /// The clipboard's text (driver checks).
     static var string: String? {
         #if os(Linux)
         OpenViewsClipboard.string
@@ -29,8 +25,6 @@ enum ShellClipboard {
     }
 }
 
-/// A small bordered Copy button that puts `text` on the clipboard; its
-/// tooltip is the text (as the macOS wizards' Copy buttons).
 struct CopyButton: View {
     var text: String
     var title = "Copy"

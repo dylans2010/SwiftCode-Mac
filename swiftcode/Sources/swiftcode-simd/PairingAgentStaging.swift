@@ -1,14 +1,3 @@
-// Staging SwiftCode's guest pairing agent into a device
-// (specs/simulator/device-pairing.md P-4, §8). As the settings agent
-// (SettingsAgentStaging.swift): the binary is copied to
-// DEV/data/Library/SwiftCode/bin and run by launchd_sim from
-// DEV/data/Library/LaunchDaemons/dev.swiftcode.simulator.pairing.plist
-// (RunAtLoad, KeepAlive, Interactive; `user/<uid>` on iOS, `system` on
-// watchOS), its stderr in DEV/data/tmp/swiftcode-pairing-agent.log. Every device
-// gets it when the binary is there, paired or not: a phone whose watch was
-// unpaired while it was stopped removes the pair in its guest at its next
-// boot (remove-unpaired, §3.1). Without a binary the plist is removed.
-
 import Foundation
 
 extension DeviceLayout {
@@ -16,8 +5,6 @@ extension DeviceLayout {
     var pairingAgentHostPath: String { data + "/Library/SwiftCode/bin/swiftcode-pairing-agent" }
     var pairingAgentPlistPath: String { data + "/Library/LaunchDaemons/\(Self.pairingAgentLabel).plist" }
     var pairingAgentLogPath: String { data + "/tmp/swiftcode-pairing-agent.log" }
-    /// The agent's own notes across its restarts (a call that ended the
-    /// process is not tried again in this boot).
     var pairingAgentStatePath: String { data + "/tmp/swiftcode-pairing-agent.state" }
 
     var pairingAgentPlist: [String: Any] {

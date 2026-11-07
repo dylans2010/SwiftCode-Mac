@@ -1,21 +1,15 @@
 import Foundation
 
-/// The sets of an `.xcassets` folder that the compiler reads
-/// (`specs/ide/asset-catalog.md`; Apple's public "Asset Catalog Format
-/// Reference"): image sets, colour sets and app icon sets. Other set kinds
-/// are listed as skipped.
 public struct CatalogInput: Sendable {
     public struct ImageEntry: Equatable, Sendable {
         public var file: URL?
         public var idiom: String
         public var scale: Int
-        /// `dark`, `light` or nil (any).
         public var appearance: String?
         public var highContrast: Bool
     }
 
     public struct ImageSet: Equatable, Sendable {
-        /// The asset name, with the namespace folders (`Folder/Name`).
         public var name: String
         public var url: URL
         public var entries: [ImageEntry]
@@ -38,11 +32,9 @@ public struct CatalogInput: Sendable {
     public struct IconEntry: Equatable, Sendable {
         public var file: URL?
         public var idiom: String
-        /// Points, e.g. 60 for `60x60`.
         public var size: Double?
         public var scale: Int
         public var platform: String?
-        /// `dark`, `tinted` or nil (any).
         public var appearance: String?
     }
 
@@ -56,10 +48,7 @@ public struct CatalogInput: Sendable {
     public var imageSets: [ImageSet] = []
     public var colorSets: [ColorSet] = []
     public var appIconSets: [AppIconSet] = []
-    /// Sets of other kinds, and `.icon` packages placed inside the catalog
-    /// (ignored, `icon-compile.md` §2).
     public var skipped: [URL] = []
-    /// Every file read (for the dependency list).
     public var inputFiles: [URL] = []
 
     public init(contentsOf url: URL) {
@@ -85,7 +74,6 @@ public struct CatalogInput: Sendable {
         return n
     }
 
-    /// Components as floats ("0.200", 0.2) or 8-bit values ("51", "0x33").
     static func component(_ v: Any?) -> Double {
         if let n = v as? NSNumber, !(v is String) {
             let d = n.doubleValue
@@ -108,7 +96,6 @@ public struct CatalogInput: Sendable {
                         components: [component(comps["red"]), component(comps["green"]), component(comps["blue"]), alpha])
     }
 
-    /// Set kinds phase 1 does not compile (and `.icon`, ignored inside a catalog).
     static let otherSetKinds: Set<String> = [
         "symbolset", "dataset", "textureset", "spriteatlas", "cubetextureset", "arresourcegroup", "arreferenceimage", "arobject",
         "launchimage", "stickerpack", "sticker", "stickersequence", "brandassets", "imagestack", "imagestacklayer",

@@ -27,7 +27,6 @@ public actor DeveloperEnvironmentProbe {
     public func runProbe() async -> DeveloperEnvironmentInfo {
         Logger.discovery.info("[PROBE] Running developer environment probes...")
 
-        // 1. xcode-select -p
         let selectSpec = CommandSpec(
             executableURL: URL(fileURLWithPath: "/usr/bin/xcode-select"),
             arguments: ["-p"]
@@ -42,7 +41,6 @@ public actor DeveloperEnvironmentProbe {
         let devDir = selectRecord.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines)
         let isCLTOnly = devDir.contains("CommandLineTools")
 
-        // 2. xcodebuild -version
         var xcodeVersion: String?
         var xcodeBuild: String?
         if FileManager.default.fileExists(atPath: "/usr/bin/xcodebuild") {
@@ -65,7 +63,6 @@ public actor DeveloperEnvironmentProbe {
             }
         }
 
-        // 3. xcrun --version
         var xcrunVersion: String?
         if FileManager.default.fileExists(atPath: "/usr/bin/xcrun") {
             let xcrunSpec = CommandSpec(

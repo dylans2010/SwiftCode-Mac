@@ -3,54 +3,11 @@ import Foundation
 import Sparkle
 import SwiftUI
 
-/// The one and only update service in SwiftCode.
-///
-/// Sparkle 2 owns discovery, EdDSA signature verification, download,
-/// installation and relaunch. This service is Sparkle's user driver and
-/// updater delegate, and the single integration point the rest of the app
-/// talks to. There is no second feed, no second timer, and no legacy
-/// GitHub API check: `GitHubReleaseCheck` was removed when this service
-/// landed, and every entry point (app menu, Settings) routes here.
-///
-/// Presentation: Sparkle's standard alert is NOT used. This driver
-/// presents the Commander-style `UpdateWindowView` for every update,
-/// whether the check was scheduled or user-initiated, and translates its
-/// three actions back into Sparkle replies:
-/// - Install Update -> `.install` (Sparkle downloads/verifies/installs)
-/// - Skip This Version -> `.skip` (Sparkle persists the skip itself)
-/// - Remind Me Later -> `.dismiss` + a persistent 7-day deferral gate
-///   (see `RemindLaterGate`; Sparkle's own gentle-reminder schedule
-///   still applies on top of it)
-///
-/// Automatic download/install is NOT a cosmetic checkbox: it is bound
-/// directly to `SPUUpdater.automaticallyDownloadsUpdates`, which Sparkle
-/// persists in the host bundle's user defaults.
-///
-/// Security notes:
-/// - Downloads and metadata are HTTPS only (the feed URL is HTTPS and
-///   release-notes links are fetched only over HTTPS).
-/// - Artifact authenticity comes from Sparkle's EdDSA verification
-///   against `SUPublicEDKey`, never from HTTPS alone. If no public key
-///   is embedded, Sparkle fails closed at install time and Settings
-///   surfaces that fact; this service never disables verification and
-///   never installs anything itself.
-/// - The app must still launch if the updater is misconfigured:
-///   `start()` catches Sparkle's startup error, logs it, and leaves the
-///   app running. Manual checks then report the error instead of
-///   crashing or blocking launch.
-///
-/// Mac-build note: Sparkle's Swift API surface is large and this file is
-/// the single place that touches it. If a future Sparkle release renames
-/// a driver method, the fix belongs here and nowhere else.
 @MainActor
 final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SPUUserDriver {
     static let shared = AppUpdateService()
 
-    // MARK: - Sparkle engine
-
     private var updater: SPUUpdater!
-
-    // MARK: - Published presentation state
 
     @Published private(set) var pendingUpdate: AppUpdateInfo?
     @Published private(set) var pendingStage: PendingStage = .notDownloaded
@@ -67,7 +24,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
     @Published private(set) var canRetryTermination = false
     @Published private(set) var startupErrorMessage: String?
 
-    /// What the Commander window's primary button should say.
     var installButtonTitle: String {
         pendingStage == .installing ? "Install and Relaunch" : "Install Update"
     }
@@ -89,8 +45,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
     var allowsAutomaticUpdates: Bool { updater.allowsAutomaticUpdates }
     var canCheckForUpdates: Bool { updater.canCheckForUpdates && !sessionInProgress }
 
-    // MARK: - Private driver state
-
     enum PendingStage {
         case notDownloaded
         case downloaded
@@ -108,9 +62,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
 
     override init() {
         super.init()
-        // SAFETY: `updater` is implicitly unwrapped only to break the
-        // init cycle (SPUUpdater needs `self` as driver/delegate). It is
-        // assigned before init returns and never reassigned afterwards.
         updater = SPUUpdater(
             hostBundle: Bundle.main,
             applicationBundle: Bundle.main,
@@ -119,12 +70,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         )
     }
 
-    // MARK: - Lifecycle
-
-    /// Start Sparkle's scheduled update cycle. Called once from
-    /// `AppDelegate.applicationDidFinishLaunching`. A startup failure
-    /// (for example a missing feed URL) is logged and surfaced in
-    /// Settings; it never prevents SwiftCode from launching.
     func start() {
         do {
             try updater.start()
@@ -142,15 +87,10 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         }
     }
 
-    /// User-initiated check (app menu "Check for Updates…" and Settings).
-    /// Works even when automatic checking is disabled. If a session is
-    /// already in progress, the existing update window is brought forward
-    /// instead of starting a duplicate check.
     func checkForUpdates() {
         if updater.sessionInProgress || pendingUpdate != nil {
             bringUpdateWindowToFront()
             if !updater.sessionInProgress, pendingUpdate != nil {
-                // An offer is already on screen; nothing new to check.
                 return
             }
         }
@@ -166,18 +106,10 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         presentUpdateWindow()
     }
 
-    /// Close the update window without answering Sparkle (used for the
-    /// error screen's Close button, where the reply was already consumed
-    /// or Sparkle's teardown will follow). This never skips a version.
     func closeUpdateWindow() {
         closePresentation()
     }
 
-    /// Called when the window is closed via its traffic-light button.
-    /// Closing is a plain dismissal, not a skip and not a reminder:
-    /// Sparkle may offer the update again on its own schedule.
-    /// This clears presentation state only; it does not close the
-    /// window again (it is already closing).
     func handleWindowClosed() {
         if let reply = pendingReply {
             pendingReply = nil
@@ -189,8 +121,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         }
         clearPresentationState()
     }
-
-    // MARK: - Commander window actions (Sparkle replies)
 
     func installPendingUpdate() {
         guard let reply = pendingReply else { return }
@@ -253,11 +183,7 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         retryTermination?()
     }
 
-    // MARK: - SPUUpdaterDelegate
-
     func feedURLString(for updater: SPUUpdater) -> String? {
-        // The delegate is authoritative for the feed URL, so a stale
-        // Info.plist value can never silently create a second feed.
         AppUpdateConfiguration.feedURLString
     }
 
@@ -267,9 +193,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         isChecking = false
         isManualCheckPending = false
         if let error {
-            // User-visible errors are surfaced by the driver methods
-            // (showUpdaterError); the cycle callback only records the
-            // failure for Settings when no driver error was shown.
             if lastErrorMessage == nil, pendingUpdate == nil {
                 lastErrorMessage = error.localizedDescription
             }
@@ -277,12 +200,7 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         }
     }
 
-    // MARK: - SPUUserDriver
-
     func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
-        // SUEnableAutomaticChecks is set in Info.plist, so Sparkle does
-        // not normally prompt. If it ever does, default to automatic
-        // checks on, without sending system-profile data.
         reply(SUUpdatePermissionResponse(automaticUpdateChecks: true, sendSystemProfile: false))
     }
 
@@ -307,10 +225,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
             contentLength: appcastItem.contentLength
         )
 
-        // "Remind Me Later" gate: scheduled offers for a deferred version
-        // are dismissed immediately, without showing the window again.
-        // Manual checks bypass the gate (Sparkle also clears skips on
-        // manual checks, so a manual check always re-offers).
         let deferrals = RemindLaterGate.loadFromDefaults()
         if RemindLaterGate.shouldSuppressOffer(
             version: info.versionString,
@@ -321,9 +235,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
             return
         }
 
-        // If an offer for a different version is already on screen,
-        // dismiss it before presenting the new one. If it is the same
-        // version, just bring the existing window forward.
         if let existing = pendingUpdate, existing.versionString != info.versionString {
             if let oldReply = pendingReply {
                 pendingReply = nil
@@ -354,7 +265,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
             Task { [weak self] in
                 let blocks = await self?.fetchReleaseNotes(from: notesURL) ?? []
                 await MainActor.run {
-                    // Only apply notes for the update still on screen.
                     guard let self, self.pendingUpdate?.versionString == info.versionString else { return }
                     self.releaseNoteBlocks = blocks
                     self.isLoadingReleaseNotes = false
@@ -368,14 +278,9 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
     }
 
     func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {
-        // Release notes are rendered from the appcast item (embedded
-        // description, or fetched over HTTPS in showUpdateFound), so
-        // Sparkle's separately downloaded copy is not needed here.
     }
 
     func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {
-        // The window already shows the empty-notes fallback text, so a
-        // failed notes download is not an update failure.
         isLoadingReleaseNotes = false
     }
 
@@ -457,8 +362,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
     }
 
     func showUpdateInstalledAndRelaunched(_ relaunched: Bool) async {
-        // Rarely reached (the app usually quits for installation).
-        // A fresh launch resets all presentation state anyway.
         closePresentation()
     }
 
@@ -475,8 +378,6 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
     func showUpdateInFocus() {
         presentUpdateWindow()
     }
-
-    // MARK: - Private helpers
 
     private func mapStage(_ stage: SPUUserUpdateStage) -> PendingStage {
         switch stage {

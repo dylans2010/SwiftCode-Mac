@@ -5,7 +5,6 @@ public final class ProjectIntegrityManager: Sendable {
     private init() {}
 
     public func verifyIntegrity(at packageURL: URL, manifest: ProjectManifest) throws -> Bool {
-        // 1. Verify Manifest Hash if present
         let manifestURL = packageURL.appendingPathComponent("manifest.json")
         if let expectedManifestHash = manifest.security.manifestHash {
             let manifestData = try Data(contentsOf: manifestURL)
@@ -15,9 +14,8 @@ public final class ProjectIntegrityManager: Sendable {
             }
         }
 
-        // 2. Verify Package Integrity Hash (all files except manifest and integrity)
         guard let expectedPackageHash = manifest.security.packageIntegrityHash else {
-            return true // Nothing more to verify
+            return true
         }
 
         let actualPackageHash = try calculatePackageHash(at: packageURL)
@@ -40,7 +38,6 @@ public final class ProjectIntegrityManager: Sendable {
                 }
             }
 
-            // Sort URLs for deterministic hashing
             fileURLs.sort { $0.path < $1.path }
 
             for url in fileURLs {
@@ -52,7 +49,6 @@ public final class ProjectIntegrityManager: Sendable {
     }
 
     public func detectCorruption(at packageURL: URL) -> Bool {
-        // Basic check: manifest.json exists
         let manifestURL = packageURL.appendingPathComponent("manifest.json")
         return FileManager.default.fileExists(atPath: manifestURL.path)
     }

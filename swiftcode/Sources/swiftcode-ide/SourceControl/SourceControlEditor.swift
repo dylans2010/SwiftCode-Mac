@@ -3,17 +3,12 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Texts of the commit editor (`reference-ui-4.md` §2.3).
 enum SourceControlEditorText {
     static let placeholder = "Commit message (required)"
     static let scopes = ["All Changes", "Unstaged", "Staged"]
-    /// Lines a card shows before "N more lines".
     static let cardLineLimit = 400
 }
 
-/// What the editor area shows while a change, branch, tag or stash is
-/// selected in the Source Control navigator: the commit editor or the
-/// history, with the debug bar under it (as the source editor has it).
 struct SourceControlPaneView: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -28,7 +23,6 @@ struct SourceControlPaneView: View {
                 switch scm.pane {
                 case .commit?: CommitEditorView(scm: scm)
                 case .history?: BranchHistoryView(scm: scm, model: model)
-                // The merge sheet is an overlay over the window (MergeOverlay.swift).
                 case .conflicts?, nil: Color.clear
                 }
             }
@@ -40,8 +34,6 @@ struct SourceControlPaneView: View {
     }
 }
 
-/// The band above the pane, where the jump bar is: "Source Control ›
-/// <repository> › Uncommitted Changes" or "› <branch>".
 struct SourceControlPathBar: View {
     var scm: SourceControlShellModel
     @Environment(\.colorScheme) private var scheme
@@ -75,11 +67,6 @@ struct SourceControlPathBar: View {
     }
 }
 
-// MARK: - Commit editor
-
-/// The commit editor (`reference-ui-4.md` §2.3): the author, Amend and
-/// Commit (with Commit and Push in its menu); the message; the scope and
-/// Stage All; one card per change with its diff.
 struct CommitEditorView: View {
     var scm: SourceControlShellModel
     @Environment(\.colorScheme) private var scheme
@@ -213,9 +200,6 @@ struct CommitEditorView: View {
     }
 }
 
-/// One change's card: disclosure, icon, name and folder, stage toggle,
-/// discard, status letter; the diff with old and new line numbers and a
-/// bar beside each added or removed line.
 struct ChangeCardView: View {
     var card: ChangeCard
     var scm: SourceControlShellModel
@@ -280,8 +264,6 @@ struct ChangeCardView: View {
     }
 }
 
-/// A diff's lines: old and new numbers, a bar for added and removed lines
-/// on a tinted band, a separator line for each hunk.
 struct DiffLinesView: View {
     var lines: [UnifiedDiffLines.Line]
     var colors: ShellColors
@@ -333,11 +315,6 @@ struct DiffLinesView: View {
     }
 }
 
-// MARK: - History
-
-/// A branch's, tag's or stash's history (`reference-ui-4.md` §2.5–§2.6):
-/// the time scope and filter, one row per commit; a selected commit's
-/// detail below.
 struct BranchHistoryView: View {
     var scm: SourceControlShellModel
     var model: WorkspaceShellModel
@@ -397,8 +374,6 @@ struct BranchHistoryView: View {
     }
 }
 
-/// One history row: initials, author, branch and tag badges, subject; the
-/// short hash and the relative day at the right.
 struct CommitRowView: View {
     var commit: GitRepository.Commit
     var isSelected: Bool
@@ -444,8 +419,6 @@ struct CommitRowView: View {
     }
 }
 
-/// The selected commit (`reference-ui-4.md` §2.6): "Commit › <repository>",
-/// the author, date, short hash and message, then its files.
 struct CommitDetailView: View {
     var detail: CommitDetail
     var scm: SourceControlShellModel
@@ -519,10 +492,6 @@ struct CommitDetailView: View {
     }
 }
 
-// MARK: - Inspector
-
-/// The History inspector for the open file (`reference-ui-5.md` §7.4):
-/// the commits that changed it, newest first.
 struct FileHistoryInspector: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -566,9 +535,6 @@ struct FileHistoryInspector: View {
     }
 }
 
-/// The inspector while a history is shown: its branch (Name, Remote,
-/// Remote Branch) and the selected commit (Identifier, Date, Author,
-/// Verification, Branches, Commit Message, Files).
 struct SourceControlInspector: View {
     var scm: SourceControlShellModel
     @Environment(\.colorScheme) private var scheme
@@ -587,7 +553,6 @@ struct SourceControlInspector: View {
         .shellTarget("scm inspector")
     }
 
-    /// The commit editor's selected change and the repository.
     func changeInspector(_ c: ShellColors) -> some View {
         let s = scm.snapshot
         let path = scm.selectedFile

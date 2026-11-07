@@ -1,18 +1,9 @@
-// PNG output and image headers. Written from the PNG specification (W3C,
-// third edition), RFC 1950 (zlib) and RFC 1951 (DEFLATE); JPEG frame
-// headers from ITU-T T.81 (B.2.2). Decoding of PNG and JPEG pixels is done
-// by ThorVG's loaders (Rasterizer.swift).
-
 import Foundation
 
 public enum PNGCodec {
-    /// Encodes premultiplied RGBA8 pixels as an 8-bit RGBA PNG (straight
-    /// alpha, as PNG stores it).
     public static func encode(_ image: PixelImage) -> Data {
         let w = image.size.width, h = image.size.height
         let stride = w * 4
-        // Un-premultiply, then filter each row (the filter with the smallest
-        // sum of absolute values, the usual heuristic).
         var straight = image.rgba
         var i = 0
         while i < straight.count {
@@ -72,7 +63,6 @@ public enum PNGCodec {
         return out
     }
 
-    /// Decodes PNG bytes to premultiplied RGBA8.
     public static func decode(_ data: Data) -> PixelImage? { SoftwareRasterizer.decode(data, mime: "png") }
 
     private static func paeth(_ a: Int, _ b: Int, _ c: Int) -> Int {
@@ -106,13 +96,11 @@ public enum PNGCodec {
         return c ^ 0xffff_ffff
     }
 
-    // MARK: - zlib / DEFLATE (fixed Huffman codes, greedy LZ77 with hash chains)
-
     static func zlib(_ data: [UInt8]) -> [UInt8] {
         var out: [UInt8] = [0x78, 0x01]
         var bits = BitWriter()
-        bits.write(1, count: 1)        // BFINAL
-        bits.write(1, count: 2)        // BTYPE = 01, fixed codes
+        bits.write(1, count: 1)
+        bits.write(1, count: 2)
         let n = data.count
         var head = [Int](repeating: -1, count: 1 << 15)
         var prevLink = [Int](repeating: -1, count: n)
@@ -179,7 +167,6 @@ public enum PNGCodec {
                 n -= 8
             }
         }
-        /// Huffman codes are written most significant bit first.
         mutating func writeCode(_ code: Int, length: Int) {
             var rev = 0
             for k in 0..<length { rev |= ((code >> k) & 1) << (length - 1 - k) }
@@ -221,11 +208,9 @@ public enum PNGCodec {
     }
 }
 
-/// Image sizes read from file headers, without decoding.
 public enum ImageHeader {
     public enum Format: Sendable { case png, jpeg }
 
-    /// Format and pixel size of PNG or JPEG bytes.
     public static func inspect(_ data: Data) -> (Format, PixelSize)? {
         let b = [UInt8](data.prefix(64 * 1024))
         if b.count >= 24, b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 {
@@ -240,7 +225,6 @@ public enum ImageHeader {
                 let marker = b[i + 1]
                 if marker == 0xD8 || marker == 0x01 || (0xD0...0xD7).contains(marker) || marker == 0xFF { i += marker == 0xFF ? 1 : 2; continue }
                 let len = Int(b[i + 2]) << 8 | Int(b[i + 3])
-                // SOF0…SOF15 except DHT (C4), JPG (C8) and DAC (CC).
                 if (0xC0...0xCF).contains(marker) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC {
                     let h = Int(b[i + 5]) << 8 | Int(b[i + 6])
                     let w = Int(b[i + 7]) << 8 | Int(b[i + 8])

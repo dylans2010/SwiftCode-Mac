@@ -1,20 +1,11 @@
 import Foundation
 
-// Preferences flow up (03-architecture.md §7): a key's values from sibling
-// subtrees are combined with the key's `reduce` in declaration order
-// (measured: `first,second`). Only subtrees that produce a value take part:
-// the first value found starts the reduction (the key's default value is used
-// where a reader needs a value and none was produced). `onPreferenceChange`
-// runs when the reduced value changes; it also runs in the first update.
-
-/// A named value produced by views and combined up the tree.
 public protocol PreferenceKey {
     associatedtype Value
     static var defaultValue: Value { get }
     static func reduce(value: inout Value, nextValue: () -> Value)
 }
 
-/// The preference values of a subtree.
 package struct PreferenceValues {
     package struct Entry {
         package var value: Any
@@ -26,23 +17,19 @@ package struct PreferenceValues {
     package init() {}
 
     package subscript<K: PreferenceKey>(key: K.Type) -> K.Value? {
-        // swiftlint:disable:next force_cast - storage is keyed by the key type, so the value has its Value type
         entries[ObjectIdentifier(key)].map { $0.value as! K.Value }
     }
 
     package mutating func set<K: PreferenceKey>(_ key: K.Type, _ value: K.Value) {
         entries[ObjectIdentifier(key)] = Entry(value: value) { acc, next in
-            // swiftlint:disable force_cast - storage is keyed by the key type, so the value has its Value type
             var v = acc as! K.Value
             K.reduce(value: &v) { next as! K.Value }
-            // swiftlint:enable force_cast
             acc = v
         }
     }
 
     package mutating func remove<K: PreferenceKey>(_ key: K.Type) { entries[ObjectIdentifier(key)] = nil }
 
-    /// Combines a later sibling's values into these.
     package mutating func combine(with other: PreferenceValues) {
         for (id, e) in other.entries {
             if var mine = entries[id] {
@@ -55,10 +42,6 @@ package struct PreferenceValues {
     }
 }
 
-// MARK: - Modifiers
-
-/// `preference(key:value:)`: the view's value for the key (it replaces
-/// values from inside the view).
 package struct PreferenceWritingModifier<Key: PreferenceKey>: PrimitiveModifier {
     package let value: Key.Value
 
@@ -70,7 +53,6 @@ package struct PreferenceWritingModifier<Key: PreferenceKey>: PrimitiveModifier 
     }
 }
 
-/// `transformPreference(_:_:)`.
 package struct PreferenceTransformModifier<Key: PreferenceKey>: PrimitiveModifier {
     package let transform: (inout Key.Value) -> Void
 
@@ -90,7 +72,6 @@ private final class PreferenceChangeState<Value> {
     init(action: @escaping (Value) -> Void) { self.action = action }
 }
 
-/// `onPreferenceChange(_:perform:)`.
 package struct PreferenceChangeModifier<Key: PreferenceKey>: PrimitiveModifier where Key.Value: Equatable {
     package let action: (Key.Value) -> Void
 
@@ -117,10 +98,6 @@ private final class PreferenceReaderState<Value> {
     init(_ v: Value) { value = v }
 }
 
-/// `overlayPreferenceValue` / `backgroundPreferenceValue`: a secondary view
-/// built from the content's reduced value. When the value changes after a
-/// pass, the node is invalidated and the secondary view rebuilt in the next
-/// pass. The secondary view's own preferences do not flow up.
 package struct PreferenceReaderModifier<Key: PreferenceKey, Secondary: View>: PrimitiveModifier {
     package let alignment: Alignment
     package let isBackground: Bool
@@ -155,31 +132,26 @@ package struct PreferenceReaderModifier<Key: PreferenceKey, Secondary: View>: Pr
 }
 
 extension View {
-    /// Sets a preference value for this view.
     public func preference<K: PreferenceKey>(key: K.Type = K.self, value: K.Value) -> some View {
         modifier(PreferenceWritingModifier<K>(value: value))
     }
 
-    /// Transforms the preference value for `key` produced by this view.
     public func transformPreference<K: PreferenceKey>(_ key: K.Type = K.self,
                                                       _ callback: @escaping (inout K.Value) -> Void) -> some View {
         modifier(PreferenceTransformModifier<K>(transform: callback))
     }
 
-    /// Runs `action` when the reduced value of `key` in this view changes.
     public func onPreferenceChange<K: PreferenceKey>(_ key: K.Type = K.self,
                                                      perform action: @escaping (K.Value) -> Void) -> some View
     where K.Value: Equatable {
         modifier(PreferenceChangeModifier<K>(action: action))
     }
 
-    /// Overlays a view built from this view's reduced value for `key`.
     public func overlayPreferenceValue<K: PreferenceKey, V: View>(_ key: K.Type, alignment: Alignment = .center,
                                                                   @ViewBuilder _ transform: @escaping (K.Value) -> V) -> some View {
         modifier(PreferenceReaderModifier<K, V>(alignment: alignment, isBackground: false, build: transform))
     }
 
-    /// Places a view built from this view's reduced value for `key` behind it.
     public func backgroundPreferenceValue<K: PreferenceKey, V: View>(_ key: K.Type, alignment: Alignment = .center,
                                                                      @ViewBuilder _ transform: @escaping (K.Value) -> V) -> some View {
         modifier(PreferenceReaderModifier<K, V>(alignment: alignment, isBackground: true, build: transform))

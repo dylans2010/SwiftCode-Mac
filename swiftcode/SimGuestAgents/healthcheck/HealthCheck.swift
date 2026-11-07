@@ -1,19 +1,3 @@
-// HealthCheck: SwiftCode's own HealthKit reader app (health-simulation.md
-// "SwiftCode implementation", the done-criterion of HEALTH-1…3). One source for
-// the iOS app and its embedded watch app. Written from Apple's public
-// HealthKit documentation (HKHealthStore, HKSampleQuery, HKObserverQuery);
-// no Apple sample was used.
-//
-// It asks for read access to the types SwiftCode's health tools write (the
-// normal permission flow: a sheet, or SwiftCode's `health grant` while the device
-// is shut down), then runs one HKObserverQuery per type. Each observer call
-// re-runs an HKSampleQuery of that type and logs, one line each (NSLog and
-// <tmp>/healthcheck.log, prefix "HEALTHCHECK <role> <unix time>"):
-//   observer <type> fired (n)                 every observer call
-//   samples <type> <count> sources <names…> last <value> <unit> at <date> [synthetic N]
-//   auth requested ok=<bool> error=<…>
-// The screen lists each type with its count, its latest value and its sources.
-
 import Foundation
 import HealthKit
 import SwiftUI
@@ -42,7 +26,6 @@ final class HealthCheck: ObservableObject {
     private let lock = NSLock()
     nonisolated(unsafe) private var file: FileHandle?
 
-    /// (identifier, title, unit for display or nil for a category)
     static let watched: [(String, String, String?)] = [
         (HKQuantityTypeIdentifier.heartRate.rawValue, "Heart rate", "count/min"),
         (HKQuantityTypeIdentifier.restingHeartRate.rawValue, "Resting HR", "count/min"),
@@ -160,7 +143,6 @@ final class HealthCheck: ObservableObject {
                 self.rows[i].count = samples.count
                 self.rows[i].last = last
                 self.rows[i].sources = devices
-                // Types with data first, in the table's order.
                 let order = Dictionary(uniqueKeysWithValues: Self.watched.enumerated().map { ($1.0, $0) })
                 self.rows.sort { ($0.count > 0 ? 0 : 1, order[$0.id] ?? 0) < ($1.count > 0 ? 0 : 1, order[$1.id] ?? 0) }
             }

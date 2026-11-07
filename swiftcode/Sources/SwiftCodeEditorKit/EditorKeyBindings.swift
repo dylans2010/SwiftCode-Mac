@@ -1,6 +1,5 @@
 import Foundation
 
-/// The editing command a key means, in toolkit-free terms.
 public enum EditorKeyCommand: Equatable, Sendable {
     case move(EditorMovement, forward: Bool, extending: Bool)
     case moveVertically(lines: Int, extending: Bool)
@@ -11,18 +10,15 @@ public enum EditorKeyCommand: Equatable, Sendable {
     case tab(backward: Bool)
     case selectAll, copy, cut, paste, undo, redo
     case escape
-    /// Ask for completions (Ctrl+Space).
     case complete
 }
 
-/// A key in toolkit-free terms.
 public enum EditorKey: Equatable, Sendable {
     case left, right, up, down, home, end, pageUp, pageDown
     case backspace, delete, enter, tab, escape, insert
     case character(Character)
 }
 
-/// Modifiers in toolkit-free terms: `primary` is Ctrl on Linux and ⌘ on macOS.
 public struct EditorKeyModifiers: OptionSet, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -31,11 +27,6 @@ public struct EditorKeyModifiers: OptionSet, Sendable {
     public static let alt = EditorKeyModifiers(rawValue: 4)
 }
 
-/// The Linux desktop's text editing keys (OpenViews' text fields use the same):
-/// Ctrl+arrows by word, Ctrl+Home and End for the document, Ctrl+Backspace and
-/// Delete by word, Ctrl+A/C/X/V/Z, Ctrl+Shift+Z redo, and the older
-/// Ctrl+Insert, Shift+Insert and Shift+Delete. Ctrl+Y is not the editor's:
-/// it is ⌘Y, Debug ▸ Deactivate Breakpoints, so it goes on to the menu bar.
 public enum EditorKeyBindings {
     public static func command(_ key: EditorKey, _ m: EditorKeyModifiers) -> EditorKeyCommand? {
         let shift = m.contains(.shift), primary = m.contains(.primary)

@@ -1,10 +1,4 @@
 #!/bin/sh
-# Launch one HMProbe variant on a test simulator, wait, save its report and a
-# screenshot into OUTDIR, then terminate it.
-# Usage: run.sh UDID BUNDLE-ID NAME OUTDIR SECONDS [app args...]
-#   e.g. run.sh $U dev.ycode.hmprobe model /path/out 60 -mode model
-# simctl's --stderr path is resolved inside the guest, so /tmp/X lands in
-# <device>/data/tmp/X on the Mac.
 set -u
 U=$1; B=$2; N=$3; OUT=$4; SECS=$5; shift 5
 mkdir -p "$OUT"

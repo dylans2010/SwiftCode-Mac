@@ -1,7 +1,3 @@
-// C-CN-HISTORY (plan.md §3, interface.md §6.2): tokens, add events since a
-// token, excluded authors, drop-everything from a nil token, bogus tokens,
-// update and delete events, group events and the visitor.
-
 import Foundation
 import Testing
 @testable import Contacts
@@ -49,7 +45,6 @@ struct HistoryTests {
         let authored = (1...3).map { person("Authored\($0)", "Example") }
         try save(t.store, author: "swiftcode-probe") { r in authored.forEach { r.add($0, toContainerWithIdentifier: nil) } }
         for i in 1...5 { try save(t.store) { $0.add(person("Plain\(i)", "Example"), toContainerWithIdentifier: nil) } }
-        // A later update of an added contact keeps a single add event.
         authored[0].givenName = "Authored1-Renamed"
         try save(t.store) { $0.update(authored[0]) }
         let all = try history(t.store, from: token)
@@ -59,7 +54,6 @@ struct HistoryTests {
         #expect(first.contact.givenName == "Authored1-Renamed")
         #expect(first.containerIdentifier == localContainerIdentifier)
         let excluded = try history(t.store, from: token, excluding: ["swiftcode-probe"])
-        // The update of authored[0] was not authored, so it shows as an update.
         #expect(excluded.filter { $0 is CNChangeHistoryAddContactEvent }.count == 5)
         #expect(excluded.filter { $0 is CNChangeHistoryUpdateContactEvent }.count == 1)
     }
@@ -131,7 +125,6 @@ struct HistoryTests {
         #expect(e.contact.givenName == "Avery")
         #expect(raised { e.contact.familyName } != nil)
         #expect(result.currentHistoryToken == t.store.currentHistoryToken)
-        // The token from the result starts the next request: nothing new.
         #expect(try history(t.store, from: result.currentHistoryToken).isEmpty)
     }
 }

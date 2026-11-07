@@ -1,48 +1,3 @@
-// `swiftcode-sim-viewer --script <file>`: drives the viewer with a recorded
-// sequence, for tests without a person at the Mac. Clicks, drags, and keys
-// are synthesized as AppKit events and given to the device view, so they
-// take the same path as real mouse and keyboard input. One command a line:
-//
-//   wait-live [timeout s]            until the device is live and a frame is shown
-//   wait-quiet [ms] [timeout s]      until no frame came for ms (default 1500), at least ms from now
-//   wait-frame [timeout s]           until the next frame (a change on screen) arrives
-//   wait-home [timeout s]            until the shown image is a lit screen (less than 90 % of its
-//                                    samples darker than 24, in two looks 0.5 s apart: the home
-//                                    screen after the boot logo, light or dark appearance)
-//   wait-change [percent] [timeout s]  until the shown image differs from the one at the start
-//                                    of the command in more than percent (default 20) of its samples
-//   sleep <ms>
-//   stats-begin / stats-end [label]  frames received, guest frames, bytes over the span
-//   tap <x> <y>                      device points
-//   drag <x1> <y1> <x2> <y2> [ms] [steps]
-//   pinch <x> <y> <scale> [ms]       option-drag from (x, y) to its image scaled about the center
-//   scroll <x> <y> <dx> <dy> [steps] scroll-wheel drag starting at (x, y), by (dx, dy) points
-//   type <text>                      US-layout text through key events
-//   key <usage>                      press and release a HID usage (hex 0x.. or decimal)
-//   button home|lock|volumeUp|volumeDown|side
-//   fold closed|half|open|<degrees>  a foldable: sweep the hinge (the fold bar's action)
-//   rotate left|right                a foldable: the device's next orientation
-//   wait-display <LCD|LCD-1> [timeout s]  until that panel is the one shown
-//   control <command>                a device command as the controls and menus run it
-//                                    (home, screenshot, recordScreen, rotateLeft, poseOpen,
-//                                    toggleBezels, captureKeyboard, zoomIn, … DeviceCommand)
-//   frame-button <kind> [ms]         click a button of the drawn frame (action, volumeUp,
-//                                    volumeDown, side, top, crown, sideButton) with the mouse, held
-//                                    ms (default 100)
-//   expand / compact                 the window's expanded or compact form
-//   window-size <width>              the compact window's content width (the device scales)
-//   window-shot <path.png>           the viewer's own window (screencapture -l with its id)
-//   zoom <scale>|pixel               the expanded window's zoom (view points per device point);
-//                                    pixel: one device pixel per display pixel (uikit-feel-swiftcode.md §8.4)
-//   window-content <width> <height>  the window's content size in points
-//   expect-banner <text>             the feedback banner shows that text (within 3 s)
-//   shot <path.png>                  the image the viewer shows
-//   server-shot <path.png>           a full-resolution PNG from the server
-//   log <text>
-//   quit
-//
-// Lines starting with # are comments. Every step is logged to stdout.
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDeviceModel
@@ -54,7 +9,6 @@ final class ScriptRunner: @unchecked Sendable {
     unowned let controller: ViewerController
     let started = Date()
     private var lastFrameAt = Date.distantPast
-    // stats-begin / stats-end: frames, bytes, and guest frames over a span.
     private var statFrames = 0, statBytes = 0, statFirstGuest: UInt64?, statLastGuest: UInt64 = 0, statStart = Date()
     private let frameLock = NSLock()
 
@@ -120,7 +74,6 @@ final class ScriptRunner: @unchecked Sendable {
         throw ScriptError(description: "missing argument \(i)")
     }
 
-    /// A device point → a window point of the device view.
     private func windowPoint(_ x: Double, _ y: Double) -> CGPoint {
         onMain {
             let v = controller.deviceView
@@ -174,7 +127,6 @@ final class ScriptRunner: @unchecked Sendable {
         log("saved \(path) (\(png.count) bytes)")
     }
 
-    /// Runs one command; false ends the script.
     private func run(_ line: String) throws -> Bool {
         let words = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         switch words[0] {
@@ -188,7 +140,6 @@ final class ScriptRunner: @unchecked Sendable {
         case "wait-quiet":
             let quiet = try number(words, 1, default: 1500) / 1000
             let deadline = Date().addingTimeInterval(try number(words, 2, default: 120))
-            // Quiet since this command started too: an answer to the last input may still be on its way.
             let since = Date()
             while Date().timeIntervalSince(max(since, frameLock.withLock { lastFrameAt })) < quiet {
                 if Date() > deadline { log("still changing at the timeout"); break }
@@ -305,7 +256,7 @@ final class ScriptRunner: @unchecked Sendable {
                 throw ScriptError(description: "button home|lock|volumeUp|volumeDown|side")
             }
             onMain { controller.press(b) }
-            pause(200)  // the release goes out 100 ms after the press
+            pause(200)
         case "fold":
             let presets = ["closed": 0, "half": 90, "open": 180]
             guard words.count > 1, let angle = presets[words[1]] ?? Int(words[1]), (0...180).contains(angle) else {
@@ -422,7 +373,6 @@ final class ScriptRunner: @unchecked Sendable {
 }
 
 extension ScriptRunner {
-    /// The image as 48 × 64 grey samples (0…255), for wait-home and wait-change.
     static func samples(_ image: CGImage) -> [Double] {
         let w = 48, h = 64
         var px = [UInt8](repeating: 0, count: w * h)

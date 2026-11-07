@@ -1,13 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - SDKCodeEditorShellView
-//
-// The Studio Code Editor section's root view: an Xcode-like arrangement of
-// file navigator (left), tabbed editor + visual `swiftcode.json` manifest
-// editor (center), find bar & build/validate toolbar (top), and console +
-// structured compiler/manifest diagnostics panel (bottom).
-
 @MainActor
 public struct SDKCodeEditorShellView: View {
     @ObservedObject private var editorState: SDKCodeEditorState
@@ -28,7 +21,6 @@ public struct SDKCodeEditorShellView: View {
     @State private var bottomTab: BottomTab = .console
     @State private var showVisualManifestEditor = true
 
-    // Build & validation state
     @State private var buildKind: SDKBuildRunKind = .typescriptExtension
     @State private var schemeOrEntry: String = ""
     @State private var activeBuildTaskID: UUID?
@@ -69,8 +61,6 @@ public struct SDKCodeEditorShellView: View {
             }
         }
     }
-
-    // MARK: - Editor column
 
     private var isManifestActiveTab: Bool {
         editorState.activeTab?.document.displayName == "swiftcode.json"
@@ -114,8 +104,6 @@ public struct SDKCodeEditorShellView: View {
             }
         }
     }
-
-    // MARK: - Bottom Panel (Console + Structured Diagnostics)
 
     private var bottomPanel: some View {
         VStack(spacing: 0) {
@@ -227,8 +215,6 @@ public struct SDKCodeEditorShellView: View {
             }
         }
     }
-
-    // MARK: - Toolbar
 
     @ToolbarContentBuilder
     private var shellToolbar: some ToolbarContent {
@@ -351,8 +337,6 @@ public struct SDKCodeEditorShellView: View {
         }
     }
 
-    // MARK: - Actions
-
     private func jumpToEnteredLine() {
         let trimmed = goToLineInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = trimmed.split(separator: ":")
@@ -435,8 +419,6 @@ public struct SDKCodeEditorShellView: View {
         }
     }
 }
-
-// MARK: - SDKVerticalSplitView
 
 struct SDKVerticalSplitView<Top: View, Bottom: View>: NSViewRepresentable {
     let top: Top

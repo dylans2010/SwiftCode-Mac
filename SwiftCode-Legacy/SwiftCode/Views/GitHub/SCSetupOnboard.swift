@@ -21,7 +21,6 @@ struct SCSetupOnboard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Section Picker
             HStack {
                 Picker("Section", selection: $activeSection.animation(.easeInOut)) {
                     ForEach(OnboardingSection.allCases) { section in
@@ -40,7 +39,6 @@ struct SCSetupOnboard: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     switch activeSection {
@@ -54,7 +52,6 @@ struct SCSetupOnboard: View {
                 }
             }
 
-            // Footer Navigation Actions
             HStack {
                 if activeSection != .overview {
                     Button("Previous") {
@@ -92,8 +89,6 @@ struct SCSetupOnboard: View {
             }
         }
     }
-
-    // MARK: - Subviews
 
     private var overviewSectionView: some View {
         VStack(spacing: 20) {
@@ -176,8 +171,6 @@ struct SCSetupOnboard: View {
             .padding()
         }
     }
-
-    // MARK: - Navigation Actions
 
     private func goToNext() {
         if let idx = OnboardingSection.allCases.firstIndex(of: activeSection), idx < OnboardingSection.allCases.count - 1 {

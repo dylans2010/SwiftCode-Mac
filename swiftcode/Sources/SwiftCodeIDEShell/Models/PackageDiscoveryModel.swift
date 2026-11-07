@@ -1,51 +1,3 @@
-/// Package discovery — Legacy's `Views/Utilities/DependencyManager/`
-/// subsystem, ported onto SwiftCode's systems.
-///
-/// What maps where:
-/// - The installed-project side is SwiftCode's `PackageDependencyModel`
-///   (`SwiftCodeIDECore`, rows from the .xcodeproj); this file is the
-///   *discovery* side Legacy owned: GitHub search, featured/trending lists
-///   (live search only — no seeded catalog), collections/favorites/
-///   watchlist, install/remove, the dependency graph, compatibility and
-///   security checks.
-/// - Search is live against `api.github.com/search/repositories`
-///   (unauthenticated; a token, when supplied, raises the rate limit).
-///   The featured/trending lists start empty and fill only from live
-///   GitHub search results (same treatment as `DependencyPlatformManager`
-///   C20); there is no seeded catalog. `refreshCatalog()` re-fetches live
-///   numbers for whatever entries are present.
-/// - Legacy's `installPackage`/`removePackage` edited Legacy's project
-///   model. Here install/remove go through an injected
-///   `PackageInstallHandler`; with none set they fail honestly instead of
-///   pretending to edit a project. The host wires a `SwiftCodeProject`-based
-///   handler (see the wiring list).
-/// - Legacy's AI chat called `LLMService` directly. Here it goes through
-///   an injected `PackageDiscoveryTextProvider`; with none set it fails
-///   honestly. State persists as JSON in Application Support
-///   `SwiftCode/PackageDiscovery/` (Legacy used UserDefaults keys).
-// CLEANUP (2026-11-06, writer D5) — fabricated package data deleted:
-// - Seeded featured/trending catalogs (fixed stars/forks/versions, e.g.
-//   swift-collections 4800 stars, Alamofire 41000 stars, tools "5.9") are
-//   gone; both lists start empty and fill only from live GitHub search
-//   results. `refreshCatalog()` is the live-refresh path for entries that
-//   arrive that way; it never re-seeds.
-// - The seeded advisory is gone. The "Alamofire / GHSA-9pxf-2ur3-3p2g"
-//   entry is deleted: its advisory page and its API record both return
-//   404 (checked 2026-11-06), so it cannot be presented as verified.
-//   `knownAdvisories` starts empty until a live advisory source
-//   (GitHub Advisory Database / OSV API) populates it. The security scan
-//   scores each repository from live signals only (archived flag, license
-//   presence, last push) via the GitHub API.
-// - `PackageMetadata`'s init defaults no longer stamp "5.10" /
-//   ["macOS 14+", "iOS 17+"] / "1.0.0": they are "" / [] / "" (D3's C20
-//   unset convention), so `fromSearchResult` no longer inherits stamped
-//   values for fields the Search API never returns.
-// - Residue fixed (2026-11-06, writer D6): `releaseDate` defaulted to
-//   `Date()`. The Search API returns no release date, so the field is
-//   now `Date? = nil` (`nil` = unknown) and PackageDetailsView renders
-//   "Release date unknown" instead of formatting a stamped today.
-//   `PackageMetadata`'s other unset fields keep the D3/C20 convention
-//   ("" / [] / "") — see the init's doc comment.
 import Foundation
 import Observation
 import SwiftCodeIDECore
@@ -134,11 +86,6 @@ public struct PackageMetadata: Identifiable, Codable, Hashable, Sendable {
     public var releaseDate: Date?
     public var isVerified: Bool
     public var topics: [String]
-    /// Unset means unknown: `swiftToolsVersion` "" / `platforms` [] /
-    /// `lastReleasedVersion` "" / `releaseDate` `nil` is D3's C20 unset
-    /// convention — the GitHub Search API returns none of these, so they
-    /// stay unset instead of being stamped "5.10" / ["macOS 14+",
-    /// "iOS 17+"] / "1.0.0" / `Date()`.
     public init(name: String, fullName: String, description: String? = nil, cloneUrl: String, stars: Int, forks: Int, openIssues: Int, license: String? = nil, owner: String, swiftToolsVersion: String = "", platforms: [String] = [], lastReleasedVersion: String = "", releaseDate: Date? = nil, isVerified: Bool = false, topics: [String] = []) {
         self.name = name; self.fullName = fullName; self.description = description; self.cloneUrl = cloneUrl
         self.stars = stars; self.forks = forks; self.openIssues = openIssues; self.license = license
@@ -211,10 +158,6 @@ public struct DependencyVisualNode: Identifiable, Codable, Hashable {
     }
 }
 
-/// The host-supplied project edit behind Install / Remove. SwiftCode's
-/// `PackageDependencyModel` + `SwiftCodeProject` mutations are the real
-/// implementation; this protocol is the seam so the discovery UI never
-/// pretends to edit a project it cannot reach.
 public protocol PackageInstallHandler: Sendable {
     func install(package: PackageMetadata, requirement: DependencyRequirementType, value: String) async throws
     func remove(packageURL: String) async throws
@@ -248,9 +191,6 @@ public enum PackageDiscoveryError: Error, LocalizedError {
     }
 }
 
-/// Builds a dependency graph from a flat dependency list. A node is
-/// circular when it (transitively) depends on itself; two nodes conflict
-/// when the same package name appears with different requirement values.
 public enum PackageDependencyGraph {
     public static func build(dependencies: [ParsedDependency]) -> [DependencyVisualNode] {
         var byName: [String: [ParsedDependency]] = [:]
@@ -258,10 +198,6 @@ public enum PackageDependencyGraph {
             let name = dep.url.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? dep.url
             byName[String(name), default: []].append(dep)
         }
-        // Edges are unknown from a flat list alone, so each node lists the
-        // other packages as potential peers only when the same name recurs
-        // with a different requirement — that is the conflict signal this
-        // graph can actually prove. It never invents dependency edges.
         return byName.map { (name, deps) in
             let values = Set(deps.map { $0.value })
             return DependencyVisualNode(
@@ -275,16 +211,9 @@ public enum PackageDependencyGraph {
 }
 
 public enum PackageCompatibility {
-    /// Compares a package's declared Swift tools version and platforms
-    /// against the project's. Pure and honest about what it knows: a
-    /// package that declares no platforms is reported as unknown, not as
-    /// compatible.
     public static func analyze(package: PackageMetadata, projectSwiftToolsVersion: String, projectPlatforms: [String]) -> PackageCompatibilityReport {
         var recommendations: [String] = []
         var conflicts: [String] = []
-        // An unset tools version ("" — the D5/C20 unset convention) is
-        // unknown, not a match: "" sorts before every real version, so a
-        // bare `<=` would have called every unstamped package compatible.
         let toolsMatch: Bool
         if package.swiftToolsVersion.isEmpty {
             toolsMatch = false
@@ -320,8 +249,6 @@ public enum PackageCompatibility {
     }
 }
 
-/// The discovery store: search, starter catalog, collections, favorites,
-/// watchlist, history, security scoring and AI chat (provider-injected).
 @Observable
 @MainActor
 public final class PackageDiscoveryStore {
@@ -412,20 +339,11 @@ public final class PackageDiscoveryStore {
         var continueBrowsing: [String]
     }
 
-    /// No seeded catalogs: featured/trending lists start empty and fill
-    /// only from live GitHub search results (D5, same as C20). The stale
-    /// fixed star/fork/version rows Legacy shipped (swift-collections 4800
-    /// stars, Alamofire 41000 stars, tools "5.9"/"5.10", versions "1.1.0"/
-    /// "5.9.1") are deleted, not re-seeded. No seeded advisories either:
-    /// the "Alamofire / GHSA-9pxf-2ur3-3p2g" entry's advisory page and API
-    /// record both return 404, so it cannot be presented as verified.
     private func loadPresets() {
         featuredPackages = []
         trendingPackages = []
         knownAdvisories = []
     }
-
-    // MARK: - Search (live GitHub API)
 
     public func executeGitHubSearch(query: String, language: String = "swift", license: String = "", minStars: Int = 0) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -463,9 +381,6 @@ public final class PackageDiscoveryStore {
         }
     }
 
-    /// Re-fetches live GitHub numbers for whatever catalog entries are
-    /// present. The lists start empty (see `loadPresets`), so until live
-    /// search results populate them this is a no-op — it never re-seeds.
     public func refreshCatalog() async {
         for list in [featuredPackages, trendingPackages] {
             for pkg in list {
@@ -522,8 +437,6 @@ public final class PackageDiscoveryStore {
         return path.contains("/") ? path : nil
     }
 
-    // MARK: - Install / remove (via the injected handler)
-
     public func installPackage(_ package: PackageMetadata, requirementType: DependencyRequirementType = .from, requirementValue: String) async -> Bool {
         operationLogs.append("Installing \(package.name) (\(requirementType.rawValue) \(requirementValue))…")
         do {
@@ -547,8 +460,6 @@ public final class PackageDiscoveryStore {
         }
     }
 
-    // MARK: - Collections / favorites / watchlist
-
     public func createCollection(name: String, description: String, category: String) {
         collections.append(PackageCollection(name: name, description: description, category: category))
         saveState()
@@ -565,9 +476,6 @@ public final class PackageDiscoveryStore {
         else { watchlistPackages.append(url) }
         saveState()
     }
-
-    // MARK: - Security scan (live repository signals; knownAdvisories is
-    // empty until a live advisory source populates it — see loadPresets)
 
     public func executeSecurityScan(dependencies: [ParsedDependency]) async {
         securityScanRunning = true
@@ -595,8 +503,6 @@ public final class PackageDiscoveryStore {
         securityScore = max(0, score)
         operationLogs.append("Security audit complete. Found \(foundAdvisories) known advisories. Global risk score: \(securityScore)/100.")
     }
-
-    // MARK: - Compatibility + AI chat
 
     public func analyzeCompatibility(packageUrl: String, projectSwiftToolsVersion: String = "5.10", projectPlatforms: [String] = ["macOS"]) -> PackageCompatibilityReport {
         let package = (featuredPackages + trendingPackages + searchResults).first { $0.cloneUrl == packageUrl }

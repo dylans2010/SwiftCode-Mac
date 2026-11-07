@@ -1,30 +1,6 @@
 import SwiftUI
 import SwiftCodeCloud
 
-/// Creates and lists indexes on the active SQLite connection.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseIndexesView.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - SQLite execution goes through `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`), not Legacy's `DatabaseManager`.
-/// - Legacy listed each index's columns as its owning table
-///   (`columns: [tbl_name]`) — that was the table name, not the
-///   indexed columns. This port reads the real column list with
-///   `PRAGMA index_info`, and reads uniqueness from the index's
-///   own `CREATE` statement in `sqlite_master`.
-/// - Added a Unique toggle on the creation form (Legacy could only
-///   create non-unique indexes) and a Drop button per index
-///   (Legacy could not remove one). Identifiers are quoted;
-///   Legacy interpolated them raw.
-/// - The view is SQLite-only, as Legacy was: it loads nothing and
-///   creates nothing while the active connection is not SQLite.
-///   Remote providers have no index driver in this package, and
-///   the form does not pretend otherwise.
-/// - Legacy's `liquidGlass` group-box style is gone (SwiftCodeUI
-///   has no such modifier); the default group-box style is used.
 @MainActor
 struct DatabaseIndexesView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
@@ -38,7 +14,6 @@ struct DatabaseIndexesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Index Creation Form
             GroupBox("Add New Index") {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -78,7 +53,6 @@ struct DatabaseIndexesView: View {
 
             Divider()
 
-            // Indexes list
             List(indexes) { idx in
                 HStack {
                     Image(systemName: "bolt.fill")
@@ -131,7 +105,6 @@ struct DatabaseIndexesView: View {
                     columnName = first.columns.first?.name ?? ""
                 }
 
-                // Indexes from sqlite_master, with real column lists.
                 let rows = try DatabaseViewSQLite.runDictionaries(
                     explorer,
                     sql: "SELECT name, sql FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%';"

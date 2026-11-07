@@ -1,9 +1,3 @@
-// yc_dyld_api.h - the interface between SwiftCode's dynamic linker and SwiftCode's
-// libSystem (specs/macos/dyld.md §6). This is a SwiftCode-private contract, not
-// an Apple interface: the dyld writes the address of its table into
-// libSystem's exported variable `_swiftcode_dyld_api` before it runs any
-// initializer, and libSystem's dlopen/dlsym/dladdr/_dyld_* functions call
-// through it. Versioned: later versions only append members.
 #ifndef YC_DYLD_API_H
 #define YC_DYLD_API_H
 
@@ -11,7 +5,7 @@
 
 #define YC_DYLD_API_VERSION 1
 
-struct yc_dl_info {          /* the public Dl_info layout */
+struct yc_dl_info {
     const char *dli_fname;
     void *dli_fbase;
     const char *dli_sname;
@@ -29,7 +23,6 @@ struct yc_dyld_api {
     int (*dlclose)(void *handle);
     const char *(*dlerror)(void);
     int (*dladdr)(const void *address, struct yc_dl_info *info);
-    /* _dyld_register_func_for_add_image / _remove_image */
     void (*add_image_callback)(void (*callback)(const void *header, intptr_t slide));
     const char *executable_path;
 };

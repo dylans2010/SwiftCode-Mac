@@ -1,7 +1,5 @@
 import Foundation
 
-/// A double value with a unit (`units.md` §1). Equality and ordering work across
-/// compatible units; mixing incompatible units raises `NSInvalidArgumentException`.
 public final class HKQuantity: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let value: Double
     let unit: HKUnit
@@ -14,7 +12,6 @@ public final class HKQuantity: NSObject, NSSecureCoding, NSCopying, @unchecked S
 
     public func `is`(compatibleWith unit: HKUnit) -> Bool { self.unit.isCompatible(with: unit) }
 
-    /// The value expressed in `unit`; raises for an incompatible unit.
     public func doubleValue(for unit: HKUnit) -> Double {
         hkCheck { () throws(HKRaise) in try HKUnit.convert(value, from: self.unit, to: unit) }
     }
@@ -31,7 +28,6 @@ public final class HKQuantity: NSObject, NSSecureCoding, NSCopying, @unchecked S
         return a < b ? .orderedAscending : (a > b ? .orderedDescending : .orderedSame)
     }
 
-    /// Value in the dimension's reference units.
     var referenceValue: Double { unit.toReference(value) }
 
     public override func isEqual(_ object: Any?) -> Bool {

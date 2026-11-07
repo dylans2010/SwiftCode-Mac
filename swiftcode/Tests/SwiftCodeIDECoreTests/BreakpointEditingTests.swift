@@ -12,7 +12,7 @@ import SwiftCodeDebug
         b.ignoreCount = 2
         #expect(b.dap == SourceBreakpoint(line: 3, condition: "a == 3", hitCondition: "2"))
         b.actions = [.log("a={a}")]
-        #expect(b.dap.logMessage == nil) // logging without continuing still stops
+        #expect(b.dap.logMessage == nil)
         b.autoContinue = true
         #expect(b.dap.logMessage == "a={a}" && b.isCustomized)
         var s = BreakpointStore()

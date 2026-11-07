@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Assist v3 Structured Terminal Models
-
 public struct TerminalExecutionResult: Codable, Sendable {
     public let command: String
     public let workingDirectory: String
@@ -41,7 +39,6 @@ public struct TerminalExecutionResult: Codable, Sendable {
     }
 }
 
-// MARK: - Thread-safe Output Collector Actor
 private actor OutputCollector {
     private(set) var stdout: String = ""
     private(set) var stderr: String = ""
@@ -58,8 +55,6 @@ private actor OutputCollector {
         return (stdout, stderr)
     }
 }
-
-// MARK: - Agent Terminal Service
 
 @MainActor
 public final class AgentTerminalService: Sendable {
@@ -88,12 +83,10 @@ public final class AgentTerminalService: Sendable {
         }
     }
 
-    /// Discovers developer directory for Xcode tools to prevent command line tools xcode-select errors.
     public func resolveDeveloperDirectory() -> String {
         return AssistVerificationPipeline.shared.resolveDeveloperDir()
     }
 
-    /// Executes an arbitrary shell command with live streaming, environment isolation, and duration tracking.
     public func execute(
         command: String,
         workingDirectory: URL,
@@ -198,7 +191,6 @@ public final class AgentTerminalService: Sendable {
         let finalStdout = outputs.stdout
         let finalStderr = outputs.stderr
 
-        // Parse diagnostics
         let combined = finalStdout + "\n" + finalStderr
         var diagnostics: [BuildDiagnostic] = []
         for line in combined.components(separatedBy: .newlines) {
@@ -240,8 +232,6 @@ public final class AgentTerminalService: Sendable {
         AgentTerminalSessionManager.shared.cancelAllSessions()
     }
 }
-
-// MARK: - Multi-Session Terminal Management
 
 public final class AgentTerminalExecutionSession: Identifiable, @unchecked Sendable {
     public let id: String
@@ -295,13 +285,11 @@ public final class AgentTerminalExecutionSession: Identifiable, @unchecked Senda
             return
         }
 
-        // Bounded cancellation: terminate gracefully first
         proc.terminate()
 
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             if let p = self?.process, p.isRunning {
-                // If still running after 1.5 seconds, force terminate via kill
                 kill(p.processIdentifier, SIGKILL)
             }
         }
@@ -344,4 +332,3 @@ public final class AgentTerminalSessionManager: Sendable {
         activeSessions.removeAll()
     }
 }
-

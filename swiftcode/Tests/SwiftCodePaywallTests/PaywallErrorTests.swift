@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodePaywall
 
-/// Error mapping: every case carries a message that names the cause
-/// (and the fix, where there is one) and never a receipt, token, or
-/// transaction secret.
 struct PaywallErrorTests {
 
     @Test("Every error has a non-empty message")

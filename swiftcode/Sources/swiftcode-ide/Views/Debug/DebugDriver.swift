@@ -5,16 +5,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_DEBUG=<prefix>  the debugger's end-to-end walk (B2-DEBUG) with
-//                           the pointer and keys: open SWIFTCODE_IDE_DEBUG_FILE
-//                           (default main.swift), click the gutter at line
-//                           SWIFTCODE_IDE_DEBUG_LINE, show the Breakpoint
-//                           navigator, Product ▸ Run, wait for the stop,
-//                           expand the first aggregate in the variables view,
-//                           evaluate SWIFTCODE_IDE_DEBUG_EXPR at the (lldb)
-//                           prompt, Step Over, Continue to the exit; writes
-//                           <prefix>-<state>.png after each.
-
 #if os(Linux)
 @MainActor
 enum DebugDriver {
@@ -54,13 +44,11 @@ enum DebugDriver {
             return
         }
         w.isInspectorShown = false
-        // A clean start: an earlier run's breakpoints are stored with the package.
         w.perform(.deleteAllBreakpoints)
         w.open(path)
         await ShellDriver.pause(0.8)
         await shot(prefix, "opened", w)
 
-        // A breakpoint: a click on the line number.
         guard let source = ShellDriver.frame("source"), let editor = w.editor else { say("debug: no source editor"); return }
         let c = SourceEditorController.of(editor)
         let y = source.minY + SourceEditorController.topInset + CGFloat(line - 1) * c.lineHeight - c.top + c.lineHeight / 2
@@ -71,12 +59,10 @@ enum DebugDriver {
         await shot(prefix, "debug-navigator-empty", w)
         await ShellDriver.click("selector 7")
         await shot(prefix, "breakpoint-navigator", w)
-        // The debug bar's toggle deactivates them, and activates them again.
         await ShellDriver.click("bar breakpoints")
         await shot(prefix, "breakpoints-deactivated", w)
         await ShellDriver.click("bar breakpoints")
 
-        // Product ▸ Run: build, launch under lldb-dap, stop at the line.
         await ShellDriver.clickText("Product", inPopup: false)
         await ShellDriver.clickText("Run", inPopup: true)
         let stopped = await wait(300) { w.debug.isPaused && !w.debug.variables.isEmpty }
@@ -84,7 +70,6 @@ enum DebugDriver {
         await ShellDriver.pause(1.0)
         await shot(prefix, "stopped", w)
 
-        // The variables view: open the first aggregate.
         let aggregate = w.debug.variableRows.last(where: \.isExpandable)
         if let row = aggregate, let f = ShellDriver.frame("disclosure \(row.id)") {
             await OpenViewsAutomation.click(at: CGPoint(x: f.midX, y: f.midY))
@@ -94,7 +79,6 @@ enum DebugDriver {
         }
         await shot(prefix, "variables", w)
 
-        // The (lldb) prompt.
         if let field = ShellDriver.frame("console input") {
             await OpenViewsAutomation.click(at: CGPoint(x: field.midX, y: field.midY))
             await ShellDriver.pause(0.3)
@@ -107,27 +91,23 @@ enum DebugDriver {
         }
         await shot(prefix, "console", w)
 
-        // Step Over with the debug bar's button.
         let stops = w.session.stopCount
         await ShellDriver.click("bar step over")
         let stepped = await wait(30) { w.session.stopCount > stops && w.debug.isPaused && !w.debug.variables.isEmpty }
         say("debug: stepped=\(stepped)")
         await shot(prefix, "stepped", w)
 
-        // F6 (Step Over from the keyboard).
         let before = w.session.stopCount
         OpenViewsAutomation.press(.function(6))
         let keyed = await wait(30) { w.session.stopCount > before && w.debug.isPaused }
         say("debug: F6 stepped=\(keyed)")
         await shot(prefix, "stepped-f6", w)
 
-        // The Debug menu, open while paused.
         await ShellDriver.clickText("Debug", inPopup: false)
         await shot(prefix, "debug-menu", w)
         OpenViewsAutomation.press(.escape)
         await ShellDriver.pause(0.3)
 
-        // Continue to the exit.
         await ShellDriver.click("bar continue")
         let exited = await wait(30) { !w.debug.isDebugging && !w.isBusy }
         say("debug: exited=\(exited) console tail: \(w.console.split(separator: "\n").suffix(4).joined(separator: " | "))")

@@ -1,9 +1,3 @@
-// MeetingNotesEditor.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/MeetingNotesEditor.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: insertActionItems (meeting action-item insertion)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftUI
 

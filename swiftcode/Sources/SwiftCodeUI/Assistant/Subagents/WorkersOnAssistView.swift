@@ -1,27 +1,6 @@
 import SwiftUI
 import SwiftCodeAssistant
 
-/// Compact worker status list embedded within the primary Assist chat view.
-/// Shows worker name, status, and a small SF Symbol. Not a card grid.
-///
-/// Port of Legacy
-/// `SwiftCode/Backend/Assist/Subagents/UI/WorkersOnAssistView.swift`,
-/// rebuilt for the SwiftCodeUI target (default accent, no Legacy orange).
-///
-/// Wiring: reads the injected `WorkerRuntimeState` (default `.shared`)
-/// and hands the same instance to the detail and dashboard sheets.
-/// When no workers exist the view renders nothing (`EmptyView`, as in
-/// Legacy) — the empty case is surfaced by `WorkersHeaderButton` and
-/// by the dashboard's own empty state instead.
-///
-/// Deviation from Legacy: compact rows used Legacy's
-/// `.liquidGlass(style: .subtle, cornerRadius: 6)`, which has no
-/// destination equivalent; they now use a plain secondary-opacity
-/// background in a rounded rectangle, matching neighbouring
-/// destination views (`WorkspaceProfilesView.swift`). Legacy also held
-/// the runtime state in a plain property, which does not subscribe the
-/// view to `@Observable` changes; this port holds it in `@Bindable`,
-/// as `WorkersHeaderButton` already did in Legacy.
 @MainActor
 public struct WorkersOnAssistView: View {
     @Bindable var runtimeState: WorkerRuntimeState

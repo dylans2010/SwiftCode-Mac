@@ -5,22 +5,15 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-/// A column (or row) description for lazy grids.
 public struct GridItem: Sendable, Equatable {
-    /// How the column is sized.
     public enum Size: Sendable, Equatable {
-        /// Exactly this width.
         case fixed(CGFloat)
-        /// A share of the free width, within the bounds.
         case flexible(minimum: CGFloat = 10, maximum: CGFloat = .infinity)
-        /// As many columns of at least `minimum` as fit, sharing the width.
         case adaptive(minimum: CGFloat, maximum: CGFloat = .infinity)
     }
 
     public var size: Size
-    /// Spacing after this item (nil → 8).
     public var spacing: CGFloat?
-    /// Alignment of cells in this item (nil → centre).
     public var alignment: Alignment?
 
     public init(_ size: Size = .flexible(), spacing: CGFloat? = nil, alignment: Alignment? = nil) {
@@ -30,18 +23,6 @@ public struct GridItem: Sendable, Equatable {
     }
 }
 
-/// The layout of `LazyVGrid` (04 §6, golden `lazyvgrid.*`).
-///
-/// Columns are resolved from the offered width first: fixed items take their
-/// width; flexible items share what is left (least flexible first, within
-/// their bounds); an adaptive item becomes as many columns of at least its
-/// minimum as fit in its share. Cells fill rows left to right (leading to
-/// trailing), each row as tall as its tallest cell (cells are proposed their
-/// column width and an unspecified height); rows are 8 apart unless
-/// `spacing` says otherwise. The grid answers max(offer, columns) wide and
-/// its content height tall; an unspecified width gives each column its
-/// cells' ideal width (an adaptive item one column); an infinite width gives
-/// an empty grid (observed: 0 × 0).
 package struct LazyVGridLayout: Layout {
     package var columns: [GridItem]
     package var alignment: HorizontalAlignment
@@ -63,15 +44,12 @@ package struct LazyVGridLayout: Layout {
         var alignment: Alignment
     }
 
-    /// The number of columns at a proposed width (lazy grids, R9).
     package func columnCount(forWidth w: CGFloat) -> Int { resolveColumns(w, LayoutSubviews([]))?.count ?? 0 }
 
     private func resolveColumns(_ width: CGFloat?, _ s: Subviews) -> [Column]? {
         if let w = width, w.isInfinite { return nil }
         let gap: (GridItem) -> CGFloat = { $0.spacing ?? Self.defaultSpacing }
         guard let w = width else {
-            // Ideal width: one column per item; non-fixed columns as wide as
-            // their cells' ideal widths.
             let n = columns.count
             return columns.enumerated().map { k, item in
                 let width: CGFloat
@@ -83,8 +61,6 @@ package struct LazyVGridLayout: Layout {
             }
         }
         let gaps = columns.dropLast().reduce(CGFloat(0)) { $0 + gap($1) }
-        // Fixed items go first (higher priority); flexible and adaptive items
-        // share the rest.
         let items = columns.map { item -> DistributionItem in
             switch item.size {
             case .fixed(let f):
@@ -190,11 +166,6 @@ extension LayoutNode {
     }
 }
 
-// MARK: - LazyHGrid (R9)
-
-/// The layout of `LazyHGrid`: `LazyVGridLayout` with the axes swapped (rows
-/// resolved from the offered height, cells filling columns top to bottom,
-/// columns as wide as their widest cell, 8 points apart).
 package struct LazyHGridLayout: Layout {
     package var rows: [GridItem]
     package var alignment: VerticalAlignment
@@ -208,7 +179,6 @@ package struct LazyHGridLayout: Layout {
 
     package typealias Cache = Void
 
-    /// Row heights for a height (the vertical grid's column rule).
     private func tracks(_ height: CGFloat?, _ s: Subviews) -> [(length: CGFloat, gap: CGFloat, alignment: Alignment)] {
         let gap: (GridItem) -> CGFloat = { $0.spacing ?? 8 }
         guard let h = height, h.isFinite else {
@@ -245,7 +215,6 @@ package struct LazyHGridLayout: Layout {
         return out
     }
 
-    /// The number of rows at a proposed height.
     package func rowCount(forHeight h: CGFloat) -> Int { tracks(h, LayoutSubviews([])).count }
 
     private func arrange(_ p: ProposedViewSize, _ s: Subviews) -> (rows: [(length: CGFloat, gap: CGFloat, alignment: Alignment)],

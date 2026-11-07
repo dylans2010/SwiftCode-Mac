@@ -1,18 +1,6 @@
 import Foundation
 import Observation
 
-/// Project notes (Legacy `ProjectNotesModels` + `ProjectNotesWorkspaceState`,
-/// Dylan's own code, ported under MIT). Notebooks hold notes; notes carry
-/// versions, saved searches, links/backlinks and file attachments. State
-/// persists as JSON in Application Support/SwiftCode/ProjectNotes
-/// (`metadata.json`); attachments are copied into an `Attachments/`
-/// directory there. Legacy persisted the same way (its own base directory);
-/// the AI-conversation fields (`activeAIConversation`, `isAIProcessing`,
-/// `activeAIPrompt`) are NOT ported — AI lives in the Assistant, and the
-/// notes AI surface is the Documentation Browser's AI tab. Templates are
-/// condensed to their section skeletons; the full prose bodies were not
-/// carried over.
-
 public struct NoteAttachment: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String
@@ -138,8 +126,6 @@ public struct ProjectNote: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// Built-in note templates (Legacy `ProjectNoteTemplates`). Bodies are the
-/// section skeletons; the full prose was not carried over.
 public struct ProjectNoteTemplates {
     public static let builtInTemplates: [String: String] = [
         "Architecture Notes": "# Architecture Notes\n\n## 1. Executive Summary\n## 2. Design Pattern & Structure\n## 3. Data Flow & Communication\n## 4. Technical Debt & Trade-offs\n",
@@ -170,7 +156,6 @@ public struct ProjectNoteTemplates {
     ]
 }
 
-/// The notes workspace state (Legacy `ProjectNotesWorkspaceState`).
 @Observable
 @MainActor
 public final class ProjectNotesWorkspaceState {

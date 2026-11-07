@@ -2,16 +2,11 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// The scoring rule of specs/ide/open-quickly.md §Matching, value by value.
 @Suite struct OpenQuicklySpecTests {
     @Test func scoreValues() {
-        // "a" at index 0 of "ab": 1 + 8 = 9 → 90 − 2.
         #expect(FuzzyMatch.score("a", "ab") == 88)
-        // "b" after "_": 1 + 6 → 70 − 3.
         #expect(FuzzyMatch.score("b", "a_b") == 67)
-        // Case change: "B" in "aB": 1 + 5 → 60 − 2.
         #expect(FuzzyMatch.score("b", "aB") == 58)
-        // Spaces in the query are ignored; case ignored; order required.
         #expect(FuzzyMatch.score("A B", "ab") == FuzzyMatch.score("ab", "ab"))
         #expect(FuzzyMatch.score("ba", "ab") == nil)
         #expect(FuzzyMatch.score("abc", "xyz") == nil)

@@ -1,57 +1,16 @@
 import Foundation
 import SwiftUI
 
-// MARK: - EnterSecuritySDKView
-//
-// The native macOS popup where the USER types a secret so an app
-// (extension) can have it stored in its private Keychain namespace without
-// ever seeing the plaintext (the `security.addValue` flow, spec
-// `SDK/Documentation/Security-Keychain.md` §"The secure-prompt entry flow").
-//
-// PRESENTED BY THE HOST ONLY — never by extension code. Extensions run
-// out-of-process and cannot reach this type; `SDKSensitiveValuePrompt` is
-// the only presenter, and it is called from host-owned code (the IPC layer
-// or Studio).
-//
-// WHAT THE USER SEES: which app is asking (display name) and the user-facing
-// Label (if provided; never exposing Value ID or Security ID), an optional
-// context line, a SecureField, and Cancel / Store.
-//
-// SECRECY CONTRACT & STRICT IDENTIFIER BOUNDARY:
-// - Displays ONLY the human-facing Label (or "Secret Value" fallback).
-// - Strictly prohibits displaying Value ID or Security ID anywhere in the
-//   visible UI, metadata rows, tooltips, accessibility labels, or inline messages.
-// - The typed text lives in `@State private var secret` and NEVER leaves
-//   this view except into `KeychainSDK.addValue(...)` — the host's own
-//   same-process Keychain write, called from the Store action.
-//   `onStored` / `onCancelled` carry no payload: no binding, no value, and
-//   no text escapes to extension-facing code.
-// - The field is cleared before `onStored` / `onCancelled` fire, so no
-//   plaintext lingers in view state after the prompt resolves.
-
 public struct EnterSecuritySDKView: View {
 
-    // MARK: - Request (host-supplied)
-
-    /// The app's Security ID (used internally for Keychain partitioning; never displayed).
     private let securityID: String
-    /// Host-known display name of the requesting app.
     private let appDisplayName: String
-    /// The Security Value ID being stored (used internally for Keychain key; never displayed).
     private let valueID: String
-    /// Human label stored on the Keychain item; shown as the field label.
     private let label: String?
-    /// Optional extension-supplied context line, rendered as inert text.
     private let prompt: String?
 
-    // MARK: - Outcome (payload-free)
-
-    /// Fired after the Keychain write succeeded. Carries no payload.
     private let onStored: () -> Void
-    /// Fired when the user cancels. Carries no payload.
     private let onCancelled: () -> Void
-
-    // MARK: - State (view-local)
 
     @State private var secret = ""
     @State private var storeError: SDKError?
@@ -77,23 +36,16 @@ public struct EnterSecuritySDKView: View {
         self.onCancelled = onCancelled
     }
 
-    /// Blank means empty or whitespace-only. A whitespace-only "secret" is
-    /// rejected rather than stored: it is virtually always a paste slip,
-    /// and a stored stray newline would fail authentication later.
-    /// Anything else is stored EXACTLY as typed — never trimmed.
     private var isBlankInput: Bool {
         secret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Visible label for the sensitive value. Never falls back to valueID.
     private var displayLabel: String {
         if let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
             return label
         }
         return "Secret Value"
     }
-
-    // MARK: - Body
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -139,8 +91,6 @@ public struct EnterSecuritySDKView: View {
                 (try? KeychainSDK.hasValue(securityID: securityID, valueID: valueID)) ?? false
         }
     }
-
-    // MARK: - Sections
 
     private var header: some View {
         HStack(spacing: 14) {
@@ -225,8 +175,6 @@ public struct EnterSecuritySDKView: View {
         .padding(10)
         .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
     }
-
-    // MARK: - Actions
 
     private func store() {
         storeError = nil

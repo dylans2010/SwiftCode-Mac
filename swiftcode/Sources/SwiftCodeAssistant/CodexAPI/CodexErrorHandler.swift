@@ -1,12 +1,5 @@
 import Foundation
 
-/// Codex API errors (ported from Legacy's `LLMError`, cut down to the
-/// cases this client can actually produce).
-///
-/// Legacy's `LLMError` lived in Core and covered every provider
-/// (offline-model fallbacks, SwiftCloud limits); this local error keeps
-/// only the cases the Responses API client raises, so the client does not
-/// depend on another slice's error type.
 public enum CodexAPIError: LocalizedError, Equatable {
     case invalidKey
     case rateLimited
@@ -30,8 +23,6 @@ public enum CodexAPIError: LocalizedError, Equatable {
     }
 }
 
-/// Maps HTTP failures to `CodexAPIError` and to user-facing strings
-/// (ported from Legacy's `CodexErrorHandler`).
 public enum CodexErrorHandler {
     public static func parseHTTPError(data: Data, statusCode: Int) -> Error {
         if statusCode == 401 { return CodexAPIError.invalidKey }

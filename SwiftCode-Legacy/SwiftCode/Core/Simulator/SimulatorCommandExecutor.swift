@@ -16,20 +16,16 @@ public actor SimulatorCommandExecutor {
         logger.info("[BEGIN] Executing command '\(command.name)': \(command.executable) \(command.arguments.joined(separator: " "))")
         let startTime = Date()
 
-        // Safely check if the target executable exists
         let fm = FileManager.default
         let hasExecutable = fm.fileExists(atPath: command.executable)
 
         guard hasExecutable else {
-            // We are running in an environment without native command line tools (e.g. Linux sandbox)
-            // Provide high-fidelity standard fallback mock responses!
-            try await Task.sleep(nanoseconds: 150_000_000) // 150ms simulated latency
+            try await Task.sleep(nanoseconds: 150_000_000)
             let duration = Date().timeIntervalSince(startTime)
             logger.info("[SIMULATED END] Command '\(command.name)' completed in \(duration)s")
             return makeSimulatedResponse(for: command, duration: duration)
         }
 
-        // Native command execution using Process & Pipe safely (no force unwraps)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command.executable)
         process.arguments = command.arguments
@@ -42,7 +38,6 @@ public actor SimulatorCommandExecutor {
         do {
             try process.run()
 
-            // Asynchronous timeout control using modern task group
             let exitCode = try await withThrowingTaskGroup(of: Int32.self) { group in
                 group.addTask {
                     process.waitUntilExit()
@@ -65,7 +60,6 @@ public actor SimulatorCommandExecutor {
                 return result
             }
 
-            // Capture stdout/stderr safely (no force unwraps, handles empty cases gracefully)
             let outputData: Data
             if let data = try? outputPipe.fileHandleForReading.readToEnd() {
                 outputData = data

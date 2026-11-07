@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDebug
 
-/// An in-memory adapter: decodes each request and answers with `handler`.
 final class FakeAdapter: DAPTransport, @unchecked Sendable {
     var receiving: (@Sendable (Data?) -> Void)?
     var decoder = DAPFraming.Decoder()
@@ -24,7 +23,6 @@ final class FakeAdapter: DAPTransport, @unchecked Sendable {
             var resp: [String: JSON] = ["seq": .number(Double(seq)), "type": "response", "request_seq": req["seq"]!,
                                         "command": req["command"]!, "success": .bool(ok)]
             if let b { resp["body"] = b }
-            // Deliver in two chunks to exercise reassembly.
             let framed = DAPFraming.frame(JSON.object(resp).encoded())
             receiving?(framed.prefix(7))
             receiving?(framed.dropFirst(7))

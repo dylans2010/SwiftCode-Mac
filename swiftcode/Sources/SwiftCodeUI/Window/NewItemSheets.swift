@@ -2,9 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// A template chooser: platform tabs, a filter field, a sectioned list with
-/// floating section headers, and Cancel / Previous / Next
-/// (`specs/ide/reference-ui-3.md` §5.3, §5.4).
 @MainActor
 public class TemplateChooserController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     public let heading: String
@@ -13,7 +10,6 @@ public class TemplateChooserController: NSViewController, NSTableViewDataSource,
     public private(set) var platform: String
     public private(set) var filter = ""
     public private(set) var sections: [TemplateSection] = []
-    /// Flattened rows: a section header (`nil` entry) or an entry.
     private(set) var rows: [(section: String, entry: TemplateEntry?)] = []
     public private(set) var selectedEntry: TemplateEntry?
     public var onCancel: (() -> Void)?
@@ -23,9 +19,7 @@ public class TemplateChooserController: NSViewController, NSTableViewDataSource,
     public let filterField = NSSearchField()
     public let previousButton = NSButton(title: "Previous", target: nil, action: nil)
     public let nextButton = NSButton(title: "Next", target: nil, action: nil)
-    /// The sheet's heading line (a later step may change it).
     public let titleLabel = NSTextField(labelWithString: "")
-    /// The area below the heading; subclasses swap it for later steps.
     let body = NSView()
     var chooserView = NSView()
 
@@ -53,8 +47,6 @@ public class TemplateChooserController: NSViewController, NSTableViewDataSource,
         reload()
     }
 
-    /// Selects the first entry titled `title` (after a filter change, the
-    /// first entry).
     @discardableResult
     public func select(title: String) -> Bool {
         guard let i = rows.firstIndex(where: { $0.entry?.title == title }) else { return false }
@@ -170,8 +162,6 @@ public class TemplateChooserController: NSViewController, NSTableViewDataSource,
         onNext?(e)
     }
 
-    // MARK: Table
-
     public func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
     public func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool { rows[row].entry == nil }
     public func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { rows[row].entry != nil }
@@ -193,7 +183,6 @@ public class TemplateChooserController: NSViewController, NSTableViewDataSource,
     }
 }
 
-/// The new-file sheet. Next hands the template to the save step.
 @MainActor
 public final class NewFileSheetController: TemplateChooserController {
     public init(platform: String = "iOS") {
@@ -201,7 +190,6 @@ public final class NewFileSheetController: TemplateChooserController {
                    catalog: FileTemplateCatalog.sections(platform:filter:))
     }
 
-    /// The icon grid that replaces the base list (reference-ui-3 §5.3).
     private(set) var grid: TemplateGridView?
 
     override func initialBody() -> NSView {
@@ -227,11 +215,9 @@ public final class NewFileSheetController: TemplateChooserController {
     }
 }
 
-/// File ▸ New ▸ Project…'s compact picker: "+ New Project" and five rows.
 @MainActor
 public final class NewProjectPickerController: NSViewController {
     public var onChoose: ((Int) -> Void)?
-    /// Vertical gap between the rows.
     public static let rowSpacing: CGFloat = 8
     public private(set) var rowViews: [NSView] = []
     public private(set) var cancelButton: NSButton?
@@ -260,7 +246,6 @@ public final class NewProjectPickerController: NSViewController {
         cancel.keyEquivalent = "\u{1b}"
         cancelButton = cancel
         rowViews = Array(views.dropFirst())
-        // Rows pack at the top; Cancel sits at the bottom.
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -268,8 +253,6 @@ public final class NewProjectPickerController: NSViewController {
         for v in views { stack.addView(v, in: .top) }
         stack.addView(cancel, in: .top)
         stack.setCustomSpacing(Self.rowSpacing * 2, after: views.last!)
-        // The panel takes the stack's fitting height, so no extra space
-        // is handed to any row.
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
         let root = PanelBackgroundView(frame: NSRect(x: 0, y: 0, width: 340, height: 10))
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -278,8 +261,6 @@ public final class NewProjectPickerController: NSViewController {
             stack.topAnchor.constraint(equalTo: root.topAnchor), stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
         ])
-        // The panel starts at the stack's fitting height; a taller panel
-        // leaves the extra space below the rows.
         stack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor).isActive = true
         root.setFrameSize(NSSize(width: 340, height: stack.fittingSize.height))
         preferredContentSize = root.frame.size
@@ -294,18 +275,13 @@ public final class NewProjectPickerController: NSViewController {
     }
 }
 
-/// The new-target sheet (the project editor's "+" under the target
-/// list): the template chooser, then "Choose options for your new
-/// target:" with Product Name and, for test bundles, Target to be Tested.
 @MainActor
 public final class NewTargetSheetController: TemplateChooserController, NSTextFieldDelegate {
     public private(set) var steps = TemplateSheetSteps(count: 2)
-    /// The project's targets, offered as the target to be tested.
     public let hostTargets: [String]
     public let productNameField = NSTextField(string: "")
     public let hostPopUp = NSPopUpButton()
     public let errorLabel = NSTextField(labelWithString: "")
-    /// (platform, template, product name, target to be tested) → error text or nil.
     public var onFinish: ((String, String, String, String?) -> String?)?
 
     public init(platform: String, hostTargets: [String]) {
@@ -375,9 +351,6 @@ public final class NewTargetSheetController: TemplateChooserController, NSTextFi
     public func controlTextDidChange(_ obj: Notification) { updateButtons() }
 }
 
-/// The new-file save step's accessory (reference-ui-3.md §5.3; P10): a
-/// Group pop-up listing the project's groups (indented by depth) and a
-/// Targets checkbox list with the target of the selected file checked.
 @MainActor
 public final class SaveStepAccessory: NSObject {
     public struct GroupItem: Equatable, Sendable {
@@ -392,7 +365,6 @@ public final class SaveStepAccessory: NSObject {
     public private(set) var selectedGroup: Int
     public let groupPopUp = NSPopUpButton()
     public private(set) var targetBoxes: [NSButton] = []
-    /// The Group pop-up changed: the folder new files go to.
     public var onGroupChange: ((URL) -> Void)?
     public private(set) lazy var view: NSView = makeView()
 
@@ -424,8 +396,6 @@ public final class SaveStepAccessory: NSObject {
         super.init()
     }
 
-    /// Targets whose build phases hold the file, or whose synchronized
-    /// folders contain it.
     public static func targets(of file: URL?, proj: PBXProj, xcodeprojURL: URL) -> [String] {
         guard let file else { return [] }
         let path = file.standardizedFileURL.path
@@ -446,7 +416,6 @@ public final class SaveStepAccessory: NSObject {
         }.compactMap { $0.string("name") }
     }
 
-    /// The folder of the chosen group.
     public var selectedDirectory: URL { groups.indices.contains(selectedGroup) ? groups[selectedGroup].directory : URL(fileURLWithPath: "/") }
 
     public func selectGroup(_ i: Int) {
@@ -468,7 +437,6 @@ public final class SaveStepAccessory: NSObject {
     func makeView() -> NSView {
         groupPopUp.removeAllItems()
         for g in groups {
-            // Menu items directly: group names repeat (project and folder).
             let item = NSMenuItem(title: g.title, action: nil, keyEquivalent: "")
             item.indentationLevel = min(g.depth, 15)
             item.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)

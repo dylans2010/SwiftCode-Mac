@@ -29,8 +29,6 @@ public struct AssistRenameFileTool: AssistTool {
         guard let newName = input["newName"] as? String else {
             return .failure("Missing required parameter: newName")
         }
-        // newName must be a single path component: it must not escape the
-        // directory via "/", "..", an empty name, or a NUL byte.
         if newName.isEmpty || newName.contains("/") || newName.contains("..") || newName.contains("\0") || newName == "." {
             return .failure("Invalid newName '\(newName)': must be a single file name, not a path.")
         }

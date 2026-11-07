@@ -1,18 +1,9 @@
 import Foundation
 
-// Scroll geometry values (round R9). The names are the public API's
-// (api-inventory.md: `ScrollGeometry`, `ScrollTarget` are SwiftUICore types).
-
-/// The geometry of a scroll view: what `onScrollGeometryChange` reports.
 public struct ScrollGeometry: Equatable, Sendable {
-    /// The scrolled distance from the content's origin (positive downwards and
-    /// towards the trailing edge).
     public var contentOffset: CGPoint
-    /// The size of the content.
     public var contentSize: CGSize
-    /// The insets the content scrolls under (the safe area it touches).
     public var contentInsets: EdgeInsets
-    /// The size of the scroll view.
     public var containerSize: CGSize
 
     public init(contentOffset: CGPoint, contentSize: CGSize, contentInsets: EdgeInsets, containerSize: CGSize) {
@@ -22,21 +13,16 @@ public struct ScrollGeometry: Equatable, Sendable {
         self.containerSize = containerSize
     }
 
-    /// The visible part of the content, in content coordinates.
     public var visibleRect: CGRect {
         CGRect(x: contentOffset.x - contentInsets.leading, y: contentOffset.y - contentInsets.top,
                width: containerSize.width + contentInsets.horizontal, height: containerSize.height + contentInsets.vertical)
     }
 
-    /// The scroll view's own rectangle in content coordinates.
     public var bounds: CGRect { CGRect(origin: contentOffset, size: containerSize) }
 }
 
-/// A place a scroll view can come to rest at (scroll target behaviours).
 public struct ScrollTarget: Hashable, Sendable {
-    /// The rectangle (content coordinates) to show.
     public var rect: CGRect
-    /// Where `rect` is put in the scroll view (nil: at the top-leading edge).
     public var anchor: UnitPoint?
 
     public init(rect: CGRect, anchor: UnitPoint? = nil) {
@@ -54,7 +40,6 @@ public struct ScrollTarget: Hashable, Sendable {
     }
 }
 
-/// Visibility of scroll indicators.
 public struct ScrollIndicatorVisibility: Equatable, Sendable {
     package enum Kind: Equatable, Sendable { case automatic, visible, hidden, never }
     package let kind: Kind
@@ -79,7 +64,6 @@ extension EnvironmentValues {
         set { self[HorizontalIndicatorKey.self] = newValue }
     }
 
-    /// False inside `scrollDisabled(true)`.
     public var isScrollEnabled: Bool {
         get { self[ScrollEnabledKey.self] }
         set { self[ScrollEnabledKey.self] = newValue }
@@ -100,8 +84,6 @@ extension View {
 }
 
 #if !canImport(CoreGraphics)
-/// CoreGraphics' vector, which swift-corelibs-foundation lacks on Linux (an
-/// interop name of the scroll target API: the fling velocity).
 public struct CGVector: Equatable, Hashable, Sendable {
     public var dx: CGFloat
     public var dy: CGFloat

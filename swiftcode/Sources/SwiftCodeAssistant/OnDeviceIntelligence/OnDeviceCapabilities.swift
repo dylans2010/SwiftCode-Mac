@@ -1,11 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/On Device Intelligence/OnDeviceCapabilities.swift
-//   (Legacy commit d51a8f0d)
-//
-// Ported unchanged in shape. The level itself is computed by
-// `DeviceUtilityManager` from the live Foundation Models availability,
-// not from a hardcoded OS-version table (see that file).
-
 import Foundation
 
 public struct OnDeviceCapabilities: Codable, Hashable {

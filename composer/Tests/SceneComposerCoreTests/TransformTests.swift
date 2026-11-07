@@ -3,8 +3,6 @@ import USDCore
 import USDStage
 @testable import SceneComposerCore
 
-/// Expected matrices were computed by OpenUSD (usd-core 26.11,
-/// UsdGeomXformable/XformCache) for the same layer.
 @Suite struct TransformTests {
     static let text = """
     #usda 1.0
@@ -74,7 +72,6 @@ import USDStage
         #expect(layer.field(FieldKey.typeName, at: "/A.xformOp:orient") == .token("quatf"))
         let stage = Stage(rootLayer: layer, resolver: MemoryLayerResolver())
         #expect(Xform.localTransform(stage.prim(at: "/A")!).matrix.isClose(to: trs.matrix, tolerance: 1e-6))
-        // Animated: time samples.
         try Xform.setTRS(TRS(translation: Vec3(0, 1, 0)), at: "/A", in: &layer, time: 24)
         if case .timeSamples(let s)? = layer.field(FieldKey.timeSamples, at: "/A.xformOp:translate") {
             #expect(s.map(\.time) == [24])

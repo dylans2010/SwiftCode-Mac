@@ -1,31 +1,18 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimulatorRuntimeManager.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import Observation
 import os
 
-/// A manager that handles runtime discovery for Simulator runtimes.
-/// It scans default system/user directories and parses plist files to detect valid `.simruntime` bundles,
-/// or scans user-defined custom directories. Discovered runtimes are cached to avoid redundant file scans.
 @Observable
 @MainActor
 public final class SimulatorRuntimeManager {
     public static let shared = SimulatorRuntimeManager()
 
-    // Cache of discovered runtimes by directory path to avoid repeating file system scans.
     private var cachedRuntimes: [String: [SimulatorRuntime]] = [:]
 
-    // Logging category for runtime management.
     private let logger = Logger.discovery
 
     private init() {}
 
-    /// Scans the default macOS simulator runtime directories.
-    /// Default directories checked:
-    /// - `/Library/Developer/CoreSimulator/Profiles/Runtimes/`
-    /// - `~/Library/Developer/CoreSimulator/Profiles/Runtimes/`
-    ///
-    /// - Returns: An array of unique discovered `SimulatorRuntime` instances.
     public func discoverRuntimes() async -> [SimulatorRuntime] {
         logger.info("[RUNTIME-MANAGER] Discovering runtimes from default paths...")
 
@@ -41,7 +28,6 @@ public final class SimulatorRuntimeManager {
             allRuntimes.append(contentsOf: runtimes)
         }
 
-        // De-duplicate discovered runtimes based on their unique bundle identifier
         var uniqueRuntimes: [SimulatorRuntime] = []
         var seenIDs = Set<String>()
         for runtime in allRuntimes {
@@ -54,15 +40,9 @@ public final class SimulatorRuntimeManager {
         return uniqueRuntimes
     }
 
-    /// Scans a custom directory path for any valid `.simruntime` bundles.
-    /// If the directory has been scanned previously, cached results are returned.
-    ///
-    /// - Parameter path: The directory path to scan.
-    /// - Returns: An array of discovered `SimulatorRuntime` instances under that path.
     public func getRuntimesFromCustomPath(_ path: String) async -> [SimulatorRuntime] {
         let expandedPath = (path as NSString).expandingTildeInPath
 
-        // Check cache first to avoid redundant disk I/O
         if let cached = cachedRuntimes[expandedPath] {
             logger.info("[RUNTIME-MANAGER] Returning cached runtimes for path: \(expandedPath)")
             return cached
@@ -90,7 +70,6 @@ public final class SimulatorRuntimeManager {
                 }
             }
 
-            // Cache the scan results
             cachedRuntimes[expandedPath] = runtimes
 
         } catch {
@@ -100,23 +79,15 @@ public final class SimulatorRuntimeManager {
         return runtimes
     }
 
-    /// Clears the cached discovered runtimes, forcing a full scan on subsequent operations.
     public func clearCache() {
         cachedRuntimes.removeAll()
     }
 
-    // MARK: - Private Helpers
-
-    /// Computes the correct home directory path for user-specific simulator runtimes.
     private func getHomeRuntimesPath() -> String {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         return homeDir.appendingPathComponent("Library/Developer/CoreSimulator/Profiles/Runtimes/").path
     }
 
-    /// Parses a single `.simruntime` folder/bundle and extracts platform, version, and name information.
-    ///
-    /// - Parameter url: The file URL of the `.simruntime` bundle directory.
-    /// - Returns: A populated `SimulatorRuntime` if parsing was successful, otherwise `nil`.
     private func parseSimruntimeBundle(at url: URL) -> SimulatorRuntime? {
         let plistURL = url.appendingPathComponent("Contents/Info.plist")
         let fm = FileManager.default
@@ -137,7 +108,6 @@ public final class SimulatorRuntimeManager {
             let version = plist["CFBundleShortVersionString"] as? String ?? plist["CFBundleVersion"] as? String ?? "Unknown"
             let identifier = plist["CFBundleIdentifier"] as? String ?? "com.apple.CoreSimulator.SimRuntime.custom-\(UUID().uuidString)"
 
-            // Deduce platform from bundle properties
             let platform: String = {
                 if let simPlatform = plist["SimulatorPlatform"] as? String {
                     return simPlatform
@@ -156,7 +126,7 @@ public final class SimulatorRuntimeManager {
                 } else if lowerName.contains("macos") || lowerID.contains("macos") {
                     return "macOS"
                 }
-                return "iOS" // fallback default
+                return "iOS"
             }()
 
             return SimulatorRuntime(

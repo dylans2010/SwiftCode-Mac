@@ -1,6 +1,5 @@
 import Foundation
 
-
 public struct GitHubRepository: Codable, Identifiable, Sendable {
     public let id: Int
     public let name: String
@@ -16,8 +15,6 @@ public struct GitHubRepository: Codable, Identifiable, Sendable {
         case isPrivate = "private"
     }
 }
-
-// MARK: - GitHub API Service
 
 final class GitHubService: @unchecked Sendable {
     static let shared = GitHubService()
@@ -40,7 +37,6 @@ final class GitHubService: @unchecked Sendable {
         return request
     }
 
-
     func fetchRepositories(token: String) async throws -> [GitHubRepository] {
         guard let url = URL(string: "https://api.github.com/user/repos?sort=updated&per_page=100") else {
             throw URLError(.badURL)
@@ -59,9 +55,6 @@ final class GitHubService: @unchecked Sendable {
         return try JSONDecoder().decode([GitHubRepository].self, from: data)
     }
 
-    // MARK: - Validate & Fetch Repository Info
-
-    /// Validates whether a GitHub repository URL points to a real repo and returns its details.
     func validateAndFetchRepo(owner: String, repo: String) async throws -> GitHubRepoDetail {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)")
         let request = authorizedRequest(url: url)
@@ -72,8 +65,6 @@ final class GitHubService: @unchecked Sendable {
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(GitHubRepoDetail.self, from: data)
     }
-
-    // MARK: - List Commits
 
     func listCommits(owner: String, repo: String, branch: String = "main", perPage: Int = 10) async throws -> [GitHubCommit] {
         guard token != nil else { throw GitHubError.missingToken }
@@ -91,8 +82,6 @@ final class GitHubService: @unchecked Sendable {
         return try decoder.decode([GitHubCommit].self, from: data)
     }
 
-    // MARK: - Get Repository Tree (for file listing)
-
     func getRepoTree(owner: String, repo: String, branch: String = "main") async throws -> [GitHubTreeEntry] {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/git/trees/\(branch)")
@@ -105,8 +94,6 @@ final class GitHubService: @unchecked Sendable {
         return decoded.tree
     }
 
-    // MARK: - Auth Check
-
     func getAuthenticatedUser() async throws -> GitHubUser {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("user")
@@ -115,8 +102,6 @@ final class GitHubService: @unchecked Sendable {
         try validateResponse(response, data: data)
         return try JSONDecoder().decode(GitHubUser.self, from: data)
     }
-
-    // MARK: - Create Repository
 
     func createRepository(name: String, description: String, isPrivate: Bool) async throws -> GitHubRepo {
         guard token != nil else { throw GitHubError.missingToken }
@@ -137,8 +122,6 @@ final class GitHubService: @unchecked Sendable {
         try validateResponse(response, data: data)
         return try JSONDecoder().decode(GitHubRepo.self, from: data)
     }
-
-    // MARK: - Push File (create or update)
 
     func pushFile(
         owner: String,
@@ -178,17 +161,13 @@ final class GitHubService: @unchecked Sendable {
         try validateResponse(response, data: data)
     }
 
-    // MARK: - Push All Project Files (Efficient Data API)
-
     func pushProject(_ project: Project, owner: String, repo: String, commitMessage: String, branch: String = "main") async throws {
         let allFiles = collectFiles(from: project.files)
         let projectDir = await project.directoryURL
 
-        // 1. Get the latest commit SHA of the branch
         let branchRef = try await getBranchRef(owner: owner, repo: repo, branch: branch)
         let baseTreeSHA = try await getCommitTreeSHA(owner: owner, repo: repo, commitSHA: branchRef.object.sha)
 
-        // 2. Create blobs for each file
         var treeEntries: [[String: Any]] = []
         for fileNode in allFiles {
             let fileURL = projectDir.appendingPathComponent(fileNode.path)
@@ -203,13 +182,10 @@ final class GitHubService: @unchecked Sendable {
             ])
         }
 
-        // 3. Create a new tree
         let newTreeSHA = try await createTree(owner: owner, repo: repo, baseTreeSHA: baseTreeSHA, entries: treeEntries)
 
-        // 4. Create a new commit
         let newCommitSHA = try await createCommit(owner: owner, repo: repo, message: commitMessage, treeSHA: newTreeSHA, parentSHA: branchRef.object.sha)
 
-        // 5. Update the branch reference
         try await updateBranchRef(owner: owner, repo: repo, branch: branch, commitSHA: newCommitSHA)
     }
 
@@ -317,8 +293,6 @@ final class GitHubService: @unchecked Sendable {
         }
     }
 
-    // MARK: - Get File SHA
-
     func getFileSHA(owner: String, repo: String, path: String, branch: String? = nil) async throws -> String? {
         guard let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
         var url = baseURL
@@ -339,8 +313,6 @@ final class GitHubService: @unchecked Sendable {
         return json.sha
     }
 
-    // MARK: - List Workflow Runs
-
     func listWorkflowRuns(owner: String, repo: String) async throws -> [WorkflowRun] {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs")
@@ -355,15 +327,12 @@ final class GitHubService: @unchecked Sendable {
         return result.workflowRuns
     }
 
-    // MARK: - Get Workflow Run Logs URL
-
     func getWorkflowRunLogsURL(owner: String, repo: String, runID: Int) async throws -> URL {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs/\(runID)/logs")
         var request = authorizedRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        // This endpoint returns a redirect; capture the Location header.
         let session = URLSession(configuration: .default, delegate: NoRedirectDelegate(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
 
@@ -376,8 +345,6 @@ final class GitHubService: @unchecked Sendable {
         }
         return logsURL
     }
-
-    // MARK: - Workflow Artifacts
 
     func listWorkflowArtifacts(owner: String, repo: String, runID: Int) async throws -> [GitHubArtifact] {
         guard token != nil else { throw GitHubError.missingToken }
@@ -400,8 +367,6 @@ final class GitHubService: @unchecked Sendable {
         return data
     }
 
-    // MARK: - Workflow Jobs
-
     func listWorkflowJobs(owner: String, repo: String, runID: Int) async throws -> [WorkflowJob] {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs/\(runID)/jobs")
@@ -420,7 +385,6 @@ final class GitHubService: @unchecked Sendable {
         var request = authorizedRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        // Capture redirection using NoRedirectDelegate to prevent token leakage
         let session = URLSession(configuration: .default, delegate: NoRedirectDelegate(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
 
@@ -435,7 +399,6 @@ final class GitHubService: @unchecked Sendable {
                   let redirectURL = URL(string: locationString) else {
                 throw GitHubError.noLogsAvailable
             }
-            // Request the S3 URL WITHOUT Authorization or Accept headers
             var s3Request = URLRequest(url: redirectURL)
             s3Request.httpMethod = "GET"
             let (data, s3Response) = try await URLSession.shared.data(for: s3Request)
@@ -466,8 +429,6 @@ final class GitHubService: @unchecked Sendable {
             .replacingOccurrences(of: "\r", with: "")
     }
 
-    // MARK: - Workflow Run (Single)
-
     func getWorkflowRun(owner: String, repo: String, runID: Int) async throws -> WorkflowRun {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/runs/\(runID)")
@@ -480,8 +441,6 @@ final class GitHubService: @unchecked Sendable {
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(WorkflowRun.self, from: data)
     }
-
-    // MARK: - List Branches
 
     func listBranches(owner: String, repo: String) async throws -> [GitHubBranch] {
         guard token != nil else { throw GitHubError.missingToken }
@@ -499,10 +458,8 @@ final class GitHubService: @unchecked Sendable {
 
     func isRepositoryEmpty(owner: String, repo: String) async throws -> Bool {
         let repoDetail = try await validateAndFetchRepo(owner: owner, repo: repo)
-        // If size is 0 or default branch is empty/missing, it's likely empty
         if (repoDetail.size ?? 0) == 0 { return true }
 
-        // Double check branches
         let branches = try await listBranches(owner: owner, repo: repo)
         return branches.isEmpty
     }
@@ -520,7 +477,6 @@ final class GitHubService: @unchecked Sendable {
         let repo = String(components[1])
         let projectDir = await project.directoryURL
 
-        // Step 1: Detect and scan
         logHandler("Scanning template files")
         var filesToUpload: [URL] = []
         let enumerator = FileManager.default.enumerator(
@@ -531,20 +487,17 @@ final class GitHubService: @unchecked Sendable {
         while let fileURL = enumerator?.nextObject() as? URL {
             let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
             if resourceValues?.isRegularFile == true {
-                // Skip project.json metadata
                 if fileURL.lastPathComponent != "project.json" {
                     filesToUpload.append(fileURL)
                 }
             }
         }
 
-        // Step 2: Create the GitHub repository
         logHandler("Creating GitHub repository")
         do {
             _ = try await createRepository(name: repo, description: project.description, isPrivate: false)
             logHandler("Repository created successfully")
         } catch {
-            // If it already exists (422), we can proceed
             if case let .apiError(statusCode, _) = error as? GitHubError, statusCode == 422 {
                 logHandler("Repository created successfully")
             } else {
@@ -552,7 +505,6 @@ final class GitHubService: @unchecked Sendable {
             }
         }
 
-        // Step 3: Create initial commit
         logHandler("Creating initial commit")
         let readmeURL = projectDir.appendingPathComponent("README.md")
         let readmeContent: String
@@ -574,15 +526,12 @@ final class GitHubService: @unchecked Sendable {
             branch: "main"
         )
 
-        // Step 4: Upload full template codebase
         logHandler("Uploading template files to GitHub")
         for fileURL in filesToUpload {
             let relativePath = String(fileURL.path.dropFirst(projectDir.path.count + 1))
-            // README already pushed or will be updated if it was in the scanned list
             if relativePath == "README.md" { continue }
 
             let data = try Data(contentsOf: fileURL)
-            // Use SHA to avoid 409 if file exists
             let existingSHA = try? await getFileSHA(owner: owner, repo: repo, path: relativePath, branch: "main")
 
             try await pushFileData(
@@ -695,15 +644,9 @@ final class GitHubService: @unchecked Sendable {
         }
     }
 
-    // MARK: - Create Branch
-
-    /// Creates a new branch from an existing branch's HEAD SHA.
-    /// PLACEHOLDER: Fetches the base branch SHA then POSTs a new ref.
     func createBranch(owner: String, repo: String, branchName: String, fromBranch: String) async throws {
         guard token != nil else { throw GitHubError.missingToken }
 
-        // Step 1: Resolve the base branch SHA.
-        // GET /repos/{owner}/{repo}/git/ref/heads/{fromBranch}
         let refURL = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/git/ref/heads/\(fromBranch)")
         let refRequest = authorizedRequest(url: refURL)
         let (refData, refResponse) = try await URLSession.shared.data(for: refRequest)
@@ -718,8 +661,6 @@ final class GitHubService: @unchecked Sendable {
         let refObj = try decoder.decode(RefResponse.self, from: refData)
         let sha = refObj.object.sha
 
-        // Step 2: Create the new ref.
-        // POST /repos/{owner}/{repo}/git/refs
         let createURL = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/git/refs")
         var createRequest = authorizedRequest(url: createURL, method: "POST")
         createRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -730,10 +671,6 @@ final class GitHubService: @unchecked Sendable {
         try validateResponse(createResponse, data: createData)
     }
 
-    // MARK: - Delete Branch
-
-    /// Deletes a branch by removing its ref.
-    /// PLACEHOLDER: DELETE /repos/{owner}/{repo}/git/refs/heads/{branchName}
     func deleteBranch(owner: String, repo: String, branchName: String) async throws {
         guard token != nil else { throw GitHubError.missingToken }
 
@@ -743,15 +680,12 @@ final class GitHubService: @unchecked Sendable {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/git/refs/heads/\(encoded)")
         let request = authorizedRequest(url: url, method: "DELETE")
         let (data, response) = try await URLSession.shared.data(for: request)
-        // 204 No Content is the expected success response for DELETE
         guard let http = response as? HTTPURLResponse else { throw GitHubError.invalidResponse }
         guard http.statusCode == 204 || (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw GitHubError.apiError(statusCode: http.statusCode, body: body)
         }
     }
-
-    // MARK: - List Pull Requests
 
     func listPullRequests(owner: String, repo: String) async throws -> [GitHubPullRequest] {
         guard token != nil else { throw GitHubError.missingToken }
@@ -766,10 +700,6 @@ final class GitHubService: @unchecked Sendable {
         return try decoder.decode([GitHubPullRequest].self, from: data)
     }
 
-    // MARK: - Create Pull Request
-
-    /// Creates a pull request on GitHub.
-    /// PLACEHOLDER: POST /repos/{owner}/{repo}/pulls
     func createPullRequest(
         owner: String,
         repo: String,
@@ -795,9 +725,6 @@ final class GitHubService: @unchecked Sendable {
             "base": base,
             "draft": isDraft
         ]
-        // Reviewers and labels require separate API calls to add after PR creation.
-        // PLACEHOLDER: POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers
-        //              POST /repos/{owner}/{repo}/issues/{issue_number}/labels
         _ = reviewers
         _ = labels
         _ = milestone
@@ -813,18 +740,13 @@ final class GitHubService: @unchecked Sendable {
         return try decoder.decode(GitHubPullRequest.self, from: data)
     }
 
-    // MARK: - Download Repository as ZIP (saves to device)
-
-    /// Downloads the repository at the given branch as a ZIP and returns the local file URL.
     func downloadRepositoryZip(owner: String, repo: String, branch: String = "main") async throws -> URL {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/zipball/\(branch)")
         let request = authorizedRequest(url: url)
-        // URLSession follows the redirect automatically and returns the ZIP data
         let (data, response) = try await URLSession.shared.data(for: request)
         try validateResponse(response, data: data)
 
-        // Sanitize branch name for use as filename (replace slashes and other invalid chars)
         let safeBranch = branch.replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
             .replacingOccurrences(of: "\\", with: "-")
@@ -834,8 +756,6 @@ final class GitHubService: @unchecked Sendable {
         try data.write(to: destURL, options: .atomic)
         return destURL
     }
-
-    // MARK: - List Releases
 
     func listReleases(owner: String, repo: String) async throws -> [GitHubRelease] {
         guard token != nil else { throw GitHubError.missingToken }
@@ -848,8 +768,6 @@ final class GitHubService: @unchecked Sendable {
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode([GitHubRelease].self, from: data)
     }
-
-    // MARK: - Pull / Download File
 
     func getFileContent(owner: String, repo: String, path: String) async throws -> String {
         guard let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
@@ -867,9 +785,6 @@ final class GitHubService: @unchecked Sendable {
         return string
     }
 
-    // MARK: - List User Repositories
-
-    /// Fetches repositories accessible to the authenticated user.
     func listUserRepositories(perPage: Int = 100) async throws -> [GitHubRepoSummary] {
         guard token != nil else { throw GitHubError.missingToken }
         var components = URLComponents(url: baseURL.appendingPathComponent("user/repos"), resolvingAgainstBaseURL: false)!
@@ -885,7 +800,6 @@ final class GitHubService: @unchecked Sendable {
         return try decoder.decode([GitHubRepoSummary].self, from: data)
     }
 
-    // MARK: - Fetch Commit Detail (for diff preview)
     func fetchCommitDetail(owner: String, repo: String, sha: String) async throws -> GitHubCommitDetailResponse {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/commits/\(sha)")
@@ -897,8 +811,6 @@ final class GitHubService: @unchecked Sendable {
         return try decoder.decode(GitHubCommitDetailResponse.self, from: data)
     }
 
-    // MARK: - Helpers
-
     private func validateResponse(_ response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw GitHubError.invalidResponse }
         guard (200...299).contains(http.statusCode) else {
@@ -907,8 +819,6 @@ final class GitHubService: @unchecked Sendable {
         }
     }
 }
-
-// MARK: - Missing GitHub & Actions Models
 
 public struct WorkflowRunSummary: Identifiable, Decodable, Sendable {
     public let id: Int
@@ -991,8 +901,6 @@ public struct GitHubReleaseInfo: Identifiable, Decodable, Sendable {
     }
 }
 
-// MARK: - No Redirect Delegate (for log URLs)
-
 private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
@@ -1000,11 +908,9 @@ private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
         willPerformHTTPRedirection response: HTTPURLResponse,
         newRequest request: URLRequest
     ) async -> URLRequest? {
-        nil // Don't follow redirects
+        nil
     }
 }
-
-// MARK: - GitHub Response Models
 
 struct GitHubBranch: Identifiable, Decodable {
     var id: String { name }
@@ -1038,9 +944,6 @@ struct GitHubRepo: Decodable {
     }
 }
 
-/// Lightweight summary of a user-accessible GitHub repository, used for the repo picker.
-/// CodingKeys use camelCase raw values so they match keys after `keyDecodingStrategy = .convertFromSnakeCase`
-/// converts the JSON snake_case keys (e.g. `full_name` → `fullName`).
 struct GitHubRepoSummary: Identifiable, Decodable {
     let id: Int
     let name: String
@@ -1179,8 +1082,6 @@ struct GitHubTreeEntry: Identifiable, Decodable {
     var id: String { sha + path }
 }
 
-// MARK: - Pull Request Model
-
 struct GitHubPullRequest: Identifiable, Decodable {
     let id: Int
     let number: Int
@@ -1197,8 +1098,6 @@ struct GitHubPullRequest: Identifiable, Decodable {
         case createdAt = "createdAt"
     }
 }
-
-// MARK: - Commit Detail Model
 
 struct GitHubArtifactsResponse: Decodable {
     let artifacts: [GitHubArtifact]
@@ -1250,8 +1149,6 @@ struct GitHubCommitDetailResponse: Decodable {
         let patch: String?
     }
 }
-
-// MARK: - GraphQL Discussions Support
 
 public struct DiscussionThread: Identifiable, Sendable {
     public let id: String
@@ -1432,8 +1329,6 @@ extension GitHubService {
     }
 }
 
-// MARK: - GraphQL Discussions Support
-
 public struct PullRequestFile: Identifiable, Codable, Sendable {
     public var id: String { filename }
     public let filename: String
@@ -1442,8 +1337,6 @@ public struct PullRequestFile: Identifiable, Codable, Sendable {
     public let deletions: Int
     public let patch: String?
 }
-
-// MARK: - Errors
 
 enum GitHubError: LocalizedError {
     case missingToken

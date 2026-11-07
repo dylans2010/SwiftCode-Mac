@@ -103,7 +103,6 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
     public let seeAlso: [String]
     public let references: [String]
 
-    // Rich expanded fields
     public let appleDocsSummary: String
     public let swiftVersion: String
     public let alternativeAPIs: [String]
@@ -214,7 +213,6 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
         self.seeAlso = try container.decodeIfPresent([String].self, forKey: .seeAlso) ?? []
         self.references = try container.decodeIfPresent([String].self, forKey: .references) ?? []
 
-        // Decode rich fields with defaults to remain fully backward compatible
         self.appleDocsSummary = try container.decodeIfPresent(String.self, forKey: .appleDocsSummary) ?? ""
         self.swiftVersion = try container.decodeIfPresent(String.self, forKey: .swiftVersion) ?? ""
         self.alternativeAPIs = try container.decodeIfPresent([String].self, forKey: .alternativeAPIs) ?? []

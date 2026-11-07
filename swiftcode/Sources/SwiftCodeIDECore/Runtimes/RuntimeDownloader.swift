@@ -1,14 +1,8 @@
-// The payload download (`runtime-downloads.md` §4.3, §6.2 step 2): into
-// `<runtimes>/.partial/`, resumed from what is there, then checked: length
-// against `_DownloadSize`, SHA-256 against `_Measurement-SHA256`. A file that
-// fails the check is removed. Portable.
-
 import Crypto
 import Foundation
 
 public struct RuntimeDownloader: Sendable {
     public var transport: any RuntimeTransport
-    /// Tries after a dropped connection before giving up (each resumes).
     public var attempts = 3
 
     public init(transport: any RuntimeTransport, attempts: Int = 3) {
@@ -26,7 +20,6 @@ public struct RuntimeDownloader: Sendable {
         ((try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber)?.int64Value ?? 0
     }
 
-    /// Downloads (or resumes) `asset` into `file` and verifies it.
     public func fetch(_ asset: RuntimeAssetRecord, to file: String, cancel: RuntimeCancellation,
                       event: @escaping @Sendable (Event) -> Void) async throws {
         let fm = FileManager.default
@@ -42,7 +35,6 @@ public struct RuntimeDownloader: Sendable {
             try cancel.check()
             if have > 0 { event(.resuming(from: have)) }
             event(.downloading(done: have, total: asset.downloadSize))
-            // Progress: the file's size, twice a second.
             let poll = Task {
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 500_000_000)
@@ -53,7 +45,6 @@ public struct RuntimeDownloader: Sendable {
             do {
                 try await transport.download(asset.url, to: file, from: have, cancel: cancel)
             } catch let e as RuntimeDownloadError {
-                // A dropped connection resumes, up to `attempts` times.
                 tries += 1
                 if e == .cancelled || tries >= attempts { throw e }
             }
@@ -74,7 +65,6 @@ public struct RuntimeDownloader: Sendable {
         }
     }
 
-    /// SHA-256 of a file, read in 8 MB pieces.
     public static func sha256(_ path: String, cancel: RuntimeCancellation? = nil, progress: ((Int64) -> Void)? = nil) throws -> [UInt8] {
         guard let h = FileHandle(forReadingAtPath: path) else { throw RuntimeDownloadError.verificationFailed("cannot read \(path)") }
         defer { try? h.close() }

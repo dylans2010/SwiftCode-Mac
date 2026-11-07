@@ -5,52 +5,33 @@ import Foundation
 import SwiftCodeDebug
 import SwiftCodeSubprocess
 
-/// Text and grouping rules for the debugger UI (specs/ide/reference-ui-4.md
-/// §5): activity titles, the stop annotation, Debug navigator rows, the
-/// variables view's A/L badges. Pure functions so they can be tested.
 public enum DebugPresentation {
-    // MARK: Activity
 
-    /// "Running <product>", or on a simulator "Running <product> on
-    /// <device>" (`reference-ui-6.md` §3.3).
     public static func runningTitle(_ product: String?, on device: String? = nil) -> String {
         (product.map { "Running \($0)" } ?? "Running") + (device.map { " on \($0)" } ?? "")
     }
     public static func pausedTitle(_ product: String?) -> String { product.map { "Paused \($0)" } ?? "Paused" }
-    /// "Finished running <product>[ on <device>]" (§3.3).
     public static func finishedTitle(_ product: String?, on device: String? = nil) -> String {
         "Finished running" + (product.map { " " + $0 } ?? "") + (device.map { " on \($0)" } ?? "")
     }
 
-    // MARK: Stop annotation
-
-    /// "Thread <n>: breakpoint <id> (<hits>)", or "Thread <n>: <reason>"
-    /// for other stops.
     public static func stopAnnotation(thread: Int, breakpointID: String?, hits: Int?, reason: String?) -> String {
         if let id = breakpointID { return "Thread \(thread): breakpoint \(id)" + (hits.map { " (\($0))" } ?? "") }
         return "Thread \(thread)" + (reason.map { ": \($0)" } ?? "")
     }
 
-    /// The thread's index from its adapter name ("Thread 3 …"), else its id.
     public static func threadIndex(_ t: DebugThread) -> Int {
         let name = t.name.trimmingCharacters(in: .whitespaces)
         guard name.hasPrefix("Thread ") else { return t.id }
         return Int(name.dropFirst(7).prefix { $0.isNumber }) ?? t.id
     }
 
-    // MARK: Threads
-
-    /// A queue's kind, best effort: the main queue and labelled private
-    /// queues are serial; the global (root) queues are concurrent. lldb's
-    /// thread format has no queue-kind variable.
     public static func queueKind(_ label: String) -> String {
         let l = label.lowercased()
         if l.contains(".root.") || l.contains("global") || l.contains("concurrent") || l.hasSuffix("-qos") { return "concurrent" }
         return "serial"
     }
 
-    /// "Thread <n>  Queue: <label> (serial|concurrent)", or "Thread <n>"
-    /// (plus the thread's name) without a queue.
     public static func threadRow(_ t: DebugThread) -> String {
         let n = threadIndex(t)
         if let q = t.queue, !q.isEmpty { return "Thread \(n)  Queue: \(q) (\(queueKind(q)))" }
@@ -58,19 +39,12 @@ public enum DebugPresentation {
         return "Thread \(n)"
     }
 
-    /// Middle truncation of a string to `max` characters ("com.ex…queue").
     public static func truncateMiddle(_ s: String, max: Int) -> String {
         guard s.count > max, max > 1 else { return s }
         let keep = max - 1
         return String(s.prefix((keep + 1) / 2)) + "…" + String(s.suffix(keep / 2))
     }
 
-    // MARK: Frames
-
-    /// Whether a frame belongs to the user's code: it has an absolute
-    /// source path outside the system and toolchain directories. (The C
-    /// library's frames on Linux name relative build paths such as
-    /// `./csu/../sysdeps/…`.)
     public static func isUserFrame(_ f: StackFrame) -> Bool {
         guard let file = f.file, file.hasPrefix("/") else { return false }
         let prefixes = ["/usr/", "/System/", "/Library/Developer/", "/Applications/Xcode", "/AppleInternal/"]
@@ -79,14 +53,9 @@ public enum DebugPresentation {
 
     public enum FrameRow: Equatable {
         case frame(index: Int, StackFrame, user: Bool)
-        /// The dotted separator before a collapsed run of system frames.
         case separator
     }
 
-    /// User frames, then for each run of system frames a separator and
-    /// the run's first frame (greyed); the rest of the run is hidden.
-    /// Without any user frame every frame is listed. `isUser` decides
-    /// which frames are the user's (`isUserFrame` unless given).
     public static func groupFrames(_ frames: [StackFrame], isUser: (StackFrame) -> Bool = isUserFrame) -> [FrameRow] {
         let user = frames.map(isUser)
         guard user.contains(true) else { return frames.enumerated().map { .frame(index: $0.offset, $0.element, user: false) } }
@@ -101,17 +70,11 @@ public enum DebugPresentation {
         return out
     }
 
-    // MARK: Variables
-
-    /// "A" for arguments (including `self`), "L" for locals. A scope
-    /// named "Arguments" marks its variables; otherwise argument names come
-    /// from the frame's function signature (`f(a:b:)`, `f(int a, int b)`).
     public static func badge(name: String, scope: String, frameName: String?) -> String {
         if name == "self" || scope.localizedCaseInsensitiveContains("argument") { return "A" }
         return argumentNames(frameName ?? "").contains(name) ? "A" : "L"
     }
 
-    /// Parameter names from a function name with a parameter list.
     public static func argumentNames(_ function: String) -> Set<String> {
         guard let open = function.firstIndex(of: "("), let close = function.lastIndex(of: ")"), open < close else { return [] }
         let inside = function[function.index(after: open)..<close]
@@ -119,12 +82,10 @@ public enum DebugPresentation {
         for part in inside.split(separator: ",") {
             let p = part.trimmingCharacters(in: .whitespaces)
             if let colon = p.firstIndex(of: ":") {
-                // Swift: `label:` or `label name: Type`.
                 let words = p[..<colon].split(separator: " ")
                 if let w = words.last, w != "_" { out.insert(String(w)) }
                 if !p[p.index(after: colon)...].trimmingCharacters(in: .whitespaces).isEmpty, let f = words.first, f != "_" { out.insert(String(f)) }
             } else {
-                // C: the last identifier of `type name`.
                 let ident = p.reversed().drop { !($0.isLetter || $0.isNumber || $0 == "_") }.prefix { $0.isLetter || $0.isNumber || $0 == "_" }
                 if !ident.isEmpty { out.insert(String(ident.reversed())) }
             }
@@ -132,21 +93,15 @@ public enum DebugPresentation {
         return out
     }
 
-    /// "A name: Type = value" (the type left out when unknown).
     public static func variableRow(badge: String, _ v: Variable) -> String {
         let type = v.type.flatMap { $0.isEmpty || $0 == "<no-type>" ? nil : $0 }
         return "\(badge) \(v.name)" + (type.map { ": \($0)" } ?? "") + " = \(v.value)"
     }
 
-    // MARK: Console
-
-    /// "Debug session ended with code <n>: <reason>" (reference-ui-6.md §7,
-    /// D1); Stop ends a session with code 9, "killed".
     public static func sessionEndedLine(code: Int, reason: String) -> String { "Debug session ended with code \(code): \(reason)" }
     public static let killedLine = sessionEndedLine(code: 9, reason: "killed")
 }
 
-/// One sample of the debugged process's gauges (Debug navigator).
 public struct ProcessGauges: Equatable, Sendable {
     public var cpuPercent: Double = 0
     public var memoryBytes: UInt64 = 0
@@ -154,7 +109,6 @@ public struct ProcessGauges: Equatable, Sendable {
     public var networkBytesPerSecond: Double = 0
     public init() {}
 
-    /// Energy impact from CPU use (SwiftCode's approximation).
     public var energyImpact: String {
         switch cpuPercent {
         case ..<0.5: "Zero"
@@ -164,8 +118,6 @@ public struct ProcessGauges: Equatable, Sendable {
         }
     }
 
-    /// The Energy Impact bar's fill (reference-ui-5.md §11.6, D3): one
-    /// quarter per level from Zero (empty) to Very High (full).
     public var energyLevel: Double {
         switch energyImpact {
         case "Low": 0.25
@@ -175,7 +127,6 @@ public struct ProcessGauges: Equatable, Sendable {
         }
     }
 
-    /// "Zero KB", "512 KB", "12.3 MB", "1.2 GB".
     public static func bytes(_ b: Double) -> String {
         if b < 1024 { return "Zero KB" }
         let units = ["KB", "MB", "GB", "TB"]
@@ -185,7 +136,6 @@ public struct ProcessGauges: Equatable, Sendable {
         return (v < 10 && i > 0 ? String(format: "%.1f", v) : String(Int(v.rounded()))) + " " + units[i]
     }
 
-    /// Gauge rows: (title, value).
     public var rows: [(String, String)] {
         [("CPU", "\(Int(cpuPercent.rounded()))%"), ("Memory", Self.bytes(Double(memoryBytes))), ("Energy Impact", energyImpact),
          ("Disk", Self.bytes(diskBytesPerSecond) + "/s"), ("Network", Self.bytes(networkBytesPerSecond) + "/s")]
@@ -193,10 +143,6 @@ public struct ProcessGauges: Equatable, Sendable {
 }
 
 #if canImport(Darwin)
-/// Samples a process with `proc_pid_rusage` (public libproc): CPU time,
-/// physical footprint and disk I/O; rates come from the previous sample.
-/// Per-process network counters have no cheap public API, so Network stays
-/// zero.
 public final class ProcessGaugeSampler {
     public let pid: Int32
     private var last: (time: UInt64, cpu: UInt64, disk: UInt64, wall: Date)?
@@ -208,14 +154,12 @@ public final class ProcessGaugeSampler {
 
     public init(pid: Int32) { self.pid = pid }
 
-    /// Reads the counters; nil when the process is gone or not readable.
     public func sample() -> ProcessGauges? {
         var info = rusage_info_v2()
         let r = withUnsafeMutablePointer(to: &info) { p in
             p.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
         }
         guard r == 0 else { return nil }
-        // CPU times are in Mach time units.
         let cpuNanos = (info.ri_user_time + info.ri_system_time) &* UInt64(timebase.numer) / UInt64(timebase.denom)
         let disk = info.ri_diskio_bytesread + info.ri_diskio_byteswritten
         let now = Date()
@@ -231,10 +175,6 @@ public final class ProcessGaugeSampler {
     }
 }
 #else
-/// Samples a process from `/proc/<pid>` (Linux): CPU time (`stat`), the
-/// resident set as the memory figure (`status`, `VmRSS`) and storage I/O
-/// (`io`, readable for one's own processes); rates come from the previous
-/// sample. Network stays zero, as on macOS.
 public final class ProcessGaugeSampler {
     public let pid: Int32
     private var last: (cpu: Double, disk: UInt64, wall: Date)?
@@ -242,11 +182,8 @@ public final class ProcessGaugeSampler {
 
     public init(pid: Int32) { self.pid = pid }
 
-    /// Reads the counters; nil when the process is gone or not readable.
     public func sample() -> ProcessGauges? {
         func read(_ name: String) -> String? { try? String(contentsOfFile: "/proc/\(pid)/\(name)", encoding: .utf8) }
-        // utime and stime are fields 14 and 15; the command name (field 2)
-        // may hold spaces, so count from its closing parenthesis.
         guard let stat = read("stat"), let close = stat.lastIndex(of: ")") else { return nil }
         let fields = stat[stat.index(after: close)...].split(separator: " ")
         guard fields.count > 12, let user = Double(fields[11]), let system = Double(fields[12]) else { return nil }
@@ -272,15 +209,12 @@ public final class ProcessGaugeSampler {
 }
 #endif
 
-/// The current git branch of a folder (`git rev-parse --abbrev-ref HEAD`),
-/// for the debug bar.
 public enum GitBranchLookup {
     public static func current(at path: String) -> String? {
         MainThreadGuard.blockingCall("git rev-parse --abbrev-ref HEAD")
         let p = Process()
         p.executableURL = URL(fileURLWithPath: HostTool.path("git"))
         p.arguments = ["-C", path, "rev-parse", "--abbrev-ref", "HEAD"]
-        // GitRepository's environment: no inherited GIT_DIR, no prompts.
         p.environment = GitRepository.environment
         let out = Pipe()
         p.standardOutput = out

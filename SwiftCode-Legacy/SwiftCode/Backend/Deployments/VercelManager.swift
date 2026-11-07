@@ -16,7 +16,6 @@ final class VercelManager: @unchecked Sendable {
 
             logHandler("Ensuring GitHub repository is up to date...")
 
-            // Independent repository preparation
             let repoPrepared = try await prepareGitHubRepository(project: project, logHandler: logHandler)
 
             guard repoPrepared else {

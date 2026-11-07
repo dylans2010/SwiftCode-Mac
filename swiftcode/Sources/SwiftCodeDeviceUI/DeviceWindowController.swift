@@ -1,17 +1,3 @@
-// The compact device window (device-hub.md §2.2): a unified toolbar with
-// the device's name as title and its OS as subtitle and one capsule at the
-// right, Expand │ More Actions; the device in its frame filling the width
-// with a small margin; the device-control row centred below it. Resizing
-// the window scales the device (the window keeps the device's aspect plus
-// the toolbar and the control row); rotating the device or switching the
-// iPhone Duo's panel reshapes the window at the same scale. The window's
-// scale and position are kept per device type.
-//
-// The same controller also has an expanded form (the standalone viewer's
-// Expand, which has no hub to open; SwiftCode decision for Q5): the hub's
-// canvas toolbar — Capture Keyboard, the zoom segments, Open in New Window
-// │ More Actions — around a resizable canvas, without sidebar or inspector.
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDeviceModel
@@ -23,16 +9,9 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
     public private(set) var kind: Kind
     public private(set) var session: DeviceLiveSession
     public private(set) var canvas: DeviceCanvasView
-    /// Expand: the owner opens the hub with this device (the IDE), or nil
-    /// (the window switches to its expanded form).
     public var onExpand: (() -> Void)?
-    /// Items the owner adds to More Actions before SwiftCode's own (Shut Down,
-    /// Restart in the IDE; Q6).
     public var extraMoreItems: (() -> [NSMenuItem])?
     public var onClose: (() -> Void)?
-    /// View in Headset / Back to Desktop in the toolbar (a Vision Pro in the
-    /// IDE, device-hub.md §I.12); its title and state come from the canvas's
-    /// `headsetCommandTitle` and `headsetCommandEnabled`. nil: no such item.
     public var headsetToggle: (() -> Void)? {
         didSet {
             guard (oldValue == nil) != (headsetToggle == nil) else { return }
@@ -40,19 +19,12 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
             installToolbar()
         }
     }
-    /// Where the window's state is kept.
     public var defaults: UserDefaults = .standard
-    /// A scale to open the compact window at instead of the saved one
-    /// (the viewer's `--zoom`).
     public var initialScale: Double?
 
     private var toolbarHeight = CGFloat(CompactWindowLayout.toolbarHeight)
     private var lastDeviceSize: CGSize = .zero
     private var resizing = false
-    /// The compact window's scale as the user chose it (opening, a drag).
-    /// A shape change (rotation, the bezels) keeps it even when the minimum
-    /// width makes the window larger for a while, so hiding and showing the
-    /// bezels returns to the same window.
     private var compactScale: Double?
     private let moreMenu = NSMenu(title: "More Actions")
     private weak var zoomGroup: NSToolbarItemGroup?
@@ -104,12 +76,8 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
         }
     }
 
-    /// The window's key equivalents for device commands (the IDE's windows;
-    /// the viewer's menus carry them instead).
     public var handlesKeyEquivalents = false { didSet { canvas.handlesKeyEquivalents = handlesKeyEquivalents } }
 
-    /// Shows the window: the saved scale and position, else the default
-    /// size centred.
     public func present() {
         guard let window else { return }
         toolbarHeight = max(0, window.frame.height - window.contentLayoutRect.height)
@@ -125,8 +93,6 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
             compactScale = scale
             resize(to: CompactWindowLayout.contentSize(device: lastDeviceSize, scale: scale, toolbar: toolbarHeight), keepTop: false)
         } else {
-            // Never below the expanded form's minimum (a size saved by an
-            // older build, or while a smaller device was shown, can be).
             let w = max((saved?["width"] as? Double) ?? 760, Double(window.contentMinSize.width))
             let h = max((saved?["height"] as? Double) ?? 820, Double(window.contentMinSize.height))
             window.setContentSize(NSSize(width: w, height: h))
@@ -153,9 +119,6 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
         defaults.set(d, forKey: defaultsKey)
     }
 
-    // MARK: Shape
-
-    /// Content size (whole content view, toolbar area included).
     private func resize(to content: CGSize, keepTop: Bool) {
         guard let window else { return }
         resizing = true
@@ -170,21 +133,14 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
         resizing = false
     }
 
-    /// The device type whose shape the window has (the hello can change it).
     private var lastTypeID: String?
 
-    /// The scale a compact window opens at for a device of this size: the
-    /// type's saved one, else the default, never narrower than the minimum.
     private func startScale(device: CGSize) -> Double {
         let saved = defaults.dictionary(forKey: defaultsKey)?["scale"] as? Double
         return max(saved ?? CompactWindowLayout.defaultScale(device: device),
                    CompactWindowLayout.scale(device: device, windowWidth: CompactWindowLayout.minimumWidth))
     }
 
-    /// Rotation, the other panel or the bezels: same scale, new shape. A
-    /// different device type (the hello names it after the window opened,
-    /// e.g. a watch shown first as the default phone) starts at that
-    /// type's own scale; the window never gets narrower than its minimum.
     private func deviceShapeChanged() {
         guard kind == .compact, let window, window.isVisible else { lastDeviceSize = canvas.deviceSize; return }
         let new = canvas.deviceSize
@@ -228,8 +184,6 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
         onClose?()
     }
 
-    // MARK: Session
-
     public func session(_ s: DeviceLiveSession, changed: DeviceSessionChange) {
         if changed == .hello || changed == .phase { updateTitle() }
     }
@@ -239,8 +193,6 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
         window?.subtitle = session.subtitle
     }
 
-    // MARK: Expand / Open in New Window
-
     @objc public func expand(_ sender: Any?) {
         if let onExpand { onExpand(); return }
         switchKind(to: .expanded)
@@ -248,7 +200,6 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
 
     @objc public func openInNewWindow(_ sender: Any?) { switchKind(to: .compact) }
 
-    /// Switches between the compact and the expanded form in place.
     public func switchKind(to k: Kind) {
         guard k != kind, let window else { return }
         saveState()
@@ -258,8 +209,6 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
         installToolbar()
         present()
     }
-
-    // MARK: Toolbar
 
     static let expandID = NSToolbarItem.Identifier("device.expand")
     static let moreID = NSToolbarItem.Identifier("device.more")
@@ -380,11 +329,6 @@ public final class DeviceWindowController: NSWindowController, NSWindowDelegate,
         return canvas.canPerform(.viewInHeadset)
     }
 
-    // MARK: More Actions (Q6, SwiftCode decision)
-
-    /// More Actions: the owner's items (Shut Down, Restart), Show / Hide
-    /// Bezels, Show Frame Rate (the debug status line, §9 item 9) and
-    /// Refresh Display.
     public func moreItems() -> [NSMenuItem] {
         var items = extraMoreItems?() ?? []
         if !items.isEmpty { items.append(.separator()) }

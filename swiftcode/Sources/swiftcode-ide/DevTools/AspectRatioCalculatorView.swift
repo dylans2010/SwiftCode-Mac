@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct AspectRatioCalculatorView: View {
@@ -22,7 +19,6 @@ struct AspectRatioCalculatorView: View {
             }
             .textFieldStyle(.roundedBorder)
             .padding()
-            
 
             Button("Calculate Ratio") { calculate() }
                 .buttonStyle(.borderedProminent)

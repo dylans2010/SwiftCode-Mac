@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// `StringDiffTool.simpleDiff` renders a unified diff through
-/// `MyersDiff` (ported from Legacy's `StringDiffTool`, which rendered
-/// its own Myers hunks).
 @Suite struct StringDiffToolTests {
     @Test func changedLinesShowAsMinusPlusWithHeaders() {
         let diff = StringDiffTool.simpleDiff(old: "one\ntwo\nthree\n", new: "one\nTWO\nthree\n", file: "a.txt")
@@ -31,10 +28,6 @@ import Testing
     }
 }
 
-/// `DocumentationAnalyzer.parseAIResponse` splits a model reply into
-/// its four sections (the parser is static so it is testable without a
-/// provider; the network fetch and the provider call are not covered
-/// here).
 @Suite struct DocumentationAnalyzerTests {
     @Test func fourSectionsAreParsed() {
         let reply = """

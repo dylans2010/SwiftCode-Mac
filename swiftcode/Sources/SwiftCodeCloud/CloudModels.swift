@@ -1,8 +1,5 @@
 import Foundation
 
-/// The cloud sync state shown in the settings UI
-/// (`CloudSyncView` uppercases `rawValue`: idle / syncing / paused /
-/// error). Ported verbatim from Legacy's `SyncState.swift`.
 public enum SyncState: String, Codable, Sendable, CaseIterable {
     case idle
     case syncing
@@ -10,18 +7,12 @@ public enum SyncState: String, Codable, Sendable, CaseIterable {
     case error
 }
 
-/// How a sync conflict is resolved. Ported verbatim from Legacy's
-/// `CloudModels.swift`.
 public enum ConflictResolutionStrategy: String, Codable, Sendable, CaseIterable {
     case chooseLocal = "choose_local"
     case chooseCloud = "choose_cloud"
     case merge = "merge"
 }
 
-/// The cloud-side identity of the signed-in user: the stable
-/// SwiftCode id (stored in the Appwrite user's prefs under
-/// `swiftcode_id`), the account email, and the display name.
-/// Ported verbatim from Legacy's `CloudUser.swift`.
 public struct CloudUser: Codable, Sendable, Equatable, Identifiable {
     public var id: String { swiftcodeID }
     public let swiftcodeID: String
@@ -37,13 +28,6 @@ public struct CloudUser: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// An active authenticated cloud user session. Ported verbatim from
-/// Legacy's `CloudModels.swift`.
-///
-/// Note on the Appwrite mapping (see `AppwriteAuthenticationProvider`):
-/// Appwrite email sessions are cookie-based and have no refresh
-/// token, so `refreshToken` is empty and `accessToken` carries the
-/// session secret. `expiresAt` is the session's `expire` date.
 public struct CloudSession: Codable, Sendable, Equatable {
     public let userID: String
     public let email: String
@@ -76,9 +60,6 @@ public struct CloudSession: Codable, Sendable, Equatable {
     }
 }
 
-/// A registered device linked to the user's cloud account. Ported
-/// verbatim from Legacy's `CloudModels.swift`. Nothing in Legacy
-/// ever populated one — it is model surface for a later wave.
 public struct CloudDevice: Codable, Sendable, Equatable, Identifiable {
     public var id: String { deviceID }
     public let deviceID: String
@@ -96,8 +77,6 @@ public struct CloudDevice: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// A synchronization payload holding raw data, tables, and conflict
-/// revision fields. Ported verbatim from Legacy's `CloudModels.swift`.
 public struct SyncPayload: Codable, Sendable, Equatable, Identifiable {
     public var id: String { recordID }
     public let recordID: String
@@ -127,8 +106,6 @@ public struct SyncPayload: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// The synchronization metadata anchoring table/collection sync
-/// points. Ported verbatim from Legacy's `CloudModels.swift`.
 public struct SyncMetadata: Codable, Sendable, Equatable, Identifiable {
     public var id: String { tableName }
     public let tableName: String
@@ -152,8 +129,6 @@ public struct SyncMetadata: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// Conflict details found between local and cloud records. Ported
-/// verbatim from Legacy's `CloudModels.swift`.
 public struct CloudConflict: Codable, Sendable, Equatable, Identifiable {
     public var id: String { "\(tableName)-\(recordID)" }
     public let tableName: String
@@ -183,8 +158,6 @@ public struct CloudConflict: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// Compilation metrics and realtime counters compiled during session
-/// sync executions. Ported verbatim from Legacy's `CloudModels.swift`.
 public struct CloudStatistics: Codable, Sendable, Equatable {
     public var totalUploadCount: Int
     public var totalDownloadCount: Int
@@ -219,8 +192,6 @@ public struct CloudStatistics: Codable, Sendable, Equatable {
     }
 }
 
-/// One record in the local cloud cache. Ported verbatim from Legacy's
-/// `CloudRecord.swift`, including the snake_case wire keys.
 public struct CloudRecord: Codable, Sendable, Equatable, Identifiable {
     public let id: UUID
     public let swiftcodeID: String
@@ -263,10 +234,6 @@ public struct CloudRecord: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// How much cloud storage the account uses. Ported verbatim from
-/// Legacy's `CloudStorageInfo.swift`. Nothing in Legacy ever filled
-/// it in from a live source — the 5 GB default limit is Legacy's.
-/// A later wave can populate it from the Storage API.
 public struct CloudStorageInfo: Codable, Sendable, Equatable {
     public let usedBytes: Int64
     public let limitBytes: Int64

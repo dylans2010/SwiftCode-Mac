@@ -7,9 +7,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// Generated Info.plist type sections, the Organizer app picker, more
-/// asset catalog set types, and project coverage through swiftcodebuild.
-/// Everything is written in temporary directories.
 @MainActor
 @Suite struct PartialItemsRound27Tests {
     func tempDir() throws -> URL {
@@ -17,8 +14,6 @@ import SwiftCodeProject
         try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         return d
     }
-
-    // (a) Generated Info.plist
 
     func generatedProject() throws -> (ProjectEditorModel, URL) {
         let base = try ProjectEditorFixture().model()
@@ -36,8 +31,6 @@ import SwiftCodeProject
             try m.addInfoTypeEntry("CFBundleURLTypes", target: "App", configuration: "Debug")
         }
     }
-
-    // (b) Organizer app picker
 
     @Test func organizerAppPicker() throws {
         let dir = try tempDir()
@@ -65,7 +58,6 @@ import SwiftCodeProject
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let e = AssetCatalogEditorController(url: dir)
         _ = e.view
-        // Every titled set type in otherSetTitles is wired to the menu.
         for t in AssetCatalog.otherSetTitles { #expect(AssetCatalogEditorController.creatable[t.title] != nil) }
         let tag = AssetCatalogEditorController.creatable["Symbol Image Set"]!
         let s = try e.addSet(kind: tag)

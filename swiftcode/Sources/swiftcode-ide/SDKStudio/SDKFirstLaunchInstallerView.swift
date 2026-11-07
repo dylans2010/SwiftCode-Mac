@@ -1,11 +1,5 @@
-// Ported from Legacy `SwiftCode/SDK/Studio/Views/SDKFirstLaunchInstallerView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SDKFirstLaunchInstallerModel.
-// Combine/@Published converted to @Observable.
-
 import SwiftUI
 
-/// View model driving the install sheet. All installer callbacks hop
-/// back to the main actor before touching `@Published` state.
 @MainActor
 @Observable
 final class SDKFirstLaunchInstallerModel {
@@ -49,7 +43,6 @@ final class SDKFirstLaunchInstallerModel {
 
     private func append(line: SDKInstaller.LogLine) {
         logLines.append(line)
-        // Bound the transcript; the full log is also in the result.
         if logLines.count > 1000 {
             logLines.removeFirst(logLines.count - 1000)
         }

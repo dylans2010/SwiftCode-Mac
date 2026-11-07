@@ -1,9 +1,3 @@
-// CodexUndoRedoView.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/Codex UIs/CodexUndoRedoView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: undo/redo of the Codex prompt; undo/redo of the Codex output
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct CodexUndoRedoView: View {

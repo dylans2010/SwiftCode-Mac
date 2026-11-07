@@ -3,13 +3,10 @@ import Charts
 import MapKit
 import Observation
 
-/// Visual Canvas Renderer that bridges abstract layout scene nodes directly into real live interactive SwiftUI views.
-/// Fully interactive supporting buttons, lists, navigation path structures, sliders, text fields, gestures, and environment behaviors.
 public struct VisualUIRenderer: View {
     let rootNode: VisualComponentNode
     @Bindable var document: VisualUIDocument
 
-    // Interactive State Variables
     @State private var textValues: [UUID: String] = [:]
     @State private var toggleValues: [UUID: Bool] = [:]
     @State private var sliderValues: [UUID: Double] = [:]
@@ -119,7 +116,6 @@ public struct VisualUIRenderer: View {
 
         let baseView = Group {
             switch node.type {
-            // Layout & Stacks
             case .vStack:
                 VStack(alignment: .center, spacing: CGFloat(Double(node.properties["spacing"] ?? "8") ?? 8)) {
                     ForEach(node.children) { child in
@@ -158,7 +154,6 @@ public struct VisualUIRenderer: View {
                 }
                 .groupBoxStyle(.liquidGlass)
 
-            // ScrollViews & Lists
             case .scrollView:
                 ScrollView {
                     VStack(spacing: 8) {
@@ -241,7 +236,6 @@ public struct VisualUIRenderer: View {
                     }
                 }
 
-            // Controls
             case .text:
                 Text(node.properties["textValue"] ?? "Text Block")
                     .font(customFont(from: node))
@@ -332,7 +326,6 @@ public struct VisualUIRenderer: View {
             case .spacer:
                 Spacer()
 
-            // Advanced Elements
             case .charts:
                 Chart {
                     BarMark(x: .value("A", "Category 1"), y: .value("B", 5))
@@ -480,7 +473,6 @@ public struct VisualUIRenderer: View {
                 navigationPath.append(artboard.rootNode)
             }
         } else {
-            // Context actions: Sheet presentation or increment
             if node.properties["actionType"] == "sheet" {
                 if let child = node.children.first {
                     activeSheetNode = child

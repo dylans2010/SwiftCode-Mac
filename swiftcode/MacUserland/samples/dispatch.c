@@ -1,5 +1,3 @@
-// Milestone A sample: libdispatch queues, groups, semaphores, apply, once
-// and blocks (specs/macos/macos-apps.md §9.1). SwiftCode's own test program.
 #include <dispatch/dispatch.h>
 #include <stdio.h>
 #include <stdlib.h>

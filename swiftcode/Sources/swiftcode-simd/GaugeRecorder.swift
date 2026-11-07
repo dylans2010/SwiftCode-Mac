@@ -1,22 +1,7 @@
-// swiftcode-simd: Gauge's recorder for apps on the simulator
-// (specs/ide/profiler.md §3.1). `--profile <path>` turns it on.
-//
-// One host thread samples every thread of the target process `rate` times
-// a second: a vCPU running guest code is kicked out of KVM_RUN and records
-// PC, LR, FP, PSTATE and its frame-pointer chain on its own host thread
-// (VCPUPool's diagnostic kick); a thread inside a trap handler is not
-// stopped: the user registers saved at the trap's entry give its stack.
-// Addresses are placed in images at once (the image may end before the
-// trace is written); symbols come from the images' Mach-O symbol tables at
-// the end. Signposts come from the in-app agent (libSwiftCodeGauge.dylib, a
-// file in the device's /tmp), presents from the frame record, GPU command
-// buffers from the Metal trace.
-
 import Foundation
 import SwiftCodeMachO
 import SwiftCodeProfiler
 
-/// `--profile` and its companions.
 struct GaugeOptions {
     var path: String
     var rate = 1000
@@ -26,7 +11,6 @@ struct GaugeOptions {
     var signposts = true
 }
 
-/// The signpost file (guest path; DEV/data/tmp on the host).
 enum GaugeAgentFiles {
     static let signpostsGuestPath = "/tmp/swiftcode-gauge-signposts.bin"
     static let libraryName = "libSwiftCodeGauge.dylib"
@@ -39,9 +23,6 @@ import SwiftCodeDarwinABI
 import SwiftCodeDarwinKernel
 import SwiftCodeHypervisor
 
-/// A stop signal that nothing else in swiftcode-simd handles (no stop
-/// snapshot, no display server): Gauge writes the trace, then the process
-/// ends as the signal would have ended it.
 enum GaugeStopSignal {
     static let received = Atomic<Int32>(0)
 }
@@ -52,26 +33,20 @@ final class GaugeRecorder: @unchecked Sendable {
     static var active: Bool { shared != nil }
 
     let options: GaugeOptions
-    /// The app's executable name (CFBundleExecutable of `--install-app`).
     var appExecutable: String?
     var deviceDescription = ""
     var command = ""
-    /// The launched app's pid once the launch reported it.
     var launchedPID: () -> Int32? = { nil }
-    /// Host paths: the frame record, the signpost file, the Metal trace.
     var frameRecordPath: String?
     var signpostsHostPath: String?
     var metalTracePath: String?
 
     private let finished = Atomic<Bool>(false)
-    /// Stop signals Gauge took over (their default action was to end the process).
     private var ownSignals: [Int32] = []
     private let lock = HostMutex(name: "gauge recorder")
     private var thread: Thread?
 
     init(options: GaugeOptions) { self.options = options }
-
-    // MARK: State (sampler thread only, then `finish` under `lock`)
 
     struct ImageInfo {
         var name: String
@@ -81,7 +56,6 @@ final class GaugeRecorder: @unchecked Sendable {
         var base: UInt64
         var low: UInt64
         var high: UInt64
-        /// The install name of a shared-cache image.
         var cacheImage: String?
     }
 
@@ -90,13 +64,10 @@ final class GaugeRecorder: @unchecked Sendable {
         var tid: UInt64
         var pid: Int32
         var state: GaugeTrace.SampleState
-        /// Frames outermost first (resolved) — the leaf is last.
         var frames: [GaugeTrace.Frame]
-        /// LR of a user sample, kept apart until symbols decide whether it is a caller.
         var lr: GaugeTrace.Frame?
     }
 
-    /// Per target image (process image).
     final class Target {
         let image: GuestImageInstance
         var threads: [UInt64: (kind: ThreadContext.Kind, first: UInt64)] = [:]
@@ -119,22 +90,16 @@ final class GaugeRecorder: @unchecked Sendable {
     private var lastTime: UInt64 = 0
     private var kernelImage = -1
     private var unresolved = 0
-    /// Sampler cost: total ns spent per tick and ticks with samples.
     private var tickNs: UInt64 = 0
     private var ticks: UInt64 = 0
     private var sampleCount: UInt64 = 0
-    /// Samples taken by kicking a vCPU, and the vCPU threads' time for them.
     private var kickedSamples: UInt64 = 0
     private var vcpuSampleNs: UInt64 = 0
     private weak var cacheSource: SharedCacheIndex?
 
-    // MARK: Start and stop
-
     func start(launcher: VMMLauncher) {
         signal(SIGPIPE, SIG_IGN)
         if let s = signpostsHostPath { try? FileManager.default.removeItem(atPath: s) }
-        // A plain stop signal (no stop snapshot; a display server, started
-        // later, replaces this with its own handling) still writes the trace.
         if SnapshotSupport.shared?.handlesStopSignals != true {
             for sig in [SIGINT, SIGTERM, SIGHUP] {
                 let previous = signal(sig, gaugeStopSignalHandler)
@@ -216,7 +181,7 @@ final class GaugeRecorder: @unchecked Sendable {
                 var ts = timespec(tv_sec: Int(wait / 1_000_000_000), tv_nsec: Int(wait % 1_000_000_000))
                 nanosleep(&ts, nil)
             } else if after - next > 50 * interval {
-                next = after // fell far behind (host load): do not burst
+                next = after
             }
         }
     }
@@ -237,8 +202,6 @@ final class GaugeRecorder: @unchecked Sendable {
         return d / frequency * 1_000_000_000 + d % frequency * 1_000_000_000 / frequency
     }
 
-    // MARK: Sampling
-
     private func sample(_ t: Target) {
         let image = t.image
         let workers = image.pool.activeWorkers()
@@ -252,7 +215,6 @@ final class GaugeRecorder: @unchecked Sendable {
                 threadInfo[ctx.threadID] = (image.pid, ctx.kind)
             }
             if w.inHandler.load(ordering: .relaxed) {
-                // In the kernel: the registers saved at the trap's entry.
                 let svc = w.lastTrapKind.load(ordering: .relaxed) == TrapFrame.Kind.svc.rawValue
                 let trap = Int64(bitPattern: w.lastTrapX16.load(ordering: .relaxed))
                 let blocked = ctx.blockedInKernel
@@ -273,7 +235,6 @@ final class GaugeRecorder: @unchecked Sendable {
                 pending.append((w, ctx, w.sampleCount.load(ordering: .relaxed)))
             }
         }
-        // The kicked vCPUs answer within microseconds (a busy host: longer).
         let deadline = monotonicNanoseconds() + 3_000_000
         while !pending.isEmpty && monotonicNanoseconds() < deadline {
             pending.removeAll { w, ctx, count in
@@ -296,7 +257,6 @@ final class GaugeRecorder: @unchecked Sendable {
         if !pending.isEmpty { unresolved += pending.count }
     }
 
-    /// Up to 128 return addresses from a frame pointer (AAPCS64 frame records).
     private func readChain(_ space: GuestAddressSpace, fp start: UInt64) -> [UInt64] {
         var out: [UInt64] = []
         var fp = start
@@ -313,8 +273,6 @@ final class GaugeRecorder: @unchecked Sendable {
         return out
     }
 
-    // MARK: Images
-
     private func registerImage(_ info: ImageInfo) -> Int {
         let key = info.guestPath + "@" + String(info.base, radix: 16)
         if let i = imageIndex[key] {
@@ -327,7 +285,6 @@ final class GaugeRecorder: @unchecked Sendable {
         return images.count - 1
     }
 
-    /// The leaf frame of a sample in the kernel: the trap's name.
     private func kernelFrame(_ trap: Int64) -> GaugeTrace.Frame {
         if kernelImage < 0 {
             kernelImage = registerImage(ImageInfo(name: "SwiftCode kernel", guestPath: "SwiftCode kernel", kind: .kernel, base: 0, low: 0, high: 0))
@@ -342,7 +299,6 @@ final class GaugeRecorder: @unchecked Sendable {
         return .system
     }
 
-    /// Places an address in an image (cached per target).
     private func resolve(_ t: Target, _ address: UInt64) -> GaugeTrace.Frame {
         if let f = t.resolved[address] { return f }
         let image = t.image
@@ -369,7 +325,6 @@ final class GaugeRecorder: @unchecked Sendable {
                     result = GaugeTrace.Frame(image: i, offset: header &- g.base)
                 }
             } else {
-                // The cache's image list is still being built: try again next time.
                 return GaugeTrace.Frame(image: -1, offset: address)
             }
         } else if let file = image.space.file(at: address), let region = image.space.region(containing: address),
@@ -385,17 +340,12 @@ final class GaugeRecorder: @unchecked Sendable {
         return f
     }
 
-    // MARK: The trace
-
-    /// Writes the trace once (any thread; later calls do nothing).
     func finish(reason: String) {
         guard !finished.exchange(true, ordering: .acquiringAndReleasing) else { return }
         if let t = thread, t !== Thread.current {
-            // Let the sampler leave its tick.
             usleep(20_000)
         }
         lock.withLock { write(reason: reason) }
-        // Signals go back to their default action; one that arrived meanwhile ends the process now.
         for sig in ownSignals {
             signal(sig, SIG_DFL)
             if GaugeStopSignal.received.load(ordering: .relaxed) == sig { _exit(128 + sig) }
@@ -421,7 +371,6 @@ final class GaugeRecorder: @unchecked Sendable {
             device: deviceDescription, startDate: startDate, durationNs: duration, sampleIntervalNs: intervalNs,
             hangThresholdNs: UInt64(options.hangMilliseconds) * 1_000_000, clock: "guest-counter", notes: notes))
 
-        // Symbols and UUIDs, image by image.
         var used: [Int: Set<UInt64>] = [:]
         for s in samples {
             for f in s.frames where f.image >= 0 { used[f.image, default: []].insert(f.offset) }
@@ -463,9 +412,6 @@ final class GaugeRecorder: @unchecked Sendable {
         }
         for s in samples.sorted(by: { $0.time < $1.time }) {
             var frames = s.frames
-            // LR is a caller unless it repeats the chain's first return
-            // address or lies in the function of the PC (the frame was
-            // already set up, LR is stale).
             if let lr = s.lr, s.state == .user || s.state == .kernel, let leafIndex = frames.lastIndex(where: { $0.image != kernelImage }) {
                 let leaf = frames[leafIndex]
                 let callerFromChain = leafIndex > 0 ? frames[leafIndex - 1] : nil
@@ -521,8 +467,6 @@ final class GaugeRecorder: @unchecked Sendable {
         return nil
     }
 
-    /// The agent's records (profiler.md §3.1): "YGS1", u16 length, u8 type,
-    /// u8 0, u64 time, u64 id, u64 thread, four NUL-terminated strings.
     private func readSignposts() -> [GaugeTrace.Signpost] {
         guard let path = signpostsHostPath, let data = FileManager.default.contents(atPath: path) else { return [] }
         let b = [UInt8](data)
@@ -551,7 +495,6 @@ final class GaugeRecorder: @unchecked Sendable {
         return GaugeTimeline.intervals(events, recordingEnd: lastTime)
     }
 
-    /// Command buffers of the Metal trace (stage8-contract.md §14.1) during the recording.
     private func readMetalTrace() -> [GaugeTrace.GPUWork] {
         guard let path = metalTracePath, let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
         var out: [GaugeTrace.GPUWork] = []

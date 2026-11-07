@@ -2,28 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 
-/// Manages generation of user-project build files via XcodeGen
-/// (Legacy `SwiftCode/Services/ProjectBuilderManager.swift`, Dylan's
-/// own code, ported under MIT).
-///
-/// Adapted: Legacy took a `Project` model that does not exist in the
-/// destination; the entry points take the project directory, the
-/// project name, and the GitHub repo URL explicitly. The GitHub
-/// calls go through the destination's `GitHubClient` (its
-/// `createBranch` and branch-aware `getFileSHA` were added for this
-/// manager — the destination had `getFileSHA` / `pushFile` /
-/// `listBranches` but no branch creation). `parseRepoURL` is
-/// Legacy's `GitHubRepositoryManager.parseRepoURL`, verbatim.
-/// `runXcodeGen` is Legacy's disabled local generation: it throws
-/// unless the spec is missing or the opt-in env var is set, and
-/// never runs xcodegen itself.
-///
-/// Wiring: no lifecycle hook — a shared manager the project-open
-/// flow calls (`prepareXcodeFiles`) and the remote-generation UI
-/// calls (`triggerRemoteGeneration`). The workflow content comes
-/// from the caller: Legacy read `build-project.yml` from
-/// `SwiftCode/Backend/CI Building/build-project.yml`; the app loads
-/// that template from its bundle and passes it in.
 @MainActor
 public final class ProjectBuilderManager: Sendable {
     public static let shared = ProjectBuilderManager()
@@ -31,10 +9,6 @@ public final class ProjectBuilderManager: Sendable {
 
     private let fm = FileManager.default
 
-    /// The GitHub client, replaceable for tests. Defaults to the
-    /// shared client that reads the token fresh from the secret
-    /// store on every request (`SecretAccount.githubToken`), the
-    /// same client the MCP GitHub tools use.
     public var githubClient: GitHubClient
 
     public init(githubClient: GitHubClient? = nil) {
@@ -70,13 +44,9 @@ public final class ProjectBuilderManager: Sendable {
         }
     }
 
-    // MARK: - Public Entry Points
-
     public func prepareXcodeFiles(projectDir: URL, projectName: String) {
         guard !hasBuildArtifacts(in: projectDir, projectName: projectName) else { return }
 
-        // Local generation is disabled in favor of GitHub Actions remote generation.
-        // This method now serves as a fallback or a way to ensure basic structure.
         do {
             try ensureSubdirectories(in: projectDir)
         } catch {
@@ -102,18 +72,12 @@ public final class ProjectBuilderManager: Sendable {
             return true
         }
 
-        // Xcode always stores an internal workspace within the project bundle.
         let internalWorkspace = xcodeProj
             .appendingPathComponent("project.xcworkspace")
             .appendingPathComponent("contents.xcworkspacedata")
         return fm.fileExists(atPath: xcodeProj.path) && fm.fileExists(atPath: internalWorkspace.path)
     }
 
-    /// Triggers the remote project generation on GitHub: ensures the
-    /// `build-project` branch exists, pushes all current project
-    /// files to it, then pushes the generation workflow. The GitHub
-    /// Actions workflow triggers automatically on the push to
-    /// `build-project`.
     public func triggerRemoteGeneration(projectDir: URL, projectName: String, githubRepo: String?, workflowContent: String) async throws {
         guard let repoString = githubRepo else {
             throw BuilderError.notLinkedToGitHub
@@ -122,18 +86,14 @@ public final class ProjectBuilderManager: Sendable {
         let (owner, repo) = try parseRepoURL(repoString)
         let branch = "build-project"
 
-        // 1. Ensure the build-project branch exists
         do {
             try await githubClient.createBranch(owner: owner, repo: repo, branch: branch, from: "main")
         } catch {
-            // Ignore error if branch already exists
             print("ProjectBuilderManager: Branch \(branch) might already exist or error: \(error.localizedDescription)")
         }
 
-        // 2. Push all current files to the build-project branch
         try await pushProjectFiles(projectDir: projectDir, owner: owner, repo: repo, branch: branch, commitMessage: "Prepare project for remote generation")
 
-        // 3. Push the workflow file to the branch
         let workflowPath = ".github/workflows/build-project.yml"
         let existingSHA = try? await githubClient.getFileSHA(owner: owner, repo: repo, path: workflowPath, ref: branch)
         _ = try await githubClient.pushFile(
@@ -146,13 +106,8 @@ public final class ProjectBuilderManager: Sendable {
             branch: branch
         )
 
-        // The GHA workflow will be triggered automatically by the push to 'build-project' branch.
     }
 
-    /// Pushes every file below `projectDir` (excluding `.git`,
-    /// `.build`, and `DerivedData`) to `branch`, one Contents-API
-    /// call per file (Legacy's `GitHubRepositoryManager.pushProject`,
-    /// adapted from its `Project.files` tree to a directory walk).
     public func pushProjectFiles(projectDir: URL, owner: String, repo: String, branch: String, commitMessage: String) async throws {
         guard let enumerator = fm.enumerator(at: projectDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
             return
@@ -177,10 +132,6 @@ public final class ProjectBuilderManager: Sendable {
         }
     }
 
-    /// Parses a GitHub repo URL (`https://github.com/owner/repo`,
-    /// `git@github.com:owner/repo`, or `owner/repo`) into its owner
-    /// and repo (Legacy `GitHubRepositoryManager.parseRepoURL`,
-    /// verbatim).
     public func parseRepoURL(_ urlString: String) throws -> (owner: String, repo: String) {
         let cleaned = urlString
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -200,8 +151,6 @@ public final class ProjectBuilderManager: Sendable {
         }
         return (owner, repo)
     }
-
-    // MARK: - Generation
 
     private func ensureSubdirectories(in projectDir: URL) throws {
         for sub in ["Sources", "Views", "Features"] {
@@ -258,9 +207,6 @@ public final class ProjectBuilderManager: Sendable {
         try plist.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// The XcodeGen spec for a user project (Legacy's
-    /// `makeProjectYAML`, made public so the remote-generation UI
-    /// and tests can render it without going through GitHub).
     public func makeProjectYAML(
         projectName: String,
         projectDir: URL,
@@ -307,12 +253,6 @@ public final class ProjectBuilderManager: Sendable {
         """
     }
 
-    /// Local xcodegen generation (Legacy's `runXcodeGen`): disabled
-    /// by design — it throws when the spec is missing, and otherwise
-    /// only runs when the `SWIFTCODE_RUN_XCODEGEN` env var is set,
-    /// in which case it still throws, telling the caller to run
-    /// `xcodegen generate --spec project.yml` manually. It never
-    /// executes xcodegen itself.
     public func runXcodeGen(in projectRoot: URL) throws {
         let processInfo = ProcessInfo.processInfo
         let environment = processInfo.environment
@@ -353,8 +293,6 @@ public final class ProjectBuilderManager: Sendable {
             ])
         }
     }
-
-    // MARK: - File Collection
 
     public func collectSwiftFiles(in projectDir: URL) -> [String] {
         var allFiles: [String] = []

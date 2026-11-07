@@ -1,25 +1,3 @@
-/**
- * @swiftcode/runtime-adapter — Node runtime adapter that hosts a TypeScript
- * SwiftCode extension as an out-of-process runtime.
- *
- * Written from the protocol spec in `sdk/runtime-adapter/README.md`
- * (behaviour spec: `specs/ide/sdk-platform.md` §13.2) — not copied from
- * any earlier implementation. The README is the contract; where it does
- * not pin a value down, the choice is marked DECISION below and recorded
- * in the spec's Wave 15 section.
- *
- * Wire: NDJSON over stdio, protocol version 1 (`SDK_PROTOCOL_VERSION`).
- * stdout is the IPC channel only — diagnostics go to stderr.
- *
- * CLI:
- *   node dist/adapter.js --entrypoint <path> [--manifest <swiftcode.json>]
- *                        [--id <id>] [--version <v>] [--name <n>]
- *
- * The entry module's default export must be `{ id, activate, deactivate }`
- * with function-valued `activate`/`deactivate`; anything else is a
- * contract failure (stderr + exit 1, never a silent hang).
- */
-
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -34,9 +12,7 @@ import type {
   SwiftCodeExtension,
 } from "@swiftcode/sdk";
 
-/** Best-effort `deactivate()` budget (README: 5 s). */
 const DEACTIVATE_BUDGET_MS = 5_000;
-/** Bounded stdout flush before a fatal exit (README: 1 s). */
 const FLUSH_BUDGET_MS = 1_000;
 
 const USAGE = `Usage: node dist/adapter.js --entrypoint <path> [--manifest <swiftcode.json>] [--id <id>] [--version <v>] [--name <n>]
@@ -54,7 +30,6 @@ function diagnose(message: string): void {
   process.stderr.write(`[@swiftcode/runtime-adapter] ${message}\n`);
 }
 
-/** Flush pending stdout writes, bounded so a fatal exit never hangs. */
 async function flushStdout(): Promise<void> {
   await Promise.race([
     new Promise<void>((resolve) => {
@@ -74,11 +49,6 @@ interface CliOptions {
   version: string | undefined;
 }
 
-/**
- * Parses `process.argv`. Unknown flags, a flag missing its value, a
- * positional argument, or a missing `--entrypoint` are usage errors
- * (stderr + exit 1). `--help`/`-h` prints usage and exits 0.
- */
 function parseArgs(argv: string[]): CliOptions | "help" {
   let entrypoint: string | undefined;
   let manifestPath: string | undefined;
@@ -137,7 +107,6 @@ interface ManifestShape {
   version?: unknown;
 }
 
-/** Reads and parses the manifest. Any read/parse failure is fatal. */
 async function loadManifest(manifestPath: string): Promise<ManifestShape> {
   let raw: string;
   try {
@@ -160,7 +129,6 @@ function asNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-/** Validates the entry module's default export against the §12.4 contract. */
 function asExtension(module: unknown): SwiftCodeExtension {
   const candidate =
     typeof module === "object" && module !== null
@@ -180,7 +148,6 @@ function asExtension(module: unknown): SwiftCodeExtension {
   return candidate as SwiftCodeExtension;
 }
 
-/** Best-effort `deactivate()` inside the 5 s budget; never throws. */
 async function deactivateBestEffort(
   extensionModule: SwiftCodeExtension,
 ): Promise<void> {
@@ -192,7 +159,6 @@ async function deactivateBestEffort(
       }),
     ]);
   } catch {
-    // Best effort only — teardown must not mask the original outcome.
   }
 }
 
@@ -200,14 +166,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * DECISION (README gap): the README fixes the `commands.executeResult`
- * error shape `{ code, message, correlationId }` but never says what
- * `correlationId` is. The adapter uses the thrown error's own
- * `correlationId` when it carries one (`SDKError` does), and the
- * `invocationId` otherwise — the invocation is the only correlation the
- * host can match the result against.
- */
 function resultError(
   invocationId: string,
   code: string,
@@ -235,7 +193,6 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  // -- Manifest (fatal on any read/parse failure). -------------------------
   let manifest: ManifestShape = {};
   if (options.manifestPath !== undefined) {
     try {
@@ -246,7 +203,6 @@ async function main(): Promise<number> {
     }
   }
 
-  // -- Entry module (fatal on import failure or contract violation). ------
   let extensionModule: SwiftCodeExtension;
   try {
     const entrypointAbs = path.resolve(options.entrypoint);
@@ -257,12 +213,6 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  // -- Identity. Precedence: flag > manifest > module id; version falls
-  // back to "0.0.0"; name falls back to the module id (README §12.4).
-  // DECISION (README gap): the README never states what happens when no
-  // source supplies an id at all. An `extension.ready` frame needs an
-  // extensionId, so a missing id is a contract failure, not a silent
-  // default — the adapter exits 1 naming the gap.
   const extensionId =
     options.id ?? asNonEmptyString(manifest.id) ?? asNonEmptyString(extensionModule.id);
   if (extensionId === undefined) {
@@ -286,7 +236,6 @@ async function main(): Promise<number> {
   let teardownStarted = false;
   let exitCode = 0;
 
-  /** Shared teardown: best-effort deactivate, dispose, close, exit. */
   const teardown = async (code: number): Promise<void> => {
     if (teardownStarted) return;
     teardownStarted = true;
@@ -295,14 +244,12 @@ async function main(): Promise<number> {
     try {
       created.context.subscriptions.disposeAll();
     } catch {
-      // Best effort only.
     }
     connection.close();
     await flushStdout();
     process.exit(exitCode);
   };
 
-  // -- Host → extension event dispatch. ------------------------------------
   connection.onEvent((event) => {
     if (event.name === "commands.execute") {
       void (async () => {
@@ -353,14 +300,8 @@ async function main(): Promise<number> {
       void teardown(0);
       return;
     }
-    // Anything else (e.g. build.output / build.finished) is routed
-    // internally by the SDK context to its live build handles.
   });
 
-  // -- Crash paths: best-effort extension.error, then exit 1. --------------
-  // DECISION (README gap): the README fixes the `extension.error` shape
-  // `{ extensionId, message, detail }` but not `detail`'s content. The
-  // adapter sends the error stack when one exists, else the message.
   process.on("uncaughtException", (error: unknown) => {
     const message = errorMessage(error);
     connection.sendEvent("extension.error", {
@@ -380,12 +321,10 @@ async function main(): Promise<number> {
     void teardown(1);
   });
 
-  // -- Clean teardown triggers: stdin EOF/close, SIGTERM. ------------------
   process.stdin.on("end", () => void teardown(0));
   process.stdin.on("close", () => void teardown(0));
   process.on("SIGTERM", () => void teardown(0));
 
-  // -- Activation. ----------------------------------------------------------
   try {
     await extensionModule.activate(created.context);
   } catch (error) {
@@ -395,7 +334,6 @@ async function main(): Promise<number> {
     try {
       created.context.subscriptions.disposeAll();
     } catch {
-      // Best effort only.
     }
     connection.close();
     await flushStdout();
@@ -408,15 +346,11 @@ async function main(): Promise<number> {
     version: extensionVersion,
     protocolVersion: SDK_PROTOCOL_VERSION,
   });
-  // Stay alive awaiting host events until shutdown / stdin EOF / SIGTERM.
   return 0;
 }
 
 main()
   .then((code) => {
-    // 0 here means "activated; awaiting host events" — the process stays
-    // alive on the open stdio pipe and exits via teardown(), not here.
-    // A non-zero code is a startup/activation failure: flush and exit.
     if (code !== 0) {
       void flushStdout().then(() => process.exit(code));
     }

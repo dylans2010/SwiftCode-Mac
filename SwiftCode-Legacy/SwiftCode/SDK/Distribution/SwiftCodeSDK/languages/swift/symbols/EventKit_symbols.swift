@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for EventKit
-
 public struct EventKitAPIEntity_0000: Sendable, Codable {
     public let id: String = "eventkit.api.0"
     public var name: String = "EventKitEntity_0"

@@ -49,7 +49,6 @@ _WANTED = {
     "_require_custom_endpoint",
 }
 
-
 def _load_auth_logic():
     """Exec the real auth definitions from the shipped agent_runner.py."""
     with open(AGENT_RUNNER, "r", encoding="utf-8") as fh:
@@ -77,9 +76,8 @@ def _load_auth_logic():
         )
     namespace: dict = {"os": os}
     module = ast.Module(body=wanted_nodes, type_ignores=[])
-    exec(compile(module, AGENT_RUNNER, "exec"), namespace)  # noqa: S102 (test harness)
+    exec(compile(module, AGENT_RUNNER, "exec"), namespace)
     return namespace
-
 
 _AUTH = _load_auth_logic()
 USER_PROJECT_HEADER = _AUTH["USER_PROJECT_HEADER"]
@@ -88,7 +86,6 @@ resolve_gemini_auth = _AUTH["resolve_gemini_auth"]
 _wrap_turn_error = _AUTH["_wrap_turn_error"]
 _require_custom_endpoint = _AUTH["_require_custom_endpoint"]
 resolve_session_credentials = _AUTH["resolve_session_credentials"]
-
 
 class SessionCredentialTests(unittest.TestCase):
     def test_google_account_never_clears_anthropic_key(self):
@@ -119,7 +116,6 @@ class SessionCredentialTests(unittest.TestCase):
         self.assertEqual(key, "explicit-key")
         self.assertIsNone(token)
 
-
 class ResolveGeminiAuthTests(unittest.TestCase):
     def test_api_key_only_selects_api_key_mode(self):
         mode, project, location = resolve_gemini_auth(
@@ -133,8 +129,6 @@ class ResolveGeminiAuthTests(unittest.TestCase):
         self.assertEqual(mode, "api_key")
 
     def test_oauth_token_selects_oauth_developer_api_mode(self):
-        # Account authentication is the default mode when an OAuth token is
-        # present: Developer API, never silently converted to API-key mode.
         mode, project, location = resolve_gemini_auth(
             api_key=None,
             oauth_token="ya29.test-token",
@@ -159,7 +153,6 @@ class ResolveGeminiAuthTests(unittest.TestCase):
         self.assertEqual(project, "header-project")
 
     def test_oauth_without_quota_project_is_allowed(self):
-        # Consumer Google account OAuth tokens do not require a quota project.
         mode, project, location = resolve_gemini_auth(
             api_key=None,
             oauth_token="ya29.test-token",
@@ -248,8 +241,6 @@ class ResolveGeminiAuthTests(unittest.TestCase):
         self.assertEqual(project, "env-quota-project")
 
     def test_vertex_with_api_key_is_express_mode(self):
-        # Explicit Vertex + API key (no OAuth) is Vertex Express mode:
-        # project/location are optional, never fabricated.
         mode, project, location = resolve_gemini_auth(
             api_key="AIza-test-key",
             oauth_token=None,
@@ -261,8 +252,6 @@ class ResolveGeminiAuthTests(unittest.TestCase):
         self.assertEqual(mode, "vertex")
 
     def test_both_credentials_prefers_account_mode(self):
-        # Defense in depth: if both ever arrive, the account path wins so an
-        # OAuth session is never silently downgraded to API-key mode.
         mode, _, _ = resolve_gemini_auth(
             api_key="AIza-test-key",
             oauth_token="ya29.test-token",
@@ -272,7 +261,6 @@ class ResolveGeminiAuthTests(unittest.TestCase):
             http_headers={},
         )
         self.assertEqual(mode, "oauth")
-
 
 class WrapTurnErrorTests(unittest.TestCase):
     """C-5: only scope-specific failures get re-auth guidance."""
@@ -285,12 +273,10 @@ class WrapTurnErrorTests(unittest.TestCase):
         )
         wrapped = _wrap_turn_error(err)
         self.assertIn("Authentication error", wrapped)
-        self.assertIn(err, wrapped)  # original preserved for Swift's classifier
+        self.assertIn(err, wrapped)
         self.assertIn("re-authenticate", wrapped)
 
     def test_quota_403_passes_through_verbatim(self):
-        # A valid token can 403 on quota/billing: re-authenticating cannot fix
-        # it, so the bridge must not suggest it.
         err = "Error 403: Quota exceeded for quota metric 'GenerateContent Requests'"
         self.assertEqual(_wrap_turn_error(err), err)
 
@@ -307,15 +293,12 @@ class WrapTurnErrorTests(unittest.TestCase):
         self.assertEqual(_wrap_turn_error(err), err)
 
     def test_incidental_403_mention_not_relabeled(self):
-        # Tool output merely mentioning "403" must not be relabeled as an
-        # auth failure (old false-positive).
         err = "tool fetch_url returned HTTP 403 from https://example.com/data"
         self.assertEqual(_wrap_turn_error(err), err)
 
     def test_non_auth_error_passes_through(self):
         err = "model returned an empty response"
         self.assertEqual(_wrap_turn_error(err), err)
-
 
 class RequireCustomEndpointTests(unittest.TestCase):
     """H-5: custom-provider models without an explicit endpoint fail closed."""
@@ -328,8 +311,6 @@ class RequireCustomEndpointTests(unittest.TestCase):
         self.assertIn("endpoint", message.lower())
 
     def test_custom_error_text_names_real_remedy(self):
-        # N-2: the text must not reference a provider picker that does not
-        # exist — the real remedy is configuring an explicit endpoint.
         with self.assertRaises(GeminiAuthConfigError) as ctx:
             _require_custom_endpoint(provider="custom", model="my-model", base_url="")
         message = str(ctx.exception)
@@ -346,13 +327,11 @@ class RequireCustomEndpointTests(unittest.TestCase):
             _require_custom_endpoint(provider="Custom", model="my-model", base_url="")
 
     def test_custom_with_explicit_endpoint_is_allowed(self):
-        # Saved custom endpoints carry an explicit base_url: unaffected.
         _require_custom_endpoint(
             provider="custom", model="my-model", base_url="https://api.example.com/v1"
         )
 
     def test_local_providers_keep_their_defaults(self):
-        # ollama/lmstudio localhost defaults are intentional, not guessing.
         _require_custom_endpoint(provider="ollama", model="llama3", base_url="")
         _require_custom_endpoint(provider="lmstudio", model="qwen", base_url="")
 
@@ -360,13 +339,11 @@ class RequireCustomEndpointTests(unittest.TestCase):
         _require_custom_endpoint(provider="gemini", model="gemini-2.5-flash", base_url="")
         _require_custom_endpoint(provider="google", model="gemini-2.5-flash", base_url="")
 
-
 class ThinkingLevelParsingTests(unittest.TestCase):
     def test_thinking_level_mapping_values(self):
         valid_levels = ["minimal", "low", "medium", "high", "extra_high"]
         for lvl in valid_levels:
             self.assertEqual(lvl.upper(), lvl.upper())
-
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=2)

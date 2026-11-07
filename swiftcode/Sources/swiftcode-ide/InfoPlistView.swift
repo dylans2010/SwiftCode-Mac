@@ -1,17 +1,7 @@
-// InfoPlistView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Editor/InfoPlistView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Common-key template catalog (InfoPlistTemplateCatalog with named keys, categories, defaults); Validation panel (PlistValidationIssue collection with fix actions)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): UInt8.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - Plist Value Type Helpers
-
-/// The plist value kinds a user can create/edit through the UI.
 public enum PlistValueKind: String, CaseIterable {
     case string = "String"
     case boolean = "Boolean"
@@ -34,7 +24,6 @@ public enum PlistValueKind: String, CaseIterable {
     }
 }
 
-/// Detects the plist kind of an arbitrary value coming from the editor.
 public func plistValueKind(of value: Any) -> PlistValueKind {
     if value is Bool { return .boolean }
     if value is NSNumber { return .number }
@@ -45,7 +34,6 @@ public func plistValueKind(of value: Any) -> PlistValueKind {
     return .string
 }
 
-/// A sensible default value for a freshly created key of the given kind.
 public func defaultPlistValue(for kind: PlistValueKind) -> Any {
     switch kind {
     case .string: return ""
@@ -58,9 +46,6 @@ public func defaultPlistValue(for kind: PlistValueKind) -> Any {
     }
 }
 
-// MARK: - Common Key Templates
-
-/// A pre-built Info.plist key a user can add with one tap.
 public struct InfoPlistTemplate: Identifiable {
     public var id: String { key }
     public let key: String
@@ -85,7 +70,6 @@ public enum InfoPlistTemplateCatalog {
 
     nonisolated(unsafe) public static let all: [InfoPlistTemplate] = {
         var list: [InfoPlistTemplate] = [
-            // Identity
             InfoPlistTemplate(key: "CFBundleIdentifier", name: "Bundle Identifier", symbol: "app.badge", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_BUNDLE_IDENTIFIER)"),
             InfoPlistTemplate(key: "CFBundleName", name: "Bundle Name", symbol: "app", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_NAME)"),
             InfoPlistTemplate(key: "CFBundleDisplayName", name: "Display Name", symbol: "tag", category: "Identity", kind: .string, defaultValue: ""),
@@ -106,7 +90,6 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "LSFileQuarantineEnabled", name: "File Quarantine Enabled", symbol: "lock.shield.fill", category: "Identity", kind: .boolean, defaultValue: true),
             InfoPlistTemplate(key: "WKCompanionAppBundleIdentifier", name: "watchOS Companion App Bundle ID", symbol: "applewatch", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_BUNDLE_IDENTIFIER)"),
 
-            // Display & Scene
             InfoPlistTemplate(key: "CFBundleIconName", name: "Icon Name", symbol: "app.dashed", category: "Display & Scene", kind: .string, defaultValue: "AppIcon"),
             InfoPlistTemplate(key: "UILaunchStoryboardName", name: "Launch Storyboard Name", symbol: "play.rectangle", category: "Display & Scene", kind: .string, defaultValue: "LaunchScreen"),
             InfoPlistTemplate(key: "UILaunchScreen", name: "Launch Screen Configuration", symbol: "photo.artframe", category: "Display & Scene", kind: .dictionary, defaultValue: ["UIImageName": "LaunchImage", "UIColorName": "LaunchBackground"] as [String: Any]),
@@ -129,7 +112,6 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "UIApplicationSceneManifest", name: "Application Scene Manifest", symbol: "rectangle.split.2x1", category: "Display & Scene", kind: .dictionary, defaultValue: ["UIApplicationSupportsMultipleScenes": true] as [String: Any]),
             InfoPlistTemplate(key: "UIWhitePointAdaptivityStyle", name: "White Point Adaptivity Style (True Tone)", symbol: "sun.max", category: "Display & Scene", kind: .string, defaultValue: "UIWhitePointAdaptivityStyleStandard"),
 
-            // Network & Security
             InfoPlistTemplate(key: "NSAppTransportSecurity", name: "App Transport Security Settings", symbol: "shield", category: "Network & Security", kind: .dictionary, defaultValue: ["NSAllowsArbitraryLoads": false] as [String: Any]),
             InfoPlistTemplate(key: "NSAllowsArbitraryLoads", name: "Allows Arbitrary Loads (ATS Bypass)", symbol: "lock.open", category: "Network & Security", kind: .boolean, defaultValue: true),
             InfoPlistTemplate(key: "NSAllowsArbitraryLoadsForMedia", name: "Allows Arbitrary Loads For Media", symbol: "play.circle", category: "Network & Security", kind: .boolean, defaultValue: true),
@@ -142,7 +124,6 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "NSPersistentStoreFileProtectionKey", name: "Persistent Store File Protection", symbol: "lock.shield", category: "Network & Security", kind: .string, defaultValue: "NSFileProtectionComplete"),
             InfoPlistTemplate(key: "NSExtension", name: "App Extension Attributes", symbol: "puzzlepiece.extension", category: "Network & Security", kind: .dictionary, defaultValue: ["NSExtensionPointIdentifier": "com.apple.widgetkit-extension"] as [String: Any]),
 
-            // Behavior & Lifecycle
             InfoPlistTemplate(key: "LSUIElement", name: "Agent / Menu Bar App (No Dock Icon)", symbol: "eye.slash", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
             InfoPlistTemplate(key: "NSSupportsAutomaticTermination", name: "Supports Automatic Termination", symbol: "power", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
             InfoPlistTemplate(key: "NSSupportsSuddenTermination", name: "Supports Sudden Termination", symbol: "bolt", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
@@ -159,7 +140,6 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "NSUserActivityTypes", name: "User Activity Types (Handoff / Siri)", symbol: "hand.raised", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["com.example.app.activity"] as [Any]),
             InfoPlistTemplate(key: "NSUbiquitousContainers", name: "iCloud Drive Document Containers", symbol: "icloud.and.arrow.up", category: "Behavior & Lifecycle", kind: .dictionary, defaultValue: [:] as [String: Any]),
 
-            // Hardware & Capabilities
             InfoPlistTemplate(key: "UIRequiredDeviceCapabilities", name: "Required Device Capabilities", symbol: "cpu.fill", category: "Hardware & Capabilities", kind: .array, defaultValue: ["arm64", "metal"] as [Any]),
             InfoPlistTemplate(key: "GCSupportedControllerTypes", name: "Supported Game Controller Profiles", symbol: "gamecontroller", category: "Hardware & Capabilities", kind: .array, defaultValue: ["GCExtendedGamepad", "GCStandardGamepad"] as [Any]),
             InfoPlistTemplate(key: "GCSupportsControllerUserInteraction", name: "Gamepad User Interaction Supported", symbol: "gamecontroller.fill", category: "Hardware & Capabilities", kind: .boolean, defaultValue: true),
@@ -167,16 +147,13 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "UIApplicationShortcutItems", name: "Home Screen Quick Action Shortcuts", symbol: "square.stack.3d.up", category: "Behavior & Lifecycle", kind: .array, defaultValue: [["UIApplicationShortcutItemType": "com.example.search", "UIApplicationShortcutItemTitle": "Search"]] as [Any]),
             InfoPlistTemplate(key: "NSServices", name: "macOS System Services Menu Actions", symbol: "macwindow.on.rectangle", category: "Behavior & Lifecycle", kind: .array, defaultValue: [Any]()),
 
-            // Fonts & Assets
             InfoPlistTemplate(key: "UIAppFonts", name: "Application Fonts Provided by App", symbol: "textformat.size", category: "Fonts & Assets", kind: .array, defaultValue: ["Inter-Regular.ttf", "Outfit-Bold.ttf"] as [Any]),
             InfoPlistTemplate(key: "UIPrerenderedIcon", name: "Icon Already Includes Gloss Effects", symbol: "app.fill", category: "Fonts & Assets", kind: .boolean, defaultValue: false),
 
-            // Orientations
             InfoPlistTemplate(key: "UISupportedInterfaceOrientations", name: "Supported Interface Orientations", symbol: "iphone", category: "Orientations", kind: .array, defaultValue: ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"] as [Any]),
             InfoPlistTemplate(key: "UISupportedInterfaceOrientations~ipad", name: "Supported Interface Orientations (iPad)", symbol: "ipad", category: "Orientations", kind: .array, defaultValue: ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"] as [Any]),
             InfoPlistTemplate(key: "UIInterfaceOrientation", name: "Initial Interface Orientation", symbol: "iphone", category: "Orientations", kind: .string, defaultValue: "UIInterfaceOrientationPortrait"),
 
-            // URL Types
             InfoPlistTemplate(key: "CFBundleURLTypes", name: "URL Types", symbol: "link", category: "URL Types", kind: .array, defaultValue: [["CFBundleURLName": "", "CFBundleURLSchemes": ["myapp"]]] as [Any]),
             InfoPlistTemplate(key: "LSApplicationQueriesSchemes", name: "Queried URL Schemes", symbol: "magnifyingglass", category: "URL Types", kind: .array, defaultValue: [String]() as [Any]),
             InfoPlistTemplate(key: "CFBundleDocumentTypes", name: "Document Types", symbol: "doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
@@ -184,7 +161,6 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "UTImportedTypeDeclarations", name: "Imported Type Declarations", symbol: "arrow.down.doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
             InfoPlistTemplate(key: "LSHandlerRank", name: "Document Handler Rank", symbol: "star.fill", category: "URL Types", kind: .string, defaultValue: "Owner"),
         ]
-        // Privacy usage descriptions come from the curated metadata catalog.
         for meta in InfoPlistNSStrings.all {
             list.append(InfoPlistTemplate(
                 key: meta.key,
@@ -206,9 +182,6 @@ public enum InfoPlistTemplateCatalog {
     }
 }
 
-// MARK: - Validation Issues
-
-/// One validation warning surfaced by the warnings panel.
 struct PlistValidationIssue: Identifiable {
     let id = UUID()
     let symbol = "exclamationmark.triangle"
@@ -217,13 +190,10 @@ struct PlistValidationIssue: Identifiable {
     let fix: (() -> Void)?
 }
 
-/// Collects validation issues for the warnings panel. Shared by the panel and
-/// the Validate toolbar action. Uses the editor's own validators.
 @MainActor
 func collectPlistValidationIssues(editor: InfoPlistEditor) -> [PlistValidationIssue] {
     var list: [PlistValidationIssue] = []
 
-    // Missing required identity keys.
     for key in ["CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleVersion"] {
         if editor.entries[key] == nil {
             list.append(PlistValidationIssue(
@@ -234,7 +204,6 @@ func collectPlistValidationIssues(editor: InfoPlistEditor) -> [PlistValidationIs
         }
     }
 
-    // Malformed bundle identifier.
     if let identifier = editor.entries["CFBundleIdentifier"] as? String {
         if identifier.isEmpty {
             list.append(PlistValidationIssue(
@@ -251,7 +220,6 @@ func collectPlistValidationIssues(editor: InfoPlistEditor) -> [PlistValidationIs
         }
     }
 
-    // Malformed version / build strings.
     for key in ["CFBundleShortVersionString", "CFBundleVersion"] {
         if let version = editor.entries[key] as? String {
             if version.isEmpty {
@@ -270,7 +238,6 @@ func collectPlistValidationIssues(editor: InfoPlistEditor) -> [PlistValidationIs
         }
     }
 
-    // Privacy usage-description wording issues (under 10 characters).
     let privacyIssues = editor.validatePrivacyKeys()
     for key in privacyIssues.keys.sorted() {
         let detail = privacyIssues[key] ?? ""
@@ -292,7 +259,6 @@ func collectPlistValidationIssues(editor: InfoPlistEditor) -> [PlistValidationIs
     return list
 }
 
-/// Collapsible warnings panel. Hidden entirely when there are no issues.
 struct InfoPlistValidationPanel: View {
     let issues: [PlistValidationIssue]
     @Binding var isExpanded: Bool
@@ -333,8 +299,6 @@ struct InfoPlistValidationPanel: View {
         }
     }
 }
-
-// MARK: - Info.plist View
 
 public struct InfoPlistView: View {
     private let fileURL: URL?
@@ -422,8 +386,6 @@ public struct InfoPlistView: View {
         }
     }
 
-    /// Keys matching the global search across key names, values, types, and
-    /// privacy metadata (names, descriptions, search keywords).
     private var searchFilteredKeys: [String] {
         guard fileURL != nil, !searchQuery.isEmpty else { return [] }
         let lowerQuery = searchQuery.lowercased()
@@ -453,7 +415,6 @@ public struct InfoPlistView: View {
         }
     }
 
-    /// Produces a copy key that cannot collide with an existing key.
     private func uniqueCopyKey(basedOn key: String) -> String {
         var candidate = "\(key) copy"
         var n = 2
@@ -521,18 +482,15 @@ public struct InfoPlistView: View {
             .background(Color(NSColor.windowBackgroundColor))
         } else {
             VStack(spacing: 0) {
-                // Professional Header Toolbar with Tool Actions
                 headerToolbar
 
                 Divider()
 
-                // Validation warnings panel (hidden when there are no issues)
                 InfoPlistValidationPanel(
                     issues: collectPlistValidationIssues(editor: editor),
                     isExpanded: $validationExpanded
                 )
 
-                // Feedback status banner
                 if let status = toolStatus {
                     HStack {
                         Image(systemName: "info.circle")
@@ -552,7 +510,6 @@ public struct InfoPlistView: View {
                     Divider()
                 }
 
-                // Sidebar navigation + section detail
                 NavigationSplitView {
                     List(selection: $selectedSection) {
                         ForEach(PlistSidebarSection.allCases) { section in
@@ -588,8 +545,6 @@ public struct InfoPlistView: View {
         }
     }
 
-    // MARK: - Section Detail
-
     @ViewBuilder
     private var sectionDetailView: some View {
         switch selectedSection ?? .identity {
@@ -618,7 +573,6 @@ public struct InfoPlistView: View {
         }
     }
 
-    // MARK: - Header Toolbar
     private var headerToolbar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
@@ -641,7 +595,6 @@ public struct InfoPlistView: View {
 
             Spacer()
 
-            // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -660,7 +613,6 @@ public struct InfoPlistView: View {
             .liquidGlass(style: .subtle, cornerRadius: 6)
             .frame(width: 220)
 
-            // Undo / Redo
             HStack(spacing: 4) {
                 Button {
                     editor.undo()
@@ -681,7 +633,6 @@ public struct InfoPlistView: View {
                 .help("Redo")
             }
 
-            // Save Tool
             Button {
                 savePlist()
             } label: {
@@ -692,7 +643,6 @@ public struct InfoPlistView: View {
             .keyboardShortcut("s", modifiers: .command)
             .help("Write changes to the Info.plist file")
 
-            // Add Key
             Button {
                 showingAddKeySheet = true
             } label: {
@@ -700,7 +650,6 @@ public struct InfoPlistView: View {
             }
             .buttonStyle(.borderedProminent)
 
-            // Actions Menu
             Menu {
                 Button {
                     validateStructure()
@@ -744,8 +693,6 @@ public struct InfoPlistView: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // MARK: - Key Rows
-
     private func keyRow(for key: String) -> some View {
         InfoPlistRow(
             key: key,
@@ -771,7 +718,6 @@ public struct InfoPlistView: View {
         .padding(.vertical, 2)
     }
 
-    // MARK: - All Keys List View
     private var allKeysListView: some View {
         let keys = editor.entries.keys.sorted()
         return List {
@@ -791,7 +737,6 @@ public struct InfoPlistView: View {
         .listStyle(.inset)
     }
 
-    // MARK: - Search Results View
     private var searchResultsView: some View {
         let keys = searchFilteredKeys
         return List {
@@ -811,7 +756,6 @@ public struct InfoPlistView: View {
         .listStyle(.inset)
     }
 
-    // MARK: - Add Key Sheet
     private var addKeySheetView: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -835,7 +779,6 @@ public struct InfoPlistView: View {
                 .buttonStyle(.plain)
             }
 
-            // Search Bar
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -853,7 +796,6 @@ public struct InfoPlistView: View {
             .padding(.vertical, 6)
             .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
 
-            // Category Filter Pills
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(InfoPlistTemplateCatalog.categories, id: \.self) { category in
@@ -936,7 +878,6 @@ public struct InfoPlistView: View {
 
             Divider()
 
-            // Custom Key Section
             VStack(alignment: .leading, spacing: 8) {
                 Text("Custom Key Definition")
                     .font(.caption.bold())
@@ -985,7 +926,6 @@ public struct InfoPlistView: View {
         .frame(width: 620, height: 600)
     }
 
-    // MARK: - Inspector Sheet
     private var inspectorSheetView: some View {
         VStack(spacing: 0) {
             HStack {
@@ -1023,8 +963,6 @@ public struct InfoPlistView: View {
     }
 }
 
-// MARK: - Type Badge
-
 struct PlistTypeBadge: View {
     let kind: PlistValueKind
 
@@ -1038,10 +976,6 @@ struct PlistTypeBadge: View {
     }
 }
 
-// MARK: - Inline Scalar Value Editor (used in rows)
-
-/// Edits scalar plist values inline. Arrays, dictionaries, and data show a
-/// summary — they are edited in the inspector panel instead.
 struct PlistInlineScalarEditor: View {
     @Binding var value: Any
 
@@ -1117,8 +1051,6 @@ struct PlistInlineScalarEditor: View {
     }
 }
 
-// MARK: - Array Editor
-
 struct PlistArrayEditorView: View {
     @Binding var items: [Any]
     @State private var newItemKind: PlistValueKind = .string
@@ -1173,8 +1105,6 @@ struct PlistArrayEditorView: View {
         }
     }
 }
-
-// MARK: - Dictionary Editor
 
 struct PlistDictionaryEditorView: View {
     @Binding var dict: [String: Any]
@@ -1254,8 +1184,6 @@ struct PlistDictionaryEditorView: View {
     }
 }
 
-// MARK: - Data (Hex) Editor
-
 struct PlistDataEditorView: View {
     @Binding var data: Data
     @State private var hexText: String = ""
@@ -1309,7 +1237,6 @@ private extension Data {
     }
 }
 
-// MARK: - Clean Monochrome Row View
 struct InfoPlistRow: View {
     let key: String
     let value: Any
@@ -1338,14 +1265,12 @@ struct InfoPlistRow: View {
 
             Spacer()
 
-            // Value Editor (scalars inline; collections open in the inspector)
             PlistInlineScalarEditor(value: Binding(
                 get: { value },
                 set: onValueChange
             ))
             .frame(minWidth: 180, maxWidth: 320)
 
-            // Inspect
             Button(action: onSelect) {
                 Image(systemName: "slider.horizontal.3")
                     .foregroundStyle(.secondary)
@@ -1353,7 +1278,6 @@ struct InfoPlistRow: View {
             .buttonStyle(.plain)
             .help("Inspect Property")
 
-            // Duplicate
             Button(action: onDuplicate) {
                 Image(systemName: "plus.square.on.square")
                     .foregroundStyle(.secondary)
@@ -1361,7 +1285,6 @@ struct InfoPlistRow: View {
             .buttonStyle(.plain)
             .help("Duplicate Property")
 
-            // Delete
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .foregroundStyle(.secondary)
@@ -1373,8 +1296,6 @@ struct InfoPlistRow: View {
         .padding(.vertical, 6)
     }
 }
-
-// MARK: - Inspector Panel
 
 struct InfoPlistInspectorPanel: View {
     let key: String

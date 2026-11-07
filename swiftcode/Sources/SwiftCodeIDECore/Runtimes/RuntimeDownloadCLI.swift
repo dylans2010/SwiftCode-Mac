@@ -1,7 +1,3 @@
-// `swiftcode runtime …` (`runtime-downloads.md` §6): SwiftCode's runtime registry
-// and the three routes from a terminal. `download` (route B) and `xcodebuild`
-// (route C) say what they will do and ask before they start (or take --yes).
-
 import Foundation
 
 public enum RuntimeDownloadCLI {
@@ -114,7 +110,6 @@ public enum RuntimeDownloadCLI {
                 out("Nothing is shared or kept for anyone else; the archive is removed afterwards\(d.keep ? " (unless --keep, as given)" : "").")
                 guard flags.contains("--yes") || ask("Continue? [y/N] ") else { out("Nothing was downloaded."); return 1 }
                 let started = Date()
-                // ⌃C cancels: curl and the decryptor stop, the partial file stays for a resume.
                 let sigint = interruptHandler { out("Cancelling…"); d.cancel() }
                 defer { sigint.cancel() }
                 let printer = PhasePrinter(out: out)
@@ -166,7 +161,6 @@ public enum RuntimeDownloadCLI {
         }
     }
 
-    /// Handles SIGINT in place of the default (which would leave the child running).
     static func interruptHandler(_ h: @escaping @Sendable () -> Void) -> DispatchSourceSignal {
         signal(SIGINT, SIG_IGN)
         let s = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
@@ -182,7 +176,6 @@ public enum RuntimeDownloadCLI {
         return ["y", "yes"].contains(line.trimmed.lowercased())
     }
 
-    /// Progress lines, at most one per percent (or per phase).
     final class PhasePrinter: @unchecked Sendable {
         let out: @Sendable (String) -> Void
         let lock = NSLock()

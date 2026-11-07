@@ -18,19 +18,6 @@ public enum GitError: Error, LocalizedError, Sendable {
     }
 }
 
-/// Thin adapter over the SwiftCode git seam.
-///
-/// Legacy shelled out to `/usr/bin/git` through raw `Process`; this port
-/// runs the same git invocations through `SwiftCodeSubprocess` (concurrent
-/// pipe reads, no deadlock on large output). There is no parallel git
-/// client here: `SwiftCodeGitHub` is the GitHub *API* client, and the MCP git
-/// tools are a different (tool-call) surface. Local repository reads go
-/// through this service only.
-///
-/// Deviation from Legacy (recorded, deliberate): Legacy's `getStatus`
-/// set `ahead`/`behind` to the literal `1` whenever the porcelain header
-/// mentioned them. This port parses the real counts (`[ahead 3, behind 2]`),
-/// so `SDKRepositoryStatus`-style counts are truthful.
 public final class SourceControlService: Sendable {
     private let gitPath: String
 
@@ -87,7 +74,6 @@ public final class SourceControlService: Sendable {
         for line in lines {
             if line.hasPrefix("## ") {
                 let header = String(line.dropFirst(3))
-                // parse branch info: e.g. "main...origin/main [ahead 1, behind 2]"
                 let parts = header.components(separatedBy: "...")
                 currentBranch = parts.first?.trimmingCharacters(in: .whitespaces) ?? "HEAD"
                 if parts.count > 1 {
@@ -130,7 +116,6 @@ public final class SourceControlService: Sendable {
         )
     }
 
-    /// Parses e.g. `ahead 3` out of `"ahead 3, behind 2"`. Returns 0 when absent.
     private func parseCount(keyword: String, in text: String) -> Int {
         let pattern = keyword + #" (\d+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern),

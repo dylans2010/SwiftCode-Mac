@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/BranchManager.swift
-// Adapted for SwiftCode: In-memory branch model. Verbatim.
-
 import Foundation
 
 public struct BranchEvent: Equatable {

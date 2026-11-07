@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Panel configuring state properties, local @State bindings, Action hooks, and Navigation trigger routing.
 public struct VisualUIBindingsPanel: View {
     @Bindable var document: VisualUIDocument
     @State private var newVariableName = ""
@@ -18,7 +17,6 @@ public struct VisualUIBindingsPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Local variables section
                     GroupBox("Local @State Declarations") {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
@@ -43,7 +41,6 @@ public struct VisualUIBindingsPanel: View {
 
                             Divider()
 
-                            // Retrieve existing custom state declarations from document
                             let bindings = listExistingBindings()
                             if bindings.isEmpty {
                                 Text("No local @State variables declared.")
@@ -71,7 +68,6 @@ public struct VisualUIBindingsPanel: View {
                     }
                     .groupBoxStyle(.liquidGlass)
 
-                    // Element Bindings Map
                     if let selectedID = document.scene.selectedNodeIDs.first,
                        let node = document.scene.findNode(byID: selectedID) {
                         GroupBox("Selection Bindings") {
@@ -94,7 +90,6 @@ public struct VisualUIBindingsPanel: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Navigation Route section
                         VisualUINavigationPanel(document: document, node: node)
                     }
                 }
@@ -104,7 +99,6 @@ public struct VisualUIBindingsPanel: View {
     }
 
     private func listExistingBindings() -> [String] {
-        // Simple serialization of state variables inside scene properties
         let variablesString = document.scene.artboards.first?.rootNode.properties["declaredStateVariables"] ?? ""
         if variablesString.isEmpty { return [] }
         return variablesString.components(separatedBy: ",")

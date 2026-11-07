@@ -1,7 +1,3 @@
-/// Crate (`.usdc`) format constants: the type numbers of non-array values
-/// and the 64-bit value representation. These are interop facts of
-/// OpenUSD's open-source binary format (version 0.8.0 is what OpenUSD writes
-/// by default; 0.4.0 and later are read here).
 enum CrateType: UInt8 {
     case invalid = 0
     case bool = 1, uchar, int, uint, int64, uint64, half, float, double, string, token, asset
@@ -14,8 +10,6 @@ enum CrateType: UInt8 {
     case payloadListOp = 55, timeCode, pathExpression, relocates, spline, animationBlock
 }
 
-/// A crate value representation: bit 63 array, 62 inlined, 61 compressed,
-/// 60 array edit, bits 48–55 the type, bits 0–47 the payload.
 struct ValueRep: Hashable {
     var data: UInt64
 

@@ -4,7 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// An iOS storyboard written for this test in the documented XML layout.
 let iosStoryboard = """
 <?xml version="1.0" encoding="UTF-8"?>
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="1" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useSafeAreas="YES" initialViewController="vc">
@@ -42,7 +41,6 @@ let iosStoryboard = """
 </document>
 """
 
-/// reference-ui-4.md §11, §13: outline, jump bar, chrome, inspectors.
 @MainActor
 @Suite(.serialized) struct InterfaceBuilderReferenceUITests {
     func controller() throws -> InterfaceBuilderController {
@@ -84,7 +82,6 @@ let iosStoryboard = """
         #expect(!c.isOutlineVisible)
         c.setZoom(0.5)
         #expect(c.bar.zoomLabel.stringValue == "50%")
-        // Scene title bar names the controller; the entry arrow exists.
         c.canvas.frame = NSRect(origin: .zero, size: c.canvas.frame.size)
         _ = c.canvas.bitmapImageRepForCachingDisplay(in: c.canvas.bounds).map { c.canvas.cacheDisplay(in: c.canvas.bounds, to: $0) }
         #expect(c.canvas.sceneBars.map(\.title) == ["ViewController"])
@@ -115,7 +112,6 @@ let iosStoryboard = """
         #expect(c.inspectorSections(.attributes).map(\.title) == ["Label", "View"])
         c.setAttribute("numberOfLines", "0", of: "lbl")
         #expect(c.document.byID["lbl"]?.attribute("numberOfLines") == "0")
-        // Runtime attributes on a self-closing element.
         c.select(id: "fr")
         c.addRuntimeAttribute(keyPath: "k")
         #expect(c.document.runtimeAttributes(of: "fr").map(\.keyPath) == ["k"])
@@ -126,7 +122,6 @@ let iosStoryboard = """
                 == ["File", "History", "Quick Help", "Identity", "Attributes", "Size", "Connections"])
     }
 
-    /// Off-screen PNGs for review (scratch directory from SWIFTCODE_SHOTS).
     @Test func renders() throws {
         guard let dir = ProcessInfo.processInfo.environment["SWIFTCODE_SHOTS"] else { return }
         let c = try controller()

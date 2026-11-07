@@ -2,35 +2,6 @@ import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 
-/// The GitHub remote browser: issues, pull requests, branches,
-/// commits, releases, activity, notifications, organizations and
-/// the user's repositories for one `owner/repo`, over the real
-/// api.github.com clients (`GitHubClient` plus the extended clients
-/// in `SwiftCodeGitHub`).
-///
-/// This is the port of the remote half of Legacy's GitHub views
-/// (`SwiftCode/Views/GitHub/IssuesView.swift`,
-/// `PullRequestsView.swift`, `IssueDetailView.swift`,
-/// `PullRequestDetailView.swift`, `ReleasesView.swift`,
-/// `NotificationsView.swift`, `OrganizationsView.swift`,
-/// `RepositoriesView.swift`, `RepositoryDetailView.swift`,
-/// `ActivityFeedView.swift`, `Legacy/BranchManagementView.swift`,
-/// `Legacy/CommitHistoryView.swift`, `Legacy/GitHubIssuesView.swift`,
-/// `Legacy/PullRequestView.swift`, `Menu Bar/NSCreatePRView.swift`,
-/// `Menu Bar/NSCreateRepositoryView.swift`, `RepositoryContext.swift`):
-/// the same lists and actions, rebuilt in SwiftCode style (default
-/// accent, no Legacy orange) on SwiftCode's clients. The local git half
-/// of those views is not here — it already exists in SwiftCode's source
-/// control UI (`SourceControlCoordinator`, `BranchHistoryController`,
-/// `CommitController`).
-///
-/// The token comes from the secret store (`SecretAccount.githubToken`,
-/// set in Settings > Accounts). Public repositories read without a
-/// token at GitHub's unauthenticated rate limit; writes and private
-/// data show an honest "sign in" state instead of fake content.
-/// Hosting and menu wiring are on the integration list: this view is
-/// presented with `NSHostingController`, as `SettingsPanes.swift`
-/// already does for `PaywallView`.
 @MainActor
 struct GitHubRemoteBrowserView: View {
     @State private var model = GitHubRemoteBrowserModel()
@@ -347,10 +318,6 @@ enum GitHubRemoteRoute: Hashable {
     case repository(owner: String, repo: String)
 }
 
-/// The browser's state. One model for every tab: each load reads
-/// the token fresh from the secret store, so signing in (or out)
-/// in Settings > Accounts takes effect on the next refresh without
-/// relaunching.
 @Observable
 @MainActor
 final class GitHubRemoteBrowserModel {
@@ -610,8 +577,6 @@ final class GitHubRemoteBrowserModel {
     }
 }
 
-/// A tab's list with the three states every remote list shares:
-/// loading, error, and empty.
 private struct GitHubRemoteListTab<Content: View>: View {
     var isLoading: Bool
     var errorMessage: String?

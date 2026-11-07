@@ -1,19 +1,8 @@
 import Foundation
 
-/// Tests hosted in an application (`TEST_HOST`) and UI test bundles: the
-/// bundle runs inside the host app, loaded by SwiftCode's test agent
-/// (`libSwiftCodeTestAgent.dylib`, `Sources/SwiftCodeTestAgent`). The host app is
-/// started with `DYLD_INSERT_LIBRARIES` naming the agent and
-/// `SWIFTCODE_TEST_PLAN` describing the run; the agent reports on the app's
-/// standard error in lines `##swiftcode-test## <JSON>` (the test-host
-/// protocol) next to the libraries' own console lines, which the console
-/// parser reads as for tool-hosted bundles.
-/// See `specs/ide/testing.md` and `specs/xcodebuild/test-actions.md`,
-/// "SwiftCode implementation".
 public enum TestHostProtocol {
     public static let prefix = "##swiftcode-test## "
 
-    /// One report of the agent.
     public struct Event: @unchecked Sendable {
         public var kind: String
         public var fields: [String: Any]
@@ -21,8 +10,6 @@ public enum TestHostProtocol {
         public func string(_ key: String) -> String? { fields[key] as? String }
     }
 
-    /// Splits a line of the host's output into the text before a report
-    /// (the app's own output, if any) and the report.
     public static func split(_ line: String) -> (text: String?, event: Event?) {
         guard let r = line.range(of: prefix) else { return (line, nil) }
         let before = String(line[..<r.lowerBound])
@@ -32,10 +19,8 @@ public enum TestHostProtocol {
         return (before.isEmpty ? nil : before, Event(kind: kind, fields: obj))
     }
 
-    /// The agent's run description (`SWIFTCODE_TEST_PLAN`).
     public struct Plan: Equatable, Sendable {
         public struct Bundle: Equatable, Sendable {
-            /// Absolute, `@executable_path/…`, or a name in the host's PlugIns folder.
             public var path: String
             public var module: String
             public var only: [String]
@@ -69,11 +54,6 @@ public enum TestHostProtocol {
         }
     }
 
-    /// Where SwiftCode's test agent for an SDK is: `SWIFTCODE_TEST_AGENT` (macOS)
-    /// or `SWIFTCODE_TEST_AGENT_<SDK>` (`SWIFTCODE_TEST_AGENT_IPHONESIMULATOR`),
-    /// else `libSwiftCodeTestAgent.dylib` next to swiftcodebuild (macOS) or in its
-    /// `<sdk>/` folder (`iphonesimulator/libSwiftCodeTestAgent.dylib`, which
-    /// `SimGuestAgents/build-test-agent.sh` builds).
     public static func agent(sdk: String, environment env: [String: String], executableDirectory: String?) -> String? {
         let fm = FileManager.default
         let name = "libSwiftCodeTestAgent.dylib"
@@ -89,9 +69,6 @@ public enum TestHostProtocol {
     }
 }
 
-/// Collects one host run: routes the host's output lines to the parser
-/// of the bundle that is running, keeps the agent's reports, and knows
-/// whether the run finished.
 final class HostRunCollector: @unchecked Sendable {
     struct Part {
         var target: TestTarget
@@ -105,9 +82,7 @@ final class HostRunCollector: @unchecked Sendable {
     private(set) var agentLoaded = false
     private(set) var finished = false
     private(set) var errors: [String] = []
-    /// The test that started last and has not finished (a crash's culprit).
     private(set) var running: String?
-    /// Lines that belong to no bundle (the host's own output before and after).
     private(set) var hostOutput = ""
     private let lock = NSLock()
     let echo: (String) -> Void
@@ -124,7 +99,6 @@ final class HostRunCollector: @unchecked Sendable {
         if let event, event.string("session") == session || event.string("session") == nil {
             handle(event)
         } else if event != nil {
-            // A report of another session (a stale output file): ignored.
         }
         let shown = event == nil ? line : text
         lock.unlock()
@@ -174,29 +148,16 @@ final class HostRunCollector: @unchecked Sendable {
 }
 
 extension TestActions {
-    /// Builds of hosted tests for a simulator copy the testing libraries
-    /// into the host app's `Frameworks` folder: swift-build's own test-host
-    /// task (open-source swift-build, `XCTestHostTaskProducer`), which it
-    /// skips by default for Xcode 27 and later (`SKIP_COPYING_TEST_FRAMEWORKS`
-    /// = YES, because devices get them from their developer disk image).
-    /// The SwiftCode simulator's runtime has none of them, so these builds set
-    /// the setting's escape hatch, NO. macOS hosts find them through
-    /// `DYLD_FRAMEWORK_PATH`, as tool-hosted runs do.
-    /// `sdk`: the run destination's SDK, else the `SDKROOT` override
-    /// (`iphonesimulator`, `iphonesimulator27.0` or an SDK path).
     static func testFrameworkCopying(action: BuildAction, sdk: String?) -> [(String, String)] {
         guard [.buildForTesting, .test].contains(action),
               let sdk, (sdk as NSString).lastPathComponent.lowercased().contains("simulator") else { return [] }
         return [("SKIP_COPYING_TEST_FRAMEWORKS", "NO")]
     }
 
-    /// The agent's selection for a target: `-only-testing`, plan entries.
     static func hostedSelection(_ t: TestTarget) -> (only: [String], skip: [String]) {
         (t.only, t.skip)
     }
 
-    /// The host app of a hosted target: `TEST_HOST` names its executable.
-    /// Returns (app bundle, executable).
     static func hostApp(_ t: TestTarget) -> (app: String, executable: String)? {
         guard let exe = t.testHost else { return nil }
         var url = URL(fileURLWithPath: exe)
@@ -205,8 +166,6 @@ extension TestActions {
         return (url.path, exe)
     }
 
-    /// The bundle identifier of an app bundle (iOS: `Info.plist` at the
-    /// top; macOS: `Contents/Info.plist`).
     static func bundleIdentifier(ofApp app: String) -> String? {
         for rel in ["Info.plist", "Contents/Info.plist"] {
             if let data = FileManager.default.contents(atPath: app + "/" + rel),
@@ -216,17 +175,12 @@ extension TestActions {
         return nil
     }
 
-    /// The bundle path the agent opens: relative to the host's PlugIns
-    /// folder when the bundle is in it (`@executable_path/…` would also
-    /// work, but the folder name is the same on every device).
     static func agentBundlePath(_ t: TestTarget, app: String) -> String {
         let plugins = [app + "/PlugIns/", app + "/Contents/PlugIns/"]
         for p in plugins where t.bundlePath.hasPrefix(p) { return String(t.bundlePath.dropFirst(p.count)) }
         return t.bundlePath
     }
 
-    /// Runs hosted targets that share a host on this Mac: one launch of the
-    /// host per bundle (bundles do not share a process).
     static func runHostedLocally(_ t: TestTarget, quiet: Bool, context ctx: XcodebuildContext, outcome: inout Outcome) {
         let console = ctx.console
         guard let (app, exe) = hostApp(t) else {
@@ -254,7 +208,6 @@ extension TestActions {
         env["DYLD_INSERT_LIBRARIES"] = inserted.joined(separator: ":")
         env["SWIFTCODE_TEST_PLAN"] = plan.json
         let collector = HostRunCollector(session: plan.session, targets: [t]) { line in if !quiet { console.out(line) } }
-        // Window restoration would reopen documents of earlier runs.
         let args = t.arguments + ["-ApplePersistenceIgnoreState", "YES"]
         let status = runHost(exe, args, environment: env, collector: collector,
                              agentTimeout: Double(ctx.environment["SWIFTCODE_TEST_AGENT_TIMEOUT"] ?? "") ?? 60,
@@ -262,14 +215,8 @@ extension TestActions {
         collect(collector, status: status, hostName: URL(fileURLWithPath: app).deletingPathExtension().lastPathComponent, into: &outcome)
     }
 
-    /// How a host run ended.
     enum HostStatus: Equatable { case exited(Int32), noAgent, timedOut, couldNotStart(String) }
 
-    /// Runs a host process, feeding its merged output to the collector.
-    /// Kills it when the agent has not reported within `agentTimeout`
-    /// seconds (the host ignored `DYLD_INSERT_LIBRARIES`: a hardened
-    /// runtime without the exception, or library validation) or the run
-    /// takes longer than `timeout`.
     static func runHost(_ exe: String, _ args: [String], environment: [String: String], collector: HostRunCollector,
                         agentTimeout: Double, timeout: Double) -> HostStatus {
         let p = Process()
@@ -298,7 +245,6 @@ extension TestActions {
                 p.terminate()
                 return false
             }
-            // The agent exits by itself after its report; give it a moment.
             if collector.isFinished {
                 if let f = finishedAt, Date().timeIntervalSince(f) > 10 {
                     p.terminate()
@@ -314,8 +260,6 @@ extension TestActions {
         return verdict.value ?? .exited(p.terminationStatus)
     }
 
-    /// Calls `tick` about once a second on its own queue until it returns
-    /// false. The tick's state lives in this (unchecked) object only.
     final class Watchdog: @unchecked Sendable {
         private let queue: DispatchQueue
         private let tick: () -> Bool
@@ -338,7 +282,6 @@ extension TestActions {
         var value: HostStatus? { lock.withLock { v } }
     }
 
-    /// Reads a stream to its end, line by line.
     static func readLines(_ h: FileHandle, into feed: (String) -> Void) {
         var buffer = Data()
         while true {
@@ -353,7 +296,6 @@ extension TestActions {
         if !buffer.isEmpty { feed(String(decoding: buffer, as: UTF8.self)) }
     }
 
-    /// Adds a host run's results and errors to the outcome.
     static func collect(_ c: HostRunCollector, status: HostStatus, hostName: String, into outcome: inout Outcome) {
         for part in c.parts {
             let results = collapseRepetitions(part.parser.results, mode: part.target.repetition?.mode)

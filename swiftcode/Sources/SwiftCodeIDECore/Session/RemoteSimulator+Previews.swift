@@ -2,19 +2,9 @@ import Foundation
 import SwiftCodePreviews
 import SwiftCodeSubprocess
 
-// Remote previews' commands on the remote simulator: the model half (SwiftCodeUI: RemotePreviewSession.swift).
-
-/// The preview device: a SwiftCode simulator of its own per run destination
-/// (`<device directory>-previews`), so previews never disturb the device an
-/// app runs on (`specs/ide/previews.md` §Preview device). It keeps the
-/// destination's runtime and type.
 extension RemoteSimulator {
     public static let previewDeviceSuffix = "-previews"
 
-    /// This simulator's preview device. Its display socket has a short
-    /// name, `pv-<hash of the device directory>.sock`: ssh refuses a
-    /// forward whose socket path is longer than the Mac's limit (104
-    /// bytes), which a data directory plus a long device name passes.
     public var previewDevice: RemoteSimulator {
         var r = self
         if var t = r.target {
@@ -28,17 +18,12 @@ extension RemoteSimulator {
         return r
     }
 
-    /// The host directory the preview host polls (the device's `/tmp/swiftcode-previews`).
     public var previewDirectory: String { "\(remoteDevicePath)/\(SwiftCodePreviews.PreviewHost.deviceRelativeDirectory)" }
 
-    /// The preview host's bundle on the simulator host (one per platform).
     public func remotePreviewHostPath(platform: PreviewPlatform) -> String {
         "\(settings.dataDirectory)/apps/previews-\(platform.rawValue)/\(SwiftCodePreviews.PreviewHost.appName)"
     }
 
-    /// Starts the preview device with the host installed and launched, its
-    /// display server on, and warm boot always on (SwiftCode decision: the preview
-    /// device exists to start fast). Prints the shell's pid first.
     public func previewCommand(platform: PreviewPlatform) -> String {
         let q = Self.quote
         let lean = leanBootVariables
@@ -52,14 +37,11 @@ extension RemoteSimulator {
             + cameraArguments.map { " " + q($0) }.joined()
     }
 
-    /// Follows the host's report file (`tail -F`): one line per report.
     public var previewReportCommand: String {
         let f = Self.quote(previewDirectory + "/host.log")
         return "mkdir -p \(Self.quote(previewDirectory)) && touch \(f) && exec tail -n 0 -F \(f)"
     }
 
-    /// Writes a payload (standard input) and then the plan, each by rename,
-    /// so the host never reads a partial file; keeps the newest payloads.
     public func previewDeliverCommand(payloadName: String?, plan: Data, keep: Int) -> String {
         let q = Self.quote
         let d = q(previewDirectory)

@@ -2,38 +2,19 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// Source control in the SwiftUI shell (`specs/ide/source-control.md`,
-/// `reference-ui-4.md` §2–§3): the Source Control navigator, the commit
-/// editor and branch history shown over the editor area, the commit
-/// sheet, the History inspector, the change bars of the editor's gutter
-/// and the Integrate menu, as views over the core's git models
-/// (`GitRepository`, `SourceControlSnapshot`, `SourceControlRowMenu`,
-/// `IntegrateMenuState`). No toolkit types: it is tested headless.
-///
-/// git never runs on the main actor. Reads go through one snapshot read
-/// in the background (`refresh()`); commands run one after another in
-/// the background (`run`), then the snapshot is read again. Views read
-/// only the stored state.
 @MainActor
 @Observable
 public final class SourceControlShellModel {
     public enum Mode: Int, CaseIterable, Sendable { case changes, repositories }
 
-    /// What is shown over the editor area.
     public enum Pane: Equatable, Sendable {
-        /// The commit editor, scrolled to `focus` when it names a change.
         case commit(focus: String?)
-        /// A branch's, tag's or stash's history; `branch` for a local branch.
         case history(ref: String, title: String, branch: String?)
-        /// Kept for compatibility; the merge sheet (`conflictEditor`) is an
-        /// overlay over the window, not a pane.
         case conflicts
 
         public var isHistory: Bool { if case .history = self { true } else { false } }
     }
 
-    /// A command of the navigator's menus, the Integrate menu, the commit
-    /// editor or a confirmation's button.
     public enum Operation: Equatable, Sendable {
         case checkout(String, GitRepository.ChangeHandling)
         case createBranch(String, from: String?)
@@ -65,42 +46,24 @@ public final class SourceControlShellModel {
         case newRepository
     }
 
-    // MARK: State
-
-    /// The workspace's folder (a project's or package's folder).
     @ObservationIgnored public let folder: URL
-    /// The last read of git (`SourceControlSnapshot`).
     public private(set) var snapshot = SourceControlSnapshot()
-    /// Whether git has been read once.
     public private(set) var hasRead = false
     public var mode: Mode = .changes
-    /// Collapsed rows of the navigator: everything starts expanded but the
-    /// Repositories groups after Branches (navigators.md round 3 §2).
     public var collapsed: Set<String> = RepositoriesViewStyle.initiallyCollapsed
-    /// The selected navigator row's id.
     public private(set) var selection: String?
-    /// The commit editor or a history, over the editor area.
     public internal(set) var pane: Pane?
-    /// The merge sheet while it is up (`SourceControlShellModel+Conflicts.swift`).
     public internal(set) var conflictEditor: ConflictEditorShellModel?
-    /// The merge confirmation, and a merge it started still running
-    /// (`SourceControlShellModel+Merge.swift`).
     public internal(set) var mergeAlert: MergeAlertState?
     public internal(set) var isMerging = false
-    /// Opens a web address (View on Host…; set by the window).
     @ObservationIgnored public var openExternally: (URL) -> Void = { _ in }
-    /// A command running in the background ("Pushing…").
     public private(set) var busy: String?
-    /// The last command's failure, shown in an alert.
     public var errorMessage: String?
-    /// A merge, rebase or stash apply that stopped on conflicts.
     public var notice: String?
     public var prompt: SourceControlPrompt?
     public var confirmation: SourceControlConfirmation?
-    /// Integrate ▸ Commit…'s sheet.
     public var commitSheet: CommitSheet?
 
-    // Commit editor.
     public var message = ""
     public var amend = false {
         didSet {
@@ -113,10 +76,8 @@ public final class SourceControlShellModel {
     public private(set) var cards: [ChangeCard] = []
     public var collapsedCards: Set<String> = []
     public private(set) var author: GitRepository.Author?
-    /// HEAD's whole message (Amend pre-fills it).
     public private(set) var headMessage: String?
 
-    // History.
     public private(set) var history: [GitRepository.Commit] = []
     public var historyScope: HistoryScope = .all
     public var historyFilter = ""
@@ -124,19 +85,15 @@ public final class SourceControlShellModel {
         didSet { if selectedCommit != oldValue { loadCommitDetail() } }
     }
     public private(set) var commitDetail: CommitDetail?
-    /// The history's branch: Name, Remote, Remote Branch.
     public private(set) var branchInfo: [(key: String, value: String)] = []
 
-    // The History inspector.
     public private(set) var fileHistoryPath: String?
     public private(set) var fileHistory: [GitRepository.Commit] = []
 
-    // The editor's change bars.
     public private(set) var changeRegionsPath: String?
     public private(set) var changeRegions: [SourceChangeRegion] = []
     @ObservationIgnored private var baselines: [String: (index: String?, head: String?)] = [:]
 
-    // Background work.
     @ObservationIgnored private var known: GitRepository??
     @ObservationIgnored private var reading: Task<Void, Never>?
     @ObservationIgnored private var readAgain = false
@@ -144,11 +101,8 @@ public final class SourceControlShellModel {
     @ObservationIgnored private var loads: [Task<Void, Never>] = []
     @ObservationIgnored private var regionTask: Task<Void, Never>?
     @ObservationIgnored private var watcher: FileSystemWatcher?
-    /// The open file's text, when the editor has one (change bars).
     @ObservationIgnored public var currentText: ((String) -> String?)?
-    /// Saves the editors before a commit (the workspace's Save All).
     @ObservationIgnored public var saveEditors: (() -> Void)?
-    /// Opens a file in the editor (a conflicted change, a commit's file).
     @ObservationIgnored public var openFile: ((String) -> Void)?
 
     public init(folder: URL) {
@@ -156,13 +110,8 @@ public final class SourceControlShellModel {
         folderReal = Self.realPath(folder.path)
     }
 
-    // MARK: Paths
-
-    /// The workspace folder with its links resolved, as git reports paths.
     @ObservationIgnored private let folderReal: String
 
-    /// A path with every link resolved (`realpath`); for a file that does
-    /// not exist, its folder's.
     nonisolated static func realPath(_ p: String) -> String {
         if let r = realpath(p, nil) {
             defer { free(r) }
@@ -173,23 +122,18 @@ public final class SourceControlShellModel {
         return (realPath(parent) as NSString).appendingPathComponent((p as NSString).lastPathComponent)
     }
 
-    /// A workspace path (as the navigator and editor have it) as git
-    /// reports it: the workspace may be opened through a link.
     public func repoPath(_ p: String) -> String {
         let f = folder.path
         guard f != folderReal, p == f || p.hasPrefix(f + "/") else { return p }
         return folderReal + p.dropFirst(f.count)
     }
 
-    /// A path git reported, as the workspace has it.
     public func workspacePath(_ p: String) -> String {
         let f = folder.path
         guard f != folderReal, p == folderReal || p.hasPrefix(folderReal + "/") else { return p }
         return f + p.dropFirst(folderReal.count)
     }
 
-    /// The folder a workspace's repository is looked for in: the
-    /// container's folder (a project's, a workspace's or a package's).
     public static func folder(for url: URL) -> URL {
         let ext = url.pathExtension
         if ext == "xcodeproj" || ext == "xcworkspace" || url.lastPathComponent == "Package.swift" { return url.deletingLastPathComponent() }
@@ -199,17 +143,14 @@ public final class SourceControlShellModel {
     public var repository: GitRepository? { snapshot.repository }
     public var repositoryName: String { SourceControlRows.repositoryName(snapshot) }
 
-    /// The navigator's rows for the current mode.
     public var rows: [OutlineRow] {
         mode == .changes ? SourceControlRows.changes(snapshot, collapsed: collapsed) : SourceControlRows.repositories(snapshot, collapsed: collapsed)
     }
 
-    /// Status letters by path for the project navigator.
     public var badges: [String: String] {
         Dictionary(snapshot.status.map { (workspacePath($0.key), $0.value.rawValue) }, uniquingKeysWith: { a, _ in a })
     }
 
-    /// The changes the commit editor's scope lists.
     public static func shown(_ changes: [GitRepository.Change], scope: GitRepository.DiffScope) -> [GitRepository.Change] {
         switch scope {
         case .all: changes
@@ -224,14 +165,8 @@ public final class SourceControlShellModel {
         busy == nil && !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (!snapshot.changes.isEmpty || amend)
     }
 
-    /// History rows in scope and matching the filter.
     public var shownHistory: [GitRepository.Commit] { historyScope.apply(history, filter: historyFilter) }
 
-    // MARK: Reading
-
-    /// Re-reads git in the background; calls while a read runs fold into
-    /// one more read. Starts watching the repository for outside changes
-    /// once it is known (not in tests).
     public func refresh() {
         if reading != nil { readAgain = true; return }
         let folder = folder, known = known
@@ -247,7 +182,6 @@ public final class SourceControlShellModel {
         }
     }
 
-    /// Waits until no read, command or load is running (tests, drivers).
     public func idle() async {
         while true {
             if let r = reading { await r.value; continue }
@@ -265,7 +199,6 @@ public final class SourceControlShellModel {
         snapshot = read
         hasRead = true
         if let repo = read.repository, watcher == nil, !IDEProcess.isTestProcess { watch(repo) }
-        // Rows that went away lose the selection.
         if let s = selection, !rows.contains(where: { $0.id == s }), !s.hasPrefix("folder:") {
             if s.hasPrefix("change:") || s.hasPrefix("stash:") { selection = nil }
         }
@@ -291,12 +224,6 @@ public final class SourceControlShellModel {
         watcher = w
     }
 
-    // MARK: Navigator
-
-    /// Selects a row: a change shows the commit editor at its card (a
-    /// conflicted file opens in the editor); the repository row shows the
-    /// commit editor (Changes) or the current branch's history; a branch,
-    /// tag, remote branch or stash shows its history.
     public func select(_ id: String) {
         selection = id
         guard repository != nil else { return }
@@ -325,14 +252,11 @@ public final class SourceControlShellModel {
         if on { collapsed.remove(id) } else { collapsed.insert(id) }
     }
 
-    /// The row's context menu (`SourceControlRowMenu`); a recent branch's
-    /// is its branch's.
     public func menu(for id: String) -> [SourceControlRowMenu.Item] {
         let key = id.hasPrefix("recent:") ? "branch:" + id.dropFirst(7) : id
         return SourceControlRowMenu.items(forKey: key, in: SourceControlRowMenu.Context(snapshot))
     }
 
-    /// A context-menu item: asks first where the item's title ends in "…".
     public func choose(_ action: SourceControlRowMenu.Action) {
         let q = { (s: String) in "\u{201C}\(s)\u{201D}" }
         let current = snapshot.currentBranch ?? "HEAD"
@@ -393,7 +317,6 @@ public final class SourceControlShellModel {
         }
     }
 
-    /// The prompt's button.
     public func confirmPrompt() {
         guard let p = prompt, p.canConfirm else { return }
         prompt = nil
@@ -409,15 +332,11 @@ public final class SourceControlShellModel {
         }
     }
 
-    /// A confirmation's button.
     public func confirm(_ choice: SourceControlConfirmation.Choice) {
         confirmation = nil
         perform(choice.action)
     }
 
-    // MARK: Commands
-
-    /// What a command is called while it runs ("Pushing…").
     static func busyTitle(_ op: Operation) -> String {
         switch op {
         case .push, .pushTag, .deleteRemoteBranch: "Pushing…"
@@ -431,8 +350,6 @@ public final class SourceControlShellModel {
         }
     }
 
-    /// Runs a command in the background after the previous one, then reads
-    /// git again. Conflicts become a notice; a failure, `errorMessage`.
     public func perform(_ op: Operation) {
         let folder = folder
         let current = snapshot.currentBranch
@@ -445,8 +362,6 @@ public final class SourceControlShellModel {
                 return nil
             }
             guard let repo else { throw GitRepository.GitError(description: "The workspace is not in a git repository.") }
-            // Conflicts open the conflict editor (`integrated`), which
-            // explains them; no notice.
             func result(_ r: GitRepository.IntegrationResult) -> String? {
                 outcome.value = r
                 return nil
@@ -505,8 +420,6 @@ public final class SourceControlShellModel {
         if case .newRepository = op { known = nil }
     }
 
-    /// Runs `body` off the main actor after the previous command; it
-    /// returns a notice (conflicts) or throws.
     private func enqueue(_ title: String, _ body: @escaping @Sendable (GitRepository?) throws -> String?,
                          then: (@MainActor (Bool) -> Void)? = nil) {
         let previous = queue
@@ -531,20 +444,14 @@ public final class SourceControlShellModel {
         }
     }
 
-    // MARK: Integrate menu
-
-    /// The selected file: the Changes row while it is selected, else the
-    /// open file (`source-control.md`, "Integrate menu enablement").
     public var selectedFile: String? {
         if let f = conflictEditor?.state.currentFile { return f }
         if let s = selection, s.hasPrefix("change:"), pane != nil { return String(s.dropFirst(7)) }
         return openPath.map(repoPath)
     }
 
-    /// The file open in the editor (set by the workspace).
     public var openPath: String?
 
-    /// The Integrate menu's state from the last read (no git call).
     public var menuState: IntegrateMenuState {
         var m = IntegrateMenuState()
         let s = snapshot
@@ -565,14 +472,12 @@ public final class SourceControlShellModel {
         return m
     }
 
-    /// Whether an Integrate item (by its selector) applies.
     public func isEnabled(_ selector: String) -> Bool {
         if busy != nil, selector != "refreshFileStatus:" { return false }
         if selector == "scmDiscardSelected:" { return menuState.selectedStatus != nil }
         return menuState.isEnabled(selector)
     }
 
-    /// Performs an Integrate item (by its selector).
     public func performIntegrate(_ selector: String) {
         let q = { (s: String) in "\u{201C}\(s)\u{201D}" }
         switch selector {
@@ -583,7 +488,6 @@ public final class SourceControlShellModel {
         case "refreshFileStatus:": refresh()
         case "scmStageAll:": perform(.stageAll)
         case "scmUnstageAll:": perform(.unstageAll)
-        // In the conflict editor, Mark as Resolved writes its result first.
         case "scmMarkResolved:" where conflictEditor?.state.canMarkResolved == true: Task { await conflictEditor?.markResolved() }
         case "scmStageSelected:", "scmAddSelected:", "scmMarkResolved:": if let p = selectedFile { perform(.stage([p])) }
         case "scmUnstageSelected:": if let p = selectedFile { perform(.unstage([p])) }
@@ -610,9 +514,6 @@ public final class SourceControlShellModel {
         }
     }
 
-    // MARK: Commit sheet
-
-    /// Integrate ▸ Commit…: every change, checked, and an empty message.
     public func showCommitSheet() {
         saveEditors?()
         guard let root = repository?.root else { return }
@@ -623,7 +524,6 @@ public final class SourceControlShellModel {
         commitSheet = CommitSheet(files: files)
     }
 
-    /// The sheet's Commit Files: only the checked files.
     public func commitSheetFiles() {
         guard var sheet = commitSheet, sheet.canCommit, repository != nil else { return }
         let files = sheet.files.filter(\.isOn).map(\.path), message = sheet.message
@@ -644,9 +544,6 @@ public final class SourceControlShellModel {
         }
     }
 
-    // MARK: Commit editor
-
-    /// Shows the commit editor over the editor area.
     public func showCommitEditor(focus: String?) {
         saveEditors?()
         pane = .commit(focus: focus)
@@ -654,8 +551,6 @@ public final class SourceControlShellModel {
         loadCards()
     }
 
-    /// Opening a file hides the commit editor or history (the merge sheet
-    /// stays: it is modal over the window).
     public func hidePane() {
         pane = nil
     }
@@ -665,7 +560,6 @@ public final class SourceControlShellModel {
         loads.append(t)
     }
 
-    /// Reads the cards' diffs, the author and HEAD's message in the background.
     func loadCards() {
         guard let repo = repository else { cards = []; return }
         let shown = Self.shown(snapshot.changes, scope: scope), scope = scope, root = repo.root
@@ -685,8 +579,6 @@ public final class SourceControlShellModel {
         track(t)
     }
 
-    /// The commit editor's Commit (and Commit and Push): stages everything
-    /// when nothing is staged, then commits what is staged.
     public func commit(andPush push: Bool = false) {
         guard canCommit else { return }
         saveEditors?()
@@ -698,7 +590,6 @@ public final class SourceControlShellModel {
             try repo.commitStaged(message: message, amend: amend)
             return nil
         }, then: { [weak self] ok in
-            // The fields clear once the commit is made.
             guard ok, let self else { return }
             self.message = ""
             self.amend = false
@@ -706,10 +597,8 @@ public final class SourceControlShellModel {
         })
     }
 
-    /// The commit editor's Stage All.
     public func stageAll() { perform(.stageAll) }
 
-    /// A card's discard button: asks first.
     public func askDiscard(_ path: String) {
         confirmation = SourceControlConfirmation(
             title: "Discard changes in \u{201C}\((path as NSString).lastPathComponent)\u{201D}?",
@@ -717,12 +606,9 @@ public final class SourceControlShellModel {
             choices: [.init(title: "Discard", isDestructive: true, action: .discard([path]))])
     }
 
-    /// A card's stage or unstage toggle.
     public func toggleStaged(_ card: ChangeCard) {
         perform(card.isStaged ? .unstage([card.path]) : .stage([card.path]))
     }
-
-    // MARK: History
 
     public func showHistory(ref: String, title: String, branch: String?) {
         pane = .history(ref: ref, title: title, branch: branch)
@@ -762,7 +648,6 @@ public final class SourceControlShellModel {
         track(t)
     }
 
-    /// The selected commit's rows for the inspector (Commit section).
     public var commitRows: [(key: String, value: String)] {
         guard let d = commitDetail else { return [] }
         let c = d.commit
@@ -770,9 +655,6 @@ public final class SourceControlShellModel {
                 ("Verification", c.verification), ("Branches", d.branches.joined(separator: "\n"))]
     }
 
-    // MARK: History inspector
-
-    /// The History inspector follows the open file.
     public func showFileHistory(for path: String?) {
         guard path != fileHistoryPath else { return }
         fileHistoryPath = path
@@ -782,7 +664,6 @@ public final class SourceControlShellModel {
 
     func loadFileHistory(_ path: String) {
         guard let repo = repository else {
-            // Not read yet: the first read loads it.
             if !hasRead { refresh() }
             return
         }
@@ -795,10 +676,6 @@ public final class SourceControlShellModel {
         track(t)
     }
 
-    // MARK: Change bars
-
-    /// The open file changed (shown, edited, saved): its change bars are
-    /// computed again after a moment, against the index and HEAD.
     public func noteText(of path: String?) {
         openPath = path
         guard let path else {

@@ -1,54 +1,6 @@
-// axdrive: drive one app, by PID, without taking over the screen.
-//
-// Menus and buttons are pressed through the Accessibility API. An app that
-// is not frontmost ignores posted keys, clicks and scroll-wheel events (AppKit
-// sends them nowhere without a key window), so `scroll --ax` scrolls by
-// moving the scroll area's scroll bar through AX in --steps small steps
-// instead: no focus needed, but no momentum or rubber-banding either.
-// Timed input (scrolls, drags) runs on a fixed wall-clock schedule, so every
-// app gets the same timing however fast it answers. Keys, clicks,
-// scrolls, hovers and drags are CGEvents posted to that process alone
-// (CGEventPostToPid): the real pointer does not move and no other app sees
-// them. Every command prints one JSON object. Exit status 3 means the
-// Accessibility permission is missing, 4 that nothing matched.
-//
-//   axdrive check
-//   axdrive apps   [--bundle ID]                      running apps and PIDs
-//   axdrive displays                                  displays, scale and refresh
-//   axdrive tree   --pid N [--depth D] [--scope window|app] [--window T]
-//   axdrive find   --pid N MATCH... [--index I] [--scope ...] [--window T]
-//   axdrive press  --pid N MATCH... [--action AXPress]
-//   axdrive set    --pid N MATCH... --attr AXSelected --value true|false|TEXT|NUMBER
-//   axdrive menu   --pid N --path "View>Navigators>Show Navigator"
-//   axdrive key    --pid N --keys cmd+shift+o [--text "abc"]
-//   axdrive click  --pid N (MATCH... | --at X,Y) [--button left|right] [--count 2]
-//   axdrive hover  --pid N (MATCH... | --at X,Y)
-//   axdrive scroll --pid N (MATCH... | --at X,Y) --dy PT [--dx PT] [--steps N] [--interval S]
-//                  [--phases] [--momentum [--momentum-tau S]] [--ax]
-//   axdrive select --pid N MATCH...                   select an outline or table row (AXSelectedRows)
-//   axdrive drag   --pid N --from X,Y --to X,Y [--duration S]
-//   (click, hover, scroll and drag take --route pid|tap; see routeTap)
-//   axdrive window --pid N [--window T] [--size W,H] [--position X,Y] [--main] [--raise]
-//                  (--raise orders the window to the front of its app's windows
-//                  without activating the app)
-//   axdrive wait   --pid N --window T [--timeout S]
-//   axdrive activate --pid N                         brings the app to the front (takes focus!)
-//
-// MATCH is --match KEY=VALUE (exact) or --match KEY~=VALUE (substring, any
-// case); KEY is role, subrole, title, description, identifier, value, help,
-// label (title, description or value) or text (label of the element or of a
-// descendant up to three levels down, for rows whose text is in a cell).
-// Several --match options must all hold.
-// "A|B" in a value or a menu path accepts either text.
-// --window TITLE or --window-origin X,Y picks the window (default: the main one).
-// X,Y are window-relative points (from the top left of the chosen window)
-// unless --global is given; positions found through AX are global already.
-
 import AppKit
 import ApplicationServices
 import Foundation
-
-// MARK: - Options and output
 
 struct Options {
     var command = ""
@@ -89,13 +41,10 @@ struct Options {
     var value: String?
 }
 
-/// Wall-clock time just before the first event or AX action was sent.
 var actionStart: Double?
 
 func markStart() { if actionStart == nil { actionStart = Date().timeIntervalSince1970 } }
 
-/// Every result carries the wall-clock times of the action (seconds since 1970),
-/// so a recording's frames can be lined up with it.
 func emit(_ object: [String: Any]) {
     var object = object
     object["wall"] = Date().timeIntervalSince1970
@@ -181,8 +130,6 @@ func parse(_ args: [String]) -> Options {
     return o
 }
 
-// MARK: - AX helpers
-
 func attribute(_ e: AXUIElement, _ name: String) -> AnyObject? {
     var v: AnyObject?
     return AXUIElementCopyAttributeValue(e, name as CFString, &v) == .success ? v : nil
@@ -235,8 +182,6 @@ func textMatches(_ actual: String?, _ wanted: String, contains: Bool) -> Bool {
     }
 }
 
-/// The labels of an element and of its descendants, for rows and cells whose
-/// text sits in a child.
 func descendantText(_ e: AXUIElement, depth: Int) -> [String] {
     let own = [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute].compactMap { string(e, $0) }
     guard depth > 0 else { return own }
@@ -273,9 +218,6 @@ func windows(_ app: AXUIElement) -> [AXUIElement] {
     (attribute(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
 }
 
-/// The window commands act on: the one whose top-left corner is at
-/// --window-origin, else the one whose title matches --window, else the main
-/// window, else the first.
 func chosenWindow(_ o: Options) -> AXUIElement? {
     let app = appElement(o)
     let all = windows(app)
@@ -297,7 +239,6 @@ func searchRoots(_ o: Options) -> [AXUIElement] {
     return [w]
 }
 
-/// Breadth-first, so the shallowest match is index 0.
 func findAll(_ o: Options, limit: Int = 30000) -> [AXUIElement] {
     var queue = searchRoots(o).map { ($0, 0) }
     var found: [AXUIElement] = []
@@ -327,10 +268,6 @@ func tree(_ e: AXUIElement, depth: Int) -> [String: Any] {
     return d
 }
 
-// MARK: - Points
-
-/// A point to act on: the centre of the matched element, or --at, which is
-/// window-relative unless --global.
 func targetPoint(_ o: Options, _ p: CGPoint? = nil) -> CGPoint {
     if let p = p ?? o.at {
         if o.global { return p }
@@ -342,8 +279,6 @@ func targetPoint(_ o: Options, _ p: CGPoint? = nil) -> CGPoint {
     return CGPoint(x: f.midX, y: f.midY)
 }
 
-/// The window server's number for the target app's topmost window under p,
-/// so that AppKit routes a posted mouse event to it.
 func windowNumber(at p: CGPoint, pid: pid_t) -> Int64 {
     let info = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]) ?? []
     for w in info where (w[kCGWindowOwnerPID as String] as? Int32) == pid {
@@ -355,18 +290,8 @@ func windowNumber(at p: CGPoint, pid: pid_t) -> Int64 {
     return 0
 }
 
-// MARK: - Events
-
 let source = CGEventSource(stateID: .privateState)
 
-/// --route tap: pointer and scroll-wheel events go through the system's
-/// event stream (the HID tap), so the window server routes them to the
-/// window under the pointer, as a real mouse or trackpad does. AppKit drops
-/// those event types when they are posted to a process directly, even to
-/// the active app; keys posted to the process work. Routing through the tap
-/// moves the pointer, so it is only done while the target app is frontmost
-/// and owns the topmost window under the point (`checkRoutable`); the
-/// pointer is put back afterwards.
 var routeTap = false
 
 func isPointerEvent(_ e: CGEvent) -> Bool {
@@ -387,10 +312,6 @@ func post(_ event: CGEvent?, _ pid: pid_t, window: Int64 = 0) {
     }
 }
 
-/// Refuses to route through the tap unless the target app is frontmost and
-/// the system-wide accessibility hit test at p lands in that app, so no
-/// other app gets the events. (The hit test, unlike the window list, skips
-/// overlays that let the pointer through, such as the Dock's.)
 func checkRoutable(_ p: CGPoint, _ o: Options) {
     guard NSRunningApplication(processIdentifier: o.pid)?.isActive == true else {
         fail("--route tap needs the app in the foreground (axdrive activate first)", code: 5)
@@ -406,8 +327,6 @@ func checkRoutable(_ p: CGPoint, _ o: Options) {
     }
 }
 
-/// Runs body with the pointer events routed through the tap when asked,
-/// putting the pointer back where it was afterwards.
 func routed<T>(_ p: CGPoint, _ o: Options, _ body: () -> T) -> T {
     guard routeTap else { return body() }
     checkRoutable(p, o)
@@ -448,7 +367,6 @@ func flags(_ names: [Substring]) -> CGEventFlags {
     return f
 }
 
-/// "cmd+shift+o", or several chords separated by spaces.
 func sendKeys(_ spec: String, pid: pid_t) {
     for chord in spec.split(separator: " ") {
         var parts = chord.split(separator: "+")
@@ -491,10 +409,6 @@ func click(at p: CGPoint, _ o: Options) {
     }
 }
 
-/// Runs body(i) for i in 0..<count at fixed wall-clock deadlines, start +
-/// i * interval, so the input's timing does not depend on how quickly the
-/// app answers: both apps get the same schedule. A late tick is not made up
-/// by sleeping less later; it simply runs as soon as possible.
 func onSchedule(_ count: Int, interval: Double, _ body: (Int) -> Void) -> (start: Double, end: Double) {
     let start = Date().timeIntervalSince1970
     for i in 0..<count {
@@ -505,14 +419,6 @@ func onSchedule(_ count: Int, interval: Double, _ body: (Int) -> Void) -> (start
     return (start, Date().timeIntervalSince1970)
 }
 
-/// Precise (trackpad-style) scrolling in points, with the gesture phases
-/// (may-begin, began, changed, ended): --dy and --dx spread evenly over
-/// --steps events --interval apart. --momentum adds the momentum phase of a
-/// flick after the fingers lift: events continue at the same interval with
-/// the release velocity decaying exponentially (time constant
-/// --momentum-tau, default 0.33 s) until under half a point per event. On a
-/// Mac the momentum events come from the system, not the app, so both apps
-/// get the same coasting input and the capture shows how each follows it.
 func scroll(at p: CGPoint, _ o: Options) -> [String: Any] {
     let window = windowNumber(at: p, pid: o.pid)
     post(CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: p, mouseButton: .left), o.pid, window: window)
@@ -529,12 +435,6 @@ func scroll(at p: CGPoint, _ o: Options) -> [String: Any] {
         e?.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentum)
         post(e, o.pid, window: window)
     }
-    // CGScrollPhase: began 1, changed 2, ended 4, may-begin 128 (not
-    // NSEvent.Phase's values). CGMomentumScrollPhase: begin 1, continue 2, end 3.
-    // Without --phases (and without --momentum) the events carry no phase,
-    // like a smooth scroll wheel: they move the content exactly by their
-    // deltas. A phased trackpad gesture is scaled by the system (about 1.2x
-    // at 600 pt/s), so the travel actually made is measured and reported.
     let phased = o.phases || o.momentum
     let ddy = o.dy / Double(o.steps), ddx = o.dx / Double(o.steps)
     if phased { wheel(0, 0, phase: 128, momentum: 0) }
@@ -563,7 +463,6 @@ func scroll(at p: CGPoint, _ o: Options) -> [String: Any] {
     return result
 }
 
-/// The scroll area that holds the matched element, or the one at a point.
 func scrollArea(_ o: Options) -> AXUIElement? {
     var e: AXUIElement?
     if o.matches.isEmpty {
@@ -583,11 +482,6 @@ func scrollArea(_ o: Options) -> AXUIElement? {
     return nil
 }
 
-/// Scrolls by points through the vertical scroll bar's AXValue (0...1) in
-/// --steps steps on the --interval schedule. The bar's value range does not
-/// map exactly onto points (content insets), so the travel is measured from
-/// the document's position after each step and the points-per-value scale
-/// corrected, which keeps the travel within a point of --dy.
 func scrollViaAX(_ area: AXUIElement, _ o: Options) -> [String: Any] {
     guard let view = frame(area) else { fail("the scroll area has no frame") }
     let documents = children(area).filter { string($0, kAXRoleAttribute) != kAXScrollBarRole }
@@ -602,7 +496,7 @@ func scrollViaAX(_ area: AXUIElement, _ o: Options) -> [String: Any] {
     func travelled() -> Double? { y0.flatMap { y0 in document.flatMap(frame).map { Double(y0 - $0.minY) } } }
     let v0 = (attribute(bar, kAXValueAttribute) as? NSNumber)?.doubleValue ?? 0
     var perPoint = 1 / max(1, Double(docHeight - view.height))
-    let total = -o.dy   // points of travel down the document
+    let total = -o.dy
     var value = v0
     let run = onSchedule(o.steps, interval: o.interval) { i in
         let target = total * Double(i + 1) / Double(o.steps)
@@ -629,8 +523,6 @@ func drag(from a: CGPoint, to b: CGPoint, _ o: Options) -> [String: Any] {
     return ["ok": true, "from": [a.x, a.y], "to": [b.x, b.y], "duration_s": run.end - run.start]
 }
 
-/// Selects a row of an outline or table through its AXSelectedRows, the way
-/// a click on the row would (no focus needed).
 func selectRow(_ o: Options) -> [String: Any] {
     let row = findOne(o)
     var e: AXUIElement? = row
@@ -649,8 +541,6 @@ func selectRow(_ o: Options) -> [String: Any] {
     fail("the element is not in an outline or table", code: 4)
 }
 
-// MARK: - Menus
-
 func pressMenu(_ o: Options) -> [String: Any] {
     guard let path = o.path else { fail("menu needs --path A>B>C") }
     let titles = path.split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -660,7 +550,6 @@ func pressMenu(_ o: Options) -> [String: Any] {
     var current = bar as! AXUIElement
     var trail: [String] = []
     for (i, t) in titles.enumerated() {
-        // A menu bar item or a menu item holds its items in one AXMenu child.
         var items = children(current)
         if items.count == 1, string(items[0], kAXRoleAttribute) == kAXMenuRole { items = children(items[0]) }
         guard let next = items.first(where: { textMatches(string($0, kAXTitleAttribute), t, contains: false) }) else {
@@ -680,8 +569,6 @@ func pressMenu(_ o: Options) -> [String: Any] {
     }
     return ["ok": true, "menu": trail]
 }
-
-// MARK: - Commands
 
 func requireTrust() {
     guard AXIsProcessTrusted() else {
@@ -725,9 +612,6 @@ case "displays":
     var ids = [CGDirectDisplayID](repeating: 0, count: 16)
     var count: UInt32 = 0
     CGGetActiveDisplayList(16, &ids, &count)
-    // A normal window that covers a whole display means that display shows a
-    // full-screen Space: a window moved there would be on another Space,
-    // invisible to AX and to input.
     let onScreen = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
         as? [[String: Any]]) ?? []
     emit(["ok": true, "displays": ids.prefix(Int(count)).map { id -> [String: Any] in
@@ -785,7 +669,7 @@ case "click":
     emit(["ok": true, "at": [p.x, p.y], "route": o.route])
 case "hover":
     let p = targetPoint(o)
-    if routeTap { checkRoutable(p, o) }   // the pointer stays there: that is the hover
+    if routeTap { checkRoutable(p, o) }
     post(CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: p, mouseButton: .left),
          o.pid, window: windowNumber(at: p, pid: o.pid))
     emit(["ok": true, "at": [p.x, p.y]])
@@ -794,7 +678,6 @@ case "scroll" where o.viaAX:
     emit(scrollViaAX(area, o))
 case "scroll":
     let p = targetPoint(o)
-    // The document's position before and after gives the travel the app made.
     let area = scrollArea(o)
     let document = area.flatMap { a in
         children(a).filter { string($0, kAXRoleAttribute) != kAXScrollBarRole }
@@ -840,9 +723,6 @@ case "wait":
     }
     fail("no window titled \(t) within \(o.timeout) s", code: 4)
 case "activate":
-    // Activation requested by a background process is refused under
-    // cooperative activation, so ask through AX (AXFrontmost) and, failing
-    // that, through Launch Services (`open -a`), as a user's click would.
     guard let app = NSRunningApplication(processIdentifier: o.pid) else { fail("no app with that PID", code: 4) }
     markStart()
     AXUIElementSetAttributeValue(appElement(o), kAXFrontmostAttribute as CFString, kCFBooleanTrue)

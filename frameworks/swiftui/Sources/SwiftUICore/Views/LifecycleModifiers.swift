@@ -1,23 +1,8 @@
 import Foundation
 
-// Lifecycle and transaction modifiers (03-architecture.md §2, §3, §5;
-// 05-animation.md §4.1).
-//
-// - `onAppear`/`task` start when the modifier's identity is inserted; the
-//   graph runs insertions in reverse pre-order (children first, later
-//   siblings first). `onDisappear`/task cancellation run when it is removed,
-//   after the update's appearances.
-// - `onChange(of:)` compares the value each time the modifier receives a new
-//   value and runs the action at once (during the update, after the value
-//   changed, before the content is updated); with `initial: true` it also
-//   runs once on appearance (old == new).
-// - `task(id:)`: a changed ID cancels the running task and starts a new one
-//   in the same update.
-
 private final class AppearanceState: VisibilityObserving {
     var appear: (() -> Void)?
     var disappear: (() -> Void)?
-    /// False while a suspended subtree hides the view (R9).
     var visible = true
     init(_ a: (() -> Void)?, _ d: (() -> Void)?) {
         appear = a
@@ -48,8 +33,6 @@ package struct AppearanceActionModifier: PrimitiveModifier {
     }
 
     package func _removed(node: ViewNode) {
-        // A view that already disappeared with its suspended page does not
-        // disappear again when the page goes (06 §2.1).
         if let s = node.primitiveState as? AppearanceState, s.visible, let d = s.disappear { node.graph.queueDisappear(d) }
     }
 }
@@ -134,7 +117,6 @@ extension TaskModifier: GraphInputComparable {
     package nonisolated func _isGraphInputEqual(to other: Any) -> Bool { false }
 }
 
-/// `.transaction(_:)`: rewrites the transaction that reaches the content.
 package struct TransactionModifier: PrimitiveModifier {
     package let transform: (inout Transaction) -> Void
 
@@ -145,7 +127,6 @@ package struct TransactionModifier: PrimitiveModifier {
     }
 }
 
-/// `.transaction(value:_:)`: rewrites it only when `value` changed.
 package struct ValueTransactionModifier<V: Equatable>: PrimitiveModifier {
     package let value: V
     package let transform: (inout Transaction) -> Void
@@ -158,10 +139,6 @@ package struct ValueTransactionModifier<V: Equatable>: PrimitiveModifier {
     }
 }
 
-/// `.animation(_:value:)`: when `value` changed in this update, the
-/// content's transaction gets `animation` — overriding the transaction's own
-/// animation (05 §4.1: "the view's own modifier wins in its subtree"), unless
-/// the transaction disables implicit animations.
 package struct AnimationModifier<V: Equatable>: PrimitiveModifier {
     package let animation: Animation?
     package let value: V
@@ -174,30 +151,25 @@ package struct AnimationModifier<V: Equatable>: PrimitiveModifier {
     }
 }
 
-/// Render-only modifiers: no layout effect (04-layout.md §5, 03 §6).
 package struct RenderEffectModifier<Value: Equatable>: PrimitiveModifier {
     package let name: String
     package let value: Value
 }
 
 extension View {
-    /// Runs `action` when the view appears (03 §2 for the order).
     public func onAppear(perform action: (() -> Void)? = nil) -> some View {
         modifier(AppearanceActionModifier(appear: action, disappear: nil))
     }
 
-    /// Runs `action` when the view disappears.
     public func onDisappear(perform action: (() -> Void)? = nil) -> some View {
         modifier(AppearanceActionModifier(appear: nil, disappear: action))
     }
 
-    /// Runs `action` with the old and new value when `value` changes.
     public func onChange<V: Equatable>(of value: V, initial: Bool = false,
                                        _ action: @escaping (_ oldValue: V, _ newValue: V) -> Void) -> some View {
         modifier(ValueActionModifier(value: value, initial: initial, action: action))
     }
 
-    /// Runs `action` when `value` changes.
     public func onChange<V: Equatable>(of value: V, initial: Bool = false,
                                        _ action: @escaping () -> Void) -> some View {
         modifier(ValueActionModifier(value: value, initial: initial) { _, _ in action() })
@@ -208,34 +180,27 @@ extension View {
         modifier(ValueActionModifier(value: value, initial: false) { _, new in action(new) })
     }
 
-    /// Starts `action` when the view appears and cancels it when it
-    /// disappears.
     public func task(priority: TaskPriority = .userInitiated,
                      _ action: @escaping @MainActor () async -> Void) -> some View {
         modifier(TaskModifier(id: nil, priority: priority, action: action))
     }
 
-    /// Like `task(priority:_:)`, and restarts the task when `id` changes.
     public func task<T: Equatable & Hashable>(id value: T, priority: TaskPriority = .userInitiated,
                                               _ action: @escaping @MainActor () async -> Void) -> some View {
         modifier(TaskModifier(id: AnyHashable(value), priority: priority, action: action))
     }
 
-    /// Edits the transaction that reaches this view's content.
     public func transaction(_ transform: @escaping (inout Transaction) -> Void) -> some View {
         modifier(TransactionModifier(transform: transform))
     }
 
-    /// Edits the transaction when `value` changes.
     public func transaction<V: Equatable>(value: V, _ transform: @escaping (inout Transaction) -> Void) -> some View {
         modifier(ValueTransactionModifier(value: value, transform: transform))
     }
 
-    /// Animates changes in this view's content when `value` changes.
     public func animation<V: Equatable>(_ animation: Animation?, value: V) -> some View {
         modifier(AnimationModifier(animation: animation, value: value))
     }
 
-    /// Hides the view; it keeps its place in layout.
     public func hidden() -> some View { modifier(NodeRenderEffectModifier(name: "hidden") { .hidden }) }
 }

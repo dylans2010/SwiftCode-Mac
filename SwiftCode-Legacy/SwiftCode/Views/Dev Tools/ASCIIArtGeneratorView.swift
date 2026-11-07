@@ -29,8 +29,6 @@ struct ASCIIArtGeneratorView: View {
     }
 
     func generate() {
-        // A real ASCII art generator would use FIGlet or similar.
-        // This is a simplified "blocky" representation.
         output = input.uppercased().map { char -> String in
             switch char {
             case "S": return " #### \n#     \n ###  \n    # \n####  "

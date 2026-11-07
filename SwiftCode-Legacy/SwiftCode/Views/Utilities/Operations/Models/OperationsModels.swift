@@ -102,7 +102,7 @@ public struct SCNotification: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let title: String
     public let subtitle: String
-    public let type: String // e.g. "Package", "Certificate", "Build", "Storage", "Diagnostics"
+    public let type: String
     public let date: Date
     public var isRead: Bool
 

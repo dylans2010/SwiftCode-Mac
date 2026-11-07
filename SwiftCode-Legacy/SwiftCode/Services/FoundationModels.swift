@@ -12,7 +12,6 @@ import FoundationModels
 
 private let logger = Logger(subsystem: "com.swiftcode.FoundationModels", category: "FoundationModels")
 
-/// Property wrapper to annotate structures or services that use text generation capabilities
 @propertyWrapper
 public struct Generable<T>: Sendable where T: Sendable {
     public var wrappedValue: T
@@ -21,7 +20,6 @@ public struct Generable<T>: Sendable where T: Sendable {
     }
 }
 
-/// The core Apple Foundation Models from the AFM 3 family.
 public enum AppleFoundationModel: String, CaseIterable, Identifiable, Codable {
     case afm3Core = "AFM 3 Core"
     case afm3CoreAdvanced = "AFM 3 Core Advanced"
@@ -38,7 +36,6 @@ public enum AppleFoundationModel: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// Safe, high-performance, private local Apple Foundation model manager.
 @Observable
 @MainActor
 public final class FoundationModels: Sendable {
@@ -74,7 +71,6 @@ public final class FoundationModels: Sendable {
 
     private init() {}
 
-    /// Executes language processing utilizing native iOS & macOS FoundationModels APIs when available, and fallback logic otherwise.
     public func generatePrivateResponse(prompt: String, systemPrompt: String? = nil) async throws -> String {
         let startTime = Date()
         logger.log("[generatePrivateResponse] Initializing Foundation Models request.")
@@ -97,7 +93,7 @@ public final class FoundationModels: Sendable {
         return response.content
         #else
         logger.log("[generatePrivateResponse] Creating generation session (Simulation).")
-        try await Task.sleep(nanoseconds: 200_000_000) // Fast realistic delay
+        try await Task.sleep(nanoseconds: 200_000_000)
 
         logger.log("[generatePrivateResponse] Building simulated response contents.")
 
@@ -111,7 +107,6 @@ public final class FoundationModels: Sendable {
             }
             finalResponse = FoundationModels.generateConciseTitle(from: targetText)
         } else if prompt.contains("updatedPrompt") {
-            // Extract the user prompt to professionally enhance it
             var userInputExtracted = ""
             if let rangeStart = prompt.range(of: "User Input:\n\""),
                let rangeEnd = prompt.range(of: "\"\n\nJSON Output:", range: rangeStart.upperBound..<prompt.endIndex) {
@@ -126,7 +121,6 @@ public final class FoundationModels: Sendable {
             """
         } else {
             let responsePrefix = "[On-Device \(selectedModel.rawValue)]\n"
-            // Language detection as supplementary utility
             let recognizer = NLLanguageRecognizer()
             recognizer.processString(prompt)
             let dominantLanguage = recognizer.dominantLanguage?.rawValue.uppercased() ?? "EN"
@@ -144,7 +138,6 @@ public final class FoundationModels: Sendable {
         #endif
     }
 
-    /// Generates a clean, concise title under 25 characters from prompt text
     public static func generateConciseTitle(from raw: String) -> String {
         var text = raw.replacingOccurrences(of: "```[a-zA-Z]*\n[\\s\\S]*?```", with: "", options: .regularExpression)
         text = text.replacingOccurrences(of: "@[A-Za-z0-9_]+", with: "", options: .regularExpression)
@@ -188,7 +181,6 @@ public final class FoundationModels: Sendable {
         return String(title.prefix(24))
     }
 
-    /// Executes streaming language processing using native or simulated response generation.
     public func streamPrivateResponse(prompt: String, onToken: @escaping @Sendable (String) async -> Void) async throws {
         let startTime = Date()
         logger.log("[streamPrivateResponse] Initializing Foundation Models streaming request.")
@@ -204,14 +196,13 @@ public final class FoundationModels: Sendable {
         logger.log("[streamPrivateResponse] Starting token streaming delivery.")
         let words = fullResponse.split(separator: " ", omittingEmptySubsequences: false).map { String($0) }
         for (index, word) in words.enumerated() {
-            // Check for task cancellation
             if Task.isCancelled {
                 logger.log("[streamPrivateResponse] Task cancellation detected. Stopping stream.")
                 break
             }
 
             let token = word + (index == words.count - 1 ? "" : " ")
-            try await Task.sleep(nanoseconds: 30_000_000) // 30ms delay
+            try await Task.sleep(nanoseconds: 30_000_000)
             await onToken(token)
         }
 
@@ -221,7 +212,6 @@ public final class FoundationModels: Sendable {
 }
 
 #if !canImport(FoundationModels)
-// Fallback / simulation types to allow compilation on all environments
 public protocol LanguageModel {}
 
 public struct SystemLanguageModel: LanguageModel {

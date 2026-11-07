@@ -1,12 +1,3 @@
-//
-//  AntigravitySDKModelFetcher.swift
-//  SwiftCode
-//
-//  Dynamic model fetcher that retrieves available models directly from the
-//  Google Antigravity SDK CLI runtime rather than hardcoding models in SwiftCode.
-//  Models are ALWAYS fetched from the SDK and cached in memory/disk.
-//
-
 import Foundation
 import Combine
 import SwiftUI
@@ -18,10 +9,10 @@ public struct AntigravitySDKModel: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let displayName: String
     public var name: String { displayName }
-    public let thinkingLevel: String // "Low", "Medium", "High", "Minimal"
+    public let thinkingLevel: String
     public let contextWindow: Int
     public let isImageModel: Bool
-    public let category: String // "Google", "Anthropic", "OpenAI"
+    public let category: String
 
     public init(
         id: String,
@@ -51,10 +42,10 @@ public struct AntigravitySDKModel: Identifiable, Hashable, Codable, Sendable {
 
     public var thinkingColor: Color {
         switch thinkingLevel.lowercased() {
-        case "high": return Color(red: 1.0, green: 0.2, blue: 0.5) // Pink / Coral
-        case "low": return Color(red: 0.0, green: 0.8, blue: 0.8) // Cyan / Teal
+        case "high": return Color(red: 1.0, green: 0.2, blue: 0.5)
+        case "low": return Color(red: 0.0, green: 0.8, blue: 0.8)
         case "minimal": return Color.orange
-        default: return Color(red: 0.5, green: 0.3, blue: 1.0) // Indigo / Purple
+        default: return Color(red: 0.5, green: 0.3, blue: 1.0)
         }
     }
 }
@@ -85,8 +76,6 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         models.first { $0.id == id } ?? Self.seedModels.first { $0.id == id }
     }
 
-    /// Returns true if `modelID` belongs to the Antigravity SDK catalog
-    /// (either dynamically fetched or in the canonical seed catalog).
     public func isAntigravityCatalogModel(_ modelID: String) -> Bool {
         let normalized = modelID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if models.contains(where: { $0.id.lowercased() == normalized }) {
@@ -103,7 +92,6 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         return models.filter { $0.thinkingLevel.lowercased() == normalized }
     }
 
-    /// Dynamically fetches models directly from the Google Antigravity SDK CLI runtime.
     @discardableResult
     public func fetchModels() async -> [AntigravitySDKModel] {
         guard !isFetching else { return models }
@@ -136,7 +124,6 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         AntigravitySDKModel(id: "gemini-3-flash", displayName: "Gemini 3 Flash", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),
     ]
 
-    // MARK: - Disk Cache
     private func loadCachedModels() {
         if let data = UserDefaults.standard.data(forKey: Self.cacheKey),
            let decoded = try? JSONDecoder().decode([AntigravitySDKModel].self, from: data),
@@ -153,7 +140,6 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         }
     }
 
-    // MARK: - SDK Execution
     private func fetchFromSDKRuntime() async -> [AntigravitySDKModel] {
         return await Task.detached(priority: .userInitiated) {
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
@@ -302,7 +288,6 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
                 if let output = String(data: data, encoding: .utf8) {
                     let lines = output.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                     if !lines.isEmpty {
-                        // Merge any runtime default model with the canonical Antigravity seed catalog
                         var merged: [AntigravitySDKModel] = []
                         var seen = Set<String>()
                         for id in lines {

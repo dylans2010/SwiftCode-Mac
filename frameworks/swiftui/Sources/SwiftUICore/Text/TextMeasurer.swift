@@ -2,42 +2,16 @@ import Foundation
 import Synchronization
 import OVText
 
-// The text measurer the layout engine calls (04-layout.md §3), round R4.
-//
-// `Text` lowers to a `ResolvedText` (runs with resolved fonts, paragraph
-// settings from the environment); the engine's text leaf asks a
-// `TextMeasurer` for its size and baselines for each proposal. The default
-// measurer typesets with OVText: a `TextFontProvider` maps resolved fonts to
-// faces (by default the font catalog with the bundled Noto Sans), OVText
-// breaks lines, and this file applies SwiftUI's observable rules and the
-// pixel grid:
-//
-// - a 0 × 0 proposal → 0 × 0; an empty text → width 0 and the empty-line
-//   height (14 at 17 pt with baseline 11, golden `text.empty`; scaled with
-//   the size for other sizes);
-// - width: the widest line, rounded up to the pixel grid; at most the
-//   proposed width; the proposed width itself when a word had to be broken
-//   between characters (golden `hstack.priority`: the squeezed text answers
-//   the 17 pt it was offered, and 0 for a zero width);
-// - height: lines rounded up to the pixel grid; the proposed height limits
-//   the number of lines (at least one), the last shown line truncated with
-//   an ellipsis (golden `hstack.equalTexts` fit[100×100], `frame.tooSmall`);
-// - baselines: the first and last lines' baselines rounded to the nearest
-//   pixel (07 §1.2: body ascender 16.19 → 16.33, large title 32.37 → 32.33).
-
-/// A font resolved against the environment: what the measurer needs.
 package struct TextFont: Hashable, Sendable {
     package var size: CGFloat
     package var weight: Font.Weight
     package var width: Font.Width
     package var design: Font.Design
     package var isItalic: Bool
-    /// A custom family name, or nil for the system font of `design`.
     package var family: String?
     package var leading: Font.Leading
     package var isMonospacedDigit: Bool
     package var smallCaps: Font.SmallCaps
-    /// The text style the size came from (nil for fixed sizes).
     package var textStyle: Font.TextStyle?
 
     package init(size: CGFloat, weight: Font.Weight = .regular, width: Font.Width = .standard,
@@ -56,7 +30,6 @@ package struct TextFont: Hashable, Sendable {
         self.textStyle = textStyle
     }
 
-    /// A text style at a Dynamic Type size.
     package static func style(_ s: Font.TextStyle, _ size: DynamicTypeSize = .large) -> TextFont {
         Font(base: .style(s)).resolvedTextFont(Font.Context(dynamicTypeSize: size))
     }
@@ -65,11 +38,9 @@ package struct TextFont: Hashable, Sendable {
 
     package var isBold: Bool { weight.value >= Font.Weight.bold.value }
 
-    /// This font with a heavier weight (`Text.bold()` on a test node).
     package func bolded() -> TextFont { var f = self; f.weight = .bold; return f }
 }
 
-/// A text as the layout engine measures it.
 package struct ResolvedText: Hashable, Sendable {
     package struct Run: Hashable, Sendable {
         package var string: String
@@ -77,8 +48,6 @@ package struct ResolvedText: Hashable, Sendable {
         package var tracking: CGFloat
         package var kerning: CGFloat
         package var baselineOffset: CGFloat
-        /// The run's own colour (`Text.foregroundColor`); nil uses the
-        /// environment's foreground style. Rendering only (R5).
         package var color: Color.Resolved?
 
         package init(string: String, font: TextFont, tracking: CGFloat = 0, kerning: CGFloat = 0,
@@ -94,7 +63,6 @@ package struct ResolvedText: Hashable, Sendable {
 
     package struct Paragraph: Hashable, Sendable {
         package var lineLimit: Int?
-        /// Lines reserved even when fewer are needed.
         package var minimumLines: Int?
         package var lineSpacing: CGFloat = 0
         package var alignment: TextAlignment = .leading
@@ -127,7 +95,6 @@ package struct ResolvedText: Hashable, Sendable {
         self.paragraph = paragraph
     }
 
-    /// One run of `string` in `font`.
     package init(_ string: String, font: TextFont = .body, lineLimit: Int? = nil) {
         self.init(runs: [Run(string: string, font: font)], paragraph: Paragraph(lineLimit: lineLimit))
     }
@@ -137,15 +104,10 @@ package struct ResolvedText: Hashable, Sendable {
     package var lastFont: TextFont { runs.last?.font ?? .body }
 }
 
-/// A text's answer to a proposal.
 package struct TextMeasurement: Sendable {
     package var size: CGSize
-    /// Baselines from the top; nil when unknown (the engine then falls back to
-    /// the guide's default and marks the pass uncertain).
     package var firstBaseline: CGFloat?
     package var lastBaseline: CGFloat?
-    /// Dimensions of `size` the measurer could only approximate (a reference
-    /// table font without a measured width for some line).
     package var unknown: Axis.Set
 
     package init(size: CGSize, firstBaseline: CGFloat?, lastBaseline: CGFloat?, unknown: Axis.Set = []) {
@@ -156,7 +118,6 @@ package struct TextMeasurement: Sendable {
     }
 }
 
-/// Vertical spacing preferences of a text's top and bottom edges (04 §4.1).
 package struct TextSpacing: Sendable {
     package var above: SpacingPreference
     package var below: SpacingPreference
@@ -167,16 +128,13 @@ package struct TextSpacing: Sendable {
     }
 }
 
-/// Measures texts for layout.
 package protocol TextMeasurer: Sendable {
     func measure(_ text: ResolvedText, proposal: ProposedViewSize) -> TextMeasurement
     func spacing(for font: TextFont) -> TextSpacing
 }
 
-/// Maps resolved fonts to faces.
 package protocol TextFontProvider: Sendable {
     func face(for font: TextFont) -> any FontFace
-    /// Where glyphs missing from a face are looked up.
     var fallbackCatalog: FontCatalog? { get }
     func spacing(for font: TextFont) -> TextSpacing
 }
@@ -184,12 +142,6 @@ package protocol TextFontProvider: Sendable {
 extension TextFontProvider {
     package var fallbackCatalog: FontCatalog? { nil }
 
-    /// Spacing from the face's metrics, with the reference body values (04
-    /// §4.1: 10.643 below a text toward a standard view, 6.433 above, 2
-    /// between texts) expressed as baseline distances: below = 0.86726 ×
-    /// size − descent, above = 1.33056 × size − ascent (0.86726 and 1.33056
-    /// are (10.643 + 4.1006) / 17 and (6.433 + 16.1865) / 17 with the
-    /// reference body metrics of 07 §1.2).
     package func spacing(for font: TextFont) -> TextSpacing {
         let size = Double(font.size)
         let m = face(for: font).lineMetrics(size: size)
@@ -199,8 +151,6 @@ extension TextFontProvider {
     }
 }
 
-/// Faces from a font catalog (the default: the bundled Noto Sans, plus the
-/// system font directories on Linux).
 package struct CatalogFontProvider: TextFontProvider {
     package let catalog: FontCatalog
 
@@ -223,7 +173,6 @@ package struct CatalogFontProvider: TextFontProvider {
     }
 }
 
-/// A face with no glyphs (no fonts available at all).
 final class EmptyFace: FontFace, @unchecked Sendable {
     static let shared = EmptyFace()
     let familyName = "Empty"
@@ -235,11 +184,8 @@ final class EmptyFace: FontFace, @unchecked Sendable {
     func kerning(_ left: GlyphID, _ right: GlyphID, size: Double) -> Double { 0 }
 }
 
-/// The OVText-based measurer.
 package final class TypesetTextMeasurer: TextMeasurer, @unchecked Sendable {
     package let fonts: any TextFontProvider
-    /// Empty-text line height and baseline as fractions of the size (golden
-    /// `text.empty`: 14 and 11 at 17 pt).
     package var emptyLineHeightRatio: CGFloat = 14.0 / 17.0
     package var emptyBaselineRatio: CGFloat = 11.0 / 17.0
 
@@ -252,12 +198,9 @@ package final class TypesetTextMeasurer: TextMeasurer, @unchecked Sendable {
 
     package init(fonts: any TextFontProvider) { self.fonts = fonts }
 
-    /// The default measurer: bundled fonts (plus system fonts on Linux).
     package static let shared = TypesetTextMeasurer(fonts: CatalogFontProvider())
 
     package func spacing(for font: TextFont) -> TextSpacing { fonts.spacing(for: font) }
-
-    // MARK: Pixel grid
 
     private static func ceilPx(_ v: Double, _ scale: CGFloat) -> CGFloat {
         let s = Double(scale)
@@ -269,10 +212,6 @@ package final class TypesetTextMeasurer: TextMeasurer, @unchecked Sendable {
         return CGFloat((v * s).rounded() / s)
     }
 
-    // MARK: Layout
-
-    /// Leading adjustment of `Font.Leading` (ours: ±0.07 × size; the spec
-    /// does not measure it).
     private static func leadingAdjustment(_ f: TextFont) -> Double {
         switch f.leading {
         case .standard: return 0
@@ -281,7 +220,6 @@ package final class TypesetTextMeasurer: TextMeasurer, @unchecked Sendable {
         }
     }
 
-    /// The typeset lines of `text` for a width and height (nil: unlimited).
     package func layout(_ text: ResolvedText, width: CGFloat?, height: CGFloat?) -> TextLayout {
         let runs = text.runs.map { r in
             AttributedRun(r.string, style: RunStyle(face: fonts.face(for: r.font), size: Double(r.font.size),
@@ -306,22 +244,15 @@ package final class TypesetTextMeasurer: TextMeasurer, @unchecked Sendable {
                                  style: style, rounding: { Double(TypesetTextMeasurer.ceilPx($0, scale)) })
     }
 
-    /// A line placed in a text view of a given size: where its baseline
-    /// starts (the text's own coordinates, x growing rightwards), by
-    /// `multilineTextAlignment` in the layout direction.
     package struct PlacedLine: Sendable {
         package var line: TextLayout.Line
         package var origin: CGPoint
     }
 
-    /// The lines of `text` as drawn in a view of `size` (the size it was
-    /// given by layout).
     package func placedLines(_ text: ResolvedText, size: CGSize) -> [PlacedLine] {
         placedLayout(text, size: size).lines
     }
 
-    /// The text's layout in a view of `size` and its placed lines (the
-    /// renderer needs the clusters as well).
     package func placedLayout(_ text: ResolvedText, size: CGSize) -> (layout: TextLayout, lines: [PlacedLine]) {
         let l = layout(text, width: size.width, height: size.height)
         let scale = text.paragraph.displayScale
@@ -365,8 +296,6 @@ package final class TypesetTextMeasurer: TextMeasurer, @unchecked Sendable {
                                    firstBaseline: b, lastBaseline: b)
         }
         if p.width == 0 && p.height == 0 {
-            // The minimum size of a text is 0 × 0 (04 §1, §3). Its baselines
-            // stay those of its first line.
             let l = layout(text, width: nil, height: nil)
             let b = TypesetTextMeasurer.roundPx(l.firstBaseline, scale)
             return TextMeasurement(size: .zero, firstBaseline: b, lastBaseline: b)

@@ -1,12 +1,6 @@
 import Foundation
 import Testing
 
-/// Every pbxproj text that the package writes or tests with (templates, test
-/// fixtures) must pair `objectVersion` and its compatibility attribute as
-/// specs/formats/pbxproj.md "Project format (Compatibility)" says: at
-/// objectVersion 77 only `preferredProjectObjectVersion = 77`, never a
-/// `compatibilityVersion`; below 77, a `compatibilityVersion` (if present)
-/// names the choice for that objectVersion.
 @Suite struct FixtureCompatibilityTests {
     static let choices: [Int: String] = [
         63: "Xcode 15.3", 60: "Xcode 15.0", 56: "Xcode 14.0", 55: "Xcode 13.0", 54: "Xcode 12.0",

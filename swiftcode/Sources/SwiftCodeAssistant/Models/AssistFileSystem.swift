@@ -1,20 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Assist/AssistFileSystem.swift
-//   (Legacy main ab03f681) — verbatim, no adaptations.
-//   Staged by migration subagent F2 (unowned-dependency triage) — NOT yet
-//   landed in the repo.
-//
-// Destination: SwiftCodeAssistant/Models/AssistFileSystem.swift.
-//
-// Conforms to `AssistFileSystemProtocol`, already on main
-// (`SwiftCodeAssistant/Models/AssistModels.swift:548`) with matching members
-// (including `currentDirectory` / `setCurrentDirectory`); the class adds
-// `restoreCurrentDirectory` on top.
-
 import Foundation
 
-// Implements standard file-system operations using FileManager.
-// Thread-safe for concurrent access: mutable working-directory state is guarded by a lock.
 public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtocol {
     private let fileManager = FileManager.default
     private let workspaceRoot: URL
@@ -26,16 +11,10 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
         self._currentDirectory = workspaceRoot
     }
 
-    /// Session working directory for relative-path resolution (see `dir_cd`).
-    /// Defaults to the workspace root. Plain relative paths resolve against it;
-    /// paths with a leading "/" resolve against the workspace root.
     public var currentDirectory: URL {
         lock.withLock { _currentDirectory }
     }
 
-    /// Restore a previously stored working directory (used by the context builder
-    /// to re-apply a session's `dir_cd` across messages). Throws if the stored
-    /// directory is missing, not a directory, or outside the workspace root.
     public func restoreCurrentDirectory(_ url: URL) throws {
         let resolved = url.standardizedFileURL.resolvingSymlinksInPath()
         let root = workspaceRoot.standardizedFileURL.resolvingSymlinksInPath()
@@ -49,9 +28,6 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
         lock.withLock { _currentDirectory = resolved }
     }
 
-    /// Change the session working directory. `path` is resolved against the
-    /// current directory (so `..` moves to the parent, clamped at the workspace
-    /// root by the containment check). Returns the new directory.
     public func setCurrentDirectory(_ path: String) throws -> URL {
         let target = try resolve(path)
         var isDir: ObjCBool = false
@@ -99,8 +75,6 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     public func moveFile(from: String, to: String) throws {
         let fromURL = try resolve(from)
         let toURL = try resolve(to)
-        // Never delete the destination before the move succeeds: a failed move
-        // must not destroy the previous destination content.
         guard !fileManager.fileExists(atPath: toURL.path) else {
             throw NSError(domain: "PathSecurityError", code: 409, userInfo: [NSLocalizedDescriptionKey: "Destination already exists: \(to). Delete it first or choose another destination."])
         }
@@ -110,7 +84,6 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     public func copyFile(from: String, to: String) throws {
         let fromURL = try resolve(from)
         let toURL = try resolve(to)
-        // Never delete the destination before the copy succeeds.
         guard !fileManager.fileExists(atPath: toURL.path) else {
             throw NSError(domain: "PathSecurityError", code: 409, userInfo: [NSLocalizedDescriptionKey: "Destination already exists: \(to). Delete it first or choose another destination."])
         }
@@ -136,23 +109,12 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     }
 
     public func resolve(_ path: String) throws -> URL {
-        // Narrow carve-out from main: the isolated scripts directory lives
-        // outside the workspace (see UseTermFunction). Exact-prefix check
-        // (dir itself or dir + "/") so a sibling like
-        // /tmp/swiftcode/scripts-evil cannot ride the bypass.
         if path == "/tmp/swiftcode/scripts" || path.hasPrefix("/tmp/swiftcode/scripts/") {
             return URL(fileURLWithPath: path).standardized
         }
-        // Fail closed when no project is open: the builder falls back to "/"
-        // for a missing project, and a "/" workspace root would otherwise
-        // make the containment check below pass for every path on disk.
         guard workspaceRoot.path != "/" else {
             throw NSError(domain: "PathSecurityError", code: 403, userInfo: [NSLocalizedDescriptionKey: "No active project: workspace root is unavailable. Open a project first."])
         }
-        // Absolute workspace paths (workspaceRoot prefix) and leading-"/" paths
-        // resolve against the workspace root, preserving historical behavior.
-        // Plain relative paths resolve against the session working directory
-        // (see dir_cd); the containment check below still clamps to the root.
         let base: URL
         let normalizedPath: String
         if path == workspaceRoot.path || path.hasPrefix(workspaceRoot.path + "/") {
@@ -166,8 +128,6 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
             normalizedPath = path
         }
         let root = workspaceRoot.standardizedFileURL.resolvingSymlinksInPath()
-        // Resolve symlinks in the longest existing ancestor so a symlink in an
-        // existing parent is caught even when the leaf does not exist yet.
         var probe = base.appendingPathComponent(normalizedPath).standardized
         var suffix: [String] = []
         while !fileManager.fileExists(atPath: probe.path) && probe.path != root.path && probe.path != base.standardized.path {
@@ -183,7 +143,6 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
         return resolvedURL
     }
 
-    // Additional internal helpers
     public func listDirectory(at path: String) throws -> [String] {
         let url = try resolve(path)
         return try fileManager.contentsOfDirectory(atPath: url.path)

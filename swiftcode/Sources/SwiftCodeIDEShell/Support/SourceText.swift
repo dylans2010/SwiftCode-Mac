@@ -2,8 +2,6 @@ import Foundation
 import SwiftCodeIDECore
 import SwiftCodeSyntax
 
-/// One stretch of a source line drawn in one color role (nil: the plain
-/// text color).
 public struct SourceRun: Equatable, Sendable {
     public var text: String
     public var role: SyntaxTokenKind.Role?
@@ -13,8 +11,6 @@ public struct SourceRun: Equatable, Sendable {
     }
 }
 
-/// One line of the read-only editor (L1): its 1-based number and its
-/// highlighted runs, tabs expanded.
 public struct SourceLine: Identifiable, Equatable, Sendable {
     public var number: Int
     public var runs: [SourceRun]
@@ -26,21 +22,14 @@ public struct SourceLine: Identifiable, Equatable, Sendable {
     }
 }
 
-/// A file opened in the editor area: its lines highlighted by
-/// `SwiftCodeSyntax` (swift-syntax for Swift, the line lexers for the other
-/// languages), or a message when it cannot be shown as text.
 public struct SourceDocument: Equatable, Sendable {
     public var path: String
     public var language: SyntaxLanguage
     public var lines: [SourceLine]
-    /// Why the file is not shown ("Binary file", "Cannot read …"), else nil.
     public var message: String?
     public var name: String { (path as NSString).lastPathComponent }
 
-    /// Lines past this are shown unhighlighted (the read-only view builds a
-    /// text per line; EditorKit, L2, replaces it).
     public static let highlightLimit = 20_000
-    /// Files larger than this are not shown.
     public static let sizeLimit = 8 << 20
     public static let tabWidth = 4
 
@@ -51,7 +40,6 @@ public struct SourceDocument: Equatable, Sendable {
         self.message = message
     }
 
-    /// Reads and highlights a file.
     public static func load(path: String) -> SourceDocument {
         let language = SyntaxLanguage(fileName: (path as NSString).lastPathComponent)
         guard let data = FileManager.default.contents(atPath: path) else {
@@ -67,12 +55,10 @@ public struct SourceDocument: Equatable, Sendable {
         return SourceDocument(path: path, language: language, lines: highlight(text, language: language))
     }
 
-    /// Splits `text` into lines of colored runs.
     public static func highlight(_ text: String, language: SyntaxLanguage) -> [SourceLine] {
         let units = Array(text.utf16)
         var starts = [0]
         for (i, u) in units.enumerated() where u == 0x0A { starts.append(i + 1) }
-        // A final newline ends the last line; it does not start an empty one.
         if starts.count > 1, starts.last == units.count { starts.removeLast() }
         let lineCount = units.isEmpty ? 1 : starts.count
         let doc: SyntaxDocument? = lineCount <= highlightLimit ? SyntaxDocument(text: text, language: language) : nil
@@ -89,7 +75,6 @@ public struct SourceDocument: Equatable, Sendable {
         return lines
     }
 
-    /// The runs of one line: token ranges in their roles, the gaps plain.
     static func runs(_ units: [UInt16], _ line: Range<Int>, tokens: [SyntaxToken]) -> [SourceRun] {
         var out: [SourceRun] = []
         var column = 0
@@ -115,8 +100,6 @@ public struct SourceDocument: Equatable, Sendable {
         return out
     }
 
-    /// Replaces tabs with spaces to the next tab stop; `column` carries the
-    /// position across runs.
     static func expandTabs(_ s: String, column: inout Int) -> String {
         guard s.contains("\t") else {
             column += s.count
@@ -137,9 +120,6 @@ public struct SourceDocument: Equatable, Sendable {
     }
 }
 
-/// The editor's colors: the selected theme (`Preferences.theme`, as the
-/// AppKit editor uses it), with "SwiftCode Default"'s system colors as the
-/// values `WorkspaceChrome.defaultThemeColors` gives for the appearance.
 public struct SourcePalette: Equatable, Sendable {
     public var background: ThemeColor
     public var foreground: ThemeColor
@@ -148,7 +128,6 @@ public struct SourcePalette: Equatable, Sendable {
     public var selection: ThemeColor
     public var tokens: [SyntaxTokenKind.Role: ThemeColor]
 
-    /// The palette of `theme` (default: the selected one) in an appearance.
     public static func forAppearance(dark: Bool, theme: EditorTheme? = nil) -> SourcePalette {
         let theme = theme ?? EditorTheme.builtIns[0]
         let base = WorkspaceChrome.defaultThemeColors(dark: dark)
@@ -168,7 +147,6 @@ public struct SourcePalette: Equatable, Sendable {
         role.flatMap { tokens[$0] } ?? foreground
     }
 
-    /// `a` blended towards `b` by `t` (0: `a`).
     static func mix(_ a: ThemeColor, _ b: ThemeColor, _ t: Double) -> ThemeColor {
         func m(_ x: UInt8, _ y: UInt8) -> UInt8 { UInt8((Double(x) * (1 - t) + Double(y) * t).rounded()) }
         return ThemeColor(red: m(a.red, b.red), green: m(a.green, b.green), blue: m(a.blue, b.blue))

@@ -1,14 +1,7 @@
 import Foundation
 
-// The asset catalog outline with folders as rows of their own and the
-// remaining "+" items (reference-ui-5.md §11.2, P7; reference-ui-3.md
-// §3.5). Contents.json layouts follow Apple's public Asset Catalog Format
-// Reference.
-
 extension AssetCatalog {
-    /// One outline row: a folder (`set == nil`) or a set, with its depth.
     public struct OutlineRow: Equatable, Sendable {
-        /// The path inside the catalog (unique).
         public var id: String
         public var name: String
         public var depth: Int
@@ -18,9 +11,6 @@ extension AssetCatalog {
         public var isFolder: Bool { self.set == nil }
     }
 
-    /// The outline: folders and sets depth-first in name order; sets that
-    /// hold others (sticker packs, image stacks…) list them as children.
-    /// A filter keeps matching rows and their ancestors, all expanded.
     public func outline(collapsed: Set<String> = [], filter: String = "") -> [OutlineRow] {
         let f = filter.trimmingCharacters(in: .whitespaces)
         func walk(_ dir: URL, _ prefix: String, _ group: String, _ depth: Int) -> [OutlineRow] {
@@ -47,20 +37,17 @@ extension AssetCatalog {
         return walk(url, "", "", 0)
     }
 
-    /// Two file URLs name the same item (trailing slashes and `..` aside).
     public static func same(_ a: URL?, _ b: URL?) -> Bool {
         guard let a, let b else { return false }
         return a.standardizedFileURL.path == b.standardizedFileURL.path
     }
 
-    /// The path of a URL inside the catalog ("" for the catalog itself).
     package func relativePath(_ u: URL) -> String {
         let base = url.standardizedFileURL.path
         let p = u.standardizedFileURL.path
         return p.hasPrefix(base + "/") ? String(p.dropFirst(base.count + 1)) : ""
     }
 
-    /// A unique name in a directory: "Name", then "Name 1", "Name 2" …
     package static func uniqueName(_ base: String, ext: String?, in dir: URL) -> String {
         var n = base, i = 1
         func exists(_ n: String) -> Bool {
@@ -70,15 +57,10 @@ extension AssetCatalog {
         return n
     }
 
-    // MARK: Folder properties
-
-    /// "Provides Namespace" of a folder (`properties.provides-namespace`).
     public static func providesNamespace(_ folder: URL) -> Bool {
         (readContents(folder)["properties"] as? [String: Any])?["provides-namespace"] as? Bool ?? false
     }
 
-    /// Turns "Provides Namespace" on or off for `folder`; off removes the key
-    /// (and an emptied `properties`). Throws if `Contents.json` cannot be written.
     public static func setProvidesNamespace(_ on: Bool, folder: URL) throws {
         var obj = readContents(folder)
         var props = obj["properties"] as? [String: Any] ?? [:]
@@ -88,10 +70,6 @@ extension AssetCatalog {
         try writeContents(obj, to: folder)
     }
 
-    // MARK: Platform app icons and the Messages icon
-
-    /// `<name>.appiconset` with one single-size 1024 slot for a platform
-    /// ("watchos", "ios").
     @discardableResult
     public func addSingleSizeAppIcon(platform: String, named name: String, in dir: URL) throws -> AssetSet {
         let u = dir.appendingPathComponent("\(name).appiconset")
@@ -100,8 +78,6 @@ extension AssetCatalog {
         return AssetSet(name: name, kind: .appIconSet, url: u, group: "")
     }
 
-    /// Writes an image stack (`imagestack` or `solidimagestack`) with
-    /// Front, Middle and Back layers, each holding a Content image set.
     static func writeImageStack(at u: URL, solid: Bool, idiom: String, scales: [String]) throws {
         let layerExt = solid ? "solidimagestacklayer" : "imagestacklayer"
         try FileManager.default.createDirectory(at: u, withIntermediateDirectories: false)
@@ -117,7 +93,6 @@ extension AssetCatalog {
         }
     }
 
-    /// visionOS App Icon: a solid image stack with three layers.
     @discardableResult
     public func addVisionOSAppIcon(named name: String, in dir: URL) throws -> AssetSet {
         let u = dir.appendingPathComponent("\(name).solidimagestack")
@@ -125,16 +100,11 @@ extension AssetCatalog {
         return AssetSet(name: name, kind: .solidImageStack, url: u, group: "")
     }
 
-    /// The tvOS brand assets: App Icon (and its App Store version) as
-    /// image stacks, and the two Top Shelf images.
     static let tvBrandAssets: [(file: String, role: String, size: String)] = [
         ("App Icon - App Store.imagestack", "primary-app-icon", "1280x768"), ("App Icon.imagestack", "primary-app-icon", "400x240"),
         ("Top Shelf Image Wide.imageset", "top-shelf-image-wide", "2320x720"), ("Top Shelf Image.imageset", "top-shelf-image", "1920x720"),
     ]
 
-    /// Creates `<name>.brandassets` in `dir` with the tvOS App Icon image
-    /// stacks and the two Top Shelf image sets, all empty. Throws if the
-    /// folder exists or cannot be written.
     @discardableResult
     public func addTVBrandAssets(named name: String, in dir: URL) throws -> AssetSet {
         let u = dir.appendingPathComponent("\(name).brandassets")
@@ -153,14 +123,11 @@ extension AssetCatalog {
         return AssetSet(name: name, kind: .brandAssets, url: u, group: "")
     }
 
-    /// The Messages extension icon slots: (idiom, size, scales).
     static let messagesIconSlots: [(idiom: String, size: String, scales: [String])] = [
         ("iphone", "29x29", ["2x", "3x"]), ("iphone", "60x45", ["2x", "3x"]), ("ipad", "29x29", ["2x"]), ("ipad", "67x50", ["2x"]),
         ("ipad", "74x55", ["2x"]), ("universal", "27x20", ["2x", "3x"]), ("universal", "32x24", ["2x", "3x"]), ("ios-marketing", "1024x768", ["1x"]),
     ]
 
-    /// Creates `<name>.stickersiconset` in `dir` with the Messages icon slots,
-    /// all empty. Throws if the folder exists or cannot be written.
     @discardableResult
     public func addMessagesIcon(named name: String, in dir: URL) throws -> AssetSet {
         let u = dir.appendingPathComponent("\(name).stickersiconset")
@@ -170,9 +137,6 @@ extension AssetCatalog {
         return AssetSet(name: name, kind: .stickersIconSet, url: u, group: "")
     }
 
-    // MARK: Sticker sequence frames, Folder from Selection, Import
-
-    /// Copies an image into a sticker sequence and appends it as a frame.
     public static func addStickerSequenceFrame(_ file: URL, to set: AssetSet) throws {
         guard set.kind == .stickerSequence else { return }
         var obj = readContents(set.url)
@@ -188,8 +152,6 @@ extension AssetCatalog {
         try writeContents(obj, to: set.url)
     }
 
-    /// Moves items into a new folder ("Folder", made unique) next to the
-    /// first of them. Returns the folder.
     @discardableResult
     public func folder(fromSelection items: [URL]) throws -> URL {
         guard let first = items.first else { return try addFolder(named: Self.uniqueName("Folder", ext: nil, in: url)) }
@@ -204,9 +166,6 @@ extension AssetCatalog {
 
     static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "pdf", "heic", "gif", "tif", "tiff", "svg", "webp"]
 
-    /// Import…: images become image sets (`name@2x.png` and `name@3x.png`
-    /// join `name`'s set at their scale, the others are 1x); other files
-    /// become data sets. Returns the new sets.
     @discardableResult
     public func importFiles(_ files: [URL], into dir: URL) throws -> [AssetSet] {
         var out: [AssetSet] = []

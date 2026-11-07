@@ -1,8 +1,5 @@
 import Foundation
 
-/// A project with three targets: a static library `Core`, a framework
-/// `Kit`, and a tool `Tool` that depends on both and links `libCore.a`.
-/// Hand-written from `specs/formats/pbxproj.md`; IDs are arbitrary.
 let multiProjectText = """
 // !$*UTF8*$!
 {
@@ -69,7 +66,6 @@ func writeMultiProject(at dir: URL) throws -> URL {
     return proj
 }
 
-/// A workspace holding the multi-target project and the app project.
 func writeWorkspace(at dir: URL) throws -> URL {
     let fm = FileManager.default
     try? fm.removeItem(at: dir)

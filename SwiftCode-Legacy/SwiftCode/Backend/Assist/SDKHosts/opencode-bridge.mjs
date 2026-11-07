@@ -1,100 +1,3 @@
-// opencode-bridge.mjs — SwiftCode Assist <-> OpenCode SDK bridge.
-//
-// Runs under Node. It is NOT part of the Xcode target: Workstream D's
-// SDKRuntimeManager installs this file (plus a node_modules tree holding
-// @opencode-ai/sdk) into Application Support, e.g.
-//   <Application Support>/SwiftCode/SDKHosts/opencode/opencode-bridge.mjs
-//   <Application Support>/SwiftCode/SDKHosts/opencode/node_modules/@opencode-ai/sdk
-// Node resolves '@opencode-ai/sdk' by walking up from this file, so the
-// bridge must live inside that installed directory, not beside the .swift
-// sources. Swift launches it with argv:
-//
-//   node opencode-bridge.mjs --server-url <url> [--managed]
-//
-// --managed means SwiftCode owns the server: the bridge starts it with
-// createOpencode() and closes it on exit. Without --managed the bridge
-// only connects to a server the user already runs and NEVER closes it.
-//
-// NDJSON protocol (shared across SDK hosts). Swift -> bridge, one JSON
-// object per stdin line:
-//   {"type":"run","requestId","provider":"opencode","model":"opencode:provider/model",
-//    "systemPrompt","userText","history":[{"role","text"}],
-//    "tools":[{"name","description","parameters"}],
-//    "toolSource":"swiftcode|opencode|combined",
-//    "config":{"directory","sessionId","agentName"}}
-//   {"type":"tool_result","id","result"} | {"type":"tool_result","id","error":...}
-//   {"type":"cancel","requestId"}
-// Bridge -> Swift, one JSON object per stdout line:
-//   {"type":"ready","provider":"opencode","sdkVersion"}
-//   {"type":"text","delta"}
-//   {"type":"tool_event","event":{provider,sessionId,toolCallId,toolName,source,
-//     state,arguments,result,error,startedAt,completedAt}}
-//   {"type":"tool_call","id","name","arguments"}  (SwiftCode-native tool;
-//     the bridge waits for the matching tool_result line before prompting
-//     again — a model-generated JSON request is NEVER a completed run)
-//   {"type":"done","finalText"}
-//   {"type":"error","message"}
-//
-// Readiness contract: "ready" is printed ONLY after the SDK import
-// resolves AND global.health() on the target server succeeds. A bridge
-// that prints ready has a live server behind it; anything else is an
-// error line followed by a nonzero exit. Diagnostics go to stderr only
-// (never stdout, which is the NDJSON channel), and never include the
-// system prompt, tool arguments, or any secret.
-//
-// SDK surface used (verified against @opencode-ai/sdk@1.19.5, v2 client,
-// dist/v2/gen/sdk.gen.d.ts):
-//   createOpencode({hostname, port, signal, timeout}) -> {client, server}
-//     server: {url, close()}
-//   createOpencodeClient({baseUrl, directory}) -> client
-//   client.global.health() -> {healthy, version}
-//   client.config.providers() -> configured providers/models
-//   client.tool.ids() -> all tool ids (used to disable server tools)
-//   client.session.create({directory, agent, model:{id, providerID}})
-//   client.session.promptAsync({sessionID, directory, model:{providerID, modelID},
-//     agent, system, tools:{[name]: boolean}, parts:[{type:"text", text}]})
-//   client.session.abort({sessionID, directory})
-//   client.session.messages({sessionID, directory}) (best-effort detail
-//     fetch for completed tool parts: input/output live there, not in
-//     the minimal ToolPart carried by events)
-//   client.event.subscribe({directory}) -> {stream: AsyncGenerator}
-//     event shapes consumed: message.part.delta (text), message.part.updated
-//     (tool parts), session.idle (turn end), session.error (fatal),
-//     permission.asked / permission.v2.asked (default-deny, see below)
-//   client.permission.reply({requestID, reply:"reject"})
-//     (verified in the same .d.ts; the older permission.respond
-//     {sessionID, permissionID, response} exists as a fallback only)
-//
-// System prompt mechanism: promptAsync's `system` field. SwiftCode's
-// real system prompt is sent verbatim on EVERY prompt (initial and each
-// tool-result follow-up), so a multi-turn run cannot drift back to the
-// server's default instructions. History is folded into the prompt text
-// as a clearly delimited transcript because promptAsync has no history
-// parameter; it is not re-sent as system content.
-//
-// Permission policy: provider-managed tools NEVER auto-approve. On a
-// permission.asked event the bridge replies "reject" through the SDK and
-// emits a tool_event with state "failed" and an explicit
-// permission-denied error. If the reply call itself fails, the tool is
-// still reported failed; the run is not allowed to proceed past a
-// permission gate silently.
-//
-// Tool sources:
-//   swiftcode — session names the tools-denied `swiftcode` agent AND all
-//     server tool ids are disabled via the prompt tools map, so the
-//     server cannot execute anything itself. The model is instructed to
-//     answer in SwiftCode's JSON tool-request format; the bridge parses
-//     that JSON after each turn and emits tool_call lines for Swift to
-//     execute through the native registry.
-//   opencode — built-in tools run normally on the server; their parts
-//     become tool_event lines with source "opencode".
-//   combined — SwiftCode JSON tools plus non-colliding built-ins. A
-//     built-in whose name collides with a SwiftCode tool is disabled
-//     via the prompt tools map, so the SwiftCode tool deterministically
-//     wins; routing is by the event's source field, never by name.
-//   openrouter — NOT supported as a tool source for OpenCode; the bridge
-//     errors actionably instead of silently falling back.
-
 import * as readline from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -111,18 +14,15 @@ function out(obj) {
 }
 
 function err(message) {
-  // Diagnostics only: never the system prompt, arguments, or secrets.
   process.stderr.write(`[opencode-bridge] ${message}\n`);
 }
 
 function fatal(message) {
   out({ type: "error", message });
   process.exitCode = 1;
-  // Give stdout a chance to flush before exiting.
   setTimeout(() => process.exit(1), 50);
 }
 
-/** Parse argv: --server-url <url> [--managed]. */
 function parseArgv() {
   const args = process.argv.slice(2);
   let serverURL = "http://127.0.0.1:4096";
@@ -134,7 +34,6 @@ function parseArgv() {
   return { serverURL, managed };
 }
 
-/** Strictly parse "opencode:provider/model". Never guesses. */
 function parseModelID(storedID) {
   if (typeof storedID !== "string" || !storedID.startsWith("opencode:")) {
     throw new Error(
@@ -170,7 +69,6 @@ function isLoopback(urlString) {
   }
 }
 
-/** Best-effort: confirm provider/model exist in the server catalog. */
 async function validateAgainstCatalog(client, providerID, modelID) {
   let providers;
   try {
@@ -191,9 +89,6 @@ async function validateAgainstCatalog(client, providerID, modelID) {
     );
   }
   const modelsRaw = provider.models ?? provider.Models ?? [];
-  // The v2 catalog carries models as an OBJECT map {[id]: Model}
-  // (types.gen.d.ts), not an array. The old code required an array,
-  // so model validation silently never ran for the real catalog.
   const models = Array.isArray(modelsRaw)
     ? modelsRaw
     : (modelsRaw && typeof modelsRaw === "object"
@@ -212,20 +107,8 @@ async function validateAgainstCatalog(client, providerID, modelID) {
       );
     }
   }
-  // If the catalog carries no model list, do not hard-fail: the server
-  // itself will reject an unknown model at prompt time, which surfaces
-  // as a run error rather than a guessed substitution.
 }
 
-/**
- * Map a v2 ToolState to a bridge tool-event state. The v2 ToolState is
- * an OBJECT {status, input, output?, error?, time} (types.gen.d.ts
- * ToolStatePending/Running/Completed/Error), NOT a string: the old
- * switch on the object always fell through to "pending", so every
- * OpenCode tool row stayed Pending forever and the terminal detail
- * fetch never ran. Unknown statuses map to "failed", never to a
- * permanent "pending" — an unknown terminal state must be visible.
- */
 function toolStateFromSDK(state) {
   const status = typeof state === "string" ? state : state?.status;
   switch (status) {
@@ -242,7 +125,6 @@ function toolStateFromSDK(state) {
   }
 }
 
-/** Convert a v2 ToolState.time value (epoch ms, or seconds) to ISO. */
 function toolTimeToISO(value) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "";
   const ms = value > 1e11 ? value : value * 1000;
@@ -250,13 +132,6 @@ function toolTimeToISO(value) {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
-/**
- * Redact credential-shaped values from tool-event text. The bridge
- * holds no SwiftCode key, but provider-tool arguments/results can
- * contain file contents, env dumps, or server output with secrets.
- * Only tool_event display text is redacted — tool_call arguments are
- * never touched (Swift needs the real arguments to execute).
- */
 function redactToolText(text) {
   if (typeof text !== "string" || text.length === 0) return text;
   let out = text;
@@ -268,7 +143,6 @@ function redactToolText(text) {
   return out;
 }
 
-/** Walk a session.messages payload for the part with the given id. */
 function findPart(payload, partID) {
   const stack = [payload];
   while (stack.length > 0) {
@@ -285,11 +159,6 @@ function findPart(payload, partID) {
   }
   return null;
 }
-
-// ---------------------------------------------------------------------------
-// stdin line queue: run handling consumes tool_result/cancel lines itself,
-// so lines are read through a single queue with waiters, never two readers.
-// ---------------------------------------------------------------------------
 
 class LineQueue {
   constructor() {
@@ -315,14 +184,10 @@ class LineQueue {
 async function main() {
   const { serverURL, managed } = parseArgv();
 
-  // Dynamic import so a missing SDK becomes a JSON error line + exit 1,
-  // not a bare Node stack trace on stderr with no protocol output.
   let sdk;
   let sdkVersion = SDK_VERSION;
   try {
     sdk = await import("@opencode-ai/sdk/v2");
-    // The SDK's exports map does not expose "./package.json", so resolve
-    // the v2 entry file and walk up to the package root instead.
     const entryPath = fileURLToPath(import.meta.resolve("@opencode-ai/sdk/v2"));
     let dir = path.dirname(entryPath);
     for (let depth = 0; depth < 8; depth++) {
@@ -334,7 +199,6 @@ async function main() {
           break;
         }
       } catch {
-        // Not this directory; keep walking up.
       }
       const parent = path.dirname(dir);
       if (parent === dir) break;
@@ -353,11 +217,6 @@ async function main() {
   let client = null;
   let managedServer = null;
   let shuttingDown = false;
-  // Set by handleRun while a turn is live, so a SIGTERM during
-  // generation can abort the server session instead of leaving an
-  // external server generating/executing after the user cancelled.
-  // A holder object (not a reassigned binding) so handleRun, which
-  // receives it as an argument, can update the same cell.
   const activeSessionHolder = { current: null };
 
   async function shutdown(exitCode) {
@@ -383,7 +242,6 @@ async function main() {
           new Promise((resolve) => setTimeout(resolve, 400)),
         ]);
       } catch {
-        // Best-effort only; shutdown proceeds regardless.
       }
     }
     await shutdown(exitCode);
@@ -391,7 +249,6 @@ async function main() {
   process.on("SIGTERM", () => void shutdownWithAbort(0));
   process.on("SIGINT", () => void shutdownWithAbort(0));
 
-  // --- Connect / start, then health-check BEFORE printing ready. ---
   try {
     if (managed) {
       if (!isLoopback(serverURL)) {
@@ -400,10 +257,6 @@ async function main() {
             `Managed servers are loopback-only; connect to your own server instead.`,
         );
       }
-      // The SDK package itself ships NO `opencode` binary: its server
-      // launcher spawns `opencode serve`. Installing only the SDK
-      // therefore makes managed mode fail with a generic unhealthy
-      // error. Fail fast with the real prerequisite instead.
       const cliCheck = spawnSync("opencode", ["--version"], { encoding: "utf8" });
       if (cliCheck.error || cliCheck.status !== 0) {
         throw new Error(
@@ -433,10 +286,6 @@ async function main() {
           `Start it with "opencode serve" (or enable the managed server in Assist Settings) and try again`,
       );
     }
-    // Deliberately NOT reporting the server's version in "ready": the
-    // runtime manager's handshake requires ready.sdkVersion to equal
-    // the pinned SDK package version (1.19.5). The server version is
-    // diagnostics only.
     if (healthData.version) err(`server version ${healthData.version}`);
   } catch (e) {
     if (managedServer) {
@@ -459,11 +308,9 @@ async function main() {
   rl.on("line", (line) => lines.push(line));
   rl.on("close", () => lines.close());
 
-  // --- Run loop: one run request at a time; tool_result/cancel lines are
-  // consumed by the active run, never by a second reader. ---
   for (;;) {
     const raw = await lines.next();
-    if (raw === null) break; // stdin EOF
+    if (raw === null) break;
     let msg;
     try {
       msg = JSON.parse(raw);
@@ -474,14 +321,10 @@ async function main() {
     if (msg?.type === "run") {
       const ok = await handleRun(client, lines, msg, activeSessionHolder);
       if (!ok) {
-        // Run-level failure is fatal to this bridge process: Swift
-        // relaunches a fresh bridge per run, and a nonzero exit is the
-        // signal that the error line above was not a soft warning.
         await shutdown(1);
         return;
       }
     } else if (msg?.type === "cancel") {
-      // No active run; nothing to cancel.
       continue;
     } else {
       err(`ignoring unknown stdin message type "${msg?.type}"`);
@@ -491,11 +334,6 @@ async function main() {
   await shutdown(0);
 }
 
-/**
- * Execute one run. Returns true to keep the bridge alive for another run,
- * false when a fatal error already printed an error line and the process
- * must exit nonzero (fatal() handles the exit; this only stops looping).
- */
 async function handleRun(client, lines, req, activeSessionHolder) {
   const requestId = req.requestId ?? "run";
   try {
@@ -526,17 +364,9 @@ async function handleRun(client, lines, req, activeSessionHolder) {
     const agentName = req.config?.agentName || "swiftcode";
     const swiftcodeTools = Array.isArray(req.tools) ? req.tools : [];
 
-    // Server tool gating for this run.
-    // swiftcode: deny-all agent + every server tool id disabled.
-    // opencode: no gating; the server's tools run normally.
-    // combined: colliding built-ins disabled so the SwiftCode tool wins.
     let toolsMap;
     if (req.toolSource === "swiftcode") {
       toolsMap = {};
-      // Fail CLOSED: if the tool list cannot be fetched, server tools
-      // cannot be proven disabled, so the run must not proceed on the
-      // deny-all agent alone (its disable-only map semantics would
-      // leave unlisted tools enabled in combined-like cases).
       try {
         const res = await client.tool.ids({ directory });
         const ids = res?.data ?? res;
@@ -566,8 +396,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
       }
     }
 
-    // Create or resume the session. A supplied sessionId resumes the
-    // server-side conversation; otherwise a fresh session is created.
     let sessionID = req.config?.sessionId;
     if (!sessionID) {
       const created = await client.session.create({
@@ -580,9 +408,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
     }
     if (activeSessionHolder) activeSessionHolder.current = { sessionID, directory };
 
-    // Event consumer: runs concurrently with promptAsync and feeds the
-    // per-turn queue below. It never prints directly except permission
-    // denials (which need an immediate SDK reply).
     const eventQueue = [];
     let eventWaiter = null;
     let eventDone = false;
@@ -612,14 +437,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
         for await (const event of sub.stream) {
           const props = event?.properties ?? {};
           if (props.sessionID && props.sessionID !== sessionID) continue;
-          // Permission gates: default deny, via the verified reply API.
-          // v1 and v2 are DIFFERENT endpoints with different payloads:
-          // v1 properties carry {permission, tool:{callID}} and reply
-          // via client.permission.reply({requestID}); v2 properties
-          // carry {id, action, resources} (no `permission`, no `tool`)
-          // and reply via client.v2.session.permission.reply
-          // ({sessionID, requestID: id}). Replying to a v2 request on
-          // the v1 endpoint never resolves it, so the turn stalls.
           if (event?.type === "permission.asked" || event?.type === "permission.v2.asked") {
             const isV2 = event.type === "permission.v2.asked";
             const requestID = props.id ?? props.requestID;
@@ -643,9 +460,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
               }
             } catch (e) {
               replyError = e;
-              // v1 only: fallback to the older respond shape. Never
-              // fall back from v2 to v1 — that reply cannot resolve a
-              // v2 request and would hide the failure.
               if (!isV2) {
                 try {
                   await client.permission.respond({
@@ -655,7 +469,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
                   });
                   replyError = null;
                 } catch {
-                  // Keep the original reply error below.
                 }
               }
             }
@@ -700,18 +513,11 @@ async function handleRun(client, lines, req, activeSessionHolder) {
       }
     })();
 
-    // Prompt loop: one promptAsync per turn; swiftcode/combined turns
-    // that yield a JSON tool request pause for Swift's tool_result.
     let promptText = buildPromptText(req);
     let toolRounds = 0;
     let finalText = "";
     for (;;) {
       const systemForTurn = swiftcodeSystemPrompt(req, swiftcodeTools);
-      // throwOnError: true — the SDK default returns HTTP errors in
-      // result.error instead of throwing, and the old code discarded
-      // the return value entirely, so a rejected prompt (unknown
-      // model, auth, server error) hung waiting for an idle that
-      // never arrives. Now a rejected prompt fails the run loudly.
       const promptResult = await client.session.promptAsync({
         sessionID,
         directory,
@@ -726,16 +532,12 @@ async function handleRun(client, lines, req, activeSessionHolder) {
         throw new Error(`OpenCode rejected the prompt: ${detail}`);
       }
 
-      // Drain events until this turn goes idle (or errors / aborts).
       let turnText = "";
       let turnError = null;
       const toolParts = new Map();
       for (;;) {
         const event = await nextEvent();
         if (event === null) {
-          // Stream ended without idle/error: the turn did NOT finish.
-          // Reporting partial text as success here was a bug — the
-          // old code broke out and emitted `done` with partial text.
           if (eventTaskError) turnError = eventTaskError;
           else {
             turnError = new Error(
@@ -761,14 +563,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
           const delta = event.properties?.delta;
           if (typeof delta === "string" && delta.length > 0) {
             turnText += delta;
-            // SwiftCode-tool runs: BUFFER, do not stream yet. The
-            // turn text may be a JSON tool request or a
-            // {"finalResponse": ...} envelope, and streaming it
-            // verbatim leaked that JSON into the transcript (Swift
-            // accumulates deltas). At turn end the envelope is
-            // unwrapped and only the real answer is emitted.
-            // Opencode-only runs have no JSON protocol, so they
-            // stream immediately as before.
             if (req.toolSource !== "swiftcode" && req.toolSource !== "combined") {
               out({ type: "text", delta });
             }
@@ -781,12 +575,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
             const state = toolStateFromSDK(part.state);
             const prior = toolParts.get(part.id);
             toolParts.set(part.id, part);
-            // The event's ToolPart already carries the full state:
-            // state.input (arguments), state.output (completed
-            // result), state.error (failed reason), state.time
-            // (start/end). Use it directly. The old session.messages
-            // fetch is kept only as a fallback when the state carries
-            // no result/error on a terminal state.
             const st = part.state && typeof part.state === "object" ? part.state : {};
             let args = st.input ? JSON.stringify(st.input) : "";
             let result = "";
@@ -831,22 +619,15 @@ async function handleRun(client, lines, req, activeSessionHolder) {
           }
           continue;
         }
-        // All other event kinds (session.updated, step markers, diffs,
-        // message.updated, …) carry no text or tool state SwiftCode
-        // renders; they are consumed and ignored, never surfaced raw.
       }
       if (turnError) throw turnError;
 
-      // SwiftCode-tool turns: parse the model's JSON tool request.
       if (req.toolSource === "swiftcode" || req.toolSource === "combined") {
         const parsed = extractJSONToolRequest(turnText);
         if (parsed && typeof parsed.finalResponse === "string") {
-          // Unwrap the envelope: only the answer text reaches Swift.
-          // (It was buffered, not streamed, so no JSON leaked.)
           finalText = parsed.finalResponse;
           out({ type: "text", delta: parsed.finalResponse });
         } else if (!parsed || typeof parsed.toolId !== "string") {
-          // Plain prose turn: emit the buffered text now.
           finalText = turnText;
           if (turnText.length > 0) out({ type: "text", delta: turnText });
         } else {
@@ -866,8 +647,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
             name: parsed.toolId,
             arguments: JSON.stringify(parsed.input ?? {}),
           });
-          // Wait for Swift's verdict (or cancellation). A tool_call is
-          // a request, not a result: nothing is marked completed here.
           const verdict = await waitForToolResult(lines, callId);
           if (verdict.cancelled) {
             try {
@@ -887,19 +666,12 @@ async function handleRun(client, lines, req, activeSessionHolder) {
             verdict.error !== undefined
               ? `Tool "${parsed.toolId}" failed with error: ${verdict.error}\nContinue with the result above or answer the user.`
               : `Tool "${parsed.toolId}" returned:\n${verdict.result}\nContinue with the result above or answer the user.`;
-          continue; // next promptAsync turn, same session
+          continue;
         }
       }
-      // No SwiftCode tool request: this turn's text is the answer.
-      // (For opencode-only runs, server tool results were already
-      // streamed as tool_event lines during the turn.)
       break;
     }
 
-    // Close this run's event subscription so a later run on the same
-    // (resumed) session does not receive duplicate events from two
-    // consumers. This does not close the server or the session, which
-    // Swift may resume by sessionId.
     eventDone = true;
     if (eventStream && typeof eventStream.return === "function") {
       try {
@@ -917,7 +689,6 @@ async function handleRun(client, lines, req, activeSessionHolder) {
   }
 }
 
-/** Compose the user-visible prompt: history transcript + current text. */
 function buildPromptText(req) {
   const parts = [];
   if (Array.isArray(req.history) && req.history.length > 0) {
@@ -930,13 +701,6 @@ function buildPromptText(req) {
   return parts.filter((p) => p.length > 0).join("\n\n");
 }
 
-/**
- * System prompt sent on every promptAsync turn. SwiftCode's real system
- * prompt always comes first and is never trimmed. For SwiftCode-tool
- * runs, the JSON tool-request contract is appended after it (it is the
- * format AssistAgentSession already parses); it does not replace or
- * override any SwiftCode instruction.
- */
 function swiftcodeSystemPrompt(req, swiftcodeTools) {
   const base = req.systemPrompt ?? "";
   if (req.toolSource === "opencode") return base;
@@ -957,11 +721,6 @@ function swiftcodeSystemPrompt(req, swiftcodeTools) {
   return base ? `${base}\n\n${extra}` : extra;
 }
 
-/**
- * Extract a SwiftCode JSON tool request or finalResponse from model
- * text. Accepts a bare JSON object or one embedded in surrounding text
- * (first "{" to last "}"). Returns null when no such object parses.
- */
 function extractJSONToolRequest(text) {
   if (!text) return null;
   const trimmed = text.trim();
@@ -976,13 +735,11 @@ function extractJSONToolRequest(text) {
         return parsed;
       }
     } catch {
-      // Not JSON; try the next candidate.
     }
   }
   return null;
 }
 
-/** Await the tool_result (or cancel) line for one tool_call id. */
 async function waitForToolResult(lines, callId) {
   for (;;) {
     const raw = await lines.next();
@@ -997,16 +754,10 @@ async function waitForToolResult(lines, callId) {
       return msg.error !== undefined ? { error: String(msg.error) } : { result: String(msg.result ?? "") };
     }
     if (msg?.type === "cancel") return { cancelled: true };
-    // A new run request arriving mid-tool-wait is a protocol error;
-    // ignore it rather than interleaving two runs on one session.
     err(`ignoring unexpected stdin message type "${msg?.type}" while awaiting tool result`);
   }
 }
 
-// Run main() only when executed directly, not when imported by
-// sdk-bridge-tests.mjs: the pure helpers below are unit-tested by
-// import, and an unconditional main() would try to connect to a
-// server (and exit the test process) on import.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await main();
 }

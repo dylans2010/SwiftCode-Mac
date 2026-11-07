@@ -1,5 +1,3 @@
-// json.cpp: JSON writer and parser (RFC 8259 subset: no surrogate-pair
-// decoding beyond the BMP, which request headers never need).
 #include "json.h"
 
 #include <cmath>
@@ -10,7 +8,6 @@
 
 namespace airc {
 
-// Length of a valid UTF-8 sequence starting at s[i], or 0.
 static size_t utf8Len(const std::string &s, size_t i) {
     unsigned char c = (unsigned char)s[i];
     size_t n = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 0;
@@ -25,7 +22,6 @@ static void quote(std::string &o, const std::string &s) {
     for (size_t i = 0; i < s.size(); i++) {
         unsigned char c = (unsigned char)s[i];
         if (c >= 0x80) {
-            // Valid UTF-8 passes through; other bytes become U+00XX.
             size_t n = utf8Len(s, i);
             if (n) {
                 o.append(s, i, n);
@@ -195,7 +191,7 @@ struct Parser {
         return Json(v);
     }
 };
-}  // namespace
+}
 
 Json Json::parse(const std::string &text) {
     Parser p{text};
@@ -205,4 +201,4 @@ Json Json::parse(const std::string &text) {
     return j;
 }
 
-}  // namespace airc
+}

@@ -1,24 +1,4 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AssistToolRouter.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
-// Verbatim. RESOLVED by MCP-DEP decision (b): AssistTool / AssistToolRegistry were
-// MOVED out of SwiftCodeMCP into SwiftCodeAssistant (commit 1615438c) — this file now
-// resolves in-target (registry has shared, allTools, getToolSchemas,
-// toolsForCapability, compactCapabilityRepresentation, getHealth, validate, resolve,
-// getTool; AssistTool has all fields the router reads — capability, riskLevel,
-// isReadOnly, isMutating, outputFormat, requiredPermission, prerequisites,
-// supportedOperations, knownLimitations, canChainResult, isDestructive, resourceScope,
-// parametersSchema). Do NOT add a SwiftCodeMCP dependency to SwiftCodeAssistant and do
-// NOT move the registry back — the MCP dependency would be a cycle.
-// UserIntent resolved by W-V2 (AssistIntentModels.swift, Wave 1).
-// Resolved in-destination: AgentSessionStatus (all cases the router switches on exist
-// in AgentSessionState.swift).
-// Wiring: the model-prompt builder (serializeToolSchemas / compactCapabilitySummary)
-// and any tool-selection call site; MCPServer exposes the full catalogue unfiltered
-// until a caller routes through here.
-
 import Foundation
-
-// MARK: - Assist v3 Tool Capabilities & Risk Levels
 
 public enum ToolCapability: String, Codable, Sendable, CaseIterable {
     case repositoryDiscovery = "Repository Discovery"
@@ -82,7 +62,6 @@ public struct ToolMetadata: Codable, Sendable {
     public let isMutating: Bool
     public let requiresVerificationAfterward: Bool
 
-    // Unified capability extensions:
     public let outputFormat: ToolOutputFormat
     public let requiredPermission: ToolPermissionRequirement
     public let prerequisites: [String]
@@ -128,8 +107,6 @@ public struct ToolMetadata: Codable, Sendable {
         self.resourceScope = resourceScope
     }
 }
-
-// MARK: - Assist v3 Tool Router
 
 @MainActor
 public final class AssistToolRouter: Sendable {
@@ -274,19 +251,10 @@ public final class AssistToolRouter: Sendable {
             )
 
         default:
-            // Fail closed: unknown tools must never default to safe/read-only,
-            // or the phase gate and permission checks would treat a destructive
-            // or mutating tool as harmless. Callers with a registry should use
-            // metadata(for: tool), which derives from the tool's own declaration.
             return ToolMetadata(id: toolId, name: toolId, description: "Unknown tool — fail closed.", capability: .general, riskLevel: .potentiallyDestructive, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
         }
     }
 
-    /// Builds metadata from a registered tool's own declared properties.
-    /// This is the single source of truth for capability and risk: tools declare
-    /// their own `capability` and `riskLevel`, and routing/serialization derive
-    /// from those declarations. The `metadata(for toolId:)` overload remains as a
-    /// fallback for unregistered or legacy tool ids.
     public func metadata(for tool: AssistTool) -> ToolMetadata {
         ToolMetadata(
             id: tool.id,
@@ -552,8 +520,6 @@ public final class AssistToolRouter: Sendable {
         return lines.joined(separator: "\n")
     }
 }
-
-// MARK: - Unified Tool Capability Catalog
 
 @MainActor
 public final class ToolCapabilityCatalog: Sendable {

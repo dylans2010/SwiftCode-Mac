@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: Accessibility
-
 public struct AccessibilityInterface_0000: Sendable, Codable {
     public let id: String = "accessibility.api.0"
     public var title: String = "Accessibility Symbol 0"

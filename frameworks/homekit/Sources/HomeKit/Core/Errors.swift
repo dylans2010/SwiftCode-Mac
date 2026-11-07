@@ -1,16 +1,8 @@
-// HomeKit errors (errors.md §1–§3).
-//
-// Public failures are `HMError` values (domain `HMErrorDomain`); the
-// undocumented code 2040 of errors.md §2 is a plain NSError in the same domain
-// because it has no `HMError.Code` case. Descriptions are SwiftCode's own wording.
-
 import Foundation
 
 public typealias HMErrorCode = HMError.Code
 
-/// A HomeKit error: domain `HMErrorDomain`, one of the public codes.
 public struct HMError: Error, CustomNSError, Hashable, Sendable, CustomStringConvertible {
-    /// `HMErrorCode` (errors.md §1).
     public enum Code: Int, Sendable, CaseIterable, Codable {
         case unexpectedError = -1
         case alreadyExists = 1
@@ -118,7 +110,6 @@ public struct HMError: Error, CustomNSError, Hashable, Sendable, CustomStringCon
         case partialCommunicationFailure = 104
         case homeUpgradeRequired = 105
 
-        /// Deprecated alias of `noCompatibleHomeHub` (errors.md §1).
         @available(iOS, deprecated: 11.0)
         public static var incompatibleHomeHub: Code { .noCompatibleHomeHub }
     }
@@ -141,13 +132,11 @@ public struct HMError: Error, CustomNSError, Hashable, Sendable, CustomStringCon
     public var localizedDescription: String { userInfo[NSLocalizedDescriptionKey] ?? HMError.describe(code) }
     public var description: String { "HMError(\(code.rawValue) \(code))" }
 
-    /// SwiftCode's description text for a code (own wording, errors.md §2 last paragraph).
     public static func describe(_ code: Code) -> String {
         switch code {
         case .homeAccessNotAuthorized: return "Access to home data is not authorized for this app."
         case .operationCancelled: return "The operation was cancelled."
         default:
-            // Split the case name into words: "valueLowerThanMinimum" -> "Value lower than minimum."
             var words = ""
             for ch in String(describing: code) {
                 if ch.isUppercase, !words.isEmpty { words.append(" ") }
@@ -161,23 +150,17 @@ public struct HMError: Error, CustomNSError, Hashable, Sendable, CustomStringCon
 }
 
 extension HMError {
-    /// The private "no account" code returned by `addHome` without an iCloud
-    /// account (errors.md §2; not a public `HMErrorCode`).
     public static let swiftcodeNoAccountCode = 2040
 
-    /// The 2040 error exactly as errors.md §2 describes it: domain
-    /// `HMErrorDomain`, userInfo holding only a localized description.
     public static func swiftcodeNoAccountError() -> NSError {
         NSError(domain: HMErrorDomain, code: swiftcodeNoAccountCode,
                 userInfo: [NSLocalizedDescriptionKey: "The operation could not be completed (unknown error code 2040)."])
     }
 
-    /// Errors 23 of the setup flow carry an empty userInfo (errors.md §2).
     static let cancelledWithoutInfo = HMError(.operationCancelled, userInfo: [:])
 }
 
 extension HMError {
-    // `catch HMError.notFound` style matching (static members of type `Code`).
     public static var unexpectedError: Code { .unexpectedError }
     public static var alreadyExists: Code { .alreadyExists }
     public static var notFound: Code { .notFound }
@@ -286,15 +269,11 @@ extension HMError {
 }
 
 extension HMError.Code {
-    /// `catch HMError.notFound` style matching.
     public static func ~= (code: HMError.Code, error: Error) -> Bool {
         (error as? HMError)?.code == code
     }
 }
 
-// MARK: - Wire form
-
-/// An error as it crosses the store boundary (Codable for a future daemon).
 public struct SwiftCodeHomeStoreError: Error, Codable, Hashable, Sendable {
     public var domain: String
     public var code: Int
@@ -317,7 +296,6 @@ public struct SwiftCodeHomeStoreError: Error, Codable, Hashable, Sendable {
         domain: HMErrorDomain, code: HMError.swiftcodeNoAccountCode,
         userInfo: HMError.swiftcodeNoAccountError().userInfo.compactMapValues { $0 as? String })
 
-    /// The error an app sees: `HMError` for public codes, `NSError` otherwise.
     public var publicError: Error {
         if domain == HMErrorDomain, let c = HMError.Code(rawValue: code) {
             return HMError(c, userInfo: userInfo)
@@ -326,9 +304,6 @@ public struct SwiftCodeHomeStoreError: Error, Codable, Hashable, Sendable {
     }
 }
 
-// MARK: - Accessory protocol status (errors.md §3, accessory-protocols.md §2.3)
-
-/// HAP status codes, the error vocabulary of `SwiftCodeAccessoryEndpoint`.
 public enum SwiftCodeHAPStatus: Int, Codable, Sendable, CaseIterable {
     case success = 0
     case insufficientPrivileges = -70401
@@ -343,7 +318,6 @@ public enum SwiftCodeHAPStatus: Int, Codable, Sendable, CaseIterable {
     case invalidValue = -70410
     case insufficientAuthorization = -70411
 
-    /// The `HMErrorCode` an app sees for this status (errors.md §3, SwiftCode's proposal).
     public var errorCode: HMError.Code? {
         switch self {
         case .success: return nil
@@ -362,8 +336,6 @@ public enum SwiftCodeHAPStatus: Int, Codable, Sendable, CaseIterable {
     }
 }
 
-/// Why an accessory operation failed: a HAP status, or the connection is gone
-/// (mapped to 4 `AccessoryNotReachable`, errors.md §3 last row).
 public enum SwiftCodeAccessoryFailure: Error, Codable, Hashable, Sendable {
     case status(SwiftCodeHAPStatus)
     case unreachable

@@ -1,27 +1,19 @@
 import Foundation
 import SwiftCodeIDECore
 
-/// What the shell's chrome shows, from the same rules the AppKit IDE uses
-/// (`WorkspaceChrome`): the outlines' rows, the jump bar, the File
-/// inspector's rows.
 extension WorkspaceShellModel {
-    /// File names in the navigator and the jump bar follow Settings ▸
-    /// General ▸ File Extensions (hidden by default).
     public var hidesFileExtensions: Bool { Preferences.shared.fileExtensions == .hide }
 
     public var projectRows: [OutlineRow] {
         OutlineRows.project(root, expanded: expanded, hideExtensions: hidesFileExtensions, edited: editedPaths, badges: sourceControl.badges)
     }
 
-    /// The jump bar's components for the open file (title, symbol).
     public var jumpPath: [(title: String, symbol: String)] {
         guard let d = document else { return [] }
         return WorkspaceChrome.jumpPath(for: URL(fileURLWithPath: d.path), root: session.model.root, workspaceName: workspaceName,
                                         hideExtension: hidesFileExtensions).map { (title: $0.0, symbol: $0.1) }
     }
 
-    /// The File inspector (reference-ui.md §6) for the open file: its
-    /// sections, each a heading and rows (`InspectorRow`).
     public var fileInspector: [InspectorSection] {
         guard let d = document else { return [] }
         let url = URL(fileURLWithPath: d.path)
@@ -44,13 +36,11 @@ extension WorkspaceShellModel {
     }
 }
 
-/// A section of an inspector: a heading over rows.
 public struct InspectorSection: Equatable, Sendable {
     public var title: String
     public var rows: [InspectorRow]
 }
 
-/// A row of an inspector: a right-aligned key and a value control.
 public struct InspectorRow: Equatable, Sendable {
     public enum Value: Equatable, Sendable {
         case field(String)

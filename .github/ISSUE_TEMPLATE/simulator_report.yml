@@ -6,7 +6,6 @@ body:
     attributes:
       value: |
         The simulator is experimental, and [docs/SIMULATOR.md](https://github.com/dylans2010/SwiftCode-Mac/blob/main/docs/SIMULATOR.md) lists the known problems.
-
         **Don't attach any Apple files:** no runtimes, SDKs, frameworks, or anything copied from a device or a runtime. We can't accept them, and we can't send them to you. Check logs for private names and paths.
   - type: input
     id: version

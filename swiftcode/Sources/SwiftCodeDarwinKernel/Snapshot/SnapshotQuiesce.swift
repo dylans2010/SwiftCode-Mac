@@ -1,27 +1,13 @@
-// The kernel side of the quiesce protocol (specs/simulator/snapshot.md §3,
-// §4): which state each guest thread is in at a quiesce point, and for a
-// thread blocked in a trap, whether and how that trap restarts.
-
 import SwiftCodeDarwinABI
 
-/// How a thread restarts after a restore (§3.2).
 public enum SnapshotThreadKind: UInt64, Sendable {
-    /// Parked at the trap gate: the trap in `frame` is handled first.
     case pendingTrap = 1
-    /// Parked at the run gate at EL0: the thread returns to EL0 with `frame`.
     case resume = 2
-    /// Blocked in a restartable trap: `frame` is its (rewritten) entry frame.
     case blocked = 3
-    /// Created suspended and never run.
     case suspended = 4
-    /// The main thread of an image launched suspended that has not started
-    /// yet (a start hold, `scheduling-policy.md` §4.2, or
-    /// POSIX_SPAWN_START_SUSPENDED): it starts with `SnapshotMainStart`
-    /// when the image is resumed.
     case unstarted = 5
 }
 
-/// The first state of a main thread that has not run yet (§3.2).
 public struct SnapshotMainStart: Sendable, Equatable {
     public var pc: UInt64, sp: UInt64, tpidrro: UInt64, tpidr: UInt64
     public var registers: [UInt64]
@@ -34,11 +20,9 @@ public struct SnapshotMainStart: Sendable, Equatable {
     }
 }
 
-/// What the VMM knows about one parked thread (from a gate).
 public struct SnapshotParkedThread: Sendable {
     public var kind: SnapshotThreadKind
     public var frame: TrapFrame
-    /// `CKVM_FP_STATE_SIZE` bytes: V0–V31, FPSR, FPCR.
     public var fp: [UInt8]
 
     public init(kind: SnapshotThreadKind, frame: TrapFrame, fp: [UInt8]) {
@@ -48,43 +32,24 @@ public struct SnapshotParkedThread: Sendable {
     }
 }
 
-/// The verdict on one blocked thread (§4).
 public struct SnapshotBlockedThread: Sendable {
-    /// The frame to restart from (the entry frame, maybe rewritten).
     public var frame: TrapFrame
-    /// Human-readable: which trap and which rule.
     public var note: String
-    /// The worker was parked idle (§4.1, `workq_kernreturn`): it is recorded
-    /// as running and not idle.
     public var idleWorker: Bool
-    /// `sigsuspend`: the process signal mask from before the call (§4.2).
     public var savedSignalMask: UInt32?
-    /// A send blocked on a full queue: its message is queued in the image.
     public var queuedSend = false
-    /// The trap is complete (`frame` is the state after it): resume, do not re-trap.
     public var completed = false
 }
 
-/// The classification of every guest thread at one attempt (§3.1 step 3).
 public struct SnapshotClassification: Sendable {
-    /// Every live thread is in a restorable state.
     public var settled: Bool { unsettled.isEmpty && refused.isEmpty }
-    /// Threads that are still moving (retry), as text.
     public var unsettled: [String] = []
-    /// Threads blocked in a trap that cannot restart (§4.3), as text.
     public var refused: [String] = []
-    /// The blocked threads, by `ObjectIdentifier` of their context.
     public var blocked: [ObjectIdentifier: SnapshotBlockedThread] = [:]
-    /// Counts by state (census).
     public var counts: [String: Int] = [:]
 }
 
-/// Decides whether the kernel personality can be snapshotted now: the thread
-/// classification of the quiesce protocol (`specs/simulator/snapshot.md` §3).
 public enum KernelSnapshotQuiesce {
-    /// Classifies every live thread of `kernels` (lock held). `parked`: the
-    /// contexts the VMM's gates hold; `unstarted`: main threads of images
-    /// launched suspended that have not started.
     public static func classify(system: DarwinSystem, kernels: [DarwinKernel],
                                 parked: Set<ObjectIdentifier>,
                                 unstarted: Set<ObjectIdentifier> = []) -> SnapshotClassification {
@@ -131,7 +96,6 @@ public enum KernelSnapshotQuiesce {
         return out
     }
 
-    /// The restart rule for a thread blocked in its trap (§4).
     static func blockedVerdict(_ t: ThreadContext, kernel k: DarwinKernel,
                                spaces: [MachIPC]) -> Result<SnapshotBlockedThread, SnapshotError> {
         guard var frame = t.entryFrame else {
@@ -142,7 +106,6 @@ public enum KernelSnapshotQuiesce {
         var n = Int(x16)
         var argBase = 0
         if n == 0 {
-            // Indirect BSD call: the number is in x0, the arguments follow.
             n = Int(frame.x[0] & 0xFFFF)
             argBase = 1
         }
@@ -158,9 +121,6 @@ public enum KernelSnapshotQuiesce {
                 let options = frame.x[1]
                 let inReceive = spaces.contains { s in s.snapshotReceiveWaiters(contains: t) }
                 if !inReceive {
-                    // A send blocked on a full queue (§4.2): its message is queued
-                    // in the image (past the limit, as if the receiver had made
-                    // room) and the send completes; a receive part restarts.
                     guard spaces.contains(where: { $0.snapshotPendingSend(of: t) }) else {
                         return refuse("mach_msg send blocked without its message")
                     }
@@ -184,7 +144,6 @@ public enum KernelSnapshotQuiesce {
                 frame.x[16] = UInt64(bitPattern: Int64(DarwinKernel.Mach.semaphoreWait))
                 return plain("semaphore_wait_signal (signal done)")
             case DarwinKernel.Mach.semaphoreTimedwaitSignal:
-                // (wait, signal, sec, nsec) -> (wait, sec, nsec)
                 frame.x[16] = UInt64(bitPattern: Int64(DarwinKernel.Mach.semaphoreTimedwait))
                 frame.x[1] = frame.x[2]
                 frame.x[2] = frame.x[3]
@@ -204,8 +163,6 @@ public enum KernelSnapshotQuiesce {
         case 7, 400, 173, 416:
             return plain("wait4/waitid")
         case 30, 404, 98, 409:
-            // An IP or local socket's accept/connect restarts (a connecting
-            // IP socket is reset at restore: networking-swiftcode.md §6).
             return plain("accept/connect")
         case 93, 407, 394, 395, 230, 417:
             return plain("select/poll")
@@ -216,16 +173,12 @@ public enum KernelSnapshotQuiesce {
         case b2.ulockWait, b2.ulockWait2:
             return plain("ulock_wait")
         case b2.semwaitSignal, b2.semwaitSignalNocancel:
-            // (cond, mutex, timeout, relative, sec, nsec): the mutex was signalled.
             frame.x[argBase + 1] = 0
             return plain("__semwait_signal")
         case 297, 298, 300, 301, 305, 306, 307:
             return plain("psynch wait")
         case b2.kevent, b2.kevent64, b2.keventQos, b2.keventId:
             if k.snapshotSyncKnote(waitedOnBy: t) != nil {
-                // The wait is the call's last change (xnu requires it): the
-                // knote is left out of the image and the call restarts with
-                // its changes, which make it and wait again.
                 return plain("kevent workloop sync wait (knote re-made)")
             }
             frame.x[argBase + 2] = 0
@@ -246,17 +199,13 @@ public enum KernelSnapshotQuiesce {
     }
 }
 
-// MARK: - Helpers on kernel objects (lock held)
-
 extension DarwinSystem {
-    /// Every live Mach space of the system's processes.
     func snapshotSpaces() -> [MachIPC] {
         processes.values.compactMap { $0.kernel?.machIPC as? MachIPC }
     }
 }
 
 extension MachIPC {
-    /// True when `t` waits to receive on a receive right or port set named in this space.
     func snapshotReceiveWaiters(contains t: ThreadContext) -> Bool {
         for e in entries where e.inUse {
             if let p = e.port, e.bits & MachPortType.receive != 0, p.receiveWaiters.contains(t) { return true }
@@ -267,7 +216,6 @@ extension MachIPC {
 }
 
 extension MachIPC {
-    /// True when `t` is blocked sending to a port named in this space and its message is recorded.
     func snapshotPendingSend(of t: ThreadContext) -> Bool {
         let key = ObjectIdentifier(t)
         return entries.contains { e in
@@ -277,7 +225,6 @@ extension MachIPC {
 }
 
 extension DarwinKernel {
-    /// The ident of a workloop sync knote `t` waits on, if any.
     func snapshotSyncKnote(waitedOnBy t: ThreadContext) -> UInt64? {
         for kq in kevents.workloops.values {
             for kn in kq.knotes where kn.syncWaiters.contains(t) { return kn.ident }

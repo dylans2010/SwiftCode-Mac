@@ -1,20 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/ConflictResolverView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The conflict resolver: pending branch conflicts with their local /
-// remote change, and one button per `ConflictResolutionChoice`.
-// Not in the migration worklists, but staged here because
-// `CollaborationMainView` (batch 2) instantiates it for its
-// `.conflicts` tab (and `PushPullManagerView` routes to it) and it
-// exists nowhere in the destination — without it those views do not
-// compile. (Legacy also has `CollaborationConflictResolverView`, a
-// different view; that one is not referenced by any ported view and
-// is left to its own worklist entry.)
-//
-// Adaptations for SwiftCode: `.liquidGlass` (no destination
-// equivalent) becomes the system thin material, as in the sibling
-// Collaboration views.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

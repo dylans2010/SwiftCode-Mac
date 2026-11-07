@@ -1,34 +1,8 @@
 import Foundation
 
-// MARK: - KeychainSDK
-//
-// Ported from Legacy `SwiftCode/SDK/Host/Security/KeychainSDK.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The host Keychain vault for extension secrets. Values live under the
-// namespace `com.swiftcode.sdk.security.<securityID>.<valueID>`, one
-// account per value, stored as a JSON envelope
-// `{data base64, label, created, modified}`. The extension never sees
-// plaintext: `readValue` is INTERNAL — only host code in this module
-// (notably `SDKSecurityService.useValue`) may read a value, and only to
-// inject it into an approved host operation.
-//
-// Storage seam: `SDKSecretStoring` (macOS Keychain via `SDKKeychain`,
-// file store on Linux). Legacy used the Security framework directly
-// with service prefix `com.swiftcode.sdk.security`; here the full
-// namespaced string is the account inside the SDK secret store
-// (service `com.swiftcode.sdk`), which preserves the namespace and
-// keeps enumeration working on both platforms. Accessibility
-// WhenUnlockedThisDeviceOnly, no sync, no UserDefaults, no cache —
-// those properties hold on the macOS backend.
-
 public enum KeychainSDK {
-    /// Namespace prefix for every vault account.
     public static let servicePrefix = "com.swiftcode.sdk.security"
 
-    /// Metadata for one stored value. The secret bytes live in the
-    /// envelope's `data` field and are never exposed by the metadata
-    /// APIs (`listValueIDs` returns these, never values).
     public struct ValueMetadata: Sendable, Codable, Equatable {
         public let valueID: String
         public let label: String?
@@ -48,10 +22,6 @@ public enum KeychainSDK {
         var label: String?
         var created: Date
         var modified: Date
-        /// Namespaced Security ID (`<extensionID>.<appSecurityID>`) this
-        /// value belongs to. Written by `addValue` so `listAllApps` can
-        /// recover the app grouping exactly; older envelopes without it
-        /// fall back to a last-dot split of the account name.
         var securityID: String?
 
         init(data: Data, label: String?, created: Date, modified: Date, securityID: String? = nil) {
@@ -86,8 +56,6 @@ public enum KeychainSDK {
         "\(servicePrefix).\(securityID)."
     }
 
-    /// Stores (or replaces) a value. Returns whether a value already
-    /// existed. The label is optional metadata, never secret material.
     public static func addValue(
         securityID: String,
         valueID: String,
@@ -115,9 +83,6 @@ public enum KeychainSDK {
         return existed
     }
 
-    /// Host-only read. INTERNAL by design: only host code in this
-    /// module may call it, and only to inject the value into an
-    /// approved host operation. Never expose to extensions.
     static func readValue(securityID: String, valueID: String) throws -> Data? {
         try validateSecurityID(securityID)
         try validateValueID(valueID)
@@ -133,7 +98,6 @@ public enum KeychainSDK {
         return try store.read(account: account(for: securityID, valueID: valueID)) != nil
     }
 
-    /// Metadata only, sorted by value ID. Values are never returned.
     public static func listValueIDs(securityID: String) throws -> [ValueMetadata] {
         try validateSecurityID(securityID)
         let prefix = accountPrefix(for: securityID)
@@ -154,8 +118,6 @@ public enum KeychainSDK {
         try store.delete(account: account(for: securityID, valueID: valueID))
     }
 
-    /// Deletes every value under `securityID`. Returns the count.
-    /// Used by the uninstall wipe (`deleteAllValues`).
     public static func deleteAllValues(securityID: String) throws -> Int {
         try validateSecurityID(securityID)
         let prefix = accountPrefix(for: securityID)
@@ -166,11 +128,6 @@ public enum KeychainSDK {
         return accounts.count
     }
 
-    // MARK: - Validation
-
-    /// A Security ID is reverse-DNS-ish: 1–128 characters, at least two
-    /// segments of 1–63 ASCII alphanumerics with interior `-`, no `/`,
-    /// no `..`, no whitespace or control characters.
     public static func validateSecurityID(_ securityID: String) throws {
         guard (1...128).contains(securityID.count),
               !securityID.contains("/"),
@@ -191,8 +148,6 @@ public enum KeychainSDK {
         }
     }
 
-    /// A value ID is 1–128 characters of ASCII alphanumerics with
-    /// interior `.`, `/`, `-`, `_`.
     public static func validateValueID(_ valueID: String) throws {
         guard (1...128).contains(valueID.count),
               valueID.unicodeScalars.allSatisfy({ $0.isASCIIAlphanumeric || "./-_".contains(Character($0)) }),
@@ -202,22 +157,15 @@ public enum KeychainSDK {
         }
     }
 
-    /// A label is 1–256 characters, no NUL.
     public static func validateLabel(_ label: String) throws {
         guard (1...256).contains(label.count), !label.contains("\0") else {
             throw SDKError(code: .invalidArgument, message: "The label is invalid.")
         }
     }
 
-    /// The namespaced Security ID recorded in a stored value's envelope,
-    /// when the value was written with one. Host-only helper for
-    /// `listAllApps`: the envelope is the exact grouping key. Returns nil
-    /// for envelopes written before the field existed (or unreadable data).
     static func securityIDInEnvelope(_ data: Data) -> String? {
         (try? decodeEnvelope(data))?.securityID
     }
-
-    // MARK: - Private
 
     private static func decodeEnvelope(_ data: Data) throws -> Envelope {
         let decoder = JSONDecoder()

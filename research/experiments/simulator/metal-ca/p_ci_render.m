@@ -1,16 +1,3 @@
-/* p_ci_render: Ycode stage-8 test probe (original Ycode code).
- *
- * Renders a fixed grid of Core Image filter results with a Metal-backed
- * CIContext into a Metal texture, reads it back and writes a PNG. Core
- * Image builds its GPU kernels at run time (stitched from its own
- * libraries), which is the path iconservicesagent and the wallpaper
- * extensions use, so this checks that Ycode's Metal host translates and
- * runs those kernels like the Mac's GPU does.
- *
- * Usage: p_ci_render [OUT.png]   (default /tmp/p_ci_render.png)
- * Prints one line per step and "ci ok" at the end, or "ci FAIL: ...".
- * Public APIs only: CoreImage (built-in filters by name), Metal.
- */
 #import <CoreImage/CoreImage.h>
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -106,44 +93,28 @@ int main(int argc, char **argv) {
         CIImage *gradient = apply(@"CILinearGradient", @{@"inputPoint0": vec2(0, 0), @"inputPoint1": vec2(CELL_W, CELL_H),
                                                          @"inputColor0": col(1, 0.9, 0, 1), @"inputColor1": col(0, 0.6, 0.4, 1)});
         NSMutableArray<CIImage *> *cells = [NSMutableArray array];
-        /* 0 checkerboard */
         [cells addObject:checker];
-        /* 1 linear gradient */
         [cells addObject:gradient];
-        /* 2 radial gradient */
         [cells addObject:apply(@"CIRadialGradient", @{@"inputCenter": vec2(75, 100), @"inputRadius0": @10, @"inputRadius1": @90,
                                                       @"inputColor0": col(1, 1, 1, 1), @"inputColor1": col(0.4, 0, 0.6, 1)})];
-        /* 3 gaussian blur of the checkerboard */
         [cells addObject:apply(@"CIGaussianBlur", @{kCIInputImageKey: [checker imageByCroppingToRect:cellRect], kCIInputRadiusKey: @8})];
-        /* 4 colour controls (desaturate, brighten) */
         [cells addObject:apply(@"CIColorControls", @{kCIInputImageKey: checker, kCIInputSaturationKey: @0.2,
                                                      kCIInputBrightnessKey: @0.1, kCIInputContrastKey: @1.3})];
-        /* 5 colour matrix (swap red and blue) */
         [cells addObject:apply(@"CIColorMatrix", @{kCIInputImageKey: gradient, @"inputRVector": [CIVector vectorWithX:0 Y:0 Z:1 W:0],
                                                    @"inputBVector": [CIVector vectorWithX:1 Y:0 Z:0 W:0]})];
-        /* 6 vignette */
         [cells addObject:apply(@"CIVignette", @{kCIInputImageKey: [gradient imageByCroppingToRect:cellRect], kCIInputIntensityKey: @1.5,
                                                 kCIInputRadiusKey: @1.5})];
-        /* 7 sepia */
         [cells addObject:apply(@"CISepiaTone", @{kCIInputImageKey: checker, kCIInputIntensityKey: @0.9})];
-        /* 8 affine scale with linear sampling (magnified checkerboard) */
         [cells addObject:[[checker imageByCroppingToRect:CGRectMake(0, 0, 40, 40)] imageByApplyingTransform:CGAffineTransformMakeScale(3.3, 3.3)]];
-        /* 9 source-over of a translucent gradient over the checkerboard */
         [cells addObject:apply(@"CISourceOverCompositing", @{kCIInputImageKey: [apply(@"CIColorMatrix", @{kCIInputImageKey: gradient,
                                                             @"inputAVector": [CIVector vectorWithX:0 Y:0 Z:0 W:0.5]}) imageByCroppingToRect:CGRectMake(20, 20, 110, 160)],
                                                             kCIInputBackgroundImageKey: checker})];
-        /* 10 multiply blend */
         [cells addObject:apply(@"CIMultiplyBlendMode", @{kCIInputImageKey: gradient, kCIInputBackgroundImageKey: checker})];
-        /* 11 exposure plus gamma */
         [cells addObject:apply(@"CIGammaAdjust", @{kCIInputImageKey: apply(@"CIExposureAdjust", @{kCIInputImageKey: gradient, kCIInputEVKey: @0.7}),
                                                    @"inputPower": @1.8})];
-        /* 12 box blur */
         [cells addObject:apply(@"CIBoxBlur", @{kCIInputImageKey: [checker imageByCroppingToRect:cellRect], kCIInputRadiusKey: @12})];
-        /* 13 invert */
         [cells addObject:apply(@"CIColorInvert", @{kCIInputImageKey: gradient})];
-        /* 14 pixellate */
         [cells addObject:apply(@"CIPixellate", @{kCIInputImageKey: gradient, kCIInputCenterKey: vec2(0, 0), kCIInputScaleKey: @15})];
-        /* 15 stripes generator */
         [cells addObject:apply(@"CIStripesGenerator", @{@"inputCenter": vec2(0, 0), @"inputColor0": col(0, 0, 0, 1),
                                                         @"inputColor1": col(1, 1, 1, 1), @"inputWidth": @10, @"inputSharpness": @1})];
 

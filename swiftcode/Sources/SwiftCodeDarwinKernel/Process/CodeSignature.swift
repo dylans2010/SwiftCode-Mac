@@ -1,37 +1,16 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// `executable_cdhash=` and `executable_boothash=` in `apple[]`
-// (`specs/simulator/darwin-process-start.md` §1.4 rows 9–10). The kernel
-// provides them when the executable has a code signature. libmalloc's xzone
-// allocator requires `executable_boothash` in processes it treats as security
-// critical (launchd_sim among them) and aborts at its first allocation
-// without it. Owner: agent P.
-//
-// File format (xnu `osfmk/kern/cs_blobs.h`, public): `LC_CODE_SIGNATURE`
-// (0x1D) gives the offset and size of an embedded-signature SuperBlob
-// (magic 0xFADE0CC0, big-endian `{magic, length, count}` then `count`
-// `{type, offset}` index entries). Slot 0 and slots 0x1000…0x1004 hold
-// CodeDirectories (magic 0xFADE0C02, `length` at +4, `hashType` at +37). The
-// CDHash is the CodeDirectory's own hash (its `hashType`), truncated to 20
-// bytes; the kernel uses the CodeDirectory with the strongest hash type.
-
 enum CodeSignature {
-    /// The 20-byte CDHash of the arm64 image in `hostPath`, or nil (no
-    /// signature, or only hash types SwiftCode does not compute).
     static func cdHash(ofExecutableAt hostPath: String) -> [UInt8]? {
         guard let blob = superBlob(ofExecutableAt: hostPath) else { return nil }
         return cdHash(superBlob: blob)
     }
 
-    /// The embedded-signature SuperBlob of the arm64 image in `hostPath`.
     static func superBlob(ofExecutableAt hostPath: String) -> [UInt8]? {
         signatureParts(ofExecutableAt: hostPath).superBlob
     }
 
-    /// The SuperBlob and the `__TEXT,__entitlements` section (simulator
-    /// builds carry their entitlements there, as an XML plist;
-    /// app-install-launch.md §4.5) of the arm64 image in `hostPath`.
     static func signatureParts(ofExecutableAt hostPath: String) -> (superBlob: [UInt8]?, entitlements: [UInt8]?) {
         guard let handle = FileHandle(forReadingAtPath: hostPath) else { return (nil, nil) }
         defer { try? handle.close() }
@@ -76,8 +55,6 @@ enum CodeSignature {
             if cmd == 0x1D, at + 16 <= commands.count {
                 signature = (UInt64(commands.readLE(UInt32.self, at: at + 8)), Int(commands.readLE(UInt32.self, at: at + 12)))
             }
-            // LC_SEGMENT_64 __TEXT: section_64 records of 80 bytes after the
-            // 72-byte command (sectname, segname, addr, size, offset, …).
             if cmd == 0x19, at + 72 <= commands.count, name(at + 8) == "__TEXT" {
                 let nsects = Int(commands.readLE(UInt32.self, at: at + 64))
                 for i in 0..<nsects {
@@ -106,12 +83,9 @@ enum CodeSignature {
         UInt32(b[o]) << 24 | UInt32(b[o + 1]) << 16 | UInt32(b[o + 2]) << 8 | UInt32(b[o + 3])
     }
 
-    /// The CDHash of a SuperBlob (see the file comment).
     static func cdHash(superBlob blob: [UInt8]) -> [UInt8]? {
         let count = Int(be32(blob, 8))
         guard count < 64, 12 + count * 8 <= blob.count else { return nil }
-        // The strongest hash type SwiftCode can compute: SHA-256 (2) and
-        // truncated SHA-256 (3) rank above SHA-1 (1).
         let rank: [UInt8: Int] = [1: 1, 3: 2, 2: 3]
         var best: (rank: Int, bytes: ArraySlice<UInt8>, type: UInt8)?
         for i in 0..<count {
@@ -129,8 +103,6 @@ enum CodeSignature {
         return Array(digest.prefix(20))
     }
 
-    /// `executable_cdhash=` and `executable_boothash=` for an image, or
-    /// nothing when it has no usable signature.
     static func appleStrings(hostPath: String, bootSalt: UInt32, bootSessionUUID: String) -> [String] {
         guard let cd = cdHash(ofExecutableAt: hostPath) else { return [] }
         var input: [UInt8] = []
@@ -147,7 +119,6 @@ enum CodeSignature {
     }
 }
 
-/// SHA-256 (FIPS 180-4).
 enum SHA256Digest {
     private static let k: [UInt32] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -195,7 +166,6 @@ enum SHA256Digest {
     }
 }
 
-/// SHA-1 (FIPS 180-4), for CodeDirectories that only carry SHA-1.
 enum SHA1Digest {
     static func hash(_ message: [UInt8]) -> [UInt8] {
         var h: [UInt32] = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0]
@@ -229,16 +199,6 @@ enum SHA1Digest {
     }
 }
 
-/// What `csops` reports about an image (stage 6). Parsed from the embedded
-/// signature (xnu `osfmk/kern/cs_blobs.h`, public: CodeDirectory `flags`
-/// @12, `identOffset` @20, `platform` @38, `teamOffset` @48 from version
-/// 0x20200; entitlements slot 5 (magic 0xFADE7171, XML) and slot 7 (magic
-/// 0xFADE7172, DER)). The status words are those the simulator's processes
-/// show on the Mac (level 3, our own csops probe): a platform binary
-/// 0x26004201 (CS_SIGNED | CS_PLATFORM_BINARY | CS_DYLD_PLATFORM |
-/// CS_ENTITLEMENTS_VALIDATED | CS_KILL | CS_VALID), another signed image
-/// 0x22000201 plus CS_LINKER_SIGNED when the CodeDirectory says so;
-/// validation category 1 (platform) or 10 (another signed image).
 struct CodeSigningInfo {
     var status: UInt32
     var identity: String?
@@ -253,16 +213,6 @@ struct CodeSigningInfo {
     nonisolated(unsafe) private static var cache: [String: CodeSigningInfo?] = [:]
     nonisolated(unsafe) private static var platformRoots: [String] = []
 
-    /// Host directories whose executables are platform binaries. On the Mac
-    /// every executable of the simulator runtime reports 0x26004201 although
-    /// its CodeDirectory's `platform` byte is 0 (level 3: our `csprobe` of
-    /// runningboardd, SpringBoard, backboardd and launchd_sim; the runtime
-    /// image's code is trusted as the system's). With the status of an
-    /// ordinary Apple-signed image (0x22000201) launchd_sim did not honor
-    /// runningboardd's launchd entitlements (`com.apple.private.xpc.launchd.*`):
-    /// runningboardd could not learn which job a process belongs to, named
-    /// every daemon `anon<…>` and refused SpringBoard's launch requests
-    /// (level 3; home-screen.md §3.4).
     static func setPlatformRoots(_ roots: [String]) {
         cacheLock.lock()
         platformRoots = roots.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
@@ -270,8 +220,6 @@ struct CodeSigningInfo {
         cacheLock.unlock()
     }
 
-    /// The image's signing information (cached per host path), or nil when
-    /// it has no usable signature.
     static func of(hostPath: String) -> CodeSigningInfo? {
         cacheLock.lock()
         if let hit = cache[hostPath] { cacheLock.unlock(); return hit }
@@ -285,9 +233,6 @@ struct CodeSigningInfo {
             info?.status = 0x2600_4201
             info?.validationCategory = 1
         }
-        // Simulator builds: the `__TEXT,__entitlements` plist is what the
-        // simulator's libraries serve as the entitlements blob (op 7), with an
-        // 8-byte blob header (app-install-launch.md §4.5; level 3).
         if let xml = parts.entitlements, info != nil {
             var blob: [UInt8] = []
             for v in [UInt32(0xFADE_7171), UInt32(xml.count + 8)] {
@@ -333,18 +278,10 @@ struct CodeSigningInfo {
 }
 
 extension DarwinKernel {
-    /// Executables below these host directories report the platform-binary
-    /// code-signing status (`CodeSigningInfo.setPlatformRoots`).
     public static func setPlatformCodeRoots(_ roots: [String]) {
         CodeSigningInfo.setPlatformRoots(roots)
     }
 
-    /// csops (169) / csops_audittoken (170), after xnu `bsd/kern/kern_proc.c`
-    /// csops_internal (level 1): pid 0 is the caller; another pid must exist
-    /// (ESRCH) and, with an audit token, match its pid (word 5) and
-    /// pidversion (word 7) (ESRCH); STATUS, CDHASH, PIDOFFSET, the
-    /// entitlement blobs, BLOB, IDENTITY, TEAMID, and VALIDATION_CATEGORY
-    /// may target any process, the others only the caller (EPERM).
     func csopsCall(_ withToken: Bool, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         let requested = Int32(truncatingIfNeeded: a[0]), ops = UInt32(truncatingIfNeeded: a[1])
         let addr = a[2], size = a[3]
@@ -369,8 +306,6 @@ extension DarwinKernel {
         let valid = (info?.status ?? 0) & 0x1 != 0
         call += " [\(info?.identity ?? "unsigned")]"
         func be32(_ v: UInt32) -> [UInt8] { [UInt8(v >> 24), UInt8(truncatingIfNeeded: v >> 16), UInt8(truncatingIfNeeded: v >> 8), UInt8(truncatingIfNeeded: v)] }
-        // xnu csops_copy_token: a missing blob is an 8-byte zero header; a
-        // short buffer gets the blob's length in a header and ERANGE.
         func copyBlob(_ blob: [UInt8]?) throws -> UInt64 {
             guard size >= 8 else { throw Failure(errno: Errno.ERANGE) }
             guard let blob else { try mem.write(va: addr, bytes: [UInt8](repeating: 0, count: 8)); return 0 }
@@ -382,44 +317,42 @@ extension DarwinKernel {
             return 0
         }
         switch ops {
-        case 0:  // CS_OPS_STATUS
+        case 0:
             if addr != 0 {
                 var b: [UInt8] = []
                 b.appendLE(info?.status ?? 0)
                 try mem.write(va: addr, bytes: Array(b.prefix(Int(min(size, 4)))))
             }
             return 0
-        case 1, 2, 3, 8, 12:  // MARKINVALID, MARKHARD, MARKKILL, MARKRESTRICT, CLEARINSTALLER
+        case 1, 2, 3, 8, 12:
             if ops == 2 && !valid { throw Failure(errno: Errno.EINVAL) }
             return 0
-        case 5:  // CS_OPS_CDHASH
+        case 5:
             guard let info, size == 20 else { throw Failure(errno: Errno.EINVAL) }
             try mem.write(va: addr, bytes: info.cdHash)
             return 0
-        case 6:  // CS_OPS_PIDOFFSET
+        case 6:
             try mem.write(va: addr, bytes: [UInt8](repeating: 0, count: 8))
             return 0
-        case 7, 10, 16:  // ENTITLEMENTS_BLOB, BLOB, DER_ENTITLEMENTS_BLOB
+        case 7, 10, 16:
             guard valid, let info else { throw Failure(errno: Errno.EINVAL) }
             return try copyBlob(ops == 7 ? info.entitlements : ops == 10 ? info.signature : info.derEntitlements)
-        case 11, 14:  // CS_OPS_IDENTITY, CS_OPS_TEAMID
+        case 11, 14:
             guard size >= 8 else { throw Failure(errno: Errno.ERANGE) }
             guard valid, let info else { throw Failure(errno: Errno.EINVAL) }
             guard let text = ops == 11 ? info.identity : info.teamID else { throw Failure(errno: Errno.ENOENT) }
             let bytes = Array(text.utf8) + [0]
-            // A buffer short of the whole string gets the header and ERANGE
-            // (also exactly 8 bytes; level 3, the Mac's simulator).
             try mem.write(va: addr, bytes: [0, 0, 0, 0] + be32(UInt32(bytes.count + 8)))
             guard size >= UInt64(bytes.count + 8) else { throw Failure(errno: Errno.ERANGE) }
             try mem.write(va: addr + 8, bytes: bytes)
             return 0
-        case 9:  // CS_OPS_SET_STATUS
+        case 9:
             guard size >= 4 else { throw Failure(errno: Errno.ERANGE) }
             guard valid else { throw Failure(errno: Errno.EINVAL) }
             return 0
-        case 13, 15:  // CLEARPLATFORM, CLEAR_LV: not on this platform
+        case 13, 15:
             throw Failure(errno: targetPID == pid ? Errno.ENOTSUP : Errno.EPERM)
-        case 17:  // CS_OPS_VALIDATION_CATEGORY
+        case 17:
             var b: [UInt8] = []
             b.appendLE(info?.validationCategory ?? 0)
             try mem.write(va: addr, bytes: b)

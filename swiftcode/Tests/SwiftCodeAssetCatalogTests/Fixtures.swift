@@ -2,7 +2,6 @@ import Foundation
 @testable import SwiftCodeAssetCatalog
 import SwiftCodeIcon
 
-/// Our own sample catalogs and icons, written into a temporary folder.
 enum Fixture {
     static func tempDir(_ tag: String = "car") throws -> URL {
         let u = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-\(tag)-\(UUID().uuidString)")
@@ -24,9 +23,6 @@ enum Fixture {
     static let green = (r: 0.0, g: 0.8, b: 0.2, a: 1.0)
     static var info: [String: Any] { ["author": "swiftcode", "version": 1] }
 
-    /// `Assets.xcassets` with an image set (1x, 2x, dark 2x), a colour set
-    /// (any, dark), `AccentColor`, a namespaced folder, an iOS single-size
-    /// app icon, a macOS app icon and a watchOS app icon.
     static func catalog(in dir: URL) throws -> URL {
         let cat = dir.appendingPathComponent("Assets.xcassets")
         try json(["info": info], to: cat)
@@ -67,7 +63,6 @@ enum Fixture {
         return cat
     }
 
-    /// An `.icon` with a solid fill (and a dark fill), one group with a PNG layer.
     static func icon(in dir: URL, name: String = "AppIcon") throws -> URL {
         let assets = dir.appendingPathComponent("icon-src")
         try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)

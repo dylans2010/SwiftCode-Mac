@@ -6,16 +6,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_SIMUX=<prefix>: the simulator walk of docs/SIMULATOR-UX.md from
-// the Linux IDE: the destination menu (a paired host's devices, or the
-// device Run makes on a host without one, or an offline host), Product ▸
-// Run on a SwiftCode simulator host with the activity text and the console at
-// each phase, then Product ▸ Stop. Each step prints "simux <t> s: …" and
-// writes <prefix>-<n>-<state>.png.
-//
-//   SWIFTCODE_IDE_SIMUX_DEST     the destination's name (default: the first of a host)
-//   SWIFTCODE_IDE_SIMUX_LIMIT    seconds to wait for the device's display (default 900)
-//   SWIFTCODE_IDE_SIMUX_HOLD     seconds to keep the run before Stop (default 20)
 extension ShellDriver {
     #if os(Linux)
     static func simulatorWalk(_ app: ShellAppModel, prefix: String) async {
@@ -35,7 +25,6 @@ extension ShellDriver {
         OpenViewsAutomation.press(.escape)
         await pause(0.3)
 
-        // An offline host: its row says so, and Run fails at once with the reason.
         if let offline = w.destinations.first(where: { $0.name.hasSuffix(" is offline") }) {
             w.destination = offline
             let started = Date()
@@ -62,7 +51,6 @@ extension ShellDriver {
         await clickText("Run", inPopup: true)
         await pause(1)
         if !w.isBusy {
-            // The menu was not reachable (an offscreen display): Run as the menu item does.
             OpenViewsAutomation.press(.escape)
             mark("Product ▸ Run not clicked; running through the model")
             w.perform(.run)
@@ -111,7 +99,6 @@ extension ShellDriver {
         await snap("07-stopped")
     }
 
-    /// This process's children named swiftcode-sim-viewer (the device windows), from /proc.
     static func childViewers() -> Int {
         let me = ProcessInfo.processInfo.processIdentifier
         let pids = (try? FileManager.default.contentsOfDirectory(atPath: "/proc")) ?? []

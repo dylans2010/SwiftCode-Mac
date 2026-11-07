@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for Vision
-
 public struct VisionAPIEntity_0000: Sendable, Codable {
     public let id: String = "vision.api.0"
     public var name: String = "VisionEntity_0"

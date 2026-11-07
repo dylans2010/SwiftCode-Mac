@@ -1,19 +1,11 @@
-// The snapshot file format (specs/simulator/snapshot.md §6): a manifest of
-// versioned records whose payloads are tagged fields, and sparse page files.
-// Portable (macOS and Linux) so the format is unit-tested everywhere.
-
 import Foundation
 
-/// A failure to read or write a snapshot.
 public struct SnapshotError: Error, CustomStringConvertible, Sendable {
     public var message: String
     public init(_ message: String) { self.message = message }
     public var description: String { message }
 }
 
-// MARK: - Fields
-
-/// One record payload being written: a sequence of (tag u16, type u8, value).
 public struct SnapshotFields: Sendable {
     public enum FieldType: UInt8, Sendable {
         case u64 = 1, i64 = 2, bytes = 3, string = 4, u64List = 5, reference = 6, nested = 7, nestedList = 8
@@ -51,7 +43,6 @@ public struct SnapshotFields: Sendable {
         raw32(UInt32(v.count))
         for x in v { raw64(x) }
     }
-    /// A reference to another record (0 = none).
     public mutating func ref(_ tag: UInt16, _ id: UInt64) { head(tag, .reference); raw64(id) }
     public mutating func nested(_ tag: UInt16, _ v: SnapshotFields) {
         head(tag, .nested)
@@ -68,8 +59,6 @@ public struct SnapshotFields: Sendable {
     }
 }
 
-/// A decoded payload. Unknown tags are kept but ignored by callers; a
-/// repeated tag keeps its last value.
 public struct SnapshotFieldReader: Sendable {
     public enum Value: Sendable {
         case u64(UInt64), i64(Int64), bytes([UInt8]), string(String), u64s([UInt64]), ref(UInt64)
@@ -154,7 +143,6 @@ public struct SnapshotFieldReader: Sendable {
     }
 }
 
-/// Little-endian reads over a byte slice.
 struct ByteCursor {
     let bytes: ArraySlice<UInt8>
     var position: Int
@@ -190,18 +178,12 @@ struct ByteCursor {
     }
 }
 
-// MARK: - Records and the manifest
-
-/// Record kinds (§6.1). Bit 15 marks a kind a reader may skip.
 public enum SnapshotRecordKind: UInt16, Sendable, CaseIterable {
     case system = 1, process = 2, image = 3, thread = 4, region = 5, sharedMemory = 6
     case machSpace = 10, port = 11, portSet = 12, semaphore = 14, ulock = 15
     case openFile = 20, hostFile = 21, pipe = 22, kqueue = 23, workqueue = 25, unixSocket = 26, posixShm = 27, posixSem = 28
-    /// An IP socket (networking-swiftcode.md §6).
     case inetSocket = 29
     case clock = 30
-    /// A host service's own state (§2.6, §9): optional, a reader that does
-    /// not know the service skips it.
     case hostService = 0x801F
     case census = 0x8020
 }
@@ -226,23 +208,15 @@ public struct SnapshotRecord: Sendable {
         self.payload = payload
     }
 
-    /// The record's kind, or nil when this build does not know it.
     public var knownKind: SnapshotRecordKind? { SnapshotRecordKind(rawValue: kind) }
-    /// Parses the payload's fields; throws `SnapshotError` if the payload is malformed.
     public func fields() throws -> SnapshotFieldReader { try SnapshotFieldReader(payload) }
 }
 
-/// The manifest file (`manifest.ysnap`).
 public enum SnapshotManifest {
-    /// The 8-byte magic that starts the file (`snapshot.md` §6.1).
     public static let magic: [UInt8] = Array("YCSNAP".utf8) + [0, 1]
-    /// The only format version this build writes and reads.
     public static let formatVersion: UInt32 = 1
-    /// The manifest's file name inside a snapshot directory.
     public static let fileName = "manifest.ysnap"
 
-    /// The manifest bytes for `records`: the header (creation time in seconds since
-    /// 1970) followed by every record in order.
     public static func encode(_ records: [SnapshotRecord], createdAt: UInt64 = UInt64(Date().timeIntervalSince1970)) -> [UInt8] {
         var out = magic
         func u16(_ v: UInt16) { out.append(UInt8(v & 0xFF)); out.append(UInt8(v >> 8)) }
@@ -263,8 +237,6 @@ public enum SnapshotManifest {
         return out
     }
 
-    /// Parses a manifest. Throws `SnapshotError` for a wrong magic, another format
-    /// version, a truncated record, or trailing bytes.
     public static func decode(_ bytes: [UInt8]) throws -> (createdAt: UInt64, records: [SnapshotRecord]) {
         var r = ByteCursor(bytes[...])
         guard Array(try r.take(8)) == magic else { throw SnapshotError("not a SwiftCode snapshot manifest") }
@@ -289,17 +261,10 @@ public enum SnapshotManifest {
     }
 }
 
-// MARK: - Page files
-
-/// A sparse page file (§6.2): extents of 16 KiB pages.
 public enum SnapshotPageFile {
-    /// The 8-byte magic that starts a page file (§6.2).
     public static let magic: [UInt8] = Array("YCPAGES1".utf8)
-    /// The page size of every extent, in bytes.
     public static let pageSize = 16384
 
-    /// A run of `pageCount` pages starting at guest address `address`, stored
-    /// contiguously in the file.
     public struct Extent: Equatable, Sendable {
         public var address: UInt64
         public var pageCount: UInt32
@@ -309,8 +274,6 @@ public enum SnapshotPageFile {
         }
     }
 
-    /// The header and extent table for `extents`; the pages follow at the
-    /// returned data offset (16 KiB-aligned).
     public static func header(for extents: [Extent]) -> (bytes: [UInt8], dataOffset: UInt64) {
         var out = magic
         func u32(_ v: UInt32) { for i in 0..<4 { out.append(UInt8(truncatingIfNeeded: v >> (8 * UInt32(i)))) } }
@@ -330,7 +293,6 @@ public enum SnapshotPageFile {
         return (out, dataOffset)
     }
 
-    /// Parses a header: the extents and the data offset.
     public static func parseHeader(_ bytes: [UInt8]) throws -> (extents: [Extent], dataOffset: UInt64) {
         var r = ByteCursor(bytes[...])
         guard Array(try r.take(8)) == magic else { throw SnapshotError("not a SwiftCode page file") }
@@ -348,7 +310,6 @@ public enum SnapshotPageFile {
         return (extents, dataOffset)
     }
 
-    /// Merges a sorted list of page addresses into extents.
     public static func extents(of pages: [UInt64]) -> [Extent] {
         var out: [Extent] = []
         for page in pages {

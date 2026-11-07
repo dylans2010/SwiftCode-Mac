@@ -2,34 +2,23 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeProject
 
-/// A test found in source by the lexer. See `specs/ide/testing.md`.
 public struct DiscoveredTest: Equatable, Sendable, Hashable {
     public enum Kind: String, Sendable { case xctest, swiftTesting }
     public var file: String
-    /// The XCTestCase subclass, or the enclosing type of a `@Test` function.
     public var suite: String?
-    /// The function name without parameters.
     public var name: String
     public var line: Int
     public var kind: Kind
-    /// The line declaring the suite (class, struct, or @implementation).
     public var suiteLine: Int?
 
-    /// `Suite/name` (or `name`), the form runners filter by.
     public var identifier: String { suite.map { "\($0)/\(name)" } ?? name }
 
-    /// Whether a runner's outcome is for this test.
     public func matches(_ o: TestOutcome) -> Bool {
         o.name == name && (o.suite == nil || o.suite == suite)
     }
 }
 
-/// Finds tests in source text without building (`specs/ide/testing.md`
-/// §Discovery).
 public enum TestDiscovery {
-    /// XCTest methods (`func test…` directly in a class that names
-    /// `XCTestCase` among its supertypes) and swift-testing functions (a
-    /// `func` preceded by the `@Test` attribute), in Swift sources.
     public static func tests(in text: String, file: String) -> [DiscoveredTest] {
         let language = SourceTokenizer.Language(fileName: file)
         if language == .objc { return objcTests(in: text, file: file) }
@@ -90,9 +79,6 @@ public enum TestDiscovery {
         return out
     }
 
-    /// Objective-C XCTest: `- (void)test…` methods (no parameters) inside
-    /// `@implementation C` … `@end`, where `C` is declared in the file as
-    /// `@interface C : XCTestCase`.
     public static func objcTests(in text: String, file: String) -> [DiscoveredTest] {
         var units = Array(text.utf16)
         for t in SourceTokenizer(language: .objc).tokens(in: text) where [.comment, .docComment, .string].contains(t.kind) {
@@ -118,7 +104,6 @@ public enum TestDiscovery {
             } else if t.hasPrefix("@end") {
                 current = nil
             } else if let c = current, t.hasPrefix("-") {
-                // - (void)testSomething { …   (no ':' → no parameters)
                 let sig = t.dropFirst().trimmingCharacters(in: .whitespaces)
                 guard sig.hasPrefix("(void)") else { continue }
                 let rest = sig.dropFirst(6).trimmingCharacters(in: .whitespaces)
@@ -131,7 +116,6 @@ public enum TestDiscovery {
         return out
     }
 
-    /// Every test under a navigator tree.
     public static func tests(in root: NavigatorNode) -> [DiscoveredTest] {
         root.allFiles.flatMap { node -> [DiscoveredTest] in
             guard let path = node.path, node.name.hasSuffix(".swift") || node.name.hasSuffix(".m") || node.name.hasSuffix(".mm"),
@@ -142,8 +126,6 @@ public enum TestDiscovery {
 }
 
 extension WorkspaceModel {
-    /// The name of a project target that compiles `file` (its Sources
-    /// phase, or a synchronized folder holding it).
     public func targetName(compiling file: String) -> String? {
         let path = URL(fileURLWithPath: file).standardizedFileURL.path
         for (projPath, project) in projects.sorted(by: { $0.key < $1.key }) {

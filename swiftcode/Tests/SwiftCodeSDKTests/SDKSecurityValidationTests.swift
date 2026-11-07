@@ -1,11 +1,6 @@
 import XCTest
 @testable import SwiftCodeSDK
 
-/// Security ID / value ID / label validation and the KeychainSDK vault
-/// round-trip (in-memory store in tests via the file store? No — the
-/// vault uses the platform store; these tests cover validation only,
-/// plus envelope behavior through a throwaway file store on Linux and
-/// the Keychain on macOS is NOT touched: validation is pure).
 final class SDKSecurityValidationTests: XCTestCase {
     func testValidSecurityIDs() {
         XCTAssertNoThrow(try KeychainSDK.validateSecurityID("com.example.app"))

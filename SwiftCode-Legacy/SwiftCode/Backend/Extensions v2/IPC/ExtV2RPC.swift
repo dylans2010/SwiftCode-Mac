@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - JSON value (arbitrary JSON for RPC params/results)
-
 public enum ExtV2JSONValue: Codable, Hashable, Sendable {
     case null
     case bool(Bool)
@@ -61,11 +59,6 @@ public enum ExtV2JSONValue: Codable, Hashable, Sendable {
     }
 }
 
-// MARK: - Versioned NDJSON RPC
-
-/// One NDJSON line per message, JSON-RPC 2.0 shaped, protocol version 1.
-/// The method allowlist is the security boundary: an extension host that
-/// sends any other method gets a fault, not a dispatch.
 public struct ExtV2RPCRequest: Codable, Sendable {
     public static let protocolVersion = 1
     public let jsonrpc = "2.0"
@@ -107,7 +100,6 @@ public struct ExtV2RPCErrorPayload: Codable, Sendable {
 }
 
 public enum ExtV2RPC {
-    /// Methods SwiftCode will ever accept from an extension host.
     public static let allowedHostMethods: Set<String> = [
         "host.log", "host.showMessage", "host.registerCommand",
         "host.registerTreeData", "host.setStatusBar", "host.appendOutput",
@@ -119,15 +111,11 @@ public enum ExtV2RPC {
         "host.getConfiguration", "host.showQuickPick", "host.showInputBox",
     ]
 
-    /// Methods SwiftCode sends to a host.
     public static let allowedSwiftCodeMethods: Set<String> = [
         "activate", "deactivate", "executeCommand", "shutdown",
         "didChangeTextDocument", "didChangeConfiguration",
     ]
 
-    /// Validates and decodes one NDJSON line. Throws on oversize lines,
-    /// unknown protocol versions, and disallowed methods — all three are
-    /// treated as host faults, not as data to be lenient about.
     public static func decodeRequest(from line: Data, fromHost: Bool) throws -> ExtV2RPCRequest {
         guard line.count <= ExtV2ResourceLimits.maxIPCMessageBytes else {
             throw ExtV2Error.invalidRequest("IPC message exceeds the size limit and was dropped.")
@@ -145,7 +133,7 @@ public enum ExtV2RPC {
 
     public static func encodeRequest(_ request: ExtV2RPCRequest) throws -> Data {
         var data = try JSONEncoder().encode(request)
-        data.append(0x0A) // NDJSON line terminator
+        data.append(0x0A)
         return data
     }
 

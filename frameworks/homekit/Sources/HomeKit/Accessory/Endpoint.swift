@@ -1,13 +1,5 @@
-// The accessory abstraction: what a home store needs from an accessory
-// server. It is shaped after HAP-IP (accessory-protocols.md §2: an attribute
-// database of accessories `aid` → services → characteristics `iid`, reads,
-// writes, event subscriptions, HAP status codes), so R5's HAP controller can
-// provide endpoints for real or simulated servers, and R3's in-memory
-// `SwiftCodeTestAccessory` provides them for tests.
-
 import Foundation
 
-/// `aid.iid` of one characteristic on an endpoint.
 public struct SwiftCodeCharacteristicAddress: Hashable, Codable, Sendable, CustomStringConvertible {
     public var aid: Int
     public var iid: Int
@@ -15,7 +7,6 @@ public struct SwiftCodeCharacteristicAddress: Hashable, Codable, Sendable, Custo
     public var description: String { "\(aid).\(iid)" }
 }
 
-/// HAP characteristic permissions (accessory-protocols.md §2.3, last bullet).
 public enum SwiftCodeHAPPermission: String, Codable, Hashable, Sendable, CaseIterable {
     case pairedRead = "pr"
     case pairedWrite = "pw"
@@ -25,7 +16,6 @@ public enum SwiftCodeHAPPermission: String, Codable, Hashable, Sendable, CaseIte
     case hidden = "hd"
     case writeResponse = "wr"
 
-    /// The `HMCharacteristicProperty…` string a permission maps to, if any.
     public var property: String? {
         switch self {
         case .pairedRead: return HMCharacteristicPropertyReadable
@@ -37,18 +27,15 @@ public enum SwiftCodeHAPPermission: String, Codable, Hashable, Sendable, CaseIte
         }
     }
 
-    /// Property strings in the catalog's order for a permission list.
     public static func properties(_ perms: [SwiftCodeHAPPermission]) -> [String] {
         let order: [SwiftCodeHAPPermission] = [.pairedRead, .pairedWrite, .events, .hidden, .additionalAuthorization]
         return order.filter(perms.contains).compactMap(\.property)
     }
 }
 
-/// The attribute database of an endpoint (the content of HAP's `/accessories`).
 public struct SwiftCodeAccessoryDatabase: Codable, Hashable, Sendable {
     public struct Characteristic: Codable, Hashable, Sendable {
         public var iid: Int
-        /// Full uppercase type UUID.
         public var type: String
         public var permissions: [SwiftCodeHAPPermission]
         public var metadata: SwiftCodeCharacteristicMetadata
@@ -93,23 +80,16 @@ public struct SwiftCodeAccessoryDatabase: Codable, Hashable, Sendable {
     public init(accessories: [Accessory]) { self.accessories = accessories }
 }
 
-/// Receives unsolicited messages from an endpoint (HAP `EVENT/1.0` messages,
-/// connection loss and recovery). Implemented by the home store.
 public protocol SwiftCodeAccessoryEndpointDelegate: AnyObject, Sendable {
     func endpoint(_ endpointID: String, didUpdateValues values: [SwiftCodeCharacteristicAddress: SwiftCodeHomeValue])
     func endpoint(_ endpointID: String, didChangeReachability reachable: Bool)
 }
 
-/// One accessory server. Completions may run on any thread.
 public protocol SwiftCodeAccessoryEndpoint: AnyObject, Sendable {
-    /// Stable identity (HAP device ID, `XX:XX:XX:XX:XX:XX`).
     var endpointID: String { get }
-    /// Advertised name (HAP `md`/the primary accessory's Name).
     var name: String { get }
-    /// HAP category number (`ci`, accessory-protocols.md §2.5).
     var categoryNumber: Int { get }
     var isReachable: Bool { get }
-    /// Set by the store that pairs with the endpoint. Held weakly.
     var delegate: SwiftCodeAccessoryEndpointDelegate? { get set }
 
     func fetchDatabase(completion: @escaping @Sendable (Result<SwiftCodeAccessoryDatabase, SwiftCodeAccessoryFailure>) -> Void)

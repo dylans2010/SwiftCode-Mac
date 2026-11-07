@@ -2,19 +2,11 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeSubprocess
 
-/// Keeps the menu bar's state current each time a menu is shown or
-/// searched for a key equivalent (`specs/ide/reference-ui-5.md` §1):
-/// titles in context (§1.3), conditional items and their separators
-/// (§1.5), the menus filled from state (developer tools, the focused
-/// editor's inspectors, the scheme rows), and the system's items that
-/// collide with the table (§1.6).
 @MainActor
 public final class MenuBarDelegate: NSObject, NSMenuDelegate {
     public static let shared = MenuBarDelegate()
-    /// Tag of items a filler adds (removed on the next update).
     static let dynamicTag = 9_918
 
-    /// The workspace window the menus act on: the main window's controller.
     static var controller: WorkspaceWindowController? {
         (NSApp?.mainWindow?.windowController ?? NSApp?.keyWindow?.windowController) as? WorkspaceWindowController
     }
@@ -24,7 +16,6 @@ public final class MenuBarDelegate: NSObject, NSMenuDelegate {
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
-        // AppKit may add its items after the update; check again on display.
         removeSystemAdditions(menu)
         if menu.supermenu === NSApp?.mainMenu {
             MainMenu.removeSystemConflicts(in: menu)
@@ -32,7 +23,6 @@ public final class MenuBarDelegate: NSObject, NSMenuDelegate {
         }
     }
 
-    /// Fills, titles, shows or hides and tidies one menu.
     public func update(_ menu: NSMenu, controller wc: WorkspaceWindowController?) {
         let ctx = wc?.menuContext
         removeSystemAdditions(menu)
@@ -49,8 +39,6 @@ public final class MenuBarDelegate: NSObject, NSMenuDelegate {
 }
 
 extension MenuBarDelegate {
-    /// System items SwiftCode leaves out (`reference-ui-6.md` §8 items 1–2):
-    /// a second Open Recent in File, the feedback item in Help.
     func removeSystemAdditions(_ menu: NSMenu) {
         switch (menu as? CommandMenu)?.path {
         case "File": MainMenu.removeSystemRecentMenus(in: menu)
@@ -60,7 +48,6 @@ extension MenuBarDelegate {
     }
 }
 
-/// Menus filled from state when they are shown.
 @MainActor
 enum DynamicMenus {
     static func fill(_ m: CommandMenu, controller wc: WorkspaceWindowController?) {
@@ -81,8 +68,6 @@ enum DynamicMenus {
         }
     }
 
-    /// §2.7 / §2.8: the Editor menu of the focused editor's kind, rebuilt
-    /// when the kind changes.
     static func fillEditor(_ m: CommandMenu, kind: EditorKind) {
         guard m.editorKind != kind else { return }
         let fresh = MainMenu.menu("Editor", EditorMenu.items(for: kind), path: "Editor")
@@ -99,7 +84,6 @@ enum DynamicMenus {
         for i in m.items.reversed() where i.tag == MenuBarDelegate.dynamicTag { m.removeItem(i) }
     }
 
-    /// §2.1 item 7: one item per tool found, before the separator.
     static func fillDeveloperTools(_ m: NSMenu, tools: [DeveloperTools.Tool]) {
         removeDynamic(m)
         for (n, t) in tools.enumerated() {
@@ -111,7 +95,6 @@ enum DynamicMenus {
         }
     }
 
-    /// §2.4 item 9: one item per inspector tab of the focused editor, ⌥⌘1…
     static func fillInspectors(_ m: NSMenu, names: [String]) {
         let end = m.items.firstIndex(where: \.isSeparatorItem) ?? 0
         guard m.items[..<end].map(\.title) != names else { return }
@@ -123,7 +106,6 @@ enum DynamicMenus {
         }
     }
 
-    /// §2.9 item 19: the scheme rows after the commands, the active one checked.
     static func fillSchemes(_ m: NSMenu, names: [String], active: String?, target: AnyObject?) {
         removeDynamic(m)
         guard !names.isEmpty else { return }

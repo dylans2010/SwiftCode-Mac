@@ -4,7 +4,6 @@ public actor ProjectRegistryStore {
     public static let shared = ProjectRegistryStore()
 
     private var registryURL: URL {
-        // SAFETY: PathTool.appSupportDirectory() is guaranteed to be available on macOS.
         try! PathTool.appSupportDirectory().appendingPathComponent("ProjectRegistry.json")
     }
 

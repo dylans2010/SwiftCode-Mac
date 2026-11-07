@@ -1,17 +1,4 @@
 #!/bin/sh
-# Writes the "Merger" package in a git repository whose branch "feature"
-# conflicts with "main" in two files, for the Linux IDE's merge-sheet
-# walk (SWIFTCODE_IDE_CONFLICT, ShellDriver+Conflicts.swift):
-#
-#   Sources/Merger/Colors.swift   two conflicts (resolved by choosing sides)
-#   Sources/Merger/Greeting.swift one conflict (resolved by hand)
-#
-# and two more branches for the cherry-pick and rebase steps: "pick" (one
-# commit that conflicts with main in Colors.swift) and "topic" (a commit
-# that conflicts with main in Greeting.swift). main is checked out; no
-# merge is started (the IDE starts it).
-#
-#     make-conflict.sh <folder>        # writes <folder>/Merger
 set -e
 [ -n "$1" ] || { echo "usage: $0 <folder>" >&2; exit 2; }
 P="$1/Merger"
@@ -22,7 +9,6 @@ g() { git -C "$P" "$@"; }
 cat > "$P/Package.swift" <<'PKG'
 // swift-tools-version: 6.0
 import PackageDescription
-
 let package = Package(name: "Merger", targets: [.executableTarget(name: "Merger")])
 PKG
 colors() {
@@ -48,7 +34,6 @@ func greeting(for name: String) -> String {
 }
 SRC
 }
-# The IDE's language service builds the package: keep its output untracked.
 printf '.build/\n.swiftpm/\n' > "$P/.gitignore"
 cat > "$P/Sources/Merger/main.swift" <<'SRC'
 print(greeting(for: "World"), Palette.accent)
@@ -61,24 +46,19 @@ g config user.email "conflict@swiftcode.invalid"
 g config commit.gpgsign false
 g add -A
 g commit -q -m "First commit"
-
 g switch -q -c feature
 colors ivory teal
 greeting '"Welcome, \(name)."'
 g commit -q -am "Feature: new colors and greeting"
-
 g switch -q main
 colors snow purple
 greeting '"Hi \(name)"'
 g commit -q -am "Main: other colors and greeting"
-
 g switch -q -c pick main
 colors snow crimson
 g commit -q -am "Pick: crimson accent"
-
 g switch -q -c topic main~1
 greeting '"Good day, \(name)!"'
 g commit -q -am "Topic: a formal greeting"
-
 g switch -q main
 echo "$P"

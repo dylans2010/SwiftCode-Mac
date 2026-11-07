@@ -80,8 +80,8 @@ private func u64(_ b: [UInt8], _ o: Int) -> UInt64 {
         let b = sample().encoded()
         #expect(b.count == 320)
         for i in 0..<31 { #expect(u64(b, 8 * i) == 0x1000 + UInt64(i)) }
-        #expect(u64(b, 128) == 0x1010)  // x16
-        #expect(u64(b, 240) == 0x101E)  // x30
+        #expect(u64(b, 128) == 0x1010)
+        #expect(u64(b, 240) == 0x101E)
         #expect(u64(b, 248) == 0x1_6FFF_FF00)
         #expect(u64(b, 256) == 0x1_0000_0024)
         #expect(u64(b, 264) == 0x2000_0000)
@@ -98,7 +98,6 @@ private func u64(_ b: [UInt8], _ o: Int) -> UInt64 {
     @Test func roundTrip() throws {
         let f = sample()
         #expect(try TrapFrame(decoding: f.encoded()) == f)
-        // A whole 16 KiB frame page decodes too; the reserved word is ignored.
         var page = f.encoded() + [UInt8](repeating: 0xEE, count: 16384 - 320)
         page[312] = 0x5A
         #expect(try TrapFrame(decoding: page) == f)
@@ -136,7 +135,6 @@ private func u64(_ b: [UInt8], _ o: Int) -> UInt64 {
 
 @Suite struct SyndromeTests {
     @Test func svc() {
-        // EC 0x15 << 26 = 0x5400_0000, IL = bit 25, imm16 = 0x80.
         let s = ExceptionSyndrome(0x5600_0080)
         #expect(s.ec == 0x15)
         #expect(s.il)
@@ -150,7 +148,6 @@ private func u64(_ b: [UInt8], _ o: Int) -> UInt64 {
     }
 
     @Test func dataAbort() {
-        // EC 0x24, IL, WnR (ISS bit 6), DFSC 0b000111 (translation fault, level 3).
         let s = ExceptionSyndrome(0x9200_0047)
         #expect(s.ec == 0x24)
         #expect(s.exceptionClass == .dataAbortLowerEL)
@@ -176,14 +173,11 @@ private func u64(_ b: [UInt8], _ o: Int) -> UInt64 {
         #expect(ExceptionSyndrome(ec: 0x00, il: false).il == false)
         #expect(ExceptionSyndrome(ec: 0x3F).exceptionClass == nil)
         #expect(ExceptionSyndrome(ec: 0x3F).description.contains("unrecognized"))
-        // ISS2 is bits [55:32].
         #expect(ExceptionSyndrome(0x00AB_CDEF_0000_0000).iss2 == 0xABCDEF)
         for c in ExceptionClass.allCases { #expect(ExceptionSyndrome(ec: c.rawValue).exceptionClass == c) }
     }
 }
 
-/// The in-place trap frame decode and encode (frame-profile.md §8): the
-/// same values and bytes as the byte-array path.
 @Suite struct TrapFramePointerTests {
     @Test func inPlaceMatchesTheByteArrays() throws {
         var bytes = [UInt8](repeating: 0, count: TrapFrame.byteCount)
@@ -198,7 +192,6 @@ private func u64(_ b: [UInt8], _ o: Int) -> UInt64 {
         var out = [UInt8](repeating: 0xFF, count: TrapFrame.byteCount)
         out.withUnsafeMutableBytes { f.encode(into: $0.baseAddress!) }
         #expect(out == f.encoded())
-        // A short x array encodes its missing registers as 0.
         var short = f
         short.x = [1, 2, 3]
         out.withUnsafeMutableBytes { short.encode(into: $0.baseAddress!) }
@@ -217,7 +210,6 @@ private func u64(_ b: [UInt8], _ o: Int) -> UInt64 {
         #expect(r.prefixArray(0).isEmpty)
         let longer = TrapRegisters((0..<40).map(UInt64.init))
         #expect(longer[30] == 30 && longer.count == 31)
-        // Value semantics: a copy is independent of the original.
         var copy = r
         copy[0] = 99
         #expect(r[0] == 1 && copy[0] == 99 && copy != r)

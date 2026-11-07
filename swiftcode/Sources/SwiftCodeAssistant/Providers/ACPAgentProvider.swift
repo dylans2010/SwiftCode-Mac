@@ -1,15 +1,7 @@
 import Foundation
 
-/// An external ACP agent as a coding-assistant back end: one agent process
-/// and one session per request (like the agent tools, nothing is kept).
-/// The agent's messages stream as text; its thoughts, tool calls and plans
-/// show as activity lines; its file reads and writes go through SwiftCode
-/// (writes become proposals the user reviews) and its permission requests
-/// are asked in the IDE. Without an attachment it may read files in the
-/// workspace only. See specs/ide/coding-assistant.md, "SwiftCode implementation".
 public struct ACPAgentProvider: AgentAttachable {
     public var kind: ProviderKind { .acpAgent }
-    /// The located executable (nil: not set up or not found).
     public var executable: URL?
     public var arguments: [String]
     public var attachment: AgentAttachment?
@@ -20,8 +12,6 @@ public struct ACPAgentProvider: AgentAttachable {
         self.attachment = attachment
     }
 
-    /// The provider for a command line typed in Settings ("gemini
-    /// --experimental-acp"): its first word found like the agent tools.
     public init(command: String, locator: CLIToolLocator) {
         let words = CommandLineWords.split(command)
         executable = words.first.flatMap { locator.find(($0 as NSString).lastPathComponent, override: $0.contains("/") ? $0 : nil) }
@@ -43,7 +33,6 @@ public struct ACPAgentProvider: AgentAttachable {
         return p
     }
 
-    /// The client handlers: through the attachment, inside `root`.
     func handlers(root: URL) -> ACPClientHandlers {
         guard let a = attachment else { return .readOnly(root: root) }
         return ACPClientHandlers(readTextFile: { path in
@@ -90,8 +79,6 @@ public struct ACPAgentProvider: AgentAttachable {
         }
     }
 
-    /// Chat events for one ACP event. Thoughts are shown once per
-    /// paragraph; tool calls by title and state; plans as a checklist.
     static func chatEvents(_ e: ACPEvent, thinking: inout String) -> [ChatEvent] {
         switch e {
         case .message(let t): return [.text(t)]
@@ -113,7 +100,6 @@ public struct ACPAgentProvider: AgentAttachable {
     }
 }
 
-/// Splits a command line into words like a shell (quotes group, no expansion).
 public enum CommandLineWords {
     public static func split(_ s: String) -> [String] {
         var words: [String] = []

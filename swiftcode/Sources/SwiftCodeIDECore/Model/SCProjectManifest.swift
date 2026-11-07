@@ -1,30 +1,5 @@
 import Foundation
 
-/// The `.scproj` project format (Legacy `SwiftCode/Frameworks/Internal/`,
-/// Dylan's own code, ported under MIT): the manifest that describes a
-/// SwiftCode project package, plus the on-disk project record. SwiftCode's
-/// native project model is the real `.xcodeproj` / SwiftPM model in
-/// `SwiftCodeProject`; this file exists so `.scproj` packages created by
-/// Legacy SwiftCode can still be read, validated and re-written. ZIP
-/// archives (`.scproj` as a single zipped file) are NOT supported here —
-/// the destination has no ZIP dependency in this target — only directory
-/// packages (see `SCProjectFormat.swift`).
-///
-/// Changes from Legacy, stated plainly:
-/// - `Project` is renamed `SCProject` (the name is taken in other modules).
-/// - `FileNode` is renamed `SCProjectFileNode` and drops its SwiftUI
-///   `icon`/`iconColor` (a portable model must not import SwiftUI).
-/// - The GitHub token field is dropped: Legacy kept it out of `project.json`
-///   anyway ("stored in keychain, not persisted here") and the destination
-///   keeps GitHub credentials in `SwiftCodeGitHub` / the `SecretStore`.
-/// - `ProjectTransferConfiguration` (peer transfer) is not ported: its
-///   `TransferPermission` / `TransferAuditEntry` types are outside this
-///   slice and no transfer peer exists in the destination.
-
-/// A comprehensive manifest for the .scproj project format (Legacy
-/// `ProjectManifest`). All sections are optional-tolerant through memberwise
-/// defaults at the call site; the synthesized `Codable` conformance reads
-/// Legacy-written `manifest.json` files as-is.
 public struct ProjectManifest: Codable, Sendable {
     public struct Identity: Codable, Sendable {
         public var id: UUID
@@ -248,8 +223,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
 }
 
-/// Project metadata written alongside the manifest (Legacy
-/// `ProjectMetadata`).
 public struct ProjectMetadata: Codable, Sendable {
     public var name: String
     public var description: String?
@@ -268,11 +241,9 @@ public struct ProjectMetadata: Codable, Sendable {
     }
 }
 
-/// A file or folder in a `.scproj` package (Legacy `FileNode`, renamed).
 public struct SCProjectFileNode: Identifiable, Codable, Equatable, Sendable {
     public var id: UUID
     public var name: String
-    /// Path relative to the project root.
     public var path: String
     public var isDirectory: Bool
     public var children: [SCProjectFileNode]
@@ -314,7 +285,6 @@ public struct SCProjectFileNode: Identifiable, Codable, Equatable, Sendable {
         (name as NSString).pathExtension.lowercased()
     }
 
-    /// Every file node below this one, depth-first.
     public func flattenedFiles() -> [SCProjectFileNode] {
         if isDirectory {
             return children.flatMap { $0.flattenedFiles() }
@@ -323,8 +293,6 @@ public struct SCProjectFileNode: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-/// The CI build configuration of a `.scproj` project (Legacy
-/// `CIBuildConfiguration`).
 public struct CIBuildConfiguration: Codable, Sendable {
     public enum Platform: String, Codable, CaseIterable, Sendable {
         case iOS
@@ -364,9 +332,6 @@ public struct CIBuildConfiguration: Codable, Sendable {
     }
 }
 
-/// Persisted per-project build metadata (Legacy `ProjectBuildSettings`).
-/// All properties carry defaults so decoding tolerates older `project.json`
-/// payloads that lack these keys.
 public struct ProjectBuildSettings: Codable, Sendable {
     public var organizationName: String = ""
     public var bundleIdentifier: String = ""
@@ -389,10 +354,6 @@ public struct ProjectBuildSettings: Codable, Sendable {
     public init() {}
 }
 
-/// One `.scproj` project (Legacy `Project`, renamed `SCProject`).
-/// `directoryURL` is the package directory itself; Legacy resolved a bare
-/// name through a projects root, which the destination does not have, so
-/// `SCProject` always carries its directory explicitly.
 public struct SCProject: Identifiable, Codable, Sendable {
     public var id: UUID
     public var name: String
@@ -407,9 +368,6 @@ public struct SCProject: Identifiable, Codable, Sendable {
     public var buildSettings: ProjectBuildSettings
     public var fileCount: Int = 0
 
-    /// The package directory. Legacy stored only a name and resolved it
-    /// through `CodingManager.projectsRoot`; this port stores the directory
-    /// on the record so a package can live anywhere.
     public var directoryURL: URL
 
     public enum CodingKeys: String, CodingKey {
@@ -439,8 +397,6 @@ public struct SCProject: Identifiable, Codable, Sendable {
         name = try container.decode(String.self, forKey: .name)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         lastOpened = try container.decode(Date.self, forKey: .lastOpened)
-        // Legacy wrote an empty `files` array plus a `fileCount`; the tree
-        // is rebuilt from disk by the deserializer, so decode tolerantly.
         files = (try? container.decode([SCProjectFileNode].self, forKey: .files)) ?? []
         fileCount = (try? container.decode(Int.self, forKey: .fileCount)) ?? 0
         githubRepo = try container.decodeIfPresent(String.self, forKey: .githubRepo)

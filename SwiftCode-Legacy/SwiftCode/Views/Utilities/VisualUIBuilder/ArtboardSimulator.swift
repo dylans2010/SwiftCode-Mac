@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 public struct ArtboardSimulator: View {
-    @State private var mode: Int = 0 // 0: Live Preview, 1: Run Full App
+    @State private var mode: Int = 0
     @State private var zoomScale: CGFloat = 1.0
 
     var onClose: () -> Void
@@ -18,7 +18,6 @@ public struct ArtboardSimulator: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // High-fidelity Simulator Header & Segment Selector
             VStack(spacing: 8) {
                 HStack {
                     HStack(spacing: 6) {
@@ -31,7 +30,6 @@ public struct ArtboardSimulator: View {
 
                     Spacer()
 
-                    // Exit action button
                     Button {
                         onClose()
                     } label: {
@@ -45,7 +43,6 @@ public struct ArtboardSimulator: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
 
-                // Mode picker segment
                 Picker("Execution Mode", selection: $mode) {
                     Text("Live Preview").tag(0)
                     Text("Run Full App").tag(1)
@@ -68,8 +65,6 @@ public struct ArtboardSimulator: View {
     }
 }
 
-// MARK: - Live Preview SubView
-
 struct LivePreviewSubView: View {
     @State private var zoomScale: Double = 1.0
     @State private var showingLogs = false
@@ -81,9 +76,7 @@ struct LivePreviewSubView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Premium Sub-Toolbar containing Refresh, Start New Session, Exit
             HStack(spacing: 12) {
-                // Refresh Button
                 Button {
                     Task {
                         await triggerRefresh()
@@ -97,7 +90,6 @@ struct LivePreviewSubView: View {
                 .tint(.accentColor)
                 .help("Recompile and rerender active PreviewSession")
 
-                // Start New Session Button
                 Button {
                     Task {
                         await triggerStartNewSession()
@@ -112,7 +104,6 @@ struct LivePreviewSubView: View {
 
                 Spacer()
 
-                // Target View Selector
                 if !previewManager.availablePreviews.isEmpty {
                     Picker("Target", selection: Binding(
                         get: { previewManager.selectedPreviewName ?? "" },
@@ -133,7 +124,6 @@ struct LivePreviewSubView: View {
                     .labelsHidden()
                 }
 
-                // Logs/Diagnostics Toggle
                 Button {
                     showingLogs.toggle()
                 } label: {
@@ -148,7 +138,6 @@ struct LivePreviewSubView: View {
 
             Divider()
 
-            // Main Content Area with state preservation/restoration
             ZStack {
                 if showingLogs {
                     PreviewLogsView()
@@ -158,7 +147,6 @@ struct LivePreviewSubView: View {
                             if let activeID = DocumentCoordinator.shared.visualUIDocument?.scene.activeArtboardID,
                                let activeArtboard = DocumentCoordinator.shared.visualUIDocument?.scene.artboards.first(where: { $0.id == activeID }),
                                activeArtboard.name != "Default" {
-                                // Render active custom artboard
                                 if let customSource = activeArtboard.customSwiftUISource, !customSource.isEmpty {
                                     if let artboardView = DocumentCoordinator.shared.compiledArtboardViews[activeArtboard.id] {
                                         NativePreviewHost(hostedView: artboardView)
@@ -196,14 +184,12 @@ struct LivePreviewSubView: View {
                                         .padding(32)
                                     }
                                 } else {
-                                    // Visual Renderer
                                     if let document = DocumentCoordinator.shared.visualUIDocument {
                                         VisualUIRenderer(rootNode: activeArtboard.rootNode, document: document)
                                             .padding(16)
                                     }
                                 }
                             } else {
-                                // Render default active PreviewManager compiled view
                                 if let hostedView = previewManager.hostedView {
                                     NativePreviewHost(hostedView: hostedView)
                                         .padding(16)
@@ -216,7 +202,6 @@ struct LivePreviewSubView: View {
                                     }
                                     .padding(32)
                                 } else {
-                                    // Compile error diagnostics or empty state
                                     if !previewManager.buildLogs.isEmpty {
                                         VStack(alignment: .leading, spacing: 12) {
                                             HStack {
@@ -279,7 +264,6 @@ struct LivePreviewSubView: View {
 
             Divider()
 
-            // Zoom Control HUD
             HStack {
                 Spacer()
                 HStack(spacing: 8) {
@@ -299,7 +283,6 @@ struct LivePreviewSubView: View {
         }
     }
 
-    // Save editor buffers immediately before compilation
     private func saveEditorBuffers() async {
         if let activeDoc = DocumentCoordinator.shared.activeDocument {
             do {

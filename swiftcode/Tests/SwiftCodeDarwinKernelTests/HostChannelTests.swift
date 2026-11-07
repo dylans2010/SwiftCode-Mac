@@ -3,10 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// FEAT (simulator-features.md "SwiftCode implementation" §I.2): a host channel
-/// served outside the kernel. A guest connect to the served path succeeds
-/// with no guest listener; bytes go both ways; the server hears the open and
-/// the close; an unserved path is refused again after stopServing.
 @Suite(.serialized) struct HostChannelTests {
     final class Echo: HostChannelServer, @unchecked Sendable {
         let lock = NSLock()

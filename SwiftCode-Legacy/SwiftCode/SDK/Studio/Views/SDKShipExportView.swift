@@ -1,19 +1,10 @@
-import AppKit // NSOpenPanel, NSSavePanel
+import AppKit
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - SDKShipExportView
-//
-// Studio Ship/Export surface (Docs/Intro-to-SDK.md §8, Task A4): pick an
-// extension/app project directory, validate its `swiftcode.json` manifest
-// and runtime entrypoint, then export a deterministic `.swiftcode-extension`
-// package through an `NSSavePanel`.
-
 @MainActor
 public struct SDKShipExportView: View {
-
-    // MARK: - Nested types
 
     private enum Phase {
         case noProject
@@ -28,7 +19,7 @@ public struct SDKShipExportView: View {
         let id: String
         let name: String
         let version: String
-        let kind: String // "extension" | "app"
+        let kind: String
     }
 
     private struct ExportResult {
@@ -69,18 +60,12 @@ public struct SDKShipExportView: View {
 
     private struct CLIEmpty: Decodable {}
 
-    // MARK: - Constants
-
     private static let cliPathDefaultsKey = "com.swiftcode.sdk.cliPath"
-
-    // MARK: - State
 
     @State private var phase: Phase = .noProject
     @State private var manualCommand: ManualCommandRequest?
 
     public init() {}
-
-    // MARK: - Body
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -226,8 +211,6 @@ public struct SDKShipExportView: View {
         .frame(minWidth: 520)
     }
 
-    // MARK: - Project picking
-
     private func chooseProject() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -276,8 +259,6 @@ public struct SDKShipExportView: View {
             kind: manifest.type
         )
     }
-
-    // MARK: - Export
 
     private func promptForDestination(project: ProjectSummary) {
         let panel = NSSavePanel()
@@ -370,8 +351,6 @@ public struct SDKShipExportView: View {
     private func resolveCLIURL() -> URL? {
         SDKInstaller.resolveCLIURL()
     }
-
-    // MARK: - CLI plumbing
 
     private func runCLI(nodeURL: URL, cliURL: URL, arguments: [String]) async throws -> CLIProcessResult {
         try await Task.detached(priority: .utility) {

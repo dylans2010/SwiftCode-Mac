@@ -1,7 +1,3 @@
-// t_threads.m - concurrency (specs/macos/objc-runtime.md §4.5, §5.3, §7,
-// §9): +initialize runs once while other threads wait, cache fills race
-// with sends, retain/release and weak loads race with each other,
-// per-thread autorelease pools, @synchronized mutual exclusion.
 #include <objc/NSObject.h>
 #include <objc/runtime.h>
 #include <pthread.h>

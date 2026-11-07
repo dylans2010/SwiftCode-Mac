@@ -1,11 +1,7 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Test navigator's row menu (`specs/ide/testing.md` §Repetitions):
-/// Run “<test>” and Run “<test>” Repeatedly…, whose sheet picks the mode
-/// and the most iterations.
 extension WorkspaceWindowController {
-    /// The selected row's display name ("testAdds", a suite, a target).
     var selectedTestTitle: String? { navigator.selectedIndex == 5 ? navigator.selectedItem?.title : nil }
 
     func testRowMenuItems() -> [NSMenuItem] {
@@ -17,7 +13,6 @@ extension WorkspaceWindowController {
         return [run, again]
     }
 
-    /// Run Repeatedly…: the sheet, then the iterations.
     @objc public func runSelectedTestsRepeatedly(_ sender: Any?) {
         let tests = selectedTests
         guard !tests.isEmpty, let window, window.isVisible else { NSSound.beep(); return }
@@ -28,8 +23,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// The sheet: Repeat pop-up (Fixed Iterations, Until Failure, Retry on
-    /// Failure) and Maximum Repetitions; `read` gives the choice.
     public func repetitionSheet(title: String) -> (NSAlert, () -> TestRepetition) {
         let alert = NSAlert()
         alert.messageText = "Run \u{201C}\(title)\u{201D} Repeatedly"

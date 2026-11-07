@@ -4,9 +4,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-4.md §15: controls in the debug bar, either source re-runs
-/// the comparison, the working copy is editable side by side, insertion
-/// markers; the commit sheet shows git's own diff.
 @MainActor
 @Suite(.serialized) struct CodeReviewRound28Tests {
     private func repo(_ name: String) throws -> (URL, URL) {

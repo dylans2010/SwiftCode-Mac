@@ -1,8 +1,3 @@
-//
-//  AssistSPMDependencyTreeTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSPMDependencyTreeTool: AssistTool {
@@ -63,7 +58,6 @@ public struct AssistSPMDependencyTreeTool: AssistTool {
 
         var pinsList: [(identity: String, location: String, version: String, revision: String)] = []
 
-        // Format v2/v3 has "pins": [ { "identity", "location", "state": { "version", "revision" } } ]
         if let pins = json["pins"] as? [[String: Any]] {
             for p in pins {
                 let id = p["identity"] as? String ?? (p["package"] as? String ?? "unknown")

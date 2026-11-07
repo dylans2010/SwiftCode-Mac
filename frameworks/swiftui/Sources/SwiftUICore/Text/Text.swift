@@ -1,16 +1,5 @@
 import Foundation
 
-// `Text` (round R4): a sequence of styled segments. `Text + Text`
-// concatenates segments; a modifier applied to a `Text` styles every segment
-// that does not set that attribute itself (the innermost setting wins:
-// `(Text("a").font(.body) + Text("b")).font(.title)` sets only "b" in the
-// title font). View-level text modifiers (`.bold()`, `.fontWeight(_:)`, …
-// on any view) write the same attributes into the environment, where they
-// apply below segment and `Text` settings. Lowering resolves fonts against
-// the environment (Dynamic Type, legibility weight) and hands the runs and
-// the paragraph settings to the layout engine's text leaf.
-
-/// Character-level attributes of a text segment. nil = not set here.
 package struct TextAttributes: Hashable, Sendable {
     package var font: Font?
     package var weight: Font.Weight?
@@ -29,7 +18,6 @@ package struct TextAttributes: Hashable, Sendable {
 
     package init() {}
 
-    /// Fills attributes not set here from `outer`.
     package func merged(under outer: TextAttributes) -> TextAttributes {
         var r = self
         r.font = font ?? outer.font
@@ -49,8 +37,6 @@ package struct TextAttributes: Hashable, Sendable {
         return r
     }
 
-    /// The font these attributes select in `environment` (whose `font` is the
-    /// default when no segment font is set).
     package func textFont(in environment: EnvironmentValues) -> TextFont {
         var f = font ?? environment.font ?? .body
         if let w = weight { f.weight = w }
@@ -64,7 +50,6 @@ package struct TextAttributes: Hashable, Sendable {
     }
 }
 
-/// A view that displays text.
 public struct Text: Equatable, Sendable {
     package enum Content: Equatable, Sendable {
         case verbatim(String)
@@ -75,7 +60,6 @@ public struct Text: Equatable, Sendable {
         package var content: Content
         package var attributes = TextAttributes()
 
-        /// The text as written (localization happens when the text is laid out).
         package var string: String {
             switch content {
             case .verbatim(let s): return s
@@ -95,20 +79,16 @@ public struct Text: Equatable, Sendable {
         segments = [Segment(content: .localized(key, table: tableName, bundle: bundle.map(BundleReference.init)))]
     }
 
-    /// The concatenated text as written.
     package var string: String { segments.map(\.string).joined() }
 
-    /// How text is truncated when it does not fit.
     public enum TruncationMode: Hashable, Sendable {
         case head, middle, tail
     }
 
-    /// Case transformation (`textCase(_:)`).
     public enum Case: Hashable, Sendable {
         case uppercase, lowercase
     }
 
-    /// Underline and strikethrough styles (rendering only).
     public struct LineStyle: Hashable, Sendable {
         public struct Pattern: Hashable, Sendable {
             let name: String
@@ -132,15 +112,12 @@ public struct Text: Equatable, Sendable {
 
     public typealias Body = Never
 
-    // MARK: Concatenation and styling
-
     public static func + (lhs: Text, rhs: Text) -> Text {
         var t = lhs
         t.segments += rhs.segments
         return t
     }
 
-    /// Sets `attribute` on every segment that does not set it.
     private func styled(_ apply: (inout TextAttributes) -> Void) -> Text {
         var t = self
         for i in t.segments.indices {
@@ -180,7 +157,6 @@ public struct Text: Equatable, Sendable {
     public func foregroundStyle(_ color: Color) -> Text { foregroundColor(color) }
 }
 
-/// A `Bundle` held by identity (Text stays `Equatable` and `Sendable`).
 package struct BundleReference: Equatable, @unchecked Sendable {
     package let bundle: Bundle
     package init(_ b: Bundle) { bundle = b }
@@ -199,7 +175,6 @@ extension Text: PrimitiveView {
         return [n]
     }
 
-    /// The runs and paragraph settings of this text in `environment`.
     package func resolve(in environment: EnvironmentValues) -> ResolvedText {
         let outer = environment.textAttributes
         let runs = segments.map { seg -> ResolvedText.Run in

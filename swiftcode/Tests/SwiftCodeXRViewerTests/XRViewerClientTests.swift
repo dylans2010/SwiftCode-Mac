@@ -1,7 +1,3 @@
-// The headset viewer without a headset (specs/simulator/xr-viewer.md §7,
-// §9): the stream client's per-view canvases, the options, and a recorded
-// tracking script driving the viewer against an in-memory server.
-
 import CSwiftCodeCodec
 import CSwiftCodeOpenXR
 import CSwiftCodeVideo
@@ -11,7 +7,6 @@ import SwiftCodeDisplayStream
 @testable import SwiftCodeRemoteViewer
 @testable import SwiftCodeXRViewer
 
-/// A transport whose incoming bytes are given and whose outgoing bytes are kept.
 final class MemoryTransport: DisplayTransport, @unchecked Sendable {
     private let cond = NSCondition()
     private var incoming: [[UInt8]] = []
@@ -28,7 +23,6 @@ final class MemoryTransport: DisplayTransport, @unchecked Sendable {
     }
     func close() { cond.withLock { closed = true; cond.broadcast() } }
 
-    /// Every message the client sent so far.
     func sentMessages() throws -> [DisplayMessage] {
         var p = DisplayMessageParser()
         p.append(cond.withLock { sent })
@@ -77,7 +71,6 @@ private func visionHello() -> DisplayServerHello {
         t.push(.frame(try #require(zlibFrame(sequence: 1, value: 0x20))))
         t.push(.frameView(XRFrameView(frameSequence: 2, view: .right, latch: 2, poseSequence: 4, pose: .identity, fov: fov, guestFrame: 2)))
         t.push(.frame(try #require(zlibFrame(sequence: 2, value: 0x80))))
-        // An untagged frame (and a tag for another frame) go to the mono canvas.
         t.push(.frameView(XRFrameView(frameSequence: 99, view: .left, latch: 2, poseSequence: 5, pose: .identity, fov: fov, guestFrame: 3)))
         t.push(.frame(try #require(zlibFrame(sequence: 3, value: 0xF0))))
         #expect(wait { frames.count == 3 })
@@ -98,7 +91,6 @@ final class FrameLog: @unchecked Sendable {
 }
 
 @Suite struct XRFlowAndPlainPathTests {
-    /// The client acknowledges what it decoded, when it asked for a window and the server honours one.
     @Test func framesAreAcknowledged() throws {
         for (window, serverAcks, expected) in [(3, true, true), (0, true, false), (3, false, false)] {
             var o = XRViewerOptions()
@@ -114,7 +106,6 @@ final class FrameLog: @unchecked Sendable {
             transport.push(.hello(hello))
             transport.push(.frame(try #require(zlibFrame(sequence: 7, value: 1))))
             #expect(wait { got.isSet })
-            // The ack goes out right after the frame event.
             Thread.sleep(forTimeInterval: 0.05)
             let acks = try transport.sentMessages().compactMap { m -> UInt64? in if case .frameAck(let s) = m { return s } else { return nil } }
             #expect(acks == (expected ? [7] : []))
@@ -129,7 +120,6 @@ final class FrameLog: @unchecked Sendable {
         #expect(o.hello(problem: { _ in nil }).frameWindow == nil)
     }
 
-    /// The plain path uploads each view's newest picture once, and only a new one.
     @Test func thePlainPathTakesTheNewestPictureOnce() throws {
         final class CountingSink: XRPictureSink {
             var uploads: [(Int, Int, Int)] = []
@@ -164,7 +154,6 @@ final class FrameLog: @unchecked Sendable {
         viewer.client.stop()
     }
 
-    /// The conversion that replaced the one-thread BGRX copy gives the same pixels, every format.
     @Test func theThreadedConversionMatchesTheReference() {
         let (w, h) = (97, 61)
         var y = [UInt8](repeating: 0, count: w * h), u = y, v = y
@@ -175,11 +164,9 @@ final class FrameLog: @unchecked Sendable {
         yxr_convert_yuv444(y, u, v, Int32(w), Int32(w), Int32(h), &fast, 1)
         yvid_yuv444_to_bgrx(y, u, v, Int32(w), Int32(w), Int32(h), &reference, w * 4)
         #expect(fast == reference)
-        // Red first, for a swapchain that is not BGRA.
         var rgba = [UInt8](repeating: 0, count: w * h * 4)
         yxr_convert_yuv444(y, u, v, Int32(w), Int32(w), Int32(h), &rgba, 0)
         #expect(rgba[0] == fast[2] && rgba[2] == fast[0])
-        // NV12.
         var uv = [UInt8](repeating: 128, count: w * (h / 2 + 1))
         for i in 0..<uv.count { uv[i] = UInt8((i * 3) % 256) }
         var n1 = [UInt8](repeating: 0, count: w * h * 4), n2 = n1
@@ -201,7 +188,6 @@ final class FrameLog: @unchecked Sendable {
         #expect(o.gaze.holdSeconds == 0.2 && o.gazeAtPresent && o.gaze.pinchRewindSeconds == 0 && !o.gaze.freezeDuringPinch)
         #expect(o.pinchOnCentimetres == 2.5 && o.pinchOffCentimetres == 4 && o.pinchSlopMillimetres == 8 && o.handHoldMs == 100 && !o.poke)
         #expect(o.holdBandDegrees == 5 && o.holdBandCentimetres == 3 && o.freshTopMs == 0 && o.frameWindow == 0 && o.uploadViaBGRX)
-        // Into the mapper.
         let m = XRInputMapper(options: o)
         #expect(m.gazeSettings.filter == .oneEuro && m.pinchOn == 0.025 && m.pinchOff == 0.04 && m.pinchSlop == 0.008 && !m.poke)
     }
@@ -217,13 +203,11 @@ final class FrameLog: @unchecked Sendable {
             Issue.record("did not parse"); return
         }
         #expect(o.linkDevice == "vision" && o.linkHost == "thor" && !o.stereo && o.latch == 3 && o.pointer == .controller && o.palmOrientation)
-        // Depth and the environment are asked for unless --reproject off (xr-depth.md §7).
         var expected = XRClientRequest(stereo: "mono", latch: 3, depthDownscale: 4)
         expected.environment = true
         #expect(o.hello.xr == expected)
         guard case .run(let off) = XRViewerOptions.parse(["--link", "vision", "--reproject", "off"]) else { Issue.record("did not parse"); return }
         #expect(off.hello.xr?.depthDownscale == nil && off.hello.xr?.environment == nil)
-        // Without re-projection the default is adaptive stereo; with it (the default), both eyes from one view, a sweep.
         #expect(off.stereoMode == "adaptive" && off.stereo && off.hello.xr?.stereo == "adaptive")
         guard case .run(let d) = XRViewerOptions.parse(["--link", "vision"]) else { Issue.record("did not parse"); return }
         #expect(d.synthStereo && !d.stereo && d.hello.xr?.stereo == "mono" && d.sweep && d.cacheFaceSize == 2048 && d.depthGridStep == 1)
@@ -249,10 +233,6 @@ final class FrameLog: @unchecked Sendable {
 }
 
 @Suite struct XRReplayTests {
-    /// A recorded script (head turning, the right hand pinching, the A
-    /// button held for a recentre-length press) drives the viewer against a
-    /// server that has the headset mode: views, selections with the pinch,
-    /// and the crown's button with its timing go out.
     @Test func scriptDrivesViewsSelectionsAndCrown() throws {
         let t = MemoryTransport()
         var o = XRViewerOptions()
@@ -268,7 +248,6 @@ final class FrameLog: @unchecked Sendable {
         func sample(_ i: Int) -> XRTrackingSample {
             let t = Double(i) * 0.011
             let head = SpatialPose(position: SpatialVector(0, 1.6, 0), rotation: SpatialQuaternion(yaw: Double(i) * 0.01, pitch: 0))
-            // Pinch from frame 10 to 20.
             poses[XRHandJoints.thumbTip] = SpatialPose(position: SpatialVector(0.15 + ((10..<20).contains(i) ? 0.01 : 0.06), 1.3, -0.4))
             let a = (30..<40).contains(i)
             return XRTrackingSample(time: t, head: head, hands: [nil, XRHandJoints(poses: poses)],

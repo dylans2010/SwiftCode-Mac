@@ -10,7 +10,6 @@ public final class DatabaseExportManager: Sendable {
         for row in rows {
             let line = columns.map { col in
                 let val = row[col] ?? ""
-                // Escape quotes and commas
                 if val.contains(",") || val.contains("\"") || val.contains("\n") {
                     let clean = val.replacingOccurrences(of: "\"", with: "\"\"")
                     return "\"\(clean)\""

@@ -1,12 +1,6 @@
 import AppKit
 import QuartzCore
 
-/// The paged setup assistant (`specs/ide/liquid-glass-swiftcode.md` §11) that the
-/// headset and runtime setup windows share: page dots at the top, a centred
-/// header (glyph, title, summary), a centred column that scrolls, and a footer
-/// with Back at the leading side and Re-check and Continue at the trailing
-/// side. The header and column form the page, which moves when the step
-/// changes; the dots and the footer stay still.
 @MainActor
 final class SetupAssistant: NSObject {
     static let windowSize = NSSize(width: 760, height: 600)
@@ -17,20 +11,17 @@ final class SetupAssistant: NSObject {
     static let summaryWidth: CGFloat = 480
     static let columnWidth: CGFloat = 520
     static let footerInset: CGFloat = 20
-    /// The column's distance from the footer.
     static let columnGap: CGFloat = 12
     static let slideDuration: TimeInterval = 0.3
     static let fadeDuration: TimeInterval = 0.2
     static let animationKey = "swiftcode.setup.page"
 
     let dots = SetupPageDots()
-    /// The header and the column: what a step change moves.
     let page = NSView()
     let glyph = SetupGlyphView()
     let titleLabel = NSTextField(labelWithString: "")
     let summaryLabel = NSTextField(wrappingLabelWithString: "")
     let scroll = NSScrollView()
-    /// The step's content.
     let column = NSStackView()
     let footnote: NSTextField
     let footer = NSStackView()
@@ -39,16 +30,11 @@ final class SetupAssistant: NSObject {
     let recheckButton = NSButton(title: "Re-check", target: nil, action: nil)
     let statusLabel = NSTextField(wrappingLabelWithString: "")
     let spinner = NSProgressIndicator()
-    /// Forces Reduce Motion on or off (tests); nil follows the system.
     var reduceMotionOverride: Bool?
-    /// The last page change, as it was animated (tests).
     private(set) var lastTransition: SetupTransition?
-    /// The old page while it leaves.
     private(set) var leavingPage: NSView?
     private let document = FlippedView()
 
-    /// The window both assistants use: full-size content, a transparent
-    /// title bar, only the close button.
     static func makeWindow(title: String) -> NSWindow {
         let w = NSWindow(contentRect: NSRect(origin: .zero, size: windowSize), styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                          backing: .buffered, defer: false)
@@ -75,8 +61,6 @@ final class SetupAssistant: NSObject {
         dots.identifier = .init(dotsID)
     }
 
-    /// Lays the assistant out in `root` (the window's content view); the
-    /// buttons send `back`, `next` and `recheck` actions to `target`.
     func install(in root: NSView, target: AnyObject, back: Selector, next: Selector, recheck: Selector) {
         root.wantsLayer = true
         page.wantsLayer = true
@@ -135,7 +119,7 @@ final class SetupAssistant: NSObject {
         }
         let inset = Self.footerInset
         let fill = column.widthAnchor.constraint(equalTo: document.widthAnchor, constant: -48)
-        fill.priority = .defaultLow  // below the window's own size (500), which it must never push
+        fill.priority = .defaultLow
         NSLayoutConstraint.activate([
             dots.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             dots.topAnchor.constraint(equalTo: root.topAnchor, constant: 20),
@@ -165,14 +149,11 @@ final class SetupAssistant: NSObject {
             document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
             column.topAnchor.constraint(equalTo: document.topAnchor),
             column.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -4),
-            // Centred on the page, not the document, so a shown scroller does not move it.
             column.centerXAnchor.constraint(equalTo: page.centerXAnchor),
             column.widthAnchor.constraint(lessThanOrEqualToConstant: Self.columnWidth), fill,
         ])
     }
 
-    /// The header: the step's glyph (a system symbol in the accent colour,
-    /// hierarchical), its title and summary.
     func setHeader(glyph name: String, title: String, summary: String) {
         var config = NSImage.SymbolConfiguration(pointSize: 52, weight: .regular)
         if #available(macOS 12.0, *) { config = config.applying(NSImage.SymbolConfiguration(hierarchicalColor: .controlAccentColor)) }
@@ -182,8 +163,6 @@ final class SetupAssistant: NSObject {
         summaryLabel.stringValue = summary
     }
 
-    /// Replaces the column's content. Views of `SetupWideView` run the
-    /// column's width; the footnote ends it.
     func setColumn(_ views: [NSView]) {
         column.arrangedSubviews.forEach { $0.removeFromSuperview() }
         for v in views + [SetupCentered(footnote)] {
@@ -192,14 +171,8 @@ final class SetupAssistant: NSObject {
         }
     }
 
-    // MARK: Page changes
-
     var reducesMotion: Bool { reduceMotionOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
-    /// Shows the next page: `fill` builds it, then it pushes in from the
-    /// trailing edge (`forward`) or the leading edge while the old page leaves
-    /// the other way; a crossfade with Reduce Motion. The new content is in
-    /// place at once; only its presentation moves.
     func turn(forward: Bool, fill: () -> Void) {
         finishTransition()
         guard let root = page.superview, page.bounds.width > 0, page.bounds.height > 0,
@@ -221,7 +194,6 @@ final class SetupAssistant: NSObject {
         root.layoutSubtreeIfNeeded()
         let crossfade = reducesMotion
         let leftToRight = root.userInterfaceLayoutDirection == .leftToRight
-        // Where the new page starts: the trailing side going forward.
         let offset = page.bounds.width * (forward == leftToRight ? 1 : -1)
         lastTransition = SetupTransition(style: crossfade ? .crossfade : .push, forward: forward, offset: crossfade ? 0 : offset)
         let duration = crossfade ? Self.fadeDuration : Self.slideDuration
@@ -254,23 +226,18 @@ final class SetupAssistant: NSObject {
         })
     }
 
-    /// Ends a page change at once: the old page goes, the new one is in place.
     func finishTransition() {
         leavingPage?.removeFromSuperview()
         leavingPage = nil
         page.layer?.removeAnimation(forKey: Self.animationKey)
     }
 
-    // MARK: Pieces for the column
-
-    /// A heading inside the column.
     static func heading(_ t: String) -> NSTextField {
         let l = NSTextField(labelWithString: t)
         l.font = .systemFont(ofSize: 13, weight: .semibold)
         return l
     }
 
-    /// The check marks (and runtime rows): a system colour and a shape per state.
     static func mark(_ state: SetupDotState) -> (String, NSColor) {
         switch state {
         case .ok: ("checkmark.circle.fill", .systemGreen)
@@ -281,8 +248,6 @@ final class SetupAssistant: NSObject {
     }
 }
 
-/// The step's glyph, drawn to fit its 64-point box (an image view would
-/// align the symbol's own alignment rect instead of the box).
 final class SetupGlyphView: NSView {
     var image: NSImage? { didSet { needsDisplay = true } }
     private(set) var symbolName = ""
@@ -305,16 +270,13 @@ final class SetupGlyphView: NSView {
     }
 }
 
-/// How a page change was animated.
 struct SetupTransition: Equatable {
     enum Style: Equatable { case push, crossfade }
     var style: Style
     var forward: Bool
-    /// Where the new page started, in points along x (0 for a crossfade).
     var offset: CGFloat
 }
 
-/// A step's state as its page dot shows it.
 enum SetupDotState: Equatable {
     case ok, missing, unknown, notChecked, notApplicable
 
@@ -337,7 +299,6 @@ enum SetupDotState: Equatable {
     }
 }
 
-/// The page dots: one per step, the current one larger; a click jumps.
 @MainActor
 final class SetupPageDots: NSStackView {
     var onSelect: ((Int) -> Void)?
@@ -369,8 +330,6 @@ final class SetupPageDots: NSStackView {
     @objc func clicked(_ sender: SetupPageDot) { onSelect?(sender.index) }
 }
 
-/// One page dot, drawn by itself in a 20-point click target: ok a filled
-/// circle, missing a filled diamond, unknown a ring, not applicable a bar.
 @MainActor
 final class SetupPageDot: NSButton {
     static let side: CGFloat = 20
@@ -405,7 +364,6 @@ final class SetupPageDot: NSButton {
         needsDisplay = true
     }
 
-    /// The drawn dot's side.
     var dotDiameter: CGFloat { isCurrent ? Self.currentDiameter : Self.diameter }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -434,10 +392,8 @@ final class SetupPageDot: NSButton {
     }
 }
 
-/// A view that runs the column's width.
 class SetupWideView: NSView {}
 
-/// A view centred in the column (forms, the footnote).
 final class SetupCentered: SetupWideView {
     init(_ content: NSView) {
         super.init(frame: .zero)
@@ -455,16 +411,11 @@ final class SetupCentered: SetupWideView {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// Rows in a grouped inset box: corner radius 10, the quaternary system
-/// fill, hairline separators between rows inset to the rows' text.
 final class SetupGroupBox: SetupWideView {
     static let cornerRadius: CGFloat = 10
     static let insets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
-    /// Where a row's text starts: past its 16-point mark and the gap.
     static let textInset: CGFloat = 12 + 16 + 8
-    /// The width rows have for their content.
     static var rowWidth: CGFloat { SetupAssistant.columnWidth - insets.left - insets.right }
-    /// The width a row's text has beside its mark.
     static var textWidth: CGFloat { rowWidth - 16 - 8 }
     private(set) var rows: [NSView] = []
     private(set) var separators: [SetupHairline] = []
@@ -504,8 +455,6 @@ final class SetupGroupBox: SetupWideView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Drawn rather than set on the layer, so snapshots (the page change,
-    /// tests' captures) have it too.
     override func draw(_ dirtyRect: NSRect) {
         let fill: NSColor = if #available(macOS 14.0, *) { .quaternarySystemFill } else { .quaternaryLabelColor }
         fill.setFill()
@@ -513,7 +462,6 @@ final class SetupGroupBox: SetupWideView {
     }
 }
 
-/// A one-pixel separator in the system's separator colour.
 final class SetupHairline: NSView {
     private lazy var height = heightAnchor.constraint(equalToConstant: 1)
 

@@ -1,15 +1,8 @@
 import Foundation
 
-/// Moves files to the user's trash, never deleting them outright: the
-/// Finder's Trash on macOS, the freedesktop.org trash on Linux
-/// (`$XDG_DATA_HOME/Trash`, by default `~/.local/share/Trash`: the file
-/// goes to `files/`, a `.trashinfo` record with its original path and the
-/// deletion date to `info/`, so desktop file managers can restore it).
 package enum Trash {
     package static func move(_ url: URL) throws { _ = try moveReturningLocation(url) }
 
-    /// Moves `url` to the trash and returns where it went there, so that an
-    /// undo can move it back (`restore(_:to:)`).
     @discardableResult
     package static func moveReturningLocation(_ url: URL) throws -> URL {
         #if canImport(Darwin)
@@ -25,7 +18,6 @@ package enum Trash {
         let files = trash.appendingPathComponent("files"), info = trash.appendingPathComponent("info")
         try fm.createDirectory(at: files, withIntermediateDirectories: true)
         try fm.createDirectory(at: info, withIntermediateDirectories: true)
-        // A free name: "name", then "name 2", "name 3" …
         let base = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
         var name = url.lastPathComponent, n = 1
         while fm.fileExists(atPath: files.appendingPathComponent(name).path)
@@ -42,9 +34,6 @@ package enum Trash {
         #endif
     }
 
-    /// Puts an item moved to the trash back at `original` (an undo). On
-    /// Linux its `.trashinfo` record goes too, as a file manager's Restore
-    /// does; the item itself is moved, never copied or deleted.
     package static func restore(_ trashed: URL, to original: URL) throws {
         try FileManager.default.moveItem(at: trashed, to: original)
         #if !canImport(Darwin)

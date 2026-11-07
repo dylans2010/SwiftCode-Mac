@@ -14,7 +14,7 @@ import SwiftCodeLanguage
         #expect(Placeholders.token(containing: 2, in: t) == nil)
         #expect(Placeholders.next(from: NSRange(location: 0, length: 0), in: t) == r[0])
         #expect(Placeholders.next(from: r[0], in: t) == r[1])
-        #expect(Placeholders.next(from: r[2], in: t) == r[0]) // wraps
+        #expect(Placeholders.next(from: r[2], in: t) == r[0])
         #expect(Placeholders.next(from: r[1], in: t, backward: true) == r[0])
         #expect(Placeholders.next(from: r[0], in: t, backward: true) == r[2])
     }

@@ -3,13 +3,13 @@ import Foundation
 public struct VirtualMachineImage: Codable, Sendable, Identifiable, Hashable {
     public let id: UUID
     public var name: String
-    public var operatingSystem: String // e.g. Ubuntu, Fedora, Debian, Alpine
-    public var version: String // e.g. "22.04 LTS", "39", "12"
-    public var architecture: String // "ARM64" or "x86_64"
-    public var fileLocation: String // local file path on host macOS
+    public var operatingSystem: String
+    public var version: String
+    public var architecture: String
+    public var fileLocation: String
     public var sizeBytes: Int64
-    public var checksum: String // SHA256
-    public var downloadSource: String // official URL
+    public var checksum: String
+    public var downloadSource: String
     public var dateAdded: Date
     public var isInstalled: Bool
 

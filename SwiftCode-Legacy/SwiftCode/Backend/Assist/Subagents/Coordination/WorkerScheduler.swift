@@ -1,7 +1,6 @@
 import Foundation
 import os
 
-/// Schedules and coordinates live Worker execution with dependency resolution, concurrency control, and file ownership.
 @MainActor
 public final class WorkerScheduler: Sendable {
     public static let shared = WorkerScheduler()
@@ -12,7 +11,6 @@ public final class WorkerScheduler: Sendable {
 
     private init() {}
 
-    /// Schedules and executes a set of Worker assignments under parent Assist coordination.
     public func scheduleAndExecute(
         assignments: [WorkerAssignment],
         parentTaskID: UUID,
@@ -20,7 +18,6 @@ public final class WorkerScheduler: Sendable {
     ) async -> [WorkerResult] {
         logger.info("Scheduling \(assignments.count) assignments for parent task \(parentTaskID)...")
 
-        // 1. Create and register all Worker entities in WorkerRuntimeState
         var createdWorkers: [Worker] = []
         var nameToID: [String: UUID] = [:]
 
@@ -46,7 +43,6 @@ public final class WorkerScheduler: Sendable {
             WorkerRuntimeState.shared.register(worker: worker)
         }
 
-        // 2. Wire dependencies between workers
         for (idx, assignment) in assignments.enumerated() {
             let depIDs = assignment.dependencies.compactMap { nameToID[$0] }
             createdWorkers[idx].dependencies = depIDs
@@ -56,12 +52,10 @@ public final class WorkerScheduler: Sendable {
             }
         }
 
-        // 3. Coordinate execution respecting dependencies and safety
         var completedResults: [WorkerResult] = []
         var remainingWorkerIDs = createdWorkers.map { $0.id }
 
         while !remainingWorkerIDs.isEmpty && !Task.isCancelled {
-            // Find all workers whose dependencies are completed
             let completedIDs = Set(completedResults.map { $0.workerID })
             let readyWorkers = createdWorkers.filter { worker in
                 remainingWorkerIDs.contains(worker.id) &&
@@ -69,7 +63,6 @@ public final class WorkerScheduler: Sendable {
             }
 
             if readyWorkers.isEmpty {
-                // Dependency deadlock or remaining workers are blocked/cancelled
                 logger.warning("No more ready workers could be scheduled. Deadlock or cancellation occurred.")
                 for remainingID in remainingWorkerIDs {
                     WorkerRuntimeState.shared.transitionWorker(
@@ -81,7 +74,6 @@ public final class WorkerScheduler: Sendable {
                 break
             }
 
-            // Run ready workers concurrently using cooperative async Tasks
             let tasks = readyWorkers.map { worker -> Task<WorkerResult, Never> in
                 let assignment = assignments.first(where: { $0.name == worker.name }) ?? WorkerAssignment(
                     name: worker.name,
@@ -125,7 +117,6 @@ public final class WorkerScheduler: Sendable {
         context: AssistContext,
         dependencyResults: [WorkerResult]
     ) async -> WorkerResult {
-        // Build isolated context
         let prompt = await WorkerContextBuilder.shared.buildWorkerPrompt(
             for: worker,
             assignment: assignment,
@@ -133,7 +124,6 @@ public final class WorkerScheduler: Sendable {
             dependencyResults: dependencyResults
         )
 
-        // Execute worker
         let result = await self.engine.execute(
             worker: worker,
             scopedPrompt: prompt,
@@ -141,7 +131,6 @@ public final class WorkerScheduler: Sendable {
             modelID: worker.modelUsed
         )
 
-        // Review result with parent review gate
         let review = await WorkerReviewEngine.shared.review(result: result, worker: worker)
         WorkerRuntimeState.shared.recordReview(id: worker.id, review: review)
 
@@ -183,7 +172,6 @@ public final class WorkerScheduler: Sendable {
         return result
     }
 
-    /// Cancels an active Worker with a mandatory non-empty reason
     public func cancelWorker(id: UUID, reason: String) {
         if let task = activeExecutionTasks[id] {
             task.cancel()

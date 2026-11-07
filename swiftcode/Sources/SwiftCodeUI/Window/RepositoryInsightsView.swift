@@ -1,33 +1,9 @@
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/RepositoryExplorerView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The repository explorer's Insights & Analytics section: real
-/// repository productivity metrics plus AI repo-insight summaries.
-///
-/// Legacy's stat cards contained hardcoded numbers ("88% merged", "14
-/// runs", "3 Engineers", "Swift 94%", "Lead 70%"). Every number here is
-/// computed from live data and the cards that had no local source are
-/// gone (pull-request merge rate and deployment counts need the GitHub
-/// API; the dashboard in `RepositoryDashboardView` covers remote counts
-/// when a client is available):
-///
-/// - Commit velocity: commits in the selected period, from
-///   `GitRepository.log(since:)`.
-/// - Contributor count: distinct authors in the period.
-/// - Language coverage: top language by file count (recursive enumeration
-///   of the working tree, skipping generated directories).
-/// - Code ownership: the top author's share of the period's commits.
-/// - AI insight summaries: a report generated from those real stats
-///   through the injected `aiAnalysis` closure (host wires it to Assist
-///   chat completion); nil → the button is disabled with a help tip.
 @MainActor
 public struct RepositoryInsightsView: View {
     public var repository: GitRepository
-    /// Generates the AI insight summary from a prompt built from the real
-    /// stats. Nil → AI insights disabled.
     public var aiAnalysis: ((String) async throws -> String)?
 
     @State private var analyticsPeriod = "Last 30 Days"
@@ -191,7 +167,6 @@ public struct RepositoryInsightsView: View {
         topLanguageShare = languageShare.share
     }
 
-    /// Top language by file count under `root`, skipping generated dirs.
     private static func languageDistribution(root: URL) -> (language: String, share: Double) {
         let skipped: Set<String> = [".git", ".build", ".swiftpm", "DerivedData", "node_modules", "Pods", ".cxx"]
         var counts: [String: Int] = [:]

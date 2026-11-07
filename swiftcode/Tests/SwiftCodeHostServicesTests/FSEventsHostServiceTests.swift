@@ -4,10 +4,6 @@ import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 @testable import SwiftCodeHostServices
 
-/// The file-event service (fsevents-host.md): requests sent by the host task
-/// to the service port, as the guest's client library sends them, and the
-/// event messages it gets back. The service is not started: the tests call
-/// `handle`, `changed` and `flush` themselves.
 @Suite struct FSEventsHostServiceTests {
     typealias Wire = FSEventsHostService.Wire
     static let dataDevice: UInt32 = 0x0100_0010
@@ -29,8 +25,6 @@ import SwiftCodeDarwinABI
     static func le64(_ v: UInt64) -> [UInt8] { (0..<8).map { UInt8(truncatingIfNeeded: v >> (8 * UInt64($0))) } }
     static let ndr: [UInt8] = [0, 0, 0, 0, 1, 0, 0, 0]
 
-    /// Sends a request to `port` with a reply port; the service handles it
-    /// (with `pid` as the sender); returns the reply.
     func call(_ s: FSEventsHostService, port: UInt32, id: Int32, body: [UInt8] = ndr,
               descriptors: [MachHostDescriptor] = [], pid: Int32 = 321) throws -> MachHostReceivedMessage {
         let reply = try host.makePort()
@@ -47,7 +41,6 @@ import SwiftCodeDarwinABI
 
     func retCode(_ r: MachHostReceivedMessage) -> Int32 { r.body.readLE(Int32.self, at: 8) }
 
-    /// A 66000 request (§3.1): (client receive right, stream send right).
     func register(_ s: FSEventsHostService, paths: [String], exclusions: [String] = [], dev: UInt32 = 0,
                   flags: UInt32, latency: UInt64 = 0, since: UInt64 = .max, pid: Int32 = 321) throws -> (client: UInt32, stream: UInt32) {
         func pack(_ list: [String]) -> ([UInt8], [UInt8]) {
@@ -69,7 +62,6 @@ import SwiftCodeDarwinABI
         return (client, stream)
     }
 
-    /// The events of one 67000 message on `client`, or nil when none waits.
     func events(_ client: UInt32) -> [(path: String, flags: UInt32, id: UInt64, extra: [UInt8])]? {
         guard let m = try? host.receive(on: client, timeout: 0) else { return nil }
         #expect(m.id == 67000 && m.descriptors.count == 4 && m.replyPort == 0)
@@ -97,11 +89,9 @@ import SwiftCodeDarwinABI
         #expect(current.id == 66103 && retCode(current) == 0)
         let first = current.body.readLE(UInt64.self, at: 12)
         #expect(first >= 1000)
-        // 66004 knows no history; anything else is MIG_BAD_ID.
         let before = try call(a, port: a.servicePort, id: 66004, body: Self.ndr + Self.le32(Self.dataDevice) + Self.le64(0))
         #expect(before.id == 66104 && retCode(before) == 0 && before.body.readLE(UInt64.self, at: 12) == 0)
         #expect(retCode(try call(a, port: a.servicePort, id: 66005)) == -303)
-        // A new instance (the next boot): same UUID, ids never go back.
         a.stop()
         let b = try service()
         #expect(b.storeUUID == a.storeUUID && b.currentEventID > first)
@@ -110,34 +100,29 @@ import SwiftCodeDarwinABI
 
     @Test func registerFlushStopAndHistoryDone() throws {
         let s = try service(identity: { _ in (inode: 77, documentID: 9) })
-        // A stream since an old id gets HistoryDone with that id (§5).
         let (client, stream) = try register(s, paths: ["/data/Docs"], flags: 0x1F1, latency: 200_000, since: 1234)
         let history = try #require(events(client))
         #expect(history.count == 1 && history[0].path == "/data/Docs" && history[0].flags == Wire.historyDone && history[0].id == 1234)
         #expect(history[0].extra.isEmpty)
-        // A change below it, by another process, then by the stream's own (MarkSelf).
         s.changed(FileChange(kind: .created, item: .file, path: "/data/Docs/a.txt", pid: 99))
         s.changed(FileChange(kind: .modified, item: .file, path: "/data/Docs/a.txt", pid: 99))
         s.changed(FileChange(kind: .created, item: .directory, path: "/data/Docs/sub", pid: 321))
-        s.changed(FileChange(kind: .modified, item: .file, path: "/data/Other/b", pid: 99))   // not watched
-        #expect(events(client) == nil)                                                       // waits for the latency
-        // FlushSync: the events now, coalesced per path, then the last id.
+        s.changed(FileChange(kind: .modified, item: .file, path: "/data/Other/b", pid: 99))
+        #expect(events(client) == nil)
         let flushed = try call(s, port: stream, id: 66001)
         let got = try #require(events(client))
         #expect(got.map(\.path) == ["/data/Docs/a.txt", "/data/Docs/sub"])
         #expect(got[0].flags == Wire.created | Wire.modified | Wire.file)
         #expect(got[1].flags == Wire.createdDirectory | Wire.directory | Wire.ownEvent)
         #expect(got[1].id == got[0].id + 1)
-        #expect(got[0].extra == Self.le64(77) + Self.le32(9))                                 // UseExtendedData
+        #expect(got[0].extra == Self.le64(77) + Self.le32(9))
         #expect(flushed.id == 66101 && retCode(flushed) == 0, "\(flushed.id) \(flushed.body)")
         #expect(flushed.body.readLE(UInt64.self, at: 12) == got[1].id, "\(got.map(\.id))")
-        // Stop: nothing more.
         let stopped = try call(s, port: stream, id: 66006)
         #expect(stopped.id == 66106 && retCode(stopped) == 0 && stopped.body.count == 12)
         s.changed(FileChange(kind: .removed, item: .file, path: "/data/Docs/a.txt", pid: 99))
         s.flush(stream)
         #expect(events(client) == nil)
-        // The client drops its send right: the stream ends.
         try host.deallocate(stream)
         let notice = try host.receive(on: stream, timeout: 0)
         #expect(notice.id == MachNotify.noSenders)
@@ -147,13 +132,12 @@ import SwiftCodeDarwinABI
 
     @Test func directoryLevelRelativeIgnoreSelfAndExclusions() throws {
         let s = try service()
-        // Directory-level (no FileEvents), relative to the data device, IgnoreSelf, one exclusion.
         let (client, stream) = try register(s, paths: ["data/Library"], exclusions: ["data/Library/Caches"],
                                             dev: Self.dataDevice, flags: 0x8, latency: 0)
         s.changed(FileChange(kind: .modified, item: .file, path: "/data/Library/Preferences/x.plist", pid: 99))
         s.changed(FileChange(kind: .created, item: .file, path: "/data/Library/Preferences/y.plist", pid: 99))
-        s.changed(FileChange(kind: .modified, item: .file, path: "/data/Library/Caches/z", pid: 99))       // excluded
-        s.changed(FileChange(kind: .modified, item: .file, path: "/data/Library/Preferences/own", pid: 321)) // own: ignored
+        s.changed(FileChange(kind: .modified, item: .file, path: "/data/Library/Caches/z", pid: 99))
+        s.changed(FileChange(kind: .modified, item: .file, path: "/data/Library/Preferences/own", pid: 321))
         s.changed(FileChange(kind: .cloned, item: .file, path: "/data/Library/c", pid: 99))
         s.flush(stream)
         let got = try #require(events(client))
@@ -166,7 +150,6 @@ import SwiftCodeDarwinABI
         func f(_ k: FileChange.Kind, _ i: FileChange.Item) -> UInt32 {
             FSEventsHostService.wireFlags(FileChange(kind: k, item: i, path: "/x", pid: 1))
         }
-        // §3.4 examples: a new file 0x00800011 (+ OwnEvent), mkdir 0x01000080, rmdir 0x01000002.
         #expect(f(.created, .file) | f(.modified, .file) == 0x0080_0011)
         #expect(f(.created, .directory) == 0x0100_0080 && f(.removed, .directory) == 0x0100_0002)
         #expect(f(.owner, .file) == 0x0080_0100 && f(.extendedAttribute, .file) == 0x0080_0200)

@@ -5,20 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// TabView (round R9; 06 §2.3).
-//
-// Measured: only the selected tab is built at launch; selecting another tab
-// creates it, its `onAppear` running before the old tab's `onDisappear` in
-// the same update, without animation; returning to a tab runs its
-// `onAppear` again; tab content is laid out under the floating tab bar (the
-// bar does not add to the safe area).
-//
-// Design (SwiftCode's): tabs, once built, keep their state while not selected
-// (they are suspended, like covered navigation pages). The tab bar is a
-// floating capsule centred 8 points above the bottom edge: one item per tab,
-// a symbol over a caption, the selected item in the tint.
-
-/// A tab of a `TabView`.
 public struct Tab<Value: Hashable, Content: View, Label: View>: View {
     let value: Value?
     let label: Label
@@ -56,7 +42,6 @@ extension Tab where Label == DefaultTabLabel, Value == Never {
     }
 }
 
-/// The label of a `Tab` made from a title and a symbol.
 public struct DefaultTabLabel: View {
     let title: Text
     let systemImage: String
@@ -68,7 +53,6 @@ public struct DefaultTabLabel: View {
     }
 }
 
-/// What a tab's view tells the tab view.
 @MainActor
 protocol TabDescribing {
     var _tabValue: AnyHashable? { get }
@@ -86,7 +70,6 @@ struct TabItemModifier: ViewModifier {
 }
 
 extension View {
-    /// The tab bar item of this view in a `TabView` (the older form).
     public func tabItem<V: View>(@ViewBuilder _ label: () -> V) -> some View {
         modifier(TabItemModifier(label: AnyView(VStack(spacing: 2) { label() }.font(.caption2).labelStyle(TabItemLabelStyle()))))
     }
@@ -94,7 +77,6 @@ extension View {
     public func tabViewStyle<S: TabViewStyle>(_ style: S) -> some View { self }
 }
 
-/// Labels in tab items: the icon over the title.
 struct TabItemLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: 2) {
@@ -104,7 +86,6 @@ struct TabItemLabelStyle: LabelStyle {
     }
 }
 
-/// How a tab view looks (accepted; one look).
 @MainActor @preconcurrency
 public protocol TabViewStyle {}
 
@@ -145,7 +126,6 @@ final class TabViewState {
     var built: Set<AnyHashable> = []
 }
 
-/// Tabs with a tab bar (06 §2.3).
 public struct TabView<SelectionValue: Hashable, Content: View>: View {
     let content: Content
     let selection: Binding<SelectionValue>?
@@ -230,8 +210,6 @@ extension TabView: PrimitiveView {
         for t in tabs where s.built.contains(t.key) { items.append((t.key, t.content)) }
         items.append((AnyHashable("tab bar"), TabBar(labels: tabs.map(\.label), selected: sel, choose: choose)))
         node.reconcileChildren(items, transaction: transaction)
-        // The selected tab is shown, the others keep their state (06 §2.3:
-        // the new tab appears before the old one disappears).
         for (k, c) in zip(node.childKeys, node.children) where k != AnyHashable("tab bar") {
             c.setSuspended(k != tabs[sel].key)
         }
@@ -263,7 +241,6 @@ extension TabView: PrimitiveView {
     }
 }
 
-/// The floating tab bar.
 struct TabBar: View {
     let labels: [AnyView]
     let selected: Int

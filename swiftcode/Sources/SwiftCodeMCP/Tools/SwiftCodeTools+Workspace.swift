@@ -121,7 +121,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    /// The target folders of a package (`Sources/*`, `Tests/*`).
     nonisolated static func packageTargets(_ dir: URL) -> [String] {
         let fm = FileManager.default
         return ["Sources", "Tests"].flatMap { sub -> [String] in
@@ -130,7 +129,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Every file path of the workspace (navigator order).
     func workspaceFiles(_ s: WorkspaceSession) -> [String] {
         var seen = Set<String>()
         return FindScopeResolver(root: s.model.root).candidates(for: .workspace).map(\.path).filter { seen.insert($0).inserted }
@@ -147,7 +145,6 @@ extension SwiftCodeMCPHost {
                              structured: ["files": .strings(files), "truncated": .bool(truncated)])
     }
 
-    /// fnmatch-style matching; a pattern without "/" also matches the file name.
     nonisolated static func matches(glob: String, _ path: String) -> Bool {
         func m(_ p: String, _ s: String) -> Bool { fnmatch(p, s, 0) == 0 }
         return m(glob, path) || (!glob.contains("/") && m(glob, (path as NSString).lastPathComponent))
@@ -155,9 +152,6 @@ extension SwiftCodeMCPHost {
 
     func readFile(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
-        // Resolves against the session working directory (`dir_cd`), like
-        // Legacy's file_read; absolute paths inside the workspace still
-        // work, and a leading `/` is workspace-root-relative.
         let url = try resolveFileReadingPath(try call.require("path"), in: s)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) || delegate?.mcpHostText(ofOpenFile: url.path) != nil else {
@@ -174,10 +168,6 @@ extension SwiftCodeMCPHost {
         let end: Int
         let slice: [String]
         if let range = call.arguments["lines"]?.object {
-            // Legacy's `lines: {start, end}` range (1-based, inclusive),
-            // which wins over startLine/lineCount when present. Its errors
-            // are strict: start > end and start past the last line are
-            // errors, never invented content; end is clamped.
             let rangeStart = range["start"]?.int ?? 1
             let rangeEnd = range["end"]?.int ?? lines.count
             guard rangeStart >= 1, rangeEnd >= 1 else { throw MCPToolError("Invalid line range: start and end must be integers >= 1.") }
@@ -273,8 +263,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// Declarations and their `///` or `/** */` comments, read from source
-/// text (no index: names containing the query, in file order).
 enum SymbolDocs {
     struct Symbol: Sendable {
         var name: String
@@ -324,8 +312,6 @@ enum SymbolDocs {
         return out
     }
 
-    /// The keyword and name a declaration line starts with (after
-    /// attributes and modifiers), if it is one.
     static func declaration(_ line: String) -> (String, String)? {
         let words = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
         for (i, w) in words.enumerated() {

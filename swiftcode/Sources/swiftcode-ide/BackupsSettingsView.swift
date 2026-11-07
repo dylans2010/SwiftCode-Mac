@@ -2,18 +2,6 @@ import Foundation
 import SwiftUI
 import SwiftCodeCloud
 
-// Backups settings, adapted from Legacy's `SwiftCode/Views/Settings/`
-// (`BackupsView`, `BackupDetailsView`, `CreateBackupView`) onto SwiftCode's
-// `BackupEngine` (`SwiftCodeCloud/BackupEngine.swift`, gap-closure port of
-// Legacy's `Frameworks/Internal/Backups/Engine/BackupEngine.swift`).
-// Local backups only in this view: listing, creating, restoring and
-// deleting local ZIP snapshots. Cloud upload needs an authenticated
-// Appwrite session, which lives in the Accounts pane
-// (`CloudAccountsSettings.swift`); restore erases the current local
-// application state exactly as Legacy did, so it asks for confirmation
-// first and there is no undo.
-
-/// List, create, restore and delete local backup snapshots.
 @MainActor
 struct BackupsSettingsView: View {
     @Environment(\.colorScheme) private var scheme
@@ -54,9 +42,6 @@ struct BackupsSettingsView: View {
                     description: Text("Create a backup to capture a point-in-time snapshot of local application state. Snapshots are ZIP archives in Application Support.")
                 )
             } else {
-                // No List(selection:) here: BackupManifest (SwiftCodeCloud)
-                // is Equatable but not Hashable, so selection is set
-                // by tapping a row instead of a selection binding.
                 List {
                     ForEach(manifests) { manifest in
                         VStack(alignment: .leading, spacing: 2) {

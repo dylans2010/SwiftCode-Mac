@@ -1,15 +1,9 @@
 import Foundation
 
-// HStack / VStack / ZStack layouts (04-layout.md §4).
-
-/// One participant in a stack-like distribution along an axis.
 package struct DistributionItem {
-    /// Length at a zero offer (the minimum).
     package var minLength: CGFloat
-    /// Length at an infinite offer (the maximum).
     package var maxLength: CGFloat
     package var priority: Double
-    /// Length answered for an offer.
     package var measure: (CGFloat) -> CGFloat
 
     package init(minLength: CGFloat, maxLength: CGFloat, priority: Double, measure: @escaping (CGFloat) -> CGFloat) {
@@ -20,18 +14,6 @@ package struct DistributionItem {
     }
 }
 
-/// Distributes `available` length among `items` (04 §4.2):
-///
-/// 1. Items are grouped by priority, highest first. A group is offered what
-///    remains minus the minimum lengths of all lower-priority items.
-/// 2. Within a group, the least flexible item (maximum − minimum) goes
-///    first; ties go to the item with the larger minimum (inferred from
-///    golden `hstack.threeColors.spacing0`, where two infinitely flexible
-///    colours share what a `minWidth: 150` frame leaves), then to
-///    declaration order. Each item is offered an equal share of what is
-///    left (left ÷ items still to go) and its answer is subtracted.
-///
-/// Returns each item's (offer, length).
 package func distribute(_ available: CGFloat, _ items: [DistributionItem]) -> [(offer: CGFloat, length: CGFloat)] {
     var result = Array(repeating: (offer: CGFloat(0), length: CGFloat(0)), count: items.count)
     func minus(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a.isInfinite ? a : a - b }
@@ -62,12 +44,6 @@ package func distribute(_ available: CGFloat, _ items: [DistributionItem]) -> [(
     return result
 }
 
-/// Lines up `dims` on the guide `key` along `axis`: each view's position
-/// from the start of the union extent, and the extent's length (infinite if
-/// any view is infinite along `axis`). The extent always contains the
-/// alignment line itself (R4: golden `hstack.baseline` fit[0×0] = 8 × 32.33 —
-/// two 0 × 0 texts whose baselines lie 32.33 and 11.33 below their tops span
-/// from the higher top to the line).
 package func alignedExtent(_ dims: [ViewDimensions], _ key: AlignmentKey, _ axis: Axis) -> (positions: [CGFloat], extent: CGFloat) {
     guard !dims.isEmpty else { return ([], 0) }
     if dims.contains(where: { $0.size[axis].isInfinite }) {
@@ -79,25 +55,19 @@ package func alignedExtent(_ dims: [ViewDimensions], _ key: AlignmentKey, _ axis
     return (guides.map { before - $0 }, before + after)
 }
 
-/// The shared algorithm of `HStackLayout` and `VStackLayout`.
 package struct StackAlgorithm {
     package var axis: Axis
-    /// The cross-axis guide.
     package var alignmentKey: AlignmentKey
     package var spacing: CGFloat?
 
     package struct Arrangement {
-        /// Proposal per subview.
         var proposals: [ProposedViewSize]
         var dimensions: [ViewDimensions]
-        /// Along-axis position per subview (from the stack's leading/top).
         var along: [CGFloat]
-        /// Cross-axis position per subview (from the extent's start).
         var across: [CGFloat]
         var size: CGSize
     }
 
-    /// Spacing between subview i and i + 1.
     package func gaps(_ subviews: LayoutSubviews) -> [CGFloat] {
         guard subviews.count > 1 else { return [] }
         let svs = Array(subviews)
@@ -132,7 +102,6 @@ package struct StackAlgorithm {
             pos.append(cursor)
             cursor += d.size[axis] + (i < gaps.count ? gaps[i] : 0)
         }
-        // Cross axis: line up the guide; the extent is the union.
         let (crossPos, extent) = alignedExtent(dims, alignmentKey, axis.otherAxis)
         return Arrangement(proposals: proposals, dimensions: dims, along: pos, across: crossPos,
                            size: CGSize(axis, along: svs.isEmpty ? 0 : cursor, across: extent))
@@ -140,9 +109,6 @@ package struct StackAlgorithm {
 
     package func place(in bounds: CGRect, proposal: ProposedViewSize, subviews: LayoutSubviews) {
         let a = arrange(proposal, subviews)
-        // When the bounds are larger than the arrangement across the axis,
-        // put the extent where the guide's unit position says (top 0,
-        // centre ½, bottom and baselines 1).
         let slack = bounds.size[axis.otherAxis] - a.size[axis.otherAxis]
         let unit = Swift.min(Swift.max(alignmentKey.defaultValue(for: CGSize(width: 1, height: 1)), 0), 1)
         let crossStart = bounds.origin[axis.otherAxis] + (abs(slack) < 0.001 ? 0 : slack * unit)
@@ -152,9 +118,6 @@ package struct StackAlgorithm {
         }
     }
 
-    /// A stack's spacing: the first subview's leading (top) edge, the last
-    /// one's trailing (bottom) edge, and the union of all subviews on the
-    /// edges along the axis.
     package func spacing(_ subviews: LayoutSubviews) -> ViewSpacing {
         var s = ViewSpacing.zero
         let svs = Array(subviews)
@@ -170,7 +133,6 @@ package struct StackAlgorithm {
     }
 }
 
-/// Arranges subviews in a horizontal line.
 public struct HStackLayout: Layout {
     public var alignment: VerticalAlignment
     public var spacing: CGFloat?
@@ -202,7 +164,6 @@ public struct HStackLayout: Layout {
     public func spacing(subviews: Subviews, cache: inout Void) -> ViewSpacing { algorithm.spacing(subviews) }
 }
 
-/// Arranges subviews in a vertical line.
 public struct VStackLayout: Layout {
     public var alignment: HorizontalAlignment
     public var spacing: CGFloat?
@@ -234,8 +195,6 @@ public struct VStackLayout: Layout {
     public func spacing(subviews: Subviews, cache: inout Void) -> ViewSpacing { algorithm.spacing(subviews) }
 }
 
-/// Overlays subviews, aligned on both axes (04 §4.4): every subview gets the
-/// stack's proposal; the stack's size is the union of the aligned subviews.
 public struct ZStackLayout: Layout {
     public var alignment: Alignment
 

@@ -1,14 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationChatView.swift
-// Adapted for SwiftCode: Legacy rendered chat from the activity log and sent
-// via `addActivity`. The destination has a real chat store, so sending now
-// goes through CollaborationChatManager.sendMessage (which also broadcasts
-// to peers) and additionally logs to the activity timeline with kind .chat,
-// preserving Legacy's cross-view behaviour (chats visible in the activity
-// log). Channel tabs drive CollaborationChatManager.setChannel /
-// messages(for:). Legacy's hardcoded dark background / white text become
-// system-adaptive.
-
 import SwiftUI
 import SwiftCodeCollaboration
 
@@ -32,7 +21,6 @@ public struct CollaborationChatView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Channel Picker
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ChannelTab(title: "#general", isSelected: selectedChannel == "general") {
@@ -48,7 +36,6 @@ public struct CollaborationChatView: View {
                 .padding()
             }
 
-            // Chat Messages
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 16) {
@@ -76,7 +63,6 @@ public struct CollaborationChatView: View {
                 }
             }
 
-            // Input Area
             HStack(spacing: 12) {
                 TextField("Message #\(selectedChannel)...", text: $inputText)
                     .padding(10)

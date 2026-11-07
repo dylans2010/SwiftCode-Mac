@@ -1,8 +1,3 @@
-//
-//  AssistConversationContextTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistConversationContextTool: AssistTool {

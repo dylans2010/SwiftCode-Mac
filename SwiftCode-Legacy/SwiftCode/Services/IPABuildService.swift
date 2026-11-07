@@ -50,13 +50,10 @@ public final class IPABuildService: Sendable {
     public var currentProgress: Double = 0.0
     public var progressDescription = "Waiting to begin..."
 
-    /// When on, every successful xcodebuild automatically packages the freshest
-    /// .app into an .ipa and refreshes the Latest Archive card.
     public var alwaysBuildArchive: Bool {
         didSet { UserDefaults.standard.set(alwaysBuildArchive, forKey: "com.swiftcode.ipa.alwaysBuildArchive") }
     }
 
-    /// Most recently produced .ipa — shown in the "Latest Archive:" card.
     public var latestArchivePath: String?
     public var latestArchiveDate: Date?
 
@@ -86,7 +83,6 @@ public final class IPABuildService: Sendable {
         }
     }
 
-    /// Drops the Latest Archive reference if the .ipa file no longer exists.
     public func validateLatestArchive() {
         if let path = latestArchivePath, !FileManager.default.fileExists(atPath: path) {
             latestArchivePath = nil
@@ -107,7 +103,6 @@ public final class IPABuildService: Sendable {
     public func getShellScriptPath() -> String {
         let fm = FileManager.default
 
-        // 1. Check main bundle resources
         if let bundlePath = Bundle.main.path(forResource: "build_ipa", ofType: "sh"), fm.fileExists(atPath: bundlePath) {
             chmodExecutable(at: bundlePath)
             return bundlePath
@@ -118,14 +113,12 @@ public final class IPABuildService: Sendable {
             return resourceURL.path
         }
 
-        // 2. Check development source tree
         let sourcePath = "/Users/dylan/SwiftCode-Mac/SwiftCode/Resources/build_ipa.sh"
         if fm.fileExists(atPath: sourcePath) {
             chmodExecutable(at: sourcePath)
             return sourcePath
         }
 
-        // 3. Check current working directory relative
         let cwdPath = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent("SwiftCode/Resources/build_ipa.sh").path
         if fm.fileExists(atPath: cwdPath) {
             chmodExecutable(at: cwdPath)
@@ -138,7 +131,6 @@ public final class IPABuildService: Sendable {
             return cwdShort
         }
 
-        // 4. Fallback: Write embedded script to Application Support
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let scriptDir = appSupport.appendingPathComponent("SwiftCode/Scripts", isDirectory: true)
         try? fm.createDirectory(at: scriptDir, withIntermediateDirectories: true)
@@ -218,15 +210,10 @@ public final class IPABuildService: Sendable {
         p.waitUntilExit()
     }
 
-    /// Searches for a compiled .app bundle for the specified project name:
-    /// 1. Local project build directory: <projectURL>/build/DerivedData/Build/Products/...
-    /// 2. Managed builds directory: ~/Library/Application Support/SwiftCode/Builds/<projectName>/...
-    /// 3. Xcode global DerivedData: ~/Library/Developer/Xcode/DerivedData/<projectName>-*/Build/Products/...
     public func findCompiledAppBundle(projectName: String, projectURL: URL?) -> URL? {
         let fm = FileManager.default
         var candidateURLs: [URL] = []
 
-        // 1. Check local project build/DerivedData
         if let projectURL {
             let localProducts = projectURL.appendingPathComponent("build/DerivedData/Build/Products", isDirectory: true)
             if fm.fileExists(atPath: localProducts.path) {
@@ -242,12 +229,10 @@ public final class IPABuildService: Sendable {
             }
         }
 
-        // 2. Check managed builds directory
         if let managedApp = newestManagedAppBundle(projectName: projectName) {
             candidateURLs.append(managedApp)
         }
 
-        // 3. Check Xcode global DerivedData: ~/Library/Developer/Xcode/DerivedData
         let home = fm.homeDirectoryForCurrentUser
         let xcodeDerivedData = home.appendingPathComponent("Library/Developer/Xcode/DerivedData", isDirectory: true)
         if fm.fileExists(atPath: xcodeDerivedData.path) {
@@ -262,7 +247,6 @@ public final class IPABuildService: Sendable {
             }
         }
 
-        // Sort candidates by modification date (newest first)
         return candidateURLs.sorted { u1, u2 in
             let d1 = (try? u1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             let d2 = (try? u2.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
@@ -303,17 +287,12 @@ public final class IPABuildService: Sendable {
         appendLog("[SYSTEM] Operation aborted by user.", isError: true)
     }
 
-    // MARK: - xcodebuild compilation (no manual Builds-folder / .app hunting)
-
-    /// Managed directory where freshly compiled .app bundles are staged:
-    /// ~/Library/Application Support/SwiftCode/Builds/<ProjectName>/
     public func managedBuildsDirectory(projectName: String) -> URL {
         let fm = FileManager.default
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return appSupport.appendingPathComponent("SwiftCode/Builds/\(projectName)", isDirectory: true)
     }
 
-    /// The most recently modified .app bundle in the managed builds directory.
     public func newestManagedAppBundle(projectName: String) -> URL? {
         let dir = managedBuildsDirectory(projectName: projectName)
         let fm = FileManager.default
@@ -328,8 +307,6 @@ public final class IPABuildService: Sendable {
             .first
     }
 
-    /// Compiles the project with xcodebuild and stages the resulting .app in the
-    /// managed builds directory. Returns the staged .app URL on success.
     public func compileAppBundle(
         projectURL: URL,
         scheme: String,
@@ -364,8 +341,6 @@ public final class IPABuildService: Sendable {
             arguments.append(contentsOf: ["-destination", destination])
         }
         arguments.append("build")
-        // Relaxed signing for simulator-style destinations so a plain compile
-        // succeeds without provisioning profiles.
         if (destination ?? "").lowercased().contains("simulator") {
             arguments.append(contentsOf: [
                 "CODE_SIGN_IDENTITY=",
@@ -425,7 +400,6 @@ public final class IPABuildService: Sendable {
                 return (nil, msg)
             }
 
-            // Locate the freshest .app under the DerivedData products.
             let productsDir = derivedData.appendingPathComponent("Build/Products", isDirectory: true)
             guard let freshApp = newestAppBundle(in: productsDir) else {
                 buildState = .failed
@@ -434,7 +408,6 @@ public final class IPABuildService: Sendable {
                 return (nil, msg)
             }
 
-            // Stage it in the managed builds directory.
             let fm = FileManager.default
             let managedDir = managedBuildsDirectory(projectName: projectURL.deletingPathExtension().lastPathComponent)
             try? fm.createDirectory(at: managedDir, withIntermediateDirectories: true)
@@ -460,8 +433,6 @@ public final class IPABuildService: Sendable {
         }
     }
 
-    /// Packages the most up-to-date managed .app bundle into an .ipa.
-    /// Used by the "Always Build Archive" flow and the Latest Archive card.
     public func packageLatestApp(
         projectName: String,
         outputDirectory: String,
@@ -476,7 +447,6 @@ public final class IPABuildService: Sendable {
         return await packageAppIntoIPA(appPath: appURL.path, outputDirectory: outputDirectory, customIPAName: customIPAName)
     }
 
-    /// Newest .app anywhere under a directory tree (used for DerivedData products).
     private func newestAppBundle(in directory: URL) -> URL? {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return nil }
@@ -493,8 +463,6 @@ public final class IPABuildService: Sendable {
         }
         return best
     }
-
-    // MARK: - IPA packaging
 
     public func packageAppIntoIPA(appPath: String, outputDirectory: String, customIPAName: String? = nil) async -> IPABuildResult {
         guard !isBusy else {
@@ -573,7 +541,6 @@ public final class IPABuildService: Sendable {
                 currentProgress = 1.0
                 progressDescription = "Packaging succeeded!"
 
-                // Locate the IPA file
                 let appName = (appPath as NSString).lastPathComponent.replacingOccurrences(of: ".app", with: "")
                 let finalName = customIPAName ?? "\(appName.replacingOccurrences(of: " ", with: "_")).ipa"
                 let ipaPath = (outputDirectory as NSString).appendingPathComponent(finalName)

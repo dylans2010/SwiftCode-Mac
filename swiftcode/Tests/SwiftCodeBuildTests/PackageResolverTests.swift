@@ -3,15 +3,12 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeBuild
 
-/// Uses a git repository made in a temporary directory as the "remote";
-/// never the network.
 @Suite(.serialized) struct PackageResolverTests {
     static func sh(_ args: String..., in dir: URL) throws {
         _ = try PackageResolver.run("/usr/bin/env", Array(args), in: dir,
                                     environment: ["GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"])
     }
 
-    /// A package `Kit` with tags 1.0.0, 1.2.0, 1.2.3, 2.0.0-beta, 2.0.0 and a `dev` branch.
     static func makeRemote() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-pkg-\(UUID().uuidString)")
         let repo = root.appendingPathComponent("Kit")
@@ -59,7 +56,6 @@ import SwiftCodeProject
         let pin = try resolver.resolve(url: repo.absoluteString, requirement: .upToNextMajor(from: "1.0.0"))
         #expect(pin.identity == "kit" && pin.version == "1.2.3" && pin.revision.count == 40)
         #expect(try String(contentsOf: pin.checkout.appendingPathComponent("Sources/Kit/Kit.swift"), encoding: .utf8) == "public let v = 2\n")
-        // Re-resolving with another rule reuses the checkout.
         let dev = try resolver.resolve(url: repo.absoluteString, requirement: .branch("dev"))
         #expect(dev.branch == "dev" && dev.version == nil)
         #expect(try String(contentsOf: dev.checkout.appendingPathComponent("Sources/Kit/Kit.swift"), encoding: .utf8) == "public let v = 99\n")

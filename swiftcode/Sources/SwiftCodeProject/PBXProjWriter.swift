@@ -1,12 +1,8 @@
 import SwiftCodePlist
 
-/// Writes a `PBXProj` in the exact layout Xcode produces, so that saving an
-/// untouched project is a no-op diff. See `specs/formats/pbxproj.md`.
 public struct PBXProjWriter {
-    /// Classes written on a single line.
     static let singleLineClasses: Set<String> = ["PBXBuildFile", "PBXFileReference"]
 
-    /// Keys whose values are object IDs but never get a reference comment.
     static let uncommentedKeys: Set<String> = ["remoteGlobalIDString", "TestTargetID"]
 
     static let defaultPhaseNames: [String: String] = [
@@ -28,9 +24,6 @@ public struct PBXProjWriter {
     private var listOfConfiguration: [String: String] = [:]
     private var commentCache: [String: String?] = [:]
 
-    /// Prepares a writer for `proj`. `projectName` is the `.xcodeproj` name
-    /// without the extension; it appears only in the project's
-    /// configuration-list comments.
     public init(_ proj: PBXProj, projectName: String) {
         self.proj = proj
         self.projectName = projectName
@@ -46,20 +39,18 @@ public struct PBXProjWriter {
         }
     }
 
-    /// Serializes `proj` in Xcode's layout. See `init(_:projectName:)`.
     public static func write(_ proj: PBXProj, projectName: String) -> String {
         var w = PBXProjWriter(proj, projectName: projectName)
         return w.write()
     }
 
-    /// Returns the whole file text, starting with the `// !$*UTF8*$!` header.
     public mutating func write() -> String {
         var out = "// !$*UTF8*$!\n{\n"
         var top = proj.extraTopLevel
         top["archiveVersion"] = .string(proj.archiveVersion)
         top["classes"] = .dictionary(proj.classes)
         top["objectVersion"] = .string(proj.objectVersion)
-        top["objects"] = .string("")  // placeholder, written specially below
+        top["objects"] = .string("")
         top["rootObject"] = .string(proj.rootObject)
         for key in top.keys.sorted(by: Self.keyOrder) {
             if key == "objects" {
@@ -73,8 +64,6 @@ public struct PBXProjWriter {
         out += "}\n"
         return out
     }
-
-    // MARK: - Objects table
 
     private mutating func writeObjects(into out: inout String) {
         out += "\tobjects = {\n"
@@ -95,8 +84,6 @@ public struct PBXProjWriter {
         }
         out += "\t};\n"
     }
-
-    // MARK: - Multi-line values
 
     private mutating func writeValue(_ value: PlistValue, key: String?, indent: Int, into out: inout String) {
         switch value {
@@ -127,8 +114,6 @@ public struct PBXProjWriter {
         out += OpenStepWriter.tabs(indent) + "}"
     }
 
-    // MARK: - Single-line values
-
     private mutating func writeInline(_ value: PlistValue, key: String?, into out: inout String) {
         switch value {
         case .string(let s):
@@ -157,23 +142,17 @@ public struct PBXProjWriter {
         out += "}"
     }
 
-    // MARK: - Scalars and reference comments
-
     private mutating func scalar(_ s: String, key: String?) -> String {
         if let key, Self.uncommentedKeys.contains(key) { return OpenStepWriter.quote(s) }
         if proj.objects[s] != nil { return reference(s) }
         return OpenStepWriter.quote(s)
     }
 
-    /// `ID /* comment */`, or the bare ID when the object has no comment.
     private mutating func reference(_ id: String) -> String {
         if let c = comment(for: id) { return id + " /* " + c + " */" }
         return id
     }
 
-    /// The reference comment written after object `id`, or nil when the
-    /// object has none (for example the main group). Results are cached.
-    /// See `specs/formats/pbxproj.md` (Reference comments).
     public mutating func comment(for id: String) -> String? {
         if let cached = commentCache[id] { return cached }
         let c = computeComment(for: id)
@@ -222,36 +201,29 @@ public struct PBXProjWriter {
         }
     }
 
-    /// `PBXNativeTarget "App"`: the class and name of a list's owner.
     private func ownerDescription(ofList id: String) -> String {
         guard let ownerID = ownerOfConfigList[id], let owner = proj.objects[ownerID] else { return "(null)" }
         let ownerName = owner.isa == "PBXProject" ? projectName : (owner.string("name") ?? "")
         return "\(owner.isa) \"\(ownerName)\""
     }
 
-    /// `https://github.com/owner/Repo.git` → `Repo`.
     static func repositoryName(_ url: String) -> String {
         var last = url.split(separator: "/").last.map(String.init) ?? url
         if last.hasSuffix(".git") { last.removeLast(4) }
         return last
     }
 
-    // MARK: - Ordering
-
     private func orderedKeys(_ dict: PlistDictionary, isObject: Bool) -> [String] {
         let sorted = dict.keys.filter { !(isObject && $0 == "isa") }.sorted(by: Self.keyOrder)
         return isObject && dict["isa"] != nil ? ["isa"] + sorted : sorted
     }
 
-    /// Literal (code-unit) ordering, matching a non-localized string compare.
     static func keyOrder(_ a: String, _ b: String) -> Bool {
         a.utf16.lexicographicallyPrecedes(b.utf16)
     }
 }
 
 extension PBXProj {
-    /// Serializes in Xcode's layout. `projectName` is the `.xcodeproj` name
-    /// without extension; Xcode uses it in one comment but never stores it.
     public func serialized(projectName: String) -> String {
         PBXProjWriter.write(self, projectName: projectName)
     }

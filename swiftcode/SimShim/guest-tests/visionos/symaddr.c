@@ -1,11 +1,3 @@
-// symaddr: names guest addresses for SwiftCode's own diagnostics (visionos.md
-// §10.7). SwiftCode maps the simulator's shared cache at its unslid address in
-// every process, so return addresses sampled in one process (the boot
-// profile's .pcraw timeline) can be named in another: this one-shot loads
-// the images given with -l, then prints, for each hex address read from
-// the input file, "address image+offset nearest-exported-symbol+offset"
-// (dladdr: exported names only). SwiftCode's own probe.
-//   symaddr [-l /path/to/image]... <in> <out>
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>

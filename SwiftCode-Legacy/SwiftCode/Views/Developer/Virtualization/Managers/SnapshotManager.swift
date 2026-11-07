@@ -16,7 +16,6 @@ public final class VMSnapshotManager: Sendable {
     }
 
     public func restoreSnapshot(vmID: UUID, snapshotID: UUID) throws {
-        // Here we'd perform the raw restore. We will update registry and post the event.
         VirtualizationEventBus.shared.post(.metadataUpdated(vmID))
     }
 

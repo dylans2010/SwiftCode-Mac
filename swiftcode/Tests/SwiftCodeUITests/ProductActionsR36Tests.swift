@@ -8,7 +8,6 @@ import SwiftCodeWorkspace
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Build requests an engine was asked for.
 final class RecordedRequests: @unchecked Sendable {
     private let lock = NSLock()
     private var list: [BuildRequest] = []
@@ -16,7 +15,6 @@ final class RecordedRequests: @unchecked Sendable {
     func append(_ r: BuildRequest) { lock.lock(); list.append(r); lock.unlock() }
 }
 
-/// An engine that records each request and succeeds.
 struct RecordingEngine: BuildEngine {
     let box: RecordedRequests
     var name: String { "recording" }
@@ -30,8 +28,6 @@ struct RecordingEngine: BuildEngine {
     }
 }
 
-/// A hand-written macOS command-line tool project: main.swift uses a type
-/// from Greeter.swift; one shared scheme with two test plans.
 func writeToolProject(at dir: URL) throws -> URL {
     let fm = FileManager.default
     try? fm.removeItem(at: dir)
@@ -118,8 +114,6 @@ func writeToolProject(at dir: URL) throws -> URL {
     return dir.appendingPathComponent("Tool.xcodeproj")
 }
 
-/// A shell script standing in for `swift`: records its arguments, then
-/// prints `output`.
 func fakeTool(at url: URL, record: URL, output: String) throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '\(record.path)'\ncat <<'EOF'\n\(output)\nEOF\n".write(to: url, atomically: true, encoding: .utf8)
@@ -139,8 +133,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         return wc
     }
 
-    /// Test Without Building, Test Again, Test Without Building Again,
-    /// Clear Test Results, with a stand-in `swift`.
     @Test func testWithoutBuildingAndAgain() async throws {
         let dir = scratch("twb")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -151,7 +143,7 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         session.testRunner.swift = ["/bin/sh", tool.path]
         let wc = window(session)
         let again = NSMenuItem(title: "Test Again", action: #selector(WorkspaceWindowController.testAgain(_:)), keyEquivalent: "")
-        #expect(!wc.validateMenuItem(again)) // nothing tested yet
+        #expect(!wc.validateMenuItem(again))
 
         _ = await session.runTests(withoutBuilding: true)
         let adds = try #require(session.tests.first { $0.name == "testAdds" })
@@ -172,15 +164,13 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.testResults.isEmpty && !wc.validateMenuItem(clear))
     }
 
-    /// Perform Action ▸ Test (⌃⌥⌘U): the test at the caret, or the suite
-    /// declared on the caret's line.
     @Test func testAtCaret() async throws {
         let dir = scratch("caret")
         defer { try? FileManager.default.removeItem(at: dir) }
         try writeTestPackage(at: dir.appendingPathComponent("Calc"))
         let session = WorkspaceSession(model: try WorkspaceModel(url: dir.appendingPathComponent("Calc")))
         let wc = window(session)
-        await session.testsDiscovered()   // read in the background
+        await session.testsDiscovered()
         let file = dir.appendingPathComponent("Calc/Tests/CalcTests/CalcTests.swift").path
         wc.open(path: file, line: 7)
         #expect(wc.selectedTests.map(\.identifier) == ["CalcTests/testBroken"])
@@ -189,8 +179,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.tests(atCaret: file, line: 1).isEmpty)
     }
 
-    /// Run Without Building launches the last build's product; with none
-    /// it says so and builds nothing.
     @Test func runWithoutBuildingNeedsAProduct() async throws {
         let dir = scratch("rwb")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -204,7 +192,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.activity == .finished("Run Failed"))
     }
 
-    /// Clean Build Folder… asks; Clean Build Folder Immediately cleans.
     @Test func cleanConfirmation() async throws {
         let dir = scratch("clean")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -215,14 +202,11 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         let alert = wc.confirmCleanBuildFolder()
         #expect(alert.messageText == "Clean the build folder of \u{201C}Tool\u{201D}?")
         #expect(alert.buttons.map(\.title) == ["Clean", "Cancel"])
-        #expect(box.all.isEmpty) // nothing until confirmed
+        #expect(box.all.isEmpty)
         _ = await session.build(.clean)
         #expect(box.all.map(\.action) == [.clean] && session.activity == .finished("Clean Succeeded"))
     }
 
-    /// Run… / Test… / Analyze… / Archive… open the scheme editor on the
-    /// action and run it when the editor closes; an autocreated scheme runs
-    /// at once.
     @Test func ellipsisVariantsOpenTheSchemeEditor() throws {
         let dir = scratch("ellipsis")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -240,15 +224,11 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         try writeTestPackage(at: pkgDir)
         let pkg = window(WorkspaceSession(model: try WorkspaceModel(url: pkgDir)))
         #expect(pkg.editSchemeThenPerform(action: 1) { ran += 1 } == nil && ran == 2)
-        // The variants are enabled commands now (§2.9).
         for sel in ["runProductEditingScheme:", "testProductEditingScheme:", "analyzeProductEditingScheme:", "archiveProductEditingScheme:"] {
             #expect(CommandTable.allCommands.contains { $0.action == sel && $0.isAlternate })
         }
     }
 
-    /// Product ▸ Destination: rows under the labels, the current one
-    /// checked; Select Next / Previous Destination; Show All lists
-    /// Incompatible in the pop-up itself.
     @Test func destinationSubmenu() throws {
         let prefs = IsolatedPreferences("dest")
         defer { prefs.restore() }
@@ -267,14 +247,12 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         let titles = menu.items.map { $0.isSeparatorItem ? "—" : $0.title }
         #expect(titles == ["Choose Destination", "Select Next Destination", "Select Previous Destination", "—", "Show All Run Destinations", "—",
                            "Devices", "My Mac", "—", "Simulators", "—", "Build", "Any Mac", "—", "Incompatible", "—", "Manage Devices…"])
-        // A Mac tool: the simulators are incompatible (mismatched platform).
         let incompatible = try #require(menu.item(withTitle: "Incompatible")?.submenu)
         #expect(incompatible.items.map(\.title) == ["iPhone 17 (mismatched platform) 26.1", "iPad Air (mismatched platform) 26.1"])
         #expect(incompatible.items.allSatisfy { !$0.isEnabled })
         let myMac = try #require(menu.item(withTitle: "My Mac"))
         #expect(wc.validateMenuItem(myMac) && myMac.state == .on)
 
-        // Next / previous step through My Mac and Any Mac, wrapping.
         wc.selectNextDestination(nil)
         #expect(session.destination == .anyMac)
         wc.selectNextDestination(nil)
@@ -284,7 +262,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         wc.selectDestinationRow(myMac)
         #expect(session.destination == .myMac)
 
-        // Show All Run Destinations: Incompatible expanded in the pop-up.
         wc.rebuildDestinationMenu(expandIncompatible: true)
         let popup = wc.destinationPopUp.menu!.items.map(\.title)
         #expect(popup.contains("Incompatible") && wc.destinationPopUp.menu!.item(withTitle: "Incompatible")?.submenu == nil)
@@ -292,8 +269,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(wc.destinationPopUp.menu!.item(withTitle: "Incompatible")?.submenu != nil)
     }
 
-    /// Product ▸ Test Plan: one row per plan, the default checked; Select
-    /// Next / Previous; the chosen plan is passed to the runner.
     @Test func testPlans() throws {
         let dir = scratch("plans")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -319,7 +294,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(pkg.testPlanRows == ["\(pkg.scheme ?? "") (Autocreated)"] && pkg.testPlanNames.isEmpty)
     }
 
-    /// The single-file actions are enabled by the focused file's language.
     @Test func fileActionEnablement() throws {
         let dir = scratch("file-enable")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -334,8 +308,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(enabled(#selector(WorkspaceWindowController.analyzeFile(_:))) && enabled(#selector(WorkspaceWindowController.preprocessFile(_:))))
     }
 
-    /// T8: an iOS app without a development team gets the project-level
-    /// signing warning, counted in the toolbar capsule; a Mac tool none.
     @Test func projectLevelSigningCheck() throws {
         let dir = scratch("t8")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -349,7 +321,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.projectIssues.first?.severity == .warning && session.projectIssues.first?.location == nil)
         #expect(session.displayedIssues.contains(session.projectIssues[0]))
         #expect(wc.issueCapsule.warnings == 1)
-        // Build issues come and go; the project check stays.
         session.clearIssues()
         #expect(session.displayedIssues.count == 1)
 
@@ -359,12 +330,8 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
     }
 }
 
-/// Real compiler and test-tool runs through the session.
 @MainActor
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(15))) struct ProductActionsR36RealTests {
-    /// Compile “main.swift” of a project target: type-checked against the
-    /// target's other file; Assemble opens the assembly; Preprocess and
-    /// Analyze “util.c”.
     @Test func compileFileOfAProject() async throws {
         _ = NSApplication.shared
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/r36/compile-\(UUID().uuidString)")
@@ -381,7 +348,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.activity == .finished("Compile Succeeded"))
         #expect(session.reports.first?.title == "Compile \u{201C}main.swift\u{201D}")
 
-        // Through the menu command: Assemble opens the assembly.
         wc.open(path: main, line: nil)
         let task = try #require(wc.performFileAction(.assemble))
         let assembled = await task.value
@@ -392,7 +358,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         let pre = await session.perform(.preprocess, file: c)
         #expect(try String(contentsOfFile: try #require(pre.output), encoding: .utf8).contains("((v) * 2)"))
 
-        // An error comes back as a located issue.
         try "print(Greeter(name: 1).line)\n".write(toFile: main, atomically: true, encoding: .utf8)
         let failed = await session.perform(.compile, file: main)
         #expect(failed.result.status == .failed && failed.output == nil)
@@ -400,8 +365,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.activity == .finished("Compile Failed"))
     }
 
-    /// Build For ▸ Testing, then Perform Action ▸ Test Without Building,
-    /// on a real package.
     @Test func buildForTestingThenTestWithoutBuilding() async throws {
         _ = NSApplication.shared
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/r36/bft-\(UUID().uuidString)")
@@ -416,7 +379,7 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(outcomes.contains { $0.name == "testBroken" && $0.status == .failed })
         let byName = Dictionary(uniqueKeysWithValues: session.tests.map { ($0.name, session.testResults[$0]) })
         #expect(byName["testAdds"] == .passed && byName["testBroken"] == .failed && byName["addsZero"] == .passed)
-        #expect(session.buildLog.contains { $0.contains("--skip-build") } == false) // the log is the runner's output
+        #expect(session.buildLog.contains { $0.contains("--skip-build") } == false)
         #expect(session.failedTestCount == 1)
     }
 }

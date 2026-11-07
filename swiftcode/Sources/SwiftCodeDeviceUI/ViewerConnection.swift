@@ -1,7 +1,3 @@
-// The viewer's side of the display stream (specs/simulator/display-stream.md):
-// connects (and reconnects) to the display server, decodes frame tiles into
-// a canvas on its own thread, and hands finished images to the main thread.
-
 #if os(macOS)
 import AppKit
 import Accelerate
@@ -10,7 +6,6 @@ import Foundation
 import ImageIO
 import SwiftCodeDisplayStream
 
-/// The stream image the tiles are drawn into (BGRA, top row first in memory).
 final class FrameCanvas: @unchecked Sendable {
     let width: Int, height: Int
     let context: CGContext
@@ -29,16 +24,10 @@ final class FrameCanvas: @unchecked Sendable {
         c.interpolationQuality = .none
     }
 
-    /// Draws one tile; false when it could not be decoded.
     func apply(_ tile: DisplayTile, encoding: DisplayEncoding) -> Bool {
         applyAll([tile], encoding: encoding)
     }
 
-    /// Draws a frame's tiles; false when one could not be decoded. Tiles
-    /// cover disjoint rectangles, so they are decoded and written into the
-    /// canvas memory in parallel (the server cuts tall changes into bands,
-    /// display-stream.md §4.3); a JPEG whose decoded layout is not the
-    /// usual 32-bit one is drawn through Core Graphics afterwards.
     func applyAll(_ tiles: [DisplayTile], encoding: DisplayEncoding) -> Bool {
         let ok = TileFlags(count: tiles.count)
         let fallback = FallbackImages(count: tiles.count)
@@ -52,7 +41,7 @@ final class FrameCanvas: @unchecked Sendable {
             case .zlibBGRA:
                 if self.inflate(tile) { ok.set(i) }
             case .h264, .hevc, .hevc444:
-                return  // not offered by this viewer (display-stream.md §14)
+                return
             }
         }
         if tiles.count == 1 { work(0) } else { DispatchQueue.concurrentPerform(iterations: tiles.count, execute: work) }
@@ -70,21 +59,18 @@ final class FrameCanvas: @unchecked Sendable {
         return CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
     }
 
-    /// Copies a decoded 8-bit, 32-bit-per-pixel RGB image into the canvas
-    /// (BGRX) at the tile's place; false for any other layout.
     private func copyPixels(of image: CGImage, to tile: DisplayTile) -> Bool {
         guard image.width == tile.width, image.height == tile.height, image.bitsPerComponent == 8, image.bitsPerPixel == 32,
               let base = context.data, let data = image.dataProvider?.data, let src = CFDataGetBytePtr(data) else { return false }
         let alpha = image.alphaInfo, order = image.bitmapInfo.intersection(.byteOrderMask)
-        // Byte positions of B, G, R in one source pixel.
         let map: (Int, Int, Int)
         switch (alpha, order) {
         case (.noneSkipLast, .byteOrder32Big), (.noneSkipLast, []), (.premultipliedLast, .byteOrder32Big), (.premultipliedLast, []):
-            map = (2, 1, 0)  // R G B X
+            map = (2, 1, 0)
         case (.noneSkipFirst, .byteOrder32Little), (.premultipliedFirst, .byteOrder32Little):
-            map = (0, 1, 2)  // B G R X
+            map = (0, 1, 2)
         case (.noneSkipFirst, .byteOrder32Big), (.noneSkipFirst, []), (.premultipliedFirst, .byteOrder32Big), (.premultipliedFirst, []):
-            map = (3, 2, 1)  // X R G B
+            map = (3, 2, 1)
         default:
             return false
         }
@@ -94,14 +80,12 @@ final class FrameCanvas: @unchecked Sendable {
                                width: vImagePixelCount(tile.width), rowBytes: srcRow)
         var db = vImage_Buffer(data: dst + tile.y * dstRow + tile.x * 4, height: vImagePixelCount(tile.height),
                                width: vImagePixelCount(tile.width), rowBytes: dstRow)
-        // The fourth byte (X) comes from the unused source byte: canvas alpha is skipped.
         let fourth = 6 - map.0 - map.1 - map.2
         let permute: [UInt8] = [UInt8(map.0), UInt8(map.1), UInt8(map.2), UInt8(fourth)]
         return vImagePermuteChannels_ARGB8888(&sb, &db, permute, vImage_Flags(kvImageDoNotTile)) == kvImageNoError
     }
 
     private func inflate(_ tile: DisplayTile) -> Bool {
-        // zlib = 2-byte header + raw deflate + Adler-32; Compression's ZLIB is raw deflate.
         let count = tile.width * tile.height * 4
         guard tile.data.count > 6, let base = context.data else { return false }
         var pixels = [UInt8](repeating: 0, count: count)
@@ -120,8 +104,6 @@ final class FrameCanvas: @unchecked Sendable {
 
     func image() -> CGImage? { context.makeImage() }
 
-    /// The canvas turned clockwise by `rotation` degrees (0, 90, 180, 270;
-    /// foldable.md: a panel shown as the device is held).
     func image(rotation: Int) -> CGImage? {
         let turns = (((rotation % 360) + 360) % 360) / 90
         guard turns != 0, let data = context.data else { return image() }
@@ -141,7 +123,6 @@ final class FrameCanvas: @unchecked Sendable {
     }
 }
 
-/// Per-tile results, written by the decoding threads.
 private final class TileFlags: @unchecked Sendable {
     private var flags: [Bool]
     private let lock = NSLock()
@@ -167,7 +148,6 @@ public protocol ViewerConnectionDelegate: AnyObject {
     func connection(_ c: ViewerConnection, notice: String)
     func connection(_ c: ViewerConnection, screenshot png: [UInt8], token: UInt32)
     func connection(_ c: ViewerConnection, pongToken token: UInt64, rttMilliseconds: Double)
-    /// The panel shown changed (a foldable; display-stream.md §3.4).
     func connection(_ c: ViewerConnection, displayState: DisplayPanelState)
 }
 
@@ -179,8 +159,6 @@ public final class ViewerConnection: @unchecked Sendable {
     public weak var delegate: ViewerConnectionDelegate?
     private let lock = NSLock()
     private var connection: DisplayTransport?
-    /// Opens the stream another way than `address` (SwiftCode's link to a
-    /// simulator host, `swiftcode-sim-viewer --link`); nil: `address`.
     private let connector: (@Sendable () throws -> DisplayTransport)?
     private var stopped = false
     private var inputSequence: UInt32 = 0
@@ -188,18 +166,12 @@ public final class ViewerConnection: @unchecked Sendable {
     private var nextCommand: UInt32 = 0
     private var commandReplies: [UInt32: @MainActor @Sendable (String) -> Void] = [:]
     private var nextPing: UInt64 = 1
-    /// The newest decoded image waiting for the main thread (under the lock).
     private var pending: (CGImage, DisplayFrame, UInt64)?
-    /// The panel shown and its turn (display states; lock).
     private var shownDisplay: String?
     private var rotation = 0
-    /// Another viewer took the display over (display-stream.md §1.1): no
-    /// reconnecting until `takeBack()`. `expectingTakeover`: the IDE started
-    /// that viewer itself (the headset), so the server's notice is not shown.
     private var takenOver = false
     private var expectingTakeover = false
 
-    // Statistics (main thread reads; written under the lock).
     private(set) var bytesReceived = 0
     private(set) var framesReceived = 0
 
@@ -222,10 +194,8 @@ public final class ViewerConnection: @unchecked Sendable {
 
     public var stats: (bytes: Int, frames: Int) { lock.withLock { (bytesReceived, framesReceived) } }
 
-    /// The next takeover is the IDE's own (the headset view): wait quietly.
     public func expectTakeover(_ on: Bool) { lock.withLock { expectingTakeover = on } }
 
-    /// Connects again after a takeover, taking the display back.
     public func takeBack() { lock.withLock { takenOver = false; expectingTakeover = false } }
 
     public var isTakenOver: Bool { lock.withLock { takenOver } }
@@ -291,7 +261,6 @@ public final class ViewerConnection: @unchecked Sendable {
             }
             main { self.delegate?.connection(self, notice: text) }
         case .displayState(let state):
-            // Another panel (or turn): its frames follow, starting with a full one.
             if lock.withLock({ () -> Bool in
                 defer { rotation = state.rotation; pending = nil }
                 return shownDisplay != state.display
@@ -319,9 +288,6 @@ public final class ViewerConnection: @unchecked Sendable {
             if !canvas.applyAll(f.tiles, encoding: f.encoding) { send(.keyframeRequest) }
             lock.withLock { framesReceived += 1 }
             guard let image = canvas.image(rotation: lock.withLock { rotation }) else { return }
-            // One hand-off to the main thread at a time: frames that arrive
-            // while it is busy replace the waiting one (the newest image
-            // wins; no queue of stale images builds up behind a slow main thread).
             let post = lock.withLock { () -> Bool in
                 defer { pending = (image, f, received) }
                 return pending == nil
@@ -340,8 +306,6 @@ public final class ViewerConnection: @unchecked Sendable {
         }
     }
 
-    // MARK: Sending (any thread)
-
     @discardableResult
     public func send(_ m: DisplayMessage) -> Bool {
         guard let c = lock.withLock({ connection }) else { return false }
@@ -349,7 +313,6 @@ public final class ViewerConnection: @unchecked Sendable {
         return true
     }
 
-    /// Sends an input event with the next sequence number; returns it (0: not connected).
     @discardableResult
     public func sendInput(_ make: (UInt32) -> DisplayInput) -> UInt32 {
         let seq = lock.withLock { () -> UInt32 in inputSequence &+= 1; return inputSequence }
@@ -366,9 +329,6 @@ public final class ViewerConnection: @unchecked Sendable {
         send(.ping(token: token))
     }
 
-    /// A device command (0x90; the settings features); `reply` gets the
-    /// answer on the main thread ("error: not connected" at once when there
-    /// is no connection).
     public func sendCommand(_ text: String, reply: @escaping @MainActor @Sendable (String) -> Void) {
         let token = lock.withLock { () -> UInt32 in
             nextCommand &+= 1

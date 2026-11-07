@@ -1,8 +1,3 @@
-// Legacy skills core tests — adapted Core slice (SwiftCode-Legacy
-// SwiftCode/Core/AI/Agent/Skills). Parses a small SKILL.md document with
-// SkillsParser and validates the result with SkillsValidator. Static only
-// in this environment; run with `swift test` on a machine with a Swift
-// toolchain. See bulk/core-dispositions.tsv.
 import Foundation
 import Testing
 import SwiftCodeAssistant

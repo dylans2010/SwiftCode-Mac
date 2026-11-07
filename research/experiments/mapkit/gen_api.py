@@ -37,7 +37,6 @@ w('`(unavailable)` refer to iOS. No declarations, types or documentation are')
 w('reproduced. Behavior is specified in `interface.md`.')
 w('')
 
-# ---- Objective-C classes (merge categories by name)
 classes = OrderedDict()
 for c in sorted(objc['classes'], key=lambda c: c['name']):
     e = classes.setdefault(c['name'], {'super': None, 'ios': None, 'dep': None, 'members': [], 'cats': []})

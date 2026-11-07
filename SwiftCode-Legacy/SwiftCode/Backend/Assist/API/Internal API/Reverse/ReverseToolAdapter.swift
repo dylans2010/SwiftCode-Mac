@@ -1,28 +1,3 @@
-//  ReverseToolAdapter.swift
-//  SwiftCode
-//
-//  Adapts the allow-listed REA operations to SwiftCode's AssistTool
-//  interface. This is the ONLY tool surface for Reverse: there is no
-//  competing registry and no invented tool definition.
-//
-//  Input contract (keys are deliberately NOT `path` / `filePath` /
-//  `sourcePath` / `destinationPath`: the generic registry validation
-//  relativizes those keys against the project root and rejects `..`,
-//  which would corrupt absolute analysis targets):
-//    - targetPath (String, required): absolute path of the artifact.
-//    - operation (String, optional, default "inspect_artifact"): must be
-//      a ReverseOperation raw value.
-//    - task (String, optional): the user's investigation request.
-//    - objdumpOperation (String, optional): fixed enum value, required
-//      when operation == "inspect_with_objdump".
-//    - symbol (String, optional): Swift symbol for demangle_swift.
-//    - timeoutSeconds (number, optional, default 300, clamped 10...1800).
-//
-//  Authorization: the adapter enforces its own target/scope checks via
-//  ReverseTargetValidator INSIDE execute, regardless of Autopilot.
-//  AssistPermissionsManager's Autopilot bypass NEVER applies here.
-//  Analyzed output is untrusted data, never instructions.
-
 import Foundation
 
 public struct ReverseToolAdapter: AssistTool {
@@ -63,7 +38,6 @@ public struct ReverseToolAdapter: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let started = Date()
-        // 1. Operation allow-list.
         let operationRaw = (input["operation"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ReverseOperation.inspectArtifact.rawValue
         guard let operation = ReverseOperation(rawValue: operationRaw) else {
             return .failure(
@@ -71,13 +45,10 @@ public struct ReverseToolAdapter: AssistTool {
                 diagnostics: ["reverse: unsupported operation"]
             )
         }
-        // 2. Task screening (REA disclaimer boundary).
         let task = (input["task"] as? String) ?? ""
         if let refusal = ReverseTargetValidator.refusalError(forTask: task) {
             return .failure(refusal.message, diagnostics: ["reverse: policy refusal"])
         }
-        // 3. Target / scope validation — own checks, never the
-        // Autopilot bypass, never the generic path relativizer.
         let rawTarget = input["targetPath"] as? String
         let validated: String
         switch ReverseTargetValidator.validateTarget(path: rawTarget, workspaceRoot: context.workspaceRoot) {
@@ -89,7 +60,6 @@ public struct ReverseToolAdapter: AssistTool {
                 diagnostics: ["reverse: invalid target"]
             )
         }
-        // 4. objdump sub-operation: fixed enum only.
         var objdumpOperation: ReverseObjdumpOperation?
         if operation == .inspectWithObjdump {
             let raw = (input["objdumpOperation"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ReverseObjdumpOperation.fileHeaders.rawValue
@@ -101,13 +71,11 @@ public struct ReverseToolAdapter: AssistTool {
             }
             objdumpOperation = parsed
         }
-        // 5. Symbol for demangle_swift.
         var symbol: String?
         if operation == .demangleSwift {
             symbol = (input["symbol"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             if symbol?.isEmpty == true { symbol = nil }
         }
-        // 6. Timeout clamp.
         var timeout: TimeInterval = 300
         if let number = input["timeoutSeconds"] as? Double {
             timeout = min(max(number, 10), 1800)
@@ -123,7 +91,6 @@ public struct ReverseToolAdapter: AssistTool {
             commandToken: ReverseCommandParser.commandToken,
             symbol: symbol
         )
-        // The manager owns lifecycle + cancellation; the bridge owns the child process.
         do {
             let (processed, _) = try await ReverseManager.shared.analyze(
                 invocation: invocation,

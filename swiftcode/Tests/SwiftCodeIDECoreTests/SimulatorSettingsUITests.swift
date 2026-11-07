@@ -3,11 +3,6 @@ import Testing
 import SwiftCodeSimFeatures
 @testable import SwiftCodeIDECore
 
-/// FEAT (`specs/ide/devices.md` §Settings, `debug.md` §Environment
-/// Overrides; `specs/simulator/simulator-features.md` §7): the settings
-/// boxes of a running SwiftCode simulator in Devices and Simulators, the debug
-/// bar's Environment Overrides and Simulate Location, and the commands they
-/// send. No network: the commands go to stand-ins.
 @MainActor
 @Suite(.serialized) struct SimulatorSettingsUITests {
     static let reply = """

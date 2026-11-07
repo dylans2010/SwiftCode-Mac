@@ -1,18 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Snippet Library tab (Wave 19 slice A)
-//
-// The Documentation Browser's Snippet Library tab, backed by the
-// destination's own `LibraryCodeSnippetStore` (Application
-// Support/SwiftCode/snippets.json, seeded with the same two
-// snippets Legacy seeded). Legacy kept its snippets in a
-// UserDefaults key (`com.swiftcode.snippets`); the destination's
-// JSON store replaces that, and this tab uses it — it does not
-// reintroduce the UserDefaults copy.
-//
-// Spec: `specs/ide/wave19-docs.md` §6.
-
 struct DocumentationSnippetLibraryView: View {
     @State private var snippets: [LibraryCodeSnippet] = LibraryCodeSnippetStore.load()
     @State private var searchText = ""
@@ -154,15 +142,12 @@ struct DocumentationSnippetLibraryView: View {
     private func saveDraft() {
         let tags = draftTags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         if let id = selectedID, let at = snippets.firstIndex(where: { $0.id == id }) {
-            // Edit: preserve the id.
             snippets[at] = LibraryCodeSnippet(
                 id: id, title: draft.title, code: draft.code, category: draft.category,
                 language: draft.language, tags: tags,
                 usageCount: snippets[at].usageCount,
                 isFavorite: draft.isFavorite, isPinned: draft.isPinned)
         } else {
-            // New: a fresh init mints a fresh UUID (the static
-            // `.empty` must never be saved twice — its id is fixed).
             let created = LibraryCodeSnippet(
                 title: draft.title, code: draft.code, category: draft.category,
                 language: draft.language, tags: tags,

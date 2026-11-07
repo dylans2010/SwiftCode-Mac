@@ -1,59 +1,15 @@
 #!/bin/bash
-# swiftcode-sim-try: try the SwiftCode iOS simulator from a Mac. Boots a device on
-# the Linux simulator host over ssh, forwards its display socket, and opens
-# the viewer (mouse = touch, keyboard, Home/Lock/Volume, screenshots). When
-# the viewer quits, the device shuts down and its boot slot is freed.
-#
-# usage: swiftcode/scripts/swiftcode-sim-try [--cold | --erase | --fresh] [--device-type ID] [--sync-build] [--no-build] [viewer options...]
-#
-# The device keeps its state between sessions: quitting the viewer saves it,
-# and the next session restores it (a usable home screen in seconds instead
-# of a cold boot; apps, data and settings stay until --erase).
-#
-#   --cold         boot cold this time (the device keeps its data; the session's end saves it again)
-#   --erase        erase the device (its data and saved state) and start from the pristine device
-#   --fresh        start from a fresh copy of the pristine device (the old one is moved aside)
-#   --device-type ID  a device type of the host's build (`swiftcode-simd --list-device-types`:
-#                  iphone-duo, the default, and the iPhone, iPad and Vision types; swiftcode-sim-serve
-#                  checks the ID); each type is its own device with its own saved state and
-#                  pristine copy, a visionOS type also its own runtime (see swiftcode-sim-serve)
-#   --sync-build   copy this checkout's swiftcode/ to the host and build it there first
-#                  (into $SWIFTCODE_SIM_HOME/swiftcode, in a build slot; set SWIFTCODE_SIM_TREE to
-#                  that directory in sim-serve.env to boot it)
-#   --no-build     do not build the viewer (use the last build)
-#   viewer options are passed on, e.g. --downscale 2 --quality 70 for a slow link,
-#   --zoom 0.75, --script <file> (see Sources/swiftcode-sim-viewer/ScriptRunner.swift)
-#
-# Configuration: shell assignments in $SWIFTCODE_SIM_TRY_CONFIG, else
-# ~/.config/swiftcode/sim-try.env (keep it out of the repository; never commit
-# real hosts, users or paths). Variables already in the environment win.
-#
-#   SWIFTCODE_SIM_HOST      user@host of the simulator host (ssh key login)      required
-#   SWIFTCODE_SIM_HOME      your area on the host's data volume, e.g. <data volume>/<you>/sim-try   required
-#   SWIFTCODE_SIM_PORT      local port for the forwarded display (default 47100)
-#   SWIFTCODE_SIM_SSH_OPTS  extra ssh options (e.g. "-J jumphost")
-#   On the host, swiftcode-sim-serve reads $SWIFTCODE_SIM_HOME/sim-serve.env (SWIFTCODE_SIM_TREE,
-#   SWIFTCODE_SIM_RUNTIME, SWIFTCODE_SIM_PRISTINE, SWIFTCODE_SIM_LOCKS, ...; see scripts/swiftcode-sim-serve).
-#   With --sync-build, sim-serve.env also names SWIFTCODE_SIM_TRANSLATOR (a built swiftcode-airc on the host).
-#
-# Example ~/.config/swiftcode/sim-try.env:
-#   SWIFTCODE_SIM_HOST=<user>@<simulator host>
-#   SWIFTCODE_SIM_HOME=<data volume>/<area>/sim-try
-
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 pkg=$(cd "$here/.." && pwd)
 conf=${SWIFTCODE_SIM_TRY_CONFIG:-$HOME/.config/swiftcode/sim-try.env}
 if [ -f "$conf" ]; then
     saved=$(env | grep '^SWIFTCODE_SIM_' || true)
-    # shellcheck disable=SC1090
     . "$conf"
     while IFS= read -r line; do [ -n "$line" ] && export "${line?}"; done <<< "$saved"
 fi
-
 say() { echo "swiftcode-sim-try: $*"; }
 die() { echo "swiftcode-sim-try: error: $*" >&2; exit 2; }
-
 fresh=; sync=0; build=1; viewer_args=()
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -66,18 +22,14 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
-
 [ -n "${SWIFTCODE_SIM_HOST:-}" ] || die "set SWIFTCODE_SIM_HOST (user@host) in $conf or the environment; see --help"
 [ -n "${SWIFTCODE_SIM_HOME:-}" ] || die "set SWIFTCODE_SIM_HOME (your area on the host) in $conf or the environment; see --help"
 HOST=$SWIFTCODE_SIM_HOST
 H=$SWIFTCODE_SIM_HOME
 PORT=${SWIFTCODE_SIM_PORT:-47100}
-# shellcheck disable=SC2206
 SSH=(ssh -o BatchMode=yes -o ServerAliveInterval=15 ${SWIFTCODE_SIM_SSH_OPTS:-})
 SERVE=$H/bin/swiftcode-sim-serve
 REMOTE_ENV="SWIFTCODE_SIM_CONFIG=$H/sim-serve.env SWIFTCODE_SIM_HOME=$H"
-
-# 1. The viewer (a debug build is fine).
 if [ $build = 1 ]; then
     say "building the viewer…"
     (cd "$pkg" && swift build --product swiftcode-sim-viewer 2>&1 | grep -E "error|warning: unre|Compiling swiftcode-sim|Build complete" | grep -v "^\s*$") \
@@ -85,9 +37,6 @@ if [ $build = 1 ]; then
 fi
 VIEWER=$(cd "$pkg" && swift build --product swiftcode-sim-viewer --show-bin-path)/swiftcode-sim-viewer
 [ -x "$VIEWER" ] || die "no viewer at $VIEWER"
-
-# 2. The host side: the serve script and the launcher it runs (always
-# current), optionally the build.
 "${SSH[@]}" "$HOST" "mkdir -p '$H/bin'" </dev/null || die "cannot reach $HOST over ssh (key login)"
 scp -q -o BatchMode=yes "$here/swiftcode-sim-serve" "$HOST:$SERVE" || die "cannot copy swiftcode-sim-serve"
 scp -q -o BatchMode=yes "$here/swiftcode-sim.sh" "$HOST:$H/bin/swiftcode-sim" || die "cannot copy swiftcode-sim.sh"
@@ -101,8 +50,6 @@ if [ $sync = 1 ]; then
     rsync -az --delete -e "${SSH[*]}" "$pkg/../specs/simulator/data/" "$HOST:$H/specs/simulator/data/" || die "rsync of the spec data failed"
     "${SSH[@]}" "$HOST" "$REMOTE_ENV SWIFTCODE_SIM_TREE='$H/swiftcode' '$SERVE' build" </dev/null || die "the host build failed"
 fi
-
-# 3. Boot the device and forward its socket (one ssh session; closing it stops the device).
 LOG=$(mktemp -t swiftcode-sim-try)
 cleanup() {
     trap - EXIT INT TERM
@@ -114,14 +61,11 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 say "starting the device on $HOST (a saved device is back in about 10–20 s, a cold boot takes about 80 s; the viewer shows progress)…"
-# -q: no "channel N: open failed" line for each viewer attempt before the socket exists.
 "${SSH[@]}" -q -tt -o ExitOnForwardFailure=yes -L "127.0.0.1:$PORT:$H/run/display.sock" "$HOST" \
     "$REMOTE_ENV '$SERVE' start $fresh" </dev/null > >(tee "$LOG" | LC_ALL=C sed -l -e 's/\r$//' -e 's/^/  host: /') 2>&1 &
 sshpid=$!
 sleep 2
 kill -0 "$sshpid" 2>/dev/null || die "the ssh session ended at once (port $PORT busy? see above)"
-
-# 4. The viewer (it reconnects until the device's display server is up).
 "$VIEWER" --connect "127.0.0.1:$PORT" ${viewer_args[@]+"${viewer_args[@]}"}
 status=$?
 say "viewer closed ($status)"

@@ -5,17 +5,7 @@ import Glibc
 import Darwin
 #endif
 
-/// One end of a JSON-RPC connection: it sends requests and waits for their
-/// responses, answers the other end's requests, and receives notifications.
-/// Used for the MCP stdio server and both ends of ACP.
-///
-/// Ordering: notifications and the synchronous part of request handling
-/// run on the reading thread in arrival order (so an agent's `session/update`
-/// chunks stay in order); the asynchronous work a request handler returns
-/// runs in its own task, which `cancelIncoming(_:)` cancels.
 public final class JSONRPCPeer: @unchecked Sendable {
-    /// The work that answers a request: its result, or a thrown
-    /// `JSONRPCError` (any other error becomes an internal error).
     public typealias Work = @Sendable () async throws -> AnyJSON
     public typealias RequestHandler = @Sendable (_ id: JSONRPCID, _ method: String, _ params: AnyJSON?) -> Work
     public typealias NotificationHandler = @Sendable (_ method: String, _ params: AnyJSON?) -> Void
@@ -31,8 +21,6 @@ public final class JSONRPCPeer: @unchecked Sendable {
     private var requestHandler: RequestHandler?
     private var notificationHandler: NotificationHandler?
 
-    /// `send` writes one framed message (it is called from any thread,
-    /// one message at a time).
     public init(send: @escaping @Sendable (Data) -> Void) {
         let writeLock = NSLock()
         self.send = { data in writeLock.withLock { send(data) } }
@@ -43,8 +31,6 @@ public final class JSONRPCPeer: @unchecked Sendable {
 
     public func write(_ m: JSONRPCMessage) { send(m.line) }
 
-    /// Sends a request and waits for its result. Throws the peer's
-    /// `JSONRPCError`, or the close error when the connection ends first.
     public func request(_ method: String, _ params: AnyJSON? = nil) async throws -> AnyJSON {
         let id: JSONRPCID = lock.withLock {
             defer { nextID += 1 }
@@ -65,7 +51,6 @@ public final class JSONRPCPeer: @unchecked Sendable {
         write(.notification(method: method, params: params))
     }
 
-    /// Handles one received line.
     public func receive(_ line: Data) {
         let message: JSONRPCMessage
         do {
@@ -108,23 +93,17 @@ public final class JSONRPCPeer: @unchecked Sendable {
                 }
                 guard let self else { return }
                 let suppressed = self.lock.withLock { () -> Bool in
-                    // Finished before it was registered: registration skips it.
                     let wasCancelled = self.cancelled.remove(id) != nil
                     if self.incoming.removeValue(forKey: id) == nil && !wasCancelled { self.finished.insert(id) }
                     return wasCancelled
                 }
-                // A cancelled request (MCP: notifications/cancelled) gets no reply.
                 if !suppressed { self.write(reply) }
             }
             lock.withLock { if finished.remove(id) == nil { incoming[id] = task } }
         }
     }
 
-    /// Cancels the work answering one of the other end's requests; no
-    /// response is sent for it.
     public func cancelIncoming(_ id: JSONRPCID) {
-        // Requests are registered on the reading thread before a later
-        // cancellation is read, so only a running request is marked.
         lock.withLock { () -> Task<Void, Never>? in
             guard let t = incoming.removeValue(forKey: id) else { return nil }
             cancelled.insert(id)
@@ -132,7 +111,6 @@ public final class JSONRPCPeer: @unchecked Sendable {
         }?.cancel()
     }
 
-    /// Ends the connection: waiting requests fail with `error`.
     public func close(_ error: Error = JSONRPCError(code: -32000, message: "connection closed")) {
         let waiting: [CheckedContinuation<AnyJSON, Error>] = lock.withLock {
             closedError = error
@@ -142,12 +120,9 @@ public final class JSONRPCPeer: @unchecked Sendable {
         waiting.forEach { $0.resume(throwing: error) }
     }
 
-    /// Requests still being answered (tests, shutdown).
     public var incomingCount: Int { lock.withLock { incoming.count } }
 }
 
-/// Reads newline-framed messages from a file descriptor on a thread of its
-/// own until end of file.
 public final class LineReader: @unchecked Sendable {
     private let fd: Int32
     private let onLine: @Sendable (Data) -> Void
@@ -179,7 +154,6 @@ public final class LineReader: @unchecked Sendable {
     }
 }
 
-/// Writes whole buffers to a file descriptor (retrying short writes).
 public enum FDWriter {
     @discardableResult
     public static func write(_ fd: Int32, _ data: Data) -> Bool {

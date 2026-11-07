@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(Compression)
 import SwiftUI
 import Compression
@@ -18,7 +15,6 @@ struct GzipCompressorView: View {
             }
             .pickerStyle(.segmented)
             .padding()
-            
 
             HSplitView {
                 VStack(alignment: .leading) {

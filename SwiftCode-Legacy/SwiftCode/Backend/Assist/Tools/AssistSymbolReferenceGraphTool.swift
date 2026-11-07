@@ -1,8 +1,3 @@
-//
-//  AssistSymbolReferenceGraphTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSymbolReferenceGraphTool: AssistTool {

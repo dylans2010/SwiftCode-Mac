@@ -1,32 +1,10 @@
 import Foundation
 
-// The animation runtime (05-animation.md §1, §4, §7; 10-plan.md T-ANIM).
-//
-// Time comes from an injectable source. The headless host uses a manual
-// clock that advances in display frames (60 Hz, 05 §7); a real display link
-// arrives with the platform host (R7).
-//
-// An `Animator` holds one animatable value of a view: its model value (what
-// the views say) and its presented value (what is rendered). When the model
-// value changes in a transaction with an animation, a run starts from the
-// current presented value towards the new model value (05 §4.2: retargeting
-// starts from the presentation value; a spring following a spring also keeps
-// the velocity). A change without animation moves the presented value by the
-// same amount, so a running animation keeps its remaining distance. Every
-// display frame the graph samples the active animators.
-//
-// Completion (05 §4): a transaction's completion handlers wait for every run
-// the transaction started — `.logicallyComplete` until each is logically
-// complete, `.removed` until each has finished or was replaced. A
-// transaction that starts no run completes at the end of its update.
-
-/// A source of the current time for animations.
 @MainActor
 package protocol AnimationTimeSource: AnyObject {
     var now: TimeInterval { get }
 }
 
-/// A clock advanced by hand, one display frame at a time (headless host).
 @MainActor
 package final class ManualAnimationClock: AnimationTimeSource {
     package let framesPerSecond: Double
@@ -38,29 +16,18 @@ package final class ManualAnimationClock: AnimationTimeSource {
     package var now: TimeInterval { offset + Double(frame) / framesPerSecond }
     package var frameDuration: TimeInterval { 1 / framesPerSecond }
 
-    /// Moves to the next display frame(s).
     package func advance(frames: Int = 1) { frame += frames }
 
-    /// Moves by an arbitrary amount (between frames).
     package func advance(by seconds: TimeInterval) { offset += seconds }
 }
 
-/// Something the graph samples once per display frame.
 @MainActor
 package protocol AnimationDriver: AnyObject {
-    /// Advances to `time`; true if what it drives changed.
     func sample(at time: TimeInterval) -> Bool
-    /// False once finished (the graph then forgets the driver).
     var isActive: Bool { get }
-    /// The view node whose value this drives (removal transitions wait for
-    /// the drivers in a removed subtree).
     var owner: ViewNode? { get }
-    /// Called after a sample that changed something.
     var onChange: (() -> Void)? { get }
-    /// Stops at once (its owner went away).
     func cancel()
-    /// When the current run started (nil: not a timed run). Removal
-    /// transitions wait for the runs a removal started (R9 QA fix).
     var runStart: TimeInterval? { get }
 }
 
@@ -68,8 +35,6 @@ extension AnimationDriver {
     package var runStart: TimeInterval? { nil }
 }
 
-/// A completion handler of a transaction, with the runs it waits for.
-/// Created wherever a transaction is built; used on the main actor only.
 package final class AnimationCompletionRecord: @unchecked Sendable {
     package let criteria: AnimationCompletionCriteria
     package let action: () -> Void
@@ -101,7 +66,6 @@ package final class AnimationCompletionRecord: @unchecked Sendable {
         check()
     }
 
-    /// The update that applied the transaction is over: no more runs join.
     @MainActor package func seal(graph: ViewGraph) {
         if self.graph == nil { self.graph = graph }
         guard !sealed else { return }
@@ -119,8 +83,6 @@ package final class AnimationCompletionRecord: @unchecked Sendable {
     }
 }
 
-/// One animatable value: its model value, presented value and the run that
-/// moves one towards the other.
 @MainActor
 package final class Animator<V: VectorArithmetic>: AnimationDriver {
     private struct Run {
@@ -150,12 +112,8 @@ package final class Animator<V: VectorArithmetic>: AnimationDriver {
 
     package var runStart: TimeInterval? { run?.begin }
 
-    /// The animation of the current run.
     package var animation: Animation? { run?.animation }
 
-    /// Sets a new model value. With an animation in `transaction`, a run
-    /// starts (or retargets) from the presented value; without one the
-    /// presented value moves by the same amount as the model value.
     package func update(to value: V, transaction: Transaction, graph: ViewGraph) {
         update(to: value, animation: transaction.animation, completions: transaction.completions, graph: graph)
     }
@@ -187,7 +145,6 @@ package final class Animator<V: VectorArithmetic>: AnimationDriver {
         graph.activate(self)
     }
 
-    /// The current velocity (zero when not animating).
     package var velocity: V {
         guard let r = run else { return .zero }
         return r.animation.velocity(value: r.delta, time: lastTime - r.begin, context: r.context) ?? .zero
@@ -214,7 +171,6 @@ package final class Animator<V: VectorArithmetic>: AnimationDriver {
 
     package func cancel() { stop() }
 
-    /// Stops the run at once (the presented value jumps to the model value).
     package func stop() {
         guard let r = run else { return }
         run = nil
@@ -227,8 +183,6 @@ package final class Animator<V: VectorArithmetic>: AnimationDriver {
     }
 }
 
-/// A driver that calls `step` with the time of every frame until it
-/// returns false (keyframe animators, phase sequences).
 @MainActor
 package final class FrameDriver: AnimationDriver {
     package weak var owner: ViewNode?

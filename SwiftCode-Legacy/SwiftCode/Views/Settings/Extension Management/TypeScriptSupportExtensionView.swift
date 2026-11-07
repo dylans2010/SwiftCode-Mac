@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - TypeScript Support Extension View
 struct TypeScriptSupportExtensionView: View {
     @State private var isEnabled = true
     @State private var strictMode = true

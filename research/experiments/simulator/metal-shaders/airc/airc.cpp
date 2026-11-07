@@ -1,38 +1,3 @@
-// airc.cpp: Ycode R8 proof of concept, AIR (from a .metallib) to SPIR-V for
-// Vulkan. Written for stage 8a research from public sources only: the
-// LLVM API (Apache-2.0 WITH LLVM-exception), the SPIR-V specification and
-// SPIRV-Tools API (Apache-2.0), and our own spec
-// specs/simulator/metal-shaders.md. It reads only shaders we compiled
-// ourselves.
-//
-// Scope (PoC): compute kernels (!air.kernel), and vertex and fragment
-// functions with stage-in, varyings, render targets and 2D texture
-// sampling (!air.vertex, !air.fragment); buffer arguments in address
-// spaces 1 (device) and 2 (constant); the thread-position built-ins; scalar
-// and vector integer and float arithmetic, compares, casts, select, phi;
-// loads and stores through buffer pointers; structured if and loops; a few
-// air.* math intrinsics and air.convert.*. Everything else is reported as
-// unsupported.
-//
-// Model ("R8 PoC compute ABI", see vk/vkrun.c):
-//   * every pointer into a Metal buffer is a 64-bit integer address
-//     (SPV_KHR_physical_storage_buffer); each load or store converts it to
-//     a PhysicalStorageBuffer pointer with an Aligned memory operand;
-//   * buffer slot k comes from push constant member 0, element k;
-//   * threads_per_grid comes from push constant member 1;
-//   * the threadgroup size is LocalSizeId from specialization constants
-//     0, 1, 2 (Metal sets it at dispatch time, not in the shader).
-//
-// Build (Thor): see build-thor.sh. Usage:
-//   airc IN.metallib|IN.bc FUNCTION OUT.spv [--asm OUT.spvasm] [--opt]
-//        [--link-vs VERTEX_FUNCTION]   (fragment functions: varying locations)
-//
-// Graphics PoC ABI (vk/vkdraw.c): push constants hold the vertex stage's
-// buffer slots 0..3 at offset 0 and the fragment stage's at offset 32;
-// texture slot n is element n of the sampled-image array at set 0,
-// binding 0, sampler slot n element n of the sampler array at binding 1;
-// varyings get Locations in the vertex function's output order; 16-bit
-// floats are widened at stage boundaries.
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -72,15 +37,10 @@ using namespace llvm;
     exit(1);
 }
 
-// ---------------------------------------------------------------------------
-// metallib container (specs/simulator/metal-shaders.md section 2)
-
 static uint16_t rd16(const uint8_t *p) { return p[0] | (p[1] << 8); }
 static uint32_t rd32(const uint8_t *p) { return rd16(p) | ((uint32_t)rd16(p + 2) << 16); }
 static uint64_t rd64(const uint8_t *p) { return rd32(p) | ((uint64_t)rd32(p + 4) << 32); }
 
-// Returns the bitcode module that holds FUNCTION, or the whole input when
-// the input is bitcode already.
 static std::string module_for(const std::string &data, const std::string &fn) {
     const uint8_t *b = (const uint8_t *)data.data();
     if (data.size() < 88 || memcmp(b, "MTLB", 4) != 0) return data;
@@ -109,9 +69,6 @@ static std::string module_for(const std::string &data, const std::string &fn) {
     }
     fail("function not in metallib: " + fn);
 }
-
-// ---------------------------------------------------------------------------
-// SPIR-V assembly writer
 
 struct Emitter {
     const DataLayout &DL;
@@ -150,7 +107,6 @@ struct Emitter {
     std::string tVec(const std::string &e, unsigned n) {
         return ty("v" + std::to_string(n) + e, "OpTypeVector " + e + " " + std::to_string(n));
     }
-    // LLVM type -> SPIR-V type. Pointers into buffers are 64-bit integers.
     std::string type(Type *T) {
         if (T->isVoidTy()) return tVoid();
         if (T->isIntegerTy(1)) return tBool();
@@ -213,7 +169,6 @@ struct Emitter {
             return cst(type(T), std::to_string(CI->getZExtValue()));
         }
         if (auto *CF = dyn_cast<ConstantFP>(C)) {
-            // %.17g round-trips every float and half value exactly.
             bool lost = false;
             APFloat v = CF->getValueAPF();
             v.convert(APFloat::IEEEdouble(), APFloat::rmNearestTiesToEven, &lost);
@@ -242,7 +197,6 @@ struct Emitter {
         if (auto *C = dyn_cast<Constant>(V)) return constant(C);
         auto it = vals.find(V);
         if (it == vals.end()) {
-            // Forward reference (a phi operand): allocate the id now.
             std::string id = fresh();
             vals[V] = id;
             return id;
@@ -261,18 +215,15 @@ struct Emitter {
     }
 };
 
-// ---------------------------------------------------------------------------
-// AIR entry-point metadata (!air.kernel, !air.vertex, !air.fragment)
-
 struct ArgInfo {
-    std::string kind;   // air.buffer, air.vertex_input, air.position, ...
-    std::string ident;  // e.g. generated(2uvDv2_f) for stage-in/out matching
-    int location = -1;  // air.location_index, or render-target index
-    std::set<std::string> flags;  // air.flat, air.no_perspective, ...
+    std::string kind;
+    std::string ident;
+    int location = -1;
+    std::set<std::string> flags;
 };
 
 struct StageInfo {
-    std::string stage;  // kernel, vertex, fragment
+    std::string stage;
     std::vector<ArgInfo> outputs;
     std::map<unsigned, ArgInfo> args;
 };
@@ -283,7 +234,6 @@ static ArgInfo parse_node(MDNode *A, unsigned first) {
     for (unsigned i = first + 1; i < A->getNumOperands(); i++) {
         auto *S = dyn_cast<MDString>(A->getOperand(i));
         if (!S) {
-            // The first integer after air.render_target is its index.
             if (info.kind == "air.render_target" && info.location < 0)
                 if (auto *C = mdconst::dyn_extract<ConstantInt>(A->getOperand(i)))
                     info.location = C->getZExtValue();
@@ -292,7 +242,7 @@ static ArgInfo parse_node(MDNode *A, unsigned first) {
         StringRef str = S->getString();
         if (str == "air.location_index" && i + 1 < A->getNumOperands())
             info.location = mdconst::extract<ConstantInt>(A->getOperand(i + 1))->getZExtValue();
-        else if (str == "air.arg_type_name" || str == "air.arg_name") i++;  // skip the value
+        else if (str == "air.arg_type_name" || str == "air.arg_name") i++;
         else if (!str.starts_with("air.") && info.ident.empty()) info.ident = str.str();
         else info.flags.insert(str.str());
     }
@@ -321,9 +271,6 @@ static StageInfo stage_info(Module &M, Function *F) {
     fail("function is not an AIR kernel, vertex or fragment function: " + F->getName().str());
 }
 
-// Varying locations: Metal matches vertex outputs to fragment inputs by
-// name, Vulkan by Location. The vertex function's output order assigns
-// the locations; the fragment function looks its inputs up by name.
 static std::map<std::string, unsigned> varying_locations(const StageInfo &vs) {
     std::map<std::string, unsigned> m;
     unsigned next = 0;
@@ -332,20 +279,17 @@ static std::map<std::string, unsigned> varying_locations(const StageInfo &vs) {
     return m;
 }
 
-// ---------------------------------------------------------------------------
-// translation
-
 struct Translator {
     Module &M;
     Function &F;
     Emitter E;
     StageInfo SI;
-    std::map<std::string, unsigned> varyings;  // ident -> Location
+    std::map<std::string, unsigned> varyings;
     std::string pcVar, pcStruct, specX, specY, specZ, wgSize;
     std::map<std::string, std::string> builtinVars;
     std::map<const Value *, unsigned> texSlot, smpSlot;
     std::string texArr, smpArr, imgT, smpT;
-    std::vector<std::pair<std::string, Type *>> outVars;  // per output: variable, AIR type
+    std::vector<std::pair<std::string, Type *>> outVars;
     DominatorTree DT;
     PostDominatorTree PDT;
     LoopInfo LI;
@@ -353,8 +297,6 @@ struct Translator {
     Translator(Module &m, Function &f, const StageInfo &si, std::map<std::string, unsigned> vary)
         : M(m), F(f), E(m.getDataLayout()), SI(si), varyings(std::move(vary)) {}
 
-    // Interface type: 16-bit floats are widened to 32 bits at stage
-    // boundaries (the Thor lacks storageInputOutput16).
     Type *ioType(Type *T) {
         if (T->getScalarType()->isHalfTy()) {
             Type *f = Type::getFloatTy(T->getContext());
@@ -411,7 +353,7 @@ struct Translator {
                          name == "SubgroupId" || name == "SubgroupSize")
                             ? E.tInt(32) : E.tVec(E.tInt(32), 3);
         if (name.rfind("Subgroup", 0) == 0) E.caps.insert("GroupNonUniform");
-        std::string pt = E.ptrTy("Input", t);  // emit the type before the variable
+        std::string pt = E.ptrTy("Input", t);
         std::string var = E.fresh();
         E.globals << var << " = OpVariable " << pt << " Input\n";
         E.decor << "OpDecorate " << var << " BuiltIn " << name << "\n";
@@ -422,8 +364,6 @@ struct Translator {
     void setupInterface() {
         std::string u32 = E.tInt(32), u64 = E.tInt(64), v3 = E.tVec(u32, 3);
         if (SI.stage != "kernel") {
-            // Graphics PoC ABI: push constants hold the vertex stage's buffer
-            // slots 0..3 at offset 0 and the fragment stage's at offset 32.
             std::string arr4 = E.ty("pcarr4", "OpTypeArray " + u64 + " " + E.u32(4));
             E.decor << "OpDecorate " << arr4 << " ArrayStride 8\n";
             pcStruct = E.ty("pcgfx", "OpTypeStruct " + arr4 + " " + arr4);
@@ -434,7 +374,6 @@ struct Translator {
             pcVar = E.fresh();
             E.globals << pcVar << " = OpVariable " << pcPtr << " PushConstant\n";
             E.interface.push_back(pcVar);
-            // Outputs, in AIR output order (the return value's members).
             Type *RT = F.getReturnType();
             for (unsigned i = 0; i < SI.outputs.size(); i++) {
                 Type *T = RT->isStructTy() ? RT->getStructElementType(i) : RT;
@@ -451,8 +390,6 @@ struct Translator {
             }
             return;
         }
-        // Push constants: buffer slots 0..3 (the PoC harness), then the grid.
-        // A full implementation sizes the table from the pipeline layout.
         std::string arr4 = E.ty("pcarr4", "OpTypeArray " + u64 + " " + E.u32(4));
         E.decor << "OpDecorate " << arr4 << " ArrayStride 8\n";
         pcStruct = E.ty("pcstruct4", "OpTypeStruct " + arr4 + " " + v3);
@@ -473,7 +410,6 @@ struct Translator {
         E.globals << wgSize << " = OpSpecConstantComposite " << v3 << " " << specX << " " << specY << " " << specZ << "\n";
     }
 
-    // Narrow a uint3 built-in to the argument's AIR type (uint, uint2, uint3).
     std::string fitVec3(const std::string &v3val, Type *T) {
         std::string u32 = E.tInt(32);
         if (T->isIntegerTy(32)) {
@@ -565,7 +501,6 @@ struct Translator {
                     fail("PoC does not handle kernel argument kind " + ai.kind);
                 }
             }
-            // Bind the argument to the computed id.
             auto vit = E.vals.find(&A);
             if (vit != E.vals.end()) {
                 E.body << vit->second << " = OpCopyObject " << E.type(A.getType()) << " " << r << "\n";
@@ -583,7 +518,6 @@ struct Translator {
         return r;
     }
 
-    // Byte offset of a GEP, as a 64-bit integer id.
     std::string gepAddress(GetElementPtrInst *G) {
         std::string u64 = E.tInt(64);
         std::string addr = E.val(G->getPointerOperand());
@@ -638,7 +572,6 @@ struct Translator {
         std::string rt = C->getType()->isVoidTy() ? "" : E.type(C->getType());
         auto arg = [&](unsigned i) { return E.val(C->getArgOperand(i)); };
         std::string r;
-        // air.convert.<dk>.<dt>.<sk>.<st>: k is f (float), s (signed), u (unsigned).
         if (n.starts_with("air.convert.")) {
             SmallVector<StringRef, 6> p;
             n.split(p, '.');
@@ -655,9 +588,6 @@ struct Translator {
             E.body << r << " = " << op << " " << rt << " " << arg(0) << "\n";
             return;
         }
-        // air.sample_texture_2d.<T>(texture, sampler, float2 coord, i1, int2 offset,
-        //   i1 explicit-LOD, float bias-or-LOD, float min-LOD clamp, i32)
-        // -> { <4 x T>, i8 } (spec section 3.4; the i8 is returned as 0 here).
         if (n.starts_with("air.sample_texture_2d.")) {
             auto ts = texSlot.find(C->getArgOperand(0)), ss = smpSlot.find(C->getArgOperand(1));
             if (ts == texSlot.end() || ss == smpSlot.end()) fail("sample with a texture or sampler that is not a direct argument");
@@ -707,7 +637,7 @@ struct Translator {
             StringRef base = n.drop_front(4);
             base = base.take_until([](char c) { return c == '.'; });
             bool fast = base.consume_front("fast_");
-            (void)fast;  // fast and precise variants map to the same GLSL op here
+            (void)fast;
             base.consume_front("precise_");
             auto it = glslOps.find(base.str());
             if (it != glslOps.end()) {
@@ -910,10 +840,6 @@ struct Translator {
         fail("PoC does not handle instruction: " + s);
     }
 
-    // Structured control flow: loop headers get OpLoopMerge (merge = the
-    // unique exit block, continue = the dedicated back-edge block created by
-    // normalize()); other conditional branches get OpSelectionMerge at the
-    // immediate post-dominator, unless the branch only leaves the loop.
     void terminator(BasicBlock &B) {
         Instruction *T = B.getTerminator();
         Loop *L = LI.getLoopFor(&B);
@@ -1010,10 +936,6 @@ struct Translator {
     }
 };
 
-// CFG normalization with LLVM's own passes: switches become branches, one
-// return block, loop-simplify form (preheader, single latch, dedicated
-// exits), and a dedicated back-edge block per loop (the SPIR-V continue
-// target).
 static void normalize(Function &F) {
     PassBuilder PB;
     LoopAnalysisManager LAM;
@@ -1070,7 +992,6 @@ int main(int argc, char **argv) {
     std::map<std::string, unsigned> vary;
     if (SI.stage == "vertex") vary = varying_locations(SI);
     if (SI.stage == "fragment" && !linkVS.empty()) {
-        // The vertex function may live in another module of the metallib.
         std::string vbc = module_for(data, linkVS);
         LLVMContext vctx;
         auto vmod = parseBitcodeFile(MemoryBufferRef(StringRef(vbc), "air-vs"), vctx);

@@ -13,19 +13,15 @@ public struct HandshakeDiagnostics: Identifiable, Sendable {
 public struct CodexSignInFlow: View {
     @Environment(\.dismiss) private var dismiss
 
-    // Binding to CodexBridgeManager
     @Bindable private var bridgeManager = CodexBridgeManager.shared
 
-    // Authentication Key inputs
     @State private var apiKey: String = ""
     @State private var showKey: Bool = false
 
-    // Device Auth state
     @State private var deviceUrl: String = ""
     @State private var deviceCode: String = ""
     @State private var showDeviceCodeSheet: Bool = false
 
-    // Verification Connection test states
     @State private var isTesting: Bool = false
     @State private var testResponse: String = ""
     @State private var testDuration: TimeInterval = 0
@@ -44,7 +40,6 @@ public struct CodexSignInFlow: View {
     }
 
     private var isAuthenticatedWithChatGPT: Bool {
-        // Authenticated but does not have a saved API Key in Keychain
         bridgeManager.isAuthenticated && !hasStoredKey
     }
 
@@ -54,7 +49,6 @@ public struct CodexSignInFlow: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
@@ -81,7 +75,6 @@ public struct CodexSignInFlow: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    // Installer State Alert
                     if bridgeManager.isInstalling {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 8) {
@@ -102,7 +95,6 @@ public struct CodexSignInFlow: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // Section 1: Live CLI Status Panel
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Label("Live CLI Status", systemImage: "info.circle.fill")
@@ -123,7 +115,6 @@ public struct CodexSignInFlow: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Section 2: Install CLI (if not detected or management requested)
                     if bridgeManager.cliLocation == "Not Detected" {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 10) {
@@ -154,7 +145,6 @@ public struct CodexSignInFlow: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // Section 3: ChatGPT Authentication & State Changes
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Label("ChatGPT Authentication", systemImage: "person.crop.circle.badge.checkmark")
@@ -174,11 +164,9 @@ public struct CodexSignInFlow: View {
                                 Button {
                                     Task {
                                         if isAuthenticatedWithAPIKey {
-                                            // Sign out API Key
                                             KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
                                             bridgeManager.appendLog("API Key removed from Keychain.")
                                         } else {
-                                            // Sign out ChatGPT
                                             await bridgeManager.logout()
                                             bridgeManager.appendLog("ChatGPT OAuth session cleared.")
                                         }
@@ -247,7 +235,6 @@ public struct CodexSignInFlow: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Section 4: Alternative API Key Integration (Hidden if authenticated)
                     if !isAnyAuthenticated {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
@@ -319,7 +306,6 @@ public struct CodexSignInFlow: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // Section 5: Diagnostics Console logs
                     GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
@@ -366,7 +352,6 @@ public struct CodexSignInFlow: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Section 6: Testing & HANDSHAKE
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("Verification and Handshake Test", systemImage: "checkmark.seal.fill")
@@ -445,7 +430,6 @@ public struct CodexSignInFlow: View {
 
             Divider()
 
-            // Footer
             HStack {
                 Button("Close Setup") {
                     dismiss()
@@ -529,7 +513,6 @@ public struct CodexSignInFlow: View {
         let startTime = Date()
 
         Task {
-            // Stage 1: CLI Discovery
             bridgeManager.appendLog("[Handshake] Stage 1: Verifying CLI discovery...")
             guard let _ = bridgeManager.discoverCLIPath() else {
                 testStatus = "Handshake Failed"
@@ -543,7 +526,6 @@ public struct CodexSignInFlow: View {
                 return
             }
 
-            // Stage 2: Authentication Verification
             bridgeManager.appendLog("[Handshake] Stage 2: Auditing authentication credentials...")
             await bridgeManager.auditEnvironment()
             if !bridgeManager.isAuthenticated {
@@ -558,7 +540,6 @@ public struct CodexSignInFlow: View {
                 return
             }
 
-            // Stage 3: Request Payload & Execution Pipeline
             bridgeManager.appendLog("[Handshake] Stage 3: Initializing stream connection to backend...")
             do {
                 testStatus = "Executing prompt..."

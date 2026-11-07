@@ -6,10 +6,6 @@ import SwiftCodeBuildServer
 import SwiftCodeLanguage
 @testable import SwiftCodeUI
 
-/// The language server follows the run destination (`specs/ide/language.md`
-/// §Build server, "Context changes"): a framework that builds for macOS and
-/// iOS has code only one platform compiles; switching the destination from
-/// the Mac to an iOS simulator moves the live issue to the iOS branch.
 @MainActor
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(6))) struct BuildServerContextTests {
     static let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -27,7 +23,6 @@ import SwiftCodeLanguage
         try? FileManager.default.removeItem(at: dir)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let project = try SampleProject.write(.portable, in: dir)
-        // Both platforms: the destination picks the SDK.
         let pbx = project.appendingPathComponent("project.pbxproj")
         let text = try String(contentsOf: pbx, encoding: .utf8)
         try text.replacingOccurrences(of: "SDKROOT = macosx;",

@@ -1,6 +1,3 @@
-// MKProbe: network-backed services (search, completer, directions, geocoding,
-// snapshots, opening map items). Business details are reported as shapes
-// (presence, counts, categories), not copied.
 import UIKit
 import MapKit
 import CoreLocation
@@ -54,7 +51,6 @@ func runSearch() async {
     _ = await go("museum-paris", r6)
     let r7 = MKLocalSearch.Request(); r7.naturalLanguageQuery = "coffee"; r7.region = region; r7.resultTypes = .physicalFeature
     _ = await go("coffee-physicalFeature", r7)
-    // Points of interest around a point
     let poi = MKLocalPointsOfInterestRequest(center: applePark, radius: 1000)
     P("search poi request radius=\(poi.radius) filter=\(String(describing: poi.pointOfInterestFilter))")
     let t0 = Date()
@@ -66,7 +62,6 @@ func runSearch() async {
     } catch { P("search poi THROW \(describe(error))") }
     let poiBig = MKLocalPointsOfInterestRequest(center: applePark, radius: 100_000)
     do { let resp = try await MKLocalSearch(request: poiBig).start(); P("search poi100km n=\(resp.mapItems.count)") } catch { P("search poi100km THROW \(describe(error))") }
-    // Map item request by identifier
     if let id = coffee?.mapItems.first?.identifier {
         let t1 = Date()
         do {
@@ -78,7 +73,6 @@ func runSearch() async {
     if let bogus = MKMapItem.Identifier(rawValue: "I0000000000000000") {
         do { _ = try await MKMapItemRequest(mapItemIdentifier: bogus).mapItem; P("search mapItemRequest bogus OK") } catch { P("search mapItemRequest bogus THROW \(describe(error))") }
     } else { P("search identifier bogus init -> nil") }
-    // Two searches on the same object
     let s = MKLocalSearch(request: r1)
     P("search isSearching before=\(s.isSearching)")
     s.start { _, _ in P("search firstStart callback") }
@@ -86,7 +80,6 @@ func runSearch() async {
     s.cancel()
     await sleep(1)
     P("search isSearching after cancel=\(s.isSearching)")
-    // Completer
     await Completer().run()
 }
 
@@ -118,7 +111,6 @@ final class Completer: NSObject, MKLocalSearchCompleterDelegate {
         t0 = Date(); comp.queryFragment = "1 Infinite"; await sleep(4)
         comp.resultTypes = .query
         t0 = Date(); comp.queryFragment = "pizza near"; await sleep(4)
-        // Search from a completion
         comp.resultTypes = [.address, .pointOfInterest]
         t0 = Date(); comp.queryFragment = "Apple Park"; await sleep(4)
         if let first = comp.results.first {
@@ -128,7 +120,6 @@ final class Completer: NSObject, MKLocalSearchCompleterDelegate {
                 P("completer->search OK in \(f(Date().timeIntervalSince(t1), 3))s n=\(resp.mapItems.count) first=\(resp.mapItems.first.map(item) ?? "nil")")
             } catch { P("completer->search THROW \(describe(error))") }
         }
-        // Rapid typing: how many updates for 5 fragments typed 0.1s apart
         updates = 0; t0 = Date()
         for frag in ["s", "st", "sta", "stan", "stanf"] { comp.queryFragment = frag; await sleep(0.1) }
         await sleep(4)
@@ -203,13 +194,11 @@ func runGeo() async {
     await t("clgeocoder.reverse.ocean", { try await g.reverseGeocodeLocation(CLLocation(latitude: 0, longitude: -140)) }, { "n=\($0.count) " + ($0.first.map(pm) ?? "") })
     await t("clgeocoder.forward.gibberish", { try await g.geocodeAddressString("qzxqzxqzxvbnq") }, { "n=\($0.count)" })
     await t("clgeocoder.reverse.de", { try await g.reverseGeocodeLocation(CLLocation(latitude: 52.5163, longitude: 13.3777), preferredLocale: Locale(identifier: "de_DE")) }, { "n=\($0.count) " + ($0.first.map(pm) ?? "") })
-    // Two concurrent requests on one geocoder
     let g2 = CLGeocoder()
     g2.reverseGeocodeLocation(CLLocation(latitude: applePark.latitude, longitude: applePark.longitude)) { p, e in P("geo concurrent first p=\(p?.count ?? -1) e=\(describe(e))") }
     P("geo isGeocoding=\(g2.isGeocoding)")
     g2.reverseGeocodeLocation(CLLocation(latitude: stanford.latitude, longitude: stanford.longitude)) { p, e in P("geo concurrent second p=\(p?.count ?? -1) e=\(describe(e))") }
     await sleep(3)
-    // MapKit geocoding (iOS 26)
     await t("mk.forward", { try await MKGeocodingRequest(addressString: "1 Infinite Loop, Cupertino, CA")!.mapItems }, { "n=\($0.count) " + ($0.first.map(item) ?? "") })
     await t("mk.forward.apple-park", { try await MKGeocodingRequest(addressString: "Apple Park")!.mapItems }, { "n=\($0.count) " + ($0.first.map(item) ?? "") })
     await t("mk.reverse", { try await MKReverseGeocodingRequest(location: CLLocation(latitude: applePark.latitude, longitude: applePark.longitude))!.mapItems }, { "n=\($0.count) " + ($0.first.map(item) ?? "") })
@@ -217,7 +206,6 @@ func runGeo() async {
     await t("mk.forward.gibberish", { try await MKGeocodingRequest(addressString: "qzxqzxqzxvbnq")!.mapItems }, { "n=\($0.count)" })
     P("geo mk.forward empty-string init -> \(MKGeocodingRequest(addressString: "") == nil ? "nil" : "nonnil")")
     P("geo mk.reverse invalid-coordinate init -> \(MKReverseGeocodingRequest(location: CLLocation(latitude: 200, longitude: 0)) == nil ? "nil" : "nonnil")")
-    // Burst: 12 reverse lookups back to back (throttling behavior)
     var ok = 0, fail: [String] = []
     let t0 = Date()
     for i in 0..<12 {
@@ -270,7 +258,6 @@ func runSnap() async {
     let o5b = MKMapSnapshotter.Options(); o5b.region = reg; o5b.size = CGSize(width: 300, height: 200); o5b.preferredConfiguration = MKHybridMapConfiguration()
     await snap("hybrid", o5b)
     if gVariant == "size0" {
-        // Raises NSInvalidArgumentException ("Cannot set a zero area size.") on the reference: run last.
         let o6 = MKMapSnapshotter.Options(); o6.region = reg; P("snap setting size zero"); o6.size = .zero
         await snap("size0", o6)
         return
@@ -285,7 +272,6 @@ func runSnap() async {
     s.cancel()
     await sleep(2)
     P("snap isLoading after cancel=\(s.isLoading)")
-    // Several snapshots in parallel
     let t0 = Date()
     await withTaskGroup(of: Void.self) { grp in
         for i in 0..<4 {

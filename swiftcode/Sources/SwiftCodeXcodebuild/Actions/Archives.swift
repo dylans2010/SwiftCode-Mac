@@ -1,13 +1,8 @@
 import Foundation
 import SwiftCodeSigning
 
-/// `archive` (the `.xcarchive` bundle) and `-exportArchive`.
-/// See `specs/xcodebuild/archive.md`.
 enum Archives {
-    // MARK: archive
 
-    /// `-archivePath` (with `.xcarchive` added when missing), else
-    /// `~/Library/Developer/Xcode/Archives/<yyyy-MM-dd>/<scheme> <M-d-yy, h.mm a>.xcarchive`.
     static func archivePath(_ inv: Invocation, scheme: String, home: String, cwd: String, date: Date) -> String {
         if var p = inv.value("-archivePath") {
             if !p.hasPrefix("/") { p = cwd + "/" + p }
@@ -21,8 +16,6 @@ enum Archives {
         return home + "/Library/Developer/Xcode/Archives/" + day.string(from: date) + "/\(scheme) \(stamp.string(from: date)).xcarchive"
     }
 
-    /// After a successful `archive` build: collects the installed products
-    /// and dSYMs into the archive and writes its `Info.plist`.
     static func assemble(_ inv: Invocation, plan: Plan, context ctx: XcodebuildContext, created: Date) throws(XcodebuildFailure) -> String {
         guard let scheme = plan.scheme, let locations = plan.archiveLocations else {
             throw XcodebuildFailure("archive requires a scheme.", exitCode: ExitCode.usage)
@@ -38,7 +31,6 @@ enum Archives {
             for item in (try? fm.contentsOfDirectory(atPath: locations.dstroot)) ?? [] {
                 try fm.copyItem(atPath: locations.dstroot + "/" + item, toPath: products.appendingPathComponent(item).path)
             }
-            // dSYMs next to the built products (DWARF_DSYM_FOLDER_PATH).
             for dir in (try? fm.contentsOfDirectory(atPath: locations.symroot)) ?? [] {
                 for item in (try? fm.contentsOfDirectory(atPath: locations.symroot + "/" + dir)) ?? [] where item.hasSuffix(".dSYM") {
                     let dest = dsyms.appendingPathComponent(item)
@@ -54,8 +46,6 @@ enum Archives {
         return path
     }
 
-    /// `ApplicationProperties` for an archive holding one application under
-    /// `Products/Applications`.
     static func applicationProperties(products: String) -> [String: Any]? {
         let apps = ((try? FileManager.default.contentsOfDirectory(atPath: products + "/Applications")) ?? []).filter { $0.hasSuffix(".app") }.sorted()
         guard let app = apps.first else { return nil }
@@ -67,7 +57,6 @@ enum Archives {
             "CFBundleIdentifier": plist["CFBundleIdentifier"] as? String ?? "",
             "CFBundleShortVersionString": plist["CFBundleShortVersionString"] as? String ?? "",
             "CFBundleVersion": plist["CFBundleVersion"] as? String ?? "",
-            // Ad hoc ("Sign to Run Locally") signatures have no identity or team.
             "SigningIdentity": "",
             "Team": "",
         ]
@@ -78,10 +67,6 @@ enum Archives {
         return props
     }
 
-    // MARK: - The -exportArchive action
-
-    /// `-exportArchive`: limited to archives of applications signed ad hoc,
-    /// exported with method `mac-application` (a copy of the application).
     static func export(_ inv: Invocation, context ctx: XcodebuildContext) -> Int32 {
         let console = ctx.console
         func fail(_ message: String, _ code: Int32) -> Int32 {
@@ -118,9 +103,6 @@ enum Archives {
             return fail("exportArchive: swiftcodebuild exports only with method mac-application (ad hoc signing) yet.", ExitCode.software)
         }
         let certificate = options["signingCertificate"] as? String
-        // Another certificate: an identity from the keychain (a kind such as
-        // "Developer ID Application", a full name or a SHA-1 hash), of the
-        // options' team when given. Read-only; see specs/ide/signing.md §5.
         var identity: SigningIdentity?
         if let c = certificate, c != "-" {
             let teamID = (options["teamID"] as? String).flatMap { $0.isEmpty ? nil : $0 }
@@ -138,12 +120,9 @@ enum Archives {
         } catch {
             return fail("exportArchive: could not copy the application: \(error)", ExitCode.software)
         }
-        // An explicit ad hoc certificate re-signs an application that is
-        // not signed ad hoc already.
         if certificate == "-", !isAdHocSigned(dest), !resignAdHoc(dest) {
             return fail("exportArchive: codesign failed for \(dest).", ExitCode.software)
         }
-        // With an identity, every nested item is signed before its container.
         if let identity, let why = CodesignCommand.resign(bundle: URL(fileURLWithPath: dest), identity: identity.hash) {
             return fail("exportArchive: \(why).", ExitCode.software)
         }
@@ -166,7 +145,6 @@ enum Archives {
     }
 }
 
-/// Architectures of a Mach-O file, in the order the file lists them.
 enum MachO {
     static func architectures(_ path: String) -> [String] {
         guard let h = FileHandle(forReadingAtPath: path) else { return [] }

@@ -12,7 +12,6 @@ struct GistFileEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tiny filename header (only in non-edit mode, or for context)
             if isEditing {
                 TextField("Filename (e.g. main.swift)", text: $file.filename)
                     .font(.system(size: 13, weight: .medium, design: .monospaced))

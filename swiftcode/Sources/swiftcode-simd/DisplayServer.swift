@@ -1,16 +1,3 @@
-// swiftcode-simd --display-server <address>: a live view of the device's display
-// and an input channel for a viewer (specs/simulator/display-stream.md).
-//
-// The headless SimFramebuffer library rewrites its frame record (the
-// presented IOSurface and a frame counter) on every swap. The server polls
-// that record (a 96-byte pread every few milliseconds, only while a client
-// is connected), compares the presented surface with the image the client
-// already has in tiles, and sends the changed rectangles, JPEG- or
-// zlib-encoded, at most `maxFPS` times a second. A slow link only delays
-// the next update: changes accumulate against the client's image, so the
-// newest pixels always win. Nothing runs before a client connects except
-// one thread blocked in accept().
-
 #if os(Linux) && arch(arm64)
 import CSwiftCodeCodec
 import Foundation
@@ -19,27 +6,19 @@ import SwiftCodeDisplayStream
 import SwiftCodeHostServices
 import SwiftCodeHypervisor
 
-/// Where viewer input goes (InputBridge.swift).
 protocol GuestInputSink: AnyObject {
     var acceptsTouch: Bool { get }
     var acceptsKeyboard: Bool { get }
     var buttons: [DisplayButton] { get }
-    /// Delivers one event to the guest; false when it was dropped.
     func deliver(_ input: DisplayInput) -> Bool
-    /// visionOS, the headset mode (xr-viewer.md §4): the rendered camera
-    /// (an eye, or the head) and vhmdd's device pose (the head) apart.
     func deliver(viewPose: SpatialPose, devicePose: SpatialPose) -> Bool
-    /// The viewer went away: touches still down are cancelled, keys and
-    /// buttons still down are released (no stuck state, hid-input.md §7.5).
     func reset()
 }
 
-/// Names the calling thread (seen in /proc and debuggers).
 func nameThread(_ name: String) { swiftcodec_name_thread(name) }
 
 final class FrameRecordReader {
     let path: String
-    /// The display's record: 0 for display 1, 1 for a foldable's second display.
     let slot: Int
     private var fd: Int32 = -1
     private var reads = 0
@@ -53,7 +32,6 @@ final class FrameRecordReader {
     func read() -> FrameRecord? {
         reads += 1
         if fd >= 0, reads % 256 == 0 {
-            // The file was replaced (a new boot of the device directory): reopen.
             var st = stat()
             if fstat(fd, &st) != 0 || st.st_nlink == 0 { close(fd); fd = -1 }
         }
@@ -68,13 +46,6 @@ final class FrameRecordReader {
     }
 }
 
-/// The display server's timing trace (display-stream.md §10), written only
-/// with SWIFTCODE_DISPLAY_TIMING=1: text lines, times in host CLOCK_MONOTONIC
-/// nanoseconds, guest times in guest mach ticks.
-///   sync <host ns> <guest ticks>                          (once a second)
-///   input <seq> <kind> <received ns> <handed to HID ns> <HID sequence>
-///   record <guest frame> <seen ns>
-///   frame <seq> <guest frame> <scan start ns> <encoded ns> <sent ns> <bytes> <tiles> <input seq>
 final class DisplayTrace: @unchecked Sendable {
     private let lock = NSLock()
     private let handle: FileHandle
@@ -92,7 +63,6 @@ final class DisplayTrace: @unchecked Sendable {
         lock.withLock {
             var out = ""
             if now >= nextSync, let g = guestClock?() {
-                // Read the two clocks back to back; the pair maps guest ticks to host time.
                 out += "sync \(monotonicNanoseconds()) \(g)\n"
                 nextSync = now + 1_000_000_000
             }
@@ -102,10 +72,6 @@ final class DisplayTrace: @unchecked Sendable {
     }
 }
 
-/// Wakes a waiter as soon as the frame record is rewritten (inotify on its
-/// directory; the guest's pwrite reaches the host file), so a new frame is
-/// scanned within a millisecond instead of at the next 4–8 ms poll. The
-/// polls stay as the fallback (no inotify, a replaced directory).
 final class FrameRecordWatcher: @unchecked Sendable {
     private let fd: Int32
     private let name: String
@@ -134,7 +100,6 @@ final class FrameRecordWatcher: @unchecked Sendable {
             guard poll(&p, 1, 100) > 0 else { continue }
             let n = buf.withUnsafeMutableBytes { Glibc.read(fd, $0.baseAddress, $0.count) }
             guard n > 0 else { continue }
-            // Events: {wd i32, mask u32, cookie u32, len u32, name[len]}.
             var off = 0, hit = false
             buf.withUnsafeBytes { b in
                 while off + 16 <= n {
@@ -160,27 +125,17 @@ final class DisplayServer: @unchecked Sendable {
     let started: UInt64
     let input: GuestInputSink?
     let screen: (width: Int, height: Int, scale: Double)
-    /// The device's model identifier (hello `model`; the device type's).
     var model = DeviceType.default.modelIdentifier
-    /// The device type's id and the runtime ("iOS 27.1") for the hello.
     var deviceTypeID: String?
     var osVersion: String?
     let log: (String) -> Void
-    /// The timing trace (SWIFTCODE_DISPLAY_TIMING=1), or nil.
     var trace: DisplayTrace?
-    /// The HID service's last sequence number (input trace lines).
     var hidSequence: (() -> UInt64)?
-    /// The built-in displays (display 1 first) and, on a foldable, the
-    /// hinge (foldable.md "SwiftCode implementation").
     var panels: [PanelInfo] = []
     var fold: FoldController?
-    /// A device command from the viewer (0x90; the control socket's
-    /// commands, simulator-features.md "SwiftCode implementation") → its answer.
     var commands: (@Sendable (String) -> String)?
-    /// visionOS: the hello's `spatial` and `rooms` (pose, selection and dial accepted).
     var spatial = false
     var rooms: [String]?
-    /// The panel the viewer was last told it is shown (touches go there).
     private var shown: PanelInfo?
     private let lock = NSLock()
     private var current: DisplayClientSession?
@@ -203,7 +158,6 @@ final class DisplayServer: @unchecked Sendable {
             + (Self.videoOffered ? VideoFrameEncoder.offered.map(\.name) : [])
     }
 
-    /// SWIFTCODE_DISPLAY_VIDEO=0 keeps video out of the hello (§14).
     static let videoOffered = ProcessInfo.processInfo.environment["SWIFTCODE_DISPLAY_VIDEO"] != "0"
 
     func start() {
@@ -213,8 +167,6 @@ final class DisplayServer: @unchecked Sendable {
         let t = Thread { [self] in acceptLoop() }
         t.name = "display-accept"
         t.start()
-        // The device's sound (§15): the audio service starts late (after
-        // launchd_sim's first lookups); hook its output once it exists.
         if !AudioHostService.disabled {
             let a = Thread { [weak self] in
                 while let self, !self.isStopping {
@@ -231,12 +183,10 @@ final class DisplayServer: @unchecked Sendable {
         }
     }
 
-    /// An output block of the audio service, to the viewer if it plays sound.
     func audioBlock(_ samples: [Float], at: UInt64) {
         lock.withLock { current }?.pushAudio(samples, at: at)
     }
 
-    /// The device is going down: clients get a "stopping" status, then the end.
     func stop(message: String) {
         let s = lock.withLock { () -> DisplayClientSession? in
             stopping = true
@@ -284,16 +234,13 @@ final class DisplayServer: @unchecked Sendable {
         if spatial {
             h.spatial = true
             h.rooms = rooms
-            // The headset mode (xr-viewer.md §4): views in, tagged frames out.
             h.xr = true
-            // Each picture's depth and the room's environment (xr-depth.md §4).
             h.xrDepth = true
             h.xrEnvironment = true
         }
         return h
     }
 
-    /// The panel to show for these frame records, and its state message.
     func panelState(records: [FrameRecord?]) -> (PanelInfo, DisplayPanelState)? {
         guard !panels.isEmpty else { return nil }
         let model = fold?.state
@@ -307,11 +254,9 @@ final class DisplayServer: @unchecked Sendable {
         return (p, state)
     }
 
-    /// The panel touches go to (the one shown; display 1 before any state).
     var touchPanel: PanelInfo? { lock.withLock { shown } }
     func setShown(_ p: PanelInfo) { lock.withLock { shown = p } }
 
-    /// The presented surface (or, before the first frame, nothing).
     func presentedSurface(_ record: FrameRecord?) -> IOSurfaceInfo? {
         guard let record, let s = surfaces.surface(id: record.surface) else { return nil }
         guard s.bytesPerElement == 4, s.width > 0, s.height > 0,
@@ -331,21 +276,15 @@ final class DisplayClientSession: @unchecked Sendable {
     private var inputUntil: UInt64 = 0
     private var noticeSent = false
     private var recordDirty = false
-    /// The rotation of the panel state last sent (screenshots).
     private var shownRotation = 0
-    /// The sound for this viewer (§15), when its hello asked for it (under `condition`).
     private var audioPipe: DisplayAudioPipe?
-    /// The headset mode (xr-viewer.md §4), when the hello asked for it (under `condition`).
     private var xr: DisplayXRState?
-    /// The headset mode's depth and environment (DisplayXRDepth.swift).
     private var xrDepth: DisplayXRDepthSender?
 
     func pushAudio(_ samples: [Float], at: UInt64) { condition.withLock { audioPipe }?.push(samples, at: at) }
-    /// Flow control (display-stream.md §4.2) and the gaps (xr-viewer.md §13.1), under `condition`.
     private var window = XRFrameWindow(window: nil)
     private var gapLog = XRServerGapLog()
     private var hover = XRHoverCounter()
-    // Statistics (logged at the end).
     private var framesSent = 0, bytesSent = 0, encodeNanoseconds: UInt64 = 0, scans = 0
     private let connectedAt = monotonicMilliseconds()
 
@@ -403,19 +342,12 @@ final class DisplayClientSession: @unchecked Sendable {
 
     func sendNotice(_ text: String) { try? connection.send(.notice(text)) }
 
-    /// The frame record was rewritten (FrameRecordWatcher).
     func recordChanged() {
-        // A/B diagnostic (SWIFTCODE_DISPLAY_AB=1): the watcher is ignored in odd seconds.
         if DisplayClientSession.abTest, (monotonicMilliseconds() / 1000) % 2 == 1 { return }
         condition.withLock { recordDirty = true; condition.broadcast() }
     }
 
-    /// SWIFTCODE_DISPLAY_AB=1: alternate the latency features (watcher by the
-    /// second, banded encoding by the frame) and mark trace lines with the
-    /// arm, for paired measurements (display-stream.md §10).
     static let abTest = ProcessInfo.processInfo.environment["SWIFTCODE_DISPLAY_AB"] == "1"
-
-    // MARK: Receiving
 
     private func receiveLoop() {
         nameThread("display-receive")
@@ -438,7 +370,6 @@ final class DisplayClientSession: @unchecked Sendable {
             h.maxFPS = min(120, max(1, h.maxFPS))
             h.quality = min(100, max(1, h.quality))
             h.downscale = min(4, max(1, h.downscale))
-            // The first of the client's list this server offers (§14).
             h.encoding = DisplayCodecChoice.serverPick(hello: h, offered: server.encodings)
             if DisplayEncoding(name: h.encoding) == nil { h.encoding = server.encodings.first ?? "zlib" }
             condition.withLock { window = XRFrameWindow(window: h.frameWindow.map { min(64, max(0, $0)) }) }
@@ -472,7 +403,6 @@ final class DisplayClientSession: @unchecked Sendable {
         case .ping(let token):
             try? connection.send(.pong(token: token, serverNanoseconds: monotonicNanoseconds()))
         case .frameAck(let sequence):
-            // Room for the newest picture: the send loop goes on now.
             condition.withLock {
                 window.ack(sequence: sequence, at: monotonicNanoseconds())
                 recordDirty = true
@@ -498,7 +428,6 @@ final class DisplayClientSession: @unchecked Sendable {
                 try? connection.send(.commandReply(token: token, text: "error: this device takes no commands"))
                 break
             }
-            // Off the receive thread: a command can wait for the guest.
             let connection = connection
             Thread.detachNewThread {
                 let answer = commands(text)
@@ -511,11 +440,9 @@ final class DisplayClientSession: @unchecked Sendable {
                 condition.withLock { xr }?.setFovea(u: Double(u), v: Double(v))
                 delivered = true
             } else if case .views(_, let v) = event {
-                // The headset's views go to the eye scheduler, which sends the guest its camera.
                 condition.withLock { xr }?.update(v)
                 delivered = server.input != nil
             } else if case .selection(_, let sel) = event, let x = condition.withLock({ xr }) {
-                // A pinch keeps the headset mode in mono (responsive) until it is over.
                 if sel.anyPinch { x.noteInteraction() }
                 condition.withLock { gapLog.selection(pinching: sel.anyPinch, at: monotonicNanoseconds()) }
                 delivered = server.input?.deliver(event) ?? false
@@ -531,14 +458,13 @@ final class DisplayClientSession: @unchecked Sendable {
                 case .pose: kind = "pose"
                 case .selection(_, let s): kind = s.anyPinch ? "selection.pinch" : "selection"
                 case .dial: kind = "dial"
-                case .fovea: kind = "fovea"   // no coordinates: the gaze is never logged
+                case .fovea: kind = "fovea"
                 case .views: kind = "views"
                 }
                 trace.line("input \(event.sequence) \(kind) \(received) \(monotonicNanoseconds()) \(server.hidSequence?() ?? 0)")
             }
             condition.withLock {
                 lastInput = event.sequence
-                // Look for the guest's answer more often for a moment.
                 inputUntil = monotonicMilliseconds() + 500
                 condition.broadcast()
             }
@@ -552,7 +478,6 @@ final class DisplayClientSession: @unchecked Sendable {
         }
     }
 
-    /// The panel shown, as shown (turned by its rotation).
     private func screenshot() -> [UInt8] {
         let slot = server.touchPanel?.slot ?? 0
         let reader = FrameRecordReader(path: server.statePath, slot: slot)
@@ -564,9 +489,6 @@ final class DisplayClientSession: @unchecked Sendable {
         return CompressedPNG.encode(width: w, height: h, rgba: rgba)
     }
 
-    /// Foveated streaming (xr-viewer.md §4.5): JPEG of the full-resolution
-    /// rectangle around the gaze, straight from the presented surface. False
-    /// when the connection failed.
     private func sendInset(_ xr: DisplayXRState, surface: IOSurfaceInfo, view: XRView, frame: UInt64, gaze: (u: Double, v: Double)) -> Bool {
         let t0 = monotonicNanoseconds()
         let r = XRInset.rect(u: gaze.u, v: gaze.v, width: surface.width, height: surface.height, fraction: xr.foveaFraction)
@@ -587,11 +509,6 @@ final class DisplayClientSession: @unchecked Sendable {
         return true
     }
 
-    // MARK: Sending
-
-    /// SWIFTCODE_DISPLAY_PACE=send restores the pacing before REMOTE-X86 (the
-    /// interval measured from the end of the previous send), for A/B runs.
-    /// The system's load, for a gap's log line.
     static func loadAverage() -> String {
         (try? String(contentsOfFile: "/proc/loadavg", encoding: .utf8))?.split(separator: " ").first.map(String.init) ?? "?"
     }
@@ -600,7 +517,6 @@ final class DisplayClientSession: @unchecked Sendable {
 
     private func sendLoop() {
         nameThread("display-send")
-        // Wait (briefly) for the client's hello; defaults otherwise.
         let helloDeadline = monotonicMilliseconds() + 2000
         condition.withLock {
             while settings == nil && !closed && monotonicMilliseconds() < helloDeadline {
@@ -616,7 +532,6 @@ final class DisplayClientSession: @unchecked Sendable {
         defer { watcher?.stop() }
         var mirror: DisplayMirror?
         var encoder: TileEncoder?
-        // Lossless once still (§4.2.2): what this viewer has only lossy.
         var still: StillRefinement?
         var video: VideoFrameEncoder?
         var videoFailed = false
@@ -624,10 +539,10 @@ final class DisplayClientSession: @unchecked Sendable {
         var lastRecord: FrameRecord?
         var phase = ""
         var settleUntil: UInt64 = 0
-        var lastScan: UInt64 = 0        // ns
-        var lastSent: UInt64 = 0        // ns: when the last frame sent was captured (its scan began)
-        var unscanned = false           // a new frame record not scanned yet
-        var recordSeenNs: UInt64 = 0    // when it was seen (frame timing, §12)
+        var lastScan: UInt64 = 0
+        var lastSent: UInt64 = 0
+        var unscanned = false
+        var recordSeenNs: UInt64 = 0
         var nextSafetyScan: UInt64 = 0
         var nextStatus: UInt64 = 0
         var sequence: UInt64 = 0
@@ -635,9 +550,6 @@ final class DisplayClientSession: @unchecked Sendable {
         var lastPoseCount = 0, lastPoseAt: UInt64 = 0
         while !isClosed {
             let now = monotonicMilliseconds()
-            // Every panel's record; the one shown is the panel's whose turn it
-            // is (foldable.md §8.1 D3). A change of panel (or of its turn, the
-            // fold) is announced first and the next frame is a full one.
             let records = readers.map { $0.read() }
             var slot = 0
             if let (panel, state) = server.panelState(records: records) {
@@ -677,18 +589,12 @@ final class DisplayClientSession: @unchecked Sendable {
                 nextStatus = now + (phase == "booting" ? 1000 : 5000)
             }
             let (s, keyframe, inputUntil) = condition.withLock { (settings!, keyframeWanted, self.inputUntil) }
-            // Pacing (display-stream.md §4.2): maxFPS limits the frames sent. A
-            // new frame record (or a keyframe request) is scanned as soon as
-            // that allows; the speculative scans (settling after a frame,
-            // after input, the safety net) run at most once per interval and
-            // never hold back the scan of a new frame.
             let intervalNs = 1_000_000_000 / UInt64(s.maxFPS)
             let nowNs = monotonicNanoseconds()
             let urgent = keyframe || unscanned
             let speculative = now < settleUntil || now < inputUntil || now >= nextSafetyScan
             let wanted = urgent || speculative
             let allowed = nowNs &- lastSent >= intervalNs && (urgent || nowNs &- lastScan >= intervalNs)
-            // The viewer's window (§4.2): while it is full nothing is captured, so what goes next is the newest picture.
             let flowOpen = condition.withLock { () -> Bool in
                 let open = wanted ? window.open(at: nowNs) : window.isOpen(at: nowNs)
                 if wanted, !open { gapLog.heldBack() }
@@ -699,10 +605,6 @@ final class DisplayClientSession: @unchecked Sendable {
             if let xrState { condition.withLock { gapLog.poses(total: xrState.posesSent, at: nowNs) } }
             if let d = condition.withLock({ xrDepth }), !d.sendEnvironment(connection) { break }
             if let xrState {
-                // The headset mode (xr-viewer.md §4): mono shows each new
-                // picture; alternate shows the picture once it has settled on
-                // the eye's pose, then gives the guest the other eye. Damage
-                // is kept per view; a frame view goes before each frame.
                 var shown: (tag: XREyeScheduler.Send?, estimated: Bool)?
                 var capture: IOSurfaceInfo?
                 var xrSeenNs: UInt64 = 0
@@ -733,7 +635,6 @@ final class DisplayClientSession: @unchecked Sendable {
                     lastXRTag = (tag, estimated)
                     var enc = DisplayEncoding(name: s.encoding) ?? .zlibBGRA
                     if enc.isVideo && xrState.videoFailed { enc = server.encodings.contains("jpeg") ? .jpeg : .zlibBGRA }
-                    // Video is at the device's pixel size (§14), one encoder per view.
                     let downscale = enc.isVideo ? 1 : s.downscale
                     let base = UnsafeRawPointer(surface.memory.host)
                     let view = tag?.view ?? .mono
@@ -749,7 +650,6 @@ final class DisplayClientSession: @unchecked Sendable {
                     let full = xrState.takeFull(view) || keyframe
                     let rects = m!.update(from: base, bytesPerRow: surface.bytesPerRow, full: full)
                     if !rects.isEmpty {
-                        // What the guest drew with the camera still and no pinch: a hover, or an animation in one place.
                         let posesNow = xrState.posesSent
                         if posesNow != lastPoseCount { lastPoseCount = posesNow; lastPoseAt = t0 }
                         if t0 &- lastPoseAt >= 300_000_000, !condition.withLock({ gapLog.isPinching }), let first = rects.first {
@@ -817,13 +717,11 @@ final class DisplayClientSession: @unchecked Sendable {
                         framesSent += 1
                         bytesSent += bytes.count
                     }
-                    // Foveated streaming: the full-resolution inset at the gaze for this picture.
                     if xrState.foveaFraction > 0, let g = xrState.fovea {
                         if !sendInset(xrState, surface: surface, view: view, frame: sequence, gaze: g) { break }
                     }
                     continue
                 }
-                // The eyes moved to another part of the same picture: a new inset (at most every 33 ms).
                 if xrState.foveaFraction > 0, let g = xrState.fovea, let last = xrState.lastInset, sequence == last.frame,
                    abs(g.u - last.u) > 0.05 || abs(g.v - last.v) > 0.05, monotonicNanoseconds() &- last.time > 33_000_000,
                    let surface = capture ?? server.presentedSurface(record) {
@@ -835,7 +733,6 @@ final class DisplayClientSession: @unchecked Sendable {
             if xrState == nil, wanted, allowed, flowOpen, let surface = server.presentedSurface(record) {
                 var enc = DisplayEncoding(name: s.encoding) ?? .zlibBGRA
                 if enc.isVideo && videoFailed { enc = server.encodings.contains("jpeg") ? .jpeg : .zlibBGRA }
-                // Video is encoded at the device's pixel size (§14).
                 let downscale = enc.isVideo ? 1 : s.downscale
                 if mirror == nil || mirror!.width != surface.width || mirror!.height != surface.height
                     || mirror!.tile != 32 * downscale {
@@ -903,16 +800,12 @@ final class DisplayClientSession: @unchecked Sendable {
                     }
                     server.trace?.line("frame \(sequence) \(record?.frame ?? 0) \(t0) \(t1) \(monotonicNanoseconds()) \(bytes.count) \(tiles.count) \(inputSeq)"
                                       + (Self.abTest ? " ab \(banded ? "banded" : "single") \((monotonicMilliseconds() / 1000) % 2 == 1 ? "poll" : "watch")" : ""))
-                    // The interval runs from this frame's capture, not from the end
-                    // of its send: otherwise scan + encode + send (3-6 ms) were added to
-                    // every interval and a 60 fps guest got about 45 fps (§12.4).
                     lastSent = Self.paceFromCapture ? t0 : monotonicNanoseconds()
                     framesSent += 1
                     bytesSent += bytes.count
                 }
                 continue
             }
-            // Lossless once still (§4.2.2): the parts last sent lossy, again as zlib tiles.
             if xrState == nil, s.stillLossless == true, flowOpen, let m = mirror, still?.isDue(at: nowNs) == true,
                let rects = still?.take(), !rects.isEmpty {
                 let downscale = max(1, m.tile / 32)
@@ -934,10 +827,7 @@ final class DisplayClientSession: @unchecked Sendable {
                 bytesSent += bytes.count
                 continue
             }
-            // Idle: poll the frame record every 4 ms (8 ms while nothing moves);
-            // the watcher wakes the loop at once when the record changes.
             var pause = now < settleUntil || now < inputUntil || keyframe ? 0.004 : 0.008
-            // A scan held back by maxFPS: wait exactly until it is allowed.
             if wanted, !allowed {
                 let since = min(nowNs &- lastSent, urgent ? UInt64.max : nowNs &- lastScan)
                 if since < intervalNs { pause = min(pause, Double(intervalNs - since) / 1e9) }
@@ -953,11 +843,6 @@ final class DisplayClientSession: @unchecked Sendable {
 #endif
 
 #if os(Linux) && arch(arm64)
-/// ExecHost's hook: with `--display-server` in device mode, starts the
-/// server and makes SIGTERM, SIGINT, and SIGHUP end the device session
-/// (launchd_sim shuts the guest down; launch-sim-control.md §3.1) instead
-/// of killing the VMM. A second signal, or a session not bound yet, exits
-/// at once (status 128 + signal).
 func startDisplayServer(config: ExecConfiguration, surfaces: IOSurfaceHostService?, session: DeviceSession?,
                         hid: HIDHostService?, fold: FoldController? = nil, vision: VisionInputController? = nil, started: UInt64,
                         guestClock: (() -> UInt64?)? = nil) -> DisplayServer? {
@@ -967,7 +852,6 @@ func startDisplayServer(config: ExecConfiguration, surfaces: IOSurfaceHostServic
         return nil
     }
     let server: DisplayServer
-    // The display and touch space are the device type's (ipad.md §6).
     let screen = device.deviceType.screen
     let bridge = hid.map { HIDInputBridge(hid: $0, pointWidth: screen.pointWidth, pointHeight: screen.pointHeight) }
     bridge?.family = WatchInputCommand.buttonFamily(device.deviceType)
@@ -982,8 +866,6 @@ func startDisplayServer(config: ExecConfiguration, surfaces: IOSurfaceHostServic
         server.deviceTypeID = device.deviceType.id
         let version = device.runtimeVersion().version
         server.osVersion = version.isEmpty ? nil : "\(device.runtimePlatform().displayName) \(version)"
-        // visionOS (visionos.md "SwiftCode implementation"): the viewer may send
-        // pose, selection and dial messages; the rooms it can offer.
         if vision != nil {
             server.spatial = true
             server.rooms = VisionRooms.known
@@ -992,9 +874,6 @@ func startDisplayServer(config: ExecConfiguration, surfaces: IOSurfaceHostServic
         stderrLine("swiftcode-simd: cannot start the display server on \(address): \(error)")
         return nil
     }
-    // A foldable (display-stream.md §11; foldable.md §10.1): its built-in
-    // panels, the hinge, and touches for the panel shown, in that panel's
-    // own points and with its touch-display index.
     if let fold {
         let panels = device.deviceType.panels
         server.panels = panels
@@ -1010,9 +889,6 @@ func startDisplayServer(config: ExecConfiguration, surfaces: IOSurfaceHostServic
         server.log("display server: timing trace \(server.trace == nil ? "not available" : device.displayTracePath)")
     }
     server.start()
-    // With a stop snapshot (SWIFTCODE_SNAPSHOT_STOP_DIR: the launchers' warm
-    // boot, snapshot.md §12.2) the signals save the device; the viewer is
-    // told that the device is stopping first.
     if let snap = SnapshotSupport.shared, snap.handlesStopSignals {
         snap.beforeStop = { [weak server] in server?.stop(message: "the device is being saved; the next run continues from it") }
         return server
@@ -1031,7 +907,6 @@ func startDisplayServer(config: ExecConfiguration, surfaces: IOSurfaceHostServic
             stderrLine("swiftcode-simd: signal \(sig): ending the device session (again to exit at once)")
             server?.stop(message: "the device is shutting down")
             session.end()
-            // launchd_sim normally exits within seconds; do not hang forever.
             DispatchQueue.global().asyncAfter(deadline: .now() + 30) {
                 stderrLine("swiftcode-simd: the guest did not shut down within 30 s; exiting")
                 _exit(128 + sig)
@@ -1047,7 +922,6 @@ enum DisplaySignalSources {
     nonisolated(unsafe) static var keep: [any DispatchSourceSignal] = []
 }
 
-/// A small counter for the signal handler.
 final class SignalCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Int

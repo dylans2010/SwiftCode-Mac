@@ -1,8 +1,3 @@
-// Previews' model (specs/ide/previews.md): discovery with traits, the payload
-// generator (wrappers, line maps, blanking), compiler arguments and issue
-// mapping, the host's reports and plan, the update planner, and the screen
-// layout. No compiler or device is needed; these run on Linux too.
-
 import Foundation
 import Testing
 @testable import SwiftCodePreviews
@@ -43,7 +38,6 @@ struct ContentView: View {
         #expect(p[0].orientation == .landscapeLeft && p[0].layout == .fixed(CGSize(width: 300, height: 200)))
         #expect(p[1].traits.isEmpty && p[1].layout == .device && p[1].orientation == .portrait)
         #expect(p[2].layout == .sizeThatFits)
-        // The body starts on the line of its brace.
         #expect(p[1].line == 17 && p[1].bodyLine == 17)
     }
 
@@ -52,11 +46,9 @@ struct ContentView: View {
         #expect(b.utf16.count == sample.utf16.count)
         #expect(!b.contains("@main") && !b.contains("#Preview") && b.contains("struct SampleApp: App"))
         #expect(b.split(separator: "\n", omittingEmptySubsequences: false).count == sample.split(separator: "\n", omittingEmptySubsequences: false).count)
-        // A string or comment that mentions @main is left alone.
         let t = "let s = \"@main\" // @main\n@main struct A {}"
         let bt = PreviewDiscovery.blankingPreviewsAndEntryPoints(t)
         #expect(bt == "let s = \"@main\" // @main\n      struct A {}")
-        // @mainActor-like identifiers are not entry points.
         #expect(PreviewDiscovery.blankingPreviewsAndEntryPoints("@mainly x").contains("@mainly"))
     }
 }
@@ -104,17 +96,14 @@ struct ContentView: View {
         #expect(s1.previews.count == 3 && s1.changed.count == 2)
         let copy = try String(contentsOf: s1.files[0], encoding: .utf8)
         #expect(!copy.contains("@main") && copy.contains("__swiftcodePreview_2()"))
-        // An error on a wrapper body's line maps to the #Preview body.
         let map = try #require(s1.lineMaps[s1.files[0].path])
         let copyLines = copy.split(separator: "\n", omittingEmptySubsequences: false)
         let i = try #require(copyLines.firstIndex { $0.contains("func __swiftcodePreview_0()") })
         #expect(map.fileLine(i + 1) == previews[0].bodyLine)
         #expect(map.fileLine(3) == 3)
-        // Nothing changed: nothing is rewritten.
         let s2 = try PreviewPayloadGenerator.generate(moduleFiles: [a, b], previewed: [PreviewedFile(url: a, previews: previews)],
                                                       platform: .iOS, into: out)
         #expect(s2.changed.isEmpty)
-        // Unsaved text overrides the file; a stale copy is removed.
         let s3 = try PreviewPayloadGenerator.generate(moduleFiles: [a], previewed: [PreviewedFile(url: a, previews: previews)], platform: .iOS,
                                                       into: out, texts: [a: sample.replacingOccurrences(of: "Hello", with: "Hi")])
         #expect(s3.changed == [a.standardizedFileURL])
@@ -143,7 +132,6 @@ struct ContentView: View {
         #expect(Array(args.prefix(3)) == ["--sdk", "iphonesimulator", "swiftc"])
         #expect(args.contains("arm64-apple-ios27.0-simulator") && args.contains("-emit-library") && args.contains("-wmo"))
         #expect(args.contains("@rpath/payload-3.dylib") && args.last == "/w/0_A.swift")
-        // The module cache is absolute and normalized (a "../" in it makes clang see two caches).
         #expect(args.contains("/tmp/mc"))
         #expect(args.firstIndex(of: "-swift-version").map { args[$0 + 1] } == "5")
         #expect(PreviewPlatform.visionOS.targetTriple(deploymentTarget: "27.0") == "arm64-apple-xros27.0-simulator")
@@ -164,7 +152,6 @@ struct ContentView: View {
         #expect(issues[0] == PreviewIssue(file: user, line: 15, column: 9, message: "cannot find 'Nope' in scope"))
         #expect(issues[1].line == 7 && issues[1].description == "ContentView.swift:7: missing argument")
         #expect(issues[2].file == nil)
-        // A log without diagnostics still gives one issue.
         #expect(PreviewCompiler.issues(from: "ld: library not found\n", lineMaps: [:]).first?.message == "ld: library not found")
     }
 }
@@ -192,7 +179,6 @@ struct ContentView: View {
     @Test func iconIsAValidPNG() {
         let png = PreviewHost.iconPNG(size: 120)
         #expect(png.prefix(8) == Data([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-        // Width and height in IHDR; the stored deflate data is at least the raw size.
         #expect(Array(png[16..<24]) == [0, 0, 0, 120, 0, 0, 0, 120] && png.count > 120 * 361)
         #expect(png.suffix(12) == Data([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]))
         #expect(PreviewHost.infoPlist(platform: .iOS, deploymentTarget: "27.0").contains("<string>AppIcon60x60</string>"))
@@ -228,7 +214,6 @@ struct ContentView: View {
         let r = PreviewScreenLayout.regions(tiles, screen: phone)
         #expect(Set(r.map(\.y)).count == 2 && Set(r.map(\.x)).count == 3)
         #expect(abs(r[0].scale - 1.0 / 3) < 1e-9 && r[5].dynamicType == "accessibility5")
-        // Every region stays on the screen.
         #expect(r.allSatisfy { $0.x >= 0 && $0.y >= 0 && $0.x + $0.width <= 402.001 && $0.y + $0.height <= 874.001 })
     }
 
@@ -255,26 +240,19 @@ struct ContentView: View {
     @Test func decisions() {
         #expect(PreviewUpdatePlanner.decide(previous: nil, current: inputs(), host: PreviewHostState(running: false)) == .relaunchHost(reason: "first preview"))
         #expect(PreviewUpdatePlanner.decide(previous: inputs(), current: inputs(), host: running) == PreviewUpdate.none)
-        // A body edit: a new payload, no relaunch.
         #expect(PreviewUpdatePlanner.decide(previous: inputs("a"), current: inputs("b"), host: running) == .reloadPayload)
-        // Only the layout: a new plan.
         #expect(PreviewUpdatePlanner.decide(previous: inputs(), current: inputs(layout: [region]), host: running) == .relayout)
-        // The host crashed or stopped.
         if case .relaunchHost = PreviewUpdatePlanner.decide(previous: inputs("a"), current: inputs("b"), host: PreviewHostState(running: true, failed: true)) {} else { Issue.record("failed host") }
         if case .relaunchHost = PreviewUpdatePlanner.decide(previous: inputs(), current: inputs(), host: PreviewHostState(running: false)) {} else { Issue.record("stopped host") }
-        // Another device.
         if case .relaunchHost = PreviewUpdatePlanner.decide(previous: inputs(), current: inputs(destination: "e"), host: running) {} else { Issue.record("device") }
-        // Too many images loaded.
         if case .relaunchHost = PreviewUpdatePlanner.decide(previous: inputs("a"), current: inputs("b"),
                                                             host: PreviewHostState(running: true, loads: PreviewUpdatePlanner.maximumLoads)) {} else { Issue.record("loads") }
-        // Fallbacks to a rebuild.
         if case .rebuild = PreviewUpdatePlanner.decide(previous: inputs(), current: inputs(resources: ["Assets": 2]), host: running) {} else { Issue.record("resources") }
         if case .rebuild = PreviewUpdatePlanner.decide(previous: nil, current: inputs(linked: true), host: running) {} else { Issue.record("linked") }
     }
 
     @Test func hashesAreStable() {
         #expect(PreviewInputs.hash("abc") == PreviewInputs.hash("abc") && PreviewInputs.hash("abc") != PreviewInputs.hash("abd"))
-        // FNV-1a of "" is the offset basis.
         #expect(UInt64(bitPattern: Int64(PreviewInputs.hash(""))) == 0xcbf2_9ce4_8422_2325)
     }
 }

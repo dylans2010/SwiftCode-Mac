@@ -1,10 +1,5 @@
-// EKRecurrenceRule, EKRecurrenceEnd, EKRecurrenceDayOfWeek (recurrence.md §1–§3).
-
 import Foundation
 
-/// Raises the equivalent of Apple's NSInvalidArgumentException: Swift cannot
-/// throw Objective-C exceptions portably, so the process stops with the same
-/// reason text (recurrence.md §2, errors.md §3).
 func invalidArgument(_ reason: String) -> Never {
     fatalError("NSInvalidArgumentException: \(reason)")
 }
@@ -26,8 +21,6 @@ public class EKRecurrenceDayOfWeek: NSObject, NSCopying {
         self.init(dayOfTheWeek: dayOfTheWeek, weekNumber: weekNumber)
     }
 
-    /// Entry point for raw day numbers (text parsing, bridged callers):
-    /// outside 1…7 raises "Invalid day number". Week numbers are not checked.
     static func make(rawDay: Int, weekNumber: Int) -> EKRecurrenceDayOfWeek {
         guard let day = EKWeekday(rawValue: rawDay) else { invalidArgument("Invalid day number") }
         return EKRecurrenceDayOfWeek(dayOfTheWeek: day, weekNumber: weekNumber)
@@ -88,7 +81,6 @@ public class EKRecurrenceEnd: NSObject, NSCopying {
 public class EKRecurrenceRule: EKObject, NSCopying {
     public let frequency: EKRecurrenceFrequency
     public let interval: Int
-    /// Reported as 2 (Monday) on new rules (recurrence.md §1).
     public internal(set) var firstDayOfTheWeek: Int
     public let daysOfTheWeek: [EKRecurrenceDayOfWeek]?
     public let daysOfTheMonth: [NSNumber]?
@@ -135,7 +127,6 @@ public class EKRecurrenceRule: EKObject, NSCopying {
         self.firstDayOfTheWeek = s.weekStart
     }
 
-    /// The rule as the engine's value type.
     var spec: RuleSpec {
         func ints(_ a: [NSNumber]?) -> [Int] { (a ?? []).map { $0.intValue } }
         var s = RuleSpec(frequency: frequency)
@@ -153,7 +144,6 @@ public class EKRecurrenceRule: EKObject, NSCopying {
         return s
     }
 
-    /// The RFC 5545 value in EventKit's part order (recurrence.md §3).
     var rruleText: String { RRuleText.format(spec) }
 
     public func copy(with zone: NSZone? = nil) -> Any {
@@ -171,7 +161,6 @@ public class EKRecurrenceRule: EKObject, NSCopying {
     public override var hash: Int { spec.hashValue }
 }
 
-/// RRULE text form and parsing.
 enum RRuleText {
     static let codes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"]
     static func dayCode(_ weekday: Int) -> String { (1...7).contains(weekday) ? codes[weekday - 1] : "??" }
@@ -182,8 +171,6 @@ enum RRuleText {
         if let c = s.count { parts.append("COUNT=\(c)") }
         if let u = s.until { parts.append("UNTIL=\(utcStamp(u))") }
         func join(_ a: [Int]) -> String { a.map(String.init).joined(separator: ",") }
-        // Part order as observed in the golden rows of recurrence.md §3
-        // (BYMONTH and BYWEEKNO before BYDAY; BYSETPOS after the day parts).
         if !s.byMonth.isEmpty { parts.append("BYMONTH=" + join(s.byMonth)) }
         if !s.byWeekNo.isEmpty { parts.append("BYWEEKNO=" + join(s.byWeekNo)) }
         if !s.byYearDay.isEmpty { parts.append("BYYEARDAY=" + join(s.byYearDay)) }
@@ -193,7 +180,6 @@ enum RRuleText {
                 .joined(separator: ","))
         }
         if !s.bySetPos.isEmpty { parts.append("BYSETPOS=" + join(s.bySetPos)) }
-        // WKST is printed for weekly rules with an interval above 1 (§3).
         if s.frequency == .weekly && s.interval > 1 { parts.append("WKST=" + dayCode(s.weekStart)) }
         return parts.joined(separator: ";")
     }

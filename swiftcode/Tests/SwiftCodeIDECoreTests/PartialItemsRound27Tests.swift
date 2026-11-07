@@ -5,9 +5,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// Generated Info.plist type sections, the Organizer app picker, more
-/// asset catalog set types, and project coverage through swiftcodebuild.
-/// Everything is written in temporary directories.
 @MainActor
 @Suite struct PartialItemsRound27Tests {
     func tempDir() throws -> URL {
@@ -15,8 +12,6 @@ import SwiftCodeProject
         try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         return d
     }
-
-    // (a) Generated Info.plist
 
     func generatedProject() throws -> (ProjectEditorModel, URL) {
         let base = try ProjectEditorReferenceTests().model()
@@ -31,7 +26,6 @@ import SwiftCodeProject
         var m = m0
         #expect(m.generatesInfoPlist(target: "App", configuration: "Debug"))
         #expect(m.infoTypeSections(target: "App", configuration: "Debug").allSatisfy { $0.hasSuffix("(0)") })
-        // Removing from an empty generated target writes nothing.
         try m.setInfoTypeEntries("CFBundleURLTypes", [], target: "App", configuration: "Debug")
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("App/Info.plist").path))
 
@@ -45,11 +39,8 @@ import SwiftCodeProject
         }
         #expect(m.generatesInfoPlist(target: "App", configuration: "Debug"))
         #expect(m.infoTypeEntries("CFBundleURLTypes", target: "App", configuration: "Debug").count == 1)
-        // Generated keys still show next to the file's keys.
         #expect(m.infoRows(target: "App", configuration: "Debug").map(\.key).contains("CFBundleDisplayName"))
     }
-
-    // (c) Asset catalog set types
 
     @Test func otherSetTypesCreateReadAndList() throws {
         let dir = try tempDir().appendingPathComponent("A.xcassets")
@@ -67,7 +58,6 @@ import SwiftCodeProject
         #expect(c.sets().map { "\($0.group)|\($0.name)|\($0.kind.rawValue)" } ==
                 ["|Blob|dataset", "|Sprites|spriteatlas", "Sprites|Frame|imageset", "|Star|symbolset"])
 
-        // A file slot: set, then clear.
         let src = dir.deletingLastPathComponent().appendingPathComponent("payload.json")
         try Data("{}".utf8).write(to: src)
         try AssetCatalog.setImage(src, slot: 0, in: data)
@@ -78,8 +68,6 @@ import SwiftCodeProject
         #expect(AssetCatalog.Kind.dataSet.typeLabel == "Data Set" && AssetCatalog.inspector(for: data).rows.first?.value == "Blob")
         for k in AssetCatalog.Kind.allCases { #expect(!k.typeLabel.isEmpty) }
     }
-
-    // (d) Project coverage through swiftcodebuild
 
     @Test func swiftBuildPreferenceRunsProjectTestsThroughSwiftCodebuild() throws {
         let dir = try tempDir()

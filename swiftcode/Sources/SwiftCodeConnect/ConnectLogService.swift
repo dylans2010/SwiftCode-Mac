@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectLogService.swift
-// Adapted for SwiftCode: Log subscription + emitLog fan-out. Verbatim.
-
 import Foundation
 import os.log
 

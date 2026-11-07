@@ -1,12 +1,3 @@
-// Vnode notes (kqueue EVFILT_VNODE, `specs/simulator/threads-and-events.md`
-// §3.10): which file-system changes post which `NOTE_*` to which objects,
-// and the registry of objects that kqueues watch. The VFS (guest calls)
-// and the host's own writes into a device's data tree (`HostDataWrites`)
-// post here; the kernel's EVFILT_VNODE knotes are the watchers. Semantics
-// from the public kqueue(2) manual and xnu's open source (`bsd/sys/event.h`,
-// `bsd/vfs/kpi_vfs.c` VNOP_* posts, `bsd/vfs/vfs_subr.c` filt_vnode);
-// level 1.
-
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -16,8 +7,6 @@ import Musl
 #endif
 import Synchronization
 
-/// The `NOTE_*` bits of EVFILT_VNODE, values from xnu `bsd/sys/event.h`.
-/// Which change posts which note is in `threads-and-events.md` §3.10.
 public enum VnodeNote {
     public static let delete: UInt32 = 0x0000_0001
     public static let write: UInt32 = 0x0000_0002
@@ -32,9 +21,6 @@ public enum VnodeNote {
     public static let leaseRelease: UInt32 = 0x0000_0400
 }
 
-/// A host file system object: the host's (st_dev, st_ino). A watched
-/// object keeps its key while a descriptor of it is open (the host does not
-/// reuse an inode number that is still open), renames included.
 public struct HostFileKey: Hashable, Sendable, CustomStringConvertible {
     public let dev: UInt64
     public let ino: UInt64
@@ -44,7 +30,6 @@ public struct HostFileKey: Hashable, Sendable, CustomStringConvertible {
         self.ino = ino
     }
 
-    /// The object at `hostPath` (the final symbolic link not followed).
     public init?(path hostPath: String) {
         guard !hostPath.isEmpty else { return nil }
         #if canImport(Darwin)
@@ -58,7 +43,6 @@ public struct HostFileKey: Hashable, Sendable, CustomStringConvertible {
         self.init(dev: UInt64(truncatingIfNeeded: st.st_dev), ino: UInt64(truncatingIfNeeded: st.st_ino))
     }
 
-    /// The object open as host descriptor `fd`.
     public init?(fd: Int32) {
         #if canImport(Darwin)
         var st = Darwin.stat()
@@ -71,7 +55,6 @@ public struct HostFileKey: Hashable, Sendable, CustomStringConvertible {
         self.init(dev: UInt64(truncatingIfNeeded: st.st_dev), ino: UInt64(truncatingIfNeeded: st.st_ino))
     }
 
-    /// The directory that holds `hostPath`'s final component.
     public init?(parentOf hostPath: String) {
         guard let slash = hostPath.lastIndex(of: "/") else { return nil }
         let parent = slash == hostPath.startIndex ? "/" : String(hostPath[..<slash])
@@ -81,16 +64,10 @@ public struct HostFileKey: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "\(dev):\(ino)" }
 }
 
-/// What receives the notes posted to a watched object: the kernel's
-/// EVFILT_VNODE registration. Called with no lock of the registry held;
-/// the caller may hold the kernel lock (L0) but no other kernel lock.
 public protocol VnodeWatcher: AnyObject, Sendable {
     func vnodeNotesPosted(_ notes: UInt32)
 }
 
-/// The objects watched by EVFILT_VNODE knotes, by host key, and the posts.
-/// With nothing registered (`isActive` false) every VFS hook costs one
-/// atomic load and no system call.
 public enum VnodeNotes {
     private struct Entry {
         weak var watcher: (any VnodeWatcher)?
@@ -99,13 +76,10 @@ public enum VnodeNotes {
     private static let table = Mutex<[HostFileKey: [Entry]]>([:])
     private static let watchCount = Atomic<Int>(0)
 
-    /// True while any object is watched.
     @inline(__always) public static var isActive: Bool { watchCount.load(ordering: .acquiring) > 0 }
 
-    /// Objects watched now (diagnostics, tests).
     public static var count: Int { watchCount.load(ordering: .acquiring) }
 
-    /// Registers `watcher` for the object `key`.
     public static func add(_ watcher: any VnodeWatcher, key: HostFileKey) {
         table.withLock { t in
             t[key, default: []].append(Entry(watcher: watcher))
@@ -113,7 +87,6 @@ public enum VnodeNotes {
         }
     }
 
-    /// Removes `watcher`'s registration for `key` (and any whose watcher is gone).
     public static func remove(_ watcher: any VnodeWatcher, key: HostFileKey) {
         table.withLock { t in
             guard var list = t[key] else { return }
@@ -124,21 +97,17 @@ public enum VnodeNotes {
         }
     }
 
-    /// True when a watcher is registered for `key`.
     public static func isWatched(_ key: HostFileKey) -> Bool {
         guard isActive else { return false }
         return table.withLock { $0[key] != nil }
     }
 
-    /// Posts `notes` to the watchers of `key` (none: nothing happens). The
-    /// caller holds no leaf lock (`bsd-locking.md` §2).
     public static func post(_ key: HostFileKey?, _ notes: UInt32) {
         guard let key, notes != 0, isActive else { return }
         let watchers: [any VnodeWatcher] = table.withLock { t in
             guard let list = t[key] else { return [] }
             let live = list.compactMap(\.watcher)
             if live.count != list.count {
-                // Registrations whose knote went without a drop (a restore replaced it).
                 watchCount.wrappingSubtract(list.count - live.count, ordering: .releasing)
                 t[key] = live.isEmpty ? nil : live.map { Entry(watcher: $0) }
             }
@@ -148,17 +117,12 @@ public enum VnodeNotes {
         for w in watchers { w.vnodeNotesPosted(notes) }
     }
 
-    /// The keys of a path operation, taken before it changes anything: the
-    /// object at `hostPath` (if any) and its directory. Nil while nothing is
-    /// watched (no system call is made).
     public static func capture(_ hostPath: String) -> Captured? {
         guard isActive, !hostPath.isEmpty else { return nil }
         if debugCounts { countCapture() }
         return Captured(object: HostFileKey(path: hostPath), directory: HostFileKey(parentOf: hostPath))
     }
 
-    /// Diagnostics (`SWIFTCODE_DEBUG_VNODE=1`): a line every 2,000 path-operation
-    /// captures with the counts of captures, write checks and posts.
     static let debugCounts = getenv("SWIFTCODE_DEBUG_VNODE").map { String(cString: $0) == "1" } ?? false
     private static let captures = Atomic<Int>(0), writeChecks = Atomic<Int>(0), posts = Atomic<Int>(0)
     private static func countCapture() {
@@ -174,39 +138,29 @@ public enum VnodeNotes {
         public var object: HostFileKey?
         public var directory: HostFileKey?
 
-        /// Posts `object` notes to the object and `directory` notes to its directory.
         public func post(object objectNotes: UInt32 = 0, directory directoryNotes: UInt32 = 0) {
             VnodeNotes.post(object, objectNotes)
             VnodeNotes.post(directory, directoryNotes)
         }
     }
 
-    /// NOTE_ATTRIB (VNOP_SETATTR, VNOP_SETXATTR, VNOP_REMOVEXATTR) to the
-    /// object open as host descriptor `fd`, or else at `path`.
     public static func postAttrib(path: String?, fd: Int32?) {
         guard isActive else { return }
         post(fd.flatMap { HostFileKey(fd: $0) } ?? path.flatMap { HostFileKey(path: $0) }, VnodeNote.attrib)
     }
 
-    /// The notes of a write of `count` bytes at `offset` to a file whose
-    /// size was `sizeBefore`: NOTE_WRITE, and NOTE_EXTEND when it grew.
     public static func writeNotes(offset: UInt64, count: Int, sizeBefore: Int64) -> UInt32 {
         guard count > 0 else { return 0 }
         let end = offset &+ UInt64(count)
         return VnodeNote.write | (end > UInt64(max(0, sizeBefore)) ? VnodeNote.extend : 0)
     }
 
-    /// The notes of a size change (truncate, ftruncate, O_TRUNC; VNOP_SETATTR):
-    /// NOTE_ATTRIB, and NOTE_EXTEND when it grew.
     public static func sizeNotes(from old: Int64, to new: Int64) -> UInt32 {
         VnodeNote.attrib | (new > old ? VnodeNote.extend : 0)
     }
 }
 
-// MARK: - The VFS side
-
 extension GuestFile {
-    /// The host key of this open file (one `fstat`, then kept).
     public var hostKey: HostFileKey? {
         if let k = hostKeyStore.withLock({ $0 }) { return k }
         let k = HostFileKey(fd: hostFD)
@@ -214,8 +168,6 @@ extension GuestFile {
         return k
     }
 
-    /// Before a write to this file: its key and size when a kqueue watches
-    /// it (nil otherwise, without a system call while nothing is watched).
     public func vnodeWriteWatch() -> (key: HostFileKey, size: Int64)? {
         guard VnodeNotes.isActive else { return nil }
         if VnodeNotes.debugCounts { VnodeNotes.countWriteCheck() }
@@ -224,20 +176,7 @@ extension GuestFile {
     }
 }
 
-// MARK: - Host writes into a device's data tree
-
-/// Writes that the host itself (swiftcode-simd: the settings controller, audio
-/// settings, preference files written for a stopped device, overrides)
-/// makes into a running device's data tree go through here, so the guest
-/// sees them as it sees its own processes' changes: the kernel's
-/// EVFILT_VNODE knotes fire (`VnodeNotes`) and the file-event service gets
-/// the change (`FileChangeFeed`, pid 0). Writes made by other host
-/// processes are not seen (`threads-and-events.md` §3.10).
 public enum HostDataWrites {
-    /// Replaces the file at `hostPath` (guest path `guestPath`) with `data`:
-    /// written to a temporary file in the same directory, then renamed over
-    /// the name, as the guest's own safe saves do. Missing directories are
-    /// made (each reported).
     public static func replace(hostPath: String, guestPath: String, data: [UInt8]) throws {
         try makeDirectories(forHostPath: hostPath, guestPath: guestPath)
         let slash = hostPath.lastIndex(of: "/")!
@@ -266,8 +205,6 @@ public enum HostDataWrites {
             _ = unlink(temporary)
             throw DarwinErrnoError(e)
         }
-        // xnu VNOP_CREATE and VNOP_RENAME: the directory was written twice
-        // (one note), the replaced file is deleted, the new file renamed.
         if VnodeNotes.isActive {
             VnodeNotes.post(old?.object, VnodeNote.delete)
             VnodeNotes.post(old?.directory, VnodeNote.write)
@@ -279,7 +216,6 @@ public enum HostDataWrites {
         FileChangeFeed.note(.renamed, .file, guestPath, pid: 0)
     }
 
-    /// Removes the file at `hostPath` (no error when it is missing).
     public static func remove(hostPath: String, guestPath: String) {
         let old = VnodeNotes.capture(hostPath)
         guard unlink(hostPath) == 0 else { return }
@@ -287,8 +223,6 @@ public enum HostDataWrites {
         FileChangeFeed.note(.removed, .file, guestPath, pid: 0)
     }
 
-    /// Makes the missing directories above `hostPath` (mode 0755), each
-    /// reported as the guest's `mkdir` is.
     public static func makeDirectories(forHostPath hostPath: String, guestPath: String) throws {
         var missing: [(host: String, guest: String)] = []
         var host = hostPath, guest = guestPath
@@ -310,7 +244,6 @@ public enum HostDataWrites {
     }
 }
 
-// The C calls under names that the types above do not shadow.
 @inline(__always) private func hostWriteRaw(_ fd: Int32, _ p: UnsafeRawPointer, _ n: Int) -> Int {
     #if canImport(Darwin)
     return Darwin.write(fd, p, n)

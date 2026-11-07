@@ -5,119 +5,6 @@ import SwiftCodeProject
 import SwiftCodeSettings
 import SwiftCodeWorkspace
 
-/// The ported Legacy signing / entitlements / plist tool family (Wave 7,
-/// slice D).
-///
-/// Behaviour source: Legacy's `AssistCodeSigningDiagnoseTool`,
-/// `AssistEntitlementsDiffTool`, `AssistEntitlementsTool`,
-/// `AssistInfoPlistAuditTool`, `AssistPlistTool`,
-/// `AssistProjectEntitlementsTool`, `AssistProjectInfoPlistTool`,
-/// `AssistProjectSigningTool`, `AssistProvisioningCheckTool`,
-/// `AssistProvisioningProfileReaderTool` and
-/// `AssistSigningCertificateInspectorTool` (Dylan's own code, ported
-/// under MIT). The behaviour contract, including the per-tool error
-/// strings and the `plist_editor` vs `plist_edit` distinction, is
-/// `~/SwiftCode-Migration-Workspace/scratch/wave7-slice-d-spec.md`.
-///
-/// Conventions, following Waves 1–6:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   The four aliases for this slice (`plist` → `plist_editor`,
-///   `entitlements` → `entitlements_manager`, `signing_certificate`
-///   → `signing_certificate_inspector`, `provisioning_profile` →
-///   `provisioning_profile_reader`, from Legacy's
-///   `AssistToolRegistry` alias table) live in
-///   `MCPServer.toolAliases`, which the coordinator owns — they are
-///   not added here.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers, booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data return a plain text result instead.
-/// * Paths resolve through the session resolvers and never escape
-///   the workspace, with two deliberate, read-only exceptions
-///   documented in the spec: `provisioning_profile_reader` accepts
-///   an explicit absolute path as-is (profiles live in
-///   `~/Library/MobileDevice/Provisioning Profiles`, outside any
-///   workspace — the same exception Wave 6 made for
-///   `test_coverage_reporter`'s explicit report path), and
-///   `project_signing` / `provisioning_check` read that installed
-///   profiles directory itself.
-/// * Approval gating: the three writing tools
-///   (`entitlements_manager`, `plist_editor`, `project_info_plist`)
-///   are `writes: true` with `safeMutation` annotations. Text writes
-///   go through `commit()`; a `plist_editor` set/delete that
-///   preserves a binary source format goes through
-///   `approveFileWritingChange` + a direct `Data` write, the
-///   `json_to_plist` shape. `MCPServer.run()` already refuses
-///   `writes: true` tools when the server is read-only; the approval
-///   call is still required. There is no Autopilot bypass. Because
-///   the `writes` flag is static per tool, the read-only actions of
-///   the writing tools are refused in `readOnly` mode too — the same
-///   documented consequence as Wave 6's `test_snapshot_manage`
-///   `list`.
-/// * External processes run through the fixed-argv runner from
-///   `SwiftCodeTools+TerminalSupport.swift` (`terminalRunFixed`, off the
-///   main actor, no shell, 60 s timeout): `/usr/bin/codesign` and
-///   `/usr/bin/security`. No process is ever spawned from a shell
-///   string, and no argument is ever built from tool input beyond
-///   the single resolved file path.
-/// * Signing/certificate/provisioning inspection reads the local
-///   keychain and installed profiles and reports real state. Nothing
-///   invents credentials or identities, and no secret material is
-///   ever emitted: `signing_certificate_inspector` reports only the
-///   names and SHA-1 hashes `security find-identity` itself prints,
-///   and the provisioning tools report profile metadata and
-///   entitlements only — never the `DeveloperCertificates` blobs.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `project_signing`: Legacy spawns `xcodebuild -showBuildSettings`
-///   (macOS-only). This port resolves the five signing settings from
-///   the workspace's own `.xcodeproj` through SwiftCode's
-///   `ProjectSettingsBuilder` — the same seam the `build_settings`
-///   tool uses — so it works wherever the project opens and honours
-///   `.xcconfig` base configurations. The target resolved is the
-///   first target, or the target whose name matches `scheme` when
-///   one is given (Legacy's scheme selected the target implicitly
-///   through xcodebuild); a `configuration` the project does not
-///   define falls back to the project's default configuration, the
-///   builder's own rule. A workspace with no `.xcodeproj` /
-///   `.xcworkspace` fails with Legacy's message.
-/// * `code_signing_diagnose`: `codesign -dv` writes its report to
-///   stderr, so stdout and stderr are combined before parsing
-///   (Legacy's runner merged both streams). On a host without
-///   `/usr/bin/codesign` the handler fails cleanly instead of
-///   reporting a fake diagnosis.
-/// * `provisioning_check` / `provisioning_profile_reader` /
-///   `signing_certificate_inspector`: on a host without
-///   `/usr/bin/security` the handler fails cleanly with Legacy's
-///   message shape instead of reporting an empty result (an empty
-///   certificate/profile list would be a lie on a machine whose
-///   keychain was never consulted). SwiftCodeSigning's pure-Swift CMS
-///   decoder (`ProvisioningProfile`) is NOT used here: `SwiftCodeMCP`
-///   has no target dependency on `SwiftCodeSigning` and `Package.swift`
-///   is out of scope for this slice, so no parallel signing model
-///   was built. If a later wave adds that dependency, the two
-///   provisioning tools are the candidates to move onto it (which
-///   would also make them work on Linux).
-/// * `plist_editor` preserves the source plist's format on write
-///   (XML stays XML, binary stays binary), as Legacy does; the
-///   binary case is the one place a `Data` write is used instead of
-///   `commit()`. `plist_editor` performs no verification re-read
-///   (Legacy does none here — unlike `plist_edit` /
-///   `project_info_plist`).
-/// * `entitlements_manager` validates no entitlement key against any
-///   policy (SwiftCodeSigning's `EntitlementPolicy` is not reachable
-///   from this target); any key string is accepted, as in Legacy.
-/// * Path handling is tightened where Legacy appended a path to the
-///   workspace root unchecked (`plist_editor`,
-///   `project_info_plist`, `entitlements_manager`): the strict
-///   session resolver (`resolveFileWritingPath`) is used, so a path
-///   that would escape the workspace fails with the tool's own
-///   Legacy message instead of being followed.
 extension SwiftCodeMCPHost {
     var signingTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -222,11 +109,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: - Shared helpers for the signing tools
-
-    /// A dictionary plist at `url`, with the format it was read in
-    /// (so a writer can preserve it). `nil` when the file cannot be
-    /// read or is not a dictionary plist.
     func signingReadPlistDictionary(at url: URL) -> (dict: [String: Any], format: PropertyListSerialization.PropertyListFormat)? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         var format = PropertyListSerialization.PropertyListFormat.xml
@@ -235,9 +117,6 @@ extension SwiftCodeMCPHost {
         return (dict, format)
     }
 
-    /// Legacy's `stringValue`: booleans as true/false, arrays as
-    /// `[a, b]`, dictionaries as `{k = v, …}` with sorted keys,
-    /// everything else via `"\(value)"`.
     func signingPlistString(_ value: Any?) -> String {
         guard let value else { return "null" }
         if let boolValue = value as? Bool { return boolValue ? "true" : "false" }
@@ -248,9 +127,6 @@ extension SwiftCodeMCPHost {
         return "\(value)"
     }
 
-    /// Legacy `AssistProjectInfoPlistTool.plistValue`: Bool for
-    /// true/false (case-insensitive), Int for integers, Double for
-    /// decimals, otherwise the string as-is.
     func signingPlistValue(from string: String) -> Any {
         let lower = string.lowercased()
         if lower == "true" { return true }
@@ -260,8 +136,6 @@ extension SwiftCodeMCPHost {
         return string
     }
 
-    /// Every file under the workspace root (hidden files skipped,
-    /// sorted by path) for which `matches` holds.
     func signingWorkspaceFiles(in s: WorkspaceSession, matching: (URL) -> Bool) -> [URL] {
         let root = Self.folder(of: s.model)
         var results: [URL] = []
@@ -272,8 +146,6 @@ extension SwiftCodeMCPHost {
         return results.sorted { $0.path < $1.path }
     }
 
-    /// The first `Info.plist` in the workspace, skipping build
-    /// outputs (Legacy's exclusion for `project_info_plist`).
     func signingFindInfoPlist(in s: WorkspaceSession) -> URL? {
         signingWorkspaceFiles(in: s) { url in
             guard url.lastPathComponent == "Info.plist" else { return false }
@@ -282,13 +154,11 @@ extension SwiftCodeMCPHost {
         }.first
     }
 
-    /// `~/Library/MobileDevice/Provisioning Profiles`.
     func signingProfilesDirectory() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/MobileDevice/Provisioning Profiles")
     }
 
-    /// Filenames (only) of the installed `.mobileprovision` profiles.
     func signingInstalledProfileNames() -> [String] {
         let dir = signingProfilesDirectory()
         guard let entries = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
@@ -297,10 +167,6 @@ extension SwiftCodeMCPHost {
         return entries.filter { $0.pathExtension == "mobileprovision" }.map(\.lastPathComponent).sorted()
     }
 
-    /// Decodes one profile with `security cms -D`. The decoded plist
-    /// dictionary, or `nil` when the tool is absent, the launch
-    /// fails, the exit code is non-zero, or the output is not a
-    /// plist — with stderr alongside for the caller's message.
     func signingDecodeProfile(at url: URL) -> (dict: [String: Any]?, stderr: String) {
         guard let run = Self.terminalRunFixed("/usr/bin/security", ["cms", "-D", "-i", url.path], timeout: 60) else {
             return (nil, "")
@@ -314,8 +180,6 @@ extension SwiftCodeMCPHost {
               let dict = plist as? [String: Any] else { return (nil, run.stderr) }
         return (dict, run.stderr)
     }
-
-    // MARK: - code_signing_diagnose
 
     func signingDiagnoseCodeSigning(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -341,8 +205,6 @@ extension SwiftCodeMCPHost {
         if run.timedOut {
             throw MCPToolError("codesign timed out after 60s on \(trimmed).")
         }
-        // `codesign -dv` writes its report to stderr; Legacy's runner
-        // merged both streams, so this port combines them too.
         let output = run.stdout + run.stderr
         var info: [String: String] = [:]
         for line in output.components(separatedBy: .newlines) {
@@ -378,8 +240,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    // MARK: - entitlements_diff
-
     func signingDiffEntitlements(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         guard let oldRaw = call.arguments["oldPath"]?.string, !oldRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -411,8 +271,6 @@ extension SwiftCodeMCPHost {
         return .structured(["added": .int(added.count), "removed": .int(removed.count), "changed": .int(changed.count)],
                            summary: lines.joined(separator: "\n"))
     }
-
-    // MARK: - entitlements_manager
 
     func signingManageEntitlements(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -482,8 +340,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - info_plist_audit
-
     func signingAuditInfoPlist(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let plists = signingWorkspaceFiles(in: s) { $0.lastPathComponent == "Info.plist" }
@@ -523,8 +379,6 @@ extension SwiftCodeMCPHost {
         return .structured(["fileCount": .int(plists.count), "issueCount": .int(issueCount)],
                            summary: lines.joined(separator: "\n"))
     }
-
-    // MARK: - plist_editor
 
     func signingEditPlist(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -584,10 +438,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Writes a plist dictionary back in its source format: XML goes
-    /// through `commit()` (text); a binary source goes through
-    /// `approveFileWritingChange` + a direct `Data` write, the
-    /// `json_to_plist` shape, because `commit()` cannot write bytes.
     func signingWritePlist(_ dict: [String: Any], format: PropertyListSerialization.PropertyListFormat,
                            to url: URL, relativePath rel: String, summary: String,
                            call: MCPToolCall, session s: WorkspaceSession) async throws {
@@ -613,8 +463,6 @@ extension SwiftCodeMCPHost {
                              call: call, session: s)
         }
     }
-
-    // MARK: - project_entitlements
 
     func signingProjectEntitlements(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -654,8 +502,6 @@ extension SwiftCodeMCPHost {
                             "count": .int(uniqueKeys.count)],
                            summary: summaries.joined(separator: "\n"))
     }
-
-    // MARK: - project_info_plist
 
     func signingEditProjectInfoPlist(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -714,8 +560,6 @@ extension SwiftCodeMCPHost {
                                            summary: "Set Info.plist \(key) = \(value) in \(rel)"),
                                  call: call, session: s)
             } catch let e as MCPToolError {
-                // A review rejection must surface verbatim; any other
-                // write failure keeps Legacy's message.
                 throw MCPToolError(e.message == MCPServer.rejectedMessage ? e.message : "Failed to write Info.plist.")
             }
             guard let verify = signingReadPlistDictionary(at: plistURL)?.dict,
@@ -750,8 +594,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - project_signing
-
     func signingCheckProjectSigning(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let configuration = (call.arguments["configuration"]?.string ?? "Debug").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -771,10 +613,6 @@ extension SwiftCodeMCPHost {
             let catalog = SDKCatalog(developerDirectory: dev)
             builder.sdkLookup = { catalog.lookup($0) }
         }
-        // Legacy's scheme selected the target implicitly through
-        // xcodebuild; here a scheme naming a target selects it,
-        // otherwise the first target is used (the `build_settings`
-        // tool's rule).
         let target = scheme.flatMap { name in proj.targets.first { $0.string("name") == name }?.string("name") }
             ?? proj.targets.first?.string("name")
         let resolved: ProjectSettingsBuilder.Resolved
@@ -807,8 +645,6 @@ extension SwiftCodeMCPHost {
         if let scheme, !scheme.isEmpty { data["scheme"] = .string(scheme) }
         return .structured(.object(data), summary: summary)
     }
-
-    // MARK: - provisioning_check
 
     func signingCheckProvisioning(_ call: MCPToolCall) async throws -> MCPToolResult {
         let bundleId = call.arguments["bundleId"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -893,20 +729,12 @@ extension SwiftCodeMCPHost {
                            summary: header + "\n" + lines.joined(separator: "\n"))
     }
 
-    // MARK: - provisioning_profile_reader
-
     func signingReadProvisioningProfile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let path = call.arguments["path"]?.string, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw MCPToolError("Missing required parameter: path")
         }
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Profiles live outside any workspace (~/Library/MobileDevice/
-        // Provisioning Profiles), so an absolute path is used as-is —
-        // the same read-only exception Wave 6 made for
-        // `test_coverage_reporter`'s explicit report path. A relative
-        // path resolves against the workspace root and must stay
-        // inside it.
         let resolvedURL: URL
         if trimmed.hasPrefix("/") {
             resolvedURL = URL(fileURLWithPath: trimmed)
@@ -945,8 +773,6 @@ extension SwiftCodeMCPHost {
         }
         return .text(report)
     }
-
-    // MARK: - signing_certificate_inspector
 
     func signingInspectSigningCertificates(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard FileManager.default.isExecutableFile(atPath: "/usr/bin/security") else {

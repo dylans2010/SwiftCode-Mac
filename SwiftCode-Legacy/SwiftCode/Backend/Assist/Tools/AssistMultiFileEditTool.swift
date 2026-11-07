@@ -26,8 +26,6 @@ public struct AssistMultiFileEditTool: AssistTool {
             return .failure("Missing required parameter: edits (array of edit objects)")
         }
 
-        // Validate every edit BEFORE applying any of them, so a malformed
-        // entry fails fast instead of silently skipping an edit mid-batch.
         struct ValidatedEdit { let path: String; let content: String?; let search: String?; let replace: String? }
         var validated: [ValidatedEdit] = []
         for (index, edit) in edits.enumerated() {

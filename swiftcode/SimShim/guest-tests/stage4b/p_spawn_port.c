@@ -1,8 +1,3 @@
-/* SwiftCode stage-4b probe: a receive right of the parent becomes the child's
- * bootstrap port (posix_spawnattr_setspecialport_np, TASK_BOOTSTRAP_PORT);
- * the child sends to bootstrap_port and the parent finds the child's pid in
- * the audit-token trailer (val[5]). Original SwiftCode code.
- * Prints: spawn_port ok pid_match=1 */
 #include <mach/mach.h>
 
 #include "probe_util.h"

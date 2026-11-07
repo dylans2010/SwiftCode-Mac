@@ -3,22 +3,8 @@ import SwiftCodeProject
 import SwiftCodeWorkspace
 import SwiftCodeSubprocess
 
-/// Builds with swift-build (open source) from a PIF that SwiftCode generates,
-/// through the `swiftcode-swb` helper when it is available (it signs with
-/// SwiftCode's provisioning answers, entitlements included; see
-/// `specs/ide/signing.md`), else through swift-build's `swbuild`
-/// command-line client, which signs ad hoc without entitlements. See
-/// `specs/ide/build-pif.md`. Supports what `PIFGenerator` supports:
-/// projects whose targets are command-line tools or static libraries.
-/// Supplies the PIF for project and workspace containers, replacing the
-/// built-in `PIFGenerator` (e.g. `SwiftCodeXcodebuild.XcodePIFSource`, which uses
-/// the reference tool's GUID scheme). Packages always use SwiftPM's PIF.
 public protocol PIFSource: Sendable {
-    /// The PIF JSON and the names of the targets it describes.
     func pif(for request: BuildRequest) throws -> (data: Data, targets: [String])
-    /// The PIF with warnings about the project per target name (for
-    /// example a target whose synchronized folders hold no source). The
-    /// engine reports the built target's warnings before it builds.
     func pifWithWarnings(for request: BuildRequest) throws -> (data: Data, targets: [String], warnings: [String: [String]])
 }
 
@@ -31,21 +17,15 @@ extension PIFSource {
 
 public struct SwiftBuildEngine: BuildEngine {
     public var name: String { "swift-build" }
-    /// Path of the `swbuild` executable.
     public var swbuild: String
-    /// Where project/workspace PIF comes from; nil = `PIFGenerator`.
     public var pifSource: (any PIFSource)?
-    /// The `swiftcode-swb` helper; nil builds through `swbuild`.
     public var helper: String?
 
-    /// `helper` defaults to the `swiftcode-swb` found by `locateHelper`.
     public init(swbuild: String, helper: String?? = nil) {
         self.swbuild = swbuild
         self.helper = helper ?? Self.locateHelper(swbuild: swbuild)
     }
 
-    /// `SWIFTCODE_SWB`, else `swiftcode-swb` next to `swbuild` (both are products of
-    /// `Tools/swiftcode-swb`), else `swiftcode-swb` on PATH.
     public static func locateHelper(swbuild: String?, environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         let fm = FileManager.default
         if let p = environment["SWIFTCODE_SWB"], fm.isExecutableFile(atPath: p) { return p }
@@ -59,9 +39,6 @@ public struct SwiftBuildEngine: BuildEngine {
         return nil
     }
 
-    /// `SWIFTCODE_SWBUILD`, else `swbuild` next to the `swiftcode-swb` helper
-    /// (`SWIFTCODE_SWB`; both built from the pinned swift-build of
-    /// `Tools/swiftcode-swb`), else `swbuild` on PATH.
     public static func locate(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         if let p = environment["SWIFTCODE_SWBUILD"], FileManager.default.isExecutableFile(atPath: p) { return p }
         if let helper = environment["SWIFTCODE_SWB"] {
@@ -75,22 +52,13 @@ public struct SwiftBuildEngine: BuildEngine {
         return nil
     }
 
-    /// Settings every `swbuild` request carries.
-    /// - The SDK stat cache is off: its tool is not in every toolchain.
-    /// - Sign to Run Locally: identity `-` (ad-hoc), with no entitlements
-    ///   written into the signature. `swbuild`'s provisioning stub would
-    ///   otherwise add an `application-identifier` entitlement, which macOS
-    ///   refuses to run without a provisioning profile.
     public static let baseOverrides: [(String, String)] = [
         ("SDK_STAT_CACHE_ENABLE", "NO"), ("CODE_SIGN_IDENTITY", "-"),
         ("ENTITLEMENTS_DESTINATION", ""), ("ENTITLEMENTS_REQUIRED", "NO"),
     ]
 
-    /// Settings every `swiftcode-swb` request carries: the project's own
-    /// signing settings apply (the helper answers provisioning).
     public static let helperOverrides: [(String, String)] = [("SDK_STAT_CACHE_ENABLE", "NO")]
 
-    /// The host architecture (`arm64` or `x86_64`).
     public static var hostArchitecture: String {
         #if arch(arm64)
         "arm64"
@@ -99,16 +67,6 @@ public struct SwiftBuildEngine: BuildEngine {
         #endif
     }
 
-    /// The run destination for a request's destination specifier. My Mac
-    /// builds the host architecture; generic (Any Mac) sends none and builds
-    /// all. A simulator (`platform=iOS Simulator`, `generic/platform=visionOS
-    /// Simulator`, …) is a run destination of that simulator's SDK: swift-build
-    /// then builds the targets that support the platform with its SDK, even
-    /// when a project's `SDKROOT` names the device SDK (visionos.md §10.21),
-    /// while host tools (macro implementations, plug-in tools) still build for
-    /// the Mac, which an `SDKROOT` override would not allow
-    /// (`build-pif.md` §Package products). A generic simulator destination
-    /// builds every architecture.
     static func runDestination(for destination: String?) -> JSONValue? {
         if let sdk = simulatorSDK(for: destination) {
             return .object([
@@ -129,8 +87,6 @@ public struct SwiftBuildEngine: BuildEngine {
         ])
     }
 
-    /// The SDK of a simulator destination (`platform=visionOS Simulator`,
-    /// `generic/platform=iOS Simulator`, …); nil for other destinations.
     static func simulatorSDK(for destination: String?) -> String? {
         guard let d = destination, let r = d.range(of: "platform=") else { return nil }
         let platform = d[r.upperBound...].prefix { $0 != "," }.trimmingCharacters(in: .whitespaces)
@@ -143,25 +99,19 @@ public struct SwiftBuildEngine: BuildEngine {
         }
     }
 
-    /// Files the engine writes for one request, and the tool's arguments.
     public struct Invocation: Equatable {
         public var pif: Data
         public var parameters: Data
         public var arguments: [String]
         public var derivedData: URL
-        /// The `swiftcode-swb build` request (helper builds only), written next
-        /// to the parameters as `build.json`.
         public var helperRequest: Data?
-        /// Warnings about the built target the PIF source found.
         public var warnings: [String] = []
     }
 
-    /// Prepares PIF, build parameters and arguments for a request.
     public static func invocation(for request: BuildRequest, pifPath: URL, parametersPath: URL) throws -> Invocation {
         try invocation(for: request, pifPath: pifPath, parametersPath: parametersPath, source: nil)
     }
 
-    /// The `swiftcode-swb build` request file's path for a parameters path.
     static func helperRequestPath(_ parametersPath: URL) -> URL {
         parametersPath.deletingLastPathComponent().appendingPathComponent("build.json")
     }
@@ -187,8 +137,6 @@ public struct SwiftBuildEngine: BuildEngine {
             pifData = try pif.serialized()
             baseDir = url.deletingLastPathComponent()
         case .package(let dir):
-            // SwiftPM (open source) generates the PIF of a package graph,
-            // local dependencies included.
             pifData = try packagePIF(directory: URL(fileURLWithPath: dir))
             target = packageTarget(pif: pifData, scheme: request.scheme)
             baseDir = URL(fileURLWithPath: dir)
@@ -205,7 +153,6 @@ public struct SwiftBuildEngine: BuildEngine {
             ?? baseDir.appendingPathComponent(".swiftcode-build").path)
         let configuration = request.configuration ?? "Debug"
         var table: [String: JSONValue] = [:]
-        // SWIFTCODE_ASSET_COMPILER=swiftcode: swift-build runs `swiftcode assets compile` for actool.
         let assets = AssetCompilerHook.overrides(settings: request.settings, directory: derived.appendingPathComponent("SwiftCodeAssetCompiler"))
             + StringsCompilerHook.overrides(settings: request.settings)
         for (k, v) in (helper ? helperOverrides : baseOverrides) + request.settings + assets { table[k] = .string(v) }
@@ -218,8 +165,6 @@ public struct SwiftBuildEngine: BuildEngine {
             paramObject["activeArchitecture"] = .string(hostArchitecture)
         }
         if helper {
-            // The build locations `swbuild --derivedDataPath` sets, so the
-            // products land where they always have.
             let d = derived.path
             paramObject["action"] = "build"
             paramObject["arenaInfo"] = .object([
@@ -230,7 +175,6 @@ public struct SwiftBuildEngine: BuildEngine {
         }
         let params: JSONValue = .object(paramObject)
         if helper {
-            // The request `swbuild build` makes, with SwiftCode's signing answers.
             let file: JSONValue = .object([
                 "pif": .string(pifPath.path), "parameters": params, "targetNames": .array([.string(target)]),
                 "parallel": .bool(true), "implicitDependencies": .bool(false), "hideShellScriptEnvironment": .bool(true),
@@ -248,8 +192,6 @@ public struct SwiftBuildEngine: BuildEngine {
                           warnings: warnings)
     }
 
-    /// The `.xcodeproj` files a workspace lists (`contents.xcworkspacedata`
-    /// `FileRef` locations relative to the workspace's folder).
     static func workspaceProjects(_ url: URL) throws -> [(PBXProj, URL)] {
         let paths = try Workspace(contentsOf: url.path).projectPaths
         guard !paths.isEmpty else { throw PIFGenerator.GenerationError.unsupported("a workspace without projects") }
@@ -259,8 +201,6 @@ public struct SwiftBuildEngine: BuildEngine {
         }
     }
 
-    /// Whether this engine can build the request's container: packages,
-    /// and projects or workspaces whose targets the PIF generator supports.
     public static func supports(_ request: BuildRequest) -> Bool {
         switch request.container {
         case .package: return true
@@ -275,7 +215,6 @@ public struct SwiftBuildEngine: BuildEngine {
         }
     }
 
-    /// `swift package dump-pif` in `directory`.
     public static func packagePIF(directory: URL, swift: String = "/usr/bin/env") throws -> Data {
         MainThreadGuard.blockingCall("swift package dump-pif")
         let p = Process()
@@ -295,9 +234,6 @@ public struct SwiftBuildEngine: BuildEngine {
         return data
     }
 
-    /// The target to build in a package PIF: the product named like the
-    /// scheme (`<name>-product`), else the scheme as a target, else all
-    /// non-test targets.
     public static func packageTarget(pif: Data, scheme: String?) -> String {
         let list = (try? JSONSerialization.jsonObject(with: pif) as? [[String: Any]]) ?? []
         let names = Set(list.filter { $0["type"] as? String == "target" }
@@ -309,11 +245,8 @@ public struct SwiftBuildEngine: BuildEngine {
         return "AllExcludingTests"
     }
 
-    /// The built executable: `<derived data>/Products/<configuration>/<product>`,
-    /// inside `Contents/MacOS` for an application bundle.
     public func executablePath(for request: BuildRequest) -> String? {
         if case .package(let dir) = request.container {
-            // Package executables land in Products/<config>/<product name>.
             guard let name = request.scheme else { return nil }
             let derived = request.derivedDataPath ?? URL(fileURLWithPath: dir).appendingPathComponent(".swiftcode-build").path
             return "\(derived)/Products/\(request.configuration ?? "Debug")/\(name)"
@@ -332,7 +265,6 @@ public struct SwiftBuildEngine: BuildEngine {
         case .package:
             return nil
         }
-        // The project whose target matches the scheme, else the first.
         let (proj, path) = candidates.first { c in c.0.targets.contains { $0.string("name") == request.scheme } } ?? candidates[0]
         _ = path
         let targets = proj.targets.filter { PIFGenerator.supportedProductTypes.contains($0.string("productType") ?? "") }
@@ -375,7 +307,6 @@ public struct SwiftBuildEngine: BuildEngine {
             defer { try? FileManager.default.removeItem(at: work) }
             process.executableURL = URL(fileURLWithPath: tool)
             process.arguments = inv.arguments
-            // SWIFTCODE_STRINGS_COMPILER=swiftcode: swift-build finds SwiftCode's `xcstringstool` first.
             process.environment = StringsCompilerHook.environment(settings: request.settings,
                                                                   directory: inv.derivedData.appendingPathComponent("SwiftCodeStringsCompiler"))
             let pipe = Pipe()
@@ -418,22 +349,14 @@ public struct SwiftBuildEngine: BuildEngine {
     }
 }
 
-/// Reads swbuild's message stream: each message is a decimal byte count on
-/// its own line followed by one JSON object. Other lines pass through as
-/// output.
 public struct SwiftBuildMessageReader {
     public private(set) var issues: [Diagnostic] = []
-    /// The `buildCompleted` result, once seen (true = ok).
     public private(set) var completed: Bool?
-    /// Task counts for the activity view: tasks finished (completed or up
-    /// to date) and tasks known (started or up to date, or the larger
-    /// total of swift-build's own "Building n of m tasks" progress text).
     public private(set) var tasksDone = 0
     public private(set) var tasksPlanned = 0
     private var startedIDs = Set<Int>()
     public init() {}
 
-    /// "Building 3 of 10 tasks" → 10 (swift-build's progress text).
     static func plannedTotal(inProgressText text: String) -> Int? {
         let words = text.split(separator: " ")
         guard let i = words.firstIndex(of: "of"), i + 1 < words.count, words.last == "tasks" else { return nil }
@@ -443,7 +366,7 @@ public struct SwiftBuildMessageReader {
     private var progress: BuildEvent { .progress(done: tasksDone, total: max(tasksPlanned, tasksDone)) }
 
     public mutating func feed(_ line: String) -> [BuildEvent] {
-        if Int(line) != nil { return [] } // length prefix
+        if Int(line) != nil { return [] }
         guard line.hasPrefix("{"), let data = line.data(using: .utf8),
               let msg = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let kind = msg["kind"] as? String else {
@@ -474,7 +397,6 @@ public struct SwiftBuildMessageReader {
                 .dropLast(String(decoding: d, as: UTF8.self).hasSuffix("\n") ? 1 : 0).map { .output(String($0)) }
         case "error", "warning", "note", "remark":
             let d = Self.diagnostic(msg)
-            // One compile per architecture repeats the same issue; keep the first.
             guard !issues.contains(d) else { return [] }
             issues.append(d)
             return [.issue(d)]

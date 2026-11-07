@@ -1,24 +1,12 @@
 import Foundation
 
-/// A three-way line merge: the base (common ancestor) and two changed
-/// versions, "ours" (left) and "theirs" (right), split into chunks that
-/// are unchanged, changed on one side, changed the same way on both, or
-/// in conflict. This is the textbook diff3 procedure: line-diff the base
-/// against each side (`LineDiff`), take the base lines both diffs keep as
-/// sync points, and classify what lies between them. SwiftCode's conflict
-/// editor and Compare Files show these chunks
-/// (`specs/ide/comparison.md`, "SwiftCode implementation").
 public enum ThreeWayMerge {
     public struct Chunk: Equatable, Sendable {
         public enum Kind: Equatable, Sendable {
             case unchanged
-            /// Only ours (left) differs from the base.
             case oursOnly
-            /// Only theirs (right) differs from the base.
             case theirsOnly
-            /// Both sides made the same change.
             case bothSame
-            /// The sides changed the same base lines differently.
             case conflict
         }
         public var kind: Kind
@@ -34,8 +22,6 @@ public enum ThreeWayMerge {
         }
     }
 
-    /// For each line of `base`, the line of `other` the diff matches it
-    /// with, if any.
     static func matches(_ base: [String], _ other: [String]) -> [Int?] {
         var out = [Int?](repeating: nil, count: base.count)
         var i = 0, j = 0
@@ -49,7 +35,6 @@ public enum ThreeWayMerge {
         return out
     }
 
-    /// The chunks merging `ours` and `theirs` against `base`.
     public static func merge(base: [String], ours: [String], theirs: [String]) -> [Chunk] {
         let mo = matches(base, ours), mt = matches(base, theirs)
         var chunks: [Chunk] = []
@@ -61,14 +46,12 @@ public enum ThreeWayMerge {
             stable = []
         }
         while true {
-            // A run of base lines kept, in order, by both sides.
             while i < base.count, mo[i] == j, mt[i] == k {
                 stable.append(base[i])
                 i += 1; j += 1; k += 1
             }
             flushStable()
             if i == base.count, j == ours.count, k == theirs.count { break }
-            // The next sync point: a base line both sides keep.
             var b = i
             while b < base.count, mo[b] == nil || mt[b] == nil { b += 1 }
             let jEnd = b < base.count ? mo[b]! : ours.count
@@ -86,7 +69,6 @@ public enum ThreeWayMerge {
         return coalesced(chunks)
     }
 
-    /// Joins neighbouring unchanged chunks.
     static func coalesced(_ chunks: [Chunk]) -> [Chunk] {
         var out: [Chunk] = []
         for c in chunks {
@@ -101,30 +83,20 @@ public enum ThreeWayMerge {
         return out
     }
 
-    /// A two-way comparison as merge chunks: every difference is a
-    /// "theirs only" change (the right file's version, chosen by default),
-    /// as a file-compare tool merges two files without an ancestor.
     public static func compare(left: [String], right: [String]) -> [Chunk] {
         merge(base: left, ours: left, theirs: right)
     }
 }
 
-/// Text with git's conflict markers (`<<<<<<<`, optional `|||||||` base
-/// section, `=======`, `>>>>>>>`; git's merge documentation) as merge
-/// chunks, for a conflicted file whose index stages are gone or a file
-/// someone saved with markers.
 public enum ConflictMarkers {
     public struct Parsed: Equatable, Sendable {
         public var chunks: [ThreeWayMerge.Chunk]
-        /// The labels after `<<<<<<<` and `>>>>>>>` of the first conflict.
         public var oursLabel: String?
         public var theirsLabel: String?
     }
 
-    /// Whether `text` has at least one complete conflict.
     public static func hasConflicts(_ text: String) -> Bool { (parse(text)?.chunks.contains { $0.kind == .conflict }) ?? false }
 
-    /// The chunks of `text`; nil when a conflict is not closed.
     public static func parse(_ text: String) -> Parsed? {
         enum Section { case outside, ours, base, theirs }
         var out = Parsed(chunks: [])
@@ -172,24 +144,15 @@ public enum ConflictMarkers {
     }
 }
 
-/// The resolution of one merge: chunks, a choice per changed chunk (a
-/// "hunk"), and the text that results. The conflict editor and Compare
-/// Files edit one of these; it has no user interface of its own, so the
-/// Linux IDE can use it too.
 public struct MergeDocument: Equatable, Sendable {
     public enum Choice: Equatable, Sendable {
-        /// Not decided: the result shows the conflict with markers.
         case unresolved
-        /// Left (ours), right (theirs), both in either order, or the base.
         case ours, theirs, oursThenTheirs, theirsThenOurs, base
-        /// Text written by hand.
         case custom([String])
     }
 
     public private(set) var chunks: [ThreeWayMerge.Chunk]
-    /// Indices into `chunks` of the hunks (every chunk that is not unchanged).
     public private(set) var hunks: [Int]
-    /// One choice per hunk.
     public private(set) var choices: [Choice]
     public var oursLabel: String
     public var theirsLabel: String
@@ -204,14 +167,11 @@ public struct MergeDocument: Equatable, Sendable {
         self.baseLabel = baseLabel
     }
 
-    /// The three-way merge of three texts.
     public init(base: String, ours: String, theirs: String, oursLabel: String = "Ours", theirsLabel: String = "Theirs", baseLabel: String = "Base") {
         self.init(chunks: ThreeWayMerge.merge(base: LineDiff.lines(base), ours: LineDiff.lines(ours), theirs: LineDiff.lines(theirs)),
                   oursLabel: oursLabel, theirsLabel: theirsLabel, baseLabel: baseLabel)
     }
 
-    /// A one-sided change takes that side; the same change on both sides
-    /// takes it once; a conflict waits for a choice.
     public static func defaultChoice(_ kind: ThreeWayMerge.Chunk.Kind) -> Choice {
         switch kind {
         case .unchanged, .oursOnly, .bothSame: .ours
@@ -229,13 +189,10 @@ public struct MergeDocument: Equatable, Sendable {
         choices[hunk] = choice
     }
 
-    /// Gives every hunk the same choice (Choose All Left / Right).
     public mutating func chooseAll(_ choice: Choice) {
         for h in choices.indices { choices[h] = choice }
     }
 
-    /// The next or previous hunk from `hunk` (wrapping), optionally only
-    /// unresolved ones; nil when there is none.
     public func step(from hunk: Int?, forward: Bool, unresolvedOnly: Bool = false) -> Int? {
         let candidates = choices.indices.filter { !unresolvedOnly || choices[$0] == .unresolved }
         guard !candidates.isEmpty else { return nil }
@@ -244,7 +201,6 @@ public struct MergeDocument: Equatable, Sendable {
         return candidates.last { $0 < hunk } ?? candidates.last
     }
 
-    /// The lines one hunk contributes to the result.
     public func lines(forHunk h: Int) -> [String] {
         let c = chunks[hunks[h]]
         switch choices[h] {
@@ -259,8 +215,6 @@ public struct MergeDocument: Equatable, Sendable {
         }
     }
 
-    /// The merged lines and, per hunk, the result lines it covers
-    /// (0-based, half open).
     public func layout() -> (lines: [String], hunkRanges: [Range<Int>]) {
         var lines: [String] = []
         var ranges: [Range<Int>] = []
@@ -278,20 +232,16 @@ public struct MergeDocument: Equatable, Sendable {
         return (lines, ranges)
     }
 
-    /// The merged text (a final newline when there is any line).
     public var result: String {
         let l = layout().lines
         return l.isEmpty ? "" : l.joined(separator: "\n") + "\n"
     }
 
-    /// The three sides' full texts, rebuilt from the chunks.
     public var oursText: String { Self.text(chunks.flatMap(\.ours)) }
     public var theirsText: String { Self.text(chunks.flatMap(\.theirs)) }
     public var baseText: String { Self.text(chunks.flatMap(\.base)) }
     static func text(_ l: [String]) -> String { l.isEmpty ? "" : l.joined(separator: "\n") + "\n" }
 
-    /// Where a hunk starts on each side (0-based line), for scrolling the
-    /// columns to it.
     public func sideStarts(forHunk h: Int) -> (base: Int, ours: Int, theirs: Int) {
         var b = 0, o = 0, t = 0
         for c in chunks[..<hunks[h]] { b += c.base.count; o += c.ours.count; t += c.theirs.count }

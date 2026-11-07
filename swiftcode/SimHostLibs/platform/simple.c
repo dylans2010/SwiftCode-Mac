@@ -1,41 +1,9 @@
-/*
- * simple.c - the _simple_* async-signal-safe printing helpers of SwiftCode's
- * libsystem_platform (weak-only surface, host-library-surface.md section 3).
- *
- * Clean-room SwiftCode code. Interface (SwiftCode's reading of the routine names;
- * nothing in the simulator runtime calls these except through the
- * libsystem_sim_platform_host interposition slots):
- *   void   _simple_dprintf(int fd, const char *fmt, ...);
- *   void   _simple_vdprintf(int fd, const char *fmt, va_list ap);
- *   _SIMPLE_STRING _simple_salloc(void);           NULL on failure
- *   int    _simple_sprintf(_SIMPLE_STRING b, const char *fmt, ...);   0 / -1
- *   int    _simple_vsprintf(_SIMPLE_STRING b, const char *fmt, va_list ap);
- *   int    _simple_sappend(_SIMPLE_STRING b, const char *str);         0 / -1
- *   void   _simple_sresize(_SIMPLE_STRING b);   re-sync after outside edits
- *   char  *_simple_string(_SIMPLE_STRING b);
- *   void   _simple_put(_SIMPLE_STRING b, int fd);
- *   void   _simple_putline(_SIMPLE_STRING b, int fd);  adds a newline
- *   void   _simple_sfree(_SIMPLE_STRING b);
- *   const char *_simple_getenv(const char *envp[], const char *var);
- *   void   _simple_asl_log(int level, const char *facility, const char *msg);
- *   void   _simple_asl_log_prog(int level, const char *facility,
- *                               const char *msg, const char *progname);
- * The ASL routines write "<progname>: <message>" lines to fd 2
- * (host-library-init.md section 7.4 allows this). The escaping variants
- * and the ASL message objects remain generated stubs.
- *
- * Supported conversions: %d %i %u %x %X %o %p %s %c %%, with the flags
- * '-' and '0', a width and a precision (numbers or '*'), and the length
- * modifiers hh h l ll q z t j. Anything else is copied verbatim.
- */
 #include "yc_platform.h"
 
 typedef __builtin_va_list yc_va_list;
 #define yc_va_start(ap, last) __builtin_va_start(ap, last)
 #define yc_va_end(ap) __builtin_va_end(ap)
 #define yc_va_arg(ap, type) __builtin_va_arg(ap, type)
-
-/* ---- output sinks ----------------------------------------------------- */
 
 struct sink {
     void (*put)(struct sink *, const char *, yc_size_t);
@@ -59,8 +27,6 @@ static void emit_pad(struct sink *s, char c, int count)
         count -= n;
     }
 }
-
-/* ---- the formatter ---------------------------------------------------- */
 
 static void format_number(struct sink *s, yc_u64 v, int negative, unsigned base, int upper,
                           int width, int precision, int left, int zero, const char *prefix)
@@ -214,8 +180,6 @@ static void format(struct sink *s, const char *fmt, yc_va_list ap)
     }
 }
 
-/* ---- file descriptor output ------------------------------------------ */
-
 struct fd_sink {
     struct sink base;
     int fd;
@@ -275,13 +239,11 @@ YC_EXPORT void YC_FN(_simple_dprintf)(int fd, const char *fmt, ...)
     yc_va_end(ap);
 }
 
-/* ---- growable strings ----------------------------------------------- */
-
 struct yc_simple_string {
-    char *buf;     /* NUL-terminated contents */
-    yc_size_t len; /* bytes before the NUL */
-    yc_size_t cap; /* usable bytes in buf, including the NUL */
-    yc_size_t map; /* size of the mapping that holds buf (0: inline) */
+    char *buf;
+    yc_size_t len;
+    yc_size_t cap;
+    yc_size_t map;
     char inline_buf[];
 };
 
@@ -435,31 +397,12 @@ YC_EXPORT const char *YC_FN(_simple_getenv)(const char *envp[], const char *var)
     return YC_NULL;
 }
 
-/* ---- simple ASL --------------------------------------------------------
- * The context lives in os_alloc_once slot 21 (LIBSYSTEM_PLATFORM_ASL) and
- * is set up by __libplatform_init (host-library-init.md section 1.3).
- *
- * The slot is shared with the simulator runtime's libsystem_sim_platform,
- * which reads and locks the same object with its own (simulator) layout,
- * so the layout follows Apple's open-source libplatform (src/simple/asl.c,
- * evidence level 1):
- *   host (macOS) build:  bool enabled @0, const char *progname @8,
- *                        int fd @16, os_once_t connect_once @24   (32 bytes)
- *   simulator build:     the same up to @16, then const char
- *                        *sim_log_path @24, os_unfair_lock
- *                        sim_connect_lock @32                     (40 bytes)
- * SwiftCode allocates 48 zero-filled bytes so that the simulator's fields lie
- * inside this allocation (sim_log_path NULL, the lock unlocked). On the Mac
- * the host allocates only 32 bytes and the simulator's lock word falls on
- * the first word of the next os_alloc_once allocation. SwiftCode never uses
- * connect_once (it does not connect to a syslog socket). */
-
 struct asl_context {
-    yc_bool enabled;          /* 0 */
-    const char *progname;     /* 8 */
-    int fd;                   /* 16 */
-    long connect_once;        /* 24 (simulator: sim_log_path) */
-    yc_u32 sim_connect_lock;  /* 32 (simulator only) */
+    yc_bool enabled;
+    const char *progname;
+    int fd;
+    long connect_once;
+    yc_u32 sim_connect_lock;
 };
 _Static_assert(__builtin_offsetof(struct asl_context, fd) == 16, "asl_fd at 16");
 _Static_assert(__builtin_offsetof(struct asl_context, sim_connect_lock) == 32, "sim_connect_lock at 32");
@@ -483,7 +426,6 @@ static struct asl_context *asl_context(void)
     return YC_FN(_os_alloc_once)(slot, YC_ASL_CONTEXT_SIZE, asl_context_init);
 }
 
-/* ProgramVars: mh, NXArgcPtr, NXArgvPtr, environPtr, __prognamePtr. */
 struct yc_program_vars {
     const void *mh;
     int *argc;

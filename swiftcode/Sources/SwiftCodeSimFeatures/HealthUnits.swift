@@ -1,19 +1,8 @@
-// HealthKit unit strings for SwiftCode's health tools (specs/frameworks/healthkit/
-// units.md §1–§2): parses a unit string, gives its dimension and converts
-// values between compatible units. The host checks every imported sample's
-// unit against its type's dimension (health-simulation.md §8.3) and converts
-// to the store unit when it seeds a shut-down device (§6.2). The guest agent
-// passes the string to HealthKit's own `unitFromString:` unchanged.
-
 import Foundation
 
-/// A parsed unit: base exponents, a scale to the reference units (g, m, s,
-/// K, count) and, for temperatures, an offset.
 public struct HealthUnit: Sendable, Equatable {
-    /// Exponents of the base dimensions.
     public var exponents: [Base: Int]
     public var scale: Double
-    /// Kelvin = value × scale + offset (degC, degF alone).
     public var offset: Double
     public let text: String
 
@@ -40,7 +29,6 @@ public struct HealthUnit: Sendable, Equatable {
         ("h", 1e2), ("k", 1e3), ("M", 1e6), ("G", 1e9), ("T", 1e12),
     ]
 
-    /// Prefixable atoms: symbol → (exponents, scale in reference units).
     static let prefixable: [String: ([Base: Int], Double)] = [
         "g": ([.mass: 1], 1), "m": ([.length: 1], 1), "L": ([.length: 3], 1e-3), "s": ([.time: 1], 1),
         "J": ([.mass: 1, .length: 2, .time: -2], 1000), "Pa": ([.mass: 1, .length: -1, .time: -2], 1000),
@@ -48,7 +36,6 @@ public struct HealthUnit: Sendable, Equatable {
         "Hz": ([.time: -1], 1), "lx": ([.illuminance: 1], 1), "rad": ([.angle: 1], 1), "mol": ([.amount: 1], 1),
     ]
 
-    /// Fixed atoms (no prefix).
     static let fixed: [String: ([Base: Int], Double)] = [
         "lb": ([.mass: 1], 453.59237), "oz": ([.mass: 1], 28.349523125), "st": ([.mass: 1], 6350.29318),
         "mi": ([.length: 1], 1609.344), "ft": ([.length: 1], 0.3048), "in": ([.length: 1], 0.0254), "yd": ([.length: 1], 0.9144),
@@ -106,7 +93,6 @@ public struct HealthUnit: Sendable, Equatable {
     static func atom(_ a: String) throws -> ([Base: Int], Double) {
         if let f = fixed[a] { return f }
         if let p = prefixable[a] { return p }
-        // mol<M>: an amount with a molar mass (M g per mol).
         if let lt = a.firstIndex(of: "<"), a.hasSuffix(">") {
             let head = String(a[..<lt]), mass = Double(a[a.index(after: lt)..<a.index(before: a.endIndex)])
             guard let mass, head.hasSuffix("mol") else { throw ParseError.unknownAtom(a) }
@@ -123,14 +109,12 @@ public struct HealthUnit: Sendable, Equatable {
 
     public func isCompatible(with other: HealthUnit) -> Bool { exponents == other.exponents }
 
-    /// `value` in this unit, in `other` (compatible) units.
     public func convert(_ value: Double, to other: HealthUnit) -> Double? {
         guard isCompatible(with: other) else { return nil }
         let reference = value * scale + offset
         return (reference - other.offset) / other.scale
     }
 
-    /// The base exponents of a type's dimension (identifiers.md).
     public static func exponents(of d: HealthDimension) -> [Base: Int] {
         switch d {
         case .energy: [.mass: 1, .length: 2, .time: -2]

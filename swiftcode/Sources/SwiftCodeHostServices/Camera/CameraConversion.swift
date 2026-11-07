@@ -1,24 +1,15 @@
-// Frame conversion (camera-host.md §4): a captured frame in its source
-// layout goes into a guest surface layout ('420v', '420f', 'BGRA'). The
-// arithmetic is CSwiftCodeCamera's (convert.c, jpeg.c).
-
 import CSwiftCodeCamera
 import Foundation
 
-/// A captured frame in its source layout. The bytes are valid until the
-/// capture gets it back (`CameraCapture.recycle`).
 public struct CameraRawFrame: @unchecked Sendable {
     public var format: CameraSourceFormat
     public var width: Int, height: Int
-    /// Bytes per row of the first plane (packed formats: of the image).
     public var bytesPerLine: Int
     public var bytes: UnsafeRawBufferPointer
     public var colorimetry: CameraColorimetry
     public var deviceSequence: UInt32
-    /// CLOCK_MONOTONIC, nanoseconds.
     public var timestamp: Int64
     public var synthetic: Bool
-    /// The capture's own handle (the V4L2 buffer index).
     public var token: Int
 
     public init(format: CameraSourceFormat, width: Int, height: Int, bytesPerLine: Int, bytes: UnsafeRawBufferPointer,
@@ -29,19 +20,13 @@ public struct CameraRawFrame: @unchecked Sendable {
     }
 }
 
-/// Where a surface's pixels go (§5.1).
 public struct CameraSurfaceLayout: Equatable, Sendable {
     public var format: CameraPixelFormat
     public var width: Int, height: Int
-    /// Top level: 4 and the row stride for 'BGRA'; 1 and 0 for the
-    /// bi-planar formats, whose planes carry their own.
     public var bytesPerElement: Int, bytesPerRow: Int
     public var allocationSize: Int
     public var planes: [IOSurfaceHostService.HostPlane]
 
-    /// Row strides are multiples of 128 bytes and plane offsets multiples
-    /// of 16 KiB (the alignments the IOSurface service reports in `Limits`,
-    /// iosurface-remote.md §4.4).
     public static let rowAlignment = 128
     public static let planeAlignment = 16384
 
@@ -65,9 +50,6 @@ public struct CameraSurfaceLayout: Equatable, Sendable {
         }
     }
 
-    /// The colour attachments (iosurface-remote.md §3.2; ISO/IEC 23001-8
-    /// code points: matrix 6 = BT.601, 1 = BT.709; primaries and transfer
-    /// 1 = BT.709) of a surface holding `colorimetry`.
     public func attachments(_ colorimetry: CameraColorimetry) -> [String: UInt64] {
         guard format.isBiPlanar else { return [:] }
         return ["YCbCrMatrixIndex": colorimetry.matrix == 709 ? 1 : 6, "ColorPrimariesIndex": 1, "TransferFunctionIndex": 1]
@@ -78,7 +60,6 @@ public enum CameraConversionError: Error, Equatable {
     case sizeMismatch, shortFrame, unsupported(CameraSourceFormat), jpeg(Int32)
 }
 
-/// Converts raw frames into surface memory. Keeps one JPEG decoder.
 public final class CameraConverter: @unchecked Sendable {
     private var decoder: OpaquePointer?
     nonisolated(unsafe) private static let neutralChroma: UnsafeMutablePointer<UInt8> = {
@@ -90,8 +71,6 @@ public final class CameraConverter: @unchecked Sendable {
     public init() {}
     deinit { if let decoder { ycam_jpeg_free(decoder) } }
 
-    /// Writes `frame` into `memory` laid out as `layout` (same size).
-    /// The colorimetry of a JPEG frame is full-range BT.601 (JFIF).
     public func convert(_ frame: CameraRawFrame, into memory: UnsafeMutableRawPointer, layout: CameraSurfaceLayout) throws {
         guard frame.width == layout.width, frame.height == layout.height else { throw CameraConversionError.sizeMismatch }
         if frame.format == .mjpeg {
@@ -148,8 +127,6 @@ public final class CameraConverter: @unchecked Sendable {
         s.ystride = Int(image.stride.0)
         s.ystep = 1
         if image.components == 3 {
-            // Cb and Cr share their sampling in every camera stream we know;
-            // a stream where they differ is refused.
             guard image.h.1 == image.h.2, image.v.1 == image.v.2,
                   image.hmax == image.h.0, image.vmax == image.v.0 else { throw CameraConversionError.jpeg(-2) }
             s.hsub = image.hmax / image.h.1
@@ -159,7 +136,6 @@ public final class CameraConverter: @unchecked Sendable {
             s.cstride = Int(image.stride.1)
             s.cstep = 1
         } else {
-            // Grey: neutral chroma from one byte (step and stride 0).
             s.cb = UnsafePointer(Self.neutralChroma)
             s.cr = UnsafePointer(Self.neutralChroma)
             (s.hsub, s.vsub, s.cstep, s.cstride) = (1, 1, 0, 0)
@@ -178,7 +154,6 @@ public final class CameraConverter: @unchecked Sendable {
         }
     }
 
-    /// A surface's pixels as packed RGBA (PNG output, tests).
     public static func rgba(from memory: UnsafeRawPointer, layout: CameraSurfaceLayout) -> [UInt8] {
         let w = layout.width, h = layout.height
         var bgra = [UInt8](repeating: 0, count: w * h * 4)
@@ -197,7 +172,6 @@ public final class CameraConverter: @unchecked Sendable {
         return PNG.rgba(fromBGRA: bgra, width: w, height: h, bytesPerRow: w * 4)
     }
 
-    /// Packed RGBA downscaled by an integer factor (box filter).
     public static func downscale(rgba: [UInt8], width: Int, height: Int, factor: Int) -> (rgba: [UInt8], width: Int, height: Int) {
         guard factor > 1 else { return (rgba, width, height) }
         let ow = width / factor, oh = height / factor

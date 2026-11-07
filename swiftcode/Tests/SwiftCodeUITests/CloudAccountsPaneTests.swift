@@ -6,19 +6,8 @@ import SwiftCodeAssistant
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-// The SwiftCode account section of Settings ▸ Accounts
-// (specs/ide/cloud-accounts.md §7, slice B): the auth sheet's three
-// modes and client-side password check, the OAuth buttons' honest
-// pending state, the account / sync / status tabs, the server test,
-// sign-out / delete-account, and the change-email / change-password
-// sheets. All fixtures are synthetic (made-up users and sessions);
-// no live network, no real credentials, and the secret store is
-// always a MemorySecretStore, never the keychain.
-
 @MainActor
 @Suite(.serialized) struct CloudAccountsPaneTests {
-
-    // MARK: - Stub transport (the SwiftCodeCloudTests pattern, local here)
 
     private func makeManager(
         handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)
@@ -35,8 +24,6 @@ import SwiftCodeAssistant
             prefs: Preferences(defaults: defaults), authManager: auth,
             cloudManager: CloudManager(authManager: auth), syncEngine: CloudSyncEngine(testAuthManager: auth))
     }
-
-    // MARK: - Auth sheet
 
     @Test("Create-account with mismatched passwords fails client-side, before any call")
     func passwordMismatchIsClientSide() async {
@@ -142,8 +129,6 @@ import SwiftCodeAssistant
         #expect(CloudAuthSheetController.oauthPending.contains("not wired up yet"))
     }
 
-    // MARK: - Account tab
-
     @Test("Delete-account alert keeps Legacy's exact confirmation text")
     func deleteAlertText() {
         let auth = makeManager(handler: authHappyPath)
@@ -168,7 +153,6 @@ import SwiftCodeAssistant
         #expect(pane.control(NSButton.self, inRow: "Sign In or Register") != nil)
         #expect(AccountsSettingsPane.appStoreConnectScopeNote.contains("App Store Connect keys"))
         #expect(AccountsSettingsPane.swiftCodeExplanation.contains("only a session secret in the Keychain"))
-        // The existing key list and its + explanation are intact.
         #expect(pane.emptyLabel?.isHidden == false)
         pane.addClicked()
         #expect(pane.shownMessage?.contains("never asks for or stores passwords") == true)
@@ -232,8 +216,6 @@ import SwiftCodeAssistant
         #expect(pane.accountMessage == AccountsSettingsPane.verificationSentText)
     }
 
-    // MARK: - Server test
-
     @Test("Test Connection reports success when the server answers and failure when it does not")
     func testConnection() async {
         let auth = makeManager { request in
@@ -255,8 +237,6 @@ import SwiftCodeAssistant
         #expect(pane2.connectionSucceeded == false)
         #expect(pane2.connectionResult?.contains("Failed") == true)
     }
-
-    // MARK: - Sync and status tabs
 
     @Test("Sync tab shows the uppercased state, the toggle, and a manual sync stamps the last sync time")
     func syncTab() async throws {
@@ -305,8 +285,6 @@ import SwiftCodeAssistant
         #expect(pane.rowView("Pending changes")?.controls.first is NSTextField)
     }
 
-    // MARK: - Change email / password sheets
-
     @Test("Change-email sheet saves through the auth manager and dismisses")
     func changeEmailSheet() async throws {
         let auth = makeManager(handler: authHappyPath)
@@ -336,11 +314,6 @@ import SwiftCodeAssistant
     }
 }
 
-// MARK: - Stub transport and fixtures
-
-/// A URLProtocol stub: the handler answers every request from canned
-/// data, and every request the client made is recorded. No live
-/// network. All fixtures are synthetic.
 final class CloudAccountsStubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?
     nonisolated(unsafe) static var requests: [URLRequest] = []
@@ -378,8 +351,6 @@ final class CloudAccountsStubURLProtocol: URLProtocol {
     }
 }
 
-/// Answers the auth happy path: session creation sets the cookie,
-/// account fetch returns the user, everything else is `{}`.
 func authHappyPath(_ request: URLRequest) -> (status: Int, headers: [String: String], body: Data) {
     switch request.url?.path {
     case "/v1/account/sessions/email":

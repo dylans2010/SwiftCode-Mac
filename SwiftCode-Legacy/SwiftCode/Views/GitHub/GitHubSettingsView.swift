@@ -19,7 +19,6 @@ struct GitHubSettingsView: View {
                         .font(.title2.bold())
                         .foregroundStyle(.primary)
 
-                    // Project Repository Association Component
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Project Repository Association", systemImage: "link.badge.plus")
@@ -38,7 +37,6 @@ struct GitHubSettingsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Credentials Settings Section
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Personal Access Token (PAT)", systemImage: "key.fill")
@@ -96,7 +94,6 @@ struct GitHubSettingsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Stop Source Control Section
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Stop Source Control", systemImage: "xmark.octagon.fill")
@@ -150,7 +147,6 @@ struct GitHubSettingsView: View {
         alert.alertStyle = .critical
 
         if alert.runModal() == .alertFirstButtonReturn {
-            // Permanently remove all source control data
             AppSettings.shared.gitPath = ""
             AppSettings.shared.httpsAuthToken = ""
             AppSettings.shared.gitUserName = ""
@@ -161,35 +157,27 @@ struct GitHubSettingsView: View {
             APIKeyManager.shared.deleteKey(service: .gitHub)
             RepositoryContext.shared.disconnectRepository()
 
-            // Redirect to onboarding
             SourceControlSidebarState.shared.selection = .onboarding
         }
     }
 }
 
-// ====================================================================
-// SET REPO IN PROJECT - COMPREHENSIVE PRODUCTION IMPLEMENTATION
-// ====================================================================
 @MainActor
 struct SetRepoInProject: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
 
-    // Association Mode Segmented state
-    @State private var connectionTab = 0 // 0 = Connect Existing, 1 = Create New
+    @State private var connectionTab = 0
 
-    // Remote connection states
-    @State private var repoNameInput = "" // owner/repo
+    @State private var repoNameInput = ""
     @State private var userRepos: [GitHubRepoSummary] = []
     @State private var isLoadingUserRepos = false
     @State private var selectedUserRepo = ""
 
-    // Creation states
     @State private var newRepoName = ""
     @State private var newRepoDescription = ""
     @State private var newRepoIsPrivate = false
     @State private var isCreatingRepo = false
 
-    // Action execution states
     @State private var isPerformingAction = false
     @State private var statusMessage: String? = nil
     @State private var errorMessage: String? = nil
@@ -212,7 +200,6 @@ struct SetRepoInProject: View {
         VStack(alignment: .leading, spacing: 16) {
             if let proj = currentProject {
                 VStack(alignment: .leading, spacing: 14) {
-                    // Git Initialization Status
                     HStack {
                         Image(systemName: isGitInitialized ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                             .foregroundStyle(isGitInitialized ? .green : .orange)
@@ -234,10 +221,8 @@ struct SetRepoInProject: View {
                     .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
                     if let connected = context.connectedRepository, !connected.isEmpty {
-                        // Display Metadata and connection details
                         connectedRepoPanel(connected)
                     } else {
-                        // Not connected options: Connect Existing or Create New
                         noConnectionPanel
                     }
                 }
@@ -247,7 +232,6 @@ struct SetRepoInProject: View {
                     .font(.subheadline)
             }
 
-            // Messages feedback
             if let msg = statusMessage {
                 HStack {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
@@ -277,8 +261,6 @@ struct SetRepoInProject: View {
             }
         }
     }
-
-    // MARK: - Subviews
 
     @ViewBuilder
     private func connectedRepoPanel(_ repoName: String) -> some View {
@@ -368,7 +350,6 @@ struct SetRepoInProject: View {
             .padding(.bottom, 4)
 
             if connectionTab == 0 {
-                // Connect Existing
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Select or enter a repository to link with this project.")
                         .font(.caption)
@@ -403,7 +384,6 @@ struct SetRepoInProject: View {
                 .padding()
                 .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
             } else {
-                // Create New
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Configure and provision a new GitHub repository for this project.")
                         .font(.caption)
@@ -432,8 +412,6 @@ struct SetRepoInProject: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Actions
-
     private func fetchUserRepositories() {
         guard context.isAuthenticated else { return }
         isLoadingUserRepos = true
@@ -441,7 +419,6 @@ struct SetRepoInProject: View {
             do {
                 userRepos = try await GitHubService.shared.listUserRepositories()
             } catch {
-                // Silently ignore or log
             }
             isLoadingUserRepos = false
         }
@@ -543,7 +520,6 @@ struct SetRepoInProject: View {
         let gitBinary = URL(fileURLWithPath: AppSettings.shared.gitPath.isEmpty ? "/usr/bin/git" : AppSettings.shared.gitPath)
         let dirURL = proj.directoryURL
 
-        // Initialize Git if needed
         if !isGitInitialized {
             _ = try? await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["init"], workingDirectory: dirURL)
         }
@@ -577,7 +553,6 @@ struct SetRepoInProject: View {
                 _ = try? await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["add", "."], workingDirectory: dirURL)
                 _ = try? await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["commit", "-m", "Sync current workspace changes via SwiftCode"], workingDirectory: dirURL)
 
-                // Push to default branch
                 let branchResult = try await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["rev-parse", "--abbrev-ref", "HEAD"], workingDirectory: dirURL)
                 let activeBranch = branchResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 let targetBranch = activeBranch.isEmpty ? "main" : activeBranch

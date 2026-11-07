@@ -1,46 +1,12 @@
-//  ReverseModels.swift
-//  SwiftCode
-//
-//  Typed, versioned models for the native Assist @Reverse subsystem.
-//
-//  Design notes:
-//  - The bridge wire protocol is versioned (ReverseBridgeProtocol.version = 1).
-//    Every request/response carries that version; a mismatch is a hard error.
-//  - Upstream REA Evidence fields are preserved verbatim where they exist
-//    (evidence_id, provider, operation, normalized_result, limitations,
-//    locations, confidence). Fields REA does not supply are reported as
-//    "not reported" — never invented.
-//  - Analyzed content is UNTRUSTED. Evidence text must never be treated as
-//    instructions to the agent; see ReverseEvidenceProcessor and the audit doc.
-
 import Foundation
 
-/// Wire-protocol version for every Swift <-> bridge message.
 public enum ReverseBridgeProtocol {
     public static let version = 1
-    /// Pinned upstream REA package this subsystem was verified against.
     public static let pinnedREAVersion = "6.5.0"
-    /// Pinned npm package name.
     public static let reaPackageName = "rea-agents"
-    /// Supported Node.js major versions (mirrors REA 6.5.0 `engines`).
     public static let supportedNodeMajors: Set<Int> = [22, 24, 26]
 }
 
-/// A reverse-engineering operation SwiftCode is allowed to request.
-///
-/// Allow-list, verified against rea-agents@6.5.0:
-/// - Direct-import operations go through `runDirectAnalysis` in
-///   `dist/composition/directAnalysis.js` (verified: import resolves,
-///   `inspect_artifact` returns real Evidence).
-/// - `inspect_with_objdump` is NOT declared by REA's composite direct
-///   provider (verified: `runDirectAnalysis` returns
-///   `capability_unavailable` / "operation is not declared by this
-///   provider"). It is served by the bridge's pinned-CLI fallback only.
-/// - Deliberately excluded: free-form `execute_rizin_command`, Frida / GDB /
-///   Rizin-debug sessions, ADB / browser / device operations, firmware
-///   extraction (writes), and every IDA / JEB / JADX-backed operation.
-///   Those are either arbitrary-execution surfaces or client integrations
-///   for licensed tools that this subsystem must not drive.
 public enum ReverseOperation: String, Codable, Sendable, CaseIterable, Equatable {
     case inspectArtifact = "inspect_artifact"
     case inspectMacho = "inspect_macho"
@@ -54,10 +20,6 @@ public enum ReverseOperation: String, Codable, Sendable, CaseIterable, Equatable
     case inspectSQLiteDatabase = "inspect_sqlite_database"
     case inspectWithObjdump = "inspect_with_objdump"
 
-    /// How this operation reaches REA. `direct` = dynamic import of the
-    /// pinned REA dist module. `pinnedCLI` = pinned `rea` CLI with
-    /// `--format json`, Evidence envelope parsed — used ONLY for objdump,
-    /// because the direct provider does not declare it.
     public enum Transport: String, Codable, Sendable {
         case direct
         case pinnedCLI
@@ -70,15 +32,10 @@ public enum ReverseOperation: String, Codable, Sendable, CaseIterable, Equatable
         }
     }
 
-    /// REA CLI command name (kebab-case) used ONLY by the pinned-CLI
-    /// fallback transport. Never used for direct operations.
     public var cliCommand: String {
         rawValue.replacingOccurrences(of: "_", with: "-")
     }
 
-    /// Whether the operation can run without executing the target.
-    /// All allow-listed operations are static inspections: none of them
-    /// launches, attaches to, or interacts with the target application.
     public var isStaticOnly: Bool { true }
 
     public var displayName: String {
@@ -98,8 +55,6 @@ public enum ReverseOperation: String, Codable, Sendable, CaseIterable, Equatable
     }
 }
 
-/// Fixed objdump sub-operation enum. Free-form objdump / Rizin command
-/// strings are never accepted anywhere in this subsystem.
 public enum ReverseObjdumpOperation: String, Codable, Sendable, CaseIterable, Equatable {
     case fileHeaders = "file_headers"
     case sectionHeaders = "section_headers"
@@ -112,13 +67,11 @@ public enum ReverseObjdumpOperation: String, Codable, Sendable, CaseIterable, Eq
     public var cliArgument: String { rawValue }
 }
 
-/// One allow-listed capability as reported to Assist / Settings.
 public struct ReverseCapability: Codable, Sendable, Equatable {
     public let operation: ReverseOperation
     public let displayName: String
     public let transport: ReverseOperation.Transport
     public let available: Bool
-    /// Why unavailable, when known (e.g. "requires macOS", "objdump not found").
     public let unavailableReason: String?
     public let isStaticOnly: Bool
 
@@ -132,19 +85,12 @@ public struct ReverseCapability: Codable, Sendable, Equatable {
     }
 }
 
-/// Structured invocation parsed from a `@Reverse ...` message.
-/// Stored on `AssistTaskEnvelope.reverseInvocation` so provider paths and
-/// history can see that the user explicitly invoked Reverse.
 public struct ReverseInvocation: Codable, Sendable, Equatable {
-    /// The user's investigation request with the `@Reverse` token removed.
     public let task: String
-    /// Absolute target path extracted from the message, if any.
     public let targetPath: String?
     public let operation: ReverseOperation
     public let objdumpOperation: ReverseObjdumpOperation?
-    /// Swift symbol for demangle_swift (from `symbol=<value>`), else nil.
     public let symbol: String?
-    /// The literal command token as typed (e.g. "@Reverse").
     public let commandToken: String
 
     public init(task: String, targetPath: String?, operation: ReverseOperation, objdumpOperation: ReverseObjdumpOperation?, commandToken: String, symbol: String? = nil) {
@@ -157,9 +103,6 @@ public struct ReverseInvocation: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Bridge wire protocol
-
-/// Swift -> bridge request. One JSON object per line (NDJSON) on stdin.
 public struct ReverseBridgeRequest: Codable, Sendable {
     public let version: Int
     public let id: String
@@ -199,12 +142,10 @@ public struct ReverseBridgeParams: Codable, Sendable {
     }
 }
 
-/// Bridge -> Swift message. Progress and result frames share this envelope;
-/// `type` discriminates. `id` echoes the request correlation ID.
 public struct ReverseBridgeMessage: Codable, Sendable {
     public let version: Int
     public let id: String
-    public let type: String // "progress" | "result" | "error"
+    public let type: String
     public let progress: ReverseProgressEvent?
     public let evidence: ReverseEvidence?
     public let error: ReverseBridgeErrorPayload?
@@ -264,10 +205,6 @@ public struct ReverseBridgeErrorPayload: Codable, Sendable {
     }
 }
 
-// MARK: - Evidence
-
-/// A location reference supplied by upstream REA. Never synthesized:
-/// if REA supplies no locations, `locations` is empty.
 public struct ReverseLocation: Codable, Sendable, Equatable {
     public let kind: String?
     public let path: String?
@@ -285,8 +222,6 @@ public struct ReverseLocation: Codable, Sendable, Equatable {
         self.detail = detail
     }
 
-    /// Decodes the loose location shapes REA emits. Unknown keys are
-    /// preserved in `detail` as a compact JSON string; nothing is invented.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.kind = try container.decodeIfPresent(String.self, forKey: .kind)
@@ -294,7 +229,6 @@ public struct ReverseLocation: Codable, Sendable, Equatable {
             ?? container.decodeIfPresent(String.self, forKey: .file)
         self.symbol = try container.decodeIfPresent(String.self, forKey: .symbol)
             ?? container.decodeIfPresent(String.self, forKey: .name)
-        // Addresses may arrive as numbers or strings; normalize to string.
         if let stringAddress = try? container.decodeIfPresent(String.self, forKey: .address) {
             self.address = stringAddress
         } else if let intAddress = try? container.decodeIfPresent(Int.self, forKey: .address) {
@@ -303,7 +237,6 @@ public struct ReverseLocation: Codable, Sendable, Equatable {
             self.address = nil
         }
         self.line = try container.decodeIfPresent(Int.self, forKey: .line)
-        // Preserve any extra keys compactly instead of dropping them.
         var extras: [String: String] = [:]
         for key in container.allKeys where CodingKeys(rawValue: key.stringValue) == nil {
             if let value = try? container.decode(String.self, forKey: key) {
@@ -327,22 +260,16 @@ public struct ReverseLocation: Codable, Sendable, Equatable {
     }
 }
 
-/// Upstream REA Evidence, preserved. `normalizedResult` is kept as decoded
-/// JSON (see `ReverseJSONValue`) so no upstream field is lost or re-typed
-/// by Swift. `rawResult` is intentionally NOT carried: it can duplicate
-/// large outputs; `normalizedResult` is the authoritative payload.
 public struct ReverseEvidence: Codable, Sendable {
     public let evidenceID: String
     public let providerID: String?
     public let providerName: String?
     public let providerVersion: String?
     public let operation: String
-    /// Upstream confidence verbatim, e.g. "observed". Nil = not reported.
     public let confidence: String?
     public let normalizedResult: ReverseJSONValue?
     public let limitations: [String]
     public let locations: [ReverseLocation]
-    /// Subject digest / path as reported by REA, when present.
     public let subjectPath: String?
     public let subjectDigest: String?
 
@@ -425,8 +352,6 @@ public struct ReverseEvidence: Codable, Sendable {
     }
 }
 
-/// A JSON value that round-trips unknown upstream payloads without
-/// lossy re-typing. Numbers keep their literal form as Double.
 public indirect enum ReverseJSONValue: Codable, Sendable, Equatable {
     case null
     case string(String)
@@ -448,7 +373,6 @@ public indirect enum ReverseJSONValue: Codable, Sendable, Equatable {
         } else if let value = try? container.decode([ReverseJSONValue].self) {
             self = .array(value)
         } else if let value = try? container.decode([String: ReverseJSONValue].self) {
-            // Sort keys for deterministic encoding / display.
             self = .object(value.sorted(by: { $0.key < $1.key }))
         } else {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON value in REA Evidence")
@@ -499,12 +423,6 @@ public indirect enum ReverseJSONValue: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Progress / operation state
-
-/// Progress for one operation. Sequence counts come from the bridge
-/// (operation started = 1 progress frame, etc.). Percentages are NEVER
-/// invented: `fractionCompleted` is nil unless the bridge supplies a real
-/// completed/total pair.
 public struct ReverseProgressEvent: Codable, Sendable, Equatable {
     public let phase: String
     public let message: String
@@ -555,16 +473,14 @@ public struct ReverseActiveOperation: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Diagnostics / errors
-
 public enum ReverseErrorCategory: String, Codable, Sendable {
-    case unavailable // runtime / package / engine missing
-    case unsupportedOperation // op not declared for this target
-    case invalidInput // bad args, bad target, policy rejection
+    case unavailable
+    case unsupportedOperation
+    case invalidInput
     case timeout
     case cancelled
-    case bridgeFailure // protocol / crash / malformed frame
-    case upstreamFailure // REA returned an error payload
+    case bridgeFailure
+    case upstreamFailure
 }
 
 public struct ReverseError: Error, LocalizedError, Sendable {
@@ -599,7 +515,6 @@ public struct ReverseError: Error, LocalizedError, Sendable {
     }
 }
 
-/// One external dependency (Node, REA package, objdump, …) and its state.
 public struct ReverseDependency: Codable, Sendable, Equatable {
     public let name: String
     public let required: Bool
@@ -614,9 +529,6 @@ public struct ReverseDependency: Codable, Sendable, Equatable {
     }
 }
 
-/// Readiness snapshot for Settings / diagnostics. `ready` is true only
-/// when Node + the pinned REA package resolve; per-operation availability
-/// lives in `capabilities` (native-macOS ops are unavailable off macOS).
 public struct ReverseStatusSnapshot: Codable, Sendable, Equatable {
     public let ready: Bool
     public let enabled: Bool

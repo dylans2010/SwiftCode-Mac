@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_FILL_H_
 #define _TVG_FILL_H_
 
@@ -80,7 +58,6 @@ struct Fill::Impl
     }
 };
 
-
 struct RadialGradientImpl : RadialGradient
 {
     Fill::Impl impl;
@@ -128,35 +105,30 @@ struct RadialGradientImpl : RadialGradient
         return Result::Success;
     }
 
-    //TODO: remove this logic once SVG 2.0 is adopted by sw and wg engines (gl already supports it); lottie-specific handling will then be delegated entirely to the loader
-    //clamp focal point and shrink start circle if needed to avoid invalid gradient setup
     bool correct(float& fx, float& fy, float& fr) const
     {
         constexpr float PRECISION = 0.02f;
-        if (r < PRECISION) return false;  // too small, treated as solid fill
+        if (r < PRECISION) return false;
 
         auto dist = tvg::length(center, focal);
 
-        // clamp focal point to inside end circle if outside
         if (this->r - dist <  PRECISION) {
             auto diff = center - focal;
             if (dist < PRECISION) dist = diff.x = PRECISION;
             auto scale = this->r * (1.0f - PRECISION) / dist;
             diff *= scale;
-            dist *= scale;  // update effective dist after scaling
+            dist *= scale;
             fx = center.x - diff.x;
             fy = center.y - diff.y;
         } else {
             fx = focal.x;
             fy = focal.y;
         }
-        // ensure start circle radius fr doesn't exceed the difference
         auto maxFr = (r - dist) * (1.0f - PRECISION);
         fr = (this->fr > maxFr) ? std::max(0.0f, maxFr) : this->fr;
         return true;
     }
 };
-
 
 struct LinearGradientImpl :  LinearGradient
 {
@@ -236,4 +208,4 @@ struct ConicGradientImpl : ConicGradient
     }
 };
 
-#endif  //_TVG_FILL_H_
+#endif

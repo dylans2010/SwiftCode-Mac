@@ -59,8 +59,6 @@ struct CertificateDecoderView: View {
                 decodedInfo = "Subject: \(summary as String)\n"
             }
 
-            // For more details we would need SecCertificateCopyValues, but it's complex to parse.
-            // We'll provide at least the summary and basic confirmation.
             decodedInfo += "\nCertificate successfully parsed by Security framework."
         } else {
             decodedInfo = "Could not parse certificate data using Security framework."

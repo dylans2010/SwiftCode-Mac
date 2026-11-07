@@ -4,19 +4,12 @@ import Testing
 import SwiftCodeDarwinKernel
 import SwiftCodeXPC
 
-/// Argument buffers (metal-sim-protocol.md §4.3): op 16's layout
-/// description parsed into an index → offset table, op 17's reply
-/// (alignment, then length), op 19's set calls (24-bit index, count, range
-/// forms) written at the table's offsets, op 35's member offsets, and the
-/// 8 × index rule only for encoders without a description. The descriptions
-/// are built from the spec's grammar (no captured bytes).
 @Suite struct ArgumentLayoutTests {
     typealias B = MetalArgumentLayoutBuilder
     typealias Fixture = CoreTests.Fixture
 
     static func offsets(_ l: MetalArgumentLayout) -> [UInt32: Int] { l.members.mapValues(\.offset) }
 
-    /// The spec's example (§4.3.2): ids 200, 201, 230, 231 sit at 0, 8, 16, 24; length 32, alignment 8.
     static let sparse: [B.Member] = [
         B.Member("a", offset: 0, index: 200, .argument(.buffer())),
         B.Member("b", offset: 8, index: 201, .argument(.buffer(kind: 1))),
@@ -30,12 +23,10 @@ import SwiftCodeXPC
         #expect(l.encodedLength == 32 && l.alignment == 8)
         #expect(l.member(230)?.kind == .texture && l.member(231)?.kind == .sampler && l.member(201)?.kind == .constantBuffer)
         #expect(!l.isDense)
-        // Payload alone parses the same.
         #expect(try MetalArgumentLayout.parse(payload: B.payload(Self.sparse)) == l)
     }
 
     @Test func inlineDataSetsLengthAndAlignment() throws {
-        // float (3), buffer (10), float4 (11), sampler (40): 0, 8, 16, 32; length 48, alignment 16.
         let l = try MetalArgumentLayout.parse(payload: B.payload([
             B.Member("f", offset: 0, index: 3, .argument(.inline(dataType: 3, size: 4, alignment: 4))),
             B.Member("b", offset: 8, index: 10, .argument(.buffer())),
@@ -45,7 +36,6 @@ import SwiftCodeXPC
         #expect(Self.offsets(l) == [3: 0, 10: 8, 11: 16, 40: 32])
         #expect(l.encodedLength == 48 && l.alignment == 16)
         #expect(l.member(11).map { $0.kind == .inlineData && $0.size == 16 } == true)
-        // One float: 4, 4. half (3), char (4): 0, 2; 4, 2.
         let one = try MetalArgumentLayout.parse(payload: B.payload([B.Member(offset: 0, index: 0, .argument(.inline(dataType: 3, size: 4, alignment: 4)))]))
         #expect(one.encodedLength == 4 && one.alignment == 4)
         let small = try MetalArgumentLayout.parse(payload: B.payload([
@@ -53,7 +43,6 @@ import SwiftCodeXPC
             B.Member(offset: 2, index: 4, .argument(.inline(dataType: 45, size: 1, alignment: 1))),
         ]))
         #expect(Self.offsets(small) == [3: 0, 4: 2] && small.encodedLength == 4 && small.alignment == 2)
-        // 15 buffers (visionOS RealityKit's shape): 0, 8, …, 112; 120, 8; dense.
         let fifteen = try MetalArgumentLayout.parse(payload: B.payload((0..<15).map {
             B.Member(offset: 8 * $0, index: $0, .argument(.buffer(kind: 2)))
         }))
@@ -61,7 +50,6 @@ import SwiftCodeXPC
     }
 
     @Test func nestedStructsAddOffsetsAndIndices() throws {
-        // struct In { buffer; texture; float; } at ids 0 and 10: 0–2 at 0, 8, 16; 10–12 at 24, 32, 40.
         let inner: [B.Member] = [
             B.Member("b", offset: 0, index: 0, .argument(.buffer())),
             B.Member("t", offset: 8, index: 1, .argument(.texture())),
@@ -76,9 +64,6 @@ import SwiftCodeXPC
     }
 
     @Test func arraysPlaceEveryElement() throws {
-        // Descriptor-built array: type 2, stride 8, index stride 0 → consecutive indices 10–13.
-        // A resource array (array length 3) at id 1; an inline C array at id 20 (stride 4);
-        // array<In2, 2> (buffer, sampler) at id 30 with stride 16 and index stride 2.
         let in2: [B.Member] = [
             B.Member(offset: 0, index: 0, .argument(.buffer())),
             B.Member(offset: 8, index: 1, .argument(.sampler())),
@@ -107,10 +92,6 @@ import SwiftCodeXPC
         #expect(Self.offsets(l) == [0: 0, 5: 8] && l.encodedLength == 16 && l.alignment == 8)
     }
 
-    /// A buffer's pointee struct with a member the grammar does not describe:
-    /// the member itself is placed, and the parser finds the next top-level
-    /// member after an argument record's terminator such that the rest parses
-    /// to the end of the payload.
     @Test func anUnreadablePointeeIsSkipped() throws {
         let junk: [UInt8] = [3, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 7, 0, 0, 0, 1, 2, 3]
         let pointee: [B.Member] = [
@@ -124,13 +105,11 @@ import SwiftCodeXPC
             B.Member("s", offset: 24, index: 20, .argument(.sampler(arrayLength: 2))),
         ]))
         #expect(Self.offsets(l) == [0: 0, 10: 8, 11: 16, 20: 24, 21: 32] && l.encodedLength == 40 && l.skippedPointees == 1)
-        // As the last member.
         let last = try MetalArgumentLayout.parse(payload: B.payload([
             B.Member("t", offset: 0, index: 1, .argument(.texture())),
             B.Member("p", offset: 8, index: 2, .argument(.bufferTo(pointee))),
         ]))
         #expect(Self.offsets(last) == [1: 0, 2: 8] && last.encodedLength == 16 && last.skippedPointees == 1)
-        // No terminator after it: the description does not parse.
         var cut = B.payload([B.Member("p", offset: 0, index: 0, .argument(.bufferTo(pointee)))])
         cut.removeLast(8)
         #expect(throws: MetalDecodeError.self) { try MetalArgumentLayout.parse(payload: cut) }
@@ -141,15 +120,11 @@ import SwiftCodeXPC
         #expect(throws: MetalDecodeError.self) { try MetalArgumentLayout.parse(payload: Array(good.prefix(good.count - 3))) }
         #expect(throws: MetalDecodeError.self) { try MetalArgumentLayout.parse(payload: [UInt8](repeating: 0, count: 40)) }
         var badKind = good
-        // The first argument record's kind byte: after magic, version, serial, count,
-        // name "a\0", offset, index, code, u64, argument count, name "a\0".
         let at = 8 + 4 + 8 + 2 + 12 + 8 + 4 + 2
         #expect(badKind[at] == 2)
         badKind[at] = 7
         #expect(throws: MetalDecodeError.self) { try MetalArgumentLayout.parse(payload: badKind) }
     }
-
-    // MARK: The service
 
     struct Device {
         let f: Fixture
@@ -174,7 +149,6 @@ import SwiftCodeXPC
             address = Build.u64(f.replyData(Build.message(12, Build.record(38) { $0.u32(data) })), 0)
         }
 
-        /// Op 16 then op 17: (encoder ref, alignment, length).
         func encoder(_ members: [B.Member]?) -> (UInt32, UInt16, UInt16) {
             let body = members.map(B.recordBody) ?? [0, 0, 0, 0]
             let reply = f.replyData(Build.message(12, Build.record(16) { $0.append(body) }), on: 2)
@@ -186,7 +160,6 @@ import SwiftCodeXPC
             return (Build.u32(r, 0), UInt16(word & 0xFFFF), UInt16(word >> 16))
         }
 
-        /// An op-19 set call (§4.3.4).
         func set(_ encoder: UInt32, kind: UInt8, index: UInt32, refs: [UInt32], offsets: [UInt64] = []) {
             _ = f.send(Build.message(12, Build.record(19) {
                 $0.u32(encoder); $0.u32(UInt32(kind) | index << 8)
@@ -229,16 +202,14 @@ import SwiftCodeXPC
         }.first)
         let before = d.f.backend.calls.count
         d.set(encoder, kind: 0, index: 0, refs: [d.argumentBuffer], offsets: [512])
-        d.set(encoder, kind: 1, index: 200, refs: [d.data, 0], offsets: [16, 0])   // range: 200 and 201 (nil)
+        d.set(encoder, kind: 1, index: 200, refs: [d.data, 0], offsets: [16, 0])
         d.set(encoder, kind: 2, index: 230, refs: [texture])
         d.set(encoder, kind: 3, index: 231, refs: [sampler])
         let w = d.writes(after: before)
         #expect(w.map(\.0) == [512, 520, 528, 536], "\(w)")
         #expect(w.map(\.1) == [d.address + 16, 0, 0x1000 + textureHandle.raw, samplerID], "\(w)")
         #expect(d.f.core.statistics.refused["12:19"] == nil && d.f.core.statistics.refused["12:16"] == nil)
-        // constantDataAtIndex: the argument-buffer offset plus the member's.
         #expect(d.constantData(encoder, index: 230) == 512 + 16)
-        // An index the layout lacks: logged, nothing written.
         d.set(encoder, kind: 1, index: 202, refs: [d.data])
         #expect(d.writes(after: before).count == 4)
         #expect(d.f.logs.contains { $0.contains("index 202 is not in its layout") })
@@ -246,7 +217,6 @@ import SwiftCodeXPC
 
     @Test func twentyFourBitIndicesAndRangeForms() {
         let d = Device(Fixture())
-        // Buffers 1000–1002 and samplers 1003–1004 (a dense run of ids starting at 1000).
         let (encoder, _, length) = d.encoder((0..<5).map {
             B.Member(offset: 8 * $0, index: 1000 + $0, .argument($0 < 3 ? .buffer() : .sampler()))
         })
@@ -275,8 +245,6 @@ import SwiftCodeXPC
         #expect(d.f.logs.filter { $0.contains("has no layout description") }.count == 1)
     }
 
-    /// A restore keeps each encoder's table and argument buffer: a set call
-    /// after it lands at the layout's offset without a new kind-0 call.
     @Test func restoredEncodersKeepTheirLayouts() throws {
         let d = Device(Fixture())
         let (encoder, _, _) = d.encoder(Self.sparse)
@@ -295,7 +263,6 @@ import SwiftCodeXPC
 }
 
 extension ArgumentLayoutTests.Device {
-    /// A device over a restored core (no new objects).
     static func restored(_ f: CoreTests.Fixture, argumentBuffer: UInt32, handle: MetalHandle, data: UInt32) -> Self {
         Self(f: f, argumentBuffer: argumentBuffer, argumentBufferHandle: handle, data: data, address: 0)
     }

@@ -1,12 +1,3 @@
-// time.c - calendar time for SwiftCode's libSystem (specs/macos/libsystem.md
-// §12). Clean-room SwiftCode code from the C standard and POSIX descriptions
-// of gmtime, localtime, mktime, strftime and tzset; struct tm is the public
-// Darwin layout (nine ints, then tm_gmtoff and tm_zone).
-//
-// Time zones: SwiftCode's libSystem knows UTC, fixed offsets written as POSIX
-// TZ strings without rules ("UTC", "GMT", "UTC0", "EST5", "<+03>-3", ...),
-// and nothing else; any other zone is treated as UTC. Foundation computes
-// its own time zones (FoundationInternationalization, ICU).
 #include "ycl.h"
 
 struct tm {
@@ -22,10 +13,9 @@ YCL_EXPORT long timezone;
 YCL_EXPORT int daylight;
 
 static char zone_name[16] = "UTC";
-static long zone_offset;  // seconds east of UTC
+static long zone_offset;
 static os_unfair_lock tz_lock;
 
-// Parses "NAME[+-]hh[:mm[:ss]]" (POSIX: the offset is west-positive).
 static void parse_tz(const char *tz) {
     zone_offset = 0;
     strlcpy(zone_name, "UTC", sizeof zone_name);
@@ -45,7 +35,7 @@ static void parse_tz(const char *tz) {
     int sign = 1;
     if (*p == '+' || *p == '-') sign = *p++ == '-' ? -1 : 1;
     if (*p < '0' || *p > '9') {
-        if (!*p) strlcpy(zone_name, name, sizeof zone_name);  // a name alone: UTC with that name
+        if (!*p) strlcpy(zone_name, name, sizeof zone_name);
         return;
     }
     long h = 0, m = 0, s = 0;
@@ -58,7 +48,7 @@ static void parse_tz(const char *tz) {
             while (*p >= '0' && *p <= '9') s = s * 10 + (*p++ - '0');
         }
     }
-    if (*p) return;  // daylight-saving rules: not supported, stay UTC
+    if (*p) return;
     zone_offset = -sign * (h * 3600 + m * 60 + s);
     strlcpy(zone_name, name, sizeof zone_name);
 }
@@ -71,8 +61,6 @@ YCL_EXPORT void tzset(void) {
     daylight = 0;
     os_unfair_lock_unlock(&tz_lock);
 }
-
-// --- conversions between seconds and civil dates (proleptic Gregorian) ---
 
 static long long days_from_civil(long long y, unsigned m, unsigned d) {
     y -= m <= 2;
@@ -114,7 +102,7 @@ static struct tm *fill(long long t, long offset, const char *zone, struct tm *ou
     out->tm_hour = (int)(secs / 3600);
     out->tm_min = (int)(secs / 60 % 60);
     out->tm_sec = (int)(secs % 60);
-    out->tm_wday = (int)((days % 7 + 11) % 7);  // 1970-01-01 was a Thursday
+    out->tm_wday = (int)((days % 7 + 11) % 7);
     out->tm_yday = (int)(days - days_from_civil(y, 1, 1));
     out->tm_isdst = 0;
     out->tm_gmtoff = offset;
@@ -134,7 +122,6 @@ YCL_EXPORT struct tm *gmtime(const long *t) { return gmtime_r(t, &shared_tm); }
 YCL_EXPORT struct tm *localtime(const long *t) { return localtime_r(t, &shared_tm); }
 
 static long long seconds_of(struct tm *tm) {
-    // Normalize month first, then let days carry everything else.
     long long y = (long long)tm->tm_year + 1900, mon = tm->tm_mon;
     y += mon >= 0 ? mon / 12 : -((-mon + 11) / 12);
     mon = ((mon % 12) + 12) % 12;
@@ -156,8 +143,6 @@ YCL_EXPORT long mktime(struct tm *tm) {
 }
 
 YCL_EXPORT double difftime(long a, long b) { return (double)a - (double)b; }
-
-// --- formatting ---
 
 static const char *const day_names[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 static const char *const month_names[12] = {"January", "February", "March",     "April",   "May",      "June",
@@ -191,10 +176,9 @@ static void num(struct out *o, long long v, int width, char pad) {
     for (int i = n - 1; i >= 0; i--) put(o, &buf[i], 1);
 }
 
-// The ISO 8601 week-based year and week number.
 static void iso_week(const struct tm *tm, long long *year, int *week) {
     long long y = (long long)tm->tm_year + 1900;
-    int wday = (tm->tm_wday + 6) % 7;  // Monday 0
+    int wday = (tm->tm_wday + 6) % 7;
     int w = (tm->tm_yday - wday + 10) / 7;
     if (w < 1) {
         y--;
@@ -329,15 +313,13 @@ static char shared_text[32];
 YCL_EXPORT char *asctime(const struct tm *tm) { return asctime_r(tm, shared_text); }
 YCL_EXPORT char *ctime(const long *t) { return ctime_r(t, shared_text); }
 
-// --- clocks ---
-
 int clock_gettime(int, struct ycl_timespec *);
 
 YCL_EXPORT int clock_getres(int clock, struct ycl_timespec *res) {
     (void)clock;
     if (res) {
         res->tv_sec = 0;
-        res->tv_nsec = 1000;  // microsecond resolution, as Darwin reports
+        res->tv_nsec = 1000;
     }
     return 0;
 }

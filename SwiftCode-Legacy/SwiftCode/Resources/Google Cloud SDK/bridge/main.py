@@ -14,14 +14,12 @@ import logging
 import uuid
 from typing import Any, Dict, Optional
 
-# Add bundled site-packages to sys.path before any library imports
 bridge_dir = os.path.dirname(os.path.abspath(__file__))
 sdk_root = os.path.dirname(bridge_dir)
 site_packages = os.path.join(sdk_root, "runtime", "lib", "python3.14", "site-packages")
 if os.path.isdir(site_packages) and site_packages not in sys.path:
     sys.path.insert(0, site_packages)
 
-# Ensure localharness is uncompressed if needed
 lh_bin_dir = os.path.join(site_packages, "google", "antigravity", "bin")
 lh_path = os.path.join(lh_bin_dir, "localharness")
 lh_gz = os.path.join(lh_bin_dir, "localharness.gz")
@@ -54,14 +52,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("AntigravityBridge")
 
-
 def get_antigravity_version() -> str:
     try:
         import google.antigravity
         return getattr(google.antigravity, "__version__", "0.1.21")
     except Exception:
         return "0.1.21"
-
 
 class BridgeServer:
     def __init__(self, socket_path: Optional[str] = None):
@@ -100,7 +96,6 @@ class BridgeServer:
         self.writer.write(req_msg.encode("utf-8"))
         await self._safe_drain()
 
-        # Build, test, and terminal tools can require extended execution time
         timeout = 600.0 if tool_name in ("build_project", "run_tests", "test_runner", "use_terminal", "run_command") else 180.0
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
@@ -123,7 +118,6 @@ class BridgeServer:
         method = message.get("method")
         params = message.get("params", {}) or {}
 
-        # Handle responses to Python-initiated requests (e.g. tool.execute response from SwiftCode)
         if "id" in message and ("result" in message or "error" in message) and not method:
             req_id = str(msg_id)
             if req_id in self.pending_requests:
@@ -224,10 +218,8 @@ class BridgeServer:
         logger.info("SwiftCode connected to Antigravity bridge")
         self.writer = writer
 
-        # Start adapter server if not already started
         adapter_port = await self.adapter_server.start()
 
-        # Send initial ready event upon connection
         ready_notif = ProtocolMessage.notification("runtime.ready", {
             "version": "0.1.20",
             "sdk": "google-antigravity",
@@ -308,7 +300,6 @@ class BridgeServer:
 
         await self._handle_connection(reader, writer)
 
-
 def main():
     parser = argparse.ArgumentParser(description="SwiftCode Antigravity Bridge Daemon")
     parser.add_argument("--socket-path", type=str, default=None, help="Path to Unix domain socket")
@@ -348,7 +339,6 @@ def main():
                 os.unlink(args.socket_path)
             except OSError:
                 pass
-
 
 if __name__ == "__main__":
     main()

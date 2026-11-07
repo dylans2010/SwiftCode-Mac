@@ -1,12 +1,5 @@
-// Weather values: api.md §3.2–§3.6, archive keys codable.md §3.
-//
-// Stored properties carry the archive key names, so the synthesized Codable
-// conformance writes exactly the keys of codable.md; optional properties are
-// the "opt" keys (decodeIfPresent / omitted when nil). Non-public keys are
-// internal properties: decoded, preserved and written back.
 import Foundation
 
-/// Non-public past/next amounts of `CurrentWeather` (codable.md §3).
 struct PeriodAmounts: Codable, Equatable, Sendable {
     var pastHour: Measurement<UnitLength>
     var pastSixHours: Measurement<UnitLength>
@@ -40,7 +33,6 @@ extension PrecipitationAmountByType {
     }()
 }
 
-/// Conditions now.
 public struct CurrentWeather: Codable, Equatable, Sendable {
     public internal(set) var date: Date
     public internal(set) var cloudCover: Double
@@ -49,18 +41,15 @@ public struct CurrentWeather: Codable, Equatable, Sendable {
     var cloudCoverMid: Double
     var cloudCoverHigh: Double
     public internal(set) var condition: WeatherCondition
-    /// SF Symbols name for the condition.
     public internal(set) var symbolName: String
     public internal(set) var dewPoint: Measurement<UnitTemperature>
     public internal(set) var humidity: Double
-    /// Depth of precipitation per unit of time.
     public internal(set) var precipitationIntensity: Measurement<UnitSpeed>
     var apparentPrecipitationIntensity: PrecipitationIntensityValue
     public internal(set) var pressure: Measurement<UnitPressure>
     public internal(set) var pressureTrend: PressureTrend
     public internal(set) var isDaylight: Bool
     public internal(set) var temperature: Measurement<UnitTemperature>
-    /// Feels-like temperature.
     public internal(set) var apparentTemperature: Measurement<UnitTemperature>
     public internal(set) var uvIndex: UVIndex
     public internal(set) var visibility: Measurement<UnitLength>
@@ -78,7 +67,6 @@ public struct CurrentWeather: Codable, Equatable, Sendable {
     var nextTwentyFourHoursPrecipitationAmountByType: PrecipitationAmountByType
 }
 
-/// One minute of the next-hour forecast.
 public struct MinuteWeather: Codable, Equatable, Sendable {
     public internal(set) var date: Date
     public internal(set) var precipitation: Precipitation
@@ -87,7 +75,6 @@ public struct MinuteWeather: Codable, Equatable, Sendable {
     var apparentPrecipitationIntensity: PrecipitationIntensityValue
 }
 
-/// One hour of the hourly forecast.
 public struct HourWeather: Codable, Equatable, Sendable {
     public internal(set) var date: Date
     public internal(set) var cloudCover: Double
@@ -114,7 +101,6 @@ public struct HourWeather: Codable, Equatable, Sendable {
     var apparentPrecipitationIntensity: PrecipitationIntensityValue
 }
 
-/// One day of the daily forecast.
 public struct DayWeather: Codable, Equatable, Sendable {
     public internal(set) var date: Date
     public internal(set) var condition: WeatherCondition
@@ -134,12 +120,9 @@ public struct DayWeather: Codable, Equatable, Sendable {
     var storedSnowfallAmount: Measurement<UnitLength>
     public internal(set) var sun: SunEvents
     public internal(set) var moon: MoonEvents
-    /// The day's maximum.
     public internal(set) var uvIndex: UVIndex
     public internal(set) var wind: Wind
-    /// Metres.
     public internal(set) var maximumVisibility: Double
-    /// Metres.
     public internal(set) var minimumVisibility: Double
     var visibilityMax: Double
     var visibilityMin: Double
@@ -162,20 +145,16 @@ public struct DayWeather: Codable, Equatable, Sendable {
             daytimeForecast, overnightForecast, restOfDayForecast
     }
 
-    /// Total precipitation of the day.
     @available(*, deprecated, message: "Use precipitationAmountByType.precipitation")
     public var precipitationAmount: Measurement<UnitLength> { precipitationAmountByType.precipitation }
 
-    /// Snowfall of the day.
     @available(*, deprecated, message: "Use precipitationAmountByType.snowfallAmount")
     public var snowfallAmount: Measurement<UnitLength> { storedSnowfallAmount }
 
-    /// Rainfall of the day.
     @available(*, deprecated, message: "Use precipitationAmountByType.rainfall")
     public var rainfallAmount: Measurement<UnitLength> { storedRainfallAmount }
 }
 
-/// A part of a day (daytime, overnight, rest of day).
 public struct DayPartForecast: Codable, Equatable, Sendable {
     var forecastStart: Date
     var forecastEnd: Date
@@ -201,20 +180,14 @@ public struct DayPartForecast: Codable, Equatable, Sendable {
     public internal(set) var highWindSpeed: Measurement<UnitSpeed>
 }
 
-/// A weather alert issued for the location.
 public struct WeatherAlert: Codable, Equatable, Sendable {
-    /// Page with the full alert; apps must link it (behavior.md §7).
     public internal(set) var detailsURL: URL
-    /// Issuing agency, to be shown in full.
     public internal(set) var source: String
-    /// Headline.
     public internal(set) var summary: String
-    /// Affected area name.
     public internal(set) var region: String?
     public internal(set) var severity: WeatherSeverity
     public internal(set) var metadata: WeatherMetadata
     var id: UUID
-    /// String enum; `normal` is one accepted value. Kept as text.
     var importance: String
     var alertDescription: String
     var details: String?

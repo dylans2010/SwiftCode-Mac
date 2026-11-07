@@ -1,5 +1,3 @@
-// C-ENGINE (plan.md §4) part 1: catalog, products, purchases and lists
-// (plan.md §3.1–§3.2; testing-session.md §4, §10; simulator-baseline.md §8 rows E1, E2, P1, U1, U4).
 import Foundation
 import Testing
 import StoreKitConfiguration
@@ -80,7 +78,6 @@ struct CatalogTests {
         #expect(p[1].displayName(locale: "de") == "Probe Pro")
         #expect(p[1].description(locale: "de") == nil)
         #expect(store.catalog!.group(ID.plus)?.displayName(locale: "de") == "Plus")
-        // Prices are never converted between storefronts.
         #expect(p[0].priceText == "0.99")
     }
 
@@ -109,7 +106,6 @@ struct PurchaseTests {
         #expect(again == .success(n2, isRedelivery: true))
         let n3 = try store.purchase(productID: ID.season).record
         #expect(n3.id == 3 && n3.expiresDate == nil)
-        // Unfinished coins: the same transaction again, whatever the quantity.
         let q3 = try store.purchase(productID: ID.coins, options: PurchaseOptions(quantity: 3))
         #expect(q3 == .success(n1, isRedelivery: true))
         #expect(q3.record.quantity == 1)
@@ -181,7 +177,6 @@ struct PurchaseTests {
         try store.deleteTransaction(pro.id)
         #expect(store.transactionHistory().isEmpty && store.currentEntitlements().isEmpty && store.allTransactions().isEmpty)
         #expect(throws: TestSessionError.self) { try store.deleteTransaction(pro.id) }
-        // Buying again makes a new transaction.
         #expect(try store.purchase(productID: ID.pro).record.id == 1)
     }
 
@@ -204,10 +199,8 @@ struct PurchaseTests {
         #expect(store.installedConfiguration?.appName == "StoreProbe")
         #expect(Set(store.currentEntitlements().map(\.productID)) == [ID.season, ID.pro])
         #expect(store.unfinishedTransactions().isEmpty)
-        // The store's copy is a configuration file (configuration-file.md §8 item 1).
         let copy = try StoreConfiguration(contentsOf: dir.appendingPathComponent(ID.app).appendingPathComponent("Configuration.storekit"))
         #expect(copy.appName == "StoreProbe")
-        // Uninstall: configuration and transactions go; the override stays (simulator-baseline.md §4 item 3).
         store.uninstall()
         #expect(try store.products(for: ID.all).isEmpty)
         #expect(store.allTransactions().isEmpty)
@@ -215,7 +208,7 @@ struct PurchaseTests {
         #expect(reopened.overrideSettings.disableDialogs == false)
         #expect(reopened.installedConfiguration == nil)
         reopened.installConfiguration(probeConfiguration())
-        #expect(reopened.settings.disableDialogs == false)  // the override beats _disableDialogs true
+        #expect(reopened.settings.disableDialogs == false)
         #expect(try reopened.purchase(productID: ID.coins).record.id == 0)
     }
 
@@ -225,7 +218,6 @@ struct PurchaseTests {
         #expect(store.settings.timeRate == .realTime && store.settings.disableDialogs)
         store.updateSettings { $0.timeRate = .oneRenewalEveryTenSeconds; $0.storefront = "DEU" }
         #expect(store.settings.timeRate == .oneRenewalEveryTenSeconds && store.settings.storefront.currency == "EUR")
-        // Installing another file does not drop the override.
         store.installConfiguration(probeConfiguration())
         #expect(store.settings.timeRate == .oneRenewalEveryTenSeconds)
         store.resetToDefaultState()

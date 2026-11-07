@@ -1,24 +1,7 @@
 import Foundation
 
-/// The single lifecycle owner (spec §3.3). `@MainActor`, a singleton.
-/// Views never keep their own copy of install state; after every
-/// mutation they re-read from the manager.
-///
-/// Deviation from §10.6 (recorded): `init(storage:)` is added
-/// alongside the spec's `init()` so tests can point the manager at a
-/// temp directory. `init()` uses the default storage.
-///
-/// The MCP `use_extension` handler (in `SwiftCodeMCP`, not this target)
-/// calls exactly these entry points plus
-/// `permissions.grantedCapabilities(for:)`,
-/// `diagnostics.entries(for:)`, the Xcode registry, and the native
-/// registry.
 @MainActor
 public final class ExtensionManager: ObservableObject {
-    // ObservableObject so the Extensions views can keep using
-    // `@ObservedObject ExtV2Manager.shared` (see ExtV2Manager.swift).
-    // The rebuilt manager was a plain class; its state properties
-    // become @Published so observation actually updates the UI.
     public static let shared = ExtensionManager()
 
     public let storage: ExtensionStorage
@@ -55,10 +38,6 @@ public final class ExtensionManager: ObservableObject {
     public init(storage: ExtensionStorage) {
         self.storage = storage
         self.permissions = PermissionManager(storage: storage)
-        // Capability approval UI (gap-closure misc): host-initiated
-        // requests ask a person through the approval center. With
-        // no presenter installed the center denies immediately, so
-        // headless runs keep the old deny-by-default behaviour.
         self.permissions.promptHandler = { request in
             await ExtensionPermissionApprovalCenter.shared.ask(request)
         }
@@ -66,19 +45,13 @@ public final class ExtensionManager: ObservableObject {
         self.packageService = PackageService(storage: storage)
         self.diagnostics = DiagnosticsService.shared
         self.settings = storage.loadSettings()
-        // Wire host-initiated requests to this manager's handler.
         hostManager.hostRequestHandler = { [weak self] extensionId, request in
             guard let self else { return .null }
             return try await self.handleHostRequest(extensionId: extensionId, request: request)
         }
-        // The sort-lines command is available from app start (U-11:
-        // the exact Legacy startup wiring was not in the files read;
-        // registering it here is the faithful equivalent).
         XcodeCommandRegistry.shared.register(SortLinesCommand())
     }
 
-    /// First-load disk work; later calls are no-ops. `init` does no IO
-    /// so opening Extensions cannot freeze the app.
     public func ensureReady() async {
         guard !didLoad else { return }
         didLoad = true
@@ -98,14 +71,6 @@ public final class ExtensionManager: ObservableObject {
         workspaceRoot = url
     }
 
-    /// Evaluation order per record, first match wins (spec §3.3):
-    /// missing dir → `.unavailable`; disabled → `.disabled`; missing
-    /// deps → `.missingDependencies`; host running → `.running`;
-    /// compatibility report decides `.enabled` vs `.incompatible`.
-    /// If the manifest cannot be parsed, the record is `.enabled`
-    /// (lenient fallback — observed; D-12, kept, not silently fixed).
-    /// A broken extension can never prevent launch: malformed records
-    /// are marked `.unavailable` instead of throwing.
     public func refreshInstalled() {
         let records = storage.loadInstalled()
         let byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
@@ -146,7 +111,7 @@ public final class ExtensionManager: ObservableObject {
                     record.lastError = report.reasons.joined(separator: " ")
                 }
             } else {
-                record.state = .enabled // Lenient fallback (D-12).
+                record.state = .enabled
             }
             evaluated.append(record)
         }
@@ -156,8 +121,6 @@ public final class ExtensionManager: ObservableObject {
     private func persistInstalled() {
         try? storage.saveInstalled(installed)
     }
-
-    // MARK: - Search (debounced via task cancellation)
 
     public func search(query: String) {
         searchTask?.cancel()
@@ -191,7 +154,6 @@ public final class ExtensionManager: ObservableObject {
         }
     }
 
-    /// Paginated: the offset accumulates across pages.
     public func loadMoreSearchResults() {
         guard let query = lastSearchQuery, !query.isEmpty else { return }
         let offset = searchOffset
@@ -213,16 +175,6 @@ public final class ExtensionManager: ObservableObject {
         }
     }
 
-    // MARK: - Install / uninstall / enable
-
-    /// Resolve download URL → download VSIX to
-    /// `staging/<id>-<UUID>.vsix` → atomic package install → record
-    /// with `isEnabled: true`, capabilities `[]` (install does not
-    /// populate capabilities from the manifest; grants are requested
-    /// at runtime) → `refreshInstalled()`. Concurrent install of the
-    /// same id is a no-op. Cancellation deletes the downloaded file
-    /// and any staging dir; the previous installation is never
-    /// touched on failure.
     public func install(metadata: ExtensionMetadata) async throws {
         let id = metadata.id
         guard !installingIDs.contains(id) else { return }
@@ -255,8 +207,6 @@ public final class ExtensionManager: ObservableObject {
         }
     }
 
-    /// Install from a local `.vsix` file (works offline through the
-    /// same `packageService.install` path, spec §6.2).
     public func installLocalVSIX(at vsixURL: URL, identity: ExtensionIdentity) async throws {
         let id = identity.id
         guard !installingIDs.contains(id) else { return }
@@ -284,15 +234,9 @@ public final class ExtensionManager: ObservableObject {
         persistInstalled()
     }
 
-    /// Disabling deactivates the host first; then persist +
-    /// `refreshInstalled()`. Enabling does not auto-activate.
     public func setEnabled(extensionId: String, enabled: Bool) {
         guard let index = installed.firstIndex(where: { $0.id == extensionId }) else { return }
         if !enabled { deactivate(extensionId: extensionId) }
-        // Re-enabling clears a quarantine (Legacy
-        // `SDKExtensionManager.clearQuarantine`): the user inspected
-        // the problem and asked for another chance, so the extension
-        // gets a fresh crash budget too.
         if enabled { hostManager.clearQuarantine(for: extensionId) }
         installed[index].isEnabled = enabled
         installed[index].updatedAt = Date()
@@ -300,9 +244,6 @@ public final class ExtensionManager: ObservableObject {
         refreshInstalled()
     }
 
-    /// VS Code-kind records only; compares registry `details()` version
-    /// against the installed version; failures are warnings per
-    /// extension, never fatal.
     public func checkUpdates() async {
         let client = RegistryClient(settings: settings)
         var found: [ExtensionUpdateInfo] = []
@@ -320,8 +261,6 @@ public final class ExtensionManager: ObservableObject {
         }
         updates = found
     }
-
-    // MARK: - Activate / deactivate / execute
 
     public func activate(extensionId: String) async throws -> ExtensionContribution {
         guard let record = installed.first(where: { $0.id == extensionId }) else {
@@ -348,8 +287,6 @@ public final class ExtensionManager: ObservableObject {
             contributions[extensionId] = contribution
             return contribution
         case .xcodeCommand:
-            // Returns a synthetic contribution listing ALL registered
-            // Xcode command identifiers (not per-extension).
             let commands = XcodeCommandRegistry.shared.allIdentifiers.map {
                 ExtensionContributionCommand(command: $0, title: $0)
             }
@@ -361,12 +298,6 @@ public final class ExtensionManager: ObservableObject {
         }
     }
 
-    /// Registers each of a `.vscode` extension's contribution
-    /// commands with the assistant, so `use_extension` can call
-    /// them (Legacy `ExtV2Manager.registerAssistCommands`, called
-    /// from `activate` for `.vscode` kind). Registration requires
-    /// the `.assistTools` grant; `AssistBridge.register` returns
-    /// false (and logs) when it is not granted.
     private func registerAssistCommands(for record: InstalledExtension, contribution: ExtensionContribution) {
         for command in contribution.commands {
             let descriptor = AssistBridge.descriptor(for: command, extensionId: record.id)
@@ -381,9 +312,6 @@ public final class ExtensionManager: ObservableObject {
         refreshInstalled()
     }
 
-    /// Native handlers first; else ownership check (a command
-    /// belonging to another extension is rejected); else host
-    /// execution. Returns the result's string value or `""`.
     public func executeCommand(extensionId: String, command: String,
                                args: [JSONValue] = []) async throws -> String {
         guard let record = installed.first(where: { $0.id == extensionId }) else {
@@ -417,19 +345,6 @@ public final class ExtensionManager: ObservableObject {
         refreshInstalled()
     }
 
-    // MARK: - Host-initiated requests (spec §4.3)
-
-    /// `host.log` → diagnostics; `host.readFile` / `host.writeFile` →
-    /// workspace bridge (capability-gated; no workspace open → invalid
-    /// request); `host.applyEdit` → `{path, edits: [...]}` via the
-    /// editor bridge (D-9 shape); `host.publishDiagnostics` → provider
-    /// registry (malformed entries without a `message` are dropped);
-    /// `host.registerCompletionProvider` / `host.registerHoverProvider`
-    /// → provider registry by language; `host.requestPermission` →
-    /// permission manager prompt, returns bool; `host.showQuickPick` /
-    /// `host.showInputBox` → null (no picker UI attached on the host
-    /// path; null is an honest "no selection", logged); every other
-    /// allowed method → null (accepted, no action).
     public func handleHostRequest(extensionId: String, request: RPCRequest) async throws -> JSONValue {
         let params = request.params?.objectValue ?? [:]
         switch request.method {
@@ -492,7 +407,7 @@ public final class ExtensionManager: ObservableObject {
                       let startCharacter = startObject["character"]?.intValue,
                       let endLine = endObject["line"]?.intValue,
                       let endCharacter = endObject["character"]?.intValue else {
-                    continue // Malformed entries without a message are dropped.
+                    continue
                 }
                 published.append(ExtensionDiagnostic(
                     relativePath: path,
@@ -530,26 +445,21 @@ public final class ExtensionManager: ObservableObject {
                              extensionId: extensionId)
             return .null
         default:
-            return .null // Every other allowed method: accepted, no action.
+            return .null
         }
     }
 }
 
-
-// Ported from Legacy `SwiftCode/Services/ExtensionManager.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: ExtensionManifest.
-
-/// Represents the metadata and configuration for a SwiftCode Extension.
 struct ExtensionManifest: Identifiable, Codable, Hashable {
-    var id: String                      // Unique identifier (folder name)
+    var id: String
     var name: String
     var version: String
     var description: String
     var author: String
     var category: ExtensionCategory
     var capabilities: [ExtensionCapability]
-    var entryPoint: String              // Relative path to the main Swift file
-    var assetPaths: [String]            // Relative paths to asset files
+    var entryPoint: String
+    var assetPaths: [String]
     var isInstalled: Bool
     var isEnabled: Bool
     var isUserCreated: Bool

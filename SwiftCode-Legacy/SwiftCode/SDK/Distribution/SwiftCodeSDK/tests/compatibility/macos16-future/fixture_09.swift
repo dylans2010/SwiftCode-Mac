@@ -1,5 +1,3 @@
-// Compatibility Verification Fixture for macos16-future - Target 9
-
 public struct CompatEntity_macos16_future_09_0000: Sendable, Codable {
     public let id: String = "macos16-future.9.0"
     public init() {}

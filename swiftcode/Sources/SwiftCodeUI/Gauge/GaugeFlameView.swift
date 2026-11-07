@@ -2,9 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProfiler
 
-/// The flame graph (`specs/ide/profiler.md` §4.4, §6): the call tree's
-/// boxes, the outermost frames at the bottom. A click selects the box's node
-/// (the call tree selects it too); the selection's boxes are outlined.
 @MainActor
 public final class GaugeFlameView: NSView {
     public let model: GaugeModel

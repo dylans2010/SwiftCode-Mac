@@ -1,17 +1,10 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The merge sheet (`specs/ide/merge-sheet.md` §2–§9): the conflicted
-/// files, the two aligned panes with the gutter's tokens and the Choose
-/// menu, the commit footers with the change stepper, and Cancel and
-/// Merge. It draws the core's `ConflictEditorState` (which the Linux IDE's
-/// sheet draws too) and reads git off the main actor; the window's source
-/// control coordinator performs Merge and Cancel.
 @MainActor
 public final class MergeSheetController: NSViewController, NSTextViewDelegate {
     public let repository: GitRepository
     public private(set) var state = ConflictEditorState(source: .repository)
-    /// File list: Flat instead of Hierarchical.
     public private(set) var isFlat = false
     public private(set) var filterText = ""
 
@@ -24,12 +17,10 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
     public let footer = MergeFooterView()
     public let cancelButton = MergeButton(title: MergeSheetText.cancel)
     public let mergeButton = MergeButton(title: MergeSheetText.merge)
-    /// The last Choose menu shown (tests).
     public private(set) var lastChooseMenu: NSMenu?
 
     var onMerge: (() -> Void)?
     var onCancel: (() -> Void)?
-    /// A file was marked resolved (the window reads git again).
     var onResolved: (() -> Void)?
 
     private var pending: [Int: Task<Void, Never>] = [:]
@@ -45,8 +36,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: View
 
     public override func loadView() {
         sheetView.frame = NSRect(x: 0, y: 0, width: 1352, height: 800)
@@ -75,12 +64,10 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
 
     @objc func scrolled() { }
 
-    /// Positions everything from the spec's metrics (§2–§9).
     func layoutSheet() {
         typealias M = MergeSheetMetrics
         let size = sheetView.bounds.size
         let boxF = M.contentBox(sheet: (Double(size.width), Double(size.height)))
-        // Whole pixels: at 1x the box's 11.5 rounds, so rows and rules stay sharp.
         sheetView.box.frame = sheetView.backingAlignedRect(NSRect(x: boxF.x, y: boxF.y, width: boxF.width, height: boxF.height),
                                                            options: .alignAllEdgesNearest)
         let c = M.columns(boxWidth: boxF.width)
@@ -106,11 +93,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
                                     width: CGFloat(M.buttonWidth), height: CGFloat(M.buttonHeight))
     }
 
-    // MARK: Loading
-
-    /// Reads the conflicted files, the operation, the footers and every
-    /// file's merge (so Merge knows when all are decided), then shows the
-    /// focused or first file.
     public func reloadFiles() {
         let repo = repository
         let wanted = state.currentFile ?? focus
@@ -139,7 +121,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         }
     }
 
-    /// The window's latest snapshot: a file resolved elsewhere moves on.
     public func update(integration: GitRepository.IntegrationState, conflicted: [String]) {
         guard loading == nil else { return }
         if case .show(let next) = state.update(integration: integration, conflicted: conflicted) {
@@ -149,7 +130,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         render()
     }
 
-    /// Shows one conflicted file, keeping the choices made in the others.
     public func show(file: String?) async {
         let repo = repository
         guard let file else { state.show(file: nil, document: nil); render(); return }
@@ -182,32 +162,24 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         return t
     }
 
-    /// Waits until no read or write runs (tests).
     public func idle() async {
         while let t = pending.values.first { await t.value }
     }
 
-    // MARK: Changes
-
-    /// Selects a change and scrolls it into view.
     public func selectHunk(_ h: Int?) {
         state.selectHunk(h)
         render()
         scrollToSelection()
     }
 
-    /// The stepper's chevrons (§8).
     @objc public func nextHunk(_ sender: Any?) { state.nextHunk(); render(); scrollToSelection() }
     @objc public func previousHunk(_ sender: Any?) { state.previousHunk(); render(); scrollToSelection() }
 
-    /// A choice for the selected change (§7): the left pane changes in one
-    /// frame and the change stays selected.
     public func choose(_ choice: MergeDocument.Choice) {
         state.chooseKeepingSelection(choice)
         render()
     }
 
-    /// The Choose menu of change `h`'s token (§7).
     public func chooseMenu(forHunk h: Int) -> NSMenu {
         let menu = NSMenu(title: "Choose")
         menu.autoenablesItems = false
@@ -228,8 +200,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         render()
     }
 
-    /// Clicking a token: selects its change and opens the Choose menu below
-    /// it, its top-left at the token's centre and 3 below its bottom.
     func showChooseMenu(forHunk h: Int) {
         selectHunk(h)
         let menu = chooseMenu(forHunk: h)
@@ -238,7 +208,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         menu.popUp(positioning: nil, at: NSPoint(x: t.midX, y: t.maxY + 3), in: canvas)
     }
 
-    /// Hand editing (SwiftCode's choice): the selected change's text.
     public func beginEditing() {
         state.beginEditing()
         canvas.handEditor.string = state.editedText
@@ -259,8 +228,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         renderButtons()
     }
 
-    // MARK: Files
-
     public func setFlat(_ flat: Bool) {
         isFlat = flat
         fileList.needsDisplay = true
@@ -271,7 +238,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         fileList.needsDisplay = true
     }
 
-    /// The file list's rows as shown.
     public var fileRows: [ConflictEditorState.FileRow] {
         state.fileRows(root: repository.root.path, flat: isFlat, filter: filterText)
     }
@@ -280,8 +246,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         Task { await show(file: path) }
     }
 
-    // MARK: Buttons
-
     @objc public func merge(_ sender: Any?) {
         guard state.canMerge else { NSSound.beep(); return }
         onMerge?()
@@ -289,8 +253,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
 
     @objc public func cancel(_ sender: Any?) { onCancel?() }
 
-    /// Mark as Resolved for the shown file (Integrate ▸ Mark as Resolved,
-    /// the change row's item): writes its result and stages it.
     @discardableResult
     public func markResolved() async -> Bool {
         guard let file = state.currentFile, let doc = state.document, doc.isResolved else { return false }
@@ -308,7 +270,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         return true
     }
 
-    /// Writes every decided file and stages it (Merge's first step).
     func writeResolutions() async -> String? {
         let repo = repository, items = state.resolutions
         var error: String?
@@ -324,8 +285,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
         render()
         return error
     }
-
-    // MARK: Rendering
 
     func render() {
         guard isViewLoaded else { return }
@@ -368,7 +327,6 @@ public final class MergeSheetController: NSViewController, NSTextViewDelegate {
     }
 }
 
-/// The sheet: white, corner radius 16, a soft shadow, no title (§2).
 @MainActor
 public final class MergeSheetView: NSView {
     weak var controller: MergeSheetController?
@@ -413,8 +371,6 @@ public final class MergeSheetView: NSView {
     public override func cancelOperation(_ sender: Any?) { controller?.cancel(sender) }
 }
 
-/// The bordered content box (§2): a 1-point #BFBFBF border, square
-/// corners, the 1-point rule after the file list.
 @MainActor
 public final class MergeBoxView: NSView {
     public override var isFlipped: Bool { true }
@@ -431,7 +387,6 @@ public final class MergeBoxView: NSView {
     }
 }
 
-/// Text drawing for the sheet's bars.
 @MainActor
 enum MergeDraw {
     @discardableResult
@@ -450,7 +405,6 @@ enum MergeDraw {
         (s as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: weight)]).width
     }
 
-    /// A symbol tinted with `color`, `size` points tall, centred in `rect`.
     static func symbol(_ name: String, in rect: NSRect, color: NSColor, pointSize: CGFloat = 11) {
         guard let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: pointSize, weight: .regular)) else { return }
@@ -465,7 +419,6 @@ enum MergeDraw {
                     from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
     }
 
-    /// Swift sources orange, other files the accent (the navigator's tints).
     static func fileTint(_ name: String) -> NSColor {
         URL(fileURLWithPath: name).pathExtension == "swift" ? NSColor(srgbRed: 0.95, green: 0.42, blue: 0.2, alpha: 1) : .controlAccentColor
     }
@@ -481,8 +434,6 @@ enum MergeDraw {
     }
 }
 
-/// The file list (§3): "Hierarchical | Flat", 24-point rows with a flush
-/// full-width selection, the red "C" badge, and the Filter field.
 @MainActor
 public final class MergeFileListView: NSView, NSTextFieldDelegate {
     weak var controller: MergeSheetController?
@@ -508,7 +459,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
 
     public override var isFlipped: Bool { true }
 
-    /// The segments' frames: Hierarchical (the 74.5-wide pill), Flat.
     public var segmentFrames: (hierarchical: NSRect, flat: NSRect) {
         let hw: CGFloat = 74.5, fw: CGFloat = 40.5
         let x0 = ((bounds.width - hw - fw) / 2).rounded(.down) + 0.5
@@ -520,7 +470,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
         NSRect(x: 5.5, y: bounds.height - CGFloat(M.filterBottom) - CGFloat(M.filterHeight), width: bounds.width - 11, height: CGFloat(M.filterHeight))
     }
 
-    /// A file row's frame by index into the controller's rows.
     public func rowFrame(_ i: Int) -> NSRect {
         NSRect(x: 0, y: CGFloat(M.fileListHeader) + 1 + CGFloat(i) * CGFloat(M.fileRowHeight), width: bounds.width, height: CGFloat(M.fileRowHeight))
     }
@@ -536,7 +485,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
         guard let c = controller else { return }
         NSColor(mergeHex: p.sheet).setFill()
         bounds.fill()
-        // Header band and its segments.
         let seg = segmentFrames
         let selected = c.isFlat ? seg.flat : seg.hierarchical
         NSColor(mergeHex: p.segmentPill).setFill()
@@ -548,7 +496,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
         }
         NSColor(mergeHex: p.bandRule).setFill()
         NSRect(x: 0, y: CGFloat(M.fileListHeader), width: bounds.width, height: 1).fill()
-        // Rows.
         let rows = c.fileRows
         if rows.isEmpty, c.state.files.isEmpty, c.loading != nil {
             MergeDraw.text(MergeSheetText.loading, at: NSPoint(x: 12, y: CGFloat(M.fileListHeader) + 6), size: 12, color: NSColor(mergeHex: p.secondaryLabel))
@@ -562,7 +509,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
             }
             let ink = isSelected ? NSColor.white : NSColor(mergeHex: p.label)
             if r.kind == .folder {
-                // Disclosure triangle (open), folder symbol, name.
                 let tri = NSBezierPath()
                 tri.move(to: NSPoint(x: 5, y: f.midY - 2))
                 tri.line(to: NSPoint(x: 11, y: f.midY - 2))
@@ -589,7 +535,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
                 }
             }
         }
-        // The Filter field.
         let ff = filterFrame
         NSColor(mergeHex: p.filterFill).setFill()
         NSBezierPath(roundedRect: ff, xRadius: 6, yRadius: 6).fill()
@@ -611,7 +556,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
 
     public func controlTextDidChange(_ obj: Notification) { controller?.setFilter(filterField.stringValue) }
 
-    // A context menu on a file: Mark as Resolved (SwiftCode's choice).
     public override func menu(for event: NSEvent) -> NSMenu? {
         guard let c = controller else { return nil }
         let pt = convert(event.locationInWindow, from: nil)
@@ -630,9 +574,6 @@ public final class MergeFileListView: NSView, NSTextFieldDelegate {
     }
 }
 
-/// The comparison's jump bar (§4.1): the grid symbol, back and forward,
-/// the path to the file and "No Selection"; over the right pane, the
-/// conflict navigator (previous, the conflict mark, next).
 @MainActor
 public final class MergeJumpBarView: NSView {
     weak var controller: MergeSheetController?
@@ -640,7 +581,6 @@ public final class MergeJumpBarView: NSView {
 
     public override var isFlipped: Bool { true }
 
-    /// The conflict navigator's previous and next chevrons.
     public var navigatorFrames: (previous: NSRect, next: NSRect) {
         let right = bounds.width - 16
         return (NSRect(x: right - 40, y: 0, width: 10, height: 36), NSRect(x: right - 9, y: 0, width: 10, height: 36))
@@ -673,7 +613,6 @@ public final class MergeJumpBarView: NSView {
             x += 10
         }
         if !path.isEmpty { MergeDraw.text(MergeSheetText.noSelection, at: NSPoint(x: x, y: 0), size: 12, color: label, centredIn: h) }
-        // The conflict navigator.
         let nav = navigatorFrames
         MergeDraw.symbol("chevron.left", in: nav.previous, color: ink, pointSize: 10)
         MergeDraw.symbol("chevron.right", in: nav.next, color: ink, pointSize: 10)
@@ -698,9 +637,6 @@ public final class MergeJumpBarView: NSView {
     }
 }
 
-/// The footer row under both panes (§8): each side's repository › branch ›
-/// date, author and short hash, and the "‹ n/m ›" stepper centred on the
-/// gutter.
 @MainActor
 public final class MergeFooterView: NSView {
     weak var controller: MergeSheetController?
@@ -709,7 +645,6 @@ public final class MergeFooterView: NSView {
 
     public override var isFlipped: Bool { true }
 
-    /// The stepper: 60 wide, centred on the gutter.
     public var stepperFrame: NSRect {
         NSRect(x: gutterX + CGFloat(MergeSheetMetrics.gutterWidth) / 2 - 30, y: 1, width: 60, height: bounds.height - 1)
     }

@@ -2,16 +2,6 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// Preview environment state (Legacy
-/// `SwiftCode/Core/Preview/PreviewState.swift`, Dylan's own code,
-/// ported under MIT). The destination's `PreviewCanvasSettings` had
-/// only 6 toggles (Display, Color Scheme, Contrast, Control Borders,
-/// Orientation, Dynamic Type); this restores the full set Legacy
-/// carried: localization, high contrast, bold text, reduce motion,
-/// layout direction, custom width/height, safe-area insets, and
-/// display scale. Applied to a view by `applyPreviewEnvironment`
-/// (`PreviewEnvironment.swift`).
-
 @Observable
 @MainActor
 public final class PreviewState {

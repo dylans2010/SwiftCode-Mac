@@ -1,12 +1,3 @@
-// IPC contract tests for @swiftcode/sdk (specs/ide/sdk-platform.md).
-//
-// Loads the real compiled dist/index.js and exercises the real
-// createStdioConnection over a loopback PassThrough pair: nothing about
-// the unit under test is mocked. The "host" side is a scripted fake host
-// writing raw NDJSON frames — the tests verify the package's real wire
-// behavior against scripted host frames.
-//
-// Run: `npm run build && npm test` (npm test = `node --test tests/`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
@@ -18,7 +9,6 @@ const distUrl = pathToFileURL(
 ).href;
 const { createStdioConnection, SDKError, SDK_PROTOCOL_VERSION } = await import(distUrl);
 
-/** NDJSON line reader over a stream: returns a fn resolving the next raw line. */
 function lineReader(stream) {
   let buffer = "";
   const lines = [];
@@ -44,28 +34,20 @@ function lineReader(stream) {
     });
 }
 
-/**
- * Loopback IPC pair. `connection` is the real SDK connection under test;
- * the test plays the scripted host: it reads the extension's frames from
- * `nextRequestLine` and writes raw frames back via `hostWrite`.
- */
 function makeLoopback() {
-  const hostToExt = new PassThrough(); // host→extension ("stdin")
-  const extToHost = new PassThrough(); // extension→host ("stdout")
+  const hostToExt = new PassThrough();
+  const extToHost = new PassThrough();
   const connection = createStdioConnection(hostToExt, extToHost);
   const nextRequestLine = lineReader(extToHost);
   return {
     connection,
     nextRequestLine,
-    /** Raw chunk to the extension, no newline added. */
     hostWriteRaw(chunk) {
       hostToExt.write(chunk);
     },
-    /** One complete NDJSON frame to the extension. */
     hostWriteFrame(frame) {
       hostToExt.write(`${JSON.stringify(frame)}\n`);
     },
-    /** Scripted ok:true response. */
     hostRespondOk(requestId, payload) {
       hostToExt.write(
         `${JSON.stringify({ protocolVersion: 1, type: "response", requestId, ok: true, payload })}\n`,
@@ -74,7 +56,6 @@ function makeLoopback() {
   };
 }
 
-/** Silences the SDK's stderr diagnostics for one synchronous-ish span. */
 function swallowStderr() {
   const original = process.stderr.write.bind(process.stderr);
   process.stderr.write = () => true;
@@ -96,7 +77,6 @@ describe("ipc", () => {
     assert.equal(wire.method, "echo");
     assert.deepEqual(wire.payload, { a: 1 });
 
-    // Deliver the response split across two chunks: framing must reassemble.
     const response = JSON.stringify({
       protocolVersion: 1,
       type: "response",
@@ -117,15 +97,12 @@ describe("ipc", () => {
     const ids = Array.from({ length: count }, (_, i) => `req-${i}`);
     const pending = ids.map((requestId, i) => connection.request("work", { index: i }, requestId));
 
-    // Read all 10 request frames first…
     const frames = [];
     for (let i = 0; i < count; i++) frames.push(JSON.parse(await nextRequestLine()));
     assert.deepEqual(
       frames.map((f) => f.requestId).sort(),
       ids.slice().sort(),
     );
-    // …then answer in REVERSE order: correlation must be by requestId,
-    // not by arrival order.
     for (let i = count - 1; i >= 0; i--) {
       hostRespondOk(ids[i], { index: i, echoed: frames[i].payload.index });
     }
@@ -140,7 +117,7 @@ describe("ipc", () => {
   it("ok:false response throws SDKError carrying code/message/correlationId", async () => {
     const { connection, nextRequestLine, hostWriteFrame } = makeLoopback();
     const pending = connection.request("denied", {}, "r-denied");
-    await nextRequestLine(); // consume the request frame
+    await nextRequestLine();
     hostWriteFrame({
       protocolVersion: 1,
       type: "response",
@@ -187,7 +164,7 @@ describe("ipc", () => {
       await nextRequestLine();
       hostWriteRaw("this is not json at all\n");
       hostWriteRaw('{"type":"response","requestId":"no-such-request","ok":true,"payload":{}}\n');
-      hostWriteRaw("\n"); // blank line: ignored, never a frame
+      hostWriteRaw("\n");
       hostRespondOk("r-ping", { pong: true });
       assert.deepEqual(await pending, { pong: true });
       connection.close();
@@ -202,7 +179,6 @@ describe("ipc", () => {
       const { connection, hostWriteRaw } = makeLoopback();
       const seen = [];
       connection.onEvent((event) => seen.push(event.name));
-      // v2 event must NOT reach listeners; v1 event must.
       hostWriteRaw('{"protocolVersion":2,"type":"event","requestId":"v2","event":"commands.execute","payload":{}}\n');
       hostWriteRaw('{"protocolVersion":1,"type":"event","requestId":"v1","event":"shutdown","payload":{}}\n');
       await new Promise((resolve) => setImmediate(resolve));
@@ -230,7 +206,6 @@ describe("ipc", () => {
     const { connection } = makeLoopback();
     assert.equal(connection.closed, false);
     const pending = connection.request("never-answered", {});
-    // Attach the rejection assertion BEFORE closing: nothing may hang.
     const assertion = assert.rejects(pending, (error) => {
       assert.ok(error instanceof SDKError);
       assert.equal(error.code, "IPC_CLOSED");

@@ -1,6 +1,5 @@
 import Foundation
 
-/// SwiftCode's own SQLite schema (`design.md` §4). `user_version` tracks it.
 enum Schema {
     static let version = 1
 
@@ -70,7 +69,6 @@ enum Schema {
         "CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)",
     ]
 
-    /// Association kinds.
     static let correlationMember: Int64 = 1
     static let workoutSample: Int64 = 2
 }

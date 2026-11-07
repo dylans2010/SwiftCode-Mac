@@ -1,19 +1,5 @@
 import Foundation
 
-/// Built-in (no-binary) source formatting (Legacy
-/// `SwiftCode/Services/CodeFormatter.swift`, Dylan's own code, ported
-/// under MIT).
-///
-/// The destination formats Swift only by wrapping a real `swift-format`
-/// binary (`SwiftFormatTool`) and fails honestly with none installed;
-/// JSON formatting exists only as the `formatJsonFile` MCP tool. This
-/// is the no-binary fallback Legacy shipped: heuristic Swift
-/// re-indentation / spacing / import sorting, JSON pretty-printing,
-/// and generic whitespace normalisation. It is a fallback, not a
-/// replacement — callers that have a `swift-format` binary should
-/// keep using `SwiftFormatTool` first and use this only when none is
-/// found. `formatJSON` is the formatter API the `formatJsonFile` tool
-/// can now call directly.
 public final class CodeFormatter: Sendable {
     public static let shared = CodeFormatter()
     public init() {}
@@ -28,8 +14,6 @@ public final class CodeFormatter: Sendable {
             return formatGeneric(source)
         }
     }
-
-    // MARK: - Swift Formatting
 
     private func formatSwift(_ source: String) -> String {
         var lines = source.components(separatedBy: "\n")
@@ -53,8 +37,6 @@ public final class CodeFormatter: Sendable {
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - JSON Formatting
-
     private func formatJSON(_ source: String) -> String {
         guard let data = source.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data),
@@ -65,16 +47,12 @@ public final class CodeFormatter: Sendable {
         return result
     }
 
-    // MARK: - Generic Formatting
-
     private func formatGeneric(_ source: String) -> String {
         var lines = source.components(separatedBy: "\n")
         lines = lines.map { normalizeWhitespace($0) }
         lines = normalizeBlankLines(lines)
         return lines.joined(separator: "\n")
     }
-
-    // MARK: - Whitespace Normalization
 
     private func normalizeWhitespace(_ line: String) -> String {
         let trailing = line.replacingOccurrences(
@@ -125,8 +103,6 @@ public final class CodeFormatter: Sendable {
         return result
     }
 
-    // MARK: - Swift Re-indentation
-
     private func reindentSwift(_ lines: [String]) -> [String] {
         let indentUnit = "    "
         var indentLevel = 0
@@ -175,8 +151,6 @@ public final class CodeFormatter: Sendable {
         lines
     }
 
-    // MARK: - Operator Spacing
-
     private func formatOperatorSpacing(_ lines: [String]) -> [String] {
         lines.map { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -199,8 +173,6 @@ public final class CodeFormatter: Sendable {
         }
     }
 
-    // MARK: - Colon Spacing
-
     private func formatColonSpacing(_ lines: [String]) -> [String] {
         lines.map { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -210,8 +182,6 @@ public final class CodeFormatter: Sendable {
             return line
         }
     }
-
-    // MARK: - Comma Spacing
 
     private func formatCommaSpacing(_ lines: [String]) -> [String] {
         lines.map { line in
@@ -232,8 +202,6 @@ public final class CodeFormatter: Sendable {
             return result
         }
     }
-
-    // MARK: - Import Organization
 
     private func normalizeImports(_ lines: [String]) -> [String] {
         var importLines: [String] = []

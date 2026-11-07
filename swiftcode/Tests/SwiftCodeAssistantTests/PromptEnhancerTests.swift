@@ -2,14 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// MARK: - Prompt enhancer (bulk migration, Backend-Assist slice)
-//
-// Deterministic paths only: empty-input passthrough (which never
-// touches the provider) and the JSON reply parser. No test here
-// calls the on-device model — whether Apple Foundation Models is
-// available depends on the machine running the suite, so the live
-// enhancement path is exercised on Dylan's Mac, not asserted here.
-
 @Suite struct PromptEnhancerTests {
     @Test func emptyInputReturnsUnchanged() async {
         let result = await PromptEnhancer.enhancePrompt(userInput: "", modelID: nil)

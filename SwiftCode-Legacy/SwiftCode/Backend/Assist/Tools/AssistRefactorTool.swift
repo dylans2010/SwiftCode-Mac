@@ -33,7 +33,7 @@ public struct AssistRefactorTool: AssistTool {
         do {
             let content = try context.fileSystem.readFile(at: path)
 
-            let provider = AssistModelProvider.openAI // Default for now
+            let provider = AssistModelProvider.openAI
             let apiKey = await provider.storedAPIKey()
 
             let prompt = """

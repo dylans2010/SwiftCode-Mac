@@ -6,7 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// A macOS storyboard written for this test in the documented XML layout.
 let sampleStoryboard = """
 <?xml version="1.0" encoding="UTF-8"?>
 <document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="1" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" initialViewController="vc1">
@@ -52,7 +51,6 @@ let sampleStoryboard = """
 </document>
 """
 
-/// An iOS xib (top-left coordinates).
 let sampleXib = """
 <?xml version="1.0" encoding="UTF-8"?>
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="1" targetRuntime="iOS.CocoaTouch" useAutolayout="YES">
@@ -96,7 +94,6 @@ let sampleXib = """
             "  First Responder",
             "  Storyboard Entry Point",
         ])
-        // Bottom-left frames become top-left in the root view.
         let btn = try #require(doc.byID["btn"]), lbl = try #require(doc.byID["lbl"])
         #expect(doc.frameInRoot(btn) == CGRect(x: 150, y: 248, width: 100, height: 32))
         #expect(doc.frameInRoot(lbl) == CGRect(x: 20, y: 20, width: 200, height: 30))
@@ -149,15 +146,12 @@ let sampleXib = """
         let ib = try #require(wc.interfaceEditor)
         #expect(ib.selected?.id == "root")
         ib.select(id: "btn")
-        // The IB inspectors are in the window's inspector area.
         #expect(wc.inspector.tabNames == ["File", "History", "Quick Help", "Identity", "Attributes", "Size", "Connections"])
         #expect(wc.inspector.selectedIndex == 4)
         wc.inspector.select(5)
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "interface-builder.png")
-        // Opening alone never writes the file.
         #expect(try String(contentsOf: file, encoding: .utf8) == sampleStoryboard)
 
-        // Library Objects tab inserts into the selected view, written at once.
         let lib = wc.showLibrary(nil)
         _ = lib.view
         #expect(lib.objectsAvailable)
@@ -173,15 +167,12 @@ let sampleXib = """
         #expect(try String(contentsOf: file, encoding: .utf8) == sampleStoryboard)
         _ = try WindowSnapshotTests().render(lib.view, to: "library-objects.png")
 
-        // Leaving the document removes its inspectors and the Objects tab.
         wc.open(path: dir.appendingPathComponent("Package.swift").path, line: nil)
         #expect(wc.inspector.tabNames.count == 3 && !lib.objectsAvailable)
     }
 
     func lines(_ s: String) -> [String] { s.components(separatedBy: "\n") }
 
-    /// Lines of `b` not in `a`, and of `a` not in `b` (positional diff of
-    /// equal-length files, or added lines otherwise).
     func changed(_ a: String, _ b: String) -> [String] {
         let x = lines(a), y = lines(b)
         if x.count == y.count { return zip(x, y).filter { $0 != $1 }.map(\.1) }
@@ -210,12 +201,10 @@ let sampleXib = """
         c.select(id: "lbl")
         c.setPlaceholder("Name")
         #expect(text().contains("<textFieldCell key=\"cell\" title=\"Hello\" id=\"lblCell\" placeholderString=\"Name\"/>"))
-        // Turning flags back to their defaults removes the attributes.
         c.select(id: "btn")
         c.setHidden(false)
         c.setEnabled(true)
         #expect(!text().contains("hidden=") && !text().contains("enabled="))
-        // Undo everything: the original bytes.
         while c.canUndo { c.undo() }
         #expect(text() == sampleStoryboard)
         c.redo()
@@ -226,7 +215,6 @@ let sampleXib = """
         let c = InterfaceBuilderController(document: try IBDocument(data: Data(sampleXib.utf8)))
         _ = c.view
         c.select(id: "inner")
-        // A view without subviews gets a subviews element.
         c.select(id: "box")
         let id = try #require(c.insert(.button))
         #expect(id.range(of: "^[A-Za-z0-9]{3}-[A-Za-z0-9]{2}-[A-Za-z0-9]{3}$", options: .regularExpression) != nil)
@@ -260,18 +248,15 @@ let sampleXib = """
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
         window.contentViewController = c
         let canvas = c.canvas
-        // The scene is centered on its canvas location.
         let box = try #require(canvas.sceneBox(c.document.roots[0]))
         #expect(box.size == CGSize(width: 400, height: 300) && box.minX == IBCanvasView.margin)
         #expect(canvas.entryPoint != nil)
-        // Move the button 10 right and 5 down (bottom-left storage: y − 5).
         let btn = try #require(canvas.rect(of: c.document.byID["btn"]!))
         canvas.beginDrag(at: CGPoint(x: btn.midX, y: btn.midY))
         #expect(c.selected?.id == "btn")
         canvas.continueDrag(to: CGPoint(x: btn.midX + 10, y: btn.midY + 5))
         canvas.endDrag(at: CGPoint(x: btn.midX + 10, y: btn.midY + 5))
         #expect(c.document.byID["btn"]?.frame == CGRect(x: 160, y: 15, width: 100, height: 32))
-        // Resize from the bottom-right handle.
         let r = try #require(canvas.rect(of: c.document.byID["btn"]!))
         canvas.beginDrag(at: CGPoint(x: r.maxX, y: r.maxY))
         canvas.endDrag(at: CGPoint(x: r.maxX + 20, y: r.maxY + 8))
@@ -289,8 +274,6 @@ let sampleXib = """
         _ = c.view
         func text() -> String { String(decoding: c.document.source, as: UTF8.self) }
 
-        // Deleting the button removes it, its constraints, and the action;
-        // nothing else changes.
         c.select(id: "btn")
         c.deleteSelection()
         let t = text()
@@ -301,14 +284,12 @@ let sampleXib = """
         c.undo()
         #expect(text() == sampleStoryboard)
 
-        // Deleting a constraint (selected in the outline).
         c.selectConstraint("c2")
         c.deleteSelection()
         #expect(!text().contains("id=\"c2\"") && text().contains("id=\"c1\""))
         #expect(changed(text(), sampleStoryboard) == ["                            <constraint firstAttribute=\"bottom\" secondItem=\"btn\" secondAttribute=\"bottom\" constant=\"20\" id=\"c2\"/>"])
         c.undo()
 
-        // Editing a constant.
         c.setConstant(24, ofConstraint: "c2")
         #expect(text().contains("secondAttribute=\"bottom\" constant=\"24\" id=\"c2\""))
         c.setConstant(0, ofConstraint: "c2")
@@ -316,7 +297,6 @@ let sampleXib = """
         c.undo(); c.undo()
         #expect(text() == sampleStoryboard)
 
-        // Re-parent the label into a new box, keeping its canvas position.
         c.select(id: "root")
         let box = try #require(c.insert(.view))
         let before = try #require(c.canvas.rect(of: c.document.byID["lbl"]!))
@@ -324,14 +304,12 @@ let sampleXib = """
         #expect(c.document.byID["lbl"]?.parent?.id == box)
         #expect(c.canvas.rect(of: c.document.byID["lbl"]!) == before)
         #expect(!c.move(box, into: "lbl"))
-        // The moved element keeps its own lines (re-indented one level).
         #expect(text().contains("""
                                         <textField translatesAutoresizingMaskIntoConstraints="NO" id="lbl">
         """))
         while c.canUndo { c.undo() }
         #expect(text() == sampleStoryboard)
 
-        // Add New Constraints: nearest neighbors, size, centering.
         c.select(id: "lbl")
         #expect(c.document.nearestNeighbor(of: "lbl", edge: .top)?.id == "root")
         #expect(c.document.nearestNeighbor(of: "lbl", edge: .top)?.spacing == 20)

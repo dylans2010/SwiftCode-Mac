@@ -1,14 +1,7 @@
 import Foundation
 import SwiftCodePlist
 
-// Reordering and the view's sort for the property list editor
-// (`specs/ide/plist-editor.md`): items move within their container; the
-// Key, Type and Value column headers sort what is shown, never the file.
-
 extension PlistTree {
-    /// Moves the item at `path` by `offset` places within its container
-    /// (clamped to the container's ends). Returns its new path, or nil when
-    /// nothing moved (the root, a bad path, already at that end).
     @discardableResult
     public mutating func move(at path: [Int], by offset: Int) -> [Int]? {
         guard let last = path.last, offset != 0 else { return nil }
@@ -34,13 +27,8 @@ extension PlistTree {
         return parentPath + [target]
     }
 
-    /// The column a header click sorts by.
     public enum SortColumn: String, Sendable, CaseIterable { case key = "Key", type = "Type", value = "Value" }
 
-    /// The order to show a container's children in: file order without a
-    /// column, else sorted by that column's text (case-insensitive, numbers
-    /// in numeric order), ties in file order. Array items keep file order
-    /// when sorting by key ("Item N").
     public static func displayOrder(of container: PropertyListItem, by column: SortColumn?, ascending: Bool = true) -> [Int] {
         let kids = children(of: container)
         let indices = Array(kids.indices)

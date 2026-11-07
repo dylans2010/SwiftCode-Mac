@@ -1,5 +1,3 @@
-// A thin wrapper over the system SQLite 3 C library.
-
 import Foundation
 import CSQLite
 

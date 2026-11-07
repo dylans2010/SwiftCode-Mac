@@ -3,9 +3,6 @@ import Testing
 @testable import SwiftCodeBuild
 
 @Suite(.serialized, .timeLimit(.minutes(5))) struct SwiftBuildAppTests {
-    /// An AppKit app with a generated Info.plist and an asset catalog:
-    /// builds as a bundle for the host architecture, is signed ad-hoc
-    /// (Sign to Run Locally), and launches (headless smoke mode).
     @Test func buildsAndLaunchesAnApp() async throws {
         #if os(macOS)
         guard let tool = SwiftBuildEndToEndTests.swbuild else { return }
@@ -36,7 +33,6 @@ import Testing
             p.waitUntilExit()
             return (p.terminationStatus, String(decoding: data, as: UTF8.self))
         }
-        // One architecture (the host's), and a valid ad-hoc signature.
         #expect(try run("/usr/bin/lipo", ["-archs", exe]).1.trimmingCharacters(in: .whitespacesAndNewlines) == SwiftBuildEngine.hostArchitecture)
         #expect(try run("/usr/bin/codesign", ["--verify", "--strict", app.path]).0 == 0)
         #expect(try run("/usr/bin/codesign", ["-dv", app.path]).1.contains("Signature=adhoc"))

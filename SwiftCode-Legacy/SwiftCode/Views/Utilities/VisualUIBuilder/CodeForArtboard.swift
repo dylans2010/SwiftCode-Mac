@@ -16,7 +16,6 @@ public struct CodeForArtboard: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Edit Artboard Source")
@@ -37,7 +36,6 @@ public struct CodeForArtboard: View {
 
             Divider()
 
-            // Native SwiftUI TextEditor
             TextEditor(text: $draftSource)
                 .font(.system(.body, design: .monospaced))
                 .scrollContentBackground(.hidden)
@@ -47,7 +45,6 @@ public struct CodeForArtboard: View {
 
             Divider()
 
-            // Footer
             HStack {
                 Spacer()
                 Button("Cancel") {

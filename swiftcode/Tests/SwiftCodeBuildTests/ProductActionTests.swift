@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeBuild
 
-/// Product ▸ Build For ▸ Testing, Perform Action ▸ Test Without Building
-/// and the single-file actions (`specs/ide/reference-ui-5.md` §2.9).
 @Suite struct ProductActionCommandTests {
     @Test func testingStepsForPackages() {
         let r = TestRunner()
@@ -13,20 +11,16 @@ import Testing
         let run = r.command(for: req, only: ["MathTests/testAdds"])
         #expect(run.args.suffix(4) == ["test", "--skip-build", "--filter", "MathTests.testAdds\\b"])
         #expect(run.cwd == "/p")
-        // Coverage instruments the build of `swift test` only.
         var cov = r
         cov.coverage = true
         #expect(!cov.command(for: req).args.contains("--enable-code-coverage"))
         req.action = .test
         #expect(cov.command(for: req).args.contains("--enable-code-coverage"))
-        // Profiling builds use the release configuration.
         req.action = .buildForTesting
         req.configuration = "Release"
         #expect(r.command(for: req).args.suffix(2) == ["-c", "release"])
     }
 
-    /// Tests on the SwiftCode simulator (testing.md, "SwiftCode implementation"):
-    /// the destination is replaced and the host's variables are passed.
     @Test func destinationOverrideForTheSwiftCodeSimulator() {
         var r = TestRunner()
         r.destinationOverride = "platform=iOS Simulator,name=SwiftCode Simulator,arch=arm64"
@@ -36,7 +30,6 @@ import Testing
         let i = try? #require(args.firstIndex(of: "-destination"))
         #expect(i.map { args[$0 + 1] } == "platform=iOS Simulator,name=SwiftCode Simulator,arch=arm64")
         #expect(args.filter { $0 == "-destination" }.count == 1 && args.last == "test")
-        // No destination in the request: one is added.
         let bare = r.command(for: BuildRequest(container: .project("/a/A.xcodeproj"), scheme: "A", action: .test)).args
         #expect(bare.contains("platform=iOS Simulator,name=SwiftCode Simulator,arch=arm64") && bare.last == "test")
     }
@@ -47,12 +40,11 @@ import Testing
         var req = BuildRequest(container: .project("/a/A.xcodeproj"), scheme: "A", destination: "platform=macOS",
                                action: .buildForTesting, settings: [("X", "1")])
         let build = r.command(for: req, only: ["ATests/T/test"])
-        // build-for-testing builds every test; -only-testing is for running.
         #expect(build.args.suffix(4) == ["-testPlan", "Smoke", "build-for-testing", "X=1"])
         req.action = .testWithoutBuilding
         #expect(r.command(for: req, only: ["ATests/T/test"]).args.suffix(5)
                 == ["-testPlan", "Smoke", "-only-testing:ATests/T/test", "test-without-building", "X=1"])
-        req.action = .build // anything else: build and test
+        req.action = .build
         #expect(r.command(for: req).args.suffix(2) == ["test", "X=1"])
     }
 
@@ -66,10 +58,8 @@ import Testing
                       "-target", "arm64-apple-macosx15.0", "-swift-version", "5", "-I", "/products", "-D", "DEBUG", "-o", "/out/A.o"])
         let s = try #require(runner.command(.assemble, file: "/s/A.swift", context: ctx))
         #expect(s[2] == "-S" && s.last == "/out/A.s")
-        // With a main.swift the module has top-level code.
         let script = FileBuildContext(moduleName: "Tool", moduleSources: ["/s/main.swift", "/s/A.swift"], outputDirectory: "/out")
         #expect(runner.command(.compile, file: "/s/A.swift", context: script)?.contains("-parse-as-library") == false)
-        // The analyzer and the preprocessor are clang's.
         #expect(runner.command(.analyze, file: "/s/A.swift", context: ctx) == nil)
         #expect(runner.command(.preprocess, file: "/s/A.swift", context: ctx) == nil)
         #expect(runner.command(.compile, file: "/s/notes.txt", context: ctx) == nil)
@@ -89,7 +79,6 @@ import Testing
     }
 }
 
-/// Real compiler and SwiftPM runs (macOS and Linux).
 @Suite(.serialized, .timeLimit(.minutes(5))) struct ProductActionRealTests {
     func scratch(_ name: String) -> URL {
         let u = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-\(name)-\(UUID().uuidString)")
@@ -118,8 +107,6 @@ import Testing
     static let sdk: String? = nil
     #endif
 
-    /// Compile “A.swift” type-checks against the module's other file and
-    /// writes only A's object file; an error comes back as a located issue.
     @Test func compileOneSwiftFileOfAModule() async throws {
         let dir = scratch("compile-file")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -161,14 +148,11 @@ import Testing
         #expect(await runner.start(.preprocess, file: c.path, context: ctx).run().status == .succeeded)
         let pre = try String(contentsOfFile: ctx.outputDirectory + "/calc.i", encoding: .utf8)
         #expect(pre.contains("((v) * 2)") && !pre.contains("TWICE(v)"))
-        // The static analyzer reports a division by zero as a warning.
         try write("int f(int a) { int z = 0; return a / z; }\n", c)
         let analyzed = await runner.start(.analyze, file: c.path, context: ctx).run()
         #expect(analyzed.issues.contains { $0.severity == .warning && $0.message.lowercased().contains("division by zero") }, "\(analyzed.issues)")
     }
 
-    /// Build For Testing, then Test Without Building, on a real package:
-    /// the second step runs the tests the first one built.
     @Test func buildForTestingThenTestWithoutBuilding() async throws {
         let dir = scratch("bft")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -191,7 +175,6 @@ import Testing
         let request = BuildRequest(container: .package(dir.path))
         let runner = TestRunner()
 
-        // Without a build there is nothing to run.
         var withoutBuild = request
         withoutBuild.action = .testWithoutBuilding
         let early = await runner.run(withoutBuild)
@@ -200,7 +183,7 @@ import Testing
         let built = await runner.buildForTesting(request).run()
         #expect(built.status == .succeeded, "\(built.issues)")
         let (code, outcomes) = await runner.run(withoutBuild)
-        #expect(code != 0) // one test fails
+        #expect(code != 0)
         #expect(outcomes.first { $0.name == "testAdds" }?.status == .passed)
         #expect(outcomes.first { $0.name == "testBroken" }?.status == .failed)
         let only = await runner.run(withoutBuild, only: ["CalcTests/testAdds"])

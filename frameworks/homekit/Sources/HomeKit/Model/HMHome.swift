@@ -1,8 +1,5 @@
-// HMHome (object-model.md §3) and its delegate.
-
 import Foundation
 
-/// object-model.md §3: change reports per object kind; every method is optional.
 public protocol HMHomeDelegate: AnyObject {
     func homeDidUpdateName(_ home: HMHome)
     func homeDidUpdateAccessControl(forCurrentUser home: HMHome)
@@ -81,23 +78,18 @@ open class HMHome: NSObject, @unchecked Sendable {
     public weak var delegate: HMHomeDelegate?
 
     public private(set) var accessories: [HMAccessory] = []
-    /// Rooms, without the default room (object-model.md §3).
     public private(set) var rooms: [HMRoom] = []
-    /// The default room holding unassigned accessories.
     public private(set) var roomForEntireHome: HMRoom!
     public private(set) var zones: [HMZone] = []
     public private(set) var serviceGroups: [HMServiceGroup] = []
     public private(set) var actionSets: [HMActionSet] = []
     public private(set) var triggers: [HMTrigger] = []
     public private(set) var currentUser: HMUser!
-    /// Deprecated since iOS 9 (object-model.md §3); the home's users.
     @available(iOS, deprecated: 9.0)
     public var users: [HMUser] { allUsers }
     private(set) var allUsers: [HMUser] = []
 
     let connection: SwiftCodeConnection
-    /// Write actions and triggers the app created, by identifier, so the
-    /// mirror keeps the app's own instances once they are added.
     var pendingActions: [UUID: HMAction] = [:]
     var pendingTriggers: [UUID: HMTrigger] = [:]
     private var administrators: Set<UUID> = []
@@ -109,8 +101,6 @@ open class HMHome: NSObject, @unchecked Sendable {
 
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMHome)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
-
-    // MARK: Lookups
 
     func room(_ id: UUID) -> HMRoom? {
         roomForEntireHome?.uniqueIdentifier == id ? roomForEntireHome : rooms.first { $0.uniqueIdentifier == id }
@@ -130,24 +120,19 @@ open class HMHome: NSObject, @unchecked Sendable {
         return nil
     }
 
-    /// All services of the given types across the home (object-model.md §3).
     public func servicesWithTypes(_ serviceTypes: [String]) -> [HMService]? {
         let wanted = Set(serviceTypes.map { SwiftCodeHomeCatalog.normalizedTypeUUID($0) ?? $0 })
         let found = accessories.flatMap(\.services).filter { wanted.contains($0.serviceType) }
         return found
     }
 
-    /// The built-in action set of a type (`HMActionSetType…`), if any.
     public func builtinActionSet(ofType actionSetType: String) -> HMActionSet? {
         actionSets.first { $0.actionSetType == actionSetType && actionSetType != HMActionSetTypeUserDefined }
     }
 
-    /// Access control for a user of this home (object-model.md §3).
     public func homeAccessControl(for user: HMUser) -> HMHomeAccessControl {
         HMHomeAccessControl(isAdministrator: administrators.contains(user.uniqueIdentifier))
     }
-
-    // MARK: Mutations (object-model.md §3)
 
     public func updateName(_ name: String, completionHandler completion: @escaping (Error?) -> Void) {
         connection.simple(.renameHome(uniqueIdentifier, name: name), completion)
@@ -187,8 +172,6 @@ open class HMHome: NSObject, @unchecked Sendable {
         connection.simple(.removeActionSet(home: uniqueIdentifier, actionSet: actionSet.uniqueIdentifier), completion)
     }
 
-    /// Writes every action of the set; 25 if empty, 64 on partial success,
-    /// 63 if every write fails, 65 while it already runs (object-model.md §8).
     public func executeActionSet(_ actionSet: HMActionSet, completionHandler completion: @escaping (Error?) -> Void) {
         connection.simple(.executeActionSet(home: uniqueIdentifier, actionSet: actionSet.uniqueIdentifier), completion)
     }
@@ -206,14 +189,11 @@ open class HMHome: NSObject, @unchecked Sendable {
         connection.simple(.removeTrigger(home: uniqueIdentifier, trigger: trigger.uniqueIdentifier), completion)
     }
 
-    /// Adds an accessory found by `HMAccessoryBrowser` to the default room.
-    /// (SwiftCode: pairing happens without a setup sheet in this round.)
     public func addAccessory(_ accessory: HMAccessory, completionHandler completion: @escaping (Error?) -> Void) {
         guard accessory.discoveredID != nil else { fail(completion, .objectAlreadyAssociatedToHome); return }
         connection.simple(.addAccessory(home: uniqueIdentifier, discovered: accessory.uniqueIdentifier), completion)
     }
 
-    /// Removes an accessory; a bridged accessory cannot be removed on its own (34).
     public func removeAccessory(_ accessory: HMAccessory, completionHandler completion: @escaping (Error?) -> Void) {
         connection.simple(.removeAccessory(home: uniqueIdentifier, accessory: accessory.uniqueIdentifier), completion)
     }
@@ -227,13 +207,10 @@ open class HMHome: NSObject, @unchecked Sendable {
         connection.simple(.unblockAccessory(home: uniqueIdentifier, accessory: accessory.uniqueIdentifier), completion)
     }
 
-    /// SwiftCode has no user-management sheet yet: completes with 48.
     public func manageUsers(completionHandler completion: @escaping (Error?) -> Void) {
         fail(completion, .operationNotSupported)
     }
 
-    /// Deprecated in favor of `HMAccessorySetupManager` (object-model.md §3);
-    /// SwiftCode has no setup sheet in this round: completes with 48.
     @available(iOS, deprecated: 15.4)
     public func addAndSetupAccessories(completionHandler completion: @escaping (Error?) -> Void) {
         fail(completion, .operationNotSupported)
@@ -249,8 +226,6 @@ open class HMHome: NSObject, @unchecked Sendable {
             }
         }
     }
-
-    // MARK: async variants
 
     public func updateName(_ name: String) async throws { try await asyncCall { updateName(name, completionHandler: $0) } }
     public func addRoom(named name: String) async throws -> HMRoom { try await asyncCall { addRoom(withName: name, completionHandler: $0) } }
@@ -285,9 +260,6 @@ open class HMHome: NSObject, @unchecked Sendable {
         try await asyncCall { unblockAccessory(accessory, completionHandler: $0) }
     }
 
-    // MARK: Mirror
-
-    /// Reconciles this mirror with a record, keeping object identities.
     func apply(_ r: SwiftCodeHomeRecord) {
         name = r.name
         isPrimary = r.isPrimary
@@ -370,9 +342,7 @@ open class HMHome: NSObject, @unchecked Sendable {
         currentUser = allUsers.first { $0.uniqueIdentifier == r.currentUserID }
     }
 
-    /// Applies a change and, for changes made elsewhere, calls the delegates.
     func update(_ r: SwiftCodeHomeRecord, change: SwiftCodeHomeChange, notify: Bool) {
-        // Objects that disappear are captured before the mirror drops them.
         var removedAccessories: [HMAccessory] = []
         var removedRoom: HMRoom?, removedZone: HMZone?, removedGroup: HMServiceGroup?
         var removedSet: HMActionSet?, removedTrigger: HMTrigger?
@@ -449,16 +419,12 @@ open class HMHome: NSObject, @unchecked Sendable {
         }
     }
 
-    /// A value notification (object-model.md §7: delivered through the
-    /// accessory's delegate).
     func receiveValue(characteristic id: UUID, value: SwiftCodeHomeValue?) {
         guard let c = characteristic(id), let s = c.service, let a = s.accessory else { return }
         c.cachedValue = value
         a.delegate?.accessory(a, service: s, didUpdateValueFor: c)
     }
 }
-
-// MARK: - Rooms, zones, service groups, users (object-model.md §4)
 
 open class HMRoom: NSObject, @unchecked Sendable {
     public let uniqueIdentifier: UUID
@@ -470,7 +436,6 @@ open class HMRoom: NSObject, @unchecked Sendable {
         self.home = home
     }
 
-    /// The accessories assigned to this room.
     public var accessories: [HMAccessory] {
         home?.accessories.filter { $0.record.roomID == uniqueIdentifier } ?? []
     }
@@ -478,7 +443,6 @@ open class HMRoom: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMRoom)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
 
-    /// The default room cannot be renamed (29).
     public func updateName(_ name: String, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         home.connection.simple(.renameRoom(home: home.uniqueIdentifier, room: uniqueIdentifier, name: name), completion)
@@ -506,7 +470,6 @@ open class HMZone: NSObject, @unchecked Sendable {
         home.connection.simple(.renameZone(home: home.uniqueIdentifier, zone: uniqueIdentifier, name: name), completion)
     }
 
-    /// The default room cannot be placed in a zone (24).
     public func addRoom(_ room: HMRoom, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         home.connection.simple(.addRoomToZone(home: home.uniqueIdentifier, zone: uniqueIdentifier,
@@ -570,7 +533,6 @@ open class HMUser: NSObject, @unchecked Sendable {
     open override var hash: Int { uniqueIdentifier.hashValue }
 }
 
-/// Abstract base of access-control objects (iOS 11.2).
 open class HMAccessControl: NSObject, @unchecked Sendable {}
 
 open class HMHomeAccessControl: HMAccessControl, @unchecked Sendable {

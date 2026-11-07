@@ -1,8 +1,5 @@
 import Foundation
 
-/// A flame graph laid out from a top-down call tree (`specs/ide/profiler.md`
-/// §4.4): each node a rectangle at its depth, `start` and `width` in samples,
-/// children ordered by name so the same tree always draws the same way.
 public struct FlameGraph: Sendable {
     public struct Box: Sendable, Equatable {
         public var depth: Int
@@ -11,7 +8,6 @@ public struct FlameGraph: Sendable {
         public var name: String
         public var image: String
         public var kind: GaugeTrace.ImageKind
-        /// The node's key path (for selecting the same node elsewhere).
         public var path: [CallTreeNode.Key]
     }
 
@@ -19,8 +15,6 @@ public struct FlameGraph: Sendable {
     public let total: Int
     public let maxDepth: Int
 
-    /// `tree` should be top-down (not inverted). Thread nodes (Separate by
-    /// Thread) become boxes like any other node.
     public init(tree: CallTree) {
         var boxes: [Box] = []
         var maxDepth = 0
@@ -43,13 +37,10 @@ public struct FlameGraph: Sendable {
         self.maxDepth = maxDepth
     }
 
-    /// The box under a point (x in samples, depth).
     public func box(atSample x: Double, depth: Int) -> Box? {
         boxes.first { $0.depth == depth && Double($0.start) <= x && x < Double($0.start + $0.width) }
     }
 
-    /// An SVG drawing: rows 16 points tall, the root row at the bottom
-    /// (flames rise), names where they fit, a tooltip per box.
     public func svg(width: Int = 1200, title: String = "Gauge flame graph", intervalNs: UInt64 = 1_000_000) -> String {
         let row = 16, top = 34
         let height = top + (maxDepth + 1) * row + 8
@@ -83,8 +74,6 @@ public struct FlameGraph: Sendable {
         return out
     }
 
-    /// Warm colors for app code, cooler for system code, gray for the kernel;
-    /// the shade varies by name so neighbors differ.
     static func color(_ b: Box) -> String {
         var h: UInt32 = 2166136261
         for u in b.name.utf8 { h = (h ^ UInt32(u)) &* 16777619 }

@@ -1,15 +1,9 @@
-// SwiftCode extension, plan.md R4: a backend on Apple's documented WeatherKit
-// REST API v1 (rest-api.md), used with the developer's own key. Only the
-// documented endpoints are used (design.md §1 non-goals).
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 
 public struct AppleRESTWeatherBackend: WeatherBackend {
-    /// What the request needs to know about a coordinate (behavior.md §2):
-    /// the IANA time zone that groups hours into days, and the ISO 3166
-    /// country code that alerts need.
     public struct LocationContext: Sendable, Equatable {
         public var timeZone: String
         public var countryCode: String?
@@ -27,11 +21,6 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
     let httpClient: any WeatherHTTPClient
     let locationContext: @Sendable (Double, Double) async -> LocationContext
 
-    /// - Parameters:
-    ///   - locationContext: resolves a coordinate's time zone and country.
-    ///     SwiftCode's default, until the offline resolver of design.md §4 exists,
-    ///     is the process's time zone and no country (alerts then depend on
-    ///     the service's own lookup).
     public init(
         tokenProvider: any WeatherTokenProvider, baseURL: URL = AppleRESTWeatherBackend.defaultBaseURL,
         httpClient: any WeatherHTTPClient = URLSessionWeatherHTTPClient(),
@@ -46,8 +35,6 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
     }
 
     public var identifier: String { "apple-rest:\(baseURL.host ?? baseURL.absoluteString)" }
-
-    // MARK: Attribution
 
     public func attribution(language: String) async throws -> WeatherAttribution {
         let url = baseURL.appendingPathComponent("attribution").appendingPathComponent(language)
@@ -74,9 +61,6 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
             squareMarkURL: square, combinedMarkLightURL: light, combinedMarkDarkURL: dark)
     }
 
-    // MARK: Weather
-
-    /// REST data sets per planner product (behavior.md §1).
     static func dataSets(for product: WeatherProduct) -> [String] {
         switch product {
         case .currentWeather: return ["currentWeather"]
@@ -91,8 +75,6 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
 
     public func weather(for request: WeatherBackendRequest) async throws -> [WeatherProductRequest: WeatherProductResult] {
         var results: [WeatherProductRequest: WeatherProductResult] = [:]
-        // Products the documented API does not have: changes and historical
-        // comparisons are unsupported (nil); statistics cannot be served.
         var remaining: [WeatherProductRequest] = []
         for product in request.products {
             switch product.product {
@@ -111,8 +93,6 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
         guard !remaining.isEmpty else { return results }
         let context = await locationContext(request.latitude, request.longitude)
 
-        // One HTTP request normally; another only when one call asks for the
-        // same product with two different ranges (the API takes one range each).
         while !remaining.isEmpty {
             var batch: [WeatherProductRequest] = []
             var leftover: [WeatherProductRequest] = []
@@ -138,11 +118,9 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
                     batch.append(product)
                 }
             }
-            // swiftlint:disable redundant_nil_coalescing - the ranges are double optionals
             let response = try await fetchWeather(
                 request: request, products: batch, context: context, hourlyRange: hourlyRange ?? nil,
                 dailyRange: dailyRange ?? nil)
-            // swiftlint:enable redundant_nil_coalescing
             let mapper = RESTMapper(requestDate: request.requestDate, language: request.language, baseURL: baseURL)
             for product in batch {
                 results[product] = try mapper.result(for: product.product, in: response)
@@ -152,7 +130,6 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
         return results
     }
 
-    /// Builds the `GET /api/v1/weather/{language}/{latitude}/{longitude}` request.
     func weatherRequest(
         request: WeatherBackendRequest, products: [WeatherProductRequest], context: LocationContext,
         hourlyRange: WeatherProductRange?, dailyRange: WeatherProductRange?
@@ -213,25 +190,17 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
         return data
     }
 
-    /// Coordinates in the path: the rounded value in its shortest form.
     static func coordinate(_ value: Double) -> String {
         let text = "\(value)"
         return text.hasSuffix(".0") ? String(text.dropLast(2)) : text
     }
 
-    /// ISO 8601 UTC with seconds, e.g. `2026-01-16T00:30:02Z` (behavior.md §1).
     static func timestamp(_ date: Date) -> String {
         date.formatted(Date.ISO8601FormatStyle(timeZone: TimeZone(identifier: "UTC")!))
     }
 }
 
-// MARK: - Environment
-
 extension AppleRESTWeatherBackend {
-    /// The backend `WEATHERKIT_BACKEND=apple-rest` selects: a token from
-    /// `WEATHERKIT_TOKEN`, from `WEATHERKIT_TOKEN_URL`, or signed with the key
-    /// in `WEATHERKIT_KEY_FILE` for `WEATHERKIT_TEAM_ID`,
-    /// `WEATHERKIT_SERVICE_ID` and `WEATHERKIT_KEY_ID`. Nil when none is set.
     static func fromEnvironment(_ environment: [String: String]) -> AppleRESTWeatherBackend? {
         func value(_ name: String) -> String? {
             guard let text = environment[name], !text.isEmpty else { return nil }

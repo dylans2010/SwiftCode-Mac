@@ -1,17 +1,14 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// The developer tools in the active developer directory (§2.1 item 7).
 public enum DeveloperTools {
     public struct Tool: Equatable, Sendable {
         public var name: String
         public var url: URL
     }
 
-    /// The order the reference lists them in; a missing tool is left out.
     public static let order = ["Instruments", "Device Hub", "Icon Composer", "Accessibility Inspector", "FileMerge", "Create ML"]
 
-    /// Tools under `<developer dir>/Applications`.
     public static func tools(inDeveloperDirectory dir: URL, exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> [Tool] {
         order.compactMap { name in
             let url = dir.appendingPathComponent("Applications").appendingPathComponent(name + ".app")
@@ -19,7 +16,6 @@ public enum DeveloperTools {
         }
     }
 
-    /// `DEVELOPER_DIR`, else `xcode-select -p`.
     public static func activeDeveloperDirectory() -> URL? {
         if let d = ProcessInfo.processInfo.environment["DEVELOPER_DIR"], !d.isEmpty { return URL(fileURLWithPath: d) }
         MainThreadGuard.blockingCall("xcode-select -p")
@@ -35,8 +31,6 @@ public enum DeveloperTools {
         return p.terminationStatus == 0 && !s.isEmpty ? URL(fileURLWithPath: s) : nil
     }
 
-    /// Looked up once per launch, in the background (`prefetch()`, at
-    /// launch); empty until then.
     @MainActor public static var installed: [Tool] {
         if let cached { return cached }
         prefetch()
@@ -47,7 +41,6 @@ public enum DeveloperTools {
 
     nonisolated static func lookUp() -> [Tool] { activeDeveloperDirectory().map { tools(inDeveloperDirectory: $0) } ?? [] }
 
-    /// Starts the lookup off the main thread (`xcode-select -p`).
     @MainActor public static func prefetch() {
         guard cached == nil, !fetching else { return }
         fetching = true

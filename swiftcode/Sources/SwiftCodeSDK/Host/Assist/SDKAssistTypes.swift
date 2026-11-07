@@ -1,17 +1,5 @@
 import Foundation
 
-// MARK: - SDKAssistTypes
-//
-// Ported from Legacy `SwiftCode/SDK/Host/Assist/SDKAssistTypes.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Types for the entitled `assist.invoke` IPC route. Sessions are
-// host-owned: an extension may only touch sessions created under its
-// own verified key, and only with tools the host approved at session
-// creation. The host NEVER fabricates Assist responses — `send` and
-// `sendStreaming` hit the backend boundary in `SDKAssistService` and
-// throw `.serviceUnavailable` when no backend is attached.
-
 public struct SDKAssistMessage: Sendable, Codable, Equatable {
     public enum Role: String, Sendable, Codable {
         case user
@@ -30,11 +18,8 @@ public struct SDKAssistMessage: Sendable, Codable, Equatable {
 }
 
 public struct SDKAssistSessionOptions: Sendable, Codable, Equatable {
-    /// Session title, at most 256 characters. Empty means no title.
     public let title: String?
-    /// System prompt, at most 16 KiB. Empty means none.
     public let systemPrompt: String?
-    /// Model identifier, at most 256 characters. Empty means host default.
     public let model: String?
 
     public init(title: String? = nil, systemPrompt: String? = nil, model: String? = nil) {
@@ -53,8 +38,6 @@ public struct SDKAssistSession: Sendable, Codable, Equatable {
     public let createdAt: Date
     public var isClosed: Bool
     public var messages: [SDKAssistMessage]
-    /// Tool IDs the session may invoke — snapshotted from the host's
-    /// ACTIVE grants at creation. Never extended afterwards.
     public let allowedToolIDs: [String]
 
     public init(

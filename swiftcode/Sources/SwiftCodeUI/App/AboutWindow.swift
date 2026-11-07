@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The app icon drawn from its geometry (`ProductIconGeometry`), so the app
-/// shows it at any size even when run outside its bundle, where there is no
-/// `.icns` to load.
 @MainActor
 public enum ProductIcon {
     public static let image: NSImage = {
@@ -20,7 +17,6 @@ public enum ProductIcon {
         return NSColor(srgbRed: CGFloat(v >> 16 & 255) / 255, green: CGFloat(v >> 8 & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
     }
 
-    /// Top-left origin: the handler's image is flipped.
     nonisolated static func draw(in rect: NSRect) {
         typealias G = ProductIconGeometry
         let k = rect.width / G.side
@@ -37,7 +33,6 @@ public enum ProductIcon {
         field.line(to: p(a, a + s))
         field.curve(to: p(a + s, a), controlPoint1: p(a, a + c), controlPoint2: p(a + c, a))
         field.close()
-        // The image is flipped, so 90° runs top to bottom.
         NSGradient(starting: color(G.fieldTop), ending: color(G.fieldBottom))?.draw(in: field, angle: 90)
         func stroke(_ points: [(Double, Double)], _ hex: String) {
             let path = NSBezierPath()
@@ -53,8 +48,6 @@ public enum ProductIcon {
     }
 }
 
-/// SwiftCode ▸ About SwiftCode: the icon, the version, the license, the links and the
-/// "not affiliated" line.
 @MainActor
 public final class AboutWindowController: NSWindowController {
     public static let shared = AboutWindowController()

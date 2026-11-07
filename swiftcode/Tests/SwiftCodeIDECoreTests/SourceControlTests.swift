@@ -4,7 +4,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Runs git in `dir` (test setup only; the repository is created here).
 @discardableResult
 private func git(_ dir: URL, _ args: String...) throws -> String {
     try GitRepository.run("/usr/bin/git", ["-C", dir.path, "-c", "user.name=SwiftCode Test", "-c", "user.email=test@swiftcode.invalid",
@@ -13,8 +12,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
 
 @MainActor
 @Suite(.serialized) struct SourceControlTests {
-    /// A fresh repository under .build-ide with a package, a tag, a second
-    /// branch, a remote (never contacted), one modified and one new file.
     func makeRepo() throws -> URL {
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/scm-repo")
         try? FileManager.default.removeItem(at: dir)

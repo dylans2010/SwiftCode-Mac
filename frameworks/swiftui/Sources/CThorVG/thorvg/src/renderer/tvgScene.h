@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_SCENE_H_
 #define _TVG_SCENE_H_
 
@@ -31,13 +9,13 @@
 struct SceneImpl : Scene
 {
     Paint::Impl impl;
-    list<Paint*> paints;     //children list
+    list<Paint*> paints;
     RenderRegion vport = {};
     Array<RenderEffect*>* effects = nullptr;
-    Point fsize;          //fixed scene size
-    bool fixed = false;   //true: fixed scene size, false: dynamic size
+    Point fsize;
+    bool fixed = false;
     bool vdirty = false;
-    uint8_t opacity;      //for composition
+    uint8_t opacity;
 
     SceneImpl() : impl(Paint::Impl(this))
     {
@@ -59,15 +37,12 @@ struct SceneImpl : Scene
     {
         if (opacity == 0 || paints.empty()) return 0;
 
-        //post effects, masking, blending may require composition
         if (effects) impl.mark(CompositionFlag::PostProcessing);
         if (PAINT(this)->mask(nullptr) != MaskMethod::None) impl.mark(CompositionFlag::Masking);
         if (impl.blendMethod != BlendMethod::Normal) impl.mark(CompositionFlag::Blending);
 
-        //Half translucent requires intermediate composition.
         if (opacity == 255) return impl.cmpFlag;
 
-        //Only shape or picture may not require composition.
         if (paints.size() == 1) {
             auto type = paints.front()->type();
             if (type == Type::Shape || type == Type::Picture) return impl.cmpFlag;
@@ -88,20 +63,16 @@ struct SceneImpl : Scene
         if (paints.empty()) return true;
 
         if (needComposition(opacity)) {
-            /* Overriding opacity value. If this scene is half-translucent,
-               It must do intermediate composition with that opacity value. */
             this->opacity = opacity;
             opacity = 255;
         }
 
-        //allow partial rendering?
         auto recover = fixed ? renderer->partial(true) : false;
 
         for (auto paint : paints) {
             PAINT(paint)->update(renderer, transform, clips, opacity, flag, false);
         }
 
-        //recover the condition
         if (fixed) renderer->partial(recover);
 
         if (effects) {
@@ -110,7 +81,6 @@ struct SceneImpl : Scene
             }
         }
 
-        //this viewport update is more performant than in bounds(). No idea.
         vport = renderer->viewport();
 
         if (fixed) {
@@ -120,8 +90,6 @@ struct SceneImpl : Scene
             vdirty = true;
         }
 
-        //bounds(renderer) here hinders parallelization
-        //TODO: we can bring the precise effects region here
         if (fixed || effects) impl.damage(vport);
 
         return true;
@@ -132,7 +100,6 @@ struct SceneImpl : Scene
         if (paints.empty()) return true;
 
         RenderCompositor* cmp = nullptr;
-        // its parent is already in composition mode, maybe parasitize its surface
         auto incomposite = (uint8_t(CompositionFlag::PostProcessing) & uint8_t(flag)) && !effects;
         auto ret = true;
 
@@ -148,9 +115,7 @@ struct SceneImpl : Scene
         }
 
         if (cmp) {
-            //Apply post effects if any.
             if (effects) {
-                //Notify the possibility of the direct composition of the effect result to the origin surface.
                 auto direct = (effects->count == 1) & (impl.marked(CompositionFlag::PostProcessing));
                 ARRAY_FOREACH(p, *effects) {
                     if ((*p)->valid) renderer->render(cmp, *p, direct);
@@ -168,7 +133,6 @@ struct SceneImpl : Scene
         if (!vdirty) return vport;
         vdirty = false;
 
-        //Merge regions
         RenderRegion pRegion = {INT32_MAX, INT32_MAX, 0, 0};
         for (auto paint : paints) {
             auto region = paint->pImpl->bounds();
@@ -178,12 +142,10 @@ struct SceneImpl : Scene
             if (pRegion.yMax < region.yMax) pRegion.yMax = region.yMax;
         }
 
-        //Extends the render region if post effects require
         if (effects) {
             ARRAY_FOREACH(p, *effects) {
                 auto effect = *p;
                 if (!effect->valid || !impl.renderer->region(effect)) continue;
-                // Each effect expands the output of the preceding effects.
                 pRegion.xMin += effect->extend.xMin;
                 pRegion.yMin += effect->extend.yMin;
                 pRegion.xMax += effect->extend.xMax;
@@ -206,7 +168,6 @@ struct SceneImpl : Scene
         for (auto paint : paints) {
             Point tmp[4];
             if (!PAINT(paint)->bounds(tmp, obb ? nullptr : &m, false)) continue;
-            //Merge regions
             for (int i = 0; i < 4; ++i) {
                 if (tmp[i].x < min.x) min.x = tmp[i].x;
                 if (tmp[i].x > max.x) max.x = tmp[i].x;
@@ -305,20 +266,18 @@ struct SceneImpl : Scene
     {
         if (paints.empty()) return Result::Success;
 
-        //Don't need to damage for children
         auto recover = (fixed && impl.renderer) ? impl.renderer->partial(true) : false;
         auto partialDmg = !(effects || fixed || recover);
 
         auto itr = paints.begin();
         while (itr != paints.end()) {
             auto paint = PAINT((*itr));
-            //when the paint is destroyed damage will be triggered
             if (paint->refCnt > 1 && partialDmg) paint->damage();
             paint->unref();
             paints.erase(itr++);
         }
         if (fixed && impl.renderer) impl.renderer->partial(recover);
-        if (effects || fixed) impl.damage(vport);  //redraw scene full region
+        if (effects || fixed) impl.damage(vport);
 
         return Result::Success;
     }
@@ -326,7 +285,6 @@ struct SceneImpl : Scene
     Result remove(Paint* paint)
     {
         if (PAINT(paint)->parent != this) return Result::InsufficientCondition;
-        //when the paint is destroyed damage will be triggered
         if (PAINT(paint)->refCnt > 1) PAINT(paint)->damage();
         PAINT(paint)->unref();
         paints.remove(paint);
@@ -345,13 +303,11 @@ struct SceneImpl : Scene
 
         target->ref();
 
-        //Relocated the paint to the current scene space
         timpl->mark(RenderUpdateFlag::Transform);
 
         if (!at) {
             paints.push_back(target);
         } else {
-            //OPTIMIZE: Remove searching?
             auto itr = find_if(paints.begin(), paints.end(),[&at](const Paint* paint){ return at == paint; });
             if (itr == paints.end()) return Result::InvalidArguments;
             paints.insert(itr, target);
@@ -442,4 +398,4 @@ struct SceneImpl : Scene
     }
 };
 
-#endif //_TVG_SCENE_H_
+#endif

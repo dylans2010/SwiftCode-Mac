@@ -1,22 +1,8 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/API/Internal API/Reverse/ReverseBridge.swift` (commit d51a8f0d, Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources/SwiftCodeAssistant.
-// SwiftCodeAssistant cannot import SwiftCodeMCP, so the MCP target's
-// dict-based `SwiftCodeMCPHost.reverseBridgeAnalyze` / `reverseSpawn`
-// (swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+ReverseBridge.swift) cannot
-// serve this target; the typed Legacy class is ported here verbatim.
-// (A parallel copy of ReverseBridgeOutcome/RawOutcome/BoundedDataBox lives
-// in staging-ma/services-backend for SwiftCodeMCP — different target, no
-// duplicate within SwiftCodeAssistant.)
-//
 import Foundation
 #if canImport(Darwin)
 import Darwin
 #endif
 
-/// Outcome of one bridge request: ordered progress frames plus either
-/// Evidence or a typed error. Progress frames are collected (the
-/// AssistTool protocol has no live-progress channel), and surfaced in
-/// the tool result as an ordered trail plus the manager's snapshot.
 public struct ReverseBridgeOutcome: Sendable {
     public let progress: [ReverseProgressEvent]
     public let evidence: ReverseEvidence?
@@ -31,10 +17,6 @@ public struct ReverseBridgeOutcome: Sendable {
     }
 }
 
-/// Owns the Node child process that hosts the Reverse bridge script.
-/// One process per request; instances are cheap and stateless, which
-/// keeps cancellation (kill the process) and crash recovery (next
-/// request spawns a fresh process) trivially correct.
 public final class ReverseBridge: @unchecked Sendable {
     public static let maxFrameBytes = 1_048_576
     public static let maxStdoutBytes = 8_388_608
@@ -46,9 +28,6 @@ public final class ReverseBridge: @unchecked Sendable {
 
     public init() {}
 
-    // MARK: - Public API
-
-    /// One-shot readiness probe: Node + bridge script + REA package.
     public func ping() async -> ReversePingInfo? {
         let request = ReverseBridgeRequest(id: UUID().uuidString, method: "ping", params: nil)
         do {
@@ -59,8 +38,6 @@ public final class ReverseBridge: @unchecked Sendable {
         }
     }
 
-    /// Capability discovery. Returns the allow-list with per-operation
-    /// availability computed by the bridge (platform, objdump presence).
     public func capabilities() async throws -> [ReverseCapability] {
         let request = ReverseBridgeRequest(id: UUID().uuidString, method: "capabilities", params: nil)
         let (messages, _) = try await runMessages(request: request, timeoutSeconds: 30)
@@ -75,9 +52,6 @@ public final class ReverseBridge: @unchecked Sendable {
         }
     }
 
-    /// Runs one analysis operation through the bridge. `requestID` is
-    /// the correlation/cancellation handle: the caller keeps it and
-    /// passes it to `cancel(_:)` to terminate this exact operation.
     public func analyze(
         operation: ReverseOperation,
         targetPath: String,
@@ -102,10 +76,6 @@ public final class ReverseBridge: @unchecked Sendable {
         return try await run(request: request, timeoutSeconds: timeoutSeconds)
     }
 
-    /// Terminates the in-flight bridge process for `requestID`, if any.
-    /// Best-effort: the process may already have exited. The cancelled
-    /// mark is recorded only when a live process exists, so late
-    /// cancels cannot accumulate stale entries.
     public func cancel(requestID: String) {
         let box = lock.withLock { () -> ProcessBox? in
             let b = running[requestID]
@@ -115,8 +85,6 @@ public final class ReverseBridge: @unchecked Sendable {
             return b
         }
         box?.process?.terminate()
-        // Escalate to SIGKILL if the child ignores SIGTERM. The
-        // @Sendable closure captures only the Sendable box.
         if let box {
             DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
                 guard let process = box.process, process.isRunning else { return }
@@ -127,23 +95,12 @@ public final class ReverseBridge: @unchecked Sendable {
         }
     }
 
-    /// Whether `requestID` was cancelled via `cancel(_:)`.
     public func wasCancelled(_ requestID: String) -> Bool {
         lock.withLock {
             cancelledIDs.contains(requestID)
         }
     }
 
-    // MARK: - Resolution
-
-    /// Locates the bridge script. Order: explicit settings override,
-    /// `SWIFTCODE_REVERSE_BRIDGE_PATH` env, app-bundle resource
-    /// (Copy Bundle Resources phase), Application Support copy.
-    /// Returns nil when no script file exists — a typed unavailable
-    /// error, never a silent fallback.
-    /// Reads the override from UserDefaults directly (not via
-    /// `AppSettings`, which is `@MainActor`-isolated and this type is
-    /// not): the keys are the same `assist.*` keys AppSettings owns.
     public static func resolveBridgeURL() -> URL? {
         let fm = FileManager.default
         let candidates: [String?] = [
@@ -158,9 +115,6 @@ public final class ReverseBridge: @unchecked Sendable {
                 }
             }
         }
-        // Audit D (G-DEPS): ReverseBridge.mjs is a SwiftCodeAssistant target
-        // resource (Bundle.module); Bundle.main is only the fallback for an
-        // app-bundled copy.
         if let resource = Bundle.module.url(forResource: "ReverseBridge", withExtension: "mjs")
             ?? Bundle.main.url(forResource: "ReverseBridge", withExtension: "mjs") {
             return resource
@@ -174,10 +128,6 @@ public final class ReverseBridge: @unchecked Sendable {
         return nil
     }
 
-    /// Locates the pinned `rea-agents` package directory. Order: explicit
-    /// settings override, `SWIFTCODE_REVERSE_REA_DIR` env, `node_modules`
-    /// next to the bridge script, Application Support copy. The directory
-    /// must contain `package.json` with version == pinned version.
     public static func resolveREADirectory(bridgeURL: URL?) -> URL? {
         let fm = FileManager.default
         var candidates: [String] = []
@@ -205,9 +155,6 @@ public final class ReverseBridge: @unchecked Sendable {
         return nil
     }
 
-    /// Resolves a Node.js executable without downloading anything.
-    /// Mirrors the SDK node launcher's order: `SWIFTCODE_NODE_PATH`
-    /// override, well-known locations, then PATH.
     public static func resolveNodeURL() -> URL? {
         let fm = FileManager.default
         func executable(at path: String) -> URL? {
@@ -232,8 +179,6 @@ public final class ReverseBridge: @unchecked Sendable {
         return nil
     }
 
-    /// Node major version for a resolved Node binary, e.g. 24 for v24.20.0.
-    /// Runs `node --version` (argv only, no shell). Nil when it cannot be determined.
     public static func nodeMajorVersion(for nodeURL: URL) -> Int? {
         let process = Process()
         process.executableURL = nodeURL
@@ -259,8 +204,6 @@ public final class ReverseBridge: @unchecked Sendable {
         return value
     }
 
-    /// Host environment with secret-bearing variables stripped. The bridge
-    /// child never receives API keys, tokens, passwords, or client secrets.
     private static let secretEnvNameFragments = [
         "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL",
         "PRIVATE_KEY", "API_KEY", "APIKEY", "ACCESS_KEY",
@@ -274,8 +217,6 @@ public final class ReverseBridge: @unchecked Sendable {
         }
     }
 
-    // MARK: - Process execution
-
     private struct RawOutcome {
         let stdout: Data
         let stderr: String
@@ -283,11 +224,7 @@ public final class ReverseBridge: @unchecked Sendable {
         let timedOut: Bool
     }
 
-    /// Runs one request and returns the parsed protocol frames plus the
-    /// bridge stderr tail. Shared by analyze / ping / capabilities.
     private func runMessages(request: ReverseBridgeRequest, timeoutSeconds: TimeInterval) async throws -> ([ReverseBridgeMessage], String) {
-        // Clear this request's cancelled mark on exit (success or throw)
-        // so the set stays bounded to genuinely in-flight requests.
         defer {
             lock.withLock {
                 _ = cancelledIDs.remove(request.id)
@@ -311,8 +248,6 @@ public final class ReverseBridge: @unchecked Sendable {
                 remediation: "Install Node.js 22, 24, or 26 (REA 6.5.0 engines) from nodejs.org or Homebrew, or set SWIFTCODE_NODE_PATH to a Node binary."
             )
         }
-        // Probe on a detached task: `node --version` blocks until exit
-        // and must never run on the caller's executor (often MainActor).
         let major = await Task.detached { Self.nodeMajorVersion(for: nodeURL) }.value
         if let major, !ReverseBridgeProtocol.supportedNodeMajors.contains(major) {
             throw ReverseError.unavailable(
@@ -345,7 +280,6 @@ public final class ReverseBridge: @unchecked Sendable {
             throw ReverseError(category: .cancelled, code: "reverse_cancelled", message: "Reverse operation was cancelled.", retryable: false)
         }
 
-        // Parse stdout frames: every line must be one protocol frame.
         let text = String(decoding: raw.stdout, as: UTF8.self)
         var messages: [ReverseBridgeMessage] = []
         let decoder = JSONDecoder()
@@ -385,8 +319,6 @@ public final class ReverseBridge: @unchecked Sendable {
         return (messages, raw.stderr)
     }
 
-    /// Runs one analysis operation: folds the bridge frames into an
-    /// outcome (ordered progress trail + Evidence or typed error).
     private func run(request: ReverseBridgeRequest, timeoutSeconds: TimeInterval) async throws -> ReverseBridgeOutcome {
         let (messages, stderr) = try await runMessages(request: request, timeoutSeconds: timeoutSeconds)
         var progress: [ReverseProgressEvent] = []
@@ -405,7 +337,6 @@ public final class ReverseBridge: @unchecked Sendable {
             }
         }
         if let bridgeError {
-            // A partial-evidence error still surfaces the evidence upstream.
             return ReverseBridgeOutcome(progress: progress, evidence: bridgeError.partialEvidence, error: bridgeError, stderrTail: stderr)
         }
         guard let evidence else {
@@ -432,8 +363,6 @@ public final class ReverseBridge: @unchecked Sendable {
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
-        // Sendable holder: @Sendable closures (timeout, cancellation)
-        // capture only this box, never the non-Sendable Process.
         let box = ProcessBox(process)
 
         lock.withLock {
@@ -451,8 +380,6 @@ public final class ReverseBridge: @unchecked Sendable {
             throw ReverseError(category: .bridgeFailure, code: "reverse_launch_failed", message: "Failed to launch the Reverse bridge: \(error.localizedDescription)", retryable: false)
         }
 
-        // Drain both pipes via readability handlers so a chatty child
-        // can never deadlock on a full pipe. Bounded: keep only tails.
         let stdoutBox = BoundedDataBox(limit: Self.maxStdoutBytes + 1)
         let stderrBox = BoundedDataBox(limit: Self.maxStderrBytes)
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
@@ -463,8 +390,6 @@ public final class ReverseBridge: @unchecked Sendable {
             let chunk = handle.availableData
             if !chunk.isEmpty { stderrBox.append(chunk) }
         }
-        // Write the single request line, then close stdin (the bridge
-        // reads stdin to EOF, then executes).
         do {
             try stdinPipe.fileHandleForWriting.write(contentsOf: requestData + Data([0x0A]))
             try stdinPipe.fileHandleForWriting.close()
@@ -473,8 +398,6 @@ public final class ReverseBridge: @unchecked Sendable {
             throw ReverseError(category: .bridgeFailure, code: "reverse_write_failed", message: "Failed to write to the Reverse bridge: \(error.localizedDescription)", retryable: false)
         }
 
-        // Timeout: terminate the child if it outlives the budget.
-        // Fires exactly once; harmless no-op when already exited.
         let timedOutBox = FlagBox()
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeoutSeconds) {
             guard let proc = box.process, proc.isRunning else { return }
@@ -482,10 +405,6 @@ public final class ReverseBridge: @unchecked Sendable {
             proc.terminate()
         }
 
-        // Wait via terminationHandler + continuation (no blocked thread,
-        // no non-Sendable capture in a detached task). Task cancellation
-        // terminates the child; the continuation then resumes with the
-        // real termination status.
         let exitCode: Int32
         do {
             exitCode = try await withTaskCancellationHandler {
@@ -506,13 +425,10 @@ public final class ReverseBridge: @unchecked Sendable {
                 box.process?.terminate()
             }
         } catch is CancellationError {
-            // withTaskCancellationHandler already terminated the child;
-            // report cancellation, not the raw CancellationError.
             throw ReverseError(category: .cancelled, code: "reverse_cancelled", message: "Reverse operation was cancelled.", retryable: false)
         }
         stdoutPipe.fileHandleForReading.readabilityHandler = nil
         stderrPipe.fileHandleForReading.readabilityHandler = nil
-        // Drain any bytes that arrived after the last handler invocation.
         let stdoutTail = stdoutPipe.fileHandleForReading.availableData
         if !stdoutTail.isEmpty { stdoutBox.append(stdoutTail) }
         let stderrTail = stderrPipe.fileHandleForReading.availableData
@@ -525,8 +441,6 @@ public final class ReverseBridge: @unchecked Sendable {
         return RawOutcome(stdout: stdoutData, stderr: stderrText, exitCode: exitCode, timedOut: timedOutBox.value)
     }
 }
-
-// MARK: - Small thread-safe boxes
 
 private final class BoundedDataBox: @unchecked Sendable {
     private let lock = NSLock()
@@ -555,8 +469,6 @@ private final class FlagBox: @unchecked Sendable {
     var value: Bool {
         lock.withLock { flag }
     }
-    /// Returns true to the single first caller; false afterwards.
-    /// Guards a CheckedContinuation against double-resume races.
     func claim() -> Bool {
         lock.withLock {
             guard !flag else { return false }
@@ -566,9 +478,6 @@ private final class FlagBox: @unchecked Sendable {
     }
 }
 
-/// Sendable holder for a `Process` (which is not itself Sendable).
-/// @Sendable closures capture only this box; the process is reached
-/// through the lock-guarded accessor.
 private final class ProcessBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _process: Process?

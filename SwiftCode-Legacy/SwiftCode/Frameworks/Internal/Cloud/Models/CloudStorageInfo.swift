@@ -10,7 +10,7 @@ public struct CloudStorageInfo: Codable, Sendable, Equatable {
         return Double(usedBytes) / Double(limitBytes) * 100.0
     }
 
-    public init(usedBytes: Int64 = 0, limitBytes: Int64 = 5 * 1024 * 1024 * 1024, activeBuckets: [String] = []) { // Default 5GB
+    public init(usedBytes: Int64 = 0, limitBytes: Int64 = 5 * 1024 * 1024 * 1024, activeBuckets: [String] = []) {
         self.usedBytes = usedBytes
         self.limitBytes = limitBytes
         self.activeBuckets = activeBuckets

@@ -6,11 +6,6 @@ import Glibc
 import Testing
 @testable import SwiftCodeDarwinABI
 
-// Simulator stage 6 §5 (performance): the interval map, the in-place page
-// tables, and the address space built on them keep the semantics of the
-// straightforward versions (checked against models), scale with the number
-// of mappings, and share read-only file views.
-
 private struct SplitMix: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 {
@@ -30,7 +25,6 @@ private func monotonicNanoseconds() -> UInt64 {
 }
 
 @Suite struct AddressSpacePerfTests {
-    // MARK: IntervalMap against a sorted-array model
 
     @Test func intervalMapMatchesModel() {
         var rng = SplitMix(state: 1)
@@ -41,7 +35,6 @@ private func monotonicNanoseconds() -> UInt64 {
             let hi = lo + len
             switch rng.below(3) {
             case 0, 1:
-                // Insert [lo, hi) after carving it out (as the address space does).
                 let removed = map.extract(lo, hi)
                 let expected = model.filter { $0.start < hi && lo < $0.end }
                 #expect(removed == expected, "step \(step)")
@@ -59,7 +52,6 @@ private func monotonicNanoseconds() -> UInt64 {
                 model.removeAll { $0.start < hi && lo < $0.end }
             }
             #expect(map.count == model.count)
-            // Queries.
             let x = rng.below(4096 * 16 + 2048)
             #expect(map.floor(x) == model.last { $0.start <= x })
             #expect(map.ceiling(x) == model.first { $0.start >= x })
@@ -108,8 +100,6 @@ private func monotonicNanoseconds() -> UInt64 {
         #expect(a.takeAll().count == 4 && a.bytesInUse == 0)
     }
 
-    // MARK: GuestPageTables against PageTableBuilder
-
     @Test func pageTablesMatchTheBuilder() throws {
         var rng = SplitMix(state: 7)
         var builder = PageTableBuilder(tableArenaGPA: 0x4020_0000, tableArenaSize: 16 << 20)
@@ -119,7 +109,6 @@ private func monotonicNanoseconds() -> UInt64 {
         let attrs: [PageAttributes] = [VMProtection.readWrite.el0PageAttributes, VMProtection.read.el0PageAttributes,
                                        VMProtection.readExecute.el0PageAttributes]
         for _ in 0..<600 {
-            // Ranges that cross 32 MiB table boundaries and 64 GiB L2 boundaries.
             let region: UInt64 = [0x1_0000_0000, 0x1_FFE0_0000, 0xF_FFF0_0000, 0x3_2000_0000][Int(rng.below(4))]
             let va = region + rng.below(4096) * page
             let size = (rng.below(3000) + 1) * page
@@ -149,7 +138,6 @@ private func monotonicNanoseconds() -> UInt64 {
         for p in mapped.keys.prefix(200) {
             #expect(builder.translate(p + 0x123)! == tables.translate(p + 0x123)!)
         }
-        // Dirty tracking: every table written once, in arena order.
         var written: [UInt64] = []
         tables.writeDirtyTables { gpa, bytes in
             #expect(bytes.count == 16384)
@@ -159,7 +147,6 @@ private func monotonicNanoseconds() -> UInt64 {
     }
 
     @Test func pageTableCapacityIsCheckedBeforeAnyChange() throws {
-        // Root + one L2 + one L3 fit; a range needing a second L3 does not.
         let tables = GuestPageTables(tableArenaGPA: 0x4020_0000, tableArenaSize: 3 * 16384)
         try tables.map(va: 0x1_0000_0000, pa: 0x10_0000_0000, size: 0x4000, attributes: VMProtection.read.el0PageAttributes)
         #expect(throws: PageTableError.arenaExhausted(capacity: 3)) {
@@ -168,9 +155,6 @@ private func monotonicNanoseconds() -> UInt64 {
         #expect(tables.translate(0x1_01FF_C000) == nil && tables.tableCount == 3)
     }
 
-    // MARK: Address space against the original placement rule
-
-    /// The original first fit: every mapping and exclusion as an obstacle.
     private static func modelFirstFit(_ regions: [GuestRegion], exclusions: [Range<UInt64>], size: UInt64, from start: UInt64) -> UInt64? {
         let limit = VMLayout.userVALimit
         let obstacles = (regions.map { $0.va..<$0.end } + exclusions).sorted { $0.lowerBound < $1.lowerBound }
@@ -201,7 +185,6 @@ private func monotonicNanoseconds() -> UInt64 {
                 let va = try space.mapAnonymous(at: nil, size: size, protection: .readWrite, hint: hint)
                 #expect(va == expected, "step \(step)")
             case 2:
-                // Fixed mappings, also inside the shared region.
                 let va = (rng.below(2) == 0 ? VMLayout.sharedRegionBase : VMLayout.anonymousVABase) + rng.below(1 << 14) * page
                 _ = try space.mapAnonymous(at: va, size: size, protection: .read, hint: nil)
             case 3:
@@ -213,7 +196,6 @@ private func monotonicNanoseconds() -> UInt64 {
                 }
             }
         }
-        // Region queries agree with the full list.
         let all = space.regions
         for r in all.prefix(300) {
             #expect(space.region(containing: r.va + r.size / 2) == r)
@@ -221,9 +203,6 @@ private func monotonicNanoseconds() -> UInt64 {
         }
     }
 
-    /// Operations stay cheap as the number of mappings grows (they were
-    /// linear in it): the time per operation with 16× the mappings is far
-    /// below 16× the time.
     @Test func operationsScaleWithTheNumberOfMappings() throws {
         func timePerOp(background: Int) throws -> Double {
             let space = GuestAddressSpace(backing: FakePhysicalBacking())
@@ -242,13 +221,11 @@ private func monotonicNanoseconds() -> UInt64 {
             }
             return Double(monotonicNanoseconds() - t0) / Double(rounds)
         }
-        _ = try timePerOp(background: 100)  // warm up
+        _ = try timePerOp(background: 100)
         let small = try timePerOp(background: 500)
         let large = try timePerOp(background: 8000)
         #expect(large < small * 6, "per-op \(small) ns with 500 mappings, \(large) ns with 8000")
     }
-
-    // MARK: Shared read-only file views
 
     @Test func readOnlyFileMappingsShareOneViewAndPrivatizeOnWrite() throws {
         let dir = try TempTree()
@@ -266,26 +243,21 @@ private func monotonicNanoseconds() -> UInt64 {
         }
         #expect(gpaB == gpaA + 0x4000 && offB == 0x4000)
         #expect(try space.read(va: b, count: 4) == Array(bytes[0x4000..<0x4004]))
-        // A writable mapping never uses the shared view.
         let w = try space.mapFile(file, offset: 0, at: nil, size: 0x4000, protection: .readWrite, hint: nil)
         #expect(backing.fileSlots.count == 1)
         try space.write(va: w, bytes: [0xEE])
-        // EL0-checked writes to a read-only mapping are refused, as before.
         #expect(throws: GuestMemoryError.accessDenied(va: a)) { try space.write(va: a, bytes: [1]) }
-        // A VMM write moves only the written page of `a` to a private view.
         try space.write(va: a + 0x4010, bytes: [0xAB, 0xCD], checkingEL0Access: false)
         #expect(space.privatizedPages == 1 && backing.fileSlots.count == 2)
         #expect(try space.read(va: a + 0x4010, count: 2) == [0xAB, 0xCD])
-        #expect(try space.read(va: b + 0x10, count: 2) == [bytes[0x4010], bytes[0x4011]])   // the shared view is unchanged
+        #expect(try space.read(va: b + 0x10, count: 2) == [bytes[0x4010], bytes[0x4011]])
         #expect(space.regions(overlapping: a..<(a + 0x10000)).count == 3)
         #expect(space.regions(overlapping: a..<(a + 0x10000)).allSatisfy { if case .file = $0.backing { true } else { false } })
-        // mprotect adding write privatizes the range first.
         try space.protect(va: b, size: 0x8000, protection: .readWrite)
         try space.write(va: b, bytes: [0x77])
         #expect(try space.read(va: b, count: 2) == [0x77, bytes[0x4001]])
         #expect(try space.read(va: a + 0x4000, count: 1) == [bytes[0x4000]])
         #expect(space.privatizedPages == 3)
-        // Unmapping everything returns what the private views took from the pool (none here: the fake bump-allocates them).
         try space.unmap(va: a, size: 0x10000)
         try space.unmap(va: b, size: 0x8000)
         #expect(space.region(containing: a) == nil && space.region(containing: b) == nil)
@@ -302,9 +274,6 @@ private func monotonicNanoseconds() -> UInt64 {
     }
 }
 
-/// Random map/unmap/protect/share/remap sequences on one address space:
-/// every pool range the space releases must be allocated (no double or
-/// stray release), and the pool holds exactly the space's anonymous pages.
 @Suite struct AddressSpaceReleaseFuzzTests {
     @Test func releasesMatchAllocations() throws {
         for seed in UInt64(1)...6 {
@@ -321,7 +290,6 @@ private func monotonicNanoseconds() -> UInt64 {
                 case 2: try? space.unmap(va: va, size: size)
                 case 3: try? space.protect(va: va, size: size, protection: rng.below(2) == 0 ? .read : .readWrite)
                 case 4:
-                    // vm_remap without copy: share the source, map the object elsewhere.
                     if let (object, offset) = try? space.share(va: va, size: size) {
                         let to = base + rng.below(256) * page
                         _ = try? space.mapShared(object, offset: offset, at: to, size: size, protection: .readWrite, hint: nil)

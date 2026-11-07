@@ -1,15 +1,11 @@
 import Foundation
 
-/// Quick Help content parsed from a sourcekit-lsp hover (Markdown: a
-/// fenced declaration, then the doc comment in Swift Markup). Section order
-/// follows `specs/ide/reference-ui-4.md` §7.
 public struct QuickHelpDocument: Equatable, Sendable {
     public struct Parameter: Equatable, Sendable {
         public var name: String
         public var text: String
     }
     public struct Callout: Equatable, Sendable {
-        /// The callout name as shown, for example "Note" or "Important".
         public var title: String
         public var text: String
     }
@@ -24,7 +20,6 @@ public struct QuickHelpDocument: Equatable, Sendable {
     public var discussion: [String] = []
     public var callouts: [Callout] = []
 
-    /// The section names present, in display order.
     public var sectionOrder: [String] {
         var s = ["Title"]
         if summary != nil { s.append("Summary") }
@@ -39,7 +34,6 @@ public struct QuickHelpDocument: Equatable, Sendable {
         return s
     }
 
-    /// Swift Markup callout keywords (public Swift Markup documentation).
     public static let calloutKeywords = [
         "attention", "author", "authors", "bug", "complexity", "copyright", "date", "experiment",
         "important", "invariant", "note", "postcondition", "precondition", "remark", "remarks",
@@ -51,14 +45,12 @@ public struct QuickHelpDocument: Equatable, Sendable {
     public init(hover markdown: String, file: String? = nil) {
         self.file = file
         var lines = markdown.components(separatedBy: "\n")
-        // Declaration: the first fenced block.
         if let open = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }),
            let close = lines[(open + 1)...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }) {
             declaration = lines[(open + 1)..<close].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
             lines.removeSubrange(open...close)
         }
         title = Self.symbolName(in: declaration)
-        // Paragraphs and list items of the doc comment.
         let body = lines.filter { let t = $0.trimmingCharacters(in: .whitespaces); return t != "---" && t != "***" }
         var paragraphs: [String] = []
         var current: [String] = []
@@ -77,7 +69,6 @@ public struct QuickHelpDocument: Equatable, Sendable {
                 paragraphs = []
                 items.append((true, indent, String(t.dropFirst(2))))
             } else if let last = items.last, last.isBullet, current.isEmpty, paragraphs.isEmpty, indent > 0 {
-                // A continuation line of a list item.
                 items[items.count - 1].text += " " + t
             } else {
                 current.append(t)
@@ -118,7 +109,6 @@ public struct QuickHelpDocument: Equatable, Sendable {
         discussion = plain + otherBullets.map { "• " + $0 }
     }
 
-    /// "name: text" → (name, text).
     static func split(_ s: String) -> (String, String)? {
         guard let c = s.firstIndex(of: ":") else { return nil }
         let key = s[..<c].trimmingCharacters(in: .whitespaces)
@@ -126,12 +116,10 @@ public struct QuickHelpDocument: Equatable, Sendable {
         return (key, s[s.index(after: c)...].trimmingCharacters(in: .whitespaces))
     }
 
-    /// Drops inline code backticks and emphasis markers.
     static func stripInline(_ s: String) -> String {
         s.replacingOccurrences(of: "`", with: "").replacingOccurrences(of: "**", with: "")
     }
 
-    /// The declared name: the identifier after the introducer keyword.
     public static func symbolName(in declaration: String) -> String {
         let introducers: Set<String> = ["func", "var", "let", "struct", "class", "enum", "protocol", "actor", "typealias",
                                         "associatedtype", "case", "init", "subscript", "macro", "extension", "operator"]

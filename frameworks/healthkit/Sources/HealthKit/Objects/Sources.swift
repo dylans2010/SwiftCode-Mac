@@ -1,8 +1,5 @@
 import Foundation
 
-/// Identity of the app (client) that talks to the health store. On Apple's
-/// platforms this comes from the app's entitlements and bundle; in SwiftCode's open
-/// HealthKit it is configured explicitly (see README "Client identity").
 public struct SwiftCodeHealthClient: Hashable, Sendable {
     public var bundleIdentifier: String
     public var name: String
@@ -33,8 +30,6 @@ public struct SwiftCodeHealthClient: Hashable, Sendable {
     public static let hostProductType: String? = "Mac"
     #endif
 
-    /// The process's own identity: `SWIFTCODE_HEALTHKIT_BUNDLE_IDENTIFIER`, else the main
-    /// bundle's identifier, else `local.<process name>`.
     public static let processDefault: SwiftCodeHealthClient = {
         let env = ProcessInfo.processInfo.environment
         let id = env["SWIFTCODE_HEALTHKIT_BUNDLE_IDENTIFIER"] ?? Bundle.main.bundleIdentifier
@@ -53,11 +48,9 @@ public struct SwiftCodeHealthClient: Hashable, Sendable {
                              osMajor: operatingSystemVersion.major, osMinor: operatingSystemVersion.minor,
                              osPatch: operatingSystemVersion.patch)
     }
-    /// The `HKSource` objects saved by this client carry.
     public var source: HKSource { HKSource(record: sourceRecord) }
 }
 
-/// The app or device that created objects (`interface.md` §4). Compared by bundle identifier.
 public final class HKSource: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let record: SourceRecord
     public var name: String { record.name }
@@ -68,7 +61,6 @@ public final class HKSource: NSObject, NSSecureCoding, NSCopying, @unchecked Sen
         super.init()
     }
 
-    /// The calling app's source.
     public class func `default`() -> HKSource { SwiftCodeHealthClient.processDefault.source }
 
     public override func isEqual(_ object: Any?) -> Bool {
@@ -91,7 +83,6 @@ public final class HKSource: NSObject, NSSecureCoding, NSCopying, @unchecked Sen
     public func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
-/// A source plus the app version and system it ran on when it saved an object.
 public final class HKSourceRevision: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let record: SourceRevisionRecord
     public var source: HKSource { HKSource(record: record.source) }
@@ -137,7 +128,6 @@ public final class HKSourceRevision: NSObject, NSSecureCoding, NSCopying, @unche
     public func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
-/// Hardware that produced a sample (`interface.md` §4). Compared on every field.
 public final class HKDevice: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let record: DeviceRecord
     public var name: String? { record.name }
@@ -163,7 +153,6 @@ public final class HKDevice: NSObject, NSSecureCoding, NSCopying, @unchecked Sen
                                        udiDeviceIdentifier: udiDeviceIdentifier))
     }
 
-    /// The machine this process runs on (SwiftCode's own description of the host).
     public class func local() -> HKDevice {
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let model = SwiftCodeHealthClient.hostProductType

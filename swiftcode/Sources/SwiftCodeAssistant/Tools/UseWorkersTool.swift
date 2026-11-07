@@ -1,23 +1,6 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Subagents/Tools/UseWorkersTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/UseWorkersTool.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - actual worker execution via WorkerScheduler
-//   - filesystem reconciliation of worker results
-//   - WorkerPersistenceStore recording/persistence
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - ToolCapability — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - ToolRiskLevel — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+Terminal.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
 import Foundation
 import os
 
-/// The production `use_workers` tool that creates, schedules, and executes live Assist Workers (M-TOOL).
-/// Fulfills SO1 and INV-11 (never an echo or simulation).
 @MainActor
 public struct UseWorkersTool: AssistTool {
     public let id: String = "use_workers"
@@ -63,7 +46,6 @@ public struct UseWorkersTool: AssistTool {
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         logger.info("Executing use_workers tool...")
 
-        // 1. Resilient JSON input decoding (support array, stringified JSON, single object, top-level dict, synonyms)
         let jsonArray: [[String: Any]]
         if let array = input["workers"] as? [[String: Any]] {
             jsonArray = array
@@ -94,7 +76,6 @@ public struct UseWorkersTool: AssistTool {
             return .failure("Invalid input: 'workers' argument is required and must contain worker assignments.")
         }
 
-        // 2. Validate assignments
         var assignments: [WorkerAssignment] = []
         var seenNames = Set<String>()
         var seenScopes = Set<String>()
@@ -158,7 +139,6 @@ public struct UseWorkersTool: AssistTool {
             return .failure("Validation Error: At least one worker assignment is required.")
         }
 
-        // 3. Validate dependency references against this batch
         for assignment in assignments {
             for dep in assignment.dependencies {
                 guard seenNames.contains(dep) else {
@@ -167,26 +147,22 @@ public struct UseWorkersTool: AssistTool {
             }
         }
 
-        // 4. Schedule and run real workers via WorkerScheduler
         WorkerPersistenceStore.shared.recordAssignments(assignments)
 
         let results = await WorkerScheduler.shared.scheduleAndExecute(
             assignments: assignments,
             parentTaskID: context.sessionId,
-            context: context
+            context: WorkerExecutionContext(sessionId: context.sessionId, workspaceRoot: context.workspaceRoot)
         )
 
-        // 5. Persist task & worker tree
         WorkerPersistenceStore.shared.persistWorkers(
             WorkerRuntimeState.shared.allWorkers,
             parentTaskID: context.sessionId,
             workspaceRoot: context.workspaceRoot
         )
 
-        // 6. Reconcile claimed file changes against the real filesystem
         let reconciliation = WorkerPersistenceStore.shared.reconcileWithFilesystem(workspaceRoot: context.workspaceRoot)
 
-        // 7. Build structured return output
         var output = "Successfully executed \(results.count) Assist Workers under Parent Coordination:\n\n"
         for result in results {
             output += "### Worker: \(result.workerName)\n"

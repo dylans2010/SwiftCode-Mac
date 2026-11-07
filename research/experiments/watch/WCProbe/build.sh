@@ -1,15 +1,10 @@
 #!/bin/sh
-# Build WCProbe.app (iOS simulator) with WCProbeWatch.app (watchOS simulator)
-# embedded at WCProbe.app/Watch/, the layout of an iOS app that carries a
-# watch app. Our own code; ad-hoc signed.
-# Usage: build.sh OUTDIR   (OUTDIR outside the repository, with no symlinks)
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}
 PHONE="$OUT/WCProbe.app"
 WATCH="$PHONE/Watch/WCProbeWatch.app"
 rm -rf "$PHONE"; mkdir -p "$WATCH"
-
 xcrun --sdk watchsimulator swiftc -target arm64-apple-watchos27.0-simulator \
   -sdk "$(xcrun --sdk watchsimulator --show-sdk-path)" -D WATCH \
   -parse-as-library -Onone -g "$SRC/Probe.swift" -o "$WATCH/WCProbeWatch"
@@ -32,7 +27,6 @@ cat > "$WATCH/Info.plist" <<PL
 </dict></plist>
 PL
 codesign -f -s - "$WATCH" >/dev/null 2>&1
-
 xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios27.0-simulator \
   -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" -D PHONE \
   -parse-as-library -Onone -g "$SRC/Probe.swift" -o "$PHONE/WCProbe"

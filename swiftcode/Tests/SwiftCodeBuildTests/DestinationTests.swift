@@ -38,14 +38,12 @@ import Testing
                                           simulators: DestinationCatalog.simulators(fromSimctlJSON: simctl))
         #expect(g.map(\.title) == ["My Mac", "Build", "iOS Device", "iOS Simulators", "visionOS Device", "visionOS Simulators"])
         #expect(g[2].destinations.map(\.name) == ["Test Phone", "Any iOS Device (arm64)"])
-        // Same-named simulators keep their names (rows show the OS version), newest first.
         #expect(g[3].destinations.map(\.name) == ["Any iOS Simulator Device", "Phone A", "Phone A"])
         #expect(g[3].destinations.map(\.osVersion) == [nil, "27.0", "26.4"])
         #expect(g[3].destinations[0].specifier == "generic/platform=iOS Simulator")
     }
 
     #if os(macOS)
-    /// The live listing (read-only) always starts with the Mac.
     @Test func liveListing() {
         let g = DestinationCatalog.load()
         #expect(g.first?.destinations.first == .myMac)

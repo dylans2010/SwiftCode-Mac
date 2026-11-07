@@ -4,7 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeLanguage
 @testable import SwiftCodeUI
 
-/// Edit application rules of specs/ide/refactoring.md §Applying edits.
 @Suite struct RefactoringSpecTests {
     @Test @MainActor func editsApplyLastToFirst() {
         let text = "let a = a + 1\nprint(a)\n"

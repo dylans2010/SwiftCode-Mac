@@ -4,12 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The ported Legacy core file-reading tools against
-/// `Samples/AgentSamples/Greeter` (a copy). Fixture facts used below:
-/// `Sources/Greeter/Greeter.swift` is 374 bytes with 14 lines plus a
-/// trailing newline (15 newline-separated components: 9 code, 3 comment,
-/// 3 blank); `Sources/greet/main.swift` is 115 bytes (5 components: 3
-/// code, 0 comment, 2 blank). The root's five children total 2047 bytes.
 @MainActor
 @Suite(.serialized) struct SwiftCodeFileReadingTests {
     func opened(_ sample: TempSample) async throws -> SwiftCodeMCPHost {
@@ -19,8 +13,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// Sums every regular file under `url` (hidden files skipped), the
-    /// independent check for `dir_size_report`'s total.
     func totalBytes(under url: URL) -> Int {
         var total = 0
         let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
@@ -60,16 +52,12 @@ import SwiftCodeIDECore
         for tool in tools {
             #expect(tool.title == expectedTitles[tool.name])
             #expect(tool.annotations.readOnly && tool.annotations.idempotent && !tool.writes, "\(tool.name) must be a read-only tool")
-            // The first input property is the optional `workspace` param,
-            // as on every other SwiftCode tool.
             #expect(tool.inputSchema["properties"]?["workspace"] != nil, "\(tool.name) is missing the workspace parameter")
             let required = tool.inputSchema["required"]?.array?.compactMap(\.string) ?? []
             #expect(required == expectedRequired[tool.name], "\(tool.name) required: \(required)")
             let outputKeys = tool.outputSchema?["properties"]?.object?.keys.sorted() ?? []
             #expect(outputKeys == expectedOutputs[tool.name], "\(tool.name) output keys: \(outputKeys)")
         }
-        // The host actually serves them (needs `fileReadingTools` wired
-        // into `installTools`).
         let served = host.server.tools.map(\.name)
         for id in expectedTitles.keys { #expect(served.contains(id), "\(id) is not installed on the server") }
     }
@@ -78,7 +66,6 @@ import SwiftCodeIDECore
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // An empty path is rejected by the handler as a missing argument.
         let empty = try await host.server.callTool("dir_read", ["path": ""])
         #expect(empty.isToolError && empty.resultText.contains("missing the required argument \"path\""))
         let read = try await host.server.callTool("dir_read", ["path": "."])
@@ -124,17 +111,14 @@ import SwiftCodeIDECore
         let pwd = try await host.server.callTool("dir_pwd")
         #expect(pwd.structured?["path"] == root + "/Sources")
 
-        // Plain relative paths now resolve against the new directory.
         let read = try await host.server.callTool("dir_read", ["path": "."])
         #expect(read.structured?["contents"]?.string == "Greeter/\ngreet/")
 
-        // "." is a no-op; ".." moves to the parent.
         let noop = try await host.server.callTool("dir_cd", ["path": "."])
         #expect(noop.structured?["path"] == root + "/Sources")
         let up = try await host.server.callTool("dir_cd", ["path": ".."])
         #expect(up.structured?["path"] == root && up.structured?["previousPath"] == root + "/Sources")
 
-        // A leading "/" is workspace-root-relative.
         let abs = try await host.server.callTool("dir_cd", ["path": "/Tests"])
         #expect(abs.structured?["path"] == root + "/Tests")
         #expect(try await host.server.callTool("dir_pwd").structured?["path"] == root + "/Tests")
@@ -147,7 +131,6 @@ import SwiftCodeIDECore
         let root = sample.url.standardizedFileURL.path
         #expect(try await host.server.callTool("dir_cd", ["path": "Sources"]).structured?["path"] == root + "/Sources")
 
-        // ".." past the workspace root is an error, not a clamp.
         let past = try await host.server.callTool("dir_cd", ["path": "../.."])
         #expect(past.isToolError && past.resultText.contains("outside the workspace"))
         #expect(try await host.server.callTool("dir_pwd").structured?["path"] == root + "/Sources")
@@ -171,7 +154,6 @@ import SwiftCodeIDECore
         #expect(report.structured?["totalBytes"] == totalBytes(under: sample.url))
         #expect(report.resultText.hasPrefix("Directory sizes under .:"))
         #expect(report.resultText.contains("- Package.swift — 537 bytes (0.00 MB)"))
-        // Largest first: Package.swift (537) before Sources/ (489).
         let lines = text.components(separatedBy: "\n")
         let packageLine = try #require(lines.firstIndex { $0.hasPrefix("- Package.swift") })
         let sourcesLine = try #require(lines.firstIndex { $0.hasPrefix("- Sources/") })
@@ -227,8 +209,6 @@ import SwiftCodeIDECore
         #expect(!head.isToolError, "\(head.resultText)")
         #expect(head.structured?["path"]?.string == "Sources/Greeter/Greeter.swift")
         #expect(head.structured?["encoding"]?.string == "utf-8")
-        // No phantom trailing line is stripped, so the 14-line file
-        // counts 15 lines here (unlike file_read's 14).
         #expect(head.structured?["totalLines"]?.int == 15 && head.structured?["shownLines"]?.int == 15)
         #expect(head.structured?["truncated"]?.bool == false)
         #expect(head.resultText.hasPrefix("Preview of Sources/Greeter/Greeter.swift [utf-8, 15 total lines]:\n1: /// Makes greetings."))
@@ -237,7 +217,6 @@ import SwiftCodeIDECore
         #expect(three.structured?["shownLines"]?.int == 3 && three.structured?["truncated"]?.bool == true)
         #expect(three.resultText.contains("… [truncated: showing 3 of 15 lines]"))
 
-        // `lines` clamps to 100; the file still shows only its 15 lines.
         let clamped = try await host.server.callTool("file_head_preview", ["path": "Sources/Greeter/Greeter.swift", "lines": 200])
         #expect(clamped.structured?["shownLines"]?.int == 15 && clamped.structured?["truncated"]?.bool == false)
 
@@ -264,8 +243,6 @@ import SwiftCodeIDECore
         #expect(dir.structured?["codeLines"]?.int == 12 && dir.structured?["commentLines"]?.int == 3 && dir.structured?["blankLines"]?.int == 5)
         #expect(dir.structured?["totalBytes"]?.int == 489)
 
-        // The `targetPath` alias works, and a single file ignores the
-        // extension filter.
         let alias = try await host.server.callTool("count_file_lines", ["targetPath": "Sources/Greeter/Greeter.swift", "extension": "md"])
         #expect(alias.structured?["fileCount"]?.int == 1 && alias.structured?["totalLines"]?.int == 15)
 
@@ -279,18 +256,12 @@ import SwiftCodeIDECore
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Invalid UTF-8, an odd byte count and a lone surrogate: UTF-8
-        // and UTF-16 both refuse it, so only ISO Latin-1 decodes it.
         let binary = Data([0x00, 0xD8, 0xFF])
         try binary.write(to: URL(fileURLWithPath: sample.path("Sources/Binary.dat")))
-        // count_file_lines silently skips non-UTF-8 files from the
-        // counts, but still counts the file.
         let counted = try await host.server.callTool("count_file_lines", ["path": "Sources/Binary.dat"])
         #expect(!counted.isToolError, "\(counted.resultText)")
         #expect(counted.structured?["fileCount"]?.int == 1 && counted.structured?["totalLines"]?.int == 0)
         #expect(counted.structured?["totalBytes"]?.int == 0)
-        // file_head_preview falls through to ISO Latin-1 instead of
-        // failing on the binary content.
         let head = try await host.server.callTool("file_head_preview", ["path": "Sources/Binary.dat"])
         #expect(!head.isToolError, "\(head.resultText)")
         #expect(head.structured?["encoding"]?.string == "iso-latin-1" && head.structured?["totalLines"]?.int == 1)
@@ -308,15 +279,12 @@ import SwiftCodeIDECore
         #expect(tree.structured?["entries"]?.int == 13 && tree.structured?["truncated"]?.bool == false)
         #expect(tree.structured?["path"] == sample.url.standardizedFileURL.path)
 
-        // maxDepth 1 still lists files directly inside a depth-1
-        // directory, but not anything deeper.
         let shallow = try await host.server.callTool("tree_view", ["maxDepth": 1])
         let shallowText = shallow.structured?["tree"]?.string ?? ""
         #expect(shallowText.contains("📄 GreetingView.swift"))
         #expect(!shallowText.contains("Greeter.swift") && !shallowText.contains("main.swift"))
         #expect(shallow.structured?["entries"]?.int == 10)
 
-        // maxDepth clamps to 10: 99 renders exactly like 10.
         let wide = try await host.server.callTool("tree_view", ["maxDepth": 99])
         let ten = try await host.server.callTool("tree_view", ["maxDepth": 10])
         #expect(wide.structured?["tree"] == ten.structured?["tree"])
@@ -324,16 +292,12 @@ import SwiftCodeIDECore
 
         let zero = try await host.server.callTool("tree_view", ["maxDepth": 0])
         #expect(zero.isToolError && zero.resultText.contains("Invalid maxDepth: must be an integer >= 1 (got '0')."))
-        // A fractional depth never reaches the handler: the server's
-        // argument check rejects it as the wrong type first.
         let fractional = try await host.server.callTool("tree_view", ["maxDepth": .double(2.5)])
         #expect(fractional.isToolError && fractional.resultText.contains("must be of type integer"))
-        // A whole double is an integer as far as the schema is concerned.
         let whole = try await host.server.callTool("tree_view", ["maxDepth": .double(2.0)])
         #expect(!whole.isToolError && whole.structured?["entries"]?.int == 13)
 
         let missing = try await host.server.callTool("tree_view", ["path": "Nope"])
-        // A missing root still succeeds, with Legacy's warning line.
         #expect(!missing.isToolError && missing.resultText.contains("Project Tree generated"))
         #expect((missing.structured?["tree"]?.string ?? "").contains("⚠️ Error reading directory"))
     }
@@ -343,14 +307,11 @@ import SwiftCodeIDECore
         defer { sample.remove() }
         let host = try await opened(sample)
         try FileManager.default.createSymbolicLink(atPath: sample.path("Sources/Greeter/Link.swift"), withDestinationPath: "Greeter.swift")
-        // A symlink to a directory (and a would-be cycle) is a leaf too.
         try FileManager.default.createSymbolicLink(atPath: sample.path("Sources/LinkDir"), withDestinationPath: "Greeter")
         let tree = try await host.server.callTool("tree_view")
         #expect(!tree.isToolError, "\(tree.resultText)")
         let text = tree.structured?["tree"]?.string ?? ""
         #expect(text.contains("🔗 Link.swift") && text.contains("🔗 LinkDir"))
-        // The directory symlink is never followed: Greeter.swift is
-        // listed exactly once, under its real directory.
         #expect(text.components(separatedBy: "📄 Greeter.swift").count - 1 == 1)
         #expect(tree.structured?["entries"]?.int == 15 && tree.structured?["truncated"]?.bool == false)
     }

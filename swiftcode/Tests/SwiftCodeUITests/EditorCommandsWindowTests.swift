@@ -12,12 +12,8 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
                                            "-c", "commit.gpgsign=false"] + args)
 }
 
-/// The Editor menu's commands, the change gutter and the per-kind Editor
-/// menus in a workspace window (`specs/ide/reference-ui-5.md` §2.6–§2.8,
-/// §6.3–§6.5).
 @MainActor
 @Suite(.serialized) struct EditorCommandsWindowTests {
-    /// A package under .build-ide with the given files (relative paths).
     func workspace(_ name: String, _ files: [String: String], git commit: Bool = false) throws -> URL {
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/r30-\(name)")
         try? FileManager.default.removeItem(at: dir)
@@ -45,7 +41,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         return wc
     }
 
-    /// Runs `body` with a throwaway Preferences.shared.
     func withPreferences(_ body: (Preferences) throws -> Void) rethrows {
         let t = TestDefaults("r30")
         let old = Preferences.shared
@@ -68,8 +63,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         return i
     }
 
-    // MARK: Structure (M2, M6) and the Edit menu items
-
     @Test func structureCommands() throws {
         try withPreferences { _ in
             let source = "struct A {\nfunc f() {\nlet x = g(1, 2)\n}\n}\n"
@@ -81,12 +74,10 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
             let undo = try #require(e.textView.undoManager)
             undo.groupsByEvent = false
 
-            // Re-Indent (⌃I) over the whole file.
             e.textView.setSelectedRange(NSRange(location: 0, length: (e.text as NSString).length))
             wc.reindent(nil)
             #expect(e.text == "struct A {\n    func f() {\n        let x = g(1, 2)\n    }\n}\n")
 
-            // Move Line Up / Down: disabled on the first line, one undo step each.
             e.reveal(line: 1)
             #expect(enabled(wc, "moveLineUp:").0 == false && enabled(wc, "moveLineDown:").0 == true)
             e.reveal(line: 3)
@@ -95,26 +86,22 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
             undo.undo()
             #expect(e.text == "struct A {\n    func f() {\n        let x = g(1, 2)\n    }\n}\n")
 
-            // Shift Right / Left (⌘] / ⌘[).
             e.reveal(line: 5)
             wc.shiftRight(nil)
-            #expect(e.text.hasSuffix("\n    }\n")) // the last line "}" became "    }"
+            #expect(e.text.hasSuffix("\n    }\n"))
             wc.shiftLeft(nil)
             #expect(e.text.hasSuffix("\n    }\n}\n"))
 
-            // Format to Multiple Lines (⌃M) at the call's arguments.
             let call = (e.text as NSString).range(of: "1, 2").location
             e.textView.setSelectedRange(NSRange(location: call, length: 0))
             wc.formatToMultipleLines(nil)
             #expect(e.text.contains("let x = g(\n            1,\n            2\n        )"))
 
-            // Add Documentation (⌥⌘/) above the function.
             e.reveal(line: 2)
             wc.addDocumentation(nil)
             #expect(e.text.contains("    /// <#Description#>\n    func f() {"))
             #expect(e.textView.selectedRange().length == "<#Description#>".utf16.count)
 
-            // Edit ▸ Duplicate (⌘D) and the copy items' text.
             e.reveal(line: 1)
             wc.duplicateSelection(nil)
             #expect(e.text.hasPrefix("struct A {\nstruct A {\n") && e.currentLine == 2)
@@ -127,14 +114,11 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         }
     }
 
-    // MARK: Selection (M14)
-
     @Test func multipleSelections() throws {
         let dir = try workspace("multi", ["Sources/App/main.swift": "abc\nabc\nab\nlet n = 1\nprint(n + n)\n"])
         let wc = try window(dir)
         wc.open(path: dir.appendingPathComponent("Sources/App/main.swift").path, line: nil)
         let e = wc.editor
-        // Select Column Down twice: three insertion points at column 2 (clamped on "ab").
         e.textView.setSelectedRange(NSRange(location: 2, length: 0))
         wc.selectColumnDown(nil)
         wc.selectColumnDown(nil)
@@ -143,11 +127,9 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(e.text.hasPrefix("abXc\nabXc\nabX\n"))
         e.textView.deleteBackward(nil)
         #expect(e.text.hasPrefix("abc\nabc\nab\n") && e.selectionRanges.count == 3)
-        // Escape returns to one selection.
         e.textView.cancelOperation(nil)
         #expect(e.selectionRanges.count == 1)
 
-        // Edit All in Scope (⌃⌘E): every `n`, typed over at once.
         let n = (e.text as NSString).range(of: "n = 1").location
         e.textView.setSelectedRange(NSRange(location: n, length: 0))
         wc.editAllInScope(nil)
@@ -155,7 +137,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         e.insertAtSelections("count")
         #expect(e.text.hasSuffix("let count = 1\nprint(count + count)\n"))
 
-        // Split Selection By Lines; Balance Delimiters.
         e.textView.setSelectedRange(NSRange(location: 0, length: 7))
         wc.splitSelectionByLines(nil)
         #expect(e.selectionRanges == [NSRange(location: 0, length: 3), NSRange(location: 4, length: 3)])
@@ -164,8 +145,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         wc.balanceDelimiters(nil)
         #expect((e.text as NSString).substring(with: e.textView.selectedRange()) == "count + count")
     }
-
-    // MARK: Code Folding (M7)
 
     @Test func foldingCommands() throws {
         let src = "// one\n// two\n// three\nstruct S {\n    func a() {\n        print(1)\n    }\n    func b() {\n        print(2)\n    }\n}\n"
@@ -181,17 +160,13 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(e.hiddenLines == [2, 3])
         wc.unfoldCommentBlocks(nil)
         #expect(e.hiddenLines.isEmpty)
-        // Unfold All has no shortcut and opens every fold.
         wc.foldMethodsAndFunctions(nil)
         e.unfoldAll(nil)
         #expect(e.hiddenLines.isEmpty)
-        // ⌥⌘← inside a comment block folds the block.
         e.reveal(line: 2)
         e.fold(nil)
         #expect(e.hiddenLines == [2, 3])
     }
-
-    // MARK: Font Size (M5), Syntax Coloring, Minimap (E5)
 
     @Test func fontSizeColoringAndMinimap() throws {
         try withPreferences { p in
@@ -204,7 +179,7 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
             wc.increaseFontSize(nil)
             #expect(p.sourceFontSize == base + 2 && Theme.font.pointSize == CGFloat(base + 2))
             #expect(wc.editor.textView.typingAttributes[.font] as? NSFont == Theme.font)
-            #expect(p.theme.fontSize == base) // a user setting, not a theme edit
+            #expect(p.theme.fontSize == base)
             wc.decreaseFontSize(nil)
             #expect(p.sourceFontSize == base + 1 && enabled(wc, "resetFontSize:").0)
             wc.resetFontSize(nil)
@@ -213,7 +188,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
             #expect(p.sourceFontSize == 48 && enabled(wc, "increaseFontSize:").0 == false)
             p.sourceFontSize = nil
 
-            // Syntax Coloring: Default (checked), the file's language mixed.
             let swiftTag = EditorMenu.syntaxTag(.swift), noneTag = EditorMenu.syntaxTag(.plain)
             #expect(enabled(wc, "setSyntaxColoring:", tag: EditorMenu.defaultSyntaxTag).1 == .on)
             #expect(enabled(wc, "setSyntaxColoring:", tag: swiftTag).1 == .mixed)
@@ -223,13 +197,10 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
             wc.setSyntaxColoring(item(tag: EditorMenu.defaultSyntaxTag))
             #expect(wc.editor.coloringLanguage == .swift && wc.editor.syntaxOverride == nil)
 
-            // Format is for Swift files only.
             #expect(enabled(wc, "formatFile:").0)
             wc.open(path: dir.appendingPathComponent("Sources/App/c.c").path, line: nil)
             #expect(enabled(wc, "formatFile:").0 == false && enabled(wc, "formatSelection:").0 == false)
 
-            // Minimap: a user setting, on in the factory state (reference-ui-6.md
-            // §4.5, E9); its width follows the editor (§6.5).
             #expect(p.showMinimap && wc.editor.showsMinimap)
             wc.editor.view.layoutSubtreeIfNeeded()
             #expect(wc.editor.minimapWidthValue == MinimapView.width(forEditorWidth: wc.editor.view.bounds.width))
@@ -241,7 +212,7 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
     }
 
     @Test func formatFileWithSwiftFormat() async throws {
-        guard let tool = SwiftFormatTool.locate() else { return } // no toolchain swift-format
+        guard let tool = SwiftFormatTool.locate() else { return }
         let dir = try workspace("format", ["Sources/App/main.swift": "let  x=1\nfunc f( ) { }\n"])
         let wc = try window(dir)
         wc.open(path: dir.appendingPathComponent("Sources/App/main.swift").path, line: nil)
@@ -249,11 +220,8 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(r == .success(true))
         #expect(wc.editor.text.hasPrefix("let x = 1\n"))
         #expect(MenuTitles.title(generic: "Format File", in: wc.menuContext) == "Format File with \u{2018}swift-format\u{2019}")
-        // A missing tool is reported, not crashed on.
         #expect(SwiftFormatTool.format("x", fileName: "a.swift", tool: nil) == .failure(.toolNotFound))
     }
-
-    // MARK: Change gutter (E3)
 
     @Test func changeGutterAcceptance() async throws {
         let lines = (1...20).map { "let v\($0) = \($0)" }.joined(separator: "\n") + "\n"
@@ -262,11 +230,10 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         let file = dir.appendingPathComponent("Sources/App/main.swift")
         wc.open(path: file.path, line: nil)
         let e = wc.editor
-        await e.sourceChangesIdle()   // the baselines are read in the background
+        await e.sourceChangesIdle()
         #expect(e.showsChangeColumn && e.sourceChanges.isEmpty)
-        #expect(e.gutter.ruleThickness == 51)   // the change column sits inside the gutter (editor-area.md §C.1)
+        #expect(e.gutter.ruleThickness == 51)
 
-        // Editing line 13 shows a bar on line 13 within one second.
         let r13 = try #require(e.textView.lineIndex.range(ofLine: 13))
         e.textView.setSelectedRange(NSRange(location: NSMaxRange(r13), length: 0))
         e.textView.insertText(" + 1", replacementRange: NSRange(location: NSNotFound, length: 0))
@@ -274,7 +241,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(e.sourceChanges == [SourceChangeRegion(kind: .modified, firstLine: 13, lineCount: 1, staged: false)])
         #expect(e.gutter.changeBarDescriptions == ["Local modification on line 13"])
 
-        // ⌃\ moves the caret to it; ⌃| wraps back to it.
         e.reveal(line: 1)
         #expect(enabled(wc, "jumpToNextChange:").0)
         wc.jumpToNextChange(nil)
@@ -283,20 +249,17 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         wc.jumpToPreviousLocalOrUpstreamChange(nil)
         #expect(e.currentLine == 13)
 
-        // The tooltip and accessibility element of the bar.
         let row = try #require(e.gutter.visibleLines().first { $0.line == 13 })
         #expect(e.gutter.changeToolTip(atGutterY: row.rect.midY) == "Unstaged change")
         let labels = (e.gutter.accessibilityChildren() ?? []).compactMap { ($0 as? NSAccessibilityElement)?.accessibilityLabel() }
         #expect(labels.contains("Local modification on line 13"))
 
-        // Staged: after saving and `git add`, the bar is a staged change.
         try e.save()
         try git(dir, "add", "-A")
         e.refreshSourceChanges()
         await e.sourceChangesIdle()
         #expect(e.sourceChanges.map(\.staged) == [true])
         #expect(e.gutter.changeToolTip(atGutterY: row.rect.midY) == "Staged change")
-        // Deleting a line: a deletion mark before the next line.
         let r2 = try #require(e.textView.lineIndex.range(ofLine: 2))
         e.textView.setSelectedRange(NSRange(location: r2.location, length: r2.length + 1))
         e.textView.delete(nil)
@@ -304,12 +267,10 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         await e.sourceChangesIdle()
         #expect(e.sourceChanges.first == SourceChangeRegion(kind: .deleted, firstLine: 2, lineCount: 0, staged: false))
 
-        // Clicking a bar opens Code Review, inline, on that region.
         e.gutter.onChangeClick?(2)
         #expect(e.isShowingInlineComparison && e.comparisonStyle == .inline)
         #expect(e.currentReviewChange.map { e.reviewChanges[$0].newStart } == 2)
 
-        // A file outside git has no change column.
         let plain = try workspace("nochanges", ["Sources/App/main.swift": "let a = 1\n"])
         let wc2 = try window(plain)
         wc2.open(path: plain.appendingPathComponent("Sources/App/main.swift").path, line: nil)
@@ -317,13 +278,10 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(!wc2.editor.showsChangeColumn && wc2.editor.gutter.ruleThickness == 51)
     }
 
-    /// Runs the main run loop (timers fire) until `done` or the timeout.
     static func runMainRunLoop(seconds: TimeInterval, until done: () -> Bool) {
         let deadline = Date().addingTimeInterval(seconds)
         while !done() && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     }
-
-    // MARK: Editor menus per kind (§2.8)
 
     @Test func editorMenuFollowsTheFocusedEditor() throws {
         let catalog = "Sources/App/Assets.xcassets"
@@ -354,7 +312,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         wc.open(path: dir.appendingPathComponent("Sources/App/main.swift").path, line: nil)
         #expect(wc.focusedEditorKind == .source && titles().contains("Font Size"))
 
-        // Property list: Add Item, Value Type, Raw Keys and Values.
         wc.open(path: dir.appendingPathComponent("Sources/App/Info.plist").path, line: nil)
         #expect(wc.menuContext.editorKind == .propertyList)
         #expect(titles() == ["Show Editor Only", "Preview", "Assistant", "Code Review", "Layout", "Add Item", "Value Type", "Raw Keys and Values"])
@@ -370,7 +327,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         wc.setPlistValueType(item(tag: number))
         #expect(pe.selectedTypeName == "Number" && enabled(wc, "setPlistValueType:", tag: number).1 == .on)
 
-        // Interface Builder: zoom and the document outline.
         wc.open(path: dir.appendingPathComponent("Sources/App/View.xib").path, line: nil)
         #expect(wc.focusedEditorKind == .interfaceBuilder && titles().contains("Resolve Auto Layout Issues"))
         let ib = try #require(wc.interfaceEditor)
@@ -381,7 +337,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         wc.toggleDocumentOutline(nil)
         #expect(ib.isOutlineVisible == !outline)
 
-        // Asset catalog: Add New Asset ▸ Image Set, Delete Selected Items.
         wc.open(path: dir.appendingPathComponent(catalog).path, line: nil)
         #expect(wc.focusedEditorKind == .assetCatalog && titles().contains("Device Image Reps"))
         let ae = try #require(wc.assetEditor)
@@ -391,15 +346,11 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(ae.selected?.kind == .imageSet && enabled(wc, "deleteSelectedAssets:").0)
         wc.deleteSelectedAssets(nil)
         #expect(ae.catalog.sets().isEmpty)
-        // Moved to the trash, not deleted (#3).
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("Trash").path))
 
-        // Back to source: the source menu again.
         wc.open(path: dir.appendingPathComponent("Sources/App/main.swift").path, line: nil)
         #expect(titles().contains("Structure") && editorMenu.editorKind == .source)
     }
-
-    // MARK: Navigate: counterparts and their alternates (M12), Layout
 
     @Test func counterpartsAndLayout() throws {
         let dir = try workspace("counterparts", ["Sources/App/Foo.swift": "struct Foo {}\n", "Sources/App/FooTests.swift": "let t = 1\n"])
@@ -411,15 +362,12 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(wc.editor.fileURL?.path == tests)
         wc.jumpToNextCounterpart(nil)
         #expect(wc.editor.fileURL?.path == foo)
-        // … using Tab: a new editor tab; … in Next Editor Pane: a new pane.
         let tabs = wc.editorArea.tabs.count
         wc.jumpToNextCounterpartUsingTab(nil)
         #expect(wc.editorArea.tabs.count == tabs + 1 && wc.editor.fileURL?.path == tests)
         wc.jumpToPreviousCounterpartInNextEditorPane(nil)
         #expect(wc.editorArea.tab.editors.count == 2 && wc.editor.fileURL?.path == foo)
 
-        // Layout ▸ is for the canvas: enabled while canvas mode is on, whether
-        // or not the file has previews (reference-ui-6.md §8 item 5, M5).
         #expect(wc.isCanvasModeOn && wc.canvas == nil)
         #expect(enabled(wc, "setCanvasLayout:", tag: 0) == (true, .on))
         wc.setCanvasLayout(item(tag: 2))
@@ -430,7 +378,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
         #expect(!wc.isCanvasModeOn && enabled(wc, "setCanvasLayout:", tag: 1).0 == false)
         wc.toggleCanvas(nil)
 
-        // Show / Hide All Issues toggles every editor.
         #expect(MenuTitles.title(generic: "Show All Issues", in: wc.menuContext) == "Hide All Issues")
         wc.toggleInlineIssues(nil)
         #expect(!wc.editor.showsInlineIssues && MenuTitles.title(generic: "Show All Issues", in: wc.menuContext) == "Show All Issues")

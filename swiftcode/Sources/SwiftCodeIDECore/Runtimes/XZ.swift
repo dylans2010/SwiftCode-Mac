@@ -1,8 +1,3 @@
-// XZ streams (the compressed chunks of a pbzx stream), decoded with the
-// system's liblzma (public domain / 0BSD), loaded at run time: every Mac has
-// it in /usr/lib and Linux distributions ship liblzma.so.5. Only its one-call
-// buffer decoder is used, whose arguments are plain C types.
-
 import Foundation
 #if canImport(Glibc)
 import Glibc
@@ -28,7 +23,6 @@ public enum XZ {
 
     public static var isAvailable: Bool { decodeFunction != nil }
 
-    /// Decodes one complete .xz stream whose decoded size is known.
     public static func decode(_ input: [UInt8], size: Int) throws -> [UInt8] {
         guard let f = decodeFunction else { throw RuntimeDownloadError.expansion("liblzma (XZ) was not found on this computer") }
         var out = [UInt8](repeating: 0, count: max(size, 1))
@@ -45,9 +39,6 @@ public enum XZ {
     }
 }
 
-/// A pbzx stream: "pbzx", a big-endian 64-bit chunk size, then chunks of
-/// (decoded size, stored size, bytes), each stored as is when the sizes are
-/// equal, else as one XZ stream. Read as a byte source.
 final class PBZXSource {
     let next: (Int) throws -> [UInt8]
     var pending: [UInt8] = []
@@ -55,7 +46,6 @@ final class PBZXSource {
     var started = false
     var done = false
 
-    /// `read(n)` reads the pbzx bytes (an exact count, or fewer at the end).
     init(_ read: @escaping (Int) throws -> [UInt8]) { next = read }
 
     func exactly(_ n: Int) throws -> [UInt8] {

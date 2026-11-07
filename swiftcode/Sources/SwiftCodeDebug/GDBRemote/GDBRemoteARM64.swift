@@ -1,29 +1,15 @@
-// The arm64 register file the stub offers (`specs/simulator/debug-stub.md`
-// §4): the user registers of a Darwin arm64 thread as `thread_get_state`
-// names them (x0–x28, fp, lr, sp, pc, cpsr), then, when the target can read
-// them, the FP/SIMD registers v0–v31, fpsr and fpcr. Numbers, names, sizes,
-// DWARF numbers (the "DWARF for the Arm 64-bit Architecture" ABI document:
-// x0–x30 = 0–30, sp = 31, pc = 32, v0–v31 = 64–95) and LLDB's generic roles
-// come from public documents (level 1). The register numbers are SwiftCode's own
-// order; LLDB learns them from `qRegisterInfo`.
-
-/// One register of the layout.
 public struct GDBRemoteRegister: Equatable, Sendable {
     public enum Format: String, Sendable { case hex, vector }
     public var number: Int
     public var name: String
     public var altName: String?
-    /// Bytes.
     public var size: Int
-    /// Byte offset in the `g` packet's register block.
     public var offset: Int
     public var set: String
     public var dwarf: Int?
-    /// LLDB's generic role: pc, sp, fp, ra, flags, arg1…arg8.
     public var generic: String?
     public var format: Format { size == 16 ? .vector : .hex }
 
-    /// The `qRegisterInfo` reply (LLDB's key-value form).
     public var infoReply: String {
         var s = "name:\(name);"
         if let altName { s += "alt-name:\(altName);" }
@@ -36,11 +22,8 @@ public struct GDBRemoteRegister: Equatable, Sendable {
     }
 }
 
-/// The register layout and the conversion between a thread's registers and
-/// the protocol's byte blocks.
 public struct GDBRemoteARM64Layout: Equatable, Sendable {
     public let registers: [GDBRemoteRegister]
-    /// The layout includes v0–v31, fpsr and fpcr.
     public let includesFloatingPoint: Bool
 
     public static let pc = 32, sp = 31, fp = 29, lr = 30, cpsr = 33
@@ -71,16 +54,12 @@ public struct GDBRemoteARM64Layout: Equatable, Sendable {
         registers = regs
     }
 
-    /// The `g` block's size in bytes.
     public var blockSize: Int { registers.last.map { $0.offset + $0.size } ?? 0 }
 
-    /// The registers a stop reply carries (LLDB's "expedited" registers):
-    /// fp, lr, sp, pc, cpsr.
     public static let expedited = [fp, lr, sp, pc, cpsr]
 
     public func register(_ n: Int) -> GDBRemoteRegister? { registers.indices.contains(n) ? registers[n] : nil }
 
-    /// A register's value bytes from a thread's state.
     public func bytes(of n: Int, in state: GDBRemoteThreadRegisters) -> [UInt8]? {
         guard let r = register(n) else { return nil }
         func le(_ v: UInt64, _ size: Int) -> [UInt8] { (0..<size).map { UInt8(truncatingIfNeeded: v >> (8 * UInt64($0))) } }
@@ -98,8 +77,6 @@ public struct GDBRemoteARM64Layout: Equatable, Sendable {
         }
     }
 
-    /// Stores a register's value bytes into a thread's state; false for an
-    /// unknown register or a wrong size.
     public func set(_ n: Int, bytes: [UInt8], in state: inout GDBRemoteThreadRegisters) -> Bool {
         guard let r = register(n), bytes.count == r.size else { return false }
         let v = GDBRemoteHex.littleEndianValue(bytes)
@@ -119,12 +96,10 @@ public struct GDBRemoteARM64Layout: Equatable, Sendable {
         return true
     }
 
-    /// The `g` reply's block.
     public func block(of state: GDBRemoteThreadRegisters) -> [UInt8] {
         registers.flatMap { bytes(of: $0.number, in: state) ?? [] }
     }
 
-    /// Reads a `G` block into a state; nil when the size is wrong.
     public func state(fromBlock block: [UInt8], base: GDBRemoteThreadRegisters) -> GDBRemoteThreadRegisters? {
         guard block.count == blockSize else { return nil }
         var s = base
@@ -133,15 +108,11 @@ public struct GDBRemoteARM64Layout: Equatable, Sendable {
     }
 }
 
-/// One thread's registers as the target reports them.
 public struct GDBRemoteThreadRegisters: Equatable, Sendable {
-    /// x0–x30 (x29 = fp, x30 = lr).
     public var x: [UInt64]
     public var sp: UInt64
     public var pc: UInt64
-    /// PSTATE's NZCV and mode bits as `thread_get_state` reports them.
     public var cpsr: UInt32
-    /// v0–v31, 16 bytes each, little-endian (nil: not available).
     public var vector: [UInt8]?
     public var fpsr: UInt32?
     public var fpcr: UInt32?

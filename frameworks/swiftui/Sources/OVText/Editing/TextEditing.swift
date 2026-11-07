@@ -1,27 +1,3 @@
-// Editable text: storage, selection, movement, undo and input-method
-// composition, without views (round R8; docs/PARITY.md §5.3–5.4 "R14 text
-// editing core"). `TextField`, `SecureField` and `TextEditor` drive it, and
-// EditorKit (the IDE's source editor) can build on the same type: it knows
-// nothing about fonts or windows. Vertical movement and hit testing go
-// through `TextEditingLayout`, which `TextLayoutGeometry` (below) implements
-// for an OVText `TextLayout`.
-//
-// Offsets count grapheme clusters (`Character`s), the unit OVText shapes and
-// lays out in, so a caret can never fall inside a cluster.
-//
-// SwiftCode rules (no reference measurements; public platform conventions):
-// - A word is a run of letters, digits and underscores; any other non-space
-//   character is a word of its own; whitespace separates words.
-// - Typing coalesces into one undo step while each insertion continues the
-//   previous one (typing over a selection starts the step); so do
-//   consecutive deletions in one direction. Moving the caret, pasting,
-//   cutting or deleting a selection starts a new step.
-// - Marked (uncommitted) text replaces the selection when composition
-//   starts; it is not part of `text` until committed.
-// - Changes made from outside (`setText`) keep the caret where it can stay
-//   and clear the undo history.
-
-/// A selection: the anchor stays put while the head (the caret) moves.
 public struct TextSelectionRange: Hashable, Sendable {
     public var anchor: Int
     public var head: Int
@@ -37,46 +13,30 @@ public struct TextSelectionRange: Hashable, Sendable {
     public var isEmpty: Bool { anchor == head }
 }
 
-/// How far a caret movement or a deletion reaches.
 public enum TextMovement: Hashable, Sendable {
     case character
     case word
-    /// To the start or end of the visual line (the layout's; a logical line
-    /// without one).
     case line
-    /// To the start or end of the paragraph (between newlines).
     case paragraph
     case document
 }
 
-/// The layout an editing model consults for vertical movement and visual
-/// line boundaries.
 public protocol TextEditingLayout {
-    /// The offset `lines` visual lines below (positive) or above (negative)
-    /// `offset`, nearest to `x` (the goal column); nil when there is no
-    /// such line. Also returns the x of `offset` when `x` is nil.
     func verticalMove(from offset: Int, lines: Int, x: Double?) -> (offset: Int, x: Double)?
-    /// The start or end offset of the visual line containing `offset`.
     func lineBoundary(of offset: Int, end: Bool) -> Int
 }
 
-/// The text, selection, marked text and undo history of one editable text.
 public final class TextEditingModel {
     public private(set) var characters: [Character]
     public private(set) var selection = TextSelectionRange(caret: 0)
-    /// Uncommitted input-method text shown at the selection.
     public private(set) var markedText = ""
-    /// The cursor within `markedText` (characters).
     public private(set) var markedCursor = 0
-    /// When false, inserted newlines become spaces (single-line fields).
     public var allowsNewlines: Bool
-    /// The layout used for vertical movement and visual lines.
     public var layout: (any TextEditingLayout)?
-    /// Incremented on every change of the text.
     public private(set) var revision = 0
 
     private struct Edit {
-        var range: Range<Int>        // range of `inserted` after the edit
+        var range: Range<Int>
         var removed: [Character]
         var inserted: [Character]
         var selectionBefore: TextSelectionRange
@@ -87,10 +47,8 @@ public final class TextEditingModel {
 
     private var undoStack: [[Edit]] = []
     private var redoStack: [[Edit]] = []
-    /// The kind of the open undo group (consecutive edits merge into it).
     private var openGroup: Edit.Kind?
     private var goalX: Double?
-    /// Maximum number of undo groups kept.
     public var undoLimit = 200
 
     public init(text: String = "", allowsNewlines: Bool = false) {
@@ -108,7 +66,6 @@ public final class TextEditingModel {
     public var canUndo: Bool { !undoStack.isEmpty }
     public var canRedo: Bool { !redoStack.isEmpty }
 
-    /// The text as displayed: the marked text at the selection's start.
     public var displayCharacters: [Character] {
         guard hasMarkedText else { return characters }
         var c = characters
@@ -116,23 +73,17 @@ public final class TextEditingModel {
         return c
     }
 
-    /// The range of the marked text within `displayCharacters`.
     public var displayMarkedRange: Range<Int>? {
         guard hasMarkedText else { return nil }
         let s = min(selection.range.lowerBound, characters.count)
         return s..<(s + markedText.count)
     }
 
-    /// The caret within `displayCharacters`.
     public var displayCaret: Int {
         guard hasMarkedText else { return selection.head }
         return min(selection.range.lowerBound, characters.count) + markedCursor
     }
 
-    // MARK: External changes
-
-    /// Replaces the text from outside (a binding changed): keeps the selection
-    /// where it fits, clears marked text and the undo history.
     public func setText(_ s: String) {
         let new = Array(s)
         guard new != characters else { return }
@@ -146,8 +97,6 @@ public final class TextEditingModel {
         revision += 1
     }
 
-    // MARK: Selection
-
     public func setSelection(_ s: TextSelectionRange) {
         let c = TextSelectionRange(anchor: clamp(s.anchor), head: clamp(s.head))
         if c != selection { breakUndoGroup() }
@@ -157,20 +106,16 @@ public final class TextEditingModel {
 
     public func setCaret(_ offset: Int) { setSelection(TextSelectionRange(caret: offset)) }
 
-    /// Moves the head to `offset`, keeping the anchor (shift-click, drags).
     public func extendSelection(to offset: Int) {
         setSelection(TextSelectionRange(anchor: selection.anchor, head: offset))
     }
 
     public func selectAll() { setSelection(TextSelectionRange(anchor: 0, head: characters.count)) }
 
-    /// The word (or run of whitespace, or single punctuation character) at
-    /// `offset`.
     public func wordRange(at offset: Int) -> Range<Int> {
         let n = characters.count
         guard n > 0 else { return 0..<0 }
         var i = min(max(offset, 0), n - 1)
-        // At the end of a word, prefer the word before the caret.
         if offset == n || (offset > 0 && Self.kind(characters[i]) == .space && Self.kind(characters[offset - 1]) == .word) {
             i = max(0, offset - 1)
         }
@@ -183,7 +128,6 @@ public final class TextEditingModel {
         return lo..<hi
     }
 
-    /// The paragraph (between newlines, including its newline) at `offset`.
     public func paragraphRange(at offset: Int) -> Range<Int> {
         let n = characters.count
         var lo = min(max(offset, 0), n)
@@ -204,14 +148,10 @@ public final class TextEditingModel {
         setSelection(TextSelectionRange(anchor: r.lowerBound, head: r.upperBound))
     }
 
-    // MARK: Movement
-
-    /// Moves the caret (or extends the selection) forward or backward.
     public func move(_ movement: TextMovement, forward: Bool, extending: Bool = false) {
         let from = selection.head
         var to: Int
         if !extending && !selection.isEmpty && movement == .character {
-            // An arrow collapses a selection to its edge.
             to = forward ? selection.range.upperBound : selection.range.lowerBound
         } else {
             to = target(of: movement, from: from, forward: forward)
@@ -220,7 +160,6 @@ public final class TextEditingModel {
         setSelection(extending ? TextSelectionRange(anchor: selection.anchor, head: to) : TextSelectionRange(caret: to))
     }
 
-    /// Up (`lines` < 0) or down by visual lines, keeping the goal column.
     public func moveVertically(lines: Int, extending: Bool = false) {
         let from = selection.head
         var to: Int
@@ -230,7 +169,6 @@ public final class TextEditingModel {
                 to = r.offset
                 x = r.x
             } else {
-                // No line there: to the start or the end.
                 to = lines < 0 ? 0 : characters.count
             }
         } else if allowsNewlines {
@@ -266,7 +204,6 @@ public final class TextEditingModel {
         return min(p + column, end)
     }
 
-    /// Where `movement` from `offset` lands.
     public func target(of movement: TextMovement, from offset: Int, forward: Bool) -> Int {
         let n = characters.count
         switch movement {
@@ -327,20 +264,15 @@ public final class TextEditingModel {
         return i
     }
 
-    // MARK: Editing
-
-    /// Inserts typed text in place of the selection.
     public func insert(_ s: String) {
         let piece = filtered(s)
         markedText = ""
         markedCursor = 0
         let typed = piece.count <= 2 && !piece.contains(where: \.isNewline)
-        // Typing over a selection starts a step that the following keys join.
         if !selection.isEmpty { breakUndoGroup() }
         replace(selection.range, with: piece, kind: typed ? .typing : .other)
     }
 
-    /// Inserts pasted text (its own undo step).
     public func paste(_ s: String) {
         breakUndoGroup()
         markedText = ""
@@ -348,7 +280,6 @@ public final class TextEditingModel {
         breakUndoGroup()
     }
 
-    /// Deletes the selection, or the character/word/line before the caret.
     public func deleteBackward(_ movement: TextMovement = .character) {
         if !selection.isEmpty {
             replace(selection.range, with: [], kind: .other)
@@ -360,7 +291,6 @@ public final class TextEditingModel {
         replace(from..<selection.head, with: [], kind: movement == .character ? .deleteBackward : .other)
     }
 
-    /// Deletes the selection, or the character/word/line after the caret.
     public func deleteForward(_ movement: TextMovement = .character) {
         if !selection.isEmpty {
             replace(selection.range, with: [], kind: .other)
@@ -372,10 +302,8 @@ public final class TextEditingModel {
         replace(selection.head..<to, with: [], kind: movement == .character ? .deleteForward : .other)
     }
 
-    /// The selected text, for the clipboard (nil when nothing is selected).
     public func copy() -> String? { selection.isEmpty ? nil : selectedText }
 
-    /// Removes and returns the selected text.
     public func cut() -> String? {
         guard !selection.isEmpty else { return nil }
         let s = selectedText
@@ -385,16 +313,12 @@ public final class TextEditingModel {
         return s
     }
 
-    /// Replaces `range` with `string` as one undo step (programmatic edits).
     public func replace(_ range: Range<Int>, with string: String) {
         breakUndoGroup()
         replace(range, with: filtered(string), kind: .other)
         breakUndoGroup()
     }
 
-    // MARK: Composition
-
-    /// Shows an input method's uncommitted text (empty ends composition).
     public func setMarkedText(_ s: String, cursor: Int) {
         if !s.isEmpty && markedText.isEmpty && !selection.isEmpty {
             replace(selection.range, with: [], kind: .other)
@@ -407,8 +331,6 @@ public final class TextEditingModel {
         markedText = ""
         markedCursor = 0
     }
-
-    // MARK: Undo
 
     public func undo() {
         unmarkText()
@@ -437,10 +359,7 @@ public final class TextEditingModel {
         revision += 1
     }
 
-    /// Ends the open undo step: the next edit starts a new one.
     public func breakUndoGroup() { openGroup = nil }
-
-    // MARK: Internals
 
     private func clamp(_ i: Int) -> Int { min(max(0, i), characters.count) }
 
@@ -483,24 +402,13 @@ public final class TextEditingModel {
     }
 }
 
-// MARK: - Geometry of laid-out text
-
-/// Caret positions, hit testing and selection rectangles of an OVText
-/// layout: what an editor draws and how a click maps to an offset. Positions
-/// are in the text's own coordinates (y down from the top of the first line).
-/// Each line is shifted right by its origin (alignment). Left-to-right
-/// positions are exact; within right-to-left runs the caret follows the
-/// visual order of the clusters (no split carets).
 public struct TextLayoutGeometry: TextEditingLayout {
     public struct LineBox: Sendable {
-        /// Offsets of the line's clusters (the end excludes a trailing
-        /// newline, which belongs to no visual position).
         public var range: Range<Int>
         public var x: Double
         public var top: Double
         public var height: Double
         public var baseline: Double
-        /// x of each cluster's leading edge, by offset, plus the end.
         public var edges: [Double]
         public var width: Double
     }
@@ -508,11 +416,6 @@ public struct TextLayoutGeometry: TextEditingLayout {
     public let lines: [LineBox]
     public let count: Int
 
-    /// - Parameters:
-    ///   - layout: the typeset text (one cluster per character).
-    ///   - lineOrigins: x of each line (alignment); nil: 0.
-    ///   - baselines: the baseline of each line as drawn (pixel-rounded); nil: the layout's.
-    ///   - emptyLineHeight: the height of a line without clusters.
     public init(layout: TextLayout, lineOrigins: [Double]? = nil, baselines: [Double]? = nil,
                 emptyLineHeight: Double = 20, emptyAscent: Double = 16) {
         let clusters = layout.clusters
@@ -525,7 +428,6 @@ public struct TextLayoutGeometry: TextEditingLayout {
         for (k, line) in layout.lines.enumerated() {
             var range = line.range
             if !range.isEmpty, isBreak(range.upperBound - 1) { range = range.lowerBound..<(range.upperBound - 1) }
-            // Leading edges in visual order.
             var xs = [Double](repeating: 0, count: range.count + 1)
             var x = 0.0
             var order = line.visualOrder.filter { range.contains($0) }
@@ -540,7 +442,6 @@ public struct TextLayoutGeometry: TextEditingLayout {
             xs[range.count] = rtl ? 0 : x
             let lineX = lineOrigins.map { $0.indices.contains(k) ? $0[k] : 0 } ?? 0
             if line.ascent + line.descent <= 0 {
-                // An empty line (an empty text): the font's line box.
                 out.append(LineBox(range: range, x: lineX, top: line.top, height: emptyLineHeight,
                                    baseline: line.top + emptyAscent, edges: xs, width: line.width))
                 continue
@@ -553,7 +454,6 @@ public struct TextLayoutGeometry: TextEditingLayout {
             out.append(LineBox(range: 0..<0, x: lineOrigins?.first ?? 0, top: 0, height: emptyLineHeight,
                                baseline: emptyAscent, edges: [0], width: 0))
         }
-        // A trailing newline opens an empty last line.
         if let last = layout.lines.last, !last.range.isEmpty, isBreak(last.range.upperBound - 1),
            let lb = out.last {
             let pitch = last.ascent + last.descent + last.leading
@@ -563,14 +463,10 @@ public struct TextLayoutGeometry: TextEditingLayout {
         lines = out
     }
 
-    /// The visual line holding the caret at `offset` (a caret at a soft line
-    /// end belongs to the next line).
     public func lineIndex(of offset: Int) -> Int {
         for (k, l) in lines.enumerated() {
             if offset < l.range.upperBound && offset >= l.range.lowerBound { return k }
             if offset == l.range.upperBound {
-                // End of the line's visible clusters: here unless the next
-                // line starts at the same offset (a soft wrap).
                 if k + 1 < lines.count, lines[k + 1].range.lowerBound == offset, lines[k + 1].range.upperBound > offset || l.range.upperBound == l.range.lowerBound {
                     continue
                 }
@@ -580,20 +476,17 @@ public struct TextLayoutGeometry: TextEditingLayout {
         return max(0, lines.count - 1)
     }
 
-    /// x of the caret at `offset` on line `k`.
     public func caretX(_ offset: Int, line k: Int) -> Double {
         let l = lines[k]
         let i = min(max(offset - l.range.lowerBound, 0), l.edges.count - 1)
         return l.x + l.edges[i]
     }
 
-    /// The caret rectangle at `offset` (zero width).
     public func caret(at offset: Int) -> (x: Double, top: Double, height: Double) {
         let k = lineIndex(of: offset)
         return (caretX(offset, line: k), lines[k].top, lines[k].height)
     }
 
-    /// The offset nearest to a point.
     public func offset(atX x: Double, y: Double) -> Int {
         var k = 0
         for (i, l) in lines.enumerated() where y >= l.top { k = i }
@@ -615,7 +508,6 @@ public struct TextLayoutGeometry: TextEditingLayout {
         return best
     }
 
-    /// Rectangles covering `range`, one per line (x, top, width, height).
     public func selectionRects(_ range: Range<Int>) -> [(x: Double, top: Double, width: Double, height: Double)] {
         guard !range.isEmpty else { return [] }
         var out: [(Double, Double, Double, Double)] = []
@@ -633,15 +525,12 @@ public struct TextLayoutGeometry: TextEditingLayout {
             } else {
                 continue
             }
-            // A selected newline shows as a little extra width.
             let nextStart = k + 1 < lines.count ? lines[k + 1].range.lowerBound : count
             if range.upperBound > l.range.upperBound && l.range.upperBound < nextStart { b += 4 }
             out.append((a, l.top, max(0, b - a), l.height))
         }
         return out
     }
-
-    // MARK: TextEditingLayout
 
     public func verticalMove(from offset: Int, lines delta: Int, x: Double?) -> (offset: Int, x: Double)? {
         let k = lineIndex(of: offset)

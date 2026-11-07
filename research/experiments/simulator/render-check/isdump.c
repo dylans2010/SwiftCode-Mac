@@ -1,18 +1,3 @@
-/*
- * isdump: R5's isserver.h test IOSurface server (../iosurface-remote) run as a
- * launchd job, plus a dump facility (Ycode research R6, original code). This
- * is the host-side capture Ycode needs: the framebuffer library reports a
- * surface ID, and the service that owns the surface memory saves its pixels.
- *
- * isserver_r6.h is R5's isserver.h plus one switch (YC_SRV_FREEZESEED).
- * Usage: isdump -checkin <service name>   (as a launchd job, like isserve)
- * Env:   YC_SRV_DUMPDIR=<dir>  every 250 ms, if <dir>/req exists, read lines
- *          "<name> <surface id>"  -> <dir>/<name>.raw + <dir>/<name>.txt
- *          "list"                  -> <dir>/surfaces.txt (id size format name)
- *        and remove req. Other YC_SRV_* switches as in isserver.h.
- * Concurrency: the dump thread walks the server's surface list without a
- * lock (research tool; the display buffers it reads are long-lived).
- */
 #include "isserver_r6.h"
 static mach_port_t (*const isdump_unused)(void) __attribute__((unused)) = srv_start;
 #include <unistd.h>

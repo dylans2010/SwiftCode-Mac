@@ -4,11 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The Test navigator (⌘6; `specs/ide/testing.md`, `reference-ui-6.md`
-/// §5.4): the package or project, its test targets, suites and tests, each
-/// with its result diamond. Selecting a test opens its line; the run
-/// button that appears on the selected row (and its context menu) runs
-/// that test, suite, target or everything.
 struct TestNavigator: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -49,8 +44,6 @@ struct TestNavigator: View {
     }
 }
 
-/// The Test navigator's outline: rows with diamonds; the selected row
-/// shows a run button before its diamond.
 struct TestOutline: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -111,10 +104,6 @@ struct TestOutline: View {
     }
 }
 
-// MARK: - Reports
-
-/// The Report navigator (⌘9): the scheme's builds and test runs, newest
-/// first, a test run's Tests and Log pages under it.
 struct ReportNavigator: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -147,8 +136,6 @@ struct ReportNavigator: View {
     }
 }
 
-/// A report over the editor area: a test run's Tests page (each test with
-/// its result, time and failures) or a run's log.
 struct ReportPaneView: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -190,7 +177,6 @@ struct ReportPaneView: View {
     }
 }
 
-/// A test run's Tests page: the result, the counts, then each test.
 struct TestReportView: View {
     var report: BuildReport
     var model: WorkspaceShellModel
@@ -263,7 +249,6 @@ struct TestReportView: View {
     }
 }
 
-/// A run's log, line by line.
 struct ReportLogView: View {
     var lines: [String]
     var colors: ShellColors

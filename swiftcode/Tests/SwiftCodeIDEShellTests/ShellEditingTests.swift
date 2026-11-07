@@ -6,8 +6,6 @@ import SwiftCodeIDECore
 import SwiftCodeSyntax
 @testable import SwiftCodeIDEShell
 
-/// Editing in the shell: buffers across files, saving, prompts, changes on
-/// disk, recovery copies, find, jumps and builds.
 @MainActor
 @Suite struct ShellEditingTests {
     func model(_ pkg: TempPackage, engine: BuildEngine = ScriptedEngine(lines: [], issues: [])) throws -> WorkspaceShellModel {
@@ -44,7 +42,6 @@ import SwiftCodeSyntax
         m.perform(.save)
         #expect(m.editedPaths.isEmpty && !m.isEnabled(.save))
         #expect(contents(p).hasPrefix("X") && !m.windowTitle.contains("Edited"))
-        // Undo past the save is an edit again; redo is the saved text.
         b.undo()
         #expect(m.editedPaths == [p])
         b.redo()
@@ -101,7 +98,6 @@ import SwiftCodeSyntax
         #expect(m.editor?.buffer.text == "xsecond\n" && m.editor?.diskChange == .modified && m.editedPaths == [p])
         m.reloadFromDisk()
         #expect(m.editor?.buffer.text == "third\n" && m.editor?.diskChange == nil && m.editedPaths.isEmpty)
-        // Reloading can be undone: the edit comes back, as an edit.
         m.editor?.buffer.undo()
         #expect(m.editor?.buffer.text == "xsecond\n" && m.editedPaths == [p])
     }
@@ -143,8 +139,6 @@ import SwiftCodeSyntax
         #expect(message.contains("README"))
         #expect(m.editor?.buffer.text.hasPrefix("keep me") == true && m.editedPaths == [p])
     }
-
-    // MARK: Closing
 
     @Test func closingTheWorkspaceAsksAboutUnsavedChanges() throws {
         let pkg = try TempPackage()
@@ -224,8 +218,6 @@ import SwiftCodeSyntax
         #expect(m.editor?.isDirty == false && m.editor?.buffer.text == before)
     }
 
-    // MARK: Recovery
-
     @Test func unsavedTextComesBackInTheNextSession() throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -235,13 +227,11 @@ import SwiftCodeSyntax
         first.editor?.buffer.setCaret(0)
         first.editor?.buffer.insertText("unsaved ")
         first.writeRecoveryCopies()
-        // A crash: nothing was saved, the next session opens the file.
         let second = try model(pkg)
         second.open(p)
         #expect(second.editor?.buffer.text.hasPrefix("unsaved ") == true)
         #expect(second.editedPaths == [p] && second.recoveredPaths == [p])
         #expect(!contents(p).hasPrefix("unsaved "))
-        // Undo gives the file's own text.
         second.editor?.buffer.undo()
         #expect(second.editor?.buffer.text == contents(p) && second.editedPaths.isEmpty)
         second.editor?.buffer.redo()
@@ -263,8 +253,6 @@ import SwiftCodeSyntax
         second.discardRecoveredText()
         #expect(second.editor?.buffer.text == contents(p) && second.editedPaths.isEmpty && second.recovery.entry(for: p) == nil)
     }
-
-    // MARK: Find, jump
 
     @Test func findSelectsMatchesAndWraps() throws {
         let pkg = try TempPackage()
@@ -384,8 +372,6 @@ import SwiftCodeSyntax
         #expect(b.text == "let a = 1\nlet b = 2\n")
     }
 
-    // MARK: Building
-
     @Test func aBuildSavesFirst() async throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -454,8 +440,6 @@ import SwiftCodeSyntax
         m.preferencesChanged()
         #expect(m.editor?.buffer.typingOptions.indent.usesTabs == true)
     }
-
-    // MARK: Completion
 
     @Test func snippetsBecomePlainTextWithTheCaretAtTheFirstStop() {
         let (a, ia) = EditorCompletion.plain(snippet: "add(${1:x: Int}, ${2:y})")

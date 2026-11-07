@@ -2,15 +2,8 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// B2-RUNTIME (#68–#70, `specs/simulator/runtime-onboarding.md` §7–§11): the
-/// runtime wizard's checklist against stand-in command runners, CoreSimulator's
-/// listings, a fake runtime bundle in a temporary folder, the host checks,
-/// the copy's commands and states, the setup script's output and the KVM SVE
-/// decision. Nothing is added to or removed from this Mac's CoreSimulator.
 @Suite struct RuntimeSetupTests {
     typealias R = StandInRunner
-
-    // MARK: Fixtures
 
     static let images = """
     {"A1":{"build":"24A434","deletable":true,"identifier":"A1","kind":"Patchable Cryptex Disk Image","platformIdentifier":"com.apple.platform.iphonesimulator",
@@ -36,7 +29,6 @@ import Testing
 
     static let systemVersion = plist(["ProductName": "iPhone OS", "ProductVersion": "27.0", "ProductBuildVersion": "24A434"])
 
-    /// A fake `iOS 27.0.simruntime` with a 3-file RuntimeRoot.
     static func fakeBundle(in dir: URL, name: String = "iOS 27.0.simruntime", product: String = "iPhone OS", version: String = "27.0",
                            build: String = "24A434", platformID: String = "com.apple.platform.iphonesimulator") throws -> URL {
         let b = dir.appendingPathComponent(name)
@@ -64,8 +56,6 @@ import Testing
     static let arm = SetupMachine(isMac: false, architecture: "aarch64")
     static let x86 = SetupMachine(isMac: false, architecture: "x86_64")
 
-    // MARK: Catalog
-
     @Test func platformsFromEverySpelling() {
         #expect(SimPlatform(name: "iPhone OS") == .iOS)
         #expect(SimPlatform(name: "Watch OS") == .watchOS)
@@ -89,7 +79,6 @@ import Testing
         #expect(ios27.runtimeRoot?.hasSuffix("iOS 27.0.simruntime/Contents/Resources/RuntimeRoot") == true)
         #expect(!list[0].isUsable && list[0].availabilityError == "runtime profile not found")
         #expect(!list[3].isUsable)
-        // CoreSimulator's runtimes are never SwiftCode's to remove.
         #expect(!list.contains { $0.isRemovable })
     }
 
@@ -120,10 +109,8 @@ import Testing
         let listed = RuntimeBundleReader.swiftcodeRuntimes(in: folder)
         #expect(listed.map(\.title) == ["iOS 27.0 (24A434)"])
         #expect(listed[0].isRemovable && listed[0].owner == .swiftcode(folder: folder + "/iOS-27.0-24A434"))
-        // Running the copy again (a resume) changes nothing.
         #expect(shell(copy) == 0)
         #expect(RuntimeBundleReader.swiftcodeRuntimes(in: folder).count == 1)
-        // Remove refuses anything but one runtime folder inside SwiftCode's.
         #expect(RuntimeCommands.remove(path: folder, folder: folder) == nil)
         #expect(RuntimeCommands.remove(path: "/", folder: folder) == nil)
         #expect(RuntimeCommands.remove(path: folder + "/../x", folder: folder) == nil)
@@ -144,8 +131,6 @@ import Testing
         p.waitUntilExit()
         return p.terminationStatus
     }
-
-    // MARK: This machine's checklist (#68)
 
     static var macReady: [(String, HeadsetCommandResult)] {
         [("xcrun --find simctl", R.ok("/Applications/Xcode.app/Contents/Developer/usr/bin/simctl\n")),
@@ -170,7 +155,6 @@ import Testing
         #expect(ios?.state == .ok && ios?.reason == "iOS 27.0 (24A434), 7.3 GB.")
         let vision = r.check("runtime.visionOS")
         #expect(vision?.state == .missing && vision?.reason.contains("cannot be used") == true)
-        // Xcode's runtime is not SwiftCode's to remove: the fix is words.
         if case .instructions = vision?.fix {} else { Issue.record("expected instructions, got \(String(describing: vision?.fix))") }
         let tv = r.check("runtime.tvOS")
         #expect(tv?.state == .missing && tv?.fix == .step(.download))
@@ -194,7 +178,6 @@ import Testing
         #expect(r.check("tools")?.state == .missing && r.check("tools")?.fix == .command("xcodebuild -runFirstLaunch"))
         #expect(r.check("runtime.iOS")?.state == .missing)
         #expect(r.check("disk")?.state == .missing && r.check("disk")?.reason.hasPrefix("1.0 GB free") == true)
-        // Re-check runs every command again.
         let again = await RuntimeSetupChecker(machine: Self.mac, choices: choices([.iOS]), runner: R(answers: Self.macReady), folder: "/nonexistent").run()
         #expect(again.check("tools")?.state == .ok && again.check("runtime.iOS")?.state == .ok)
         let unreadable = await RuntimeSetupChecker(machine: Self.mac, choices: choices([.iOS]), runner: R(answers: []), folder: "/nonexistent").run()
@@ -204,10 +187,8 @@ import Testing
     @Test func linuxMachines() async throws {
         let dir = Self.temp()
         defer { try? FileManager.default.removeItem(at: dir) }
-        // x86-64: the simulator runs elsewhere.
         let x = await RuntimeSetupChecker(machine: Self.x86, choices: choices([.iOS]), runner: R(answers: []), folder: dir.path).run()
         #expect(x.check("machine")?.state == .missing && x.check("machine")?.fix == .step(.host))
-        // arm64 without access to /dev/kvm, with a runtime in SwiftCode's folder.
         let b = try Self.fakeBundle(in: dir)
         let rec = try #require(RuntimeBundleReader.read(b.path))
         let folder = dir.appendingPathComponent("rt").path
@@ -227,8 +208,6 @@ import Testing
         #expect(RuntimeImportTool.simctl.command(file: "/tmp/iOS 27.dmg") == ["xcrun", "simctl", "runtime", "add", "/tmp/iOS 27.dmg"])
         #expect(RuntimeImportTool.xcodebuild.command(file: "/tmp/a.dmg") == ["xcodebuild", "-importPlatform", "/tmp/a.dmg"])
     }
-
-    // MARK: The host (#69)
 
     static let host = RuntimeHostSettings(destination: "tester@sim-host", dataDirectory: "/data/swiftcode")
 
@@ -292,8 +271,6 @@ import Testing
         #expect(RuntimeTransferState.after(rsyncStatus: 2, copiedKB: 5) == .failed("rsync failed with status 2."))
     }
 
-    // MARK: Host setup (#70)
-
     static let setupOutput = """
     some noise from the login shell
     SWIFTCODE-SETUP mode=report version=1
@@ -333,7 +310,6 @@ import Testing
         let inv = HostSetupInvocation(dataDirectory: "/data/swiftcode", swiftcodeVersion: "1.0.0-beta.2", tcpPort: 47900, udpPort: 47901)
         #expect(inv.arguments(mode: "apply") == ["--apply", "--data-dir", "/data/swiftcode", "--swift", "6.4", "--probe-seconds", "3",
                                                  "--swiftcode-version", "1.0.0-beta.2", "--tcp-port", "47900", "--udp-port", "47901"])
-        // Older saved settings lack the ports: they keep the defaults.
         let old = try JSONDecoder().decode(RuntimeHostSettings.self, from: Data(#"{"destination":"a@b","dataDirectory":"/d","linkName":"","swiftcodePath":""}"#.utf8))
         #expect(old.tcpPort == 47800 && old.udpPort == 47801 && old.destination == "a@b")
         let o = HostSetupOutput.parse("""
@@ -351,8 +327,6 @@ import Testing
         #expect(RuntimeHostChecker.Command.version("", dataDirectory: "/d").contains("[ -x /d/bin/swiftcode ]"))
     }
 
-    /// The release's version comes from its folder (or manifest.json), never
-    /// from running its swiftcode, which may not start outside the Flatpak runtime.
     @Test func hostVersionFromTheReleaseFolder() throws {
         let dir = Self.temp()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -361,7 +335,6 @@ import Testing
         try fm.createDirectory(at: top.appendingPathComponent("bin"), withIntermediateDirectories: true)
         try fm.createDirectory(at: dir.appendingPathComponent("bin"), withIntermediateDirectories: true)
         try Data("#!/bin/sh\nexit 0\n".utf8).write(to: top.appendingPathComponent("bin/swiftcode-simhost"))
-        // The release's swiftcode cannot start (its libcurl wants a newer OpenSSL).
         try Data("#!/bin/sh\necho 'version OPENSSL_3.2.0 not found' >&2; exit 1\n".utf8).write(to: top.appendingPathComponent("bin/swiftcode"))
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: top.appendingPathComponent("bin/swiftcode").path)
         try fm.createSymbolicLink(atPath: dir.appendingPathComponent("bin/swiftcode-simhost").path, withDestinationPath: top.appendingPathComponent("bin/swiftcode-simhost").path)
@@ -387,10 +360,6 @@ import Testing
     static let onLinux = false
     #endif
 
-    /// On Linux (the script inspects only Linux): a release installed from a
-    /// file:// "release" whose swiftcode cannot start and whose swiftcode-simhost
-    /// predates `check`. The second Apply downloads nothing; the self-test is
-    /// unknown, not a failure.
     @Test(.enabled(if: onLinux)) func secondApplyAfterAReleaseRunsNoReleaseStep() throws {
         let dir = Self.temp()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -417,7 +386,6 @@ import Testing
         try Data().write(to: rt.appendingPathComponent("sbin/launchd_sim"))
         let file = dir.appendingPathComponent("swiftcode-host-setup")
         try HostSetupScript.text.write(to: file, atomically: true, encoding: .utf8)
-        // A stand-in Swift (and no swiftly), so the run never touches this machine's toolchains.
         let fakeSwiftly = dir.appendingPathComponent("swiftly")
         try fm.createDirectory(at: fakeSwiftly.appendingPathComponent("bin"), withIntermediateDirectories: true)
         try Data("#!/bin/sh\necho 'Swift version 6.4.2 (stand-in)'\n".utf8).write(to: fakeSwiftly.appendingPathComponent("bin/swift"))
@@ -448,7 +416,6 @@ import Testing
         let selftest = try #require(applied.checks.first { $0.id == "setup.selftest" })
         #expect(selftest.state == .unknown && selftest.reason.contains("predates swiftcode-simhost check"), "\(selftest)")
         #expect(applied.checks.first { $0.id == "setup.service" }?.state == .ok)
-        // The second Apply: nothing to download, nothing run.
         let again = setup("apply")
         #expect(again.ran.isEmpty, "\(again.ran)")
         #expect(!again.userSteps.contains { $0.id == "release" })
@@ -462,7 +429,6 @@ import Testing
         if case .notApplicable = KVMSVEProbe.verdict(F(architecture: "aarch64", hasSVE: false, kvm: "access")) {} else { Issue.record("no SVE") }
         #expect(KVMSVEProbe.verdict(F(architecture: "aarch64", hasSVE: true, kvm: "access", runs: 21_300_000, lost: 149_873)) == .affected(lost: 149_873, runs: 21_300_000))
         #expect(KVMSVEProbe.verdict(F(architecture: "aarch64", hasSVE: true, kvm: "access", runs: 21_700_000, lost: 0)) == .fixed(runs: 21_700_000))
-        // One lost run is enough; too few runs without a loss tell nothing.
         #expect(KVMSVEProbe.verdict(F(architecture: "arm64", hasSVE: true, kvm: "access", runs: 50, lost: 1)) == .affected(lost: 1, runs: 50))
         if case .unknown = KVMSVEProbe.verdict(F(architecture: "aarch64", hasSVE: true, kvm: "access", runs: 50, lost: 0)) {} else { Issue.record("few runs") }
         if case .unknown = KVMSVEProbe.verdict(F(architecture: "aarch64", hasSVE: true, kvm: "access", error: "compile-failed")) {} else { Issue.record("error") }
@@ -480,7 +446,6 @@ import Testing
         #expect(shell("bash -n \(url.path.shellQuoted)") == 0)
         #expect(HostSetupScript.text.contains("int main(int argc"))
         #expect(!HostSetupScript.text.contains("@PROBE_SOURCE@"))
-        // Off Linux (this Mac) it reports and changes nothing.
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         p.arguments = [url.path, "--report", "--data-dir", dir.appendingPathComponent("data").path, "--config-dir", dir.appendingPathComponent("conf").path]
@@ -498,8 +463,6 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("conf").path))
     }
 
-    // MARK: The session
-
     @MainActor @Test func sessionConfirmsBeforeAnything() async throws {
         let dir = Self.temp()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -510,7 +473,6 @@ import Testing
         #expect(s.report?.check("runtime.iOS")?.state == .ok)
         s.next()
         #expect(s.step == .runtimes && s.state(of: .runtimes) == .ok)
-        // A disk image: the confirmation shows the exact command; nothing runs yet.
         let dmg = dir.appendingPathComponent("iOS 27.0 Simulator Runtime.dmg")
         try Data().write(to: dmg)
         s.pick(path: dmg.path)
@@ -519,11 +481,9 @@ import Testing
         #expect(s.confirmation?.command == "xcrun simctl runtime add '\(dmg.path)'")
         s.cancelConfirmation()
         #expect(s.confirmation == nil && s.running == nil)
-        // A bundle on a Mac is not imported (CoreSimulator takes images).
         let b = try Self.fakeBundle(in: dir)
         s.pick(path: b.path)
         #expect(s.picked?.record?.title == "iOS 27.0 (24A434)" && s.pickedAction == nil)
-        // Choosing a host adds its steps and keeps the choice.
         s.setUseHost(true)
         #expect(s.steps == [.target, .host, .prepare, .runtimes, .download, .add, .finish])
         #expect(RuntimeSetupChoices.load(d).useHost)
@@ -534,14 +494,12 @@ import Testing
         s.request(.copyToHost(source: src, record: rec, host: "tester@sim-host"))
         #expect(s.confirmation?.command.contains("rsync -a --partial") == true)
         s.cancelConfirmation()
-        // Remove of a SwiftCode copy on the host goes through ssh with the guarded command.
         let hostCopy = SimRuntimeRecord(platform: .iOS, version: "27.0", build: "24A434", location: .host("tester@sim-host"),
                                         owner: .swiftcode(folder: "/data/swiftcode/runtimes/iOS-27.0-24A434"))
         s.request(.remove(hostCopy))
         #expect(s.confirmation?.isDestructive == true)
         #expect(s.confirmation?.command == "ssh tester@sim-host 'test -f /data/swiftcode/runtimes/iOS-27.0-24A434/swiftcode-runtime.json && rm -rf /data/swiftcode/runtimes/iOS-27.0-24A434'")
         s.cancelConfirmation()
-        // An x86-64 Linux computer always uses a host.
         let x = RuntimeSetupSession(machine: Self.x86, defaults: UserDefaults(suiteName: "swiftcode-runtime-tests-\(UUID().uuidString)")!, folder: dir.path)
         #expect(x.choices.useHost)
         x.setUseHost(false)

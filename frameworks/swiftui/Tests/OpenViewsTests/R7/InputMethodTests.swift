@@ -9,13 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// A text field under a real input method (issue 23): the caret rectangle the
-// window gives the input method follows the caret as text is typed and
-// composed (the candidate window opens below it), for a text field and for a
-// text surface (the Linux IDE's source editor), and the keys that reach the
-// field while the input method composes do not edit, submit or unfocus it.
-
-/// A one-line text surface: the caret is 8 points per character.
 @MainActor
 final class CaretSurface: TextSurfaceClient {
     var text = ""
@@ -70,7 +63,6 @@ struct InputMethodTests {
         let atFocus = try #require(platform(h)?.textInputCaret)
         #expect(f.frame.contains(CGPoint(x: atFocus.minX, y: atFocus.midY)))
 
-        // Typing moves the caret, and the area with it.
         h.type("abc", at: 1.2)
         h.run(until: 1.5)
         let typed = try #require(platform(h)?.textInputCaret)
@@ -78,8 +70,6 @@ struct InputMethodTests {
         #expect(typed == f.state.caretRect)
         #expect(h.window.textInputArea == typed)
 
-        // Composing: the area is at the composition's cursor (its end here),
-        // then after the committed text.
         compose(h, "にほ", cursor: 2, at: 1.6)
         let composing = try #require(platform(h)?.textInputCaret)
         #expect(composing.minX > typed.minX + 10)
@@ -89,12 +79,10 @@ struct InputMethodTests {
         #expect(log.entries.last == "name abc日本")
         #expect(abs(committed.minX - composing.minX) < 2)
 
-        // The caret moved by a key: the area follows (no focus change).
         h.key(.home, at: 1.9)
         h.run(until: 2.0)
         #expect(platform(h)?.textInputCaret?.minX == atFocus.minX)
 
-        // Focus leaves: text input stops.
         h.key(.escape, at: 2.1)
         h.run(until: 2.2)
         #expect(platform(h)?.isTextInputActive == false)
@@ -102,8 +90,6 @@ struct InputMethodTests {
     }
 
     @Test func compositionCursorAtItsStartKeepsTheArea() throws {
-        // An input method that keeps its cursor at the composition's start
-        // (Fcitx 5's Pinyin) keeps the candidate window where typing began.
         let log = EventLog()
         let h = Harness { FormView(log: log, autocapitalization: .never) }
         let f = try #require(field(h, 0))
@@ -126,8 +112,6 @@ struct InputMethodTests {
         h.run(until: 1.3)
         compose(h, "に", cursor: 1, at: 1.4)
         log.clear()
-        // Backspace, arrows, Return, Escape and Tab that arrive while the
-        // input method composes leave the text, the focus and onSubmit alone.
         for (i, k) in [Key.backspace, .leftArrow, .return, .escape, .tab].enumerated() {
             h.key(k, at: 1.5 + Double(i) * 0.05)
         }
@@ -140,15 +124,12 @@ struct InputMethodTests {
         h.run(until: 2.1)
         #expect(log.entries == ["name ab日"])
         #expect(f.state.marked == "")
-        // Composition over: the keys edit again.
         h.key(.backspace, at: 2.2)
         h.run(until: 2.3)
         #expect(log.entries.last == "name ab")
     }
 
     @Test func textSurfaceAreaFollowsItsCaret() throws {
-        // The surface tells the window nothing when its caret moves; the
-        // window reads the caret again after each frame it draws.
         let client = CaretSurface()
         let h = Harness { SurfaceView(client: client) }
         h.run(until: 1.0)
@@ -157,7 +138,6 @@ struct InputMethodTests {
         h.backend.post(.textInput(TextInputEvent(window: h.windowID, text: "abc", timestamp: 1.1)), at: 1.1)
         h.run(until: 1.2)
         #expect(client.text == "abc")
-        // The insert asked for no redraw: the area moves with the next frame.
         client.origin.y = 50
         h.window.services.requestDisplay()
         h.run(until: 1.3)

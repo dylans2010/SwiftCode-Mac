@@ -1,12 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AssistLogger.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// ADAPTATION (destination convention, TasksAIPlanner.swift): Combine is unavailable
-// on Linux, so `import Combine` -> `import Observation`, ObservableObject/@Published
-// -> @Observable with plain stored vars. Behaviour unchanged. The
-// AssistLoggerProtocol extension overloads are new in the destination (the protocol
-// is defined in AssistModels.swift with no conforming implementation until now).
-// Wiring: AssistManager.logger and AssistContextBuilder's logger slot.
-
 import Foundation
 
 @MainActor

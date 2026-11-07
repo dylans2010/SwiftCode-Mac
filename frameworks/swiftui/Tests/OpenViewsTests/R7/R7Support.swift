@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R7 test support: an application host on the headless back end
-// (virtual clock, synthetic events). Times are back-end seconds; the host
-// launches at t = 0 and interactions start at t = 1.
-
-/// An app whose single window shows `HarnessApp.content`.
 struct HarnessApp: App {
     static var content: () -> AnyView = { AnyView(EmptyView()) }
     static var size = CGSize(width: 400, height: 400)
@@ -24,7 +19,6 @@ struct HarnessApp: App {
     }
 }
 
-/// Records events in order.
 @MainActor
 final class EventLog {
     private(set) var entries: [String] = []
@@ -66,15 +60,12 @@ final class Harness {
                                            isPressed: false, timestamp: t)), at: t)
     }
 
-    /// A press and release `duration` apart; runs until the release.
     func tap(_ p: CGPoint, at t: TimeInterval, duration: TimeInterval = 0.05) {
         pointer(.down, p, at: t)
         pointer(.up, p, at: t + duration)
         run(until: t + duration)
     }
 
-    /// A drag of `steps` moves of `delta` every `interval` seconds, released
-    /// at the last point one interval later; runs until the release.
     @discardableResult
     func drag(from p: CGPoint, delta: CGSize, steps: Int, interval: TimeInterval = 1.0 / 60, at t: TimeInterval) -> TimeInterval {
         pointer(.down, p, at: t)
@@ -95,7 +86,6 @@ final class Harness {
         run(until: t)
     }
 
-    /// Types `text`: a key press and the committed text per character.
     func type(_ text: String, at t: TimeInterval, interval: TimeInterval = 0.05) {
         var time = t
         for c in text {
@@ -107,7 +97,6 @@ final class Harness {
         run(until: time)
     }
 
-    /// The window frame of the first view node whose view satisfies `match`.
     func frame(where match: (any View) -> Bool) -> CGRect? {
         var out: CGRect?
         window.graph.root?.forEachNode { n in

@@ -1,18 +1,5 @@
 import Foundation
 
-// MARK: - Coding dictionary models
-//
-// Wave 17, Slice C: a direct port of Legacy's
-// `SwiftCode/Backend/Dictionary/CodingDictionaryModels.swift`
-// (Dylan's own code; direct porting authorised under MIT). The
-// dictionary has no bundled term data — Legacy generated every entry
-// per query through the host LLM service and decoded it into these
-// shapes — so the shapes are the portable part: the same JSON schema
-// is requested from SwiftCode's host text provider
-// (`CodingDictionaryService`) and decoded here. Every decoder is
-// tolerant (`decodeIfPresent` with defaults) so a provider that omits
-// a field degrades to an empty value instead of failing the entry.
-
 public struct DictionaryParameter: Codable, Sendable, Identifiable, Equatable {
     public var id: String { name }
     public let name: String
@@ -116,7 +103,6 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
     public let seeAlso: [String]
     public let references: [String]
 
-    // Rich expanded fields
     public let appleDocsSummary: String
     public let swiftVersion: String
     public let alternativeAPIs: [String]
@@ -227,7 +213,6 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
         self.seeAlso = try container.decodeIfPresent([String].self, forKey: .seeAlso) ?? []
         self.references = try container.decodeIfPresent([String].self, forKey: .references) ?? []
 
-        // Decode rich fields with defaults to remain fully backward compatible
         self.appleDocsSummary = try container.decodeIfPresent(String.self, forKey: .appleDocsSummary) ?? ""
         self.swiftVersion = try container.decodeIfPresent(String.self, forKey: .swiftVersion) ?? ""
         self.alternativeAPIs = try container.decodeIfPresent([String].self, forKey: .alternativeAPIs) ?? []
@@ -237,9 +222,6 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
     }
 }
 
-/// One past dictionary query, persisted in UserDefaults. Ported from
-/// Legacy's `DictionaryHistoryItem`
-/// (`SwiftCode/Backend/Dictionary/DictionaryManager.swift`).
 public struct DictionaryHistoryItem: Codable, Identifiable, Equatable, Sendable {
     public let id: UUID
     public let query: String

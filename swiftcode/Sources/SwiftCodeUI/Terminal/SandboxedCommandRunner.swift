@@ -1,41 +1,11 @@
 import Foundation
 
-/// The sandboxed terminal's runner (gap closure, specs/ide/
-/// gap-closure-windows-artboards.md §8).
-///
-/// Legacy's terminal is NOT a PTY shell: `TerminalSession.
-/// runCommand` runs each command as a fresh `Process` with
-/// `/bin/zsh -c <command>`, stdout/stderr piped, cwd `/` by
-/// default. Shipping that as an extension-openable shell would
-/// ship an unsandboxed shell — so this port does not. The runner
-/// below is argv execution, never a shell:
-///
-/// - no shell is ever spawned (`/usr/bin/env` + argv, so `;`, `|`,
-///   `$()`, backticks and friends are rejected before execution,
-///   not interpreted);
-/// - deny-by-default allowlist (editable by the user) — `git` is
-///   restricted to read-only subcommands;
-/// - the working directory is confined inside the workspace root;
-/// - the environment is scrubbed to PATH / HOME / LANG / TMPDIR;
-/// - stdin is the null device; output is capped (1 MB / 10,000
-///   lines); a 60s timeout kills the process.
-///
-/// This is in-process confinement, NOT a macOS Seatbelt sandbox:
-/// `SwiftCodeSubprocess` enforces no sandboxing at all, and a true
-/// Seatbelt profile (via `sandbox-exec`) is a follow-up decision
-/// for Dylan. The window is user-opened only — there is no SDK
-/// view and no MCP tool for it, and `sandbox.view` stays
-/// unavailable to extensions.
 public struct SandboxPolicy: Sendable, Equatable {
-    /// The default allowlist. Kept in `UserDefaults` under
-    /// `com.swiftcode.sandbox.allowlist` when the user edits it.
     public static let defaultCommands: [String] = [
         "ls", "pwd", "echo", "date", "uname", "whoami",
         "cat", "head", "tail", "wc", "grep", "find", "du", "df",
         "git", "swift", "xcrun",
     ]
-    /// Read-only `git` subcommands (the only ones the allowlist
-    /// permits under `git`).
     public static let gitReadOnlySubcommands: Set<String> = [
         "status", "log", "diff", "branch", "remote", "rev-parse",
         "show", "ls-files",
@@ -102,12 +72,8 @@ public struct SandboxedCommandResult: Sendable, Equatable {
 }
 
 public enum SandboxedCommandRunner {
-    /// Characters a shell would interpret. Any of them in the
-    /// raw line means the command is rejected outright.
     private static let shellMetacharacters: Set<Character> = [";", "&", "|", "<", ">", "`", "$", "(", ")", "{", "}", "*", "?", "~", "!", "\n", "\r"]
 
-    /// Splits a command line into argv, honouring single and
-    /// double quotes. Returns nil on an unbalanced quote.
     public static func tokenize(_ line: String) -> [String]? {
         var tokens: [String] = []
         var current = ""
@@ -132,8 +98,6 @@ public enum SandboxedCommandRunner {
         return tokens
     }
 
-    /// Validates a command line against the policy and returns its
-    /// argv, or throws a `SandboxError` explaining the refusal.
     public static func validate(_ line: String, policy: SandboxPolicy) throws -> [String] {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw SandboxError.notAllowed("") }
@@ -155,12 +119,6 @@ public enum SandboxedCommandRunner {
         return argv
     }
 
-    /// Runs `commandLine` (one command + arguments) in
-    /// `workingDirectory`, which must sit inside `workspaceRoot`.
-    /// The process runs with a scrubbed environment and stdin
-    /// from the null device; output is streamed through `onLine`
-    /// and capped. Returns the combined output and exit code.
-    /// Cancelling the awaiting task terminates the process.
     public static func run(commandLine: String, workingDirectory: URL, workspaceRoot: URL,
                            policy: SandboxPolicy = .load(),
                            onLine: (@Sendable (String) -> Void)? = nil) async throws -> SandboxedCommandResult {
@@ -179,8 +137,6 @@ public enum SandboxedCommandRunner {
                 process.arguments = argv
                 process.currentDirectoryURL = cwd
                 process.standardInput = FileHandle.nullDevice
-                // A scrubbed environment: only what a read-only
-                // command needs, never the parent's full environment.
                 process.environment = [
                     "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
                     "HOME": FileManager.default.homeDirectoryForCurrentUser.path,
@@ -194,8 +150,6 @@ public enum SandboxedCommandRunner {
                 pipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     guard !data.isEmpty else { return }
-                    // Cap the total output; stop reading past the cap
-                    // (the timeout still kills a runaway process).
                     capture.lock.lock(); defer { capture.lock.unlock() }
                     if capture.output.length < SandboxPolicy.maxOutputBytes {
                         let take = min(data.count, SandboxPolicy.maxOutputBytes - capture.output.length)
@@ -237,16 +191,11 @@ public enum SandboxedCommandRunner {
         }
     }
 
-    /// A box so the cancellation handler can reach the running
-    /// process (the runner hides `Process` from callers).
     private final class ProcessBox: @unchecked Sendable {
         var process: Process?
     }
 }
 
-
-/// The off-main output accumulator for a sandboxed command, boxed so the
-/// `@Sendable` readability handler can mutate it under its lock.
 private final class SandboxedOutputCapture: @unchecked Sendable {
     let lock = NSLock()
     let output = NSMutableData()
@@ -254,8 +203,6 @@ private final class SandboxedOutputCapture: @unchecked Sendable {
     var truncated = false
 }
 
-/// `DispatchWorkItem` is not `Sendable`; box it so the termination handler
-/// can cancel it.
 private final class WorkItemBox: @unchecked Sendable {
     let item: DispatchWorkItem
     init(_ item: DispatchWorkItem) { self.item = item }

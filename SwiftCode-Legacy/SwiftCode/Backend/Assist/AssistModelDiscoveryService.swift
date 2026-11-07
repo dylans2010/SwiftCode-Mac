@@ -1,10 +1,3 @@
-//
-//  AssistModelDiscoveryService.swift
-//  SwiftCode
-//
-//  Asynchronous, non-blocking discovery service for all configured LLM providers and models.
-//
-
 import Foundation
 import os
 
@@ -41,14 +34,12 @@ public final class AssistModelDiscoveryService: Sendable {
         if let savedRemoved = UserDefaults.standard.stringArray(forKey: removedModelsKey) {
             self.removedModelIDs = Set(savedRemoved)
         }
-        // Seed synchronously so that on-device Apple Foundation Models and local custom endpoints show immediately
         self.discoveredModels = self.generateBaselineModels()
         Task { [weak self] in
             await self?.discoverAllModels(forceRefresh: true)
         }
     }
 
-    /// Foundation Models is a system model integration and may NEVER be deleted.
     public func isFoundationModel(id: String, source: AssistModelSource? = nil, providerName: String? = nil) -> Bool {
         if source == .appleFoundationModels || source == .appleFoundation { return true }
         if providerName == "Apple Foundation Models" { return true }
@@ -62,7 +53,6 @@ public final class AssistModelDiscoveryService: Sendable {
         return isFoundationModel(id: model.modelIdentifier, source: model.source, providerName: model.providerName)
     }
 
-    /// Permanently removes a model so it is never shown again. No restore option exists.
     public func removeModel(_ modelID: String) {
         guard !isFoundationModel(id: modelID) else {
             logger.warning("Foundation Models is a system model integration and cannot be deleted: \(modelID)")
@@ -73,7 +63,6 @@ public final class AssistModelDiscoveryService: Sendable {
         discoveredModels.removeAll { $0.modelIdentifier == modelID || $0.id == modelID }
     }
 
-    /// Permanently removes a provider. Foundation Models cannot be removed. No restore option exists.
     public func removeProvider(_ name: String) {
         guard name != "Apple Foundation Models" else {
             logger.warning("Foundation Models is a system model integration and cannot be deleted.")
@@ -83,15 +72,11 @@ public final class AssistModelDiscoveryService: Sendable {
         UserDefaults.standard.set(Array(hiddenProviderNames), forKey: hiddenProvidersKey)
     }
 
-    // MARK: - Baseline Model Generation (Immediate Synchronous Availability)
-
     public func generateBaselineModels() -> [AssistAvailableModel] {
         var models: [AssistAvailableModel] = []
 
-        // 1. Apple Foundation Models (Always immediately available on device)
         models.append(contentsOf: generateAppleFoundationModels())
 
-        // 2. Custom & Local Endpoints / Models
         models.append(contentsOf: generateCustomBaselineModels())
 
         return models
@@ -123,18 +108,6 @@ public final class AssistModelDiscoveryService: Sendable {
         }
     }
 
-    /// Resolves the provider record for a free-text custom model ID without
-    /// inferring anything from the display name. (C-2)
-    ///
-    /// Resolution order:
-    /// 1. Exact match against the SDK's own model catalog (live-fetched or
-    ///    bundled seed): adopt the catalog record's provider. This covers the
-    ///    launch race where live discovery hasn't populated yet.
-    /// 2. The explicit `customModelProviderID` setting (default "google"), so
-    ///    a gemini-named custom model with a valid OAuth session keeps its
-    ///    token and routes as the Google provider. Non-gemini ids keep
-    ///    providerID "custom" (N-2; H-5 fail-closed).
-    /// Internal (not private) so the contract is unit-testable.
     func providerResolutionForCustomModel(id trimmedCustom: String) -> (providerID: String, providerName: String, source: ModelSource) {
         let catalog = AntigravitySDKModelFetcher.shared.models + AntigravitySDKModelFetcher.seedModels
         if let match = catalog.first(where: { $0.id == trimmedCustom }) {
@@ -149,12 +122,6 @@ public final class AssistModelDiscoveryService: Sendable {
                 break
             }
         }
-        // N-2: the "google" default applies to gemini-named ids only — that
-        // preserves the C-2 fix (a gemini-named custom model keeps its OAuth
-        // token and routes as the Google provider). A non-gemini free-text id
-        // (e.g. llama3) keeps providerID "custom" and fails closed without an
-        // explicit endpoint (H-5): it must never be silently routed to Google,
-        // nor to a localhost default.
         switch AppSettings.shared.customModelProviderID.lowercased() {
         case "ollama", "local", "lmstudio":
             return ("ollama", "Local / Ollama", .local)
@@ -212,9 +179,6 @@ public final class AssistModelDiscoveryService: Sendable {
         let activeCustomModel = AssistModelManager.shared.customModelID.isEmpty ? AppSettings.shared.customModel : AssistModelManager.shared.customModelID
         let trimmedCustom = activeCustomModel.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedCustom.isEmpty && !results.contains(where: { $0.modelIdentifier == trimmedCustom }) {
-            // C-2: resolve the provider from the explicit record/setting —
-            // never inferred from the display name — so a valid OAuth session
-            // is kept for a gemini-named custom model.
             let resolvedProvider = providerResolutionForCustomModel(id: trimmedCustom)
             results.append(
                 AssistAvailableModel(
@@ -269,8 +233,6 @@ public final class AssistModelDiscoveryService: Sendable {
         return results
     }
 
-    // MARK: - Public Discovery API
-
     public func discoverAllModels(forceRefresh: Bool = false) async -> [AssistAvailableModel] {
         if !forceRefresh && hasFreshDiscoveryCache {
             return discoveredModels
@@ -298,7 +260,6 @@ public final class AssistModelDiscoveryService: Sendable {
     private func performModelDiscovery() async -> [AssistAvailableModel] {
         var allDiscovered: [AssistAvailableModel] = []
 
-        // Run provider discovery tasks concurrently
         async let geminiTask = discoverGeminiModels()
         async let claudeTask = discoverClaudeModels()
         async let openAITask = discoverOpenAIModels()
@@ -350,8 +311,6 @@ public final class AssistModelDiscoveryService: Sendable {
         agentCompatibleModels.count
     }
 
-    // MARK: - Gemini & Antigravity Catalog Discovery
-
     private func discoverGeminiModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
             ?? KeychainService.shared.get(forKey: "gemini-api-key")
@@ -369,9 +328,6 @@ public final class AssistModelDiscoveryService: Sendable {
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
         let isOauthActive = (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
 
-        // When authenticated via Google account, or in Antigravity mode, or when no explicit API key exists:
-        // strictly use the Antigravity models, NOT the ones from straight up Gemini (generativelanguage.googleapis.com).
-        // The sign in flow is ONLY for authentication, not model fetching.
         if GoogleAccountAuthService.shared.isAuthenticated || isOauthActive || trimmedKey.isEmpty {
             return await fallbackAntigravityModels()
         }
@@ -507,8 +463,6 @@ public final class AssistModelDiscoveryService: Sendable {
         return list
     }
 
-    // MARK: - Claude / Anthropic Discovery (Dynamic API Call)
-
     private func discoverClaudeModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.anthropic.keychainKey)
             ?? KeychainService.shared.get(forKey: "anthropic-api-key")
@@ -578,8 +532,6 @@ public final class AssistModelDiscoveryService: Sendable {
             return []
         }
     }
-
-    // MARK: - OpenAI Discovery (Dynamic API Call)
 
     private func discoverOpenAIModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.openai.keychainKey)
@@ -667,8 +619,6 @@ public final class AssistModelDiscoveryService: Sendable {
         }
     }
 
-    // MARK: - Mistral Discovery (Dynamic API Call)
-
     private func discoverMistralModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.mistral.keychainKey)
             ?? KeychainService.shared.get(forKey: "mistral-api-key")
@@ -736,8 +686,6 @@ public final class AssistModelDiscoveryService: Sendable {
             return []
         }
     }
-
-    // MARK: - Qwen Discovery (Dynamic API Call)
 
     private func discoverQwenModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.qwen.keychainKey)
@@ -807,13 +755,9 @@ public final class AssistModelDiscoveryService: Sendable {
         }
     }
 
-    // MARK: - Apple Foundation Models (On-Device - Always Available)
-
     private func discoverAppleFoundationModels() async -> [AssistAvailableModel] {
         return generateAppleFoundationModels()
     }
-
-    // MARK: - Custom & Local Endpoints (Dynamic API Call + Guaranteed Fallback)
 
     private func discoverCustomAndLocalEndpoints() async -> [AssistAvailableModel] {
         let endpoints = CustomEndpointManager.shared.endpoints
@@ -873,9 +817,6 @@ public final class AssistModelDiscoveryService: Sendable {
         let activeCustomModel = AssistModelManager.shared.customModelID.isEmpty ? AppSettings.shared.customModel : AssistModelManager.shared.customModelID
         let trimmedCustom = activeCustomModel.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedCustom.isEmpty && !results.contains(where: { $0.modelIdentifier == trimmedCustom }) {
-            // C-2: resolve the provider from the explicit record/setting —
-            // never inferred from the display name — so a valid OAuth session
-            // is kept for a gemini-named custom model.
             let resolvedProvider = providerResolutionForCustomModel(id: trimmedCustom)
             results.append(
                 AssistAvailableModel(
@@ -990,8 +931,6 @@ public final class AssistModelDiscoveryService: Sendable {
         throw NSError(domain: "EndpointAPIError", code: 404, userInfo: [NSLocalizedDescriptionKey: "No models returned by endpoint API."])
     }
 
-    // MARK: - OpenRouter Discovery (Dynamic API Call)
-
     private func discoverOpenRouterModels() async -> [AssistAvailableModel] {
         var key = OpenRouterClient.resolveOpenRouterAPIKey()
         if key.isEmpty {
@@ -1037,8 +976,6 @@ public final class AssistModelDiscoveryService: Sendable {
             return []
         }
     }
-
-    // MARK: - Provider Name & Grouping Resolution
 
     public func getProviderName(for model: AssistAvailableModel) -> String {
         if model.source == .appleFoundationModels || model.source == .appleFoundation || model.providerID == "apple" || model.providerName.contains("Apple") {

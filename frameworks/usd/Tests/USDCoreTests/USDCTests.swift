@@ -2,7 +2,6 @@ import Testing
 @testable import USDCore
 
 @Suite struct USDCTests {
-    /// `scene.usdc` was written by OpenUSD (usd-core) from `scene.usda`.
     @Test func readsOpenUSDCrateFiles() throws {
         let text = try Fixture.layer("scene.usda")
         let crate = try Fixture.layer("scene.usdc")
@@ -13,10 +12,9 @@ import Testing
         let layer = try Fixture.layer("scene.usda")
         let bytes = try USDCWriter.write(layer)
         #expect(Array(bytes.prefix(8)) == Array("PXR-USDC".utf8))
-        #expect(Array(bytes[8..<11]) == [0, 9, 0]) // timecode values need 0.9.0
+        #expect(Array(bytes[8..<11]) == [0, 9, 0])
         let back = try USDCReader.read(bytes)
         #expect(differences(layer, back).isEmpty, "\(differences(layer, back).prefix(5))")
-        // Text written from the crate data equals text written from the source.
         #expect(USDAWriter.write(back) == USDAWriter.write(layer))
     }
 
@@ -89,7 +87,7 @@ import Testing
         let bytes = try USDCWriter.write(try Fixture.layer("scene.usda"))
         #expect(throws: USDError.self) { try USDCReader.read(Array(bytes.prefix(200))) }
         var damaged = bytes
-        damaged[16] = 0xFF // table of contents offset
+        damaged[16] = 0xFF
         #expect(throws: USDError.self) { try USDCReader.read(damaged) }
         #expect(throws: USDError.self) { try USDCReader.read(Array("#usda 1.0".utf8)) }
     }

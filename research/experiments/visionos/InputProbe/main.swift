@@ -1,16 +1,3 @@
-// InputProbe: our own black-box probe for input on the visionOS simulator (Ycode,
-// dirty-room observation; see research/notes/obs-vision-input-2026-10-31.md).
-//
-// Logs (stdout and os_log subsystem dev.ycode.inputprobe, prefix "IP:") every input
-// callback a SwiftUI/UIKit/RealityKit app gets: Button, onTapGesture, SpatialTapGesture
-// (2D location), DragGesture, MagnifyGesture, RotateGesture, onContinuousHover, UIKit
-// touches (type, phase, location) and hover, keyboard text and key presses; in a volume
-// and an immersive space: entity-targeted tap (3D location), drag, magnify, rotate3D; and
-// the ARKit DeviceAnchor every 0.5 s. The volume also holds a mirror-metal and a rough
-// metal sphere (reflection reference).
-//
-// Launch arguments: -volume opens the volume, -immersive opens the immersive space.
-
 import ARKit
 import QuartzCore
 import RealityKit
@@ -24,7 +11,6 @@ func f3(_ v: SIMD3<Float>) -> String { String(format: "(%.3f, %.3f, %.3f)", v.x,
 func f4(_ v: SIMD4<Float>) -> String { String(format: "(%.3f, %.3f, %.3f)", v.x, v.y, v.z) }
 func p2(_ p: CGPoint) -> String { String(format: "(%.1f, %.1f)", p.x, p.y) }
 
-// UIKit view that logs raw touches and hover.
 final class TouchLogView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)

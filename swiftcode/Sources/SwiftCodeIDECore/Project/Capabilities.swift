@@ -2,9 +2,6 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// Capabilities the editor can add: each is entitlement keys (in the
-/// target's .entitlements file) and/or build settings. See
-/// `specs/ide/project-editor.md` §Signing & Capabilities.
 public enum Capability: String, CaseIterable, Sendable {
     case appSandbox = "App Sandbox"
     case hardenedRuntime = "Hardened Runtime"
@@ -13,7 +10,6 @@ public enum Capability: String, CaseIterable, Sendable {
     case userSelectedFilesRead = "User Selected File (Read Only)"
     case userSelectedFilesReadWrite = "User Selected File (Read/Write)"
 
-    /// Boolean entitlements set to true.
     public var entitlements: [String] {
         switch self {
         case .appSandbox: ["com.apple.security.app-sandbox"]
@@ -25,15 +21,12 @@ public enum Capability: String, CaseIterable, Sendable {
         }
     }
 
-    /// Build settings set to YES.
     public var settings: [String] { self == .hardenedRuntime ? ["ENABLE_HARDENED_RUNTIME"] : [] }
 
-    /// Sandbox sub-capabilities need the sandbox itself.
     public var requiresSandbox: Bool { ![.appSandbox, .hardenedRuntime].contains(self) }
 }
 
 extension ProjectEditorModel {
-    /// Team IDs used anywhere in the project (no account sign-in).
     public var teams: [String] {
         Set(proj.objects.values.filter { $0.isa == "XCBuildConfiguration" }
             .compactMap { $0["buildSettings"]?.dictionary?["DEVELOPMENT_TEAM"]?.string }.filter { !$0.isEmpty }).sorted()
@@ -43,7 +36,6 @@ extension ProjectEditorModel {
         setSetting("CODE_SIGN_STYLE", on ? "Automatic" : "Manual", target: target)
     }
 
-    /// The target's entitlements file: from `CODE_SIGN_ENTITLEMENTS`.
     public func entitlementsURL(target: String, configuration: String) -> URL? {
         guard let path = resolve(target: target, configuration: configuration)?.settings["CODE_SIGN_ENTITLEMENTS"], !path.isEmpty else { return nil }
         return path.hasPrefix("/") ? URL(fileURLWithPath: path) : proj.projectDirectory(xcodeprojURL: xcodeprojURL).appendingPathComponent(path)
@@ -55,7 +47,6 @@ extension ProjectEditorModel {
         return d
     }
 
-    /// Capabilities present on a target.
     public func capabilities(target: String, configuration: String) -> [Capability] {
         let ents = entitlements(target: target, configuration: configuration)
         let settings = resolve(target: target, configuration: configuration)?.settings
@@ -65,11 +56,6 @@ extension ProjectEditorModel {
         }
     }
 
-    /// Adds a capability: entitlement keys go into the target's
-    /// .entitlements file (created as `<Target>/<Target>.entitlements`, with
-    /// a file reference and `CODE_SIGN_ENTITLEMENTS`, when the target has
-    /// none); settings are set to YES. Sandbox sub-capabilities add the
-    /// sandbox too.
     public mutating func addCapability(_ c: Capability, target: String, configuration: String) throws {
         if c.requiresSandbox, !capabilities(target: target, configuration: configuration).contains(.appSandbox) {
             try addCapability(.appSandbox, target: target, configuration: configuration)
@@ -98,8 +84,6 @@ extension ProjectEditorModel {
         try doc.data().write(to: url, options: .atomic)
     }
 
-    /// Removes a capability's keys and settings (removing the sandbox also
-    /// removes the capabilities that need it).
     public mutating func removeCapability(_ c: Capability, target: String, configuration: String) throws {
         let dependents = c == .appSandbox ? Capability.allCases.filter(\.requiresSandbox) : []
         for s in c.settings { setSetting(s, "", target: target) }
@@ -111,8 +95,6 @@ extension ProjectEditorModel {
         try doc.data().write(to: url, options: .atomic)
     }
 
-    /// The certificate shown: `CODE_SIGN_IDENTITY`, with `-` as "Sign to
-    /// Run Locally".
     public func signingCertificate(target: String, configuration: String) -> String {
         let id = resolve(target: target, configuration: configuration)?.settings["CODE_SIGN_IDENTITY"] ?? ""
         switch id {

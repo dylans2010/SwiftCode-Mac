@@ -1,24 +1,9 @@
-// Shader translation and pipelines of VulkanMetalBackend.
-//
-// Pipeline creation is asynchronous: `createRenderPipeline` and
-// `createComputePipeline` record the pipeline and return at once (the guest
-// only needs a ref, and creation failures are never reported to it,
-// metal-sim-protocol.md §12 item 7); translation (`swiftcode-airc`, ~0.4 s for
-// QuartzCore's uber-shaders) and the first Vulkan compile (several seconds
-// cold for those on the Thor) run on `compileQueue`. A submission first
-// waits, outside the backend lock, for the pipelines it uses and compiles
-// the compute variants it needs (`preparePipelines`). Every compile goes
-// through one VkPipelineCache, loaded from and saved to
-// `Options.pipelineCachePath`.
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
 
 extension VulkanMetalBackend {
-    // MARK: - Translation
 
-    /// Translates through the backend's cache (`useCache` false: always ask the translator).
     func translate(_ request: TranslationRequest, useCache: Bool = true) throws -> TranslatedShader {
         let key = TranslationKey(hash: fnv1a64(request.metallib), count: request.metallib.count,
                                  linked: request.linkVertexHash.map { fnv1a64(Array($0.utf8)) } ?? 0,
@@ -45,7 +30,6 @@ extension VulkanMetalBackend {
         return t
     }
 
-    /// Runs `work` on the compile queue, or now when pipelines are synchronous.
     func schedule(_ work: @escaping @Sendable () -> Void) {
         if options.asynchronousPipelines {
             compileQueue.addOperation(work)
@@ -54,12 +38,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    // MARK: - Render pipelines
-
-    /// Registers a render pipeline under `handle` (replacing any earlier one)
-    /// and builds it on the compile queue. With asynchronous pipelines a
-    /// build failure only marks the pipeline broken; otherwise it is thrown.
-    /// Throws at once without a GPU.
     public func createRenderPipeline(_ handle: MetalHandle, _ desc: MetalRenderPipelineDescriptor) throws {
         guard isAvailable else { throw VulkanBackendError("no GPU") }
         let p = VKRenderPipeline(desc: desc)
@@ -85,9 +63,6 @@ extension VulkanMetalBackend {
         if !options.asynchronousPipelines, let e = failure.error { throw e }
     }
 
-    /// Diagnostics (`SWIFTCODE_VULKAN_VERTEX_ONLY_DISCARD=1`): pipelines
-    /// without a fragment function are not rasterized at all (the
-    /// behaviour before visionos.md §10.22.2).
     static let discardVertexOnly = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_VERTEX_ONLY_DISCARD"] == "1"
 
     static let dropFragments: Set<String> = Set((ProcessInfo.processInfo.environment["SWIFTCODE_GPU_DROP_FRAGMENT"] ?? "")
@@ -96,8 +71,6 @@ extension VulkanMetalBackend {
     func buildRenderPipeline(_ p: VKRenderPipeline, handle: MetalHandle, vf: VKFunction?, ff: VKFunction?) throws {
         var vf = vf, ff = ff
         guard vf != nil || ff != nil else { throw VulkanBackendError("render pipeline without known functions") }
-        // The stage comes from the translator's reflection: if the
-        // descriptor's two function fields arrive the other way round, swap them.
         var vs = try vf.map { try translate(TranslationRequest(metallib: $0.metallib)) }
         if vs?.reflection.stage == .fragment || (vs == nil && ff != nil) {
             swap(&vf, &ff)
@@ -109,20 +82,15 @@ extension VulkanMetalBackend {
         }
         var fs: TranslatedShader?
         if let ff {
-            // Same affinity as the vertex function: the same translator process links them.
             let affinity = fnv1a64(vfn.metallib)
             let request = TranslationRequest(metallib: ff.metallib, linkVertexHash: vs.reflection.hash, affinity: affinity)
             do {
                 fs = try translate(request)
             } catch let e as ShaderTranslationError where e.description.contains("link_vertex") {
-                // That process has not seen the vertex function (restarted, or
-                // the vertex translation came from the cache): show it again.
                 _ = try translate(TranslationRequest(metallib: vfn.metallib, affinity: affinity), useCache: false)
                 fs = try translate(request)
             }
         }
-        // Experiments (`SWIFTCODE_GPU_DROP_FRAGMENT`, comma-separated names as in
-        // SWIFTCODE_GPU_SKIP_SHADERS): the pipeline is built without its fragment function.
         if let f = fs, !Self.dropFragments.isEmpty,
            Self.dropFragments.contains(shaderName(f)) || Self.dropFragments.contains(f.reflection.entryPoint ?? "") {
             log("render pipeline \(handle): \(shaderName(f)) left out (SWIFTCODE_GPU_DROP_FRAGMENT)")
@@ -147,19 +115,16 @@ extension VulkanMetalBackend {
         }
         pipelineCacheDirty = true
         if p.released {
-            fn.vkDestroyPipeline!(ctx.pointee.device, pipe, nil)  // never used by the GPU
+            fn.vkDestroyPipeline!(ctx.pointee.device, pipe, nil)
         } else {
             p.variants[cls] = pipe
         }
     }
 
-    /// Vertex input, attachments and blend state, constant data and
-    /// constexpr samplers. Under the lock.
     func setUpRenderPipeline(_ p: VKRenderPipeline, vertex vs: TranslatedShader, fragment fs: TranslatedShader?) throws {
         guard !p.released else { throw VulkanBackendError("released while building") }
         let desc = p.desc
         var info = yvk_graphics_info()
-        // Vertex input (Location n = attribute n; binding = Metal buffer index).
         var vertexIndices: [Int] = []
         if let vd = desc.vertexDescriptor {
             var attrs: [VkVertexInputAttributeDescription] = []
@@ -172,7 +137,7 @@ extension VulkanMetalBackend {
             for idx in Set(attrs.map { Int($0.binding) }).sorted() {
                 let l = vd.layouts.first { $0.bufferIndex == idx } ?? MetalVertexDescriptor.Layout(bufferIndex: idx)
                 switch l.stepFunction {
-                case 0:  // constant: every vertex reads element 0
+                case 0:
                     binds.append(yvk_vertex_binding(binding: UInt32(idx), stride: 0, inputRate: VK_VERTEX_INPUT_RATE_VERTEX, divisor: 1))
                 case 2:
                     binds.append(yvk_vertex_binding(binding: UInt32(idx), stride: UInt32(l.stride),
@@ -229,11 +194,6 @@ extension VulkanMetalBackend {
         info.depthFormat = depthFormat
         info.stencilFormat = stencilFormat
         if fs == nil {
-            // No fragment function: Metal draws depth and stencil only and
-            // leaves the colour attachments as they are (a depth pre-pass, a
-            // stencil mask, an occlusion-query box). Only a pipeline with no
-            // depth or stencil attachment is not rasterized (it can only be a
-            // vertex function that writes buffers).
             withUnsafeMutableBytes(of: &info.blend) { raw in
                 for i in 0..<Int(YVK_MAX_COLOR_ATTACHMENTS) { raw.bindMemory(to: VkPipelineColorBlendAttachmentState.self)[i].colorWriteMask = 0 }
             }
@@ -258,8 +218,6 @@ extension VulkanMetalBackend {
         p.fragment = fs
     }
 
-    /// The fixed argument-table entries of a function: its constant data
-    /// (copied once into GPU-visible memory) and its constexpr samplers. Under the lock.
     func statics(for r: ShaderReflection) throws -> StageStatics {
         var out = StageStatics()
         out.name = "\(r.entryPoint ?? "?")#\(r.hash.map { String($0.prefix(8)) } ?? "?")"
@@ -286,8 +244,6 @@ extension VulkanMetalBackend {
         return out
     }
 
-    /// Compiles one topology class of a built pipeline. Needs no lock: it
-    /// reads fields that do not change after setup.
     func compileRenderVariant(_ p: VKRenderPipeline, topologyClass cls: UInt32, locked: Bool = false) -> VkPipeline? {
         let start = DispatchTime.now().uptimeNanoseconds
         let result = compileRenderVariantTimed(p, topologyClass: cls)
@@ -327,7 +283,6 @@ extension VulkanMetalBackend {
         return result
     }
 
-    /// The Vulkan pipeline for a topology class, compiled on first use. Under the lock.
     func renderVariant(_ p: VKRenderPipeline, topologyClass cls: UInt32) -> VkPipeline? {
         guard p.isBuilt else { return nil }
         if let v = p.variants[cls] { return v }
@@ -341,12 +296,6 @@ extension VulkanMetalBackend {
         return pipe
     }
 
-    // MARK: - Compute pipelines
-
-    /// Registers a compute pipeline under `handle` and translates its kernel
-    /// on the compile queue (errors as for `createRenderPipeline`). The
-    /// returned limits are the device's (at most 1024 threads per
-    /// threadgroup; execution width = subgroup size).
     public func createComputePipeline(_ handle: MetalHandle, function: MetalHandle) throws -> MetalComputePipelineInfo {
         guard isAvailable else { throw VulkanBackendError("no GPU") }
         let p = VKComputePipeline()
@@ -376,7 +325,6 @@ extension VulkanMetalBackend {
             }
         }
         if !options.asynchronousPipelines, let e = failure.error { throw e }
-        // Under the lock: a device reset rewrites the context.
         cond.lock()
         let maxInv = Int(min(ctx.pointee.properties.limits.maxComputeWorkGroupInvocations, 1024))
         let width = Int(max(ctx.pointee.subgroupSize, 1))
@@ -384,7 +332,6 @@ extension VulkanMetalBackend {
         return MetalComputePipelineInfo(maxTotalThreadsPerThreadgroup: UInt16(maxInv), threadExecutionWidth: UInt16(width))
     }
 
-    /// Compiles one compute variant. Needs no lock.
     func compileComputeVariant(_ shader: TranslatedShader, _ key: ComputeVariantKey, locked: Bool = false) -> VkPipeline? {
         let start = DispatchTime.now().uptimeNanoseconds
         defer {
@@ -397,8 +344,6 @@ extension VulkanMetalBackend {
         for (i, v) in [key.x, key.y, key.z].enumerated() where i < ids.count {
             constants.append(yvk_spec_constant(id: ids[i], value: UInt32(v)))
         }
-        // Threadgroup memory: [[threadgroup(n)]] slots after the static part,
-        // 16-byte aligned, lengths from setThreadgroupMemoryLength (key order = slots order).
         if let tg = r.compute?.threadgroupMemory, tg.dynamic == true {
             var offset = tg.slotsBase ?? roundUp(tg.staticBytes ?? 0, 16)
             for (i, slot) in (tg.slots ?? []).enumerated() {
@@ -427,7 +372,6 @@ extension VulkanMetalBackend {
         return pipe
     }
 
-    /// The compute variant, compiled on first use. Under the lock.
     func computeVariant(_ p: VKComputePipeline, _ key: ComputeVariantKey) -> VkPipeline? {
         guard let shader = p.shader, !p.broken else { return nil }
         if let v = p.variants[key] { return v }
@@ -441,12 +385,6 @@ extension VulkanMetalBackend {
         return pipe
     }
 
-    // MARK: - Lane-isolated kernels (§15.5)
-
-    /// Whether a kernel runs one thread per workgroup: it is named in
-    /// `Options.laneIsolatedKernels` and its result cannot depend on the
-    /// workgroup shape (it reads only grid-wide built-ins, has no
-    /// threadgroup memory and no barriers or subgroup operations).
     func laneIsolated(_ shader: TranslatedShader?) -> Bool {
         guard let r = shader?.reflection, r.stage == .kernel, let name = r.entryPoint,
               options.laneIsolatedKernels.contains(name) else { return false }
@@ -460,9 +398,6 @@ extension VulkanMetalBackend {
         return true
     }
 
-    /// A dispatch as recorded: workgroups and workgroup size, with the
-    /// threads of the grid (lane-isolated kernels get one thread per
-    /// workgroup; nil when they cannot, e.g. too many workgroups).
     func isolatedDispatch(threads t: (Int, Int, Int)) -> (groups: (Int, Int, Int), group: (Int, Int, Int))? {
         let l = ctx.pointee.properties.limits
         guard t.0 > 0, t.1 > 0, t.2 > 0, t.0 <= Int(l.maxComputeWorkGroupCount.0), t.1 <= Int(l.maxComputeWorkGroupCount.1),
@@ -470,14 +405,8 @@ extension VulkanMetalBackend {
         return (t, (1, 1, 1))
     }
 
-    // MARK: - Before a submission
-
-    /// Waits (outside the lock) for the pipelines a command buffer uses and
-    /// compiles the compute variants its dispatches need, so that recording
-    /// under the lock never waits for a translation or a cold compile.
     func preparePipelines(_ mcb: MetalCommandBuffer) {
         var renders: [VKRenderPipeline] = []
-        // (pipeline, workgroup size, threadgroup memory lengths, the lane-isolated variant)
         var dispatches: [(VKComputePipeline, (Int, Int, Int), [Int: Int], Bool)] = []
         cond.lock()
         for pass in mcb.passes {
@@ -524,8 +453,6 @@ extension VulkanMetalBackend {
                 && (!isolatedVariant || laneIsolated(shader))
             cond.unlock()
             guard needed, let shader else { continue }
-            // The compile and the store are one device use: a reset between
-            // them would leave a pipeline of the old device in `variants`.
             enterDevice()
             defer { leaveDevice() }
             let pipe = compileComputeVariant(shader, key)
@@ -543,8 +470,6 @@ extension VulkanMetalBackend {
             cond.unlock()
         }
     }
-
-    // MARK: - Release
 
     func releaseRenderPipeline(_ p: VKRenderPipeline) {
         p.released = true
@@ -564,8 +489,6 @@ extension VulkanMetalBackend {
         p.variants.removeAll()
         deferDestroy { [ctx, fn] in for v in list { fn.vkDestroyPipeline!(ctx.pointee.device, v, nil) } }
     }
-
-    // MARK: - The persistent pipeline cache
 
     func loadPipelineCache() {
         let data = createPipelineCache()
@@ -587,8 +510,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Creates the device's VkPipelineCache from the saved one; returns the
-    /// bytes loaded. Also after a device reset.
     @discardableResult
     func createPipelineCache() -> Data? {
         var data: Data?
@@ -599,7 +520,6 @@ extension VulkanMetalBackend {
         return data
     }
 
-    /// Writes the pipeline cache to `Options.pipelineCachePath` (atomically).
     public func savePipelineCache() {
         guard isAvailable, let path = options.pipelineCachePath else { return }
         enterDevice()
@@ -619,7 +539,6 @@ extension VulkanMetalBackend {
     }
 }
 
-/// Carries a synchronous build's error out of its closure.
 final class FailureBox: @unchecked Sendable {
     var error: Error?
 }

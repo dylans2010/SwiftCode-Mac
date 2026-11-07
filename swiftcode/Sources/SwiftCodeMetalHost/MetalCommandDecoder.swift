@@ -1,16 +1,11 @@
-// The command-buffer decoder (metal-sim-protocol.md §8): segments of a
-// messageType-6 submission → passes of commands, guest refs → handles.
-
 import Foundation
 
-/// The kinds of guest refs (spec §3). Buffers and textures share one counter.
 public enum MetalRefKind: String, Sendable, CaseIterable {
-    case resource  // buffers and textures
+    case resource
     case function, renderPipeline, computePipeline, sampler, depthStencil
     case heap, fence, event, queue, argumentLayout, argumentEncoder
 }
 
-/// Encoder kinds of a segment header (spec §8.1).
 public enum MetalEncoderKind {
     public static let render: UInt8 = 0
     public static let compute: UInt8 = 1
@@ -18,8 +13,6 @@ public enum MetalEncoderKind {
     public static let event: UInt8 = 3
 }
 
-/// A segment header: u32 bytes used (header included), u8 encoder kind,
-/// u8 continues the previous segment's encoder, u8 continues in the next, u8 0.
 public struct MetalSegmentHeader: Equatable, Sendable {
     public var used: Int
     public var kind: UInt8
@@ -36,18 +29,15 @@ public struct MetalSegmentHeader: Equatable, Sendable {
 }
 
 public struct MetalCommandDecoder {
-    /// Maps a guest ref of a kind to a handle; nil for unknown refs.
     public typealias Resolve = (MetalRefKind, UInt32) -> MetalHandle?
 
     let resolve: Resolve
     var diagnostics: [String] = []
     var unknownCount = 0
-    /// Ops seen as unknown (op → count).
     public private(set) var unknownOps: [UInt32: Int] = [:]
 
     public init(resolve: @escaping Resolve) { self.resolve = resolve }
 
-    /// Decodes a submission's segments, in order.
     public static func decode(segments: [[UInt8]], process: MetalProcessID, queue: MetalHandle?, commandBufferRef: UInt64,
                               resolve: @escaping Resolve) -> (MetalCommandBuffer, unknownOps: [UInt32: Int]) {
         var d = MetalCommandDecoder(resolve: resolve)
@@ -63,8 +53,6 @@ public struct MetalCommandDecoder {
         return MetalSegmentHeader(used: Int(used), kind: kind, continuesPrevious: prev != 0, continuesInNext: next != 0)
     }
 
-    /// The records of one segment (between the header and `used`). A
-    /// malformed record ends the segment with a diagnostic.
     mutating func records(_ segment: [UInt8], used: Int, index: Int) -> [MetalRecord] {
         var out: [MetalRecord] = []
         var off = MetalSegmentHeader.size
@@ -120,7 +108,6 @@ public struct MetalCommandDecoder {
                 continue
             }
             if h.continuesPrevious, let o = open, o.kind == h.kind {
-                // Same encoder.
             } else {
                 if h.continuesPrevious { diagnostics.append("segment \(i): continues an encoder that is not open") }
                 if let o = open { passes.append(o.pass) }
@@ -134,7 +121,6 @@ public struct MetalCommandDecoder {
                 apply(rec, kind: h.kind, to: &open)
             }
             if open == nil {
-                // An encoder segment without records still makes a pass (e.g. a render pass with only a clear).
                 open = start(kind: h.kind, first: nil)
             }
         }
@@ -157,13 +143,6 @@ public struct MetalCommandDecoder {
         unknownOps[op, default: 0] += 1
     }
 
-    /// Appends to the open encoder's list. The payload is taken out of
-    /// `open` (which is cleared first) so that the list has one owner and
-    /// grows in place: copying it out while `open` still referred to it made
-    /// every append copy the whole list (quadratic in the commands of a pass;
-    /// stage8-contract.md §15).
-    /// `SWIFTCODE_METAL_RECORD_FAST=0`: keep the old reference during the
-    /// append (the copying behaviour, for A/B measurements only).
     static let copyingAppend = ProcessInfo.processInfo.environment["SWIFTCODE_METAL_RECORD_FAST"] == "0"
 
     mutating func apply(_ rec: MetalRecord, kind: UInt8, to open: inout Open?) {
@@ -178,7 +157,6 @@ public struct MetalCommandDecoder {
                 if case let .render(p)? = open, p.descriptor == nil, p.commands.isEmpty {
                     open = .render(MetalRenderPass(descriptor: desc))
                 } else if case let .render(p)? = open {
-                    // A second begin record within one encoder: keep it as its own pass.
                     diagnostics.append("render encoder: begin-pass record after \(p.commands.count) commands")
                     open = .render(MetalRenderPass(descriptor: desc))
                 } else {
@@ -240,8 +218,6 @@ public struct MetalCommandDecoder {
         }
     }
 
-    // MARK: Refs
-
     func ref(_ kind: MetalRefKind, _ v: UInt32) -> MetalHandle? {
         v == 0 ? nil : resolve(kind, v)
     }
@@ -253,7 +229,6 @@ public struct MetalCommandDecoder {
         return out
     }
 
-    /// Heap refs of record 27: from byte 6 (unaligned), after u32 count and u16 stages.
     func unalignedRefs(_ body: [UInt8], at start: Int, count: Int, _ kind: MetalRefKind) throws -> [MetalHandle] {
         guard count >= 0, start + 4 * count <= body.count else {
             throw MetalDecodeError.truncated(need: start + 4 * max(count, 0), have: body.count)
@@ -267,11 +242,6 @@ public struct MetalCommandDecoder {
         return out
     }
 
-    /// A deferred store action (records 102, 105, 120) changes the store
-    /// action of the open pass's attachment (Metal: the action given at
-    /// `endEncoding` time is the one that counts; a pass begun with
-    /// `MTLStoreActionUnknown` must set one). Nothing for a pass without a
-    /// descriptor or without that attachment.
     static func applyStoreAction(_ p: inout MetalRenderPass, index: Int, action: UInt32) {
         guard var d = p.descriptor else { return }
         let a = UInt16(truncatingIfNeeded: action)
@@ -284,8 +254,6 @@ public struct MetalCommandDecoder {
         }
         p.descriptor = d
     }
-
-    // MARK: Render pass descriptor (§8.6)
 
     func attachment(_ body: [UInt8], at base: Int) throws -> (MetalRenderPassAttachment, texture: UInt32) {
         var r = ByteReader(body, from: base)
@@ -325,8 +293,6 @@ public struct MetalCommandDecoder {
         return d
     }
 
-    // MARK: Render records (§8.3)
-
     func renderCommand(_ rec: MetalRecord) -> MetalRenderCommand {
         do {
             if let c = try renderCommandThrowing(rec) { return c }
@@ -334,13 +300,6 @@ public struct MetalCommandDecoder {
         return .unknown(op: rec.op, body: rec.body)
     }
 
-    /// Range forms of the binding records (`setFragmentTextures:withRange:`
-    /// and the like) and `setViewports:count:`: the single-slot record with
-    /// a count above 1 and one ref (and, for buffers, one offset) per slot,
-    /// and op 131 with a count and that many viewports. Seen in SwiftCode's
-    /// guest (visionos.md §10.11: wakeboardd's compositor binds its layer
-    /// textures with op 114, count 2, 16-byte body); nil when the record is
-    /// not of such a form, so the single-slot decoding applies.
     func multiSlotRenderCommands(_ rec: MetalRecord) -> [MetalRenderCommand]? {
         var r = ByteReader(rec.body)
         switch rec.op {
@@ -360,13 +319,9 @@ public struct MetalCommandDecoder {
             }
             return out
         case 110, 125:
-            // Per slot a pair: u32 ref, then its u64 offset (unaligned;
-            // VISIONOS-OBS4's probe, metal-sim-protocol.md §8.3).
             guard let pairs = bufferPairs(rec) else { return nil }
             return pairs.map { .setBuffer(stage: rec.op == 125 ? .vertex : .fragment, index: $0.index, buffer: $0.buffer, offset: $0.offset) }
         case 118:
-            // `setScissorRects:count:`: u32 count, u32 0, then per rect four
-            // u64; the first rect (SwiftCode's pipelines have one viewport).
             guard let count = try? r.u32(), count >= 1, rec.body.count == 8 + 32 * Int(count), (try? r.u32()) != nil,
                   let x = try? r.int64(), let y = try? r.int64(), let w = try? r.int64(), let h = try? r.int64() else { return nil }
             return [.setScissorRect(MetalScissorRect(x: x, y: y, width: w, height: h))]
@@ -374,16 +329,12 @@ public struct MetalCommandDecoder {
             guard let count = try? r.u32(), count >= 1, rec.body.count == 4 + 48 * Int(count),
                   let x = try? r.f64(), let y = try? r.f64(), let w = try? r.f64(), let h = try? r.f64(),
                   let zn = try? r.f64(), let zf = try? r.f64() else { return nil }
-            // The first viewport (SwiftCode's pipelines have one).
             return [.setViewport(MetalViewport(x: x, y: y, width: w, height: h, znear: zn, zfar: zf))]
         default:
             return nil
         }
     }
 
-    /// The buffer bindings of a range record (110, 125, 203): u32 first
-    /// index, u32 count, then per slot u32 ref and u64 offset. Nil when the
-    /// count is 1 (the single-slot decoding applies) or the body does not fit.
     func bufferPairs(_ rec: MetalRecord) -> [(index: Int, buffer: MetalHandle?, offset: Int)]? {
         var r = ByteReader(rec.body)
         guard rec.body.count >= 8, let index = try? r.int32(), let count = try? r.u32(), count > 1,
@@ -396,8 +347,6 @@ public struct MetalCommandDecoder {
         return out
     }
 
-    /// Range forms of the compute binding records: 203 (buffers, pairs as
-    /// 110/125), 204 (samplers) and 206 (textures), one ref per slot.
     func multiSlotComputeCommands(_ rec: MetalRecord) -> [MetalComputeCommand]? {
         switch rec.op {
         case 203:
@@ -418,19 +367,14 @@ public struct MetalCommandDecoder {
         }
     }
 
-    /// One binding slot: u32 index, u32 count (1 is the only value seen).
     func slot(_ r: inout ByteReader) throws -> Int? {
         let index = try r.int32(), count = try r.u32()
         return count == 1 ? index : nil
     }
 
-    /// Diagnostics: draws larger than `largeDraw` vertices × instances are
-    /// reported here with their record (op and body), once per op and size.
     nonisolated(unsafe) public static var anomalyLog: ((String) -> Void)?
     public static let largeDraw = 1 << 26
 
-    /// Diagnostics: op-29 records whose base-instance word has a non-zero
-    /// high half (ignored), the first 8 with their body.
     nonisolated(unsafe) static var shortBaseInstanceHighLogged = 0
     func noteShortBaseInstanceHigh(_ rec: MetalRecord) {
         guard Self.shortBaseInstanceHighLogged < 8, let log = Self.anomalyLog else { return }
@@ -439,7 +383,6 @@ public struct MetalCommandDecoder {
             + rec.body.map { String(format: "%02x", $0) }.joined())
     }
 
-    /// Reports a draw record whose size is beyond any plausible draw.
     func checked(_ rec: MetalRecord, _ command: MetalRenderCommand) -> MetalRenderCommand {
         let work: Int
         switch command {
@@ -463,7 +406,6 @@ public struct MetalCommandDecoder {
             let t = try r.u32()
             return .draw(MetalDraw(primitiveType: t, vertexStart: try r.int16(), vertexCount: try r.int16()))
         case 2:
-            // Long instanced form (values ≥ 65 536; agent H's capture, metal-sim-protocol.md §8.3).
             let s = try r.int64(), n = try r.int64(), i = try r.int64(), t = try r.u32()
             return checked(rec, .draw(MetalDraw(primitiveType: t, vertexStart: s, vertexCount: n, instanceCount: i)))
         case 4:
@@ -484,9 +426,6 @@ public struct MetalCommandDecoder {
             return checked(rec, .drawIndexed(MetalIndexedDraw(primitiveType: UInt32(t), indexType: UInt32(it), indexBuffer: ref(.resource, ib),
                                                               indexBufferOffset: off, indexCount: n)))
         case 7, 9:
-            // Op 9 ends with u16 instance count and i16 base vertex (an
-            // instance count of 0x12345 takes long form 8; RenderBox sends
-            // base vertices 0x200, 0x300 here; metal-sim-protocol.md §8.3).
             let t = try r.u16(), it = try r.u16(), ib = try r.u32(), n = try r.int16(), off = try r.int16()
             let instances = rec.op == 9 ? try r.int16() : 1
             let baseVertex = rec.op == 9 ? Int(Int16(bitPattern: try r.u16())) : 0
@@ -494,20 +433,12 @@ public struct MetalCommandDecoder {
                                                               indexBufferOffset: off, indexCount: n, instanceCount: instances,
                                                               baseVertex: baseVertex)))
         case 28:
-            // Long form of `…instanceCount:baseVertex:baseInstance:` (agent H's capture).
             let t = try r.u16(), it = try r.u16(), ib = try r.u32(), off = try r.int64(), n = try r.int64(), i = try r.int64()
             let bv = Int(Int64(bitPattern: try r.u64())), bi = try r.int64()
             return checked(rec, .drawIndexed(MetalIndexedDraw(primitiveType: UInt32(t), indexType: UInt32(it), indexBuffer: ref(.resource, ib),
                                                               indexBufferOffset: off, indexCount: n, instanceCount: i,
                                                               baseVertex: bv, baseInstance: bi)))
         case 29:
-            // The short form: every value fits in 16 bits (larger ones take
-            // op 28), the base instance too. Its last word holds the base
-            // instance in the low half; the high half is not written by the
-            // guest driver (visionOS backboardd sends 0x3FF0, 0x40A0, 0x40AE,
-            // 0x24, 0x3 there with base instance 0: stale bytes; read as one
-            // u32 they made base instances of a billion; visionos.md §9 Q24,
-            // §10.20).
             let t = try r.u16(), it = try r.u16(), ib = try r.u32()
             let off = try r.int16(), n = try r.int16(), i = try r.int16(), bv = Int(Int16(bitPattern: try r.u16()))
             let word = try r.u32()
@@ -530,7 +461,6 @@ public struct MetalCommandDecoder {
             let scope = try r.u16(), after = try r.u8(), before = try r.u8()
             return .memoryBarrier(scope: scope, afterStages: after, beforeStages: before)
         case 24, 25:
-            // u32 fence ref, u32 MTLRenderStages (visionos.md §10.12.1).
             let f = try r.u32(), stages = try r.u32()
             return rec.op == 24 ? .updateFence(ref(.fence, f), stages: stages) : .waitForFence(ref(.fence, f), stages: stages)
         case 27:
@@ -545,7 +475,6 @@ public struct MetalCommandDecoder {
         case 101:
             return .setBlendColor(red: try r.f32(), green: try r.f32(), blue: try r.f32(), alpha: try r.f32())
         case 102:
-            // u32 action, then u32 index (VISIONOS-OBS4's probe).
             let action = try r.u32()
             return .setStoreAction(index: try r.int32(), action: action)
         case 103:
@@ -601,8 +530,6 @@ public struct MetalCommandDecoder {
         }
     }
 
-    // MARK: Compute records (§8.4)
-
     func size3(_ r: inout ByteReader) throws -> MetalSize3 { MetalSize3(try r.int64(), try r.int64(), try r.int64()) }
 
     func computeCommand(_ rec: MetalRecord) -> MetalComputeCommand {
@@ -636,7 +563,6 @@ public struct MetalCommandDecoder {
                 return .setBufferOffset(index: index, offset: try r.int64())
             case 208: return .setComputePipelineState(ref(.computePipeline, try r.u32()))
             case 209:
-                // Size first, then origin (VISIONOS-OBS4's probe, metal-sim-protocol.md §8.4).
                 let size = try size3(&r)
                 return .setStageInRegion(origin: try size3(&r), size: size)
             case 211:
@@ -662,8 +588,6 @@ public struct MetalCommandDecoder {
         }()
         return c ?? .unknown(op: rec.op, body: rec.body)
     }
-
-    // MARK: Blit records (§8.4)
 
     func blitCommand(_ rec: MetalRecord) -> MetalBlitCommand {
         var r = ByteReader(rec.body)
@@ -712,8 +636,6 @@ public struct MetalCommandDecoder {
         }()
         return c ?? .unknown(op: rec.op, body: rec.body)
     }
-
-    // MARK: Event records (§8.4)
 
     func eventCommand(_ rec: MetalRecord) -> MetalEventCommand {
         var r = ByteReader(rec.body)

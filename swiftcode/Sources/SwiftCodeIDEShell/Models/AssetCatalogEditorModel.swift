@@ -2,12 +2,6 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// The asset catalog editor of the Linux IDE (`specs/ide/asset-catalog.md`,
-/// `reference-ui-3.md` §3): the outline of folders and sets with its filter,
-/// "+" and "−", the selected set's slots or colors, and the attributes
-/// inspector. Every edit writes the set's `Contents.json` at once; removing
-/// a set or folder moves it to the trash (the freedesktop.org trash on
-/// Linux), and the last removal can be put back. No toolkit types.
 @MainActor
 @Observable
 public final class AssetCatalogEditorModel {
@@ -16,13 +10,9 @@ public final class AssetCatalogEditorModel {
     public private(set) var rows: [AssetCatalog.OutlineRow] = []
     public private(set) var collapsed: Set<String> = []
     public private(set) var filter = ""
-    /// The selected outline row's id (its path in the catalog).
     public private(set) var selectedID: String?
-    /// Why the last edit failed.
     public private(set) var problem: String?
-    /// Bumped on every change on disk (views reread slots and colors).
     public private(set) var revision = 0
-    /// The last removal, which Undo Remove puts back.
     public private(set) var lastRemoval: (original: URL, trashed: URL)?
     @ObservationIgnored let bin: TrashBin
 
@@ -32,8 +22,6 @@ public final class AssetCatalogEditorModel {
         reload()
         if let first = rows.first(where: { !$0.isFolder }) ?? rows.first { selectedID = first.id }
     }
-
-    // MARK: Outline
 
     public var selectedRow: AssetCatalog.OutlineRow? { rows.first { $0.id == selectedID } }
     public var selectedSet: AssetCatalog.AssetSet? { selectedRow?.set }
@@ -50,7 +38,6 @@ public final class AssetCatalogEditorModel {
         problem = nil
     }
 
-    /// Selects the row of a set or folder URL.
     public func select(url: URL) {
         selectedID = rows.first { AssetCatalog.same($0.url, url) }?.id
     }
@@ -67,28 +54,21 @@ public final class AssetCatalogEditorModel {
         reload()
     }
 
-    /// Up and Down in the outline.
     public func moveSelection(_ d: Int) {
         guard !rows.isEmpty else { return }
         let i = selectedID.flatMap { s in rows.firstIndex { $0.id == s } } ?? (d > 0 ? -1 : rows.count)
         selectedID = rows[min(max(i + d, 0), rows.count - 1)].id
     }
 
-    // MARK: Adding and removing
-
     public var insertionDirectory: URL { catalog.insertionDirectory(folder: selectedFolder, set: selectedSet) }
     public var isInsideStickerPack: Bool { AssetCatalog.isInsideStickerPack(insertionDirectory) }
 
-    /// The "+" menu for the selection.
     public var addMenu: [AssetCatalog.AddMenuEntry] { AssetCatalog.addMenu(insideStickerPack: isInsideStickerPack) }
 
-    /// Whether a "+" item can run here (Folder from Selection needs a
-    /// selection; Import and frames need files, which the view asks for).
     public func canAdd(tag: Int) -> Bool {
         tag == AssetCatalog.AddMenuTags.folderFromSelection ? selectedRow != nil : true
     }
 
-    /// Runs a "+" item by tag; selects what it made.
     @discardableResult
     public func add(tag: Int) -> Bool {
         let t = AssetCatalog.AddMenuTags.self
@@ -109,7 +89,6 @@ public final class AssetCatalogEditorModel {
         }
     }
 
-    /// "+" ▸ Import…: images become image sets, other files data sets.
     @discardableResult
     public func importFiles(_ files: [URL]) -> Bool {
         attempt {
@@ -118,8 +97,6 @@ public final class AssetCatalogEditorModel {
         }
     }
 
-    /// "+" ▸ Sticker Sequence Frame: a frame for the selected sequence (a
-    /// new sequence in the pack when none is selected).
     @discardableResult
     public func addStickerFrame(_ file: URL) -> Bool {
         guard isInsideStickerPack else { return false }
@@ -131,8 +108,6 @@ public final class AssetCatalogEditorModel {
         }
     }
 
-    /// "−" and Editor ▸ Delete Selected Items: the selected set or folder
-    /// moves to the trash (issue #3: never deleted outright).
     @discardableResult
     public func removeSelected() -> Bool {
         guard let row = selectedRow else { return false }
@@ -145,7 +120,6 @@ public final class AssetCatalogEditorModel {
         }
     }
 
-    /// Puts the last removed set or folder back from the trash.
     @discardableResult
     public func undoRemove() -> Bool {
         guard let r = lastRemoval else { return false }
@@ -156,20 +130,16 @@ public final class AssetCatalogEditorModel {
         }
     }
 
-    /// The attributes inspector's Name: renames the selected set or folder.
     @discardableResult
     public func renameSelected(_ name: String) -> Bool {
         guard let row = selectedRow, name != row.name else { return false }
         return attempt { reloadSelecting(try catalog.rename(row.url, to: name)) }
     }
 
-    // MARK: The selected set
-
     public var slots: [AssetCatalog.Slot] { _ = revision; return selectedSet.map(AssetCatalog.slots(of:)) ?? [] }
     public var colors: [AssetCatalog.ColorValue] { _ = revision; return selectedSet.map(AssetCatalog.colors(of:)) ?? [] }
     public var inspector: AssetCatalog.InspectorSection? { _ = revision; return selectedSet.map(AssetCatalog.inspector(for:)) }
 
-    /// Where a slot's image is, if it has one.
     public func imageURL(slot: Slot) -> URL? {
         guard let set = selectedSet, let f = slot.filename else { return nil }
         let u = set.url.appendingPathComponent(f)
@@ -177,21 +147,18 @@ public final class AssetCatalogEditorModel {
     }
     public typealias Slot = AssetCatalog.Slot
 
-    /// Copies an image into a slot (replacing what was there).
     @discardableResult
     public func setImage(_ file: URL, slot: Int) -> Bool {
         guard let set = selectedSet else { return false }
         return attempt { try AssetCatalog.setImage(file, slot: slot, in: set); changed() }
     }
 
-    /// Empties a slot (the Delete key or the slot's Remove).
     @discardableResult
     public func clearImage(slot: Int) -> Bool {
         guard let set = selectedSet else { return false }
         return attempt { try AssetCatalog.clearImage(slot: slot, in: set); changed() }
     }
 
-    /// Image sets: adds Dark-appearance slots.
     @discardableResult
     public func addDarkAppearance() -> Bool {
         guard let set = selectedSet else { return false }
@@ -204,7 +171,6 @@ public final class AssetCatalogEditorModel {
         return attempt { try AssetCatalog.setColor(c, at: index, in: set); changed() }
     }
 
-    /// A Color Set inspector checkbox: a device or High Contrast.
     @discardableResult
     public func setInspectorCheckbox(_ label: String, on: Bool) -> Bool {
         guard let set = selectedSet, set.kind == .colorSet else { return false }
@@ -218,7 +184,6 @@ public final class AssetCatalogEditorModel {
         }
     }
 
-    /// The Color Set Appearances pop-up ("None" or "Any, Dark").
     @discardableResult
     public func setAppearances(_ value: String) -> Bool {
         guard let set = selectedSet else { return false }
@@ -232,7 +197,6 @@ public final class AssetCatalogEditorModel {
         }
     }
 
-    /// A folder's Provides Namespace.
     public var providesNamespace: Bool { _ = revision; return selectedFolder.map(AssetCatalog.providesNamespace) ?? false }
 
     @discardableResult
@@ -241,7 +205,6 @@ public final class AssetCatalogEditorModel {
         return attempt { try AssetCatalog.setProvidesNamespace(on, folder: f); changed() }
     }
 
-    /// One color as `#RRGGBB` (alpha left out) and back.
     public static func hex(_ c: AssetCatalog.ColorValue) -> String {
         func b(_ x: Double) -> String { String(format: "%02X", Int((min(max(x, 0), 1) * 255).rounded())) }
         return "#" + b(c.red) + b(c.green) + b(c.blue)

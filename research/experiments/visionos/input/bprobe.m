@@ -1,6 +1,3 @@
-// bprobe: black-box signature probe for exported Indigo message builders (our code).
-// Calls a builder with recognisable values in x0..x7 and v0..v7, in a forked child,
-// and reports where those values land in the returned message.
 #import <Foundation/Foundation.h>
 #include <dlfcn.h>
 #include <malloc/malloc.h>
@@ -28,11 +25,11 @@ int main(int argc, char **argv){
   dlopen("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator", RTLD_NOW);
   void *sk=dlopen("/Applications/Xcode.app/Contents/SharedFrameworks/SimulatorKit.framework/SimulatorKit", RTLD_NOW);
   void *pl=dlopen("/Applications/Xcode.app/Contents/SharedFrameworks/DeviceKit.framework/Versions/A/PlugIns/VisionDeviceKitExtension.devicekitplugin/Contents/MacOS/VisionDeviceKitExtension", RTLD_NOW);
-  const char *name=argv[1]; int mode=atoi(argv[2]); // mode 0: x = pointers; 1: x = small ints 0x11..0x88; 2: x = 0
+  const char *name=argv[1]; int mode=atoi(argv[2]);
   F f=(F)dlsym(pl,name); if(!f) f=(F)dlsym(sk,name); if(!f){printf("no %s\n",name);return 1;}
   for(int i=0;i<8;i++) for(int j=0;j<256;j++) bufs[i][j]=(float)((i+1)*1000+j);
   uint64_t x[8]; for(int i=0;i<8;i++) x[i]= mode==0 ? (uint64_t)bufs[i] : mode==1 ? 0x11*(i+1) : 0;
-  if(argc>3){ // explicit overrides: xN=value
+  if(argc>3){
     for(int a=3;a<argc;a++){ int r; unsigned long long v; if(sscanf(argv[a],"x%d=%lli",&r,&v)==2) x[r]=v; }
   }
   V v[8]; for(int i=0;i<8;i++) v[i]=(V){(i+1)*10+0.5f,(i+1)*10+1.5f,(i+1)*10+2.5f,(i+1)*10+3.5f};

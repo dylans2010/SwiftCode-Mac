@@ -1,16 +1,10 @@
 import Foundation
 
-/// Reading and writing Gauge traces (`specs/ide/profiler.md` §4.1): one
-/// JSON document. Integers above 2⁵³ (kernel addresses) are written as
-/// "0x…" strings so every JSON reader keeps them exact; readers accept
-/// both spellings.
 public enum GaugeTraceCodec {
     public struct Failure: Error, CustomStringConvertible, Equatable {
         public var description: String
         public init(_ d: String) { description = d }
     }
-
-    // MARK: Writing
 
     public static func encode(_ t: GaugeTrace, pretty: Bool = false) throws -> Data {
         var root: [String: Any] = ["format": GaugeTrace.format, "version": GaugeTrace.version]
@@ -55,10 +49,7 @@ public enum GaugeTraceCodec {
         try encode(t).write(to: url, options: .atomic)
     }
 
-    /// A JSON number when exact in a double, else a hex string.
     static func num(_ v: UInt64) -> Any { v <= 1 << 53 ? NSNumber(value: v) : "0x" + String(v, radix: 16) }
-
-    // MARK: Reading
 
     public static func read(_ url: URL) throws -> GaugeTrace {
         try decode(Data(contentsOf: url))

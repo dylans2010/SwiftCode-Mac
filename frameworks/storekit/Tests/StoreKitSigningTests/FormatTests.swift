@@ -1,5 +1,3 @@
-// C-FORMATS (plan.md §4) part 2: payload keys and value forms (formats.md
-// §1–§3), deviceVerification, the receipt, promotional-offer signatures.
 import Crypto
 import Foundation
 import Testing
@@ -56,7 +54,6 @@ struct PayloadTests {
         #expect(monthly["billingPlanType"] == .string("BILLED_UPFRONT"))
         #expect(payloads[4]["offerDiscountType"] == .string("PAY_UP_FRONT") && payloads[4]["offerPeriod"] == .string("P1M"))
         #expect(payloads[0]["expiresDate"] == nil && payloads[0]["subscriptionGroupIdentifier"] == nil && payloads[0]["offerType"] == nil)
-        // A renewal: reason RENEWAL, base price, the original's id and date.
         clock.advance(by: 10)
         let renewal = store.latestTransaction(for: ID.monthly)!
         let p = Payloads.transaction(renewal, context: context)
@@ -239,7 +236,6 @@ struct ReceiptTests {
         let c = identity.certificate
         #expect(c.subject.description == "CN=StoreKit, O=StoreKit, OU=StoreKit, C=US" && c.issuer == c.subject)
         #expect(c.notBefore == Date(timeIntervalSince1970: 1_585_699_200) && c.notAfter == Date(timeIntervalSince1970: 2_216_419_200))
-        // Change one byte of the payload (the first bundle id).
         var tampered = Array(data)
         let needle = Array("dev.swiftcode".utf8)
         let at = try #require((0..<tampered.count - needle.count).first { Array(tampered[$0..<$0 + needle.count]) == needle })
@@ -279,7 +275,6 @@ struct PromotionalOfferTests {
             offerID: "plus.promo3", keyID: "KEY1", nonce: fixedNonce, timestamp: 1_792_411_200_000, context: ctx, key: key)
         #expect(String(decoding: PromotionalOfferSignature.message(offer, context: ctx), as: UTF8.self)
             == "dev.swiftcode.skprobe\u{2063}KEY1\u{2063}dev.swiftcode.skprobe.plus.monthly\u{2063}plus.promo3\u{2063}\u{2063}3f2504e0-4f89-41d3-9a0c-0305e82c3301\u{2063}1792411200000")
-        // Accepted (the intro offer applies first while eligible, §5 item 3).
         #expect(try store.purchase(productID: ID.monthly, options: PurchaseOptions(signedPromotionalOffer: offer)).transaction?.offer?.type == .introductory)
         var wrongKey = offer
         wrongKey.keyID = "KEY2"

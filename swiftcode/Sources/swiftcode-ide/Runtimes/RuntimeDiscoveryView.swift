@@ -1,9 +1,3 @@
-// RuntimeDiscoveryView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/RuntimeDiscoveryView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: auto-detect action; custom-directory scan; explicit refresh
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 import AppKit
@@ -132,7 +126,6 @@ struct RuntimeDiscoveryView: View {
         if runtimes.isEmpty {
             errorMessage = "No valid .simruntime bundles found in standard locations:\n• /Library/Developer/CoreSimulator/Profiles/Runtimes/\n• ~/Library/Developer/CoreSimulator/Profiles/Runtimes/"
         } else {
-            // Automatically select the first discovered if none is currently selected
             if selectedRuntimeIdentifier.isEmpty, let first = runtimes.first {
                 selectedRuntimeIdentifier = first.identifier
             }

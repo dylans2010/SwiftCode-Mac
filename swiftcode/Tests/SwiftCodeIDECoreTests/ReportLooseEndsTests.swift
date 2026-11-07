@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 
-/// reference-ui-2.md §5 (step durations, All | Recent), §6.5 (coverage)
-/// and §9 (console metadata columns).
 struct ReportLooseEndsTests {
     func report(_ log: [String], times: [TimeInterval] = [], duration: TimeInterval = 0) -> BuildReport {
         var r = BuildReport(title: "Build Demo", date: Date(), succeeded: true, log: log, errorCount: 0, warningCount: 0)
@@ -22,7 +20,6 @@ struct ReportLooseEndsTests {
         #expect(steps.map(\.duration) == [0.5, 1.25, 0.25])
         #expect(steps[0].children[0].duration == 0.5)
         #expect(steps[0].displayTitle.hasPrefix("Compiling a.swift  "))
-        // Without times (or a mismatched count) there is no duration.
         #expect(BuildLogModel.sections(report(["[1/1] Compiling Demo a.swift"])).flatMap(\.steps).first?.duration == nil)
     }
 
@@ -35,7 +32,6 @@ struct ReportLooseEndsTests {
         let all = BuildLogModel.merge(recent, second.context.carriedOver)
         #expect(recent.flatMap(\.steps).map(\.title) == ["Compiling b.swift"])
         #expect(all.flatMap(\.steps).map(\.title) == ["Compiling b.swift", "Compiling a.swift"])
-        // A third build carries over through the second.
         let third = report(["[1/1] Linking Demo"])
         #expect(Set(BuildLogModel.carriedOver(from: second, into: third).flatMap(\.steps).map(\.title)) == ["Compiling a.swift", "Compiling b.swift"])
     }

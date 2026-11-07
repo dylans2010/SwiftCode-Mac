@@ -1,9 +1,3 @@
-// CreateNewAppCompletionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppCompletionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Built-application path display; Open Built App action; Move to Applications action
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import AppKit
 
@@ -83,7 +77,6 @@ public struct CreateNewAppCompletionView: View {
 
     private func moveToApplications() {
         guard let builtAppPath = builtAppPath, FileManager.default.fileExists(atPath: builtAppPath) else {
-            // Fallback to checking executable or directory bundle
             let appURL = URL(fileURLWithPath: createdAppPath)
             performMove(sourceURL: appURL)
             return

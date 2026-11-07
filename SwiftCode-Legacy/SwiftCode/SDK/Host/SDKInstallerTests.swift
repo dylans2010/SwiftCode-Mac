@@ -1,23 +1,5 @@
-// These tests can run against SDKInstaller.swift in an isolated SwiftPM
-// target named SwiftCode; the app itself has no XCTest target.
-
 import XCTest
 @testable import SwiftCode
-
-// MARK: - SDKInstallerTests
-//
-// Tests for `SDKInstaller` against a stubbed home directory:
-//   - inspect: missing / corrupt (no version) / versionMismatch / ok
-//   - install success via a stub `npm` script (no network, no real npm)
-//   - install falls back to the bundled copy when GitHub is unreachable
-//   - install failure surfaces the REAL npm error text (never fake success)
-//
-// The stub `npm` is a small bash script written into the temp dir. It
-// emulates just enough of `npm install <source> --prefix <dir>`:
-//   - a source URL containing "unreachable" exits 1 with an error line
-//   - otherwise it materializes node_modules/@swiftcode/sdk/package.json
-//     (honoring STUB_WRITE_CORRUPT=1 to write a version-less package.json,
-//     exercising the "npm exited 0 but verification failed" path)
 
 private final class InstallerTestLines: @unchecked Sendable {
     private let lock = NSLock()
@@ -51,8 +33,6 @@ final class SDKInstallerTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Helpers
-
     private var prefix: URL {
         tempDir.appendingPathComponent(".swiftcode/sdk", isDirectory: true)
     }
@@ -72,7 +52,6 @@ final class SDKInstallerTests: XCTestCase {
         }
     }
 
-    /// Writes the stub `npm` script and returns its URL.
     private func stubNPM() throws -> URL {
         let script = tempDir.appendingPathComponent("npm-stub")
         let body = """
@@ -113,7 +92,6 @@ final class SDKInstallerTests: XCTestCase {
         return script
     }
 
-    /// A local directory usable as the "bundled fallback" source.
     private func fallbackSource(version: String = "1.0.0") throws -> URL {
         let dir = tempDir.appendingPathComponent("fallback-sdk", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -130,8 +108,6 @@ final class SDKInstallerTests: XCTestCase {
         options.timeout = 30
         return options
     }
-
-    // MARK: - inspect
 
     func testInspectMissing() {
         XCTAssertEqual(SDKInstaller.inspect(prefix: prefix), .missing)
@@ -220,8 +196,6 @@ final class SDKInstallerTests: XCTestCase {
         print("Live SDK download verification: \(result.message)")
     }
 
-    // MARK: - install: success
-
     func testInstallSuccess() async throws {
         var options = try baseOptions()
         options.downloadURL = URL(string: "https://example.invalid/sdk.tgz")!
@@ -240,8 +214,6 @@ final class SDKInstallerTests: XCTestCase {
     func testInstallIsIdempotentWhenAlreadyOK() async throws {
         try installedPackageJSON(version: "1.0.0")
         var options = try baseOptions()
-        // Point npm at a binary that must never run: idempotency means
-        // inspect short-circuits before any subprocess spawns.
         options.npmExecutable = URL(fileURLWithPath: "/nonexistent/npm")
         options.reachabilityProbe = { _ in XCTFail("probe must not run when already installed"); return false }
 
@@ -250,8 +222,6 @@ final class SDKInstallerTests: XCTestCase {
         XCTAssertEqual(result.installedVersion, "1.0.0")
         XCTAssertFalse(result.usedFallback)
     }
-
-    // MARK: - install: unreachable -> fallback
 
     func testInstallFallsBackWhenGitHubUnreachable() async throws {
         var options = try baseOptions()
@@ -281,14 +251,9 @@ final class SDKInstallerTests: XCTestCase {
         XCTAssertTrue(result.message.contains("unreachable"), "message must carry the real reason: \(result.message)")
     }
 
-    // MARK: - install: corrupt
-
     func testInstallFailureReportsRealErrorText() async throws {
         var options = try baseOptions()
-        // The stub exits 1 with an npm ERR! line for "unreachable" URLs…
         options.downloadURL = URL(string: "https://unreachable.invalid/sdk.tgz")!
-        // …but the probe says reachable, so the GitHub path is attempted
-        // and fails with the stub's real stderr.
         options.reachabilityProbe = { _ in true }
         options.bundledFallbackURL = tempDir.appendingPathComponent("no-such-dir")
 
@@ -306,8 +271,6 @@ final class SDKInstallerTests: XCTestCase {
         var options = try baseOptions()
         options.downloadURL = URL(string: "https://example.invalid/sdk.tgz")!
         options.reachabilityProbe = { _ in true }
-        // The stub honors STUB_WRITE_CORRUPT=1 by writing a package.json
-        // with no version — npm "succeeds" but verification must fail.
         setenv("STUB_WRITE_CORRUPT", "1", 1)
         defer { unsetenv("STUB_WRITE_CORRUPT") }
 

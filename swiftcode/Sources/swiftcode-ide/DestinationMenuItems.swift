@@ -2,10 +2,6 @@ import SwiftUI
 import SwiftCodeBuild
 import SwiftCodeIDEShell
 
-/// The run destination pop-up's items (docs/SIMULATOR-UX.md, "Choose a
-/// destination"): one section per group with its title (My Computer, each
-/// simulator host), the chosen destination checked. Destinations of one host
-/// share a specifier, so items are keyed by position, not by specifier.
 struct DestinationMenuItems: View {
     let model: WorkspaceShellModel
     let groups: [DestinationGroup]

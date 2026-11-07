@@ -1,12 +1,9 @@
-// csprobe: our probe: csops status flags and identity of processes by pid
-// (pid 0 = self), and of the process found by name via proc_listallpids.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <errno.h>
 #include <unistd.h>
-// libproc.h is not in the iOS SDK; the functions are in libSystem (public on macOS).
 extern int proc_pidpath(int pid, void *buffer, uint32_t buffersize);
 extern int proc_listallpids(void *buffer, int buffersize);
 extern int proc_name(int pid, void *buffer, uint32_t buffersize);

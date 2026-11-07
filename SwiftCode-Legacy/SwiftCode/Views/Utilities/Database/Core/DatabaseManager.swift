@@ -65,7 +65,6 @@ public final class DatabaseManager {
         for row in rows {
             guard let tableName = row["name"] else { continue }
 
-            // Fetch Columns info using PRAGMA table_info
             let pragmaQuery = "PRAGMA table_info(\(tableName));"
             let columnRows = try executeSQLiteQuery(filePath: filePath, sql: pragmaQuery)
 
@@ -86,7 +85,6 @@ public final class DatabaseManager {
                 columns.append(col)
             }
 
-            // Fetch record count
             let countQuery = "SELECT COUNT(*) as count FROM \(tableName);"
             let countRows = try? executeSQLiteQuery(filePath: filePath, sql: countQuery)
             let recordCount = Int(countRows?.first?["count"] ?? "0") ?? 0

@@ -14,7 +14,6 @@ private func titles(_ items: [MenuItemSpec]) -> [String] {
     }
 }
 
-/// reference-ui-4.md §8 (Editor menu, Refactor) and §15 (Code Review).
 @Suite struct ReferenceUI4MenuTests {
     @Test func editorMenuOrder() throws {
         let editor = try #require(CommandTable.menus.first { $0.0 == "Editor" }?.1)
@@ -22,15 +21,12 @@ private func titles(_ items: [MenuItemSpec]) -> [String] {
         let expected = ["Show Editor Only", "|", "Canvas", "Assistant", "Code Review", "Layout ▸", "|",
                         "Show Completions", "Show Predictive Completion", "Show Coding Tools ▸", "Edit All in Scope", "Show Callers…",
                         "Expand Macro", "Hide All Macro Expansions", "Refactor ▸", "|",
-                        // reference-ui-5.md §2.7 supersedes §8.1: "Show / Hide All Issues", Show Markdown
-                        // in its own section, "Choose Theme..." as the reference spells it.
                         "Fix All Issues", "Show Issues", "Show All Issues", "|", "Show Markdown", "|",
                         "Selection ▸", "Structure ▸", "Code Folding ▸", "Syntax Coloring ▸", "Font Size ▸", "Choose Theme...", "|",
                         "Inline Comparison", "Side By Side Comparison", "|", "Minimap", "Authors", "Code Coverage", "|",
                         "Vim Mode", "Relative Line Numbers"]
         #expect(Array(t.prefix(expected.count)) == expected)
         let i = try #require(t.firstIndex(of: "Invisibles"))
-        // §2.7: the menu ends here (Line Numbers moved to Settings, Add New Constraints… to Interface Builder's menu).
         #expect(Array(t[i...]) == ["Invisibles", "Scope Guides", "Wrap Lines", "|", "Show Last Change for Line", "Create Code Snippet…"])
         let shortcuts = Dictionary(uniqueKeysWithValues: editor.compactMap { item -> (String, String)? in
             if case .command(let c) = item, !c.key.isEmpty { return (c.title, c.shortcutText) } else { return nil }

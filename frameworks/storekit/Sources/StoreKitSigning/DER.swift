@@ -1,9 +1,5 @@
-// A minimal ASN.1 DER encoder and decoder (ITU-T X.690) for certificates,
-// the StoreKit 1 receipt and its CMS envelope. Definite lengths and
-// low tag numbers only, which is all these structures use.
 import Foundation
 
-/// DER encoding helpers. Each function returns one complete TLV.
 public enum DER {
     public static func tlv(_ tag: UInt8, _ content: [UInt8]) -> [UInt8] { [tag] + length(content.count) + content }
 
@@ -17,7 +13,6 @@ public enum DER {
 
     public static func sequence(_ items: [[UInt8]]) -> [UInt8] { tlv(0x30, items.flatMap { $0 }) }
     public static func set(_ items: [[UInt8]]) -> [UInt8] { tlv(0x31, items.flatMap { $0 }) }
-    /// A SET OF with its elements in DER order (sorted by their encodings).
     public static func setOf(_ items: [[UInt8]]) -> [UInt8] {
         tlv(0x31, items.sorted { $0.lexicographicallyPrecedes($1) }.flatMap { $0 })
     }
@@ -31,13 +26,11 @@ public enum DER {
             bytes.insert(UInt8(truncatingIfNeeded: x & 0xFF), at: 0)
             x >>= 8
         } while x != 0 && x != -1
-        // Keep the sign bit right.
         if v >= 0, bytes[0] & 0x80 != 0 { bytes.insert(0, at: 0) }
         if v < 0, bytes[0] & 0x80 == 0 { bytes.insert(0xFF, at: 0) }
         return tlv(0x02, bytes)
     }
 
-    /// A non-negative integer from big-endian magnitude bytes.
     public static func unsignedInteger(_ magnitude: [UInt8]) -> [UInt8] {
         var bytes = Array(magnitude.drop { $0 == 0 })
         if bytes.isEmpty { bytes = [0] }
@@ -61,7 +54,6 @@ public enum DER {
 
     public static func bitString(_ bytes: [UInt8], unusedBits: UInt8 = 0) -> [UInt8] { tlv(0x03, [unusedBits] + bytes) }
 
-    /// A named-bit BIT STRING (RFC 5280 key usage) with trailing zero bits removed.
     public static func namedBits(_ bits: [Int]) -> [UInt8] {
         guard let maxBit = bits.max() else { return bitString([]) }
         var bytes = [UInt8](repeating: 0, count: maxBit / 8 + 1)
@@ -74,7 +66,6 @@ public enum DER {
     public static func printableString(_ s: String) -> [UInt8] { tlv(0x13, Array(s.utf8)) }
     public static func ia5String(_ s: String) -> [UInt8] { tlv(0x16, Array(s.utf8)) }
 
-    /// UTCTime `YYMMDDHHMMSSZ` (years 1950–2049) or GeneralizedTime otherwise (RFC 5280 §4.1.2.5).
     public static func time(_ date: Date) -> [UInt8] {
         let c = utcComponents(date)
         if (1950...2049).contains(c.year!) {
@@ -83,13 +74,10 @@ public enum DER {
         return tlv(0x18, Array(String(format: "%04d%02d%02d%02d%02d%02dZ", c.year!, c.month!, c.day!, c.hour!, c.minute!, c.second!).utf8))
     }
 
-    /// `[n]` EXPLICIT (constructed, context-specific).
     public static func explicit(_ n: UInt8, _ content: [UInt8]) -> [UInt8] { tlv(0xA0 | n, content) }
 
-    /// `[n]` IMPLICIT constructed (replaces the tag of a constructed value).
     public static func implicitConstructed(_ n: UInt8, contentsOf items: [[UInt8]]) -> [UInt8] { tlv(0xA0 | n, items.flatMap { $0 }) }
 
-    /// `[n]` IMPLICIT primitive.
     public static func implicitPrimitive(_ n: UInt8, _ content: [UInt8]) -> [UInt8] { tlv(0x80 | n, content) }
 
     static func utcComponents(_ date: Date) -> DateComponents {
@@ -99,24 +87,19 @@ public enum DER {
     }
 }
 
-/// A DER decoding error.
 public struct DERError: Error, Equatable, Sendable, CustomStringConvertible {
     public let message: String
     public init(_ message: String) { self.message = message }
     public var description: String { "DER: \(message)" }
 }
 
-/// One decoded TLV.
 public struct DERElement: Equatable, Sendable {
     public let tag: UInt8
-    /// The content octets.
     public let content: [UInt8]
-    /// The whole TLV as encoded.
     public let encoded: [UInt8]
 
     public var isConstructed: Bool { tag & 0x20 != 0 }
 
-    /// Decodes exactly one element covering all of `bytes`.
     public static func parse(_ bytes: [UInt8]) throws(DERError) -> DERElement {
         var i = 0
         let e = try parse(bytes, at: &i)
@@ -145,7 +128,6 @@ public struct DERElement: Equatable, Sendable {
         return DERElement(tag: tag, content: content, encoded: Array(bytes[start..<i]))
     }
 
-    /// The elements inside a constructed value.
     public func children() throws(DERError) -> [DERElement] {
         guard isConstructed else { throw DERError("not constructed (tag \(tag))") }
         var out: [DERElement] = []
@@ -159,7 +141,6 @@ public struct DERElement: Equatable, Sendable {
         return self
     }
 
-    /// INTEGER as Int (small values).
     public var intValue: Int? {
         guard tag == 0x02, !content.isEmpty, content.count <= 8 else { return nil }
         var v = Int(Int8(bitPattern: content[0]))
@@ -167,7 +148,6 @@ public struct DERElement: Equatable, Sendable {
         return v
     }
 
-    /// OBJECT IDENTIFIER as dotted text.
     public var oidValue: String? {
         guard tag == 0x06, let first = content.first else { return nil }
         var arcs = [UInt64(first / 40), UInt64(first % 40)]
@@ -179,13 +159,11 @@ public struct DERElement: Equatable, Sendable {
         return arcs.map(String.init).joined(separator: ".")
     }
 
-    /// The text of a string type.
     public var stringValue: String? {
         guard [0x0C, 0x13, 0x16, 0x14, 0x1E].contains(tag) else { return nil }
         return String(decoding: content, as: UTF8.self)
     }
 
-    /// UTCTime or GeneralizedTime.
     public var dateValue: Date? {
         guard tag == 0x17 || tag == 0x18, let s = stringValue ?? String(validating: content, as: UTF8.self) else { return nil }
         let digits = s.dropLast()

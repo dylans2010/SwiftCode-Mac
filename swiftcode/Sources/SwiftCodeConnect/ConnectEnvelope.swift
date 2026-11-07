@@ -1,10 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectEnvelope.swift
-// Adapted for SwiftCode: MessageEnvelope + all V1 payload structs. Verbatim; wire format unchanged for the iOS companion.
-
 import Foundation
 
-/// Canonical message envelope used by SwiftCode Connect V1 protocol.
 public struct MessageEnvelope: Codable, Sendable {
     public let protocolVersion: Int
     public let messageID: String
@@ -54,8 +49,6 @@ public struct MessageEnvelope: Codable, Sendable {
         return try decoder.decode(type, from: payload)
     }
 }
-
-// MARK: - Handshake & Port Payloads
 
 public struct ConnectHandshakePayload: Codable, Sendable {
     public let deviceID: String
@@ -141,8 +134,6 @@ public struct ConnectDisconnectNoticePayload: Codable, Sendable {
     }
 }
 
-// MARK: - State Synchronization Payloads
-
 public struct ConnectSyncStatePayload: Codable, Sendable {
     public let activeProject: ConnectProjectInfo?
     public let availableProjects: [ConnectProjectInfo]
@@ -171,9 +162,6 @@ public struct ConnectSyncStatePayload: Codable, Sendable {
     }
 }
 
-// MARK: - Specific Payload Structures
-
-// Handshake & Auth
 public struct ConnectPairingRequestPayload: Codable, Sendable {
     public let deviceID: String
     public let deviceName: String
@@ -236,7 +224,6 @@ public struct ConnectAuthResponsePayload: Codable, Sendable {
     }
 }
 
-// Project & Git
 public struct ConnectProjectInfo: Codable, Sendable, Equatable {
     public let id: String
     public let name: String
@@ -287,7 +274,6 @@ public struct ConnectGitStatusResponsePayload: Codable, Sendable, Equatable {
     }
 }
 
-// Build & Test
 public struct ConnectBuildRequestPayload: Codable, Sendable {
     public let projectID: String?
     public let scheme: String?
@@ -317,7 +303,7 @@ public struct ConnectBuildProgressPayload: Codable, Sendable {
 }
 
 public struct ConnectBuildDiagnosticPayload: Codable, Sendable {
-    public let severity: String // error, warning, note
+    public let severity: String
     public let message: String
     public let file: String?
     public let line: Int?
@@ -346,7 +332,6 @@ public struct ConnectBuildCompletedPayload: Codable, Sendable {
     }
 }
 
-// Log & Terminal & Assist
 public struct ConnectLogEventPayload: Codable, Sendable {
     public let timestamp: Date
     public let level: String
@@ -401,7 +386,6 @@ public struct ConnectAssistResponsePayload: Codable, Sendable {
     }
 }
 
-// Files
 public struct ConnectFileItem: Codable, Sendable {
     public let path: String
     public let name: String
@@ -424,7 +408,6 @@ public struct ConnectFileListResponsePayload: Codable, Sendable {
     }
 }
 
-// Devices & Testing
 public struct ConnectDeviceItem: Codable, Sendable {
     public let id: String
     public let name: String

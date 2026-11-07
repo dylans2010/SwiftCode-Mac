@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R11 test support: an app with commands, a Settings scene and a
-// single-window scene, run on the headless back end with the menu bar shown.
-
-// The R2 tests define a `Settings` model class; the scene is named through
-// its module here.
 #if OPENVIEWS_RENAMED
 typealias SettingsScene = OpenViews.Settings
 #else
@@ -43,7 +38,6 @@ extension FocusedValues {
     }
 }
 
-/// Commands that depend on the focused document.
 struct DocumentCommands: Commands {
     @FocusedValue(\.document) var document: String?
     @FocusedValue(\.sceneTitle) var sceneTitle: String?
@@ -96,7 +90,6 @@ final class CommandsHarness {
         host = AppHost(CommandsApp.self, backend: backend)
         host.makePresenter = { _ in nil }
         host.showsMenuBar = menuBar
-        // R13: the desktop look (as on a Linux desktop host).
         if desktop { host.desktopTextInput = true }
         host.appName = "Demo"
         host.launch()
@@ -140,7 +133,6 @@ final class CommandsHarness {
         run(until: time)
     }
 
-    /// The window frame of the first node in `window` whose view matches.
     func frame(in window: WindowHost? = nil, where match: (any View) -> Bool) -> CGRect? {
         var out: CGRect?
         (window ?? main).graph.root?.forEachNode { n in
@@ -149,14 +141,12 @@ final class CommandsHarness {
         return out
     }
 
-    /// The frame of a `Text` with this string.
     func textFrame(_ s: String, in window: WindowHost? = nil) -> CGRect? {
         frame(in: window) { ($0 as? Text)?.plainString == s }
     }
 
     var menuTitles: [String] { main.services.menuBar?.menuTitles ?? [] }
 
-    /// Opens the menu titled `title` with a press on its title.
     func openMenu(_ title: String, at t: TimeInterval) {
         guard let f = textFrame(title) else {
             Issue.record("no menu title \(title)")
@@ -165,7 +155,6 @@ final class CommandsHarness {
         click(CGPoint(x: f.midX, y: f.midY), at: t)
     }
 
-    /// Chooses the item `title` of the open (innermost) pop-up.
     func choose(_ title: String, at t: TimeInterval) {
         guard let p = popups.last, let f = textFrame(title, in: p) else {
             Issue.record("no item \(title)")
@@ -174,7 +163,6 @@ final class CommandsHarness {
         click(CGPoint(x: f.midX, y: f.midY), window: p.platform.id, at: t)
     }
 
-    /// The item titles of the innermost pop-up.
     var openItems: [String] {
         guard let p = popups.last else { return [] }
         var out: [String] = []
@@ -184,7 +172,6 @@ final class CommandsHarness {
         return out
     }
 
-    /// Whether the menu row with this title is enabled in the open pop-up.
     func isItemEnabled(_ title: String) -> Bool? {
         guard let p = popups.last else { return nil }
         var out: Bool?

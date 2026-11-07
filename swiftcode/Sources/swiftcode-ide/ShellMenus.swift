@@ -3,20 +3,9 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The menu bar (`specs/ide/menus.md`): the AppKit IDE's menus from the
-/// core's `CommandTable` — SwiftCode, File, Edit, View, Find, Navigate, Editor,
-/// Product, Debug, Integrate, Window, Help — with the same items, order,
-/// separators, submenus, titles (dynamic ones through `MenuTitles`) and
-/// shortcuts. The commands the shell performs (`ShellCommand`) are
-/// enabled; the others are listed disabled, as the AppKit IDE lists the
-/// commands it does not perform yet. The toolkit keeps its own Undo, Redo
-/// and pasteboard items (they act on the focused text), Quit and the window
-/// list; alternates (shown while ⌥ is held) and conditional items are left
-/// out.
 struct ShellMenus: Commands {
     var app: ShellAppModel
 
-    /// Edit-menu actions the toolkit's own items perform.
     static let toolkitEditActions: Set<String> = ["undo:", "redo:", "cut:", "copy:", "paste:", "delete:", "selectAll:"]
 
     static func items(_ menu: String) -> [MenuItemSpec] {
@@ -42,7 +31,6 @@ struct ShellMenus: Commands {
         CommandGroup(replacing: .sidebar) { MenuSpecItems(app: app, items: Self.items("View")) }
         CommandMenu("Find") { MenuSpecItems(app: app, items: Self.items("Find")) }
         CommandMenu("Navigate") { MenuSpecItems(app: app, items: Self.items("Navigate")) }
-        // The focused editor's own Editor menu (property list, asset catalog).
         CommandMenu("Editor") { MenuSpecItems(app: app, items: EditorMenu.items(for: app.workspace?.editorKind ?? .source)) }
         CommandMenu("Product") { MenuSpecItems(app: app, items: Self.items("Product")) }
         CommandMenu("Debug") { MenuSpecItems(app: app, items: Self.items("Debug")) }
@@ -52,31 +40,24 @@ struct ShellMenus: Commands {
     }
 }
 
-/// Menu items from the core's table (recursively for submenus).
 struct MenuSpecItems: View {
     var app: ShellAppModel
     var items: [MenuItemSpec]
     var trimSeparators = false
 
     var body: some View {
-        // Settings ▸ Shortcuts: a changed shortcut rebuilds the items.
         let _ = ShellPreferences.shared.revision
         ForEach(Array(shown.enumerated()), id: \.offset) { pair in
             view(pair.element)
         }
     }
 
-    /// The items shown: no alternates, no conditional items, no doubled,
-    /// leading or trailing separators.
     var shown: [MenuItemSpec] {
         var out: [MenuItemSpec] = []
         for i in items {
             switch i {
-            // Conditional items are left out, except the ones this shell
-            // performs (Jump to Line… is "when a source editor is open").
             case .command(let c) where c.isAlternate
                 || (c.condition != nil && !ShellCommand.allCases.contains { $0.action == (c.action, c.tag) }): continue
-            // Resolve Conflicts…, Continue and Abort: only while an operation is stopped.
             case .command(let c) where c.condition == .integrationInProgress
                 && !MenuConditions.isShown(c.condition, in: app.workspace?.menuContext): continue
             case .separator:
@@ -111,7 +92,6 @@ struct MenuSpecItems: View {
             let shell = ShellCommand.allCases.first { $0.action == (c.action, c.tag) }
             let title = shell.map { app.title($0) } ?? MenuTitles.title(for: c, in: app.workspace?.menuContext)
             let shortcut = ShellShortcut(command: KeyBindings.effective(c))?.keyboardShortcut
-            // The structured editors' items (StructuredEditors.swift).
             if shell == nil, let state = app.workspace?.editorActionState(c.action, tag: c.tag) {
                 if ["toggleRawKeysAndValues:", "setPlistValueType:"].contains(c.action) {
                     return AnyView(Toggle(title, isOn: Binding(get: { state.checked },
@@ -120,7 +100,6 @@ struct MenuSpecItems: View {
                 }
                 return AnyView(Button(title) { app.workspace?.performEditorAction(c.action, tag: c.tag) }.disabled(!state.enabled))
             }
-            // Debug Workflow's toggles carry a check mark.
             if let shell, let on = app.isChecked(shell) {
                 return AnyView(Toggle(title, isOn: Binding(get: { on }, set: { _ in app.perform(shell) }))
                     .keyboardShortcut(shortcut)

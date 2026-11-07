@@ -55,22 +55,18 @@ public actor AssistScreenRecordingEngine {
 
     private init() {}
 
-    /// Resolves an application identifier (bundle ID or app name) to a running application.
     public func resolveApplication(identifier: String) -> NSRunningApplication? {
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
         let runningApps = NSWorkspace.shared.runningApplications
 
-        // 1. Exact match on bundle identifier
         if let app = runningApps.first(where: { $0.bundleIdentifier?.caseInsensitiveCompare(trimmed) == .orderedSame }) {
             return app
         }
 
-        // 2. Exact match on localized name
         if let app = runningApps.first(where: { $0.localizedName?.caseInsensitiveCompare(trimmed) == .orderedSame }) {
             return app
         }
 
-        // 3. Substring match on bundle identifier or localized name
         if let app = runningApps.first(where: {
             ($0.bundleIdentifier?.localizedCaseInsensitiveContains(trimmed) == true) ||
             ($0.localizedName?.localizedCaseInsensitiveContains(trimmed) == true)
@@ -81,7 +77,6 @@ public actor AssistScreenRecordingEngine {
         return nil
     }
 
-    /// Records the screen of the target application for the specified duration.
     public func recordApplication(
         appIdentifier: String,
         durationSeconds: TimeInterval = 10,
@@ -111,7 +106,6 @@ public actor AssistScreenRecordingEngine {
         isRecording = true
         defer { isRecording = false }
 
-        // Find shareable content & window for the target application
         let shareableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let appWindows = shareableContent.windows.filter { window in
             guard let owningApp = window.owningApplication else { return false }
@@ -130,7 +124,6 @@ public actor AssistScreenRecordingEngine {
         let config = SCStreamConfiguration()
         let captureWidth = max(320, Int(targetWindow.frame.width) * 2)
         let captureHeight = max(240, Int(targetWindow.frame.height) * 2)
-        // Dimensions must be even for video encoders
         let normalizedWidth = (captureWidth / 2) * 2
         let normalizedHeight = (captureHeight / 2) * 2
 
@@ -153,7 +146,6 @@ public actor AssistScreenRecordingEngine {
         try stream.addStreamOutput(session, type: .screen, sampleHandlerQueue: session.recordingQueue)
         try await stream.startCapture()
 
-        // Wait for requested duration
         try await Task.sleep(nanoseconds: UInt64(durationSeconds * 1_000_000_000))
 
         do {
@@ -183,8 +175,6 @@ public actor AssistScreenRecordingEngine {
         )
     }
 }
-
-// MARK: - Internal Session & SCStreamOutput Handler
 
 private final class StreamRecorderSession: NSObject, SCStreamOutput, @unchecked Sendable {
     let outputURL: URL

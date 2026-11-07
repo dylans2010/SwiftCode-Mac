@@ -1,16 +1,5 @@
-// Diagnostics: what each thread of a process is blocked in, and for Mach
-// receives the port it waits on and, for a send-and-receive, the
-// destination's receiving process (stage 6 boot analysis).
-
 import Synchronization
 
-/// A thread's last 16 traps (`ThreadContext.recentTraps`). The thread's own
-/// host thread records every trap, also on the paths that take no kernel
-/// lock, while a report reads the ring from another thread: the storage is
-/// allocated once and never moves, so a read during a write can at worst
-/// show one torn entry, never touch freed or shifted memory (an array's
-/// `removeFirst` under a concurrent `map` trapped with an index out of
-/// range).
 public final class TrapRing: @unchecked Sendable {
     public static let capacity = 16
     private let slots = UnsafeMutablePointer<UInt64>.allocate(capacity: capacity * 4)
@@ -19,7 +8,6 @@ public final class TrapRing: @unchecked Sendable {
     public init() { slots.initialize(repeating: 0, count: Self.capacity * 4) }
     deinit { slots.deallocate() }
 
-    /// Owner thread only.
     public func record(_ x16: UInt64, _ x0: UInt64, _ x1: UInt64, _ result: UInt64) {
         let n = written.load(ordering: .relaxed)
         let s = slots + (n % Self.capacity) * 4
@@ -27,7 +15,6 @@ public final class TrapRing: @unchecked Sendable {
         written.store(n + 1, ordering: .releasing)
     }
 
-    /// Oldest first. Any thread.
     public var entries: [(UInt64, UInt64, UInt64, UInt64)] {
         let n = written.load(ordering: .acquiring)
         return (max(0, n - Self.capacity)..<n).map { i in
@@ -38,16 +25,13 @@ public final class TrapRing: @unchecked Sendable {
 }
 
 extension DarwinKernel {
-    /// Record each knote's last state changes (set by the VMM for reports).
     nonisolated(unsafe) public static var recordKnoteHistory = false
 
-    /// One trap-ring entry: `x16(x0,x1)->result` (`!errno` when carry was set).
     public static func ringEntry(_ e: (UInt64, UInt64, UInt64, UInt64)) -> String {
         let result = e.3 & (1 << 63) != 0 ? "!\(e.3 & 0xFFFF_FFFF)" : hx(e.3)
         return "\(Int64(bitPattern: e.0))(\(hx(e.1)),\(hx(e.2)))->\(result)"
     }
 
-    /// One line per thread that is inside a trap. Lock held.
     public func blockedThreadReport() -> [String] {
         withEvents { withPorts { blockedThreadReportLocked() } }
     }
@@ -75,8 +59,6 @@ extension DarwinKernel {
                 text += " mach_msg2 options \(hx(options))"
                 if options & 1 != 0 { text += " sent id \(id) to \(hx(remote)) (\(ipc.describePort(remote)))" }
                 if options & 2 != 0 { text += " receiving on \(hx(rcv)) (\(ipc.describePort(rcv)))" }
-                // A receive-only call with MACH_RCV_SYNC_WAIT names the port
-                // its request went to (the low half of x3, §2.7 of mach-ipc.md).
                 if options & 1 == 0, options & MachMsgOption.rcvSyncWait != 0, MachPortName.isValid(remote) {
                     text += "; its request went to \(hx(remote)) (\(ipc.describePort(remote)))"
                 }
@@ -97,8 +79,6 @@ extension DarwinKernel {
                 + " (\(workqueue.idle.count) idle workers, \(workqueue.workers.count) workers)")
             for kq in lost { lines.append("  workloop \(hx(kq.workloopID)) requests: " + kq.requestLogText) }
         }
-        // Mach-port knotes whose port has messages queued (a lost wakeup
-        // shows here as an idle servicer with pending messages).
         var loggedWorkloops = Set<ObjectIdentifier>()
         for kq in allKQueues {
             for kn in kq.knotes where kn.filter == EVFilter.machport && machPortHasMessage(UInt32(truncatingIfNeeded: kn.ident)) {
@@ -121,7 +101,6 @@ extension DarwinKernel {
         return lines
     }
 
-    /// A worker's request kind for the report.
     static func workerKind(_ w: WorkerState) -> String {
         var s = w.cooperative ? "cooperative" : w.constrained ? "constrained" : "overcommit"
         s += " qos \(w.qos)"
@@ -137,9 +116,6 @@ extension DarwinKernel {
             + "requested \(wl.requested); requests: \(wl.requestLogText)"
     }
 
-    /// One line on the process's workqueue (nil without workers): how many
-    /// workers run, block or idle, what is pending, and whether a new worker
-    /// could get a vCPU now.
     func workqueueSummary() -> String? {
         let workers = workqueue.workers.values
         guard !workers.isEmpty || !workqueue.pendingWorkloops.isEmpty else { return nil }
@@ -160,10 +136,6 @@ extension DarwinKernel {
 }
 
 extension MachIPC {
-    /// Who receives on `name` in this space (diagnostics). Lock held.
-    /// Who can still send to `p` (diagnostics for a thread waiting on its own
-    /// port, e.g. for a reply): the spaces with send or send-once rights,
-    /// and queued messages that carry a right to it.
     static func rightHolders(_ p: IPCPort, system: DarwinSystem?, mach: MachIPCSystem) -> String {
         var holders: [String] = []
         var spaces = system?.snapshotSpaces() ?? []
@@ -176,7 +148,6 @@ extension MachIPC {
             for (index, e) in space.entries.enumerated() where e.inUse {
                 guard let q = e.port else { continue }
                 let ename = UInt32(index) << 8 | e.generation << 2 | 3
-                // Notification requests on q hold send-once rights to their notify ports.
                 if q.pdRequest === p { holders.append("port-destroyed request of 0x\(String(ename, radix: 16)) in pid \(space.pid)") }
                 if q.nsRequest === p { holders.append("no-senders request of 0x\(String(ename, radix: 16)) in pid \(space.pid)") }
                 if q.dnRequests.values.contains(where: { $0 === p }) {
@@ -204,14 +175,9 @@ extension MachIPC {
         return "; srights \(p.srights) sorights \(p.sorights); held by " + (holders.isEmpty ? "nobody" : holders.joined(separator: ", "))
     }
 
-    /// Where the receive right of `p` travels (diagnostics): the queued
-    /// message whose body carries it, followed through carrier ports whose
-    /// own receive right is in transit (at most four steps). Lock held.
     static func transitCarrier(_ p: IPCPort, system: DarwinSystem?, mach: MachIPCSystem) -> String {
         var spaces = system?.snapshotSpaces() ?? []
         if let host = mach.hostTask { spaces.append(host.ipc) }
-        // Every port some space names (a port in transit is still named by
-        // the spaces that hold send rights to it).
         var ports: [ObjectIdentifier: IPCPort] = [:]
         for space in spaces {
             for e in space.entries where e.inUse { if let q = e.port { ports[ObjectIdentifier(q)] = q } }
@@ -260,12 +226,6 @@ extension MachIPC {
 }
 
 extension DarwinKernel {
-    /// Diagnostics for a snapshot (snapshot.md §12.5; the caller holds the
-    /// kernel lock and every fine lock): threads blocked in a Mach receive
-    /// on one of their own ports, waiting for a reply whose send-once right
-    /// no guest space, queued message or notification request holds — a
-    /// reply that only a host service or a kernel object can still send,
-    /// with the destination of the request the thread sent in the same call.
     public func snapshotReplyWaitsWithoutGuestHolder() -> [String] {
         guard let ipc = machIPC as? MachIPC else { return [] }
         var lines: [String] = []

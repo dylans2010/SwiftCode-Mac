@@ -6,8 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// specs/ide/reference-ui.md: navigators, toolbar, menus, settings
-/// defaults, behaviors, debug area, File inspector, jump bar.
 @MainActor
 @Suite(.serialized) struct ReferenceUITests {
     func withWindow(_ body: (WorkspaceWindowController, URL, Preferences) throws -> Void) throws {
@@ -47,7 +45,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.addFileBookmark()
             wc.navigator.select(2)
             #expect(wc.navigator.rows(2).first?.title == "main.swift" && wc.navigator.rows(2).first?.children.count == 3)
-            // Saved per user next to the package.
             #expect(FileManager.default.fileExists(atPath: wc.bookmarks.fileURL!.path))
             #expect(wc.bookmarks.fileURL!.path.contains(".swiftpm/xcode/xcuserdata/"))
             wc.open(path: main, line: 1)
@@ -60,12 +57,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.jumpToPreviousBookmark(nil)
             #expect(wc.editor.currentLine == 6)
             #expect(wc.navigator.addMenuTitles == ["Bookmark File", "Bookmark Line"])
-            // Project navigator: "+" and the filters.
             wc.navigator.select(0)
             #expect(wc.navigator.addMenuTitles.first == "New File…")
             wc.navigator.filterText = "oth"
             let names = wc.navigator.rows(0).flatMap { $0.children.flatMap { $0.children.flatMap { $0.children.map(\.title) } } }
-            #expect(names.contains("Other") && !names.contains("main"))  // extensions hidden by default
+            #expect(names.contains("Other") && !names.contains("main"))
             wc.navigator.filterText = ""
             wc.navigator.filterRecent = true
             let recent = wc.navigator.rows(0).flatMap { $0.children.flatMap { $0.children.flatMap { $0.children.map(\.title) } } }
@@ -86,7 +82,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(wc.leftPanesControl.isSelected(forSegment: 1) && !wc.leftPanesControl.isSelected(forSegment: 0))
             wc.setLeftPane(codingAssistant: false)
             #expect(!wc.navigator.showsCodingAssistant && wc.leftPanesControl.isSelected(forSegment: 0))
-            // Menus: Integrate, bookmarks, unavailable items disabled.
             #expect(CommandTable.command(titled: "Bookmark Line") != nil && CommandTable.command(titled: "Jump to Next Bookmark") != nil)
             let unavailable = CommandTable.command(titled: "SwiftCode Extensions…")
             #expect(unavailable?.action.hasPrefix("swiftcodeUnavailable") == true)
@@ -97,18 +92,15 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
     @Test func runBehaviorsDebugAreaAndInspector() throws {
         try withWindow { wc, src, _ in
-            // A run without output hides the debug area on completion.
             wc.showDebugArea(true)
             wc.applyBehaviors(for: .running("Running Demo"))
             wc.applyBehaviors(for: .finished("Finished running Demo"))
             #expect(wc.debugItem.isCollapsed)
-            // With output: shown on output, kept open on completion.
             wc.applyBehaviors(for: .running("Running Demo"))
             wc.session.appendConsole("hello\n", kind: .target)
             #expect(wc.lastBehavior?.event == .runOutput && !wc.debugItem.isCollapsed)
             wc.applyBehaviors(for: .finished("Finished running Demo"))
             #expect(!wc.debugItem.isCollapsed)
-            // Console bar: filter, clear; halves.
             wc.session.appendConsole("Program ended with exit code: 0\n", kind: .target)
             wc.debugArea.consoleSearch.stringValue = "exit code"
             wc.debugArea.consoleSearchChanged()
@@ -118,7 +110,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.debugArea.toggleVariablesHalf()
             #expect(wc.debugArea.halvesShown == (false, true))
             wc.debugArea.toggleVariablesHalf()
-            // Position in the debug bar; jump bar symbol; File inspector.
             wc.open(path: src.appendingPathComponent("main.swift").path, line: 3)
             wc.editor.textViewDidChangeSelection(Notification(name: NSTextView.didChangeSelectionNotification))
             #expect(wc.debugArea.positionLabel.stringValue.hasPrefix("Line: 3"))

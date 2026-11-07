@@ -1,11 +1,5 @@
-// Decoders for the fixed records and keyed descriptors of the Metal host
-// protocol (metal-sim-protocol.md §2.4, §4.2, §5, §7). Records are packed:
-// fields follow each other with no padding (a u64 may sit at any multiple
-// of 4; the 185 892-byte upload of §5.3 = 8 + 84 + pixels confirms it).
-
 import Foundation
 
-/// A malformed record or descriptor.
 public enum MetalDecodeError: Error, Equatable, Sendable, CustomStringConvertible {
     case truncated(need: Int, have: Int)
     case badRecordLength(op: UInt32, length: UInt32, available: Int)
@@ -20,7 +14,6 @@ public enum MetalDecodeError: Error, Equatable, Sendable, CustomStringConvertibl
     }
 }
 
-/// A little-endian reader over a byte slice.
 struct ByteReader {
     let bytes: [UInt8]
     var offset: Int
@@ -66,7 +59,6 @@ struct ByteReader {
     mutating func f32() throws -> Float { Float(bitPattern: try u32()) }
     mutating func f64() throws -> Double { Double(bitPattern: try u64()) }
 
-    /// A u64 as an Int (saturating).
     mutating func int64() throws -> Int { let v = try u64(); return v > UInt64(Int.max) ? Int.max : Int(v) }
     mutating func int32() throws -> Int { Int(try u32()) }
     mutating func int16() throws -> Int { Int(try u16()) }
@@ -83,7 +75,6 @@ struct ByteReader {
     }
 }
 
-/// A little-endian writer for replies and tests.
 struct MetalByteWriter {
     public private(set) var bytes: [UInt8] = []
     public init() {}
@@ -96,7 +87,6 @@ struct MetalByteWriter {
     public mutating func append(_ b: [UInt8]) { bytes += b }
     public mutating func pad(to n: Int) { while bytes.count < n { bytes.append(0) } }
 
-    /// A record: u32 op, u32 total length, body.
     public static func record(_ op: UInt32, _ body: [UInt8]) -> [UInt8] {
         var w = MetalByteWriter()
         w.u32(op)
@@ -106,14 +96,11 @@ struct MetalByteWriter {
     }
 }
 
-/// One record (u32 opcode, u32 total length, body).
 public struct MetalRecord: Equatable, Sendable {
     public var op: UInt32
     public var body: [UInt8]
     public init(op: UInt32, body: [UInt8]) { self.op = op; self.body = body }
 
-    /// The single record of a `command` value. Bytes after the record's
-    /// length are ignored; a length beyond the data is an error.
     public static func parse(_ data: [UInt8]) throws -> MetalRecord {
         guard data.count >= 8 else { throw MetalDecodeError.truncated(need: 8, have: data.count) }
         var r = ByteReader(data)
@@ -126,14 +113,9 @@ public struct MetalRecord: Equatable, Sendable {
     }
 }
 
-// MARK: Fixed descriptors (§5)
-
 enum MetalDescriptorCodec {
-    /// Texture descriptor words 0–8 (spec §5.2), from the reader's position.
-    /// `leadingWord` false: words 1–8 only, the form of the heap device
-    /// ops 21 and 22 (metal-sim-protocol.md §4.2; 32 bytes on the wire).
     static func texture(_ r: inout ByteReader, leadingWord: Bool = true) throws -> MetalTextureDescriptor {
-        if leadingWord { _ = try r.u32() }  // word 0: 0
+        if leadingWord { _ = try r.u32() }
         let w1 = try r.u32()
         let width = try r.int32(), height = try r.int32(), depth = try r.int32()
         let levels = try r.int16(), samples = try r.int16()
@@ -157,7 +139,6 @@ enum MetalDescriptorCodec {
         w.u64(d.reserved)
     }
 
-    /// Sampler body (spec §5.5, 28 bytes).
     static func sampler(_ body: [UInt8]) throws -> MetalSamplerDescriptor {
         var r = ByteReader(body)
         _ = try r.u32()
@@ -196,7 +177,6 @@ enum MetalDescriptorCodec {
         return w.bytes
     }
 
-    /// Depth-stencil body (spec §5.6, 32 bytes).
     static func depthStencil(_ body: [UInt8]) throws -> MetalDepthStencilDescriptor {
         var r = ByteReader(body)
         _ = try r.u32()
@@ -234,9 +214,6 @@ enum MetalDescriptorCodec {
         return w.bytes
     }
 
-    /// The region/level/slice/rows head of ops 2 and 5 (spec §5.3): u32
-    /// texture ref, u64 × 3 origin, u64 × 3 size, u64 level, u64 slice,
-    /// u64 bytes per row, u64 bytes per image (84 bytes).
     struct RegionHead: Equatable {
         var texture: UInt32
         var region: MetalRegion
@@ -259,14 +236,8 @@ enum MetalDescriptorCodec {
     }
 }
 
-// MARK: Keyed descriptors (§7)
-
-/// One object of a keyed payload: u8 field count, then (u8 key, u8 type,
-/// value) fields; the type is the value's size in bytes (4 is the only one
-/// seen; 1, 2 and 8 are accepted).
 struct KeyedObject {
     var fields: [(key: UInt8, value: UInt64)] = []
-    /// The offset just after the fields.
     var end: Int
 
     subscript(key: UInt8) -> UInt64? { fields.first { $0.key == key }?.value }
@@ -290,8 +261,6 @@ struct KeyedObject {
         return KeyedObject(fields: fields, end: r.offset)
     }
 
-    /// An array at `offset`: u32 count, u32 element offsets relative to
-    /// the array, the elements (objects).
     static func array(_ p: [UInt8], at offset: Int) throws -> [(object: KeyedObject, offset: Int)] {
         var r = ByteReader(p, from: offset)
         let count = Int(try r.u32())
@@ -307,7 +276,6 @@ struct KeyedObject {
 }
 
 enum MetalPipelineCodec {
-    /// The keyed payload of ops 11 and 14: u32 0, u32 payload length, payload.
     static func payload(_ body: [UInt8]) throws -> [UInt8] {
         var r = ByteReader(body)
         _ = try r.u32()
@@ -315,7 +283,6 @@ enum MetalPipelineCodec {
         return try r.take(length)
     }
 
-    /// Op 14 (spec §7.2). `function` maps a guest function ref to a handle.
     static func renderPipeline(_ p: [UInt8], function: (UInt32) -> MetalHandle?) throws -> MetalRenderPipelineDescriptor {
         let top = try KeyedObject.parse(p, at: 0)
         var d = MetalRenderPipelineDescriptor()
@@ -326,8 +293,6 @@ enum MetalPipelineCodec {
                 guard at < p.count else { throw MetalDecodeError.badPayload("label offset \(at)") }
                 let end = p[at...].firstIndex(of: 0) ?? p.count
                 d.label = String(decoding: p[at..<end], as: UTF8.self)
-            // Key 1 is the vertex function and key 2 the fragment function
-            // (corrected 2026-10-12 from VK's level-3 runs; spec §7.2 note).
             case 1: d.vertexFunction = v == 0 ? nil : function(UInt32(truncatingIfNeeded: v))
             case 2: d.fragmentFunction = v == 0 ? nil : function(UInt32(truncatingIfNeeded: v))
             case 3: d.vertexDescriptor = try vertexDescriptor(p, at: Int(v))
@@ -356,8 +321,6 @@ enum MetalPipelineCodec {
         return d
     }
 
-    /// The vertex descriptor object at `offset`: key 0 attribute array, key
-    /// 1 layout array, both relative to the object.
     static func vertexDescriptor(_ p: [UInt8], at offset: Int) throws -> MetalVertexDescriptor {
         guard offset < p.count else { throw MetalDecodeError.badPayload("vertex descriptor offset \(offset)") }
         let o = try KeyedObject.parse(p, at: offset)
@@ -383,8 +346,6 @@ enum MetalPipelineCodec {
         return vd
     }
 
-    /// Op 11 (spec §7.3): key 0 = function ref.
-    /// The top-level keys of a compute payload other than key 0 (diagnostics).
     static func computeUnknownKeys(_ p: [UInt8]) -> [UInt8: UInt64] {
         guard let o = try? KeyedObject.parse(p, at: 0) else { return [:] }
         var out: [UInt8: UInt64] = [:]
@@ -399,11 +360,9 @@ enum MetalPipelineCodec {
     }
 }
 
-/// Builds keyed payloads (tests, and a reference for the layout).
 struct MetalKeyedPayloadBuilder {
     public init() {}
 
-    /// An object: u8 count, (key, 4, u32) fields.
     public static func object(_ fields: [(UInt8, UInt32)]) -> [UInt8] {
         var w = MetalByteWriter()
         w.u8(UInt8(fields.count))
@@ -413,7 +372,6 @@ struct MetalKeyedPayloadBuilder {
 
     static func align4(_ b: inout [UInt8]) { while b.count % 4 != 0 { b.append(0) } }
 
-    /// An array of objects: u32 count, u32 offsets (relative to the array), elements at 4-aligned offsets.
     public static func array(_ elements: [[UInt8]]) -> [UInt8] {
         var head = MetalByteWriter()
         head.u32(UInt32(elements.count))
@@ -427,19 +385,14 @@ struct MetalKeyedPayloadBuilder {
         return head.bytes + body
     }
 
-    /// A render pipeline payload. `nested` is placed after the top-level
-    /// object and label at 4-aligned offsets; each closure gets the offset
-    /// its element will have and returns the top-level (key, value) to add.
     public static func renderPipeline(top: [(UInt8, UInt32)], label: String? = nil,
                                       colorAttachments: [[(UInt8, UInt32)]] = [],
                                       vertexAttributes: [[(UInt8, UInt32)]]? = nil,
                                       vertexLayouts: [[(UInt8, UInt32)]]? = nil) -> [UInt8] {
-        // Field count is known in advance: top + label + color array + vertex descriptor.
         let extra = (label != nil ? 1 : 0) + (colorAttachments.isEmpty ? 0 : 1) + (vertexAttributes != nil ? 1 : 0)
         let topSize = 1 + 6 * (top.count + extra)
         var tail: [UInt8] = []
         var fields = top
-        // The label (or a single NUL) follows the top-level fields.
         let labelBytes = Array((label ?? "").utf8) + [0]
         let labelOffset = topSize
         tail += labelBytes
@@ -451,7 +404,6 @@ struct MetalKeyedPayloadBuilder {
         }
         if label != nil { fields.insert((0, UInt32(labelOffset)), at: 0) }
         if let attrs = vertexAttributes {
-            // Vertex descriptor object, then its arrays (offsets relative to it).
             let vdHeader = 1 + 6 * 2
             var vdTail: [UInt8] = []
             func vdPlace(_ b: [UInt8]) -> Int {

@@ -1,11 +1,7 @@
-// Supporting value types: api.md §3.7, §3.8; archive keys codable.md §2–§3.
 import Foundation
 
-/// Wind at a point in time.
 public struct Wind: Codable, Equatable, Sendable {
-    /// The 16-point compass direction the wind blows from.
     public internal(set) var compassDirection: CompassDirection
-    /// Degrees from which the wind blows.
     public internal(set) var direction: Measurement<UnitAngle>
     public internal(set) var speed: Measurement<UnitSpeed>
     public internal(set) var gust: Measurement<UnitSpeed>?
@@ -20,7 +16,6 @@ public struct Wind: Codable, Equatable, Sendable {
         self.gust = gust
     }
 
-    /// The 16 compass points.
     public enum CompassDirection: String, CaseIterable, Codable, Hashable, Sendable, CustomStringConvertible {
         case north
         case northNortheast
@@ -39,7 +34,6 @@ public struct Wind: Codable, Equatable, Sendable {
         case northwest
         case northNorthwest
 
-        /// N, NNE, NE, … (behavior.md §6).
         public var abbreviation: String {
             switch self {
             case .north: return "N"
@@ -61,17 +55,12 @@ public struct Wind: Codable, Equatable, Sendable {
             }
         }
 
-        /// "North Northeast" style (behavior.md §6).
         public var description: String {
-            // "northNortheast" → "North Northeast", "northeast" → "Northeast".
             CaseName.words(rawValue).map(CaseName.capitalized).joined(separator: " ")
         }
 
-        /// Same as `description`.
         public var accessibilityDescription: String { description }
 
-        /// The point whose 22.5° sector (centred on the point, north at 0°)
-        /// contains `degrees` (design.md §5).
         package static func from(degrees: Double) -> CompassDirection {
             guard degrees.isFinite else { return .north }
             var normalized = degrees.truncatingRemainder(dividingBy: 360)
@@ -82,7 +71,6 @@ public struct Wind: Codable, Equatable, Sendable {
     }
 }
 
-/// UV index value and exposure category.
 public struct UVIndex: Codable, Equatable, Sendable {
     public internal(set) var value: Int
     public internal(set) var category: ExposureCategory
@@ -92,12 +80,10 @@ public struct UVIndex: Codable, Equatable, Sendable {
         self.category = category
     }
 
-    /// A UV index whose category follows the ranges of api.md §3.8.
     package init(value: Int) {
         self.init(value: value, category: ExposureCategory.category(for: value))
     }
 
-    /// Exposure risk bands.
     public enum ExposureCategory: String, CaseIterable, Codable, Hashable, Sendable, Comparable, CustomStringConvertible {
         case low
         case moderate
@@ -105,7 +91,6 @@ public struct UVIndex: Codable, Equatable, Sendable {
         case veryHigh
         case extreme
 
-        /// The UV index values in the band: 0…2, 3…5, 6…7, 8…10, 11…Int.max.
         public var rangeValue: ClosedRange<Int> {
             switch self {
             case .low: return 0...2
@@ -130,14 +115,12 @@ public struct UVIndex: Codable, Equatable, Sendable {
             allCases.firstIndex(of: lhs)! < allCases.firstIndex(of: rhs)!
         }
 
-        /// The band containing `value` (negative values count as low).
         package static func category(for value: Int) -> ExposureCategory {
             allCases.first { $0.rangeValue.contains(value) } ?? .low
         }
     }
 }
 
-/// Solar events of a day; nil when an event does not occur that day.
 public struct SunEvents: Codable, Equatable, Sendable {
     public internal(set) var astronomicalDawn: Date?
     public internal(set) var nauticalDawn: Date?
@@ -168,7 +151,6 @@ public struct SunEvents: Codable, Equatable, Sendable {
     }
 }
 
-/// Lunar events of a day.
 public struct MoonEvents: Codable, Equatable, Sendable {
     public internal(set) var phase: MoonPhase
     public internal(set) var moonrise: Date?
@@ -181,7 +163,6 @@ public struct MoonEvents: Codable, Equatable, Sendable {
     }
 }
 
-/// Cloud cover fractions (0…1) by altitude band.
 public struct CloudCoverByAltitude: Codable, Equatable, Sendable {
     public internal(set) var low: Double
     public internal(set) var medium: Double
@@ -194,7 +175,6 @@ public struct CloudCoverByAltitude: Codable, Equatable, Sendable {
     }
 }
 
-/// Snowfall amount with its range and liquid equivalents.
 public struct SnowfallAmount: Codable, Equatable, Sendable {
     public internal(set) var amount: Measurement<UnitLength>
     public internal(set) var maximum: Measurement<UnitLength>
@@ -217,13 +197,11 @@ public struct SnowfallAmount: Codable, Equatable, Sendable {
     }
 }
 
-/// Precipitation amounts split by type.
 public struct PrecipitationAmountByType: Codable, Equatable, Sendable {
     public internal(set) var hail: Measurement<UnitLength>
     public internal(set) var mixed: Measurement<UnitLength>
     public internal(set) var rainfall: Measurement<UnitLength>
     public internal(set) var sleet: Measurement<UnitLength>
-    /// Total precipitation.
     public internal(set) var precipitation: Measurement<UnitLength>
     public internal(set) var snowfallAmount: SnowfallAmount
 
@@ -240,11 +218,9 @@ public struct PrecipitationAmountByType: Codable, Equatable, Sendable {
     }
 }
 
-/// What a location supports.
 public struct WeatherAvailability: Codable, Equatable, Sendable {
     public internal(set) var minuteAvailability: AvailabilityKind
     public internal(set) var alertAvailability: AvailabilityKind
-    /// Non-public key (codable.md §2), preserved. SwiftCode default: `unknown`.
     var airQualityAvailability: AvailabilityKind
 
     package init(
@@ -256,7 +232,6 @@ public struct WeatherAvailability: Codable, Equatable, Sendable {
         self.airQualityAvailability = airQualityAvailability
     }
 
-    /// Availability of a data set at a location.
     public enum AvailabilityKind: String, Codable, Hashable, Sendable {
         case available
         case temporarilyUnavailable
@@ -265,7 +240,6 @@ public struct WeatherAvailability: Codable, Equatable, Sendable {
     }
 }
 
-/// Non-public intensity object `{"category", "value"}` (codable.md §2).
 struct PrecipitationIntensityValue: Codable, Equatable, Sendable {
     var category: String
     var value: Double

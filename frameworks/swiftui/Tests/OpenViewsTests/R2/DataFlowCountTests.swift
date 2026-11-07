@@ -9,12 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// T-DF / K-1: the body re-evaluation sets of 03-architecture.md §4.1. The
-// probe's structure is rebuilt here: a parent holding `@State counter`, an
-// `@Observable` model in `@State`, a `@StateObject` legacy model, an
-// environment value it injects, a field ignored by a custom `==`, and
-// children that each log their body.
-
 @Observable
 final class DFModel {
     var a = 0
@@ -36,7 +30,6 @@ extension EnvironmentValues {
     }
 }
 
-/// What the test drives: the parent's state through bindings it publishes.
 @MainActor
 final class DFDriver {
     var counter = Controls<Int>()
@@ -134,8 +127,6 @@ struct DFEnvSibling: View {
     }
 }
 
-/// `==` ignores `ignored`. All stored properties are plain values, as in
-/// the probe (the log is reached through a static).
 struct DFEquatable: View, Equatable {
     @MainActor static var log: Log?
     let shown: Int
@@ -202,7 +193,6 @@ struct DataFlowCountTests {
         graph = ViewGraph(rootView: DFRoot(log: log, driver: driver), environment: env)
     }
 
-    /// Initial render, then the scene becomes active (06 §1).
     private func start() {
         graph.update()
         graph.updateEnvironment { $0.scenePhase = .active }

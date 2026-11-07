@@ -3,21 +3,6 @@ import SwiftCodeDebug
 import SwiftCodeWorkspace
 import SwiftCodeXcodebuild
 
-/// The command line of the build server (`swiftcode-bsp`, `swiftcode bsp`):
-///
-///     swiftcode-bsp [serve] <container> [options]      BSP over stdin/stdout (what sourcekit-lsp starts)
-///     swiftcode-bsp config <container> [options] [--output DIR]
-///                                                  writes DIR/.bsp/swiftcode.json (default: the container's folder)
-///     swiftcode-bsp targets <container> [options]      lists targets, sources and dependencies
-///     swiftcode-bsp args <container> <file> [--target NAME] [options]
-///                                                  prints a file's compiler arguments, one per line
-///     swiftcode-bsp prepare <container> <target name>… [options]
-///                                                  emits the modules the targets need
-///     swiftcode-bsp sample <dir> [ios|portable]       writes the sample project (Kit, App, AppTests)
-///
-/// Options: `--scheme S`, `--configuration C`, `--destination D`,
-/// `--derived-data DIR` (the derived-data root), `--settings resolver|swift-build`,
-/// `--log FILE`. See `specs/ide/language.md` §Build server.
 public enum BuildServerMain {
     public struct Options {
         public var command = "serve"
@@ -68,8 +53,6 @@ public enum BuildServerMain {
         return o.container == nil ? nil : o
     }
 
-    /// Runs a command; returns the exit status (`serve` returns when the
-    /// client exits or closes the channel).
     public static func run(_ args: [String]) -> Int32 {
         guard let o = parse(args), let path = o.container else {
             FileHandle.standardError.write(Data(usage.utf8))
@@ -132,8 +115,6 @@ public enum BuildServerMain {
     }
 
     struct MainError: Error, CustomStringConvertible { var description: String }
-
-    // MARK: Commands
 
     static func serve(_ model: IndexModel, log: @escaping @Sendable (String) -> Void) -> Int32 {
         let out = FileHandle.standardOutput
@@ -203,7 +184,6 @@ public enum BuildServerMain {
 
     static func writeConfig(_ url: URL, _ o: Options) -> Int32 {
         let exe = Bundle.main.executableURL?.resolvingSymlinksInPath().path ?? CommandLine.arguments[0]
-        // `swiftcode bsp config` names `swiftcode bsp serve`.
         var argv = URL(fileURLWithPath: exe).lastPathComponent == "swiftcode" ? [exe, "bsp", "serve", url.path] : [exe, "serve", url.path]
         if let s = o.scheme { argv += ["--scheme", s] }
         if let c = o.configuration { argv += ["--configuration", c] }
@@ -223,8 +203,6 @@ public enum BuildServerMain {
     }
 }
 
-/// The BSP connection file (`.bsp/swiftcode.json`) sourcekit-lsp finds in a
-/// workspace folder.
 public enum BuildServerConfigFile {
     public static func json(argv: [String]) -> JSON {
         [

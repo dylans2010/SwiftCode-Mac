@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-/// Self-healing and error recovery coordinator for Assist Workers (M-RECOVER).
-/// Enforces partial work guarantees (INV-10): Completed work is never discarded.
 @MainActor
 public final class WorkerRecoveryEngine: Sendable {
     public static let shared = WorkerRecoveryEngine()
@@ -11,7 +9,6 @@ public final class WorkerRecoveryEngine: Sendable {
 
     private init() {}
 
-    /// Recovers a failed worker by re-executing with model fallback or strategy adjustment
     public func attemptRecovery(
         for worker: Worker,
         error: WorkerError,
@@ -20,7 +17,6 @@ public final class WorkerRecoveryEngine: Sendable {
     ) async -> Bool {
         logger.info("Attempting recovery for worker '\(worker.name)' (Error: \(error.code))...")
 
-        // 1. Model Fallback if model failed
         if let fallbackModel = WorkerModelSelector.shared.fallbackModel(for: worker.modelUsed) {
             logger.info("Switching worker '\(worker.name)' to fallback model: \(fallbackModel)")
             WorkerRuntimeState.shared.updateWorker(id: worker.id) { w in
@@ -64,7 +60,6 @@ public final class WorkerRecoveryEngine: Sendable {
             return false
         }
 
-        // 2. Strategy adjustment: re-execute with modified approach
         WorkerRuntimeState.shared.updateWorker(id: worker.id) { w in
             w.currentAction = "Adjusting strategy: Bypassing failing step and proceeding to verification."
         }

@@ -12,14 +12,12 @@ struct BranchesView: View {
     @Binding var showError: Bool
     @Binding var errorMessage: String?
 
-    // Operations states
     @State private var newBranchName = ""
     @State private var showCreateBranchSheet = false
     @State private var showRenameBranchSheet = false
     @State private var renameBranchText = ""
     @State private var selectedBranchToRename: GitBranch?
 
-    // Git commands states
     @State private var showMergeSheet = false
     @State private var showRebaseSheet = false
     @State private var showCherryPickSheet = false
@@ -31,16 +29,13 @@ struct BranchesView: View {
     @State private var commandLog = ""
     @State private var isExecutingGitCmd = false
 
-    // Interactive rebase visualizer
     @State private var showInteractiveRebase = false
     @State private var rebaseCommits: [InteractiveRebaseCommit] = []
 
-    // Search and filtering
     @State private var branchSearchText = ""
     @State private var filterMode: BranchFilter = .all
     @State private var selectedBranches: Set<String> = []
 
-    // AI Workspace cleanup
     @State private var showAICleanupSheet = false
     @State private var aiCleanupPlan = ""
     @State private var isGeneratingAICleanup = false
@@ -72,12 +67,10 @@ struct BranchesView: View {
     var filteredBranches: [GitBranch] {
         var list = gitViewModel.branches
 
-        // Search text
         if !branchSearchText.isEmpty {
             list = list.filter { $0.name.localizedCaseInsensitiveContains(branchSearchText) }
         }
 
-        // Filtering
         switch filterMode {
         case .all:
             break
@@ -96,7 +89,6 @@ struct BranchesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Top Toolbar row
             HStack(spacing: 12) {
                 Label("Branch Directory", systemImage: "arrow.triangle.branch")
                     .font(.headline)
@@ -104,7 +96,6 @@ struct BranchesView: View {
 
                 Spacer()
 
-                // Search Bar
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Filter branches...", text: $branchSearchText)
@@ -148,7 +139,6 @@ struct BranchesView: View {
 
             Divider()
 
-            // Advanced Operations Action Bar
             HStack(spacing: 12) {
                 Button {
                     showMergeSheet = true
@@ -216,7 +206,6 @@ struct BranchesView: View {
 
             Divider()
 
-            // Executed logs display console (if any)
             if !commandLog.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -239,7 +228,6 @@ struct BranchesView: View {
                 Divider()
             }
 
-            // Main List View of Branches
             if filteredBranches.isEmpty {
                 GitHubEmptyStateView(
                     title: "No Branches Found",
@@ -287,7 +275,6 @@ struct BranchesView: View {
                                                 .cornerRadius(4)
                                         }
 
-                                        // Protected indicator based on branch conventions
                                         if branch.name == "main" || branch.name == "master" {
                                             Label("Protected", systemImage: "shield.fill")
                                                 .font(.system(size: 8, weight: .bold))
@@ -298,7 +285,6 @@ struct BranchesView: View {
                                                 .cornerRadius(4)
                                         }
 
-                                        // Stale branch indicator
                                         if isStale(branch) {
                                             Text("STALE")
                                                 .font(.system(size: 8, weight: .bold))
@@ -317,7 +303,6 @@ struct BranchesView: View {
 
                                 Spacer()
 
-                                // Health Indicators
                                 branchHealthIndicator(for: branch)
 
                                 HStack(spacing: 8) {
@@ -380,10 +365,7 @@ struct BranchesView: View {
         .sheet(isPresented: $showAICleanupSheet) { aiCleanupSheetView }
     }
 
-    // MARK: - Helper Branch Checks
-
     private func isStale(_ branch: GitBranch) -> Bool {
-        // Return true if branch name matches common temporary or obsolete branch naming conventions
         branch.name.contains("old") || branch.name.contains("temp") || branch.name.contains("stale")
     }
 
@@ -402,8 +384,6 @@ struct BranchesView: View {
         }
         .padding(.horizontal, 8)
     }
-
-    // MARK: - Interactive sheets definitions
 
     private var createBranchSheet: some View {
         VStack(spacing: 20) {
@@ -476,7 +456,6 @@ struct BranchesView: View {
         .frame(width: 400)
     }
 
-    // Git Merge Sheet View
     private var mergeSheetView: some View {
         VStack(spacing: 20) {
             HStack {
@@ -518,7 +497,6 @@ struct BranchesView: View {
         }
     }
 
-    // Git Rebase Sheet View
     private var rebaseSheetView: some View {
         VStack(spacing: 20) {
             HStack {
@@ -560,7 +538,6 @@ struct BranchesView: View {
         }
     }
 
-    // Git Cherry-pick Sheet View
     private var cherryPickSheetView: some View {
         VStack(spacing: 20) {
             HStack {
@@ -596,7 +573,6 @@ struct BranchesView: View {
         .frame(width: 400)
     }
 
-    // Git Reset Sheet View
     private var resetSheetView: some View {
         VStack(spacing: 20) {
             HStack {
@@ -644,7 +620,6 @@ struct BranchesView: View {
         }
     }
 
-    // Git Compare Sheet View
     private var compareSheetView: some View {
         VStack(spacing: 20) {
             HStack {
@@ -693,7 +668,6 @@ struct BranchesView: View {
         }
     }
 
-    // Interactive Rebase Sheet View
     private var interactiveRebaseSheetView: some View {
         VStack(spacing: 16) {
             HStack {
@@ -749,7 +723,6 @@ struct BranchesView: View {
         .frame(width: 520)
     }
 
-    // AI Branch Cleanup Recommendation Sheet View
     private var aiCleanupSheetView: some View {
         VStack(spacing: 20) {
             HStack {
@@ -798,8 +771,6 @@ struct BranchesView: View {
         .frame(width: 480)
     }
 
-    // MARK: - Executions backend logic
-
     private func executeGitOperation(arguments: [String]) {
         guard let proj = project else { return }
         isExecutingGitCmd = true
@@ -842,14 +813,12 @@ struct BranchesView: View {
     }
 
     private func loadInteractiveRebaseCommits() {
-        // Load the 3 most recent local commits from the log
         rebaseCommits = gitViewModel.history.prefix(3).map {
             InteractiveRebaseCommit(sha: String($0.sha.prefix(7)), subject: $0.subject, action: .pick)
         }
     }
 
     private func executeInteractiveRebase() {
-        // Prepare git transaction sequence instructions for standard rebase execution
         commandLog = "Prepared sequence instructions for GIT_SEQUENCE_EDITOR:\n" + rebaseCommits.map { "\($0.action.rawValue.lowercased()) \($0.sha) \($0.subject)" }.joined(separator: "\n")
     }
 

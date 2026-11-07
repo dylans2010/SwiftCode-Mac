@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/OpenRouterAssistProvider.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: OpenRouterAssistError, OpenRouterAssistProvider.
-
 import Foundation
 import os
 
@@ -38,11 +35,9 @@ public enum OpenRouterAssistError: LocalizedError {
 
 @MainActor
 public enum OpenRouterAssistProvider {
+    private static let openRouterAssistLogger = Logger(subsystem: "com.swiftcode.assist", category: "OpenRouterAssist")
     private static let modelsURL = URL(string: "https://openrouter.ai/api/v1/models")!
 
-    /// Tests the saved credential against the live /models endpoint.
-    /// Returns a human-readable success summary; throws a specific
-    /// OpenRouterAssistError otherwise. Never logs or returns the key.
     public static func testConnection() async throws -> String {
         let key = OpenRouterClient.resolveOpenRouterAPIKey()
         guard !key.isEmpty else { throw OpenRouterAssistError.missingAPIKey }
@@ -63,9 +58,6 @@ public enum OpenRouterAssistProvider {
         }
     }
 
-    /// Validates that a model identifier actually exists on OpenRouter
-    /// and reports its native tool-calling support. Throws
-    /// `.modelNotFound` instead of falling back to another model.
     public static func validateModel(_ modelID: String) async throws -> OpenRouterToolCallingSupport {
         let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.contains("/") else {
@@ -91,13 +83,9 @@ public enum OpenRouterAssistProvider {
         return supported.contains("tools") ? .supports : .doesNotSupport
     }
 
-    /// Live discovered models, via the existing OpenRouterClient cache
-    /// (which reads /models). Kept here so Settings has one call site.
     public static func fetchModels() async throws -> [OpenRouterModel] {
         try await OpenRouterClient.shared.fetchModels()
     }
-
-    // MARK: - Raw /models plumbing (JSONSerialization, no new model type)
 
     private static func fetchModelsRaw(apiKey: String) async throws -> (Data, Int) {
         var request = URLRequest(url: modelsURL)

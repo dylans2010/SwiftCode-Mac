@@ -1,16 +1,8 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Branch workflows in the window: the Source Control navigator's context
-/// menus (`SourceControlRowMenu`), merge and rebase with the conflict
-/// editor, stashes, tags and remotes (`specs/ide/source-control.md`,
-/// "SwiftCode implementation"). Each operation runs git in the background
-/// after the previous one; the parameterized methods are what the menus
-/// call once their prompt is answered (tests call them directly).
 extension SourceControlCoordinator {
-    // MARK: Row menus
 
-    /// The context menu of a navigator row.
     public func rowMenuItems(forKey key: String) -> [NSMenuItem] {
         SourceControlRowMenu.items(forKey: key, in: .init(snapshot)).map { spec in
             guard let action = spec.action else { return .separator() }
@@ -24,8 +16,6 @@ extension SourceControlCoordinator {
         }
     }
 
-    /// Performs a row action, asking for names and confirmations first
-    /// (nothing is asked while the window is off screen: tests).
     public func run(_ action: SourceControlRowMenu.Action) {
         let current = snapshot.currentBranch ?? "HEAD"
         func q(_ s: String) -> String { "\u{201C}\(s)\u{201D}" }
@@ -87,15 +77,12 @@ extension SourceControlCoordinator {
         }
     }
 
-    // MARK: Operations
-
     public func createBranch(_ name: String, from start: String? = nil, checkout: Bool = false) {
         perform { try $0.createBranch(name, from: start, checkout: checkout) }
     }
 
     public func renameBranch(_ name: String, to newName: String) { perform { try $0.renameBranch(name, to: newName) } }
 
-    /// Deletes a branch; an unmerged one asks again, then is forced.
     public func deleteBranch(_ name: String, force: Bool) {
         guard let repo = repository else { NSSound.beep(); return }
         runInBackground(body: {
@@ -113,7 +100,6 @@ extension SourceControlCoordinator {
 
     struct UnmergedBranch: Error { let name: String; let underlying: any Error }
 
-    /// Asks what to do with uncommitted changes, then switches.
     func checkoutAsking(_ branch: String) {
         let dirty = snapshot.changes.contains { $0.status != .untracked }
         guard dirty, owner.window?.isVisible == true else { checkout(branch, changes: .carry); return }
@@ -156,22 +142,17 @@ extension SourceControlCoordinator {
         integrate { try $0.pull(remote: remote, branch: branch, style: style) }
     }
 
-    /// Integrate ▸ Continue <operation>: once every conflict is resolved.
     public func continueIntegration() { integrate { try $0.continueIntegration() } }
 
-    /// Integrate ▸ Abort <operation>.
     public func abortIntegration() {
         perform { try $0.abortIntegration() }
         enqueue { [weak self] in self?.closeConflictEditor() }
     }
 
-    /// The last integrating command's result (tests).
     public var lastIntegrationResult: GitRepository.IntegrationResult? {
         get { integrationResult } set { integrationResult = newValue }
     }
 
-    /// Runs a merge, rebase, pick or stash apply; conflicts open the
-    /// conflict editor on the first conflicted file, success closes it.
     func integrate(_ body: @escaping @Sendable (GitRepository) throws -> GitRepository.IntegrationResult) {
         guard let repo = repository else { NSSound.beep(); return }
         let box = ResultBox()
@@ -188,11 +169,6 @@ extension SourceControlCoordinator {
 
     final class ResultBox: @unchecked Sendable { var value: GitRepository.IntegrationResult? }
 
-    // MARK: Show Last Change for Line
-
-    /// History of the commit that last changed `line` of `path`, with that
-    /// commit selected; false when the line is not committed or the file
-    /// is not in the repository.
     @discardableResult
     public func showLastChange(path: String, line: Int, contents: String?) async -> Bool {
         guard let repo = repository else { return false }
@@ -206,7 +182,6 @@ extension SourceControlCoordinator {
     }
 }
 
-/// A row-menu item carrying its action; it is its own target.
 final class SourceControlMenuItem: NSMenuItem {
     var rowAction: SourceControlRowMenu.Action?
     var handler: ((SourceControlRowMenu.Action) -> Void)?
@@ -216,8 +191,6 @@ final class SourceControlMenuItem: NSMenuItem {
         handler?(rowAction)
     }
 
-    /// Enablement from the row's state (menus that enable their items
-    /// ask the target, which is the item itself).
     var rowEnabled = true
 }
 

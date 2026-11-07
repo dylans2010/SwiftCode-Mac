@@ -1,13 +1,9 @@
 import Foundation
 
-/// How much text goes around the caret, in tokens (predictive-completion.md
-/// §4.1). Tokens are estimated as `charactersPerToken` UTF-16 units each
-/// (SwiftCode's choice: no tokenizer round trip on every keystroke).
 public struct ContextLimits: Sendable, Equatable {
     public var prefixTokens: Int
     public var suffixTokens: Int
     public var relatedTokens: Int
-    /// At most this many related snippets.
     public var maxRelated: Int
     public static let charactersPerToken = 3
 
@@ -22,7 +18,6 @@ public struct ContextLimits: Sendable, Equatable {
     public static func estimatedTokens(_ s: String) -> Int { (s.utf16.count + charactersPerToken - 1) / charactersPerToken }
 }
 
-/// A snippet of another file given to the model as extra context.
 public struct RelatedSnippet: Sendable, Equatable, Codable {
     public var path: String
     public var text: String
@@ -32,21 +27,14 @@ public struct RelatedSnippet: Sendable, Equatable, Codable {
     }
 }
 
-/// What a request carries: the text before and after the caret (cut to
-/// the limits at line boundaries), the file and its language, and related
-/// snippets.
 public struct CompletionContext: Sendable, Equatable {
     public var prefix: String
     public var suffix: String
-    /// The file's path as the model sees it (workspace-relative when known).
     public var path: String
-    /// A language identifier ("swift", "objective-c", …); nil when unknown.
     public var language: String?
     public var related: [RelatedSnippet]
-    /// The caret line's text before and after the caret.
     public var linePrefix: String
     public var lineSuffix: String
-    /// The prefix window starts at the start of the file.
     public var prefixIsWholeFile: Bool
 
     public init(prefix: String, suffix: String, path: String, language: String? = nil, related: [RelatedSnippet] = [],
@@ -61,19 +49,15 @@ public struct CompletionContext: Sendable, Equatable {
         self.prefixIsWholeFile = prefixIsWholeFile
     }
 
-    /// The text after the caret line.
     public var suffixAfterLine: String {
         guard let nl = suffix.firstIndex(of: "\n") else { return "" }
         return String(suffix[suffix.index(after: nl)...])
     }
 
-    /// The caret sits in the middle of code: the rest of its line has more
-    /// than closing brackets, quotes, separators and spaces.
     public var isMidLine: Bool {
         !lineSuffix.allSatisfy { " \t)]}>\"'`;,.".contains($0) }
     }
 
-    /// Builds the context from a whole document and a UTF-16 caret offset.
     public static func make(text: String, caret: Int, path: String, language: String? = nil,
                             related: [RelatedSnippet] = [], limits: ContextLimits = ContextLimits()) -> CompletionContext {
         let ns = text as NSString
@@ -98,8 +82,6 @@ public struct CompletionContext: Sendable, Equatable {
                                  linePrefix: linePrefix, lineSuffix: lineSuffix, prefixIsWholeFile: whole)
     }
 
-    /// The last `maxCharacters` of `s`, starting at a line start, but never
-    /// less than the caret line's part (`keeping`).
     static func tail(_ s: String, maxCharacters: Int, keeping: String) -> (String, Bool) {
         let ns = s as NSString
         guard ns.length > maxCharacters else { return (s, true) }
@@ -110,8 +92,6 @@ public struct CompletionContext: Sendable, Equatable {
         return (ns.substring(from: start), false)
     }
 
-    /// The first `maxCharacters` of `s`, ending at a line end, but never
-    /// less than the caret line's part.
     static func head(_ s: String, maxCharacters: Int, keeping: String) -> String {
         let ns = s as NSString
         guard ns.length > maxCharacters else { return s }
@@ -121,7 +101,6 @@ public struct CompletionContext: Sendable, Equatable {
         return ns.substring(to: nl != NSNotFound && nl >= keep ? nl + 1 : end)
     }
 
-    /// A language identifier from a file extension.
     public static func language(forPath path: String) -> String? {
         let ext = (path as NSString).pathExtension.lowercased()
         let table: [String: String] = [
@@ -133,8 +112,6 @@ public struct CompletionContext: Sendable, Equatable {
         return table[ext]
     }
 
-    /// The line-comment marker of a language (for related snippets in a
-    /// plain prompt); nil when it has none.
     public static func lineComment(for language: String?) -> String? {
         switch language {
         case "swift", "objective-c", "objective-cpp", "c", "cpp", "metal", "javascript", "typescript", "rust", "go", "java", "kotlin": "//"
@@ -144,8 +121,6 @@ public struct CompletionContext: Sendable, Equatable {
         }
     }
 
-    /// Converts a 1-based line and column (characters) into a UTF-16 offset;
-    /// a column past the line's end means its end.
     public static func offset(in text: String, line: Int, column: Int) -> Int? {
         guard line >= 1 else { return nil }
         var offset = 0
@@ -163,10 +138,6 @@ public struct CompletionContext: Sendable, Equatable {
     }
 }
 
-/// Picks snippets of other files that share identifiers with the code
-/// around the caret (predictive-completion.md §4.1; SwiftCode's choice, the
-/// "neighbouring files" approach): each file is cut into windows of
-/// `windowLines` lines, scored by the Jaccard overlap of identifier sets.
 public enum RelatedSnippets {
     public static func pick(query: String, files: [(path: String, text: String)], windowLines: Int = 20,
                             limit: Int = 3, minimumScore: Double = 0.1) -> [RelatedSnippet] {
@@ -190,7 +161,6 @@ public enum RelatedSnippets {
         return scored.sorted { $0.0 > $1.0 }.prefix(limit).map(\.1)
     }
 
-    /// Identifiers of three or more characters, keywords excluded.
     static func identifiers(_ s: String) -> Set<String> {
         var out = Set<String>()
         var cur = ""

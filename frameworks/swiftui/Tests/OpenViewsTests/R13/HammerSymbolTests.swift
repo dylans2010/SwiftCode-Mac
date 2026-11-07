@@ -9,10 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// R13 (BUILD-HUD): `hammer` holds up at bezel sizes (80–120 points): a claw
-// hammer with a head, a claw and a tapered handle, SwiftCode's own drawing.
-// `OV_RENDER_OUT=<dir>` keeps `hammer-sheet.png`.
-
 @MainActor
 @Suite("R13 hammer symbol")
 struct HammerSymbolTests {
@@ -32,9 +28,6 @@ struct HammerSymbolTests {
 
     @Test func theHammerHasAHeadAClawAndAHandle() {
         let img = R5.render(Sheet(), width: 420, height: 144, scale: 2, name: "hammer-sheet")
-        // Ink (white) in the 112 × 96 frame at (24, 24): the head towards the
-        // top right, the handle's end towards the bottom left, and empty
-        // corners at the top left and bottom right.
         func ink(_ x: Double, _ y: Double) -> Bool { R5.probe(img, 24 + x, 24 + y).0 > 128 }
         var head = 0, handle = 0, topLeft = 0, bottomRight = 0
         for i in 0..<20 {

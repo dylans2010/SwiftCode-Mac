@@ -1,36 +1,17 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/ProjectFilesExtracter.swift
-//
-// Adapted for SwiftCode: same GitHub/ZIPFoundation adaptations as
-// `BuildingSystemAPI` (same file, same reason) — `GitHubClient` with
-// `GitHubWorkflowRun`, ditto/unzip extraction, `Project` /
-// `ProjectSessionStore` from `SwiftCodeIDECore`. Behaviour is otherwise
-// verbatim, including Legacy's early `return` when a run is found only
-// on the second lookup (see DISPOSITIONS.md — likely a bug, kept as
-// ported; do not "fix" without Dylan's say-so).
-// See DISPOSITIONS.md for the remaining wiring note.
-
 import Foundation
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 import SwiftCodeIDECore
 
-
-/// Extracts generated project files from GitHub Actions artifacts and integrates them locally.
 public final class ProjectFilesExtracter: Sendable {
     public static let shared = ProjectFilesExtracter()
     private init() {}
 
-    /// The GitHub API client, authenticated with the stored GitHub token
-    /// (same `defaultSecretStore()` pattern as `GitHubImporter`).
     private var gitHubClient: GitHubClient {
         let store = defaultSecretStore()
         return GitHubClient(tokenProvider: { store.readString(SecretAccount.githubToken) })
     }
 
-    /// Extract a zip without ZIPFoundation (not a SwiftCode dependency):
-    /// `/usr/bin/ditto -x -k` on macOS, `/usr/bin/unzip` elsewhere — the
-    /// same approach `ProjectZipImporter` uses.
     private func unzip(_ zipURL: URL, to destination: URL) throws {
         let process = Process()
         #if os(macOS)
@@ -52,14 +33,6 @@ public final class ProjectFilesExtracter: Sendable {
         }
     }
 
-    /// Polls for the completion of a workflow run and downloads/integrates its artifacts.
-    /// - Parameters:
-    ///   - project: The local project to update.
-    ///   - owner: GitHub repository owner.
-    ///   - repo: GitHub repository name.
-    ///   - branch: The branch the workflow was triggered on.
-    ///   - progress: A closure called with progress updates (0.0 to 1.0) and status messages.
-    ///   - logCallback: Optional closure to receive real-time logs.
     public func extractArtifacts(
         for project: Project,
         owner: String,
@@ -70,9 +43,8 @@ public final class ProjectFilesExtracter: Sendable {
     ) async throws {
         progress(0.1, "Waiting for workflow to start...")
 
-        // 1. Find the recent workflow run
         var run: GitHubWorkflowRun?
-        for _ in 0..<12 { // Wait up to 1 minute for run to appear
+        for _ in 0..<12 {
             let runs = try await gitHubClient.listWorkflowRuns(owner: owner, repo: repo)
             run = runs.first { $0.headBranch == branch && $0.status != "completed" }
             if run != nil { break }
@@ -80,7 +52,6 @@ public final class ProjectFilesExtracter: Sendable {
         }
 
         guard let activeRun = run else {
-            // Check if it already completed quickly
             let runs = try await gitHubClient.listWorkflowRuns(owner: owner, repo: repo)
             if let completedRun = runs.first(where: { $0.headBranch == branch }) {
                 run = completedRun
@@ -90,7 +61,6 @@ public final class ProjectFilesExtracter: Sendable {
             return
         }
 
-        // 2. Poll for completion and fetch logs
         progress(0.2, "Processing with GitHub Actions...")
         var currentRun = activeRun
         var _: Int?
@@ -98,11 +68,9 @@ public final class ProjectFilesExtracter: Sendable {
         while currentRun.isRunning {
             try await Task.sleep(for: .seconds(5))
 
-            // Update run status
             currentRun = try await gitHubClient.getWorkflowRun(owner: owner, repo: repo, runID: currentRun.id)
             progress(0.4, "Workflow status: \(currentRun.status.capitalized)...")
 
-            // Try to fetch logs
             do {
                 let jobs = try await gitHubClient.listWorkflowJobs(owner: owner, repo: repo, runID: currentRun.id)
                 if let firstJob = jobs.first {
@@ -110,7 +78,6 @@ public final class ProjectFilesExtracter: Sendable {
                     logCallback?(logs)
                 }
             } catch {
-                // Ignore log fetching errors to keep the process running
                 print("Failed to fetch logs: \(error.localizedDescription)")
             }
         }
@@ -119,7 +86,6 @@ public final class ProjectFilesExtracter: Sendable {
             throw NSError(domain: "ProjectFilesExtracter", code: 2, userInfo: [NSLocalizedDescriptionKey: "Workflow failed with conclusion: \(currentRun.conclusion ?? "unknown")"])
         }
 
-        // 3. Find and download artifact
         progress(0.6, "Downloading CI artifacts...")
         let artifacts = try await gitHubClient.listWorkflowArtifacts(owner: owner, repo: repo, runID: currentRun.id)
         guard let projectArtifact = artifacts.first(where: { $0.name == "generated-xcode-files" }) else {
@@ -142,7 +108,6 @@ public final class ProjectFilesExtracter: Sendable {
             throw lastError ?? NSError(domain: "ProjectFilesExtracter", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to download artifacts after 3 retries."])
         }
 
-        // 4. Integrate into local project
         progress(0.8, "Extracting Files...")
         try await integrate(zipData: finalZipData, into: project, progress: progress)
 
@@ -176,7 +141,6 @@ public final class ProjectFilesExtracter: Sendable {
             var filename = item.lastPathComponent
             if forbiddenFiles.contains(filename) { continue }
 
-            // Support both generic and specific naming from artifact
             if filename == "GeneratedProject.xcodeproj" {
                 filename = "\(projectName).xcodeproj"
             } else if filename == "GeneratedProject.xcworkspace" {
@@ -190,7 +154,6 @@ public final class ProjectFilesExtracter: Sendable {
             try fm.moveItem(at: item, to: destURL)
         }
 
-        // Integrity check: verify that essential files are present
         let xcodeProj = projectDir.appendingPathComponent("\(projectName).xcodeproj")
         let xcworkspace = projectDir.appendingPathComponent("\(projectName).xcworkspace")
 
@@ -198,7 +161,6 @@ public final class ProjectFilesExtracter: Sendable {
             throw NSError(domain: "ProjectFilesExtracter", code: 4, userInfo: [NSLocalizedDescriptionKey: "Integrity check failed: \(projectName).xcodeproj or .xcworkspace missing after extraction."])
         }
 
-        // Refresh the file tree
         await MainActor.run {
             ProjectSessionStore.shared.refreshFileTree(for: project)
         }

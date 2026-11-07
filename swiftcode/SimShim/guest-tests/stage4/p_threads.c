@@ -1,4 +1,3 @@
-/* SwiftCode stage-4 probe: pthread_create, a contended mutex, a condition variable, join. Original SwiftCode code. */
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>

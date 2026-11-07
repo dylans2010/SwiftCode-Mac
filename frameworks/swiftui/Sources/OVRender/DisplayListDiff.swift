@@ -1,31 +1,20 @@
-// Damage between two display lists (09-open-design.md §3.5): items are
-// matched by ID; an item that appeared, disappeared or changed contributes
-// its old and new bounds. A group whose own attributes changed (transform,
-// opacity, clip, mask, effects, blend) is damaged as a whole; otherwise
-// its children are compared one by one.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
 public enum DisplayListDiff {
-    /// The rectangles (points, root coordinates) that differ between `old`
-    /// and `new`; empty when the lists draw the same thing.
     public static func damage(from old: DisplayList, to new: DisplayList) -> [CGRect] {
         var out: [CGRect] = []
         diff(old.items, new.items, transform: .identity, clip: nil, into: &out)
         return merge(out)
     }
 
-    /// Damage in pixels for a surface of `size` at `scale`, merged into at
-    /// most a few rectangles.
     public static func pixelDamage(from old: DisplayList, to new: DisplayList, scale: Double, size: PixelSize) -> [PixelRect] {
         let full = PixelRect(x: 0, y: 0, width: size.width, height: size.height)
         let rects = damage(from: old, to: new).map { PixelRect.covering($0.insetBy(dx: -1, dy: -1), scale: scale).intersection(full) }
             .filter { !$0.isEmpty }
         guard !rects.isEmpty else { return [] }
-        // A union is cheaper to redraw than many small rectangles.
         return [rects.dropFirst().reduce(rects[0]) { $0.union($1) }]
     }
 
@@ -40,7 +29,6 @@ public enum DisplayListDiff {
                 continue
             }
             matchedOld.insert(item.id)
-            // A reordered item changes what it covers.
             let reordered = oi < lastOldIndex
             lastOldIndex = max(lastOldIndex, oi)
             if reordered {
@@ -81,8 +69,6 @@ public enum DisplayListDiff {
         if !r.isNull && !r.isEmpty { out.append(r) }
     }
 
-    /// Bounds of an item in root coordinates (a superset: control points,
-    /// stroke widths, effect spread).
     public static func bounds(_ item: DisplayItem, _ t: RenderTransform) -> CGRect {
         switch item.content {
         case let .fill(path, _, _):
@@ -94,7 +80,6 @@ public enum DisplayListDiff {
             guard let first = run.positions.first else { return .null }
             var r = CGRect(origin: first, size: .zero)
             for p in run.positions { r = r.union(CGRect(origin: p, size: .zero)) }
-            // Glyphs reach about one em around their origins.
             let em = run.size * (1 + abs(run.shear))
             return t.boundingBox(of: r.insetBy(dx: -em, dy: -em))
         case let .image(_, rect, _, _):

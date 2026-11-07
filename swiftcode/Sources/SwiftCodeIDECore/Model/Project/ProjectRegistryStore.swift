@@ -1,20 +1,11 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Persistence/ProjectRegistryStore.swift
-// Adapted for SwiftCode: ProjectRegistryEntry + ProjectKind are declared here: Legacy defined them in Core/Project/ProjectRegistryEntry.swift and Core/Project/ProjectKind.swift (the Core slice). COORDINATOR NOTE: do not define them twice — if the Core slice lands its own copies, this file's declarations must be removed and the store must use theirs. PathTool replaced by FileManager's Application Support directory (PathTool had no definition in Legacy's Backend/Core/Models/Frameworks). The try! in Legacy's registryURL is gone: the URL is computed by a throwing helper.
-
 import Foundation
 
-/// The kind of a registered project root. Shape matches Legacy's
-/// `Core/Project/ProjectKind.swift` exactly (same raw values), so registry
-/// files written by Legacy still decode.
 public enum ProjectKind: String, Codable, Sendable {
     case xcodeProject
     case swiftPackage
     case folder
 }
 
-/// One registered project root. Shape matches Legacy's
-/// `Core/Project/ProjectRegistryEntry.swift` exactly.
 public struct ProjectRegistryEntry: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let name: String
@@ -33,8 +24,6 @@ public struct ProjectRegistryEntry: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
-/// The registry of known project roots, persisted as
-/// `ProjectRegistry.json` in Application Support.
 public actor ProjectRegistryStore {
     public static let shared = ProjectRegistryStore()
 
@@ -43,11 +32,6 @@ public actor ProjectRegistryStore {
             .appendingPathComponent("ProjectRegistry.json")
     }
 
-    /// Records a project root as most recently opened: an existing
-    /// entry keeps its id and `sourceControlEnabled` and moves to the
-    /// front with a fresh `lastOpenedAt`; a new root is inserted at
-    /// the front. Called from `RecentProjects.note(_:)` (fire-and-
-    /// forget); a persistence failure there is ignored.
     public func note(rootURL: URL, name: String, kind: ProjectKind) async throws {
         var entries = (try? load()) ?? []
         if let index = entries.firstIndex(where: { $0.rootURL == rootURL }) {

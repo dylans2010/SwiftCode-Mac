@@ -1,7 +1,5 @@
 import Foundation
 
-/// Inset distances for the four edges of a rectangle, in layout-direction
-/// terms.
 public struct EdgeInsets: Equatable, Sendable {
     public var top: CGFloat
     public var leading: CGFloat
@@ -17,7 +15,6 @@ public struct EdgeInsets: Equatable, Sendable {
 
     public init() { self.init(top: 0, leading: 0, bottom: 0, trailing: 0) }
 
-    /// The same `length` on every edge in `edges`, zero elsewhere.
     package init(_ edges: Edge.Set, _ length: CGFloat) {
         self.init(top: edges.contains(.top) ? length : 0,
                   leading: edges.contains(.leading) ? length : 0,
@@ -25,7 +22,6 @@ public struct EdgeInsets: Equatable, Sendable {
                   trailing: edges.contains(.trailing) ? length : 0)
     }
 
-    /// Insets grown by `amount` on the given edges (a negative amount shrinks).
     public func inset(by amount: CGFloat, edges: Edge.Set = .all) -> EdgeInsets {
         var r = self
         if edges.contains(.top) { r.top += amount }
@@ -35,7 +31,6 @@ public struct EdgeInsets: Equatable, Sendable {
         return r
     }
 
-    /// Rounds every inset to a multiple of `m` using `rule`.
     public mutating func round(_ rule: FloatingPointRoundingRule, toMultipleOf m: CGFloat) {
         top = top.roundedToMultiple(of: m, rule)
         leading = leading.roundedToMultiple(of: m, rule)
@@ -57,15 +52,12 @@ public struct EdgeInsets: Equatable, Sendable {
         rounded(.toNearestOrAwayFromZero, toMultipleOf: m)
     }
 
-    /// Whether every inset is within `epsilon` of the other's.
     public func approximates(_ other: EdgeInsets, epsilon: CGFloat) -> Bool {
         abs(top - other.top) <= epsilon && abs(leading - other.leading) <= epsilon
             && abs(bottom - other.bottom) <= epsilon && abs(trailing - other.trailing) <= epsilon
     }
 
-    /// Sum of the leading and trailing insets.
     package var horizontal: CGFloat { leading + trailing }
-    /// Sum of the top and bottom insets.
     package var vertical: CGFloat { top + bottom }
 }
 
@@ -82,15 +74,12 @@ extension EdgeInsets: Animatable {
 }
 
 extension CGFloat {
-    /// Rounds to a multiple of `m` (pixel-grid rounding when `m` = 1/scale).
     package func roundedToMultiple(of m: CGFloat, _ rule: FloatingPointRoundingRule = .toNearestOrAwayFromZero) -> CGFloat {
         guard m > 0, isFinite else { return self }
         return (self / m).rounded(rule) * m
     }
 }
 
-/// A normalized 2D point in a view's bounds: (0, 0) is the top-leading
-/// corner, (1, 1) the bottom-trailing corner.
 public struct UnitPoint: Hashable, Sendable {
     public var x: CGFloat
     public var y: CGFloat
@@ -112,7 +101,6 @@ public struct UnitPoint: Hashable, Sendable {
     public static let bottomLeading = UnitPoint(x: 0, y: 1)
     public static let bottomTrailing = UnitPoint(x: 1, y: 1)
 
-    /// The point at this unit position inside a rectangle of `size`.
     package func point(in size: CGSize) -> CGPoint {
         CGPoint(x: x * size.width, y: y * size.height)
     }
@@ -138,7 +126,6 @@ extension UnitPoint: Codable {
     }
 }
 
-/// A geometric angle, stored in radians.
 public struct Angle: Hashable, Comparable, Sendable {
     public var radians: Double
     public var degrees: Double {
@@ -174,7 +161,6 @@ extension Angle: Codable {
     }
 }
 
-// Arithmetic on angles, used internally (not part of the inventoried API).
 extension Angle {
     package static func + (lhs: Angle, rhs: Angle) -> Angle { Angle(radians: lhs.radians + rhs.radians) }
     package static func - (lhs: Angle, rhs: Angle) -> Angle { Angle(radians: lhs.radians - rhs.radians) }

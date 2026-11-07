@@ -1,15 +1,3 @@
-/* SwiftCode stage-4c probe: the host bootstrap server (stage4c-contract.md §8,
- * bootstrap-wire.md §5.2 and §7). Original SwiftCode code.
- * Run with `swiftcode-simd --exec p_hostboot --host-bootstrap` (or as a device job).
- *   1. A bare 24-byte request with msgh_id 708 to the bootstrap port gets the
- *      808 reply: complex, 40 bytes, one port descriptor with a receive right.
- *   2. Pipe routine 207 (look-up) of an unknown name answers {error: 1102},
- *      804 (XPC look-up) {error: 3}.
- *   3. Pipe routine 206 (check-in) answers {port: receive right}.
- *   4. Pipe routine 204 (register) answers {error: 45}.
- * The pipe requests are written by hand; argv[1] "libxpc" sends them through
- * the runtime's bootstrap_* functions instead.
- * Prints "hostboot ok". */
 #include <mach/mach.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +5,6 @@
 #include <stdint.h>
 #include <unistd.h>
 
-/* The bootstrap API (the iOS SDK has no servers/bootstrap.h). */
 extern mach_port_t bootstrap_port;
 extern kern_return_t bootstrap_look_up(mach_port_t, const char *, mach_port_t *);
 extern kern_return_t bootstrap_check_in(mach_port_t, const char *, mach_port_t *);
@@ -47,7 +34,6 @@ static int has_receive(mach_port_t name)
     return (type & MACH_PORT_TYPE_RECEIVE) != 0;
 }
 
-/* Appends a NUL-terminated key, padded to 4 bytes. */
 static size_t put_key(unsigned char *p, const char *key)
 {
     size_t n = strlen(key) + 1, padded = (n + 3) & ~(size_t)3;
@@ -59,8 +45,6 @@ static size_t put_key(unsigned char *p, const char *key)
 static size_t put_u32(unsigned char *p, uint32_t v) { memcpy(p, &v, 4); return 4; }
 static size_t put_u64(unsigned char *p, uint64_t v) { memcpy(p, &v, 8); return 8; }
 
-/* Sends pipe routine `routine` with {handle: 0, flags: 0, name, type: 7}
- * and decodes the reply: `error` (0 if absent) and a received port. */
 static void pipe_call(uint32_t routine, const char *name, long *error, mach_port_t *port)
 {
     struct {
@@ -73,7 +57,7 @@ static void pipe_call(uint32_t routine, const char *name, long *error, mach_port
     } reply;
     memset(&request, 0, sizeof request);
     unsigned char *p = request.payload;
-    p += put_u32(p, 0x7870633Fu); /* "?cpx" */
+    p += put_u32(p, 0x7870633Fu);
     p += put_u32(p, 5);
     p += put_u32(p, 0xF000);
     unsigned char *length = p;
@@ -128,7 +112,6 @@ static void pipe_call(uint32_t routine, const char *name, long *error, mach_port
             q += sizeof d;
         }
     }
-    /* Header, then the dictionary; find "error" (int64) if present. */
     uint32_t magic, count;
     memcpy(&magic, q, 4);
     if (magic != 0x7870633Fu)
@@ -157,7 +140,6 @@ static void pipe_call(uint32_t routine, const char *name, long *error, mach_port
 int main(int argc, char **argv)
 {
     int use_libxpc = argc >= 2 && strcmp(argv[1], "libxpc") == 0;
-    /* 1. The startup request of launchd_sim. */
     mach_port_t reply = MACH_PORT_NULL;
     kern_return_t kr = mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &reply);
     if (kr != KERN_SUCCESS)
@@ -187,9 +169,6 @@ int main(int argc, char **argv)
         fail("708: no receive right at", msg.port.name);
     mach_port_t service = msg.port.name;
 
-    /* 2-4. Pipe routines, written by hand (bootstrap-wire.md §2, §3), so
-     * the test does not depend on the runtime's libxpc. With "libxpc" as
-     * argv[1], the same calls go through bootstrap_look_up & co. */
     mach_port_t checked = MACH_PORT_NULL;
     if (use_libxpc) {
         mach_port_t found = MACH_PORT_NULL;

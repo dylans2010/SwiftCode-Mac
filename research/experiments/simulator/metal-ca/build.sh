@@ -1,7 +1,4 @@
 #!/bin/sh
-# Builds the probe p_ca_render for the iOS simulator platform (macOS only).
-# Output: $OUT (default ./out)/p_ca_render. Reference run on a Mac:
-#   xcrun simctl spawn <throwaway booted device> out/p_ca_render /tmp/ca.png
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/out}"

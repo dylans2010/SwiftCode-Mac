@@ -1,7 +1,5 @@
 import Foundation
 
-/// A JSON value. Debug Adapter Protocol bodies are loosely typed, so the
-/// client keeps them as values and reads fields by name.
 public enum JSON: Equatable, Sendable, Hashable {
     case null
     case bool(Bool)

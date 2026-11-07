@@ -1,22 +1,6 @@
 import SwiftUI
 import SwiftCodeIDEShell
 
-/// Package discovery — Legacy's `PackageExplorerView`, `PackageDetailsView`,
-/// `PackageInstallationView`, `PackageCollectionsView`,
-/// `DependencySecurityCenterView`, `DependencyVisualizerView`,
-/// `PackageAnalyticsView`, `PackageAIView` and `GitHubDiscoveryView`,
-/// rebuilt in SwiftCode style on top of `PackageDiscoveryStore`.
-///
-/// The starter catalog is Legacy's curated list; the search tab is live
-/// GitHub search. Install / Remove act only through the store's injected
-/// `installHandler` — with none configured the buttons explain that no
-/// project is open instead of pretending to edit one.
-// NOTE (A4 migration): the search-filters sidebar was added for the
-// Legacy `GitHubDiscoveryView` port — see `PackageDiscoveryFiltersView`.
-// The filters compose the search query (`topic:` / `user:` / `org:` /
-// `archived:` qualifiers) and pass language / license / min-stars through
-// to `PackageDiscoveryStore.executeGitHubSearch`; verified-only filters
-// the returned results.
 public struct PackageDiscoveryView: View {
     @State private var store = PackageDiscoveryStore()
     @State private var selectedCategory: String = "All"

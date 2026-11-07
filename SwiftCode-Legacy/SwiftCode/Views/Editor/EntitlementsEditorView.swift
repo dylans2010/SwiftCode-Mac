@@ -1,9 +1,5 @@
 import SwiftUI
 
-// MARK: - Entitlements Editor View
-
-/// UI-only editor for the entitlements plist. Every control reads and writes the
-/// real entitlements dictionary; there is intentionally no raw XML editing.
 public struct EntitlementsEditorView: View {
     private let fileURL: URL?
     @State private var manager: EntitlementsEditorManager
@@ -78,8 +74,6 @@ public struct EntitlementsEditorView: View {
         }
     }
 
-    // MARK: - Capability State Helpers
-
     private func isCapabilityOn(_ def: CapabilityDefinition) -> Bool {
         if def.rawKey == CapabilityCatalog.iCloudContainersKey {
             return entitlementsDict[CapabilityCatalog.iCloudContainersKey] != nil
@@ -119,7 +113,6 @@ public struct EntitlementsEditorView: View {
         (entitlementsDict["com.apple.security.app-sandbox"] as? Bool) ?? false
     }
 
-    /// Entitlement keys present in the file that no capability toggle manages.
     private var uncoveredKeys: [String] {
         let known = Set(CapabilityCatalog.allRawKeys)
         return entitlementsDict.keys
@@ -141,7 +134,6 @@ public struct EntitlementsEditorView: View {
             || def.explanation.lowercased().contains(q) {
             return true
         }
-        // Also match against the key's current value.
         for key in [def.rawKey] + def.compositeKeys {
             if String(describing: entitlementsDict[key] ?? "").lowercased().contains(q) {
                 return true
@@ -161,7 +153,6 @@ public struct EntitlementsEditorView: View {
         }
     }
 
-    /// Base validation plus cross-entitlement checks, deduplicated by message.
     private var combinedIssues: (errors: [EntitlementError], warnings: [EntitlementWarning]) {
         let base = manager.validate(entitlementsDict)
         let extra = manager.crossEntitlementIssues(entitlementsDict)
@@ -222,14 +213,12 @@ public struct EntitlementsEditorView: View {
             .background(Color(NSColor.windowBackgroundColor))
         } else {
             VStack(spacing: 0) {
-                // Professional Header Toolbar with Tool Actions
                 headerToolbar
 
                 Divider()
 
                 Divider()
 
-                // Modern Category Filter Pills with Active Counts
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(EntitlementCapabilitySection.allCases) { cat in
@@ -266,7 +255,6 @@ public struct EntitlementsEditorView: View {
 
                 Divider()
 
-                // Feedback status banner
                 if let status = toolStatus {
                     HStack {
                         Image(systemName: "info.circle")
@@ -286,7 +274,6 @@ public struct EntitlementsEditorView: View {
                     Divider()
                 }
 
-                // Main Content View
                 capabilitiesListView
             }
             .sheet(isPresented: $showingAddSheet) {
@@ -326,7 +313,6 @@ public struct EntitlementsEditorView: View {
         }
     }
 
-    // MARK: - Header Toolbar
     private var headerToolbar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
@@ -356,7 +342,6 @@ public struct EntitlementsEditorView: View {
 
             Spacer()
 
-            // Search Bar
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -375,7 +360,6 @@ public struct EntitlementsEditorView: View {
             .liquidGlass(style: .subtle, cornerRadius: 8)
             .frame(width: 200)
 
-            // Primary Add Capability Button
             Button {
                 showingAddSheet = true
             } label: {
@@ -384,7 +368,6 @@ public struct EntitlementsEditorView: View {
             .buttonStyle(.borderedProminent)
             .tint(.teal)
 
-            // Save Tool
             Button {
                 saveChanges()
             } label: {
@@ -394,7 +377,6 @@ public struct EntitlementsEditorView: View {
             .disabled(!isDirty)
             .keyboardShortcut("s", modifiers: .command)
 
-            // More Actions Menu (Consolidating presets, validation, XML, revert)
             Menu {
                 Menu("Capability Presets") {
                     Button {
@@ -521,7 +503,6 @@ public struct EntitlementsEditorView: View {
         }
     }
 
-    // MARK: - File Status Card
     private var fileStatusCard: some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
@@ -555,7 +536,6 @@ public struct EntitlementsEditorView: View {
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    // MARK: - Cross-Entitlement Issues Panel
     @ViewBuilder
     private var validationIssuesPanel: some View {
         let issues = combinedIssues
@@ -596,7 +576,6 @@ public struct EntitlementsEditorView: View {
         .background(Color(NSColor.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    // MARK: - Capabilities List View
     private var capabilitiesListView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -759,7 +738,6 @@ public struct EntitlementsEditorView: View {
         }
     }
 
-    // MARK: - Other (unmanaged) Keys
     @ViewBuilder
     private var otherKeysSection: some View {
         if !uncoveredKeys.isEmpty {
@@ -807,7 +785,6 @@ public struct EntitlementsEditorView: View {
         }
     }
 
-    // MARK: - Add Capability Sheet
     private var addCapabilitySheet: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -824,7 +801,6 @@ public struct EntitlementsEditorView: View {
                 .buttonStyle(.plain)
             }
 
-            // Search Bar in Add Capability Sheet
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -841,7 +817,6 @@ public struct EntitlementsEditorView: View {
             .padding(8)
             .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
 
-            // Category filter pills in Add Capability Sheet
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(EntitlementCapabilitySection.allCases.filter { $0 != .other }) { cat in
@@ -865,7 +840,6 @@ public struct EntitlementsEditorView: View {
                 }
             }
 
-            // Filtered available capabilities
             let available = CapabilityCatalog.definitions
                 .filter { !isCapabilityOn($0) }
                 .filter { def in
@@ -925,7 +899,6 @@ public struct EntitlementsEditorView: View {
 
             Divider()
 
-            // Custom Entitlement Key
             VStack(alignment: .leading, spacing: 8) {
                 Text("Custom Entitlement Key")
                     .font(.subheadline.bold())
@@ -981,7 +954,6 @@ public struct EntitlementsEditorView: View {
         .frame(minWidth: 640, minHeight: 620)
     }
 
-    // MARK: - Inspector Sheet
     private var inspectorSheetView: some View {
         VStack(spacing: 0) {
             HStack {
@@ -1069,8 +1041,6 @@ public struct EntitlementsEditorView: View {
     }
 }
 
-// MARK: - Identifier List Editor (App Groups, Keychain Groups, iCloud Containers)
-
 struct EntitlementIDListEditor: View {
     @Binding var ids: [String]
     let placeholder: String
@@ -1141,8 +1111,6 @@ struct EntitlementIDListEditor: View {
     }
 }
 
-// MARK: - Fixed Value List Editor (values restricted to a real set)
-
 struct FixedValueListEditor: View {
     @Binding var values: [String]
     let allowed: [String]
@@ -1191,8 +1159,6 @@ struct FixedValueListEditor: View {
         }
     }
 }
-
-// MARK: - Associated Domains Editor (service prefix + host)
 
 struct AssociatedDomainsEditor: View {
     @Binding var domains: [String]
@@ -1271,8 +1237,6 @@ struct AssociatedDomainsEditor: View {
     }
 }
 
-// MARK: - iCloud Composite Editor
-
 struct ICloudCompositeEditor: View {
     @Binding var containers: [String]
     @Binding var kvStore: String
@@ -1298,12 +1262,6 @@ struct ICloudCompositeEditor: View {
     }
 }
 
-// MARK: - NSUbiquitousContainers Editor
-
-/// Honest model of the real NSUbiquitousContainers dictionary: each container ID
-/// maps to a dictionary with NSUbiquitousContainerName (String),
-/// NSUbiquitousContainerIsDocumentScopePublic (Boolean), and
-/// NSUbiquitousContainerSupportedFolderLevels (None / One / Any).
 struct UbiquitousContainersEditor: View {
     @Binding var containers: [String: [String: Any]]
     @State private var newID = ""
@@ -1415,8 +1373,6 @@ struct UbiquitousContainersEditor: View {
     }
 }
 
-// MARK: - String Dictionary Editor (custom dictionary values)
-
 struct EntitlementDictionaryEditor: View {
     @Binding var entries: [String: String]
     @State private var newKey = ""
@@ -1486,8 +1442,6 @@ struct EntitlementDictionaryEditor: View {
     }
 }
 
-// MARK: - Row View for unmanaged keys (type-appropriate inline editors)
-
 struct EntitlementRowView: View {
     let key: String
     let value: Any
@@ -1547,7 +1501,6 @@ struct EntitlementRowView: View {
                     .labelsHidden()
                 }
 
-                // Inspect
                 Button(action: onSelect) {
                     Image(systemName: "slider.horizontal.3")
                         .foregroundStyle(.secondary)
@@ -1555,7 +1508,6 @@ struct EntitlementRowView: View {
                 .buttonStyle(.plain)
                 .help("Inspect Capability")
 
-                // Duplicate
                 Button(action: onDuplicate) {
                     Image(systemName: "plus.square.on.square")
                         .foregroundStyle(.secondary)
@@ -1563,7 +1515,6 @@ struct EntitlementRowView: View {
                 .buttonStyle(.plain)
                 .help("Duplicate Capability")
 
-                // Delete
                 Button(action: onDelete) {
                     Image(systemName: "trash")
                         .foregroundStyle(.secondary)

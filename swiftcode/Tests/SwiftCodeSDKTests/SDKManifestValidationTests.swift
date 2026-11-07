@@ -2,9 +2,6 @@ import XCTest
 import SwiftCodeExtensions
 @testable import SwiftCodeSDK
 
-/// Manifest validation through the existing strict validator
-/// (`SwiftCodeManifestValidator`) — the SDK host never runs a second
-/// validator.
 final class SDKManifestValidationTests: XCTestCase {
     private func validManifestJSON(capabilities: [[String: String]] = [["id": "docs.search", "reason": "Open docs."]]) -> Data {
         let object: [String: Any] = [
@@ -47,7 +44,6 @@ final class SDKManifestValidationTests: XCTestCase {
             data: validManifestJSON(capabilities: [["id": "assist.invoke", "reason": "Assist."]])
         )
         XCTAssertEqual(manifest.capabilities.first?.id, "assist.invoke")
-        // The validator knows the ID; the host registry refuses to grant it.
         XCTAssertFalse(SDKCapabilityRegistry.info(for: .assistInvoke).grantableInCurrentRelease)
     }
 }

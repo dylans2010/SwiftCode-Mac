@@ -1,13 +1,8 @@
 #!/bin/sh
-# Renders the app icon from its two SVG masters into what each platform takes:
-#   SwiftCode.icns (macOS) and hicolor/<size>x<size>/apps/<app id>.png plus
-#   hicolor/scalable/apps/<app id>.svg (Linux). The outputs are checked in, so a
-#   package build needs no SVG renderer. Needs rsvg-convert; iconutil for the .icns.
-# Sizes up to 32 pixels come from swiftcode-icon-small.svg, the others from swiftcode-icon.svg.
 set -eu
 cd "$(dirname "$0")"
 APP_ID=io.github.MarcoDotIO.Ycode
-render() { # size output
+render() {
     if [ "$1" -le 32 ]; then src=swiftcode-icon-small.svg; else src=swiftcode-icon.svg; fi
     rsvg-convert -w "$1" -h "$1" "$src" -o "$2"
 }

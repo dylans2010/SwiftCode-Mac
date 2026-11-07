@@ -1,8 +1,3 @@
-//
-//  AssistSaveToMemoryTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSaveToMemoryTool: AssistTool {

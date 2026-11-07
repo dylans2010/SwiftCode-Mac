@@ -8,7 +8,6 @@ import Security
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Shared state between the simulated browser and the stand-in issuer.
 final class AuthState: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: String] = [:]
@@ -18,8 +17,6 @@ final class AuthState: @unchecked Sendable {
     }
 }
 
-/// Signs test ID tokens: RS256 with a fresh key on macOS (verified against
-/// the stand-in JWKS); unsigned elsewhere (no verifier on Linux).
 struct TestSigner: @unchecked Sendable {
     #if canImport(Security)
     let key: SecKey
@@ -34,7 +31,6 @@ struct TestSigner: @unchecked Sendable {
         jwk = ["kty": "RSA", "kid": "test-key", "use": "sig", "alg": "RS256", "n": Base64URL.encode(n), "e": Base64URL.encode(e)]
     }
 
-    /// The two INTEGERs of a PKCS #1 RSAPublicKey.
     static func parseRSAPublicKey(_ d: Data) throws -> (Data, Data) {
         let b = [UInt8](d)
         var i = 0
@@ -77,8 +73,6 @@ struct TestSigner: @unchecked Sendable {
     }
 }
 
-/// A stand-in for OpenAI's issuer: discovery, JWKS, token and revocation
-/// endpoints. The authorization page is simulated by `browser`.
 struct StandInIssuer {
     let server: LoopbackServer
     let state = AuthState()
@@ -134,8 +128,6 @@ struct StandInIssuer {
         config = c
     }
 
-    /// The system browser: records the authorization request and calls the
-    /// loopback redirect as OpenAI would after consent.
     func browser(issued: String = "oaiapp_swiftcode_test", deny: Bool = false, wrongState: Bool = false) -> @Sendable (URL) -> Bool {
         let state = self.state
         return { url in
@@ -190,7 +182,6 @@ struct StandInIssuer {
         #expect(q["code_challenge_method"] == "S256" && q["code_challenge"] == a.pkce.challenge)
         #expect(q["state"] == a.state && q["nonce"] == a.nonce)
         #expect(!url.absoluteString.contains(" ") && url.absoluteString.contains("scope=openid%20profile"))
-        // Returning sign-in: the issued ID, no name hint, the email as login hint.
         var known = reg
         known.clientID = "oaiapp_x"
         known.email = "dev@example.test"
@@ -206,7 +197,6 @@ struct StandInIssuer {
         #expect(try OpenAIAccount.validateCallback(["state": reg.state, "code": "c", "client_id": "oaiapp_1"], attempt: reg) == ("c", "oaiapp_1"))
         #expect(throws: AssistantError.self) { try OpenAIAccount.validateCallback(["state": "x", "code": "c", "client_id": "oaiapp_1"], attempt: reg) }
         #expect(throws: AssistantError.signIn("Sign-in was cancelled.")) { try OpenAIAccount.validateCallback(["state": reg.state, "error": "access_denied"], attempt: reg) }
-        // A registration callback must carry the issued ID, never the placeholder.
         #expect(throws: AssistantError.self) { try OpenAIAccount.validateCallback(["state": reg.state, "code": "c"], attempt: reg) }
         #expect(throws: AssistantError.self) {
             try OpenAIAccount.validateCallback(["state": reg.state, "code": "c", "client_id": "dynamic_agent_client"], attempt: reg)
@@ -228,8 +218,6 @@ struct StandInIssuer {
         #expect(throws: AssistantError.self) { try IDToken.validate(expired, issuer: "https://i", clientID: "c1", nonce: "n") }
     }
 
-    /// The whole flow against stand-ins: loopback redirect, PKCE exchange,
-    /// ID token (signature checked on macOS), storage, refresh, sign-out.
     @Test func signInRefreshAndSignOut() async throws {
         let issuer = try StandInIssuer()
         let store = MemorySecretStore()
@@ -241,7 +229,6 @@ struct StandInIssuer {
         #expect(await account.status == .signedIn(email: "dev@example.test", planUsage: true))
         let reg = try #require(store.readJSON(OpenAIRegistration.self, SecretAccount.openAIRegistration))
         #expect(reg.clientID == "oaiapp_swiftcode_test" && reg.hostID.hasPrefix("urn:uuid:"))
-        // The redirect used the loopback address and the documented path.
         #expect(issuer.state["redirect_uri"]?.hasPrefix("http://127.0.0.1:") == true)
         #expect(issuer.state["redirect_uri"]?.hasSuffix("/auth/callback") == true)
 
@@ -249,7 +236,6 @@ struct StandInIssuer {
         #expect(try await account.accessToken(forceRefresh: true) == "at-2")
         #expect(store.readJSON(OpenAITokens.self, SecretAccount.openAITokens)?.refreshToken == "rt-2")
 
-        // Second sign-in reuses the issued client ID (no registration).
         let again = try await account.signIn()
         #expect(again.clientID == "oaiapp_swiftcode_test")
         #expect(issuer.state["authorize"]?.contains("client_id=oaiapp_swiftcode_test") == true)

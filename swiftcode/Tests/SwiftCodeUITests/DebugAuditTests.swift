@@ -4,8 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// A minimal in-memory adapter for the debug.md audit items: two frames,
-/// one expandable variable, a failing `evaluate`.
 private final class AuditAdapter: DAPTransport, @unchecked Sendable {
     var receiving: (@Sendable (Data?) -> Void)?
     var decoder = DAPFraming.Decoder()
@@ -80,7 +78,6 @@ private final class AuditAdapter: DAPTransport, @unchecked Sendable {
         let kids = await session.children(of: 100)
         #expect(kids.map(\.name) == ["x"])
         #expect(adapter.count("variables") == before + 1)
-        // A reload (here: selecting another frame) invalidates them.
         await session.selectFrame(2)
         let afterSelect = adapter.count("variables")
         _ = await session.children(of: 100)

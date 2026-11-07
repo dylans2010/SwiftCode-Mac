@@ -7,7 +7,6 @@ final class EntitlementManager: ObservableObject, @unchecked Sendable {
     @Published private(set) var isProUser: Bool = false
 
     private init() {
-        // Initial state will be updated by StoreKitManager
     }
 
     func updateProStatus(isPro: Bool) {

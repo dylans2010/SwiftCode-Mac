@@ -1,4 +1,3 @@
-// Not part of a target: the previews tools read it (it needs SwiftUI).
 import SwiftUI
 
 struct GreetingView: View {

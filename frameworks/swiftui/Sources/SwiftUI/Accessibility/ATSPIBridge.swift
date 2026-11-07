@@ -8,27 +8,7 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// The AT-SPI export of OpenViews windows (R10, finished in OV-ATSPI): the
-// accessibility tree (AccessibilityTree.swift) mapped onto the exporter's
-// model (OVAccessibilityATSPI), and the exporter's requests run on the
-// elements. SwiftCode's mapping; the table is in the package README
-// ("AT-SPI export").
-//
-// - Started by `App.main()` on window-system back ends when an
-//   accessibility bus exists (`OV_ATSPI=0` turns it off, `OV_ATSPI=1`
-//   turns it on for the headless back end too).
-// - Keys: a window is `w<n>` (n counts windows from 1), an element
-//   `w<n>_<element id in hex>`.
-// - The revision of a window is its graph's pass count with its size,
-//   focused node and activity: the tree cannot change without one of them.
-// - Requests run the element's own closures (the same as
-//   `AccessibilityTree.perform`), then mark the window for a frame.
-
-/// Maps OpenViews accessibility elements to AT-SPI roles, states and
-/// actions (SwiftCode's table; README "AT-SPI export").
 package enum ATSPIMapping {
-    /// The AT-SPI role of an element. `multiline` is for text inputs,
-    /// `inTree` for lists and rows of an outline, `popup` for windows.
     package static func role(_ e: AccessibilityElement, multiline: Bool = false, inTree: Bool = false,
                              popup: Bool = false) -> ATSPIRole {
         switch e.role {
@@ -70,8 +50,6 @@ package enum ATSPIMapping {
         .button, .toggle, .link, .menuItem, .menuBarItem, .tab, .menuButton, .picker,
     ]
 
-    /// The AT-SPI states of an element. `focused` is the innermost focused
-    /// element (the tree marks every ancestor of the focused view).
     package static func states(_ e: AccessibilityElement, focused: Bool, showing: Bool, multiline: Bool = false,
                                isWindow: Bool = false, active: Bool = false, popup: Bool = false) -> ATSPIStateSet {
         var s = ATSPIStateSet([.visible])
@@ -114,7 +92,6 @@ package enum ATSPIMapping {
         return s
     }
 
-    /// AT-SPI action names for the element's actions, in its order.
     package static func actions(_ e: AccessibilityElement) -> [ATSPIAction] {
         e.actionNames.map { n in
             if n == "default" {
@@ -126,21 +103,17 @@ package enum ATSPIMapping {
     }
 }
 
-/// The application's AT-SPI export.
 @MainActor
 package final class AccessibilityExport: ATSPIProvider {
     package weak var host: AppHost?
     package private(set) var exporter: ATSPIExporter?
     private var serials: [ObjectIdentifier: Int] = [:]
     private var nextSerial = 1
-    /// Elements of the last snapshot of each window, by key.
     private var elements: [String: AccessibilityElement] = [:]
     private var textStates: [String: TextFieldState] = [:]
 
     package init(host: AppHost) { self.host = host }
 
-    /// Starts the export when an accessibility bus exists (`OV_ATSPI`:
-    /// `0` off, `1` also on the headless back end).
     package static func start(host: AppHost, environment: [String: String] = ProcessInfo.processInfo.environment) -> AccessibilityExport? {
         let setting = environment["OV_ATSPI"]
         if setting == "0" { return nil }
@@ -158,12 +131,9 @@ package final class AccessibilityExport: ATSPIProvider {
         return export
     }
 
-    /// Attaches an exporter made elsewhere (tests).
     package func attach(_ exporter: ATSPIExporter) { self.exporter = exporter }
 
     package func afterFrame() { exporter?.afterFrame() }
-
-    // MARK: Windows
 
     private func serial(_ w: WindowHost) -> Int {
         let id = ObjectIdentifier(w)
@@ -186,12 +156,8 @@ package final class AccessibilityExport: ATSPIProvider {
     private func isActive(_ w: WindowHost) -> Bool {
         guard let host else { return false }
         if host.windowFocusKnown { return host.activeWindowID == w.platform.id }
-        // No focus event yet (a window system without a window manager):
-        // the first main window counts as active.
         return host.windows.first { !$0.isPopup } === w
     }
-
-    // MARK: ATSPIProvider
 
     package var applicationName: String { host?.appName ?? ProcessInfo.processInfo.processName }
 
@@ -219,14 +185,12 @@ package final class AccessibilityExport: ATSPIProvider {
         guard let w = window(key) else { return nil }
         let stale = w.graph.needsUpdate
         let tree = AccessibilityTree.build(w, title: w.isPopup ? "" : w.platform.title)
-        // An update made here must still reach the screen.
         if stale { w.exposed() }
         let revision = self.revision(ofWindow: key)
         for k in elements.keys where k == key || k.hasPrefix(key + "_") { elements[k] = nil }
         for k in textStates.keys where k == key || k.hasPrefix(key + "_") { textStates[k] = nil }
         let scale = w.platform.scale
         let windowRect = CGRect(origin: .zero, size: w.size)
-        // The innermost focused element.
         let focusedID = tree.flattened.last(where: { $0.isFocused && $0.id != tree.id })?.id
         var nodes: [ATSPINode] = []
         var used: Set<String> = []
@@ -277,7 +241,6 @@ package final class AccessibilityExport: ATSPIProvider {
         return ATSPIWindowSnapshot(rootKey: key, nodes: nodes, revision: revision)
     }
 
-    /// The editing state of a text input below `node`.
     static func textState(_ node: ViewNode) -> TextFieldState? {
         if let s = node.primitiveState as? TextFieldState { return s }
         for c in node.children {
@@ -294,12 +257,10 @@ package final class AccessibilityExport: ATSPIProvider {
                          isEditable: editable)
     }
 
-    /// Scalar offset of grapheme index `g`.
     static func scalarOffset(_ chars: [Character], _ g: Int) -> Int {
         chars.prefix(max(0, g)).reduce(0) { $0 + $1.unicodeScalars.count }
     }
 
-    /// Grapheme index of scalar offset `s` (inside a grapheme: the next one).
     static func graphemeIndex(_ chars: [Character], _ s: Int) -> Int {
         var total = 0
         for (i, c) in chars.enumerated() {
@@ -309,9 +270,6 @@ package final class AccessibilityExport: ATSPIProvider {
         return chars.count
     }
 
-    // MARK: Requests
-
-    /// Marks the window of `key` for a frame after a change.
     private func changed(_ key: String) {
         guard let w = window(key) else { return }
         w.update()
@@ -335,7 +293,6 @@ package final class AccessibilityExport: ATSPIProvider {
     package func grabFocus(_ key: String) -> Bool {
         guard let w = window(key) else { return false }
         if elements[key] == nil || key == self.key(of: w) {
-            // The window itself.
             w.platform.activate()
             return true
         }
@@ -404,7 +361,6 @@ package final class AccessibilityExport: ATSPIProvider {
 }
 
 extension FocusSystem {
-    /// The first focus target that is `node` or inside it.
     package func target(within node: ViewNode) -> ViewNode? {
         for t in registeredTargets {
             var x: ViewNode? = t

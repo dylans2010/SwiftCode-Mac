@@ -1,6 +1,3 @@
-// CNSaveRequest (interface.md §5): a batch of adds, updates and deletes
-// executed atomically by CNContactStore.execute(_:).
-
 import Foundation
 
 public final class CNSaveRequest: NSObject, @unchecked Sendable {
@@ -16,10 +13,8 @@ public final class CNSaveRequest: NSObject, @unchecked Sendable {
     }
 
     var operations: [Operation] = []
-    /// Identifies this request in change notifications.
     let saveIdentifier = UUID().uuidString
 
-    /// Recorded with each change; history requests can exclude it.
     public var transactionAuthor: String?
     public var shouldRefetchContacts = true
 

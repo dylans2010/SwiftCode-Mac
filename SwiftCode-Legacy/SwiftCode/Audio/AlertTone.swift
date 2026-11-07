@@ -1,8 +1,5 @@
 import Foundation
 
-// MARK: - Envelope Specification
-
-/// ADSR envelope parameters for an individual note
 public struct EnvelopeSpec: Sendable, Equatable, Hashable {
     public let attackMs: Double
     public let decayMs: Double
@@ -24,8 +21,6 @@ public struct EnvelopeSpec: Sendable, Equatable, Hashable {
         self.isLinearDecay = isLinearDecay
     }
 
-    /// Global envelope default per AED-016 specification:
-    /// Attack 8ms, Decay 40ms, Sustain 0.6, Release 60ms
     public static let `default` = EnvelopeSpec(
         attackMs: 8.0,
         decayMs: 40.0,
@@ -34,7 +29,6 @@ public struct EnvelopeSpec: Sendable, Equatable, Hashable {
         isLinearDecay: false
     )
 
-    /// Slow attack envelope for `.agentThinking` (40ms attack)
     public static let slowAttack = EnvelopeSpec(
         attackMs: 40.0,
         decayMs: 40.0,
@@ -43,7 +37,6 @@ public struct EnvelopeSpec: Sendable, Equatable, Hashable {
         isLinearDecay: false
     )
 
-    /// Linear decay envelope with zero sustain for `.criticalSystemError`
     public static let linearDecayNoSustain = EnvelopeSpec(
         attackMs: 8.0,
         decayMs: 40.0,
@@ -52,7 +45,6 @@ public struct EnvelopeSpec: Sendable, Equatable, Hashable {
         isLinearDecay: true
     )
 
-    /// Ultra-short micro-feedback envelope for `.tabSwitch` (3ms attack)
     public static let microTick = EnvelopeSpec(
         attackMs: 3.0,
         decayMs: 15.0,
@@ -62,15 +54,9 @@ public struct EnvelopeSpec: Sendable, Equatable, Hashable {
     )
 }
 
-// MARK: - Note Specification
-
-/// Single musical note in an alert tone phrase
 public struct NoteSpec: Sendable, Equatable, Hashable {
-    /// Equal-tempered pitch in Hertz (A4 = 440.0 Hz)
     public let frequencyHz: Double
-    /// Duration of the note in milliseconds
     public let durationMs: Double
-    /// Custom envelope parameters if overriding global defaults
     public let envelope: EnvelopeSpec
 
     public init(
@@ -84,13 +70,8 @@ public struct NoteSpec: Sendable, Equatable, Hashable {
     }
 }
 
-// MARK: - Tone Specification
-
-/// Full specification for a synthesized alert tone phrase
 public struct ToneSpec: Sendable, Equatable, Hashable {
-    /// Ordered sequence of notes constituting the melodic phrase
     public let notes: [NoteSpec]
-    /// Inter-note silence gap in milliseconds (default 20ms; 15-30ms per spec)
     public let gapMs: Double
 
     public init(notes: [NoteSpec], gapMs: Double = 20.0) {
@@ -98,7 +79,6 @@ public struct ToneSpec: Sendable, Equatable, Hashable {
         self.gapMs = gapMs
     }
 
-    /// Total duration of the synthesized phrase including notes and inter-note gaps
     public var totalDurationMs: Double {
         guard !notes.isEmpty else { return 0 }
         let notesDuration = notes.reduce(0.0) { $0 + $1.durationMs }
@@ -107,9 +87,6 @@ public struct ToneSpec: Sendable, Equatable, Hashable {
     }
 }
 
-// MARK: - Semantic Alert Tone Enum
-
-/// Complete 22-case canonical alert tone enumeration
 public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
     case buildSuccess        = "buildSuccess"
     case buildFailure        = "buildFailure"
@@ -135,8 +112,6 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
     case deleteConfirm       = "deleteConfirm"
 
     public var id: String { rawValue }
-
-    // MARK: - Human-Readable Metadata
 
     public var displayName: String {
         switch self {
@@ -273,11 +248,8 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    // MARK: - Exact AED-016 Specification Mapping
-
     public var spec: ToneSpec {
         switch self {
-        // 1. Build Success: C5 (523.25) -> E5 (659.25) -> G5 (783.99) | 90, 90, 160 ms
         case .buildSuccess:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 523.25, durationMs: 90),
@@ -285,35 +257,30 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 783.99, durationMs: 160)
             ], gapMs: 20)
 
-        // 2. Build Failure: F4 (349.23) -> D#4 (311.13) | 140, 220 ms
         case .buildFailure:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 349.23, durationMs: 140),
                 NoteSpec(frequencyHz: 311.13, durationMs: 220)
             ], gapMs: 20)
 
-        // 3. Task Complete: G4 (392.00) -> C5 (523.25) | 100, 200 ms
         case .taskComplete:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 392.00, durationMs: 100),
                 NoteSpec(frequencyHz: 523.25, durationMs: 200)
             ], gapMs: 20)
 
-        // 4. Task Failed: A3 (220.00) -> G#3 (207.65) | 160, 240 ms
         case .taskFailed:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 220.00, durationMs: 160),
                 NoteSpec(frequencyHz: 207.65, durationMs: 240)
             ], gapMs: 20)
 
-        // 5. Warning: E5 (659.25) -> E5 (659.25) | 80, 80 ms (30ms gap)
         case .warning:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 659.25, durationMs: 80),
                 NoteSpec(frequencyHz: 659.25, durationMs: 80)
             ], gapMs: 30)
 
-        // 6. Error: C4 (261.63) -> C4 (261.63) -> C4 (261.63) | 70, 70, 140 ms
         case .error:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 261.63, durationMs: 70),
@@ -321,27 +288,23 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 261.63, durationMs: 140)
             ], gapMs: 20)
 
-        // 7. Mention: B5 (987.77) -> D6 (1174.66) | 60, 140 ms
         case .mention:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 987.77, durationMs: 60),
                 NoteSpec(frequencyHz: 1174.66, durationMs: 140)
             ], gapMs: 20)
 
-        // 8. Message Received: A4 (440.00) -> C#5 (554.37) | 90, 150 ms
         case .messageReceived:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 440.00, durationMs: 90),
                 NoteSpec(frequencyHz: 554.37, durationMs: 150)
             ], gapMs: 20)
 
-        // 9. File Saved: E5 (659.25) | 100 ms
         case .fileSaved:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 659.25, durationMs: 100)
             ], gapMs: 0)
 
-        // 10. Project Opened: C4 (261.63) -> E4 (329.63) -> G4 (392.00) -> C5 (523.25) | 70, 70, 70, 180 ms
         case .projectOpened:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 261.63, durationMs: 70),
@@ -350,7 +313,6 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 523.25, durationMs: 180)
             ], gapMs: 20)
 
-        // 11. Project Closed: C5 (523.25) -> G4 (392.00) -> E4 (329.63) -> C4 (261.63) | 70, 70, 70, 180 ms
         case .projectClosed:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 523.25, durationMs: 70),
@@ -359,14 +321,12 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 261.63, durationMs: 180)
             ], gapMs: 20)
 
-        // 12. Sync Started: D5 (587.33) -> F#5 (739.99) | 80, 120 ms
         case .syncStarted:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 587.33, durationMs: 80),
                 NoteSpec(frequencyHz: 739.99, durationMs: 120)
             ], gapMs: 20)
 
-        // 13. Sync Complete: F#5 (739.99) -> D5 (587.33) -> A5 (880.00) | 70, 70, 160 ms
         case .syncComplete:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 739.99, durationMs: 70),
@@ -374,7 +334,6 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 880.00, durationMs: 160)
             ], gapMs: 20)
 
-        // 14. Sync Failed: D5 (587.33) -> C#5 (554.37) -> C5 (523.25) | 90, 90, 200 ms
         case .syncFailed:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 587.33, durationMs: 90),
@@ -382,14 +341,12 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 523.25, durationMs: 200)
             ], gapMs: 20)
 
-        // 15. Git Commit: G4 (392.00) -> B4 (493.88) | 90, 130 ms
         case .gitCommit:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 392.00, durationMs: 90),
                 NoteSpec(frequencyHz: 493.88, durationMs: 130)
             ], gapMs: 20)
 
-        // 16. Git Push Success: G4 (392.00) -> B4 (493.88) -> D5 (587.33) | 70, 70, 170 ms
         case .gitPushSuccess:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 392.00, durationMs: 70),
@@ -397,20 +354,17 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 587.33, durationMs: 170)
             ], gapMs: 20)
 
-        // 17. Git Push Failed: D5 (587.33) -> A#4 (466.16) | 130, 220 ms
         case .gitPushFailed:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 587.33, durationMs: 130),
                 NoteSpec(frequencyHz: 466.16, durationMs: 220)
             ], gapMs: 20)
 
-        // 18. Agent Thinking: A4 (440.00) | 250 ms (slow attack 40ms)
         case .agentThinking:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 440.00, durationMs: 250, envelope: .slowAttack)
             ], gapMs: 0)
 
-        // 19. Agent Response Ready: E5 (659.25) -> G5 (783.99) -> C6 (1046.50) | 70, 70, 190 ms
         case .agentResponseReady:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 659.25, durationMs: 70),
@@ -418,7 +372,6 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 1046.50, durationMs: 190)
             ], gapMs: 20)
 
-        // 20. Critical System Error: C4 (261.63) -> G3 (196.00) -> C4 (261.63) | 120, 120, 220 ms (linear decay, no sustain)
         case .criticalSystemError:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 261.63, durationMs: 120, envelope: .linearDecayNoSustain),
@@ -426,13 +379,11 @@ public enum AlertTone: String, CaseIterable, Identifiable, Sendable {
                 NoteSpec(frequencyHz: 261.63, durationMs: 220, envelope: .linearDecayNoSustain)
             ], gapMs: 20)
 
-        // 21. Tab Switch (Bonus micro-feedback): C6 (1046.50) | 40 ms (attack 3ms)
         case .tabSwitch:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 1046.50, durationMs: 40, envelope: .microTick)
             ], gapMs: 0)
 
-        // 22. Delete Confirm (Bonus): E4 (329.63) -> C4 (261.63) | 90, 150 ms
         case .deleteConfirm:
             return ToneSpec(notes: [
                 NoteSpec(frequencyHz: 329.63, durationMs: 90),

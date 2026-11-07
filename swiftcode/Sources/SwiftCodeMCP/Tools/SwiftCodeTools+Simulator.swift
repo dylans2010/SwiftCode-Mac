@@ -2,96 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy Simulator / device tools (Wave 5).
-///
-/// Behaviour source: Legacy's `AssistDeviceListTool`,
-/// `AssistSimulatorBootTool`, `AssistSimulatorControllerTool` and
-/// `AssistSimulatorListTool` (Dylan's own code, ported under MIT).
-/// The 4 IDs below were verified live from the Legacy registry
-/// (`registerAllTools` + each tool's `id`).
-///
-/// Conventions, following Waves 1–4:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Descriptions
-///   are Legacy's verbatim. Structured data keeps Legacy's keys,
-///   with typed JSON values (integers and booleans) the way SwiftCode's
-///   other tools do — Legacy's string-only map is not reproduced.
-/// * Risk → annotations follows the catalogue §1.3 table, extended
-///   the way Wave 3 extended it for `.execution` (`readOnly:
-///   false, idempotent: false`, `writes: true`):
-///   `safeRead` → read-only/idempotent, `writes: false`;
-///   `safeMutation` → `readOnly: false, idempotent: true`,
-///   `writes: true`; `.execution` → `readOnly: false,
-///   idempotent: false`, `writes: true`.
-/// * Every local command runs as a subprocess argument vector —
-///   never a shell — via Wave 4's `terminalRunFixed` (off the main
-///   actor), with stdin closed. All four tools drive Apple's
-///   `xcrun`/`simctl`/`devicectl`/`xctrace` on macOS; where `xcrun`
-///   is absent they fail with Legacy's exact message instead of
-///   pretending the SwiftCode Simulator is a substitute.
-///
-/// ID COLLISION — read before wiring (Wave 5 coordinator follow-up):
-///
-/// * SwiftCode ALREADY registers `simulator_boot` and `simulator_list`
-///   in `SwiftCodeTools+Run.swift` (`runTools`), driving the SwiftCode
-///   Simulator on its remote Linux host. Legacy's tools with the
-///   same IDs target Apple Simulator via `simctl` — same IDs,
-///   different backend. They are NOT re-registered here (duplicate
-///   IDs would break the catalogue's uniqueness invariant and
-///   `MCPServerTests`); instead the existing registrations are
-///   ALIGNED in place in `SwiftCodeTools+Run.swift`, following the
-///   Wave 1 `file_read` / Wave 2 `file_write` precedent:
-///   - `simulator_list` keeps its SwiftCode output (`simulators`,
-///     `configured`) and gains an `appleSimulators` array with
-///     Legacy's `simctl list devices -j` listing (empty when
-///     `xcrun` is absent). Legacy's counts become the array's
-///     length; the runtime grouping is preserved in each entry's
-///     `runtime`.
-///   - `simulator_boot` keeps its SwiftCode behaviour (a `simulator`
-///     name/id, default the first) and gains Legacy's parameters
-///     `udid` (required for the Apple path) and `action`
-///     (`boot`/`shutdown`, default `boot`). With a `udid` it runs
-///     Legacy's `simctl` boot/shutdown with Legacy's verification
-///     pass (re-list and compare the state); without one it boots
-///     the SwiftCode Simulator as before.
-///   What was aligned vs what differs is recorded per tool in
-///   `specs/ide/assist-artboards-media-tools.md` (Part A §3).
-/// * No new `Package.swift` dependency is needed for any of this:
-///   the tools call `xcrun` as a subprocess (Wave 4's runner),
-///   they do not import `SwiftCodeSimFeatures` — that target is the
-///   SwiftCode Simulator's guest-feature channels (health, audio,
-///   location), not an Apple `simctl` wrapper, and nothing in it
-///   is used here. `SwiftCodeMCP` must NOT gain a `SwiftCodeSimFeatures`
-///   dependency for this wave.
-///
-/// Implemented here (2 new registrations): `device_list`,
-/// `simulator_controller`. Aligned in `SwiftCodeTools+Run.swift` (2):
-/// `simulator_boot`, `simulator_list`.
-///
-/// Relationship notes (overlapping behaviour, not duplication):
-///
-/// * `simulator_controller`'s `boot`/`shutdown` actions overlap
-///   the aligned `simulator_boot` (which takes a UDID for the
-///   Apple path, or a SwiftCode device name for the remote path) and
-///   SwiftCode's `simulator_shutdown` (SwiftCode remote only). The
-///   controller is the `simctl`-native multi-action entry point
-///   (boot, shutdown, install, launch, openurl) on any device
-///   selector `simctl` accepts (`booted`, a name, or a UDID);
-///   `openurl` and `install` have no SwiftCode equivalent.
-/// * `device_list` (physical devices via `devicectl`, falling back
-///   to `xctrace`) has no SwiftCode equivalent: the Device Hub lists
-///   physical devices in the UI, but no MCP tool does.
-/// * `simulator_controller`'s `launch` overlaps SwiftCode's
-///   `simulator_launch_app` only in outcome (an app launched on a
-///   simulator): the SwiftCode tool installs + launches on the remote
-///   SwiftCode Simulator, this one launches an already-installed
-///   bundle id on an Apple simulator.
-///
-/// Wiring (coordinator): add `simulatorTools` to `installTools()` in
-/// `SwiftCodeTools.swift` (`server.tools = … + artboardTools +
-/// simulatorTools`). Do NOT add `simulator_boot` or `simulator_list`
-/// here — they already live in `runTools`.
 extension SwiftCodeMCPHost {
     var simulatorTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -118,16 +28,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: - Approval for non-file mutations
-
-    /// Asks the approval path about one non-file operation before
-    /// it runs (the Wave 2 §6.2 / Wave 4 `terminalApproveChange`
-    /// shape, without requiring an open workspace): the change's
-    /// path is the workspace root when one is open, else the
-    /// current directory, since the operation has no single file.
-    /// In read-only mode the server refuses `writes: true` tools
-    /// before the handler runs, so this is only reached when the
-    /// policy allows the write.
     func approveChangeWithoutFile(tool: String, summary: String, call: MCPToolCall) async throws {
         let root = (try? session(for: call)).map { Self.folder(of: $0.model).path }
             ?? FileManager.default.currentDirectoryPath
@@ -135,9 +35,6 @@ extension SwiftCodeMCPHost {
         guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
     }
 
-    // MARK: - Apple simulators via simctl (shared by the aligned tools)
-
-    /// One Apple simulator, as `simctl list devices -j` reports it.
     struct AppleSimulator: Sendable {
         var name: String
         var udid: String
@@ -146,27 +43,18 @@ extension SwiftCodeMCPHost {
         var isAvailable: Bool
     }
 
-    /// Legacy's `xcrun` precondition, with Legacy's message.
     nonisolated static func requireXcrun() throws {
         guard FileManager.default.fileExists(atPath: "/usr/bin/xcrun") else {
             throw MCPToolError("xcrun not found at /usr/bin/xcrun. Install Xcode command line tools first.")
         }
     }
 
-    /// Runs `xcrun` with a fixed argument vector (never a shell),
-    /// off the main actor because it blocks. `nil` when the process
-    /// cannot start at all.
     nonisolated static func runXcrun(_ args: [String], timeout: TimeInterval = 60) async -> TerminalFixedRun? {
         (await Task.detached {
             Self.terminalRunFixed("/usr/bin/xcrun", args, environment: Self.terminalEnvironment(), timeout: timeout)
         }.value)
     }
 
-    /// Legacy's `simctl list devices -j`, parsed the way Legacy's
-    /// `AssistSimulatorListTool` parses it. Empty when `xcrun` is
-    /// absent or the listing fails — the aligned `simulator_list`
-    /// reports that as an empty Apple section, while the dedicated
-    /// tools fail loudly instead.
     nonisolated static func appleSimulators() async -> [AppleSimulator] {
         guard FileManager.default.fileExists(atPath: "/usr/bin/xcrun") else { return [] }
         guard let run = await runXcrun(["simctl", "list", "devices", "-j"], timeout: 60),
@@ -174,9 +62,6 @@ extension SwiftCodeMCPHost {
         return parseSimctlDevices(run.stdout)
     }
 
-    /// Parses `simctl list devices -j` output: `devices` maps a
-    /// runtime identifier to its devices. Sorted by runtime, then
-    /// by device name — Legacy's order.
     nonisolated static func parseSimctlDevices(_ stdout: String) -> [AppleSimulator] {
         guard let data = stdout.data(using: .utf8),
               let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -195,12 +80,6 @@ extension SwiftCodeMCPHost {
         return out
     }
 
-    /// Legacy's `AssistSimulatorBootTool` Apple path: `simctl
-    /// <action> <udid>`, then verify by re-listing regardless of
-    /// the first command's exit code (booting an already-booted
-    /// device reports an error yet leaves it in the desired state).
-    /// `call` is the real tool call, so the approval gate uses the
-    /// server's policy (a synthetic call would default-approve).
     func simctlBootOrShutdown(udid: String, action: String, call: MCPToolCall) async throws -> MCPToolResult {
         try Self.requireXcrun()
         try await approveChangeWithoutFile(tool: call.name,
@@ -226,12 +105,8 @@ extension SwiftCodeMCPHost {
         throw MCPToolError("Simulator \(udid) is \(found.state), expected \(desired). Detail: \(detail.suffix(1000))")
     }
 
-    // MARK: - `device_list`
-
     func listDevices(_ call: MCPToolCall) async throws -> MCPToolResult {
         try Self.requireXcrun()
-        // devicectl first (JSON), xctrace text listing as fallback —
-        // Legacy's order and messages.
         var devicectlError = ""
         if let run = await Self.runXcrun(["devicectl", "list", "devices", "-j"], timeout: 60) {
             devicectlError = "devicectl failed (exit \(run.exitCode)): \(run.stderr.trimmingCharacters(in: .whitespacesAndNewlines).suffix(500))"
@@ -266,10 +141,6 @@ extension SwiftCodeMCPHost {
         throw MCPToolError("Device listing unavailable. \(devicectlError.isEmpty ? "devicectl failed to launch" : devicectlError). xctrace fallback also failed (exit \(trace.exitCode)): \(trace.stderr.trimmingCharacters(in: .whitespacesAndNewlines).suffix(500)).")
     }
 
-    /// Legacy's `parseDevicectlJSON`: `result.devices` or a top-level
-    /// `devices` array, each with `identifier`/`udid`,
-    /// `deviceProperties.name`, `hardwareProperties.platform` and
-    /// `connectionProperties.pairingState`.
     nonisolated static func parseDevicectlJSON(_ text: String) -> [DevicectlDevice]? {
         guard let data = text.data(using: .utf8),
               let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -299,8 +170,6 @@ extension SwiftCodeMCPHost {
             return DevicectlDevice(name: name, identifier: identifier, platform: platform, pairing: pairing)
         }
     }
-
-    // MARK: - `simulator_controller`
 
     func simulatorController(_ call: MCPToolCall) async throws -> MCPToolResult {
         let action = try call.require("action")
@@ -354,7 +223,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// One device from `devicectl list devices -j`.
 struct DevicectlDevice: Sendable {
     var name: String
     var identifier: String

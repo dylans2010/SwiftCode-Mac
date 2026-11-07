@@ -1,50 +1,3 @@
-/**
- * Real implementation of the developer-facing SDK context
- * (Docs/Intro-to-SDK.md §6.2, §11.2, §11.3).
- *
- * Method list is taken from the Swift host's `SDKIPCDispatcher` routing
- * table — only methods the dispatcher actually supports are called:
- *
- *   sourceControl.getStatus   payload {}
- *   sourceControl.getDiff     payload {"options": {...}} (optional)
- *   build.run                 payload {"target","configuration?","destination?"}
- *                             → {"handleId"}
- *   build.wait                payload {"handleId"} → BuildResult
- *   build.cancel              payload {"handleId"}
- *   cloudModel.complete       payload {"prompt","history?","systemPrompt?","modelIdentifier?"}
- *                             → {"response"}
- *   assist.invoke             payload {"op", ...} — the entitled headless
- *                             Assist route (see assist.ts); handled by
- *                             createAssistAPI, not by the context object
- *   terminalSandbox.run       payload {"command","args","workingDirectory?","timeout?"}
- *                             → TerminalSandboxResult
- *   commands.register         payload {"id","title"}
- *   commands.unregister       payload {"commandID"}
- *   ui.openView                 payload {"viewId"} — viewId is the view's
- *                               own capability ID (e.g. "sandbox.view")
- *   log.debug|info|warn|error payload {"message","correlationId?"}
- *   security.addValue       payload {"securityID","valueID","label?","prompt?"}
- *                             → {"valueID","created"} (metadata only, never the secret)
- *   security.hasValue       payload {"securityID","valueID"} → {"hasValue"}
- *   security.listValueIDs   payload {"securityID"} → {"values":[…]}
- *   security.deleteValue    payload {"securityID","valueID"}
- *   security.useValue       payload {"securityID","valueID","operation"}
- *                             → {"status","body"} (the host attaches the
- *                               secret as the Authorization header; it never
- *                               comes back to the extension)
- *
- * `security.*` routes are served by the host's Security dispatcher (the
- * `use.Security` host phase, capability ID "use.Security"). Until the
- * routes land, the host answers with a typed error — calls reject with an
- * {@link SDKError}, never a fabricated result.
- *
- * `project.getCurrent` is NOT in the dispatcher routing table. It is sent
- * as `project.getCurrent` anyway, and the host answers with a typed error
- * (`IPC_MALFORMED`: "Unknown method") until the method lands in a later
- * host phase. This method never fabricates a project — a failed request
- * surfaces as an {@link SDKError}, never a fake `ProjectInfo`.
- */
-
 import { randomUUID } from "node:crypto";
 import type {
   AssistAPI,
@@ -83,23 +36,12 @@ import { createSecurityAPI } from "./security.js";
 import { createAssistAPI } from "./assist.js";
 import { createAssistUIAPI } from "./assistUI.js";
 
-/** Client-side mirror of the host's command-ID rule (SDKCommandRegistry). */
 const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
-/** Client-side mirror of the host's command-title cap. */
 const MAX_COMMAND_TITLE_LENGTH = 128;
-/**
- * Client-side mirror of the host's sandboxed-command rule
- * (`SDKSandboxedTerminal`): a bare allow-listed name, or an absolute path.
- * Anything else — shell snippets, relative paths — is rejected here with
- * `INVALID_ARGUMENT` before it ever reaches the host. The host re-validates
- * everything; this is an early, friendly failure, not a security boundary.
- */
 const SANDBOX_BARE_COMMAND_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
-/** Client-side mirror of the host's argv caps (`SDKSandboxedTerminal`). */
 const SANDBOX_MAX_ARGS = 256;
 const SANDBOX_MAX_ARG_BYTES = 8 * 1024;
 
-/** Validates one argv element client-side (host re-validates). */
 function validateSandboxArg(arg: unknown, index: number): string {
   if (typeof arg !== "string") {
     throw new SDKError("INVALID_ARGUMENT", `Sandboxed command argument #${index} must be a string.`);
@@ -116,7 +58,6 @@ function validateSandboxArg(arg: unknown, index: number): string {
   return arg;
 }
 
-/** Real {@link DisposableStore} implementation. */
 class RealDisposableStore implements DisposableStore {
   private readonly items = new Set<Disposable>();
 
@@ -136,7 +77,6 @@ class RealDisposableStore implements DisposableStore {
       try {
         item.dispose();
       } catch {
-        // Best-effort cleanup: one bad disposable must not prevent others.
       }
     }
   }
@@ -147,30 +87,13 @@ interface OutputSubscriber {
   wake: (() => void) | null;
 }
 
-/**
- * Live build handle. Output events are broadcast from the host's
- * `build.output` events; `wait()` returns the cached `build.finished`
- * result when it has already arrived, and falls back to `build.wait`
- * otherwise. Both paths may be used concurrently.
- *
- * Event correlation: the Swift host forwards build events with the event
- * envelope's `requestId` set to the originating `build.run` request ID, and
- * a `handleId` inside the payload when the host provides one. Both are
- * matched so the handle stays correct under either host shape.
- */
 class RealBuildHandle implements BuildHandle {
   readonly id: string;
   private readonly connection: HostConnection;
   private readonly runRequestId: string;
   private finished: BuildResult | null = null;
   private readonly subscribers = new Set<OutputSubscriber>();
-  /**
-   * Events that arrived before any iterator subscribed (e.g. replayed from
-   * the context's early-event stash). Drained into the first iterator that
-   * subscribes, preserving arrival order.
-   */
   private readonly backlog: BuildOutputEvent[] = [];
-  /** Called once when the handle reaches a terminal state. */
   private readonly onTerminal: () => void;
 
   constructor(
@@ -186,12 +109,10 @@ class RealBuildHandle implements BuildHandle {
   }
 
   get output(): AsyncIterable<BuildOutputEvent> {
-    // A fresh independent iterator per access, all fed by the same channel.
     const handle = this;
     const subscriber: OutputSubscriber = { queue: [], wake: null };
     return {
       [Symbol.asyncIterator](): AsyncIterator<BuildOutputEvent> {
-        // Drain any backlog from before subscription, in arrival order.
         subscriber.queue.push(...handle.backlog.splice(0));
         handle.subscribers.add(subscriber);
         return {
@@ -240,12 +161,6 @@ class RealBuildHandle implements BuildHandle {
     await this.connection.request<unknown>("build.cancel", { handleId: this.id });
   }
 
-  /**
-   * Feeds one host event into this handle. Called by the context-level
-   * event router (see `createContext`): the router guarantees no event is
-   * lost even when it arrives before the handle exists, by stashing early
-   * events and replaying them at construction.
-   */
   feed(event: HostEvent): void {
     const payload =
       typeof event.payload === "object" && event.payload !== null
@@ -264,8 +179,6 @@ class RealBuildHandle implements BuildHandle {
     }
 
     if (event.name === "build.finished") {
-      // The host sends the BuildResult as the event payload; some shapes
-      // wrap it in {"result": …}, and error fallbacks carry a message only.
       const result = this.normalizeResult(payload);
       if (result !== null) {
         this.finished = result;
@@ -300,7 +213,6 @@ class RealBuildHandle implements BuildHandle {
         }
       }
     } else if (typeof candidate["message"] === "string") {
-      // Host error fallback shape: {status: "failed", message, code?, correlationId?}.
       diagnostics.push({ message: candidate["message"] });
     }
     const result: BuildResult = {
@@ -339,20 +251,9 @@ class RealBuildHandle implements BuildHandle {
 
 export interface CreatedContext {
   readonly context: SwiftCodeContext;
-  /**
-   * Returns the handler for a registered command ID, or undefined.
-   * Used by the runtime to dispatch `commands.execute` host events.
-   */
   getCommandHandler(id: string): ((payload?: unknown) => Promise<unknown>) | undefined;
 }
 
-/**
- * Builds the real extension context over an IPC connection.
- *
- * The runtime wires `commands.execute` host events to registered handlers
- * via the returned `getCommandHandler`. `log.*` calls are fire-and-forget:
- * they are sent but never awaited, so logging can never stall an extension.
- */
 export function createContext(
   connection: HostConnection,
   extensionInfo: ExtensionInfo,
@@ -387,9 +288,6 @@ export function createContext(
 
   const project: ProjectAPI = {
     async getCurrent(): Promise<ProjectInfo | null> {
-      // NOT in the Swift dispatcher routing table (see file header): the
-      // host rejects this with a typed error until the method is added.
-      // Never fabricate a project here.
       return connection.request<ProjectInfo | null>("project.getCurrent", {});
     },
   };
@@ -406,12 +304,6 @@ export function createContext(
     },
   };
 
-  /**
-   * True when a build event belongs to the given handle: the host forwards
-   * build events with the event envelope's `requestId` set to the
-   * originating `build.run` request ID, and a `handleId` inside the payload
-   * when the host provides one. Both are matched.
-   */
   function eventMatchesHandle(event: HostEvent, handleId: string, runRequestId: string): boolean {
     const payload =
       typeof event.payload === "object" && event.payload !== null
@@ -423,14 +315,6 @@ export function createContext(
     );
   }
 
-  // --- Build event routing -------------------------------------------------
-  //
-  // The host forwards build events detached from the `build.run` request
-  // (see `SDKIPCDispatcher.forwardBuildEvents`), so `build.output` /
-  // `build.finished` frames can arrive BEFORE the extension has constructed
-  // its BuildHandle — even in the same NDJSON chunk as the run response.
-  // This router never drops those events: build events with no live handle
-  // are stashed and replayed, in arrival order, when `build.run` resolves.
   const liveHandles = new Map<string, RealBuildHandle>();
   const liveHandlesByRunId = new Map<string, RealBuildHandle>();
   const stashedBuildEvents: HostEvent[] = [];
@@ -459,7 +343,6 @@ export function createContext(
   function registerBuildHandle(handle: RealBuildHandle, runRequestId: string): void {
     liveHandles.set(handle.id, handle);
     liveHandlesByRunId.set(runRequestId, handle);
-    // Replay stashed events for this handle, in arrival order.
     const replay: HostEvent[] = [];
     for (let i = stashedBuildEvents.length - 1; i >= 0; i--) {
       const event = stashedBuildEvents[i];
@@ -481,8 +364,6 @@ export function createContext(
       const payload: Record<string, unknown> = { target: request.target };
       if (request.configuration !== undefined) payload["configuration"] = request.configuration;
       if (request.destination !== undefined) payload["destination"] = request.destination;
-      // The run requestId is captured so build events can be correlated:
-      // the host forwards build events with the originating request's ID.
       const runRequestId = randomUUID();
       const response = await connection.request<{ handleId: string }>(
         "build.run",
@@ -496,9 +377,6 @@ export function createContext(
           undefined,
         );
       }
-      // Constructing the handle synchronously in the response continuation
-      // guarantees no event is processed between response and registration:
-      // incoming frames are macrotasks, and this microtask drains first.
       const handle = new RealBuildHandle(connection, response.handleId, runRequestId, () => {
         liveHandles.delete(response.handleId);
         liveHandlesByRunId.delete(runRequestId);
@@ -525,14 +403,6 @@ export function createContext(
       }
       if (request.systemPrompt !== undefined) payload["systemPrompt"] = request.systemPrompt;
       if (request.modelIdentifier !== undefined) payload["modelIdentifier"] = request.modelIdentifier;
-      // Exact method string: matches the Swift dispatcher's "cloudModel.complete" route.
-      // ENTITLEMENT HONESTY (mirrors assist.ts's mapAssistDenial): the TS
-      // layer cannot know entitlement state itself and never fabricates
-      // it. Only the host's typed CLOUD_MODEL_DENIED denial is translated
-      // into SDKCloudModelAccessError (carrying the verbatim §13 user
-      // message — proposed wording until Dylan finalizes it). Every other
-      // rejection — including PERMISSION_DENIED from unrelated checks and
-      // RESOURCE_LIMIT_EXCEEDED for quota — propagates untouched.
       let response: { response: string };
       try {
         response = await connection.request<{ response: string }>("cloudModel.complete", payload);
@@ -549,9 +419,6 @@ export function createContext(
           undefined,
         );
       }
-      // Host denies (PERMISSION_DENIED / RESOURCE_LIMIT_EXCEEDED) arrive
-      // here as rejected SDKError promises from connection.request — never
-      // as fabricated text. They propagate untouched.
       return response.response;
     },
   };
@@ -594,7 +461,6 @@ export function createContext(
         }
         payload["timeout"] = request.timeout;
       }
-      // Exact method string: matches the Swift dispatcher's "terminalSandbox.run" route.
       const result = await connection.request<TerminalSandboxResult>("terminalSandbox.run", payload);
       if (
         typeof result?.stdout !== "string" ||
@@ -622,15 +488,9 @@ export function createContext(
           if (disposed) return;
           disposed = true;
           commandHandlers.delete(definition.id);
-          // Fire-and-forget: disposal is synchronous; a failed unregister
-          // must not throw out of dispose(). The handler is already gone
-          // locally, so no command can fire after this point.
           connection.request("commands.unregister", { commandID: definition.id }).catch(() => undefined);
         },
       };
-      // Registration itself is synchronous from the extension's view: the
-      // request is sent without awaiting so activate() cannot stall on it.
-      // A host-side rejection is delivered to the developer log instead.
       connection
         .request("commands.register", { id: definition.id, title: definition.title.trim() })
         .catch((error: unknown) => {
@@ -673,11 +533,6 @@ export function createContext(
       if (typeof viewId !== "string" || viewId.length === 0) {
         throw new SDKError("INVALID_ARGUMENT", "View ID must be a non-empty capability ID string (e.g. \"sandbox.view\").");
       }
-      // Exact method string: matches the Swift dispatcher's "ui.openView"
-      // route. The host authorizes the view's own capability ID at the
-      // broker before the opener runs; unknown viewIds and ungranted
-      // capabilities surface as typed SDKError rejections, never silent
-      // no-ops. The host answers with a null payload on success.
       await connection.request<unknown>("ui.openView", { viewId });
     },
   };
@@ -689,18 +544,11 @@ export function createContext(
     if (typeof correlationId === "string" && correlationId.length > 0) {
       payload["correlationId"] = correlationId;
     }
-    // Fire-and-forget by design (see createContext docs): swallow failures
-    // so a broken pipe can never take down extension code.
     connection.request(method, payload).catch(() => undefined);
   }
 
-  // Security API over the same IPC connection. Also installs the active
-  // connection for the standalone security.* helpers in security.ts.
   const security: SecurityAPI = createSecurityAPI(connection);
 
-  // Assist SDK variants (task B2) over the same IPC connection. Both are
-  // entitlement-gated host-side; the TS layer translates only the host's
-  // typed ASSIST_DENIED denial and never fabricates entitlement state.
   const assist: AssistAPI = createAssistAPI(connection);
   const assistUI: AssistUIAPI = createAssistUIAPI(connection);
 
@@ -721,14 +569,6 @@ export function createContext(
     subscriptions,
   };
 
-  // Route host→extension frames: build events go to their handle (stashing
-  // early ones; see above).
-  //
-  // NOTE: `commands.execute` dispatch is owned exclusively by the runtime
-  // adapter via the returned `getCommandHandler` (see its docstring). This
-  // router must NOT self-dispatch command events: a duplicate listener here
-  // would invoke every registered command handler a second time. Command
-  // failures are reported by the adapter as `commands.executeResult` events.
   connection.onEvent((event: HostEvent) => {
     if (event.name === "build.output" || event.name === "build.finished") {
       routeBuildEvent(event);

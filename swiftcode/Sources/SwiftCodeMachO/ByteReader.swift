@@ -6,8 +6,6 @@ public struct MachOError: Error, CustomStringConvertible, Equatable {
     public var description: String { message }
 }
 
-/// Bounds-checked little/big-endian reads over a byte buffer. Files are
-/// memory-mapped, so multi-gigabyte shared caches cost nothing until touched.
 public struct ByteReader: Sendable {
     public let data: Data
 
@@ -56,8 +54,6 @@ public struct ByteReader: Sendable {
         return [UInt8](data[(data.startIndex + o)..<(data.startIndex + o + n)])
     }
 
-    /// A NUL-padded fixed-size field (`segname[16]`), or a NUL-terminated
-    /// string limited to `limit` bytes.
     public func string(_ o: Int, limit: Int) throws(MachOError) -> String {
         let n = max(0, min(limit, data.count - o))
         try check(o, n)
@@ -75,10 +71,8 @@ public struct ByteReader: Sendable {
     }
 }
 
-/// `0x` followed by lowercase hex digits.
 public func hex<T: BinaryInteger>(_ v: T) -> String { "0x" + String(v, radix: 16) }
 
-/// `xxxx.yy.zz` packed version.
 public struct PackedVersion: Equatable, Comparable, Sendable, CustomStringConvertible {
     public var raw: UInt32
     public init(_ raw: UInt32) { self.raw = raw }
@@ -113,7 +107,6 @@ public enum Platform: UInt32, Sendable, CustomStringConvertible {
     public var isSimulator: Bool { [.iOSSimulator, .tvOSSimulator, .watchOSSimulator, .visionOSSimulator].contains(self) }
 }
 
-/// Memory protection bits.
 public struct Protection: OptionSet, Sendable, CustomStringConvertible {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }

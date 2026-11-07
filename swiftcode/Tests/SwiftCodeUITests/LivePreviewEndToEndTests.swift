@@ -6,20 +6,6 @@ import SwiftCodeDisplayStream
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Opt-in end-to-end live preview on a real SwiftCode simulator
-/// (specs/ide/previews.md §Fast updates, §Measurements). Skipped unless these are set:
-///   SWIFTCODE_E2E_REMOTE    ssh destination (user@host; key-based login only)
-///   SWIFTCODE_E2E_DATA      remote data directory (apps/, devices/)
-///   SWIFTCODE_E2E_RUNTIME   remote runtime root (iOS 27.0: the iPhone 18 Pro)
-///   SWIFTCODE_E2E_SIMD      remote launcher (swiftcode-sim)
-///   SWIFTCODE_E2E_PREVIEW   1 to run this test
-///   SWIFTCODE_E2E_DEVICE    device name (default "swiftcode-device"; the preview
-///                       device is "<name>-iphone-18-pro-27.0-previews")
-///   SWIFTCODE_E2E_SHOT      where to write a PNG of the window (optional)
-///   SWIFTCODE_E2E_EDITS     body edits to time (default 5)
-///   SWIFTCODE_E2E_PREVIEW_DEVICE  the canvas's device choice, e.g. "iPhone 18 Pro (SwiftCode) 27.1"
-///                       (default: Automatic)
-/// Nothing here is machine-specific; the values come only from the environment.
 @Suite(.serialized, .heavyIntegration, .previewHostCheck, .timeLimit(.minutes(30))) @MainActor struct LivePreviewEndToEndTests {
     static let contentView = """
     import SwiftUI
@@ -52,9 +38,7 @@ import SwiftCodeDisplayStream
 
     """
 
-    /// The share (0–1) of sampled pixels that differ between two images of one size.
     static func difference(_ a: CGImage?, _ b: CGImage?) -> Double {
-        // No picture on either side is no evidence of a change.
         guard let a, let b else { return 0 }
         guard a.width == b.width, a.height == b.height else { return 1 }
         func samples(_ i: CGImage) -> [UInt8] {
@@ -85,7 +69,6 @@ import SwiftCodeDisplayStream
             return
         }
         _ = NSApplication.shared
-        // The settings go into a scratch suite, never the test runner's own defaults.
         let scratch = TestDefaults("live-preview-e2e")
         let previous = Preferences.shared
         Preferences.shared = Preferences(defaults: scratch.defaults)
@@ -97,7 +80,6 @@ import SwiftCodeDisplayStream
         settings.save(defaults)
         RemoteSimulatorSettings.saveRuntimeVersion(settings.runtimeVersion!, root: runtime, defaults)
 
-        // A sample iOS app with two previews.
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-live-preview-\(getpid())")
         try? FileManager.default.removeItem(at: dir)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -120,9 +102,7 @@ import SwiftCodeDisplayStream
         let c = try #require(wc.canvas)
         #expect(c.names == ["Light", "Dark"])
 
-        // The preview device (the canvas's device menu), e.g. "iPhone 18 Pro (SwiftCode) 27.1".
         if let d = env["SWIFTCODE_E2E_PREVIEW_DEVICE"] { c.chooseDevice(d) }
-        // First preview: build the host, start (or restore) the preview device, compile and load.
         let t0 = Date()
         c.resume()
         let first = await waitUntil(1200) { if case .live = c.state { return true }; if case .failed = c.state { return true }; return false }
@@ -134,7 +114,6 @@ import SwiftCodeDisplayStream
         print(String(format: "e2e preview: first preview %.1f s (device start %.1f s)", firstSeconds, ps.startSeconds ?? -1))
         #expect(await waitUntil(60) { tileImage(c, 0) != nil })
 
-        // Edits of the body: save → new pixels.
         let edits = Int(env["SWIFTCODE_E2E_EDITS"] ?? "5") ?? 5
         var times: [Double] = []
         for k in 0..<edits {
@@ -158,13 +137,11 @@ import SwiftCodeDisplayStream
             print(String(format: "e2e preview: save → new pixels median %.2f s, min %.2f, max %.2f (n=%d)", sorted[sorted.count / 2], sorted[0], sorted.last!, sorted.count))
         }
 
-        // Live mode: a click on the button (a tap on the device) changes the count.
         c.setMode(.live)
         try await Task.sleep(for: .seconds(2))
         if let tile = c.liveTileViews.first as? PreviewLiveTileView, let window = tile.window {
             let before = tileImage(c, 0)
             #expect(before != nil)
-            // The button is just below the middle of the tile.
             let local = NSPoint(x: tile.bounds.midX, y: tile.bounds.midY + tile.bounds.height * 0.05)
             let inWindow = tile.convert(local, to: nil)
             for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
@@ -175,7 +152,6 @@ import SwiftCodeDisplayStream
             }
             let tapped = Date()
             let changed = await waitUntil(20) { Self.difference(before, tileImage(c, 0)) > 0 }
-            // Keep the tapped picture for the record.
             if let shot = env["SWIFTCODE_E2E_SHOT"], let img = tileImage(c, 0) {
                 let rep = NSBitmapImageRep(cgImage: img)
                 try rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: shot.replacingOccurrences(of: ".png", with: "-tapped.png")))
@@ -184,7 +160,6 @@ import SwiftCodeDisplayStream
             #expect(changed)
         }
 
-        // Two previews side by side (Grid).
         c.setMode(.grid)
         #expect(await waitUntil(30) { c.liveTileViews.count == 2 && !c.isUpdating })
         try await Task.sleep(for: .seconds(2))

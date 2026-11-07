@@ -1,23 +1,13 @@
 import Foundation
 
-// `Binding`: read/write access to storage owned elsewhere (03 §3). Reading
-// through a binding while a body is evaluated records a dependency on the
-// underlying storage, so the reader re-runs when it changes. As a view input,
-// two bindings are equal when they refer to the same storage (same location
-// and key path); bindings made from closures never compare equal.
-
 @propertyWrapper
 @dynamicMemberLookup
 public struct Binding<Value> {
-    /// The transaction used for writes through this binding (empty: the
-    /// current one).
     public var transaction: Transaction
 
     package let getValue: () -> Value
     package let setValue: (Value, Transaction) -> Void
-    /// Identity of the storage (nil for closure-made bindings).
     package let identity: AnyHashable?
-    /// For `constant(_:)` bindings: the value (compared by value).
     package let constantValue: Value?
 
     package init(identity: AnyHashable?, constant: Value? = nil, transaction: Transaction = Transaction(),
@@ -43,7 +33,6 @@ public struct Binding<Value> {
         self.init(identity: nil, get: get, set: set)
     }
 
-    /// A binding to an immutable value; writes are ignored.
     public static func constant(_ value: Value) -> Binding<Value> {
         Binding(identity: nil, constant: value, get: { value }, set: { _, _ in })
     }
@@ -57,7 +46,6 @@ public struct Binding<Value> {
 
     public init(projectedValue: Binding<Value>) { self = projectedValue }
 
-    /// A binding to a property of the value.
     public subscript<Subject>(dynamicMember keyPath: WritableKeyPath<Value, Subject>) -> Binding<Subject> {
         let base = self
         return Binding<Subject>(
@@ -71,14 +59,12 @@ public struct Binding<Value> {
             })
     }
 
-    /// The same binding with writes made in `transaction`.
     public func transaction(_ transaction: Transaction) -> Binding<Value> {
         var b = self
         b.transaction = transaction
         return b
     }
 
-    /// The same binding with writes animated by `animation`.
     public func animation(_ animation: Animation? = .default) -> Binding<Value> {
         var b = self
         b.transaction.animation = animation
@@ -87,7 +73,6 @@ public struct Binding<Value> {
 }
 
 extension Binding {
-    /// Wraps a non-optional binding as an optional one.
     public init<V>(_ base: Binding<V>) where Value == V? {
         self.init(identity: base.identity.map { AnyHashable([$0, AnyHashable("optional")]) },
                   transaction: base.transaction,
@@ -95,7 +80,6 @@ extension Binding {
                   set: { v, t in if let v { base.setValue(v, t) } })
     }
 
-    /// Unwraps an optional binding; nil when the value is nil.
     public init?(_ base: Binding<Value?>) {
         guard let initial = base.getValue() else { return nil }
         self.init(identity: base.identity.map { AnyHashable([$0, AnyHashable("unwrapped")]) },
@@ -104,7 +88,6 @@ extension Binding {
                   set: { v, t in base.setValue(v, t) })
     }
 
-    /// Type-erases a binding to a hashable value.
     public init<V: Hashable>(_ base: Binding<V>) where Value == AnyHashable {
         self.init(identity: base.identity.map { AnyHashable([$0, AnyHashable("anyHashable")]) },
                   transaction: base.transaction,

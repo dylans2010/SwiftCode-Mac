@@ -1,11 +1,7 @@
-// Builders for synthetic Metal host messages, written from the layouts of
-// metal-sim-protocol.md (no captured bytes).
-
 import Foundation
 @testable import SwiftCodeMetalHost
 import SwiftCodeXPC
 
-/// Host memory standing in for guest pages behind memory entries.
 final class FakeMemory: MetalGuestMemoryResolver, @unchecked Sendable {
     final class Block {
         let pointer: UnsafeMutableRawPointer
@@ -22,7 +18,6 @@ final class FakeMemory: MetalGuestMemoryResolver, @unchecked Sendable {
     private var blocks: [UInt32: Block] = [:]
     private var next: UInt32 = 0x9000
 
-    /// A new memory entry name over `length` bytes (optionally filled).
     func entry(length: Int, bytes: [UInt8] = []) -> (UInt32, Block) {
         lock.withLock {
             let b = Block(length: length)
@@ -43,10 +38,7 @@ final class FakeMemory: MetalGuestMemoryResolver, @unchecked Sendable {
 
 final class FakeSurfaces: IOSurfaceResolver, @unchecked Sendable {
     var known: [UInt32: IOSurfaceBacking] = [:]
-    /// Surfaces made for shared textures (messageType 19): allocation size,
-    /// name, creation properties.
     var made: [(allocation: Int, name: String, properties: [(key: String, value: UInt64)])] = []
-    /// Port → (surface ID, numeric creation properties), for messageType 20.
     var described: [UInt32: MetalSurfaceDescription] = [:]
     private var nextPort: UInt32 = 0x9000
     func backing(forSurfacePort port: UInt32, plane: Int) -> IOSurfaceBacking? { known[port] }
@@ -74,7 +66,6 @@ final class FakeTransport: MetalHostTransport, @unchecked Sendable {
     func makeEventPort() -> UInt32? { lock.withLock { nextEventPort += 1; return nextEventPort } }
     func destroyEventPort(_ name: UInt32) { lock.withLock { _destroyedEventPorts.append(name) } }
 
-    /// (messageType, commandBufferRef, status) of each event.
     var summary: [[UInt64]] {
         events.map { [$0.event["messageType"]?.uint64Value ?? 0, $0.event["commandBufferRef"]?.uint64Value ?? 0,
                       $0.event["status"]?.uint64Value ?? 0] }
@@ -88,7 +79,6 @@ enum Build {
         return MetalByteWriter.record(op, w.bytes)
     }
 
-    /// A segment: header (used, kind, continues-previous, continues-in-next, 0), records, padding to `size`.
     static func segment(kind: UInt8, continuesPrevious: Bool = false, continuesInNext: Bool = false, _ records: [[UInt8]],
                         size: Int = 4096) -> [UInt8] {
         let body = records.flatMap { $0 }
@@ -100,7 +90,6 @@ enum Build {
         return w.bytes
     }
 
-    /// Texture descriptor words 0–8.
     static func textureWords(type: UInt32 = 2, flags: UInt32 = 0, gpuOptimized: Bool = true, usage: UInt32, format: UInt32,
                              width: UInt32, height: UInt32, depth: UInt32 = 1, levels: UInt16 = 1, samples: UInt16 = 1,
                              arrayLength: UInt16 = 1, options: UInt16 = 0) -> [UInt8] {
@@ -113,8 +102,6 @@ enum Build {
         return w.bytes
     }
 
-    /// A 584-byte render pass descriptor body with color attachments
-    /// (index, texture ref, load, store, clear color) and an optional depth texture.
     static func renderPass(colors: [(Int, UInt32, UInt16, UInt16, [Double])], depth: UInt32 = 0, width: UInt64, height: UInt64)
         -> [UInt8] {
         var b = [UInt8](repeating: 0, count: 584)
@@ -137,7 +124,6 @@ enum Build {
         return b
     }
 
-    /// A message dictionary with a `command` record.
     static func message(_ type: UInt64, _ command: [UInt8]? = nil, _ extra: [(String, XPCObject)] = []) -> XPCDict {
         var d: XPCDict = ["messageType": .uint64(type)]
         if let command { d["command"] = .data(command) }

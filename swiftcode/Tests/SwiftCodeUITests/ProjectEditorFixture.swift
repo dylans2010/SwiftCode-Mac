@@ -3,9 +3,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// The small iOS app project the project-editor tests open: a copy of the
-/// fixture in SwiftCodeIDECoreTests' `ProjectEditorReferenceTests`, which moved
-/// there with the model tests.
 struct ProjectEditorFixture {
     static let pbxproj = """
     // !$*UTF8*$!

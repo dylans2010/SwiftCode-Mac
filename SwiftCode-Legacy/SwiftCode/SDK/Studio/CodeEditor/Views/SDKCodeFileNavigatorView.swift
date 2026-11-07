@@ -3,15 +3,6 @@ import Combine
 import Foundation
 import SwiftUI
 
-// MARK: - SDKCodeFileNavigatorView
-//
-// The Studio code editor's file navigator sidebar. Renders an
-// `SDKCodeFileNode` tree as a native macOS `List` with lazy directory
-// enumeration: directories load their children off the main thread the
-// first time they expand (spinner while loading, per the node's
-// `needsLoading` contract), and collapsing preserves loaded children so
-// re-expanding is free.
-
 @MainActor
 public struct SDKCodeFileNavigatorView: View {
     @ObservedObject public var editorState: SDKCodeEditorState
@@ -64,8 +55,6 @@ public struct SDKCodeFileNavigatorView: View {
             )
         }
     }
-
-    // MARK: - Rows
 
     @ViewBuilder
     private func fileRow(_ row: SDKFileTreeRow) -> some View {
@@ -121,8 +110,6 @@ public struct SDKCodeFileNavigatorView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Toolbar
-
     @ToolbarContentBuilder
     private var navigatorToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
@@ -152,8 +139,6 @@ public struct SDKCodeFileNavigatorView: View {
             .help("Re-read the project folder from disk")
         }
     }
-
-    // MARK: - Actions
 
     private func openFile(_ node: SDKCodeFileNode) {
         guard !node.isDirectory else { return }
@@ -270,8 +255,6 @@ public struct SDKCodeFileNavigatorView: View {
     }
 }
 
-// MARK: - Supporting types
-
 private struct SDKFileTreeRow: Identifiable {
     let node: SDKCodeFileNode
     let depth: Int
@@ -299,8 +282,6 @@ private enum SDKFileNavigatorError: LocalizedError {
         }
     }
 }
-
-// MARK: - SDKFileTreeModel
 
 @MainActor
 private final class SDKFileTreeModel: ObservableObject {
@@ -369,8 +350,6 @@ private final class SDKFileTreeModel: ObservableObject {
         return rows
     }
 
-    // MARK: - Loading
-
     private func loadChildrenIfNeeded(forID id: String) {
         guard let root, let node = find(id: id, in: root), node.needsLoading else { return }
         loadChildren(of: node)
@@ -421,8 +400,6 @@ private final class SDKFileTreeModel: ObservableObject {
         files.sort(by: byName)
         return directories + files
     }
-
-    // MARK: - Tree surgery
 
     private func updateNode(id: String, transform: (SDKCodeFileNode) -> SDKCodeFileNode) {
         guard let root else { return }

@@ -1,14 +1,3 @@
-// Default characteristic definitions for the in-memory test accessory.
-//
-// Ycode-original table (open-design.md §5 "Characteristic metadata defaults
-// per type": HomeKit's own defaults resource is Apple's and must not be used).
-// The formats, permissions, ranges and units follow the HAP conventions of
-// Apple's HomeKit ADK catalog (Apache-2.0, level 1); they were written from
-// our knowledge of that catalog and not re-checked against the ADK source in
-// this round (no network) — README "Spec questions" asks for the table to be
-// added to type-identifiers.md. They only shape test accessories; validation
-// always uses the metadata an accessory reports.
-
 import Foundation
 
 public struct SwiftCodeCharacteristicTemplate: Hashable, Sendable {
@@ -45,7 +34,6 @@ public enum SwiftCodeCharacteristicDefaults {
     private static let percent = M(format: HMCharacteristicMetadataFormatInt, units: HMCharacteristicMetadataUnitsPercentage,
                                    minimumValue: 0, maximumValue: 100, stepValue: 1)
 
-    /// Templates by full type UUID.
     public static let templates: [String: SwiftCodeCharacteristicTemplate] = {
         let list: [SwiftCodeCharacteristicTemplate] = [
             t(HMCharacteristicTypeIdentify, [.pairedWrite], bool, nil),

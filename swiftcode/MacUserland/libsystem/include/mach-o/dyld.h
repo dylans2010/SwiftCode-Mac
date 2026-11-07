@@ -1,4 +1,3 @@
-/* SwiftCode freestanding <mach-o/dyld.h>: the image callbacks libunwind uses. */
 #ifndef YCL_MACH_O_DYLD_H
 #define YCL_MACH_O_DYLD_H
 #include <stdint.h>

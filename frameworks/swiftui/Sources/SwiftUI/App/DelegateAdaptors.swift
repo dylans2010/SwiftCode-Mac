@@ -5,27 +5,10 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Application-delegate adaptors (06 §1: the adaptor delegate receives
-// `application(_:didFinishLaunchingWithOptions:)` before `App.body`, with the
-// application in the background state). Linux has neither UIKit nor AppKit,
-// so the delegate protocols and the application object are compile-time
-// shims here (09-open-design.md §1): the names the adaptors need, with the
-// lifecycle callbacks the host delivers. Delegates are created with `init()`
-// when the app value is created.
-//
-// Linux note: Swift can create an instance of a generic class type only
-// through a `required` initializer. On Apple hosts `NSObject.init()` comes
-// from the Objective-C runtime and qualifies; swift-corelibs-foundation's
-// does not. So on Linux the delegate protocols require `init()`: a delegate
-// class must be `final` (the usual `final class AppDelegate: NSObject,
-// UIApplicationDelegate {}`) or declare `required override init()`.
-
 #if canImport(ObjectiveC)
-/// Construction of delegate classes (through `NSObject.init()` here).
 @MainActor
 public protocol _ApplicationDelegateConstruction {}
 #else
-/// Construction of delegate classes (see the Linux note above).
 @MainActor
 public protocol _ApplicationDelegateConstruction { init() }
 #endif
@@ -39,7 +22,6 @@ private func makeDelegate<D: NSObject & _ApplicationDelegateConstruction>(_ type
     #endif
 }
 
-/// The application object handed to delegate callbacks (shim).
 @MainActor
 open class UIApplication {
     public enum State: Int, Sendable {
@@ -66,7 +48,6 @@ open class UIApplication {
     init() {}
 }
 
-/// Lifecycle callbacks of a UIKit-style application delegate (shim).
 @MainActor
 public protocol UIApplicationDelegate: AnyObject, _ApplicationDelegateConstruction {
     func application(_ application: UIApplication,
@@ -90,7 +71,6 @@ extension UIApplicationDelegate {
     public func applicationWillTerminate(_ application: UIApplication) {}
 }
 
-/// The application object of AppKit-style delegates (shim).
 @MainActor
 open class NSApplication {
     public static let shared = NSApplication()
@@ -99,7 +79,6 @@ open class NSApplication {
     init() {}
 }
 
-/// Lifecycle callbacks of an AppKit-style application delegate (shim).
 @MainActor
 public protocol NSApplicationDelegate: AnyObject, _ApplicationDelegateConstruction {
     func applicationWillFinishLaunching(_ notification: Notification)
@@ -123,7 +102,6 @@ extension NSApplicationDelegate {
     public func application(_ application: NSApplication, open urls: [URL]) {}
 }
 
-/// Lifecycle events the host delivers to adaptor delegates.
 package enum AppLifecycleEvent: Equatable {
     case didFinishLaunching
     case willEnterForeground
@@ -134,20 +112,16 @@ package enum AppLifecycleEvent: Equatable {
     case openURLs([URL])
 }
 
-/// An adaptor found among an app's stored properties.
 @MainActor
 package protocol AppDelegateAdaptorProtocol {
     func _deliver(_ event: AppLifecycleEvent)
 }
 
-/// Holds the delegate instance (created once with the app value).
 package final class DelegateBox<D>: @unchecked Sendable {
     package let delegate: D
     init(_ d: D) { delegate = d }
 }
 
-/// Creates a UIKit-style delegate for a SwiftUI app and calls it at the
-/// application's lifecycle events.
 @MainActor
 @propertyWrapper
 public struct UIApplicationDelegateAdaptor<DelegateType: NSObject & UIApplicationDelegate>: DynamicProperty {
@@ -180,8 +154,6 @@ extension UIApplicationDelegateAdaptor: AppDelegateAdaptorProtocol {
     }
 }
 
-/// Creates an AppKit-style delegate for a SwiftUI app and calls it at the
-/// application's lifecycle events.
 @MainActor
 @propertyWrapper
 public struct NSApplicationDelegateAdaptor<DelegateType: NSObject & NSApplicationDelegate>: DynamicProperty {

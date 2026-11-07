@@ -1,5 +1,5 @@
 import re, sys, collections
-types=collections.OrderedDict()  # name -> dict(kind, conf, av, members: list of (av, text))
+types=collections.OrderedDict()
 def T(n):
     if n not in types: types[n]={'kind':'','conf':'','av':'','members':[]}
     return types[n]
@@ -10,7 +10,7 @@ def ios(a):
     if v: r+=' v'+v.group(1)
     if 'depy' in a: r+=' dep'
     return r.strip()
-stack=[]  # (indent, typename, av)
+stack=[]
 for ln in open(sys.argv[1]):
     ln=ln.rstrip('\n')
     if not ln.strip(): continue

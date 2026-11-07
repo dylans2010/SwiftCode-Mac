@@ -1,6 +1,4 @@
 // swift-tools-version:6.0
-// wincap: records one app window (or one app's windows) with ScreenCaptureKit.
-// Generic: it knows nothing about any particular app. See ../README.md.
 import PackageDescription
 
 let package = Package(

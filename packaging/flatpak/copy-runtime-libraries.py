@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-# Copies the libraries the shipped programs need from the toolchain's runtime
-# folder: the closure of DT_NEEDED, so nothing unused ships.
-#
-# usage: copy-runtime-libraries.py <runtime-dir> <install-dir> <scan-dir>...
 import os
 import shutil
 import subprocess
 import sys
-
 
 def needed(path):
     try:
@@ -16,11 +11,9 @@ def needed(path):
         return []
     return [line.split("[")[1].split("]")[0] for line in out.splitlines() if "(NEEDED)" in line]
 
-
 def is_elf(path):
     with open(path, "rb") as f:
         return f.read(4) == b"\x7fELF"
-
 
 def main():
     runtime, install = sys.argv[1], sys.argv[2]
@@ -41,7 +34,6 @@ def main():
             shutil.copy2(source, target)
             queue.append(target)
     print("Swift runtime libraries:", " ".join(sorted(seen)))
-
 
 if __name__ == "__main__":
     main()

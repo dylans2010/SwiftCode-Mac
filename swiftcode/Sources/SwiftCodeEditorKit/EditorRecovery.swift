@@ -5,14 +5,9 @@ import Glibc
 import Darwin
 #endif
 
-/// Unsaved text kept outside the document, so a crash or a killed process does
-/// not lose it. One private file per document under the user's state folder;
-/// it goes when the text is saved or the user gives it up. Only ever read
-/// back into a buffer, as an edit the user can undo.
 public struct EditorRecovery: Sendable {
     public struct Entry: Codable, Equatable, Sendable {
         public var path: String
-        /// The hash of what was on disk when the text was edited.
         public var baseHash: UInt64
         public var text: String
     }
@@ -21,8 +16,6 @@ public struct EditorRecovery: Sendable {
 
     public init(directory: String) { self.directory = directory }
 
-    /// `$XDG_STATE_HOME/swiftcode/recovery`, by default under `~/.local/state`;
-    /// on macOS under Application Support.
     public static var standard: EditorRecovery {
         let env = ProcessInfo.processInfo.environment
         #if os(macOS)
@@ -37,8 +30,6 @@ public struct EditorRecovery: Sendable {
         directory + "/" + String(EditorFile.hash(Data(path.utf8)), radix: 16) + ".json"
     }
 
-    /// Keeps `text` for `path`. Failing is not an error the user can act on:
-    /// the buffer still holds the text, so it returns false and that is all.
     @discardableResult
     public func keep(path: String, baseHash: UInt64, text: String) -> Bool {
         guard let data = try? JSONEncoder().encode(Entry(path: path, baseHash: baseHash, text: text)) else { return false }
@@ -56,7 +47,6 @@ public struct EditorRecovery: Sendable {
         }
     }
 
-    /// What is kept for `path`.
     public func entry(for path: String) -> Entry? {
         guard let data = FileManager.default.contents(atPath: file(for: path)),
               let e = try? JSONDecoder().decode(Entry.self, from: data), e.path == path else { return nil }

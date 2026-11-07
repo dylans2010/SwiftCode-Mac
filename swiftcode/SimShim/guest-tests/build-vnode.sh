@@ -1,13 +1,4 @@
 #!/bin/sh
-# Builds the kqueue EVFILT_VNODE guest probe (specs/simulator/
-# threads-and-events.md §3.10) for the iOS simulator platform. Runs on
-# macOS only.
-#   ../out/guest-tests/vnode/p_vnode   C: a file's and a directory's notes for
-#       the probe's own changes, accumulation, EV_CLEAR, EV_ONESHOT, a child
-#       process's write, a dispatch vnode source; `watch <path> <s>` prints
-#       a path's notes as they come (host writes)
-# Copy the output to the Thor; run there with
-#   swiftcode-simd --device D --oneshot "<dir>/p_vnode <guest folder>"
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/vnode}"

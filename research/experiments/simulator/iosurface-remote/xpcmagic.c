@@ -1,11 +1,3 @@
-/*
- * xpcmagic: which serialization magic does libxpc use on a connection with
- * and without xpc_connection_enable_sim2host_4sim? (original Ycode code, R5)
- * It makes a raw receive right, wraps it in an endpoint
- * (xpc_endpoint_create_mach_port_4sim), connects, sends one dictionary with
- * a reply expected, and prints the first 8 payload bytes of what arrives.
- * Usage: xpcmagic [sim2host]
- */
 #include <mach/mach.h>
 #include <xpc/xpc.h>
 #include <dispatch/dispatch.h>
@@ -38,7 +30,7 @@ int main(int argc, char **argv)
         printf("%s msg %d: id=0x%x size=%u bits=0x%x\n", s2h ? "sim2host" : "plain", i, h->msgh_id, h->msgh_size, h->msgh_bits);
         if (i == 0 && (h->msgh_bits & MACH_MSGH_BITS_COMPLEX)) {
             mach_msg_port_descriptor_t *d = (void *)(buf + sizeof *h + 4);
-            conn = d[0].name; /* the receive right the client hands over */
+            conn = d[0].name;
         } else {
             size_t off = sizeof *h;
             printf("  payload starts: %02x %02x %02x %02x %02x %02x %02x %02x (\"%.4s\")\n", buf[off], buf[off + 1], buf[off + 2],

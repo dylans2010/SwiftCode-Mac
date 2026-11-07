@@ -2,18 +2,16 @@ import Foundation
 import Testing
 @testable import SwiftCodeXPC
 
-/// The look-up request of `bootstrap-wire.md` §3.5, built from its table
-/// (payload only: message offsets 24…203).
 let lookUpPayload: [UInt8] = {
-    var b: [UInt8] = [0x3F, 0x63, 0x70, 0x78, 0x05, 0, 0, 0]                  // 24
-    b += [0x00, 0xF0, 0, 0, 0xA4, 0, 0, 0, 0x06, 0, 0, 0]                     // 32
-    b += ascii("handle") + [0, 0] + [0x00, 0x40, 0, 0] + [UInt8](repeating: 0, count: 8) // 44
-    b += ascii("instance") + [0, 0, 0, 0] + [0x00, 0xA0, 0, 0] + [UInt8](repeating: 0, count: 16) // 64
-    b += ascii("flags") + [0, 0, 0] + [0x00, 0x40, 0, 0] + [UInt8](repeating: 0, count: 8) // 96
+    var b: [UInt8] = [0x3F, 0x63, 0x70, 0x78, 0x05, 0, 0, 0]
+    b += [0x00, 0xF0, 0, 0, 0xA4, 0, 0, 0, 0x06, 0, 0, 0]
+    b += ascii("handle") + [0, 0] + [0x00, 0x40, 0, 0] + [UInt8](repeating: 0, count: 8)
+    b += ascii("instance") + [0, 0, 0, 0] + [0x00, 0xA0, 0, 0] + [UInt8](repeating: 0, count: 16)
+    b += ascii("flags") + [0, 0, 0] + [0x00, 0x40, 0, 0] + [UInt8](repeating: 0, count: 8)
     b += ascii("name") + [0, 0, 0, 0] + [0x00, 0x90, 0, 0] + [0x1A, 0, 0, 0]
-        + ascii("com.apple.cfprefsd.daemon") + [0] + [0, 0]                       // 116
-    b += ascii("type") + [0, 0, 0, 0] + [0x00, 0x40, 0, 0] + [0x07, 0, 0, 0, 0, 0, 0, 0] // 160
-    b += ascii("targetpid") + [0, 0, 0] + [0x00, 0x30, 0, 0] + [UInt8](repeating: 0, count: 8) // 180
+        + ascii("com.apple.cfprefsd.daemon") + [0] + [0, 0]
+    b += ascii("type") + [0, 0, 0, 0] + [0x00, 0x40, 0, 0] + [0x07, 0, 0, 0, 0, 0, 0, 0]
+    b += ascii("targetpid") + [0, 0, 0] + [0x00, 0x30, 0, 0] + [UInt8](repeating: 0, count: 8)
     return b
 }()
 
@@ -31,10 +29,8 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
 }
 
 @Suite struct XPCWireTests {
-    // MARK: Captured example (§3.5)
 
     @Test func capturedLookUpOffsets() {
-        // The table's offsets, relative to the message start.
         #expect(24 + lookUpPayload.count == 204)
         #expect(Array(lookUpPayload[44 - 24..<44 - 24 + 6]) == ascii("handle"))
         #expect(Array(lookUpPayload[180 - 24..<180 - 24 + 9]) == ascii("targetpid"))
@@ -67,7 +63,6 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
     }
 
     @Test func capturedLookUpReplySize() throws {
-        // Reply: complex, one port descriptor, `msgh_size` 116 (§3.5).
         let m = try XPCPipeReply.dictionary([
             "rec_execcnt": .uint64(123_456), "req_pid": .uint64(321), "port": .send(0x1203),
         ])
@@ -76,13 +71,11 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
         #expect(m.messageSize == 116)
     }
 
-    // MARK: Layout rules (§3.1–§3.3)
-
     @Test func headerAndMagic() throws {
         let p = try XPCWire.encodePayload([:])
         #expect(p == [0x3F, 0x63, 0x70, 0x78, 5, 0, 0, 0] + le32(0xF000) + le32(4) + le32(0))
         var alt = p
-        alt[0] = 0x40 // `@cpx`
+        alt[0] = 0x40
         #expect(try XPCWire.decodePayload(alt, ports: []) == .dictionary([:]))
     }
 
@@ -127,14 +120,11 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
     }
 
     @Test func dictionaryKeyPadding() throws {
-        // `name` → 6E 61 6D 65 00 00 00 00 (§3.3).
         let p = try XPCWire.encodePayload(["name": .null])
         #expect(Array(p[20..<28]) == [0x6E, 0x61, 0x6D, 0x65, 0, 0, 0, 0])
         let q = try XPCWire.encodePayload(["abc": .null])
         #expect(Array(q[20..<24]) == ascii("abc") + [0])
     }
-
-    // MARK: Round trips
 
     @Test func roundTripsEveryType() throws {
         let port = { (n: UInt32, t: UInt32) in XPCPort(name: n, disposition: t) }
@@ -163,10 +153,7 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
         #expect(try roundTrip(.dictionary(d)) == .dictionary(d))
     }
 
-    // MARK: Descriptors (§3.4)
-
     @Test func descriptorOrderFollowsSerialization() throws {
-        // The spec's example serialized as c-fd, a-send, b-blob; descriptors [fd, send].
         let d: XPCDict = [
             "c-fd": .fd(XPCPort(name: 0x30, disposition: XPCDisposition.copySend)),
             "a-send": .send(0x10),
@@ -174,7 +161,6 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
         ]
         let e = try XPCWire.encode(.dictionary(d))
         #expect(e.descriptors == [.port(name: 0x30, disposition: 19), .port(name: 0x10, disposition: 20)])
-        // The receiver's names and types replace the sender's.
         let back = try XPCWire.decode(body: e.body, descriptors: [.port(name: 0x903, disposition: 17), .port(name: 0x907, disposition: 17)])
         #expect(back.dictionaryValue?["c-fd"] == .fd(XPCPort(name: 0x903, disposition: 17)))
         #expect(back.dictionaryValue?["a-send"] == .sendRight(XPCPort(name: 0x907, disposition: 17)))
@@ -190,7 +176,6 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
         let e = try XPCWire.encode(o)
         #expect(e.descriptors.map { d -> UInt32 in if case let .port(n, _) = d { n } else { 0 } } == [1, 2, 3, 4, 5])
         #expect(try XPCWire.decode(body: e.body, descriptors: e.descriptors) == o)
-        // Without descriptors, each right is named by its index.
         let unbound = try XPCWire.decodePayload(e.body, ports: nil)
         #expect(unbound.ports.map(\.name) == [0, 1, 2, 3, 4])
     }
@@ -201,26 +186,20 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
         #expect(o.dictionaryValue?["p"] == .receiveRight(XPCPort(name: 0x55, disposition: 16)))
     }
 
-    // MARK: Out-of-line payload (§2.3)
-
     @Test func decodesPayloadInOneOOLDescriptor() throws {
         var d = XPCDict()
         d["blob"] = .data([UInt8](repeating: 0x5A, count: 16000))
         d["name"] = "large"
         let p = try XPCWire.encodePayload(.dictionary(d))
-        // The OOL size is rounded up to 16 KiB multiples; the dictionary length decides.
         let rounded = p + [UInt8](repeating: 0, count: (p.count + 16383) / 16384 * 16384 - p.count)
         let m = XPCPipeMessage(id: 0x4000_0000, descriptors: [.ool(bytes: rounded)], body: [])
         #expect(m.messageSize == 44)
         #expect(try m.decodeDictionary() == d)
-        // With a port-bearing object, the remaining descriptors are the ports.
         d["port"] = .send(1)
         let q = try XPCWire.encodePayload(.dictionary(d))
         let back = try XPCWire.decode(body: [], descriptors: [.ool(bytes: q), .port(name: 0x77, disposition: 17)])
         #expect(back.dictionaryValue?["port"] == .sendRight(XPCPort(name: 0x77, disposition: 17)))
     }
-
-    // MARK: Errors
 
     @Test func rejectsHeaderErrors() {
         #expect(throws: XPCWireError.noPayload) { try XPCWire.decode(body: [], descriptors: []) }
@@ -240,23 +219,18 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
 
     @Test func rejectsBadContainersAndStrings() {
         let h = ascii("?cpx") + le32(5)
-        // Length larger than the payload.
         #expect(throws: XPCWireError.badLength(offset: 12)) {
             try XPCWire.decodePayload(h + le32(0xF000) + le32(100) + le32(0), ports: [])
         }
-        // Count far beyond the bytes.
         #expect(throws: XPCWireError.badLength(offset: 12)) {
             try XPCWire.decodePayload(h + le32(0xE000) + le32(4) + le32(0xFFFF_FFFF), ports: [])
         }
-        // Length that leaves bytes unconsumed.
         #expect(throws: XPCWireError.badLength(offset: 12)) {
             try XPCWire.decodePayload(h + le32(0xE000) + le32(8) + le32(0) + le32(0), ports: [])
         }
-        // An entry running past its container.
         #expect(throws: XPCWireError.truncated(offset: 24)) {
             try XPCWire.decodePayload(h + le32(0xE000) + le32(8) + le32(1) + le32(0x3000) + le64(0), ports: [])
         }
-        // Zero-length string, missing NUL, invalid UTF-8, unterminated key.
         #expect(throws: XPCWireError.badString(offset: 12)) {
             try XPCWire.decodePayload(h + le32(0x9000) + le32(0), ports: [])
         }
@@ -310,8 +284,6 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
         }
     }
 
-    // MARK: Fuzz-style robustness
-
     @Test func everyTruncationThrows() throws {
         let full = try XPCWire.encodePayload(.dictionary(lookUpDictionary))
         for n in 0..<full.count {
@@ -334,7 +306,7 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
                 _ = try? XPCWire.decodePayload(b, ports: nil)
             }
         }
-        #expect(decoded > 0) // some corruptions are benign (values), none crash
+        #expect(decoded > 0)
     }
 
     @Test func randomMutationsNeverCrash() throws {
@@ -355,7 +327,6 @@ func roundTrip(_ o: XPCObject) throws -> XPCObject {
             _ = try? XPCWire.decodePayload(b, ports: nil)
             _ = try? XPCWire.decode(body: b, descriptors: [.port(name: 1, disposition: 17)])
         }
-        // Random byte strings with a valid header.
         for _ in 0..<5000 {
             var b = ascii("?cpx") + le32(5)
             for _ in 0..<Int(rng.next() % 64) { b.append(UInt8(truncatingIfNeeded: rng.next())) }

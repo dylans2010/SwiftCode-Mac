@@ -45,7 +45,7 @@ import Testing
         ** BUILD FAILED **
         """
         let issues = DiagnosticParser.parse(log)
-        #expect(issues.count == 2) // the repeated error is dropped
+        #expect(issues.count == 2)
         #expect(issues[0].notes.map(\.message) == ["did you mean 'std::cout'?"])
         #expect(issues[0].fixIts == [.init(file: "/s/a.c", start: .init(file: "/s/a.c", line: 4, column: 3),
                                            end: .init(file: "/s/a.c", line: 4, column: 3), replacement: "std::")])

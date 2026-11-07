@@ -1,36 +1,4 @@
 #!/bin/bash
-# parity-ladder.sh: the service ladder of specs/simulator/parity-ladder.md on
-# both platforms. Step k ("base+k") = the lean profile with the first k
-# labels of tools/parity-ladder-order.txt enabled again; step 0 is the lean
-# base, step 23 is the full boot. "Only <label>" = all-but-one: every label
-# enabled except <label> (the leave-one-out check).
-#
-#   parity-ladder.sh order                       the ladder, numbered
-#   parity-ladder.sh keep <k>                    comma list of the first k labels
-#   parity-ladder.sh mac <k> <runs> <outdir> [first-index]
-#                                                Mac: <runs> new devices at base+k,
-#                                                first and second boot each
-#   parity-ladder.sh mac-pair <k> <runs> <outdir>
-#                                                Mac: <runs> rounds of base, base+k
-#                                                (interleaved, the ladder protocol)
-#   parity-ladder.sh mac-only <label> <runs> <outdir>
-#                                                Mac: only <label> disabled
-#   parity-ladder.sh mac-summary <outdir...>     Mac: table of the runs
-#   parity-ladder.sh swiftcode <k> <run> [agent]     SwiftCode: one harness run at base+k
-#   parity-ladder.sh swiftcode-only <label> <run> [agent]
-#                                                SwiftCode: only <label> disabled
-#   parity-ladder.sh swiftcode-result <run> [agent]  SwiftCode: result.txt, per-label
-#                                                spawn counts, guest crash count
-#
-# The Mac side uses tools/mac-sim-lean-boot.py (devices named
-# swiftcode-test-L-ladder*, deleted afterwards). The SwiftCode side needs
-# SWIFTCODE_THOR (user@host, SSH key login only) and SWIFTCODE_SX (the harness
-# directory on it, holding bin/bench.sh and <agent>/ with a release build);
-# machine names stay out of the repository. SwiftCode runs use the lean-boot.md
-# §7 harness settings: BENCH_TMPFS=1 BENCH_NOKILL=1 BENCH_SECS=700 (and BENCH_KEEPDEV=1:
-# the harness drops the device copy otherwise, and swiftcode-result reads its TMP), and
-# SWIFTCODE_LEAN_BOOT=daemons with SWIFTCODE_LEAN_BOOT_KEEP = the labels enabled
-# again. A run name can be used once (bench.sh refuses an existing one).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 order=$here/parity-ladder-order.txt
@@ -49,7 +17,6 @@ thor() {
     ssh -o BatchMode=yes "$SWIFTCODE_THOR" "$@"
 }
 safe() { [[ $1 =~ ^[A-Za-z0-9._-]+$ ]] || { echo "parity-ladder: bad name '$1'" >&2; exit 64; }; }
-
 case "${1:-}" in
 order) labels | nl -w2 -s'  ' ;;
 keep) keep "$2" ;;
@@ -58,7 +25,6 @@ mac)
     python3 -I "$here/mac-sim-lean-boot.py" --mode lean --runs "$3" --keep "$k" \
         --prefix "swiftcode-test-L-ladder$2" --out "$4" --start-index "${5:-1}" ;;
 mac-pair)
-    # Interleaved with the base: <runs> rounds of (base, base+k), new devices each.
     k=$(keep "$2")
     for i in $(seq 1 "$3"); do
         python3 -I "$here/mac-sim-lean-boot.py" --mode lean --runs 1 \
@@ -79,8 +45,6 @@ swiftcode|swiftcode-only)
 swiftcode-result)
     agent=${3:-L2}; safe "$2"; safe "$agent"
     progs=$(labels | sed 's/^com\.apple\.//; s/^accessibility\.//' | paste -sd' ' -)
-    # This boot's TMP: the UDID swiftcode-simd prints (older TMPs of the golden
-    # device are kept next to it under other UDIDs).
     thor "r=$SWIFTCODE_SX/$agent/runs/$2; cat \$r/result.txt; grep -m1 'lean boot' \$r/log.txt || echo 'lean boot: off';
           echo \"guest processes ended by a signal other than 9: \$(grep 'ended with status' \$r/log.txt | grep signal | grep -vc 'signal 9;')\";
           u=\$(grep -m1 -o 'UDID [0-9A-F-]*' \$r/log.txt | cut -d' ' -f2);

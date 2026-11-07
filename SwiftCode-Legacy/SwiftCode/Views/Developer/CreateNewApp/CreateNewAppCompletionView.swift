@@ -77,7 +77,6 @@ public struct CreateNewAppCompletionView: View {
 
     private func moveToApplications() {
         guard let builtAppPath = builtAppPath, FileManager.default.fileExists(atPath: builtAppPath) else {
-            // Fallback to checking executable or directory bundle
             let appURL = URL(fileURLWithPath: createdAppPath)
             performMove(sourceURL: appURL)
             return

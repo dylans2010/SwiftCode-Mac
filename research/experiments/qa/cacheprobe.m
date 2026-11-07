@@ -1,9 +1,3 @@
-// cacheprobe: our own probe, public API only. Reports how framework
-// executables that exist only in the dyld shared cache look to a simulator
-// process: stat/lstat/access/open per path spelling, the public dyld query,
-// CFBundle/NSBundle answers, and loaded image names.
-// Build: xcrun -sdk iphonesimulator clang -fobjc-arc -framework Foundation \
-//        -mios-simulator-version-min=27.0 cacheprobe.m -o cacheprobe
 #import <Foundation/Foundation.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -15,7 +9,6 @@
 #include <spawn.h>
 #include <sys/wait.h>
 extern char **environ;
-
 
 static void probePath(const char *label, const char *p) {
     struct stat st; int r, e;
@@ -41,7 +34,7 @@ int main(int argc, char **argv, char **envp, char **apple) {
     @autoreleasepool {
         if (argc == 1) for (char **e = envp; *e; e++) if (!strncmp(*e, "DYLD_", 5) || !strncmp(*e, "SIMULATOR_", 10) || !strncmp(*e, "IPHONE_", 7)) printf("env %s\n", *e);
         if (argc == 1) for (char **a = apple; *a; a++) printf("apple %s\n", *a);
-        if (argc > 2 && !strcmp(argv[1], "--respawn-env")) {  // re-run self with VAR=VALUE replaced or added
+        if (argc > 2 && !strcmp(argv[1], "--respawn-env")) {
             const char *assign = argv[2]; size_t klen = strchr(assign, '=') - assign + 1;
             int n = 0; for (char **e = environ; *e; e++) n++;
             char **env = calloc(n + 2, sizeof *env); int k = 0;
@@ -49,11 +42,11 @@ int main(int argc, char **argv, char **envp, char **apple) {
             env[k++] = (char *)assign; env[k] = NULL;
             pid_t pid; int st = 0;
             const char *self = apple[0] && !strncmp(apple[0], "executable_path=", 16) ? apple[0] + 16 : argv[0];
-            int r = posix_spawn(&pid, self, NULL, NULL, argv + 2, env);  // child argv[0] is the assignment; argv[1...] the rest
+            int r = posix_spawn(&pid, self, NULL, NULL, argv + 2, env);
             if (r) { printf("posix_spawn failed %d\n", r); return 1; }
             waitpid(pid, &st, 0); printf("child status %d\n", st); return 0;
         }
-        if (argc > 1 && strcmp(argv[1], "--full")) {  // query mode: report the public dyld answer for each argument
+        if (argc > 1 && strcmp(argv[1], "--full")) {
             printf("env DYLD_ROOT_PATH=%s\n", getenv("DYLD_ROOT_PATH") ?: "(unset)");
             for (int i = 1; i < argc; i++) printf("contains(%s) = %d\n", argv[i], _dyld_shared_cache_contains_path(argv[i]));
             return 0;

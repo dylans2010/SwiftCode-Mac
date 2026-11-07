@@ -1,8 +1,3 @@
-// fsprobe: our probe (stage 7, agent I4). For each path argument, prints what
-// the public file-system interfaces report about it: stat, statfs, getattrlist
-// volume attributes, NSURL volume resource values, and a directory listing.
-// Used to compare the Mac's simulator (level 3) with Ycode.
-// Build: see build.sh. Run: xcrun simctl spawn <dev> fsprobe <path>...
 #import <Foundation/Foundation.h>
 #include <sys/attr.h>
 #include <sys/mount.h>

@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorShellView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SDKVerticalSplitView.
-
 import AppKit
 import SwiftUI
 

@@ -1,38 +1,10 @@
-// The device's memory directory (specs/simulator/display-stream.md §4.1,
-// frame-profile.md §7 item 1): files the guest rewrites on every frame or
-// input event — the framebuffer library's frame record and, with
-// SWIFTCODE_DISPLAY_TIMING=1, the swap and HID timing rings and the display
-// server's trace — live on a memory file system instead of the device
-// directory's volume, so a render thread's 96-byte `pwrite` never waits for
-// a journal commit of that volume.
-//
-// The guest sees the directory at DEV/swiftcode-memory (a writable prefix of its
-// own); the host directory behind it is chosen at every start, so a restored
-// device reopens the frame record wherever the current setting puts it:
-//
-//   SWIFTCODE_FRAME_RECORD_MEMORY=0   DEV/data/tmp/swiftcode-memory (the data volume; the old behavior)
-//   SWIFTCODE_MEMORY_DIR=<dir>        the memory file system to use (default /dev/shm)
-//
-// A snapshot (the warm-boot save) copies the directory's files to
-// DEV/swiftcode-memory.saved while every guest thread is parked; a restore copies
-// them back before any guest thread runs. A `.owner` file names the process
-// using the directory; a start removes this user's directories whose owner
-// has ended (killed runs, tests). While the device runs, each
-// timing file has a symbolic link of the same name in DEV/data/tmp, where
-// the analysis tools look for it (`swiftcode-display-probe --timing`); the run's
-// end replaces the links with copies and removes the memory directory.
-
 import Foundation
 
 extension DeviceLayout {
-    /// On by default; `SWIFTCODE_FRAME_RECORD_MEMORY=0` keeps the files on the data volume.
     static let memoryFilesEnabled: Bool = ProcessInfo.processInfo.environment["SWIFTCODE_FRAME_RECORD_MEMORY"] != "0"
 
-    /// The guest path of the memory directory (a prefix of its own).
     var memoryGuestPath: String { guestDev + "/swiftcode-memory" }
 
-    /// The memory file system the directories are made in (nil: none usable,
-    /// or the switch is off).
     static var memoryBase: String? {
         guard memoryFilesEnabled else { return nil }
         let base = getenv("SWIFTCODE_MEMORY_DIR").map { String(cString: $0) }.flatMap { $0.isEmpty ? nil : $0 } ?? "/dev/shm"
@@ -42,23 +14,15 @@ extension DeviceLayout {
         return base
     }
 
-    /// The prefix of this user's directory names in `memoryBase`.
     static var memoryNamePrefix: String { "swiftcode-\(getuid())-" }
 
-    /// The host directory behind `memoryGuestPath`.
     var memoryHostPath: String {
         guard let base = Self.memoryBase else { return data + "/tmp/swiftcode-memory" }
-        // One directory per user and device directory (the UDID hashes DEV's path).
         return base + "/" + Self.memoryNamePrefix + Self.stableUDID(for: dev).replacingOccurrences(of: "-", with: "").prefix(16)
     }
 
-    /// The file naming the process that uses a memory directory (never saved).
     static let memoryOwnerName = ".owner"
 
-    /// Removes this user's memory directories whose owning process has ended
-    /// without removing them (a run that was killed, a test): a directory
-    /// whose `.owner` names no live process, or that has none and is more
-    /// than a day old.
     static func sweepStaleMemoryDirectories(except keep: String) {
         guard let base = memoryBase else { return }
         let fm = FileManager.default
@@ -76,19 +40,14 @@ extension DeviceLayout {
         }
     }
 
-    /// Where a snapshot keeps the memory directory's files (on the data volume).
     var memorySavedPath: String { dev + "/swiftcode-memory.saved" }
 
-    /// Host and guest path of a file in the memory directory.
     func memoryFile(_ name: String) -> (host: String, guest: String) {
         (memoryHostPath + "/" + name, memoryGuestPath + "/" + name)
     }
 
-    /// The timing files (written only with SWIFTCODE_DISPLAY_TIMING=1).
     static let memoryTimingNames = ["swiftcode-framebuffer.timing", "swiftcode-simhid.timing", "swiftcode-display.trace"]
 
-    /// Creates the memory directory. A cold boot starts it empty; a restore
-    /// fills it from the snapshot's saved copy.
     func prepareMemoryDirectory() throws {
         let fm = FileManager.default
         let host = memoryHostPath
@@ -109,7 +68,6 @@ extension DeviceLayout {
         }
     }
 
-    /// The snapshot's copy of the memory directory (call with the guest parked).
     func saveMemoryDirectory() {
         let fm = FileManager.default
         let saved = memorySavedPath, partial = saved + ".partial"
@@ -126,8 +84,6 @@ extension DeviceLayout {
         }
     }
 
-    /// The run's end: the timing files go to DEV/data/tmp; the memory
-    /// directory is removed unless it is the data-volume fallback.
     func finishMemoryDirectory() {
         let fm = FileManager.default
         let host = memoryHostPath
@@ -139,7 +95,6 @@ extension DeviceLayout {
         try? fm.removeItem(atPath: host)
     }
 
-    /// Copies a file and its modification time (the restore compares it with the snapshot's).
     static func copyKeepingTime(_ from: String, _ to: String) throws {
         let fm = FileManager.default
         try fm.copyItem(atPath: from, toPath: to)

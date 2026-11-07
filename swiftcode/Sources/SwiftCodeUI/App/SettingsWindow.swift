@@ -3,8 +3,6 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeXcodebuild
 
-/// The settings window: a toolbar of panes; Locations holds the Build
-/// System pop-up.
 @MainActor
 public final class SettingsController: NSViewController {
     public let buildSystemPopUp = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -12,7 +10,6 @@ public final class SettingsController: NSViewController {
     public var onChange: ((BuildSystemPreference) -> Void)?
 
     let locateSwiftBuild: () -> String?
-    /// The note under the pop-up (swbuild path, or the fallback notice).
     public let noteLabel = NSTextField(wrappingLabelWithString: "")
 
     public init(defaults: UserDefaults = .standard, locateSwiftBuild: @escaping () -> String? = { SwiftBuildEngine.locate() }) {
@@ -25,7 +22,6 @@ public final class SettingsController: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The pane's card: Build System and the note under it as its help.
     public private(set) var card: SettingsCardView?
 
     public override func loadView() {
@@ -66,12 +62,10 @@ public final class SettingsController: NSViewController {
         view = root
     }
 
-    /// The engine builds actually use with the current choice.
     public var effectiveEngineName: String {
         BuildSystemPreference.current(defaults).makeEngine(locateSwiftBuild: locateSwiftBuild).name
     }
 
-    /// The note: where swbuild is, or that builds fall back to xcodebuild.
     func updateNote() {
         let choice = BuildSystemPreference.current(defaults)
         if choice == .xcodebuild {
@@ -81,13 +75,11 @@ public final class SettingsController: NSViewController {
         } else {
             noteLabel.stringValue = "The swift-build helper was not found (it ships inside SwiftCode.app; for a build from source, see the README). Builds use xcodebuild until then."
         }
-        // The card shows the note as its row's help text.
         if let row = card?.rowViews.first as? SettingsRowView, let help = row.help {
             help.attributedStringValue = SettingsRowView.helpText(noteLabel.stringValue)
         }
     }
 
-    /// Selects a build system as the pop-up would.
     public func choose(_ p: BuildSystemPreference) {
         _ = view
         buildSystemPopUp.selectItem(at: BuildSystemPreference.allCases.firstIndex(of: p) ?? 0)
@@ -103,17 +95,10 @@ public final class SettingsController: NSViewController {
     }
 }
 
-/// SwiftCode ▸ Settings… (⌘,): one shared sidebar window (reference-ui.md §4,
-/// `specs/ide/settings.md` R3.1–R3.3): 710 × 452, the pane list flush at
-/// the left (179.5 wide, 32-point rows, accent-tinted symbols), the
-/// selected pane's grouped cards at the right under the back/forward
-/// capsule and its title.
 @MainActor
 public final class SettingsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     public static let shared = SettingsWindowController()
-    /// The pane list's width.
     public static let sidebarWidth: CGFloat = SettingsMetrics.sidebarWidth
-    /// The panes (tabless; the sidebar selects).
     public let tabs = NSTabViewController()
     public let sidebar = NSTableView()
     let titleLabel = NSTextField(labelWithString: "")
@@ -123,10 +108,7 @@ public final class SettingsWindowController: NSWindowController, NSTableViewData
     final class History { var back: [Int] = []; var forward: [Int] = [] }
     let history = History()
 
-    /// Pane titles in order: the reference's, then Simulators (SwiftCode's own).
     public static let paneTitles = SettingsPaneOrder.all
-    /// The system's symbols, as the spec describes them (looked up at run
-    /// time; none depicts a product).
     static let paneSymbols = ["gearshape", "circle.lefthalf.filled", "at.circle", "sparkles", "rectangle.on.rectangle",
                               "arrow.triangle.turn.up.right.diamond", "bell", "square.and.pencil", "keyboard", "arrow.triangle.branch",
                               "square.3.layers.3d", "externaldrive", "server.rack"]
@@ -163,13 +145,9 @@ public final class SettingsWindowController: NSWindowController, NSTableViewData
         scroll.drawsBackground = false
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsetsZero
-        // Thirteen rows are taller than the window: the list scrolls.
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
 
-        // The window: the sidebar flush from the top edge to the bottom,
-        // a 0.5-point divider, the white detail pane with the capsule and
-        // the title in its title area and the pane under it.
         let size = SettingsMetrics.windowSize
         let root = NSView(frame: NSRect(origin: .zero, size: size))
         let side = SettingsFillView(SettingsColors.sidebar)
@@ -204,7 +182,6 @@ public final class SettingsWindowController: NSWindowController, NSTableViewData
             capsule.leadingAnchor.constraint(equalTo: detail.leadingAnchor, constant: cap.minX - detailX),
             capsule.topAnchor.constraint(equalTo: detail.topAnchor, constant: cap.minY),
             capsule.widthAnchor.constraint(equalToConstant: cap.width), capsule.heightAnchor.constraint(equalToConstant: cap.height),
-            // The title's ink starts about 1.5 points after its alignment rect.
             titleLabel.leadingAnchor.constraint(equalTo: detail.leadingAnchor, constant: SettingsMetrics.titleX - detailX - 1.5),
             titleLabel.centerYAnchor.constraint(equalTo: detail.topAnchor, constant: SettingsMetrics.titleCenterY),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: detail.trailingAnchor, constant: -SettingsMetrics.cardInset),
@@ -217,15 +194,10 @@ public final class SettingsWindowController: NSWindowController, NSTableViewData
         window.contentView = root
         window.title = "General"
         window.titlebarAppearsTransparent = true
-        // The pane's title in the detail names it; the window title (Window
-        // menu, accessibility) is not drawn.
         window.titleVisibility = .hidden
-        // An empty unified toolbar gives the 52-point title area, with the
-        // window buttons at x 19, 42 and 65 on y 26 (R3.1).
         window.toolbar = NSToolbar(identifier: "SwiftCodeSettings")
         window.toolbarStyle = .unified
         window.setContentSize(size)
-        // Fixed at 710 × 452 (the size on other panes is open, R3.4).
         window.contentMinSize = size
         window.contentMaxSize = size
         window.isMovableByWindowBackground = true
@@ -240,7 +212,6 @@ public final class SettingsWindowController: NSWindowController, NSTableViewData
         sidebar.selectRowIndexes([0], byExtendingSelection: false)
         updateTitle()
         locations.onChange = { p in
-            // Open workspaces switch engines for their next build.
             for doc in NSDocumentController.shared.documents {
                 for wc in doc.windowControllers {
                     (wc as? WorkspaceWindowController)?.session.engine = p.makeEngine()
@@ -255,7 +226,6 @@ public final class SettingsWindowController: NSWindowController, NSTableViewData
 
     public var selectedPane: String { Self.paneTitles[tabs.selectedTabViewItemIndex] }
 
-    /// Selects a pane (recorded for back/forward).
     public func select(_ index: Int, recording: Bool = true) {
         guard Self.paneTitles.indices.contains(index), index != tabs.selectedTabViewItemIndex else { return }
         if recording { history.back.append(tabs.selectedTabViewItemIndex); history.forward = [] }
@@ -295,7 +265,6 @@ public final class SettingsWindowController: NSWindowController, NSTableViewData
         if sidebar.selectedRow >= 0 { select(sidebar.selectedRow) }
     }
 
-    /// Shows the window on the named pane.
     public func show(pane title: String) {
         if let i = Self.paneTitles.firstIndex(of: title) { select(i) }
         showWindow(nil)

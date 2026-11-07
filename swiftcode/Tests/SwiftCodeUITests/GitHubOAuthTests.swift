@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeUI
 
-/// The testable parts of `GitHubOAuth` (ported from Legacy's
-/// `GitHubOAuth`): `.env` parsing and OAuth callback matching. The
-/// `ASWebAuthenticationSession` flow itself cannot run headless and is
-/// not covered here.
 @Suite struct GitHubOAuthTests {
     @Test func dotEnvParsingSkipsCommentsAndStripsQuotes() {
         let parsed = DotEnvLoader.parse(contents: """
@@ -14,12 +10,11 @@ import Testing
         CLIENT_SECRET="secret value"
         SINGLE='quoted'
         EMPTY=
-        SPACED =  padded  
+        SPACED =  padded
         """)
         #expect(parsed["GITHUB_CLIENT_ID"] == "abc123")
         #expect(parsed["CLIENT_SECRET"] == "secret value")
         #expect(parsed["SINGLE"] == "quoted")
-        // Legacy's parser drops `KEY=` lines (split omits the empty value).
         #expect(parsed["EMPTY"] == nil)
         #expect(parsed["SPACED"] == "padded")
         #expect(parsed["# a comment"] == nil)

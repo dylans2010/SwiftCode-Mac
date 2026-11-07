@@ -10,7 +10,6 @@ public struct PersonalDocCommandPalette: View {
     @State private var searchText = ""
     @State private var selectedCategory: PaletteCategory = .all
 
-    // State cached lists to search locally after fetch
     @State private var documents: [Document] = []
     @State private var wikiPages: [WikiPage] = []
     @State private var whiteboards: [WhiteboardRecord] = []
@@ -60,7 +59,6 @@ public struct PersonalDocCommandPalette: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Search Input
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16))
@@ -87,7 +85,6 @@ public struct PersonalDocCommandPalette: View {
 
             Divider()
 
-            // Category Bar
             Picker("Category", selection: $selectedCategory) {
                 ForEach(PaletteCategory.allCases) { cat in
                     Text(cat.rawValue).tag(cat)
@@ -101,7 +98,6 @@ public struct PersonalDocCommandPalette: View {
 
             Divider()
 
-            // Filtered Items List
             List {
                 let items = filteredItems
                 if items.isEmpty {
@@ -145,7 +141,6 @@ public struct PersonalDocCommandPalette: View {
 
             Divider()
 
-            // Footer bar
             HStack {
                 Text("Double-click or press return to open selection")
                     .font(.system(size: 10))
@@ -177,7 +172,6 @@ public struct PersonalDocCommandPalette: View {
     private var filteredItems: [PaletteItem] {
         var result: [PaletteItem] = []
 
-        // 1. Navigation items (ModuleKind links)
         if selectedCategory == .all || selectedCategory == .nav {
             for kind in ModuleKind.allCases {
                 if searchText.isEmpty || kind.rawValue.localizedCaseInsensitiveContains(searchText) {
@@ -193,7 +187,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 2. Document items
         if selectedCategory == .all || selectedCategory == .docs {
             for doc in documents {
                 if searchText.isEmpty || doc.title.localizedCaseInsensitiveContains(searchText) {
@@ -209,7 +202,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 3. Wiki page items
         if selectedCategory == .all || selectedCategory == .wiki {
             for page in wikiPages {
                 if searchText.isEmpty || page.title.localizedCaseInsensitiveContains(searchText) {
@@ -225,7 +217,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 4. Ecosystem items (Whiteboards, Snippets, Snapshots)
         if selectedCategory == .all || selectedCategory == .ecosystem {
             for wb in whiteboards {
                 if searchText.isEmpty || wb.title.localizedCaseInsensitiveContains(searchText) {
@@ -267,7 +258,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 5. Add Quick Creation Actions at the top or bottom of the search
         if selectedCategory == .all {
             let actions = [
                 PaletteItem(

@@ -1,17 +1,13 @@
-// StoreKit 2 errors and verification results (errors.md §1–§2; formats.md §2).
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 import StoreKitSigning
 
-/// A `URLError.Code` from its raw value (the initializer is failable on some platforms).
 @_spi(SwiftCode) public func urlErrorCode(_ raw: Int) -> URLError.Code {
     let code: URLError.Code? = URLError.Code(rawValue: raw)
     return code ?? .unknown
 }
 
-/// `StoreKitError` (errors.md §1). The payload cases come first so that the
-/// bridged `NSError` codes match the observed ones: `systemError` 1, `unknown` 2.
 public enum StoreKitError: Error, Sendable {
     case networkError(URLError)
     case systemError(any Error & Sendable)
@@ -35,7 +31,6 @@ public enum StoreKitError: Error, Sendable {
         }
     }
 
-    /// The kind without its payload, for comparisons.
     public var swiftcodeKind: String {
         switch self {
         case .networkError: return "networkError"
@@ -65,12 +60,10 @@ extension StoreKitError: LocalizedError {
     }
 }
 
-/// Wraps a signed value with the outcome of its verification.
 public enum VerificationResult<SignedType: Sendable>: Sendable {
     case unverified(SignedType, VerificationResult<SignedType>.VerificationError)
     case verified(SignedType)
 
-    /// `VerificationResult.VerificationError` (errors.md §2).
     public enum VerificationError: Error, Hashable, Sendable {
         case revokedCertificate
         case invalidCertificateChain
@@ -91,7 +84,6 @@ public enum VerificationResult<SignedType: Sendable>: Sendable {
         }
     }
 
-    /// The value, or the verification error.
     public var payloadValue: SignedType {
         get throws {
             switch self {
@@ -101,7 +93,6 @@ public enum VerificationResult<SignedType: Sendable>: Sendable {
         }
     }
 
-    /// The value whether or not it verified.
     public var unsafePayloadValue: SignedType {
         switch self {
         case .verified(let v), .unverified(let v, _): return v
@@ -109,14 +100,11 @@ public enum VerificationResult<SignedType: Sendable>: Sendable {
     }
 }
 
-/// A value that carries its compact JWS (SwiftCode's link between a signed
-/// value and its `VerificationResult`).
 public protocol SwiftCodeSignedValue: Sendable {
     var swiftcodeJWS: String { get }
 }
 
 extension VerificationResult where SignedType: SwiftCodeSignedValue {
-    /// The compact JWS.
     public var jwsRepresentation: String { unsafePayloadValue.swiftcodeJWS }
 
     private var parts: [Substring] { jwsRepresentation.split(separator: ".", omittingEmptySubsequences: false) }
@@ -124,7 +112,6 @@ extension VerificationResult where SignedType: SwiftCodeSignedValue {
     public var headerData: Data { Base64URL.decode(parts[0]) ?? Data() }
     public var payloadData: Data { parts.count > 1 ? Base64URL.decode(parts[1]) ?? Data() : Data() }
     public var signatureData: Data { parts.count > 2 ? Base64URL.decode(parts[2]) ?? Data() : Data() }
-    /// The data the signature covers.
     public var signedData: Data { Data(parts.prefix(2).joined(separator: ".").utf8) }
 
     private var payloadJSON: JSONValue? { try? JSONParser.parse(payloadData) }

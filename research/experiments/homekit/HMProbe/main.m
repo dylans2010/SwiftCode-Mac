@@ -1,18 +1,3 @@
-// HMProbe: black-box probe of HomeKit's public API behaviour on a simulator.
-// Our own code. It calls only public HomeKit/UIKit API and prints one
-// "HMPROBE ..." line per observation to stderr.
-//
-// Launch arguments:
-//   -mode auth      create a home manager, log status and callbacks only
-//   -mode model     full object-model walk: homes, rooms, zones, groups,
-//                   action sets, triggers, events, errors, notifications
-//   -mode list      dump every home the manager reports (persistence check)
-//   -mode cleanup   remove every home
-//   -mode browse    run HMAccessoryBrowser for 10 s, log counts only
-//   -mode setup     start the system accessory-setup flow and log the result
-//   -mode legacy    start the deprecated addAndSetupAccessories flow
-//   -mode objects   events, predicates, ranges, setup payloads: no home needed
-//   -mode consts    print every public string constant (names from headers)
 #import <UIKit/UIKit.h>
 #import <HomeKit/HomeKit.h>
 #import <CoreLocation/CoreLocation.h>
@@ -103,7 +88,6 @@ static NSString *Names(NSArray *objs) {
 - (void)homeDidUpdateSupportedFeatures:(HMHome *)h { P(@"[%@] cb homeDidUpdateSupportedFeatures", self.tag); }
 - (void)home:(HMHome *)h didEncounterError:(NSError *)e forAccessory:(HMAccessory *)a { P(@"[%@] cb didEncounterError %@", self.tag, E(e)); }
 - (void)accessoryBrowser:(HMAccessoryBrowser *)b didFindNewAccessory:(HMAccessory *)a {
-    // Counts and categories only: never names of devices on the network.
     P(@"[%@] cb browser didFindNewAccessory category=%@ total=%lu", self.tag, a.category.categoryType, (unsigned long)b.discoveredAccessories.count);
 }
 - (void)accessoryBrowser:(HMAccessoryBrowser *)b didRemoveNewAccessory:(HMAccessory *)a {
@@ -117,7 +101,7 @@ typedef void (^Done)(void);
 typedef void (^Step)(Done done);
 
 @interface Runner : NSObject
-@property (nonatomic, strong) NSMutableArray<NSArray *> *steps; // [name, Step]
+@property (nonatomic, strong) NSMutableArray<NSArray *> *steps;
 @property (nonatomic) NSUInteger index;
 @property (nonatomic) NSUInteger generation;
 @property (nonatomic) BOOL abortRest;
@@ -233,8 +217,6 @@ static void DumpHome(HMHome *h) {
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
     P(@"START mode=%@ bundle=%@ usageString=%d os=%@", mode, NSBundle.mainBundle.bundleIdentifier,
       info[@"NSHomeKitUsageDescription"] != nil, UIDevice.currentDevice.systemVersion);
-    // HomeKit work starts from didFinishLaunching (before any scene exists),
-    // as many apps do; the scene only shows a label.
     if ([mode isEqualToString:@"consts"]) { [self consts]; return YES; }
     if ([mode isEqualToString:@"auth"]) { [self authOnly]; return YES; }
     if ([mode isEqualToString:@"list"]) { [self listOnly]; return YES; }
@@ -369,11 +351,8 @@ static void DumpHome(HMHome *h) {
         P(@"CONST %@ = %@", name, *p);
         n++;
     }
-    // Localized descriptions are only reachable through objects; the type
-    // names are what HomeKit reports on HMService/HMCharacteristic.
     P(@"END consts found=%lu missing=%lu", (unsigned long)n, (unsigned long)missing);
 }
-
 
 #pragma mark - objects that need no home
 
@@ -462,7 +441,6 @@ static void DumpHome(HMHome *h) {
 
     [R add:@"wait-initial-homes" step:^(Done done) {
         if (ws.mgrA.homes.count || ws.mgrA.authorizationStatus & HMHomeManagerAuthorizationStatusDetermined) {
-            // Still wait for the first callback; it tells us the data is loaded.
         }
         ws.obsA.onHomes = ^{ done(); };
     }];
@@ -708,7 +686,6 @@ static void DumpHome(HMHome *h) {
 #pragma clang diagnostic pop
     }];
     [R add:@"manageUsers" step:^(Done done) {
-        // Presents system UI on a device; record what the simulator does.
         [home manageUsersWithCompletionHandler:^(NSError *e) { P(@"manageUsers -> %@", E(e)); done(); }];
     }];
     [R add:@"removeTrigger" step:^(Done done) {

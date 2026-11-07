@@ -1,15 +1,9 @@
 import Foundation
 
-/// Renders one `#Preview` of a file to a PNG headlessly: writes the
-/// `PreviewRenderHost` package, builds it against OpenViews and runs it
-/// (`swiftcode preview --render`, the MCP server's `preview_render`). See
-/// specs/ide/previews.md §Linux.
 public enum PreviewRenderRunner {
     public struct Failure: Error, CustomStringConvertible, Sendable {
         public var description: String
-        /// The build's or the host's output, when there is one.
         public var log: String
-        /// 1: the preview did not build or render; 3: it cannot be rendered.
         public var status: Int32
         public init(_ description: String, log: String = "", status: Int32 = 3) {
             self.description = description
@@ -18,9 +12,6 @@ public enum PreviewRenderRunner {
         }
     }
 
-    /// Renders `name` (or the first preview) of `file` to `output`. `starts`
-    /// are folders the OpenViews package is looked for above; `progress`
-    /// gets status lines. Blocks: call it off the main thread.
     public static func render(file: String, name: String?, output: String, starts: [URL],
                               environment: [String: String] = ProcessInfo.processInfo.environment,
                               progress: (String) -> Void = { _ in }) -> Result<URL, Failure> {
@@ -48,7 +39,6 @@ public enum PreviewRenderRunner {
             for (path, contents) in files {
                 let url = dir.appendingPathComponent(path)
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-                // Unchanged files keep their dates, so rebuilds stay incremental.
                 if (try? String(contentsOf: url, encoding: .utf8)) != contents { try contents.write(to: url, atomically: true, encoding: .utf8) }
             }
         } catch {

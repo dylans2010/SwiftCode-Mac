@@ -1,18 +1,8 @@
-// The stream image a portable viewer draws into (display-stream.md §4.3):
-// device pixels / downscale, BGRX in memory (byte 0 blue; the fourth byte
-// is opaque), top row first. JPEG tiles are decoded by CSwiftCodeCodec (the
-// system's libjpeg, loaded at run time) straight into the canvas, zlib
-// tiles are inflated into it; tiles never overlap, so a frame's tiles are
-// decoded in parallel. The canvas keeps the union of the rectangles
-// written since the front end last took it, so a window uploads only what
-// changed.
-
 import CSwiftCodeCodec
 import CSwiftCodeVideo
 import Foundation
 import SwiftCodeDisplayStream
 
-/// A rectangle in stream-image pixels.
 public struct PixelRect: Equatable, Sendable {
     public var x: Int, y: Int, width: Int, height: Int
     public init(x: Int, y: Int, width: Int, height: Int) { (self.x, self.y, self.width, self.height) = (x, y, width, height) }
@@ -27,11 +17,7 @@ public struct PixelRect: Equatable, Sendable {
 }
 
 public final class StreamCanvas: @unchecked Sendable {
-    /// What the canvas holds: BGRX pixels (tiles) or the last decoded video
-    /// picture as planes (§14; NV12, which the window shows without
-    /// converting, or planar 4:4:4).
     public enum Format: Sendable { case bgrx, nv12, yuv444 }
-    /// A decoded video picture: `u` is the interleaved chroma of NV12, `v` nil then.
     public struct VideoPlanes {
         public var format: Format
         public var y: UnsafePointer<UInt8>, u: UnsafePointer<UInt8>, v: UnsafePointer<UInt8>?
@@ -42,10 +28,8 @@ public final class StreamCanvas: @unchecked Sendable {
     private var decoder: OpaquePointer?
     private var decoderEncoding: DisplayEncoding?
     private var planes: VideoPlanes?
-    /// The planes were converted into `memory` since they arrived.
     private var planesConverted = false
     public let bytesPerRow: Int
-    /// The pixels (BGRX). Read them only under `withPixels`.
     private let memory: UnsafeMutableRawPointer
     private let lock = NSLock()
     private var dirty = PixelRect(x: 0, y: 0, width: 0, height: 0)
@@ -56,7 +40,6 @@ public final class StreamCanvas: @unchecked Sendable {
         self.height = height
         bytesPerRow = width * 4
         memory = UnsafeMutableRawPointer.allocate(byteCount: bytesPerRow * height, alignment: 64)
-        // Opaque black.
         let words = memory.bindMemory(to: UInt32.self, capacity: width * height)
         words.initialize(repeating: 0xFF00_0000, count: width * height)
         dirty = PixelRect(x: 0, y: 0, width: width, height: height)
@@ -67,11 +50,8 @@ public final class StreamCanvas: @unchecked Sendable {
         if let decoder { yvid_dec_close(decoder) }
     }
 
-    /// Whether this host can decode an encoding (JPEG needs libjpeg at build
-    /// and run time, zlib needs libz at run time, video NVDEC for that codec).
     public static func canDecode(_ e: DisplayEncoding) -> Bool { decodeProblem(e) == nil }
 
-    /// Why this host cannot decode an encoding (nil: it can).
     public static func decodeProblem(_ e: DisplayEncoding) -> String? {
         func video(_ codec: Int32, _ yuv444: Int32, _ what: String) -> String? {
             guard yvid_dec_available() != 0 else { return "no NVDEC here (libnvcuvid or an NVIDIA GPU is missing)" }
@@ -88,14 +68,10 @@ public final class StreamCanvas: @unchecked Sendable {
         }
     }
 
-    /// The encodings this host decodes, in order of preference (a window
-    /// shows NV12 on the GPU, so 4:4:4 is left to whoever asks for it).
     public static var decodableEncodings: [String] {
         [DisplayEncoding.hevc, .h264, .jpeg, .zlibBGRA].filter(canDecode).map(\.name)
     }
 
-    /// Draws a frame's tiles; false when one was out of bounds or could not
-    /// be decoded (the viewer then asks for a keyframe).
     public func apply(_ frame: DisplayFrame) -> Bool {
         guard frame.width == width, frame.height == height else { return false }
         if frame.encoding.isVideo { return applyVideo(frame) }
@@ -103,8 +79,6 @@ public final class StreamCanvas: @unchecked Sendable {
         let results = UnsafeMutableBufferPointer<Bool>.allocate(capacity: max(tiles.count, 1))
         results.initialize(repeating: false)
         defer { results.deallocate() }
-        // Addresses as integers: the closure runs on several threads, each
-        // writing its own tile's rectangle and its own result slot.
         let baseBits = UInt(bitPattern: memory), outBits = UInt(bitPattern: results.baseAddress!)
         let row = bytesPerRow, w = width, h = height, encoding = frame.encoding
         let work: @Sendable (Int) -> Void = { i in
@@ -120,13 +94,12 @@ public final class StreamCanvas: @unchecked Sendable {
                 case .zlibBGRA:
                     return Self.inflate(s, src.count, into: dst, rowBytes: row, width: t.width, height: t.height)
                 case .h264, .hevc, .hevc444:
-                    return false  // whole pictures: applyVideo
+                    return false
                 }
             }
             out.storeBytes(of: ok, toByteOffset: i * MemoryLayout<Bool>.stride, as: Bool.self)
         }
         lock.lock()
-        // Tiles draw into the BGRX pixels again (a stream that left video).
         if planes != nil {
             convertPlanes()
             format = .bgrx
@@ -138,7 +111,6 @@ public final class StreamCanvas: @unchecked Sendable {
         return tiles.indices.allSatisfy { results[$0] }
     }
 
-    /// A video access unit: decoded by NVDEC; the canvas then shows its planes.
     private func applyVideo(_ frame: DisplayFrame) -> Bool {
         guard let tile = frame.tiles.first, frame.tiles.count == 1 else { return false }
         lock.lock()
@@ -163,8 +135,6 @@ public final class StreamCanvas: @unchecked Sendable {
         return true
     }
 
-    /// The planes into the BGRX memory, once per picture (on the CPU: screenshots,
-    /// image checks and a stream that left video; not the display path).
     private func convertPlanes() {
         guard let p = planes, !planesConverted else { return }
         let dst = memory.assumingMemoryBound(to: UInt8.self)
@@ -176,8 +146,6 @@ public final class StreamCanvas: @unchecked Sendable {
         planesConverted = true
     }
 
-    /// Runs `body` with the NV12 planes of the last video picture and whether
-    /// they changed since the last call (nil: no NV12 picture).
     public func withNV12<T>(_ body: (UnsafePointer<UInt8>, UnsafePointer<UInt8>, Int, Bool) -> T) -> T? {
         lock.lock()
         defer { lock.unlock() }
@@ -187,7 +155,6 @@ public final class StreamCanvas: @unchecked Sendable {
         return body(p.y, p.u, p.pitch, changed)
     }
 
-    /// Runs `body` with the last video picture's planes (nil: no video picture).
     public func withVideoPlanes<T>(_ body: (VideoPlanes, Bool) -> T) -> T? {
         lock.lock()
         defer { lock.unlock() }
@@ -197,8 +164,6 @@ public final class StreamCanvas: @unchecked Sendable {
         return body(p, changed)
     }
 
-    /// One pixel as blue, green, red, whatever the canvas holds. Cheap for a
-    /// few thousand samples, where converting a whole picture would stall the caller.
     public func samplesBGR(_ points: [(x: Int, y: Int)]) -> [(UInt8, UInt8, UInt8)] {
         lock.lock()
         defer { lock.unlock() }
@@ -237,8 +202,6 @@ public final class StreamCanvas: @unchecked Sendable {
         return true
     }
 
-    /// Runs `body` with the pixels and the rectangle changed since the last
-    /// call (empty: nothing), then clears it.
     public func withPixels<T>(_ body: (UnsafeRawPointer, Int, PixelRect) -> T) -> T {
         lock.lock()
         defer { lock.unlock() }
@@ -248,10 +211,8 @@ public final class StreamCanvas: @unchecked Sendable {
         return body(UnsafeRawPointer(memory), bytesPerRow, d)
     }
 
-    /// Marks everything changed (a new texture must get all of it).
     public func invalidate() { lock.withLock { dirty = PixelRect(x: 0, y: 0, width: width, height: height) } }
 
-    /// A copy of the pixels as RGBA rows (for PNGs and image checks).
     public func rgba() -> [UInt8] {
         lock.lock()
         defer { lock.unlock() }
@@ -269,8 +230,6 @@ public final class StreamCanvas: @unchecked Sendable {
         return out
     }
 
-    /// Grey samples of the image on a grid (rows × columns), 0–255: what
-    /// the script's `wait-home` and `wait-change` look at.
     public func greySamples(rows: Int = 64, columns: Int = 48) -> [UInt8] {
         lock.lock()
         defer { lock.unlock() }
@@ -278,7 +237,6 @@ public final class StreamCanvas: @unchecked Sendable {
         var out: [UInt8] = []
         out.reserveCapacity(rows * columns)
         if let p = planes {
-            // The luma plane is the grey image (video range, close enough for the checks).
             for r in 0..<rows {
                 let y = min(height - 1, (2 * r + 1) * height / (2 * rows))
                 for c in 0..<columns { out.append(p.y[y * p.pitch + min(width - 1, (2 * c + 1) * width / (2 * columns))]) }
@@ -297,16 +255,13 @@ public final class StreamCanvas: @unchecked Sendable {
     }
 }
 
-/// Image checks of the script commands (display-stream.md §7).
 public enum ImageChecks {
-    /// A lit screen: less than 90 % of the samples darker than 24.
     public static func isLit(_ samples: [UInt8]) -> Bool {
         guard !samples.isEmpty else { return false }
         let dark = samples.filter { $0 < 24 }.count
         return Double(dark) < 0.9 * Double(samples.count)
     }
 
-    /// The share (0–100) of samples that differ by more than 24 levels.
     public static func changedPercent(_ a: [UInt8], _ b: [UInt8]) -> Double {
         guard a.count == b.count, !a.isEmpty else { return 100 }
         let n = zip(a, b).filter { abs(Int($0) - Int($1)) > 24 }.count

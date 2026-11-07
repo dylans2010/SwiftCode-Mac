@@ -1,15 +1,9 @@
-// EKEvent (interface.md §3, recurrence.md §6).
-
 import Foundation
 
 public class EKEvent: EKCalendarItem {
     var event = EventFields()
-    /// Master item identifier for an expanded occurrence or a detached one.
     var masterID: String?
-    /// Original start of an occurrence (occurrenceDate) when it differs from
-    /// the master's own start, or of a detached occurrence.
     var originalStart: Date?
-    /// An occurrence produced by expansion (not a stored row of its own).
     var isOccurrence = false
     var detached = false
     var eventStatus = EKEventStatus.none
@@ -23,15 +17,10 @@ public class EKEvent: EKCalendarItem {
         super.init(store: store)
     }
 
-    // MARK: Identifiers
-
-    /// nil until saved, and after the store was reset.
     public var eventIdentifier: String? {
         guard persisted, isValid else { return nil }
         return storedEventID
     }
-
-    // MARK: Properties
 
     public var isAllDay: Bool {
         get { event.allDay }
@@ -72,7 +61,6 @@ public class EKEvent: EKCalendarItem {
     public var organizer: EKParticipant? { nil }
     public var isDetached: Bool { detached }
 
-    /// Original start of this occurrence; the start for a single event.
     public var occurrenceDate: Date! { originalStart ?? event.start }
 
     public var birthdayContactIdentifier: String? { nil }
@@ -84,8 +72,6 @@ public class EKEvent: EKCalendarItem {
         guard let a = event.start, let b = other.event.start else { return .orderedSame }
         return a == b ? .orderedSame : (a < b ? .orderedAscending : .orderedDescending)
     }
-
-    // MARK: Change tracking
 
     override func snapshot() -> ItemSnapshot {
         var s = super.snapshot()

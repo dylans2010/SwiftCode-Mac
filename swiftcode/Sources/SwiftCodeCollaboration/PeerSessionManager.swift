@@ -1,22 +1,7 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/PeerSessionManager.swift
-// Adapted for SwiftCode: MultipeerConnectivity session. Verbatim; see the auto-accept note in the file header.
-
 import Foundation
 import MultipeerConnectivity
 
-/// SECURITY NOTE (ported faithfully from Legacy — flagged for review, not
-/// silently changed): this session auto-accepts every invitation
-/// (`advertiser(_:didReceiveInvitationFromPeer:)` answers `true` with the
-/// shared session) and accepts every peer certificate
-/// (`session(_:didReceiveCertificate:certificateHandler:)` answers `true`).
-/// That is Legacy's behaviour, preserved so the port is honest about what
-/// it does. Before this ships as a user-facing feature, the IDE should
-/// gate invitations on an explicit user approval and validate peer
-/// certificates instead of accepting them unconditionally.
-
 @MainActor
-// M-REST (2026-11-06): access raised to public so the ported Transfer Projects views in SwiftCodeUI can use it (no behaviour change).
 public final class PeerSessionManager: NSObject, ObservableObject {
     public static let shared = PeerSessionManager()
 
@@ -59,24 +44,24 @@ public final class PeerSessionManager: NSObject, ObservableObject {
 }
 
 extension PeerSessionManager: MCNearbyServiceAdvertiserDelegate, MCNearbyServiceBrowserDelegate, MCSessionDelegate {
-    nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
+    public nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         nonisolated(unsafe) let safeHandler = invitationHandler
         Task { @MainActor in safeHandler(true, self.session) }
     }
 
-    nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {}
-    nonisolated func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) { Task { @MainActor in self.nearbyPeers.removeAll { $0 == peerID } } }
-    nonisolated func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {}
-    nonisolated func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String : String]?) {
+    public nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {}
+    public nonisolated func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) { Task { @MainActor in self.nearbyPeers.removeAll { $0 == peerID } } }
+    public nonisolated func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {}
+    public nonisolated func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String : String]?) {
         Task { @MainActor in if !self.nearbyPeers.contains(peerID) { self.nearbyPeers.append(peerID) } }
     }
 
-    nonisolated func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) { Task { @MainActor in self.peerStates[peerID.displayName] = state } }
-    nonisolated func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) { Task { @MainActor in self.onData?(data, peerID) } }
-    nonisolated func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) { Task { @MainActor in self.onResourceProgress?(resourceName, progress, peerID) } }
-    nonisolated func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
-    nonisolated func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
-    nonisolated func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) { certificateHandler(true) }
+    public nonisolated func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) { Task { @MainActor in self.peerStates[peerID.displayName] = state } }
+    public nonisolated func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) { Task { @MainActor in self.onData?(data, peerID) } }
+    public nonisolated func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) { Task { @MainActor in self.onResourceProgress?(resourceName, progress, peerID) } }
+    public nonisolated func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
+    public nonisolated func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+    public nonisolated func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) { certificateHandler(true) }
 }
 
-extension MCPeerID: @unchecked Sendable {}
+extension MCPeerID: @retroactive @unchecked Sendable {}

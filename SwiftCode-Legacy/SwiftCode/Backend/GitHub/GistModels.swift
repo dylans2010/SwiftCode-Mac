@@ -47,7 +47,6 @@ public struct GistFile: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-
 public struct GistOwner: Codable, Hashable, Sendable {
     public let login: String
     public let avatarUrl: String?
@@ -86,7 +85,6 @@ public struct GistResponse: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-
 public struct GistHistoryEntry: Codable, Identifiable, Hashable, Sendable {
     public var id: String { version }
     public let version: String
@@ -97,7 +95,6 @@ public struct GistHistoryEntry: Codable, Identifiable, Hashable, Sendable {
         case committedAt = "committed_at"
     }
 }
-
 
 public struct GistComment: Codable, Identifiable, Hashable, Sendable {
     public let id: Int
@@ -132,7 +129,6 @@ public struct GistRevision: Codable, Identifiable, Hashable, Sendable {
         case committedAt = "committed_at"
     }
 }
-
 
 public struct CreateGistRequest: Encodable {
     public let description: String?

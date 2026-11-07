@@ -1,11 +1,6 @@
-// Accessories in the in-memory store: publishing endpoints, discovery,
-// pairing into a home (building records from the attribute database),
-// characteristic reads, writes and notifications, reachability.
-
 import Foundation
 
 extension SwiftCodeLocalHomeStore {
-    // MARK: Endpoints and discovery
 
     func pairedHomes(of endpointID: String) -> [Int] {
         state.homes.indices.filter { h in state.homes[h].accessories.contains { $0.endpointID == endpointID } }
@@ -27,8 +22,6 @@ extension SwiftCodeLocalHomeStore {
         }
     }
 
-    /// After an endpoint's accessories left every home: unpaired again, so
-    /// browsers see it (if it is still published).
     func releaseEndpoint(_ endpointID: String) {
         guard pairedHomes(of: endpointID).isEmpty, let endpoint = endpoints[endpointID] else { return }
         endpoint.delegate = nil
@@ -50,8 +43,6 @@ extension SwiftCodeLocalHomeStore {
             }
         }
     }
-
-    // MARK: SwiftCodeAccessoryEndpointDelegate
 
     public func endpoint(_ endpointID: String, didUpdateValues values: [SwiftCodeCharacteristicAddress: SwiftCodeHomeValue]) {
         queue.async {
@@ -79,9 +70,6 @@ extension SwiftCodeLocalHomeStore {
         queue.async { self.setReachability(endpointID: endpointID, reachable: reachable) }
     }
 
-    // MARK: Pairing
-
-    /// Category of a bridged accessory from its primary service (SwiftCode table).
     static func category(forPrimaryService type: String?) -> String {
         switch type {
         case HMServiceTypeLightbulb: return HMAccessoryCategoryTypeLightbulb
@@ -105,7 +93,6 @@ extension SwiftCodeLocalHomeStore {
         }
     }
 
-    /// HomeKit records for an attribute database (one per `aid`).
     func records(from db: SwiftCodeAccessoryDatabase, endpoint: SwiftCodeAccessoryEndpoint, room: UUID,
                  primaryID: UUID) -> [SwiftCodeAccessoryRecord] {
         let isBridge = db.accessories.count > 1
@@ -165,7 +152,6 @@ extension SwiftCodeLocalHomeStore {
             reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
         guard let record = discovered.values.first(where: { $0.id == id }), let endpoint = endpoints[record.endpointID] else {
-            // Already paired somewhere, or gone.
             reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
         discovered[record.endpointID] = nil
@@ -236,8 +222,6 @@ extension SwiftCodeLocalHomeStore {
         }
     }
 
-    // MARK: Characteristic I/O
-
     struct Located {
         var home: Int
         var accessory: SwiftCodeAccessoryRecord
@@ -260,7 +244,6 @@ extension SwiftCodeLocalHomeStore {
         save()
     }
 
-    /// The endpoint for an accessory, or the failure to report (4 when unreachable).
     func endpoint(for acc: SwiftCodeAccessoryRecord) -> SwiftCodeAccessoryEndpoint? {
         guard acc.isReachable, let e = endpoints[acc.endpointID] else { return nil }
         return e
@@ -313,7 +296,6 @@ extension SwiftCodeLocalHomeStore {
         }
     }
 
-    /// After a successful write: cache it and notify the other subscribed sessions.
     func didWrite(_ homeID: UUID, _ loc: Located, _ value: SwiftCodeHomeValue, origin: UUID?) {
         let readable = loc.characteristic.properties.contains(HMCharacteristicPropertyReadable)
         if readable { setCachedValue(homeID, loc.characteristic.id, value) }
@@ -348,7 +330,6 @@ extension SwiftCodeLocalHomeStore {
         }
     }
 
-    /// Turns the endpoint's events off when no session wants them any more.
     func updateEndpointSubscription(characteristic cid: UUID) {
         guard !sessions.values.contains(where: { $0.notifications.contains(cid) }) else { return }
         for h in state.homes {

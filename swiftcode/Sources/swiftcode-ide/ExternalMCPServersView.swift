@@ -1,19 +1,6 @@
 import Foundation
 import SwiftUI
 
-// External MCP servers settings, adapted from Legacy's
-// `SwiftCode/Views/Settings/AddMCPServerView.swift` and
-// `AddedMCPServersView.swift` onto the config file the destination's
-// MCP client actually reads: `~/.config/swiftcode/mcp-servers.json`
-// (`{ "mcpServers": { "<name>": { "command": "…", "args": […] } } }`
-// or `{ "url": "https://…" }`; see
-// `SwiftCodeMCP/SwiftCodeTools+MCPClient.swift`, `externalMCPServers()`).
-// This view reads and writes that same file with the same schema, so
-// servers added here are the servers `use_mcp` connects to. No live
-// connection is attempted from this view: the client tools own the
-// stdio/HTTP exchange and the approval gate.
-
-/// One external MCP server entry in the `mcp-servers.json` config file.
 struct ExternalMCPServerEntry: Identifiable, Equatable, Hashable {
     var id: String { name }
     var name: String
@@ -25,8 +12,6 @@ struct ExternalMCPServerEntry: Identifiable, Equatable, Hashable {
     var transport: String
 }
 
-/// List, add, edit and remove the external MCP servers in
-/// `~/.config/swiftcode/mcp-servers.json`.
 struct ExternalMCPServersView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var servers: [ExternalMCPServerEntry] = []
@@ -200,8 +185,6 @@ struct ExternalMCPServersView: View {
         .padding(16)
         .frame(width: 440)
     }
-
-    // MARK: - Config file
 
     private func reload() {
         do {

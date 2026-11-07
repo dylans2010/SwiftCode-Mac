@@ -1,8 +1,3 @@
-//
-//  AssistIconGeneratorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistIconGeneratorTool: AssistTool {
@@ -115,7 +110,6 @@ public struct AssistIconGeneratorTool: AssistTool {
             }
         }
 
-        // Action: validate
         let contentsJSON = iconSetURL.appendingPathComponent("Contents.json")
         guard FileManager.default.fileExists(atPath: contentsJSON.path),
               let data = try? Data(contentsOf: contentsJSON),

@@ -1,12 +1,5 @@
-// AIRefactorExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/AIRefactorExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: refactor settings (enable, auto-suggest, show-diff-before-apply, suggestion mode inline/panel/palette)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - AI Refactor Extension View
 struct AIRefactorExtensionView: View {
     @State private var isEnabled = true
     @State private var suggestionMode = "inline"

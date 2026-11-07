@@ -3,25 +3,22 @@ import SwiftUI
 struct DatabaseSettingsView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
 
-    // General Settings States
     @State private var enableAutosave = true
     @State private var maxHistoryCount = 100
     @State private var defaultSQLDialect = "SQLite"
     @State private var useSSLForPostgres = true
 
-    // Connection Diagnostics States
     @State private var isRunningDiagnostics = false
     @State private var fileAccessStatus = "Pending"
     @State private var readWriteStatus = "Pending"
     @State private var driverLatency = "Pending"
     @State private var databaseIntegrity = "Pending"
     @State private var networkStatus = "Pending"
-    @State private var diagnosticsScore = 0 // max 100
+    @State private var diagnosticsScore = 0
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Settings Form Box
                 GroupBox("Global Studio Settings") {
                     Form {
                         Toggle("Enable Schema Autosave", isOn: $enableAutosave)
@@ -43,7 +40,6 @@ struct DatabaseSettingsView: View {
                     .padding(8)
                 }
 
-                // Diagnostics Center
                 GroupBox("Connection Diagnostics & Profiler") {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Verify local file authorization layers, check read/write disk latency, run driver benchmarks, and audit SQLite databases schema files.")
@@ -119,7 +115,6 @@ struct DatabaseSettingsView: View {
         }
     }
 
-    // MARK: - Status Badge Builder
     @ViewBuilder
     private func diagnosticStatusBadge(text: String) -> some View {
         HStack {
@@ -148,7 +143,6 @@ struct DatabaseSettingsView: View {
         }
     }
 
-    // MARK: - Handlers & Diagnostics
     private func runConnectionDiagnostics() {
         guard let conn = connManager.activeConnection else { return }
 
@@ -163,7 +157,6 @@ struct DatabaseSettingsView: View {
         Task {
             var score = 0
 
-            // 1. Test File Access
             try? await Task.sleep(nanoseconds: 200_000_000)
             if conn.provider == .sqlite, let path = conn.sqliteFilePath {
                 let exists = FileManager.default.fileExists(atPath: path)
@@ -174,11 +167,9 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 2. Test Read/Write IO Authorization
             try? await Task.sleep(nanoseconds: 200_000_000)
             if conn.provider == .sqlite, let path = conn.sqliteFilePath {
                 do {
-                    // Create temp audit table
                     _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: "CREATE TABLE IF NOT EXISTS _swiftcode_diagnostics_test (id INTEGER PRIMARY KEY);")
                     _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: "INSERT INTO _swiftcode_diagnostics_test DEFAULT VALUES;")
                     _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: "DROP TABLE _swiftcode_diagnostics_test;")
@@ -192,7 +183,6 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 3. Driver Latency Loop
             try? await Task.sleep(nanoseconds: 200_000_000)
             if conn.provider == .sqlite, let path = conn.sqliteFilePath {
                 let start = Date()
@@ -212,7 +202,6 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 4. Schema Integrity Check
             try? await Task.sleep(nanoseconds: 200_000_000)
             if conn.provider == .sqlite, let path = conn.sqliteFilePath {
                 do {
@@ -228,7 +217,6 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 5. PostgREST Networking
             try? await Task.sleep(nanoseconds: 200_000_000)
             if conn.provider == .supabase {
                 networkStatus = "Passed"

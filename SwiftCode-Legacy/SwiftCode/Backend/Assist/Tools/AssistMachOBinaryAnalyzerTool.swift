@@ -1,8 +1,3 @@
-//
-//  AssistMachOBinaryAnalyzerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistMachOBinaryAnalyzerTool: AssistTool {
@@ -36,7 +31,6 @@ public struct AssistMachOBinaryAnalyzerTool: AssistTool {
             return .failure("Binary file not found at: \(resolvedURL.path)")
         }
 
-        // 1. Run file command to check architecture
         let fileProc = Process()
         fileProc.executableURL = URL(fileURLWithPath: "/usr/bin/file")
         fileProc.arguments = [resolvedURL.path]
@@ -47,7 +41,6 @@ public struct AssistMachOBinaryAnalyzerTool: AssistTool {
         fileProc.waitUntilExit()
         let fileOut = String(decoding: filePipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 2. Run otool -L to check linked dynamic libraries
         let otoolProc = Process()
         otoolProc.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         otoolProc.arguments = ["otool", "-L", resolvedURL.path]

@@ -1,27 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-/// The SwiftCode Pro paywall, ported from Legacy's `PaywallView`
-/// (`SwiftCode/Views/Paywall/PaywallView.swift`) and rebuilt in
-/// SwiftCode's native style: standard SwiftUI controls and the default
-/// accent, no `liquidGlass`, no orange tint.
-///
-/// Behaviour preserved from Legacy: the header, the six Pro
-/// features, the live product list (name, description, localized
-/// price — all from the App Store, never invented), the loading
-/// state with a Refresh Products button, purchase on tap, Restore
-/// Purchases, and Done to dismiss.
-///
-/// Deliberate differences:
-/// - The store is not an `ObservableObject` (this target compiles on
-///   Linux, where Combine does not exist), so the view snapshots the
-///   store into `@State` and re-syncs after every action instead of
-///   observing it.
-/// - Purchase and restore failures are shown as text. Legacy
-///   swallowed them with `try?`; a failed purchase that looks like
-///   nothing happened is worse than an error message.
-/// - Purchase buttons disable while a purchase is in flight, so a
-///   double tap cannot start the same purchase twice.
 public struct PaywallView: View {
     private let store: PaywallStore
     @Environment(\.dismiss) private var dismiss

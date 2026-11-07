@@ -2,14 +2,7 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeXcodebuild
 
-/// Opening an `.xcresult` (`specs/ide/testing.md` §Result bundles in the
-/// IDE): the bundle's tests, read with `XCResultReader`
-/// (`specs/xcodebuild/result-bundle.md`), become a test report in the
-/// Report navigator, as if the run had happened in this window.
 public enum ResultBundleReport {
-    /// One recorded test as the IDE's outcome: `Class/method()` gives suite
-    /// `Class` and name `method`; Success and Expected Failure pass,
-    /// Failure fails, Skipped is skipped; failures become issues.
     public static func outcome(_ t: XCResultReader.Test) -> TestOutcome {
         let parts = t.identifier.split(separator: "/").map(String.init)
         let last = parts.last ?? t.name
@@ -26,8 +19,6 @@ public enum ResultBundleReport {
         return TestOutcome(suite: suite, name: name, status: status, failures: failures, duration: t.duration)
     }
 
-    /// The report for a bundle: "Test <bundle name>", failed when a test
-    /// failed; the Tests page lists every test; the issues are the failures.
     public static func report(_ bundle: URL) throws -> BuildReport {
         let reader = try XCResultReader(bundle)
         let outcomes = try reader.tests().map(outcome)
@@ -43,8 +34,6 @@ public enum ResultBundleReport {
 }
 
 extension WorkspaceSession {
-    /// Opens a result bundle as a report (newest first in the Report
-    /// navigator). Throws what the reader throws.
     @discardableResult
     public func openResultBundle(_ bundle: URL) throws -> BuildReport {
         let r = try ResultBundleReport.report(bundle)

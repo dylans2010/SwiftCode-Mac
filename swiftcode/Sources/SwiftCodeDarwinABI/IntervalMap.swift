@@ -1,11 +1,3 @@
-// An ordered map of disjoint half-open intervals, for the address space's
-// mappings and the physical backings' allocators. Every operation is
-// O(log n) expected (n = intervals), plus O(k) for the k intervals an
-// operation returns: a treap (randomized balanced search tree) keyed by the
-// interval start, each node also holding its subtree's first start, last
-// end, and largest gap between consecutive intervals, so the first free
-// range of a given size is found without a scan.
-
 #if canImport(Glibc)
 import Glibc
 #elseif canImport(Darwin)
@@ -13,18 +5,10 @@ import Darwin
 #endif
 import Synchronization
 
-/// Diagnostics: catches two threads changing one map at once (the map has
-/// no lock of its own; its owner's lock must serialize every change). With
-/// `SWIFTCODE_DEBUG_RW_GUARD=1` it also catches a reader overlapping a writer:
-/// readers count themselves in, writers own the map, and whichever side
-/// arrives second traps, printing its own call chain and the one the other
-/// side recorded when it entered (`DebugAccessGuard.captureFrames`).
 final class ConcurrentUseGuard: @unchecked Sendable {
     private let holder = Atomic<UInt>(0)
     private let readers = Atomic<Int>(0)
     private let readSeq = Atomic<UInt>(0)
-    /// Recorded entries: slot 0 is the writer, 1...readerSlots readers. Each
-    /// is [thread, active, what (StaticString address), frames...].
     private static let readerSlots = 8
     private static let words = 3 + DebugAccessGuard.frameCount
     private let record: UnsafeMutablePointer<UInt>?
@@ -71,8 +55,6 @@ final class ConcurrentUseGuard: @unchecked Sendable {
         if let record { record[1] = 0 }
         holder.store(0, ordering: .sequentiallyConsistent)
     }
-    /// A lookup starts (no-op unless `SWIFTCODE_DEBUG_RW_GUARD=1`). Returns the
-    /// token for `endRead`.
     @inline(__always) func beginRead(_ what: StaticString) -> Int {
         guard record != nil else { return -1 }
         return beginReadChecked(what)
@@ -80,7 +62,7 @@ final class ConcurrentUseGuard: @unchecked Sendable {
     @inline(never) private func beginReadChecked(_ what: StaticString) -> Int {
         if DebugAccessGuard.mode == 3 { note(1, what); return -1 }
         let w = holder.load(ordering: .sequentiallyConsistent)
-        if w == Self.me { return -1 }  // a read inside this thread's own change
+        if w == Self.me { return -1 }
         readers.add(1, ordering: .sequentiallyConsistent)
         let slot = 1 + Int(readSeq.add(1, ordering: .relaxed).oldValue % UInt(Self.readerSlots))
         note(slot, what)
@@ -115,16 +97,10 @@ final class ConcurrentUseGuard: @unchecked Sendable {
     }
 }
 
-/// Diagnostics: the reader/writer check of `ConcurrentUseGuard`.
 public enum DebugAccessGuard {
-    /// `SWIFTCODE_DEBUG_RW_GUARD=1` (full check), `=2` (the check without call
-    /// chains), `=3` (no check: only the call-chain walk on every lookup).
     public static let mode = getenv("SWIFTCODE_DEBUG_RW_GUARD").flatMap { Int(String(cString: $0)) } ?? 0
-    /// True when `SWIFTCODE_DEBUG_RW_GUARD` is set to a nonzero mode.
     public static var enabled: Bool { mode != 0 }
     static let frameCount = 16
-    /// Fills up to `count` return addresses of the calling thread (the VMM
-    /// installs a frame-pointer walk); returns how many.
     nonisolated(unsafe) public static var captureFrames: (@convention(c) (UnsafeMutablePointer<UInt>?, Int32) -> Int32)?
     static func printCodeMappings(_ say: (String) -> Void) {
         let fd = open("/proc/self/maps", O_RDONLY)
@@ -144,32 +120,20 @@ public enum DebugAccessGuard {
     }
 }
 
-/// An element of an `IntervalMap`: [start, end), end > start.
 public protocol IntervalMapElement {
-    /// The first address in the interval.
     var start: UInt64 { get }
-    /// The address one past the last; greater than `start`.
     var end: UInt64 { get }
 }
 
-/// Diagnostics: a hardware write watchpoint on one element of one map
-/// (`IntervalMap(hardwareWatch:)`), so a write from outside the map raises
-/// SIGTRAP in the writing thread. The VMM installs `arm`/`disarm`.
 public enum DebugHardwareWatch {
-    /// Arms watchpoint `slot` on the 8 bytes at `address`; returns > 0 on
-    /// success. Nil: hardware watches are off.
     nonisolated(unsafe) public static var arm: ((_ slot: Int, _ address: UInt64) -> Int32)?
-    /// Disarms watchpoint `slot`.
     nonisolated(unsafe) public static var disarm: ((_ slot: Int) -> Void)?
     static let lock = NSLockLike()
     static let slots = 4
-    /// The watched elements by slot; `next` is the slot reused next.
     nonisolated(unsafe) static var targets: [(map: ObjectIdentifier, index: Int)?] = Array(repeating: nil, count: 4)
     nonisolated(unsafe) static var next = 0
 }
 
-/// Diagnostics storage for `IntervalMap(watch:)`: element slots in their own
-/// mmap'd pages, read-only except during the map's own writes.
 final class WatchedSlots<Element> {
     private let slots: UnsafeMutablePointer<Element?>
     private let capacity = 1 << 16
@@ -220,7 +184,6 @@ final class WatchedSlots<Element> {
     }
 }
 
-/// A bare interval (allocators).
 public struct PlainInterval: IntervalMapElement, Equatable, Sendable {
     public var start: UInt64
     public var end: UInt64
@@ -230,9 +193,6 @@ public struct PlainInterval: IntervalMapElement, Equatable, Sendable {
     }
 }
 
-/// Disjoint intervals, ordered by start. Callers keep them disjoint: an
-/// insert must not overlap what is there. The tree works on plain node
-/// records; elements live in a side table and are copied only when returned.
 public final class IntervalMap<Element: IntervalMapElement> {
     private struct Node {
         var start: UInt64
@@ -240,7 +200,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         var left: Int32
         var right: Int32
         var priority: UInt32
-        /// Subtree aggregates: first start, last end, largest inner gap.
         var first: UInt64
         var last: UInt64
         var gap: UInt64
@@ -249,21 +208,15 @@ public final class IntervalMap<Element: IntervalMapElement> {
     private static var none: Int32 { -1 }
     private var nodes: [Node] = []
     private var elementTable: [Element?] = []
-    /// Diagnostics (`watch`): the elements live in their own pages, kept
-    /// read-only except while this map writes them, so a stray write from
-    /// anywhere else faults at the writer.
     private var watched: WatchedSlots<Element>?
     private var freeNodes: [Int32] = []
     private var root: Int32 = -1
     private var seed: UInt64 = 0x9E37_79B9_7F4A_7C15
-    /// The number of intervals in the map.
     public private(set) var count = 0
     private let useGuard = ConcurrentUseGuard()
 
-    /// An empty map without diagnostics.
     public init() {}
 
-    /// `watch`: see `watched` (diagnostics; trivial element types only).
     public init(watch: Bool, hardwareWatch: Bool = false) {
         if watch { watched = WatchedSlots<Element>() }
         self.hardwareWatch = hardwareWatch && DebugHardwareWatch.arm != nil
@@ -274,8 +227,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         if hardwareWatch { hwRelease(nil) }
     }
 
-    /// Before this map writes element `i` (nil: all, or a buffer move): drop
-    /// the watches on it.
     private func hwRelease(_ i: Int?) {
         DebugHardwareWatch.lock.withLock {
             for s in 0..<DebugHardwareWatch.slots {
@@ -286,7 +237,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         }
     }
 
-    /// After this map wrote element `i`: watch it (the oldest watch makes room).
     private func hwClaim(_ i: Int) {
         DebugHardwareWatch.lock.withLock {
             guard i < elementTable.count, elementTable[i] != nil else { return }
@@ -303,12 +253,9 @@ public final class IntervalMap<Element: IntervalMapElement> {
 
     private func slot(_ i: Int) -> Element? { watched?.get(i) ?? (watched == nil ? elementTable[i] : nil) }
 
-    // swiftlint:disable:next empty_count - this is isEmpty
     public var isEmpty: Bool { count == 0 }
 
     @inline(__always) private func element(_ t: Int32) -> Element { slot(Int(t))! }
-
-    // MARK: Queries
 
     private func floorNode(_ x: UInt64) -> Int32 {
         var t = root, best: Int32 = Self.none
@@ -326,7 +273,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return best
     }
 
-    /// The interval with the greatest start <= `x`.
     public func floor(_ x: UInt64) -> Element? {
         let readToken = useGuard.beginRead("IntervalMap.floor")
         defer { useGuard.endRead(readToken) }
@@ -334,7 +280,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return t == Self.none ? nil : element(t)
     }
 
-    /// The interval with the smallest start >= `x`.
     public func ceiling(_ x: UInt64) -> Element? {
         let readToken = useGuard.beginRead("IntervalMap.ceiling")
         defer { useGuard.endRead(readToken) }
@@ -342,7 +287,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return t == Self.none ? nil : element(t)
     }
 
-    /// The interval that contains `x`.
     public func element(containing x: UInt64) -> Element? {
         let readToken = useGuard.beginRead("IntervalMap.element(containing:)")
         defer { useGuard.endRead(readToken) }
@@ -351,7 +295,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return element(t)
     }
 
-    /// The intervals that intersect [lo, hi), ascending.
     public func overlapping(_ lo: UInt64, _ hi: UInt64) -> [Element] {
         let readToken = useGuard.beginRead("IntervalMap.overlapping")
         defer { useGuard.endRead(readToken) }
@@ -361,7 +304,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return out
     }
 
-    /// True when some interval intersects [lo, hi).
     public func intersects(_ lo: UInt64, _ hi: UInt64) -> Bool {
         let readToken = useGuard.beginRead("IntervalMap.intersects")
         defer { useGuard.endRead(readToken) }
@@ -372,7 +314,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return c != Self.none && nodes[Int(c)].start < hi
     }
 
-    /// True when the intervals cover all of [lo, hi) without a hole.
     public func covers(_ lo: UInt64, _ hi: UInt64) -> Bool {
         let readToken = useGuard.beginRead("IntervalMap.covers")
         defer { useGuard.endRead(readToken) }
@@ -380,7 +321,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         var cursor = lo
         var t = floorNode(lo)
         if t == Self.none || nodes[Int(t)].end <= lo { return false }
-        // Walk successors while they continue the run.
         while true {
             cursor = nodes[Int(t)].end
             if cursor >= hi { return true }
@@ -389,7 +329,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         }
     }
 
-    /// Every interval, ascending.
     public var elements: [Element] {
         let readToken = useGuard.beginRead("IntervalMap.elements")
         defer { useGuard.endRead(readToken) }
@@ -399,16 +338,12 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return out
     }
 
-    /// The end of the last interval (0 when empty).
     public var lastEnd: UInt64 {
         let readToken = useGuard.beginRead("IntervalMap.lastEnd")
         defer { useGuard.endRead(readToken) }
         return root == Self.none ? 0 : nodes[Int(root)].last
     }
 
-    /// The lowest p >= `from` with [p, p + size) free of every interval
-    /// (size > 0). The result may be anywhere above the last interval: the
-    /// caller checks its own limit. Nil only when p + size would overflow.
     public func firstGap(from x: UInt64, size: UInt64) -> UInt64? {
         let readToken = useGuard.beginRead("IntervalMap.firstGap")
         defer { useGuard.endRead(readToken) }
@@ -419,7 +354,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         guard c != Self.none else { return fits(candidate, size) }
         let cStart = nodes[Int(c)].start
         if cStart - candidate >= size { return candidate }
-        // The first gap after an interval starting at or above cStart.
         var prevEnd: UInt64 = 0
         var havePrev = false
         if let p = search(root, cStart, size, &prevEnd, &havePrev) { return p }
@@ -428,15 +362,10 @@ public final class IntervalMap<Element: IntervalMapElement> {
 
     private func fits(_ p: UInt64, _ size: UInt64) -> UInt64? { p <= UInt64.max - size ? p : nil }
 
-    // MARK: Changes
-
-    /// Inserts `element`, which must not overlap any interval.
     public func insert(_ element: Element) {
         useGuard.enter("IntervalMap.insert")
         defer { useGuard.leave() }
         precondition(element.end > element.start, "IntervalMap: empty interval")
-        // Disjointness (O(log n)): an overlap would corrupt the subtree
-        // aggregates and trap later, far from the culprit.
         if intersects(element.start, element.end) {
             let f = floor(element.start), c = ceiling(element.start)
             preconditionFailure("IntervalMap: insert of [0x\(String(element.start, radix: 16)), 0x\(String(element.end, radix: 16))) "
@@ -449,7 +378,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         count += 1
     }
 
-    /// Removes and returns (ascending) every interval that intersects [lo, hi).
     @discardableResult
     public func extract(_ lo: UInt64, _ hi: UInt64) -> [Element] {
         useGuard.enter("IntervalMap.extract")
@@ -457,7 +385,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         guard lo < hi, root != Self.none else { return [] }
         var (a, b) = split(root, lo)
         var out: [Element] = []
-        // The last interval below `lo` may reach into the range.
         if a != Self.none, nodes[Int(a)].last > lo {
             let (rest, lastNode) = splitLast(a)
             a = rest
@@ -471,7 +398,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return out
     }
 
-    /// Removes every interval.
     public func removeAll() {
         useGuard.enter("IntervalMap.removeAll")
         defer { useGuard.leave() }
@@ -483,8 +409,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         root = Self.none
         count = 0
     }
-
-    // MARK: Treap internals
 
     private func makeNode(_ e: Element) -> Int32 {
         seed ^= seed << 13
@@ -500,7 +424,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
             return i
         }
         nodes.append(node)
-        // An append may move the buffer: the watch goes with the old one.
         if hardwareWatch && elementTable.count == elementTable.capacity { hwRelease(nil) }
         if let watched { watched.append(e) } else { elementTable.append(e) }
         if hardwareWatch { hwClaim(elementTable.count - 1) }
@@ -534,7 +457,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         nodes[i].gap = gap
     }
 
-    /// (starts < key, starts >= key)
     private func split(_ t: Int32, _ key: UInt64) -> (Int32, Int32) {
         guard t != Self.none else { return (Self.none, Self.none) }
         if nodes[Int(t)].start < key {
@@ -550,7 +472,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         }
     }
 
-    /// (everything but the last node, the last node)
     private func splitLast(_ t: Int32) -> (Int32, Int32) {
         if nodes[Int(t)].right == Self.none {
             let l = nodes[Int(t)].left
@@ -604,8 +525,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         collect(nodes[i].right, lo, hi, &out)
     }
 
-    /// The first gap of at least `size` after an interval whose start is
-    /// >= key, in order; `prevEnd` carries the end of the interval before.
     private func search(_ t: Int32, _ key: UInt64, _ size: UInt64, _ prevEnd: inout UInt64, _ havePrev: inout Bool) -> UInt64? {
         guard t != Self.none else { return nil }
         let i = Int(t)
@@ -617,7 +536,6 @@ public final class IntervalMap<Element: IntervalMapElement> {
         return searchAll(nodes[i].right, size, &prevEnd, &havePrev)
     }
 
-    /// As `search` for a subtree that lies entirely in the searched part.
     private func searchAll(_ t: Int32, _ size: UInt64, _ prevEnd: inout UInt64, _ havePrev: inout Bool) -> UInt64? {
         guard t != Self.none else { return nil }
         let i = Int(t)
@@ -635,28 +553,20 @@ public final class IntervalMap<Element: IntervalMapElement> {
     }
 }
 
-/// A first-fit allocator of 16 KiB-aligned ranges inside [base, base+size)
-/// (the backings' anonymous pools): O(log n) per call.
 public final class RangeAllocator {
-    /// The first address of the pool.
     public let base: UInt64
-    /// The pool's length in bytes.
     public let size: UInt64
     private let allocated: IntervalMap<PlainInterval>
-    /// Diagnostics: `SWIFTCODE_DEBUG_WATCH_MAPS=1` (see `IntervalMap(watch:)`).
     static let watchMaps = getenv("SWIFTCODE_DEBUG_WATCH_MAPS").map { String(cString: $0) == "1" } ?? false
 
-    /// Bytes allocated.
     public private(set) var bytesInUse: UInt64 = 0
 
-    /// `hardwareWatch`: see `IntervalMap(hardwareWatch:)` (diagnostics).
     public init(base: UInt64, size: UInt64, hardwareWatch: Bool = false) {
         allocated = IntervalMap<PlainInterval>(watch: RangeAllocator.watchMaps, hardwareWatch: hardwareWatch)
         self.base = base
         self.size = size
     }
 
-    /// The lowest free run of `size` bytes, now allocated; nil if none.
     public func allocate(_ length: UInt64) -> UInt64? {
         guard length > 0, let start = allocated.firstGap(from: base, size: length), start >= base,
               start - base <= size, length <= size - (start - base) else { return nil }
@@ -665,19 +575,16 @@ public final class RangeAllocator {
         return start
     }
 
-    /// True when all of [start, start+length) is allocated.
     public func isAllocated(_ start: UInt64, _ length: UInt64) -> Bool {
         length > 0 && start <= UInt64.max - length && allocated.covers(start, start + length)
     }
 
-    /// Records [start, start+length), which must be free, as allocated.
     public func mark(_ start: UInt64, _ length: UInt64) {
         guard length > 0 else { return }
         allocated.insert(PlainInterval(start: start, end: start + length))
         bytesInUse += length
     }
 
-    /// Frees everything; returns what was allocated (ascending).
     public func takeAll() -> [Range<UInt64>] {
         let all = allocated.elements.map { $0.start..<$0.end }
         allocated.removeAll()
@@ -685,8 +592,6 @@ public final class RangeAllocator {
         return all
     }
 
-    /// Frees the allocated parts of [start, start+length); returns the
-    /// freed parts (ascending).
     @discardableResult
     public func free(_ start: UInt64, _ length: UInt64) -> [Range<UInt64>] {
         guard length > 0, start <= UInt64.max - length else { return [] }

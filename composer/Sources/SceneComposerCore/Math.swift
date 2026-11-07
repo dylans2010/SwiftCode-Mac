@@ -1,6 +1,5 @@
 import Foundation
 
-/// A 3-vector of doubles.
 public struct Vec3: Hashable, Sendable, CustomStringConvertible {
     public var x, y, z: Double
 
@@ -27,7 +26,6 @@ public struct Vec3: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "(\(x), \(y), \(z))" }
 }
 
-/// A unit quaternion, real part first (USD's `(real, i, j, k)` text order).
 public struct Quat: Hashable, Sendable {
     public var real: Double
     public var imaginary: Vec3
@@ -39,7 +37,6 @@ public struct Quat: Hashable, Sendable {
 
     public static let identity = Quat(real: 1, imaginary: .zero)
 
-    /// Rotation of `degrees` about a unit axis (right-handed).
     public init(axis: Vec3, degrees: Double) {
         let h = degrees * .pi / 360
         self.init(real: cos(h), imaginary: axis * sin(h))
@@ -51,22 +48,18 @@ public struct Quat: Hashable, Sendable {
         return Quat(real: real / n, imaginary: imaginary * (1 / n))
     }
 
-    /// Hamilton product: `a * b` applies `b` first, then `a`.
     public static func * (a: Quat, b: Quat) -> Quat {
         Quat(real: a.real * b.real - a.imaginary.dot(b.imaginary),
              imaginary: b.imaginary * a.real + a.imaginary * b.real + a.imaginary.cross(b.imaginary))
     }
 
     public func isClose(to b: Quat, tolerance: Double = 1e-9) -> Bool {
-        // q and -q are the same rotation.
         let same = abs(real - b.real) <= tolerance && imaginary.isClose(to: b.imaginary, tolerance: tolerance)
         let opposite = abs(real + b.real) <= tolerance && imaginary.isClose(to: b.imaginary * -1, tolerance: tolerance)
         return same || opposite
     }
 }
 
-/// A 4×4 matrix in USD's convention: row-major, row vectors (`p' = p · M`),
-/// translation in the last row; `A · B` applies `A` first.
 public struct Matrix4: Hashable, Sendable, CustomStringConvertible {
     public var m: [Double]
 
@@ -112,8 +105,6 @@ public struct Matrix4: Hashable, Sendable, CustomStringConvertible {
         return r
     }
 
-    /// Rotation about one axis (0 = X, 1 = Y, 2 = Z), right-handed, in the
-    /// row-vector form.
     public static func rotation(axis: Int, degrees: Double) -> Matrix4 {
         let a = degrees * .pi / 180
         let c = cos(a)
@@ -136,7 +127,6 @@ public struct Matrix4: Hashable, Sendable, CustomStringConvertible {
         let x = q.imaginary.x
         let y = q.imaginary.y
         let z = q.imaginary.z
-        // Row-vector form: the transpose of the usual column-vector matrix.
         return Matrix4([
             1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y), 0,
             2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x), 0,
@@ -157,7 +147,6 @@ public struct Matrix4: Hashable, Sendable, CustomStringConvertible {
         m[0] * (m[5] * m[10] - m[6] * m[9]) - m[1] * (m[4] * m[10] - m[6] * m[8]) + m[2] * (m[4] * m[9] - m[5] * m[8])
     }
 
-    /// General inverse (nil when singular).
     public var inverse: Matrix4? {
         var a = m
         var inv = Matrix4.identity.m
@@ -197,7 +186,6 @@ public struct Matrix4: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Translation, rotation and scale; matrix = S · R · T (scale first).
 public struct TRS: Hashable, Sendable {
     public var translation: Vec3
     public var rotation: Quat
@@ -211,7 +199,6 @@ public struct TRS: Hashable, Sendable {
 
     public var matrix: Matrix4 { Matrix4.scale(scale) * Matrix4.rotation(rotation) * Matrix4.translation(translation) }
 
-    /// Decomposes a matrix without shear or projection.
     public init(matrix: Matrix4) {
         let rows = (0..<3).map { r in Vec3(matrix[r, 0], matrix[r, 1], matrix[r, 2]) }
         var s = Vec3(rows[0].length, rows[1].length, rows[2].length)
@@ -219,8 +206,6 @@ public struct TRS: Hashable, Sendable {
         let r0 = s.x != 0 ? rows[0] * (1 / s.x) : Vec3(1, 0, 0)
         let r1 = s.y != 0 ? rows[1] * (1 / s.y) : Vec3(0, 1, 0)
         let r2 = s.z != 0 ? rows[2] * (1 / s.z) : Vec3(0, 0, 1)
-        // Rows of the row-vector rotation matrix are the rotated basis vectors;
-        // convert from the transposed form.
         let m00 = r0.x, m01 = r1.x, m02 = r2.x
         let m10 = r0.y, m11 = r1.y, m12 = r2.y
         let m20 = r0.z, m21 = r1.z, m22 = r2.z

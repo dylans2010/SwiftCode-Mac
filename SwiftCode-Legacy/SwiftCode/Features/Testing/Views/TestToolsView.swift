@@ -24,7 +24,6 @@ public struct TestToolsView: View {
             ScrollView {
                 VStack(spacing: 24) {
 
-                    // Card 1: Test Metrics Summary
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -35,7 +34,6 @@ public struct TestToolsView: View {
                             }
 
                             HStack(spacing: 24) {
-                                // Status
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("STATUS")
                                         .font(.system(size: 9, weight: .bold))
@@ -55,7 +53,6 @@ public struct TestToolsView: View {
 
                                 Divider().frame(height: 30)
 
-                                // Passed
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("PASSED")
                                         .font(.system(size: 9, weight: .bold))
@@ -68,7 +65,6 @@ public struct TestToolsView: View {
 
                                 Divider().frame(height: 30)
 
-                                // Failed
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("FAILED")
                                         .font(.system(size: 9, weight: .bold))
@@ -81,7 +77,6 @@ public struct TestToolsView: View {
 
                                 Divider().frame(height: 30)
 
-                                // Duration
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("DURATION")
                                         .font(.system(size: 9, weight: .bold))
@@ -96,7 +91,6 @@ public struct TestToolsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Interactive Controls
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -144,7 +138,6 @@ public struct TestToolsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 3: Expandable Console Output
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -174,7 +167,6 @@ public struct TestToolsView: View {
                                 .font(.caption)
                             }
 
-                            // Search bar inside console results
                             HStack {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundStyle(.secondary)

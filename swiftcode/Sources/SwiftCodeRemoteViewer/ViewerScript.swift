@@ -1,51 +1,10 @@
-// `swiftcode-sim-viewer --script <file>` for the portable viewers (display-
-// stream.md §13.3): the macOS viewer's script language, run against a
-// RemoteDeviceSession. Pointer steps go through the session's window-unit
-// input (the path real mouse events take); one command a line:
-//
-//   wait-live [timeout s]              until live with a frame shown
-//   wait-frame [timeout s]             until the next frame arrives
-//   wait-quiet [ms] [timeout s]        until no frame for ms (default 1500)
-//   wait-home [timeout s]              until the image is lit (past the boot logo)
-//   wait-change [percent] [timeout s]  until the image differs in percent (default 20) of its samples
-//   sleep <ms>
-//   tap <x> <y>                        device points of the shown screen
-//   drag <x1> <y1> <x2> <y2> [ms] [steps]
-//   pinch <x> <y> <scale> [ms]
-//   scroll <x> <y> <dy-lines> [steps]
-//   type <text>                        US-layout text as key events
-//   key <usage>                        press and release (hex 0x.. or decimal)
-//   button home|lock|volumeUp|volumeDown|side
-//   rotate left|right
-//   scale fit|point|pixel
-//   shot <path.png>                    the stream image
-//   server-shot <path.png>             the server's full-resolution PNG
-//   window-shot <path.png>             the window as drawn (frame, controls)
-//   chrome more|close|hover <control>|click <control>|appearance light|dark
-//                                      the window's chrome: open or close More Actions, hover a
-//                                      capsule control until its tooltip shows, click one (a
-//                                      DeviceCommand name: home, screenshot, recordScreen, …)
-//   stats-begin / stats-end [label]    frames, bytes, guest frames, and the stage medians over the span
-//   latency-summary [label]            the input latencies so far
-//   audio-summary                      the sound's packets, losses and timing so far
-//   av-probe <x> <y> <n>               tap n times (an app that flashes white and beeps at once,
-//                                      Samples/StreamSamples AVSync) and log, per tap, when the white
-//                                      picture was presented and when the beep plays here: the A/V offset
-//   log <text>
-//   quit
-//
-// Lines starting with # are comments. Every step is logged.
-
 import Foundation
 import SwiftCodeDisplayStream
 
-/// What a script needs from the window beyond the session.
 public protocol ViewerScriptHost: AnyObject, Sendable {
-    /// A PNG of the window's next drawing; `done(true)` once written.
     func captureWindow(to path: String, done: @escaping @Sendable (Bool) -> Void)
     func setScale(_ m: ViewerScaleMode)
     func stop()
-    /// A `chrome` step (the window's controls); false: not understood.
     func chrome(_ words: [String]) -> Bool
 }
 
@@ -74,7 +33,6 @@ public final class ViewerScript: @unchecked Sendable {
         output(String(format: "[%7.2f] ", Double(viewerNanoseconds() - started) / 1e9) + text)
     }
 
-    /// Runs on its own thread; `done` gets the exit status.
     public func start(done: @escaping @Sendable (Int32) -> Void) {
         let previous = session.onFrame
         session.onFrame = { [weak self] f in
@@ -109,7 +67,6 @@ public final class ViewerScript: @unchecked Sendable {
 
     struct Failure: Error, CustomStringConvertible { let description: String }
 
-    /// Runs `body` on the front end's thread and waits for it.
     private func onWindow<T: Sendable>(_ body: @escaping @Sendable () -> T) -> T {
         let sem = DispatchSemaphore(value: 0)
         let box = Box<T>()
@@ -130,7 +87,6 @@ public final class ViewerScript: @unchecked Sendable {
 
     private func samples() -> [UInt8]? { session.client.currentCanvas?.greySamples() }
 
-    /// A device point of the shown screen → window units.
     private func windowPoint(_ x: Double, _ y: Double) -> (Double, Double) {
         onWindow { [session] in
             let s = session.layout.screen, p = session.shownPointSize
@@ -323,7 +279,6 @@ public final class ViewerScript: @unchecked Sendable {
     }
 }
 
-/// Medians of the stages of a run of frames (display-stream.md §12).
 public struct StageSummary: Sendable {
     public var count: Int
     public var stages: [(name: String, values: [Double])]

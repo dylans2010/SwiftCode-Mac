@@ -1,9 +1,7 @@
-// `Product.PurchaseOption` (testing-session.md §4 "Purchase options").
 import Foundation
 import StoreKitEngine
 
 extension Product {
-    /// An option of `purchase(options:)`.
     public struct PurchaseOption: Hashable, Sendable, CustomDebugStringConvertible {
         @_spi(SwiftCode) public enum Kind: Hashable, Sendable {
             case appAccountToken(UUID)
@@ -11,7 +9,6 @@ extension Product {
             case custom(String, String)
             case signedPromotionalOffer(offerID: String, keyID: String, nonce: UUID, signature: Data, timestamp: Int)
             case simulatesAskToBuyInSandbox(Bool)
-            // StoreKitTest options (testing-session.md §4).
             case unsignedPromotionalOffer(String)
             case codeOffer(String)
             case purchaseDate(Date, BackdatedRenewalBehavior)
@@ -41,7 +38,6 @@ extension Product {
 
         public var debugDescription: String { "\(kind)" }
 
-        /// The engine's options for a set of purchase options.
         static func engineOptions(_ options: Set<PurchaseOption>) -> PurchaseOptions {
             var o = PurchaseOptions()
             for option in options {
@@ -51,7 +47,7 @@ extension Product {
                 case .custom(let k, let v): o.custom[k] = v
                 case .signedPromotionalOffer(let id, let key, let nonce, let sig, let ts):
                     o.signedPromotionalOffer = SignedPromotionalOffer(offerID: id, keyID: key, nonce: nonce, signature: sig, timestamp: Int64(ts))
-                case .simulatesAskToBuyInSandbox: break  // sandbox only
+                case .simulatesAskToBuyInSandbox: break
                 case .unsignedPromotionalOffer(let id): o.promotionalOfferID = id
                 case .codeOffer(let code): o.codeOfferReferenceName = code
                 case .purchaseDate(let date, let behavior):

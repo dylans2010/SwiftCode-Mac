@@ -8,7 +8,6 @@ struct DeviceManagementView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Device Registry", systemImage: "macbook.and.iphone")
                     .font(.headline)
@@ -43,7 +42,6 @@ struct DeviceManagementView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

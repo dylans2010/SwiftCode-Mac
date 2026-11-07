@@ -4,19 +4,6 @@ import SwiftCodeExtensions
 import SwiftCodeSDK
 import SwiftCodeSDKStudio
 
-// MARK: - Developer API keys
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKStudioAPIKeysView.swift`.
-// Lists developer keys (metadata only — the secret is shown exactly
-// once at generation), generate with live/test environment + scopes,
-// revoke with confirmation. The store is the Studio seam
-// (`SDKStudioAPIKeyStore`); the default is the live Host adapter
-// (`SDKHostAPIKeyStore`, Keychain-backed HMAC-SHA256 `sc_dev_live_` /
-// `sc_dev_test_` secrets). A nil store shows the seam as unavailable
-// instead of inventing key storage — the generate sheet is disabled and
-// says so. An in-memory store is deliberately NOT provided: a key store
-// that forgets keys on restart would silently break verification.
-
 @MainActor
 struct SDKStudioAPIKeysView: View {
     var keyStore: (any SDKStudioAPIKeyStore)?
@@ -243,17 +230,6 @@ private struct SDKStudioGenerateKeySheet: View {
     }
 }
 
-// MARK: - Security manager
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKSecurityManagerView.swift` —
-// per-app `use.Security` values: list, add (with label + prompt text),
-// delete one, delete all. Backed by the Studio security seam; the
-// default is the live Host adapter (`SDKHostSecurityStore`, S-4) over
-// the Host slice's `SDKSecurityService.listAllApps` enumeration
-// (metadata only — values are never listed). A nil store shows the seam
-// as unavailable instead of inventing storage — Studio will not keep
-// secrets in UserDefaults or plain files.
-
 @MainActor
 struct SDKSecurityManagerView: View {
     var securityStore: (any SDKStudioSecurityStore)?
@@ -468,14 +444,6 @@ private struct SDKSecurityAddValueSheet: View {
     }
 }
 
-// MARK: - Secure-prompt entry
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/EnterSecuritySDKView.swift` — the
-// secure-prompt entry flow: the user types a secret value for one
-// `use.Security` item, is warned when a value already exists (storing
-// replaces it), and the value goes to the security store. Same seam as
-// the security manager.
-
 @MainActor
 struct SDKEnterSecurityView: View {
     let appID: String
@@ -546,19 +514,6 @@ struct SDKEnterSecurityView: View {
         }
     }
 }
-
-// MARK: - Assist access form
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/AssistAccessFormView.swift` — the
-// Assist access application: extension + developer key, SDK variant,
-// usage description, own-UI, third-party models, data-leaves-device,
-// contact. Validation is the model's `validationErrors()`; submission
-// (S-5) goes to the Host slice's `SDKAssistApplicationStore` — the API
-// key secret is pasted into a `SecureField`, held in memory only for
-// the submit call, verified against the Keychain-backed key store, and
-// never persisted by the form or the store (Wave 16: the stored record
-// carries only the key ID). Approval stays a separate host action;
-// the form never approves applications itself.
 
 @MainActor
 struct SDKAssistAccessFormView: View {
@@ -736,7 +691,6 @@ struct SDKAssistAccessFormView: View {
                 submittedApplication = nil
                 submitMessage = "Submission failed: \((error as? SDKError)?.message ?? error.localizedDescription)"
             }
-            // The secret is never retained past the submit call.
             apiKeySecret = ""
             isSubmitting = false
         }

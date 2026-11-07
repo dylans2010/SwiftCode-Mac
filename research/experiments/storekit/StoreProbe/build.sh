@@ -1,12 +1,4 @@
 #!/bin/sh
-# Build StoreProbe for the iOS simulator with the installed Xcode (swiftc, no
-# project file). The app links StoreKit and StoreKitTest (SKTestSession lives
-# in the runtime at /Developer/Library/Frameworks, which is the framework's
-# install name) and carries our own configuration file YcodeProbe.storekit
-# in its bundle. No team, provisioning profile or Apple account is involved.
-#   StoreProbe.app    dev.ycode.skprobe
-#   StoreProbeB.app   dev.ycode.skprobe.b   (a second app, for isolation tests)
-# Usage: build.sh OUTDIR   (OUTDIR on the Mac, not on the drive)
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}
@@ -16,7 +8,7 @@ xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios27.0-simulator -sdk "$
   -swift-version 5 -Onone -g -parse-as-library \
   -F "$SDK/Developer/Library/Frameworks" -framework StoreKitTest -framework StoreKit -framework UIKit \
   "$SRC/main.swift" -o "$OUT/StoreProbe.bin"
-mk() { # app-name bundle-id
+mk() {
   A="$OUT/$1.app"; rm -rf "$A"; mkdir -p "$A"
   cp "$OUT/StoreProbe.bin" "$A/StoreProbe"
   cp "$SRC"/*.storekit "$A/"

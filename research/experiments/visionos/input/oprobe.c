@@ -1,7 +1,3 @@
-// oprobe: guest command-line probe (simctl spawn), OBS-VISION-POSE 2026-11-01, our code.
-// Builds Orientation events (IOHIDFamily type 10) in several ways and prints, for each, which
-// constructors exist (dlsym) and the values read back from fields (10 << 16) | 0..15 plus the
-// event's own description. Shows which construction keeps a quaternion (orientation type 3).
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
 #include <stdio.h>

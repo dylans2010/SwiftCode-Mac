@@ -5,9 +5,6 @@ import SwiftCodeDeviceModel
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// FOLD (`specs/simulator/foldable.md` §8.3 E1–E3): the fold controls of
-/// SwiftCode's remote iPhone Duo in Devices and Simulators, the control command
-/// the IDE sends through ssh, and the reply it reads. No network.
 @MainActor
 @Suite(.serialized) struct FoldControlsTests {
     func settings() -> RemoteSimulatorSettings {
@@ -38,11 +35,8 @@ import SwiftCodeDeviceModel
         await c.foldTask?.value
         #expect(c.foldControlsShown && c.foldControlsEnabled)
         #expect(sent == [["state"]] && c.hingeAngle == 0)
-        // The pose buttons and the slider send a sweep to the angle; the check mark follows.
         await c.fold(to: 180)?.value
         #expect(sent.last == ["fold", "180"] && c.hingeAngle == 180 && c.foldStatus == "At 180°")
-        // The row's context menu: Shut Down / Restart / Force Shut Down, Open
-        // in New Window, the poses in the reference's words, rotation, erase.
         let menu = c.contextMenu(forRow: 0)
         #expect(menu.items.map(\.title) == ["Shut Down", "Restart", "Force Shut Down", "", "Open in New Window", "",
                                             "Closed", "Partially Open", "Open", "Rotate Left", "Rotate Right", "", DevicesController.eraseTitle])
@@ -51,11 +45,9 @@ import SwiftCodeDeviceModel
         await c.rotate(left: true)?.value
         #expect(sent.last == ["rotate", "left"])
         #expect(c.detailRows.contains { $0.0 == "Fold" && $0.1 == "180° (Open)" })
-        // Without a live display, the canvas's pose and rotate commands use the control socket.
         #expect(c.performWithoutDisplay(.posePartiallyOpen))
         await c.foldTask?.value
         #expect(sent.last == ["fold", "90"] && c.hingeAngle == 90)
-        // An iPad row has none of it.
         c.select(row: 1)
         #expect(!c.foldControlsShown && !c.foldControlsEnabled)
         #expect(c.contextMenu(forRow: 1).items.map(\.title) == ["Shut Down", "Restart", "Force Shut Down", "", "Open in New Window", "",
@@ -69,12 +61,10 @@ import SwiftCodeDeviceModel
         c.show(.simulators)
         await c.foldTask?.value
         #expect(c.hingeAngle == 90)
-        // The run ends: the angle is forgotten (the next boot starts closed).
         c.setSwiftCodeRemote(rows: [row(foldable: true, booted: false)])
         #expect(c.hingeAngle == nil && c.foldControlsShown && !c.foldControlsEnabled)
         #expect(c.detailRows.contains { $0.0 == "Fold" && $0.1 == "Closed when it boots" })
         #expect(c.contextMenu(forRow: 0).items.filter { DevicePosture.allCases.map(\.title).contains($0.title) }.allSatisfy { !$0.isEnabled })
-        // The canvas shows the stopped device with Start (no pose controls without a device).
         _ = c.view
         #expect(c.canvas.stateDescription == "stopped")
     }

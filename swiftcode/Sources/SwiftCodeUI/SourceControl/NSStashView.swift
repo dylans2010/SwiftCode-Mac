@@ -1,6 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Menu Bar/NSStashView.swift
-//
 import SwiftUI
 import SwiftCodeIDECore
 
@@ -16,7 +13,7 @@ public struct NSStashView: View {
     public struct LocalChange: Identifiable {
         public let id = UUID()
         public let path: String
-        public let status: String // "M", "A", "D", "??", etc.
+        public let status: String
     }
 
     public var body: some View {
@@ -35,7 +32,6 @@ public struct NSStashView: View {
                         .textFieldStyle(.roundedBorder)
                         .disabled(isLoading)
 
-                    // Local changes list section
                     Text("Local changes to stash:")
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)

@@ -1,16 +1,14 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Models/EnvironmentProfile.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public struct EnvironmentProfile: Codable, Sendable, Identifiable, Hashable {
     public let id: UUID
     public var name: String
-    public var targetOS: String // Operating system name, e.g. Ubuntu
-    public var attachedProjectIDs: [UUID] // projects configured to use this profile
-    public var environmentVariables: [String: String] // env vars configured inside the container
-    public var startupCommands: [String] // commands run on start, e.g. ["npm install", "swift build"]
-    public var installedPackages: [String] // list of software packages required, e.g. ["git", "node", "swift"]
-    public var virtualMachineID: UUID? // associated VM that runs this environment
+    public var targetOS: String
+    public var attachedProjectIDs: [UUID]
+    public var environmentVariables: [String: String]
+    public var startupCommands: [String]
+    public var installedPackages: [String]
+    public var virtualMachineID: UUID?
 
     public init(
         id: UUID = UUID(),

@@ -53,7 +53,6 @@ public actor OpenRouterClient {
             message: "Completed 7-point OpenRouter client authentication audit."
         )
 
-        // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/models")!)
         if !apiKey.isEmpty {
             urlRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -141,7 +140,6 @@ public actor OpenRouterClient {
             throw AppError.aiError("No OpenRouter API key found. Please add your key in Settings.")
         }
 
-        // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -194,7 +192,6 @@ public actor OpenRouterClient {
                                 return
                             }
 
-                            // Check for JSON error payload within the stream line
                             if let data = dataStr.data(using: .utf8),
                                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                                let errorDict = json["error"] as? [String: Any],
@@ -269,7 +266,6 @@ public actor OpenRouterClient {
             throw AppError.aiError("No OpenRouter API key found. Please add your key in Settings.")
         }
 
-        // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -318,7 +314,6 @@ public actor OpenRouterClient {
                                 return
                             }
 
-                            // Check for JSON error payload within the stream line
                             if let data = dataStr.data(using: .utf8),
                                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                                let errorDict = json["error"] as? [String: Any],

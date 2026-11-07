@@ -6,23 +6,6 @@ import Glibc
 import Darwin
 #endif
 
-// Kernel control sockets (`specs/simulator/networking-swiftcode.md` §3.4):
-// `socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL)`, CTLIOCGINFO to find a
-// control by name, `connect` with a `sockaddr_ctl`, then datagrams. The one
-// control SwiftCode provides is `com.apple.netsrc` (xnu `netsrc.h`), which
-// `getaddrinfo` and Network.framework ask for the source address and
-// interface of a destination (`networking.md` §3.7). Any other name:
-// CTLIOCGINFO fails with ENOENT, as for a control nobody registered.
-//
-// netsrc: a 36-byte request (version 1 or 2, interface scope, the
-// destination as a `sockaddr_in`/`sockaddr_in6` in a 28-byte union) gets a
-// reply: version 2, 56 bytes (source address union, minimum RTT, connection
-// attempts and successes — 0 here —, flags, the RFC 6724 label and
-// precedence of source and destination, the interface index); version 1,
-// 40 bytes (source, IPv6 flags, labels, precedences). The source address is
-// the one the host would use (a host UDP socket connected to the
-// destination); the interface is the guest's route to it (§3.3).
-
 final class KernelControlSocket: KernelDescriptorObject {
     let lock: KernelLock
     let signals = ObjectSignals()
@@ -34,7 +17,6 @@ final class KernelControlSocket: KernelDescriptorObject {
     static let afSystem: Int32 = 32, sysprotoControl: Int32 = 2, afSysControl: UInt16 = 2
     static let netsrcName = "com.apple.netsrc"
     static let netsrcID: UInt32 = 0x7963_0001
-    /// `CTLIOCGINFO` = `_IOWR('N', 3, struct ctl_info)` (100 bytes).
     static let ctliocginfo: UInt32 = 0xC064_4E03
 
     init(lock: KernelLock) { self.lock = lock }
@@ -53,10 +35,6 @@ final class KernelControlSocket: KernelDescriptorObject {
     func addReadinessObserver(_ observer: @escaping () -> Void) -> Int { signals.addObserver(observer) }
     func removeReadinessObserver(_ token: Int) { signals.removeObserver(token) }
 
-    // MARK: netsrc
-
-    /// The RFC 6724 default policy (label, precedence) of an IPv6 address
-    /// (IPv4 as IPv4-mapped).
     static func policy(_ a: [UInt8]) -> (label: UInt16, precedence: UInt16) {
         if a.count == 4 { return (4, 35) }
         func prefix(_ p: [UInt8], _ bits: Int) -> Bool {
@@ -76,7 +54,6 @@ final class KernelControlSocket: KernelDescriptorObject {
         return (1, 40)
     }
 
-    /// The source address the host would use toward `dst` (nil: no route).
     static func hostSource(for dst: InetAddress) -> [UInt8]? {
         let family = dst.isIPv4 ? HostNet.afInet : HostNet.afInet6
         #if canImport(Glibc)
@@ -95,7 +72,6 @@ final class KernelControlSocket: KernelDescriptorObject {
         return a.address
     }
 
-    /// The reply to a netsrc request (nil for a malformed one).
     static func netsrcReply(_ req: [UInt8]) -> [UInt8]? {
         guard req.count >= 8 + 16 else { return nil }
         let version = req.readLE(UInt32.self, at: 0)
@@ -116,7 +92,7 @@ final class KernelControlSocket: KernelDescriptorObject {
         var out = src
         if version == 2 {
             out.appendLE(UInt32(0)); out.appendLE(UInt32(0)); out.appendLE(UInt32(0))
-            out.appendLE(UInt32(route != nil && source != nil ? 0x20 : 0))  // NETSRC_FLAG_ROUTEABLE
+            out.appendLE(UInt32(route != nil && source != nil ? 0x20 : 0))
             out.appendLE(srcPolicy.label); out.appendLE(srcPolicy.precedence)
             out.appendLE(dstPolicy.label); out.appendLE(dstPolicy.precedence)
             out.appendLE(UInt16(truncatingIfNeeded: route?.index ?? 0))
@@ -132,13 +108,11 @@ final class KernelControlSocket: KernelDescriptorObject {
 }
 
 extension DarwinKernel {
-    /// Socket calls on a kernel control socket.
     func kernelControlCall(_ n: Int, _ a: [UInt64], _ s: KernelControlSocket, _ file: DarwinOpenFile, _ call: inout CallText,
                            _ mem: any KernelGuestMemory) throws -> BSDResult {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
         switch n {
         case DescriptorBSD.connect:
-            // struct sockaddr_ctl: len, family, ss_sysaddr u16, sc_id u32, sc_unit u32, reserved.
             let length = Int(UInt32(truncatingIfNeeded: a[2]))
             guard length >= 12, length <= 255 else { throw fail(Code.EINVAL) }
             let sa = try mem.read(va: a[1], count: length)
@@ -217,7 +191,6 @@ extension DarwinKernel {
         }
     }
 
-    /// CTLIOCGINFO: the control id of a name.
     func kernelControlInfo(_ a: [UInt64], _ mem: any KernelGuestMemory) throws -> BSDResult {
         var info = try mem.read(va: a[2], count: 100)
         let name = String(decoding: info[4...].prefix { $0 != 0 }, as: UTF8.self)

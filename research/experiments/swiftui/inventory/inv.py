@@ -108,7 +108,7 @@ def availability(attrs):
             dep = dep or 'yes'
     return ios, dep, unavail
 
-stack = []   # entries: ('type', name, ios) or ('body',)
+stack = []
 pending = []
 seen = set()
 for raw in src:

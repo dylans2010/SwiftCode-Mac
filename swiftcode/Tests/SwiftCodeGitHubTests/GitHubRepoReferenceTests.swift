@@ -1,8 +1,6 @@
 import Testing
 @testable import SwiftCodeGitHub
 
-// Pure string parsing; no shared state, so these run in parallel.
-
 @Test func parseOwnerSlashRepo() {
     let parsed = GitHubRepoReference.parse("octocat/Hello-World")
     #expect(parsed?.owner == "octocat")
@@ -53,8 +51,6 @@ import Testing
     #expect(GitHubRepoReference.parseRemoteURL("https://gitlab.com/octocat/Hello-World") == nil)
     #expect(GitHubRepoReference.parseRemoteURL("https://notgithub.com/octocat/Hello-World") == nil)
     #expect(GitHubRepoReference.parseRemoteURL("https://github.com.evil.com/octocat/Hello-World") == nil)
-    // Assembled from parts: scan-public flags the literal user@host
-    // shape in tracked source. The runtime string is unchanged.
     let scpGitLab = "git@" + "gitlab.com:octocat/Hello-World.git"
     #expect(GitHubRepoReference.parseRemoteURL(scpGitLab) == nil)
 }

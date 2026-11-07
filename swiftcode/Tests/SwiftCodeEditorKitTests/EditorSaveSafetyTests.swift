@@ -8,7 +8,6 @@ import Glibc
 import Darwin
 #endif
 
-/// A file in its own temporary folder.
 final class TempFile {
     let dir: String
     let path: String
@@ -32,7 +31,6 @@ func open(_ path: String) throws -> EditorDocument {
 }
 
 @Suite struct EditorSaveSafetyTests {
-    // MARK: Round trips
 
     @Test(arguments: [
         "plain\ntext\n", "no final newline", "", "\n\n\n", "crlf\r\nonly\r\n", "mixed\r\nlines\nhere\r", "tabs\t\t\n  spaces  \n",
@@ -66,13 +64,13 @@ func open(_ path: String) throws -> EditorDocument {
         let b = d.buffer
         b.setCaret(0)
         b.move(.hardLine, forward: true)
-        #expect(b.caret == 3)                   // Before the \r.
+        #expect(b.caret == 3)
         b.move(.character, forward: true)
-        #expect(b.caret == 5)                   // Over \r\n at once.
+        #expect(b.caret == 5)
         b.move(.character, forward: false)
         #expect(b.caret == 3)
         b.setCaret(4)
-        #expect(b.caret == 3)                   // Never between them.
+        #expect(b.caret == 3)
         b.setCaret(5)
         b.insertText("x")
         #expect(d.save() == .saved)
@@ -111,8 +109,6 @@ func open(_ path: String) throws -> EditorDocument {
         #expect(EditorDocument.open(path: f.path + ".missing").message == "Cannot read file.swift.missing")
     }
 
-    // MARK: The atomic write
-
     @Test func saveLeavesNoTemporaryFilesAndClearsDirty() throws {
         let f = try TempFile("a")
         let d = try open(f.path)
@@ -132,7 +128,6 @@ func open(_ path: String) throws -> EditorDocument {
         d.buffer.insertText("#")
         #expect(d.save() == .saved)
         #expect(FileManager.default.attributes(f.path).mode == 0o751)
-        // A new inode: the old file was never truncated, a reader keeps a whole one.
         #expect(FileManager.default.attributes(f.path).ino != ino.ino)
     }
 
@@ -167,7 +162,6 @@ func open(_ path: String) throws -> EditorDocument {
     }
 
     @Test func aFailedSaveKeepsTheBufferAndTheFile() throws {
-        // A directory where the file was: rename can't replace it.
         let f = try TempFile("old")
         let d = try open(f.path)
         d.buffer.setCaret(0)
@@ -196,7 +190,6 @@ func open(_ path: String) throws -> EditorDocument {
         let d = try open(f.path)
         d.buffer.setCaret(0)
         d.buffer.insertText("new ")
-        // A file that isn't writable in a folder that isn't writable.
         chmod(f.path, 0o444)
         chmod(f.dir, 0o555)
         defer { chmod(f.dir, 0o755) }
@@ -219,8 +212,6 @@ func open(_ path: String) throws -> EditorDocument {
         #expect(d.save() == .saved)
         #expect(f.text == "new old" && !d.isDirty)
     }
-
-    // MARK: Changes on disk
 
     @Test func aChangedFileIsNoticedAndNotOverwritten() throws {
         let f = try TempFile("disk 1\n")
@@ -254,7 +245,7 @@ func open(_ path: String) throws -> EditorDocument {
     @Test func reloadIsUndoableAndKeepsTheCaretNearby() throws {
         let f = try TempFile("one\ntwo\nthree\n")
         let d = try open(f.path)
-        d.buffer.setCaret(10)    // In "three".
+        d.buffer.setCaret(10)
         try Data("one\nTWO!\nthree\n".utf8).write(to: URL(fileURLWithPath: f.path))
         #expect(d.checkDisk() == .modified)
         #expect(d.reloadFromDisk())

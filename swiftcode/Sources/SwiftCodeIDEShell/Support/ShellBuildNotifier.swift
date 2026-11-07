@@ -2,51 +2,33 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// The SwiftUI shell's "Notify with bezel or system notification"
-/// (`specs/ide/build-notifications.md`): the core's event decision and
-/// bezel timing, with the state the bezel view reads. No toolkit types: the
-/// view (`swiftcode-ide`) sets the window state, Reduce Motion and the system
-/// notification and announcement hooks.
 @MainActor
 @Observable
 public final class ShellBuildNotifier {
     @ObservationIgnored private var tracker = BehaviorEventTracker()
     @ObservationIgnored public private(set) var timeline = BezelTimeline()
 
-    /// The notice the bezel shows, nil when none is.
     public private(set) var bezel: BuildNotice?
-    /// The bezel is fading out (the view animates its opacity to 0).
     public private(set) var isFading = false
-    /// How many fading phases have started (tests: a fade can be shorter than a poll).
     public private(set) var fadesStarted = 0
 
-    /// The window is the one in front (OpenViews: scene phase active).
     @ObservationIgnored public var isWindowActive = true
-    /// Accessibility ▸ Reduce Motion.
     @ObservationIgnored public var reduceMotion = false
-    /// The workspace's name (the system notification's body).
     @ObservationIgnored public var workspaceName = ""
-    /// Posts a system notification; nil = none available.
     @ObservationIgnored public var postSystemNotification: (@MainActor (BuildNotice, String) -> Void)?
-    /// Posts an accessibility announcement.
     @ObservationIgnored public var announce: (@MainActor (String) -> Void)?
-    /// The settings the behaviors come from (tests substitute their own).
     @ObservationIgnored public var preferences: () -> Preferences = { .shared }
-    /// Scales the bezel's durations (tests run faster).
     @ObservationIgnored public var timeScale = 1.0
 
-    /// Every notice, routed: "bezel <title>" or "system <title>".
     public private(set) var log: [String] = []
 
     public init() {}
 
-    /// The session's activity changed (`WorkspaceShellModel`).
     public func activityChanged(_ a: WorkspaceSession.Activity, hasErrors: Bool, hasWarnings: Bool) {
         let events = tracker.events(for: a, hasErrors: hasErrors, hasWarnings: hasWarnings)
         for n in BuildNotificationPolicy.notices(for: events, activity: a, preferences: preferences()) { notify(n) }
     }
 
-    /// Shows `n` as the bezel when the window is in front, else posts it.
     public func notify(_ n: BuildNotice) {
         let state = BuildNotificationPolicy.WindowState(isVisible: isWindowActive, isKey: isWindowActive, appIsActive: isWindowActive)
         switch BuildNotificationPolicy.route(state) {
@@ -81,7 +63,6 @@ public final class ShellBuildNotifier {
 }
 
 extension WorkspaceShellModel {
-    /// Settings ▸ Behaviors' Notify action for the activity just reported.
     func noteActivityForNotifications() {
         notifier.workspaceName = workspaceName
         let shown = session.displayedIssues

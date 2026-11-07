@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectTestService.swift
-// Adapted for SwiftCode: Assist internals (AssistTestRunnerTool/AssistContextBuilder/AssistMemoryGraph) replaced by the ConnectWorkspaceProvider seam.
-
 import Foundation
 import os.log
 
@@ -34,10 +30,6 @@ public final class ConnectTestService: @unchecked Sendable {
             ConnectServer.shared.broadcast(envelope: env, requiringPermission: .testsExecute)
         }
 
-        // Legacy ran tests through the Assist internals (AssistTestRunnerTool
-        // + AssistContextBuilder + AssistMemoryGraph). Those are Autopilot-era
-        // plumbing and are not ported: the provider runs the tests through
-        // the IDE's own test runner instead.
         do {
             let result = try await provider.runTests(scheme: nil, at: project.directoryURL)
             let completedPayload = ConnectTestCompletedPayload(

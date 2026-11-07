@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeBuild
 
-/// The build hook that swaps Apple's actool for `swiftcode assets compile`
-/// (specs/formats/assets-car.md, "SwiftCode implementation").
 struct AssetCompilerHookTests {
     func tool() throws -> (dir: URL, tool: String) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-hook-\(UUID().uuidString)")

@@ -7,13 +7,6 @@ import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodePaywall
 
-// Settings ▸ General, Navigation, Notifications and Behaviors on Linux:
-// the macOS IDE's panes (SwiftCodeUI `SettingsPanes.swift`,
-// `specs/ide/reference-ui-5.md` §9) over the same `Preferences`.
-
-// MARK: General
-
-/// Settings ▸ General (reference-ui-5.md §9.1).
 struct GeneralSettingsPane: View {
     @State private var exporting = false
     @State private var importing = false
@@ -21,7 +14,6 @@ struct GeneralSettingsPane: View {
     @State private var confirmWarnings = false
     @State private var failure: String?
 
-    /// The Test Parallelization row for the computer SwiftCode runs on.
     #if os(Linux)
     static let hostTestingTitle = "Testing on My Computer"
     #else
@@ -78,11 +70,6 @@ struct GeneralSettingsPane: View {
                     Button("Reset All") { confirmWarnings = true }.buttonStyle(.bordered).controlSize(.small).shellTarget("settings reset warnings")
                 }
             }
-            // SwiftCode Pro (Wave 15): the IDE's only production Pro
-            // gate — the member line for Pro users, otherwise an
-            // "Upgrade to Pro" button presenting the Wave 13 paywall.
-            // On Linux the paywall cannot load products (StoreKit ops
-            // fail honestly with `.storeKitUnavailable`).
             SettingsSection("SwiftCode Pro") {
                 ProSettingsSection()
             }
@@ -119,20 +106,16 @@ struct GeneralSettingsPane: View {
                   target: "settings \(title.lowercased())")
     }
 
-    /// The help under Restore open projects and workspaces (the macOS
-    /// IDE's text, with the desktop's own setting named).
     #if os(Linux)
     static let restoreHelp = "Use System Setting reopens them, as the desktop restores its other apps' windows."
     #else
     static let restoreHelp = "Use System Setting reopens them unless \u{201C}Close windows when quitting an application\u{201D} is on in "
         + "System Settings \u{25B8} Desktop & Dock."
     #endif
-    /// The help under Window tabs have independent sidebar widths.
     static let sidebarWidthsHelp = "Each tab of a window keeps its own navigator and inspector widths, so the tab bar moves when you "
         + "switch between tabs."
 }
 
-/// A file of bytes for the file dialogs' Export.
 struct SettingsFile: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
     var data: Data
@@ -146,9 +129,6 @@ struct SettingsFile: FileDocument {
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }
 
-// MARK: Navigation
-
-/// Settings ▸ Navigation (reference-ui-5.md §9.2).
 struct NavigationSettingsPane: View {
     var body: some View {
         let _ = ShellPreferences.shared.revision
@@ -179,8 +159,6 @@ struct NavigationSettingsPane: View {
         }
     }
 
-    // The modifier keys' names on the host's keyboard (on Linux ⌘ is Ctrl,
-    // ⌥ Alt and ⌃ Super; ShortcutNotation).
     #if os(Linux)
     static let option = "Alt", command = "Ctrl", control = "Super"
     #else
@@ -188,10 +166,6 @@ struct NavigationSettingsPane: View {
     #endif
 }
 
-// MARK: Notifications
-
-/// Settings ▸ Notifications: one checkbox per event, its Behaviors Notify
-/// action.
 struct NotificationsSettingsPane: View {
     var body: some View {
         let _ = ShellPreferences.shared.revision
@@ -212,14 +186,9 @@ struct NotificationsSettingsPane: View {
     }
 }
 
-// MARK: Behaviors
-
-/// Settings ▸ Behaviors: the events by category with their actions; an
-/// event opens its page, where each action is set.
 struct BehaviorsSettingsPane: View {
     @Bindable var model: ShellSettingsModel
 
-    /// The categories that have SwiftCode events.
     static let categories = ["Build", "Testing", "Running"]
 
     var body: some View {
@@ -244,7 +213,6 @@ struct BehaviorsSettingsPane: View {
         }
     }
 
-    /// The actions in a few words ("Notify, Issue Navigator").
     static func summary(_ b: Preferences.Behavior) -> String {
         var parts: [String] = []
         if let n = b.showNavigator, CommandTable.navigators.indices.contains(n) { parts.append(CommandTable.navigators[n]) }
@@ -256,13 +224,10 @@ struct BehaviorsSettingsPane: View {
     }
 }
 
-/// One event's actions.
 struct BehaviorEventPage: View {
     var event: Preferences.Event
     var back: () -> Void
 
-    /// The debug area choices: no change, show, hide, hide if the run
-    /// printed nothing.
     enum DebugArea: String, CaseIterable { case none = "No Change", show = "Show", hide = "Hide", hideIfNoOutput = "Hide If No Output" }
 
     var body: some View {

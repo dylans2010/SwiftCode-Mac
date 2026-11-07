@@ -4,10 +4,6 @@ import SwiftCodeDebug
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeLanguage
 
-/// The semantic find kinds against a stand-in language server: symbol
-/// definitions and references, callers, ancestor, descendent and
-/// conforming types (specs/ide/navigators.md §Find navigator, "SwiftCode
-/// implementation"). `SourceKitLSPFindTests` runs them on sourcekit-lsp.
 @Suite struct SemanticFindTests {
     struct Stub: SemanticFindService {
         static let a = URL(fileURLWithPath: "/w/A.swift"), b = URL(fileURLWithPath: "/w/B.swift")
@@ -26,7 +22,6 @@ import SwiftCodeDebug
         }
 
         func references(_ url: URL, at p: Position) async throws -> [Location] {
-            // The call in B line 5 is reported twice; it is listed once.
             [Self.loc(Self.b, 1, 9), Self.loc(Self.b, 5, 4), Self.loc(Self.a, 9, 2), Self.loc(Self.b, 5, 4)]
         }
 
@@ -90,7 +85,6 @@ import SwiftCodeDebug
         #expect(r.heading == "area — 3 references" && r.count == 3)
         #expect(r.nodes.map(\.title) == ["A.swift", "B.swift"] && r.nodes.map(\.detail) == ["(1)", "(2)"])
         #expect(r.nodes[1].children.map(\.title) == ["2: func area() -> Int { 1 }", "6: line 5"] && r.nodes[1].children.map(\.line) == [2, 6])
-        // The seed's position is moved onto the name in its line.
         #expect(SemanticFind.namePosition("area()", at: Position(line: 1, character: 0), path: "/w/B.swift", lines: Self.lines)
                 == Position(line: 1, character: 9))
     }
@@ -100,7 +94,6 @@ import SwiftCodeDebug
         #expect(r.heading == "Callers of area()" && r.count == 2)
         let titles = r.nodes.flatMap(\.flattened).map(\.title)
         #expect(titles == ["area()", "areaOfAll(_:)", "report()", "main"])
-        // From the caret, the same tree.
         let seed = SemanticFind.Seed(url: Stub.b, position: Position(line: 1, character: 9), name: "area()")
         #expect(await SemanticFind.run(.callHierarchy, at: seed, service: Stub()).nodes == r.nodes)
     }
@@ -110,14 +103,11 @@ import SwiftCodeDebug
         #expect(up.heading == "Ancestor types of Square" && up.nodes[0].flattened.map(\.title) == ["Square", "Base", "Shape"] && up.count == 2)
         let down = await SemanticFind.run(FindQuery("Base", kind: .descendentTypes, match: .matchingWord), service: Stub())
         #expect(down.nodes[0].flattened.map(\.title) == ["Base", "Square"])
-        // A protocol's descendants are the protocols refining it; its conforming types the others.
         let refining = await SemanticFind.run(FindQuery("Shape", kind: .descendentTypes, match: .matchingWord, ignoreCase: false), service: Stub())
         #expect(refining.nodes[0].flattened.map(\.title) == ["Shape", "Shaped"])
         let conforming = await SemanticFind.run(FindQuery("Shape", kind: .conformingTypes, match: .matchingWord, ignoreCase: false), service: Stub())
         #expect(conforming.heading == "Types conforming to Shape" && conforming.nodes[0].flattened.map(\.title) == ["Shape", "Base", "Square"])
-        // Conforming Types looks up protocols only.
         #expect(await SemanticFind.run(FindQuery("Base", kind: .conformingTypes, match: .matchingWord), service: Stub()).message != nil)
-        // A server without type hierarchy says so.
         let none = await SemanticFind.run(FindQuery("Square", kind: .ancestorTypes, match: .matchingWord), service: Stub(unsupported: true))
         #expect(none.message == "The language server does not support ancestor types")
     }

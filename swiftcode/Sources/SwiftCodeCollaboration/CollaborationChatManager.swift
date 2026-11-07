@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/CollaborationChatManager.swift
-// Adapted for SwiftCode: Collaboration chat channel. Verbatim.
-
 import Foundation
 import Combine
 
@@ -33,8 +29,6 @@ public final class CollaborationChatManager: ObservableObject {
     @Published public private(set) var messagesByChannel: [String: [CollaborationChatMessage]] = [:]
     @Published public private(set) var activeChannelID: String = "general"
 
-    /// Wiring (wiring-views): the IDE shell constructs the chat manager when it
-    /// opens the Collaboration window (cf. `PullRequestManager`'s public init).
     public init() {}
 
     public func sendMessage(text: String, authorID: String, channelID: String? = nil, attachment: ChatAttachment? = nil) {
@@ -42,7 +36,6 @@ public final class CollaborationChatManager: ObservableObject {
         let message = CollaborationChatMessage(channelID: cid, authorID: authorID, text: text, attachment: attachment)
         messagesByChannel[cid, default: []].append(message)
 
-        // Broadcast via PeerSessionManager if in a live session
         if let data = try? JSONEncoder().encode(message) {
             PeerSessionManager.shared.sendDataToAll(data)
         }

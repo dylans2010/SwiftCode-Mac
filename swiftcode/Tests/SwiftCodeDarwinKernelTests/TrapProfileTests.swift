@@ -2,12 +2,10 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinKernel
 
-/// The per-trap kernel-lock profile (`SWIFTCODE_TRAP_PROFILE`, diagnostics).
 @Suite struct TrapProfileTests {
     @Test func rowsAccumulateAndReport() throws {
         let path = NSTemporaryDirectory() + "swiftcode-trap-profile-\(getpid())-\(UInt32.random(in: 0...UInt32.max)).txt"
         let profile = TrapProfile(path: path)
-        // workq_kernreturn (368): two traps; the second takes the lock twice.
         profile.noteHandler(368, 3_000_000)
         profile.noteHandler(368, 5_000_000)
         profile.noteWait(368, 1_000, contended: false)

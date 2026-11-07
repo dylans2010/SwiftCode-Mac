@@ -1,7 +1,5 @@
 import Foundation
 
-/// A release (`GET /repos/{owner}/{repo}/releases`). `authorLogin`
-/// is the nested `author.login`.
 public struct GitHubRelease: Sendable, Equatable, Decodable, Identifiable {
     public var id: Int
     public var tagName: String
@@ -13,10 +11,6 @@ public struct GitHubRelease: Sendable, Equatable, Decodable, Identifiable {
     public var createdAt: Date?
     public var publishedAt: Date?
     public var htmlUrl: String?
-    /// Assets embedded in the release payload (Legacy's
-    /// `GitHubService.GitHubRelease.assets`). Empty when the payload
-    /// omits them; the Releases view reads them from
-    /// `GitHubReleaseClient.listReleaseAssets` when it needs the full list.
     public var assets: [GitHubReleaseAsset]
 
     private enum CodingKeys: String, CodingKey {
@@ -47,8 +41,6 @@ public struct GitHubRelease: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// One asset of a release (`/releases/{id}/assets`).
-/// `downloadCount` is the JSON `download_count`.
 public struct GitHubReleaseAsset: Sendable, Equatable, Decodable, Identifiable {
     public var id: Int
     public var name: String
@@ -74,13 +66,6 @@ public struct GitHubReleaseAsset: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// The api.github.com releases client. There is no releases surface
-/// in `GitHubClient` (Wave 10), so this is the port of Legacy's
-/// `ReleasesView` data layer (`SwiftCode/Views/GitHub/ReleasesView.swift`):
-/// list and read releases and their assets over
-/// `GitHubRESTTransport`. Releases are read-only here — creating one
-/// is a release-management action with no Legacy equivalent in this
-/// slice, and stays out on purpose.
 public struct GitHubReleaseClient: Sendable {
     private let transport: GitHubRESTTransport
 
@@ -88,7 +73,6 @@ public struct GitHubReleaseClient: Sendable {
         self.transport = GitHubRESTTransport(session: session, tokenProvider: tokenProvider)
     }
 
-    /// `GET /repos/{owner}/{repo}/releases`.
     public func listReleases(owner: String, repo: String, perPage: Int = 30, page: Int = 1) async throws -> [GitHubRelease] {
         try validateRepo(owner: owner, repo: repo)
         return try await transport.perform(transport.request(
@@ -97,21 +81,18 @@ public struct GitHubReleaseClient: Sendable {
                     URLQueryItem(name: "page", value: "\(max(1, page))")]))
     }
 
-    /// `GET /repos/{owner}/{repo}/releases/{id}`.
     public func getRelease(owner: String, repo: String, id: Int) async throws -> GitHubRelease {
         try validateRepo(owner: owner, repo: repo)
         return try await transport.perform(transport.request(
             path: "repos/\(transport.encode(owner))/\(transport.encode(repo))/releases/\(id)"))
     }
 
-    /// `GET /repos/{owner}/{repo}/releases/latest`.
     public func getLatestRelease(owner: String, repo: String) async throws -> GitHubRelease {
         try validateRepo(owner: owner, repo: repo)
         return try await transport.perform(transport.request(
             path: "repos/\(transport.encode(owner))/\(transport.encode(repo))/releases/latest"))
     }
 
-    /// `GET /repos/{owner}/{repo}/releases/{id}/assets`.
     public func listReleaseAssets(owner: String, repo: String, releaseId: Int, perPage: Int = 30) async throws -> [GitHubReleaseAsset] {
         try validateRepo(owner: owner, repo: repo)
         return try await transport.perform(transport.request(

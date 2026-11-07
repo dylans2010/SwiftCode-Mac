@@ -1,4 +1,3 @@
-// cache.cpp: in-memory and on-disk translation cache.
 #include "cache.h"
 
 #include <cstdio>
@@ -65,4 +64,4 @@ bool Cache::reflectionByHash(const std::string &hash, Json &reflection) const {
     return true;
 }
 
-}  // namespace airc
+}

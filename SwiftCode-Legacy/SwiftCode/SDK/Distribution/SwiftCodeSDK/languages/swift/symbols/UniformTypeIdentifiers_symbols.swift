@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for UniformTypeIdentifiers
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct UniformTypeIdentifiersSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "uniformtypeidentifiers.symbol.0"
     public var name: String = "UniformTypeIdentifiersSymbolName_0"

@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Multi-Cursor Extension View
 struct MultiCursorExtensionView: View {
     @State private var isEnabled = true
     @State private var highlightMatchingWords = true

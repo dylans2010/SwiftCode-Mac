@@ -27,8 +27,6 @@ public final class PreviewDeviceManager {
     private init() {}
 
     public func device(named name: String) -> PreviewDeviceConfig {
-        // FORCE-UNWRAP SAFETY JUSTIFICATION: array 'devices' is hardcoded with non-empty items,
-        // and default fallback is guaranteed to exist at index 0.
         return devices.first(where: { name.contains($0.name) || $0.name.contains(name) }) ?? devices[0]
     }
 }

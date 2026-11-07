@@ -1,22 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/AssistViewMemoryTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/Tools/Assist/AssistViewMemoryTool.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Reading the app-global UserMemory.md shared across workspaces (with its category/query filters applied to the global store)
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - ToolCapability — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - ToolRiskLevel — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - UserMemoryManager — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/UserMemoryManager.swift`)
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+Memory.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
-//
-//  AssistViewMemoryTool.swift
-//  SwiftCode
-//
-
 import Foundation
 import SwiftCodeAssistant
 

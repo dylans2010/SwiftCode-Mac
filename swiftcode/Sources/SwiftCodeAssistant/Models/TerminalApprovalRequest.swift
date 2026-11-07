@@ -1,9 +1,3 @@
-// Moved here from SwiftCodeMCP/Tools/UseTermFunction.swift by MCP-DEP (2026-11-06,
-// decision (b) in staging-wire/mcp-dep/DISPOSITIONS.md). Foundation-only struct;
-// SwiftCodeAssistant (which cannot import SwiftCodeMCP) needs it for
-// AssistManager.pendingTerminalRequest / requestTerminalApproval. SwiftCodeMCP
-// keeps using it through `import SwiftCodeAssistant`. Body verbatim.
-
 import Foundation
 
 public struct TerminalApprovalRequest: Identifiable, Sendable {

@@ -1,8 +1,5 @@
 import Foundation
 
-/// Writes `.xcarchive` bundles in the layout `specs/ide/organizer.md`
-/// reads (Info.plist and, with an application, its Products folder), with
-/// no tools: the tests run on macOS and Linux alike.
 struct ArchiveFixtures {
     let root: URL
 

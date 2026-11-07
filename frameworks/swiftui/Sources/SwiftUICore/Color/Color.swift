@@ -1,57 +1,42 @@
 import Foundation
 
-// Colours (07-text-images-color.md §4). A `Color` is a description that is
-// resolved against an environment (colour scheme, contrast) into concrete
-// sRGB components. Named system colours adapt to the colour scheme; colours
-// built from components do not.
-
-/// A colour value, resolved lazily against the environment.
 public struct Color: Hashable, CustomStringConvertible, Sendable {
     package let provider: ColorProvider
 
     package init(provider: ColorProvider) { self.provider = provider }
 
-    /// The colour spaces component initialisers accept.
     public enum RGBColorSpace: Hashable, Sendable {
         case sRGB
         case sRGBLinear
         case displayP3
     }
 
-    /// A colour from components in `colorSpace` (values outside 0…1 give
-    /// extended-range colours).
     public init(_ colorSpace: RGBColorSpace = .sRGB, red: Double, green: Double, blue: Double, opacity: Double = 1) {
         self.init(provider: .resolved(Resolved(colorSpace: colorSpace, red: Float(red), green: Float(green),
                                                blue: Float(blue), opacity: Float(opacity))))
     }
 
-    /// A grey with the given white level.
     public init(_ colorSpace: RGBColorSpace = .sRGB, white: Double, opacity: Double = 1) {
         self.init(colorSpace, red: white, green: white, blue: white, opacity: opacity)
     }
 
-    /// A colour from hue, saturation and brightness (all 0…1), in sRGB.
     public init(hue: Double, saturation: Double, brightness: Double, opacity: Double = 1) {
         let (r, g, b) = hsbToRGB(hue: hue, saturation: saturation, brightness: brightness)
         self.init(.sRGB, red: r, green: g, blue: b, opacity: opacity)
     }
 
-    /// A colour that always resolves to `resolved`.
     public init(_ resolved: Resolved) { self.init(provider: .resolved(resolved)) }
 
-    /// Resolves the colour for the colour scheme and contrast in `environment`.
     public func resolve(in environment: EnvironmentValues) -> Resolved {
         provider.resolve(scheme: environment.colorScheme, contrast: environment.colorSchemeContrast)
     }
 
-    /// The colour with its opacity multiplied by `opacity`.
     public func opacity(_ opacity: Double) -> Color {
         Color(provider: .opacity(provider, opacity))
     }
 
     public var description: String { provider.description }
 
-    // Named colours (07 §4).
     public static let accentColor = Color(provider: .system(.accentColor))
     public static let red = Color(provider: .system(.red))
     public static let orange = Color(provider: .system(.orange))
@@ -73,7 +58,6 @@ public struct Color: Hashable, CustomStringConvertible, Sendable {
     public static let secondary = Color(provider: .system(.secondary))
 }
 
-/// What a `Color` is made of.
 package indirect enum ColorProvider: Hashable, Sendable, CustomStringConvertible {
     case resolved(Color.Resolved)
     case system(SystemColor)
@@ -102,16 +86,12 @@ package indirect enum ColorProvider: Hashable, Sendable, CustomStringConvertible
 }
 
 extension Color {
-    /// Concrete colour components. Stored as gamma-encoded extended sRGB;
-    /// `linearRed`/… give the linear-light values.
     public struct Resolved: Hashable, CustomStringConvertible, Sendable {
-        /// Gamma-encoded sRGB components (may lie outside 0…1).
         public var red: Float
         public var green: Float
         public var blue: Float
         public var opacity: Float
 
-        /// Components given in `colorSpace`, converted to extended sRGB.
         public init(colorSpace: RGBColorSpace = .sRGB, red: Float, green: Float, blue: Float, opacity: Float = 1) {
             switch colorSpace {
             case .sRGB:
@@ -138,7 +118,6 @@ extension Color {
             set { blue = srgbEncode(newValue) }
         }
 
-        /// `#RRGGBBAA` with components clamped to 0…1 and rounded to 8 bits.
         public var description: String {
             func byte(_ v: Float) -> String {
                 let b = Int((min(max(v, 0), 1) * 255).rounded())
@@ -148,7 +127,6 @@ extension Color {
             return "#" + byte(red) + byte(green) + byte(blue) + byte(opacity)
         }
 
-        /// A resolved colour from an `RRGGBB` or `RRGGBBAA` hex string.
         package init?(hex: String) {
             var s = Substring(hex)
             if s.hasPrefix("#") { s = s.dropFirst() }
@@ -161,7 +139,6 @@ extension Color {
 }
 
 extension Color.Resolved: Animatable {
-    /// Interpolation happens in linear light.
     public var animatableData: AnimatablePair<Float, AnimatablePair<Float, AnimatablePair<Float, Float>>> {
         get { .init(linearRed, .init(linearGreen, .init(linearBlue, opacity))) }
         set {
@@ -189,17 +166,12 @@ extension Color.Resolved: Codable {
     }
 }
 
-// MARK: - Transfer functions and colour-space conversion (public standards:
-// IEC 61966-2-1 sRGB; Display P3 = DCI-P3 primaries, D65 white, sRGB curve).
-
-/// Gamma-encoded → linear sRGB, extended symmetrically to negative values.
 package func srgbDecode(_ v: Float) -> Float {
     let a = abs(v)
     let lin = a <= 0.04045 ? a / 12.92 : powf((a + 0.055) / 1.055, 2.4)
     return v < 0 ? -lin : lin
 }
 
-/// Linear → gamma-encoded sRGB, extended symmetrically to negative values.
 package func srgbEncode(_ v: Float) -> Float {
     let a = abs(v)
     let enc = a <= 0.0031308 ? a * 12.92 : 1.055 * powf(a, 1 / 2.4) - 0.055
@@ -207,8 +179,6 @@ package func srgbEncode(_ v: Float) -> Float {
 }
 
 private enum DisplayP3 {
-    /// Linear Display P3 → linear sRGB, derived from the two sets of
-    /// primaries and the shared D65 white point.
     static let matrix: [[Double]] = {
         let p3 = rgbToXYZ(r: (0.680, 0.320), g: (0.265, 0.690), b: (0.150, 0.060))
         let srgb = rgbToXYZ(r: (0.640, 0.330), g: (0.300, 0.600), b: (0.150, 0.060))
@@ -252,7 +222,6 @@ private enum DisplayP3 {
     }
 }
 
-/// HSB (a.k.a. HSV) → RGB, the standard hexcone conversion.
 private func hsbToRGB(hue: Double, saturation s: Double, brightness v: Double) -> (Double, Double, Double) {
     let h = (hue - hue.rounded(.down)) * 6
     let i = Int(h.rounded(.down)) % 6

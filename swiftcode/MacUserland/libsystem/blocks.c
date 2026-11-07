@@ -1,12 +1,7 @@
-// blocks.c - the Blocks runtime of SwiftCode's libSystem
-// (specs/macos/libsystem.md §4, §7.1). Clean-room SwiftCode code written from
-// clang's public Block ABI specification (the literal, descriptor and
-// __block layouts and flag values). No Objective-C: captured objects are
-// plain pointers.
 #include "ycl.h"
 
 enum {
-    REFCOUNT_MASK = 0xFFFE,  // the count, in steps of 2
+    REFCOUNT_MASK = 0xFFFE,
     NEEDS_FREE = 1 << 24,
     HAS_COPY_DISPOSE = 1 << 25,
     IS_GLOBAL = 1 << 28,
@@ -15,7 +10,7 @@ enum { FIELD_OBJECT = 3, FIELD_BLOCK = 7, FIELD_BYREF = 8, FIELD_WEAK = 16, BYRE
 
 struct descriptor {
     unsigned long reserved, size;
-    void (*copy)(void *dst, const void *src);  // with HAS_COPY_DISPOSE
+    void (*copy)(void *dst, const void *src);
     void (*dispose)(const void *);
 };
 
@@ -32,11 +27,10 @@ struct byref {
     struct byref *forwarding;
     volatile int flags;
     int size;
-    void (*keep)(struct byref *dst, struct byref *src);  // with HAS_COPY_DISPOSE
+    void (*keep)(struct byref *dst, struct byref *src);
     void (*destroy)(struct byref *);
 };
 
-// The class words (only their addresses matter without Objective-C).
 YCL_EXPORT void *_NSConcreteStackBlock[32];
 YCL_EXPORT void *_NSConcreteMallocBlock[32];
 YCL_EXPORT void *_NSConcreteGlobalBlock[32];
@@ -44,12 +38,11 @@ YCL_EXPORT void *_NSConcreteAutoBlock[32];
 YCL_EXPORT void *_NSConcreteFinalizingBlock[32];
 YCL_EXPORT void *_NSConcreteWeakBlockVariable[32];
 
-// Adds `delta` (±2) to the count in `flags`; returns the new count.
 static int adjust(volatile int *flags, int delta) {
     for (;;) {
         int old = *flags;
         int count = old & REFCOUNT_MASK;
-        if (count == REFCOUNT_MASK && delta > 0) return count;  // saturated: lives forever
+        if (count == REFCOUNT_MASK && delta > 0) return count;
         int now = (old & ~REFCOUNT_MASK) | ((count + delta) & REFCOUNT_MASK);
         if (__atomic_compare_exchange_n(flags, &old, now, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
             return now & REFCOUNT_MASK;
@@ -81,8 +74,6 @@ YCL_EXPORT void _Block_release(const void *arg) {
     free(b);
 }
 
-// A __block variable moves to the heap the first time a block that uses
-// it is copied; both copies' forwarding pointers then name the heap one.
 static struct byref *byref_copy(struct byref *src) {
     src = src->forwarding;
     if (src->flags & NEEDS_FREE) {
@@ -92,7 +83,7 @@ static struct byref *byref_copy(struct byref *src) {
     struct byref *copy = malloc((size_t)src->size);
     if (!copy) abort();
     copy->isa = 0;
-    copy->flags = (src->flags & ~REFCOUNT_MASK) | NEEDS_FREE | 4;  // the heap copy and the stack frame
+    copy->flags = (src->flags & ~REFCOUNT_MASK) | NEEDS_FREE | 4;
     copy->forwarding = copy;
     copy->size = src->size;
     src->forwarding = copy;
@@ -125,7 +116,7 @@ YCL_EXPORT void _Block_object_assign(void *dst, const void *object, const int fl
     case FIELD_BLOCK:
         *slot = (flags & BYREF_CALLER) ? (void *)object : _Block_copy(object);
         break;
-    default:  // objects (and weak ones): no retain without Objective-C
+    default:
         *slot = (void *)object;
         break;
     }
@@ -145,5 +136,4 @@ YCL_EXPORT void _Block_object_dispose(const void *object, const int flags) {
     }
 }
 
-// Calls a block that takes no arguments (dispatch's work items).
 void ycl_block_invoke(void *block) { ((void (*)(void *))((struct block *)block)->invoke)(block); }

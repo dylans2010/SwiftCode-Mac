@@ -2,11 +2,6 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-// Games and augmented reality (`templates.md` § Catalog: Game, Augmented
-// Reality App). Source texts are SwiftCode's own; the APIs are the public SDK
-// documentation (SpriteKit, SceneKit, MetalKit, RealityKit, ARKit,
-// GameplayKit).
-
 extension ProjectGenerator {
     static let platformController = """
     #if os(macOS)
@@ -18,7 +13,6 @@ extension ProjectGenerator {
     #endif
     """
 
-    /// The game view controller and the technology's files, in `folder`.
     static func gameCore(_ c: GenContext, folder: String, technology: String) -> (files: [(String, String)], viewClass: String) {
         let gk = c.on(TemplateOptionID.integrateGameplayKit)
         switch technology {
@@ -219,7 +213,6 @@ extension ProjectGenerator {
         }
     }
 
-    /// The RealityKit game: a SwiftUI app with a spinning box.
     static func realityKitGameFiles(_ c: GenContext, folder: String) -> [(String, String)] {
         [
             ("\(folder)/\(c.t)App.swift", """
@@ -286,8 +279,6 @@ extension ProjectGenerator {
         ]
     }
 
-    /// The UIKit app files of a game (iOS or tvOS): delegates, storyboards
-    /// and the scene manifest.
     static func uikitGameShell(_ c: GenContext, folder: String, rt: InterfaceBuilderFiles.Runtime, viewClass: String, module: String) -> [(String, String)] {
         [
             ("\(folder)/AppDelegate.swift", "import UIKit\n\n@main\nclass AppDelegate: UIResponder, UIApplicationDelegate {\n    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession,\n                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {\n        UISceneConfiguration(name: \"Default Configuration\", sessionRole: connectingSceneSession.role)\n    }\n}\n"),
@@ -355,15 +346,11 @@ extension ProjectGenerator {
         }
     }
 
-    /// Multiplatform ▸ Game: RealityKit is one SDK-`auto` target; the other
-    /// technologies share "N Shared" across one target per platform.
     static func multiplatformGame(_ c: GenContext, tech: String) throws -> GeneratedProject {
         let n = c.n
         let ios = c.on(TemplateOptionID.iOSPlatform), mac = c.on(TemplateOptionID.macOSPlatform)
         let tv = c.on(TemplateOptionID.tvOSPlatform), vision = c.on(TemplateOptionID.visionOSPlatform)
         if tech == "RealityKit" {
-            // How the checkboxes narrow the one target is OPEN; SwiftCode lists
-            // the checked platforms.
             var platforms: [String] = [], families: [String] = [], keys: [String] = [], icons: [String] = []
             if ios { platforms += ["iphoneos", "iphonesimulator"]; families += ["1", "2"]; keys.append("IPHONEOS_DEPLOYMENT_TARGET"); icons.append("iOS") }
             if mac { platforms.append("macosx"); keys.append("MACOSX_DEPLOYMENT_TARGET"); icons.append("macOS") }

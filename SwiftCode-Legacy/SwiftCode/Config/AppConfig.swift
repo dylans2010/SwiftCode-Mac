@@ -14,7 +14,6 @@ public struct AppConfig: Sendable {
 
     public var supabaseURL: URL {
         if let configuredSupabaseURL { return configuredSupabaseURL }
-        // SAFETY: The hardcoded fallback URL is known to be a valid and well-formed URL.
         return URL(string: "https://secctbuzkfbketdihzui.supabase.co")!
     }
 
@@ -33,14 +32,12 @@ public struct AppConfig: Sendable {
 
     public var swiftCloudAPIURL: URL {
         if let configuredSwiftCloudAPIURL { return configuredSwiftCloudAPIURL }
-        // SAFETY: The hardcoded fallback SwiftCloud API URL is known to be a valid and well-formed URL.
         return URL(string: "https://api.swiftcloud.ai/v1")!
     }
 
     private init() {
         let bundle = Bundle.main
 
-        // Helper to load and sanitize string value from Bundle
         func loadString(for key: String) -> String? {
             guard let rawValue = bundle.object(forInfoDictionaryKey: key) as? String else {
                 return nil
@@ -61,7 +58,6 @@ public struct AppConfig: Sendable {
         logger.log("[AppConfig] Centralized configuration loaded successfully.")
     }
 
-    /// Structured Diagnostics of configuration load status
     public func runDiagnostics() -> [String: String] {
         return [
             "configuredSupabaseURL": configuredSupabaseURL != nil ? "LOADED" : "MISSING",

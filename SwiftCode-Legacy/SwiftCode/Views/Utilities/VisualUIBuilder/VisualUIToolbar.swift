@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Elegant workspace toolbar providing configuration selectors, frame builders, dark mode overrides, and quick actions.
 public struct VisualUIToolbar: View {
     @Bindable var document: VisualUIDocument
     @Bindable var settings: VisualUISettings
@@ -17,7 +16,6 @@ public struct VisualUIToolbar: View {
 
     public var body: some View {
         HStack(spacing: 16) {
-            // Group 1: Design Framework selector
             HStack(spacing: 12) {
                 Picker("Framework", selection: $document.scene.currentFramework) {
                     ForEach(VisualUIFramework.allCases) { framework in
@@ -30,7 +28,6 @@ public struct VisualUIToolbar: View {
 
             Spacer()
 
-            // Group 2: Layout & Viewport Configuration
             HStack(spacing: 8) {
                 Picker("Device", selection: $settings.selectedDevice) {
                     if availableDevices.isEmpty {
@@ -95,9 +92,7 @@ public struct VisualUIToolbar: View {
 
             Spacer()
 
-            // Group 3: Document Actions
             HStack(spacing: 12) {
-                // Undo / Redo group
                 HStack(spacing: 4) {
                     Button {
                         document.undo()
@@ -123,7 +118,6 @@ public struct VisualUIToolbar: View {
                 Divider()
                     .frame(height: 16)
 
-                // Sparkles AI Assistant
                 Button {
                     showingAIAssistantSheet = true
                 } label: {
@@ -135,7 +129,6 @@ public struct VisualUIToolbar: View {
                 .controlSize(.small)
                 .help("Ask Codex AI Assistant")
 
-                // Export actions
                 Button {
                     showingExportSheet = true
                 } label: {
@@ -155,8 +148,6 @@ public struct VisualUIToolbar: View {
             VisualUIAIAssistant(document: document)
         }
     }
-
-
 
     private func updateSelectedDeviceFrames(to device: String) {
         document.checkpoint()

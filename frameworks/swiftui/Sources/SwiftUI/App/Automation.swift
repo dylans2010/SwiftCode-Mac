@@ -6,32 +6,18 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Automation hooks for apps built on OpenViews (not SwiftUI API): what the
-// samples' drivers do with package access, offered publicly so an app in
-// another package (SwiftCode's Linux IDE shell, `swiftcode-ide`) can be driven and
-// photographed the same way: the running window's texts with their frames
-// (menu titles, the items of open menus), screenshots read back from the
-// window's presenter with open pop-ups drawn over it, synthetic input
-// through the back end's queue (for compositors where no external input
-// tool works, such as a headless Weston), and quitting.
-
-/// Drivers' access to the running app's windows (OpenViews only).
 @MainActor
 public enum OpenViewsAutomation {
-    /// One text drawn in a window, in that main window's points.
     public struct TextItem: Sendable, Equatable {
         public var text: String
         public var frame: CGRect
-        /// Whether it is in a pop-up (an open menu, a picker list).
         public var inPopup: Bool
     }
 
     static var host: AppHost? { AppHost.current }
 
-    /// The main (non-pop-up) windows, in creation order.
     static var mainWindows: [WindowHost] { host?.windows.filter { !$0.isPopup } ?? [] }
 
-    /// The back end's name ("SDL x11", "headless").
     public static var backendName: String {
         guard let h = host else { return "none" }
         if let sdl = h.backend as? SDLBackend { return "\(h.backend.name) SDL \(sdl.libraryDescription)" }
@@ -40,24 +26,19 @@ public enum OpenViewsAutomation {
 
     public static var windowCount: Int { mainWindows.count }
 
-    /// A main window's size in points and pixels.
     public static func windowSize(_ index: Int = 0) -> (points: CGSize, pixels: (width: Int, height: Int))? {
         guard mainWindows.indices.contains(index) else { return nil }
         let w = mainWindows[index]
         return (w.size, w.platform.pixelSize)
     }
 
-    /// The menu bar's titles of a main window.
     public static func menuTitles(_ index: Int = 0) -> [String] {
         guard mainWindows.indices.contains(index) else { return [] }
         return mainWindows[index].services.menuBar?.menuTitles ?? []
     }
 
-    /// How many pop-ups (open menus, picker lists) the app shows.
     public static var openPopupCount: Int { host?.windows.filter(\.isPopup).count ?? 0 }
 
-    /// Every `Text` drawn in a main window and in its open pop-ups, with
-    /// frames in the main window's points (pop-up origins added).
     public static func texts(_ index: Int = 0) -> [TextItem] {
         guard mainWindows.indices.contains(index), let h = host else { return [] }
         let w = mainWindows[index]
@@ -73,9 +54,6 @@ public enum OpenViewsAutomation {
         return out
     }
 
-    /// The frames of the views marked with `accessibilityIdentifier(_:)` in
-    /// a main window (its accessibility tree, R10), in points; the first
-    /// view with an identifier wins.
     public static func identifiedFrames(_ index: Int = 0) -> [String: CGRect] {
         guard mainWindows.indices.contains(index) else { return [:] }
         var out: [String: CGRect] = [:]
@@ -85,11 +63,6 @@ public enum OpenViewsAutomation {
         return out
     }
 
-    /// What a main window tells the input method (issue 23): whether text
-    /// input is on, the caret rectangle it was given in window points (the
-    /// candidate window opens below it), and the focused text field's marked
-    /// text (nil when the focused text is not a text field, such as a
-    /// `TextSurface` editor).
     public static func textInput(_ index: Int = 0) -> (active: Bool, area: CGRect?, fieldMarkedText: String?) {
         guard mainWindows.indices.contains(index) else { return (false, nil, nil) }
         let w = mainWindows[index]
@@ -97,7 +70,6 @@ public enum OpenViewsAutomation {
         return (w.platform.isTextInputActive, w.textInputArea, field?.marked)
     }
 
-    /// Writes a main window's image (pop-ups drawn over it) as PNG.
     @discardableResult
     public static func screenshot(_ index: Int = 0, to path: String) -> String {
         guard mainWindows.indices.contains(index), let h = host else { return "screenshot: no window" }
@@ -122,11 +94,6 @@ public enum OpenViewsAutomation {
         }
     }
 
-    /// A click (press and release) at a point of a main window, through the
-    /// back end's event queue; a point inside an open pop-up goes to that
-    /// pop-up (the frames `texts` reports are in the main window's points).
-    /// `button` 1 is primary, 3 secondary; `modifiers` are held during it
-    /// (⌥-click, Ctrl-click).
     public static func click(at p: CGPoint, window index: Int = 0, button: Int = 1, modifiers: KeyModifiers = []) async {
         guard let h = host, mainWindows.indices.contains(index) else { return }
         let main = mainWindows[index]
@@ -141,9 +108,6 @@ public enum OpenViewsAutomation {
             }
         }
         let id = target.platform.id
-        // A back end whose pointer events carry no modifiers (SDL) takes
-        // them from the keyboard's last state: a release of no key with
-        // them held sets it, and one without them clears it afterwards.
         if !modifiers.isEmpty {
             h.backend.post(.key(KeyEvent(window: main.platform.id, key: .other(0), isDown: false, modifiers: modifiers, timestamp: h.backend.now)))
         }
@@ -157,8 +121,6 @@ public enum OpenViewsAutomation {
         }
     }
 
-    /// Moves the pointer (no button pressed) to a point of a main window, or
-    /// of the open pop-up under it (R13: hover, tooltips, submenus).
     public static func move(to p: CGPoint, window index: Int = 0) {
         guard let h = host, mainWindows.indices.contains(index) else { return }
         let main = mainWindows[index]
@@ -175,32 +137,24 @@ public enum OpenViewsAutomation {
                                              isPressed: false, timestamp: h.backend.now)))
     }
 
-    /// A key press with modifiers, through the back end's event queue.
     public static func press(_ key: Key, modifiers: KeyModifiers = [], window index: Int = 0) {
         guard let h = host, mainWindows.indices.contains(index) else { return }
         h.backend.post(.key(KeyEvent(window: mainWindows[index].platform.id, key: key, modifiers: modifiers, timestamp: h.backend.now)))
     }
 
-    /// Typed text, through the back end's event queue.
     public static func type(_ text: String, window index: Int = 0) {
         guard let h = host, mainWindows.indices.contains(index) else { return }
         h.backend.post(.textInput(TextInputEvent(window: mainWindows[index].platform.id, text: text, timestamp: h.backend.now)))
     }
 
-    /// A wheel step at a point, through the back end's event queue (positive y
-    /// scrolls up, as `ScrollEvent`).
     public static func scroll(at p: CGPoint, delta: CGSize, window index: Int = 0) {
         guard let h = host, mainWindows.indices.contains(index) else { return }
         h.backend.post(.scroll(ScrollEvent(window: mainWindows[index].platform.id, location: p, delta: delta, timestamp: h.backend.now)))
     }
 
-    /// Ends the app's run loop.
     public static func terminate() { host?.terminate() }
 
-    /// With a list set, each main window's frame adds how long it took
-    /// (update, layout, drawing, presenting; seconds), for the benchmark drivers.
     public static var frameDurations: [Double]?
-    /// Frames presented by the main window.
     public static func presentedFrames(window index: Int = 0) -> Int {
         mainWindows.indices.contains(index) ? mainWindows[index].presentedFrames : 0
     }

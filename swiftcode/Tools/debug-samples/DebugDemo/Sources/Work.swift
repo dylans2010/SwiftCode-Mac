@@ -1,6 +1,3 @@
-// DebugDemo: the work the debugger looks at (specs/simulator/debug-stub.md
-// §9). Original SwiftCode sample code.
-
 struct Stats {
     var rounds = 0
     var total = 0

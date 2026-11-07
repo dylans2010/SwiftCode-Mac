@@ -1,8 +1,5 @@
 import Foundation
 
-/// A hand-written project with a static library and a unit-test bundle
-/// holding XCTest and swift-testing tests (passing, failing, skipped,
-/// parameterized). IDs are arbitrary.
 let calcProjectText = """
 // !$*UTF8*$!
 {
@@ -47,7 +44,6 @@ let calcProjectText = """
 
 """
 
-/// Writes the Calc project and its sources into a fresh directory.
 func writeCalcProject() throws -> URL {
     let fm = FileManager.default
     let dir = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-tests-\(UUID().uuidString)")

@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodePaywall
 
-/// The store's debug and bypass behaviour, which needs no live
-/// StoreKit. Every test uses `autoStart: false` so no transaction
-/// listener and no background product/entitlement load can race the
-/// assertions. No live StoreKit transaction or sandbox purchase is
-/// ever attempted here.
 @MainActor
 struct PaywallStoreTests {
 

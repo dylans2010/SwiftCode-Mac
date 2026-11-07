@@ -1,12 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationNotificationCenterView.swift
-// Adapted for SwiftCode: reads the real CollaborationManager.notifications
-// (CollaborationNotificationItem) and marks read via
-// CollaborationManager.markNotificationRead. Legacy's hardcoded dark
-// background / white text become system-adaptive; cards use the system
-// thin material in place of Legacy's `.liquidGlass`, which has no
-// destination equivalent.
-
 import SwiftUI
 import SwiftCodeCollaboration
 

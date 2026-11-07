@@ -1,16 +1,12 @@
-// `SKTestFailures` and the failable API markers (testing-session.md §9).
 import Foundation
 @_spi(SwiftCode) import StoreKit
 import StoreKitEngine
 
-/// A simulated error of one API.
 public protocol SKTestFailure: Sendable {
-    /// The engine's form.
     var swiftcodeFailure: SimulatedFailure { get }
     init?(swiftcode: SimulatedFailure)
 }
 
-/// An API that accepts a simulated error.
 public protocol FailableStoreKitAPI: Sendable {
     associatedtype Failure: SKTestFailure
     var swiftcodeAPI: StoreAPI { get }

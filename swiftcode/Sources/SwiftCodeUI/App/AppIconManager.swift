@@ -1,22 +1,9 @@
-// Ported from Legacy `SwiftCode/Views/Settings/AppIconManager.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
-// Full app-icon variant system (37 variants, categories, default-appearance
-// adaptation, UserDefaults persistence, Dock-tile + ICNS application on macOS).
-// Note: preview images are looked up as `AppIcon-Preview-<Variant>` via
-// NSImage(named:)/Image(_:) — they live in swiftcode-ide/Assets.xcassets
-// (landed from Legacy's Assets.xcassets by the G-DEPS migration pass).
-// Wiring: Settings (add an App Icon section hosting AppIconPickerView) and
-// AppIconSelectView (same batch).
-
 import SwiftUI
 #if os(macOS)
 import AppKit
 #elseif os(iOS)
 import UIKit
 #endif
-
-// MARK: - AppIconCategory
 
 public enum AppIconCategory: String, CaseIterable, Identifiable {
     case all = "All"
@@ -25,9 +12,9 @@ public enum AppIconCategory: String, CaseIterable, Identifiable {
     case codeSymbols = "Code & Symbols"
     case themes = "Themes"
     case materials = "Materials"
-    
+
     public var id: String { rawValue }
-    
+
     public var iconName: String {
         switch self {
         case .all: return "square.grid.2x2.fill"
@@ -40,17 +27,13 @@ public enum AppIconCategory: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - AppIconVariant
-
 public enum AppIconVariant: String, CaseIterable, Identifiable {
-    // Official Liquid Glass Family
     case light = "Light"
     case dark = "Dark"
     case glass = "Glass"
     case tinted = "Tinted"
     case prismGlass = "PrismGlass"
-    
-    // Nostalgia & Heritage
+
     case retroMac = "RetroMac"
     case aqua2001 = "Aqua2001"
     case bondiDesktop = "BondiDesktop"
@@ -60,8 +43,7 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
     case synthwave = "Synthwave"
     case blueprint = "Blueprint"
     case floppyRetro = "FloppyRetro"
-    
-    // Developer & Coding Symbols
+
     case swiftSource = "SwiftSource"
     case codeBraces = "CodeBraces"
     case terminalCli = "TerminalCli"
@@ -71,23 +53,21 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
     case bugHunter = "BugHunter"
     case gitBranch = "GitBranch"
     case compilerTurbo = "CompilerTurbo"
-    
-    // Syntax & Themes
+
     case cyberpunk = "Cyberpunk"
     case matrixRain = "MatrixRain"
     case dracula = "Dracula"
     case monokai = "Monokai"
     case solarized = "Solarized"
     case midnightPurple = "MidnightPurple"
-    
-    // Luxury Materials & Atmosphere
+
     case pureGold = "PureGold"
     case titanium = "Titanium"
     case emerald = "Emerald"
     case oceanAbyss = "OceanAbyss"
-    
+
     public var id: String { rawValue }
-    
+
     public var category: AppIconCategory {
         switch self {
         case .light, .dark, .glass, .tinted, .prismGlass:
@@ -102,7 +82,7 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
             return .materials
         }
     }
-    
+
     public var displayName: String {
         switch self {
         case .light: return "Liquid Light"
@@ -140,7 +120,7 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
         case .oceanAbyss: return "Ocean Abyss"
         }
     }
-    
+
     public var subtitle: String {
         switch self {
         case .light:
@@ -211,7 +191,7 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
             return "Deep midnight oceanic navy with bioluminescent turquoise caustics"
         }
     }
-    
+
     public var badgeSymbol: String? {
         switch self {
         case .swiftSource: return "swift"
@@ -226,22 +206,20 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
         default: return nil
         }
     }
-    
+
     public var previewImageName: String {
         "AppIcon-Preview-\(rawValue)"
     }
-    
+
     public var assetCatalogName: String? {
         switch self {
         case .light:
-            return nil // Default primary icon
+            return nil
         default:
             return "AppIcon-\(rawValue)"
         }
     }
 }
-
-// MARK: - DefaultIconAppearance (macOS 26+ Appearance Adaptation)
 
 public enum DefaultIconAppearance: String, CaseIterable, Identifiable {
     case automatic = "System (Adaptive)"
@@ -249,9 +227,9 @@ public enum DefaultIconAppearance: String, CaseIterable, Identifiable {
     case dark = "Dark"
     case tinted = "Tinted"
     case clear = "Clear Glass"
-    
+
     public var id: String { rawValue }
-    
+
     public var iconSymbol: String {
         switch self {
         case .automatic: return "circle.lefthalf.filled"
@@ -261,7 +239,7 @@ public enum DefaultIconAppearance: String, CaseIterable, Identifiable {
         case .clear: return "drop.fill"
         }
     }
-    
+
     public var description: String {
         switch self {
         case .automatic:
@@ -276,7 +254,7 @@ public enum DefaultIconAppearance: String, CaseIterable, Identifiable {
             return "Ultra-clear fluid glass with caustics, bubbles, and floating emblem"
         }
     }
-    
+
     public var effectiveVariant: AppIconVariant {
         switch self {
         case .automatic:
@@ -294,18 +272,16 @@ public enum DefaultIconAppearance: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - AppIconManager
-
 @MainActor
 public final class AppIconManager: ObservableObject {
     public static let shared = AppIconManager()
-    
+
     private let userDefaultsKey = "selectedAppIconVariant"
     private let appearanceDefaultsKey = "defaultAppIconAppearance"
-    
+
     @Published public private(set) var currentVariant: AppIconVariant
     @Published public private(set) var defaultAppearance: DefaultIconAppearance
-    
+
     private init() {
         if let saved = UserDefaults.standard.string(forKey: userDefaultsKey),
            let variant = AppIconVariant(rawValue: saved) {
@@ -313,15 +289,14 @@ public final class AppIconManager: ObservableObject {
         } else {
             self.currentVariant = .light
         }
-        
+
         if let savedAppearance = UserDefaults.standard.string(forKey: appearanceDefaultsKey),
            let appearance = DefaultIconAppearance(rawValue: savedAppearance) {
             self.defaultAppearance = appearance
         } else {
             self.defaultAppearance = .automatic
         }
-        
-        // Listen for macOS system appearance changes (e.g. Light/Dark mode switch)
+
         #if os(macOS)
         DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
@@ -333,19 +308,18 @@ public final class AppIconManager: ObservableObject {
             }
         }
         #endif
-        
-        // Ensure the active icon is applied if user selected a custom variant
+
         if self.currentVariant != .light || self.defaultAppearance != .automatic {
             applyIcon(variant: self.currentVariant)
         }
     }
-    
+
     public func setVariant(_ variant: AppIconVariant) {
         currentVariant = variant
         UserDefaults.standard.set(variant.rawValue, forKey: userDefaultsKey)
         applyIcon(variant: variant)
     }
-    
+
     public func setDefaultAppearance(_ appearance: DefaultIconAppearance) {
         defaultAppearance = appearance
         UserDefaults.standard.set(appearance.rawValue, forKey: appearanceDefaultsKey)
@@ -353,13 +327,13 @@ public final class AppIconManager: ObservableObject {
             applyIcon(variant: .light)
         }
     }
-    
+
     public func handleSystemAppearanceChanged() {
         if currentVariant == .light && defaultAppearance == .automatic {
             applyIcon(variant: .light)
         }
     }
-    
+
     public var currentIconImage: NSImage? {
         #if os(macOS)
         let name = resolvedPreviewImageName(for: currentVariant)
@@ -368,30 +342,27 @@ public final class AppIconManager: ObservableObject {
         return nil
         #endif
     }
-    
+
     public func resolvedPreviewImageName(for variant: AppIconVariant) -> String {
         if variant == .light {
             return defaultAppearance.effectiveVariant.previewImageName
         }
         return variant.previewImageName
     }
-    
+
     private func applyIcon(variant: AppIconVariant) {
         #if os(macOS)
         let isDefault = (variant == .light && defaultAppearance == .automatic)
         let resolvedImageName = resolvedPreviewImageName(for: variant)
         let targetImage = NSImage(named: resolvedImageName)
 
-        // 1. Update running Dock tile immediately
         if isDefault {
             NSApplication.shared.applicationIconImage = nil
         } else if let img = targetImage {
             NSApplication.shared.applicationIconImage = img
         }
-        // Force the macOS Dock tile to immediately redraw
         NSApp.dockTile.display()
 
-        // 2. Persistently apply the icon everywhere in macOS (Finder, Spotlight, Launchpad, app bundles)
         applyIconEverywhereInMacOS(image: isDefault ? nil : targetImage, isDefault: isDefault)
         #elseif os(iOS)
         guard UIApplication.shared.supportsAlternateIcons else { return }
@@ -423,34 +394,27 @@ public final class AppIconManager: ObservableObject {
             let appIconURL = resourcesURL.appendingPathComponent("AppIcon.icns")
             let originalBackupURL = resourcesURL.appendingPathComponent("AppIcon.original.icns")
 
-            // Ensure original AppIcon.icns backup exists
             if FileManager.default.fileExists(atPath: appIconURL.path) && !FileManager.default.fileExists(atPath: originalBackupURL.path) {
                 try? FileManager.default.copyItem(at: appIconURL, to: originalBackupURL)
             }
 
             if isDefault {
-                // Restore original AppIcon.icns in Resources for Spotlight and Launchpad
                 if FileManager.default.fileExists(atPath: originalBackupURL.path) {
                     try? FileManager.default.removeItem(at: appIconURL)
                     try? FileManager.default.copyItem(at: originalBackupURL, to: appIconURL)
                 }
-                // Clear custom icon attribute so Finder uses default bundle icon
                 _ = NSWorkspace.shared.setIcon(nil, forFile: bundlePath, options: [])
             } else {
-                // Write new ICNS into Resources for Spotlight, Launchpad, and Finder indexing
                 if let data = icnsData {
                     try? data.write(to: appIconURL, options: .atomic)
                 }
-                // Set custom icon on bundle folder for Finder
                 if let img = image {
                     _ = NSWorkspace.shared.setIcon(img, forFile: bundlePath, options: [])
                 }
             }
 
-            // Update bundle modification date so macOS detects changes
             try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: bundlePath)
 
-            // Force LaunchServices database reregistration
             let lsregisterPath = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
             if FileManager.default.fileExists(atPath: lsregisterPath) {
                 let proc = Process()
@@ -460,7 +424,6 @@ public final class AppIconManager: ObservableObject {
                 proc.waitUntilExit()
             }
 
-            // Notify Finder of change
             NSWorkspace.shared.noteFileSystemChanged(bundlePath)
         }
 
@@ -470,15 +433,14 @@ public final class AppIconManager: ObservableObject {
         )
     }
 
-    /// Generates high-fidelity macOS .icns binary data covering standard and Retina resolutions
     public static func generateICNS(from image: NSImage) -> Data? {
         let tagsAndSizes: [(String, CGFloat)] = [
-            ("ic11", 32),    // 16@2x
-            ("ic12", 64),    // 32@2x
-            ("ic07", 128),   // 128
-            ("ic08", 256),   // 256
-            ("ic09", 512),   // 512
-            ("ic10", 1024)   // 512@2x / 1024
+            ("ic11", 32),
+            ("ic12", 64),
+            ("ic07", 128),
+            ("ic08", 256),
+            ("ic09", 512),
+            ("ic10", 1024)
         ]
 
         var entries: [(String, Data)] = []
@@ -490,8 +452,8 @@ public final class AppIconManager: ObservableObject {
         guard !entries.isEmpty else { return nil }
 
         var icnsData = Data()
-        icnsData.append(contentsOf: [0x69, 0x63, 0x6e, 0x73]) // 'icns' magic header
-        icnsData.append(contentsOf: [0, 0, 0, 0]) // total length placeholder
+        icnsData.append(contentsOf: [0x69, 0x63, 0x6e, 0x73])
+        icnsData.append(contentsOf: [0, 0, 0, 0])
 
         for (tag, pngData) in entries {
             guard let tagData = tag.data(using: .utf8), tagData.count == 4 else { continue }
@@ -539,15 +501,13 @@ public final class AppIconManager: ObservableObject {
     #endif
 }
 
-// MARK: - AppIconPickerView
-
 public struct AppIconPickerView: View {
     @ObservedObject private var iconManager = AppIconManager.shared
     @State private var selectedCategory: AppIconCategory = .all
     @State private var searchText = ""
-    
+
     public init() {}
-    
+
     private var filteredVariants: [AppIconVariant] {
         AppIconVariant.allCases.filter { variant in
             let matchesCategory = (selectedCategory == .all || variant.category == selectedCategory)
@@ -561,16 +521,13 @@ public struct AppIconPickerView: View {
             return matchesCategory && matchesText
         }
     }
-    
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            // Active Hero Banner
             heroActiveBanner
-            
-            // Filter Bar & Search
+
             filterAndSearchBar
-            
-            // Grid of Icons
+
             if filteredVariants.isEmpty {
                 emptySearchResultsView
             } else {
@@ -589,12 +546,9 @@ public struct AppIconPickerView: View {
             }
         }
     }
-    
-    // MARK: - Hero Active Banner
-    
+
     private var heroActiveBanner: some View {
         HStack(spacing: 16) {
-            // Icon thumbnail
             Group {
                 #if os(macOS)
                 if let nsImg = NSImage(named: iconManager.currentVariant.previewImageName) {
@@ -613,13 +567,13 @@ public struct AppIconPickerView: View {
             .frame(width: 76, height: 76)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 10, y: 5)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(iconManager.currentVariant.displayName)
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color.primary)
-                    
+
                     Text(iconManager.currentVariant.category.rawValue)
                         .font(.system(size: 11, weight: .semibold))
                         .padding(.horizontal, 8)
@@ -627,12 +581,12 @@ public struct AppIconPickerView: View {
                         .background(Capsule().fill(Color.orange.opacity(0.15)))
                         .foregroundStyle(Color.orange)
                 }
-                
+
                 Text(iconManager.currentVariant.subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(Color.secondary)
                     .lineLimit(2)
-                
+
                 HStack(spacing: 6) {
                     Circle()
                         .fill(Color.green)
@@ -643,9 +597,9 @@ public struct AppIconPickerView: View {
                 }
                 .padding(.top, 2)
             }
-            
+
             Spacer()
-            
+
             if iconManager.currentVariant != .light {
                 Button("Reset to Default") {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -660,20 +614,17 @@ public struct AppIconPickerView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    // MARK: - Filter and Search Bar
-    
     private var filterAndSearchBar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Search field
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 13))
-                
+
                 TextField("Search icons by name, theme, or symbol...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
-                
+
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
@@ -689,14 +640,13 @@ public struct AppIconPickerView: View {
             .padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.05)))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1))
-            
-            // Category filter pills
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(AppIconCategory.allCases) { category in
                         let count = category == .all ? AppIconVariant.allCases.count : AppIconVariant.allCases.filter { $0.category == category }.count
                         let isSelected = selectedCategory == category
-                        
+
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 selectedCategory = category
@@ -726,20 +676,18 @@ public struct AppIconPickerView: View {
             }
         }
     }
-    
-    // MARK: - Empty State
-    
+
     private var emptySearchResultsView: some View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 32))
                 .foregroundStyle(Color.secondary)
                 .padding(.top, 20)
-            
+
             Text("No icons match \"\(searchText)\"")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.secondary)
-            
+
             Button("Clear Search Filter") {
                 searchText = ""
                 selectedCategory = .all
@@ -756,15 +704,13 @@ public struct AppIconPickerView: View {
     }
 }
 
-// MARK: - AppIconCard
-
 private struct AppIconCard: View {
     let variant: AppIconVariant
     let isSelected: Bool
     let onSelect: () -> Void
-    
+
     @State private var isHovering = false
-    
+
     var body: some View {
         Button(action: onSelect) {
             VStack(spacing: 8) {
@@ -791,7 +737,7 @@ private struct AppIconCard: View {
                         radius: isHovering ? 8 : 4,
                         y: isHovering ? 5 : 2
                     )
-                    
+
                     if let symbol = variant.badgeSymbol {
                         Text(symbol)
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -801,7 +747,7 @@ private struct AppIconCard: View {
                             .foregroundStyle(Color.white)
                             .offset(x: -4, y: 58)
                     }
-                    
+
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .symbolRenderingMode(.palette)
@@ -812,14 +758,14 @@ private struct AppIconCard: View {
                     }
                 }
                 .padding(.top, 10)
-                
+
                 VStack(spacing: 2) {
                     Text(variant.displayName)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isSelected ? Color.orange : Color.primary)
                         .multilineTextAlignment(.center)
                         .lineLimit(1)
-                    
+
                     Text(variant.category.rawValue)
                         .font(.system(size: 10))
                         .foregroundStyle(Color.secondary)

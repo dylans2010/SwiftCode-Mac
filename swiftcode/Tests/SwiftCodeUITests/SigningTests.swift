@@ -31,7 +31,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         pe.setSetting("DEVELOPMENT_TEAM", "ABCDE12345")
         #expect(pe.model.teams == ["ABCDE12345"])
 
-        // "+ Capability" → Outgoing Connections also adds the sandbox.
         let library = pe.capabilityLibrary()
         _ = library.view
         library.select(.outgoingNetwork)
@@ -47,7 +46,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(pe.model.capabilities(target: "Hello", configuration: "Debug") == [.appSandbox, .hardenedRuntime, .outgoingNetwork])
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "project-editor-signing.png")
 
-        // Removing the sandbox removes what depends on it.
         try pe.removeCapability(.appSandbox)
         #expect(pe.model.capabilities(target: "Hello", configuration: "Debug") == [.hardenedRuntime])
         #expect(try PropertyListDocument(data: Data(contentsOf: ent)).root == .dictionary([]))

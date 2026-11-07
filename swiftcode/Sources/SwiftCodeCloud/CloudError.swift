@@ -1,11 +1,5 @@
 import Foundation
 
-/// Cloud-layer failures, ported verbatim from Legacy's
-/// `CloudError.swift` — same cases, same messages. `CloudManager`
-/// surfaces these (via `currentError`) when sync cannot run; the
-/// Appwrite transport has its own error type (`AppwriteError`) and
-/// is mapped to these at the seam where a cloud operation fails for
-/// a reason the UI shows.
 public enum CloudError: Error, LocalizedError, Sendable, Equatable {
     case unauthenticated
     case missingSwiftCodeID

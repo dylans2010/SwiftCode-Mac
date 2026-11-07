@@ -1,26 +1,3 @@
-// Folding a foldable device and the device's control socket
-// (specs/simulator/foldable.md §8, "SwiftCode implementation").
-//
-// FoldController keeps the host's FoldModel and moves the hinge: every
-// change of angle is a sweep of hinge-angle messages about 30 ms apart over
-// about 0.5 s (I4), sent through the HID service to the guest's HID bundle,
-// which dispatches them as vendor-defined events from its device-motion
-// service. The model starts closed and portrait at every cold boot (§7, I5)
-// and is kept in the memory directory's `fold.state`, which a warm-boot
-// snapshot saves and restores with the device.
-//
-// The control socket: every device run serves a Unix-domain socket (mode
-// 0600) at `<memory file system>/swiftcodectl-<uid>-<id>.sock`, one text
-// command a connection, answered with lines that start with "ok" or
-// "error". `swiftcode-simd --device DEV --control <command…>` (and the
-// shorthands --fold, --orientation, --rotate, --fold-state) sends one:
-//
-//   fold closed|half|open|<degrees> [instant]   sweep (or jump) the hinge
-//   orientation portrait|landscape-left|landscape-right|faceup|facedown
-//   rotate left|right
-//   state                                       the fold and the panel shown
-//   screenshot LCD|LCD-1|active <path.png>      one panel, upright (D4)
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -30,18 +7,13 @@ final class FoldController: @unchecked Sendable {
     let hid: HIDHostService
     let second: SecondDisplay
     let statePath: String
-    /// The framebuffer library publishes the inner panel (the default; not with SWIFTCODE_FOLD_DISPLAYS=0).
     var innerPublished = true
     let log: (String) -> Void
     private let lock = NSLock()
     private var model: FoldModel
-    /// The angle being swept to (nil: none).
     private var target: Int?
     private var generation = 0
-    /// Called (on the sweep's thread) after every change of the model.
     var onChange: (@Sendable (FoldModel) -> Void)?
-    /// Attempts per hinge message, 30 ms apart, while the guest's input
-    /// queue is full.
     static let sendAttempts = 17
 
     init(hid: HIDHostService, second: SecondDisplay, statePath: String, restoring: Bool, log: @escaping (String) -> Void) {
@@ -62,10 +34,6 @@ final class FoldController: @unchecked Sendable {
         try? Data(model.record.utf8).write(to: URL(fileURLWithPath: statePath), options: .atomic)
     }
 
-    /// Moves the hinge to `angle` (0…180): a sweep, or one message with
-    /// `instant`. A move in progress is replaced (the new sweep starts from
-    /// the angle last sent). Fails while the guest's HID bundle has not
-    /// registered.
     @discardableResult
     func fold(to angle: Int, instant: Bool = false) -> Result<String, FoldError> {
         let to = min(180, max(0, angle))
@@ -81,9 +49,6 @@ final class FoldController: @unchecked Sendable {
                 if i > 0 { usleep(UInt32(FoldModel.sweepStepMilliseconds * 1000)) }
                 let current = lock.withLock { generation == gen }
                 guard current else { return }
-                // The guest's input queue can be full for a moment while it
-                // is busy (seen once under load, FOLD2): try again for up
-                // to about half a second before the sweep gives up.
                 var sent = hid.send(.hingeAngle(UInt32(a)))
                 var tries = 1
                 while !sent, tries < FoldController.sendAttempts, lock.withLock({ generation == gen }) {
@@ -116,7 +81,6 @@ final class FoldController: @unchecked Sendable {
                : "LCD expected"))
     }
 
-    /// Sends the device orientation (§5.3).
     @discardableResult
     func setOrientation(_ o: DeviceMotionOrientation) -> Result<String, FoldError> {
         guard hid.isRegistered else { return .failure(.notRegistered) }
@@ -147,11 +111,7 @@ final class FoldController: @unchecked Sendable {
     }
 }
 
-// MARK: - The control socket
-
 extension DeviceLayout {
-    /// The control socket of the device at `dev` (short enough for a Unix
-    /// socket path; independent of the device directory's volume).
     static func controlSocketPath(dev: String) -> String {
         let base = memoryBase ?? NSTemporaryDirectory()
         let id = stableUDID(for: dev).replacingOccurrences(of: "-", with: "").prefix(16)
@@ -159,14 +119,11 @@ extension DeviceLayout {
     }
 }
 
-/// Serves the device's control socket (one thread in accept()).
 final class DeviceControlServer: @unchecked Sendable {
     let path: String
     let fold: FoldController?
     let capture: (_ display: String, _ path: String) -> String
     let summary: () -> String
-    /// More commands (the settings features, SimSettings.swift): the answer,
-    /// or nil for a command it does not know.
     var moreCommands: (([String]) -> String?)?
     private var fd: Int32 = -1
 
@@ -204,8 +161,6 @@ final class DeviceControlServer: @unchecked Sendable {
             if c < 0 { if errno == EINTR { continue }; return }
             var tv = timeval(tv_sec: 5, tv_usec: 0)
             setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-            // Each connection on its own thread: a settings command can wait
-            // for the guest (VoiceOver starting, an agent after a boot).
             let t = Thread { [self] in
                 var line = [UInt8]()
                 var b: UInt8 = 0
@@ -219,7 +174,6 @@ final class DeviceControlServer: @unchecked Sendable {
         }
     }
 
-    /// One command → the reply (first word "ok" or "error").
     func handle(_ line: String) -> String {
         let w = line.split(separator: " ").map(String.init)
         guard let command = w.first else { return "error: empty command" }
@@ -261,7 +215,6 @@ final class DeviceControlServer: @unchecked Sendable {
     }
 }
 
-/// Calls `body` with a sockaddr_un for `path`.
 func withUnixAddress<R>(_ path: String, _ body: (UnsafePointer<sockaddr>, socklen_t) -> R) -> R {
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
@@ -274,15 +227,10 @@ func withUnixAddress<R>(_ path: String, _ body: (UnsafePointer<sockaddr>, sockle
     }
 }
 
-// MARK: - The client (`swiftcode-simd --device DEV --control …`)
-
-/// Whether these arguments ask for the control client.
 func isControlClient(_ arguments: [String]) -> Bool {
     arguments.contains { ["--control", "--fold", "--orientation", "--rotate", "--fold-state", "--crown", "--gesture", "--button", "--vision"].contains($0) }
 }
 
-/// Sends one command to the running device's control socket, prints the
-/// reply and exits (0 for "ok", 1 for "error", 69 when no device runs).
 func runControlClient(_ arguments: [String]) -> Never {
     var dev: String?
     var words: [String] = []
@@ -307,13 +255,11 @@ func runControlClient(_ arguments: [String]) -> Never {
         case "--rotate": words = ["rotate", next()]
         case "--fold-state": words = ["state"]
         case "--crown":
-            // A watch's crown (WatchInput.swift): the delta, then an optional count.
             words = ["crown", next()]
             if i + 1 < arguments.count, Int(arguments[i + 1]) != nil { words.append(next()) }
         case "--gesture": words = ["gesture", next()]
         case "--vision": words = ["vision"] + arguments[(i + 1)...]; i = arguments.count
         case "--button":
-            // A watch's button (WatchInput.swift): the name, then an optional hold.
             words = ["button", next()]
             if i + 1 < arguments.count, Int(arguments[i + 1]) != nil { words.append(next()) }
         default: die("unknown argument '\(a)'\n\(help)", status: 64)
@@ -327,7 +273,6 @@ func runControlClient(_ arguments: [String]) -> Never {
     let path = DeviceLayout.controlSocketPath(dev: absolutePath(dev))
     let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
     guard fd >= 0, withUnixAddress(path, { connect(fd, $0, $1) }) == 0 else {
-        // A stopped Vision Pro: the room of its next boot (visionos.md §5.5.4, V-13).
         if words.count == 3, words[0] == "vision", words[1] == "room", VisionRooms.isValidKey(words[2]) {
             do {
                 try VisionRooms.writePreference(dev: absolutePath(dev), room: words[2])

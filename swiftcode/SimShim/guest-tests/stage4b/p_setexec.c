@@ -1,8 +1,3 @@
-/* SwiftCode stage-4b probe: posix_spawn with POSIX_SPAWN_SETEXEC keeps the pid
- * and the parent (processes.md sections 1.3 and 1.11). The parent spawns
- * A; A replaces itself with mode B, passing its pid; B checks getpid() and
- * getppid() and exits 5; the parent sees status 5. Original SwiftCode code.
- * Prints: setexec ok */
 #include "probe_util.h"
 
 int main(int argc, char **argv)
@@ -27,7 +22,6 @@ int main(int argc, char **argv)
             probe_fail("A: getflags read back %#x", flags);
         const char *extra[] = {me, argv[2], NULL};
         err = probe_spawn(NULL, self, NULL, &attr, "B", extra);
-        /* Only a failure returns. */
         probe_fail("A: posix_spawn(SETEXEC) returned %d (%s)", err, strerror(err));
     }
     if (argc >= 4 && strcmp(argv[1], "B") == 0) {

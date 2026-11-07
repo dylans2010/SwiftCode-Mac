@@ -1,13 +1,4 @@
 #!/bin/bash
-# Creates every New Project template (and the option combinations the
-# done-criterion lists) with `swiftcode new`, then builds each with SwiftCode's
-# build path (`swiftcode build --engine swift-build`). Prints one line per
-# project and a summary; exits 1 when any build fails.
-#
-#   scripts/new-project-matrix.sh <work-dir> [filter-regex]
-#
-# Needs `swbuild` (SWIFTCODE_SWBUILD, or SWIFTCODE_SWB's sibling; see
-# `SwiftBuildEngine.locate`). Packages build with `swift build`.
 set -u
 work=${1:?usage: new-project-matrix.sh <work-dir> [filter]}
 filter=${2:-.}
@@ -15,8 +6,6 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 swiftcode=${SWIFTCODE_BIN:-$here/.build/debug/swiftcode}
 mkdir -p "$work"
 pass=0; fail=0; failed=()
-
-# name|template|destination|options...
 cases=()
 add() { cases+=("$*"); }
 AU="audioUnitSubtypeCode=demo|audioUnitManufacturerCode=Demo|ORGANIZATIONNAME=SwiftCode"
@@ -110,7 +99,6 @@ add "PkgMacro|package.swift-macro|-"
 add "PkgTool|package.macos.command-line-tool|-"
 add "PkgExe|package.macos.executable|swift"
 add "Playground|ios.app-playground|swift"
-
 for c in "${cases[@]}"; do
   IFS='|' read -r -a f <<< "$c"
   name=${f[0]}; tmpl=${f[1]}; dest=${f[2]}

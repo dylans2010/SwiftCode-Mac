@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// The device's memory directory (frame-profile.md §8.1): a cold boot starts
-/// it empty, a snapshot saves its files, a restore puts them back, the run's
-/// end removes it and keeps the timing files in DEV/data/tmp.
 @Suite(.serialized) struct DeviceMemoryFilesTests {
     @Test func coldSaveRestoreFinish() throws {
         let fm = FileManager.default
@@ -21,14 +18,12 @@ import Testing
         #expect(layout.framebufferStatePath == host + "/swiftcode-framebuffer.state")
         #expect(layout.framebufferStateGuestPath == layout.dev + "/swiftcode-memory/swiftcode-framebuffer.state")
 
-        // Cold boot: an old file is removed.
         try fm.createDirectory(atPath: host, withIntermediateDirectories: true)
         try Data("stale".utf8).write(to: URL(fileURLWithPath: host + "/old"))
         try layout.prepareMemoryDirectory()
         #expect(try fm.contentsOfDirectory(atPath: host) == [".owner"])
         #expect(fm.contents(atPath: host + "/.owner") == Data("\(getpid())\n".utf8))
 
-        // The guest writes the record; the snapshot saves it.
         try Data("frame 7".utf8).write(to: URL(fileURLWithPath: layout.framebufferStatePath))
         layout.saveMemoryDirectory()
         #expect(try fm.contentsOfDirectory(atPath: layout.memorySavedPath) == ["swiftcode-framebuffer.state"])
@@ -36,13 +31,11 @@ import Testing
         #expect(saved == Data("frame 7".utf8))
         let savedTime = try fm.attributesOfItem(atPath: layout.framebufferStatePath)[.modificationDate] as? Date
 
-        // The run's end: the memory directory goes, a timing file stays in DEV/data/tmp.
         try Data("timing".utf8).write(to: URL(fileURLWithPath: host + "/swiftcode-framebuffer.timing"))
         layout.finishMemoryDirectory()
         #expect(!fm.fileExists(atPath: host))
         #expect(fm.fileExists(atPath: layout.data + "/tmp/swiftcode-framebuffer.timing"))
 
-        // A restore refills it from the saved copy, with the saved time.
         layout.restoring = true
         try layout.prepareMemoryDirectory()
         #expect(try Data(contentsOf: URL(fileURLWithPath: layout.framebufferStatePath)) == Data("frame 7".utf8))
@@ -63,9 +56,9 @@ import Testing
             try fm.createDirectory(atPath: prefix + name, withIntermediateDirectories: true)
             if let owner { try Data(owner.utf8).write(to: URL(fileURLWithPath: prefix + name + "/.owner")) }
         }
-        try make("dead", owner: "1073741808\n")      // no such process
+        try make("dead", owner: "1073741808\n")
         try make("alive", owner: "\(getpid())\n")
-        try make("young", owner: nil)                  // no owner, made just now
+        try make("young", owner: nil)
         try fm.createDirectory(atPath: root + "/swiftcode-other-user", withIntermediateDirectories: true)
         DeviceLayout.sweepStaleMemoryDirectories(except: prefix + "this-device")
         #expect(!fm.fileExists(atPath: prefix + "dead"))

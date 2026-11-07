@@ -1,19 +1,3 @@
-/*
- * sfbheadless: Ycode research prototype (original Ycode code, no Apple code).
- * A headless stand-in for the simulator framebuffer library, written from the
- * observations in specs/simulator/simframebuffer.md. It describes ONE display
- * whose geometry comes from SIMULATOR_MAINSCREEN_{WIDTH,HEIGHT,SCALE,PITCH},
- * accepts swapchains and presents nothing: every submitted swap completes at
- * once with no error. It contacts no Mach service.
- *
- * Purpose: check on the Mac's simulator that backboardd starts and serves its
- * display endpoint with nothing but this behaviour (SIMULATOR_FRAMEBUFFER_FRAMEWORK
- * pointed at the built dylib). Set SFBH_LOG=<file> to log calls. Experiments:
- * SFBH_NO_CALLBACK=1 never completes a swap; SFBH_NO_SWAPCHAIN=1 refuses swapchains.
- *
- * CF object model: three CF runtime classes (declarations below follow the
- * public CF open-source CFRuntime.h).
- */
 #include <CoreFoundation/CoreFoundation.h>
 #include <Block.h>
 #include <dispatch/dispatch.h>
@@ -27,7 +11,6 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-/* ---- CF runtime declarations (CF open source, CFRuntime.h) ---- */
 typedef struct {
     CFIndex version;
     const char *className;
@@ -46,7 +29,6 @@ extern CFTypeID _CFRuntimeRegisterClass(const ycode_CFRuntimeClass *cls);
 extern CFTypeRef _CFRuntimeCreateInstance(CFAllocatorRef a, CFTypeID t, CFIndex extra, unsigned char *cat);
 typedef struct { uintptr_t isa; uint64_t info; } ycode_CFRuntimeBase;
 
-/* ---- logging ---- */
 static FILE *g_log;
 static void logf_(const char *fmt, ...)
 {
@@ -55,10 +37,9 @@ static void logf_(const char *fmt, ...)
     fputc('\n', g_log); fflush(g_log);
 }
 
-/* ---- objects ---- */
 typedef struct { double width, height; } SizeD;
 
-struct mode_record {           /* 35 bytes written, layout as observed */
+struct mode_record {
     uint32_t mode_id, width, height, scale, field16, pixel_format, field24, refresh_x100;
     uint8_t b32, b33, b34;
 } __attribute__((packed));
@@ -68,7 +49,7 @@ struct conn {
     uint32_t id;
     CFStringRef name;
     dispatch_queue_t queues[3];
-    void *handlers[3];      /* connected, updated, disconnected (block copies) */
+    void *handlers[3];
 };
 struct display {
     ycode_CFRuntimeBase base;
@@ -132,13 +113,11 @@ __attribute__((constructor)) static void init(void)
     logf_("sfbheadless loaded: %ux%u scale %u pitch %u", d->width, d->height, d->scale, d->pitch);
 }
 
-/* ---- type IDs ---- */
 EXPORT CFTypeID SFBConnectionGetTypeID(void) { return g_conn_t; }
 EXPORT CFTypeID SFBDisplayGetTypeID(void) { return g_disp_t; }
 EXPORT CFTypeID SFBSwapchainGetTypeID(void) { return g_sc_t; }
 EXPORT const char *simFramebufferGetStructName(uint64_t v) { logf_("simFramebufferGetStructName(%llu)", v); return "unknown"; }
 
-/* ---- connection ---- */
 EXPORT struct conn *SFBConnectionCreate(CFAllocatorRef a, CFStringRef name)
 {
     struct conn *c = (struct conn *)_CFRuntimeCreateInstance(a, g_conn_t, sizeof(struct conn) - sizeof(ycode_CFRuntimeBase), NULL);
@@ -183,10 +162,9 @@ EXPORT void *SFBConnectionCreateDisplay(struct conn *c, ...) { logf_("SFBConnect
 EXPORT bool SFBConnectionUpdateDisplay(struct conn *c, ...) { logf_("SFBConnectionUpdateDisplay"); return false; }
 EXPORT bool SFBConnectionRemoveDisplay(struct conn *c, ...) { logf_("SFBConnectionRemoveDisplay"); return false; }
 
-/* ---- display ---- */
 static void fill_mode(struct display *d, void *out)
 {
-    struct mode_record m = { 1, d->width, d->height, d->scale, 1, 0x42475241 /* BGRA */, 2, 6000, 1, 1, 1 };
+    struct mode_record m = { 1, d->width, d->height, d->scale, 1, 0x42475241 , 2, 6000, 1, 1, 1 };
     if (out) memcpy(out, &m, sizeof m);
 }
 EXPORT CFStringRef SFBDisplayGetName(struct display *d) { return d->name; }
@@ -221,7 +199,7 @@ EXPORT bool SFBDisplaySetBrightnessFactor(struct display *d, ...) { logf_("SetBr
 
 EXPORT struct swapchain *SFBDisplayCreateSwapchain(struct display *d, uint64_t mode, CFDictionaryRef opts, CFErrorRef *err)
 {
-    if (getenv("SFBH_NO_SWAPCHAIN")) {   /* experiment: refuse swapchains */
+    if (getenv("SFBH_NO_SWAPCHAIN")) {
         logf_("SFBDisplayCreateSwapchain refused (SFBH_NO_SWAPCHAIN)");
         if (err) *err = CFErrorCreate(NULL, CFSTR("SimFramebufferClientErrorDomain"), 2, NULL);
         return NULL;
@@ -238,12 +216,11 @@ EXPORT struct swapchain *SFBDisplayCreateSwapchain(struct display *d, uint64_t m
     return s;
 }
 
-/* ---- swapchain ---- */
 EXPORT uint32_t SFBSwapchainGetID(struct swapchain *s) { return s->id; }
 EXPORT uint32_t SFBSwapchainGetDisplayID(struct swapchain *s) { return s->display->id; }
 EXPORT uint32_t SFBSwapchainGetConnectionID(struct swapchain *s) { return s->display->connection_id; }
 EXPORT SizeD SFBSwapchainGetFramebufferSize(struct swapchain *s) { return (SizeD){ s->display->width, s->display->height }; }
-EXPORT uint32_t SFBSwapchainGetPixelFormat(struct swapchain *s) { return 0x42475241; /* 'BGRA' */ }
+EXPORT uint32_t SFBSwapchainGetPixelFormat(struct swapchain *s) { return 0x42475241;  }
 EXPORT uint32_t SFBSwapchainGetColorspace(struct swapchain *s) { return 1; }
 EXPORT uint32_t SFBSwapchainGetHDRMode(struct swapchain *s) { return 1; }
 EXPORT uint32_t SFBSwapchainGetPresentationMode(struct swapchain *s) { return (uint32_t)s->presentation_mode; }
@@ -264,7 +241,7 @@ EXPORT bool SFBSwapchainSwapSubmit(struct swapchain *s, CFErrorRef *err)
     s->callback = NULL;
     static long submits;
     if (++submits % 100 == 1) logf_("SFBSwapchainSwapSubmit #%ld", submits);
-    if (getenv("SFBH_NO_CALLBACK")) return true;   /* experiment: never complete swaps */
+    if (getenv("SFBH_NO_CALLBACK")) return true;
     CFRetain(s);
     dispatch_async(s->queue, ^{
         if (cb) { cb(NULL, s, t, mach_absolute_time(), ctx); _Block_release(cb); }

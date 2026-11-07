@@ -1,21 +1,9 @@
-/// A USD scene path: `/World/Robot{look=red}Arm.xformOp:translate`.
-///
-/// Paths name prims, variant selections and properties. Absolute paths start
-/// at the pseudo-root `/`; relative paths (used inside reference targets and
-/// relationship values) may start with `..` elements. The textual grammar is
-/// the one of the OpenUSD documentation ("Path syntax").
 public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
-    /// One step of a path.
     public enum Element: Hashable, Sendable {
-        /// `..` (relative paths only).
         case parent
-        /// A prim name.
         case prim(String)
-        /// `{set=variant}`; an empty variant names the variant set itself.
         case variantSelection(set: String, variant: String)
-        /// `.name` (a namespaced property name).
         case property(String)
-        /// `[path]`: a relationship target or attribute connection spec.
         case target(Path)
     }
 
@@ -31,20 +19,14 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         self.elements = kind == .empty ? [] : elements
     }
 
-    /// The empty path (no path at all).
     public static let empty = Path(kind: .empty, elements: [])
-    /// The pseudo-root, `/`.
     public static let root = Path(kind: .absolute, elements: [])
-    /// The relative path to the anchor itself, `.`.
     public static let reflexive = Path(kind: .relative, elements: [])
 
-    /// Parses a path string (same as `init?(_:)`; use this spelling with a
-    /// string literal, where `Path("…")` means the literal conversion).
     public init?(parsing text: String) {
         self.init(text)
     }
 
-    /// Parses a path string. Returns `nil` when the text is not a path.
     public init?(_ text: String) {
         if text.isEmpty {
             self = .empty
@@ -55,35 +37,27 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         self = path
     }
 
-    // MARK: Queries
-
     public var isEmpty: Bool { kind == .empty }
     public var isAbsolute: Bool { kind == .absolute }
     public var isRoot: Bool { kind == .absolute && elements.isEmpty }
 
-    /// The last element, if any.
     public var last: Element? { elements.last }
 
-    /// True for a prim path (`/A/B`) or a prim in a variant (`/A{v=x}B`).
     public var isPrimPath: Bool {
         if case .prim = elements.last { return true }
         return false
     }
 
-    /// True for `/A{set=variant}`.
     public var isVariantSelectionPath: Bool {
         if case .variantSelection = elements.last { return true }
         return false
     }
 
-    /// True when the last element is a property.
     public var isPropertyPath: Bool {
         if case .property = elements.last { return true }
         return false
     }
 
-    /// True for a property directly on a prim (or variant selection), the
-    /// kind of path the crate format stores with a negative element token.
     public var isPrimPropertyPath: Bool {
         guard isPropertyPath else { return false }
         if elements.count == 1 { return true }
@@ -98,13 +72,10 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         return false
     }
 
-    /// True if any element is a variant selection.
     public var containsVariantSelection: Bool {
         elements.contains { if case .variantSelection = $0 { return true }; return false }
     }
 
-    /// The name of the last element: the prim or property name, the variant
-    /// name of a selection, `..` for a parent step, and "" for the root.
     public var name: String {
         switch elements.last {
         case .prim(let n), .property(let n): return n
@@ -115,16 +86,11 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// The text of the last element as it appears in the path string
-    /// (`Arm`, `{look=red}`, `xformOp:translate`, `[/T]`).
     public var elementString: String {
         guard let last = elements.last else { return "" }
         return Path.text(of: last)
     }
 
-    /// The parent: the owning prim for a property, the prim for a variant
-    /// selection, the parent prim for a prim, and the root for a top-level
-    /// prim. The root and the empty path have no parent (returns `.empty`).
     public var parent: Path {
         guard !elements.isEmpty else {
             return kind == .relative ? Path(kind: .relative, elements: [.parent]) : .empty
@@ -132,7 +98,6 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         return Path(kind: kind, elements: Array(elements.dropLast()))
     }
 
-    /// The nearest prim (or root) path: strips properties and targets.
     public var primPath: Path {
         var elems = elements
         while let last = elems.last {
@@ -144,7 +109,6 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         return Path(kind: kind, elements: elems)
     }
 
-    /// The path with every variant selection removed (the namespace path).
     public var strippingVariantSelections: Path {
         Path(kind: kind, elements: elements.filter {
             if case .variantSelection = $0 { return false }
@@ -152,7 +116,6 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         })
     }
 
-    /// Prim names along the path (variant selections skipped).
     public var primNames: [String] {
         elements.compactMap { if case .prim(let n) = $0 { return n }; return nil }
     }
@@ -162,13 +125,10 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         return Array(elements.prefix(prefix.elements.count)) == prefix.elements
     }
 
-    /// Replaces `prefix` with `replacement` when this path has that prefix.
     public func replacingPrefix(_ prefix: Path, with replacement: Path) -> Path {
         guard hasPrefix(prefix) else { return self }
         return Path(kind: replacement.kind, elements: replacement.elements + elements.dropFirst(prefix.elements.count))
     }
-
-    // MARK: Construction
 
     public func appending(_ element: Element) -> Path {
         Path(kind: kind == .empty ? .relative : kind, elements: elements + [element])
@@ -181,9 +141,6 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
     }
     public func appendingTarget(_ target: Path) -> Path { appending(.target(target)) }
 
-    /// Appends a path element given as text, as the crate format stores it:
-    /// a prim name, `{set=variant}`, `[target]` or (with `isProperty`) a
-    /// property name.
     public func appendingElementText(_ text: String, isProperty: Bool) -> Path {
         if isProperty { return appendingProperty(text) }
         if text.hasPrefix("{"), text.hasSuffix("}"), let eq = text.firstIndex(of: "=") {
@@ -198,7 +155,6 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         return appendingChild(text)
     }
 
-    /// Resolves a relative path against an absolute anchor.
     public func makingAbsolute(anchor: Path) -> Path {
         guard kind == .relative else { return self }
         var result = anchor.elements
@@ -212,7 +168,6 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         return Path(kind: .absolute, elements: result)
     }
 
-    /// Expresses an absolute path relative to an absolute anchor.
     public func makingRelative(anchor: Path) -> Path {
         guard kind == .absolute, anchor.kind == .absolute else { return self }
         var common = 0
@@ -222,8 +177,6 @@ public struct Path: Hashable, Comparable, Sendable, CustomStringConvertible {
         let ups = Array(repeating: Element.parent, count: anchor.elements.count - common)
         return Path(kind: .relative, elements: ups + elements[common...])
     }
-
-    // MARK: Text
 
     public var description: String {
         switch kind {
@@ -289,7 +242,6 @@ extension Path: Codable {
     }
 }
 
-/// Recursive-descent parser for path text.
 struct PathParser {
     let s: [Unicode.Scalar]
     var i = 0
@@ -328,8 +280,6 @@ struct PathParser {
         return name
     }
 
-    /// Variant set and variant names: identifiers that may also use `|`, `-`
-    /// and digits anywhere (and a leading `.` for variants).
     mutating func variantName(allowEmpty: Bool) -> String? {
         var out = String.UnicodeScalarView()
         while let c = peek(), c != "=", c != "}" {
@@ -349,12 +299,10 @@ struct PathParser {
             i += 1
             if atEnd { return .root }
         } else if peek() == ".", peek(1) == nil || peek(1) == "/" {
-            // "." (reflexive) or "./A".
             i += 1
             if atEnd { return .reflexive }
             i += 1
         }
-        // Leading parent steps.
         if kind == .relative {
             while peek() == ".", peek(1) == "." {
                 i += 2

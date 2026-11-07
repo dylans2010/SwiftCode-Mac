@@ -1,12 +1,5 @@
-// Route B end to end (`runtime-downloads.md` §6.1, §6.2): index, selection,
-// asset query, resumable download with size and SHA-256 checks, decryption
-// and unpacking, the disk image, SwiftCode's runtime folder, and the clean-up.
-// Always started by an explicit choice (a command, or a confirmed sheet).
-// The command line and both wizards drive it and show its events.
-
 import Foundation
 
-/// Where route B is, for progress lines and the wizard.
 public enum RuntimeDownloadPhase: Sendable, Equatable {
     case index
     case selected(RuntimeIndexEntry)
@@ -17,7 +10,6 @@ public enum RuntimeDownloadPhase: Sendable, Equatable {
     case readingImage
     case installing
     case finished(SimRuntimeRecord)
-    /// `--stop-after`: the step's output is at this path.
     case stopped(String)
 
     public var title: String {
@@ -35,7 +27,6 @@ public enum RuntimeDownloadPhase: Sendable, Equatable {
         }
     }
 
-    /// 0…1 for a bar, nil when indeterminate.
     public var fraction: Double? {
         switch self {
         case .downloading(let d, let t), .verifying(let d, let t): t > 0 ? Double(d) / Double(t) : nil
@@ -46,16 +37,12 @@ public enum RuntimeDownloadPhase: Sendable, Equatable {
     }
 }
 
-/// What route B fetches.
 public enum RuntimeDownloadTarget: Sendable, Equatable {
     case runtime(RuntimeRequest)
-    /// The Metal Toolchain (§6.3): fetched like a runtime, never installed.
     case metalToolchain(build: String?)
 }
 
-/// Where to stop (the Mac's test of route B ends after decryption).
 public enum RuntimeDownloadStop: String, Sendable, CaseIterable {
-    /// After the asset service answered (nothing downloaded).
     case queried
     case downloaded, expanded, installed
 }
@@ -68,15 +55,11 @@ public final class RuntimeDirectDownload: @unchecked Sendable {
     public var host: RuntimeHostDescription
     public var selectionHost: RuntimeSelectionHost
     public let cancellation = RuntimeCancellation()
-    /// Keep the archive and the unpacked tree (§6.2 step 7's `--keep`).
     public var keep = false
     public var stop: RuntimeDownloadStop = .installed
-    /// Where the unpacked tree goes when stopping after expansion (default: the work folder).
     public var expandTo: String?
     public var replace = false
-    /// The asset query (tests answer for the asset service).
     public var query: @Sendable (_ assetType: String, _ build: String) async throws -> RuntimeAssetRecord
-    /// Free bytes where a path is (tests answer for the volume, whose free space other work changes).
     public var freeSpace: @Sendable (String) -> Int64? = { RuntimeDirectDownload.freeBytes($0) }
 
     public init(folder: String, transport: any RuntimeTransport = CurlTransport(), expander: (any RuntimeArchiveExpander)? = nil,
@@ -98,12 +81,10 @@ public final class RuntimeDirectDownload: @unchecked Sendable {
 
     var partial: String { folder + "/.partial" }
 
-    /// The index (cached for its refresh interval).
     public func index(force: Bool = false) async throws -> RuntimeIndex {
         try await RuntimeIndexCache(folder: folder).load(transport: transport, force: force)
     }
 
-    /// What will be fetched: the index entry (or component) and its asset type.
     public func resolve(_ target: RuntimeDownloadTarget, index: RuntimeIndex) throws -> (entry: RuntimeIndexEntry?, assetType: String, build: String, size: Int64, name: String) {
         switch target {
         case .runtime(let r):
@@ -117,7 +98,6 @@ public final class RuntimeDirectDownload: @unchecked Sendable {
         }
     }
 
-    /// Free bytes where `path` is (or its nearest existing parent).
     public static func freeBytes(_ path: String) -> Int64? {
         var p = path
         while !FileManager.default.fileExists(atPath: p), p != "/" { p = (p as NSString).deletingLastPathComponent }
@@ -125,7 +105,6 @@ public final class RuntimeDirectDownload: @unchecked Sendable {
         return (a[.systemFreeSize] as? NSNumber)?.int64Value
     }
 
-    /// Runs route B. `event` gets every phase and log line (scrubbed).
     @discardableResult
     public func run(_ target: RuntimeDownloadTarget, event: @escaping @Sendable (RuntimeDownloadPhase) -> Void,
                     log: @escaping @Sendable (String) -> Void = { _ in }) async throws -> SimRuntimeRecord? {
@@ -136,7 +115,6 @@ public final class RuntimeDirectDownload: @unchecked Sendable {
         let chosen = try resolve(target, index: index)
         if let e = chosen.entry { event(.selected(e)) }
         say("Selected \(chosen.name), build \(chosen.build), \(RuntimeSize.format(chosen.size)).")
-        // Room for the archive, the unpacked tree and the RuntimeRoot.
         let need = stop == .queried ? 0 : stop == .downloaded ? chosen.size : chosen.size * 4
         if let free = freeSpace(folder), free < need {
             throw RuntimeDownloadError.notEnoughSpace("\(RuntimeSize.format(free)) free in \(folder); \(chosen.name) needs about \(RuntimeSize.format(need)). Free some space and try again.")
@@ -198,7 +176,6 @@ public final class RuntimeDirectDownload: @unchecked Sendable {
         return record
     }
 
-    /// Route A from step 3: an exported bundle (or a folder holding one).
     public func importBundle(_ path: String, log: @escaping @Sendable (String) -> Void = { _ in }) async throws -> SimRuntimeRecord {
         guard let reader else { throw RuntimeDownloadError.tool(SevenZipImageReader.installHint) }
         var bundle: RuntimeInstaller.Bundle

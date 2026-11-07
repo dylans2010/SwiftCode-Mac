@@ -1,8 +1,3 @@
-// posix.c - paths, sysctl, user and host identity, temporary files, file
-// copies and the other POSIX and Darwin libc functions the Swift runtime,
-// libc++ and Foundation need (specs/macos/libsystem.md §12). Clean-room
-// SwiftCode code from POSIX and Apple's public man pages; struct layouts and
-// constants are the public SDK headers' (interoperability facts).
 #include "ycl.h"
 
 int fcntl(int, int, ...);
@@ -21,8 +16,6 @@ uint32_t arc4random_uniform(uint32_t);
 size_t strlcat(char *, const char *, size_t);
 
 enum { F_GETPATH = 50, PATH_MAX = 1024, CTL_MAXNAME = 12 };
-
-// --- paths ---
 
 YCL_EXPORT char *getcwd(char *buf, size_t size) {
     char path[PATH_MAX];
@@ -51,8 +44,6 @@ YCL_EXPORT char *getcwd(char *buf, size_t size) {
 
 YCL_EXPORT char *getwd(char *buf) { return getcwd(buf, PATH_MAX); }
 
-// realpath(3): resolves ".", ".." and symbolic links component by
-// component (at most 32 links); every component must exist.
 static char *resolve(const char *path, char *out) {
     char work[PATH_MAX * 2];
     char result[PATH_MAX];
@@ -99,11 +90,11 @@ static char *resolve(const char *path, char *out) {
         char target[PATH_MAX];
         ssize_t n = readlink(result, target, sizeof target - 1);
         if (n < 0) {
-            if (ycl_errno == YCL_EINVAL) continue;  // exists and is not a link
+            if (ycl_errno == YCL_EINVAL) continue;
             return 0;
         }
         if (++links > 32) {
-            ycl_errno = 62;  // ELOOP
+            ycl_errno = 62;
             return 0;
         }
         target[n] = 0;
@@ -129,8 +120,6 @@ YCL_EXPORT char *realpath(const char *path, char *out) { return resolve(path, ou
 char *ycl_realpath_extsn(const char *path, char *out) __asm__("_realpath$DARWIN_EXTSN");
 YCL_EXPORT char *ycl_realpath_extsn(const char *path, char *out) { return resolve(path, out); }
 
-// --- sysctl ---
-
 int __sysctl(int *, unsigned, void *, size_t *, void *, size_t);
 
 YCL_EXPORT int sysctl(int *name, unsigned namelen, void *old, size_t *oldlenp, void *new, size_t newlen) {
@@ -138,7 +127,7 @@ YCL_EXPORT int sysctl(int *name, unsigned namelen, void *old, size_t *oldlenp, v
 }
 
 YCL_EXPORT int sysctlnametomib(const char *name, int *mib, size_t *sizep) {
-    int query[2] = {0, 3};  // the name-to-OID request
+    int query[2] = {0, 3};
     size_t bytes = *sizep * sizeof(int);
     if (__sysctl(query, 2, mib, &bytes, (void *)name, strlen(name)) != 0) return -1;
     *sizep = bytes / sizeof(int);
@@ -182,8 +171,6 @@ YCL_EXPORT int uname(struct ycl_utsname *u) {
     return 0;
 }
 
-// --- memory ---
-
 YCL_EXPORT int memset_s(void *s, size_t smax, int c, size_t n) {
     if (!s) return YCL_EINVAL;
     size_t count = n < smax ? n : smax;
@@ -191,9 +178,6 @@ YCL_EXPORT int memset_s(void *s, size_t smax, int c, size_t n) {
     for (size_t i = 0; i < count; i++) p[i] = (unsigned char)c;
     return n > smax ? YCL_EOVERFLOW : 0;
 }
-
-// --- users: SwiftCode's macOS processes run as one user, described by the
-//     environment (USER, HOME, SHELL); uid and gid come from the kernel ---
 
 struct ycl_passwd {
     char *pw_name, *pw_passwd;
@@ -212,7 +196,7 @@ static int fill_passwd(uint32_t uid, const char *want_name, struct ycl_passwd *p
     if (!home || !*home) home = "/tmp";
     const char *shell = getenv("SHELL");
     if (!shell || !*shell) shell = "/bin/sh";
-    if (want_name && strcmp(want_name, user) != 0) return 0;  // no such user
+    if (want_name && strcmp(want_name, user) != 0) return 0;
     size_t need = strlen(user) + strlen(home) + strlen(shell) + 8;
     if (size < need) return YCL_ERANGE;
     char *at = buf;
@@ -227,11 +211,11 @@ static int fill_passwd(uint32_t uid, const char *want_name, struct ycl_passwd *p
     PLACE(pw_dir, home);
     PLACE(pw_shell, shell);
     PLACE(pw_passwd, "*");
-    pw->pw_class = at - 1;  // ""
+    pw->pw_class = at - 1;
     pw->pw_gecos = pw->pw_name;
 #undef PLACE
     pw->pw_uid = uid;
-    pw->pw_gid = uid == 0 ? 0 : 20;  // staff
+    pw->pw_gid = uid == 0 ? 0 : 20;
     pw->pw_change = pw->pw_expire = 0;
     *result = pw;
     return 0;
@@ -272,8 +256,6 @@ YCL_EXPORT int getlogin_r(char *buf, size_t size) {
     strlcpy(buf, name, size);
     return 0;
 }
-
-// --- temporary files ---
 
 static int fill_template(char *path, size_t suffix) {
     static const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -324,12 +306,8 @@ YCL_EXPORT char *mktemp(char *path) {
     return path;
 }
 
-// --- processes ---
-
 YCL_EXPORT pid_t waitpid(pid_t pid, int *status, int options) { return wait4(pid, status, options, 0); }
 YCL_EXPORT pid_t wait(int *status) { return wait4(-1, status, 0, 0); }
-
-// --- file systems ---
 
 struct ycl_statfs {
     uint32_t f_bsize;
@@ -353,7 +331,6 @@ struct ycl_statvfs {
 static void to_statvfs(const struct ycl_statfs *s, struct ycl_statvfs *v) {
     v->f_bsize = (unsigned long)s->f_iosize;
     v->f_frsize = s->f_bsize;
-    // fsblkcnt_t and fsfilcnt_t are 32-bit (unsigned int) in the public header.
     v->f_blocks = (uint32_t)s->f_blocks;
     v->f_bfree = (uint32_t)s->f_bfree;
     v->f_bavail = (uint32_t)s->f_bavail;
@@ -361,7 +338,7 @@ static void to_statvfs(const struct ycl_statfs *s, struct ycl_statvfs *v) {
     v->f_ffree = (uint32_t)s->f_ffree;
     v->f_favail = (uint32_t)s->f_ffree;
     v->f_fsid = (unsigned long)(uint32_t)s->f_fsid[0];
-    v->f_flag = (s->f_flags & 1 /* MNT_RDONLY */ ? 1 : 0) | (s->f_flags & 8 /* MNT_NOSUID */ ? 2 : 0);
+    v->f_flag = (s->f_flags & 1  ? 1 : 0) | (s->f_flags & 8  ? 2 : 0);
     v->f_namemax = 255;
 }
 
@@ -378,9 +355,6 @@ YCL_EXPORT int fstatvfs(int fd, struct ycl_statvfs *v) {
     to_statvfs(&s, v);
     return 0;
 }
-
-// --- copyfile(3): data and permission bits; ACLs and extended attributes
-//     are not kept (SwiftCode's file system has none) ---
 
 enum { COPYFILE_STAT = 1 << 1, COPYFILE_DATA = 1 << 3 };
 
@@ -433,7 +407,7 @@ YCL_EXPORT int fcopyfile(int from, int to, struct ycl_copyfile_state *state, uin
     if (flags & COPYFILE_STAT) {
         uint8_t st[144];
         if (fstat(from, st) == 0) {
-            mode_t mode = *(uint16_t *)(st + 4);  // st_mode (struct stat, 64-bit inode layout)
+            mode_t mode = *(uint16_t *)(st + 4);
             fchmod(to, mode & 07777);
         }
     }
@@ -454,9 +428,6 @@ YCL_EXPORT int copyfile(const char *from, const char *to, struct ycl_copyfile_st
     return r;
 }
 
-// --- message catalogs: SwiftCode's libSystem has none; catgets returns the
-//     default text ---
-
 YCL_EXPORT void *catopen(const char *name, int flag) {
     (void)name;
     (void)flag;
@@ -473,8 +444,6 @@ YCL_EXPORT int catclose(void *catalog) {
     (void)catalog;
     return 0;
 }
-
-// --- remaining locale-taking ctype entry points (C locale) ---
 
 int ___tolower(int);
 int ___toupper(int);
@@ -495,8 +464,6 @@ YCL_EXPORT unsigned long ___runetype_l(int c, void *locale) {
     (void)locale;
     return (unsigned long)__maskrune(c, ~0ul);
 }
-
-// --- groups: "wheel" (0) and the user's "staff" (20) ---
 
 struct ycl_group {
     char *gr_name, *gr_passwd;
@@ -547,9 +514,6 @@ YCL_EXPORT struct ycl_group *getgrnam(const char *name) {
     return getgrnam_r(name, &shared_group, shared_group_buf, sizeof shared_group_buf, &r) == 0 ? r : 0;
 }
 
-// --- confstr(3): the search path and the per-user directories (SwiftCode
-//     keeps them under TMPDIR, default /tmp) ---
-
 enum { CS_PATH = 1, CS_DARWIN_USER_DIR = 65536, CS_DARWIN_USER_TEMP_DIR = 65537, CS_DARWIN_USER_CACHE_DIR = 65538 };
 
 YCL_EXPORT size_t confstr(int name, char *buf, size_t len) {
@@ -572,5 +536,4 @@ YCL_EXPORT size_t confstr(int name, char *buf, size_t len) {
     return need;
 }
 
-// The notification name <libkern/OSThermalNotification.h> exports.
 YCL_EXPORT const char *const kOSThermalNotificationPressureLevelName = "com.apple.system.thermalpressurelevel";

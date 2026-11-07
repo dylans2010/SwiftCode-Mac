@@ -1,29 +1,9 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AssistEventNormalizer.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
-// Verbatim. BLOCKED references (left intact, owned by other scopes):
-// - AssistActivityGroup / ToolActivityItem / WorkerActivityItem / FileActivityItem /
-//   BuildActivityItem / TestActivityItem / TerminalActivityItem (Legacy
-//   `Backend/Assist/Models/AssistActivityModels.swift`, PARTIAL).
-// - ProjectSessionStore.shared.openFile(atPath:) (PARTIAL): RESOLVED by fix
-//   W-V2 — the normalizer no longer reaches into the IDE store (SwiftCodeIDECore,
-//   unreachable from this target). The host sets `openFileHandler` (below); the
-//   file-open is a host action, the activity-group recording is unchanged.
-// RESOLVED on main 555d2a31: AssistToolActivityFormatter (SwiftCodeAssistant;
-// format/extractFilePath/determineFileOperation) — A3 landed it after staging.
-// Wiring: AssistManager.reportTool*/reportWorker* (same batch) call it.
-
 import Foundation
 
-/// Centralized event normalizer that converts raw runtime events into deduplicated, retry-aware logical operations.
 @MainActor
 public final class AssistEventNormalizer {
     public static let shared = AssistEventNormalizer()
 
-    /// Host hook for the "open this file in the IDE" side effect (V2 fix
-    /// W-V2). Set by the IDE shell; nil until then, in which case the file
-    /// is still recorded in the activity group but no editor is opened.
-    /// Was `ProjectSessionStore.shared.openFile(atPath:)` (SwiftCodeIDECore,
-    /// unreachable from this target).
     public var openFileHandler: ((String) -> Void)?
 
     private var activeCallToSemanticKey: [String: String] = [:]
@@ -31,19 +11,15 @@ public final class AssistEventNormalizer {
 
     private init() {}
 
-    /// Resets all internal tracking structures when starting a new logical task.
     public func resetForNewTask() {
         activeCallToSemanticKey.removeAll()
         activeCallToOperationId.removeAll()
     }
 
-    // MARK: - Semantic Operation Key Generator
-
     public func computeSemanticKey(toolName: String, arguments: [String: Any]) -> String {
         let normalizedTool = toolName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         var keyParts: [String] = [normalizedTool]
 
-        // Sort argument keys deterministically
         for key in arguments.keys.sorted() {
             if let val = arguments[key] {
                 let valStr = String(describing: val).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -53,8 +29,6 @@ public final class AssistEventNormalizer {
 
         return keyParts.joined(separator: "|")
     }
-
-    // MARK: - Error Message Normalizer
 
     public func sanitizeErrorMessage(rawError: String, toolName: String) -> String {
         let trimmed = rawError.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -82,8 +56,6 @@ public final class AssistEventNormalizer {
         return "Tool execution failed"
     }
 
-    // MARK: - Tool Event Normalization
-
     public func normalizeToolStarted(
         callId: String,
         toolName: String,
@@ -100,9 +72,6 @@ public final class AssistEventNormalizer {
             activeCallToSemanticKey[callId] = semKey
         }
 
-        // Reuse an exact operation ID (duplicate transport event), or merge a
-        // semantically identical retry while the prior attempt is active/failed.
-        // Completed operations must not absorb a later, intentional repeat.
         let existingIdx = activityGroup.tools.firstIndex(where: { $0.id == callUUID })
             ?? activityGroup.tools.firstIndex(where: {
                 $0.semanticKey == semKey && ($0.status == .retrying || $0.status == .failed)
@@ -110,8 +79,6 @@ public final class AssistEventNormalizer {
 
         if let existingIdx {
             var existing = activityGroup.tools[existingIdx]
-            // A replayed start for an already-completed operation is a
-            // duplicate hook/chunk event, not a new attempt.
             guard existing.status != .completed else { return }
             if existing.status == .failed || existing.status == .retrying {
                 existing.retryCount += 1
@@ -159,7 +126,6 @@ public final class AssistEventNormalizer {
             }
         }
 
-        // Auxiliary integration logic
         integrateAuxiliaryStarted(toolName: toolName, arguments: arguments, activityGroup: &activityGroup)
     }
 
@@ -211,7 +177,6 @@ public final class AssistEventNormalizer {
             item.argumentsSummary = ToolActivityItem.sanitizedArgumentsSummary(from: arguments)
             activityGroup.tools[idx] = item
         } else {
-            // Check if exact completed item already exists to avoid transport replay duplication
             let isDuplicate = activityGroup.tools.contains(where: {
                 $0.toolId == toolName && $0.status == .completed && $0.semanticKey == semKey
             })
@@ -289,8 +254,6 @@ public final class AssistEventNormalizer {
         integrateAuxiliaryFailed(toolName: toolName, error: cleanError, activityGroup: &activityGroup)
     }
 
-    // MARK: - Worker Normalization
-
     public func normalizeWorkerStarted(
         workerId: String,
         name: String,
@@ -342,8 +305,6 @@ public final class AssistEventNormalizer {
             activityGroup.workers[idx].taskDescription = cleanErr
         }
     }
-
-    // MARK: - Private Auxiliary Handlers
 
     private func integrateAuxiliaryStarted(toolName: String, arguments: [String: Any], activityGroup: inout AssistActivityGroup) {
         if let path = AssistToolActivityFormatter.extractFilePath(arguments: arguments) {

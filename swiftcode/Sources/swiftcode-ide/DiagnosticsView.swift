@@ -1,9 +1,3 @@
-// DiagnosticsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/DiagnosticsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: categorized diagnostic-issue list from a workspace scan (broken references, security flaws, deprecated APIs, package inconsistencies) with per-category icons
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 
@@ -13,7 +7,6 @@ struct DiagnosticsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Workspace Diagnostics")

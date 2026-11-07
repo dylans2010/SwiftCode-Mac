@@ -1,15 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AssistRequestMetrics.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim. Resolved in-destination: DiagnosticEventBus.logEvent (SwiftCodeAssistant).
-// Wiring: AssistManager.requestMetricsByMessageID (same batch) stores one per turn.
-
-//
-//  AssistRequestMetrics.swift
-//  SwiftCode
-//
-//  High-resolution request lifecycle metrics and performance telemetry for Assist.
-//
-
 import Foundation
 import os
 
@@ -36,8 +24,6 @@ public enum MetricCheckpoint: Sendable {
     case responseCompleted
 }
 
-/// Captures fine-grained timestamps throughout the Assist request lifecycle to measure
-/// and eliminate bottlenecks between user submission and visible model output.
 public final class AssistRequestMetrics: Identifiable, @unchecked Sendable {
     public let id: UUID
     public let messageSubmitted: Date
@@ -97,68 +83,52 @@ public final class AssistRequestMetrics: Identifiable, @unchecked Sendable {
         }
     }
 
-    // MARK: - Derived Latency Durations (in seconds)
-
-    /// Time from user submission to the request being dispatched over the transport.
     public var timeToRequest: TimeInterval? {
         guard let sent = requestSent else { return nil }
         return sent.timeIntervalSince(messageSubmitted)
     }
 
-    /// Time from user submission to the first event emitted by the runtime/model.
     public var timeToFirstEvent: TimeInterval? {
         guard let first = firstEventReceived else { return nil }
         return first.timeIntervalSince(messageSubmitted)
     }
 
-    /// Time from user submission to the first streaming reasoning/thought chunk.
     public var timeToFirstReasoning: TimeInterval? {
         guard let reasoning = firstReasoningDelta else { return nil }
         return reasoning.timeIntervalSince(messageSubmitted)
     }
 
-    /// Time from user submission to the first streaming text chunk.
     public var timeToFirstText: TimeInterval? {
         guard let text = firstTextDelta else { return nil }
         return text.timeIntervalSince(messageSubmitted)
     }
 
-    /// Time from user submission to the first tool execution call.
     public var timeToFirstToolCall: TimeInterval? {
         guard let tool = firstToolCall else { return nil }
         return tool.timeIntervalSince(messageSubmitted)
     }
 
-    /// Time spent in SystemIndex instruction retrieval (0 after the first
-    /// request warms the persisted index — the corpus is never reparsed per
-    /// request).
     public var systemIndexRetrievalDuration: TimeInterval? {
         guard let started = systemIndexRetrievalStarted,
               let completed = systemIndexRetrievalCompleted else { return nil }
         return completed.timeIntervalSince(started)
     }
 
-    /// Preparation time: submission until the request was dispatched.
-    /// Covers session/model/credential resolution, instruction retrieval,
-    /// tool preparation and payload construction.
     public var preparationDuration: TimeInterval? {
         guard let sent = requestSent else { return nil }
         return sent.timeIntervalSince(messageSubmitted)
     }
 
-    /// Time from user submission to the first visibly rendered content.
     public var timeToFirstVisibleRender: TimeInterval? {
         guard let render = firstVisibleRender else { return nil }
         return render.timeIntervalSince(messageSubmitted)
     }
 
-    /// Total round-trip duration from submission to completion.
     public var totalResponseTime: TimeInterval? {
         guard let completed = responseCompleted else { return nil }
         return completed.timeIntervalSince(messageSubmitted)
     }
 
-    /// Logs diagnostic summary to the internal event bus and subsystem logger.
     public func logSummary(modelName: String = "Assist") {
         let runtimeStartup = sessionResolved.map { String(format: "%.0fms", $0.timeIntervalSince(messageSubmitted) * 1000) } ?? "n/a"
         let modelResolve: String

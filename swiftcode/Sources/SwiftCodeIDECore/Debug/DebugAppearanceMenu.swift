@@ -1,19 +1,11 @@
 import Foundation
 import SwiftCodeSimFeatures
 
-/// Debug ▸ View Debugging ▸ Appearance (`reference-ui-5.md` §2.10) on the
-/// SwiftCode simulator: each item is a change of the running app's Environment
-/// Overrides (`specs/ide/debug.md` §Environment Overrides). SwiftCode decision:
-/// System Appearance removes the appearance and contrast overrides; Light
-/// and Dark set the appearance and remove the contrast override; the High
-/// Contrast items set the appearance and Increase Contrast.
 public enum DebugAppearanceMenu {
     public static let titles = ["System Appearance", "Light", "Dark", "High Contrast Light", "High Contrast Dark"]
-    /// The selector of each item, in `titles` order.
     public static let actions = ["debugAppearanceSystem:", "debugAppearanceLight:", "debugAppearanceDark:",
                                  "debugAppearanceHighContrastLight:", "debugAppearanceHighContrastDark:"]
 
-    /// `overrides` with item `index` chosen.
     public static func apply(_ index: Int, to overrides: EnvironmentOverrides) -> EnvironmentOverrides {
         var o = overrides
         switch index {
@@ -25,7 +17,6 @@ public enum DebugAppearanceMenu {
         return o
     }
 
-    /// The item the overrides correspond to (the one shown checked).
     public static func checkedIndex(_ overrides: EnvironmentOverrides) -> Int {
         let contrast = overrides.values[.increaseContrast] == "on"
         switch overrides.values[.appearance] {

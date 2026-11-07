@@ -6,7 +6,6 @@ body:
     attributes:
       value: |
         Thanks for reporting. For a simulator problem, use the simulator report instead. For a security problem, please follow SECURITY.md and don't open a public issue.
-
         **Please don't attach Apple files** (SDKs, runtimes, Xcode resources), and check logs and screenshots for private names and paths.
   - type: input
     id: version

@@ -2,20 +2,13 @@ import AppKit
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// Menu commands added to match the reference menu bar
-/// (specs/ide/reference-ui.md §1). Commands SwiftCode cannot perform are listed
-/// in the menus without an implementation and show disabled.
 extension WorkspaceWindowController {
-    /// The "+" button's menu in the navigator bottom bar.
     func navigatorAddMenu(_ index: Int) -> [NSMenuItem] {
         func item(_ t: String, _ a: Selector?) -> NSMenuItem {
             let i = NSMenuItem(title: t, action: a, keyEquivalent: "")
             i.target = a == nil ? nil : self
             return i
         }
-        // The left pull-downs of reference-ui-5.md §5.2 (contents of the
-        // Source Control and Report ones are still to observe: SwiftCode lists
-        // the related commands it has).
         switch index {
         case 0: return [item("New File…", #selector(newFile(_:))), item("New Folder", #selector(newFolder(_:))), item("Add Files…", #selector(addFiles(_:)))]
         case 1: return [item("Commit…", #selector(showCommitSheet(_:))), item("Refresh File Status", #selector(refreshFileStatus(_:)))]
@@ -26,9 +19,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// File inspector ▸ Name: renames the file on disk. Only for package
-    /// (folder-based) workspaces; project references are not rewritten, so
-    /// a project's files are left alone.
     @discardableResult
     public func renameFromInspector(_ url: URL, to name: String) -> URL? {
         guard session.model.kind == .package, !name.contains("/") else { NSSound.beep(); inspector.refresh(); return nil }
@@ -40,7 +30,6 @@ extension WorkspaceWindowController {
         return dest
     }
 
-    /// File ▸ Show in Finder.
     @objc public func showInFinder(_ sender: Any?) {
         guard window?.isVisible == true, let url = editor.fileURL ?? Optional(session.model.url) else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -48,33 +37,20 @@ extension WorkspaceWindowController {
 
     @objc public func hideFindBar(_ sender: Any?) { editor.hideFindBar() }
 
-    /// View ▸ Choose Theme…: Settings ▸ Appearance.
     @objc public func chooseTheme(_ sender: Any?) { SettingsWindowController.shared.show(pane: "Appearance") }
-    /// Xcode ▸ Behaviors ▸ Edit Behaviors…: Settings ▸ Behaviors.
     @objc public func showBehaviorsSettings(_ sender: Any?) { SettingsWindowController.shared.show(pane: "Behaviors") }
 
-    /// View ▸ Navigators ▸ Show / Hide Coding Assistant (⌘0): shows the
-    /// assistant pane, or, while it is shown, hides the left area as
-    /// clicking the selected toolbar segment does (reference-ui-6.md §9.5, A7).
     @objc public func showCodingAssistant(_ sender: Any?) { setLeftPane(codingAssistant: true) }
 
-    /// Xcode ▸ Open Developer Tool ▸ Database Explorer (wiring-views): opens
-    /// the SQLite explorer window. This is the menu entry point for the
-    /// Database feature; `DatabaseExplorerView` (the SwiftUI trigger card)
-    /// opens the same window from its `openWorkspace()`.
     @objc public func showDatabaseExplorer(_ sender: Any?) { SQLiteExplorerWindowManager.shared.showWindow() }
 
-    /// View ▸ Navigators ▸ Filter in Navigator: focuses the filter field.
     @objc public func filterInNavigator(_ sender: Any?) {
         navigatorItem.isCollapsed = false
         window?.makeFirstResponder(navigator.filter)
     }
 
-    /// Product ▸ Clear All Issues.
     @objc public func clearAllIssues(_ sender: Any?) { session.clearIssues() }
 
-    /// The build products folder of the current scheme (swift-build
-    /// layout). Asking the engine runs the build system: off the main thread.
     func buildFolder() async -> URL? {
         let request = session.model.buildRequest(scheme: session.scheme, destination: session.destination, action: .build)
         let engine = session.engine
@@ -106,16 +82,13 @@ extension WorkspaceWindowController {
         Task { if let c = session.debugClient, let t = session.stoppedThread { try? await c.stepInstruction(threadID: t, into: true) } }
     }
 
-    /// Debug ▸ Console ▸ Clear Console (also the console's trash button).
     @objc public func clearConsole(_ sender: Any?) { session.clearConsole() }
 
-    /// Debug ▸ Detach: ends the debug session, leaving the process running.
     @objc public func detachDebugger(_ sender: Any?) {
         guard let c = session.debugClient else { return }
         Task { try? await c.disconnect(terminate: false); c.close() }
     }
 
-    /// Navigate ▸ Jump to Program Counter: the selected frame's location.
     @objc public func jumpToProgramCounter(_ sender: Any?) {
         if let loc = session.currentLocation { open(path: loc.file, line: loc.line) } else { NSSound.beep() }
     }

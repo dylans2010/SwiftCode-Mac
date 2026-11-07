@@ -7,29 +7,9 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Opt-in end-to-end round W6 (`specs/simulator/device-pairing.md` §13) on a
-/// real simulator host, driven through the IDE's own controllers: Device
-/// Hub creates an iPhone 18 Pro paired with an Apple Watch Series 12 (46mm)
-/// (Add Device ▸ iPhone with Paired Watch…), the hub shows the pair, the
-/// WatchSamples project's watch scheme runs on the phone-with-watch
-/// destination (the iOS app on the phone, the watch app directly on the
-/// watch, both launched), WatchConnectivity messages are answered both
-/// ways (WCProbe's logs), the watch's compact window turns the crown from a
-/// scroll-wheel event, then the hub unpairs and the watch is erased.
-/// Skipped unless these are set:
-///   SWIFTCODE_E2E_PAIR_REMOTE        ssh destination (key-based login only)
-///   SWIFTCODE_E2E_PAIR_DATA          remote data directory
-///   SWIFTCODE_E2E_PAIR_IOS_RUNTIME   iOS 27.0 runtime root
-///   SWIFTCODE_E2E_PAIR_WATCH_RUNTIME watchOS 27.0 runtime root
-///   SWIFTCODE_E2E_PAIR_SIMD          the remote launcher (swiftcode-sim)
-///   SWIFTCODE_E2E_PAIR_SHOTS         directory for the window PNGs (optional)
-///   SWIFTCODE_E2E_PAIR_MINUTES       how long to wait for both apps (default 60)
-///   SWIFTCODE_E2E_PAIR_KEEP          1: keep the created devices at the end
-/// Nothing here is machine-specific; the values come only from the environment.
 @Suite(.serialized, .heavyIntegration) @MainActor struct PairedRunEndToEndTests {
     func log(_ s: String) { print("e2e pair: \(s)"); fflush(stdout) }
 
-    /// `screencapture -l` of one of SwiftCode's own windows.
     func shot(_ w: NSWindow?, _ name: String, _ dir: String?) {
         guard let w, let dir else { return }
         w.displayIfNeeded()
@@ -67,7 +47,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         settings.otherRuntimeRoots = [watchRoot]
         settings.warmBoot = env["SWIFTCODE_E2E_PAIR_WARM_BOOT"] == "1"
         settings.save(t.defaults)
-        // The runtimes' versions and platforms, read from the host as the IDE does.
         for (root, primary) in [(iosRoot, true), (watchRoot, false)] {
             let probe = RemoteSimulator(settings: settings, target: RemoteSimulatorTarget(runtimeRoot: root, deviceType: .simdDefault,
                                                                                          deviceDirectoryName: "pide", isPrimary: false))
@@ -77,14 +56,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             log("runtime \(root): \(v.platform) \(v.version)")
         }
 
-        // The workspace and Device Hub.
         let project = swiftcodeDir.appendingPathComponent("Samples/WatchSamples/WatchSamples.xcodeproj")
         let state = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-pair-e2e-\(UUID().uuidString).json")
         let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: project)), loadDestinations: false,
                                            startLanguageService: false, openFirstFile: false, userStateURL: state)
         wc.showWindow(nil)
         wc.setDestinationGroups([])
-        // SwiftCode's own rows only (no `simctl` listing: Apple's simulators are not looked at).
         let c = DevicesController(devices: [], simulators: [])
         wc.configureSwiftCodeRemoteDevice(c, defaults: t.defaults)
         let hubWindow = c.makeWindow()
@@ -93,7 +70,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         c.pairing.confirm = { _, _, _ in true }
         defer { c.closeLinks(); c.view.window?.close() }
 
-        // 1. Add Device ▸ iPhone with Paired Watch…
         let started = Date()
         c.pairing.presentForm = { form, done in
             form.phone?.name.stringValue = "iPhone 18 Pro"
@@ -116,7 +92,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try await Task.sleep(for: .seconds(1))
         shot(c.view.window, "pair-ide-1-hub-paired.png", shots)
 
-        // 2. The watch scheme on the phone-with-watch destination.
         wc.session.scheme = "WCProbeWatch"
         wc.setDestinationGroups([])
         let row = try #require(wc.destinationMenuModel().rows("Simulators").first { $0.isSwiftCodePairedDestination })
@@ -134,7 +109,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         print("---- console ----\n" + String(wc.session.console.suffix(8000)))
         #expect(both && wc.session.console.contains("launched dev.swiftcode.wcprobe.watchkitapp on"))
 
-        // 3. WatchConnectivity: WCProbe's round trips on both devices.
         let phone = RemoteSimulator(settings: RemoteSimulatorSettings.load(t.defaults), target: RemoteSimulatorSettings.load(t.defaults).target(directory: pair.phoneDirectory))
         let watch = RemoteSimulator(settings: RemoteSimulatorSettings.load(t.defaults), target: RemoteSimulatorSettings.load(t.defaults).target(directory: pair.watchDirectory))
         func rtts(_ r: RemoteSimulator) async -> Int {
@@ -156,7 +130,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             print("---- wcprobe \(name) ----\n" + (await Task.detached { r.runRemote(cmd).1 }.value))
         }
 
-        // 4. The hub during the run: the phone, then the watch in its compact window (crown from the scroll wheel).
         c.select(row: try #require(c.rows.firstIndex { $0.identifier == phoneRow.identifier }))
         _ = await waitUntil(60) { c.canvas.stateDescription == "live" }
         try await Task.sleep(for: .seconds(2))
@@ -169,7 +142,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             _ = await waitUntil(30) { compact.canvas.stateDescription == "live" }
             try await Task.sleep(for: .seconds(2))
             shot(compact.window, "pair-ide-4-watch-compact.png", shots)
-            // A scroll-wheel event over the watch's screen turns the crown (watchos.md §12.2).
             let screen = compact.canvas.frameView.screen
             if let cg = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0),
                let e = NSEvent(cgEvent: cg) {
@@ -182,13 +154,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             compact.window?.close()
         }
 
-        // 5. Stop the run; the watch the run started ends with it.
         wc.stopProduct(nil)
         #expect(await waitUntil(300) { wc.session.simulatorRun == nil })
         #expect(await waitUntil(300) { !RemoteDeviceSessions.shared.isRunning(watch) })
         log("run stopped; watch running: \(RemoteDeviceSessions.shared.isRunning(watch))")
 
-        // 6. Unpair from the hub: the watch is erased.
         c.select(row: try #require(c.rows.firstIndex { $0.identifier == phoneRow.identifier }))
         c.unpair(try #require(c.pairing.pairs.first))
         await c.pairing.task?.value
@@ -200,7 +170,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try await Task.sleep(for: .seconds(1))
         shot(c.view.window, "pair-ide-6-hub-unpaired.png", shots)
 
-        // 7. The created devices go (their data on the host too).
         if env["SWIFTCODE_E2E_PAIR_KEEP"] != "1" {
             for r in [phoneRow, watchRow] {
                 c.delete(try #require(c.rows.first { $0.identifier == r.identifier }))

@@ -1,25 +1,10 @@
 import Darwin
 import Foundation
 
-/// A debug-build watchdog for main-thread stalls. A background thread
-/// posts a small block to the main queue every few milliseconds; when the
-/// main thread has not run it after `threshold`, the watchdog suspends the
-/// main thread for a moment, records its stack (frame-pointer walk), and,
-/// once the main thread answers, logs how long it was blocked.
-///
-/// Turned on with `SWIFTCODE_MAIN_THREAD_WATCHDOG=<milliseconds>` in debug
-/// builds (`startIfRequested()`, called at launch). Release builds never
-/// start it. The report goes to standard error, and to the file named by
-/// `SWIFTCODE_MAIN_THREAD_WATCHDOG_LOG` when set.
 public final class MainThreadWatchdog: @unchecked Sendable {
-    /// One stall: how long the main thread did not answer, and its stack
-    /// when the stall passed the threshold.
     public struct Stall: Sendable, CustomStringConvertible {
         public var milliseconds: Double
-        /// The stack when the stall passed the threshold.
         public var stack: [String] { samples.first ?? [] }
-        /// One stack per threshold interval while the stall lasted (at
-        /// most the watchdog's `maxSamples`).
         public var samples: [[String]]
         public var description: String {
             var text = "SwiftCode main-thread watchdog: main thread blocked for \(Int(milliseconds.rounded())) ms\n"
@@ -31,7 +16,6 @@ public final class MainThreadWatchdog: @unchecked Sendable {
         }
     }
 
-    /// Samples kept per stall by default.
     public static let defaultMaxSamples = 8
 
     public let thresholdMilliseconds: Double
@@ -42,16 +26,11 @@ public final class MainThreadWatchdog: @unchecked Sendable {
     private var stalls: [Stall] = []
     private var mainThread: thread_act_t = 0
     private var stackLow: UInt = 0, stackHigh: UInt = 0
-    /// Frame buffer, allocated up front: nothing may allocate while the
-    /// main thread is suspended (it could hold the allocator's lock).
     private let frames = UnsafeMutablePointer<UInt>.allocate(capacity: MainThreadWatchdog.maxFrames)
     private static let maxFrames = 128
 
-    /// The watchdog started at launch, if any.
     @MainActor public private(set) static var shared: MainThreadWatchdog?
 
-    /// Starts the watchdog when `SWIFTCODE_MAIN_THREAD_WATCHDOG` holds a
-    /// threshold in milliseconds (debug builds only).
     @MainActor @discardableResult
     public static func startIfRequested(environment: [String: String] = ProcessInfo.processInfo.environment) -> MainThreadWatchdog? {
         #if DEBUG
@@ -77,7 +56,6 @@ public final class MainThreadWatchdog: @unchecked Sendable {
         #endif
     }
 
-    /// Stacks kept per stall (one per threshold interval).
     public let maxSamples: Int
 
     public init(thresholdMilliseconds: Double, maxSamples: Int = MainThreadWatchdog.defaultMaxSamples, log: @escaping @Sendable (Stall) -> Void) {
@@ -88,14 +66,12 @@ public final class MainThreadWatchdog: @unchecked Sendable {
 
     deinit { frames.deallocate() }
 
-    /// Stalls seen so far.
     public var recorded: [Stall] {
         lock.lock()
         defer { lock.unlock() }
         return stalls
     }
 
-    /// Starts watching; call on the main thread.
     @MainActor public func start() {
         lock.lock()
         defer { lock.unlock() }
@@ -111,7 +87,6 @@ public final class MainThreadWatchdog: @unchecked Sendable {
         t.start()
     }
 
-    /// Stops watching (the background thread ends after its current ping).
     public func stop() {
         lock.lock()
         running = false
@@ -120,8 +95,6 @@ public final class MainThreadWatchdog: @unchecked Sendable {
 
     private func watch() {
         var ping = 0
-        // Pings follow one another closely, so a stall is measured nearly
-        // from its start.
         let interval = min(thresholdMilliseconds / 4, 10) / 1000
         while true {
             lock.lock()
@@ -152,8 +125,6 @@ public final class MainThreadWatchdog: @unchecked Sendable {
                     }
                     break
                 }
-                // A sample when the stall passes the threshold, then one
-                // per threshold interval.
                 if samples.count < maxSamples, elapsed >= thresholdMilliseconds * Double(samples.count + 1) {
                     samples.append(sampleMainThread())
                 }
@@ -163,14 +134,11 @@ public final class MainThreadWatchdog: @unchecked Sendable {
         }
     }
 
-    /// The main thread's return addresses, symbolized.
     func sampleMainThread() -> [String] {
         let count = captureMainThreadFrames()
         return (0..<count).map { Self.symbolize(frames[$0]) }
     }
 
-    /// Suspends the main thread, walks its frame-pointer chain into
-    /// `frames`, resumes it. Allocates nothing while it is suspended.
     private func captureMainThreadFrames() -> Int {
         guard thread_suspend(mainThread) == KERN_SUCCESS else { return 0 }
         defer { thread_resume(mainThread) }
@@ -192,7 +160,6 @@ public final class MainThreadWatchdog: @unchecked Sendable {
         guard kr == KERN_SUCCESS else { return 0 }
         pc = UInt(state.__rip); fp = UInt(state.__rbp)
         #endif
-        // Pointer-authentication bits are not part of the address.
         let mask: UInt = 0x0000_7FFF_FFFF_FFFF
         var n = 0
         frames[n] = pc & mask; n += 1
@@ -212,7 +179,6 @@ public final class MainThreadWatchdog: @unchecked Sendable {
     nonisolated(unsafe) private static let demangle: Demangle? = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "swift_demangle")
         .map { unsafeBitCast($0, to: Demangle.self) }
 
-    /// "image  symbol + offset" for a return address.
     static func symbolize(_ address: UInt) -> String {
         var info = Dl_info()
         guard dladdr(UnsafeRawPointer(bitPattern: address), &info) != 0 else { return String(format: "0x%lx", address) }

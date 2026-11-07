@@ -3,13 +3,10 @@ import SwiftCodeBuild
 import SwiftCodeProject
 import SwiftCodeXcodebuild
 
-/// Adding, listing and resolving a project's package dependencies. See
-/// `specs/ide/package-dependencies.md`.
 public struct PackageDependencyModel: Sendable {
     public var proj: PBXProj
     public let xcodeprojURL: URL
     public var resolver: PackageResolver
-    /// The last resolution's pins, by package identity.
     public private(set) var pins: [String: PackageResolver.Pin] = [:]
 
     public init(proj: PBXProj, xcodeprojURL: URL, checkoutsDirectory: URL? = nil) {
@@ -18,23 +15,17 @@ public struct PackageDependencyModel: Sendable {
         resolver = PackageResolver(checkoutsDirectory: checkoutsDirectory ?? Self.defaultCheckouts(for: xcodeprojURL))
     }
 
-    /// `~/Library/Caches/SwiftCode/SourcePackages/<project>-<hash>/checkouts`:
-    /// the `checkouts` folder of the build's `SourcePackages` folder
-    /// (`PackageGraphLoader.defaultSourcePackages(for:)`).
     public static func defaultCheckouts(for xcodeprojURL: URL) -> URL {
         PackageGraphLoader.defaultSourcePackages(for: xcodeprojURL).appendingPathComponent("checkouts")
     }
 
     public var projectDirectory: URL { proj.projectDirectory(xcodeprojURL: xcodeprojURL) }
 
-    /// Whether the text typed in the sheet is a local path (absolute,
-    /// `~`, `./`, `../`, or an existing folder) rather than a URL.
     public static func isLocalPath(_ s: String) -> Bool {
         if s.hasPrefix("file://") { return false }
         return s.hasPrefix("/") || s.hasPrefix("~") || s.hasPrefix(".") || !s.contains("://") && !s.contains("@")
     }
 
-    /// A path relative to the project directory, written with `../` steps.
     public func relativePath(to url: URL) -> String {
         let base = projectDirectory.standardizedFileURL.pathComponents
         let target = url.standardizedFileURL.pathComponents
@@ -44,8 +35,6 @@ public struct PackageDependencyModel: Sendable {
         return parts.isEmpty ? "." : parts.joined(separator: "/")
     }
 
-    /// Adds a package and returns its products: a remote one is resolved
-    /// (cloned and checked out) first; a local one is read in place.
     public mutating func addPackage(_ location: String, requirement: SwiftPackageRequirement) throws -> (id: String, products: [String]) {
         let trimmed = location.trimmingCharacters(in: .whitespaces)
         if Self.isLocalPath(trimmed) {
@@ -64,13 +53,11 @@ public struct PackageDependencyModel: Sendable {
         return (id, products)
     }
 
-    /// Links products into a target (by name).
     public mutating func link(_ products: [String], package: String, target name: String) {
         guard let t = proj.targets.first(where: { $0.string("name") == name }) else { return }
         for p in products { proj.addPackageProduct(p, package: package, toTarget: t.id) }
     }
 
-    /// Resolves every remote package and writes `Package.resolved`.
     @discardableResult
     public mutating func resolveAll() throws -> [PackageResolver.Pin] {
         let all = try resolver.resolveAndWrite(proj, xcodeprojURL: xcodeprojURL)
@@ -78,7 +65,6 @@ public struct PackageDependencyModel: Sendable {
         return all
     }
 
-    /// Versions recorded in `Package.resolved`, by identity.
     public func recordedVersions() -> [String: String] {
         guard let data = try? Data(contentsOf: PackageResolver.resolvedFileURL(xcodeprojURL: xcodeprojURL)),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -86,13 +72,11 @@ public struct PackageDependencyModel: Sendable {
         var out: [String: String] = [:]
         for p in list {
             guard let id = p["identity"] as? String, let st = p["state"] as? [String: Any] else { continue }
-            // Only a resolved version; branch- or revision-pinned packages show none (package-dependencies.md).
             if let v = st["version"] as? String { out[id] = v }
         }
         return out
     }
 
-    /// One row of the Package Dependencies tab.
     public struct Row: Equatable, Sendable {
         public var id: String
         public var name: String
@@ -112,8 +96,6 @@ public struct PackageDependencyModel: Sendable {
         }
     }
 
-    /// The navigator's Package Dependencies section: one row per package
-    /// (name and resolved version), listing its checkout or local folder.
     public func navigatorSection() -> NavigatorNode? {
         let refs = proj.packageReferences
         guard !refs.isEmpty else { return nil }

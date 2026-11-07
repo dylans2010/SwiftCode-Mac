@@ -1,10 +1,3 @@
-// FolderCreateView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Dashboard/FolderCreateView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Folder symbol picker; Folder colour and gradient-background options (gradient start/end, icon colour)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AnyShapeStyle.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -16,7 +9,6 @@ struct FolderCreateView: View {
     @State private var selectedSymbol = "folder.fill"
     @State private var selectedColor = Color.blue
 
-    // Gradient Support
     @State private var useGradient = false
     @State private var gradientColor1 = Color.blue
     @State private var gradientColor2 = Color.purple

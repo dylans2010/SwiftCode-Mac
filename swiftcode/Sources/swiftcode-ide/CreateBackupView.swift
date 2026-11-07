@@ -1,9 +1,3 @@
-// CreateBackupView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/CreateBackupView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: backup description/label field; storage-strategy choice (local vs cloud); in-progress percentage display
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeCloud
 import SwiftUI
 import os
@@ -129,8 +123,6 @@ struct CreateBackupView: View {
         .frame(width: 440, height: 420)
     }
 
-    // MARK: - Create Backup
-
     private func startBackup() {
         guard !isCreating else { return }
 
@@ -143,7 +135,6 @@ struct CreateBackupView: View {
             do {
                 progress = 0.2
 
-                // Create a local backup without a cloud provider.
                 try await BackupEngine.shared.performBackup(
                     cloudProvider: nil
                 )

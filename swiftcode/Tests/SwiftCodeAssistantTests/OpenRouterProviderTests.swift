@@ -2,17 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// OpenRouter provider tests. The `/models` fixtures below are recorded
-/// samples of the response shape (a `data` array of entries with `id`,
-/// `name`, `context_length` and `supported_parameters`); every model id
-/// uses the obviously-fake `example/` vendor prefix, and the key is an
-/// obviously-fake placeholder — no live network call is made anywhere
-/// in this file (the stand-in server is the loopback `LoopbackServer`,
-/// the same local helper the other provider tests use). `collect`,
-/// `sse`, `Recorder` and `closedPort` come from ProviderTests.swift.
 @Suite struct OpenRouterProviderTests {
-    /// A recorded sample `/models` payload. Four listable models plus
-    /// one entry with no `id`, which parsing must skip.
     static let modelsFixture = Data("""
         {"data":[
           {"id":"example/test-model-alpha","name":"Test Model Alpha","description":"A fake model for tests.",
@@ -35,9 +25,7 @@ import Testing
         #expect(models.map(\.id) == ["example/test-model-alpha", "example/test-model-beta",
                                      "example/test-model-gamma", "example/test-model-delta"])
         #expect(models[0] == ModelInfo(id: "example/test-model-alpha", displayName: "Test Model Alpha", contextWindow: 128000))
-        // No `name`: the display name falls back to the id.
         #expect(models[1] == ModelInfo(id: "example/test-model-beta", displayName: "example/test-model-beta", contextWindow: 200000))
-        // No `context_length`: no context window, not a guessed default.
         #expect(models[2] == ModelInfo(id: "example/test-model-gamma", displayName: "Test Model Gamma", contextWindow: nil))
         #expect(models[3].contextWindow == 32768)
         #expect(OpenRouterProvider.parseModels(Data("{}".utf8)).isEmpty)
@@ -46,12 +34,9 @@ import Testing
 
     @Test func toolCallingSupportFromRecordedPayload() {
         #expect(OpenRouterProvider.toolCallingSupport(for: "example/test-model-alpha", in: Self.modelsFixture) == .supports)
-        // `supported_parameters` present without "tools".
         #expect(OpenRouterProvider.toolCallingSupport(for: "example/test-model-gamma", in: Self.modelsFixture) == .doesNotSupport)
         #expect(OpenRouterProvider.toolCallingSupport(for: "example/test-model-delta", in: Self.modelsFixture) == .doesNotSupport)
-        // No `supported_parameters` field at all: unknown, not a failure.
         #expect(OpenRouterProvider.toolCallingSupport(for: "example/test-model-beta", in: Self.modelsFixture) == .unknown)
-        // Not listed: nil (the caller turns this into `.modelNotFound`).
         #expect(OpenRouterProvider.toolCallingSupport(for: "example/not-listed", in: Self.modelsFixture) == nil)
     }
 
@@ -70,8 +55,6 @@ import Testing
         let server = try LoopbackServer { req in
             rec.add(req)
             guard req.path == "/v1/models" else { return .text("", status: 404) }
-            // First fetch lists one model; later fetches list another, so
-            // the test can tell a cached answer from a fresh one.
             return hits.next() == 1
                 ? .json(["data": [["id": "example/test-model-alpha", "name": "Test Model Alpha", "context_length": 128000]]])
                 : .json(["data": [["id": "example/test-model-beta", "name": "Test Model Beta", "context_length": 200000]]])
@@ -81,12 +64,10 @@ import Testing
         #expect(a.models == [ModelInfo(id: "example/test-model-alpha", displayName: "Test Model Alpha", contextWindow: 128000)])
         #expect(rec.requests.first?.header("authorization") == "Bearer \(Self.fakeKey)")
         #expect(hits.hits == 1)
-        // Second call is served from the 1-hour cache: no second request.
         #expect(await p.availability().models.map(\.id) == ["example/test-model-alpha"])
         #expect(hits.hits == 1)
         #expect(await p.contextWindow(model: "example/test-model-alpha") == 128000)
         #expect(hits.hits == 1)
-        // Manual refresh bypasses the cache and sees the new listing.
         #expect(try await p.refreshModels().map(\.id) == ["example/test-model-beta"])
         #expect(hits.hits == 2)
         #expect(try await p.testConnection() == "Connected to OpenRouter (1 models available).")
@@ -129,7 +110,6 @@ import Testing
             hint: "Choose another model from the discovered list in Settings ▸ Coding Assistant.")) {
             try await p.validateModel("example/not-listed")
         }
-        // No provider/model slash: not an OpenRouter identifier at all.
         await #expect(throws: AssistantError.self) { try await p.validateModel("bare-model-name") }
     }
 
@@ -203,8 +183,6 @@ import Testing
                 == .failed("OpenRouter reports insufficient credits (402) for this account. Add credits on openrouter.ai; the selected model was not changed."))
         #expect(OpenRouterProvider.mapError(status: 429, body: Data(#"{"error":{"message":"slow down"}}"#.utf8), model: "")
                 == .usageLimit("slow down"))
-        // A 404 that does not name the model is a plain HTTP error, not a
-        // model error (e.g. a wrong base URL).
         #expect(OpenRouterProvider.mapError(status: 404, body: Data(#"{"error":{"message":"not found"}}"#.utf8),
                                            model: "example/test-model-alpha")
                 == .http(status: 404, message: "not found"))
@@ -213,7 +191,6 @@ import Testing
     }
 }
 
-/// A thread-safe request count for stand-in servers.
 final class HitCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0

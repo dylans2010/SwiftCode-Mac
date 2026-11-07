@@ -4,16 +4,6 @@ import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeSyntax
 
-/// The merge sheet's two panes and the gutter between them in one scroll
-/// view, so corresponding lines share a y (`merge-sheet.md` §4–§6), as the
-/// AppKit `MergeCanvasView` draws them: line numbers ending at +27, code
-/// from +41 in the editor's font and syntax colours (8.0 per cell, 18 per
-/// line, wrapping as the editor wraps), the current-line highlight,
-/// full-width shading per row through the gutter, changed-word fills, the
-/// selected change's red rules, and one capsule token per change opening
-/// the Choose menu (§7); the 17-point overview ruler at the right pane's
-/// end. x 0 is the left pane's edge. Double-clicking a change's left lines
-/// writes it by hand (SwiftCode's choice).
 struct MergeComparisonView: View {
     var editor: ConflictEditorShellModel
     var palette: MergeSheetPalette
@@ -22,11 +12,7 @@ struct MergeComparisonView: View {
     var height: CGFloat
     @State private var currentLeft = 1
     @State private var currentRight = 1
-    /// The last click on a row (a reference, so every click's handler sees
-    /// the one before it).
     @State private var clicks = MergeClickTracker()
-    /// The last layout, kept while the document is unchanged (a click on a
-    /// row only moves the selection).
     @State private var layouts = MergeLayoutCache()
 
     typealias M = MergeSheetMetrics
@@ -51,7 +37,6 @@ struct MergeComparisonView: View {
                         if state.isEditing, let h = state.currentHunk, let range = layout.rows(ofHunk: h) {
                             let top = CGFloat(M.firstLineTop) + layout.tops[range.lowerBound]
                             let bottom = CGFloat(M.firstLineTop) + layout.tops[range.upperBound - 1] + layout.heights[range.upperBound - 1]
-                            // As tall as the change, and a line more than its text.
                             let lines = CGFloat(editor.editedText.split(separator: "\n", omittingEmptySubsequences: false).count + 1)
                             handEditor(p)
                                 .frame(width: leftWidth - CGFloat(M.codeX) - 4, height: max(bottom - top, lines * CGFloat(M.lineHeight) + 12))
@@ -60,7 +45,6 @@ struct MergeComparisonView: View {
                     }
                     .frame(width: layout.totalWidth, alignment: .topLeading)
                     .background(alignment: .topLeading) {
-                        // The gutter and its rules run the whole height.
                         HStack(spacing: 0) {
                             Color(mergeHex: p.sheet).frame(width: leftWidth)
                             Rectangle().fill(Color(mergeHex: p.columnRule)).frame(width: 1)
@@ -107,8 +91,6 @@ struct MergeComparisonView: View {
             .shellTarget("merge row \(i)")
             .contentShape(Rectangle())
             .onTapGesture(count: 1, coordinateSpace: .local) { pt in click(i, at: pt, layout) }
-            // A double-click by the events' own times (a busy frame between
-            // the two clicks' handlers must not split them).
             .simultaneousGesture(TapGesture(count: 2).onEnded { doubleClick(i, layout) })
             .overlay(alignment: .topLeading) {
                 if row.isFirstOfHunk, let h = row.hunk, let t = state.token(forHunk: h) {
@@ -118,13 +100,8 @@ struct MergeComparisonView: View {
             }
     }
 
-    /// A row's click: the current line of the side clicked, the row's change
-    /// selected; a second click on a change's left lines within 0.4 s
-    /// writes it by hand.
     func click(_ i: Int, at pt: CGPoint, _ layout: MergePaneLayout) {
         let row = layout.rows[i]
-        // Only what changes is set: a frame drawn between a double-click's
-        // two clicks must not be needed.
         if pt.x < leftWidth, let l = row.left, currentLeft != l.number { currentLeft = l.number }
         if pt.x >= layout.rightX, let r = row.right, currentRight != r.number { currentRight = r.number }
         let isDouble = clicks.isDouble(row: i, left: pt.x < leftWidth)
@@ -133,18 +110,12 @@ struct MergeComparisonView: View {
         if isDouble, pt.x < leftWidth, !editor.state.isEditing { editor.beginEditing() }
     }
 
-    /// A double-click on a change's left lines writes it by hand (SwiftCode's
-    /// choice).
     func doubleClick(_ i: Int, _ layout: MergePaneLayout) {
         guard clicks.lastWasLeft(row: i), let h = layout.rows[i].hunk, !editor.state.isEditing else { return }
         editor.selectHunk(h)
         editor.beginEditing()
     }
 
-    /// A change's token: selects the change and opens the Choose menu
-    /// (§7): Choose Left, Choose Right — Choose Left Then Right, Choose
-    /// Right Then Left. The choice rewrites the left pane; the change stays
-    /// selected.
     func token(_ h: Int, _ t: ConflictEditorState.Token) -> some View {
         Menu {
             ForEach(Array(MergeSheetText.chooseTitles.enumerated()), id: \.offset) { pair in
@@ -174,7 +145,6 @@ struct MergeComparisonView: View {
     }
 }
 
-/// Tells a double-click from two clicks: the same row again within 0.4 s.
 final class MergeClickTracker {
     private var last: (row: Int, time: Date, left: Bool)?
 
@@ -185,13 +155,9 @@ final class MergeClickTracker {
         return now.timeIntervalSince(l.time) < 0.4
     }
 
-    /// The last click was on row `row`'s left pane.
     func lastWasLeft(row: Int) -> Bool { last.map { $0.row == row && $0.left } ?? false }
 }
 
-/// Keeps the last `MergePaneLayout` (highlighting and wrapping a file
-/// costs more than a frame) while the document, the widths and the
-/// appearance are unchanged.
 final class MergeLayoutCache {
     private var key: (doc: MergeDocument?, file: String, left: CGFloat, right: CGFloat, palette: MergeSheetPalette)?
     private var cached: MergePaneLayout?
@@ -209,8 +175,6 @@ final class MergeLayoutCache {
     }
 }
 
-/// The rows, their heights and tops, and both panes' syntax runs, for one
-/// shown document.
 struct MergePaneLayout {
     let rows: [MergeSheetRow]
     let heights: [CGFloat]
@@ -247,15 +211,12 @@ struct MergePaneLayout {
     var rightX: CGFloat { leftWidth + 1 + CGFloat(M.gutterWidth) + 1 }
     var totalWidth: CGFloat { rightX + rightWidth }
 
-    /// The rows of change `h`.
     func rows(ofHunk h: Int) -> Range<Int>? {
         guard let a = rows.firstIndex(where: { $0.hunk == h }), let b = rows.lastIndex(where: { $0.hunk == h }) else { return nil }
         return a..<(b + 1)
     }
 }
 
-/// The code's font size: the editor's monospaced face at the size whose
-/// cells are 8.0 wide (`editor-area.md` C.1), measured once.
 enum MergeCodeFont {
     nonisolated(unsafe) static var measured: CGFloat?
 
@@ -271,9 +232,6 @@ enum MergeCodeFont {
     }
 }
 
-/// One row's drawing (all three columns): shading, the current-line
-/// highlight, changed words, line numbers, text, and the selected change's
-/// rules.
 struct MergeRowPainter {
     let row: MergeSheetRow
     let layout: MergePaneLayout
@@ -293,14 +251,12 @@ struct MergeRowPainter {
         fill(CGRect(x: 0, y: 0, width: lw, height: h), p.sheet)
         fill(CGRect(x: rx, y: 0, width: rw, height: h), p.sheet)
         fill(CGRect(x: gx, y: 0, width: CGFloat(M.gutterWidth), height: h), p.gutter)
-        // Shading: full width, through the gutter (§6).
         if row.kind != .same {
             let shade = row.kind == .conflict ? p.conflictRow : p.cleanRow
             fill(CGRect(x: 0, y: 0, width: lw, height: h), shade)
             fill(CGRect(x: rx, y: 0, width: rw, height: h), shade)
             fill(CGRect(x: gx, y: 0, width: CGFloat(M.gutterWidth), height: h), row.kind == .conflict ? p.gutterConflict : p.gutterClean)
         } else {
-            // The current-line highlight on every visual line of the line.
             let inset = CGFloat(M.currentLineInset)
             if let l = row.left, l.number == currentLeft {
                 let n = CGFloat(MergeSheetLayout.wrap(l.text, columns: layout.columns).count)
@@ -317,7 +273,6 @@ struct MergeRowPainter {
         let font = MergeCodeFont.font(ctx)
         if let l = row.left { side(&ctx, l, runs: layout.leftRuns, x: 0, current: currentLeft, font: font) }
         if let r = row.right { side(&ctx, r, runs: layout.rightRuns, x: rx, current: currentRight, font: font) }
-        // The selected change's rules, across both panes and the gutter.
         if isSelected {
             let rule = isDecided ? p.decidedRule : p.selectedRule
             if row.isFirstOfHunk { fill(CGRect(x: 0, y: 0, width: layout.totalWidth, height: 1), rule) }
@@ -330,7 +285,6 @@ struct MergeRowPainter {
         let p = layout.palette
         let lh = CGFloat(M.lineHeight), cw = CGFloat(M.cellWidth)
         let segs = MergeSheetLayout.wrap(s.text, columns: layout.columns)
-        // Changed words: 16 tall, whole cells, never the spaces (§6).
         for (k, seg) in segs.enumerated() {
             for w in s.words {
                 let a = max(w.lowerBound, seg.cells.lowerBound), b = min(w.upperBound, seg.cells.upperBound)
@@ -340,11 +294,9 @@ struct MergeRowPainter {
                          with: .color(Color(mergeHex: p.conflictWord)))
             }
         }
-        // The line number, right-aligned at +27.
         let numberColor = Color(mergeHex: s.number == current ? p.currentLineNumber : p.lineNumber)
         ctx.draw(Text(verbatim: String(s.number)).font(Font.system(size: 10).monospacedDigit()).foregroundStyle(numberColor),
                  at: CGPoint(x: x + CGFloat(M.lineNumberRight), y: lh / 2), anchor: .trailing)
-        // The text in the editor's colours, one visual line at a time.
         let line = runs.indices.contains(s.number - 1) ? runs[s.number - 1] : [(s.text, nil)]
         for (k, seg) in segs.enumerated() {
             var pieces: [Text] = []
@@ -364,10 +316,6 @@ struct MergeRowPainter {
     }
 }
 
-/// A change's token (§5): a 38.5 × 14 capsule, #575757 (the selected
-/// change #6D2A2D with a red rim), the glyph ("?" undecided, a digit once
-/// decided) left of centre, then a down-chevron, in a circle once a choice
-/// is in effect.
 struct MergeTokenView: View {
     var token: ConflictEditorState.Token
     var palette: MergeSheetPalette
@@ -402,9 +350,6 @@ struct MergeTokenView: View {
     }
 }
 
-/// The 17-point overview ruler (§4.4): the whole file on the pane's
-/// height, a 10-wide mark per change (conflicts #FDB9B5, clean #D4D4D4);
-/// a click scrolls there.
 struct MergeRuler: View {
     var marks: [(position: Double, isConflict: Bool)]
     var palette: MergeSheetPalette

@@ -2,33 +2,8 @@ import XCTest
 @testable import SwiftCodeUI
 import SwiftCodeSDK
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter SwiftCodeSDKViewHostTests`.
-//
-// Wave 16, Slice C: tests for the SDK view-host seam
-// (`SwiftCodeSDKViewHost`). The host is driven through a recording fake
-// surface-actions object — no AppKit window is ever opened. Each of
-// the 12 view IDs is asserted exactly once: working windows route to
-// their SwiftCode surface, honestly-unavailable windows throw
-// `.serviceUnavailable` with the recorded reason, and unknown IDs
-// throw `.serviceUnavailable` naming the missing registration.
-//
-// Wave 19, Slice A: `docs.search` moved from honestly-unavailable to
-// working — the Documentation Browser window now exists (57-topic
-// offline cache, `specs/ide/wave19-docs.md`). The fake gained
-// `showDocumentationBrowser`, the working-cases table gained the
-// docs.search row, and the unavailable table lost it (4 remain).
-//
-// Wave 19, Slice F (gap closure P4): the four remaining honestly-
-// unavailable windows (`deployConsole.view`, `ci.VisualWF`,
-// `virtualization.view`, `sandbox.view`) now route to their surfaces;
-// the unavailable set is empty and all 12 built-in view IDs work.
-
 @MainActor
 final class SwiftCodeSDKViewHostTests: XCTestCase {
-
-    // MARK: - Fake
 
     @MainActor
     private final class FakeSurfaceActions: SDKViewSurfaceActions {
@@ -55,8 +30,6 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         func showSandboxTerminal() async throws { try record("showSandboxTerminal") }
     }
 
-    // MARK: - Helpers
-
     private func makeHost() -> (SwiftCodeSDKViewHost, FakeSurfaceActions) {
         let actions = FakeSurfaceActions()
         return (SwiftCodeSDKViewHost(actions: actions), actions)
@@ -82,8 +55,6 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         }
     }
 
-    // MARK: - Working windows route to their SwiftCode surface
-
     func testWorkingWindowsRouteToSurfaces() async throws {
         let cases: [(viewID: String, surface: String)] = [
             ("deviceconnect.open", "showDevices"),
@@ -107,14 +78,7 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         }
     }
 
-    // MARK: - Honestly-unavailable windows
-
     func testUnavailableWindowsThrowWithReason() async {
-        // Wave 19 Slice F: the unavailable set is currently empty —
-        // every built-in view ID routes to a surface. The cases list
-        // stays as the guard: if a view goes honestly-unavailable
-        // again, its row belongs here and the set-equality assertion
-        // below fails until it is added.
         let cases: [(viewID: String, reason: String)] = []
         XCTAssertEqual(Set(cases.map(\.viewID)), Set(SwiftCodeSDKViewHost.unavailableReasons.keys))
         for (viewID, reason) in cases {
@@ -143,8 +107,6 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         )
     }
 
-    // MARK: - Unknown IDs and failure propagation
-
     func testUnknownViewThrowsServiceUnavailable() async {
         let (host, actions) = makeHost()
         await assertThrowsServiceUnavailable {
@@ -166,8 +128,6 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         }
         XCTAssertEqual(actions.calls, ["openInterfaceBuilder"])
     }
-
-    // MARK: - Registry seam
 
     func testRegistryRoutesThroughInstalledHost() async throws {
         let (host, actions) = makeHost()

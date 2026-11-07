@@ -1,8 +1,5 @@
 import Foundation
 
-/// A document that cannot be read (`specs/formats/icon-format.md`: the
-/// invalid cases of §3–§6). `path` names the place, like
-/// `groups[0].layers[1].blend-mode`.
 public struct IconError: Error, CustomStringConvertible, Equatable, Sendable {
     public var path: String
     public var message: String
@@ -13,7 +10,6 @@ public struct IconError: Error, CustomStringConvertible, Equatable, Sendable {
     public var description: String { path.isEmpty ? message : "\(path): \(message)" }
 }
 
-/// A value that a key of `icon.json` holds, read from and written to JSON.
 public protocol IconValue: Equatable, Sendable {
     init(json: IconJSON, path: String) throws
     var json: IconJSON { get }
@@ -46,10 +42,6 @@ extension String: IconValue {
     public var json: IconJSON { .string(self) }
 }
 
-// MARK: Colors (§4.1)
-
-/// `space:c1,c2,…` — four components (R, G, B, A) for the RGB spaces, two
-/// (white, A) for the gray spaces.
 public struct IconColor: IconValue, CustomStringConvertible, Hashable {
     public enum Space: String, CaseIterable, Sendable {
         case sRGB = "srgb", extendedSRGB = "extended-srgb", displayP3 = "display-p3"
@@ -60,7 +52,6 @@ public struct IconColor: IconValue, CustomStringConvertible, Hashable {
 
     public var space: Space
     public var components: [Double]
-    /// The text as read, written back unchanged while the components are.
     var text: String?
 
     public init(space: Space, components: [Double]) {
@@ -94,7 +85,6 @@ public struct IconColor: IconValue, CustomStringConvertible, Hashable {
         try self.init(parsing: s, path: path)
     }
 
-    /// Icon Composer's form: five decimals per component.
     public var description: String {
         if let text, let read = try? IconColor(parsing: text), read.space == space, read.components == components { return text }
         return space.rawValue + ":" + components.map { String(format: "%.5f", $0) }.joined(separator: ",")
@@ -108,14 +98,11 @@ public struct IconColor: IconValue, CustomStringConvertible, Hashable {
         h.combine(components)
     }
 
-    /// Red, green, blue, alpha (gray spaces repeat the white value).
     public var rgba: (r: Double, g: Double, b: Double, a: Double) {
         space.isGray ? (components[0], components[0], components[0], components[1])
             : (components[0], components[1], components[2], components[3])
     }
 }
-
-// MARK: Fills (§4.2)
 
 public struct IconPoint: Equatable, Sendable, Hashable {
     public var x: Double, y: Double
@@ -125,7 +112,6 @@ public struct IconPoint: Equatable, Sendable, Hashable {
     }
 }
 
-/// A linear gradient's direction in unit canvas coordinates (y down).
 public struct IconGradientOrientation: Equatable, Sendable, Hashable {
     public var start: IconPoint
     public var stop: IconPoint
@@ -133,12 +119,10 @@ public struct IconGradientOrientation: Equatable, Sendable, Hashable {
         self.start = start
         self.stop = stop
     }
-    /// Top to bottom, used when `orientation` is absent.
     public static let topToBottom = IconGradientOrientation(start: IconPoint(x: 0.5, y: 0), stop: IconPoint(x: 0.5, y: 1))
 }
 
 public enum IconFill: IconValue, Hashable {
-    /// The system background (document) or the artwork's own colours (layer).
     case automatic
     case none
     case systemLight
@@ -201,16 +185,12 @@ public enum IconFill: IconValue, Hashable {
         }
     }
 
-    /// For a layer: whether the artwork keeps its own colours.
     public var keepsArtworkColors: Bool { self == .automatic || self == .none || self == .systemLight || self == .systemDark }
 }
-
-// MARK: Position (§4.4)
 
 public struct IconPosition: IconValue {
     public var scale: Double
     public var translation: IconPoint
-    /// Keys SwiftCode does not interpret (`relative-translation`, …), kept.
     public var extra: [String: IconJSON]
 
     public init(scale: Double = 1, translation: IconPoint = IconPoint(x: 0, y: 0), extra: [String: IconJSON] = [:]) {
@@ -243,8 +223,6 @@ public struct IconPosition: IconValue {
     }
 }
 
-// MARK: Blend modes (§4.5)
-
 public enum IconBlendMode: String, IconValue, CaseIterable {
     case normal, multiply, screen, overlay, darken, lighten
     case softLight = "soft-light", hardLight = "hard-light", plusDarker = "plus-darker", plusLighter = "plus-lighter"
@@ -255,7 +233,6 @@ public enum IconBlendMode: String, IconValue, CaseIterable {
     }
     public var json: IconJSON { .string(rawValue) }
 
-    /// The compiled number (Core Graphics numbering, `assets-car.md` §7.7).
     public var compiledCode: UInt32 {
         switch self {
         case .normal: 0
@@ -271,8 +248,6 @@ public enum IconBlendMode: String, IconValue, CaseIterable {
         }
     }
 }
-
-// MARK: Group glass properties (§3.2)
 
 public struct IconShadow: IconValue {
     public enum Kind: String, CaseIterable, Sendable { case neutral, layerColor = "layer-color", none }
@@ -336,7 +311,6 @@ public struct IconTranslucency: IconValue {
         return .object(o)
     }
 
-    /// The amount that takes effect: 0 when disabled.
     public var effectiveValue: Double { enabled ? value : 0 }
 }
 
@@ -375,7 +349,6 @@ public struct IconRefractivity: IconValue {
     }
 }
 
-/// `blur-material`: a number 0–1, or `null` (off).
 public struct IconBlurMaterial: IconValue {
     public var value: Double?
     public init(_ value: Double?) { self.value = value }
@@ -384,7 +357,6 @@ public struct IconBlurMaterial: IconValue {
         value = try Double(json: json, path: path)
     }
     public var json: IconJSON { value.map { .number($0) } ?? .null }
-    /// The strength that takes effect: 0 for off.
     public var effectiveValue: Double { value ?? 0 }
 }
 
@@ -397,7 +369,6 @@ public enum IconLighting: String, IconValue, CaseIterable {
     public var json: IconJSON { .string(rawValue) }
 }
 
-/// `specular-highlight-placement`. Unrecognized values are kept, not errors.
 public struct IconHighlightPlacement: IconValue, Hashable {
     public static let automatic = IconHighlightPlacement(rawValue: "automatic")
     public static let inside = IconHighlightPlacement(rawValue: "inside")
@@ -407,6 +378,5 @@ public struct IconHighlightPlacement: IconValue, Hashable {
     public init(json: IconJSON, path: String) throws { rawValue = try String(json: json, path: path) }
     public var json: IconJSON { .string(rawValue) }
     public var isKnown: Bool { ["automatic", "inside", "outside"].contains(rawValue) }
-    /// The compiled code (`icon-compile.md` §4.2): automatic 0, inside 1 (presumed), outside 2.
     public var compiledCode: UInt32 { rawValue == "outside" ? 2 : rawValue == "inside" ? 1 : 0 }
 }

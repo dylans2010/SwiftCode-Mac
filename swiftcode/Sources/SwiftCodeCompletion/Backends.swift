@@ -4,11 +4,8 @@ import FoundationNetworking
 #endif
 import SwiftCodeAssistant
 
-/// One request to a backend.
 public struct PredictionRequest: Sendable, Equatable {
     public var context: CompletionContext
-    /// "" = the backend picks (Ollama: the first installed model that can
-    /// fill in the middle; servers: their loaded model).
     public var model: String
     public var maxTokens: Int
     public var temperature: Double?
@@ -34,19 +31,14 @@ public struct PredictionRequest: Sendable, Equatable {
     }
 }
 
-/// What a backend streams: text, then once the model it used.
 public enum PredictionEvent: Sendable, Equatable {
     case text(String)
     case model(String)
-    /// The chat fallback is in use (the shaper strips fences).
     case chat
 }
 
-/// Errors, with text for the status line.
 public enum PredictionError: Error, Sendable, Equatable, LocalizedError {
-    /// Nothing answers at the address.
     case unreachable(backend: PredictiveCompletionSettings.Backend, address: String)
-    /// Ollama answers but has no model that can fill in the middle.
     case noModel(String)
     case modelNotFound(String)
     case http(status: Int, message: String)
@@ -64,7 +56,6 @@ public enum PredictionError: Error, Sendable, Equatable, LocalizedError {
         }
     }
 
-    /// One line on what to do (the status line and Settings show it).
     public var hint: String? {
         switch self {
         case .unreachable(.ollama, _): OllamaProvider.installHint
@@ -79,12 +70,9 @@ public enum PredictionError: Error, Sendable, Equatable, LocalizedError {
     public var isUnreachable: Bool { if case .unreachable = self { true } else { false } }
 }
 
-/// What Settings' Test button and the status line learn about a backend.
 public struct BackendProbe: Sendable, Equatable {
     public var reachable: Bool
-    /// The models offered (Ollama: installed; servers: loaded).
     public var models: [String]
-    /// Ollama: the models that can fill in the middle (capability `insert`).
     public var fimModels: [String]
     public var message: String
     public init(reachable: Bool, models: [String] = [], fimModels: [String] = [], message: String) {
@@ -95,19 +83,14 @@ public struct BackendProbe: Sendable, Equatable {
     }
 }
 
-/// A source of suggestions.
 public protocol PredictionBackend: Sendable {
     var kind: PredictiveCompletionSettings.Backend { get }
     var address: String { get }
-    /// Streams the raw output. Cancelling the consumer cancels the request.
     func stream(_ request: PredictionRequest) -> AsyncThrowingStream<PredictionEvent, Error>
-    /// Whether the server answers, and its models.
     func probe() async -> BackendProbe
 }
 
 extension PredictiveCompletionSettings {
-    /// The backend these settings describe. `assistantOllamaURL` is the
-    /// coding assistant's Ollama address (shared when `address` is nil).
     public func makeBackend(assistantOllamaURL: String? = nil) -> PredictionBackend {
         let a = effectiveAddress(assistantOllamaURL: assistantOllamaURL)
         switch backend {
@@ -118,7 +101,6 @@ extension PredictiveCompletionSettings {
     }
 }
 
-/// Wraps a body into an event stream whose task stops with the consumer.
 func predictionStream(_ body: @escaping @Sendable (AsyncThrowingStream<PredictionEvent, Error>.Continuation) async throws -> Void)
     -> AsyncThrowingStream<PredictionEvent, Error> {
     AsyncThrowingStream { out in
@@ -137,23 +119,14 @@ func predictionStream(_ body: @escaping @Sendable (AsyncThrowingStream<Predictio
 func jsonObject(_ d: Data) -> [String: Any]? { (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] }
 func jsonObject(_ s: String) -> [String: Any]? { jsonObject(Data(s.utf8)) }
 
-// MARK: Ollama
-
-/// Ollama (the default): `/api/generate` with `prompt` = the prefix and
-/// `suffix`; the model's own template builds the FIM prompt. Related
-/// snippets go before the prefix as line comments naming their file
-/// (SwiftCode's choice: the template has no slot for other files).
 public struct OllamaFIMBackend: PredictionBackend {
     public let kind = PredictiveCompletionSettings.Backend.ollama
     public var address: String
-    /// How long Ollama keeps the model loaded after a request; nil = the
-    /// server's own setting (SwiftCode does not change it).
     public var keepAlive: String?
     public init(address: String = OllamaProvider.defaultBaseURL) { self.address = address }
 
     var provider: OllamaProvider { OllamaProvider(baseURL: address) }
 
-    /// The prompt: related snippets as comments, then the prefix.
     public static func prompt(_ c: CompletionContext) -> String {
         guard !c.related.isEmpty, let mark = CompletionContext.lineComment(for: c.language) else { return c.prefix }
         var s = ""
@@ -165,8 +138,6 @@ public struct OllamaFIMBackend: PredictionBackend {
         return s + c.prefix
     }
 
-    /// The first installed model with capability `insert` (remembered per
-    /// address until the model list changes).
     func pickModel() async throws -> String {
         let models = try await provider.installedModels()
         let names = models.map(\.id)
@@ -222,7 +193,6 @@ public struct OllamaFIMBackend: PredictionBackend {
     }
 }
 
-/// The model picked per Ollama address, with the model list it came from.
 final class PickedModels: @unchecked Sendable {
     static let shared = PickedModels()
     private let lock = NSLock()
@@ -237,13 +207,6 @@ final class PickedModels: @unchecked Sendable {
     }
 }
 
-// MARK: llama-server
-
-/// llama.cpp's `llama-server` `POST /infill` (llama.cpp server README):
-/// `input_prefix`, `input_suffix`, `input_extra` [{filename, text}],
-/// streamed as server-sent events `{content, stop}`. The server builds the
-/// FIM prompt from the model's own GGUF tokens (repo-level layout when the
-/// model has them).
 public struct LlamaServerInfillBackend: PredictionBackend {
     public let kind = PredictiveCompletionSettings.Backend.llamaServer
     public var address: String
@@ -293,18 +256,11 @@ public struct LlamaServerInfillBackend: PredictionBackend {
     }
 }
 
-// MARK: OpenAI-compatible
-
-/// Any OpenAI-compatible server: `/v1/completions` with a FIM prompt from
-/// the model family's own tokens (`FIMFormat`), streamed as server-sent
-/// events (`choices[0].text`); without FIM tokens, `/v1/chat/completions`
-/// with an instruction (`choices[0].delta.content`).
 public struct OpenAICompatibleBackend: PredictionBackend {
     public let kind = PredictiveCompletionSettings.Backend.openAICompatible
     public var address: String
     public init(address: String = ChatCompletionsProvider.defaultBaseURL) { self.address = address }
 
-    /// Base URLs may or may not end in `/v1`.
     func endpoint(_ path: String) -> URL? {
         let a = address.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
         return HTTP.url(a.hasSuffix("/v1") ? a : a + "/v1", path)
@@ -313,7 +269,7 @@ public struct OpenAICompatibleBackend: PredictionBackend {
     public static func completionsBody(_ r: PredictionRequest, prompt: String, stop: [String]) -> [String: Any] {
         var b: [String: Any] = ["prompt": prompt, "max_tokens": r.maxTokens, "stream": true, "stream_options": ["include_usage": true]]
         if !r.model.isEmpty { b["model"] = r.model }
-        if !stop.isEmpty { b["stop"] = Array(stop.prefix(4)) } // the OpenAI API takes at most 4
+        if !stop.isEmpty { b["stop"] = Array(stop.prefix(4)) }
         if let t = r.temperature { b["temperature"] = t }
         if let p = r.topP { b["top_p"] = p }
         if let k = r.topK { b["top_k"] = k }
@@ -372,7 +328,6 @@ public struct OpenAICompatibleBackend: PredictionBackend {
     }
 }
 
-/// `GET /v1/models` (`data[].id`).
 func probeOpenAIModels(address: String, kind: PredictiveCompletionSettings.Backend, name: String) async -> BackendProbe {
     guard let url = HTTP.url(address, "v1/models") else { return BackendProbe(reachable: false, message: "“\(address)” is not a valid address.") }
     do {

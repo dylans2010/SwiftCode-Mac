@@ -8,8 +8,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
 @MainActor
 @Suite(.serialized) struct SettingsPanesTests {
-    /// A private Preferences (own defaults suite and themes folder),
-    /// installed as `shared` for the duration of `body`.
     func withPrefs(_ body: (Preferences, URL) throws -> Void) throws {
         let name = "swiftcode-settings-\(UUID().uuidString)"
         let t = TestDefaults("settings-panes")
@@ -63,7 +61,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(p.themeName == "SwiftCode Default" && !p.themes.contains { $0.name == "SwiftCode Dusk Copy" })
             let imported = try p.importTheme(from: out)
             #expect(imported.name == "SwiftCode Dusk Copy" && p.themeName == "SwiftCode Dusk Copy")
-            // Built-ins cannot be overwritten.
             #expect(throws: (any Error).self) { try p.save(EditorTheme.builtIns[1]) }
             _ = try WindowSnapshotTests().render(pane.view, to: "settings-themes.png")
         }
@@ -94,7 +91,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(e.textView.backgroundColor == EditorTheme.color("#FBF8F1"))
             #expect(wc.debugArea.consoleFont?.pointSize == 11)
             _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "settings-applied-editor.png")
-            // Indentation: tabs, then spaces.
             p.indentWithTabs = true
             e.textView.setSelectedRange(NSRange(location: (e.text as NSString).range(of: "func").location, length: 0))
             e.textView.insertTab(nil)
@@ -103,10 +99,8 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             p.indentWidth = 2
             e.textView.insertTab(nil)
             #expect(e.text.contains("\t  func"))
-            // Trailing whitespace trimmed on save.
             try e.save()
             #expect(try String(contentsOf: file, encoding: .utf8).hasPrefix("let a = 1\n"))
-            // Hidden extensions in the navigator.
             p.fileExtensions = .hide
             func titles(_ items: [OutlineItem]) -> [String] { items.flatMap { [$0.title] + titles($0.children) } }
             #expect(titles(wc.navigator.rows(0)).contains("T") && !titles(wc.navigator.rows(0)).contains("T.swift"))
@@ -118,12 +112,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let pane = KeyBindingsSettingsPane(prefs: p)
             _ = pane.view
             pane.query = "clean build"
-            // Clean Build Folder Immediately is a command too since R36.
             #expect(pane.rows.map(\.title) == ["Clean Build Folder…", "Clean Build Folder Immediately"] && pane.rows[0].command.shortcutText == "⇧⌘K")
-            // ⌘B is Build's: refused, with the conflict named.
             #expect(!pane.setShortcut("⌘B", forRow: 0))
             #expect(pane.lastConflicts.map(\.title) == ["Build"])
-            // ⌃⌥⌘K stays with Clear Test Results (reference-ui-5.md §1.1).
             #expect(!pane.setShortcut("⌃⌥⌘K", forRow: 0))
             #expect(pane.lastConflicts.map(\.title) == ["Clear Test Results"] && pane.lastConflicts[0].menu == "Product")
             #expect(pane.setShortcut("⌃⌥⇧⌘K", forRow: 0))
@@ -146,8 +137,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             _ = NSApplication.shared
             let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: dir)), loadDestinations: false, startLanguageService: false)
             wc.applyDefaultLayout()
-            // Behaviors: a failed build shows the Issue navigator (default);
-            // a custom start behavior shows the Report navigator.
             let pane = BehaviorsSettingsPane(prefs: p)
             _ = pane.view
             pane.select(.buildStarts)
@@ -156,7 +145,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(wc.lastBehavior?.event == .buildStarts && wc.navigator.selectedIndex == 8)
             wc.applyBehaviors(for: .finished("Build Failed"))
             #expect(wc.lastBehavior?.event == .buildFails && wc.lastBehavior?.behavior.notify == true)
-            // Category list, then the Build events with their actions.
             pane.open(category: nil)
             #expect(pane.count(in: "Build") == 4 && pane.count(in: "Running") == 3)
             #expect(p.behavior(.buildErrors).actionTitles == ["Navigator: Issues"])
@@ -165,24 +153,19 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(p.behavior(.buildWarnings).showNavigator == 8)
             pane.remove("Navigator: Reports", from: .buildWarnings)
             #expect(p.behavior(.buildWarnings).actionTitles.isEmpty)
-            // Navigation: ⌥-click uses a new unpinned tab (reference-ui-5.md §9.2).
             wc.openFromNavigator(path: dir.appendingPathComponent("A.swift").path, line: nil, modifiers: [])
             wc.openFromNavigator(path: dir.appendingPathComponent("B.swift").path, line: nil, modifiers: .option)
             #expect(wc.editorArea.tabs.count >= 2 && wc.editor.fileURL?.lastPathComponent == "B.swift" && !wc.editorArea.tab.isPinned)
-            // Accounts: + explains; nothing is stored.
             let acc = AccountsSettingsPane(prefs: p)
             _ = acc.view
             acc.addClicked()
             #expect(acc.shownMessage?.contains("never asks for or stores passwords") == true)
-            // Source control: from git config (read-only), injected here.
             let sc = SourceControlSettingsPane(prefs: p) { $0 == "user.name" ? "Test Author" : nil }
             #expect(sc.authorName == "Test Author" && sc.authorEmail == "Not set")
-            // Components: runtimes parsed from synthetic simctl JSON.
             let rt = ComponentsSettingsPane.runtimes(fromSimctlJSON: Data("""
             {"runtimes": [{"name": "iOS 30.0", "version": "30.0", "isAvailable": true}, {"name": "tvOS 30.0", "version": "30.0", "isAvailable": false}]}
             """.utf8))
             #expect(rt.map(\.kind) == ["Simulator Runtime", "Simulator Runtime (unavailable)"])
-            // General: live issues off.
             p.showLiveIssues = false
             #expect(!wc.session.includeLiveIssues)
             p.showRegisters = true

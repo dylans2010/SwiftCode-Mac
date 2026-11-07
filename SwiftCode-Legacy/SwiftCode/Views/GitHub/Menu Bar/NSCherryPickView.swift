@@ -6,7 +6,6 @@ public struct NSCherryPickView: View {
     @State private var errorMsg = ""
     @State private var isLoading = false
 
-    // Paginated list state
     @State private var commits: [GitHubCommit] = []
     @State private var currentPage = 1
     @State private var isFetching = false
@@ -31,13 +30,11 @@ public struct NSCherryPickView: View {
                         .textFieldStyle(.roundedBorder)
                         .disabled(isLoading)
                         .onChange(of: commitSHA) { _, newValue in
-                            // If user manually types SHA, sync selected SHA if it matches
                             if selectedCommitSHA != newValue {
                                 selectedCommitSHA = nil
                             }
                         }
 
-                    // Commits list section
                     Text("Select a commit from history:")
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)

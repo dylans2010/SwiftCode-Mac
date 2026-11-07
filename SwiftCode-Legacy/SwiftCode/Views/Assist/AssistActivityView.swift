@@ -509,7 +509,6 @@ public struct AssistActivityView: View {
     }
 }
 
-/// Inline collapsible thought inspector / disclosure showing live thinking duration and thought stream.
 public struct AssistThoughtDisclosureView: View {
     public let thinkingContent: String
     public let duration: TimeInterval?
@@ -606,4 +605,3 @@ public struct AssistThoughtDisclosureView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-

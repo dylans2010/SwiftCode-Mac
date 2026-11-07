@@ -1,9 +1,3 @@
-// PrimaryManagers.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Managers/PrimaryManagers.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: release management entirely (ReleaseManager / SCRelease, releases_metadata.json); registry project operations: openProject, duplicateProject, deleteProject, revealInFinder
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import AppKit
 import Observation
@@ -39,7 +33,6 @@ public final class ProjectRegistryManager {
     }
 
     private func updateStatus() {
-        // Asynchronously check Git and package status without blocking main thread
         let currentEntries = self.registryEntries
         Task {
             for entry in currentEntries {
@@ -165,7 +158,6 @@ public final class BuildHistoryManager {
 
     public func loadBuilds() {
         guard FileManager.default.fileExists(atPath: buildsURL.path) else {
-            // Seed initial records to have real diagnostic historical reference if file doesn't exist
             self.buildRecords = []
             return
         }
@@ -219,7 +211,7 @@ public struct SCRelease: Identifiable, Codable, Sendable, Hashable {
     public let targetPlatform: String
     public let releaseDate: Date
     public let size: Int64
-    public var status: String // e.g. "Draft", "App Store Connect", "Released"
+    public var status: String
 
     public init(id: UUID = UUID(), projectName: String, version: String, targetPlatform: String, releaseDate: Date = Date(), size: Int64 = 0, status: String = "Draft") {
         self.id = id

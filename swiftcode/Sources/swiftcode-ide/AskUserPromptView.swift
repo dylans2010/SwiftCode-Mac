@@ -1,10 +1,3 @@
-// AskUserPromptView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Agent/AskUserPromptView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: presenting UI for the question/options; answer collection and resuming execution (tool returns a pending handoff and never blocks)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AgentPendingQuestion.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct AskUserPromptView: View {

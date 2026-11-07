@@ -11,7 +11,6 @@ public struct VirtualMachineSnapshotsView: View {
     @State private var searchQuery: String = ""
     @State private var selectedSnapshotID: UUID? = nil
 
-    // Scheduled Snapshots States
     @State private var enableAutoSnapshots: Bool = false
     @State private var snapshotScheduleInterval: String = "Daily"
 
@@ -51,7 +50,6 @@ public struct VirtualMachineSnapshotsView: View {
             }
 
             if let vm = activeVM {
-                // Creation card
                 GroupBox(label: Text("Create New Recovery Snapshot").font(.headline)) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
@@ -84,7 +82,6 @@ public struct VirtualMachineSnapshotsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // AUTOMATIC / SCHEDULED SNAPSHOTS PANEL
                 GroupBox(label: Text("Scheduled Automated Snapshots").font(.subheadline)) {
                     HStack(spacing: 24) {
                         Toggle("Enable Automatic Background Snapshots", isOn: $enableAutoSnapshots)
@@ -111,7 +108,6 @@ public struct VirtualMachineSnapshotsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Search Filter Box
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -119,9 +115,7 @@ public struct VirtualMachineSnapshotsView: View {
                         .textFieldStyle(.roundedBorder)
                 }
 
-                // Timeline List & Compare Columns
                 HStack(alignment: .top, spacing: 16) {
-                    // Left: Timeline list
                     GroupBox(label: Text("Timeline Recovery Points").font(.headline)) {
                         VStack(alignment: .leading, spacing: 10) {
                             if filteredSnapshots.isEmpty {
@@ -155,7 +149,6 @@ public struct VirtualMachineSnapshotsView: View {
                                                             .font(.subheadline)
                                                             .foregroundStyle(selectedSnapshotID == snap.id ? .green : .blue)
 
-                                                        // Vertical timeline connector
                                                         Rectangle()
                                                             .fill(Color.secondary.opacity(0.2))
                                                             .frame(width: 2, height: 28)
@@ -210,7 +203,6 @@ public struct VirtualMachineSnapshotsView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                     .frame(maxWidth: .infinity)
 
-                    // Right: Detailed Compare Inspector
                     if let selectedID = selectedSnapshotID,
                        let selectedSnap = vm.snapshots.first(where: { $0.id == selectedID }) {
                         GroupBox(label: Text("State Comparison").font(.headline)) {

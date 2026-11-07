@@ -1,16 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Settings/ModelLinkInstallGuideView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except the two adaptations noted inline (@State for the @Observable
-// manager; `.liquidGlass(...)` -> thinMaterial).
-// BLOCKED reference: ModelDownloadProgressView (Legacy
-// `Views/Settings/ModelDownloadProgressView.swift`, PARTIAL, another scope) —
-// presented as a sheet for the pending download. OfflineModelManager /
-// OfflineModelMetadata / OfflineModelError all exist in SwiftCodeAssistant with
-// matching APIs (validateRepositoryURL / fetchModelMetadataFromLink /
-// isModelInstalled).
-// Wiring: OllamaModelsView (swiftcode-ide) — the Hugging Face link flow: add an
-// "Install Through Link" entry point that presents this view.
-
 import SwiftUI
 import SwiftCodeAssistant
 #if canImport(AppKit)
@@ -19,9 +6,6 @@ import AppKit
 
 struct ModelLinkInstallGuideView: View {
     @Environment(\.dismiss) private var dismiss
-    // Destination adaptation: OfflineModelManager is @Observable (not
-    // ObservableObject) in SwiftCodeAssistant, so @StateObject cannot hold it;
-    // @State holds the @Observable reference instead.
     @State private var manager = OfflineModelManager.shared
 
     @State private var repositoryLink = ""
@@ -37,7 +21,6 @@ struct ModelLinkInstallGuideView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Header Card
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Hugging Face repositories host open-source AI models that can run locally when a compatible file is available.")
                             .font(.callout)
@@ -47,7 +30,6 @@ struct ModelLinkInstallGuideView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                    // How to find a model
                     VStack(alignment: .leading, spacing: 12) {
                         Label("How to find a model", systemImage: "sparkles")
                             .font(.headline)
@@ -82,7 +64,6 @@ struct ModelLinkInstallGuideView: View {
                             .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                     )
 
-                    // Input Form Card
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Paste HuggingFace Link", systemImage: "link")
                             .font(.headline)

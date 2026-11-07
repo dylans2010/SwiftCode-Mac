@@ -13,8 +13,6 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-# Components Apple publishes as open source. SwiftCode reuses these instead of
-# reimplementing them. Keys are bundle names without the extension.
 OPEN_SOURCE = {
     "SwiftBuild": "swiftlang/swift-build",
     "llbuild": "swiftlang/swift-llbuild",
@@ -54,13 +52,11 @@ OPEN_SOURCE = {
 
 BUNDLE_EXT = (".framework", ".ideplugin", ".dvtplugin", ".xcplugin", ".appex", ".app", ".bundle")
 
-
 def run(args):
     try:
         return subprocess.run(args, capture_output=True, text=True, timeout=300).stdout
     except subprocess.TimeoutExpired:
         return ""
-
 
 def find_binary(bundle):
     """Return the main Mach-O of a bundle, or None."""
@@ -81,7 +77,6 @@ def find_binary(bundle):
         if os.path.islink(c):
             return os.path.realpath(c)
     return None
-
 
 def analyze(bundle, root):
     name, ext = os.path.splitext(os.path.basename(bundle))
@@ -110,12 +105,10 @@ def analyze(bundle, root):
             deps.append(os.path.basename(lib))
     symbols = run(["nm", "-U", "-j", binary]).splitlines()
     rec["objc_classes"] = sum(1 for s in symbols if s.startswith("_OBJC_CLASS_$_"))
-    # Swift nominal type descriptors end in Mn (struct/class/enum/protocol variants).
     rec["swift_types"] = sum(1 for s in symbols if s.startswith("_$s") and re.search(r"(?:C|V|O|P)Mn$", s))
     rec["links_swift"] = swift
     rec["deps"] = sorted(set(d for d in deps if d != name))
     return rec
-
 
 def bundles(root):
     for top in ("Frameworks", "SharedFrameworks", "PlugIns", "MacOS"):
@@ -123,12 +116,11 @@ def bundles(root):
         if not os.path.isdir(base):
             continue
         if top == "MacOS":
-            yield os.path.join(root)  # the app itself
+            yield os.path.join(root)
             continue
         for entry in sorted(os.listdir(base)):
             if entry.endswith(BUNDLE_EXT):
                 yield os.path.join(base, entry)
-
 
 def main():
     app, out = sys.argv[1], sys.argv[2]
@@ -142,7 +134,6 @@ def main():
     with open(os.path.join(out, "bundles.json"), "w") as f:
         json.dump(recs, f, indent=1, sort_keys=True)
     print(f"{len(recs)} bundles -> {out}/bundles.json")
-
 
 if __name__ == "__main__":
     main()

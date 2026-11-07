@@ -3,114 +3,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy file-writing tool family (Wave 2).
-///
-/// Behaviour source: Legacy's `AssistCreateFileTool`,
-/// `AssistAppendFileTool`, `AssistCopyFileTool`, `AssistMoveFileTool`,
-/// `AssistRenameFileTool`, `AssistDeleteFileTool`,
-/// `AssistCreateDirectoryTool`, `AssistDeleteDirectoryTool`,
-/// `AssistReplaceInFileTool`, `AssistMultiFileEditTool`,
-/// `AssistInsertCodeBlockTool`, `AssistRefactorTool`,
-/// `AssistFormatCodeTool`, `AssistGenerateFileTool`,
-/// `AssistDataMutationTools` (`format_json_file`, `csv_to_json`,
-/// `json_to_csv`, `plist_to_json`, `json_to_plist`,
-/// `batch_rename_files`), `AssistGenerateFileChecksumTool`,
-/// `AssistPlistEditTool` and `AssistRegexReplaceInFilesTool` (Dylan's
-/// own code, ported under MIT), plus `AssistFileSystem` for the
-/// copy/move/delete/create semantics those tools route through.
-///
-/// Conventions, following Wave 1 (`SwiftCodeTools+FileReading.swift`,
-/// `SwiftCodeTools+Artifacts.swift`):
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Legacy's
-///   parameter-name aliases (`filePath`, `file_content`, `csvPath`,
-///   `targetFile`, …) ARE supported (gap closure): `MCPServer.run`
-///   rewrites arguments with `MCPParameterAliases` before
-///   validation, so an alias satisfies the `required` list and the
-///   alias key itself is consumed, never rejected as unknown.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers and booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data return a plain text result instead.
-/// * Path resolution is split the way Legacy splits it. Tools that
-///   route through `AssistFileSystem.resolve` (the file/dir/code tools)
-///   use the session-aware `resolveFileReadingPath` (plain relative
-///   paths resolve against the `dir_cd` working directory; `..` that
-///   stays inside the workspace is allowed). Tools that use Legacy's
-///   strict per-tool resolvers (`format_json_file`, `csv_to_json`,
-///   `json_to_csv`, `plist_to_json`, `json_to_plist`,
-///   `batch_rename_files`, `generate_file_checksum`) use
-///   `resolveFileWritingPath` below, which rejects empty paths, NUL
-///   bytes, a leading `~` and any `..`, and resolves plain relative
-///   paths against the workspace root, never the session directory.
-///   `plist_edit` uses its own private resolver
-///   (`resolvePlistEditPath`: trim, reject empty and any `..`, no
-///   `~`/NUL rejection, same as Legacy's private copy).
-///   `code_format` uses the clamping resolver
-///   (`resolveFileWritingClampedPath`: an escaping path is silently
-///   replaced with the workspace root, never an error, as Legacy's
-///   `AssistToolingSupport.resolvePath` does). No path is ever
-///   allowed to escape the workspace.
-/// * Approval gating: every writing handler gates BEFORE touching
-///   disk. Text writes go through `commit()` (the Wave 1 helper);
-///   non-text operations (copy/move/rename/delete, directory
-///   create/delete, binary-plist writes, per-file batch renames) go
-///   through an explicit `MCPChange` + `call.approve`. `MCPServer.run`
-///   already refuses `writes: true` tools when the server is read-only;
-///   the approval call is still required. There is no Autopilot bypass.
-///   `plist_edit`'s `get` action and the `dryRun` modes write nothing
-///   and need no approval. Changed paths are reported with
-///   `noteFileEdited` + `delegate?.mcpHostDidWrite`, as Wave 1 does —
-///   `MCPToolResult` has no `filesChanged` field, so there is no
-///   `filesChanged` key to set.
-/// * No auto-backup on overwrite (Legacy has none — `file_backup` is a
-///   separate explicit tool). No `.pbxproj` auto-registration (SwiftCode's
-///   MCP host has no Xcode project writer).
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `file_write` is NOT registered here. SwiftCode already has
-///   `file_write` (`SwiftCodeTools+Content.swift`: workspace/path/content,
-///   whole-file create-or-replace, parents created, approval-gated),
-///   and that existing registration is aligned with Legacy
-///   `AssistWriteFileTool` instead: Legacy's verbatim description,
-///   `safeMutation` annotations (`idempotent: true`), Legacy's
-///   "Created new file: … (N lines)" / "Updated existing file: …
-///   (N lines)" messages (line count as Legacy counts it), and an
-///   `is_new` data key alongside SwiftCode's `created`/`lineCount`.
-///   Remaining deltas: Legacy rejects any `..` in the path textually
-///   (SwiftCode allows `..` that stays inside the workspace — tightening
-///   that would break SwiftCode's existing callers). The unified (Myers)
-///   diff IS now reported (`diff` key, rendered by `MyersDiff` —
-///   gap closure), and Legacy's parameter-name aliases (`filePath`,
-///   `file_content`, `code`) are accepted via `MCPParameterAliases`
-///   (gap closure; `file_write` itself is aligned in place in
-///   `SwiftCodeTools+Content.swift`, coordinator patch for its `diff` key).
-/// * Unified (Myers) diffs are rendered by `MyersDiff`
-///   (SwiftCodeIDECore, gap closure): `file_create` and `code_replace`
-///   return a `diff` key, and `file_compare_diff` / the patch engine
-///   use the same engine (coordinator-owned patches). The positional
-///   diff Wave 1 built is kept only as `MyersDiff`'s fallback when
-///   the edit distance exceeds its cap.
-/// * `code_refactor` is wired to the configured Assist LLM provider
-///   (gap-closure wiring): Legacy performs the refactoring by calling
-///   an OpenAI LLM with a stored API key; the port sends Legacy's
-///   prompt through `LLMToolCompletionService` (the host's provider
-///   dispatch — OpenRouter / OpenCode / Hermes / Foundation Models /
-///   SwiftCode Cloud, or whichever provider Settings names) and writes
-///   the result through `commit()`. With no provider usable it fails
-///   honestly naming the provider; no refactoring is faked.
-/// * `file_append` does NOT create a missing file: Legacy reads the
-///   file first and fails when it is absent (its `appendFile` helper,
-///   which would create it, is not what the tool calls).
-/// * `file_copy` / `file_move` / `file_rename` fail when the
-///   destination already exists, and never create the destination's
-///   parent directories — both from `AssistFileSystem`.
-/// * `plist_edit`'s strict resolver additionally rejects a leading
-///   `~` (Legacy's private copy only rejects `..` and empty); a
-///   `~`-leading path fails with the same "Invalid path" message
-///   either way in practice, since no such file exists.
 extension SwiftCodeMCPHost {
     var fileWritingTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -353,21 +245,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: - Shared helpers for the file-writing tools
-
-    /// The strict per-tool resolver (Legacy's
-    /// `resolveWorkspaceDataMutationURL` /
-    /// `resolveWorkspaceDataInspectionURL` shape): the raw string is
-    /// trimmed, then rejected outright when empty, containing a NUL
-    /// byte, starting with `~`, or containing `..` anywhere. A
-    /// leading-`/` path is used as an absolute filesystem path; a
-    /// relative path resolves against the workspace root, never the
-    /// session working directory. Either way the result must equal the
-    /// workspace root or lie under it, otherwise `nil` is returned and
-    /// the caller reports its own Legacy message. Unlike
-    /// `resolveFileReadingPath`, a leading `/` is NOT read as
-    /// workspace-root-relative: `/Sources/x` is the filesystem path
-    /// `/Sources/x`, which is outside the workspace and refused.
     func resolveFileWritingPath(_ raw: String, in s: WorkspaceSession) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("\0"), !trimmed.hasPrefix("~"), !trimmed.contains("..") else { return nil }
@@ -382,14 +259,6 @@ extension SwiftCodeMCPHost {
         return candidate
     }
 
-    /// `plist_edit`'s private resolver (Legacy's private `resolvePath`
-    /// copy): same shape as `resolveFileWritingPath` (trim; reject
-    /// empty and any `..`; leading-`/` absolute must be under the
-    /// root; relative appended to the root, never the session working
-    /// directory) but it does NOT reject a leading `~` or a NUL byte
-    /// as text — a `~` is an ordinary relative component (a literal
-    /// `~` directory under the root, which in practice does not
-    /// exist). Used by `plist_edit` only.
     func resolvePlistEditPath(_ raw: String, in s: WorkspaceSession) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("..") else { return nil }
@@ -404,13 +273,6 @@ extension SwiftCodeMCPHost {
         return candidate
     }
 
-    /// `code_format`'s clamping resolver (Legacy's
-    /// `AssistToolingSupport.resolvePath`): a path that would escape
-    /// the workspace (via `..` or an absolute path) is silently
-    /// replaced with the workspace root itself, never an error; an
-    /// empty path (or `"."`) is the root. The tool therefore never
-    /// reports an outside-workspace error — given an escaping path it
-    /// formats the workspace root. This never returns `nil`.
     func resolveFileWritingClampedPath(_ raw: String, in s: WorkspaceSession) -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let root = Self.folder(of: s.model).standardizedFileURL
@@ -425,37 +287,20 @@ extension SwiftCodeMCPHost {
         return candidate
     }
 
-    /// Asks the approval path about one non-text change (a byte copy, a
-    /// move/rename, a delete, a directory create/delete, a binary-plist
-    /// write) before the handler touches the filesystem. Text writes
-    /// use `commit()` instead; this is its non-text counterpart, in the
-    /// shape Wave 1 used for `file_backup` / `delete_artifact`.
     func approveFileWritingChange(tool: String, path: URL, relativePath: String, original: String?, summary: String, call: MCPToolCall) async throws {
         let change = MCPChange(tool: tool, path: path.path, relativePath: relativePath, original: original, proposed: "", summary: summary)
         guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
     }
 
-    /// Records one changed path the way Wave 1 does for writes:
-    /// session edit note plus the host delegate callback.
     func noteFileWritingChanged(_ url: URL, in s: WorkspaceSession) {
         s.noteFileEdited(url.path)
         delegate?.mcpHostDidWrite(url.path)
     }
 
-    /// An error's message text: an `MCPToolError`'s message, else the
-    /// Foundation localized description. (`Error.localizedDescription`
-    /// on an `MCPToolError` is a generic string, so it must not be
-    /// used for errors that may already be tool errors, e.g. from the
-    /// path resolvers.)
     nonisolated static func fileWritingErrorText(_ error: Error) -> String {
         (error as? MCPToolError)?.message ?? error.localizedDescription
     }
 
-    /// SHA-512 of a file, streamed in 1 MB chunks like
-    /// `FileHashAlgorithm.hashFile`. swift-crypto (`Crypto`) is the
-    /// portable hasher here, as in Wave 1; `FileHashAlgorithm` has no
-    /// SHA-512 case, so this lives here rather than editing the shared
-    /// Wave 1 support file.
     nonisolated static func fileWritingSHA512Hex(ofFileAt url: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
@@ -464,10 +309,6 @@ extension SwiftCodeMCPHost {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    /// Legacy `AssistFormatCodeTool.simpleFormat`: tabs become four
-    /// spaces, trailing whitespace is stripped (leading indentation is
-    /// preserved), runs of blank lines collapse to one, and the result
-    /// always ends with a newline.
     nonisolated static func fileWritingSimpleFormat(_ content: String) -> String {
         var result: [String] = []
         var previousBlank = false
@@ -485,8 +326,6 @@ extension SwiftCodeMCPHost {
         return result.joined(separator: "\n") + "\n"
     }
 
-    /// Legacy `AssistPlistEditTool.describeValue`: a plist value as the
-    /// `get` result reports it.
     nonisolated static func fileWritingPlistValueDescription(_ value: Any) -> String {
         if let string = value as? String { return string }
         if let bool = value as? Bool { return bool ? "true" : "false" }
@@ -496,8 +335,6 @@ extension SwiftCodeMCPHost {
         return "\(value)"
     }
 
-    /// Legacy `AssistInsertCodeBlockTool.parseLineNumber`: an integer of
-    /// at least 1, also from an integral double or a numeric string.
     nonisolated static func fileWritingLineNumber(_ value: AnyJSON) -> Int? {
         if let i = value.int, i >= 1 { return i }
         if let s = value.string, let i = Int(s.trimmingCharacters(in: .whitespaces)), i >= 1 { return i }
@@ -506,7 +343,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Files and directories
 
     func createFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -514,10 +350,6 @@ extension SwiftCodeMCPHost {
         var content = call.arguments["content"]?.string ?? ""
         let overwrite = call.bool("overwrite") ?? false
         let url = try resolveFileReadingPath(raw, in: s)
-        // Legacy's filesystem layer prepends the Swift file header to
-        // `.swift` creates (`NewFileComment.generateHeader`); the
-        // header carries the file name, the workspace's display name
-        // as the project, and the current user as the author.
         if url.pathExtension == "swift" {
             content = NewFileComment.generateHeader(filename: url.lastPathComponent, projectName: s.model.displayName, userName: NSUserName()) + content
         }
@@ -539,9 +371,6 @@ extension SwiftCodeMCPHost {
         let raw = try fileReadingRequiredString(call, "path")
         guard let content = call.arguments["content"]?.string else { throw MCPToolError("Missing required parameter: content") }
         let url = try resolveFileReadingPath(raw, in: s)
-        // The file must already exist: Legacy reads it first and fails
-        // when it is absent (it does not use the filesystem layer's
-        // creating `appendFile` helper).
         let original: String
         do {
             original = try String(contentsOf: url, encoding: .utf8)
@@ -560,9 +389,6 @@ extension SwiftCodeMCPHost {
         let destination = try fileReadingRequiredString(call, "destination")
         let srcURL = try resolveFileReadingPath(source, in: s)
         let dstURL = try resolveFileReadingPath(destination, in: s)
-        // Legacy's filesystem layer refuses to overwrite: a failed copy
-        // must not destroy the previous destination content. The
-        // destination's parents are NOT created either.
         guard !FileManager.default.fileExists(atPath: dstURL.path) else {
             throw MCPToolError("Failed to copy file: Destination already exists: \(destination). Delete it first or choose another destination.")
         }
@@ -604,11 +430,6 @@ extension SwiftCodeMCPHost {
         let s = try session(for: call)
         guard let oldPath = call.arguments["oldPath"]?.string else { throw MCPToolError("Missing required parameter: oldPath") }
         guard let newName = call.arguments["newName"]?.string else { throw MCPToolError("Missing required parameter: newName") }
-        // `newName` is usually a single path component, but Legacy's
-        // `file_rename` also passes a workspace-relative path (via the
-        // `newPath` alias) to move the file: a `newName` containing "/"
-        // is resolved as a workspace-relative destination instead.
-        // Either form must not escape via "..", an empty name, or a NUL byte.
         if newName.isEmpty || newName.contains("..") || newName.contains("\0") || newName == "." {
             throw MCPToolError("Invalid newName '\(newName)': must be a file name or a workspace-relative path.")
         }
@@ -647,7 +468,6 @@ extension SwiftCodeMCPHost {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
         let url = try resolveFileReadingPath(raw, in: s)
-        // Missing files are a failure, not a silent success.
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MCPToolError("No file at \(raw) — nothing to delete.")
         }
@@ -669,8 +489,6 @@ extension SwiftCodeMCPHost {
         let url = try resolveFileReadingPath(raw, in: s)
         var isDir: ObjCBool = false
         let rel = fileReadingRelativePath(of: url, in: s)
-        // Creating a directory that already exists is a no-op in Legacy
-        // (and needs no approval, since nothing changes).
         if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
             return .structured(["path": .string(raw)], summary: "Successfully created directory: \(raw)")
         }
@@ -714,15 +532,10 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Code editing
 
     func replaceInFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let raw = call.arguments["path"]?.string else { throw MCPToolError("Missing required parameter: 'path'") }
-        // Legacy's `code_replace` also accepts an `edits` array of
-        // `{search, replace}` pairs, applied sequentially; the schema
-        // requires only `path`, and the handler enforces that either
-        // `edits` or `target` + `replacement` is present.
         let edits: [(search: String, replace: String)]
         if let editsJSON = call.arguments["edits"]?.array {
             var parsed: [(search: String, replace: String)] = []
@@ -741,7 +554,6 @@ extension SwiftCodeMCPHost {
             edits = [(search: target, replace: replacement)]
         }
         let allowMultiple = call.bool("allowMultiple") ?? false
-        // Legacy rejects any '..' in the path textually, before resolving.
         if raw.contains("..") {
             throw MCPToolError("Path security error: Relative path traversal ('..') is prohibited for safety. Path: '\(raw)'")
         }
@@ -752,10 +564,6 @@ extension SwiftCodeMCPHost {
         } catch {
             throw MCPToolError("Failed to replace in file at \(raw): \(error.localizedDescription)")
         }
-        // Exact-match semantics: the occurrence count decides. Zero is a
-        // failure, more than one is a failure unless allowMultiple.
-        // Each `edits` entry is checked against the text the previous
-        // edits produced, in order.
         var modified = original
         for edit in edits {
             let occurrences = modified.components(separatedBy: edit.search).count - 1
@@ -803,7 +611,6 @@ extension SwiftCodeMCPHost {
         } catch {
             throw MCPToolError("Failed to insert code into \(raw): \(error.localizedDescription)")
         }
-        // Pattern misses are failures, never silent no-ops.
         if let pattern {
             guard content.contains(pattern) else {
                 throw MCPToolError("Pattern not found in \(raw): '\(pattern)'. No changes made.")
@@ -812,7 +619,6 @@ extension SwiftCodeMCPHost {
         let updated: String
         switch mode {
         case "before":
-            // First occurrence only; the block goes on its own line above it.
             if let range = content.range(of: pattern!) {
                 var next = content
                 next.insert(contentsOf: code + "\n", at: range.lowerBound)
@@ -821,7 +627,6 @@ extension SwiftCodeMCPHost {
                 updated = content
             }
         case "after":
-            // First occurrence only; the block goes on its own line below it.
             if let range = content.range(of: pattern!) {
                 var next = content
                 next.insert(contentsOf: "\n" + code, at: range.upperBound)
@@ -830,7 +635,6 @@ extension SwiftCodeMCPHost {
                 updated = content
             }
         default:
-            // 1-based line; past the end of file appends.
             var lines = content.components(separatedBy: .newlines)
             lines.insert(contentsOf: code.components(separatedBy: .newlines), at: min(lineNumber - 1, lines.count))
             updated = lines.joined(separator: "\n")
@@ -849,8 +653,6 @@ extension SwiftCodeMCPHost {
         guard let editsJSON = call.arguments["edits"]?.array else {
             throw MCPToolError("Missing required parameter: edits (array of edit objects)")
         }
-        // Validate every edit BEFORE applying any of them, so a malformed
-        // entry fails fast instead of silently skipping an edit mid-batch.
         struct ValidatedEdit { let path: String; let content: String?; let search: String?; let replace: String? }
         var validated: [ValidatedEdit] = []
         for (index, editJSON) in editsJSON.enumerated() {
@@ -868,8 +670,6 @@ extension SwiftCodeMCPHost {
                 validated.append(ValidatedEdit(path: path, content: nil, search: search, replace: replace))
             }
         }
-        // NOT atomic: earlier edits persist if a later one fails; the
-        // failure names which edits were already applied.
         var updatedPaths: [String] = []
         for edit in validated {
             let appliedSuffix = "Edits already applied: \(updatedPaths.joined(separator: ", "))."
@@ -899,7 +699,6 @@ extension SwiftCodeMCPHost {
                 guard original.contains(edit.search!) else {
                     throw MCPToolError("Search text not found in \(edit.path). \(appliedSuffix)")
                 }
-                // Replaces every occurrence of the search text, like Legacy.
                 let updated = original.replacingOccurrences(of: edit.search!, with: edit.replace ?? "")
                 guard updated != original else {
                     throw MCPToolError("Edit for \(edit.path) made no change. \(appliedSuffix)")
@@ -955,8 +754,6 @@ extension SwiftCodeMCPHost {
     func formatCode(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = call.arguments["path"]?.string ?? "."
-        // Legacy's `AssistToolingSupport.resolvePath` clamps: an
-        // escaping path formats the workspace root, never an error.
         let targetURL = resolveFileWritingClampedPath(raw, in: s)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDir) else {
@@ -981,7 +778,6 @@ extension SwiftCodeMCPHost {
         }
         var formattedCount = 0
         for file in files {
-            // Files that do not decode as UTF-8 are skipped silently.
             guard let content = try? String(contentsOf: file, encoding: .utf8) else { continue }
             let formatted = Self.fileWritingSimpleFormat(content)
             guard formatted != content else { continue }
@@ -1002,8 +798,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("Target file already exists: \(raw)")
         }
         let fileName = url.deletingPathExtension().lastPathComponent
-        // Legacy defaults the test template's module to the Xcode project
-        // name (or "App"); SwiftCode uses the workspace's display name.
         let moduleName = call.string("module") ?? (s.model.displayName.isEmpty ? "App" : s.model.displayName)
         let rendered: String
         switch template.lowercased() {
@@ -1014,8 +808,6 @@ extension SwiftCodeMCPHost {
         case "swiftui_view":
             rendered = "import SwiftUI\n\nstruct \(fileName): View {\n    var body: some View {\n        Text(\"\(fileName)\")\n    }\n}\n\n#Preview {\n    \(fileName)()\n}\n"
         case "test":
-            // Honest scaffold: fails until a real assertion replaces it,
-            // instead of a vacuous XCTAssertTrue(true) counted as a test.
             rendered = "import XCTest\n@testable import \(moduleName)\n\nfinal class \(fileName): XCTestCase {\n    func testExample() {\n        XCTFail(\"Not implemented: replace with a real assertion for \(fileName).\")\n    }\n}\n"
         default:
             throw MCPToolError("Unknown template '\(template)': expected swift_struct, swift_class, swiftui_view, or test.")
@@ -1028,7 +820,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Structured-data conversions
 
     func formatJsonFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -1212,9 +1003,6 @@ extension SwiftCodeMCPHost {
         }
         let destRel = fileReadingRelativePath(of: destURL, in: s)
         if isBinary {
-            // A binary plist is bytes, not text, so commit() (a text
-            // write) does not fit: ask the approval path first, then
-            // write the data, as Wave 1 does for `file_backup`.
             try await approveFileWritingChange(tool: call.name, path: destURL, relativePath: destRel, original: nil,
                                                summary: "Convert \(raw) to binary plist at \(destRel)", call: call)
             do {
@@ -1276,9 +1064,6 @@ extension SwiftCodeMCPHost {
             return .structured(["dryRun": .bool(true), "matchCount": .int(planned.count)],
                                summary: "Dry run: \(planned.count) file(s) would be renamed in `\(dirRaw)`:\n\(preview)")
         }
-        // Not atomic: each rename is approved and moved in turn, so a
-        // failure (e.g. a colliding target name) leaves the earlier
-        // renames in place, like Legacy.
         for item in planned {
             let oldRel = fileReadingRelativePath(of: item.oldURL, in: s)
             let newRel = fileReadingRelativePath(of: item.newURL, in: s)
@@ -1297,8 +1082,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully batch-renamed \(planned.count) file(s) in `\(dirRaw)`:\n\(summary)")
     }
 
-    // MARK: - Checksum, plist edit, regex
-
     func generateFileChecksum(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         guard let raw = call.arguments["path"]?.string else { throw MCPToolError("Missing required parameter: path") }
@@ -1308,9 +1091,6 @@ extension SwiftCodeMCPHost {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw MCPToolError("File not found at: \(raw)")
         }
-        // Compute-only, like Legacy: all four digests, no expected hash,
-        // no verification, no writes. Hashes stream in 1 MB chunks
-        // instead of Legacy's whole-file load; the output is identical.
         let sha256: String, sha512: String, sha1: String, md5: String, size: Int
         do {
             sha256 = try FileHashAlgorithm.sha256.hashFile(at: fileURL)
@@ -1363,7 +1143,6 @@ extension SwiftCodeMCPHost {
         }
         let rel = fileReadingRelativePath(of: fileURL, in: s)
         if action == "get" {
-            // Read-only action: no approval, no write.
             guard let found = dict[key] else {
                 throw MCPToolError("Key '\(key)' not found in '\(rawPath)'.")
             }
@@ -1391,7 +1170,6 @@ extension SwiftCodeMCPHost {
             return .structured(["key": .string(key), "value": .string(value), "path": .string(rawPath)],
                                summary: "Set key '\(key)' in '\(rawPath)'.")
         }
-        // delete
         guard dict[key] != nil else {
             throw MCPToolError("Key '\(key)' not found in '\(rawPath)'.")
         }
@@ -1431,7 +1209,6 @@ extension SwiftCodeMCPHost {
                                                         options: [.skipsHiddenFiles, .skipsPackageDescendants])
         while let fileURL = enumerator?.nextObject() as? URL {
             guard fileURL.pathExtension == ext else { continue }
-            // Files that do not decode as UTF-8 are skipped silently.
             guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
             let nsString = content as NSString
             let range = NSRange(location: 0, length: nsString.length)
@@ -1442,16 +1219,12 @@ extension SwiftCodeMCPHost {
             modifiedFiles.append("`\(rel)` (\(matches.count) matches)")
             totalReplacements += matches.count
             if !dryRun {
-                // Legacy swallows a per-file write failure: the file
-                // keeps its old content and still counts in the report.
-                // A review rejection, however, aborts the whole tool.
                 do {
                     try await commit(MCPChange(tool: call.name, path: fileURL.path, relativePath: rel, original: content, proposed: replaced,
                                                summary: "Regex replace in \(rel)"), call: call, session: s)
                 } catch let error as MCPToolError where error.message == MCPServer.rejectedMessage {
                     throw error
                 } catch {
-                    // Swallowed: the file was already counted above.
                 }
             }
         }

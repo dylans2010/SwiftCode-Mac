@@ -3,9 +3,6 @@ import Testing
 import SwiftCodeSyntax
 @testable import SwiftCodeEditorKit
 
-/// The cost of an edit in a 50,000-line Swift file. Debug builds are far slower
-/// than release (the measured numbers in `docs/PARITY.md` are release); these
-/// limits catch a change that makes an edit scale with the file.
 @Suite(.serialized) struct EditorLargeFileTests {
     static func source(lines n: Int) -> String {
         let templates = [
@@ -39,7 +36,6 @@ import SwiftCodeSyntax
         for _ in 0..<8 { worst = max(worst, seconds { b.deleteBackward() }) }
         worst = max(worst, seconds { b.newline() })
         worst = max(worst, seconds { b.undo() })
-        // Debug build, a loaded machine; release is under a millisecond.
         #expect(worst < 0.25)
     }
 

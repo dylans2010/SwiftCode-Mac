@@ -1,13 +1,7 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Services/Color+Hex.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB supporting file: Color(hex: String) for the ported VUB files (VisualUIAssetsPanel, VisualUIRenderer).
-// The same init already exists in the swiftcode-ide target (swiftcode/Sources/swiftcode-ide/Color+Hex.swift);
-// that is a different module, so there is no collision — but if Color+Hex is ever hoisted into SwiftCodeUI
-// properly, this file should be removed in favour of the single home.
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
 #endif
-
 
 extension Color {
     init(hex: String) {

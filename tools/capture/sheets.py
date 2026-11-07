@@ -29,7 +29,7 @@ import sys
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import motion  # noqa: E402
+import motion
 
 SURFACE = (252, 252, 251)
 INK = (11, 11, 11)
@@ -38,28 +38,23 @@ RULE = (226, 225, 221)
 GUTTER = 24
 HEADER = 44
 
-
 def load(manifest_path):
     path = pathlib.Path(manifest_path).resolve()
     m = json.loads(path.read_text())
     m["_dir"] = path.parent
     return m
 
-
 def side_meta(directory, name):
     meta = directory / (name + ".json")
     return json.loads(meta.read_text()) if meta.exists() else {}
 
-
 def scale_of(directory, name):
     return float(side_meta(directory, name).get("pixel_scale", 1.0)) if name else 1.0
-
 
 def label_bar(draw, x, y, width, text, note=""):
     draw.text((x, y + HEADER / 2), text, fill=INK, font=motion.font(20), anchor="lm")
     if note:
         draw.text((x + width, y + HEADER / 2), note, fill=INK_2, font=motion.font(13), anchor="rm")
-
 
 def side_by_side(images, labels, notes, out):
     """Images next to each other, tops aligned, each under its label."""
@@ -75,14 +70,12 @@ def side_by_side(images, labels, notes, out):
     sheet.save(out)
     return out
 
-
 def at_scale(image, scale, target):
     if abs(scale - target) < 1e-6:
         return image, ""
     factor = target / scale
     return image.resize((round(image.width * factor), round(image.height * factor)), Image.Resampling.LANCZOS), \
         f"captured at {scale:g}x, shown at {target:g}x"
-
 
 def frames_at(video, times):
     """The frame on screen at each time (the last one presented at or before it)."""
@@ -99,7 +92,6 @@ def frames_at(video, times):
         if i >= max(wanted):
             break
     return [out.get(t) for t in times], pts
-
 
 def strip(rows, labels, times_ms, out, crop=None, thumb_width=640, per_row=4):
     """rows: one list of PIL images per manifest; crop in video px (per row).
@@ -137,7 +129,6 @@ def strip(rows, labels, times_ms, out, crop=None, thumb_width=640, per_row=4):
     sheet.save(out)
     return out
 
-
 def step_ids(manifests):
     seen, order = set(), []
     for m in manifests:
@@ -145,7 +136,6 @@ def step_ids(manifests):
             if s["id"] not in seen:
                 seen.add(s["id"]); order.append((s["index"], s["id"]))
     return order
-
 
 def compare(manifest_paths, out_dir, interval_ms=1000 / 30, frame_count=16, timing_window=3.0):
     manifests = [load(p) for p in manifest_paths]
@@ -157,7 +147,6 @@ def compare(manifest_paths, out_dir, interval_ms=1000 / 30, frame_count=16, timi
         name = f"{index:02d}-{sid}"
         steps = [next((s for s in m["steps"] if s["id"] == sid), None) for m in manifests]
         item = {"name": name, "note": next((s.get("note", "") for s in steps if s), ""), "files": {}, "timing": []}
-        # stills
         for kind in ("before", "after"):
             present = [(m, s) for m, s in zip(manifests, steps) if s and s.get(f"still_{kind}")]
             if not present:
@@ -170,7 +159,6 @@ def compare(manifest_paths, out_dir, interval_ms=1000 / 30, frame_count=16, timi
                 ims.append(im); notes.append(note)
             item["files"][kind] = side_by_side(ims, [m.get("label", "?") for m, _ in present], notes,
                                                out / f"{name}-{kind}.png").name
-        # videos: timing, then strips around the action
         present = [(m, s) for m, s in zip(manifests, steps) if s and s.get("video")]
         if not present:
             report.append(item); continue
@@ -205,7 +193,6 @@ def compare(manifest_paths, out_dir, interval_ms=1000 / 30, frame_count=16, timi
     (out / "summary.json").write_text(json.dumps({"labels": labels, "steps": report}, indent=1))
     return write_index(out, labels, report)
 
-
 def _pad(box, frames):
     sample = next((f for f in frames if f is not None), None)
     x, y, w, h = box
@@ -214,14 +201,12 @@ def _pad(box, frames):
         return x, y, x + w, y + h
     return max(0, x - pad), max(0, y - pad), min(sample.width, x + w + pad), min(sample.height, y + h + pad)
 
-
 def _worth_detail(crops, rows):
     for c, row in zip(crops, rows):
         sample = next((f for f in row if f is not None), None)
         if sample and (c[2] - c[0]) * (c[3] - c[1]) < 0.6 * sample.width * sample.height:
             return True
     return False
-
 
 def write_index(out, labels, report):
     def fmt(t):
@@ -253,7 +238,6 @@ def write_index(out, labels, report):
     index.write_text("\n".join(parts))
     return index
 
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("out_dir")
@@ -262,7 +246,6 @@ def main():
     ap.add_argument("--frames", type=int, default=16, help="frames per strip")
     a = ap.parse_args()
     print(compare(a.manifests, a.out_dir, a.interval, a.frames))
-
 
 if __name__ == "__main__":
     main()

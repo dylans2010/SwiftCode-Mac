@@ -3,43 +3,15 @@ import SwiftUI
 import SwiftCodeCloud
 import UniformTypeIdentifiers
 
-/// Generates Swift model code from a table's schema.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseSchemaGenerator.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - Tables come from `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`), not Legacy's `DatabaseManager`, and
-///   only while the active connection is SQLite. Remote providers
-///   have no schema driver in this package for this view; Legacy
-///   silently showed nothing for them, and this port does the same
-///   — but the empty state says so instead of looking broken.
-/// - "Save to Project" used Legacy's `ProjectSessionStore`, which
-///   does not exist in the destination. It now opens a save panel
-///   and writes the generated file where the user chooses. The
-///   generated code itself is unchanged in kind (SwiftData,
-///   Codable, Repository, JSON Schema); only the Repository
-///   template's fetch call changed, from Legacy's
-///   `DatabaseManager.shared.executeSQLiteQuery` (which no longer
-///   exists in that form) to the destination's
-///   `SQLiteExplorerModel`, so the generated repository is real
-///   code against a type that exists in this package.
-/// - The Swift type mapping is Legacy's verbatim (INT → Int, REAL
-///   → Double, everything else → String).
-/// - Legacy's `liquidGlass` group-box style is gone (SwiftCodeUI
-///   has no such modifier); the default group-box style is used.
 @MainActor
 struct DatabaseSchemaGenerator: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
     @State private var tables: [DatabaseTable] = []
     @State private var selectedTable = ""
-    @State private var modelType = "SwiftData" // SwiftData, Codable, Repository, JSONSchema
+    @State private var modelType = "SwiftData"
     @State private var generatedCode = ""
     @State private var copied = false
 
-    // Custom configurations
     @State private var customClassName = ""
     @State private var targetNamespace = "AppModel"
     @State private var logMessage = ""
@@ -202,7 +174,6 @@ struct DatabaseSchemaGenerator: View {
             code += "}"
             generatedCode = code
         } else if modelType == "Repository" {
-            // Repository class, fetching through SQLiteExplorerModel.
             var code = "import Foundation\n\n// Target Module: \(targetNamespace)\n\npublic final class \(structName)Repository {\n"
             code += "    private let databasePath: String\n\n"
             code += "    public init(databasePath: String) {\n"
@@ -234,7 +205,6 @@ struct DatabaseSchemaGenerator: View {
             code += "    }\n}"
             generatedCode = code
         } else {
-            // JSON Schema Definition
             var code = "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n"
             code += "  \"title\": \"\(structName)\",\n"
             code += "  \"type\": \"object\",\n"

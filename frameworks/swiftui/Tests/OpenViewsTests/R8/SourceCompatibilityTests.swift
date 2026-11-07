@@ -8,11 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Expressions common SwiftUI code uses that must compile and mean what the
-// reference API means (QA report B3; overloads resolved as the public API
-// declares them: the view forms of background/overlay are disfavoured, the
-// deprecated long-press overload too).
-
 @MainActor
 @Suite("R8 source compatibility")
 struct SourceCompatibilityTests {

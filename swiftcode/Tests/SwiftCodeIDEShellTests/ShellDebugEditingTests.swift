@@ -5,11 +5,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// A debug adapter for the editing gestures, in the DAP specification's
-/// shapes: a loop in `main.swift` whose line-2 breakpoint (id 1) is hit
-/// `hits` times (`count` = 2, 3, …) before the program exits. It answers
-/// `evaluate` (watch and repl), `setVariable`, `readMemory`,
-/// `disassemble`, and records what it was sent.
 final class EditingScriptedAdapter: DAPTransport, @unchecked Sendable {
     let file: String
     private var receiving: (@Sendable (Data?) -> Void)?
@@ -18,7 +13,6 @@ final class EditingScriptedAdapter: DAPTransport, @unchecked Sendable {
     private var seq = 2000
     private(set) var requests: [(command: String, arguments: JSON)] = []
     var hits = 1
-    /// The stop is in a runtime function without source (a Swift error).
     var sourceless = false
     private var count = 2
     private var overrides: [String: String] = [:]
@@ -87,7 +81,6 @@ final class EditingScriptedAdapter: DAPTransport, @unchecked Sendable {
                 case (_, "count * 2"): body = ["result": .string("\((Int(value("count", "\(count)")) ?? 0) * 2)"), "type": "Int", "variablesReference": 0]
                 case ("repl", "bt"): body = ["result": "* thread #1, frame #0: main at main.swift:2\n", "variablesReference": 0]
                 case ("repl", _) where e.hasPrefix("expression -- ") && e.contains(" = "):
-                    // LLDB's assignment: "<path> = <value>".
                     let parts = e.dropFirst("expression -- ".count).components(separatedBy: " = ")
                     overrides[parts[0].split(separator: ".").last.map(String.init) ?? parts[0]] = parts[1]
                     body = ["result": "() $R0 = {}\n", "variablesReference": 0]
@@ -98,7 +91,6 @@ final class EditingScriptedAdapter: DAPTransport, @unchecked Sendable {
             case "setVariable":
                 let name = args["name"]?.string ?? "", v = args["value"]?.string ?? ""
                 if name == "round" {
-                    // As Swift 6.4's lldb-dap answers for Swift integers.
                     success = false
                     body = ["error": ["id": 3, "format": "Invalid encoding."]]
                 } else {
@@ -152,8 +144,6 @@ final class FakePasteboard: DebugPasteboard {
         #expect(condition(), "timed out waiting for \(what)")
     }
 
-    // MARK: The breakpoint editor
-
     @Test func theEditorSetsConditionIgnoreCountActionsAndContinue() throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -163,7 +153,6 @@ final class FakePasteboard: DebugPasteboard {
         d.gutterClick(file: main, line: 2)
         d.editBreakpoint(file: main, line: 2, anchor: CGRect(x: 0, y: 40, width: 30, height: 16))
         #expect(d.breakpointEditorTitle == "main.swift:2")
-        // A trailing space stays while typing.
         d.editorCondition = "count == "
         d.editorCondition = "count == 3"
         d.editorIgnoreCount = "2"
@@ -177,23 +166,18 @@ final class FakePasteboard: DebugPasteboard {
         var b = try #require(d.breakpoints.breakpoint(file: main, line: 2))
         #expect(b.condition == "count == 3" && b.ignoreCount == 2 && b.autoContinue)
         #expect(b.actions == [.log("count is @count@"), .debuggerCommand("bt")])
-        // Two actions: SwiftCode runs them; the adapter gets the condition and ignore count.
         #expect(b.dap == SourceBreakpoint(line: 2, condition: "count == 3", hitCondition: "2") && b.runsActionsInIDE)
         #expect(d.marks(for: main).breakpoints[2]?.isCustomized == true)
         #expect(d.breakpointRows.last?.title == "line 2 [count == 3]")
-        // One log action that continues is lldb-dap's log point, in its syntax.
         d.removeBreakpointAction(at: 1)
         b = try #require(d.breakpoints.breakpoint(file: main, line: 2))
         #expect(b.dap.logMessage == "count is {count}" && !b.runsActionsInIDE)
-        // %H needs SwiftCode.
         d.setBreakpointActionText("hit %H", at: 0)
         #expect(d.breakpoints.breakpoint(file: main, line: 2)?.runsActionsInIDE == true)
-        // A kind change keeps the text between message and command.
         d.setBreakpointActionKind(.command, at: 0)
         #expect(d.editorActions == [.debuggerCommand("hit %H")])
         d.closeBreakpointEditor()
         #expect(d.breakpointEditor == nil)
-        // The navigator's Edit Breakpoint opens it for the row.
         let row = try #require(d.breakpointRows.last)
         d.editBreakpointRow(row.id)
         #expect(d.breakpointEditor?.target == .line(file: main, line: 2) && d.breakpointEditor?.anchor == nil)
@@ -232,8 +216,6 @@ final class FakePasteboard: DebugPasteboard {
         #expect(SourceSymbolLocator.symbol(in: lines, line: 6) == nil)
     }
 
-    // MARK: The "+" menu
-
     @Test func plusMenuAddsSymbolicSwiftErrorAndExceptionBreakpoints() async throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -247,7 +229,6 @@ final class FakePasteboard: DebugPasteboard {
         d.closeBreakpointEditor()
         #expect(d.breakpoints.symbolic == [.init(name: "report", condition: "count > 2")])
         #expect(d.breakpointRows.map(\.title).contains("report [count > 2]"))
-        // Left without a symbol, the new row goes away.
         d.addSymbolicBreakpoint()
         d.closeBreakpointEditor()
         #expect(d.breakpoints.symbolic.count == 1)
@@ -264,7 +245,6 @@ final class FakePasteboard: DebugPasteboard {
         #expect(d.breakpointEditor?.target == .exception(filter: "cpp_catch"))
         d.closeBreakpointEditor()
 
-        // The session sends them as function and exception breakpoints.
         let adapter = EditingScriptedAdapter(file: pkg.path("Sources/Demo/main.swift"))
         await m.session.debug(program: pkg.path(".build/debug/Demo"), adapter: adapter)
         await wait("the configuration") { !adapter.arguments(of: "configurationDone").isEmpty }
@@ -275,8 +255,6 @@ final class FakePasteboard: DebugPasteboard {
         m.perform(.stop)
         await wait("the end") { !m.debug.isDebugging }
     }
-
-    // MARK: Actions SwiftCode runs
 
     @Test func actionsRunAtEachHitAndContinue() async throws {
         let pkg = try TempPackage()
@@ -294,7 +272,6 @@ final class FakePasteboard: DebugPasteboard {
         #expect(m.console.contains("count is 2 (main.swift:2, hit 1)\n"))
         #expect(m.console.contains("count is 3 (main.swift:2, hit 2)\n"))
         #expect(m.console.contains("frame #0: main at main.swift:2"))
-        // Never shown as paused; the log's expression was evaluated as a watch.
         #expect(m.session.stopCount == 0)
         #expect(adapter.arguments(of: "evaluate").contains { $0["context"]?.string == "watch" && $0["expression"]?.string == "count" })
         #expect(adapter.arguments(of: "continue").count == 2)
@@ -316,8 +293,6 @@ final class FakePasteboard: DebugPasteboard {
         await wait("the end") { !m.debug.isDebugging }
     }
 
-    // MARK: Variables view
-
     @Test func watchEditCopyAndViewMemory() async throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -331,20 +306,17 @@ final class FakePasteboard: DebugPasteboard {
         await m.session.debug(program: pkg.path(".build/debug/Demo"), adapter: adapter)
         await wait("the stop") { d.isPaused && !d.variables.isEmpty }
 
-        // Add Expression…: listed first, evaluated as a watch.
         d.beginAddingExpression()
         d.expressionText = "count * 2"
         d.commitExpression()
         await wait("the watch") { d.variableRows.first?.text == "count * 2: Int = 4" }
         #expect(d.variableRows.first?.isWatch == true && d.variableRows.first?.badge == nil)
-        // Watch "count" adds the variable; a second time it is not added again.
         let count = try #require(d.variableRows.first { $0.name == "count" && !$0.isWatch })
         d.watch(count)
         d.watch(count)
         await wait("the second watch") { d.variableRows.filter(\.isWatch).map(\.name) == ["count * 2", "count"] }
         #expect(d.watchExpressions == ["count * 2", "count"])
 
-        // Edit Value: setVariable in the frame's scope; the view reloads.
         d.beginEditing(count)
         #expect(d.editingVariable == count.id && d.editText == "2")
         d.editText = "7"
@@ -352,7 +324,6 @@ final class FakePasteboard: DebugPasteboard {
         await wait("the new value") { d.variableRows.first { $0.name == "count" && !$0.isWatch }?.value == "7" }
         #expect(adapter.arguments(of: "setVariable").last?["variablesReference"]?.int == 5)
         await wait("the watches again") { d.variableRows.first?.value == "14" }
-        // A child is set in its aggregate.
         let stats = try #require(d.variableRows.first { $0.name == "stats" })
         d.setVariableExpanded(stats, true)
         await wait("the children") { d.variableRows.contains { $0.name == "round" } }
@@ -361,21 +332,17 @@ final class FakePasteboard: DebugPasteboard {
         d.beginEditing(round)
         d.editText = "5"
         d.commitEditing()
-        // The adapter cannot set it; LLDB assigns it by its path.
         await wait("the child's value") { d.variableRows.first { $0.name == "round" }?.value == "5" }
         #expect(adapter.arguments(of: "setVariable").last?["variablesReference"]?.int == 7)
         #expect(adapter.arguments(of: "evaluate").contains { $0["expression"]?.string == "expression -- stats.round = 5" })
-        // A watch expression's own row is not editable.
         d.beginEditing(try #require(d.variableRows.first))
         #expect(d.editingVariable == nil)
 
-        // Copy and Copy Value.
         let edited = try #require(d.variableRows.first { $0.name == "count" && !$0.isWatch })
         d.copy(edited)
         d.copyValue(edited)
         #expect(pasteboard.strings == ["(Int) count = 7", "7"])
 
-        // View Memory of "count": its memory reference, a page of 256 bytes.
         #expect(m.isEnabled(.viewMemory))
         d.viewMemory(of: edited)
         await wait("the memory") { d.memoryBrowser?.block != nil }
@@ -390,12 +357,10 @@ final class FakePasteboard: DebugPasteboard {
         #expect(adapter.arguments(of: "readMemory").last?["offset"]?.int == 256)
         d.closeMemoryBrowser()
 
-        // Delete Expression.
         d.deleteWatch(try #require(d.variableRows.first))
         await wait("one watch") { d.variableRows.filter(\.isWatch).map(\.name) == ["count"] }
         m.perform(.stop)
         await wait("the end") { !d.isDebugging }
-        // The watch expressions stay for the next run.
         #expect(d.watchExpressions == ["count"])
     }
 
@@ -411,14 +376,11 @@ final class FakePasteboard: DebugPasteboard {
         await m.session.debug(program: pkg.path(".build/debug/Demo"), adapter: adapter)
         await wait("the disassembly") { d.isPaused && d.showsDisassembly }
         #expect(d.disassemblyTitle == "swift_willThrow (disassembly)" && !d.alwaysShowsDisassembly)
-        // The user frame shows its source again.
         d.selectDebugRow(ShellDebugModel.frameRowID(9))
         await wait("the source") { !d.showsDisassembly }
         m.perform(.stop)
         await wait("the end") { !d.isDebugging }
     }
-
-    // MARK: Debug Workflow and the gutter
 
     @Test func debugWorkflowTogglesAndDisassembly() async throws {
         let pkg = try TempPackage()
@@ -445,7 +407,6 @@ final class FakePasteboard: DebugPasteboard {
         #expect(d.disassemblyPCIndex == 1 && d.disassemblyTitle == "main (disassembly)")
         m.perform(.toggleAlwaysShowDisassembly)
         await wait("the source again") { !d.showsDisassembly }
-        // The gutter's context menu belongs to the breakpoint under the pointer.
         d.pointerInGutter(file: main, line: 2)
         #expect(d.gutterMenuBreakpoint(file: main)?.line == 2)
         d.pointerInGutter(file: main, line: 1)

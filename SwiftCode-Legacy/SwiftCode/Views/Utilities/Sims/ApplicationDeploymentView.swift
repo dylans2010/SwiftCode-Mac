@@ -7,7 +7,6 @@ struct ApplicationDeploymentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("App Deployment & Drag-Drop", systemImage: "square.and.arrow.down.fill")
                     .font(.headline)
@@ -16,7 +15,6 @@ struct ApplicationDeploymentView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

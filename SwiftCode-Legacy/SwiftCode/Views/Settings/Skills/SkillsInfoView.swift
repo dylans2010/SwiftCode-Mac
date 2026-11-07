@@ -11,7 +11,6 @@ struct SkillsInfoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header View info block
                 VStack(alignment: .leading, spacing: 14) {
                     Text(skill.scheme.name)
                         .font(.title2.weight(.bold))

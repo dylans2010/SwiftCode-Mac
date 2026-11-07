@@ -1,12 +1,7 @@
 import Foundation
 import SwiftCodeIDECore
 
-// The simulator runtime wizard in the Linux shell (`runtime-onboarding.md`
-// §11): Window ▸ Downloads opens it (as Settings ▸ Components does on
-// macOS), and the first launch offers it once when this computer has no
-// runtime for the chosen platforms or must use a simulator host.
 extension ShellAppModel {
-    /// Opens the wizard (on `step`, else on the first problem once checked).
     public func showRuntimeSetup(step: RuntimeSetupStep? = nil) {
         let s = runtimeSetup ?? RuntimeSetupSession(defaults: runtimeDefaults)
         runtimeSetup = s
@@ -24,8 +19,6 @@ extension ShellAppModel {
         runtimeSetup = nil
     }
 
-    /// Once per installation (`RuntimeSetupChoices.offeredKey`); never with
-    /// `SWIFTCODE_NO_FIRST_LAUNCH` or under the drivers.
     @discardableResult
     public func offerRuntimeSetupAtFirstLaunch(environment: [String: String] = ProcessInfo.processInfo.environment) -> Task<Void, Never>? {
         let d = runtimeDefaults

@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/CreateVirtualMachineWizardView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 import UniformTypeIdentifiers
@@ -8,25 +6,20 @@ public struct CreateVirtualMachineWizardView: View {
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var step: Int = 1
 
-    // Step 1: OS Selection
     @State private var selectedProviderName: String = "Ubuntu"
     private let providers: [any OperatingSystemProvider] = [
         UbuntuProvider(), DebianProvider(), FedoraProvider(), AlpineProvider()
     ]
 
-    // Step 2: Template Selection
     @State private var selectedTemplateID: String = "blank"
 
-    // Step 3: Configure Resources
     @State private var cpuCores: Double = 4
     @State private var memoryGB: Double = 8
     @State private var storageGB: Double = 64
     @State private var showingAdvancedResources = false
 
-    // Step 4: Select Image
     @State private var customImagePath: String = ""
 
-    // Step 5: Configure Features
     @State private var shareFolders: Bool = true
     @State private var clipboardSharing: Bool = true
     @State private var networkAccess: Bool = true
@@ -34,10 +27,8 @@ public struct CreateVirtualMachineWizardView: View {
     @State private var terminalAccess: Bool = true
     @State private var automaticSnapshots: Bool = false
 
-    // VM general
     @State private var vmName: String = ""
 
-    // Step 7: Provisioning state
     @State private var provisioningProgress: Double = 0.0
     @State private var currentProvisioningStepName: String = ""
     @State private var currentProvisioningOp: String = ""
@@ -48,7 +39,6 @@ public struct CreateVirtualMachineWizardView: View {
     @State private var startAfterCreation: Bool = true
     @State private var showSaveSuccessMessage: String? = nil
 
-    // Save Configuration options
     @State private var showingSaveConfigPopover = false
 
     struct ProvisioningError: Error, Identifiable, Sendable {
@@ -68,7 +58,6 @@ public struct CreateVirtualMachineWizardView: View {
         stateStore.quickStartTemplates.first { $0.id == selectedTemplateID } ?? stateStore.quickStartTemplates.last!
     }
 
-    // Estimated impact calculation
     private var hostImpactDescription: (text: String, color: Color, icon: String) {
         if cpuCores <= 2 && memoryGB <= 4 {
             return ("Light impact on your Mac. Ideal for background servers and lightweight tasks.", .green, "leaf.fill")
@@ -81,7 +70,6 @@ public struct CreateVirtualMachineWizardView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Title Header with Step Indicator
             HStack(spacing: 16) {
                 Image(systemName: "cube.fill")
                     .font(.title)
@@ -120,7 +108,6 @@ public struct CreateVirtualMachineWizardView: View {
 
             Divider()
 
-            // Horizontal step progress bubbles
             if step <= 6 {
                 HStack(spacing: 8) {
                     ForEach(1...6, id: \.self) { s in
@@ -150,7 +137,6 @@ public struct CreateVirtualMachineWizardView: View {
                 Divider()
             }
 
-            // Main Wizard Body Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     switch step {
@@ -177,7 +163,6 @@ public struct CreateVirtualMachineWizardView: View {
 
             Divider()
 
-            // Actions Footer
             HStack {
                 if step > 1 && step <= 6 {
                     Button("Back") {
@@ -209,7 +194,6 @@ public struct CreateVirtualMachineWizardView: View {
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                     } else {
-                        // Step 6: Create Environment Actions
                         HStack(spacing: 12) {
                             Button("Save Configuration...") {
                                 showingSaveConfigPopover = true
@@ -227,7 +211,6 @@ public struct CreateVirtualMachineWizardView: View {
                         }
                     }
                 } else {
-                    // Step 7: Provisioning in progress footer
                     if let _ = provisioningError {
                         Button("Cancel & Exit") {
                             cancelProvisioningAndExit()
@@ -281,7 +264,6 @@ public struct CreateVirtualMachineWizardView: View {
         storageGB = Double(recs.storageGB)
     }
 
-    // Step 1: OS Selection (With Logos & Specifications)
     @ViewBuilder
     private func stepOneView() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -343,7 +325,6 @@ public struct CreateVirtualMachineWizardView: View {
         }
     }
 
-    // Step 2: Choose Template
     @ViewBuilder
     private func stepTwoView() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -397,7 +378,6 @@ public struct CreateVirtualMachineWizardView: View {
         }
     }
 
-    // Step 3: Configure Resources (With Presets + Host Impact HUD)
     @ViewBuilder
     private func stepThreeView() -> some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -408,7 +388,6 @@ public struct CreateVirtualMachineWizardView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            // Resource Presets Buttons
             HStack(spacing: 12) {
                 presetButton(title: "Small Node", desc: "2 Cores • 4 GB RAM", cores: 2, ram: 4, disk: 40)
                 presetButton(title: "Balanced Stack", desc: "4 Cores • 8 GB RAM", cores: 4, ram: 8, disk: 64)
@@ -417,7 +396,6 @@ public struct CreateVirtualMachineWizardView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 16) {
-                    // CPU Cores Slider
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("CPU Allocation:")
@@ -437,7 +415,6 @@ public struct CreateVirtualMachineWizardView: View {
 
                     Divider()
 
-                    // RAM Slider
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Memory (RAM):")
@@ -457,7 +434,6 @@ public struct CreateVirtualMachineWizardView: View {
 
                     Divider()
 
-                    // Disk Drive Slider
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Virtual Disk Size:")
@@ -479,7 +455,6 @@ public struct CreateVirtualMachineWizardView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Host Impact HUD Bar
             HStack(spacing: 12) {
                 Image(systemName: hostImpactDescription.icon)
                     .font(.title2)
@@ -503,7 +478,6 @@ public struct CreateVirtualMachineWizardView: View {
         }
     }
 
-    // Step 4: Choose Image File
     @ViewBuilder
     private func stepFourView() -> some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -580,7 +554,6 @@ public struct CreateVirtualMachineWizardView: View {
         }
     }
 
-    // Step 5: Advanced Development Customizations
     @ViewBuilder
     private func stepFiveView() -> some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -591,7 +564,6 @@ public struct CreateVirtualMachineWizardView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            // Simple switches
             VStack(spacing: 12) {
                 Toggle(isOn: $shareFolders) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -633,7 +605,6 @@ public struct CreateVirtualMachineWizardView: View {
             .padding()
             .liquidGlass(style: .standard, cornerRadius: 10)
 
-            // Progressive disclosure for Advanced Options
             DisclosureGroup(isExpanded: $showingAdvancedResources) {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Enable Automatic Hypervisor Recovery Points", isOn: $automaticSnapshots)
@@ -658,7 +629,6 @@ public struct CreateVirtualMachineWizardView: View {
         }
     }
 
-    // Step 6: Final Review & Save Options
     @ViewBuilder
     private func stepSixView() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -730,14 +700,12 @@ public struct CreateVirtualMachineWizardView: View {
         }
     }
 
-    // Step 7: ACTUAL PROVISIONING PAGE Redesign
     @ViewBuilder
     private func stepSevenView() -> some View {
         VStack(alignment: .center, spacing: 32) {
             Spacer()
 
             if let error = provisioningError {
-                // Failed Provisioning UI
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 64))
                     .foregroundStyle(.red)
@@ -765,7 +733,6 @@ public struct CreateVirtualMachineWizardView: View {
                 .frame(maxWidth: 500)
 
             } else {
-                // Provisioning Progress UI
                 VStack(spacing: 20) {
                     ZStack {
                         Circle()
@@ -895,7 +862,6 @@ public struct CreateVirtualMachineWizardView: View {
             startupCommands: ["echo 'Deploying saved profile stack...'"],
             installedPackages: activeTemplate.installedPackages
         )
-        // Add profile timeline registration notice
         showSaveSuccessMessage = "Saved configuration as profile '\(newProfile.name)' successfully!"
         stateStore.addLog("Saved environment profile configuration manifest.", type: .success)
     }
@@ -945,14 +911,12 @@ public struct CreateVirtualMachineWizardView: View {
 
         provisioningTask = Task {
             do {
-                // 1. Validate configuration
                 updateProgress(step: 1, name: "Validating Configuration", op: "Verifying resource allocations and environment parameters...")
                 try await sleep()
                 if vmNameToUse.isEmpty {
                     throw ProvisioningError(title: "Configuration Invalid", message: "Environment name cannot be blank.", suggestion: "Please provide a valid name for your development environment.")
                 }
 
-                // 2. Validate selected operating system image
                 updateProgress(step: 2, name: "Validating OS Image", op: "Checking installation source image...")
                 try await sleep()
                 if !targetImagePath.isEmpty {
@@ -964,14 +928,12 @@ public struct CreateVirtualMachineWizardView: View {
                     provisioningWarning = "No custom ISO image specified. SwiftCode Virtualization will boot a pre-configured thin guest cloud image."
                 }
 
-                // 3. Validate available disk space
                 updateProgress(step: 3, name: "Validating Disk Space", op: "Auditing host storage capacity...")
                 try await sleep()
                 if targetStorageGB < 10 {
                     throw ProvisioningError(title: "Insufficient Storage", message: "Allocated storage (\(targetStorageGB) GB) is below the minimum required 10 GB.", suggestion: "Increase the virtual disk allocation on the Adjust Resources page.")
                 }
 
-                // 4. Validate available system memory
                 updateProgress(step: 4, name: "Validating System Memory", op: "Comparing requested memory allocations against physical RAM limits...")
                 try await sleep()
                 let hostRAMBytes = ProcessInfo.processInfo.physicalMemory
@@ -980,7 +942,6 @@ public struct CreateVirtualMachineWizardView: View {
                     throw ProvisioningError(title: "Insufficient System Memory", message: "Allocated RAM (\(targetMemoryMB) MB) exceeds physical host memory limits (\(hostRAM_MB) MB).", suggestion: "Reduce RAM allocation on the Adjust Resources page.")
                 }
 
-                // 5. Validate CPU allocation
                 updateProgress(step: 5, name: "Validating CPU Allocation", op: "Checking CPU core bounds...")
                 try await sleep()
                 let hostCores = ProcessInfo.processInfo.activeProcessorCount
@@ -988,7 +949,6 @@ public struct CreateVirtualMachineWizardView: View {
                     throw ProvisioningError(title: "Insufficient CPU Allocation", message: "Requested \(targetCores) CPU cores, but your Mac only has \(hostCores) physical cores.", suggestion: "Decrease core allocation on the Adjust Resources page.")
                 }
 
-                // 6. Create virtual machine bundle
                 updateProgress(step: 6, name: "Creating VM Bundle", op: "Initializing directory workspace on host...")
                 try await sleep()
                 let fileManager = FileManager.default
@@ -996,7 +956,6 @@ public struct CreateVirtualMachineWizardView: View {
                 let bundleURL = appSupport.appendingPathComponent("SwiftCode/VirtualMachines/\(vmNameToUse.replacingOccurrences(of: " ", with: "_"))", isDirectory: true)
                 try fileManager.createDirectory(at: bundleURL, withIntermediateDirectories: true)
 
-                // 7. Create virtual storage
                 updateProgress(step: 7, name: "Creating Virtual Storage", op: "Allocating virtual SCSI block drive payload file...")
                 try await sleep()
                 let driveURL = bundleURL.appendingPathComponent("disk.raw")
@@ -1004,47 +963,36 @@ public struct CreateVirtualMachineWizardView: View {
                     fileManager.createFile(atPath: driveURL.path, contents: Data())
                 }
 
-                // 8. Configure hardware
                 updateProgress(step: 8, name: "Configuring Hardware", op: "Defining chipset registers and memory offsets...")
                 try await sleep()
 
-                // 9. Configure networking
                 updateProgress(step: 9, name: "Configuring Networking", op: "Mapping NAT hypervisor interface bridges...")
                 try await sleep()
 
-                // 10. Configure shared folders
                 updateProgress(step: 10, name: "Configuring Shared Folders", op: "Mapping system mounts and host workspace targets...")
                 try await sleep()
 
-                // 11. Generate environment profile
                 updateProgress(step: 11, name: "Generating Profile", op: "Generating service profile recipe...")
                 try await sleep()
 
-                // 12. Register environment
                 updateProgress(step: 12, name: "Registering Environment", op: "Adding registration entry to local SwiftCode Virtualization store...")
                 try await sleep()
 
-                // 13. Create runtime metadata
                 updateProgress(step: 13, name: "Creating Runtime Metadata", op: "Writing environment description and state records...")
                 try await sleep()
 
-                // 14. Prepare boot configuration
                 updateProgress(step: 14, name: "Preparing Boot Config", op: "Compiling boot parameters and kernel args...")
                 try await sleep()
 
-                // 15. Initialize Virtualization.framework
                 updateProgress(step: 15, name: "Initializing Virtualization.framework", op: "Loading Apple hypervisor drivers...")
                 try await sleep()
 
-                // 16. Create the virtual machine
                 updateProgress(step: 16, name: "Creating Virtual Machine", op: "Allocating host memory blocks and CPU virtual registers...")
                 try await sleep()
 
-                // 17. Register with SwiftCode Virtualization
                 updateProgress(step: 17, name: "Registering with SwiftCode Virtualization", op: "Synchronizing state variables...")
                 try await sleep()
 
-                // Real creation in stateStore
                 let newVM = stateStore.createVM(
                     name: vmNameToUse,
                     osType: selectedProviderName,
@@ -1055,7 +1003,6 @@ public struct CreateVirtualMachineWizardView: View {
                     imagePath: targetImagePath.isEmpty ? nil : targetImagePath
                 )
 
-                // Write detailed custom fields
                 if let idx = stateStore.virtualMachines.firstIndex(where: { $0.id == newVM.id }) {
                     stateStore.virtualMachines[idx].labels = [selectedProviderName, activeTemplate.name, "Development"]
                     stateStore.virtualMachines[idx].startupActions = ["Open Terminal", "Run startup script"]
@@ -1072,17 +1019,11 @@ public struct CreateVirtualMachineWizardView: View {
                     try? VirtualMachineRegistry.shared.save(stateStore.virtualMachines)
                 }
 
-                // 18. Show provisioning progress completed
                 updateProgress(step: 18, name: "Finalizing Registry Updates", op: "Syncing operations dashboards, metrics, and timeline events...")
                 try await sleep()
 
-                // Legacy posted this to `WorkspaceTimelineManager`, which
-                // has no production equivalent. The virtualization event
-                // bus is the ported equivalent: the state store subscribes
-                // to it, so the registration lands in the activity log.
                 VirtualizationEventBus.shared.post(.log(newVM.id, "Environment Registered: created development sandbox '\(newVM.name)' running \(newVM.osType) (\(newVM.cpuCores) cores, \(memoryGB) GB RAM)."))
 
-                // 19. Launch the environment if "Start after creation" is selected
                 if startAfterCreation {
                     updateProgress(step: 19, name: "Launching Environment", op: "Booting Guest OS environment kernel asynchronously...")
                     try await sleep()
@@ -1093,7 +1034,6 @@ public struct CreateVirtualMachineWizardView: View {
                     try await sleep()
                 }
 
-                // Final Success and Exit
                 stateStore.showCreateWizard = false
                 stateStore.selectedVMID = newVM.id
 
@@ -1117,7 +1057,7 @@ public struct CreateVirtualMachineWizardView: View {
     }
 
     private func sleep() async throws {
-        try await Task.sleep(nanoseconds: 120_000_000) // 120ms delay per step makes it fast but fully visible
+        try await Task.sleep(nanoseconds: 120_000_000)
     }
 
     @ViewBuilder

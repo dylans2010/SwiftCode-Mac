@@ -4,16 +4,8 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The gap-closure LLM wiring through `tools/call` on a Greeter workspace
-/// copy, with the host test seam set to a stub provider: no live network,
-/// no real credentials. The `code_refactor` / `intel_autofix` tests were
-/// `.disabled` until the coordinator-applied patches for
-/// `SwiftCodeTools+FileWriting.swift` / `SwiftCodeTools+Planning.swift`
-/// (see `specs/ide/gap-closure-llm.md` §3.3/§3.4) landed; they are enabled
-/// now that the patches are in the tree (Wave 19 slice F).
 @MainActor
 @Suite(.serialized) struct LLMWiringGapTests {
-    /// A stub provider that answers with canned text.
     struct StubLLMProvider: AssistantProvider {
         var kind: ProviderKind = .openRouter
         var text: String
@@ -30,8 +22,6 @@ import SwiftCodeIDECore
         }
     }
 
-    /// A service backed by the stub provider, configured as the host
-    /// would configure OpenRouter with a stored model.
     func stubService(text: String) -> LLMToolCompletionService {
         var settings = AssistantSettings()
         settings.provider = .openRouter
@@ -41,8 +31,6 @@ import SwiftCodeIDECore
             providerOverrides: [.openRouter: StubLLMProvider(text: text)])
     }
 
-    /// A service with a configured provider but no credentials and no
-    /// overrides: every tool must fail honestly through it.
     func unconfiguredService() -> LLMToolCompletionService {
         var settings = AssistantSettings()
         settings.provider = .openRouter
@@ -50,8 +38,6 @@ import SwiftCodeIDECore
             backends: AssistantBackends(settings: settings, store: MemorySecretStore(), account: nil))
     }
 
-    /// Opens a copy of Greeter with the ported Agentic code + review/docs
-    /// tools installed (same filter-first shape as Wave 8's `opened`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -200,8 +186,6 @@ import SwiftCodeIDECore
     func intelAutofixReportsNoIssues() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // The Greeter fixture is lint-clean (no tabs, no trailing
-        // whitespace, no >140-char lines), so no LLM call is made.
         SwiftCodeMCPHost.llmToolTestService = stubService(text: "must not be used")
         defer { SwiftCodeMCPHost.llmToolTestService = nil }
         let host = try await opened(sample, policy: .allow)

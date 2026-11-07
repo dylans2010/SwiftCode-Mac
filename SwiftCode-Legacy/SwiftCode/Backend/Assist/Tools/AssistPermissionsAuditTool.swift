@@ -63,7 +63,6 @@ public struct AssistPermissionsAuditTool: AssistTool {
             }
         }
 
-        // Heuristic: API usage in Swift files that normally needs a usage description.
         let checks: [(marker: String, requiredKey: String)] = [
             (marker: "AVCaptureDevice", requiredKey: "NSCameraUsageDescription"),
             (marker: "CLLocationManager", requiredKey: "NSLocationWhenInUseUsageDescription"),
@@ -86,7 +85,6 @@ public struct AssistPermissionsAuditTool: AssistTool {
                 }
             }
             if !usedIn.isEmpty && !usageSet.contains(check.requiredKey) {
-                // Location also accepts the Always key as an alternative.
                 if check.requiredKey == "NSLocationWhenInUseUsageDescription" && usageSet.contains("NSLocationAlwaysUsageDescription") {
                     continue
                 }

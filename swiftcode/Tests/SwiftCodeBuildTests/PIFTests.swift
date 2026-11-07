@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeBuild
 
-/// A minimal pbxproj: one macOS command-line tool target with one C file.
-/// Written by hand from `specs/formats/pbxproj.md`; IDs are arbitrary.
 let toolProjectText = """
 // !$*UTF8*$!
 {
@@ -40,7 +38,6 @@ int main(void) { printf("hello from swift-build\\n"); return 0; }
 
 """
 
-/// Writes the tool project under `dir` and returns the `.xcodeproj` URL.
 func writeToolProject(at dir: URL, source: String = toolSource) throws -> URL {
     let fm = FileManager.default
     try? fm.removeItem(at: dir)
@@ -72,7 +69,6 @@ let ideScratch = URL(fileURLWithPath: #filePath).deletingLastPathComponent().del
         let target = try #require(objects[2]["contents"])
         #expect(target["productTypeIdentifier"] == "com.apple.product-type.tool")
         let files = try #require(target["buildPhases"]?.arrayValue?.first?["buildFiles"]?.arrayValue)
-        // The build file points at the file reference's GUID.
         #expect(files.first?["fileReference"] == toolGroup["children"]?.arrayValue?.first?["guid"])
         #expect(objects[0]["contents"]?["projects"] == [objects[1]["signature"]!])
         let json = try pif.serialized()

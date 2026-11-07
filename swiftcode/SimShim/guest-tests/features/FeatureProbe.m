@@ -1,20 +1,3 @@
-// FeatureProbe.app (dev.swiftcode.FeatureProbe): the guest probe of the settings
-// features (specs/simulator/simulator-features.md "SwiftCode implementation",
-// verification). A UIKit app that shows and prints, with milliseconds since
-// launch on every line ("probe: <ms> …"):
-//   - its trait collection (style, content size, contrast, legibility
-//     weight) at launch and at every change;
-//   - UIAccessibility's switches at launch, at every status notification,
-//     and every 5 s (with the VoiceOver state);
-//   - UIContentSizeCategoryDidChange;
-//   - location: authorization, every update (coordinate, accuracy, speed,
-//     course), every error;
-//   - audio: the session's output volume and route, every 5 s and on route
-//     changes.
-// The screen: a large title, a system button with a text title (Show
-// Borders underlines it), a glass/blur panel, and coloured bars (a colour
-// filter changes them in a screenshot).
-
 #import <UIKit/UIKit.h>
 #import <CoreLocation/CoreLocation.h>
 #import <AVFoundation/AVFoundation.h>
@@ -30,8 +13,6 @@ static void say(NSString *fmt, ...) {
     va_start(ap, fmt);
     NSString *s = [[NSString alloc] initWithFormat:fmt arguments:ap];
     va_end(ap);
-    // Milliseconds since launch, then the wall clock (Unix ms; the guest's
-    // calendar time is the host's) to line events up with host commands.
     fprintf(stdout, "probe: %lld %s [wall %lld]\n", (long long)((CFAbsoluteTimeGetCurrent() - gStart) * 1000), s.UTF8String,
             (long long)((CFAbsoluteTimeGetCurrent() + kCFAbsoluteTimeIntervalSince1970) * 1000));
     fflush(stdout);
@@ -112,7 +93,6 @@ static NSString *axLine(void) {
     [button setTitle:@"A Text Button" forState:UIControlStateNormal];
     button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
     [stack addArrangedSubview:button];
-    // Coloured bars: red, green, blue, yellow.
     UIStackView *bars = [UIStackView new];
     bars.distribution = UIStackViewDistributionFillEqually;
     for (UIColor *c in @[UIColor.systemRedColor, UIColor.systemGreenColor, UIColor.systemBlueColor, UIColor.systemYellowColor]) {
@@ -219,7 +199,6 @@ static NSString *axLine(void) {
 }
 @end
 
-// The scene life cycle (required for apps built with the iOS 27 SDK).
 @interface ProbeSceneDelegate : UIResponder <UIWindowSceneDelegate>
 @property (nonatomic, strong) UIWindow *window;
 @end

@@ -1,6 +1,3 @@
-// clockprobe: our probe (stage 7, agent I4). On 8 threads, compares the
-// counter read in place (mach_absolute_time) with the kernel's mach time of
-// the same instant (BSD 116's third argument). Prints each thread's skew.
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>

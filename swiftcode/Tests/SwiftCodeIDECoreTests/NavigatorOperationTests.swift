@@ -6,11 +6,6 @@ import SwiftCodeProject
 
 private let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/NavigatorOps")
 
-/// A small project on disk for the navigator's file operations: two tool
-/// targets, a group with a folder ("Nav"), one without ("Support") and a
-/// synchronized folder ("Shared") with an exception for NavTool. Its
-/// project file is `Fixtures/NavigatorOps/Base.pbxproj`; each operation's
-/// expected file is a hand-written fixture next to it.
 struct NavigatorSample {
     static let root = "0E0000000000000000000010"
     static let navGroup = "0D0000000000000000000002"
@@ -61,7 +56,6 @@ struct NavigatorSample {
 
     func remove() { try? FileManager.default.removeItem(at: top) }
 
-    /// Operations on the sample with predictable new IDs (AA000000…01, …02, …).
     func operations() throws -> ProjectFileOperations {
         var proj = try PBXProj(contentsOf: xcodeproj)
         proj.idSequence = ObjectIDSequence(prefix: "AA")
@@ -73,8 +67,6 @@ struct NavigatorSample {
     func path(_ rel: String) -> String { dir.appendingPathComponent(rel).path }
     func exists(_ rel: String) -> Bool { FileManager.default.fileExists(atPath: path(rel)) }
 
-    /// Every file and folder under the project folder (but the project
-    /// file) with its contents.
     func snapshot() -> [String: String] {
         var out: [String: String] = [:]
         let e = FileManager.default.enumerator(atPath: dir.path)
@@ -88,15 +80,9 @@ struct NavigatorSample {
     }
 }
 
-/// The navigator's file operations (`specs/ide/navigators.md` §SwiftCode
-/// implementation): each one's project file against a hand-written
-/// fixture, its effect on disk, and undo and redo.
 @Suite(.serialized) struct NavigatorOperationTests {
     typealias S = NavigatorSample
 
-    /// Runs `op` on a fresh sample: the project must match `fixture` and
-    /// `disk` must hold; undo restores the base file and the folder; redo
-    /// brings the result back.
     func check(_ fixture: String, _ op: (inout ProjectFileOperations, NavigatorSample) throws -> ProjectEdit,
                disk: (NavigatorSample) -> Bool = { _ in true }) throws {
         let s = try NavigatorSample()
@@ -116,8 +102,6 @@ struct NavigatorSample {
         #expect(s.text(try edit.redo(bin: s.bin)) == expected, "\(fixture): redo")
         #expect(s.snapshot() == after, "\(fixture): redo on disk")
     }
-
-    // MARK: Groups and folders
 
     @Test func newGroupMakesAFolder() throws {
         try check("NewGroup", { ops, _ in try ops.newGroup(named: "Views", in: .object(S.navGroup), withFolder: true) },
@@ -172,8 +156,6 @@ struct NavigatorSample {
         }, disk: { $0.exists("Shared/Diag/Debug.swift") })
     }
 
-    // MARK: New files
-
     @Test func newFileGoesAfterTheSelectedFile() throws {
         try check("NewFile", { ops, _ in
             let place = ops.insertionPoint(for: .object(S.model))
@@ -201,8 +183,6 @@ struct NavigatorSample {
         #expect(throws: NavigatorEditError.exists("Model.swift")) { try ops.newFiles([("Model.swift", "x")], in: .object(S.navGroup)) }
         #expect((try? String(contentsOfFile: s.path("Nav/Model.swift"), encoding: .utf8)) == "struct Model {\n    var value = 1\n}\n")
     }
-
-    // MARK: Add Files
 
     @Test func addFilesCopiesAFolderAsGroups() throws {
         try check("AddFilesGroups", { ops, s in
@@ -232,7 +212,6 @@ struct NavigatorSample {
         let src = s.extern.appendingPathComponent("Lib/A.swift")
         let edit = try ops.addFiles([src], to: .object(S.navGroup), options: AddFilesOptions(action: .reference, targets: [S.navTarget]))
         guard case .object(let ref)? = edit.result.first else { Issue.record("no reference"); return }
-        // A path that climbs out of the group keeps the file's name.
         #expect(ops.project?[ref]?.string("path") == "../../extern/Lib/A.swift" && ops.project?[ref]?.string("name") == "A.swift")
         #expect(ops.project?.resolvedPath(of: ref, projectDirectory: s.dir) == src.path)
         #expect(!s.exists("Nav/A.swift"))
@@ -248,8 +227,6 @@ struct NavigatorSample {
         let m = ops.project?.targetMemberships(ofFile: s.path("Shared/A.swift"), projectDirectory: s.dir).map(\.isMember)
         #expect(m == [false, true])
     }
-
-    // MARK: Delete
 
     @Test func removeReferenceKeepsTheFile() throws {
         try check("DeleteReference", { ops, _ in try ops.delete([.object(S.toolMain)], moveToTrash: false) },
@@ -295,8 +272,6 @@ struct NavigatorSample {
         #expect(!s.exists("Nav"))
     }
 
-    // MARK: Rename
-
     @Test func renameFileOnDiskAndInTheProject() throws {
         try check("RenameFile", { ops, _ in try ops.rename(.object(S.model), to: "Store.swift") },
                   disk: { $0.exists("Nav/Store.swift") && !$0.exists("Nav/Model.swift") })
@@ -325,8 +300,6 @@ struct NavigatorSample {
         #expect(edit.moved == [s.path("README.md"): s.path("Notes.txt")])
         #expect(throws: NavigatorEditError.self) { try ops.rename(.object(S.model), to: "main.swift") }
     }
-
-    // MARK: Move
 
     @Test func moveIntoAGroupWithAFolderMovesTheFile() throws {
         try check("MoveToGroupWithFolder", { ops, _ in try ops.move([.object(S.readme)], to: .object(S.navGroup), at: 0) },
@@ -358,8 +331,6 @@ struct NavigatorSample {
         #expect(throws: NavigatorEditError.self) { try ops.move([.object(S.navGroup)], to: .object(S.support)) }
     }
 
-    // MARK: Sort
-
     @Test func sortByNameKeepsProductsLast() throws {
         try check("SortByName", { ops, _ in try ops.sort(.object(S.root), by: .name) })
     }
@@ -367,8 +338,6 @@ struct NavigatorSample {
     @Test func sortByTypePutsGroupsFirst() throws {
         try check("SortByType", { ops, _ in try ops.sort(.object(S.navGroup), by: .type) })
     }
-
-    // MARK: Packages
 
     @Test func packageOperationsWorkOnDisk() throws {
         let s = try NavigatorSample()
@@ -387,7 +356,6 @@ struct NavigatorSample {
         #expect(!FileManager.default.fileExists(atPath: lib.appendingPathComponent("New Folder").path))
     }
 
-    /// A failing step leaves nothing done.
     @Test func failedOperationsRollBack() throws {
         let s = try NavigatorSample()
         defer { s.remove() }
@@ -402,10 +370,6 @@ struct NavigatorSample {
     }
 }
 
-/// After each operation the sample still builds with `swiftcode build` (the
-/// xcodebuild engine on macOS). Opt in with `SWIFTCODE_NAV_OPS_BUILD=1`; it
-/// needs `.build/debug/swiftcode` (`swift build`). Operations that take a file
-/// some code needs are checked with the targets that do not need it.
 @Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_NAV_OPS_BUILD"] == "1"))
 struct NavigatorOperationBuildTests {
     typealias S = NavigatorSample
@@ -469,7 +433,6 @@ struct NavigatorOperationBuildTests {
     }
 }
 
-/// Edit ▸ Convert ▸ To Group / To Folder: memberships are kept both ways.
 @Suite(.serialized) struct NavigatorConversionTests {
     typealias S = NavigatorSample
 
@@ -495,12 +458,10 @@ struct NavigatorOperationBuildTests {
         let s = try NavigatorSample()
         defer { s.remove() }
         var ops = try s.operations()
-        // Nav holds Support, a group without a folder.
         #expect(ops.folderConversionProblems(.object(S.navGroup)) == ["“Support” is not in its group's folder."])
         #expect(!ops.folderConversionProblems(.object(S.root)).isEmpty)
         #expect(throws: NavigatorEditError.self) { try ops.convertToFolder(.object(S.navGroup)) }
         #expect(throws: NavigatorEditError.self) { try ops.convertToGroup(.object(S.navGroup)) }
-        // A file only on disk in the group's folder is excluded from every target.
         _ = try ops.delete([.object(S.support)], moveToTrash: false)
         try "let x = 1\n".write(toFile: s.path("Nav/Loose.swift"), atomically: true, encoding: .utf8)
         let edit = try ops.convertToFolder(.object(S.navGroup))
@@ -513,7 +474,6 @@ struct NavigatorOperationBuildTests {
 }
 
 extension NavigatorConversionTests {
-    /// A template with nested folders: undo takes every new folder back.
     @Test func newFilesInNewFoldersUndoCompletely() throws {
         let s = try NavigatorSample()
         defer { s.remove() }

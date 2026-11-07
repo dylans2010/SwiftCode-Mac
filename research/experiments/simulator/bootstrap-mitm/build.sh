@@ -1,6 +1,4 @@
 #!/bin/sh
-# Build the Ycode bootstrap MITM probe for the iOS simulator.
-# Usage: build.sh <output-dir>   (output must be outside the repo; binaries are not committed)
 set -e
 OUT=${1:?output directory}
 HERE=$(cd "$(dirname "$0")" && pwd)

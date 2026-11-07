@@ -1,37 +1,17 @@
-// The host IOSurface service `com.apple.IOSurface.Remote`
-// (specs/simulator/iosurface-remote.md), served by the VMM's host task.
-// Written from the spec; nothing here comes from the research test server.
-//
-// - Clients connect with the hand-shake 0x77303074 (§2.2): descriptor 0 is
-//   the connection port (a receive right the service keeps and serves),
-//   descriptor 1 a client port (kept, never used).
-// - Requests 0x10000000 carry one `!CPX` dictionary with `Method` (§3);
-//   replies 0x20000000 carry one `!CPX` dictionary with `ErrorCode`
-//   (an IOReturn sign-extended to 64 bits) (§2.3, §2.4).
-// - Each surface is a SharedMemoryObject (host memory that every guest VM
-//   maps) behind a memory entry (§6); look-up by ID works for every
-//   surface of the device, look-up by port for ports from Method 14.
-// - A connection's references go when its port loses its senders (the
-//   client process ended, §2.5); a surface goes when no connection holds a
-//   reference and no Method-14 port has senders (§8 item 8).
-
 import Foundation
 import SwiftCodeDarwinABI
 import SwiftCodeDarwinKernel
 import SwiftCodeXPC
 
-/// A surface as the host sees it (no copy): its shared memory and layout.
 public struct IOSurfaceInfo: @unchecked Sendable {
     public var id: UInt32
     public var memory: SharedMemoryObject
     public var width: Int, height: Int, bytesPerRow: Int, bytesPerElement: Int
     public var pixelFormat: UInt32
     public var allocationSize: Int
-    /// Per plane (planar surfaces): offset, width, height, bytes per row.
     public var planes: [(offset: Int, width: Int, height: Int, bytesPerRow: Int)]
 }
 
-/// One surface's pixels, copied for the host (screenshots).
 public struct IOSurfaceSnapshot: Sendable {
     public var id: UInt32
     public var name: String
@@ -57,7 +37,7 @@ public final class IOSurfaceHostService: @unchecked Sendable {
     final class Surface {
         let id: UInt32
         let memory: SharedMemoryObject
-        let entry: UInt32  // the host task's send right to the memory entry
+        let entry: UInt32
         var width: UInt32, height: UInt32, bytesPerRow: UInt32, allocationSize: UInt32
         var pixelFormat: UInt32, cacheMode: UInt32, planeCount: UInt32
         var bytesPerElement: UInt32, elementWidth: UInt32, elementHeight: UInt32
@@ -96,7 +76,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
             castingAllowed = layout.castingAllowed
         }
 
-        /// SurfaceState (§4.1): 18 u32.
         var state: [UInt8] {
             let words: [UInt32] = [0, id, allocationSize, width, height, bytesPerRow, 0, pixelFormat, cacheMode, planeCount,
                                    bytesPerElement, elementWidth, elementHeight, seed, 0,
@@ -119,8 +98,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
     }
 
     public let host: MachHostTask
-    /// The service port: a receive right of the host task, with a send right
-    /// under the same name (registered into the guest with 701).
     public let servicePort: UInt32
     private let portSet: UInt32
     private let log: (String) -> Void
@@ -131,7 +108,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
     private var nextSurfaceSerial: UInt32 = 1
     private var stopping = false
     private var thread: Thread?
-    /// Statistics.
     public private(set) var requestCount = 0
 
     public init(host: MachHostTask, log: @escaping (String) -> Void) throws {
@@ -167,8 +143,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         }
     }
 
-    // MARK: Messages
-
     func handle(_ m: MachHostReceivedMessage) {
         if m.localPort == servicePort {
             if m.id == Self.handshakeID { connect(m) } else { drop(m) }
@@ -194,7 +168,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         }
         do {
             try host.addMember(connection, to: portSet)
-            // No-senders on the connection port itself: the client ended.
             _ = try host.requestNotification(connection, id: MachNotify.noSenders, sync: 0, notifyPort: connection)
         } catch {
             log("iosurface: cannot serve connection \(connection): \(error)")
@@ -205,8 +178,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         lock.withLock { connections[connection] = Connection(clientPort: client) }
     }
 
-    /// The right a request or notification brought, dropped (a send right to
-    /// one of the service's own ports drops only that send reference).
     private func drop(_ m: MachHostReceivedMessage) {
         var names: [UInt32] = []
         if MachPortName.isValid(m.replyPort) { names.append(m.replyPort) }
@@ -237,8 +208,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         for s in freed { try? host.deallocate(s.entry) }
     }
 
-    /// Removes the surface when no connection references it and no port
-    /// has senders (lock held). Returns it so the caller drops its entry.
     private func releaseIfUnused(_ id: UInt32) -> Surface? {
         guard let s = surfaces[id], s.ports.isEmpty,
               !connections.values.contains(where: { ($0.references[id] ?? 0) > 0 }) else { return nil }
@@ -288,14 +257,10 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         afterReply?()
     }
 
-    /// Diagnostics (`SWIFTCODE_IOSURFACE_STATS=<seconds>`, frame-profile.md §10):
-    /// a line per interval with the requests per client and method, and
-    /// their service time.
     static let statsInterval = ProcessInfo.processInfo.environment["SWIFTCODE_IOSURFACE_STATS"].flatMap(Double.init) ?? 0
     private var stats: [String: (count: Int, ns: UInt64)] = [:]
     private var statsSince: UInt64 = 0
 
-    /// On the service's thread.
     private func noteStats(method: UInt64, pid: Int32, start: UInt64) {
         let now = DispatchTime.now().uptimeNanoseconds
         let key = "pid \(pid) method \(method)"
@@ -311,8 +276,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         statsSince = now
     }
 
-    /// Diagnostics (`SWIFTCODE_IOSURFACE_LOG=1`): each failed request is logged
-    /// (the first 64): method, error, and the creation keys of a create.
     static let failureLog = ProcessInfo.processInfo.environment["SWIFTCODE_IOSURFACE_LOG"] == "1"
     private var failuresLogged = 0
 
@@ -329,10 +292,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
 
     static func code(_ ioReturn: UInt32) -> XPCObject { .uint64(UInt64(bitPattern: Int64(Int32(bitPattern: ioReturn)))) }
 
-    // MARK: Methods (§3)
-
-    /// The reply entries for one request, and work to do after the reply is
-    /// sent (arming a no-senders request for a new surface port).
     func perform(_ d: XPCDict, connection: UInt32) -> ([(String, XPCObject)], (() -> Void)?) {
         let method = d["Method"]?.uint64Value ?? .max
         let surfaceID = d["SurfaceID"].flatMap { $0.uint64Value }.map { UInt32(truncatingIfNeeded: $0) }
@@ -448,7 +407,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         if let i = s.values.firstIndex(where: { $0.key == key }) { s.values[i].value = value } else { s.values.append((key, value)) }
     }
 
-    /// Method 10's blob: the stored values plus the three the service adds (§3.1).
     private func allValues(_ s: Surface) -> OSValue {
         var pairs = s.values
         if !pairs.contains(where: { $0.key == "IOSurfaceName" }) { pairs.append(("IOSurfaceName", .string(s.name))) }
@@ -476,8 +434,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         words[10] = (n("IOSurfacePlaneBytesPerElement") & 0xFF) | 1 << 16 | 1 << 24
         return words.flatMap(le32)
     }
-
-    // MARK: Create and look up (Method 2)
 
     private func createOrLookUp(_ d: XPCDict, connection: UInt32) -> ([(String, XPCObject)], (() -> Void)?) {
         func fail(_ e: UInt32) -> ([(String, XPCObject)], (() -> Void)?) { ([("ErrorCode", Self.code(e))], nil) }
@@ -511,7 +467,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
                  ("ErrorCode", Self.code(0)), ("SurfaceState", .data(surface.state))], nil)
     }
 
-    /// §4.2: bytes per row and allocation size, computed when not given.
     static func layout(_ p: OSValue) -> Layout? {
         func n(_ key: String) -> UInt64? { p[key]?.numberValue }
         var l = Layout()
@@ -545,17 +500,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         return l
     }
 
-    /// A surface made by the host itself for a shared texture (SwiftCode's Metal
-    /// host, messageType 19; metal-sim-protocol.md §5.10, visionos.md
-    /// §10.10.2), as the reference host makes it: width, height, bytes per
-    /// row, pixel format and plane count 0, bytes per element 1, the given
-    /// allocation size (the memory is rounded up to 16 KiB), the name, and
-    /// the given creation properties (numbers; 64-bit when the value needs
-    /// it) plus `IOSurfaceName`. Every process that looks the surface up by
-    /// ID or port sees them (Method 10). It has a Method-14 port: a receive
-    /// right of the host task whose send right the caller hands to the
-    /// guest, which looks the surface up by it like any surface port.
-    /// Returns the port name, or nil.
     public func makeSharedTextureSurface(allocationSize: UInt32, name: String,
                                          properties: [(key: String, value: UInt64)]) -> UInt32? {
         guard allocationSize > 0, allocationSize <= 1 << 31 else { return nil }
@@ -587,7 +531,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         return port
     }
 
-    /// One plane of a surface the host lays out itself (`makeHostSurface`).
     public struct HostPlane: Sendable, Equatable {
         public var offset: Int, width: Int, height: Int, bytesPerRow: Int, bytesPerElement: Int, size: Int
         public init(offset: Int, width: Int, height: Int, bytesPerRow: Int, bytesPerElement: Int, size: Int) {
@@ -596,17 +539,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         }
     }
 
-    /// A surface the host makes and fills itself (camera frames,
-    /// camera-host.md §5), with a full layout: width, height, pixel format,
-    /// bytes per element and row, allocation size, and per-plane info for
-    /// planar formats. The creation properties are the public
-    /// `IOSurfaceRef.h` keys a guest client would have passed (so Method 10
-    /// and the plane methods answer as for a guest-made surface), plus
-    /// `IOSurfaceName`. `attachments` preset Method 21's values (known keys
-    /// only). Like a shared texture surface it has a Method-14 port (a
-    /// receive right of the host task) that keeps it alive until
-    /// `releaseHostSurface(port:)`; guests look it up by ID or by a send
-    /// right to that port. Returns the port and the surface, or nil.
     public func makeHostSurface(width: Int, height: Int, pixelFormat: UInt32, bytesPerElement: Int, bytesPerRow: Int,
                                 allocationSize: Int, planes: [HostPlane], name: String,
                                 attachments: [String: UInt64] = [:]) -> (port: UInt32, surface: IOSurfaceInfo)? {
@@ -651,9 +583,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         return (port, info)
     }
 
-    /// Ends the host's hold on a surface from `makeHostSurface` (or
-    /// `makeSharedTextureSurface`): its port is destroyed, and the surface
-    /// goes once no guest connection references it (§8 item 8).
     public func releaseHostSurface(port: UInt32) {
         var freed: Surface?
         lock.withLock {
@@ -665,9 +594,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         if let s = freed { try? host.deallocate(s.entry) }
     }
 
-    /// After the host wrote a surface's pixels: raises its seed, as a guest
-    /// lock for writing does (§3.1), so readers that skip unchanged surfaces
-    /// (the GPU back end) see the new contents. Returns the new seed.
     @discardableResult
     public func hostDidWrite(id: UInt32) -> UInt32? {
         lock.withLock {
@@ -677,9 +603,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         }
     }
 
-    /// What guests hold on a surface: the use count (Methods 15, 16), the
-    /// lock count (Methods 4, 5), and the connections that reference it
-    /// (Method 2). Nil when there is no such surface.
     public func guestUsage(id: UInt32) -> (useCount: Int, lockCount: Int, references: Int)? {
         lock.withLock {
             guard let s = surfaces[id] else { return nil }
@@ -688,8 +611,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         }
     }
 
-    /// The surface behind a Method-14 port (a host-task name): its ID and
-    /// its creation properties that are numbers, or nil.
     public func creationNumbers(forPort port: UInt32) -> (id: UInt32, numbers: [String: UInt64])? {
         lock.withLock {
             guard let id = surfacePorts[port], let s = surfaces[id] else { return nil }
@@ -699,34 +620,19 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         }
     }
 
-    /// Tests: a connection without a Mach port behind it.
     func addTestConnection(_ name: UInt32) { lock.withLock { connections[name] = Connection(clientPort: 0) } }
 
-    // MARK: Host access
-
-    /// The surface behind a Method-14 port (a host-task name), or nil.
     public func surface(forPort port: UInt32) -> IOSurfaceInfo? {
         lock.withLock { surfacePorts[port].flatMap { surfaces[$0] }.map(info) }
     }
 
-    /// The surface with `id`, or nil. Its pixels are complete: GPU work that
-    /// writes the surface and was reported scheduled is waited for first
-    /// (`gpuWriteWait`), so host readers (the display server, screenshots)
-    /// never see a frame the GPU is still drawing.
     public func surface(id: UInt32) -> IOSurfaceInfo? {
         gpuWriteWait?(id)
         return lock.withLock { surfaces[id].map(info) }
     }
 
-    /// Waits until GPU work that writes the surface is complete (set by the
-    /// Metal host's wiring; never called under this service's lock). Used
-    /// by `surface(id:)` and by guest locks without kIOSurfaceLockAvoidSync,
-    /// as IOSurfaceLock synchronizes with pending GPU access.
     public var gpuWriteWait: (@Sendable (UInt32) -> Void)?
 
-    /// The surface's seed (raised by every lock for writing) and whether any
-    /// lock is held, or nil when there is no such surface. The GPU back end
-    /// skips copying in a surface whose seed did not change.
     public func lockState(id: UInt32) -> (seed: UInt32, locked: Bool)? {
         lock.withLock { surfaces[id].map { ($0.seed, $0.lockCount > 0) } }
     }
@@ -741,9 +647,8 @@ public final class IOSurfaceHostService: @unchecked Sendable {
                              allocationSize: Int(s.allocationSize), planes: planes)
     }
 
-    /// A copy of a surface's pixels and layout, or nil.
     public func snapshot(surfaceID: UInt32) -> IOSurfaceSnapshot? {
-        gpuWriteWait?(surfaceID)  // a screenshot shows finished pixels (see `surface(id:)`)
+        gpuWriteWait?(surfaceID)
         return lock.withLock {
             guard let s = surfaces[surfaceID] else { return nil }
             let count = Int(min(UInt64(s.allocationSize), s.memory.size))
@@ -754,24 +659,15 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         }
     }
 
-    // MARK: Snapshot (snapshot.md §2.6, §8)
-
-    /// Field tags of the service's state record.
     enum SnapTag {
         static let nextSerial: UInt16 = 1, surfaces: UInt16 = 2, connections: UInt16 = 3
-        // surface
         static let id: UInt16 = 10, entry: UInt16 = 11, serial: UInt16 = 12, name: UInt16 = 13, creation: UInt16 = 14
         static let planes: UInt16 = 15, layout: UInt16 = 16, seed: UInt16 = 17, casting: UInt16 = 18, values: UInt16 = 19
         static let attachments: UInt16 = 20, lockCount: UInt16 = 21, useCount: UInt16 = 22, purgeable: UInt16 = 23
         static let ports: UInt16 = 24
-        // connection
         static let port: UInt16 = 30, client: UInt16 = 31, refIDs: UInt16 = 32, refCounts: UInt16 = 33
     }
 
-    /// The service's whole state (surfaces, connections, surface ports), as
-    /// host-task names; nil when the service is busy (its lock is taken):
-    /// the snapshot tries again. Called with the kernel lock held, so it
-    /// only tries the service lock (the service takes it before the kernel lock).
     public func trySnapshotState() -> SnapshotFields? {
         guard lock.try() else { return nil }
         defer { lock.unlock() }
@@ -811,11 +707,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         return g
     }
 
-    /// After a restore, before any guest thread runs: the recorded state.
-    /// The host task holds the recorded rights under their recorded names
-    /// (connection and surface ports with their no-senders requests, set
-    /// membership, memory entries), so only the service's tables come back.
-    /// Returns the number of surfaces.
     @discardableResult
     public func restoreState(_ r: SnapshotFieldReader) throws -> Int {
         typealias T = SnapTag
@@ -866,7 +757,6 @@ public final class IOSurfaceHostService: @unchecked Sendable {
         return restored.count
     }
 
-    /// The IDs and names of the live surfaces (diagnostics).
     public var surfaceSummary: [(id: UInt32, name: String, width: Int, height: Int)] {
         lock.withLock { surfaces.values.sorted { $0.id < $1.id }.map { ($0.id, $0.name, Int($0.width), Int($0.height)) } }
     }

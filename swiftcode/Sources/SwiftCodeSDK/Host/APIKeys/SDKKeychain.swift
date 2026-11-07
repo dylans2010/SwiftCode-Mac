@@ -3,39 +3,14 @@ import Foundation
 import Security
 #endif
 
-// MARK: - SDKSecretStoring
-//
-// Ported from Legacy `SwiftCode/SDK/Host/APIKeys/SDKKeychain.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The SDK host needs a secret store with ENUMERATION — the API key store
-// lists key metadata (`sdk.apikey.*`) and the Assist application store
-// lists applications (`sdk.assistapp.*`). SwiftCodeAssistant's `SecretStore`
-// protocol has no enumeration, so it cannot serve here; this protocol is
-// the SDK host's own seam. The macOS backend uses the same Security
-// framework primitives as SwiftCodeAssistant's `KeychainSecretStore`; the
-// Linux backend mirrors its `FileSecretStore` discipline (0700 directory,
-// 0600 files, atomic writes) under a separate SDK directory so SDK
-// secrets never share a store with assistant secrets.
-
-/// A secret store with enumeration, for SDK host secrets (device key,
-/// API key metadata, Assist applications, KeychainSDK vault envelopes).
-/// Values are opaque bytes; callers own the encoding. Never store a
-/// presented API key secret here — only metadata and host-held keys.
 public protocol SDKSecretStoring: Sendable {
-    /// Returns the stored value, or `nil` when the account does not exist.
     func read(account: String) throws -> Data?
-    /// Creates or replaces the stored value.
     func write(_ data: Data, account: String) throws
-    /// Deletes the stored value. No-op when absent.
     func delete(account: String) throws
-    /// All account names starting with `prefix`, sorted.
     func accountNames(withPrefix prefix: String) throws -> [String]
 }
 
 public enum SDKSecretStoreFactory {
-    /// The default store for this platform: macOS Keychain, or the file
-    /// store on Linux.
     public static func defaultStore() -> any SDKSecretStoring {
         #if canImport(Security)
         return SDKKeychain.shared
@@ -45,21 +20,11 @@ public enum SDKSecretStoreFactory {
     }
 }
 
-// MARK: - SDKKeychain (macOS)
-
 #if canImport(Security)
 
-/// macOS Keychain-backed secret store for SDK host secrets.
-///
-/// Service `com.swiftcode.sdk`, accessibility
-/// `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`. No UserDefaults
-/// fallback, no in-memory cache. Failures surface as
-/// `.serviceUnavailable` — the host fails closed, never silently
-/// regenerating key material.
 public final class SDKKeychain: SDKSecretStoring, @unchecked Sendable {
     public static let shared = SDKKeychain()
 
-    /// The Keychain service for all SDK host secrets.
     public static let service = "com.swiftcode.sdk"
 
     private init() {}
@@ -157,13 +122,6 @@ public final class SDKKeychain: SDKSecretStoring, @unchecked Sendable {
 
 #else
 
-// MARK: - SDKFileSecretStore (Linux)
-
-/// File-backed secret store for Linux, mirroring the discipline of
-/// SwiftCodeAssistant's `FileSecretStore`: a 0700 directory, 0600 files,
-/// atomic writes. Directory: `~/.config/swiftcode/sdk-secrets` (or
-/// `$XDG_CONFIG_HOME/swiftcode/sdk-secrets`). Separate from the assistant
-/// secret store — SDK secrets never share a store with assistant secrets.
 public final class SDKFileSecretStore: SDKSecretStoring, @unchecked Sendable {
     private let directory: URL
 
@@ -179,8 +137,6 @@ public final class SDKFileSecretStore: SDKSecretStoring, @unchecked Sendable {
     }
 
     private func fileURL(for account: String) -> URL {
-        // Accounts are host-controlled identifiers; encode them so they
-        // can never escape the directory.
         let encoded = Data(account.utf8).base64EncodedString()
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")
@@ -235,9 +191,6 @@ public final class SDKFileSecretStore: SDKSecretStoring, @unchecked Sendable {
     }
 
     public func accountNames(withPrefix prefix: String) throws -> [String] {
-        // File names are base64-encoded accounts, so enumeration reads
-        // each file name back through the decoder. The store is small
-        // (one file per key/application), so this is a bounded scan.
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else {
             return []
         }

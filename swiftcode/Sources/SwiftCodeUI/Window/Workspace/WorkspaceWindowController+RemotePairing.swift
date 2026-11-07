@@ -1,12 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Device Hub's pairing actions for SwiftCode's remote simulators
-/// (`specs/simulator/device-pairing.md` P-8, §13): each is one `swiftcode-sim`
-/// pairing command through ssh (`RemoteSimulator.pairCommand`,
-/// `unpairCommand`, `activateCommand`), its output in the console, then the
-/// pairs are read again (`list-pairs --json`, `RemotePairsStore`), which
-/// also relists the phone-with-watch run destinations.
 extension WorkspaceWindowController {
     func configureRemotePairing(_ c: DevicesController, defaults: UserDefaults, ssh: String?) {
         func settings() -> RemoteSimulatorSettings {

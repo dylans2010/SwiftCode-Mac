@@ -1,20 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Offline Models/MLXSwift Foundation/MLXModelContainer.swift
-//   (Legacy commit d51a8f0d)
-//
-// MLX GAP (see MLXIntegration.swift): no MLX runtime is linked in this
-// target, so `loadModel` succeeds only as far as real discovery goes —
-// `LLMModelFactory` validates the directory's config, tokenizer and
-// weights — and `generate` throws `MLXRuntimeError.runtimeUnavailable`
-// through the loaded model. The container itself holds no fake output:
-// it reports load state honestly and never invents tokens.
-//
-// Adaptation notes: Legacy was `ObservableObject` with `@Published`
-// state; the destination uses `@Observable` (see LocalModelManager /
-// OfflineModelManager), so this follows that convention. Legacy's
-// `NSError(domain: "MLXModelContainer", code: 1, …)` for "model not
-// loaded" is replaced with the typed `MLXRuntimeError.modelNotLoaded`.
-
 import Foundation
 import Observation
 

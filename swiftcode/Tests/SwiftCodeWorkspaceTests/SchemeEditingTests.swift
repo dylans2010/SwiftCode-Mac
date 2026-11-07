@@ -29,7 +29,6 @@ import Testing
         #expect(again.document.child("LaunchAction")?.child("EnvironmentVariables") == nil)
         #expect(again.configuration(for: "LaunchAction") == "Release")
         #expect(again.customWorkingDirectory == "/tmp/work")
-        // Undo every edit: the original bytes come back.
         s.setLaunchArguments([.init(value: "--verbose \"quoted\" & more", isEnabled: true), .init(value: "--off", isEnabled: false)])
         s.setLaunchEnvironment([.init(key: "SCRIPT", value: "line1\nline2", isEnabled: true)])
         s.setConfiguration("Debug", for: "LaunchAction")
@@ -60,6 +59,6 @@ import Testing
         #expect(try String(contentsOf: user, encoding: .utf8) == text)
         try s.setShared(true, user: "tester")
         #expect(s.url?.path == shared.path && FileManager.default.fileExists(atPath: shared.path))
-        #expect(try s.save() == false) // unchanged: not rewritten
+        #expect(try s.save() == false)
     }
 }

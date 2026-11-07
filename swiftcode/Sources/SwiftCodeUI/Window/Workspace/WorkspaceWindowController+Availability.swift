@@ -1,14 +1,9 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Commands that would do nothing in the window's present state show
-/// disabled instead (a tester's rule: no menu item is a silent no-op).
 extension WorkspaceWindowController {
-    /// Whether the language service can answer for the focused editor.
     var canAskLanguageService: Bool { hasSourceFile && session.language != nil }
 
-    /// Enablement of the commands whose actions need a state; nil = not one
-    /// of them.
     func validateAvailability(_ item: NSMenuItem) -> Bool? {
         switch item.action {
         case #selector(stepOverInstruction(_:)), #selector(stepIntoInstruction(_:)):

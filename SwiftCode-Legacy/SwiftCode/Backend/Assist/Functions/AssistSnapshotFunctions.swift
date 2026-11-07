@@ -13,7 +13,6 @@ public struct AssistSnapshotFunctions {
         try fileManager.createDirectory(at: snapshotURL, withIntermediateDirectories: true)
         try fileManager.copyItem(at: project, to: snapshotURL.appendingPathComponent("files"))
 
-        // Save metadata
         let metadata = AssistSnapshotMetadata(id: snapshotId, timestamp: Date(), message: message, rootPath: project.path)
         let metadataData = try JSONEncoder().encode(metadata)
         try metadataData.write(to: snapshotURL.appendingPathComponent("metadata.json"))
@@ -30,13 +29,11 @@ public struct AssistSnapshotFunctions {
             throw NSError(domain: "AssistSnapshot", code: 404, userInfo: [NSLocalizedDescriptionKey: "Snapshot '\(id)' not found."])
         }
 
-        // Clean current project
         let contents = try fileManager.contentsOfDirectory(at: project, includingPropertiesForKeys: nil)
         for url in contents {
             try fileManager.removeItem(at: url)
         }
 
-        // Restore files
         let restoredContents = try fileManager.contentsOfDirectory(at: filesURL, includingPropertiesForKeys: nil)
         for url in restoredContents {
             try fileManager.copyItem(at: url, to: project.appendingPathComponent(url.lastPathComponent))
@@ -82,7 +79,6 @@ public struct AssistSnapshotFunctions {
             } else if !projectExists && snapshotExists {
                 diffs.append(AssistFileDiff(path: path, status: .deleted, changes: "File deleted"))
             } else {
-                // Both exist, compare contents
                 let projectContent = try? String(contentsOf: projectFileURL, encoding: .utf8)
                 let snapshotContent = try? String(contentsOf: snapshotFileURL, encoding: .utf8)
 

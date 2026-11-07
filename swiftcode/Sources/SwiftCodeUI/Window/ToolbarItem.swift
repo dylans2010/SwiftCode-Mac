@@ -1,44 +1,7 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Models/ToolbarItem.swift
-//   (Legacy main ab03f681)
-//
-// Destination: SwiftCodeUI/Window/ToolbarItem.swift.
-//
-// Adaptations (behaviour preserved unless noted):
-// * `ToolbarManager`: Legacy's `@MainActor final class ToolbarManager:
-//   ObservableObject` with `@Published tools` becomes
-//   `@MainActor @Observable public final class ToolbarManager: Sendable`
-//   — the destination's convention for ported state singletons (no
-//   ObservableObject / @Published / Combine; see the batch-2
-//   ToolbarSettings header). `tools` is a plain stored property now;
-//   observation, persistence (UserDefaults key
-//   `com.swiftcode.toolbarTools`, JSON), the merge-on-load that drops
-//   deprecated tools and appends new defaults, and the full
-//   `defaultTools` catalogue are unchanged.
-// * Everything else is verbatim apart from `public` access: `ToolbarTool`,
-//   `WorkspaceHubTool`, `SwiftCodeToolbarDelegate` (NSToolbarDelegate,
-//   item prefix `com.swiftcode.toolbar.`, default/allowed identifiers,
-//   customization palette) and the `.toolbarToolActivated` /
-//   `.showProjectTemplatesOnOpen` notification names.
-// * `import SwiftUI` is added: `moveTool(from:to:)` uses
-//   `move(fromOffsets:toOffset:)`, which lives in SwiftUI.
-//
-// Notes for landing:
-// * No `ToolbarTool`, `ToolbarManager`, `SwiftCodeToolbarDelegate` or
-//   `WorkspaceHubTool` type exists anywhere in main today — the full-
-//   symbol-diff "covered" claim for `WorkspaceHubTool` was computed
-//   against the dropped batch-2 tree, not main. This file restores all four.
-// * `.toolbarToolActivated` currently has no observers in main
-//   (SDKViewOpener notes the bridge does not exist yet); the delegate is
-//   the producer side. Wiring observers is a separate step, not a reason
-//   to drop the producer.
-
 import Foundation
 import AppKit
 import Observation
 import SwiftUI
-
-// MARK: - Toolbar Item
 
 public struct ToolbarTool: Identifiable, Codable, Equatable {
     let id: String
@@ -52,8 +15,6 @@ public struct ToolbarTool: Identifiable, Codable, Equatable {
         lhs.id == rhs.id
     }
 }
-
-// MARK: - Toolbar Manager
 
 @MainActor
 @Observable
@@ -120,7 +81,6 @@ public final class ToolbarManager: Sendable {
 
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
            let decoded = try? JSONDecoder().decode([ToolbarTool].self, from: data) {
-            // Keep user customization for supported tools only, and drop deprecated tools.
             var merged: [ToolbarTool] = []
             var seen = Set<String>()
 
@@ -191,14 +151,10 @@ public final class ToolbarManager: Sendable {
     ]
 }
 
-// MARK: - Notifications
-
 extension Notification.Name {
     static let toolbarToolActivated = Notification.Name("com.swiftcode.toolbarToolActivated")
     static let showProjectTemplatesOnOpen = Notification.Name("com.swiftcode.showProjectTemplatesOnOpen")
 }
-
-// MARK: - Native macOS Toolbar Customization Delegate
 
 public struct WorkspaceHubTool: Identifiable, Hashable, Sendable {
     public let id: String
@@ -226,7 +182,6 @@ public final class SwiftCodeToolbarDelegate: NSObject, NSToolbarDelegate {
 
     public static let itemPrefix = "com.swiftcode.toolbar."
 
-    // All available tools from MainToolsView and comprehensive search tools
     public static let allAvailableTools: [WorkspaceHubTool] = [
         WorkspaceHubTool(id: "terminal", name: "Terminal Console", description: "Open local shells, run background commands, manage SSH nodes, and configure terminal themes.", iconName: "terminal.fill", colorHex: "#5AC8FA", category: "Utilities", destination: "terminal"),
         WorkspaceHubTool(id: "build_settings", name: "Xcode Build Settings", description: "Manage optimization levels, target SDKs, and build parameters.", iconName: "gearshape.2.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "xcodeBuildSettings"),

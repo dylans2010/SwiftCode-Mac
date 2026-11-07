@@ -1,14 +1,7 @@
 import Foundation
 import OVRender
 
-// `Path` (round R5): an outline of lines and Bézier curves. Written from the
-// public API names (api-inventory.md) and the usual geometry of the shapes
-// (circular arcs approximated by cubic Béziers, 4 per full turn).
-
 #if !canImport(CoreGraphics)
-/// CoreGraphics' affine transform, which swift-corelibs-foundation lacks on
-/// Linux (an interop name used by SwiftUI's API): x' = a·x + c·y + tx,
-/// y' = b·x + d·y + ty.
 public struct CGAffineTransform: Equatable, Hashable, Sendable {
     public var a: CGFloat, b: CGFloat, c: CGFloat, d: CGFloat, tx: CGFloat, ty: CGFloat
     public init(a: CGFloat, b: CGFloat, c: CGFloat, d: CGFloat, tx: CGFloat, ty: CGFloat) {
@@ -23,7 +16,6 @@ public struct CGAffineTransform: Equatable, Hashable, Sendable {
     }
     public static let identity = CGAffineTransform()
     public var isIdentity: Bool { self == .identity }
-    /// `self` followed by `t2`.
     public func concatenating(_ t2: CGAffineTransform) -> CGAffineTransform {
         CGAffineTransform(a: a * t2.a + b * t2.c, b: a * t2.b + b * t2.d,
                           c: c * t2.a + d * t2.c, d: c * t2.b + d * t2.d,
@@ -71,9 +63,7 @@ extension CGAffineTransform {
     }
 }
 
-/// An outline in two dimensions.
 public struct Path: Equatable, Sendable, CustomStringConvertible {
-    /// One element of a path.
     public enum Element: Equatable, Sendable {
         case move(to: CGPoint)
         case line(to: CGPoint)
@@ -123,7 +113,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         }.joined(separator: " ")
     }
 
-    /// The last point of the path (nil when empty).
     public var currentPoint: CGPoint? {
         var start: CGPoint?, cur: CGPoint?
         for e in elements {
@@ -138,8 +127,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         return cur
     }
 
-    /// Bounds of the path's points and control points (the tight bounds of
-    /// the curves lie inside).
     public var boundingRect: CGRect {
         var r = CGRect.null
         func add(_ p: CGPoint) { r = r.union(CGRect(origin: p, size: .zero)) }
@@ -160,8 +147,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
     }
 
     public func forEach(_ body: (Element) -> Void) { elements.forEach(body) }
-
-    // MARK: Building
 
     public mutating func move(to p: CGPoint) { elements.append(.move(to: p)) }
 
@@ -217,11 +202,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
                        style: style, transform: transform)
     }
 
-    /// Corners clockwise from the top left. `.continuous` corners use a
-    /// smoother curve that starts further from the corner (SwiftCode's own
-    /// approximation of a curvature-continuous corner: the radius is
-    /// stretched by 1.28 along each edge and the handles shortened, so the
-    /// curvature ramps up instead of jumping).
     private mutating func addRoundedRect(in rect: CGRect, radii: (CGSize, CGSize, CGSize, CGSize), style: RoundedCornerStyle,
                                          transform: CGAffineTransform) {
         let r = rect.standardized
@@ -231,9 +211,8 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         }
         let (tl, tr, br, bl) = (clamp(radii.0), clamp(radii.1), clamp(radii.2), clamp(radii.3))
         let continuous = style == .continuous
-        // Extent along the edges and handle factor of a corner.
         func ext(_ v: CGFloat, _ limit: CGFloat) -> CGFloat { continuous ? min(v * 1.28, limit) : v }
-        let k: CGFloat = continuous ? 0.33 : 0.447_715_25 // 1 − 0.5523 for circular arcs
+        let k: CGFloat = continuous ? 0.33 : 0.447_715_25
         var p = Path()
         let w2 = r.width / 2, h2 = r.height / 2
         let tlx = ext(tl.width, w2), tly = ext(tl.height, h2)
@@ -279,8 +258,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         addPath(p, transform: transform)
     }
 
-    /// An arc from `startAngle` sweeping `delta` (positive: clockwise on
-    /// screen, since y grows downwards).
     public mutating func addRelativeArc(center: CGPoint, radius: CGFloat, startAngle: Angle, delta: Angle,
                                         transform: CGAffineTransform = .identity) {
         var p = Path()
@@ -301,7 +278,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
             a = b
         }
         if let cur = currentPoint, transform.isIdentity, elements.last != .closeSubpath {
-            // Continue the current subpath with a line to the arc's start.
             if cur != start { elements.append(.line(to: start)) }
             elements.append(contentsOf: p.elements.dropFirst())
         } else {
@@ -309,8 +285,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// An arc of a circle from `startAngle` to `endAngle`; `clockwise` as
-    /// in a y-up coordinate system (so `false` draws clockwise on screen).
     public mutating func addArc(center: CGPoint, radius: CGFloat, startAngle: Angle, endAngle: Angle, clockwise: Bool,
                                 transform: CGAffineTransform = .identity) {
         var sweep = endAngle.radians - startAngle.radians
@@ -322,8 +296,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         addRelativeArc(center: center, radius: radius, startAngle: startAngle, delta: .radians(sweep), transform: transform)
     }
 
-    /// A tangent arc between the lines current point → `tangent1End` and
-    /// `tangent1End` → `tangent2End`.
     public mutating func addArc(tangent1End p1: CGPoint, tangent2End p2: CGPoint, radius: CGFloat,
                                 transform: CGAffineTransform = .identity) {
         guard let p0 = currentPoint else {
@@ -363,8 +335,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         elements.append(contentsOf: transform.isIdentity ? path.elements : path.applying(transform).elements)
     }
 
-    // MARK: Transforming
-
     public func applying(_ t: CGAffineTransform) -> Path {
         var p = Path()
         p.elements = elements.map { e in
@@ -381,8 +351,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
 
     public func offsetBy(dx: CGFloat, dy: CGFloat) -> Path { applying(CGAffineTransform(translationX: dx, y: dy)) }
 
-    /// The part of the path between fractions `from` and `to` of its length
-    /// (curves measured by flattening).
     public func trimmedPath(from: CGFloat, to: CGFloat) -> Path {
         let a = max(0, min(1, Double(from))), b = max(0, min(1, Double(to)))
         if a <= 0 && b >= 1 { return self }
@@ -454,8 +422,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         return out
     }
 
-    /// Whether `point` is inside the path (non-zero or even-odd rule),
-    /// computed on the flattened outline.
     public func contains(_ point: CGPoint, eoFill: Bool = false) -> Bool {
         var winding = 0
         var subStart = CGPoint.zero, last = CGPoint.zero, inSub = false
@@ -481,7 +447,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
         return eoFill ? winding % 2 != 0 : winding != 0
     }
 
-    /// The display-list form of the path.
     package var renderPath: RenderPath {
         RenderPath(elements.map { e in
             switch e {
@@ -495,7 +460,6 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Corner radii of a rectangle.
 public struct RectangleCornerRadii: Equatable, Sendable, Animatable {
     public var topLeading: CGFloat
     public var bottomLeading: CGFloat

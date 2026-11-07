@@ -8,9 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 03-architecture.md §3 (`onChange`), §2 (`task(id:)`), §5 (update-cycle
-// order) and §7 (preferences; checklist K-2 `df.pref=first,second`).
-
 struct OnChangeProbe: View {
     let log: Log
     let value: Controls<Int>
@@ -124,8 +121,6 @@ struct LifecycleTests {
     }
 }
 
-// MARK: - Preferences
-
 struct NamesKey: PreferenceKey {
     static var defaultValue: [String] { [] }
     static func reduce(value: inout [String], nextValue: () -> [String]) { value += nextValue() }
@@ -174,7 +169,6 @@ struct PreferenceOverlay: View {
             Text("A").preference(key: NamesKey.self, value: ["x", "y"])
         }
         .overlayPreferenceValue(NamesKey.self) { names in
-            // swiftlint:disable:next redundant_discardable_let - a side effect inside a view builder
             let _ = log("overlay \(names.count)")
             Color.clear
         }
@@ -203,8 +197,6 @@ struct PreferenceTests {
     @Test("nested reduction and transformPreference")
     func nesting() {
         _ = ViewGraph.rendered(PreferenceNesting(log: log))
-        // inner1 reduced with inner2 → inner2; the green colour starts from
-        // the default and transforms it; reduced last.
         #expect(log.take() == ["last=default+t"])
     }
 

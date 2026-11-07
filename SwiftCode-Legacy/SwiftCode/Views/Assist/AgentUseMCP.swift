@@ -12,7 +12,6 @@ public struct AgentUseMCP: View {
     public var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                // Header row
                 HStack(alignment: .center, spacing: 8) {
                     Image(systemName: "network.badge.shield.half.filled")
                         .font(.headline)
@@ -44,7 +43,6 @@ public struct AgentUseMCP: View {
 
                     Spacer()
 
-                    // Pulse/Execution Status
                     if metadata.isExecuting {
                         HStack(spacing: 5) {
                             ProgressView()
@@ -85,7 +83,6 @@ public struct AgentUseMCP: View {
 
                 Divider()
 
-                // Info Grid: Duration, Timestamp
                 HStack(spacing: 20) {
                     Label {
                         Text(metadata.timestamp.formatted(date: .omitted, time: .shortened))
@@ -105,7 +102,6 @@ public struct AgentUseMCP: View {
                 }
                 .foregroundColor(.secondary)
 
-                // Arguments / Request Summary
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ARGUMENTS PAYLOAD")
                         .font(.system(size: 9, weight: .bold))
@@ -120,7 +116,6 @@ public struct AgentUseMCP: View {
                         .textSelection(.enabled)
                 }
 
-                // Output / Response Summary
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(metadata.success ? "MCP EXECUTION RESULT" : "EXECUTION OUTPUT / ERRORS")

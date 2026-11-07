@@ -1,14 +1,3 @@
-// StereoProbe: our own black-box probe of how many views the visionOS simulator gives a
-// CompositorServices layer (Ycode dirty-room observation, OBS-VISION-STEREO 2026-11-01).
-// Opens a full immersive space with a CompositorLayer and logs (stdout + os_log, prefix "SP:"):
-// the layer capabilities (layouts, foveation, formats), the configuration it got, the
-// properties (view count, texture topologies), and per frame for the first frames and
-// then every 120th: drawable count, views (transform, tangents, texture map), texture
-// sizes/array lengths, depth range, projection per view, device anchor.
-// Each view is cleared to its own colour (view 0 red, view 1 green, others blue), and a
-// small white square is drawn at a world point 2 m in front so a stereo pair would show
-// parallax. Launch args: -layout dedicated|shared|layered (default layered), -fov (foveation when supported),
-// -fovforce (ask for foveation even when unsupported; logs each drawable's rate maps; OBS-VISION-RRM).
 import ARKit
 import CompositorServices
 import Metal
@@ -38,7 +27,6 @@ struct Cfg: CompositorLayerConfiguration {
         case "shared": configuration.layout = .shared
         default: configuration.layout = .layered
         }
-        // -fovforce (OBS-VISION-RRM): ask for foveation even when the capabilities say it is unsupported
         configuration.isFoveationEnabled = (CommandLine.arguments.contains("-fov") && capabilities.supportsFoveation) || CommandLine.arguments.contains("-fovforce")
         configuration.colorFormat = .bgra8Unorm_srgb
         configuration.depthFormat = .depth32Float
@@ -128,7 +116,6 @@ final class Renderer {
                         guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { continue }
                         enc.setViewport(tm.viewport)
                         if let pso = pso {
-                            // world point (0, 1.5, -2): model at that point, view = (device * view.transform)^-1
                             var model = matrix_identity_float4x4; model.columns.3 = SIMD4<Float>(0, 1.5, -2, 1)
                             var mvp = d.computeProjection(viewIndex: vi) * (device * v.transform).inverse * model
                             enc.setRenderPipelineState(pso)

@@ -2,22 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// Wave 1 slice C: file inspection, diff and hashes.
-///
-/// Behaviour ported from Legacy's `AssistDataInspectionTools` (diff),
-/// `AssistFileChecksumVerifierTool`, `AssistFileHashVerifyTool`,
-/// `AssistFileTypeBreakdownTool`, `AssistFindDuplicateFilesTool`,
-/// `AssistEmptyDirsFindTool`, `AssistExecutableFilesScanTool` and
-/// `AssistSymlinkAuditTool` (Dylan's own code, ported under MIT): same tool
-/// ids, titles, descriptions, input properties and defaults. Paths resolve
-/// with the shared `resolveFileReadingPath(_:in:)` (a leading `/` is
-/// workspace-root-relative, anything outside the workspace is refused) and
-/// hashes use the shared swift-crypto `FileHashAlgorithm` — never
-/// Legacy's CryptoKit calls or its `shasum` / `md5` subprocesses.
-///
-/// NOTE: this array is not wired into `installTools()` yet — that lives in
-/// `SwiftCodeTools.swift`, which this slice must not modify. The coordinator
-/// adds `+ fileInspectionTools` there.
 extension SwiftCodeMCPHost {
     var fileInspectionTools: [MCPTool] {
         [
@@ -47,8 +31,6 @@ extension SwiftCodeMCPHost {
                 } catch {
                     throw MCPToolError("Failed to read files for comparison: \(error.localizedDescription)")
                 }
-                // Legacy splits on `.newlines`, so a trailing newline leaves
-                // a final empty element that counts as a line.
                 let linesA = contentA.components(separatedBy: .newlines)
                 let linesB = contentB.components(separatedBy: .newlines)
                 if contentA == contentB {
@@ -58,8 +40,6 @@ extension SwiftCodeMCPHost {
                                         "diff": .string("")],
                                        summary: text)
                 }
-                // A minimal (Myers) diff: one inserted line no longer
-                // makes the whole tail read as changed (gap closure).
                 let compared = MyersDiff.diff(old: linesA, new: linesB)
                 let diffText = MyersDiff.unifiedDiff(result: compared, oldFile: relA, newFile: relB)
                 let added = compared.added
@@ -71,10 +51,6 @@ extension SwiftCodeMCPHost {
                                    summary: text)
             },
             tool("file_checksum_verifier", "File Checksum Verifier",
-                 // NOTE: Legacy's description said "computes and verifies",
-                 // but the tool takes no expected hash and verifies
-                 // nothing — it only computes the digest. Description
-                 // corrected; see specs/ide/assist-tool-catalogue.md.
                  "Computes a SHA-256, SHA-1, or MD5 cryptographic hash for a workspace file.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "path": Schema.string("Relative path to file in workspace."),
@@ -85,10 +61,6 @@ extension SwiftCodeMCPHost {
                 let s = try h.session(for: call)
                 let url = try h.resolveFileReadingPath(raw, in: s)
                 guard FileManager.default.fileExists(atPath: url.path) else { throw MCPToolError("File not found at: \(raw)") }
-                // Legacy's switch fell through to SHA-256 for an unknown
-                // algorithm name (and still printed that name). The digest
-                // behaviour is kept; the reported algorithm is the one
-                // actually used.
                 let requested = (call.string("algorithm") ?? "sha256").lowercased()
                 let algorithm = FileHashAlgorithm(rawValue: requested) ?? .sha256
                 let hash: String
@@ -105,9 +77,6 @@ extension SwiftCodeMCPHost {
                                    summary: text)
             },
             tool("file_hash_verify", "Verify File Hash",
-                 // NOTE: Legacy hashed via the `shasum` / `md5` CLIs; the
-                 // port hashes in-process with swift-crypto. Description
-                 // corrected to match the implementation.
                  "Computes a file hash (SHA-256, SHA-1, or MD5) and compares it to an expected hash. A mismatch is reported as a successful comparison with match false, not as a tool error.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "path": Schema.string("Workspace-relative path of the file to hash."),
@@ -139,7 +108,6 @@ extension SwiftCodeMCPHost {
                 } catch {
                     throw MCPToolError("Failed to compute \(algorithmName) for \(raw).")
                 }
-                // A mismatch is a successful comparison, not an error.
                 let match = computed == expected
                 let rel = h.relative(url.path, in: s)
                 let text = match
@@ -190,7 +158,6 @@ extension SwiftCodeMCPHost {
                 let minSize = max(0, call.int("minSize") ?? 1)
                 let s = try h.session(for: call)
                 let url = try h.inspectionDirectory(raw, in: s)
-                // Group by size first so only same-size files are hashed.
                 var bySize: [Int64: [URL]] = [:]
                 guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey],
                                                                       options: [.skipsHiddenFiles]) else {
@@ -217,8 +184,6 @@ extension SwiftCodeMCPHost {
                     return .structured(["path": .string(raw), "groups": .array([]), "groupCount": .int(0)],
                                        summary: "No duplicate files found under \(raw).")
                 }
-                // Legacy shows at most 50 groups in the text; the
-                // structured list carries them all.
                 var lines = ["Duplicate file groups (\(groups.count)):"]
                 for group in groups.prefix(50) { lines.append("- " + group.joined(separator: ", ")) }
                 return .structured(["path": .string(raw), "groups": .array(groups.map { .strings($0) }),
@@ -241,8 +206,6 @@ extension SwiftCodeMCPHost {
                 while let child = enumerator.nextObject() as? URL {
                     let isDir = (try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
                     if !isDir { continue }
-                    // Like Legacy, hidden entries count as contents here:
-                    // `contentsOfDirectory` does not skip them.
                     let contents = (try? FileManager.default.contentsOfDirectory(atPath: child.path)) ?? []
                     if contents.isEmpty { empties.append(h.relative(child.path, in: s)) }
                 }
@@ -295,8 +258,6 @@ extension SwiftCodeMCPHost {
                 let url = try h.inspectionDirectory(raw, in: s)
                 let root = Self.folder(of: s.model)
                 var rows: [(path: String, target: String, broken: Bool, escapes: Bool)] = []
-                // Legacy enumerates with no options, so hidden links are
-                // included too.
                 guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isSymbolicLinkKey],
                                                                       options: []) else {
                     throw MCPToolError("Cannot enumerate directory: \(raw)")
@@ -304,8 +265,6 @@ extension SwiftCodeMCPHost {
                 while let child = enumerator.nextObject() as? URL {
                     let isLink = (try? child.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink ?? false
                     if !isLink { continue }
-                    // Never follow a symlink during traversal (a link to a
-                    // directory is a leaf, never a subtree).
                     enumerator.skipDescendants()
                     let target = (try? FileManager.default.destinationOfSymbolicLink(atPath: child.path)) ?? "(unknown)"
                     let targetURL = child.deletingLastPathComponent().appendingPathComponent(target)
@@ -333,9 +292,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    /// Resolves a directory argument for the scan tools: the shared path
-    /// rules, plus the path must be an existing directory. Legacy reported
-    /// a missing or non-directory path as "Cannot enumerate directory".
     private func inspectionDirectory(_ raw: String, in s: WorkspaceSession) throws -> URL {
         let url = try resolveFileReadingPath(raw, in: s)
         var isDir: ObjCBool = false
@@ -345,16 +301,11 @@ extension SwiftCodeMCPHost {
         return url
     }
 
-    /// A file's size in bytes (0 when it cannot be read), as Legacy's
-    /// `AssistWorkspaceScan.fileSize` reports it.
     private func inspectionFileSize(of url: URL) -> Int64 {
         Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
     }
 }
 
-/// A simple Markdown table (`| Extension | Files | Bytes |` with a `---`
-/// separator row), the shape Legacy's `AssistTextFormat.markdownTable`
-/// renders for `file_type_breakdown`.
 private func fileInspectionMarkdownTable(headers: [String], rows: [[String]]) -> String {
     var lines: [String] = []
     lines.append("| " + headers.joined(separator: " | ") + " |")

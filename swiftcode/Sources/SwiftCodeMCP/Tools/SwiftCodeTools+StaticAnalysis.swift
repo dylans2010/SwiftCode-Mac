@@ -2,100 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy static-analysis tool family (Wave 6, slice B).
-///
-/// Behaviour source: Legacy's `AssistLintTool`,
-/// `AssistSwiftFormatLintTool`, `AssistDeadCodeScanTool`,
-/// `AssistDeadCodeEliminatorTool`, `AssistDuplicateCodeScanTool`,
-/// `AssistUnusedImportsDetectorTool`, `AssistImportCleanupTool`,
-/// `AssistForceUnwrapScanTool`, `AssistTodoScanTool`,
-/// `AssistTodoFixmeScannerTool`, `AssistCommentDensityReportTool`,
-/// `AssistCodeCommentExtractTool`, `AssistComplexityAnalysisTool`,
-/// `AssistFunctionSizeReportTool`, `AssistCodeMetricsTool`,
-/// `AssistStringLiteralAuditTool`,
-/// `AssistDeprecationUsageScanTool`, `AssistSwiftASTInspectorTool`,
-/// `AssistSwiftConcurrencyAnalyzerTool`, `AssistConcurrencyAuditTool`,
-/// `AssistEntryPointsDiscoverTool` and `AssistMigrationTool` (Dylan's
-/// own code, ported under MIT), as specified in
-/// `specs/ide/assist-testing-static-analysis.md`. Shared scanning
-/// lives in `SwiftCodeTools+StaticAnalysisSupport.swift`.
-///
-/// Conventions, following Waves 1–3:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Legacy's
-///   parameter-name aliases (`filePath` / `file_path` for `path`,
-///   `min_lines` for `minLines`) are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   The one exception is `dead_code_eliminator`, whose canonical
-///   Legacy parameter really is `filePath` — that name is kept.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data return a plain text result instead.
-/// * Path resolution follows Legacy's split. The scan tools with
-///   Legacy's strict per-tool resolver (`dead_code_scan`,
-///   `duplicate_code_scan`, `todo_scan`, `import_cleanup`,
-///   `concurrency_audit`) use `staticAnalysisResolveScanPath`
-///   (blank → workspace root; any `..` → the Legacy "Invalid path"
-///   failure; a missing root scans as zero files). Single-file tools
-///   use the session-aware `resolveFileReadingPath`, except
-///   `code_comment_extract` and `swift_ast_inspector`, which use the
-///   strict `resolveFileWritingPath` (Legacy's
-///   `AssistWorkspacePaths.resolve` shape). No path is ever allowed
-///   to escape the workspace.
-/// * All tools are `readOnly: true, idempotent: true`, `writes:
-///   false` — except `import_cleanup`, the one mutating tool
-///   (`safeMutation`, `writes: true`), which gates through
-///   `commit()` — one approval per changed file, in order, stopping
-///   at the first refusal (the Wave 2 multi-file shape). There is no
-///   Autopilot bypass. `MCPServer.run` already refuses `writes:
-///   true` tools when the server is read-only.
-/// * `dead_code_eliminator` never writes anything despite its name:
-///   Legacy's `riskLevel` is `safeRead` and its handler only reports
-///   unused private declarations. The port keeps that.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * The AST tools use swift-syntax directly (gap closure): SwiftCode's `SwiftCodeSyntax` is a
-///   tokenizer / block-structure library, not a Swift declaration
-///   parser, and the `SwiftCodeMCP` target does not depend on it — and
-///   Legacy's own tools are regex / line scans everywhere except
-///   `swift_ast_inspector`. The port therefore reproduces Legacy's
-///   heuristics faithfully (including their known blind spots:
-///   references in strings and comments count as mentions,
-///   substring matching where Legacy does it, brace counting that
-///   ignores strings and comments) and the spec says so plainly.
-///   Nothing here claims full AST fidelity.
-/// * `swift_ast_inspector` parses with swift-syntax (gap closure):
-///   real declarations with line numbers, nesting, inheritance and
-///   imports — replacing the regex structural fallback. Legacy's
-///   primary path runs `xcrun swiftc -dump-ast`; SwiftCode's MCP host
-///   has no Swift toolchain and does not shell out to Apple's
-///   toolchain, so that path is not ported. This is syntactic, not
-///   semantic: no type checker, no cross-file index.
-/// * `deprecation_usage_scan` checks deprecated names in sorted
-///   order; Legacy iterates an `NSMutableSet` (unordered), so its
-///   usage listing order is nondeterministic. The findings are the
-///   same set.
-/// * `import_cleanup`'s per-file write goes through `commit()`
-///   (atomic temp-file + rename) rather than Legacy's direct
-///   `write(to:atomically:)`; a mid-batch write failure therefore
-///   surfaces as a tool error after earlier files were already
-///   committed, as in Legacy (which also returns failure after
-///   writing earlier files).
-///
-/// Wiring: the coordinator adds `staticAnalysisTools` to
-/// `installTools()` in `SwiftCodeTools.swift` (this file must not edit
-/// that file). The registry aliases `metrics` →
-/// `code_metrics_analyzer`, `dead_code` → `dead_code_eliminator`,
-/// `migration_advisor` → `swift_migration_advisor`, `ast_inspector`
-/// → `swift_ast_inspector`, `concurrency_analyzer` →
-/// `swift_concurrency_analyzer`, `swift_format` →
-/// `swift_format_lint`, `todo_scanner` → `todo_fixme_scanner` and
-/// `unused_imports` → `unused_imports_detector` belong in
-/// `MCPServer.toolAliases` (also coordinator-owned); they were
-/// verified against Legacy's `AssistToolRegistry` alias table.
 extension SwiftCodeMCPHost {
     var staticAnalysisTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -269,7 +175,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Lint and dead code
 
     func staticAnalysisLintCode(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -385,9 +290,6 @@ extension SwiftCodeMCPHost {
                     if excludedNames.contains(name) { continue }
                     if exclusionRegex.firstMatch(in: line, options: [], range: range) != nil { continue }
                     let references = wordCounts[name] ?? 0
-                    // The declaration line itself contributes one mention.
-                    // A total of 1 means nothing else in the scanned
-                    // corpus mentions it.
                     if references <= 1 {
                         candidates.append((relative: entry.relative, line: index + 1, kind: kind, name: name, count: references))
                     }
@@ -413,9 +315,6 @@ extension SwiftCodeMCPHost {
                            summary: output)
     }
 
-    /// Despite the name, this tool never writes: Legacy's risk is
-    /// `safeRead` and the handler only reports unused private
-    /// declarations in one file.
     func staticAnalysisDeadCodeEliminator(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let filePath = try fileReadingRequiredString(call, "filePath")
@@ -451,9 +350,6 @@ extension SwiftCodeMCPHost {
         }
         var deadDeclarations: [String] = []
         for decl in privateDeclarations {
-            // Substring occurrences in the whole file (Legacy counts
-            // substrings, not whole words): 1 means declared and never
-            // called.
             let occurrences = content.components(separatedBy: decl.name).count - 1
             if occurrences <= 1 {
                 deadDeclarations.append("Line \(decl.line): Unused private \(decl.kind) '\(decl.name)()' (0 calls in file).")
@@ -499,9 +395,6 @@ extension SwiftCodeMCPHost {
             if aMin != bMin { return aMin < bMin }
             return $0.locations.count > $1.locations.count
         }
-        // Drop windows that are a shifted continuation of an
-        // already-kept group: every location shifted by the same
-        // positive offset.
         var kept: [(key: String, locations: [(file: String, line: Int)])] = []
         for group in groups {
             var isContinuation = false
@@ -545,8 +438,6 @@ extension SwiftCodeMCPHost {
                            summary: output)
     }
 
-    /// Legacy's normalization: trim, skip blank lines, full-line
-    /// comments, and lines made only of punctuation.
     nonisolated static func staticAnalysisNormalizedLines(_ text: String) -> [(line: Int, text: String)] {
         let punctuation = Set<Character>(["{", "}", "(", ")", "[", "]", ",", ";", ":", "."])
         var result: [(line: Int, text: String)] = []
@@ -652,9 +543,6 @@ extension SwiftCodeMCPHost {
             }
             if removeIndexes.isEmpty { continue }
             let updated = lines.enumerated().filter { !removeIndexes.contains($0.offset) }.map { $0.element }.joined(separator: "\n")
-            // One approval per changed file, in order; the first
-            // refusal stops the batch (files already committed stay
-            // changed, as in Legacy, which writes files as it goes).
             try await commit(MCPChange(tool: call.name, path: url.path, relativePath: relative, original: content, proposed: updated,
                                        summary: "Remove unused imports in \(relative)"), call: call, session: s)
             changed.append(relative)
@@ -670,7 +558,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Workspace-wide scans
 
     func staticAnalysisForceUnwrapScan(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -949,7 +836,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Metrics, literals, deprecations, AST, concurrency, entry points
 
     func staticAnalysisCodeMetricsAnalyzer(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -1082,9 +968,6 @@ extension SwiftCodeMCPHost {
                                summary: "No @available(*, deprecated) declarations found in workspace Swift sources.")
         }
         var usages: [String] = []
-        // Legacy iterates an NSMutableSet (unordered); the port checks
-        // names in sorted order so the listing is deterministic. The
-        // set of findings is the same.
         for (url, lines) in files {
             let rel = Self.staticAnalysisRelative(url, root: root)
             for (i, line) in lines.enumerated() {
@@ -1108,15 +991,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    /// Legacy's regex structural fallback, as the whole implementation:
-    /// Legacy's primary path runs `xcrun swiftc -dump-ast`, which
-    /// SwiftCode's MCP host does not do (no Swift toolchain here, and it
-    /// does not shell out to Apple's toolchain). The fallback is
-    /// Legacy's own behaviour when `swiftc` is unavailable, so the
-    /// tool still returns real structural results.
-    /// Gap closure: the real swift-syntax parse
-    /// (`SwiftASTInspection`), not the regex structural fallback.
-    /// See `specs/ide/gap-closure-correctness.md` §5.
     func staticAnalysisSwiftASTInspector(_ call: MCPToolCall) throws -> MCPToolResult {
         try correctnessSwiftASTInspector(call)
     }
@@ -1146,12 +1020,9 @@ extension SwiftCodeMCPHost {
             let lines = content.components(separatedBy: .newlines)
             for (idx, line) in lines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                // Mutable global or static var outside an actor or
-                // @MainActor. The @MainActor / actor check is file-wide,
-                // as in Legacy.
                 if (trimmed.hasPrefix("public static var ") || trimmed.hasPrefix("static var ") || trimmed.hasPrefix("var ")) &&
                    !trimmed.contains("let ") && !content.contains("@MainActor") && !content.contains("actor ") {
-                    if !trimmed.contains("{") { // exclude computed properties
+                    if !trimmed.contains("{") {
                         findings.append("`\(rel):\(idx + 1)`: Mutable shared state `\(trimmed)` without `@MainActor` or `actor` isolation.")
                     }
                 }
@@ -1195,8 +1066,6 @@ extension SwiftCodeMCPHost {
             guard let text = Self.staticAnalysisReadText(url) else { continue }
             let relative = Self.staticAnalysisRelative(url, root: root)
             let lines = text.components(separatedBy: "\n")
-            // File-level: SwiftUI types without @MainActor anywhere in
-            // the file.
             if text.contains("import SwiftUI") && !text.contains("@MainActor") {
                 for (index, line) in lines.enumerated() where line.contains(": View") || line.contains(": ObservableObject") || line.contains(": App") {
                     findings.append((relative: relative, line: index + 1, issue: "SwiftUI type without @MainActor in file (heuristic — verify whether main-actor isolation is needed)"))
@@ -1221,12 +1090,10 @@ extension SwiftCodeMCPHost {
                    match.numberOfRanges >= 2, let nameRange = Range(match.range(at: 1), in: line) {
                     findings.append((relative: relative, line: lineNumber, issue: "Mutable static var '\(String(line[nameRange]))' shared across threads (heuristic — verify synchronization)"))
                 }
-                // Track async function bodies by brace depth.
                 if funcRegex.firstMatch(in: line, options: [], range: range) != nil && line.contains("async") && !inAsyncFunction {
                     inAsyncFunction = true
                     asyncDepth = braceDepth
                 }
-                // Task block without await: scan ahead up to 40 lines.
                 if line.contains("Task") && line.contains("{") {
                     var innerDepth = 0
                     var sawBrace = false
@@ -1271,9 +1138,6 @@ extension SwiftCodeMCPHost {
                            summary: output)
     }
 
-    /// A force unwrap is "!" preceded by a value character (letter,
-    /// digit, "_", ")", or "]") and not followed by "=" (which is
-    /// "!="). Legacy's `hasForceUnwrap`, verbatim.
     nonisolated static func staticAnalysisHasForceUnwrap(_ line: String) -> Bool {
         let chars = Array(line)
         guard chars.count >= 2 else { return false }

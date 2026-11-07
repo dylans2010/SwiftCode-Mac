@@ -1,8 +1,3 @@
-// enttrace: interposer (our own code) that logs the code-signing and file calls a
-// process makes while the simulator's Security framework reads entitlements.
-// Used with `ylaunch entcheck`, which asks SecTask for an entitlement of itself by
-// audit token (the same kind of lookup a daemon does for a peer).
-// Output lines: "YCODE-ENT <call> <args> -> <result>".
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>

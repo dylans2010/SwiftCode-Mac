@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Inspector/StoreKitInspectorView.swift` (SwiftCode-Mac migration, P-UTIL).
-// Cleanup (2026-11-06, StoreKit mock pass, A3): the 'App Store Review Info' section's hardcoded review-notes text ("This unlock gives lifetime access…") and 'promotion_banner.png' mock-image row (Legacy's own static content, ported verbatim) are DELETED. Replacement is real data only: the section now shows the inspected product's own localized description (en_US preferred, via localizedDescription(for:)) and an honest empty state for review notes — SKProduct carries no review-notes field (verified in SwiftCodeIDECore/Model/StoreKitModels.swift), so none is invented and none is editable here. The mock-image row was deleted with no substitute.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeUI
@@ -10,12 +6,10 @@ struct StoreKitInspectorView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var simulationService = StoreKitSimulationService.shared
 
-    // Track selected product for property inspection
     @State private var selectedProductID: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 Image(systemName: "info.circle")
                     .foregroundColor(.accentColor)
@@ -62,7 +56,6 @@ struct StoreKitInspectorView: View {
                         .padding(.top, 40)
                         .padding(.horizontal, 16)
                     } else {
-                        // Product Selector Picker
                         VStack(alignment: .leading, spacing: 4) {
                             Text("SELECT ACTIVE SELECTION")
                                 .font(.system(size: 9, weight: .bold))
@@ -179,7 +172,6 @@ struct StoreKitInspectorView: View {
         let reviewDescription = localizedDescription(for: product)
 
         VStack(alignment: .leading, spacing: 14) {
-            // Section: Meta Identity
             VStack(alignment: .leading, spacing: 6) {
                 Text("PRODUCT IDENTITY")
                     .font(.system(size: 9, weight: .bold))
@@ -216,7 +208,6 @@ struct StoreKitInspectorView: View {
             }
             .padding(.horizontal, 12)
 
-            // Section: Pricing & Availability
             VStack(alignment: .leading, spacing: 6) {
                 Text("PRICING & PROMOTION")
                     .font(.system(size: 9, weight: .bold))
@@ -248,15 +239,6 @@ struct StoreKitInspectorView: View {
             }
             .padding(.horizontal, 12)
 
-            // Section: App Store Review Info — real data only. SKProduct
-            // carries no review-notes field (verified against
-            // SwiftCodeIDECore/Model/StoreKitModels.swift: productID,
-            // referenceName, type, localizations, price, familySharing,
-            // index, availability, images), so review notes are an honest
-            // empty state, and the description shown is the product's own
-            // localized description (en_US preferred). The Legacy
-            // hardcoded review-notes text and 'promotion_banner.png'
-            // mock-image row were deleted with no substitute.
             VStack(alignment: .leading, spacing: 6) {
                 Text("APP STORE REVIEW METADATA")
                     .font(.system(size: 9, weight: .bold))
@@ -289,9 +271,6 @@ struct StoreKitInspectorView: View {
         }
     }
 
-    /// The product's own localized description (en_US preferred, otherwise
-    /// the first non-empty one), or nil when the product has no description.
-    /// Returns nil rather than invented copy.
     private func localizedDescription(for product: SKProduct) -> String? {
         product.localizations.first(where: { $0.locale == "en_US" && !$0.description.isEmpty })?.description
             ?? product.localizations.first(where: { !$0.description.isEmpty })?.description

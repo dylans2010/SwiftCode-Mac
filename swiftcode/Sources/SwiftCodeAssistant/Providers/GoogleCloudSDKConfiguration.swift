@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKConfiguration.swift
-//  SwiftCode
-//
-//  Configuration models for the Google Cloud SDK and Antigravity bridge.
-//
-
 import Foundation
 
 public enum GoogleCloudSDKServiceTier: String, Codable, Sendable {
@@ -16,13 +9,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var model: String
     public var apiKey: String?
     public var oauthToken: String?
-    /// Explicit execution mode separating Google Sign-In Antigravity execution
-    /// ("antigravity") from direct provider API-key execution ("api_key"),
-    /// Vertex AI ("vertex"), or local runtimes ("local").
     public var executionMode: String?
-    /// Google Cloud project ID used as the quota project (x-goog-user-project)
-    /// for OAuth account authentication. Never fabricated: nil means "not
-    /// configured".
     public var userProject: String?
     public var vertex: Bool
     public var project: String?
@@ -46,7 +33,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var litertBackend: String?
     public var downloadIfMissing: Bool
     public var enableSpeculativeDecoding: Bool
-    /// Active Assist execution mode (e.g. "Plan" vs "Autopilot")
     public var activeExecutionMode: String?
 
     public init(
@@ -176,7 +162,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encode(enableSpeculativeDecoding, forKey: .enableSpeculativeDecoding)
     }
 
-    /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
     @MainActor
     public static func resolveDefault(for workspaceURL: URL? = nil, objective: String = "") -> GoogleCloudSDKConfiguration {
         let isSavedModels = AppSettings.shared.useSavedModels
@@ -223,7 +208,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             }
         }
 
-        // Alternative Keys resolution strictly for Gemini/Google when enabled
         if AppSettings.shared.alternativeKeysEnabled, provider == "gemini" || provider == "google" {
             if let altKey = AlternativeKeyManager.shared.getActiveOrNextKey() {
                 apiKey = altKey.key
@@ -281,8 +265,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try? fm.createDirectory(atPath: saveDir, withIntermediateDirectories: true)
 
         let toolkit = AppSettings.shared.assistToolkit
-        // Always provide all registered native tools regardless of toolkit selection
-        // so that the models have full access to every tool and never claim a tool is missing from the environment.
         let toolSchemas = AssistManager.shared.registry.getToolSchemas()
 
         var oauthToken: String? = nil
@@ -351,7 +333,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         )
     }
 
-    /// Converts configuration to a JSON-serializable dictionary for IPC.
     public func toDictionary() -> [String: Any] {
         var dict: [String: Any] = [
             "model": model,
@@ -444,8 +425,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         return dict
     }
 
-    /// Session-reuse contract (C-3): a live bridge session may only be reused
-    /// when every credential-bearing field matches.
     public func canReuseSession(for newConfig: GoogleCloudSDKConfiguration) -> Bool {
         return model == newConfig.model &&
             provider == newConfig.provider &&

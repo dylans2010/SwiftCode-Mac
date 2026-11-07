@@ -4,14 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-// The Coding Assistant pane of the left area (issue #18,
-// `specs/ide/coding-assistant.md` §4, `reference-ui-6.md` §9.2), as the
-// macOS IDE lays it out: the toolbar band, the header with New
-// Conversation (and its chevron's provider menu) and New Group, the
-// conversation list with the Archive group last, then the selected
-// conversation: its status, transcript and message field.
-
-/// The left area while the Coding Assistant pane is shown.
 struct AssistantColumn: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -32,8 +24,6 @@ struct AssistantColumn: View {
     }
 }
 
-/// "New Conversation" with its chevron, and "New Group", each on its own
-/// glass capsule (`liquid-glass.md` §2.4).
 struct AssistantHeader: View {
     var assistant: ShellAssistantModel
     @Environment(\.colorScheme) private var scheme
@@ -86,8 +76,6 @@ struct AssistantHeader: View {
         .padding(.bottom, 6)
     }
 
-    /// The button part: a conversation with the chosen back end (with none
-    /// set up, the pane's status says how to set one up).
     func startConversation() { assistant.newConversation() }
 
     func open() {
@@ -96,9 +84,6 @@ struct AssistantHeader: View {
     }
 }
 
-/// The chevron's menu: "Model Providers", then one row per back end; a
-/// ready one starts a conversation with it, one that is not set up shows
-/// its hint and Set Up.
 struct ProviderStartMenu: View {
     var assistant: ShellAssistantModel
     var openSettings: () -> Void
@@ -121,10 +106,6 @@ struct ProviderStartMenu: View {
     }
 }
 
-// MARK: - The conversation list
-
-/// The outline: groups (each with its conversations), the conversations
-/// outside any group, newest first, then Archive, always last.
 struct ConversationList: View {
     var assistant: ShellAssistantModel
     @State private var collapsed: Set<UUID> = []
@@ -189,12 +170,10 @@ struct ConversationList: View {
     }
 }
 
-/// One row of the list: disclosure, icon, title (or the rename field).
 struct ListRow: View {
     var symbol: String
     var title: String
     var isSelected: Bool
-    /// nil: no disclosure triangle.
     var disclosure: Bool?
     var level: Int
     var renaming: Bool
@@ -239,10 +218,6 @@ struct ListRow: View {
     }
 }
 
-// MARK: - The conversation
-
-/// The selected conversation: the back end's status, the transcript and
-/// the message field.
 struct ConversationPanel: View {
     var model: WorkspaceShellModel
     var assistant: ShellAssistantModel
@@ -268,8 +243,6 @@ struct ConversationPanel: View {
     }
 }
 
-/// Above the transcript when the chosen back end can't be used: its hint,
-/// up to three "Use <ready back end>" buttons, Check Again and Settings….
 struct StatusNote: View {
     var status: AssistantStatus
     var assistant: ShellAssistantModel
@@ -303,7 +276,6 @@ struct StatusNote: View {
     }
 }
 
-/// Small inline buttons in rows of at most three.
 struct FlowButtons: View {
     var titles: [String]
     var action: (Int) -> Void
@@ -324,9 +296,6 @@ struct FlowButtons: View {
     }
 }
 
-/// The message field: the attachment chips, what the request will carry,
-/// the field (Return sends), then the attach menu, the provider and model
-/// pull-down and Send / Stop.
 struct Composer: View {
     var model: WorkspaceShellModel
     @Bindable var assistant: ShellAssistantModel
@@ -410,7 +379,6 @@ struct Composer: View {
     }
 }
 
-/// An attachment above the field: its label and ✕.
 struct AttachmentChip: View {
     var attachment: Attachment
     var colors: ShellColors
@@ -435,9 +403,6 @@ struct AttachmentChip: View {
     }
 }
 
-/// The model pull-down: each back end with its state, its models under it
-/// (the current one checked), then Check Again and Coding Assistant
-/// Settings….
 struct ProviderModelMenu: View {
     var assistant: ShellAssistantModel
     var openSettings: () -> Void
@@ -456,8 +421,6 @@ struct ProviderModelMenu: View {
     }
 }
 
-/// The line under the chips that says what goes with the message (the
-/// open file, the selection, the issues, as Settings allows).
 enum AssistantContextLine {
     static func text(_ ctx: WorkspaceContext, settings: AssistantSettings, attachments: [Attachment]) -> String {
         var parts: [String] = []
@@ -478,8 +441,6 @@ enum AssistantContextLine {
     }
 }
 
-/// The toolbar's New Conversation: a prompt under the button
-/// (`reference-ui-6.md` §9.4); sending starts a conversation in the pane.
 struct NewConversationToolbarButton: View {
     @Bindable var assistant: ShellAssistantModel
     @FocusState private var fieldFocused: Bool

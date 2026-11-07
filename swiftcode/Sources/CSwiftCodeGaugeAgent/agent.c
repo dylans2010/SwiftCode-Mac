@@ -1,16 +1,3 @@
-// Gauge's in-process sampler for Linux processes (cswiftcodegaugeagent.h;
-// specs/ide/profiler.md §3.2). Original SwiftCode code.
-//
-// Loaded with LD_PRELOAD when perf_event_open is refused. With
-// SWIFTCODE_GAUGE_SAMPLES=<file> it arms ITIMER_PROF (process CPU time) at
-// SWIFTCODE_GAUGE_RATE Hz (default 1000); the kernel sends SIGPROF to the
-// thread that was running, whose handler records the interrupted PC and
-// the frame-pointer chain and appends one record to the file:
-//   u32 magic "YGA1", u16 size, u16 frames, u32 pid, u32 tid,
-//   u64 CLOCK_MONOTONIC ns, u64 pc, u64 return addresses[frames]
-// Memory is read with process_vm_readv on the own process, so a bad
-// frame pointer ends the walk instead of faulting. Only async-signal-safe
-// calls run in the handler.
 #if defined(__linux__)
 #define _GNU_SOURCE
 #endif
@@ -41,9 +28,6 @@ static pid_t self_pid;
 static int read_self(uint64_t address, void *buffer, size_t size) {
     struct iovec local = {buffer, size};
     struct iovec remote = {(void *)(uintptr_t)address, size};
-    // Every argument as a full long: syscall() is variadic, and a narrower
-    // value leaves the upper half of its register or stack slot undefined
-    // (the flags word must be exactly 0).
     return syscall(SYS_process_vm_readv, (long)self_pid, (long)&local, 1L, (long)&remote, 1L, 0L) == (long)size ? 0 : -1;
 }
 
@@ -74,8 +58,6 @@ static void on_sigprof(int sig, siginfo_t *info, void *context) {
     } r;
     int n = 0;
 #if defined(__aarch64__)
-    // A leaf that has not stored its frame yet returns through LR; it is
-    // read like the next frame (it may duplicate the caller's return address).
 #endif
     while (n < MAX_FRAMES && fp != 0 && (fp & 7) == 0 && fp >= sp && fp - sp < (64u << 20)) {
         uint64_t pair[2];
@@ -109,7 +91,6 @@ __attribute__((constructor)) static void swiftcode_gauge_agent_start(void) {
     long hz = rate ? strtol(rate, NULL, 10) : 1000;
     if (hz < 10) hz = 10;
     if (hz > 10000) hz = 10000;
-    // Child processes started by the program are not sampled into this file.
     unsetenv("SWIFTCODE_GAUGE_SAMPLES");
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));

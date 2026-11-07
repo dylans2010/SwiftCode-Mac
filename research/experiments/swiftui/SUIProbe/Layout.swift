@@ -1,8 +1,3 @@
-// SUIProbe layout mode: golden layout values. Each case is shown alone inside
-// a `Measure` container, which asks its child for sizes at a fixed set of
-// proposals, records alignment-guide values, places the child at the case's
-// placement proposal, and lets probed descendants record their frames in the
-// container's coordinate space.
 import SwiftUI
 import UIKit
 
@@ -65,8 +60,6 @@ struct Measure: Layout {
     }
 }
 
-/// Lays children out in a column (for display only) and records the default
-/// spacing every pair of children prefers, along both axes.
 struct SpacingProbe: Layout {
     let name: String
     let labels: [String]
@@ -101,7 +94,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
         c.append(LCase(name: n, proposals: proposals, place: place, view: AnyView(v())))
     }
     let w300 = ProposedViewSize(width: 300, height: 500)
-    // Text
     add("text.hello") { Text("Hello") }
     add("text.long") { Text(longText) }
     add("text.long.w100", place: ProposedViewSize(width: 100, height: 500)) { Text(longText) }
@@ -129,7 +121,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
             }.environment(\.dynamicTypeSize, d)
         }
     }
-    // Primitive views
     add("color") { Color.red }
     add("rectangle") { Rectangle() }
     add("circle", place: ProposedViewSize(width: 300, height: 100)) { Circle() }
@@ -147,7 +138,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
     add("image.symbol.resizable") { Image(systemName: "star.fill").resizable() }
     add("image.symbol.resizableFit") { Image(systemName: "star.fill").resizable().scaledToFit() }
     add("label") { Label("Title", systemImage: "star") }
-    // Stacks
     add("hstack.texts") { HStack { Text("A").probe("a"); Text("B").probe("b") } }
     add("hstack.colors") { HStack { Color.red.frame(width: 10, height: 10).probe("a"); Color.blue.frame(width: 10, height: 10).probe("b") } }
     add("hstack.textImage") { HStack { Text("A").probe("a"); Image(systemName: "star").probe("b") } }
@@ -168,7 +158,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
     add("zstack") { ZStack { Color.red.frame(width: 100, height: 50).probe("a"); Text("Hi").probe("b") } }
     add("zstack.bottomTrailing") { ZStack(alignment: .bottomTrailing) { Color.red.frame(width: 100, height: 50).probe("a"); Text("Hi").probe("b") } }
     add("zstack.flex") { ZStack { Color.red.probe("a"); Text("Hi").probe("b") } }
-    // Frames and modifiers
     add("frame.fixed") { Text("Hello").probe("t").frame(width: 100, height: 100) }
     add("frame.topLeading") { Text("Hello").probe("t").frame(width: 100, height: 100, alignment: .topLeading) }
     add("frame.widthOnly") { Text("Hello").probe("t").frame(width: 100) }
@@ -202,7 +191,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
     add("clipped") { Color.red.frame(width: 400, height: 50).probe("c").frame(width: 100).clipped() }
     add("scaleEffect") { Text("Hello").probe("t").scaleEffect(2) }
     add("rotationEffect") { Text("Hello").probe("t").rotationEffect(.degrees(90)) }
-    // Grids
     add("grid") {
         Grid {
             GridRow { Text("A").probe("a"); Text("Longer").probe("b") }
@@ -238,7 +226,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
     }
     add("viewThatFits") { ViewThatFits { Text(longText).fixedSize().probe("a"); Text("short").probe("b") } }
     add("viewThatFits.w400", place: ProposedViewSize(width: 400, height: 500)) { ViewThatFits { Text(longText).fixedSize().probe("a"); Text("short").probe("b") } }
-    // Controls
     add("button.default") { Button("Tap") {} }
     add("button.bordered") { Button("Tap") {}.buttonStyle(.bordered) }
     add("button.borderedProminent") { Button("Tap") {}.buttonStyle(.borderedProminent) }
@@ -259,7 +246,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
     add("datePicker.compact") { DatePicker("D", selection: .constant(Date(timeIntervalSince1970: 0)), displayedComponents: .date) }
     add("gauge") { Gauge(value: 0.5) { Text("G") } }
     add("link") { Link("Ycode", destination: URL(string: "https://example.com")!) }
-    // Containers
     add("scrollView") { ScrollView { VStack { Text("A").probe("a"); Color.red.frame(height: 1000).probe("c") } } }
     add("scrollView.horizontal") { ScrollView(.horizontal) { HStack { Text("A").probe("a"); Color.red.frame(width: 1000).probe("c") } } }
     add("list.two", proposals: [.unspecified, w300]) { List { Text("A").probe("a"); Text("B").probe("b") } }
@@ -268,7 +254,6 @@ let longText = "The quick brown fox jumps over the lazy dog"
     add("navigationStack", proposals: [w300]) { NavigationStack { Text("Hi").probe("t").navigationTitle("T") } }
     add("navigationStack.inline", proposals: [w300]) { NavigationStack { Text("Hi").probe("t").navigationTitle("T").navigationBarTitleDisplayMode(.inline) } }
     add("tabView", proposals: [w300]) { TabView { Text("Hi").probe("t").tabItem { Label("A", systemImage: "star") } } }
-    // Spacing preferences between kinds of views
     c.append(LCase(name: "spacingMatrix", proposals: [], place: .unspecified, view: AnyView(
         SpacingProbe(name: "spacingMatrix", labels: ["text", "textCaption", "image", "color", "button", "toggle", "textField", "padded"]) {
             Text("A"); Text("A").font(.caption); Image(systemName: "star"); Color.red.frame(width: 10, height: 10)
@@ -312,7 +297,6 @@ struct LayoutProbe: View {
     }
 }
 
-/// UIKit's preferred fonts per text style and content size category.
 func logFonts() {
     let styles: [(String, UIFont.TextStyle)] = [("largeTitle", .largeTitle), ("title1", .title1), ("title2", .title2),
         ("title3", .title3), ("headline", .headline), ("subheadline", .subheadline), ("body", .body),

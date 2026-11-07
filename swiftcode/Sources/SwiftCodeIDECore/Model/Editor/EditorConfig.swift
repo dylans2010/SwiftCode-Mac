@@ -1,20 +1,11 @@
 import Foundation
 
-/// EditorConfig settings for one file (the EditorConfig specification,
-/// editorconfig.org; `specs/ide/metrics.md` §12.4). `.editorconfig` files
-/// are read from the file's folder upward until one says `root = true`;
-/// nearer files and later sections win. SwiftCode takes only the indentation
-/// from them, as the reference does: the File inspector disables Indent
-/// Using and the widths and says "Indentation settings provided by
-/// EditorConfig".
 public struct EditorConfig: Equatable, Sendable {
     public enum IndentStyle: String, Sendable { case space, tab }
 
     public var indentStyle: IndentStyle?
-    /// `indent_size` (nil for `tab`, which means the tab width).
     public var indentSize: Int?
     public var tabWidth: Int?
-    /// The files the settings came from, nearest first.
     public var sources: [String] = []
 
     public init(indentStyle: IndentStyle? = nil, indentSize: Int? = nil, tabWidth: Int? = nil) {
@@ -23,17 +14,11 @@ public struct EditorConfig: Equatable, Sendable {
         self.tabWidth = tabWidth
     }
 
-    /// Whether any indentation setting applies.
     public var providesIndentation: Bool { indentStyle != nil || indentSize != nil || tabWidth != nil }
 
-    /// The note under the indentation controls.
     public static let indentationNote = "Indentation settings provided by EditorConfig"
 
-    /// The settings for `file`, reading `.editorconfig` files through
-    /// `read` (a path to its contents, nil when there is none).
     public static func settings(for file: URL, read: (String) -> String? = { try? String(contentsOfFile: $0, encoding: .utf8) }) -> EditorConfig {
-        // The file's real folders first (a path through a symbolic link),
-        // then the folders of the path as given.
         let real = file.standardizedFileURL.resolvingSymlinksInPath()
         let found = lookUp(real, read: read)
         if !found.providesIndentation, real.path != file.standardizedFileURL.path { return lookUp(file, read: read) }
@@ -53,7 +38,6 @@ public struct EditorConfig: Equatable, Sendable {
             if parent.path == dir.path || dir.path == "/" { break }
             dir = parent
         }
-        // Farthest first, so nearer files override.
         var props: [String: String] = [:]
         var out = EditorConfig()
         for (d, text) in chain.reversed() {
@@ -82,8 +66,6 @@ public struct EditorConfig: Equatable, Sendable {
         return false
     }
 
-    /// The sections in order: (glob, [(key, value)]), keys and values
-    /// lowercased.
     static func sections(_ text: String) -> [(String, [(String, String)])] {
         var out: [(String, [(String, String)])] = []
         for raw in text.split(whereSeparator: \.isNewline) {
@@ -100,8 +82,6 @@ public struct EditorConfig: Equatable, Sendable {
         return out
     }
 
-    /// EditorConfig globs: `*` (not `/`), `**`, `?`, `[...]`, `{a,b}`; a
-    /// glob without `/` matches the file name in any folder.
     static func matches(_ glob: String, _ path: String) -> Bool {
         let anchored = glob.contains("/")
         let pattern = glob.hasPrefix("/") ? String(glob.dropFirst()) : glob

@@ -1,15 +1,3 @@
-/*
- * svctrace: Ycode research tool (original Ycode code, no Apple code).
- * Inserted into our own probe app only (SIMCTL_CHILD_DYLD_INSERT_LIBRARIES).
- * It records, by name, the system services our process asks for: Mach
- * services looked up through the bootstrap server or opened as XPC
- * connections, named XPC services, remote CFMessagePorts, and Darwin
- * notification names registered or posted. One stderr line per call:
- *   SUPX <seconds since load> <kind> <name>
- * Declarations below are our own prototypes for exported C functions whose
- * names and roles are public (bootstrap.h, xpc/connection.h, notify.h,
- * CFMessagePort.h).
- */
 #include <stdio.h>
 #include <stdint.h>
 #include <mach/mach.h>

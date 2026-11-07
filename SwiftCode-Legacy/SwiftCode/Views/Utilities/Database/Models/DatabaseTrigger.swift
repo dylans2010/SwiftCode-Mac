@@ -3,7 +3,7 @@ import Foundation
 public struct DatabaseTrigger: Identifiable, Codable, Hashable {
     public var id: String { name }
     public var name: String
-    public var event: String // BEFORE INSERT, AFTER UPDATE, etc.
+    public var event: String
     public var tableName: String
     public var actionStatement: String
 

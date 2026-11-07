@@ -5,13 +5,11 @@ options:
     macOS: "15.0"
   createIntermediateGroups: true
   xcodeVersion: "16.0"
-
 packages:
   SwiftCode:
     path: swiftcode
   storekit:
     path: frameworks/storekit
-
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -23,11 +21,9 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: "NO"
     CODE_SIGNING_ALLOWED: "NO"
-
 configs:
   Debug: debug
   Release: release
-
 targets:
   SwiftCode-IDE:
     type: application
@@ -84,7 +80,6 @@ targets:
     scheme:
       testTargets:
         - SwiftCode-Tests
-
   SwiftCode-CLI:
     type: tool
     platform: macOS
@@ -108,7 +103,6 @@ targets:
       base:
         PRODUCT_NAME: swiftcode
         PRODUCT_BUNDLE_IDENTIFIER: com.dylans2010.swiftcode-cli
-
   SwiftCode-Tests:
     type: bundle.unit-test
     platform: macOS
@@ -131,7 +125,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dylans2010.SwiftCode-Tests
-
 schemes:
   SwiftCode:
     build:
@@ -147,7 +140,6 @@ schemes:
       config: Release
     archive:
       config: Release
-
   SwiftCode-CLI:
     build:
       targets:
@@ -156,4 +148,3 @@ schemes:
       config: Debug
     archive:
       config: Release
-

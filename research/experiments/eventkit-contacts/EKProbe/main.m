@@ -1,25 +1,3 @@
-// EKProbe: our own black-box probe of EventKit / EventKitUI in the iOS simulator.
-// Written for Ycode's clean-room specs (specs/frameworks/eventkit/). Uses only
-// public API and made-up data. Output: one line per observation on stderr,
-// prefixed "EKPROBE", ending with "phase <p> DONE".
-//
-//   -phase basic     no access needed: status, enum values, rule descriptions,
-//                    exceptions, errors before authorization
-//   -phase reqfull   requestFullAccessToEvents (system prompt)
-//   -phase reqwo     requestWriteOnlyAccessToEvents (system prompt)
-//   -phase reqrem    requestFullAccessToReminders (system prompt)
-//   -phase reqlegacy requestAccessToEntityType: (deprecated; events then reminders)
-//   -phase status    statuses only
-//   -phase events    (full access) sources, calendars, CRUD, recurrence
-//                    expansion, exceptions, time zones, alarms, notifications,
-//                    errors
-//   -phase reminders (reminder access) lists, CRUD, predicates, recurrence
-//   -phase wo        (write-only access) what a write-only client sees
-//   -phase count     count the probe's items (persistence check)
-//   -phase wipe      delete the probe's calendars
-//   -phase uiedit    present EKEventEditViewController (no access needed)
-//   -phase uiview    present EKEventViewController for a probe event
-//   -phase uichooser present EKCalendarChooser
 #import <UIKit/UIKit.h>
 #import <EventKit/EventKit.h>
 #import <EventKitUI/EventKitUI.h>
@@ -67,13 +45,13 @@ static void Wait(NSString *what, double secs, void (^body)(dispatch_block_t done
 
 static void Sleep(double s) { [NSThread sleepForTimeInterval:s]; }
 
-static NSString *U(NSDate *d) { // UTC ISO 8601
+static NSString *U(NSDate *d) {
     if (!d) return @"nil";
     static NSISO8601DateFormatter *f;
     if (!f) { f = [NSISO8601DateFormatter new]; f.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0]; }
     return [f stringFromDate:d];
 }
-static NSString *Z(NSDate *d, NSTimeZone *tz) { // wall time in a zone
+static NSString *Z(NSDate *d, NSTimeZone *tz) {
     if (!d) return @"nil";
     if (!tz) return U(d);
     NSDateFormatter *f = [NSDateFormatter new];
@@ -99,7 +77,7 @@ static NSString *DC(NSDateComponents *c) {
     if (c.second != NSDateComponentUndefined) [s appendFormat:@":%02ld", (long)c.second];
     return s;
 }
-static NSString *Strip(NSString *d) { // remove pointers from -description
+static NSString *Strip(NSString *d) {
     NSRegularExpression *r = [NSRegularExpression regularExpressionWithPattern:@"0x[0-9a-f]+" options:0 error:nil];
     return [r stringByReplacingMatchesInString:d options:0 range:NSMakeRange(0, d.length) withTemplate:@"0x…"];
 }
@@ -224,7 +202,6 @@ static void PhaseBasic(void) {
     Status(@"basic");
     P(@"EKErrorDomain=%@ EKEventStoreChangedNotification=%@", EKErrorDomain, EKEventStoreChangedNotification);
     Sources(@"basic-noaccess");
-    // Errors before access.
     EKEvent *ev = [EKEvent eventWithEventStore:gStore];
     ev.title = @"Probe unauthorized"; ev.startDate = At(@"UTC", 2026, 10, 5, 9, 0); ev.endDate = At(@"UTC", 2026, 10, 5, 10, 0);
     ev.calendar = gStore.defaultCalendarForNewEvents;
@@ -246,7 +223,6 @@ static void PhaseBasic(void) {
     P(@"new calendar defaults: type=%ld source=%@ allowsMod=%d color=%@ entities=%lu id=%@", (long)c.type, c.source.title, c.allowsContentModifications,
       ColorS(c.CGColor), (unsigned long)c.allowedEntityTypes, c.calendarIdentifier);
 
-    // Recurrence rule descriptions (no store needed).
     NSDate *until = At(@"UTC", 2026, 12, 31, 23, 59);
     TryRule(@"daily", ^{ return [[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyDaily interval:1 end:nil]; });
     TryRule(@"daily/2 count 5", ^{ return [[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyDaily interval:2
@@ -284,7 +260,6 @@ static void PhaseBasic(void) {
         EKRecurrenceEnd *re = [EKRecurrenceEnd recurrenceEndWithEndDate:until];
         P(@"recurrenceEnd date desc=%@ count=%lu", Strip(re.description), (unsigned long)re.occurrenceCount);
     } @catch (NSException *ex) { P(@"recurrenceEnd EXCEPTION %@: %@", ex.name, ex.reason); }
-    // Alarm descriptions.
     EKAlarm *a1 = [EKAlarm alarmWithRelativeOffset:-900];
     EKAlarm *a2 = [EKAlarm alarmWithAbsoluteDate:At(@"UTC", 2026, 10, 5, 8, 0)];
     P(@"alarm relative offset=%.0f abs=%@ proximity=%ld", a1.relativeOffset, U(a1.absoluteDate), (long)a1.proximity);
@@ -297,7 +272,6 @@ static void PhaseBasic(void) {
     loc.geoLocation = [[CLLocation alloc] initWithLatitude:40.0 longitude:-75.0];
     loc.radius = 150;
     P(@"structuredLocation title=%@ lat=%.4f lon=%.4f radius=%.0f", loc.title, loc.geoLocation.coordinate.latitude, loc.geoLocation.coordinate.longitude, loc.radius);
-    // Event model defaults.
     EKEvent *e2 = [EKEvent eventWithEventStore:gStore];
     P(@"fresh event: title=%@ start=%@ end=%@ tz=%@ allDay=%d calendar=%@ uuid-nonnil=%d calItemId-nonnil=%d eventId=%@", e2.title, U(e2.startDate),
       U(e2.endDate), e2.timeZone.name, e2.allDay, e2.calendar.title, e2.UUID != nil, e2.calendarItemIdentifier != nil, e2.eventIdentifier);
@@ -310,7 +284,6 @@ static void PhaseBasic(void) {
     P(@"reminder completionDate=nil -> completed=%d", r.completed);
     @try { r.priority = 10; P(@"reminder priority 10 accepted (value %lu)", (unsigned long)r.priority); }
     @catch (NSException *ex) { P(@"reminder priority 10 EXCEPTION %@: %@", ex.name, ex.reason); }
-    // Predicates.
     NSPredicate *p = [gStore predicateForEventsWithStartDate:At(@"UTC", 2026, 1, 1, 0, 0) endDate:At(@"UTC", 2036, 1, 1, 0, 0) calendars:nil];
     P(@"event predicate (10y) desc=%@", Strip(p.description));
     P(@"reminder predicates: %@ | %@ | %@", Strip([gStore predicateForRemindersInCalendars:nil].description),
@@ -409,7 +382,6 @@ static void Errors(EKCalendar *cal) {
     NSError *er = nil;
     BOOL ok = [gStore saveCalendar:nc commit:YES error:&er];
     P(@"err calendar-no-source ok=%d err=%@", ok, E(er));
-    // Exceptions on misuse.
     @try { [gStore predicateForEventsWithStartDate:nil endDate:e calendars:nil]; P(@"predicate nil start accepted"); }
     @catch (NSException *ex) { P(@"predicate nil start EXCEPTION %@: %@", ex.name, ex.reason); }
     @try { [gStore eventWithIdentifier:@"bogus"] ? P(@"bogus id -> object") : P(@"bogus eventWithIdentifier -> nil"); }
@@ -435,7 +407,6 @@ static void PhaseEvents(void) {
     P(@"notifications after calendar create: %d", changes);
     NSString *NY = @"America/New_York";
 
-    // E1 simple timed event with fields.
     EKEvent *e1 = NewEv(cal, @"Probe E1 standup", At(NY, 2026, 10, 5, 9, 0), At(NY, 2026, 10, 5, 10, 0), NY);
     e1.location = @"Room 1 (made up)"; e1.notes = @"Made-up notes"; e1.URL = [NSURL URLWithString:@"https://example.invalid/e1"];
     e1.availability = EKEventAvailabilityFree;
@@ -452,7 +423,6 @@ static void PhaseEvents(void) {
     NSArray *byExt = [gStore calendarItemsWithExternalIdentifier:e1.calendarItemExternalIdentifier];
     P(@"E1 calendarItemsWithExternalIdentifier n=%lu", (unsigned long)byExt.count);
 
-    // E2 all-day single, E3 all-day multi-day.
     EKEvent *e2 = NewEv(cal, @"Probe E2 allday", At(nil, 2026, 10, 7, 0, 0), At(nil, 2026, 10, 7, 0, 0), nil);
     e2.allDay = YES;
     P(@"E2 before save tz=%@", e2.timeZone.name ?: @"nil");
@@ -467,16 +437,13 @@ static void PhaseEvents(void) {
     SaveEv(@"E3b", e3b, EKSpanThisEvent);
     P(@"E3b %@", EvDesc([gStore eventWithIdentifier:e3b.eventIdentifier]));
 
-    // E4 floating (no time zone).
     EKEvent *e4 = NewEv(cal, @"Probe E4 floating", At(nil, 2026, 10, 8, 14, 0), At(nil, 2026, 10, 8, 15, 0), nil);
     e4.timeZone = nil;
     SaveEv(@"E4", e4, EKSpanThisEvent);
     P(@"E4 default tz=%@ %@", [NSTimeZone defaultTimeZone].name, EvDesc([gStore eventWithIdentifier:e4.eventIdentifier]));
-    // E4b timed in Tokyo.
     EKEvent *e4b = NewEv(cal, @"Probe E4b tokyo", At(@"Asia/Tokyo", 2026, 10, 8, 14, 0), At(@"Asia/Tokyo", 2026, 10, 8, 15, 0), @"Asia/Tokyo");
     SaveEv(@"E4b", e4b, EKSpanThisEvent);
     P(@"E4b %@", EvDesc([gStore eventWithIdentifier:e4b.eventIdentifier]));
-    // Floating behaviour under another default time zone in this process.
     NSString *e4id = e4.eventIdentifier, *e2id = e2.eventIdentifier, *e4bid = e4b.eventIdentifier;
     NSTimeZone *saved = [NSTimeZone defaultTimeZone];
     for (NSString *tzn in @[ @"Asia/Tokyo", @"Europe/Berlin", @"UTC" ]) {
@@ -491,7 +458,6 @@ static void PhaseEvents(void) {
         [NSTimeZone resetSystemTimeZone];
     }
     [NSTimeZone setDefaultTimeZone:saved];
-    // Changing the zone of a saved event.
     EKEvent *e4c = NewEv(cal, @"Probe E4c retz", At(NY, 2026, 10, 9, 9, 0), At(NY, 2026, 10, 9, 10, 0), NY);
     SaveEv(@"E4c", e4c, EKSpanThisEvent);
     e4c.timeZone = [NSTimeZone timeZoneWithName:@"Europe/Berlin"];
@@ -499,48 +465,40 @@ static void PhaseEvents(void) {
     SaveEv(@"E4c retz", e4c, EKSpanThisEvent);
     P(@"E4c refetch %@", EvDesc([gStore eventWithIdentifier:e4c.eventIdentifier]));
 
-    // Recurrence: golden expansions.
     NSDate *W0 = At(@"UTC", 2026, 10, 1, 0, 0), *W1 = At(@"UTC", 2027, 10, 1, 0, 0);
     struct { const char *title; } dummy; (void)dummy;
-    // R1 weekly MO,WE,FR count 10 across the US DST change (2026-11-01).
     EKEvent *r1 = NewEv(cal, @"Probe R1 mwf", At(NY, 2026, 10, 26, 8, 30), At(NY, 2026, 10, 26, 9, 0), NY);
     [r1 addRecurrenceRule:RR(EKRecurrenceFrequencyWeekly, 1, @[ DOW(EKWeekdayMonday, 0), DOW(EKWeekdayWednesday, 0), DOW(EKWeekdayFriday, 0) ], nil, nil, nil, nil, nil,
                              [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:10])];
     SaveEv(@"R1", r1, EKSpanThisEvent);
     P(@"R1 rule after save %@", Rule(r1.recurrenceRules.firstObject));
     Expand(@"R1", cal, @"Probe R1 mwf", W0, W1);
-    // R2 daily every 2 days until 2026-10-20 (date in NY 23:59).
     EKEvent *r2 = NewEv(cal, @"Probe R2 daily2", At(NY, 2026, 10, 10, 7, 0), At(NY, 2026, 10, 10, 7, 15), NY);
     [r2 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyDaily interval:2
                                                                            end:[EKRecurrenceEnd recurrenceEndWithEndDate:At(NY, 2026, 10, 20, 7, 0)]]];
     SaveEv(@"R2", r2, EKSpanThisEvent);
     P(@"R2 rule %@", Rule(r2.recurrenceRules.firstObject));
     Expand(@"R2", cal, @"Probe R2 daily2", W0, W1);
-    // R3 monthly on the 31st, count 6 (months without a 31st).
     EKEvent *r3 = NewEv(cal, @"Probe R3 m31", At(NY, 2026, 10, 31, 12, 0), At(NY, 2026, 10, 31, 13, 0), NY);
     [r3 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyMonthly interval:1 end:[EKRecurrenceEnd recurrenceEndWithOccurrenceCount:6]]];
     SaveEv(@"R3", r3, EKSpanThisEvent);
     P(@"R3 rule %@", Rule(r3.recurrenceRules.firstObject));
     Expand(@"R3", cal, @"Probe R3 m31", W0, W1);
-    // R3b monthly BYMONTHDAY=31 explicitly.
     EKEvent *r3b = NewEv(cal, @"Probe R3b bymd31", At(NY, 2026, 10, 31, 12, 0), At(NY, 2026, 10, 31, 13, 0), NY);
     [r3b addRecurrenceRule:RR(EKRecurrenceFrequencyMonthly, 1, nil, @[ @31 ], nil, nil, nil, nil, [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:6])];
     SaveEv(@"R3b", r3b, EKSpanThisEvent);
     P(@"R3b rule %@", Rule(r3b.recurrenceRules.firstObject));
     Expand(@"R3b", cal, @"Probe R3b bymd31", W0, W1);
-    // R4 monthly last Friday, count 5.
     EKEvent *r4 = NewEv(cal, @"Probe R4 lastfri", At(NY, 2026, 10, 30, 17, 0), At(NY, 2026, 10, 30, 18, 0), NY);
     [r4 addRecurrenceRule:RR(EKRecurrenceFrequencyMonthly, 1, @[ DOW(EKWeekdayFriday, -1) ], nil, nil, nil, nil, nil, [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:5])];
     SaveEv(@"R4", r4, EKSpanThisEvent);
     Expand(@"R4", cal, @"Probe R4 lastfri", W0, W1);
-    // R5 monthly second-to-last weekday (setpos -2), count 4.
     EKEvent *r5 = NewEv(cal, @"Probe R5 setpos", At(NY, 2026, 10, 29, 10, 0), At(NY, 2026, 10, 29, 10, 30), NY);
     [r5 addRecurrenceRule:RR(EKRecurrenceFrequencyMonthly, 1, @[ DOW(2, 0), DOW(3, 0), DOW(4, 0), DOW(5, 0), DOW(6, 0) ], nil, nil, nil, nil, @[ @-2 ],
                              [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:4])];
     SaveEv(@"R5", r5, EKSpanThisEvent);
     P(@"R5 rule %@", Rule(r5.recurrenceRules.firstObject));
     Expand(@"R5", cal, @"Probe R5 setpos", W0, W1);
-    // R6 yearly on Feb 29 from 2028, count 3 (four-year window: fetch in pieces).
     EKEvent *r6 = NewEv(cal, @"Probe R6 feb29", At(NY, 2028, 2, 29, 9, 0), At(NY, 2028, 2, 29, 10, 0), NY);
     [r6 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyYearly interval:1 end:[EKRecurrenceEnd recurrenceEndWithOccurrenceCount:3]]];
     SaveEv(@"R6", r6, EKSpanThisEvent);
@@ -548,18 +506,15 @@ static void PhaseEvents(void) {
     Expand(@"R6 2028-2031", cal, @"Probe R6 feb29", At(@"UTC", 2028, 1, 1, 0, 0), At(@"UTC", 2031, 12, 31, 0, 0));
     Expand(@"R6 2031-2035", cal, @"Probe R6 feb29", At(@"UTC", 2031, 12, 31, 0, 0), At(@"UTC", 2035, 12, 30, 0, 0));
     Expand(@"R6 2035-2039", cal, @"Probe R6 feb29", At(@"UTC", 2035, 12, 30, 0, 0), At(@"UTC", 2039, 12, 29, 0, 0));
-    // R7 yearly 4th Thursday of November, count 3.
     EKEvent *r7 = NewEv(cal, @"Probe R7 thanks", At(NY, 2026, 11, 26, 15, 0), At(NY, 2026, 11, 26, 18, 0), NY);
     [r7 addRecurrenceRule:RR(EKRecurrenceFrequencyYearly, 1, @[ DOW(EKWeekdayThursday, 4) ], nil, @[ @11 ], nil, nil, nil, [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:3])];
     SaveEv(@"R7", r7, EKSpanThisEvent);
     Expand(@"R7", cal, @"Probe R7 thanks", W0, At(@"UTC", 2029, 9, 30, 0, 0));
-    // R8 every 2 weeks TU,TH starting on a Thursday, count 6.
     EKEvent *r8 = NewEv(cal, @"Probe R8 biweekly", At(NY, 2026, 10, 1, 11, 0), At(NY, 2026, 10, 1, 11, 30), NY);
     [r8 addRecurrenceRule:RR(EKRecurrenceFrequencyWeekly, 2, @[ DOW(EKWeekdayTuesday, 0), DOW(EKWeekdayThursday, 0) ], nil, nil, nil, nil, nil, [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:6])];
     SaveEv(@"R8", r8, EKSpanThisEvent);
     P(@"R8 rule %@", Rule(r8.recurrenceRules.firstObject));
     Expand(@"R8", cal, @"Probe R8 biweekly", W0, W1);
-    // R9 yearly week number 20 Monday, count 3; R10 yearly day 100 count 3.
     EKEvent *r9 = NewEv(cal, @"Probe R9 weekno", At(NY, 2027, 5, 17, 9, 0), At(NY, 2027, 5, 17, 10, 0), NY);
     [r9 addRecurrenceRule:RR(EKRecurrenceFrequencyYearly, 1, @[ DOW(EKWeekdayMonday, 0) ], nil, nil, @[ @20 ], nil, nil, [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:3])];
     SaveEv(@"R9", r9, EKSpanThisEvent);
@@ -569,19 +524,16 @@ static void PhaseEvents(void) {
     [r10 addRecurrenceRule:RR(EKRecurrenceFrequencyYearly, 1, nil, nil, nil, nil, @[ @100 ], nil, [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:3])];
     SaveEv(@"R10", r10, EKSpanThisEvent);
     Expand(@"R10", cal, @"Probe R10 yday", W0, At(@"UTC", 2030, 9, 1, 0, 0));
-    // R11 floating daily count 3 (no zone).
     EKEvent *r11 = NewEv(cal, @"Probe R11 floatdaily", At(nil, 2026, 10, 31, 22, 0), At(nil, 2026, 10, 31, 23, 0), nil);
     r11.timeZone = nil;
     [r11 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyDaily interval:1 end:[EKRecurrenceEnd recurrenceEndWithOccurrenceCount:3]]];
     SaveEv(@"R11", r11, EKSpanThisEvent);
     Expand(@"R11", cal, @"Probe R11 floatdaily", W0, W1);
-    // R12 all-day yearly (birthday-like), count 3.
     EKEvent *r12 = NewEv(cal, @"Probe R12 allday-yearly", At(nil, 2026, 12, 25, 0, 0), At(nil, 2026, 12, 25, 0, 0), nil);
     r12.allDay = YES;
     [r12 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyYearly interval:1 end:[EKRecurrenceEnd recurrenceEndWithOccurrenceCount:3]]];
     SaveEv(@"R12", r12, EKSpanThisEvent);
     Expand(@"R12", cal, @"Probe R12 allday-yearly", W0, At(@"UTC", 2029, 9, 1, 0, 0));
-    // R13 two rules on one event.
     EKEvent *r13 = NewEv(cal, @"Probe R13 tworules", At(NY, 2026, 11, 2, 9, 0), At(NY, 2026, 11, 2, 9, 30), NY);
     [r13 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyWeekly interval:1 end:[EKRecurrenceEnd recurrenceEndWithOccurrenceCount:2]]];
     [r13 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyDaily interval:1 end:[EKRecurrenceEnd recurrenceEndWithOccurrenceCount:2]]];
@@ -590,18 +542,15 @@ static void PhaseEvents(void) {
     P(@"R13 rules after refetch n=%lu %@", (unsigned long)[gStore eventWithIdentifier:r13.eventIdentifier].recurrenceRules.count,
       Rule([gStore eventWithIdentifier:r13.eventIdentifier].recurrenceRules.firstObject));
     Expand(@"R13", cal, @"Probe R13 tworules", W0, W1);
-    // R14 start not matching rule (weekly WE, start on Monday) count 3.
     EKEvent *r14 = NewEv(cal, @"Probe R14 offstart", At(NY, 2026, 11, 2, 12, 0), At(NY, 2026, 11, 2, 12, 30), NY);
     [r14 addRecurrenceRule:RR(EKRecurrenceFrequencyWeekly, 1, @[ DOW(EKWeekdayWednesday, 0) ], nil, nil, nil, nil, nil, [EKRecurrenceEnd recurrenceEndWithOccurrenceCount:3])];
     SaveEv(@"R14", r14, EKSpanThisEvent);
     Expand(@"R14", cal, @"Probe R14 offstart", W0, W1);
-    // R15 hourly-like: daily ending with an end date earlier than start.
     EKEvent *r15 = NewEv(cal, @"Probe R15 endbefore", At(NY, 2026, 11, 3, 12, 0), At(NY, 2026, 11, 3, 12, 30), NY);
     [r15 addRecurrenceRule:[[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyDaily interval:1 end:[EKRecurrenceEnd recurrenceEndWithEndDate:At(NY, 2026, 11, 1, 0, 0)]]];
     SaveEv(@"R15", r15, EKSpanThisEvent);
     Expand(@"R15", cal, @"Probe R15 endbefore", W0, W1);
 
-    // Exceptions on R1: detach the 3rd occurrence, delete the 4th, split at the 7th.
     NSArray *occ = Fetch(@"R1-occ", W0, W1, @[ cal ], @"Probe R1 mwf");
     if (occ.count >= 8) {
         EKEvent *o3 = occ[2];
@@ -618,7 +567,6 @@ static void PhaseEvents(void) {
         NSArray *after = Fetch(@"R1-after-exceptions", W0, W1, @[ cal ], @"Probe R1");
         int i = 0;
         for (EKEvent *x in after) P(@"R1x #%d %@ id=%@", ++i, EvDesc(x), x.eventIdentifier);
-        // Collide: move o5 onto o6's date.
         after = Fetch(@"R1-occ2", W0, W1, @[ cal ], @"Probe R1 mwf");
         EKEvent *o5 = nil, *o6 = nil;
         for (EKEvent *x in after) if (!x.isDetached && [x.title isEqualToString:@"Probe R1 mwf"]) { if (!o5) o5 = x; else if (!o6) { o6 = x; break; } }
@@ -643,13 +591,11 @@ static void PhaseEvents(void) {
             P(@"R1 distinct eventIdentifiers after split: %lu", (unsigned long)ids.count);
         }
     } else P(@"R1 occurrences too few: %lu", (unsigned long)occ.count);
-    // Remove the rule from R8 (all future) and see what remains.
     EKEvent *r8m = [gStore eventWithIdentifier:r8.eventIdentifier];
     P(@"R8 master via eventWithIdentifier: %@", EvDesc(r8m));
     [r8m removeRecurrenceRule:r8m.recurrenceRules.firstObject];
     SaveEv(@"R8 remove rule", r8m, EKSpanFutureEvents);
     Expand(@"R8 after rule removal", [gStore calendarWithIdentifier:cal.calendarIdentifier], @"Probe R8 biweekly", W0, W1);
-    // Delete a whole series from its second occurrence with future span.
     NSArray *r2o = Fetch(@"R2-occ", W0, W1, @[ [gStore calendarWithIdentifier:cal.calendarIdentifier] ], @"Probe R2 daily2");
     if (r2o.count >= 3) {
         NSError *e = nil;
@@ -659,7 +605,6 @@ static void PhaseEvents(void) {
         P(@"R2 rule now %@", Rule([gStore eventWithIdentifier:r2.eventIdentifier].recurrenceRules.firstObject));
     }
 
-    // Alarms.
     EKEvent *a = NewEv([gStore calendarWithIdentifier:cal.calendarIdentifier], @"Probe A1 alarms", At(NY, 2026, 10, 14, 9, 0), At(NY, 2026, 10, 14, 10, 0), NY);
     [a addAlarm:[EKAlarm alarmWithRelativeOffset:-900]];
     [a addAlarm:[EKAlarm alarmWithAbsoluteDate:At(NY, 2026, 10, 13, 20, 0)]];
@@ -668,7 +613,7 @@ static void PhaseEvents(void) {
     loc.geoLocation = [[CLLocation alloc] initWithLatitude:40.0 longitude:-75.0]; loc.radius = 150;
     geo.structuredLocation = loc; geo.proximity = EKAlarmProximityEnter;
     [a addAlarm:geo];
-    [a addAlarm:[EKAlarm alarmWithRelativeOffset:-900]]; // duplicate
+    [a addAlarm:[EKAlarm alarmWithRelativeOffset:-900]];
     a.structuredLocation = loc;
     SaveEv(@"A1", a, EKSpanThisEvent);
     EKEvent *ar = [[EKEventStore new] eventWithIdentifier:a.eventIdentifier];
@@ -683,7 +628,6 @@ static void PhaseEvents(void) {
     P(@"A2 default alarms on all-day event n=%lu; A1-like new timed event default alarms checked below", (unsigned long)[gStore eventWithIdentifier:ad.eventIdentifier].alarms.count);
     P(@"E1 default alarms n=%lu", (unsigned long)[gStore eventWithIdentifier:e1.eventIdentifier].alarms.count);
 
-    // Batch commit and notifications.
     int before = changes;
     for (int i = 0; i < 3; i++) {
         EKEvent *b = NewEv([gStore calendarWithIdentifier:cal.calendarIdentifier], [NSString stringWithFormat:@"Probe B%d batch", i], At(NY, 2026, 10, 16, 9 + i, 0), At(NY, 2026, 10, 16, 9 + i, 30), NY);
@@ -698,13 +642,11 @@ static void PhaseEvents(void) {
     Sleep(3);
     P(@"notifications for batch of 3: %d", changes - before);
     P(@"batch fetched after commit n=%lu", (unsigned long)Fetch(@"batch-postcommit", At(NY, 2026, 10, 16, 0, 0), At(NY, 2026, 10, 17, 0, 0), @[ [gStore calendarWithIdentifier:cal.calendarIdentifier] ], @"Probe B").count);
-    // Rollback/reset.
     EKEvent *rb = [gStore eventWithIdentifier:e1.eventIdentifier];
     rb.title = @"Probe E1 changed";
     P(@"E1 hasChanges after edit=%d", rb.hasChanges);
     [rb rollback];
     P(@"E1 after rollback title=%@ hasChanges=%d", rb.title, rb.hasChanges);
-    // Notification from another store instance.
     before = changes;
     EKEventStore *s2 = [EKEventStore new];
     EKEvent *o = [EKEvent eventWithEventStore:s2];
@@ -716,15 +658,12 @@ static void PhaseEvents(void) {
     Sleep(3);
     P(@"notifications on first store after other-store save: %d", changes - before);
     P(@"stale object e1 refresh=%d", [e1 refresh]);
-    // Predicate span limit.
     NSArray *big = Fetch(@"span10y", At(@"UTC", 2026, 1, 1, 0, 0), At(@"UTC", 2036, 1, 1, 0, 0), @[ [gStore calendarWithIdentifier:cal.calendarIdentifier] ], @"Probe R6");
     for (EKEvent *x in big) P(@"span10y R6 %@", U(x.startDate));
-    // Enumerate API.
     __block int en = 0;
     [gStore enumerateEventsMatchingPredicate:[gStore predicateForEventsWithStartDate:W0 endDate:W1 calendars:@[ [gStore calendarWithIdentifier:cal.calendarIdentifier] ]]
                                   usingBlock:^(EKEvent *ev, BOOL *stop) { en++; }];
     P(@"enumerateEvents count=%d", en);
-    // Spanning event: started before the window.
     NSArray *span = Fetch(@"overlap", At(NY, 2026, 10, 11, 12, 0), At(NY, 2026, 10, 11, 13, 0), @[ [gStore calendarWithIdentifier:cal.calendarIdentifier] ], @"Probe");
     for (EKEvent *x in span) P(@"overlap %@", EvDesc(x));
     NSArray *edge = Fetch(@"edge-end==start", At(NY, 2026, 10, 5, 10, 0), At(NY, 2026, 10, 5, 11, 0), @[ [gStore calendarWithIdentifier:cal.calendarIdentifier] ], @"Probe E1");
@@ -732,7 +671,6 @@ static void PhaseEvents(void) {
     P(@"edges: window starting at E1 end n=%lu; window ending at E1 start n=%lu", (unsigned long)edge.count, (unsigned long)edge2.count);
 
     Errors([gStore calendarWithIdentifier:cal.calendarIdentifier]);
-    // Calendar edits.
     EKCalendar *c2 = [gStore calendarWithIdentifier:cal.calendarIdentifier];
     c2.title = @"Ycode Probe renamed";
     NSError *e = nil;
@@ -741,7 +679,6 @@ static void PhaseEvents(void) {
     c2.title = kCal;
     [gStore saveCalendar:c2 commit:YES error:nil];
     Sleep(2);
-    // reset invalidates objects fetched earlier.
     EKEvent *pre = [gStore eventWithIdentifier:e1.eventIdentifier];
     [gStore reset];
     P(@"after reset: old object id=%@ title=%@; refetch=%@", pre.eventIdentifier, pre.title, EvDesc([gStore eventWithIdentifier:e1.eventIdentifier]));
@@ -849,17 +786,14 @@ static void PhaseReminders(void) {
     FetchR(@"completed nil..nil", [gStore predicateForCompletedRemindersWithCompletionDateStarting:nil ending:nil calendars:@[ list ]]);
     FetchR(@"completed 10-03 window", [gStore predicateForCompletedRemindersWithCompletionDateStarting:At(@"UTC", 2026, 10, 3, 0, 0)
                                                                                                 ending:At(@"UTC", 2026, 10, 4, 0, 0) calendars:@[ list ]]);
-    // Complete the recurring reminder.
     r5.completed = YES;
     SaveR(@"R5 complete", r5);
     FetchR(@"after completing R5", [gStore predicateForRemindersInCalendars:@[ list ]]);
     r5 = (EKReminder *)[gStore calendarItemWithIdentifier:r5.calendarItemIdentifier];
     P(@"R5 same identifier now: due=%@ completed=%d", DC(r5.dueDateComponents), r5.completed);
-    // Cancel a fetch.
     id fid = [gStore fetchRemindersMatchingPredicate:[gStore predicateForRemindersInCalendars:nil] completion:^(NSArray *r) { P(@"cancelled fetch completion called n=%lu", (unsigned long)r.count); }];
     [gStore cancelFetchRequest:fid];
     Sleep(2);
-    // Delete.
     NSError *e = nil;
     BOOL ok = [gStore removeReminder:r4 commit:YES error:&e];
     P(@"remove R4 ok=%d err=%@", ok, E(e));

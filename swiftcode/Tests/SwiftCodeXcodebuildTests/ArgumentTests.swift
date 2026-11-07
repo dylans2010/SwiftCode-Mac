@@ -12,7 +12,6 @@ import Testing
         #expect(inv.overrides.map { "\($0.name)=\($0.value)" } == ["FOO=bar"])
         #expect(inv.actions == [.clean, .build])
         #expect(inv.quiet)
-        // `-userdefault=value` for names that are not options.
         let d = try ArgumentParser.parse(["-IDECustomDerivedDataLocation=/tmp/dd", "-=x", "-list"])
         #expect(d.userDefaults.map { "\($0.name)=\($0.value)" } == ["IDECustomDerivedDataLocation=/tmp/dd"])
         #expect(d.has("-list"))
@@ -62,7 +61,6 @@ import Testing
     }
 
     @Test func derivedDataFolder() {
-        // Observed with the reference tool (specs/xcodebuild/show-build-settings.md §4).
         let path = "/Volumes/OpenDive/Xcode-clean-room-re-project/.claude/worktrees/agent-a9533b18792438340/swiftcode/.build-xcb-scratch/samples/Multi/Multi.xcodeproj"
         #expect(DerivedDataName.folder(name: "Multi", path: path) == "Multi-cfoytlaklycpeihhlefeyqbxaxdm")
     }

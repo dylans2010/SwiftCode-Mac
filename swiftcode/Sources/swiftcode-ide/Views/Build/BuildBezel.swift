@@ -6,15 +6,6 @@ import SwiftCodeIDEShell
 import OVDBus
 #endif
 
-// The build-result bezel (`specs/ide/build-notifications.md` §4) over the
-// workspace window, and the system notification route (§3): on Linux
-// `org.freedesktop.Notifications` on the session bus.
-//
-//   SWIFTCODE_IDE_BEZEL_SHOT=<prefix>   (Linux) writes <prefix>-<n>.png of the
-//                                   window 0.3 s after each bezel appears
-
-/// The bezel layer: fills the window, passes clicks through, and keeps the
-/// notifier told about the window's phase and Reduce Motion.
 struct BuildBezelOverlay: View {
     var notifier: ShellBuildNotifier
     @Environment(\.scenePhase) private var scenePhase
@@ -46,12 +37,9 @@ struct BuildBezelOverlay: View {
     }
 }
 
-/// 200 × 200, radius 18, near-black at 86 %; the glyph over a one-line title.
 struct BuildBezelView: View {
     var notice: BuildNotice
 
-    /// 17-point semibold, as the AppKit bezel's title; Inter SemiBold reads
-    /// lighter than the AppKit title at this size, so Linux uses Bold.
     #if os(Linux)
     static let titleWeight: Font.Weight = .bold
     #else
@@ -82,8 +70,6 @@ struct BuildBezelView: View {
         .accessibilityIdentifier("build bezel")
     }
 
-    /// The notice's symbol (OpenViews draws `hammer` as a claw hammer that
-    /// holds up at this size, since OV-R13).
     private var glyph: some View {
         Image(systemName: notice.symbolName)
             .resizable()
@@ -91,15 +77,9 @@ struct BuildBezelView: View {
     }
 }
 
-/// The system notification route on Linux (§3); elsewhere none (the macOS
-/// product is the AppKit IDE, which has its own).
 enum DesktopNotifications {
     static let service = "org.freedesktop.Notifications"
 
-    /// Asks the bus whether a notification server is there, then sends
-    /// `Notify`; both replies arrive on the main queue (nothing blocks but
-    /// the connection's handshake, bounded at 1 s). Quiet when there is no
-    /// session bus or no server.
     @MainActor
     static func post(_ n: BuildNotice, workspace: String) {
         #if os(Linux) && canImport(OVDBus)
@@ -123,7 +103,6 @@ enum DesktopNotifications {
     }
 }
 
-/// `SWIFTCODE_IDE_BEZEL_SHOT` (Linux): photographs each bezel.
 @MainActor
 enum BezelShots {
     static func take(_ count: Int, _ notifier: ShellBuildNotifier) {

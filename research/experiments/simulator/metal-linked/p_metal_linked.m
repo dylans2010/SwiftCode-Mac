@@ -1,18 +1,3 @@
-/* p_metal_linked: Ycode stage-8 test probe (original Ycode code).
- *
- * Two compute dispatches that use Metal's function-linking features, to see
- * what reaches the simulator's Metal host and to check results:
- *   1. through_table: a kernel calls [[visible]] functions through a visible
- *      function table (pipeline function handles, setVisibleFunctionTable).
- *   2. through_link: a kernel calls an external [[visible]] function that is
- *      supplied at pipeline creation (MTLLinkedFunctions).
- * Expected: out1[i] = (0.5,0,0,1) for even i, (0,0,0.75,1) for odd i;
- * out2[i] = 3i + 1.
- *
- * Usage: p_metal_linked [METALLIB]   (default, or when the argument does not
- * name a .metallib: p_metal_linked.metallib next to the executable)
- * Prints "linked ok" or "linked FAIL: ..." (and which part failed).
- */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <mach-o/dyld.h>
@@ -47,8 +32,6 @@ int main(int argc, char **argv) {
         id<MTLCommandQueue> queue = [device newCommandQueue];
         int failures = 0;
 
-        /* 1. Visible function table (needs function pointers; the simulator
-         * device reports none and aborts in functionHandleWithFunction:). */
         if (!device.supportsFunctionPointers) {
             step("table part skipped: no function pointers");
         } else {
@@ -94,7 +77,6 @@ int main(int argc, char **argv) {
             }
         }
 
-        /* 2. A linked external function. */
         {
             id<MTLFunction> kernelFn = [lib newFunctionWithName:@"through_link"];
             id<MTLFunction> impl = [lib newFunctionWithName:@"scale_value"];

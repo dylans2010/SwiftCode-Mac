@@ -1,6 +1,5 @@
 import Foundation
 
-// Thread-safe wrapper with NSLock ensuring concurrency safety
 public final class AssistMemoryGraph: @unchecked Sendable, AssistMemoryGraphProtocol {
     private var storage: [String: String] = [:]
     private let lock = NSLock()
@@ -25,8 +24,6 @@ public final class AssistMemoryGraph: @unchecked Sendable, AssistMemoryGraphProt
         storage.removeAll()
     }
 
-    // Advanced graph features would go here
     public func storeRelationship(from: String, to: String, type: String) {
-        // Implementation
     }
 }

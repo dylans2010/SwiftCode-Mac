@@ -43,7 +43,6 @@ final class CodeSuggestionsML: ObservableObject {
     }
 
     private func generateSuggestions(for project: Project) async -> [CodeSuggestionCategory: [CodeSuggestion]] {
-        // CoreML placeholder entry point for future model integration.
         _ = MLModelConfiguration()
 
         var imports: [String: Int] = [:]

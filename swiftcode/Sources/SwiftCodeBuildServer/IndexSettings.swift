@@ -4,22 +4,12 @@ import SwiftCodeSettings
 import SwiftCodeWorkspace
 import SwiftCodeXcodebuild
 
-/// What the build server computes settings for: the configuration, the
-/// destination, where index products go and the host. See
-/// `specs/ide/language.md` §Build server.
 public struct BuildContext: Sendable {
-    /// The build configuration (nil: the scheme's run configuration, else
-    /// `Debug` when the project has it, else the project's default).
     public var configuration: String?
-    /// A destination specifier (`platform=iOS Simulator,arch=arm64`, …).
     public var destination: String?
-    /// The container's derived-data folder (`<root>/<name>-<hash>`); index
-    /// products, intermediates and the index store live under its
-    /// `Index.noindex`.
     public var derivedDataFolder: String
     public var developerDirectory: String?
     public var hostArchitecture: String
-    /// True on Linux: no Apple SDKs; Swift compiles for the host.
     public var isLinuxHost: Bool
 
     public init(configuration: String? = nil, destination: String? = nil, derivedDataFolder: String,
@@ -36,9 +26,7 @@ public struct BuildContext: Sendable {
     public var indexRoot: String { derivedDataFolder + "/Index.noindex" }
     public var productsRoot: String { indexRoot + "/Build/Products" }
     public var intermediatesRoot: String { indexRoot + "/Build/Intermediates.noindex" }
-    /// Where compilers write index data (`-index-store-path`).
     public var indexStorePath: String { indexRoot + "/DataStore" }
-    /// sourcekit-lsp's own database over the index store.
     public var indexDatabasePath: String { indexRoot + "/swiftcode-index-db" }
 
     #if arch(arm64)
@@ -52,9 +40,6 @@ public struct BuildContext: Sendable {
     public static let currentIsLinux = false
     #endif
 
-    /// The default derived-data root: `~/Library/Developer/SwiftCode/DerivedData`
-    /// on macOS, `$XDG_CACHE_HOME/swiftcode/DerivedData` (or
-    /// `~/.cache/swiftcode/DerivedData`) on Linux.
     public static func defaultDerivedDataRoot(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
         let home = environment["HOME"] ?? NSHomeDirectory()
         if currentIsLinux {
@@ -63,23 +48,17 @@ public struct BuildContext: Sendable {
         return home + "/Library/Developer/SwiftCode/DerivedData"
     }
 
-    /// `<root>/<name>-<hash of the container path>`, the folder naming
-    /// SwiftCode's swiftcodebuild uses.
     public static func derivedDataFolder(for container: URL, root: String) -> String {
         let name = container.deletingPathExtension().lastPathComponent
         return root + "/" + DerivedDataName.folder(name: name, path: container.standardizedFileURL.path)
     }
 }
 
-/// The SDK a target is indexed for. A device SDK becomes its simulator
-/// (indexing does not need a device); a destination on the same platform
-/// family wins. See `specs/ide/language.md` §Build server, "Destination".
 public enum PlatformChoice {
     static let simulatorOf = ["iphoneos": "iphonesimulator", "appletvos": "appletvsimulator", "watchos": "watchsimulator",
                               "xros": "xrsimulator"]
     static let deviceOf = Dictionary(uniqueKeysWithValues: simulatorOf.map { ($1, $0) })
 
-    /// `iPhoneOS18.0.sdk` → `iphoneos`, `iphonesimulator27.0` → `iphonesimulator`.
     public static func baseName(_ sdkroot: String) -> String {
         var s = (sdkroot as NSString).lastPathComponent.lowercased()
         if s.hasSuffix(".sdk") { s = String(s.dropLast(4)) }
@@ -87,11 +66,8 @@ public enum PlatformChoice {
         return s
     }
 
-    /// The platform family: `iphoneos` and `iphonesimulator` are one.
     static func family(_ base: String) -> String { deviceOf[base] ?? base }
 
-    /// The SDK of a destination specifier (`platform=iOS Simulator` →
-    /// `iphonesimulator`), nil when it names none.
     public static func sdk(forDestination spec: String) -> String? {
         let fields = Dictionary(spec.split(separator: ",").compactMap { part -> (String, String)? in
             let kv = part.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
@@ -114,7 +90,6 @@ public enum PlatformChoice {
         }
     }
 
-    /// The `arch=` of a destination specifier.
     public static func architecture(forDestination spec: String) -> String? {
         for part in spec.split(separator: ",") {
             let kv = part.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
@@ -123,10 +98,6 @@ public enum PlatformChoice {
         return nil
     }
 
-    /// The SDK to index a target for: from `SDKROOT` (`auto` or empty:
-    /// the first of `SUPPORTED_PLATFORMS`), replaced by the destination's
-    /// SDK when that is on a platform the target supports; device SDKs
-    /// become simulators unless the destination names the device.
     public static func sdk(sdkroot: String, supportedPlatforms: String, destinationSDK: String?) -> String {
         let supported = supportedPlatforms.split(whereSeparator: { $0 == " " || $0 == "\t" }).map { baseName(String($0)) }
         let base = baseName(sdkroot)
@@ -137,16 +108,10 @@ public enum PlatformChoice {
     }
 }
 
-/// Produces each target's build settings for indexing.
 public protocol IndexSettingsSource: Sendable {
-    /// Settings per target identifier.
     func settings(for targets: [BuildGraph.Target], in graph: BuildGraph, context: BuildContext) throws -> [String: [String: String]]
 }
 
-/// SwiftCode's own settings engine (`SwiftCodeSettings`): the project's levels over
-/// a defaults level with the build-location and naming defaults the
-/// compiler arguments need (values from swift-build's open-source
-/// specifications), for the chosen SDK.
 public struct ResolverSettingsSource: IndexSettingsSource {
     public init() {}
 
@@ -158,7 +123,6 @@ public struct ResolverSettingsSource: IndexSettingsSource {
         for t in targets {
             let p = graph.project(of: t)
             let configuration = Self.configuration(context.configuration, project: p)
-            // First pass: the target's own SDKROOT and platforms.
             var builder = ProjectSettingsBuilder(proj: p.proj, xcodeprojURL: p.url)
             builder.developerDirectory = context.developerDirectory
             let first = try builder.resolve(target: t.name, configuration: configuration).settings
@@ -169,29 +133,22 @@ public struct ResolverSettingsSource: IndexSettingsSource {
             builder.defaults = Self.defaults(sdkName: sdkName, sdk: sdk, arch: arch, context: context)
             builder.overrides = ["SDKROOT": sdk?.canonicalName ?? sdkName]
             var all = try builder.resolve(target: t.name, configuration: configuration).settings.all()
-            // Without an installed SDK (Linux) the setting stays a name.
             if sdk == nil { all["SDKROOT"] = context.isLinuxHost ? "" : sdkName }
             out[t.id] = all
         }
         return out
     }
 
-    /// The configuration to use: the requested one when the project has
-    /// it, else Debug, else the project's default.
     static func configuration(_ requested: String?, project p: LoadedProject) -> String {
         if let r = requested, p.configurationNames.contains(r) { return r }
         if p.configurationNames.contains("Debug") { return "Debug" }
         return p.defaultConfigurationName
     }
 
-    /// `EFFECTIVE_PLATFORM_NAME`: `-<sdk>` except for macOS.
     static func effectivePlatformName(_ sdkName: String) -> String {
         sdkName == "macosx" || sdkName.isEmpty ? "" : "-" + sdkName
     }
 
-    /// The defaults level. Expressions are evaluated with the target's own
-    /// levels above them, so a project that sets `PRODUCT_NAME` or
-    /// `SYMROOT` still wins.
     static func defaults(sdkName: String, sdk: SDKCatalog.SDK?, arch: String, context: BuildContext) -> SettingsLevel {
         let pairs: [(key: String, value: String)] = [
             ("PRODUCT_NAME", "$(TARGET_NAME)"),
@@ -233,15 +190,11 @@ public struct ResolverSettingsSource: IndexSettingsSource {
     }
 }
 
-/// swift-build's settings (through the `swiftcode-swb` helper, as swiftcodebuild
-/// uses them), for the same SDK choice. Used when the helper is installed.
 public struct SwiftBuildSettingsSource: IndexSettingsSource {
     public var helper: String
     public init(helper: String) { self.helper = helper }
 
     public func settings(for targets: [BuildGraph.Target], in graph: BuildGraph, context: BuildContext) throws -> [String: [String: String]] {
-        // The SDK per target comes from SwiftCode's resolver; swift-build then
-        // evaluates every setting for it.
         let base = try ResolverSettingsSource().settings(for: targets, in: graph, context: context)
         let provider = SwiftBuildSettingsProvider(helper: helper)
         let arena = Arena.forContainer(graph.container, derivedDataPath: context.indexRoot, derivedDataRoot: "")

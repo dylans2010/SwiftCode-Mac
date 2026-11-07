@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDeviceModel
 
-// The DeviceConnectKit port's pure-logic tests: parsers, formatters,
-// and the process runner against real `/bin/echo` (a real
-// executable, no stubs). Nothing here needs a device or Xcode.
-
 @Suite struct DeviceConnectTests {
     @Test func buildParserSplitsErrorsAndWarnings() {
         let text = """
@@ -116,7 +112,6 @@ import Testing
     }
 }
 
-/// A lock-protected accumulator for the `@Sendable` stdout callback.
 private final class LineBox: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [String] = []

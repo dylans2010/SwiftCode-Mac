@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Helpers of the T-IMG suite (10-plan.md §3.2): headless rendering, pixel
-// probes with a tolerance, golden PNG comparison. Set OV_RENDER_OUT to a
-// directory to keep every rendered image there; set OV_UPDATE_GOLDENS=1 to
-// rewrite the golden PNGs instead of comparing.
-
 enum R5 {
     static let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     static var fixtures: URL { directory.appendingPathComponent("Fixtures") }
@@ -35,8 +30,6 @@ enum R5 {
         try? PNGCodec.encode(img).write(to: URL(fileURLWithPath: dir).appendingPathComponent(name + ".png"))
     }
 
-    /// The pixel at (x, y) in points (sampled at the pixel containing the
-    /// point's centre), straight RGBA.
     static func probe(_ img: PixelImage, _ x: Double, _ y: Double, scale: Double = 2) -> (Int, Int, Int, Int) {
         let px = min(img.size.width - 1, max(0, Int(x * scale))), py = min(img.size.height - 1, max(0, Int(y * scale)))
         let (r, g, b, a) = img.pixel(x: px, y: py)
@@ -51,13 +44,10 @@ enum R5 {
         return (Int(v >> 24 & 0xff), Int(v >> 16 & 0xff), Int(v >> 8 & 0xff), Int(v & 0xff))
     }
 
-    /// True when every channel is within `tolerance`.
     static func near(_ a: (Int, Int, Int, Int), _ b: (Int, Int, Int, Int), _ tolerance: Int = 2) -> Bool {
         abs(a.0 - b.0) <= tolerance && abs(a.1 - b.1) <= tolerance && abs(a.2 - b.2) <= tolerance && abs(a.3 - b.3) <= tolerance
     }
 
-    /// Pixels in a point rectangle whose colour differs from `background`
-    /// by more than `tolerance` in some channel.
     static func inkCount(_ img: PixelImage, in rect: CGRect, background: (Int, Int, Int, Int), tolerance: Int = 8, scale: Double = 2) -> Int {
         var n = 0
         let x0 = max(0, Int(rect.minX * scale)), x1 = min(img.size.width, Int(rect.maxX * scale))
@@ -71,10 +61,6 @@ enum R5 {
         return n
     }
 
-    /// Golden comparison: per-channel difference ≤ `tolerance` everywhere
-    /// except at most `allowedFraction` of the pixels (anti-aliased edges
-    /// may differ by a few levels between CPUs). Returns a description of
-    /// the mismatch, or nil.
     static func compareGolden(_ img: PixelImage, _ name: String, tolerance: Int = 3, allowedFraction: Double = 0.002) -> String? {
         let url = goldens.appendingPathComponent(name + ".png")
         if ProcessInfo.processInfo.environment["OV_UPDATE_GOLDENS"] == "1" {
@@ -99,7 +85,6 @@ enum R5 {
     }
 }
 
-/// A shape of our own for tests: a triangle.
 struct Triangle: Shape {
     func path(in rect: CGRect) -> Path {
         Path { p in
@@ -111,11 +96,8 @@ struct Triangle: Shape {
     }
 }
 
-/// The sample scenes of T-IMG (10-plan.md §3.2), also the golden scenes.
 @MainActor
 enum SampleScenes {
-    /// Shapes: rectangle, rounded rectangle, circle, capsule, ellipse,
-    /// triangle (a custom shape), strokes.
     static var shapes: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
@@ -147,8 +129,6 @@ enum SampleScenes {
         }
     }
 
-    /// The done-criterion scene: shapes, gradients, an image, text and
-    /// clipping.
     static var composite: some View {
         ZStack(alignment: .topLeading) {
             LinearGradient(colors: [Color(red: 0.95, green: 0.95, blue: 1), Color(red: 0.8, green: 0.85, blue: 1)],

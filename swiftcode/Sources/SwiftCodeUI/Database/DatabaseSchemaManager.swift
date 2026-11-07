@@ -1,29 +1,6 @@
 import Foundation
 import SwiftCodeCloud
 
-/// Creates and drops tables on a connection.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Core/DatabaseSchemaManager.swift`.
-///
-/// Two deliberate changes over Legacy, both recorded here:
-///
-/// 1. The `CREATE TABLE` SQL no longer comes from
-///    `DatabaseUtilities.defaultSQLForCreateTable` — that helper
-///    lives in `Helpers/DatabaseUtilities.swift`, which is outside
-///    this family and may or may not be ported. The generator is
-///    ported inline as `createTableSQL(table:provider:)`, faithful
-///    to Legacy's logic (column definitions, `PRIMARY KEY` /
-///    `AUTOINCREMENT` / `SERIAL` / `AUTO_INCREMENT` per provider,
-///    `NOT NULL` / `UNIQUE` / `DEFAULT` / `CHECK`, foreign keys
-///    for one-to-one and one-to-many relationships), with
-///    identifiers quoted where Legacy interpolated them raw.
-/// 2. Remote execution goes through the destination's
-///    `SupabaseService` value type (`SupabaseService()` — there is
-///    no `.shared` on the destination service), and a provider
-///    with no driver in this package (PostgreSQL, MySQL, MariaDB)
-///    now fails honestly with `.schemaModificationFailed` instead
-///    of Legacy's silent no-op.
 @MainActor
 public final class DatabaseSchemaManager {
     public static let shared = DatabaseSchemaManager()
@@ -64,14 +41,6 @@ public final class DatabaseSchemaManager {
         }
     }
 
-    // MARK: - SQL generation
-
-    /// The `CREATE TABLE` statement for a table, in the dialect of
-    /// `provider`. Faithful port of Legacy's
-    /// `DatabaseUtilities.defaultSQLForCreateTable(table:provider:)`
-    /// (`Helpers/DatabaseUtilities.swift`), inlined here because
-    /// that helper is outside this family; identifiers are quoted,
-    /// where Legacy interpolated table and column names raw.
     static func createTableSQL(table: DatabaseTable, provider: DatabaseProvider) -> String {
         var sql = "CREATE TABLE \(SQLiteExplorerModel.quoted(table.name)) (\n"
         var columnsSql: [String] = []
@@ -111,7 +80,6 @@ public final class DatabaseSchemaManager {
             columnsSql.append(colDef)
         }
 
-        // Relationships / Foreign Keys
         for rel in table.relationships {
             if rel.type == .oneToMany || rel.type == .oneToOne {
                 var fkDef = "    FOREIGN KEY (\(SQLiteExplorerModel.quoted(rel.sourceColumn))) REFERENCES \(SQLiteExplorerModel.quoted(rel.targetTable))(\(SQLiteExplorerModel.quoted(rel.targetColumn)))"

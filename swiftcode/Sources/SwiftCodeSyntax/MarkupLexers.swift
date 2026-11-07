@@ -1,7 +1,3 @@
-/// XML and property lists (XML 1.0, public W3C recommendation): tags
-/// and attribute names, attribute values (over lines), comments, CDATA
-/// sections, processing instructions, `<!DOCTYPE …>`, and entity
-/// references.
 struct XMLLexer: LineLexer {
     enum Mode: UInt8 { case content = 0, comment = 1, cdata = 2, tag = 3, value = 4, instruction = 5, declaration = 6 }
 
@@ -25,7 +21,6 @@ struct XMLLexer: LineLexer {
                 i = e + 2
                 state = .initial
             case .declaration:
-                // `<!DOCTYPE …>`, with an optional `[ … ]` internal subset.
                 var j = i
                 while j < l.end {
                     if l[j] == 91 { state.depth += 1 } else if l[j] == 93 { state.depth -= 1 } else if l[j] == 62, state.depth <= 0 { break }
@@ -44,7 +39,6 @@ struct XMLLexer: LineLexer {
                 i = j + 1
                 state = LexState(mode: Mode.tag.rawValue)
             case .tag:
-                // Attributes until `>` or `/>`.
                 while i < l.end, isSpace(l[i]) { i += 1 }
                 if i >= l.end { return }
                 let c = l[i]
@@ -90,7 +84,7 @@ struct XMLLexer: LineLexer {
                     i += 1
                     continue
                 }
-                if c == 38 {   // &entity;
+                if c == 38 {
                     var j = i + 1
                     while j < l.end, j - i < 12, isNamePart(l[j]) || l[j] == 35 { j += 1 }
                     if l[j] == 59 { out.add(.entity, s, j + 1); i = j + 1; continue }
@@ -104,10 +98,6 @@ struct XMLLexer: LineLexer {
     @inline(__always) func isNamePart(_ c: UInt16) -> Bool { isIdentPart(c) || c == 58 || c == 45 || c == 46 }
 }
 
-/// Markdown (CommonMark, public specification, with GitHub-style task
-/// lists and fences): headings, emphasis, strong, code spans, fenced code
-/// blocks, links and images, autolinks, block quotes, list markers,
-/// thematic breaks, backslash escapes and HTML comments.
 struct MarkdownLexer: LineLexer {
     enum Mode: UInt8 { case plain = 0, fence = 1, comment = 2 }
 
@@ -116,7 +106,6 @@ struct MarkdownLexer: LineLexer {
         let indent = first - l.start
         switch Mode(rawValue: state.mode) ?? .plain {
         case .fence:
-            // The closing fence: the same character, at least as many, nothing after.
             let ch = UInt16(state.aux)
             var j = first
             while j < l.end, l[j] == ch { j += 1 }
@@ -139,7 +128,6 @@ struct MarkdownLexer: LineLexer {
         guard first < l.end else { return }
         let c = l[first]
         if indent < 4 {
-            // A fence opens a code block.
             if c == 96 || c == 126 {
                 var j = first
                 while j < l.end, l[j] == c { j += 1 }
@@ -149,13 +137,11 @@ struct MarkdownLexer: LineLexer {
                     return
                 }
             }
-            // ATX heading.
             if c == 35 {
                 var j = first
                 while j < l.end, l[j] == 35 { j += 1 }
                 if j - first <= 6, j == l.end || isSpace(l[j]) { out.add(.heading, first, l.end); return }
             }
-            // Thematic break or setext underline: ---, ***, ___, ===.
             if c == 45 || c == 42 || c == 95 || c == 61 {
                 var n = 0
                 var j = first
@@ -166,11 +152,9 @@ struct MarkdownLexer: LineLexer {
                 }
                 if only, n >= 3 || (c == 61 && n >= 1) { out.add(c == 61 || c == 45 ? .heading : .listMarker, first, l.end); return }
             }
-            // Block quote: the whole line.
             if c == 62 { out.add(.quote, first, l.end); return }
         }
         var i = first
-        // List marker: -, *, + or 1. / 1) then a space; then a task box.
         if c == 45 || c == 42 || c == 43, isSpace(l[first + 1]) || first + 1 == l.end {
             out.add(.listMarker, first, first + 1)
             i = first + 1
@@ -186,14 +170,13 @@ struct MarkdownLexer: LineLexer {
         inline(l, from: i, state: &state, into: &out)
     }
 
-    /// Inline spans from `i` to the line's end.
     func inline(_ l: LineText, from start: Int, state: inout LexState, into out: inout [SyntaxToken]) {
         var i = start
         while i < l.end {
             let c = l[i]
             let s = i
             if c == 92, i + 1 < l.end, !isIdentPart(l[i + 1]), l[i + 1] != 32 { out.add(.escape, s, i + 2); i += 2; continue }
-            if c == 96 {   // `code` with a matching run of backticks
+            if c == 96 {
                 var n = 0
                 while l[i + n] == 96 { n += 1 }
                 var j = i + n
@@ -209,7 +192,7 @@ struct MarkdownLexer: LineLexer {
                 if let e = found { out.add(.codeSpan, s, e); i = e } else { i += n }
                 continue
             }
-            if c == 42 || c == 95 {   // *em*, **strong**, _em_, __strong__
+            if c == 42 || c == 95 {
                 var n = 0
                 while l[i + n] == c, n < 3 { n += 1 }
                 let open = i + n
@@ -237,7 +220,7 @@ struct MarkdownLexer: LineLexer {
                 i += n
                 continue
             }
-            if c == 33 || c == 91, let (textEnd, urlEnd) = link(l, c == 33 ? i + 1 : i) {   // [text](url), ![alt](src)
+            if c == 33 || c == 91, let (textEnd, urlEnd) = link(l, c == 33 ? i + 1 : i) {
                 out.add(.link, s, textEnd)
                 if urlEnd > textEnd { out.add(.url, textEnd, urlEnd) }
                 i = max(urlEnd, textEnd)
@@ -254,7 +237,6 @@ struct MarkdownLexer: LineLexer {
                     i = e + 3
                     continue
                 }
-                // <https://…> autolink, <tag> inline HTML.
                 var j = i + 1
                 while j < l.end, l[j] != 62, !isSpace(l[j]) || l[i + 1] != 104 { j += 1 }
                 if l[j] == 62 {
@@ -278,8 +260,6 @@ struct MarkdownLexer: LineLexer {
         }
     }
 
-    /// `[text](url)` starting at the `[` at `i`: the end of `]` and of `)`;
-    /// `[text][ref]` and `[text]` (a reference) end the url part at the text.
     func link(_ l: LineText, _ i: Int) -> (Int, Int)? {
         guard l[i] == 91 else { return nil }
         var j = i + 1
@@ -301,6 +281,6 @@ struct MarkdownLexer: LineLexer {
             return nil
         }
         if l[textEnd] == 91, let e = l.find("]", from: textEnd + 1) { return (textEnd, e + 1) }
-        return textEnd - i > 2 && l[textEnd] == 58 ? (textEnd, textEnd) : nil   // [ref]: url definition
+        return textEnd - i > 2 && l[textEnd] == 58 ? (textEnd, textEnd) : nil
     }
 }

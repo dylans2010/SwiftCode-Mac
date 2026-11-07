@@ -5,35 +5,22 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// `Grid` / `GridRow` (04-layout.md §6). Column width = the widest cell in the
-// column, row height = the tallest cell in the row; widths and heights are
-// distributed like a stack's children (least flexible first) when the grid
-// is offered a concrete size, so a flexible cell expands its column/row to
-// take what is left. Default spacing: the cells' preferences (8 between
-// columns; between rows the vertical preferences of the touching cells).
-
-/// Row membership of a grid cell (attached by the `grid` builder).
 package enum GridRowIndexKey: LayoutValueKey {
     package static let defaultValue: Int? = nil
 }
 
-/// True for a direct child of a grid that is not in a `GridRow`: it takes a
-/// whole row.
 package enum GridFullRowKey: LayoutValueKey {
     package static let defaultValue = false
 }
 
-/// The vertical alignment of the cell's row (`GridRow(alignment:)`).
 package enum GridRowAlignmentKey: LayoutValueKey {
     package static let defaultValue: VerticalAlignment? = nil
 }
 
-/// `gridCellColumns(_:)`.
 package enum GridCellColumnsKey: LayoutValueKey {
     package static let defaultValue = 1
 }
 
-/// A two-dimensional layout of rows of cells.
 public struct GridLayout: Layout {
     public var alignment: Alignment
     public var horizontalSpacing: CGFloat?
@@ -47,7 +34,6 @@ public struct GridLayout: Layout {
 
     public typealias AnimatableData = EmptyAnimatableData
 
-    /// The grid's structure: which subview sits in which row and columns.
     public struct Cache {
         struct Cell {
             var subview: Int
@@ -63,7 +49,7 @@ public struct GridLayout: Layout {
 
     public func makeCache(subviews: Subviews) -> Cache {
         var cache = Cache()
-        var rowOf: [Int: Int] = [:]   // builder row index → our row
+        var rowOf: [Int: Int] = [:]
         var columnCursor: [Int: Int] = [:]
         var fullRows: [Int] = []
         for (i, sv) in subviews.enumerated() {
@@ -132,7 +118,6 @@ public struct GridLayout: Layout {
 
     private func arrange(_ p: ProposedViewSize, _ s: Subviews, _ c: Cache) -> Arrangement {
         let colGaps = columnGaps(s, c), rowGaps = rowGaps(s, c)
-        // Columns, from single-column cells.
         let singles = (0..<c.columnCount).map { j in c.cells.filter { $0.column == j && $0.span == 1 } }
         func columnWidth(_ j: Int, _ offer: CGFloat?) -> CGFloat {
             singles[j].map { s[$0.subview].node.length(along: .horizontal, ProposedViewSize(width: offer, height: nil)) }.max() ?? 0
@@ -148,7 +133,6 @@ public struct GridLayout: Layout {
             widths = (0..<c.columnCount).map { columnWidth($0, nil) }
         }
         var a = Arrangement(widths: widths, heights: [], colGaps: colGaps, rowGaps: rowGaps, size: .zero)
-        // Rows, with each cell offered its column width.
         let rows = (0..<c.rowCount).map { i in c.cells.filter { $0.row == i } }
         func rowHeight(_ i: Int, _ offer: CGFloat?) -> CGFloat {
             rows[i].map { cell in
@@ -182,7 +166,6 @@ public struct GridLayout: Layout {
             let vKey = (cells.first?.rowAlignment ?? alignment.vertical).key
             let props = cells.map { ProposedViewSize(width: a.width($0.column, span: $0.span), height: a.heights[row]) }
             let dims = zip(cells, props).map { subviews[$0.subview].dimensions(in: $1) }
-            // Within the row, cells line up on the row's vertical guide.
             let guides = dims.map { $0[key: vKey] }
             let before = guides.max() ?? 0
             let extent = before + (zip(guides, dims).map { $1.height - $0 }.max() ?? 0)
@@ -199,15 +182,12 @@ public struct GridLayout: Layout {
     }
 }
 
-/// The content of a grid: a row of cells, or a single view taking a row.
 package enum GridContent {
     case row(alignment: VerticalAlignment?, cells: [LayoutNode])
     case single(LayoutNode)
 }
 
 extension LayoutNode {
-    /// A `Grid`. Cells are tagged with their row so that `GridLayout` can
-    /// rebuild the structure from its (flat) subviews.
     package static func grid(alignment: Alignment = .center, horizontalSpacing: CGFloat? = nil,
                              verticalSpacing: CGFloat? = nil, _ content: [GridContent]) -> LayoutNode {
         var cells: [LayoutNode] = []
@@ -226,6 +206,5 @@ extension LayoutNode {
         return layout(GridLayout(alignment: alignment, horizontalSpacing: horizontalSpacing, verticalSpacing: verticalSpacing), cells)
     }
 
-    /// `gridCellColumns(_:)`.
     package func gridCellColumns(_ n: Int) -> LayoutNode { layoutValue(key: GridCellColumnsKey.self, value: n) }
 }

@@ -1,10 +1,6 @@
 import Foundation
 
-/// The `.strings` table format (Apple's public documentation: an old-style
-/// property list of `"key" = "value";` pairs, with C comments, in UTF-8 or
-/// UTF-16). See `specs/ide/string-catalog.md`, "SwiftCode implementation".
 public enum StringsFile {
-    /// One `key = value` pair and the comment written before it.
     public struct Entry: Equatable, Sendable {
         public var key: String
         public var value: String
@@ -24,9 +20,6 @@ public enum StringsFile {
         public var description: String { "line \(line): \(message)" }
     }
 
-    // MARK: Writing
-
-    /// `"key" = "value";` lines (comments as `/* … */` before their entry).
     public static func text(_ entries: [Entry]) -> String {
         var out = ""
         for e in entries {
@@ -37,8 +30,6 @@ public enum StringsFile {
         return out
     }
 
-    /// The file bytes: UTF-8 without a byte-order mark, or UTF-16
-    /// little-endian with one.
     public static func data(_ entries: [Entry], encoding: Encoding = .utf8) -> Data {
         let s = text(entries)
         switch encoding {
@@ -50,7 +41,6 @@ public enum StringsFile {
         }
     }
 
-    /// A quoted string with the escapes the format defines.
     public static func quote(_ s: String) -> String {
         var out = "\""
         for u in s.unicodeScalars {
@@ -67,10 +57,6 @@ public enum StringsFile {
         return out + "\""
     }
 
-    // MARK: Reading
-
-    /// Decodes a table's bytes: a UTF-16 or UTF-8 byte-order mark, else
-    /// UTF-8, else UTF-16 (little-endian unless the zeros say otherwise).
     public static func decode(_ data: Data) -> String? {
         let b = [UInt8](data)
         if b.starts(with: [0xEF, 0xBB, 0xBF]) { return String(bytes: b.dropFirst(3), encoding: .utf8) }
@@ -100,8 +86,6 @@ public enum StringsFile {
         return try parse(s)
     }
 
-    /// Entries in file order. `"key";` alone means the value is the key.
-    /// The comment is the last `/* … */` or `//` comment before the entry.
     public static func parse(_ s: String) throws -> [Entry] {
         let u = Array(s.unicodeScalars)
         var i = 0, line = 1
@@ -163,7 +147,6 @@ public enum StringsFile {
                             var hex = ""
                             while hex.count < 4, i + 1 < u.count, u[i + 1].properties.isASCIIHexDigit { i += 1; hex.unicodeScalars.append(u[i]) }
                             var v = UInt32(hex, radix: 16) ?? 0xFFFD
-                            // A surrogate pair written as two \U escapes.
                             if (0xD800..<0xDC00).contains(v), i + 6 < u.count, u[i + 1] == "\\", u[i + 2] == "U" || u[i + 2] == "u" {
                                 let lowHex = String(String.UnicodeScalarView(u[(i + 3)...(i + 6)]))
                                 if let low = UInt32(lowHex, radix: 16), (0xDC00..<0xE000).contains(low) {
@@ -218,10 +201,6 @@ public enum StringsFile {
     }
 }
 
-/// A `.stringsdict` property list (Apple's public documentation:
-/// `NSStringLocalizedFormatKey`, variables with `NSStringFormatSpecTypeKey`
-/// `NSStringPluralRuleType` and `NSStringFormatValueTypeKey`, plural
-/// categories, and `NSStringDeviceSpecificRuleType`), kept in order.
 public indirect enum StringsDictValue: Equatable, Sendable {
     case string(String)
     case dict([(String, StringsDictValue)])
@@ -244,7 +223,6 @@ public indirect enum StringsDictValue: Equatable, Sendable {
 }
 
 public enum StringsDictFile {
-    /// An XML property list of the top-level entries, in their order.
     public static func data(_ entries: [(String, StringsDictValue)]) -> Data {
         var out = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -272,8 +250,6 @@ public enum StringsDictFile {
         }
     }
 
-    /// XML text: `&`, `<`, `>` escaped; characters XML 1.0 cannot hold
-    /// (C0 controls other than tab, newline and return) are dropped.
     public static func escape(_ s: String) -> String {
         var out = ""
         for u in s.unicodeScalars {
@@ -289,8 +265,6 @@ public enum StringsDictFile {
         return out
     }
 
-    /// The entries of a `.stringsdict` (any property-list format). Keys of
-    /// each dictionary come back sorted, plural categories in CLDR order.
     public static func parse(_ data: Data) throws -> [(String, StringsDictValue)] {
         let any = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
         guard let root = any as? [String: Any] else { throw StringsFile.ParseError(line: 1, message: "the top level is not a dictionary") }

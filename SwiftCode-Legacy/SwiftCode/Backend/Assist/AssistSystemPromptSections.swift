@@ -1,43 +1,20 @@
 import Foundation
 
-/// Pure helpers for addressing `AgentSystemAsset.md` by top-level section.
-///
-/// Runtime paths can extract only the sections relevant to a task (e.g. the
-/// active toolkit's tool guidance) instead of sending the full corpus with
-/// every request. All functions are pure and safe to call from any thread.
 public enum AssistSystemPromptSections {
-    /// Returns the normalized titles of all top-level (`## `) sections in
-    /// document order, e.g. `"TOOL SELECTION & USAGE"`.
     public static func sectionNames(in prompt: String) -> [String] {
         prompt
             .components(separatedBy: "\n")
             .compactMap { normalizeHeading($0) }
     }
 
-    /// Extracts the full text of a top-level section, including its heading
-    /// line, up to (but excluding) the next top-level heading.
-    /// `name` may be the normalized title (`"TOOL SELECTION & USAGE"`) or the
-    /// full heading line (`"## 5. TOOL SELECTION & USAGE"`).
-    /// Returns `nil` when no matching section exists.
     public static func extractSection(named name: String, from prompt: String) -> String? {
         extractSection(named: name, from: prompt, headingLevel: 2)
     }
 
-    /// Extracts a subsection (a `###` heading) including its nested content.
     public static func extractSubsection(named name: String, from prompt: String) -> String? {
         extractSection(named: name, from: prompt, headingLevel: 3)
     }
 
-    /// Builds the bounded instruction set used by the Antigravity runtime.
-    ///
-    /// The canonical baseline (`AgentSystemAsset.md` routing index +
-    /// `Identity.md` + `Safeguards.md`, assembled by
-    /// `SystemIndexService.baselinePrompt()`) is already bounded (~18 KB) and
-    /// is carried in full: Identity and Safeguards are mandatory baseline
-    /// content that must never be stripped. Task-specific sections are NOT
-    /// duplicated here — they are retrieved per request by
-    /// `SystemIndexService.retrieve(for:)` and injected into the request
-    /// prompt, so sessions stay reusable across requests.
     public static func runtimeInstructions(
         from systemPrompt: String,
         repositoryInstructions: String?,
@@ -97,7 +74,6 @@ public enum AssistSystemPromptSections {
         }
 
         var selectedNames: [String] = []
-        // Architecture, security, and concurrency contracts are cross-cutting.
         selectedNames.append("EXECUTIVE ARCHITECTURE & STATE MACHINE")
 
         if containsAny(lowerObjective, ["assist", "agent", "tool", "stream", "response", "output", "json", "thinking", "code", "review", "debug", "fix", "latency", "slow", "performance"]) {
@@ -137,10 +113,6 @@ public enum AssistSystemPromptSections {
         let introduction = lines[..<firstSubsection].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         var output: [String] = introduction.isEmpty ? [] : [introduction]
 
-        // The repo blueprint describes a separate native AssistAgentSession
-        // JSON protocol and several expensive native-only validation/review
-        // phases. Antigravity's Cloud and System toolkits both use the SDK's
-        // structured call interface, so include only shared session concepts.
         let sharedSubsections = markdownSections(section, headingLevel: 3)
         for name in ["CORE DOMAIN MODELS & SESSION STATE MACHINE", "COGNITIVE HEURISTICS & SELF-HEALING ENGINES"] {
             if let subsection = sharedSubsections.first(where: { $0.name == name })?.text {
@@ -160,7 +132,6 @@ public enum AssistSystemPromptSections {
         guard let firstSection = lines.firstIndex(where: { normalizeHeading($0) != nil }) else {
             return nil
         }
-        // A markdown table of contents is navigational, not operating policy.
         let preamble = lines[..<firstSection].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         return preamble
     }
@@ -213,9 +184,6 @@ public enum AssistSystemPromptSections {
         needles.contains(where: { value.contains($0) })
     }
 
-    /// Normalizes a markdown heading line to its bare title, or returns `nil`
-    /// when the line is not a top-level (`## `) section heading.
-    /// `"## 5. TOOL SELECTION & USAGE"` -> `"TOOL SELECTION & USAGE"`.
     public static func normalizeHeading(_ line: String) -> String? {
         normalizedMarkdownHeading(line, level: 2)
     }

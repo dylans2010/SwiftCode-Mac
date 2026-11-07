@@ -1,6 +1,5 @@
 import Foundation
 
-/// `HKQueryOptions` (raw values in `identifiers.md`).
 public struct HKQueryOptions: OptionSet, Hashable, Sendable {
     public let rawValue: UInt
     public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -35,7 +34,6 @@ enum CompareOp: Int, Codable, Sendable {
     }
 }
 
-/// The structured form of a HealthKit predicate (`queries.md` §2, `design.md` §6.1).
 indirect enum PredicateNode: @unchecked Sendable {
     case constant(Bool)
     case typeIs(String)
@@ -60,10 +58,8 @@ indirect enum PredicateNode: @unchecked Sendable {
     case workout(UUID)
     case workoutActivityType(Int)
     case workoutDuration(CompareOp, Double)
-    /// Any other `NSPredicate` (block, constant): evaluated on the materialized object.
     case opaque(NSPredicate)
 
-    /// The date bounds every match must fall into, for a coarse SQL filter.
     var coarseBounds: (start: Double?, end: Double?) {
         switch self {
         case .dateInterval(let s, let e, _): return (s, e)
@@ -79,7 +75,6 @@ indirect enum PredicateNode: @unchecked Sendable {
         }
     }
 
-    /// Convert any NSPredicate into a node.
     static func from(_ predicate: NSPredicate?) -> PredicateNode? {
         guard let predicate else { return nil }
         if let p = predicate as? HKNodePredicate { return p.node }
@@ -99,7 +94,6 @@ indirect enum PredicateNode: @unchecked Sendable {
     }
 
     #if canImport(ObjectiveC)
-    /// Plain predicates written by the app over HealthKit key paths (`queries.md` §2).
     static func fromComparison(_ c: NSComparisonPredicate) -> PredicateNode {
         guard c.leftExpression.expressionType == .keyPath, c.rightExpression.expressionType == .constantValue
         else { return .constant(false) }
@@ -134,8 +128,6 @@ indirect enum PredicateNode: @unchecked Sendable {
     #endif
 }
 
-/// The NSPredicate subclass HealthKit's predicate constructors return. It carries
-/// the structured node and also evaluates against HealthKit objects directly.
 final class HKNodePredicate: NSPredicate {
     let node: PredicateNode
     let text: String
@@ -162,7 +154,6 @@ final class HKNodePredicate: NSPredicate {
 }
 
 enum PredicateEvaluator {
-    /// A missing predicate matches everything.
     static func matches(_ node: PredicateNode?, _ r: ObjectRecord) -> Bool {
         guard let node else { return true }
         return matches(node, r)
@@ -213,7 +204,6 @@ enum PredicateEvaluator {
         }
     }
 
-    /// Interval rules of `queries.md` §2.1.
     static func dateInterval(start s: Double, end e: Double, ws: Double?, we: Double?, options: HKQueryOptions) -> Bool {
         let strictStart = options.contains(.strictStartDate)
         let strictEnd = options.contains(.strictEndDate)
@@ -243,8 +233,6 @@ enum PredicateEvaluator {
         }
     }
 }
-
-// MARK: - Predicate constructors (`api-inventory.md`, HKQuery categories)
 
 extension HKQuery {
     static func node(_ n: PredicateNode, _ text: String) -> NSPredicate { HKNodePredicate(n, text) }
@@ -324,7 +312,6 @@ extension HKQuery {
     }
 }
 
-/// The asleep values of sleep analysis (`identifiers.md` "Functions").
 public func HKCategoryValueSleepAnalysisAsleepValues() -> Set<HKCategoryValueSleepAnalysis> {
     [.asleepUnspecified, .asleepCore, .asleepDeep, .asleepREM]
 }

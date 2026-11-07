@@ -1,12 +1,3 @@
-//
-//  AssistConversationHistory.swift
-//  SwiftCode
-//
-//  Persistent history manager for Assist conversations.
-//  Maintains multi-session conversation index, context files (<id>.context.md),
-//  and reviews conversations with Apple Foundation Models for intelligent auto-titling.
-//
-
 import Foundation
 import Combine
 import os
@@ -85,8 +76,6 @@ public final class AssistConversationHistory: ObservableObject {
         activeConversations
     }
 
-    // MARK: - Conversation Lifecycle
-
     public func startNewConversation() -> ConversationItem {
         let id = UUID()
         let contextFile = baseDirectoryURL.appendingPathComponent("\(id.uuidString).context.md")
@@ -138,7 +127,6 @@ public final class AssistConversationHistory: ObservableObject {
             conversations[idx].messageCount = messages.count
             conversations[idx].previewSnippet = preview
 
-            // If the conversation title is still default, review with Apple Foundation Models!
             if (conversations[idx].title == "New Conversation" || conversations[idx].title.isEmpty) && !firstUserMsg.isEmpty {
                 let currentId = conversationId
                 Task {
@@ -205,8 +193,6 @@ public final class AssistConversationHistory: ObservableObject {
         objectWillChange.send()
     }
 
-    // MARK: - Apple Foundation Models Review
-
     public func reviewAndTitleConversation(id: UUID, firstMessage: String) async {
         let prompt = """
         Review this user request to an AI coding assistant and generate a very short, concise title (under 25 characters, 2 to 4 words).
@@ -249,7 +235,6 @@ public final class AssistConversationHistory: ObservableObject {
         }
     }
 
-    /// Generates and assigns an AI-suggested title under 25 characters for a conversation using AFM.
     @discardableResult
     public func suggestName(for id: UUID) async -> String? {
         guard let item = conversations.first(where: { $0.id == id }) else { return nil }
@@ -322,8 +307,6 @@ public final class AssistConversationHistory: ObservableObject {
 
         try? summary.write(to: contextFile, atomically: true, encoding: .utf8)
     }
-
-    // MARK: - Index Persistence
 
     private func saveIndex() {
         if let data = try? JSONEncoder().encode(conversations) {

@@ -1,24 +1,13 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Library (⇧⌘L). With a source file it has Snippets and Symbols tabs;
-/// while an Interface Builder document is focused it has Objects, Image,
-/// Color and Symbols (`library.md` §Reference Objects library ▸ Panel).
-/// The panel follows the measured layout: 681 × 504 with the details
-/// shown, 272 × 504 without (same centre); a filter icon and search field,
-/// an icon/list toggle and a details toggle; the tabs; a flat list of
-/// 48-point rows (or four 34-point icons to a row); and the detail area
-/// (name, `Class: summary`, description). Double-click or Return inserts;
-/// dragging carries the item.
 @MainActor
 public final class LibraryController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public enum Tab: Int, CaseIterable { case snippets, symbols, objects, image, color }
 
-    /// Panel sizes (`library.md` §Panel).
     public static let size = NSSize(width: 681, height: 504)
     public static let narrowWidth: CGFloat = 272
 
-    /// Whether the Objects tab is offered (an Interface Builder document is focused).
     public var objectsAvailable = false {
         didSet {
             guard oldValue != objectsAvailable else { return }
@@ -26,12 +15,9 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
             if isViewLoaded { configureTabs(); reload() }
         }
     }
-    /// The kinds the focused document offers, in Library order.
     public private(set) var objectKinds: [IBDocument.NewObject] = IBDocument.NewObject.macList
-    /// Whether they are UIKit kinds (the class names shown).
     public private(set) var objectsIOS = false
 
-    /// Offers the Objects tab for a document (nil: no Interface Builder document).
     public func setObjects(for d: IBDocument?) {
         if let d {
             objectKinds = IBDocument.NewObject.list(for: d)
@@ -41,7 +27,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         reload()
     }
 
-    /// Called with the object to insert (double-click or Return on Objects).
     public var onInsertObject: ((IBDocument.NewObject) -> Void)?
     public private(set) var objects: [IBDocument.NewObject] = []
 
@@ -50,11 +35,8 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
     public private(set) var snippets: [LibrarySnippet] = []
     public private(set) var symbols: [String] = []
     public private(set) var colors: [String] = []
-    /// Called with the text to insert (double-click or Return).
     public var onInsert: ((String) -> Void)?
-    /// The list shows icons only, four to a row.
     public private(set) var isIconView = false
-    /// The detail area is shown.
     public private(set) var showsDetails = true
 
     let filterIcon = NSImageView()
@@ -68,15 +50,12 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
     let detailSubtitle = NSTextField(labelWithString: "")
     let detailText = NSTextView()
     let detailScroll = NSScrollView()
-    /// The selected item in the icon view (the table selects rows of four).
     public private(set) var iconSelection: Int?
 
-    /// Symbol names the running system can draw.
     public static let availableSymbols: [String] = LibraryContent.symbolNames.filter {
         NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil
     }
 
-    /// The tabs shown, in order.
     public var visibleTabs: [Tab] { objectsAvailable ? [.objects, .image, .color, .symbols] : [.snippets, .symbols] }
 
     public override func loadView() {
@@ -130,7 +109,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         selectFirst()
     }
 
-    /// Places everything at the measured positions (y from the top).
     func layoutPanel() {
         let w = showsDetails ? Self.size.width : Self.narrowWidth
         view.setFrameSize(NSSize(width: w, height: Self.size.height))
@@ -190,7 +168,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         select(tab: tabs.selectedSegment >= 0 && tabs.selectedSegment < list.count ? list[tabs.selectedSegment] : list[0])
     }
 
-    /// The header's first toggle: icon view or list view.
     @objc public func toggleIconView() {
         isIconView.toggle()
         iconSelection = isIconView ? (table.selectedRow >= 0 ? table.selectedRow : nil) : nil
@@ -198,8 +175,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         reload()
     }
 
-    /// The header's second toggle: shows or hides the detail area; the
-    /// panel keeps its horizontal centre.
     @objc public func toggleDetails() {
         let old = view.frame.width
         showsDetails.toggle()
@@ -229,7 +204,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         updateDetail()
     }
 
-    /// Filtering selects the first match (`library.md` §Panel, Selection).
     func selectFirst() {
         guard isViewLoaded else { return }
         if isIconView && tab == .objects {
@@ -241,8 +215,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         updateDetail()
     }
 
-    /// The text an item inserts: a snippet's body, or a symbol's name as a
-    /// string literal.
     public func insertionText(row: Int) -> String? {
         switch tab {
         case .snippets: row < snippets.count ? snippets[row].body : nil
@@ -251,8 +223,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         }
     }
 
-    /// Inserts the item at `row` (what double-click does; in the icon view
-    /// the item index).
     @discardableResult
     public func insert(row: Int) -> Bool {
         if tab == .objects {
@@ -265,7 +235,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         return true
     }
 
-    /// The selected object (list or icon view).
     public var selectedObject: IBDocument.NewObject? {
         guard tab == .objects else { return nil }
         let i = isIconView ? iconSelection : (table.selectedRow >= 0 ? table.selectedRow : nil)
@@ -279,7 +248,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         if e.keyCode == 36, table.selectedRow >= 0 { insert(row: table.selectedRow) } else { super.keyDown(with: e) }
     }
 
-    /// The detail area: the selected item's name, subtitle and description.
     public var detail: (name: String, subtitle: String, description: String) {
         let r = table.selectedRow
         switch tab {
@@ -306,8 +274,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         detailText.string = d.description
     }
 
-    // MARK: Table
-
     public func numberOfRows(in t: NSTableView) -> Int {
         switch tab {
         case .snippets: snippets.count
@@ -320,8 +286,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
 
     public static func objectSummary(_ o: IBDocument.NewObject) -> String { o.summary }
 
-    /// The Objects tab's icons, drawn by SwiftCode from the shared shapes
-    /// (`IBLibraryObjects.swift`; no artwork files), 34 points.
     public static func objectIcon(_ o: IBDocument.NewObject) -> NSImage { IBIconDrawing.image(o.icon, size: 34) }
 
     public func tableViewSelectionDidChange(_ n: Notification) { updateDetail() }
@@ -375,8 +339,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
         return cell
     }
 
-    /// Dragging a row carries its insertion text as a plain string, or the
-    /// object's name for the canvas.
     public func tableView(_ t: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
         if tab == .objects {
             guard !isIconView, row < objects.count else { return nil }
@@ -388,8 +350,6 @@ public final class LibraryController: NSViewController, NSTableViewDataSource, N
     }
 }
 
-/// The Library panel's root: paints the panel background and is flipped,
-/// so frames read from the top.
 final class FlippedPanelView: NSView {
     override var isFlipped: Bool { true }
 
@@ -400,7 +360,6 @@ final class FlippedPanelView: NSView {
     }
 }
 
-/// One icon of the Library's icon view (34 points, 7 from the cell top).
 final class LibraryIconCell: NSView {
     var image: NSImage?
     var isSelected = false { didSet { needsDisplay = true } }

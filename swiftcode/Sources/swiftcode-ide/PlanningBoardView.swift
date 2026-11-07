@@ -1,10 +1,3 @@
-// PlanningBoardView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PlanningBoardView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: planning board UI with status cycling (cycleStatus), priority colours and item loading
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ModuleKind.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftUI
 

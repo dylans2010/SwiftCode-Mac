@@ -4,13 +4,9 @@ import SwiftCodeSubprocess
 import Glibc
 #endif
 
-/// An advisory lock on a file (`flock`), held until `unlock()` or deinit.
-/// Serializes work across processes, e.g. debugger sessions started by
-/// test targets that run in parallel.
 public final class InterprocessLock: @unchecked Sendable {
     private var fd: Int32
 
-    /// Blocks until the lock at `path` is acquired.
     public init(path: String) {
         fd = Self.open(path)
         if fd >= 0 { _ = flock(fd, LOCK_EX) }
@@ -27,20 +23,11 @@ public final class InterprocessLock: @unchecked Sendable {
         #endif
     }
 
-    /// Acquires without blocking a thread: tries the lock and sleeps
-    /// between tries (`poll` seconds). It used to wait in `flock` on a
-    /// detached task, which held one of the cooperative pool's threads for
-    /// as long as another holder kept the lock (minutes, behind a debugger
-    /// test); a dozen waiting tests left the pool no thread for anything
-    /// else in the process (streamed replies, language-server start-up).
     public static func acquire(path: String, poll: TimeInterval = 0.05) async -> InterprocessLock {
         let fd = open(path)
         guard fd >= 0 else { return InterprocessLock(locked: fd) }
         while flock(fd, LOCK_EX | LOCK_NB) != 0 {
-            // EWOULDBLOCK: held elsewhere; anything else: no lock to take.
             guard errno == EWOULDBLOCK || errno == EINTR else { break }
-            // A cancelled task's sleep returns at once: pause the thread
-            // instead of spinning (the caller still gets the lock).
             if Task.isCancelled { usleep(useconds_t(poll * 1_000_000)) } else { try? await Task.sleep(nanoseconds: UInt64(poll * 1_000_000_000)) }
         }
         return InterprocessLock(locked: fd)
@@ -55,11 +42,6 @@ public final class InterprocessLock: @unchecked Sendable {
 
     deinit { unlock() }
 
-    /// Whether this machine can launch a process under the debugger right
-    /// now: runs `lldb --batch -o "process launch"` on `executable` and
-    /// waits up to `timeout` seconds for it to exit. False when the launch
-    /// hangs, e.g. waiting for a debugging authorization that no one can
-    /// answer (Developer Mode off). Cached per process and executable.
     public static func canLaunchUnderDebugger(_ executable: String, timeout: TimeInterval = 120) -> Bool {
         probeLock.lock()
         defer { probeLock.unlock() }
@@ -83,7 +65,6 @@ public final class InterprocessLock: @unchecked Sendable {
             p.terminate()
             Thread.sleep(forTimeInterval: 0.5)
             if p.isRunning { kill(p.processIdentifier, SIGKILL) }
-            // The half-launched debuggee would otherwise linger.
             let k = Process()
             k.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
             k.arguments = ["-9", "-f", executable]
@@ -99,8 +80,6 @@ public final class InterprocessLock: @unchecked Sendable {
         return ok
     }
 
-    /// `DevToolsSecurity -status` reports Developer Mode disabled (macOS;
-    /// false elsewhere or when the tool is missing).
     public static func developerModeDisabled() -> Bool {
         #if os(macOS)
         MainThreadGuard.blockingCall("DevToolsSecurity -status")
@@ -118,14 +97,11 @@ public final class InterprocessLock: @unchecked Sendable {
         #endif
     }
 
-    /// Why the last probe could not launch (for the skip message).
     nonisolated(unsafe) public private(set) static var lastProblem: String?
 
     nonisolated(unsafe) private static var probeCache: [String: Bool] = [:]
     private static let probeLock = NSLock()
 
-    /// The lock every lldb-dap end-to-end test takes, shared across test
-    /// processes.
     public static var debuggerTestLockPath: String {
         FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-lldb-dap-e2e.lock").path
     }

@@ -7,7 +7,6 @@ struct DatabaseBackupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Take Backup Card
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Take Database Backup Snapshot")
@@ -28,7 +27,6 @@ struct DatabaseBackupView: View {
 
             Divider()
 
-            // Backups List
             List(backupManager.backupPaths, id: \.self) { path in
                 HStack {
                     Image(systemName: "archivebox.fill")

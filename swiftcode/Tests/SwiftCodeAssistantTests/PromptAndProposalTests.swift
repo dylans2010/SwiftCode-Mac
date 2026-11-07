@@ -21,7 +21,6 @@ import Testing
         #expect(last.hasSuffix("</context>\n\nWhy?"))
         #expect(last.contains("Selected code, lines 2–3 of Sources/App/Model.swift"))
         #expect(last.contains("```swift\nlet value1 = 1"))
-        // Errors are listed before warnings.
         #expect(last.range(of: "- error Sources/App/Model.swift:7")!.lowerBound < last.range(of: "- warning")!.lowerBound)
         #expect(last.contains("Open file Sources/App/View.swift"))
         #expect(p.included.contains("File Model.swift"))
@@ -40,7 +39,6 @@ import Testing
         #expect(p.included.contains { $0.hasPrefix("Part of Big.swift (lines") })
         #expect(p.omitted.contains("Open file Other.swift"))
         #expect(p.omitted.contains { $0.hasSuffix("earlier messages") })
-        // The kept history is the most recent, in order.
         let kept = p.messages.dropLast()
         if let lastKept = kept.last { #expect(lastKept.content.hasPrefix("turn 29")) }
         #expect(p.messages.last!.content.contains("let line1000"))
@@ -125,7 +123,6 @@ import Testing
         let target = ProposalTarget(path: "A.swift", selectionLocation: 8, selectionLength: 5, selectionText: "old()")
         let sel = ChangeProposal(kind: .replaceSelection, path: "A.swift", language: "swift", text: "new()", blockIndex: 0)
         #expect(try sel.apply(to: original, target: target) == "let x = new()\nprint(x)\n")
-        // The selection moved: a single exact occurrence still applies.
         #expect(try sel.apply(to: "// header\n" + original, target: target) == "// header\nlet x = new()\nprint(x)\n")
         #expect(throws: ChangeProposal.ApplyError.selectionChanged) { try sel.apply(to: "let y = other()\n", target: target) }
         #expect(throws: ChangeProposal.ApplyError.selectionChanged) { try sel.apply(to: "old() old()", target: target) }
@@ -167,8 +164,6 @@ import Testing
         #expect(back[0].model == "qwen2.5-coder")
     }
 
-    /// reference-ui-6.md §9.2: groups (oldest first, conversations newest
-    /// first), then ungrouped conversations, then Archive, always last.
     @Test func libraryOutlineAndGroups() throws {
         var lib = ConversationLibrary()
         #expect(lib.outline == [.archive([])])
@@ -184,7 +179,6 @@ import Testing
         #expect(outline.count == 5)
         #expect(outline[0] == .group(g, [b]))
         #expect(outline[1] == .group(lib.groups[1], []))
-        // Newest first; a conversation whose group is gone is at the top level.
         #expect(outline[2] == .conversation(orphan) && outline[3] == .conversation(a))
         #expect(outline[4] == .archive([c]))
     }
@@ -194,7 +188,6 @@ import Testing
         defer { try? FileManager.default.removeItem(at: dir) }
         let old = dir.appendingPathComponent("old.json")
         try ConversationArchive.save([Conversation(title: "Old")], to: old)
-        // A file written before groups: a plain list, no group keys.
         let list = try JSONSerialization.jsonObject(with: Data(contentsOf: old)) as? [String: Any]
         let plain = try JSONSerialization.data(withJSONObject: (list?["conversations"] as? [[String: Any]] ?? []).map { c -> [String: Any] in
             var c = c
@@ -205,7 +198,6 @@ import Testing
         try plain.write(to: old)
         let back = ConversationArchive.loadLibrary(old)
         #expect(back.conversations.map(\.title) == ["Old"] && back.groups.isEmpty && back.conversations[0].isArchived == false)
-        // Groups and archive flags round-trip.
         let g = ConversationGroup(title: "G")
         let lib = ConversationLibrary(conversations: [Conversation(title: "In G", groupID: g.id), Conversation(title: "Gone", isArchived: true)], groups: [g])
         let url = dir.appendingPathComponent("new.json")
@@ -257,9 +249,6 @@ import Testing
     }
 
     #if canImport(Security)
-    /// The real keychain, under a service name of its own that the test
-    /// removes. Opt-in (`SWIFTCODE_KEYCHAIN_TESTS=1`): it writes to the login
-    /// keychain.
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_KEYCHAIN_TESTS"] == "1"))
     func keychainRoundTrip() throws {
         let s = KeychainSecretStore(service: "SwiftCode Coding Assistant Tests \(UUID().uuidString)")

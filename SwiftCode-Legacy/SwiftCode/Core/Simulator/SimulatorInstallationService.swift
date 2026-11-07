@@ -11,7 +11,6 @@ public actor SimulatorInstallationService {
         logger.info("[BEGIN] Installing application package from '\(path)' on simulator '\(udid)'")
         let startTime = Date()
 
-        // Validate path format
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else {
             throw SimulatorError.invalidApplicationBundle(path: path, reason: "The package file does not exist at the specified path.")

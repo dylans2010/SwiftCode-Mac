@@ -3,13 +3,10 @@ import SwiftCodeEditorKit
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// One completion offered in the editor (from sourcekit-lsp).
 public struct EditorCompletion: Equatable, Sendable {
     public var label: String
     public var detail: String?
-    /// The text to insert, snippet stops removed.
     public var text: String
-    /// Where the caret goes in `text` (the first snippet stop, else its end).
     public var caretOffset: Int
 
     public init(label: String, detail: String? = nil, text: String, caretOffset: Int? = nil) {
@@ -24,8 +21,6 @@ public struct EditorCompletion: Equatable, Sendable {
         self.init(label: item.label, detail: item.detail, text: text, caretOffset: stop)
     }
 
-    /// An LSP snippet as plain text (`${1:name}` → `name`, `$1`, `${1}` and
-    /// `$0` → nothing, `\$` → `$`), with the UTF-16 offset of the first stop.
     public static func plain(snippet s: String) -> (String, Int?) {
         let it = Array(s)
         var out = "", first: Int?
@@ -36,7 +31,6 @@ public struct EditorCompletion: Equatable, Sendable {
             if c == "\\", i + 1 < it.count { out.append(it[i + 1]); i += 2; continue }
             if c == "$", i + 1 < it.count {
                 if it[i + 1] == "{" {
-                    // ${n} or ${n:default}
                     var j = i + 2
                     while j < it.count, it[j].isNumber { j += 1 }
                     if j < it.count, it[j] == "}" {
@@ -73,8 +67,6 @@ public struct EditorCompletion: Equatable, Sendable {
         return (out, first)
     }
 
-    /// The items starting with `prefix` (any case) first, then those
-    /// containing it.
     public static func filter(_ all: [EditorCompletion], prefix: String) -> [EditorCompletion] {
         guard !prefix.isEmpty else { return all }
         let p = prefix.lowercased()
@@ -85,9 +77,6 @@ public struct EditorCompletion: Equatable, Sendable {
 }
 
 extension WorkspaceShellModel {
-    /// Completions at the caret of the open file: the server gets the
-    /// current text first. Empty without a language server, when it fails,
-    /// or after `timeout` seconds; never throws.
     public func completions(timeout: Double = 3) async -> [EditorCompletion] {
         guard let d = editor, let language = session.language, d.readOnlyReason == nil else { return [] }
         let url = URL(fileURLWithPath: d.path)
@@ -96,8 +85,6 @@ extension WorkspaceShellModel {
         let b = d.buffer
         let p = Position(line: b.caretLine, character: b.caretColumn)
         let session = session
-        // A request the server never answers (it crashed, it is busy)
-        // gives nothing after `timeout`; the request is left to finish.
         let items: [CompletionItem] = await withCheckedContinuation { cont in
             let once = ResumeOnce(cont)
             Task { @MainActor in once.resume(await session.completions(url, at: p)) }
@@ -110,7 +97,6 @@ extension WorkspaceShellModel {
     }
 }
 
-/// Resumes a continuation once; later results are dropped.
 @MainActor
 private final class ResumeOnce {
     private var cont: CheckedContinuation<[CompletionItem], Never>?

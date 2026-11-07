@@ -1,27 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Codex/CodexBridgeManager.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant, alongside the existing CodexAPI/ client
-// (CodexManager / CodexService / CodexSession). This file is the CLI bridge —
-// it shells out to the official `codex` CLI — while CodexAPI/ talks to the
-// OpenAI Responses API with a Bearer key; the two are complementary, not
-// duplicates. No type in this file collides with CodexAPI/ (verified by grep).
-//
-// ADAPTATIONS (destination equivalents used instead of Legacy-only types):
-//   - KeychainService / KeychainService.codexUserAPIKey -> SecretStore with
-//     CodexManager.userKeyAccount ("codex.user-api-key"), injected via the
-//     init (default: defaultSecretStore()); same account string the
-//     CodexAPI/ client already uses, so CLI and API clients share one key.
-//   - LLMError.networkError -> CodexAPIError.networkError (CodexAPI/).
-//   - `import AppKit` guarded with `#if canImport(AppKit)` (the package also
-//     builds on Linux); the willTerminate observer was already `#if os(macOS)`.
-//   - `import os` / Logger kept as-is: SwiftCodeAssistant already uses
-//     `os.Logger` (SkillsRuntime.swift).
-// CLEANUP (2026-11-06, triage §B6) — Legacy's `locateResources()` is
-// DELETED: it returned Application Support paths for files that may not
-// exist ("dummy URLs") and had zero callers in production. Callers that
-// need the Codex resource paths should resolve them with an existence
-// check instead of resurrecting this shim.
-
 import Foundation
 #if canImport(AppKit)
 import AppKit
@@ -61,7 +37,6 @@ public enum CodexStartupStage: String, CaseIterable, Identifiable, Sendable {
 public final class CodexBridgeManager: Sendable {
     public static let shared = CodexBridgeManager()
 
-    // Real-time diagnostics metrics
     public var bridgeStatus: CodexBridgeStatus = .offline
     public var liveLogs: [String] = []
     public var activeRequests: Int = 0
@@ -96,7 +71,6 @@ public final class CodexBridgeManager: Sendable {
             await self.auditEnvironment()
         }
 
-        // Register shutdown notifications
         #if os(macOS)
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
@@ -111,7 +85,6 @@ public final class CodexBridgeManager: Sendable {
         #endif
     }
 
-    /// Appends a live diagnostic log entry.
     public func appendLog(_ message: String) {
         let timestamp = Date().formatted(date: .omitted, time: .standard)
         let logLine = "[\(timestamp)] \(message)"
@@ -122,18 +95,15 @@ public final class CodexBridgeManager: Sendable {
         }
     }
 
-    /// Automatically discover the official Codex CLI on the machine.
     public func discoverCLIPath() -> String? {
         let fm = FileManager.default
 
-        // 1. Managed installation path
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
         let managedPath = appSupport.appendingPathComponent("SwiftCode/Codex/codex").path
         if fm.fileExists(atPath: managedPath) {
             return managedPath
         }
 
-        // 2. Standalone package paths
         let homeDir = fm.homeDirectoryForCurrentUser.path
         let standalonePaths = [
             "\(homeDir)/.codex/packages/standalone/current/codex",
@@ -147,7 +117,6 @@ public final class CodexBridgeManager: Sendable {
             }
         }
 
-        // 3. Environment path search
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["which", "codex"]
@@ -169,7 +138,6 @@ public final class CodexBridgeManager: Sendable {
         return nil
     }
 
-    /// Performs an audit of the entire environment on demand.
     public func auditEnvironment() async {
         appendLog("Auditing environment for official OpenAI Codex CLI...")
         if let path = discoverCLIPath() {
@@ -177,7 +145,6 @@ public final class CodexBridgeManager: Sendable {
             bridgeStatus = .located
             appendLog("Codex CLI discovered at: \(path)")
 
-            // Get Version
             if let version = await checkCLIVersion(at: path) {
                 cliVersion = version
                 appendLog("Discovered Codex CLI version: \(version)")
@@ -186,7 +153,6 @@ public final class CodexBridgeManager: Sendable {
                 appendLog("Failed to parse Codex CLI version.")
             }
 
-            // Check Auth Status
             let (auth, mode) = await checkCLIAuthStatus(at: path)
             isAuthenticated = auth
             authModeString = mode
@@ -205,7 +171,6 @@ public final class CodexBridgeManager: Sendable {
         }
     }
 
-    /// Check the installed version of Codex CLI at a specific path.
     private func checkCLIVersion(at path: String) async -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
@@ -218,22 +183,18 @@ public final class CodexBridgeManager: Sendable {
             process.waitUntilExit()
             if let data = try pipe.fileHandleForReading.readToEnd(),
                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                // Parse version (usually returns '0.143.0' or similar)
                 return output
             }
         } catch {}
         return nil
     }
 
-    /// Checks the login/auth status of the CLI.
     private func checkCLIAuthStatus(at path: String) async -> (Bool, String) {
-        // Check local Keychain for stored API Key first
         let storedKey = secretStore.readString(CodexManager.userKeyAccount) ?? ""
         if !storedKey.isEmpty {
             return (true, "API Key (Keychain)")
         }
 
-        // Run `codex login status` or check `~/.codex/auth.json`
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["login", "status"]
@@ -252,7 +213,6 @@ public final class CodexBridgeManager: Sendable {
             }
         } catch {}
 
-        // Check if auth file exists manually as backup
         let fm = FileManager.default
         let authJSONPath = "\(fm.homeDirectoryForCurrentUser.path)/.codex/auth.json"
         if fm.fileExists(atPath: authJSONPath) {
@@ -262,7 +222,6 @@ public final class CodexBridgeManager: Sendable {
         return (false, "None")
     }
 
-    /// Installs the official Codex CLI using the official stand-alone installer.
     public func installCLI() async throws {
         guard !isInstalling else { return }
         isInstalling = true
@@ -281,8 +240,6 @@ public final class CodexBridgeManager: Sendable {
             throw error
         }
 
-        // We run curl -fsSL https://chatgpt.com/codex/install.sh | sh
-        // Since we want progress, let's download the script and then execute it.
         installProgress = "Downloading official Codex installer script..."
         appendLog("Fetching official installer script from https://chatgpt.com/codex/install.sh...")
 
@@ -296,8 +253,6 @@ public final class CodexBridgeManager: Sendable {
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [tempDir.path]
 
-        // Set custom PREFIX if supported, but also let it default to standalone path.
-        // We set environment so that Codex installs correctly
         var env = ProcessInfo.processInfo.environment
         env["PREFIX"] = managedDir.path
         env["CODEX_HOME"] = managedDir.path
@@ -325,7 +280,6 @@ public final class CodexBridgeManager: Sendable {
         do {
             try process.run()
 
-            // Stream logs in real-time
             let handle = outPipe.fileHandleForReading
             Task.detached { [weak self] in
                 guard let self = self else { return }
@@ -347,7 +301,6 @@ public final class CodexBridgeManager: Sendable {
         }
     }
 
-    /// Initiates ChatGPT login using the official CLI auth command.
     public func loginWithChatGPT() async throws {
         guard let path = discoverCLIPath() else {
             throw NSError(domain: "CodexBridgeManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "Codex CLI is not installed."])
@@ -356,7 +309,7 @@ public final class CodexBridgeManager: Sendable {
         appendLog("Initiating ChatGPT Authentication flow...")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = ["login"] // Will open browser oauth naturally
+        process.arguments = ["login"]
 
         let outPipe = Pipe()
         process.standardOutput = outPipe
@@ -383,7 +336,6 @@ public final class CodexBridgeManager: Sendable {
         }
     }
 
-    /// Triggers the device-code login flow.
     public func loginWithDeviceCode(onCodeReceived: @MainActor @escaping (String, String) -> Void) async throws {
         guard let path = discoverCLIPath() else {
             throw NSError(domain: "CodexBridgeManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "Codex CLI is not installed."])
@@ -407,12 +359,9 @@ public final class CodexBridgeManager: Sendable {
                 do {
                     for try await line in handle.bytes.lines {
                         await self.appendLog("[CLI Auth] \(line)")
-                        // Parse device code and URL
                         if line.contains("https://") {
-                            // Find URL and Code
                             let components = line.components(separatedBy: .whitespacesAndNewlines)
                             let url = components.first(where: { $0.hasPrefix("https://") }) ?? ""
-                            // Extract code (e.g. ABCD-1234)
                             let pattern = "[A-Z0-9]{4}-[A-Z0-9]{4}"
                             if let regex = try? NSRegularExpression(pattern: pattern),
                                let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
@@ -435,12 +384,10 @@ public final class CodexBridgeManager: Sendable {
         }
     }
 
-    /// Logs out from Codex CLI completely.
     public func logout() async {
         guard let path = discoverCLIPath() else { return }
         appendLog("Logging out from Codex CLI...")
 
-        // Delete from Keychain
         try? secretStore.delete(CodexManager.userKeyAccount)
 
         let process = Process()
@@ -454,7 +401,6 @@ public final class CodexBridgeManager: Sendable {
         await auditEnvironment()
     }
 
-    /// Gracefully shuts down any running background bridge tasks.
     public func shutdownBridge() async {
         isShuttingDown = true
         if let proc = activeProcess, proc.isRunning {
@@ -465,24 +411,20 @@ public final class CodexBridgeManager: Sendable {
         bridgeStatus = .offline
     }
 
-    /// Emulates bridge activation for legacy views.
     public func ensureBridgeRunning() async {
         await auditEnvironment()
     }
 
-    /// Checks if the local bridge server is responding (compatibility).
     public func isBridgeHealthy() async -> Bool {
         return discoverCLIPath() != nil
     }
 
-    /// Validates an API Key using the CLI.
     public func validateAPIKey(_ apiKey: String) async -> Bool {
         guard let path = discoverCLIPath() else { return false }
         appendLog("Validating API Key using Codex CLI...")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
-        // We use non-interactive validation via exec
         process.arguments = ["exec", "Respond with VALID", "--sandbox", "read-only"]
 
         var env = ProcessInfo.processInfo.environment
@@ -505,17 +447,14 @@ public final class CodexBridgeManager: Sendable {
         return false
     }
 
-    /// Complete setup sequence wrapper for onboarding UI.
     public func startStartupSequence(apiKey: String, onProgress: @MainActor @Sendable @escaping (CodexStartupStage, String) -> Void) async throws {
         isConnecting = true
         defer { isConnecting = false }
 
-        // Stage 1: Discover
         onProgress(.detectCLI, "Locating official OpenAI Codex CLI installation...")
         await auditEnvironment()
 
         if cliLocation == "Not Detected" {
-            // Stage 2: Install
             onProgress(.runInstaller, "Codex CLI not detected. Running managed installation...")
             try await installCLI()
         }
@@ -524,13 +463,11 @@ public final class CodexBridgeManager: Sendable {
             throw NSError(domain: "CodexBridgeManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "Official Codex CLI installation failed or not found."])
         }
 
-        // Stage 3: Version check
         onProgress(.verifyVersion, "Verifying CLI version compatibility...")
         if let version = await checkCLIVersion(at: path) {
             cliVersion = version
         }
 
-        // Stage 4: Authentication
         if !apiKey.isEmpty {
             onProgress(.saveAPIKey, "Configuring and validating API Key...")
             let valid = await validateAPIKey(apiKey)
@@ -549,12 +486,10 @@ public final class CodexBridgeManager: Sendable {
             }
         }
 
-        // Stage 5: Connection testing
         onProgress(.verifyConnection, "Performing final backend loop handshake...")
         sessionCount += 1
         bridgeStatus = .running
 
-        // Stage 6: Test Prompt
         onProgress(.sendTestPrompt, "Sending verification prompt...")
         let testResponse = try await sendPrompt("Respond with VALID")
         if !testResponse.contains("VALID") && !testResponse.isEmpty {
@@ -566,7 +501,6 @@ public final class CodexBridgeManager: Sendable {
         UserDefaults.standard.set("Codex", forKey: "assist.selectedProvider")
     }
 
-    /// Single non-streaming prompt request to Codex CLI via `codex exec`.
     public func sendPrompt(_ prompt: String) async throws -> String {
         guard let path = discoverCLIPath() else {
             throw CodexAPIError.networkError("Codex CLI is not installed. Open setup flow.")
@@ -579,7 +513,6 @@ public final class CodexBridgeManager: Sendable {
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["exec", prompt, "--sandbox", "workspace-write"]
 
-        // Attach API Key if configured
         if let apiKey = secretStore.readString(CodexManager.userKeyAccount) {
             var env = ProcessInfo.processInfo.environment
             env["CODEX_API_KEY"] = apiKey
@@ -608,7 +541,6 @@ public final class CodexBridgeManager: Sendable {
         }
     }
 
-    /// Real-time streaming prompt request via machine-readable `codex exec --json`.
     public func streamPrompt(_ prompt: String, onToken: @escaping @Sendable (String) async -> Void) async throws {
         guard let path = discoverCLIPath() else {
             throw CodexAPIError.networkError("Codex CLI is not installed. Open setup flow.")
@@ -625,7 +557,6 @@ public final class CodexBridgeManager: Sendable {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
-        // Run with machine-readable JSON option!
         process.arguments = ["exec", prompt, "--json", "--sandbox", "workspace-write"]
 
         if let apiKey = secretStore.readString(CodexManager.userKeyAccount) {
@@ -647,11 +578,9 @@ public final class CodexBridgeManager: Sendable {
             for try await line in handle.bytes.lines {
                 guard let data = line.data(using: .utf8) else { continue }
 
-                // Parse structured JSON event emitted by Codex CLI
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     let type = json["type"] as? String ?? ""
 
-                    // 1. Text delta token streaming
                     if type == "item/agentMessage/delta" || type == "item.agentMessage/delta",
                        let delta = json["delta"] as? String {
                         await onToken(delta)
@@ -661,7 +590,6 @@ public final class CodexBridgeManager: Sendable {
                         await onToken(delta)
                     }
 
-                    // 2. Timeline and tool executions
                     if type == "item.started" || type == "item/started",
                        let item = json["item"] as? [String: Any] {
                         let toolType = item["type"] as? String ?? "Tool"

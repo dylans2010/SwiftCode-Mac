@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKEvent.swift
-//  SwiftCode
-//
-//  Strongly-typed stream events emitted by the Antigravity runtime.
-//
-
 import Foundation
 
 public struct GoogleCloudSDKUsage: Codable, Sendable {

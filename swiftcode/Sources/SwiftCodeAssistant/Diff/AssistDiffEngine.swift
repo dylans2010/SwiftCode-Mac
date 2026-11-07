@@ -1,8 +1,6 @@
 import Foundation
 
-// MARK: - Assist v3 Unified Diff Engine
-
-public struct DiffHunk: Codable, Sendable, Identifiable {
+public struct DiffHunk: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let id: UUID
     public let oldStart: Int
     public let oldCount: Int
@@ -24,7 +22,7 @@ public struct DiffHunk: Codable, Sendable, Identifiable {
     }
 }
 
-public struct UnifiedDiffResult: Codable, Sendable {
+public struct UnifiedDiffResult: Codable, Sendable, Equatable, Hashable {
     public let filePath: String
     public let hunks: [DiffHunk]
     public let addedLines: Int

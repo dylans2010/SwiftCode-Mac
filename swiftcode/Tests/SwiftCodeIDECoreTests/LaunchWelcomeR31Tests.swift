@@ -4,9 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// R31 (`specs/ide/reference-ui-5.md` §3, §4.3, §5.1): launch and the
-/// Welcome window, Open Recent, the window title, the idle activity text,
-/// the default run destination and the project navigator's first view.
 @MainActor
 @Suite(.serialized) struct LaunchWelcomeR31Tests {
     func tempDir(_ tag: String) throws -> URL {
@@ -20,16 +17,12 @@ import SwiftCodeProject
                     osVersion: version, identifier: "\(name)-\(version)")
     }
 
-    // MARK: L1, L2 — Welcome window
-
     @Test func launchWithoutDocumentsShowsWelcomeNotAnOpenPanel() {
         #expect(LaunchAction.decide(arguments: [], openDocumentCount: 0) == .welcome)
         #expect(LaunchAction.decide(arguments: ["-ApplePersistenceIgnoreState", "YES"], openDocumentCount: 0) == .welcome)
         #expect(LaunchAction.decide(arguments: ["/p/App.xcodeproj"], openDocumentCount: 0) == .open(["/p/App.xcodeproj"]))
         #expect(LaunchAction.decide(arguments: [], openDocumentCount: 1) == .none)
     }
-
-    // MARK: L3 — Open Recent
 
     @Test func recentProjectsOrderLimitPersistenceAndMissingFiles() throws {
         let dir = try tempDir("recents")
@@ -48,9 +41,7 @@ import SwiftCodeProject
         #expect(r.urls.first?.path == urls[11].path)
         r.note(urls[5])
         #expect(r.urls.first?.path == urls[5].path && r.urls.filter { $0.path == urls[5].path }.count == 1)
-        // Survives "relaunch" (a new list on the same defaults).
         #expect(RecentProjects(defaults: td.defaults).urls.map(\.path) == r.urls.map(\.path))
-        // A package is recorded by its folder; a missing entry is dropped.
         let pkg = dir.appendingPathComponent("Pkg")
         try FileManager.default.createDirectory(at: pkg, withIntermediateDirectories: true)
         try "".write(to: pkg.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
@@ -62,8 +53,6 @@ import SwiftCodeProject
         #expect(r.urls.isEmpty)
     }
 
-    // MARK: T1 — default destination
-
     @Test func defaultDestinationRule() {
         let sims = [sim("iPad Air", "26.4"), sim("iPhone 17 Pro", "26.4"), sim("iPhone 17", "26.4"), sim("iPhone 18", "27.0"),
                     sim("Apple Vision Pro", "27.0", platform: "visionOS"), sim("iPhone 15", "17.5")]
@@ -71,11 +60,9 @@ import SwiftCodeProject
                 == ["iPhone 18", "iPhone 17", "iPhone 17 Pro", "iPad Air", "iPhone 15"])
         #expect(DestinationCatalog.defaultDestination(platform: "macOS", deploymentTarget: "15.0", simulators: sims) == .myMac)
         #expect(DestinationCatalog.defaultDestination(platform: nil, deploymentTarget: nil, simulators: sims) == .myMac)
-        // reference-ui-6.md §2.4.3 (T11): a Pro iPhone first, else the first in menu order.
         #expect(DestinationCatalog.defaultDestination(platform: "iOS", deploymentTarget: "18.0", simulators: sims).name == "iPhone 17 Pro")
         #expect(DestinationCatalog.defaultDestination(platform: "iOS", deploymentTarget: "18.0",
                                                       simulators: sims.filter { $0.name != "iPhone 17 Pro" }).name == "iPhone 18")
-        // Below the deployment target: skipped.
         #expect(DestinationCatalog.defaultDestination(platform: "iOS", deploymentTarget: "27.1", simulators: sims).name
                 == "Any iOS Simulator Device")
         let generic = DestinationCatalog.defaultDestination(platform: "iOS", deploymentTarget: "18.0", simulators: [])

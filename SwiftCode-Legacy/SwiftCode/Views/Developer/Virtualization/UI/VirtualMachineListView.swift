@@ -3,14 +3,12 @@ import SwiftUI
 public struct VirtualMachineListView: View {
     @State private var stateStore = VirtualizationStateStore.shared
 
-    // Library Filtering & Sorting States
     @State private var searchQuery: String = ""
     @State private var sortBy: SortOption = .name
     @State private var filterOS: String = "All"
     @State private var filterLabel: String = "All"
     @State private var filterSegment: LibrarySegment = .all
 
-    // Popovers / Modals
     @State private var selectedVMForLabels: UUID? = nil
     @State private var labelInputText: String = ""
     @State private var showingLabelEditor = false
@@ -43,11 +41,9 @@ public struct VirtualMachineListView: View {
 
     public init() {}
 
-    // Filtered and Sorted list computation
     private var filteredAndSortedVMs: [VirtualMachine] {
         var list = stateStore.virtualMachines
 
-        // 1. Text Search
         if !searchQuery.isEmpty {
             let q = searchQuery.lowercased()
             list = list.filter { vm in
@@ -57,7 +53,6 @@ public struct VirtualMachineListView: View {
             }
         }
 
-        // 2. Segment Filters
         switch filterSegment {
         case .all:
             break
@@ -71,17 +66,14 @@ public struct VirtualMachineListView: View {
             list = list.sorted { $0.uptime > $1.uptime }
         }
 
-        // 3. OS Filter
         if filterOS != "All" {
             list = list.filter { $0.osType == filterOS }
         }
 
-        // 4. Custom Label/Tag Filter
         if filterLabel != "All" {
             list = list.filter { $0.labels.contains(filterLabel) }
         }
 
-        // 5. Sorting
         switch sortBy {
         case .name:
             list.sort { $0.name.localizedCompare($1.name) == .orderedAscending }
@@ -103,10 +95,8 @@ public struct VirtualMachineListView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            // LIBRARY FILTERS HEADER CARD
             GroupBox {
                 VStack(spacing: 12) {
-                    // Row 1: Search & Segmented Picker
                     HStack(spacing: 12) {
                         HStack {
                             Image(systemName: "magnifyingglass")
@@ -129,7 +119,6 @@ public struct VirtualMachineListView: View {
 
                     Divider()
 
-                    // Row 2: Sort, OS, Custom Labels Selectors
                     HStack(spacing: 16) {
                         HStack {
                             Text("Sort By:")
@@ -189,7 +178,6 @@ public struct VirtualMachineListView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // BRIEF CONTEXTUAL EDUCATION CARDS
             if showingEduSection {
                 GroupBox {
                     HStack(alignment: .top, spacing: 14) {
@@ -237,7 +225,6 @@ public struct VirtualMachineListView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
 
-            // ENVIRONMENTAL LIBRARY LIST
             if filteredAndSortedVMs.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "cube.transparent")
@@ -260,7 +247,6 @@ public struct VirtualMachineListView: View {
             } else {
                 ForEach(filteredAndSortedVMs) { vm in
                     HStack(spacing: 16) {
-                        // Brand Icon for OS type
                         Image(systemName: osIcon(vm.osType))
                             .font(.system(size: 24))
                             .foregroundStyle(osColor(vm.osType))
@@ -294,7 +280,6 @@ public struct VirtualMachineListView: View {
                                 }
                             }
 
-                            // Subtitle resource details
                             HStack(spacing: 10) {
                                 Text("\(vm.osType) \(vm.version)")
                                     .font(.subheadline)
@@ -316,7 +301,6 @@ public struct VirtualMachineListView: View {
                                     .foregroundStyle(.secondary)
                             }
 
-                            // Startup Actions preview
                             if !vm.startupActions.isEmpty {
                                 HStack(spacing: 6) {
                                     Image(systemName: "arrow.up.right.circle")
@@ -331,7 +315,6 @@ public struct VirtualMachineListView: View {
 
                         Spacer()
 
-                        // INTERACTIVE QUICK TOGGLES (PIN, FAVORITE, BOOKMARK)
                         HStack(spacing: 8) {
                             Button {
                                 togglePinned(vm.id)
@@ -372,7 +355,6 @@ public struct VirtualMachineListView: View {
                             Divider()
                                 .frame(height: 24)
 
-                            // Start/Stop Actions
                             if vm.status == .stopped || vm.status == .error {
                                 Button {
                                     triggerStart(vm.id)
@@ -438,7 +420,6 @@ public struct VirtualMachineListView: View {
                     .buttonStyle(.borderedProminent)
                 }
 
-                // Preset label selectors using horizontal scrolling list of buttons
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(availableLabels, id: \.self) { label in
@@ -522,7 +503,6 @@ public struct VirtualMachineListView: View {
         }
     }
 
-    // Toggle logic functions
     private func togglePinned(_ id: UUID) {
         if let idx = stateStore.virtualMachines.firstIndex(where: { $0.id == id }) {
             stateStore.virtualMachines[idx].isPinned.toggle()

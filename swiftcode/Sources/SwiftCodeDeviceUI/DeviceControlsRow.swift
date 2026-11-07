@@ -1,26 +1,7 @@
-// The device-control capsules (device-hub.md §4.4, §11.1; council round 3
-// row 65): two glass capsules 36.5 points tall floating at the bottom of the
-// canvas, 7.5 apart, glyphs on a 34-point pitch (DeviceControlsLayout, shared
-// with the Linux device window).
-//
-//   iPhone, iPad      [Home · Screenshot · Record] [Rotate]
-//   iPhone Duo        [Home · Screenshot · Record] [Rotate │ Closed · Partially Open · Open]
-//                     (Closed and Open are SwiftCode's own glyphs, DeviceGlyphs.swift)
-//   Apple Watch       [Screenshot · Record]
-//   visionOS          [Home · Screenshot · Record] [Reset Camera]
-//
-// Rotate: click = Rotate Left, Option-click = Rotate Right. The current
-// pose's glyph is drawn in the accent colour; Option-dragging on a pose
-// button shows the hinge slider (the canvas draws it). Symbols are public
-// SF Symbols chosen to match the reference's descriptions (SwiftCode decision,
-// §8).
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDeviceModel
 
-/// A glass capsule (`NSGlassEffectView` on macOS 26 and later; a rounded
-/// material view before) holding controls.
 @MainActor
 public final class GlassCapsule: NSView {
     public let content: NSView
@@ -61,8 +42,6 @@ public final class GlassCapsule: NSView {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// A row button. Option-drag on it reports the horizontal distance (the
-/// pose buttons' hinge slider).
 @MainActor
 final class RowButton: NSButton {
     var command: DeviceCommand = .home
@@ -83,13 +62,10 @@ final class RowButton: NSButton {
 @MainActor
 public final class DeviceControlsRow: NSView {
     public static let height = CGFloat(DeviceControlsLayout.height)
-    /// A control was used.
     public var onCommand: ((DeviceCommand) -> Void)?
-    /// Option-drag on a pose button: the distance in points, then nil.
     public var onHingeDrag: ((CGFloat?) -> Void)?
 
     private var buttons: [DeviceCommand: RowButton] = [:]
-    /// The capsules, left to right (tests: their frames).
     public private(set) var capsules: [GlassCapsule] = []
     public private(set) var configuration = Configuration()
 
@@ -100,10 +76,7 @@ public final class DeviceControlsRow: NSView {
         public var posture: DevicePosture?
         public var enabled = false
         public var showsRotate = true
-        /// Home in the first group (a watch has none: its crown on the
-        /// frame is its Home, and its row is [Screenshot · Record]).
         public var showsHome = true
-        /// A Vision Pro: Reset Camera in place of Rotate (§4.4).
         public var spatial = false
         public init(foldable: Bool = false, canRotate: Bool = false, recording: Bool = false, posture: DevicePosture? = nil,
                     enabled: Bool = false, showsRotate: Bool = true, showsHome: Bool = true, spatial: Bool = false) {
@@ -135,7 +108,6 @@ public final class DeviceControlsRow: NSView {
 
     public override var isFlipped: Bool { true }
 
-    /// The symbol and help text of each control.
     static func look(_ c: DeviceCommand, recording: Bool) -> (symbol: String, help: String) {
         switch c {
         case .home: ("circle.grid.3x3.fill", "Home")
@@ -150,7 +122,6 @@ public final class DeviceControlsRow: NSView {
         }
     }
 
-    /// The controls shown, by capsule (tests).
     public var groups: [[DeviceCommand]] { DeviceControlsLayout.groups(configuration.device) }
 
     public func configure(_ c: Configuration) {
@@ -160,7 +131,6 @@ public final class DeviceControlsRow: NSView {
         if rebuildNeeded { rebuild() } else { update() }
     }
 
-    /// The button of a control (tests, the script runner).
     public func button(for c: DeviceCommand) -> NSButton? { buttons[c] }
 
     private func makeButton(_ c: DeviceCommand) -> RowButton {
@@ -212,7 +182,6 @@ public final class DeviceControlsRow: NSView {
     private func update() {
         for (c, b) in buttons {
             let look = Self.look(c, recording: configuration.recording)
-            // Closed and Open are SwiftCode's own glyphs (no product symbols, AGENTS.md rule 5).
             switch c {
             case .poseClosed: b.image = DeviceGlyph.phone.image(height: 16, lit: true)
             case .poseOpen: b.image = DeviceGlyph.openFlat.image(height: 13, lit: true)
@@ -222,7 +191,6 @@ public final class DeviceControlsRow: NSView {
             }
             b.toolTip = look.help
             b.setAccessibilityLabel(look.help)
-            // Glyphs black (white in dark), the current pose in the accent colour (§11.1).
             b.contentTintColor = c == .recordScreen && configuration.recording ? .systemRed
                 : Self.isCurrentPose(c, configuration.posture) ? .controlAccentColor : .labelColor
             switch c {
@@ -239,14 +207,12 @@ public final class DeviceControlsRow: NSView {
         }
     }
 
-    /// The command whose glyph is drawn in the accent colour (tests).
     public var highlightedPose: DeviceCommand? {
         [DeviceCommand.poseClosed, .posePartiallyOpen, .poseOpen].first { Self.isCurrentPose($0, configuration.posture) }
     }
 
     public override func layout() {
         super.layout()
-        // The capsules side by side, 7.5 apart, filling the row's height.
         var x: CGFloat = 0
         for (g, c) in zip(groups, capsules) {
             let w = CGFloat(DeviceControlsLayout.width(of: g))
@@ -266,7 +232,6 @@ public final class DeviceControlsRow: NSView {
     }
 }
 
-/// The one-point line between Rotate and the poses (#E9E9E9 on the light glass).
 @MainActor
 final class DividerLine: NSView {
     override init(frame: NSRect) {

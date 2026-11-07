@@ -1,8 +1,3 @@
-//
-//  AssistManageMemoryTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistManageMemoryTool: AssistTool {

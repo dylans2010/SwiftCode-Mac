@@ -1,14 +1,6 @@
 import Foundation
 
-// MARK: - Shared helpers for Assist tools (artifacts-intro expansion)
-//
-// Dependency-free utilities shared by the single-tool files:
-// workspace containment, artifact naming, display titles, formatting,
-// and bounded workspace scans. This file declares no tools.
-
 public enum AssistWorkspacePaths {
-    /// Resolve a workspace-relative (or workspace-root-prefixed absolute)
-    /// path to a URL, refusing anything outside the workspace root.
     public static func resolve(_ raw: String, workspaceRoot: URL) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("\0"), !trimmed.hasPrefix("~"), !trimmed.contains("..") else {
@@ -28,7 +20,6 @@ public enum AssistWorkspacePaths {
         return candidate
     }
 
-    /// Workspace-relative display path for a resolved URL.
     public static func relative(_ url: URL, workspaceRoot: URL) -> String {
         let rootPath = workspaceRoot.standardized.path
         let path = url.standardized.path
@@ -47,9 +38,6 @@ public enum AssistWorkspacePaths {
 }
 
 public enum AssistArtifactNaming {
-    /// Normalize a requested artifact name: trim, lowercase, convert
-    /// spaces/hyphens to underscores, enforce the `.md` extension and the
-    /// `^[a-z0-9_]+\.md$` shape. Returns nil for unsafe/empty names.
     public static func normalize(_ raw: String) -> String? {
         var stem = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !stem.isEmpty, !stem.contains("\0") else { return nil }
@@ -70,8 +58,6 @@ public enum AssistArtifactNaming {
         return stem + ".md"
     }
 
-    /// Human-readable title for any valid snake_case artifact filename.
-    /// `agent_notes.md` -> `Agent Notes`. The stored filename is untouched.
     public static func displayTitle(for filename: String) -> String {
         var stem = filename
         for ext in [".md", ".markdown", ".png", ".mov", ".mp4", ".jpg", ".jpeg"] {
@@ -90,14 +76,12 @@ public enum AssistArtifactNaming {
 }
 
 public enum AssistTextFormat {
-    /// Truncate text to a maximum number of characters, marking truncation.
     public static func truncated(_ text: String, limit: Int, label: String = "truncated") -> (String, Bool) {
         guard text.count > limit else { return (text, false) }
         let prefix = String(text.prefix(limit))
         return (prefix + "\n… [\(label): showing first \(limit) of \(text.count) characters]", true)
     }
 
-    /// Render a simple Markdown table from headers + rows.
     public static func markdownTable(headers: [String], rows: [[String]]) -> String {
         var lines: [String] = []
         lines.append("| " + headers.joined(separator: " | ") + " |")
@@ -112,7 +96,6 @@ public enum AssistTextFormat {
     }
 }
 
-/// Bounded workspace file enumeration shared by analysis tools.
 public enum AssistWorkspaceScan {
     public static let skippedDirs: Set<String> = [
         ".git", ".build", "build", "DerivedData", ".swiftpm",
@@ -120,7 +103,6 @@ public enum AssistWorkspaceScan {
     ]
     public static let sourceExts: Set<String> = ["swift", "m", "mm", "h", "c", "cpp", "hpp"]
 
-    /// Enumerate files under root, skipping VCS/build/dependency dirs.
     public static func files(under root: URL, extensions: Set<String>? = nil, maxFiles: Int = 20000) -> [URL] {
         var results: [URL] = []
         let fm = FileManager.default
@@ -155,7 +137,6 @@ public enum AssistWorkspaceScan {
         Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
     }
 
-    /// Function name declared on a `func ` line (strips generics/params).
     public static func declaredFuncName(_ line: String) -> String? {
         let t = line.trimmingCharacters(in: .whitespaces)
         guard t.hasPrefix("func ") || t.contains(" func ") else { return nil }
@@ -165,7 +146,6 @@ public enum AssistWorkspaceScan {
         return name.isEmpty ? nil : name
     }
 
-    /// Locate the first .pbxproj under the workspace root.
     public static func findPbxproj(in root: URL) -> URL? {
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             return nil

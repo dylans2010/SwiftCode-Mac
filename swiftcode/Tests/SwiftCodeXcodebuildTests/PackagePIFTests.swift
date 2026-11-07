@@ -3,14 +3,6 @@ import Testing
 import SwiftCodeBuild
 @testable import SwiftCodeXcodebuild
 
-// Package products, macros' and plug-ins' PIF (specs/ide/build-pif.md
-// §Package products). Fixtures are written at test time.
-
-/// A project whose tool target `App` links a local package's static and
-/// dynamic products (and optionally a remote package's product), applies a
-/// build-tool plug-in (`plugin:GenPlugin`, no `package` key, as open-source
-/// generators write it), and whose application target `Shell` links the
-/// dynamic product only. IDs are arbitrary.
 func packageProjectText(remote: Bool = true, plugin: Bool = true, shell: Bool = true) -> String {
     var o: [String] = []
     func id(_ n: Int) -> String { String(format: "C1%022d", n) }
@@ -72,10 +64,6 @@ func packageProjectText(remote: Bool = true, plugin: Bool = true, shell: Bool = 
         + o.map { "\t\t" + $0 }.joined(separator: "\n") + "\n\t};\n\trootObject = \(id(1));\n}\n"
 }
 
-/// The local packages of the fixture: `Kit` (a static product with a
-/// resource, a dynamic product) and `Gen` (a build-tool plug-in for package
-/// and project targets that turns `<Name>.gen` into `enum <Name> { static
-/// let text }`).
 func writePackageFixture(remote: Bool = false, plugin: Bool = true, shell: Bool = false) throws -> URL {
     let fm = FileManager.default
     let dir = fm.temporaryDirectory.appendingPathComponent("swiftcode-pif-pkg-\(UUID().uuidString)")
@@ -157,8 +145,6 @@ func writePackageFixture(remote: Bool = false, plugin: Bool = true, shell: Bool 
     return dir.appendingPathComponent("Pkgs.xcodeproj")
 }
 
-/// SwiftPM-shaped package PIF (`swift package dump-pif`) for the fixture's
-/// packages, with the generated root and the aggregate project.
 func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: String) -> Data {
     func target(_ guid: String, _ name: String, type: String = "standard", productType: String? = nil) -> [String: Any] {
         var c: [String: Any] = ["guid": guid, "name": name, "type": type]
@@ -198,8 +184,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         return (try ContainerLocator.loadProjectContainer(proj), graph, proj)
     }
 
-    /// SwiftPM's PIF loses the generated root and the aggregate project;
-    /// products are the `<name>-product` targets, by package identity.
     @Test func parsesSwiftPMPackagePIF() throws {
         let (_, graph, _) = try fixture()
         #expect(graph.packages.map(\.identity) == ["kit", "remote-kit"])
@@ -215,9 +199,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(!kept.contains("sig-PACKAGE:root") && !kept.contains("sig-AGGREGATE") && !kept.contains("sig-A:All"))
     }
 
-    /// Product build files become target references to the products' PIF
-    /// targets, the products are explicit dependencies, the workspace lists
-    /// the package projects, and the package objects follow the project's.
     @Test func productsAreTargetReferences() throws {
         let (container, graph, _) = try fixture()
         let pif = XcodePIF(container: container, packages: graph)
@@ -231,13 +212,10 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect((frameworks["buildFiles"] as! [[String: Any]]).map { $0["targetReference"] as? String } == ["P:Kit", "P:KitDyn", "P:Remote"])
         let deps = (app["dependencies"] as! [[String: Any]]).compactMap { $0["guid"] as? String }
         #expect(deps == ["P:Kit", "P:KitDyn", "P:Remote"])
-        // A tool gets no embed phase.
         #expect(!phases.contains { $0["destinationSubfolder"] as? String == "$(FRAMEWORKS_FOLDER_PATH)" })
         #expect(objects.contains { $0["signature"] as? String == "sig-P:KitDyn" })
     }
 
-    /// Without the package graph, product build files are left out (the
-    /// former behavior, which swiftcodebuild's settings queries keep).
     @Test func withoutPackagesProductsAreLeftOut() throws {
         let (container, _, _) = try fixture()
         let objects = XcodePIF(container: container).objects()
@@ -247,8 +225,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect((app["dependencies"] as! [Any]).isEmpty)
     }
 
-    /// An application gets a copy-files phase that embeds the dynamic
-    /// products it links into its Frameworks folder, signed on copy.
     @Test func applicationsEmbedDynamicProducts() throws {
         let (container, graph, _) = try fixture()
         let objects = XcodePIF(container: container, packages: graph).objects()
@@ -259,8 +235,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(files.count == 1 && files[0]["targetReference"] as? String == "P:KitDyn" && files[0]["codeSignOnCopy"] as? String == "true")
     }
 
-    /// Signatures hash the contents, so a changed target gets a new one
-    /// (swift-build keys its build descriptions by them).
     @Test func signaturesFollowContents() throws {
         let (container, graph, proj) = try fixture()
         let a = XcodePIF(container: container, packages: graph).objects()
@@ -278,10 +252,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(c[0]["signature"] as? String != a[0]["signature"] as? String)
     }
 
-    /// Plug-in commands become custom tasks whose host tool is relocated to
-    /// the client build's products folder; their Swift outputs join the
-    /// sources phase through a group of absolute paths; the plug-in's target
-    /// is a dependency.
     @Test func pluginOutputsBecomeCustomTasksAndSources() throws {
         let (container, base, _) = try fixture()
         var graph = base
@@ -310,8 +280,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(refs.contains(file["guid"] as! String))
     }
 
-    /// SwiftPM's own plug-in tasks get the same relocation and new
-    /// signatures (the project's target list follows).
     @Test func relocatesPackageCustomTasks() throws {
         let objects: [[String: Any]] = [
             ["signature": "P1", "type": "project", "contents": ["guid": "PACKAGE:x", "projectDirectory": "/x", "targets": ["T1"]]],
@@ -330,8 +298,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(graph.projectSignatures == [project["signature"] as! String] && graph.projectSignatures[0] != "P1")
     }
 
-    /// The generated root: one path dependency per package, local packages
-    /// first and overriding remote ones of the same identity.
     @Test func rootManifestListsEveryPackage() throws {
         let proj = try writePackageFixture(remote: true, plugin: true)
         let dir = proj.deletingLastPathComponent().standardizedFileURL.path
@@ -349,8 +315,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(text.contains("name: \"swiftcode-package-graph\""))
     }
 
-    /// The plug-in message of SwiftPM's protocol: the project, its targets
-    /// with their input files, the work folder and the tools.
     @Test func pluginRequestDescribesTheProject() throws {
         let proj = try writePackageFixture(remote: false, plugin: true, shell: true)
         let project = try ContainerLocator.loadProjectContainer(proj).projects[0]
@@ -374,9 +338,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(paths[tool["path"] as! Int] == "/t/gen-tool")
     }
 
-    /// The plug-in's answers: length-framed JSON messages (URLs as
-    /// Foundation encodes them), and the commands file SwiftCode's
-    /// XcodeProjectPlugin module writes.
     @Test func pluginRepliesAreRead() throws {
         func frame(_ obj: [String: Any]) -> Data {
             let json = try! JSONSerialization.data(withJSONObject: obj)
@@ -409,7 +370,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         #expect(outputs.generatedSources == ["/g/A.swift"] && outputs.generatedResources == ["/g/C.json"])
     }
 
-    /// The IDE's fallback test: plug-ins of project targets need a Mac.
     @Test func supportsReportsPluginsOffTheMac() throws {
         let proj = try writePackageFixture(remote: false, plugin: true)
         #expect(XcodePIFSource.supports(BuildRequest(container: .project(proj.path))) == ProjectPlugins.isSupported)
@@ -418,7 +378,6 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
     }
 }
 
-/// SwiftPM's generator on real packages (the toolchain's `swift`; Linux too).
 @Suite(.serialized, .timeLimit(.minutes(10))) struct PackageGraphLoaderTests {
     static var swiftAvailable: Bool {
         FileManager.default.isExecutableFile(atPath: PackageGraphLoader.defaultSwift())
@@ -434,21 +393,18 @@ func cannedPackagePIF(kitDirectory: String, remoteDirectory: String, root: Strin
         let kit = try #require(graph.package(identity: "kit"))
         #expect(kit.products["Kit"]?.targetType == "packageProduct")
         #expect(kit.products["KitDyn"]?.isDynamic == true)
-        // The generated root lives in the source-packages folder, not in the package.
         #expect(FileManager.default.fileExists(atPath: sp.appendingPathComponent("swiftcode-package-graph/Package.swift").path))
         #expect(!FileManager.default.fileExists(atPath: proj.deletingLastPathComponent().appendingPathComponent("Kit/.build").path))
         let objects = XcodePIF(container: container, packages: graph).objects()
         let app = try #require(objects.compactMap { $0["contents"] as? [String: Any] }.first { $0["name"] as? String == "App" })
         let deps = (app["dependencies"] as! [[String: Any]]).compactMap { $0["guid"] as? String }
         #expect(deps == [kit.products["Kit"]!.guid, kit.products["KitDyn"]!.guid])
-        // Every target reference resolves to a target of the PIF.
         let guids = Set(objects.filter { $0["type"] as? String == "target" }.compactMap { ($0["contents"] as? [String: Any])?["guid"] as? String })
         for d in deps { #expect(guids.contains(d)) }
     }
 }
 
 extension PackageGraphLoaderTests {
-    /// A product no package provides is an error, not a link failure later.
     @Test func missingProductsAreReported() throws {
         guard Self.swiftAvailable else { return }
         let proj = try writePackageFixture(remote: false, plugin: false)
@@ -461,9 +417,6 @@ extension PackageGraphLoaderTests {
     }
 }
 
-/// Builds the fixture with swift-build (swiftcodebuild) and runs the tool: a
-/// local package's static product with its resource bundle, its dynamic
-/// product, and a build-tool plug-in applied to the project target.
 @Suite(.serialized, .timeLimit(.minutes(15))) struct PackageBuildEndToEndTests {
     @Test func buildsAndRunsATargetThatUsesPackages() throws {
         #if os(macOS)

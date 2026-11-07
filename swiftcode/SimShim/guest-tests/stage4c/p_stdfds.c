@@ -1,14 +1,8 @@
-/* SwiftCode stage-4c probe: re-opening the standard descriptors on /dev/null, as
- * a daemon does at start, keeps fds 0-2 open. Original SwiftCode code.
- * Prints "stdfds ok" to the original stdout (kept on a dup made first), so
- * the probe works whatever the descriptor table holds at start (device mode:
- * fd 3 is /dev/console; --exec: fds 0-2 are the console only). */
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-/* The lowest descriptor that is not open (what open() must return). */
 static int lowest_free(void)
 {
     for (int fd = 0; fd < 1024; fd++)
@@ -38,7 +32,6 @@ int main(void)
     for (int i = 0; i < 3; i++)
         if (fcntl(i, F_GETFL) == -1)
             bad = 1;
-    /* fd 1 is /dev/null now: a write succeeds and goes nowhere. */
     if (write(1, "x", 1) != 1)
         bad = 1;
     int expected = lowest_free();

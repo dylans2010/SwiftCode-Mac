@@ -1,25 +1,3 @@
-// The Linux device window (display-stream.md §13; device-hub.md §4.4,
-// §11.1, §11.2): an SDL 3 window with the device in SwiftCode's frame
-// (DeviceFrameGeometry), the stream image in its screen, centred above the
-// floating glass control capsules ([Home · Screenshot · Record] [Rotate │
-// the Duo's poses], DeviceWindowChrome and DeviceControlsLayout, as the
-// macOS canvas), a More Actions circle at the top right (Lock, the volume,
-// the sound, the scale, bezels, the frame rate, Refresh Display), light and
-// dark, tooltips, notices ("Screenshot Saved", "Starting..."), and an
-// optional status line; mouse → touches, keys → HID usages, the frame's
-// buttons clickable, the wheel a drag (a watch's crown). The renderer
-// presents without vsync, as soon as a frame is decoded; only the rectangle
-// the frame changed is uploaded to the texture. The frame's scaling filter
-// and the presentation pacing are unchanged here.
-//
-// Shortcuts stay with the window while Ctrl is held: Ctrl+Shift+H Home,
-// Ctrl+L Lock, Ctrl+Up/Down volume, Ctrl+Left/Right rotate, Ctrl+Shift+S
-// screenshot, Ctrl+1/2/3 fit / point accurate / pixel accurate, Ctrl+B
-// bezels, Ctrl+F the status line, Ctrl+R refresh, Ctrl+Q quit, Ctrl+M mute
-// the sound, Ctrl+= / Ctrl+- the viewer's volume. Alt+drag is
-// a pinch, Alt+Shift+drag a two-finger pan. Other keys go to the device
-// (the Super key as the device's Command).
-
 import Foundation
 import SwiftCodeDeviceModel
 import SwiftCodeDisplayStream
@@ -29,15 +7,11 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
     public let sdl: SDL
     public let session: RemoteDeviceSession
     public var showStatus = false { didSet { needsRedraw = true } }
-    /// Light or dark (ViewerAppearance.resolve; ViewerMain sets it).
     public var appearance: ViewerAppearance = .light { didSet { needsRedraw = true } }
     var palette: ViewerPalette { .of(appearance) }
-    /// The More Actions menu is open.
     public private(set) var menuOpen = false
-    /// The control under the pointer (a DeviceCommand's name, or "more") and since when.
     private var hover: (key: String, since: Double)?
     private var tooltipShown = false
-    /// Where screenshots go (Ctrl+Shift+S, the control row).
     public var captureDirectory: URL
     public var log: (String) -> Void = { print($0) }
     public var onClose: () -> Void = {}
@@ -57,7 +31,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
     private var buttonDown = false
     private var lastMouse = (0.0, 0.0)
     private var pendingCaptures: [(String, @Sendable (Bool) -> Void)] = []
-    /// The sequence of the last frame drawn (presented once).
     private var drawnSequence: UInt64 = 0
     public private(set) var rendererName = ""
     public private(set) var presentNanoseconds: UInt64 = 0
@@ -69,7 +42,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         self.captureDirectory = captureDirectory
     }
 
-    /// Creates the window; false (with a message) when SDL cannot.
     public func open(title: String = "SwiftCode Simulator", width: Int = 460, height: Int = 900) -> Bool {
         _ = sdl.SetHint("SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR", "0")
         guard sdl.Init(SDLConst.initVideo) else { log("swiftcode-sim-viewer: SDL_Init: \(sdl.error)"); return false }
@@ -107,19 +79,16 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         session.windowWidth = Double(w)
         session.windowHeight = Double(h)
         session.pixelDensity = w > 0 ? Double(pw) / Double(w) : 1
-        // Render in window units (SDL scales to pixels).
         _ = sdl.SetRenderScale(renderer, Float(session.pixelDensity), Float(session.pixelDensity))
         needsRedraw = true
     }
 
-    /// Resizes the window to show the device at the current scale mode's size.
     public func fitWindowToDevice(scale: Double) {
         let s = ViewerLayout.windowSize(geometry: session.geometry, scale: scale)
         _ = sdl.SetWindowSize(window, Int32(s.width.rounded()), Int32(s.height.rounded()))
         updateWindowMetrics()
     }
 
-    /// Requests a PNG of the window's next drawing at `path`.
     public func captureWindow(to path: String, done: @escaping @Sendable (Bool) -> Void) {
         session.perform { [weak self] in
             self?.pendingCaptures.append((path, done))
@@ -128,8 +97,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
     }
 
     public func stop() { session.perform { [weak self] in self?.running = false } }
-
-    // MARK: The loop
 
     public func run() {
         var event = SDLEvent()
@@ -166,8 +133,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         sdl.DestroyWindow(window)
         sdl.QuitFn()
     }
-
-    // MARK: Events
 
     private func handle(_ e: SDLEvent) {
         switch e.type {
@@ -223,11 +188,9 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
             if down, !e.keyRepeat { shortcut(sc, shift: mod & SDLConst.kmodShift != 0) }
             return
         }
-        // Ctrl itself stays with the window.
         if sc == 0xE0 || sc == 0xE4 { return }
         if e.keyRepeat { return }
         guard let u = HIDKeys.usage(sdlScancode: sc) else { return }
-        // A Vision Pro: Alt + the camera keys move the camera (not sent to the device).
         if session.spatialKey(usage: u, down: down, alt: mod & SDLConst.kmodAlt != 0) { return }
         session.key(usage: u, down: down)
         if HIDKeys.isModifier(u) {
@@ -238,28 +201,27 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
 
     private func shortcut(_ scancode: Int32, shift: Bool) {
         switch scancode {
-        case 0x0B where shift: session.press(.home)                 // H
-        case 0x0F: session.press(.lock)                             // L
-        case 0x52: session.press(.volumeUp)                         // Up
-        case 0x51: session.press(.volumeDown)                       // Down
-        case 0x50: session.rotate(left: true)                       // Left
-        case 0x4F: session.rotate(left: false)                      // Right
-        case 0x16 where shift: screenshot()                         // S
-        case 0x1E: setScale(.fit)                                   // 1
-        case 0x1F: setScale(.point)                                 // 2
-        case 0x20: setScale(.pixel)                                 // 3
-        case 0x05: session.bezels.toggle(); needsRedraw = true      // B
-        case 0x09: showStatus.toggle(); needsRedraw = true          // F
-        case 0x15: session.refreshDisplay()                         // R
-        case 0x14: running = false; onClose()                       // Q
-        case 0x10: toggleMute()                                     // M
-        case 0x2E: changeVolume(0.1)                                // =
-        case 0x2D: changeVolume(-0.1)                               // -
+        case 0x0B where shift: session.press(.home)
+        case 0x0F: session.press(.lock)
+        case 0x52: session.press(.volumeUp)
+        case 0x51: session.press(.volumeDown)
+        case 0x50: session.rotate(left: true)
+        case 0x4F: session.rotate(left: false)
+        case 0x16 where shift: screenshot()
+        case 0x1E: setScale(.fit)
+        case 0x1F: setScale(.point)
+        case 0x20: setScale(.pixel)
+        case 0x05: session.bezels.toggle(); needsRedraw = true
+        case 0x09: showStatus.toggle(); needsRedraw = true
+        case 0x15: session.refreshDisplay()
+        case 0x14: running = false; onClose()
+        case 0x10: toggleMute()
+        case 0x2E: changeVolume(0.1)
+        case 0x2D: changeVolume(-0.1)
         default: break
         }
     }
 
-    /// The viewer's own mute and volume (the device's volume buttons act on the guest).
     public func toggleMute() {
         guard let a = session.audio else { return }
         a.muted.toggle()
@@ -284,7 +246,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         needsRedraw = true
     }
 
-    /// Saves the server's full-resolution PNG (the shown image when none).
     public func screenshot() {
         let dir = captureDirectory
         let name = DeviceCaptureFileName.screenshot(device: session.title)
@@ -303,11 +264,8 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         }
     }
 
-    // MARK: Chrome (the capsules, More Actions, tooltips)
-
     var menuItems: [ViewerMenuItem] { session.moreItems(muted: session.audio?.muted, statusLine: showStatus) }
 
-    /// A click on the chrome; true: it was the chrome's (not the device's).
     private func chromeClick(_ x: Double, _ y: Double, alt: Bool) -> Bool {
         let more = DeviceWindowChrome.moreButton(windowWidth: session.windowWidth)
         if menuOpen {
@@ -333,7 +291,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         tooltipShown = false
     }
 
-    /// Carries out a capsule control (Alt-click on Rotate: right, as Option-click on macOS).
     public func perform(_ c: DeviceCommand, alt: Bool = false) {
         switch c {
         case .home: session.press(.home)
@@ -365,7 +322,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         }
     }
 
-    /// A script's `chrome` step (ViewerScript).
     public func chrome(_ words: [String]) -> Bool {
         defer { needsRedraw = true }
         switch (words.first, words.count > 1 ? words[1] : nil) {
@@ -388,8 +344,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         }
     }
 
-    // MARK: Drawing
-
     private func color(_ r: UInt8, _ g: UInt8, _ b: UInt8, _ a: UInt8 = 255) { _ = sdl.SetRenderDrawColor(renderer, r, g, b, a) }
 
     private func fill(_ r: ViewerRect) {
@@ -397,7 +351,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         _ = sdl.RenderFillRect(renderer, &f)
     }
 
-    /// A filled polygon (a fan around its first point; the shapes are convex).
     private func polygon(_ pts: [(Double, Double)], _ c: (Float, Float, Float, Float)) {
         guard pts.count >= 3 else { return }
         var verts = pts.map { SDLVertex(x: Float($0.0), y: Float($0.1), r: c.0, g: c.1, b: c.2, a: c.3, u: 0, v: 0) }
@@ -408,14 +361,12 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
 
     private func polygon(_ pts: [(Double, Double)], _ c: ViewerColor) { polygon(pts, (c.r, c.g, c.b, c.a)) }
 
-    /// Triangles (three points each) in one colour.
     private func triangles(_ pts: [(Double, Double)], _ c: ViewerColor) {
         guard pts.count >= 3 else { return }
         var verts = pts.map { SDLVertex(x: Float($0.0), y: Float($0.1), r: c.r, g: c.g, b: c.b, a: c.a, u: 0, v: 0) }
         _ = verts.withUnsafeMutableBytes { sdl.RenderGeometry(renderer, nil, $0.baseAddress!, Int32(pts.count), nil, Int32(pts.count)) }
     }
 
-    /// A convex polygon shaded from `top` (at its top) to `bottom`.
     private func gradientPolygon(_ pts: [(Double, Double)], top: ViewerColor, bottom: ViewerColor) {
         guard pts.count >= 3, let y0 = pts.map(\.1).min(), let y1 = pts.map(\.1).max() else { return }
         var verts = pts.map { p -> SDLVertex in
@@ -432,13 +383,11 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         (0..<steps).map { i in let a = Double(i) / Double(steps) * 2 * Double.pi; return (cx + cos(a) * r, cy + sin(a) * r) }
     }
 
-    /// A disc with a soft edge (a faint ring half a unit outside).
     private func disc(_ cx: Double, _ cy: Double, _ r: Double, _ c: ViewerColor) {
         polygon(circlePoints(cx, cy, r + 0.5), c.with(alpha: c.a * 0.35))
         polygon(circlePoints(cx, cy, r), c)
     }
 
-    /// A ring (centre radius `r`, `w` wide) from angle `a0` to `a1` (radians, clockwise from +x).
     private func arc(_ cx: Double, _ cy: Double, _ r: Double, _ w: Double, _ c: ViewerColor,
                      from a0: Double = 0, to a1: Double = 2 * Double.pi) {
         let steps = max(8, Int(abs(a1 - a0) / (2 * Double.pi) * 36))
@@ -455,7 +404,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         }
     }
 
-    /// A polyline `w` wide (round joins), with a soft edge.
     private func stroke(_ pts: [(Double, Double)], _ w: Double, _ c: ViewerColor, closed: Bool = false) {
         let all = closed ? pts + [pts[0]] : pts
         for (width, colour) in [(w + 0.8, c.with(alpha: c.a * 0.3)), (w, c)] {
@@ -472,12 +420,10 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         for p in joints { polygon(circlePoints(p.0, p.1, w / 2, steps: 10), c) }
     }
 
-    /// A rounded rectangle's outline as points.
     private func roundedRect(_ r: ViewerRect, radius: Double) -> [(Double, Double)] {
         ViewerLayout.roundedPolygon(r, radii: CornerRadii(all: radius), scale: 1, steps: 6)
     }
 
-    /// The glass capsule (§11.1): a soft shadow, the rim, the fill shaded top to bottom.
     private func glass(_ r: ViewerRect) {
         let p = palette
         let radius = r.height / 2
@@ -490,16 +436,12 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         gradientPolygon(roundedRect(inner, radius: inner.height / 2), top: p.glassTop, bottom: p.glassBottom)
     }
 
-    /// SwiftCode's own glyph of a control, centred at (cx, cy) (§11.1's
-    /// descriptions; no Apple artwork).
     private func glyph(_ c: DeviceCommand, _ cx: Double, _ cy: Double, colour g: ViewerColor, highlighted: Bool) {
         let p = palette
         switch c {
         case .home:
-            // A 3 × 3 grid of dots.
             for i in -1...1 { for j in -1...1 { disc(cx + Double(i) * 5, cy + Double(j) * 5, 1.6, g) } }
         case .screenshot:
-            // A camera inside a viewfinder frame.
             let h = 7.5, arm = 3.2
             for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
                 stroke([(cx + sx * h, cy + sy * (h - arm)), (cx + sx * h, cy + sy * h), (cx + sx * (h - arm), cy + sy * h)], 1.3, g)
@@ -508,11 +450,9 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
             stroke([(cx - 1.5, cy - 2.4), (cx - 0.9, cy - 3.6), (cx + 0.9, cy - 3.6), (cx + 1.5, cy - 2.4)], 1.0, g)
             arc(cx, cy + 0.4, 1.3, 1.0, g)
         case .recordScreen:
-            // A dot in a ring.
             arc(cx, cy, 7, 1.4, g)
             disc(cx, cy, 3.9, g)
         case .rotateLeft:
-            // A square with a curved arrow at two corners.
             stroke(roundedRect(ViewerRect(x: cx - 5.5, y: cy - 2.5, width: 9, height: 9), radius: 1.6), 1.3, g, closed: true)
             arc(cx + 0.5, cy + 0.5, 7.5, 1.3, g, from: -0.62 * Double.pi, to: -0.12 * Double.pi)
             let tip = (cx + 0.5 + cos(-0.12 * Double.pi) * 7.5, cy + 0.5 + sin(-0.12 * Double.pi) * 7.5)
@@ -520,13 +460,11 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
             let tail = (cx + 0.5 + cos(-0.62 * Double.pi) * 7.5, cy + 0.5 + sin(-0.62 * Double.pi) * 7.5)
             polygon([(tail.0 + 0.5, tail.1 - 3), (tail.0 + 0.5, tail.1 + 3), (tail.0 - 3, tail.1)], g)
         case .resetCamera:
-            // A circular arrow.
             arc(cx, cy, 6.5, 1.4, g, from: -0.35 * Double.pi, to: 1.35 * Double.pi)
             let a = -0.35 * Double.pi
             let tip = (cx + cos(a) * 6.5, cy + sin(a) * 6.5)
             polygon([(tip.0 - 3.2, tip.1 - 1.5), (tip.0 + 1.5, tip.1 - 3), (tip.0 + 0.5, tip.1 + 2)], g)
         case .poseClosed, .posePartiallyOpen, .poseOpen:
-            // The current pose: accent outline, light accent fill; the others black with a grey fill.
             let line = highlighted ? p.accent : g
             let fill = highlighted ? p.accentFill : p.poseFill.with(alpha: g.a)
             switch c {
@@ -535,7 +473,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
                 polygon(r, fill)
                 stroke(r, 1.2, line, closed: true)
             case .posePartiallyOpen:
-                // An open book seen from above.
                 let left = [(cx, cy + 5), (cx - 7.5, cy + 2.5), (cx - 7.5, cy - 6), (cx, cy - 3.5)]
                 let right = [(cx, cy + 5), (cx, cy - 3.5), (cx + 7.5, cy - 6), (cx + 7.5, cy + 2.5)]
                 for q in [left, right] { polygon(q, fill); stroke(q, 1.2, line, closed: true) }
@@ -550,7 +487,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         }
     }
 
-    /// A text box with the debug font: the tooltip, the notice, menu rows.
     private func label(_ s: String, x: Double, y: Double, _ c: ViewerColor) {
         let b = c.bytes
         color(b.0, b.1, b.2, b.3)
@@ -559,7 +495,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
 
     private func drawChrome() {
         let p = palette
-        // The capsules (§11.1).
         for r in session.controlCapsules { glass(r) }
         for x in session.controlDividers {
             let caps = session.controlCapsules
@@ -572,11 +507,9 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
             let g = c.enabled ? p.glyph : p.glyph.with(alpha: p.disabledAlpha)
             glyph(c.command, c.rect.x + c.rect.width / 2, c.rect.y + c.rect.height / 2, colour: g, highlighted: c.highlighted)
         }
-        // More Actions.
         let more = DeviceWindowChrome.moreButton(windowWidth: session.windowWidth)
         glass(more)
         for i in -1...1 { disc(more.x + more.width / 2 + Double(i) * 5, more.y + more.height / 2, 1.5, p.glyph) }
-        // The notice ("Screenshot Saved", …) in a glass capsule at the top.
         if let n = session.notice {
             let w = Double(n.text.count) * 8 + 28
             let r = ViewerRect(x: (session.windowWidth - w) / 2, y: 12, width: w, height: 30)
@@ -584,7 +517,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
             label(n.text, x: r.x + 14, y: r.y + 11, p.text)
         }
         if menuOpen { drawMenu() }
-        // The tooltip.
         if tooltipShown, let h = hover {
             let target: (ViewerRect, String)? = h.key == "more" ? (more, "More Actions")
                 : session.controls.first { $0.command.rawValue == h.key }.map { ($0.rect, $0.help) }
@@ -626,9 +558,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
         }
     }
 
-    /// A convex polygon filled with the texture: each vertex's texture
-    /// coordinate is its place in `rect`, turned back by `rotation` (the
-    /// image is shown turned clockwise by it).
     private func texturedPolygon(_ pts: [(Double, Double)], in rect: ViewerRect, rotation: Int, texture: UnsafeMutableRawPointer) {
         guard pts.count >= 3 else { return }
         let turns = (((rotation % 360) + 360) % 360) / 90
@@ -657,7 +586,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
     private func uploadFrame() -> UInt64? {
         guard let canvas = session.client.currentCanvas else { return nil }
         let id = ObjectIdentifier(canvas)
-        // Video pictures stay NV12: the renderer converts them (on the GPU where it has one).
         let format = canvas.format == .nv12 ? SDLConst.pixelFormatNV12 : SDLConst.pixelFormatXRGB8888
         if texture == nil || textureSize != (canvas.width, canvas.height) || textureCanvas != id || textureFormat != format {
             if let texture { sdl.DestroyTexture(texture) }
@@ -691,8 +619,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
 
     private func draw() {
         needsRedraw = false
-        // The window takes the device's shape when it connects (and when a
-        // foldable shows another panel or turns).
         if let size = session.windowFitIfNeeded() {
             _ = sdl.SetWindowSize(window, Int32(size.width.rounded()), Int32(size.height.rounded()))
             updateWindowMetrics()
@@ -713,14 +639,10 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
             let inner = ViewerRect(x: body.x + 1.5, y: body.y + 1.5, width: body.width - 3, height: body.height - 3)
             polygon(ViewerLayout.roundedPolygon(inner, radii: g.bodyRadii.grown(by: -1.5 / max(l.scale, 0.01)), scale: l.scale), (0.06, 0.06, 0.07, 1))
         }
-        // The screen: a rounded polygon, textured with the stream image
-        // (turned for a turned panel); black until the first frame.
         let outline = ViewerLayout.roundedPolygon(screen, radii: g.screenRadii, scale: l.scale, steps: 12)
         var sequence: UInt64?
         if session.hasImage { sequence = uploadFrame() }
         if session.hasImage, let texture {
-            // One stream pixel per output pixel (Pixel Accurate): unfiltered,
-            // exact; any other size is filtered (uikit-feel-swiftcode.md §8.4).
             let turned = (((session.imageRotation % 360) + 360) % 360) / 90 % 2 == 1
             let (iw, ih) = turned ? (textureSize.1, textureSize.0) : (textureSize.0, textureSize.1)
             let mode = l.showsPixelsOneToOne(imageWidth: iw, imageHeight: ih) ? SDLConst.scaleNearest : SDLConst.scaleLinear
@@ -784,7 +706,6 @@ public final class RemoteDeviceWindow: @unchecked Sendable {
     }
 }
 
-/// Screenshot file names ("<device> <date at time>.png").
 public enum DeviceCaptureFileName {
     public static func screenshot(device: String, at date: Date = Date()) -> String {
         let f = DateFormatter()

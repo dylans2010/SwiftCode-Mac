@@ -23,13 +23,11 @@ public struct AssistDependencyGraphTool: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let root = AssistToolingSupport.resolvePath(input["path"] as? String, workspaceRoot: context.workspaceRoot)
-        // Scan common source directories if root is base
         let files = AssistToolingSupport.enumeratedFiles(at: root, allowedExtensions: ["swift"], maxFileSize: 300_000)
 
         var nodes = Set<String>()
         var edges: [String] = []
 
-        // Extract imports using regex
         let importRegex = try? NSRegularExpression(pattern: "^\\s*import\\s+([A-Za-z0-9_\\.]+)", options: [.anchorsMatchLines])
 
         for file in files {

@@ -73,7 +73,6 @@ struct DatabaseConnectionsView: View {
                     if let path = conn.sqliteFilePath, FileManager.default.fileExists(atPath: path) {
                         testResult[conn.id] = "Connection Successful!"
                     } else if let path = conn.sqliteFilePath {
-                        // Create the sqlite file
                         _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: "SELECT 1;")
                         testResult[conn.id] = "Connection Successful! (Created DB file)"
                     } else {

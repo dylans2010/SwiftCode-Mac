@@ -1,18 +1,6 @@
-// os.swift - SwiftCode's `os` Swift overlay (specs/macos/swift-runtime.md §4):
-// the unified-logging types Swift code uses (Logger, OSLog, OSLogType,
-// os_log with an interpolated message, the privacy and format
-// specifiers). SwiftCode's own code, written from Apple's public `os` and
-// `Logger` documentation; it is not Apple's overlay.
-//
-// SwiftCode keeps no log store. Messages are formatted only when the
-// environment variable SWIFTCODE_OS_LOG is set, and then written to standard
-// error as "<subsystem>[<category>] <type>: <message>". Private values are
-// shown, because there is no log reader to redact for.
-
-@_exported import os  // the Clang module (<os/log.h>, <os/lock.h>, ...)
+@_exported import os
 import Darwin
 
-/// The type of a log message.
 @frozen
 public struct OSLogType: Equatable, RawRepresentable, Sendable {
   public let rawValue: UInt8
@@ -36,7 +24,6 @@ public struct OSLogType: Equatable, RawRepresentable, Sendable {
   }
 }
 
-/// A log handle: a subsystem and a category.
 public final class OSLog: @unchecked Sendable {
   public let subsystem: String
   public let category: String
@@ -69,7 +56,6 @@ func _write(_ log: OSLog, _ type: OSLogType, _ text: @autoclosure () -> String) 
   fputs(line, stderr)
 }
 
-/// How an interpolated value appears in a stored log.
 public struct OSLogPrivacy: Equatable, Sendable {
   let value: UInt8
   public static let auto = OSLogPrivacy(value: 0)
@@ -84,7 +70,6 @@ public struct OSLogPrivacy: Equatable, Sendable {
   }
 }
 
-/// Formatting of interpolated integers.
 public struct OSLogIntegerFormatting: Sendable {
   let radix: Int
   let uppercase: Bool
@@ -100,7 +85,6 @@ public struct OSLogIntegerFormatting: Sendable {
   public static let octal = OSLogIntegerFormatting(radix: 8, uppercase: false)
 }
 
-/// Formatting of interpolated floating-point values.
 public struct OSLogFloatFormatting: Sendable {
   public static let automatic = OSLogFloatFormatting()
   public static func fixed(precision: Int = 6, explicitPositiveSign: Bool = false) -> OSLogFloatFormatting {
@@ -111,15 +95,12 @@ public struct OSLogFloatFormatting: Sendable {
   public static let hybrid = OSLogFloatFormatting()
 }
 
-/// Alignment of interpolated values.
 public struct OSLogStringAlignment: Sendable {
   public static let none = OSLogStringAlignment()
   public static func left(columns: Int) -> OSLogStringAlignment { OSLogStringAlignment() }
   public static func right(columns: Int) -> OSLogStringAlignment { OSLogStringAlignment() }
 }
 
-/// The interpolation of a log message: values are captured lazily and
-/// formatted only when the message is written.
 public struct OSLogInterpolation: StringInterpolationProtocol {
   var parts: [() -> String] = []
 
@@ -183,7 +164,6 @@ public struct OSLogInterpolation: StringInterpolationProtocol {
   }
 }
 
-/// A log message: a string literal with interpolations.
 public struct OSLogMessage: ExpressibleByStringInterpolation, ExpressibleByStringLiteral {
   let interpolation: OSLogInterpolation
 
@@ -200,7 +180,6 @@ public struct OSLogMessage: ExpressibleByStringInterpolation, ExpressibleByStrin
   var text: String { interpolation.parts.map { $0() }.joined() }
 }
 
-/// The Swift logging interface.
 public struct Logger: @unchecked Sendable {
   public let log: OSLog
 
@@ -220,12 +199,10 @@ public struct Logger: @unchecked Sendable {
   public func fault(_ message: OSLogMessage) { _write(log, .fault, message.text) }
 }
 
-/// `os_log` with an interpolated message.
 public func os_log(_ type: OSLogType = .default, log: OSLog = .default, _ message: OSLogMessage) {
   _write(log, type, message.text)
 }
 
-/// `os_log` with a C format string and arguments.
 public func os_log(_ message: StaticString, dso: UnsafeRawPointer? = #dsohandle, log: OSLog = .default,
                    type: OSLogType = .default, _ args: CVarArg...) {
   guard log.enabled && _logging else { return }

@@ -60,7 +60,6 @@ public final class PushManager: ObservableObject {
                 try? peerManager.send(data, to: peers)
             }
         }
-        // Artificial progress for UI feedback
         for i in 1...10 {
             try? await Task.sleep(nanoseconds: 50_000_000)
             if let index = activePushes.firstIndex(where: { $0.branchName == branchName && $0.direction == "Push" }) {
@@ -74,8 +73,6 @@ public final class PushManager: ObservableObject {
 
     public func pull(branchName: String, actorID: String) async {
         activePushes.append(PushStatus(branchName: branchName, progress: 0, isComplete: false, direction: "Pull"))
-        // Pull logic: in P2P, we normally wait for data or request it.
-        // For this implementation, we simulate the network request and response.
         for i in 1...10 {
             try? await Task.sleep(nanoseconds: 50_000_000)
             if let index = activePushes.firstIndex(where: { $0.branchName == branchName && $0.direction == "Pull" }) {

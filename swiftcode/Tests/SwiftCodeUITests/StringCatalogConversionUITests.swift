@@ -8,10 +8,6 @@ import SwiftCodeProject
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 private let fixture = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECoreTests/Fixtures/StringTables/App.pbxproj")
 
-/// Edit ▸ Convert ▸ To String Catalogs… and the String Catalog editor's
-/// Refresh from Source, through the window (specs/ide/string-catalog.md,
-/// "SwiftCode implementation"). The project is the one of the core's
-/// `StringCatalogConversionTests`.
 @MainActor
 @Suite(.serialized) struct StringCatalogConversionUITests {
     @MainActor final class Sample {
@@ -34,7 +30,6 @@ private let fixture = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECor
                 try FileManager.default.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try text.write(to: u, atomically: true, encoding: .utf8)
             }
-            // The stringsdict variant group's file.
             try StringsDictFile.data([("%d files", .dict([("NSStringLocalizedFormatKey", .string("%#@n@")),
                                                           ("n", .dict([("NSStringFormatSpecTypeKey", .string("NSStringPluralRuleType")),
                                                                        ("NSStringFormatValueTypeKey", .string("d")),
@@ -67,7 +62,6 @@ private let fixture = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECor
         let wc = try WindowChromeR32Tests().window(s.xcodeproj)
         #expect(validated(wc, "convertToStringCatalogs:"))
 
-        // The sheet lists the table, checked; unchecking it disables Convert.
         wc.convertToStringCatalogs(nil)
         let sheet = try #require(wc.pendingStringCatalogConversion)
         _ = sheet.view
@@ -78,15 +72,12 @@ private let fixture = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECor
         sheet.setChecked(true, table: sheet.tables[0].id)
         sheet.convertClicked()
 
-        // The project now has the catalog in the target; the tables are gone.
         #expect(wc.pendingStringCatalogConversion == nil)
         #expect(s.written.contains("Localizable.xcstrings in Resources") && !s.written.contains("PBXVariantGroup"))
         #expect(s.exists("App/Localizable.xcstrings") && !s.exists("App/en.lproj") && !s.exists("App/de.lproj"))
         #expect(!validated(wc, "convertToStringCatalogs:"))
         #expect(wc.window?.undoManager?.undoActionName == "Convert to String Catalog")
 
-        // Refresh from Source in the catalog's editor: the code's new string
-        // is added; migrated keys stay as they are.
         let catalog = s.dir.appendingPathComponent("App/Localizable.xcstrings").path
         wc.open(path: catalog, line: nil)
         let ed = try #require(wc.stringCatalogEditor)
@@ -99,7 +90,6 @@ private let fixture = swiftcodeDir.appendingPathComponent("Tests/SwiftCodeIDECor
         #expect(saved.json["strings"]?["Unused"]?["extractionState"]?.stringValue == "migrated")
         #expect(ed.refreshButton?.title == "Refresh from Source")
 
-        // Undo brings the tables back.
         wc.window?.undoManager?.undo()
         #expect(s.exists("App/en.lproj/Localizable.strings") && s.exists("App/de.lproj/Localizable.stringsdict"))
         #expect(s.written.contains("PBXVariantGroup") && !s.written.contains("Localizable.xcstrings"))

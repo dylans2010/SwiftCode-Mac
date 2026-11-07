@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUITemplatesView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 import SwiftUI
 
-/// Structured Template Library allowing users to save, catalog, search, and reuse their layouts, controls, navigation and workspace configurations.
 public struct VisualUITemplatesView: View {
     @Environment(\.dismiss) private var dismiss
     let document: VisualUIDocument
@@ -10,7 +7,6 @@ public struct VisualUITemplatesView: View {
     @State private var searchText = ""
     @State private var userSavedTemplates: [String] = []
 
-    // Native template presets
     private let systemTemplates = [
         ("Secure Authentication Flow", "lock.shield", "A modern, accessible secure onboarding login screen with validation error cards.", "Auth"),
         ("Apple Settings Panel", "gearshape.2", "An elegant form with nested options, toggles, profile cards, and disclosure indicators.", "Settings"),
@@ -21,7 +17,6 @@ public struct VisualUITemplatesView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Header & Search
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
@@ -37,7 +32,6 @@ public struct VisualUITemplatesView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        // Section 1: Pre-designed templates
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Apple-Style Production Templates")
                                 .font(.headline)
@@ -55,7 +49,6 @@ public struct VisualUITemplatesView: View {
                             }
                         }
 
-                        // Section 2: Permanent User Saved Library
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("Permanent User Saved Library")
@@ -129,7 +122,6 @@ public struct VisualUITemplatesView: View {
         document.checkpoint()
         if let activeID = document.scene.activeArtboardID,
            let artboard = document.scene.artboards.first(where: { $0.id == activeID }) {
-            // Apply standard beautiful components
             if name.contains("Authentication") {
                 let node1 = VisualComponentNode(type: .text, properties: ["textValue": "Welcome Back!", "fontPreset": "Large Title"])
                 let node2 = VisualComponentNode(type: .textField, properties: ["textValue": "Username or Email"])
@@ -157,13 +149,11 @@ public struct VisualUITemplatesView: View {
     }
 }
 
-// MARK: - Saved Artboards List View (Sidebar)
-
 public struct SavedArtboardsListView: View {
     @Bindable var document: VisualUIDocument
     @State private var searchText = ""
     @State private var filterCategory = "All"
-    @State private var sortBy = "Date" // Name, Date
+    @State private var sortBy = "Date"
 
     @State private var manager = SavedArtboardManager.shared
 
@@ -173,7 +163,6 @@ public struct SavedArtboardsListView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Action
             HStack {
                 Text("Library (\(manager.savedArtboards.count))")
                     .font(.caption.bold())
@@ -191,7 +180,6 @@ public struct SavedArtboardsListView: View {
 
             Divider()
 
-            // Filters & Search
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -202,7 +190,6 @@ public struct SavedArtboardsListView: View {
             .liquidGlass(style: .standard, cornerRadius: 6)
             .padding(8)
 
-            // Sorting & Categorizing Picker
             HStack {
                 Picker("Category", selection: $filterCategory) {
                     Text("All").tag("All")
@@ -226,7 +213,6 @@ public struct SavedArtboardsListView: View {
 
             Divider()
 
-            // List of Saved Artboards
             ScrollView {
                 VStack(spacing: 4) {
                     if filteredArtboards().isEmpty {
@@ -317,7 +303,6 @@ public struct SavedArtboardsListView: View {
 
     private func selectArtboard(_ saved: SavedArtboard) {
         document.checkpoint()
-        // Reopen and restore previous editing session
         if !document.scene.artboards.contains(where: { $0.id == saved.layout.id }) {
             document.scene.artboards.append(saved.layout)
         }
@@ -332,8 +317,6 @@ public struct SavedArtboardsListView: View {
         }
     }
 }
-
-// MARK: - Template Item Card
 
 struct TemplateItemCard: View {
     let title: String
@@ -372,11 +355,9 @@ struct TemplateItemCard: View {
     }
 }
 
-// MARK: - Saved Artboards Workspace View (Center Workspace)
-
 public struct SavedArtboardsWorkspaceView: View {
     @Bindable var document: VisualUIDocument
-    @State private var viewMode = 0 // 0 = Visual Mode, 1 = Code Mode
+    @State private var viewMode = 0
     @State private var manager = SavedArtboardManager.shared
     @State private var selectedDocumentURL: URL? = nil
 
@@ -406,7 +387,6 @@ public struct SavedArtboardsWorkspaceView: View {
 
                 if let saved = selectedSaved {
                     VStack(spacing: 0) {
-                        // Sub-toolbar with Visual/Code Segment and metadata
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(saved.name)
@@ -418,7 +398,6 @@ public struct SavedArtboardsWorkspaceView: View {
 
                             Spacer()
 
-                            // Seamless View Mode Toggle
                             Picker("View Mode", selection: $viewMode) {
                                 Text("Visual Mode").tag(0)
                                 Text("Code Mode").tag(1)
@@ -450,9 +429,7 @@ public struct SavedArtboardsWorkspaceView: View {
 
                         Divider()
 
-                        // Workspace Content View Mode
                         if viewMode == 0 {
-                            // Visual Mode
                             ScrollView([.horizontal, .vertical]) {
                                 VStack {
                                     ArtboardView(artboard: saved.layout, document: document, settings: VisualUISettings.shared, eligibleDocuments: [], selectedDocumentURL: $selectedDocumentURL)
@@ -461,7 +438,6 @@ public struct SavedArtboardsWorkspaceView: View {
                             }
                             .background(Color.secondary.opacity(0.02))
                         } else {
-                            // Code Mode
                             VStack(alignment: .leading, spacing: 0) {
                                 let code = generateCode(for: saved.layout)
                                 HStack {
@@ -523,7 +499,6 @@ struct \(artboard.name): View {
     }
 
     private func reopenInDesigner(_ saved: SavedArtboard) {
-        // Set as active and switch tab to Library (tag 0)
         if !document.scene.artboards.contains(where: { $0.id == saved.layout.id }) {
             document.scene.artboards.append(saved.layout)
         }
@@ -548,4 +523,3 @@ struct \(artboard.name): View {
         }
     }
 }
-

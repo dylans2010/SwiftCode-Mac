@@ -1,19 +1,5 @@
 import Foundation
 
-/// Merging strings extracted from source into a catalog ("Refresh from
-/// source", `swiftcode strings extract`). See `specs/ide/string-catalog.md`,
-/// "SwiftCode implementation":
-///
-/// - a key found in code and not in the catalog is added: with no
-///   `extractionState` (extracted), or `extracted_with_value` and a
-///   source-language unit in state `new` when the code gives a default value;
-/// - a key found again that was `stale` (or `migrated`) becomes extracted
-///   again;
-/// - a key no longer found becomes `stale` when it was extracted;
-///   `manual`, `migrated` and `stale` keys are left alone;
-/// - the comment follows the code's comment when the code has one;
-/// - a default value from code replaces the source unit's value while that
-///   unit is in state `new`.
 extension StringCatalog {
     public struct MergeSummary: Equatable, Sendable {
         public var added: [String] = []
@@ -23,11 +9,9 @@ extension StringCatalog {
         public var isEmpty: Bool { added.isEmpty && markedStale.isEmpty && revived.isEmpty && updated.isEmpty }
     }
 
-    /// Merges `extracted` (strings of this catalog's table only).
     @discardableResult
     public mutating func merge(extracted: [ExtractedString]) -> MergeSummary {
         var summary = MergeSummary()
-        // One record per key: the first default value and comment found.
         var found: [(String, ExtractedString)] = []
         var index: [String: Int] = [:]
         for e in extracted where !e.key.isEmpty {

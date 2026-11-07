@@ -2,58 +2,14 @@ import XCTest
 @testable import SwiftCodeSDK
 import SwiftCodeExtensions
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter SDKAssistApplicationTests`.
-//
-// Ported from Legacy
-// `SwiftCode/SDK/Host/APIKeys/SDKAssistApplicationTests.swift` (Dylan's
-// own code; direct port authorised under MIT), adapted to the SwiftCode
-// host shapes:
-//   - Legacy's flat `SDKAssistApplication` struct (with `apiKeyID: UUID`
-//     and `validate() -> [field: error]`) is SwiftCode's
-//     `SDKAssistApplication` + nested `Field` (with `apiKeyID: UUID` —
-//     key ID only, Wave 16 revision of the §5/§19.8 flag — and
-//     `validate() throws`, first failure only, no field-error map).
-//     Field-level assertions therefore check that validation throws /
-//     does not throw, not which map key. The presented secret is a
-//     submit-time parameter only (`submit(_:apiKeySecret:)`): it proves
-//     possession of the named key and is never persisted.
-//   - Legacy's submit rejection errors
-//     (`SDKAssistApplicationValidationError` with field errors) are
-//     SwiftCode `SDKError`s: unknown extension -> `.invalidArgument`,
-//     unknown key -> `.apiKeyInvalid`, secret for a different key than
-//     the field names -> `.apiKeyInvalid`.
-//   - `SDKAPIKeyStore` / `SDKExtensionRegistry` /
-//     `SDKAssistApplicationStore` are the shared instances, so the
-//     store tests perform REAL secret-store and extensions-directory
-//     I/O (createKey, recordInstall, submit, approve, deny, revoke),
-//     exactly like Legacy's real-Keychain tests. Test keys are labeled
-//     "SDKTest-assist-…" and revoked in tearDown; the test install
-//     record is removed. Assist application records
-//     (`sdk.assistapp.<uuid>` in the secret store) have no delete API,
-//     so the approved/denied test records remain as inert test data —
-//     the fixed test extension ID keeps them identifiable.
-
-// MARK: - SDKAssistApplicationTests
-//
-// Tests for the Assist access application flow:
-//   - field validation: valid/invalid submissions (SwiftCode: throwing)
-//   - store: submit rejection paths, approve -> entitlement grant,
-//     deny -> no grant
-
 final class SDKAssistApplicationTests: XCTestCase {
 
-    /// The fixed extension ID used for the install-record round-trip.
-    /// Kept stable so leftover test records stay identifiable.
     private let testExtensionID = "com.swiftcode.sdk.test.assist-app"
     private let testVersion = "1.0.0-test"
 
     private var createdKeyIDs: [UUID] = []
 
     override func tearDown() async throws {
-        // Best-effort cleanup: revoke every test key we created. Runs even
-        // when a test fails mid-flow.
         for keyID in createdKeyIDs {
             await SDKAPIKeyStore.shared.revoke(id: keyID)
         }
@@ -64,8 +20,6 @@ final class SDKAssistApplicationTests: XCTestCase {
         )
         try await super.tearDown()
     }
-
-    // MARK: - Helpers
 
     private func validField(apiKeyID: UUID = UUID()) -> SDKAssistApplication.Field {
         SDKAssistApplication.Field(
@@ -84,8 +38,6 @@ final class SDKAssistApplicationTests: XCTestCase {
         )
     }
 
-    /// Registers a real install record so `submit` passes the
-    /// installed-app check, and creates a real developer API key.
     private func seedExtensionAndKey() async throws -> (key: SDKAPIKey, secret: String) {
         let manifest = SwiftCodeManifest(
             id: testExtensionID,
@@ -115,16 +67,11 @@ final class SDKAssistApplicationTests: XCTestCase {
         return (key, secret)
     }
 
-    // MARK: - Field-level validation
-
     func testValidFieldPassesValidation() throws {
         try validField().validate()
     }
 
     func testEmptyFieldsFailValidation() {
-        // SwiftCode validation throws the first failure; each of these fields
-        // must fail on its own. Conditional fields with "no" answers must
-        // NOT fail.
         XCTAssertThrowsError(try SDKAssistApplication.Field(
             extensionID: "  ", displayName: "Test Assist App", apiKeyID: UUID(),
             sdkVariant: .assistSDKUI,
@@ -148,7 +95,6 @@ final class SDKAssistApplicationTests: XCTestCase {
             usageDescription: "This app summarizes the user's open document on demand using Assist sessions.",
             hasOwnUI: false, usesThirdPartyModels: false, dataLeavesDevice: false,
             contactEmail: "").validate())
-        // All "no" answers, everything else valid: passes.
         XCTAssertNoThrow(try validField().validate())
     }
 
@@ -170,7 +116,6 @@ final class SDKAssistApplicationTests: XCTestCase {
     }
 
     func testConditionalDescriptionsRequiredWhenYes() {
-        // hasOwnUI = true without a description fails; with one it passes.
         XCTAssertThrowsError(try SDKAssistApplication.Field(
             extensionID: testExtensionID, displayName: "Test Assist App", apiKeyID: UUID(),
             sdkVariant: .assistSDK,
@@ -179,7 +124,6 @@ final class SDKAssistApplicationTests: XCTestCase {
             usesThirdPartyModels: false, dataLeavesDevice: false,
             contactEmail: "dev@example.com").validate())
 
-        // Third-party models declared without a list fails.
         XCTAssertThrowsError(try SDKAssistApplication.Field(
             extensionID: testExtensionID, displayName: "Test Assist App", apiKeyID: UUID(),
             sdkVariant: .assistSDK,
@@ -189,7 +133,6 @@ final class SDKAssistApplicationTests: XCTestCase {
             dataLeavesDevice: false,
             contactEmail: "dev@example.com").validate())
 
-        // Data leaving the device without a destination fails.
         XCTAssertThrowsError(try SDKAssistApplication.Field(
             extensionID: testExtensionID, displayName: "Test Assist App", apiKeyID: UUID(),
             sdkVariant: .assistSDK,
@@ -218,11 +161,7 @@ final class SDKAssistApplicationTests: XCTestCase {
         }
     }
 
-    // MARK: - Store: submit
-
     func testSubmitRejectsUnknownExtensionID() async throws {
-        // Real store, real key, but NO install record: the extension-ID
-        // check must fail and nothing may be persisted.
         let (key, secret) = try await SDKAPIKeyStore.shared.createKey(
             label: "SDKTest-assist-\(UUID().uuidString)",
             scopes: [.appsCreate],
@@ -251,8 +190,6 @@ final class SDKAssistApplicationTests: XCTestCase {
 
     func testSubmitRejectsUnknownAPIKey() async throws {
         _ = try await seedExtensionAndKey()
-        // A secret that names no key: verification fails before any
-        // binding check, and nothing is persisted.
         let field = validField()
         do {
             _ = try await SDKAssistApplicationStore.shared.submit(field, apiKeySecret: "sc_dev_test_not-a-real-secret")
@@ -263,10 +200,6 @@ final class SDKAssistApplicationTests: XCTestCase {
     }
 
     func testSubmitRejectsSecretForDifferentKey() async throws {
-        // The field names key A but the presented secret belongs to key
-        // B: proof of possession fails the binding check, so an
-        // application can never be bound to a key its submitter does
-        // not hold — even when both keys are real and live.
         let (keyA, _) = try await seedExtensionAndKey()
         let (keyB, secretB) = try await SDKAPIKeyStore.shared.createKey(
             label: "SDKTest-assist-\(UUID().uuidString)",
@@ -284,18 +217,12 @@ final class SDKAssistApplicationTests: XCTestCase {
         }
     }
 
-    // MARK: - Store: key-ID-only persistence (Wave 16)
-
     func testSubmittedRecordStoresKeyIDNotSecret() async throws {
         let (key, secret) = try await seedExtensionAndKey()
         let submitted = try await SDKAssistApplicationStore.shared.submit(
             validField(apiKeyID: key.id), apiKeySecret: secret)
         XCTAssertEqual(submitted.field.apiKeyID, key.id)
 
-        // The persisted form of the record must contain the key ID and
-        // no trace of the presented secret: no "sc_dev_" fragment, no
-        // legacy "apiKey" key at all. (The encoder is the same path the
-        // store's persist() uses.)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(submitted)
@@ -306,9 +233,6 @@ final class SDKAssistApplicationTests: XCTestCase {
     }
 
     func testLegacySecretRecordMigratesToKeyID() throws {
-        // A record written before Wave 16 stored the presented secret
-        // under "apiKey". Decoding it must recover the key ID and drop
-        // the secret; re-encoding must contain only the ID.
         let keyID = UUID()
         let fakeSecret = Self.fakePresentedSecret(for: keyID)
         let legacyJSON = """
@@ -327,10 +251,6 @@ final class SDKAssistApplicationTests: XCTestCase {
         XCTAssertFalse(reencoded.contains("\"apiKey\""), "migrated record must not re-emit the legacy key")
     }
 
-    /// Assembles an obviously-fake presented secret from parts (never a
-    /// real HMAC: the signature bytes are zeros, so it verifies nowhere).
-    /// Used only to exercise the legacy-record migration's unverified ID
-    /// extraction.
     private static func fakePresentedSecret(for keyID: UUID) -> String {
         func base64URL(_ data: Data) -> String {
             data.base64EncodedString()
@@ -344,12 +264,8 @@ final class SDKAssistApplicationTests: XCTestCase {
         return "sc_dev_test_\(payloadB64).\(signatureB64)"
     }
 
-    // MARK: - Store: approve -> grant, deny -> no grant
-
     func testApproveGrantsEntitlements() async throws {
         let (key, secret) = try await seedExtensionAndKey()
-        // Declaring third-party models makes approval grant BOTH
-        // entitlements (see SDKAssistApplicationStore.approve).
         let field = SDKAssistApplication.Field(
             extensionID: testExtensionID,
             displayName: "Test Assist App",
@@ -369,8 +285,6 @@ final class SDKAssistApplicationTests: XCTestCase {
         XCTAssertEqual(decided.status, .approved)
         XCTAssertNotNil(decided.decidedAt)
 
-        // The grant is real: re-verify the secret and read the CURRENT
-        // entitlements off the metadata.
         let verified = try await SDKAPIKeyStore.shared.verify(secret: secret)
         XCTAssertTrue(verified.entitlements.contains(.developerAIAssist))
         XCTAssertTrue(verified.entitlements.contains(.developerAIAllowsCloud))
@@ -400,7 +314,6 @@ final class SDKAssistApplicationTests: XCTestCase {
 
     func testDecideIsSingleShot() async throws {
         _ = try await seedExtensionAndKey()
-        // Uses its own key so the first test's key stays clean.
         let (key2, secret2) = try await SDKAPIKeyStore.shared.createKey(
             label: "SDKTest-assist-\(UUID().uuidString)",
             scopes: [.appsCreate],
@@ -410,7 +323,6 @@ final class SDKAssistApplicationTests: XCTestCase {
 
         let submitted = try await SDKAssistApplicationStore.shared.submit(validField(apiKeyID: key2.id), apiKeySecret: secret2)
         _ = try await SDKAssistApplicationStore.shared.deny(id: submitted.id)
-        // A second decision must fail: no double-decide.
         do {
             _ = try await SDKAssistApplicationStore.shared.approve(id: submitted.id)
             XCTFail("approve must fail on an already-decided application")

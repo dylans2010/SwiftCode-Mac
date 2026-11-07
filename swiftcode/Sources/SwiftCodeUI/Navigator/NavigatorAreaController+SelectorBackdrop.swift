@@ -1,12 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The rows that scroll under the navigator's selector capsule show as
-/// blurred smudges, not legible text (`liquid-glass.md` §9.2, checklist
-/// row 69): an opaque backdrop in the capsule's shape, under the glass,
-/// draws the outline beneath it blurred (σ about 6) at the capsule's share
-/// and darkens it a little, so the capsule reads about #E8E8E9 over white
-/// rows.
 extension NavigatorAreaController {
     func installSelectorBackdrop(in root: NSView) {
         let backdrop = selectorBackdrop
@@ -28,19 +22,16 @@ extension NavigatorAreaController {
     }
 }
 
-/// The observer token (a class so the extension can hold it).
 final class ObserverBox {
     var value: NSObjectProtocol?
     deinit { if let value { NotificationCenter.default.removeObserver(value) } }
 }
 
-/// The capsule-shaped backdrop under the selector's glass.
 final class SelectorBackdropView: NSView {
     var sources: () -> [NSView] = { [] }
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    /// The capsule's shape.
     var shape: NSBezierPath {
         let r = bounds.height / 2
         return NSBezierPath(roundedRect: bounds, xRadius: r, yRadius: r)

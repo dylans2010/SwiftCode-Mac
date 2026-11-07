@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// Regular-file transfers and renames that run without the kernel lock
-/// (stage6-contract.md §5.2).
 @Suite struct HostFileIOTests {
     @Test func checksMatchThePlainCalls() throws {
         let f = try IOFixture()
@@ -13,7 +11,6 @@ import Testing
         #expect { _ = try f.fs.hostFileIO(ro, writing: true) } throws: { ($0 as? DarwinErrnoError)?.errno == DarwinErrnoCode.EBADF }
         let dir = try f.fs.open("/Runtime/usr/lib", flags: 0, mode: 0)
         #expect { _ = try f.fs.hostFileIO(dir, writing: false) } throws: { ($0 as? DarwinErrnoError)?.errno == DarwinErrnoCode.EISDIR }
-        // The console is not a regular host file: the plain call serves it.
         #expect(try f.fs.hostFileIO(1, writing: true) == nil)
     }
 
@@ -25,10 +22,7 @@ import Testing
         let dup = try f.fs.dup(fd)
         let io = try #require(try f.fs.hostFileIO(fd, writing: false))
         #expect(try io.read(count: 10) == Array(0..<10))
-        // The dup'd descriptor shares the offset.
         #expect(try f.fs.read(dup, count: 5) == Array(10..<15))
-        // Cached reads use preadv2(RWF_NOWAIT), which only Linux has; on
-        // other hosts they always answer nil and leave the offset alone.
         #if os(Linux)
         #expect(io.readIfCached(count: 5) == Array(15..<20))
         let offset: Int64 = 20
@@ -40,7 +34,6 @@ import Testing
         #expect(try io.pread(count: 3, offset: 50) == [50, 51, 52])
         #expect(try f.fs.lseek(fd, offset: 0, whence: 1) == offset)
         #if os(Linux)
-        // At the end of the file a short cached read is the whole answer.
         #expect(io.preadIfCached(count: 10, offset: 95) == Array(95..<100))
         #expect(io.preadIfCached(count: 10, offset: 100) == [])
         #else
@@ -59,8 +52,6 @@ import Testing
         #expect(f.tree.contents("run/tmp/log") == [9, 2, 3, 4])
     }
 
-    /// Concurrent offset-based transfers on one description never read the
-    /// same bytes twice or skip any.
     @Test func concurrentReadsAreAtomic() throws {
         let f = try IOFixture()
         let fd = try f.fs.open("/tmp/big", flags: DarwinOpen.O_RDWR | DarwinOpen.O_CREAT, mode: 0o600)
@@ -81,8 +72,6 @@ import Testing
         #expect(values == (0..<4096).map(UInt32.init))
     }
 
-    /// `lseek` SEEK_CUR racing offset-based reads never loses an update:
-    /// every read and every seek moves the shared offset exactly once.
     @Test func lseekIsAtomicWithTransfers() throws {
         let f = try IOFixture()
         let fd = try f.fs.open("/tmp/seek", flags: DarwinOpen.O_RDWR | DarwinOpen.O_CREAT, mode: 0o600)
@@ -98,9 +87,6 @@ import Testing
         #expect(try f.fs.lseek(fd, offset: 0, whence: 1) == UInt64(4 * 500 * 3 + 4 * 500 * 5))
     }
 
-    /// A caller holding the kernel lock never waits for a transfer: with the
-    /// offset lock taken, the cached read and a non-waiting seek give up and
-    /// change nothing.
     @Test func lockedCallersDoNotWaitForTransfers() throws {
         let f = try IOFixture()
         let fd = try f.fs.open("/tmp/busy", flags: DarwinOpen.O_RDWR | DarwinOpen.O_CREAT, mode: 0o600)
@@ -124,16 +110,13 @@ import Testing
         #if os(Linux)
         #expect(io.readIfCached(count: 2) == [4, 5])
         #else
-        #expect(io.readIfCached(count: 2) == nil)  // Linux-only cached reads
+        #expect(io.readIfCached(count: 2) == nil)
         #endif
         #expect { _ = try target.seek(offset: -100, whence: 1) } throws: { ($0 as? DarwinErrnoError)?.errno == DarwinErrnoCode.EINVAL }
         #expect { _ = try target.seek(offset: 0, whence: 9) } throws: { ($0 as? DarwinErrnoError)?.errno == DarwinErrnoCode.EINVAL }
         #expect(try target.seek(offset: -1, whence: 2) == 9)
     }
 
-    /// A transfer checked before the guest closes the descriptor completes
-    /// on the description it started with, and the host descriptor stays
-    /// open (its number is not reused) until the transfer lets go.
     @Test func transferOutlivesClose() throws {
         let f = try IOFixture()
         let fd = try f.fs.open("/tmp/keep", flags: DarwinOpen.O_RDWR | DarwinOpen.O_CREAT, mode: 0o600)
@@ -142,7 +125,6 @@ import Testing
         let io = try #require(try f.fs.hostFileIO(fd, writing: false))
         let writer = try #require(try f.fs.hostFileIO(fd, writing: true))
         try f.fs.close(fd)
-        // A new open may take the guest number, never the host descriptor.
         let other = try f.fs.open("/tmp/other", flags: DarwinOpen.O_RDWR | DarwinOpen.O_CREAT, mode: 0o600)
         #expect(other == fd)
         #expect(try io.read(count: 2) == [1, 2])
@@ -176,7 +158,6 @@ import Testing
     }
 }
 
-/// `/Runtime` (read-only) and `/tmp` (read-write) over a temporary tree.
 private final class IOFixture {
     let tree: TempTree
     let fs: DarwinFileSystem

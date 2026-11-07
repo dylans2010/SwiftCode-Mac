@@ -3,24 +3,6 @@ import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-// Alternative Gemini keys, adapted from Legacy's
-// `SwiftCode/Views/Settings/AlternativeKeysView.swift` onto SwiftCode's
-// `GeminiKeyRotationManager` (`SwiftCodeAssistant/GeminiKeyRotation.swift`,
-// the port of Legacy's `AlternativeKeyManager`). Keys are stored in
-// the secret store (never in plain text here) and shown only masked;
-// import, removal, removal of all keys, and manual rotation all call
-// the manager's real methods. There is no manual active-key picker
-// because the manager owns the active key (import sets the first
-// available key, removal advances it, rotation picks the next one).
-//
-// Migration (Views/UI worklist, Legacy PARTIAL): ready/in-cooldown status
-// counts, a Reset Cooldowns action (Legacy `resetHealth`, already present
-// on `GeminiKeyRotationManager`), and drag-to-reorder rotation priority
-// (Legacy `reorderKeys(from:to:)`; the destination manager takes an
-// ordered id list via `reorderKeys(_:)`, so the view translates the
-// IndexSet move into ids).
-
-/// Manage the alternative Gemini API keys used for rotation.
 struct AlternativeKeysSettingsView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var manager: GeminiKeyRotationManager?
@@ -174,9 +156,6 @@ struct AlternativeKeysSettingsView: View {
         }
     }
 
-    /// Ready / in-cooldown counts (Legacy's status pill: `keys.filter {
-    /// $0.isAvailableForUse }.count` ready, `keys.filter {
-    /// $0.isCurrentlyRateLimited }.count` in cooldown).
     private func statusCountsRow(colors c: ShellColors) -> some View {
         let readyCount = keys.filter { $0.isAvailableForUse }.count
         let cooldownCount = keys.filter { $0.isCurrentlyRateLimited }.count
@@ -204,9 +183,6 @@ struct AlternativeKeysSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Clears every cooldown (Legacy `resetHealth`, already on the manager:
-    /// rate-limited / failed keys return to `.ready` with no
-    /// `rateLimitedUntil`; disabled / invalid keys are left alone).
     private func resetCooldowns() {
         guard let manager else { return }
         Task {
@@ -217,8 +193,6 @@ struct AlternativeKeysSettingsView: View {
         }
     }
 
-    /// Drag-to-reorder: translates the List move into the manager's
-    /// ordered-id reorder (Legacy `reorderKeys(from:to:)`).
     private func moveKeys(from source: IndexSet, to destination: Int) {
         guard let manager else { return }
         var reordered = keys

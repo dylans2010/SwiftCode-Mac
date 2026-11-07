@@ -5,10 +5,6 @@ import Darwin
 #endif
 import Foundation
 
-// Sockets for the stub (`debug-stub.md` §7): a listener on a Unix socket
-// path (forwarded to the Mac by `ssh -L`) or a TCP port on the loopback
-// interface, and a connection over a file descriptor.
-
 public final class GDBRemoteFDConnection: GDBRemoteConnection, @unchecked Sendable {
     public let fd: Int32
     private var closed = false
@@ -62,17 +58,12 @@ public final class GDBRemoteFDConnection: GDBRemoteConnection, @unchecked Sendab
     }
 }
 
-/// A listening socket.
 public final class GDBRemoteListener: @unchecked Sendable {
     public let fd: Int32
     public let description: String
     private let unixPath: String?
-    /// The socket file's inode once bound: `close` removes the path only
-    /// while it is still this listener's (a later run of the same device
-    /// may have bound the path meanwhile).
     private var unixInode: UInt64 = 0
 
-    /// `unix:<path>`, `<host>:<port>` or `<port>` (loopback).
     public init(address: String) throws {
         if address.hasPrefix("unix:") {
             let path = String(address.dropFirst(5))
@@ -125,7 +116,6 @@ public final class GDBRemoteListener: @unchecked Sendable {
         #endif
     }
 
-    /// Blocks for the next client; nil when the listener was closed.
     public func accept() -> GDBRemoteFDConnection? {
         while true {
             #if canImport(Glibc)

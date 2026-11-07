@@ -1,15 +1,3 @@
-/**
- * _set-enabled.mjs — shared factory for the enable/disable commands.
- *
- * Mirrors SDKExtensionRegistry.setEnabled: flips `enabled` in
- * .sdk-install.json (all installed versions, or one with --version),
- * atomically, leaving updatedAt untouched — a flag flip is not an update
- * of the installed tree.
- *
- * Note: the CLI flips the record only. Stopping/starting a RUNNING
- * extension is the runtime coordinator's job — do that in SwiftCode Studio.
- */
-
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { UsageError } from "../errors.mjs";
@@ -31,8 +19,6 @@ export function makeSetEnabledCommand(enabled) {
       const { positionals: rawPos, flags } = normalizeArgs(args);
       const positionals = [...rawPos];
 
-      // Greedy-parser defense (see install.mjs): `enable --json <id>`
-      // arrives as json="<id>".
       let json = flags.json === true || flags.json === "true";
       if (typeof flags.json === "string" && flags.json !== "true" && flags.json !== "false") {
         positionals.unshift(flags.json);

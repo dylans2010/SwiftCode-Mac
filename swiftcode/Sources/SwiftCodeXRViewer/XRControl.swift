@@ -1,9 +1,3 @@
-// The viewer's small control interface for switching (xr-viewer.md §7.2,
-// device-hub.md §I.12): `--state-file <path>` gets one JSON object,
-// rewritten whole (waitingForHeadset → streaming → stopped), SIGTERM and
-// SIGINT end the viewer cleanly, and a takeover by another viewer of the
-// same device ends it too (it never fights for the display).
-
 import Foundation
 
 public final class XRControl: @unchecked Sendable {
@@ -14,7 +8,6 @@ public final class XRControl: @unchecked Sendable {
     private var phase = ""
     private var sources: [DispatchSourceSignal] = []
 
-    /// Where the state goes (nil: nowhere) and the signals that end the viewer.
     public func configure(stateFile: String?) {
         lock.withLock { path = stateFile }
         for sig in [SIGTERM, SIGINT] {
@@ -34,7 +27,6 @@ public final class XRControl: @unchecked Sendable {
         if first { FileHandle.standardError.write(Data("swiftcode-xr-viewer: stopping (\(why))\n".utf8)) }
     }
 
-    /// The display is ours: the first picture arrived.
     public func streaming() { write("streaming", message: nil) }
 
     public func stopped(_ message: String?) { write("stopped", message: message) }

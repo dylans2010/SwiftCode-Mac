@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Managers/VMImageManager.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public final class VMImageManager: Sendable {
@@ -32,7 +30,6 @@ public final class VMImageManager: Sendable {
             let size = Int64(resourceValues?.fileSize ?? 0)
             let date = resourceValues?.creationDate ?? Date()
 
-            // Dynamically infer the operating system from the filename
             let os: String
             let lowercased = name.lowercased()
             if lowercased.contains("ubuntu") {

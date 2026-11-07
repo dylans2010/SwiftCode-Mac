@@ -3,16 +3,6 @@ import SwiftCodeAssistant
 import Testing
 @testable import SwiftCodeMCP
 
-/// Gap-closure tests for the failing-tools family (family 2):
-/// `env_capture_logs`, `get_process_logs`, `take_screenrecord`,
-/// `take_screenshot` (region/window), `use_mcp`, `use_composio`,
-/// `use_workers`, `dependency_audit`, `reverse_analyze`, the YAML
-/// subset extensions, and the ImageMagick fallback.
-///
-/// Stub transports and fixtures only — never live network, never
-/// real credentials. macOS-only behaviour (ScreenCaptureKit,
-/// Accessibility) is tested only for its validation errors here;
-/// live runs stay pending on Dylan's Mac.
 @MainActor
 struct FailingToolsGapTests {
     func openHost(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
@@ -34,14 +24,10 @@ struct FailingToolsGapTests {
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    // MARK: - env_capture_logs
-
     @Test func environmentBlockRedactsSecrets() {
         let (text, count) = SwiftCodeMCPHost.failingToolsEnvironmentBlock()
         #expect(count > 0)
         #expect(text.contains("PATH="))
-        // No secret-looking value may appear in full: every such
-        // name is reported as <redacted>.
         for line in text.components(separatedBy: .newlines) {
             let name = line.split(separator: "=", maxSplits: 1).first.map(String.init) ?? ""
             if SwiftCodeMCPHost.failingToolsIsSensitiveEnvName(name) {
@@ -70,8 +56,6 @@ struct FailingToolsGapTests {
         #expect(r.structured?["logs"]?.string != nil)
     }
 
-    // MARK: - get_process_logs
-
     @Test func processLogsForUnknownPidFailsWithoutPlaceholder() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -85,8 +69,6 @@ struct FailingToolsGapTests {
     @Test func procFactsAreNilForUnknownPid() {
         #expect(SwiftCodeMCPHost.failingToolsProcFacts(pid: 2_147_483_647) == nil)
     }
-
-    // MARK: - dependency_audit (stubbed OSV)
 
     @Test func packageResolvedParsingCoversV1V2AndSkips() throws {
         let v2 = """
@@ -151,7 +133,6 @@ struct FailingToolsGapTests {
                       "state": { "version": "3.0.0" } } ] }
         """)
         SwiftCodeMCPHost.dependencyAuditTestFetcher = { body in
-            // querybatch (non-empty body) vs vulns detail (empty body).
             if body.isEmpty {
                 return """
                 { "id": "GHSA-test-1", "summary": "Test advisory",
@@ -180,8 +161,6 @@ struct FailingToolsGapTests {
         let r = try await host.server.callTool("dependency_audit", ["projectPath": .string(".")])
         #expect(r.isToolError && r.resultText.contains("No Package.resolved"))
     }
-
-    // MARK: - use_mcp (pure + stdio stub)
 
     @Test func mcpMessageParsing() {
         let ok = SwiftCodeMCPHost.externalMCPParseMessage(#"{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}"#)
@@ -251,8 +230,6 @@ struct FailingToolsGapTests {
         #expect(call.resultText.contains("hi"))
     }
 
-    // MARK: - use_composio (pure)
-
     @Test func composioSlugValidation() throws {
         #expect(try SwiftCodeMCPHost.composioValidateSlug("GITHUB_LIST_REPOS") == "GITHUB_LIST_REPOS")
         #expect(throws: MCPToolError.self) { _ = try SwiftCodeMCPHost.composioValidateSlug("") }
@@ -271,15 +248,10 @@ struct FailingToolsGapTests {
     @Test func composioWithoutKeyOrCLIFailsHonestly() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // No test secret store is installed and this VM has no
-        // composio CLI; the failure must name the missing key, not
-        // invent a call.
         let host = try await openHost(sample)
         let r = try await host.server.callTool("use_composio", ["toolSlug": .string("GITHUB_LIST_REPOS"), "arguments": .string("{}")])
         #expect(r.isToolError && r.resultText.contains("Composio service"))
     }
-
-    // MARK: - use_workers (pure + stub executor)
 
     @Test func workersValidationMatchesLegacy() throws {
         let long = String(repeating: "x", count: 600)
@@ -346,8 +318,6 @@ struct FailingToolsGapTests {
         #expect(r.resultText.contains("done: A"))
     }
 
-    // MARK: - reverse_analyze (pure + stub bridge)
-
     @Test func reverseFrameParsing() throws {
         let id = "req-1"
         let good = """
@@ -406,8 +376,6 @@ struct FailingToolsGapTests {
         #expect(r.structured?["evidence_id"]?.string == "ev-stub")
     }
 
-    // MARK: - YAML subset extensions
-
     func parseYAML(_ text: String) async throws -> AnyJSON {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -455,17 +423,10 @@ struct FailingToolsGapTests {
         #expect(tag.isToolError && tag.resultText.contains("unsupported YAML construct"))
     }
 
-    // MARK: - ImageMagick fallback (argv / gate level)
-
     @Test func imageMagickPathResolution() {
-        // This VM has no ImageMagick: the resolver must return nil
-        // (and the tools then fail with the exact macOS-only
-        // message the media tests assert).
         if SwiftCodeMCPHost.mediaImageMagickPath() == nil {
             #expect(SwiftCodeMCPHost.mediaImageMagickPath() == nil)
         } else {
-            // If ImageMagick appears, the resolver must point at an
-            // executable file.
             #expect(FileManager.default.isExecutableFile(atPath: SwiftCodeMCPHost.mediaImageMagickPath()!))
         }
     }
@@ -480,8 +441,6 @@ struct FailingToolsGapTests {
         #expect(r.isToolError)
         #expect(r.firstText == "image_convert_format is only available on macOS.")
     }
-
-    // MARK: - take_screenshot region validation
 
     @Test func screenshotRegionWithoutRectStillNamesOverlay() async throws {
         let sample = try TempSample()
@@ -498,8 +457,6 @@ struct FailingToolsGapTests {
         let r = try await host.server.callTool("take_screenshot", ["capture_mode": .string("window")])
         #expect(r.isToolError && r.resultText.contains("window_id"))
     }
-
-    // MARK: - take_screenrecord validation (Linux keeps honest failure)
 
     @Test func screenrecordValidationErrors() async throws {
         let sample = try TempSample()

@@ -1,30 +1,3 @@
-// Ported from SwiftCode-Legacy SwiftCode/Backend/Assist/AssistConversationHistory.swift
-// (Dylan's own code; direct port authorised under MIT). Legacy main ab03f681.
-// Audit A verdict: MISSING (Assist backend core). ADAPTATION (destination convention,
-// cf. TasksAIPlanner.swift / AssistManager.swift): Combine is unavailable on Linux, so
-// `import Combine` -> `import Observation`, ObservableObject/@Published -> @Observable
-// with plain stored vars, and the four explicit `objectWillChange.send()` calls are
-// removed (Observation tracks the stored vars). Behaviour unchanged.
-// BLOCKED CALLS (left intact, same as the four already-landed files in this target
-// that use the same API — AssistManager.swift:596, AssistAgentSession.swift:522,
-// CodingToolsService.swift:59-61, AssistFeedbackService.swift:726,1305):
-// `FoundationModels.shared.generatePrivateResponse(prompt:)` and
-// `FoundationModels.generateConciseTitle(from:)` — no `FoundationModels` type exists
-// in production. Audit A marks Legacy `SwiftCode/Services/FoundationModels.swift`
-// COVERED-BY-REDESIGN via FoundationModelsProvider, which exposes neither API, so
-// these two call sites need a wiring-time rework onto the provider (same work as
-// the four landed call sites). `AssistMessage` (role/content) resolves in this
-// target (AssistModels.swift:417).
-// Staged by M-ASSISTBE (Audit A MISSING Assist-backend batch).
-//
-//  AssistConversationHistory.swift
-//  SwiftCode
-//
-//  Persistent history manager for Assist conversations.
-//  Maintains multi-session conversation index, context files (<id>.context.md),
-//  and reviews conversations with Apple Foundation Models for intelligent auto-titling.
-//
-
 import Foundation
 import Observation
 import os
@@ -72,6 +45,7 @@ public final class AssistConversationHistory {
 
     public private(set) var conversations: [ConversationItem] = []
     public var activeConversationID: UUID? = nil
+    public var editHistory: AssistEditHistory { AssistEditHistory.shared }
 
     private let fileManager = FileManager.default
 
@@ -103,8 +77,6 @@ public final class AssistConversationHistory {
     public func listConversations() -> [ConversationItem] {
         activeConversations
     }
-
-    // MARK: - Conversation Lifecycle
 
     public func startNewConversation() -> ConversationItem {
         let id = UUID()
@@ -157,7 +129,6 @@ public final class AssistConversationHistory {
             conversations[idx].messageCount = messages.count
             conversations[idx].previewSnippet = preview
 
-            // If the conversation title is still default, review with Apple Foundation Models!
             if (conversations[idx].title == "New Conversation" || conversations[idx].title.isEmpty) && !firstUserMsg.isEmpty {
                 let currentId = conversationId
                 Task {
@@ -221,8 +192,6 @@ public final class AssistConversationHistory {
         saveIndex()
     }
 
-    // MARK: - Apple Foundation Models Review
-
     public func reviewAndTitleConversation(id: UUID, firstMessage: String) async {
         let prompt = """
         Review this user request to an AI coding assistant and generate a very short, concise title (under 25 characters, 2 to 4 words).
@@ -264,7 +233,6 @@ public final class AssistConversationHistory {
         }
     }
 
-    /// Generates and assigns an AI-suggested title under 25 characters for a conversation using AFM.
     @discardableResult
     public func suggestName(for id: UUID) async -> String? {
         guard let item = conversations.first(where: { $0.id == id }) else { return nil }
@@ -337,8 +305,6 @@ public final class AssistConversationHistory {
 
         try? summary.write(to: contextFile, atomically: true, encoding: .utf8)
     }
-
-    // MARK: - Index Persistence
 
     private func saveIndex() {
         if let data = try? JSONEncoder().encode(conversations) {

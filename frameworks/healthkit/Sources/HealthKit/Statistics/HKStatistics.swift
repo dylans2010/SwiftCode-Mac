@@ -1,6 +1,5 @@
 import Foundation
 
-/// Result of a statistics computation over quantity samples (`queries.md` §6).
 public final class HKStatistics: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let result: StatisticsResult
 
@@ -9,11 +8,9 @@ public final class HKStatistics: NSObject, NSSecureCoding, NSCopying, @unchecked
         super.init()
     }
 
-    // swiftlint:disable:next force_cast - statistics are computed for quantity types only
     public var quantityType: HKQuantityType { TypeRegistry.type(result.type) as! HKQuantityType }
     public var startDate: Date { Date(t: result.start) }
     public var endDate: Date { Date(t: result.end) }
-    /// Sources that contributed (only with `.separateBySource`).
     public var sources: [HKSource]? {
         HKStatisticsOptions(rawValue: result.options).contains(.separateBySource)
             ? result.sources.map { HKSource(record: $0) } : nil
@@ -64,7 +61,6 @@ public final class HKStatistics: NSObject, NSSecureCoding, NSCopying, @unchecked
     public func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
-/// Statistics laid out in buckets from an anchor date (`queries.md` §6.5).
 public final class HKStatisticsCollection: NSObject, @unchecked Sendable {
     let type: HKQuantityType
     let options: HKStatisticsOptions
@@ -87,8 +83,6 @@ public final class HKStatisticsCollection: NSObject, @unchecked Sendable {
             ? StatisticsEngine.deduplicate(input.records, priority: input.priority) : input.records
         super.init()
     }
-
-    // MARK: bucket arithmetic (calendar steps from the anchor)
 
     private func scaled(_ k: Int) -> DateComponents {
         var c = DateComponents()
@@ -126,7 +120,6 @@ public final class HKStatisticsCollection: NSObject, @unchecked Sendable {
         return s
     }
 
-    /// Buckets touched by at least one sample.
     private var populatedBuckets: [Int] {
         var ks = Set<Int>()
         for r in all {
@@ -139,12 +132,8 @@ public final class HKStatisticsCollection: NSObject, @unchecked Sendable {
         return ks.sorted()
     }
 
-    // MARK: API
-
-    /// The statistics of the bucket that contains `date`.
     public func statistics(for date: Date) -> HKStatistics? { statistics(bucket: bucketIndex(date)) }
 
-    /// Visit every bucket from the one containing `startDate` through the one containing `endDate`.
     public func enumerateStatistics(from startDate: Date, to endDate: Date,
                                     with block: (HKStatistics, UnsafeMutablePointer<ObjCBool>) -> Void) {
         let first = bucketIndex(startDate), last = bucketIndex(endDate)
@@ -156,7 +145,6 @@ public final class HKStatisticsCollection: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Only the buckets that have data.
     public func statistics() -> [HKStatistics] {
         populatedBuckets.map { statistics(bucket: $0) }.filter(\.result.hasData)
     }

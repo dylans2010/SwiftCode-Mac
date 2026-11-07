@@ -1,17 +1,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Extensions v2 manager (single authoritative lifecycle owner)
-//
-// There is exactly one manager, one installed-records file, and one
-// host manager. Views never keep their own copy of install state:
-// after every mutation they re-read from here. A broken extension
-// cannot prevent launch: refreshInstalled() tolerates missing
-// directories and malformed records by marking them unavailable
-// instead of throwing, and stale staging is cleaned in ensureReady()
-// (never in init, which must stay IO-free so opening Extensions
-// cannot freeze the app).
-
 @MainActor
 public final class ExtV2Manager: ObservableObject {
     public static let shared = ExtV2Manager()
@@ -24,10 +13,6 @@ public final class ExtV2Manager: ObservableObject {
     @Published public private(set) var updates: [ExtV2UpdateInfo] = []
     @Published public private(set) var contributions: [String: ExtV2Contribution] = [:]
     @Published public var settings: ExtV2Storage.Settings
-    /// True once the first async load has finished. Opening the
-    /// Extensions view must never block the main thread on disk
-    /// work (see init / ensureReady), so views render a spinner
-    /// until this flips instead of freezing the app on first open.
     @Published public private(set) var isReady = false
 
     public let storage: ExtV2Storage
@@ -62,22 +47,9 @@ public final class ExtV2Manager: ObservableObject {
             guard let self else { return .null }
             return try await self.handleHostRequest(extensionId: extensionId, request: request)
         }
-        // Freeze fix: init used to do disk work synchronously on the
-        // MainActor — creating directories, recursively deleting
-        // stale staging, and parsing every installed manifest — so
-        // the first view that touched ExtV2Manager.shared froze the
-        // whole app until that work finished, with no spinner and no
-        // way to cancel. Init now only wires objects (no IO); the
-        // disk work runs in ensureReady(), after the Extensions view
-        // has already rendered its loading state.
         ExtV2XcodeCommandRegistry.shared.register(ExtV2SortLinesCommand())
     }
 
-    /// First-load path for the Extensions view. Calls after the
-    /// first load completes are no-ops; concurrent first calls
-    /// each do the same bounded work and publish the same result.
-    /// Directory creation and stale-staging cleanup run off the main
-    /// actor; the installed-record refresh then publishes on it.
     public func ensureReady() async {
         if isReady { return }
         let storage = self.storage
@@ -89,8 +61,6 @@ public final class ExtV2Manager: ObservableObject {
         isReady = true
     }
 
-    // MARK: Settings
-
     public func saveSettings() {
         try? storage.saveSettings(settings)
         registryClient = ExtV2RegistryClient(settings: settings)
@@ -99,8 +69,6 @@ public final class ExtV2Manager: ObservableObject {
     public func setWorkspaceRoot(_ url: URL?) {
         workspaceRoot = url
     }
-
-    // MARK: Installed state
 
     public func refreshInstalled() {
         var records = storage.loadInstalled()
@@ -128,8 +96,6 @@ public final class ExtV2Manager: ObservableObject {
                 records[index].state = .running
                 continue
             }
-            // Re-evaluate compatibility from the installed manifest so a
-            // record can never claim compatibility the package does not have.
             if let manifest = try? ExtV2ManifestParser.parseFile(
                 at: dir.appendingPathComponent("extension/package.json")) {
                 let report = ExtV2Compatibility.evaluate(manifest: manifest)
@@ -156,8 +122,6 @@ public final class ExtV2Manager: ObservableObject {
         persistInstalled()
     }
 
-    // MARK: Search
-
     public func search(query: String) {
         searchTask?.cancel()
         lastQuery = query
@@ -176,7 +140,6 @@ public final class ExtV2Manager: ObservableObject {
                 searchResults = page.results
                 searchOffset = page.results.count
             } catch is CancellationError {
-                // Superseded by a newer keystroke; not an error.
             } catch {
                 searchError = error.localizedDescription
                 diagnostics.error("Registry search failed: \(error.localizedDescription)")
@@ -202,12 +165,6 @@ public final class ExtV2Manager: ObservableObject {
         }
     }
 
-    // MARK: Install / update / uninstall / enable
-
-    /// Full pipeline: resolve download, download, validate + install
-    /// atomically, evaluate compatibility and dependencies, record.
-    /// Cancellation deletes the downloaded file and any staging dir;
-    /// the previous installation is never touched on failure.
     public func install(metadata: ExtV2ExtensionMetadata) async throws {
         let id = metadata.id
         guard !installingIDs.contains(id) else { return }
@@ -236,8 +193,6 @@ public final class ExtV2Manager: ObservableObject {
                 lastError: installedPackage.compatibility.compatible
                     ? nil : installedPackage.compatibility.reasons.joined(separator: " "))
             upsert(record)
-            // Dependency state is recomputed for everything, since a new
-            // install can satisfy another extension's missing dependency.
             refreshInstalled()
             diagnostics.info("Installed \(id) v\(metadata.version).", extensionId: id)
             if !installedPackage.compatibility.compatible {
@@ -290,8 +245,6 @@ public final class ExtV2Manager: ObservableObject {
         updates = found
     }
 
-    // MARK: Activation and commands
-
     public func activate(extensionId: String) async throws -> ExtV2Contribution {
         guard let record = installed.first(where: { $0.id == extensionId }) else {
             throw ExtV2Error.notInstalled(extensionId)
@@ -312,8 +265,6 @@ public final class ExtV2Manager: ObservableObject {
             registerAssistCommands(for: record, contribution: contribution)
             return contribution
         case .native:
-            // Native plugins activate through their registry; the Run
-            // view renders the manifest's contribution.
             let manifest = ExtV2NativePluginRegistry.shared.manifests.first { "swiftcode.\($0.id)" == extensionId }
                 ?? ExtV2NativePluginManifest(id: extensionId, name: record.metadata.displayName, version: record.metadata.version, description: record.metadata.description)
             let contribution = ExtV2NativePluginRegistry.shared.contribution(for: manifest)
@@ -335,7 +286,6 @@ public final class ExtV2Manager: ObservableObject {
     }
 
     public func executeCommand(extensionId: String, command: String, args: [ExtV2JSONValue] = []) async throws -> String {
-        // Native plugin commands resolve through the native registry.
         if ExtV2NativePluginRegistry.handler(for: command) != nil {
             let result = try await ExtV2NativePluginRegistry.shared.executeCommand(command, args: args)
             return result.stringValue ?? ""
@@ -363,8 +313,6 @@ public final class ExtV2Manager: ObservableObject {
         upsert(record)
     }
 
-    // MARK: Host-initiated requests
-
     private func handleHostRequest(extensionId: String, request: ExtV2RPCRequest) async throws -> ExtV2JSONValue {
         let params = request.params?.objectValue ?? [:]
         switch request.method {
@@ -388,9 +336,6 @@ public final class ExtV2Manager: ObservableObject {
             try workspace.writeFile(relativePath: path, content: content, extensionId: extensionId)
             return .null
         case "host.applyEdit":
-            // Edits arrive as {path, edits:[{range, newText}]} and are
-            // applied through the editor bridge against current disk
-            // content, so a stale edit fails instead of overwriting.
             guard let path = params["path"]?.stringValue,
                   let workspace = workspaceBridge else {
                 throw ExtV2Error.invalidRequest("Invalid applyEdit request.")
@@ -456,13 +401,9 @@ public final class ExtV2Manager: ObservableObject {
                 reason: params["reason"]?.stringValue ?? "The extension requested this capability.")
             return .bool(approved)
         case "host.showQuickPick", "host.showInputBox":
-            // No picker UI is attached to the host path yet; returning
-            // null is an honest "no selection" rather than a fabricated
-            // choice. RunView wires pickers for interactive extensions.
             diagnostics.info("Picker requested but no picker UI is attached; returning no selection.", extensionId: extensionId)
             return .null
         default:
-            // Unknown-but-allowed methods that need no action.
             return .null
         }
     }

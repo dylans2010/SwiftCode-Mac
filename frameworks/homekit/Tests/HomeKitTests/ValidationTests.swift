@@ -1,6 +1,3 @@
-// T-O2: value validation per format, min/max/step/maxLength/validValues →
-// errors 43–46 before I/O (object-model.md §7).
-
 import Foundation
 import Testing
 @testable import HomeKit

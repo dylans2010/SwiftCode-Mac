@@ -7,17 +7,8 @@ import SwiftCodeDisplayStream
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// XR-HUB (`device-hub.md` §I.12): Device Hub's headset for a Vision Pro —
-/// the onboarding's steps and Re-check against a stand-in viewer host, and
-/// View in Headset → Back to Desktop against a stand-in launcher whose
-/// "viewer" is a second connection to a stand-in display server that hands
-/// the display over as `swiftcode-simd` does (one viewer at a time; the old
-/// one gets the takeover notice). The device keeps running throughout. With
-/// `SWIFTCODE_XR_HUB_SHOTS=<dir>` the onboarding's steps and the canvas are
-/// written there as PNGs (drawn offscreen).
 @MainActor
 @Suite(.serialized, .timeLimit(.minutes(10))) struct HeadsetHubTests {
-    /// The display server's handover, with a hello for a Vision Pro and one picture per connection.
     final class TakeoverServer: @unchecked Sendable {
         let path: String
         let listener: DisplayListener
@@ -25,7 +16,6 @@ import SwiftCodeDisplayStream
         private var current: DisplayConnection?
         private(set) var accepted = 0
         private(set) var takeovers = 0
-        /// Poses each connection sent, by its number (1 first).
         private var poses: [Int: [SpatialPose]] = [:]
         func poses(connection: Int) -> [SpatialPose] { lock.withLock { poses[connection] ?? [] } }
 
@@ -66,7 +56,6 @@ import SwiftCodeDisplayStream
             h.xr = true
             try? c.send(.hello(h))
             try? c.send(.status(DisplayStatus(phase: "live", uptimeMilliseconds: 60_000, guestFrames: 1000)))
-            // One 8 × 8 picture as zlib tiles: header, raw deflate, a trailer the viewer does not check.
             let px = Data([UInt8](repeating: 0x80, count: 8 * 8 * 4))
             let deflated = (try? (px as NSData).compressed(using: .zlib) as Data) ?? Data()
             let tile = DisplayTile(x: 0, y: 0, width: 8, height: 8, data: [0x78, 0x9C] + [UInt8](deflated) + [0, 0, 0, 0])
@@ -77,7 +66,6 @@ import SwiftCodeDisplayStream
         func close() { listener.close(); unlink(path) }
     }
 
-    /// The headset viewer: a second client of the server; streaming once it has the hello.
     final class StandInLauncher: HeadsetViewerLauncher, @unchecked Sendable {
         let path: String
         private let lock = NSLock()
@@ -129,18 +117,13 @@ import SwiftCodeDisplayStream
                                state: "Booted", model: "Apple Vision Pro, SwiftCode Simulator (Linux)", isAvailable: true, isSwiftCodeRemote: true,
                                deviceTypeID: "vision-pro", deviceDirectory: "vp")
 
-    /// Waits on the main actor's own time (README "Tests in a full run").
     func until(_ what: String, _ seconds: Double = 20, _ cond: () -> Bool) async {
         let ok = await waitUntil(seconds, cond)
         #expect(ok, "\(what)")
     }
 
-    /// Writes the window as the window server draws it (glass needs that; a view's
-    /// own cached drawing has none), placed off the screens and behind everything,
-    /// so nothing on the owner's desktop changes. Falls back to the cached drawing.
     func shot(_ window: NSWindow, _ name: String) async {
         guard let dir = ProcessInfo.processInfo.environment["SWIFTCODE_XR_HUB_SHOTS"], !dir.isEmpty else { return }
-        // The setup assistant in both appearances.
         if window.windowController is HeadsetSetupWindowController {
             for (look, suffix) in [(NSAppearance.Name.aqua, ""), (.darkAqua, "-dark")] {
                 window.appearance = NSAppearance(named: look)
@@ -198,12 +181,10 @@ import SwiftCodeDisplayStream
         await hub.checkHeadset().value
         #expect(hub.headset.report?.status == .notSetUp)
         #expect(hub.headsetStatus(for: Self.row) == .notSetUp)
-        // The window opens on the first step with a problem.
         setup.show(hub.headset.report!.firstProblemStep)
         #expect(setup.step == .workstation)
         #expect(setup.shownChecks.first { $0.id == .openXRLoader }?.fix == .command("sudo apt install libopenxr-loader1"))
         await shot(setup.window!, "2-workstation-missing")
-        // The user installs the loader and clicks Re-check.
         hub.headset.makeRunner = { _ in Runner() }
         await setup.recheck().value
         #expect(hub.headset.report?.status == .ready && hub.headsetStatus(for: Self.row) == .ready)
@@ -212,7 +193,6 @@ import SwiftCodeDisplayStream
             #expect(setup.shownChecks.allSatisfy { $0.state == .ok }, "\(s)")
             await shot(setup.window!, "\(s.rawValue + 1)-\(s.title.lowercased().replacingOccurrences(of: " ", with: "-"))")
         }
-        // The page dots replace the step list: one per step, all passed now, the current one larger.
         let dots = try #require(setup.window?.contentView?.descendant(id: "headset-steps-panel") as? SetupPageDots)
         #expect(dots.dots.count == HeadsetSetupStep.allCases.count && dots.dots.allSatisfy { $0.dotState == .ok })
         #expect(dots.dots.last?.isCurrent == true && dots.dots.last?.toolTip == "Step 5 of 5: Connect, passed")
@@ -221,14 +201,12 @@ import SwiftCodeDisplayStream
         #expect(setup.backButton.isHidden && setup.primaryButton.title == "Continue")
         setup.show(.connect)
         if #available(macOS 26, *) {
-            // Continue tinted (the inactive window's captures draw it flat).
             #expect(setup.primaryButton.bezelStyle == .glass && setup.primaryButton.tintProminence == .primary)
         }
         setup.back()
         #expect(setup.step == .tracking)
         setup.next()
         #expect(setup.step == .connect)
-        // The Settings tab's box shows the capsule.
         hub.selectInspectorTab(.settings)
         let status = w.contentView?.descendant(id: "headset-status") as? NSTextField
         #expect(status?.stringValue == "Ready")
@@ -243,7 +221,6 @@ import SwiftCodeDisplayStream
         #expect(server.connections.accepted == 1)
         #expect(hub.headsetCommandTitle(for: Self.row) == "View in Headset" && hub.canvas.canPerform(.viewInHeadset))
         await shot(w, "canvas-desktop")
-        // ⌃⌘H / the toolbar: View in Headset.
         hub.canvas.perform(.viewInHeadset)
         await until("in the headset") { hub.headsetSwitch(for: Self.row)?.state == .inHeadset }
         await until("the canvas waits") { hub.canvas.stateDescription == "in headset" }
@@ -252,21 +229,17 @@ import SwiftCodeDisplayStream
         #expect(hub.canvas.takenOverCapsule != nil && hub.canvas.bannerText == nil)
         let session = hub.links[Self.row.identifier]!.session
         #expect(session.isHeldForHeadset && !session.isLive)
-        // The desktop does not reconnect while the headset has the device.
         try await Task.sleep(nanoseconds: 1_500_000_000)
         #expect(server.connections.accepted == 2)
         await shot(w, "canvas-in-headset")
-        // Back to Desktop: the canvas takes the display back and the viewer is stopped.
         hub.toggleHeadset()
         await until("back on the desktop") { hub.headsetSwitch(for: Self.row)?.state == .desktop }
         await until("the canvas is live again") { hub.canvas.stateDescription == "live" && session.isLive }
         #expect(server.connections.accepted == 3 && launcher.stops == 1)
-        // The desktop's own camera again (§I.12.3): sent on the connection that took the display back.
         await until("the desktop's camera is sent") { !server.poses(connection: 3).isEmpty }
         #expect(server.poses(connection: 3).last == hub.canvas.frameView.screen.spatial.camera.pose)
         #expect(!session.isHeldForHeadset && hub.canvas.takenOverCapsule == nil)
         #expect(hub.headset.switches[Self.row.identifier]?.lastSwitch?.done != nil)
-        // Both ways again: the device never restarted (one server throughout).
         hub.toggleHeadset()
         await until("in the headset again") { hub.headsetSwitch(for: Self.row)?.state == .inHeadset }
         hub.canvas.perform(.viewInHeadset)
@@ -280,7 +253,6 @@ import SwiftCodeDisplayStream
         let (hub, w, _) = makeHub(server)
         defer { hub.closeLinks(); w.close() }
         await until("live") { hub.canvas.stateDescription == "live" }
-        // Someone else's viewer connects: the canvas says so and waits; Take Back reconnects.
         let other = try DisplayConnection.connect(to: .unix(server.path))
         defer { other.close() }
         await until("taken over") { hub.canvas.stateDescription == "taken over" }
@@ -291,10 +263,6 @@ import SwiftCodeDisplayStream
         #expect(server.connections.accepted == 3)
     }
 
-    /// Against a real device, opt-in: `SWIFTCODE_XR_HUB_LIVE="<viewer host>|<simulator host>|<display socket there>|<viewer path>|<script>|<rounds>"`.
-    /// The hub's real path (Mac → ssh viewer host → ssh simulator host) with `--replay`
-    /// in place of a headset; a tall device's real stream on the real canvas. The switch's
-    /// Connect step is not used, so nothing starts on a headset. Prints the timings.
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_XR_HUB_LIVE"] != nil), .timeLimit(.minutes(10)))
     func realDeviceThroughTheRealPath() async throws {
         let f = ProcessInfo.processInfo.environment["SWIFTCODE_XR_HUB_LIVE"]!.split(separator: "|").map(String.init)
@@ -325,14 +293,12 @@ import SwiftCodeDisplayStream
         defer { hub.closeLinks(); w.close() }
         await until("the canvas is live", 60) { hub.canvas.stateDescription == "live" }
         let session = hub.links[Self.row.identifier]!.session
-        // The real tall stream: the hello's display, the crop, the pointer's space.
         #expect(session.isTallVision && session.hello?.pixelWidth == 2160 && session.hello?.pixelHeight == 3840)
         #expect(session.image?.width == 2160 && session.image?.height == 1215)
         #expect(hub.canvas.frameView.screen.pointSize == CGSize(width: 1920, height: 1080))
         print("XRHUB picture \(session.image?.width ?? 0)x\(session.image?.height ?? 0) from \(session.hello?.pixelWidth ?? 0)x\(session.hello?.pixelHeight ?? 0)")
         await shot(w, "live-desktop")
 
-        // The real checklist of the real workstation (read-only commands).
         await hub.checkHeadset().value
         for c in hub.headset.report?.checks ?? [] { print("XRHUB check \(c.id.rawValue): \(c.state.rawValue): \(c.reason)") }
         let setup = hub.presentHeadsetSetup()

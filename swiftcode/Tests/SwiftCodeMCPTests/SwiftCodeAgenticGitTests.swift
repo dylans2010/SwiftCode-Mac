@@ -3,54 +3,13 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic local-git tools (Wave 8, slice C), each
-/// driven black-box through the server's real write-policy path
-/// against a throwaway git repository built in a temporary folder.
-///
-/// Behaviour source: Legacy `SwiftCode/Tools/Agentic/Git*.swift`
-/// (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk / git state),
-/// never on internals. Messages quoted verbatim are Legacy's; where
-/// the SwiftCode port may legitimately word a failure differently
-/// (path-safety wording), the test asserts the behaviour plus a
-/// tolerant message match.
-///
-/// Calls here go through `server.run` on the installed
-/// `agenticGitTools` entry directly — NOT through `tools/call` —
-/// because the tools are installed by hand in `opened()` (the
-/// coordinator wires the array into `installTools()`).
-///
-/// ID collisions, resolved at wiring time (Wave 8): seven of these
-/// Agentic IDs used to be `MCPServer.toolAliases` entries routing
-/// to Assist operator tools (`git_status`, `git_diff`, `git_commit`,
-/// `git_branch`, `git_stash`, `git_blame`, `git_log`); those aliases
-/// are REMOVED, so the Agentic tools registered here own the names.
-/// `git_cherry_pick` is not in this array at all: the Wave 3 Assist
-/// tool was aligned in place to accept the Agentic `hash` +
-/// `repositoryPath` spellings, and `cherryPickAppliesFeatureCommit`
-/// below exercises that aligned tool through `tools/call`.
-/// `server.run` is still the real write-policy path (read-only
-/// refusal and the review gate both live there), so the approval
-/// and read-only tests below exercise the real gate.
-///
-/// The test repositories carry a LOCAL git identity (user.name /
-/// user.email / no signing in `.git/config`), so the tools' own git
-/// runs can commit, merge, rebase, cherry-pick and revert without
-/// depending on — or waiting because of — the machine's global git
-/// configuration.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticGitTests {
-    /// The 19 Wave 8 slice-C Agentic git tool IDs, in slice order
-    /// (`git_cherry_pick` is not here: the Wave 3 Assist tool was
-    /// aligned in place to serve the Agentic shape instead).
     static let agenticGitIDs = ["git_status", "git_diff", "git_add", "git_commit", "git_checkout",
                                 "git_branch", "git_merge", "git_rebase", "git_reset", "git_stash",
                                 "git_pull", "git_push", "git_clone", "git_blame", "git_log",
                                 "git_show", "git_tag", "git_revert", "git_worktree"]
 
-    /// Runs git in `dir` (identity via `-c`, global config ignored)
-    /// and returns stdout; throws with stderr when git exits non-zero.
     static func git(_ dir: URL, _ args: String...) throws -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
@@ -64,8 +23,6 @@ import SwiftCodeAssistant
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
-        // stderr on its own thread: reading the two pipes one after the
-        // other deadlocks when the child fills the second one first.
         final class Box: @unchecked Sendable { var data = Data() }
         let errBox = Box()
         let group = DispatchGroup()
@@ -82,10 +39,6 @@ import SwiftCodeAssistant
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// A Swift package in a git repository: `main` with one commit
-    /// ("Initial commit"), plus a `feature` branch. The repository's
-    /// local config carries the test identity, so the tools under
-    /// test can commit and cherry-pick in it.
     func makeRepo(_ name: String, diverged: Bool = false) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-agentic-git-\(name)-\(UUID().uuidString)")
         let sources = dir.appendingPathComponent("Sources/App")
@@ -112,7 +65,6 @@ import SwiftCodeAssistant
         return dir
     }
 
-    /// A Swift package folder with NO git repository.
     func makePlainFolder(_ name: String) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-agentic-git-\(name)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir.appendingPathComponent("Sources/App"), withIntermediateDirectories: true)
@@ -121,27 +73,17 @@ import SwiftCodeAssistant
         return dir
     }
 
-    /// A bare repository inside `workspace`, used as the "remote"
-    /// for pull/push/clone: a local path inside the workspace is an
-    /// allowed remote under the Wave 10 URL policy, so no network
-    /// is involved.
     func makeBareRemote(in workspace: URL, name: String = "remote.git") throws -> URL {
         _ = try Self.git(workspace, "init", "--bare", "-q", name)
         return workspace.appendingPathComponent(name)
     }
 
-    /// A second working copy cloned from `remote` into a fresh
-    /// temporary folder (test scaffolding only — the tools under
-    /// test never see a path outside the workspace).
     func makeSecondCopy(_ name: String, from remote: URL) throws -> URL {
         let dest = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-agentic-git-\(name)-\(UUID().uuidString)")
         _ = try Self.git(FileManager.default.temporaryDirectory, "clone", "-q", remote.path, dest.path)
         return dest
     }
 
-    /// Opens `dir` and installs the ported Agentic git tools on the
-    /// server (same shape as Wave 3's `opened` — `installTools()`
-    /// does not wire `agenticGitTools` yet; the coordinator owns that).
     func opened(_ dir: URL, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -152,10 +94,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Runs one Agentic git tool by name through the server's real
-    /// write-policy path, bypassing the `tools/call` alias table
-    /// (see the file header: eight of these IDs are currently
-    /// shadowed by Assist aliases).
     func callAgentic(_ host: SwiftCodeMCPHost, _ name: String, _ arguments: [String: AnyJSON] = [:]) async throws -> AnyJSON {
         guard let tool = host.agenticGitTools.first(where: { $0.name == name }) else {
             #expect(Bool(false), "\(name) is not in agenticGitTools")
@@ -179,8 +117,6 @@ import SwiftCodeAssistant
         (try? String(contentsOf: dir.appendingPathComponent(rel), encoding: .utf8)) ?? ""
     }
 
-    // MARK: - Registration
-
     @Test func agenticGitToolsListTheNineteenTools() async throws {
         let host = SwiftCodeMCPHost()
         let tools = host.agenticGitTools
@@ -194,9 +130,6 @@ import SwiftCodeAssistant
             "git_log": "Git Log", "git_show": "Git Show", "git_tag": "Git Tag",
             "git_revert": "Git Revert", "git_worktree": "Git Worktree",
         ]
-        // Legacy's `required` minus `repositoryPath`, which is
-        // optional in the SwiftCode schema (it defaults to the workspace
-        // root); `git_clone` keeps both of Legacy's required params.
         let expectedRequired: [String: [String]] = [
             "git_status": [], "git_diff": [], "git_add": ["files"], "git_commit": ["message"],
             "git_checkout": ["branch"], "git_branch": [], "git_merge": ["branch"], "git_rebase": ["branch"],
@@ -224,16 +157,11 @@ import SwiftCodeAssistant
                         "\(tool.name) must be a safeMutation write tool")
             }
         }
-        // The host serves them once installed (the coordinator wires
-        // `agenticGitTools` into `installTools()`; filter-first so
-        // they are not registered twice).
         let installed = Set(host.agenticGitTools.map(\.name))
         host.server.tools = host.server.tools.filter { !installed.contains($0.name) } + host.agenticGitTools
         let served = host.server.tools.map(\.name)
         for id in Self.agenticGitIDs { #expect(served.contains(id), "\(id) is not installed on the server") }
     }
-
-    // MARK: - Read-only git tools
 
     @Test func statusReportsCleanAndDirty() async throws {
         let dir = try makeRepo("status")
@@ -246,7 +174,6 @@ import SwiftCodeAssistant
         let dirty = try await callAgentic(host, "git_status")
         #expect(!dirty.isToolError, "\(dirty.resultText)")
         #expect(dirty.firstText.contains(" M Sources/App/main.swift"), "\(dirty.firstText)")
-        // An absolute repositoryPath inside the workspace works.
         let viaPath = try await callAgentic(host, "git_status", ["repositoryPath": .string(dir.path)])
         #expect(!viaPath.isToolError, "\(viaPath.resultText)")
         #expect(viaPath.firstText.contains(" M Sources/App/main.swift"))
@@ -330,8 +257,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError && r.firstText.contains("not a git repository"), "\(r.firstText)")
     }
 
-    // MARK: - Writing git tools and the approval gate
-
     @Test func addAndCommitRoundTrip() async throws {
         let dir = try makeRepo("add-commit")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -345,7 +270,6 @@ import SwiftCodeAssistant
         #expect(committed.firstText.contains("Add New"), "\(committed.firstText)")
         let log = try await callAgentic(host, "git_log")
         #expect(log.firstText.contains("Add New"))
-        // Missing files / message keep Legacy's error wording.
         let noFiles = try await callAgentic(host, "git_add")
         #expect(noFiles.isToolError && noFiles.firstText.contains("Missing repositoryPath or files"))
         let noMessage = try await callAgentic(host, "git_commit")
@@ -395,7 +319,6 @@ import SwiftCodeAssistant
         #expect(bad.isToolError && bad.firstText.contains("Invalid reset mode"))
         let r = try await callAgentic(host, "git_reset", ["mode": .string("--soft"), "target": .string("HEAD~1")])
         #expect(!r.isToolError, "\(r.resultText)")
-        // --soft moves HEAD but keeps the change staged/working.
         #expect(readFile(dir, "Sources/App/main.swift").contains("let a = 2"))
         let log = try Self.git(dir, "log", "--oneline")
         #expect(!log.contains("Second on main") && log.contains("Initial commit"), "\(log)")
@@ -420,10 +343,6 @@ import SwiftCodeAssistant
     }
 
     @Test func cherryPickAppliesFeatureCommit() async throws {
-        // Exercises the ALIGNED Wave 3 Assist `git_cherry_pick`
-        // through `tools/call` with the Agentic shape (`hash` +
-        // `repositoryPath`): the Agentic tool is not registered
-        // separately, so this is the Agentic-shaped call path.
         let dir = try makeRepo("cherry-pick", diverged: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let host = try await opened(dir, policy: .allow)
@@ -453,8 +372,6 @@ import SwiftCodeAssistant
         let r = try await callAgentic(host, "git_worktree", ["action": .string("list")])
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.firstText.contains(dir.path), "\(r.firstText)")
-        // Legacy's schema gives `add` no path argument, so git
-        // reports its usage error — the limitation, preserved.
         let add = try await callAgentic(host, "git_worktree", ["action": .string("add")])
         #expect(add.isToolError && add.firstText.contains("Git worktree add failed"), "\(add.firstText)")
         let bad = try await callAgentic(host, "git_worktree", ["action": .string("explode")])
@@ -489,8 +406,6 @@ import SwiftCodeAssistant
         let status = try await callAgentic(host, "git_status")
         #expect(!status.isToolError, "\(status.resultText)")
         #expect(status.firstText == "Working tree clean.")
-        // A read-only action of a writes:true tool is still refused
-        // in read-only mode (the Wave 2 dry-run precedent).
         let stashList = try await callAgentic(host, "git_stash", ["action": .string("list")])
         #expect(stashList.isToolError && stashList.firstText.contains("read-only"), "\(stashList.firstText)")
     }
@@ -503,8 +418,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError && r.firstText.contains("outside the workspace"), "\(r.firstText)")
     }
 
-    // MARK: - Remote tools (Wave 10: real remote operations)
-
     @Test func remotePullPushCloneRoundTripOverLocalBareRemote() async throws {
         let dir = try makeRepo("remote-roundtrip")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -512,7 +425,6 @@ import SwiftCodeAssistant
         _ = try Self.git(dir, "remote", "add", "origin", remote.path)
         _ = try Self.git(dir, "push", "-q", "-u", "origin", "main")
         let host = try await opened(dir, policy: .allow)
-        // Push: a new commit in the workspace lands in the bare remote.
         try writeFile(dir, "Sources/App/Pushed.swift", "let p = 1\n")
         _ = try Self.git(dir, "add", "-A")
         _ = try Self.git(dir, "commit", "-qm", "Pushed commit")
@@ -521,7 +433,6 @@ import SwiftCodeAssistant
         #expect(pushed.firstText.contains("Push successful"), "\(pushed.firstText)")
         let remoteLog = try Self.git(remote, "log", "--oneline", "main")
         #expect(remoteLog.contains("Pushed commit"), "\(remoteLog)")
-        // Pull: a commit made in a second copy arrives in the workspace.
         let other = try makeSecondCopy("remote-other", from: remote)
         defer { try? FileManager.default.removeItem(at: other) }
         try writeFile(other, "Sources/App/Pulled.swift", "let q = 1\n")
@@ -532,7 +443,6 @@ import SwiftCodeAssistant
         #expect(!pulled.isToolError, "\(pulled.resultText)")
         #expect(pulled.firstText.contains("Successfully pulled changes"), "\(pulled.firstText)")
         #expect(readFile(dir, "Sources/App/Pulled.swift").contains("let q = 1"))
-        // Clone: the bare remote clones to a folder inside the workspace.
         let cloned = try await callAgentic(host, "git_clone",
                                            ["remoteURL": .string(remote.path),
                                             "destinationPath": .string("cloned")])
@@ -562,9 +472,6 @@ import SwiftCodeAssistant
                                              "destinationPath": .string("clone-outside")])
         #expect(outside.isToolError && outside.firstText.contains("outside the workspace"), "\(outside.firstText)")
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("clone-outside").path))
-        // An SCP-like SSH remote passes the policy (so it fails
-        // with git's own error, not a policy error): the host does
-        // not resolve, so no connection is ever made.
         let ssh = try await callAgentic(host, "git_clone",
                                         ["remoteURL": .string("git@nonexistent.invalid:owner/repo.git"),
                                          "destinationPath": .string("clone-ssh")])
@@ -588,7 +495,6 @@ import SwiftCodeAssistant
         reviews.accept = true
         let pushed = try await callAgentic(reviewHost, "git_push")
         #expect(!pushed.isToolError, "\(pushed.resultText)")
-        // Read-only mode refuses the remote writes outright.
         let readOnlyHost = try await opened(dir)
         let refusedPull = try await callAgentic(readOnlyHost, "git_pull")
         #expect(refusedPull.isToolError && refusedPull.firstText.contains("read-only"), "\(refusedPull.firstText)")
@@ -607,7 +513,6 @@ import SwiftCodeAssistant
         #expect(pull.isToolError && pull.firstText.contains("Git pull failed"), "\(pull.firstText)")
         let push = try await callAgentic(host, "git_push")
         #expect(push.isToolError && push.firstText.contains("Git push failed"), "\(push.firstText)")
-        // A local path that is not a repository fails with git's own message.
         let clone = try await callAgentic(host, "git_clone",
                                           ["remoteURL": .string("not-a-repo"),
                                            "destinationPath": .string("clone-nope")])
@@ -622,9 +527,6 @@ import SwiftCodeAssistant
         #expect(SwiftCodeMCPHost.gitHubHTTPSPath("git@github.com:dylans2010/SwiftCode-Mac") == nil)
         #expect(SwiftCodeMCPHost.gitHubHTTPSPath("https://user:token@github.com/dylans2010/repo.git") == nil)
         #expect(SwiftCodeMCPHost.gitHubHTTPSPath("https://example.com/dylans2010/repo.git") == nil)
-        // Seeding with a stored token must not break a local clone
-        // when no credential helper is configured: seeding failures
-        // are silent and the git command reports the real outcome.
         SwiftCodeMCPHost.agenticGitTestSecretStore = MemorySecretStore()
         defer { SwiftCodeMCPHost.agenticGitTestSecretStore = nil }
         try SwiftCodeMCPHost.agenticGitTestSecretStore?.write(Data("test-token".utf8), for: SecretAccount.githubToken)

@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Services/VirtualizationService.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import OSLog
 #if canImport(Virtualization)
@@ -36,7 +34,7 @@ public final class VirtualizationService: @unchecked Sendable {
         do {
             let attrs = try fm.attributesOfItem(atPath: url.path)
             let size = attrs[.size] as? UInt64 ?? 0
-            if size < 1024 * 1024 { // Less than 1MB
+            if size < 1024 * 1024 {
                 throw NSError(domain: "VirtualizationService", code: 3, userInfo: [NSLocalizedDescriptionKey: "The specified ISO file is too small (\(size) bytes) and does not appear to be a valid bootable operating system installation image."])
             }
         } catch {
@@ -54,15 +52,11 @@ public final class VirtualizationService: @unchecked Sendable {
         config.cpuCount = max(VZVirtualMachineConfiguration.minimumAllowedCPUCount, min(VZVirtualMachineConfiguration.maximumAllowedCPUCount, cpuCores))
         config.memorySize = UInt64(memoryMB) * 1024 * 1024
 
-        // Boot Loader Configuration
-        // Use modern EFI Boot Loader to allow booting off standard installer ISO images
         let bootloader = VZEFIBootLoader()
-        // Save EFI variables store inside a standard sandbox cache location to survive restarts
         let cacheDirs = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         if let cacheURL = cacheDirs.first {
             let varStoreURL = cacheURL.appendingPathComponent("EFI_VARS_\(vmID).bin")
             if !FileManager.default.fileExists(atPath: varStoreURL.path) {
-                // Create blank EFI variable store
                 _ = try? VZEFIVariableStore(creatingVariableStoreAt: varStoreURL)
             }
             if let varStore = try? VZEFIVariableStore(url: varStoreURL) {
@@ -71,14 +65,11 @@ public final class VirtualizationService: @unchecked Sendable {
         }
         config.bootLoader = bootloader
 
-        // Storage Devices Configuration (Virtio Block Devices)
         var devices: [VZStorageDeviceConfiguration] = []
 
-        // 1. Create a primary writable disk image (simulated hard drive for OS install)
         if let cacheURL = cacheDirs.first {
             let primaryDiskURL = cacheURL.appendingPathComponent("DISK_DRIVE_\(vmID).img")
             if !FileManager.default.fileExists(atPath: primaryDiskURL.path) {
-                // Create a 20GB sparse disk image if it doesn't exist
                 let fd = open(primaryDiskURL.path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
                 if fd != -1 {
                     ftruncate(fd, 20 * 1024 * 1024 * 1024)
@@ -90,7 +81,6 @@ public final class VirtualizationService: @unchecked Sendable {
             devices.append(mainDisk)
         }
 
-        // 2. Attach the bootable installer CD-ROM ISO if supplied
         if let imagePath = imagePath, !imagePath.isEmpty {
             let isoURL = URL(fileURLWithPath: imagePath)
             try validateISO(at: isoURL)
@@ -101,25 +91,20 @@ public final class VirtualizationService: @unchecked Sendable {
 
         config.storageDevices = devices
 
-        // Graphics Devices Configuration (Virtio GPU for display output)
         let graphicsConfig = VZVirtioGraphicsDeviceConfiguration()
         let displayConfig = VZVirtioGraphicsScanoutConfiguration(widthInPixels: 1024, heightInPixels: 768)
         graphicsConfig.scanouts = [displayConfig]
         config.graphicsDevices = [graphicsConfig]
 
-        // Control Devices Configuration (USB Keyboard/Mouse capture)
         config.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
         config.keyboards = [VZUSBKeyboardConfiguration()]
 
-        // Entropy Device
         config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
 
-        // Network NAT adapter setup
         let networkConfig = VZVirtioNetworkDeviceConfiguration()
         networkConfig.attachment = VZNATNetworkDeviceAttachment()
         config.networkDevices = [networkConfig]
 
-        // Setup console and serial interfaces
         let serial = VZVirtioConsoleDeviceSerialPortConfiguration()
         serial.attachment = VZFileHandleSerialPortAttachment(
             fileHandleForReading: FileHandle.standardInput,
@@ -127,7 +112,6 @@ public final class VirtualizationService: @unchecked Sendable {
         )
         config.serialPorts = [serial]
 
-        // Validate config
         try config.validate()
         Self.logger.info("Virtualization configuration validated successfully.")
         return config
@@ -137,7 +121,6 @@ public final class VirtualizationService: @unchecked Sendable {
     public func startVM(id: UUID, cpuCores: Int, memoryMB: Int, imagePath: String?) async throws {
         guard #available(macOS 12.0, *) else { return }
 
-        // Terminate any previous instance
         if let existing = activeVMs[id] {
             try? await stopVM(id: id, force: true)
         }

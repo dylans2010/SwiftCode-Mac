@@ -1,35 +1,25 @@
-// Command replay: a decoded Metal command buffer (SwiftCodeMetalHost's command
-// model) recorded into Vulkan command buffers. Unknown handles and
-// unsupported commands are skipped (counted in `statistics.skipped`),
-// never fatal.
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
 
-/// Metal's integer color formats (clear values and resolve modes).
 enum MetalIntegerFormats {
     static let unsigned: Set<UInt32> = [13, 23, 33, 53, 63, 73, 91, 103, 113, 123]
     static let signed: Set<UInt32> = [14, 24, 34, 54, 64, 74, 104, 114, 124]
     static let all = unsigned.union(signed)
 }
 
-/// A sampler binding with an optional LOD clamp override.
 struct SamplerBinding {
     var sampler: MetalHandle?
     var lodMin: Float?
     var lodMax: Float?
 }
 
-/// The binding state of one stage (Metal slots).
 struct StageBindings {
     var buffers = [(MetalHandle?, Int)](repeating: (nil, 0), count: SwiftCodeMetalABI.bufferSlots)
     var textures = [MetalHandle?](repeating: nil, count: SwiftCodeMetalABI.textureSlots)
     var samplers = [SamplerBinding](repeating: SamplerBinding(), count: SwiftCodeMetalABI.samplerSlots)
     var dirty = true
     var table: UInt64 = 0
-    /// Slots that hold something (bit i: slot i), so a table write visits
-    /// only those.
     var bufferMask: UInt32 = 0
     var textureMask: (UInt64, UInt64) = (0, 0)
     var samplerMask: UInt16 = 0
@@ -55,7 +45,6 @@ struct StageBindings {
     }
 }
 
-/// The set bits of a mask, lowest first.
 @inline(__always)
 func forEachBit<T: FixedWidthInteger>(_ mask: T, offset: Int = 0, _ body: (Int) throws -> Void) rethrows {
     var m = mask
@@ -67,10 +56,6 @@ func forEachBit<T: FixedWidthInteger>(_ mask: T, offset: Int = 0, _ body: (Int) 
 }
 
 extension VulkanMetalBackend {
-    /// Records and queues a Metal command buffer (`MetalBackend.submit`).
-    /// Waits outside the backend lock for its pipelines to finish building,
-    /// then replays it under the lock. Without a GPU it reports completion
-    /// at once; after a device loss it completes with an error status.
     public func submit(_ commandBuffer: MetalCommandBuffer, scheduled: @escaping @Sendable () -> Void,
                        completed: @escaping @Sendable (_ status: Int) -> Void) {
         guard isAvailable else {
@@ -78,10 +63,7 @@ extension VulkanMetalBackend {
             completed(MetalCommandBufferStatus.completed)
             return
         }
-        // Debugging (SWIFTCODE_GPU_INJECT_HANG): a hang on demand.
         let commandBuffer = injectsHangs ? injectHang(commandBuffer) : commandBuffer
-        // Pipelines still translating or compiling are waited for here,
-        // outside the lock (VulkanPipelines.swift).
         let enteredAt = DispatchTime.now().uptimeNanoseconds
         preparePipelines(commandBuffer)
         let pipelinesAt = DispatchTime.now().uptimeNanoseconds
@@ -92,10 +74,8 @@ extension VulkanMetalBackend {
             cond.unlock()
             flushEarlyScheduled()
         }
-        // A client that hung the GPU too often (VulkanClientIsolation.swift).
         if refuseRevoked(commandBuffer, scheduled: scheduled, completed: completed) { return }
         if deviceLost {
-            // A reset is coming (VulkanDeviceReset.swift): it records this one again.
             if !parkForReset(commandBuffer, scheduled: scheduled, completed: completed) {
                 enqueueCompletion(status: MetalCommandBufferStatus.error, scheduled: scheduled, completed: completed)
             }
@@ -165,19 +145,12 @@ extension VulkanMetalBackend {
                 freeCommandBuffers.append(r.cb!)
                 for c in r.chunks { recycle(c) }
             }
-            // Refused because the device was lost: the reset records it again.
             if !(deviceLost && parkForReset(commandBuffer, scheduled: scheduled, completed: completed)) {
                 enqueueCompletion(status: MetalCommandBufferStatus.error, scheduled: scheduled, completed: completed)
             }
         }
     }
 
-    // MARK: - IOSurface synchronisation
-
-    /// Images backed by IOSurfaces that the command buffer reads (copied in
-    /// first, unless the image already holds the surface's content) and
-    /// writes (copied back last: only the part the command buffer can have
-    /// changed, `SurfaceDamage`).
     func surfaceUsage(_ mcb: MetalCommandBuffer) -> (reads: [VKImage], writes: [(VKImage, SurfaceDamage)]) {
         var reads: [ObjectIdentifier: VKImage] = [:], writes: [ObjectIdentifier: (VKImage, SurfaceDamage)] = [:]
         func note(_ h: MetalHandle?, read: Bool, write: SurfaceDamage?) {
@@ -185,7 +158,6 @@ extension VulkanMetalBackend {
             let id = ObjectIdentifier(t.image)
             if read { reads[id] = t.image }
             if let w = write {
-                // A view of another level or slice, or of a part of the image, is not tracked: all of it.
                 let whole = t.baseLevel != 0 || t.baseLayer != 0
                 var d = writes[id]?.1 ?? SurfaceDamage()
                 d.add(whole ? .full : w)
@@ -200,9 +172,6 @@ extension VulkanMetalBackend {
         for pass in mcb.passes {
             switch pass {
             case .render(let p):
-                // The area draws can touch: the union of the scissor rects in
-                // force at each draw (Metal clips every draw to its scissor
-                // rect, which starts as the whole target).
                 var drawn = SurfaceDamage()
                 if limited {
                     var scissor: MetalScissorRect?
@@ -223,7 +192,6 @@ extension VulkanMetalBackend {
                     if let a = d.stencil { atts.append(a) }
                     for a in atts {
                         let load = a.loadAction == MetalLoadAction.load
-                        // A clear or don't-care load changes every pixel; a level or slice other than 0 is not tracked.
                         let damage: SurfaceDamage = !load || a.level != 0 || a.slice != 0 ? .full : drawn
                         if damageLogBudget > 0, let h = a.texture, let t = textures[h], let s = t.image.surface {
                             damageLogBudget -= 1
@@ -258,10 +226,6 @@ extension VulkanMetalBackend {
         return (Array(reads.values), Array(writes.values))
     }
 
-    /// Copy regions between an image's level 0 / layer 0 and its surface
-    /// memory, clipped so that no byte outside the surface is touched (the
-    /// texture's texel size need not match the surface's), limited to
-    /// `damage` (pixels of level 0).
     func surfaceRegions(_ image: VKImage, damage: SurfaceDamage = .full) -> [VkBufferImageCopy] {
         guard let s = image.surface else { return [] }
         let bpb = image.format.bytesPerBlock
@@ -272,7 +236,6 @@ extension VulkanMetalBackend {
         guard width > 0, s.limit >= width * bpb else { return [] }
         let height = min(s.height, (s.limit - width * bpb) / s.bytesPerRow + 1)
         guard height > 0 else { return [] }
-        // The damaged part, clipped to the surface (block-compressed formats: all of it).
         var x0 = 0, y0 = 0, x1 = width, y1 = height
         if !damage.isFull && image.format.blockWidth == 1 && image.format.blockHeight == 1 {
             guard !damage.isEmpty else { return [] }
@@ -280,7 +243,6 @@ extension VulkanMetalBackend {
             y0 = min(max(damage.y0, 0), height); y1 = min(max(damage.y1, y0), height)
             guard x1 > x0, y1 > y0 else { return [] }
         }
-        // The buffer offset addresses the region's first texel, not the image's.
         let start = s.offset + y0 * s.bytesPerRow + x0 * bpb
         if s.bytesPerRow % bpb == 0 && start % lcm(4, bpb) == 0 {
             return [VkBufferImageCopy(bufferOffset: VkDeviceSize(start), bufferRowLength: UInt32(s.bytesPerRow / bpb),
@@ -288,7 +250,6 @@ extension VulkanMetalBackend {
                                       imageOffset: VkOffset3D(x: Int32(x0), y: Int32(y0), z: 0),
                                       imageExtent: VkExtent3D(width: UInt32(x1 - x0), height: UInt32(y1 - y0), depth: 1))]
         }
-        // Pitch not a whole number of texels: one region per row (offsets must be texel-aligned).
         return (y0..<y1).compactMap { y -> VkBufferImageCopy? in
             let off = s.offset + y * s.bytesPerRow + x0 * bpb
             guard off % lcm(4, bpb) == 0 else { return nil }
@@ -298,17 +259,12 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Whether the image already holds its surface's content: nothing wrote
-    /// the surface since the image last copied it in or out (no other
-    /// image's copy-out, no host write, and the surface's seed — raised by
-    /// every CPU lock for writing — unchanged and no lock held now).
     func surfaceInSync(_ image: VKImage) -> Bool {
         guard options.surfaceSkipCopyIn, let s = image.surface, let gen = image.syncedGeneration,
               gen == surfaceGeneration(s), let seed = currentSeed(s) else { return false }
         return image.syncedSeed == seed
     }
 
-    /// The surface's seed when no lock is held (nil: unknown or locked).
     func currentSeed(_ s: SurfaceLink) -> UInt32? {
         guard let st = s.syncState?(), !st.locked else { return nil }
         return st.seed
@@ -316,7 +272,6 @@ extension VulkanMetalBackend {
 
     func surfaceGeneration(_ s: SurfaceLink) -> UInt64 { surfaceGenerations[s.syncKey] ?? 0 }
 
-    /// Notes that the image and its surface hold the same pixels (after a copy in or out).
     func markSynced(_ image: VKImage) {
         guard let s = image.surface else { return }
         let seed = currentSeed(s)
@@ -324,12 +279,9 @@ extension VulkanMetalBackend {
         image.syncedSeed = seed ?? 0
     }
 
-    /// Something other than this image's copy-in wrote the surface's memory.
     func surfaceChanged(_ s: SurfaceLink) {
         surfaceGenerations[s.syncKey, default: 0] &+= 1
     }
-
-    // MARK: - Replay
 
     func replay(_ mcb: MetalCommandBuffer, rec: inout Recording, sink: SubmitSink) throws {
         let tIn = profileClock()
@@ -388,10 +340,6 @@ extension VulkanMetalBackend {
                     switch c {
                     case .wait(let h, let value):
                         guard let h, let e = events[h], let sem = e.semaphore else { noteSkip(); continue }
-                        // The rest of the command buffer runs once the event
-                        // reaches the value: held on the host when it has
-                        // not yet (VulkanEventWaits.swift).
-                        // A value already reached (and nothing held) needs nothing.
                         guard sink.holding || yvk_timeline_value(ctx, sem) < value else { continue }
                         let next = try newRecording()
                         yvk_cmd_memory_barrier(rec.cb, allCommands, memoryWrite, allCommands, memoryReadWrite)
@@ -428,7 +376,6 @@ extension VulkanMetalBackend {
             checkpoint(rec, pass: Self.checkpointPrologue, command: 1)
             for (image, damage) in writes {
                 guard let s = image.surface else { continue }
-                // Every other image of the surface no longer matches it.
                 surfaceChanged(s)
                 rec.writtenSurfaces.append(s.surfaceID)
                 rec.writtenSurfaceKeys.append(s.syncKey)
@@ -445,12 +392,10 @@ extension VulkanMetalBackend {
             }
             if sink.traceSlot >= 0, let ft = frameTrace { ft.segment(rec.cb, fn, slot: sink.traceSlot, &sink.segments, "out") }
         }
-        // Results (shared buffers, IOSurfaces) must be visible to the guest's CPU.
         yvk_cmd_memory_barrier(rec.cb, allCommands, memoryWrite, VK_PIPELINE_STAGE_2_HOST_BIT,
                                VK_ACCESS_2_HOST_READ_BIT | VK_ACCESS_2_HOST_WRITE_BIT)
     }
 
-    /// A render pass in a trace segment label: R<width>x<height>[s<samples>]/<draws>[/L|C|D load][/resolve].
     func passLabel(_ p: MetalRenderPass) -> String {
         guard let d = p.descriptor else { return "R?" }
         let first = d.colorAttachments.first?.attachment ?? d.depth ?? d.stencil
@@ -472,10 +417,6 @@ extension VulkanMetalBackend {
         return "R\(size)" + (samples > 1 ? "s\(samples)" : "") + "/\(draws)/\(load)\(resolve)"
     }
 
-    /// Diagnostics (stage8-contract.md §15.9, visionos.md §10.20): a kernel
-    /// that writes a texture Metal did not mark `shaderWrite`, or one that has
-    /// no storage view (its format cannot be a storage image: such writes go
-    /// to the dummy image). The first 16 such pairs are logged.
     func noteWritesWithoutUsage(_ p: VKComputePipeline, _ b: StageBindings) {
         for t in p.shader?.reflection.textures ?? [] where (t.access ?? "").contains("write") && t.index < b.textures.count {
             guard let h = b.textures[t.index], let tex = textures[h] else { continue }
@@ -491,8 +432,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Logs the first 16 (function, slots) pairs of buffers a function reads
-    /// that the command buffer left unbound (they read the dummy buffer). Under the lock.
     func noteUnboundBuffers(_ name: String, _ mask: UInt32) {
         guard unboundBuffersSeen.count < 16, unboundBuffersSeen.insert("\(name) \(mask)").inserted else { return }
         var slots: [Int] = []
@@ -501,9 +440,6 @@ extension VulkanMetalBackend {
             + "they read the dummy buffer (zeros)")
     }
 
-    // MARK: Argument tables
-
-    /// Writes a stage's argument table; returns its device address.
     func writeTable(_ b: StageBindings, _ statics: StageStatics, _ rec: Recording) throws -> UInt64 {
         let slice = try allocTransient(rec, SwiftCodeMetalABI.tableSize, align: 64)
         let p = slice.pointer
@@ -514,7 +450,6 @@ extension VulkanMetalBackend {
         }
         func buffer(_ i: Int) {
             guard let h = b.buffers[i].0 else { return }
-            // An unknown handle (released, or never created) reads zeros instead of faulting.
             put(SwiftCodeMetalABI.bufferEntry0 + i, buffers[h].map { $0.address + UInt64(b.buffers[i].1) } ?? dummyBufferAddress)
         }
         func texture(_ i: Int) {
@@ -542,11 +477,6 @@ extension VulkanMetalBackend {
             put(SwiftCodeMetalABI.samplerEntry0 + i, UInt64(index))
         }
         for (entry, value) in statics.entries { put(entry, value) }
-        // A buffer the function reads that the command buffer left unbound
-        // (visionOS's Siri orb kernel reads ten buffers and binds one) reads
-        // the dummy buffer's zeros: address 0 is unmapped, and on the Thor
-        // a read there never completes and stops every client
-        // (metal-shaders.md §4.11, stage8-contract.md §15.6).
         let unbound = statics.usedBuffers & ~b.bufferMask
         if unbound != 0 && options.unboundBuffersReadDummy {
             forEachBit(unbound) { i in put(SwiftCodeMetalABI.bufferEntry0 + i, dummyBufferAddress) }
@@ -556,7 +486,6 @@ extension VulkanMetalBackend {
         return slice.address
     }
 
-    /// The push constants: both tables and the kernel grid.
     func pushTables(_ cb: VkCommandBuffer?, _ a: UInt64, _ b: UInt64, grid: (Int, Int, Int) = (0, 0, 0)) {
         var pc: (UInt64, UInt64, UInt32, UInt32, UInt32, UInt32) =
             (a, b, UInt32(truncatingIfNeeded: grid.0), UInt32(truncatingIfNeeded: grid.1), UInt32(truncatingIfNeeded: grid.2), 0)
@@ -571,8 +500,6 @@ extension VulkanMetalBackend {
                                     ctx.pointee.pipelineLayout, 0, 1, &set, 0, nil)
         if graphics { rec.heapBoundGraphics = true } else { rec.heapBoundCompute = true }
     }
-
-    // MARK: Render passes
 
     func clearValue(_ metalFormat: UInt32, _ c: [Double]) -> VkClearValue {
         let v = c.count == 4 ? c : [0, 0, 0, 1]
@@ -594,7 +521,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Store op and whether the attachment resolves.
     func storeOp(_ a: UInt16) -> (VkAttachmentStoreOp, Bool) {
         switch a {
         case 0: return (VK_ATTACHMENT_STORE_OP_DONT_CARE, false)
@@ -604,14 +530,11 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// `SWIFTCODE_GPU_MIXED_SIZE=first` (experiments): a pass is rendered at its
-    /// first attachment's size, as before metal-sim-protocol.md §8.7.
     static let mixedSizeFirst = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_MIXED_SIZE"] == "first"
 
     func replayRender(_ pass: MetalRenderPass, _ rec: Recording, passIndex: Int = 0) throws {
         let tBegin = profileClock()
         guard let d = pass.descriptor, d.hasAttachments else {
-            // A pass without attachments (or without a begin record): nothing to render into.
             noteSkip()
             return
         }
@@ -635,12 +558,6 @@ extension VulkanMetalBackend {
                 out.resolveMode = tex.format.isColor && !integerFormats.contains(tex.metalFormat)
                     ? VK_RESOLVE_MODE_AVERAGE_BIT : VK_RESOLVE_MODE_SAMPLE_ZERO_BIT
             }
-            // The smallest attachment bounds the pass: Vulkan's render area
-            // must lie inside every attachment, and a larger one wrote past
-            // the end of a smaller image (visionOS backboardd's immersion
-            // mask pass clears a 172 × 172 and a 16 × 16 target together;
-            // the write past the small one never completed on the Thor,
-            // metal-sim-protocol.md §8.7).
             let s = tex.levelSize(a.level)
             if let (w, h) = sizeFromTexture, Self.mixedSizeFirst {
                 if s.0 != w || s.1 != h { mixedSizes = true }
@@ -654,8 +571,6 @@ extension VulkanMetalBackend {
         }
 
         var colorCount = 0
-        // Color attachments a draw of this pass may also sample (§15.6):
-        // image → the attachment texture. Only level 0, slice 0, stored, not resolved.
         var feedbackTargets: [ObjectIdentifier: VKTexture] = [:]
         var feedbackPossible = options.feedbackSnapshots
         withUnsafeMutableBytes(of: &info.color) { raw in
@@ -707,14 +622,11 @@ extension VulkanMetalBackend {
         info.height = UInt32(height)
         info.layerCount = 1
         if Self.debugPassDrawsSize != nil { debugPassDraws(pass, width: width, height: height, process: debugReplayProcess) }
-        // Visibility results (record 132): occlusion queries, reset here,
-        // outside rendering (VulkanVisibility.swift).
         var vis = visibilityQueries(pass, rec, width: width, height: height)
         let tapped = depthTapPassBegin(d, &info, width: width, height: height, draws: !pass.commands.isEmpty)
         yvk_cmd_begin_rendering(cb, &info)
         bindHeap(rec, graphics: true)
 
-        // Default dynamic state (Metal's defaults for a new encoder).
         var vp = VkViewport(x: 0, y: Float(height), width: Float(width), height: -Float(height), minDepth: 0, maxDepth: 1)
         fn.vkCmdSetViewport!(cb, 0, 1, &vp)
         var scissor = VkRect2D(offset: VkOffset2D(x: 0, y: 0), extent: VkExtent2D(width: UInt32(width), height: UInt32(height)))
@@ -747,13 +659,6 @@ extension VulkanMetalBackend {
         }
 
         var drawScissor: MetalScissorRect?
-        // A draw that samples a color attachment of this pass reads a copy
-        // of it made just before the draw (Metal's texture barrier: the
-        // draw sees the earlier draws' results). Sampling the attachment
-        // itself while rendering to it is a feedback loop Vulkan leaves
-        // undefined; on the Thor it hung the GPU (§15.6). Ends the
-        // rendering, copies, begins it again with every attachment loaded,
-        // and points the sampled slots at the copy. True when it did.
         func snapshotFeedback(_ p: VKRenderPipeline) throws -> Bool {
             var hits: [(MetalHandle, VKTexture)] = []
             for (stage, shader) in [(fs, p.fragment), (vs, p.vertex)] {
@@ -766,7 +671,6 @@ extension VulkanMetalBackend {
                 }
             }
             guard !hits.isEmpty else {
-                // Slots that pointed at an earlier copy point at their textures again.
                 if !textureOverride.isEmpty { textureOverride.removeAll(); return true }
                 return false
             }
@@ -778,9 +682,6 @@ extension VulkanMetalBackend {
                 guard let copy = try feedbackCopy(of: tex, rec) else { continue }
                 if done.insert(ObjectIdentifier(tex.image)).inserted {
                     let (w, hh, _) = tex.image.levelSize(0)
-                    // Only the part the draw can write (its scissor rectangle,
-                    // 2 texels wider for filtering): Core Animation reads the
-                    // destination where it draws. Texels outside keep an older copy.
                     var x0 = 0, y0 = 0, x1 = w, y1 = hh
                     if let sc = drawScissor, !options.feedbackWholeLevel {
                         x0 = max(0, sc.x - 2); y0 = max(0, sc.y - 2)
@@ -812,8 +713,6 @@ extension VulkanMetalBackend {
             return true
         }
 
-        // The most bytes any vertex-stage buffer binding offers from its
-        // offset on (for the base-instance check).
         func vertexRoom() -> Int {
             var room = 0
             for (h, off) in vs.buffers { if let h, let b = buffers[h] { room = max(room, b.length - off) } }
@@ -937,10 +836,8 @@ extension VulkanMetalBackend {
                 fn.vkCmdSetStencilReference!(cb, VK_STENCIL_FACE_FRONT_BIT.rawValue, front)
                 fn.vkCmdSetStencilReference!(cb, VK_STENCIL_FACE_BACK_BIT.rawValue, back)
             case .setStoreAction, .setStoreActionOptions:
-                break  // the decoder folds deferred store actions into the descriptor
+                break
             case .updateFence, .waitForFence:
-                // Fences: encoders run in order with a full barrier between
-                // passes (`replay`), which satisfies every fence wait.
                 break
             case .setVisibilityResultMode(let mode, let offset):
                 if vis != nil { setVisibilityMode(&vis!, mode, offset: offset, cb) }
@@ -951,7 +848,6 @@ extension VulkanMetalBackend {
                 rec.noteDraw(dr.vertexCount * dr.instanceCount)
                 fn.vkCmdDraw!(cb, UInt32(dr.vertexCount), UInt32(dr.instanceCount), UInt32(dr.vertexStart), UInt32(dr.baseInstance))
             case .drawIndexed(let dr):
-                // The indices must lie inside the index buffer (an index fetch past it reads whatever follows).
                 guard dr.indexCount > 0, dr.instanceCount > 0, saneDraw(dr.indexCount, dr.instanceCount),
                       saneBaseInstance(dr.baseInstance, dr.instanceCount, pipeline, vertexRoom()),
                       let ih = dr.indexBuffer, let ib = buffers[ih], dr.indexBufferOffset >= 0,
@@ -997,20 +893,6 @@ extension VulkanMetalBackend {
         _ = colorCount
     }
 
-    /// A draw of more than `MetalCommandDecoder.largeDraw` vertices ×
-    /// instances is skipped: such counts come only from records SwiftCode decodes
-    /// wrongly, and the GPU would run the draw for minutes (on the Thor the
-    /// driver then reports a context-switch timeout and every later
-    /// submission is lost).
-    /// A draw whose base instance lies past every vertex-stage buffer is
-    /// skipped: a Metal instance ID includes the base instance, so a vertex
-    /// function that indexes per-instance data with it (even 4 bytes per
-    /// instance) reads beyond whatever buffer it indexes, and on the Thor a
-    /// read outside mapped memory stalls the GPU (stage8-contract.md §15.6).
-    /// Applies to vertex functions that read `instance_id` or
-    /// `base_instance`, and to any draw whose instances reach past 2^20.
-    /// Such base instances come from records decoded with the wrong layout
-    /// (visionos.md §10.13, §9 Q23); the first few are logged.
     func saneBaseInstance(_ base: Int, _ instances: Int, _ pipeline: VKRenderPipeline?, _ room: Int) -> Bool {
         let (end, overflow) = base.addingReportingOverflow(instances)
         var bad = overflow || base < 0 || end > Self.largeBaseInstance
@@ -1035,9 +917,6 @@ extension VulkanMetalBackend {
         return false
     }
 
-    /// Metal winding → Vulkan front face. With the negative viewport height
-    /// Vulkan's framebuffer has the orientation of Metal's window
-    /// coordinates, so clockwise stays clockwise.
     func vkFrontFace(_ metalWinding: UInt64) -> VkFrontFace {
         metalWinding == 1 ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE
     }
@@ -1062,8 +941,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    // MARK: Compute
-
     func replayCompute(_ commands: [MetalComputeCommand], _ rec: Recording, passIndex: Int = 0) throws {
         let cb = rec.cb
         bindHeap(rec, graphics: false)
@@ -1071,7 +948,7 @@ extension VulkanMetalBackend {
         var pipeline: VKComputePipeline?
         var bound: VkPipeline?
         var tgMemory: [Int: Int] = [:]
-        var currentCommand: Int?  // for the marker after a dispatch
+        var currentCommand: Int?
 
         func dispatch(groups: (Int, Int, Int), group: (Int, Int, Int), threads: (Int, Int, Int)?) throws {
             guard let p = pipeline else { noteSkip(); return }
@@ -1144,22 +1021,19 @@ extension VulkanMetalBackend {
                 guard let vkp = computeVariant(p, ComputeVariantKey(x: max(t.width, 1), y: max(t.height, 1), z: max(t.depth, 1),
                                                                     threadgroupMemory: lengths)) else { continue }
                 if vkp != bound { fn.vkCmdBindPipeline!(cb, VK_PIPELINE_BIND_POINT_COMPUTE, vkp); bound = vkp }
-                // The grid is in GPU memory; the shader's guard sees the largest value.
                 let table = try writeTable(b, p.statics, rec)
                 pushTables(cb, table, 0, grid: (Int(UInt32.max), Int(UInt32.max), Int(UInt32.max)))
                 fn.vkCmdDispatchIndirect!(cb, buf.vkBuffer, VkDeviceSize(buf.offset + offset))
                 yvk_cmd_memory_barrier(cb, allCommands, memoryWrite, allCommands, memoryReadWrite)
                 statistics.dispatches += 1
             case .memoryBarrier, .memoryBarrierResources, .useResources, .useHeaps, .updateFence, .waitForFence:
-                break  // every dispatch is followed by a full barrier, every pass by another
+                break
             case .unknown:
                 noteSkip()
             }
         }
     }
 
-    /// Diagnostics for a GPU hang: a dispatch's geometry and its buffers
-    /// (length past the bound offset; the bytes of those of at most 64).
     func dispatchNote(_ b: StageBindings, groups: (Int, Int, Int), group: (Int, Int, Int), threads: (Int, Int, Int)) -> String {
         var parts: [String] = []
         for (i, (h, off)) in b.buffers.enumerated() {
@@ -1175,8 +1049,6 @@ extension VulkanMetalBackend {
         return "dispatch \(groups.0)x\(groups.1)x\(groups.2) groups of \(group.0)x\(group.1)x\(group.2), grid "
             + "\(threads.0)x\(threads.1)x\(threads.2) [\(parts.joined(separator: ", "))]"
     }
-
-    // MARK: Blit
 
     func replayBlit(_ commands: [MetalBlitCommand], _ rec: Recording, passIndex: Int = 0) throws {
         let cb = rec.cb
@@ -1249,14 +1121,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Whether a buffer↔image copy is valid Vulkan usage and stays inside the
-    /// buffer's `bufferBytes` (VkBufferImageCopy rules: a non-empty extent,
-    /// row length and image height 0 or at least the extent, block-aligned
-    /// offsets and lengths for compressed formats, a texel-aligned buffer
-    /// offset). Invalid copies are undefined behaviour for the GPU (a copy
-    /// engine may fault or hang); Metal's validation would have refused them,
-    /// so they come only from records decoded wrongly or garbage arguments.
-    /// Skipped and logged (the first 20; stage8-contract.md §15).
     func copyIsValid(_ r: VkBufferImageCopy, _ tex: VKTexture, level: Int, bufferBytes: Int, what: String) -> Bool {
         let f = tex.format
         let (aspect, bpb) = copyAspect(tex)
@@ -1292,9 +1156,6 @@ extension VulkanMetalBackend {
         return false
     }
 
-    /// The image a feedback snapshot of `tex` is copied into (one per format,
-    /// size and swizzle, kept until shutdown), in GENERAL layout, with a
-    /// sampled view like `tex`'s. Under the lock; `rec` gets the layout change.
     func feedbackCopy(of tex: VKTexture, _ rec: Recording) throws -> VKTexture? {
         let (w, h, _) = tex.image.levelSize(0)
         let s = tex.swizzle

@@ -1,4 +1,3 @@
-/* SwiftCode freestanding <stdlib.h>: the functions libunwind uses. */
 #ifndef YCL_STDLIB_H
 #define YCL_STDLIB_H
 #include <stddef.h>

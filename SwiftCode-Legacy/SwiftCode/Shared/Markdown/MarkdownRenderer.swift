@@ -2,9 +2,6 @@ import Foundation
 import SwiftUI
 import Markdown
 
-/// A single list item. `text` is inline-markdown source (bold/italic/code/
-/// links preserved); `children` holds nested list items recursively so nested
-/// lists render with indentation instead of being flattened.
 public struct MarkdownListItem: Sendable, Hashable, Identifiable {
     public var id: String { text + "|" + children.map(\.id).joined(separator: "|") }
     public var text: String
@@ -30,7 +27,6 @@ public struct MarkdownTaskItem: Sendable, Hashable, Identifiable {
 }
 
 public enum MarkdownBlock: Sendable, Identifiable {
-    /// `text` is inline-markdown source, not plain text.
     case heading(level: Int, text: String)
     case paragraph(text: String)
     case codeBlock(language: String?, code: String)
@@ -56,8 +52,6 @@ public enum MarkdownBlock: Sendable, Identifiable {
     }
 }
 
-/// Renders inline-markdown source (bold/italic/strikethrough/inline-code/
-/// links) as styled text. Falls back to plain text when parsing fails.
 fileprivate func inlineText(_ source: String, font: Font = .body) -> SwiftUI.Text {
     if let attributed = try? AttributedString(
         markdown: source,
@@ -78,10 +72,6 @@ public struct MarkdownParser {
         MarkdownRenderer.shared.parse(sanitizedForStreaming(markdown))
     }
 
-    /// Balances unclosed fenced code blocks so partially streamed responses
-    /// still parse into blocks instead of degrading the tail into a paragraph,
-    /// and strips unsafe active script/iframe HTML tags.
-    /// Idempotent for complete documents.
     private func sanitizedForStreaming(_ markdown: String) -> String {
         var cleaned = markdown
             .replacingOccurrences(of: "<script[^>]*>[\\s\\S]*?</script>", with: "", options: [.regularExpression, .caseInsensitive])
@@ -97,10 +87,6 @@ public struct MarkdownParser {
     }
 }
 
-/// Reconstructs inline Markdown source from a markup subtree, preserving
-/// bold/italic/strikethrough/inline-code/link formatting. The previous
-/// implementation used `plainText`, which silently stripped all inline
-/// formatting from rendered model output.
 private func inlineMarkdownSource(of markup: any Markdown.Markup) -> String {
     switch markup {
     case let text as Markdown.Text:
@@ -120,7 +106,6 @@ private func inlineMarkdownSource(of markup: any Markdown.Markup) -> String {
     case let strike as Markdown.Strikethrough:
         return "~~\(strike.children.map(inlineMarkdownSource(of:)).joined())~~"
     case let image as Markdown.Image:
-        // Remote images are not fetched inline; keep the alt text.
         return image.children.map(inlineMarkdownSource(of:)).joined()
     case is Markdown.SoftBreak:
         return "\n"
@@ -131,7 +116,6 @@ private func inlineMarkdownSource(of markup: any Markdown.Markup) -> String {
     }
 }
 
-/// Inline text of a list item, excluding nested lists (which become children).
 private func listItemInlineText(_ item: Markdown.ListItem) -> String {
     item.children
         .filter { !($0 is Markdown.UnorderedList) && !($0 is Markdown.OrderedList) }
@@ -140,7 +124,6 @@ private func listItemInlineText(_ item: Markdown.ListItem) -> String {
         .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-/// Recursively collects nested list items.
 private func listItemChildren(_ item: Markdown.ListItem) -> [MarkdownListItem] {
     var children: [MarkdownListItem] = []
     for child in item.children {
@@ -280,7 +263,6 @@ private struct MarkdownASTVisitor: MarkupVisitor {
         if !taskItems.isEmpty && bulletItems.isEmpty {
             blocks.append(.taskList(items: taskItems))
         } else {
-            // Mixed or plain bullets: fold checkbox items in with a textual marker.
             var all = bulletItems
             all.append(contentsOf: taskItems.map {
                 MarkdownListItem(text: ($0.checked ? "[x] " : "[ ] ") + $0.text, children: $0.children)
@@ -330,9 +312,6 @@ private struct MarkdownASTVisitor: MarkupVisitor {
     }
 }
 
-/// Modern fenced-code-block presentation: a language header bar with a line
-/// count and copy action, plus an optional line-number gutter next to the
-/// code. Used by chat (no gutter) and the Artifacts viewer (gutter on).
 public struct MarkdownCodeBlockView: View {
     let language: String?
     let code: String
@@ -348,7 +327,6 @@ public struct MarkdownCodeBlockView: View {
         code.components(separatedBy: "\n")
     }
 
-    /// Gutter width sized to the digit count of the highest line number.
     private var gutterWidth: CGFloat {
         let digits = String(max(lines.count, 1)).count
         return CGFloat(16 + digits * 8)
@@ -356,7 +334,6 @@ public struct MarkdownCodeBlockView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header bar: language chip, line count, copy action.
             HStack(spacing: 8) {
                 Text((language ?? "code").uppercased())
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -389,7 +366,6 @@ public struct MarkdownCodeBlockView: View {
 
             Divider()
 
-            // Body: line-number gutter + code, scrolling together.
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 0) {
                     if showsLineNumbers {
@@ -430,8 +406,6 @@ public struct MarkdownCodeBlockView: View {
 
 public struct MarkdownBlockListView: View {
     let blocks: [MarkdownBlock]
-    /// When true, fenced code blocks render with a line-number gutter.
-    /// Defaults to false so chat and other existing surfaces are unchanged.
     let showsLineNumbers: Bool
 
     public init(blocks: [MarkdownBlock], showsLineNumbers: Bool = false) {
@@ -450,7 +424,6 @@ public struct MarkdownBlockListView: View {
 
 public struct MarkdownBlockView: View {
     let block: MarkdownBlock
-    /// When true, fenced code blocks render with a line-number gutter.
     let showsLineNumbers: Bool
 
     public init(block: MarkdownBlock, showsLineNumbers: Bool = false) {
@@ -554,8 +527,6 @@ public struct MarkdownBlockView: View {
     }
 }
 
-/// Recursive list view: nested items render indented under their parent
-/// instead of being flattened into a single level.
 public struct MarkdownNestedListView: View {
     let items: [MarkdownListItem]
     let ordered: Bool

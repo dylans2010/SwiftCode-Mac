@@ -1,14 +1,8 @@
-// DebugDemo: a small UIKit app for the debug stub's end-to-end check
-// (specs/simulator/debug-stub.md §9). Once a second the main thread runs
-// one round of `work` and shows it. Original SwiftCode sample code.
 import Darwin
 import UIKit
 
-/// The plugin's entry point (Plugin.c), found with dlsym.
 typealias PluginScale = @convention(c) (Int32) -> Int32
 
-/// The round in which the app loads its plugin with dlopen: the
-/// environment's DEBUGDEMO_PLUGIN_ROUND, else 40.
 let pluginRound = Int(ProcessInfo.processInfo.environment["DEBUGDEMO_PLUGIN_ROUND"] ?? "") ?? 40
 
 final class DemoController: UIViewController {
@@ -37,8 +31,6 @@ final class DemoController: UIViewController {
         print("DebugDemo: round \(stats.rounds) value \(value)" + (scaled.map { " plugin \($0)" } ?? ""))
     }
 
-    /// Loads libDemoPlugin.dylib from the bundle (an image the debugger
-    /// learns about after it attached).
     func loadPlugin() {
         let path = Bundle.main.bundlePath + "/libDemoPlugin.dylib"
         guard let handle = dlopen(path, RTLD_NOW), let symbol = dlsym(handle, "demo_plugin_scale") else {

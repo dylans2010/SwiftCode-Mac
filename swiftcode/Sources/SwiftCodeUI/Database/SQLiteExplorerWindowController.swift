@@ -3,25 +3,6 @@ import Foundation
 import UniformTypeIdentifiers
 import SwiftCodeIDECore
 
-// MARK: - SQLite Explorer window
-//
-// Wave 17, Slice C: the `db.ExploreView` window, built whole at
-// browser scope — open a SQLite file, list its tables and views,
-// page through rows, inspect a table's schema, and run SQL with a
-// results grid. The model is `SQLiteExplorerModel` (a thin layer
-// over SwiftCode's existing `SQLiteDatabase`); this file is only the
-// AppKit window over it. Internal tables (`sqlite_*`) are never
-// listed, and a missing file is an honest open error, never a new
-// empty database.
-//
-// The window needs no project: like Legacy's explorer it opens on a
-// file of the user's choosing, so the SDK host action calls this
-// manager directly instead of going through the workspace-window
-// gate the project-anchored surfaces use.
-
-/// The SQLite Explorer's window manager: one shared window, raised
-/// when already open. The first open asks for a file; afterwards the
-/// window's own Open… button switches files.
 @MainActor
 public final class SQLiteExplorerWindowManager: NSObject {
     public static let shared = SQLiteExplorerWindowManager()
@@ -53,8 +34,6 @@ public final class SQLiteExplorerWindowManager: NSObject {
         windowController = nil
     }
 
-    /// The file picker for SQLite databases. A sheet when a window
-    /// is available to host it, a modal panel otherwise.
     static func runOpenPanel(from window: NSWindow?, completion: @escaping (URL?) -> Void) {
         let panel = NSOpenPanel()
         panel.title = "Open SQLite Database"
@@ -81,7 +60,6 @@ extension SQLiteExplorerWindowManager: NSWindowDelegate {
 @MainActor
 public final class SQLiteExplorerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     public static let size = NSSize(width: 1100, height: 700)
-    /// Rows per page in the table browser.
     public static let pageSize = 100
 
     private var model: SQLiteExplorerModel
@@ -128,8 +106,6 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: - Layout
 
     private func build() {
         guard let content = window?.contentView else { return }
@@ -237,9 +213,6 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
         ])
     }
 
-    // MARK: - Data
-
-    /// Reloads the table list and selects the first table, if any.
     public func reloadTables() {
         do {
             tables = try model.tables()
@@ -286,9 +259,6 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
         }
     }
 
-    /// Shows a result in the grid, rebuilding its columns. `sql`
-    /// marks a SQL-editor result (the pager is disabled for it: a
-    /// result set is shown whole, not paged).
     private func show(result: SQLiteExplorerResult, sql: Bool) {
         showingSQLResult = sql
         currentResult = result
@@ -313,8 +283,6 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
         prevButton.isEnabled = currentPage > 0
         nextButton.isEnabled = currentPage < maxPage
     }
-
-    // MARK: - Actions
 
     @objc func openClicked() {
         SQLiteExplorerWindowManager.runOpenPanel(from: window) { [weak self] url in
@@ -359,10 +327,6 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
         }
     }
 
-    /// Opens the sections panel (dashboard, migrations, backups,
-    /// import/export, templates, AI assistant, performance, logs)
-    /// over the same database. The panel reports back when it
-    /// changes the schema or the file, so the browser reloads.
     @objc func sectionsClicked() {
         if let sectionsController {
             sectionsController.window?.makeKeyAndOrderFront(nil)
@@ -376,8 +340,6 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
         sectionsController = controller
         controller.window?.makeKeyAndOrderFront(nil)
     }
-
-    // MARK: - Tables
 
     public func numberOfRows(in tableView: NSTableView) -> Int {
         if tableView === tablesTable { return tables.count }

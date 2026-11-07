@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKProcess.swift
-//  SwiftCode
-//
-//  Subprocess lifecycle manager for the Google Antigravity Python bridge.
-//
-
 import Foundation
 import os
 
@@ -34,12 +27,10 @@ public actor GoogleCloudSDKProcess {
         process?.processIdentifier
     }
 
-    /// Resolves the Google Cloud SDK root directory across bundle, workspace, and Application Support locations.
     @MainActor
     public static func resolveSDKDirectory() -> URL? {
         let fm = FileManager.default
 
-        // 1. Packaged App Bundle: SwiftCode.app/Contents/Resources/Google Cloud SDK
         if let bundleResources = Bundle.main.resourceURL {
             let bundleSDK = bundleResources.appendingPathComponent("Google Cloud SDK", isDirectory: true)
             if fm.fileExists(atPath: bundleSDK.appendingPathComponent("bridge/main.py").path) {
@@ -47,7 +38,6 @@ public actor GoogleCloudSDKProcess {
             }
         }
 
-        // 2. Main Bundle direct resource path
         if let path = Bundle.main.path(forResource: "Google Cloud SDK", ofType: nil) {
             let url = URL(fileURLWithPath: path, isDirectory: true)
             if fm.fileExists(atPath: url.appendingPathComponent("bridge/main.py").path) {
@@ -55,7 +45,6 @@ public actor GoogleCloudSDKProcess {
             }
         }
 
-        // 3. Active Workspace / Development path
         if let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL {
             let devSDK = projectURL.appendingPathComponent("SwiftCode/Resources/Google Cloud SDK", isDirectory: true)
             if fm.fileExists(atPath: devSDK.appendingPathComponent("bridge/main.py").path) {
@@ -63,14 +52,12 @@ public actor GoogleCloudSDKProcess {
             }
         }
 
-        // 4. Current working directory fallback
         let cwdSDK = URL(fileURLWithPath: fm.currentDirectoryPath, isDirectory: true)
             .appendingPathComponent("SwiftCode/Resources/Google Cloud SDK", isDirectory: true)
         if fm.fileExists(atPath: cwdSDK.appendingPathComponent("bridge/main.py").path) {
             return cwdSDK
         }
 
-        // 5. Application Support managed location
         if let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             let appSupportSDK = appSupport.appendingPathComponent("SwiftCode/GoogleCloudSDK", isDirectory: true)
             if fm.fileExists(atPath: appSupportSDK.appendingPathComponent("bridge/main.py").path) {
@@ -81,7 +68,6 @@ public actor GoogleCloudSDKProcess {
         return nil
     }
 
-    /// Launches the Python bridge subprocess and returns the Unix domain socket path.
     public func start() async throws -> String {
         if isRunning, let path = socketPath {
             return path
@@ -100,7 +86,6 @@ public actor GoogleCloudSDKProcess {
             throw GoogleCloudSDKError.runtimeNotFound("Bridge script missing at: \(mainScriptURL.path)")
         }
 
-        // Generate unique socket path in temporary directory
         let tempSocket = "/tmp/swiftcode-antigravity-\(UUID().uuidString.prefix(8)).sock"
         if FileManager.default.fileExists(atPath: tempSocket) {
             try? FileManager.default.removeItem(atPath: tempSocket)
@@ -112,8 +97,6 @@ public actor GoogleCloudSDKProcess {
         let directBinaryPath = findDownloadedAntigravityBinary(sdkDir: sdkDir)
 
         if mode == "resources", FileManager.default.isExecutableFile(atPath: launcherURL.path) {
-            // Use the runtime's version-checked interpreter, not an arbitrary
-            // host Python incompatible with the bundled native extensions.
             proc.executableURL = launcherURL
             proc.arguments = ["-m", "google.antigravity", "--socket-path", tempSocket]
             logger.info("Launching bundled Antigravity package via its Python launcher")
@@ -122,7 +105,6 @@ public actor GoogleCloudSDKProcess {
             proc.arguments = ["--socket-path", tempSocket]
             logger.info("Launching downloaded Antigravity binary: \(binPath)")
         } else {
-            // Bridge mode
             if FileManager.default.isExecutableFile(atPath: launcherURL.path) {
                 proc.executableURL = launcherURL
                 proc.arguments = [mainScriptURL.path, "--socket-path", tempSocket]
@@ -137,7 +119,6 @@ public actor GoogleCloudSDKProcess {
             logger.info("Launching Antigravity Python bridge")
         }
 
-        // Configure environment
         var env = ProcessInfo.processInfo.environment
         let sitePackages = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages").path
 
@@ -154,20 +135,8 @@ public actor GoogleCloudSDKProcess {
             env["ANTIGRAVITY_HARNESS_PATH"] = harnessURL.path
         }
 
-        // Credential-kind separation at the process boundary: in Google account
-        // mode the bridge must never see an API key, even when the OAuth token
-        // is currently unavailable. Falling back to GEMINI_API_KEY here would
-        // silently switch the session from account authentication to API-key
-        // authentication; instead the bridge raises an explicit "no
-        // credentials" error naming the missing sign-in.
-        // Note: UserDefaults is read directly (rather than AppSettings.shared,
-        // which is @MainActor) because this runs on the process actor.
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "google_oauth"
         let isOAuthMode = googleAuthMode == "google_oauth"
-        // M-10: GOOGLE_OAUTH_ACCESS_TOKEN is only injected in OAuth mode. In
-        // API-key mode a lingering valid OAuth token in the process
-        // environment would otherwise hijack sessions Swift explicitly
-        // configured for API-key auth (credential-kind separation).
         env.removeValue(forKey: "GOOGLE_OAUTH_ACCESS_TOKEN")
         env.removeValue(forKey: "GEMINI_API_KEY")
         env.removeValue(forKey: "GOOGLE_API_KEY")
@@ -299,7 +268,6 @@ public actor GoogleCloudSDKProcess {
         terminationHandlers.removeValue(forKey: id)
     }
 
-    /// Stops the process gracefully.
     public func stop() {
         if let proc = process, proc.isRunning {
             proc.terminate()
@@ -317,7 +285,6 @@ public actor GoogleCloudSDKProcess {
         socketPath = nil
     }
 
-    /// Forces process kill if it fails to exit cleanly.
     public func kill() {
         if let proc = process, proc.isRunning {
             Darwin.kill(proc.processIdentifier, SIGKILL)

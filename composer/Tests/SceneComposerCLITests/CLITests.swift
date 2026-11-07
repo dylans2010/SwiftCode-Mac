@@ -9,7 +9,6 @@ struct Captured: TextOutputStream {
     mutating func write(_ string: String) { text += string }
 }
 
-/// A scratch directory with a scene and a referenced file.
 final class Workspace {
     let dir: String
 
@@ -115,7 +114,6 @@ final class Workspace {
         #expect(info.out.contains("format: usdz"))
         #expect(!info.out.contains("not 64-byte aligned"))
         #expect(w.run("validate", w.dir + "/scene.usdz").status == 0)
-        // The packaged scene still composes the referenced crate.
         #expect(w.run("tree", w.dir + "/scene.usdz").out.contains("def Cube \"Box\""))
     }
 

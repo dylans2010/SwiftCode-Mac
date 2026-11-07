@@ -1,19 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowManager.swift
-//
-// Adapted for SwiftCode: `DeveloperWorkflow` / `WorkflowStep` /
-// `WorkflowHistoryEntry` live in this target (`CI/WorkflowModels.swift`);
-// `Project` is in `SwiftCodeIDECore`; `GitViewModel` is in this target
-// (`SourceControl/`). The one API change: Legacy ran steps through
-// `ProcessRunnerTool.shared.run` (async, run-to-completion). That type
-// does not exist in production — the audit records it as
-// COVERED-BY-REDESIGN by `SwiftCodeSubprocess.Subprocess.run` — so the
-// two execution call sites go through the `runShell` helper below,
-// which runs the synchronous `Subprocess.run` on a detached task
-// (it must not block the main thread) and maps its `Output`
-// (`stdoutText` / `stderrText` / `status`) onto the `(stdout, stderr,
-// exitCode)` shape the log code uses. Behaviour is otherwise verbatim.
-
 import Foundation
 import Observation
 import os.log
@@ -39,9 +23,6 @@ public final class WorkflowManager {
         loadWorkflows()
     }
 
-    /// Run a shell command to completion via `SwiftCodeSubprocess`
-    /// (see the header): `Subprocess.run` is synchronous, so it runs
-    /// on a detached task to stay off the main thread.
     private func runShell(_ command: String, environment: [String: String]? = nil, workingDirectory: URL) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
         let output = try await Task.detached {
             try Subprocess.run("/bin/sh", ["-c", command], environment: environment, currentDirectory: workingDirectory)
@@ -51,7 +32,6 @@ public final class WorkflowManager {
 
     private var storageURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        // INVARIANT: applicationSupportDirectory is always available on macOS
         let appSupport = paths[0]
         let directory = appSupport.appendingPathComponent("SwiftCode/Workflows", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -60,7 +40,6 @@ public final class WorkflowManager {
 
     private var historyStorageURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        // INVARIANT: applicationSupportDirectory is always available on macOS
         let appSupport = paths[0]
         let directory = appSupport.appendingPathComponent("SwiftCode/Workflows", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -114,8 +93,6 @@ public final class WorkflowManager {
         }
     }
 
-    // MARK: - Workflow Management actions
-
     public func createWorkflow(name: String, description: String, icon: String, category: String, steps: [WorkflowStep] = []) {
         let newFlow = DeveloperWorkflow(name: name, description: description, icon: icon, category: category, steps: steps)
         workflows.append(newFlow)
@@ -142,8 +119,6 @@ public final class WorkflowManager {
         }
     }
 
-    // MARK: - Variables Resolver
-
     public func resolveVariables(_ input: String, project: Project, gitViewModel: GitViewModel) -> String {
         var output = input
 
@@ -163,8 +138,6 @@ public final class WorkflowManager {
 
         return output
     }
-
-    // MARK: - Live Execution Engine
 
     public func runWorkflow(_ workflow: DeveloperWorkflow, project: Project, gitViewModel: GitViewModel) async {
         guard !isRunning else { return }
@@ -247,7 +220,6 @@ public final class WorkflowManager {
         currentExecutionLog += "\n=== Pipeline \(overallSuccess ? "Passed" : "Failed") ===\n"
         currentExecutionLog += "Total Duration: \(String(format: "%.1f", elapsed)) seconds"
 
-        // Log to history
         let historyEntry = WorkflowHistoryEntry(
             workflowName: workflow.name,
             duration: elapsed,
@@ -272,10 +244,8 @@ public final class WorkflowManager {
             }
         }
 
-        // Resolve generic smart variables
         cmdToRun = resolveVariables(cmdToRun, project: project, gitViewModel: gitViewModel)
 
-        // Resolve custom accumulated output variables
         for (varName, varVal) in workflowVariables {
             cmdToRun = cmdToRun.replacingOccurrences(of: "$(\(varName))", with: varVal)
             cmdToRun = cmdToRun.replacingOccurrences(of: "{{\(varName)}}", with: varVal)

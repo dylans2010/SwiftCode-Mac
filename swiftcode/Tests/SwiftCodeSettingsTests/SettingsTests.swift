@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeSettings
 
-/// Each expectation here encodes a behavior observed from the reference
-/// `xcodebuild` (see research/experiments/settings and specs/build-settings.md).
 private func resolve(_ levels: [SettingsLevel], _ context: ConditionContext = ["config": "Debug"]) -> BuildSettings {
     BuildSettings(levels: levels, context: context)
 }
@@ -233,11 +231,9 @@ private func xcconfig(_ text: String, files: [String: String] = [:]) -> [Setting
         #expect(on["ENABLE_PREVIEWS"] == nil)
         #expect(on["ENABLE_DEBUG_DYLIB"] == nil)
         #expect(on["ENABLE_HARDENED_RUNTIME"] == "NO")
-        // A real signing identity keeps the hardened runtime.
         let signed = derived(["SWIFT_OPTIMIZATION_LEVEL": "-Onone", "SWIFT_VERSION": "5.0", "ENABLE_PREVIEWS": "YES",
                               "ENABLE_HARDENED_RUNTIME": "YES", "CODE_SIGN_IDENTITY": "Apple Development"])
         #expect(signed["ENABLE_HARDENED_RUNTIME"] == nil)
-        // Not requesting previews leaves the debug dylib and hardened runtime alone.
         let none = derived(["SWIFT_VERSION": "5.0", "ENABLE_DEBUG_DYLIB": "YES", "ENABLE_HARDENED_RUNTIME": "YES"])
         #expect(none["ENABLE_DEBUG_DYLIB"] == nil)
         #expect(none["ENABLE_HARDENED_RUNTIME"] == nil)

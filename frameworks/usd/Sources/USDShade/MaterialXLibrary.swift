@@ -1,14 +1,10 @@
 import Foundation
 import USDCore
 
-/// One MaterialX node definition (`<nodedef>`): the interface of a node
-/// such as `ND_standard_surface_surfaceshader`.
 public struct NodeDefinition: Sendable, Equatable {
     public struct Port: Sendable, Equatable {
         public var name: String
-        /// MaterialX type name (`color3`, `float`, `filename`, `surfaceshader`…).
         public var type: String
-        /// Default value as MaterialX text (`0.8, 0.8, 0.8`), if any.
         public var value: String?
         public var isUniform: Bool
         public var defaultGeomProp: String?
@@ -16,23 +12,17 @@ public struct NodeDefinition: Sendable, Equatable {
     }
 
     public var name: String
-    /// The node category (`image`, `standard_surface`, `multiply`).
     public var node: String
     public var nodeGroup: String?
     public var version: String?
     public var inputs: [Port]
     public var outputs: [Port]
-    /// The definition this one inherits ports from (`inherit`), resolved on load.
     public var inherits: String?
 
     public func input(_ name: String) -> Port? { inputs.first { $0.name == name } }
     public func output(_ name: String) -> Port? { outputs.first { $0.name == name } }
 }
 
-/// A set of MaterialX node definitions. `standard` holds the definitions of
-/// the open MaterialX libraries (stdlib, pbrlib and the bxdf shading models,
-/// MaterialX 1.39.5, Apache-2.0) bundled with this package; RealityKit's own
-/// nodes are added later from a definitions document of our own.
 public struct MaterialXLibrary: Sendable {
     public private(set) var definitions: [String: NodeDefinition] = [:]
 
@@ -42,12 +32,10 @@ public struct MaterialXLibrary: Sendable {
 
     public subscript(name: String) -> NodeDefinition? { definitions[name] }
 
-    /// Definitions of a node category (all type variants of `multiply`…).
     public func definitions(ofNode node: String) -> [NodeDefinition] {
         definitions.values.filter { $0.node == node }.sorted { $0.name < $1.name }
     }
 
-    /// Adds every `<nodedef>` of a MaterialX document.
     public mutating func load(mtlx text: String) throws {
         let root = try MXElement.parse(text)
         guard root.name == "materialx" else { throw USDError("not a MaterialX document") }
@@ -60,7 +48,6 @@ public struct MaterialXLibrary: Sendable {
             }
             var outputs = element.children.filter { $0.name == "output" }.map(port)
             if outputs.isEmpty, let type = element.attributes["type"] {
-                // Older documents put a single output's type on the nodedef.
                 outputs = [NodeDefinition.Port(name: "out", type: type, value: nil, isUniform: false, defaultGeomProp: nil, enumValues: [])]
             }
             definitions[name] = NodeDefinition(name: name, node: node, nodeGroup: element.attributes["nodegroup"],
@@ -71,8 +58,6 @@ public struct MaterialXLibrary: Sendable {
         resolveInheritance()
     }
 
-    /// Gives definitions that `inherit` another the parent's ports, their own
-    /// ports overriding by name.
     mutating func resolveInheritance() {
         func resolved(_ name: String, depth: Int) -> NodeDefinition? {
             guard var d = definitions[name] else { return nil }
@@ -94,7 +79,6 @@ public struct MaterialXLibrary: Sendable {
 
     static let bundledFiles = ["stdlib_defs", "pbrlib_defs", "standard_surface", "usd_preview_surface", "open_pbr_surface", "gltf_pbr"]
 
-    /// The bundled open MaterialX definitions.
     public static let standard: MaterialXLibrary = {
         var library = MaterialXLibrary()
         for name in bundledFiles {
@@ -106,8 +90,6 @@ public struct MaterialXLibrary: Sendable {
         return library
     }()
 
-    /// The USD attribute type of a MaterialX type (as UsdShade stores
-    /// MaterialX inputs and outputs).
     public static func usdType(forMaterialXType type: String) -> TypeName? {
         switch type {
         case "boolean": return TypeName("bool")
@@ -136,7 +118,6 @@ public struct MaterialXLibrary: Sendable {
         }
     }
 
-    /// Parses a MaterialX value string into a USD value of the mapped type.
     public static func usdValue(_ text: String, materialXType: String) -> Value? {
         guard let type = usdType(forMaterialXType: materialXType) else { return nil }
         let vt = type.valueType
@@ -156,8 +137,6 @@ public struct MaterialXLibrary: Sendable {
     }
 }
 
-/// A minimal XML reader for MaterialX documents: elements, attributes,
-/// comments, the XML declaration and the five predefined entities.
 struct MXElement {
     var name: String
     var attributes: [String: String] = [:]
@@ -196,7 +175,6 @@ private struct MiniXMLParser {
         throw USDError("xml: missing \(s)")
     }
 
-    /// Skips text, comments and declarations until the next element tag.
     mutating func skipMisc() throws {
         while i < b.count {
             if starts("<!--") {

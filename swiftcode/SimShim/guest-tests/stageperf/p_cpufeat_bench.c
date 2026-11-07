@@ -1,13 +1,3 @@
-/* SwiftCode guest probe: micro-benchmarks for the CPU-feature A/B
- * (specs/simulator/cpu-features.md §7.3). Original SwiftCode code over public
- * SDK APIs. Each benchmark runs once to warm up, then REPS times; the probe
- * prints the median and the min/max of the timed runs:
- *   bench <name> median <v> min <v> max <v> <unit>
- * Benchmarks: JavaScriptCore (double->int32 conversions, Atomics on an
- * Int32Array, a mixed object/array workload), cblas_sgemm 512x512, a BNNS
- * 3x3 convolution, CommonCrypto SHA-256 and AES-128-CBC, timingsafe_bcmp,
- * libcompression (LZFSE and zlib, encode and decode), ImageIO JPEG decode.
- * Argument: a comma-separated list of benchmark names (default: all). */
 #define ACCELERATE_NEW_LAPACK 1
 #include <Accelerate/Accelerate.h>
 #include <CommonCrypto/CommonCrypto.h>
@@ -48,8 +38,6 @@ static int wanted(const char *name)
     return 0;
 }
 
-/* Runs fn REPS+1 times (the first is a warm-up); each run returns its own
- * figure (a time or a rate). */
 static void report(const char *name, const char *unit, double (*fn)(void *), void *ctx)
 {
     if (!wanted(name)) return;
@@ -60,8 +48,6 @@ static void report(const char *name, const char *unit, double (*fn)(void *), voi
     printf("bench %s median %.3f min %.3f max %.3f %s\n", name, v[REPS / 2], v[0], v[REPS - 1], unit);
     fflush(stdout);
 }
-
-/* ---- JavaScriptCore ---- */
 
 struct js { JSGlobalContextRef ctx; JSStringRef call; };
 
@@ -87,13 +73,11 @@ static void js_bench(const char *name, const char *define, const char *call)
     JSStringRelease(def);
     if (exc) { printf("bench %s: definition failed\n", name); return; }
     j.call = JSStringCreateWithUTF8CString(call);
-    (void)js_run(&j);  /* extra warm-up: tier up */
+    (void)js_run(&j);
     report(name, "ms", js_run, &j);
     JSStringRelease(j.call);
     JSGlobalContextRelease(j.ctx);
 }
-
-/* ---- Accelerate ---- */
 
 struct gemm { float *a, *b, *c; int n; };
 static double sgemm_run(void *p)
@@ -102,7 +86,7 @@ static double sgemm_run(void *p)
     double t0 = now_ns();
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, g->n, g->n, g->n, 1.0f, g->a, g->n, g->b, g->n, 0.0f, g->c, g->n);
     double t = now_ns() - t0;
-    return 2.0 * g->n * g->n * g->n / t;   /* GFLOP/s */
+    return 2.0 * g->n * g->n * g->n / t;
 }
 
 #pragma clang diagnostic push
@@ -150,8 +134,6 @@ static void bnns_bench(void)
 }
 #pragma clang diagnostic pop
 
-/* ---- CommonCrypto, timingsafe ---- */
-
 #define CRYPTO_BYTES (32u << 20)
 struct buf { uint8_t *a, *b; size_t n; };
 
@@ -165,7 +147,7 @@ static double sha_run(void *p)
     CC_SHA256(b->a, (CC_LONG)b->n, md);
     double t = now_ns() - t0;
     if (md[0] == 0x42 && md[1] == 0x42) printf("x");
-    return b->n / t * 1e9 / (1 << 20);   /* MiB/s */
+    return b->n / t * 1e9 / (1 << 20);
 }
 #pragma clang diagnostic pop
 
@@ -190,10 +172,8 @@ static double tsb_run(void *p)
     for (int i = 0; i < calls; i++) acc += timingsafe_bcmp(b->a + (i & 63), b->b + (i & 63), 64);
     double t = now_ns() - t0;
     if (acc == 42) printf("x");
-    return t / calls;   /* ns per call */
+    return t / calls;
 }
-
-/* ---- libcompression ---- */
 
 struct comp { uint8_t *src, *enc, *dec; size_t n, encN; compression_algorithm alg; };
 static double comp_enc(void *p)
@@ -235,8 +215,6 @@ static void compression_bench(void)
     report("zlib_dec", "MiB/s", comp_dec, &c);
     free(c.src); free(c.enc); free(c.dec);
 }
-
-/* ---- ImageIO ---- */
 
 static double jpeg_run(void *p)
 {

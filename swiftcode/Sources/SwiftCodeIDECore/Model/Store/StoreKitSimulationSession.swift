@@ -3,54 +3,18 @@ import Observation
 import StoreKitConfiguration
 import StoreKitEngine
 
-/// The in-memory purchase simulator: Legacy's
-/// `StoreKitSimulationService` (`Views/Utilities/StoreKit/Services/`),
-/// ported to the real `.storekit` format — and, since gap-closure
-/// misc, re-implemented over the open StoreKit engine's `AppTestStore`
-/// (`frameworks/storekit`, `StoreKitEngine`) instead of the local
-/// port Wave 13 landed.
-///
-/// The engine is the authority now: purchases, renewals, Ask to Buy,
-/// refunds, expirations and simulated errors are real engine
-/// behaviour against the installed `.storekit` configuration, not
-/// hand-rolled state. What the engine does not model stays a
-/// session-level overlay and is labelled as such:
-/// * Offline mode has no engine equivalent — `isOfflineMode` still
-///   blocks purchases locally, before the store is touched.
-/// * Family-sharing revocation has no engine API — `revokedProductIDs`
-///   is a display overlay on top of engine state (see
-///   `triggerRevocation`).
-/// * The four scenario profiles are Legacy's; they map onto engine
-///   settings overrides (Ask to Buy, simulated network / verification
-///   errors) plus the local offline gate.
-///
-/// This is deliberately NOT `SKTestSession`: that type is the
-/// `StoreKitTest` product's `NSObject` test facade (macOS-only) over
-/// the same store. The editor session drives the store directly, the
-/// way `SKTestSession` does internally, so the session stays portable
-/// (the engine is Foundation-only and Linux-buildable).
-///
-/// Persistence: transactions, entitlements and settings overrides
-/// live in the engine's store files under
-/// `<cacheDirectory>/<bundleID>/` (`Configuration.storekit`,
-/// `store.json`, `overrides.json`). The old local port's
-/// `storekit_transactions.json` / `storekit_entitlements.json` files
-/// are no longer read; favourites still use `storekit_favorites.json`
-/// in the cache directory, as before. With no cache directory the
-/// whole session is in-memory.
-
 public struct StoreKitSimulatedTransaction: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String
     public var productID: String
     public var referenceName: String
     public var transactionDate: Date
-    public var purchaseState: String // purchased, failed, pending, refunded, revoked
-    public var ownershipType: String // purchased, familyShared
+    public var purchaseState: String
+    public var ownershipType: String
     public var isSubscription: Bool
     public var expirationDate: Date?
     public var originalTransactionID: String
     public var storefront: String
-    public var subscriptionCycleState: String // Purchase, Renewal, GracePeriod, BillingRetry, Expired, Refunded
+    public var subscriptionCycleState: String
 
     public init(
         id: String = UUID().uuidString, productID: String, referenceName: String,
@@ -94,7 +58,7 @@ public struct StoreKitSimulatedEntitlement: Codable, Sendable, Identifiable, Has
 public struct StoreKitActivityEvent: Codable, Sendable, Identifiable, Equatable, Hashable {
     public var id: String
     public var timestamp: Date
-    public var category: String // Purchase, Refund, Validation, Import, Export, Simulation
+    public var category: String
     public var title: String
     public var message: String
     public var details: String?
@@ -112,7 +76,6 @@ public struct StoreKitActivityEvent: Codable, Sendable, Identifiable, Equatable,
     }
 }
 
-/// A reusable simulator scenario (Legacy's `SKSimulatorProfile`).
 public struct StoreKitSimulatorProfile: Codable, Sendable, Identifiable, Equatable, Hashable {
     public var id: String
     public var name: String
@@ -145,7 +108,6 @@ public final class StoreKitSimulationSession {
     public private(set) var activeLogs: [String] = []
     public private(set) var activityEvents: [StoreKitActivityEvent] = []
 
-    /// Legacy's four built-in scenario profiles.
     public private(set) var availableProfiles: [StoreKitSimulatorProfile] = [
         StoreKitSimulatorProfile(name: "SaaS Premium Subscriber", desc: "Simulates an active, fully-paid Auto-Renewable SaaS subscriber in USA."),
         StoreKitSimulatorProfile(name: "Child Sandbox Account", desc: "Simulates 'Ask to Buy' workflow requiring parent verification.", isAskToBuy: true),
@@ -155,13 +117,8 @@ public final class StoreKitSimulationSession {
 
     public var selectedProfileID: String = ""
 
-    /// Local gate only: the engine has no offline mode. Purchases are
-    /// refused before the store is touched while this is on.
     public var isOfflineMode: Bool = false
 
-    // The three toggles below are backed by engine settings overrides;
-    // the setters push the override into the store (and clear it when
-    // the toggle goes off), so the store and the UI can never disagree.
     private var _isAskToBuyEnabled = false
     public var isAskToBuyEnabled: Bool {
         get { _isAskToBuyEnabled }
@@ -190,41 +147,19 @@ public final class StoreKitSimulationSession {
     public var favoriteProducts: Set<String> = []
     public var favoriteGroups: Set<String> = []
 
-    /// The configuration installed in the engine's store, if any.
-    /// Purchases need one: without it the store has no catalog and
-    /// `executePurchase` logs the miss instead of inventing a sale.
     public private(set) var installedConfiguration: StoreConfiguration?
 
-    /// The cache directory the simulator persists to (the engine's
-    /// per-app store files plus `storekit_favorites.json`). Nil means
-    /// in-memory only.
     public let cacheDirectory: URL?
 
-    /// Products the user revoked through family sharing. The engine
-    /// has no family-sharing revocation API, so this is a display
-    /// overlay: the records stay in the store, but the session shows
-    /// them revoked and their entitlements inactive.
     private var revokedProductIDs: Set<String> = []
 
     private let device: StoreDevice
     private var store: AppTestStore
     private var bundleID: String
 
-    /// - Parameters:
-    ///   - cacheDirectory: engine persistence root; nil keeps
-    ///     everything in memory.
-    ///   - clock: the store's clock; inject a `ManualClock` in tests
-    ///     to move subscription time. Defaults to the system clock.
-    ///   - bundleID: the simulated app's bundle identifier; the
-    ///     engine keys one store per bundle ID. `installConfiguration`
-    ///     re-keys it from the configuration's identifier.
     public init(cacheDirectory: URL? = nil, clock: (any StoreClock)? = nil, bundleID: String = "com.swiftcode.storekit-simulation") {
         self.cacheDirectory = cacheDirectory
         self.bundleID = bundleID
-        // Cleaned-up quirks, not the reference's: the editor is a
-        // tool, not a parity harness, so a declined Ask-to-Buy
-        // request is not delivered and expiring a subscription does
-        // not leave a spurious failed transaction behind.
         self.device = StoreDevice(clock: clock ?? SystemClock(), directory: cacheDirectory,
                                   quirks: EngineQuirks(declinedAskToBuyIsDelivered: false, expireLeavesFailedTransaction: false))
         self.store = device.store(for: bundleID)
@@ -233,13 +168,6 @@ public final class StoreKitSimulationSession {
         refreshFromStore()
     }
 
-    /// Installs a `.storekit` configuration into the engine's store
-    /// (what `SKTestSession` creation and the IDE's install-on-Run do)
-    /// and re-keys the store from the configuration's identifier, so
-    /// one simulated app's transactions do not leak into another's.
-    /// Call this whenever the editor loads or edits a configuration;
-    /// the installed configuration's own settings (storefront,
-    /// timeRate, Ask to Buy) become the store's effective settings.
     public func installConfiguration(_ configuration: StoreConfiguration) {
         let key = "com.swiftcode.storekit-simulation." + (configuration.identifier ?? "default")
         if key != bundleID {
@@ -253,10 +181,6 @@ public final class StoreKitSimulationSession {
         log("Installed .storekit configuration '\(configuration.identifier ?? "default")' in the simulator.")
     }
 
-    // MARK: - Engine → session state
-
-    /// Rebuilds the published transactions and entitlements from the
-    /// engine's store. Called after every store mutation.
     func refreshFromStore() {
         let records = store.allTransactions()
         transactions = records.map { record in
@@ -310,18 +234,11 @@ public final class StoreKitSimulationSession {
         }
     }
 
-    /// Runs the engine's subscription scheduler up to the clock's now
-    /// (renewals, grace and retry ends, expirations, in time order)
-    /// and refreshes the published state. With the system clock this
-    /// is a catch-up; with a `ManualClock` it is time travel for a
-    /// subscription under test.
     public func advanceSimulation() {
         store.advance()
         refreshFromStore()
         log("Simulator advanced to the store clock's now.")
     }
-
-    // MARK: - Logging
 
     public func log(_ message: String) {
         let formatter = DateFormatter()
@@ -347,9 +264,6 @@ public final class StoreKitSimulationSession {
         log("Activity feed cleared.")
     }
 
-    // MARK: - Persistence (favourites only; transactions and
-    // entitlements live in the engine's store files)
-
     private func loadFavorites() {
         guard let cacheURL = cacheDirectory else { return }
         let favFile = cacheURL.appendingPathComponent("storekit_favorites.json")
@@ -369,8 +283,6 @@ public final class StoreKitSimulationSession {
         }
     }
 
-    // MARK: - Profiles
-
     public func applyProfile(_ profile: StoreKitSimulatorProfile) {
         selectedProfileID = profile.id
         isOfflineMode = profile.isOffline
@@ -389,9 +301,6 @@ public final class StoreKitSimulationSession {
         logActivity(category: "Simulation", title: "Custom Profile Saved", message: "Saved reusable tester profile '\(name)'.")
     }
 
-    // MARK: - Purchases
-
-    /// The expiry of a subscription bought now, from its renewal period.
     public static func expiry(for period: String?, from date: Date = Date()) -> Date? {
         guard let period, let duration = SubscriptionDuration(iso8601: period) else { return nil }
         let days: Int
@@ -404,15 +313,6 @@ public final class StoreKitSimulationSession {
         return date.addingTimeInterval(TimeInterval(days * 86400))
     }
 
-    /// Simulates buying a product from the installed configuration,
-    /// through the engine. Blocked offline (local gate) or with no
-    /// configuration installed; a simulated network or verification
-    /// failure is the engine refusing the purchase, logged as such.
-    /// With Ask to Buy on, the transaction stays pending in the
-    /// engine until a parent approves or declines it. The storefront
-    /// is the store's configured storefront; the `storefront`
-    /// argument is kept for the old call shape and recorded in the
-    /// log, but it does not override the configuration.
     public func executePurchase(product: ConfiguredProduct, storefront: String = "USA") {
         let productID = product.productID ?? ""
         let referenceName = product.referenceName ?? productID
@@ -495,10 +395,6 @@ public final class StoreKitSimulationSession {
         }
     }
 
-    /// Family-sharing revocation. The engine has no such API, so this
-    /// is a session-level overlay, not an engine transaction: the
-    /// records stay in the store, the session shows them revoked and
-    /// their entitlements inactive, and `resetSimulator` clears it.
     public func triggerRevocation(productID: String) {
         revokedProductIDs.insert(productID)
         refreshFromStore()
@@ -515,12 +411,6 @@ public final class StoreKitSimulationSession {
         }
     }
 
-    /// Asks the engine to move the subscription into its grace
-    /// period at the next failed renewal (grace must be enabled for
-    /// it to apply), then reports the engine's real resulting state —
-    /// the state only changes once a renewal actually fails, so with
-    /// no billing issue outstanding this logs the unchanged state
-    /// rather than relabelling it.
     public func simulateGracePeriod(productID: String) {
         store.updateSettings { $0.billingGracePeriodEnabled = true }
         store.advance()
@@ -529,9 +419,6 @@ public final class StoreKitSimulationSession {
         logActivity(category: "Simulation", title: "Entered Grace Period", message: "Billing error triggered. Grace period enabled for '\(productID)'; engine state is now \(state).", details: productID)
     }
 
-    /// Asks the engine to retry billing at the next renewal (retry
-    /// must be enabled for it to apply), then reports the engine's
-    /// real resulting state.
     public func simulateBillingRetry(productID: String) {
         store.updateSettings { $0.billingRetryOnRenewalEnabled = true }
         store.advance()
@@ -549,8 +436,6 @@ public final class StoreKitSimulationSession {
             logActivity(category: "Simulation", title: "Renewal Failed", message: "\(error)", details: productID)
         }
     }
-
-    // MARK: - Favorites & filters
 
     public func toggleFavoriteProduct(id: String) {
         if favoriteProducts.contains(id) { favoriteProducts.remove(id) } else { favoriteProducts.insert(id) }

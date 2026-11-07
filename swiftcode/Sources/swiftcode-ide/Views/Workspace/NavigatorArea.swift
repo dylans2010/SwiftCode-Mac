@@ -4,11 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The navigator column (`navigators.md`, `metrics.md` §2): its toolbar
-/// band, the selector capsule with the nine navigators, the selected
-/// navigator, and the bottom bar ("+" and the filter capsule). The shell
-/// has the Project, Find and Issue navigators; the others show their empty
-/// states.
 struct NavigatorColumn: View {
     @Bindable var model: WorkspaceShellModel
     @State private var shownIndex: Int?
@@ -16,7 +11,7 @@ struct NavigatorColumn: View {
     var body: some View {
         let index = shownIndex ?? model.navigator.selectorIndex
         if model.assistant.isShown {
-            AssistantColumn(model: model)   // AssistantPane.swift
+            AssistantColumn(model: model)
         } else {
         VStack(spacing: 0) {
             NavigatorToolbar(model: model)
@@ -48,11 +43,11 @@ struct NavigatorColumn: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             if shownIndex == nil, model.navigator == .symbols {
-                SymbolFilterBar(symbols: model.symbols)   // SymbolNavigatorView.swift
+                SymbolFilterBar(symbols: model.symbols)
             } else {
                 NavigatorFilterBar(spec: NavigatorBars.specs[index],
                                    addMenu: shownIndex == nil && model.navigator == .breakpoints
-                                       ? { AnyView(BreakpointAddMenuItems(model: model)) } : nil)   // DebugEditors.swift
+                                       ? { AnyView(BreakpointAddMenuItems(model: model)) } : nil)
             }
         }
         .onChange(of: model.navigator) { _, _ in shownIndex = nil }
@@ -60,8 +55,6 @@ struct NavigatorColumn: View {
     }
 }
 
-/// The selector capsule: one icon per navigator, 30 points apart; the
-/// selected one in a 30 × 24 pill, in the accent color.
 struct SelectorBar: View {
     var selected: Int
     var select: (Int) -> Void
@@ -71,7 +64,6 @@ struct SelectorBar: View {
         let c = ShellColors(scheme)
         let pill = WorkspaceChrome.selectorPillSize
         HStack(spacing: 0) {
-            // The Linux places (the Symbol navigator's own symbol and tooltip at ⌘3).
             ForEach(Array(ShellNavigator.selectorButtons.map(\.symbol).enumerated()), id: \.offset) { pair in
                 let on = pair.offset == selected
                 Button { select(pair.offset) } label: {
@@ -99,12 +91,8 @@ struct SelectorBar: View {
     }
 }
 
-/// The bottom bar: the left pull-down ("+", "…") in a circle when the
-/// navigator has one, then the filter capsule with its options pull-down,
-/// the field and the navigator's toggles (`NavigatorBars.specs`).
 struct NavigatorFilterBar: View {
     var spec: NavigatorBarSpec
-    /// The "+" pull-down's items, for a navigator whose "+" works.
     var addMenu: (() -> AnyView)?
     @State private var text = ""
     @Environment(\.colorScheme) private var scheme
@@ -114,7 +102,6 @@ struct NavigatorFilterBar: View {
         let h = CGFloat(WorkspaceChrome.filterBarHeight)
         HStack(spacing: CGFloat(WorkspaceChrome.plusToFilter)) {
             if let addMenu {
-                // The "+" alone, centred in its circle (metrics.md §15).
                 Menu { addMenu() } label: {
                     Image(systemName: "plus").font(.system(size: 13))
                     .foregroundStyle(c.secondaryLabel)
@@ -133,8 +120,6 @@ struct NavigatorFilterBar: View {
                 .background { Capsule(style: .continuous).stroke(c.capsuleStroke, lineWidth: 1) }
             }
             HStack(spacing: 3.5) {
-                // The lines in a circle and a chevron 1.5 after it, in the
-                // secondary colour; "Filter" begins 33.5 in (metrics.md §15).
                 HStack(spacing: 0) {
                     Image(systemName: "line.3.horizontal.decrease.circle").font(.system(size: 13))
                     Image(systemName: "chevron.down").font(.system(size: 6))
@@ -162,7 +147,6 @@ struct NavigatorFilterBar: View {
     }
 }
 
-/// A navigator the shell does not have yet: its empty state.
 struct EmptyNavigator: View {
     var lines: [String]
     @Environment(\.colorScheme) private var scheme
@@ -182,13 +166,6 @@ struct EmptyNavigator: View {
     }
 }
 
-// MARK: - The outline
-
-/// Rows of a navigator, drawn as the AppKit outline draws them
-/// (`WorkspaceChrome`): 22 points tall (taller for wrapped titles), 12
-/// points of indentation per level, the disclosure triangle at x 12, a
-/// 16-point icon at x 25 and the label at x 45. Up and Down move the
-/// selection; Right and Left expand and collapse.
 struct NavigatorOutline: View {
     var rows: [OutlineRow]
     var selection: String?
@@ -203,11 +180,8 @@ struct NavigatorOutline: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { r in
-                    // The accent band only while the outline has the keyboard;
-                    // grey once an editor has it (navigators.md round 3 §1).
                     OutlineRowView(row: r, isSelected: r.id == selection, colors: c, toggle: toggle, isFocused: hasKeyboard)
                         .contentShape(Rectangle())
-                        // A click gives the outline the keyboard (its band turns accent).
                         .onTapGesture { hasKeyboard = true; select(r.id) }
                         .shellTarget("row \(r.title)")
                 }
@@ -218,7 +192,6 @@ struct NavigatorOutline: View {
         .scrollIndicators(.hidden)
         .focusable()
         .focused($hasKeyboard)
-        // Browsing files with the arrow keys keeps the keyboard here.
         .onChange(of: hasKeyboard) { _, on in ShellFocus.outlineHasKeyboard = on }
         .onKeyPress(.downArrow) { move(1); return .handled }
         .onKeyPress(.upArrow) { move(-1); return .handled }
@@ -245,11 +218,10 @@ struct OutlineRowView: View {
     var isSelected: Bool
     var colors: ShellColors
     var toggle: (String, Bool) -> Void
-    /// Whether the outline has the keyboard (the selection's accent band).
     var isFocused = false
 
     var body: some View {
-        let c = colors.onSelection(isSelected && isFocused)   // +SelectionFocus.swift
+        let c = colors.onSelection(isSelected && isFocused)
         let indent = CGFloat(WorkspaceChrome.indentationPerLevel) * CGFloat(row.level)
         HStack(alignment: .top, spacing: 0) {
             Group {
@@ -293,8 +265,6 @@ struct OutlineRowView: View {
     @ViewBuilder
     func title(_ c: ShellColors) -> some View {
         if let m = row.match {
-            // The line as the AppKit Find navigator shows it: one weight
-            // (the match is the row's subject, not set apart).
             Text(verbatim: m.before + m.match + m.after)
                 .font(ShellFonts.row).foregroundStyle(c.label).lineLimit(row.lineLimit)
         } else if let detail = row.detail {
@@ -308,25 +278,16 @@ struct OutlineRowView: View {
     }
 }
 
-// MARK: - Navigators
-
-/// The Project navigator: the container row, its groups and files, with
-/// the core's initial expansion (`NavigatorTree.initiallyExpanded`).
-/// Selecting a file opens it.
 struct ProjectNavigator: View {
     @Bindable var model: WorkspaceShellModel
 
     var body: some View {
-        // Settings ▸ General ▸ File extensions applies at once.
         let _ = ShellPreferences.shared.revision
         NavigatorOutline(rows: model.projectRows, selection: model.selection, select: { model.selection = $0 },
                          toggle: { model.setExpanded($0, $1) }, target: "project navigator")
     }
 }
 
-/// The Find navigator (`navigators.md` §Find navigator): "Find › Text ›
-/// Containing" with the match-case toggle, the query field, the scope and
-/// the count, then one row per file with its matches.
 struct FindNavigator: View {
     @Bindable var model: WorkspaceShellModel
     @FocusState private var fieldFocused: Bool
@@ -386,7 +347,7 @@ struct FindNavigator: View {
             .frame(height: 14)
             .padding(.top, 4)
             if model.callHierarchy.tree != nil {
-                CallHierarchyOutline(model: model.callHierarchy).padding(.top, 1)   // CallHierarchyView.swift
+                CallHierarchyOutline(model: model.callHierarchy).padding(.top, 1)
             } else {
                 NavigatorOutline(rows: OutlineRows.find(model.findRows, collapsed: collapsed), selection: model.findSelection,
                                  select: { id in if model.findRows.contains(where: { $0.id == id }) { return }; model.findSelection = id },
@@ -394,18 +355,12 @@ struct FindNavigator: View {
                     .padding(.top, 1)
             }
         }
-        // Find in Workspace asks for the field (also when it switched to
-        // this navigator, so the request may predate the field).
         .task(id: model.findFocusCount) { if model.findFocusCount > 0 { fieldFocused = true } }
     }
 
-    /// The scope pull-down's title, as the AppKit navigator words it (a
-    /// package's scope is its project).
     var scopeName: String { model.containerKind == .workspace ? "Workspace" : "Project" }
 }
 
-/// The Issue navigator: the project and targets, their files, then the
-/// issues, each with its severity symbol; selecting one opens its line.
 struct IssueNavigator: View {
     @Bindable var model: WorkspaceShellModel
     @State private var collapsed: Set<String> = []
@@ -424,7 +379,6 @@ struct IssueNavigator: View {
     }
 }
 
-/// Who has the keyboard, where a view elsewhere needs to know.
 @MainActor
 enum ShellFocus {
     static var outlineHasKeyboard = false

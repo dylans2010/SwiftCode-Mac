@@ -1,7 +1,3 @@
-// Field tags of the snapshot records (specs/simulator/snapshot.md §6.1).
-// Shared by the capture and the restore; a tag is never reused for another
-// meaning (a reader skips tags it does not know).
-
 enum ST {
     enum System {
         static let lastPID: UInt16 = 1, nextPIDVersion: UInt16 = 2, nextUniqueID: UInt16 = 3, bootSalt: UInt16 = 4
@@ -9,8 +5,6 @@ enum ST {
         static let stampCounter: UInt16 = 8, spaceCounter: UInt16 = 9, hostBootstrapDefault: UInt16 = 10
         static let hostPort: UInt16 = 11, bootstrapPort: UInt16 = 12, ioKit: UInt16 = 13, fileLocks: UInt16 = 14
         static let shmNames: UInt16 = 15, semNames: UInt16 = 16
-        /// The CPU features the snapshot's guests were told (16 bytes,
-        /// `CPUFeatureSet.storedBytes`; cpu-features.md §9.4).
         static let cpuFeatures: UInt16 = 17
     }
     enum Clock {
@@ -26,7 +20,6 @@ enum ST {
         static let originalParentPIDVersion: UInt16 = 20, exiting: UInt16 = 21, continuedPending: UInt16 = 22
         static let continuedBy: UInt16 = 23, dirtyState: UInt16 = 24, processType: UInt16 = 25
         static let processControl: UInt16 = 26, pidVersion: UInt16 = 27, exitReason: UInt16 = 28
-        /// A start hold (`scheduling-policy.md` §4.2): ns held so far, the label.
         static let holdElapsed: UInt16 = 29, holdLabel: UInt16 = 30
         static let qosClamp: UInt16 = 31, darwinRole: UInt16 = 32, requestedDarwinBG: UInt16 = 33
     }
@@ -50,7 +43,6 @@ enum ST {
         static let signalMask: UInt16 = 1, pendingSignals: UInt16 = 2, actions: UInt16 = 3, altSP: UInt16 = 4
         static let altSize: UInt16 = 5, altFlags: UInt16 = 6, rlimits: UInt16 = 7, umask: UInt16 = 8
         static let cursors: UInt16 = 9, ioPolicies: UInt16 = 10, threadIOPolicies: UInt16 = 11, backgroundPolicy: UInt16 = 12
-        // nested
         static let key: UInt16 = 20, a: UInt16 = 21, b: UInt16 = 22, c: UInt16 = 23, file: UInt16 = 24
         static let names: UInt16 = 25, inodes: UInt16 = 26, types: UInt16 = 27
     }
@@ -59,7 +51,6 @@ enum ST {
         static let pthreadAddress: UInt16 = 5, signalMask: UInt16 = 6, restoreKind: UInt16 = 7, frame: UInt16 = 8
         static let fp: UInt16 = 9, worker: UInt16 = 10, suspendedStart: UInt16 = 11, note: UInt16 = 12
         static let isMain: UInt16 = 13, mainStart: UInt16 = 14
-        /// The process whose importance the thread carries while servicing a message.
         static let carriedImportancePID: UInt16 = 15
     }
     enum Worker {
@@ -80,7 +71,6 @@ enum ST {
         static let taskPort: UInt16 = 10, taskNamePort: UInt16 = 11, taskReadPort: UInt16 = 12, taskInspectPort: UInt16 = 13
         static let mainThreadPort: UInt16 = 14, clockPorts: UInt16 = 15, slots: UInt16 = 16, ownedKernelPorts: UInt16 = 17
         static let specialReplyPorts: UInt16 = 18, threadExceptions: UInt16 = 19, spaceID: UInt16 = 20, isHostTask: UInt16 = 21
-        // entry
         static let index: UInt16 = 30, generation: UInt16 = 31, inUse: UInt16 = 32, bits: UInt16 = 33, urefs: UInt16 = 34
         static let port: UInt16 = 35, set: UInt16 = 36, key: UInt16 = 37
     }
@@ -99,12 +89,8 @@ enum ST {
         static let pdRequest: UInt16 = 21, nsRequest: UInt16 = 22, dnRequests: UInt16 = 23, spRequests: UInt16 = 24
         static let deadNameNotified: UInt16 = 25, sets: UInt16 = 26, readyStamp: UInt16 = 27, changeStamp: UInt16 = 28
         static let messages: UInt16 = 29, memoryEntry: UInt16 = 30
-        /// Importance (`scheduling-policy.md` §4.3): the port accepts it, is a
-        /// temporary owner, and the pid of the job it watches for.
         static let importanceDonation: UInt16 = 31, tempOwner: UInt16 = 32, watchPID: UInt16 = 33
-        /// A work-interval port's interval (`WorkInterval.swift`): ID, flags, creator pid.
         static let workIntervalID: UInt16 = 34, workIntervalFlags: UInt16 = 35, workIntervalCreator: UInt16 = 36
-        // nested
         static let space: UInt16 = 40, name: UInt16 = 41, armed: UInt16 = 42, timerDeadline: UInt16 = 43
         static let timerTicks: UInt16 = 44, timerArmed: UInt16 = 45, port: UInt16 = 46
     }
@@ -114,7 +100,6 @@ enum ST {
         static let replyType: UInt16 = 5, voucher: UInt16 = 6, id: UInt16 = 7, items: UInt16 = 8, inline: UInt16 = 9
         static let aux: UInt16 = 10, hasAux: UInt16 = 11, fromKernel: UInt16 = 12, timerExpiry: UInt16 = 13
         static let sender: UInt16 = 14
-        /// The message carries importance; the class of a waiting sender (−1 none).
         static let importance: UInt16 = 15, pushClass: UInt16 = 16
         static let itemKind: UInt16 = 20, right: UInt16 = 21, type: UInt16 = 22, data: UInt16 = 23, copy: UInt16 = 24
         static let volatile: UInt16 = 25, rights: UInt16 = 26, flags: UInt16 = 27

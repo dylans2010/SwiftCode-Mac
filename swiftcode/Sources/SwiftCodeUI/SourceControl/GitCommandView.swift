@@ -3,35 +3,11 @@ import SwiftCodeIDECore
 import SwiftCodeSubprocess
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/GitCommandView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// A browser of git command cards, grouped by Sync / Branch / History /
-/// Utility, with a console that shows each command's real output.
-///
-/// Legacy's actions were partly fake and are NOT re-ported as fakes:
-/// - `createTag` slept 1s and claimed success → now `GitRepository.createTag`.
-/// - `pullChanges` only showed an info message → now `GitRepository.pull()`.
-/// - `createBranch` only set state → now `GitRepository.createBranch`.
-/// - `cleanWorkingTree` only cleared markers → now real `git clean -fd`
-///   (behind a confirmation — it deletes untracked files).
-/// - `checkStatus` read a cached marker list → now `GitRepository.status()`.
-///
-/// Local cards run against `repository`. Remote cards (remote branches,
-/// remote commits, file diff against the remote) need `client` + `remote`
-/// and are disabled when either is nil. The diff card also needs
-/// `activeFile` (path + current editor content) to compare against the
-/// remote version.
-///
-/// Hook: present from the source-control navigator with the navigator's
-/// repository, a `GitHubClient` when the project has a GitHub remote, and
-/// the active editor file for the diff card.
 @MainActor
 public struct GitCommandView: View {
     public var repository: GitRepository
     public var client: GitHubClient?
     public var remote: (owner: String, repo: String)?
-    /// The file open in the editor, for the "Diff vs remote" card.
     public var activeFile: (path: String, content: String)?
 
     @State private var consoleOutput = ""
@@ -389,7 +365,6 @@ public struct GitCommandView: View {
     }
 }
 
-/// One card in the git command browser.
 public struct GitCommandCard: Identifiable {
     public typealias ID = String
     public var id: String
@@ -411,7 +386,6 @@ public struct GitCommandCard: Identifiable {
     }
 }
 
-/// One card row in the git command browser.
 public struct GitCommandRow: View {
     public var card: GitCommandCard
     public var isRunning: Bool

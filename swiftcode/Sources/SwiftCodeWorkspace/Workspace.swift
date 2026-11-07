@@ -1,19 +1,11 @@
 import Foundation
 
-/// A `.xcworkspace` (or the workspace embedded in an `.xcodeproj`).
-/// See `specs/formats/xcworkspace.md`.
 public struct Workspace: Sendable {
-    /// Where a workspace item lives, as written in its `location` attribute.
     public enum Location: Equatable, Sendable {
-        /// Relative to the enclosing group, or to the container at top level.
         case group(String)
-        /// Relative to the directory that contains the workspace.
         case container(String)
         case absolute(String)
-        /// The project that embeds this workspace (`self:`), or a legacy
-        /// path relative to that project's directory.
         case selfReference(String)
-        /// Relative to the active developer directory.
         case developer(String)
         case unknown(String)
 
@@ -47,11 +39,9 @@ public struct Workspace: Sendable {
         public var location: Location
         public var name: String?
         public var children: [Item]
-        /// Absolute path, resolved when the workspace was loaded from disk.
         public var resolvedPath: String?
     }
 
-    /// The `.xcworkspace` bundle, if loaded from disk.
     public var url: URL?
     public var document: XMLNode
     public private(set) var items: [Item] = []
@@ -61,16 +51,12 @@ public struct Workspace: Sendable {
         guard document.name == "Workspace" else { throw XMLReadError(message: "root element is not <Workspace>", offset: 0) }
         self.url = url
         let container = url?.deletingLastPathComponent().path
-        // An embedded workspace (`App.xcodeproj/project.xcworkspace`) uses
-        // `self:` for its project.
         let selfProject = url.flatMap { $0.deletingLastPathComponent().pathExtension == "xcodeproj" ? $0.deletingLastPathComponent() : nil }
         items = document.children.compactMap {
             Self.item($0, base: container, container: container, selfProject: selfProject?.path, developer: developerDirectory)
         }
     }
 
-    /// Loads `path`, which may be an `.xcworkspace`, an `.xcodeproj` (its
-    /// embedded workspace), or a `contents.xcworkspacedata` file.
     public init(contentsOf path: String) throws {
         var url = URL(fileURLWithPath: path)
         if url.lastPathComponent == "contents.xcworkspacedata" { url.deleteLastPathComponent() }
@@ -80,7 +66,6 @@ public struct Workspace: Sendable {
         if FileManager.default.fileExists(atPath: data.path) {
             text = try String(contentsOf: data, encoding: .utf8)
         } else if url.lastPathComponent == "project.xcworkspace" {
-            // Projects without an embedded workspace behave as if it said `self:`.
             text = XcodeXML.write(XMLNode("Workspace", attributes: [("version", "1.0")],
                                           children: [XMLNode("FileRef", attributes: [("location", "self:")])]))
         } else {
@@ -91,7 +76,6 @@ public struct Workspace: Sendable {
 
     public func serialized() -> String { XcodeXML.write(document) }
 
-    /// Every file item, depth-first.
     public var allFiles: [Item] {
         func walk(_ items: [Item]) -> [Item] {
             items.flatMap { $0.kind == .file ? [$0] : walk($0.children) }
@@ -99,7 +83,6 @@ public struct Workspace: Sendable {
         return walk(items)
     }
 
-    /// Absolute paths of the projects in the workspace, in order.
     public var projectPaths: [String] {
         allFiles.compactMap(\.resolvedPath).filter { $0.hasSuffix(".xcodeproj") }
     }
@@ -137,7 +120,6 @@ public struct Workspace: Sendable {
         }
     }
 
-    /// `DEVELOPER_DIR`, else the `xcode-select` link, else nil.
     public static func activeDeveloperDirectory() -> String? {
         if let env = ProcessInfo.processInfo.environment["DEVELOPER_DIR"] { return env }
         return try? FileManager.default.destinationOfSymbolicLink(atPath: "/var/db/xcode_select_link")

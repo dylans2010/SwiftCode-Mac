@@ -1,18 +1,5 @@
 import Foundation
 
-// MARK: - SDKDeveloperLogger
-//
-// Ported from Legacy `SwiftCode/SDK/Runtime/Diagnostics/SDKDeveloperLogger.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The developer diagnostic log: JSON-lines at
-// `~/.swiftcode/logs/developer-sdk.log` (dir 0700, file 0600
-// re-enforced, rotation at 10 MB retaining `.1` / `.2`). Every entry
-// carries timestamp, correlation ID, code, message, SDK version
-// `"1.0.0"`, redacted diagnostics, context, and process info.
-// `fetchEntries(correlationId:)` scans `.2` / `.1` / current,
-// oldest first.
-
 public actor SDKDeveloperLogger {
     public static let shared = SDKDeveloperLogger()
 
@@ -28,7 +15,6 @@ public actor SDKDeveloperLogger {
 
     private init() {}
 
-    /// Logs an error with redacted diagnostics and context. Never throws.
     public func log(error: SDKError, diagnostics: [String: String]? = nil, context: [String: String]? = nil) {
         let redactedDiagnostics = diagnostics?.mapValues { SDKLogRedaction.redactSecrets($0) }
         let redactedContext = context?.mapValues { SDKLogRedaction.redactSecrets($0) }
@@ -55,8 +41,6 @@ public actor SDKDeveloperLogger {
         }
     }
 
-    /// All entries for `correlationId`, oldest first, scanning the
-    /// rotated files (`.2`, `.1`, current) in that order.
     public func fetchEntries(correlationId: String) -> [[String: Any]] {
         let urls = [logURL.appendingPathExtension("2"), logURL.appendingPathExtension("1"), logURL]
         var result: [[String: Any]] = []

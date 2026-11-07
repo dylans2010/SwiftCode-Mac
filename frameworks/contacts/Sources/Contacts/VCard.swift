@@ -1,17 +1,10 @@
-// CNContactVCardSerialization (formats.md §3): SwiftCode's own vCard 3.0 writer
-// and a lenient reader for vCard 2.1, 3.0 and 4.0 (RFC 2426, RFC 6350).
-
 import Foundation
 
 public final class CNContactVCardSerialization: NSObject {
-    /// The keys the writer reads: every property except note and images.
     public class func descriptorForRequiredKeys() -> CNKeyDescriptor {
         CNAggregateKeyDescriptor(kind: "vCard", keys: vCardKeys)
     }
 
-    /// vCard 3.0 data for the contacts (UTF-8, CRLF). A contact without
-    /// the required keys is not written: the call logs and throws
-    /// (formats.md §3; Apple returns nil there).
     public class func data(with contacts: [Any]) throws -> Data {
         var out = ""
         for item in contacts {
@@ -27,8 +20,6 @@ public final class CNContactVCardSerialization: NSObject {
         return out.data(using: .utf8)!
     }
 
-    /// Contacts read from vCard data. Unreadable input gives no contacts
-    /// and no error (I8–I10).
     public class func contacts(with data: Data) throws -> [CNContact] {
         VCardReader.read(data).map { d in
             CNContact(identifier: newPersonIdentifier(), data: d, available: allContactKeys)
@@ -36,11 +27,7 @@ public final class CNContactVCardSerialization: NSObject {
     }
 }
 
-// MARK: - Shared tables
-
 enum VCardTables {
-    /// Known instant-message services: X- property name and URI scheme.
-    /// AIM and Jabber are the spec's; the rest are SwiftCode's choice.
     static let imServices: [(service: String, property: String, scheme: String)] = [
         (CNInstantMessageServiceAIM, "X-AIM", "aim"),
         (CNInstantMessageServiceJabber, "X-JABBER", "xmpp"),
@@ -60,7 +47,6 @@ enum VCardTables {
         CNSocialProfileServiceTencentWeibo, CNSocialProfileServiceTwitter, CNSocialProfileServiceYelp,
     ]
 
-    /// Phone label → vCard types (formats.md §3.1; work fax and pager are SwiftCode's).
     static let phoneTypes: [String: [String]] = [
         CNLabelPhoneNumberMobile: ["CELL", "VOICE"],
         CNLabelHome: ["HOME", "VOICE"],
@@ -90,8 +76,6 @@ enum VCardTables {
         calendarNames.first { $0.1 == name.lowercased() }.map { Calendar(identifier: $0.0) }
     }
 }
-
-// MARK: - Writer
 
 struct VCardWriter {
     let d: ContactData
@@ -126,8 +110,6 @@ struct VCardWriter {
         types.map { ";type=\($0)" }.joined()
     }
 
-    /// A labeled line: predefined labels with vCard types become types,
-    /// any other label goes into an itemN group with X-ABLabel.
     mutating func labeled(_ name: String, base: [String], label: String?, types: [String: [String]],
                           pref: Bool, value: String, extra: [String] = []) {
         let prefType = pref ? ["pref"] : []
@@ -261,11 +243,9 @@ struct VCardWriter {
     }
 }
 
-// MARK: - Reader
-
 struct VCardLine {
     var group: String?
-    var name: String          // upper case
+    var name: String
     var params: [(name: String, value: String?)]
     var value: String
 
@@ -273,7 +253,6 @@ struct VCardLine {
         params.first { $0.name.caseInsensitiveCompare(n) == .orderedSame }?.value
     }
 
-    /// TYPE values (`type=…`, comma lists, quotes) and bare 2.1 tokens, upper case.
     var types: [String] {
         var out: [String] = []
         for p in params {
@@ -291,8 +270,6 @@ struct VCardLine {
     static let knownParams: Set<String> = ["TYPE", "PREF", "CHARSET", "ENCODING", "X-SERVICE-TYPE", "X-APPLE-OMIT-YEAR",
                                            "CALSCALE", "X-USER", "X-USERID", "X-ABLABEL"]
 
-    /// The first NAME=value parameter the reader does not know; a lenient
-    /// reading turns it into the label (formats.md §3.2 I2).
     var unknownParameterName: String? {
         params.first { $0.value != nil && !VCardLine.knownParams.contains($0.name.uppercased()) }?.name
     }
@@ -304,7 +281,6 @@ enum VCardReader {
         let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
         let physical = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
-        // Unfold (RFC 2425 §5.8.1): a line starting with a space or tab continues the previous one.
         var logical: [String] = []
         for line in physical {
             if let first = line.first, first == " " || first == "\t", !logical.isEmpty {
@@ -313,7 +289,6 @@ enum VCardReader {
                 logical.append(line)
             }
         }
-        // Quoted-printable soft breaks: a QP value ending in "=" continues.
         var joined: [String] = []
         var i = 0
         while i < logical.count {
@@ -345,7 +320,6 @@ enum VCardReader {
     }
 
     static func parse(_ raw: String) -> VCardLine? {
-        // Split at the first ':' outside quotes.
         var inQuote = false
         var colon: String.Index?
         for idx in raw.indices {
@@ -431,7 +405,6 @@ enum VCardReader {
         return out
     }
 
-    /// Splits a structured value at unescaped ';' and unescapes the parts.
     static func components(_ s: String) -> [String] {
         var parts: [String] = []
         var cur = ""

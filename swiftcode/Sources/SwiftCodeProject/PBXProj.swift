@@ -1,10 +1,8 @@
 import Foundation
 import SwiftCodePlist
 
-/// One entry of the `objects` table of a project file.
 public struct PBXObject: Equatable, Sendable {
     public var id: String
-    /// Every key of the object, including `isa`.
     public var attributes: PlistDictionary
 
     public init(id: String, attributes: PlistDictionary) {
@@ -23,8 +21,6 @@ public struct PBXObject: Equatable, Sendable {
     public func references(_ key: String) -> [String] { attributes[key]?.array?.compactMap(\.string) ?? [] }
 }
 
-/// The contents of a `project.pbxproj` file: an object graph rooted at a
-/// `PBXProject`. See `specs/formats/pbxproj.md`.
 public struct PBXProj: Sendable {
     public enum LoadError: LocalizedError, CustomStringConvertible {
         case syntax(OpenStepParser.Error)
@@ -45,24 +41,15 @@ public struct PBXProj: Sendable {
     public var objectVersion: String
     public var objects: [String: PBXObject]
     public var rootObject: String
-    /// Top-level keys this model does not know about, kept for round-tripping.
     public var extraTopLevel: PlistDictionary
-    /// Comment conventions to write with. Detected from the file on load so
-    /// that saving keeps whichever Xcode release last wrote it.
     public var style: FormatStyle = .current
 
-    /// Reference-comment conventions that changed between Xcode releases.
-    /// Neither is recorded in the file's version fields.
     public struct FormatStyle: Equatable, Sendable {
-        /// `Debug configuration for PBXNativeTarget "App"` instead of `Debug`.
         public var qualifiedConfigurationComments: Bool
-        /// `Exceptions for "Dir" folder in "App" target` instead of the class name.
         public var descriptiveExceptionSetComments: Bool
 
-        /// `PBXFileSystemSynchronizedRootGroup` written on one line (Xcode 16 era).
         public var singleLineSynchronizedGroups: Bool
 
-        /// What the reference Xcode (27.x) writes.
         public static let current = FormatStyle(
             qualifiedConfigurationComments: true,
             descriptiveExceptionSetComments: true,
@@ -110,23 +97,19 @@ public struct PBXProj: Sendable {
 
     public var project: PBXObject? { objects[rootObject] }
 
-    /// Objects of the given class, in ID order.
     public func objects(isa: String) -> [PBXObject] {
         objects.values.filter { $0.isa == isa }.sorted { $0.id < $1.id }
     }
 
-    /// Targets in the order the project lists them.
     public var targets: [PBXObject] {
         (project?.references("targets") ?? []).compactMap { objects[$0] }
     }
 
-    /// Build configurations of a configuration list, by name.
     public func buildConfigurations(listID: String?) -> [PBXObject] {
         guard let listID, let list = objects[listID] else { return [] }
         return list.references("buildConfigurations").compactMap { objects[$0] }
     }
 
-    /// Generates a fresh 24-hex-digit object identifier not already in use.
     public func makeObjectID<G: RandomNumberGenerator>(using rng: inout G) -> String {
         while true {
             var s = ""
@@ -146,20 +129,14 @@ public struct PBXProj: Sendable {
         return makeObjectID(using: &g)
     }
 
-    /// When set, `makeObjectID()` takes new IDs from this sequence instead
-    /// of random ones (tests that compare written files with fixtures).
     public var idSequence: ObjectIDSequence?
 }
 
-/// Predictable object IDs: a fixed prefix and a counter, 24 hex digits in
-/// all. Copies of a project share the counter.
 public final class ObjectIDSequence: @unchecked Sendable {
     private let lock = NSLock()
     private let prefix: String
     private var counter: UInt64
 
-    /// `prefix` is up to 8 hex digits (padded with zeros); the counter fills
-    /// the remaining 16 and starts at `start`.
     public init(prefix: String = "AA", start: UInt64 = 1) {
         self.prefix = String((prefix.uppercased() + String(repeating: "0", count: 8)).prefix(8))
         counter = start

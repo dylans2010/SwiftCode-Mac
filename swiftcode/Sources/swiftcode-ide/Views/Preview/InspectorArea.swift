@@ -3,14 +3,8 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The inspector column (`metrics.md` §5): its toolbar band, the tab
-/// capsule (File, History, Quick Help), then the File inspector's sections
-/// for the open file (`WorkspaceShellModel.fileInspector`, the rows the
-/// AppKit inspector shows): 12-point side insets, an 80-point key column,
-/// values 8 after it, 11-point text.
 struct InspectorColumn: View {
     var model: WorkspaceShellModel
-    /// The asset catalog editor's Attributes tab is chosen.
     @State private var assetTab = false
     @Environment(\.colorScheme) private var scheme
 
@@ -18,14 +12,9 @@ struct InspectorColumn: View {
         let c = ShellColors(scheme)
         VStack(spacing: 0) {
             InspectorToolbar(model: model)
-            // File, History and Quick Help follow the model (Quick Help can be
-            // asked for from the editor); the asset catalog editor adds its
-            // Attributes tab on top.
             let ibTab = ibModel?.inspectorTab
             let tab = ibTab.map { 3 + $0.rawValue }
                 ?? (assetTab && assetModel != nil ? AssetInspectorTab.index : model.languageFeatures.inspectorTab.rawValue)
-            // Interface Builder documents add Identity, Attributes, Size and
-            // Connections (InterfaceBuilderInspectors.swift).
             let extras = ibModel != nil ? IBInspectorTab.allCases.map(\.symbol) : assetModel != nil ? [AssetInspectorTab.symbol] : []
             InspectorTabs(selected: tab, extras: extras) { i in
                 if let ib = ibModel {
@@ -70,7 +59,6 @@ struct InspectorColumn: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .shellTarget("inspector")
-        // The asset catalog editor adds its Attributes tab and shows it.
         .onChange(of: assetModel != nil) { _, on in assetTab = on }
         .onAppear { if assetModel != nil { assetTab = true } }
     }
@@ -85,8 +73,6 @@ struct InspectorColumn: View {
         return nil
     }
 
-    /// An empty inspector's message, centered on the whole column (as the
-    /// AppKit inspector centers it), 13 points.
     func centered(_ s: String, _ c: ShellColors) -> some View {
         Text(verbatim: s).font(Font.system(size: 13)).foregroundStyle(c.secondaryLabel)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -110,8 +96,6 @@ struct InspectorColumn: View {
             value(r.value, c)
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         }
-        // The row takes the content's width, never its controls' ideal
-        // widths (a long pop-up title truncates inside its column).
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 
@@ -135,8 +119,6 @@ struct InspectorColumn: View {
             Text(verbatim: s).font(bold ? ShellFonts.smallBold : ShellFonts.small).foregroundStyle(c.label).lineLimit(1)
         case .path(let s, let button):
             HStack(alignment: .center, spacing: 6) {
-                // The path wraps in 140 points (the AppKit label's preferred
-                // width), less what the reveal button needs at this width.
                 Text(verbatim: s).font(ShellFonts.small).tracking(ShellFonts.smallTracking).foregroundStyle(c.label).lineLimit(12)
                     .frame(width: 132, alignment: .leading)
                 Spacer(minLength: 0)
@@ -160,12 +142,8 @@ struct InspectorColumn: View {
     }
 }
 
-/// The inspector's tab capsule: File, History, Quick Help; the selected
-/// tab in a 78 × 24 pill (narrower when an editor adds tabs).
 struct InspectorTabs: View {
     var selected: Int
-    /// Symbols of the tabs an editor adds (the asset catalog's Attributes
-    /// inspector; Interface Builder's Identity, Attributes, Size, Connections).
     var extras: [String] = []
     var select: (Int) -> Void
     @Environment(\.colorScheme) private var scheme

@@ -3,17 +3,9 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// llama.cpp's `llama-server` through its OpenAI-compatible endpoints
-/// (llama.cpp's server README): `GET /v1/models`, `GET /props` for the
-/// running context size, and `POST /v1/chat/completions` streamed as
-/// server-sent events ending with `data: [DONE]` (the Chat Completions
-/// streaming format). Any server with those endpoints works.
 public struct ChatCompletionsProvider: AssistantProvider {
     public let kind = ProviderKind.llamaCpp
-    /// The server's address without the `/v1` suffix.
     public var baseURL: String
-    /// Sent as `Authorization: Bearer` when the server was started with
-    /// `--api-key`.
     public var apiKey: String?
     public static let defaultBaseURL = "http://127.0.0.1:9931"
 
@@ -48,8 +40,6 @@ public struct ChatCompletionsProvider: AssistantProvider {
         }
     }
 
-    /// `data[].id` of a `/v1/models` body (with `meta.n_ctx_train` when
-    /// llama-server reports it).
     static func parseModels(_ body: Data) -> [ModelInfo] {
         guard let o = JSON.object(body), let list = o["data"] as? [[String: Any]] else { return [] }
         return list.compactMap { m in
@@ -68,8 +58,6 @@ public struct ChatCompletionsProvider: AssistantProvider {
     static func chatBody(_ request: ChatRequest) -> [String: Any] {
         var messages: [[String: Any]] = [["role": "system", "content": request.instructions]]
         messages += request.messages.map { ["role": $0.role.rawValue, "content": $0.content] }
-        // `stream_options.include_usage` asks for the token counts in a last
-        // chunk (the Chat Completions streaming format; llama-server honours it).
         var body: [String: Any] = ["messages": messages, "stream": true, "stream_options": ["include_usage": true]]
         if let m = request.model, !m.isEmpty { body["model"] = m }
         let g = request.generation
@@ -124,9 +112,6 @@ public struct ChatCompletionsProvider: AssistantProvider {
 
     enum Chunk: Equatable { case text(String), usage(TokenUsage), length, done, none }
 
-    /// The parts of one `data:` payload of a streamed chat completion: text,
-    /// `finish_reason: "length"`, and the usage chunk that
-    /// `stream_options.include_usage` adds (`choices: []`, `usage`).
     static func parseChunk(_ data: String) throws -> [Chunk] {
         let d = data.trimmingCharacters(in: .whitespaces)
         if d == "[DONE]" { return [.done] }

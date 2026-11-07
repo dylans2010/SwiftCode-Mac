@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeHostServices
 
-/// How the host paces input into the guest (uikit-feel-swiftcode.md §4.0, hid-input.md §14.3).
 struct TouchPacingTests {
     func u32(_ b: [UInt8], _ at: Int) -> UInt32 { b.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: at, as: UInt32.self) } }
 
@@ -14,7 +13,6 @@ struct TouchPacingTests {
         #expect(u32(t, 24 + 12) == 1234 && u32(t, 56 + 12) == 1234)
         let k = HIDHostService.body(.key(usagePage: 7, usage: 4, down: true), sequence: 2, age: 99)
         #expect(u32(k, 28) == 99)
-        // Without an age the bytes are those of older hosts.
         #expect(u32(HIDHostService.body(.key(usagePage: 7, usage: 4, down: true), sequence: 2), 28) == 0)
     }
 
@@ -27,11 +25,8 @@ struct TouchPacingTests {
 
     @Test func onlyAMoveFollowedSoonByAMoveIsDropped() {
         let ms: UInt64 = 1_000_000
-        // A 60 Hz stream that backed up: every sample is kept.
         #expect(!TouchPacing.isSuperseded(moveOnly: true, received: 0, next: (true, 16 * ms + ms / 2)))
-        // Faster than 120 Hz: the older move goes.
         #expect(TouchPacing.isSuperseded(moveOnly: true, received: 0, next: (true, 4 * ms)))
-        // Never a began, ended, key or button, and never before one.
         #expect(!TouchPacing.isSuperseded(moveOnly: false, received: 0, next: (true, ms)))
         #expect(!TouchPacing.isSuperseded(moveOnly: true, received: 0, next: (false, ms)))
         #expect(!TouchPacing.isSuperseded(moveOnly: true, received: 0, next: nil))

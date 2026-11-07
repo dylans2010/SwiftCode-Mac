@@ -8,7 +8,6 @@ struct StorageManagerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Storage Manager")
                         .font(.title2)
@@ -19,7 +18,6 @@ struct StorageManagerView: View {
                 }
                 .padding(.bottom, 10)
 
-                // Large visualization chart
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Workspace Disk Footprint")
@@ -37,7 +35,6 @@ struct StorageManagerView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        // visual multi-color bar chart
                         GeometryReader { geo in
                             HStack(spacing: 0) {
                                 Color.blue.frame(width: max(0, CGFloat(totalAllocated > 0 ? (sm.projectUsageGB / totalAllocated) : 0) * geo.size.width))
@@ -50,7 +47,6 @@ struct StorageManagerView: View {
                         }
                         .frame(height: 16)
 
-                        // Legend
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                             LegendRow(color: .blue, label: "Projects", sizeGB: sm.projectUsageGB)
                             LegendRow(color: .orange, label: "Derived Data", sizeGB: sm.derivedDataGB)
@@ -63,7 +59,6 @@ struct StorageManagerView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Clean-up actions card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Maintenance & Space Saver")

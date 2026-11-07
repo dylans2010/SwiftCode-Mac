@@ -1,10 +1,3 @@
-// FileTemplatesView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Sidebar/FileTemplatesView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: template content preview; legacy category set (All/Code/Web/Configs/Scripting/Testing/Docs/Other); template-discovery failure UI
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ProjectTreeViewModel.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 import AppKit
@@ -20,7 +13,6 @@ public struct FileTemplatesView: View {
     @State private var selectedCategory: String = "All"
     @State private var previewContent: String = ""
 
-    // Observe the centralized FileTemplateManager
     private var templateManager: FileTemplateManager {
         FileTemplateManager.shared
     }
@@ -33,7 +25,6 @@ public struct FileTemplatesView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("New File / Folder Template")
@@ -86,9 +77,7 @@ public struct FileTemplatesView: View {
                 .background(.regularMaterial)
             } else {
                 HStack(spacing: 0) {
-                    // Left Panel: Template List & Selection
                     VStack(spacing: 0) {
-                        // Search & Categories Bar
                         VStack(spacing: 8) {
                             HStack(spacing: 6) {
                                 Image(systemName: "magnifyingglass")
@@ -109,7 +98,6 @@ public struct FileTemplatesView: View {
                             .padding(6)
                             .liquidGlass(style: .subtle, cornerRadius: 8)
 
-                            // Segmented-style category picker (custom ScrollView)
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 6) {
                                     ForEach(categories, id: \.self) { cat in
@@ -138,7 +126,6 @@ public struct FileTemplatesView: View {
 
                         Divider()
 
-                        // Scrollable Template Grid
                         ScrollView {
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 130), spacing: 10)], spacing: 10) {
                                 ForEach(filteredTemplates) { item in
@@ -183,10 +170,8 @@ public struct FileTemplatesView: View {
 
                     Divider()
 
-                    // Right Panel: Split into Preview Code & Configuration details
                     VStack(spacing: 0) {
                         if let item = selectedItem {
-                            // Top Section: Code Preview Pane
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Template Preview")
                                     .font(.system(size: 11, weight: .bold))
@@ -209,7 +194,6 @@ public struct FileTemplatesView: View {
 
                             Divider()
 
-                            // Bottom Section: Configuration details & Actions
                             VStack(alignment: .leading, spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.isFolder ? "Folder Name" : "Filename")
@@ -279,7 +263,6 @@ public struct FileTemplatesView: View {
 
     private var filteredTemplates: [FileTemplate] {
         templateManager.templates.filter { item in
-            // Search text filter
             let matchSearch: Bool
             if searchText.isEmpty {
                 matchSearch = true
@@ -288,7 +271,6 @@ public struct FileTemplatesView: View {
                               item.extensionName.localizedCaseInsensitiveContains(searchText)
             }
 
-            // Category filter
             let matchCategory: Bool
             if selectedCategory == "All" {
                 matchCategory = true
@@ -340,8 +322,6 @@ public struct FileTemplatesView: View {
             return
         }
 
-        // Determine destination URL
-        // If a node is currently selected and is a folder, create inside it; otherwise create in project root.
         var targetDir = projectURL
         if let selectedNodeID = viewModel.selectedNodeID {
             let selectedURL = URL(fileURLWithPath: selectedNodeID)

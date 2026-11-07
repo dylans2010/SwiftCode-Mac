@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationPreferencesView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -23,7 +21,6 @@ public struct VirtualizationPreferencesView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Section 1: Console background behavior
                 GroupBox(label:
                     Label("Console Behavior", systemImage: "macwindow")
                         .font(.headline)
@@ -50,7 +47,6 @@ public struct VirtualizationPreferencesView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 2: Network options
                 GroupBox(label:
                     Label("Network Connections", systemImage: "network")
                         .font(.headline)

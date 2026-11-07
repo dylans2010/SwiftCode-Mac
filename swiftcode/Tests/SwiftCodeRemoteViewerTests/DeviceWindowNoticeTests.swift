@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeDisplayStream
 @testable import SwiftCodeRemoteViewer
 
-/// The Linux device window's feedback (docs/SIMULATOR-UX.md, "Screenshot"):
-/// a saved screenshot shows a notice for two seconds, as the macOS window's banner.
 struct DeviceWindowNoticeTests {
     struct Refused: Error {}
 
@@ -21,8 +19,6 @@ struct DeviceWindowNoticeTests {
 }
 
 extension DeviceWindowNoticeTests {
-    /// A first boot's dark minutes after the display is live still read
-    /// "Starting... N s" until the screen lights once.
     @Test func startingUntilTheScreenLights() {
         let session = RemoteDeviceSession(client: DisplayStreamClient(settings: DisplayClientHello(client: "t"), connect: { throw Refused() }))
         let t: UInt64 = 1_000_000_000_000

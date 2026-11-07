@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct WebhookTesterView: View {
@@ -55,7 +52,7 @@ struct WebhookTesterView: View {
             Spacer()
         }
         .padding()
-        
+
         .navigationTitle("Webhook Tester")
     }
 

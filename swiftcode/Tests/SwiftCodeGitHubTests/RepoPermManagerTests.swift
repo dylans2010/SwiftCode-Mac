@@ -1,7 +1,3 @@
-// Tests for RepoPermManager's scope table (Legacy -> SwiftCodeGitHub port).
-// No network: only the scope -> human-readable/icon mapping is pinned.
-// Static only: not executed here (no Swift toolchain in this environment).
-
 import Foundation
 import Testing
 import SwiftCodeGitHub

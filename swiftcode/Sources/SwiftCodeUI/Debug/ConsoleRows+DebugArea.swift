@@ -2,9 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 
 extension DebugAreaController {
-    /// The console row at the caret or selection start: an index into the
-    /// rows of the unfiltered console text (the bar's text filter shows a
-    /// subset of its lines).
     public var selectedConsoleRow: Int? {
         _ = view
         let shown = consoleView.string as NSString
@@ -20,7 +17,6 @@ extension DebugAreaController {
         return kept.indices.contains(shownLine) ? kept[shownLine] : nil
     }
 
-    /// Puts the caret in a row of the shown text (tests, Jump To Source).
     public func placeConsoleCaret(line: Int) {
         _ = view
         let ns = consoleView.string as NSString
@@ -35,8 +31,6 @@ extension DebugAreaController {
         consoleView.setSelectedRange(NSRange(location: loc, length: 0))
     }
 
-    /// Debug ▸ Console ▸ Select Last Output: selects the console's last
-    /// paragraph. Returns the selected text.
     @discardableResult
     public func selectLastOutput() -> String? {
         _ = view
@@ -47,7 +41,6 @@ extension DebugAreaController {
         return (consoleView.string as NSString).substring(with: r)
     }
 
-    /// The selected text of the console (tests).
     public var consoleSelection: String {
         _ = view
         return (consoleView.string as NSString).substring(with: consoleView.selectedRange())

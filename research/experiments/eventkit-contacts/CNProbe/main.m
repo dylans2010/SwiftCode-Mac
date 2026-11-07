@@ -1,21 +1,3 @@
-// CNProbe: our own black-box probe of Contacts / ContactsUI in the iOS simulator.
-// Written for Ycode's clean-room specs (specs/frameworks/contacts/). Public API
-// only; every person, address and number below is made up. Output: one line
-// per observation on stderr, prefixed "CNPROBE", ending with "phase <p> DONE".
-//
-//   -phase basic    no access needed: constants, labels, formatter and postal
-//                   goldens, vCard export/import, exceptions, errors
-//   -phase req      requestAccessForEntityType (system prompt)
-//   -phase noaccess store calls without asking first (implicit prompt)
-//   -phase status   status only
-//   -phase data     containers, groups, CRUD, predicates, key descriptors,
-//                   unification flags, change history, notifications, errors
-//   -phase list     every visible contact (name, identifier, container)
-//   -phase count    count the probe's contacts (persistence check)
-//   -phase wipe     delete the probe's contacts and groups
-//   -phase uipicker present CNContactPickerViewController (no access needed)
-//   -phase uinew    present CNContactViewController for a new contact
-//   -phase uiunknown present CNContactViewController for an unknown contact
 #import <UIKit/UIKit.h>
 #import <Contacts/Contacts.h>
 #import <ContactsUI/ContactsUI.h>
@@ -147,7 +129,6 @@ static NSData *TinyPNG(void) {
     }];
 }
 
-// The full made-up contact used by the vCard and store tests.
 static CNMutableContact *Full(NSString *given, NSString *family) {
     CNMutableContact *c = [CNMutableContact new];
     c.namePrefix = @"Dr."; c.givenName = given; c.middleName = @"Quinn"; c.familyName = family; c.nameSuffix = @"Jr.";
@@ -257,12 +238,10 @@ static void Formatters(void) {
     Fmt(@"F22 spaces", Name(nil, @" Avery ", nil, @"Example  ", nil, nil, nil));
     Fmt(@"F23 arabic", Name(nil, @"سارة", nil, @"مثال", nil, nil, nil));
     Fmt(@"F24 russian", Name(nil, @"Анна", @"Ивановна", @"Пример", nil, nil, nil));
-    // Missing-key behaviour: a partially fetched contact cannot be built locally; descriptor names instead.
     id<CNKeyDescriptor> d = [CNContactFormatter descriptorForRequiredKeysForStyle:CNContactFormatterStyleFullName];
     P(@"fmt descriptorForRequiredKeysForStyle(full) desc=%@", Strip([(NSObject *)d description]));
     P(@"fmt descriptorForRequiredKeysForNameOrder desc=%@", Strip([(NSObject *)[CNContactFormatter descriptorForRequiredKeysForNameOrder] description]));
     P(@"fmt descriptorForRequiredKeysForDelimiter desc=%@", Strip([(NSObject *)[CNContactFormatter descriptorForRequiredKeysForDelimiter] description]));
-    // Sort comparator.
     NSArray *people = @[ Name(nil, @"bob", nil, @"Zed", nil, nil, nil), Name(nil, @"Alice", nil, @"young", nil, nil, nil), Name(nil, @"Émile", nil, @"Xavier", nil, nil, nil),
                          Name(nil, nil, nil, nil, nil, nil, @"Acme Org"), Name(nil, @"alice", nil, @"Adams", nil, nil, nil), Name(nil, @"山田", nil, @"太郎", nil, nil, nil) ];
     for (NSNumber *o2 in @[ @(CNContactSortOrderGivenName), @(CNContactSortOrderFamilyName), @(CNContactSortOrderUserDefault), @(CNContactSortOrderNone) ]) {
@@ -353,7 +332,6 @@ static void VCards(void) {
     VCardOut(@"V6 birthday without year", @[ bd ]);
     VCardOut(@"V7 empty contact", @[ [CNMutableContact new] ]);
     VCardOut(@"V8 empty array", @[]);
-    // Import: our own made-up vCards.
     NSString *v3 = @"BEGIN:VCARD\r\nVERSION:3.0\r\nPRODID:-//Ycode//Probe//EN\r\nN:Example;Casey;Jordan;Mx.;PhD\r\nFN:Mx. Casey Jordan Example PhD\r\n"
                    "NICKNAME:Case\r\nORG:Example Widgets LLC;Research\r\nTITLE:Lead Prober\r\nX-PHONETIC-FIRST-NAME:KAY-see\r\nX-PHONETIC-LAST-NAME:ig-ZAM-pul\r\n"
                    "X-MAIDENNAME:Sample\r\nTEL;type=CELL;type=VOICE;type=pref:+1 555 010 0201\r\nTEL;type=HOME;type=VOICE:555-010-0202\r\nTEL;type=WORK;type=FAX:555-010-0203\r\n"
@@ -390,7 +368,6 @@ static void VCards(void) {
     VCardIn(@"I11 photo", [NSString stringWithFormat:@"BEGIN:VCARD\r\nVERSION:3.0\r\nN:Photo;Probe;;;\r\nPHOTO;ENCODING=b;TYPE=PNG:%@\r\nEND:VCARD\r\n",
                                                    [TinyPNG() base64EncodedStringWithOptions:0]]);
     VCardIn(@"I12 no version", @"BEGIN:VCARD\r\nN:Nover;Probe;;;\r\nEND:VCARD\r\n");
-    // Round trip.
     NSData *d = [CNContactVCardSerialization dataWithContacts:@[ f ] error:nil];
     NSArray *back = [CNContactVCardSerialization contactsWithData:d error:nil];
     P(@"vcard roundtrip V1 n=%lu %@", (unsigned long)back.count, back.count ? CDesc(back[0]) : @"");
@@ -420,8 +397,6 @@ static void PhaseBasic(void) {
     Exceptions();
 }
 
-// Store calls before any answer. Note: on the reference, the first store call
-// of an undetermined client raises the system prompt and blocks the caller.
 static void PhaseNoAccess(void) {
     P(@"noaccess status=%ld", (long)[CNContactStore authorizationStatusForEntityType:CNEntityTypeContacts]);
     P(@"noaccess currentHistoryToken=%@", gStore.currentHistoryToken ? @"data" : @"nil");
@@ -515,7 +490,6 @@ static void PhaseData(BOOL notesEntitled) {
         P(@"NOTIFY CNContactStoreDidChange #%d object=%@ userInfo={%@} %@", changes, n.object ? NSStringFromClass([n.object class]) : @"nil", [k componentsJoinedByString:@"; "], Thr());
     }];
     NSError *e = nil;
-    // Containers.
     NSString *defc = [gStore defaultContainerIdentifier];
     P(@"defaultContainerIdentifier=%@", defc);
     NSArray *conts = [gStore containersMatchingPredicate:nil error:&e];
@@ -527,14 +501,12 @@ static void PhaseData(BOOL notesEntitled) {
     Wipe();
     NSData *tok0 = gStore.currentHistoryToken;
     P(@"history token before: %@ (%lu bytes)", tok0 ? @"data" : @"nil", (unsigned long)tok0.length);
-    // All visible contacts (seed data).
     __block int visible = 0;
     e = nil;
     BOOL en = [gStore enumerateContactsWithFetchRequest:[[CNContactFetchRequest alloc] initWithKeysToFetch:@[ CNContactGivenNameKey, CNContactFamilyNameKey ]] error:&e
                                            usingBlock:^(CNContact *c, BOOL *stop) { visible++; }];
     P(@"visible contacts before=%d ok=%d err=%@", visible, en, E(e));
 
-    // Create.
     CNMutableContact *c1 = Full(@"Avery", @"Example"); c1.jobTitle = @"ycode-probe";
     if (notesEntitled) c1.note = @"ycode-probe note";
     CNMutableContact *c2 = Name(nil, @"Blake", nil, @"Example", nil, nil, nil); c2.jobTitle = @"ycode-probe";
@@ -544,7 +516,7 @@ static void PhaseData(BOOL notesEntitled) {
     CNMutableContact *c4 = Name(nil, @"太郎", nil, @"山田", nil, nil, nil); c4.jobTitle = @"ycode-probe";
     c4.phoneticGivenName = @"たろう"; c4.phoneticFamilyName = @"やまだ";
     CNMutableContact *c5 = Name(nil, nil, nil, nil, nil, nil, @"Ycode Probe Widgets"); c5.contactType = CNContactTypeOrganization; c5.jobTitle = @"ycode-probe";
-    CNMutableContact *c6 = Name(nil, @"Avery", nil, @"Example", nil, nil, nil); c6.jobTitle = @"ycode-probe"; // same name as c1
+    CNMutableContact *c6 = Name(nil, @"Avery", nil, @"Example", nil, nil, nil); c6.jobTitle = @"ycode-probe";
     c6.emailAddresses = @[ L(CNLabelHome, @"avery@example.com") ];
     CNMutableContact *c7 = Name(nil, @"Pixel", nil, @"Probe", nil, nil, nil); c7.jobTitle = @"ycode-probe"; c7.imageData = TinyPNG();
     CNSaveRequest *sr = [CNSaveRequest new];
@@ -555,7 +527,6 @@ static void PhaseData(BOOL notesEntitled) {
     P(@"after save c1.identifier=%@ shouldRefetch default=%d", c1.identifier, sr.shouldRefetchContacts);
     Sleep(2);
     P(@"notifications after add: %d", changes);
-    // Fetch with all keys (notes only when entitled).
     e = nil;
     CNContact *f1 = [gStore unifiedContactWithIdentifier:c1.identifier keysToFetch:AllKeys(NO) error:&e];
     P(@"c1 refetch err=%@ %@", E(e), f1 ? CDesc(f1) : @"nil");
@@ -566,7 +537,6 @@ static void PhaseData(BOOL notesEntitled) {
     e = nil;
     CNContact *f7 = [gStore unifiedContactWithIdentifier:c7.identifier keysToFetch:@[ CNContactImageDataKey, CNContactThumbnailImageDataKey, CNContactImageDataAvailableKey ] error:&e];
     P(@"c7 image err=%@ image=%lu thumb=%lu available=%d", E(e), (unsigned long)f7.imageData.length, (unsigned long)f7.thumbnailImageData.length, f7.imageDataAvailable);
-    // Partial keys.
     CNContact *part = [gStore unifiedContactWithIdentifier:c1.identifier keysToFetch:@[ CNContactGivenNameKey ] error:nil];
     P(@"partial available(given)=%d available(family)=%d areKeysAvailable(formatter)=%d", [part isKeyAvailable:CNContactGivenNameKey],
       [part isKeyAvailable:CNContactFamilyNameKey], [part areKeysAvailable:@[ [CNContactFormatter descriptorForRequiredKeysForStyle:CNContactFormatterStyleFullName] ]]);
@@ -577,7 +547,6 @@ static void PhaseData(BOOL notesEntitled) {
     @catch (NSException *ex) { P(@"partial vcard EXCEPTION %@: %@", ex.name, ex.reason); }
     CNContact *viaDesc = [gStore unifiedContactWithIdentifier:c1.identifier keysToFetch:@[ [CNContactFormatter descriptorForRequiredKeysForStyle:CNContactFormatterStyleFullName] ] error:nil];
     P(@"descriptor fetch formatted=%@", Q([CNContactFormatter stringFromContact:viaDesc style:CNContactFormatterStyleFullName]));
-    // Predicates.
     NSArray *k = @[ CNContactGivenNameKey, CNContactFamilyNameKey, CNContactOrganizationNameKey ];
     Fetch(@"name 'Example'", [CNContact predicateForContactsMatchingName:@"Example"], k);
     Fetch(@"name 'exam'", [CNContact predicateForContactsMatchingName:@"exam"], k);
@@ -603,7 +572,6 @@ static void PhaseData(BOOL notesEntitled) {
     @try { Fetch(@"nspredicate (unsupported)", [NSPredicate predicateWithFormat:@"givenName == 'Avery'"], k); }
     @catch (NSException *ex) { P(@"nspredicate EXCEPTION %@: %@", ex.name, ex.reason); }
     @try { Fetch(@"nil predicate", nil, k); } @catch (NSException *ex) { P(@"nil predicate EXCEPTION %@: %@", ex.name, ex.reason); }
-    // Enumerate with sort orders.
     for (NSNumber *so in @[ @(CNContactSortOrderGivenName), @(CNContactSortOrderFamilyName), @(CNContactSortOrderNone), @(CNContactSortOrderUserDefault) ]) {
         CNContactFetchRequest *fr = [[CNContactFetchRequest alloc] initWithKeysToFetch:@[ CNContactGivenNameKey, CNContactFamilyNameKey, CNContactOrganizationNameKey, CNContactJobTitleKey ]];
         fr.sortOrder = so.integerValue;
@@ -628,7 +596,6 @@ static void PhaseData(BOOL notesEntitled) {
     CNFetchResult *fres = [gStore enumeratorForContactFetchRequest:fu error:&e];
     P(@"enumeratorForContactFetchRequest value=%@ token=%@ err=%@", NSStringFromClass([fres.value class]), fres.currentHistoryToken ? @"data" : @"nil", E(e));
 
-    // Groups.
     CNMutableGroup *g = [CNMutableGroup new]; g.name = @"Ycode Probe Group";
     CNMutableGroup *g2 = [CNMutableGroup new]; g2.name = @"Ycode Probe Group 2";
     sr = [CNSaveRequest new];
@@ -655,7 +622,6 @@ static void PhaseData(BOOL notesEntitled) {
     sr = [CNSaveRequest new]; [sr addGroup:[g mutableCopy] toContainerWithIdentifier:nil]; Exec(@"err add existing group again", sr);
     sr = [CNSaveRequest new]; [sr addContact:[c2 mutableCopy] toContainerWithIdentifier:nil]; Exec(@"err add existing contact again", sr);
     sr = [CNSaveRequest new]; [sr addContact:Name(nil, @"Bogus", nil, @"Probe", nil, nil, nil) toContainerWithIdentifier:@"bogus-container"]; Exec(@"err bogus container", sr);
-    // Update.
     CNMutableContact *u = [[gStore unifiedContactWithIdentifier:c2.identifier keysToFetch:AllKeys(NO) error:nil] mutableCopy];
     u.givenName = @"Blair";
     u.phoneNumbers = [u.phoneNumbers arrayByAddingObject:L(CNLabelWork, Ph(@"555-010-0699"))];
@@ -677,7 +643,6 @@ static void PhaseData(BOOL notesEntitled) {
         CNMutableContact *nn2 = Name(nil, @"Noted", nil, @"Probe", nil, nil, nil); nn2.jobTitle = @"ycode-probe"; nn2.note = @"ycode-probe new with note";
         sr = [CNSaveRequest new]; [sr addContact:nn2 toContainerWithIdentifier:nil]; Exec(@"add contact with note without entitlement", sr);
     }
-    // Delete.
     sr = [CNSaveRequest new]; [sr deleteContact:[c6 mutableCopy]]; Exec(@"delete c6", sr);
     sr = [CNSaveRequest new]; [sr deleteContact:[c6 mutableCopy]]; Exec(@"err delete c6 again", sr);
     sr = [CNSaveRequest new]; [sr updateContact:[c6 mutableCopy]]; Exec(@"err update deleted c6", sr);
@@ -687,7 +652,6 @@ static void PhaseData(BOOL notesEntitled) {
     e = nil;
     gone = [gStore unifiedContactWithIdentifier:@"bogus" keysToFetch:@[ CNContactGivenNameKey ] error:&e];
     P(@"fetch bogus id -> %@ err=%@", gone ? @"object" : @"nil", E(e));
-    // Multiple operations in one request, one failing.
     sr = [CNSaveRequest new];
     CNMutableContact *ok1 = Name(nil, @"Atomic", nil, @"Probe", nil, nil, nil); ok1.jobTitle = @"ycode-probe";
     [sr addContact:ok1 toContainerWithIdentifier:nil];
@@ -695,7 +659,6 @@ static void PhaseData(BOOL notesEntitled) {
     Exec(@"atomic (add ok + delete missing)", sr);
     Fetch(@"after atomic", [CNContact predicateForContactsMatchingName:@"Atomic"], k);
     Sleep(2);
-    // Change history.
     if (tok0) {
         CNChangeHistoryFetchRequest *hr = [CNChangeHistoryFetchRequest new];
         hr.startingToken = tok0;

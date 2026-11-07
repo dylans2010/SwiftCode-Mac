@@ -1,15 +1,6 @@
-// A small JSON value model, parser and writer for `.storekit` files
-// (configuration-file.md §1).
-//
-// Why not Foundation's JSONSerialization: the file must round-trip byte for
-// byte, so numbers keep their literal text, objects remember nothing about
-// key order (the writer always sorts), and the writer reproduces the
-// published pretty-print style exactly on every platform.
 import Foundation
 
-/// A JSON number kept as its literal text so that it is written back unchanged.
 public struct JSONNumber: Hashable, Sendable, CustomStringConvertible {
-    /// The number exactly as it appeared in the source (or as created).
     public let literal: String
 
     public init(literal: String) { self.literal = literal }
@@ -21,7 +12,6 @@ public struct JSONNumber: Hashable, Sendable, CustomStringConvertible {
     public var description: String { literal }
 }
 
-/// A JSON value. Objects are unordered; the writer sorts keys.
 public enum JSONValue: Hashable, Sendable {
     case object([String: JSONValue])
     case array([JSONValue])
@@ -42,9 +32,6 @@ public enum JSONValue: Hashable, Sendable {
     public subscript(key: String) -> JSONValue? { objectValue?[key] }
 }
 
-// MARK: - Parsing
-
-/// A syntax error with its position (1-based line and column, 0-based byte offset).
 public struct JSONSyntaxError: Error, Equatable, Sendable, CustomStringConvertible {
     public let message: String
     public let offset: Int
@@ -54,11 +41,9 @@ public struct JSONSyntaxError: Error, Equatable, Sendable, CustomStringConvertib
 }
 
 public enum JSONParser {
-    /// Parses one JSON value; surrounding whitespace is allowed, anything else is an error.
     public static func parse(_ data: Data) throws -> JSONValue {
         var p = Parser(bytes: Array(data))
         p.skipWhitespace()
-        // A UTF-8 byte order mark is tolerated.
         if p.bytes.starts(with: [0xEF, 0xBB, 0xBF]) && p.index == 0 { p.index = 3; p.skipWhitespace() }
         let value = try p.parseValue(depth: 0)
         p.skipWhitespace()
@@ -228,14 +213,8 @@ public enum JSONParser {
     }
 }
 
-// MARK: - Writing
-
-/// The pretty-print style of configuration-file.md §1: two-space indent,
-/// `"key" : value`, keys sorted, empty containers as open, blank line, close.
 public struct JSONWriter: Sendable {
-    /// Escape `/` as `\/` (the Foundation writer's default). Spec question 1 in the README.
     public var escapeSlashes: Bool = true
-    /// Write a newline after the closing brace of the top-level value.
     public var trailingNewline: Bool = false
 
     public init(escapeSlashes: Bool = true, trailingNewline: Bool = false) {
@@ -252,8 +231,6 @@ public struct JSONWriter: Sendable {
 
     public func data(_ value: JSONValue) -> Data { Data(string(value).utf8) }
 
-    /// Keys are sorted by their UTF-16 code units, the order of a literal
-    /// string comparison (identical to byte order for the ASCII keys of the format).
     public static func sortedKeys<S: Sequence>(_ keys: S) -> [String] where S.Element == String {
         keys.sorted { $0.utf16.lexicographicallyPrecedes($1.utf16) }
     }
@@ -315,11 +292,7 @@ public struct JSONWriter: Sendable {
     }
 }
 
-// MARK: - Compact form
-
 extension JSONWriter {
-    /// The compact form with sorted keys and no whitespace, as used for
-    /// signed payloads (design.md §5 item 2: keys sorted). Slashes are not escaped.
     public static func compact(_ value: JSONValue) -> String {
         let writer = JSONWriter(escapeSlashes: false)
         var out = ""

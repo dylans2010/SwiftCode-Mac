@@ -1,13 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowBuilderView.swift` (Dylan's own code; direct port authorised under MIT).
-// P-GH: confirmed genuinely missing from production at 7ac654a9 (V10 name sweep; see verify/v10-coverage).
-// Placed in SwiftCodeUI/CI beside WorkflowsCreateView.swift (the A4 renamed port of
-// Legacy ActionsView.swift). Added import: SwiftCodeIDECore (Project). DeveloperWorkflow,
-// WorkflowStep and WorkflowManager are in the same module (SwiftCodeUI) or its CI folder.
-// All references verified to resolve in production before porting (WorkflowManager.shared /
-// saveWorkflows / resolveVariables labels; DeveloperWorkflow/WorkflowStep fields incl.
-// inputs and command). WorkflowManager itself was landed in the tree by another agent
-// minutes before this port (untracked SwiftCodeUI/CI/WorkflowManager.swift). Audit A
-// verdict was PARTIAL (missing type WorkflowBuilderView).
 import SwiftUI
 import AppKit
 import SwiftCodeIDECore
@@ -25,7 +15,6 @@ public struct WorkflowBuilderView: View {
     @State private var editingStepID: UUID?
     @State private var manager = WorkflowManager.shared
 
-    // Apple Shortcuts category colors
     private func categoryColor(for cat: String) -> Color {
         switch cat {
         case "Git": return .orange
@@ -52,7 +41,6 @@ public struct WorkflowBuilderView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Editor Toolbar
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -93,7 +81,6 @@ public struct WorkflowBuilderView: View {
 
             Divider()
 
-            // Main Editor Panels
             switch editorMode {
             case .guided:
                 guidedBuilderSplitView
@@ -103,11 +90,8 @@ public struct WorkflowBuilderView: View {
         }
     }
 
-    // MARK: - Guided Builder
-
     private var guidedBuilderSplitView: some View {
         HSplitView {
-            // Catalog Preset Selection (Apple Shortcuts style library)
             VStack(spacing: 0) {
                 Text("Shortcuts Action Library")
                     .font(.headline)
@@ -116,7 +100,6 @@ public struct WorkflowBuilderView: View {
 
                 Divider()
 
-                // Category Selector
                 HStack(spacing: 4) {
                     ForEach(["Git", "Swift", "Xcode", "System"], id: \.self) { cat in
                         Button {
@@ -137,7 +120,6 @@ public struct WorkflowBuilderView: View {
 
                 Divider()
 
-                // Library Search Bar
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -197,9 +179,7 @@ public struct WorkflowBuilderView: View {
             .frame(minWidth: 260, idealWidth: 280, maxWidth: 340)
             .background(Color(NSColor.windowBackgroundColor))
 
-            // Apple Shortcuts style Visual Canvas Panel
             VStack(spacing: 0) {
-                // Info HUD explaining data passing
                 HStack {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.blue)
@@ -238,7 +218,6 @@ public struct WorkflowBuilderView: View {
         let catColor = categoryColor(for: step.category)
 
         return VStack(spacing: 0) {
-            // Block Header
             HStack(spacing: 12) {
                 Image(systemName: "line.3.horizontal")
                     .foregroundStyle(.secondary)
@@ -267,7 +246,6 @@ public struct WorkflowBuilderView: View {
 
                 Spacer()
 
-                // Shortcuts quick config indicators
                 HStack(spacing: 8) {
                     if step.isOptional {
                         Text("Ignore Failure")
@@ -315,7 +293,6 @@ public struct WorkflowBuilderView: View {
             .padding(12)
             .background(Color(NSColor.controlBackgroundColor))
 
-            // Expandable Apple Shortcuts-like editor panel
             if editingStepID == step.id {
                 Divider()
                 VStack(alignment: .leading, spacing: 12) {
@@ -323,7 +300,6 @@ public struct WorkflowBuilderView: View {
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
 
-                    // Step specific form inputs (if any)
                     if !step.inputs.isEmpty {
                         Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                             ForEach(step.inputs.keys.sorted(), id: \.self) { key in
@@ -347,7 +323,6 @@ public struct WorkflowBuilderView: View {
 
                     Divider()
 
-                    // Asynchronous Terminal Commands Config
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Terminal Script & Controls")
                             .font(.caption.bold())
@@ -449,11 +424,8 @@ public struct WorkflowBuilderView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Advanced CLI Canvas View
-
     private var cliCanvasView: some View {
         VStack(spacing: 0) {
-            // Header instructions & variable helper shortcuts
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Interactive Commands Console")
@@ -464,7 +436,6 @@ public struct WorkflowBuilderView: View {
                 }
                 Spacer()
 
-                // Smart Variables Helper Button Menu
                 Menu("Insert Smart Variable") {
                     Button("$(CURRENT_PROJECT)") { insertVariableText("$(CURRENT_PROJECT)") }
                     Button("$(REPOSITORY_ROOT)") { insertVariableText("$(REPOSITORY_ROOT)") }
@@ -478,7 +449,6 @@ public struct WorkflowBuilderView: View {
 
             Divider()
 
-            // Pseudo-Terminal Editor Area
             VStack(spacing: 0) {
                 TextEditor(text: $workflow.customCommands)
                     .font(.system(.body, design: .monospaced))
@@ -494,7 +464,6 @@ public struct WorkflowBuilderView: View {
 
             Divider()
 
-            // Diagnostics & Variables preview footer
             VStack(alignment: .leading, spacing: 8) {
                 Text("Expression Resolution Preview")
                     .font(.caption).bold()
@@ -513,8 +482,6 @@ public struct WorkflowBuilderView: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
     }
-
-    // MARK: - Step management actions
 
     private func insertStep(_ action: WorkflowStep) {
         var copy = action
@@ -538,28 +505,22 @@ public struct WorkflowBuilderView: View {
         manager.saveWorkflows()
     }
 
-    // MARK: - Preset catalog items
-
     private var catalogActions: [WorkflowStep] {
         [
-            // Git
             WorkflowStep(name: "Pull Latest Changes", description: "git pull remote upstream updates", icon: "arrow.down.doc.fill", category: "Git", estimatedDuration: 2.0, inputs: ["rebase": "true"], command: "git pull origin $(ACTIVE_BRANCH)"),
             WorkflowStep(name: "Push Changes", description: "git push commits upstream", icon: "arrow.up.doc.fill", category: "Git", estimatedDuration: 2.0, inputs: ["force": "false"], command: "git push origin $(ACTIVE_BRANCH)"),
             WorkflowStep(name: "Create Branch", description: "git checkout -b branch-name", icon: "arrow.triangle.branch", category: "Git", estimatedDuration: 1.0, inputs: ["branch": "feature/"], command: "git checkout -b feature-branch"),
             WorkflowStep(name: "Checkout Branch", description: "git checkout existing-branch", icon: "arrow.triangle.branch", category: "Git", estimatedDuration: 1.0, inputs: ["branch": "main"], command: "git checkout main"),
             WorkflowStep(name: "Fetch Remote", description: "git fetch tracking origin", icon: "arrow.clockwise", category: "Git", estimatedDuration: 1.5, command: "git fetch origin"),
 
-            // Swift
             WorkflowStep(name: "Build Project", description: "swift build standard local compile", icon: "hammer.fill", category: "Swift", estimatedDuration: 10.0, inputs: ["configuration": "Debug"], command: "swift build"),
             WorkflowStep(name: "Clean Build Folder", description: "swift package clean build files", icon: "trash.fill", category: "Swift", estimatedDuration: 4.0, command: "swift package clean"),
             WorkflowStep(name: "Run Tests", description: "swift test runner command", icon: "play.square.fill", category: "Swift", estimatedDuration: 12.0, inputs: ["scheme": "SwiftCodeTests"], command: "swift test"),
             WorkflowStep(name: "Resolve Packages", description: "swift package resolve SPM dependencies", icon: "shippingbox.fill", category: "Swift", estimatedDuration: 5.0, command: "swift package resolve"),
 
-            // Xcode
             WorkflowStep(name: "Launch Simulator", description: "Boot targeted iOS/macOS platform simulator", icon: "iphone", category: "Xcode", estimatedDuration: 3.0, inputs: ["device": "iPhone 16 Pro"], command: "xcrun simctl list devices"),
             WorkflowStep(name: "Select Simulator", description: "Bind project layout configuration", icon: "iphone", category: "Xcode", estimatedDuration: 1.0, inputs: ["device": "iPhone 16 Pro"], command: "echo 'Selecting iPhone 16 Pro'"),
 
-            // System
             WorkflowStep(name: "Open Folder", description: "Reveal files in Finder workspace", icon: "folder.fill", category: "System", estimatedDuration: 0.5, inputs: ["path": "$(REPOSITORY_ROOT)"], command: "open ."),
             WorkflowStep(name: "Execute Custom Script", description: "Run shell script pipeline", icon: "scroll.fill", category: "System", estimatedDuration: 2.0, inputs: ["script": "echo 'Done'"], command: "echo 'Executing script...'")
         ]

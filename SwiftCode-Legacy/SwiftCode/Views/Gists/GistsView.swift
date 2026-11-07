@@ -44,7 +44,6 @@ struct GistsView: View {
     @ViewBuilder
     private var listView: some View {
         VStack(spacing: 0) {
-            // Header actions row (inspired by IssuesView / ReleasesView)
             HStack(spacing: 12) {
                 Label("GitHub Gists", systemImage: "doc.on.doc.fill")
                     .font(.headline)

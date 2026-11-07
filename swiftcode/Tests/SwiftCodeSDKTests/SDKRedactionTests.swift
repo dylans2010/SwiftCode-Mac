@@ -1,7 +1,6 @@
 import XCTest
 @testable import SwiftCodeSDK
 
-/// Redaction: secrets never reach logs or user-facing text.
 final class SDKRedactionTests: XCTestCase {
     func testRedactsDeveloperAPIKey() {
         let text = "failed with key sc_dev_live_abc123.def456"

@@ -1,8 +1,5 @@
 import Foundation
 
-/// A gist (`GET /gists`, `GET /gists/{id}`). `files` is the API's
-/// filename-keyed dictionary; `sortedFiles` is the display order.
-/// `owner` is nil for anonymous gists.
 public struct GitHubGist: Sendable, Equatable, Decodable, Identifiable {
     public var id: String
     public var description: String?
@@ -13,12 +10,8 @@ public struct GitHubGist: Sendable, Equatable, Decodable, Identifiable {
     public var createdAt: Date?
     public var updatedAt: Date?
     public var htmlUrl: String?
-    /// `git_push_url` / `git_pull_url` from `GET /gists/{id}`: the
-    /// clone URLs Legacy's `cloneURL(for:useSSH:)` preferred, with the
-    /// canonical `gist.github.com` forms as fallback.
     public var gitPushUrl: String?
     public var gitPullUrl: String?
-    /// The revisions from the `history` key of `GET /gists/{id}`.
     public var history: [GitHubGistRevision]
 
     public var sortedFiles: [GitHubGistFile] {
@@ -43,8 +36,6 @@ public struct GitHubGist: Sendable, Equatable, Decodable, Identifiable {
         gitPushUrl = try container.decodeIfPresent(String.self, forKey: .gitPushUrl)
         gitPullUrl = try container.decodeIfPresent(String.self, forKey: .gitPullUrl)
         history = try container.decodeIfPresent([GitHubGistRevision].self, forKey: .history) ?? []
-        // The API normally repeats the filename inside each value; when
-        // it does not, the dictionary key is the filename.
         let rawFiles = try container.decodeIfPresent([String: GitHubGistFile].self, forKey: .files) ?? [:]
         var filled: [String: GitHubGistFile] = [:]
         for (key, var file) in rawFiles {
@@ -55,8 +46,6 @@ public struct GitHubGist: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// One file of a gist. `content` is present only on a single-gist
-/// fetch (`GET /gists/{id}`); list responses omit it.
 public struct GitHubGistFile: Sendable, Equatable, Decodable, Identifiable {
     public var id: String { filename }
     public var filename: String
@@ -83,7 +72,6 @@ public struct GitHubGistFile: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// A comment on a gist (`GET /gists/{id}/comments`).
 public struct GitHubGistComment: Sendable, Equatable, Decodable, Identifiable {
     public var id: Int
     public var body: String
@@ -92,9 +80,6 @@ public struct GitHubGistComment: Sendable, Equatable, Decodable, Identifiable {
     public var updatedAt: Date?
 }
 
-/// One entry of a gist's `history` (`GET /gists/{id}`): the revision
-/// `GET /gists/{id}/{sha}` returns. `changeStatus` is the
-/// `change_status` object (`additions` / `deletions` / `total`).
 public struct GitHubGistRevision: Sendable, Equatable, Decodable, Identifiable {
     public var id: String { version }
     public var version: String
@@ -103,27 +88,16 @@ public struct GitHubGistRevision: Sendable, Equatable, Decodable, Identifiable {
     public var changeStatus: GitHubGistChangeStatus?
 
     private enum CodingKeys: String, CodingKey {
-        // Raw values are the post-conversion camelCase forms: the
-        // decoder's `.convertFromSnakeCase` turns `change_status`
-        // into `changeStatus` before matching.
         case version, user, committedAt, changeStatus
     }
 }
 
-/// The `change_status` object of a gist revision.
 public struct GitHubGistChangeStatus: Sendable, Equatable, Decodable {
     public var additions: Int
     public var deletions: Int
     public var total: Int
 }
 
-/// The api.github.com gist client. There is no gist surface in
-/// `GitHubClient` (Wave 10), so this is the port of Legacy's
-/// `GitHubGistService` (`SwiftCode/Views/Gists/`): the same endpoints
-/// the Legacy gist views drove — list, fetch, create, update, delete,
-/// star, comments, revisions — over `GitHubRESTTransport`. The token
-/// is optional: unauthenticated requests read public gists at
-/// GitHub's lower rate limit. The token itself is never stored here.
 public struct GitHubGistClient: Sendable {
     private let transport: GitHubRESTTransport
 
@@ -131,7 +105,6 @@ public struct GitHubGistClient: Sendable {
         self.transport = GitHubRESTTransport(session: session, tokenProvider: tokenProvider)
     }
 
-    /// `GET /gists`: the authenticated user's gists. Requires a token.
     public func listGists(perPage: Int = 30, page: Int = 1) async throws -> [GitHubGist] {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -142,8 +115,6 @@ public struct GitHubGistClient: Sendable {
                     URLQueryItem(name: "page", value: "\(max(1, page))")]))
     }
 
-    /// `GET /gists/starred`: the authenticated user's starred gists.
-    /// Requires a token.
     public func listStarredGists(perPage: Int = 30, page: Int = 1) async throws -> [GitHubGist] {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -154,7 +125,6 @@ public struct GitHubGistClient: Sendable {
                     URLQueryItem(name: "page", value: "\(max(1, page))")]))
     }
 
-    /// `GET /users/{username}/gists`: a user's public gists.
     public func listUserGists(username: String, perPage: Int = 30, page: Int = 1) async throws -> [GitHubGist] {
         let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !name.contains("/") else {
@@ -166,13 +136,11 @@ public struct GitHubGistClient: Sendable {
                     URLQueryItem(name: "page", value: "\(max(1, page))")]))
     }
 
-    /// `GET /gists/{id}`: one gist, with file contents and `history`.
     public func fetchGist(id: String) async throws -> GitHubGist {
         let gistId = try validatedId(id)
         return try await transport.perform(transport.request(path: "gists/\(transport.encode(gistId))"))
     }
 
-    /// `POST /gists`. `files` maps filename to content.
     public func createGist(description: String?, isPublic: Bool, files: [String: String]) async throws -> GitHubGist {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -187,8 +155,6 @@ public struct GitHubGistClient: Sendable {
         return try await transport.perform(transport.request(path: "gists", method: "POST", body: body))
     }
 
-    /// `PATCH /gists/{id}`. `files` maps filename to new content, or
-    /// `nil` to delete that file. Only non-nil fields are sent.
     public func updateGist(id: String, description: String?, files: [String: String?]) async throws -> GitHubGist {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -200,7 +166,6 @@ public struct GitHubGistClient: Sendable {
         return try await transport.perform(transport.request(path: "gists/\(transport.encode(gistId))", method: "PATCH", body: body))
     }
 
-    /// `DELETE /gists/{id}`.
     public func deleteGist(id: String) async throws {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -209,7 +174,6 @@ public struct GitHubGistClient: Sendable {
         try await transport.performVoid(transport.request(path: "gists/\(transport.encode(gistId))", method: "DELETE"))
     }
 
-    /// `GET /gists/{id}/star`: 204 when starred, 404 when not.
     public func isStarred(id: String) async throws -> Bool {
         let gistId = try validatedId(id)
         do {
@@ -220,7 +184,6 @@ public struct GitHubGistClient: Sendable {
         }
     }
 
-    /// `PUT /gists/{id}/star`.
     public func starGist(id: String) async throws {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -229,7 +192,6 @@ public struct GitHubGistClient: Sendable {
         try await transport.performVoid(transport.request(path: "gists/\(transport.encode(gistId))/star", method: "PUT"))
     }
 
-    /// `DELETE /gists/{id}/star`.
     public func unstarGist(id: String) async throws {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -238,13 +200,11 @@ public struct GitHubGistClient: Sendable {
         try await transport.performVoid(transport.request(path: "gists/\(transport.encode(gistId))/star", method: "DELETE"))
     }
 
-    /// `GET /gists/{id}/comments`.
     public func fetchComments(gistId: String) async throws -> [GitHubGistComment] {
         let id = try validatedId(gistId)
         return try await transport.perform(transport.request(path: "gists/\(transport.encode(id))/comments"))
     }
 
-    /// `POST /gists/{id}/comments`.
     public func createComment(gistId: String, body: String) async throws -> GitHubGistComment {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -254,13 +214,11 @@ public struct GitHubGistClient: Sendable {
         return try await transport.perform(transport.request(path: "gists/\(transport.encode(id))/comments", method: "POST", body: payload))
     }
 
-    /// The `history` of `GET /gists/{id}`: the gist's revisions.
     public func fetchRevisions(gistId: String) async throws -> [GitHubGistRevision] {
         let gist = try await fetchGist(id: gistId)
         return gist.history
     }
 
-    /// `GET /gists/{id}/{sha}`: the gist as it was at one revision.
     public func fetchGistAtRevision(id: String, sha: String) async throws -> GitHubGist {
         let gistId = try validatedId(id)
         let revision = sha.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -271,10 +229,6 @@ public struct GitHubGistClient: Sendable {
             path: "gists/\(transport.encode(gistId))/\(transport.encode(revision))"))
     }
 
-    // MARK: - Fork / download / upload (Legacy `GitHubGistService` remainder)
-
-    /// `POST /gists/{id}/forks`: forks the gist into the authenticated
-    /// user's account and returns the fork. Requires a token.
     public func forkGist(id: String) async throws -> GitHubGist {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -283,10 +237,6 @@ public struct GitHubGistClient: Sendable {
         return try await transport.perform(transport.request(path: "gists/\(transport.encode(gistId))/forks", method: "POST"))
     }
 
-    /// The clone URL for a gist (Legacy `GitHubGistService.cloneURL`):
-    /// the SSH push URL for `useSSH`, else the HTTPS pull URL, falling
-    /// back to the canonical `gist.github.com` forms when the API did
-    /// not return them.
     public func cloneURL(for gist: GitHubGist, useSSH: Bool) -> String {
         if useSSH {
             if let push = gist.gitPushUrl, !push.isEmpty {
@@ -300,11 +250,6 @@ public struct GitHubGistClient: Sendable {
         return "https://gist.github.com/\(gist.id).git"
     }
 
-    /// Uploads the files at `urls` into an existing gist (Legacy
-    /// `GitHubGistService.uploadFilesToGist`): each URL is a file or a
-    /// directory (enumerated, hidden files skipped); unreadable files
-    /// are skipped, and an empty selection throws. Returns the updated
-    /// gist. Requires a token.
     public func uploadFilesToGist(id: String, urls: [URL]) async throws -> GitHubGist {
         guard !(transport.tokenProvider() ?? "").isEmpty else {
             throw GitHubError.missingToken
@@ -321,12 +266,6 @@ public struct GitHubGistClient: Sendable {
         return try await updateGist(id: id, description: nil, files: imported)
     }
 
-    /// Downloads a gist as a ZIP archive (Legacy
-    /// `GitHubGistService.downloadGistZip`): the latest revision (or
-    /// `HEAD` when the gist has no history) from
-    /// `gist.github.com/{id}/archive/{revision}.zip`, written to a
-    /// temporary file. Returns the temporary file's URL; the caller
-    /// owns it.
     public func downloadGistZip(gistId: String) async throws -> URL {
         let gist = try await fetchGist(id: gistId)
         let revision = gist.history.first?.version ?? "HEAD"
@@ -382,9 +321,6 @@ public struct GitHubGistClient: Sendable {
     }
 }
 
-// MARK: - Private bodies
-
-/// `POST /gists`. Nil fields are omitted.
 private struct GistCreateBody: Encodable {
     var description: String?
     var isPublic: Bool
@@ -396,20 +332,15 @@ private struct GistCreateBody: Encodable {
     }
 }
 
-/// `PATCH /gists/{id}`. Nil fields are omitted; a file with a nil
-/// `content` is deleted.
 private struct GistUpdateBody: Encodable {
     var description: String?
     var files: [String: GistFileBody]
 }
 
-/// One file in a create/update body. `content: nil` deletes the file
-/// on update.
 private struct GistFileBody: Encodable {
     var content: String?
 }
 
-/// `POST /gists/{id}/comments`.
 private struct GistCommentBody: Encodable {
     var body: String
 }

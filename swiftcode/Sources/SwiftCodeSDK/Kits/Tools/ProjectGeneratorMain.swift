@@ -1,10 +1,5 @@
 import Foundation
 
-/// `project-generator` tool (Legacy `Sources/Tools/ProjectGenerator/main.swift`).
-///
-/// `project-generator <type> <name> [--out <dir>]`. Library entry point:
-/// the executable target wraps it in a thin `@main` that calls
-/// `exit(ProjectGeneratorMain.run(...))`.
 public enum ProjectGeneratorMain {
     public static func run(arguments: [String]) -> Int32 {
         let args = arguments

@@ -1,7 +1,5 @@
 import Foundation
 
-/// Mathematical implementation of Eugene Myers' O(ND) Difference Algorithm with path backtracking.
-/// Provides authentic shortest-edit-script (SES) unified diffs with precise line mapping and hunks.
 public struct MyersDiffAlgorithm: Sendable {
     public static let shared = MyersDiffAlgorithm()
 
@@ -20,7 +18,6 @@ public struct MyersDiffAlgorithm: Sendable {
         }
     }
 
-    /// Computes the exact edit script comparing `old` lines to `new` lines using the Myers O(ND) algorithm.
     public func computeEditScript(old: [String], new: [String]) -> [DiffEdit] {
         let n = old.count
         let m = new.count
@@ -30,7 +27,6 @@ public struct MyersDiffAlgorithm: Sendable {
         if n == 0 { return new.map { .insert(line: $0) } }
         if m == 0 { return old.map { .delete(line: $0) } }
 
-        // V array offset by maxD to support negative k indices (-maxD ... maxD)
         let vSize = 2 * maxD + 1
         let offset = maxD
 
@@ -48,14 +44,13 @@ public struct MyersDiffAlgorithm: Sendable {
                 var x: Int
 
                 if k == -d || (k != d && v[kIndex - 1] < v[kIndex + 1]) {
-                    x = v[kIndex + 1] // Move down (deletion)
+                    x = v[kIndex + 1]
                 } else {
-                    x = v[kIndex - 1] + 1 // Move right (insertion)
+                    x = v[kIndex - 1] + 1
                 }
 
                 var y = x - k
 
-                // Follow diagonal snake (matching lines)
                 while x < n && y < m && old[x] == new[y] {
                     x += 1
                     y += 1
@@ -73,7 +68,6 @@ public struct MyersDiffAlgorithm: Sendable {
             if reachedEnd { break }
         }
 
-        // Backtrack path from (N, M) to (0, 0)
         var edits: [DiffEdit] = []
         var curX = n
         var curY = m
@@ -94,7 +88,6 @@ public struct MyersDiffAlgorithm: Sendable {
             let prevX = vPrev[prevKIndex]
             let prevY = prevX - prevK
 
-            // Backtrack diagonal snake matches
             while curX > prevX && curY > prevY {
                 curX -= 1
                 curY -= 1
@@ -103,18 +96,15 @@ public struct MyersDiffAlgorithm: Sendable {
 
             if d > 0 {
                 if curX == prevX {
-                    // Vertical step: insertion
                     curY -= 1
                     edits.append(.insert(line: new[curY]))
                 } else {
-                    // Horizontal step: deletion
                     curX -= 1
                     edits.append(.delete(line: old[curX]))
                 }
             }
         }
 
-        // Backtrack remaining diagonal from step 0
         while curX > 0 && curY > 0 {
             curX -= 1
             curY -= 1
@@ -124,12 +114,10 @@ public struct MyersDiffAlgorithm: Sendable {
         return edits.reversed()
     }
 
-    /// Computes unified diff hunks with standard context lines.
     public func computeUnifiedHunks(old: [String], new: [String], contextLines: Int = 3) -> [DiffHunk] {
         let edits = computeEditScript(old: old, new: new)
         if edits.isEmpty { return [] }
 
-        // Check if there are any changes
         let hasChanges = edits.contains { edit in
             if case .keep = edit { return false }
             return true
@@ -161,7 +149,6 @@ public struct MyersDiffAlgorithm: Sendable {
             }
         }
 
-        // Identify ranges of changes
         var changeIndices: [Int] = []
         for (idx, item) in indexed.enumerated() {
             if case .keep = item.edit {} else {
@@ -171,7 +158,6 @@ public struct MyersDiffAlgorithm: Sendable {
 
         if changeIndices.isEmpty { return [] }
 
-        // Group change indices into hunk clusters based on context distance
         var hunkRanges: [ClosedRange<Int>] = []
         var currentRangeStart = max(0, changeIndices[0] - contextLines)
         var currentRangeEnd = min(indexed.count - 1, changeIndices[0] + contextLines)
@@ -181,7 +167,6 @@ public struct MyersDiffAlgorithm: Sendable {
             let nextEnd = min(indexed.count - 1, idx + contextLines)
 
             if nextStart <= currentRangeEnd + 1 {
-                // Merge into current hunk
                 currentRangeEnd = max(currentRangeEnd, nextEnd)
             } else {
                 hunkRanges.append(currentRangeStart...currentRangeEnd)
@@ -191,7 +176,6 @@ public struct MyersDiffAlgorithm: Sendable {
         }
         hunkRanges.append(currentRangeStart...currentRangeEnd)
 
-        // Convert grouped ranges into standard DiffHunks
         var hunks: [DiffHunk] = []
 
         for range in hunkRanges {
@@ -241,7 +225,6 @@ public struct MyersDiffAlgorithm: Sendable {
         return hunks
     }
 
-    /// Computes unified diff result comparing old and new strings directly.
     public func computeUnifiedDiff(
         filePath: String,
         oldContent: String,
@@ -284,7 +267,6 @@ public struct MyersDiffAlgorithm: Sendable {
         )
     }
 
-    /// Legacy compatibility bridge for GitDiffHunk consumers.
     public func diff(old: [String], new: [String]) -> [GitDiffHunk] {
         let hunks = computeUnifiedHunks(old: old, new: new, contextLines: 3)
         if hunks.isEmpty {
@@ -293,8 +275,6 @@ public struct MyersDiffAlgorithm: Sendable {
         return hunks.map { GitDiffHunk(header: $0.header, lines: $0.lines) }
     }
 }
-
-// MARK: - Assist v4 Live Myers Diff Streamer
 
 import Observation
 import os
@@ -363,25 +343,20 @@ public struct LiveFileEditEvent: Identifiable, Sendable, Codable {
     }
 }
 
-/// Central live streamer for incremental file diff visualization during active Assist file modifications.
-/// Connects file-modifying tools directly to `AgentChangeSummaryView`.
 @Observable
 @MainActor
 public final class LiveDiffStreamer: Sendable {
     public static let shared = LiveDiffStreamer()
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "LiveDiffStreamer")
 
-    /// Active in-flight file edits currently undergoing mutation
     public var activeStreams: [String: LiveFileEditEvent] = [:]
 
-    /// Chronological history of all live file edits in the current session
     public var recentEdits: [LiveFileEditEvent] = []
 
     private var sequenceCounter = 0
 
     public init() {}
 
-    /// Registers that a file modification tool has begun an edit on a specific target file.
     @discardableResult
     public func beginEdit(
         sessionId: String = UUID().uuidString,
@@ -424,7 +399,6 @@ public final class LiveDiffStreamer: Sendable {
         return opId
     }
 
-    /// Emits an in-flight mutation update, calculating Myers diff hunks and pushing updates to the UI in real time.
     public func streamMutation(
         filePath: String,
         currentContent: String,
@@ -445,7 +419,6 @@ public final class LiveDiffStreamer: Sendable {
         event.currentContent = currentContent
         event.isFinal = isFinal
 
-        // Compute authentic Myers diff
         let diffResult = MyersDiffAlgorithm.shared.computeUnifiedDiff(
             filePath: filePath,
             oldContent: event.beforeContent,
@@ -462,7 +435,6 @@ public final class LiveDiffStreamer: Sendable {
         logger.debug("[streamMutation] Streamed '\(filePath)': +\(diffResult.addedLines) / -\(diffResult.removedLines) lines (\(diffResult.hunks.count) hunks)")
     }
 
-    /// Marks the active edit as complete and reconciles with disk state.
     public func completeEdit(
         filePath: String,
         finalContent: String
@@ -485,7 +457,6 @@ public final class LiveDiffStreamer: Sendable {
         }
     }
 
-    /// Reconciles an in-flight diff with the actual disk contents.
     public func reconcileWithDisk(
         filePath: String,
         actualDiskContent: String
@@ -526,17 +497,14 @@ public final class LiveDiffStreamer: Sendable {
         )
     }
 
-    /// Cancels an in-flight edit stream safely without leaving stale UI state.
     public func cancelStream(filePath: String) {
         activeStreams.removeValue(forKey: filePath)
         logger.info("[cancelStream] Cancelled active stream for '\(filePath)'")
     }
 
-    /// Clears all streams across all files.
     public func clearAll() {
         activeStreams.removeAll()
         recentEdits.removeAll()
         sequenceCounter = 0
     }
 }
-

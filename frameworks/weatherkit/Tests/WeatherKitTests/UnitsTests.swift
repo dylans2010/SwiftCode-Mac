@@ -1,5 +1,3 @@
-// Units (api.md §6): values arrive in the REST API's metric units, as
-// Foundation Measurements that convert correctly.
 import Foundation
 import Testing
 @testable import WeatherKit
@@ -32,7 +30,6 @@ struct UnitsTests {
         #expect(abs(speed.converted(to: .metersPerSecond).value - speed.value / 3.6) < 1e-3)
         #expect(speed == Measurement(value: speed.value, unit: UnitSpeed.kilometersPerHour))
         let snowy = try #require(weather.minuteForecast?.first { $0.precipitation == .snow })
-        // 0.4 mm/h in metres per second.
         #expect(abs(snowy.precipitationIntensity.converted(to: .metersPerSecond).value - 0.4 / 3_600_000) < 1e-15)
         let swiftcodeUnit = Measurement(value: 0.4, unit: WeatherUnits.millimetersPerHour)
         #expect(swiftcodeUnit == snowy.precipitationIntensity)

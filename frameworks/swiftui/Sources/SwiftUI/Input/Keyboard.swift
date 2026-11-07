@@ -6,16 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Hardware keyboard: key equivalents and keyboard shortcuts (06 §5; names per
-// api-inventory.md "Gestures, input" and "Controls"). Shortcuts registered by
-// controls (`Button`) in a window are matched against key presses that the
-// focused text field did not use.
-//
-// Linux mapping (our rule): `.command` in a shortcut is the desktop's primary
-// modifier, so it matches Ctrl (and the Super key); `.control` matches Ctrl,
-// `.option` Alt.
-
-/// A key used in a keyboard shortcut.
 public struct KeyEquivalent: Sendable, Hashable, ExpressibleByExtendedGraphemeClusterLiteral {
     public var character: Character
 
@@ -38,7 +28,6 @@ public struct KeyEquivalent: Sendable, Hashable, ExpressibleByExtendedGraphemeCl
     public static let space = KeyEquivalent(" ")
     public static let `return` = KeyEquivalent("\r")
 
-    /// The equivalent of a platform key (character keys in lower case).
     package init?(platformKey key: Key) {
         switch key {
         case .character(let c): self.init(Character(c.lowercased()))
@@ -57,15 +46,12 @@ public struct KeyEquivalent: Sendable, Hashable, ExpressibleByExtendedGraphemeCl
         case .pageUp: self = .pageUp
         case .pageDown: self = .pageDown
         case .clear: self = .clear
-        // F1… as AppKit's function-key characters (F1 is U+F704), so a
-        // shortcut written that way (F6 for Step Over) matches.
         case .function(let n) where (1...35).contains(n): self.init(Character(UnicodeScalar(UInt32(0xF703 + n))!))
         case .function, .other: return nil
         }
     }
 }
 
-/// A key and modifiers that trigger a control.
 public struct KeyboardShortcut: Sendable, Hashable {
     public struct Localization: Sendable, Hashable {
         let kind: Int
@@ -88,12 +74,9 @@ public struct KeyboardShortcut: Sendable, Hashable {
         self.localization = localization
     }
 
-    /// Return, no modifiers: the default button of a window or dialog.
     public static let defaultAction = KeyboardShortcut(.return, modifiers: [])
-    /// Escape, no modifiers.
     public static let cancelAction = KeyboardShortcut(.escape, modifiers: [])
 
-    /// Whether a key press triggers this shortcut (Linux mapping above).
     package func matches(key: KeyEquivalent, modifiers m: KeyModifiers) -> Bool {
         guard key.character.lowercased() == self.key.character.lowercased() else { return false }
         let wantShift = modifiers.contains(.shift), wantOption = modifiers.contains(.option)
@@ -110,7 +93,6 @@ public struct KeyboardShortcut: Sendable, Hashable {
 private enum KeyboardShortcutKey: EnvironmentKey { static let defaultValue: KeyboardShortcut? = nil }
 
 extension EnvironmentValues {
-    /// The shortcut a `keyboardShortcut` modifier gave the controls below it.
     package var _keyboardShortcut: KeyboardShortcut? {
         get { self[KeyboardShortcutKey.self] }
         set { self[KeyboardShortcutKey.self] = newValue }
@@ -118,7 +100,6 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Gives the controls in this view a keyboard shortcut.
     public func keyboardShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = .command) -> some View {
         environment(\._keyboardShortcut, KeyboardShortcut(key, modifiers: modifiers))
     }
@@ -132,21 +113,17 @@ extension View {
         environment(\._keyboardShortcut, shortcut)
     }
 
-    /// A nil shortcut removes the shortcut of the controls below.
     public func keyboardShortcut(_ shortcut: KeyboardShortcut?) -> some View {
         environment(\._keyboardShortcut, shortcut)
     }
 }
 
-/// The shortcuts of one window's controls.
 @MainActor
 package final class ShortcutRegistry {
     package struct Entry {
         package let shortcut: KeyboardShortcut
         package let action: () -> Void
         package let isEnabled: () -> Bool
-        /// A menu command's shortcut (R11): tried after the shortcuts of the
-        /// window's own views.
         package var isCommand = false
         package init(shortcut: KeyboardShortcut, action: @escaping () -> Void, isEnabled: @escaping () -> Bool,
                      isCommand: Bool = false) {
@@ -179,22 +156,15 @@ package final class ShortcutRegistry {
 
     package var count: Int { entries.count }
 
-    /// The registered shortcuts (tests).
     package var registered: [Entry] { entries.map(\.entry) }
 
-    /// Whether an enabled shortcut (a view's or a menu command's) takes the
-    /// key press. Text fields leave such keys to it (Ctrl+Y: an app's ⌘Y
-    /// rather than the field's Redo).
     package func hasEnabledShortcut(key: Key, modifiers: KeyModifiers) -> Bool {
         guard let k = KeyEquivalent(platformKey: key) else { return false }
         return entries.contains { $0.entry.shortcut.matches(key: k, modifiers: modifiers) && $0.entry.isEnabled() }
     }
 
-    /// Runs the first enabled shortcut matching the key press; true if one ran.
     package func perform(key: Key, modifiers: KeyModifiers) -> Bool {
         guard let k = KeyEquivalent(platformKey: key) else { return false }
-        // Views first, then menu commands (R11: the focused window's views,
-        // then its menu bar, as desktop key equivalents go).
         for pass in [false, true] {
             for e in entries where e.entry.isCommand == pass && e.entry.shortcut.matches(key: k, modifiers: modifiers)
                 && e.entry.isEnabled() {
@@ -206,7 +176,6 @@ package final class ShortcutRegistry {
     }
 }
 
-/// How text input capitalises typed letters.
 public struct TextInputAutocapitalization: Sendable, Equatable {
     package enum Kind: Sendable, Equatable { case never, words, sentences, characters }
     package let kind: Kind
@@ -218,9 +187,6 @@ public struct TextInputAutocapitalization: Sendable, Equatable {
 }
 
 private enum AutocapitalizationKey: EnvironmentKey { static let defaultValue: TextInputAutocapitalization? = nil }
-/// The platform's default when no modifier sets one: sentences, as measured
-/// on the reference device (06 §5: "Hi" from the keys h, i). The Linux
-/// desktop host sets `.never` (desktop text fields do not capitalise).
 private enum DefaultAutocapitalizationKey: EnvironmentKey {
     static let defaultValue = TextInputAutocapitalization.sentences
 }
@@ -238,11 +204,9 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// How text fields below capitalise typed letters.
     public func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> some View {
         environment(\._textInputAutocapitalization, autocapitalization)
     }
 
-    /// Accepted for source compatibility; there is no autocorrection.
     public func autocorrectionDisabled(_ disable: Bool = true) -> some View { self }
 }

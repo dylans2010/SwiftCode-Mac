@@ -4,19 +4,7 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// Thread state that other threads read while its owner runs an IPC fast
-/// path (`specs/simulator/mach-ipc-locking.md` §4.2): `thread_get_state`
-/// runs on the locked path (L0, then the port lock) and copies the target's
-/// entry frame, which the target's own host thread sets and clears at every
-/// trap, also on the fast paths (no L0).
 @Suite struct ThreadStateRaceTests {
-    /// Target threads make fast `mach_msg` receives (timeout 0, empty port)
-    /// as fast as they can; reader threads of the same task call
-    /// `thread_get_state` on them over and over. Every successful read must
-    /// be a whole entry frame of the target's trap (x16 = −31, the port in
-    /// x4). Without a lock of its own on the entry frame, a reader copies a
-    /// frame while its owner replaces it (a use after free of the register
-    /// array: the host crash of boots after the lock split).
     @Test func threadGetStateWhileTargetsTakeFastPaths() throws {
         let w = SplitWorld()
         let t = try w.add(pid: 610)
@@ -42,7 +30,7 @@ import SwiftCodeDarwinABI
             })
         }
 
-        let flavor: UInt64 = 6  // ARM_THREAD_STATE64, 68 words
+        let flavor: UInt64 = 6
         var readerWaits: [() -> (ok: Int, running: Int, bad: Int)?] = []
         for r in 0..<3 {
             let ctx = w.thread(t)
@@ -54,7 +42,6 @@ import SwiftCodeDarwinABI
                 while Date() < deadline {
                     k += 1
                     let i = k % targets.count
-                    // Every other read on the routine's fast path (G under the event lock, mach-ipc-locking.md §4.10).
                     let code = w.kr(t, ctx, Int64(MachIPC.Routine.threadGetState),
                                     [UInt64(targets[i].portName), flavor, state, count], fast: k % 2 == 0)
                     switch code {
@@ -67,7 +54,7 @@ import SwiftCodeDarwinABI
                             bad += 1
                         }
                     case MachKern.failure:
-                        running += 1  // between two traps
+                        running += 1
                     default:
                         bad += 1
                     }
@@ -95,13 +82,6 @@ import SwiftCodeDarwinABI
         print("thread_get_state race: \(traps) fast traps, \(reads.ok) frames read, \(reads.running) between traps")
     }
 
-    /// The access `thread_get_state` makes, without the routine around it
-    /// (so millions of reads in a short run): copies of the target's entry
-    /// frame under L0 while the target takes fast `mach_msg` traps. Before
-    /// the entry frame had a lock of its own this crashed the test process
-    /// within a second on the x86-64 workstation (a register array released
-    /// twice, or retained after it was freed); every frame read must be the
-    /// target's trap frame.
     @Test func entryFrameReadUnderL0WhileTargetTakesFastPaths() throws {
         let w = SplitWorld()
         let t = try w.add(pid: 611)

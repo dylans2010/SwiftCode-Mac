@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Rust Support Extension View
 struct RustSupportExtensionView: View {
     @State private var isEnabled = true
     @State private var edition = "2021"

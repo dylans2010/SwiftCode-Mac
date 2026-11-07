@@ -37,4 +37,3 @@ public struct AIMessage: Identifiable, Sendable, Codable, Hashable {
         self.attachments = attachments
     }
 }
-

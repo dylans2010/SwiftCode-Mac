@@ -1,15 +1,11 @@
 import Foundation
 
-/// Context the user attached to a message.
 public struct Attachment: Codable, Sendable, Equatable, Hashable {
     public enum Kind: String, Codable, Sendable { case file, selection }
     public var kind: Kind
-    /// Workspace-relative path.
     public var path: String
-    /// 1-based lines of a selection.
     public var startLine: Int?
     public var endLine: Int?
-    /// The text sent (the file's or the selection's).
     public var text: String
 
     public init(kind: Kind, path: String, startLine: Int? = nil, endLine: Int? = nil, text: String) {
@@ -20,7 +16,6 @@ public struct Attachment: Codable, Sendable, Equatable, Hashable {
         self.text = text
     }
 
-    /// "App.swift" or "App.swift:12–20".
     public var label: String {
         let name = (path as NSString).lastPathComponent
         guard kind == .selection, let s = startLine, let e = endLine else { return name }
@@ -28,11 +23,8 @@ public struct Attachment: Codable, Sendable, Equatable, Hashable {
     }
 }
 
-/// Where a proposal that names no file applies: the file and selection the
-/// request was made from.
 public struct ProposalTarget: Codable, Sendable, Equatable {
     public var path: String
-    /// The selection as UTF-16 offsets in the file when the request was made.
     public var selectionLocation: Int?
     public var selectionLength: Int?
     public var selectionText: String?
@@ -47,23 +39,15 @@ public struct ProposalTarget: Codable, Sendable, Equatable {
 public struct ConversationMessage: Codable, Sendable, Equatable, Identifiable {
     public var id: UUID
     public var role: ChatRole
-    /// What the user typed, or the response text so far.
     public var text: String
     public var attachments: [Attachment]
     public var date: Date
-    /// "Ollama · qwen2.5-coder" for responses.
     public var source: String?
-    /// The response's failure, shown under its text.
     public var error: String?
-    /// False while the response streams.
     public var isComplete: Bool
-    /// Agent-tool activity lines shown with the response.
     public var activity: [String]
-    /// For responses: where file-less proposals apply.
     public var target: ProposalTarget?
-    /// Indexes of proposals the user accepted or rejected.
     public var resolvedProposals: [Int: ProposalResolution]
-    /// The reply stopped at the output limit (nil in older saves: no).
     public var isCutOff: Bool?
 
     public init(id: UUID = UUID(), role: ChatRole, text: String, attachments: [Attachment] = [], date: Date = Date(), source: String? = nil,
@@ -91,9 +75,7 @@ public struct Conversation: Codable, Sendable, Equatable, Identifiable {
     public var messages: [ConversationMessage]
     public var provider: ProviderKind?
     public var model: String?
-    /// The group the conversation is filed in (nil: the top level).
     public var groupID: UUID?
-    /// Filed in the Archive group (reference-ui-6.md §9.2).
     public var isArchived: Bool
 
     public static let untitled = "New Conversation"
@@ -112,7 +94,6 @@ public struct Conversation: Codable, Sendable, Equatable, Identifiable {
 
     enum CodingKeys: String, CodingKey { case id, title, created, messages, provider, model, groupID, isArchived }
 
-    /// Files saved before groups existed have no group or archive keys.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -125,23 +106,19 @@ public struct Conversation: Codable, Sendable, Equatable, Identifiable {
         isArchived = try c.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
     }
 
-    /// A response is streaming.
     public var isActive: Bool { messages.last.map { $0.role == .assistant && !$0.isComplete } ?? false }
 
-    /// The title from the first prompt (at most 48 characters).
     public static func title(fromPrompt p: String) -> String {
         let line = p.split(whereSeparator: \.isNewline).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
         guard !line.isEmpty else { return untitled }
         return line.count > 48 ? String(line.prefix(47)) + "…" : line
     }
 
-    /// The earlier turns as chat messages (completed, without errors).
     public var history: [ChatMessage] {
         messages.filter { $0.isComplete && $0.error == nil && !$0.text.isEmpty }.map { ChatMessage($0.role, $0.text) }
     }
 }
 
-/// A user-made group in the conversation list (reference-ui-6.md §9.2).
 public struct ConversationGroup: Codable, Sendable, Equatable, Identifiable {
     public var id: UUID
     public var title: String
@@ -156,10 +133,6 @@ public struct ConversationGroup: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// The conversations and groups of one list, and the outline the pane
-/// shows: the groups (oldest first, each with its conversations), the
-/// conversations outside any group, then the Archive group, always last
-/// and shown even when empty. Conversations are newest first everywhere.
 public struct ConversationLibrary: Codable, Sendable, Equatable {
     public var conversations: [Conversation]
     public var groups: [ConversationGroup]
@@ -181,13 +154,11 @@ public struct ConversationLibrary: Codable, Sendable, Equatable {
         let newestFirst = conversations.reversed()
         let known = Set(groups.map(\.id))
         var nodes: [Node] = groups.map { g in .group(g, newestFirst.filter { !$0.isArchived && $0.groupID == g.id }) }
-        // A conversation whose group is gone shows at the top level.
         nodes += newestFirst.filter { !$0.isArchived && ($0.groupID.map { !known.contains($0) } ?? true) }.map(Node.conversation)
         nodes.append(.archive(newestFirst.filter(\.isArchived)))
         return nodes
     }
 
-    /// A group title not yet used: "New Group", "New Group 2", ….
     public func unusedGroupTitle(_ base: String = ConversationGroup.untitled) -> String {
         let used = Set(groups.map(\.title))
         guard used.contains(base) else { return base }
@@ -197,7 +168,6 @@ public struct ConversationLibrary: Codable, Sendable, Equatable {
     }
 }
 
-/// Saves conversations as JSON (in SwiftCode's user data, never in a workspace).
 public enum ConversationArchive {
     static var decoder: JSONDecoder {
         let d = JSONDecoder()
@@ -205,8 +175,6 @@ public enum ConversationArchive {
         return d
     }
 
-    /// The conversations and groups; a file written before groups existed
-    /// (a plain list of conversations) is read too.
     public static func loadLibrary(_ url: URL) -> ConversationLibrary {
         guard let d = try? Data(contentsOf: url) else { return ConversationLibrary() }
         if let library = try? decoder.decode(ConversationLibrary.self, from: d) { return library }
@@ -223,7 +191,6 @@ public enum ConversationArchive {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
-        // A response still streaming is saved as interrupted.
         var settled = library
         settled.conversations = library.conversations.map { c -> Conversation in
             var c = c

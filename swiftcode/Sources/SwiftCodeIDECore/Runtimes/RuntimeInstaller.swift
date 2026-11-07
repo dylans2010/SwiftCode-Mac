@@ -1,10 +1,3 @@
-// From an unpacked asset (or an exported bundle the user copied, route A) to
-// a runtime in SwiftCode's folder (`runtime-downloads.md` §5.1, §6.2 steps 3–7):
-// validate the bundle, read the disk image's APFS volume, put the
-// `.simruntime`'s RuntimeRoot at `<runtimes>/<token>-<version>-<build>/RuntimeRoot`
-// with `profile.plist` and `runtime-Info.plist` beside it, write SwiftCode's
-// marker (its registry) and remove the archives. Portable.
-
 import Foundation
 
 public struct RuntimeInstaller: Sendable {
@@ -16,7 +9,6 @@ public struct RuntimeInstaller: Sendable {
         self.reader = reader
     }
 
-    /// A bundle as §5.1 lays it out.
     public struct Bundle: Sendable, Equatable {
         public var root: String
         public var dmg: String
@@ -24,9 +16,6 @@ public struct RuntimeInstaller: Sendable {
         public var version: String?
     }
 
-    /// Step 3: the folder holding `Restore/` (the unpacked tree, an
-    /// `.exportedBundle`, or a folder above one), its DMG, and the build and
-    /// version its plists name.
     public static func locateBundle(_ path: String, fileManager fm: FileManager = .default) throws -> Bundle {
         var queue = [(path, 0)]
         while !queue.isEmpty {
@@ -62,7 +51,6 @@ public struct RuntimeInstaller: Sendable {
         d.flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }
     }
 
-    /// The `.simruntime` bundle inside a mounted or extracted volume (§5.2).
     public static func findSimRuntime(in volume: String, fileManager fm: FileManager = .default) -> String? {
         for base in [volume + "/Library/Developer/CoreSimulator/Profiles/Runtimes", volume + "/Runtimes", volume] {
             if let n = ((try? fm.contentsOfDirectory(atPath: base)) ?? []).sorted().first(where: { $0.hasSuffix(".simruntime") }) {
@@ -72,8 +60,6 @@ public struct RuntimeInstaller: Sendable {
         return nil
     }
 
-    /// Steps 4–6. `expect` names the build the user chose (nil for an import
-    /// of whatever the bundle is). Returns the new runtime.
     public func install(bundle: Bundle, expectBuild: String?, marker: @escaping @Sendable (SimRuntimeRecord) -> RuntimeMarker, replace: Bool = false,
                         work: String, cancel: RuntimeCancellation, log: @escaping @Sendable (String) -> Void) async throws -> SimRuntimeRecord {
         if let expectBuild, let b = bundle.build, b != expectBuild {
@@ -115,8 +101,6 @@ public struct RuntimeInstaller: Sendable {
         }
     }
 
-    /// A rename when source and destination share a file system (the
-    /// extracted volume), else a copy that keeps modes, links and attributes.
     static func moveOrCopy(_ source: String, to dest: String, cancel: RuntimeCancellation) async throws {
         if rename(source, dest) == 0 { return }
         #if os(macOS)

@@ -3,9 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// `SWIFTCODE_WAKE_AFTER_UNLOCK` (thread-latency.md §4): wakeups made under the
-/// kernel lock are delivered after it is released; none is lost, also with
-/// many wakers and waiters, timeouts, and a waker that waits itself.
 @Suite(.serialized) struct WakeAfterUnlockTests {
     final class Shared: @unchecked Sendable {
         let lock = KernelLock()
@@ -27,9 +24,6 @@ import SwiftCodeDarwinABI
         defer { KernelLock.wakeAfterUnlock = saved }
         let s = Shared()
         let rounds = 2000
-        // Each side waits for its turn, then hands it over and wakes the
-        // other side while still holding the lock; the hand-over that
-        // follows a wake makes the waker sleep in the same hold.
         let a = spawn {
             for _ in 0..<rounds {
                 s.lock.withLock {

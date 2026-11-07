@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// `LicenseCatalog.loadTemplates(directory:)` against a fixture
-/// directory (the bundle path is not covered — the SPDX corpus is not
-/// wired into any target's resources yet; see `LicenseCatalog`).
 @Suite struct LicenseCatalogTests {
     private func fixtureDirectory() throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("LicenseCatalogTests-\(UUID().uuidString)", isDirectory: true)

@@ -1,10 +1,3 @@
-// AgentChecklistView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Agent/AgentChecklistView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: checklist UI with per-step status icons
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AgentChecklistState, AgentChecklistTaskStatus.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct AgentChecklistView: View {

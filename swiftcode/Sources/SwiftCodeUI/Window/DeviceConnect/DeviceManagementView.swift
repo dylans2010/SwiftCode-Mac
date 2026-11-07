@@ -1,9 +1,3 @@
-// DeviceManagementView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/DeviceManagementView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: local simctl device management UI; Delete-device action in the UI; creation / diagnostics sheet entry points
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -15,7 +9,6 @@ struct DeviceManagementView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Device Registry", systemImage: "macbook.and.iphone")
                     .font(.headline)
@@ -50,7 +43,6 @@ struct DeviceManagementView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

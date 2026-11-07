@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-// SAFETY: ProcessExecutor is marked @unchecked Sendable because all access to the underlying Process object
-// and its termination/mutation state is synchronized internally via an NSLock instance (lock), ensuring thread-safety.
 public final class ProcessExecutor: @unchecked Sendable {
     private let process = Process()
     private let lock = NSLock()
@@ -67,14 +65,12 @@ public actor CommandExecutionEngine {
         Logger.process.debug("Starting execution of command: \(spec.executableURL.path) \(spec.arguments.joined(separator: " "))")
 
         #if !os(macOS)
-        // High fidelity non-macOS simulation fallback for compile/test environments
         try? await Task.sleep(for: .milliseconds(150))
         let simulated = makeSimulatedResponse(for: spec, id: recordID, startedAt: startedAt)
         appendToHistory(simulated)
         return simulated
         #else
 
-        // Check if executable exists on macOS
         guard FileManager.default.fileExists(atPath: spec.executableURL.path) else {
             let record = CommandExecutionRecord(
                 id: recordID,
@@ -91,7 +87,6 @@ public actor CommandExecutionEngine {
             return record
         }
 
-        // Standard execution logic
         var currentAttempt = 0
         let maxAttempts: Int = {
             if case .standard(let maxRetries, _) = spec.retryPolicy {
@@ -104,7 +99,6 @@ public actor CommandExecutionEngine {
 
         while currentAttempt < maxAttempts {
             if currentAttempt > 0 {
-                // Apply backoff delay if retry is configured
                 if case .standard(_, let backoffs) = spec.retryPolicy, currentAttempt - 1 < backoffs.count {
                     let backoff = backoffs[currentAttempt - 1]
                     try? await Task.sleep(for: backoff)
@@ -115,23 +109,18 @@ public actor CommandExecutionEngine {
             let attemptRecord = await runSingleProcessExecution(spec: spec, recordID: recordID, startedAt: startedAt)
             lastRecord = attemptRecord
 
-            // Determine if we should retry
             switch attemptRecord.outcome {
             case .success, .nonZeroExit:
-                // Do not retry on successful launch or explicit non-zero exits (not transient process failures)
                 appendToHistory(attemptRecord)
                 return attemptRecord
             case .timedOut, .launchFailed:
-                // Retryable transient failures
                 currentAttempt += 1
             case .cancelled:
-                // Immediately cancel
                 appendToHistory(attemptRecord)
                 return attemptRecord
             }
         }
 
-        // If all attempts failed, return the last failure record
         let finalRecord = lastRecord ?? CommandExecutionRecord(
             id: recordID,
             command: spec,

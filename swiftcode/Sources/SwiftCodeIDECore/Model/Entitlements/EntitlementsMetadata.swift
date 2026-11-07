@@ -1,45 +1,6 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Core/Editor/EntitlementsEditorManager.swift
-//   (Legacy main ab03f681)
-//
-// Destination: SwiftCodeIDECore/Model/EntitlementsMetadata.swift.
-//
-// What is ported here — the Legacy entitlements METADATA model and its
-// 17-entry catalog, which the destination does not have:
-//   * EntitlementPlatform / EntitlementCategory / EntitlementValueType
-//   * EntitlementDocumentation / EntitlementMetadata / Entitlement
-//   * EntitlementValidationResult / EntitlementWarning / EntitlementError
-//   * EntitlementGroup / EntitlementSection / EntitlementCapability /
-//     EntitlementAvailability (empty marker structs in Legacy, kept verbatim)
-//   * EntitlementsCatalog.all — display name, description, supported
-//     platforms, minimum OS, default value, value type, validation rules,
-//     search keywords, recommended usage, SF symbol and display colour per key
-//
-// What is NOT ported here, and why:
-//   * EntitlementChange — already in this target
-//     (EntitlementsEditorModel.swift, same fields, timestamp defaulted).
-//   * EntitlementsEditorManager (the class: readEntitlements /
-//     writeEntitlements / validate / crossEntitlementIssues /
-//     generateRawXML / parseRawXML) — SUPERSEDED by
-//     `EntitlementsEditorModel` in this target, which ports both
-//     validation functions rule-for-rule (baseValidation +
-//     crossEntitlementIssues, same messages) and covers read/write/XML
-//     via init(url:)/save()/xmlText()/setXMLText(). The catalog above is
-//     the only behaviour the model does not carry: the destination
-//     `EntitlementCapabilityCatalog` has a larger key set but no
-//     per-entry platforms, minimum OS, search keywords, recommended
-//     usage or display colour.
-//
-// Wiring hook (landing, optional): `EntitlementsEditorController` /
-// `EntitlementsEditorView` can surface `EntitlementsCatalog.all`
-// metadata (platforms, minimum OS, keywords, recommended usage) for
-// the key being edited; nothing requires that for this file to compile.
-
 import Foundation
 
 import Foundation
-
-// MARK: - Models
 
 public enum EntitlementPlatform: String, Codable, Sendable, CaseIterable {
     case macOS
@@ -169,13 +130,10 @@ public struct EntitlementError: Codable, Sendable, Identifiable {
     }
 }
 
-// Dummy conformance stubs as requested by structural modeling:
 public struct EntitlementGroup: Codable, Sendable {}
 public struct EntitlementSection: Codable, Sendable {}
 public struct EntitlementCapability: Codable, Sendable {}
 public struct EntitlementAvailability: Codable, Sendable {}
-
-// MARK: - Entitlements Catalog
 
 public struct EntitlementsCatalog {
     public static let all: [EntitlementMetadata] = [

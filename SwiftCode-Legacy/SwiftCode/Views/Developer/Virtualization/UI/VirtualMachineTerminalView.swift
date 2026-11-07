@@ -34,7 +34,6 @@ public struct VirtualMachineTerminalView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // High-fidelity Virtual Machine Interactive Toolbar
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(vm?.name ?? "Virtual Machine Console")
@@ -45,7 +44,6 @@ public struct VirtualMachineTerminalView: View {
                 }
                 Spacer()
 
-                // Active Session VM Lifecycle Controllers
                 HStack(spacing: 8) {
                     if vm?.status != .running {
                         Button {
@@ -119,10 +117,8 @@ public struct VirtualMachineTerminalView: View {
                 .controlSize(.small)
             }
 
-            // Real Virtualization Graphics View / Shell Wrapper
             GroupBox {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Title/Header (Terminal Style)
                     HStack {
                         HStack(spacing: 6) {
                             Circle().fill(Color.red).frame(width: 8, height: 8)
@@ -135,7 +131,6 @@ public struct VirtualMachineTerminalView: View {
                             .foregroundStyle(.secondary)
                         Spacer()
 
-                        // Fullscreen / Scale Controls
                         HStack(spacing: 12) {
                             Button {
                                 capturesKeyboard.toggle()
@@ -158,7 +153,6 @@ public struct VirtualMachineTerminalView: View {
                     .padding(.vertical, 8)
                     .background(Color.secondary.opacity(0.12))
 
-                    // Rendering Area: Real Apple Virtualization Graphics View if running, else Fallback Mock Shell
                     ZStack {
                         #if canImport(Virtualization)
                         if let activeVM = realVM, vm?.status == .running {
@@ -179,7 +173,6 @@ public struct VirtualMachineTerminalView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Hardware Telemetry HUD Bar
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("STATUS")
@@ -246,7 +239,6 @@ public struct VirtualMachineTerminalView: View {
             .frame(height: isFullscreen ? 500 : 300)
             .background(Color.black)
 
-            // Terminal Input Row
             HStack(spacing: 6) {
                 Text("ubuntu@dev-workspace:~$")
                     .font(.system(.caption, design: .monospaced))
@@ -316,8 +308,6 @@ Filesystem      Size  Used Avail Use% Mounted on
     }
 }
 
-// MARK: - Native NSViewRepresentable for VZVirtualMachineView
-
 #if canImport(Virtualization)
 public struct VZVirtualMachineViewRepresentable: NSViewRepresentable {
     public let virtualMachine: VZVirtualMachine?
@@ -336,8 +326,6 @@ public struct VZVirtualMachineViewRepresentable: NSViewRepresentable {
     }
 }
 #endif
-
-// MARK: - VirtualizationMachineRunView Window Management
 
 @MainActor
 public final class VirtualizationMachineRunWindowManager: NSObject, NSWindowDelegate {
@@ -361,7 +349,6 @@ public final class VirtualizationMachineRunWindowManager: NSObject, NSWindowDele
         windowControllers.removeValue(forKey: vmID)
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow,
            let wc = window.windowController as? VirtualizationMachineRunWindowController {
@@ -382,7 +369,6 @@ public final class VirtualizationMachineRunWindowController: NSWindowController 
             backing: .buffered,
             defer: false
         )
-        // Title MUST be "VirtualizationMachineRunView" as requested
         window.title = "VirtualizationMachineRunView"
         window.minSize = NSSize(width: 800, height: 550)
         window.setFrameAutosaveName("VirtualizationMachineRunWindow_\(vmID.uuidString)")
@@ -425,7 +411,6 @@ public struct VirtualizationMachineRunView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Info and Status Controls
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(vm?.name ?? "Guest Operating System")
@@ -493,7 +478,6 @@ public struct VirtualizationMachineRunView: View {
 
             Divider()
 
-            // VM Screen Display Area
             ZStack {
                 Color.black.ignoresSafeArea()
 
@@ -513,7 +497,6 @@ public struct VirtualizationMachineRunView: View {
 
             Divider()
 
-            // Uptime & Specs Status Bar
             HStack {
                 HStack(spacing: 6) {
                     Circle()

@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Enums & Options
-
 enum CustomSymbolRenderingMode: String, CaseIterable, Identifiable {
     case monochrome = "Monochrome"
     case hierarchical = "Hierarchical"
@@ -65,17 +63,13 @@ enum PickerSymbolScaleOption: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Models
-
 struct SFSymbolRecord: Identifiable, Hashable, Sendable {
-    let id: String // Symbol name
-    let version: Int // 4, 5, or 6
+    let id: String
+    let version: Int
     let isMulticolor: Bool
 
     var name: String { id }
 }
-
-// MARK: - Resource Loader
 
 final class SFSymbolResourceLoader: Sendable {
     static let shared = SFSymbolResourceLoader()
@@ -132,8 +126,6 @@ final class SFSymbolResourceLoader: Sendable {
     }
 }
 
-// MARK: - Cache Manager
-
 actor SFSymbolCacheManager {
     static let shared = SFSymbolCacheManager()
     private var cache: [Int: [SFSymbolRecord]] = [:]
@@ -150,11 +142,9 @@ actor SFSymbolCacheManager {
     }
 }
 
-// MARK: - ViewModel
-
 @MainActor
 final class SFSymbolPickerViewModel: ObservableObject {
-    @Published var selectedVersion = 6 // 4, 5, or 6
+    @Published var selectedVersion = 6
     @Published var searchQuery = ""
     @Published var isSearching = false
     @Published var symbols: [SFSymbolRecord] = []
@@ -219,8 +209,6 @@ final class SFSymbolPickerViewModel: ObservableObject {
     }
 }
 
-// MARK: - Modernized SFSymbolPickerView
-
 struct SFSymbolPickerView: View {
     @StateObject private var viewModel = SFSymbolPickerViewModel()
     @State private var selectedSymbol: SFSymbolRecord? = nil
@@ -233,7 +221,6 @@ struct SFSymbolPickerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // High layout density header using native picker
                 HStack(spacing: 16) {
                     Picker("Version", selection: $viewModel.selectedVersion) {
                         Text("SF Symbols 6").tag(6)
@@ -254,7 +241,6 @@ struct SFSymbolPickerView: View {
 
                 Divider()
 
-                // Symbol browser grid
                 ScrollView {
                     if viewModel.isSearching {
                         VStack(spacing: 12) {
@@ -319,14 +305,11 @@ struct SFSymbolPickerView: View {
     }
 }
 
-// MARK: - Redesigned SFSymbolDetailSheet (Symbol Inspector)
-
 struct SFSymbolDetailSheet: View {
     let symbol: SFSymbolRecord
     @ObservedObject var viewModel: SFSymbolPickerViewModel
     @Environment(\.dismiss) private var dismiss
 
-    // Configuration controls
     @State private var renderingMode: CustomSymbolRenderingMode = .monochrome
     @State private var symbolWeight: PickerSymbolWeightOption = .regular
     @State private var symbolScale: PickerSymbolScaleOption = .large
@@ -337,15 +320,12 @@ struct SFSymbolDetailSheet: View {
     @State private var backgroundOption = "Default"
     @State private var selectedTemplate = "Basic Image"
 
-    // Animation list
     @State private var effectTrigger = false
     @State private var activeEffect = "Bounce"
     let effects = ["Bounce", "Pulse", "Scale", "Appear", "Disappear"]
 
-    // Background list
     let backgrounds = ["Default", "Light", "Dark", "Accent"]
 
-    // Templates
     let codeTemplates = [
         "Basic Image", "Label", "Button", "ToolbarItem",
         "Navigation", "List Row", "Menu", "Context Menu",
@@ -355,9 +335,7 @@ struct SFSymbolDetailSheet: View {
     var body: some View {
         NavigationStack {
             HSplitView {
-                // Left Panel: Interactive Live Preview & Background Settings
                 VStack(spacing: 16) {
-                    // Background Toggles & Preview Card
                     GroupBox {
                         VStack(spacing: 12) {
                             Picker("Background", selection: $backgroundOption) {
@@ -377,7 +355,6 @@ struct SFSymbolDetailSheet: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Live Previews inside common SwiftUI components
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Component Integration Preview")
@@ -386,11 +363,9 @@ struct SFSymbolDetailSheet: View {
 
                             Divider()
 
-                            // Label
                             Label("Notification Alert", systemImage: symbol.name)
                                 .font(.headline)
 
-                            // Button
                             Button(action: {}) {
                                 HStack {
                                     Image(systemName: symbol.name)
@@ -400,7 +375,6 @@ struct SFSymbolDetailSheet: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.regular)
 
-                            // List Row representation
                             HStack {
                                 Image(systemName: symbol.name)
                                     .foregroundStyle(.blue)
@@ -418,7 +392,6 @@ struct SFSymbolDetailSheet: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Metadata Info Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Symbol Parameters").font(.caption.bold()).foregroundStyle(.secondary)
@@ -436,11 +409,9 @@ struct SFSymbolDetailSheet: View {
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 380)
                 .padding(16)
 
-                // Right Panel: Rendering Adjustments & Generated Code Multi-Templates
                 VStack(spacing: 0) {
                     ScrollView {
                         VStack(spacing: 16) {
-                            // Specifications Configurations Card
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Label("Symbol Parameters", systemImage: "slider.horizontal.3")
@@ -485,7 +456,6 @@ struct SFSymbolDetailSheet: View {
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            // Animations Config
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Label("Animations & SF Effects", systemImage: "sparkles")
@@ -511,7 +481,6 @@ struct SFSymbolDetailSheet: View {
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            // Generated Code Template Selector & Copy Block
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
                                     HStack {
@@ -561,8 +530,6 @@ struct SFSymbolDetailSheet: View {
         .frame(width: 850, height: 600)
     }
 
-    // MARK: - Animated Symbol Preview Generator
-
     @ViewBuilder
     private func animatedPreviewSymbol() -> some View {
         let baseImg = Image(systemName: symbol.name, variableValue: variableValue)
@@ -610,8 +577,6 @@ struct SFSymbolDetailSheet: View {
         }
     }
 
-    // MARK: - Previews Color
-
     private func previewColorBackground() -> Color {
         switch backgroundOption {
         case "Light": return .white
@@ -620,8 +585,6 @@ struct SFSymbolDetailSheet: View {
         default: return Color.secondary.opacity(0.08)
         }
     }
-
-    // MARK: - Generated Code Template Parser
 
     private func generateSwiftUICode() -> String {
         let weightStr = ".\(symbolWeight.rawValue.replacingOccurrences(of: " ", with: "").lowercased())"

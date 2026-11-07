@@ -1,10 +1,4 @@
 #!/bin/sh
-# Builds devtype/devprobe (specs/simulator/ipad.md §4.3 R4: the guest's view
-# of its device type) for the iOS simulator platform. Runs on macOS only.
-#   ../out/guest-tests/devtype/devprobe   arm64, iOS simulator platform
-# Run it on the Thor as a one-shot: copy it into the device directory and
-# pass swiftcode-simd --oneshot "<DEV path>/devprobe S" (it waits S seconds, then
-# prints UIKit and MobileGestalt answers and `launchctl list`).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/devtype}"

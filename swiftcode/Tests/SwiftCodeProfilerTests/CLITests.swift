@@ -56,8 +56,6 @@ import Testing
     }
 
     #if os(Linux)
-    /// A real recording of a shell loop with the back end the host allows
-    /// (perf_event_open, else the LD_PRELOAD agent from this build).
     @Test func recordsALinuxCommand() throws {
         var o = LinuxRecordOptions(command: ["/bin/sh", "-c", "i=0; while [ $i -lt 300000 ]; do i=$((i+1)); done"])
         let build = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

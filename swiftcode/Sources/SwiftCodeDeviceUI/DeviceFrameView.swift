@@ -1,14 +1,3 @@
-// The device as SwiftCode draws it (device-hub.md §4.3): the live screen with
-// its rounded corners inside a dark band of even width whose outer corners
-// are concentric with the screen's, and the side buttons as short bars on
-// the edges, drawn flat with a slight shade. Clicking a button presses it
-// on the device (down while the mouse is down, so a click is a press and a
-// hold is a long press). For the iPhone Duo, Option-dragging on the frame
-// sets the hinge (the pose slider, §4.4). A watch's Digital Crown is drawn
-// as a rounded cylinder with ridges across it (SwiftCode's own drawing). Without
-// bezels, or for visionOS, only the screen with its rounded corners is
-// drawn.
-
 #if os(macOS)
 import AppKit
 import QuartzCore
@@ -16,15 +5,10 @@ import SwiftCodeDeviceModel
 
 @MainActor
 public final class DeviceFrameView: NSView {
-    /// The live screen (touch, keys, scroll).
     public let screen = DeviceView(frame: NSRect(x: 0, y: 0, width: 100, height: 200))
-    /// View points per device point.
     public var scale: CGFloat = 1 { didSet { if scale != oldValue { needsLayout = true; invalidateIntrinsicContentSize() } } }
     public var geometry: DeviceFrameGeometry { didSet { if geometry != oldValue { needsLayout = true; invalidateIntrinsicContentSize() } } }
-    /// A frame button went down or up.
     public var onButton: ((DeviceFrameGeometry.ButtonKind, Bool) -> Void)?
-    /// Option-drag on a foldable's frame: called with the horizontal
-    /// distance from the press (view points) while dragging, then nil.
     public var onHingeDrag: ((CGFloat?) -> Void)?
     public var allowsHingeDrag = false
 
@@ -57,11 +41,6 @@ public final class DeviceFrameView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The screen's rectangle on whole backing pixels, its size rounded to
-    /// pixels rather than points: at a scale that shows one device pixel
-    /// per display pixel (1.5 for a 3× device on a 2× display) the picture
-    /// keeps exactly its pixel size, so it is drawn 1:1 and sharp
-    /// (uikit-feel-swiftcode.md §8.4). `integral` could grow it by a point.
     public static func pixelAligned(_ r: CGRect, backing: CGFloat) -> CGRect {
         let k = max(backing, 1)
         return CGRect(x: (r.minX * k).rounded() / k, y: (r.minY * k).rounded() / k,
@@ -76,8 +55,6 @@ public final class DeviceFrameView: NSView {
     public override var isFlipped: Bool { true }
     public override var intrinsicContentSize: NSSize { NSSize(width: geometry.size.width * scale, height: geometry.size.height * scale) }
 
-    /// Fill colours: a near-black band with a slightly lighter rim, and
-    /// buttons a step lighter (system greys, the same in both appearances).
     public override func updateLayer() {
         bodyLayer.fillColor = NSColor(white: 0.07, alpha: 1).cgColor
         bodyLayer.strokeColor = NSColor(white: 0.32, alpha: 1).cgColor
@@ -119,21 +96,16 @@ public final class DeviceFrameView: NSView {
         } else {
             hingeLayer.path = nil
         }
-        // The shade stays inside the screen's rounded corners.
         let shadeMask = CAShapeLayer()
         shadeMask.path = Self.path(screenRect, radii: g.screenRadii.scaled(by: s))
         shadeLayer.mask = g.shadedArea == nil ? nil : shadeMask
         CATransaction.commit()
     }
 
-    /// A button's corner radii: a bar's are small, the crown's round its
-    /// outer end.
     static func buttonRadii(_ b: DeviceFrameGeometry.Button, scale s: CGFloat) -> CornerRadii {
         b.kind == .crown ? CornerRadii(all: 3 * s) : CornerRadii(all: 1.5 * s)
     }
 
-    /// The crown's ridges: short lines across its long side, on the part
-    /// outside the body (the bar's outer two thirds).
     static func ridges(_ r: CGRect, scale s: CGFloat) -> CGPath {
         let p = CGMutablePath()
         let vertical = r.height >= r.width
@@ -153,14 +125,11 @@ public final class DeviceFrameView: NSView {
         return p
     }
 
-    /// A rounded rectangle with a radius per corner (each limited to half
-    /// the shorter side).
     static func path(_ r: CGRect, radii: CornerRadii) -> CGPath {
         let lim = min(r.width, r.height) / 2
         func c(_ v: Double) -> CGFloat { min(lim, max(0, CGFloat(v))) }
         let tl = c(radii.topLeft), tr = c(radii.topRight), br = c(radii.bottomRight), bl = c(radii.bottomLeft)
         let p = CGMutablePath()
-        // Flipped coordinates: minY is the top edge.
         p.move(to: CGPoint(x: r.minX + tl, y: r.minY))
         p.addLine(to: CGPoint(x: r.maxX - tr, y: r.minY))
         p.addArc(tangent1End: CGPoint(x: r.maxX, y: r.minY), tangent2End: CGPoint(x: r.maxX, y: r.minY + tr), radius: tr)
@@ -174,9 +143,6 @@ public final class DeviceFrameView: NSView {
         return p
     }
 
-    // MARK: Mouse
-
-    /// The point in device points.
     private func devicePoint(_ event: NSEvent) -> CGPoint {
         let p = convert(event.locationInWindow, from: nil)
         return CGPoint(x: p.x / max(scale, 0.01), y: p.y / max(scale, 0.01))
@@ -230,7 +196,6 @@ public final class DeviceFrameView: NSView {
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil))
     }
 
-    /// The tooltip names the button under the pointer.
     public override func mouseMoved(with event: NSEvent) {
         let kind = geometry.button(at: devicePoint(event))
         toolTip = kind?.title

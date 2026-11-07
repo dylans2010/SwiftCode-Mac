@@ -1,20 +1,8 @@
-/*
- * misc.c - small libsystem_kernel functions built on the generated
- * system-call wrappers or on the commpage.
- *
- * Clean-room SwiftCode code. Facts used: published Darwin API behavior
- * (<sys/reason.h> abort_with_reason / terminate_with_reason as wrappers of
- * the *_with_payload calls with no payload; clonefile(2) and renamex_np(2)
- * as the *at forms with AT_FDCWD (-2); sem_init(2)/sem_destroy(2) fail with
- * ENOSYS on Darwin; FD_SETSIZE = 1024), the commpage KDEBUG_ENABLE field
- * (darwin-process-start.md section 3.2) and the BSD table.
- */
 #include "yc_kernel.h"
 
 #define YC_AT_FDCWD (-2)
 #define YC_FD_SETSIZE 1024
 
-/* Generated wrappers (syscalls.S). */
 YC_NORETURN void __abort_with_payload(yc_u32 reason_namespace, yc_u64 reason_code, void *payload,
                                       yc_u32 payload_size, const char *reason_string, yc_u64 reason_flags);
 int __terminate_with_payload(int pid, yc_u32 reason_namespace, yc_u64 reason_code, void *payload,
@@ -46,7 +34,6 @@ YC_EXPORT int renamex_np(const char *from, const char *to, yc_u32 flags)
     return renameatx_np(YC_AT_FDCWD, from, YC_AT_FDCWD, to, flags);
 }
 
-/* Unnamed POSIX semaphores are not supported on Darwin. */
 YC_EXPORT int sem_init(void *sem, int pshared, unsigned value)
 {
     (void)sem;
@@ -63,15 +50,12 @@ YC_EXPORT int sem_destroy(void *sem)
     return -1;
 }
 
-/* int __darwin_check_fd_set_overflow(int fd, const void *set, int unlimited):
- * non-zero when fd may be used with an fd_set (FD_SET and friends). */
 YC_EXPORT int __darwin_check_fd_set_overflow(int fd, const void *set, int unlimited)
 {
     (void)set;
     return fd >= 0 && (unlimited || fd < YC_FD_SETSIZE);
 }
 
-/* kdebug: nothing is traced while the commpage enable word is 0. */
 YC_EXPORT int kdebug_is_enabled(yc_u32 debugid)
 {
     (void)debugid;
@@ -85,18 +69,12 @@ YC_EXPORT int kdebug_trace(yc_u32 debugid, yc_u64 arg1, yc_u64 arg2, yc_u64 arg3
     return __kdebug_trace(debugid, arg1, arg2, arg3, arg4);
 }
 
-/* size_t os_proc_available_memory(void): 0 when it cannot be determined. */
 YC_EXPORT yc_size_t os_proc_available_memory(void)
 {
     yc_u64 v = __memorystatus_available_memory();
     return v == ~(yc_u64)0 ? 0 : (yc_size_t)v;
 }
 
-/* pid_t getpid(void): BSD 20 once, then the cached value, as xnu's own
- * libsyscall keeps the pid in a library variable (level 1, the open-source
- * libsyscall). A fork child clears it (___fork, syscall_special.S); exec
- * and spawn start a new image with a new library. Daemons ask often:
- * 16 000 calls in one lsd boot (agent I4, our traces). */
 int __getpid(void);
 __attribute__((visibility("hidden"))) int yc_cached_pid;
 
@@ -111,12 +89,6 @@ YC_EXPORT int getpid(void)
     return pid;
 }
 
-/* uid_t getuid(void), geteuid, gid_t getgid, getegid: BSD 24, 25, 47, 43,
- * which never fail; or, when the commpage's YC_FAST_CRED_BLOCK bit is set,
- * the VMM's credential block (u32 uid, euid, gid, egid at RW offset
- * 0x1000), read on every call: the library keeps no copy, so the kernel
- * alone decides when the block changes or stops being valid
- * (fast-traps.md section 5). */
 static inline yc_u32 yc_bsd0_u32(long number)
 {
     register yc_uintptr_t x0 __asm__("x0");
@@ -137,11 +109,6 @@ YC_EXPORT yc_u32 geteuid(void) { return yc_credential(1, 25); }
 YC_EXPORT yc_u32 getgid(void) { return yc_credential(2, 47); }
 YC_EXPORT yc_u32 getegid(void) { return yc_credential(3, 43); }
 
-/* int accessx_np(const struct accessx_descriptor *entries, size_t size,
- *     int *results, uid_t uid): BSD 284 (access_extended), which takes the
- * same four arguments (sys/unistd.h and xnu bsd/kern/vfs_syscalls.c,
- * access_extended; level 1). Foundation's file checks call it
- * (CoreServicesInternal imports it). */
 int __access_extended(const void *entries, yc_size_t size, int *results, yc_u32 uid);
 
 YC_EXPORT int accessx_np(const void *entries, yc_size_t size, int *results, yc_u32 uid)
@@ -149,14 +116,6 @@ YC_EXPORT int accessx_np(const void *entries, yc_size_t size, int *results, yc_u
     return __access_extended(entries, size, results, uid);
 }
 
-/* __commpage_gettimeofday: mach.c (fast-traps.md section 4). */
-
-/* int setiopolicy_np(int iotype, int scope, int policy);
- * int getiopolicy_np(int iotype, int scope);
- * Public API (setiopolicy_np(3)) over __iopolicysys(cmd, param) (BSD 322;
- * xnu sys/resource.h: IOPOL_CMD_SET 0, IOPOL_CMD_GET 1, struct
- * _iopol_param_t {scope, iotype, policy}). The kernel keeps what is set,
- * per process, thread or darwin-background scope; get returns the policy. */
 int __iopolicysys(int cmd, void *param);
 
 struct yc_iopol_param {
@@ -179,20 +138,13 @@ YC_EXPORT int getiopolicy_np(int iotype, int scope)
     return p.policy;
 }
 
-/* int madvise(void *addr, size_t len, int advice): BSD 75, -1 and errno on
- * failure. When the commpage's YC_FAST_LOCAL_CALLS bit is set, SwiftCode's
- * kernel answers advice 0-10 (MADV_NORMAL ... MADV_PAGEOUT) with success and
- * no change and any advice but MADV_ZERO (11) with EINVAL, whatever the
- * range: the library gives those answers itself and only MADV_ZERO traps
- * (fast-traps.md section 5a). libmalloc's MADV_FREE_REUSABLE / MADV_FREE_REUSE
- * pairs were 13 % of a boot's traps. */
 YC_EXPORT int madvise(void *addr, yc_size_t len, int advice)
 {
     if (yc_commpage_u8(YC_COMM_FAST_FLAGS) & YC_FAST_LOCAL_CALLS) {
         if (advice >= 0 && advice <= 10)
             return 0;
         if (advice != 11) {
-            __swiftcode_set_errno(22); /* EINVAL */
+            __swiftcode_set_errno(22);
             return -1;
         }
     }
@@ -212,17 +164,11 @@ YC_EXPORT int madvise(void *addr, yc_size_t len, int advice)
     return (int)x0;
 }
 
-/* posix_madvise: on Darwin the same call as madvise(2), with the POSIX_
- * advice names for the same values, and -1 and errno on failure (the
- * madvise(2) manual page; level 1). */
 YC_EXPORT int posix_madvise(void *addr, yc_size_t len, int advice)
 {
     return madvise(addr, len, advice);
 }
 
-/* csr_check / csr_get_active_config: wrappers of csrctl(2) (xnu
- * libsyscall/wrappers/csr.c: op 0 = check, op 1 = active config; the
- * argument is a pointer to a u32 and its size). */
 int __csrctl(yc_u32 op, void *buffer, yc_size_t size);
 YC_EXPORT int csr_check(yc_u32 mask)
 {
@@ -234,11 +180,9 @@ YC_EXPORT int csr_get_active_config(yc_u32 *config)
     return __csrctl(1, config, sizeof(*config));
 }
 
-/* kpersona_*: wrappers of __persona(op, flags, info, id, idlen, path)
- * (xnu libsyscall/wrappers/persona.c, sys/persona.h op numbers 1-9). */
 int __persona(yc_u32 op, yc_u32 flags, void *info, yc_u32 *id, yc_size_t *idlen, char *path);
 
-struct yc_kpersona_info { /* sys/persona.h, packed, 348 bytes */
+struct yc_kpersona_info {
     yc_u32 version;
     yc_u32 id;
     int type;
@@ -246,7 +190,7 @@ struct yc_kpersona_info { /* sys/persona.h, packed, 348 bytes */
     yc_u32 ngroups;
     yc_u32 groups[16];
     yc_u32 gmuid;
-    char name[255 + 1]; /* MAXLOGNAME + 1: the struct is 348 bytes */
+    char name[255 + 1];
     yc_u32 uid;
 } __attribute__((packed));
 _Static_assert(sizeof(struct yc_kpersona_info) == 348, "struct kpersona_info is 348 bytes");
@@ -324,9 +268,6 @@ YC_EXPORT int kpersona_find_by_type(int persona_type, yc_u32 *id, yc_size_t *idl
     return yc_persona_find(9, YC_NULL, (yc_u32)-1, persona_type, id, idlen);
 }
 
-/* char *mach_error_string(mach_error_t error_value): the (os/kern) strings
- * of xnu's error table (libsyscall/mach/err_kern.sub, level 1); any other
- * code is reported as "unknown error code" (SwiftCode keeps no other tables). */
 static const char *const yc_kern_errors[] = {
     "(os/kern) successful", "(os/kern) invalid address", "(os/kern) protection failure",
     "(os/kern) no space available", "(os/kern) invalid argument", "(os/kern) failure",

@@ -1,24 +1,6 @@
 import Foundation
 import Crypto
 
-// MARK: - SDKAPIKeyStore
-//
-// Ported from Legacy `SwiftCode/SDK/Host/APIKeys/SDKAPIKeyStore.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Owns developer API key lifecycle: the host device key, key metadata,
-// verification with rate limiting, revocation, and key-bound
-// entitlements. Secrets are never persisted — only metadata. The device
-// key is created once and never silently regenerated: a corrupt device
-// key fails closed with `.serviceUnavailable`.
-//
-// Storage seam: `SDKSecretStoring` (macOS Keychain via `SDKKeychain`,
-// file store on Linux). SwiftCodeAssistant's `SecretStore` was considered
-// and rejected — it has no enumeration, which `list()` requires.
-
-/// One-shot flag carried into `verify`'s nested async recorder so the
-/// mutable "already recorded" state is a Sendable reference instead of
-/// a captured `var` (Swift 6 region isolation).
 private final class FailureFlag: @unchecked Sendable {
     var recorded = false
 }
@@ -26,16 +8,9 @@ private final class FailureFlag: @unchecked Sendable {
 public actor SDKAPIKeyStore {
     public static let shared = SDKAPIKeyStore(store: SDKSecretStoreFactory.defaultStore())
 
-    /// Account holding the 32-byte host device key.
     public static let deviceKeyAccount = "sdk.device-key"
-    /// Prefix for per-key metadata accounts: `sdk.apikey.<uuid>`.
     public static let metadataAccountPrefix = "sdk.apikey."
 
-    // Rate limiting (Legacy §8.2): 10 failed verifications per 60-second
-    // window per bucket, then a 5-minute lockout. Buckets are keyed by
-    // the UNVERIFIED presented key ID, or `"unparseable"` when the
-    // secret cannot even be parsed — the bucket key is never used for
-    // authorization, only to bound guessing.
     static let maxFailuresPerWindow = 10
     static let failureWindowSeconds: TimeInterval = 60
     static let lockoutSeconds: TimeInterval = 300
@@ -53,12 +28,6 @@ public actor SDKAPIKeyStore {
         self.store = store
     }
 
-    // MARK: - Device key
-
-    /// Returns the host device key, creating and persisting it on first
-    /// use. A present-but-corrupt device key throws `.serviceUnavailable`
-    /// — it is never silently regenerated, or every issued key would
-    /// stop verifying without explanation.
     public func getOrCreateDeviceKey() throws -> Data {
         if let existing = try store.read(account: Self.deviceKeyAccount) {
             guard existing.count == 32 else {
@@ -77,12 +46,6 @@ public actor SDKAPIKeyStore {
         return data
     }
 
-    // MARK: - Create / list / revoke
-
-    /// Creates a key. The secret is returned exactly once alongside the
-    /// metadata — the caller must show it to the developer and then drop
-    /// it. Metadata is persisted BEFORE the secret is generated so a
-    /// returned secret always verifies.
     public func createKey(
         label: String,
         scopes: Set<SDKAPIKeyScope>,
@@ -112,8 +75,6 @@ public actor SDKAPIKeyStore {
         return (key, secret)
     }
 
-    /// All keys, newest first. Undecodable metadata records are skipped,
-    /// never fatal — one corrupt record must not hide every other key.
     public func list() -> [SDKAPIKey] {
         let accounts = (try? store.accountNames(withPrefix: Self.metadataAccountPrefix)) ?? []
         var keys: [SDKAPIKey] = []
@@ -125,9 +86,6 @@ public actor SDKAPIKeyStore {
         return keys.sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// Revokes a key. Idempotent: revoking an already-revoked or unknown
-    /// key is a no-op success. Closes the key's Assist sessions so a
-    /// revoked key cannot keep an open session alive.
     public func revoke(id: UUID) async {
         guard var key = try? readKey(id: id), !key.isRevoked else { return }
         key.revokedAt = Date()
@@ -136,13 +94,6 @@ public actor SDKAPIKeyStore {
         _ = await SDKAssistService.shared.closeSessions(forKeyID: id)
     }
 
-    // MARK: - Verify
-
-    /// Verifies a presented secret and returns the key metadata.
-    /// Re-reads metadata on every call so revocation takes effect
-    /// immediately. Revoked → `.apiKeyRevoked`; expired, unknown, or
-    /// malformed → `.apiKeyInvalid`; rate-limited → `.apiKeyRateLimited`.
-    /// Updates `lastUsedAt` on success. The secret is never logged.
     public func verify(secret: String) async throws -> SDKAPIKey {
         let bucketKey = SDKAPIKeyCodec.extractPresentedKeyID(from: secret) ?? "unparseable"
         if isLockedOut(bucketKey) {
@@ -152,7 +103,6 @@ public actor SDKAPIKeyStore {
                 suggestion: "Wait a few minutes before trying again."
             )
         }
-        // Each failed attempt records exactly one rate-limit failure.
         let failureRecorded = FailureFlag()
         func noteFailure(_ detail: String) async {
             guard !failureRecorded.recorded else { return }
@@ -183,8 +133,6 @@ public actor SDKAPIKeyStore {
             try? persist(key)
             return key
         } catch let error as SDKError {
-            // Parse failures land here (the metadata branches recorded
-            // above); record them exactly once as well.
             if error.code == .apiKeyInvalid {
                 await noteFailure("malformed key")
             }
@@ -192,10 +140,6 @@ public actor SDKAPIKeyStore {
         }
     }
 
-    // MARK: - Scopes & entitlements
-
-    /// Requires `scope` on a verified key record. Throws
-    /// `.apiKeyScopeInsufficient` (audited) otherwise.
     public func requireScope(_ scope: SDKAPIKeyScope, on key: SDKAPIKey) throws {
         guard key.scopes.contains(scope) else {
             Task {
@@ -209,8 +153,6 @@ public actor SDKAPIKeyStore {
         }
     }
 
-    /// Requires `entitlement` on a verified key record. A revoked key
-    /// never satisfies an entitlement check.
     public func requireEntitlement(_ entitlement: SDKEntitlement, on key: SDKAPIKey) throws {
         guard !key.isRevoked, key.entitlements.contains(entitlement) else {
             throw SDKError(
@@ -220,9 +162,6 @@ public actor SDKAPIKeyStore {
         }
     }
 
-    /// Grants an entitlement to a key. A revoked key can never be granted
-    /// (`.apiKeyRevoked`, Legacy behaviour). Idempotent: granting an
-    /// entitlement the key already has is a no-op success.
     public func grantEntitlement(_ entitlement: SDKEntitlement, toKeyID id: UUID) async throws {
         guard var key = try? readKey(id: id) else {
             throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
@@ -240,11 +179,6 @@ public actor SDKAPIKeyStore {
         await SDKAuditLog.shared.record(.entitlementGranted, detail: "key \(id.uuidString) entitlement \(entitlement.rawValue)")
     }
 
-    /// Revokes an entitlement from a key. Returns the number of in-flight
-    /// Assist sessions closed by the revocation hook (Legacy behaviour:
-    /// a revoked entitlement must not keep an open session alive).
-    /// Idempotent: revoking an entitlement the key does not have is a
-    /// no-op success that still closes nothing.
     public func revokeEntitlement(_ entitlement: SDKEntitlement, fromKeyID id: UUID) async throws -> Int {
         guard var key = try? readKey(id: id) else {
             throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
@@ -259,8 +193,6 @@ public actor SDKAPIKeyStore {
         )
         return closedSessions
     }
-
-    // MARK: - Rate limiting
 
     private func isLockedOut(_ bucket: String) -> Bool {
         guard let entry = failureBuckets[bucket], let lockedUntil = entry.lockedUntil else { return false }
@@ -280,15 +212,12 @@ public actor SDKAPIKeyStore {
         }
         failureBuckets[bucket] = entry
         if failureBuckets.count > Self.maxBuckets {
-            // Evict the stalest bucket so the table stays bounded.
             let stalest = failureBuckets.min { lhs, rhs in
                 (lhs.value.failures.min() ?? .distantPast) < (rhs.value.failures.min() ?? .distantPast)
             }
             if let key = stalest?.key { failureBuckets.removeValue(forKey: key) }
         }
     }
-
-    // MARK: - Persistence
 
     private func metadataAccount(for id: UUID) -> String {
         Self.metadataAccountPrefix + id.uuidString

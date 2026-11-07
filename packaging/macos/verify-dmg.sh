@@ -1,12 +1,5 @@
 #!/bin/sh
-# Checks a built image the way a user meets it: mounts it, copies the app to an
-# empty folder, and runs it from there with an empty environment and no build
-# tree in reach. Gatekeeper's answer is reported as it is; it fails for an
-# ad-hoc image, which is expected, unless SWIFTCODE_VERIFY_REQUIRE_GATEKEEPER=1.
-#
-# usage: packaging/macos/verify-dmg.sh <file.dmg>
 set -eu
-
 dmg=$1
 here=$(cd "$(dirname "$0")" && pwd)
 version=$(cat "$here/../../swiftcode/VERSION")
@@ -21,7 +14,6 @@ cleanup() {
 trap cleanup EXIT
 fail() { echo "verify-dmg: FAILED: $*" >&2; exit 1; }
 say() { echo "verify-dmg: $*"; }
-
 hdiutil verify -quiet "$dmg" && say "image checksum: ok"
 codesign --verify "$dmg" && say "image signature: ok"
 hdiutil attach -quiet -readonly -nobrowse -noautoopen -mountroot "$work" "$dmg"
@@ -30,7 +22,6 @@ mounted="$work/SwiftCode $version"
 [ -L "$mounted/Applications" ] || fail "no Applications link"
 [ -f "$mounted/.background/background.tiff" ] || fail "no background picture"
 [ -f "$mounted/.DS_Store" ] || fail "no window layout"
-
 clean="$work/clean/place with a space"
 mkdir -p "$clean"
 ditto "$mounted/SwiftCode.app" "$clean/SwiftCode.app"
@@ -39,7 +30,6 @@ mounted=""
 app="$clean/SwiftCode.app"
 bare() { env -i HOME="$work/home" TMPDIR="$work/" PATH=/usr/bin:/bin "$@"; }
 mkdir -p "$work/home"
-
 codesign --verify --deep --strict "$app" && say "codesign --verify --deep --strict: ok"
 codesign -dvv "$app" 2>&1 | grep -E '^(Authority|Signature|TeamIdentifier)=' | sed 's/^/verify-dmg:   /' || true
 if codesign -d --verbose=4 "$app" 2>&1 | grep -q 'flags=.*runtime'; then
@@ -53,11 +43,8 @@ else
     say "spctl: rejected: $spctl_output"
     [ "${SWIFTCODE_VERIFY_REQUIRE_GATEKEEPER:-0}" != 1 ] || fail "Gatekeeper rejected the app"
 fi
-
 plist="$app/Contents/Info.plist"
 [ "$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$plist")" = "$version" ] || fail "Info.plist has another version"
-
-# Every tool reports the version from the copied bundle.
 for tool in "$app/Contents/MacOS/SwiftCode" "$app/Contents/Helpers/swiftcode" "$app/Contents/Helpers/swiftcodebuild" \
             "$app/Contents/Helpers/swiftcode-bsp" "$app/Contents/Helpers/swiftcode-swb" "$app/Contents/Helpers/swiftcode-sim-viewer" \
             "$app/Contents/Helpers/swiftcode-simhost"; do
@@ -68,8 +55,6 @@ for tool in "$app/Contents/MacOS/SwiftCode" "$app/Contents/Helpers/swiftcode" "$
         *) fail "$tool says: $line" ;;
     esac
 done
-
-# A universal app: both slices, and the Intel one runs where Rosetta is present.
 if lipo -archs "$app/Contents/MacOS/SwiftCode" | grep -q x86_64; then
     if [ "$(uname -m)" = arm64 ] && arch -x86_64 /usr/bin/true 2>/dev/null; then
         line=$(bare arch -x86_64 "$app/Contents/Helpers/swiftcode" --version) || fail "the x86_64 slice does not run"
@@ -79,23 +64,15 @@ if lipo -archs "$app/Contents/MacOS/SwiftCode" | grep -q x86_64; then
     fi
 fi
 say "architectures: $(lipo -archs "$app/Contents/MacOS/SwiftCode")"
-
-# Nothing links or points outside the bundle and the system.
 for binary in "$app/Contents/MacOS/SwiftCode" "$app"/Contents/Helpers/*; do
     [ -f "$binary" ] || continue
     file "$binary" | grep -q Mach-O || continue
-    # A universal binary lists one header line ("<file> (architecture ...):") per slice.
     bad=$(otool -L "$binary" | grep -v ':$' | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/|@rpath/libSwiftCode|@rpath/lib|@loader_path/|@executable_path/)' || true)
     [ -z "$bad" ] || fail "$binary links $bad"
     rpaths=$(otool -l "$binary" | awk '/LC_RPATH/{f=1} f&&/ path /{print $2; f=0}' | grep -vE '^(@loader_path|@executable_path|/usr/lib/swift)' || true)
     [ -z "$rpaths" ] || fail "$binary has search paths $rpaths"
 done
 say "linkage: bundle and system only"
-
-# No machine's paths in the binaries. The user's and machine's names are
-# checked from the environment, so they are never written in this file.
-# A path names a folder: "/home/<name>/". Machine code that builds a string in
-# 8-byte immediates shows "/home/us" with no slash after it, which is not one.
 patterns='/Users/[A-Za-z][A-Za-z0-9._-]*/|/home/[a-z][a-z0-9._-]*/|/Volumes/[A-Z][A-Za-z0-9._ -]*/|\.build-release'
 [ -n "${USER:-}" ] && [ "${USER:-}" != runner ] && patterns="$patterns|$USER"
 host=$(hostname -s 2>/dev/null || true)
@@ -113,11 +90,7 @@ for binary in "$app/Contents/MacOS/SwiftCode" "$app"/Contents/Helpers/*; do
 done
 [ "$leaks" = 0 ] || fail "machine paths in the binaries"
 say "machine paths: none"
-
-# The helper tools work from here: a project query through the bundled tools.
 bare "$app/Contents/Helpers/swiftcodebuild" -version >/dev/null || fail "swiftcodebuild -version"
-
-# The app starts and stays up, hidden, from the clean place.
 open -g -j -n -a "$app" --env "PATH=/usr/bin:/bin" || fail "open"
 sleep "${SWIFTCODE_VERIFY_LAUNCH_SECONDS:-15}"
 launched=$(pgrep -f "^$app/Contents/MacOS/SwiftCode" | head -1 || true)

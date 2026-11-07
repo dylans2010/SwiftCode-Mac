@@ -1,30 +1,7 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/AppReceiptInspectorDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-//
-// CLEANUP (2026-11-06, C9): Legacy's parseReceipt() only checked that
-// the input was valid Base64 and then always returned the same canned
-// JSON (bundle_id com.swiftcode.app, product_id com.swiftcode.pro_yearly,
-// fixed transaction 1000000921827431, fixed 2026/2027 dates), logging
-// "Successfully decoded app receipt mock". Replaced with a real DER
-// parser: the pasted payload is Base64-decoded, walked as a PKCS#7
-// signedData container down to the receipt payload SET, and every
-// attribute is decoded from the actual bytes (bundle id, app version,
-// receipt type, creation date, opaque value and SHA-1 hash as hex, and
-// each in-app purchase with its real product/transaction ids and dates).
-// Anything that does not parse is reported as "could not parse" with the
-// reason — no canned receipt is ever shown. Note: this decodes the
-// receipt structure for inspection; it does not verify the PKCS#7
-// signature against Apple's root certificate, so a decoded receipt is
-// not a validated receipt. The pre-filled Base64 sample string is a
-// legitimate editable default and is left as-is (it is a truncated
-// container header, so it honestly reports a parse failure until a real
-// receipt is pasted).
 import SwiftUI
 import SwiftCodeUI
 import os.log
 
-/// What can go wrong while decoding a receipt, in the user's words.
 private enum ReceiptParseError: Error, LocalizedError {
     case notPKCS7SignedData
     case malformedDER(String)
@@ -42,9 +19,6 @@ private enum ReceiptParseError: Error, LocalizedError {
     }
 }
 
-/// Minimal DER reader: tag/length/value walk plus OID and INTEGER
-/// decoding. Only what a PKCS#7 App Store receipt needs — no signature
-/// verification, no BER indefinite lengths.
 private enum ReceiptDER {
     struct Node {
         let tag: UInt8
@@ -52,7 +26,6 @@ private enum ReceiptDER {
         let children: [Node]?
     }
 
-    /// Parses one TLV at `offset`, advancing past it.
     static func parseTLV(_ data: Data, offset: inout Int) throws -> Node {
         guard offset < data.count else { throw ReceiptParseError.malformedDER("truncated tag") }
         let tag = data[offset]
@@ -74,8 +47,6 @@ private enum ReceiptDER {
         guard offset + length <= data.count else { throw ReceiptParseError.malformedDER("declared length runs past the end of the data") }
         let content = data.subdata(in: offset..<(offset + length))
         offset += length
-        // Only descend into the constructed types a receipt uses:
-        // SEQUENCE (0x30), SET (0x31) and [0] explicit tags (0xA0).
         var children: [Node]? = nil
         if tag == 0x30 || tag == 0x31 || tag == 0xA0 {
             var childOffset = 0
@@ -107,8 +78,6 @@ private enum ReceiptDER {
         return numbers.map(String.init).joined(separator: ".")
     }
 
-    /// Big-endian two's-complement INTEGER; receipt integers are small
-    /// and non-negative (attribute types, quantities).
     static func integerValue(_ node: Node) -> Int {
         var result = 0
         for byte in node.content { result = (result << 8) | Int(byte) }
@@ -119,27 +88,21 @@ private enum ReceiptDER {
         bytes.map { String(format: "%02x", $0) }.joined()
     }
 
-    /// Decodes the value bytes of a receipt attribute. The attribute's
-    /// OCTET STRING wraps one DER value (UTF8String / IA5String /
-    /// INTEGER); anything else is shown as hex rather than guessed at.
     static func scalarValue(_ bytes: Data) -> Any {
         var offset = 0
         guard let node = try? parseTLV(bytes, offset: &offset), offset == bytes.count else {
             return hexString(bytes)
         }
         switch node.tag {
-        case 0x0C, 0x16: // UTF8String, IA5String
+        case 0x0C, 0x16:
             return String(data: node.content, encoding: .utf8) ?? hexString(bytes)
-        case 0x02: // INTEGER
+        case 0x02:
             return integerValue(node)
         default:
             return hexString(bytes)
         }
     }
 
-    /// Walks PKCS#7 signedData down to the receipt payload and decodes
-    /// every attribute into a JSON-ready dictionary. Throws
-    /// ReceiptParseError on any structural problem.
     static func decodeReceipt(_ data: Data) throws -> [String: Any] {
         var offset = 0
         let root = try parseTLV(data, offset: &offset)
@@ -173,11 +136,6 @@ private enum ReceiptDER {
             throw ReceiptParseError.unsupportedContent("receipt payload is not a SET of attributes")
         }
 
-        // Apple receipt attribute types (App Store receipt fields):
-        // 2 bundle_id, 3 app version, 4 opaque value, 5 SHA-1 hash,
-        // 12 receipt type, 17 in-app purchase, 19 original app version,
-        // 21 receipt creation date. Anything else is kept under
-        // "attribute_<n>" so no field is silently dropped.
         let fieldNames: [Int: String] = [
             2: "bundle_id",
             3: "application_version",
@@ -202,7 +160,6 @@ private enum ReceiptDER {
                 continue
             }
             let key = fieldNames[type] ?? "attribute_\(type)"
-            // Opaque value and SHA-1 hash are raw bytes, not DER values.
             result[key] = (type == 4 || type == 5) ? hexString(valueBytes) : scalarValue(valueBytes)
         }
         if !purchases.isEmpty {
@@ -211,12 +168,6 @@ private enum ReceiptDER {
         return result
     }
 
-    /// Decodes one in-app purchase attribute (type 17): a SET of
-    /// sub-attributes. Known sub-types (Apple receipt fields):
-    /// 1700 quantity, 1701 product_id, 1702 transaction_id,
-    /// 1703 purchase_date, 1704 original_transaction_id,
-    /// 1705 original_purchase_date, 1706 expires_date,
-    /// 1707 web_order_line_item_id, 1708 cancellation_date.
     private static func decodeInAppPurchase(_ bytes: Data) -> [String: Any]? {
         var offset = 0
         guard let node = try? parseTLV(bytes, offset: &offset),

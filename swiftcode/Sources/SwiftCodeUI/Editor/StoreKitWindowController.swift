@@ -1,9 +1,3 @@
-// StoreKitWindowController.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowController.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: standalone StoreKit window and its AppKit toolbar/window lifecycle
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -27,7 +21,6 @@ public final class StoreKitWindowController: NSWindowController {
         window.title = "StoreKit Workspace - Xcode Grade Editor"
         window.minSize = NSSize(width: 1050, height: 750)
 
-        // Remember position using a unique autosave name per file or a general autosave name
         if let fileURL = fileURL {
             window.title = "StoreKit - \(fileURL.lastPathComponent)"
             window.setFrameAutosaveName("StoreKitWorkspace_\(fileURL.lastPathComponent)")
@@ -58,7 +51,6 @@ public final class StoreKitWindowController: NSWindowController {
         window.toolbar = toolbar
     }
 
-    // Overriding standard responder chain to handle native macOS undo/redo shortcuts
     @objc public func undo(_ sender: Any?) {
         session.undo()
     }

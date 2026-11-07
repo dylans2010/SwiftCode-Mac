@@ -10,7 +10,6 @@ public struct VirtualizationImageBrowserView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header
                 VStack(alignment: .leading, spacing: 4) {
                     Text("OS Image Catalog")
                         .font(.system(size: 24, weight: .bold))
@@ -19,7 +18,6 @@ public struct VirtualizationImageBrowserView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Section 1: Registered Local Images
                 GroupBox(label:
                     Label("Registered Local Images", systemImage: "folder.fill")
                         .font(.headline)
@@ -85,7 +83,6 @@ public struct VirtualizationImageBrowserView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 2: Recommended Official Images
                 GroupBox(label:
                     Label("Recommended Installation Images", systemImage: "arrow.down.circle")
                         .font(.headline)

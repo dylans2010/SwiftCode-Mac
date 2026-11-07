@@ -5,8 +5,6 @@ import SwiftCodeDebug
 import SwiftCodeXcodebuild
 import SwiftCodeLanguage
 
-/// Settings for the sample project from SwiftCode's resolver, without an SDK
-/// (the same on macOS and Linux).
 @Suite struct IndexSettingsTests {
     @Test func resolverSettingsForTheSample() throws {
         let dir = try freshScratch("settings")
@@ -25,8 +23,6 @@ import SwiftCodeLanguage
         #expect(ctx.triple == "arm64-apple-ios18.0-simulator")
         #expect(ctx.exportsClangModule)
 
-        // App: conditions, definitions, bridging header and the project's
-        // header folders.
         let main = dir.appendingPathComponent("Sample-iOS/App/AppMain.swift").path
         let args = try #require(model.arguments(for: main, targetID: nil)).arguments
         #expect(CompilerArgumentsTests.has(args, "-D", "DEBUG"))
@@ -36,8 +32,6 @@ import SwiftCodeLanguage
         #expect(CompilerArgumentsTests.has(args, "-import-objc-header", dir.appendingPathComponent("Sample-iOS/App/App-Bridging-Header.h").path))
         #expect(CompilerArgumentsTests.has(args, "-Xcc", "-iquote", "-Xcc", dir.appendingPathComponent("Sample-iOS/Kit").path))
 
-        // A configuration the project lacks falls back to Debug; a
-        // destination on another platform family leaves the SDK alone.
         var other = context
         other.configuration = "Nope"
         other.destination = "platform=macOS"
@@ -54,14 +48,11 @@ import SwiftCodeLanguage
         let proj = try SampleProject.write(.portable, in: dir)
         let model = try IndexModel(containerURL: proj, context: BuildContext(derivedDataFolder: dir.appendingPathComponent("DD").path))
         #expect(model.reloadIfChanged().isEmpty)
-        // A new file in the synchronized folder changes AppTests.
         let tests = dir.appendingPathComponent("Sample-portable/AppTests")
         try "".write(to: tests.appendingPathComponent("More.swift"), atomically: true, encoding: .utf8)
-        // Folder modification times have one-second resolution on some file systems.
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: tests.path)
         let changed = model.reloadIfChanged()
         #expect(changed.compactMap { id in model.graph.target(id: id)?.name } == ["AppTests"])
-        // A setting change in the project file changes every target it reaches.
         let pbx = proj.appendingPathComponent("project.pbxproj")
         let text = try String(contentsOf: pbx, encoding: .utf8).replacingOccurrences(of: "SWIFT_VERSION = 5.0;", with: "SWIFT_VERSION = 6.0;")
         try text.write(to: pbx, atomically: true, encoding: .utf8)
@@ -70,7 +61,6 @@ import SwiftCodeLanguage
     }
 }
 
-/// The server over an in-memory channel.
 @Suite struct BuildServerProtocolTests {
     final class Channel: @unchecked Sendable {
         let lock = NSLock()
@@ -81,7 +71,6 @@ import SwiftCodeLanguage
                 for body in decoder.append(data) { if let m = try? JSON.decode(body) { messages.append(m) } }
             }
         }
-        /// Waits for the response to `id`.
         func response(_ id: Int, timeout: TimeInterval = 120) -> JSON? {
             let end = Date().addingTimeInterval(timeout)
             while Date() < end {
@@ -136,14 +125,12 @@ import SwiftCodeLanguage
         #expect(Array(args.prefix(3)) == ["-module-name", "App", main.path])
         #expect(options["workingDirectory"]?.string == dir.appendingPathComponent("Sample-portable").path)
 
-        // Unknown files get null; unknown methods an error.
         Self.request(server, 5, "textDocument/sourceKitOptions", ["textDocument": ["uri": "file:///nowhere.swift"], "target": app["id"]!,
                                                                     "language": "swift"])
         #expect(channel.response(5)?["result"] == .null)
         Self.request(server, 6, "buildTarget/compile")
         #expect(channel.response(6)?["error"]?["code"]?.int == -32601)
 
-        // A project change is reported as changed targets.
         let pbx = proj.appendingPathComponent("project.pbxproj")
         let text = try String(contentsOf: pbx, encoding: .utf8).replacingOccurrences(of: "SWIFT_VERSION = 5.0;", with: "SWIFT_VERSION = 6.0;")
         try text.write(to: pbx, atomically: true, encoding: .utf8)
@@ -168,8 +155,6 @@ import SwiftCodeLanguage
     }
 }
 
-/// The IDE side (`SwiftCodeLanguage.BuildServerLaunch`) writes what the server
-/// side reads.
 @Suite struct BuildServerLaunchTests {
     @Test func connectionFileAgreesWithTheServer() throws {
         let argv = ["/x/swiftcode-bsp", "serve", "/p/App.xcodeproj", "--scheme", "App"]
@@ -189,7 +174,6 @@ import SwiftCodeLanguage
         let prepared = try #require(BuildServerLaunch.prepareWorkspaceFolder(container: project, environment: env, defaults: .standard))
         let json = try JSON.decode(Data(contentsOf: prepared.appendingPathComponent(".bsp/swiftcode.json")))
         #expect(json["argv"]?.array?.first == "/bin/sh")
-        // Lookup: next to the executable, then in Contents/Helpers.
         let app = dir.appendingPathComponent("Y.app/Contents")
         try FileManager.default.createDirectory(at: app.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: app.appendingPathComponent("Helpers"), withIntermediateDirectories: true)

@@ -1,17 +1,9 @@
 import Foundation
 
-/// Compiles a String Catalog into per-language `.strings` and
-/// `.stringsdict` tables: `swiftcode strings compile`, which swift-build runs
-/// as `xcstringstool compile`. See `specs/ide/string-catalog.md`, "SwiftCode
-/// implementation" (the rules for languages, states, variations and
-/// substitutions are SwiftCode's, from Apple's public documentation).
 public enum StringCatalogCompiler {
     public struct Options: Sendable {
-        /// Only these languages (`-l`); nil compiles every language.
         public var languages: [String]?
-        /// `--force-build-all-strings`: also compile units in state `new`.
         public var forceBuildAllStrings = false
-        /// The encoding of the `.strings` files written.
         public var stringsEncoding: StringsFile.Encoding = .utf8
         public init(languages: [String]? = nil, forceBuildAllStrings: Bool = false, stringsEncoding: StringsFile.Encoding = .utf8) {
             self.languages = languages
@@ -26,14 +18,11 @@ public enum StringCatalogCompiler {
         public var message: String
         public var language: String?
         public var key: String?
-        /// swift-build's String Catalog output format:
-        /// `error: <message> (<language>: <key>)` after `<file>: `.
         public var description: String {
             "\(severity.rawValue): \(message)" + (language.map { " (\($0): \(key ?? ""))" } ?? "")
         }
     }
 
-    /// One language's compiled table.
     public struct Table: Equatable, Sendable {
         public var language: String
         public var strings: [StringsFile.Entry] = []
@@ -50,8 +39,6 @@ public enum StringCatalogCompiler {
         public var diagnostics: [Diagnostic]
         public var errors: [Diagnostic] { diagnostics.filter { $0.severity == .error } }
 
-        /// The files `write` creates under `directory`
-        /// (`<language>.lproj/<table>.strings|.stringsdict`), in order.
         public func outputPaths(directory: String, tableName: String) -> [String] {
             tables.flatMap { t -> [String] in
                 let dir = (directory as NSString).appendingPathComponent("\(t.language).lproj")
@@ -60,7 +47,6 @@ public enum StringCatalogCompiler {
             }
         }
 
-        /// Writes the tables; returns the paths written.
         @discardableResult
         public func write(directory: String, tableName: String, encoding: StringsFile.Encoding = .utf8) throws -> [String] {
             let fm = FileManager.default
@@ -83,11 +69,9 @@ public enum StringCatalogCompiler {
         }
     }
 
-    /// The plural categories (CLDR) and device names a catalog may use.
     public static let pluralCategories = ["zero", "one", "two", "few", "many", "other"]
     public static let deviceNames = ["iphone", "ipad", "ipod", "mac", "applewatch", "appletv", "applevision", "other"]
 
-    /// Compiles every language of `catalog` (or `options.languages`).
     public static func compile(_ catalog: StringCatalog, options: Options = Options()) -> Result {
         var diagnostics: [Diagnostic] = []
         let source = catalog.sourceLanguage
@@ -101,7 +85,6 @@ public enum StringCatalogCompiler {
                 if entry["shouldTranslate"] == .bool(false), !isSource { continue }
                 let loc = entry["localizations"]?[lang]
                 guard let loc else {
-                    // The source language falls back to the key itself.
                     if isSource { table.strings.append(StringsFile.Entry(key: key, value: key)) }
                     continue
                 }
@@ -119,8 +102,6 @@ public enum StringCatalogCompiler {
         return Result(tables: tables, diagnostics: diagnostics)
     }
 
-    // MARK: One localization
-
     enum Compiled { case none, plain(String), dict(StringsDictValue) }
 
     struct Context {
@@ -133,9 +114,6 @@ public enum StringCatalogCompiler {
         mutating func warn(_ m: String) { diagnostics.append(Diagnostic(severity: .warning, message: m, language: language, key: key)) }
         mutating func error(_ m: String) { diagnostics.append(Diagnostic(severity: .error, message: m, language: language, key: key)) }
 
-        /// A string unit's value when it is to be compiled: source-language
-        /// units always; others unless they are `new` (`--force-build-all-strings`
-        /// compiles those too).
         func unitValue(_ node: OrderedJSON) -> String? {
             guard let unit = node["stringUnit"], let value = unit["value"]?.stringValue else { return nil }
             if !isSource, !force, unit["state"]?.stringValue == "new" { return nil }
@@ -153,13 +131,10 @@ public enum StringCatalogCompiler {
             return formatDict(value, substitutions: substitutions).map { .dict($0) } ?? .none
         }
 
-        /// `NSStringLocalizedFormatKey` = `format` plus one variable per
-        /// substitution the format names.
         mutating func formatDict(_ format: String, substitutions: [(String, OrderedJSON)]) -> StringsDictValue? {
             let specs = FormatSpecifier.parse(format)
             var pairs: [(String, StringsDictValue)] = []
             var edits: [(offset: Int, length: Int, text: String)] = []
-            // Sequential argument numbers, for substitutions without argNum.
             var sequential = 0
             let positional = specs.contains { $0.position != nil }
             var used = Set<String>()
@@ -172,8 +147,6 @@ public enum StringCatalogCompiler {
                 }
                 guard used.insert(name).inserted else { continue }
                 let arg = sub["argNum"].flatMap { if case .number(let n) = $0 { return Int(n) }; return nil } ?? spec.position ?? sequential
-                // Make the variable positional when its argument is not the
-                // one it would take in order.
                 if spec.position == nil, arg != sequential || positional {
                     edits.append((spec.offset, spec.text.utf16.count, "%\(arg)$#@\(name)@"))
                 }
@@ -187,8 +160,6 @@ public enum StringCatalogCompiler {
             return .dict([("NSStringLocalizedFormatKey", .string(key))] + pairs)
         }
 
-        /// A substitution's plural rule; `%arg` in its cases becomes the
-        /// substitution's own specifier.
         mutating func substitutionRule(name: String, _ sub: OrderedJSON, argument: Int, positionalCases: Bool) -> StringsDictValue? {
             let spec = sub["formatSpecifier"]?.stringValue ?? "lld"
             let argText = positionalCases ? "%\(argument)$\(spec)" : "%\(spec)"
@@ -227,7 +198,6 @@ public enum StringCatalogCompiler {
             }.map(\.element)
         }
 
-        /// A localization that varies by plural category or device.
         mutating func variationDict(_ variations: OrderedJSON, substitutions: [(String, OrderedJSON)]) -> StringsDictValue? {
             let kinds = variations.objectPairs
             if kinds.count > 1 { warn("More than one kind of variation at one level; only '\(kinds[0].0)' is compiled") }
@@ -251,8 +221,6 @@ public enum StringCatalogCompiler {
                     error("The plural variations have no 'other' case")
                     return nil
                 }
-                // The value type is the first numeric specifier of the
-                // `other` case; the rule takes that specifier's argument.
                 let numeric = FormatSpecifier.parse(sample ?? "").first { $0.variable == nil && $0.takesArgument && $0.valueType != "@" }
                 let valueType = numeric?.valueType ?? "lld"
                 let name = variableName(avoiding: substitutions.map(\.0))
@@ -260,7 +228,6 @@ public enum StringCatalogCompiler {
                 var pairs: [(String, StringsDictValue)] = [("NSStringLocalizedFormatKey", .string(token)),
                                                            (name, .dict([("NSStringFormatSpecTypeKey", .string("NSStringPluralRuleType")),
                                                                          ("NSStringFormatValueTypeKey", .string(valueType))] + rule))]
-                // Substitutions referenced from the cases.
                 for (sub, json) in substitutions {
                     let referenced = rule.contains { ($0.1.string ?? "").contains("@\(sub)@") }
                     guard referenced, let r = substitutionRule(name: sub, json, argument: (json["argNum"].flatMap { if case .number(let n) = $0 { return Int(n) }; return nil }) ?? 1, positionalCases: true) else { continue }
@@ -273,8 +240,6 @@ public enum StringCatalogCompiler {
                     if !StringCatalogCompiler.deviceNames.contains(device) { warn("Unknown device '\(device)'") }
                     let subs = node["substitutions"]?.objectPairs ?? substitutions
                     if let inner = node["variations"], !inner.objectPairs.isEmpty {
-                        // A nested rule (device, then plural): a dictionary
-                        // with its own format key.
                         if let d = variationDict(inner, substitutions: subs) { rule.append((device, d)) }
                     } else if let v = unitValue(node) {
                         if subs.isEmpty || !FormatSpecifier.parse(v).contains(where: { $0.variable != nil }) {
@@ -301,7 +266,6 @@ public enum StringCatalogCompiler {
 }
 
 extension StringCatalog {
-    /// A catalog file's table name: its file name without `.xcstrings`.
     public static func tableName(forPath path: String) -> String {
         ((path as NSString).lastPathComponent as NSString).deletingPathExtension
     }

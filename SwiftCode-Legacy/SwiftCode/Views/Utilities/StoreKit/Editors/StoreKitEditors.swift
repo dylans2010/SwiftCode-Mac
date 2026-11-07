@@ -4,8 +4,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.storekit", category: "Editors")
 
-// MARK: - 1. StoreKitDashboardView
-
 struct StoreKitDashboardView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var simulationService = StoreKitSimulationService.shared
@@ -20,7 +18,6 @@ struct StoreKitDashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header Banner
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("StoreKit Environment Dashboard")
@@ -40,7 +37,6 @@ struct StoreKitDashboardView: View {
                 let issues = validationService.validate(config: session.activeConfig)
                 let healthScore = validationService.calculateHealthScore(issues: issues)
 
-                // High-End Metric Cards Grid
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200))], spacing: 14) {
                     metricCard(title: "Portfolio Health Score", count: "\(healthScore)%", subtitle: "Based on static analysis rules", icon: "heart.text.square", color: healthScore > 80 ? .green : (healthScore > 50 ? .orange : .red))
                     metricCard(title: "Active Products Count", count: String(session.activeConfig.products.count + session.activeConfig.nonRenewingSubscriptions.count), subtitle: "Consumables & Non-Consumables", icon: "cart", color: .blue)
@@ -49,7 +45,6 @@ struct StoreKitDashboardView: View {
                 }
 
                 HStack(alignment: .top, spacing: 20) {
-                    // Left Side: Project Health Overview & Quick Actions
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Active Sandbox Highlights")
                             .font(.system(size: 12, weight: .bold))
@@ -81,7 +76,6 @@ struct StoreKitDashboardView: View {
                     }
                     .frame(maxWidth: .infinity)
 
-                    // Right Side: Recent Activity Timeline Stream
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Recent Sandbox Activity Feed")
                             .font(.system(size: 12, weight: .bold))
@@ -192,9 +186,6 @@ struct StoreKitDashboardView: View {
     }
 }
 
-
-// MARK: - 2. StoreKitExplorerView
-
 struct StoreKitExplorerView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var simulationService = StoreKitSimulationService.shared
@@ -210,7 +201,6 @@ struct StoreKitExplorerView: View {
                         .foregroundColor(.secondary)
                 }
 
-                // File Grid Block
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Active Environment Directories")
                         .font(.system(size: 12, weight: .bold))
@@ -232,7 +222,6 @@ struct StoreKitExplorerView: View {
                 .padding(16)
                 .liquidGlass(style: .standard, cornerRadius: 10)
 
-                // Simulator Sandbox Profiles Selector
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Saved Simulator Profiles")
                         .font(.system(size: 12, weight: .bold))
@@ -292,9 +281,6 @@ struct StoreKitExplorerView: View {
     }
 }
 
-
-// MARK: - 3. StoreKitProductsView (Product Library)
-
 struct StoreKitProductsView: View {
     var filterType: String? = nil
 
@@ -303,13 +289,11 @@ struct StoreKitProductsView: View {
     @State private var selectedProductID: String? = nil
     @State private var bulkActionType = ""
 
-    // Smart Generator Overlay States
     @State private var showingAIGenerator = false
     @State private var editingProduct: SKProduct? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            // Product Action bar
             HStack(spacing: 12) {
                 TextField("Search products by identifier or reference name...", text: $searchText)
                     .textFieldStyle(.roundedBorder)
@@ -329,7 +313,6 @@ struct StoreKitProductsView: View {
                     Label("Add Product", systemImage: "plus")
                 }
 
-                // Bulk Operations Menu
                 Menu {
                     Button("Bulk Rename (Suffix '_pro')") {
                         applyBulkOperation(.bulkRename)
@@ -370,7 +353,6 @@ struct StoreKitProductsView: View {
 
             Divider()
 
-            // Product Spreadsheet Table
             Table(filteredProducts, selection: $selectedProductID) {
                 TableColumn("Product ID") { prod in
                     HStack {
@@ -600,9 +582,6 @@ struct StoreKitProductsView: View {
     }
 }
 
-
-// MARK: - 4. SmartProductGeneratorSheet (AI Creator)
-
 struct SmartProductGeneratorSheet: View {
     @Environment(\.dismiss) var dismiss
     @Environment(StoreKitWorkspaceSession.self) var session
@@ -678,7 +657,6 @@ struct SmartProductGeneratorSheet: View {
                 session.activeConfig.products.append(parsedProd)
                 statusMessage = "Successfully generated Product!"
             } else {
-                // Fallback smart parser
                 let smartID = "com.app." + prompt.lowercased().replacingOccurrences(of: " ", with: "_").prefix(14)
                 let smartProduct = SKProduct(
                     productID: String(smartID),
@@ -699,9 +677,6 @@ struct SmartProductGeneratorSheet: View {
         }
     }
 }
-
-
-// MARK: - 5. SubscriptionTimelineView
 
 struct SubscriptionTimelineView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
@@ -739,7 +714,6 @@ struct SubscriptionTimelineView: View {
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(.accentColor)
 
-                            // Render interactive timeline nodes
                             HStack(spacing: 0) {
                                 timelineNode(title: "Purchase", icon: "cart.fill", isPast: true)
                                 timelineLine(isPast: true)
@@ -800,9 +774,6 @@ struct SubscriptionTimelineView: View {
             .padding(.horizontal, 4)
     }
 }
-
-
-// MARK: - 6. StoreKitDiagnosticsView (Diagnostics Center)
 
 struct StoreKitDiagnosticsView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
@@ -927,9 +898,6 @@ struct StoreKitDiagnosticsView: View {
     }
 }
 
-
-// MARK: - 7. StorefrontsView (Storefront Manager)
-
 struct StoreKitStorefrontEditorView: View {
     @State private var storefronts: [SKStorefront] = [
         SKStorefront(code: "USA", name: "United States", region: "North America", currency: "USD", isAvailable: true),
@@ -975,9 +943,6 @@ struct StoreKitStorefrontEditorView: View {
         }
     }
 }
-
-
-// MARK: - 8. LocalizationView (Localization Manager)
 
 struct StoreKitLocalizationEditorView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
@@ -1051,9 +1016,6 @@ struct StoreKitLocalizationEditorView: View {
     }
 }
 
-
-// MARK: - 9. AssetManagerView (Asset Manager)
-
 struct StoreKitAssetEditorView: View {
     @State private var projectAssets: [SKAsset] = []
 
@@ -1106,9 +1068,6 @@ struct StoreKitAssetEditorView: View {
     }
 }
 
-
-// MARK: - 10. OfferDesigner (Offer Designer)
-
 struct StoreKitOfferEditorView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
 
@@ -1144,7 +1103,6 @@ struct StoreKitOfferEditorView: View {
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(.accentColor)
 
-                            // Intro Offers
                             HStack {
                                 Text("Introductory Offers")
                                     .font(.system(size: 11, weight: .semibold))
@@ -1177,7 +1135,6 @@ struct StoreKitOfferEditorView: View {
 
                             Divider()
 
-                            // Promo Code Offers
                             HStack {
                                 Text("Promotional Offer Codes")
                                     .font(.system(size: 11, weight: .semibold))
@@ -1255,9 +1212,6 @@ struct StoreKitOfferEditorView: View {
     }
 }
 
-
-// MARK: - 11. CompareView (Compare Configs)
-
 struct StoreKitCompareView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
 
@@ -1323,9 +1277,6 @@ struct StoreKitCompareView: View {
         }
     }
 }
-
-
-// MARK: - 12. VersionHistoryView (Version History)
 
 struct StoreKitVersionHistoryView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
@@ -1394,9 +1345,6 @@ struct StoreKitVersionHistoryView: View {
     }
 }
 
-
-// MARK: - 13. SearchCenterView (Search Center)
-
 struct StoreKitSearchCenterView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var query = ""
@@ -1453,9 +1401,6 @@ struct StoreKitSearchCenterView: View {
     }
 }
 
-
-// MARK: - 14. CommandPaletteView (Command Palette)
-
 struct StoreKitCommandPaletteView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var query = ""
@@ -1510,9 +1455,6 @@ struct StoreKitCommandPaletteView: View {
     }
 }
 
-
-// MARK: - 15. SettingsView
-
 struct StoreKitSettingsView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
 
@@ -1560,9 +1502,6 @@ struct StoreKitSettingsView: View {
     }
 }
 
-
-// MARK: - 16. LogsView
-
 struct StoreKitLogsView: View {
     @State private var simulationService = StoreKitSimulationService.shared
 
@@ -1605,9 +1544,6 @@ struct StoreKitLogsView: View {
         }
     }
 }
-
-
-// MARK: - 17. RawSourceEditorView
 
 struct StoreKitRawSourceEditorView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
@@ -1675,9 +1611,6 @@ struct StoreKitRawSourceEditorView: View {
         }
     }
 }
-
-
-// MARK: - 18. StoreKitTemplateGalleryView
 
 struct TemplateCard: Identifiable, Sendable {
     var id: String { name }
@@ -1751,9 +1684,6 @@ struct StoreKitTemplateGalleryView: View {
     }
 }
 
-
-// MARK: - 19. StoreKitTransactionExplorerView
-
 struct StoreKitTransactionExplorerView: View {
     @State private var simulationService = StoreKitSimulationService.shared
 
@@ -1817,9 +1747,6 @@ struct StoreKitTransactionExplorerView: View {
         }
     }
 }
-
-
-// MARK: - 20. StoreKitSubscriptionGroupEditorView
 
 struct StoreKitSubscriptionGroupEditorView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
@@ -1894,9 +1821,6 @@ struct StoreKitSubscriptionGroupEditorView: View {
         StoreKitSimulationService.shared.logActivity(category: "Offers", title: "Group Created", message: "Created standard subscription group '\(name)'.")
     }
 }
-
-
-// MARK: - 21. StoreKitPurchaseSimulatorView
 
 struct StoreKitPurchaseSimulatorView: View {
     @Bindable private var simulationService = StoreKitSimulationService.shared
@@ -1991,9 +1915,6 @@ struct StoreKitPurchaseSimulatorView: View {
         return list
     }
 }
-
-
-// MARK: - Helper editing wrappers
 
 struct StoreKitProductEditingSheet: View, Identifiable {
     nonisolated public let id: String

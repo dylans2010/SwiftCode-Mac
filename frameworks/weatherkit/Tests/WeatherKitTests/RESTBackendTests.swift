@@ -1,6 +1,3 @@
-// Apple REST backend (plan.md R4, rest-api.md) against a scripted transport
-// and a REST response we wrote ourselves (made-up values shaped per
-// rest-api.md §4). No test reaches the network.
 import CoreLocation
 import Foundation
 import Testing
@@ -9,7 +6,6 @@ import Testing
 import FoundationNetworking
 #endif
 
-/// A made-up REST v1 response for 41.5, −81.5 at 2026-01-15T12:00Z.
 let restWeatherJSON = #"""
 {
   "currentWeather": {
@@ -107,7 +103,6 @@ let restAttributionJSON = #"""
  "logoSquare@2x": "/assets/square@2x.png", "logoSquare@3x": "https://cdn.example.invalid/square@3x.png"}
 """#
 
-/// A service on the REST backend with a scripted transport.
 func makeRESTService(
     clock: TestClock = TestClock(), context: AppleRESTWeatherBackend.LocationContext = .init(timeZone: "America/New_York", countryCode: "US"),
     handler: @escaping @Sendable (URLRequest) throws -> (Int, Data) = { request in
@@ -151,7 +146,7 @@ struct RESTBackendTests {
     @Test("behavior.md §1: ranges are sent as ISO 8601 UTC with seconds, exactly the caller's dates")
     func rangeParameters() async throws {
         let (service, http) = makeRESTService()
-        let start = Date(timeIntervalSince1970: 1_768_523_402)  // 2026-01-16T00:30:02Z
+        let start = Date(timeIntervalSince1970: 1_768_523_402)
         _ = try await service.weather(
             for: fixtureLocation, including: .daily(startDate: start, endDate: start.addingTimeInterval(86_400)),
             .hourly(startDate: start, endDate: start.addingTimeInterval(7200)))
@@ -205,7 +200,6 @@ struct RESTBackendTests {
         #expect(current.metadata.date == fixtureAnchor)
         #expect(current.metadata.expirationDate == fixtureAnchor.addingTimeInterval(600))
         #expect(current.metadata.location.coordinate.latitude == 41.5)
-        // The result round-trips through the archive format.
         #expect(try decode(CurrentWeather.self, try encode(current)) == current)
     }
 
@@ -243,13 +237,13 @@ struct RESTBackendTests {
         #expect(day.sun.astronomicalDawn != nil && day.sun.civilDusk != nil && day.sun.solarMidnight != nil)
         #expect(day.daytimeForecast.condition == .flurries)
         #expect(day.daytimeForecast.wind.speed == Measurement(value: 23, unit: .kilometersPerHour))
-        #expect(day.overnightForecast.precipitation == .rain)  // "precipitation" → rain
+        #expect(day.overnightForecast.precipitation == .rain)
         #expect(day.maximumHumidity == 0.82)
         #expect(day.minimumHumidity == 0.74)
         #expect(daily[1].moon.phase == .waningCrescent)
         #expect(daily[1].precipitation == .none)
         #expect(daily[1].sun.sunrise == nil)
-        #expect(daily[1].daytimeForecast.condition == .clear)  // synthesized from the day
+        #expect(daily[1].daytimeForecast.condition == .clear)
     }
 
     @Test("rest-api.md §4.6: next hour minutes, summary periods and the summary sentence")

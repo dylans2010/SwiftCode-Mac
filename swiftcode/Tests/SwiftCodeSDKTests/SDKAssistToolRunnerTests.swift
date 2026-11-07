@@ -1,27 +1,8 @@
 import XCTest
 @testable import SwiftCodeSDK
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter SDKAssistToolRunnerTests`.
-//
-// Wave 17, Slice B: tests for the grant-enforcing tool runner seam
-// (`SDKAssistHostBackend.executeTool` + `SDKAssistToolRunning`).
-// The runner is a fake: the real MCP-backed runner is covered in
-// `SwiftCodeUITests/SwiftCodeSDKToolRunnerTests` and the approval gate in
-// `SwiftCodeMCPTests/MCPCallerIdentityTests`. What is proven here is the
-// backend's enforcement order — closed session, snapshot ceiling,
-// live-grant revocation, caller isolation — and that a refusal
-// happens before the runner is ever called (no approval UI, no tool
-// run, no fabricated result).
-
 final class SDKAssistToolRunnerTests: XCTestCase {
 
-    // MARK: - Fakes
-
-    /// A recording runner: answers the live-grant query from `live`
-    /// (nil = the host cannot answer live) and plays back `result`
-    /// (or throws `runError`).
     private final class FakeToolRunner: SDKAssistToolRunning, @unchecked Sendable {
         var live: Set<String>?
         var result = SDKAssistToolResult(toolName: "workspace.read", succeeded: true, output: "fake-output")
@@ -36,8 +17,6 @@ final class SDKAssistToolRunnerTests: XCTestCase {
             return result
         }
     }
-
-    // MARK: - Helpers
 
     private func makeSession(
         extensionID: String = "com.example.test-a",
@@ -63,8 +42,6 @@ final class SDKAssistToolRunnerTests: XCTestCase {
         }
     }
 
-    // MARK: - Granted runs, ungranted refused pre-runner
-
     func testGrantedToolRuns() async throws {
         let runner = FakeToolRunner()
         runner.live = ["workspace.read"]
@@ -84,9 +61,6 @@ final class SDKAssistToolRunnerTests: XCTestCase {
         runner.live = ["workspace.read", "workspace.write"]
         let backend = SDKAssistHostBackend()
         await backend.install(toolRunner: runner)
-        // "workspace.write" is live-granted but NOT in the session
-        // snapshot: the snapshot is the ceiling, and the refusal
-        // happens before the runner is called (no approval UI).
         await assertThrowsCode(.permissionDenied) {
             try await backend.executeTool(
                 session: self.makeSession(allowedToolIDs: ["workspace.read"]),
@@ -107,11 +81,9 @@ final class SDKAssistToolRunnerTests: XCTestCase {
         XCTAssertTrue(runner.runCalls.isEmpty)
     }
 
-    // MARK: - Revocation closes the path
-
     func testRevokedLiveGrantClosesPath() async {
         let runner = FakeToolRunner()
-        runner.live = [] // every grant revoked after the session was created
+        runner.live = []
         let backend = SDKAssistHostBackend()
         await backend.install(toolRunner: runner)
         await assertThrowsCode(.permissionDenied) {
@@ -136,7 +108,7 @@ final class SDKAssistToolRunnerTests: XCTestCase {
 
     func testNoLiveAnswerFallsBackToSnapshot() async throws {
         let runner = FakeToolRunner()
-        runner.live = nil // host cannot answer live: snapshot alone applies
+        runner.live = nil
         let backend = SDKAssistHostBackend()
         await backend.install(toolRunner: runner)
         let result = try await backend.executeTool(
@@ -145,8 +117,6 @@ final class SDKAssistToolRunnerTests: XCTestCase {
         XCTAssertTrue(result.succeeded)
         XCTAssertEqual(runner.runCalls.count, 1)
     }
-
-    // MARK: - Closed session, no runner, isolation, error mapping
 
     func testClosedSessionRefusedBeforeRunner() async {
         let runner = FakeToolRunner()
@@ -174,10 +144,6 @@ final class SDKAssistToolRunnerTests: XCTestCase {
         runner.live = ["workspace.read", "workspace.write"]
         let backend = SDKAssistHostBackend()
         await backend.install(toolRunner: runner)
-        // Caller A may read; caller B may only write. A read call on
-        // B's session is refused even though A could run it: the
-        // session — and its snapshot — belongs to exactly one
-        // extension, so B cannot run with A's grants.
         let readCall = SDKAssistToolCall(toolName: "workspace.read", arguments: ["tool": "file_read"])
         let aResult = try await backend.executeTool(
             session: makeSession(extensionID: "com.example.test-a", allowedToolIDs: ["workspace.read"]),

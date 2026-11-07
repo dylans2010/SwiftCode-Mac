@@ -74,7 +74,7 @@ public struct VirtualMachineNetworkView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(" ") // Align with text fields
+                                Text(" ")
                                     .font(.caption)
                                 Button("Add Rule") {
                                     addRule(vm.id)
@@ -150,7 +150,6 @@ public struct VirtualMachineNetworkView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Networking Inline Help Info
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)

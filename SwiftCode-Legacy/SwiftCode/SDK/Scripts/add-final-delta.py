@@ -4,8 +4,7 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Advanced Reference Guides
+
     guides_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(guides_dir, exist_ok=True)
     extra_guides = [
@@ -35,7 +34,6 @@ def main():
         with open(os.path.join(guides_dir, f"{slug}.md"), "w") as f:
             f.write("\n".join(lines))
 
-    # 2. Complete Examples in Build-Integration and Source-Control
     bld_dir = os.path.join(dest, "examples", "build-integration")
     os.makedirs(bld_dir, exist_ok=True)
     for i in range(15):
@@ -60,7 +58,6 @@ def main():
         with open(os.path.join(sc_dir, f"git_hook_{i:02d}.sh"), "w") as f:
             f.write("\n".join(lines))
 
-    # 3. Update manifests/components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

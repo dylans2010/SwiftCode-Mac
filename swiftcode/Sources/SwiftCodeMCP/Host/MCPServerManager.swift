@@ -1,13 +1,3 @@
-// MCPServerManager.swift
-//
-// Ported from Legacy `SwiftCode/Frameworks/Internal/MCP/MCPServerManager.swift` (SwiftCode-Mac migration, R-MCPSERVER, 2026-11-06; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeMCP. Staged as BLOCKED-ON-MCP-DEP by M-REST; landed now that the companion types (MCPModels.swift / MCPClient.swift) land alongside it.
-// Adaptations:
-//   - `MCPServer` -> `MCPServerConfig`, `MCPTool` -> `MCPRemoteTool` (same collisions as MCPModels.swift).
-//   - `JSONValue` qualified as `SwiftCodeAssistant.JSONValue` (see MCPModels.swift).
-//   - `import SwiftCodeAssistant` added for `KeychainService` / `JSONValue`.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import Foundation
 import os
 import SwiftCodeAssistant
@@ -22,7 +12,6 @@ public final class MCPServerManager: Sendable {
 
     public private(set) var servers: [MCPServerConfig] = []
 
-    // In-memory active clients mapped by Server ID
     private var activeClients: [UUID: MCPClient] = [:]
 
     private let saveURL: URL = {
@@ -36,8 +25,6 @@ public final class MCPServerManager: Sendable {
         loadServers()
     }
 
-    // MARK: - Server Persistence
-
     private func loadServers() {
         logger.log("Restoring configured MCP servers from \(self.saveURL.path)...")
         do {
@@ -47,7 +34,6 @@ public final class MCPServerManager: Sendable {
             }
             let data = try Data(contentsOf: saveURL)
             var restored = try JSONDecoder().decode([MCPServerConfig].self, from: data)
-            // Ensure runtime status is disconnected initially
             for idx in restored.indices {
                 restored[idx].status = .disconnected
                 restored[idx].lastError = nil
@@ -68,8 +54,6 @@ public final class MCPServerManager: Sendable {
             logger.error("Failed to save MCP servers: \(error.localizedDescription)")
         }
     }
-
-    // MARK: - Server Configuration Management
 
     public func addServer(_ server: MCPServerConfig, secretKey: String? = nil) {
         servers.append(server)
@@ -96,8 +80,6 @@ public final class MCPServerManager: Sendable {
         saveServers()
     }
 
-    // MARK: - Keychain Secret Helpers
-
     private func saveSecret(_ secret: String, for serverID: UUID) {
         let key = "mcp-server-key-\(serverID.uuidString)"
         KeychainService.shared.set(secret, forKey: key)
@@ -112,8 +94,6 @@ public final class MCPServerManager: Sendable {
         let key = "mcp-server-key-\(serverID.uuidString)"
         KeychainService.shared.delete(forKey: key)
     }
-
-    // MARK: - Lifecycle Operations
 
     public func connect(server: MCPServerConfig) async throws {
         guard let idx = servers.firstIndex(where: { $0.id == server.id }) else {
@@ -130,11 +110,9 @@ public final class MCPServerManager: Sendable {
         do {
             let metadata = try await client.connect()
 
-            // Successfully connected! Update state
             servers[idx].status = .connected
-            servers[idx].capabilities = ["tools"] // Statically negotiated for tool use
+            servers[idx].capabilities = ["tools"]
 
-            // Automatically trigger tool discovery right after connection
             let toolsList = try await client.listTools()
             servers[idx].tools = toolsList
             servers[idx].toolCount = toolsList.count
@@ -208,12 +186,9 @@ public final class MCPServerManager: Sendable {
         return try await client.callTool(name: name, arguments: arguments)
     }
 
-    // MARK: - Handshake Test connection without saving
-
     public func testConnection(config: MCPServerConfig, secretKey: String? = nil) async throws -> (MCPServerMetadata, [MCPRemoteTool]) {
         logger.log("Testing connection to temporary server config '\(config.displayName)'...")
 
-        // Temporarily store the secret in keychain if provided
         let tempKey = "mcp-server-key-\(config.id.uuidString)"
         let existingSecret = getSecret(for: config.id)
         if let key = secretKey, !key.isEmpty {

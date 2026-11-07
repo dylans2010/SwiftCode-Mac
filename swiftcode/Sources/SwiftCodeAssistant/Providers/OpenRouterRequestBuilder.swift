@@ -33,12 +33,8 @@ public struct OpenRouterRequestBuilder: Sendable {
                     "image_url": ["url": "data:\(mimeType);base64,\(base64)"]
                 ]
             case .toolCall(let _):
-                // Tool calls are usually part of the assistant message, but not in 'content' array for OpenRouter usually.
-                // However, some models might support them in content.
-                // For OpenRouter/OpenAI, they are at the top level of the message.
                 return nil
             case .toolResult(let _):
-                // Tool results are separate messages with role 'tool'.
                 return nil
             case .pendingQuestion, .pendingQuestionSet, .checklistUpdate:
                 return nil
@@ -49,7 +45,6 @@ public struct OpenRouterRequestBuilder: Sendable {
             dict["content"] = contents
         }
 
-        // Handle tool calls and tool results specifically if they exist in the message
         for content in message.content {
             if case .toolCall(let call) = content {
                 var toolCalls = dict["tool_calls"] as? [[String: any Sendable]] ?? []

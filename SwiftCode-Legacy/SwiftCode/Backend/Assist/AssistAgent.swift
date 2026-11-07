@@ -17,17 +17,13 @@ public final class AssistAgent: ObservableObject {
         defer { isRunning = false }
 
         do {
-            // Claude Code-level execution flow via AssistAPI
 
-            // 1. Enhance Prompt (Internal step if not already specific)
             let enhanceResponse = await api.enhancePrompt(userInput: intent)
             let finalIntent = enhanceResponse.success ? (enhanceResponse.data?["enhancedPrompt"] ?? intent) : intent
 
-            // 2. Analyze
             let analyzeResponse = await api.analyze()
             await context.logger.info("Codebase analysis complete: \(analyzeResponse.markdown ?? "")")
 
-            // 3. Plan
             let planResponse = await api.plan(intent: finalIntent)
             guard planResponse.success, let planStr = planResponse.data?["plan"], let planData = planStr.data(using: .utf8) else {
                 return AssistAIResponse(content: "", success: false, error: "Failed to generate plan: \(planResponse.error ?? "Unknown error")")
@@ -35,7 +31,6 @@ public final class AssistAgent: ObservableObject {
 
             let plan = try JSONDecoder().decode(AssistExecutionPlan.self, from: planData)
 
-            // 4. Execute (Autonomous engine integration)
             let takeoverEnabled = UserDefaults.standard.bool(forKey: "assist.takeoverEnabled")
 
             if takeoverEnabled {

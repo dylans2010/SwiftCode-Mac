@@ -3,29 +3,22 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// specs/simulator/cpu-features.md: derivation, deny list, the three
-/// outputs and the §5 invariants. The registers are synthetic: fields set
-/// as the §4.4 oracle expects the Thor's guest view to be, plus fields KVM
-/// would hide, to check the deny list.
 @Suite struct CPUFeaturesTests {
     static func reg(_ fields: [(lsb: Int, value: UInt64)]) -> UInt64 {
         fields.reduce(0) { $0 | ($1.value << UInt64($1.lsb)) }
     }
 
-    /// A Thor-like guest view (§4.4 inputs).
     static var thor: GuestIDRegisters {
         var r = GuestIDRegisters()
-        // TS 2, FHM 1, DP 1, SHA3 1, RDM 1, Atomic 2, CRC32 1, SHA2 2, SHA1 1, AES 2.
         r[.isar0] = reg([(52, 2), (48, 1), (44, 1), (32, 1), (28, 1), (20, 2), (16, 1), (12, 2), (8, 1), (4, 2)])
-        // I8MM 1, BF16 1, SPECRES 0, SB 1, FRINTTS 1, GPI 0, LRCPC 2, FCMA 1, JSCVT 1, API/APA 0, DPB 2.
         r[.isar1] = reg([(52, 1), (44, 1), (36, 1), (32, 1), (20, 2), (16, 1), (12, 1), (0, 2)])
-        r[.isar2] = reg([(0, 2)])                       // WFxT 2 (denied), RPRES 0
-        r[.mmfr0] = reg([(60, 2)])                      // ECV 2 (deferred)
-        r[.mmfr1] = reg([(44, 1)])                      // AFP 1
-        r[.mmfr2] = reg([(32, 1)])                      // AT 1 (LSE2)
-        r[.pfr0] = reg([(60, 1), (56, 1), (48, 1), (20, 1), (16, 1), (0, 1), (4, 1)])  // CSV3, CSV2, DIT, AdvSIMD 1, FP 1
-        r[.pfr1] = reg([(4, 2), (0, 1)])                // SSBS 2, BT 1
-        r[.ctr] = 0x8444_C004                           // CWG 4 (64 bytes), DminLine 4
+        r[.isar2] = reg([(0, 2)])
+        r[.mmfr0] = reg([(60, 2)])
+        r[.mmfr1] = reg([(44, 1)])
+        r[.mmfr2] = reg([(32, 1)])
+        r[.pfr0] = reg([(60, 1), (56, 1), (48, 1), (20, 1), (16, 1), (0, 1), (4, 1)])
+        r[.pfr1] = reg([(4, 2), (0, 1)])
+        r[.ctr] = 0x8444_C004
         r[.dczid] = 0x4
         r[.midr] = 0x410F_D830
         return r
@@ -37,13 +30,10 @@ import SwiftCodeDarwinABI
 
     @Test func thorOracle() {
         let p = Self.profile()
-        // §4.4: ff ef c7 e3 1f 00 0e 00 00 00 00 00 00.
         #expect(p.published.capsBytes == [0xFF, 0xEF, 0xC7, 0xE3, 0x1F, 0x00, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         #expect(p.published.capsBytes.count == 13)
-        // WFxT and ECV were derived and then denied.
         #expect(p.derived.contains(CapsBit.wfxt) && p.derived.contains(CapsBit.ecv))
         #expect(!p.published.contains(CapsBit.wfxt) && !p.published.contains(CapsBit.ecv))
-        // §4.4: 0x03f76f0787007fa8 before CPU count and kUP; N = 1 gives 0x03f76f078701ffa8.
         var c = CommpageBuilder()
         c.cpuCount = 1
         c.cacheLineSize = UInt16(p.cacheLineSize)
@@ -61,7 +51,6 @@ import SwiftCodeDarwinABI
 
     @Test func denyListWins() {
         var r = Self.thor
-        // Pointer authentication, SME, MTE and SPECRES visible: never published.
         r[.isar1] |= Self.reg([(8, 5), (4, 5), (28, 1), (40, 2)])
         r[.pfr1] |= Self.reg([(24, 2), (8, 3)])
         let p = Self.profile(r)
@@ -70,13 +59,10 @@ import SwiftCodeDarwinABI
             #expect(p.derived.contains(bit), "derived \(bit)")
             #expect(!p.published.contains(bit), "published \(bit)")
         }
-        // swiftlint:disable:next is_disjoint - CPUFeatureSet is not a SetAlgebra
         #expect(p.published.intersection(CapsBit.denied).isEmpty)
         #expect(p.published == Self.profile().published)
-        // The commpage never carries PAuth, GPI, SME or SPECRES.
         let w = p.commpageOptionalBits
         for b: UInt64 in [44, 47, 51, 59, 60] { #expect(w & (1 << b) == 0) }
-        // Bits without public meaning stay clear.
         for b: UInt64 in [29, 35, 36, 37, 38, 39, 61, 62, 63] { #expect(w & (1 << b) == 0) }
     }
 
@@ -96,12 +82,10 @@ import SwiftCodeDarwinABI
         #expect(t.lookup(name: "hw.optional.arm.caps")?.value == .bytes([UInt8](repeating: 0, count: 13)))
         #expect(t.lookup(name: "hw.optional.arm.FEAT_LSE")?.value == .integer(0, size: 4))
         #expect(t.lookup(name: "hw.optional.neon")?.value == .integer(0, size: 4))
-        // The corrected values do not depend on the switch.
         #expect(t.lookup(name: "hw.tbfrequency")?.value == .integer(24_000_000, size: 8))
         #expect(t.lookup(name: "hw.l2cachesize")?.value == .quad(1 << 20))
     }
 
-    /// §5 invariants 1–6 on the sysctl table and the commpage.
     @Test func invariants() {
         for cpus in [1, 4] {
             let p = Self.profile()
@@ -111,11 +95,9 @@ import SwiftCodeDarwinABI
             }
             let set = CPUFeatureSet(capsBytes: caps)
             #expect(set == p.published)
-            // 1. Every named bit's sysctl equals the bit.
             for (bit, name) in CapsBit.names {
                 #expect(t.lookup(name: "hw.optional.arm." + name)?.value == .integer(set.contains(bit) ? 1 : 0, size: 4), "\(name)")
             }
-            // 2. Commpage bits equal their caps bits; crypto = AES ∧ PMULL ∧ SHA1 ∧ SHA256.
             var c = CommpageBuilder()
             c.cpuCount = UInt8(cpus)
             c.cacheLineSize = UInt16(p.cacheLineSize)
@@ -124,28 +106,22 @@ import SwiftCodeDarwinABI
             for (bit, mask) in CPUFeatureSet.commpagePairs { #expect((w & mask != 0) == set.contains(bit), "commpage \(bit)") }
             let crypto = [CapsBit.aes, CapsBit.pmull, CapsBit.sha1, CapsBit.sha256].allSatisfy(set.contains)
             #expect((w & 0x0100_0000 != 0) == crypto)
-            // 3. Legacy names equal their modern counterparts.
             for (name, bit) in GuestCPUProfile.legacyNames {
                 let want: Int64 = (bit.map(set.contains) ?? true) ? 1 : 0
                 #expect(t.lookup(name: "hw.optional." + name)?.value == .integer(want, size: 4), "\(name)")
             }
             #expect(t.lookup(name: "hw.optional.armv8_gpi")?.value == .integer(0, size: 4))
             #expect(t.lookup(name: "hw.optional.watchpoint")?.value == .integer(0, size: 4))
-            // 4. Cache line: commpage bit, commpage 0x026 and hw.cachelinesize.
             #expect(t.lookup(name: "hw.cachelinesize")?.value == .quad(Int64(p.cacheLineSize)))
             #expect(w & 0x20 != 0 && w & 0x50 == 0)
             #expect(c.rwPage().readLE(UInt16.self, at: 0x026) == UInt16(p.cacheLineSize))
-            // 5. CPU counts.
             #expect((w >> 16) & 0xFF == UInt64(cpus))
             #expect((w & 0x8000 != 0) == (cpus == 1))
             for name in ["hw.ncpu", "hw.activecpu", "hw.logicalcpu", "hw.physicalcpu_max", "hw.perflevel0.logicalcpu",
                          "machdep.cpu.core_count", "machdep.cpu.thread_count", "machdep.cpu.logical_per_package"] {
                 #expect(t.lookup(name: name)?.value == .integer(Int64(cpus), size: 4), "\(name)")
             }
-            // 6. Nothing denied anywhere.
-            // swiftlint:disable:next is_disjoint - CPUFeatureSet is not a SetAlgebra
             #expect(set.intersection(CapsBit.denied).isEmpty)
-            // MIBs are unique and round-trip.
             var seen = Set<[Int32]>()
             for e in t.entries {
                 #expect(seen.insert(e.mib).inserted, "duplicate MIB \(e.mib) (\(e.name))")
@@ -172,13 +148,12 @@ import SwiftCodeDarwinABI
         #expect(config.count == 80 && sizes.count == 80)
         #expect(config.readLE(UInt64.self, at: 0) == 2 && config.readLE(UInt64.self, at: 16) == 1)
         #expect(sizes.readLE(UInt64.self, at: 8) == 64 << 10 && sizes.readLE(UInt64.self, at: 16) == 1 << 20)
-        // tbfrequency × numer / denom = 10⁹ (invariant 8; numer/denom 125/3 at 24 MHz).
         #expect(24_000_000 * 125 / 3 == 1_000_000_000)
     }
 
     @Test func coherencyLine() {
         #expect(GuestCPUProfile.coherencyLineSize(ctr: 0x8444_C004) == 64)
-        #expect(GuestCPUProfile.coherencyLineSize(ctr: 0x0005_0000) == 128)   // CWG 0: DminLine 5
+        #expect(GuestCPUProfile.coherencyLineSize(ctr: 0x0005_0000) == 128)
         #expect(GuestCPUProfile.coherencyLineSize(ctr: 0) == 64)
     }
 
@@ -202,9 +177,6 @@ import SwiftCodeDarwinABI
         try? FileManager.default.removeItem(atPath: dir)
     }
 
-    /// The 13-byte caps through BSD 274: a size query, a 16-byte buffer
-    /// (dyld), a 13-byte buffer (compiler-rt), and a short one (ENOMEM with
-    /// what fits).
     @Test func capsThroughSysctlbyname() throws {
         let env = try Env()
         env.kernel.sysctl = SysctlTable.make(profile: Self.profile(), cpuCount: 1)
@@ -238,7 +210,7 @@ import SwiftCodeDarwinABI
         let stored = p.published.storedBytes
         #expect(stored.count == 16)
         #expect(CPUFeatureSet(storedBytes: stored) == p.published)
-        #expect(p.published.contains(CapsBit.fpSyncExceptions))   // a bit above 63 survives
+        #expect(p.published.contains(CapsBit.fpSyncExceptions))
         #expect(p.published.isSubset(of: p.allowed))
         var lacking = p.allowed
         lacking.remove(CapsBit.lse)
@@ -246,10 +218,6 @@ import SwiftCodeDarwinABI
         #expect(p.published.subtracting(lacking).names == ["FEAT_LSE"])
     }
 
-    /// §6: a snapshot records the features its guests were told; a restore
-    /// on a host that does not offer one of them is refused (the launcher
-    /// then boots cold). The test process has no profile installed, so
-    /// `GuestCPUProfile.current.allowed` is empty here.
     @Test func snapshotRefusesMissingFeatures() throws {
         func records(_ features: CPUFeatureSet?) -> [SnapshotRecord] {
             var sys = SnapshotFields()
@@ -260,7 +228,6 @@ import SwiftCodeDarwinABI
                     SnapshotRecord(kind: .clock, id: KernelSnapshotCapture.clockID, fields: clock)]
         }
         #expect(GuestCPUProfile.current.allowed.isEmpty)
-        // Older snapshots (no field) and snapshots that used nothing restore.
         _ = try KernelSnapshotRestore(records: records(nil), system: DarwinSystem())
         _ = try KernelSnapshotRestore(records: records(CPUFeatureSet()), system: DarwinSystem())
         do {

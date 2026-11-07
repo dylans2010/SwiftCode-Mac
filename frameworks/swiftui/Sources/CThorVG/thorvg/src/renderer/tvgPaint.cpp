@@ -1,35 +1,9 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgMath.h"
 #include "tvgPaint.h"
 #include "tvgShape.h"
 #include "tvgPicture.h"
 #include "tvgScene.h"
 #include "tvgText.h"
-
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
 
 #define PAINT_METHOD(ret, METHOD) \
     switch (paint->type()) { \
@@ -40,15 +14,13 @@
         default: ret = {}; \
     }
 
-
 static bool _clipRect(RenderMethod* renderer, const Point* pts, const Matrix& m, RenderRegion& before)
 {
-    Point c[4];  //corners
+    Point c[4];
     for (int i = 0; i < 4; ++i) {
         c[i] = pts[i] * m;
     }
 
-    //figure out if the clipper is a superset of the current viewport(before) region
     auto pointInConvexQuad = [](const Point& p, const Point* quad) {
         auto sign = [](const Point& p1, const Point& p2, const Point& p3) {
             return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
@@ -65,31 +37,23 @@ static bool _clipRect(RenderMethod* renderer, const Point* pts, const Matrix& m,
     if (!pointInConvexQuad({float(before.xMax), float(before.yMax)}, c)) return false;
     if (!pointInConvexQuad({float(before.xMin), float(before.yMax)}, c)) return false;
 
-    //same viewport
     return true;
 }
 
-
 static bool _compFastTrack(RenderMethod* renderer, Paint* cmpTarget, const Matrix& pm, RenderRegion& before)
 {
-    /* Access Shape class by Paint is bad... but it's ok still it's an internal usage. */
     auto shape = static_cast<Shape*>(cmpTarget);
 
-    //Trimming likely makes the shape non-rectangular
     if (to<ShapeImpl>(shape)->rs.trimpath()) return false;
 
-    //Rectangle Candidates?
     const Point* pts;
     uint32_t ptsCnt;
     shape->path(nullptr, nullptr, &pts, &ptsCnt);
 
-    //No rectangle format
     if (ptsCnt != 4) return false;
 
-    //No rotation and no skewing, still can try out clipping the rect region.
     auto tm = pm * cmpTarget->transform();
 
-    //Perpendicular Rectangle?
     if (rightAngle(tm) && !skewed(tm)) {
         auto pt1 = pts + 0;
         auto pt2 = pts + 1;
@@ -106,7 +70,6 @@ static bool _compFastTrack(RenderMethod* renderer, Paint* cmpTarget, const Matri
             v1 *= tm;
             v2 *= tm;
 
-            //sorting
             if (v1.x > v2.x) std::swap(v1.x, v2.x);
             if (v1.y > v2.y) std::swap(v1.y, v2.y);
 
@@ -126,7 +89,6 @@ static bool _compFastTrack(RenderMethod* renderer, Paint* cmpTarget, const Matri
     return _clipRect(renderer, pts, tm, before);
 }
 
-
 RenderRegion Paint::Impl::bounds()
 {
     RenderRegion ret;
@@ -140,7 +102,6 @@ AccessorIterator* Paint::Impl::iterator()
     PAINT_METHOD(ret, iterator());
     return ret;
 }
-
 
 Paint* Paint::Impl::duplicate(Paint* ret)
 {
@@ -160,14 +121,12 @@ Paint* Paint::Impl::duplicate(Paint* ret)
     return ret;
 }
 
-
 bool Paint::Impl::render(RenderMethod* renderer, CompositionFlag flag)
 {
     if (hidden || opacity == 0) return true;
 
     RenderCompositor* cmp = nullptr;
 
-    //OPTIMIZE: bounds(renderer) calls could dismiss the parallelization
     if (maskData && !(maskData->target->pImpl->ctxFlag & ContextFlag::FastTrack)) {
         RenderRegion region;
         PAINT_METHOD(region, bounds());
@@ -194,7 +153,6 @@ bool Paint::Impl::render(RenderMethod* renderer, CompositionFlag flag)
     return ret;
 }
 
-
 RenderData Paint::Impl::update(RenderMethod* renderer, const Matrix& pm, Array<RenderData>& clips, uint8_t opacity, RenderUpdateFlag flag, bool clipper)
 {
     bool ret;
@@ -202,7 +160,7 @@ RenderData Paint::Impl::update(RenderMethod* renderer, const Matrix& pm, Array<R
 
     if (ret) return rd;
 
-    cmpFlag = CompositionFlag::Invalid;  //must clear after the rendering
+    cmpFlag = CompositionFlag::Invalid;
 
     if (this->renderer != renderer) {
         if (this->renderer) TVGERR("RENDERER", "paint's renderer has been changed!");
@@ -212,22 +170,18 @@ RenderData Paint::Impl::update(RenderMethod* renderer, const Matrix& pm, Array<R
 
     if (renderFlag & RenderUpdateFlag::Transform) tr.update();
 
-    /* 1. Composition Pre Processing */
     RenderRegion viewport;
     auto compFastTrack = false;
 
     if (maskData) {
         auto target = maskData->target;
         auto method = maskData->method;
-        PAINT(target)->ctxFlag &= ~ContextFlag::FastTrack;   //reset
+        PAINT(target)->ctxFlag &= ~ContextFlag::FastTrack;
 
-        /* If the transformation has no rotational factors and the Alpha(InvAlpha) Masking involves a simple rectangle,
-           we can optimize by using the viewport instead of the regular Alphaing sequence for improved performance. */
         if (target->type() == Type::Shape) {
             auto shape = static_cast<Shape*>(target);
             uint8_t a;
             shape->fill(nullptr, nullptr, nullptr, &a);
-            //no gradient fill & no maskings of the masking target.
             if (!shape->fill() && !(PAINT(shape)->maskData)) {
                 if ((method == MaskMethod::Alpha && a == 255 && PAINT(shape)->opacity == 255) || (method == MaskMethod::InvAlpha && (a == 0 || PAINT(shape)->opacity == 0))) {
                     viewport = renderer->viewport();
@@ -240,10 +194,9 @@ RenderData Paint::Impl::update(RenderMethod* renderer, const Matrix& pm, Array<R
         if (!compFastTrack) PAINT(target)->update(renderer, pm, clips, 255, flag, false);
     }
 
-    /* 2. Clipping */
     if (this->clipper) {
         auto pclip = PAINT(this->clipper);
-        pclip->ctxFlag &= ~ContextFlag::FastTrack;   //reset
+        pclip->ctxFlag &= ~ContextFlag::FastTrack;
         viewport = renderer->viewport();
         if (!pclip->clipper && to<ShapeImpl>(this->clipper)->rs.strokeWidth() == 0.0f && _compFastTrack(renderer, this->clipper, pm, viewport)) {
             pclip->ctxFlag |= ContextFlag::FastTrack;
@@ -255,11 +208,9 @@ RenderData Paint::Impl::update(RenderMethod* renderer, const Matrix& pm, Array<R
         }
     }
 
-    /* 3. Main Update */
     opacity = MULTIPLY(opacity, this->opacity);
     PAINT_METHOD(ret, update(renderer, pm * tr.m, clips, opacity, (flag | renderFlag), clipper));
 
-    /* 4. Composition Post Processing */
     if (compFastTrack) renderer->viewport(viewport);
     else if (this->clipper) clips.pop();
 
@@ -267,7 +218,6 @@ RenderData Paint::Impl::update(RenderMethod* renderer, const Matrix& pm, Array<R
 
     return rd;
 }
-
 
 bool Paint::Impl::bounds(Point* pt4, const Matrix* pm, bool obb)
 {
@@ -287,20 +237,13 @@ bool Paint::Impl::intersects(const RenderRegion& region, bool visibleOnly)
     return false;
 }
 
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
-
 Paint :: Paint() = default;
 Paint :: ~Paint() = default;
-
 
 void Paint::rel(Paint* paint) noexcept
 {
     if (paint && paint->refCnt() <= 0) delete(paint);
 }
-
 
 Result Paint::rotate(float degree) noexcept
 {
@@ -308,13 +251,11 @@ Result Paint::rotate(float degree) noexcept
     return Result::InsufficientCondition;
 }
 
-
 Result Paint::scale(float factor) noexcept
 {
     if (pImpl->scale(factor)) return Result::Success;
     return Result::InsufficientCondition;
 }
-
 
 Result Paint::translate(float x, float y) noexcept
 {
@@ -322,19 +263,16 @@ Result Paint::translate(float x, float y) noexcept
     return Result::InsufficientCondition;
 }
 
-
 Result Paint::transform(const Matrix& m) noexcept
 {
     if (pImpl->transform(m)) return Result::Success;
     return Result::InsufficientCondition;
 }
 
-
 Matrix& Paint::transform() noexcept
 {
     return pImpl->transform();
 }
-
 
 Result Paint::bounds(float* x, float* y, float* w, float* h) noexcept
 {
@@ -357,7 +295,6 @@ Result Paint::bounds(float* x, float* y, float* w, float* h) noexcept
     return Result::InsufficientCondition;
 }
 
-
 Result Paint::bounds(Point* pt4) noexcept
 {
     if (!pt4) return Result::InvalidArguments;
@@ -377,24 +314,20 @@ bool Paint::intersects(int32_t x, int32_t y, int32_t w, int32_t h, bool visibleO
     return pImpl->intersects({x, y, x + w, y + h}, visibleOnly);
 }
 
-
 Paint* Paint::duplicate() const noexcept
 {
     return pImpl->duplicate();
 }
-
 
 Result Paint::clip(Shape* clipper) noexcept
 {
     return pImpl->clip(clipper);
 }
 
-
 Shape* Paint::clip() const noexcept
 {
     return pImpl->clipper;
 }
-
 
 Result Paint::mask(Paint* target, MaskMethod method) noexcept
 {
@@ -402,12 +335,10 @@ Result Paint::mask(Paint* target, MaskMethod method) noexcept
     return pImpl->mask(target, method);
 }
 
-
 MaskMethod Paint::mask(const Paint** target) const noexcept
 {
     return pImpl->mask(target);
 }
-
 
 Result Paint::opacity(uint8_t o) noexcept
 {
@@ -418,12 +349,10 @@ Result Paint::opacity(uint8_t o) noexcept
     return Result::Success;
 }
 
-
 uint8_t Paint::opacity() const noexcept
 {
     return pImpl->opacity;
 }
-
 
 Result Paint::blend(BlendMethod method) noexcept
 {
@@ -434,36 +363,30 @@ Result Paint::blend(BlendMethod method) noexcept
     return Result::InvalidArguments;
 }
 
-
 uint16_t Paint::ref() noexcept
 {
     return pImpl->ref();
 }
-
 
 uint16_t Paint::unref(bool free) noexcept
 {
     return pImpl->unrefx(free);
 }
 
-
 uint16_t Paint::refCnt() const noexcept
 {
     return pImpl->refCnt;
 }
-
 
 const Paint* Paint::parent() const noexcept
 {
     return pImpl->parent;
 }
 
-
 Result Paint::visible(bool on) noexcept
 {
     return pImpl->visible(!on);
 }
-
 
 bool Paint::visible() const noexcept
 {

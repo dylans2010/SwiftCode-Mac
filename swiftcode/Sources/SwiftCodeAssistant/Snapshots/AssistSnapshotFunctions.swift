@@ -1,15 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Functions/AssistSnapshotFunctions.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Snapshots/AssistSnapshotFunctions.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - listSnapshots()
-//   - compare(project:withSnapshot:) returning [AssistFileDiff]
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 
 public struct AssistSnapshotFunctions {
@@ -25,7 +13,6 @@ public struct AssistSnapshotFunctions {
         try fileManager.createDirectory(at: snapshotURL, withIntermediateDirectories: true)
         try fileManager.copyItem(at: project, to: snapshotURL.appendingPathComponent("files"))
 
-        // Save metadata
         let metadata = AssistSnapshotMetadata(id: snapshotId, timestamp: Date(), message: message, rootPath: project.path)
         let metadataData = try JSONEncoder().encode(metadata)
         try metadataData.write(to: snapshotURL.appendingPathComponent("metadata.json"))
@@ -42,13 +29,11 @@ public struct AssistSnapshotFunctions {
             throw NSError(domain: "AssistSnapshot", code: 404, userInfo: [NSLocalizedDescriptionKey: "Snapshot '\(id)' not found."])
         }
 
-        // Clean current project
         let contents = try fileManager.contentsOfDirectory(at: project, includingPropertiesForKeys: nil)
         for url in contents {
             try fileManager.removeItem(at: url)
         }
 
-        // Restore files
         let restoredContents = try fileManager.contentsOfDirectory(at: filesURL, includingPropertiesForKeys: nil)
         for url in restoredContents {
             try fileManager.copyItem(at: url, to: project.appendingPathComponent(url.lastPathComponent))
@@ -94,7 +79,6 @@ public struct AssistSnapshotFunctions {
             } else if !projectExists && snapshotExists {
                 diffs.append(AssistFileDiff(path: path, status: .deleted, changes: "File deleted"))
             } else {
-                // Both exist, compare contents
                 let projectContent = try? String(contentsOf: projectFileURL, encoding: .utf8)
                 let snapshotContent = try? String(contentsOf: snapshotFileURL, encoding: .utf8)
 

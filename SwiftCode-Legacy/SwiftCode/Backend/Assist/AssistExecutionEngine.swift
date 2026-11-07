@@ -24,14 +24,12 @@ public final class AssistExecutionEngine {
             TasksAIPlanner.shared.updateStep(id: step.id, status: .running)
 
             do {
-                // Unified tool execution logic (integrating what was previously in AssistLoop)
                 guard let tool = registry.getTool(step.toolId) else {
                     throw AssistExecutionError.toolNotFound(step.toolId)
                 }
 
                 await self.context.logger.info("Executing tool: \(tool.name)", toolId: step.toolId)
 
-                // Map the input to [String: Any] as required by AssistTool protocol
                 var toolInput = step.input as [String: Any]
                 if i > 0, let previous = plan.steps[i - 1].result {
                     toolInput["previous_output"] = previous.output

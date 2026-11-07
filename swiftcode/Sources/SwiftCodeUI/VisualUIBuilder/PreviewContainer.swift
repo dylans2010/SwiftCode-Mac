@@ -1,9 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Core/Preview/PreviewContainer.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB supporting file: the only in-tree consumer is the ported VisualUIPreviewPanel. Its dependencies (PreviewState, PreviewDeviceManager, applyPreviewEnvironment) already exist in production SwiftCodeUI.
 import SwiftUI
 
-/// High-polish native SwiftUI wrapper enclosing the PreviewHost with beautiful, clean device boundaries and environment controllers.
-/// No fake notches, Dynamic Islands, status bars, or screenshot mockups are rendered.
 public struct PreviewContainer<Content: View>: View {
     let state: PreviewState
     let content: Content

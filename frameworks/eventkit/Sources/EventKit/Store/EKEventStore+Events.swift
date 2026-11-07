@@ -1,11 +1,6 @@
-// Events: validation, all-day and floating storage, rule normalization,
-// occurrence expansion, detached occurrences, splits and future deletes
-// (interface.md §3, recurrence.md §4–§6).
-
 import Foundation
 
 extension EKEventStore {
-    // MARK: Public API
 
     public func save(_ event: EKEvent, span: EKSpan) throws {
         try save(event, span: span, commit: true)
@@ -29,7 +24,6 @@ extension EKEventStore {
         EKEventPredicate(start: startDate, end: endDate, calendarIDs: calendars?.map(\.calendarIdentifier), zone: readerZone)
     }
 
-    /// Occurrences overlapping the predicate's window (unordered).
     public func events(matching predicate: NSPredicate) -> [EKEvent] {
         lock.lock(); defer { lock.unlock() }
         guard let p = predicate as? EKEventPredicate else { return [] }
@@ -45,8 +39,6 @@ extension EKEventStore {
         }
     }
 
-    // MARK: Helpers
-
     var zoneOfRow: (ItemRow) -> TimeZone {
         { [readerZone] row in row.tz.flatMap { TimeZone(identifier: $0) } ?? readerZone }
     }
@@ -55,7 +47,6 @@ extension EKEventStore {
         floating ? .wallClock(LocalDateTime(date: date, zone: readerZone)) : .instant(date)
     }
 
-    /// The window end after the four-year cap (interface.md §3.6).
     func cappedEnd(_ p: EKEventPredicate) -> Date {
         let zone = readerZone
         var l = LocalDateTime(date: p.start, zone: zone)
@@ -64,7 +55,6 @@ extension EKEventStore {
         return min(p.end, l.date(in: zone))
     }
 
-    /// EventKit's normalizations on save (recurrence.md §4 items 1–2).
     static func normalize(_ r: RuleSpec, start: LocalDateTime) -> RuleSpec {
         var r = r
         guard !r.hasByParts else { return r }
@@ -79,8 +69,6 @@ extension EKEventStore {
     }
 
     private func sourceID(ofCalendar id: String) -> String? { db?.calendar(id)?.sourceID }
-
-    // MARK: Save
 
     private struct PreparedEvent {
         var calendarID: String
@@ -107,8 +95,6 @@ extension EKEventStore {
         var fields = e.event
         var tz = e.common.timeZone
         if fields.allDay {
-            // interface.md §3.3: 00:00:00 of the start day to 23:59:59 of the
-            // day of (end − 1 s), not earlier than the start day; floating.
             let zone = readerZone
             let first = LocalDateTime(date: start, zone: zone).startOfDay
             var last = LocalDateTime(date: end.addingTimeInterval(-1), zone: zone).startOfDay
@@ -145,7 +131,6 @@ extension EKEventStore {
         return row
     }
 
-    /// Applies the stored result to the object the app holds.
     private func adopt(_ e: EKEvent, row: ItemRow) {
         e.itemID = row.id
         e.externalID = row.externalID
@@ -209,7 +194,6 @@ extension EKEventStore {
             }
             adopt(e, row: row)
         } else {
-            // A new event (or one whose row is gone): a new master row.
             var row = makeRow(e, p, id: e.itemID)
             let ext = UUID().uuidString
             row.externalID = ext
@@ -223,8 +207,6 @@ extension EKEventStore {
         }
     }
 
-    /// Writes a master's new values, keeping its exceptions (shifted when the
-    /// start moved) or dropping them when it no longer recurs.
     private func updateSeries(master: ItemRow, with row: inout ItemRow, commit: Bool) throws {
         guard let db else { throw EKError(.internalFailure) }
         row.eventID = master.eventID
@@ -261,7 +243,6 @@ extension EKEventStore {
         return .wallClock(t.local!.addingSeconds(Int64(delta)))
     }
 
-    /// recurrence.md §6: a changed occurrence saved for this event only.
     private func detach(master: ItemRow, at original: Date, with e: EKEvent, _ p: PreparedEvent, commit: Bool) throws -> ItemRow {
         guard let db else { throw EKError(.internalFailure) }
         let rid = Int(original.timeIntervalSinceReferenceDate.rounded(.down))
@@ -280,7 +261,6 @@ extension EKEventStore {
         return row
     }
 
-    /// The occurrence starts of a stored master (wall-clock, in its zone).
     private func occurrences(of master: ItemRow, through limit: LocalDateTime) -> [LocalDateTime] {
         let zone = zoneOfRow(master)
         let start = LocalDateTime(date: master.start!.date(readerZone: zone), zone: zone)
@@ -292,9 +272,6 @@ extension EKEventStore {
         LocalDateTime(year: l.year, month: l.month, day: l.day, hour: 23, minute: 59, second: 59).date(in: zone)
     }
 
-    /// recurrence.md §6: "this and future" changes split the series at
-    /// `original`: the master keeps the earlier occurrences, a new master
-    /// starts with the changed occurrence.
     private func split(master: ItemRow, at original: Date, with e: EKEvent, _ p: PreparedEvent, commit: Bool) throws -> ItemRow {
         guard let db else { throw EKError(.internalFailure) }
         let zone = zoneOfRow(master)
@@ -316,8 +293,6 @@ extension EKEventStore {
             keep.append(a)
             carry.append(b)
         }
-        // The new series: the occurrence's values; its rules continue the
-        // remaining count unless the app changed them.
         let masterRules = master.rules.compactMap(RRuleText.parse)
         let objectRules = e.ruleObjects.map(\.spec)
         let newStartLocal = LocalDateTime(date: p.fields.start!, zone: p.tz ?? readerZone)
@@ -356,8 +331,6 @@ extension EKEventStore {
         return newRow
     }
 
-    // MARK: Remove
-
     private func removeEvent(_ e: EKEvent, span: EKSpan, commit: Bool) throws {
         guard e.store === self else { throw EKError(.objectBelongsToDifferentStore) }
         guard eventsFull || eventsWriteOnly else { throw EKError(.noCalendar) }
@@ -365,7 +338,6 @@ extension EKEventStore {
         if e.isOccurrence || e.detached {
             guard let masterID = e.isOccurrence ? e.itemID : e.masterID, let master = db.item(masterID),
                   let original = e.originalStart else {
-                // The master is gone; remove a lone detached row if any.
                 if e.detached, db.item(e.itemID) != nil {
                     try write(mask: EKEntityMask.event.rawValue, commit: commit) {
                         try db.deleteItemRow(e.itemID)
@@ -381,9 +353,8 @@ extension EKEventStore {
             }
             return
         }
-        guard let row = db.item(e.itemID) else { return } // already removed: success
+        guard let row = db.item(e.itemID) else { return }
         if !row.rules.isEmpty && span != .futureEvents {
-            // The master object stands for the first occurrence.
             try removeOne(master: row, at: row.start!.date(readerZone: zoneOfRow(row)), detachedID: nil, commit: commit)
             return
         }
@@ -393,7 +364,6 @@ extension EKEventStore {
         }
     }
 
-    /// recurrence.md §6: removing one occurrence adds an exception date.
     private func removeOne(master: ItemRow, at original: Date, detachedID: String?, commit: Bool) throws {
         guard let db else { throw EKError(.internalFailure) }
         var m = master
@@ -407,9 +377,6 @@ extension EKEventStore {
         }
     }
 
-    /// recurrence.md §4 item 5: "this and future" removal ends the rules with
-    /// UNTIL = the last second (in the event's zone) of the day of the last
-    /// remaining occurrence, written in UTC.
     private func removeFuture(master: ItemRow, from original: Date, commit: Bool) throws {
         guard let db else { throw EKError(.internalFailure) }
         let zone = zoneOfRow(master)
@@ -446,8 +413,6 @@ extension EKEventStore {
         }
     }
 
-    // MARK: Fetch
-
     private func fetchEvents(_ p: EKEventPredicate) -> [EKEvent] {
         guard eventsFull, let db else { return [] }
         let winStart = p.start
@@ -457,7 +422,6 @@ extension EKEventStore {
         if calIDs.isEmpty { return [] }
         let placeholders = Array(repeating: "?", count: calIDs.count).joined(separator: ",")
         let rows = db.items(where: "kind=0 AND calendar_id IN (\(placeholders))", calIDs.map { .text($0) })
-        // Window rule: overlaps [start, end), inclusive at the window start.
         func overlaps(_ s: Date, _ e: Date) -> Bool { e >= winStart && s < winEnd }
 
         var detachedOriginals: [String: Set<Double>] = [:]
@@ -467,8 +431,6 @@ extension EKEventStore {
                 detachedOriginals[m, default: []].insert(o.date(readerZone: zone).timeIntervalSince1970.rounded())
             }
         }
-        // Detached occurrences of masters in other calendars still hide their
-        // original slot.
         let masterIDs = rows.filter { $0.masterID == nil && !$0.rules.isEmpty }.map(\.id)
         if !masterIDs.isEmpty {
             let ph = Array(repeating: "?", count: masterIDs.count).joined(separator: ",")

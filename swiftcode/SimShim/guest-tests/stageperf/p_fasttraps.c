@@ -1,30 +1,3 @@
-/* SwiftCode performance probe: the exit-free hot calls of
- * specs/simulator/fast-traps.md agree with the traps they replace.
- * Original SwiftCode code.
- *
- * The probe makes each trap itself with an inline `svc #0x80`, so one run
- * compares the library's answer (in place when the commpage allows it,
- * otherwise also a trap) with the kernel's:
- *   1. mach time: trap(-3) <= mach_absolute_time() <= trap(-3), and the same
- *      for mach_continuous_time and trap -4 (1000 rounds);
- *   2. monotonic within and across 8 threads (200000 reads each);
- *   3. across processes: before <= a spawned child's clock <= after;
- *   4. a 50 ms nanosleep takes 40...2000 ms of mach time;
- *   5. gettimeofday() within 5 ms of BSD 116, also after a 1.2 s pause
- *      (the commpage snapshot is then stale and refreshed by the trap);
- *   6. getuid/geteuid/getgid/getegid equal BSD 24/25/47/43, also in a
- *      spawned child (fork is not implemented by SwiftCode's kernel: posix_spawn
- *      is the process-creation path; a fork child is checked when fork
- *      works);
- *   6a. madvise: for advice -1, 0...12 and 99, on a mapped range, an unmapped
- *      range and a zero-length range, the library's answer (result, errno)
- *      equals BSD 75's; MADV_ZERO (11) zeroes the range both ways;
- *   6b. sysctl: name-to-OID ({0, 3}) and kern.boottime answers of the library
- *      (twice: the second from its copy) equal BSD 202's, with a size query,
- *      a short buffer (ENOMEM), no oldlenp (EINVAL) and an unknown name
- *      (ENOENT); issetugid equals BSD 327;
- *   7. per-call cost of every path (ns).
- * Prints "fasttraps ok flags=0xNN ..." then one "bench" line. */
 #include <mach/mach_time.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -88,7 +61,7 @@ static void check_madvise(void)
     for (unsigned i = 0; i < sizeof advice / sizeof *advice; i++) {
         for (int r = 0; r < 3; r++) {
             if (r == 1 && advice[i] == 11)
-                continue; /* MADV_ZERO of an unmapped range: kernel only */
+                continue;
             memset(mapped, 0x5a, 65536);
             errno = 0;
             int lib = madvise(ranges[r], lengths[r], advice[i]);
@@ -122,7 +95,6 @@ static int trap_sysctl(int *name, unsigned namelen, void *old, size_t *oldlenp, 
     return failed ? -1 : (int)x0;
 }
 
-/* One sysctl both ways: result, errno, *oldlenp and the bytes must agree. */
 static void sysctl_both(const char *what, int *mib, unsigned n, int with_old, size_t len, int with_lenp, const char *newname)
 {
     unsigned char a[256], b[256];
@@ -146,9 +118,9 @@ static void check_sysctl(void)
     for (int round = 0; round < 2; round++) {
         for (unsigned i = 0; i < sizeof names / sizeof *names; i++) {
             sysctl_both(names[i], oid, 2, 1, 48, 1, names[i]);
-            sysctl_both(names[i], oid, 2, 0, 48, 1, names[i]);   /* size query */
-            sysctl_both(names[i], oid, 2, 1, 4, 1, names[i]);    /* short buffer */
-            sysctl_both(names[i], oid, 2, 1, 48, 0, names[i]);   /* no oldlenp */
+            sysctl_both(names[i], oid, 2, 0, 48, 1, names[i]);
+            sysctl_both(names[i], oid, 2, 1, 4, 1, names[i]);
+            sysctl_both(names[i], oid, 2, 1, 48, 0, names[i]);
         }
         sysctl_both("kern.boottime value", boot, 2, 1, 64, 1, NULL);
         sysctl_both("kern.boottime size", boot, 2, 0, 64, 1, NULL);
@@ -219,7 +191,6 @@ int main(int argc, char **argv)
     mach_timebase_info_data_t tb;
     mach_timebase_info(&tb);
 
-    /* 1. The library's clock lies between two kernel readings. */
     for (int i = 0; i < 1000; i++) {
         uint64_t a = trap_mach(-3), b = mach_absolute_time(), c = trap_mach(-3);
         if (!(a <= b && b <= c))
@@ -238,7 +209,6 @@ int main(int argc, char **argv)
                        (unsigned long long)c);
     }
 
-    /* 2. Threads. */
     pthread_t t[THREADS];
     for (int i = 0; i < THREADS; i++)
         if (pthread_create(&t[i], NULL, reader, NULL) != 0)
@@ -248,7 +218,6 @@ int main(int argc, char **argv)
     if (backwards_within != 0 || backwards_across != 0)
         probe_fail("time went backwards: %ld within a thread, %ld across threads", (long)backwards_within,
                    (long)backwards_across);
-    /* A thread created after the others still agrees with the kernel. */
     {
         uint64_t a = trap_mach(-3), b = mach_absolute_time(), c = trap_mach(-3);
         if (!(a <= b && b <= c))
@@ -256,7 +225,6 @@ int main(int argc, char **argv)
                        (unsigned long long)a, (unsigned long long)c);
     }
 
-    /* 3. Across processes (and the ids in the child). */
     int fds[2];
     if (pipe(fds) != 0)
         probe_fail("pipe: %s", strerror(errno));
@@ -277,14 +245,12 @@ int main(int argc, char **argv)
         probe_fail("child clock %llu outside [%llu, %llu]", (unsigned long long)theirs, (unsigned long long)before,
                    (unsigned long long)after);
 
-    /* 4. Sleeping agrees with the clock. */
     uint64_t s0 = mach_absolute_time();
     probe_sleep_ms(50);
     uint64_t ms = (mach_absolute_time() - s0) * tb.numer / tb.denom / 1000000;
     if (ms < 40 || ms > 2000)
         probe_fail("a 50 ms sleep took %llu ms of mach time", (unsigned long long)ms);
 
-    /* 5. The wall clock. */
     int64_t worst = 0;
     for (int round = 0; round < 2; round++) {
         for (int i = 0; i < 100; i++) {
@@ -303,10 +269,9 @@ int main(int argc, char **argv)
                 worst = d;
         }
         if (round == 0)
-            probe_sleep_ms(1200); /* the snapshot is now stale */
+            probe_sleep_ms(1200);
     }
 
-    /* 6. Credentials (and a fork child, when fork works). */
     check_ids("parent");
     pid_t f = fork();
     if (f == 0) {
@@ -319,11 +284,9 @@ int main(int argc, char **argv)
         forked = "ok";
     }
 
-    /* 6a. madvise answered in the library (fast-traps.md section 5a). */
     check_madvise();
     check_sysctl();
 
-    /* 7. Cost per call. */
     enum { N = 20000 };
     double r[11];
     uint64_t t0;

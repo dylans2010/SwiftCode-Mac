@@ -1,18 +1,3 @@
-// PackageDetailsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/PackageDetailsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: README tab (fetched from raw.githubusercontent); Manifest tab; Analytics tab; Activity tab
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DetailTab, ProjectCompatibilityView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// Cleanup D6 (2026-11-06): the Activity tab rendered
-// `package.releaseDate` directly, which stamped `Date()` (today) for
-// every Search API result even though the API returns no release date.
-// `PackageMetadata.releaseDate` is now `Date? = nil`; this view renders
-// "Release date unknown" when nil, "No release recorded" when
-// `lastReleasedVersion` is empty, and shows the "Latest Stable Release"
-// badge only when a real version exists.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -40,7 +25,6 @@ struct PackageDetailsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(alignment: .center) {
                 Button {
                     dismiss()
@@ -87,7 +71,6 @@ struct PackageDetailsView: View {
 
             Divider()
 
-            // Tab Selector Toolbar
             HStack {
                 ForEach(DetailTab.allCases) { tab in
                     Button {
@@ -110,7 +93,6 @@ struct PackageDetailsView: View {
 
             Divider()
 
-            // Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     switch selectedTab {
@@ -144,7 +126,6 @@ struct PackageDetailsView: View {
         }
     }
 
-    // MARK: - Overview Tab
     @ViewBuilder
     private func renderOverview() -> some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -196,7 +177,6 @@ struct PackageDetailsView: View {
         }
     }
 
-    // MARK: - README Tab
     @ViewBuilder
     private func renderReadme() -> some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -217,7 +197,6 @@ struct PackageDetailsView: View {
         }
     }
 
-    // MARK: - Manifest Tab
     @ViewBuilder
     private func renderManifest() -> some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -250,13 +229,11 @@ let package = Package(
         }
     }
 
-    // MARK: - Analytics Tab
     @ViewBuilder
     private func renderAnalytics() -> some View {
         PackageAnalyticsView(package: package)
     }
 
-    // MARK: - Activity Tab
     @ViewBuilder
     private func renderActivity() -> some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -266,10 +243,6 @@ let package = Package(
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     VStack(alignment: .leading) {
-                        // No release is recorded for most Search API
-                        // results (`lastReleasedVersion` "" /
-                        // `releaseDate` nil is the unset convention), so
-                        // neither is ever rendered as a stamped value.
                         Text(package.lastReleasedVersion.isEmpty ? "No release recorded" : "v\(package.lastReleasedVersion)")
                             .font(.headline)
                         if let releaseDate = package.releaseDate {
@@ -294,7 +267,6 @@ let package = Package(
                 .padding()
                 .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
 
-                // GitHub issues etc
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Issues & Pull Requests", systemImage: "number")
@@ -312,13 +284,11 @@ let package = Package(
         }
     }
 
-    // MARK: - Compatibility Tab
     @ViewBuilder
     private func renderCompatibility() -> some View {
         ProjectCompatibilityView(packageUrl: package.cloneUrl)
     }
 
-    // MARK: - Readme Loader
     private func loadReadme() {
         guard readmeText.isEmpty else { return }
         isLoadingReadme = true

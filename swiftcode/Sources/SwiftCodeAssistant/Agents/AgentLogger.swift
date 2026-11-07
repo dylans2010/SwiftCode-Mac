@@ -1,6 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/AI/Agent/AgentLogger.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
-// Adaptation note: SwiftUI import dropped (unused); the log model is Foundation/Observation only.
 import Foundation
 import Observation
 

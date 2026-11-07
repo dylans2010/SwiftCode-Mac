@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// `swiftcode mcp` as a coding agent sees it: a subprocess speaking MCP on
-/// standard input and output.
 final class MCPProcessClient: @unchecked Sendable {
     let process = Process()
     let peer: JSONRPCPeer
@@ -47,9 +45,6 @@ final class MCPProcessClient: @unchecked Sendable {
 }
 
 @Suite(.serialized, .timeLimit(.minutes(15))) struct MCPEndToEndTests {
-    /// Opens the sample package, builds it with an error, reads the issue,
-    /// fixes it with a write tool, builds green and runs the tests: on
-    /// macOS and on Linux.
     @Test func anAgentFixesTheBuildThroughSwiftCodeMCP() async throws {
         guard let swiftcode = swiftcodeExecutable, canBuildPackages else { return }
         let sample = try TempSample(breaking: true)
@@ -62,11 +57,8 @@ final class MCPProcessClient: @unchecked Sendable {
         #expect(initialized["protocolVersion"] == "2025-11-25" && initialized["serverInfo"]?["name"] == "swiftcode")
         client.peer.notify("notifications/initialized")
         let tools = try await client.peer.request("tools/list")
-        // Catalogue size: 29 SwiftCode tools + 23 Wave 1 + 23 Wave 2 + 29 Wave 3
-        // + 34 Wave 4 = 138; + 34 Wave 5 = 172; + 79 Wave 6 = 251; + 65 Wave 7 = 316; + 117 Wave 8 = 433.
         #expect(tools["tools"]?.array?.count == 433)
 
-        // The workspace in the current folder is open already; open it by path anyway.
         let open = try await client.tool("workspace_open", ["path": .string(sample.url.path)])
         #expect(open["structuredContent"]?["name"] == "Greeter")
 
@@ -98,7 +90,6 @@ final class MCPProcessClient: @unchecked Sendable {
         defer { sample.remove() }
         let client = try MCPProcessClient(swiftcode, ["mcp", "--workspace", sample.url.path], directory: FileManager.default.temporaryDirectory)
         defer { client.close() }
-        // A modern client: no handshake, the version in every request's _meta.
         let discover = try await client.peer.request("server/discover", ["_meta": modernMeta])
         #expect(discover["supportedVersions"]?.array?.first == .string(MCPServer.modernVersion))
         let describe = try await client.peer.request("tools/call", ["name": "workspace_describe", "_meta": modernMeta])

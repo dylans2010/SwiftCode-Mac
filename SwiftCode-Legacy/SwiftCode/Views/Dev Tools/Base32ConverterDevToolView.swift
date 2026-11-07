@@ -10,7 +10,6 @@ final class Base32ConverterViewModel {
 
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "Base32Converter")
 
-    // Simple RFC 4648 base32 alphabet mapping
     private let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
 
     func encode() {

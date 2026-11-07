@@ -60,8 +60,6 @@ final class ManifestTests: XCTestCase {
         XCTAssertNil(ExtensionIdentity(id: "nodot"))
     }
 
-    // MARK: Versions
-
     func testVersionParsing() {
         XCTAssertEqual(SemanticVersion(string: "1.80"), SemanticVersion(major: 1, minor: 80, patch: 0))
         XCTAssertEqual(SemanticVersion(string: "1.80.x"), SemanticVersion(major: 1, minor: 80, patch: 0))
@@ -87,8 +85,6 @@ final class ManifestTests: XCTestCase {
         XCTAssertFalse(host.satisfies(engineRequirement: "1.85.1"))
         XCTAssertFalse(host.satisfies(engineRequirement: "not-a-version"))
     }
-
-    // MARK: Compatibility
 
     func testCompatibilityHappyPath() throws {
         let manifest = try VSCodeManifestParser.parse(data: packageJSON())
@@ -122,12 +118,9 @@ final class ManifestTests: XCTestCase {
 
     func testCompatibilityPurelyDeclarativeManifestCanBeCompatible() throws {
         let data = packageJSON(["main": NSNull(), "contributes": ["grammars": [["language": "foo"]]] as [String: Any]])
-        // No commands/views, no main: no reason from rule 3; engine requirement satisfied.
         let manifest = try VSCodeManifestParser.parse(data: data)
         XCTAssertTrue(Compatibility.evaluate(manifest: manifest).compatible)
     }
-
-    // MARK: Strict swiftcode.json validator
 
     private func swiftcodeJSON(_ overrides: [String: Any] = [:]) -> Data {
         var dict: [String: Any] = [

@@ -1,10 +1,3 @@
-//
-//  AlternativeKeysView.swift
-//  SwiftCode
-//
-//  Dedicated management and rotation interface for alternative Gemini API keys.
-//
-
 import SwiftUI
 import Observation
 
@@ -13,7 +6,6 @@ struct AlternativeKeysView: View {
     @EnvironmentObject private var settings: AppSettings
     @State private var keyManager = AlternativeKeyManager.shared
 
-    // Import state
     @State private var showImportSheet = false
     @State private var rawInputText = ""
     @State private var lastImportResult: KeyImportResult? = nil
@@ -24,7 +16,6 @@ struct AlternativeKeysView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // 1. Feature Enablement & Explanation
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
@@ -74,7 +65,6 @@ struct AlternativeKeysView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // 2. Action Controls
                     HStack(spacing: 10) {
                         Button {
                             showImportSheet = true
@@ -141,7 +131,6 @@ struct AlternativeKeysView: View {
                         .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
                     }
 
-                    // 3. Saved Keys List
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
@@ -172,18 +161,15 @@ struct AlternativeKeysView: View {
                                 VStack(spacing: 6) {
                                     ForEach(Array(keyManager.keys.enumerated()), id: \.element.id) { index, key in
                                         HStack(spacing: 12) {
-                                            // Priority index indicator
                                             Text("#\(index + 1)")
                                                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                                                 .foregroundStyle(.secondary)
                                                 .frame(width: 24, alignment: .leading)
 
-                                            // Status indicator dot
                                             Circle()
                                                 .fill(statusColor(for: key))
                                                 .frame(width: 8, height: 8)
 
-                                            // Masked key representation
                                             VStack(alignment: .leading, spacing: 2) {
                                                 HStack(spacing: 6) {
                                                     Text(key.maskedValue)
@@ -227,7 +213,6 @@ struct AlternativeKeysView: View {
 
                                             Spacer()
 
-                                            // Set Active action button
                                             if keyManager.activeKeyId != key.id && key.isAvailableForUse {
                                                 Button("Set Active") {
                                                     keyManager.activeKeyId = key.id
@@ -236,7 +221,6 @@ struct AlternativeKeysView: View {
                                                 .controlSize(.mini)
                                             }
 
-                                            // Delete key button
                                             Button {
                                                 keyManager.removeKey(id: key.id)
                                             } label: {
@@ -323,7 +307,7 @@ struct AlternativeKeysView: View {
                             Button("Save Keys") {
                                 let result = keyManager.importRawKeys(rawInputText)
                                 lastImportResult = result
-                                rawInputText = "" // Immediately clear sensitive text from memory
+                                rawInputText = ""
                                 if result.newKeysAdded > 0 {
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                                         showImportSheet = false

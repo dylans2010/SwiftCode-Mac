@@ -4,19 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The ported Legacy search / code-navigation tools against
-/// `Samples/AgentSamples/Greeter` (a copy). Fixture facts used below
-/// (verified from the sample): the workspace has 5 Swift files
-/// (`Package.swift`, `Sources/Greeter/Greeter.swift`,
-/// `Sources/greet/main.swift`, `Previews/GreetingView.swift`,
-/// `Tests/GreeterTests/GreeterTests.swift`) and one `.xcstrings` file.
-/// `Greeter.swift` is 14 lines plus a trailing newline: `struct
-/// Greeter` at line 2, `var salutation` at line 4, `init` at line 6,
-/// `func greeting` at line 11. `main.swift` imports `Greeter` and
-/// calls `Greeter().greeting(for:)` at line 4.
-/// `GreetingView.swift` is `struct GreetingView: View` at line 4.
-/// `GreeterTests.swift` is `final class GreeterTests: XCTestCase` at
-/// line 4. `Package.swift` imports `PackageDescription`.
 @MainActor
 @Suite(.serialized) struct SwiftCodeSearchToolsTests {
     static let searchIDs = ["call_hierarchy", "code_summary", "dependency_graph", "extract_code_symbols", "import_graph",
@@ -24,14 +11,9 @@ import SwiftCodeIDECore
                             "semantic_query_engine", "source_graph_builder", "symbol_move_file", "symbol_reference_graph",
                             "symbol_rename_project", "type_hierarchy"]
 
-    /// Opens a copy of Greeter and installs the ported search tools on
-    /// the server (same shape as Wave 2's `opened`; the coordinator
-    /// wires `searchTools` into `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` already wires
-        // `searchTools`, so a plain `+=` would register them twice.
         let ported = Set(host.searchTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.searchTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -39,7 +21,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -92,9 +73,6 @@ import SwiftCodeIDECore
             let outputKeys = tool.outputSchema?["properties"]?.object?.keys.sorted() ?? []
             #expect(outputKeys == expectedOutputs[tool.name], "\(tool.name) output keys: \(outputKeys)")
         }
-        // The host serves them once installed (the coordinator wires
-        // `searchTools` into `installTools()`; filter-first so they are
-        // not registered twice).
         let installed = Set(host.searchTools.map(\.name))
         host.server.tools = host.server.tools.filter { !installed.contains($0.name) } + host.searchTools
         let served = host.server.tools.map(\.name)

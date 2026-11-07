@@ -1,14 +1,3 @@
-// ThemeManager.swift
-//
-// Moved from `swiftcode-ide/GeneralSettingsView.swift` (ThemeColors,
-// AppTheme and ThemeManager were declared there at lines 162-290).
-// SwiftCodeUI must own them: `SwiftCodeUI/App/NativeSettingsViews.swift`
-// and `SwiftCodeUI/Editor/CodeColoringTheme.swift` use `ThemeManager.shared`,
-// and `swiftcode-ide` (GeneralSettingsView) still uses all three types via
-// its `SwiftCodeUI` dependency. Declarations are `public` (with explicit
-// public memberwise inits) so the swiftcode-ide call sites keep resolving;
-// every other line is verbatim from the origin file.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import Foundation
 
@@ -116,9 +105,6 @@ public struct AppTheme: Identifiable, Codable, Equatable {
 
     public static let builtIns: [AppTheme] = [.light, .dark, .monokai, .dracula, .oneDark, .solarized]
 }
-
-
-// MARK: - Theme Manager
 
 @Observable
 @MainActor

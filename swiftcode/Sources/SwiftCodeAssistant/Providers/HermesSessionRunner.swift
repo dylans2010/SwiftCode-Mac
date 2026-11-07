@@ -1,48 +1,4 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/HermesSessionRunner.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Providers/HermesSessionRunner.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - HermesSessionRunner seam: buildSystemPrompt via AssistSDKSessionRunner, selected-model validation, tool-event publication to SDKToolEventStore under the session id, cancel() marking non-terminal rows cancelled
-//   - storeEventHandler
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistSDKSessionRunner — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistSDKSessionRunner.swift`)
-//   - HermesError — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/HermesProvider.swift`)
-//   - HermesRunRequest — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/HermesProvider.swift`)
-//   - SDKToolEvent — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/SDKToolEvent.swift`)
-//   - SDKToolEventStore — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/SDKToolEventStore.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
-
-// MARK: - Hermes session runner (parent integration)
-//
-// The single seam between AssistAgentSession and HermesProvider,
-// mirroring AssistSDKSessionRunner's shape for the parts that are
-// genuinely shared (SwiftCode prompt construction, tool-event
-// publication to SDKToolEventStore under the Assist session id) and
-// differing where Hermes genuinely differs:
-//
-// * No SDK bridge, no tool schemas sent, no native tool execution:
-//   Hermes runs its own tools and SwiftCode observes them (see
-//   HermesProvider.swift for the full rationale and the approval
-//   semantics). The `executeTool` concept from the SDK runner has
-//   no Hermes counterpart and is not faked here.
-// * No conversation history replay: each task is a fresh Hermes
-//   one-shot (no --resume), so a previous SwiftCode task's Hermes
-//   session state is never silently resumed. The SwiftCode
-//   transcript remains the conversation record.
-// * No fallback: a missing executable, an invalid model, or a
-//   failed run is an actionable error naming Assist Settings →
-//   Hermes, never a silent substitution of another provider.
-//
-// Cancellation: `cancel()` terminates the provider's child process
-// and marks every non-terminal tool row for the run cancelled, so a
-// cancelled run never leaves rows stuck in Running or misreports
-// as Failed. AssistAgentSession additionally guards its own state
-// transition for Hermes cancellations (see its Hermes branch).
 
 @MainActor
 public final class HermesSessionRunner {
@@ -59,10 +15,6 @@ public final class HermesSessionRunner {
         }
     }
 
-    /// Runs one Hermes task and returns the model's final text.
-    /// Tool events are published to the store as the run proceeds;
-    /// the caller (AssistAgentSession) owns posting the final text
-    /// to the transcript.
     public func run(
         objective: String,
         context: AssistContext
@@ -88,10 +40,6 @@ public final class HermesSessionRunner {
         for try await delta in stream {
             streamedText += delta
         }
-        // The terminal `result` record's text is authoritative (text
-        // deltas can stop early on a replay gap); fall back to the
-        // streamed deltas, and only then fail — never post a partial
-        // or empty reply as if it were complete.
         if let result = await provider.lastResult, !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return result.text
         }
@@ -104,15 +52,6 @@ public final class HermesSessionRunner {
         return streamedText
     }
 
-    // MARK: - Tool events
-
-    /// Re-keys provider events to the Assist session id (Hermes
-    /// tool events carry no SwiftCode session id) and publishes them
-    /// to the store. The closure itself is non-isolated and Sendable:
-    /// it captures only the session key and hops to the MainActor
-    /// store. Hermes events arrive with an empty sessionId from the
-    /// provider; the store key is set here, never inside the event
-    /// type, so the provider stays session-agnostic.
     private static func storeEventHandler(sessionKey: String) -> @Sendable (SDKToolEvent) -> Void {
         { event in
             let rekeyed = SDKToolEvent(

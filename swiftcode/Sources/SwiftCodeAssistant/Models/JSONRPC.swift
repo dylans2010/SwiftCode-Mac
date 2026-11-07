@@ -1,6 +1,5 @@
 import Foundation
 
-/// A JSON-RPC 2.0 request ID: a number or a string (never null in MCP).
 public enum JSONRPCID: Hashable, Sendable, CustomStringConvertible {
     case int(Int)
     case string(String)
@@ -23,7 +22,6 @@ public enum JSONRPCID: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-/// A JSON-RPC error object; thrown by handlers to answer with an error.
 public struct JSONRPCError: Error, Equatable, Sendable, CustomStringConvertible {
     public var code: Int
     public var message: String
@@ -55,8 +53,6 @@ public struct JSONRPCError: Error, Equatable, Sendable, CustomStringConvertible 
     public var description: String { "JSON-RPC error \(code): \(message)" }
 }
 
-/// One JSON-RPC 2.0 message. Batches (arrays) are not accepted: the MCP
-/// revisions SwiftCode serves and ACP send one message per line.
 public enum JSONRPCMessage: Equatable, Sendable {
     case request(id: JSONRPCID, method: String, params: AnyJSON?)
     case notification(method: String, params: AnyJSON?)
@@ -111,16 +107,11 @@ public enum JSONRPCMessage: Equatable, Sendable {
         }
     }
 
-    /// One line of a stdio stream: compact JSON, then a newline.
     public var line: Data { json.data() + Data([0x0A]) }
 }
 
-/// Splits a byte stream into newline-delimited messages (the stdio
-/// framing of MCP and ACP: messages contain no newlines). A carriage
-/// return before the newline is dropped; empty lines are skipped.
 public struct LineFramer: Sendable {
     private var buffer = Data()
-    /// A line longer than this without a newline is dropped (64 MB).
     public var maxLineLength = 64 << 20
     public init() {}
 
@@ -137,7 +128,6 @@ public struct LineFramer: Sendable {
         return lines
     }
 
-    /// The bytes after the last newline (a final line without one).
     public mutating func flush() -> Data? {
         defer { buffer = Data() }
         var line = buffer

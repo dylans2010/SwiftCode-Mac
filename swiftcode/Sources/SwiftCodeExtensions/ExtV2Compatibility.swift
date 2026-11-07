@@ -1,18 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Extensions v2/Core/ExtV2Compatibility.swift (Legacy main ab03f681)
-//
-// Destination: SwiftCodeExtensions/ExtV2Compatibility.swift.
-//
-// Verbatim — no adaptations. Depends only on `ExtV2VSCodeManifest`
-// (ported in this same wave in `ExtV2ManifestParser.swift`).
-
 import Foundation
 
-// MARK: - Semantic versions and engine requirements
-
-/// Minimal semver value object. Pre-release/build suffixes are stripped for
-/// comparison (they never make an engine requirement pass that a release
-/// would fail); the original string is kept for display.
 public struct ExtV2Version: Comparable, Hashable, Sendable, CustomStringConvertible {
     public let major: Int
     public let minor: Int
@@ -44,9 +31,6 @@ public struct ExtV2Version: Comparable, Hashable, Sendable, CustomStringConverti
         return lhs.patch < rhs.patch
     }
 
-    /// Evaluates the requirement forms VS Code extensions actually use:
-    /// `*`, `x`, `^1.80.0`, `>=1.80.0`, `1.80.0`, and `1.80.x`.
-    /// Anything unparseable is a failure, never a silent pass.
     public func satisfies(engineRequirement requirement: String) -> Bool {
         let req = requirement.trimmingCharacters(in: .whitespacesAndNewlines)
         if req == "*" || req == "x" || req.isEmpty { return true }
@@ -56,7 +40,6 @@ public struct ExtV2Version: Comparable, Hashable, Sendable, CustomStringConverti
         }
         if req.hasPrefix("^") {
             guard let base = ExtV2Version(string: String(req.dropFirst())) else { return false }
-            // Caret: same major, at least the base version.
             return major == base.major && self >= base
         }
         if req.hasSuffix(".x") || req.hasSuffix(".*") {
@@ -73,8 +56,6 @@ public struct ExtV2Version: Comparable, Hashable, Sendable, CustomStringConverti
     }
 }
 
-// MARK: - API compatibility matrix
-
 public enum ExtV2APILevel: String, Codable, Sendable {
     case supported
     case partial
@@ -89,13 +70,7 @@ public enum ExtV2APILevel: String, Codable, Sendable {
     }
 }
 
-/// The versioned API matrix. This is the contract the UI and diagnostics
-/// render; adding an API means adding a row here *and* an implementation,
-/// never a success-returning stub.
 public enum ExtV2VSCodeAPI {
-    /// The VS Code engine version SwiftCode's host claims compatibility with.
-    /// Extensions requiring newer engines are reported incompatible, not
-    /// loaded and hoped for.
     public static let hostEngineVersion = ExtV2Version(major: 1, minor: 85, patch: 0)
 
     public static let matrix: [String: ExtV2APILevel] = [
@@ -158,7 +133,6 @@ public struct ExtV2CompatibilityReport: Sendable {
     }
 }
 
-/// Pure compatibility evaluation, unit-testable without any process or UI.
 public enum ExtV2Compatibility {
     public static func evaluate(manifest: ExtV2VSCodeManifest) -> ExtV2CompatibilityReport {
         var reasons: [String] = []
@@ -172,8 +146,6 @@ public enum ExtV2Compatibility {
             reasons.append("Manifest declares no engines.vscode requirement, so compatibility cannot be verified.")
         }
         if manifest.main == nil && manifest.browser == nil {
-            // Language-only contributions (grammars, snippets, themes) are
-            // still usable without an activation entry point.
             let languageOnly = !(manifest.contributesCommands.isEmpty
                 && manifest.contributesViews.isEmpty)
             if languageOnly {

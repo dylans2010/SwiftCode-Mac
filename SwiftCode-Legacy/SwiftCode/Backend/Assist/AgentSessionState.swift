@@ -35,7 +35,6 @@ public enum AgentSessionStatus: String, Codable, Sendable {
     case failed = "Failed"
     case cancelled = "Cancelled"
 
-    // Legacy aliases for backward compatibility
     case receivingRequest = "Receiving Request"
     case analyzingRepository = "Analyzing Repository"
     case collectingContext = "Collecting Context"
@@ -212,7 +211,6 @@ public final class AgentSessionState: Sendable {
     public var changeSummary = AgentChangeSummary()
     public var executionMode: ExecutionMode = .autopilot
 
-    // MARK: - Assist v4 Continuous Takeover & Multi-Goal State
     public var rootGoal: String = ""
     public var currentGoal: AssistGoal?
     public var goalGraph: [AssistGoal] = []
@@ -222,12 +220,10 @@ public final class AgentSessionState: Sendable {
     public var takeoverActive: Bool = false
     public var isAutonomousExpansion: Bool = false
 
-    // MARK: - Observation Loop State
     public var lastObservation: ToolObservation?
     public var observationHistory: [ToolObservation] = []
     public var semanticStateVersion: Int = 0
 
-    // MARK: - Stuck Detection State
     public var toolCallSignatures: [String: Int] = [:]
     public var recentToolCallWindow: [String] = []
     public var lastFileChangeCount: Int = 0
@@ -237,8 +233,6 @@ public final class AgentSessionState: Sendable {
 
     public init() {}
 }
-
-// MARK: - Tool Observation
 
 public struct ToolObservation: Codable, Sendable, Identifiable {
     public let id: UUID
@@ -273,8 +267,6 @@ public struct ToolObservation: Codable, Sendable, Identifiable {
         self.suggestedNextAction = suggestedNextAction
     }
 }
-
-// MARK: - Stuck Detection Event
 
 public struct StuckDetectionEvent: Codable, Sendable, Identifiable {
     public let id: UUID

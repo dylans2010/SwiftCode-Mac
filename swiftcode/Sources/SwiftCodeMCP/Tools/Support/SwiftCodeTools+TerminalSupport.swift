@@ -25,38 +25,7 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// Shared helpers for the ported Legacy Terminal / system tool family
-/// (Wave 4). See `SwiftCodeTools+Terminal.swift` for the tools themselves.
-///
-/// Behaviour source: Legacy's `AssistSystemTool`,
-/// `AssistAppInteractionEngine` (list/launch/window parts only),
-/// `AssistScreenCaptureEngine` (fullscreen capture + PNG encode),
-/// `AssistSystemNotificationTool` (UN + osascript fallback),
-/// `AgentTerminalService` (timeout, environment) and
-/// `AssistExecutionFunctions` (the four registered tasks) — Dylan's
-/// own code, ported under MIT.
-///
-/// The rules that matter:
-///
-/// * Fixed-argv subprocesses only, never a shell
-///   (`terminalRunFixed`). The runner reads stdout/stderr on
-///   separate paths (a full pipe never blocks the child, as in
-///   `Subprocess.run`) and terminates the child when the timeout
-///   expires. It returns `nil` only when the process cannot start.
-///   Callers run it off the main actor (`Task.detached`), because
-///   it blocks.
-/// * `use_terminal` tokenizes its `command` string into an argv
-///   vector (`terminalTokenizeCommand`); any shell metacharacter
-///   anywhere in the string is rejected, so pipes, redirects,
-///   variables, globbing, substitution and chaining can never run.
-///   The program is resolved against `PATH`
-///   (`terminalResolveProgram`).
-/// * The macOS-only helpers (pasteboard, notifications, screen
-///   capture, app control, sysctl) have throwing stubs on other
-///   platforms: they fail with an exact "only available on macOS"
-///   message, never a silent no-op.
 extension SwiftCodeMCPHost {
-    /// Throws unless this is macOS.
     nonisolated static func terminalRequireMacOS(_ tool: String) throws {
 #if os(macOS)
 #else
@@ -64,14 +33,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    // MARK: - Fixed-argv runner
-
-    /// The environment a terminal/system subprocess runs with: this
-    /// process's environment, plus the never-wait-for-a-person
-    /// settings, plus the developer-tool paths Legacy's
-    /// `AgentTerminalService` appends to `PATH`. Nothing is removed:
-    /// unlike the git tools, an arbitrary command's environment is
-    /// the user's own.
     nonisolated static func terminalEnvironment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         env["GIT_TERMINAL_PROMPT"] = "0"
@@ -84,10 +45,6 @@ extension SwiftCodeMCPHost {
         return env
     }
 
-    /// Runs `executable` with `args` as an argument vector (never a
-    /// shell), capturing stdout and stderr, and terminating the child
-    /// when `timeout` seconds pass. `nil` when the process cannot
-    /// start at all.
     nonisolated static func terminalRunFixed(_ executable: String, _ args: [String],
                                             workingDirectory: URL? = nil,
                                             environment: [String: String]? = nil,
@@ -102,9 +59,6 @@ extension SwiftCodeMCPHost {
         p.standardError = errPipe
         p.standardInput = FileHandle.nullDevice
         do { try p.run() } catch { return nil }
-        // stderr on its own thread: reading the two pipes one after
-        // the other deadlocks when the child fills the second one
-        // first (the `Subprocess.run` shape).
         final class Box: @unchecked Sendable { var data = Data() }
         let errBox = Box()
         let group = DispatchGroup()
@@ -126,31 +80,17 @@ extension SwiftCodeMCPHost {
                                 timedOut: timedOut.value)
     }
 
-    /// Whether `text` matches `pattern` (a full regular-expression
-    /// match, as Legacy's `use_system.matches`).
     nonisolated static func terminalMatches(_ text: String, pattern: String) -> Bool {
         guard let re = try? NSRegularExpression(pattern: pattern) else { return false }
         let range = NSRange(text.startIndex..., in: text)
         return re.firstMatch(in: text, range: range) != nil
     }
 
-    /// Caps tool output at `cap` characters with Legacy's canonical
-    /// truncation marker; returns the (possibly capped) text and
-    /// whether it was capped.
     nonisolated static func terminalCappedOutput(_ output: String, cap: Int = 8_000) -> (String, Bool) {
         guard output.count > cap else { return (output, false) }
         return (String(output.prefix(cap)) + "\n…[truncated: output exceeded \(cap) characters]", true)
     }
 
-    // MARK: - `use_terminal` argv
-
-    /// Splits a `use_terminal` command string into an argv vector.
-    /// Single/double quotes group words and a backslash escapes the
-    /// next character; there is no variable expansion, no globbing,
-    /// no substitution, and no chaining. `nil` when the string is
-    /// empty, has an unterminated quote, or contains any shell
-    /// metacharacter anywhere (`| & ; < > \` $ ( ) { } * ? ~ # !`
-    /// or a newline): shell syntax is rejected, never reinterpreted.
     nonisolated static func terminalTokenizeCommand(_ command: String) -> [String]? {
         let meta: Set<Character> = ["|", "&", ";", "<", ">", "`", "$", "(", ")", "{", "}", "*", "?", "~", "#", "!", "\n", "\r"]
         if command.contains(where: { meta.contains($0) }) { return nil }
@@ -185,10 +125,6 @@ extension SwiftCodeMCPHost {
         return tokens.isEmpty ? nil : tokens
     }
 
-    /// Resolves a program name to an executable path: a name
-    /// containing `/` is a path (absolute as-is, relative against
-    /// `workingDirectory`); otherwise the first executable match on
-    /// `PATH`. `nil` when nothing executable is found.
     nonisolated static func terminalResolveProgram(_ name: String, workingDirectory: URL) -> String? {
         if name.contains("/") {
             let url: URL
@@ -207,12 +143,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    // MARK: - `use_system` connectivity (POSIX TCP connect)
-
-    /// Bounded TCP connect: non-blocking connect + poll() with the
-    /// requested timeout. Legacy's `AssistSystemTool.tcpConnect`,
-    /// with the `SOCK_STREAM` spelling this repository's
-    /// `HostResolver` uses on Glibc.
     nonisolated static func terminalTCPConnect(host: String, port: Int, timeoutSeconds: TimeInterval) -> Bool {
         var hints = addrinfo()
 #if canImport(Glibc)
@@ -242,11 +172,7 @@ extension SwiftCodeMCPHost {
         return soError == 0
     }
 
-    // MARK: - `use_system` sysctl
-
 #if os(macOS)
-    /// Reads one allowlisted sysctl by name (Legacy's
-    /// `AssistSystemTool.readSysctl`). macOS only.
     nonisolated static func terminalSysctl(_ name: String, kind: TerminalSysctlKind) -> String? {
         var size = 0
         guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return nil }
@@ -269,16 +195,11 @@ extension SwiftCodeMCPHost {
     }
 #endif
 
-    // MARK: - Clipboard (macOS NSPasteboard)
-
 #if canImport(AppKit)
-    /// The macOS system clipboard's text ("" when empty), as Legacy's
-    /// `AssistClipboardManagerTool` reads it.
     func terminalPasteboardRead() throws -> String {
         NSPasteboard.general.string(forType: .string) ?? ""
     }
 
-    /// Replaces the macOS system clipboard's text.
     func terminalPasteboardWrite(_ content: String) throws {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(content, forType: .string)
@@ -293,15 +214,7 @@ extension SwiftCodeMCPHost {
     }
 #endif
 
-    // MARK: - System notification (macOS)
-
 #if canImport(UserNotifications)
-    /// Posts a macOS notification the way Legacy does: the genuine
-    /// `UNUserNotificationCenter` path first, the `/usr/bin/osascript`
-    /// `display notification` fallback when that does not deliver
-    /// (Legacy's fallback always uses the sound name "Submarine"
-    /// when a sound is wanted — reproduced verbatim). Returns the
-    /// Legacy summary text and whether anything delivered.
     func terminalPostNotification(title: String, subtitle: String, message: String,
                                   sound: String, critical: Bool) async throws -> (String, Bool) {
         let center = UNUserNotificationCenter.current()
@@ -381,14 +294,7 @@ extension SwiftCodeMCPHost {
     }
 #endif
 
-    // MARK: - Screen capture (macOS ScreenCaptureKit)
-
 #if canImport(ScreenCaptureKit)
-    /// Captures the full screen of one display (or the main display)
-    /// as a PNG, via `SCScreenshotManager` — Legacy's
-    /// `AssistScreenCaptureEngine.captureFullScreen`. The interactive
-    /// region-selection overlay Legacy uses for `capture_mode:
-    /// "region" is not ported (see `takeScreenshot`).
     func terminalCaptureScreenshot(displayID: UInt32?, includeCursor: Bool) async throws -> TerminalScreenshot {
         guard terminalScreenCaptureAuthorized() else {
             throw MCPToolError("Screen Recording permission has not been granted. Please grant Screen Recording permission to SwiftCode in macOS System Settings > Privacy & Security > Screen Recording, then retry.")
@@ -411,9 +317,6 @@ extension SwiftCodeMCPHost {
         return TerminalScreenshot(png: png, width: image.width, height: image.height, displayID: scDisplay.displayID)
     }
 
-    /// Legacy's `checkAuthorization(promptIfDenied:)`: true when
-    /// Screen Recording access is already granted; otherwise asks
-    /// once and reports false for this call.
     func terminalScreenCaptureAuthorized() -> Bool {
 #if canImport(CoreGraphics)
         if CGPreflightScreenCaptureAccess() { return true }
@@ -424,7 +327,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    /// Legacy's `AssistScreenCaptureEngine.encodePNG`.
     func terminalEncodePNG(_ image: CGImage) -> Data? {
 #if canImport(ImageIO) && canImport(UniformTypeIdentifiers)
         let data = NSMutableData()
@@ -444,13 +346,7 @@ extension SwiftCodeMCPHost {
     }
 #endif
 
-    // MARK: - App control (macOS NSWorkspace / CoreGraphics)
-
 #if canImport(AppKit)
-    /// The running applications (Legacy's
-    /// `AssistAppInteractionEngine.listApplications`, running half
-    /// only: SwiftCode has no installed-app index, so applications that
-    /// are installed but not running are not listed).
     func terminalRunningApplications(filter: String?) throws -> [TerminalAppInfo] {
         NSWorkspace.shared.runningApplications.compactMap { app in
             guard let name = app.localizedName, !name.isEmpty else { return nil }
@@ -463,8 +359,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// A running application by bundle identifier, name
-    /// (case-insensitive), or PID.
     func terminalResolveRunningApplication(_ identifier: String) -> NSRunningApplication? {
         let apps = NSWorkspace.shared.runningApplications
         if let byBundle = apps.first(where: { $0.bundleIdentifier == identifier }) { return byBundle }
@@ -474,10 +368,6 @@ extension SwiftCodeMCPHost {
         return apps.first(where: { $0.localizedName?.localizedCaseInsensitiveCompare(identifier) == .orderedSame })
     }
 
-    /// Launches an application by bundle identifier or name (looking
-    /// for `<name>.app` under the standard application folders), or
-    /// returns it when it is already running. `nil` when nothing
-    /// matching can be launched.
     func terminalLaunchApplication(_ identifier: String) -> NSRunningApplication? {
         if let running = terminalResolveRunningApplication(identifier) { return running }
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) {
@@ -509,10 +399,6 @@ extension SwiftCodeMCPHost {
 #endif
 
 #if canImport(CoreGraphics)
-    /// The on-screen windows of one process, via
-    /// `CGWindowListCopyWindowInfo` (no Accessibility permission
-    /// needed; minimized and hidden windows are not on-screen and so
-    /// are not listed, unlike Legacy's Accessibility window list).
     func terminalAppWindows(pid: Int32) -> [TerminalWindowInfo] {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
             return []
@@ -536,7 +422,6 @@ extension SwiftCodeMCPHost {
 #endif
 }
 
-/// One fixed-argv subprocess run.
 struct TerminalFixedRun: Sendable {
     var exitCode: Int32
     var stdout: String
@@ -544,15 +429,12 @@ struct TerminalFixedRun: Sendable {
     var timedOut: Bool
 }
 
-/// The expected value kind of one allowlisted sysctl name (Legacy's
-/// `AssistSystemTool.SysctlKind`).
 enum TerminalSysctlKind: Sendable {
     case string
     case int32
     case uint64
 }
 
-/// One fullscreen screen capture.
 struct TerminalScreenshot: Sendable {
     var png: Data
     var width: Int
@@ -560,14 +442,12 @@ struct TerminalScreenshot: Sendable {
     var displayID: UInt32
 }
 
-/// One running application (the `use_app` list shape).
 struct TerminalAppInfo: Sendable {
     var name: String
     var bundleIdentifier: String
     var pid: Int32
 }
 
-/// One on-screen window (the `use_app` list shape).
 struct TerminalWindowInfo: Sendable {
     var id: String
     var title: String

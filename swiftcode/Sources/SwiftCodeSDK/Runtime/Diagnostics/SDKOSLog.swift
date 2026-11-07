@@ -3,16 +3,6 @@ import Foundation
 import os
 #endif
 
-/// Cross-platform logging shim for the SDK host.
-///
-/// Legacy used `os.Logger` throughout (`import os.log`), which is
-/// Darwin-only. SwiftCode targets macOS and Linux, and no SwiftCode file uses
-/// `import os`. On Apple platforms this forwards to `os.Logger` with the
-/// same subsystem/category discipline; elsewhere it writes to stderr so
-/// host diagnostics are never silently dropped.
-///
-/// Messages passed here must already be redacted — never pass secrets,
-/// key material, or raw extension payloads.
 public enum SDKLog {
     public static func info(_ message: String, subsystem: String = "com.swiftcode.sdk", category: String = "sdk") {
         log(level: .info, message, subsystem: subsystem, category: category)

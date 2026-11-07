@@ -3,13 +3,10 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// The host task (stage4c-contract.md §3): Swift code in the VMM talking Mach
-/// to guest tasks of the same system.
 @Suite struct MachHostTests {
     let S = MachPortType.send, R = MachPortType.receive, SO = MachPortType.sendOnce, DN = MachPortType.deadName
     let out = TaskWorld.out
 
-    /// A world in device mode: the host task exists and is the default bootstrap.
     func deviceWorld() -> (TaskWorld, MachHostTask) {
         let w = TaskWorld()
         let host = w.system.hostTask
@@ -33,7 +30,6 @@ import SwiftCodeDarwinABI
         #expect(w.system.mach.hostBootstrapPort == host.bootstrapPort && w.system.hostTask === host)
         let g = try w.add(pid: 100)
         g.kernel.pidVersion = 4
-        // The root's bootstrap special port is a send right to the host bootstrap port, named 0x503.
         #expect(g.ipc.kernelObjectKind(of: 0x503) == nil && w.entry(g, 0x503)?.type == S)
         #expect(w.kr(g, 0x7963_2005, [0x103, 4, out]) == 0 && w.r32(g, out) == 0x503)
         let reply = w.allocate(g)
@@ -47,22 +43,20 @@ import SwiftCodeDarwinABI
         #expect(host.rights(of: m.replyPort)?.type == SO)
         #expect(m.wireImage.count == 32 && m.wireImage.readLE(UInt32.self, at: 20) == 400)
         try host.reply(to: m, body: le32(0) + le32(42))
-        #expect(host.rights(of: m.replyPort) == nil)  // the send-once right was used
+        #expect(host.rights(of: m.replyPort) == nil)
         let (k, r) = w.receive(g, reply)
         #expect(k == 0 && r.id == 500 && r.local == reply && r.u32(24) == 0 && r.u32(28) == 42)
-        #expect(r.trailer(20 + 4 * 5) == 0)  // the host's pid
-        // Nothing left: a poll times out.
+        #expect(r.trailer(20 + 4 * 5) == 0)
         #expect(throws: MachHostError.timedOut) { try host.receive(on: host.bootstrapPort, timeout: 0) }
     }
 
     @Test func execModeKeepsTheBootstrapKernelObject() throws {
         let w = TaskWorld()
-        _ = w.system.hostTask  // the host task exists, but is not the default
+        _ = w.system.hostTask
         let g = try w.add(pid: 100)
         #expect(g.ipc.kernelObjectKind(of: 0x503) == .bootstrap)
         #expect(w.send(g, TestMessage(remote: 0x503, remoteDisposition: MachMsgType.copySend).bytes)
             == MachMsgReturn.sendInvalidDest)
-        // Explicitly, before the task runs: the host bootstrap port as its special port.
         let g2 = try w.add(pid: 101)
         try w.system.hostTask.setSpecialPort(of: g2.ipc, which: TaskSpecialPort.bootstrap,
                                              to: w.system.hostTask.bootstrapPort)
@@ -74,7 +68,6 @@ import SwiftCodeDarwinABI
     @Test func descriptorsInBothDirections() throws {
         let (w, host) = deviceWorld()
         let g = try w.add(pid: 100)
-        // Guest → host: a send right, OOL bytes, and an OOL port array.
         let gp = w.allocate(g)
         let data = TaskWorld.scratch + 0x10000
         let payload = Array("guest bytes".utf8)
@@ -90,11 +83,9 @@ import SwiftCodeDarwinABI
         #expect(m.isComplex && m.descriptors.count == 3 && m.body == le32(0xFEED))
         guard case let .port(gpInHost, type) = m.descriptors[0] else { Issue.record("no port"); return }
         #expect(type == MachMsgType.portSend && host.rights(of: gpInHost)?.type == S)
-        #expect(host.rights(of: gpInHost)?.urefs == 2)  // merged with the OOL array's right
+        #expect(host.rights(of: gpInHost)?.urefs == 2)
         #expect(m.descriptors[1] == .ool(data: payload, copy: 0, volatile: false))
         #expect(m.descriptors[2] == .oolPorts(names: [gpInHost], type: MachMsgType.portSend))
-        // Host → guest (not a reply): a send right to a host port, a receive
-        // right, OOL bytes, and an OOL port array.
         let hp = try host.makePort()
         let moved = try host.makePort(sendRight: true)
         let back = Array("host bytes!!".utf8)
@@ -104,7 +95,7 @@ import SwiftCodeDarwinABI
                                                             .ool(data: back),
                                                             .oolPorts(names: [hp, 0], disposition: MachMsgType.makeSend)],
                                               body: le32(9)))
-        #expect(host.rights(of: moved)?.type == S)  // the host keeps its send right
+        #expect(host.rights(of: moved)?.type == S)
         let (k, r) = w.receive(g, gp)
         #expect(k == 0 && r.id == 2 && r.u32(24) == 4)
         let hpInGuest = r.u32(28), movedInGuest = r.u32(40)
@@ -114,12 +105,10 @@ import SwiftCodeDarwinABI
         let arrayAddress = r.u64(68)
         #expect(r.u32(80) == 2 && w.r32(g, arrayAddress) == hpInGuest && w.r32(g, arrayAddress + 4) == 0)
         #expect(r.u32(84) == 9)
-        // The guest uses both: a message on the host port, and one on the moved port from the host.
         #expect(w.send(g, TestMessage(remote: hpInGuest, remoteDisposition: MachMsgType.copySend, id: 3).bytes) == 0)
         #expect(try host.receive(on: hp, timeout: 0).id == 3)
         try host.send(MachHostOutgoingMessage(remotePort: moved, id: 4))
         #expect(w.receive(g, movedInGuest).1.id == 4)
-        // Errors: a bad name, an odd body, a dead destination.
         #expect(throws: MachHostError(MachMsgReturn.sendInvalidDest)) {
             try host.send(MachHostOutgoingMessage(remotePort: 0x77703, id: 5))
         }
@@ -136,7 +125,6 @@ import SwiftCodeDarwinABI
         let (w, host) = deviceWorld()
         let g = try w.add(pid: 100)
         let notify = try host.makePort()
-        // The host holds a send right to a guest port, with a dead-name request.
         let gp = w.allocate(g)
         #expect(w.insertRight(g, gp, gp, MachMsgType.makeSend) == 0)
         let gpInHost = w.system.lock.withLock { () -> UInt32 in
@@ -145,7 +133,6 @@ import SwiftCodeDarwinABI
         }
         #expect(try host.requestNotification(gpInHost, id: MachNotify.deadName, notifyPort: notify) == 0)
         #expect(host.rights(of: gpInHost)?.type == S | MachPortType.dnRequest)
-        // A host port whose only send right is in the guest, with no-senders armed.
         let hp = try host.makePort()
         let hpInGuest = try host.give(hp, disposition: MachMsgType.makeSend, to: g.ipc)
         #expect(w.entry(g, hpInGuest)?.type == S)
@@ -156,7 +143,6 @@ import SwiftCodeDarwinABI
         #expect(host.rights(of: gpInHost)?.type == DN)
         let second = try host.receive(on: notify, timeout: 0)
         #expect(second.id == MachNotify.noSenders && second.body == machNDRRecord + le32(1))
-        // The host's own dead name goes with one deallocate (two references: right + notification).
         try host.deallocate(gpInHost)
         try host.deallocate(gpInHost)
         #expect(host.rights(of: gpInHost) == nil)
@@ -173,7 +159,6 @@ import SwiftCodeDarwinABI
         try host.destroyPort(hp)
         let (k, n) = w.receive(g, gNotify)
         #expect(k == 0 && n.id == MachNotify.deadName && n.u32(32) == hpInGuest)
-        // Shutdown: the bootstrap port dies; the guest's 0x503 becomes a dead name.
         host.shutdown()
         #expect(w.entry(g, 0x503)?.type == DN)
         #expect(w.system.mach.hostTask == nil && w.system.mach.hostBootstrapPort == nil)
@@ -190,7 +175,6 @@ import SwiftCodeDarwinABI
         Thread.sleep(forTimeInterval: 0.05)
         #expect(w.send(g, TestMessage(remote: 0x503, remoteDisposition: MachMsgType.copySend, id: 61).bytes) == 0)
         #expect(wait() == 61)
-        // A timeout, then a receiver woken by the destruction of its port.
         #expect(throws: MachHostError.timedOut) { try host.receive(on: other, timeout: 10_000_000) }
         let changed = spawn { () -> UInt32 in
             do { _ = try host.receive(on: other, timeout: nil); return 0 } catch let e as MachHostError { return e.code } catch { return 1 }
@@ -199,7 +183,6 @@ import SwiftCodeDarwinABI
         try host.destroyPort(other)
         #expect(changed() == MachMsgReturn.rcvPortChanged)
         #expect(throws: MachHostError.invalidName) { try host.receive(on: other, timeout: 0) }
-        // A request the host drops: its reply right gives the guest a send-once notification.
         let reply = w.allocate(g)
         #expect(w.send(g, TestMessage(remote: 0x503, remoteDisposition: MachMsgType.copySend, local: reply,
                                       localDisposition: MachMsgType.makeSendOnce, id: 62).bytes) == 0)

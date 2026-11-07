@@ -1,12 +1,3 @@
-// Draws the disk image's background (packaging/macos/dmg-background.tiff holds
-// the result at 1x and 2x; run this only to change it):
-//   swiftc packaging/macos/make-dmg-background.swift -o <tmp>/bg
-//   <tmp>/bg frameworks/swiftui/Sources/OVText/Resources/Fonts <out-prefix>
-//   tiffutil -cathidpicheck <out-prefix>.png <out-prefix>@2x.png -out packaging/macos/dmg-background.tiff
-// Colours follow the icon (plum, cream, coral). Text: Inter (SIL OFL).
-// The window is 660 × 400 points with 128-point icons centred at (170, 205)
-// and (490, 205) from the top left (make-dmg.sh's layout.json). Finder draws
-// the icon labels in dark text, so the picture stays light.
 import AppKit
 import CoreText
 
@@ -27,7 +18,6 @@ func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> NSColor {
 
 let plum = rgb(0x3A2157), coral = rgb(0xFF7A59), lilac = rgb(0xB9A3E3)
 
-/// A soft round glow that fades to nothing at `radius`.
 func glow(_ color: NSColor, at centre: CGPoint, radius: CGFloat) {
     NSGradient(colors: [color, color.withAlphaComponent(0)])!
         .draw(fromCenter: centre, radius: 0, toCenter: centre, radius: radius, options: [])
@@ -49,7 +39,6 @@ func drawBackground() {
     glow(lilac.withAlphaComponent(0.20), at: CGPoint(x: 600, y: size.height - 20), radius: 240)
     glow(coral.withAlphaComponent(0.13), at: CGPoint(x: 640, y: -30), radius: 320)
 
-    // A faint dot grid, strongest at the edges.
     for x in stride(from: CGFloat(9), to: size.width, by: 18) {
         for y in stride(from: CGFloat(9), to: size.height, by: 18) {
             let dx = (x - size.width / 2) / (size.width / 2), dy = (y - size.height / 2) / (size.height / 2)
@@ -60,7 +49,6 @@ func drawBackground() {
     }
 }
 
-/// A frosted card behind an icon and its Finder label.
 func drawCard(around centre: CGPoint) {
     let card = NSRect(x: centre.x - 86, y: centre.y - 100, width: 172, height: 186)
     let path = NSBezierPath(roundedRect: card, xRadius: 30, yRadius: 30)
@@ -80,7 +68,6 @@ func drawCard(around centre: CGPoint) {
     path.stroke()
 }
 
-/// A dotted arc from the app's card to the Applications card, ending in a chevron.
 func drawArrow() {
     let y = iconCentres[0].y + 4, lift: CGFloat = 14
     let start = CGPoint(x: 272, y: y), end = CGPoint(x: 382, y: y)
@@ -94,7 +81,6 @@ func drawArrow() {
     coral.withAlphaComponent(0.9).setStroke()
     arc.stroke()
 
-    // The chevron follows the arc's direction at its end.
     let angle = atan2(end.y - control2.y, end.x - control2.x)
     let tip = CGPoint(x: end.x + 10 * cos(angle), y: end.y + 10 * sin(angle))
     let head = NSBezierPath()

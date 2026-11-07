@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/SDK/Host/ExtensionRegistry/SDKManifestValidator.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SDKManifestDiagnostic.
-
 import Foundation
 
 public struct SDKManifestDiagnostic: Identifiable, Equatable, Hashable, Sendable {

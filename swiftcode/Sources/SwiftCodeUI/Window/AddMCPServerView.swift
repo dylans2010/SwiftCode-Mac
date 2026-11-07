@@ -1,17 +1,8 @@
-// AddMCPServerView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/AddMCPServerView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: quick presets (GitHub Copilot etc.); test-connection; tools browser sheet; MCP logs view; live server status (connected/connecting) and tool counts
-// MCP client types (MCPServerManager, MCPServerConfig, MCPLoggingManager, MCPServerMetadata, MCPToolSchema, MCPTransport, MCPAuthenticationType) landed in SwiftCodeMCP (R-MCPSERVER, 2026-11-06).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeMCP
 import SwiftUI
 import os
 
 private let logger = Logger(subsystem: "com.swiftcode.mcp", category: "AddMCPServerView")
-
-// MARK: - Key Value Pair Helper Model
 
 struct MCPKeyValuePair: Identifiable, Codable, Equatable {
     var id = UUID()
@@ -19,18 +10,14 @@ struct MCPKeyValuePair: Identifiable, Codable, Equatable {
     var value: String
 }
 
-// MARK: - AddMCPServerView
-
 @MainActor
 public struct AddMCPServerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var manager = MCPServerManager.shared
 
-    // Active sheet states
     @State private var showAddServerSheet = false
     @State private var editingServer: MCPServerConfig? = nil
 
-    // Tools browser states
     @State private var browsingServer: MCPServerConfig? = nil
     @State private var showToolsBrowser = false
 
@@ -38,7 +25,6 @@ public struct AddMCPServerView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack(spacing: 12) {
                 Label("Model Context Protocol (MCP) Manager", systemImage: "network")
                     .font(.headline)
@@ -70,7 +56,6 @@ public struct AddMCPServerView: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    // Quick Introduction card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("About Model Context Protocol")
@@ -84,7 +69,6 @@ public struct AddMCPServerView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Configured Servers Section
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Configured Servers (\(manager.servers.count))")
                             .font(.subheadline.bold())
@@ -108,7 +92,6 @@ public struct AddMCPServerView: View {
                             .frame(maxWidth: .infinity)
                             .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                         } else {
-                            // Subview displaying the table list
                             AddedMCPServersView(
                                 manager: manager,
                                 onEdit: { server in
@@ -126,7 +109,6 @@ public struct AddMCPServerView: View {
             }
         }
         .frame(minWidth: 800, minHeight: 600)
-        // Sheets
         .sheet(isPresented: $showAddServerSheet) {
             ServerConfigFormView(manager: manager, serverToEdit: nil)
         }
@@ -141,14 +123,11 @@ public struct AddMCPServerView: View {
     }
 }
 
-// MARK: - Server Configuration Form (Add/Edit)
-
 struct ServerConfigFormView: View {
     @Environment(\.dismiss) private var dismiss
     let manager: MCPServerManager
     let serverToEdit: MCPServerConfig?
 
-    // Form fields
     @State private var displayName = ""
     @State private var transport: MCPTransport = .stdio
     @State private var urlString = "http://localhost:3011"
@@ -159,7 +138,6 @@ struct ServerConfigFormView: View {
     @State private var authType: MCPAuthenticationType = .none
     @State private var secretKey = ""
 
-    // Testing State
     @State private var isTesting = false
     @State private var testResult: String? = nil
     @State private var testSuccess: Bool? = nil
@@ -171,7 +149,6 @@ struct ServerConfigFormView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Quick Presets Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -214,7 +191,6 @@ struct ServerConfigFormView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // General Config Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -241,7 +217,6 @@ struct ServerConfigFormView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Transport details Card
                     if transport == .stdio {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
@@ -360,7 +335,6 @@ struct ServerConfigFormView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // Diagnostics Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -485,17 +459,14 @@ struct ServerConfigFormView: View {
         launchArguments = server.launchArguments?.joined(separator: ", ") ?? ""
         authType = server.authType
 
-        // Map environment variables
         if let env = server.envVariables {
             envVars = env.map { MCPKeyValuePair(key: $0.key, value: $0.value) }
         }
 
-        // Map custom headers
         if let headers = server.customHeaders {
             customHeaders = headers.map { MCPKeyValuePair(key: $0.key, value: $0.value) }
         }
 
-        // Map secret
         if let secret = manager.getSecret(for: server.id) {
             secretKey = secret
         }
@@ -579,8 +550,6 @@ struct ServerConfigFormView: View {
     }
 }
 
-// MARK: - Tools Browser Sheet
-
 struct ToolsBrowserSheet: View {
     @Environment(\.dismiss) private var dismiss
     let server: MCPServerConfig
@@ -623,7 +592,6 @@ struct ToolsBrowserSheet: View {
                                         .foregroundStyle(.secondary)
                                 }
 
-                                // Interactive input parameters scheme block
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("INPUT PARAMETERS SCHEMA")
                                         .font(.system(size: 9, weight: .bold))
@@ -664,11 +632,9 @@ struct ToolsBrowserSheet: View {
     }
 }
 
-// MARK: - MCPLogsView
-
 struct MCPLogsView: View {
     @Environment(\.dismiss) private var dismiss
-    let serverFilter: String? // nil or server display name to filter by
+    let serverFilter: String?
 
     @State private var searchText = ""
     @State private var selectedSeverity: MCPLogSeverity? = nil
@@ -693,7 +659,6 @@ struct MCPLogsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Filter bar
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
@@ -748,13 +713,11 @@ struct MCPLogsView: View {
                     List {
                         ForEach(filteredLogs) { log in
                             HStack(alignment: .top, spacing: 10) {
-                                // Timestamp
                                 Text(log.timestamp.formatted(date: .omitted, time: .standard))
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundColor(.secondary)
                                     .frame(width: 75, alignment: .leading)
 
-                                // Severity badge
                                 Text(log.severity.rawValue)
                                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                                     .padding(.horizontal, 6)
@@ -763,14 +726,12 @@ struct MCPLogsView: View {
                                     .foregroundColor(severityColor(log.severity))
                                     .frame(width: 55, alignment: .center)
 
-                                // Server tag
                                 Text(log.serverName)
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundColor(.orange)
                                     .lineLimit(1)
                                     .frame(width: 100, alignment: .leading)
 
-                                // Message
                                 Text(log.message)
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundColor(.primary)

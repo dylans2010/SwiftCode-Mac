@@ -3,15 +3,8 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy artifact / backup / Finder tools (Wave 1, slice D),
-/// each driven through the server's real write-policy path against a copy
-/// of `Samples/AgentSamples/Greeter`.
 @MainActor
 @Suite(.serialized) struct SwiftCodeArtifactsTests {
-    /// Opens a copy of Greeter and installs the artifact tools on the
-    /// server. (Wiring `artifactTools` into `installTools()` is the
-    /// coordinator's integration step; the tests install them directly so
-    /// the tools still run through `MCPServer.run`'s write-policy gate.)
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -116,11 +109,9 @@ import SwiftCodeAssistant
         let explicit = try await host.server.callTool("create_artifact", ["name": .string("plain_note"), "content": .string("Note.\n"),
                                                                            "kind": .string("execution_plan")])
         #expect(explicit.structured?["kind"]?.string == "execution_plan")
-        // An explicit kind wins over filename inference.
         let wins = try await host.server.callTool("create_artifact", ["name": .string("other_plan"), "content": .string("Note.\n"),
                                                                       "kind": .string("artifact")])
         #expect(wins.structured?["kind"]?.string == "artifact")
-        // A bare "plan" substring does not make an execution plan.
         let bare = try await host.server.callTool("create_artifact", ["name": .string("airplane_notes"), "content": .string("Note.\n")])
         #expect(bare.structured?["kind"]?.string == "artifact")
     }
@@ -137,7 +128,6 @@ import SwiftCodeAssistant
         let missing = try await host.server.callTool("create_artifact", ["name": .string("ghost"), "content": .string("Boo.\n"),
                                                                           "mode": .string("update")])
         #expect(missing.isToolError && missing.resultText.contains("No artifact named"))
-        // Append creates when the artifact is missing, like Legacy.
         let appended = try await host.server.callTool("create_artifact", ["name": .string("ghost"), "content": .string("Boo.\n"),
                                                                           "mode": .string("append")])
         #expect(!appended.isToolError && sample.read(".assist_temp/artifacts/ghost.md") == "Boo.\n")
@@ -271,12 +261,9 @@ import SwiftCodeAssistant
         #expect(missingOpen.isToolError && missingOpen.resultText.contains("does not exist"))
         let missingReveal = try await host.server.callTool("reveal_in_finder", ["path": .string("NoSuchFile.swift")])
         #expect(missingReveal.isToolError && missingReveal.resultText.contains("does not exist"))
-        // SwiftCode confines tool paths to the workspace (Legacy accepted
-        // absolute paths anywhere); escaping it is refused.
         let escape = try await host.server.callTool("open_in_finder", ["path": .string("../../etc/hosts")])
         #expect(escape.isToolError && escape.resultText.contains("outside the workspace"))
         #if !os(macOS)
-        // The Finder tools are macOS-only; on other platforms they say so.
         let open = try await host.server.callTool("open_in_finder", ["path": .string("Package.swift")])
         #expect(open.isToolError && open.resultText.contains("only available on macOS"))
         let reveal = try await host.server.callTool("reveal_in_finder", ["path": .string("Package.swift")])

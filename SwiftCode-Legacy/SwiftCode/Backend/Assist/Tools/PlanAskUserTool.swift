@@ -283,7 +283,6 @@ public final class PlanQuestionManager: ObservableObject {
             return
         }
         questionHistory = questions
-        // Mark any lingering pending questions as expired since continuations cannot survive app launch
         for idx in questionHistory.indices where questionHistory[idx].status == .pending {
             questionHistory[idx].status = .expired
         }

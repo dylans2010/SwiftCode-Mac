@@ -31,7 +31,6 @@ final class CSVParserDevToolViewModel {
             if cols.count == headers.count {
                 rows.append(cols)
             } else {
-                // Pad or truncate
                 var adjusted = cols
                 if adjusted.count < headers.count {
                     adjusted.append(contentsOf: Array(repeating: "", count: headers.count - adjusted.count))
@@ -81,7 +80,6 @@ struct CSVParserDevToolView: View {
                         .font(.headline)
 
                     VStack(alignment: .leading, spacing: 0) {
-                        // Headers
                         HStack {
                             ForEach(viewModel.headers, id: \.self) { header in
                                 Text(header)
@@ -92,7 +90,6 @@ struct CSVParserDevToolView: View {
                             }
                         }
 
-                        // Rows
                         ForEach(0..<viewModel.rows.count, id: \.self) { rowIndex in
                             HStack {
                                 ForEach(0..<viewModel.rows[rowIndex].count, id: \.self) { colIndex in

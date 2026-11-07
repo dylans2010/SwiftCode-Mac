@@ -41,7 +41,6 @@ public final class GitHubGistService: ObservableObject {
         }
     }
 
-
     private func normalizedFilename(_ filename: String?) -> String? {
         guard let filename else { return nil }
         let trimmed = filename.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -112,8 +111,6 @@ public final class GitHubGistService: ObservableObject {
         guard let content = try? String(contentsOf: url) else { return [] }
         return [(url.lastPathComponent, content)]
     }
-
-    // MARK: - API Methods
 
     public func fetchGists() async throws -> [GistResponse] {
         isLoading = true
@@ -288,8 +285,6 @@ public final class GitHubGistService: ObservableObject {
         }
     }
 
-    // MARK: - Comments
-
     public func fetchComments(gistId: String) async throws -> [GistComment] {
         let url = baseURL.appendingPathComponent("gists/\(gistId)/comments")
         let request = authorizedRequest(url: url)
@@ -310,8 +305,6 @@ public final class GitHubGistService: ObservableObject {
         return try decoder().decode(GistComment.self, from: data)
     }
 
-    // MARK: - Revisions
-
     public func fetchRevisions(gistId: String) async throws -> [GistRevision] {
         let url = baseURL.appendingPathComponent("gists/\(gistId)/commits")
         let request = authorizedRequest(url: url)
@@ -327,8 +320,6 @@ public final class GitHubGistService: ObservableObject {
         try validateResponse(response, data: data)
         return try decoder().decode(GistResponse.self, from: data)
     }
-
-    // MARK: - Download
 
     public func downloadGistZip(gistId: String) async throws -> URL {
         let gist = try await fetchGist(id: gistId)

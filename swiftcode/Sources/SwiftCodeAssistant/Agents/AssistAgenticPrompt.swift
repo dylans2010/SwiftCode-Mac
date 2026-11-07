@@ -1,12 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `Backend/Assist/AssistAgenticPrompt.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
-// Dependency of _AssistCriticalValidationEngine (validation prompt) and TasksAIPlanner (planning prompt). Ledger SUPERSEDED by SwiftCodeAssistant/Models/PromptBuilder.swift — checked: PromptBuilder only offers `instructions` ("You cannot edit files…") and `agentInstructions` (MCP-tool agent persona); neither is this autonomous-engineering-agent persona with takeover rules and strict markdown output format, and substituting either would change behaviour. No same-target equivalent; ported verbatim (pure string constant).
-// Remaining deps: none.
-
 import Foundation
 
-/// Defines the core persona and operational rules for the Assist Autonomous Engineering Agent.
 public struct AssistAgenticPrompt {
     public static let systemPrompt = """
     # PERSONA

@@ -32,16 +32,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         pe.filter = .all
         let bundle = try #require(pe.settingRows.first { $0.name == "PRODUCT_BUNDLE_IDENTIFIER" })
         #expect(bundle.providingLevel == "target")
-        // A setting the project never assigns resolves from the defaults.
-        // The helper answers in the background (the editor then reloads),
-        // so the Defaults column fills in after the editor opens.
         let deadline = Date().addingTimeInterval(120)
         while !pe.settingRows.contains(where: { $0.name == "WRAPPER_EXTENSION" }) && Date() < deadline {
             try await Task.sleep(for: .milliseconds(50))
         }
         let wrapper = try #require(pe.settingRows.first { $0.name == "WRAPPER_EXTENSION" })
         #expect(wrapper.defaults == "app" && wrapper.providingLevel == "defaults" && wrapper.resolved == "app")
-        // A project-level assignment shadows the default.
         let sdk = try #require(pe.settingRows.first { $0.name == "SDKROOT" })
         #expect(sdk.project == "macosx" && sdk.providingLevel == "project")
         #expect(pe.settingRows.count > 200)

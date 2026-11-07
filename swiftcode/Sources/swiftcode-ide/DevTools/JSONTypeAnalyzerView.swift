@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 import SwiftCodeUI
 
@@ -68,7 +65,6 @@ public struct JSONTypeAnalyzerView: View {
                             Text("Analyzed Key-Value Properties Schema")
                                 .font(.headline)
 
-                            // Headers
                             HStack {
                                 Text("Key Path")
                                     .font(.caption.bold())
@@ -112,7 +108,7 @@ public struct JSONTypeAnalyzerView: View {
             }
             .padding(24)
         }
-        
+
     }
 
     private func analyzeJSON() {

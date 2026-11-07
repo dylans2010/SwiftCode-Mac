@@ -1,31 +1,5 @@
 import Foundation
 
-// Keyframes (05-animation.md §6). A track is a sequence of keyframes for one
-// animatable value (a key path of the timeline's value); keyframe durations
-// add up, and a timeline's duration is its longest track's.
-//
-// Segment rules:
-//  - `LinearKeyframe`: from the previous value to the keyframe's value
-//    along its timing curve.
-//  - `SpringKeyframe`: springs towards its value for its duration, starting
-//    with the velocity the previous segment ended with (or `startVelocity`);
-//    the next segment starts where the spring is then (05 §6: the
-//    spring segment of the measured timeline starts at 100 moving at
-//    +100/s from the linear segment before it).
-//  - `MoveKeyframe`: jumps to its value without taking time (the value at
-//    the jump's time is still the previous segment's end).
-//  - `CubicKeyframe`: a cubic Hermite segment. Its start slope is
-//    `startVelocity`, else the end velocity of the segment before (zero at
-//    the start of the track); its end slope is `endVelocity`, else, when the
-//    next keyframe is cubic too, the Catmull-Rom slope
-//    (next value − this segment's start value) / (both durations); when the
-//    next segment is linear, that segment's start velocity; otherwise zero.
-//    The measured timeline (05 §6) has zero end slopes on both cubic
-//    segments (after a settled spring and a move; before a move and the
-//    end); the slope between consecutive cubic keyframes was not measured
-//    (open question), the Catmull-Rom rule is our reading.
-
-/// One segment of a keyframe track (built by the keyframe types).
 public struct _KeyframeSegment<Value: Animatable> {
     package enum Kind {
         case linear(UnitCurve)
@@ -39,14 +13,12 @@ public struct _KeyframeSegment<Value: Animatable> {
     package var duration: TimeInterval
 }
 
-/// Keyframes of one track.
 public protocol KeyframeTrackContent<Value> {
     associatedtype Value: Animatable
     associatedtype Body
     var _keyframeSegments: [_KeyframeSegment<Value>] { get }
 }
 
-/// Moves to `to` along a timing curve.
 public struct LinearKeyframe<Value: Animatable>: KeyframeTrackContent {
     public typealias Body = LinearKeyframe
     private let segment: _KeyframeSegment<Value>
@@ -56,8 +28,6 @@ public struct LinearKeyframe<Value: Animatable>: KeyframeTrackContent {
     public var _keyframeSegments: [_KeyframeSegment<Value>] { [segment] }
 }
 
-/// Springs towards `to`. Without a duration the spring's settling duration
-/// is used (our reading; not measured).
 public struct SpringKeyframe<Value: Animatable>: KeyframeTrackContent {
     public typealias Body = SpringKeyframe
     private let segment: _KeyframeSegment<Value>
@@ -68,7 +38,6 @@ public struct SpringKeyframe<Value: Animatable>: KeyframeTrackContent {
     public var _keyframeSegments: [_KeyframeSegment<Value>] { [segment] }
 }
 
-/// A cubic segment to `to` (slopes: see the file comment).
 public struct CubicKeyframe<Value: Animatable>: KeyframeTrackContent {
     public typealias Body = CubicKeyframe
     private let segment: _KeyframeSegment<Value>
@@ -80,7 +49,6 @@ public struct CubicKeyframe<Value: Animatable>: KeyframeTrackContent {
     public var _keyframeSegments: [_KeyframeSegment<Value>] { [segment] }
 }
 
-/// Jumps to `to` immediately.
 public struct MoveKeyframe<Value: Animatable>: KeyframeTrackContent {
     public typealias Body = MoveKeyframe
     private let segment: _KeyframeSegment<Value>
@@ -88,14 +56,12 @@ public struct MoveKeyframe<Value: Animatable>: KeyframeTrackContent {
     public var _keyframeSegments: [_KeyframeSegment<Value>] { [segment] }
 }
 
-/// A list of keyframes (the result of a track builder).
 public struct _KeyframeList<Value: Animatable>: KeyframeTrackContent {
     public typealias Body = _KeyframeList
     public let _keyframeSegments: [_KeyframeSegment<Value>]
     package init(_ segments: [_KeyframeSegment<Value>]) { _keyframeSegments = segments }
 }
 
-/// Builds the keyframes of a track.
 @resultBuilder
 public struct KeyframeTrackContentBuilder<Value: Animatable> {
     public static func buildExpression<K: KeyframeTrackContent>(_ expression: K) -> K where K.Value == Value { expression }
@@ -123,7 +89,6 @@ public struct KeyframeTrackContentBuilder<Value: Animatable> {
 
     public static func buildBlock() -> _KeyframeList<Value> { _KeyframeList([]) }
 
-    /// One of two branches of an `if`/`else`.
     public struct Conditional<First: KeyframeTrackContent, Second: KeyframeTrackContent>: KeyframeTrackContent
         where First.Value == Value, Second.Value == Value {
         public typealias Body = Conditional
@@ -132,16 +97,8 @@ public struct KeyframeTrackContentBuilder<Value: Animatable> {
     }
 }
 
-// MARK: - Tracks
-
-/// A track evaluated against a timeline's initial value.
 public struct _KeyframeTrackStorage<Root> {
-    /// Builds the track for a timeline's initial value: its duration and a
-    /// function writing the track's value at a time into a root value.
     package let make: (Root) -> (duration: TimeInterval, apply: (inout Root, TimeInterval) -> Void)
-    /// For keyframes written directly in a keyframes builder: their segments
-    /// (type-erased) and how to rebuild the track with more segments, so
-    /// that consecutive keyframes form one track.
     package var implicitSegments: [Any]?
     package var join: (([Any]) -> _KeyframeTrackStorage<Root>)?
 
@@ -149,19 +106,16 @@ public struct _KeyframeTrackStorage<Root> {
         self.make = make
     }
 
-    /// The track of keyframes written directly for the whole value.
     package static func implicit<V: Animatable>(_ segments: [_KeyframeSegment<V>]) -> _KeyframeTrackStorage<V> {
         var s = _KeyframeTrackStorage<V> { root in
             let curve = KeyframeCurve(initial: root.animatableData, segments: segments)
             return (curve.duration, { r, t in r.animatableData = curve.value(at: t) })
         }
         s.implicitSegments = segments
-        // swiftlint:disable:next force_cast - segments joined to this track share its value type
         s.join = { more in implicit(segments + more.map { $0 as! _KeyframeSegment<V> }) }
         return s
     }
 
-    /// Concatenates track lists, joining adjacent implicit tracks.
     package static func concat(_ a: [_KeyframeTrackStorage<Root>], _ b: [_KeyframeTrackStorage<Root>]) -> [_KeyframeTrackStorage<Root>] {
         guard let last = a.last, let first = b.first, let join = last.join, let more = first.implicitSegments,
               first.join != nil else { return a + b }
@@ -169,15 +123,12 @@ public struct _KeyframeTrackStorage<Root> {
     }
 }
 
-/// A set of keyframe tracks over a value.
 public protocol Keyframes<Value> {
     associatedtype Value
     associatedtype Body
     var _keyframeTracks: [_KeyframeTrackStorage<Value>] { get }
 }
 
-/// Keyframes for the value at `keyPath` of the root value (or for the
-/// value itself).
 public struct KeyframeTrack<Root, Value: Animatable, Content: KeyframeTrackContent>: Keyframes where Content.Value == Value {
     public typealias Body = KeyframeTrack
     private let keyPath: WritableKeyPath<Root, Value>
@@ -202,15 +153,12 @@ public struct KeyframeTrack<Root, Value: Animatable, Content: KeyframeTrackConte
     }
 }
 
-/// Several tracks (the result of a keyframes builder).
 public struct _KeyframeTracks<Value>: Keyframes {
     public typealias Body = _KeyframeTracks
     public let _keyframeTracks: [_KeyframeTrackStorage<Value>]
     package init(_ tracks: [_KeyframeTrackStorage<Value>]) { _keyframeTracks = tracks }
 }
 
-/// Builds the tracks of a timeline. Keyframes written directly (without a
-/// `KeyframeTrack`) form one track for the whole value.
 @resultBuilder
 public struct KeyframesBuilder<Value> {
     public static func buildExpression<K: Keyframes>(_ expression: K) -> K where K.Value == Value { expression }
@@ -245,9 +193,6 @@ public struct KeyframesBuilder<Value> {
     public static func buildFinalResult<K: Keyframes>(_ component: K) -> K where K.Value == Value { component }
 }
 
-// MARK: - Timeline
-
-/// A value over time described by keyframe tracks.
 public struct KeyframeTimeline<Value> {
     private let initialValue: Value
     private let tracks: [(duration: TimeInterval, apply: (inout Value, TimeInterval) -> Void)]
@@ -258,21 +203,17 @@ public struct KeyframeTimeline<Value> {
         tracks = content()._keyframeTracks.map { $0.make(initialValue) }
     }
 
-    /// The longest track's duration.
     public var duration: TimeInterval { tracks.map(\.duration).max() ?? 0 }
 
-    /// The value at `time` (clamped to the timeline).
     public func value(time: TimeInterval) -> Value {
         var v = initialValue
         for t in tracks { t.apply(&v, time) }
         return v
     }
 
-    /// The value at a fraction of the duration.
     public func value(progress: Double) -> Value { value(time: progress * duration) }
 }
 
-/// The evaluated segments of one track.
 package struct KeyframeCurve<D: VectorArithmetic> {
     private enum Shape {
         case curve(UnitCurve)
@@ -330,7 +271,6 @@ package struct KeyframeCurve<D: VectorArithmetic> {
         self.duration = t
     }
 
-    /// The end slope of cubic segment `i` without an explicit end velocity.
     private static func endSlope<Value: Animatable>(after i: Int, start: D, segments: [_KeyframeSegment<Value>]) -> D
         where Value.AnimatableData == D {
         guard i + 1 < segments.count else { return .zero }

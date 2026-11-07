@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Swift Package Manager Extension View
 struct SwiftPackageManagerExtensionView: View {
     @State private var isEnabled = true
     @State private var autoResolve = true

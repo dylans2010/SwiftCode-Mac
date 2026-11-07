@@ -1,12 +1,9 @@
-// C-EK-REC: editing recurring events (recurrence.md §6, §4 items 4–5).
-
 import Foundation
 import Testing
 @testable import EventKit
 
 @Suite("recurrence.md §6: editing recurring events")
 struct EditingTests {
-    /// R1's series: weekly MO,WE,FR from Mon 2026-10-26 08:30 New York, count 10.
     func r1Series(_ t: TestStore, title: String = "series") throws -> EKEvent {
         let e = makeEvent(t.store, title, start: ny("2026-10-26 08:30"), minutes: 30)
         e.addRecurrenceRule(EKRecurrenceRule(
@@ -81,9 +78,8 @@ struct EditingTests {
     func split() throws {
         let t = TestStore()
         let master = try r1Series(t)
-        // An exception before the split stays with the original.
         let second = try #require(occurrences(t.store, "series").first { utcText($0.startDate) == "2026-10-28 12:30" })
-        second.title = "series" // unchanged title, new notes
+        second.title = "series"
         second.notes = "detached before split"
         try t.store.save(second, span: .thisEvent)
 
@@ -116,7 +112,6 @@ struct EditingTests {
     @Test("future delete of occurrence 3 → UNTIL=20261013T035959Z (§4 item 5)")
     func futureDelete() throws {
         let t = TestStore()
-        // R2's series: daily, interval 2, from Sat 2026-10-10 07:00 New York.
         let e = makeEvent(t.store, "every-other", start: ny("2026-10-10 07:00"))
         e.addRecurrenceRule(EKRecurrenceRule(recurrenceWith: .daily, interval: 2,
                                              end: EKRecurrenceEnd(end: ny("2026-10-20 07:00"))))

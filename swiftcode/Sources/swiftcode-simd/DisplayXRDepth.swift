@@ -1,9 +1,3 @@
-// The headset mode's depth and environment (specs/simulator/xr-depth.md §4):
-// with `xr.depthDownscale` in the client hello, each frame the server sends
-// is followed by the depth the GPU backend's tap captured for the surface it
-// shows (frame depth 0x0C); with `xr.environment`, the room's environment
-// cube goes out once and again whenever it changes (0x0D).
-
 import CSwiftCodeCodec
 import Foundation
 import SwiftCodeDisplayStream
@@ -37,7 +31,6 @@ final class DisplayXRDepthSender: @unchecked Sendable {
         XRDepthTap.shared.request(environment: false)
     }
 
-    /// After a frame: its depth (nothing when the tap has none yet). False on a send error.
     func afterFrame(_ connection: DisplayConnection, sequence: UInt64, guestFrame: UInt64, view: XRView,
                     fov: XRFieldOfView, surface: UInt32) -> Bool {
         guard downscale > 0 else { return true }
@@ -61,7 +54,6 @@ final class DisplayXRDepthSender: @unchecked Sendable {
         return true
     }
 
-    /// The environment when it is new. False on a send error.
     func sendEnvironment(_ connection: DisplayConnection) -> Bool {
         guard environment, let e = XRDepthTap.shared.newestEnvironment(), e.serial != environmentSerial else { return true }
         environmentSerial = e.serial

@@ -1,9 +1,5 @@
 import Foundation
 
-/// The on-disk record for one installed offline model (Legacy
-/// `InstalledOfflineModelMetadata` / `InstalledOfflineModelRecord`). The
-/// CodingKeys keep Legacy's capitalised plist keys so a `metadata.plist`
-/// written by Legacy still decodes.
 public struct InstalledOfflineModelMetadata: Codable, Sendable {
     public let modelName: String
     public let modelSourceURL: String
@@ -60,11 +56,6 @@ public struct InstalledOfflineModelRecord: Identifiable, Sendable {
     }
 }
 
-/// Where installed offline models live on disk (Legacy
-/// `OfflineModelsStorage`). Path change, stated plainly: Legacy stored
-/// models under Documents/"Offline Models"; the destination keeps them
-/// under Application Support/SwiftCode/OfflineModels, matching how SwiftCode
-/// stores conversations and other per-user data instead of user documents.
 public final class OfflineModelsStorage: @unchecked Sendable {
     public static let shared = OfflineModelsStorage()
     private init() {}

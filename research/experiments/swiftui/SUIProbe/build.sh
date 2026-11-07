@@ -1,7 +1,4 @@
 #!/bin/sh
-# Build SUIProbe.app for the iOS simulator without an Xcode project, plus the
-# svctrace.dylib service tracer and the hidsend input driver.
-# Usage: build.sh <output-dir>   (outside the repository; output is not committed)
 set -e
 OUT=${1:?output directory}
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -20,6 +17,5 @@ codesign -s - -f "$APP" >/dev/null 2>&1
 xcrun --sdk iphonesimulator clang -target arm64-apple-ios27.0-simulator -dynamiclib -O1 -Wall \
   -framework CoreFoundation -o "$OUT/svctrace.dylib" "$HERE/svctrace.c"
 codesign -s - -f "$OUT/svctrace.dylib" >/dev/null 2>&1
-# Input driver (shared research tool of the simulator track).
 sh "$HERE/../../simulator/hid/build.sh" "$OUT/hid" >/dev/null
 echo "built $APP"

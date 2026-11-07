@@ -13,17 +13,14 @@ KVM_ARM_PREFERRED_TARGET = 0x8020AEAF
 KVM_ARM_VCPU_INIT = 0x4020AEAE
 KVM_GET_ONE_REG = 0x4010AEAB
 
-
 def sysreg(op0, op1, crn, crm, op2):
     return 0x6000000000000000 | 0x0030000000000000 | 0x0013_0000 | (op0 << 14) | (op1 << 11) | (crn << 7) | (crm << 3) | op2
-
 
 def get(vcpu, reg):
     val = ctypes.c_uint64()
     arg = struct.pack("QQ", reg, ctypes.addressof(val))
     fcntl.ioctl(vcpu, KVM_GET_ONE_REG, arg)
     return val.value
-
 
 kvm = os.open("/dev/kvm", os.O_RDWR)
 vm = fcntl.ioctl(kvm, KVM_CREATE_VM, 0)
@@ -32,10 +29,10 @@ fcntl.ioctl(vm, KVM_ARM_PREFERRED_TARGET, init)
 vcpu = fcntl.ioctl(vm, KVM_CREATE_VCPU, 0)
 fcntl.ioctl(vcpu, KVM_ARM_VCPU_INIT, bytes(init))
 
-mmfr0 = get(vcpu, sysreg(3, 0, 0, 7, 0))   # ID_AA64MMFR0_EL1
-mmfr2 = get(vcpu, sysreg(3, 0, 0, 7, 2))   # ID_AA64MMFR2_EL1
-pfr0 = get(vcpu, sysreg(3, 0, 0, 4, 0))    # ID_AA64PFR0_EL1
-isar1 = get(vcpu, sysreg(3, 0, 0, 6, 1))   # ID_AA64ISAR1_EL1
+mmfr0 = get(vcpu, sysreg(3, 0, 0, 7, 0))
+mmfr2 = get(vcpu, sysreg(3, 0, 0, 7, 2))
+pfr0 = get(vcpu, sysreg(3, 0, 0, 4, 0))
+isar1 = get(vcpu, sysreg(3, 0, 0, 6, 1))
 f = lambda v, lo: (v >> lo) & 0xF
 pa_bits = {0: 32, 1: 36, 2: 40, 3: 42, 4: 44, 5: 48, 6: 52}.get(f(mmfr0, 0), "?")
 print(f"ID_AA64MMFR0_EL1 = {mmfr0:#018x}")

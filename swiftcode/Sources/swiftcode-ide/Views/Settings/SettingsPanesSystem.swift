@@ -4,8 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Settings ▸ Source Control: the switch, and git's author read from its
-/// global configuration (read-only, off the main thread).
 struct SourceControlSettingsPane: View {
     @State private var author: (name: String?, email: String?)?
 
@@ -35,10 +33,6 @@ struct SourceControlSettingsPane: View {
     }
 }
 
-/// Settings ▸ Locations: where SwiftCode keeps its files and which tools it
-/// builds and reads code with. On macOS the Build System pop-up
-/// (`BuildSystemPreference`); on Linux the engine is fixed (SwiftPM for
-/// packages, swiftcodebuild for projects), so the pane names the tools found.
 struct LocationsSettingsPane: View {
     @State private var tools: [(title: String, path: String?)]?
 
@@ -81,16 +75,12 @@ struct LocationsSettingsPane: View {
     static let engineNote = "Tools are found on the PATH; swiftcodebuild also next to SwiftCode."
     #endif
 
-    /// The tools SwiftCode runs and where they are (nil: not found).
     nonisolated static func locateTools() -> [(title: String, path: String?)] {
         [("Swift", ShellToolchain.locate("swift")), ("Language server", ShellToolchain.locate("sourcekit-lsp")),
          ("Project builds", TestRunnerSelection.locateSwiftCodebuild()), ("Git", ShellToolchain.locate("git"))]
     }
 }
 
-/// Settings ▸ Components: the reference's pane, shown with its empty state
-/// (the Linux IDE lists no SDKs; the simulator runtimes are the runtime
-/// wizard's, which the button opens).
 struct ComponentsSettingsPane: View {
     @Environment(\.colorScheme) private var scheme
 
@@ -121,7 +111,6 @@ struct ComponentsSettingsPane: View {
     }
 }
 
-/// A path in the small monospaced style, or "Not found".
 struct PathText: View {
     var path: String?
     @Environment(\.colorScheme) private var scheme
@@ -135,7 +124,6 @@ struct PathText: View {
             .truncationMode(.middle)
     }
 
-    /// The path with the home folder as "~".
     static func tilde(_ p: String) -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return p.hasPrefix(home + "/") ? "~" + p.dropFirst(home.count) : p

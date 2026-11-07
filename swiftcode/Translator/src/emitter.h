@@ -1,5 +1,3 @@
-// emitter.h: SPIR-V text builder used by the translator. Ids are "%N";
-// the module is assembled by SPIRV-Tools (numeric ids preserved).
 #pragma once
 
 #include <cstdint>
@@ -16,14 +14,13 @@ struct Emitter {
     std::set<std::string> exts;
     std::ostringstream names, decor, globals, fnvars, body;
     std::vector<std::string> interface;
-    std::map<std::string, std::string> memo;   // types, constants, other module-level ids
-    std::set<std::string> decorated;            // "id|decoration" already written
+    std::map<std::string, std::string> memo;
+    std::set<std::string> decorated;
     unsigned next = 1;
     const std::string glsl = "%glsl";
 
     std::string fresh() { return "%" + std::to_string(next++); }
 
-    // A module-level declaration, memoized by key.
     std::string global(const std::string &key, const std::string &decl) {
         auto it = memo.find(key);
         if (it != memo.end()) return it->second;
@@ -39,7 +36,6 @@ struct Emitter {
             decor << "OpMemberDecorate " << id << " " << m << " " << d << "\n";
     }
 
-    // Types.
     std::string tVoid() { return global("void", "OpTypeVoid"); }
     std::string tBool() { return global("bool", "OpTypeBool"); }
     std::string tInt(unsigned w) {
@@ -47,7 +43,7 @@ struct Emitter {
         if (w == 16) caps.insert("Int16");
         return global("i" + std::to_string(w), "OpTypeInt " + std::to_string(w) + " 0");
     }
-    std::string tSInt(unsigned w) {  // signed int type (only where SPIR-V requires signedness, e.g. image types)
+    std::string tSInt(unsigned w) {
         if (w == 8) caps.insert("Int8");
         if (w == 16) caps.insert("Int16");
         return global("s" + std::to_string(w), "OpTypeInt " + std::to_string(w) + " 1");
@@ -66,7 +62,6 @@ struct Emitter {
     }
     std::string tFunc(const std::string &ret) { return global("fn" + ret, "OpTypeFunction " + ret); }
 
-    // Constants.
     std::string constant(const std::string &type, const std::string &literal) {
         return global("c" + type + ":" + literal, "OpConstant " + type + " " + literal);
     }
@@ -81,7 +76,6 @@ struct Emitter {
         return global(key, decl);
     }
 
-    // Body instructions.
     std::string op(const std::string &opcode, const std::string &type, const std::vector<std::string> &args) {
         std::string r = fresh();
         body << r << " = " << opcode << " " << type;
@@ -99,4 +93,4 @@ struct Emitter {
     }
 };
 
-}  // namespace airc
+}

@@ -1,15 +1,11 @@
 import Foundation
 import SwiftCodeLanguage
 
-/// The list of completions under the insertion point. It filters by the
-/// partial word typed since it opened. See `specs/ide/language.md`
-/// §Completion.
 @MainActor
 public struct CompletionModel {
     public private(set) var all: [CompletionItem] = []
     public private(set) var visible: [CompletionItem] = []
     public var selected = 0
-    /// Where the word being completed starts (UTF-16 offset).
     public private(set) var wordStart = 0
 
     public init() {}
@@ -20,7 +16,6 @@ public struct CompletionModel {
         filter(prefix)
     }
 
-    /// Prefix matches first (case-insensitive), then substring matches.
     public mutating func filter(_ prefix: String) {
         guard !prefix.isEmpty else { visible = all; selected = 0; return }
         let p = prefix.lowercased()
@@ -37,7 +32,6 @@ public struct CompletionModel {
 
     public var current: CompletionItem? { visible.indices.contains(selected) ? visible[selected] : nil }
 
-    /// The start of the identifier that ends at `offset` in `text`.
     public static func wordStart(in text: NSString, before offset: Int) -> Int {
         var i = offset
         while i > 0 {

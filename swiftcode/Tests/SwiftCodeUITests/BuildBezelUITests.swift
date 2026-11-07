@@ -5,11 +5,6 @@ import Testing
 import SwiftCodeIDEShell
 @testable import SwiftCodeUI
 
-/// The result bezel (`specs/ide/build-notifications.md`): Product ▸ Build
-/// of a real package (SwiftPM) through the window's build action, once
-/// clean and once with a deliberate error. The window is never put on
-/// screen: the test routes as if it were in front and photographs its
-/// content view offscreen.
 private let hudSwiftCodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
 @MainActor
@@ -39,8 +34,6 @@ private let hudSwiftCodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCo
         for _ in 0..<2400 where s.isBusy { try? await Task.sleep(nanoseconds: 100_000_000) }
     }
 
-    /// Waits (up to 20 s: the main actor is shared with the whole suite)
-    /// for the bezel to be removed.
     func waitGone(_ wc: WorkspaceWindowController) async {
         for _ in 0..<200 where wc.buildBezelView != nil { try? await Task.sleep(nanoseconds: 100_000_000) }
     }
@@ -72,7 +65,6 @@ private let hudSwiftCodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCo
             wc.bezelReduceMotionOverride = false
             let content = try #require(window.contentView)
 
-            // A clean build: "Build Succeeded" in the bezel, centred.
             wc.buildProduct(nil)
             await waitForBuild(session)
             #expect(session.activity == .finished("Build Succeeded"))
@@ -82,11 +74,9 @@ private let hudSwiftCodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCo
             #expect(abs(v.frame.midX - content.bounds.midX) <= 1 && abs(v.frame.midY - content.bounds.midY) <= 1)
             #expect(v.hitTest(NSPoint(x: v.frame.midX, y: v.frame.midY)) == nil)
             try snapshot(content, "build-hud-mac-succeeded.png")
-            // It fades and is removed (after 1.6 + 0.35 s when idle).
             await waitGone(wc)
             #expect(wc.buildBezelTitle == nil && wc.buildBezelView == nil)
 
-            // A deliberate error: "Build Failed", in dark mode.
             try package(dir, error: true)
             window.appearance = NSAppearance(named: .darkAqua)
             wc.buildProduct(nil)
@@ -99,8 +89,6 @@ private let hudSwiftCodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCo
             await waitGone(wc)
             #expect(wc.buildBezelView == nil)
 
-            // Repeated results replace the bezel (one view, the newest
-            // title) and the replacement keeps its full time.
             wc.applyBehaviors(for: .finished("Build Succeeded"))
             let first = try #require(wc.buildBezelView)
             try await Task.sleep(nanoseconds: 1_000_000_000)
@@ -112,20 +100,17 @@ private let hudSwiftCodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCo
             await waitGone(wc)
             #expect(wc.buildBezelView == nil)
 
-            // Reduce Motion: removed at 1.6 s with no fade.
             wc.bezelReduceMotionOverride = true
             let started = Date()
             wc.applyBehaviors(for: .finished("Build Succeeded"))
             await waitGone(wc)
             #expect(wc.buildBezelView == nil && Date().timeIntervalSince(started) >= BezelTimeline.visibleDuration)
 
-            // The window not in front: a system notification, no bezel.
             wc.notificationWindowStateOverride = BuildNotificationPolicy.WindowState(isVisible: true, isMinimized: true, isKey: false, appIsActive: true)
             wc.applyBehaviors(for: .finished("Build Failed"))
             #expect(wc.buildBezelView == nil)
             #expect(wc.systemNotices.map(\.title) == ["Build Failed"])
 
-            // Without the Notify action nothing shows.
             var b = Preferences.shared.behavior(.buildFails)
             b.notify = false
             Preferences.shared.setBehavior(b, for: .buildFails)

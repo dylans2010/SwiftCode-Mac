@@ -1,11 +1,3 @@
-//
-//  AssistFinderTools.swift
-//  SwiftCode
-//
-//  Native macOS Finder integration tools for SwiftCode Assist.
-//  Supports opening and revealing files or folders in Finder with workspace scoping.
-//
-
 import Foundation
 import AppKit
 
@@ -55,7 +47,6 @@ public struct AssistOpenInFinderTool: AssistTool {
         if success {
             return .success("Opened in Finder: \(targetURL.lastPathComponent)", data: ["path": targetURL.path])
         } else {
-            // Fallback to /usr/bin/open
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             p.arguments = [targetURL.path]

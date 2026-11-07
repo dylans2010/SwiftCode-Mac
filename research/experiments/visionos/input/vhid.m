@@ -1,15 +1,3 @@
-// vhid: Mac-side sender for the visionOS reference simulator (Ycode research probe, our code).
-// Builds Indigo messages with the exported builders (SimulatorKit, Xcode's visionOS DeviceKit
-// plug-in), optionally patches bytes, hex-dumps, and sends them through SimDeviceLegacyHIDClient.
-//  vhid <udid> pose <target> tx ty tz qx qy qz qw          target 300 = PalomaPose service
-//  vhid <udid> sel <target> ox oy oz dx dy dz              target 301 = SelectionStream service
-//  vhid <udid> coll <target> ox oy oz dx dy dz selOnly lPinch lDirect lExtra rPinch rDirect
-//                  ltx lty ltz lqx lqy lqz lqw rtx rty rtz rqx rqy rqz rqw   (ARG9 env = rExtra)
-//  vhid <udid> dial <delta>  |  vhid <udid> button <source>  |  vhid <udid> key <usage>
-//  vhid <udid> bdown <source>  |  vhid <udid> bup <source>   (button down / up alone; script mode for holds)
-//  vhid <udid> script        reads the verbs above, one per line, from stdin; "sleep <ms>" lines pause
-// env: PATCH="off=byte,..." ; TS_OFFSET_MS / TS_ABS / STAMP (see stamp()) ; DUMP=1 (print only, no device) ; VERBOSE=1 ; REPEAT=n ; GAP_US=n
-// Never send target 0: the reference's backboardd raises an exception and exits.
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
 #include <dlfcn.h>
@@ -27,9 +15,6 @@ static id client; static dispatch_queue_t q;
 static void dump(void *m){ size_t n=malloc_size(m); const uint8_t*b=m; for(size_t i=0;i<n;i+=16){printf("  %04zx:",i);for(size_t j=i;j<i+16&&j<n;j++)printf(" %02x",b[j]);printf("\n");} }
 static void patch(void *m){ const char *p=getenv("PATCH"); if(!p) return; char *s=strdup(p),*t; while((t=strsep(&s,","))){ unsigned o,v; if(sscanf(t,"%i=%i",&o,&v)==2) ((uint8_t*)m)[o]=(uint8_t)v; } }
 #include <mach/mach_time.h>
-// TS_OFFSET_MS=<ms> (OBS-VISION-FOV): rewrite the record's host time (0x24) as now + ms (negative = past); TS_ABS=<ticks> sets it outright;
-// TS_SCALE=<k>: time since the first message scaled by k (k < 1: denser timestamps than sent, k > 1: sparser, in the future).
-// STAMP=1 prints "SENT <mach time> <time in message>" for every message.
 static void stamp(void *m){ uint64_t now=mach_absolute_time(); mach_timebase_info_data_t tb; mach_timebase_info(&tb);
   static uint64_t t0; if(!t0) t0=now;
   if(getenv("TS_ABS")) *(uint64_t*)((uint8_t*)m+0x24)=strtoull(getenv("TS_ABS"),NULL,0);

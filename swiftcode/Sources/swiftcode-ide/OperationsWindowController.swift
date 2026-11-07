@@ -1,16 +1,3 @@
-// OperationsWindowController.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/AppKit/OperationsWindowController.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: standalone Operations window; AppKit toolbar and split-view window management
-// MOVED (batch 9, H-E flag): SwiftCodeUI/Window -> swiftcode-ide/ — the
-// OperationsSidebarView + OperationsWorkspaceView it hosts live in swiftcode-ide
-// (Sidebar by P-UTIL, Workspace by H-E), unreachable from SwiftCodeUI, so the
-// :164/:175 references could not resolve there. In swiftcode-ide they resolve.
-// STILL OPEN: OperationsWindowManager.shared.showWindow() has zero callers —
-// the Operations window exists but nothing opens it yet; needs a menu item
-// (same pattern as the DevTools hub entry point) in a wiring pass.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeLanguage
 import AppKit
 import SwiftUI
@@ -37,7 +24,6 @@ public final class OperationsWindowManager: NSObject, NSWindowDelegate {
         windowController = nil
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         windowController = nil
     }
@@ -148,7 +134,6 @@ extension OperationsWindowController {
     }
 }
 
-// MARK: - Native Split View Controller
 @MainActor
 public class OperationsSplitViewController: NSSplitViewController {
     private var sidebarItem: NSSplitViewItem?
@@ -165,7 +150,6 @@ public class OperationsSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // Sidebar Panel
         let sidebarVC = NSHostingController(rootView: OperationsSidebarView())
         sidebarVC.sizingOptions = []
         sidebarVC.view.autoresizingMask = [.width, .height]
@@ -176,7 +160,6 @@ public class OperationsSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // Main Workspace Panel
         let mainVC = NSHostingController(rootView: OperationsWorkspaceView())
         mainVC.sizingOptions = []
         mainVC.view.autoresizingMask = [.width, .height]
@@ -186,7 +169,6 @@ public class OperationsSplitViewController: NSSplitViewController {
         self.mainItem = mainItem
         addSplitViewItem(mainItem)
 
-        // Inspector Panel (starts collapsed)
         let inspectorVC = NSHostingController(rootView: SCInspectorView())
         inspectorVC.sizingOptions = []
         inspectorVC.view.autoresizingMask = [.width, .height]

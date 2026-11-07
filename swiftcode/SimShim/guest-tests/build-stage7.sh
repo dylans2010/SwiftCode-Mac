@@ -1,12 +1,4 @@
 #!/bin/sh
-# Builds the stage-7 guest helper ylaunch (specs/simulator/stage7-contract.md
-# §3.2 item 2) for the iOS simulator platform. Runs on macOS only.
-#   ../out/guest-tests/stage7/ylaunch   arm64, LC_BUILD_VERSION platform 7,
-#   stage7/ylaunch.entitlements in __TEXT,__entitlements (the simulator reads
-#   entitlements from that section, not from the code signature;
-#   app-install-launch.md §4.5), linker ad-hoc signature only.
-# Copy the output directory to the Thor with rsync; swiftcode-simd --install-app
-# and --launch find it with --guest-tools <dir> (default: SimShim/out/guest-tests/stage7).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/stage7}"

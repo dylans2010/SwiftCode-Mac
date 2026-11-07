@@ -23,8 +23,6 @@ import SwiftCodeLanguage
     }
 }
 
-/// The editor against the real sourcekit-lsp: live issues, the completion
-/// popup, and jump to definition (headless).
 @MainActor
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(3))) struct LanguageWindowTests {
     @Test func liveIssuesCompletionAndDefinition() async throws {
@@ -41,20 +39,16 @@ import SwiftCodeLanguage
         await wc.connectLanguageService(transport: nil)
         #expect(session.language != nil)
 
-        // Live issue without building.
         #expect(await waitUntil(90) { session.displayedIssues.contains { $0.message.contains("missing") } })
         #expect(wc.editor.textView.issues[16]?.first?.severity == .error)
         #expect(wc.navigator.rows(4).first?.children.first?.children.contains { $0.title.contains("missing") } == true)
 
-        // Completion after `g.` (line 15, `print(g.greet…`): place the caret
-        // after `g.` and type `gr`.
         let line15 = wc.editor.textView.lineIndex.range(ofLine: 15)!
         let afterDot = line15.location + ("print(g." as NSString).length
         wc.editor.textView.setSelectedRange(NSRange(location: afterDot, length: 0))
         wc.editor.requestCompletion()
         #expect(await waitUntil(60) { wc.editor.isShowingCompletions })
         #expect(wc.editor.completions.visible.contains { $0.label.hasPrefix("greet(times:") })
-        // The popup sits just below the caret line, its label column at the word.
         let caret = try #require(wc.editor.textView.caretRect(at: afterDot))
         let popup = wc.editor.completionFrameInText
         #expect(abs(popup.minY - (caret.maxY + 2)) < 0.5)
@@ -71,7 +65,6 @@ import SwiftCodeLanguage
         #expect(!wc.editor.isShowingCompletions)
         #expect(wc.editor.text.contains("print(g.namegreet(times: 3))"))
 
-        // Jump to Definition on `Greeter` in line 14 goes to line 2.
         let line14 = wc.editor.textView.lineIndex.range(ofLine: 14)!
         wc.editor.textView.setSelectedRange(NSRange(location: line14.location + 10, length: 0))
         wc.jumpToDefinition(nil)

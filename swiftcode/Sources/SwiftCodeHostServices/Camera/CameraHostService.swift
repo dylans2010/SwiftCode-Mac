@@ -1,21 +1,12 @@
-// The host camera service (camera-host.md §5, §6): picks a device, runs a
-// capture thread, converts each frame into the next free surface of a
-// small ring of host-made IOSurfaces, and hands the frame (surface ID,
-// format, size, presentation time) to a callback. The guest-facing part
-// (the guest's camera stack, per camera.md) sits on top of this interface.
-
 import CSwiftCodeCamera
 import Foundation
 
-/// A ring of host-made surfaces for one stream (§5.2).
 public final class CameraSurfaceRing: @unchecked Sendable {
     public struct Slot: @unchecked Sendable {
         public var surfaceID: UInt32
         public var port: UInt32
         public var memory: UnsafeMutableRawPointer
-        /// Held by the frame consumer (not reused until released).
         public var held = false
-        /// Being written by the host.
         public var writing = false
     }
 
@@ -25,7 +16,6 @@ public final class CameraSurfaceRing: @unchecked Sendable {
     private var slots: [Slot] = []
     private var last = -1
 
-    /// Makes `count` surfaces named `<name> <index>`.
     public init(surfaces: IOSurfaceHostService, layout: CameraSurfaceLayout, count: Int, name: String,
                 colorimetry: CameraColorimetry) throws {
         self.surfaces = surfaces
@@ -47,9 +37,6 @@ public final class CameraSurfaceRing: @unchecked Sendable {
 
     public func slot(_ i: Int) -> Slot { lock.withLock { slots[i] } }
 
-    /// The next slot after the last written one that no one uses: not held
-    /// by the consumer, not locked or in use by a guest (Methods 4, 15).
-    /// Nil when every surface is busy (the frame is dropped).
     public func acquire() -> Int? {
         lock.withLock {
             for step in 1...slots.count {
@@ -63,8 +50,6 @@ public final class CameraSurfaceRing: @unchecked Sendable {
         }
     }
 
-    /// The write is done: raises the surface's seed (returned) and marks the
-    /// slot held when `hold`.
     public func commit(_ i: Int, hold: Bool) -> UInt32 {
         let id = lock.withLock {
             slots[i].writing = false
@@ -75,13 +60,10 @@ public final class CameraSurfaceRing: @unchecked Sendable {
         return surfaces.hostDidWrite(id: id) ?? 0
     }
 
-    /// The write failed: the slot is free again.
     public func cancel(_ i: Int) { lock.withLock { slots[i].writing = false } }
 
-    /// The consumer is done with the frame in slot `i`.
     public func release(_ i: Int) { lock.withLock { if i < slots.count { slots[i].held = false } } }
 
-    /// Releases every surface (guests that still reference one keep it).
     public func invalidate() {
         let ports = lock.withLock { () -> [UInt32] in
             defer { slots = [] }
@@ -104,12 +86,8 @@ public final class CameraHostService: @unchecked Sendable {
     private var retiredRings: [CameraSurfaceRing] = []
     private var format: CameraStreamFormat?
     private var activeDevice: CameraDevice?
-    /// Counters: frames delivered, dropped (no free surface, conversion
-    /// failure), and the device's corrupt frames.
     public private(set) var delivered: UInt64 = 0
     public private(set) var dropped: UInt64 = 0
-    /// Conversion time (decode and pixel conversion into the surface):
-    /// the total over `delivered` frames, and the slowest, in nanoseconds.
     public private(set) var conversionTotal: Int64 = 0
     public private(set) var conversionMax: Int64 = 0
 
@@ -118,20 +96,12 @@ public final class CameraHostService: @unchecked Sendable {
         self.log = log
     }
 
-    // MARK: Devices (§2)
-
-    /// The cameras: V4L2 capture devices, then the synthetic camera.
     public static func devices(includeSynthetic: Bool = true) -> [CameraDevice] {
         V4L2.devices().devices + (includeSynthetic ? [SyntheticCamera.device] : [])
     }
 
-    /// `SWIFTCODE_CAMERA`: `auto` (default: the first V4L2 camera, else the
-    /// synthetic one), `synthetic`, `none`, a device node (`/dev/video0`),
-    /// or a device ID (`v4l2:usb-…`).
     public static var selection: String { ProcessInfo.processInfo.environment["SWIFTCODE_CAMERA"] ?? "auto" }
 
-    /// The device a selection names. Throws `.noDevice` for `none` or when
-    /// a named device is absent.
     public static func resolve(_ selection: String?, devices: [CameraDevice]? = nil) throws -> CameraDevice {
         let s = selection ?? Self.selection
         let all = devices ?? Self.devices()
@@ -145,18 +115,11 @@ public final class CameraHostService: @unchecked Sendable {
         }
     }
 
-    // MARK: Streaming (§5)
-
     public var currentFormat: CameraStreamFormat? { lock.withLock { format } }
     public var currentDevice: CameraDevice? { lock.withLock { activeDevice } }
     public var isRunning: Bool { lock.withLock { thread != nil } }
-    /// The current ring's surface IDs (the guest-facing round lists them).
     public var surfaceIDs: [UInt32] { lock.withLock { ring?.surfaceIDs ?? [] } }
 
-    /// Opens the camera `selection` names (nil: `SWIFTCODE_CAMERA`), negotiates,
-    /// makes the ring, and starts the capture thread. `onFrame` runs on that
-    /// thread for each frame; with `holdFramesUntilReleased` the surface is
-    /// not reused until `release(_:)`.
     @discardableResult
     public func start(selection: String? = nil, configuration: CameraConfiguration = CameraConfiguration(),
                       onFrame: @escaping FrameHandler, onEvent: @escaping EventHandler = { _ in }) throws -> CameraStreamFormat {
@@ -167,7 +130,6 @@ public final class CameraHostService: @unchecked Sendable {
                          auto: (selection ?? Self.selection) == "auto", onFrame: onFrame, onEvent: onEvent)
     }
 
-    /// Starts streaming from an open capture (tests: a scripted source).
     func start(capture: CameraCapture, device: CameraDevice, configuration: CameraConfiguration, auto: Bool,
                onFrame: @escaping FrameHandler, onEvent: @escaping EventHandler) throws -> CameraStreamFormat {
         let fmt = capture.format
@@ -200,8 +162,6 @@ public final class CameraHostService: @unchecked Sendable {
         return fmt
     }
 
-    /// Stops the capture thread (waits for it) and releases the device and
-    /// the surfaces.
     public func stop() {
         guard let t = lock.withLock({ () -> Thread? in
             stopping = true
@@ -219,7 +179,6 @@ public final class CameraHostService: @unchecked Sendable {
         }
     }
 
-    /// The consumer is done with `frame` (only with `holdFramesUntilReleased`).
     public func release(_ frame: CameraFrame) {
         lock.withLock {
             if let ring, ring.surfaceIDs.indices.contains(frame.slot), ring.surfaceIDs[frame.slot] == frame.surfaceID {
@@ -232,7 +191,6 @@ public final class CameraHostService: @unchecked Sendable {
         switch device.kind {
         case .synthetic:
             let choice = CameraNegotiation.choose(device.formats, width: c.width, height: c.height, framesPerSecond: c.framesPerSecond)
-            // The synthetic camera makes any (even) size it is asked for.
             let interval = choice?.interval ?? CameraFrameInterval(fps: c.framesPerSecond)
             return SyntheticCamera(width: c.width, height: c.height, interval: interval, output: c.output)
         case .v4l2:
@@ -248,13 +206,12 @@ public final class CameraHostService: @unchecked Sendable {
     private func run(capture first: CameraCapture, device: CameraDevice, configuration: CameraConfiguration, auto: Bool,
                      onFrame: FrameHandler, onEvent: EventHandler) {
         var capture: CameraCapture? = first
-        var standIn = false  // the synthetic camera stands in for an absent device
+        var standIn = false
         var lastProbe: Int64 = 0
         let converter = CameraConverter()
         var sequence: UInt64 = 0
         var droppedSince = 0
         while !lock.withLock({ stopping }) {
-            // An absent device: look for it once a second (§6).
             if device.kind == .v4l2, capture == nil || standIn {
                 let now = ycam_monotonic_ns()
                 if now - lastProbe > 1_000_000_000 {
@@ -330,9 +287,6 @@ public final class CameraHostService: @unchecked Sendable {
         onEvent(.stopped)
     }
 
-    /// A new source format mid-stream (reconnect, stand-in): a new ring when
-    /// the size changed. The old ring's surfaces are released when the
-    /// service stops (a consumer may still hold frames in them).
     private func adopt(_ f: CameraStreamFormat, device: CameraDevice, _ c: CameraConfiguration) {
         let current = lock.withLock { ring }
         if current?.layout.width != f.width || current?.layout.height != f.height,

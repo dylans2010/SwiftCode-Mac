@@ -6,17 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// The Settings scene (round R11; public API: `Settings`, `OpenSettingsAction`
-// / `EnvironmentValues.openSettings`, `SettingsLink`).
-//
-// SwiftCode's rules: a `Settings` scene is not opened at launch; the application
-// menu's "Settings…" item (Ctrl+,), `openSettings()` and `SettingsLink` open
-// it as a window of its own, or raise it when it is open (one window). The
-// window is titled "Settings", takes its content's ideal size (at least
-// 360 × 200 points; `defaultSize` overrides) and is not resizable; it has no
-// menu bar of its own on Linux (the app's commands stay in the main windows).
-
-/// A scene for the application's settings, shown in a window of its own.
 public struct Settings<Content: View>: Scene {
     let content: @MainActor () -> Content
 
@@ -34,7 +23,6 @@ extension Settings: PrimitiveScene {
     }
 }
 
-/// Opens the Settings window (`@Environment(\.openSettings)`).
 public struct OpenSettingsAction: Sendable {
     package let action: @MainActor @Sendable () -> Void
     package init(action: @escaping @MainActor @Sendable () -> Void) { self.action = action }
@@ -52,7 +40,6 @@ extension EnvironmentValues {
     }
 }
 
-/// A button that opens the Settings window.
 public struct SettingsLink<Label: View>: View {
     let label: Label
     @Environment(\.openSettings) private var openSettings

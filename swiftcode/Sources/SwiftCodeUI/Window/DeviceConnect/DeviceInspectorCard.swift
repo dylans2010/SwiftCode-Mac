@@ -1,14 +1,5 @@
 import AppKit
 
-/// A card of the Device Hub's Settings inspector (`specs/ide/device-hub.md`
-/// §11.3, council round 3 checklist row 66): rows 42 points tall with a
-/// 1-point separator between them (a 43-point pitch), inset to the label
-/// column; each row a leading symbol (13 wide, 13.5 inside the card), the
-/// label (38 inside), and the control at the trailing edge (a switch 13
-/// inside, a pop-up's chevron about 20 inside, a slider 108 wide). The card
-/// is 260 wide (10 inside the 280-point inspector on each side), rounded
-/// (radius 12), filled a step darker than the inspector (#E6E6E7 on
-/// #EDEDEE in light), no border; cards are 10 apart.
 @MainActor
 final class InspectorCard: NSView {
     static let width: CGFloat = 260
@@ -20,7 +11,6 @@ final class InspectorCard: NSView {
     static let symbolWidth: CGFloat = 13
     static let labelX: CGFloat = 38
     static let sliderWidth: CGFloat = 108
-    /// From the control's trailing edge to the card's: switches and sliders, pop-ups.
     static let switchTrailing: CGFloat = 13
     static let popUpTrailing: CGFloat = 14
     static let messagePadding: CGFloat = 13
@@ -31,12 +21,10 @@ final class InspectorCard: NSView {
         var control: NSView
     }
 
-    /// The card's fill: #E6E6E7 in light; in dark a step lighter than the inspector.
     static let fill = NSColor(name: "SwiftCodeInspectorCard") { a in
         a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(srgbRed: 0.192, green: 0.192, blue: 0.2, alpha: 1)
             : NSColor(srgbRed: 0.902, green: 0.902, blue: 0.906, alpha: 1)
     }
-    /// The separators: #DCDCDD in light.
     static let separator = NSColor(name: "SwiftCodeInspectorCardSeparator") { a in
         a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.09)
             : NSColor(srgbRed: 0.863, green: 0.863, blue: 0.867, alpha: 1)
@@ -48,7 +36,6 @@ final class InspectorCard: NSView {
     private var separators: [NSView] = []
     private var message: NSTextField?
 
-    /// A card of setting rows.
     init(rows: [Row], identifier: String) {
         self.rows = rows
         super.init(frame: NSRect(x: 0, y: 0, width: Self.width, height: Self.height(rows: rows.count)))
@@ -73,7 +60,6 @@ final class InspectorCard: NSView {
         }
     }
 
-    /// A card holding one message (no settings to offer, §11.3).
     init(message text: String, identifier: String) {
         super.init(frame: NSRect(x: 0, y: 0, width: Self.width, height: Self.rowHeight))
         setUp(identifier)
@@ -110,10 +96,8 @@ final class InspectorCard: NSView {
         layer?.cornerCurve = .continuous
     }
 
-    /// The message's text (tests; nil: a card of rows).
     var messageText: String? { message?.stringValue }
 
-    /// The rectangle of row `i` in the card (tests).
     func rowRect(_ i: Int) -> CGRect { CGRect(x: 0, y: CGFloat(i) * Self.rowPitch, width: Self.width, height: Self.rowHeight) }
 
     override func layout() {
@@ -137,7 +121,6 @@ final class InspectorCard: NSView {
             case is NSSwitch: trailing = Self.switchTrailing
             case is NSSlider: trailing = Self.switchTrailing; cw = Self.sliderWidth; ch = max(ch, 20)
             case is NSPopUpButton:
-                // The label keeps its width; the pop-up's value truncates instead.
                 trailing = Self.popUpTrailing
                 let room = Self.width - trailing - Self.labelX - labels[i].fittingSize.width - 8
                 cw = max(60, min(cw, room))
@@ -154,7 +137,6 @@ final class InspectorCard: NSView {
     }
 }
 
-/// A separator line in a card's colour.
 @MainActor
 private final class SeparatorFill: NSView {
     override init(frame: NSRect) {

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct DiffCheckerView: View {
@@ -54,7 +51,7 @@ struct DiffCheckerView: View {
             .frame(height: 200)
         }
         .padding()
-        
+
         .navigationTitle("Diff Checker")
     }
 

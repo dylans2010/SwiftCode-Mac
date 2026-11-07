@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/TrustStore.swift
-// Adapted for SwiftCode: Legacy KeychainService replaced by SwiftCodeAssistant's SecretStore (same Keychain-backed store Wave 12 uses).
-
 import Foundation
 import Network
 import os.log
@@ -9,7 +5,7 @@ import os.log
 import SwiftCodeAssistant
 
 public struct TrustedDevice: Codable, Identifiable, Sendable {
-    public let id: String // deviceID
+    public let id: String
     public var name: String
     public var model: String
     public var pairingDate: Date
@@ -35,10 +31,6 @@ public struct TrustedDevice: Codable, Identifiable, Sendable {
 public final class TrustStore: @unchecked Sendable {
     public static let shared = TrustStore()
 
-    /// SecretStore account holding the trusted-devices JSON. Legacy kept
-    /// this in Legacy's own KeychainService; SwiftCode uses SwiftCodeAssistant's
-    /// SecretStore (Keychain on macOS), which is the same store Wave 12's
-    /// cloud code uses.
     private static let storeAccount = "swiftcode.connect.trusted-devices"
     private let logger = Logger(subsystem: "com.swiftcode.connect", category: "TrustStore")
 

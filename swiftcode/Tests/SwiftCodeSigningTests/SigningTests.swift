@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeSigning
 
-// Every identity, certificate and profile here is synthetic: made-up
-// teams, names and certificate bytes. No real signing material is used.
-
-/// A minimal DER writer for synthetic certificates.
 enum DER {
     static func tlv(_ tag: UInt8, _ body: [UInt8]) -> [UInt8] {
         let n = body.count
@@ -17,8 +13,6 @@ enum DER {
         seq(tlv(0x31, seq(tlv(0x06, [0x55, 0x04, 0x0B]), tlv(0x0C, Array(ou.utf8)))),
             tlv(0x31, seq(tlv(0x06, [0x55, 0x04, 0x03]), tlv(0x0C, Array(cn.utf8)))))
     }
-    /// A certificate-shaped structure: version, serial, algorithm, issuer,
-    /// validity (UTCTime), subject; no key or signature.
     static func certificate(cn: String, ou: String, notAfter: String) -> [UInt8] {
         let tbs = seq(tlv(0xA0, tlv(0x02, [2])), tlv(0x02, [1]), seq(tlv(0x06, [0x2A])),
                       name(cn: "Example CA", ou: "CA"),
@@ -28,7 +22,6 @@ enum DER {
     }
 }
 
-/// Synthetic signing material.
 enum Fixture {
     static let devCert = Array("synthetic development certificate".utf8)
     static let otherCert = Array("synthetic certificate of another team".utf8)
@@ -245,9 +238,6 @@ enum Fixture {
         #expect(lib.identityHash == "-")
     }
 
-    /// swift-build requires entitlements for UI test bundles although they
-    /// are bundles (`supportsEntitlements` false): they are composed as for
-    /// an executable. Unit test bundles still get none.
     @Test func uiTestBundlesGetEntitlements() {
         let runner: Entitlements = ["com.apple.security.app-sandbox": .bool(true)]
         let ui = ProvisioningResolver.resolve(SigningRequest(targetName: "AppUITests", identity: "-", bundleIdentifier: "com.example.AppUITests",
@@ -277,7 +267,6 @@ enum Fixture {
     @Test func simulatorBuildsLinkTheirEntitlementsIntoTheExecutable() {
         let project: Entitlements = ["com.apple.security.application-groups": .array([.string("group.com.example")]),
                                      "keychain-access-groups": .array([.string("TEAMAAAAAA.com.example.shared")])]
-        // swift-build sends `-` for every simulator build, whatever CODE_SIGN_IDENTITY says.
         let r = ProvisioningResolver.resolve(SigningRequest(targetName: "App", identity: "-", team: "TEAMAAAAAA", bundleIdentifier: "com.example.app",
                                                             projectEntitlements: project, sdk: "iphonesimulator27.0"),
                                              environment: Fixture.environment(identities: []))
@@ -290,7 +279,6 @@ enum Fixture {
             "keychain-access-groups": .array([.string("TEAMAAAAAA.com.example.shared")]),
         ])
         #expect(r.appIdentifierPrefix == "TEAMAAAAAA.")
-        // Without a team, the identifiers are the bundle identifier itself.
         let noTeam = ProvisioningResolver.resolve(SigningRequest(targetName: "App", identity: "-", bundleIdentifier: "com.example.app", sdk: "xrsimulator27.0"),
                                                   environment: Fixture.environment())
         #expect(noTeam.simulatedEntitlements == ["application-identifier": .string("com.example.app"),
@@ -327,7 +315,6 @@ enum Fixture {
         let req = SigningRequest(targetName: "App", identity: "Apple Development", team: "TEAMAAAAAA", bundleIdentifier: "com.example.app",
                                  profileSupport: .required, projectEntitlements: ["com.apple.security.application-groups": .array([.string("group.x")])],
                                  sdk: "iphoneos27.0")
-        // The app-groups entitlement is not in the profiles yet: none is usable.
         let none = ProvisioningResolver.resolve(req, environment: env)
         #expect(none.errors.count == 1)
         #expect(none.errors[0].hasPrefix("No profiles for 'com.example.app' were found"))
@@ -345,10 +332,8 @@ enum Fixture {
             "get-task-allow": .bool(true),
             "keychain-access-groups": .array([.string("TEAMAAAAAA.com.example.app")]),
         ])
-        // Without the explicit profile the wildcard one is used.
         let wildEnv = Fixture.environment(profiles: [wildcard])
         #expect(ProvisioningResolver.resolve(withGroups, environment: wildEnv).profile?.uuid == "W")
-        // An archive (not debuggable) does not take the debugging entitlement.
         var archive = withGroups
         archive.debuggable = false
         let a = ProvisioningResolver.resolve(archive, environment: env)
@@ -393,7 +378,6 @@ enum Fixture {
     }
 
     @Test func macTeamSigning() {
-        // Only unrestricted entitlements: the identity alone, no profile.
         let plain = ProvisioningResolver.resolve(SigningRequest(targetName: "App", identity: "Apple Development", style: .manual, team: "TEAMAAAAAA",
                                                                 bundleIdentifier: "com.example.app", projectEntitlements: appGroups, sdk: "macosx27.1"),
                                                  environment: Fixture.environment())
@@ -401,7 +385,6 @@ enum Fixture {
         #expect(plain.profile == nil)
         #expect(plain.identityHash == Fixture.devIdentity.hash)
         #expect(plain.signedEntitlements == appGroups.overlaid(with: ["com.apple.security.get-task-allow": .bool(true)]))
-        // A restricted entitlement takes a Mac profile, which adds the macOS identifiers.
         let macProfile = Fixture.profile(uuid: "M", name: "Mac Dev", appID: "com.example.app", platform: "OSX", mac: true)
         let keychain: Entitlements = ["keychain-access-groups": .array([.string("TEAMAAAAAA.com.example.shared")])]
         let req = SigningRequest(targetName: "App", identity: "Apple Development", team: "TEAMAAAAAA", bundleIdentifier: "com.example.app",
@@ -442,13 +425,11 @@ enum Fixture {
         try file(app.appendingPathComponent("Contents/MacOS/Host"), macho)
         try file(app.appendingPathComponent("Contents/MacOS/helper-tool"), macho)
         try file(app.appendingPathComponent("Contents/MacOS/readme.txt"), Array("text".utf8))
-        // A versioned framework with an XPC service of its own.
         let kit = app.appendingPathComponent("Contents/Frameworks/Kit.framework")
         try file(kit.appendingPathComponent("Versions/A/Kit"), macho)
         try file(kit.appendingPathComponent("Versions/A/XPCServices/Svc.xpc/Contents/MacOS/Svc"), macho)
         try fm.createSymbolicLink(atPath: kit.appendingPathComponent("Versions/Current").path, withDestinationPath: "A")
         try file(app.appendingPathComponent("Contents/Frameworks/libz2.dylib"), macho)
-        // A plug-in that embeds a framework.
         let ext = app.appendingPathComponent("Contents/PlugIns/Share.appex")
         try file(ext.appendingPathComponent("Contents/MacOS/Share"), macho)
         try file(ext.appendingPathComponent("Contents/Frameworks/Inner.framework/Versions/A/Inner"), macho)
@@ -467,7 +448,6 @@ enum Fixture {
             "",
         ])
 
-        // Re-signing runs codesign once per item, in that order.
         let calls = Calls()
         let failure = CodesignCommand.resign(bundle: app, identity: "-", runner: CommandRunner { exe, args in
             calls.append(exe + " " + args.joined(separator: " "))

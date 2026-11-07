@@ -1,16 +1,5 @@
 import Foundation
 
-// MARK: - Minimal real LSP client (JSON-RPC over stdio, Content-Length framing)
-//
-// Supports the lifecycle a language server actually needs: initialize
-// with capability negotiation, initialized, textDocument/didOpen,
-// didChange, didClose, completion, hover, shutdown, exit, and restart.
-// Cancellation is via Task cancellation on the Swift side plus the
-// server's own `$/cancelRequest` notification. This client does not
-// assume any server binary exists: `start` fails clearly when the
-// executable is missing, and the caller decides whether to surface
-// that as "no server for this language" rather than an error.
-
 public actor ExtV2LanguageClient {
     public struct ServerInfo: Sendable {
         public let command: String
@@ -46,9 +35,6 @@ public actor ExtV2LanguageClient {
     }
 
     public func start(server: ServerInfo, workspaceRoot: URL) async throws {
-        // A bare name (e.g. "sourcekit-lsp") is resolved through PATH;
-        // a path is used as-is and must be executable. A relative
-        // bare name must never be handed to Process as a file path.
         let executable: String
         if server.command.contains("/") {
             guard FileManager.default.isExecutableFile(atPath: server.command) else {
@@ -104,8 +90,6 @@ public actor ExtV2LanguageClient {
         try sendNotification(method: "textDocument/didClose", params: ["textDocument": ["uri": uri]])
     }
 
-    /// Returns raw completion-item labels, decoded from the server's
-    /// response without inventing items the server did not return.
     public func completion(uri: String, line: Int, character: Int) async throws -> [String] {
         let data = try await request(method: "textDocument/completion", params: [
             "textDocument": ["uri": uri],
@@ -144,8 +128,6 @@ public actor ExtV2LanguageClient {
         await shutdown()
         try await start(server: server, workspaceRoot: workspaceRoot)
     }
-
-    // MARK: Framing
 
     private func request(method: String, params: [String: Any]?) async throws -> Data {
         nextId += 1
@@ -187,7 +169,6 @@ public actor ExtV2LanguageClient {
         while !Task.isCancelled {
             let chunk = handle.availableData
             if chunk.isEmpty {
-                // EOF: the server exited.
                 for (_, continuation) in pending {
                     continuation.resume(throwing: ExtV2Error.unknown("Language server exited."))
                 }

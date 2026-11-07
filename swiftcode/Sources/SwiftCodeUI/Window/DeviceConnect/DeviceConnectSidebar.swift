@@ -1,21 +1,13 @@
-// DeviceConnectSidebar.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/DeviceConnectKit/Views/Sidebar/DeviceConnectSidebar.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: device search field
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Sidebar/DeviceConnectSidebar.swift (derived from Legacy).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 public struct DeviceConnectSidebar: View {
     @State private var searchField = ""
 
-    // We bind to our global managers
     @State private var deviceManager = DeviceManager.shared
     @State private var sessionManager = SessionManager.shared
     @State private var environmentManager = EnvironmentManager.shared
 
-    @Binding var currentSelection: String // "dashboard", "sessions", "environment", "settings"
+    @Binding var currentSelection: String
 
     public init(currentSelection: Binding<String>) {
         self._currentSelection = currentSelection
@@ -23,7 +15,6 @@ public struct DeviceConnectSidebar: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Search field
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)

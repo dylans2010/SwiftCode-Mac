@@ -1,12 +1,5 @@
 import Foundation
 
-// MARK: - SDKJSONValue
-//
-// A JSON value type owned by the IPC transport layer. The dispatcher uses it
-// for payloads whose schema is not known at compile time (e.g. loosely-typed
-// event data), so unknown or evolving extension payloads can cross the
-// boundary without a dedicated Codable model per method.
-
 public indirect enum SDKJSONValue: Codable, Sendable {
     case string(String)
     case int(Int)
@@ -22,14 +15,10 @@ public indirect enum SDKJSONValue: Codable, Sendable {
             self = .null
             return
         }
-        // Bool before numbers: JSONDecoder rejects numbers for Bool, so this
-        // only matches true/false literals.
         if let bool = try? container.decode(Bool.self) {
             self = .bool(bool)
             return
         }
-        // Int before Double: real JSON numbers like 3 decode as .int(3),
-        // while 3.5 (or integers beyond Int's range) fall through to .double.
         if let int = try? container.decode(Int.self) {
             self = .int(int)
             return
@@ -73,89 +62,25 @@ public indirect enum SDKJSONValue: Codable, Sendable {
     }
 }
 
-// MARK: - Framing constants
-
-/// Wire-level constants shared by the transport's read/write paths.
 private enum SDKIPCFraming {
-    /// NDJSON record separator.
     static let newline: UInt8 = 0x0A
-    /// Bytes requested per read syscall. Large enough to move 1 MiB frames
-    /// in few syscalls; small enough to keep per-read latency bounded.
     static let readChunkSize = 65_536
-    /// Bytes per write syscall. Keeps any single write bounded even though
-    /// Foundation's write is all-or-throw (see sendMessage).
     static let writeChunkSize = 65_536
 }
 
-// MARK: - SDKIPCTransport
-//
-// stdio NDJSON transport for the SDK runtime (spec §10.4).
-//
-// Framing (both directions):
-//   - One envelope per line, terminated by `\n` (0x0A).
-//   - UTF-8 encoded JSON; `SDKIPCCodec` guarantees encoded frames contain no
-//     literal newline bytes, so a line boundary is always a frame boundary.
-//   - Maximum 1 MiB per frame (`SDKIPCCodec.maxMessageBytes`), enforced
-//     *during* accumulation — an oversized frame throws
-//     `.resourceLimitExceeded` the moment the bound is exceeded instead of
-//     buffering unbounded input.
-//
-// Pipe directions (host's point of view):
-//   - `stdin`  (the extension process's stdin pipe): host → extension.
-//     Frames are written to `stdin.fileHandleForWriting`.
-//   - `stdout` (the extension process's stdout pipe): extension → host.
-//     Frames are read from `stdout.fileHandleForReading`.
-//
-// Concurrency: this is a plain actor, never `@MainActor`. All blocking I/O
-// runs on the actor's executor, never the main thread. `readMessage` is the
-// only reader; concurrent `readMessage` calls serialize on the actor, which
-// is what keeps frame boundaries intact. `sendMessage` calls serialize the
-// same way, so frames never interleave on the wire.
-
 public actor SDKIPCTransport {
 
-    /// Extension → host: the extension process's stdout pipe, read end.
     private let readHandle: FileHandle
-    /// Host → extension: the extension process's stdin pipe, write end.
     private let writeHandle: FileHandle
-    /// Bytes already read from the pipe that belong to the *next* frame
-    /// (a single read syscall can deliver more than one line).
     private var pending = Data()
-    /// Set after `close()`; further I/O throws `.runtimeUnavailable`.
     private var isClosed = false
-    /// Set when a frame exceeds the size bound mid-accumulation. The partial
-    /// frame is discarded and the stream position is unknown, so further
-    /// reads throw `.ipcMalformed` until the transport is replaced.
     private var isDesynchronized = false
 
-    /// - Parameters:
-    ///   - stdin: The extension process's stdin pipe (host → extension).
-    ///   - stdout: The extension process's stdout pipe (extension → host).
     public init(stdin: Pipe, stdout: Pipe) {
         self.readHandle = stdout.fileHandleForReading
         self.writeHandle = stdin.fileHandleForWriting
     }
 
-    // MARK: - Reading
-
-    /// Reads exactly one newline-terminated frame (without the newline) from
-    /// the extension's stdout.
-    ///
-    /// Bytes accumulate across read syscalls: a frame split over several
-    /// pipe reads is reassembled, and bytes after the newline are kept in
-    /// `pending` for the next call. The size bound is enforced on every
-    /// append — never after the whole frame is buffered.
-    ///
-    /// - Throws:
-    ///   - `.resourceLimitExceeded` the moment the accumulated frame exceeds
-    ///     `SDKIPCCodec.maxMessageBytes`.
-    ///   - `.ipcMalformed` when EOF arrives with a partial (unterminated)
-    ///     frame, when a read fails without a connection-level cause, or
-    ///     when the stream was desynchronized by a prior oversized frame.
-    ///   - `.runtimeCrash` ("Extension runtime closed the connection.") on
-    ///     clean EOF with no pending data, or when the pipe breaks
-    ///     mid-read.
-    ///   - `.runtimeUnavailable` when called after `close()`.
     public func readMessage() async throws -> Data {
         if isClosed {
             throw SDKError(
@@ -174,7 +99,6 @@ public actor SDKIPCTransport {
 
         let limit = SDKIPCCodec.maxMessageBytes
 
-        // Fast path: a previous read already buffered a complete line.
         if let newlineIndex = pending.firstIndex(of: SDKIPCFraming.newline) {
             let frame = Data(pending[..<newlineIndex])
             pending.removeSubrange(pending.startIndex...newlineIndex)
@@ -199,7 +123,6 @@ public actor SDKIPCTransport {
                     ]
                 )
             }
-            // nil or empty: EOF on the pipe.
             guard let chunk, !chunk.isEmpty else {
                 if frame.isEmpty {
                     throw SDKError(
@@ -223,7 +146,6 @@ public actor SDKIPCTransport {
                     throw Self.oversizeError(limit: limit)
                 }
                 frame.append(contentsOf: head)
-                // Everything after the newline belongs to the next frame.
                 pending = Data(chunk[chunk.index(after: newlineIndex)...])
                 return frame
             }
@@ -236,28 +158,6 @@ public actor SDKIPCTransport {
         }
     }
 
-    // MARK: - Writing
-
-    /// Writes one frame to the extension's stdin, followed by `\n`.
-    ///
-    /// The payload must already be a single newline-free line
-    /// (`SDKIPCCodec` guarantees this for encoded envelopes); the check here
-    /// is defense in depth so a framing violation can never corrupt the
-    /// stream for subsequent frames.
-    ///
-    /// Foundation's `FileHandle.write(contentsOf:)` is all-or-throw, so a
-    /// partial write surfaces as an error rather than silent truncation. The
-    /// frame is still issued in bounded chunks so no single syscall is
-    /// arbitrarily large. Any write failure means the pipe is broken, which
-    /// is reported as `.runtimeCrash`.
-    ///
-    /// - Throws:
-    ///   - `.invalidArgument` when `data` contains a `\n` byte.
-    ///   - `.resourceLimitExceeded` when `data` exceeds
-    ///     `SDKIPCCodec.maxMessageBytes`.
-    ///   - `.runtimeCrash` when the write fails (broken pipe — the runtime
-    ///     is gone or its stdin was closed).
-    ///   - `.runtimeUnavailable` when called after `close()`.
     public func sendMessage(_ data: Data) async throws {
         if isClosed {
             throw SDKError(
@@ -305,12 +205,6 @@ public actor SDKIPCTransport {
         }
     }
 
-    // MARK: - Shutdown
-
-    /// Closes both pipe ends. Idempotent. An in-flight `readMessage` blocked
-    /// in a read syscall surfaces the close as a read error (mapped to
-    /// `.runtimeCrash`); callers should treat errors arriving after `close()`
-    /// as expected shutdown, not as a crash to report.
     public func close() {
         guard !isClosed else { return }
         isClosed = true
@@ -318,11 +212,6 @@ public actor SDKIPCTransport {
         try? writeHandle.close()
     }
 
-    // MARK: - Private
-
-    /// Drops all buffered state after an oversized frame and marks the
-    /// stream desynchronized: the frame's true end is unknown, so the next
-    /// newline on the wire cannot be trusted as a frame boundary.
     private func discardAfterOversize() {
         isDesynchronized = true
         pending.removeAll()

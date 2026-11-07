@@ -6,16 +6,9 @@ import SwiftCodeIDECore
 import SwiftCodePreviews
 import SwiftCodeProject
 
-// The Linux canvas's engines (specs/ide/previews.md §Linux, "The Linux
-// canvas"): `OpenViewsPreviewEngine` renders SwiftUI previews with
-// OpenViews in a long-lived host; the canvas model asks an engine for one
-// picture per tile and shows them.
-
-/// One picture the canvas shows: a preview with a variant at a size.
 public struct PreviewCanvasTileRequest: Equatable, Sendable {
     public var preview: Int
     public var variant: PreviewVariant
-    /// Points; 0 × 0 for the view's ideal size (`.sizeThatFitsLayout`).
     public var size: CGSize
     public init(preview: Int, variant: PreviewVariant, size: CGSize) {
         self.preview = preview
@@ -24,7 +17,6 @@ public struct PreviewCanvasTileRequest: Equatable, Sendable {
     }
 }
 
-/// How the engine finds the module a file belongs to.
 public struct PreviewModuleLocator: Sendable {
     public var kind: WorkspaceModel.ContainerKind
     public var directory: URL
@@ -35,9 +27,6 @@ public struct PreviewModuleLocator: Sendable {
         self.projects = projects
     }
 
-    /// The module's name and Swift files; a module the payload cannot
-    /// compile from sources (a package target with dependencies or
-    /// resources) or no module at all gives the file alone.
     public func module(for file: URL) -> (name: String, files: [URL]) {
         let alone = (Self.moduleName(file.deletingPathExtension().lastPathComponent), [URL]())
         do throws(PreviewRenderer.Failure) {
@@ -56,7 +45,6 @@ public struct PreviewModuleLocator: Sendable {
         }
     }
 
-    /// A Swift module name from a target or file name.
     static func moduleName(_ s: String) -> String {
         let cleaned = String(s.map { $0.isLetter || $0.isNumber || $0 == "_" ? $0 : "_" })
         guard let first = cleaned.first, !first.isNumber else { return "_" + cleaned }
@@ -64,15 +52,12 @@ public struct PreviewModuleLocator: Sendable {
     }
 }
 
-/// What the canvas asks an engine for.
 public struct PreviewCanvasRequest: Sendable {
     public var file: URL
-    /// The focused file's text as edited (it need not be saved).
     public var text: String
     public var previews: [PreviewDeclaration]
     public var tiles: [PreviewCanvasTileRequest]
     public var locator: PreviewModuleLocator
-    /// The canvas's device (`DeviceFrameSpec.typeID`) and its screen in points.
     public var deviceTypeID: String
     public var screen: CGSize
     public init(file: URL, text: String, previews: [PreviewDeclaration], tiles: [PreviewCanvasTileRequest], locator: PreviewModuleLocator,
@@ -87,17 +72,12 @@ public struct PreviewCanvasRequest: Sendable {
     }
 }
 
-/// An engine's answer: one PNG per tile (in the request's order) and the
-/// image's size in points.
 public struct PreviewCanvasOutcome: Equatable, Sendable {
     public var pictures: [URL]
     public var sizes: [CGSize]
-    /// The update planner's decision (`PreviewUpdatePlanner`), as text.
     public var decision: String
     public var compile: Double
     public var render: Double
-    /// When pictures are of a whole device screen (the simulator), each
-    /// tile's region of it in screen points, and the screen's size.
     public var crops: [CGRect]?
     public var screen: CGSize?
     public init(pictures: [URL], sizes: [CGSize], decision: String, compile: Double = 0, render: Double = 0, crops: [CGRect]? = nil, screen: CGSize? = nil) {
@@ -111,22 +91,16 @@ public struct PreviewCanvasOutcome: Equatable, Sendable {
     }
 }
 
-/// Renders a canvas request. Implementations serialize their work; a
-/// request older than the newest one returns nil (superseded).
 public protocol PreviewCanvasEngine: AnyObject, Sendable {
     func update(_ request: PreviewCanvasRequest, generation: Int, progress: @escaping @Sendable (String) -> Void) async
         -> Result<PreviewCanvasOutcome, PreviewFailure>?
-    /// Ends the engine's processes (the workspace closes).
     func stop()
 }
 
-/// SwiftUI previews rendered with OpenViews: a long-lived host loads one
-/// payload per edit. See `specs/ide/previews.md` §Linux.
 public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
     private let queue = DispatchQueue(label: "swiftcode.previews.openviews")
     private let lock = NSLock()
     private var newest = 0
-    // State below is touched only on `queue`.
     private var built: PreviewOpenViewsHost.Built?
     private var host: PreviewHostProcess?
     private var hostFailed = false
@@ -134,15 +108,10 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
     private var payload: URL?
     private var payloadGeneration = 0
     private var renderCount = 0
-    /// Package modules by file: the target's name and folder, kept while
-    /// `Package.swift` is unchanged (`dump-package` takes most of a second).
     private var packageModules: [String: (stamp: Date?, name: String, folder: URL?)] = [:]
 
-    /// Where payloads and pictures go (one folder per workspace).
     public let workDirectory: URL
-    /// The OpenViews package (nil: not found; every update says so).
     public let openViews: URL?
-    /// The cache root the host package is built under.
     public let cacheRoot: URL
 
     public init(workDirectory: URL, openViews: URL?, cacheRoot: URL) {
@@ -151,14 +120,11 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         self.cacheRoot = cacheRoot
     }
 
-    /// The cache root: `$XDG_CACHE_HOME`, else `~/.cache`.
     public static func cacheRoot(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
         environment["XDG_CACHE_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cache")
     }
 
-    /// The engine for a workspace: OpenViews found from `$SWIFTCODE_OPENVIEWS`,
-    /// the executable's folders or the workspace's.
     public static func standard(workspace: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> OpenViewsPreviewEngine {
         let root = cacheRoot(environment: environment)
         let exe = URL(fileURLWithPath: Bundle.main.executableURL?.path ?? CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
@@ -188,7 +154,6 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         }
     }
 
-    /// The host's pid (tests).
     public var hostPID: Int32? { queue.sync { host?.isRunning == true ? host?.pid : nil } }
 
     private func module(for file: URL, locator: PreviewModuleLocator) -> (name: String, files: [URL]) {
@@ -205,7 +170,6 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         return (m.name, root.map(Self.swiftFiles(in:)) ?? [])
     }
 
-    /// `Sources/<Target>` of a package file.
     static func targetFolder(of file: URL, package: URL) -> URL? {
         let base = package.standardizedFileURL.path + "/"
         let p = file.standardizedFileURL.path
@@ -241,7 +205,6 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         var decision = PreviewUpdatePlanner.decide(previous: inputs, current: current, host: state)
         if case .relayout = decision, payload == nil { decision = .reloadPayload }
         let t0 = Date()
-        // The host, built once (minutes the first time).
         if built == nil {
             do throws(PreviewFailure) {
                 built = try PreviewOpenViewsHost.build(openViews: openViews, cacheRoot: cacheRoot, progress: progress)
@@ -273,7 +236,6 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
             } catch {
                 return .failure(.host("Could not write the preview's sources: \(error)"))
             }
-            // Earlier payloads go (a loaded library stays mapped).
             if let old = payload { try? FileManager.default.removeItem(at: old) }
             payload = out
         }
@@ -308,7 +270,6 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
             return .failure(.host("The preview host ended or did not answer in \(Int(PreviewHostProcess.requestTimeout)) s"))
         }
         inputs = current
-        // Earlier pictures go, but the one before stays: the canvas may still show it.
         for name in (try? FileManager.default.contentsOfDirectory(atPath: workDirectory.path)) ?? []
         where name.hasPrefix("Rendered-") && Int(name.dropFirst("Rendered-".count)).map({ $0 < renderCount - 1 }) == true {
             try? FileManager.default.removeItem(at: workDirectory.appendingPathComponent(name))
@@ -329,7 +290,6 @@ public final class OpenViewsPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         }
     }
 
-    /// A PNG's size in points (its IHDR's pixels over `scale`).
     public static func pointSize(png: URL, scale: Double) -> CGSize {
         guard let h = FileHandle(forReadingAtPath: png.path) else { return .zero }
         defer { try? h.close() }

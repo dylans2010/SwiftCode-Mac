@@ -1,30 +1,20 @@
 import Foundation
 import ZIPFoundation
 
-/// Handles importing a .zip archive and converting it into a SwiftCode project.
 final class ZipImporter: Sendable {
     static let shared = ZipImporter()
     private init() {}
 
-    // MARK: - Export
-
-    /// Exports an existing project directory as a .zip file and returns the local URL.
     func exportZip(for project: Project) async throws -> URL {
         let fm = FileManager.default
         let projectDir = await MainActor.run { project.directoryURL }
         let zipName = "\(project.name).zip"
         let destURL = fm.temporaryDirectory.appendingPathComponent(zipName)
-        // Remove old export if present
         try? fm.removeItem(at: destURL)
         try fm.zipItem(at: projectDir, to: destURL)
         return destURL
     }
 
-    // MARK: - Import
-
-    /// Import a zip file, creating a new project with the extracted contents.
-    /// - Parameter zipURL: The source .zip file URL.
-    /// - Returns: The newly created Project.
     func importZip(at zipURL: URL) async throws -> Project {
         let fm = FileManager.default
         let projectName = zipURL.deletingPathExtension().lastPathComponent
@@ -38,7 +28,6 @@ final class ZipImporter: Sendable {
         let extractedRoot = try findExtractedRoot(in: tempDir)
         let sanitized = sanitizeName(projectName)
 
-        // Build destination project directory, handling name collisions.
         let baseDir = await MainActor.run { ProjectSessionStore.shared.projectsDirectory }
         var finalName = sanitized
         var destDir = baseDir.appendingPathComponent(finalName)
@@ -54,7 +43,6 @@ final class ZipImporter: Sendable {
         var project = Project(name: finalName)
         project.files = buildFileTree(at: destDir, relativeTo: destDir)
 
-        // Save metadata using the same encoder pattern as ProjectManager
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let metadata = try encoder.encode(project)
@@ -68,15 +56,10 @@ final class ZipImporter: Sendable {
         return project
     }
 
-    // MARK: - Unzip (using ZIPFoundation)
-
     private func unzip(_ zipURL: URL, to destination: URL) throws {
         try FileManager.default.unzipItem(at: zipURL, to: destination)
     }
 
-    // MARK: - Find Root
-
-    /// If the zip contains a single top-level directory, return it; otherwise return the temp dir itself.
     private func findExtractedRoot(in directory: URL) throws -> URL {
         let fm = FileManager.default
         let contents = try fm.contentsOfDirectory(
@@ -92,8 +75,6 @@ final class ZipImporter: Sendable {
         return directory
     }
 
-    // MARK: - Copy Contents with Path Validation
-
     private func copyContents(from source: URL, to destination: URL) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: destination, withIntermediateDirectories: true)
@@ -106,14 +87,12 @@ final class ZipImporter: Sendable {
         for item in contents {
             let itemName = item.lastPathComponent
 
-            // Validate: prevent directory traversal attacks.
             guard !itemName.contains(".."), !itemName.hasPrefix("/") else {
                 throw ZipImporterError.unsafePath(path: itemName)
             }
 
             let destItem = destination.appendingPathComponent(itemName)
 
-            // Ensure destination stays inside the project directory.
             guard destItem.path.hasPrefix(destination.path) else {
                 throw ZipImporterError.unsafePath(path: itemName)
             }
@@ -121,8 +100,6 @@ final class ZipImporter: Sendable {
             try fm.copyItem(at: item, to: destItem)
         }
     }
-
-    // MARK: - File Tree
 
     private func buildFileTree(at url: URL, relativeTo base: URL) -> [FileNode] {
         let fm = FileManager.default
@@ -156,8 +133,6 @@ final class ZipImporter: Sendable {
             }
     }
 
-    // MARK: - Helpers
-
     private let maxProjectNameLength = 64
 
     private func sanitizeName(_ name: String) -> String {
@@ -172,8 +147,6 @@ final class ZipImporter: Sendable {
             .description
     }
 }
-
-// MARK: - Errors
 
 enum ZipImporterError: LocalizedError {
     case extractionFailed

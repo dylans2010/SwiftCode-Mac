@@ -1,8 +1,3 @@
-// English names for predefined labels and contact keys (interface.md §2.4).
-// The listed words are the spec's; the relation labels that the spec does
-// not list are rendered by SwiftCode's own rule (camel-case words, lower case,
-// "InLaw" as "-in-law", "Elder" as "older", the qualifying tail dropped).
-
 import Foundation
 
 enum Localization {
@@ -34,10 +29,6 @@ enum Localization {
         return out
     }()
 
-    /// Splits "AuntFathersBrothersWife" into words and keeps the head
-    /// relation: "aunt". "ParentsSibling" → "parent's sibling",
-    /// "SisterInLaw…" → "sister-in-law", "GirlfriendOrBoyfriend" →
-    /// "girlfriend or boyfriend".
     static func relationWords(_ camel: String) -> String {
         var words: [String] = []
         var current = ""
@@ -58,8 +49,6 @@ enum Localization {
             if w == "Or" {
                 out.append("or")
             } else if qualifiers.contains(w) && !out.isEmpty && out.last != "or" {
-                // The qualifying tail (whose side of the family) is dropped,
-                // up to an "Or" alternative.
                 while i < words.count && words[i] != "Or" { i += 1 }
                 continue
             } else if w == "In", i + 1 < words.count, words[i + 1] == "Law", let last = out.popLast() {
@@ -113,7 +102,7 @@ enum Localization {
         case CNContactBirthdayKey: return "Birthday"
         case CNContactNonGregorianBirthdayKey: return "Alternate calendar birthday"
         case CNContactDatesKey: return "Date"
-        default: return ""  // identifier, thumbnailImageData, imageDataAvailable: no name
+        default: return ""
         }
     }
 }

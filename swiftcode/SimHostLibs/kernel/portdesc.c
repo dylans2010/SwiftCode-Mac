@@ -1,21 +1,3 @@
-/*
- * portdesc.c - names of the special-port slots (SwiftCode original code).
- *
- *   const char *mach_host_special_port_description(int which);
- *   const char *mach_task_special_port_description(int which);
- *   const char *mach_thread_special_port_description(int which);
- *   int mach_host_special_port_for_id(const char *id);
- *   int mach_task_special_port_for_id(const char *id);
- *   int mach_thread_special_port_for_id(const char *id);
- *
- * Behavior (xnu libsyscall/mach/mach/port_descriptions.h, level 1): a
- * description is a short human-readable label for a slot number (NULL for
- * a number out of range or a slot without one); "for_id" maps the macro
- * name of a slot ("TASK_BOOTSTRAP_PORT") to its number, or returns -1 with
- * errno EINVAL (NULL id) or ENOENT (unknown). The slot numbers are the
- * public <mach/{host,task,thread}_special_ports.h> values. launchctl
- * prints the task descriptions in its domain and service output.
- */
 #include "yc_kernel.h"
 
 YC_HIDDEN void __swiftcode_set_errno(int value);
@@ -100,13 +82,13 @@ static int yc_same(const char *a, const char *b)
 static int yc_slot_for(const struct yc_port_label *labels, int count, const char *id)
 {
     if (id == YC_NULL) {
-        __swiftcode_set_errno(22); /* EINVAL */
+        __swiftcode_set_errno(22);
         return -1;
     }
     for (int i = 0; i < count; i++)
         if (labels[i].id != YC_NULL && yc_same(labels[i].id, id))
             return labels[i].which;
-    __swiftcode_set_errno(2); /* ENOENT */
+    __swiftcode_set_errno(2);
     return -1;
 }
 

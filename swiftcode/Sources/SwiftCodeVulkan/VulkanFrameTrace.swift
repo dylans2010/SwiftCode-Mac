@@ -1,36 +1,19 @@
-// The GPU frame trace (diagnostics, `SWIFTCODE_METAL_TRACE=<file>`): one line
-// per Metal command buffer with the host times of every step from the
-// service receiving it to the completion handlers, the GPU's own begin and
-// end timestamps, and what it did (draws, dispatches, IOSurface bytes
-// copied in and out, surfaces written). Without the variable nothing here
-// runs and no timestamp is recorded. Format: stage8-contract.md §14.
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
 
-/// What one Metal command buffer's trace line holds (filled while it is
-/// recorded; finished on the completion thread).
 struct FrameTraceInfo {
     var process: MetalProcessID
     var commandBufferRef: UInt64
-    /// Monotonic ns: the service received it, the back end's `submit`
-    /// started, its pipelines were ready, the back-end lock was taken, the
-    /// recording was submitted (or held).
     var receivedAt: UInt64 = 0, enteredAt: UInt64 = 0, pipelinesAt: UInt64 = 0, lockedAt: UInt64 = 0, submittedAt: UInt64 = 0
-    /// The query-pool pair holding its GPU begin/end timestamps (-1: none).
     var slot = -1
     var draws = 0, dispatches = 0, blits = 0, passes = 0
     var bytesIn = 0, bytesOut = 0
     var surfacesIn: [UInt32] = [], surfacesOut: [UInt32] = []
     var held = false
-    /// Segment labels in order (`SWIFTCODE_METAL_TRACE_SEGMENTS=1`): a GPU
-    /// timestamp follows each segment (copy-ins, every pass, copy-outs).
     var segments: [String] = []
 }
 
-/// The trace's file and timestamp pool. Every member is used under the
-/// back end's lock except `write`.
 final class FrameTrace {
     let pool: VkQueryPool
     let pairs: Int
@@ -40,8 +23,6 @@ final class FrameTrace {
     private var next = 0
     private let file: FileHandle
     private let fileLock = NSLock()
-    /// Per-segment timestamps (nil unless `SWIFTCODE_METAL_TRACE_SEGMENTS=1`):
-    /// `segmentsPerSlot` queries per pair slot.
     let segmentPool: VkQueryPool?
     static let segmentsPerSlot = 32
 
@@ -65,7 +46,7 @@ final class FrameTrace {
         segmentPool = sp
         self.pairs = pairs
         periodNs = Double(ctx.pointee.properties.limits.timestampPeriod)
-        validMask = .max // the queue's timestampValidBits are 64 on the hosts used; ticks are masked anyway
+        validMask = .max
         inUse = [Bool](repeating: false, count: pairs)
         file = f
         file.write(Data(("# swiftcode GPU frame trace v1: pid cbref recv_ns enter_ns pipelines_ns locked_ns submitted_ns "
@@ -73,7 +54,6 @@ final class FrameTrace {
             + "surfaces_in surfaces_out [segments: label=ns after gpu_begin,...] (gpu_* in the GPU's clock, '-' when absent)\n").utf8))
     }
 
-    /// A free timestamp pair, or -1 when all are in flight. Under the lock.
     func allocate() -> Int {
         for _ in 0..<pairs {
             let i = next
@@ -83,12 +63,10 @@ final class FrameTrace {
         return -1
     }
 
-    /// Frees a pair that was never submitted. Under the lock.
     func release(_ slot: Int) {
         if slot >= 0 { inUse[slot] = false }
     }
 
-    /// Records the begin timestamp (and resets the pair first). Under the lock.
     func begin(_ cb: VkCommandBuffer?, _ fn: yvk_dispatch, slot: Int) {
         guard slot >= 0 else { return }
         if let sp = segmentPool {
@@ -98,14 +76,12 @@ final class FrameTrace {
         fn.vkCmdWriteTimestamp2!(cb, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, pool, UInt32(slot * 2))
     }
 
-    /// A timestamp after everything recorded so far (one segment). Under the lock.
     func segment(_ cb: VkCommandBuffer?, _ fn: yvk_dispatch, slot: Int, _ labels: inout [String], _ label: @autoclosure () -> String) {
         guard let sp = segmentPool, slot >= 0, labels.count < Self.segmentsPerSlot else { return }
         fn.vkCmdWriteTimestamp2!(cb, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, sp, UInt32(slot * Self.segmentsPerSlot + labels.count))
         labels.append(label())
     }
 
-    /// The segment times (GPU ns) of a completed slot. Under the lock, before `results`.
     func segmentResults(_ device: VkDevice?, _ fn: yvk_dispatch, slot: Int, count: Int) -> [UInt64]? {
         guard let sp = segmentPool, slot >= 0, count > 0 else { return nil }
         var v = [UInt64](repeating: 0, count: count)
@@ -122,8 +98,6 @@ final class FrameTrace {
         fn.vkCmdWriteTimestamp2!(cb, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, pool, UInt32(slot * 2 + 1))
     }
 
-    /// The GPU begin/end times (ns in the GPU's clock) of a completed pair,
-    /// which is then free again. Under the lock.
     func results(_ device: VkDevice?, _ fn: yvk_dispatch, slot: Int) -> (UInt64, UInt64)? {
         guard slot >= 0 else { return nil }
         defer { inUse[slot] = false }
@@ -148,7 +122,6 @@ final class FrameTrace {
             + "\(t.held ? 1 : 0) \(ids(t.surfacesIn)) \(ids(t.surfacesOut))\(segs)\n"
     }
 
-    /// Appends lines (any thread).
     func write(_ lines: [String]) {
         guard !lines.isEmpty else { return }
         fileLock.withLock { file.write(Data(lines.joined().utf8)) }

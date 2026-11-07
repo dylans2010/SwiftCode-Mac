@@ -12,16 +12,13 @@ struct WorkflowRunsView: View {
     @State private var isLoading = false
     @State private var isLoadingArtifacts = false
 
-    // Console logs state
     @State private var selectedJobID: Int?
     @State private var consoleLogsText = ""
     @State private var isFetchingLogs = false
 
-    // Re-run workflow state
     @State private var isExecutingReRun = false
     @State private var executionOutput = ""
 
-    // Downloading artifact tracking
     @State private var downloadingArtifactID: Int?
 
     private var ownerAndRepo: (String, String)? {
@@ -33,7 +30,6 @@ struct WorkflowRunsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Workflow Run Specs", systemImage: "play.circle.fill")
                     .font(.headline)
@@ -57,9 +53,7 @@ struct WorkflowRunsView: View {
 
             Divider()
 
-            // Main Contents HSplitView
             HSplitView {
-                // Left Pane: Job and Step Hierarchies list
                 VStack(alignment: .leading, spacing: 0) {
                     Text("JOB & STEP HIERARCHIES")
                         .font(.caption2.bold())
@@ -110,7 +104,6 @@ struct WorkflowRunsView: View {
                                         .disabled(isFetchingLogs)
                                     }
 
-                                    // Render step hierarchy indented
                                     if let steps = job.steps {
                                         VStack(alignment: .leading, spacing: 4) {
                                             ForEach(steps, id: \.number) { step in
@@ -138,9 +131,7 @@ struct WorkflowRunsView: View {
                 .frame(width: 250)
                 .frame(maxHeight: .infinity)
 
-                // Right Pane: Logs Terminal Console + Artifacts Browser
                 VStack(spacing: 0) {
-                    // Logs Terminal
                     VStack(alignment: .leading, spacing: 0) {
                         Text("LOGS TERMINAL CONSOLE")
                             .font(.caption2.bold())
@@ -164,7 +155,6 @@ struct WorkflowRunsView: View {
 
                     Divider()
 
-                    // Artifacts Browser segment
                     VStack(alignment: .leading, spacing: 0) {
                         Text("BUILD ARTIFACTS BROWSER")
                             .font(.caption2.bold())
@@ -274,7 +264,6 @@ struct WorkflowRunsView: View {
                 let fetched = try await GitHubService.shared.listWorkflowArtifacts(owner: owner, repo: repo, runID: run.id)
                 self.artifacts = fetched
             } catch {
-                // silent failure, keep list empty
             }
             isLoadingArtifacts = false
         }
@@ -288,7 +277,6 @@ struct WorkflowRunsView: View {
             do {
                 let zipData = try await GitHubService.shared.downloadArtifact(owner: owner, repo: repo, artifactID: artifact.id)
 
-                // Save to Downloads directory
                 let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
                 let destURL = downloadsURL.appendingPathComponent(artifact.name.hasSuffix(".zip") ? artifact.name : "\(artifact.name).zip")
 

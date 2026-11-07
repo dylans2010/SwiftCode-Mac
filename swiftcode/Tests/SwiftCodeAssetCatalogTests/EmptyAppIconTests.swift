@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssetCatalog
 
-/// The New Project templates' catalog: an `AppIcon.appiconset` without
-/// images. Compiling it warns from inside the icon step, which once overlapped
-/// an inout access of the result and stopped `swiftcode` (a debug build) with
-/// "Simultaneous accesses" while building the template app for the SwiftCode
-/// simulator (SIMULATOR-UX checklist, run step).
 @Suite struct EmptyAppIconTests {
     @Test func emptyAppIconSetWarnsAndCompiles() throws {
         let dir = try Fixture.tempDir("empty-icon")

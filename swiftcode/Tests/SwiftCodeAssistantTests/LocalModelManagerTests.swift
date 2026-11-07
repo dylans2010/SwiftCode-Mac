@@ -1,9 +1,3 @@
-// Tests for LocalModelManager's model inventory (Legacy -> SwiftCodeAssistant port).
-// Only the pure parts are pinned here: size formatting and extension-based
-// type classification live in LocalModelInfo / scanModels. The scan itself
-// reads ~/Documents/Models on the host and is not asserted here.
-// Static only: not executed here (no Swift toolchain in this environment).
-
 import Foundation
 import Testing
 @testable import SwiftCodeAssistant

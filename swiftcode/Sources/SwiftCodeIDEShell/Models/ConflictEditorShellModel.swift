@@ -2,30 +2,15 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// The merge sheet's model in the SwiftUI shell (`specs/ide/merge-sheet.md`
-/// §3–§9; `source-control.md`, "Conflicts"): the core's
-/// `ConflictEditorState`, which the AppKit `MergeSheetController` draws
-/// too, plus the git reads and writes it needs, always off the main actor.
-/// Every conflicted file is read ahead (Merge needs every file decided) and
-/// keeps its choices while another is shown. The source-control model
-/// shows the sheet and performs Merge and Cancel
-/// (`SourceControlShellModel+Conflicts.swift`).
 @MainActor
 @Observable
 public final class ConflictEditorShellModel {
     @ObservationIgnored public let repository: GitRepository
     public internal(set) var state = ConflictEditorState(source: .repository)
-    /// The file list: Flat instead of Hierarchical (§3).
     public var isFlat = false
-    /// The file list's Filter field.
     public var filterText = ""
-    /// Counts the stepper's and the conflict navigator's moves: the panes
-    /// scroll the selected change into view (a click on a change does not).
     public private(set) var revealCount = 0
-    /// The repository's folder is a Swift package (the jump bar's symbol).
     @ObservationIgnored public let isPackage: Bool
-    /// The hand editor's text while the selected change is written by hand
-    /// (SwiftCode's choice: double-click a change's left lines).
     public var editedText: String {
         get { editorText }
         set {
@@ -35,7 +20,6 @@ public final class ConflictEditorShellModel {
     }
     private var editorText = ""
 
-    /// A file was marked resolved (the window reads git again).
     @ObservationIgnored public var onResolved: (() -> Void)?
 
     @ObservationIgnored private var pending: [Int: Task<Void, Never>] = [:]
@@ -49,22 +33,14 @@ public final class ConflictEditorShellModel {
         isPackage = FileManager.default.fileExists(atPath: repository.root.appendingPathComponent("Package.swift").path)
     }
 
-    /// Whether a read or write runs.
     public var isLoading: Bool { !pending.isEmpty }
 
-    /// The file list's rows as shown (§3).
     public var fileRows: [ConflictEditorState.FileRow] {
         state.fileRows(root: repository.root.path, flat: isFlat, filter: filterText)
     }
 
-    /// The jump bar's path (§4.1).
     public var jumpPath: [String] { state.jumpPath(root: repository.root.path) }
 
-    // MARK: Loading
-
-    /// Reads the conflicted files, the operation, the footers and every
-    /// file not read yet, then shows the focused (or shown) file while it is
-    /// conflicted, else the first. Choices made so far are kept.
     public func reload() {
         let repo = repository, wanted = state.currentFile ?? focus
         let known = Set(state.files.filter { state.sheetDocument($0) != nil })
@@ -91,8 +67,6 @@ public final class ConflictEditorShellModel {
         }
     }
 
-    /// The window's latest read of git: a changed list of conflicted files
-    /// is read again (a file resolved elsewhere moves the sheet on).
     public func update(integration: GitRepository.IntegrationState, conflicted: [String]) {
         guard pending.isEmpty else { return }
         if conflicted != state.files {
@@ -102,7 +76,6 @@ public final class ConflictEditorShellModel {
         }
     }
 
-    /// Shows one conflicted file, keeping the choices made in the others.
     public func show(file: String?) async {
         let repo = repository
         guard let file else {
@@ -110,8 +83,6 @@ public final class ConflictEditorShellModel {
             editorText = ""
             return
         }
-        // The shown file again: nothing to do (the core's `show` would
-        // reload it without its choices).
         if file == state.currentFile, state.document != nil { return }
         if state.sheetDocument(file) != nil {
             state.show(file: file, document: nil)
@@ -122,20 +93,16 @@ public final class ConflictEditorShellModel {
         let generation = showGeneration
         await track { [weak self] in
             let doc = await Task.detached { repo.mergeDocument(forConflictedFile: file) }.value
-            // A later show replaced this one.
             guard let self, generation == self.showGeneration else { return }
             self.state.show(file: file, document: doc)
             self.editorText = self.state.editedText
         }.value
     }
 
-    /// A file row's click.
     public func showFile(_ path: String) {
         track { [weak self] in await self?.show(file: path) }
     }
 
-    /// Runs `body` on the main actor as a tracked task; it removes itself
-    /// as its last step, so `idle()` never waits on a finished one.
     @discardableResult
     func track(_ body: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
         nextPending += 1
@@ -148,45 +115,29 @@ public final class ConflictEditorShellModel {
         return t
     }
 
-    /// Waits until no read or write runs (tests, drivers).
     public func idle() async {
         while let t = pending.values.first { await t.value }
     }
 
-    // MARK: Changes
-
-    /// Selects a change (a row's click, the stepper, the conflict navigator).
     public func selectHunk(_ h: Int?) { state.selectHunk(h); editorText = state.editedText }
-    /// The stepper's › and the conflict navigator's next (§8, §4.1).
     public func nextHunk() { state.nextHunk(); editorText = state.editedText; revealCount += 1 }
-    /// The stepper's ‹.
     public func previousHunk() { state.previousHunk(); editorText = state.editedText; revealCount += 1 }
 
-    /// The Choose menu of change `h`'s token (§7): selects the change, then
-    /// rewrites the left pane's lines; the change stays selected.
     public func choose(_ choice: MergeDocument.Choice, forHunk h: Int) {
         state.choose(choice, forHunk: h)
         editorText = state.editedText
     }
 
-    /// A choice for the selected change (it stays selected).
     public func choose(_ choice: MergeDocument.Choice) {
         state.chooseKeepingSelection(choice)
         editorText = state.editedText
     }
 
-    /// Hand editing (SwiftCode's choice): the selected change becomes
-    /// hand-written, starting from what it has.
     public func beginEditing() {
         state.beginEditing()
         editorText = state.editedText
     }
 
-    // MARK: Writing
-
-    /// Mark as Resolved (the file row's menu, Integrate ▸ Mark as Resolved):
-    /// writes the shown file's result and stages it, then reads the list
-    /// again. False when it was refused.
     @discardableResult
     public func markResolved() async -> Bool {
         guard state.canMarkResolved, let file = state.currentFile, let doc = state.document else { return false }
@@ -206,8 +157,6 @@ public final class ConflictEditorShellModel {
         return true
     }
 
-    /// Merge's first step (§9): writes every decided file and stages it.
-    /// The first failure, or nil.
     public func writeResolutions() async -> String? {
         let repo = repository, items = state.resolutions
         var error: String?

@@ -1,7 +1,3 @@
-// The depth tap (specs/simulator/xr-depth.md §3.1): a windows layer's transparent
-// parts write depth too, and the picture shows what lies behind them, so only the
-// layer's opaque texels count; and a sample says whose it is (its low bit).
-
 import Foundation
 import Testing
 @testable import SwiftCodeVulkan
@@ -12,7 +8,6 @@ struct DepthTapGPUTests {
     @Test func windowsDepthCountsOnlyWhereTheLayerIsOpaque() throws {
         let b = VK.backend
         let w = 1024, h = 576
-        // The room: depth 0.25 everywhere (reverse-Z: a clear below 0.5 is not standard Z).
         let roomColour = try VK.texture(MetalPixelFormat.bgra8UnormSRGB, w, h)
         let roomDepth = try VK.texture(MetalPixelFormat.depth32Float, w, h, usage: 0x5)
         var room = MetalRenderPassDescriptor()
@@ -23,8 +18,6 @@ struct DepthTapGPUTests {
         room.renderTargetWidth = w
         room.renderTargetHeight = h
 
-        // The windows: 4×, resolved; depth 0.5 everywhere (as a label's clear rectangle would write it),
-        // transparent except where a triangle draws: (-1,-1), (1,-1), (0,1), its apex at the top.
         let msaa = VK.handle(), msaaDepth = VK.handle(), layer = try VK.texture(MetalPixelFormat.bgra8UnormSRGB, w, h)
         try b.createTexture(msaa, MetalTextureDescriptor(textureType: MetalTextureType.type2DMultisample, pixelFormat: MetalPixelFormat.bgra8UnormSRGB,
                                                          width: w, height: h, sampleCount: 4, usage: 0x4, resourceOptions: 0x20), iosurface: nil)
@@ -76,7 +69,6 @@ struct DepthTapGPUTests {
         let status = VK.run([.render(MetalRenderPass(descriptor: room, commands: [.setCullMode(0)])),
                              .render(MetalRenderPass(descriptor: windows, commands: draw))]).status
         #expect(status == 4)
-        // A later command buffer collects the finished capture.
         var capture: XRDepthCapture?
         for _ in 0..<20 where capture == nil {
             VK.run([VK.colorPass(roomColour)])
@@ -85,11 +77,9 @@ struct DepthTapGPUTests {
         let got = try #require(capture)
         #expect(got.width == 256 && got.height == 144)
         func at(_ x: Int, _ y: Int) -> UInt16 { got.samples[y * got.width + x] }
-        // Where the layer is opaque: the windows' depth, marked.
         let inside = at(128, 130)
         #expect(abs(Int(inside) - 32768) < 4, "inside \(inside)")
         #expect(inside & 1 == 1, "inside \(inside) is not marked")
-        // Where it is transparent: the room's depth, unmarked, though the windows' depth is nearer there.
         let outside = at(5, 5)
         #expect(abs(Int(outside) - 16384) < 4, "outside \(outside)")
         #expect(outside & 1 == 0, "outside \(outside) is marked")

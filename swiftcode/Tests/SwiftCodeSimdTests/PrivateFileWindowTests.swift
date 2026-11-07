@@ -1,6 +1,3 @@
-// The private file window's host helper (boot-profile.md §3.2): a mapping of
-// a file that ends inside a host page places the zero tail at the next host
-// page boundary.
 #if os(Linux) && arch(arm64)
 import CKVM
 import Foundation
@@ -10,7 +7,7 @@ import Testing
 @Suite struct PrivateFileWindowTests {
     @Test func fileEndingInsideAHostPage() throws {
         let path = NSTemporaryDirectory() + "swiftcode-window-\(getpid()).bin"
-        let fileBytes = 5000  // not a multiple of any host page size
+        let fileBytes = 5000
         let content = (0..<fileBytes).map { UInt8(truncatingIfNeeded: $0 &* 7 &+ 1) }
         _ = FileManager.default.createFile(atPath: path, contents: Data(content))
         defer { unlink(path) }
@@ -28,7 +25,7 @@ import Testing
         let bytes = at.assumingMemoryBound(to: UInt8.self)
         #expect((0..<fileBytes).allSatisfy { bytes[$0] == content[$0] })
         #expect((fileBytes..<total).allSatisfy { bytes[$0] == 0 })
-        bytes[total - 1] = 9  // private and writable to the end
+        bytes[total - 1] = 9
         #expect(bytes[total - 1] == 9)
     }
 }

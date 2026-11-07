@@ -3,27 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/SCSetupOnboard.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// First-run setup wizard: Overview → Git Executable → GitHub Token,
-/// with Next / Previous and Save and Continue.
-///
-/// Adaptations for the destination:
-/// - Legacy read/wrote `@EnvironmentObject AppSettings` (gitPath,
-///   httpsAuthToken) + `KeychainService`. This port stores the git path in
-///   the `git_executable_path` UserDefaults key — the same key
-///   `GitRepository.resolvedGitPath()` reads — and the GitHub token in the
-///   `SecretStore` under `SecretAccount.githubToken` (the same account
-///   `GitHubClient(tokenProvider:)` reads), so both settings take effect
-///   immediately.
-/// - Git detection uses `GitRepository.isGitInstalled()` (staged Group A
-///   addition) plus a browse button (NSOpenPanel) to pick the git binary.
-/// - Legacy-only `.sourceControlEmbedded()` / `.liquidGlass` dropped.
-///
-/// Hook: present from the app's first-run / welcome flow when git is not
-/// installed or no GitHub token is stored; `onFinished` continues into
-/// the workspace.
 @MainActor
 public struct SCSetupOnboard: View {
     public var store: SecretStore

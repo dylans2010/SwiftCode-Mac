@@ -1,10 +1,6 @@
 import Foundation
 import SwiftCodeSyntax
 
-// Measures SwiftCodeSyntax on a generated 20,000-line Swift file
-// (specs/ide/source-editor.md, "SwiftCode implementation", Performance).
-// Build in release: swift build -c release --product swiftcode-syntax-bench
-
 func ms(_ seconds: Double) -> String { String(format: seconds < 0.001 ? "%.4f" : "%.2f", seconds * 1000) }
 func time(_ body: () -> Void) -> Double {
     let t0 = Date()
@@ -25,7 +21,7 @@ for k in 0..<30 {
 print("incremental, per keystroke: lexical \(ms(lexical / 30)) ms, parser pass \(ms(parser / 30)) ms (\(doc.lastUpdate.linesLexed) lines re-classified)")
 @MainActor func returnCost(line: Int) -> Double {
     let caret = doc.lineRange(line).upperBound
-    _ = TypingRules.newline(in: doc, selection: NSRange(location: caret, length: 0), options: TypingOptions())   // fills the event cache
+    _ = TypingRules.newline(in: doc, selection: NSRange(location: caret, length: 0), options: TypingOptions())
     return time { for _ in 0..<30 { _ = TypingRules.newline(in: doc, selection: NSRange(location: caret, length: 0), options: TypingOptions()) } } / 30
 }
 let inside = (source as NSString).range(of: "    let value: Int = 70000").location

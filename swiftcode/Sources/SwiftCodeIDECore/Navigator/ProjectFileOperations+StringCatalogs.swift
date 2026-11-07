@@ -3,19 +3,11 @@ import SwiftCodePlist
 import SwiftCodeProject
 import SwiftCodeStrings
 
-/// A `.strings`/`.stringsdict` table of a project: Edit ▸ Convert ▸ To
-/// String Catalogs… lists these. See `specs/ide/string-catalog.md`, "SwiftCode
-/// implementation".
 public struct LegacyStringTable: Equatable, Sendable, Identifiable {
-    /// The table name (`Localizable`, `InfoPlist`).
     public var name: String
-    /// The folder holding the table's `.lproj` folders; the catalog goes here.
     public var directory: String
-    /// Every file of the table: (language, path), `.strings` and `.stringsdict`.
     public var files: [File]
-    /// The variant groups that hold the files (none in a synchronized folder).
     public var groupIDs: [String]
-    /// The targets the table is in, and their names.
     public var targetIDs: [String]
     public var targetNames: [String]
 
@@ -30,16 +22,11 @@ public struct LegacyStringTable: Equatable, Sendable, Identifiable {
 }
 
 extension ProjectFileOperations {
-    /// The project's development region (`developmentRegion`), else `en`.
     public var developmentRegion: String {
         guard let project, let root = project[project.rootObject] else { return "en" }
         return root.string("developmentRegion") ?? "en"
     }
 
-    /// The `.strings`/`.stringsdict` tables of the project: variant groups
-    /// named `<table>.strings` or `<table>.stringsdict` (not the strings of
-    /// Interface Builder files), and `.lproj` tables inside synchronized
-    /// folders. Grouped by folder and name, sorted by path.
     public func legacyStringTables() -> [LegacyStringTable] {
         guard let project else { return [] }
         let parents = project.parentMap()
@@ -69,7 +56,6 @@ extension ProjectFileOperations {
                 add(name: name, file: .init(language: language, path: path), group: g.id, targetIDs: inTargets)
             }
         }
-        // Synchronized folders: the tables on disk.
         for f in project.objects.values where f.isa == "PBXFileSystemSynchronizedRootGroup" {
             guard let root = resolved(f.id) else { continue }
             let inTargets = targets(of: project.targets.filter { $0.references("fileSystemSynchronizedGroups").contains(f.id) }.map(\.id))
@@ -93,12 +79,10 @@ extension ProjectFileOperations {
         }.sorted { $0.id < $1.id }
     }
 
-    /// The catalog a table converts to (and the converter's warnings).
     public func catalog(for table: LegacyStringTable, sourceLanguage: String? = nil) throws -> (StringCatalog, [StringCatalogConverter.Warning]) {
         let source = sourceLanguage ?? developmentRegion
         var byLanguage: [String: (strings: String?, stringsdict: String?)] = [:]
         for f in table.files {
-            // `Base.lproj` strings belong to the development language.
             let lang = f.language == "Base" ? source : f.language
             var e = byLanguage[lang] ?? (nil, nil)
             if f.path.hasSuffix(".stringsdict") { e.stringsdict = f.path } else { e.strings = f.path }
@@ -110,10 +94,6 @@ extension ProjectFileOperations {
         return StringCatalogConverter.catalog(sourceLanguage: source, tables: tables)
     }
 
-    /// To String Catalogs: each table becomes `<folder>/<table>.xcstrings`
-    /// in the table's targets, where its first variant group was; the
-    /// variant groups leave the project and their files (and `.lproj`
-    /// folders left empty) go to the trash. Undoable.
     public mutating func convertToStringCatalogs(_ tables: [LegacyStringTable], sourceLanguage: String? = nil) throws -> ProjectEdit {
         guard isProject, !tables.isEmpty else { throw NavigatorEditError.notAllowed("Select the string tables to convert.") }
         for t in tables where FileManager.default.fileExists(atPath: t.catalogPath) {
@@ -150,9 +130,6 @@ extension ProjectFileOperations {
 }
 
 extension PBXProj {
-    /// The Swift, Objective-C and C sources of the targets that hold the
-    /// file at `path` (a catalog): their Sources phases and their
-    /// synchronized folders. "Refresh from source" extracts from these.
     public func localizableSourceFiles(forResourceAt path: String, projectDirectory: URL) -> [String] {
         let exts: Set<String> = ["swift", "m", "mm", "c", "cc", "cpp"]
         let targetIDs = Set(targetMemberships(ofFile: path, projectDirectory: projectDirectory).filter(\.isMember).map(\.targetID))

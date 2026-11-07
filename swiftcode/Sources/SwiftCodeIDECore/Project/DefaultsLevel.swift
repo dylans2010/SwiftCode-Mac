@@ -4,18 +4,9 @@ import SwiftCodePlist
 import SwiftCodeProject
 import SwiftCodeXcodebuild
 
-/// The Levels view's "Defaults" column: the build system's own default for
-/// each setting. Source: swift-build's exported settings (through the
-/// `swiftcode-swb` helper) for a copy of the project whose configurations keep
-/// only `SDKROOT` — so every other value comes from the build system's
-/// specifications. See `specs/ide/project-editor.md` §Build Settings.
 public enum DefaultsLevel {
-    /// Settings the copy keeps: they select the platform, whose specs
-    /// provide the defaults.
     static let kept: Set<String> = ["SDKROOT", "SUPPORTED_PLATFORMS"]
 
-    /// The project with every configuration emptied except `kept`, and no
-    /// xcconfig files.
     public static func stripped(_ proj: PBXProj) -> PBXProj {
         var p = proj
         for (id, var obj) in p.objects where obj.isa == "XCBuildConfiguration" {
@@ -28,9 +19,6 @@ public enum DefaultsLevel {
         return p
     }
 
-    /// Default values for `target` (nil: the first target) in
-    /// `configuration`. Paths under the scratch copy are mapped back to the
-    /// real project's directory.
     public static func swiftBuildDefaults(proj: PBXProj, xcodeprojURL: URL, target: String?, configuration: String,
                                           helper: String) throws -> [String: String] {
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-defaults-\(UUID().uuidString)")

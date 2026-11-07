@@ -1,14 +1,8 @@
-/**
- * SwiftCode OpenAI Codex SDK Node Bridge
- * Runs a local server on port 3003 and handles communication between SwiftCode and OpenAI Codex.
- */
-
 const http = require('http');
 const { OpenAI } = require('openai');
 
 const PORT = 3003;
 
-// Log helper
 function log(msg) {
   console.log(`[CodexBridge] [${new Date().toISOString()}] ${msg}`);
 }
@@ -18,7 +12,6 @@ function errorLog(msg) {
 }
 
 const server = http.createServer(async (req, res) => {
-  // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -31,14 +24,12 @@ const server = http.createServer(async (req, res) => {
 
   log(`Received ${req.method} request on ${req.url}`);
 
-  // Health check endpoint
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', version: '1.0.0' }));
     return;
   }
 
-  // Chat completions endpoint
   if (req.url === '/v1/chat/completions' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => {
@@ -74,7 +65,7 @@ const server = http.createServer(async (req, res) => {
 
           try {
             const stream = await openai.chat.completions.create({
-              model: model.includes('codex') ? 'gpt-4o' : model, // Fallback to compatible model if testing with standard keys
+              model: model.includes('codex') ? 'gpt-4o' : model,
               messages: messages,
               stream: true
             });
@@ -119,7 +110,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Not found
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: { message: 'Endpoint not found.' } }));
 });

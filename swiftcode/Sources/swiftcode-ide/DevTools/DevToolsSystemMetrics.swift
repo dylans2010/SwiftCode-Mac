@@ -3,15 +3,7 @@ import Foundation
 import Darwin
 #endif
 
-/// Real host/process metrics for the ported monitor views.
-///
-/// Legacy's monitor views reported hardcoded or random numbers (CPU usage
-/// was `Double.random(in: 4...45)`, FPS was `Int.random(in: 118...120)`).
-/// These helpers read the live values from Mach on macOS and return `nil`
-/// where the platform has no equivalent, so callers show an honest
-/// "not available" state instead of inventing numbers.
 enum DevToolsSystemMetrics {
-    /// Overall host CPU busy percentage (user + system + nice), 0–100.
     static func hostCPULoadPercent() -> Double? {
         #if os(macOS)
         var info = host_cpu_load_info()
@@ -34,7 +26,6 @@ enum DevToolsSystemMetrics {
         #endif
     }
 
-    /// This process's resident memory, in megabytes.
     static func taskResidentMemoryMB() -> Double? {
         #if os(macOS)
         var taskInfo = mach_task_basic_info()
@@ -51,7 +42,6 @@ enum DevToolsSystemMetrics {
         #endif
     }
 
-    /// This process's live thread count.
     static func taskThreadCount() -> Int? {
         #if os(macOS)
         var threads: thread_act_array_t?

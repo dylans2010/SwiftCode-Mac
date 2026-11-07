@@ -1,8 +1,5 @@
-/// Errors decoding the fixed-layout blocks shared with the guest.
 public enum DarwinABIError: Error, Equatable, Sendable, CustomStringConvertible {
-    /// The buffer is shorter than the block.
     case truncated(what: String, expected: Int, actual: Int)
-    /// The boot info magic does not match.
     case badMagic(UInt64)
 
     public var description: String {
@@ -13,16 +10,10 @@ public enum DarwinABIError: Error, Equatable, Sendable, CustomStringConvertible 
     }
 }
 
-/// The boot info block the VMM writes at `VMLayout.bootInfoGPA` and passes to
-/// the shim in `x0`. All fields are little-endian u64.
-/// See `specs/simulator/vm-shim-protocol.md` §4.
 public struct BootInfo: Equatable, Sendable {
-    /// ASCII "YCDBOOT1" read as a little-endian u64.
     public static let magic: UInt64 = 0x3154_4F4F_4244_4359
-    /// The encoded size: 20 u64 fields.
     public static let byteCount = 160
 
-    /// Byte offsets of the fields.
     public enum Offset {
         public static let magic = 0
         public static let ttbr0EL1 = 8
@@ -35,7 +26,6 @@ public struct BootInfo: Equatable, Sendable {
         public static let doorbellAddress = 64
         public static let tpidrroEL0 = 72
         public static let tpidrEL0 = 80
-        /// `x0`…`x7`, 8 × u64 (bytes 88–151).
         public static let el0Registers = 88
         public static let el1StackTop = 152
     }
@@ -50,8 +40,6 @@ public struct BootInfo: Equatable, Sendable {
     public var doorbellAddress: UInt64
     public var tpidrroEL0: UInt64
     public var tpidrEL0: UInt64
-    /// Initial EL0 `x0`…`x7`. Missing entries encode as 0; entries past the
-    /// eighth are ignored.
     public var el0Registers: [UInt64]
     public var el1StackTop: UInt64
 
@@ -83,7 +71,6 @@ public struct BootInfo: Equatable, Sendable {
         self.el1StackTop = el1StackTop
     }
 
-    /// Decodes a block, checking its size and magic.
     public init(decoding bytes: [UInt8]) throws {
         guard bytes.count >= Self.byteCount else {
             throw DarwinABIError.truncated(what: "boot info", expected: Self.byteCount, actual: bytes.count)
@@ -104,7 +91,6 @@ public struct BootInfo: Equatable, Sendable {
         el1StackTop = readLE(bytes, at: Offset.el1StackTop)
     }
 
-    /// The 160-byte little-endian block.
     public func encoded() -> [UInt8] {
         var b: [UInt8] = []
         b.reserveCapacity(Self.byteCount)
@@ -118,14 +104,11 @@ public struct BootInfo: Equatable, Sendable {
     }
 }
 
-// MARK: Little-endian helpers shared by the module
-
 @inline(__always)
 func appendLE(_ v: UInt64, to bytes: inout [UInt8]) {
     for i in 0..<8 { bytes.append(UInt8(truncatingIfNeeded: v >> (8 * UInt64(i)))) }
 }
 
-/// Reads a little-endian u64. The caller has checked the bounds.
 @inline(__always)
 func readLE(_ bytes: [UInt8], at offset: Int) -> UInt64 {
     var v: UInt64 = 0
@@ -133,5 +116,4 @@ func readLE(_ bytes: [UInt8], at offset: Int) -> UInt64 {
     return v
 }
 
-/// `0x` followed by lowercase hex digits.
 func hex<T: BinaryInteger>(_ v: T) -> String { "0x" + String(v, radix: 16) }

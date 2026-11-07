@@ -2,15 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeBuild
 
-// MARK: - Build scheme discovery (Wave 16, Slice D)
-//
-// Fixtures only: a stub `-list` runner, plus temporary
-// `.xcodeproj` / `.xcworkspace` bundles with minimal `.xcscheme`
-// files. No real `xcodebuild` is ever run.
-
 @Suite struct XcodeSchemeDiscoveryTests {
-    /// A stub `-list` runner returning canned JSON (or nil for
-    /// "the tool cannot run").
     struct StubRunner: XcodebuildListRunner {
         var json: Data?
         func listJSON(containerArgs: [String], workingDirectory: URL) async -> Data? { json }
@@ -48,8 +40,6 @@ import Testing
         return url
     }
 
-    // MARK: - `-list` JSON parsing
-
     @Test func parseListJSONProjectShape() {
         let data = """
         {"project": {"name": "App", "targets": ["App"], "configurations": ["Debug"], "schemes": ["App", "AppTests"]}}
@@ -70,8 +60,6 @@ import Testing
         #expect(XcodeSchemeDiscovery.parseListJSON("{\"project\": {}}".data(using: .utf8)!) == [])
     }
 
-    // MARK: - File discovery
-
     @Test func listSchemesFromProjectFiles() throws {
         let root = Self.tmpRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -87,7 +75,6 @@ import Testing
         _ = try Self.makeProject(at: root, name: "App", schemes: ["App"])
         _ = try Self.makeProject(at: root, name: "Kit", schemes: ["Kit", "App"])
         let discovery = XcodeSchemeDiscovery()
-        // Workspace-level + both sibling projects, deduplicated.
         #expect(discovery.listSchemes(container: .workspace(ws.path)) == ["App", "Kit", "Shared"])
     }
 
@@ -95,8 +82,6 @@ import Testing
         let discovery = XcodeSchemeDiscovery()
         #expect(discovery.listSchemes(container: .package("/tmp/SomePackage")) == [])
     }
-
-    // MARK: - Resolution precedence
 
     @Test func explicitSchemeWinsWhenKnown() async throws {
         let root = Self.tmpRoot()
@@ -133,8 +118,6 @@ import Testing
         {"project": {"schemes": ["App", "AppTests"]}}
         """.data(using: .utf8)!
         let discovery = XcodeSchemeDiscovery(listRunner: StubRunner(json: listed))
-        // "AppTarget" is a target name, not a scheme: it must not
-        // be used blindly when a real scheme list exists.
         let resolved = await discovery.resolveScheme(explicit: "AppTarget", container: .project(proj.path))
         #expect(resolved.scheme == "App")
         #expect(resolved.source == .listed)
@@ -162,8 +145,6 @@ import Testing
         #expect(resolved.scheme == "Empty")
         #expect(resolved.source == .containerName)
         #expect(resolved.reason?.contains("No schemes could be discovered") == true)
-        // A requested target is the last-resort fallback, with the
-        // reason saying so.
         let targeted = await discovery.resolveScheme(explicit: "MyTarget", container: .project(proj.path))
         #expect(targeted.scheme == "MyTarget")
         #expect(targeted.source == .containerName)

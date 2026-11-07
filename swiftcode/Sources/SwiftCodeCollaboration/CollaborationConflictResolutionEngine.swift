@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/CollaborationConflictResolutionEngine.swift
-// Adapted for SwiftCode: Conflict detection/resolution. Verbatim.
-
 import Foundation
 
 public struct ConflictResolution: Identifiable, Codable, Equatable {

@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Native plugins (spec §7.3)
-
 public struct NativePluginManifest: Codable, Hashable, Sendable {
     public let id: String
     public let name: String
@@ -20,7 +18,6 @@ public struct NativePluginManifest: Codable, Hashable, Sendable {
         self.capabilities = capabilities
     }
 
-    /// Derived metadata: publisher `"swiftcode"`, kind `.native`.
     public var metadata: ExtensionMetadata {
         ExtensionMetadata(publisher: "swiftcode", name: id, version: version,
                           displayName: name, description: description, kind: .native)
@@ -45,11 +42,6 @@ public struct NativePluginContext: Sendable {
     }
 }
 
-/// Trust boundary (stated plainly in Legacy, kept): plugins compiled
-/// into the app run in-process and are trusted exactly as much as the
-/// app itself. **Third-party native code is NOT loaded in-process** —
-/// there is no dynamic bundle loading. Untrusted code ships as a VS
-/// Code extension through the out-of-process host.
 public protocol NativePlugin: Sendable {
     static var manifest: NativePluginManifest { get }
     init()
@@ -84,14 +76,12 @@ public final class NativePluginRegistry {
 
     public init() {}
 
-    /// Dedupe by manifest; instantiates the plugin.
     public func register<Plugin: NativePlugin>(_ type: Plugin.Type) {
         guard !manifests.contains(where: { $0.id == Plugin.manifest.id }) else { return }
         manifests.append(Plugin.manifest)
         instances.append(type.init())
     }
 
-    /// Activation failure per plugin is logged, never fatal.
     public func activateAll(workspaceRoot: URL?, workspace: WorkspaceBridge?,
                             permissions: PermissionManager) async {
         for (index, instance) in instances.enumerated() {
@@ -124,10 +114,6 @@ public final class NativePluginRegistry {
     }
 }
 
-/// Sample plugin (spec §7.3): id `sample.workspace-lister`, one
-/// command `extv2.sample.listWorkspace` listing up to 50 workspace
-/// files (sorted), or "No workspace is open." / "Workspace is empty.".
-/// The workspace check happens when the command runs, not at activation.
 public struct SamplePlugin: NativePlugin {
     public static let manifest = NativePluginManifest(
         id: "sample.workspace-lister",
@@ -152,8 +138,6 @@ public struct SamplePlugin: NativePlugin {
         }
     }
 }
-
-// MARK: - Assist bridge (spec §7.1)
 
 public struct AssistCapabilityDescriptor: Sendable {
     public let toolId: String
@@ -181,9 +165,6 @@ public struct AssistCapabilityDescriptor: Sendable {
         self.isReadOnly = isReadOnly
     }
 
-    /// Missing required params and wrong primitive types
-    /// (`string`/`number`/`boolean`) are caller errors, thrown before
-    /// any execution. Unknown parameter types are ignored (no check).
     public func validate(input: [String: Any]) throws {
         for required in requiredParameters where input[required] == nil {
             throw SwiftCodeExtensionError.invalidRequest("Missing required parameter '\(required)'.")
@@ -204,21 +185,13 @@ public struct AssistCapabilityDescriptor: Sendable {
                     throw SwiftCodeExtensionError.invalidRequest("Parameter '\(name)' must be a boolean.")
                 }
             default:
-                break // Unknown parameter types are ignored.
+                break
             }
         }
     }
 }
 
-/// The only registration path: validated descriptors into the
-/// existing tool registry — there is no parallel tool system. In SwiftCode
-/// that means the MCP tool catalogue (`SwiftCodeMCP`); this target only
-/// builds and validates descriptors. Args are encoded as one JSON
-/// object everywhere (deviation D-10: the Legacy `"key=value"` form
-/// is not used).
 public enum AssistBridge {
-    /// `"extv2." + (extensionId + "." + command)` with every
-    /// non-letter/digit/`.` character replaced by `_`.
     public static func toolId(for extensionId: String, command: String) -> String {
         let raw = "extv2.\(extensionId).\(command)"
         return raw.map { character in
@@ -226,12 +199,6 @@ public enum AssistBridge {
         }.reduce(into: "") { $0.append($1) }
     }
 
-    /// Defaults: name = command title, description =
-    /// `"Extension command '<command>' from <extensionId>."`,
-    /// parameters empty, required empty, `isReadOnly: true`. Every
-    /// extension command registers as a read-only tool with no
-    /// parameters and no required capabilities unless the caller says
-    /// otherwise.
     public static func descriptor(for command: ExtensionContributionCommand, extensionId: String,
                                   requiredCapabilities: [ExtensionCapability] = [],
                                   isReadOnly: Bool = true) -> AssistCapabilityDescriptor {
@@ -243,20 +210,8 @@ public enum AssistBridge {
             requiredCapabilities: requiredCapabilities, isReadOnly: isReadOnly)
     }
 
-    /// WIRING (wiring-backend): the real registration, installed from
-    /// the MCP side. SwiftCodeExtensions cannot depend on SwiftCodeMCP
-    /// (the dependency runs the other way: SwiftCodeMCP depends on
-    /// SwiftCodeExtensions), so the bridge is a handler this target
-    /// calls and SwiftCodeMCP fills in: `ExtV2AssistBridge
-    /// .installRegistrationHandler()` (called from
-    /// `SwiftCodeMCPHost.init`) sets it to register the descriptor's
-    /// tool in `AssistToolRegistry.shared`. Until it is installed —
-    /// a host without the MCP layer — registration still only
-    /// permission-checks, exactly as before.
     @MainActor public static var registrationHandler: ((AssistCapabilityDescriptor, PermissionManager) -> Bool)?
 
-    /// Returns `false` (and logs a warning) when `.assistTools` is
-    /// not granted — registration is a privileged act, not a default.
     @MainActor
     public static func register(_ descriptor: AssistCapabilityDescriptor,
                                 permissions: PermissionManager) -> Bool {
@@ -273,11 +228,6 @@ public enum AssistBridge {
     }
 }
 
-// MARK: - Provider registry (spec §8.4)
-
-/// Provider registrations the editor consults
-/// (completion/hover/diagnostics only). Definition/reference/
-/// formatting/code-action providers have no registry storage at all.
 public struct ExtensionDiagnostic: Codable, Hashable, Sendable {
     public let relativePath: String
     public let range: TextRange
@@ -305,15 +255,11 @@ public final class ProviderRegistry {
 
     public init() {}
 
-    /// Replaces the whole list for a path (cross-extension overwrite:
-    /// a second extension publishing for the same path replaces the
-    /// first's diagnostics — observed behaviour, D-13).
     public func publishDiagnostics(extensionId: String, relativePath: String,
                                    diagnostics: [ExtensionDiagnostic]) {
         self.diagnostics[relativePath] = diagnostics
     }
 
-    /// Last registration wins per language.
     public func registerCompletionProvider(extensionId: String, language: String) {
         completionProviders[language] = extensionId
     }

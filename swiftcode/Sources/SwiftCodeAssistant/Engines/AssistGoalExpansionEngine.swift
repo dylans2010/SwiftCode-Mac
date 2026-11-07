@@ -1,23 +1,6 @@
-// Ported from SwiftCode-Legacy (Dylan's own code; direct port authorised under MIT):
-// SwiftCode/Backend/Assist/Assist Frameworks/AssistGoalExpansionEngine.swift @ d51a8f0d.
-// Staged for SwiftCodeAssistant; not yet wired in. Depends on AssistContext,
-// AssistExecutionPlan, AssistGoal, GoalProvenance, AssistGoalSafeguards,
-// AssistModelManager, AgentModelAdapter and DiagnosticEventBus, none of which
-// exists in the destination yet (see assist-frameworks-MANIFEST.md).
-// AssistGoalGraph / AssistTakeoverSessionState ARE ported in this same batch
-// (AssistTaskContinuationEngine.swift), so those references resolve once
-// both staged files land in SwiftCodeAssistant.
-// RESOLVED 2026-11-06 (agent-frameworks pass): DiagnosticEventBus is now staged
-// in SwiftCodeAssistant (DiagnosticEvent.swift). Still blocked: AssistModelManager
-// and AgentModelAdapter (no same-target equivalent; see
-// _notes/agent-frameworks-decisions.md); AssistContext/AssistExecutionPlan/
-// AssistGoal/GoalProvenance/AssistGoalSafeguards are now staged in AssistModels.swift
-// by the parallel port (see _notes/agent-models-decisions.md).
 import Foundation
 import os
 
-/// Automatically evaluates completed tasks, generates logical follow-up goals,
-/// enforces anti-runaway safeguards, and expands task scope under continuous autonomous takeover.
 @MainActor
 public final class AssistGoalExpansionEngine: Sendable {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistGoalExpansionEngine")
@@ -25,7 +8,6 @@ public final class AssistGoalExpansionEngine: Sendable {
     public init() {}
     public init(context: AssistContext) {}
 
-    /// Backward-compatible overload for legacy Assist engine workflows.
     public func expandGoals(
         originalGoal: String,
         completedPlan: AssistExecutionPlan? = nil
@@ -87,7 +69,6 @@ public final class AssistGoalExpansionEngine: Sendable {
         return expanded.map { $0.title }
     }
 
-    /// Generates structured follow-up goals based on a completed goal and repository observations.
     public func expandGoals(
         completedGoal: AssistGoal,
         existingGoals: [AssistGoal],
@@ -104,13 +85,11 @@ public final class AssistGoalExpansionEngine: Sendable {
 
         let currentDepth = completedGoal.provenance.generationDepth + 1
 
-        // Check if safeguards prevent further expansion before prompting
         if existingGoals.count >= AssistGoalSafeguards.maxTotalExpandedGoals || currentDepth > AssistGoalSafeguards.maxDepth {
             logger.warning("[GoalExpansion] Safeguards limit reached. Halting autonomous expansion.")
             return []
         }
 
-        // Try AI-driven candidate generation first
         var candidatePairs: [(title: String, objective: String, reason: String, expected: String)] = []
 
         let prompt = """
@@ -145,7 +124,6 @@ public final class AssistGoalExpansionEngine: Sendable {
             logger.warning("[GoalExpansion] Model query for expansion failed or offline: \(error.localizedDescription). Falling back to deterministic synthesis.")
         }
 
-        // Fallback: Deterministic engineering synthesis if model output is unavailable
         if candidatePairs.isEmpty {
             candidatePairs = synthesizeDeterministicCandidates(
                 completedGoal: completedGoal,
@@ -201,7 +179,6 @@ public final class AssistGoalExpansionEngine: Sendable {
         return validatedGoals
     }
 
-    /// Deterministic heuristics for continuous engineering when LLM is unavailable or offline.
     private func synthesizeDeterministicCandidates(
         completedGoal: AssistGoal,
         modifiedFiles: [String]
@@ -210,7 +187,6 @@ public final class AssistGoalExpansionEngine: Sendable {
 
         let swiftFiles = modifiedFiles.filter { $0.hasSuffix(".swift") && !$0.contains("Test") }
 
-        // Heuristic 1: Add Unit Tests
         if !swiftFiles.isEmpty {
             let primaryFile = (swiftFiles.first as NSString?)?.lastPathComponent ?? "Component"
             let componentName = primaryFile.replacingOccurrences(of: ".swift", with: "")
@@ -222,7 +198,6 @@ public final class AssistGoalExpansionEngine: Sendable {
                 expected: "All unit tests compile and pass successfully."
             ))
 
-            // Heuristic 2: Edge Case Hardening
             candidates.append((
                 title: "Harden Edge Cases for \(componentName)",
                 objective: "Add input validation, concurrency safety, and error handling to \(componentName) covering boundary and failure conditions.",
@@ -230,7 +205,6 @@ public final class AssistGoalExpansionEngine: Sendable {
                 expected: "Edge cases handled with zero compiler warnings."
             ))
         } else if !modifiedFiles.isEmpty {
-            // Heuristic 3: Architecture Documentation
             candidates.append((
                 title: "Document Architecture and Interface Contracts",
                 objective: "Add DocC and documentation comments for public interfaces modified during the task.",
@@ -252,7 +226,6 @@ public final class AssistGoalExpansionEngine: Sendable {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        // Attempt array decode
         if let data = cleaned.data(using: .utf8),
            let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
             return array.compactMap { dict in
@@ -264,7 +237,6 @@ public final class AssistGoalExpansionEngine: Sendable {
             }
         }
 
-        // Check for markdown code fences
         if let jsonBlock = AgentModelAdapter.shared.extractJSON(from: response) {
             if let title = jsonBlock["title"] as? String,
                let obj = jsonBlock["objective"] as? String {

@@ -1,20 +1,6 @@
 import Foundation
 import Observation
 
-/// Lightweight code intelligence for the active file and the workspace
-/// (Legacy `CodeIntelligenceEngine` + `SymbolIndexingEngine`, Dylan's own
-/// code, ported under MIT). Both are deliberately small, line-based
-/// indexes — not a replacement for the destination's symbol search
-/// (`symbol_search` MCP tool) or SwiftSyntax parsing. They exist for the
-/// Advanced Tools views, which show completions, detected symbols and a
-/// searchable symbol list without waiting on a full index build.
-///
-/// Porting changes: `SymbolIndexingEngine.index(project:)` took Legacy's
-/// `Project`/`FileNode`; this port indexes a workspace root URL directly
-/// and reads `.swift` files from disk. `CodeIntelligenceEngine` is
-/// unchanged in behaviour.
-
-/// One indexed symbol (Legacy `IndexedSymbol`).
 public struct IndexedSymbol: Identifiable, Sendable {
     public let id = UUID()
     public let name: String
@@ -30,8 +16,6 @@ public struct IndexedSymbol: Identifiable, Sendable {
     }
 }
 
-/// Indexes the declarations of one file's text for completions and quick
-/// docs (Legacy `CodeIntelligenceEngine`).
 @Observable
 @MainActor
 public final class CodeIntelligenceEngine {
@@ -71,11 +55,6 @@ public final class CodeIntelligenceEngine {
     }
 }
 
-/// Indexes every Swift symbol under a workspace root (Legacy
-/// `SymbolIndexingEngine`). Parses only top-level declaration lines
-/// (`struct`/`class`/`enum`/`protocol`/`func`/`var`/`let`); nested and
-/// extension-member declarations are not recognised, and results are
-/// sorted by file then line.
 @Observable
 @MainActor
 public final class SymbolIndexingEngine {

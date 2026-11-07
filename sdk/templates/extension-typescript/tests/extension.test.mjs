@@ -1,7 +1,3 @@
-// Extension lifecycle tests — run with `node --test tests/` AFTER `npm run build`.
-// Loads the real compiled dist/index.js and exercises activate/deactivate
-// through a recording test harness (test double at the unit-test boundary,
-// per spec §12.5 — the extension code under test is the real compiled code).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -11,9 +7,6 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const extensionUrl = pathToFileURL(path.join(root, "dist", "index.js")).href;
 const { default: extension } = await import(extensionUrl);
 
-// Minimal harness shaped like the host's SwiftCodeContext surface used here:
-// commands.register records and returns a disposable; other surfaces throw
-// so any accidental call to an unimplemented surface fails loudly.
 function makeContext() {
   const disposed = [];
   const registered = [];
@@ -72,7 +65,7 @@ describe("extension", () => {
     for (const command of registered) {
       assert.equal(typeof command.execute, "function");
     }
-    await extension.deactivate(); // leave a clean slate for other tests
+    await extension.deactivate();
   });
 
   it("deactivate disposes every registration", async () => {
@@ -112,9 +105,6 @@ describe("extension", () => {
   });
 });
 
-// Working harness for the command handlers: records every call the handlers
-// make against the host API surface, so the tests prove the handlers use the
-// real contract (method names, payload shapes, streaming iteration).
 function makeLiveContext({
   status,
   buildResult,
@@ -230,7 +220,7 @@ describe("command handlers", () => {
     const command = registered.find((c) => c.id === "inspect-repository");
     const result = await command.execute();
     assert.equal(calls.getStatus, 1);
-    assert.equal(result, status); // no fabrication: the host object is returned as-is
+    assert.equal(result, status);
     assert.deepEqual(calls.logged, [["Repository status retrieved", { isRepository: true }]]);
     await extension.deactivate();
   });
@@ -256,7 +246,6 @@ describe("command handlers", () => {
     await extension.activate(context);
     const command = registered.find((c) => c.id === "run-build");
     const result = await command.execute();
-    // Empty target = host resolves the default scheme of the open project.
     assert.deepEqual(calls.run, [{ target: "" }]);
     assert.deepEqual(
       calls.logged.map(([message]) => message),
@@ -282,7 +271,7 @@ describe("command handlers", () => {
     const command = registered.find((c) => c.id === "inspect-project");
     const result = await command.execute();
     assert.equal(calls.getCurrent, 1);
-    assert.equal(result, projectInfo); // no fabrication: the host object is returned as-is
+    assert.equal(result, projectInfo);
     assert.deepEqual(calls.logged, [["Project metadata requested", { hasProject: true }]]);
     await extension.deactivate();
   });
@@ -372,7 +361,6 @@ describe("command handlers", () => {
     const result = await command.execute();
     assert.deepEqual(calls.openView, ["docs.search"]);
     assert.deepEqual(result, { success: true });
-    // open-docs logs with no fields, so compare messages only (as run-build does).
     assert.deepEqual(
       calls.logged.map(([message]) => message),
       ["Documentation browser opened."]

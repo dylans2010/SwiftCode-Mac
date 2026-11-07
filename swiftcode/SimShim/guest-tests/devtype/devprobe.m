@@ -1,10 +1,3 @@
-// devprobe: prints what the guest believes about its device (SwiftCode's own
-// probe; specs/simulator/ipad.md §4.3 R4). Run as a one-shot after the home
-// screen: UIKit's idiom, model and system name, the main screen's size,
-// scale and frame rate, and MobileGestalt answers (looked up by their
-// public question names through MGCopyAnswer), then `launchctl list` (which
-// jobs run). `devprobe [S]` waits S seconds first, so that it can be passed
-// with other one-shots that must start at once.
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #include <dlfcn.h>
@@ -40,7 +33,6 @@ int main(int argc, char **argv) {
             line([NSString stringWithFormat:@"MG %@ = %@", q, o ? text : @"(nil)"]);
         }
     }
-    // The jobs that run (the runtime's launchctl; guest paths are host paths).
     const char *root = getenv("SIMULATOR_ROOT");
     char path[1024];
     snprintf(path, sizeof path, "%s/bin/launchctl", root ? root : "");

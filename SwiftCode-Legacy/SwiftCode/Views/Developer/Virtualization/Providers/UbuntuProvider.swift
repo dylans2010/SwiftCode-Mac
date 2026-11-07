@@ -17,7 +17,6 @@ public struct UbuntuProvider: OperatingSystemProvider {
 4. Launch the virtual machine and complete the on-screen Ubuntu server installation steps.
 """
 
-    // Expanded protocol metadata
     public let releaseNotes = "Ubuntu 24.04 LTS delivers optimized performance, increased security, and 12 years of security updates via Ubuntu Pro. Includes modern developer toolchains: Python 3.12, Go 1.22, Rust 1.75."
     public let minimumRequirements = "CPU: 2 Cores (64-bit) • Memory: 4 GB RAM • Storage: 25 GB free disk space."
     public let packageManagerGuide = "APT (Advanced Package Tool). Install packages using: `sudo apt update && sudo apt install <package-name>`. Search for packages using: `apt search <query>`."
@@ -25,7 +24,6 @@ public struct UbuntuProvider: OperatingSystemProvider {
     public let securityAdvisories = "Track official security updates at: https://ubuntu.com/security/notices. Automatic security patching can be enabled with unattended-upgrades."
     public let communityResources = "Ask Ubuntu forums: https://askubuntu.com. Canonical official support: https://ubuntu.com/support."
 
-    // Backward compatibility fields
     public let recommendedCores = 4
     public let recommendedMemoryMB = 8192
     public let recommendedStorageGB = 64

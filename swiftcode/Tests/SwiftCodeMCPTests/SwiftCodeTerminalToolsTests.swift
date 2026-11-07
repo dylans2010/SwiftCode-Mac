@@ -3,60 +3,17 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Terminal / system tools (Wave 4), each driven
-/// black-box through the server's real write-policy path against a
-/// copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `UseTermFunction`,
-/// `AssistTaskRunnerTool`, `AssistLogCaptureTool`,
-/// `AssistEnvironmentInfoTool`, `UseMCP`, `UseExtensionTool`,
-/// `AssistComposioTool`, `UseWorkersTool`,
-/// `AssistEnvironmentVariableManagerTool`,
-/// `AssistClipboardManagerTool`, `AssistProcessMonitorTool`,
-/// `AssistDiskSpaceAnalyzerTool`, `AssistSystemNotificationTool`,
-/// `AssistSystemTool`, `AssistTakeScreenshotTool`,
-/// `AssistTakeScreenrecordTool` and `AssistUseAppTool` (Dylan's own
-/// code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state),
-/// never on internals. Messages quoted verbatim are Legacy's; where
-/// the SwiftCode port may legitimately word a failure differently
-/// (path-safety wording, the no-shell deviation), the test asserts
-/// the behaviour plus a tolerant message match.
-///
-/// Platform notes: this machine has no Swift toolchain and the
-/// tests run on Linux here, so the macOS-only tools
-/// (`clipboard_manager_tool`, `system_notification_tool`,
-/// `take_screenshot`, `use_app`, and `use_system`'s macOS-only
-/// operations) assert their exact "only available on macOS"
-/// failure on Linux. Their real macOS behaviour — pasteboard
-/// round-trip, notification delivery, screen capture, app control,
-/// `log`/`launchctl`/`defaults`/sysctl — stays pending on Dylan's
-/// Mac (see the Wave 4 report). `system_notification_tool` is not
-/// exercised on macOS at all: it would post a real notification.
 @MainActor
 @Suite(.serialized) struct SwiftCodeTerminalToolsTests {
-    /// The 17 Wave 4 Terminal / system tool IDs, verified live from
-    /// the Legacy registry (`AssistToolRegistry.registerAllTools` +
-    /// each tool's `id`).
     static let terminalIDs = ["use_terminal", "task_runner", "env_capture_logs", "env_info", "use_mcp",
                               "use_extension", "use_composio", "use_workers", "environment_variable_manager",
                               "clipboard_manager_tool", "process_monitor_tool", "disk_space_analyzer",
                               "system_notification_tool", "use_system", "take_screenshot", "take_screenrecord",
                               "use_app"]
 
-    /// Opens a copy of Greeter and installs the ported terminal
-    /// tools on the server (same shape as Wave 2's `opened`; the
-    /// coordinator wires `terminalTools` into `installTools()`).
-    /// Defaults to `.allow`: most terminal tools are `writes: true`
-    /// (execution risk), so the read-only policy refuses them
-    /// before they run.
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` may already
-        // wire `terminalTools`, so a plain `+=` would register them
-        // twice.
         let ported = Set(host.terminalTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.terminalTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -64,7 +21,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -103,8 +59,6 @@ import SwiftCodeAssistant
             "take_screenshot": ["artifact_id", "base64", "capture_mode", "display_id", "format", "height", "path", "size_bytes", "width"],
             "take_screenrecord": [], "use_app": [],
         ]
-        // Legacy risk → annotations (catalogue §1.3, extended the
-        // way Wave 3 extended it for `.execution`).
         let readOnlyIDs: Set<String> = ["env_capture_logs", "env_info", "process_monitor_tool", "disk_space_analyzer",
                                         "system_notification_tool", "take_screenrecord"]
         for tool in tools {
@@ -121,16 +75,11 @@ import SwiftCodeAssistant
                 #expect(!tool.annotations.readOnly && tool.writes, "\(tool.name) must be a gated write/execution tool")
             }
         }
-        // The host serves them once installed (the coordinator wires
-        // `terminalTools` into `installTools()`; filter-first so they
-        // are not registered twice).
         let installed = Set(host.terminalTools.map(\.name))
         host.server.tools = host.server.tools.filter { !installed.contains($0.name) } + host.terminalTools
         let served = host.server.tools.map(\.name)
         for id in Self.terminalIDs { #expect(served.contains(id), "\(id) is not installed on the server") }
     }
-
-    // MARK: - `use_terminal`
 
     @Test func useTerminalRunsPlainCommandAsArgv() async throws {
         let sample = try TempSample()
@@ -189,8 +138,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError, "a writes:true execution tool must not run under the read-only policy")
     }
 
-    // MARK: - `task_runner`
-
     @Test func taskRunnerRunsTheFourRegisteredTasks() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -214,8 +161,6 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("task_runner", ["task_id": .string("nope")])
         #expect(r.isToolError && r.resultText.contains("Task 'nope' failed: Task 'nope' not found in registry."))
     }
-
-    // MARK: - `env_info`, `disk_space_analyzer`, `process_monitor_tool`
 
     @Test func envInfoReportsTypedEnvironment() async throws {
         let sample = try TempSample()
@@ -253,8 +198,6 @@ import SwiftCodeAssistant
         #expect(!filtered.isToolError && filtered.resultText.contains("No active processes matching"))
     }
 
-    // MARK: - `environment_variable_manager`
-
     @Test func environmentVariableManagerListsGetsAndSets() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -289,15 +232,11 @@ import SwiftCodeAssistant
         let set = try await host.server.callTool("environment_variable_manager",
                                                  ["action": .string("set"), "key": .string("FOO"), "value": .string("bar")])
         #expect(!set.isToolError, "\(set.resultText)")
-        // Legacy's exact line logic: an empty file splits to one
-        // empty line, so the new line is appended after it.
         #expect(sample.read(".env") == "\nFOO=bar")
         let missing = try await host.server.callTool("environment_variable_manager",
                                                      ["action": .string("list_keys"), "envFilePath": .string("nope.env")])
         #expect(!missing.isToolError && missing.resultText.contains("No nope.env file found in workspace."))
     }
-
-    // MARK: - macOS-only tools
 
     @Test func clipboardManagerIsMacOSOnlyHere() async throws {
         let sample = try TempSample()
@@ -348,10 +287,6 @@ import SwiftCodeAssistant
         let noConfirm = try await host.server.callTool("use_app", ["app_identifier": .string("Finder"), "action": .string("close_application")])
         #expect(noConfirm.isToolError && noConfirm.resultText.contains("Pass 'confirm: true' to authorize."))
         let click = try await host.server.callTool("use_app", ["app_identifier": .string("Finder"), "action": .string("click")])
-        // Gap closure: the click now reaches the real AX path, and
-        // its failure depends on Accessibility trust — untrusted
-        // fails naming Accessibility, trusted fails naming the
-        // missing target/coordinates (neither was passed).
         #expect(click.isToolError && (click.firstText.contains("Accessibility")
             || click.firstText.contains("Action requires either 'target' UI element or 'coordinates'.")))
     }
@@ -364,8 +299,6 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("take_screenshot", ["capture_mode": .string("region")])
         #expect(r.isToolError && r.resultText.contains("region-selection overlay"))
     }
-
-    // MARK: - `use_system`
 
     @Test func useSystemInfoDiskAndProcessList() async throws {
         let sample = try TempSample()
@@ -390,7 +323,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Port 1 on loopback refuses without any external network.
         let r = try await host.server.callTool("use_system", ["operation": .string("connectivity"), "target": .string("127.0.0.1"),
                                                               "parameters": .object(["port": .int(1)])])
         #expect(!r.isToolError, "\(r.resultText)")
@@ -443,23 +375,15 @@ import SwiftCodeAssistant
 #endif
     }
 
-    // MARK: - Honestly-failing tools
-
     @Test func envCaptureLogsReturnsEnvironmentAndSnapshotState() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
         let r = try await host.server.callTool("env_capture_logs")
-        // Gap closure: the tool now succeeds with the real process
-        // environment and the snapshot history (it used to fail
-        // naming its prerequisites).
         #expect(!r.isToolError, "\(r.firstText)")
         #expect(r.firstText.contains("Environment:") && r.firstText.contains("Workspace:"))
         let snapshotCount = r.structured?["snapshotCount"]?.int ?? -1
         #expect(snapshotCount >= 0)
-        // Snapshot history is global Application Support state, not
-        // workspace-scoped: the no-logs line appears only when it
-        // happens to be empty on this machine.
         if snapshotCount == 0 {
             #expect(r.firstText.contains("No logs found in snapshot history."))
         }
@@ -469,15 +393,10 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Gap closure: the list verb is `list_servers` (the old
-        // `list_tools` call no longer hits the list path).
         let list = try await host.server.callTool("use_mcp", ["serverName": .string("list"), "toolName": .string("list_servers"),
                                                               "arguments": .string("{}")])
         #expect(!list.isToolError, "\(list.firstText)")
         #expect(list.firstText.contains("No MCP servers are currently configured"))
-        // Gap closure: executing against a server now fails with the
-        // same no-servers message (it used to fail naming the
-        // external MCP client).
         let exec = try await host.server.callTool("use_mcp", ["serverName": .string("github"), "toolName": .string("list_repos"),
                                                              "arguments": .string("{}")])
         #expect(exec.isToolError && exec.firstText.contains("No MCP servers are currently configured"))
@@ -489,9 +408,6 @@ import SwiftCodeAssistant
         let host = try await opened(sample)
         let unknown = try await host.server.callTool("use_extension", ["action": .string("explode")])
         #expect(unknown.isToolError && unknown.resultText.contains("Unknown or missing action"))
-        // The host is wired in (SwiftCodeExtensions target + SwiftCodeMCP
-        // dependency, Slice B): `list` answers from the real store
-        // instead of failing.
         let list = try await host.server.callTool("use_extension", ["action": .string("list")])
         #expect(!list.isToolError, "\(list.resultText)")
     }

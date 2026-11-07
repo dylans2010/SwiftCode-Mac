@@ -1,11 +1,5 @@
 import Foundation
 
-/// An arbitrary JSON value, used for RPC params/results, manifest
-/// configuration defaults, and extension command arguments.
-///
-/// `int` and `double` are distinct cases: a value decoded from JSON
-/// keeps its integer form when it has no fraction, so `1` round-trips
-/// as `.int(1)` rather than `.double(1)`.
 public enum JSONValue: Codable, Hashable, Sendable {
     case null
     case bool(Bool)
@@ -77,7 +71,6 @@ public enum JSONValue: Codable, Hashable, Sendable {
     }
 }
 
-/// The single error type that escapes this target (spec §10).
 public enum SwiftCodeExtensionError: Error, LocalizedError, Sendable {
     case notInstalled(String)
     case disabled(String)

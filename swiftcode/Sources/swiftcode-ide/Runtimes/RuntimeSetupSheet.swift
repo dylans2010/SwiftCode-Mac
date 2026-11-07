@@ -6,15 +6,6 @@ import UniformTypeIdentifiers
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Window ▸ Downloads on Linux: the simulator runtime wizard
-/// (`runtime-onboarding.md` §11), the same session and checks as the macOS
-/// window, as the same paged assistant (`liquid-glass-swiftcode.md` §11): page
-/// dots that show each step's state and jump to it, a centred page with the
-/// step's glyph, title and summary over a 520-point column (checks in a
-/// grouped box), and Back, Close, Re-check and Continue in the footer. The
-/// page pushes in from the trailing edge going forward and from the leading
-/// edge going back (a crossfade under Reduce Motion). An action runs only
-/// after an alert that shows its exact command.
 struct RuntimeSetupSheet: View {
     static let size = CGSize(width: 760, height: 600)
     static let columnWidth: CGFloat = 520
@@ -23,10 +14,7 @@ struct RuntimeSetupSheet: View {
     var app: ShellAppModel
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Which way the page moves; read when a page enters and when it leaves.
     @State private var direction = PageDirection()
-    /// The step the page shows: follows the session's in an animated
-    /// transaction, so every step change moves the page.
     @State private var shownStep: RuntimeSetupStep?
     @State private var host = ""
     @State private var data = ""
@@ -40,8 +28,6 @@ struct RuntimeSetupSheet: View {
         VStack(spacing: 0) {
             dots(c).frame(height: 20).padding(.top, 20)
             ZStack {
-                // One conditional page per step, so a step change removes one
-                // page and inserts another, each with the page transition.
                 ForEach(RuntimeSetupStep.allCases, id: \.self) { step in
                     if step == (shownStep ?? session.step) {
                         page(c, step: step)
@@ -66,7 +52,6 @@ struct RuntimeSetupSheet: View {
         .sheet(isPresented: $isScriptShown) { scriptSheet(c) }
     }
 
-    /// The header (glyph, title, summary) and the column: what moves.
     func page(_ c: ShellColors, step: RuntimeSetupStep) -> some View {
         let checks = step == .download ? session.downloads.checks : session.report?.checks(in: step) ?? []
         return VStack(spacing: 0) {
@@ -108,22 +93,17 @@ struct RuntimeSetupSheet: View {
         .background(c.content)
     }
 
-    /// Shows `s`, moving the page the way the step lies: 0.3 s, or a 0.2 s
-    /// crossfade under Reduce Motion.
     func go(to s: RuntimeSetupStep) {
         let steps = session.steps
         let old = shownStep ?? session.step
         guard s != old, steps.contains(s) else { return }
         direction.forward = (steps.firstIndex(of: s) ?? s.rawValue) > (steps.firstIndex(of: old) ?? old.rawValue)
-        // One animated transaction for both changes: an update the session's
-        // change caused would otherwise carry no animation.
         withAnimation(.easeInOut(duration: reduceMotion ? 0.2 : 0.3)) {
             shownStep = s
             session.show(s)
         }
     }
 
-    /// A step change made elsewhere (the session, a driver): the page follows.
     func follow(_ new: RuntimeSetupStep) {
         guard shownStep != nil, shownStep != new else { return }
         go(to: new)
@@ -139,7 +119,6 @@ struct RuntimeSetupSheet: View {
         go(to: session.steps[i - 1])
     }
 
-    /// Rows in a grouped inset box: radius 10, a quiet fill, hairlines between rows.
     func group<Rows: View>(_ c: ShellColors, @ViewBuilder rows: () -> Rows) -> some View {
         VStack(alignment: .leading, spacing: 0) { rows() }
             .frame(width: Self.columnWidth, alignment: .leading)
@@ -167,11 +146,6 @@ struct RuntimeSetupSheet: View {
         session.setHost(h)
     }
 
-    // MARK: Steps
-
-    /// The page dots: one per step, the current one larger, each state its
-    /// own shape (ok a filled circle, missing a diamond, unknown a ring, not
-    /// applicable a bar); a click jumps to the step.
     func dots(_ c: ShellColors) -> some View {
         HStack(spacing: 2) {
             ForEach(Array(session.steps.enumerated()), id: \.offset) { pair in
@@ -347,9 +321,6 @@ struct RuntimeSetupSheet: View {
         }
     }
 
-    /// A command to run by hand: in a read-only field (it can be selected
-    /// there), with a Copy button that puts the whole command on the
-    /// clipboard, as the macOS window's.
     func commandLine(_ cmd: String, note words: String, _ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
@@ -555,10 +526,6 @@ struct RuntimeSetupSheet: View {
         .background(c.content)
     }
 
-    // MARK: Confirmation
-
-    /// What an action will run, before it runs: the command in a read-only
-    /// field (select and copy it there), Cancel and the action's button.
     func confirmationPanel(_ k: RuntimeConfirmation, _ c: ShellColors) -> some View {
         ZStack {
             Color.black.opacity(0.35)
@@ -589,10 +556,6 @@ struct RuntimeSetupSheet: View {
         }
     }
 
-    // MARK: Footer
-
-    /// Back at the leading side (hidden on the first step), the status, then
-    /// Close, Re-check and the default Continue (Done on the last step).
     func footer(_ c: ShellColors) -> some View {
         HStack(spacing: 8) {
             if !session.isFirstStep {
@@ -614,15 +577,11 @@ struct RuntimeSetupSheet: View {
     }
 }
 
-/// The way the page moves, shared by the page entering and the page leaving
-/// (a leaving page's transition is read when it leaves, so both agree).
 @MainActor
 final class PageDirection {
     var forward = true
 }
 
-/// Pushes the new page in from the trailing edge going forward (the leading
-/// edge going back) while the old one leaves the other way.
 struct PageTurn: Transition {
     let direction: PageDirection
     let distance: CGFloat

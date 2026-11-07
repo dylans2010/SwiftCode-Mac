@@ -1,9 +1,5 @@
 import Foundation
 
-/// `swiftcode complete`: one predictive completion at a position of a file,
-/// printed on standard output (predictive-completion.md §7). The settings
-/// come from SwiftCode's user defaults (`SwiftCode.predictiveCompletion`); flags
-/// override them. Works without the switch being on.
 public enum CompleteCLI {
     public static let help = """
     usage: swiftcode complete --file <F> --line <L> --column <C> [options]
@@ -104,7 +100,6 @@ public enum CompleteCLI {
         return o
     }
 
-    /// The settings after the flags.
     public static func settings(_ o: Options, base: PredictiveCompletionSettings) -> PredictiveCompletionSettings {
         var s = base
         if let b = o.backend, b != s.backend {
@@ -122,7 +117,6 @@ public enum CompleteCLI {
         return s
     }
 
-    /// Runs one completion; returns the exit status.
     public static func run(_ args: [String], defaults: UserDefaults = .standard) async -> Int32 {
         let o: Options
         do { o = try parse(args) } catch ParseError.help {
@@ -174,7 +168,6 @@ public enum CompleteCLI {
         }
     }
 
-    /// `run` for a synchronous `main`.
     public static func runBlocking(_ args: [String]) -> Int32 {
         let box = ExitBox()
         let done = DispatchSemaphore(value: 0)

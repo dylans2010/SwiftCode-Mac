@@ -3,24 +3,15 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// Rename, references, call hierarchy, code actions and fix-its through
-/// the language server. See `specs/ide/refactoring.md`.
 extension WorkspaceWindowController {
-    /// Every editor of every tab.
     var allEditors: [SourceEditorController] { editorArea.tabs.flatMap(\.editors) }
 
-    /// The focused editor's file and the LSP position of its caret.
     var caretLocation: (url: URL, position: Position)? {
         guard let url = editor.fileURL else { return nil }
         let tv = editor.textView
         return (url, tv.lineIndex.position(at: tv.selectedRange().location))
     }
 
-    // MARK: Applying edits
-
-    /// Applies a workspace edit. Files open in an editor change there, as
-    /// one undoable step per file; other files are rewritten on disk (their
-    /// previous text is kept in `refactoringBackups`). Returns the files changed.
     @discardableResult
     public func applyWorkspaceEdit(_ edit: WorkspaceEdit) -> [URL] {
         var changed: [URL] = []
@@ -42,24 +33,16 @@ extension WorkspaceWindowController {
         return changed
     }
 
-    /// Applies text edits to a string (last edit first).
     static func apply(_ edits: [TextEdit], to text: String) -> String { TextEditApplication.apply(edits, to: text) }
 
-    /// Restores files changed on disk by the last refactorings.
     public func revertDiskRefactorings() {
         for (path, old) in refactoringBackups {
             try? old.write(toFile: path, atomically: true, encoding: .utf8)
-            // The server only learns of disk changes through watched files.
             session.language?.fileChangedOnDisk(URL(fileURLWithPath: path))
         }
         refactoringBackups = [:]
     }
 
-    // MARK: Rename
-
-    /// Refactor ▸ Rename…: asks the server whether the symbol at the caret
-    /// can be renamed and highlights its occurrences in the file. Returns
-    /// the current name.
     @discardableResult
     public func beginRename() async -> String? {
         guard let (url, p) = caretLocation, let language = session.language else { NSSound.beep(); return nil }
@@ -76,8 +59,6 @@ extension WorkspaceWindowController {
         return name
     }
 
-    /// Renames to `newName`. One file: applied at once. Several files: kept
-    /// as `renamePreview` (and shown in a sheet) until `applyRenamePreview()`.
     @discardableResult
     public func rename(to newName: String) async -> WorkspaceEdit? {
         guard let (url, p, _) = renameState, let language = session.language else { return nil }
@@ -93,7 +74,6 @@ extension WorkspaceWindowController {
         return edit
     }
 
-    /// Applies the multi-file rename shown in the preview.
     @discardableResult
     public func applyRenamePreview() -> [URL] {
         guard let edit = renamePreview else { return [] }
@@ -116,10 +96,6 @@ extension WorkspaceWindowController {
 
     @objc public func renameSymbol(_ sender: Any?) { Task { await beginRename() } }
 
-    // MARK: References, call hierarchy, original source
-
-    /// Find ▸ Find Selected Symbol in Workspace: references in the Find
-    /// navigator, grouped by file.
     @discardableResult
     public func findSelectedSymbolInWorkspace() async -> [Location] {
         guard let (url, p) = caretLocation, let language = session.language else { return [] }
@@ -139,8 +115,6 @@ extension WorkspaceWindowController {
         return refs
     }
 
-    /// Find ▸ Find Call Hierarchy: callers of the symbol at the caret, two
-    /// levels deep, in the Find navigator.
     @discardableResult
     public func findCallHierarchy() async -> [String] {
         guard let (url, p) = caretLocation, let language = session.language,
@@ -160,8 +134,6 @@ extension WorkspaceWindowController {
         return names
     }
 
-    /// Navigate ▸ Jump to Original Source: the declaration (falls back to
-    /// the definition).
     @objc public func jumpToOriginalSource(_ sender: Any?) {
         guard let (url, p) = caretLocation, let language = session.language else { return }
         Task {
@@ -174,7 +146,6 @@ extension WorkspaceWindowController {
     @objc public func findSelectedSymbol(_ sender: Any?) { Task { await findSelectedSymbolInWorkspace() } }
     @objc public func showCallHierarchy(_ sender: Any?) { Task { await findCallHierarchy() } }
 
-    /// The identifier around an offset in the focused editor.
     func symbolName(at offset: Int) -> String {
         let ns = editor.text as NSString
         var a = min(offset, ns.length), b = a
@@ -184,10 +155,6 @@ extension WorkspaceWindowController {
         return ns.substring(with: NSRange(location: a, length: b - a))
     }
 
-    // MARK: Code actions and fix-its
-
-    /// Code actions at the caret (or selection), with the diagnostics on
-    /// its line. Also cached for the Refactor menu.
     @discardableResult
     public func codeActionsAtCaret() async -> [CodeAction] {
         guard let url = editor.fileURL, let language = session.language else { return [] }
@@ -200,15 +167,12 @@ extension WorkspaceWindowController {
         return actions
     }
 
-    /// Performs a code action: its edit, then its command (the server's
-    /// edits arrive as `workspace/applyEdit`).
     public func perform(_ action: CodeAction) async {
         try? editor.save()
         if let e = action.edit { applyWorkspaceEdit(e) }
         if let c = action.command, let language = session.language { try? await language.client.executeCommand(c) }
     }
 
-    /// Editor ▸ Show Code Actions (⇧⌘A): a menu of the actions at the caret.
     @objc public func showCodeActions(_ sender: Any?) {
         Task {
             let actions = await codeActionsAtCaret()
@@ -236,7 +200,6 @@ extension WorkspaceWindowController {
         Task { await perform(a) }
     }
 
-    /// Applies the fix-its of the issues on a line of the focused editor.
     @discardableResult
     public func applyFixIt(line: Int) -> Bool {
         guard let path = editor.fileURL?.standardizedFileURL.path else { return false }
@@ -247,13 +210,11 @@ extension WorkspaceWindowController {
         return true
     }
 
-    /// Editor ▸ Fix All Issues: every fix-it in the focused file.
     @discardableResult
     @objc public func fixAllIssues(_ sender: Any?) -> Int {
         guard let path = editor.fileURL?.standardizedFileURL.path else { return 0 }
         let fixes = session.displayedIssues.filter { $0.location.map { URL(fileURLWithPath: $0.file).standardizedFileURL.path } == path }
             .flatMap(\.fixIts)
-        // Identical fix-its from several diagnostics apply once.
         var seen = Set<Diagnostic.FixIt>()
         let unique = fixes.filter { seen.insert($0).inserted }
         if !unique.isEmpty { editor.applyTextEdits(unique.map(Self.textEdit)) }
@@ -266,7 +227,6 @@ extension WorkspaceWindowController {
     }
 }
 
-/// The rename preview: affected files and edit counts.
 @MainActor
 public final class RenamePreviewController: NSViewController {
     let edit: WorkspaceEdit
@@ -283,7 +243,6 @@ public final class RenamePreviewController: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// One row per file: name and number of edits.
     public var rows: [String] { edit.files.map { "\($0.lastPathComponent) (\(edit.changes[$0]?.count ?? 0))" } }
 
     public override func loadView() {

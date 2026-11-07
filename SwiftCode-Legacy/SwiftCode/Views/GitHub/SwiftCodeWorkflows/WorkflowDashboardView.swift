@@ -11,13 +11,11 @@ public struct WorkflowDashboardView: View {
     @State private var showingCreateSheet = false
     @State private var showingExecutionSheet = false
 
-    // Creation Form State
     @State private var newFlowName = ""
     @State private var newFlowDesc = ""
     @State private var newFlowCategory = "General"
     @State private var newFlowIcon = "hammer.fill"
 
-    // Search & Filter State
     @State private var searchText = ""
     @State private var selectedCategoryFilter = "All"
 
@@ -28,7 +26,6 @@ public struct WorkflowDashboardView: View {
 
     public var body: some View {
         HSplitView {
-            // Left Panel: Workflows Library
             VStack(spacing: 0) {
                 libraryHeader
                 Divider()
@@ -37,7 +34,6 @@ public struct WorkflowDashboardView: View {
             .frame(minWidth: 280, idealWidth: 320, maxWidth: 400)
             .background(Color(NSColor.windowBackgroundColor))
 
-            // Right Panel: Details and Analytics Workspace or active Editor
             VStack(spacing: 0) {
                 if let selected = selectedWorkflow {
                     WorkflowBuilderView(
@@ -82,8 +78,6 @@ public struct WorkflowDashboardView: View {
         }
     }
 
-    // MARK: - Subviews
-
     private var libraryHeader: some View {
         VStack(spacing: 8) {
             HStack {
@@ -106,7 +100,6 @@ public struct WorkflowDashboardView: View {
             .padding(.horizontal, 12)
             .padding(.top, 12)
 
-            // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -122,7 +115,6 @@ public struct WorkflowDashboardView: View {
 
     private var libraryList: some View {
         List {
-            // Favorites Section
             let favs = manager.workflows.filter {
                 $0.isFavorite &&
                 (searchText.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText))
@@ -135,7 +127,6 @@ public struct WorkflowDashboardView: View {
                 }
             }
 
-            // Categories list
             let categories = Array(Set(manager.workflows.map { $0.category })).sorted()
             ForEach(categories, id: \.self) { category in
                 let categoryFlows = manager.workflows.filter {
@@ -151,7 +142,6 @@ public struct WorkflowDashboardView: View {
                 }
             }
 
-            // Built-in Templates section
             Section(header: Text("BUILT-IN TEMPLATES").font(.caption).bold().foregroundStyle(.secondary)) {
                 ForEach(WorkflowTemplates.templates) { template in
                     HStack {
@@ -246,7 +236,6 @@ public struct WorkflowDashboardView: View {
 
                 Divider()
 
-                // Analytics View Section
                 Text("Automation History & Analytics")
                     .font(.title2).bold()
                     .padding(.horizontal)
@@ -261,7 +250,6 @@ public struct WorkflowDashboardView: View {
                 }
                 .padding(.horizontal)
 
-                // Recent history list
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Execution Timeline")
                         .font(.headline)
@@ -298,8 +286,6 @@ public struct WorkflowDashboardView: View {
             .padding(.vertical, 24)
         }
     }
-
-    // MARK: - Sheets
 
     private var creationSheetView: some View {
         VStack(spacing: 0) {
@@ -362,8 +348,6 @@ public struct WorkflowDashboardView: View {
         .frame(width: 400, height: 320)
     }
 }
-
-// MARK: - RepoMetricCard
 
 struct RepoMetricCard: View {
     let title: String

@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - StoreKit Config Schema (Compatible with Xcode .storekit files)
-
 public struct StoreKitConfig: Codable, Sendable, Identifiable, Equatable {
     public var id: String { identifier }
     public var identifier: String
@@ -28,8 +26,6 @@ public struct StoreKitConfig: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-// MARK: - Settings
-
 public struct SKSettings: Codable, Sendable, Equatable {
     public var _billingGracePeriodEnabled: Bool
     public var _billingRetryEnabled: Bool
@@ -37,7 +33,7 @@ public struct SKSettings: Codable, Sendable, Equatable {
     public var _storeKitError: String?
     public var _locale: String
     public var _storefront: String
-    public var _timeRate: String // e.g., "Monthly" or "Weekly"
+    public var _timeRate: String
 
     enum CodingKeys: String, CodingKey {
         case _billingGracePeriodEnabled = "billingGracePeriodEnabled"
@@ -68,11 +64,9 @@ public struct SKSettings: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Localizations
-
 public struct SKLocalization: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { locale }
-    public var locale: String // e.g. "en_US", "fr_FR"
+    public var locale: String
     public var displayName: String
     public var description: String
 
@@ -83,19 +77,17 @@ public struct SKLocalization: Codable, Sendable, Identifiable, Hashable, Equatab
     }
 }
 
-// MARK: - In-App Product (Consumables, Non-Consumables)
-
 public struct SKProduct: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { productID }
     public var productID: String
     public var referenceName: String
-    public var type: String // "Consumable", "NonConsumable"
+    public var type: String
     public var localizations: [SKLocalization]
     public var price: Double
     public var familySharing: Bool
-    public var index: Int? // Order index
-    public var availability: String // "all", "none"
-    public var images: [String] // Local asset image names
+    public var index: Int?
+    public var availability: String
+    public var images: [String]
 
     enum CodingKeys: String, CodingKey {
         case productID
@@ -141,8 +133,6 @@ public struct SKProduct: Codable, Sendable, Identifiable, Hashable, Equatable {
         images = []
     }
 }
-
-// MARK: - Non-Renewing Subscription
 
 public struct SKNonRenewingSubscription: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { productID }
@@ -195,8 +185,6 @@ public struct SKNonRenewingSubscription: Codable, Sendable, Identifiable, Hashab
     }
 }
 
-// MARK: - Subscription Group
-
 public struct SKSubscriptionGroup: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String
     public var referenceName: String
@@ -230,8 +218,6 @@ public struct SKSubscriptionGroup: Codable, Sendable, Identifiable, Hashable, Eq
     }
 }
 
-// MARK: - Auto-Renewing Subscription
-
 public struct SKSubscription: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { productID }
     public var productID: String
@@ -241,11 +227,10 @@ public struct SKSubscription: Codable, Sendable, Identifiable, Hashable, Equatab
     public var price: Double
     public var familySharing: Bool
     public var subscriptionGroupID: String
-    public var subscriptionPeriod: String // "P1M", "P1Y", "P1W" etc.
+    public var subscriptionPeriod: String
     public var index: Int?
     public var availability: String
 
-    // Offers
     public var introductoryOffers: [SKIntroductoryOffer]
     public var promotionalOffers: [SKPromotionalOffer]
     public var winBackOffers: [SKWinBackOffer]
@@ -315,14 +300,12 @@ public struct SKSubscription: Codable, Sendable, Identifiable, Hashable, Equatab
     }
 }
 
-// MARK: - Introductory Offer
-
 public struct SKIntroductoryOffer: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { paymentMode + "_" + subscriptionPeriod }
     public var numberOfPeriods: Int
-    public var paymentMode: String // "payAsYouGo", "payUpFront", "freeTrial"
+    public var paymentMode: String
     public var price: Double
-    public var subscriptionPeriod: String // "P1W", "P1M", etc.
+    public var subscriptionPeriod: String
 
     public init(numberOfPeriods: Int = 1, paymentMode: String = "freeTrial", price: Double = 0.0, subscriptionPeriod: String = "P1W") {
         self.numberOfPeriods = numberOfPeriods
@@ -332,13 +315,11 @@ public struct SKIntroductoryOffer: Codable, Sendable, Identifiable, Hashable, Eq
     }
 }
 
-// MARK: - Promotional Offer
-
 public struct SKPromotionalOffer: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { offerID }
     public var offerID: String
     public var referenceName: String
-    public var paymentMode: String // "payAsYouGo", "payUpFront", "freeTrial"
+    public var paymentMode: String
     public var price: Double
     public var numberOfPeriods: Int
     public var subscriptionPeriod: String
@@ -352,8 +333,6 @@ public struct SKPromotionalOffer: Codable, Sendable, Identifiable, Hashable, Equ
         self.subscriptionPeriod = subscriptionPeriod
     }
 }
-
-// MARK: - Win Back Offer
 
 public struct SKWinBackOffer: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { offerID }
@@ -374,14 +353,12 @@ public struct SKWinBackOffer: Codable, Sendable, Identifiable, Hashable, Equatab
     }
 }
 
-// MARK: - Offer Code
-
 public struct SKOfferCode: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { code }
     public var code: String
     public var referenceName: String
-    public var customerEligibility: String // "new", "existing", "all"
-    public var expirationDate: String? // "YYYY-MM-DD"
+    public var customerEligibility: String
+    public var expirationDate: String?
 
     public init(code: String, referenceName: String, customerEligibility: String = "all", expirationDate: String? = nil) {
         self.code = code
@@ -391,14 +368,12 @@ public struct SKOfferCode: Codable, Sendable, Identifiable, Hashable, Equatable 
     }
 }
 
-// MARK: - Storefront
-
 public struct SKStorefront: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String { code }
-    public var code: String // e.g., "USA", "CAN", "FRA", "GBR", "JPN"
+    public var code: String
     public var name: String
-    public var region: String // "North America", "Europe", "Asia", etc.
-    public var currency: String // "USD", "CAD", "EUR", "GBP", "JPY"
+    public var region: String
+    public var currency: String
     public var isAvailable: Bool
 
     public init(code: String, name: String, region: String, currency: String, isAvailable: Bool = true) {
@@ -410,20 +385,18 @@ public struct SKStorefront: Codable, Sendable, Identifiable, Hashable, Equatable
     }
 }
 
-// MARK: - Simulator Support Models
-
 public struct SKTransaction: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String
     public var productID: String
     public var referenceName: String
     public var transactionDate: Date
-    public var purchaseState: String // "purchased", "failed", "pending", "refunded", "revoked"
-    public var ownershipType: String // "purchased", "familyShared"
+    public var purchaseState: String
+    public var ownershipType: String
     public var isSubscription: Bool
     public var expirationDate: Date?
     public var originalTransactionID: String
     public var storefront: String
-    public var subscriptionCycleState: String // "Purchase", "Renewal", "GracePeriod", "BillingRetry", "Expired", "Refunded"
+    public var subscriptionCycleState: String
 
     public init(
         id: String = UUID().uuidString,
@@ -484,8 +457,6 @@ public struct SKAsset: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Reusable Simulator Testing Profiles
-
 public struct SKSimulatorProfile: Codable, Sendable, Identifiable, Equatable, Hashable {
     public var id: String
     public var name: String
@@ -514,12 +485,10 @@ public struct SKSimulatorProfile: Codable, Sendable, Identifiable, Equatable, Ha
     }
 }
 
-// MARK: - Activity Timeline & Simulation Event Log
-
 public struct SKActivityEvent: Codable, Sendable, Identifiable, Equatable, Hashable {
     public var id: String
     public var timestamp: Date
-    public var category: String // "Purchase", "Refund", "Validation", "Import", "Export", "Simulation"
+    public var category: String
     public var title: String
     public var message: String
     public var details: String?
@@ -541,8 +510,6 @@ public struct SKActivityEvent: Codable, Sendable, Identifiable, Equatable, Hasha
     }
 }
 
-// MARK: - Version Revision Snapshots
-
 public struct SKVersionRevision: Codable, Sendable, Identifiable, Equatable {
     public var id: String
     public var timestamp: Date
@@ -562,14 +529,12 @@ public struct SKVersionRevision: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-// MARK: - Smart Saved Filter
-
 public struct SKSmartFilter: Codable, Sendable, Identifiable, Equatable, Hashable {
     public var id: String
     public var name: String
     public var minPrice: Double?
     public var maxPrice: Double?
-    public var productType: String? // "Consumable", "NonConsumable", "AutoRenewableSubscription", "NonRenewingSubscription"
+    public var productType: String?
 
     public init(
         id: String = UUID().uuidString,

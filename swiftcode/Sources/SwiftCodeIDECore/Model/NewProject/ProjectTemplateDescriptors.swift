@@ -1,29 +1,16 @@
 import Foundation
 
-/// One project template: where the chooser lists it, its options and the
-/// generator that writes it (`specs/ide/templates.md` § "Template
-/// chooser", § "Template catalog"). Names, tabs, sections, sort keys and
-/// option identifiers are the spec's; summaries, symbols and generated
-/// file contents are SwiftCode's own.
 public struct ProjectTemplateDescriptor: Equatable, Sendable, Identifiable {
-    /// Stable identifier "<tab>.<name>" ("ios.app"); `swiftcode new --template`
-    /// takes it, "<Tab>/<Name>" or the name.
     public var id: String
     public var platform: String
-    /// "" for the Other tab's unnamed section.
     public var section: String
     public var title: String
-    /// The sort key within the section (nil: after those with one).
     public var sortKey: Int?
     public var summary: String
     public var symbol: String
     public var fields: [TemplateOptionField]
-    /// Which generator writes it (`ProjectGenerator`).
     public var generator: String
-    /// When SwiftCode cannot create the template yet: why (Next is disabled
-    /// and the sheet shows this line).
     public var unavailableReason: String?
-    /// The save step's default name (package templates), else the product name.
     public var defaultSaveName: String?
 
     public init(id: String, platform: String, section: String, title: String, sortKey: Int?, summary: String, symbol: String,
@@ -43,14 +30,11 @@ public struct ProjectTemplateDescriptor: Equatable, Sendable, Identifiable {
 
     public var isAvailable: Bool { unavailableReason == nil }
     public var sdk: TemplateSDK { TemplateSDK.forTab(platform) }
-    /// "<Section>/<Template>", the per-tab memory's value (§ Persistence).
     public var memoryKey: String { "\(section)/\(title)" }
     public var isPackage: Bool { generator.hasPrefix("package:") }
 
-    /// A fresh options form: `values` where still allowed, else defaults.
     public func makeForm(_ values: [String: String] = [:]) -> TemplateOptionsForm { TemplateOptionsForm(fields: fields, values: values) }
 
-    /// The grid cell for the sheet.
     public var entry: TemplateEntry {
         var e = TemplateEntry(title, defaultName: "", symbol: symbol)
         e.templateID = id
@@ -59,13 +43,10 @@ public struct ProjectTemplateDescriptor: Equatable, Sendable, Identifiable {
     }
 }
 
-/// A chooser's catalog (New Project, or the Package… chooser).
 public struct TemplateChooserCatalog: Sendable {
     public var tabs: [String]
     public var templates: [ProjectTemplateDescriptor]
 
-    /// § Entries: sections alphabetical; within one, ascending key, keyless
-    /// after, ties by name.
     public func templates(platform: String) -> [ProjectTemplateDescriptor] {
         templates.filter { $0.platform == platform }.sorted { a, b in
             if a.section != b.section { return a.section.localizedStandardCompare(b.section) == .orderedAscending }
@@ -78,8 +59,6 @@ public struct TemplateChooserCatalog: Sendable {
         }
     }
 
-    /// The tab's sections, in order. The filter (SwiftCode's reading, OPEN) is
-    /// a case- and diacritic-insensitive substring match on the name.
     public func sections(platform: String, filter: String = "") -> [TemplateSection] {
         let f = filter.trimmingCharacters(in: .whitespaces)
         var order: [String] = []
@@ -92,7 +71,6 @@ public struct TemplateChooserCatalog: Sendable {
         return order.map { TemplateSection(title: $0, entries: bySection[$0]!) }
     }
 
-    /// A template by identifier, "<Tab>/<Name>", or name (first tab with it).
     public func find(_ key: String, platform: String? = nil) -> ProjectTemplateDescriptor? {
         let k = key.lowercased()
         if let d = templates.first(where: { $0.id == k }) { return d }
@@ -106,8 +84,6 @@ public struct TemplateChooserCatalog: Sendable {
     }
 }
 
-/// The New Project catalog (`templates.md` § "Tabs, sections and
-/// templates") and the Package… chooser's.
 public enum ProjectTemplates {
     typealias ID = TemplateOptionID
     static let appSection = "Application"
@@ -131,7 +107,6 @@ public enum ProjectTemplates {
     static let objcUnavailable = "SwiftCode writes this template in Swift only."
     static let metal4Unavailable = "SwiftCode has no Metal 4 renderer yet."
 
-    /// Language: Swift, with Objective-C drawn disabled (SwiftCode writes Swift only).
     static let swiftOnlyLanguage = TemplateOptionField(ID.language, "Language", .popUp(["Swift", TemplateChoice("Objective-C", unavailable: objcUnavailable)]),
                                                        default: "Swift")
 
@@ -186,7 +161,6 @@ public enum ProjectTemplates {
         TemplateFields.swiftLanguage, TemplateFields.testing, TemplateFields.storage, TemplateFields.cloudKit,
     ]
 
-    /// Every New Project template.
     public static let all: [ProjectTemplateDescriptor] = {
         var out: [ProjectTemplateDescriptor] = []
         let mp = "Multiplatform", ios = "iOS", mac = "macOS", watch = "watchOS", tv = "tvOS", vision = "visionOS", dk = "DriverKit"
@@ -324,8 +298,6 @@ public enum ProjectTemplates {
 
     public static let projects = TemplateChooserCatalog(tabs: ProjectTemplateCatalog.platforms, templates: all)
 
-    /// The Package… chooser (`templates.md` § "Package…"): SwiftPM's own
-    /// `swift package init` types.
     public static let packages: TemplateChooserCatalog = {
         let testing = TemplateOptionField(ID.testingSystem, "Testing System", .popUp(["None", "XCTest", "Swift Testing"]), default: "None")
         func p(_ tab: String, _ section: String, _ title: String, _ key: Int, _ type: String, _ fields: [TemplateOptionField], _ save: String,
@@ -348,7 +320,6 @@ public enum ProjectTemplates {
 
     public static func templates(platform: String) -> [ProjectTemplateDescriptor] { projects.templates(platform: platform) }
 
-    /// A New Project template, or a package template ("package.…").
     public static func find(_ key: String, platform: String? = nil) -> ProjectTemplateDescriptor? {
         if key.lowercased().hasPrefix("package.") { return packages.find(key, platform: platform) }
         return projects.find(key, platform: platform)

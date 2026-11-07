@@ -22,7 +22,6 @@ struct CreateGistView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header actions row (inspired by IssuesView / ReleasesView / IssueDetailView)
             HStack {
                 Label("New Gist Specification", systemImage: "plus.circle.fill")
                     .font(.headline)
@@ -42,7 +41,6 @@ struct CreateGistView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    // Metadata Details Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -67,7 +65,6 @@ struct CreateGistView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Files Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 8) {

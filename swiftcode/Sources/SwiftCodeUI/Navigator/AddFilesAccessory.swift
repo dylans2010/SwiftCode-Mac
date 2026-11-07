@@ -2,16 +2,11 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// The options under Add Files…'s open panel: Action (copy, move or
-/// reference), Groups (folders, groups or folder references) and one
-/// checkbox per target. SwiftCode's own layout and wording
-/// (`specs/ide/navigators.md` §SwiftCode implementation).
 @MainActor
 public final class AddFilesAccessory: NSObject {
     public let actionPopUp = NSPopUpButton()
     public let groupingPopUp = NSPopUpButton()
     public private(set) var targetBoxes: [NSButton] = []
-    /// Target object IDs, in project order (one per checkbox).
     public let targetIDs: [String]
     public private(set) lazy var view: NSView = makeView()
     private let initial: AddFilesOptions
@@ -24,7 +19,6 @@ public final class AddFilesAccessory: NSObject {
         super.init()
     }
 
-    /// The options as the controls show them.
     public var options: AddFilesOptions {
         _ = view
         let action = AddFilesOptions.Action.allCases[max(0, actionPopUp.indexOfSelectedItem)]

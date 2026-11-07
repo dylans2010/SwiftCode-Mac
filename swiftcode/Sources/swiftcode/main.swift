@@ -18,7 +18,6 @@ import SwiftCodeIDECore
 import SwiftCodeCompletion
 import SwiftCodeSimLink
 
-/// Command-line front end. The GUI will share these libraries.
 func usage() -> Never {
     FileHandle.standardError.write(Data("""
     usage: swiftcode describe <path.xcodeproj>
@@ -68,7 +67,6 @@ func describe(_ path: String) throws {
     }
 }
 
-/// Parses and re-serializes each project; exit status 1 if any differ.
 func roundtrip(_ paths: [String], printOutput: Bool) -> Int32 {
     var failures: Int32 = 0
     for path in paths {
@@ -100,15 +98,12 @@ func roundtrip(_ paths: [String], printOutput: Bool) -> Int32 {
     return failures
 }
 
-/// Lists schemes the way `xcodebuild -list` reports them.
 func schemes(_ path: String) throws {
     let url = URL(fileURLWithPath: path)
     var containers = [url]
     if url.pathExtension == "xcworkspace" {
         containers += try Workspace(contentsOf: path).projectPaths.map { URL(fileURLWithPath: $0) }
     }
-    // Shared schemes of projects referenced from a project (sub-projects)
-    // are listed as well.
     for c in containers where c.pathExtension == "xcodeproj" {
         guard let proj = try? PBXProj(contentsOf: c.appendingPathComponent("project.pbxproj")) else { continue }
         let dir = proj.projectDirectory(xcodeprojURL: c)
@@ -257,9 +252,6 @@ func depsCommand(_ rest: [String]) throws {
     }
 }
 
-/// `swiftcode results <bundle> [--json]`: one line per test (`<status> <run>
-/// <target>/<identifier> (<seconds> s)`), failures indented below it,
-/// then the counts. Exit status 1 when a test failed, 2 on a read error.
 func resultsCommand(_ args: [String]) -> Int32 {
     let json = args.contains("--json")
     guard let path = args.first(where: { $0 != "--json" }) else { usage() }
@@ -299,8 +291,6 @@ func resultsCommand(_ args: [String]) -> Int32 {
     }
 }
 
-/// Runs a build through the xcodebuild engine and prints its issues.
-/// Exit status: 0 on success, 1 on failure. See `specs/ide/build.md`.
 func buildCommand(_ args: [String]) -> Int32 {
     var request = BuildRequest(container: .package(FileManager.default.currentDirectoryPath))
     var quiet = false
@@ -331,8 +321,6 @@ func buildCommand(_ args: [String]) -> Int32 {
         }
         i += 1
     }
-    // On Linux (and in the Flatpak) a package folder builds with SwiftPM, as
-    // in the Linux IDE; projects with swiftcodebuild. macOS keeps xcodebuild.
     let isLinux = CommandLineBuild.isLinuxHost
     guard let choice = CommandLineBuild.engine(named: engineName, container: request.container, isLinux: isLinux) else { usage() }
     let engine: BuildEngine
@@ -364,11 +352,6 @@ func buildCommand(_ args: [String]) -> Int32 {
     return result.status == .succeeded ? 0 : 1
 }
 
-/// `swiftcode preview` (specs/ide/previews.md §Linux): `--list` prints the
-/// file's previews (discovery runs everywhere); `--render` renders one
-/// `#Preview` to a PNG through the open SwiftUI port (frameworks/swiftui,
-/// round R5): a generated package that holds the file and the preview body
-/// is built against the port and run headlessly (PreviewRenderHost).
 func preview(_ args: [String]) -> Int32 {
     var it = args.makeIterator()
     var list = false, render: String?, file: String?, name: String?
@@ -446,9 +429,6 @@ case "dsc":
         exit(1)
     }
 case "_strip-settings":
-    // Internal (research harness): writes a copy of a project with all build
-    // settings and base xcconfigs removed, plus the given NAME=value
-    // assignments at project level.
     guard args.count >= 2 else { usage() }
     do {
         let (file, _) = PBXProj.locate(args[0])
@@ -464,7 +444,6 @@ case "_strip-settings":
             for k in ["baseConfigurationReference", "baseConfigurationReferenceAnchor", "baseConfigurationReferenceRelativePath"] { obj[k] = nil }
             proj[id] = obj
         }
-        // Drop package dependencies: a copy elsewhere cannot resolve local ones.
         let packageClasses: Set<String> = ["XCLocalSwiftPackageReference", "XCRemoteSwiftPackageReference", "XCSwiftPackageProductDependency"]
         let doomed = Set(proj.objects.values.filter { packageClasses.contains($0.isa) || ($0.isa == "PBXBuildFile" && $0["productRef"] != nil) }.map(\.id))
         for id in doomed { proj[id] = nil }
@@ -489,10 +468,8 @@ case "_strip-settings":
 case "build":
     exit(buildCommand(args))
 case "results":
-    // Reads a result bundle swiftcodebuild wrote (specs/xcodebuild/result-bundle.md, "SwiftCode implementation").
     exit(resultsCommand(args))
 case "pif":
-    // Prints the Project Interchange Format for swift-build (specs/ide/build-pif.md).
     guard args.count == 1 else { usage() }
     do {
         let url = URL(fileURLWithPath: args[0])
@@ -504,43 +481,30 @@ case "pif":
         exit(1)
     }
 case "profile":
-    // Gauge, the profiler (specs/ide/profiler.md §7).
     exit(GaugeCLI.run(args))
 case "preview":
     exit(preview(args))
 case "bsp":
-    // The build server for sourcekit-lsp (specs/ide/language.md §Build server).
     exit(BuildServerMain.run(args))
 case "assets":
-    // Asset catalogs and .icon documents (specs/formats/assets-car.md, icon-format.md).
     exit(AssetsCLI.run(args))
 case "strings":
-    // String Catalogs: compile, symbols, extraction, conversion (specs/ide/string-catalog.md).
     exit(StringsCLI.run(args))
 case "complete":
-    // Predictive code completion at a position (specs/ide/predictive-completion.md §7).
     exit(CompleteCLI.runBlocking(args))
 case "mcp":
-    // The SwiftCode MCP server (specs/ide/coding-assistant.md, "SwiftCode implementation").
     MCPCommand.run(args)
 case "compare":
-    // Compare Files without a window (specs/ide/comparison.md, "SwiftCode implementation").
     exit(FileCompare.run(args))
 case "sim":
-    // A simulator host over SwiftCode's own link (specs/simulator/sim-link.md §8).
-    // The headset (specs/ide/device-hub.md §I.12): `swiftcode sim headset …`, and
-    // `swiftcode sim remote [--host N] view <device> --xr --background | --desktop`.
     if args.first == "headset" { exit(runHeadset(Array(args.dropFirst()))) }
-    // Simulator runtimes (specs/simulator/runtime-onboarding.md §11): `swiftcode sim runtimes …`.
     if args.first == "runtimes" { exit(runRuntimes(Array(args.dropFirst()))) }
     guard args.first == "remote" else { usage() }
     if let switched = HeadsetCLI.remoteView(Array(args.dropFirst())) { exit(runHeadset(switched.headset, then: switched.viewer)) }
     exit(SimRemoteCLI.main(Array(args.dropFirst())))
 case "runtime":
-    // Getting simulator runtimes (specs/simulator/runtime-downloads.md §6): routes A, B and C.
     exit(runRuntimeDownloads(args))
 case "new":
-    // New Project from a template (specs/ide/templates.md, "SwiftCode implementation").
     exit(NewProjectCLI.run(args))
 case "roundtrip":
     let printOutput = args.contains("--print")
@@ -551,7 +515,6 @@ default:
     usage()
 }
 
-/// `swiftcode sim headset …` (blocking), then optionally the desktop viewer (exec).
 func runHeadset(_ args: [String], then viewer: [String]? = nil) -> Int32 {
     let box = HeadsetExit()
     let done = DispatchSemaphore(value: 0)
@@ -566,7 +529,6 @@ func runHeadset(_ args: [String], then viewer: [String]? = nil) -> Int32 {
 
 final class HeadsetExit: @unchecked Sendable { var status: Int32 = 1 }
 
-/// `swiftcode sim runtimes …` (blocking).
 func runRuntimes(_ args: [String]) -> Int32 {
     let box = HeadsetExit()
     let done = DispatchSemaphore(value: 0)
@@ -578,7 +540,6 @@ func runRuntimes(_ args: [String]) -> Int32 {
     return box.status
 }
 
-/// `swiftcode runtime …` (blocking).
 func runRuntimeDownloads(_ args: [String]) -> Int32 {
     let box = HeadsetExit()
     let done = DispatchSemaphore(value: 0)

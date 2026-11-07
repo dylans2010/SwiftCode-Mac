@@ -3,13 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The Interface Builder editor (`specs/ide/interface-builder.md`): the
-/// jump bar strip with the path to the selection, the Document Outline
-/// (Filter at its bottom), the canvas and its bottom bar. The Library
-/// (⇧⌘L, or + in the bar) and Add New Constraints show over the canvas.
-/// The inspectors are in the window's inspector column
-/// (InterfaceBuilderInspectors.swift). Everything reads and edits
-/// `InterfaceBuilderShellModel`, which shares the macOS editor's model.
 struct InterfaceBuilderEditorView: View {
     var model: InterfaceBuilderShellModel
     @Environment(\.colorScheme) private var scheme
@@ -46,8 +39,6 @@ struct InterfaceBuilderEditorView: View {
     }
 }
 
-/// The strip above the outline and canvas: the file, then the outline path
-/// down to the selection, separated by chevrons.
 struct IBJumpBar: View {
     var path: [String]
     var colors: ShellColors
@@ -70,18 +61,11 @@ struct IBJumpBar: View {
     }
 }
 
-// MARK: Outline
-
-/// The Document Outline: scenes, objects, the view hierarchy, Constraints
-/// groups and the entry point; the selection follows the canvas. Up and
-/// Down move it, Delete removes the selected view or constraint.
 struct IBOutlineColumn: View {
     var model: InterfaceBuilderShellModel
     var colors: ShellColors
     @FocusState private var hasKeyboard: Bool
 
-    /// Rows about 20 points high, 16 points of indent per level
-    /// (`interface-builder.md` §Reference outline details).
     static let rowHeight: CGFloat = 20
 
     var body: some View {
@@ -161,8 +145,6 @@ struct IBOutlineColumn: View {
         .shellTarget("ib row \(r.title)")
     }
 
-    /// Views a view can move into (Document Outline drag on macOS): the
-    /// other views of its scene, not itself or its descendants.
     func moveTargets(_ id: String) -> [(String, String)] {
         let d = model.document
         guard let o = d.byID[id], let root = d.rootView(of: o) else { return [] }
@@ -177,14 +159,6 @@ struct IBOutlineColumn: View {
     }
 }
 
-// MARK: Canvas
-
-/// The canvas: scenes at their canvas locations, each with its title bar,
-/// the device bezel (iOS), the top view as a white box and every subview as
-/// a labeled rectangle; segue curves, the entry-point arrow, the
-/// selection's accent outline and eight handles, and dashed guides for its
-/// constraints. A press selects the deepest view; dragging its body moves
-/// it, dragging a handle resizes it.
 struct IBCanvasArea: View {
     var model: InterfaceBuilderShellModel
     var colors: ShellColors
@@ -195,7 +169,6 @@ struct IBCanvasArea: View {
         let layout = model.layout
         let zoom = model.zoom
         let size = layout.canvasSize
-        // Read here, so the canvas redraws when they change.
         let drawing = IBCanvasDrawing(layout: layout, selectedID: model.selectedID, selectedConstraint: model.selectedConstraint,
                                       preview: model.dragPreview, colors: colors, dark: model.canvasIsDark)
         GeometryReader { geo in
@@ -235,7 +208,6 @@ struct IBCanvasArea: View {
         .shellTarget("ib canvas")
     }
 
-    /// ⌘+ / ⌘− / ⌘0 zoom, ⌘Z / ⇧⌘Z undo and redo (Ctrl on Linux).
     static func shortcut(_ press: KeyPress, model: InterfaceBuilderShellModel, viewport: CGSize) -> KeyPress.Result {
         guard press.modifiers.contains(.command) || press.modifiers.contains(.control) else { return .ignored }
         switch press.characters.lowercased() {
@@ -249,8 +221,6 @@ struct IBCanvasArea: View {
     }
 }
 
-/// The canvas overview at the canvas's top right (reference-ui-4.md §13
-/// item 6): every scene as a small box.
 struct IBCanvasOverview: View {
     var layout: IBCanvasLayout
     var colors: ShellColors
@@ -274,8 +244,6 @@ struct IBCanvasOverview: View {
     }
 }
 
-/// Draws the canvas from the shared layout (`IBCanvasLayout`), in canvas
-/// points. Colours: the scene boxes follow the canvas appearance toggle.
 struct IBCanvasDrawing {
     var layout: IBCanvasLayout
     var selectedID: String?
@@ -347,9 +315,6 @@ struct IBCanvasDrawing {
         }
     }
 
-    /// A scene's title bar: a rounded strip with the controller's icon and
-    /// title; while the controller is selected, the scene's objects as
-    /// icons on its right (reference-ui-4.md §13 item 6).
     func sceneBar(_ p: IBCanvasLayout.Placement, _ ctx: inout GraphicsContext) {
         let bar = layout.sceneBar(p)
         let shape = Path(roundedRect: bar, cornerRadius: 6, style: .continuous)
@@ -385,12 +350,6 @@ struct IBCanvasDrawing {
     }
 }
 
-// MARK: Bottom bar
-
-/// The canvas bottom bar (§Layout): outline toggle, + (Library), issues,
-/// appearance, orientation, layout; the device pop-up; zoom − n% +; update
-/// frames, align, add constraints (pin), resolve, embed in. Align, Resolve,
-/// Embed In and Layout list their commands disabled.
 struct IBCanvasBar: View {
     var model: InterfaceBuilderShellModel
     var colors: ShellColors

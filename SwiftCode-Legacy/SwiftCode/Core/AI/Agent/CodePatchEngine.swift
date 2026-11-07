@@ -24,7 +24,6 @@ public final class CodePatchEngine {
     private init() {}
 
     public func applyPatch(_ patch: CodePatch) throws {
-        // Implementation stub
         pendingPatches.removeAll { $0.id == patch.id }
     }
 

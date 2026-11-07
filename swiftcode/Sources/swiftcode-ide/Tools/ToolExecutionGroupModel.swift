@@ -1,21 +1,7 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/ToolExecutionGroupModel.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Tools/ToolExecutionGroupModel.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - stage-grouped execution model (Git Operations, Build & Verification, Worker Execution, Source Modifications, File Discovery, Repository Inspection, Terminal Processes, Recovery & Diagnosis) in the UI
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - ToolActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
 import Foundation
 import SwiftUI
 import SwiftCodeAssistant
 
-/// Logical execution stages for grouping Assist tool activity items.
 public enum ToolExecutionStage: String, CaseIterable, Identifiable, Sendable {
     case gitOperations = "Git Operations"
     case buildAndTest = "Build & Verification"
@@ -57,7 +43,6 @@ public enum ToolExecutionStage: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// A grouped collection of tool activity items belonging to the same stage.
 public struct ToolExecutionGroup: Identifiable {
     public let stage: ToolExecutionStage
     public var tools: [ToolActivityItem]

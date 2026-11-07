@@ -109,7 +109,6 @@ struct TestsSidebarView: View {
                 let output = try await tool.run(projectPath: projectRoot)
                 let totalDuration = Date().timeIntervalSince(startTime)
 
-                // Robust parsing: check for XCTest failure patterns
                 let failureCount = parseFailureCount(from: output)
                 let success = failureCount == 0 && output.contains("Test Case")
 
@@ -118,8 +117,6 @@ struct TestsSidebarView: View {
 
                 for i in testGroups.indices {
                     for j in testGroups[i].tests.indices {
-                        // In a production app, we'd map output to specific tests
-                        // For now we use the overall result but calculate real average duration
                         testGroups[i].tests[j].status = success ? .passed : .failed
                         testGroups[i].tests[j].duration = durationPerTest
                     }
@@ -133,7 +130,6 @@ struct TestsSidebarView: View {
     }
 
     private func parseFailureCount(from output: String) -> Int {
-        // Look for "failed" or "failed with" followed by numbers
         let regex = try? NSRegularExpression(pattern: "failed with (\\d+) failure", options: .caseInsensitive)
         let nsRange = NSRange(output.startIndex..<output.endIndex, in: output)
         if let match = regex?.firstMatch(in: output, options: [], range: nsRange),

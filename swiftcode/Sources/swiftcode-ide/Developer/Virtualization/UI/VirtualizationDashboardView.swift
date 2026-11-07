@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationDashboardView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -26,7 +24,6 @@ public struct VirtualizationDashboardView: View {
         stateStore.virtualMachines.reduce(0) { $0 + $1.storageGB }
     }
 
-    // Bookmarked or Favorited items
     private var bookmarkedVMs: [VirtualMachine] {
         stateStore.virtualMachines.filter { $0.isBookmarked || $0.isFavorite }
     }
@@ -34,7 +31,6 @@ public struct VirtualizationDashboardView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Dashboard Welcome Header
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Dashboard")
@@ -55,7 +51,6 @@ public struct VirtualizationDashboardView: View {
                     .controlSize(.large)
                 }
 
-                // CENTRAL SEARCH EVERYWHERE BOX
                 GroupBox {
                     HStack {
                         Image(systemName: "sparkles")
@@ -77,17 +72,14 @@ public struct VirtualizationDashboardView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
 
                 if !stateStore.searchEverywhereQuery.isEmpty {
-                    // Search everywhere layout overlay
                     searchEverywhereResultsView()
                 } else {
-                    // TRUE QUICK START HERO PANELS
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Quick Start Guides")
                             .font(.headline)
                             .foregroundStyle(.secondary)
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            // Card 1: Create Environment
                             Button {
                                 stateStore.showCreateWizard = true
                             } label: {
@@ -116,7 +108,6 @@ public struct VirtualizationDashboardView: View {
                             }
                             .buttonStyle(.plain)
 
-                            // Card 2: Import Environment
                             Button {
                                 importEnvironment()
                             } label: {
@@ -145,7 +136,6 @@ public struct VirtualizationDashboardView: View {
                             }
                             .buttonStyle(.plain)
 
-                            // Card 3: Browse Templates
                             Button {
                                 stateStore.selectedSidebarTab = .vmLibrary
                             } label: {
@@ -174,7 +164,6 @@ public struct VirtualizationDashboardView: View {
                             }
                             .buttonStyle(.plain)
 
-                            // Card 4: Learn Virtualization (Faq and Educational cards)
                             Button {
                                 showingFaqSheet = true
                             } label: {
@@ -205,7 +194,6 @@ public struct VirtualizationDashboardView: View {
                         }
                     }
 
-                    // BOOKMARKED & FAVORITES SECTION (If available)
                     if !bookmarkedVMs.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Bookmarked & Favorite Environments")
@@ -249,7 +237,6 @@ public struct VirtualizationDashboardView: View {
                         }
                     }
 
-                    // SMART HOST RECOMMENDATIONS & AUTO-OPTIMIZATION PANEL
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Smart Sizing & Recommendations")
                             .font(.headline)
@@ -305,14 +292,12 @@ public struct VirtualizationDashboardView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // HEALTH & STATUS HUD PANELS
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Resource Health Overview")
                             .font(.headline)
                             .foregroundStyle(.secondary)
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            // Panel 1: Running Environments
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("ACTIVE ENVIRONMENTS")
@@ -335,7 +320,6 @@ public struct VirtualizationDashboardView: View {
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            // Panel 2: Host Allocation Summary
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("COMPUTE RESOURCES")
@@ -359,7 +343,6 @@ public struct VirtualizationDashboardView: View {
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            // Panel 3: Virtual Disk Utilisation
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("DISK RESERVATIONS")
@@ -383,7 +366,6 @@ public struct VirtualizationDashboardView: View {
                         }
                     }
 
-                    // CONFIGURED ENVIRONMENTS SECTION
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Configured Environments")
                             .font(.headline)
@@ -421,7 +403,6 @@ public struct VirtualizationDashboardView: View {
                         }
                     }
 
-                    // RECENT ACTIVITY LOG
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Recent Activity Logs")
                             .font(.headline)
@@ -483,7 +464,6 @@ public struct VirtualizationDashboardView: View {
         }
     }
 
-    // SEARCH EVERYWHERE VIEW LAYOUT
     @ViewBuilder
     private func searchEverywhereResultsView() -> some View {
         VStack(alignment: .leading, spacing: 16) {

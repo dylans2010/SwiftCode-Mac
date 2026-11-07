@@ -1,6 +1,4 @@
 #!/bin/sh
-# Build RKProbe.app for the iOS simulator without an Xcode project.
-# Usage: build.sh <output-dir>   (outside the repository; output is not committed)
 set -e
 OUT=${1:?output directory}
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -14,7 +12,6 @@ xcrun --sdk iphonesimulator metal -target air64-apple-ios27.0-simulator -o "$APP
 cp "$HERE/Info.plist" "$APP/Info.plist"
 cp "$HERE"/assets/*.usda "$APP/"
 ( cd "$OUT" && rm -f cube.usdz && cp "$HERE/assets/cube.usda" . && usdzip cube.usdz cube.usda >/dev/null && cp cube.usdz "$APP/" )
-# A .reality file compiled from our own cube.usda (realitytool; optional).
 mkdir -p "$OUT/rc/Probe.rkassets" && cp "$HERE/assets/cube.usda" "$OUT/rc/Probe.rkassets/Scene.usda"
 xcrun realitytool compile --output-reality="$OUT/rc/Probe.reality" --platform=iphonesimulator --deployment-target=27.0 -- "$OUT/rc/Probe.rkassets" >/dev/null 2>&1 \
   && cp "$OUT/rc/Probe.reality" "$APP/" || echo "realitytool compile failed; Probe.reality omitted"

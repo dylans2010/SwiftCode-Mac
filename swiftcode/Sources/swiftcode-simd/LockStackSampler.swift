@@ -4,18 +4,10 @@ import Foundation
 import Glibc
 import SwiftCodeDarwinKernel
 
-/// Diagnostics (`SWIFTCODE_TRAP_PROFILE_STACKS=<us>`, with `SWIFTCODE_TRAP_PROFILE`):
-/// every `<us>` microseconds the kernel-lock holder's host thread is asked
-/// for its call stack (SIGPROF, `ckvm_stack_sample`), and the stack is
-/// counted under the holder's trap. A sample whose hold ended while it was
-/// taken is dropped. The table goes to `<profile path>.stacks` with the
-/// trap profile's periodic dump: one line per distinct stack, "count TAB
-/// trap TAB module+offset;…" (innermost first), for `llvm-symbolizer`.
 final class LockStackSampler: @unchecked Sendable {
     static func startIfRequested(lock: KernelLock, profilePath: String, portLock: KernelLock? = nil) {
         guard let raw = getenv("SWIFTCODE_TRAP_PROFILE_STACKS"), let us = UInt32(String(cString: raw)), us > 0 else { return }
         guard ckvm_stack_sampler_install() == 0 else { return }
-        // One sampling thread for all (the signal slot is shared).
         var samplers = [LockStackSampler(lock: lock, path: profilePath + ".stacks")]
         if let portLock {
             portLock.tracksHolder = true
@@ -65,7 +57,6 @@ final class LockStackSampler: @unchecked Sendable {
                 mutex.lock(); dropped &+= 1; mutex.unlock()
                 return
             }
-            // Frames 0–1 are the handler and the signal trampoline.
             let key = frames[0..<Int(n)].dropFirst(2).map { UInt(bitPattern: $0) }
             mutex.lock()
             taken &+= 1
@@ -101,8 +92,6 @@ final class LockStackSampler: @unchecked Sendable {
         }
     }
 
-    /// /proc/self/maps in full (a single `String(contentsOfFile:)` read
-    /// stops after the first page of this generated file).
     private static func procMaps() -> String {
         guard let handle = FileHandle(forReadingAtPath: "/proc/self/maps") else { return "" }
         defer { try? handle.close() }
@@ -111,7 +100,6 @@ final class LockStackSampler: @unchecked Sendable {
 
     private static func region(_ address: UInt, _ maps: [(start: UInt, end: UInt, offset: UInt, path: String)]) -> String {
         guard let m = maps.first(where: { $0.start <= address && address < $0.end }) else { return String(format: "0x%lx", address) }
-        // Return addresses point after the call; minus 1 lands in the call.
         return m.path + String(format: "+0x%lx", address - m.start + m.offset - 1)
     }
 }

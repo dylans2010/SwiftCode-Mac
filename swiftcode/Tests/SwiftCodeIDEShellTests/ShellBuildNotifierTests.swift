@@ -4,7 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// A build engine that finishes with the given issues.
 private struct ResultEngine: BuildEngine {
     var issues: [Diagnostic]
     var name: String { "result" }
@@ -18,7 +17,6 @@ private struct ResultEngine: BuildEngine {
     }
 }
 
-/// `specs/ide/build-notifications.md` in the SwiftUI shell's model.
 @MainActor
 @Suite struct ShellBuildNotifierTests {
     func package() throws -> URL {
@@ -47,14 +45,11 @@ private struct ResultEngine: BuildEngine {
         _ = await m.build()
         #expect(n.bezel == BuildNotice(title: "Build Succeeded", symbolName: "hammer", outcome: .succeeded))
         #expect(announced == ["Build Succeeded"] && n.workspaceName == "Hud")
-        // The fade lasts a few milliseconds at this time scale: count it
-        // rather than poll for it.
         await waitUntil { n.fadesStarted == 1 }
         #expect(n.fadesStarted == 1)
         await waitUntil { n.bezel == nil }
         #expect(n.bezel == nil && !n.isFading)
 
-        // An error: "Build Failed"; then a second result replaces it.
         m.session.engine = ResultEngine(issues: [Diagnostic(severity: .error, message: "bad", location: nil)])
         _ = await m.build()
         #expect(n.bezel?.title == "Build Failed")
@@ -63,7 +58,6 @@ private struct ResultEngine: BuildEngine {
         await waitUntil { n.bezel == nil }
         #expect(n.log == ["bezel Build Succeeded", "bezel Build Failed", "bezel Build Succeeded"])
 
-        // Reduce Motion: no fading phase.
         n.reduceMotion = true
         n.notify(BuildNotice(title: "Build Failed", symbolName: "hammer", outcome: .failed))
         var faded = false
@@ -73,7 +67,6 @@ private struct ResultEngine: BuildEngine {
         }
         #expect(!faded && n.bezel == nil)
 
-        // The window not in front: a system notification instead.
         var posted: [(String, String)] = []
         n.postSystemNotification = { posted.append(($0.title, $1)) }
         n.isWindowActive = false

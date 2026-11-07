@@ -1,13 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
-// Adaptation note: ObservableObject/@Published -> @Observable (Combine is unavailable on Linux); directory watching is Darwin-only, so on other platforms the index rebuilds on demand without live watching.
-//
-//  SkillIndex.swift
-//  SwiftCode
-//
-//  In-memory, indexed representation and cache of authoritative SwiftCode agent skills.
-//
-
 import Foundation
 import os
 import Observation
@@ -54,9 +44,6 @@ public final class SkillIndex {
         }
     }
 
-    // MARK: - Fast In-Memory Search (Sub-millisecond)
-
-    /// Instantly queries indexed skills by token matching across name, description, tags, and searchableText.
     public func search(query: String, limit: Int = 10) -> [SkillDescriptor] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !trimmed.isEmpty else {
@@ -73,7 +60,6 @@ public final class SkillIndex {
             let descLower = skill.description.lowercased()
             let textLower = skill.searchableText.lowercased()
 
-            // Exact match bonus
             if nameLower == trimmed {
                 score += 100
             } else if nameLower.contains(trimmed) {
@@ -112,7 +98,6 @@ public final class SkillIndex {
         return skills.first { $0.id == id }
     }
 
-    /// Reads the actual markdown instructions (SKILL.md) for a given skill on demand.
     public func loadSkillContent(for id: String) -> String? {
         guard let item = skill(for: id) else { return nil }
         let targetURL = URL(fileURLWithPath: item.path)
@@ -160,8 +145,6 @@ public final class SkillIndex {
         }
     }
 
-    // MARK: - Index Rebuilding
-
     public func rebuildIndex() async {
         guard !isIndexing else { return }
         isIndexing = true
@@ -190,7 +173,6 @@ public final class SkillIndex {
 
                 guard isSkillFile else { continue }
 
-                // The containing directory is usually the skill directory unless it's a standalone skill file
                 let skillDirectory = fileURL.deletingLastPathComponent()
                 let skillPath = skillDirectory.path
                 if visitedPaths.contains(skillPath) { continue }
@@ -231,8 +213,6 @@ public final class SkillIndex {
         logger.info("Successfully rebuilt SkillIndex with \(descriptors.count) authoritative skills.")
     }
 
-    // MARK: - Metadata Extraction
-
     public struct ParsedSkillMetadata {
         public let id: String
         public let name: String
@@ -260,7 +240,6 @@ public final class SkillIndex {
         var sourceDescription = "SwiftCode Local Library"
         var originalPath: String? = nil
 
-        // 1. Check YAML frontmatter (between --- and ---)
         if markdown.hasPrefix("---") {
             let parts = markdown.components(separatedBy: "---")
             if parts.count >= 3 {
@@ -297,7 +276,6 @@ public final class SkillIndex {
             }
         }
 
-        // 2. Look for JSON metadata if sidecar exists
         let metadataSidecar = directoryURL.appendingPathComponent("metadata.json")
         if let data = try? Data(contentsOf: metadataSidecar),
            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
@@ -315,7 +293,6 @@ public final class SkillIndex {
             if let jOrig = json["originalPath"] as? String { originalPath = jOrig }
         }
 
-        // 3. Fallback extraction from leading markdown heading
         if description == "No description provided." {
             for line in markdown.components(separatedBy: .newlines) {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -345,8 +322,6 @@ public final class SkillIndex {
         )
     }
 
-    // MARK: - Persistence Cache
-
     private func loadCachedIndex() {
         guard fileManager.fileExists(atPath: indexCacheFileURL.path) else { return }
         do {
@@ -367,8 +342,6 @@ public final class SkillIndex {
             logger.error("Failed to save skills index cache: \(error.localizedDescription)")
         }
     }
-
-    // MARK: - File System Monitoring
 
     private func startDirectoryMonitoring() {
 #if canImport(Darwin)

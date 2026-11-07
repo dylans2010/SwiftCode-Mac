@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/MemoryInspector/MemoryInspectorView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -24,9 +22,6 @@ struct MemoryInspectorView: View {
         .onReceive(timer) { _ in updateMemory() }
     }
 
-    // Legacy's live reading is Mach-only, so it is compiled only on
-    // macOS (same `#if os(macOS)` pattern as DevToolsSystemMetrics).
-    // Other platforms report honestly instead of inventing a number.
     private func updateMemory() {
         #if os(macOS)
         var taskInfo = mach_task_basic_info()

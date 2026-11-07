@@ -1,12 +1,3 @@
-// PluginCodeCreateView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/PluginCodeCreateView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: v1 plugin authoring model (AdvancedPlugin run with context, AgentTool interop picker, automation steps, config-schema editor)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CreateTab, PluginAutomationStep, PluginConfigField, PluginManifest, PluginToolBinding.
-// Moved here from swiftcode-ide/SDKStudio/ (Views/Settings worklist, Q-DEVSET2) so PluginManagerView.swift's "Create Plugin" sheet resolves: SwiftCodeUI cannot depend on the swiftcode-ide executable target. No call sites; `import SwiftCodeUI` removed (self-import).
-// Resolved by the PluginManager backend port (SwiftCodeUI/Extensions/PluginManager.swift): PluginAutomationStep, PluginConfigField, PluginManifest, PluginToolBinding. Still unresolved (pre-existing dangling refs, not this worklist): AgentTool, ListTools.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -37,7 +28,6 @@ struct AdvancedPlugin {
 
     private var availableTools: [any AgentTool] { Array(ListTools.shared.tools.values) }
 
-    // Desktop Tab Selection
     enum CreateTab: String, CaseIterable, Identifiable {
         case metadata = "Metadata"
         case capabilities = "Capabilities"
@@ -60,7 +50,6 @@ struct AdvancedPlugin {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Compact Segmented Picker for fast navigation without tall scrolling
                 Picker("Section", selection: $activeTab) {
                     ForEach(CreateTab.allCases) { tab in
                         Label(tab.rawValue, systemImage: tab.icon).tag(tab)
@@ -130,7 +119,7 @@ struct AdvancedPlugin {
                 }
             }
         }
-        .frame(width: 700, height: 490) // Medium-sized desktop dialog frame
+        .frame(width: 700, height: 490)
     }
 
     private var metadataSection: some View {

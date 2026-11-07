@@ -2,14 +2,10 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// The file inspector's Project Document section for a `.xcodeproj`
-/// (reference-ui-3.md §1.13): Compatibility, Encoding (Minimize Project
-/// References), Decoding (Strictly Validate), Organization, Class Prefix.
 @MainActor
 enum ProjectDocumentInspector {
     static var compatibilityTitles: [String] { ProjectEditorModel.compatibilityVersions.map(\.title) }
 
-    /// Applies an edit to the project file and writes it back.
     static func edit(_ xcodeproj: URL, _ change: (inout ProjectEditorModel) -> Void) throws {
         let file = xcodeproj.appendingPathComponent("project.pbxproj")
         let text = try String(contentsOf: file, encoding: .utf8)
@@ -19,7 +15,6 @@ enum ProjectDocumentInspector {
         if out != text { try out.write(to: file, atomically: true, encoding: .utf8) }
     }
 
-    /// Target of the section's controls; kept alive by the controls.
     @MainActor final class Writer: NSObject {
         let url: URL
         init(url: URL) { self.url = url }
@@ -33,14 +28,12 @@ enum ProjectDocumentInspector {
     }
     nonisolated(unsafe) static var writerKey: UInt8 = 0
 
-    /// The section's values read from the project file, or nil.
     static func section(for xcodeproj: URL) -> ProjectEditorModel.ProjectDocumentSection? {
         guard let text = try? String(contentsOf: xcodeproj.appendingPathComponent("project.pbxproj"), encoding: .utf8),
               let proj = try? PBXProj(parsing: text) else { return nil }
         return ProjectEditorModel(proj: proj, xcodeprojURL: xcodeproj).projectDocumentSection
     }
 
-    /// (label, control) rows; controls keyed by label in `controls`.
     static func rows(for xcodeproj: URL, controls: inout [String: NSView]) -> [(String, NSView)] {
         guard let s = section(for: xcodeproj) else { return [] }
         let writer = Writer(url: xcodeproj)

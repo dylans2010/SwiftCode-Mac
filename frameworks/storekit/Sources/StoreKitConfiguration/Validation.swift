@@ -1,21 +1,13 @@
-// Validation of a configuration (plan.md R2: ids unique, group levels,
-// periods, offers). The rules and messages are SwiftCode's own; the spec fixes
-// the value forms they check (configuration-file.md §2–§7).
 import Foundation
 
-/// One finding of `StoreConfiguration.validate()`.
 public struct ValidationIssue: Hashable, Sendable, CustomStringConvertible {
     public enum Severity: String, Hashable, Sendable {
-        /// The store cannot use the item as written.
         case error
-        /// Loads, but probably not what the author meant.
         case warning
     }
 
     public let severity: Severity
-    /// A stable rule identifier (`product.id.duplicate`, …).
     public let rule: String
-    /// A JSON path to the offending value (`subscriptionGroups[0].subscriptions[1].groupNumber`).
     public let path: String
     public let message: String
 
@@ -29,10 +21,8 @@ public struct ValidationIssue: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "\(severity.rawValue): \(path): \(message) [\(rule)]" }
 }
 
-/// The raw time-rate values of `SKTestSession.TimeRate` (testing-session.md §2.1).
 public let validTimeRateValues: Set<Int> = [0, 1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 15, 1000, 1001, 1002, 1003, 1004, 1005]
 
-/// Whether `text` is a non-negative decimal with an optional `.` fraction (`0.99`, `29.99`, `0`).
 public func isDecimalPrice(_ text: String) -> Bool {
     let parts = text.split(separator: ".", omittingEmptySubsequences: false)
     guard parts.count <= 2, let whole = parts.first, !whole.isEmpty else { return false }
@@ -45,29 +35,25 @@ public func isDecimalPrice(_ text: String) -> Bool {
 func isDigits(_ s: String) -> Bool { !s.isEmpty && s.allSatisfy { $0.isASCII && $0.isNumber } }
 
 extension StoreConfiguration {
-    /// Checks the configuration and returns every finding, errors first in file order.
     public func validate() -> [ValidationIssue] {
         var v = Validator()
         v.run(self)
         return v.issues.filter { $0.severity == .error } + v.issues.filter { $0.severity == .warning }
     }
 
-    /// Whether `validate()` finds no error (warnings allowed).
     public var isValid: Bool { !validate().contains { $0.severity == .error } }
 }
 
 struct Validator {
     var issues: [ValidationIssue] = []
-    var productIDs: [String: String] = [:]  // product id -> first path
-    var internalIDs: [String: String] = [:]  // internal id -> first path
+    var productIDs: [String: String] = [:]
+    var internalIDs: [String: String] = [:]
 
     mutating func error(_ rule: String, _ path: String, _ message: String) { issues.append(.init(.error, rule, path, message)) }
     mutating func warning(_ rule: String, _ path: String, _ message: String) { issues.append(.init(.warning, rule, path, message)) }
 
-    /// Known keys left in `extra` had a value of the wrong type.
     mutating func checkTypes(_ extra: [String: JSONValue], _ expected: [String: String], at path: String) {
         for key in JSONWriter.sortedKeys(extra.keys) where extra[key] != .null {
-            // An explicit null stands for "absent" and is kept as written.
             if let want = expected[key] {
                 error("value.type", join(path, key), "The value of \"\(key)\" has the wrong type; expected \(want).")
             }
@@ -136,7 +122,6 @@ struct Validator {
             for (i, s) in subs.enumerated() {
                 product(s, at: "\(path).subscriptions[\(i)]", allowed: [.recurringSubscription], subscriptionGroup: group)
             }
-            // Levels: each subscription has a level >= 1; the levels used should be 1…n without gaps.
             let levels = Set(subs.compactMap(\.groupNumber).filter { $0 >= 1 })
             if let maxLevel = levels.max(), levels.count != maxLevel {
                 let missing = (1...maxLevel).filter { !levels.contains($0) }.map(String.init).joined(separator: ", ")
@@ -371,12 +356,7 @@ struct Validator {
     }
 }
 
-// MARK: - Template
-
 extension StoreConfiguration {
-    /// A new, empty local configuration (ide.md §6 item 2): default settings,
-    /// no products, empty policies, format version 4.0 (configuration-file.md
-    /// §10 q2), and a fresh identifier.
     public static func template(identifier: String = StoreConfiguration.newIdentifier()) -> StoreConfiguration {
         StoreConfiguration(
             identifier: identifier,
@@ -388,7 +368,6 @@ extension StoreConfiguration {
             appPolicies: AppPolicies(eula: "", policies: []))
     }
 
-    /// A random identifier of 8 uppercase hexadecimal digits.
     public static func newIdentifier() -> String {
         var g = SystemRandomNumberGenerator()
         return newIdentifier(using: &g)

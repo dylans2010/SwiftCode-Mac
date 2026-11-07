@@ -47,7 +47,6 @@ public struct VirtualMachineConsoleView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Title/Header bar (Terminal style)
                     HStack {
                         HStack(spacing: 6) {
                             Circle().fill(Color.red).frame(width: 8, height: 8)
@@ -64,7 +63,6 @@ public struct VirtualMachineConsoleView: View {
                     .padding(.vertical, 8)
                     .background(Color.secondary.opacity(0.12))
 
-                    // Console output panel
                     ScrollView {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(consoleLines, id: \.self) { line in
@@ -83,7 +81,6 @@ public struct VirtualMachineConsoleView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Inline help
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "info.circle")
                     .foregroundStyle(.blue)

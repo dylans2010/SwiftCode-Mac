@@ -2,21 +2,11 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// A file's target membership in a project (the File inspector's Target
-/// Membership section, `specs/ide/reference-ui-5.md` §7.3). A file belongs
-/// to a target when one of the target's build phases holds a build file
-/// for its reference, or when it lies in one of the target's synchronized
-/// folders and no exception set of that folder for the target excludes it,
-/// or when the folder's exception set for a target that does not list the
-/// folder names it (`specs/formats/pbxproj.md` §Synchronized folders).
 public struct TargetMembership: Equatable, Sendable {
     public var targetID: String
     public var name: String
     public var isMember: Bool
-    /// Membership can be changed here (a file reference or a file in a
-    /// synchronized folder).
     public var isEditable: Bool
-    /// The membership kind shown under the target's name.
     public var kind: String { "Default" }
     package init(targetID: String, name: String, isMember: Bool, isEditable: Bool) {
         self.targetID = targetID
@@ -27,8 +17,6 @@ public struct TargetMembership: Equatable, Sendable {
 }
 
 extension PBXProj {
-    /// Where a file sits in the project: its file reference, or the
-    /// synchronized folder holding it with its path inside that folder.
     package enum FilePlace { case reference(String), synchronized(group: String, relative: String) }
 
     package func place(ofFile path: String, projectDirectory: URL) -> FilePlace? {
@@ -46,13 +34,11 @@ extension PBXProj {
         return nil
     }
 
-    /// The exception set of a synchronized folder for one target.
     func exceptionSet(group: String, target: String) -> PBXObject? {
         self[group]?.references("exceptions").compactMap { self[$0] }
             .first { $0.isa == "PBXFileSystemSynchronizedBuildFileExceptionSet" && $0.string("target") == target }
     }
 
-    /// Every target of the project with whether `path` belongs to it.
     public func targetMemberships(ofFile path: String, projectDirectory: URL) -> [TargetMembership] {
         let place = place(ofFile: path, projectDirectory: projectDirectory)
         return targets.map { t in
@@ -64,8 +50,6 @@ extension PBXProj {
                 }
                 return TargetMembership(targetID: t.id, name: name, isMember: member, isEditable: true)
             case .synchronized(let group, let rel)?:
-                // A target that does not list the folder can still take the
-                // file through its exception set (`isSynchronizedMember`).
                 let key = SynchronizedFolder.membershipKey(forRelativePath: rel)
                 return TargetMembership(targetID: t.id, name: name,
                                         isMember: isSynchronizedMember(key: key, folder: group, target: t.id), isEditable: true)
@@ -75,11 +59,6 @@ extension PBXProj {
         }
     }
 
-    /// Adds `path` to a target, or removes it. File references get or lose
-    /// a build file in the target's Sources phase (source files) or
-    /// Resources phase (others); files in a synchronized folder are taken
-    /// out of, or put into, the folder's exception set for the target.
-    /// Returns whether the project changed.
     @discardableResult
     public mutating func setMembership(ofFile path: String, target: String, member: Bool, projectDirectory: URL) -> Bool {
         guard self[target] != nil, let place = place(ofFile: path, projectDirectory: projectDirectory) else { return false }
@@ -99,8 +78,6 @@ extension PBXProj {
                 return changed
             }
         case .synchronized(let group, let rel):
-            // A folder's own targets list the files they leave out; other
-            // targets list the files they take (`isSynchronizedMember`).
             let key = SynchronizedFolder.membershipKey(forRelativePath: rel)
             guard isSynchronizedMember(key: key, folder: group, target: target) != member else { return false }
             let owns = self[target]?.references("fileSystemSynchronizedGroups").contains(group) == true
@@ -109,7 +86,6 @@ extension PBXProj {
                 var list = set.references("membershipExceptions")
                 if listed { list.append(key); list.sort() } else { list.removeAll { $0 == key } }
                 if list.isEmpty && set.attributes.keys.allSatisfy({ ["isa", "membershipExceptions", "target"].contains($0) }) {
-                    // An empty set says nothing: drop it from the folder.
                     if var g = self[group] {
                         let rest = g.references("exceptions").filter { $0 != set.id }
                         g["exceptions"] = rest.isEmpty ? nil : .array(rest.map(PlistValue.string))
@@ -137,7 +113,6 @@ extension PBXProj {
         return true
     }
 
-    /// Adds an empty build phase of class `isa` at the end of a target's phases.
     mutating func addBuildPhase(_ isa: String, to target: String) -> String {
         let id = makeObjectID()
         self[id] = PBXObject(id: id, attributes: PlistDictionary([

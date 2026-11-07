@@ -1,5 +1,3 @@
-// Milestone A sample: pthreads, a mutex, a condition variable, and
-// thread-specific data (specs/macos/macos-apps.md §9.1). SwiftCode's own test program.
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>

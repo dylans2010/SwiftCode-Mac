@@ -19,7 +19,6 @@ import httpx
 
 logger = logging.getLogger("ModelAdapterServer")
 
-
 def canonicalize_antigravity_model(model_name: str) -> Tuple[str, Optional[str]]:
     """Maps an Antigravity model name (e.g. gemini-3.8-flash-high) to its canonical
     upstream model name (e.g. gemini-3.8-flash) and thinking level (e.g. HIGH)."""
@@ -34,7 +33,6 @@ def canonicalize_antigravity_model(model_name: str) -> Tuple[str, Optional[str]]
     if lower.endswith("-thinking"):
         return clean[:-9], "HIGH"
     return clean, None
-
 
 def normalize_schema(schema: Any) -> Any:
     """Normalizes JSON schemas to ensure compatibility with strict OpenAI/Anthropic validators."""
@@ -62,7 +60,6 @@ def normalize_schema(schema: Any) -> Any:
 
     return cleaned
 
-
 def extract_fallback_tool_calls(text: str) -> List[Dict[str, Any]]:
     """Extracts fallback JSON tool calls from markdown code blocks or raw JSON."""
     if not text or not text.strip():
@@ -71,7 +68,6 @@ def extract_fallback_tool_calls(text: str) -> List[Dict[str, Any]]:
     trimmed = text.strip()
     candidates = []
 
-    # 1. Look for ```json ... ``` code blocks
     import re
     code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", trimmed)
     for block in code_blocks:
@@ -84,7 +80,6 @@ def extract_fallback_tool_calls(text: str) -> List[Dict[str, Any]]:
         except Exception:
             pass
 
-    # 2. Look for raw JSON object if no blocks found
     if not candidates and trimmed.startswith("{") and trimmed.endswith("}"):
         try:
             parsed = json.loads(trimmed)
@@ -111,7 +106,6 @@ def extract_fallback_tool_calls(text: str) -> List[Dict[str, Any]]:
 
     return extracted_tools
 
-
 class TargetModelConfig:
     def __init__(
         self,
@@ -126,7 +120,6 @@ class TargetModelConfig:
         self.api_key = api_key or ""
         self.base_url = base_url or ""
         self.headers = headers or {}
-
 
 class ModelAdapterServer:
     def __init__(self, host: str = "127.0.0.1", port: int = 0):
@@ -159,7 +152,6 @@ class ModelAdapterServer:
             headers=headers,
         )
         self.targets[model_name] = cfg
-        # Also register normalized lowercase and prefix-stripped keys
         self.targets[model_name.lower()] = cfg
         logger.info("Registered adapter target for model '%s' via provider '%s'", model_name, provider)
 
@@ -169,7 +161,6 @@ class ModelAdapterServer:
         lower = model_name.lower()
         if lower in self.targets:
             return self.targets[lower]
-        # Partial match if any target is contained
         for k, v in self.targets.items():
             if k in lower or lower in k:
                 return v
@@ -202,7 +193,6 @@ class ModelAdapterServer:
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:
-            # Read HTTP request header
             line = await reader.readline()
             if not line:
                 writer.close()
@@ -216,7 +206,6 @@ class ModelAdapterServer:
 
             method, path = parts[0], parts[1]
 
-            # Read headers
             headers: Dict[str, str] = {}
             while True:
                 header_line = await reader.readline()
@@ -284,7 +273,6 @@ class ModelAdapterServer:
         model_name = payload.get("model", "")
         stream = payload.get("stream", False)
 
-        # Normalize all tool parameter schemas in payload to ensure lowercase types
         tools = payload.get("tools")
         if tools and isinstance(tools, list):
             for t in tools:
@@ -296,7 +284,6 @@ class ModelAdapterServer:
         target = self.find_target(model_name)
 
         if not target:
-            # Fallback target if any target is registered
             if self.targets:
                 target = next(iter(self.targets.values()))
             else:
@@ -342,10 +329,8 @@ class ModelAdapterServer:
         elif target.provider == "custom":
             await self._forward_to_custom(payload, target, stream, writer, client)
         else:
-            # Default OpenAI
             await self._forward_to_openai(payload, target, stream, writer, client)
 
-    # MARK: - Anthropic Adapter
     async def _forward_to_anthropic(
         self,
         payload: Dict[str, Any],
@@ -358,7 +343,6 @@ class ModelAdapterServer:
         messages = payload.get("messages", [])
         tools = payload.get("tools", [])
 
-        # Translate system message
         system_content = ""
         claude_messages: List[Dict[str, Any]] = []
 
@@ -395,7 +379,6 @@ class ModelAdapterServer:
                 else:
                     claude_messages.append({"role": "assistant", "content": content or ""})
             elif role == "tool":
-                # Convert OpenAI tool response to Anthropic tool_result
                 tool_call_id = m.get("tool_call_id", "")
                 claude_messages.append({
                     "role": "user",
@@ -406,7 +389,6 @@ class ModelAdapterServer:
                     }]
                 })
 
-        # Translate tools
         claude_tools: List[Dict[str, Any]] = []
         for t in tools:
             if t.get("type") == "function" and "function" in t:
@@ -448,7 +430,6 @@ class ModelAdapterServer:
                     writer.close()
                     return
 
-                # Send initial SSE HTTP response headers after verifying success
                 writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
                 await writer.drain()
 
@@ -567,7 +548,6 @@ class ModelAdapterServer:
 
             writer.close()
         else:
-            # Non-streaming
             resp = await client.post(url, headers=headers, json=req_body, timeout=120.0)
             if resp.status_code >= 400:
                 err_content = resp.content
@@ -640,7 +620,6 @@ class ModelAdapterServer:
             return base
         return f"{base}/chat/completions"
 
-    # MARK: - Antigravity / OpenAI / OpenRouter / Custom Forwarder
     async def _forward_to_antigravity(
         self,
         payload: Dict[str, Any],
@@ -764,7 +743,6 @@ class ModelAdapterServer:
         stream = ":streamGenerateContent" in path_no_query
         action = "streamGenerateContent" if stream else "generateContent"
 
-        # Extract model name from /v1/v1beta/models/{model}:{action} or /v1beta/models/{model}:{action}
         model_segment = path_no_query.split(f":{action}")[0]
         if "/models/" in model_segment:
             raw_model_name = model_segment.split("/models/")[-1].strip("/")
@@ -779,7 +757,6 @@ class ModelAdapterServer:
             else:
                 target = TargetModelConfig(model_name=base_model_name, provider="antigravity")
 
-        # Build OAuth-only headers (never attach x-goog-api-key or x-api-key)
         forward_headers: Dict[str, str] = {"Content-Type": "application/json"}
         if target.headers:
             for k, v in target.headers.items():
@@ -796,7 +773,6 @@ class ModelAdapterServer:
         is_gpt_oss = "gpt-oss" in raw_model_name.lower() or "gpt-oss" in base_model_name.lower()
         use_openai_gateway = is_claude or is_gpt_oss or (target.base_url and "/openai" in target.base_url)
 
-        # For Gemini models without a custom OpenAI gateway, forward directly to generativelanguage.googleapis.com
         if not use_openai_gateway:
             base = (target.base_url or "https://generativelanguage.googleapis.com").rstrip("/")
             if base.endswith("/v1") or base.endswith("/v1beta"):
@@ -804,7 +780,6 @@ class ModelAdapterServer:
             query_suffix = "?alt=sse" if stream else ""
             upstream_url = f"{base}/v1beta/models/{base_model_name}:{action}{query_suffix}"
 
-            # Inject thinkingConfig into body if inferred from Antigravity model suffix
             out_body = body
             if inferred_thinking_level and body:
                 try:
@@ -859,7 +834,6 @@ class ModelAdapterServer:
                     writer.close()
                     return
 
-        # For Claude models, GPT-OSS, or OpenAI-compatible Antigravity gateways, translate Gemini <-> OpenAI
         try:
             gemini_req = json.loads(body.decode("utf-8")) if body else {}
         except Exception:
@@ -871,8 +845,6 @@ class ModelAdapterServer:
             or "https://cloudcode-pa.googleapis.com/v1internal/openai"
         )
         gateway_url = self._normalize_target_url(target.base_url, default_gateway)
-        # Drop any Content-Length left over from the Gemini request: httpx sets it for the
-        # JSON body sent here, and a stale value makes h11 reject the request.
         forward_headers = {k: v for k, v in forward_headers.items() if k.lower() != "content-length"}
         resp = await client.post(gateway_url, headers=forward_headers, json=openai_payload, timeout=120.0)
         if resp.status_code >= 400:
@@ -1051,7 +1023,6 @@ class ModelAdapterServer:
                         continue
                     raw_data = line[6:].strip()
                     if raw_data == "[DONE]":
-                        # If tool calls were buffered but not yet emitted, emit them before [DONE]
                         if active_tool_calls and not tool_calls_emitted:
                             tc_list = []
                             for idx in sorted(active_tool_calls.keys()):
@@ -1144,7 +1115,6 @@ class ModelAdapterServer:
                     if chunk_obj.get("model"):
                         model_name = chunk_obj["model"]
 
-                    # Buffer fragmented tool calls
                     incoming_tc = delta.get("tool_calls")
                     if incoming_tc and isinstance(incoming_tc, list):
                         for tc in incoming_tc:
@@ -1162,10 +1132,8 @@ class ModelAdapterServer:
                             arg_delta = tc.get("function", {}).get("arguments", "")
                             if arg_delta:
                                 active_tool_calls[t_idx]["arguments"] += arg_delta
-                        # Do not forward partial tool call chunks to localharness
                         continue
 
-                    # If finishing with tool calls
                     if (finish_reason == "tool_calls" or (finish_reason and active_tool_calls)) and not tool_calls_emitted:
                         tc_list = []
                         for idx in sorted(active_tool_calls.keys()):
@@ -1193,7 +1161,6 @@ class ModelAdapterServer:
                         writer.write(f"data: {json.dumps(complete_chunk)}\n\n".encode("utf-8"))
                         tool_calls_emitted = True
 
-                    # Pass through reasoning / thinking
                     if "reasoning_content" in delta:
                         rc = delta["reasoning_content"]
                         if rc:
@@ -1204,7 +1171,6 @@ class ModelAdapterServer:
                             if "thinking" not in delta:
                                 delta["thinking"] = rc
 
-                    # Pass through content / thinking or finish_reason
                     if delta.get("content"):
                         accumulated_content.append(str(delta["content"]))
 

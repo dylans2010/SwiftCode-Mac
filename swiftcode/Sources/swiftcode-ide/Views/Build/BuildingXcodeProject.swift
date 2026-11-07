@@ -1,12 +1,3 @@
-// BuildingXcodeProject.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/BuildingXcodeProject.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: generator wizard UI (configuration form, stage status, advanced metrics, project-settings save)
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/BuildingXcodeProject.swift (derived from Legacy).
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeDarwinKernel, SwiftCodeDarwinKernel (or SwiftCodeMetalHost, SwiftCodeProfiler) — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CopyLogsButton, VisualEffectView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftCodeXcodebuild
 import SwiftUI
@@ -14,12 +5,10 @@ import SwiftUI
 public struct BuildingXcodeProject: View {
     @Environment(\.dismiss) private var dismiss
 
-    // Shared API reference
     private var api: XcodeBuildAPI {
         XcodeBuildAPI.shared
     }
 
-    // Configuration Fields (synchronized from defaults or active project)
     @State private var projectName = ""
     @State private var scheme = ""
     @State private var bundleIdentifier = ""
@@ -27,7 +16,6 @@ public struct BuildingXcodeProject: View {
     @State private var deploymentTarget = "16.0"
     @State private var targetPlatform = "iOS"
 
-    // Component States
     @State private var isConfiguring = true
     @State private var isPerformingAction = false
 
@@ -35,7 +23,6 @@ public struct BuildingXcodeProject: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 Image(systemName: "hammer.fill")
                     .font(.title2)
@@ -60,7 +47,6 @@ public struct BuildingXcodeProject: View {
                 .padding(.bottom, 16)
 
             if isConfiguring {
-                // Step 1: Configuration Form
                 ScrollView {
                     XcodeProjectDetails(
                         projectName: $projectName,
@@ -80,9 +66,7 @@ public struct BuildingXcodeProject: View {
                     )
                 }
             } else {
-                // Step 2: Action Status, Logs, and Diagnostics View
                 VStack(alignment: .leading, spacing: 16) {
-                    // Status summary card
                     VStack(alignment: .leading, spacing: 12) {
                         statusRow(label: "Current Stage:", value: api.currentStage, icon: "hourglass", color: .blue)
                         statusRow(label: "XcodeGen Status:", value: api.xcodegenState.rawValue.capitalized, icon: "cube.fill", color: stateColor(for: api.xcodegenState))
@@ -97,7 +81,6 @@ public struct BuildingXcodeProject: View {
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
 
-                    // Diagnostics / Errors display
                     if let error = api.activeGenerationError {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
@@ -136,7 +119,6 @@ public struct BuildingXcodeProject: View {
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(12)
                     } else if api.xcodegenState == .missing {
-                        // XcodeGen component installation request
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Image(systemName: "questionmark.circle.fill")
@@ -184,7 +166,6 @@ public struct BuildingXcodeProject: View {
                         .cornerRadius(12)
                     }
 
-                    // Live Log View
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Execution Logs")
@@ -231,14 +212,12 @@ public struct BuildingXcodeProject: View {
     private func startVerificationAndGeneration() {
         isPerformingAction = true
         Task {
-            // Verify XcodeGen installation
             let state = await api.checkXcodeGenInstallation()
             if state != .installed {
                 isPerformingAction = false
                 return
             }
 
-            // Run project generation
             let success = await api.generateProjectWithXcodeGen(
                 projectName: projectName,
                 scheme: scheme,
@@ -250,7 +229,6 @@ public struct BuildingXcodeProject: View {
 
             isPerformingAction = false
             if success {
-                // Continue directly into existing build pipeline!
                 api.completeProjectGeneration(success: true)
                 dismiss()
             }
@@ -278,8 +256,6 @@ public struct BuildingXcodeProject: View {
         }
     }
 }
-
-// MARK: - XcodeProjectDetailsSheet
 
 public struct XcodeProjectDetailsSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -310,7 +286,6 @@ public struct XcodeProjectDetailsSheet: View {
         return XcodeBuildManager.shared.detectedSDKs
     }
 
-    // Advanced Metrics & Diagnostics
     @State private var numberOfTargets = 0
     @State private var numberOfFiles = 0
     @State private var numberOfSwiftFiles = 0
@@ -318,14 +293,7 @@ public struct XcodeProjectDetailsSheet: View {
     @State private var buildConfigurationsList: [String] = ["Debug", "Release"]
     @State private var sourceDirectoryName = ""
     @State private var xcodegenVersion = "Checking..."
-    /// First line of `swift --version` output; "Swift not found" when the
-    /// toolchain is absent. (Cleanup 2026-11-06, triage §A4: this row used
-    /// to hardcode "Apple Swift 6.0".)
     @State private var swiftCompilerVersion = "Checking..."
-    /// SDK platforms from `XcodeBuildManager.detectedSDKs` (real
-    /// `xcodebuild -showsdks` output); "Detecting…" until detection runs.
-    /// (Cleanup 2026-11-06, triage §A4: this row used to hardcode
-    /// "macOS, iOS, simulator".)
     @State private var activeSDKPlatforms = "Detecting…"
     @State private var showingDiagnosticsPopover = false
 
@@ -333,7 +301,6 @@ public struct XcodeProjectDetailsSheet: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Elegant Visual Header
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
@@ -400,7 +367,6 @@ public struct XcodeProjectDetailsSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Modern High-Fidelity Stats Dashboard
                     VStack(alignment: .leading, spacing: 12) {
                         Text("WORKSPACE METRICS")
                             .font(.caption.bold())
@@ -437,7 +403,6 @@ public struct XcodeProjectDetailsSheet: View {
                     .liquidGlass(style: .standard, cornerRadius: 12)
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.12), lineWidth: 1))
 
-                    // App Name & Bundle ID configuration
                     GroupBox(label: Label("APP IDENTITY", systemImage: "person.crop.square")) {
                         VStack(alignment: .leading, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -460,7 +425,6 @@ public struct XcodeProjectDetailsSheet: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Version & Build Number Config
                     GroupBox(label: Label("VERSIONING", systemImage: "tag.fill")) {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -482,7 +446,6 @@ public struct XcodeProjectDetailsSheet: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Target deployment Platform & Minimum OS
                     GroupBox(label: Label("DEPLOYMENT TARGET", systemImage: "play.circle")) {
                         VStack(spacing: 12) {
                             HStack(spacing: 12) {
@@ -525,7 +488,6 @@ public struct XcodeProjectDetailsSheet: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Destinations & SDKs Manager list
                     GroupBox(label: Label("DESTINATIONS / SDKS", systemImage: "iphone.badge.play")) {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(destinations, id: \.self) { dest in
@@ -612,9 +574,6 @@ public struct XcodeProjectDetailsSheet: View {
         }
     }
 
-    /// Resolves the live toolchain rows for the IDE Diagnostics popover:
-    /// `swift --version` for the compiler, `xcodebuild -showsdks`
-    /// detection for the SDK platforms.
     private func checkToolchain() {
         refreshSDKPlatforms()
         Task.detached {
@@ -625,8 +584,6 @@ public struct XcodeProjectDetailsSheet: View {
         }
     }
 
-    /// First line of `swift --version` output, or "Swift not found"
-    /// when no toolchain is on PATH.
     private static func swiftVersionString() -> String {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -650,9 +607,6 @@ public struct XcodeProjectDetailsSheet: View {
         }
     }
 
-    /// SDK platforms from the real `xcodebuild -showsdks` detection
-    /// (`XcodeBuildManager.detectedSDKs`); "Detecting…" until detection
-    /// has produced a list.
     private func refreshSDKPlatforms() {
         let sdks = XcodeBuildManager.shared.detectedSDKs
         guard !sdks.isEmpty else {
@@ -671,7 +625,6 @@ public struct XcodeProjectDetailsSheet: View {
         guard let proj = XcodeBuildAPI.shared.determineActiveProject() else { return }
         sourceDirectoryName = proj.url.path
 
-        // Asynchronously scan files and git branch
         Task.detached { [proj] in
             let fm = FileManager.default
             var fileCount = 0
@@ -682,7 +635,6 @@ public struct XcodeProjectDetailsSheet: View {
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants]
             ) {
-                // Iterate using nextObject() to avoid makeIterator() in async contexts
                 while let obj = enumerator.nextObject() {
                     guard let fileURL = obj as? URL else { continue }
                     let isFile = (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile ?? false
@@ -695,7 +647,6 @@ public struct XcodeProjectDetailsSheet: View {
                 }
             }
 
-            // Fetch active git branch synchronously in this background task
             var resolvedBranch = "main"
             do {
                 let task = Process()
@@ -722,7 +673,6 @@ public struct XcodeProjectDetailsSheet: View {
                 resolvedBranch = "main"
             }
 
-            // Publish results back to the main actor
             await MainActor.run {
                 self.numberOfFiles = fileCount
                 self.numberOfSwiftFiles = swiftCount
@@ -792,8 +742,6 @@ public struct XcodeProjectDetailsSheet: View {
     }
 }
 
-// MARK: - MetricCard Helper View
-
 struct MetricCard: View {
     let title: String
     let value: String
@@ -821,8 +769,6 @@ struct MetricCard: View {
         .liquidGlass(style: .subtle, cornerRadius: 8)
     }
 }
-
-// MARK: - XcodeProjectDetails View
 
 public struct XcodeProjectDetails: View {
     @Binding var projectName: String
@@ -852,7 +798,6 @@ public struct XcodeProjectDetails: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Project Name
             VStack(alignment: .leading, spacing: 4) {
                 Text("Project Name")
                     .font(.caption.weight(.medium))
@@ -869,7 +814,6 @@ public struct XcodeProjectDetails: View {
                 }
             }
 
-            // Scheme Name
             VStack(alignment: .leading, spacing: 4) {
                 Text("Scheme Name")
                     .font(.caption.weight(.medium))
@@ -878,7 +822,6 @@ public struct XcodeProjectDetails: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            // Bundle Identifier
             VStack(alignment: .leading, spacing: 4) {
                 Text("Bundle Identifier")
                     .font(.caption.weight(.medium))
@@ -894,7 +837,6 @@ public struct XcodeProjectDetails: View {
                 }
             }
 
-            // Organization Identifier
             VStack(alignment: .leading, spacing: 4) {
                 Text("Organization Identifier (Optional)")
                     .font(.caption.weight(.medium))
@@ -903,7 +845,6 @@ public struct XcodeProjectDetails: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            // Deployment Target
             VStack(alignment: .leading, spacing: 4) {
                 Text("Deployment Target (Optional)")
                     .font(.caption.weight(.medium))
@@ -912,7 +853,6 @@ public struct XcodeProjectDetails: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            // Target Platform
             VStack(alignment: .leading, spacing: 4) {
                 Text("Target Platform")
                     .font(.caption.weight(.medium))
@@ -930,7 +870,6 @@ public struct XcodeProjectDetails: View {
             Divider()
                 .padding(.vertical, 8)
 
-            // API Auto-resolved Configurations Info
             VStack(alignment: .leading, spacing: 6) {
                 Text("Auto-Resolved Configurations")
                     .font(.caption.bold())
@@ -971,4 +910,3 @@ public struct XcodeProjectDetails: View {
         }
     }
 }
-

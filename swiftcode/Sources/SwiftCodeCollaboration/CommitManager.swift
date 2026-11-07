@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/CommitManager.swift
-// Adapted for SwiftCode: In-memory commit/working-change model. Verbatim.
-
 import Foundation
 
 public struct CommitEvent: Equatable {

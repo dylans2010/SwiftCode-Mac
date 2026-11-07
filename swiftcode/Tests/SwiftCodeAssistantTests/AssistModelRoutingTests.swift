@@ -2,16 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// MARK: - SDK provider paths / router / selection (Wave 15)
-//
-// Fixtures only: no live network, no real API keys, no real
-// providers. Candidates are hand-built values; the router never
-// touches the secret store or the network.
-
 @Suite struct AssistModelRoutingTests {
-    // A small eligible set: two OpenRouter models, one OpenAI
-    // model, one custom (user-provided) model, one unconfigured
-    // model, one tool-less model.
     static func candidates() -> [AssistCandidateModel] {
         [
             AssistCandidateModel(id: "anthropic/claude-sonnet-4-5", displayName: "Claude Sonnet", provider: .openRouter, priority: 5, source: .provider),
@@ -29,8 +20,6 @@ import Testing
             AssistCandidateModel(id: "google/gemini-2.5-pro", displayName: "Gemini Pro", provider: .openRouter, contextWindow: 1_000_000, priority: 10, source: .provider),
         ]
     }
-
-    // MARK: - Specification (name-based catalog)
 
     @Test func specificationPrefixesWin() {
         #expect(AssistModelSpecification.specification(for: "opencode:anthropic/claude-sonnet-4-5").provider == .openCode)
@@ -83,8 +72,6 @@ import Testing
         #expect(merged == "SYSTEM DIRECTIVES:\nSYS\n\nUSER REQUEST:\nDO")
     }
 
-    // MARK: - Context budget
-
     @Test func contextBudget() {
         let budget = AgentModelContextBudget(modelId: "gpt-4o", contextWindowTokens: 128_000)
         #expect(budget.maxInputTokens == 128_000 - 4096)
@@ -94,8 +81,6 @@ import Testing
         #expect(!budget.fitsContext(estimatedTokens: budget.maxInputTokens + 1))
         #expect(AssistModelSpecification.contextBudget(for: "claude-sonnet-4-5").contextWindowTokens == 200_000)
     }
-
-    // MARK: - Free-only eligibility
 
     @Test func freeOnlyEligibility() {
         #expect(AssistModelEligibilityPolicy.isEligible(modelID: "openai/gpt-oss-120b:free", onlyUseFreeModels: true))
@@ -110,8 +95,6 @@ import Testing
         }
         try? AssistModelEligibilityPolicy.validateExecutionEligibility(modelID: "gpt-4o", onlyUseFreeModels: false)
     }
-
-    // MARK: - Stored model identifiers
 
     @Test func openCodeModelID() {
         let parsed = OpenCodeModelID.parse("opencode:anthropic/claude-sonnet-4-5")
@@ -163,28 +146,20 @@ import Testing
         #expect(OpenCodeConfiguration.defaultServerURL.absoluteString == "http://127.0.0.1:4096")
         #expect(OpenCodeConfiguration.defaultAgentName == "swiftcode")
 
-        // A bad URL falls back to the default instead of crashing.
         var broken = AssistantSettings()
         broken.openCodeURL = "not a url"
         #expect(OpenCodeConfiguration(settings: broken).serverURL == OpenCodeConfiguration.defaultServerURL)
     }
 
-    // MARK: - Ranking
-
     @Test func rankModelsPrefersSelectedThenFewestFailures() {
         let models = Self.openRouterCandidates()
         let ranked = AssistModelRouter.rankModels(models, preferredIdentifier: "google/gemini-2.5-pro")
         #expect(ranked.first?.id == "google/gemini-2.5-pro")
-        // Without a preference: lower priority first, then subagents,
-        // then the larger context window.
         let plain = AssistModelRouter.rankModels(models)
         #expect(plain.map(\.id) == ["anthropic/claude-sonnet-4-5", "anthropic/claude-haiku-4-5", "google/gemini-2.5-pro"])
-        // A failure count demotes the model below its priority peer.
         let withFailures = AssistModelRouter.rankModels(models: models, preferredIdentifier: nil, failedAttemptsCount: ["anthropic/claude-sonnet-4-5": 3])
         #expect(withFailures.map(\.id) == ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5", "google/gemini-2.5-pro"])
     }
-
-    // MARK: - Eligibility & selection
 
     @Test func eligibleCandidatesFilter() async {
         let router = AssistModelRouter()
@@ -192,10 +167,6 @@ import Testing
             from: Self.candidates(), strategy: .providerDefault,
             useProviderModelsOnly: false, useCloudModel: false
         )
-        // Tool-less, unconfigured, and custom models are all
-        // eligible here (custom is only excluded by the
-        // provider-models-only flag); the unconfigured and
-        // tool-less ones are not.
         #expect(eligible.map(\.id) == ["my-fine-tune", "anthropic/claude-sonnet-4-5", "gpt-4o"])
     }
 
@@ -215,8 +186,6 @@ import Testing
             from: Self.openRouterCandidates(), strategy: .appModels,
             useProviderModelsOnly: false, useCloudModel: true, cloudConfigured: true
         )
-        // One synthetic cloud entry, last, even though it supports
-        // no tool calling (it never goes through the agentic filter).
         let cloud = eligible.last
         #expect(cloud?.provider == .scCloud)
         #expect(cloud?.id == "swiftcode-cloud")
@@ -242,7 +211,6 @@ import Testing
 
     @Test func resolveDefaultModel() {
         let discovered = Self.openRouterCandidates()
-        // Cloud short-circuit: never subject to discovery.
         let cloud = AssistModelRouter.resolveDefaultModel(
             preferredID: "swiftcode-cloud:qwen3", discovered: discovered,
             useCloudModel: true, cloudConfigured: true, cloudRemainingToday: 7
@@ -250,20 +218,17 @@ import Testing
         #expect(cloud.provider == .scCloud)
         #expect(cloud.modelIdentifier == "qwen3")
         #expect(cloud.statusDescription == "SwiftCode Cloud · 7/10 left today")
-        // Discovered match wins over the spec catalog.
         let match = AssistModelRouter.resolveDefaultModel(
             preferredID: "anthropic/claude-haiku-4-5", discovered: discovered,
             useCloudModel: false
         )
         #expect(match.id == "anthropic/claude-haiku-4-5" && match.displayName == "Claude Haiku")
-        // Apple Foundation synthetic model.
         let afm = AssistModelRouter.resolveDefaultModel(
             preferredID: "afm-3-core", discovered: [], useCloudModel: false
         )
         #expect(afm.provider == .foundationModels)
         #expect(afm.contextWindow == 16_000)
         #expect(afm.statusDescription == "On-Device Available (Chat Mode Only)")
-        // Unknown id: synthesized from the name-based specification.
         let spec = AssistModelRouter.resolveDefaultModel(
             preferredID: "gpt-4o", discovered: [], useCloudModel: false
         )
@@ -275,8 +240,6 @@ import Testing
         #expect(AssistModelRouter.selectNextModel(excluding: ["anthropic/claude-sonnet-4-5"], from: models)?.id == "anthropic/claude-haiku-4-5")
         #expect(AssistModelRouter.selectNextModel(excluding: Set(models.map(\.id)), from: models) == nil)
     }
-
-    // MARK: - Failure classification & quarantine
 
     @Test func classifyFailures() {
         struct E: LocalizedError { let message: String; var errorDescription: String? { message } }
@@ -290,7 +253,6 @@ import Testing
         #expect(AssistModelRouter.classify(error: E(message: "model not found")) == .modelUnavailable)
         #expect(AssistModelRouter.classify(error: E(message: "HTTP 404")) == .modelUnavailable)
         #expect(AssistModelRouter.classify(error: E(message: "HTTP 503 overloaded")) == .providerUnavailable)
-        // Anything else falls through to the faithful default.
         #expect(AssistModelRouter.classify(error: E(message: "something strange happened")) == .internalAntigravityFailure)
         #expect(AssistModelRouter.isQuotaOrRateLimit(errorText: "429 Too Many Requests"))
         #expect(!AssistModelRouter.isQuotaOrRateLimit(errorText: "bad request"))
@@ -314,8 +276,6 @@ import Testing
         #expect(await router.quarantinedModels.isEmpty)
     }
 
-    // MARK: - Failover
-
     @Test func handleTurnFailureRespectsAutoSwitchOff() async {
         struct E: LocalizedError { let message: String; var errorDescription: String? { message } }
         let router = AssistModelRouter()
@@ -327,7 +287,6 @@ import Testing
             eligibleCandidates: models
         )
         #expect(result == nil)
-        // The failure is still recorded even when switching is off.
         #expect(await router.isModelQuarantined(modelIdentifier: failed.id))
     }
 
@@ -358,8 +317,6 @@ import Testing
         struct E: LocalizedError { let message: String; var errorDescription: String? { message } }
         let router = AssistModelRouter()
         let models = Self.openRouterCandidates()
-        // All three candidates are .openRouter, so a quota failure
-        // on one excludes the provider and failover is exhausted.
         let result = await router.handleTurnFailure(
             failedModel: models[0], error: E(message: "HTTP 429"), completedTurnContent: "",
             executedToolsCount: 0, objective: "x", automaticallySwitchModels: true,
@@ -392,8 +349,6 @@ import Testing
         #expect(!empty.contains("Partial response"))
     }
 
-    // MARK: - User-provided models
-
     @Test func userProvidedModels() {
         let custom = AssistCandidateModel(id: "my-model", displayName: "Mine", provider: .openRouter, source: .custom)
         #expect(AssistModelRouter.isUserProvidedModel(custom))
@@ -407,8 +362,6 @@ import Testing
         #expect(!AssistModelRouter.isUserProvidedSelectedModelID("opencode:a/b", discovered: nil, customModelID: "opencode:a/b"))
         #expect(AssistModelRouter.isUserProvidedSelectedModelID("whatever", discovered: custom, customModelID: ""))
     }
-
-    // MARK: - Provider dispatch by stored model id
 
     @Test func providerKindForModelID() {
         let backends = AssistantBackends(settings: AssistantSettings(), store: MemorySecretStore(), account: nil)
@@ -426,8 +379,6 @@ import Testing
         #expect(backends.provider(forModelID: "swiftcode-cloud").kind == .scCloud)
         #expect(backends.provider(forModelID: "muse-wonder-1.0").kind == .openRouter)
     }
-
-    // MARK: - Settings persistence
 
     @Test func assistantSettingsRoutingDefaults() {
         let settings = AssistantSettings()
@@ -476,12 +427,10 @@ import Testing
 }
 
 @Suite struct MetaAssistProviderTests {
-    /// A locator that never finds anything.
     static func absentLocator() -> CLIToolLocator {
         CLIToolLocator(environment: ["PATH": ""], home: "/nonexistent-home", isExecutable: { _ in false })
     }
 
-    /// A locator that finds `muse`, with a fake home directory.
     static func presentLocator(home: String) -> CLIToolLocator {
         CLIToolLocator(environment: ["PATH": ""], home: home, isExecutable: { _ in true })
     }
@@ -540,10 +489,6 @@ import Testing
     }
 
     @Test func sendFailsHonestlyWithoutBinary() async throws {
-        // Wave 16: `send` runs a real turn through the bridge, so
-        // a missing binary fails as `.failed` with the install
-        // hint — it no longer throws `.unsupported` naming the
-        // (now ported) bridge.
         let provider = MetaAssistProvider(locator: Self.absentLocator())
         let request = ChatRequest(model: "muse-wonder-1.0", instructions: "Be helpful.", messages: [ChatMessage(.user, "Hello")])
         do {

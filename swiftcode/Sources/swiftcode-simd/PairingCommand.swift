@@ -1,31 +1,7 @@
-// The pairing commands (specs/simulator/device-pairing.md §2.2, P-1 … P-3):
-//
-//   swiftcode-simd [--device-set <dir>] --pair <watch> <phone>     prints the new pair's UUID
-//   swiftcode-simd [--device-set <dir>] --unpair <pair UUID>       the watch is shut down and erased
-//   swiftcode-simd [--device-set <dir>] --pair-activate <pair UUID>
-//   swiftcode-simd [--device-set <dir>] --list-pairs [--json]
-//
-// A device is named by its directory (a path), its directory's name in the
-// set, or its UDID. The set is `--device-set`, else `SWIFTCODE_DEVICE_SET`, else
-// the directory holding the first device named by a path. The records are
-// the set's `swiftcode-device-pairs.plist` (DevicePairStore). Running devices
-// are told about changes through their rendezvous sockets (PairingHost):
-// both devices of a new pair, the phone at an activation (which returns at
-// once; the guest's switch runs in the background, P-11); at an unpair the
-// phone's guest unpairs and disconnects, the watch shuts down, and the
-// watch's directory is erased (everything but its type record and UDID, so
-// its next boot is a first boot of the same device; P-3). The phone is kept.
-//
-// Exit status: 0; 148 for an unknown pair, 37 for a pair that is already
-// active, 1 for a refused pairing or a failed erase, 64 for bad usage.
-
 import Foundation
 import SwiftCodeSimFeatures
 
-/// What pairing needs to know of a device directory.
 enum PairingDeviceDirectory {
-    /// The UDID a device directory boots with: the one its last boot recorded
-    /// (`swiftcode-udid`, written by every boot), else the one derived from its path.
     static func udid(of dir: String) -> String {
         if let data = FileManager.default.contents(atPath: dir + "/" + udidRecordName) {
             let s = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
@@ -36,7 +12,6 @@ enum PairingDeviceDirectory {
 
     static let udidRecordName = "swiftcode-udid"
 
-    /// The family of a device type id (from the device type records).
     static func family(typeID: String) -> PairingFamily {
         switch DeviceType.named(typeID)?.family {
         case .phone?: .phone
@@ -45,8 +20,6 @@ enum PairingDeviceDirectory {
         }
     }
 
-    /// The device at `dir`: its UDID, family and last OS version. Throws when
-    /// the directory has no device type yet (it never booted).
     static func info(dir: String, set: String) throws -> PairingDevice {
         guard let typeID = DeviceLayout.recordedDeviceType(in: dir) else { throw NoDeviceType(dir: dir) }
         let name = DeviceType.named(typeID)?.name ?? typeID
@@ -59,13 +32,10 @@ enum PairingDeviceDirectory {
         var description: String { "\(dir) has no device type yet: boot it once (with --device-type) before pairing it" }
     }
 
-    /// `dir` relative to `set` when inside it, else as it is.
     static func relative(_ dir: String, to set: String) -> String {
         dir.hasPrefix(set + "/") ? String(dir.dropFirst(set.count + 1)) : dir
     }
 
-    /// The directory of a record's device: its directory (relative to the
-    /// set or absolute), else the set's directory whose UDID it is.
     static func directory(record: String?, udid: String, set: String) -> String? {
         if let record {
             let d = record.hasPrefix("/") ? record : set + "/" + record
@@ -74,7 +44,6 @@ enum PairingDeviceDirectory {
         return find(udid: udid, set: set)
     }
 
-    /// The device directory in `set` whose UDID is `udid`.
     static func find(udid: String, set: String) -> String? {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: set)) ?? []
         return names.sorted().map { set + "/" + $0 }.first { d in
@@ -84,8 +53,6 @@ enum PairingDeviceDirectory {
         }
     }
 
-    /// Resolves a command-line device argument: a path, a directory name in
-    /// the set, or a UDID.
     static func resolve(_ arg: String, set: String?) -> String? {
         let fm = FileManager.default
         if arg.contains("/") { return fm.fileExists(atPath: absolute(arg)) ? absolute(arg) : nil }
@@ -94,15 +61,11 @@ enum PairingDeviceDirectory {
         return UUID(uuidString: arg) != nil ? find(udid: arg, set: set) : nil
     }
 
-    /// An absolute, standardized path (relative to the current directory).
     static func absolute(_ path: String) -> String {
         let p = path.hasPrefix("/") ? path : (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent(path)
         return (p as NSString).standardizingPath
     }
 
-    /// Erases a watch at an unpair (P-3): everything in its directory but its
-    /// type record and UDID goes, so its next boot is a first boot of the
-    /// same device. Moved aside first (a rename), then removed.
     static func erase(_ dir: String) throws {
         let fm = FileManager.default
         let keep: Set<String> = ["swiftcode-device-type", udidRecordName]
@@ -170,8 +133,6 @@ func runPairingCommand(_ arguments: [String]) -> Never {
             guard operands.count == 1 else { die(help, status: 64) }
             let pair = try DevicePairStore.update(set: set) { try $0.activate(operands[0]) }
             let others = (try DevicePairStore.load(set: set)).pairs.filter { $0.companion == pair.companion }.map(\.gizmo)
-            // The records change at once; a running phone's set-active runs in
-            // the background (P-11: never minutes here), its outcome in `pairing state`.
             var told = false
             for u in [pair.companion] + others where PairSockets.command(udid: u, verb: "reload", timeout: 10) != nil {
                 told = told || u == pair.companion
@@ -204,14 +165,10 @@ struct PairingCommandError: Error, CustomStringConvertible {
     init(_ d: String) { description = d }
 }
 
-/// The rest of an unpair (§3.2, P-3): the phone's guest unpairs and
-/// disconnects (when it runs), the watch shuts down (when it runs) and is
-/// erased.
 private func finishUnpair(_ pair: DevicePair, set: String) throws {
     if let answer = PairSockets.command(udid: pair.companion, verb: "unpair", args: [pair.gizmo], timeout: 300) {
         stderrLine("swiftcode-simd: phone: \(answer["text"] as? String ?? "?")")
     } else if let dir = PairingDeviceDirectory.directory(record: pair.companionDirectory, udid: pair.companion, set: set) {
-        // A stopped phone: its next boot has no pair with the watch (remove-unpaired).
         let path = dir + "/swiftcode-paired-peers"
         if let text = try? String(contentsOfFile: path, encoding: .utf8) {
             let rest = text.split(whereSeparator: \.isNewline).filter { $0.uppercased() != pair.gizmo }
@@ -230,14 +187,12 @@ private func finishUnpair(_ pair: DevicePair, set: String) throws {
             guard Date() < deadline else { throw PairingCommandError("the watch \(pair.gizmo) did not shut down; it was not erased") }
             Thread.sleep(forTimeInterval: 0.5)
         }
-        // The process ends after its socket closes; its files may still be open for a moment.
         Thread.sleep(forTimeInterval: 2)
     }
     try PairingDeviceDirectory.erase(watch)
     print("erased \(watch)")
 }
 
-/// The listing of every pair of the set, with the devices' states.
 private func listing(set: String) throws -> [PairListingEntry] {
     let store = try DevicePairStore.load(set: set)
     var states: [String: [String: Any]] = [:]

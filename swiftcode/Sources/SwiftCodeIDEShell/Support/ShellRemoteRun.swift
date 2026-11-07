@@ -1,19 +1,9 @@
-// Run on a SwiftCode simulator host from the Linux shell (specs/simulator/
-// sim-link.md §10, specs/ide/run.md "Remote run from Linux"): each device of
-// each paired host (`swiftcode sim remote pair`) is a run destination; Run
-// builds the scheme for the iOS Simulator on this machine
-// (scripts/swiftcode-ios-build-linux, the user's SDK), uploads the app over
-// SwiftCode's link, has the host install and launch it, and opens the device
-// window (swiftcode-sim-viewer --link), which shows the device and plays its
-// sound. Stop ends the window. No ssh.
-
 import Foundation
 import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeSimLink
 
 public enum ShellRemoteRun {
-    /// Destination identifiers: "swiftcode-link:<host>/<device>".
     public static let prefix = "swiftcode-link:"
 
     public static func destination(host: String, device: LinkDeviceInfo) -> Destination {
@@ -23,7 +13,6 @@ public enum ShellRemoteRun {
                            osVersion: version, identifier: prefix + host + "/" + device.name, deviceType: device.deviceType)
     }
 
-    /// (host, device) of a link destination.
     public static func target(of d: Destination) -> (host: String, device: String)? {
         guard let id = d.identifier, id.hasPrefix(prefix) else { return nil }
         let rest = id.dropFirst(prefix.count)
@@ -31,8 +20,6 @@ public enum ShellRemoteRun {
         return (String(rest[..<slash]), String(rest[rest.index(after: slash)...]))
     }
 
-    /// The row of a paired host that did not answer (#69): it says so, and
-    /// Run on it fails at once with the reason instead of waiting.
     public static func offlineDestination(host: String) -> Destination {
         Destination(name: "\(host) is offline", specifier: "generic/platform=iOS Simulator", platform: "iOS", kind: .simulator,
                     identifier: prefix + host + "/")
@@ -43,9 +30,6 @@ public enum ShellRemoteRun {
             + "then reopen the project; Window ▸ Downloads checks the host."
     }
 
-    /// One group per paired host with its devices (asked with a short
-    /// timeout); a host that does not answer keeps its group with one row
-    /// saying it is offline.
     public static func destinationGroups(store: LinkStore = LinkStore()) -> [DestinationGroup] {
         guard let client = try? LinkClient(store: store) else { return [] }
         var groups: [DestinationGroup] = []
@@ -58,7 +42,6 @@ public enum ShellRemoteRun {
             defer { c.close() }
             guard let r = try? c.request(LinkRequest(op: "devices")), r.ok, let devices = r.devices else { continue }
             if devices.isEmpty {
-                // A host just set up has no devices: offer one that Run makes.
                 let info = try? c.request(LinkRequest(op: "info"))
                 let row = newDeviceDestination(host: h.name, deviceTypes: info?.deviceTypes ?? [], runtime: info?.runtimes?.first)
                 groups.append(DestinationGroup(title: "SwiftCode Simulator, \(ExperimentalNotice.label) (\(h.name))", destinations: row.map { [$0] } ?? []))
@@ -69,20 +52,16 @@ public enum ShellRemoteRun {
         return groups
     }
 
-    /// The steps of a remote run, for tests: the build command, then the app.
     public static func buildCommand(project: String, scheme: String, derivedData: String, script: String) -> [String] {
         [script, project, scheme, derivedData]
     }
 
-    /// Where Run builds for a simulator host: `$XDG_CACHE_HOME/swiftcode/remote-run`,
-    /// else `~/.cache/swiftcode/remote-run` (one folder per scheme).
     public static func derivedDataRoot(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
         let cache = environment["XDG_CACHE_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cache")
         return cache.appendingPathComponent("swiftcode/remote-run")
     }
 
-    /// The built app: `<derived data>/Products/Debug-iphonesimulator/<one>.app`.
     public static func builtApp(derivedData: String, scheme: String) -> URL? {
         let dir = URL(fileURLWithPath: derivedData).appendingPathComponent("Products/Debug-iphonesimulator")
         let apps = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".app") }.sorted()
@@ -92,9 +71,6 @@ public enum ShellRemoteRun {
 
     public struct Failure: Error, CustomStringConvertible { public let description: String }
 
-    /// The folder whose `scripts/` holds the iOS build script: next to the
-    /// app's executable when packaged, else the `swiftcode/` folder above a
-    /// `.build/<config>/` or `.build/out/Products/<config>/` executable.
     public static func toolsRoot(executable: String = Bundle.main.executableURL?.path ?? CommandLine.arguments[0]) -> URL {
         let exe = URL(fileURLWithPath: executable).resolvingSymlinksInPath().deletingLastPathComponent()
         var dir = exe
@@ -105,9 +81,6 @@ public enum ShellRemoteRun {
         return exe
     }
 
-    /// What a started run left for the caller: the device window's process
-    /// (Stop ends it), the app as built here, and, for a run under the
-    /// debugger, the host's path of the debug stub's socket.
     public struct Started: @unchecked Sendable {
         public var viewer: Process
         public var app: URL
@@ -117,8 +90,6 @@ public enum ShellRemoteRun {
         public var debugSocket: String?
     }
 
-    /// Builds, uploads, installs and launches, then opens the device window.
-    /// `output` gets console lines; returns the window's process (Stop ends it).
     public static func run(project: String, scheme: String, destination: Destination, packageRoot: URL,
                            output: @escaping @Sendable (String) -> Void,
                            phase: @escaping @Sendable (RemoteRunPhase) -> Void = { _ in },
@@ -127,8 +98,6 @@ public enum ShellRemoteRun {
                         output: output, phase: phase, cancel: cancel).viewer
     }
 
-    /// `run`, and with `debug` the app runs with the debug stub (the link's
-    /// `run` request with `debug`; ShellSimulatorDebug attaches to it).
     public static func start(project: String, scheme: String, destination: Destination, packageRoot: URL, debug: Bool,
                              output: @escaping @Sendable (String) -> Void,
                              phase: @escaping @Sendable (RemoteRunPhase) -> Void = { _ in },
@@ -157,8 +126,6 @@ public enum ShellRemoteRun {
         guard up.ok else { throw Failure(description: up.error ?? "upload failed") }
         output("Uploaded \(up.message ?? app.lastPathComponent) to \(host.name)\n")
         guard !cancel.isCancelled else { throw Failure(description: "stopped") }
-        // The stub's socket is a path on the host: only a host on this
-        // computer can be debugged until the link carries the stub.
         let debug = debug && ShellSimulatorDebug.isThisMachine(host.host)
         let r = try c.request(LinkRequest(op: "run", device: device, app: app.lastPathComponent, bundleID: up.bundleID, debug: debug ? true : nil))
         guard r.ok else { throw Failure(description: r.error ?? "run failed") }
@@ -171,19 +138,12 @@ public enum ShellRemoteRun {
         return Started(viewer: viewer, app: app, bundleID: r.bundleID ?? up.bundleID, host: host, device: device, debugSocket: r.debugSocket)
     }
 
-    /// The headset hook (device-hub.md §I.12): a visionOS destination's
-    /// device moves to the headset viewer on this machine (over the link)
-    /// and back, without a restart. The shell has no device surface of its
-    /// own yet: its device window is `swiftcode-sim-viewer`, which waits while
-    /// the headset has the display and takes it back on a click. The words
-    /// are `swiftcode sim headset`'s; `run` carries them out in-process.
     public static func headsetArguments(destination: Destination, toHeadset: Bool, viewerOptions: [String] = []) -> [String]? {
         guard let (host, device) = target(of: destination), destination.deviceType == "vision-pro" || destination.platform == "visionOS" else { return nil }
         return toHeadset ? ["view", device, "--link", "--host", host] + (viewerOptions.isEmpty ? [] : ["--"] + viewerOptions)
             : ["desktop", device, "--link", "--host", host]
     }
 
-    /// View in Headset / Back to Desktop from the shell; `output` gets the lines.
     public static func switchHeadset(destination: Destination, toHeadset: Bool, output: @escaping @Sendable (String) -> Void) async -> Bool {
         guard let args = headsetArguments(destination: destination, toHeadset: toHeadset) else { return false }
         return await HeadsetCLI.main(args, out: output) == 0

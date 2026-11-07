@@ -1,22 +1,5 @@
-// SwiftCode's health scenarios (health-simulation.md §8.3 H-8): deterministic
-// synthetic data for a seed. Every value comes from published adult
-// population norms (resting heart rate 55–80 bpm, sleeping heart rate
-// 5–10 bpm below it, moderate workout 110–150 bpm, HRV SDNN 20–80 ms
-// log-normal, SpO₂ 95–99 %, respiratory rate 12–20 per minute in half
-// steps, 4 000–10 000 steps a day, active energy 300–700 kcal a day, sleep
-// 6.5–8 h in about 90-minute cycles with Core 50–60 %, Deep 13–23 %, REM
-// 20–25 % and Awake 5–10 % of the time in bed). Cadences and the structure
-// of a night (Core first, Deep early, REM late, short Awake periods,
-// back-to-back stage segments) are the structural facts of a health export
-// that the spec's companion note records; no person's data is used.
-//
-// A scenario gives samples (and workouts) the guest agent writes, and, for
-// the read-only scenarios, samples that only `health seed` can put into a
-// shut-down device (HEALTH-3).
-
 import Foundation
 
-/// SplitMix64: a small deterministic generator (same seed, same data).
 public struct HealthRandom: Sendable {
     private var state: UInt64
     public init(seed: UInt64) { state = seed &+ 0x9E37_79B9_7F4A_7C15 }
@@ -29,11 +12,9 @@ public struct HealthRandom: Sendable {
         return z ^ (z >> 31)
     }
 
-    /// Uniform in [0, 1).
     public mutating func unit() -> Double { Double(next() >> 11) / Double(1 << 53) }
     public mutating func uniform(_ r: ClosedRange<Double>) -> Double { r.lowerBound + unit() * (r.upperBound - r.lowerBound) }
     public mutating func int(_ r: ClosedRange<Int>) -> Int { r.lowerBound + Int(next() % UInt64(r.upperBound - r.lowerBound + 1)) }
-    /// Standard normal (Box–Muller).
     public mutating func normal() -> Double {
         let u = max(unit(), 1e-12), v = unit()
         return (-2 * log(u)).squareRoot() * cos(2 * .pi * v)
@@ -41,15 +22,12 @@ public struct HealthRandom: Sendable {
 }
 
 public struct HealthScenarioOptions: Sendable {
-    /// The day the scenario describes (its local midnight is used).
     public var date: Date
     public var days: Int = 1
     public var seed: UInt64 = 1
     public var steps: Int?
     public var timeZone: TimeZone
-    /// Workouts: the start time (default 07:30 local on `date`).
     public var start: Date?
-    /// Read-only companions (breathing disturbances with `spo2-dips`).
     public var withReadOnly = false
 
     public init(date: Date, timeZone: TimeZone = .current) {
@@ -61,12 +39,10 @@ public struct HealthScenarioOptions: Sendable {
 public struct HealthScenarioOutput: Sendable {
     public var samples: [HealthSample] = []
     public var workouts: [HealthWorkout] = []
-    /// Read-only types: written only by `health seed` into a shut-down device.
     public var seeded: [HealthSample] = []
 
     public var writableCount: Int { samples.count + workouts.reduce(0) { $0 + $1.samples.count } }
 
-    /// Count per type identifier (samples, workout samples and seeded samples).
     public var counts: [String: Int] {
         var c: [String: Int] = [:]
         for s in samples + workouts.flatMap(\.samples) + seeded { c[s.type, default: 0] += 1 }
@@ -103,7 +79,6 @@ public enum HealthScenarios {
     public static let irregular = "HKCategoryTypeIdentifierIrregularHeartRhythmEvent"
     public static let wristTemperature = "HKQuantityTypeIdentifierAppleSleepingWristTemperature"
 
-    // Metadata (identifiers.md string values).
     static let motionContext = "HKMetadataKeyHeartRateMotionContext"
     static let timeZoneKey = "HKTimeZone"
     static let indoorKey = "HKIndoorWorkout"
@@ -118,17 +93,16 @@ public enum HealthScenarios {
         }
     }
 
-    /// One person's stable offsets inside the population ranges (from the seed).
     public struct Profile: Sendable {
-        public let restingHR: Double      // 55…80
-        public let hrvMedian: Double      // 30…55 ms
-        public let respiratory: Double    // 13…17 per minute
-        public let spo2: Double           // 0.96…0.98
-        public let dailySteps: Int        // 4 000…10 000
-        public let activeKcal: Double     // 300…700
-        public let basalKcal: Double      // 1 400…1 800 a day
-        public let stride: Double         // 0.68…0.80 m
-        public let workoutHR: Double      // 135…148 bpm plateau
+        public let restingHR: Double
+        public let hrvMedian: Double
+        public let respiratory: Double
+        public let spo2: Double
+        public let dailySteps: Int
+        public let activeKcal: Double
+        public let basalKcal: Double
+        public let stride: Double
+        public let workoutHR: Double
 
         public init(seed: UInt64) {
             var r = HealthRandom(seed: seed ^ 0x5EED)
@@ -152,7 +126,6 @@ public enum HealthScenarios {
         let first = cal.startOfDay(for: o.date)
         for day in 0..<max(1, o.days) {
             let midnight = cal.date(byAdding: .day, value: day, to: first)!
-            // Each day its own stream, from the seed and the day.
             var r = HealthRandom(seed: o.seed &* 1_000_003 &+ UInt64(day))
             let p = Profile(seed: o.seed)
             let tz = o.timeZone.identifier
@@ -179,22 +152,14 @@ public enum HealthScenarios {
 
     static func round(_ v: Double, _ step: Double) -> Double { (v / step).rounded() * step }
 
-    /// Hours 0–24 that are asleep in a default day (23:00–07:00).
     static func asleep(_ hour: Double) -> Bool { hour < 7 || hour >= 23 }
 
-    // MARK: resting-day
-
-    /// 24 h from local midnight: heart rate about every 5 min (a daytime
-    /// curve, lower asleep), one resting heart rate, HRV every ~2 h, SpO₂
-    /// hourly, respiratory rate every ~10 min while asleep, steps and active
-    /// energy in 10-minute windows while awake, basal energy hourly.
     static func restingDay(_ midnight: Date, _ p: Profile, _ r: inout HealthRandom, _ tz: String) -> HealthScenarioOutput {
         var out = HealthScenarioOutput()
         var t = 0.0
         while t < 86400 {
             let hour = t / 3600
             let sleeping = asleep(hour)
-            // A daytime bump (peak mid-afternoon), 5–10 bpm lower asleep.
             let curve = sleeping ? -7 - 2 * sin(.pi * min(1, max(0, (hour < 12 ? hour + 1 : hour - 23)) / 8))
                 : 8 * sin(.pi * (hour - 7) / 16)
             let bpm = min(100, max(45, (p.restingHR + curve + 3 * r.normal()).rounded()))
@@ -222,16 +187,14 @@ public enum HealthScenarios {
         return out
     }
 
-    /// Steps, distance and active energy in 10-minute windows while awake
-    /// (07:00–23:00; weights peak at commute and lunch), basal energy hourly.
     static func activity(_ midnight: Date, _ p: Profile, _ r: inout HealthRandom, target: Int, flightsToo: Bool) -> HealthScenarioOutput {
         var out = HealthScenarioOutput()
-        var slots: [(Double, Double)] = []   // (start s, weight)
+        var slots: [(Double, Double)] = []
         for slot in stride(from: 7.0 * 3600, to: 23.0 * 3600, by: 600) {
             let h = slot / 3600
             var w = 0.4 + r.unit()
             if (8...9).contains(h) || (12...13).contains(h) || (17...18.5).contains(h) { w *= 3 }
-            if r.unit() < 0.25 { w *= 0.1 }   // sitting still
+            if r.unit() < 0.25 { w *= 0.1 }
             slots.append((slot, w))
         }
         let total = slots.reduce(0) { $0 + $1.1 }
@@ -262,10 +225,7 @@ public enum HealthScenarios {
         return out
     }
 
-    // MARK: step-day
-
     static func stepDay(_ midnight: Date, _ p: Profile, _ r: inout HealthRandom, target: Int) -> HealthScenarioOutput {
-        // Hourly blocks summing to the target.
         var out = HealthScenarioOutput()
         let fine = activity(midnight, p, &r, target: target, flightsToo: true)
         var hourly: [String: [Int: Double]] = [:]
@@ -284,12 +244,6 @@ public enum HealthScenarios {
         return out
     }
 
-    // MARK: workout
-
-    /// A 30-minute outdoor run: the workout, its route (a point a second on
-    /// a loop), heart rate every 5 s (a ramp from resting to the plateau in
-    /// about 90 s, then a slow wander, 120–165 bpm), and energy, distance and
-    /// steps every 2.56 s.
     static func workout(_ start: Date, _ p: Profile, _ r: inout HealthRandom, _ tz: String) -> HealthScenarioOutput {
         let duration = 1800.0
         let end = start.addingTimeInterval(duration)
@@ -309,14 +263,13 @@ public enum HealthScenarios {
         var at = 0.0
         while at + step <= duration {
             let s = start.addingTimeInterval(at), e = s.addingTimeInterval(step)
-            let speed = 3.0 + 0.15 * r.normal()                       // m/s
+            let speed = 3.0 + 0.15 * r.normal()
             w.samples.append(q(distance, s, e, (speed * step * 100).rounded() / 100, "m"))
             w.samples.append(q(steps, s, e, Double(min(8, max(5, Int((2.75 * step + 0.5 * r.normal()).rounded())))), "count"))
             w.samples.append(q(activeEnergy, s, e, (max(0.2, 0.47 + 0.05 * r.normal()) * 1000).rounded() / 1000, "kcal"))
             w.samples.append(q(basalEnergy, s, e, 0.033, "kcal"))
             at += step
         }
-        // A loop of about 1 km around a fixed point (a city park), one point a second.
         let center = (37.7694, -122.4862), radius = 160.0
         for sec in stride(from: 0, through: Int(duration), by: 1) {
             let angle = Double(sec) * 3.0 / radius
@@ -329,15 +282,6 @@ public enum HealthScenarios {
         return out
     }
 
-    // MARK: night-sleep
-
-    /// Sleep stages as back-to-back segments from `bedtime` (23:00 local):
-    /// an in-bed sample from 10 min before to the final wake, then 4–6
-    /// cycles of about 90 min: Core first, Deep early (mostly in the first
-    /// third), REM late (first after 60–120 min, mostly in the last third),
-    /// short Awake periods between cycles and inside Core. Plus overnight
-    /// heart rate (resting − 5…10, lowest in the second half), respiratory
-    /// rate every 5–15 min, SpO₂ every 30 min and HRV every ~2 h.
     static func nightSleep(_ bedtime: Date, _ p: Profile, _ r: inout HealthRandom, _ tz: String) -> HealthScenarioOutput {
         var out = HealthScenarioOutput()
         let segments = sleepStages(bedtime.addingTimeInterval(r.uniform(300...900)), &r)
@@ -350,9 +294,8 @@ public enum HealthScenarios {
         return out
     }
 
-    /// (start, end, stage value) segments; values 2 awake, 3 core, 4 deep, 5 REM.
     public static func sleepStages(_ onset: Date, _ r: inout HealthRandom) -> [(Date, Date, Int)] {
-        let cycles = 5   // cycles of 85–100 min: 7–8.3 h
+        let cycles = 5
         let deepShare = [0.38, 0.26, 0.12, 0.05, 0.03, 0.02]
         let remShare = [0.12, 0.20, 0.27, 0.33, 0.38, 0.40]
         var out: [(Date, Date, Int)] = []
@@ -370,7 +313,6 @@ public enum HealthScenarios {
             let firstCore = k == 0 ? max(15, core * 0.45) : core * 0.35
             add(3, firstCore)
             if deep >= 2 { add(4, deep) }
-            // Core between Deep and REM, sometimes broken by a brief awakening.
             let secondCore = core - firstCore
             if r.unit() < 0.35 && secondCore > 8 {
                 add(3, secondCore / 2)
@@ -380,7 +322,6 @@ public enum HealthScenarios {
                 add(3, secondCore)
             }
             add(5, rem)
-            // Between cycles a short Awake (mostly under 5 min); the last one ends the night.
             add(2, k == cycles - 1 ? r.uniform(4...8) : r.uniform(2.5...6.5))
         }
         return out
@@ -391,7 +332,6 @@ public enum HealthScenarios {
         let night = wake.timeIntervalSince(bedtime)
         var t = 0.0
         while t < night {
-            // Lowest in the second half of the night.
             let depth = 5 + 5 * sin(.pi * min(1, t / night * 1.3))
             let bpm = min(p.restingHR - 3, max(42, (p.restingHR - depth + 1.5 * r.normal()).rounded()))
             out.samples.append(q(hr, bedtime.addingTimeInterval(t), nil, bpm, "count/min", [motionContext: .number(1)]))
@@ -418,12 +358,6 @@ public enum HealthScenarios {
         return out
     }
 
-    // MARK: spo2-dips
-
-    /// A night (23:00–07:00) of SpO₂ every 5 min at 95–99 % with 3–6 dips
-    /// to 85–89 % (each a few samples down and back), respiratory rate, and
-    /// with `withReadOnly` the night's breathing-disturbances value
-    /// (elevated) for `health seed`.
     static func spo2Dips(_ bedtime: Date, _ p: Profile, _ r: inout HealthRandom, _ tz: String, readOnly: Bool) -> HealthScenarioOutput {
         var out = HealthScenarioOutput()
         let night = 8.0 * 3600
@@ -455,11 +389,6 @@ public enum HealthScenarios {
         return out
     }
 
-    // MARK: Read-only scenarios (health seed, HEALTH-3)
-
-    /// AFib burden (a weekly value), one irregular-rhythm event and ECG
-    /// classifications: sinus rhythm and atrial fibrillation, average heart
-    /// rate 60–100 bpm (no waveform: health-simulation.md H-14).
     static func irregularHeart(_ midnight: Date, _ p: Profile, _ r: inout HealthRandom) -> HealthScenarioOutput {
         var out = HealthScenarioOutput()
         let weekStart = midnight.addingTimeInterval(-6 * 86400)
@@ -475,9 +404,6 @@ public enum HealthScenarios {
         return out
     }
 
-    /// For each night: breathing disturbances (8.5 h window; elevated, ≥ 11,
-    /// on about one night in four, else 2–9), and on elevated nights a sleep
-    /// apnea event (a 30-day notification window ending that morning).
     static func sleepApnea(_ bedtime: Date, _ p: Profile, _ r: inout HealthRandom, day: Int, _ tz: String) -> HealthScenarioOutput {
         var out = HealthScenarioOutput()
         let elevated = r.unit() < 0.25 || day == 0
@@ -490,9 +416,6 @@ public enum HealthScenarios {
         return out
     }
 
-    // MARK: Streams
-
-    /// The next value of a live stream: a slow random walk inside `range`.
     public static func streamValue(previous: Double?, range: ClosedRange<Double>, _ r: inout HealthRandom) -> Double {
         let mid = (range.lowerBound + range.upperBound) / 2
         let span = range.upperBound - range.lowerBound

@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-// mkdir / rmdir (stage 4c: launchd_sim creates its state directories).
-
 private func errnoOf(_ body: () throws -> Void) -> Int32? {
     do { try body() } catch let e as DarwinErrnoError { return e.errno } catch { return -1 }
     return nil
@@ -22,11 +20,10 @@ private func errnoOf(_ body: () throws -> Void) -> Int32? {
         return (tree, fs)
     }
 
-    /// ATTR_DIR_ENTRYCOUNT counts files as well as subdirectories.
     @Test func directoryEntryCount() throws {
         let (tree, fs) = try fixture()
         try tree.writeFile("ro/second", [2])
-        #expect(fs.directoryEntryCount("/R") == 3)       // file, second, sub
+        #expect(fs.directoryEntryCount("/R") == 3)
         #expect(fs.directoryEntryCount("/R/sub") == 0)
         #expect(fs.directoryEntryCount("/R/file") == nil)
         #expect(fs.directoryEntryCount("/R/missing") == nil)
@@ -40,11 +37,11 @@ private func errnoOf(_ body: () throws -> Void) -> Int32? {
         let st = try fs.stat("/private/tmp/state", followSymlinks: true)
         #expect(st.isDirectory && st.mode & 0o7777 == 0o755)
         try fs.mkdir("/tmp/open", mode: 0o777, umask: 0)
-        #expect(try fs.stat("/tmp/open", followSymlinks: true).mode & 0o7777 == 0o777)  // host umask does not apply
+        #expect(try fs.stat("/tmp/open", followSymlinks: true).mode & 0o7777 == 0o777)
         try fs.mkdir("/tmp/state/inner/", mode: 0o700, umask: 0o022)
         #expect(try fs.stat("/tmp/state/inner", followSymlinks: true).mode & 0o7777 == 0o700)
         #expect(errnoOf { try fs.mkdir("/tmp/state", mode: 0o755, umask: 0) } == DarwinErrnoCode.EEXIST)
-        #expect(errnoOf { try fs.mkdir("/tmp", mode: 0o755, umask: 0) } == DarwinErrnoCode.EEXIST)  // a guest link
+        #expect(errnoOf { try fs.mkdir("/tmp", mode: 0o755, umask: 0) } == DarwinErrnoCode.EEXIST)
         #expect(errnoOf { try fs.mkdir("/R/file", mode: 0o755, umask: 0) } == DarwinErrnoCode.EEXIST)
         #expect(errnoOf { try fs.mkdir("/R/sub", mode: 0o755, umask: 0) } == DarwinErrnoCode.EEXIST)
         #expect(errnoOf { try fs.mkdir("/R/new", mode: 0o755, umask: 0) } == DarwinErrnoCode.EROFS)
@@ -68,13 +65,12 @@ private func errnoOf(_ body: () throws -> Void) -> Int32? {
         let fd = try fs.open("/tmp/f", flags: DarwinOpen.O_WRONLY | DarwinOpen.O_CREAT, mode: 0o644)
         try fs.close(fd)
         #expect(errnoOf { try fs.rmdir("/tmp/f") } == DarwinErrnoCode.ENOTDIR)
-        #expect(errnoOf { try fs.rmdir("/tmp") } == DarwinErrnoCode.ENOTDIR)  // a guest link
-        #expect(errnoOf { try fs.rmdir("/private/tmp") } == DarwinErrnoCode.EBUSY)  // a prefix root
+        #expect(errnoOf { try fs.rmdir("/tmp") } == DarwinErrnoCode.ENOTDIR)
+        #expect(errnoOf { try fs.rmdir("/private/tmp") } == DarwinErrnoCode.EBUSY)
         #expect(errnoOf { try fs.rmdir("/R") } == DarwinErrnoCode.EBUSY)
         #expect(errnoOf { try fs.rmdir("/R/sub") } == DarwinErrnoCode.EROFS)
         #expect(errnoOf { try fs.rmdir("/dev") } == DarwinErrnoCode.EBUSY)
         #expect(errnoOf { try fs.rmdir("/dev/null") } == DarwinErrnoCode.ENOTDIR)
-        // A socket file makes a directory non-empty.
         final class Sock: DarwinDescriptorObject {
             var fileType: UInt16 { DarwinStat.S_IFSOCK }
             func lastReferenceClosed() {}

@@ -1,11 +1,5 @@
 import Foundation
 
-// The exporter's model: a snapshot of each window's accessible objects in
-// AT-SPI terms, made by a provider (the OpenViews adapter maps its
-// accessibility tree onto it), and the requests the exporter hands back to
-// the provider (actions, focus, text edits, values, selection).
-
-/// A rectangle in pixels.
 public struct ATSPIRect: Hashable, Sendable {
     public var x: Int32
     public var y: Int32
@@ -28,7 +22,6 @@ public struct ATSPIRect: Hashable, Sendable {
 }
 
 public struct ATSPIAction: Hashable, Sendable {
-    /// The non-localised name (`click`, `activate`, `increment`, …).
     public var name: String
     public var localizedName: String
     public var description: String
@@ -41,12 +34,9 @@ public struct ATSPIAction: Hashable, Sendable {
     }
 }
 
-/// The text of a text object; offsets count Unicode scalars (AT-SPI's
-/// characters).
 public struct ATSPIText: Hashable, Sendable {
     public var string: String
     public var caret: Int
-    /// The selection as scalar offsets (empty: none).
     public var selection: Range<Int>
     public var isEditable: Bool
     public init(string: String, caret: Int = 0, selection: Range<Int> = 0..<0, isEditable: Bool = false) {
@@ -60,7 +50,6 @@ public struct ATSPIText: Hashable, Sendable {
     public var count: Int { string.unicodeScalars.count }
 }
 
-/// A numeric value (`org.a11y.atspi.Value`).
 public struct ATSPIValue: Hashable, Sendable {
     public var current: Double
     public var minimum: Double
@@ -78,29 +67,20 @@ public struct ATSPIValue: Hashable, Sendable {
     }
 }
 
-/// One accessible object.
 public struct ATSPINode: Hashable, Sendable {
-    /// Unique in the application, made of `[A-Za-z0-9_]`; it starts with
-    /// the window's key followed by `_` (the window's own node has the
-    /// window's key).
     public var key: String
     public var role: ATSPIRole
     public var name: String
     public var description: String
-    /// `AccessibleId`.
     public var identifier: String
     public var states: ATSPIStateSet
-    /// Window pixels.
     public var frame: ATSPIRect
     public var actions: [ATSPIAction]
     public var text: ATSPIText?
     public var value: ATSPIValue?
-    /// The node's children select (rows of a list).
     public var isSelectionContainer: Bool
-    /// `GetAttributes` extras (`level` of headings, …).
     public var attributes: [String: String]
     public var children: [String]
-    // Filled by the exporter.
     public internal(set) var parent: String?
     public internal(set) var indexInParent: Int = 0
 
@@ -123,7 +103,6 @@ public struct ATSPINode: Hashable, Sendable {
         self.children = children
     }
 
-    /// The AT-SPI interfaces the node implements.
     public var interfaces: [String] {
         var i = [ATSPI.accessible, ATSPI.component]
         if !actions.isEmpty { i.append(ATSPI.action) }
@@ -137,11 +116,9 @@ public struct ATSPINode: Hashable, Sendable {
     }
 }
 
-/// The objects of one window.
 public struct ATSPIWindowSnapshot: Sendable {
     public var rootKey: String
     public var nodes: [String: ATSPINode]
-    /// The provider's revision this snapshot was made at.
     public var revision: Int
 
     public init(rootKey: String, nodes: [ATSPINode], revision: Int) {
@@ -149,7 +126,6 @@ public struct ATSPIWindowSnapshot: Sendable {
         self.revision = revision
         var map: [String: ATSPINode] = [:]
         for n in nodes { map[n.key] = n }
-        // Parents and indices; children that are missing are dropped.
         for n in nodes {
             let kids = n.children.filter { map[$0] != nil }
             map[n.key]?.children = kids
@@ -161,7 +137,6 @@ public struct ATSPIWindowSnapshot: Sendable {
         self.nodes = map
     }
 
-    /// Keys in pre-order from the root.
     public var orderedKeys: [String] {
         var out: [String] = []
         var stack = [rootKey]
@@ -174,32 +149,22 @@ public struct ATSPIWindowSnapshot: Sendable {
     }
 }
 
-/// What the exporter needs from the application.
 @MainActor
 public protocol ATSPIProvider: AnyObject {
-    /// The application's name.
     var applicationName: String { get }
     var toolkitVersion: String { get }
-    /// The keys of the open windows (cheap: no tree is built).
     func windowKeys() -> [String]
-    /// A number that changes whenever the window's tree may have changed
-    /// (cheap).
     func revision(ofWindow key: String) -> Int
-    /// Builds the window's snapshot (nil: the window is gone).
     func snapshot(ofWindow key: String) -> ATSPIWindowSnapshot?
-    /// The window's top-left corner on the screen in pixels (nil: unknown).
     func screenOrigin(ofWindow key: String) -> (x: Int32, y: Int32)?
-    /// Runs the node's action `index`.
     func performAction(_ index: Int, on key: String) -> Bool
     func grabFocus(_ key: String) -> Bool
-    /// Text requests on a text node (scalar offsets).
     func setText(_ text: String, on key: String) -> Bool
     func replaceText(in range: Range<Int>, with text: String, on key: String) -> Bool
     func setSelection(_ range: Range<Int>, on key: String) -> Bool
     func copyText(_ range: Range<Int>, on key: String, cut: Bool) -> Bool
     func pasteText(at offset: Int, on key: String) -> Bool
     func setValue(_ value: Double, on key: String) -> Bool
-    /// Selects child `index` of a selection container.
     func selectChild(_ index: Int, of key: String) -> Bool
 }
 

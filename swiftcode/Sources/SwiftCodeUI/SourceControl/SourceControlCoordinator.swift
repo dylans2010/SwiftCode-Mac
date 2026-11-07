@@ -1,40 +1,24 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Connects the Source Control navigator, the commit editor and branch
-/// history (shown over the editor area), the inspector's Source Control
-/// tab, and the Integrate menu to a window's repository.
 @MainActor
 public final class SourceControlCoordinator {
     unowned let owner: WorkspaceWindowController
     public private(set) var mode: SourceControlNavigatorModel.Mode = .changes
-    /// The view controller shown over the editor area, if any.
     public private(set) var editorOverlay: NSViewController?
     public var commitEditor: CommitEditorController? { editorOverlay as? CommitEditorController }
     public var history: BranchHistoryController? { editorOverlay as? BranchHistoryController }
-    /// A path selected in the Changes list (Integrate's "Selected Files").
     public private(set) var selectedChange: String?
     private var installedInspector = false
-    /// From the last Refresh File Status, for the menu bar (no git call
-    /// per menu update): whether the repository has a remote, and the
-    /// files' status.
     public internal(set) var hasRemote = false
     public internal(set) var lastStatus: [String: GitRepository.FileStatus] = [:]
-    /// The last source-control read (`SourceControlSnapshot`). Menus,
-    /// navigators and the debug bar read only this; it is re-read off the
-    /// main thread by `scheduleRefresh()`.
     public private(set) var snapshot = SourceControlSnapshot()
     private var refreshTask: Task<Void, Never>?
     private var refreshAgain = false
-    /// The git command running in the background (Integrate menu), if any;
-    /// later commands wait for it.
     private var operation: Task<Void, Never>?
-    /// The last merge, rebase, pick or stash apply's result.
     var integrationResult: GitRepository.IntegrationResult?
     private var operationID = 0
 
-    /// Outside changes (FSEvents on the repository) and the app becoming
-    /// active refresh the snapshot. Off in test runs.
     private var watcher: FileSystemWatcher?
     private var observers: [NSObjectProtocol] = []
     let watchesForChanges: Bool
@@ -62,7 +46,6 @@ public final class SourceControlCoordinator {
         for o in observers { NotificationCenter.default.removeObserver(o) }
     }
 
-    /// Watches the repository once it is known.
     private func watch(_ repo: GitRepository) {
         guard watchesForChanges, watcher == nil else { return }
         let w = FileSystemWatcher { [weak self] paths in
@@ -81,8 +64,6 @@ public final class SourceControlCoordinator {
         refresh()
     }
 
-    /// Rebuilds the navigator tree for the current mode from the last
-    /// snapshot (no git call).
     public func refresh() {
         guard Preferences.shared.sourceControlEnabled, let repo = snapshot.repository else { owner.navigator.setSourceControlRoots([]); return }
         let name = repo.root.lastPathComponent, branch = snapshot.currentBranch
@@ -100,14 +81,10 @@ public final class SourceControlCoordinator {
         if let c = mergeSheet, c.isViewLoaded { c.update(integration: snapshot.integration, conflicted: snapshot.changes.filter { $0.status == .conflicted }.map(\.path)) }
     }
 
-    /// Re-reads git in the background, then updates the status letters,
-    /// both navigators, the Integrate menu's state and the debug bar's
-    /// branch. Calls while a read runs are folded into one more read.
     public func scheduleRefresh() {
         guard refreshTask == nil else { refreshAgain = true; return }
         refreshTask = Task { [weak self] in
             while true {
-                // Nothing holds the window while git runs.
                 guard let (enabled, known, url, folder) = self?.refreshInputs() else { return }
                 let read = await Task.detached { SourceControlSnapshot.read(workspace: url, known: known, branchFolder: folder) }.value
                 guard let self else { return }
@@ -123,12 +100,8 @@ public final class SourceControlCoordinator {
         return (enabled, enabled ? owner.knownRepository : .some(nil), owner.session.model.url, owner.sourceControlRoot)
     }
 
-    /// Shows a snapshot (Refresh File Status as it was when it read git on
-    /// the main thread).
     func apply(_ read: SourceControlSnapshot, enabled: Bool) {
         owner.debugArea.setBranch(read.debugBarBranch)
-        // Settings ▸ Source Control ▸ Enable source control: off clears
-        // the badges and reads nothing from git.
         guard enabled else {
             owner.navigator.setFileStatus([:])
             refresh()
@@ -150,9 +123,6 @@ public final class SourceControlCoordinator {
         refresh()
     }
 
-    /// Waits until no source-control read or command is running, and the
-    /// commit editor and history have loaded (tests; the user interface
-    /// never waits).
     public func idle() async {
         while true {
             if let t = operation { await t.value; continue }
@@ -164,8 +134,6 @@ public final class SourceControlCoordinator {
         }
     }
 
-    /// A navigator row: a change opens the commit editor; a branch, tag or
-    /// remote branch opens its history.
     public func handleRow(_ key: String) {
         guard repository != nil else { return }
         if key.hasPrefix("change:") {
@@ -208,8 +176,6 @@ public final class SourceControlCoordinator {
         let h = BranchHistoryController(repository: repo, ref: ref)
         var selection = 0
         h.onSelectCommit = { [weak self] commit in
-            // The inspector's rows come from git: read off the main thread;
-            // a later selection replaces an earlier one still reading.
             selection += 1
             let mine = selection
             let task = Task { [weak self] in
@@ -229,7 +195,6 @@ public final class SourceControlCoordinator {
         return h
     }
 
-    /// The inspector's fourth tab with the given sections (nil removes it).
     public private(set) var inspectorSections: [(String, [(String, String)])]?
 
     func setInspector(_ sections: [(String, [(String, String)])]?) {
@@ -259,7 +224,6 @@ public final class SourceControlCoordinator {
         ])
     }
 
-    /// Removes the commit editor or history (a file was opened).
     public func hideEditor() {
         guard let vc = editorOverlay else { return }
         vc.view.removeFromSuperview()
@@ -268,16 +232,11 @@ public final class SourceControlCoordinator {
         setInspector(nil)
     }
 
-    // MARK: Integrate menu
-
-    /// The selected file: the Changes row, else the project navigator's.
     var selectedFile: String? {
         if owner.navigator.selectedIndex == 1 { return selectedChange }
         return owner.navigator.selectedPath ?? owner.editor.fileURL?.path
     }
 
-    /// The Integrate menu's state from the last snapshot: menu validation
-    /// never runs git.
     public func menuState() -> IntegrateMenuState {
         var s = IntegrateMenuState()
         guard Preferences.shared.sourceControlEnabled, snapshot.repository != nil else {
@@ -300,15 +259,11 @@ public final class SourceControlCoordinator {
         return s
     }
 
-    /// Runs a git command in the background (after any earlier one),
-    /// then reports a failure and refreshes.
     func perform(_ body: @escaping @Sendable (GitRepository) throws -> Void) {
         guard let repo = repository else { NSSound.beep(); return }
         runInBackground(body: { try body(repo) })
     }
 
-    /// Runs `body` off the main thread after the previous command; then
-    /// presents its error, refreshes, and reloads the history.
     func runInBackground(body: @escaping @Sendable () throws -> Void, then: (@MainActor () -> Void)? = nil,
                          failure handle: (@MainActor (any Error) -> Bool)? = nil) {
         let previous = operation
@@ -330,8 +285,6 @@ public final class SourceControlCoordinator {
 
     struct GitFailure: @unchecked Sendable { let error: any Error }
 
-    /// Runs `work` on the main actor after the previous command (it awaits
-    /// its own background work); `idle()` waits for it.
     func enqueue(_ work: @escaping @MainActor () async -> Void) {
         let previous = operation
         operationID += 1
@@ -343,7 +296,6 @@ public final class SourceControlCoordinator {
         }
     }
 
-    /// A one-field prompt; nil when cancelled or not on screen.
     func prompt(_ title: String, _ info: String, placeholder: String) -> String? {
         guard owner.window?.isVisible == true else { return nil }
         let a = NSAlert()
@@ -422,7 +374,6 @@ extension WorkspaceWindowController {
         let progress = CloneProgressSheet.begin(name: target.lastPathComponent, on: window)
         sourceControl.runInBackground(body: { try GitRepository.clone(url, into: target) }, then: {
             progress?.end()
-            // The clone opens in its own window, as from the Welcome window.
             if let ws = WelcomeWindowController.workspace(in: target), FileManager.default.fileExists(atPath: target.path) {
                 NSDocumentController.shared.openDocument(withContentsOf: ws, display: true) { _, _, error in
                     if let error { NSApp.presentError(error) }
@@ -433,7 +384,6 @@ extension WorkspaceWindowController {
     @objc public func scmNewRepository(_ sender: Any?) {
         let u = session.model.url
         let dir = ["xcodeproj", "xcworkspace", "swift"].contains(u.pathExtension) || !u.hasDirectoryPath ? u.deletingLastPathComponent() : u
-        // The next refresh finds the new repository.
         sourceControl.runInBackground(body: { _ = try GitRepository.initialize(at: dir) }, then: { [weak self] in self?.resetRepository() })
     }
 }

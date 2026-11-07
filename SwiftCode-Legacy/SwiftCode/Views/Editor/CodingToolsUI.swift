@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Native macOS popover interface for Coding Tools.
-/// Displays contextual actions for selected code (Refactor, Add to Context, Explain, Documentation, Preview, Custom).
 public struct CodingToolsUI: View {
     public let selectedCode: String
     public let fullFileContent: String
@@ -58,7 +56,6 @@ public struct CodingToolsUI: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header
             HStack(spacing: 5) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 12, weight: .semibold))
@@ -86,7 +83,6 @@ public struct CodingToolsUI: View {
                     .lineLimit(1)
             }
 
-            // Compact Action Chips
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(CodingAction.allCases) { action in
@@ -115,7 +111,6 @@ public struct CodingToolsUI: View {
                 .padding(.vertical, 1)
             }
 
-            // Custom instruction field
             if selectedAction == .custom || selectedAction == .refactor || selectedAction == .view {
                 TextField(
                     selectedAction == .custom ? "Describe instruction..." : "Optional refactoring guidance...",
@@ -125,7 +120,6 @@ public struct CodingToolsUI: View {
                 .font(.system(size: 11))
             }
 
-            // Execution State / Error Banner
             if let error = errorMessage {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -140,7 +134,6 @@ public struct CodingToolsUI: View {
                 .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
             }
 
-            // Result Area with Copy, Replace, Retry and Gradient Highlight
             if !executionResult.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -160,7 +153,6 @@ public struct CodingToolsUI: View {
 
                         Spacer()
 
-                        // Copy Button
                         Button {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(executionResult, forType: .string)
@@ -180,7 +172,6 @@ public struct CodingToolsUI: View {
                         }
                         .buttonStyle(.plain)
 
-                        // Retry Button
                         Button {
                             runAction()
                         } label: {
@@ -196,7 +187,6 @@ public struct CodingToolsUI: View {
                         .buttonStyle(.plain)
                         .disabled(isExecuting)
 
-                        // Replace Button: Replaces the selected code with the generated one
                         Button {
                             onApplyCode?(executionResult)
                             dismiss()
@@ -221,7 +211,6 @@ public struct CodingToolsUI: View {
                         .buttonStyle(.plain)
                     }
 
-                    // Code text view highlighted with gradients
                     ScrollView {
                         Text(executionResult)
                             .font(.system(size: 10.5, design: .monospaced))
@@ -264,7 +253,6 @@ public struct CodingToolsUI: View {
                 }
             }
 
-            // Bottom Action Row
             HStack {
                 Button("Close") {
                     dismiss()
@@ -291,7 +279,6 @@ public struct CodingToolsUI: View {
         .padding(12)
         .frame(width: 380)
         .background {
-            // Subtle ambient dynamic gradient wash
             AngularGradient(
                 colors: [
                     Color.cyan.opacity(0.05),
@@ -306,7 +293,6 @@ public struct CodingToolsUI: View {
         }
         .background(.ultraThinMaterial)
         .overlay(
-            // Soft atmospheric aura around popover border
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
                     AngularGradient(
@@ -327,7 +313,6 @@ public struct CodingToolsUI: View {
                 .opacity(0.5)
         )
         .overlay(
-            // Defined moving gradient rim
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
                     AngularGradient(

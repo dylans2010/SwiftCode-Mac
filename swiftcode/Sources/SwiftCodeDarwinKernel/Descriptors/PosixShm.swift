@@ -5,31 +5,11 @@ import Glibc
 import Darwin
 #endif
 
-// POSIX shared memory: shm_open (266), shm_unlink (267), ftruncate (201)
-// on a shm descriptor, fstat, and mmap(MAP_SHARED) of it. Rules from xnu
-// bsd/kern/posix_shm.c (level 1):
-// - names are 1…31 bytes (PSHMNAMLEN): longer is ENAMETOOLONG, empty EINVAL;
-//   one system-wide namespace (here: the device's `DarwinSystem`);
-// - shm_open: the access mode must allow read or write (EINVAL); an absent
-//   name without O_CREAT is ENOENT; O_CREAT|O_EXCL on an existing one EEXIST;
-//   O_TRUNC once the size is set EINVAL; the descriptor is close-on-exec;
-// - the size is set once, by the first ftruncate (a later one is EINVAL),
-//   rounded up to pages; fstat reports the mode bits (no type), owner, size;
-// - mmap needs MAP_SHARED (EINVAL), a set size, and a range inside it
-//   (EINVAL); PROT_WRITE through a read-only descriptor is EPERM;
-// - read/write on the descriptor are ENXIO (no file operations);
-// - shm_unlink removes the name; the memory lives while descriptors or
-//   mappings refer to it.
-// notifyd keeps its notification slots in such a segment; its clients map it
-// read-only.
-
-/// A named segment.
 final class PosixShmSegment {
     let name: String
     let mode: UInt16
     let uid: UInt32
     let gid: UInt32
-    /// Set by the one ftruncate.
     var object: SharedMemoryObject?
     var length: UInt64 = 0
     var sized = false
@@ -42,7 +22,6 @@ final class PosixShmSegment {
     }
 }
 
-/// The open file description's object of a shm descriptor.
 final class PosixShmDescriptor: DarwinDescriptorObject {
     let segment: PosixShmSegment
     init(_ segment: PosixShmSegment) { self.segment = segment }
@@ -55,12 +34,10 @@ final class PosixShmDescriptor: DarwinDescriptorObject {
 
 enum PosixShmBSD {
     static let ftruncate = 201, shmOpen = 266, shmUnlink = 267
-    /// PSHMNAMLEN.
     static let maxName = 31
 }
 
 extension DarwinKernel {
-    /// The name argument: at most 31 bytes before the NUL.
     private func shmName(_ va: UInt64, _ mem: any KernelGuestMemory) throws -> String {
         var bytes: [UInt8] = []
         var cursor = va
@@ -79,7 +56,6 @@ extension DarwinKernel {
         throw fail(Code.ENAMETOOLONG)
     }
 
-    /// shm_open, shm_unlink, ftruncate. nil = not mine.
     func posixShmCall(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult? {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
         switch n {
@@ -89,7 +65,6 @@ extension DarwinKernel {
             call.set("shm_open(\(hx(a[0])), oflag=\(hx(UInt64(UInt32(bitPattern: oflag)))), mode=0o\(String(mode, radix: 8)))")
             let name = try shmName(a[0], mem)
             call.set("shm_open(\"\(name)\", oflag=\(hx(UInt64(UInt32(bitPattern: oflag)))), mode=0o\(String(mode, radix: 8)))")
-            // FFLAGS(oflag) = oflag + 1: neither FREAD nor FWRITE is EINVAL.
             guard ((oflag & DarwinOpen.O_ACCMODE) + 1) & 3 != 0 else { throw fail(Code.EINVAL) }
             let segment: PosixShmSegment
             if let existing = system.posixShmSegments[name] {
@@ -137,13 +112,10 @@ extension DarwinKernel {
             guard let guestFile = file.guestFile else { throw fail(Code.EINVAL) }
             guard file.isWritable else { throw fail(Code.EINVAL) }
             guard length >= 0 else { throw fail(Code.EINVAL) }
-            // The host file is kept alive by `guestFile`; the host call runs
-            // without the kernel lock (stage6-contract.md §5.2).
             let watch = guestFile.vnodeWriteWatch()
             let hostError = Self.lockedFileIO ? hostFtruncate(guestFile.hostFD, length)
                 : lock.unlocked { hostFtruncate(guestFile.hostFD, length) }
             guard hostError == 0 else { throw fail(DarwinErrnoCode.fromHost(hostError)) }
-            // Shared views of the file follow its new size (service-fidelity.md §10).
             SharedFileViews.sizeMayHaveChanged(hostFD: guestFile.hostFD)
             WriteGenerations.noteWrite(dev: guestFile.stat.dev, ino: guestFile.stat.ino)
             FileChangeFeed.note(.modified, .file, guestFile.guestPath, pid: pid)
@@ -155,7 +127,6 @@ extension DarwinKernel {
         }
     }
 
-    /// mmap of a shm descriptor (called by `mmap` for object descriptors).
     func mapPosixShm(_ shm: PosixShmDescriptor, file: DarwinOpenFile, flags: Int32, prot: VMProtection, offset: UInt64,
                      size: UInt64, at: UInt64?, hint: UInt64?, _ mem: any KernelGuestMemory) throws -> UInt64 {
         guard flags & MapFlag.shared != 0 else { throw fail(Code.EINVAL) }
@@ -167,7 +138,6 @@ extension DarwinKernel {
     }
 }
 
-/// Host ftruncate: 0 or the host errno.
 private func hostFtruncate(_ fd: Int32, _ length: Int64) -> Int32 {
     #if canImport(Glibc)
     return Glibc.ftruncate(fd, __off_t(length)) == 0 ? 0 : Glibc.errno

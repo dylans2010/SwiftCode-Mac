@@ -6,14 +6,11 @@ public struct DAPError: Error, Equatable, CustomStringConvertible, Sendable {
     public var description: String { "\(command): \(message)" }
 }
 
-/// An event the adapter sent, such as `stopped`, `output` or `terminated`.
 public struct DAPEvent: Equatable, Sendable {
     public var event: String
     public var body: JSON
 }
 
-/// A Debug Adapter Protocol client. Requests are `async` and return the
-/// response body; events arrive on `events`. See `specs/ide/debug.md`.
 public final class DAPClient: @unchecked Sendable {
     public let events: AsyncStream<DAPEvent>
     private let eventSink: AsyncStream<DAPEvent>.Continuation
@@ -23,7 +20,6 @@ public final class DAPClient: @unchecked Sendable {
     private var pending: [Int: (String, CheckedContinuation<JSON, Error>)] = [:]
     private var decoder = DAPFraming.Decoder()
     private var closed = false
-    /// Capabilities from the `initialize` response.
     public private(set) var capabilities: JSON = [:]
 
     public init(transport: DAPTransport) throws {
@@ -32,9 +28,6 @@ public final class DAPClient: @unchecked Sendable {
         try transport.start { [weak self] data in self?.receive(data) }
     }
 
-    // MARK: Messages
-
-    /// Sends a request and waits for its response body.
     @discardableResult
     public func request(_ command: String, _ arguments: JSON? = nil) async throws -> JSON {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<JSON, Error>) in
@@ -77,8 +70,6 @@ public final class DAPClient: @unchecked Sendable {
             case "event":
                 eventSink.yield(DAPEvent(event: msg["event"]?.string ?? "", body: msg["body"] ?? .null))
             case "request":
-                // Reverse requests (runInTerminal, startDebugging) are not
-                // supported yet; answer so the adapter does not wait.
                 lock.lock(); seq += 1; let n = seq; lock.unlock()
                 let reply: JSON = ["seq": .number(Double(n)), "type": "response", "request_seq": msg["seq"] ?? 0,
                                    "command": msg["command"] ?? "", "success": false, "message": "not supported"]
@@ -99,14 +90,10 @@ public final class DAPClient: @unchecked Sendable {
         eventSink.finish()
     }
 
-    /// Closes the transport and fails every request still waiting, so no
-    /// caller stays suspended on an adapter that will never answer.
     public func close() {
         transport.close()
         shutDown()
     }
-
-    // MARK: Requests
 
     @discardableResult
     public func initialize(clientName: String = "SwiftCode") async throws -> JSON {
@@ -137,7 +124,6 @@ public final class DAPClient: @unchecked Sendable {
         try await request("attach", .object(args))
     }
 
-    /// Replaces all breakpoints of one file. Returns what the adapter verified.
     public func setBreakpoints(file: String, lines: [Int]) async throws -> [Breakpoint] {
         let body = try await request("setBreakpoints", [
             "source": ["path": .string(file), "name": .string(URL(fileURLWithPath: file).lastPathComponent)],
@@ -146,8 +132,6 @@ public final class DAPClient: @unchecked Sendable {
         return (body["breakpoints"]?.array ?? []).map(Breakpoint.init)
     }
 
-    /// Replaces a file's breakpoints, with conditions, hit counts and log
-    /// messages.
     public func setBreakpoints(file: String, breakpoints: [SourceBreakpoint]) async throws -> [Breakpoint] {
         let body = try await request("setBreakpoints", [
             "source": ["path": .string(file), "name": .string(URL(fileURLWithPath: file).lastPathComponent)],
@@ -156,22 +140,18 @@ public final class DAPClient: @unchecked Sendable {
         return (body["breakpoints"]?.array ?? []).map(Breakpoint.init)
     }
 
-    /// Replaces the exception breakpoints (filter ids from the adapter's
-    /// `exceptionBreakpointFilters` capability).
     @discardableResult
     public func setExceptionBreakpoints(filters: [String]) async throws -> [Breakpoint] {
         let body = try await request("setExceptionBreakpoints", ["filters": .array(filters.map(JSON.string))])
         return (body["breakpoints"]?.array ?? []).map(Breakpoint.init)
     }
 
-    /// Replaces the symbolic (function-name) breakpoints.
     @discardableResult
     public func setFunctionBreakpoints(_ breakpoints: [FunctionBreakpoint]) async throws -> [Breakpoint] {
         let body = try await request("setFunctionBreakpoints", ["breakpoints": .array(breakpoints.map(\.json))])
         return (body["breakpoints"]?.array ?? []).map(Breakpoint.init)
     }
 
-    /// The adapter's exception filters: (id, label).
     public var exceptionFilters: [(id: String, label: String)] {
         (capabilities["exceptionBreakpointFilters"]?.array ?? []).compactMap { f in
             f["filter"]?.string.map { ($0, f["label"]?.string ?? $0) }
@@ -209,9 +189,6 @@ public final class DAPClient: @unchecked Sendable {
     public func stepOut(threadID: Int) async throws { try await request("stepOut", ["threadId": .number(Double(threadID))]) }
     public func pause(threadID: Int) async throws { try await request("pause", ["threadId": .number(Double(threadID))]) }
 
-    /// Sends `disconnect`. If the adapter does not answer within `timeout`,
-    /// the client is closed (the adapter process is stopped and the request
-    /// fails), so the caller never waits forever.
     public func disconnect(terminate: Bool = true, timeout: Duration = .seconds(5)) async throws {
         let watchdog = Task { [weak self] in
             try await Task.sleep(for: timeout)
@@ -221,8 +198,6 @@ public final class DAPClient: @unchecked Sendable {
         try await request("disconnect", ["terminateDebuggee": .bool(terminate)])
     }
 }
-
-// MARK: Model
 
 public struct Breakpoint: Equatable, Sendable {
     public var id: Int?
@@ -256,7 +231,6 @@ public struct StackFrame: Identifiable, Equatable, Sendable {
     public var file: String?
     public var line: Int
     public var column: Int
-    /// The program counter (for disassembly).
     public var instructionPointer: String?
     init(_ j: JSON) {
         instructionPointer = j["instructionPointerReference"]?.string
@@ -283,9 +257,7 @@ public struct Variable: Equatable, Sendable {
     public var name: String
     public var value: String
     public var type: String?
-    /// Nonzero when the variable has children to fetch.
     public var variablesReference: Int
-    /// Where its value is in memory (DAP `memoryReference`), when known.
     public var memoryReference: String?
     init(_ j: JSON) {
         name = j["name"]?.string ?? ""
@@ -303,16 +275,11 @@ public struct Variable: Equatable, Sendable {
     }
 }
 
-/// A line breakpoint as sent to the adapter.
 public struct SourceBreakpoint: Equatable, Sendable {
     public var line: Int
-    /// A column breakpoint's 1-based column (DAP `column`); nil for a line.
     public var column: Int?
     public var condition: String?
-    /// Hit condition; lldb-dap reads a number as "ignore this many hits".
     public var hitCondition: String?
-    /// When set, the breakpoint logs instead of stopping (`{expr}` is
-    /// interpolated by the adapter).
     public var logMessage: String?
     public init(line: Int, column: Int? = nil, condition: String? = nil, hitCondition: String? = nil, logMessage: String? = nil) {
         self.line = line
@@ -331,7 +298,6 @@ public struct SourceBreakpoint: Equatable, Sendable {
     }
 }
 
-/// A symbolic breakpoint: stop in every function with this name.
 public struct FunctionBreakpoint: Equatable, Sendable {
     public var name: String
     public var condition: String?

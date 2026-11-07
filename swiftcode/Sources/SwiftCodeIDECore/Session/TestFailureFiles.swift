@@ -1,10 +1,6 @@
 import Foundation
 import SwiftCodeBuild
 
-/// swift-testing names a failure's file without its folder
-/// ("recorded an issue at MathTests.swift:12:5"). The issue navigator and
-/// the editor need the whole path: the file of the discovered test the
-/// failure belongs to, else of any discovered test with that name.
 public enum TestFailureFiles {
     public static func resolve(_ outcomes: [TestOutcome], tests: [DiscoveredTest]) -> [TestOutcome] {
         outcomes.map { o in

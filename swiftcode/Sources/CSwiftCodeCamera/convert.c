@@ -1,14 +1,7 @@
-/* Pixel conversion for the host camera layer (camera-host.md §4).
- *
- * Y'CbCr to R'G'B' uses the matrices of ITU-R BT.601 and BT.709 with 16-bit
- * fixed-point coefficients (Kr/Kb of each recommendation; video range
- * scales luma by 255/219 and chroma by 255/224). Range changes map each
- * sample on its own with the same scale factors, rounding to nearest. */
 #include "CSwiftCodeCamera.h"
 
 static inline uint8_t clamp8(int v) { return v < 0 ? 0 : v > 255 ? 255 : (uint8_t)v; }
 
-/* Rounded division of a possibly negative numerator by a positive divisor. */
 static inline int rdiv(int n, int d) { return n >= 0 ? (n + d / 2) / d : -((-n + d / 2) / d); }
 
 uint8_t ycam_map_luma(int value, int from_full, int to_full) {
@@ -40,7 +33,6 @@ static coefficients coefficients_for(int full_range, int matrix) {
     return c;
 }
 
-/* (v + 0.5) >> 16 without shifting a negative value: a bias of 1024 << 16. */
 #define BIAS ((1024 << 16) + 32768)
 static inline uint8_t fix(int v) { return clamp8(((v + BIAS) >> 16) - 1024); }
 

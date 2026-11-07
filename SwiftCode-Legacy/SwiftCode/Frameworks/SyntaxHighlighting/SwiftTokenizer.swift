@@ -6,7 +6,6 @@ public struct SwiftTokenizer: Sendable {
     private let keywords = Set(["struct", "class", "enum", "func", "var", "let", "if", "else", "switch", "case", "import", "public", "private", "extension", "protocol", "return", "try", "await", "async", "actor", "main"])
 
     public func tokenize(_ line: String) -> [TokenizedLine.Token] {
-        // Simple regex-based tokenizer
         var tokens: [TokenizedLine.Token] = []
 
         let words = line.components(separatedBy: CharacterSet.alphanumerics.inverted)

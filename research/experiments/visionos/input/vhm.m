@@ -1,8 +1,3 @@
-// vhm: Mac-side client for the guest daemon vhmdd (our code). Looks the service up in the
-// device's bootstrap via CoreSimulator, wraps the send right in an XPC endpoint and sends
-// one dictionary built from key=value arguments; prints the reply and any events for a while.
-//  vhm <udid> <service> key=s:string key=i:int key=u:uint key=d:double key=b:1 key=m:16floats(comma) ... [WAIT=s]
-//  vhm <udid> <service> - [WAIT=s]   one message per stdin line on one connection; "sleep <ms>" lines
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
 #include <xpc/xpc.h>
@@ -38,8 +33,6 @@ int main(int argc,char**argv){ @autoreleasepool{ setvbuf(stdout,NULL,_IOLBF,0);
   xpc_connection_set_event_handler(c,^(xpc_object_t o){ char *d=xpc_copy_description(o); printf("EVENT %.3f %s\n",[NSDate date].timeIntervalSince1970,d); free(d); });
   xpc_connection_resume(c);
   double wait=1;
-  // One message from the arguments, or (argument "-") one message per stdin line on this one
-  // connection ("sleep <ms>" lines pause while events keep printing).
   if(argc>3&&!strcmp(argv[3],"-")){ char line[4096];
     for(int i=4;i<argc;i++) if(!strncmp(argv[i],"WAIT=",5)) wait=atof(argv[i]+5);
     while(fgets(line,sizeof line,stdin)){ char *args[64]; int n=0; char *t,*p=line; while((t=strsep(&p," \t\n"))) if(*t&&n<64) args[n++]=t; if(!n) continue;

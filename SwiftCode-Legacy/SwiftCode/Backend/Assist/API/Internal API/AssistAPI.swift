@@ -11,7 +11,6 @@ public final class AssistAPI {
         self.router = AssistAPIRouter(context: context)
     }
 
-    /// Primary entry point for all Assist backend operations.
     public func request(_ apiRequest: AssistAPIRequest) async -> AssistAPIResponse {
         guard let router = router else {
             return .failure(error: "AssistAPI is not configured. Call configure(context:) first.")
@@ -19,7 +18,6 @@ public final class AssistAPI {
         return await router.route(apiRequest)
     }
 
-    /// Convenience methods for common operations.
     public func plan(intent: String) async -> AssistAPIResponse {
         let request = AssistAPIRequest(route: .plan, payload: ["intent": intent])
         return await self.request(request)

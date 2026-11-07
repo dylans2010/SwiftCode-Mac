@@ -1,25 +1,16 @@
 import Foundation
 import SwiftCodeLanguage
 
-/// Editor ▸ Refactor (`specs/ide/reference-ui-4.md` §8.2): the items in the
-/// reference order, each mapped to the sourcekit-lsp code action that does
-/// the same job (matched by title words and kind) where one exists. Items
-/// without a matching action at the cursor are disabled. The mapping is
-/// SwiftCode's own design (§8, evidence "—").
 public enum RefactorCatalog {
     public struct Item: Equatable, Sendable {
         public var title: String
-        /// Lower-case phrases; an action matches when its title contains one.
         public var phrases: [String]
-        /// Required code-action kind prefix, if any.
         public var kind: String?
         public var isMappable: Bool { !phrases.isEmpty }
     }
 
-    /// Groups in menu order (Rename… is first and handled by rename).
     public static let groups: [[Item]] = [
         [
-            // reference-ui-5.md §2.7: "Extract to File" precedes "Extract Selection to File".
             Item(title: "Extract to File", phrases: []),
             Item(title: "Extract Selection to File", phrases: []),
             Item(title: "Extract to Function", phrases: ["extract function", "extract to function", "extract method"]),
@@ -46,17 +37,13 @@ public enum RefactorCatalog {
         ],
     ]
 
-    /// Every item, flattened in menu order; item indices refer to this list.
     public static var items: [Item] { groups.flatMap { $0 } }
 
-    /// The index in `actions` of the action for item `index`, or nil.
     public static func actionIndex(forItem index: Int, in actions: [CodeAction]) -> Int? {
         let all = items
         guard all.indices.contains(index) else { return nil }
         let item = all[index]
         guard item.isMappable else { return nil }
-        // Extract to Function and Extract to Method share sourcekit's
-        // "Extract Method"; prefer an exact title first.
         if let exact = actions.firstIndex(where: { $0.title.caseInsensitiveCompare(item.title) == .orderedSame }) { return exact }
         return actions.firstIndex { a in
             if a.kind?.hasPrefix("quickfix") == true && !item.title.hasPrefix("Add Missing") { return false }
@@ -66,13 +53,11 @@ public enum RefactorCatalog {
         }
     }
 
-    /// Code actions that match no catalog item (listed after the fixed items).
     public static func unmatched(_ actions: [CodeAction]) -> [Int] {
         let used = Set(items.indices.compactMap { actionIndex(forItem: $0, in: actions) })
         return actions.indices.filter { !used.contains($0) && actions[$0].kind?.hasPrefix("quickfix") != true }
     }
 
-    /// The Refactor submenu as menu data.
     static var menuItems: [MenuItemSpec] {
         var out: [MenuItemSpec] = [.command(.init("Rename…", "", [], "renameSymbol:"))]
         var i = 0

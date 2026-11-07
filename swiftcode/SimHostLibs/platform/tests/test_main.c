@@ -1,13 +1,3 @@
-/*
- * Host-side unit tests for SwiftCode's libsystem_platform sources.
- *
- * Clean-room SwiftCode code. The platform C (and, on arm64 hosts, assembly)
- * sources are compiled for the host with -DYC_HOST_TEST, which renames
- * every exported function to yc_test_<name> and every libsystem_kernel
- * function it calls to yc_testk_<name>. This file supplies those kernel
- * functions as fakes and checks the results against the host C library or
- * against expected values. Run it with `sh build.sh test`.
- */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <pthread.h>
@@ -22,8 +12,6 @@
 #include <unistd.h>
 
 typedef _Bool yc_bool;
-
-/* ---- declarations of the code under test ---------------------------- */
 
 #define T(name) yc_test_##name
 void *T(_platform_memmove)(void *, const void *, size_t);
@@ -144,7 +132,7 @@ void T(_simple_asl_log)(int, const char *, const char *);
 
 #if defined(__aarch64__)
 #define HAVE_SETJMP 1
-typedef long yc_jmp_buf[24 + 1]; /* 192 bytes, + room for the sigjmp flag */
+typedef long yc_jmp_buf[24 + 1];
 int T(setjmp)(yc_jmp_buf) __attribute__((returns_twice));
 int T(_setjmp)(yc_jmp_buf) __attribute__((returns_twice));
 int T(sigsetjmp)(yc_jmp_buf, int) __attribute__((returns_twice));
@@ -152,8 +140,6 @@ void T(longjmp)(yc_jmp_buf, int) __attribute__((noreturn));
 void T(_longjmp)(yc_jmp_buf, int) __attribute__((noreturn));
 void T(siglongjmp)(yc_jmp_buf, int) __attribute__((noreturn));
 #endif
-
-/* ---- fakes for libsystem_kernel and the hidden hooks ------------------ */
 
 static __thread int fake_errno;
 static __thread uint32_t thread_owner_id;
@@ -181,7 +167,7 @@ int yc_testk___ulock_wait(uint32_t op, void *addr, uint64_t value, uint32_t time
     (void)op; (void)timeout;
     __atomic_fetch_add(&ulock_wait_calls, 1, __ATOMIC_RELAXED);
     if (__atomic_load_n((uint32_t *)addr, __ATOMIC_RELAXED) == (uint32_t)value)
-        sched_yield(); /* a spurious wake-up is always allowed */
+        sched_yield();
     return 0;
 }
 
@@ -189,7 +175,7 @@ int yc_testk___ulock_wait2(uint32_t op, void *addr, uint64_t value, uint64_t tim
 {
     (void)v2;
     if (timeout == 12345)
-        return -60; /* ETIMEDOUT */
+        return -60;
     return yc_testk___ulock_wait(op, addr, value, 0);
 }
 
@@ -260,8 +246,6 @@ uint64_t yc_testk_mach_absolute_time(void) { return 1000; }
 struct tb { uint32_t numer, denom; };
 int yc_testk_mach_timebase_info(struct tb *t) { t->numer = 125; t->denom = 3; return 0; }
 
-/* ---- test harness ------------------------------------------------------ */
-
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (!(cond)) { failures++; \
     fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
@@ -276,7 +260,6 @@ static void test_memory(void)
     for (int iter = 0; iter < 4000; iter++) {
         for (int i = 0; i < 512; i++) a[i] = b[i] = (unsigned char)rnd();
         size_t n = rnd() % 200, so = rnd() % 64, dof = rnd() % 64;
-        /* overlapping move inside one buffer, both directions */
         memmove(b + dof + 100, b + so + 100, n);
         T(_platform_memmove)(a + dof + 100, a + so + 100, n);
         CHECK(memcmp(a, b, 512) == 0);
@@ -308,7 +291,7 @@ static void test_memory(void)
     CHECK(T(_platform_memcmp_zero_aligned8)(z, 63) == 0);
     T(__bzero)(z, 64);
     CHECK(z[63] == 0);
-    CHECK(T(_platform_memcmp)("a\x80", "a\x01", 2) > 0); /* unsigned compare */
+    CHECK(T(_platform_memcmp)("a\x80", "a\x01", 2) > 0);
 
     const unsigned char p4[4] = {1, 2, 3, 4}, p8[8] = {1, 2, 3, 4, 5, 6, 7, 8};
     unsigned char p16[16];
@@ -322,8 +305,6 @@ static void test_memory(void)
     CHECK(c[15] == 0xAF && c[16] == 0xA0 && c[34] == 0xA2 && c[35] == 0);
 }
 
-/* Larger sizes, every alignment, both overlap directions, fills against a
- * reference (guest-cpu.md section 4.4). */
 static void test_memory_large(void)
 {
     static unsigned char a[8192], b[8192], c[8192], d[8192];
@@ -331,17 +312,14 @@ static void test_memory_large(void)
         size_t n = (iter & 3) == 0 ? rnd() % 4000 : rnd() % 300;
         size_t so = rnd() % 64, dof = rnd() % 64, gap = rnd() % 40;
         for (int i = 0; i < 8192; i++) a[i] = b[i] = (unsigned char)rnd();
-        /* overlapping, the source a little above or below the destination */
         size_t s0 = 1000 + so, d0 = (iter & 1) ? s0 + gap : (s0 > gap ? s0 - gap : 0) + dof % 2;
         memmove(b + d0, b + s0, n);
         CHECK(T(_platform_memmove)(a + d0, a + s0, n) == a + d0);
         CHECK(memcmp(a, b, sizeof a) == 0);
-        /* disjoint */
         for (int i = 0; i < 8192; i++) c[i] = d[i] = 0x11;
         memcpy(d + dof, a + 4096 + so, n);
         T(_platform_memmove)(c + dof, a + 4096 + so, n);
         CHECK(memcmp(c, d, sizeof c) == 0);
-        /* fills */
         int v = (int)(rnd() & 0xFF);
         memset(c + dof, v, n);
         T(_platform_memset)(d + dof, v, n);
@@ -362,7 +340,6 @@ static void test_memory_large(void)
         if (n < 300) a[so + n] = (unsigned char)ch;
         CHECK(T(_platform_memchr)(a + so, ch, 300) == memchr(a + so, ch, 300));
     }
-    /* strings that end at a page boundary, before an inaccessible page */
     long page = sysconf(_SC_PAGESIZE);
     unsigned char *m = mmap(NULL, (size_t)page * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     CHECK(m != MAP_FAILED);
@@ -387,7 +364,6 @@ static void test_memory_large(void)
         }
         munmap(m, (size_t)page * 2);
     }
-    /* strcmp over random strings at every offset pair */
     char sx[96], sy[96];
     for (int iter = 0; iter < 20000; iter++) {
         size_t ox = rnd() % 16, oy = rnd() % 16, len = rnd() % 70;
@@ -421,7 +397,7 @@ static void test_strings(void)
     CHECK(T(_platform_strchr)(h, 'l') == h + 2);
     CHECK(T(_platform_strchr)(h, 0) == h + 5);
     CHECK(T(_platform_strchr)(h, 'z') == NULL);
-    CHECK(T(_platform_strchr)(h, 'h' + 256) == h); /* converted to char */
+    CHECK(T(_platform_strchr)(h, 'h' + 256) == h);
     CHECK(T(_platform_strstr)(h, "") == h);
     CHECK(T(_platform_strstr)(h, "llo") == h + 2);
     CHECK(T(_platform_strstr)(h, "lloo") == NULL);
@@ -434,7 +410,6 @@ static void test_strings(void)
     T(_platform_strncpy)(buf, "abcdef", 3);
     CHECK(memcmp(buf, "abcX", 4) == 0);
 
-    /* strlcpy / strlcat */
     memset(buf, 'X', sizeof buf);
     CHECK(T(_platform_strlcpy)(buf, "hello", 3) == 5 && strcmp(buf, "he") == 0);
     CHECK(T(_platform_strlcpy)(buf, "hello", 0) == 5 && buf[0] == 'h');
@@ -443,7 +418,7 @@ static void test_strings(void)
     CHECK(T(_platform_strlcat)(buf, "defgh", 6) == 8 && strcmp(buf, "abcde") == 0);
     strcpy(buf, "abc");
     CHECK(T(_platform_strlcat)(buf, "de", sizeof buf) == 5 && strcmp(buf, "abcde") == 0);
-    memcpy(ref, "abcdef", 6); /* not terminated within size */
+    memcpy(ref, "abcdef", 6);
     CHECK(T(_platform_strlcat)(ref, "xyz", 4) == 7);
     CHECK(memcmp(ref, "abcdef", 6) == 0);
 }
@@ -500,8 +475,6 @@ static void test_atomics(void)
     CHECK(T(OSAtomicFifoDequeue)(&f, offsetof(struct elem, link)) == NULL);
 }
 
-/* ---- threaded tests ---------------------------------------------------- */
-
 #define THREADS 4
 #define ITERS 20000
 static os_unfair_lock ulock;
@@ -547,7 +520,7 @@ static void *worker(void *arg)
         for (int i = 0; i < 64; i++) {
             struct qelem *x = T(OSAtomicDequeue)(&shared_q, 0);
             if (x) __atomic_fetch_add(&dequeued_sum, x->v, __ATOMIC_RELAXED);
-            else i--; /* another thread holds our element right now; retry */
+            else i--;
         }
     }
     T(_os_once)(&once_pred, NULL, once_fn);
@@ -706,7 +679,6 @@ static void test_simple(void)
     CHECK(T(_simple_sprintf)(b, "|%s|%.2s|%6s|%-3s|%c|%%|%p|%lld|%lx|%zu|%hhd|%s", "str", "abc", "r", "l", 'Z',
                              (void *)0x1234, -9000000000ll, 0xdeadbeefcafeul, (size_t)77, 300, (char *)NULL) == 0);
     CHECK(strcmp(T(_simple_string)(b), "-42|str|ab|     r|l  |Z|%|0x1234|-9000000000|deadbeefcafe|77|44|(null)") == 0);
-    /* grow past the first page */
     char chunk[1001];
     memset(chunk, 'q', 1000);
     chunk[1000] = 0;
@@ -764,16 +736,13 @@ static void test_platform_init(void)
     CHECK(kernel_string_table && kernel_string_table[16] == (unsigned long)T(_platform_strstr));
     CHECK(yc_testk__os_alloc_once_table[21].once == ~0l && yc_testk__os_alloc_once_table[21].ptr != NULL);
     {
-        /* libplatform's asl_context layout (shared with the simulator's
-         * libsystem_sim_platform): enabled @0, progname @8, fd @16, and a
-         * zero sim_connect_lock word @32 inside the allocation. */
         const char *ctx = yc_testk__os_alloc_once_table[21].ptr;
         CHECK(*(const unsigned char *)ctx == 1);
         CHECK(strcmp(*(const char *const *)(ctx + 8), "hello") == 0);
         CHECK(*(const int *)(ctx + 16) == -1);
         CHECK(*(const uint32_t *)(ctx + 32) == 0 && *(const uint64_t *)(ctx + 24) == 0);
     }
-    T(__libplatform_init)(NULL, envp, apple, &vars); /* calling twice is harmless */
+    T(__libplatform_init)(NULL, envp, apple, &vars);
     CHECK(__yc_security_config() == 0x2A);
 }
 
@@ -789,7 +758,6 @@ static __attribute__((noinline)) void jump_back(int v)
 
 static __attribute__((noinline)) void clobber_callee_saved(void)
 {
-    /* Change every callee-saved register; _longjmp must restore them. */
     __asm__ volatile(
         "mov x19, #1\n mov x20, #2\n mov x21, #3\n mov x22, #4\n mov x23, #5\n"
         "mov x24, #6\n mov x25, #7\n mov x26, #8\n mov x27, #9\n mov x28, #10\n"
@@ -839,9 +807,8 @@ static void test_setjmp(void)
     r = T(_setjmp)(jb);
     if (r == 0)
         T(_longjmp)(jb, 0);
-    CHECK(r == 1); /* longjmp with 0 returns 1 */
+    CHECK(r == 1);
 
-    /* setjmp saves the signal mask, longjmp restores it */
     fake_sigmask = 0x11;
     r = T(setjmp)(jb);
     if (r == 0) {
@@ -850,7 +817,6 @@ static void test_setjmp(void)
     }
     CHECK(r == 2 && fake_sigmask == 0x11);
 
-    /* sigsetjmp(env, 0) does not touch it; sigsetjmp(env, 1) does */
     fake_sigmask = 0x22;
     r = T(sigsetjmp)(jb, 0);
     if (r == 0) {

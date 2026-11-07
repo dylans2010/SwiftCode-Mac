@@ -4,9 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// R33 (`specs/ide/reference-ui-5.md` §9): the Settings panes, their rows
-/// and defaults, and that each setting takes effect; plus destination
-/// selection by identifier (SwiftCode's remote simulator).
 @MainActor
 @Suite(.serialized) struct SettingsR33Tests {
     @Test func displayModel() {

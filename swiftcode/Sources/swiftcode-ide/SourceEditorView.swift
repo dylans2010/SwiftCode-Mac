@@ -11,19 +11,10 @@ import OVPlatform
 import AppKit
 #endif
 
-/// The source editor (`docs/PARITY.md` §5.9 item 2): a viewport-sized `Canvas`
-/// that draws only the visible lines, with the gutter over the text.
-///
-/// On OpenViews the editor scrolls itself (`textSurfaceScroll`) and redraws
-/// without a layout (`SourceEditorController.invalidate()`): the canvas reads
-/// the controller when it draws, and the body reads nothing that typing or
-/// scrolling changes. On Apple's SwiftUI it sits in a `ScrollView` as
-/// `ov-editor-bench` measures the pattern.
 struct SourceEditorView: View {
     let controller: SourceEditorController
     var model: WorkspaceShellModel
     let palette: SourcePalette
-    /// `ShellPreferences.revision`: new settings measure the font again.
     let preferences: Int
     @FocusState private var focused: Bool
     @Environment(\.colorScheme) private var scheme
@@ -31,8 +22,6 @@ struct SourceEditorView: View {
     var body: some View {
         let c = controller
         let bar = model.findBar
-        // Read here so a change of the find matches or of the issues draws
-        // again (they change rarely; typing does not change them).
         let matches = bar.isShown ? bar.matches : []
         let currentMatch = bar.current
         let issues = model.editorIssues
@@ -40,7 +29,6 @@ struct SourceEditorView: View {
         let scm = model.sourceControl
         let changes = scm.changeRegionsPath != nil && scm.changeRegionsPath == model.editor?.path ? scm.changeRegions : []
         let diamonds = model.testDiamonds
-        // The rename's occurrences (they change rarely, as the matches).
         let highlights = model.languageFeatures.highlights
         let colors = ShellColors(scheme)
         let palette = palette
@@ -61,8 +49,6 @@ struct SourceEditorView: View {
                 switch e {
                 case .down(let p, let t):
                     focused = true
-                    // ⌥-click: Quick Help; ⌘- or Ctrl-click: Jump to Definition
-                    // (on a breakpoint: its editor).
                     if let m = c.connection?.pointerModifiers, DebugGutter.commandClick(p, modifiers: m, controller: c, model: model)
                         || SymbolClick.handle(p, modifiers: m, controller: c, model: model) { return }
                     c.pointerChanged(start: p, location: p, time: t, shift: c.connection?.pointerModifiers.contains(.shift) ?? false)
@@ -109,7 +95,6 @@ struct SourceEditorView: View {
                 DebugGutter.connect(c, model: model)
             }
             .task(id: c.document.path) {
-                // The file on disk, about once a second.
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     if Task.isCancelled { break }
@@ -118,7 +103,6 @@ struct SourceEditorView: View {
             }
             .onContinuousHover { phase in DebugGutter.hover(phase, controller: c, model: model) }
             .contextMenu {
-                // A breakpoint under the pointer: its own menu (DebugEditors.swift).
                 if let b = model.debug.gutterMenuBreakpoint(file: c.document.path) {
                     BreakpointMenuItems(model: model, breakpoint: b, controller: c)
                 } else {
@@ -178,7 +162,6 @@ struct SourceEditorView: View {
     #endif
 }
 
-/// Keeps the editor's window origin for the input method's caret rectangle.
 struct WindowOriginReader: View {
     let controller: SourceEditorController
 
@@ -190,7 +173,6 @@ struct WindowOriginReader: View {
     }
 }
 
-/// Draws one frame of the editor.
 @MainActor
 struct SourceEditorPainter {
     let controller: SourceEditorController
@@ -201,11 +183,7 @@ struct SourceEditorPainter {
     let currentMatch: Int?
     let issues: [Int: EditorLineIssue]
     var debug = EditorDebugMarks()
-    /// The change bars (source control): unstaged in the accent color,
-    /// staged in grey, a deletion as a short mark between lines.
     var changes: [SourceChangeRegion] = []
-    /// Test diamonds by 1-based line, in place of the line number
-    /// (`specs/ide/testing.md` §Gutter): outlined, green, red.
     var diamonds: [Int: TestOutcome.Status?] = [:]
     var highlights: [NSRange] = []
 
@@ -217,8 +195,6 @@ struct SourceEditorPainter {
         let f = font(c)
         c.prepareMetrics { s in ctx.resolve(Text(verbatim: s).font(f)).measure(in: CGSize(width: CGFloat.infinity, height: .infinity)) }
         #if os(Linux)
-        // Hit testing and carets between frames measure other characters
-        // with the context of the last frame.
         let measuring = ctx
         c.characterMeasure = { ch in measuring.resolve(Text(verbatim: String(ch)).font(f)).measure(in: CGSize(width: CGFloat.infinity, height: .infinity)).width }
         #endif
@@ -229,7 +205,6 @@ struct SourceEditorPainter {
         let doc = b.document
         guard !lines.isEmpty else { return }
 
-        // Whole-line bands.
         let currentLine = b.caretLine
         if b.selection.isEmpty, c.isFocused || true {
             ctx.fill(Path(CGRect(x: 0, y: top(currentLine), width: size.width, height: lh)), with: .color(palette.currentLine.color))
@@ -242,7 +217,6 @@ struct SourceEditorPainter {
         }
         DebugGutter.drawStoppedLine(&ctx, debug, lines: lines, top: top, lineHeight: lh, width: size.width)
 
-        // Find matches.
         if !matches.isEmpty {
             let first = doc.lineStart(lines.lowerBound)
             let end = lines.upperBound < doc.lineCount ? doc.lineStart(lines.upperBound) : b.length
@@ -260,17 +234,14 @@ struct SourceEditorPainter {
             }
         }
 
-        // The occurrences of a symbol being renamed.
         for h in highlights where h.length > 0 {
             fillRange(&ctx, h.location..<(h.location + h.length), lines: lines, color: colors.accent.opacity(0.22), textX: textX)
         }
 
-        // The selection.
         if !b.selection.isEmpty {
             fillRange(&ctx, b.selection.range, lines: lines, color: palette.selection.color, textX: textX)
         }
 
-        // The text.
         let columnWidth = max(c.layout.advance, 1)
         let columns = max(0, Int(c.left / columnWidth) - 8)..<(Int((c.left + size.width) / columnWidth) + 8)
         for n in lines {
@@ -280,11 +251,10 @@ struct SourceEditorPainter {
             if b.hasMarkedText, n == currentLine {
                 drawComposing(&ctx, line, y: y, x: x)
             } else if !line.runs.isEmpty {
-                drawRuns(&ctx, line.runs, at: x, y: y, font: f)   // +CellGlyphs.swift
+                drawRuns(&ctx, line.runs, at: x, y: y, font: f)
             }
         }
 
-        // Issue labels at the lines' right ends.
         for n in lines {
             guard let i = issues[n + 1] else { continue }
             let message = Text(verbatim: i.message).font(.system(size: 11)).foregroundStyle(palette.foreground.color)
@@ -299,7 +269,6 @@ struct SourceEditorPainter {
 
         DebugGutter.drawAnnotation(&ctx, debug, lines: lines, top: top, lineHeight: lh, width: size.width)
 
-        // The caret.
         if b.selection.isEmpty || b.hasMarkedText, caretOn, c.isFocused {
             var x = textX + c.layout.x(ofOffset: b.caret, line: currentLine, in: b)
             if b.hasMarkedText {
@@ -308,8 +277,6 @@ struct SourceEditorPainter {
             ctx.fill(Path(CGRect(x: x - 0.5, y: top(currentLine), width: 1.5, height: lh)), with: .color(palette.foreground.color))
         }
 
-        // The scroll indicator, for a second after scrolling (Linux; the
-        // scroll view draws its own elsewhere).
         #if os(Linux)
         if c.now - c.lastScroll < 1, c.contentHeight > size.height {
             let track = size.height - 6
@@ -320,7 +287,6 @@ struct SourceEditorPainter {
         }
         #endif
 
-        // The gutter stays put while the text scrolls under it.
         ctx.fill(Path(CGRect(x: 0, y: 0, width: c.gutterWidth, height: size.height)), with: .color(palette.background.color))
         if b.selection.isEmpty {
             ctx.fill(Path(CGRect(x: 0, y: top(currentLine), width: c.gutterWidth, height: lh)), with: .color(palette.currentLine.color))
@@ -347,8 +313,6 @@ struct SourceEditorPainter {
         drawCompletion(&ctx, size: size)
     }
 
-    /// A test's diamond: outlined before a run, green with a check when it
-    /// passed, red with a cross when it failed.
     private func drawDiamond(_ ctx: inout GraphicsContext, status: TestOutcome.Status?, center p: CGPoint) {
         let r: CGFloat = 6.5
         var shape = Path()
@@ -375,8 +339,6 @@ struct SourceEditorPainter {
         }
     }
 
-    /// The change column at the gutter's right edge (`reference-ui-5.md`
-    /// §6.3), as the AppKit gutter draws it.
     private func drawChangeBars(_ ctx: inout GraphicsContext, lines: Range<Int>) {
         guard let first = lines.first, let last = lines.last, !changes.isEmpty else { return }
         let c = controller
@@ -398,7 +360,6 @@ struct SourceEditorPainter {
         }
     }
 
-    /// The completion list under the word being completed.
     private func drawCompletion(_ ctx: inout GraphicsContext, size: CGSize) {
         let c = controller
         guard let list = c.completion, let f = c.completionFrame(in: size) else { return }
@@ -433,8 +394,6 @@ struct SourceEditorPainter {
         }
     }
 
-    /// Fills `range` on the visible lines (a line it runs past gets a little
-    /// more, showing the newline is included).
     private func fillRange(_ ctx: inout GraphicsContext, _ range: Range<Int>, lines: Range<Int>, color: Color, textX: CGFloat) {
         let c = controller
         let b = c.buffer
@@ -454,8 +413,6 @@ struct SourceEditorPainter {
         }
     }
 
-    /// The caret's line during an input-method composition: the text, the
-    /// marked text underlined, the rest of the line after it.
     private func drawComposing(_ ctx: inout GraphicsContext, _ line: EditorDisplayLine, y: CGFloat, x: CGFloat) {
         let c = controller
         let b = c.buffer
@@ -473,7 +430,6 @@ struct SourceEditorPainter {
         if !after.isEmpty { ctx.draw(text(after).font(f), at: CGPoint(x: mx + w, y: y), anchor: .topLeading) }
     }
 
-    /// The width of the marked text before its cursor.
     private func markedPrefixWidth(_ c: SourceEditorController) -> CGFloat {
         c.layout.width(ofText: String(c.buffer.markedText.prefix(c.buffer.markedCursor)))
     }

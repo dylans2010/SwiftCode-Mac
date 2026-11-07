@@ -5,33 +5,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy artifact / backup / Finder tool family (Wave 1,
-/// slice D).
-///
-/// Behaviour source: Legacy `AssistArtifactStore` / `AssistListArtifactsTool`
-/// / `AssistReadArtifactTool` / `AssistCreateArtifactTool` /
-/// `AssistDeleteArtifactTool` / `AssistFileBackupTool` / `AssistFinderTools`
-/// (Dylan's own code, ported under MIT). The store layout, the naming
-/// rules, the index sidecar and the mode/kind rules live in the shared
-/// helpers in `SwiftCodeTools+FileReadingSupport.swift`; this file only adds
-/// the tools themselves.
-///
-/// Write gating: the three writing tools go through the host's approval
-/// path, so IDE review mode works — `create_artifact` via `commit()` (a
-/// text write, verified by read-back like Legacy), `file_backup` and
-/// `delete_artifact` via an explicit `MCPChange` and
-/// `guard await call.approve(change)` before touching the filesystem
-/// (`commit()` itself writes text, so it does not fit a byte-copy or a
-/// delete). `MCPServer.run` already refuses `writes: true` tools when the
-/// server is read-only; the approval call is still required. There is no
-/// Autopilot bypass in SwiftCode.
-///
-/// Deliberate deviation from Legacy: Legacy's Finder tools accept absolute
-/// paths anywhere on disk, but SwiftCode confines every tool path to the
-/// workspace, so `open_in_finder` / `reveal_in_finder` resolve their path
-/// with `resolveFileReadingPath` and refuse paths outside the workspace.
-/// A leading `/` is workspace-root-relative (the Legacy file-tool
-/// convention), not filesystem-absolute.
 extension SwiftCodeMCPHost {
     var artifactTools: [MCPTool] {
         let write = MCPToolAnnotations(readOnly: false, idempotent: false)
@@ -106,8 +79,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: List / read
-
     func listArtifacts(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let records = listFileReadingArtifacts(in: s)
@@ -134,8 +105,6 @@ extension SwiftCodeMCPHost {
                             "truncated": .bool(truncated), "contentLength": .int(content.count), "content": .string(content)],
                            summary: "# \(record.title)")
     }
-
-    // MARK: Create
 
     func createArtifact(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -192,13 +161,9 @@ extension SwiftCodeMCPHost {
         }
         try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original, proposed: finalContent,
                                    summary: summary), call: call, session: s)
-        // Verify the write by reading it back, like Legacy.
         guard let verify = try? String(contentsOf: url, encoding: .utf8), verify == finalContent else {
             throw MCPToolError("Failed to write artifact: verification read-back mismatch for \(filename)")
         }
-        // The index sidecar: id stable per filename, description only when
-        // non-empty, an explicit kind wins over filename inference,
-        // createdAt preserved.
         var index = loadFileReadingArtifactIndex(in: s)
         var entry = index[filename] ?? FileReadingArtifactIndexEntry(id: UUID(), description: description,
                                                                       kind: FileReadingArtifactNaming.inferredKind(for: filename),
@@ -212,8 +177,6 @@ extension SwiftCodeMCPHost {
                             "contentLength": .int(content.count)],
                            summary: "Artifact '\(FileReadingArtifactNaming.displayTitle(for: filename))' saved (\(modeRaw)) at \(rel).")
     }
-
-    // MARK: Delete
 
     func deleteArtifact(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -233,8 +196,6 @@ extension SwiftCodeMCPHost {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MCPToolError("No artifact named '\(filename)' exists in the artifact store.")
         }
-        // A delete is not a text write, so `commit()` does not fit: ask
-        // the approval path about the deletion first, then remove it.
         let change = MCPChange(tool: call.name, path: url.path, relativePath: rel, original: text(of: url), proposed: "",
                                summary: "Delete \(rel) permanently")
         guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
@@ -251,8 +212,6 @@ extension SwiftCodeMCPHost {
         return .structured(["filename": .string(filename)], summary: "Artifact '\(filename)' deleted permanently.")
     }
 
-    // MARK: Backup
-
     func backupFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try call.require("path").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -263,8 +222,6 @@ extension SwiftCodeMCPHost {
         let backupName = url.lastPathComponent + "." + stamp + ".bak"
         let backupURL = backupDirectory(in: s).appendingPathComponent(backupName)
         let rel = ".assist_temp/backups/\(backupName)"
-        // A byte-copy is not a text write, so `commit()` does not fit:
-        // ask the approval path about the backup first, then copy.
         let change = MCPChange(tool: call.name, path: backupURL.path, relativePath: rel, original: nil, proposed: "",
                                summary: "Back up \(relative(url.path, in: s)) to \(rel)")
         guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
@@ -278,7 +235,6 @@ extension SwiftCodeMCPHost {
         } catch {
             throw MCPToolError("Backup failed: \(error.localizedDescription)")
         }
-        // Verify byte counts match; on mismatch remove the partial backup.
         let srcSize = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int
         let dstSize = (try? FileManager.default.attributesOfItem(atPath: backupURL.path))?[.size] as? Int
         guard let srcSize, let dstSize, srcSize == dstSize else {
@@ -291,14 +247,10 @@ extension SwiftCodeMCPHost {
                            summary: "Backed up \(raw) to \(rel) (\(srcSize) bytes).")
     }
 
-    // MARK: Finder
-
     func openInFinder(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let path = try call.require("path").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty else { throw MCPToolError("Missing required argument: 'path'") }
-        // Deliberate deviation from Legacy: Legacy accepts absolute paths
-        // anywhere, but SwiftCode confines tool paths to the workspace.
         let url = try resolveFileReadingPath(path, in: s)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MCPToolError("Path does not exist: '\(path)' (resolved to \(url.path))")
@@ -307,7 +259,6 @@ extension SwiftCodeMCPHost {
         if NSWorkspace.shared.open(url) {
             return .structured(["path": .string(url.path)], summary: "Opened in Finder: \(url.lastPathComponent)")
         }
-        // Fallback to /usr/bin/open, like Legacy.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         process.arguments = [url.path]
@@ -328,8 +279,6 @@ extension SwiftCodeMCPHost {
         let s = try session(for: call)
         let path = try call.require("path").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty else { throw MCPToolError("Missing required argument: 'path'") }
-        // Deliberate deviation from Legacy: Legacy accepts absolute paths
-        // anywhere, but SwiftCode confines tool paths to the workspace.
         let url = try resolveFileReadingPath(path, in: s)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MCPToolError("Path does not exist: '\(path)' (resolved to \(url.path))")
@@ -342,7 +291,6 @@ extension SwiftCodeMCPHost {
         #endif
     }
 
-    /// Legacy `AssistArtifactKind.displayName` for the list text.
     nonisolated static func kindDisplayName(_ kind: String) -> String {
         switch kind {
         case "execution_plan": "Execution Plan"
@@ -354,7 +302,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// The `create_artifact` mode, mirroring Legacy `AssistArtifactMode`.
 private enum ArtifactMode: String, Sendable {
     case create
     case update

@@ -171,8 +171,6 @@ public final class ManifestProjManager: Sendable {
         }
     }
 
-    // MARK: - Private Helpers
-
     private struct CalcStats {
         var fileCount = 0
         var directoryCount = 0
@@ -202,7 +200,6 @@ public final class ManifestProjManager: Sendable {
 
                 let fileURL = directoryURL.appendingPathComponent(node.path)
 
-                // Categorize based on extension and count lines
                 let ext = node.fileExtension
                 if ["swift", "h", "m", "c", "cpp"].contains(ext) {
                     if let content = try? String(contentsOf: fileURL) {

@@ -11,7 +11,6 @@ public class EditorViewModel {
     public var tokenizedLines: [TokenizedLine] = []
 
     public init() {
-        // Observe edits from Visual UI Builder and sync them seamlessly
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("com.swiftcode.visualUIEditorUpdate"),
             object: nil,
@@ -28,13 +27,11 @@ public class EditorViewModel {
 
     public func openFile(url: URL) async {
         if let existing = openDocuments.first(where: { $0.url == url }) {
-            // SAFETY: Clear tokens before switching document to avoid stale highlighting
             tokenizedLines = []
             activeDocument = existing
             selectedTabID = existing.id
             await tokenize()
 
-            // Update centralized DocumentCoordinator!
             DocumentCoordinator.shared.activeDocument = existing
 
             if existing.content.contains("@SwiftCodeVisualUIBuilderDocument") {
@@ -64,7 +61,6 @@ public class EditorViewModel {
             selectedTabID = doc.id
             await tokenize()
 
-            // Update centralized DocumentCoordinator!
             DocumentCoordinator.shared.activeDocument = doc
 
             if content.contains("@SwiftCodeVisualUIBuilderDocument") {
@@ -105,7 +101,6 @@ public class EditorViewModel {
         }
 
         if content.contains("@SwiftCodeVisualUIBuilderDocument") {
-            // Automatically synchronize edits back to the Visual UI Builder document!
             NotificationCenter.default.post(
                 name: NSNotification.Name("com.swiftcode.visualUIBuilderSync"),
                 object: nil,
@@ -115,14 +110,12 @@ public class EditorViewModel {
     }
 
     private func tokenize() async {
-        // Highlighting is now handled asynchronously by CodeRenderEngine directly inside NativeTextView
     }
 
     public func updateActiveConfigurationURLs(for project: Project) async {
         let newPlist = ProjectResolutionService.shared.resolveInfoPlist(for: project)
         let newEntitlements = ProjectResolutionService.shared.resolveEntitlements(for: project)
 
-        // We iterate and update the open documents to show the correct resolved path or unresolved dummy URL
         var updatedDocuments: [SourceFileDocument] = []
         for doc in openDocuments {
             let isPlist = doc.url.pathExtension == "plist" || doc.url.lastPathComponent == "Info.plist" || doc.url.lastPathComponent.contains("Unresolved-Info")
@@ -137,7 +130,6 @@ public class EditorViewModel {
                     } else {
                         resolvedContent = ""
                     }
-                    // `url` is immutable on SourceFileDocument, so rebuild rather than mutate in place
                     var newDoc = SourceFileDocument(url: targetURL, content: resolvedContent, lastDiskModificationDate: doc.lastDiskModificationDate)
                     newDoc.isDirty = doc.isDirty
                     updatedDocuments.append(newDoc)
@@ -153,7 +145,6 @@ public class EditorViewModel {
                     } else {
                         resolvedContent = ""
                     }
-                    // `url` is immutable on SourceFileDocument, so rebuild rather than mutate in place
                     var newDoc = SourceFileDocument(url: targetURL, content: resolvedContent, lastDiskModificationDate: doc.lastDiskModificationDate)
                     newDoc.isDirty = doc.isDirty
                     updatedDocuments.append(newDoc)
@@ -167,7 +158,6 @@ public class EditorViewModel {
 
         self.openDocuments = updatedDocuments
 
-        // Update active document reference if its URL matches plist/entitlements
         if let active = activeDocument {
             let isActivePlist = active.url.pathExtension == "plist" || active.url.lastPathComponent == "Info.plist" || active.url.lastPathComponent.contains("Unresolved-Info")
             let isActiveEnt = active.url.pathExtension == "entitlements" || active.url.lastPathComponent.contains("Unresolved.entitlements")

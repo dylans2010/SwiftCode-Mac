@@ -1,17 +1,6 @@
 import SwiftUI
 import SwiftCodeCloud
 
-/// Read-only inspector for the selected table and column.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseInspector.swift`.
-///
-/// The only change over Legacy is the removal of the `liquidGlass`
-/// group-box style (SwiftCodeUI has no such modifier); the default
-/// group-box style is used. The view is purely presentational: it
-/// reads the `DatabaseTable` / `DatabaseColumn` values handed to
-/// it, which the tables view builds from the live database, and
-/// edits nothing.
 @MainActor
 struct DatabaseInspector: View {
     @Binding var selectedTable: DatabaseTable?

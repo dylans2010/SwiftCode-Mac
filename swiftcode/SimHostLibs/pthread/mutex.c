@@ -1,25 +1,3 @@
-/*
- * mutex.c - pthread mutexes and mutex attributes of SwiftCode's
- * libsystem_pthread.
- *
- * Clean-room SwiftCode code, from POSIX pthread_mutex_lock(3) and friends,
- * the Darwin <pthread.h> constants, and the static-initializer signatures
- * that clients compile into their data (host-library-init.md section 5.3).
- *
- * These are the first pthread functions libc calls, before __pthread_init
- * runs (host-libraries.md section 8.2). They need nothing but the calling
- * thread's identity (TPIDRRO_EL0 - 224) and never enter the kernel unless
- * the mutex is contended.
- *
- * Layout of pthread_mutex_t (64 bytes; SwiftCode's own after the signature):
- *   +0  sig: 'MUTX' once initialized, or one of the static-initializer
- *       values (the rest is then zero, which is the unlocked state)
- *   +8  lock word (0 free, 1 held, 2 held and contended)
- *   +12 type, protocol, policy, pshared (bytes)
- *   +16 owner (pthread_t)
- *   +24 recursion count
- *   +28 priority ceiling
- */
 #include "yc_pthread.h"
 
 struct yc_mutex {
@@ -40,7 +18,6 @@ struct yc_mutexattr {
 };
 _Static_assert(sizeof(struct yc_mutexattr) == 16, "pthread_mutexattr_t is 16 bytes");
 
-/* The type a mutex behaves as, or -1 if it is not a valid mutex. */
 static int mutex_type(const struct yc_mutex *m)
 {
     switch (YC_LOAD_ACQ(&m->sig)) {
@@ -52,8 +29,6 @@ static int mutex_type(const struct yc_mutex *m)
     default: return -1;
     }
 }
-
-/* ---- attributes --------------------------------------------------------- */
 
 YC_EXPORT int YC_FN(pthread_mutexattr_init)(struct yc_mutexattr *a)
 {
@@ -158,8 +133,6 @@ YC_EXPORT int YC_FN(pthread_mutexattr_getpolicy_np)(const struct yc_mutexattr *a
     return 0;
 }
 
-/* ---- mutexes ------------------------------------------------------------ */
-
 YC_EXPORT int YC_FN(pthread_mutex_init)(struct yc_mutex *m, const struct yc_mutexattr *a)
 {
     if (m == YC_NULL)
@@ -188,7 +161,6 @@ YC_EXPORT int YC_FN(pthread_mutex_destroy)(struct yc_mutex *m)
     return 0;
 }
 
-/* Already held by the caller: recursion or an error. */
 static int relock(struct yc_mutex *m, int type, yc_bool try)
 {
     if (type == YC_PTHREAD_MUTEX_RECURSIVE) {
@@ -199,7 +171,6 @@ static int relock(struct yc_mutex *m, int type, yc_bool try)
     }
     if (try)
         return YC_EBUSY;
-    /* Errorcheck: EDEADLK by definition. */
     return YC_EDEADLK;
 }
 
@@ -209,10 +180,6 @@ YC_EXPORT int YC_FN(pthread_mutex_lock)(struct yc_mutex *m)
     if (YC_UNLIKELY(type < 0))
         return YC_EINVAL;
     yc_pthread_t self = __yc_self();
-    /* A normal mutex the caller holds is waited for like any held mutex,
-     * as Darwin does: another thread may unlock it (see unlock), and
-     * CoreAudio's PHASE relocks one that a different thread releases
-     * (audio-host.md 13.5). SwiftCode used to answer EDEADLK at once. */
     if (YC_UNLIKELY(YC_LOAD(&m->owner) == self) && type != YC_PTHREAD_MUTEX_NORMAL)
         return relock(m, type, 0);
     __yc_lock(&m->word);
@@ -242,12 +209,6 @@ YC_EXPORT int YC_FN(pthread_mutex_unlock)(struct yc_mutex *m)
     if (YC_UNLIKELY(type < 0))
         return YC_EINVAL;
     if (YC_UNLIKELY(YC_LOAD(&m->owner) != __yc_self())) {
-        /* POSIX leaves unlocking a normal mutex held by another thread
-         * undefined; Darwin's libpthread checks the owner only for
-         * error-checking and recursive mutexes (Apple open source, level 1),
-         * so a normal mutex is released. CoreAudio's caulk relies on it
-         * (audio-host.md 13.5): with EPERM the mutex stayed held and its
-         * owner's next lock found itself the owner (EDEADLK, an abort). */
         if (type != YC_PTHREAD_MUTEX_NORMAL || YC_LOAD(&m->word) == 0)
             return YC_EPERM;
     }
@@ -279,10 +240,6 @@ YC_EXPORT int YC_FN(pthread_mutex_setprioceiling)(struct yc_mutex *m, int ceilin
     return 0;
 }
 
-/* ---- helpers for condition variables (cond.c) -------------------------- */
-
-/* Releases a mutex the caller holds completely, returning the recursion
- * depth to restore; -1 if the caller does not hold it. */
 YC_HIDDEN int __yc_mutex_release_all(void *mp)
 {
     struct yc_mutex *m = mp;

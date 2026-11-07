@@ -3,22 +3,6 @@ import Foundation
 import SwiftUI
 import SwiftCodeIDEShell
 
-// SWIFTCODE_IDE_IME=1: set the window up for a test with a real input method
-// (issue 23; docs/PARITY.md §5.9). It opens SWIFTCODE_IDE_SCRIPT_FILE (default:
-// the first .swift file under Sources), clicks below the last line so the
-// caret is in the source text, and then, while OV_QUIT_AFTER runs, prints a line
-// whenever the composition or the text changes:
-//
-//   ime: marked="<preedit>" cursor=<n> line="<the caret's line>" find="<Find field>"
-//        field="<the focused text field's preedit>" area=<x>,<y>,<w>,<h>
-//
-// area is the caret rectangle the window last gave the input method, in
-// window points: its candidate window should open just below it.
-//
-// The keys come from outside, through the input method, as a person's
-// would (a test session's compositor). The driver sends none itself:
-// synthetic input goes past the input method.
-
 extension ShellDriver {
     static func prepareInputMethodTest(_ app: ShellAppModel) async {
         guard let w = app.workspace else {

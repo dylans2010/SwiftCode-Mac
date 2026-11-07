@@ -1,11 +1,3 @@
-// shtex: a shared Metal texture in SwiftCode's guest (visionos.md §10.9, round
-// R2b). Creates a shared texture the way wakeboardd's compositor does
-// (newSharedTextureWithDescriptor:), prints what the guest device says the
-// texture's IOSurface should carry (copyIOSurfaceSharedTextureProperties:,
-// an SPI the guest driver answers itself), the surface's creation
-// properties, and whether a shared texture handle can be made and opened.
-// SwiftCode's own probe, public and runtime APIs only.
-//   shtex <output file>
 #import <Foundation/Foundation.h>
 #import <IOSurface/IOSurfaceRef.h>
 #import <Metal/Metal.h>
@@ -27,9 +19,6 @@ int main(int argc, char **argv) {
         say([NSString stringWithFormat:@"kIOSurfaceMetalSharedTexture = %@", key ? (__bridge NSString *)*key : @"(missing)"]);
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();
         say([NSString stringWithFormat:@"device %@ registryID 0x%llx", device.name, device.registryID]);
-        // Which value of the creation property makes a handle: surfaces made
-        // here with candidate values, then -[MTLSharedTextureHandle
-        // initWithIOSurface:label:] (by selector).
         say(@"candidates");
         NSArray *candidates = @[
             @(device.registryID), @{@"registryID": @(device.registryID)}, @YES,
@@ -66,8 +55,6 @@ int main(int argc, char **argv) {
         } else {
             say(@"copyIOSurfaceSharedTextureProperties: not implemented");
         }
-        // (The shared-texture API is marked unavailable in the visionOS SDK
-        // headers; the system processes use it, so it is called by selector.)
         id<MTLTexture> t = ((id (*)(id, SEL, id))objc_msgSend)(device, NSSelectorFromString(@"newSharedTextureWithDescriptor:"), d);
         say([NSString stringWithFormat:@"newSharedTextureWithDescriptor: %@", t ? @"texture" : @"nil"]);
         if (!t) return 0;

@@ -4,7 +4,6 @@ public actor ThemeStore {
     public static let shared = ThemeStore()
 
     private var themesDirectory: URL {
-        // SAFETY: PathTool.appSupportDirectory() is guaranteed to be available on macOS.
         try! PathTool.appSupportDirectory().appendingPathComponent("Themes", isDirectory: true)
     }
 

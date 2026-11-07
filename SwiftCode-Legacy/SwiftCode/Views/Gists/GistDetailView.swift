@@ -17,7 +17,6 @@ struct GistDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Premium Header Actions Row
             HStack(spacing: 16) {
                 Button {
                     handleDismiss()
@@ -69,10 +68,8 @@ struct GistDetailView: View {
 
             if let currentGist = gist {
                 HSplitView {
-                    // Left Column: Gist Metadata & Navigator
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            // Metadata Group
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
                                     HStack {
@@ -115,7 +112,6 @@ struct GistDetailView: View {
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            // File Navigator Group
                             GroupBox {
                                 renderFileNavigator()
                                     .padding(8)
@@ -129,9 +125,7 @@ struct GistDetailView: View {
 
                     Divider()
 
-                    // Right Column: Tabbed Editor Workspace
                     VStack(spacing: 0) {
-                        // Multi-file Workspace Tab Bar
                         renderWorkspaceTabBar()
 
                         Divider()

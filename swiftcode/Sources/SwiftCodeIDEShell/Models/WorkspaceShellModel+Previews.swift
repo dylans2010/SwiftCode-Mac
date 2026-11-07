@@ -3,11 +3,7 @@ import SwiftCodeEditorKit
 import SwiftCodeIDECore
 import SwiftCodePreviews
 
-/// The preview canvas's hooks (`PreviewCanvasShellModel`; `specs/ide/previews.md`
-/// §Linux, "The Linux canvas"): the focused file and its edits go to the
-/// canvas; Editor ▸ Canvas and Editor ▸ Layout come here.
 extension WorkspaceShellModel {
-    /// Wires the canvas to this workspace (called once from `init`).
     func connectPreviewCanvas() {
         let c = previewCanvas
         let model = session.model
@@ -18,7 +14,6 @@ extension WorkspaceShellModel {
         if let s = ProcessInfo.processInfo.environment["SWIFTCODE_PREVIEW_DELAY"], let d = Double(s) { c.refreshDelay = d }
     }
 
-    /// The editor shows another file (or none).
     func previewCanvasFocusChanged() {
         guard let e = editor, structuredEditor == nil else {
             previewCanvas.focus(path: nil, text: nil)
@@ -27,13 +22,11 @@ extension WorkspaceShellModel {
         previewCanvas.focus(path: e.path, text: e.buffer.text)
     }
 
-    /// The focused file was edited.
     func previewCanvasEdited(_ d: EditorDocument) {
         guard d === editor, d.path.hasSuffix(".swift") else { return }
         previewCanvas.edited(path: d.path, text: d.buffer.text)
     }
 
-    /// Editor ▸ Canvas and Editor ▸ Layout: enabled for source files.
     func isPreviewCommandEnabled(_ c: ShellCommand) -> Bool {
         structuredEditor == nil && editor != nil
     }
@@ -48,7 +41,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// The check marks of Editor ▸ Canvas and Editor ▸ Layout.
     public func isPreviewCommandChecked(_ c: ShellCommand) -> Bool? {
         switch c {
         case .toggleCanvas: previewCanvas.isModeOn
@@ -61,6 +53,5 @@ extension WorkspaceShellModel {
 }
 
 extension ShellCommand {
-    /// Editor ▸ Canvas and Editor ▸ Layout's items.
     public var isPreviewCommand: Bool { [.toggleCanvas, .canvasLayoutAutomatic, .canvasLayoutRight, .canvasLayoutBottom].contains(self) }
 }

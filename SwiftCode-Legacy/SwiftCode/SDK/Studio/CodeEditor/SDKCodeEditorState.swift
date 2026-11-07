@@ -1,24 +1,9 @@
 import Combine
 import Foundation
 
-// MARK: - SDKCodeEditorError
-//
-// Typed failures from `SDKCodeEditorState` document operations. `openFile`
-// throws instead of silently opening an empty buffer: a file the editor
-// claims to show but cannot read is a fake implementation.
-
 public enum SDKCodeEditorError: Error, Sendable {
-    /// The file exists but could not be read as text (permissions, I/O
-    /// failure, or undecodable bytes). Carries the URL and the underlying
-    /// reason for diagnostics.
     case unreadableFile(url: URL, reason: String)
 }
-
-// MARK: - SDKCodeNavigationTarget
-//
-// Represents a request to jump the active editor to a specific file/tab,
-// 1-based line, and optional 1-based column (used by Go-to-Line and
-// Compiler / Manifest Diagnostics click-to-navigate).
 
 public struct SDKCodeNavigationTarget: Equatable, Sendable {
     public let id: UUID
@@ -33,12 +18,6 @@ public struct SDKCodeNavigationTarget: Equatable, Sendable {
         self.column = column
     }
 }
-
-// MARK: - SDKEditorDiagnostic
-//
-// Structured compiler, manifest, or capability-authorization diagnostic
-// surfaced in the Studio Code Editor Diagnostics panel with click-to-navigate
-// support when `fileURL` and `line` are available.
 
 public struct SDKEditorDiagnostic: Identifiable, Equatable, Sendable, Hashable {
     public enum Severity: String, Sendable, Codable, Hashable {
@@ -80,37 +59,22 @@ public struct SDKEditorDiagnostic: Identifiable, Equatable, Sendable, Hashable {
     }
 }
 
-// MARK: - SDKCodeEditorState
-//
-// The single source of truth for the Studio code editor session: open
-// tabs, the active tab, the project root, diagnostics, the console, and
-// the find query.
-
 @MainActor
 public final class SDKCodeEditorState: ObservableObject {
-    /// Maximum console entries retained. Appends beyond the cap drop the
-    /// oldest entries first; `consoleEntries` never grows unbounded.
     public static let maxConsoleEntries: Int = 5_000
 
     private static let persistedProjectRootKey = "com.swiftcode.sdk.studio.codeEditor.projectRootPath"
 
-    /// Open tabs, in tab-bar order.
     @Published public private(set) var tabs: [SDKCodeEditorTab] = []
 
-    /// The active tab's ID, or `nil` when no tabs are open.
     @Published public private(set) var activeTabID: UUID?
 
-    /// Console output, oldest first, capped at `maxConsoleEntries`.
     @Published public private(set) var consoleEntries: [SDKConsoleEntry] = []
 
-    /// Structured compiler, manifest, and authorization diagnostics from the most recent validation/build.
     @Published public private(set) var diagnostics: [SDKEditorDiagnostic] = []
 
-    /// Current find-panel query. Published so the editor view and find
-    /// bar stay in sync.
     @Published public var findQuery: String = ""
 
-    /// Active project root URL in Studio Code Editor.
     @Published public var projectRootURL: URL? {
         didSet {
             if let root = projectRootURL {
@@ -123,10 +87,8 @@ public final class SDKCodeEditorState: ObservableObject {
         }
     }
 
-    /// Pending line/column navigation request for the active editor.
     @Published public var requestedNavigationTarget: SDKCodeNavigationTarget?
 
-    /// Tabs whose backing file on disk changed while the tab has unsaved edits.
     @Published public var externalModificationTabIDs: Set<UUID> = []
 
     public init(projectRootURL: URL? = nil) {
@@ -140,31 +102,23 @@ public final class SDKCodeEditorState: ObservableObject {
         }
     }
 
-    /// Sets the active project root directory.
     public func setProjectRoot(_ url: URL?) {
         projectRootURL = url?.standardizedFileURL
     }
 
-    /// The active tab, if any.
     public var activeTab: SDKCodeEditorTab? {
         guard let activeTabID else { return nil }
         return tabs.first(where: { $0.id == activeTabID })
     }
 
-    /// The active document, if any.
     public var activeDocument: SDKCodeDocument? {
         activeTab?.document
     }
 
-    /// True if any open tab has unsaved changes.
     public var hasUnsavedChanges: Bool {
         tabs.contains(where: { $0.document.isDirty })
     }
 
-    // MARK: - Documents & tabs
-
-    /// Opens `document` in a tab (or activates the existing tab if the
-    /// same file/document is already open) and returns the tab's ID.
     @discardableResult
     public func openTab(for document: SDKCodeDocument) -> UUID {
         if let existingIndex = indexOfTab(matching: document) {
@@ -191,14 +145,6 @@ public final class SDKCodeEditorState: ObservableObject {
         return newTab.id
     }
 
-    /// Opens `url` in a tab, or activates the existing tab when the file
-    /// is already open. The language is inferred from the file extension
-    /// (`SDKCodeLanguage.infer(fromFileURL:)`).
-    ///
-    /// - Throws: `SDKCodeEditorError.unreadableFile` when the file cannot
-    ///   be read as UTF-8 text. The caller surfaces this as a console
-    ///   entry or alert; no tab is created on failure.
-    /// - Returns: The tab ID (existing or newly created).
     @discardableResult
     public func openFile(_ url: URL) throws -> UUID {
         if let existing = tabs.first(where: {
@@ -226,13 +172,11 @@ public final class SDKCodeEditorState: ObservableObject {
         return tab.id
     }
 
-    /// Alias for `openFile(_:)` supporting the `at:` parameter label.
     @discardableResult
     public func openFile(at url: URL) throws -> UUID {
         try openFile(url)
     }
 
-    /// Creates and activates a new untitled tab for the given language.
     @discardableResult
     public func newUntitledTab(language: SDKCodeLanguage = .typescript, initialText: String = "") -> UUID {
         let doc = SDKCodeDocument(
@@ -244,10 +188,6 @@ public final class SDKCodeEditorState: ObservableObject {
         return openTab(for: doc)
     }
 
-    /// Closes the tab with `id`. When the closed tab was active, the
-    /// neighbor to the right (or left, at the end) becomes active; when
-    /// no tabs remain, `activeTabID` becomes `nil`. Unknown IDs are
-    /// ignored.
     public func closeTab(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         tabs.remove(at: index)
@@ -261,24 +201,17 @@ public final class SDKCodeEditorState: ObservableObject {
         }
     }
 
-    /// Makes the tab with `id` active. Unknown IDs are ignored.
     public func activateTab(_ id: UUID) {
         guard tabs.contains(where: { $0.id == id }) else { return }
         activeTabID = id
         tabs = tabs.map { $0.withActive($0.id == id) }
     }
 
-    /// Replaces the text of the document in the tab with `tabID`, marking
-    /// it dirty. The standard path for applying editor edits. Unknown tab
-    /// IDs are ignored.
     public func updateText(_ text: String, for tabID: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         tabs[index] = tabs[index].withDocument(tabs[index].document.withText(text))
     }
 
-    /// Marks the document in the tab with `tabID` as saved (clears the
-    /// dirty flag) after the caller has written it to disk. Unknown tab
-    /// IDs are ignored.
     public func markSaved(tabID: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         let modDate = tabs[index].document.fileURL.flatMap { diskModificationDate(for: $0) }
@@ -291,8 +224,6 @@ public final class SDKCodeEditorState: ObservableObject {
         externalModificationTabIDs.remove(tabID)
     }
 
-    /// Retargets a tab (such as an untitled document saved via Save As) to `destinationURL`,
-    /// updates its language and modification date, and clears `isDirty`.
     public func retargetTab(_ tabID: UUID, to destinationURL: URL) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         let standardized = destinationURL.standardizedFileURL
@@ -302,15 +233,11 @@ public final class SDKCodeEditorState: ObservableObject {
         externalModificationTabIDs.remove(tabID)
     }
 
-    /// Transforms the active tab's document in place. No-op when there is
-    /// no active tab.
     public func updateActiveDocument(_ transform: (SDKCodeDocument) -> SDKCodeDocument) {
         guard let activeTabID else { return }
         updateDocument(forTab: activeTabID, transform)
     }
 
-    /// Transforms the document of the tab with `tabID` in place. No-op
-    /// when `tabID` is not in `tabs`.
     public func updateDocument(
         forTab tabID: UUID,
         _ transform: (SDKCodeDocument) -> SDKCodeDocument
@@ -320,8 +247,6 @@ public final class SDKCodeEditorState: ObservableObject {
         tabs[index] = tabs[index].withDocument(updated)
     }
 
-    /// Saves all dirty tabs that already have a `fileURL` on disk.
-    /// Invoked automatically before running builds or packaging.
     public func saveAllModifiedTabs() {
         for index in tabs.indices {
             let doc = tabs[index].document
@@ -340,8 +265,6 @@ public final class SDKCodeEditorState: ObservableObject {
         }
     }
 
-    /// Checks all open disk-backed tabs for external modifications on disk.
-    /// Clean tabs are reloaded automatically; dirty tabs are flagged so the user can reload or keep their edits.
     public func checkExternalModifications() {
         for index in tabs.indices {
             let tab = tabs[index]
@@ -376,7 +299,6 @@ public final class SDKCodeEditorState: ObservableObject {
         }
     }
 
-    /// Reloads the tab from its backing file on disk, discarding unsaved in-memory changes.
     public func reloadTabFromDisk(_ tabID: UUID) throws {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }),
               let url = tabs[index].document.fileURL else { return }
@@ -397,7 +319,6 @@ public final class SDKCodeEditorState: ObservableObject {
         externalModificationTabIDs.remove(tabID)
     }
 
-    /// Clears the external-modification warning on `tabID` while keeping the user's in-memory text.
     public func dismissExternalModification(for tabID: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         let doc = tabs[index].document
@@ -416,10 +337,6 @@ public final class SDKCodeEditorState: ObservableObject {
         externalModificationTabIDs.remove(tabID)
     }
 
-    // MARK: - Snippet Insertion & Manifest Integration
-
-    /// Inserts an executable code snippet into the active editor document (or opens
-    /// `src/index.ts` / a new untitled tab when no appropriate tab is active).
     public func insertCodeSnippet(
         _ snippetCode: String,
         preferredLanguage: SDKCodeLanguage = .typescript,
@@ -488,8 +405,6 @@ public final class SDKCodeEditorState: ObservableObject {
         ))
     }
 
-    /// Adds or updates a capability in the active project's `swiftcode.json` and
-    /// synchronizes any open `swiftcode.json` tab.
     @discardableResult
     public func addCapabilityToManifest(capabilityId: String, reason: String) -> Bool {
         guard let root = projectRootURL else { return false }
@@ -527,10 +442,6 @@ public final class SDKCodeEditorState: ObservableObject {
         }
     }
 
-    // MARK: - Line Navigation
-
-    /// Opens `fileURL` (if not already open), activates its tab, and requests
-    /// jumping the editor to `line` (1-based) and optional `column`.
     public func navigateTo(fileURL: URL, line: Int, column: Int? = nil) {
         guard let tabID = try? openFile(fileURL) else { return }
         requestedNavigationTarget = SDKCodeNavigationTarget(
@@ -540,7 +451,6 @@ public final class SDKCodeEditorState: ObservableObject {
         )
     }
 
-    /// Jumps the currently active tab to `line` (1-based) and optional `column`.
     public func navigateActiveTabTo(line: Int, column: Int? = nil) {
         guard let activeTabID else { return }
         requestedNavigationTarget = SDKCodeNavigationTarget(
@@ -550,12 +460,9 @@ public final class SDKCodeEditorState: ObservableObject {
         )
     }
 
-    /// Clears the pending navigation target once handled by the editor view.
     public func clearNavigationTarget() {
         requestedNavigationTarget = nil
     }
-
-    // MARK: - Diagnostics
 
     public func setDiagnostics(_ items: [SDKEditorDiagnostic]) {
         diagnostics = items
@@ -576,13 +483,6 @@ public final class SDKCodeEditorState: ObservableObject {
         diagnostics.removeAll()
     }
 
-    // MARK: - Console
-
-    /// Appends a console entry. Text longer than
-    /// `SDKConsoleEntry.maxTextLength` is truncated with an ellipsis
-    /// marker; when the buffer exceeds `maxConsoleEntries`, the oldest
-    /// entries are dropped. This is the ONLY append path, so the bounds
-    /// cannot be bypassed.
     public func appendConsole(_ entry: SDKConsoleEntry) {
         var text = entry.text
         if text.count > SDKConsoleEntry.maxTextLength {
@@ -598,12 +498,9 @@ public final class SDKCodeEditorState: ObservableObject {
         }
     }
 
-    /// Clears all console entries.
     public func clearConsole() {
         consoleEntries.removeAll()
     }
-
-    // MARK: - Private
 
     private func indexOfTab(matching document: SDKCodeDocument) -> Int? {
         if let targetURL = document.fileURL?.standardizedFileURL {

@@ -1,6 +1,3 @@
-// hidrec: our recorder, inserted into the guest's backboardd. Logs every event the HID bundle
-// dispatches (_IOHIDServiceDispatchEvent: sender ID and the event's own description) and the
-// arguments of vendor-defined event creation, to $HIDREC_FILE.
 #include <CoreFoundation/CoreFoundation.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +11,7 @@ static FILE *f; static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 static FILE *out(void){ if(!f){ const char *p=getenv("HIDREC_FILE"); if(p) f=fopen(p,"a"); if(f) setvbuf(f,NULL,_IOLBF,0);} return f; }
 static void my_dispatch(IOHIDServiceRef s, IOHIDEventRef e){
   pthread_mutex_lock(&mu);
-  if(out()){ CFStringRef d=CFCopyDescription(e); char buf[16384]; buf[0]=0; if(d){ CFStringGetCString(d,buf,sizeof buf,kCFStringEncodingUTF8); CFRelease(d);} 
+  if(out()){ CFStringRef d=CFCopyDescription(e); char buf[16384]; buf[0]=0; if(d){ CFStringGetCString(d,buf,sizeof buf,kCFStringEncodingUTF8); CFRelease(d);}
     fprintf(f,"DISPATCH sender=0x%llx\n%s\n----\n",(unsigned long long)_IOHIDServiceGetSenderID(s),buf); }
   pthread_mutex_unlock(&mu);
   _IOHIDServiceDispatchEvent(s,e);

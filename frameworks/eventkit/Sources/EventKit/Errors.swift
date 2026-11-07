@@ -1,6 +1,3 @@
-// EKErrorDomain errors (specs/frameworks/eventkit/errors.md). The codes are the
-// contract; the English messages are SwiftCode's own wording.
-
 import Foundation
 
 public struct EKError: Error, Hashable, Sendable {
@@ -68,7 +65,6 @@ public struct EKError: Error, Hashable, Sendable {
     public static var priorityIsInvalid: Code { .priorityIsInvalid }
     public static var eventStoreNotAuthorized: Code { .eventStoreNotAuthorized }
 
-    /// SwiftCode's English message for a code.
     static func message(for code: Code) -> String {
         switch code {
         case .eventNotMutable: return "This event cannot be changed."
@@ -113,7 +109,6 @@ public struct EKError: Error, Hashable, Sendable {
     }
 }
 
-/// Pattern matching in `catch EKError.noCalendar { … }`.
 public func ~= (code: EKError.Code, error: any Error) -> Bool {
     guard let error = error as? EKError else { return false }
     return error.code == code

@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeBuild
 
-/// The build hook that puts `swiftcode strings` in front of swift-build as its
-/// `xcstringstool` (specs/ide/string-catalog.md, "SwiftCode implementation").
 struct StringsCompilerHookTests {
     func tool() throws -> (dir: URL, tool: String) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-strings-hook-\(UUID().uuidString)")
@@ -17,7 +15,6 @@ struct StringsCompilerHookTests {
     @Test func defaultsAndSettings() throws {
         let (dir, _) = try tool()
         defer { try? FileManager.default.removeItem(at: dir) }
-        // An Xcode without the tool (a DEVELOPER_DIR that has none) means SwiftCode's.
         #expect(StringsCompilerHook.choice(settings: [], environment: ["DEVELOPER_DIR": dir.path]) == .swiftcode)
         #if os(macOS)
         let dev = dir.appendingPathComponent("Developer/usr/bin")
@@ -44,7 +41,6 @@ struct StringsCompilerHookTests {
         let text = try String(contentsOfFile: w.appendingPathComponent("xcstringstool").path, encoding: .utf8)
         #expect(FileManager.default.isExecutableFile(atPath: w.appendingPathComponent("xcstringstool").path))
         #expect(text.hasPrefix("#!/bin/sh\n") && text.hasSuffix("exec '\(swiftcode)' strings \"$@\"\n"))
-        // Xcode's tool, or no swiftcode: the environment is left alone.
         #expect(StringsCompilerHook.environment(settings: [("SWIFTCODE_STRINGS_COMPILER", "xcstringstool"), ("SWIFTCODE_STRINGS_TOOL", swiftcode)], directory: w, base: [:]) == nil)
         #expect(StringsCompilerHook.environment(settings: [("SWIFTCODE_STRINGS_COMPILER", "swiftcode"), ("SWIFTCODE_STRINGS_TOOL", "/no/swiftcode")], directory: w, base: [:]) == nil)
     }

@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// A sample with a String Catalog (Localizable.xcstrings): plain strings,
-/// plurals, device variations, a substitution and a generated symbol
-/// (STRING_CATALOG_GENERATE_SYMBOLS). It prints one line per language at
-/// launch and shows the same strings. See specs/ide/string-catalog.md,
-/// "SwiftCode implementation".
 @main
 struct StringsApp: App {
     init() {

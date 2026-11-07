@@ -1,5 +1,3 @@
-// errors.md §1–§3 and the HAP status mapping (T-H8 status mapping part).
-
 import Foundation
 import Testing
 @testable import HomeKit
@@ -30,7 +28,6 @@ struct ErrorTests {
         #expect(ns.code == 45)
         #expect(ns.userInfo[NSLocalizedDescriptionKey] as? String == "Value higher than maximum.")
         do { throw e } catch HMError.valueHigherThanMaximum {
-            // pattern matching on codes
         } catch { Issue.record("no match") }
     }
 

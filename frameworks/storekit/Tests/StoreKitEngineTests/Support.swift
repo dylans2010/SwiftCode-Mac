@@ -1,4 +1,3 @@
-// Test support: our catalog of plan.md §3.1 as a configuration, and helpers.
 import Foundation
 import StoreKitConfiguration
 @testable import StoreKitEngine
@@ -17,7 +16,6 @@ enum ID {
     static let app = "dev.swiftcode.skprobe"
 }
 
-/// The catalog of plan.md §3.1 (our own data).
 func probeConfiguration(settings: Settings = Settings(
     storefront: "USA", locale: "en_US", timeRate: 0, askToBuyEnabled: false, billingIssuesEnabled: false,
     renewalBillingIssuesEnabled: false, billingGracePeriodEnabled: false, disableDialogs: true,
@@ -67,12 +65,10 @@ func probeConfiguration(settings: Settings = Settings(
         appPolicies: AppPolicies(eula: "", policies: []))
 }
 
-/// 2026-10-19 12:00:00 UTC (daylight saving time in New York).
 let referenceStart = Date(timeIntervalSince1970: 1_792_411_200)
 
 let newYork = TimeZone(identifier: "America/New_York")!
 
-/// A device with a manual clock and an app store with the catalog installed.
 func makeStore(rate: TimeRate = .realTime, start: Date = referenceStart, quirks: EngineQuirks = .reference,
                configure: (inout Settings) -> Void = { _ in }) -> (ManualClock, StoreDevice, AppTestStore)
 {
@@ -86,7 +82,6 @@ func makeStore(rate: TimeRate = .realTime, start: Date = referenceStart, quirks:
     return (clock, device, store)
 }
 
-/// Collects store events.
 final class EventLog: @unchecked Sendable {
     private let lock = NSLock()
     private var items: [StoreEvent] = []

@@ -1,8 +1,6 @@
 import SwiftUI
 import os.log
 
-// MARK: - Models
-
 struct KeyValuePair: Identifiable, Codable, Hashable {
     var id = UUID()
     var isEnabled: Bool = true
@@ -43,7 +41,7 @@ struct SavedRequest: Identifiable, Codable, Hashable {
     var authToken: String
     var authKey: String
     var authValue: String
-    var authAddTo: String // "Headers" or "Query Params"
+    var authAddTo: String
     var bodyType: BodyType
     var bodyFormData: [KeyValuePair]
     var bodyUrlencoded: [KeyValuePair]
@@ -57,8 +55,6 @@ struct SavedCollection: Identifiable, Codable, Hashable {
     var requests: [SavedRequest]
 }
 
-// MARK: - State Store
-
 @MainActor
 @Observable
 final class APITesterStore {
@@ -67,14 +63,12 @@ final class APITesterStore {
     var history: [SavedRequest] = []
     var collections: [SavedCollection] = []
 
-    // Current Active Workspace Request State
     var requestName: String = "Fetch Octocat Details"
     var method: String = "GET"
     var url: String = "https://api.github.com/users/octocat"
     var queryParams: [KeyValuePair] = [KeyValuePair()]
     var headers: [KeyValuePair] = [KeyValuePair(isEnabled: true, key: "User-Agent", value: "SwiftCode-APITester")]
 
-    // Auth State
     var authType: AuthType = .none
     var authUsername: String = ""
     var authPassword: String = ""
@@ -83,13 +77,11 @@ final class APITesterStore {
     var authValue: String = ""
     var authAddTo: String = "Headers"
 
-    // Body State
     var bodyType: BodyType = .none
     var bodyFormData: [KeyValuePair] = [KeyValuePair()]
     var bodyUrlencoded: [KeyValuePair] = [KeyValuePair()]
     var bodyRaw: String = ""
 
-    // Execution State
     var isLoading: Bool = false
     var elapsedMs: Double? = nil
     var responseStatus: Int? = nil
@@ -98,7 +90,6 @@ final class APITesterStore {
     var responseHeaders: [KeyValuePair] = []
     var responseSize: Int64 = 0
 
-    // UI selection
     var activeTab: String = "params"
     var responseTab: String = "body"
 
@@ -124,7 +115,6 @@ final class APITesterStore {
         }
 
         if history.isEmpty {
-            // Seed a sample history item
             let sample = SavedRequest(
                 name: "Get Octocat Details",
                 method: "GET",
@@ -181,7 +171,6 @@ final class APITesterStore {
 
     func addCurrentToHistory() {
         let current = getCurrentRequestRepresentation(name: requestName.isEmpty ? "Request to \(getHostFromUrl(url))" : requestName)
-        // De-duplicate: remove older entry with exact method/url/body if exists
         history.removeAll { $0.method == current.method && $0.url == current.url && $0.bodyRaw == current.bodyRaw }
         history.insert(current, at: 0)
         if history.count > 50 {
@@ -251,7 +240,6 @@ final class APITesterStore {
         )
     }
 
-    // Parse query params out of the URL input field
     func parseUrlQueryParams() {
         guard let urlComponents = URLComponents(string: url) else { return }
         if let queryItems = urlComponents.queryItems, !queryItems.isEmpty {
@@ -259,12 +247,11 @@ final class APITesterStore {
             for item in queryItems {
                 newParams.append(KeyValuePair(isEnabled: true, key: item.name, value: item.value ?? ""))
             }
-            newParams.append(KeyValuePair()) // blank line at end
+            newParams.append(KeyValuePair())
             self.queryParams = newParams
         }
     }
 
-    // Assemble the parameters into URL query string bidirectionally
     func rebuildUrlWithQueryParams() {
         guard var urlComponents = URLComponents(string: url) else { return }
         let activeParams = queryParams.filter { $0.isEnabled && !$0.key.isEmpty }
@@ -277,8 +264,6 @@ final class APITesterStore {
             self.url = newUrl
         }
     }
-
-    // MARK: - Network Request Execution
 
     func executeRequest() async {
         guard let requestUrl = URL(string: url) else {
@@ -301,12 +286,10 @@ final class APITesterStore {
         var request = URLRequest(url: requestUrl)
         request.httpMethod = method
 
-        // 1. Compile Headers
         for header in headers where header.isEnabled && !header.key.isEmpty {
             request.setValue(header.value, forHTTPHeaderField: header.key)
         }
 
-        // 2. Add Authentication
         switch authType {
         case .none:
             break
@@ -325,7 +308,6 @@ final class APITesterStore {
                 if authAddTo == "Headers" {
                     request.setValue(authValue, forHTTPHeaderField: authKey)
                 } else {
-                    // Add to query params
                     if var comp = URLComponents(url: requestUrl, resolvingAgainstBaseURL: false) {
                         var items = comp.queryItems ?? []
                         items.append(URLQueryItem(name: authKey, value: authValue))
@@ -338,7 +320,6 @@ final class APITesterStore {
             }
         }
 
-        // 3. Compile Request Body
         if method != "GET" && method != "HEAD" {
             switch bodyType {
             case .none:
@@ -387,7 +368,6 @@ final class APITesterStore {
                 self.responseStatus = httpResponse.statusCode
                 self.responseStatusText = HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
 
-                // Parse headers
                 var parsedHeaders: [KeyValuePair] = []
                 for (key, value) in httpResponse.allHeaderFields {
                     parsedHeaders.append(KeyValuePair(isEnabled: true, key: "\(key)", value: "\(value)"))
@@ -395,7 +375,6 @@ final class APITesterStore {
                 self.responseHeaders = parsedHeaders.sorted(by: { $0.key < $1.key })
             }
 
-            // Format response body nicely
             if let json = try? JSONSerialization.jsonObject(with: data, options: []),
                let prettyData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
                let prettyString = String(data: prettyData, encoding: .utf8) {
@@ -404,7 +383,6 @@ final class APITesterStore {
                 self.responseBody = String(data: data, encoding: .utf8) ?? "Unable to decode response (Binary Data)"
             }
 
-            // Add to execution history
             addCurrentToHistory()
 
         } catch {
@@ -421,8 +399,6 @@ final class APITesterStore {
     }
 }
 
-// MARK: - APITesterView Main View
-
 struct APITesterView: View {
     @State private var store = APITesterStore()
     @State private var showingSaveSheet = false
@@ -434,12 +410,10 @@ struct APITesterView: View {
 
     var body: some View {
         HSplitView {
-            // Sidebar: History & Collections with visual headers
             sidebarPanel
                 .frame(minWidth: 240, idealWidth: 270, maxWidth: 320)
                 .liquidGlass(style: .sidebar, cornerRadius: 12)
 
-            // Main Request Workspace & Response Panel (Stretches smoothly)
             VSplitView {
                 requestWorkspacePanel
                     .frame(minHeight: 380, idealHeight: 440)
@@ -467,13 +441,10 @@ struct APITesterView: View {
     }
 }
 
-// MARK: - Sidebar Layout Panel
-
 extension APITesterView {
 
     private var sidebarPanel: some View {
         VStack(spacing: 0) {
-            // Main Sidebar Title
             HStack(spacing: 8) {
                 Image(systemName: "bolt.horizontal.circle.fill")
                     .font(.title3)
@@ -620,13 +591,10 @@ extension APITesterView {
     }
 }
 
-// MARK: - Main Request Panel
-
 extension APITesterView {
 
     private var requestWorkspacePanel: some View {
         VStack(spacing: 0) {
-            // Workspace Request Title Card
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6)
@@ -653,10 +621,8 @@ extension APITesterView {
 
             Divider()
 
-            // URL & Method Input Bar (High Fidelity Unified Card Pattern)
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    // Styled Picker Button
                     Picker("", selection: $store.method) {
                         ForEach(methods, id: \.self) { method in
                             Text(method).tag(method)
@@ -702,7 +668,6 @@ extension APITesterView {
 
             Divider()
 
-            // Tab Navigation Pill Buttons Bar
             HStack(spacing: 10) {
                 tabButton(id: "params", label: "Query Params (\(store.queryParams.filter { !$0.key.isEmpty }.count))", icon: "slider.horizontal.3")
                 tabButton(id: "headers", label: "Request Headers (\(store.headers.filter { !$0.key.isEmpty }.count))", icon: "list.bullet")
@@ -716,7 +681,6 @@ extension APITesterView {
 
             Divider()
 
-            // Tab Contents Editor (Spans nicely with internal scrolling)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     switch store.activeTab {
@@ -780,7 +744,6 @@ extension APITesterView {
                 .controlSize(.small)
             }
 
-            // Structured Table Layout Grid
             VStack(spacing: 6) {
                 ForEach(pairs.indices, id: \.self) { idx in
                     HStack(spacing: 8) {
@@ -826,8 +789,6 @@ extension APITesterView {
         }
     }
 }
-
-// MARK: - Sub Tab Editors (Auth, Body)
 
 extension APITesterView {
 
@@ -927,7 +888,6 @@ extension APITesterView {
 
     private var bodyTabEditor: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Body Type Selector
             Picker("Body Format", selection: $store.bodyType) {
                 ForEach(BodyType.allCases) { type in
                     Text(type.rawValue).tag(type)
@@ -986,15 +946,12 @@ extension APITesterView {
     }
 }
 
-// MARK: - Response Panel View
-
 extension APITesterView {
 
     private var responsePanel: some View {
         VStack(spacing: 0) {
             Divider()
 
-            // Response HUD Panel Header with Stats Dashboard
             HStack {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.right.circle.fill")
@@ -1007,7 +964,6 @@ extension APITesterView {
 
                 if let status = store.responseStatus {
                     HStack(spacing: 16) {
-                        // Colored Status Badge with smooth background glow
                         HStack(spacing: 6) {
                             Circle()
                                 .fill(statusColor(status))
@@ -1047,7 +1003,6 @@ extension APITesterView {
 
             Divider()
 
-            // Tab Selection for Body vs. Headers
             HStack {
                 Button {
                     store.responseTab = "body"
@@ -1095,7 +1050,6 @@ extension APITesterView {
 
             Divider()
 
-            // Body / Headers Details
             ZStack {
                 if store.responseTab == "body" {
                     if store.responseBody.isEmpty {
@@ -1139,8 +1093,6 @@ extension APITesterView {
         }
     }
 }
-
-// MARK: - Save Request Sheet Modal View
 
 extension APITesterView {
 
@@ -1214,8 +1166,6 @@ extension APITesterView {
     }
 }
 
-// MARK: - Utility View Helpers
-
 extension APITesterView {
 
     @ViewBuilder
@@ -1267,7 +1217,6 @@ extension APITesterView {
     }
 }
 
-// Custom view helper for divider lists
 private extension View {
     func dividerBackground() -> some View {
         self.padding(.bottom, 3)

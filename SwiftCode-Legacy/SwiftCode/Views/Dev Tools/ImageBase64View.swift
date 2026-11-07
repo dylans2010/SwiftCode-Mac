@@ -10,7 +10,6 @@ struct ImageBase64View: View {
 
             HStack {
                 Button("Select Image") {
-                    // Logic to open file picker
                 }
                 .buttonStyle(.bordered)
 

@@ -2,10 +2,7 @@ import Foundation
 import SwiftCodeProject
 import SwiftCodeWorkspace
 
-// The scheme editor's model helpers (SwiftCodeUI: SchemeEditorController.swift).
-
 extension WorkspaceModel {
-    /// Containers whose schemes the workspace shows.
     public var schemeContainers: [URL] {
         switch kind {
         case .project: [url]
@@ -14,12 +11,10 @@ extension WorkspaceModel {
         }
     }
 
-    /// Scheme files of all containers (shared and the current user's).
     public func loadSchemes() -> [Scheme] {
         schemeContainers.flatMap { Scheme.discover(in: $0) }
     }
 
-    /// Build configuration names of the projects, in list order, unique.
     public var configurationNames: [String] {
         var seen = Set<String>()
         let names = projects.keys.sorted().flatMap { path -> [String] in

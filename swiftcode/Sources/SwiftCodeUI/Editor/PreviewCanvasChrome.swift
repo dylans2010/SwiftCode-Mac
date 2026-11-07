@@ -1,7 +1,5 @@
 import AppKit
 
-/// One tab of the canvas header: a name with a spinner (building) or an
-/// eye (rendered).
 final class PreviewTabView: NSView {
     enum Badge { case none, spinner, eye }
     let label = NSTextField(labelWithString: "")
@@ -46,7 +44,6 @@ final class PreviewTabView: NSView {
     }
 }
 
-/// A rounded device bezel drawn around its single subview.
 final class PreviewDeviceFrameView: NSView {
     static let bezel: CGFloat = 10
 
@@ -79,7 +76,6 @@ final class PreviewDeviceFrameView: NSView {
     }
 }
 
-/// The "Canvas paused" capsule with its resume button.
 final class PreviewPausedCapsule: NSView {
     let resume: NSButton
 

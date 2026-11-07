@@ -1,5 +1,4 @@
 #!/bin/sh
-# Builds exprobe for the iOS simulator platform (macOS only). Output: $OUT (default /tmp/yc-9-H-probes).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-/tmp/yc-9-H-probes}"

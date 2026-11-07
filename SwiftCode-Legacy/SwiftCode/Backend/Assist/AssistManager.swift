@@ -9,9 +9,6 @@ public final class AssistManager: ObservableObject {
     @Published public var isProcessing = false
     @Published public var lastError: String? {
         didSet {
-            // Capture error diagnostics at the single point every failure
-            // path flows through: when the error occurred and which request
-            // phase was active. Clearing the error clears its diagnostics.
             if lastError != nil {
                 lastErrorDate = Date()
                 lastErrorPhase = requestPhase
@@ -21,13 +18,8 @@ public final class AssistManager: ObservableObject {
             }
         }
     }
-    /// When `lastError` was recorded (nil when there is no error).
     @Published public private(set) var lastErrorDate: Date?
-    /// The request phase active when `lastError` was recorded.
     @Published public private(set) var lastErrorPhase: AssistRequestPhase?
-    /// Non-fatal warning for the current/last request (e.g. instruction
-    /// content omitted by the context budget). Same diagnostics capture as
-    /// errors; cleared on new requests and conversation reset.
     @Published public var lastWarning: String? {
         didSet {
             if lastWarning != nil {
@@ -39,9 +31,7 @@ public final class AssistManager: ObservableObject {
             }
         }
     }
-    /// When `lastWarning` was recorded (nil when there is no warning).
     @Published public private(set) var lastWarningDate: Date?
-    /// The request phase active when `lastWarning` was recorded.
     @Published public private(set) var lastWarningPhase: AssistRequestPhase?
     @Published public var takeoverReason: String?
     @Published public var currentCodeReview: CodeReviewInternalResult?
@@ -49,10 +39,6 @@ public final class AssistManager: ObservableObject {
     @Published public var hasCodeReviewBeenInvoked: Bool = false
     @Published public var queuedMessages: [QueuedAssistMessage] = []
     @Published public var currentActivityStatus: String = "Idle"
-    /// Per-turn request metrics keyed by the assistant response message ID.
-    /// Stored when a turn starts so the feedback package generator can attach
-    /// checkpoint/latency telemetry to each assistant message. Cleared with
-    /// the conversation in `clearChat()`.
     public var requestMetricsByMessageID: [UUID: AssistRequestMetrics] = [:]
 
     private var activeChatTask: Task<Void, Never>?
@@ -73,21 +59,10 @@ public final class AssistManager: ObservableObject {
     private var activeGoogleCloudModelDisplayName: String?
     private var activeMetaTask: Task<Void, Never>?
 
-    // MARK: - Unified request lifecycle state (AssistRequestState.swift)
-    //
-    // `requestPhase` is the single source of truth for what the current
-    // request is doing; `currentActivityStatus` is derived from it for UI
-    // compatibility. `requestGenerationValue` invalidates late callbacks
-    // after clearChat() or a newer request starts.
     private var requestGenerationValue: Int = 0
     public private(set) var requestPhase: AssistRequestPhase = .idle
-    /// Request-scoped SystemIndex retrieval ledger. Cleared on conversation
-    /// reset; the shared SystemIndex cache itself is never cleared here.
     public private(set) var activeRetrievalLedger: SystemIndexRequestLedger?
 
-    /// Records a SystemIndex retrieval into the request-scoped ledger so
-    /// later requests in the same conversation never re-inject the same
-    /// chunks. Shared by the chat, Antigravity, and legacy agent paths.
     public func recordRetrieval(_ retrieval: SystemIndexBudgetResult) {
         var ledger = activeRetrievalLedger ?? SystemIndexRequestLedger()
         ledger.record(retrieval)
@@ -99,10 +74,6 @@ public final class AssistManager: ObservableObject {
         currentActivityStatus = phase.statusText
     }
 
-    /// Centralized request failure used by early-return error paths.
-    /// Records the error, moves to the terminal .failed phase, appends a
-    /// system message, and stops processing — so the request phase can
-    /// never be left stale on a failed request.
     private func failRequest(_ error: String, systemMessage: String? = nil) {
         lastError = error
         setRequestPhase(.failed)
@@ -111,13 +82,6 @@ public final class AssistManager: ObservableObject {
         saveHistory()
     }
 
-    /// Posts a warning/error as a first-class chat message — yellow for
-    /// warnings, red for errors, tappable to expand, with an optional
-    /// Server Error dialog carrying the raw API detail. The entry is also
-    /// recorded in the log feed. This replaces bare logger.warning/error
-    /// for user-facing events so nothing important only lives in the log.
-    /// When `replacingPlaceholder` is true and the trailing message is the
-    /// empty assistant "thinking" placeholder, it is replaced in place.
     public func postNotice(
         _ level: AssistNoticeLevel,
         _ message: String,
@@ -144,9 +108,6 @@ public final class AssistManager: ObservableObject {
         }
     }
 
-    /// Shows the "Loading instructions…" phase only when the System Index
-    /// genuinely isn't ready yet. The index is warmed at app launch, so
-    /// retrieval is instant for any model once it's ready.
     private func beginInstructionRetrievalPhaseIfNeeded() async {
         if case .ready = await SystemIndexService.shared.status() {
             return
@@ -163,15 +124,12 @@ public final class AssistManager: ObservableObject {
         AssistRequestGeneration(requestGenerationValue)
     }
 
-    // Transcript vs Model Context separation
     public private(set) var modelContext: [ModelContextSection] = []
     public private(set) var contextPressure: ContextPressureState?
     private var contextEngine: AssistContextEngine?
 
-    // Cache for bundled system prompt
     private var cachedSystemPrompt: String?
 
-    // Terminal Approval state variables
     @Published public var pendingTerminalRequest: TerminalApprovalRequest?
     public var terminalContinuation: CheckedContinuation<Bool, Never>?
     @Published public var terminalLiveOutput: String = ""
@@ -181,15 +139,6 @@ public final class AssistManager: ObservableObject {
     @Published public var activeProcess: Process?
     @Published public var activeFallbackMessage: String?
 
-    /// Returns the baseline system prompt assembled from the canonical System
-    /// Assets (AgentSystemAsset.md index + Identity.md + Safeguards.md).
-    /// Task-specific instructions are retrieved separately per request via
-    /// `SystemIndexService.retrieve(for:)` and injected by the request
-    /// pipeline — this baseline is what every request carries.
-    /// Drops the cached baseline prompt so the next getSystemPrompt()
-    /// re-reads the current System Assets. The cache was previously
-    /// never invalidated, so in-session asset updates never reached
-    /// a later run within one app lifetime.
     public func invalidateSystemPromptCache() {
         cachedSystemPrompt = nil
     }
@@ -324,11 +273,6 @@ public final class AssistManager: ObservableObject {
         return builder.buildContext(sessionId: session.id)
     }
 
-    /// N-1: pure decision contract for the Chat Mode Google credential check.
-    /// A Google OAuth session satisfies the check only when the provider is
-    /// Google, the auth mode is google_oauth, the session is authenticated,
-    /// and a token was actually obtainable. The live fetch result is an
-    /// explicit input so the contract is unit-testable.
     static func googleOAuthSatisfiesChatCheck(
         providerIsGoogle: Bool,
         authMode: String,
@@ -348,7 +292,6 @@ public final class AssistManager: ObservableObject {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        // If already processing, enqueue the message for sequential execution
         guard !isProcessing else {
             await MainActor.run {
                 enqueueMessage(trimmed, attachments: attachments)
@@ -357,21 +300,11 @@ public final class AssistManager: ObservableObject {
         }
 
         let metrics = AssistRequestMetrics.start(prompt: trimmed)
-        // Generation token: clearChat() or a newer request invalidates this
-        // generation, so late callbacks can never repopulate a cleared
-        // conversation.
         let generation = nextGeneration()
-        // Warm the shared instruction index off the critical path. Retrieval
-        // calls below await it; the build is coalesced and cheap afterwards.
         Task.detached(priority: .utility) { await SystemIndexService.shared.ensureReady() }
 
         await MainActor.run {
             AssistEventNormalizer.shared.resetForNewTask()
-            // Keep the submitted envelope on the stored message so
-            // the history / AssistInfoView can show which command or
-            // @Reverse invocation produced this turn. Previously the
-            // envelope was dropped here (only forwarded to provider
-            // paths), so the stored message lost the command context.
             messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments, envelope: envelope))
             isProcessing = true
             setRequestPhase(.preparingRequest)
@@ -382,22 +315,12 @@ public final class AssistManager: ObservableObject {
 
         metrics.mark(.sessionResolved)
 
-        // SwiftCode Cloud Model: direct hosted-model path. Works under every
-        // routing strategy with no API key or sign-in — the settings toggle is
-        // the only gate. Takes precedence over the Antigravity session below.
-        // Matches every cloud model ID ("swiftcode-cloud" and "swiftcode-cloud:<name>").
         if AppSettings.shared.useSwiftCodeCloudModel,
            SCCloudConfiguration.isCloudModelID(AppSettings.shared.selectedAssistModelID) {
             await sendSwiftCodeCloudMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics)
             return
         }
 
-        // "Use Provider Models" is on: never run a user-provided
-        // model, and never substitute another one for it. Fail the
-        // turn explicitly so the user picks a provider model in
-        // Assist Settings instead of silently getting a different
-        // model. SwiftCode Cloud models are provider-hosted, not
-        // user-provided, and are handled by the short-circuit above.
         if AppSettings.shared.assistUseProviderModels {
             let selectedID = AppSettings.shared.selectedAssistModelID
             let discovered = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedID })
@@ -409,7 +332,6 @@ public final class AssistManager: ObservableObject {
             }
         }
 
-        // Assist with Meta (Muse Code SDK / MSP Protocol execution path)
         let selectedModelID = AppSettings.shared.selectedAssistModelID
         let selectedDiscoveredModel = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedModelID })
         let isMetaAssist = AppSettings.shared.isMetaAssist ||
@@ -426,9 +348,6 @@ public final class AssistManager: ObservableObject {
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
         let isGoogleOAuthSession = (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
 
-        // Always route through the Antigravity SDK runtime when Google Cloud Assist,
-        // Agent Mode, or a Google Sign-In Antigravity session is active (including
-        // lightweight greetings so they never bypass Antigravity and hit raw provider HTTP).
         if isAntigravityAvailable && (AppSettings.shared.isGoogleCloudAssist || isAgentMode || isGoogleOAuthSession) {
             await sendGoogleCloudSDKMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics, generation: generation)
             return
@@ -443,7 +362,6 @@ public final class AssistManager: ObservableObject {
                 return
             }
 
-            // Verify system prompt is available
             do {
                 _ = try getSystemPrompt()
             } catch {
@@ -457,10 +375,6 @@ public final class AssistManager: ObservableObject {
             let task = Task {
                 defer {
                     Task { @MainActor in
-                        // Only the current generation may reset shared UI
-                        // state; a superseded generation must not resurrect
-                        // "Idle" over a newer in-flight request. Never
-                        // overwrite a terminal phase (e.g. cancelled).
                         guard generation == self.currentGeneration else { return }
                         self.isProcessing = false
                         if !self.requestPhase.isTerminal {
@@ -472,8 +386,6 @@ public final class AssistManager: ObservableObject {
                 do {
                     try await agentSession.start(objective: trimmed, attachments: attachments, context: context)
                     if Task.isCancelled { return }
-                    // Stale generation: a clear or newer request superseded
-                    // this one — drop its completion instead of appending.
                     guard generation == self.currentGeneration else { return }
                     await MainActor.run {
                         saveHistory()
@@ -490,16 +402,12 @@ public final class AssistManager: ObservableObject {
             activeAgentTask = task
             _ = await task.result
             await MainActor.run {
-                // A superseded generation must not clear a newer request's
-                // in-flight state.
                 guard generation == self.currentGeneration else { return }
                 self.isProcessing = false
             }
             return
         }
 
-        // Processing through Chat Mode: Query Model directly and conversationally (no tools/planning)
-        // --- COMPREHENSIVE CHAT MODE STATE VALIDATION ---
         let selectedModel = AssistModelManager.shared.selectedModelID
         let selectedProvider = LLMService.shared.provider(for: selectedModel)
 
@@ -507,10 +415,6 @@ public final class AssistManager: ObservableObject {
 
         if selectedProvider != .offline && selectedProvider != .codex {
             let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
-            // N-1: mirror the M-7 fix in AssistAgentSession — a valid Google
-            // OAuth session satisfies the Google-provider credential check.
-            // The old API-key-only gate rejected OAuth-authenticated users
-            // holding no API key with a "Missing API key" error.
             let authMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
             let authService = GoogleAccountAuthService.shared
             var oauthTokenAvailable = false
@@ -524,8 +428,6 @@ public final class AssistManager: ObservableObject {
                 tokenAvailable: oauthTokenAvailable
             )
             guard !key.isEmpty || googleOAuthOK else {
-                // Authenticated-but-tokenless is a session problem, never a
-                // "provide an API key" problem (same defect class as C-1).
                 let errorMsg: String
                 if selectedProvider == .google, authMode == "google_oauth", authService.isAuthenticated {
                     errorMsg = "Chat Validation Failed: Your Google session has expired and SwiftCode couldn't obtain a working access token. Please sign in again in Settings → Assist → Google Account."
@@ -546,7 +448,6 @@ public final class AssistManager: ObservableObject {
                 return
             }
         }
-        // ------------------------------------------------
         metrics.mark(.credentialsResolved)
 
         let chatSystemPrompt = """
@@ -611,10 +512,6 @@ public final class AssistManager: ObservableObject {
             self.contextPressure = contextEngine!.getPressureState()
         }
 
-        // --- SystemIndex instruction retrieval (shared, provider-independent) ---
-        // Chat mode is conversational (no tools); it carries the short chat
-        // system prompt plus selectively retrieved task sections — never the
-        // whole instruction corpus.
         await beginInstructionRetrievalPhaseIfNeeded()
         metrics.mark(.systemIndexRetrievalStarted)
         let instructionQuery = InstructionQueryContext(
@@ -677,7 +574,6 @@ public final class AssistManager: ObservableObject {
         requestMetricsByMessageID[messageID] = metrics
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            // Stale generation: a clear or newer request superseded this one.
             guard generation == self.currentGeneration else { return }
             do {
                 metrics.mark(.requestSent)
@@ -713,8 +609,6 @@ public final class AssistManager: ObservableObject {
             }
         }
         activeChatTask = task
-        // Progress watchdog: the chat transport exposes no timeout of its own,
-        // so a stalled stream must fail explicitly instead of spinning forever.
         let watchdog = Task.detached { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
@@ -771,8 +665,6 @@ public final class AssistManager: ObservableObject {
     }
 
     private func appendChatToken(_ token: String, to messageID: UUID, generation: AssistRequestGeneration) {
-        // Late tokens from a superseded generation must not resurrect a
-        // cleared conversation or pollute a newer one.
         guard generation == currentGeneration else { return }
         guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
         var message = messages[index]
@@ -791,18 +683,10 @@ public final class AssistManager: ObservableObject {
         }
         attributeFinishedMessage(messageID: messageID, modelID: modelID, providerID: providerID, tokenUsage: tokenUsage)
         isProcessing = false
-        // Terminal state: the request is over and the UI must not show a
-        // spinner for it anymore.
         setRequestPhase(timedOut ? .timedOut : (error != nil ? .failed : .completed))
         saveHistory()
     }
 
-    // MARK: - Turn Attribution (model / provider / token usage)
-
-    /// Resolves the model/provider that actually minted a turn. A router
-    /// failover during the turn replaces the settings-selected model, so the
-    /// most recent failover since the turn started wins; otherwise the
-    /// requested model/provider is reported as-is.
     private func resolvedTurnModel(
         fallbackModelID: String?,
         fallbackProviderID: String?,
@@ -821,9 +705,6 @@ public final class AssistManager: ObservableObject {
         return (fallbackModelID, fallbackProviderID)
     }
 
-    /// Records model/provider/token-usage attribution on a finished assistant
-    /// message, using the real model when a failover happened mid-turn.
-    /// No-op when the message no longer exists (e.g. removed empty error turn).
     private func attributeFinishedMessage(
         messageID: UUID,
         modelID: String?,
@@ -841,8 +722,6 @@ public final class AssistManager: ObservableObject {
         message.tokenUsage = tokenUsage
         messages[index] = message
     }
-
-    // MARK: - Message Queue System
 
     public func enqueueMessage(_ content: String, attachments: [AgentFileContext] = [], envelope: AssistTaskEnvelope? = nil) {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -882,7 +761,6 @@ public final class AssistManager: ObservableObject {
         guard !trimmed.isEmpty else { return }
 
         if isProcessing {
-            // Signal graceful turn cancellation to the bridge without tearing down the session or chat
             if let gcSession = activeGoogleCloudSession {
                 Task {
                     try? await gcSession.cancel()
@@ -897,7 +775,6 @@ public final class AssistManager: ObservableObject {
             WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Interrupted by user for continuation.")
             cancelTerminalExecution()
 
-            // Finalize previous assistant message so its activity group is marked non-executing
             if let idx = messages.indices.last {
                 messages[idx].activityGroup?.isExecuting = false
                 saveHistory()
@@ -929,8 +806,6 @@ public final class AssistManager: ObservableObject {
     }
 
     public func stopCurrentSession() {
-        // Invalidate the generation so late callbacks from the cancelled
-        // request are dropped instead of updating the UI afterwards.
         requestGenerationValue += 1
 
         activeAgentTask?.cancel()
@@ -987,14 +862,9 @@ public final class AssistManager: ObservableObject {
     }
 
     public func clearChat() {
-        // Invalidate the request generation FIRST, before cancelling anything:
-        // any late callback, streaming event, tool result, or error update
-        // still in flight will see a stale generation and drop its update
-        // instead of repopulating the cleared conversation.
         requestGenerationValue += 1
         setRequestPhase(.idle)
 
-        // Immediately cancel the active agent task and agent session
         activeAgentTask?.cancel()
         activeAgentTask = nil
 
@@ -1021,16 +891,12 @@ public final class AssistManager: ObservableObject {
             await MuseCodeMSPBridge.shared.stopHost()
         }
 
-        // Clean up workers and pending questions
         WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Chat cleared by user.")
         WorkerRuntimeState.shared.clearAllWorkers()
         PlanQuestionManager.shared.cancelPendingQuestions()
 
-        // Immediately cancel terminal execution and any running sub-processes
-        // (also resumes any hung approval continuation as denied).
         cancelTerminalExecution()
 
-        // Reset states to a clean, idle state
         isProcessing = false
         lastError = nil
         lastWarning = nil
@@ -1041,11 +907,6 @@ public final class AssistManager: ObservableObject {
         activeFallbackMessage = nil
         AssistModelManager.shared.clearFallbackNotification()
 
-        // Clear the full conversation and its transient execution state — not
-        // just the visible messages. The shared SystemIndex cache, bundled
-        // System Assets, settings, credentials, and project files are
-        // intentionally NOT touched.
-        // Save previous conversation if it had messages before resetting
         if !messages.isEmpty {
             let snap = messages
             let convId = AssistConversationHistory.shared.activeConversationID ?? AssistConversationHistory.shared.startNewConversation().id
@@ -1058,9 +919,6 @@ public final class AssistManager: ObservableObject {
         }
 
         messages.removeAll()
-        // SDK tool panels live in the in-memory store, not on the
-        // messages, so clearing the transcript alone left stale rows
-        // to render under the next unrelated SDK message.
         SDKToolEventStore.shared.resetAll()
         requestMetricsByMessageID.removeAll()
         modelContext = []
@@ -1125,11 +983,6 @@ public final class AssistManager: ObservableObject {
     }
 
     private func saveHistory() {
-        // Snapshot on the caller and persist off the main thread: encoding the
-        // full message history to JSON on every send is the largest main-thread
-        // stall in the "Preparing request…" window, and it grows with the
-        // conversation. UserDefaults is thread-safe; ordering is preserved
-        // because each snapshot encodes the state at call time.
         let snapshot = messages
         Task.detached(priority: .utility) {
             if let data = try? JSONEncoder().encode(snapshot) {
@@ -1144,8 +997,6 @@ public final class AssistManager: ObservableObject {
             }
         }
     }
-
-    // MARK: - Assist with Meta Execution Pipeline
 
     private func sendMetaAssistMessage(
         _ content: String,
@@ -1163,7 +1014,6 @@ public final class AssistManager: ObservableObject {
         }
         let workspaceRoot = projectURL.path
 
-        // SystemIndex instruction retrieval for Assist with Meta (Muse Code SDK)
         await beginInstructionRetrievalPhaseIfNeeded()
         metrics?.mark(.systemIndexRetrievalStarted)
         let instructionQuery = InstructionQueryContext(
@@ -1290,12 +1140,6 @@ public final class AssistManager: ObservableObject {
         _ = await task.result
     }
 
-    // MARK: - Google Cloud SDK / Antigravity Execution Pipeline
-
-    /// Direct (non-agentic) execution path for the SwiftCode Cloud Model.
-    /// Bypasses the Antigravity SDK session entirely: no API key, OAuth token,
-    /// or routing strategy is required — just the settings toggle and daily quota.
-    /// The user message was already appended by sendMessage before this runs.
     private func sendSwiftCodeCloudMessage(
         _ content: String,
         attachments: [AgentFileContext] = [],
@@ -1309,7 +1153,6 @@ public final class AssistManager: ObservableObject {
         }
         metrics?.mark(.modelResolved)
 
-        // SystemIndex instruction retrieval for SwiftCode Cloud Model
         await beginInstructionRetrievalPhaseIfNeeded()
         metrics?.mark(.systemIndexRetrievalStarted)
         let instructionQuery = InstructionQueryContext(
@@ -1327,13 +1170,10 @@ public final class AssistManager: ObservableObject {
         activeRetrievalLedger = cloudLedger
         let retrievedInstructionsBlock = instructionRetrieval.formattedForPrompt()
 
-        // Recent conversation as context (excluding the placeholder just appended).
         let history: [(role: String, content: String)] = await MainActor.run {
-            // Notices (warnings/errors) are UI-only — never model context.
             self.messages.dropLast().filter { $0.noticeLevel == nil }.suffix(12).map { ($0.role.rawValue, $0.content) }
         }
 
-        // Fold decodable text attachments and retrieved instructions into the prompt.
         var prompt = content
         if !retrievedInstructionsBlock.isEmpty {
             prompt = retrievedInstructionsBlock + "\n\n" + prompt
@@ -1350,10 +1190,6 @@ public final class AssistManager: ObservableObject {
         }
 
         do {
-            // The exact server-side model name comes from the selected cloud
-            // model ID ("swiftcode-cloud:<name>"). Nil means the legacy
-            // single-model selection — the client resolves it to the first
-            // discovered model (or the configured fallback).
             let selectedID = AppSettings.shared.selectedAssistModelID
             let endpointModel = SCCloudConfiguration.endpointName(forInternalID: selectedID)
             let baselinePrompt = (try? getSystemPrompt()) ?? SystemIndexService.shared.baselinePrompt()
@@ -1386,8 +1222,6 @@ public final class AssistManager: ObservableObject {
         } catch {
             let scError = error as? SCCloudError
             let friendly = scError?.userFacingMessage ?? error.localizedDescription
-            // Raw API detail for the Server Error dialog — endpoint, status
-            // code, and response body straight from the HTTP exchange.
             let detail = ServerErrorDetail(
                 endpoint: SCCloudConfiguration.chatURL?.absoluteString ?? SCCloudConfiguration.baseURLString,
                 statusCode: scError?.httpStatusCode,
@@ -1424,7 +1258,6 @@ public final class AssistManager: ObservableObject {
         }
         metrics?.mark(.sessionResolved)
 
-        // Merge explicit files from envelope if not already present
         var allAttachments = attachments
         if let env = envelope {
             for file in env.explicitFiles {
@@ -1438,10 +1271,6 @@ public final class AssistManager: ObservableObject {
             GoogleCloudSDKAttachment(name: $0.filename, path: $0.filename, mimeType: $0.mimeType, content: $0.base64Content)
         }
 
-        // --- Proactive OAuth Scope Verification ---
-        // If the user is authenticated via Google account but their stored token lacks
-        // the required Antigravity scopes (from legacy sign-in), prompt them to approve
-        // the updated permissions rather than hitting an authentication scope error.
         let assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
         let isGoogleAuthActive = assistGoogleAuthMode == "google_oauth"
         let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
@@ -1469,9 +1298,6 @@ public final class AssistManager: ObservableObject {
 
         let initialRouted = await AssistModelRouter.shared.selectModelForSDK(objective: content)
 
-        // SwiftCode Cloud Model: bypass the Antigravity session entirely, even if
-        // this path was reached directly. (sendMessage normally routes here first.)
-        // Matches every cloud model ID, not just the legacy single-model one.
         if let routed = initialRouted, SCCloudConfiguration.isCloudModelID(routed.model.id) {
             await sendSwiftCodeCloudMessage(content, attachments: allAttachments, envelope: envelope, metrics: metrics)
             return
@@ -1481,25 +1307,14 @@ public final class AssistManager: ObservableObject {
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)
         metrics?.mark(.modelResolved)
 
-        // Validate that credentials exist before initiating execution for Gemini/Google models.
-        // The provider comes from the explicit configuration record — never
-        // inferred from the model name. (C-2)
         let isGoogleRouted = (initialConfig.provider == "gemini" || initialConfig.provider == "google")
         if isGoogleRouted {
             let hasApiKey = !(initialConfig.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let hasOAuth = !(initialConfig.oauthToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             if !hasApiKey && !hasOAuth {
-                // C-1: reconcile with auth-service state before reporting. The
-                // resolved config can be credential-less while the user is
-                // authenticated (expired token + failed refresh, incomplete
-                // CLI import) — that is a session problem, never a
-                // "provide an API key" problem.
                 let authMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
                 let authService = GoogleAccountAuthService.shared
                 if authMode == "google_oauth" && authService.isAuthenticated {
-                    // One recovery attempt through the async accessor (retries
-                    // refresh, consults ambient ADC). A recovered token lets
-                    // the request continue instead of failing.
                     if let recovered = try? await authService.getValidAccessToken(), !recovered.isEmpty {
                         initialConfig.oauthToken = recovered
                     } else {
@@ -1527,10 +1342,6 @@ public final class AssistManager: ObservableObject {
 
         let session: GoogleCloudSDKSession
 
-        // --- SystemIndex instruction retrieval (shared, provider-independent) ---
-        // The session carries the baseline system instructions (stable, so
-        // sessions remain reusable); the task-specific sections retrieved here
-        // travel with this request's prompt instead of the whole corpus.
         metrics?.mark(.credentialsResolved)
         await beginInstructionRetrievalPhaseIfNeeded()
         metrics?.mark(.systemIndexRetrievalStarted)
@@ -1556,9 +1367,6 @@ public final class AssistManager: ObservableObject {
         }
         setRequestPhase(.buildingRequest)
         metrics?.mark(.toolsPrepared)
-        // C-3: reuse only when the full credential-bearing contract matches
-        // (see canReuseSession) — a rotated token or changed quota project
-        // must force a new session instead of 401ing on a dead bearer.
         if let existing = activeGoogleCloudSession,
            existing.config.canReuseSession(for: initialConfig) {
             session = existing
@@ -1596,8 +1404,6 @@ public final class AssistManager: ObservableObject {
             defer {
                 Task { @MainActor in
                     self.isProcessing = false
-                    // Never overwrite a terminal phase recorded by the turn
-                    // outcome (completed/failed/cancelled/timedOut).
                     if !self.requestPhase.isTerminal {
                         self.setRequestPhase(.idle)
                     }
@@ -1655,9 +1461,6 @@ public final class AssistManager: ObservableObject {
             let maxFailoverAttempts = 3
             var protocolCorrectionAttempts = 0
             var totalIdleTimeoutUsed: TimeInterval = 0
-            // Guards the 403 scope-insufficient path: a scope-upgrade re-auth
-            // is attempted at most once per user message so a rejected token
-            // can never spin an infinite re-authentication loop.
             var didAttemptScopeReauth = false
 
             executionLoop: while attempts < maxFailoverAttempts {
@@ -1670,7 +1473,6 @@ public final class AssistManager: ObservableObject {
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
                         }
-                        // Truthful terminal state: timed out, not idle.
                         self.setRequestPhase(.timedOut)
                         self.isProcessing = false
                     }
@@ -1689,9 +1491,6 @@ public final class AssistManager: ObservableObject {
                     var thinkingStartTime: Date? = nil
                     streamLoop: for await event in eventStream {
                         guard !Task.isCancelled else { break streamLoop }
-                        // Stale generation: the conversation was cleared or a
-                        // newer request started — drop late events instead of
-                        // repopulating the cleared conversation.
                         guard generation == self.currentGeneration else { break streamLoop }
                         watchdog.recordActivity()
                         guard let idx = self.messages.indices.last else { continue }
@@ -1704,7 +1503,6 @@ public final class AssistManager: ObservableObject {
                         case .agentProgress(_, let delta, let thoughtDelta):
                             metrics?.mark(.firstEventReceived)
 
-                            // Handle reasoning / thought stream
                             if let thoughtDelta = thoughtDelta, !thoughtDelta.isEmpty {
                                 if thinkingStartTime == nil {
                                     thinkingStartTime = Date()
@@ -1719,7 +1517,6 @@ public final class AssistManager: ObservableObject {
                                 self.currentActivityStatus = "Thinking…"
                             }
 
-                            // Handle conversational response stream
                             if let delta = delta, !delta.isEmpty {
                                 if let start = thinkingStartTime, self.messages[idx].thinkingDuration == nil {
                                     self.messages[idx].thinkingDuration = Date().timeIntervalSince(start)
@@ -1949,15 +1746,6 @@ public final class AssistManager: ObservableObject {
                 let isGemini = currentModelId.lowercased().contains("gemini") || currentModelName.lowercased().contains("gemini") || (currentConfig.provider == "gemini" || currentConfig.provider == "google")
 
                 if let errText = turnError {
-                    // --- Classified auth error handling ---
-                    // A 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT is only fixable by
-                    // re-authentication when the stored token was minted before
-                    // the required Developer API scope existed. Otherwise the
-                    // endpoint is rejecting a correctly-scoped token (missing
-                    // quota project, wrong endpoint, or a product restriction):
-                    // re-authenticating would loop forever, so the actual
-                    // restriction is explained instead. Account mode is never
-                    // silently switched to API-key mode here.
                     let classification = GoogleAuthErrorClassification.classify(errText)
                     let isQuotaOrRateLimit: Bool = {
                         if case .quotaOrRateLimit = classification.kind { return true }
@@ -1969,8 +1757,6 @@ public final class AssistManager: ObservableObject {
                         let hasAntigravity = GoogleAccountAuthService.shared.fetchAntigravityCredentialsFromKeychain() != nil
                         let needsScopeUpgrade = !(storedScopes?.contains("generative-language.retriever") ?? false) && !hasCloudPlatform && !hasAntigravity
                         if needsScopeUpgrade && !didAttemptScopeReauth && GoogleAccountAuthService.shared.isAuthenticated {
-                            // One-shot scope upgrade: the new sign-in requests
-                            // the Developer API scope the old token lacks.
                             didAttemptScopeReauth = true
                             await MainActor.run {
                                 if let idx = self.messages.indices.last {
@@ -1995,10 +1781,6 @@ public final class AssistManager: ObservableObject {
                             }
                             break executionLoop
                         }
-                        // Not fixable by re-authentication: report the actual
-                        // restriction with the preserved diagnostics, keep the
-                        // conversation and the selected auth mode intact, and do
-                        // not fall through into API-key rotation.
                         await MainActor.run {
                             if let idx = self.messages.indices.last {
                                 self.messages[idx].activityGroup?.isExecuting = false
@@ -2041,7 +1823,6 @@ public final class AssistManager: ObservableObject {
                     let isQuota = AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
                     let isPermanentAuth = errText.contains("401") || errText.contains("403") || errText.contains("API_KEY_INVALID") || errText.contains("invalid api key")
 
-                    // 1. Alternative Keys Rotation (Gemini only)
                     if altKeysEnabled && isGemini && (isQuota || isPermanentAuth) {
                         let activeId = await MainActor.run { AlternativeKeyManager.shared.activeKeyId }
 
@@ -2056,21 +1837,16 @@ public final class AssistManager: ObservableObject {
                                 }
                             }
 
-                            // Update activity UI exactly per specification:
-                            // "Gemini key rate limited — rotating key"
                             await MainActor.run {
                                 self.currentActivityStatus = "Gemini key rate limited — rotating key"
                             }
 
-                            // "Waiting 2 seconds before retry"
                             await MainActor.run {
                                 self.currentActivityStatus = "Waiting 2 seconds before retry"
                             }
-                            // Mandatory 2-second backend wait
                             try? await Task.sleep(nanoseconds: 2_000_000_000)
                         }
 
-                        // Select next available key
                         let nextKeyResult = await MainActor.run {
                             AlternativeKeyManager.shared.selectNextAvailableKey(excludingId: activeId)
                         }
@@ -2080,14 +1856,12 @@ public final class AssistManager: ObservableObject {
                             await MainActor.run {
                                 self.currentActivityStatus = "Switched to Gemini key \(keyIndex)"
                                 if let idx = self.messages.indices.last {
-                                    // Clear aborted buffer so retry writes cleanly into current assistant message
                                     self.messages[idx].content = ""
                                     self.messages[idx].thinkingContent = ""
                                     self.messages[idx].activityGroup?.isExecuting = true
                                 }
                             }
 
-                            // Cleanly close previous session
                             await runtime.closeSession(id: currentSession.id)
                             await MainActor.run {
                                 self.activeGoogleCloudSession = nil
@@ -2106,7 +1880,6 @@ public final class AssistManager: ObservableObject {
                                 continue executionLoop
                             }
                         } else {
-                            // All Gemini keys exhausted
                             if !savedModelsEnabled {
                                 await MainActor.run {
                                     self.lastError = "All configured Gemini API keys are currently unavailable."
@@ -2126,21 +1899,12 @@ public final class AssistManager: ObservableObject {
                         }
                     }
 
-                    // H-1: stale-token recovery. A 401/403 on a Google OAuth
-                    // session is often a bearer that expired mid-conversation
-                    // while the Keychain copy was refreshed — try one token
-                    // refresh and retry the same model before quarantining the
-                    // provider and failing over to an unrelated model.
                     let turnFailureClass = AssistModelRouter.shared.classify(error: NSError(domain: "AssistManager", code: -1, userInfo: [NSLocalizedDescriptionKey: errText]))
                     let isGoogleOAuthTurn = (currentConfig.provider == "gemini" || currentConfig.provider == "google")
                         && (UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode) == "google_oauth"
                         && GoogleAccountAuthService.shared.isAuthenticated
                         && !altKeysEnabled
                     if turnFailureClass == .authenticationFailed && isGoogleOAuthTurn {
-                        // Config-shaped failure: without a quota project,
-                        // OAuth calls to the Developer API deterministically
-                        // fail. Surface the one-line fix instead of
-                        // quarantining the provider and failing over.
                         let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
                         if quotaProject.isEmpty {
                             await MainActor.run {
@@ -2166,9 +1930,6 @@ public final class AssistManager: ObservableObject {
                         }
                         if let refreshed = try? await GoogleAccountAuthService.shared.getValidAccessToken(),
                            !refreshed.isEmpty, refreshed != (currentConfig.oauthToken ?? "") {
-                            // The bearer rotated since this session was
-                            // created: close the stale session and retry the
-                            // same model with the fresh token.
                             await logger.warning("[AssistManager] OAuth token rotated mid-conversation; retrying '\(currentModelName)' with the refreshed token.")
                             await runtime.closeSession(id: currentSession.id)
                             currentConfig.oauthToken = refreshed
@@ -2190,11 +1951,8 @@ public final class AssistManager: ObservableObject {
                                 continue executionLoop
                             }
                         }
-                        // Refresh yielded no new token: fall through to
-                        // quarantine + failover for a true auth failure.
                     }
 
-                    // 2. Multi-Provider Failover
                     let priorOutput = await MainActor.run { self.messages.last?.content ?? "" }
                     await postNotice(.warning, "Model '\(currentModelName)' failed: \(errText)")
                     if let failover = await AssistModelRouter.shared.handleTurnFailure(
@@ -2215,13 +1973,11 @@ public final class AssistManager: ObservableObject {
                             }
                         }
 
-                        // Cleanly close previous session
                         await runtime.closeSession(id: currentSession.id)
                         await MainActor.run {
                             self.activeGoogleCloudSession = nil
                         }
 
-                        // Create session with failover candidate
                         do {
                             let newSession = try await runtime.createSession(config: failover.nextConfig)
                             await MainActor.run {
@@ -2233,10 +1989,6 @@ public final class AssistManager: ObservableObject {
                             currentConfig = failover.nextConfig
                             currentModelId = failover.nextModel.modelIdentifier
                             currentModelName = newName
-                            // Preserve the retrieved task instructions across
-                            // failover: the continuation prompt replaces the
-                            // original request, but the task-specific sections
-                            // retrieved for it are still authoritative.
                             currentPrompt = instructionPrefix + failover.continuationPrompt
                             currentAttachments = []
                             continue executionLoop
@@ -2247,17 +1999,6 @@ public final class AssistManager: ObservableObject {
                         }
                     }
 
-                    // No failover and automatic switching is off:
-                    // never switch, and never fail silently. Show
-                    // the wait (model + reason + that switching is
-                    // off) in the activity status, keep the turn in
-                    // .waitingForModel, and retry the SAME model on
-                    // the next loop iteration. The loop is already
-                    // bounded (maxFailoverAttempts), so this waits
-                    // and retries instead of hanging forever; when
-                    // it finally exhausts, the terminal message
-                    // below says explicitly that no other model
-                    // was tried.
                     if !AppSettings.shared.assistAutomaticallySwitchModels {
                         let waitDetail = "Waiting on '\(currentModelName)' — automatic model switching is off, so Assist will not switch to another model. Last error: \(errText)"
                         await postNotice(.warning, waitDetail)
@@ -2277,18 +2018,13 @@ public final class AssistManager: ObservableObject {
                     }
                 }
 
-                // Terminal failure
                 let rawErr = turnError ?? ((altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : "\(currentModelName) execution failed")
                 let finalErrorMsg = "Error (\(currentModelName)): \(rawErr)"
-                // C-3: a terminal authentication failure poisons the session
-                // (its bearer is dead). Close and drop it so the next request
-                // starts clean instead of reusing dead credentials.
                 let terminalClass = AssistModelRouter.shared.classify(error: NSError(domain: "AssistManager", code: -1, userInfo: [NSLocalizedDescriptionKey: rawErr]))
                 if terminalClass == .authenticationFailed {
                     await runtime.closeSession(id: currentSession.id)
                     await MainActor.run { self.activeGoogleCloudSession = nil }
                 }
-                // Red, expandable notice message (also recorded in the log feed).
                 await postNotice(.error, finalErrorMsg, replacingPlaceholder: true)
                 await MainActor.run {
                     self.lastError = finalErrorMsg
@@ -2306,16 +2042,12 @@ public final class AssistManager: ObservableObject {
         _ = await task.result
         await MainActor.run {
             self.isProcessing = false
-            // Terminal phase was set by the turn outcome (completed/failed);
-            // only fall back to idle when no terminal phase was recorded.
             if !self.requestPhase.isTerminal {
                 self.setRequestPhase(.idle)
             }
             self.processNextQueuedMessageIfAny()
         }
     }
-
-    // MARK: - Live Tool & Activity Reporting
 
     private func targetMessageIndexForActivity() -> Int? {
         if let idx = self.messages.indices.reversed().first(where: { self.messages[$0].role == .assistant || self.messages[$0].activityGroup != nil }) {
@@ -2472,9 +2204,6 @@ public final class AssistManager: ObservableObject {
     }
 }
 
-/// Suppresses malformed tool requests accidentally emitted as assistant text.
-/// Only complete, recognizable tool-call envelopes are hidden; normal prose
-/// continues to stream without waiting for a full model response.
 struct AssistToolPayloadStreamFilter {
     private enum Mode {
         case undecided
@@ -2494,9 +2223,6 @@ struct AssistToolPayloadStreamFilter {
 
     mutating func append(_ delta: String) -> String {
         guard !delta.isEmpty else { return "" }
-        // The format decision is only meaningful before normal prose has been
-        // released. Re-scanning an ever-growing response for every token made
-        // long streamed answers needlessly quadratic.
         switch mode {
         case .passthrough:
             return delta

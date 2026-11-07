@@ -6,19 +6,13 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// `specs/ide/reference-ui-6.md` R43: menu clean-up (§8, M1–M6) and the
-/// pass-6b editor defaults (§4.5, E9).
 @MainActor
 @Suite(.serialized) struct MenuR43Tests {
-    // MARK: M1 — one Open Recent
 
     @Test func fileMenuHasOneOpenRecent() throws {
         try MenuBarGoldenTests().withFactoryBar { bar in
-            // AppKit is told not to add its own (it does when the bundle
-            // declares document types and this is not 0).
             #expect(SwiftCodeDocumentController().maximumRecentDocumentCount == 0)
             let file = try #require(bar.item(withTitle: "File")?.submenu)
-            // One that shows up anyway, as AppKit adds it after Open…
             let foreign = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
             foreign.submenu = NSMenu(title: "Open Recent")
             foreign.submenu?.addItem(NSMenuItem(title: "Clear Menu", action: NSSelectorFromString("clearRecentDocuments:"), keyEquivalent: ""))
@@ -32,28 +26,21 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    // MARK: M2 — no system feedback item in Help
-
     @Test func helpMenuHasNoSystemFeedbackItem() throws {
         try MenuBarGoldenTests().withFactoryBar { bar in
             let help = try #require(bar.item(withTitle: "Help")?.submenu)
-            // What AppKit puts at the top when the menu is first read.
             help.insertItem(NSMenuItem(title: "Send SwiftCode Feedback to Apple", action: NSSelectorFromString("_openFeedbackAssistant:"), keyEquivalent: ""), at: 0)
             help.insertItem(.separator(), at: 1)
             MenuBarDelegate.shared.update(help, controller: nil)
             #expect(help.items.first?.title == "Developer Documentation")
             #expect(!help.items.contains { $0.title.contains("Feedback to Apple") })
-            // The table's own Report a Bug… stays.
             #expect(help.items.contains { $0.title == "Report a Bug…" })
-            // Also when it arrives just before the menu is shown.
             help.insertItem(NSMenuItem(title: "Send SwiftCode Feedback to Apple", action: NSSelectorFromString("_openFeedbackAssistant:"), keyEquivalent: ""), at: 0)
             help.insertItem(.separator(), at: 1)
             MenuBarDelegate.shared.menuWillOpen(help)
             #expect(help.items.first?.title == "Developer Documentation")
         }
     }
-
-    // MARK: Helpers
 
     let r32 = WindowChromeR32Tests()
 
@@ -62,7 +49,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return try #require(all(wc.navigator.view).compactMap { $0 as? NSOutlineView }.first)
     }
 
-    /// Selects the project navigator row for `path`; returns the row's path.
     @discardableResult
     func select(_ path: String, in wc: WorkspaceWindowController) throws -> String {
         wc.navigator.select(0)
@@ -75,7 +61,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return try #require(rowPath(row))
     }
 
-    /// A menu-bar item for an action, validated in the window (title in context).
     func validated(_ wc: WorkspaceWindowController, _ action: String) throws -> (enabled: Bool, title: String) {
         let spec = try #require(CommandTable.command(action: action))
         let i = CommandMenuItem(title: spec.title, action: NSSelectorFromString(action), keyEquivalent: "")
@@ -84,7 +69,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return (ok, i.title)
     }
 
-    /// File ▸ New as the menu bar shows it for `wc`.
     func newMenu(_ wc: WorkspaceWindowController) throws -> NSMenu {
         let bar = MainMenu.make()
         let new = try #require(bar.item(withTitle: "File")?.submenu?.item(withTitle: "New")?.submenu)
@@ -93,8 +77,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     }
 
     func visible(_ m: NSMenu) -> [String] { m.items.filter { !$0.isHidden && !$0.isSeparatorItem }.map(\.title) }
-
-    // MARK: M3 / M6 — File ▸ New ▸ (New) File from Clipboard
 
     @Test func fileFromClipboardFollowsThePasteboard() throws {
         let dir = try r32.package("r43-clipboard")
@@ -115,24 +97,19 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(url.lastPathComponent == "File" && url.deletingLastPathComponent().lastPathComponent == "Chrome")
         #expect(try String(contentsOf: url, encoding: .utf8) == "let pasted = 42\n")
         #expect(wc.editor.fileURL?.standardizedFileURL == url.standardizedFileURL && wc.editor.text == "let pasted = 42\n")
-        // With no workspace window the generic (disabled) title shows.
         #expect(MenuTitles.title(generic: "File from Clipboard", in: nil) == "File from Clipboard")
     }
-
-    // MARK: M6 — Group items, Folder, Find in Selected File… / Groups…
 
     @Test func newMenuAndFindFollowTheNavigatorSelection() throws {
         let dir = try r32.package("r43-selection")
         defer { try? FileManager.default.removeItem(at: dir) }
         let wc = try r32.window(dir)
         let groups = ["Group", "Group without Folder", "Group from Selection", "Group from Selection without Folder"]
-        // No selection: all six listed; Folder and Find disabled.
         #expect(wc.projectNavigatorSelection == nil)
         #expect(Set(groups + ["Folder", "Folder from Selection"]).isSubset(of: visible(try newMenu(wc))))
         #expect(try validated(wc, "newFolder:").enabled == false)
         var find = try validated(wc, "findInSelectedGroups:")
         #expect(!find.enabled && find.title == "Find in Selected Groups…")
-        // A file in a folder: the Group items are hidden; Folder enabled.
         let model = try select(dir.appendingPathComponent("Sources/Chrome/Model.swift").path, in: wc)
         #expect(wc.projectNavigatorSelection?.kind == .file && wc.projectSelectionIsInFolder)
         let shown = visible(try newMenu(wc))
@@ -140,12 +117,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(try validated(wc, "newFolder:").enabled)
         find = try validated(wc, "findInSelectedGroups:")
         #expect(find.enabled && find.title == "Find in Selected File…")
-        // Find in Selected File…: the Find navigator, scoped to that file.
         wc.findInSelectedGroups(nil)
         #expect(wc.navigator.selectedIndex == 3 && wc.navigator.findScopeValue == .group(model))
         wc.navigator.find("public")
         #expect(wc.navigator.shownRows.count == 1 && wc.navigator.shownRows.first?.title.hasPrefix("Model.swift") == true)
-        // A folder: "Find in Selected Groups…", scoped to the folder.
         let folder = try select(dir.appendingPathComponent("Sources/Chrome").path, in: wc)
         find = try validated(wc, "findInSelectedGroups:")
         #expect(find.enabled && find.title == "Find in Selected Groups…")
@@ -172,8 +147,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(["Group", "Group without Folder", "Group from Selection", "Group from Selection without Folder", "Folder"].allSatisfy(shown.contains))
     }
 
-    // MARK: M4 — Edit ▸ Copy ▸ and Paste ▸
-
     @Test func copyAndPasteAreSubmenus() throws {
         try MenuBarGoldenTests().withFactoryBar { bar in
             let edit = try #require(bar.item(withTitle: "Edit")?.submenu)
@@ -181,13 +154,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(top == ["Undo", "Redo", "—", "Cut", "Copy", "Paste", "Duplicate", "Delete", "—"])
             let copy = try #require(edit.item(withTitle: "Copy"))
             let paste = try #require(edit.item(withTitle: "Paste"))
-            // No shortcut on the parents; the commands are plain items.
             #expect(copy.keyEquivalent.isEmpty && paste.keyEquivalent.isEmpty)
             #expect(copy.submenu?.items.map(\.title) == ["Copy", "Copy File and Line", "Copy Symbol Name", "Copy Qualified Symbol Name"])
             #expect(copy.submenu?.items.allSatisfy { !$0.isAlternate } == true)
             #expect(copy.submenu?.items.map { MainMenu.canonicalShortcut($0) } == ["⌘C", "⌃⌥⌘C", "⌃⇧⌘C", "⌃⌥⇧⌘C"])
             #expect(paste.submenu?.items.map(\.title) == ["Paste", "Move Item Here", "Paste and Preserve Formatting"])
-            // Move Item Here is hidden while there is nothing to move.
             #expect(paste.submenu?.item(withTitle: "Move Item Here")?.isHidden == true)
             var ctx = MenuContext()
             #expect(!MenuConditions.isShown(.itemToMove, in: ctx))
@@ -206,12 +177,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let wc = try r32.window(dir)
         wc.open(path: dir.appendingPathComponent("Sources/Chrome/Model.swift").path, line: nil)
         let tv = wc.editor.textView
-        tv.setSelectedRange(NSRange(location: 14, length: 0))   // in "Model", no selection
-        // Copy is the text view's: disabled with no selection; the variants are enabled.
+        tv.setSelectedRange(NSRange(location: 14, length: 0))
         #expect(!tv.validateMenuItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")))
         #expect(try validated(wc, "copyFileAndLine:").enabled)
         #expect(try validated(wc, "copySymbolName:").enabled && (try validated(wc, "copyQualifiedSymbolName:").enabled))
-        // Paste and Preserve Formatting inserts the text exactly as it is.
         board.clearContents()
         #expect(try validated(wc, "pasteAndPreserveFormatting:").enabled == false)
         board.setString("    let x = 1\n", forType: .string)

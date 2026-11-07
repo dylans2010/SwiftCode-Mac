@@ -6,39 +6,30 @@ private func nsr(_ a: Int, _ l: Int = 0) -> NSRange { NSRange(location: a, lengt
 
 private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineIndex(text).range(ofLine: line)!.location + column }
 
-/// The text commands of `reference-ui-5.md` §6.4, as functions of the text.
 @Suite struct EditorTextCommandsTests {
-    // MARK: Move Line Up / Down (M6)
 
     @Test func moveLines() throws {
         let t = "a\nbb\nccc\n"
-        // Caret on "bb" (column 1): up swaps with "a"; the caret stays on "bb".
         let up = try #require(TextCommands.moveLines(in: t, selection: nsr(3), up: true))
         #expect(up.applied(to: t) == "bb\na\nccc\n" && up.selection == nsr(1))
         let down = try #require(TextCommands.moveLines(in: t, selection: nsr(3), up: false))
         #expect(down.applied(to: t) == "a\nccc\nbb\n" && down.selection == nsr(7))
-        // Two selected lines move together, selection kept.
         let both = try #require(TextCommands.moveLines(in: t, selection: nsr(2, 6), up: true))
         #expect(both.applied(to: t) == "bb\nccc\na\n" && both.selection == nsr(0, 6))
-        // The last line without a newline.
         let u = "x\ny"
         #expect(TextCommands.moveLines(in: u, selection: nsr(2), up: true)?.applied(to: u) == "y\nx")
         #expect(TextCommands.moveLines(in: u, selection: nsr(0), up: false)?.applied(to: u) == "y\nx")
-        // Disabled at the first / last line.
         #expect(!TextCommands.canMoveLines(in: t, selection: nsr(0), up: true))
         #expect(TextCommands.canMoveLines(in: t, selection: nsr(0), up: false))
         #expect(!TextCommands.canMoveLines(in: u, selection: nsr(2), up: false))
         #expect(TextCommands.moveLines(in: u, selection: nsr(2), up: false) == nil)
     }
 
-    // MARK: Shift and Re-Indent (M2, M6)
-
     @Test func shiftLeftAndRight() throws {
         let t = "a\n    b\n\n\tc\n"
         let all = nsr(0, (t as NSString).length)
         #expect(TextCommands.shift(in: t, selection: all, right: true, unit: "    ", indentWidth: 4)?.applied(to: t) == "    a\n        b\n\n    \tc\n")
         #expect(TextCommands.shift(in: t, selection: all, right: false, unit: "    ", indentWidth: 4)?.applied(to: t) == "a\nb\n\nc\n")
-        // The caret follows its text.
         let r = try #require(TextCommands.shift(in: "  foo", selection: nsr(3), right: true, unit: "  ", indentWidth: 2))
         #expect(r.selection == nsr(5))
     }
@@ -82,12 +73,9 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         }
 
         """)
-        // The caret's line only.
         let one = try #require(TextCommands.reindent(in: "if a {\nb\n}\n", selection: nsr(7), language: .swift, unit: "\t"))
         #expect(one.applied(to: "if a {\nb\n}\n") == "if a {\n\tb\n}\n")
     }
-
-    // MARK: Add Documentation (M6)
 
     @Test func addDocumentation() throws {
         let t = """
@@ -110,7 +98,6 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
             @discardableResult
             func increment
         """))
-        // The summary placeholder is selected.
         #expect((out as NSString).substring(with: doc.selection) == "<#Description#>")
         let single = try #require(TextCommands.addDocumentation(in: t, caretLine: 4)).applied(to: t)
         #expect(single.contains("    /// <#Description#>\n    /// - Parameter value: <#value description#>\n    func reset"))
@@ -119,14 +106,11 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         #expect(TextCommands.addDocumentation(in: "// nothing\n", caretLine: 1) == nil)
     }
 
-    // MARK: Format to Multiple Lines, Reformat To Width
-
     @Test func formatToMultipleLines() throws {
         let t = "    let x = f(a, g(b, c), [1, 2])\n"
         let caret = (t as NSString).range(of: "a,").location
         let r = try #require(TextCommands.formatToMultipleLines(in: t, caret: caret, language: .swift, unit: "    "))
         #expect(r.applied(to: t) == "    let x = f(\n        a,\n        g(b, c),\n        [1, 2]\n    )\n")
-        // Inside the inner list: only that list.
         let inner = (t as NSString).range(of: "c)").location
         #expect(TextCommands.formatToMultipleLines(in: t, caret: inner, language: .swift, unit: "  ")?.applied(to: t)
                 == "    let x = f(a, g(\n      b,\n      c\n    ), [1, 2])\n")
@@ -137,10 +121,8 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         let t = "    // one two three four five six seven\n    // eight nine\n    //\n    // next paragraph\nlet x = 1\n"
         let r = try #require(TextCommands.reformatToWidth(in: t, selection: nsr(8), column: 24))
         #expect(r.applied(to: t) == "    // one two three\n    // four five six\n    // seven eight nine\n    //\n    // next paragraph\nlet x = 1\n")
-        #expect(TextCommands.reformatToWidth(in: t, selection: nsr(offset(t, line: 5)), column: 24) == nil) // not a comment
+        #expect(TextCommands.reformatToWidth(in: t, selection: nsr(offset(t, line: 5)), column: 24) == nil)
     }
-
-    // MARK: Selection (M14)
 
     @Test func balanceDelimiters() throws {
         let t = "f(a, [b, c], { d })"
@@ -151,7 +133,6 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         #expect((t as NSString).substring(with: outer) == "[b, c]")
         let next = try #require(TextCommands.balance(in: t, selection: outer, language: .swift))
         #expect((t as NSString).substring(with: next) == "a, [b, c], { d }")
-        // Delimiters in strings do not count.
         let s = "g(\"(\", x)"
         #expect(TextCommands.balance(in: s, selection: nsr(7), language: .swift).map { (s as NSString).substring(with: $0) } == "\"(\", x")
     }
@@ -159,7 +140,6 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
     @Test func splitAndColumnSelections() {
         let t = "abc\n\nde\nfghij"
         #expect(TextCommands.splitByLines(in: t, selection: nsr(1, 9)) == [nsr(1, 2), nsr(4, 0), nsr(5, 2), nsr(8, 2)])
-        // Same column, clamped to the line end.
         #expect(TextCommands.columnOffset(in: t, from: 2, up: false) == 4)
         #expect(TextCommands.columnOffset(in: t, from: 11, up: true) == 7)
         #expect(TextCommands.columnOffset(in: t, from: 1, up: true) == nil)
@@ -174,10 +154,8 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         func b() { print(n) }
         let n = 2
         """
-        // A local: only inside its function, not in strings or comments.
         let local = TextCommands.occurrences(in: t, at: offset(t, line: 2, column: 8), language: .swift)
         #expect(local.map(\.location) == [offset(t, line: 2, column: 8), offset(t, line: 3, column: 10)])
-        // A file-level name: the whole file.
         let global = TextCommands.occurrences(in: t, at: offset(t, line: 6, column: 4), language: .swift)
         #expect(global.count == 4)
     }
@@ -194,8 +172,6 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         #expect(TextCommands.symbolName(in: t, at: offset(t, line: 1, column: 9), language: .swift, qualified: true) == "Counter")
         #expect(TextCommands.symbolName(in: t, at: offset(t, line: 3), language: .swift, qualified: false) == nil)
     }
-
-    // MARK: Folding (M7)
 
     @Test func functionAndCommentRegions() {
         let t = """
@@ -230,11 +206,8 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         #expect(FoldRegions.functionRegions(in: c, language: .c).map(\.startLine) == [1])
     }
 
-    // MARK: Change gutter (E3)
-
     @Test func sourceChangeRegions() throws {
         let head = "a\nb\nc\nd\ne\n"
-        // Working copy: b modified, line added after d, e deleted.
         let text = "a\nB\nc\nd\nnew\n"
         let r = SourceChanges.regions(text: text, index: head, head: head)
         #expect(r.map(\.kind) == [.modified, .modified])
@@ -245,22 +218,17 @@ private func offset(_ text: String, line: Int, column: Int = 0) -> Int { LineInd
         let deleted = SourceChanges.regions(text: "a\nd\ne\n", index: head, head: head)
         #expect(deleted == [SourceChangeRegion(kind: .deleted, firstLine: 2, lineCount: 0, staged: false)])
         #expect(deleted[0].accessibilityDescription == "Local modification on line 2" && deleted[0].toolTip == "Unstaged change")
-        // A staged change: the index has it, the text matches the index there.
         let index = "A\nb\nc\nd\ne\n"
         let staged = SourceChanges.regions(text: "A\nb\nc\nd\nE\n", index: index, head: head)
         #expect(staged.map(\.staged) == [true, false] && staged.map(\.firstLine) == [1, 5])
         #expect(staged[0].toolTip == "Staged change")
-        // Not in git: nothing.
         #expect(SourceChanges.regions(text: text, index: nil, head: nil).isEmpty)
-        // Stepping wraps.
         #expect(SourceChanges.step(from: 1, in: r, forward: true)?.firstLine == 2)
         #expect(SourceChanges.step(from: 2, in: r, forward: true)?.firstLine == 5)
         #expect(SourceChanges.step(from: 5, in: r, forward: true)?.firstLine == 2)
         #expect(SourceChanges.step(from: 2, in: r, forward: false)?.firstLine == 5)
         #expect(SourceChanges.step(from: 9, in: [], forward: true) == nil)
     }
-
-    // MARK: Counterparts (Navigate, M12)
 
     @Test func counterpartRingWraps() throws {
         let files = ["/p/A.h", "/p/A.m", "/p/ATests.m", "/p/B.swift"]

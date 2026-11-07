@@ -4,9 +4,6 @@ import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 @testable import SwiftCodeHostServices
 
-/// com.apple.audio.audiohald (audio-host.md), driven by a second host task
-/// acting as a guest CoreAudio client: message IDs and exact reply sizes,
-/// the object model, aggregate creation, the IO cycle and the workgroup port.
 @Suite(.serialized) struct AudioHostServiceTests {
     static let base = AudioHostService.base
     static let ndr: [UInt8] = [0, 0, 0, 0, 1, 0, 0, 0]
@@ -33,7 +30,6 @@ import SwiftCodeDarwinABI
 
         deinit { service.stop() }
 
-        /// Sends request n and returns the reply.
         func call(_ n: Int32, to port: UInt32? = nil, _ words: [UInt32] = [], descriptors: [MachHostDescriptor] = [])
             throws -> MachHostReceivedMessage {
             try guest.send(MachHostOutgoingMessage(remotePort: port ?? server, remoteDisposition: MachMsgType.copySend,
@@ -91,7 +87,6 @@ import SwiftCodeDarwinABI
         m.descriptors.compactMap { if case let .port(name, _) = $0 { return name } else { return nil } }
     }
 
-    /// Register the way a client does (message 71: notification port, process name).
     @discardableResult
     func register(_ c: Client, name: String = "probe") throws -> UInt32 {
         let port = try c.guest.makePort()
@@ -106,7 +101,6 @@ import SwiftCodeDarwinABI
         let c = try Client()
         try register(c)
         let dev = AudioObjectModel.deviceID
-        // System: version, empty lists, the device list, the defaults.
         #expect(try c.has(1, "vers") == 1)
         let vers = try c.get(16, 1, "vers")
         #expect(vers.size == 40 && Self.word(vers.body, 0) == 0 && Self.word(vers.body, 1) == 1)
@@ -117,12 +111,10 @@ import SwiftCodeDarwinABI
         #expect(Self.word(try c.get(16, 1, "mlkf").body, 1) == 2)
         let setPower = try c.call(30, [1, fourCC("powh"), Self.glob, 0, 0])
         #expect(setPower.size == 36 && Self.word(setPower.body, 0) == 0)
-        // Message 2: the object's port and classes.
         let obj = try c.call(2, [dev])
         #expect(obj.size == 56 && obj.isComplex && Self.ports(obj).count == 1)
         #expect(Self.word(obj.body, 0) == fourCC("adev") && Self.word(obj.body, 1) == fourCC("aobj"))
         let devPort = Self.ports(obj)[0]
-        // Requests about the device go to its port.
         let uid = try c.call(21, to: devPort, [dev, fourCC("uid "), Self.glob, 0])
         #expect(uid.size == 56)
         let units = Self.ool(uid)
@@ -145,11 +137,9 @@ import SwiftCodeDarwinABI
         #expect(try c.call(14, [dev, fourCC("appv"), Self.outp, 0]).size == 40)
         let vol = try c.call(31, [dev, fourCC("appv"), Self.outp, 0, Float(0.6).bitPattern])
         #expect(vol.size == 36 && Self.word(vol.body, 0) == 0)
-        // The 'ioct' description.
         let ioct = try c.plist(dev, "ioct")
         #expect((ioct["device id"] as? NSNumber)?.uint32Value == dev && ioct["master uid"] as? String == AudioObjectModel.deviceUID)
         #expect((ioct["grid-out"] as? [[String: Any]])?.first?["channels"] as? NSNumber == 2)
-        // The stream.
         let stream = AudioObjectModel.streamID
         let s = try c.call(2, [stream])
         #expect(Self.word(s.body, 0) == fourCC("astr"))
@@ -160,7 +150,6 @@ import SwiftCodeDarwinABI
         let asbd = Self.ool(fmt)
         #expect(asbd.count == 40 && Self.f64(asbd, 0) == 48_000 && Self.u32(asbd, 8) == fourCC("lpcm") && Self.u32(asbd, 12) == 9)
         #expect(Self.u32(asbd, 16) == 8 && Self.u32(asbd, 24) == 8 && Self.u32(asbd, 28) == 2 && Self.u32(asbd, 32) == 32)
-        // A listener (one-way, no reply), then an unknown routine: MIG_BAD_ID.
         try c.guest.send(MachHostOutgoingMessage(remotePort: c.server, id: Self.base + 35,
                                                  body: Self.ndr + [1, fourCC("****"), fourCC("****"), 0xFFFF_FFFF].flatMap(Self.le32)))
         let bad = try c.call(99, [1])
@@ -182,7 +171,6 @@ import SwiftCodeDarwinABI
         #expect(made.size == 40 && Self.word(made.body, 0) == 0)
         let agg = Self.word(made.body, 1)
         #expect(agg != 0 && agg != dev)
-        // It is in this process's device list.
         #expect(try c.u32s(1, "dev#") == [dev, agg])
         let o = try c.call(2, [agg])
         #expect(Self.word(o.body, 0) == fourCC("aagg") && Self.word(o.body, 1) == fourCC("adev"))
@@ -194,7 +182,6 @@ import SwiftCodeDarwinABI
         #expect(try c.has(sub[0], "cust") == 1)
         #expect(try c.u32s(agg, "stm#", Self.outp).count == 1)
         #expect(try c.u32s(agg, "agrp") == [dev])
-        // Settable channel preferences and layout.
         #expect(Self.word(try c.call(14, [agg, fourCC("dch2"), Self.outp, 0]).body, 1) == 1)
         let set = try c.call(46, [agg, fourCC("dch2"), Self.outp, 0, 2], descriptors: [.ool(data: [1, 0, 0, 0, 2, 0, 0, 0])])
         #expect(set.size == 36 && Self.word(set.body, 0) == 0)
@@ -202,16 +189,13 @@ import SwiftCodeDarwinABI
         let setLayout = try c.call(29, [agg, fourCC("srnd"), Self.outp, 0, 0, UInt32(layout.count)],
                                    descriptors: [.ool(data: []), .ool(data: layout)])
         #expect(setLayout.size == 36 && Self.word(setLayout.body, 0) == 0)
-        // The composition and the aggregate's 'ioct'.
         let acom = try c.plist(agg, "acom")
         let entry = try #require((acom["subdevices"] as? [[String: Any]])?.first)
         #expect(entry["drift quality"] as? NSNumber == 127 && entry["latency-out"] as? NSNumber == 0 && entry["don't pad"] != nil)
         let ioct = try c.plist(agg, "ioct")
         #expect((ioct["device id"] as? NSNumber)?.uint32Value == agg && ioct["LDCM"] as? Bool == false)
-        // The same UID again: 'nope'.
         let again = try c.call(5, [UInt32(xml.count)], descriptors: [.ool(data: xml)])
         #expect(Self.word(again.body, 0) == fourCC("nope"))
-        // Another process does not see the private aggregate.
         let other = try MachHostTask.makeGuest(c.system, pid: 999)
         let otherServer = try c.system.hostTask.give(c.service.servicePort, disposition: MachMsgType.copySend, to: other.ipc)
         let otherReply = try other.makePort()
@@ -226,7 +210,6 @@ import SwiftCodeDarwinABI
         let c = try Client(pid: 777)
         try register(c)
         let dev = AudioObjectModel.deviceID
-        // An IO context from the device's description.
         let desc = Self.ool(try c.get(27, dev, "ioct"))
         let made = try c.call(3, [UInt32(desc.count)], descriptors: [.ool(data: desc)])
         #expect(made.size == 40 && Self.word(made.body, 0) == 0)
@@ -244,7 +227,6 @@ import SwiftCodeDarwinABI
         let port = try c.guest.makePort()
         let setPort = try c.call(10, [ctx], descriptors: [.port(name: port, disposition: MachMsgType.makeSend)])
         #expect(setPort.size == 36 && Self.word(setPort.body, 0) == 0)
-        // Start: the IO port, the region's memory entry and its size.
         let wake = try c.guest.makePort()
         let start = try c.call(63, [ctx], descriptors: [.port(name: wake, disposition: MachMsgType.makeSend)])
         #expect(start.size == 64 && Self.ports(start).count == 2 && Self.word(start.body, 0) == 65_536)
@@ -257,15 +239,12 @@ import SwiftCodeDarwinABI
         func u64(_ at: Int) -> UInt64 { region.load(fromByteOffset: at, as: UInt64.self) }
         #expect(f64(0) == 500 && f64(8) == 1.0 / 500 && f64(0x10) == 1 && u32(0x18) == 512)
         #expect(u32(0x4000) == 1 && u32(0x4004) == 8_192)
-        // The workgroup: a joinable CoreAudio work interval.
         let wg = try c.call(59, [ctx])
         #expect(wg.size == 40 && wg.isComplex && wg.body.isEmpty && Self.ports(wg).count == 1)
         let wi = try #require(c.guest.workInterval(named: Self.ports(wg)[0]))
         #expect(wi.createFlags & WorkIntervalABI.flagJoinable != 0 && wi.createFlags & WorkIntervalABI.typeMask == WorkIntervalABI.typeCoreAudio)
-        // A second ask gives the same workgroup.
         #expect(c.guest.workInterval(named: Self.ports(try c.call(59, [ctx]))[0]) === wi)
 
-        // The cycle: client message n → wake n + 1, paced at 512 frames per 48 kHz.
         func cycle(_ id: UInt32) throws -> (MachHostReceivedMessage, UInt64) {
             try c.guest.send(MachHostOutgoingMessage(remotePort: ioPort, id: Int32(bitPattern: id)))
             let w = try c.guest.receive(on: wake, timeout: 5_000_000_000)
@@ -277,13 +256,11 @@ import SwiftCodeDarwinABI
         #expect(u32(0x60 + 56) == 7 && u32(0x20 + 56) == 3 && f64(0x60 + 16) == 1)
         let host0 = u64(0x68)
         #expect(u64(0xE8) == host0 + 512 * 500)
-        // Output for the cycle.
         let out = region.advanced(by: 0x8000).assumingMemoryBound(to: Float.self)
         for i in 0..<1024 { out[i] = 0.25 }
         let (w2, t2) = try cycle(1)
         #expect(w2.id == 2 && u32(0x124) == 2 && f64(0x60) == 512 && u64(0x68) == host0 + 512 * 500)
-        #expect(t2 - t1 >= 8_000_000)  // paced: about 10.7 ms after the first wake
-        // Late by more than a cycle: wake 0 restarts the numbering at the clock's cycle.
+        #expect(t2 - t1 >= 8_000_000)
         Thread.sleep(forTimeInterval: 0.05)
         let (w3, _) = try cycle(2)
         #expect(w3.id == 0 && u32(0x124) == 0 && f64(0x60) >= 2048)
@@ -291,7 +268,6 @@ import SwiftCodeDarwinABI
         let (w4, _) = try cycle(0)
         #expect(w4.id == 1)
         #expect(c.service.cycles(of: ctx) == 4)
-        // Stop.
         let stop = try c.call(12, [ctx])
         #expect(stop.size == 36 && Self.word(stop.body, 0) == 0)
         #expect(c.service.runningContexts.isEmpty)
@@ -312,19 +288,12 @@ import SwiftCodeDarwinABI
         let entry = try #require(c.guest.memoryEntry(Self.ports(start)[1]))
         #expect(entry.size == 245_760 && entry.object.host.load(fromByteOffset: 0x4004, as: UInt32.self) == 196_608)
         #expect(c.service.aggregateCount == 1 && c.service.runningContexts == [ctx])
-        // The client's registration port dies: its aggregate and IO go.
         try c.guest.destroyPort(regPort)
         let deadline = Date().addingTimeInterval(5)
         while c.service.aggregateCount > 0 && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
         #expect(c.service.aggregateCount == 0 && c.service.runningContexts.isEmpty)
     }
 
-    /// The service's state read as a snapshot reads it (snapshot.md §3.1
-    /// step 4): under the kernel lock, with no host-service message in hand,
-    /// the service lock only tried; a failed try is a retry after 1 ms, up
-    /// to the 5 s deadline. The service thread takes its lock on every turn
-    /// of its loop (and holds it while it sends a wake), so one try right
-    /// after the client's wake can find it taken.
     func settledSnapshot(_ c: Client) -> SnapshotFields? {
         let deadline = Date().addingTimeInterval(5)
         while true {
@@ -336,8 +305,6 @@ import SwiftCodeDarwinABI
         }
     }
 
-    /// A snapshot keeps the objects, the clients and running IO; the service
-    /// of the restored run takes them back and wakes the client with 0.
     @Test func snapshotRoundTrip() throws {
         let c = try Client(pid: 88)
         try register(c, name: "backboardd")
@@ -356,8 +323,7 @@ import SwiftCodeDarwinABI
         #expect(try c.guest.receive(on: wake, timeout: 5_000_000_000).id == 1)
         let saved = try #require(settledSnapshot(c))
         c.service.stop()
-        #expect(c.service.waitUntilStopped())  // its thread leaves its receive
-        // The restored run's service over the same host task.
+        #expect(c.service.waitUntilStopped())
         let b = try AudioHostService(host: c.system.hostTask, log: { _ in }, capturePath: nil)
         b.start()
         defer { b.stop() }
@@ -366,8 +332,7 @@ import SwiftCodeDarwinABI
         b.resumeRestoredIO()
         let w = try c.guest.receive(on: wake, timeout: 5_000_000_000)
         #expect(w.id == 0 && region.load(fromByteOffset: 0x124, as: UInt32.self) == 0)
-        #expect(region.load(fromByteOffset: 0x60, as: Double.self) == 512)  // the cycle after the saved one
-        // Requests on the restored object port are served; the cycle goes on.
+        #expect(region.load(fromByteOffset: 0x60, as: Double.self) == 512)
         let fsiz = try c.call(16, to: ctxPort, [ctx, fourCC("fsiz"), Self.glob, 0])
         #expect(Self.word(fsiz.body, 1) == 512)
         try c.guest.send(MachHostOutgoingMessage(remotePort: ioPort, id: 0))
@@ -380,12 +345,9 @@ import SwiftCodeDarwinABI
         let w = try AudioCaptureWriter(path: path, sampleRate: 48_000, channels: 2)
         let t0: UInt64 = 1_000_000_000
         let block = [Float](repeating: 0.5, count: 1024)
-        // Two clients play the same 512 frames: they add up.
         w.add(block, at: t0)
         w.add(block, at: t0)
-        // The next block, 10.67 ms later.
         w.add([Float](repeating: -0.25, count: 1024), at: t0 + 10_666_667)
-        // Five seconds of nothing, then a block: the gap is left out.
         w.add(block, at: t0 + 5_000_000_000)
         w.close()
         let data = [UInt8](try Data(contentsOf: URL(fileURLWithPath: path)))
@@ -394,7 +356,7 @@ import SwiftCodeDarwinABI
         let frames = Int(Self.u32(data, 40)) / 4
         #expect(frames == 1536 && data.count == 44 + frames * 4)
         func sample(_ i: Int) -> Int16 { Int16(bitPattern: UInt16(data[44 + 2 * i]) | UInt16(data[45 + 2 * i]) << 8) }
-        #expect(sample(0) == 32767 && sample(1023) == 32767)  // 0.5 + 0.5, clipped at full scale
+        #expect(sample(0) == 32767 && sample(1023) == 32767)
         #expect(sample(1024) == Int16(-0.25 * 32767))
         #expect(sample(2048) == Int16(0.5 * 32767))
         #expect(w.nonZeroSamples == 4096 && w.peak == 0.5)
@@ -407,7 +369,6 @@ import SwiftCodeDarwinABI
         #expect(m.value(AudioObjectModel.deviceID, AudioPropertyAddress("abcd"), pid: 1) == nil)
         #expect(m.value(12345, AudioPropertyAddress("clas"), pid: 1) == nil)
         #expect(m.set(1, AudioPropertyAddress("dev#"), .u32s([])) == AudioHAL.unknownProperty)
-        // 'fsiz' of an IO context is settable within the range.
         let desc = m.ioContextDescription(AudioObjectModel.deviceID)
         guard case let .success(ctx) = m.createIOContext(description: desc, pid: 1) else {
             Issue.record("no context")
@@ -420,7 +381,6 @@ import SwiftCodeDarwinABI
 }
 
 extension MachHostTask {
-    /// A second host task standing for a guest process (tests).
     static func makeGuest(_ system: DarwinSystem, pid: Int32) throws -> MachHostTask {
         let t = system.lock.withLock { MachHostTask(lock: system.lock, system: system.mach, log: { _ in }) }
         t.pid = pid

@@ -1,11 +1,3 @@
-//
-//  MuseSDKToolCall.swift
-//  SwiftCode
-//
-//  Dedicated UI displayed when calling Muse tools.
-//  Uses clean blue styling, badge "Muse Tool", with no all-caps headings and no "SDK" references.
-//
-
 import SwiftUI
 import AppKit
 
@@ -81,29 +73,24 @@ public struct MuseSDKToolCall: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Main Summary Row Button
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     isOpen.toggle()
                 }
             } label: {
                 HStack(spacing: 8) {
-                    // Status Icon
                     statusIcon
 
-                    // Muse SF Symbol in Blue
                     Image(systemName: "cpu.fill")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.blue)
                         .frame(width: 16, height: 16)
 
-                    // Human-Readable Title
                     Text(displayTitle)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
 
-                    // Distinct Muse Tool Badge in Blue (No SDK, no uppercase)
                     HStack(spacing: 3) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 8, weight: .bold))
@@ -117,14 +104,12 @@ public struct MuseSDKToolCall: View {
 
                     Spacer(minLength: 4)
 
-                    // Duration
                     if tool.duration > 0 {
                         Text(String(format: "%.1fs", tool.duration))
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.tertiary)
                     }
 
-                    // Chevron
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -136,7 +121,6 @@ public struct MuseSDKToolCall: View {
             }
             .buttonStyle(.plain)
 
-            // Expanded Details
             if isOpen {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()

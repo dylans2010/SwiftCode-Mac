@@ -6,17 +6,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_EDITORS=<shot prefix>: a walk through the property list, asset
-// catalog and String Catalog editors on OpenViews (issues #19, #20). The
-// workspace must hold the files named by SWIFTCODE_IDE_EDITORS_FILES (a
-// comma-separated list of names, default "Info.plist,Binary.plist,
-// Legacy.plist,Assets.xcassets,Localizable.xcstrings"). Each step prints
-// "editors <step>: ..." and writes <prefix>-<step>.png. Edits go through the
-// pointer and keyboard where the step says so, else through the model, and
-// each file's bytes are checked after its round trip: "unchanged" (opened,
-// not edited) or the format it was written in. Removed asset sets go to
-// the trash ($XDG_DATA_HOME/Trash), so run it with XDG_DATA_HOME set.
-
 #if os(Linux)
 @MainActor
 enum EditorsDriver {
@@ -34,7 +23,6 @@ enum EditorsDriver {
         func bytes(_ p: String) -> Data { (try? Data(contentsOf: URL(fileURLWithPath: p))) ?? Data() }
         func click(_ target: String, dx: CGFloat? = nil) async { await ShellDriver.click(target, dx: dx) }
 
-        // A plain look first: open each file and leave it; nothing is written.
         for n in names {
             guard let p = path(n), !n.hasSuffix(".xcassets") else { continue }
             let before = bytes(p)
@@ -43,8 +31,6 @@ enum EditorsDriver {
             say("round trip \(n): \(bytes(p) == before ? "unchanged" : "CHANGED") editor=\(w.editorKind.rawValue)")
         }
 
-        // From the project navigator with the pointer: open the folders
-        // above the catalog, then click it.
         if let p = path("Assets.xcassets"), let ids = w.root.idPath(to: p) {
             for id in ids.dropLast() where !w.isExpanded(id) {
                 guard let item = w.root.find(id: id) else { continue }
@@ -60,10 +46,8 @@ enum EditorsDriver {
             await shot("navigator-assets")
         }
 
-        // MARK: Property list (XML)
         if let p = path("Info.plist"), case .propertyList(let m)? = { w.open(p); return w.structuredEditor }() {
             await shot("plist")
-            // Select CFBundleName with the pointer, then edit its value by typing.
             if let row = m.rows.first(where: { $0.rawKey == "CFBundleName" }) {
                 await click("plist row \(row.key)", dx: 40)
                 await ShellDriver.pause(0.3)
@@ -75,7 +59,6 @@ enum EditorsDriver {
                 say("plist typed value: \(m.tree.item(at: row.path)?.summary ?? "?") saves=\(m.saveCount)")
             }
             await shot("plist-edited-value")
-            // + on the selected row, then a type change and a key.
             await click("plist add")
             let added = m.selection ?? []
             m.setType("Boolean", at: added)
@@ -84,24 +67,20 @@ enum EditorsDriver {
             m.moveSelected(by: -1)
             say("plist added: path=\(m.selection ?? []) rows=\(m.rows.count)")
             await shot("plist-added")
-            // A refused value.
             if let n = m.rows.first(where: { $0.type == "Number" }) { m.setValueText("twelve", at: n.path) }
             say("plist refused: \(m.problem ?? "none")")
             await shot("plist-refused")
             m.clearProblem()
-            // Raw keys through the Editor menu.
             await ShellDriver.clickText("Editor", inPopup: false)
             await shot("plist-editor-menu")
             await ShellDriver.clickText("Raw Keys and Values", inPopup: true)
             say("plist raw keys: \(m.showsRawKeys)")
             await shot("plist-raw-keys")
             m.showsRawKeys = false
-            // Sort by Key.
             await click("plist header", dx: 20)
             say("plist sort: \(m.sortColumn?.rawValue ?? "none")")
             await shot("plist-sorted")
             m.sort(by: .key); m.sort(by: .key)
-            // Open As Source Code and back.
             await click("open as source")
             OpenViewsAutomation.move(to: CGPoint(x: 700, y: 600))
             say("plist source view: \(w.isShowingSourceView) lines=\(w.editor?.buffer.lineCount ?? 0)")
@@ -113,7 +92,6 @@ enum EditorsDriver {
             say("plist file: xml=\(text.hasPrefix("<?xml")) hasFlag=\(text.contains("<key>SwiftCodeFlag</key>")) name=\(text.contains("Edited Name"))")
         }
 
-        // MARK: Binary and OpenStep
         if let p = path("Binary.plist"), case .propertyList(let m)? = { w.open(p); return w.structuredEditor }() {
             m.selection = []
             m.addItem()
@@ -127,7 +105,6 @@ enum EditorsDriver {
             await shot("plist-openstep")
         }
 
-        // MARK: Asset catalog
         if let p = path("Assets.xcassets"), case .assetCatalog(let m)? = { w.open(p); return w.structuredEditor }() {
             w.isInspectorShown = true
             await shot("assets")
@@ -144,7 +121,6 @@ enum EditorsDriver {
                 m.setAppearances("Any, Dark")
                 await shot("assets-color-edited")
             }
-            // Editor ▸ Add New Asset ▸ (the menu bar's way to the "+" items).
             await ShellDriver.clickText("Editor", inPopup: false)
             if let add = OpenViewsAutomation.texts().first(where: { $0.inPopup && $0.text == "Add New Asset" }) {
                 OpenViewsAutomation.move(to: CGPoint(x: add.frame.midX, y: add.frame.midY))
@@ -157,7 +133,6 @@ enum EditorsDriver {
             await ShellDriver.pause(0.2)
             OpenViewsAutomation.press(.escape)
             await ShellDriver.pause(0.3)
-            // "+" ▸ Image Set with the pointer.
             await click("assets add")
             await shot("assets-add-menu")
             await ShellDriver.clickText("Image Set", inPopup: true)
@@ -172,7 +147,6 @@ enum EditorsDriver {
                 m.select(icon.id)
                 await shot("assets-app-icon")
             }
-            // "−": the new image set goes to the trash.
             if let made = m.rows.first(where: { $0.name.hasPrefix("Image") && $0.set?.kind == .imageSet }) {
                 m.select(made.id)
                 await click("assets remove")
@@ -186,7 +160,6 @@ enum EditorsDriver {
             m.setFilter("")
         }
 
-        // MARK: String Catalog
         if let p = path("Localizable.xcstrings"), case .stringCatalog(let m)? = { w.open(p); return w.structuredEditor }() {
             await shot("strings")
             if let de = m.languages.first(where: { $0 != m.catalog.sourceLanguage }) {
@@ -213,7 +186,6 @@ enum EditorsDriver {
             m.sort(by: .state)
             await shot("strings-sorted")
         }
-        // Reopen: close each file, open it again, and read what was saved.
         for n in names {
             guard let p = path(n) else { continue }
             w.open(p)

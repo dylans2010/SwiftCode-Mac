@@ -1,21 +1,10 @@
-// ProjectTemplateView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/ProjectTemplateView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: apply-template with GitHub repository initialization and progress log
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeGitHub
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
 
-// MARK: - Project Template View
-
 struct ProjectTemplateView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
-    // `LegacyProjectTemplateManager` is @Observable, not ObservableObject,
-    // so @StateObject cannot hold it; @State holds the @Observable
-    // reference instead (same pattern as ModelLinkInstallGuideView).
     @State private var templateManager = ProjectTemplateManager.shared
     @State private var selectedTemplate: LegacyProjectTemplate?
     @State private var showApplyConfirm = false
@@ -27,7 +16,6 @@ struct ProjectTemplateView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 1. Overview Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -45,7 +33,6 @@ struct ProjectTemplateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Templates Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -77,7 +64,6 @@ struct ProjectTemplateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Selection Details & Actions Card
                 if let selected = selectedTemplate {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -142,8 +128,6 @@ struct ProjectTemplateView: View {
         }
     }
 
-    // MARK: - Apply
-
     private func applyTemplate() {
         guard let template = selectedTemplate,
               let project = sessionStore.activeProject else {
@@ -154,16 +138,10 @@ struct ProjectTemplateView: View {
 
         isInitializingRepo = true
 
-        // @MainActor: the Legacy-signature `applyTemplate` overload and
-        // `Project.directoryURL` are both MainActor-isolated.
         Task { @MainActor in
             do {
                 try templateManager.applyTemplate(template, to: project)
 
-                // Block until repository is initialized. GitHubService
-                // cannot take the Project model (SwiftCodeGitHub has no
-                // dependency on it), so the owner/repo and directory are
-                // passed as primitives.
                 let repoURL = project.githubRepo ?? ""
                 let repoParts = repoURL.split(separator: "/")
                 guard repoParts.count == 2 else {
@@ -198,8 +176,6 @@ struct ProjectTemplateView: View {
         }
     }
 }
-
-// MARK: - Template Row
 
 private struct TemplateRowView: View {
     let template: LegacyProjectTemplate
@@ -259,8 +235,6 @@ private struct TemplateRowView: View {
         .onTapGesture { onSelect() }
     }
 }
-
-// MARK: - Template Detail
 
 private struct TemplateDetailView: View {
     let template: LegacyProjectTemplate

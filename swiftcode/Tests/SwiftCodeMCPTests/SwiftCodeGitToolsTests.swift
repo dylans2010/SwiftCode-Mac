@@ -3,46 +3,13 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Git / source-control tools (Wave 3, Git slice),
-/// each driven black-box through the server's real write-policy path
-/// against a throwaway git repository built in a temporary folder.
-///
-/// Behaviour source: Legacy `AssistConflictMarkerScanTool`,
-/// `AssistGitBisectTool`, `AssistGitBlameTool`,
-/// `AssistGitBranchCompareTool`, `AssistGitBranchManagerTool`,
-/// `AssistGitCherryPickTool`, `AssistGitConflictResolverTool`,
-/// `AssistGitLogViewerTool`, `AssistGitPRSummaryTool`,
-/// `AssistGitStashTool`, `AssistGitHubRepoTool`,
-/// `AssistRecentChangesTool` and `AssistVersionControlOperator`
-/// (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk / git state),
-/// never on internals. Messages quoted verbatim are Legacy's; where
-/// the SwiftCode port may legitimately word a failure differently
-/// (path-safety wording), the test asserts the behaviour plus a
-/// tolerant message match.
-///
-/// `github_repo` reads live repositories through the shared
-/// `GitHubClient` (Wave 10); its tests run against the URLProtocol
-/// stub (`installGitHubStub` in TestSupport), never the live
-/// network.
-///
-/// The test repositories carry a LOCAL git identity (user.name /
-/// user.email / no signing in `.git/config`), so the tools' own git
-/// runs can commit and cherry-pick without depending on — or
-/// waiting because of — the machine's global git configuration.
 @MainActor
 @Suite(.serialized) struct SwiftCodeGitToolsTests {
-    /// The 13 Wave 3 Git tool IDs, verified live from the Legacy
-    /// registry (`AssistToolRegistry.registerAllTools` + each
-    /// tool's `id`).
     static let gitIDs = ["conflict_marker_scan", "git_bisect", "git_blame_inspector", "git_branch_compare",
                          "git_branch_manager", "git_cherry_pick", "git_conflict_resolver", "git_log_viewer",
                          "git_pr_summary", "git_stash_operator", "github_repo", "recent_changes",
                          "version_control_operator"]
 
-    /// Runs git in `dir` (identity via `-c`, global config ignored)
-    /// and returns stdout; throws with stderr when git exits non-zero.
     static func git(_ dir: URL, _ args: String...) throws -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
@@ -56,8 +23,6 @@ import SwiftCodeAssistant
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
-        // stderr on its own thread: reading the two pipes one after the
-        // other deadlocks when the child fills the second one first.
         final class Box: @unchecked Sendable { var data = Data() }
         let errBox = Box()
         let group = DispatchGroup()
@@ -74,10 +39,6 @@ import SwiftCodeAssistant
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// A Swift package in a git repository: `main` with one commit
-    /// ("Initial commit"), plus a `feature` branch. The repository's
-    /// local config carries the test identity, so the tools under
-    /// test can commit and cherry-pick in it.
     func makeRepo(_ name: String, diverged: Bool = false) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-git-\(name)-\(UUID().uuidString)")
         let sources = dir.appendingPathComponent("Sources/App")
@@ -104,7 +65,6 @@ import SwiftCodeAssistant
         return dir
     }
 
-    /// A Swift package folder with NO git repository.
     func makePlainFolder(_ name: String) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-git-\(name)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir.appendingPathComponent("Sources/App"), withIntermediateDirectories: true)
@@ -113,28 +73,17 @@ import SwiftCodeAssistant
         return dir
     }
 
-    /// A bare repository inside `workspace`, used as the "remote"
-    /// for push/pull/fetch/clone: a local path inside the workspace
-    /// is an allowed remote under the Wave 10 URL policy, so no
-    /// network is involved.
     func makeBareRemote(in workspace: URL, name: String = "remote.git") throws -> URL {
         _ = try Self.git(workspace, "init", "--bare", "-q", name)
         return workspace.appendingPathComponent(name)
     }
 
-    /// A second working copy cloned from `remote` into a fresh
-    /// temporary folder (test scaffolding only — the tools under
-    /// test never see a path outside the workspace).
     func makeSecondCopy(_ name: String, from remote: URL) throws -> URL {
         let dest = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-git-\(name)-\(UUID().uuidString)")
         _ = try Self.git(FileManager.default.temporaryDirectory, "clone", "-q", remote.path, dest.path)
         return dest
     }
 
-    /// Opens `dir` and installs the ported Git tools on the server
-    /// (same shape as Wave 2's `opened`, which installs
-    /// `fileWritingTools` the same way — `installTools()` does not
-    /// wire `gitTools` yet; the coordinator owns that).
     func opened(_ dir: URL, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -164,8 +113,6 @@ import SwiftCodeAssistant
         FileManager.default.fileExists(atPath: dir.appendingPathComponent(rel).path)
     }
 
-    // MARK: - Registration
-
     @Test func gitToolsListTheThirteenTools() async throws {
         let host = SwiftCodeMCPHost()
         let tools = host.gitTools
@@ -188,8 +135,6 @@ import SwiftCodeAssistant
             }
         }
     }
-
-    // MARK: - Read-only git tools
 
     @Test func logViewerListsCommits() async throws {
         let dir = try makeRepo("log", diverged: true)
@@ -232,8 +177,6 @@ import SwiftCodeAssistant
         let host = try await opened(dir)
         let r = try await host.server.callTool("git_blame_inspector", ["path": .string("Sources/App/main.swift")])
         #expect(!r.isToolError, "\(r.resultText)")
-        // Legacy's output is the `git blame -s` rendering: short hash,
-        // line number, line text (no author — `-s` suppresses it).
         #expect(r.resultText.contains("Git blame for `Sources/App/main.swift`") && r.resultText.contains("let a = 2"))
         let ranged = try await host.server.callTool("git_blame_inspector", ["path": .string("Sources/App/main.swift"),
                                                                              "startLine": .int(1), "endLine": .int(1)])
@@ -279,8 +222,6 @@ import SwiftCodeAssistant
         #expect(r.structured?["insertions"]?.int == 1 && r.structured?["deletions"]?.int == 0)
     }
 
-    // MARK: - Writing git tools and the approval gate
-
     @Test func branchManagerListsCreatesAndRefusesInReadOnlyMode() async throws {
         let dir = try makeRepo("branches", diverged: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -294,8 +235,6 @@ import SwiftCodeAssistant
         #expect(current.resultText.contains("topic/x"))
         let badName = try await host.server.callTool("git_branch_manager", ["action": .string("create"), "branchName": .string("--help")])
         #expect(badName.isToolError && badName.resultText.contains("Invalid branch name"))
-        // Read-only mode refuses even the read actions of this
-        // writes:true tool (the Wave 2 dry-run precedent).
         let readOnlyHost = try await opened(dir)
         let refused = try await readOnlyHost.server.callTool("git_branch_manager", ["action": .string("list")])
         #expect(refused.isToolError && refused.resultText.contains("read-only"), "\(refused.resultText)")
@@ -354,8 +293,6 @@ import SwiftCodeAssistant
     @Test func conflictResolverInspectsAndTakesOurs() async throws {
         let dir = try makeRepo("resolve")
         defer { try? FileManager.default.removeItem(at: dir) }
-        // `inspect` is a read, but the tool is writes:true, so a
-        // read-only server refuses it (same rule as branch list).
         let readOnlyHost = try await opened(dir)
         try writeFile(dir, "Sources/App/Conflicted.swift", "let a = 1\n<<<<<<< HEAD\nlet b = 1\n=======\nlet b = 2\n>>>>>>> feature\nprint(a)\n")
         let refused = try await readOnlyHost.server.callTool("git_conflict_resolver",
@@ -368,8 +305,6 @@ import SwiftCodeAssistant
                                                      "resolution": .string("inspect")])
         #expect(!report.isToolError, "\(report.resultText)")
         #expect(report.resultText.contains("Detected 1 Merge Conflict") && report.resultText.contains("<<<<<<< HEAD"))
-        // An unknown resolution fails while markers are still present
-        // (Legacy validates the markers before the resolution).
         let unknown = try await host.server.callTool("git_conflict_resolver",
                                                      ["path": .string("Sources/App/Conflicted.swift"),
                                                       "resolution": .string("take_both")])
@@ -380,7 +315,6 @@ import SwiftCodeAssistant
         #expect(!resolved.isToolError, "\(resolved.resultText)")
         let text = readFile(dir, "Sources/App/Conflicted.swift")
         #expect(text.contains("let b = 1") && !text.contains("let b = 2") && !text.contains("<<<<<<<"))
-        // After resolution there is nothing left to resolve.
         let clean = try await host.server.callTool("git_conflict_resolver",
                                                    ["path": .string("Sources/App/Conflicted.swift"),
                                                     "resolution": .string("inspect")])
@@ -393,8 +327,6 @@ import SwiftCodeAssistant
         let host = try await opened(dir, policy: .allow)
         let bad = try await host.server.callTool("git_bisect", ["action": .string("jump")])
         #expect(bad.isToolError && bad.resultText.contains("Invalid bisect action"))
-        // `log` with no bisect in progress fails with git's own
-        // message, exactly as Legacy reports it.
         let noBisect = try await host.server.callTool("git_bisect", ["action": .string("log")])
         #expect(noBisect.isToolError && noBisect.resultText.contains("not bisecting"), "\(noBisect.resultText)")
         let started = try await host.server.callTool("git_bisect", ["action": .string("start")])
@@ -422,7 +354,6 @@ import SwiftCodeAssistant
         #expect(!committed.isToolError, "\(committed.resultText)")
         let log = try await host.server.callTool("git_log_viewer", ["maxCount": .int(1)])
         #expect(log.resultText.contains("Test commit"))
-        // A rejected rollback leaves HEAD where it was.
         let reviews = Reviews()
         host.server.writePolicy = .review { c in reviews.changes.append(c); return reviews.accept }
         let rejected = try await host.server.callTool("version_control_operator",
@@ -433,16 +364,12 @@ import SwiftCodeAssistant
     }
 
     @Test func versionControlOperatorRemoteActionsPushPullFetchClone() async throws {
-        // Wave 10 addition (Legacy implements no remote
-        // sub-operations at all): push/pull/fetch/clone against a
-        // bare remote inside the workspace, over a local path.
         let dir = try makeRepo("vco-remote")
         defer { try? FileManager.default.removeItem(at: dir) }
         let remote = try makeBareRemote(in: dir)
         _ = try Self.git(dir, "remote", "add", "origin", remote.path)
         _ = try Self.git(dir, "push", "-q", "-u", "origin", "main")
         let host = try await opened(dir, policy: .allow)
-        // Push: a new commit in the workspace lands in the bare remote.
         try writeFile(dir, "Sources/App/Pushed.swift", "let p = 1\n")
         _ = try Self.git(dir, "add", "-A")
         _ = try Self.git(dir, "commit", "-qm", "VCO pushed commit")
@@ -451,8 +378,6 @@ import SwiftCodeAssistant
         #expect(pushed.resultText.contains("Git action executed: push"))
         let remoteLog = try Self.git(remote, "log", "--oneline", "main")
         #expect(remoteLog.contains("VCO pushed commit"), "\(remoteLog)")
-        // Fetch with an explicit remote name, then pull a commit
-        // made in a second copy.
         let fetched = try await host.server.callTool("version_control_operator",
                                                      ["action": .string("fetch"), "remote": .string("origin")])
         #expect(!fetched.isToolError, "\(fetched.resultText)")
@@ -467,7 +392,6 @@ import SwiftCodeAssistant
         #expect(!pulled.isToolError, "\(pulled.resultText)")
         #expect(pulled.resultText.contains("Git action executed: pull"))
         #expect(readFile(dir, "Sources/App/Pulled.swift").contains("let q = 1"))
-        // Clone the bare remote to a folder inside the workspace.
         let cloned = try await host.server.callTool("version_control_operator",
                                                     ["action": .string("clone"),
                                                      "url": .string(remote.path),
@@ -475,7 +399,6 @@ import SwiftCodeAssistant
         #expect(!cloned.isToolError, "\(cloned.resultText)")
         #expect(cloned.resultText.contains("Git action executed: clone"))
         #expect(readFile(dir, "vco-clone/Sources/App/main.swift").contains("let a = 1"))
-        // Policy and validation failures stay honest errors.
         let badURL = try await host.server.callTool("version_control_operator",
                                                     ["action": .string("clone"),
                                                      "url": .string("ftp://example.invalid/repo.git"),
@@ -489,10 +412,6 @@ import SwiftCodeAssistant
         #expect(noURL.isToolError && noURL.firstText.contains("requires 'url'"), "\(noURL.firstText)")
     }
 
-    // MARK: - `github_repo` (Wave 10: wired to the real GitHub API)
-
-    /// Fixture JSON for `github_repo` (sibling `SwiftCodeGitHubTests`
-    /// shapes, synthetic data, no real token anywhere).
     static let gitHubRepoJSON = """
         {"name":"Hello-World","full_name":"octocat/Hello-World","owner":{"login":"octocat"},"description":"My first repo","private":false,"html_url":"https://github.com/octocat/Hello-World","default_branch":"main","stargazers_count":42,"forks_count":7,"language":"Swift","created_at":"2024-01-15T10:30:00Z","updated_at":"2024-02-01T12:00:00Z","pushed_at":"2024-02-01T12:00:00Z"}
         """
@@ -503,16 +422,10 @@ import SwiftCodeAssistant
         {"total_count":1,"incomplete_results":false,"items":[{"name":"main.swift","path":"Sources/main.swift","repository":{"full_name":"octocat/Hello-World"}}]}
         """
 
-    /// One file's Contents API fixture (base64 `content`).
-    /// Nonisolated: called from the stub router, which is `@Sendable`.
     nonisolated static func gitHubContentJSON(name: String, path: String, size: Int, base64: String) -> String {
         "{\"name\":\"\(name)\",\"path\":\"\(path)\",\"sha\":\"aaa\",\"size\":\(size),\"content\":\"\(base64)\",\"encoding\":\"base64\"}"
     }
 
-    /// The stub router for the `github_repo` operation tests:
-    /// repository metadata, the recursive tree, the three text
-    /// files' contents, and code search. Anything else is a 404.
-    /// Nonisolated: it is passed as the stub's `@Sendable` handler.
     nonisolated static func gitHubRepoStub(_ request: URLRequest) -> (status: Int, headers: [String: String], body: Data) {
         switch request.url?.path {
         case "/repos/octocat/Hello-World":
@@ -682,8 +595,6 @@ import SwiftCodeAssistant
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.firstText.contains("Retrieved repository metadata for octocat/Hello-World."))
     }
-
-    // MARK: - Workspace confinement
 
     @Test func workspaceConfinementRejectsEscapes() async throws {
         let dir = try makeRepo("confine")

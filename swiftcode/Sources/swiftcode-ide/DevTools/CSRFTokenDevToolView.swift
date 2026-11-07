@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(CryptoKit)
 import SwiftUI
 import CryptoKit
@@ -25,7 +22,6 @@ final class CSRFTokenDevToolViewModel {
             generatedToken = Data(bytes).map { String(format: "%02x", $0) }.joined()
             logger.info("Successfully generated secure CSRF anti-forgery token.")
         } else {
-            // Fallback securely in case SecRandom fails
             let randomData = (0..<bytesCount).map { _ in UInt8.random(in: 0...255) }
             generatedToken = Data(randomData).map { String(format: "%02x", $0) }.joined()
         }
@@ -79,7 +75,7 @@ struct CSRFTokenDevToolView: View {
             }
             .padding()
         }
-        
+
         .navigationTitle("CSRF Token Generator")
         .onAppear {
             viewModel.generateToken()

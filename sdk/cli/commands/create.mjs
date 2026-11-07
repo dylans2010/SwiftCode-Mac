@@ -1,28 +1,3 @@
-/**
- * create.mjs — scaffold a new SwiftCode extension or standalone project.
- *
- *   swiftcode create --type extension --language typescript \
- *     --id <reverse-dns> --name <name> --outDir <dir> \
- *     [--description <text>] [--version <semver>]
- *
- *   swiftcode create --type project --language typescript \
- *     --name <name> --outDir <dir> [--description <text>] [--version <semver>]
- *
- * Extension scaffolding shells out to the real generator at
- * ../create-extension.mjs (exact argv passthrough) and verifies the output
- * directory is real and non-empty before reporting success.
- *
- * Project scaffolding copies ../../templates/project-typescript with
- * placeholder substitution, using the same validation rules as the
- * extension generator (semver, npm name, non-empty outDir guard).
- *
- * Honest boundaries (exit 1, not stubs):
- *   --type project --language swift     → Swift standalone projects are
- *                                         created in SwiftCode Studio (Phase 7).
- *   --type extension --language python  → not supported in this release
- *                                         (spec §3.2 defers Python extension
- *                                         runtime support).
- */
 import { spawn } from "node:child_process";
 import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -66,7 +41,6 @@ function checkVersion(version, flag) {
   }
 }
 
-/** Derive an npm-safe package slug from a human-readable project name. */
 function slugify(name) {
   const slug = name
     .toLowerCase()
@@ -225,7 +199,6 @@ export async function run(args, ctx) {
     return createExtension(args, ctx);
   }
 
-  // type === "project"
   if (language === "swift") {
     throw new Error("Swift standalone projects are created in SwiftCode Studio");
   }

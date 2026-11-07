@@ -10,7 +10,7 @@ public struct AdaptiveSettingsPage<Content: View>: View {
     public var body: some View {
         AdaptivePage {
             content
-                .frame(maxWidth: 800) // Professional settings density
+                .frame(maxWidth: 800)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
     }

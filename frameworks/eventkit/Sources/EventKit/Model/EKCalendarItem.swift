@@ -1,8 +1,3 @@
-// EKCalendarItem: the common part of events and reminders (interface.md §1,
-// §2.4). Model objects are local snapshots with change tracking: the values
-// last read from or written to the store are kept, `hasChanges` compares
-// against them and `rollback` restores them.
-
 import Foundation
 
 struct CommonFields: Hashable {
@@ -40,11 +35,8 @@ struct ItemSnapshot: Hashable {
 
 public class EKCalendarItem: EKObject {
     let store: EKEventStore
-    /// `calendarItemIdentifier`; replaced when an occurrence is detached.
     var itemID: String
-    /// UUID part of the external identifier, assigned on the first save.
     var externalID: String?
-    /// Persistent event identifier (`<source>:<UUID>[/RID=n]`), events only.
     var storedEventID: String?
     var persisted = false
     var generation: Int
@@ -65,8 +57,6 @@ public class EKCalendarItem: EKObject {
         common.timeZone = nil
     }
 
-    // MARK: Identifiers
-
     public var calendarItemIdentifier: String { itemID }
 
     public var calendarItemExternalIdentifier: String! {
@@ -76,8 +66,6 @@ public class EKCalendarItem: EKObject {
 
     @available(*, deprecated, message: "Use calendarItemIdentifier")
     public var uuid: String { legacyUUID }
-
-    // MARK: Properties
 
     public var calendar: EKCalendar! {
         get { calendarObject }
@@ -150,14 +138,11 @@ public class EKCalendarItem: EKObject {
         if let i = ruleObjects.firstIndex(where: { $0 === rule }) { ruleObjects.remove(at: i) }
     }
 
-    // MARK: Change tracking
-
     func snapshot() -> ItemSnapshot {
         ItemSnapshot(common: common, alarms: alarmObjects.map(\.value), rules: ruleObjects.map(\.spec),
                      event: nil, reminder: nil)
     }
 
-    /// Restores values from a snapshot (subclasses add their own part).
     func apply(_ s: ItemSnapshot) {
         common = s.common
         alarmObjects = s.alarms.map { EKAlarm(value: $0) }
@@ -174,7 +159,6 @@ public class EKCalendarItem: EKObject {
         persisted = true
     }
 
-    /// Valid while the store has not been reset since the object was made.
     var isValid: Bool { generation == store.generation }
 
     public override var hasChanges: Bool { saved == nil || saved != snapshot() }

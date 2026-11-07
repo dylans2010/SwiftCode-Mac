@@ -4,11 +4,6 @@ import SwiftCodeBuild
 import SwiftCodeDeviceModel
 @testable import SwiftCodeIDECore
 
-/// watchOS W2 (`specs/simulator/watchos.md` §7.2 W2, §11; `specs/ide/device-hub.md`
-/// §4.3, §5.2): a watchOS runtime root gives Device Hub its watches (not run
-/// destinations), the runtime's platform is read from `SystemVersion.plist`
-/// `ProductName` ("Watch OS"), and watch rows carry the watch family and
-/// frame. No network; preferences in a scratch domain.
 @MainActor
 @Suite(.serialized) struct WatchHubTests {
     static let watchRoot = "/rt/watchOS-27.0-24R362/RuntimeRoot"
@@ -26,7 +21,6 @@ import SwiftCodeDeviceModel
         #expect(SwiftCodeSimulatorDeviceType.watches.count == 13)
         #expect(SwiftCodeSimulatorDeviceType.watches.allSatisfy { $0.platform == "watchOS" })
         #expect(SwiftCodeSimulatorDeviceType.all.allSatisfy { $0.platform == "iOS" })
-        // watchos.md §3.1 "default create" on 27.0: Series 12 46 and 42 mm, Ultra 4, SE 3 44 and 40 mm.
         #expect(SwiftCodeSimulatorDeviceType.watches(onRuntimeVersion: "27.0").map(\.id)
             == ["apple-watch-series-12-46mm", "apple-watch-series-12-42mm", "apple-watch-ultra-4-49mm",
                 "apple-watch-se-3-44mm", "apple-watch-se-3-40mm"])
@@ -35,7 +29,6 @@ import SwiftCodeDeviceModel
                 "apple-watch-se-3-44mm", "apple-watch-se-3-40mm"])
         #expect(SwiftCodeSimulatorDeviceType.watches(onRuntimeVersion: nil).first?.id == "apple-watch-series-12-46mm")
         #expect(SwiftCodeSimulatorDeviceType.named("apple-watch-ultra-4-49mm")?.platform == "watchOS")
-        // Every IDE watch type has SwiftCode's frame.
         for t in SwiftCodeSimulatorDeviceType.watches { #expect(DeviceFrameSpec.named(typeID: t.id)?.family == .watch, "\(t.id)") }
     }
 

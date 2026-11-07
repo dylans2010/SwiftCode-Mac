@@ -2,8 +2,6 @@ import SwiftUI
 import Foundation
 import StoreKit
 
-// MARK: - API Key Models
-
 enum APIKeyProvider: String, Codable, CaseIterable {
     case openRouter = "OpenRouter"
     case anthropic = "Anthropic"
@@ -43,8 +41,6 @@ enum APIKeyProvider: String, Codable, CaseIterable {
         }
     }
 }
-
-// MARK: - Custom Section Shorthand Wrapper for High-Fidelity macOS Card Styling
 
 struct SettingsCardSection<Header: View, Content: View, Footer: View>: View {
     let header: Header
@@ -136,8 +132,6 @@ struct APIKeyEntry: Identifiable, Codable {
     }
 }
 
-// MARK: - API Key Manager
-
 @Observable
 @MainActor
 final class APIKeyManager {
@@ -186,10 +180,7 @@ final class APIKeyManager {
         KeychainService.shared.get(forKey: entry.keychainKey)
     }
 
-    // MARK: - Keychain Methods
-
     func storeKey(service: APIKeyProvider, key: String) {
-        // Find existing entry or create new
         if let idx = keys.firstIndex(where: { $0.provider == service }) {
             update(keys[idx], keyValue: key)
         } else {
@@ -270,8 +261,6 @@ final class APIKeyManager {
     }
 }
 
-// MARK: - Theme Models
-
 struct ThemeColors: Codable, Equatable {
     var background: String
     var editorText: String
@@ -348,9 +337,6 @@ struct AppTheme: Identifiable, Codable, Equatable {
     static let builtIns: [AppTheme] = [.light, .dark, .monokai, .dracula, .oneDark, .solarized]
 }
 
-
-// MARK: - Theme Manager
-
 @Observable
 @MainActor
 final class ThemeManager {
@@ -401,8 +387,6 @@ final class ThemeManager {
 
     func reset() { customThemes = [] }
 }
-
-// MARK: - Custom Agent Connection Models
 
 struct CustomAgentTool: AgentTool {
     let id: String
@@ -509,8 +493,6 @@ struct CustomAgentConnection: Identifiable, Codable {
     }
 }
 
-// MARK: - Custom Tool Registry
-
 @Observable
 @MainActor
 final class CustomToolRegistry {
@@ -540,8 +522,6 @@ final class CustomToolRegistry {
 
     func reset() { connections = [] }
 }
-
-// MARK: - GeneralSettingsView
 
 @MainActor
 struct GeneralSettingsView: View {
@@ -588,7 +568,6 @@ struct GeneralSettingsView: View {
     @State private var isResyncingSounds = false
     @State private var versionTapCount = 0
 
-    // Quick Setup section state
     @State private var showOfflineModelsSheet = false
     @State private var codexAPIKey: String = ""
     @State private var codexValidationMessage: String = ""
@@ -606,7 +585,6 @@ struct GeneralSettingsView: View {
 
                     proSection
 
-                    // System Permissions (AppPermsView) Section
                     SettingsCardSection {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 16) {
@@ -660,7 +638,6 @@ struct GeneralSettingsView: View {
                         Text("Audit and grant macOS permissions to allow Assist to interact with desktop apps, capture screens, and execute terminal tools.")
                     }
 
-                    // Save Location Configuration Section
                     SettingsCardSection {
                         Toggle(isOn: $settings.saveProjectsOnCustomFolder) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -716,7 +693,6 @@ struct GeneralSettingsView: View {
                         Text("Configure whether newly created templates are saved in the default system sandboxed folder or a custom directory of your choice.")
                     }
 
-                    // Bundle Identifier Configuration Section
                     SettingsCardSection {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Default Organization Prefix:")
@@ -744,15 +720,12 @@ struct GeneralSettingsView: View {
                         Text("Set your default organization prefix. New projects will automatically combine this prefix with the project name to establish a ready-to-use Bundle ID.")
                     }
 
-                    // App Icon Customization Section
                     SettingsCardSection {
                         VStack(alignment: .leading, spacing: 14) {
-                            // Active Icon Hero Summary Card
                             Button {
                                 showAppIconSelectSheet = true
                             } label: {
                                 HStack(spacing: 16) {
-                                    // High-res icon thumbnail
                                     Group {
                                         if let nsImg = NSImage(named: iconManager.resolvedPreviewImageName(for: iconManager.currentVariant)) {
                                             Image(nsImage: nsImg)
@@ -766,13 +739,13 @@ struct GeneralSettingsView: View {
                                     .frame(width: 68, height: 68)
                                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                     .shadow(color: Color.black.opacity(0.3), radius: 8, y: 4)
-                                    
+
                                     VStack(alignment: .leading, spacing: 4) {
                                         HStack(spacing: 8) {
                                             Text(iconManager.currentVariant.displayName)
                                                 .font(.headline)
                                                 .foregroundStyle(Color.primary)
-                                            
+
                                             Text(iconManager.currentVariant.category.rawValue)
                                                 .font(.caption2.bold())
                                                 .padding(.horizontal, 8)
@@ -780,12 +753,12 @@ struct GeneralSettingsView: View {
                                                 .background(Capsule().fill(Color.orange.opacity(0.15)))
                                                 .foregroundStyle(Color.orange)
                                         }
-                                        
+
                                         Text(iconManager.currentVariant.subtitle)
                                             .font(.caption)
                                             .foregroundStyle(Color.secondary)
                                             .lineLimit(2)
-                                        
+
                                         HStack(spacing: 6) {
                                             Circle()
                                                 .fill(Color.green)
@@ -796,9 +769,9 @@ struct GeneralSettingsView: View {
                                         }
                                         .padding(.top, 2)
                                     }
-                                    
+
                                     Spacer()
-                                    
+
                                     Image(systemName: "chevron.right")
                                         .font(.subheadline.bold())
                                         .foregroundStyle(.tertiary)
@@ -814,14 +787,13 @@ struct GeneralSettingsView: View {
                                 )
                             }
                             .buttonStyle(.plain)
-                            
-                            // macOS 26+ Appearance Adaptation for Default Icon
+
                             if iconManager.currentVariant == .light {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Default Icon Appearance Adaptation (macOS 26+):")
                                         .font(.caption.bold())
                                         .foregroundStyle(.secondary)
-                                    
+
                                     Picker("", selection: Binding(
                                         get: { iconManager.defaultAppearance },
                                         set: { iconManager.setDefaultAppearance($0) }
@@ -833,8 +805,7 @@ struct GeneralSettingsView: View {
                                     .pickerStyle(.segmented)
                                 }
                             }
-                            
-                            // Customize Button
+
                             HStack {
                                 Button {
                                     showAppIconSelectSheet = true
@@ -844,7 +815,7 @@ struct GeneralSettingsView: View {
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.regular)
-                                
+
                                 if iconManager.currentVariant != .light {
                                     Button("Reset to Default") {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -861,7 +832,6 @@ struct GeneralSettingsView: View {
                         Text("Choose from 33 handcrafted app icons across nostalgic retro eras (System 7, Aqua Cheetah, Bondi iMac G3, NeXTSTEP, CRT terminals, Synthwave), coding symbols (Swift Code Editor, { }, >_, </>, λ, Silicon, Bug Hunter), popular syntax themes (Dracula, Monokai, Matrix, Cyberpunk), and luxury materials (24K Gold, Titanium, Emerald, Abyss). Changes are immediately reflected on the macOS Dock with live Dock and Welcome View previews.")
                     }
 
-                    // THE FOLLOWING SECTIONS ARE PERMANENTLY HIDDEN FROM THE UI VIA #if false BLOCK AS REQUESTED
                     #if false
                     quickSetupSection
                     #endif
@@ -1000,8 +970,6 @@ struct GeneralSettingsView: View {
         }
     }
 
-    // MARK: - Sections
-
     private var aiRoutingMode: AIRoutingMode {
         get { AIRoutingMode.from(rawValue: aiRoutingModeRawValue) }
         set { aiRoutingModeRawValue = newValue.rawValue }
@@ -1029,8 +997,6 @@ struct GeneralSettingsView: View {
 
         return errors
     }
-
-    // MARK: - Settings Experience Section
 
     private var settingsExperienceSection: some View {
         SettingsCardSection {
@@ -1366,8 +1332,6 @@ struct GeneralSettingsView: View {
         }
     }
 
-    // MARK: - Sounds Section
-
     private var soundsSection: some View {
         SettingsCardSection {
             VStack(spacing: 12) {
@@ -1528,8 +1492,6 @@ struct GeneralSettingsView: View {
         }
     }
 
-// MARK: - Sound Library Browser View
-
 @MainActor
 struct SoundLibraryBrowserView: View {
     @Environment(\.dismiss) private var dismiss
@@ -1558,7 +1520,6 @@ struct SoundLibraryBrowserView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Filter and search toolbar
                 VStack(spacing: 10) {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -1616,7 +1577,6 @@ struct SoundLibraryBrowserView: View {
 
                 Divider()
 
-                // Sounds List
                 List {
                     if filteredSounds.isEmpty {
                         ContentUnavailableView(
@@ -1626,15 +1586,12 @@ struct SoundLibraryBrowserView: View {
                         )
                         .padding(.vertical, 40)
                     } else if hasActiveFilters {
-                        // Flat filtered view
                         Section("Matching Sounds (\(filteredSounds.count))") {
                             ForEach(filteredSounds) { sound in
                                 soundRow(sound)
                             }
                         }
                     } else {
-                        // Structured Category & Source Grouping
-                        // 1. App Categories
                         let categoriesToShow: [AppSoundCategory] = [
                             .chill, .vibe, .satisfying, .success, .complete, .message, .notification, .error
                         ]
@@ -1651,7 +1608,6 @@ struct SoundLibraryBrowserView: View {
                             }
                         }
 
-                        // 2. Native macOS System Sounds
                         let systemSounds = SoundCatalog.systemSounds
                         if !systemSounds.isEmpty {
                             Section {
@@ -1663,7 +1619,6 @@ struct SoundLibraryBrowserView: View {
                             }
                         }
 
-                        // 3. User Sounds
                         let userSounds = SoundCatalog.discoverUserSounds()
                         if !userSounds.isEmpty {
                             Section {
@@ -1772,7 +1727,6 @@ struct SoundLibraryBrowserView: View {
 
     private var dashboardSection: some View {
         SettingsCardSection {
-            // Layout picker
             Picker("Layout", selection: $settings.dashboardLayout) {
                 ForEach(DashboardLayout.allCases, id: \.self) { layout in
                     Label(
@@ -1783,7 +1737,6 @@ struct SoundLibraryBrowserView: View {
             }
             .pickerStyle(.segmented)
 
-            // Sort order
             Picker("Sort By", selection: $settings.dashboardSortOrder) {
                 ForEach(DashboardSortOrder.allCases, id: \.self) { order in
                     Text(order.rawValue).tag(order)
@@ -1975,7 +1928,6 @@ struct SoundLibraryBrowserView: View {
     private static let githubAPIDocsURL = URL(string: "https://docs.github.com/en/rest")!
     private static let swiftCodeReleasesURL = URL(string: "https://github.com/dylans2010/SwiftCode/releases")!
 
-    // MODERNIZED ABOUT SECTION WITH MULTI-PANEL HIGHLIGHTS
     private var aboutSection: some View {
         SettingsCardSection {
             VStack(alignment: .leading, spacing: 14) {
@@ -2050,27 +2002,18 @@ struct SoundLibraryBrowserView: View {
         }
     }
 
-    // MARK: - Reset
-
     private func resetApp() {
-        // 1. Clear all API keys from keychain
         APIKeyManager.shared.reset()
-        // 2. Clear custom themes
         ThemeManager.shared.reset()
-        // 3. Clear custom agent tools
         CustomToolRegistry.shared.reset()
-        // 4. Clear uploaded agent skills
         AgentSkillManager.shared.resetUploadedSkills()
-        // 5. Clear UserDefaults
         if let bundleID = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
         }
-        // 6. Clear keychain tokens
         KeychainService.shared.delete(forKey: KeychainService.openRouterAPIKey)
         DeploymentKeychainManager.shared.deleteKey(service: .github)
         DeploymentKeychainManager.shared.deleteKey(service: .netlify)
         DeploymentKeychainManager.shared.deleteKey(service: .vercel)
-        // 7. Clear Documents directory
         guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         if let contents = try? FileManager.default.contentsOfDirectory(
             at: docs, includingPropertiesForKeys: nil
@@ -2079,14 +2022,11 @@ struct SoundLibraryBrowserView: View {
                 try? FileManager.default.removeItem(at: url)
             }
         }
-        // 8. Clear active project state and reload
         ProjectSessionStore.shared.closeProject()
         ProjectSessionStore.shared.loadProjects()
         dismiss()
     }
 }
-
-// MARK: - API Keys Management View
 
 @MainActor
 struct APIKeysManagementView: View {
@@ -2201,8 +2141,6 @@ struct APIKeysManagementView: View {
     }
 }
 
-// MARK: - API Keys Help View
-
 @MainActor
 struct APIKeysHelpView: View {
     @Environment(\.dismiss) private var dismiss
@@ -2294,8 +2232,6 @@ struct APIKeyRowView: View {
     }
 }
 
-// MARK: - Add / Edit API Key View (COMPLETELY REDESIGNED & MODERNIZED)
-
 @MainActor
 struct AddEditAPIKeyView: View {
     let entry: APIKeyEntry?
@@ -2326,7 +2262,6 @@ struct AddEditAPIKeyView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Modern Header Badge
                     HStack(spacing: 14) {
                         ZStack {
                             Circle()
@@ -2348,7 +2283,6 @@ struct AddEditAPIKeyView: View {
                     }
                     .padding(.top, 16)
 
-                    // Modern Fields Card
                     VStack(alignment: .leading, spacing: 14) {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Key Alias / Name")
@@ -2453,7 +2387,6 @@ struct AddEditAPIKeyView: View {
     }
 
     private func validateAndSave() async {
-        // Block duplicate provider keys unless we are editing an existing entry for that provider
         if !isEditing && manager.providerKeyExists(service: provider) {
             validationError = "A key for this provider is already configured."
             return
@@ -2463,7 +2396,6 @@ struct AddEditAPIKeyView: View {
         validationError = nil
 
         do {
-            // Validate based on provider
             switch provider {
             case .openRouter, .anthropic, .openai, .google, .mistral, .qwen:
                 let llmProvider = LLMProvider(rawValue: provider.rawValue) ?? .openRouter
@@ -2519,8 +2451,6 @@ struct AddEditAPIKeyView: View {
     }
 }
 
-// MARK: - Theme Management View (WITH PRESET THEMES DIRECTLY NEXT TO NEW THEME BUTTON)
-
 @MainActor
 struct ThemeManagementView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -2533,7 +2463,6 @@ struct ThemeManagementView: View {
     var body: some View {
         NavigationStack {
             List {
-                // Preset Themes Panel placed next to the control sections for direct modern preview
                 Section("Built In Preset Themes") {
                     ForEach(AppTheme.builtIns) { theme in
                         ThemeRowView(theme: theme, isSelected: settings.selectedThemeID == theme.id)
@@ -2604,7 +2533,6 @@ struct ThemeRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Color swatch
             HStack(spacing: 3) {
                 ForEach([
                     theme.colors.background,
@@ -2638,8 +2566,6 @@ struct ThemeRowView: View {
         .padding(.vertical, 4)
     }
 }
-
-// MARK: - Custom Theme Editor View
 
 @MainActor
 struct CustomThemeEditorView: View {
@@ -2774,8 +2700,6 @@ struct CustomThemeEditorView: View {
     }
 }
 
-// MARK: - GitHub Configuration View
-
 @MainActor
 struct GitHubConfigView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -2793,7 +2717,6 @@ struct GitHubConfigView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Git Identity
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -2829,7 +2752,6 @@ struct GitHubConfigView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Key Recommendation
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -2868,7 +2790,6 @@ struct GitHubConfigView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // SSH & HTTPS Authentication
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -2904,7 +2825,6 @@ struct GitHubConfigView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Advanced Git Options
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -2926,7 +2846,6 @@ struct GitHubConfigView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Commit Message Template
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -2953,7 +2872,6 @@ struct GitHubConfigView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Repository Permissions
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -3041,8 +2959,6 @@ struct GitHubConfigView: View {
     }
 }
 
-// MARK: - Agent Connections View
-
 @MainActor
 struct AgentConnectionsView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -3129,8 +3045,6 @@ struct AgentConnectionsView: View {
         }
     }
 }
-
-// MARK: - Custom Tool Editor View
 
 @MainActor
 struct CustomToolEditorView: View {
@@ -3290,8 +3204,6 @@ struct CustomToolEditorView: View {
         dismiss()
     }
 }
-
-// MARK: - CoreML Settings View
 
 @MainActor
 struct CoreMLSettingsView: View {

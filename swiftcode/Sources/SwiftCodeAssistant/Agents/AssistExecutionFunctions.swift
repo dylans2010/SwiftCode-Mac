@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/Functions/AssistExecutionFunctions.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Verbatim. Fixes V2: AssistManager.init() calls AssistExecutionFunctions.initializeRegistry().
-
 import Foundation
 
 @MainActor

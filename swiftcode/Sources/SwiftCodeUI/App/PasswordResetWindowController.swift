@@ -1,27 +1,10 @@
 import AppKit
 import SwiftCodeCloud
 
-/// The password-reset completion sheet (gap closure, specs/ide/
-/// gap-closure-misc.md §6).
-///
-/// The flow: Appwrite emails a reset link (`createRecovery`); opening
-/// it posts `.appwriteRecoveryLinkReceived` with `userId` / `secret`
-/// in `userInfo` (`AppSupport.handleOpenedURL`); this controller asks
-/// for the new password and completes the reset with
-/// `AppwriteAccountClient.updateRecovery(userId:secret:password:)`.
-///
-/// The reset itself runs through the injectable `resetPassword`
-/// closure (default: the live Appwrite client), so tests drive the
-/// sheet's state machine without network or credentials. No password
-/// is ever stored: the fields are cleared on success, on cancel, and
-/// when the window closes.
 @MainActor
 public final class PasswordResetWindowController: NSWindowController {
-    /// Appwrite's minimum password length.
     public nonisolated static let minimumPasswordLength = 8
 
-    /// Completes the reset for `userId` / `secret` with the new
-    /// password. Defaults to the live Appwrite client.
     public var resetPassword: (String, String, String) async throws -> Void = { userId, secret, password in
         try await CloudAuthManager.shared.client.updateRecovery(userId: userId, secret: secret, password: password)
     }
@@ -34,26 +17,17 @@ public final class PasswordResetWindowController: NSWindowController {
     private let resetButton = NSButton(title: "Reset Password", target: nil, action: nil)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private var isResetting = false
-    /// The success text shown after a completed reset, or nil (tests).
     private(set) public var shownSuccess: String?
 
-    /// The controller for the currently shown sheet, if any. Held
-    /// statically so the window does not deallocate its controller
-    /// while open.
     private static var current: PasswordResetWindowController?
     private static var installed = false
 
-    /// Starts listening for recovery links (once). Call from
-    /// `applicationDidFinishLaunching`.
     public static func installIfNeeded() {
         guard !installed else { return }
         installed = true
-        // swiftlint:disable:next discarded_notification_center_observer - lives as long as the app
         NotificationCenter.default.addObserver(
             forName: .appwriteRecoveryLinkReceived, object: nil, queue: .main
         ) { note in
-            // Read the payload before crossing to the main actor: the
-            // Notification is not Sendable.
             guard let userId = note.userInfo?["userId"] as? String,
                   let secret = note.userInfo?["secret"] as? String else { return }
             MainActor.assumeIsolated {
@@ -62,7 +36,6 @@ public final class PasswordResetWindowController: NSWindowController {
         }
     }
 
-    /// Shows the reset sheet for one recovery link.
     public static func show(userId: String, secret: String) {
         let controller = PasswordResetWindowController(userId: userId, secret: secret)
         current = controller
@@ -120,13 +93,10 @@ public final class PasswordResetWindowController: NSWindowController {
         ])
     }
 
-    /// The current validation problem, or nil when the fields are
-    /// ready to submit (tests).
     public var validationProblem: String? {
         PasswordResetValidation.problem(newPassword: newField.stringValue, confirmation: confirmField.stringValue)
     }
 
-    /// The error text currently shown, or nil (tests).
     public var shownError: String? { errorLabel.isHidden ? nil : errorLabel.stringValue }
 
     @objc private func resetClicked() {
@@ -201,11 +171,7 @@ extension PasswordResetWindowController: NSWindowDelegate {
     }
 }
 
-/// The new-password rules, factored out so tests check them without
-/// opening a window.
 public enum PasswordResetValidation {
-    /// The problem with the two fields, or nil when they are ready
-    /// to submit.
     public static func problem(newPassword: String, confirmation: String) -> String? {
         if newPassword.count < PasswordResetWindowController.minimumPasswordLength {
             return "The new password must be at least \(PasswordResetWindowController.minimumPasswordLength) characters."

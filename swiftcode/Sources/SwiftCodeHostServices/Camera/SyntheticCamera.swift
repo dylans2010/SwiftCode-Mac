@@ -1,28 +1,15 @@
-// The synthetic camera (camera-host.md §7): a test pattern behind the same
-// interface as a V4L2 device, for tests and for hosts without a camera.
-// It sends YUYV, video range, BT.601 (what a webcam sends), so its frames
-// take the same conversion path as a real camera's.
-
 import CSwiftCodeCamera
 import Foundation
 
-/// A source of raw frames (a V4L2 device or the synthetic pattern), pulled
-/// by the camera service's capture thread.
 public protocol CameraCapture: AnyObject, Sendable {
     var device: CameraDevice { get }
-    /// What the open stream delivers.
     var format: CameraStreamFormat { get }
-    /// The next frame, or nil when none came within the timeout. Throws
-    /// `CameraError` with code `.gone` when the device went away.
     func next(timeoutMilliseconds: Int) throws -> CameraRawFrame?
-    /// Gives a frame's buffer back (after conversion).
     func recycle(_ frame: CameraRawFrame)
-    /// Stops streaming and releases the device.
     func close()
 }
 
 public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
-    /// The synthetic device as `CameraHostService.devices` lists it.
     public static let device: CameraDevice = {
         let sizes = [(320, 240), (640, 480), (1280, 720), (1920, 1080)].map {
             CameraFrameSize(width: $0.0, height: $0.1, intervals: [CameraFrameInterval(numerator: 1, denominator: 60),
@@ -35,7 +22,6 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
 
     public let device: CameraDevice = SyntheticCamera.device
     public let format: CameraStreamFormat
-    /// Sleep until each frame's time (a live stream); off for tests.
     public let paced: Bool
     public let width: Int, height: Int
     public let bytesPerLine: Int
@@ -45,8 +31,6 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
     private let buffer: UnsafeMutablePointer<UInt8>
     private var closed = false
 
-    /// `width` and `height` are rounded down to even numbers (at least
-    /// 64 x 48).
     public init(width: Int, height: Int, interval: CameraFrameInterval = CameraFrameInterval(numerator: 1, denominator: 30),
                 output: CameraPixelFormat = .biPlanar420Video, paced: Bool = true, firstFrame: UInt32 = 0,
                 startTime: Int64? = nil) {
@@ -64,14 +48,9 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
 
     deinit { buffer.deallocate() }
 
-    // MARK: Pattern geometry (§7.1)
-
-    /// 75 % colour bars (R, G, B at 0 or 191): white, yellow, cyan, green,
-    /// magenta, red, blue, black.
     public static let bars: [(r: Int, g: Int, b: Int)] = [(191, 191, 191), (191, 191, 0), (0, 191, 191), (0, 191, 0),
                                                          (191, 0, 191), (191, 0, 0), (0, 0, 191), (0, 0, 0)]
 
-    /// BT.601 video-range Y'CbCr of an R'G'B' colour (0...255), rounded.
     public static func ycbcr(r: Int, g: Int, b: Int) -> (y: UInt8, cb: UInt8, cr: UInt8) {
         let (R, G, B) = (Double(r) / 255, Double(g) / 255, Double(b) / 255)
         let y = 0.299 * R + 0.587 * G + 0.114 * B
@@ -79,14 +58,11 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
         return (UInt8((16 + 219 * y).rounded()), UInt8((128 + 224 * cb).rounded()), UInt8((128 + 224 * cr).rounded()))
     }
 
-    /// The rows of the bars (from 0), of the grey ramp, and of the counter strip.
     public static func regions(height h: Int) -> (barsEnd: Int, stripTop: Int) {
         let strip = max(4, (h / 24) & ~1)
         return ((h * 2 / 3) & ~1, h - strip)
     }
 
-    /// The moving box: its side and its left edge in frame `n` (it moves
-    /// across the bars and back).
     public static func box(frame n: UInt32, width w: Int, height h: Int) -> (x: Int, y: Int, side: Int) {
         let side = max(8, (h / 6) & ~1)
         let travel = max(2, w - side)
@@ -98,8 +74,6 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
         return (x, max(0, (barsEnd - side) / 2) & ~1, side)
     }
 
-    /// The counter strip has 32 cells, most significant bit first: luma 235
-    /// for 1, 16 for 0.
     public static let counterCells = 32
 
     private static func renderBackground(width w: Int, height h: Int) -> [UInt8] {
@@ -126,13 +100,11 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
         return b
     }
 
-    /// 3 x 5 digit glyphs, one row per 3 bits (bit 2 = left column).
     static let glyphs: [[UInt8]] = [
         [7, 5, 5, 5, 7], [2, 6, 2, 2, 7], [7, 1, 7, 4, 7], [7, 1, 7, 1, 7], [5, 5, 7, 1, 1],
         [7, 4, 7, 1, 7], [7, 4, 7, 5, 7], [7, 1, 1, 1, 1], [7, 5, 7, 5, 7], [7, 5, 7, 1, 7],
     ]
 
-    /// Renders frame `n` into `bytes` (YUYV, `width * 2` bytes per row).
     public func render(frame n: UInt32, into bytes: UnsafeMutablePointer<UInt8>) {
         let w = width, h = height
         background.withUnsafeBufferPointer { _ = memcpy(bytes, $0.baseAddress!, $0.count) }
@@ -148,10 +120,8 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
                 }
             }
         }
-        // The moving box.
         let box = Self.box(frame: n, width: w, height: h)
         fill(box.x, box.y, box.x + box.side, box.y + box.side, 235)
-        // The frame number in decimal, top left, white on black.
         let k = max(2, h / 48)
         let digits = Array(String(n % 100_000_000))
         fill(k, k, k + (digits.count * 4 + 1) * k, k + 7 * k, 16)
@@ -164,7 +134,6 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
                 }
             }
         }
-        // The counter strip.
         let stripTop = Self.regions(height: h).stripTop
         let cell = w / Self.counterCells
         for i in 0..<Self.counterCells where (n >> UInt32(Self.counterCells - 1 - i)) & 1 != 0 {
@@ -172,8 +141,6 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
         }
     }
 
-    /// Reads the counter strip back from any image's luma (or a grey
-    /// channel): `luma(x, y)`. Nil when the strip is not two-level.
     public static func readCounter(width w: Int, height h: Int, luma: (Int, Int) -> UInt8) -> UInt32? {
         let stripTop = regions(height: h).stripTop
         let y = (stripTop + h) / 2, cell = w / counterCells
@@ -185,8 +152,6 @@ public final class SyntheticCamera: CameraCapture, @unchecked Sendable {
         }
         return n
     }
-
-    // MARK: CameraCapture
 
     public func next(timeoutMilliseconds: Int) throws -> CameraRawFrame? {
         guard !closed else { throw CameraError(.gone, "synthetic camera closed") }

@@ -1,10 +1,6 @@
 import Foundation
 
-/// Result bundles (`-resultBundlePath`, and the default bundle of test
-/// runs): what is recorded and when it is written.
-/// See `specs/xcodebuild/result-bundle.md`.
 final class ResultBundleSession {
-    /// One scheme action (or legacy build) as recorded in the bundle.
     struct Action {
         var commandName: String
         var taskName: String
@@ -20,8 +16,6 @@ final class ResultBundleSession {
 
     let path: String
     let given: String
-    /// The project or workspace path, its label (`Calc project`) and the
-    /// project name the build log heading uses.
     let containerPath: String
     let containerLabel: String
     let projectName: String
@@ -31,11 +25,8 @@ final class ResultBundleSession {
     let uniqueID = UUID().uuidString
     var actions: [Action] = []
     var archivePath: String?
-    /// Explicit (`-resultBundlePath`) or the default test bundle.
     let explicit: Bool
-    /// A build without a scheme.
     var legacy = false
-    /// "project" or "workspace" (log headings and titles).
     var containerWord = "project"
 
     init(path: String, given: String, explicit: Bool, containerPath: String, containerLabel: String, projectName: String,
@@ -51,20 +42,16 @@ final class ResultBundleSession {
         self.sdk = sdk
     }
 
-    /// The path as the reference tool prints it at the end (`/private`
-    /// prefixes of existing paths removed).
     var displayPath: String { ResultBundleSession.standardized(path) }
 
     static func standardized(_ p: String) -> String { PathText.withoutPrivatePrefix(p) }
 
-    /// `-resultBundlePath`, made absolute.
     static func requestedPath(_ inv: Invocation, cwd: String) -> (absolute: String, given: String)? {
         guard let p = inv.value("-resultBundlePath") else { return nil }
         let abs = p.hasPrefix("/") ? p : cwd + "/" + p
         return (URL(fileURLWithPath: abs).standardizedFileURL.path, p)
     }
 
-    /// `<DerivedData folder>/Logs/Test/Test-<scheme>-<yyyy.MM.dd_HH-mm-ss-ZZZ>.xcresult`.
     static func defaultTestPath(arena: Arena, scheme: String, date: Date = Date()) -> String {
         let folder = URL(fileURLWithPath: arena.buildProductsPath).deletingLastPathComponent().deletingLastPathComponent().path
         let f = DateFormatter()
@@ -73,8 +60,6 @@ final class ResultBundleSession {
         return folder + "/Logs/Test/Test-\(scheme)-\(f.string(from: date)).xcresult"
     }
 
-    /// Writes the bundle with every action recorded so far (replacing an
-    /// earlier write of this session).
     func write(console: Console) -> Bool {
         let fm = FileManager.default
         let url = URL(fileURLWithPath: path)
@@ -92,8 +77,6 @@ final class ResultBundleSession {
     }
 }
 
-/// Builds the object graph of a session (types and keys from
-/// `xcresulttool formatDescription`; see `specs/xcodebuild/result-bundle.md` §4).
 struct ResultRecords {
     let session: ResultBundleSession
     let store: XCResultStore
@@ -133,7 +116,6 @@ struct ResultRecords {
         return try store.put(.obj(XCRType("ActionsInvocationRecord"), fields))
     }
 
-    /// Issues and counts of one result.
     struct Issues {
         var errors: [V] = []
         var warnings: [V] = []
@@ -168,7 +150,6 @@ struct ResultRecords {
         return f.uppercased() + s.dropFirst()
     }
 
-    /// `file://…#EndingColumnNumber=…&…&Timestamp=…`, zero-based numbers.
     static func documentLocation(file: String, line: Int?, column: Int?, timestamp: Bool) -> V {
         var url = URL(fileURLWithPath: file).absoluteString
         var parts: [String] = []
@@ -185,7 +166,6 @@ struct ResultRecords {
 
     func buildIssues(_ b: BuildActions.BuildOutcome) -> Issues {
         var r = Issues()
-        // The same issue from several targets is summarized once.
         var seen = Set<String>()
         for i in b.issues where seen.insert("\(i.kind)|\(i.message)|\(i.file ?? "")|\(i.line ?? 0)|\(i.column ?? 0)").inserted {
             let type = i.category ?? (i.kind == "error" ? "Error" : "Warning")
@@ -279,9 +259,6 @@ struct ResultRecords {
         return (record, both)
     }
 
-    /// The test run's diagnostics: per test bundle
-    /// `<target>-<UUID>-Configuration-Test Scheme Action-Iteration-1/<target>-<UUID>/StandardOutputAndStandardError.txt`
-    /// with the runner's console output.
     func diagnostics(_ t: TestActions.Outcome) throws -> String? {
         guard !t.targets.isEmpty else { return nil }
         var top: [(name: String, isDirectory: Bool, id: String)] = []
@@ -294,8 +271,6 @@ struct ResultRecords {
         }
         return try store.putDirectory(top)
     }
-
-    // MARK: Build log
 
     func buildLogSection(_ b: BuildActions.BuildOutcome, title: String?) -> V {
         let projectName = session.projectName
@@ -337,12 +312,8 @@ struct ResultRecords {
         ])
     }
 
-    // MARK: Tests
-
     func testSummaries(_ outcome: TestActions.Outcome) throws -> (String, Issues) {
         var issues = Issues()
-        // One run summary per test plan configuration (a plan with one
-        // configuration names none: "Test Scheme Action").
         var runs: [(name: String, testables: [V])] = []
         for run in outcome.targets {
             let runName = run.target.configuration ?? "Test Scheme Action"
@@ -357,7 +328,6 @@ struct ResultRecords {
             func metadata(_ r: TestCaseResult) throws -> V {
                 let ident = r.identifier
                 let urlTail = r.library == .xctest ? (r.suite.isEmpty ? r.name : r.suite + "/" + r.name) : ident
-                // A test case of a parameterized test: `?args=<SHA-256 of the value>`.
                 let query = r.arguments.isEmpty ? nil : "args=" + SHA256.hex(Array(r.arguments.map(\.value).joined(separator: ", ").utf8))
                 let arguments: [V] = r.arguments.map { a in
                     .obj(XCRType("TestArgument"), [
@@ -417,7 +387,6 @@ struct ResultRecords {
                 ])
             }
             var top: [V] = []
-            // XCTest: All tests > <bundle>.xctest > classes > methods.
             let xc = run.results.filter { $0.library == .xctest }
             if !xc.isEmpty {
                 var classes: [V] = []
@@ -430,9 +399,7 @@ struct ResultRecords {
                 let rootName = run.selected ? "Selected tests" : "All tests"
                 top.append(group(rootName, identifier: rootName, children: [bundle], duration: total))
             }
-            // swift-testing: suites (nested by path), then free functions.
             let sw = run.results.filter { $0.library == .swiftTesting }
-            // Suites in the order their first function started running.
             func first(_ suite: String) -> Int { sw.filter { $0.suite == suite }.map { run.starts[$0.name] ?? Int.max }.min() ?? Int.max }
             let suites = sw.map(\.suite).filter { !$0.isEmpty }.uniqued().enumerated()
                 .sorted { (first($0.element), $0.offset) < (first($1.element), $1.offset) }.map(\.element)
@@ -459,9 +426,6 @@ struct ResultRecords {
         return (try store.put(plan), issues)
     }
 
-    /// `xctest-tool hosted` for bundles in the xctest runner (observed);
-    /// SwiftCode's own words for bundles in an app and UI test bundles
-    /// (`app hosted`, `UI test`; result-bundle.md OPEN QUESTION).
     static func testKind(_ t: TestTarget) -> String {
         if t.isUITest { return "UI test" }
         return t.testHost != nil ? "app hosted" : "xctest-tool hosted"
@@ -469,10 +433,7 @@ struct ResultRecords {
 
     func displayName(_ r: TestCaseResult) -> String { r.library == .xctest ? r.name + "()" : r.name }
 
-    // MARK: Destination
-
     func runDestination() -> V {
-        // Builds without a scheme have no run destination: every field empty.
         if session.legacy {
             let device: V = .obj(XCRType("ActionDeviceRecord"), [
                 "cpuKind": .string(""), "identifier": .string(""), "isConcreteDevice": .bool(false), "isWireless": .bool(false),
@@ -491,7 +452,6 @@ struct ResultRecords {
         var target = device
         var arch = session.runDestination?.targetArchitecture ?? host.architecture
         var name = "My Mac"
-        // The generic destination of `archive` ("Any Mac").
         if session.runDestination?.disableOnlyActiveArch == true {
             name = "Any Mac"
             arch = "undefined_arch"
@@ -521,7 +481,6 @@ struct ResultRecords {
     }
 }
 
-/// The Mac's description for run-destination records.
 struct HostRecord {
     var identifier: String
     var modelCode: String
@@ -588,7 +547,6 @@ struct HostRecord {
 }
 
 extension ResultBundleSession {
-    /// A session for a scheme or legacy run.
     static func make(plan: Plan, path: String, given: String, explicit: Bool, context ctx: XcodebuildContext) -> ResultBundleSession {
         let c = plan.container
         let sdkName = plan.overrides.last { $0.0 == "SDKROOT" }?.1 ?? "macosx"
@@ -604,15 +562,12 @@ extension ResultBundleSession {
 
     func announceIfExplicit(_ console: Console) { if explicit { announce(console) } }
 
-    /// `Writing result bundle at path:` (printed also with `-quiet`).
     func announce(_ console: Console) {
         console.out("Writing result bundle at path:")
         console.out("\t" + given)
         console.out()
     }
 
-    /// Records an action and rewrites the bundle; for explicit bundles of
-    /// build actions, prints where (not quiet).
     func record(_ action: Action, quiet: Bool, console: Console, announceWritten: Bool = true) {
         actions.append(action)
         if write(console: console), explicit, announceWritten, !quiet {
@@ -623,7 +578,6 @@ extension ResultBundleSession {
         }
     }
 
-    /// What the bundle records for an action: command, task and title.
     static func names(_ action: BuildAction, scheme: String?, projectName: String, containerWord: String = "project") -> (command: String, task: String, title: String?) {
         guard let s = scheme else { return ("Run", "Build", nil) }
         let projectName = containerWord + " " + projectName
@@ -641,9 +595,6 @@ extension ResultBundleSession {
 }
 
 extension XCTestRunFile {
-    /// The bundle of a `-xctestrun` run: `-resultBundlePath`, else a
-    /// default one in `Logs/Test` of the DerivedData folder that holds the
-    /// file (`…/Build/Products/x.xctestrun`). Returns it with the plan name.
     static func resultBundleSession(_ inv: Invocation, file: Contents, xctestrun: String, started: Date,
                                     context ctx: XcodebuildContext) -> (ResultBundleSession, String?)? {
         let products = URL(fileURLWithPath: xctestrun).deletingLastPathComponent()

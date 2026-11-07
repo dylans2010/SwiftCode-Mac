@@ -1,19 +1,6 @@
 import Foundation
 import Crypto
 
-// MARK: - SDKAPIKey
-//
-// Ported from Legacy `SwiftCode/SDK/Host/APIKeys/SDKAPIKey.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Developer API keys authenticate the *developer* of an extension, not
-// the extension itself. The secret is shown exactly once at creation and
-// never persisted; only metadata is stored. Verification is HMAC-SHA256
-// over the payload with a host-held device key.
-
-/// A developer API key scope. Open `RawRepresentable`: the three known
-/// values below are the current set, but any non-empty string is accepted
-/// so future scopes do not break decoding of stored key records.
 public struct SDKAPIKeyScope: RawRepresentable, Hashable, Codable, Sendable {
     public let rawValue: String
 
@@ -45,12 +32,8 @@ public struct SDKAPIKeyScope: RawRepresentable, Hashable, Codable, Sendable {
     }
 }
 
-/// Metadata for one developer API key. The secret itself is NEVER stored
-/// here — only the key ID, prefix, label, scopes, entitlements, and
-/// lifecycle timestamps.
 public struct SDKAPIKey: Codable, Sendable, Equatable {
     public let id: UUID
-    /// `sc_dev_live` or `sc_dev_test` — also the first segment of the secret.
     public let keyPrefix: String
     public let label: String
     public let scopes: Set<SDKAPIKeyScope>
@@ -98,8 +81,6 @@ public struct SDKAPIKey: Codable, Sendable, Equatable {
         keyPrefix = try container.decode(String.self, forKey: .keyPrefix)
         label = try container.decode(String.self, forKey: .label)
         scopes = try container.decode(Set<SDKAPIKeyScope>.self, forKey: .scopes)
-        // Back-compat: key records written before entitlements existed
-        // decode with an empty entitlement set.
         entitlements = try container.decodeIfPresent(Set<SDKEntitlement>.self, forKey: .entitlements) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         lastUsedAt = try container.decodeIfPresent(Date.self, forKey: .lastUsedAt)
@@ -108,23 +89,11 @@ public struct SDKAPIKey: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - SDKAPIKeyCodec
-
-/// Encodes and verifies developer API key secrets.
-///
-/// Secret format: `<prefix>_<base64url(payloadJSON)>.<base64url(sig)>`,
-/// where the payload is `{"id": "<uuid>", "prefix": "<prefix>", "iat": <unix>}`
-/// and `sig` is HMAC-SHA256 over the payload's base64url bytes with the
-/// host device key. Base64url is RFC 4648 §5 without padding. Signature
-/// comparison is constant-time. Every verification failure maps to
-/// `.apiKeyInvalid` and the secret is never included in an error.
 public enum SDKAPIKeyCodec {
     public static let livePrefix = "sc_dev_live"
     public static let testPrefix = "sc_dev_test"
     public static let maxSecretLength = 4096
 
-    /// Generates a new secret for `key` with `deviceKey`. The secret is
-    /// returned once; the caller must not persist it.
     public static func generateSecret(for key: SDKAPIKey, deviceKey: Data) -> String {
         let payload: [String: Any] = [
             "id": key.id.uuidString,
@@ -137,11 +106,6 @@ public enum SDKAPIKeyCodec {
         return "\(key.keyPrefix)_\(payloadB64).\(base64URLEncode(signature))"
     }
 
-    /// Parses and verifies `secret` against `deviceKey`. Returns the key
-    /// ID and prefix carried by the payload on success; throws
-    /// `.apiKeyInvalid` for every failure mode (malformed, bad prefix,
-    /// bad signature, oversize). The caller re-reads key metadata from
-    /// the store — the payload is never trusted for lifecycle state.
     public static func parseAndVerify(secret: String, deviceKey: Data) throws -> (keyID: UUID, prefix: String) {
         guard secret.count <= maxSecretLength else {
             throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
@@ -161,7 +125,6 @@ public enum SDKAPIKeyCodec {
               let presentedSignature = base64URLDecode(String(segments[1])) else {
             throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
         }
-        // Constant-time comparison only — never compare signatures with `==`.
         let expectedSignature = hmacSHA256(key: deviceKey, message: Data(segments[0].utf8))
         guard constantTimeEqual(presentedSignature, expectedSignature) else {
             throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
@@ -176,9 +139,6 @@ public enum SDKAPIKeyCodec {
         return (id, prefix)
     }
 
-    /// Extracts the key ID from a presented secret WITHOUT verifying it.
-    /// UNTRUSTED — usable only as a rate-limit bucket key, never for
-    /// authorization. Returns `nil` when the secret is unparseable.
     public static func extractPresentedKeyID(from secret: String) -> String? {
         let parts = secret.split(separator: "_", maxSplits: 1)
         guard parts.count == 2 else { return nil }
@@ -190,15 +150,11 @@ public enum SDKAPIKeyCodec {
         return id
     }
 
-    // MARK: - Helpers
-
     static func hmacSHA256(key: Data, message: Data) -> Data {
         let mac = HMAC<SHA256>.authenticationCode(for: message, using: SymmetricKey(data: key))
         return Data(mac)
     }
 
-    /// Constant-time byte comparison. Length mismatch is a failure, and
-    /// the loop always runs over the full length — never `==`.
     static func constantTimeEqual(_ lhs: Data, _ rhs: Data) -> Bool {
         guard lhs.count == rhs.count else { return false }
         var diff: UInt8 = 0

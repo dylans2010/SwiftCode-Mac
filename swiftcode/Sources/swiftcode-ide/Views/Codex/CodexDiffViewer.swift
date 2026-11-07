@@ -1,9 +1,3 @@
-// CodexDiffViewer.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/Codex UIs/CodexDiffViewer.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: previous-vs-latest Codex output comparison; Side by Side / Inline layout toggle for generated output
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct CodexDiffViewer: View {

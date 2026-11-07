@@ -2,15 +2,8 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Hermes provider tests. Everything here is offline and deterministic:
-/// no real `hermes` binary, no real API key, no network. Live behaviour
-/// (a real install, a real model run, real tool events) still needs
-/// Dylan's Mac. The fake-key tests use an obviously fake key value and
-/// assert it never appears in streamed events, argv, or error text.
 struct HermesProviderTests {
 
-    /// Collects a response stream (named to avoid the `collect` helper
-    /// in ProviderTests.swift).
     func collectHermes(_ s: AsyncThrowingStream<ChatEvent, Error>) async throws -> (text: String, events: [ChatEvent]) {
         var text = ""
         var events: [ChatEvent] = []
@@ -30,10 +23,6 @@ struct HermesProviderTests {
         deinit { try? FileManager.default.removeItem(at: url) }
     }
 
-    /// A stand-in `hermes` script: records its argv in the working
-    /// directory, then prints recorded stream-json lines. It reports
-    /// whether the documented credential variable reached it, without
-    /// ever printing the value.
     func fakeHermesScript(in dir: URL, exitStatus: Int = 0, stderr: String = "", emitResult: Bool = true) throws -> URL {
         let url = dir.appendingPathComponent("hermes")
         let resultLine = emitResult
@@ -57,8 +46,6 @@ struct HermesProviderTests {
 
     static let fakeKey = "fake-test-key"
 
-    // MARK: - Model ids
-
     @Test func modelIDParsing() {
         #expect(HermesModelID.parse("hermes:openrouter:anthropic/claude-sonnet-4-6")?.spec == "openrouter:anthropic/claude-sonnet-4-6")
         #expect(HermesModelID.parse("hermes:gpt-5.5")?.spec == "gpt-5.5")
@@ -78,8 +65,6 @@ struct HermesProviderTests {
         #expect(bare?.provider == nil)
         #expect(bare?.model == "gpt-5.5")
     }
-
-    // MARK: - Argument construction
 
     @Test func argumentConstruction() {
         var config = HermesConfiguration()
@@ -114,8 +99,6 @@ struct HermesProviderTests {
         #expect(!args.contains("--provider") && !args.contains("--model"))
     }
 
-    // MARK: - Stream-json parsing (recorded sample payloads)
-
     @Test func streamEventParsing() {
         #expect(HermesStreamParser.parseLine(#"{"type":"system","model":"anthropic/claude-sonnet-4-6","session_id":"abc"}"#)
             == .system(sessionId: "abc", model: "anthropic/claude-sonnet-4-6"))
@@ -144,8 +127,6 @@ struct HermesProviderTests {
         #expect(HermesPromptBuilder.build(systemPrompt: "Prompt", objective: "") == "Prompt")
     }
 
-    // MARK: - Stream-json → chat events
-
     @Test func eventParserMapping() throws {
         var parser = HermesStreamEventParser()
         #expect(try parser.parse(#"{"type":"system","model":"m","session_id":"abc"}"#) == [])
@@ -156,8 +137,6 @@ struct HermesProviderTests {
             == [.activity("read_file ✓")])
         #expect(try parser.parse(#"{"type":"tool_result","name":"terminal","output":"denied","is_error":true}"#)
             == [.activity("terminal ✗")])
-        // The terminal result's text is not repeated (a delta arrived),
-        // but its tokens ride on .finished.
         #expect(try parser.parse(#"{"type":"result","session_id":"abc","exit_code":0,"text":"Done","tokens":{"input":1,"output":2}}"#) == [])
         #expect(parser.finish() == [.finished(TokenUsage(inputTokens: 1, outputTokens: 2))])
         #expect(parser.finish() == [])
@@ -186,8 +165,6 @@ struct HermesProviderTests {
             Issue.record("Wrong error type for a failed result: \(error)")
         }
     }
-
-    // MARK: - Availability and model discovery
 
     @Test func availabilityNotInstalledWhenBinaryAbsent() async {
         let locator = CLIToolLocator(environment: ["PATH": "/nonexistent-dir"], home: "/nonexistent-home",
@@ -247,8 +224,6 @@ struct HermesProviderTests {
         #expect(HermesProvider.parseModelOutput("https://example.com/x") == [])
     }
 
-    // MARK: - Credentials
-
     @Test func credentialMappingOnlyForDocumentedProviders() {
         #expect(HermesProvider.credentialEnvironmentVariable(forProvider: "openrouter") == "OPENROUTER_API_KEY")
         #expect(HermesProvider.credentialEnvironmentVariable(forProvider: "openai-api") == "OPENAI_API_KEY")
@@ -281,8 +256,6 @@ struct HermesProviderTests {
         #expect(explained.contains("sign in"))
     }
 
-    // MARK: - End-to-end against a stand-in `hermes` script (not a live agent)
-
     @Test func sendRunsStandInAndStreamsEvents() async throws {
         let workspace = try HermesTestDir()
         let script = try fakeHermesScript(in: workspace.url)
@@ -309,7 +282,6 @@ struct HermesProviderTests {
         #expect(!argv.contains(Self.fakeKey))
         #expect(!argv.contains("--yolo") && !argv.contains("--api-key"))
         #expect(!argv.contains("Be helpful.") && !argv.contains("Summarize README.md"))
-        // The temp query file is deleted after the run.
         let words = argv.split(separator: " ").map(String.init)
         if let i = words.firstIndex(of: "--query-file") {
             #expect(!FileManager.default.fileExists(atPath: words[i + 1]))

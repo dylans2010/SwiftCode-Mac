@@ -16,7 +16,6 @@ struct ProjectCompatibilityView: View {
                 .foregroundStyle(.blue)
 
             HStack(spacing: 20) {
-                // Circular progress score
                 ZStack {
                     Circle()
                         .stroke(Color.secondary.opacity(0.12), lineWidth: 8)
@@ -44,7 +43,6 @@ struct ProjectCompatibilityView: View {
 
             Divider()
 
-            // Requirements Checklist
             VStack(alignment: .leading, spacing: 12) {
                 Text("Ecosystem Requirements checklist")
                     .font(.subheadline.bold())
@@ -85,7 +83,6 @@ struct ProjectCompatibilityView: View {
 
             Divider()
 
-            // Actionable Recommendations
             VStack(alignment: .leading, spacing: 12) {
                 Text("Actionable Recommendations")
                     .font(.subheadline.bold())

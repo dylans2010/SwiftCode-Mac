@@ -2,11 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Finding 7-Zip for a runtime download on Linux (`docs/SIMULATOR-LINUX.md`
-/// §5.1): the Flatpak ships `/app/bin/7zz`, and its `PATH` has the host-tool
-/// wrappers, then `/app/bin`, then the runtime's `/usr/bin`.
 @Suite struct SevenZipLookupTests {
-    /// A folder per `PATH` entry, holding the named programs.
     func folders(_ layout: [[String]]) throws -> (root: URL, path: String) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-7z-\(UUID().uuidString)")
         var dirs: [String] = []
@@ -23,7 +19,6 @@ import Testing
     }
 
     @Test func thePackagedSevenZipIsFoundOnTheFlatpaksPath() throws {
-        // wrappers (no 7-Zip) : /app/bin (7zz) : /usr/bin (an older 7z)
         let f = try folders([["swift", "git"], ["7zz", "swiftcode"], ["7z"]])
         defer { try? FileManager.default.removeItem(at: f.root) }
         let found = SevenZipImageReader.find(environment: ["PATH": f.path])

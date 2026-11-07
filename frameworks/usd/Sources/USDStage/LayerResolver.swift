@@ -1,20 +1,12 @@
 import Foundation
 import USDCore
 
-/// Finds and opens the layers a stage refers to (sublayers, references,
-/// payloads). Asset paths are resolved relative to the layer that authored
-/// them; identifiers of layers inside a USDZ package are written
-/// `package.usdz[inner/path.usda]`, as OpenUSD does.
 public protocol LayerResolver: AnyObject {
-    /// The identifier of `assetPath` as seen from the layer `anchor`.
     func identifier(for assetPath: String, anchor: String) -> String
-    /// Opens (or returns a cached) layer.
     func layer(for identifier: String) throws -> Layer
 }
 
-/// Path arithmetic shared by the resolvers.
 public enum AssetPaths {
-    /// Joins a relative path to a directory and folds `.` and `..`.
     public static func join(_ directory: String, _ relative: String) -> String {
         if relative.hasPrefix("/") { return normalize(relative) }
         return normalize(directory.isEmpty ? relative : directory + "/" + relative)
@@ -39,7 +31,6 @@ public enum AssetPaths {
         return String(path[..<slash])
     }
 
-    /// Splits `pkg.usdz[inner/path]` into the package and the inner path.
     public static func splitPackage(_ identifier: String) -> (package: String, inner: String)? {
         guard identifier.hasSuffix("]"), let open = identifier.firstIndex(of: "[") else { return nil }
         let package = String(identifier[..<open])
@@ -48,7 +39,6 @@ public enum AssetPaths {
     }
 }
 
-/// Resolves against the file system, including layers inside `.usdz` files.
 public final class FileLayerResolver: LayerResolver {
     private var cache: [String: Layer] = [:]
     private var packages: [String: USDZArchive] = [:]
@@ -91,11 +81,9 @@ public final class FileLayerResolver: LayerResolver {
         return layer
     }
 
-    /// Replaces a cached layer (an editor's unsaved edits).
     public func setLayer(_ layer: Layer, for identifier: String) { cache[identifier] = layer }
 }
 
-/// Resolves against layers held in memory (tests, unsaved documents).
 public final class MemoryLayerResolver: LayerResolver {
     public var layers: [String: Layer]
     public var fallback: LayerResolver?

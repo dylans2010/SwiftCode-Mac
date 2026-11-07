@@ -1,35 +1,9 @@
-// XcodeProjTabs.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/XcodeProjTabs.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: all editing across the 42 tab views (build settings/phases/rules, signing, entitlements, Info.plist, localization, dependencies, shell scripts, resources/frameworks phases); build-settings search
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): XcodeProjModel.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// Cleanup C25 (2026-11-06): the Signing & Capabilities section and the Deployment tab
-// showed hardcoded values ("Personal Apple Developer Account", "Apple Development
-// (Developer ID)", "Automatic Developer Provisioning Profile", "Embedded inside OS",
-// "Standard Architectures (Apple Silicon & Intel x86_64)", "Build Active Architecture
-// Only: YES") above a disabled `Toggle(..., isOn: .constant(true))` that asserted a
-// signing state no control could change. All of those now read the selected target's
-// real `.pbxproj` build settings (`DEVELOPMENT_TEAM`, `CODE_SIGN_STYLE`,
-// `CODE_SIGN_IDENTITY`, `PROVISIONING_PROFILE_SPECIFIER`, `ARCHS`, `ONLY_ACTIVE_ARCH`,
-// `ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES`) via `xcodeProjSetting(_:in:)`, showing
-// "—" when unset, and the signing toggle is functional: it writes `CODE_SIGN_STYLE`
-// (`Automatic`/`Manual`) back through `XcodeProjWriter`. Note the model carries no
-// target→configuration-list mapping, so settings are read from the first build
-// configuration that defines the key (the same approximation the Identity tab
-// already used for the bundle identifier), and `XcodeProjWriter.updateBuildSetting`
-// replaces the key in every configuration block it appears in.
 import SwiftUI
 
-/// The value of a build setting from the first build configuration that defines
-/// it, or `nil` when no configuration sets it. Callers display "—" for `nil`.
 private func xcodeProjSetting(_ key: String, in model: XcodeProjModel) -> String? {
     model.buildConfigurations.first(where: { $0.buildSettings[key] != nil })?.buildSettings[key]
 }
 
-// MARK: - Reusable Modern Detail Header Component
 struct TabHeaderView: View {
     let title: String
     let icon: String
@@ -58,7 +32,6 @@ struct TabHeaderView: View {
     }
 }
 
-// MARK: - 1. General Tab
 public struct GeneralTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -157,7 +130,6 @@ public struct GeneralTabView: View {
     }
 }
 
-// MARK: - 2. Identity Tab
 public struct IdentityTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -166,10 +138,6 @@ public struct IdentityTabView: View {
     @State private var marketingVersion: String = ""
     @State private var projectVersion: String = ""
     @State private var saveStatus: String? = nil
-    // C25: functional signing state, loaded from the real CODE_SIGN_STYLE
-    // setting. `nil` (via signingLoaded == false / codeSignStyleUnset) means
-    // the project does not set it — the toggle then shows the off position
-    // and a caption says so instead of asserting a state.
     @State private var automaticSigning: Bool = false
     @State private var codeSignStyleUnset: Bool = true
     @State private var signingLoaded: Bool = false
@@ -270,9 +238,6 @@ public struct IdentityTabView: View {
                     }
 
                     Section("Signing & Capabilities") {
-                        // C25: functional toggle — the Binding setter writes
-                        // CODE_SIGN_STYLE; loading the value in onAppear assigns
-                        // the state directly and never writes.
                         Toggle("Automatically manage signing", isOn: Binding(
                             get: { automaticSigning },
                             set: { newValue in
@@ -329,7 +294,6 @@ public struct IdentityTabView: View {
     }
 }
 
-// MARK: - 3. Deployment Tab
 public struct DeploymentTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -404,9 +368,6 @@ public struct DeploymentTabView: View {
                             .foregroundStyle(status.starts(with: "Error") ? .red : .secondary)
                     }
 
-                    // C25: read from the real .pbxproj settings; "—" when unset.
-                    // ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES YES means the standard
-                    // libraries are embedded in the app bundle.
                     let embedSwiftLibs = xcodeProjSetting("ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES", in: model)
                     LabeledContent(
                         "Swift Standard Library",
@@ -426,7 +387,6 @@ public struct DeploymentTabView: View {
     }
 }
 
-// MARK: - 4. Build Settings Tab
 public struct BuildSettingsTabView: View {
     public let model: XcodeProjModel
     public let searchQuery: String
@@ -607,7 +567,6 @@ public struct BuildSettingsTabView: View {
     }
 }
 
-// MARK: - 5. Build Rules Tab
 public struct BuildRulesTabView: View {
     public let model: XcodeProjModel
 
@@ -626,7 +585,6 @@ public struct BuildRulesTabView: View {
     }
 }
 
-// MARK: - 6. Build Phases Tab
 public struct BuildPhasesTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -661,7 +619,6 @@ public struct BuildPhasesTabView: View {
 
                                 Divider()
 
-                                // Display actual compiled/copied file lists inside each build phase card!
                                 VStack(alignment: .leading, spacing: 4) {
                                     if phase.files.isEmpty {
                                         Text("No files registered in this build phase.")
@@ -697,7 +654,6 @@ public struct BuildPhasesTabView: View {
     }
 }
 
-// MARK: - 7. Build Configurations Tab
 public struct BuildConfigurationsTabView: View {
     public let model: XcodeProjModel
 
@@ -724,7 +680,6 @@ public struct BuildConfigurationsTabView: View {
     }
 }
 
-// MARK: - 8. Targets Tab
 public struct TargetsTabView: View {
     public let model: XcodeProjModel
 
@@ -756,7 +711,6 @@ public struct TargetsTabView: View {
     }
 }
 
-// MARK: - 9. Products Tab
 public struct ProductsTabView: View {
     public let model: XcodeProjModel
 
@@ -791,7 +745,6 @@ public struct ProductsTabView: View {
     }
 }
 
-// MARK: - 10. Packages Tab
 public struct PackagesTabView: View {
     public let model: XcodeProjModel
 
@@ -810,7 +763,6 @@ public struct PackagesTabView: View {
     }
 }
 
-// MARK: - 11. Frameworks Tab
 public struct FrameworksTabView: View {
     public let model: XcodeProjModel
 
@@ -829,7 +781,6 @@ public struct FrameworksTabView: View {
     }
 }
 
-// MARK: - 12. Dependencies Tab
 public struct DependenciesTabView: View {
     public let model: XcodeProjModel
 
@@ -848,14 +799,9 @@ public struct DependenciesTabView: View {
     }
 }
 
-// MARK: - 13. Signing & Capabilities Tab
 public struct SigningCapabilitiesTabView: View {
     public let model: XcodeProjModel
 
-    // D5: functional signing toggle (C25 pattern from IdentityTabView) +
-    // capabilities read from the real .entitlements file resolved via
-    // ProjectResolutionService. An unset CODE_SIGN_STYLE / absent
-    // entitlements file shows "—" / "Not set" instead of asserting a state.
     @State private var automaticSigning: Bool = false
     @State private var codeSignStyleUnset: Bool = true
     @State private var signingLoaded: Bool = false
@@ -865,18 +811,12 @@ public struct SigningCapabilitiesTabView: View {
         self.model = model
     }
 
-    /// The project's entitlements dictionary, or `nil` when no
-    /// entitlements file resolves or it cannot be read as a plist.
     private var entitlements: [String: Any]? {
         guard let url = ProjectResolutionService.shared.resolveEntitlements(for: model),
               let dict = NSDictionary(contentsOf: url) as? [String: Any] else { return nil }
         return dict
     }
 
-    /// Display value for one entitlements key: the real value when the
-    /// key is present ("Enabled"/"Disabled" for booleans), "Not set" when
-    /// the file exists but the key is absent, "—" when there is no
-    /// entitlements file at all.
     private func capabilityValue(_ key: String, in entitlements: [String: Any]?) -> String {
         guard let entitlements else { return "—" }
         guard let value = entitlements[key] else { return "Not set" }
@@ -892,9 +832,6 @@ public struct SigningCapabilitiesTabView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // D5: functional toggle — the Binding setter writes
-                    // CODE_SIGN_STYLE; loading the value in onAppear assigns
-                    // the state directly and never writes (C25 pattern).
                     Toggle("Automatically manage signing", isOn: Binding(
                         get: { automaticSigning },
                         set: { newValue in
@@ -984,7 +921,6 @@ public struct SigningCapabilitiesTabView: View {
     }
 }
 
-// MARK: - 14. Entitlements Tab
 public struct EntitlementsTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -1000,7 +936,6 @@ public struct EntitlementsTabView: View {
     }
 }
 
-// MARK: - 15. Info.plist Tab
 public struct InfoPlistTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -1016,7 +951,6 @@ public struct InfoPlistTabView: View {
     }
 }
 
-// MARK: - 16. Assets Tab
 public struct AssetsTabView: View {
     public let model: XcodeProjModel
 
@@ -1035,7 +969,6 @@ public struct AssetsTabView: View {
     }
 }
 
-// MARK: - 17. Localization Tab
 public struct LocalizationTabView: View {
     public let model: XcodeProjModel
 
@@ -1054,7 +987,6 @@ public struct LocalizationTabView: View {
     }
 }
 
-// MARK: - 18. Resources Tab
 public struct ResourcesTabView: View {
     public let model: XcodeProjModel
 
@@ -1093,7 +1025,6 @@ public struct ResourcesTabView: View {
     }
 }
 
-// MARK: - 19. Source Files Tab
 public struct SourceFilesTabView: View {
     public let model: XcodeProjModel
 
@@ -1132,7 +1063,6 @@ public struct SourceFilesTabView: View {
     }
 }
 
-// MARK: - 20. Headers Tab
 public struct HeadersTabView: View {
     public let model: XcodeProjModel
 
@@ -1151,7 +1081,6 @@ public struct HeadersTabView: View {
     }
 }
 
-// MARK: - 21. Swift Packages Tab
 public struct SwiftPackagesTabView: View {
     public let model: XcodeProjModel
 
@@ -1170,7 +1099,6 @@ public struct SwiftPackagesTabView: View {
     }
 }
 
-// MARK: - 22. Project Overview Tab
 public struct ProjectOverviewTabView: View {
     public let model: XcodeProjModel
     @State private var copiedPath = false
@@ -1181,7 +1109,6 @@ public struct ProjectOverviewTabView: View {
 
     public var body: some View {
         VStack(spacing: 20) {
-            // Project Hero Card
             HStack(spacing: 16) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1234,7 +1161,6 @@ public struct ProjectOverviewTabView: View {
                     .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
             )
 
-            // Stat Metric Tiles (2x2 Grid)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                 overviewStatCard(
                     title: "Defined Targets",
@@ -1266,7 +1192,6 @@ public struct ProjectOverviewTabView: View {
                 )
             }
 
-            // Targets Breakdown Section
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Label("Project Targets", systemImage: "square.stack.3d.up")
@@ -1349,7 +1274,6 @@ public struct ProjectOverviewTabView: View {
     }
 }
 
-// MARK: - 23. Warnings Tab
 public struct WarningsTabView: View {
     public let model: XcodeProjModel
 
@@ -1368,7 +1292,6 @@ public struct WarningsTabView: View {
     }
 }
 
-// MARK: - 24. Diagnostics Tab
 public struct DiagnosticsTabView: View {
     public let model: XcodeProjModel
 
@@ -1387,7 +1310,6 @@ public struct DiagnosticsTabView: View {
     }
 }
 
-// MARK: - 25. Search Tab
 public struct SearchTabView: View {
     public let model: XcodeProjModel
 
@@ -1406,7 +1328,6 @@ public struct SearchTabView: View {
     }
 }
 
-// MARK: - 26. Relationships Tab
 public struct RelationshipsTabView: View {
     public let model: XcodeProjModel
 
@@ -1444,7 +1365,6 @@ public struct RelationshipsTabView: View {
     }
 }
 
-// MARK: - 27. Project Statistics Tab
 public struct ProjectStatisticsTabView: View {
     public let model: XcodeProjModel
 
@@ -1471,7 +1391,6 @@ public struct ProjectStatisticsTabView: View {
     }
 }
 
-// MARK: - 28. Metadata Tab
 public struct MetadataTabView: View {
     public let model: XcodeProjModel
 
@@ -1496,7 +1415,6 @@ public struct MetadataTabView: View {
     }
 }
 
-// MARK: - 29. Project Summary Tab
 public struct ProjectSummaryTabView: View {
     public let model: XcodeProjModel
 
@@ -1509,7 +1427,6 @@ public struct ProjectSummaryTabView: View {
     }
 }
 
-// MARK: - 30. Target Summary Tab
 public struct TargetSummaryTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -1524,7 +1441,6 @@ public struct TargetSummaryTabView: View {
     }
 }
 
-// MARK: - 31. File References Tab
 public struct FileReferencesTabView: View {
     public let model: XcodeProjModel
 
@@ -1561,7 +1477,6 @@ public struct FileReferencesTabView: View {
     }
 }
 
-// MARK: - 32. Groups Tab
 public struct GroupsTabView: View {
     public let model: XcodeProjModel
 
@@ -1596,7 +1511,6 @@ public struct GroupsTabView: View {
     }
 }
 
-// MARK: - 33. Copy Files Tab
 public struct CopyFilesTabView: View {
     public let model: XcodeProjModel
 
@@ -1628,7 +1542,6 @@ public struct CopyFilesTabView: View {
     }
 }
 
-// MARK: - 34. Shell Scripts Tab
 public struct ShellScriptsTabView: View {
     public let model: XcodeProjModel
 
@@ -1662,7 +1575,6 @@ public struct ShellScriptsTabView: View {
     }
 }
 
-// MARK: - 35. Header Phases Tab
 public struct HeaderPhasesTabView: View {
     public let model: XcodeProjModel
 
@@ -1681,7 +1593,6 @@ public struct HeaderPhasesTabView: View {
     }
 }
 
-// MARK: - 36. Resources Phase Tab
 public struct ResourcesPhaseTabView: View {
     public let model: XcodeProjModel
 
@@ -1694,7 +1605,6 @@ public struct ResourcesPhaseTabView: View {
     }
 }
 
-// MARK: - 37. Framework Phase Tab
 public struct FrameworkPhaseTabView: View {
     public let model: XcodeProjModel
 
@@ -1726,7 +1636,6 @@ public struct FrameworkPhaseTabView: View {
     }
 }
 
-// MARK: - 38. Package Dependencies Tab
 public struct PackageDependenciesTabView: View {
     public let model: XcodeProjModel
 
@@ -1745,7 +1654,6 @@ public struct PackageDependenciesTabView: View {
     }
 }
 
-// MARK: - 39. Project Inspector Tab
 public struct ProjectInspectorTabView: View {
     public let model: XcodeProjModel
 
@@ -1758,7 +1666,6 @@ public struct ProjectInspectorTabView: View {
     }
 }
 
-// MARK: - 40. Target Inspector Tab
 public struct TargetInspectorTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -1795,7 +1702,6 @@ public struct TargetInspectorTabView: View {
     }
 }
 
-// MARK: - 41. Build Logs Tab
 public struct BuildLogsTabView: View {
     public let model: XcodeProjModel
 

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 #if canImport(os)
 import os
@@ -31,7 +28,6 @@ final class CharacterEscaperViewModel {
     }
 
     func unescape() {
-        // Simple unescape conversion
         var result = escapedText
         result = result.replacingOccurrences(of: "\\\"", with: "\"")
         result = result.replacingOccurrences(of: "\\\\", with: "\\")
@@ -85,7 +81,7 @@ struct CharacterEscaperDevToolView: View {
             }
             .padding()
         }
-        
+
         .navigationTitle("Character Escaper")
         .onAppear {
             viewModel.escape()

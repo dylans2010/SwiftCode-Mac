@@ -1,24 +1,3 @@
-/* SwiftCode performance probe: what does the loader do in one process start?
- * Original SwiftCode code (specs/simulator/boot-profile.md §6). Runs unchanged on
- * Apple's simulator (`xcrun simctl spawn`) and on SwiftCode (`--exec`), so the
- * two platforms can be compared for the same work.
- *
- *   p_load                 one line at main(): images loaded, wall time
- *                          since the kernel started the process, CPU time
- *                          used so far (the loader's work), and how the
- *                          clock/CPU values were obtained
- *   p_load list            the same, then every loaded image's path
- *   p_load deps <macho>    read <macho>'s dependent-library load commands
- *                          (LC_LOAD_DYLIB, LC_LOAD_WEAK_DYLIB,
- *                          LC_REEXPORT_DYLIB, LC_LOAD_UPWARD_DYLIB) from the
- *                          file and dlopen every absolute one, the way a
- *                          launch of <macho> would load its closure; prints
- *                          images before/after, wall and CPU time of the
- *                          loads
- *   p_load paths <macho>   print each of the image paths dyld recorded
- *                          (after `deps`) with a marker if the path names
- *                          a file that does not exist on disk
- * Output lines start with "load ". */
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -50,7 +29,6 @@ static double mono_s(void)
     return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
 }
 
-/* CPU of the whole process (user + system), from getrusage. */
 static double cpu_s(void)
 {
     struct rusage ru;
@@ -60,7 +38,6 @@ static double cpu_s(void)
            (double)ru.ru_stime.tv_sec + (double)ru.ru_stime.tv_usec / 1e6;
 }
 
-/* CPU of the calling thread. */
 static double thread_cpu_s(void)
 {
     struct timespec t;
@@ -69,7 +46,6 @@ static double thread_cpu_s(void)
     return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
 }
 
-/* The kernel's start time of this process (wall clock), or 0. */
 static double start_s(void)
 {
     int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
@@ -89,7 +65,6 @@ static void at_main(const char *tag, double t_main, double cpu_main, double tcpu
            _dyld_image_count(), st > 0 ? t_main - st : -1.0, cpu_main, tcpu_main, st > 0);
 }
 
-/* Reads the dependent-library paths of a thin arm64 slice. */
 static int read_deps(const char *path, char ***out)
 {
     int fd = open(path, O_RDONLY);

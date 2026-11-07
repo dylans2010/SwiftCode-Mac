@@ -1,18 +1,6 @@
 import Foundation
 import Observation
 
-/// The DeviceConnectKit managers, ported from Legacy
-/// (`SwiftCode/Views/Build/DeviceConnectKit/Managers/`): the
-/// `@Observable` state holders the DeviceConnect UI binds to.
-///
-/// Renames from Legacy, all mechanical: the bare names
-/// (`BuildManager`, `SessionManager`, `DeviceManager`, …) collide
-/// with `SwiftCodeBuild` / `SwiftCodeSDK` types of the same name in modules
-/// `SwiftCodeUI` also imports, so every manager here carries the
-/// `DeviceConnect` prefix. Behaviour is Legacy's, except
-/// `DeviceConnectRuntimeManager.stopMonitoring`, which now actually
-/// stops the coordinator task Legacy leaked (Legacy created a fresh
-/// `RuntimeCoordinator` per start and never cancelled it).
 @Observable
 @MainActor
 public final class DeviceConnectBuildManager {
@@ -50,7 +38,7 @@ public final class DeviceConnectConsoleManager {
     public private(set) var buildLogs: [DeviceLog] = []
     public private(set) var runtimeLogs: [DeviceLog] = []
 
-    public var selectedConsoleTab: Int = 0 // 0: Build, 1: Runtime
+    public var selectedConsoleTab: Int = 0
 
     private init() {}
 
@@ -244,7 +232,6 @@ public final class DeviceConnectDeviceManager {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.devices = discovered
-                // Auto-select first device if none is selected
                 if self.selectedDevice == nil, let first = discovered.first {
                     self.selectedDevice = first
                 }
@@ -271,7 +258,6 @@ public final class DeviceConnectDeviceManager {
 
     public func selectDevice(_ device: ConnectedDevice) {
         self.selectedDevice = device
-        // Raise notification
         DeviceConnectNotificationCenter.shared.post(
             name: DeviceConnectNotificationCenter.deviceConnected,
             userInfo: ["device": device]
@@ -298,7 +284,6 @@ public final class DeviceConnectEnvironmentManager {
         self.currentEnvironment = result.environment
         self.diagnostics = result.diagnostics
 
-        // Update derived data size
         do {
             self.derivedDataSize = try await DerivedDataCommand().getDerivedDataSize()
         } catch {
@@ -345,9 +330,6 @@ public final class DeviceConnectHistoryManager {
 public final class DeviceConnectPreferencesManager {
     public static let shared = DeviceConnectPreferencesManager()
 
-    // Configs persisted via UserDefaults. The keys keep Legacy's
-    // `com.swiftcode.deviceconnect.*` names so an existing install
-    // keeps its preferences.
     public var autoDiscover: Bool {
         didSet { UserDefaults.standard.set(autoDiscover, forKey: "com.swiftcode.deviceconnect.autoDiscover") }
     }

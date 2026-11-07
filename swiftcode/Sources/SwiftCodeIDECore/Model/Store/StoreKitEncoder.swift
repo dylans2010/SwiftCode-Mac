@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Encoders/StoreKitEncoder.swift` (SwiftCode-Mac migration, P-UTIL).
-// StoreKitWorkspaceManager (same module) already calls StoreKitEncoder.shared.encode — this port resolves that dangling reference.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import Foundation
 
 public final class StoreKitEncoder: Sendable {

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct APIInspectorView: View {
@@ -48,7 +45,7 @@ struct APIInspectorView: View {
             }
             .padding(.vertical, 4)
         }
-        
+
         .navigationTitle("API Inspector")
         .toolbar {
             Button("Clear") {

@@ -1,8 +1,5 @@
 import Foundation
 
-// Process policy: fixed-argv AssistArgvRunner (/usr/bin/xcodebuild, no shell).
-// Listed in PROCESS_ALLOWLIST in Tools/validate_tools.py.
-
 public struct AssistXcodeToolchainInfoTool: AssistTool {
     public let id = "xcode_toolchain_info"
     public let name = "Xcode Toolchain Info"

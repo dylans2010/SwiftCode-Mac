@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: CoreVideo
-
 public struct CoreVideoInterface_0000: Sendable, Codable {
     public let id: String = "corevideo.api.0"
     public var title: String = "CoreVideo Symbol 0"

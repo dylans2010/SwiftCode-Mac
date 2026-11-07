@@ -1,16 +1,3 @@
-/* SwiftCode stage-8 probe p_metal_triangle (original SwiftCode code;
- * specs/simulator/stage8-contract.md §8, milestone 8a-T).
- *
- * Draws the hello triangle with Metal: red at the top, green bottom left,
- * blue bottom right, on a dark background, into a 512x512 BGRA8 texture;
- * reads it back with getBytes and writes /tmp/p_metal_triangle.png.
- * Loads the precompiled p_metal_triangle.metallib next to the executable
- * (newLibraryWithURL:), so the guest's shader compiler is not needed.
- *
- * Usage: p_metal_triangle [METALLIB [OUT.png]]
- * Prints "triangle ok" when the sampled pixels are right, else
- * "triangle FAIL" (exit 1). Every step prints a line, so a hang shows where.
- */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <mach-o/dyld.h>
@@ -25,8 +12,6 @@ static void step(const char *s) {
     printf("p_metal_triangle: %s\n", s);
     fflush(stdout);
 }
-
-/* ---- A minimal PNG writer (stored deflate blocks, no compression). ---- */
 
 static uint32_t crc_table[256];
 
@@ -58,7 +43,6 @@ static void chunk(FILE *f, const char *type, const uint8_t *data, size_t n) {
     put32(f, c);
 }
 
-/* rgb: H rows of W*3 bytes. */
 static int write_png(const char *path, const uint8_t *rgb) {
     crc_init();
     size_t raw_len = (size_t)H * (1 + W * 3);
@@ -105,8 +89,6 @@ static int write_png(const char *path, const uint8_t *rgb) {
     free(z);
     return 0;
 }
-
-/* ---- The triangle. ---- */
 
 typedef struct {
     float position[2];
@@ -208,7 +190,6 @@ int main(int argc, char **argv) {
         if (write_png(outPath, rgb) != 0) { printf("triangle FAIL: cannot write %s\n", outPath); return 1; }
         printf("p_metal_triangle: wrote %s\n", outPath);
 
-        /* Samples: background corner, near each vertex, centre. */
         struct { const char *name; int x, y; } s[] = {
             {"corner", 8, 8}, {"top (red)", 256, 80}, {"bottom-left (green)", 70, 440},
             {"bottom-right (blue)", 440, 440}, {"centre", 256, 300},
@@ -220,10 +201,10 @@ int main(int argc, char **argv) {
         }
         const uint8_t *c = rgb + 3 * (8 * W + 8), *r = rgb + 3 * (80 * W + 256), *g = rgb + 3 * (440 * W + 70),
                       *b = rgb + 3 * (440 * W + 440);
-        if (!(c[0] < 40 && c[1] < 40 && c[2] > 25 && c[2] < 50)) ok = 0;   /* dark background */
-        if (!(r[0] > 180 && r[1] < 60 && r[2] < 60)) ok = 0;                /* red at the top */
-        if (!(g[1] > 180 && g[0] < 60 && g[2] < 60)) ok = 0;                /* green bottom left */
-        if (!(b[2] > 180 && b[0] < 60 && b[1] < 60)) ok = 0;                /* blue bottom right */
+        if (!(c[0] < 40 && c[1] < 40 && c[2] > 25 && c[2] < 50)) ok = 0;
+        if (!(r[0] > 180 && r[1] < 60 && r[2] < 60)) ok = 0;
+        if (!(g[1] > 180 && g[0] < 60 && g[2] < 60)) ok = 0;
+        if (!(b[2] > 180 && b[0] < 60 && b[1] < 60)) ok = 0;
         printf(ok ? "triangle ok\n" : "triangle FAIL: pixels\n");
         return ok ? 0 : 1;
     }

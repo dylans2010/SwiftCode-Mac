@@ -26,23 +26,17 @@ import subprocess
 import numpy as np
 from PIL import Image
 
-# Editor grid of the Xcode capture (found from glyph ink, checked per run).
-CODE_X0 = 341          # left edge of column 0
-ADVANCE = 8            # points per character at 1x
-FIRST_ROW_TOP = 93     # top of visual line 1
+CODE_X0 = 341
+ADVANCE = 8
+FIRST_ROW_TOP = 93
 LINE_PITCH = 18
-
-
-# ---------------------------------------------------------------- pixels
 
 def hexcolor(c):
     return "#%02X%02X%02X" % tuple(int(round(v)) for v in c)
 
-
 def load_still(session, app, name):
     path = session / app / name
     return np.asarray(Image.open(path).convert("RGB")).astype(int)
-
 
 def colour_runs(line, origin, tol=3, min_len=1):
     """Runs of near-equal colour along a 1-D pixel line: (start, end, hex)."""
@@ -56,14 +50,11 @@ def colour_runs(line, origin, tol=3, min_len=1):
     out.append((origin + start, origin + len(line) - 1, hexcolor(np.median(acc, axis=0))))
     return [r for r in out if r[1] - r[0] + 1 >= min_len]
 
-
 def row_runs(im, y, x0, x1, **kw):
     return colour_runs(im[y, x0:x1], x0, **kw)
 
-
 def column_runs(im, x, y0, y1, **kw):
     return colour_runs(im[y0:y1, x], y0, **kw)
-
 
 def ink_colour(im, box, k=5):
     """Colour of the k pixels farthest from the box's median (its background)."""
@@ -73,7 +64,6 @@ def ink_colour(im, box, k=5):
     far = np.argsort(-np.abs(px - bg).sum(axis=1))[:k]
     return hexcolor(np.median(px[far], axis=0))
 
-
 def ink_box(im, box, threshold=40):
     x0, y0, x1, y1 = box
     region = im[y0:y1, x0:x1]
@@ -81,7 +71,6 @@ def ink_box(im, box, threshold=40):
     ink = np.abs(region - bg).max(axis=2) > threshold
     xs, ys = np.nonzero(ink.any(axis=0))[0], np.nonzero(ink.any(axis=1))[0]
     return (x0 + int(xs.min()), y0 + int(ys.min()), x0 + int(xs.max()), y0 + int(ys.max()))
-
 
 def corner_coverage(radius, size, supersample=16):
     offsets = (np.arange(supersample) + 0.5) / supersample
@@ -94,14 +83,12 @@ def corner_coverage(radius, size, supersample=16):
             cov[y, x] = inside.mean()
     return cov
 
-
 def fit_corner_radius(alpha):
     """Best circular radius for a top-left corner coverage patch."""
     size = alpha.shape[0]
     errors = {r: float(((corner_coverage(r, size) - alpha) ** 2).sum())
               for r in np.arange(1, 14, 0.5)}
     return min(errors, key=errors.get)
-
 
 def capsule_spans(im, y, threshold=8):
     """x spans darker than the toolbar's own background (row 2) on row y."""
@@ -115,9 +102,6 @@ def capsule_spans(im, y, threshold=8):
         prev = x
     spans.append((int(start), int(prev)))
     return [s for s in spans if s[1] - s[0] >= 30]
-
-
-# ---------------------------------------------------------------- video
 
 def video_frames(session, app, name):
     """(t, frame) per recorded frame; t comes from the sidecar's pts."""
@@ -137,7 +121,6 @@ def video_frames(session, app, name):
     proc.stdout.close()
     proc.wait()
 
-
 def bezier_progress(curve, u):
     """y of a CSS-style cubic Bezier at x = u (bisection, vectorised)."""
     x1, y1, x2, y2 = curve
@@ -149,7 +132,6 @@ def bezier_progress(curve, u):
         lo, hi = np.where(x < u, s, lo), np.where(x < u, hi, s)
     s = (lo + hi) / 2
     return 3 * (1 - s) ** 2 * s * y1 + 3 * (1 - s) * s ** 2 * y2 + s ** 3
-
 
 def fit_bezier_grid(ts, progress, starts, ends):
     """Grid search over start, end and the four control values; best RMSE."""
@@ -169,7 +151,6 @@ def fit_bezier_grid(ts, progress, starts, ends):
                         "curve": [round(float(g[i]), 2) for g in grid]}
     return best
 
-
 def named_curve_rmse(ts, progress, curve, starts, ends):
     best = None
     for t0 in starts:
@@ -179,9 +160,6 @@ def named_curve_rmse(ts, progress, curve, starts, ends):
             if best is None or rmse < best[0]:
                 best = (round(rmse, 4), round(t0, 4), round(t1 - t0, 4))
     return best
-
-
-# ---------------------------------------------------------------- sections
 
 def editor(session, app):
     im = load_still(session, app, "01-editor-at-rest-after.png")
@@ -201,12 +179,11 @@ def editor(session, app):
         "wrapped continuation first glyph": ink_box(im, (330, row(7), 400, row(7) + 18)),
     }
 
-
 def syntax_colours(session, app):
     im = load_still(session, app, "01-editor-at-rest-after.png")
     row = lambda n: FIRST_ROW_TOP + LINE_PITCH * (n - 1)
     col = lambda c: CODE_X0 + ADVANCE * c
-    tokens = {  # name: (first column, last column, visual row)
+    tokens = {
         "keyword (import, struct, let, func)": (4, 7, 28),
         "plain text (module name)": (7, 17, 3),
         "comment (block)": (1, 70, 6),
@@ -225,7 +202,6 @@ def syntax_colours(session, app):
         out[name] = ink_colour(im, box)
     return out
 
-
 def minimap(session, app):
     im = load_still(session, app, "01-editor-at-rest-after.png")
     return {
@@ -234,7 +210,6 @@ def minimap(session, app):
         "column 1005 (shade extent)": column_runs(im, 1005, 86, 400, tol=2, min_len=3),
         "column 1050 (line bars)": column_runs(im, 1050, 84, 120, tol=2)[:10],
     }
-
 
 def toolbar(session, app):
     out = {}
@@ -248,7 +223,6 @@ def toolbar(session, app):
     out["subtitle"] = ink_box(im, (405, 29, 592, 45), threshold=30)
     out["title colour"] = ink_colour(im, (412, 14, 483, 24))
     return out
-
 
 def navigator(session, app):
     im = load_still(session, app, "01-editor-at-rest-after.png")
@@ -275,7 +249,6 @@ def navigator(session, app):
         "selected band row 815 with scroller": row_runs(after_scroll, 815, 0, 290, tol=2, min_len=3),
     }
 
-
 def inspector(session, app):
     im = load_still(session, app, "01-editor-at-rest-after.png")
     return {
@@ -290,7 +263,6 @@ def inspector(session, app):
         "disabled popup title colour": ink_colour(im, (1230, 670, 1330, 686)),
     }
 
-
 def sticky_header(session, app):
     im = load_still(session, app, "02-editor-scroll-down-after.png")
     return {
@@ -300,7 +272,6 @@ def sticky_header(session, app):
         "gutter number box": ink_box(im, (300, 86, 336, 104)),
         "gutter number colour": ink_colour(im, (300, 86, 336, 104)),
     }
-
 
 def scroll_travel(session, app):
     """Content shift between the before and after stills, by matching rows."""
@@ -319,7 +290,6 @@ def scroll_travel(session, app):
         out[step] = best[1]
     return out
 
-
 def scroll_under(session, app):
     """Mean darkness (255 - grey) of bar regions over the scroll video."""
     regions = {"toolbar band above capsules": (700, 0, 990, 7),
@@ -335,7 +305,6 @@ def scroll_under(session, app):
             samples[k].append(float((255 - grey[y0:y1, x0:x1]).mean()))
     return {k: {"median": round(float(np.median(v)), 2), "max": round(max(v), 2)}
             for k, v in samples.items()}
-
 
 def inspector_toggle(session, app):
     """Per frame: the inspector divider's x on row 500 and the image's left edge on row 300."""
@@ -358,7 +327,6 @@ def inspector_toggle(session, app):
             "ease-in (0.42,0,1,1)": named_curve_rmse(ts, p, (0.42, 0, 1, 1), starts - 0.02, ends),
             "linear": named_curve_rmse(ts, p, (0, 0, 1, 1), starts, ends)}
 
-
 def image_open(session, app):
     """Which regions change in which frame after the open-document request."""
     regions = {"navigator rows": (0, 84, 290, 850), "toolbar title": (380, 0, 600, 52),
@@ -380,12 +348,10 @@ def image_open(session, app):
             "viewer column x 700": column_runs(viewer, 700, 84, 880, tol=6),
             "image row 120": row_runs(viewer, 120, 290, 1140, tol=6)}
 
-
 SECTIONS = {"editor": editor, "colours": syntax_colours, "minimap": minimap,
             "toolbar": toolbar, "navigator": navigator, "inspector": inspector,
             "sticky": sticky_header, "travel": scroll_travel, "under": scroll_under,
             "inspector-toggle": inspector_toggle, "image-open": image_open}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -396,7 +362,6 @@ def main():
     for name in args.section:
         print(f"== {name} ({args.app})")
         print(json.dumps(SECTIONS[name](args.session, args.app), indent=1, default=str))
-
 
 if __name__ == "__main__":
     main()

@@ -1,15 +1,9 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Edit ▸ Convert ▸ To String Catalogs…: a sheet lists the project's
-/// `.strings`/`.stringsdict` tables with a checkbox each (all on); Convert
-/// turns the checked ones into String Catalogs (undoable). See
-/// `specs/ide/string-catalog.md`, "SwiftCode implementation".
 extension WorkspaceWindowController {
-    /// The project the command works on: the navigator selection's, else the first.
     var stringCatalogConversionProject: String? { navigatorSelectionItems?.project ?? defaultNavigatorProject }
 
-    /// The tables the command offers.
     public func legacyStringTables() -> [LegacyStringTable] {
         navigatorOperations(stringCatalogConversionProject)?.legacyStringTables() ?? []
     }
@@ -26,23 +20,17 @@ extension WorkspaceWindowController {
         window.beginSheet(panel)
     }
 
-    /// Converts `tables` of the command's project; nil when it fails (the
-    /// error is reported).
     @discardableResult
     public func convertToStringCatalogs(tables: [LegacyStringTable]) -> ProjectEdit? {
         pendingStringCatalogConversion = nil
         return performNavigatorEdit(stringCatalogConversionProject) { try $0.convertToStringCatalogs(tables) }
     }
 
-    /// The sheet the last Convert to String Catalogs… opened (also when the
-    /// window is not on screen, as in tests).
     public internal(set) var pendingStringCatalogConversion: StringCatalogConversionController? {
         get { objc_getAssociatedObject(self, &StringCatalogConversionController.key) as? StringCatalogConversionController }
         set { objc_setAssociatedObject(self, &StringCatalogConversionController.key, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 
-    /// The sources "Refresh from source" reads for a catalog: those of the
-    /// targets that hold it (empty: the editor reads its folder).
     func stringCatalogSourceFiles(forCatalogAt path: String) -> [String] {
         let paths = session.model.projects.keys.sorted()
         guard let project = paths.first(where: { path.hasPrefix(URL(fileURLWithPath: $0).deletingLastPathComponent().path + "/") }),
@@ -50,22 +38,18 @@ extension WorkspaceWindowController {
         return proj.localizableSourceFiles(forResourceAt: path, projectDirectory: proj.projectDirectory(xcodeprojURL: URL(fileURLWithPath: project)))
     }
 
-    /// Enablement: a project with at least one table.
     func validateStringCatalogConversion(_ item: NSMenuItem) -> Bool? {
         guard item.action == #selector(convertToStringCatalogs(_:)) else { return nil }
         return session.model.kind != .package && !legacyStringTables().isEmpty
     }
 }
 
-/// The Convert to String Catalogs sheet: one row per table (checkbox,
-/// name, folder, languages, targets), Cancel and Convert.
 @MainActor
 public final class StringCatalogConversionController: NSViewController {
     nonisolated(unsafe) static var key: UInt8 = 0
 
     public let tables: [LegacyStringTable]
     let projectDirectory: String
-    /// The tables checked (their IDs); all at first.
     public var checked: Set<String>
     var onConvert: (([LegacyStringTable]) -> Void)?
     var onClose: (() -> Void)?
@@ -82,7 +66,6 @@ public final class StringCatalogConversionController: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// A row's title: `Localizable` in `App/` (de, en) — targets.
     public func title(_ t: LegacyStringTable) -> String {
         var folder = t.directory
         if folder.hasPrefix(projectDirectory + "/") { folder = String(folder.dropFirst(projectDirectory.count + 1)) } else if folder == projectDirectory { folder = "" }
@@ -133,7 +116,6 @@ public final class StringCatalogConversionController: NSViewController {
         updateButtons()
     }
 
-    /// Unchecks or checks a table (tests and the checkboxes).
     public func setChecked(_ on: Bool, table id: String) {
         if on { checked.insert(id) } else { checked.remove(id) }
         if let i = tables.firstIndex(where: { $0.id == id }), i < checkboxes.count { checkboxes[i].state = on ? .on : .off }
@@ -142,7 +124,6 @@ public final class StringCatalogConversionController: NSViewController {
 
     @objc func cancelClicked() { onClose?() }
 
-    /// Converts the checked tables and closes the sheet.
     @objc public func convertClicked() {
         let chosen = tables.filter { checked.contains($0.id) }
         onClose?()

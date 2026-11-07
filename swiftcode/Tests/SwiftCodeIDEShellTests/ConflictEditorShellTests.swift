@@ -3,20 +3,11 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// The Linux IDE's merge workflow and merge sheet (`specs/ide/merge-sheet.md`;
-/// `SourceControlShellModel+Merge.swift`, `+Conflicts.swift`,
-/// `ConflictEditorShellModel`): the branch menu's Merge and the alert, the
-/// sheet resolved through Choose and by hand, Merge (the merge commit);
-/// Cancel asking, then aborting; a rebase and a cherry-pick through the
-/// sheet; Mark as Resolved; Integrate ▸ Merge… and the reference's other
-/// branch-menu items.
 @MainActor
 @Suite(.serialized) struct ConflictEditorShellTests {
     static let colorsBase = "let background = \"white\"\nlet border = \"gray\"\nlet text = \"black\"\nlet link = \"blue\"\nlet accent = \"orange\"\n"
     static let q = { (s: String) in "\u{201C}\(s)\u{201D}" }
 
-    /// main and "feature" change Colors.swift in two places and Greeting.swift
-    /// in one, differently.
     func conflictingPackage() throws -> GitPackage {
         let g = try GitPackage()
         let colors = "Sources/DemoCore/Colors.swift", greeting = "Sources/DemoCore/Greeting.swift"
@@ -34,7 +25,6 @@ import Testing
         return g
     }
 
-    /// A conflicted file's path as git reports it (the snapshot's).
     static func gitPath(_ scm: SourceControlShellModel, _ name: String) -> String {
         scm.snapshot.changes.first { $0.path.hasSuffix("/" + name) }?.path ?? name
     }
@@ -45,8 +35,6 @@ import Testing
         return m
     }
 
-    /// Starts the merge of "feature" as the branch menu does: the alert,
-    /// then its Merge; returns the sheet.
     func mergeFeature(_ scm: SourceControlShellModel) async throws -> ConflictEditorShellModel {
         scm.choose(.merge("feature"))
         scm.confirmMergeAlert()
@@ -56,7 +44,6 @@ import Testing
         return editor
     }
 
-    /// Chooses `choice` for every change of every conflicted file.
     func chooseEverywhere(_ editor: ConflictEditorShellModel, _ choice: MergeDocument.Choice) async {
         for f in editor.state.files {
             await editor.show(file: f)
@@ -72,14 +59,11 @@ import Testing
         let m = try await model(g)
         let scm = m.sourceControl
         scm.mode = .repositories
-        // The branch row's menu (§1.1): Merge “feature” into “main”… is on,
-        // the other way round is off.
         let items = scm.menu(for: "branch:feature")
         #expect(items.first { $0.title == "Merge \(Self.q("feature")) into \(Self.q("main"))…" }?.isEnabled == true)
         #expect(items.first { $0.title == "Merge \(Self.q("main")) into \(Self.q("feature"))…" }?.isEnabled == false)
         #expect(items.compactMap(\.action).count == 12)
 
-        // The alert (§1.2), centred, not the generic question.
         scm.choose(.merge("feature"))
         let alert = try #require(scm.mergeAlert)
         #expect(scm.confirmation == nil && !alert.hasChooser)
@@ -91,7 +75,6 @@ import Testing
         await scm.idle()
         let colors = Self.gitPath(scm, "Colors.swift"), greeting = Self.gitPath(scm, "Greeting.swift")
 
-        // The sheet over the window; the editor area keeps what it showed.
         let editor = try #require(scm.conflictEditor)
         await editor.idle()
         #expect(scm.isMergeSheetShown && !scm.isMerging && scm.pane == nil && scm.notice == nil)
@@ -110,12 +93,9 @@ import Testing
         editor.isFlat = false
         editor.filterText = ""
         #expect(Array(editor.jumpPath.dropFirst()) == ["Sources", "DemoCore", "Colors"])
-        // The window while the merge is stopped.
         #expect(m.isEnabled(.scmResolveConflicts) && m.isEnabled(.scmAbortIntegration) && !m.isEnabled(.scmMerge))
         #expect(scm.selectedFile == colors)
 
-        // Colors.swift through the tokens' Choose menus (§7): the left pane
-        // changes, the change stays selected.
         editor.choose(.ours, forHunk: 0)
         st = editor.state
         #expect(st.currentHunk == 0 && st.stepperText == "1/2" && st.token(forHunk: 0)?.glyph == "2" && st.token(forHunk: 0)?.isDecided == true)
@@ -124,11 +104,9 @@ import Testing
         #expect(st.currentHunk == 1 && st.stepperText == "2/2" && st.token(forHunk: 1)?.glyph == "1")
         #expect(st.leftLines.contains("let background = \"snow\"") && st.leftLines.contains("let accent = \"teal\""))
         #expect(st.rightLines.contains("let accent = \"teal\"") && !st.canMerge)
-        // The stepper.
         editor.previousHunk()
         #expect(editor.state.currentHunk == 0 && editor.revealCount == 1)
 
-        // Greeting.swift by hand; Colors.swift keeps its choices.
         await editor.show(file: greeting)
         #expect(editor.state.currentFile == greeting && editor.state.token(forHunk: 0)?.glyph == "?")
         editor.selectHunk(0)
@@ -140,8 +118,6 @@ import Testing
         await editor.show(file: colors)
         #expect(editor.state.token(forHunk: 0)?.glyph == "2" && editor.state.token(forHunk: 1)?.glyph == "1")
 
-        // Merge: every file written and staged, the merge commit; the sheet
-        // closes.
         await scm.completeMerge()
         await scm.idle()
         #expect(scm.conflictEditor == nil && scm.snapshot.integration == .none && scm.errorMessage == nil)
@@ -158,7 +134,6 @@ import Testing
         let m = try await model(g)
         let scm = m.sourceControl
         let before = try g.git(["rev-parse", "HEAD"])
-        // The alert's Cancel: nothing happens.
         scm.presentMergeAlert(branch: "feature")
         scm.cancelMergeAlert()
         await scm.idle()
@@ -166,12 +141,10 @@ import Testing
 
         let editor = try await mergeFeature(scm)
         editor.choose(.theirs, forHunk: 0)
-        // The sheet's Cancel asks (SwiftCode's choice, open question 3).
         scm.cancelMerge()
         let c = try #require(scm.confirmation)
         #expect(c.title == MergeSheetText.cancelTitle(verb: "Merge") && c.title == "Abort the merge?")
         #expect(c.message == MergeSheetText.cancelMessage(verb: "Merge") && c.choices.map(\.title) == ["Abort"])
-        // Answering Cancel keeps the sheet.
         scm.confirmation = nil
         #expect(scm.conflictEditor != nil)
         scm.cancelMerge()
@@ -188,7 +161,6 @@ import Testing
         let m = try await model(g)
         let scm = m.sourceControl
 
-        // "feature" rebased onto main: the sheet; Cancel → Abort restores it.
         let before = try g.git(["rev-parse", "feature"])
         scm.perform(.checkout("feature", .carry))
         scm.perform(.rebase("main"))
@@ -203,7 +175,6 @@ import Testing
         #expect(scm.snapshot.integration == .none && scm.conflictEditor == nil)
         #expect(try g.git(["rev-parse", "HEAD"]) == before)
 
-        // Again, resolved: Continue Rebase replays the commit.
         scm.perform(.rebase("main"))
         await scm.idle()
         sheet = try #require(scm.conflictEditor)
@@ -216,8 +187,6 @@ import Testing
         #expect(try g.git(["log", "-1", "--format=%s"]) == "Feature\n")
         #expect(try g.git(["rev-parse", "HEAD~1"]) == g.git(["rev-parse", "main"]))
 
-        // A cherry-pick of the old "feature" commit onto main conflicts in
-        // both files; Continue Cherry-Pick.
         scm.perform(.checkout("main", .carry))
         await scm.idle()
         scm.perform(.cherryPick(before.trimmingCharacters(in: .whitespacesAndNewlines)))
@@ -236,21 +205,17 @@ import Testing
     @Test func markAsResolvedAndTheRowsOpenTheSheet() async throws {
         let g = try conflictingPackage()
         defer { g.remove() }
-        // The merge stops on conflicts (git exits non-zero) outside the IDE.
         _ = try? g.git(["merge", "feature"])
         let m = try await model(g)
         let scm = m.sourceControl
         let colors = Self.gitPath(scm, "Colors.swift"), greeting = Self.gitPath(scm, "Greeting.swift")
         #expect(scm.conflictEditor == nil)
-        // The conflicted change's row opens the sheet on that file.
         scm.select("change:" + greeting)
         await scm.idle()
         let editor = try #require(scm.conflictEditor)
         await editor.idle()
         #expect(editor.state.currentFile == greeting && editor.state.primaryTitle == "Merge")
-        // Undecided: Mark as Resolved does nothing.
         #expect(await editor.markResolved() == false)
-        // Markers written by hand are refused, with git's reason.
         editor.selectHunk(0)
         editor.beginEditing()
         editor.editedText = "<<<<<<< a\nx\n=======\ny\n>>>>>>> b\n"
@@ -261,14 +226,11 @@ import Testing
         #expect(await editor.markResolved())
         await scm.idle()
         #expect(editor.state.files == [colors] && editor.state.currentFile == colors)
-        // Opening a file or another pane keeps the sheet (it is modal).
         scm.hidePane()
         #expect(scm.conflictEditor === editor)
-        // Integrate ▸ Resolve Conflicts… with the sheet up: the same sheet.
         m.perform(.scmResolveConflicts)
         await scm.idle()
         #expect(scm.conflictEditor === editor)
-        // Integrate ▸ Mark Selected Files as Resolved writes the sheet's file.
         await chooseEverywhere(editor, .ours)
         m.perform(.scmMarkResolved)
         for _ in 0..<50 where !editor.state.files.isEmpty {
@@ -276,7 +238,6 @@ import Testing
             await scm.idle()
         }
         #expect(editor.state.files.isEmpty && editor.state.canMerge && editor.state.primaryTitle == "Merge")
-        // Merge with every file already resolved: the merge commit.
         await scm.completeMerge()
         await scm.idle()
         #expect(scm.conflictEditor == nil && scm.snapshot.integration == .none)
@@ -309,7 +270,6 @@ import Testing
         try g.git(["stash", "-q"])
         let m = try await model(g)
         let scm = m.sourceControl
-        // Integrate ▸ Merge…, after Cherry-Pick… (the Linux menu).
         #expect(ShellCommand.scmMerge.isSourceControl && ShellCommand.scmMerge.title(in: m.menuContext) == "Merge…")
         #expect(ShellCommand.scmMerge.menu == "Integrate" && m.isEnabled(.scmMerge))
         scm.select("branch:feature")
@@ -322,20 +282,16 @@ import Testing
         #expect(alert.branch == "feature")
         scm.cancelMergeAlert()
 
-        // View on Host… opens the branch's page on the remote's host.
         var opened: [URL] = []
         scm.openExternally = { opened.append($0) }
         let items = scm.menu(for: "branch:feature")
         #expect(items.first { $0.title == "View on Host…" }?.isEnabled == true)
         scm.choose(.viewOnHost(branch: "feature"))
         #expect(opened == [URL(string: "https://example.com/owner/demo/tree/feature")!])
-        // Merge “main” into “feature”…, New Remote… and Add Existing
-        // Remote… are off and do nothing.
         scm.choose(.mergeInto("feature"))
         scm.choose(.newHostedRemote)
         #expect(scm.mergeAlert == nil && scm.prompt == nil && scm.confirmation == nil)
 
-        // Export Stashed Changes as Patch File…: asks for the path, writes it.
         #expect(items.first { $0.title == "Export Stashed Changes as Patch File…" }?.isEnabled == true)
         scm.choose(.exportStash("stash@{0}"))
         var p = try #require(scm.prompt)
@@ -347,7 +303,6 @@ import Testing
         for _ in 0..<100 where !FileManager.default.fileExists(atPath: out) { try? await Task.sleep(nanoseconds: 20_000_000) }
         #expect(try String(contentsOfFile: out, encoding: .utf8).contains("stashed"))
 
-        // No other branch: Integrate ▸ Merge… is off.
         try g.git(["branch", "-D", "feature"])
         scm.refresh()
         await scm.idle()

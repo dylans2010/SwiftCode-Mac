@@ -4,8 +4,6 @@ import Combine
 @MainActor
 final class CodeEditorManagementView: ObservableObject {
 
-    // MARK: - Published State
-
     @Published var content: String = "" {
         didSet { onContentChanged() }
     }
@@ -20,8 +18,6 @@ final class CodeEditorManagementView: ObservableObject {
     @Published var showMinimap: Bool = false
     @Published var wordWrap: Bool = false
 
-    // MARK: - Services
-
     let suggestionEngine = AISuggestionEngine.shared
     let structureAnalyzer = CodeStructureAnalyzer.shared
     let executionManager  = CodeExecutionManager.shared
@@ -29,15 +25,11 @@ final class CodeEditorManagementView: ObservableObject {
     private var analysisTask: Task<Void, Never>?
     private var lastSavedContent: String = ""
 
-    // MARK: - Init
-
     init() {
         let settings = AppSettings.shared
         theme = CodeColoringTheme.theme(for: settings.selectedThemeID)
         fontSize = CGFloat(settings.editorFontSize)
     }
-
-    // MARK: - Load File
 
     func load(content: String, fileName: String = "") {
         self.content = content
@@ -50,15 +42,11 @@ final class CodeEditorManagementView: ObservableObject {
         refreshTheme()
     }
 
-    // MARK: - Content Change Handler
-
     private func onContentChanged() {
         isDirty = content != lastSavedContent
         updateCursorInfo()
         scheduleAnalysis()
     }
-
-    // MARK: - Cursor Info
 
     func updateCursorInfo() {
         let head = content.prefix(cursorPosition)
@@ -66,8 +54,6 @@ final class CodeEditorManagementView: ObservableObject {
         currentLine = lines.count
         currentColumn = (lines.last?.count ?? 0) + 1
     }
-
-    // MARK: - Structure Analysis
 
     private func scheduleAnalysis() {
         analysisTask?.cancel()
@@ -81,8 +67,6 @@ final class CodeEditorManagementView: ObservableObject {
     func analyzeStructure() {
         symbols = structureAnalyzer.analyze(content)
     }
-
-    // MARK: - AI Suggestions
 
     func requestAISuggestion(fileName: String) {
         guard cursorPosition <= content.count else { return }
@@ -103,27 +87,19 @@ final class CodeEditorManagementView: ObservableObject {
         cursorPosition += accepted.count
     }
 
-    // MARK: - Theme
-
     func refreshTheme() {
         theme = CodeColoringTheme.theme(for: AppSettings.shared.selectedThemeID)
         fontSize = CGFloat(AppSettings.shared.editorFontSize)
     }
-
-    // MARK: - Mark Saved
 
     func markSaved() {
         lastSavedContent = content
         isDirty = false
     }
 
-    // MARK: - Statistics
-
     var statistics: CodeStatistics {
         structureAnalyzer.statistics(for: content)
     }
-
-    // MARK: - Go To Line
 
     func cursorOffset(forLine line: Int) -> Int {
         let lines = content.components(separatedBy: "\n")
@@ -136,8 +112,6 @@ final class CodeEditorManagementView: ObservableObject {
         cursorPosition = cursorOffset(forLine: line)
         updateCursorInfo()
     }
-
-    // MARK: - Format
 
     func formatDocument() {
         let lines = content.components(separatedBy: "\n")

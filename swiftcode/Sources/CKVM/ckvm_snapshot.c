@@ -1,5 +1,3 @@
-// CKVM snapshot helpers (see include/ckvm_snapshot.h). Original SwiftCode code
-// over the public Linux KVM, mincore and pagemap interfaces.
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
@@ -39,7 +37,6 @@ int ckvm_set_one_reg_bytes(int vcpu_fd, uint64_t reg_id, const void *buffer) {
     (KVM_REG_ARM64 | (size) | KVM_REG_ARM_CORE | KVM_REG_ARM_CORE_REG(field))
 
 uint64_t ckvm_reg_fp_v(unsigned n) {
-    // fp_regs.vregs[n] is a __uint128_t: 4 32-bit words per register.
     return SNAP_CORE(fp_regs.vregs[0], KVM_REG_SIZE_U128) + 4u * (uint64_t)n;
 }
 uint64_t ckvm_reg_fpsr(void) { return SNAP_CORE(fp_regs.fpsr, KVM_REG_SIZE_U32); }

@@ -4,20 +4,15 @@ import SwiftCodeAssistant
 import SwiftCodeCompletion
 import SwiftCodeIDECore
 
-/// Settings ▸ Editing ▸ Completion ▸ Predictive Code Completion
-/// (specs/ide/predictive-completion.md §5): backend, address, model, Test,
-/// an explicit model download for Ollama, timing and sampling.
 extension TextEditingSettingsPane {
     var predictive: PredictiveCompletionSettings { prefs.predictiveCompletion }
 
-    /// Changes the settings and saves them (open editors follow).
     public func updatePrediction(_ f: (inout PredictiveCompletionSettings) -> Void) {
         var s = prefs.predictiveCompletion
         f(&s)
         prefs.predictiveCompletion = s
     }
 
-    /// The address shown when none is set.
     var predictionDefaultAddress: String { predictive.effectiveAddress(assistantOllamaURL: prefs.sharedOllamaURL) }
 
     func buildPredictionRows() {
@@ -45,7 +40,6 @@ extension TextEditingSettingsPane {
         if s.backend == .ollama && s.address == nil {
             note("Uses the Ollama address of Settings ▸ Coding Assistant.")
         }
-        // The model: Automatic, then what the last Test found.
         let automatic = "Automatic"
         var models = [automatic] + (predictionProbe?.fimModels ?? [])
         if !s.model.isEmpty && !models.contains(s.model) { models.append(s.model) }
@@ -69,7 +63,6 @@ extension TextEditingSettingsPane {
                 get.onChange = { _ in if let u = URL(string: OllamaProvider.downloadURL) { NSWorkspace.shared.open(u) } }
                 row("", get)
             }
-            // Downloads only on request; the name comes from the user.
             let name = ClosureField(string: "")
             name.placeholderString = "model:tag from ollama.com/search"
             name.widthAnchor.constraint(equalToConstant: 220).isActive = true
@@ -101,17 +94,6 @@ extension TextEditingSettingsPane {
     Suggestions come from a model you run. SwiftCode sends the code around the insertion point (and short parts of other open files) to the address above, nothing else, and only while the switch is on. With the default address this stays on this Mac. Tab accepts what is shown, Option-Tab all of it, Control-Tab the next word; Escape dismisses; hold Option to see every line.
     """
 
-    /// Wiring (wiring-views): Settings ▸ Editing ▸ Completion ▸ Code
-    /// Suggestions — `CodeSuggestionsView` hosted as a section below the
-    /// predictive-completion rows. `CodeSuggestionsML` landed
-    /// (`SwiftCodeIDECore`, `.shared`), so the view's `@EnvironmentObject`
-    /// is injected here. The view only displays what `analyze(directory:)`
-    /// has computed — nothing in production calls it yet, so the section
-    /// also carries its own trigger: "Analyze a Folder…" opens a folder
-    /// picker and runs the real heuristic analysis on that folder; the
-    /// hosted list updates live as `@Published groupedSuggestions`
-    /// changes. Fixed hosting height: the view is a `ScrollView`, so it
-    /// has no intrinsic height for the form stack.
     func buildSuggestionsSection() {
         endCard()
         heading("Code Suggestions")
@@ -140,7 +122,6 @@ extension TextEditingSettingsPane {
         view.heightAnchor.constraint(equalToConstant: 420).isActive = true
     }
 
-    /// Test: asks the backend whether it answers and which models it has.
     public func testPrediction(_ done: (() -> Void)? = nil) {
         let backend = predictive.makeBackend(assistantOllamaURL: prefs.sharedOllamaURL)
         predictionMessage = "Checking \(backend.address)…"
@@ -156,7 +137,6 @@ extension TextEditingSettingsPane {
         }
     }
 
-    /// Download: `ollama pull` through the API, with progress in the message.
     public func pullModel(_ name: String) {
         let provider = OllamaProvider(baseURL: predictionDefaultAddress)
         predictionTask?.cancel()

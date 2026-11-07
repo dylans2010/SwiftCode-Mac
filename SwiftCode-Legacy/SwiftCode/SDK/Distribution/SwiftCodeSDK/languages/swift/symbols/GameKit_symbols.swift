@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: GameKit
-
 public struct GameKitInterface_0000: Sendable, Codable {
     public let id: String = "gamekit.api.0"
     public var title: String = "GameKit Symbol 0"

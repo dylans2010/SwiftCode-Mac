@@ -19,7 +19,6 @@ enum Fixture {
     }
 }
 
-/// Field-by-field differences between two layers (empty when equal).
 func differences(_ a: Layer, _ b: Layer) -> [String] {
     var out: [String] = []
     for p in Set(a.specs.keys).union(b.specs.keys).sorted() {

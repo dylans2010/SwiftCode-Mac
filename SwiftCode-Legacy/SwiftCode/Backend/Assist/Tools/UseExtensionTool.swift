@@ -1,43 +1,5 @@
 import Foundation
 
-/// Assist interaction with installed SwiftCode extensions, both
-/// ecosystems, through the real Extensions v2 platform — never a
-/// simulated extension list or a fake command result.
-///
-/// Finite action set, selected by the required `action` parameter:
-///   list, details, list_commands, list_xcode_commands, activate,
-///   deactivate, execute, run_xcode_command, enable, disable,
-///   diagnostics
-///
-/// How each ecosystem is actually used:
-/// - VS Code extensions: `activate` starts the extension's real
-///   out-of-process Node host (requires Node.js); `execute` runs one
-///   of its contributed commands through that host, and with
-///   confirm: true it activates first when the host is not running,
-///   so one call works end to end. `list_commands` reads contributed
-///   commands from the running host, or from the installed manifest
-///   when the extension is not running.
-/// - Xcode extensions: XcodeKit extension binaries themselves cannot
-///   run inside SwiftCode (Xcode owns their packaging and
-///   activation). What Assist can run is reusable source-editor
-///   command logic registered in ExtV2XcodeCommandRegistry — the
-///   built-in sort-lines command and any command registered by app
-///   code or a native plugin. `run_xcode_command` reads a real
-///   workspace file, builds a source buffer with the given selection
-///   (or the whole file by default), runs the command against that
-///   buffer, and writes the file back only when the buffer changed.
-/// - SwiftCode-native plugins: `execute` routes their commands
-///   through the native plugin registry, same as any other command.
-///
-/// Consequential actions (activate, execute, run_xcode_command,
-/// enable, disable) require `confirm: true`, mirroring use_system's
-/// confirm pattern: the model must explicitly confirm before
-/// third-party code runs or a file changes. Read-only actions
-/// (list, details, list_commands, list_xcode_commands, deactivate,
-/// diagnostics) do not. This tool never launches anything itself;
-/// all execution goes through ExtV2Manager and its host, so the
-/// Extensions v2 permission checks, IPC allowlist, and crash
-/// handling apply exactly as they do from the UI.
 public struct UseExtensionTool: AssistTool {
     public let id = "use_extension"
     public let name = "Use Extension"
@@ -144,8 +106,6 @@ public struct UseExtensionTool: AssistTool {
     }
 }
 
-// MARK: - Actions
-
 public enum UseExtensionAction: String, CaseIterable, Sendable {
     case list
     case details
@@ -159,8 +119,6 @@ public enum UseExtensionAction: String, CaseIterable, Sendable {
     case disable
     case diagnostics
 
-    /// Actions that run third-party code or change state, and therefore
-    /// require explicit confirmation.
     public var requiresConfirm: Bool {
         switch self {
         case .activate, .execute, .runXcodeCommand, .enable, .disable: return true
@@ -198,12 +156,6 @@ public struct UseExtensionOutcome: Sendable {
     }
 }
 
-// MARK: - Router (testable without an AssistContext)
-
-/// The action implementations. Validation and the Xcode file
-/// round-trip are pure enough to unit-test without a host, a
-/// registry download, or an Assist session; VS Code paths delegate
-/// to ExtV2Manager and fail honestly when no host is available.
 @MainActor
 public enum UseExtensionRouter {
     private static let outputCap = 8_000
@@ -251,9 +203,6 @@ public enum UseExtensionRouter {
         }
     }
 
-    /// Validates an action's parameters before anything runs. Throws
-    /// ExtV2Error.invalidRequest with a specific message; the tool
-    /// maps it to AssistToolErrorCode.invalidInput.
     public static func validate(
         action: UseExtensionAction, extensionId: String?, command: String?,
         file: String?, confirm: Bool
@@ -299,12 +248,9 @@ public enum UseExtensionRouter {
         }
     }
 
-    // MARK: Read-only actions
-
     private static func runList(limit: Int) async -> UseExtensionOutcome {
         let manager = ExtV2Manager.shared
         manager.refreshInstalled()
-        // Row cap via subscript slice (not output truncation).
         let records = manager.installed.count > limit
             ? Array(manager.installed[..<limit])
             : manager.installed
@@ -434,8 +380,6 @@ public enum UseExtensionRouter {
             data: ["action": "diagnostics", "extensionId": extensionId, "count": String(entries.count)])
     }
 
-    // MARK: Lifecycle and execution
-
     private static func runActivate(extensionId: String, workspaceRoot: URL) async throws -> UseExtensionOutcome {
         let manager = ExtV2Manager.shared
         manager.setWorkspaceRoot(workspaceRoot)
@@ -469,14 +413,9 @@ public enum UseExtensionRouter {
             throw ExtV2Error.notInstalled(extensionId)
         }
         guard record.isEnabled else { throw ExtV2Error.disabled(extensionId) }
-        // With confirmation already given, a stopped VS Code host is
-        // activated first so one call works end to end instead of
-        // failing with "not running" and requiring a second call.
         if record.metadata.kind == .vscode, !manager.hostManager.isRunning(extensionId: extensionId) {
             _ = try await manager.activate(extensionId: extensionId)
         }
-        // Arguments are passed as one JSON object argument so the
-        // extension receives its named arguments intact.
         let hostArgs: [ExtV2JSONValue] = args.isEmpty ? [] : [.object(args.mapValues { anyToJSON($0) })]
         let result = try await manager.executeCommand(
             extensionId: extensionId, command: command, args: hostArgs)
@@ -497,8 +436,6 @@ public enum UseExtensionRouter {
             output: "\(enabled ? "Enabled" : "Disabled") \(extensionId) (state: \(state)).",
             data: ["action": enabled ? "enable" : "disable", "extensionId": extensionId, "state": state])
     }
-
-    // MARK: Xcode command execution against a real file
 
     private static func runXcodeCommand(
         command: String, file: String, selection: UseExtensionSelection?, workspaceRoot: URL
@@ -539,8 +476,6 @@ public enum UseExtensionRouter {
                 end: ExtV2SourcePosition(line: max(lines.count - 1, 0), column: lines.last?.count ?? 0))
         }
         let buffer = ExtV2SourceTextBuffer(text: original, selections: [range])
-        // A throwing command leaves the file untouched because the
-        // write below only happens on success.
         try await commandObject.perform(
             invocation: ExtV2SourceEditorInvocation(buffer: buffer, commandIdentifier: command))
         let updated = buffer.completeBuffer
@@ -565,8 +500,6 @@ public enum UseExtensionRouter {
             data: ["action": "run_xcode_command", "command": command, "file": file, "changed": "true"],
             filesChanged: [file])
     }
-
-    // MARK: Helpers
 
     private static func anyToJSON(_ value: Any) -> ExtV2JSONValue {
         if let string = value as? String { return .string(string) }

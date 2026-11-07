@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - WIKI PAGE LIST VIEW (PANEL 2)
 struct WikiPageListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -99,7 +98,6 @@ struct WikiPageListView: View {
     }
 }
 
-// MARK: - WIKI PAGE DETAIL VIEW (PANEL 3)
 struct WikiPageDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var page: WikiPage? = nil
@@ -229,7 +227,6 @@ struct WikiPageDetailView: View {
     }
 }
 
-// Deprecated old container
 struct WikiPageView: View {
     let coordinator: PersonalDocumentationCoordinator
 

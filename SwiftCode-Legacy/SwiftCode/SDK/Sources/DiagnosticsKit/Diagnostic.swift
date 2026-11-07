@@ -71,7 +71,6 @@ public struct DiagnosticCode: Codable, Sendable, Hashable, CustomStringConvertib
 
     public var description: String { rawValue }
 
-    // Standard SDK diagnostic codes
     public static let manifestNotFound = DiagnosticCode("SC-M001")
     public static let manifestInvalidJSON = DiagnosticCode("SC-M002")
     public static let manifestMissingRequiredField = DiagnosticCode("SC-M003")

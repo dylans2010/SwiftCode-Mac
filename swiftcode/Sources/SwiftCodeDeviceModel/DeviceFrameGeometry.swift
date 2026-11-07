@@ -1,24 +1,11 @@
-// The device frame SwiftCode draws around a simulated screen (device-hub.md
-// §4.3, "SwiftCode implementation"): a dark band of even width all round, outer
-// corners concentric with the screen's, side buttons as short bars on the
-// edges. A watch (watchos.md §3.1, W-8) has a wider band, the Digital Crown
-// as a short ridged cylinder and the side button as a long flat bar on its
-// right edge, and the Ultra types the Action button on the left. Everything
-// is in device points; a view scales it. SwiftCode decision: the band and
-// button positions are SwiftCode's own proportions, not measured from any
-// device or picture.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// The iPhone Duo's postures as the display stream names them
-/// (display-stream.md §11: `closed`, `halfOpen`, `openFlat`).
 public enum DevicePosture: String, Sendable, CaseIterable {
     case closed, halfOpen, openFlat
 
-    /// The pose controls' names (device-hub.md §4.4; foldable.md §4).
     public var title: String {
         switch self {
         case .closed: "Closed"
@@ -27,7 +14,6 @@ public enum DevicePosture: String, Sendable, CaseIterable {
         }
     }
 
-    /// The hinge angle each pose button moves to.
     public var angle: Int {
         switch self {
         case .closed: 0
@@ -36,13 +22,9 @@ public enum DevicePosture: String, Sendable, CaseIterable {
         }
     }
 
-    /// The pose a commanded angle is (nil: between the presets).
     public static func preset(angle: Int) -> DevicePosture? { allCases.first { $0.angle == angle } }
 }
 
-/// A device orientation as the display stream names it, and how far it
-/// turns the device clockwise from upright (face up and down count as
-/// upright: the picture does not turn).
 public enum DeviceOrientation: String, Sendable, CaseIterable {
     case portrait
     case portraitUpsideDown = "portrait-upside-down"
@@ -62,7 +44,6 @@ public enum DeviceOrientation: String, Sendable, CaseIterable {
         }
     }
 
-    /// The Orientation submenu's titles (device-hub.md §4.4, Q13: SwiftCode decision).
     public var title: String {
         switch self {
         case .portrait: "Portrait"
@@ -74,7 +55,6 @@ public enum DeviceOrientation: String, Sendable, CaseIterable {
         }
     }
 
-    /// The display stream's rotate code (display-stream.md §2, 0x88).
     public var streamCode: UInt8 {
         switch self {
         case .portrait: 1
@@ -86,7 +66,6 @@ public enum DeviceOrientation: String, Sendable, CaseIterable {
         }
     }
 
-    /// Clockwise quarter turns of the device (landscape left: 3, the top on the left).
     public var clockwiseQuarterTurns: Int {
         switch self {
         case .landscapeLeft: 3
@@ -96,11 +75,6 @@ public enum DeviceOrientation: String, Sendable, CaseIterable {
         }
     }
 
-    /// Rotate Left / Rotate Right: the next orientation in the cycle
-    /// portrait → landscape left → landscape right → portrait (left) or
-    /// its reverse (right). Upside down is not offered by the rotate
-    /// control (SwiftCode's guest path refuses it, display-stream.md §11); face
-    /// up and down rotate as portrait.
     public func rotated(left: Bool) -> DeviceOrientation {
         switch self {
         case .landscapeLeft: left ? .landscapeRight : .portrait
@@ -110,7 +84,6 @@ public enum DeviceOrientation: String, Sendable, CaseIterable {
     }
 }
 
-/// A rectangle and an axis-aligned segment in device points (origin top left).
 public struct FrameSegment: Equatable, Sendable {
     public var from: CGPoint
     public var to: CGPoint
@@ -119,10 +92,8 @@ public struct FrameSegment: Equatable, Sendable {
 public struct DeviceFrameGeometry: Equatable, Sendable {
     public enum ButtonKind: String, Sendable, CaseIterable {
         case action, volumeUp, volumeDown, side, top
-        /// A watch's Digital Crown and its side button (watchos.md §3.2).
         case crown, sideButton
 
-        /// The tooltip and accessibility name.
         public var title: String {
             switch self {
             case .action: "Action Button"
@@ -141,26 +112,18 @@ public struct DeviceFrameGeometry: Equatable, Sendable {
         public var rect: CGRect
     }
 
-    /// The whole drawing, buttons included.
     public var size: CGSize
-    /// The body (rounded rectangle) and its corner radii.
     public var body: CGRect
     public var bodyRadii: CornerRadii
-    /// The screen inside it, with its corner radii as shown.
     public var screen: CGRect
     public var screenRadii: CornerRadii
     public var buttons: [Button]
-    /// A partially open iPhone Duo: the hinge line and the half drawn in
-    /// shade (SwiftCode's flat stand-in for the reference's perspective view).
     public var hinge: FrameSegment?
     public var shadedArea: CGRect?
 
-    /// How far buttons stand out from the body.
     public static let protrusion: Double = 3
-    /// How far a watch's Digital Crown stands out from the body.
     public static let crownProtrusion: Double = 8
 
-    /// The band's width per family (SwiftCode decision).
     public static func band(_ family: DeviceFamily) -> Double {
         switch family {
         case .phone: 12
@@ -170,17 +133,10 @@ public struct DeviceFrameGeometry: Equatable, Sendable {
         }
     }
 
-    /// The space left round the body for what stands out of it: the
-    /// buttons, a watch's crown (the same on every side, so the screen
-    /// stays at the drawing's centre).
     public static func margin(_ family: DeviceFamily) -> Double {
         family == .watch ? crownProtrusion : protrusion
     }
 
-    /// The frame for `spec`'s panel `panelIndex`, the device turned
-    /// `clockwiseQuarterTurns`, in `posture` (a foldable), with or without
-    /// the bezel (View ▸ Show / Hide Bezels). Without the bezel (or for
-    /// visionOS) the drawing is the screen alone with its rounded corners.
     public init(spec: DeviceFrameSpec, panelIndex: Int = 0, clockwiseQuarterTurns: Int = 0,
                 posture: DevicePosture? = nil, bezels: Bool = true) {
         let panel = spec.panels[min(max(panelIndex, 0), spec.panels.count - 1)]
@@ -218,16 +174,8 @@ public struct DeviceFrameGeometry: Equatable, Sendable {
         self.buttons = buttons
     }
 
-    /// The buttons of an upright body (SwiftCode decision: a phone has the
-    /// action button and volume on its left edge and the side button on its
-    /// right; an iPad its top button on the top edge near the right corner
-    /// and volume on the right edge near the top; an open iPhone Duo keeps
-    /// the cover's side button and volume on its right edge and the action
-    /// button on its top edge; a watch has the crown in the upper part of
-    /// its right edge, the side button below it, and an Ultra the Action
-    /// button on its left edge).
     static func buttons(spec: DeviceFrameSpec, inner: Bool, body: CGRect) -> [Button] {
-        let m = protrusion, t = protrusion + 2  // a bar tucks 2 points under the body
+        let m = protrusion, t = protrusion + 2
         let W = body.width, H = body.height
         func left(_ y: Double, _ len: Double) -> CGRect { CGRect(x: body.minX - m, y: body.minY + y * H, width: t, height: len * H) }
         func right(_ y: Double, _ len: Double) -> CGRect { CGRect(x: body.maxX - 2, y: body.minY + y * H, width: t, height: len * H) }
@@ -257,9 +205,6 @@ public struct DeviceFrameGeometry: Equatable, Sendable {
         }
     }
 
-    // MARK: Turning
-
-    /// A rectangle of a `w` × `h` drawing turned clockwise by one quarter.
     static func turnedOnce(_ r: CGRect, height h: Double) -> CGRect {
         CGRect(x: h - r.minY - r.height, y: r.minX, width: r.height, height: r.width)
     }
@@ -280,14 +225,9 @@ public struct DeviceFrameGeometry: Equatable, Sendable {
         }
     }
 
-    // MARK: Hit testing
-
-    /// The button at a point (device points), with a few points of slack
-    /// around the bar so a thin bar is easy to click.
     public func button(at p: CGPoint, slack: Double = 3) -> ButtonKind? {
         buttons.first { $0.rect.insetBy(dx: -slack, dy: -slack).contains(p) }?.kind
     }
 
-    /// Whether a point is on the frame's band (the body outside the screen).
     public func isOnBand(_ p: CGPoint) -> Bool { body.contains(p) && !screen.contains(p) }
 }

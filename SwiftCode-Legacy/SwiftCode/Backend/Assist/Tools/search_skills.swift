@@ -1,10 +1,3 @@
-//
-//  search_skills.swift
-//  SwiftCode
-//
-//  Real native Assist tool for querying SwiftCode's authoritative local skills library.
-//
-
 import Foundation
 
 @MainActor

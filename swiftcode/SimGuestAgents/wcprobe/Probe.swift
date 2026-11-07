@@ -1,22 +1,3 @@
-// WCProbe: SwiftCode's own WatchConnectivity test app (device-pairing.md §10,
-// watchos.md §7.2 round W5). One source for both sides: the iOS app and its
-// embedded watch app. Written from Apple's public WatchConnectivity
-// documentation (WCSession, WCSessionDelegate); no Apple sample was used.
-//
-// Each side activates the default session and logs, one line each (NSLog and
-// <tmp>/wcprobe.log, prefix "WCPROBE <role> <unix time>"):
-//   - its state: activation, isReachable; the phone isPaired and
-//     isWatchAppInstalled; the watch isCompanionAppInstalled (every 5 s);
-//   - after activation: an application context and a user-info transfer;
-//   - while reachable, every 3 s: sendMessage with a reply (its round trip
-//     and the one-way time the peer measured); after 5 replies a burst of 20
-//     messages back to back and one 64 KiB sendMessageData with a reply;
-//   - the phone, after the burst (round W3b, device-pairing.md §12): one
-//     complication user info (transferCurrentComplicationUserInfo), then 30 s
-//     later one 20 MiB transferFile (P-12: a request of the file's size);
-//   - everything the peer sends.
-// The run ends by itself after 15 minutes of pings.
-
 import Foundation
 import WatchConnectivity
 
@@ -75,7 +56,6 @@ final class Probe: NSObject, WCSessionDelegate, @unchecked Sendable {
         return out
     }
 
-    /// Once a second: the state every 5 s, a ping every 3 s while reachable.
     private func tick(_ n: Int) {
         guard Date().timeIntervalSince(started) < 900 else {
             log("done: \(replies) replies; " + state())
@@ -87,7 +67,6 @@ final class Probe: NSObject, WCSessionDelegate, @unchecked Sendable {
             if s.isReachable {
                 ping()
             } else if n % 30 == 0 {
-                // Not reachable: one send to record the error the session gives.
                 send(["probe": "unreachable", "t": Date().timeIntervalSince1970], tag: "unreachable-send")
             }
         }
@@ -124,7 +103,6 @@ final class Probe: NSObject, WCSessionDelegate, @unchecked Sendable {
         })
     }
 
-    /// 20 messages back to back, then one 64 KiB message data with a reply.
     private func burst() {
         log("burst start")
         let t0 = Date()
@@ -151,7 +129,6 @@ final class Probe: NSObject, WCSessionDelegate, @unchecked Sendable {
     }
 
     #if os(iOS)
-    /// One complication user info, then a 20 MiB file 30 s later (phone → watch).
     private func complicationAndFile() {
         let s = WCSession.default
         let t = s.transferCurrentComplicationUserInfo(["from": role, "complication": true, "t": Date().timeIntervalSince1970])
@@ -176,8 +153,6 @@ final class Probe: NSObject, WCSessionDelegate, @unchecked Sendable {
     private var lastScrollLog = Date.distantPast
     private var pendingScroll: Double?
 
-    /// The watch list's scroll offset (points), logged at most every 0.5 s;
-    /// the last one of a burst is logged 0.5 s later.
     func scrolled(to y: Double) {
         let due = lock.withLock { () -> Bool in
             pendingScroll = y
@@ -210,8 +185,6 @@ final class Probe: NSObject, WCSessionDelegate, @unchecked Sendable {
         log("userInfo transfer queued (transferring \(transfer.isTransferring)); outstanding \(s.outstandingUserInfoTransfers.count)")
     }
 
-    // MARK: WCSessionDelegate
-
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         log("activation completed \(activationState.rawValue) error \(error.map { "\($0)" } ?? "none"); " + state())
         if activationState == .activated { queue.async { self.afterActivation() } }
@@ -235,7 +208,6 @@ final class Probe: NSObject, WCSessionDelegate, @unchecked Sendable {
     #if os(watchOS)
     private var primaryActions = 0
 
-    /// The list's primary-action button ran (a double tap, or a tap on it).
     func primaryAction() {
         let n = lock.withLock { primaryActions += 1; return primaryActions }
         log("primary action \(n) (hand gesture shortcut)")

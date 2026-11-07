@@ -1,17 +1,6 @@
 import Foundation
 import SwiftCodeHealthStore
 
-/// Performance — Legacy's `Views/DatabasePerformanceView.swift`,
-/// ported to real measurements.
-///
-/// Legacy's view displayed simulated values (`memoryUsageSim`,
-/// `cpuUsageSim`) and a fake health index. The port reports only
-/// what SQLite itself says: `PRAGMA page_count` / `page_size` /
-/// `freelist_count` / `journal_mode` / `cache_size`,
-/// `integrity_check`, per-table row and index counts, and
-/// `EXPLAIN QUERY PLAN` output. There is no simulated CPU or memory
-/// number anywhere in this file.
-
 public struct DatabaseTableStats: Sendable, Equatable {
     public var name: String
     public var rowCount: Int
@@ -81,9 +70,6 @@ public final class DatabasePerformanceAnalyzer {
         }
     }
 
-    /// The full performance picture, from PRAGMAs and the file
-    /// itself. `integrity` is the first line of `integrity_check`
-    /// (`"ok"` on a healthy database).
     public func report() throws -> DatabasePerformanceReport {
         let tables = try tableStats()
         let integrityRows = try db.query("PRAGMA integrity_check")
@@ -107,16 +93,12 @@ public final class DatabasePerformanceAnalyzer {
         )
     }
 
-    /// `EXPLAIN QUERY PLAN` detail lines for one statement.
     public func explain(_ sql: String) throws -> [String] {
         let (columns, rows) = try db.queryWithColumns("EXPLAIN QUERY PLAN \(sql)")
         guard let detailIndex = columns.firstIndex(of: "detail") else { return [] }
         return rows.compactMap { row in detailIndex < row.count ? row[detailIndex].text : nil }
     }
 
-    /// Foreign-key columns with no index covering them. Each entry
-    /// is a real schema fact (from `PRAGMA foreign_key_list` versus
-    /// `PRAGMA index_list` / `index_info`).
     public func unindexedForeignKeys() throws -> [(table: String, column: String)] {
         var missing: [(table: String, column: String)] = []
         for table in try userTables() {
@@ -142,8 +124,6 @@ public final class DatabasePerformanceAnalyzer {
         return missing
     }
 
-    /// Reclaims free pages and refreshes the query planner's
-    /// statistics.
     public func vacuum() throws {
         try db.execute("VACUUM")
         try db.execute("ANALYZE")

@@ -1,15 +1,9 @@
-// DiagnosticsAndSecurityManagers.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Diagnostics/DiagnosticsAndSecurityManagers.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: workspace diagnostic-issue scan (scanWorkspace producing categorized SCDiagnosticIssue records); security audit (runAudit producing SCSecurityFinding records); crash-report collection (CrashReportManager.refreshReports / SCCrashReport)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import Observation
 
 public struct SCDiagnosticIssue: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
-    public let category: String // "Broken Reference", "Unused Asset", "Deprecated API", "Signing", "Concurrency"
+    public let category: String
     public let message: String
     public let filePath: String?
     public let suggestedFix: String
@@ -26,7 +20,7 @@ public struct SCDiagnosticIssue: Identifiable, Codable, Sendable, Hashable {
 public struct SCSecurityFinding: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let title: String
-    public let severity: String // "Critical", "Warning", "Info"
+    public let severity: String
     public let description: String
     public let filePath: String?
     public let suggestion: String
@@ -72,12 +66,10 @@ public final class DiagnosticsManager {
         let projectFiles = project.files
         let hasBackups = !BackupIntegration.shared.backups.isEmpty
 
-        // Run I/O operations and file reading off the main thread
         let scannedIssues = await Task.detached(priority: .background) {
             var found: [SCDiagnosticIssue] = []
             let fm = FileManager.default
 
-            // 1. Broken References Scan
             for file in projectFiles {
                 let fileURL = rootURL.appendingPathComponent(file.path)
                 if !fm.fileExists(atPath: fileURL.path) {
@@ -90,7 +82,6 @@ public final class DiagnosticsManager {
                 }
             }
 
-            // 2. Scan Swift files for deprecated APIs
             if let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
                 while let fileURL = enumerator.nextObject() as? URL {
                     guard fileURL.pathExtension == "swift" else { continue }
@@ -117,7 +108,6 @@ public final class DiagnosticsManager {
                 }
             }
 
-            // 3. Signing plist check
             let infoPlistURL = rootURL.appendingPathComponent("Info.plist")
             if !fm.fileExists(atPath: infoPlistURL.path) {
                 found.append(SCDiagnosticIssue(
@@ -183,7 +173,6 @@ public final class SecurityManager {
             var found: [SCSecurityFinding] = []
             let fm = FileManager.default
 
-            // Secrets Scan (hardcoded API Keys / Tokens)
             if let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
                 while let fileURL = enumerator.nextObject() as? URL {
                     guard fileURL.pathExtension == "swift" || fileURL.pathExtension == "json" || fileURL.pathExtension == "plist" else { continue }
@@ -211,7 +200,6 @@ public final class SecurityManager {
                 }
             }
 
-            // Sandbox/Entitlements Verification
             let entitlementsURL = rootURL.appendingPathComponent("\(projectName).entitlements")
             if !fm.fileExists(atPath: entitlementsURL.path) {
                 found.append(SCSecurityFinding(
@@ -294,7 +282,6 @@ public final class WorkspaceHealth {
     public func recompute() {
         var score = 100
 
-        // 1. Build Health & Stability (Weighted 25%)
         let buildRecords = BuildHistoryManager.shared.buildRecords
         if !buildRecords.isEmpty {
             let failedBuilds = buildRecords.filter { $0.status == "Failed" }.count
@@ -302,11 +289,9 @@ public final class WorkspaceHealth {
             score -= Int(failRatio * 25.0)
         }
 
-        // 2. Package Health (Weighted 10%)
         let packageIssues = DependencyManager.shared.dependencies.filter { $0.status == "Update Available" }.count
         score -= min(10, packageIssues * 3)
 
-        // 3. Storage (Weighted 10%)
         let storageUsed = SCOperationsStorageManager.shared.totalAllocatedGB
         if storageUsed > 30.0 {
             score -= 10
@@ -314,19 +299,15 @@ public final class WorkspaceHealth {
             score -= 5
         }
 
-        // 4. Diagnostics (Weighted 15%)
         let diagnosticCount = DiagnosticsManager.shared.issues.count
         score -= min(15, diagnosticCount * 4)
 
-        // 5. Security (Weighted 10%)
         let criticalSecurity = SecurityManager.shared.findings.filter { $0.severity == "Critical" }.count
         score -= min(10, criticalSecurity * 10)
 
-        // 6. Signing (Weighted 10%)
         let invalidCerts = SCOperationsSigningManager.shared.certificates.filter { !$0.isValid }.count
         score -= min(10, invalidCerts * 10)
 
-        // 7. Documentation (Weighted 10%)
         let docRatio = WorkspaceIntelligence.shared.docCoverageRatio
         if docRatio < 0.4 {
             score -= 10
@@ -334,13 +315,11 @@ public final class WorkspaceHealth {
             score -= 5
         }
 
-        // 8. Testing (Weighted 5%)
         let testRatio = WorkspaceIntelligence.shared.testCoverageRatio
         if testRatio < 0.5 {
             score -= 5
         }
 
-        // 9. Performance (Weighted 5%)
         let avgDuration = PerformanceManager.shared.averageBuildDuration
         if avgDuration > 10.0 {
             score -= 5

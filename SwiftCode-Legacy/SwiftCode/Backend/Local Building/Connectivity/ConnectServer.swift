@@ -81,7 +81,6 @@ public final class ConnectServer: @unchecked Sendable {
             self.listenerState = .listening(port: targetPort)
             self.logger.info("SwiftCode Connect Server successfully started and listening on port \(targetPort)")
 
-            // Also start discovering nearby iOS devices
             IOSDiscoveryService.shared.startScanning()
 
         } catch let error as ConnectErrorPayload {
@@ -109,20 +108,17 @@ public final class ConnectServer: @unchecked Sendable {
             throw ConnectErrorPayload(errorCode: .invalidPort, message: errorMsg)
         }
 
-        // If not running, just update the configured port
         guard isRunning else {
             self.configuredPort = newPort
             self.lastError = nil
             return
         }
 
-        // Notify active sessions about the port update notice
         let notice = ConnectPortUpdateNoticePayload(deviceID: BonjourAdvertiser.shared.deviceID, newPort: newPort)
         if let envelope = try? MessageEnvelope.encode(payload: notice, type: .portUpdateNotice) {
             broadcast(envelope: envelope)
         }
 
-        // Stop current listener and restart on the new port
         stopServer()
         try await startServer(port: newPort)
     }
@@ -197,7 +193,6 @@ public final class ConnectServer: @unchecked Sendable {
                         self.logger.info("Outbound connection to \(host):\(port) established.")
                         session.state = .handshaking
 
-                        // Initiate handshake
                         let handshake = ConnectHandshakePayload(
                             deviceID: BonjourAdvertiser.shared.deviceID,
                             deviceType: .macOS,
@@ -249,7 +244,6 @@ public final class ConnectServer: @unchecked Sendable {
     }
 
     public func routeEnvelope(_ envelope: MessageEnvelope, on session: ConnectionSession) async {
-        // Clean up disconnected sessions
         if session.state == .disconnected || session.state == .failed {
             activeSessions.removeAll(where: { $0.id == session.id })
             return
@@ -261,7 +255,6 @@ public final class ConnectServer: @unchecked Sendable {
             return
         }
 
-        // Allow initial handshake, pairing, auth, and ping prior to full session activation
         let unauthenticatedTypes: Set<ConnectMessageType> = [.handshake, .handshakeResponse, .pairingRequest, .pairingResponse, .authRequest, .authResponse, .ping, .pong, .disconnectNotice]
 
         if !unauthenticatedTypes.contains(envelope.type) {
@@ -342,14 +335,12 @@ public final class ConnectServer: @unchecked Sendable {
     }
 
     private func registerDefaultHandlers() {
-        // Ping & Pong
         registerHandler(for: .ping) { envelope, session in
             if let response = try? MessageEnvelope.encode(payload: ["pong": true], type: .pong, correlationID: envelope.messageID) {
                 try? session.send(envelope: response)
             }
         }
 
-        // Handshake Exchange
         registerHandler(for: .handshake) { [weak self] envelope, session in
             guard let self = self else { return }
             guard let payload = try? envelope.decodePayload(ConnectHandshakePayload.self) else {
@@ -387,7 +378,6 @@ public final class ConnectServer: @unchecked Sendable {
             }
         }
 
-        // Pairing Request
         registerHandler(for: .pairingRequest) { [weak self] envelope, session in
             guard let self = self else { return }
             guard let payload = try? envelope.decodePayload(ConnectPairingRequestPayload.self) else {
@@ -426,7 +416,6 @@ public final class ConnectServer: @unchecked Sendable {
                     try? session.send(envelope: respEnv)
                 }
 
-                // Send authoritative state synchronization immediately upon pairing
                 let syncPayload = self.createAuthoritativeSyncPayload()
                 if let syncEnv = try? MessageEnvelope.encode(payload: syncPayload, type: .syncStateResponse) {
                     try? session.send(envelope: syncEnv)
@@ -448,7 +437,6 @@ public final class ConnectServer: @unchecked Sendable {
             }
         }
 
-        // Auth Request
         registerHandler(for: .authRequest) { [weak self] envelope, session in
             guard let self = self else { return }
             guard let payload = try? envelope.decodePayload(ConnectAuthRequestPayload.self) else {
@@ -481,7 +469,6 @@ public final class ConnectServer: @unchecked Sendable {
                     try? session.send(envelope: respEnv)
                 }
 
-                // Send authoritative state synchronization immediately upon authentication
                 let syncPayload = self.createAuthoritativeSyncPayload()
                 if let syncEnv = try? MessageEnvelope.encode(payload: syncPayload, type: .syncStateResponse) {
                     try? session.send(envelope: syncEnv)
@@ -502,7 +489,6 @@ public final class ConnectServer: @unchecked Sendable {
             }
         }
 
-        // State Synchronization Request
         registerHandler(for: .syncStateRequest) { [weak self] envelope, session in
             guard let self = self else { return }
             let syncPayload = self.createAuthoritativeSyncPayload()
@@ -511,7 +497,6 @@ public final class ConnectServer: @unchecked Sendable {
             }
         }
 
-        // Disconnect Notice
         registerHandler(for: .disconnectNotice) { _, session in
             session.disconnect()
         }

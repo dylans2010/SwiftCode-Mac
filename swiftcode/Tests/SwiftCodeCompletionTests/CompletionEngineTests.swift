@@ -3,7 +3,6 @@ import Testing
 @testable import SwiftCodeAssistant
 @testable import SwiftCodeCompletion
 
-/// The context builder (predictive-completion.md §4.1).
 @Suite struct ContextBuilderTests {
     @Test func cutsAtLineBoundariesAndKeepsTheCaretLine() {
         let text = (1...200).map { "let value\($0) = \($0)" }.joined(separator: "\n")
@@ -13,11 +12,11 @@ import Testing
         #expect(c.linePrefix == "let value100 = ")
         #expect(c.lineSuffix == "100")
         #expect(c.prefix.hasSuffix("let value99 = 99\nlet value100 = "))
-        #expect(c.prefix.hasPrefix("let value"))       // starts at a line start
+        #expect(c.prefix.hasPrefix("let value"))
         #expect(c.prefix.utf16.count <= 300 + 20)
         #expect(!c.prefixIsWholeFile)
         #expect(c.suffix.hasPrefix("100\nlet value101"))
-        #expect(c.suffix.hasSuffix("\n"))               // ends at a line end
+        #expect(c.suffix.hasSuffix("\n"))
         #expect(c.suffix.utf16.count <= 90)
         #expect(c.language == "swift")
         #expect(c.isMidLine)
@@ -59,7 +58,6 @@ import Testing
         let query = "let invoice = Invoice(lineItems: items)\nlet sum = invoice."
         let picked = RelatedSnippets.pick(query: query, files: [("Weather.swift", unrelated), ("Invoice.swift", other)])
         #expect(picked.map(\.path) == ["Invoice.swift"])
-        // The related budget drops what does not fit.
         let c = CompletionContext.make(text: query, caret: query.utf16.count, path: "Main.swift", related: picked,
                                        limits: ContextLimits(relatedTokens: 10))
         #expect(c.related.isEmpty)
@@ -68,7 +66,6 @@ import Testing
     }
 }
 
-/// Post-processing (§4.3).
 @Suite struct ShaperTests {
     let shaper = SuggestionShaper(maxLines: 6)
 
@@ -87,14 +84,13 @@ import Testing
     @Test func stopsWhenTheBlockEnds() {
         let c = ctx("func f() {\n    |\n}\n")
         let r = shaper.shape("let a = 1\n    return a\n}\n\nfunc g() {}", context: c)
-        #expect(r.text == "let a = 1\n    return a")   // `}` is already after the caret
+        #expect(r.text == "let a = 1\n    return a")
         let c2 = ctx("    if ok {|}\n")
         let r2 = shaper.shape("\n        run()\n    }\n    other()", context: c2)
         #expect(r2.text == "\n        run()\n    }")
     }
 
     @Test func stopsWhenTheStatementIsCompleteOrAtAFence() {
-        // Measured with a 7B model at the end of a file (predictive-completion.md §8).
         let c = ctx("let evens = numbers.filter { |")
         #expect(shaper.shape("$0 % 2 == 0 }\nprint(evens)\n```\n\nIn this example", context: c).text == "$0 % 2 == 0 }")
         let c2 = ctx("    let user = try decoder.decode(|\n}\n")
@@ -133,7 +129,6 @@ import Testing
     }
 }
 
-/// The LRU cache (§4.4).
 @Suite struct CacheTests {
     @Test func exactHitsTypingThroughAndEviction() {
         var cache = SuggestionCache(capacity: 2)
@@ -152,7 +147,6 @@ import Testing
     }
 }
 
-/// Settings and the reference's preference keys (§5).
 @Suite struct SettingsTests {
     @Test func defaultsRoundTripAndOlderValues() throws {
         let d = try #require(UserDefaults(suiteName: "swiftcode-predict-\(UUID().uuidString)"))
@@ -167,7 +161,6 @@ import Testing
         let back = PredictiveCompletionSettings.load(from: d)
         #expect(back == s)
         #expect(back.temperature == nil)
-        // Written by another component with only some keys.
         d.set(Data(#"{"enabled": true, "backend": "llamaServer"}"#.utf8), forKey: PredictiveCompletionSettings.defaultsKey)
         let partial = PredictiveCompletionSettings.load(from: d)
         #expect(partial.enabled && partial.backend == .llamaServer && partial.maxTokens == 128 && partial.temperature == 0.2)
@@ -201,11 +194,10 @@ import Testing
         #expect(changed && !s.enabled)
         changed = s.importXcodePreferences(["DVTEnableOnDeviceCodePredictions": "YES"])
         #expect(changed && s.enabled)
-        #expect(s.backend == .ollama && s.address == nil) // never imported
+        #expect(s.backend == .ollama && s.address == nil)
     }
 }
 
-/// FIM prompt formats (§6.3).
 @Suite struct FIMFormatTests {
     @Test func formatsAndDetection() {
         let c = CompletionContext(prefix: "a(", suffix: ")", path: "Main.swift", related: [RelatedSnippet(path: "B.swift", text: "func b() {}")])
@@ -220,7 +212,6 @@ import Testing
     }
 }
 
-/// Each adapter against the stand-in server (§6).
 @Suite(.serialized) struct BackendTests {
     let context = CompletionContext(prefix: "func add(_ a: Int, _ b: Int) -> Int {\n    ", suffix: "\n}\n", path: "Math.swift", language: "swift",
                                     related: [RelatedSnippet(path: "Other.swift", text: "let k = 1")])
@@ -289,7 +280,6 @@ import Testing
     }
 }
 
-/// The editor session (§4.5): debounce, typing through, accepting, dismissing.
 @MainActor @Suite(.serialized) struct SessionTests {
     func waitFor(_ cond: () -> Bool, timeout: TimeInterval = 5) async {
         let end = Date().addingTimeInterval(timeout)
@@ -313,20 +303,17 @@ import Testing
         #expect(p.suggestion == .init(anchor: 12, text: "items.reduce(0, +)\nprint(total)"))
         #expect(p.acceptText(.shown) == "items.reduce(0, +)")
         #expect(p.acceptText(.word) == "items")
-        // Typing what it suggests keeps the rest; no new request.
         let before = p.requestCount
         text += "ite"
         p.textDidChange(.init(text: text, caret: 15, path: "A.swift"), location: 12, removed: 0, inserted: "ite")
         #expect(p.suggestion == .init(anchor: 15, text: "ms.reduce(0, +)\nprint(total)"))
         #expect(p.requestCount == before)
-        // Moving the caret away dismisses; Escape dismisses.
         p.selectionDidChange(caret: 3, length: 0)
         #expect(p.suggestion == nil)
         p.forceRequest(.init(text: text, caret: 15, path: "A.swift"))
         await waitFor { p.suggestion != nil }
         p.dismiss()
         #expect(p.suggestion == nil)
-        // Typing something else drops it.
         p.forceRequest(.init(text: text, caret: 15, path: "A.swift"))
         await waitFor { p.suggestion != nil }
         p.textDidChange(.init(text: text + "x", caret: 16, path: "A.swift"), location: 15, removed: 0, inserted: "x")
@@ -355,7 +342,6 @@ import Testing
         await waitFor { p.suggestion != nil }
         #expect(p.suggestion?.text == "42")
         #expect(server.generationRequests.count == 1)
-        // In the middle of a line, only the command asks.
         p.textDidChange(.init(text: "let y = z", caret: 8, path: "A.swift"), location: 7, removed: 0, inserted: " ")
         try await Task.sleep(nanoseconds: 200_000_000)
         #expect(server.generationRequests.count == 1)
@@ -382,7 +368,7 @@ import Testing
         let n = p.requestCount
         p.textDidChange(.init(text: "ab", caret: 2, path: "A.swift"), location: 1, removed: 0, inserted: "b")
         try await Task.sleep(nanoseconds: 50_000_000)
-        #expect(p.requestCount == n) // backing off
+        #expect(p.requestCount == n)
         #expect(statuses.first == .requesting)
     }
 
@@ -403,7 +389,6 @@ import Testing
     }
 }
 
-/// `swiftcode complete` (§7).
 @Suite(.serialized) struct CompleteCLITests {
     @Test func parsesFlags() throws {
         let o = try CompleteCLI.parse(["--file", "a.swift", "--line", "3", "--column", "5", "--backend", "llama-server", "--top-k", "10", "--fim", "qwen", "--json"])

@@ -2,14 +2,8 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// The project editor's tab views (reference-ui-3.md §1): General and Info
-/// as tables in collapsible sections, Signing & Capabilities with its
-/// scope and the capability library, Build Phases with the "+" menu and
-/// trash buttons, and the Build Settings table.
 extension ProjectEditorController {
-    // MARK: Sections
 
-    /// Section key: the title without a trailing " (N…)" count.
     static func sectionKey(_ title: String) -> String {
         if let r = title.range(of: " (", options: .backwards), title.hasSuffix(")") { return String(title[..<r.lowerBound]) }
         return title
@@ -25,7 +19,6 @@ extension ProjectEditorController {
         return s
     }
 
-    /// Collapses or expands a section of the shown tab.
     public func toggleSection(_ title: String) {
         sectionViews[Self.sectionKey(title)]?.setCollapsed(!(sectionViews[Self.sectionKey(title)]?.isCollapsed ?? false))
     }
@@ -38,7 +31,6 @@ extension ProjectEditorController {
         return t.container
     }
 
-    /// A vertical, top-aligned scrolling page.
     func page(_ views: [NSView]) -> NSView {
         let stack = NSStackView(views: views)
         stack.orientation = .vertical
@@ -77,8 +69,6 @@ extension ProjectEditorController {
         f.widthAnchor.constraint(equalToConstant: width).isActive = true
         return f
     }
-
-    // MARK: General
 
     func generalView(_ t: String) -> NSView {
         var sections: [NSView] = []
@@ -183,7 +173,6 @@ extension ProjectEditorController {
         setOrientation(parts[1], device: parts[0], on: b.state == .on)
     }
 
-    /// Turns an orientation checkbox of iPhone or iPad on or off.
     public func setOrientation(_ value: String, device: String, on: Bool) {
         guard let t = selectedTarget else { return }
         model.setOrientation(value, device: device, on: on, target: t, configuration: configuration)
@@ -193,13 +182,10 @@ extension ProjectEditorController {
 
     @objc func statusBarHiddenToggled(_ b: NSButton) { setSetting("INFOPLIST_KEY_UIStatusBarHidden", b.state == .on ? "YES" : "") }
 
-    // MARK: Info
-
     public static let infoTypes = ["String", "Number", "Boolean", "Date", "Data", "Array", "Dictionary"]
 
     func infoView(_ t: String) -> NSView {
         var rows: [[NSView]] = []
-        // Containers expand in place; children are indented (P5).
         func add(_ item: ProjectEditorModel.InfoItem, path: String, depth: Int) {
             let indent = String(repeating: "    ", count: depth)
             let keyView: NSView
@@ -237,8 +223,6 @@ extension ProjectEditorController {
         return page(views)
     }
 
-    /// Expands or collapses a container row of the Info table ("Key" or
-    /// "Key/Child/…" by raw keys).
     public func toggleInfoKey(_ path: String) {
         if expandedInfoKeys.contains(path) { expandedInfoKeys.remove(path) } else { expandedInfoKeys.insert(path) }
         if tab == .info { showTab() }
@@ -246,13 +230,8 @@ extension ProjectEditorController {
 
     @objc func infoKeyDisclosureClicked(_ b: NSButton) { if let p = b.identifier?.rawValue { toggleInfoKey(p) } }
 
-    // MARK: Signing & Capabilities
-
-    /// The configuration the Signing tab shows: the scope's, or the
-    /// editor's for All.
     var signingConfiguration: String { signingScope == "All" ? configuration : signingScope }
 
-    /// Chooses All, Debug or Release; edits then go to that configuration.
     public func setSigningScope(_ scope: String) {
         guard scope == "All" || model.configurations(of: selectedTarget).names.contains(scope) else { return }
         signingScope = scope
@@ -339,7 +318,6 @@ extension ProjectEditorController {
         return page(views)
     }
 
-    /// The "+ Capability" library panel; shown when the window is visible.
     @discardableResult
     public func capabilityLibrary() -> CapabilityLibraryController {
         let t = selectedTarget
@@ -359,10 +337,6 @@ extension ProjectEditorController {
         return lib
     }
 
-    // MARK: Build Phases
-
-    /// Build Phases: the "+" menu, then one collapsible section per phase
-    /// with its table, +/− and (when removable) a trash button.
     func phasesView(_ t: String) -> NSView {
         let menu = NSPopUpButton(frame: .zero, pullsDown: true)
         menu.addItem(withTitle: "+")
@@ -440,7 +414,6 @@ extension ProjectEditorController {
         if !id.isEmpty { removeBuildFile(id) }
     }
 
-    /// Adds an empty phase from the "+" menu. Returns its ID.
     @discardableResult
     public func addBuildPhase(isa: String) -> String? {
         guard let t = selectedTarget, model.addPhaseMenu(target: t).contains(where: { $0.isa == isa && $0.enabled }) else { return nil }
@@ -450,14 +423,11 @@ extension ProjectEditorController {
         return id
     }
 
-    /// The trash button: removes a phase and its build files.
     public func removeBuildPhase(_ id: String) {
         model.removeBuildPhase(id)
         onChange?(model.proj)
         if tab == .buildPhases { showTab() }
     }
-
-    // MARK: Build Settings
 
     func buildSettingsView() -> NSView {
         let plus = NSButton(image: NSImage(systemSymbolName: "plus", accessibilityDescription: "Add setting")!, target: nil, action: nil)
@@ -499,13 +469,10 @@ extension ProjectEditorController {
     @objc func namesChosen(_ s: NSSegmentedControl) { showsTitles = s.selectedSegment == 1 }
     @objc func definitionsChosen(_ s: NSSegmentedControl) { showsDefinitions = s.selectedSegment == 0 }
 
-    /// Display title of a setting (Titles mode), or its name.
     public func displayName(_ name: String) -> String {
         showsTitles ? (ProjectEditorModel.settingTitles[name] ?? name) : name
     }
 
-    /// Sections of the shown filter: Basic's fixed sections (with
-    /// User-Defined), or the customized/all settings grouped the same way.
     func settingSections() -> [ProjectEditorModel.SettingSection] {
         let q = search.lowercased()
         func matches(_ n: String) -> Bool {
@@ -522,7 +489,6 @@ extension ProjectEditorController {
             let inSection = b.settings.map(\.name).filter(left.contains)
             if !inSection.isEmpty { out.append(.init(title: b.section, names: inSection)); left.subtract(inSection) }
         }
-        // reference-ui-3.md §1.8: settings with no section go under User-Defined.
         if !left.isEmpty { out.append(.init(title: "User-Defined", names: left.sorted())) }
         return out
     }
@@ -556,7 +522,6 @@ extension ProjectEditorController {
         settingsTable.reloadData()
     }
 
-    /// Levels view: the setting resolves differently per configuration.
     public func hasMultipleValues(_ name: String) -> Bool {
         settingsView == .levels && Set(configurationNames.map { perConfiguration[$0]?[name]?.resolved ?? "" }).count > 1
     }
@@ -589,13 +554,11 @@ extension ProjectEditorController {
         }
     }
 
-    /// Whether a setting's row is drawn bold: defined at the shown level.
     public func settingIsBold(_ name: String) -> Bool {
         guard let r = rowByName[name] else { return false }
         return selectedTarget == nil ? (r.project != nil || r.projectXCConfig != nil) : (r.target != nil || r.targetXCConfig != nil)
     }
 
-    /// Text of a settings-table cell (tests and drawing).
     public func settingsCellText(row: Int, column id: String) -> String? {
         switch settingsLines[row] {
         case .section(let t): return id == "name" ? t : nil
@@ -622,8 +585,6 @@ extension ProjectEditorController {
         default: return s.defaults
         }
     }
-
-    // MARK: Tables
 
     public func numberOfRows(in tableView: NSTableView) -> Int {
         tableView === sidebar ? sidebarRowCount : settingsLines.count
@@ -702,7 +663,6 @@ extension ProjectEditorController {
         return f
     }
 
-    /// The cell of the level that supplies the value is outlined.
     func outline(_ f: NSTextField) {
         f.wantsLayer = true
         f.layer?.borderWidth = 1

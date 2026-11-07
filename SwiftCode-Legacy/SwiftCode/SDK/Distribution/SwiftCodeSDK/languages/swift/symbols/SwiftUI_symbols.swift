@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for SwiftUI
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct SwiftUISymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "swiftui.symbol.0"
     public var name: String = "SwiftUISymbolName_0"

@@ -4,17 +4,12 @@ import SwiftCodeDarwinKernel
 @testable import SwiftCodeMetalHost
 import SwiftCodeXPC
 
-/// The Mach side (spec §2.1, iosurface-remote.md §2): hand-shake messages,
-/// `!CPX` requests and replies, events to the client's port, connection
-/// end by no-senders. The "client" is the host task itself.
 @Suite(.serialized) struct MachServiceTests {
     final class Client {
         let host: MachHostTask
         let service: MetalHostService
         init(host: MachHostTask, service: MetalHostService) { self.host = host; self.service = service }
 
-        /// Opens a connection: descriptor 0 the connection port (MOVE_RECEIVE,
-        /// we keep a send right), descriptor 1 our event port (MAKE_SEND).
         func open() throws -> (connection: UInt32, events: UInt32) {
             let connection = try host.makePort(sendRight: true)
             let events = try host.makePort(qlimit: 64)
@@ -25,7 +20,6 @@ import SwiftCodeXPC
             return (connection, events)
         }
 
-        /// A request with a reply port; returns the decoded reply.
         func request(_ connection: UInt32, _ d: XPCDict) throws -> XPCDict {
             let reply = try host.makePort()
             defer { try? host.destroyPort(reply) }
@@ -34,7 +28,7 @@ import SwiftCodeXPC
                                                   localDisposition: MachMsgType.makeSendOnce, id: 0x1000_0000, body: body))
             let m = try host.receive(on: reply, timeout: 5_000_000_000)
             #expect(m.id == 0x2000_0000)
-            #expect(Array(m.body.prefix(4)) == [0x21, 0x43, 0x50, 0x58])  // "!CPX"
+            #expect(Array(m.body.prefix(4)) == [0x21, 0x43, 0x50, 0x58])
             guard case let .dictionary(r) = try XPCWire.decode(body: m.body, descriptors: []) else { throw XPCWireError.rootNotDictionary }
             return r
         }
@@ -75,13 +69,11 @@ import SwiftCodeXPC
         #expect(processRef != 0)
         let (c0, events0) = connections[0], c1 = connections[1].0
 
-        // Op 37 on connection 0, a queue on connection 1.
         let limits = try c.request(c0, Build.message(12, Build.record(37) { $0.u32(0) }))
         #expect(limits["replyData"]?.dataValue.map { Build.u64($0, 3) } == 32768)
         let q = try c.request(c1, ["messageType": .uint64(7), "maxCommandBufferCount": .uint64(64)])
         #expect(q["commandQueueRef"]?.uint64Value == 1)
 
-        // A one-way submission: events 100 then 101 arrive on the event port.
         let segment = Build.segment(kind: 2, [Build.record(307) { $0.u32(1) }], size: 1024)
         try c.oneWay(c0, ["messageType": .uint64(6), "commandQueue": .uint64(1), "commandBufferRef": .uint64(5),
                           "segments": .array([.data(segment)])])
@@ -89,7 +81,6 @@ import SwiftCodeXPC
         #expect(e1["messageType"]?.uint64Value == 100 && e1["commandBufferRef"]?.uint64Value == 5 && e1["status"]?.uint64Value == 3)
         #expect(e2["messageType"]?.uint64Value == 101 && e2["status"]?.uint64Value == 4)
 
-        // The client drops its send rights: the connections end, then the process.
         for (conn, _) in connections { try host.modRefs(conn, right: MachPortRight.send, delta: -1) }
         var waited = 0
         while service.statistics.processes != 0 && waited < 500 {
@@ -100,8 +91,6 @@ import SwiftCodeXPC
         #expect(backend.calls.contains(.submit(commandBufferRef: 5, passes: 1)))
     }
 
-    /// messageType 17 replies carry a real right (visionos.md §10.6.5);
-    /// sending it back with messageType 18 opens the same event.
     @Test func sharedEventHandleTravelsAsARight() throws {
         let host = DarwinSystem().hostTask
         let backend = NullBackend()
@@ -121,7 +110,6 @@ import SwiftCodeXPC
         let c1 = conns[1]
         _ = try c.request(c1, Build.message(12, Build.record(28) { $0.u32(0) }))
 
-        // 17: the reply is complex, with one port descriptor (a send right).
         let reply = try host.makePort()
         defer { try? host.destroyPort(reply) }
         let body = try XPCWire.encodePayload(.dictionary(["messageType": .uint64(17), "eventRef": .uint64(1)]), magic: XPCWire.sim2hostMagic)
@@ -139,7 +127,6 @@ import SwiftCodeXPC
         }
         #expect(r["eventPort"]?.port?.name == eventPort && r["labelTraceID"]?.uint64Value == 0)
 
-        // 18 with that right: a new event ref aliasing the first.
         let open = Build.message(18, Build.record(40) { $0.u32(0) },
                                  [("eventPort", .sendRight(XPCPort(name: eventPort, disposition: MachMsgType.copySend)))])
         let enc = try XPCWire.encode(.dictionary(open), magic: XPCWire.sim2hostMagic)
@@ -161,9 +148,6 @@ import SwiftCodeXPC
         for conn in conns { try host.modRefs(conn, right: MachPortRight.send, delta: -1) }
     }
 
-    /// The ordered end before exit (stage8-contract.md §12): the receive
-    /// thread has stopped and the connection queues are idle when the
-    /// backend is shut down; a second shutdown does nothing.
     @Test func shutdownStopsTheServiceBeforeTheBackend() throws {
         let host = DarwinSystem().hostTask
         let backend = NullBackend()

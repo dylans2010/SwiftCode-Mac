@@ -1,8 +1,3 @@
-// Tests for AntigravityQuotaService (Legacy -> SwiftCodeGoogleAuth port).
-// Static only: not executed here (no Swift toolchain in this environment).
-// The service persists quota windows in UserDefaults; each test resets the
-// service to fresh state first and last so no quota state leaks between runs.
-
 import Foundation
 import Testing
 import SwiftCodeAssistant

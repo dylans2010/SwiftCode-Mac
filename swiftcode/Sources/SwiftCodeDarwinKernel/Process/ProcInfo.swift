@@ -2,11 +2,6 @@ import Foundation
 import Synchronization
 import SwiftCodeDarwinABI
 
-// `proc_info` (BSD 336) for stage 4b: `specs/simulator/processes.md` §2.11
-// and §6 item 11 (LISTPIDS, PIDINFO 3/4/11/13/17/18/19/21/30, TERMINATE,
-// DIRTYCONTROL, PIDRUSAGE). Every guest process has the same uid, so the
-// "same user" checks never deny. Owner: agent P.
-
 extension DarwinKernel {
     enum ProcInfoCall {
         static let listPIDs: Int32 = 1, pidInfo: Int32 = 2, terminate: Int32 = 7, dirtyControl: Int32 = 8,
@@ -20,7 +15,6 @@ extension DarwinKernel {
                    platformInfo: Int32 = 30
     }
 
-    /// Dirty-tracking bits as `PROC_DIRTYCONTROL_GET` reports them.
     enum DirtyState {
         static let tracked: UInt32 = 0x1, allowIdleExit: UInt32 = 0x2, isDirty: UInt32 = 0x4,
                    launchInProgress: UInt32 = 0x8
@@ -57,10 +51,6 @@ extension DarwinKernel {
             let p = ProcessView(pid: record.pid, uniqueID: record.uniqueID, f: record.view())
             let sizes: [Int32: Int] = [0: 96, 1: 144, 2: 160, 3: 232, 4: 296, 5: 304, 6: 464]
             guard let n = sizes[flavor] else { throw Failure(errno: Errno.EINVAL) }
-            // struct rusage_info_v0 prefix (sys/resource.h): uuid[16], user,
-            // system, pkg_idle_wkups, interrupt_wkups, pageins, wired_size,
-            // resident_size, phys_footprint, then ri_proc_start_abstime @80
-            // and ri_proc_exit_abstime @88 (launchd's run time and throttle).
             var b = [UInt8](repeating: 0, count: n)
             b.put(p.executableUUID, at: 0)
             b.putLE(p.startAbsTime, at: 80)
@@ -73,9 +63,7 @@ extension DarwinKernel {
         }
     }
 
-    /// LISTPIDS: live processes first, then zombies; returns bytes written.
     private func listPIDs(type: Int32, typeInfo: Int32, buffer: UInt64, size: Int32, _ mem: any KernelGuestMemory) throws -> UInt64 {
-        // One consistent copy of each record (this may run without L0).
         let all = system.processes.values.map { (pid: $0.pid, f: $0.view()) }
             .sorted { ($0.f.isZombie ? 1 : 0, $0.pid) < ($1.f.isZombie ? 1 : 0, $1.pid) }
         let hint = all.count + 20
@@ -100,7 +88,6 @@ extension DarwinKernel {
     private func pidInfo(_ target: Int32, flavor: Int32, arg: UInt64, buffer: UInt64, size: Int32,
                          _ mem: any KernelGuestMemory) throws -> UInt64 {
         guard target > 0, let record = system.processRecord(target) else { throw Failure(errno: Errno.ESRCH) }
-        // One consistent copy of the record (this may run without L0).
         let p = ProcessView(pid: record.pid, uniqueID: record.uniqueID, f: record.view())
         func need(_ n: Int, zombieOK: Bool) throws {
             if p.isZombie && !zombieOK { throw Failure(errno: Errno.ESRCH) }
@@ -161,16 +148,13 @@ extension DarwinKernel {
             b.appendLE(status)
             bytes = b
         case ProcInfoFlavor.exitReasonInfo, ProcInfoFlavor.exitReasonBasicInfo:
-            // xnu proc_pidexitreasoninfo (bsd/kern/proc_info.c): the parent
-            // only (EACCES); a process without an exit reason (SwiftCode records
-            // none: exit(), signals) is ENOENT. Sizes 40 / 24 (ENOMEM).
             guard Int(size) >= (flavor == ProcInfoFlavor.exitReasonInfo ? 40 : 24) else { throw Failure(errno: Errno.ENOMEM) }
             guard p.ppid == pid else { throw Failure(errno: Self.EACCES) }
             throw Failure(errno: Errno.ENOENT)
         case ProcInfoFlavor.platformInfo:
             try need(4, zombieOK: true)
             var b: [UInt8] = []
-            b.appendLE(Self.simulatorPlatform)  // PLATFORM_IOSSIMULATOR (7), PLATFORM_WATCHOSSIMULATOR (9) or PLATFORM_XROSSIMULATOR (12)
+            b.appendLE(Self.simulatorPlatform)
             bytes = b
         default:
             trace("note: proc_info PIDINFO flavor \(flavor) is not supported")
@@ -180,13 +164,6 @@ extension DarwinKernel {
         return UInt64(bytes.count)
     }
 
-    /// `struct kinfo_proc` (648 bytes) for sysctl KERN_PROC_PID. Offsets from
-    /// the public <sys/sysctl.h> and <sys/proc.h> (arm64): extern_proc
-    /// p_starttime @0, p_flag @32 (P_LP64 0x4 | P_EXEC 0x4000), p_stat @36,
-    /// p_pid @40, p_oppid @44, p_priority @240, p_comm[17] @243, p_xstat @280;
-    /// eproc p_ruid/svuid/rgid/svgid @392…404, cr_uid @420, cr_ngroups @424,
-    /// cr_groups @428, e_ppid @560, e_pgid @564, e_tdev @572 (NODEV −1),
-    /// e_tpgid @576.
     func kinfoProc(_ pid: Int32) -> [UInt8]? {
         guard pid > 0, let record = system.processRecord(pid) else { return nil }
         let p = ProcessView(pid: record.pid, uniqueID: record.uniqueID, f: record.view())
@@ -219,7 +196,6 @@ extension DarwinKernel {
         }
     }
 
-    /// `pbi_flags`: LP64 | has exec'd, plus session leader (`processes.md` §2.11).
     private func bsdFlags(_ p: ProcessView) -> UInt32 {
         var f: UInt32 = 0x10 | 0x4000
         if p.sid == p.pid { f |= 0x20 }
@@ -228,7 +204,6 @@ extension DarwinKernel {
         return f
     }
 
-    /// `struct proc_bsdinfo` (136 bytes).
     private func bsdInfo(_ p: ProcessView) -> [UInt8] {
         var b = [UInt8](repeating: 0, count: 136)
         b.putLE(bsdFlags(p), at: 0)
@@ -244,13 +219,12 @@ extension DarwinKernel {
         b.put(Array(p.name.utf8.prefix(31)), at: 64)
         b.putLE(UInt32(p.kernel?.fileSystem.openDescriptors.count ?? 0), at: 96)
         b.putLE(p.pgid, at: 100)
-        b.putLE(UInt32(0xFFFF_FFFF), at: 108)  // e_tdev: no terminal
+        b.putLE(UInt32(0xFFFF_FFFF), at: 108)
         b.putLE(UInt64(bitPattern: p.startTime.seconds), at: 120)
         b.putLE(UInt64(bitPattern: p.startTime.microseconds), at: 128)
         return b
     }
 
-    /// `struct proc_uniqidentifierinfo` (56 bytes).
     private func uniqueIdentifierInfo(_ p: ProcessView) -> [UInt8] {
         var b = [UInt8](repeating: 0, count: 56)
         b.put(p.executableUUID, at: 0)
@@ -261,7 +235,6 @@ extension DarwinKernel {
         return b
     }
 
-    /// DIRTYCONTROL (`processes.md` §2.11): 1 TRACK, 2 SET, 3 GET, 4 CLEAR.
     private func dirtyControl(_ target: Int32, flavor: Int32, arg: UInt32) throws -> UInt64 {
         guard let p = system.processes[target], p.pid != DarwinSystem.initPID else { throw Failure(errno: Errno.ESRCH) }
         switch flavor {
@@ -279,29 +252,13 @@ extension DarwinKernel {
         return p.dirty.control(flavor: flavor, arg: arg)
     }
 
-    /// Diagnostics: DIRTYCONTROL calls served without L0.
     public static let dirtyControlFast = Atomic<UInt64>(0)
-    /// The platform proc_info's platform flavor reports for every process:
-    /// the runtime's (iOS simulator 7; a visionOS runtime sets 12,
-    /// visionos.md §2.2; a watchOS runtime 9, watchos.md §2.3). Set once before the first process starts.
     nonisolated(unsafe) public static var simulatorPlatform: UInt32 = 7
-    /// On by default; `SWIFTCODE_DIRTY_FAST=0` keeps every `proc_info` call on L0.
     nonisolated(unsafe) public static var dirtyControlFastEnabled = getenv("SWIFTCODE_DIRTY_FAST").map { String(cString: $0) != "0" } ?? true
 
-    /// Diagnostics: `proc_info` reads (LISTPIDS, PIDINFO, PIDRUSAGE) served
-    /// without L0 (`bsd-locking.md` §13).
     public static let procInfoReadFast = Atomic<UInt64>(0)
-    /// On by default; `SWIFTCODE_PROC_TABLE_FAST=0` keeps the process-table reads
-    /// (`proc_info` LISTPIDS/PIDINFO/PIDRUSAGE, `proc_info_extended_id`,
-    /// `csops`, `csops_audittoken`, `kern.proc.pid`) on L0.
     nonisolated(unsafe) public static var procTableFastEnabled = getenv("SWIFTCODE_PROC_TABLE_FAST").map { String(cString: $0) != "0" } ?? true
 
-    /// `proc_info` (336) without L0: DIRTYCONTROL on the caller's own
-    /// process (a running image's process is neither a zombie nor pseudo-init,
-    /// and may always signal itself, so the locked path's checks pass); the
-    /// reads of the process table (LISTPIDS, PIDINFO, PIDRUSAGE) under its
-    /// leaf lock and each record's (`bsd-locking.md` §13), with the locked
-    /// path's functions. Nil for any other call: the locked path.
     func procInfoFast(_ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64? {
         let callnum = Int32(truncatingIfNeeded: a[0]), target = Int32(truncatingIfNeeded: a[1])
         let flavor = Int32(truncatingIfNeeded: a[2])
@@ -320,8 +277,6 @@ extension DarwinKernel {
 
 }
 
-/// One consistent copy of a process record's fields (`DarwinProcess.view`),
-/// read by `proc_info` and the `kern.proc` sysctls with or without L0.
 @dynamicMemberLookup
 struct ProcessView {
     let pid: Int32
@@ -330,14 +285,9 @@ struct ProcessView {
     subscript<T>(dynamicMember path: KeyPath<DarwinProcess.Fields, T>) -> T { f[keyPath: path] }
 }
 
-/// A process's dirty-tracking bits (`proc_info` DIRTYCONTROL): one atomic
-/// word, changed by the locked path (L0) and by the process's own calls on
-/// the fast path, so each change is one atomic operation.
 final class ProcessDirtyState: Sendable {
     let bits = Atomic<UInt32>(0)
 
-    /// The change of one DIRTYCONTROL call whose checks passed: 1 TRACK,
-    /// 2 SET, 3 GET (the bits), 4 CLEAR; 0 for the others.
     func control(flavor: Int32, arg: UInt32) -> UInt64 {
         typealias D = DarwinKernel.DirtyState
         switch flavor {

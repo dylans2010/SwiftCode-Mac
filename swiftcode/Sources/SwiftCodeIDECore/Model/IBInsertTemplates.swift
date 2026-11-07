@@ -3,27 +3,11 @@ import CoreGraphics
 #endif
 import Foundation
 
-/// What each Library object writes (`library.md` §Insert defaults): the
-/// element, its attributes in the canonical order (common view attributes,
-/// kind leading attributes, hugging priorities, `fixedFrame`, content
-/// alignment, the other kind attributes, then
-/// `translatesAutoresizingMaskIntoConstraints`, `id`), and its children
-/// (frame, autoresizing mask, value elements, kind children). A placed
-/// view carries the three-part frame rule: `fixedFrame="YES"`,
-/// `translatesAutoresizingMaskIntoConstraints="NO"` and an autoresizing
-/// mask with `flexibleMaxX` and `flexibleMaxY`.
-///
-/// Templates use tokens: `@ID` is the new object's ID, `@1` … `@9` more
-/// fresh IDs; on a line of its own `@FRAME` is the frame and the
-/// three-part rule's mask, `@RECT` the frame alone, `@BOUNDS` a frame at
-/// the origin with the object's size; `@W` and `@H` are the size, and
-/// `@SM` the scene member attribute of a storyboard controller.
 extension IBDocument {
     static let placedMask = "<autoresizingMask key=\"autoresizingMask\" flexibleMaxX=\"YES\" flexibleMaxY=\"YES\"/>"
     static let fillMask = "<autoresizingMask key=\"autoresizingMask\" widthSizable=\"YES\" heightSizable=\"YES\"/>"
     static let tamic = "translatesAutoresizingMaskIntoConstraints=\"NO\""
 
-    /// The iOS template of a kind (see the type's comment for tokens).
     static func iosTemplate(_ kind: NewObject) -> String {
         let placed = "fixedFrame=\"YES\""
         let t = tamic
@@ -403,13 +387,11 @@ extension IBDocument {
         case .swipeGesture: return "<swipeGestureRecognizer direction=\"right\" id=\"@ID\"/>"
         case .panGesture: return "<panGestureRecognizer minimumNumberOfTouches=\"1\" id=\"@ID\"/>"
         case .screenEdgePanGesture: return "<screenEdgePanGestureRecognizer minimumNumberOfTouches=\"1\" id=\"@ID\"/>"
-        // The file format spells the element with a "p" (library.md, item 79).
         case .longPressGesture: return "<pongPressGestureRecognizer allowableMovement=\"10\" minimumPressDuration=\"0.5\" id=\"@ID\"/>"
         case .customGesture: return "<gestureRecognizer id=\"@ID\"/>"
         }
     }
 
-    /// The macOS (AppKit) template of the kinds a macOS document offers.
     static func macTemplate(_ kind: NewObject) -> String {
         let t = tamic
         switch kind {
@@ -455,7 +437,6 @@ extension IBDocument {
         }
     }
 
-    /// The macOS sizes (unchanged since the first Library).
     static func macSize(_ kind: NewObject) -> CGSize {
         switch kind {
         case .label: CGSize(width: 100, height: 21)
@@ -468,8 +449,6 @@ extension IBDocument {
         }
     }
 
-    /// Expands a template into lines (depth, text). `ids` maps `@1`… to
-    /// fresh IDs, created on first use.
     static func expand(_ template: String, id: String, frame f: CGRect, storyboard: Bool, ids: inout [String: String], fresh: () -> String) -> [(Int, String)] {
         let rect = "<rect key=\"frame\" x=\"\(number(f.minX))\" y=\"\(number(f.minY))\" width=\"\(number(f.width))\" height=\"\(number(f.height))\"/>"
         let bounds = "<rect key=\"frame\" x=\"0.0\" y=\"0.0\" width=\"\(number(f.width))\" height=\"\(number(f.height))\"/>"

@@ -63,7 +63,6 @@ int main(int argc, char **argv) {
         await session.debug(program: exe)
         #expect(await waitUntil(90) { session.stoppedThread != nil && !session.variables.isEmpty })
 
-        // Console input: expressions and LLDB commands, with history.
         let r = await session.evaluateInConsole("p a + 40")
         #expect(r?.contains("40") == true)
         _ = await session.evaluateInConsole("expr b")
@@ -75,7 +74,6 @@ int main(int argc, char **argv) {
         #expect(session.console.contains("42"))
         #expect(wc.debugArea.historyItem(back: 1) == "p 6 * 7")
 
-        // Edit a value, print its description, watch expressions.
         #expect(await session.setValue("7", of: "a") == "7")
         #expect(session.variables.first { $0.name == "a" }?.value == "7")
         _ = await session.printDescription(of: "b")
@@ -84,14 +82,12 @@ int main(int argc, char **argv) {
         #expect(await waitUntil(20) { session.watchValues.first?.value == "14" })
         #expect(wc.debugArea.roots.first?.variable.name == "a * 2")
 
-        // Threads by queue (lldb names the main thread's queue).
         #expect(!session.threads.isEmpty)
         #expect(session.threadsByQueue.contains { $0.queue.contains("main-thread") } || session.threadsByQueue.first?.queue == "Threads")
         wc.navigator.showThreadsByQueue = true
         wc.navigator.setDebugState(threads: session.threads, stoppedThread: session.stoppedThread, frames: session.frames)
         #expect(!wc.navigator.rows(6).isEmpty)
 
-        // Disassembly with the PC marked, then an instruction step.
         session.alwaysShowDisassembly = true
         #expect(await waitUntil(20) { !session.disassembly.isEmpty && session.disassemblyPCIndex != nil })
         let pc = session.disassembly[session.disassemblyPCIndex!].address
@@ -103,7 +99,6 @@ int main(int argc, char **argv) {
         })
         session.alwaysShowDisassembly = false
 
-        // Watchpoint on `s` (written by the line we are stopped at).
         let w = await session.watch("s")
         #expect(w != nil && w?.verified == true, "watchpoint \(String(describing: w))")
         #expect(wc.navigator.breakpointGroups.first { $0.title == "Watchpoints" }?.children.contains { $0.title.hasPrefix("s") && $0.symbol == "eye" } == true)
@@ -124,7 +119,6 @@ int main(int argc, char **argv) {
         defer { heavy.unlock() }
         guard let (dir, exe, _) = try build() else { return }
         guard InterprocessLock.canLaunchUnderDebugger(exe) else { print("skipping: cannot debug"); return }
-        // Our own looping test program.
         let p = Process()
         p.executableURL = URL(fileURLWithPath: exe)
         p.arguments = ["loop"]
@@ -133,7 +127,6 @@ int main(int argc, char **argv) {
         let session = WorkspaceSession(model: try WorkspaceModel(url: dir))
         await session.attach(to: "\(p.processIdentifier)")
         #expect(session.debugClient != nil)
-        // Attaching stops the process; pause again if it was resumed.
         if !(await waitUntil(30) { session.stoppedThread != nil }) { await session.continueOrPause() }
         #expect(await waitUntil(30) { session.stoppedThread != nil && !session.threads.isEmpty })
         #expect(await session.evaluateInConsole("p counter") != nil)

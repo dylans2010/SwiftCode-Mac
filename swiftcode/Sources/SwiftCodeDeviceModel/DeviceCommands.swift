@@ -1,28 +1,17 @@
-// The device windows' commands, their menu titles and key equivalents
-// (device-hub.md §7 and "SwiftCode implementation"): one table for the viewer's
-// menu bar and for the key handling of SwiftCode's hub and compact windows.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
 public enum DeviceCommand: String, Sendable, CaseIterable {
-    // Controls menu (§7, in its order)
     case home, lock, appSwitcher, actionButton, rotateLeft, rotateRight, screenshot, recordScreen
-    // SwiftCode extras in the Controls menu (Reset Camera: a Vision Pro's start
-    // pose, visionos.md §5.1 and "SwiftCode implementation")
     case volumeUp, volumeDown, resetCamera
-    // A Vision Pro's headset view (device-hub.md §I.12): View in Headset / Back to Desktop
     case viewInHeadset
-    // View menu
     case zoomIn, zoomOut, zoomToFit, physicalSize, toggleBezels
-    // Device menu
     case captureKeyboard, start, restart, shutDown, forceShutDown
-    // Fold (the iPhone Duo's poses)
     case poseClosed, posePartiallyOpen, poseOpen
+    case shake, memoryPressure, slowAnimations, standby
 
-    /// The menu title (exact where the reference's is known, §7).
     public var title: String {
         switch self {
         case .home: "Home"
@@ -50,11 +39,13 @@ public enum DeviceCommand: String, Sendable, CaseIterable {
         case .poseClosed: DevicePosture.closed.title
         case .posePartiallyOpen: DevicePosture.halfOpen.title
         case .poseOpen: DevicePosture.openFlat.title
+        case .shake: "Shake"
+        case .memoryPressure: "Simulate Memory Warning"
+        case .slowAnimations: "Slow Animations"
+        case .standby: "Standby Mode"
         }
     }
 
-    /// The key equivalent: the character and its modifiers (§7: Screenshot
-    /// ⇧⌘S; the others are SwiftCode's, Q11).
     public var keyEquivalent: (key: String, modifiers: DeviceKeyModifiers)? {
         switch self {
         case .home: ("h", [.command, .shift])
@@ -74,19 +65,18 @@ public enum DeviceCommand: String, Sendable, CaseIterable {
         case .poseClosed: ("1", [.command, .option])
         case .posePartiallyOpen: ("2", [.command, .option])
         case .poseOpen: ("3", [.command, .option])
+        case .shake: ("z", [.command, .control])
+        case .memoryPressure: ("m", [.command, .shift, .control])
+        case .slowAnimations: ("t", [.command])
         default: nil
         }
     }
 
-    /// The Controls menu, in order (§7), with SwiftCode's volume items after it.
     public static let controlsMenu: [DeviceCommand?] = [.home, .lock, .appSwitcher, .actionButton, nil, .rotateLeft, .rotateRight,
                                                         nil, .screenshot, .recordScreen, nil, .volumeUp, .volumeDown, .resetCamera,
-                                                        .viewInHeadset]
-    /// The View menu's zoom items (§7).
+                                                        .viewInHeadset, nil, .shake, .memoryPressure, .slowAnimations, .standby]
     public static let zoomMenu: [DeviceCommand] = [.zoomIn, .zoomOut, .zoomToFit, .physicalSize]
 
-    /// The command a key press is bound to (nil: none). `key` is the
-    /// pressed key's character ignoring modifiers.
     public static func bound(to key: String, modifiers: DeviceKeyModifiers) -> DeviceCommand? {
         let k = key.lowercased()
         return allCases.first { c in
@@ -96,7 +86,6 @@ public enum DeviceCommand: String, Sendable, CaseIterable {
     }
 }
 
-/// Modifier keys of a key equivalent (platform-neutral, for tests).
 public struct DeviceKeyModifiers: OptionSet, Sendable, Hashable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -105,16 +94,12 @@ public struct DeviceKeyModifiers: OptionSet, Sendable, Hashable {
     public static let option = DeviceKeyModifiers(rawValue: 4)
     public static let control = DeviceKeyModifiers(rawValue: 8)
 
-    // AppKit's function-key characters for the arrows (NSUpArrowFunctionKey …).
     public static let upArrow = String(UnicodeScalar(0xF700)!)
     public static let downArrow = String(UnicodeScalar(0xF701)!)
     public static let leftArrow = String(UnicodeScalar(0xF702)!)
     public static let rightArrow = String(UnicodeScalar(0xF703)!)
 }
 
-/// File names of screenshots and recordings (§4.4; SwiftCode decision for the
-/// screenshot's name, the recording's follows the reference: "Screen
-/// Recording" + the device name + a timestamp).
 public enum DeviceCaptureNames {
     public static func timestamp(_ date: Date, timeZone: TimeZone = .current) -> String {
         let f = DateFormatter()

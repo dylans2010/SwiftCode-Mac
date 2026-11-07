@@ -17,7 +17,6 @@ final class DateFormatterDevToolViewModel {
 
         let isoFormatter = ISO8601DateFormatter()
         guard let date = isoFormatter.date(from: rawInput) else {
-            // Try standard date fallback
             let fallbackFormatter = DateFormatter()
             fallbackFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
             if let fDate = fallbackFormatter.date(from: rawInput) {

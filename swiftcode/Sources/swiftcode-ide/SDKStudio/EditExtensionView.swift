@@ -1,27 +1,13 @@
-// EditExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/EditExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: v1 Swift-file extension editing model (EditableSwiftFile list, per-file editor, install from editor)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ExtensionManifest.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeEditorKit
 import SwiftCodeExtensions
 import SwiftUI
 
-// MARK: - Edit Extension View
-
-/// Allows users to edit an existing user-created Extension: update its name,
-/// category, description, capabilities, Swift files, and installation status.
 struct EditExtensionView: View {
     let `extension`: ExtensionManifest
 
-    // fixes-observedobject: `ExtensionManager` is a plain class, not `@Observable` —
-    // `@State` holds it without observation; reads are snapshots.
     @State private var manager = ExtensionManager.shared
     @Environment(\.dismiss) private var dismiss
 
-    // Editable state mirroring the manifest
     @State private var name: String
     @State private var author: String
     @State private var version: String
@@ -31,13 +17,11 @@ struct EditExtensionView: View {
     @State private var isEnabled: Bool
     @State private var swiftCodeAssistCapable: Bool
 
-    // Swift file editing (loads existing files from disk)
     @State private var swiftFiles: [EditableSwiftFile] = []
     @State private var editingFileIndex: Int?
     @State private var showAddFileSheet = false
     @State private var newFileName = ""
 
-    // Status
     @State private var isSaving = false
     @State private var saveError: String?
     @State private var showError = false
@@ -118,8 +102,6 @@ struct EditExtensionView: View {
         .preferredColorScheme(.dark)
         .task { loadSwiftFiles() }
     }
-
-    // MARK: - Sections
 
     private var basicInfoSection: some View {
         Section("Extension Info") {
@@ -268,8 +250,6 @@ struct EditExtensionView: View {
         }
     }
 
-    // MARK: - Add File Sheet
-
     private var addFileSheet: some View {
         NavigationStack {
             Form {
@@ -298,8 +278,6 @@ struct EditExtensionView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Edit File Sheet
-
     private func editFileSheet(index: Int) -> some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
@@ -324,8 +302,6 @@ struct EditExtensionView: View {
         }
         .preferredColorScheme(.dark)
     }
-
-    // MARK: - Actions
 
     private func loadSwiftFiles() {
         let folderURL = manager.extensionsDirectory.appendingPathComponent(`extension`.id)
@@ -357,7 +333,6 @@ struct EditExtensionView: View {
 
         do {
             try manager.updateExtension(manifest: updated)
-            // Save modified Swift files
             let folderURL = manager.extensionsDirectory.appendingPathComponent(`extension`.id)
             for file in swiftFiles {
                 let fileURL = folderURL.appendingPathComponent(file.name)
@@ -375,8 +350,6 @@ struct EditExtensionView: View {
         dismiss()
     }
 }
-
-// MARK: - Supporting Types
 
 private struct EditableSwiftFile: Identifiable {
     let id = UUID()

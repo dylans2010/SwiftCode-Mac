@@ -1,11 +1,5 @@
 import Foundation
 
-/// Parses OpenAI Responses API replies for Codex (ported from Legacy's
-/// `CodexResponseParser`).
-///
-/// Legacy's parser returned its Core `LLMResponse`; this returns the local
-/// `CodexLLMResponse` (same fields) so the client does not depend on
-/// another slice's types.
 struct CodexResponseParser: Sendable {
     func parseResponse(data: Data, response: URLResponse) throws -> CodexLLMResponse {
         guard let httpResponse = response as? HTTPURLResponse else {

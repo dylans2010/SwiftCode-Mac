@@ -5,7 +5,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// reference-ui-4.md §4 (inline issues) and §7 (Quick Help).
 @Suite struct ReferenceUI4EditorTests {
     @Test func truncationAddsEllipsis() {
         let measure: (String) -> CGFloat = { CGFloat($0.count) }
@@ -47,13 +46,12 @@ import SwiftCodeBuild
         e.textView.insertText("// x\n", replacementRange: e.textView.selectedRange())
         #expect(e.issuesAreStale)
         #expect(e.gutter.marks.issuesStale)
-        e.setIssues([d])             // the same list (a breakpoint refresh) stays stale
+        e.setIssues([d])
         #expect(e.issuesAreStale)
         var moved = d
         moved.location?.line = 2
-        e.setIssues([moved])          // a new build replaces them
+        e.setIssues([moved])
         #expect(!e.issuesAreStale)
-        // Draws without trapping (icon, message, underline).
         e.view.frame = NSRect(x: 0, y: 0, width: 600, height: 200)
         e.view.layoutSubtreeIfNeeded()
         let rep = e.textView.bitmapImageRepForCachingDisplay(in: e.textView.bounds)!
@@ -102,7 +100,6 @@ import SwiftCodeBuild
     }
 }
 
-/// reference-ui-4.md §9: the empty editor.
 @MainActor
 @Suite(.serialized) struct ReferenceUI4EmptyEditorTests {
     @Test func rowFormat() {
@@ -127,13 +124,12 @@ import SwiftCodeBuild
         #expect(wc.editor.emptyView == nil)
         wc.open(path: other.path, line: nil)
         wc.closeDocument(nil)
-        await wc.workspaceCandidatesIdle()   // the index is read in the background
+        await wc.workspaceCandidatesIdle()
         let empty = try #require(wc.editor.emptyView)
         #expect(empty.heading.stringValue == "Recent Files")
         #expect(empty.field.placeholderString == "Open Quickly")
         #expect(empty.rows.map(\.name) == ["Other", "main"])
         #expect(empty.rows.first?.breadcrumb.hasSuffix("Sources › App") == true)
-        // Typing behaves like Open Quickly.
         empty.search("mai")
         #expect(empty.rows.first?.name == "main")
         empty.search("")
@@ -144,7 +140,6 @@ import SwiftCodeBuild
     }
 }
 
-/// Optional off-screen renders for review.
 enum ReferenceUI4Shots {
     static let dir = ProcessInfo.processInfo.environment["SWIFTCODE_SHOTS_DIR"]
     @MainActor static func save(_ v: NSView, _ name: String) throws {

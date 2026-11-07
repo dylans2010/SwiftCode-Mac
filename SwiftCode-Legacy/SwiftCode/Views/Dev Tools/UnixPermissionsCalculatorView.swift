@@ -1,17 +1,14 @@
 import SwiftUI
 
 public struct UnixPermissionsCalculatorView: View {
-    // Owner
     @State private var uRead = true
     @State private var uWrite = true
     @State private var uExec = true
 
-    // Group
     @State private var gRead = true
     @State private var gWrite = false
     @State private var gExec = true
 
-    // Others
     @State private var oRead = true
     @State private var oWrite = false
     @State private var oExec = false
@@ -53,7 +50,6 @@ public struct UnixPermissionsCalculatorView: View {
                 }
 
                 HStack(spacing: 20) {
-                    // Octal and Symbolic output display card
                     GroupBox {
                         VStack(spacing: 12) {
                             Text("Calculated Permission Flags")
@@ -101,16 +97,12 @@ public struct UnixPermissionsCalculatorView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                     .frame(width: 320)
 
-                    // Selection columns
                     GroupBox {
                         HStack(alignment: .top, spacing: 24) {
-                            // User
                             permissionColumn(title: "Owner (User)", r: $uRead, w: $uWrite, x: $uExec)
                             Divider()
-                            // Group
                             permissionColumn(title: "Group", r: $gRead, w: $gWrite, x: $gExec)
                             Divider()
-                            // Others
                             permissionColumn(title: "Others", r: $oRead, w: $oWrite, x: $oExec)
                         }
                         .padding(10)

@@ -2,9 +2,6 @@ import XCTest
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Drives the reference-ui-3 controllers: asset catalog filter and Color Set
-/// inspector edits (§3), the new-file icon grid (§5.3), and the Organizer
-/// toolbar (§6).
 @MainActor
 final class ReferenceUI3ControllerTests: XCTestCase {
     func tempCatalog() throws -> AssetCatalog {
@@ -60,7 +57,6 @@ final class ReferenceUI3ControllerTests: XCTestCase {
         try e.setInspectorAppearances("None")
         try e.setInspectorCheckbox("iPhone", on: false)
         XCTAssertEqual(entries(set).count, 1)
-        // The last device cannot be turned off.
         try e.setInspectorCheckbox("Universal", on: false)
         XCTAssertEqual(entries(set).count, 1)
         let text = try String(contentsOf: set.url.appendingPathComponent("Contents.json"), encoding: .utf8)

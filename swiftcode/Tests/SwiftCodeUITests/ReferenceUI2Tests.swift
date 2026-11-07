@@ -9,9 +9,6 @@ import SwiftCodeDebug
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// specs/ide/reference-ui-2.md and the round-23 audit: opening state,
-/// issue navigator and capsule, editor tabs, Find navigator, reports,
-/// scheme editor panes, debug-area bars.
 @MainActor
 @Suite(.serialized) struct ReferenceUI2Tests {
     func withWindow(_ body: (WorkspaceWindowController, URL, Preferences) throws -> Void) throws {
@@ -42,10 +39,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
     @Test func openingStateIssuesAndCapsule() throws {
         try withWindow { wc, src, _ in
-            // Nothing selected at open (reference-ui.md §2).
             #expect(wc.editor.fileURL == nil && wc.editor.pathComponents.isEmpty)
-            // Issue navigator: root "N issues", groups by file without
-            // extension, sorted; issue rows wrap to three lines.
             let main = src.appendingPathComponent("main.swift").path, other = src.appendingPathComponent("Other.swift").path
             wc.navigator.setIssues([
                 Diagnostic(severity: .warning, message: "unused", location: .init(file: other, line: 1)),
@@ -60,7 +54,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.navigator.select(4)
             #expect(wc.navigator.recentToggle.toolTip == "Show only issues from open documents and recently built sources")
             #expect(wc.navigator.sourceControlToggle.toolTip == "Show only errors")
-            // The toolbar capsule: hidden with nothing, zero counts left out.
             let cap = wc.issueCapsule
             #expect(cap.isHidden)
             cap.errors = 2
@@ -75,7 +68,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let main = src.appendingPathComponent("main.swift").path, other = src.appendingPathComponent("Other.swift").path
             wc.openFromNavigator(path: main, line: nil)
             wc.openFromNavigator(path: other, line: nil)
-            #expect(wc.editorArea.tabs.count == 1) // unpinned tab is replaced
+            #expect(wc.editorArea.tabs.count == 1)
             wc.toggleEditorTabBar(nil)
             #expect(wc.editorArea.isTabBarVisible && wc.editorArea.tabTitles == ["Other"])
             wc.togglePinEditorTab(nil)
@@ -95,14 +88,13 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     @Test func findNavigatorHeaderAndScopes() throws {
         try withWindow { wc, src, _ in
             #expect(NavigatorAreaController.findKinds.count == 9 && NavigatorAreaController.findMatches == ["Containing", "Matching Word", "Starting With", "Ending With"])
-            // Every kind but Asset References works (navigators.md, "SwiftCode implementation").
             #expect((0..<8).allSatisfy { wc.navigator.findStyle.item(at: $0)?.isEnabled == true } && wc.navigator.findStyle.item(at: 8)?.isEnabled == false)
             wc.navigator.select(3)
-            wc.navigator.findMatch.selectItem(at: 2) // Starting With
+            wc.navigator.findMatch.selectItem(at: 2)
             wc.navigator.find("greet")
             let lines = wc.navigator.rows(3).flatMap { $0.children.map(\.title) }
             #expect(lines.contains { $0.contains("func greet") } && lines.contains { $0.contains("let greeted") })
-            wc.navigator.findMatch.selectItem(at: 3) // Ending With: "greet" ends no word in "greeted"
+            wc.navigator.findMatch.selectItem(at: 3)
             wc.navigator.find("greet")
             #expect(!wc.navigator.rows(3).flatMap { $0.children.map(\.title) }.contains { $0.contains("greeted") })
             wc.navigator.findMatch.selectItem(at: 0)
@@ -141,7 +133,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(group.children[1].badge == "1" && group.children[1].detail?.contains(",") == true)
             let log = BuildLogView(report: build)
             #expect(log.sectionTitle == "Build target Demo" && log.sectionSubtitle.hasPrefix("Package Demo | Configuration Debug"))
-            #expect(log.shownSections.flatMap(\.steps).first?.issues.count == 2) // All Issues by default
+            #expect(log.shownSections.flatMap(\.steps).first?.issues.count == 2)
             log.kind.selectedSegment = 2
             #expect(log.shownSections.flatMap(\.steps).first?.issues.map(\.message) == ["broken"])
             #expect(log.footerLines.0.hasPrefix("Build failed ") && log.footerLines.0.hasSuffix("2.0 seconds") && log.footerLines.1 == "1 error, 1 warning")
@@ -171,7 +163,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(wc.session.consoleText(.all, metadata: m) == "[Target] hello\n")
             m.enabled = false
             #expect(wc.session.consoleText(.all, metadata: m) == "hello\n")
-            // Pause/Continue is found by action; step buttons hide without a session.
             #expect(d.pauseContinueButton != nil && d.pauseContinueButton?.isHidden == true)
             #expect(NavigatorAreaController.threadTitle(DebugThread(id: 1234, name: "Thread 1 name = main queue = com.apple.main-thread")) == "Thread 1 — name = main queue = com.apple.main-thread")
         }
@@ -190,18 +181,15 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         for a in 0..<6 { for t in 0..<max(1, SchemeEditorController.tabs(forAction: a).count) { e.select(action: a, tab: t) } }
         #expect(SchemeEditorController.runOptionRows.count == 18 && SchemeEditorController.diagnosticRows.first?.title == "Address Sanitizer")
         #expect(SchemeEditorController.diagnosticRows.contains { $0.title == "Log allocation stack traces" && $0.on && $0.indent })
-        // Build ▸ Targets checkboxes and Find Implicit Dependencies write the scheme.
         if let entry = scheme.buildEntries.first {
             scheme.setBuild(.archiving, false, blueprintIdentifier: entry.reference.blueprintIdentifier)
             #expect(scheme.buildEntries.first?.actions.contains(.archiving) == false)
         }
         scheme.setBuildImplicitDependencies(false)
         #expect(!scheme.buildImplicitDependencies)
-        // Launch options follow the scheme's enabled entries.
         #expect(scheme.launchArguments.contains { $0.isEnabled })
     }
 
-    /// A capture of the whole workspace window for the round report.
     @Test func workspaceWindowCapture() throws {
         try withWindow { wc, src, _ in
             let main = src.appendingPathComponent("main.swift").path

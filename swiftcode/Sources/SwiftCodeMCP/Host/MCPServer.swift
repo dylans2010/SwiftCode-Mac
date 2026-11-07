@@ -1,14 +1,6 @@
 import Foundation
 import SwiftCodeAssistant
 
-// The Model Context Protocol server core (modelcontextprotocol.io,
-// specification revision 2026-07-28, MIT; with the initialize-based
-// revisions 2025-11-25, 2025-06-18 and 2025-03-26 for older clients). The
-// transports (stdio, Streamable HTTP) hand each request to `MCPServer` and
-// write what it returns. See specs/ide/coding-assistant.md, "SwiftCode
-// implementation".
-
-/// Tool behaviour hints (`ToolAnnotations`).
 public struct MCPToolAnnotations: Sendable, Equatable {
     public var readOnly: Bool
     public var destructive: Bool
@@ -23,8 +15,6 @@ public struct MCPToolAnnotations: Sendable, Equatable {
     public static let read = MCPToolAnnotations(readOnly: true, idempotent: true)
 }
 
-/// Reports a long call's progress (`notifications/progress`) when the
-/// client asked for it with a progress token; otherwise does nothing.
 public struct MCPProgress: Sendable {
     let sink: (@Sendable (_ progress: Double, _ total: Double?, _ message: String?) -> Void)?
     public init(_ sink: (@Sendable (Double, Double?, String?) -> Void)?) { self.sink = sink }
@@ -33,21 +23,13 @@ public struct MCPProgress: Sendable {
     public func report(_ progress: Double, total: Double? = nil, message: String? = nil) { sink?(progress, total, message) }
 }
 
-/// A change a write tool is about to make, for review: the file's text
-/// before (nil: a new file) and after.
 public struct MCPChange: Sendable, Equatable {
     public var tool: String
-    /// Absolute path.
     public var path: String
-    /// Workspace-relative path (what a proposal shows).
     public var relativePath: String
     public var original: String?
     public var proposed: String
     public var summary: String
-    /// Who asked for the change, when the caller is an SDK extension
-    /// rather than the host (Wave 17, Slice B). The review UI shows
-    /// this so the user knows an extension — not the host agent —
-    /// requested the write. Nil means the host itself.
     public var caller: MCPToolCaller?
     public init(tool: String, path: String, relativePath: String, original: String?, proposed: String, summary: String,
                 caller: MCPToolCaller? = nil) {
@@ -60,9 +42,6 @@ public struct MCPChange: Sendable, Equatable {
         self.caller = caller
     }
 
-    /// A copy of this change attributed to `caller` (the server's
-    /// `run` stamps the caller's identity onto every change the
-    /// review closure sees).
     public func settingCaller(_ caller: MCPToolCaller?) -> MCPChange {
         var copy = self
         copy.caller = caller
@@ -70,16 +49,8 @@ public struct MCPChange: Sendable, Equatable {
     }
 }
 
-/// Who is calling a tool, when the caller is an SDK extension rather
-/// than the host (Wave 17, Slice B). `allowedToolIDs` is the caller's
-/// grant snapshot as canonical MCP tool names — the SDK tool runner
-/// maps the session's capability snapshot to these names, so this
-/// server never sees capability IDs. `nil` on a call means the host
-/// itself, and host calls are unchanged.
 public struct MCPToolCaller: Sendable, Equatable {
-    /// The extension's id (the session's `extensionID`).
     public var extensionID: String
-    /// Canonical MCP tool names this caller may run.
     public var allowedToolIDs: Set<String>
     public init(extensionID: String, allowedToolIDs: Set<String>) {
         self.extensionID = extensionID
@@ -87,18 +58,11 @@ public struct MCPToolCaller: Sendable, Equatable {
     }
 }
 
-/// The arguments of one `tools/call`.
 public struct MCPToolCall: Sendable {
     public var name: String
     public var arguments: [String: AnyJSON]
     public var progress: MCPProgress
-    /// Asks the write policy about one change (write tools call it before
-    /// writing; true: go ahead).
     public var approve: @Sendable (MCPChange) async -> Bool
-    /// Who is calling, when the caller is an SDK extension rather than
-    /// the host (Wave 17, Slice B). `run` grant-checks it before any
-    /// approval UI and stamps it onto every change the review closure
-    /// sees. Nil means the host itself.
     public var caller: MCPToolCaller?
     public init(name: String, arguments: [String: AnyJSON], progress: MCPProgress = .none,
                 approve: @escaping @Sendable (MCPChange) async -> Bool = { _ in true },
@@ -120,8 +84,6 @@ public struct MCPToolCall: Sendable {
     }
 }
 
-/// A failure the tool reports to the model (`isError: true`), so it can
-/// correct itself; protocol errors are `JSONRPCError`s instead.
 public struct MCPToolError: Error, CustomStringConvertible, Sendable {
     public var message: String
     public var structured: AnyJSON?
@@ -132,8 +94,6 @@ public struct MCPToolError: Error, CustomStringConvertible, Sendable {
     public var description: String { message }
 }
 
-/// A tool's result: content blocks for the model, and the structured
-/// result its output schema describes.
 public struct MCPToolResult: Sendable, Equatable {
     public var content: [AnyJSON]
     public var structured: AnyJSON?
@@ -146,8 +106,6 @@ public struct MCPToolResult: Sendable, Equatable {
 
     public static func text(_ s: String) -> MCPToolResult { MCPToolResult(content: [.textBlock(s)]) }
 
-    /// A structured result with its JSON as the text block too (the spec
-    /// asks servers to mirror structured content as text for older clients).
     public static func structured(_ v: AnyJSON, summary: String? = nil) -> MCPToolResult {
         var blocks: [AnyJSON] = []
         if let summary { blocks.append(.textBlock(summary)) }
@@ -167,9 +125,7 @@ public struct MCPToolResult: Sendable, Equatable {
 }
 
 extension AnyJSON {
-    /// A `TextContent` block.
     public static func textBlock(_ s: String) -> AnyJSON { ["type": "text", "text": .string(s)] }
-    /// An `ImageContent` block (base64 data).
     public static func imageBlock(_ data: Data, mimeType: String = "image/png") -> AnyJSON {
         ["type": "image", "data": .string(data.base64EncodedString()), "mimeType": .string(mimeType)]
     }
@@ -182,7 +138,6 @@ public struct MCPTool: Sendable {
     public var inputSchema: AnyJSON
     public var outputSchema: AnyJSON?
     public var annotations: MCPToolAnnotations
-    /// The tool changes files: the server's write policy applies.
     public var writes: Bool
     public var handler: @Sendable (MCPToolCall) async throws -> MCPToolResult
 
@@ -199,7 +154,6 @@ public struct MCPTool: Sendable {
         self.handler = handler
     }
 
-    /// The `Tool` object of `tools/list`.
     public var listing: AnyJSON {
         var o: [String: AnyJSON] = [
             "name": .string(name), "title": .string(title), "description": .string(description), "inputSchema": inputSchema,
@@ -211,8 +165,6 @@ public struct MCPTool: Sendable {
         return .object(o)
     }
 
-    /// Checks the arguments against the input schema's `required` list and
-    /// the declared types of its top-level properties; nil when they fit.
     public func argumentProblem(_ args: [String: AnyJSON]) -> String? {
         for key in inputSchema["required"]?.array?.compactMap(\.string) ?? [] where args[key] == nil || args[key] == .null {
             return "missing the required argument \"\(key)\""
@@ -238,7 +190,6 @@ public struct MCPTool: Sendable {
     }
 }
 
-/// A resource the server lists (`resources/list`).
 public struct MCPResource: Sendable, Equatable {
     public var uri: String
     public var name: String
@@ -261,16 +212,12 @@ public struct MCPResource: Sendable, Equatable {
     }
 }
 
-/// Where resources come from.
 public protocol MCPResourceSource: Sendable {
     func resources() async -> [MCPResource]
-    /// `ResourceTemplate` objects.
     func templates() async -> [AnyJSON]
-    /// The `contents` of `resources/read`; nil for an unknown URI.
     func read(_ uri: String) async throws -> [AnyJSON]?
 }
 
-/// A prompt template (`prompts/list`, `prompts/get`).
 public struct MCPPrompt: Sendable {
     public struct Argument: Sendable {
         public var name: String
@@ -286,7 +233,6 @@ public struct MCPPrompt: Sendable {
     public var title: String
     public var description: String
     public var arguments: [Argument]
-    /// The user message text for the given arguments.
     public var render: @Sendable ([String: String]) -> String
 
     public init(name: String, title: String, description: String, arguments: [Argument] = [], render: @escaping @Sendable ([String: String]) -> String) {
@@ -303,9 +249,6 @@ public struct MCPPrompt: Sendable {
     }
 }
 
-/// Decides whether a write tool may write. Read-only refuses every write
-/// tool; `allow` lets them write; `review` shows each change to someone
-/// (the IDE's proposal review) and writes only what they accept.
 public enum MCPWritePolicy: Sendable {
     case readOnly
     case allow
@@ -318,29 +261,6 @@ public enum MCPWritePolicy: Sendable {
 }
 
 public final class MCPServer: @unchecked Sendable {
-    /// The revision served statelessly (per-request `_meta`).
-    /// Legacy tool-name aliases, resolved at `tools/call` time only and
-    /// never shown by `tools/list` (Legacy's registry resolves them the
-    /// same way). Wave 1 added `read_file`; Wave 2 adds the
-    /// file-writing family (verified against Legacy's
-    /// `AssistToolRegistry` alias table). Wave 7 adds `plist` ->
-    /// `plist_editor` (in Wave 2 it was deliberately left out because
-    /// `plist_editor` was a different, unported tool from `plist_edit`).
-    /// Wave 7 also adds `checksum_verifier` -> `file_checksum_verifier`
-    /// (Legacy's alias table; the target was ported in Wave 1, so the
-    /// Wave 2 exclusion no longer applies).
-    /// Wave 8 removes the seven git aliases (`git_status`, `git_diff`,
-    /// `git_commit`, `git_branch`, `git_stash`, `git_blame`, `git_log`
-    /// -> the `version_control_operator` / `git_*_operator` tools):
-    /// the Legacy Agentic registry owns those names with its own
-    /// schemas, and the Agentic tools are now registered under them.
-    /// The operator tools are still callable by their own names, so
-    /// no capability is lost — only the shorthand. Wave 8 adds five
-    /// Agentic duplicate aliases (param-compatible, verified live):
-    /// `list_directory` -> `dir_read`, `execute_terminal_command` ->
-    /// `use_terminal`, `xcode_build` -> `project_build`,
-    /// `semantic_code_search` -> `semantic_query_engine`,
-    /// `cross_reference_search` -> `symbol_reference_graph`.
     public static let toolAliases: [String: String] = [
         "read_file": "file_read",
         "write_file": "file_write",
@@ -361,29 +281,21 @@ public final class MCPServer: @unchecked Sendable {
         "insert_code": "code_insert",
         "regex_replace": "regex_replace_in_files",
         "checksum_verifier": "file_checksum_verifier",
-        // Wave 8 Agentic duplicate aliases (param-compatible, verified live).
         "list_directory": "dir_read",
         "execute_terminal_command": "use_terminal",
         "xcode_build": "project_build",
         "semantic_code_search": "semantic_query_engine",
         "cross_reference_search": "symbol_reference_graph",
-        // Wave 3 Search aliases (Legacy registry). `search` → `search_text`
-        // is deliberately NOT an alias: it would collide with SwiftCode's
-        // existing `search` tool.
         "search_dir": "search_text",
         "search_directory": "search_text",
         "find_file": "search_text",
         "symbol_graph": "symbol_reference_graph",
-        // Wave 3 Git aliases (Legacy registry).
         "git": "version_control_operator",
         "git_rollback": "version_control_operator",
         "git_tool": "version_control_operator",
         "version_control": "version_control_operator",
         "git_branches": "git_branch_manager",
         "git_conflict": "git_conflict_resolver",
-        // Wave 4 Terminal aliases (Legacy registry). `bash` / `sh` / `zsh`
-        // resolve to `use_terminal`, exactly as in Legacy; they select the
-        // tool, never a shell — the tool itself tokenizes to argv.
         "run_command": "use_terminal",
         "terminal_command": "use_terminal",
         "execute_command": "use_terminal",
@@ -397,15 +309,11 @@ public final class MCPServer: @unchecked Sendable {
         "process_monitor": "process_monitor_tool",
         "disk_space": "disk_space_analyzer",
         "system_notification": "system_notification_tool",
-        // Wave 4 Memory aliases (Legacy registry).
         "memory_save": "save_to_memory",
         "save_memory": "save_to_memory",
         "memory_view": "view_memory",
         "memory_manage": "manage_memory",
         "conversation_context": "conversation_context_manager",
-        // Wave 4 Planning aliases (Legacy registry). `plan-AskUser` keeps
-        // its hyphenated ID (the documented intentional exception);
-        // `report_to_user` maps to itself, so it needs no entry.
         "plan_askuser": "plan-AskUser",
         "plan_ask_user": "plan-AskUser",
         "ask_user": "plan-AskUser",
@@ -413,16 +321,12 @@ public final class MCPServer: @unchecked Sendable {
         "reporttouser": "report_to_user",
         "task_complete": "report_to_user",
         "task_completion": "report_to_user",
-        // Wave 5 aliases (Legacy registry). `reverse_analyze` maps
-        // to itself, so it needs no entry.
         "simulator": "simulator_controller",
         "binary_plist": "binary_plist_converter",
         "json_validator": "json_validator_tool",
         "yaml_parser": "yaml_parser_tool",
         "reverse": "reverse_analyze",
-        // Wave 6 Test-running aliases (Legacy registry).
         "test_coverage": "test_coverage_reporter",
-        // Wave 6 Static-analysis aliases (Legacy registry).
         "metrics": "code_metrics_analyzer",
         "dead_code": "dead_code_eliminator",
         "migration_advisor": "swift_migration_advisor",
@@ -431,7 +335,6 @@ public final class MCPServer: @unchecked Sendable {
         "swift_format": "swift_format_lint",
         "todo_scanner": "todo_fixme_scanner",
         "unused_imports": "unused_imports_detector",
-        // Wave 6 Audit aliases (Legacy registry).
         "security_audit": "security_audit_scanner",
         "memory_leak": "memory_leak_detector",
         "bundle_auditor": "bundle_resource_auditor",
@@ -442,44 +345,32 @@ public final class MCPServer: @unchecked Sendable {
         "framework_linker": "framework_linker_auditor",
         "network_security": "network_security_auditor",
         "a11y_scanner": "accessibility_audit_scanner",
-        // Wave 6 Docs/review aliases (Legacy registry).
         "docstring": "docstring_generator",
         "snippet": "code_snippet_manager",
         "icon_generator": "icon_generator_tool",
         "colorset": "colorset_builder",
-        // Wave 7 Build & run aliases (Legacy registry). `build` and `test`
-        // are deliberately NOT aliases: they would collide with SwiftCode's
-        // native `build` / `test` tools (same reason Wave 3 skipped
-        // `search` -> `search_text`).
         "build_project": "project_build",
         "run_build": "project_build",
         "xcodebuild": "project_build",
         "run_tests": "project_test",
         "xcresult": "xcresult_parser",
         "device_destinations": "xcode_device_destination_finder",
-        // Wave 7 Project-model aliases (Legacy registry). `build_settings`
-        // is deliberately NOT an alias: it would collide with SwiftCode's
-        // native `build_settings` tool.
         "xcode_scheme": "xcode_scheme_manager",
-        // Wave 7 SPM / docs aliases (Legacy registry).
         "swift_package": "swift_package_manager",
         "spm": "swift_package_manager",
         "spm_tree": "spm_dependency_tree",
         "podfile": "podfile_inspector",
         "cartfile": "carthage_cartfile_inspector",
-        // Wave 7 Signing aliases (Legacy registry).
         "plist": "plist_editor",
         "entitlements": "entitlements_manager",
         "signing_certificate": "signing_certificate_inspector",
         "provisioning_profile": "provisioning_profile_reader",
-        // Wave 7 Assets / localization aliases (Legacy registry).
         "asset_catalog": "asset_catalog_manager",
         "localization": "localization_manager",
         "string_catalog": "string_catalog_migrator",
     ]
 
     public static let modernVersion = "2026-07-28"
-    /// The initialize-based revisions served to older clients, newest first.
     public static let legacyVersions = ["2025-11-25", "2025-06-18", "2025-03-26"]
     public static var supportedVersions: [String] { [modernVersion] + legacyVersions }
 
@@ -488,7 +379,6 @@ public final class MCPServer: @unchecked Sendable {
     public static let clientInfoKey = "io.modelcontextprotocol/clientInfo"
     public static let serverInfoKey = "io.modelcontextprotocol/serverInfo"
 
-    /// The methods this server answers (others: method not found).
     public static let methods: Set<String> = ["initialize", "ping", "server/discover", "tools/list", "tools/call", "resources/list",
                                               "resources/templates/list", "resources/read", "prompts/list", "prompts/get", "logging/setLevel"]
 
@@ -519,8 +409,6 @@ public final class MCPServer: @unchecked Sendable {
         set { lock.withLock { _policy = newValue } }
     }
 
-    /// Per-connection state: the legacy revision an `initialize` chose (a
-    /// stdio process, an HTTP client that initialized).
     public final class Connection: @unchecked Sendable {
         private let lock = NSLock()
         private var _legacy: String?
@@ -541,8 +429,6 @@ public final class MCPServer: @unchecked Sendable {
         return .object(c)
     }
 
-    /// Which revision a request speaks: modern when its `_meta` names a
-    /// protocol version (validated here), else legacy.
     public enum Era: Equatable, Sendable { case modern, legacy }
 
     public static func era(of params: AnyJSON?) throws -> Era {
@@ -550,7 +436,6 @@ public final class MCPServer: @unchecked Sendable {
         guard let version = v.string else { throw JSONRPCError.invalidParams("\(protocolVersionKey) must be a string") }
         guard version == modernVersion else {
             if legacyVersions.contains(version) {
-                // A handshake revision named per request: served as legacy.
                 return .legacy
             }
             throw JSONRPCError(code: -32022, message: "Unsupported protocol version",
@@ -562,7 +447,6 @@ public final class MCPServer: @unchecked Sendable {
         return .modern
     }
 
-    /// Answers one request. Throws `JSONRPCError` for protocol errors.
     public func handle(method: String, params: AnyJSON?, connection: Connection, progress: MCPProgress = .none) async throws -> AnyJSON {
         let era = try Self.era(of: params)
         let result = try await dispatch(method: method, params: params, connection: connection, era: era, progress: progress)
@@ -595,8 +479,6 @@ public final class MCPServer: @unchecked Sendable {
             return ["tools": .array(tools.map(\.listing))]
         case "tools/call":
             guard let name = params?["name"]?.string else { throw JSONRPCError.invalidParams("tools/call needs a tool name") }
-            // Legacy tool-name aliases, resolved at call time only (never
-            // listed): Legacy's registry maps `read_file` to `file_read`.
             let resolved = Self.toolAliases[name] ?? name
             guard let tool = tools.first(where: { $0.name == resolved }) else { throw JSONRPCError.invalidParams("Unknown tool: \(name)") }
             let args = params?["arguments"]?.object ?? [:]
@@ -609,7 +491,6 @@ public final class MCPServer: @unchecked Sendable {
         case "resources/read":
             guard let uri = params?["uri"]?.string else { throw JSONRPCError.invalidParams("resources/read needs a uri") }
             guard let contents = try await resources?.read(uri) else {
-                // Modern revisions use invalid params; earlier ones -32002.
                 throw JSONRPCError(code: era == .modern ? -32602 : -32002, message: "Resource not found", data: ["uri": .string(uri)])
             }
             return ["contents": .array(contents)]
@@ -635,26 +516,14 @@ public final class MCPServer: @unchecked Sendable {
         "\(tool) changes files, and this SwiftCode MCP server is read-only. Start it with `swiftcode mcp --allow-writes`, or use agent mode in the SwiftCode IDE, where each change is reviewed as a proposal."
     }
 
-    /// The text a write tool returns when the review rejects its change.
     public static let rejectedMessage = "The change was rejected in SwiftCode's review; nothing was written."
 
-    /// Runs a tool under the write policy; failures become `isError` results.
     public func run(_ tool: MCPTool, _ call: MCPToolCall) async -> MCPToolResult {
-        // Legacy parameter-name aliases (AssistToolRegistry.validate):
-        // rewrite the arguments with MCPParameterAliases before
-        // validation, so an alias satisfies `required` and the alias
-        // key itself is consumed, never rejected as unknown. The
-        // handler receives the rewritten arguments.
         var call = call
         call.arguments = MCPParameterAliases.normalized(
             call.arguments,
             declaredProperties: Set(tool.inputSchema["properties"]?.object?.keys.map { $0 } ?? []))
         if let problem = tool.argumentProblem(call.arguments) { return .error("\(tool.name): \(problem)") }
-        // Extension callers are grant-checked BEFORE the write policy
-        // runs, so an ungranted tool is refused before any approval UI
-        // appears — the user is never asked about a change the
-        // extension may not make. Host calls (`caller == nil`) skip
-        // this check, as before.
         if let caller = call.caller, !caller.allowedToolIDs.contains(tool.name) {
             return .error("Tool '\(tool.name)' is not approved for extension '\(caller.extensionID)'.")
         }
@@ -665,11 +534,6 @@ public final class MCPServer: @unchecked Sendable {
             case .allow:
                 call.approve = { _ in true }
             case .review(let ask):
-                // The review closure sees the change attributed to
-                // its extension caller, so the proposal UI can show
-                // who requested the write. A granted write is asked
-                // exactly as a host write would be — same closure,
-                // same question, no auto-allow.
                 if let caller = call.caller {
                     call.approve = { change in await ask(change.settingCaller(caller)) }
                 } else {

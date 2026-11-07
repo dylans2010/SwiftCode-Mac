@@ -1,11 +1,4 @@
 #!/bin/sh
-# run-thor.sh: build swiftcode-airc and run every translator test on the Thor
-# (or any Linux host with LLVM 18, SPIRV-Tools and a Vulkan 1.3 GPU).
-# Usage: run-thor.sh WORK_DIR METALLIB_DIR ORACLE_DIR [RUNTIME_ROOT]
-#   METALLIB_DIR, ORACLE_DIR: made on the Mac by compile-shaders.sh and
-#   mtl-oracle (see tests/gpu/mtl-oracle.m)
-#   RUNTIME_ROOT: optional simulator runtime root; its home-screen
-#   metallibs are translated as input data and only statistics are printed.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$1; LIBS=$2; ORACLE=$3; ROOT=${4:-}

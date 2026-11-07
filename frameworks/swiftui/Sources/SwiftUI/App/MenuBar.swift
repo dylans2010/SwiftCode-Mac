@@ -7,35 +7,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// The menu bar (round R11). Linux desktops have no global menu bar, so every
-// main window draws its own, in the window, above the toolbar (SwiftCode's
-// choice; exporting through the D-Bus menu protocol is left for later).
-//
-// Menus, in order: the application menu (titled with the app's name), File,
-// Edit, View, the app's `CommandMenu`s (after View, as the public
-// documentation places them), Window, Help. Each standard menu is a list of
-// standard groups (`CommandGroupPlacement`); a group shows its default items,
-// or a `CommandGroup(replacing:)`'s items, with `CommandGroup(before:)` and
-// `(after:)` items around them; non-empty groups are separated by a
-// separator. Menus with no items are not shown.
-//
-// Default items (SwiftCode's, with the Linux shortcuts): About <App>; Settings…
-// (Ctrl+, — when the app has a `Settings` scene); Quit <App> (Ctrl+Q); New
-// Window (Ctrl+N — when the app has a `WindowGroup`); Close Window (Ctrl+W);
-// Undo (Ctrl+Z), Redo (Ctrl+Shift+Z), Cut (Ctrl+X), Copy (Ctrl+C), Paste
-// (Ctrl+V), Select All (Ctrl+A) — acting on the focused text view; Show/Hide
-// Toolbar (when the window has a toolbar), Show/Hide Sidebar (Ctrl+Alt+S,
-// with `SidebarCommands`); Minimize (Ctrl+M), the open windows, the app's
-// single `Window` scenes; <App> Help (disabled: no help book).
-//
-// Interaction: a press on a title opens its menu (a pop-up window, R8); while
-// a menu is open, moving the pointer over another title opens that one; Left
-// and Right move between menus, Up and Down between items, Escape closes; F10
-// opens the first menu. Items run on release, as in R8's menus.
-
-// MARK: - What the host offers the standard items
-
-/// Actions of the application host for the standard menu items of one window.
 @MainActor
 package final class AppCommandActions {
     package typealias Action = @MainActor @Sendable () -> Void
@@ -46,9 +17,7 @@ package final class AppCommandActions {
     package var openSettings: Action?
     package var minimize: Action = {}
     package var about: Action = {}
-    /// Open main windows: title, whether it is this window, activation.
     package var windows: @MainActor () -> [(title: String, isCurrent: Bool, activate: Action)] = { [] }
-    /// The app's single-window scenes (`Window`): title and opener.
     package var singleWindows: [(title: String, open: Action)] = []
     package init() {}
 }
@@ -62,19 +31,13 @@ extension EnvironmentValues {
         set { self[AppCommandsKey.self] = newValue }
     }
 
-    /// In a pop-up: the services of the window that presented it (Edit menu
-    /// items act on that window's focused text view).
     package var _popupOwnerServices: WindowServices? {
         get { self[PopupOwnerServicesKey.self] }
         set { self[PopupOwnerServicesKey.self] = newValue }
     }
 }
 
-// MARK: - Shortcut text
-
 extension KeyboardShortcut {
-    /// The shortcut as a Linux menu shows it: "Ctrl+Shift+Z" (`.command` is
-    /// Ctrl, 09-open-design.md §4.1).
     package var displayText: String {
         var parts: [String] = []
         let ctrl = modifiers.contains(.command) || modifiers.contains(.control)
@@ -110,9 +73,6 @@ extension KeyboardShortcut {
     }
 }
 
-// MARK: - Standard items
-
-/// Edit actions on the focused text view (R8's editing core).
 package enum StandardEditCommand: String, CaseIterable, Sendable {
     case undo, redo, cut, copy, paste, delete, selectAll
 
@@ -141,9 +101,6 @@ package enum StandardEditCommand: String, CaseIterable, Sendable {
     }
 }
 
-/// An Edit menu item: enabled when the focused text view can perform it. In
-/// the commands host it draws nothing (text views take these keys
-/// themselves, R8).
 struct EditCommandItem: View {
     let command: StandardEditCommand
     @Environment(\._inCommandHost) private var hidden
@@ -162,7 +119,6 @@ struct EditCommandItem: View {
     }
 }
 
-/// A standard item that runs a host action.
 struct StandardItem: View {
     let title: String
     let shortcut: KeyboardShortcut?
@@ -176,7 +132,6 @@ struct StandardItem: View {
     }
 }
 
-/// Show/Hide Toolbar.
 struct ToolbarToggleItem: View {
     @Environment(\._windowServices) private var services
     @Environment(\._popupOwnerServices) private var ownerServices
@@ -189,7 +144,6 @@ struct ToolbarToggleItem: View {
     }
 }
 
-/// Show/Hide Sidebar (with `SidebarCommands`).
 struct SidebarToggleItem: View {
     @Environment(\._windowServices) private var services
     @Environment(\._popupOwnerServices) private var ownerServices
@@ -202,7 +156,6 @@ struct SidebarToggleItem: View {
     }
 }
 
-/// The open windows (Window menu).
 struct WindowListItems: View {
     let actions: AppCommandActions
     @Environment(\._inCommandHost) private var hidden
@@ -218,9 +171,6 @@ struct WindowListItems: View {
     }
 }
 
-// MARK: - Assembly
-
-/// One menu of the bar.
 package struct MenuBarMenu {
     package let title: String
     package let sections: [AnyView]
@@ -234,7 +184,6 @@ enum MenuAssembly {
         var after: [AnyView] = []
     }
 
-    /// The standard menus and their groups.
     static func standardMenus(appName: String) -> [(title: String, groups: [CommandGroupPlacement])] {
         [
             (appName, [.appInfo, .appSettings, .systemServices, .appVisibility, .appTermination]),
@@ -246,7 +195,6 @@ enum MenuAssembly {
         ]
     }
 
-    /// The default items of a group.
     static func defaults(_ g: CommandGroupPlacement, actions: AppCommandActions, standard: Set<String>) -> [AnyView] {
         switch g {
         case .appInfo:
@@ -284,9 +232,6 @@ enum MenuAssembly {
         }
     }
 
-    /// The default items of the groups no `CommandGroup(replacing:)`
-    /// replaces (built in the commands host so their shortcuts work while
-    /// the menus are closed).
     static func hostDefaults(_ contributions: [CommandContribution], actions: AppCommandActions) -> [AnyView] {
         var replaced = Set<CommandGroupPlacement>()
         var standard = Set<String>()
@@ -298,7 +243,6 @@ enum MenuAssembly {
             .flatMap { defaults($0, actions: actions, standard: standard) }
     }
 
-    /// The menus from the evaluated contributions.
     static func menus(_ contributions: [CommandContribution], actions: AppCommandActions) -> [MenuBarMenu] {
         var placed: [CommandGroupPlacement: Placed] = [:]
         var custom: [(title: String, items: [AnyView])] = []
@@ -333,14 +277,12 @@ enum MenuAssembly {
                 let items = p.before + (p.replacing ?? defaults(g, actions: actions, standard: standard)) + p.after
                 if !items.isEmpty { sections.append(AnyView(MenuSectionView(items: items))) }
             }
-            // Custom menus with a standard title join that menu.
             if let i = custom.firstIndex(where: { $0.title == menu.title }) {
                 sections.append(AnyView(MenuSectionView(items: custom[i].items)))
                 custom.remove(at: i)
             }
             if !sections.isEmpty { out.append(MenuBarMenu(title: menu.title, sections: sections)) }
             if index == 3 {
-                // After View: the app's own menus.
                 for m in custom where !standardMenus(appName: actions.appName).contains(where: { $0.title == m.title }) {
                     out.append(MenuBarMenu(title: m.title, sections: [AnyView(MenuSectionView(items: m.items))]))
                 }
@@ -351,7 +293,6 @@ enum MenuAssembly {
     }
 }
 
-/// The items of one group.
 struct MenuSectionView: View {
     let items: [AnyView]
     var body: some View {
@@ -359,7 +300,6 @@ struct MenuSectionView: View {
     }
 }
 
-/// The items of an open menu: its groups with separators between them.
 struct MenuContentView: View {
     let sections: [AnyView]
     @Environment(\.colorScheme) private var scheme
@@ -376,9 +316,6 @@ struct MenuContentView: View {
     }
 }
 
-// MARK: - The bar
-
-/// The menu bar's state: which menu is open.
 @MainActor
 @Observable
 package final class MenuBarController {
@@ -433,11 +370,9 @@ package final class MenuBarController {
         open((i + d + menus.count) % menus.count)
     }
 
-    /// F10: the first menu.
     package func openFirst() { open(0) }
 }
 
-/// The menu bar view at the top of a window.
 struct MenuBarView: View {
     let model: CommandsModel
     let actions: AppCommandActions
@@ -503,7 +438,6 @@ struct MenuBarTitle: View {
     }
 }
 
-/// The standard items in the commands host (no layout; shortcuts only).
 struct StandardCommandsHost: View {
     let model: CommandsModel
     let actions: AppCommandActions

@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Project Template
-
 struct ProjectTemplate: Identifiable {
     let id: String
     var name: String
@@ -13,11 +11,9 @@ struct ProjectTemplate: Identifiable {
 
     struct TemplateFile {
         var relativePath: String
-        var content: (String) -> String // takes project name, returns content
+        var content: (String) -> String
     }
 }
-
-// MARK: - Project Template Manager
 
 @MainActor
 final class ProjectTemplateManager: ObservableObject {
@@ -26,8 +22,6 @@ final class ProjectTemplateManager: ObservableObject {
     let templates: [ProjectTemplate] = ProjectTemplateManager.buildTemplates()
 
     private init() {}
-
-    // MARK: - Apply Template
 
     func applyTemplate(_ template: ProjectTemplate, to project: Project) throws {
         for file in template.files {
@@ -54,8 +48,6 @@ final class ProjectTemplateManager: ObservableObject {
         }
     }
 
-    // MARK: - Template Definitions
-
     private static func buildTemplates() -> [ProjectTemplate] {
         [
             swiftUIApp,
@@ -77,8 +69,6 @@ final class ProjectTemplateManager: ObservableObject {
             unitTestTarget
         ]
     }
-
-    // MARK: - SwiftUI App
 
     private static var swiftUIApp: ProjectTemplate {
         ProjectTemplate(
@@ -298,8 +288,6 @@ let package = Package(
         )
     }
 
-    // MARK: - Game App (SpriteKit)
-
     private static var gameApp: ProjectTemplate {
         ProjectTemplate(
             id: "game_app",
@@ -385,8 +373,6 @@ let package = Package(
         )
     }
 
-    // MARK: - Metal App
-
     private static var metalApp: ProjectTemplate {
         ProjectTemplate(
             id: "metal_app",
@@ -463,8 +449,6 @@ let package = Package(
         )
     }
 
-    // MARK: - iMessage App
-
     private static var imessageApp: ProjectTemplate {
         ProjectTemplate(
             id: "imessage_app",
@@ -510,9 +494,6 @@ let package = Package(
         )
     }
 
-
-    // MARK: - watchOS App
-
     private static var watchApp: ProjectTemplate {
         ProjectTemplate(
             id: "watch_app",
@@ -540,8 +521,6 @@ struct \(safeName)WatchApp: App {
             tags: ["watchOS", "SwiftUI", "App"]
         )
     }
-
-    // MARK: - WidgetKit Extension
 
     private static var widgetKitExtension: ProjectTemplate {
         ProjectTemplate(
@@ -574,8 +553,6 @@ struct SampleWidgetEntryView: View {
         )
     }
 
-    // MARK: - visionOS App
-
     private static var visionOSApp: ProjectTemplate {
         ProjectTemplate(
             id: "visionos_app",
@@ -603,8 +580,6 @@ struct \(safeName)VisionApp: App {
             tags: ["visionOS", "SwiftUI", "Spatial"]
         )
     }
-
-    // MARK: - Server API
 
     private static var serverAPI: ProjectTemplate {
         ProjectTemplate(
@@ -634,8 +609,6 @@ struct ServerMain {
             tags: ["Server", "API", "Backend"]
         )
     }
-
-    // MARK: - Bluetooth Utility
 
     private static var bluetoothUtility: ProjectTemplate {
         ProjectTemplate(
@@ -669,8 +642,6 @@ final class BluetoothManager: NSObject, CBCentralManagerDelegate {
             tags: ["CoreBluetooth", "Utility", "iOS"]
         )
     }
-
-    // MARK: - Web Templates
 
     private static var staticWebsite: ProjectTemplate {
         ProjectTemplate(
@@ -750,8 +721,6 @@ final class BluetoothManager: NSObject, CBCentralManagerDelegate {
             tags: ["Web", "JS"]
         )
     }
-
-    // MARK: - Unit Test Target
 
     private static var unitTestTarget: ProjectTemplate {
         ProjectTemplate(

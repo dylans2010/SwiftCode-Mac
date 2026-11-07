@@ -2,11 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeXcodebuild
 
-/// `-showBuildSettings` for a Swift package scheme
-/// (`specs/xcodebuild/show-build-settings.md` §7).
 @Suite struct PackageBuildSettingsTests {
-    /// A package like `Tools`: a library product, an executable product,
-    /// and a test target, with the target GUIDs SwiftPM's `dump-pif` prints.
     static let package = SwiftPackage(
         directory: "/work/Tools", name: "Tools",
         products: [.init(name: "GreetKit", isExecutable: false, targets: ["GreetKit"]),
@@ -42,7 +38,6 @@ import Testing
     }
 
     @Test func testActionsAddTheSchemesTestBundles() throws {
-        // The primary product (the first executable) carries the tests.
         #expect(try names("greet", .test) == ["greet-product", "GreetKitTests-product"])
         #expect(try names("Tools-Package", .buildForTesting) == ["GreetKit-product", "greet-product", "GreetKitTests-product"])
         #expect(try names("GreetKit", .testWithoutBuilding) == ["GreetKit-product"])
@@ -58,7 +53,6 @@ import Testing
     @Test func targetOptionPicksModulesOrBuildDescriptionTargets() throws {
         let chosen = try PackageBuildSettings.targets(package: Self.package, scheme: "GreetKit", action: .build,
                                                       requested: ["GreetKit", "greet-product", "Core"], pifTargets: Self.pifTargets)
-        // The module's static target, not its dynamic twin of the same name.
         #expect(chosen.map(\.guid) == ["PACKAGE-TARGET:GreetKit", "PACKAGE-PRODUCT:tools_greet.greet", "PACKAGE-TARGET:Core"])
         let failure = #expect(throws: XcodebuildFailure.self) { try names("GreetKit", .build, requested: ["Nope"]) }
         #expect(failure?.messages == ["The package 'Tools' does not contain a target named 'Nope'."])
@@ -90,13 +84,11 @@ import Testing
     }
 
     @Test func swiftPMsStateFolderIsPerUser() {
-        // Another user's folder in a shared /tmp cannot be written.
         #expect(SwiftPackage.scratchFolder(userID: 1001) == "swiftcodebuild-spm-1001")
         #expect(SwiftPackage.scratchFolder(userID: 1000) != SwiftPackage.scratchFolder(userID: 1001))
     }
 
     @Test func testActionsEvaluateWithTheBuildAction() {
-        // swift-build has no test action and exports nothing for one.
         #expect(Plan.buildSystemAction(.test) == "build")
         #expect(Plan.buildSystemAction(.testWithoutBuilding) == "build")
         #expect(Plan.buildSystemAction(.buildForTesting) == "build")
@@ -105,8 +97,6 @@ import Testing
     }
 }
 
-/// Records what a package query asks swift-build for, and answers with a
-/// few settings per target.
 final class RecordingPackageSettings: SettingsProvider, @unchecked Sendable {
     var guids: [String] = []
     var parameters: BuildParameters?
@@ -125,17 +115,12 @@ final class RecordingPackageSettings: SettingsProvider, @unchecked Sendable {
     }
 }
 
-/// Through the toolchain's SwiftPM (skipped without a `swift` on `PATH`):
-/// the package is read and its PIF dumped as for a build, then each
-/// section printed. With the `swiftcode-swb` helper, swift-build's own values.
 @Suite(.serialized, .timeLimit(.minutes(10))) struct PackageBuildSettingsEndToEndTests {
     static var swiftAvailable: Bool {
         (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":")
             .contains { FileManager.default.isExecutableFile(atPath: "\($0)/swift") }
     }
 
-    /// `Tools`: a library product with an internal dependency, an
-    /// executable, and tests.
     static func writePackage() throws -> URL {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-pkgsettings-\(UUID().uuidString)/Tools")
@@ -212,9 +197,7 @@ final class RecordingPackageSettings: SettingsProvider, @unchecked Sendable {
         #expect(list.allSatisfy { $0["action"] as? String == "test" })
         #expect((list.first?["buildSettings"] as? [String: String])?["EMPTY"] == "")
         #expect(recorder.parameters?.action == "build")
-        // Test runs of packages gather coverage, and so do their settings.
         #expect(recorder.parameters?.synthesized.contains { $0.0 == "CLANG_COVERAGE_MAPPING" } == true)
-        // The package folder is left as it was.
         #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted() == ["Package.swift", "Sources", "Tests"])
     }
 

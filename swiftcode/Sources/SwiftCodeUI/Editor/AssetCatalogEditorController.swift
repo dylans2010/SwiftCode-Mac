@@ -1,8 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// One image slot: a drop target that shows its image (or a dashed box) and
-/// its title; a click opens a file picker.
 @MainActor
 final class SlotWell: NSView {
     let index: Int
@@ -11,7 +9,6 @@ final class SlotWell: NSView {
     var captions: [String] = []
     var boxLabel: String?
     var onFile: ((Int, URL) -> Void)?
-    /// Clears the slot (Delete key or the context menu's Remove).
     var onClear: ((Int) -> Void)?
 
     init(index: Int, title: String, image: NSImage?) {
@@ -83,34 +80,19 @@ final class SlotWell: NSView {
     }
 }
 
-/// The asset catalog editor: the outline on the left (folders are rows of
-/// their own, with their sets as children), the selected set on the right
-/// (image slots, color components, app icon sizes). The set's attributes
-/// inspector is a fourth inspector tab (reference-ui-5.md §7.6, I6). See
-/// `specs/ide/asset-catalog.md`.
 @MainActor
 public final class AssetCatalogEditorController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     public let catalog: AssetCatalog
-    /// Every set the filter keeps, depth-first.
     public private(set) var sets: [AssetCatalog.AssetSet] = []
-    /// The outline rows shown (folders and sets).
     public private(set) var rows: [AssetCatalog.OutlineRow] = []
-    /// Collapsed rows (outline IDs).
     public private(set) var collapsed: Set<String> = []
     public private(set) var selected: AssetCatalog.AssetSet?
-    /// The selected folder, when a folder row is selected.
     public private(set) var selectedFolder: URL?
-    /// The outline filter (bottom of the set list).
     public private(set) var filter = ""
     public let filterField = NSSearchField()
-    /// The inspector's controls, by row label (tests drive them).
     public private(set) var inspectorControls: [String: NSControl] = [:]
-    /// The attributes inspector of the selection (shown in the inspector
-    /// area's fourth tab).
     public private(set) var attributesView: NSView?
-    /// The selection or the inspector content changed.
     public var onSelectionChange: (() -> Void)?
-    /// Asks for files (Import…, Sticker Sequence Frame); nil = an open panel.
     public var chooseFiles: ((_ images: Bool) -> [URL])?
     private let list = NSTableView()
     private let detail = NSView()
@@ -166,7 +148,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         reload(selecting: nil)
     }
 
-    /// The "+" menu; sticker items are enabled inside a sticker pack.
     func rebuildAddMenu() {
         addButton.removeAllItems()
         addButton.addItem(withTitle: "")
@@ -186,7 +167,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         }
     }
 
-    /// Selects the first set named `name` (nil: nothing).
     public func select(_ name: String?) {
         _ = view
         selected = sets.first { $0.name == name } ?? (name == nil ? nil : sets.first)
@@ -197,7 +177,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         selectionChanged()
     }
 
-    /// Selects an outline row (a folder or a set).
     public func selectRow(_ index: Int) {
         _ = view
         guard rows.indices.contains(index) else { return }
@@ -208,7 +187,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         selectionChanged()
     }
 
-    /// Selects the row with this outline ID ("Brand", "Brand/Accent.colorset").
     @discardableResult
     public func selectRow(id: String) -> Bool {
         guard let i = rows.firstIndex(where: { $0.id == id }) else { return false }
@@ -221,13 +199,11 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         showDetail()
     }
 
-    /// Expands or collapses a row with children.
     public func toggleRow(id: String) {
         if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
         reload(selecting: selected?.name)
     }
 
-    /// Narrows the outline to sets whose name contains `text`.
     public func setFilter(_ text: String) {
         _ = view
         filter = text
@@ -236,8 +212,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
     }
 
     @objc private func filterChanged(_ f: NSSearchField) { setFilter(f.stringValue) }
-
-    // MARK: Detail
 
     func showDetail() {
         detail.subviews.forEach { $0.removeFromSuperview() }
@@ -276,7 +250,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
                 w.onClear = { [weak self] i in try? self?.clearImage(slot: i) }
                 return w
             }
-            // Wrap rows of four slots.
             for chunk in stride(from: 0, to: wells.count, by: 4) {
                 let row = NSStackView(views: Array(wells[chunk..<min(chunk + 4, wells.count)]))
                 row.spacing = 8
@@ -310,7 +283,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         NSLayoutConstraint.activate([stack.topAnchor.constraint(equalTo: detail.topAnchor), stack.leadingAnchor.constraint(equalTo: detail.leadingAnchor)])
     }
 
-    /// The folder inspector: Name and Provides Namespace.
     func folderInspectorView(_ folder: URL) -> NSView {
         let heading = NSTextField(labelWithString: "Folder")
         heading.font = .boldSystemFont(ofSize: 11)
@@ -329,14 +301,12 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
 
     @objc private func namespaceToggled(_ b: NSButton) { try? setProvidesNamespace(b.state == .on) }
 
-    /// The selected folder's Provides Namespace checkbox.
     public func setProvidesNamespace(_ on: Bool) throws {
         guard let f = selectedFolder else { return }
         try AssetCatalog.setProvidesNamespace(on, folder: f)
         showDetail()
     }
 
-    /// The attributes inspector for the selected set.
     func inspectorView(_ section: AssetCatalog.InspectorSection) -> NSView {
         let heading = NSTextField(labelWithString: section.title)
         heading.font = .boldSystemFont(ofSize: 11)
@@ -426,8 +396,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         try? setColor(c, at: index)
     }
 
-    // MARK: Edits (also used by tests)
-
     public func setImage(_ file: URL, slot: Int) throws {
         guard let set = selected else { return }
         try AssetCatalog.setImage(file, slot: slot, in: set)
@@ -446,8 +414,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         showDetail()
     }
 
-    /// Applies a Color Set inspector checkbox (a device or High Contrast)
-    /// to the Contents.json.
     public func setInspectorCheckbox(_ label: String, on: Bool) throws {
         guard let set = selected, set.kind == .colorSet else { return }
         if label == "High Contrast" {
@@ -458,7 +424,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         showDetail()
     }
 
-    /// Applies the Color Set Appearances popup ("None" or "Any, Dark").
     public func setInspectorAppearances(_ value: String) throws {
         guard let set = selected, set.kind == .colorSet else { return }
         try AssetCatalog.setColorDarkAppearance(value == "Any, Dark", in: set)
@@ -480,24 +445,17 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         showDetail()
     }
 
-    // MARK: Adding
-
-    /// Where new items go: the selected folder, the selected set when it
-    /// holds others, else the selected set's folder; the catalog by default.
     public var insertionDirectory: URL {
         if let f = selectedFolder { return f }
         if let s = selected { return s.kind.isContainer ? s.url : s.url.deletingLastPathComponent() }
         return catalog.url
     }
 
-    /// The selection is a sticker pack or inside one.
     public var isInsideStickerPack: Bool {
         let p = insertionDirectory.standardizedFileURL.path
         return p.hasSuffix(".stickerpack") || p.contains(".stickerpack/")
     }
 
-    /// Adds a set of a kind (`creatable` tags) with a unique name in the
-    /// insertion directory; selects it.
     @discardableResult
     public func addSet(kind: Int, name: String? = nil) throws -> AssetCatalog.AssetSet {
         let set = try catalog.addSet(tag: kind, named: name, in: insertionDirectory)
@@ -507,7 +465,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         return set
     }
 
-    /// "+" menu tags (`AssetCatalog.AddMenuTags` in SwiftCodeIDECore).
     nonisolated static let otherKindBase = AssetCatalog.AddMenuTags.otherKindBase
     nonisolated static let watchIconTag = AssetCatalog.AddMenuTags.watchIcon, visionIconTag = AssetCatalog.AddMenuTags.visionIcon
     nonisolated static let tvIconTag = AssetCatalog.AddMenuTags.tvIcon, messagesIconTag = AssetCatalog.AddMenuTags.messagesIcon
@@ -515,8 +472,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
     nonisolated static let folderFromSelectionTag = AssetCatalog.AddMenuTags.folderFromSelection, importTag = AssetCatalog.AddMenuTags.importFiles
     nonisolated static let stickerFrameTag = AssetCatalog.AddMenuTags.stickerFrame
 
-    /// "+" ▸ Folder / Folder with Namespace: a uniquely named folder in the
-    /// insertion directory; selects it.
     @discardableResult
     public func addFolder(namespace: Bool) throws -> URL {
         let dir = insertionDirectory
@@ -532,7 +487,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         reload(selecting: nil)
     }
 
-    /// "+" ▸ Folder from Selection: the selected item moves into a new folder.
     @discardableResult
     public func folderFromSelection() throws -> URL? {
         guard let item = selected?.url ?? selectedFolder else { return nil }
@@ -541,7 +495,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         return u
     }
 
-    /// "+" ▸ Import…: image files become image sets, others data sets.
     @discardableResult
     public func importFiles(_ files: [URL]) throws -> [AssetCatalog.AssetSet] {
         let made = try catalog.importFiles(files, into: insertionDirectory)
@@ -551,8 +504,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         return made
     }
 
-    /// "+" ▸ Sticker Sequence Frame: appends a frame to the selected
-    /// sticker sequence (a new sequence in the pack when none is selected).
     public func addStickerSequenceFrame(_ file: URL) throws {
         guard isInsideStickerPack else { return }
         let seq = selected?.kind == .stickerSequence ? selected! : try addSet(kind: Self.creatable["Sticker Sequence"]!)
@@ -562,7 +513,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
 
     nonisolated static let creatable = AssetCatalog.AddMenuTags.creatable
 
-    /// Runs a "+" (or Editor ▸ Add New Asset) item by its tag.
     public func addAsset(tag: Int) {
         switch tag {
         case Self.folderTag, Self.folderTag + 1: _ = try? addFolder(namespace: tag == Self.folderTag + 1)
@@ -604,7 +554,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         }
     }
 
-    /// The "+" menu's items by title (tests).
     public var addMenuItems: [String: NSMenuItem] {
         _ = view
         var out: [String: NSMenuItem] = [:]
@@ -617,11 +566,8 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
 
     @objc private func removeClicked() { removeSelected() }
 
-    /// Where removed sets and folders go: the user's Trash (tests pass a
-    /// folder of their own).
     public var trashBin: TrashBin = .user
 
-    /// "−" and Editor ▸ Delete Selected Items: the item moves to the Trash.
     public func removeSelected() {
         if let f = selectedFolder {
             try? catalog.removeFolder(f, bin: trashBin)
@@ -632,8 +578,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
         selected = nil
         reload(selecting: nil)
     }
-
-    // MARK: List
 
     public func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
 
@@ -674,8 +618,6 @@ public final class AssetCatalogEditorController: NSViewController, NSTableViewDa
 }
 
 extension WorkspaceWindowController {
-    /// While the asset catalog editor is shown, the inspector area adds its
-    /// attributes inspector as a fourth tab (reference-ui-5.md §7.6, I6).
     func updateAssetInspector(previous: AssetCatalogEditorController?) {
         guard let a = assetEditor else {
             if previous != nil { inspector.setExtraInspectors([], provider: nil) }

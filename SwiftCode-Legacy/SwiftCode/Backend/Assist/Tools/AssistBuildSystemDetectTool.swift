@@ -29,7 +29,6 @@ public struct AssistBuildSystemDetectTool: AssistTool {
             let url = root.appendingPathComponent(name)
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: url.path, isDirectory: &isDir) {
-                // Directories only count for bundle-style markers.
                 if isDir.boolValue {
                     if name.hasPrefix(".") { found.append((name, system)) }
                 } else {

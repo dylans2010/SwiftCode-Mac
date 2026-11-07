@@ -1,7 +1,6 @@
 import XCTest
 @testable import SwiftCodeUI
 
-/// Round 28 audit of specs/ide/previews.md §Discovery.
 final class PreviewsAuditTests: XCTestCase {
     func testProviderInCommentOrStringIsIgnored() {
         let text = """

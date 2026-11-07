@@ -1,8 +1,6 @@
 import Foundation
 import SwiftCodeSubprocess
 
-// MARK: - Text / editor bridge (spec §8.2)
-
 public struct TextPosition: Codable, Hashable, Sendable {
     public let line: Int
     public let character: Int
@@ -69,23 +67,12 @@ public struct FileDocumentStore: DocumentStore {
 }
 
 public enum EditorBridge {
-    /// Lines/characters 0-based; characters are Swift Characters
-    /// (grapheme clusters). Overlapping edits are rejected, not merged;
-    /// out-of-range lines/columns are rejected; edits are applied in
-    /// reverse order so earlier ranges stay valid. Multi-line
-    /// replacement text is supported. Trailing-newline round-trip is
-    /// preserved by the components/join behaviour.
-    ///
-    /// Honest limit (spec §8.2): an edit is a file write plus a
-    /// document-changed notification; it does NOT reach into the
-    /// editor's undo stack.
     public static func applyEdits(_ edits: [TextEdit], to content: String) throws -> String {
         var lines = content.components(separatedBy: "\n")
         let sorted = edits.sorted { lhs, rhs in
             if lhs.range.start.line != rhs.range.start.line { return lhs.range.start.line < rhs.range.start.line }
             return lhs.range.start.character < rhs.range.start.character
         }
-        // Validate all ranges first, and reject overlaps.
         var previousEnd: TextPosition?
         for edit in sorted {
             try validate(range: edit.range, in: lines)
@@ -94,7 +81,6 @@ public enum EditorBridge {
             }
             previousEnd = edit.range.end
         }
-        // Apply in reverse order.
         for edit in sorted.reversed() {
             try apply(edit, to: &lines)
         }
@@ -141,8 +127,6 @@ public enum EditorBridge {
     }
 }
 
-// MARK: - Workspace bridge (spec §8.1)
-
 public struct WorkspaceFile: Sendable {
     public let relativePath: String
     public let isDirectory: Bool
@@ -153,8 +137,6 @@ public struct WorkspaceFile: Sendable {
     }
 }
 
-/// The **only** path by which extension-host code touches the file
-/// system. Capability-gated on every call.
 public final class WorkspaceBridge: Sendable {
     public let root: URL
     private let permissions: PermissionManager
@@ -164,10 +146,6 @@ public final class WorkspaceBridge: Sendable {
         self.permissions = permissions
     }
 
-    /// Rejects absolute paths; resolves symlinks on both the candidate
-    /// and the root and requires the resolved path to equal the root or
-    /// sit under it. A workspace-relative path that resolves outside
-    /// the root is rejected even if it looks relative.
     public func resolvedPath(for relativePath: String, extensionId: String) throws -> URL {
         guard !relativePath.hasPrefix("/") else {
             throw SwiftCodeExtensionError.invalidRequest("Path '\(relativePath)' must be workspace-relative.")
@@ -181,8 +159,6 @@ public final class WorkspaceBridge: Sendable {
         return resolved
     }
 
-    /// Requires `workspaceRead`; recursive enumeration skipping hidden
-    /// files, capped at 20,000 entries (silently stops, does not error).
     public func listFiles(extensionId: String) throws -> [WorkspaceFile] {
         try permissions.check(extensionId: extensionId, capability: .workspaceRead)
         var files: [WorkspaceFile] = []
@@ -221,8 +197,6 @@ public final class WorkspaceBridge: Sendable {
         DiagnosticsService.shared.info("Extension '\(extensionId)' wrote '\(relativePath)'.", extensionId: extensionId)
     }
 
-    /// Requires `sourceControl`; runs the real `/usr/bin/git -C <root>
-    /// status --short`. Read-only; no other git command is exposed.
     public func gitStatus(extensionId: String) throws -> String {
         try permissions.check(extensionId: extensionId, capability: .sourceControl)
         let output: Subprocess.Output
@@ -238,11 +212,6 @@ public final class WorkspaceBridge: Sendable {
     }
 }
 
-// MARK: - Xcode source-editor compatibility (spec §7.4)
-
-/// Positions are **0-based (line, column)**; columns count Swift
-/// Characters / grapheme clusters — an emoji is one column, not two
-/// UTF-16 units.
 public struct SourcePosition: Codable, Hashable, Sendable, Comparable {
     public let line: Int
     public let column: Int
@@ -301,9 +270,6 @@ public final class SourceTextBuffer: @unchecked Sendable {
         }
     }
 
-    /// Validates **all** ranges first — reversed ranges, out-of-bounds
-    /// lines/columns, overlapping ranges are errors — then applies in
-    /// reverse order; any failure leaves the buffer untouched.
     public func applyEdits(_ edits: [Edit]) throws {
         lock.lock()
         defer { lock.unlock() }
@@ -366,7 +332,6 @@ public final class XcodeCommandRegistry: @unchecked Sendable {
     private var commands: [String: any SourceEditorCommand] = [:]
 
     public init() {
-        // The sort-lines command is available from app start.
         commands[SortLinesCommand().identifier] = SortLinesCommand()
     }
 
@@ -380,7 +345,6 @@ public final class XcodeCommandRegistry: @unchecked Sendable {
         return commands[identifier]
     }
 
-    /// Sorted identifiers.
     public var allIdentifiers: [String] {
         lock.lock(); defer { lock.unlock() }
         return commands.keys.sorted()
@@ -395,9 +359,6 @@ public final class XcodeCommandRegistry: @unchecked Sendable {
     }
 }
 
-/// Built-in example and test fixture: sorts the lines covered by the
-/// first selection, leaving everything else untouched; no selection →
-/// no-op (returns successfully).
 public struct SortLinesCommand: SourceEditorCommand {
     public let identifier: String = "com.swiftcode.xcode.sortLines"
     public let title: String = "Sort Lines"

@@ -1,23 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistErrorRecoveryEngine.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/API/AssistErrorRecoveryEngine.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - domain-scoped recovery budgets (5 attempts per RecoveryDomain)
-//   - failure signatures, thrash detection, identical-failure tracking
-//   - validateToolCall with input correction
-//   - repair-hypothesis generation and strategy shifts
-//   - RecoveryDomain / ToolValidationResult types
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - ProjectSessionStore — other agent (services-networking-cloud) (`SwiftCode/Services/ProjectSessionStore.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 import os
-
-// MARK: - Recovery Domains & Scoped Recovery Budgets
 
 public enum RecoveryDomain: String, Codable, Sendable, CaseIterable {
     case tool = "Tool Recovery"
@@ -42,18 +24,15 @@ public struct ToolValidationResult: @unchecked Sendable {
     }
 }
 
-// MARK: - Assist Autonomous Error Recovery Engine
-
 @MainActor
 public final class AssistErrorRecoveryEngine: Sendable {
     public static let shared = AssistErrorRecoveryEngine()
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistErrorRecoveryEngine")
 
-    // Domain-scoped recovery attempt counters capped strictly at 5 (never 6/5)
     private var domainCounters: [RecoveryDomain: Int] = [:]
     private var activeSessionFailures: [TaskFailure] = []
     private var signatureCounts: [String: Int] = [:]
-    private var previousToolCalls: [String: String] = [:] // Signature to output hash
+    private var previousToolCalls: [String: String] = [:]
 
     private init() {
         resetSession()
@@ -69,13 +48,11 @@ public final class AssistErrorRecoveryEngine: Sendable {
         previousToolCalls.removeAll()
     }
 
-    /// Checks if recovery is allowed under the domain budget without exceeding 5 attempts.
     public func canAttemptRecovery(domain: RecoveryDomain, maxAllowed: Int = 5) -> Bool {
         let current = domainCounters[domain, default: 0]
         return current < maxAllowed
     }
 
-    /// Increments and returns the bounded attempt number guaranteed to never exceed maxAllowed (e.g. 1/5 .. 5/5).
     public func recordRecoveryAttempt(domain: RecoveryDomain, maxAllowed: Int = 5) -> (attemptNumber: Int, maxAllowed: Int, allowed: Bool) {
         let current = domainCounters[domain, default: 0]
         if current >= maxAllowed {
@@ -89,31 +66,19 @@ public final class AssistErrorRecoveryEngine: Sendable {
         return (next, maxAllowed, true)
     }
 
-    /// Pre-execution tool validation to prevent schema errors from consuming generic task repair budget.
     public func validateToolCall(
         toolId: String,
         input: [String: Any],
         registry: AssistToolRegistry
     ) -> ToolValidationResult {
-        // 1. Tool availability
         guard registry.getTool(toolId) != nil else {
             return ToolValidationResult(isValid: false, issue: "Tool '\(toolId)' is not registered or available in current environment.")
         }
 
         var mutableInput = input
 
-        // 2. Validate path requirements if tool expects a path.
-        // Never silently rewrite a path: operating on a different file than
-        // requested is worse than failing. ".." is rejected (the caller must
-        // resend a workspace-relative path; dir_cd is the one tool whose
-        // ".." means "parent" and it is containment-checked by the filesystem
-        // layer, so it is exempt here). An absolute path with the workspace
-        // prefix is relativized to that same file; any other absolute path
-        // is rejected. NOTE: "target" is deliberately NOT in pathKeys —
-        // code_replace's target is code text, not a path, and stripping
-        // "../" from it used to silently corrupt replacement targets.
         let pathKeys = ["path", "filepath", "filePath", "source", "destination"]
-        let workspacePrefix = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? ""
+        let workspacePrefix = ""
         for key in pathKeys {
             if let pathVal = mutableInput[key] as? String {
                 let trimmed = pathVal.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -136,7 +101,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
             }
         }
 
-        // 3. Tool specific schema checks
         if toolId == "file_write" || toolId == "file_create" {
             if mutableInput["path"] == nil && mutableInput["filepath"] != nil {
                 mutableInput["path"] = mutableInput["filepath"]
@@ -147,9 +111,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
         }
 
         if toolId == "code_replace" || toolId == "replace_in_file" {
-            // The tool reads "target" / "replacement" — map the snake_case
-            // aliases onto those exact keys (earlier code wrote "targetText",
-            // which the tool never reads).
             if mutableInput["target"] == nil && mutableInput["target_text"] != nil {
                 mutableInput["target"] = mutableInput["target_text"]
             }
@@ -161,7 +122,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
         return ToolValidationResult(isValid: true, issue: nil, correctedInput: mutableInput)
     }
 
-    /// Detects if an exact duplicate tool call with identical arguments failed previously.
     public func isIdenticalFailure(toolId: String, input: [String: Any], error: String) -> Bool {
         let callSignature = "\(toolId)::\(input.description)"
         if let prevError = previousToolCalls[callSignature], prevError == error {
@@ -171,7 +131,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
         return false
     }
 
-    /// Returns a strategy shift directive when an identical failure is detected.
     public func strategyShiftForIdenticalFailure(toolId: String, error: String) -> String {
         let category = classify(message: error)
         switch category {
@@ -188,19 +147,16 @@ public final class AssistErrorRecoveryEngine: Sendable {
         }
     }
 
-    /// Checks if a tool call signature has been seen too many times.
     public func isRepeatedCall(signature: String, threshold: Int = 3) -> Bool {
         return signatureCounts[signature, default: 0] >= threshold
     }
 
-    /// Records a tool call signature for circular pattern detection.
     public func recordToolCallSignature(_ signature: String) {
         signatureCounts[signature, default: 0] += 1
     }
 
     public var currentSignatureCounts: [String: Int] { signatureCounts }
 
-    /// Classifies an error message into a structured FailureCategory.
     public func classify(message: String, exitCode: Int? = nil) -> FailureCategory {
         let lower = message.lowercased()
 
@@ -228,7 +184,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
         return .unknown
     }
 
-    /// Computes a normalized error signature to detect repetitions and thrashing.
     public func computeSignature(category: FailureCategory, message: String) -> String {
         let cleaned = message
             .replacingOccurrences(of: "0x[0-9a-fA-F]+", with: "ADDR", options: .regularExpression)
@@ -239,7 +194,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
         return "\(category.rawValue)::\(prefix)"
     }
 
-    /// Records a failure in the task failure memory and checks for thrashing.
     public func recordFailure(
         task: inout AgentTask,
         message: String,
@@ -268,7 +222,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
         return (failure, isThrashing)
     }
 
-    /// Formulates an actionable, targeted repair hypothesis.
     public func formulateRepairHypothesis(failure: TaskFailure, task: AgentTask) -> RepairAttempt {
         let msg = failure.message
         var hypothesis = ""

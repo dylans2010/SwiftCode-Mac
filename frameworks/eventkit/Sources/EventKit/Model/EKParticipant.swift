@@ -1,6 +1,3 @@
-// EKParticipant (read-only for apps, interface.md §4) and the virtual
-// conference descriptor classes (names and simple values; level 1 only).
-
 import Foundation
 
 public class EKParticipant: EKObject, NSCopying {
@@ -53,7 +50,6 @@ public class EKVirtualConferenceDescriptor: NSObject {
     }
 }
 
-/// Base class for conferencing extensions; subclasses override both methods.
 open class EKVirtualConferenceProvider: NSObject {
     public override init() { super.init() }
     open func fetchAvailableRoomTypes() async throws -> [EKVirtualConferenceRoomTypeDescriptor] { [] }

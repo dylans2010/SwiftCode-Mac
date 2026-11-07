@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct TimezoneConverterView: View {
@@ -13,7 +10,6 @@ struct TimezoneConverterView: View {
         VStack(spacing: 20) {
             DatePicker("Select Time", selection: $selectedDate)
                 .padding()
-                
 
             Form {
                 TextField("Source Timezone", text: $sourceTimezone)

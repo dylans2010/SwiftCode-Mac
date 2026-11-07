@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import HealthKit
 
-/// C-SWIFT (subset, round R10): the Swift query descriptors give the same results as
-/// the callback queries (`interface.md` §9).
 @Suite("C-SWIFT interface.md §9 (descriptor subset)")
 struct DescriptorTests {
     @Test("sample descriptor: predicates, SortDescriptor, limit")
@@ -19,7 +17,7 @@ struct DescriptorTests {
         #expect(sleep.map(\.value) == [0, 3, 2, 4])
         let workouts = try await HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForWorkouts(with: .running))],
                                                          sortDescriptors: []).result(for: g.a)
-        #expect(workouts.count == 1 && workouts[0].duration == 1680)   // paused 06:10–06:12
+        #expect(workouts.count == 1 && workouts[0].duration == 1680)
     }
 
     @Test("statistics descriptor: day D0 = 5100; no data → nil")

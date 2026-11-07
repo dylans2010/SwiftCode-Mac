@@ -1,10 +1,6 @@
-// CNContactFormatter (formats.md §1) and name sorting (interface.md §4.3,
-// design.md §5).
-
 import Foundation
 
 enum Script {
-    /// Han, Kana or Hangul.
     static func isCJK(_ s: Unicode.Scalar) -> Bool {
         switch s.value {
         case 0x4E00...0x9FFF, 0x3400...0x4DBF, 0x20000...0x2FFFF, 0xF900...0xFAFF, 0x3005...0x3007,
@@ -16,7 +12,6 @@ enum Script {
         }
     }
 
-    /// True when the string has letters and every letter is CJK.
     static func isCJK(_ text: String) -> Bool {
         var sawLetter = false
         for s in text.unicodeScalars {
@@ -32,8 +27,6 @@ public class CNContactFormatter: Formatter, @unchecked Sendable {
 
     public override init() { super.init() }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
-
-    // MARK: Key descriptors
 
     public class func descriptorForRequiredKeys(for style: CNContactFormatterStyle) -> CNKeyDescriptor {
         switch style {
@@ -52,8 +45,6 @@ public class CNContactFormatter: Formatter, @unchecked Sendable {
         CNAggregateKeyDescriptor(kind: "Formatter delimiter", keys: nameOrderKeys)
     }
 
-    // MARK: Order and delimiter (formats.md §1.1 rules 1–3)
-
     static func isFamilyFirst(_ d: ContactData) -> Bool {
         let parts = [d.givenName, d.middleName, d.familyName].filter { !$0.isEmpty }
         return !parts.isEmpty && parts.allSatisfy(Script.isCJK)
@@ -69,12 +60,7 @@ public class CNContactFormatter: Formatter, @unchecked Sendable {
         return isFamilyFirst(contact.data) ? "" : " "
     }
 
-    // MARK: Formatting
-
-    /// The (key, text) runs of a formatted name and the delimiter; nil when
-    /// there is nothing to show.
     static func runs(for contact: CNContact, style: CNContactFormatterStyle) -> (runs: [(String, String)], delimiter: String)? {
-        // swiftlint:disable:next force_cast - the descriptor for a style is always an aggregate
         let required = (descriptorForRequiredKeys(for: style) as! CNAggregateKeyDescriptor).keys
         guard contact.require(required) else { return nil }
         let d = contact.data
@@ -115,8 +101,6 @@ public class CNContactFormatter: Formatter, @unchecked Sendable {
         }
     }
 
-    /// Joins runs; no delimiter after a part that already ends with
-    /// whitespace (rule 6). Returns the pieces as (key or nil, text).
     static func pieces(_ runs: [(String, String)], delimiter: String) -> [(String?, String)] {
         var out: [(String?, String)] = []
         for (i, run) in runs.enumerated() {
@@ -164,14 +148,6 @@ public class CNContactFormatter: Formatter, @unchecked Sendable {
     }
 }
 
-// MARK: - Name sorting
-
-/// Sort keys (SwiftCode's reading of interface.md §4.3): each name part is
-/// replaced by its phonetic part when that is set; a contact without given
-/// and family name (or an organization) sorts by its organization name; the
-/// primary part is the family or given name per the order, then the other
-/// part, then the organization. Comparison is case- and
-/// diacritic-insensitive with locale collation (CJK after Latin).
 enum NameSorting {
     static let locale = Locale(identifier: "en_US")
 

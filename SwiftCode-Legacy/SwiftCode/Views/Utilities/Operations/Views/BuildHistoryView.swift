@@ -8,7 +8,6 @@ struct BuildHistoryView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Build History")
@@ -33,7 +32,6 @@ struct BuildHistoryView: View {
 
                 Divider()
 
-                // Filter Search Bar
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)

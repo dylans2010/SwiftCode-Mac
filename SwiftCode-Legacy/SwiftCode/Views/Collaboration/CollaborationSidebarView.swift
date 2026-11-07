@@ -23,7 +23,6 @@ public struct CollaborationSidebarView: View {
 
             Spacer()
 
-            // Active Users Mini Panel
             VStack(alignment: .leading, spacing: 12) {
                 Text("Active Now")
                     .font(.caption.bold())

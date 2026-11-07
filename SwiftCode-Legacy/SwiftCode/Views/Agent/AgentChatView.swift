@@ -10,11 +10,8 @@ public struct AgentChatView: View {
 
     public var body: some View {
         HSplitView {
-            // Column 1: Conversation Area (Takes majority space)
             VStack(spacing: 0) {
-                // Mode Segmented Picker and Controls
                 HStack(spacing: 12) {
-                    // Chat History Browser Button (replaces sidebar left toggle)
                     Button {
                         showHistorySheet = true
                     } label: {
@@ -24,7 +21,6 @@ public struct AgentChatView: View {
                     .buttonStyle(.plain)
                     .help("Browse previous conversations")
 
-                    // Segmented Picker for Chat/Agent Mode
                     Picker("Mode", selection: Binding(
                         get: { viewModel.session.mode },
                         set: { newMode in
@@ -42,7 +38,6 @@ public struct AgentChatView: View {
 
                     Spacer()
 
-                    // Active model & provider indicator
                     HStack(spacing: 4) {
                         Image(systemName: FoundationModels.shared.isEnabled ? "apple.logo" : "network")
                             .font(.system(size: 11))
@@ -72,13 +67,11 @@ public struct AgentChatView: View {
 
                 Divider()
 
-                // Conversation Message List
                 AgentMessageListView(messages: viewModel.session.messages, viewModel: viewModel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 Divider()
 
-                // Typing/Assistant Indicator
                 if viewModel.isProcessing {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -95,7 +88,6 @@ public struct AgentChatView: View {
                     .transition(.opacity)
                 }
 
-                // Visual Error Banner Overlay
                 if case .failed(let error) = viewModel.session.turnState {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .top, spacing: 10) {
@@ -165,13 +157,11 @@ public struct AgentChatView: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
 
-                // Input Bar (Attachments picker + textfield + Send)
                 AgentInputBarView(viewModel: viewModel)
             }
             .frame(minWidth: 400)
-            .layoutPriority(1) // High layout priority ensures Center is highest priority and takes majority space!
+            .layoutPriority(1)
 
-            // Column 2: Right "Plan & Tasks" Checklist Inspector
             if showChecklist {
                 VStack(spacing: 0) {
                     HStack {
@@ -207,8 +197,6 @@ public struct AgentChatView: View {
     }
 }
 
-// MARK: - ChatHistoryBrowserSheet
-
 struct ChatHistoryBrowserSheet: View {
     @Bindable var viewModel: AgentViewModel
     @Binding var isPresented: Bool
@@ -216,7 +204,6 @@ struct ChatHistoryBrowserSheet: View {
     @State private var searchText = ""
     @State private var sortOption: SortOption = .recent
 
-    // For Rename alert
     @State private var sessionToRename: AgentSession? = nil
     @State private var renameText = ""
     @State private var showingRenameAlert = false
@@ -259,7 +246,6 @@ struct ChatHistoryBrowserSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Conversation Browser")
                     .font(.headline)
@@ -281,7 +267,6 @@ struct ChatHistoryBrowserSheet: View {
 
             Divider()
 
-            // Search & Sort Bar
             HStack(spacing: 12) {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -314,7 +299,6 @@ struct ChatHistoryBrowserSheet: View {
 
             Divider()
 
-            // Document Browser List
             ScrollView {
                 VStack(spacing: 10) {
                     if sortedAndFilteredSessions.isEmpty {
@@ -332,7 +316,6 @@ struct ChatHistoryBrowserSheet: View {
                             let isSelected = s.id == viewModel.session.id
 
                             HStack(alignment: .center, spacing: 14) {
-                                // Pinned status indicator or pin button
                                 Button {
                                     viewModel.togglePinSession(s)
                                 } label: {
@@ -358,7 +341,6 @@ struct ChatHistoryBrowserSheet: View {
                                     }
 
                                     HStack(spacing: 8) {
-                                        // Mode Badge
                                         let isAgent = (s.mode == .agent)
                                         let badgeColor: Color = isAgent ? .purple : .blue
                                         Text(s.mode.rawValue.uppercased())
@@ -383,7 +365,6 @@ struct ChatHistoryBrowserSheet: View {
                                     }
                                 }
 
-                                // Operations actions
                                 HStack(spacing: 12) {
                                     Button {
                                         sessionToRename = s

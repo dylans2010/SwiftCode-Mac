@@ -1,8 +1,4 @@
-// Value classes and labeled values (interface.md §1, §2.3–§2.4).
-
 import Foundation
-
-// MARK: - CNPhoneNumber
 
 public final class CNPhoneNumber: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let stringValue: String
@@ -28,10 +24,6 @@ public final class CNPhoneNumber: NSObject, NSCopying, NSSecureCoding, @unchecke
     public override var hash: Int { stringValue.hashValue }
     public override var description: String { "<CNPhoneNumber: stringValue=\(stringValue)>" }
 
-    /// Digits of the number with the country calling code (design.md §4):
-    /// "+…" numbers keep their digits; national numbers get `callingCode`
-    /// in front (after dropping one trunk "0"), except NANP numbers that
-    /// already start with the "1".
     func normalizedDigits(callingCode: String) -> String {
         let trimmed = stringValue.trimmingCharacters(in: .whitespaces)
         let digits = String(trimmed.filter { $0.isASCII && $0.isNumber })
@@ -45,8 +37,6 @@ public final class CNPhoneNumber: NSObject, NSCopying, NSSecureCoding, @unchecke
         return callingCode + national
     }
 }
-
-// MARK: - CNPostalAddress
 
 public class CNPostalAddress: NSObject, NSCopying, NSMutableCopying, NSSecureCoding, @unchecked Sendable {
     var _street = "", _subLocality = "", _city = "", _subAdministrativeArea = ""
@@ -103,7 +93,6 @@ public class CNPostalAddress: NSObject, NSCopying, NSMutableCopying, NSSecureCod
         }
     }
 
-    /// Field names in English (interface.md §2.4).
     public class func localizedString(forKey key: String) -> String {
         switch key {
         case CNPostalAddressStreetKey: return "Street"
@@ -158,8 +147,6 @@ public final class CNMutablePostalAddress: CNPostalAddress, @unchecked Sendable 
     public override var isoCountryCode: String { get { _isoCountryCode } set { _isoCountryCode = newValue } }
 }
 
-// MARK: - CNContactRelation
-
 public final class CNContactRelation: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let name: String
 
@@ -174,8 +161,6 @@ public final class CNContactRelation: NSObject, NSCopying, NSSecureCoding, @unch
     public override var hash: Int { name.hashValue }
     public override var description: String { "<CNContactRelation: name=\(name)>" }
 }
-
-// MARK: - CNSocialProfile
 
 public final class CNSocialProfile: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let urlString: String
@@ -200,7 +185,6 @@ public final class CNSocialProfile: NSObject, NSCopying, NSSecureCoding, @unchec
         }
     }
 
-    /// Services localize to themselves (interface.md §2.4).
     public class func localizedString(forService service: String) -> String { service }
 
     public static var supportsSecureCoding: Bool { true }
@@ -227,8 +211,6 @@ public final class CNSocialProfile: NSObject, NSCopying, NSSecureCoding, @unchec
         "<CNSocialProfile: urlString=\(urlString), username=\(username), userIdentifier=\(userIdentifier), service=\(service)>"
     }
 }
-
-// MARK: - CNInstantMessageAddress
 
 public final class CNInstantMessageAddress: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let username: String
@@ -268,9 +250,6 @@ public final class CNInstantMessageAddress: NSObject, NSCopying, NSSecureCoding,
     public override var description: String { "<CNInstantMessageAddress: username=\(username), service=\(service)>" }
 }
 
-// MARK: - CNLabeledValue
-
-/// A (label, value) pair with its own stable identifier (interface.md §2.3).
 public final class CNLabeledValue<ValueType: NSCopying & NSSecureCoding>: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let identifier: String
     public let label: String?
@@ -288,12 +267,10 @@ public final class CNLabeledValue<ValueType: NSCopying & NSSecureCoding>: NSObje
         self.value = (value.copy(with: nil) as? ValueType) ?? value
     }
 
-    /// A copy with another label; the identifier is kept.
     public func settingLabel(_ label: String?) -> CNLabeledValue<ValueType> {
         CNLabeledValue(identifier: identifier, label: label, value: value)
     }
 
-    /// A copy with another value; the identifier is kept.
     public func settingValue(_ value: ValueType) -> CNLabeledValue<ValueType> {
         CNLabeledValue(identifier: identifier, label: label, value: value)
     }
@@ -302,7 +279,6 @@ public final class CNLabeledValue<ValueType: NSCopying & NSSecureCoding>: NSObje
         CNLabeledValue(identifier: identifier, label: label, value: value)
     }
 
-    /// English for predefined labels; custom labels unchanged.
     public class func localizedString(forLabel label: String) -> String {
         Localization.label(label)
     }
@@ -322,8 +298,6 @@ public final class CNLabeledValue<ValueType: NSCopying & NSSecureCoding>: NSObje
 
     public func copy(with zone: NSZone? = nil) -> Any { self }
 
-    /// Equal when identifier, label and value are equal (a relabeled value
-    /// is therefore not equal to the original, interface.md §2.3).
     public override func isEqual(_ object: Any?) -> Bool {
         guard let o = object as? CNLabeledValue<ValueType> else { return false }
         return o.identifier == identifier && o.label == label && ((o.value as? NSObject)?.isEqual(value as? NSObject) ?? false)
@@ -334,9 +308,6 @@ public final class CNLabeledValue<ValueType: NSCopying & NSSecureCoding>: NSObje
     }
 }
 
-// MARK: - CNContactProperty
-
-/// One property of a contact (what the picker returns for a property selection).
 public final class CNContactProperty: NSObject, @unchecked Sendable {
     public let contact: CNContact
     public let key: String
@@ -357,15 +328,11 @@ public final class CNContactProperty: NSObject, @unchecked Sendable {
     }
 }
 
-// MARK: - CNContactsUserDefaults
-
 public final class CNContactsUserDefaults: NSObject, @unchecked Sendable {
     private static let instance = CNContactsUserDefaults()
 
     public class func shared() -> CNContactsUserDefaults { instance }
 
-    /// Family name (3) as on a fresh device (interface.md §1).
     public var sortOrder: CNContactSortOrder { .familyName }
-    /// The store configuration's country code ("us" by default).
     public var countryCode: String { CNContactStore.swiftcodeDefaultConfiguration.countryCode }
 }

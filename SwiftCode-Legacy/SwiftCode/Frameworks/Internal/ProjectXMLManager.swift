@@ -5,8 +5,6 @@ public final class ProjectXMLManager: Sendable {
     private init() {}
 
     public func encode<T: Encodable>(_ value: T) throws -> Data {
-        // Simple XML encoder implementation for demonstration.
-        // In a real app, use a proper XML library.
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .xml
         return try encoder.encode(value)

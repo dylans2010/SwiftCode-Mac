@@ -7,15 +7,6 @@ import SwiftCodeBuild
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Round W6 (PAIR-IDE, `specs/simulator/device-pairing.md` §13, `specs/ide/device-hub.md`
-/// §I.9): Device Hub shows pairs ("Paired with … ›" on the phone and on the
-/// watch, the Info rows), pairs a watch (an existing one or a new one),
-/// creates an iPhone with a paired watch, unpairs, makes a watch active and
-/// deletes a created device, each through the launcher's pairing commands;
-/// the destination menu lists watches and phones with an active watch for
-/// a watchOS scheme; a watch app's run on a phone without an active watch
-/// fails with §11.4's texts. ssh is a local stand-in and the launcher a
-/// script that keeps one listing in a file: no network.
 @MainActor
 @Suite(.serialized, .timeLimit(.minutes(5))) struct PairIDEHubTests {
     static let iosRoot = "/rr/iOS-27.0-24A434/RuntimeRoot"
@@ -28,9 +19,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         var devices: URL { root.appendingPathComponent("data/devices") }
     }
 
-    /// The launcher: `pair` writes a listing with one active pair of the two
-    /// directories, `list-pairs` prints the listing, `unpair` empties it,
-    /// `pair-activate` marks it active, `--erase` removes the directory.
     static let launcher = #"""
     #!/bin/sh
     R="$(dirname "$0")/.."
@@ -119,8 +107,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
     func index(_ c: DevicesController, _ name: String) -> Int? { c.rows.firstIndex { $0.name == name } }
 
-    // MARK: Showing pairs
-
     @Test func theHubShowsPairsOnThePhoneAndTheWatch() async throws {
         let r = try makeRemote("show")
         defer { try? FileManager.default.removeItem(at: r.root) }
@@ -134,30 +120,25 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                          watchTypeName: "Apple Watch Series 12 (46mm)", phoneTypeName: "iPhone 18 Pro", active: true, connected: true),
                         RemoteDevicePair(id: "P2", watchDirectory: other.deviceDirectoryName, phoneDirectory: phone.deviceDirectoryName, active: false)])
             c.select(row: try #require(index(c, "iPhone 18 Pro (SwiftCode)")))
-            // §4.1: the capsule between the device and the controls.
             #expect(c.canvas.pairedTitle == "Paired with Apple Watch Series 12 (46mm) (SwiftCode)")
             #expect(c.canvas.pairedCapsule != nil)
             let rows = Dictionary(c.detailRows, uniquingKeysWith: { a, _ in a })
             #expect(rows["Active Watch"] == "Apple Watch Series 12 (46mm) (SwiftCode)")
             #expect(rows["Paired Watches"] == "Apple Watch Series 12 (46mm) (SwiftCode) (active), Apple Watch Series 12 (42mm) (SwiftCode)")
             #expect(rows["Pair"] == "(active, connected)")
-            // Its menu: Pair Watch…, Unpair per watch, Make Active for the inactive one.
             let titles = c.contextMenu(forRow: try #require(index(c, "iPhone 18 Pro (SwiftCode)"))).items.map(\.title)
             #expect(titles.contains("Pair Watch…"))
             #expect(titles.contains("Unpair “Apple Watch Series 12 (46mm) (SwiftCode)”") && titles.contains("Unpair “Apple Watch Series 12 (42mm) (SwiftCode)”"))
             #expect(titles.contains("Make “Apple Watch Series 12 (42mm) (SwiftCode)” Active") && !titles.contains("Make “Apple Watch Series 12 (46mm) (SwiftCode)” Active"))
-            // The capsule selects the watch, which shows its phone.
             c.canvas.onPaired?()
             #expect(c.selected?.name == "Apple Watch Series 12 (46mm) (SwiftCode)")
             #expect(c.canvas.pairedTitle == "Paired with iPhone 18 Pro (SwiftCode)")
             let w = Dictionary(c.detailRows, uniquingKeysWith: { a, _ in a })
             #expect(w["Paired With"] == "iPhone 18 Pro (SwiftCode)" && w["Pair"] == "(active, connected)")
             #expect(c.contextMenu(forRow: try #require(index(c, "Apple Watch Series 12 (46mm) (SwiftCode)"))).items.map(\.title).contains("Unpair from “iPhone 18 Pro (SwiftCode)”"))
-            // A watch with no pair: none.
             c.select(row: try #require(index(c, "Apple Watch Ultra 4 (49mm) (SwiftCode)")))
             #expect(c.canvas.pairedTitle == nil)
             #expect(Dictionary(c.detailRows, uniquingKeysWith: { a, _ in a })["Paired With"] == "None")
-            // Add Device: a watch, or an iPhone with a paired watch.
             let add = DeviceHubToolbar.addItems(target: nil, hub: c)
             #expect(add.map(\.title) == ["iPhone…", "iPad…", "Apple Watch…", "iPhone with Paired Watch…", "Apple Vision Pro…", "Apple TV…", "", "Pair Nearby Device…"])
             #expect(add[2].isEnabled && add[3].isEnabled && !add[4].isEnabled)
@@ -181,8 +162,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    // MARK: Pairing, unpairing, activating, deleting
-
     @Test func pairWatchPairsAnExistingWatchThroughTheLauncher() async throws {
         let r = try makeRemote("pair")
         defer { try? FileManager.default.removeItem(at: r.root) }
@@ -204,7 +183,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(form.watchPopUp.itemTitles.contains("Apple Watch Series 12 (46mm) (SwiftCode)"))
             #expect(form.chosenWatch?.name == "Apple Watch Ultra 4 (49mm) (SwiftCode)" && form.watch?.name.isEnabled == false)
             await c.pairing.task?.value
-            // The type records were written, then `swiftcode-sim pair <watch> <phone>`.
             let s = RemoteSimulatorSettings.load(p.defaults)
             let watchDir = try #require(s.watchTargets.first { $0.deviceType.id == "apple-watch-ultra-4-49mm" }).deviceDirectoryName
             let phoneDir = try #require(s.targets.first).deviceDirectoryName
@@ -214,7 +192,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(c.pairing.status == "Paired (A14C1055-1F81-4D7B-A25C-710D1D9A7DC1)")
             #expect(c.pairing.pairs.map(\.watchDirectory) == [watchDir])
             #expect(RemotePairsStore.shared.current().count == 1, "the destinations read the same pairs")
-            // An inactive pair: Make Active runs pair-activate.
             c.select(row: try #require(index(c, "iPhone 18 Pro (SwiftCode)")))
             #expect(c.canvas.pairedTitle == nil, "no active watch yet")
             let pair = try #require(c.pairing.pairs.first)
@@ -223,7 +200,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(r.log.contains("pair-activate \(pair.id)"))
             #expect(c.pairing.pairs.first?.active == true && c.pairing.status == "Active")
             #expect(c.canvas.pairedTitle == "Paired with Apple Watch Ultra 4 (49mm) (SwiftCode)")
-            // Unpair: asked first; the watch is erased by the launcher.
             var asked: [String] = []
             c.pairing.confirm = { title, _, button in asked.append("\(title)|\(button)"); return true }
             c.unpair(try #require(c.pairing.pairs.first))
@@ -235,10 +211,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    /// device-pairing.md §14.1 (P-14): after Make Active on a running iPhone
-    /// the hub says that its apps keep the previous watch until the iPhone
-    /// restarts and offers Restart iPhone, which shuts the phone down and
-    /// starts it again; Later leaves it running; a shut-down phone gets no offer.
     @Test func makeActiveOffersToRestartARunningIPhone() async throws {
         let r = try makeRemote("restart")
         defer { try? FileManager.default.removeItem(at: r.root) }
@@ -263,11 +235,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             var offers: [String] = []
             var answer = false
             c.pairing.offerPhoneRestart = { title, text in offers.append(title + "|" + text); return answer }
-            // A shut-down phone: the switch only.
             c.activate(try #require(c.pairing.pairs.first { $0.id == "PB" }))
             await c.pairing.task?.value
             #expect(offers.isEmpty && c.pairing.status == "Active" && c.pairing.restartTask == nil)
-            // A running phone, Later: the note, no restart.
             var row = try #require(c.rows.first { $0.name == "iPhone 18 Pro (SwiftCode)" })
             row.state = "Booted"
             c.updateSwiftCodeRemote(row)
@@ -279,7 +249,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(c.pairing.status == "Active; apps on the iPhone keep the previous watch until the iPhone restarts")
             #expect(lifecycle.isEmpty && c.pairing.restartTask == nil)
             #expect(Dictionary(c.detailRows, uniquingKeysWith: { x, _ in x })["Pairing"] == c.pairing.status)
-            // Restart iPhone: shut down, then started again.
             answer = true
             c.activate(try #require(c.pairing.pairs.first { $0.id == "PB" }))
             await c.pairing.task?.value
@@ -316,12 +285,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(created.map(\.name) == ["Test Phone", "Test Watch"])
             #expect(created.map(\.typeID) == ["iphone-18-pro", "apple-watch-series-12-46mm"])
             #expect(created.map(\.runtimeRoot) == [Self.iosRoot, Self.watchRoot])
-            // Both rows, the phone selected and paired with the watch.
             #expect(c.rows.contains { $0.name == "Test Phone" && $0.isCreated } && c.rows.contains { $0.name == "Test Watch" && $0.platform == "watchOS" })
             #expect(c.selected?.name == "Test Phone")
             #expect(r.log.contains("pair \(r.devices.path)/\(created[1].directoryName) \(r.devices.path)/\(created[0].directoryName)"), "\(r.log)")
             #expect(c.pairing.pairs.first?.phoneDirectory == created[0].directoryName)
-            // Deleting a paired device is refused; after the unpair it erases the device and forgets it.
             let phone = try #require(c.rows.first { $0.name == "Test Phone" })
             #expect(c.pairingMenuItems(for: phone).map(\.title).contains("Delete…"))
             #expect(c.delete(phone) == nil)
@@ -333,15 +300,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(r.log.contains("--erase --device \(r.devices.path)/\(created[0].directoryName)"))
             #expect(RemoteSimulatorSettings.createdDevices(p.defaults).map(\.name) == ["Test Watch"])
             #expect(!c.rows.contains { $0.name == "Test Phone" })
-            // Add Device ▸ Apple Watch…: a watch alone.
             c.pairing.presentForm = { form, done in form.watch?.name.stringValue = "Second Watch"; done(true) }
             let w = c.presentNewWatch()
             #expect(w.kind == .newWatch && w.button == "Create")
             #expect(c.selected?.name == "Second Watch")
         }
     }
-
-    // MARK: Destinations and runs
 
     @Test func watchSchemesListWatchesAndPhonesWithAnActiveWatch() async throws {
         let r = try makeRemote("dest")
@@ -364,12 +328,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let iosMenu = wc.destinationMenuModel()
             #expect(iosMenu.rows("Simulators").allSatisfy { $0.platform == "iOS" })
             #expect(iosMenu.incompatible.contains { $0.name.hasPrefix("Apple Watch Series 12 (46mm) (SwiftCode)") })
-            // The product paths of the two kinds of build.
             #expect(WorkspaceWindowController.remoteProductPath(fromExecutablePath: "/dd/Build/Products/Debug/WCProbeWatch.app/Contents/MacOS/WCProbeWatch", watch: true)
                 == "/dd/Build/Products/Debug-watchsimulator/WCProbeWatch.app")
             #expect(WorkspaceWindowController.remoteProductPath(fromExecutablePath: "/dd/Build/Products/Debug/WCProbe.app/Contents/MacOS/WCProbe", watch: false)
                 == "/dd/Build/Products/Debug-iphonesimulator/WCProbe.app")
-            // A run on the phone after its watch was unpaired on the host: §11.4's texts.
             wc.session.scheme = "WCProbeWatch"
             wc.session.destination = sims.first { $0.isSwiftCodePairedDestination }
             WorkspaceWindowController.remoteSSHOverride = r.settings.ssh

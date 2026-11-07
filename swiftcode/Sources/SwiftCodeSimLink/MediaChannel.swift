@@ -1,24 +1,3 @@
-// The media channel (sim-link.md §5): display-stream frames over UDP, each
-// packet sealed with ChaCha20-Poly1305 under keys derived from the display
-// connection's handshake (never sent anywhere). A packet:
-//
-//   magic 'Y', version 1, direction (1 host → client, 2 client → host), epoch
-//   u32 session (the host's id for the display connection)
-//   u64 counter (per direction, from 0)
-//   ciphertext ‖ 16-byte tag; nonce = u32 epoch ‖ u64 counter (little-endian);
-//   the 16 header bytes are the associated data
-//
-// Payload kinds: 1 fragment (u32 message id, u16 index, u16 count, bytes:
-// one display-stream message cut into pieces of at most 1 200 bytes),
-// 2 client hello (the client's UDP address for the session; sent at start
-// and every second). A receiver drops a packet that fails authentication,
-// repeats a counter (a 4 096-packet sliding window), or comes from an older
-// epoch than the one before the current. Every 2^24 packets the sender
-// moves to the next epoch, whose key is HKDF-SHA256(previous key, "rekey").
-// The host sends only to the address of the newest authenticated client
-// hello, so no packet is ever sent to an address that has not proved it
-// holds the session's key.
-
 import Crypto
 import Foundation
 
@@ -49,7 +28,6 @@ public struct MediaHeader: Equatable, Sendable {
     }
 }
 
-/// Sliding-window replay check (RFC 4303 §3.4.3 style).
 public struct ReplayWindow: Sendable {
     public static let size: UInt64 = 4096
     private var highest: UInt64 = 0
@@ -58,7 +36,6 @@ public struct ReplayWindow: Sendable {
 
     public init() {}
 
-    /// Whether `n` is new (and records it).
     public mutating func accept(_ n: UInt64) -> Bool {
         if !any || n > highest {
             let shift = any ? n - highest : Self.size
@@ -83,7 +60,6 @@ public struct ReplayWindow: Sendable {
     private func isSet(_ n: UInt64) -> Bool { let (i, b) = index(n); return bits[i] & (1 << b) != 0 }
 }
 
-/// One direction's sealing and opening, with epochs.
 public struct MediaCrypto: Sendable {
     public static let rekeyEvery: UInt64 = 1 << 24
     public static let fragmentSize = 1200
@@ -118,7 +94,6 @@ public struct MediaCrypto: Sendable {
         [epoch, 0, 0, 0] + (0..<8).map { UInt8(truncatingIfNeeded: counter >> (8 * UInt64($0))) }
     }
 
-    /// Seals one payload into a packet.
     public mutating func seal(_ payload: [UInt8]) throws -> [UInt8] {
         let epoch = UInt8(truncatingIfNeeded: counter / Self.rekeyEvery)
         let h = MediaHeader(direction: direction, epoch: epoch, session: session, counter: counter)
@@ -129,10 +104,8 @@ public struct MediaCrypto: Sendable {
         return ad + Array(box.ciphertext) + Array(box.tag)
     }
 
-    /// Opens a packet of the other direction; nil when it is not authentic or a replay.
     public mutating func open(_ packet: [UInt8], expectDirection: UInt8) -> [UInt8]? {
         guard let h = MediaHeader(packet), h.direction == expectDirection, h.session == session, packet.count >= MediaHeader.size + 16 else { return nil }
-        // Epochs move forward; one before the newest is still accepted (reordering at a change).
         guard h.epoch == newestEpoch || h.epoch == newestEpoch &+ 1 || h.epoch == newestEpoch &- 1 else { return nil }
         guard UInt64(h.epoch) == h.counter / Self.rekeyEvery % 256 else { return nil }
         let k = key(epoch: h.epoch)
@@ -154,7 +127,6 @@ public enum MediaPayload {
     public static let fragment: UInt8 = 1
     public static let clientHello: UInt8 = 2
 
-    /// A message cut into fragment payloads.
     public static func fragments(of message: [UInt8], id: UInt32, size: Int = MediaCrypto.fragmentSize) -> [[UInt8]] {
         let count = max(1, (message.count + size - 1) / size)
         precondition(count <= Int(UInt16.max))
@@ -168,16 +140,10 @@ public enum MediaPayload {
     }
 }
 
-/// The client's reassembly of fragments into messages. A message is
-/// delivered when its last fragment arrives, if no newer message was
-/// delivered before it; the messages it overtakes are reported lost (the
-/// viewer then asks for a keyframe: tiles are changes against the previous
-/// image, so a gap must not be papered over).
 public struct MediaReassembler: Sendable {
     struct Partial { var count: Int; var parts: [Int: [UInt8]]; var started: UInt64 }
     private var partial: [UInt32: Partial] = [:]
     private var next: UInt32?
-    /// Messages given up on.
     public private(set) var lost = 0
     public static let timeout: UInt64 = 200_000_000
 
@@ -190,7 +156,6 @@ public struct MediaReassembler: Sendable {
         return Int32(bitPattern: id &- n) < 0
     }
 
-    /// A fragment payload (kind byte first) at client time `now` (ns).
     public mutating func add(_ p: [UInt8], now: UInt64) -> [Output] {
         guard p.count >= 9, p[0] == MediaPayload.fragment else { return [] }
         let id = (0..<4).reduce(UInt32(0)) { $0 | UInt32(p[1 + $1]) << (8 * UInt32($1)) }
@@ -214,7 +179,6 @@ public struct MediaReassembler: Sendable {
         return out + expire(now: now)
     }
 
-    /// Gives up on partial messages older than `timeout`.
     public mutating func expire(now: UInt64) -> [Output] {
         var out: [Output] = []
         for (id, p) in partial.sorted(by: { Int32(bitPattern: $0.key &- $1.key) < 0 }) {

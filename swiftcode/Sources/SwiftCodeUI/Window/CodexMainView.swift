@@ -1,10 +1,3 @@
-// CodexMainView.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/Codex UIs/CodexMainView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: CodexWorkspaceStore state machine (prompt/output/revision/comment tracking); undo/redo of prompt and output; file extraction from generated output; review states (Pending Review/Approved/Changes Requested)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CodexErrorView, FileRevision, PRStatus.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeCollaboration
 import SwiftCodeCompletion

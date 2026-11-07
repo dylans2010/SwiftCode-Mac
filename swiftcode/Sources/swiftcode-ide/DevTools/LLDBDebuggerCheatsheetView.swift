@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct LLDBCommandItem: Identifiable {
@@ -33,7 +30,6 @@ public struct LLDBDebuggerCheatsheetView: View {
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            
 
             Divider()
 
@@ -63,6 +59,6 @@ public struct LLDBDebuggerCheatsheetView: View {
             }
             .listStyle(.inset)
         }
-        
+
     }
 }

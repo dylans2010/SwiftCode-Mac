@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 #if canImport(os)
 import os
@@ -15,7 +12,6 @@ final class Base32ConverterViewModel {
 
     private let logger = DevToolsLogger(subsystem: "swiftcode.devtools", category: "Base32Converter")
 
-    // Simple RFC 4648 base32 alphabet mapping
     private let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
 
     func encode() {
@@ -190,7 +186,7 @@ struct Base32ConverterDevToolView: View {
             }
             .padding()
         }
-        
+
         .navigationTitle("Base32 Converter")
     }
 }

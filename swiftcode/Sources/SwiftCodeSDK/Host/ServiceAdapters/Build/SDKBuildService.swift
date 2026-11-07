@@ -1,54 +1,16 @@
 import Foundation
 import SwiftCodeBuild
 
-// MARK: - SDKBuildService
-//
-// Ported from Legacy `SwiftCode/SDK/Host/ServiceAdapters/Build/SDKBuildService.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Runs extension builds through the host's managed build service.
-// Process execution delegates to SwiftCodeBuild's `XcodebuildEngine` —
-// never a raw `Process` here — while Legacy's semantics are kept:
-// typed allow-list request, host environment only, working directory
-// confined to the caller's project root, one build per extension,
-// bounded streams, and a truthful terminal result decided by
-// `SDKBuildOutputParser.didSucceed` (exit 0 AND `** BUILD SUCCEEDED **`
-// AND zero parsed errors).
-//
-// DEVIATIONS from Legacy (recorded in the slice spec draft):
-// - SwiftCodeBuild's default command is `["/usr/bin/xcrun", "xcodebuild"]`;
-//   Legacy pinned `/usr/bin/xcodebuild`. Same tool, different launcher.
-// - Legacy located the project via the app's
-//   `AssistXcodeProjectResolver` and resolved the scheme with
-//   `xcodebuild -list` (explicit scheme, else first scheme, else bundle
-//   name). The scheme half now exists in SwiftCode (Wave 16, Slice D):
-//   `XcodeSchemeDiscovery` (SwiftCodeBuild) resolves the scheme in
-//   Legacy's precedence order — explicit-when-known, first listed,
-//   first `.xcscheme` file, else the requested target / container
-//   name — and the resolution (including the fallback reason) is
-//   logged. The container half is still resolved from the project
-//   root (`.xcworkspace` > `.xcodeproj` > `Package.swift`); the
-//   resolver's `locate(relativePath:)` and pbxproj introspection
-//   (`groupID`, `sourcesBuildPhaseID`) belong to the MCP project
-//   tools, not to this service.
-
 public actor SDKBuildService {
     public static let shared = SDKBuildService()
 
-    /// Maximum streamed events per build.
     public static let maxStreamedEvents = 20_000
-    /// Maximum retained build output (4 MiB).
     public static let maxRetainedOutputBytes = 4 * 1024 * 1024
-    /// Maximum diagnostics in the terminal result.
     public static let maxResultDiagnostics = 50
-    /// Maximum build time (30 minutes).
     public static let buildTimeout: TimeInterval = 1_800
 
     private let engine: any BuildEngine
     private var activeHandles: [String: SDKBuildHandle] = [:]
-    /// Resolves the scheme to build (Wave 16: `XcodeSchemeDiscovery`).
-    /// Injectable so tests can stub discovery; the default runs the
-    /// real `xcodebuild -list` leg on macOS and the file leg anywhere.
     private let schemeDiscovery: XcodeSchemeDiscovery
 
     public init(engine: any BuildEngine = XcodebuildEngine(), schemeDiscovery: XcodeSchemeDiscovery = XcodeSchemeDiscovery()) {
@@ -56,11 +18,6 @@ public actor SDKBuildService {
         self.schemeDiscovery = schemeDiscovery
     }
 
-    /// Starts a build for `caller`. Authorizes `.buildExecute` first.
-    /// Throws `.invalidArgument` for a malformed request,
-    /// `.invalidTarget` when no buildable container is found, and
-    /// `.resourceLimitExceeded` when the extension already has a build
-    /// running. Returns a handle for streaming events and waiting.
     public func run(caller: SDKCallerIdentity, request: SDKBuildRequest) async throws -> SDKBuildHandle {
         try await SDKCapabilityBroker.authorize(.buildExecute, for: caller)
         guard activeHandles[caller.extensionID] == nil else {
@@ -87,8 +44,6 @@ public actor SDKBuildService {
         }
         return handle
     }
-
-    // MARK: - Private
 
     private func removeHandle(for extensionID: String, handle: SDKBuildHandle) {
         if activeHandles[extensionID] === handle {
@@ -122,7 +77,6 @@ public actor SDKBuildService {
     private func resolveContainer(projectRoot: String) throws -> BuildRequest.Container {
         let root = URL(fileURLWithPath: projectRoot)
         let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
-        // Prefer a workspace, then a project, then a Swift package.
         if let workspace = names.first(where: { $0.hasSuffix(".xcworkspace") }) {
             return .workspace(root.appendingPathComponent(workspace).path)
         }
@@ -199,13 +153,6 @@ public actor SDKBuildService {
     }
 }
 
-// MARK: - SDKBuildHandle
-
-/// A running build: streams output events and resolves to a truthful
-/// terminal result. `wait()` is idempotent and cached; `cancel()`
-/// terminates the underlying build. Possession of the handle IS the
-/// authorization for `build.wait` / `build.cancel` — handles are never
-/// shared across extensions (the dispatcher enforces that).
 public final actor SDKBuildHandle {
     public let id = UUID()
     public let correlationId = SDKError.newCorrelationId()
@@ -226,7 +173,6 @@ public final actor SDKBuildHandle {
         self.continuation = storedContinuation
     }
 
-    /// The output event stream. Single-consumer, like Legacy.
     public var events: AsyncStream<SDKBuildOutputEvent> { stream }
 
     public var isTimedOut: Bool { timedOut }
@@ -239,8 +185,6 @@ public final actor SDKBuildHandle {
         continuation.yield(event)
     }
 
-    /// Waits for the terminal result. Idempotent: every caller gets
-    /// the same cached result.
     public func wait() async -> SDKBuildResult {
         if let result { return result }
         return await withCheckedContinuation { (continuation: CheckedContinuation<SDKBuildResult, Never>) in
@@ -248,7 +192,6 @@ public final actor SDKBuildHandle {
         }
     }
 
-    /// Cancels the underlying build.
     public func cancel() {
         operation.cancel()
     }

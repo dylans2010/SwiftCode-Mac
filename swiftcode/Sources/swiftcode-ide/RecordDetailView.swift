@@ -1,10 +1,3 @@
-// RecordDetailView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/RecordDetailView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: formatting toolbar and table editing; live preview; duplicate/rename actions in the detail view; save-revision UI
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DocNSTextView, DocumentVersion, ViewMode, WikiPage.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -16,32 +9,26 @@ public struct RecordDetailView: View {
     @State private var document: Document? = nil
     @State private var wikiPage: WikiPage? = nil
 
-    // Bindable editing fields
     @State private var titleText = ""
     @State private var markdownText = ""
     @State private var relationships: [Relationship] = []
     @State private var versions: [DocumentVersion] = []
 
-    // Editor control states
     @State private var viewMode: ViewMode = .edit
     @State private var isRenaming = false
     @State private var editTitleText = ""
     @State private var showBrowserSheet = false
 
-    // Table creation parameters
     @State private var tableRows = 3
     @State private var tableCols = 3
     @State private var showTableCreatorPopover = false
 
-    // Relationship formulation states
     @State private var showAddLink = false
     @State private var targetName = ""
     @State private var targetType = "Swift File"
 
-    // Versioning states
     @State private var selectedVersion: DocumentVersion? = nil
 
-    // Delete Confirmation
     @State private var showingDeleteConfirmation = false
 
     public enum ViewMode: String, CaseIterable, Identifiable {
@@ -54,10 +41,8 @@ public struct RecordDetailView: View {
     public var body: some View {
         VStack(spacing: 0) {
             if hasActiveSelection {
-                // REDESIGNED: Professional Desktop Editor Header
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 16) {
-                        // Icon & Renameable Title
                         HStack(spacing: 10) {
                             Image(systemName: activeIcon)
                                 .font(.title2)
@@ -105,7 +90,6 @@ public struct RecordDetailView: View {
 
                         Spacer()
 
-                        // View mode switcher
                         Picker("View Mode", selection: $viewMode) {
                             ForEach(ViewMode.allCases) { mode in
                                 Label(mode.rawValue, systemImage: mode == .read ? "eye.fill" : "pencil")
@@ -115,7 +99,6 @@ public struct RecordDetailView: View {
                         .pickerStyle(.segmented)
                         .frame(width: 200)
 
-                        // Top header action controls
                         HStack(spacing: 10) {
                             Button {
                                 showBrowserSheet = true
@@ -148,19 +131,15 @@ public struct RecordDetailView: View {
 
                     Divider()
 
-                    // RICH MARKDOWN & ADVANCED TABLE EDITING TOOLBAR (VISIBLE IN EDIT MODE)
                     if viewMode == .edit {
                         markdownFormattingToolbar
                     }
                 }
 
-                // Workspace Editor Body Area
                 VStack(spacing: 0) {
                     if viewMode == .edit {
-                        // EDIT MODE: Non-scrolling container wraps NSTextView directly to eliminate scroll conflicts
                         VStack(spacing: 0) {
                             if document != nil {
-                                // Status / Metadata panel for structured files
                                 HStack(spacing: 24) {
                                     Picker("Status", selection: Binding(
                                         get: { document?.status ?? "To Do" },
@@ -203,7 +182,6 @@ public struct RecordDetailView: View {
                                 Divider()
                             }
 
-                            // Desktop first native multi-line text editor
                             DocNSTextView(text: Binding(
                                 get: { markdownText },
                                 set: { val in
@@ -214,7 +192,6 @@ public struct RecordDetailView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     } else {
-                        // READ MODE: High fidelity Markdown renderer
                         ScrollView {
                             VStack(alignment: .leading, spacing: 20) {
                                 if document != nil {
@@ -252,7 +229,6 @@ public struct RecordDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             } else {
-                // Elegant Empty State Workspace
                 ContentUnavailableView {
                     Label("Editor Workspace", systemImage: "doc.text.fill")
                 } description: {
@@ -337,12 +313,9 @@ public struct RecordDetailView: View {
         }
     }
 
-    // MARK: - Markdown and Table Formatting Toolbar Component
-
     private var markdownFormattingToolbar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                // Typography Headers
                 ControlGroup {
                     Button { formatText(with: "# ", suffix: "") } label: { Text("H1").bold() }.help("Heading 1")
                     Button { formatText(with: "## ", suffix: "") } label: { Text("H2").bold() }.help("Heading 2")
@@ -351,7 +324,6 @@ public struct RecordDetailView: View {
 
                 Divider().frame(height: 20)
 
-                // Inline Styles
                 ControlGroup {
                     Button { formatText(with: "**", suffix: "**") } label: { Image(systemName: "bold") }.help("Bold")
                     Button { formatText(with: "*", suffix: "*") } label: { Image(systemName: "italic") }.help("Italic")
@@ -361,7 +333,6 @@ public struct RecordDetailView: View {
 
                 Divider().frame(height: 20)
 
-                // Block Blocks
                 ControlGroup {
                     Button { formatText(with: "\n```\n", suffix: "\n```\n") } label: { Image(systemName: "doc.plaintext") }.help("Code Block")
                     Button { formatText(with: "> ", suffix: "") } label: { Image(systemName: "quote.opening") }.help("Blockquote")
@@ -370,7 +341,6 @@ public struct RecordDetailView: View {
 
                 Divider().frame(height: 20)
 
-                // Lists and Rules
                 ControlGroup {
                     Button { formatText(with: "- ", suffix: "") } label: { Image(systemName: "list.bullet") }.help("Bullet List")
                     Button { formatText(with: "1. ", suffix: "") } label: { Image(systemName: "list.number") }.help("Numbered List")
@@ -380,7 +350,6 @@ public struct RecordDetailView: View {
 
                 Divider().frame(height: 20)
 
-                // ADVANCED MARKDOWN TABLE ACTIONS
                 Menu {
                     Button {
                         tableRows = 3; tableCols = 3
@@ -440,22 +409,17 @@ public struct RecordDetailView: View {
         }
     }
 
-    // MARK: - Advanced Table Processing Operations
-
     private func insertCustomTable() {
         var tableMarkdown = "\n"
-        // Generate Header Row
         tableMarkdown += "|"
         for c in 1...tableCols {
             tableMarkdown += " Header \(c) |"
         }
         tableMarkdown += "\n|"
-        // Generate Divider Alignment Row
         for _ in 1...tableCols {
             tableMarkdown += " :--- |"
         }
         tableMarkdown += "\n"
-        // Generate Content Rows
         for r in 1...tableRows {
             tableMarkdown += "|"
             for c in 1...tableCols {
@@ -469,13 +433,11 @@ public struct RecordDetailView: View {
     }
 
     private func addTableRow() {
-        // Appends a new empty row to the table at the current position or end of text
         let newRow = "\n|" + String(repeating: "  |", count: max(1, countActiveTableColumns()))
         formatText(with: newRow, suffix: "")
     }
 
     private func deleteTableRow() {
-        // Removes the last table row found in text
         var lines = markdownText.components(separatedBy: .newlines)
         if let lastRowIdx = lines.lastIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("|") && !$0.contains(":---") }) {
             lines.remove(at: lastRowIdx)
@@ -485,7 +447,6 @@ public struct RecordDetailView: View {
     }
 
     private func addTableColumn() {
-        // Modifies all lines that start with "|" to include an extra cell
         var lines = markdownText.components(separatedBy: .newlines)
         var modified = false
         for i in 0..<lines.count {
@@ -506,7 +467,6 @@ public struct RecordDetailView: View {
     }
 
     private func deleteTableColumn() {
-        // Removes the last cell from each row of the table
         var lines = markdownText.components(separatedBy: .newlines)
         var modified = false
         for i in 0..<lines.count {
@@ -564,10 +524,7 @@ public struct RecordDetailView: View {
         return 3
     }
 
-    // MARK: - Core Formatting Insertion Engine
-
     private func formatText(with prefix: String, suffix: String) {
-        // In this implementation, we append or wrap format template nicely
         if markdownText.isEmpty {
             markdownText = prefix + "Document Content" + suffix
         } else {
@@ -575,8 +532,6 @@ public struct RecordDetailView: View {
         }
         saveActiveContent(markdownText)
     }
-
-    // MARK: - State & Active Property Resolvers
 
     private var hasActiveSelection: Bool {
         if coordinator.selectedModuleKind == .projectWiki {
@@ -598,8 +553,6 @@ public struct RecordDetailView: View {
         }
         return document?.moduleKind.accentColor ?? .blue
     }
-
-    // MARK: - Actions Helper
 
     private func reloadData() {
         if coordinator.selectedModuleKind == .projectWiki {
@@ -684,7 +637,6 @@ public struct RecordDetailView: View {
                 coordinator.storage.context.insert(duplicate)
                 try coordinator.storage.context.save()
             } catch {
-                // silent
             }
         }
         reloadData()

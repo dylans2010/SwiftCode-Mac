@@ -1,10 +1,3 @@
-// Identities and trust (sim-link.md §2, §4): each machine has one Ed25519
-// identity key, made on first use and kept in its link directory
-// ($SWIFTCODE_SIM_LINK_HOME, else ~/.config/swiftcode/sim-link, mode 0700; the key
-// file 0600). Peers are trusted by their public key only: pairing (a
-// one-time code, §4.1) or a pairing file the owner copies (§4.2) adds
-// them to `trusted-peers.json`. Nothing else is ever accepted.
-
 import Crypto
 import Foundation
 
@@ -14,8 +7,6 @@ public struct LinkIdentity: Sendable {
 
     public init(signing: Curve25519.Signing.PrivateKey = Curve25519.Signing.PrivateKey()) { self.signing = signing }
 
-    /// The key's short fingerprint people compare: the first 10 bytes of
-    /// SHA-256 of the public key, as five groups of four hex digits.
     public static func fingerprint(_ publicKey: [UInt8]) -> String {
         let d = Array(SHA256.hash(data: publicKey)).prefix(10)
         let hex = d.map { String(format: "%02x", $0) }.joined()
@@ -37,13 +28,9 @@ public struct LinkIdentity: Sendable {
 
 public struct TrustedPeer: Codable, Sendable, Equatable {
     public var name: String
-    /// Base64 of the Ed25519 public key.
     public var publicKey: String
-    /// "host" (a simulator host this machine connects to) or "client".
     public var role: String
-    /// A host's address ("<host>:<control port>"), for clients.
     public var address: String?
-    /// The media (UDP) port, for clients (nil: control port + 1).
     public var mediaPort: Int?
     public var added: String
 
@@ -70,7 +57,6 @@ public enum LinkStoreError: Error, CustomStringConvertible {
     }
 }
 
-/// A machine's link directory: its identity and the peers it trusts.
 public final class LinkStore: @unchecked Sendable {
     public let directory: URL
     private let lock = NSLock()
@@ -90,7 +76,6 @@ public final class LinkStore: @unchecked Sendable {
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
     }
 
-    /// The identity (made and saved on first use).
     public func identity() throws -> LinkIdentity {
         try lock.withLock {
             try ensureDirectory()
@@ -122,10 +107,8 @@ public final class LinkStore: @unchecked Sendable {
         return peers().first { $0.publicKey == b && $0.role == role }
     }
 
-    /// Adds (or replaces, by key and role) a peer.
     public func addPeer(_ p: TrustedPeer) throws {
         var all = peers().filter { !($0.publicKey == p.publicKey && $0.role == p.role) }
-        // A host name names one host: re-pairing replaces the old key.
         if p.role == "host" { all.removeAll { $0.role == "host" && $0.name == p.name } }
         all.append(p)
         try save(all)
@@ -149,7 +132,6 @@ public final class LinkStore: @unchecked Sendable {
         }
     }
 
-    /// A host: the one named, else the only one.
     public func host(named name: String?) -> TrustedPeer? {
         let hosts = peers().filter { $0.role == "host" }
         if let name { return hosts.first { $0.name == name } }

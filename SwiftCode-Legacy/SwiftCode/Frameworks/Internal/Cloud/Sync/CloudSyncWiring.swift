@@ -1,12 +1,10 @@
 import Foundation
 
-/// Static utility to wire existing local persistence systems to the actor-isolated CloudSyncEngine.
 @MainActor
 public final class CloudSyncWiring {
     public static let shared = CloudSyncWiring()
     private init() {}
 
-    /// Registers a change in a local table with the Sync Engine.
     public func recordChanged(tableName: String, recordID: String, payload: [String: String], isDeleted: Bool = false) {
         Task {
             await CloudSyncEngine.shared.queueLocalUpdate(
@@ -19,9 +17,6 @@ public final class CloudSyncWiring {
     }
 }
 
-// MARK: - Local Serialization for AI Chats & Agent History
-
-/// High-fidelity struct representing an AI Chat Message to persist locally.
 public struct SerializedChatMessage: Codable, Sendable, Identifiable {
     public let id: UUID
     public let role: String
@@ -36,7 +31,6 @@ public struct SerializedChatMessage: Codable, Sendable, Identifiable {
     }
 }
 
-/// High-fidelity persistent store manager for AI Chat History and Agent History.
 public final class LocalChatHistoryStore: @unchecked Sendable {
     public static let shared = LocalChatHistoryStore()
     private init() {}
@@ -44,7 +38,6 @@ public final class LocalChatHistoryStore: @unchecked Sendable {
     private var directoryURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let appSupport = paths[0].appendingPathComponent("SwiftCode/Chats", isDirectory: true)
-        // SAFETY: Creating directories if they don't exist is safe as we handle error catch options.
         try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         return appSupport
     }
@@ -55,7 +48,6 @@ public final class LocalChatHistoryStore: @unchecked Sendable {
             let data = try JSONEncoder().encode(messages)
             try data.write(to: fileURL)
 
-            // Submit record change to sync engine
             let payload: [String: String] = [
                 "session_id": sessionID,
                 "message_count": "\(messages.count)",

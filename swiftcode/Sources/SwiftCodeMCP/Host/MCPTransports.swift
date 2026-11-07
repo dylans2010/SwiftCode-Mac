@@ -1,10 +1,6 @@
 import Foundation
 import SwiftCodeAssistant
 
-/// The stdio transport: newline-delimited JSON-RPC on two file
-/// descriptors (the client starts the server as a subprocess). Requests
-/// run concurrently; `notifications/cancelled` cancels one; progress goes
-/// out as `notifications/progress`.
 public final class MCPStdioTransport: @unchecked Sendable {
     public let server: MCPServer
     public let peer: JSONRPCPeer
@@ -27,7 +23,6 @@ public final class MCPStdioTransport: @unchecked Sendable {
         }
     }
 
-    /// Starts reading; `onClose` runs at end of input.
     public func start() {
         let peer = peer, onClose = onClose
         LineReader(fileDescriptor: input, onLine: { peer.receive($0) }, onEnd: {
@@ -37,19 +32,11 @@ public final class MCPStdioTransport: @unchecked Sendable {
     }
 }
 
-/// The Streamable HTTP transport on 127.0.0.1 only, behind a bearer token
-/// (the IDE's agent sessions; `swiftcode mcp --http`). One POST per message at
-/// `/mcp`; a request is answered with one JSON object, or, when it asked
-/// for progress and accepts `text/event-stream`, with an SSE stream of its
-/// progress notifications and then its response. GET and DELETE: 405 (no
-/// standalone stream, no sessions). Origins other than loopback: 403.
 public final class MCPHTTPTransport: @unchecked Sendable {
     public let server: MCPServer
     public let token: String
     private var http: LoopbackServer?
     private let lock = NSLock()
-    /// Legacy clients that initialized, by the (ignored) session header;
-    /// the transport keeps no sessions, so all share one connection.
     let connection = MCPServer.Connection()
 
     public init(server: MCPServer, token: String = MCPHTTPTransport.newToken(), port: UInt16 = 0) throws {
@@ -67,17 +54,13 @@ public final class MCPHTTPTransport: @unchecked Sendable {
     public func stop() { lock.withLock { http }?.stop() }
 
     public var port: UInt16 { http?.port ?? 0 }
-    /// `http://127.0.0.1:<port>/mcp`.
     public var endpoint: String { "http://127.0.0.1:\(port)/mcp" }
 
-    /// 32 random bytes, hex.
     public static func newToken() -> String {
         var g = SystemRandomNumberGenerator()
         return (0..<32).map { _ in String(format: "%02x", UInt8.random(in: 0...255, using: &g)) }.joined()
     }
 
-    /// The progress reporter for a request whose `_meta.progressToken` is
-    /// set; `emit` sends each notification.
     static func progress(for params: AnyJSON?, emit: @escaping @Sendable (JSONRPCMessage) -> Void) -> MCPProgress {
         guard let token = params?["_meta"]?["progressToken"], token.string != nil || token.int != nil else { return .none }
         return MCPProgress { done, total, message in
@@ -99,7 +82,6 @@ public final class MCPHTTPTransport: @unchecked Sendable {
         return zip(x, y).reduce(UInt8(0)) { $0 | ($1.0 ^ $1.1) } == 0
     }
 
-    /// Decodes an `Mcp-Name` value in the `=?base64?…?=` form.
     static func headerValue(_ raw: String) -> String {
         guard raw.hasPrefix("=?base64?"), raw.hasSuffix("?="), raw.count >= 11 else { return raw }
         let b64 = String(raw.dropFirst(9).dropLast(2))
@@ -133,10 +115,8 @@ public final class MCPHTTPTransport: @unchecked Sendable {
             return Self.errorResponse(.parseError(), id: nil, status: 400)
         }
         guard case .request(let id, let method, let params) = message else {
-            // Notifications and responses: accepted, nothing to answer.
             return LoopbackServer.Response(status: 202, contentType: "text/plain", body: Data())
         }
-        // Modern requests: the header must match the body (`HeaderMismatch`).
         let era: MCPServer.Era
         do {
             era = try MCPServer.era(of: params)
@@ -187,8 +167,6 @@ public final class MCPHTTPTransport: @unchecked Sendable {
             do {
                 return (.result(id: id, result: try await server.handle(method: method, params: params, connection: connection)), 200)
             } catch let e as JSONRPCError {
-                // Legacy clients read errors from 200 responses; modern ones
-                // get 400 for protocol errors, 404 for unknown methods.
                 let status = era == .legacy ? 200 : (e.code == -32601 ? 404 : 400)
                 return (.error(id: id, error: e), status)
             } catch {
@@ -198,7 +176,6 @@ public final class MCPHTTPTransport: @unchecked Sendable {
         return LoopbackServer.Response(status: reply.1, contentType: "application/json", body: reply.0.json.data())
     }
 
-    /// Runs async work to its end from a connection thread.
     static func wait<T: Sendable>(_ work: @escaping @Sendable () async -> T) -> T {
         let box = WaitBox<T>()
         let done = DispatchSemaphore(value: 0)

@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_SHAPE_H_
 #define _TVG_SHAPE_H_
 
@@ -34,7 +12,7 @@ struct ShapeImpl : Shape
 {
     Paint::Impl impl;
     RenderShape rs;
-    uint8_t opacity;    //for composition
+    uint8_t opacity;
 
     ShapeImpl() : impl(Paint::Impl(this))
     {
@@ -62,17 +40,14 @@ struct ShapeImpl : Shape
     {
         if (opacity == 0) return false;
 
-        //Shape composition is only necessary when stroking & fill are valid.
         if (!rs.stroke || rs.stroke->width < FLOAT_EPSILON || (!rs.stroke->fill && rs.stroke->color.a == 0)) return false;
         if (!rs.fill && rs.color.a == 0) return false;
 
-        //translucent fill & stroke
         if (opacity < 255) {
             impl.mark(CompositionFlag::Opacity);
             return true;
         }
 
-        //Composition test
         const Paint* target;
         auto method = PAINT(this)->mask(&target);
         if (!target) return false;
@@ -102,8 +77,6 @@ struct ShapeImpl : Shape
     bool update(RenderMethod* renderer, const Matrix& transform, Array<RenderData>& clips, uint8_t opacity, RenderUpdateFlag flag, bool clipper)
     {
         if (needComposition(opacity)) {
-            /* Overriding opacity value. If this scene is half-translucent,
-               It must do intermediate composition with that opacity value. */ 
             this->opacity = opacity;
             opacity = 255;
         }
@@ -119,20 +92,17 @@ struct ShapeImpl : Shape
 
     bool bounds(Point* pt4, const Matrix& m, bool obb)
     {
-        auto fallback = true;  //TODO: remove this when all backend engines support bounds()
+        auto fallback = true;
 
         if (impl.renderer && rs.strokeWidth() > 0.0f) {
             if (impl.renderer->bounds(impl.rd, pt4, obb ? tvg::identity() : m)) {
                 fallback = false;
             }
         }
-        //Keep this for legacy. loaders still depend on this logic, remove it if possible.
         if (fallback) {
             BBox box;
             if (!rs.path.bounds(obb ? nullptr : &m, box)) return false;
             if (rs.stroke) {
-                //Use geometric mean for feathering.
-                //Join, Cap wouldn't be considered. Generate stroke outline and compute bbox for accurate size?
                 auto sx = sqrt(m.e11 * m.e11 + m.e21 * m.e21);
                 auto sy = sqrt(m.e12 * m.e12 + m.e22 * m.e22);
                 auto feather = rs.stroke->width * sqrt(sx * sy);
@@ -230,8 +200,6 @@ struct ShapeImpl : Shape
 
     Result strokeMiterlimit(float miterlimit)
     {
-        // https://www.w3.org/TR/SVG2/painting.html#LineJoin
-        // - A negative value for stroke-miterlimit must be treated as an illegal value.
         if (miterlimit < 0.0f) return Result::InvalidArguments;
         if (!rs.stroke) rs.stroke = new RenderStroke();
         rs.stroke->miterlimit = miterlimit;
@@ -278,7 +246,6 @@ struct ShapeImpl : Shape
     {
         if ((!pattern && cnt > 0) || (pattern && cnt == 0)) return Result::InvalidArguments;
         if (!rs.stroke) rs.stroke = new RenderStroke;
-        //Reset dash
         auto& dash = rs.stroke->dash;
         if (dash.count != cnt) {
             tvg::free(dash.pattern);
@@ -373,17 +340,14 @@ struct ShapeImpl : Shape
         if (!shape) shape = Shape::gen();
         auto dup = to<ShapeImpl>(shape);
 
-        //Path
         dup->rs.path.clear();
         dup->rs.path.cmds.push(rs.path.cmds);
         dup->rs.path.pts.push(rs.path.pts);
 
-        //Fill
         delete(dup->rs.fill);
         if (rs.fill) dup->rs.fill = rs.fill->duplicate();
         else dup->rs.fill = nullptr;
 
-        //Stroke
         if (rs.stroke) {
             if (!dup->rs.stroke) dup->rs.stroke = new RenderStroke;
             *dup->rs.stroke = *rs.stroke;
@@ -422,4 +386,4 @@ struct ShapeImpl : Shape
 
 }
 
-#endif //_TVG_SHAPE_H_
+#endif

@@ -1,7 +1,6 @@
 import XCTest
 @testable import HostPhone
 
-/// Runs inside HostPhone.app on the simulator (TEST_HOST).
 final class HostPhoneTests: XCTestCase {
     func testAppTitle() {
         XCTAssertEqual(PhoneModel.title, "HostPhone")

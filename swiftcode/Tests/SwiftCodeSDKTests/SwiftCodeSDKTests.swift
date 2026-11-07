@@ -2,16 +2,7 @@ import Foundation
 import XCTest
 @testable import SwiftCodeSDK
 
-// MARK: - Wave 14 slice: SDK Contracts + Sources kits
-//
-// XCTest (the repo convention), no live network, no real credentials.
-// Filesystem tests use throwaway directories under NSTemporaryDirectory,
-// plus the checked-in example-manifest fixture and the SwiftCode repo itself
-// (derived from #file, for the live-git tests).
-
 final class SwiftCodeSDKTests: XCTestCase {
-
-    // MARK: Helpers
 
     private var fixtureURL: URL {
         URL(fileURLWithPath: #filePath)
@@ -19,8 +10,6 @@ final class SwiftCodeSDKTests: XCTestCase {
             .appendingPathComponent("Fixtures/repository-build-extension.swiftcode.json")
     }
 
-    /// The SwiftCode repo root, derived from this file's location
-    /// (…/swiftcode/Tests/SwiftCodeSDKTests → …/swiftcode → repo root).
     private var repoRootURL: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -35,8 +24,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         try! FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
-
-    // MARK: - SDKError
 
     func testSDKErrorTitlesAndCorrelationId() {
         let err = SDKError(code: .buildFailed, message: "boom")
@@ -57,8 +44,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertEqual(decoded.suggestion, "fix it")
         XCTAssertEqual(decoded.diagnostics?["field"], "id")
     }
-
-    // MARK: - IPC envelopes
 
     func testIPCRequestResponseRoundTrip() throws {
         struct Ping: Codable, Sendable { let message: String }
@@ -109,8 +94,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertEqual(type, .event)
     }
 
-    // MARK: - Version negotiation
-
     func testVersionNegotiation() throws {
         let host = SDKVersions(hostSDKVersion: "1.2.0", hostProtocolVersion: 1, hostApiVersion: "2026.1")
         XCTAssertNoThrow(try SDKCompatibility.check(manifestProtocolVersion: 1, sdkVersionRange: "^1.0.0", host: host))
@@ -126,12 +109,9 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertThrowsError(try SDKCompatibility.check(manifestProtocolVersion: 1, sdkVersionRange: "banana", host: host)) { error in
             XCTAssertEqual((error as? SDKError)?.code, .manifestInvalid)
         }
-        // Caret on 0.x pins the minor: ^0.2.3 does not admit host 0.3.0.
         let oldHost = SDKVersions(hostSDKVersion: "0.3.0", hostProtocolVersion: 1, hostApiVersion: "2026.1")
         XCTAssertThrowsError(try SDKCompatibility.check(manifestProtocolVersion: 1, sdkVersionRange: "^0.2.3", host: oldHost))
     }
-
-    // MARK: - Contract decoding (tolerant shapes)
 
     func testDiffOptionsTolerantDecoding() throws {
         let empty = try JSONDecoder().decode(SDKDiffOptions.self, from: Data("{}".utf8))
@@ -153,7 +133,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         let full = try JSONDecoder().decode(SDKSandboxRunRequest.self, from: Data(#"{"command":"git","args":["status"],"workingDirectory":"/tmp","timeout":10}"#.utf8))
         XCTAssertEqual(full.args, ["status"])
         XCTAssertEqual(full.timeout, 10)
-        // Present-but-wrongly-typed still fails.
         XCTAssertThrowsError(try JSONDecoder().decode(SDKSandboxRunRequest.self, from: Data(#"{"command":"git","args":"status"}"#.utf8)))
     }
 
@@ -203,8 +182,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertTrue(status.files.isEmpty)
     }
 
-    // MARK: - DiagnosticsKit
-
     func testDiagnosticEngine() {
         let engine = DiagnosticEngine()
         XCTAssertFalse(engine.hasErrors)
@@ -231,8 +208,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertTrue(json.contains("type mismatch"))
         XCTAssertEqual(DiagnosticLocation(filePath: "A.swift", line: 10, column: 5).formattedDescription, "A.swift:10:5")
     }
-
-    // MARK: - WorkspaceKit
 
     func testWorkspacePathTraversal() {
         let root = WorkspacePath("/tmp/project")
@@ -265,8 +240,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertTrue(try ws.discoverProjects().contains { $0.hasSuffix("Package.swift") })
     }
 
-    // MARK: - BuildKit parser
-
     func testBuildDiagnosticsParser() {
         let parser = BuildDiagnosticsParser()
         let output = """
@@ -286,21 +259,16 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertTrue(parser.parse(output: "clean build").isEmpty)
     }
 
-    // MARK: - ProjectKit
-
     func testProjectInspectorSwiftPackageAndExtension() throws {
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let inspector = ProjectInspector()
-        // No recognised project → throws.
         XCTAssertThrowsError(try inspector.inspect(at: dir.path))
-        // Swift package.
         try "let package = Package(name: \"Demo\")".write(
             to: dir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
         let pkg = try inspector.inspect(at: dir.path)
         XCTAssertEqual(pkg.type, .swiftPackage)
         XCTAssertEqual(pkg.name, "Demo")
-        // Extension manifest takes precedence over Package.swift.
         let fixture = try Data(contentsOf: fixtureURL)
         try fixture.write(to: dir.appendingPathComponent("swiftcode.json"))
         let ext = try inspector.inspect(at: dir.path)
@@ -340,8 +308,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: (out as NSString).appendingPathComponent("README.md")))
     }
 
-    // MARK: - Manifest validator adapter + example fixture
-
     func testExampleManifestFixtureValidates() throws {
         let data = try Data(contentsOf: fixtureURL)
         let validator = SDKManifestValidator()
@@ -359,8 +325,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertTrue(diags.contains { $0.severity == .error })
         XCTAssertTrue(validator.validateFile(at: "/nonexistent-\(UUID().uuidString)").contains { $0.code == .manifestNotFound })
     }
-
-    // MARK: - SourceControlKit (live git, repo derived from #file)
 
     func testSourceControlAgainstSwiftCodeRepo() throws {
         let service = SourceControlService()
@@ -385,8 +349,6 @@ final class SwiftCodeSDKTests: XCTestCase {
             if case GitError.notARepository = error {} else { XCTFail("expected notARepository, got \(error)") }
         }
     }
-
-    // MARK: - Toolchain / doctor (environment-dependent: assert shape, not availability)
 
     func testToolchainDiscoversKnownToolNames() {
         let tools = Toolchain.standard.discoverTools()
@@ -414,8 +376,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         XCTAssertEqual(config.documentationDirectory, "/tmp/sdk/documentation")
     }
 
-    // MARK: - CLI (no process exit: run returns codes)
-
     func testCLIHelpAndVersion() async {
         let helpCode = await SwiftCodeSDKCLI.run(arguments: ["--help"])
         XCTAssertEqual(helpCode, 0)
@@ -439,9 +399,6 @@ final class SwiftCodeSDKTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         try! "# Guide\n".write(to: dir.appendingPathComponent("guide.md"), atomically: true, encoding: .utf8)
         XCTAssertEqual(DocumentationIndexerMain.run(arguments: [dir.path]), 0)
-        // The doctor's verdict is environment-dependent (swift may be
-        // absent on a Linux workstation), so assert the tool's exit code
-        // matches the doctor's own verdict rather than a fixed value.
         let healthy = SDKDoctor().diagnose(sdkRoot: NSTemporaryDirectory()).isHealthy
         XCTAssertEqual(DiagnosticsToolMain.run(arguments: [NSTemporaryDirectory()]), healthy ? 0 : 1)
     }

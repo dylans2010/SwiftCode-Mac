@@ -1,10 +1,5 @@
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 
-/**
- * "inspect-project" command.
- *
- * Requests the current project metadata from the host.
- */
 export function createInspectProjectCommand(context: SwiftCodeContext) {
   return {
     id: "inspect-project",

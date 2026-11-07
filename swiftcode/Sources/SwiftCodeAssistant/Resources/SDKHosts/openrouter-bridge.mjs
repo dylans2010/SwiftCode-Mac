@@ -1,137 +1,3 @@
-// openrouter-bridge.mjs — SwiftCode Assist <-> OpenRouter Agent SDK bridge.
-//
-// Runs under Node. It is NOT part of the Xcode target: the shared runtime
-// manager installs this file (plus a node_modules tree holding
-// @openrouter/agent and its dependencies) into Application Support, e.g.
-//   <Application Support>/SwiftCode/SDKRuntime/openrouter/bridge/openrouter-bridge.mjs
-//   <Application Support>/SwiftCode/SDKRuntime/openrouter/node_modules/@openrouter/agent
-//   <Application Support>/SwiftCode/SDKRuntime/openrouter/node_modules/zod
-//   <Application Support>/SwiftCode/SDKRuntime/openrouter/node_modules/@openrouter/sdk
-// (the repo copy at SwiftCode/Backend/Assist/SDKHosts/openrouter-bridge.mjs
-// is the source the manager copies from). Node resolves
-// '@openrouter/agent' by walking up from the bridge file and via the
-// NODE_PATH the manager sets, so the bridge must live inside that
-// installed directory, not beside the .swift sources. Swift launches it
-// with argv:
-//
-//   node openrouter-bridge.mjs
-//
-// with the API key ONLY in an environment variable —
-// SWIFTCODE_OPENROUTER_API_KEY, or OPENROUTER_API_KEY as injected by
-// SDKRuntimeManager for the openRouter provider — or, when the launcher
-// passes no key environment (Workstream A's SDKBridgeLaunching seam),
-// in the run request's non-logged `apiKey` field. Never argv, never
-// logged, never echoed back in any stdout/stderr line; error text is
-// scrubbed of the key.
-// One run per process: Swift sends one `run` line, answers `tool_call`
-// lines with `tool_result` lines, and the process exits after `done`
-// or `error`.
-//
-// NDJSON protocol (shared across SDK hosts). Swift -> bridge, one JSON
-// object per stdin line:
-//   {"type":"run","requestId","provider":"openrouter","model",
-//    "systemPrompt","userText","history":[{"role","text"}],
-//    "tools":[{"name","description","parameters"}],
-//    "toolSource":"swiftcode|openrouter|combined",
-//    "config":{"maxSteps","maxCost","toolTimeoutMs","perRequestTimeoutMs",
-//              "allowFinalResponse"}}
-//   {"type":"tool_result","id","result"} | {"type":"tool_result","id","error":...}
-//   {"type":"cancel","requestId"}
-// Bridge -> Swift, one JSON object per stdout line:
-//   {"type":"ready","provider":"openrouter","sdkVersion"}
-//   {"type":"text","delta"}
-//   {"type":"tool_event","event":{provider,sessionId,toolCallId,toolName,source,
-//     state,arguments,result,error,startedAt,completedAt}}
-//   {"type":"tool_call","id","name","arguments"}  (SwiftCode-native tool;
-//     the bridge waits for the matching tool_result line before the run
-//     continues — a model-generated tool request is NEVER a completed
-//     execution, and a Swift error is thrown back into the SDK as a tool
-//     error, never reported as success)
-//   {"type":"done","finalText"}
-//   {"type":"error","message"}
-//
-// Readiness contract — read this before treating "ready" as "connected":
-// "ready" is printed ONLY after the @openrouter/agent imports resolve,
-// which proves the SDK is installed and loadable. It does NOT prove the
-// API key is valid. @openrouter/agent 0.11.0 exposes no cost-free key
-// check: client construction does not contact the API, and the only
-// key verification is a real model call. The bridge therefore never
-// prints a fake "connected" state. The first run's 401 is mapped to an
-// actionable "invalid API key" error line (see mapRunError). Settings'
-// connection test remains OpenRouterAssistProvider's /models check; the
-// bridge's job is execution, not authentication probing.
-//
-// SDK surface used (verified against the installed @openrouter/agent
-// 0.11.0, esm/*.d.ts — not from memory):
-//   import { callModel, tool, stepCountIs, maxCost } from '@openrouter/agent'
-//   import { OpenRouter } from '@openrouter/agent/openrouter'
-//     new OpenRouter({ apiKey })  (extends @openrouter/sdk OpenRouterCore)
-//   callModel(client, { model, input, instructions, tools, stopWhen,
-//     allowFinalResponse, signal, toolTimeoutMs }, { timeoutMs })
-//     -> ModelResult with getText(), getTextStream(), getToolStream(),
-//        getToolCallsStream(), cancel()
-//   callModel input: string | Item[]; history items are EasyInputMessage
-//     { role, content }. `instructions` is a ResponsesRequest field
-//     carried by BaseCallModelInput, and the SDK re-sends the full
-//     accumulated input array AND the original `instructions` on every
-//     turn (documented in async-params.d.ts allowFinalResponse notes and
-//     README "The pending tool calls ... then the full conversation and
-//     the original `instructions` are sent"), so SwiftCode's system
-//     prompt persists across tool rounds — it is not a first-turn-only
-//     prefix.
-//   tool({ name, description, inputSchema, execute, timeoutMs })
-//     inputSchema is a Zod v4 object (zod/v4/core $ZodObject); execute
-//     receives (params, context) where context.callId is the call id.
-//   stopWhen: [stepCountIs(n), maxCost(dollars)] (OR semantics).
-//   Cancellation: the `signal` option (AbortController) aborts the
-//     in-flight request/stream and stops the loop at the next turn
-//     boundary; ModelResult.cancel() does the same from the outside.
-//     A supplied `signal` composes with per-request `timeoutMs` (the
-//     RequestOptions third argument); passing a raw signal through
-//     RequestOptions would silently disable the SDK's timeout wiring,
-//     so the bridge always uses the `signal` option, never RequestOptions.
-//   Tool timeout: tool-level `timeoutMs` (and run-level `toolTimeoutMs`)
-//     bounds the round's WAIT, not the tool body; on expiry the model
-//     receives { error, code: 'tool_timeout' } and ctx.signal aborts.
-//
-// System prompt mechanism: `instructions` = SwiftCode's real system
-// prompt, verbatim, on the callModel request. History + userText become
-// the `input` item array. Nothing else is injected as system content.
-//
-// Tool sources:
-//   swiftcode — every request tool becomes tool() whose execute posts a
-//     tool_call line and awaits Swift's tool_result. Swift executes via
-//     the native registry (validation/permissions in the Swift layer);
-//     the bridge enforces a per-call timeout and surfaces Swift errors
-//     as tool errors to the model.
-//   openrouter — tools execute in this JS host. The host catalog is
-//     exactly two real tools (see buildHostTools): fetch_url (safe HTTP
-//     GET with private-network blocking, timeout, and size cap) and
-//     current_datetime. Host tools NEVER touch the filesystem or shell.
-//   combined — swiftcode tools (bridged) + host tools together. On a
-//     name collision the swiftcode tool wins and the host tool is
-//     renamed with prefix `openrouter_`; routing is by the event's
-//     `source` field, never by display name alone.
-//   opencode — NOT supported as a tool source for OpenRouter. The bridge
-//     errors actionably instead of silently falling back to another
-//     source.
-//
-// Tool-name sanitisation: OpenAI function names allow [a-zA-Z0-9_-].
-// Swift tool names outside that set are sanitised to the model-facing
-// name (other characters -> '_'); the tool_call line and Swift routing
-// always use the ORIGINAL name via the modelName -> originalName map.
-// The SDK-reserved name 'task' is renamed to 'swiftcode_task' for the
-// same reason. Two different originals sanitising to one model name is
-// an actionable error, never a silent merge.
-//
-// Tool-event identity: getToolCallsStream() yields ParsedToolCall
-// { id, name, arguments } as calls are parsed; execute() receives the
-// same call (context.callId). Both paths register in one map keyed by
-// name + stable argument JSON, so exactly one `requested` event is
-// emitted per call and `running`/`completed`/`failed` reuse its id.
-// Zod schemas use looseObject (unknown keys preserved) precisely so
-// parsed arguments and execute params stay identical for that key.
-
 import * as dns from "node:dns/promises";
 import * as net from "node:net";
 import { createRequire } from "node:module";
@@ -157,12 +23,7 @@ let SDK_VERSION = "unknown";
 try {
   SDK_VERSION = require("@openrouter/agent/package.json").version;
 } catch {
-  // Imports above already resolved; version is informational only.
 }
-
-// ---------------------------------------------------------------------------
-// Small utilities (exported for the smoke test; no side effects on import).
-// ---------------------------------------------------------------------------
 
 export function stableStringify(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -177,15 +38,6 @@ function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// Convert a JSON Schema object (the shape Swift sends for a tool's
-// `parameters`) into a Zod v4 object schema. Supported: string, number,
-// integer, boolean, array, object (nested), string enums, required vs
-// optional, descriptions. Anything else degrades to z.unknown() for that
-// node rather than failing the whole tool — the model still sees the
-// tool, and Swift-side validation remains the authority on arguments.
-// Top-level and nested objects use looseObject so unknown keys survive
-// Zod parsing: parsed tool-call arguments and execute() params must be
-// identical for tool-event correlation (see header).
 export function jsonSchemaToZod(schema) {
   if (!isPlainObject(schema)) return z.unknown();
   if (Array.isArray(schema.enum) && schema.enum.length > 0) {
@@ -231,7 +83,6 @@ export function jsonSchemaToZod(schema) {
       break;
     }
     default:
-      // No `type`, but properties present: treat as an object.
       if (isPlainObject(schema.properties)) {
         return jsonSchemaToZod({ ...schema, type: "object" });
       }
@@ -242,11 +93,6 @@ export function jsonSchemaToZod(schema) {
 
 export function toolInputSchema(parameters) {
   if (!isPlainObject(parameters)) return z.looseObject({});
-  // parameters is itself the object schema for the tool's arguments.
-  // Object-ness is decided from the INPUT schema (type === "object"
-  // or a properties map), not from Zod internals: the old code read
-  // converted._zod.def.type, a private field that can shift with a
-  // Zod upgrade and break schema conversion silently.
   const isObjectSchema = parameters.type === "object"
     || isPlainObject(parameters.properties);
   if (!isObjectSchema) return z.looseObject({});
@@ -258,22 +104,12 @@ function sanitizeModelToolName(name) {
   return name.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-// ---------------------------------------------------------------------------
-// Host-side tools (toolSource "openrouter"). Exactly two, both real.
-// Neither touches the filesystem, the shell, or any credential.
-// ---------------------------------------------------------------------------
-
 export function isPrivateIp(ip) {
   if (!ip) return false;
-  // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) is still that IPv4 address:
-  // the old v6 branch did not recognise it as private.
   const lower0 = String(ip).toLowerCase();
   if (lower0.startsWith("::ffff:")) {
     const mapped = lower0.slice("::ffff:".length);
     if (net.isIP(mapped) === 4) return isPrivateIp(mapped);
-    // URL normalises ::ffff:10.0.0.5 to ::ffff:a00:5 (hex groups), so
-    // the dotted form above never appears from a parsed URL hostname.
-    // Decode the two hex groups back to the IPv4 address and recheck.
     const hexMatch = mapped.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
     if (hexMatch) {
       const hi = parseInt(hexMatch[1], 16);
@@ -310,9 +146,6 @@ export async function assertPublicUrl(rawUrl) {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`fetch_url: only http/https are allowed, got ${url.protocol}`);
   }
-  // URL keeps IPv6 hostnames bracketed ("[::1]"); strip them before
-  // any IP classification, or net.isIP never matches and the check
-  // falls through to DNS (which fails and returns the URL unchecked).
   const host = url.hostname.replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost")) {
     throw new Error("fetch_url: localhost targets are blocked");
@@ -321,10 +154,6 @@ export async function assertPublicUrl(rawUrl) {
     if (isPrivateIp(host)) throw new Error(`fetch_url: private IP targets are blocked (${host})`);
     return url;
   }
-  // Check EVERY resolved address: the old code checked only the first,
-  // while fetch() could re-resolve to a different (private) address.
-  // A residual DNS-rebinding TOCTOU remains (resolution at check time
-  // vs fetch time) — documented, not eliminated, by this check.
   const resolvedAll = await dns.lookup(host, { all: true }).catch(() => null);
   if (resolvedAll) {
     for (const entry of resolvedAll) {
@@ -344,8 +173,6 @@ async function fetchUrlImpl({ url: rawUrl }) {
       method: "GET",
       redirect: "manual",
       signal: AbortSignal.timeout(HOST_FETCH_TIMEOUT_MS),
-      // Deliberately minimal: no Authorization, no cookies, no env-derived
-      // headers. Nothing credential-like is ever forwarded to the target.
       headers: {
         Accept: "text/html,application/json,application/xml,text/*;q=0.8",
         "User-Agent": "SwiftCode-OpenRouter-Host/1.0",
@@ -366,8 +193,6 @@ async function fetchUrlImpl({ url: rawUrl }) {
   const isText = contentType.startsWith("text/")
     || contentType.includes("json") || contentType.includes("xml");
   if (!isText) {
-    // Consume (and discard) the body so the connection is released, but
-    // never return binary content to the model.
     await response.arrayBuffer().catch(() => null);
     return {
       status: response.status,
@@ -395,10 +220,6 @@ async function fetchUrlImpl({ url: rawUrl }) {
   return { status: response.status, contentType, text };
 }
 
-// Returns plain tool configs (NOT tool() objects): the run handler wraps
-// each config exactly once with tool(), adding the event-emitting
-// execute wrapper and the per-call timeout. Wrapping twice would feed a
-// Tool object back into the tool() factory, which expects a config.
 export function buildHostTools() {
   return [
     {
@@ -424,10 +245,6 @@ export function buildHostTools() {
   ];
 }
 
-// ---------------------------------------------------------------------------
-// Bridge runtime (only runs when executed directly, not on import).
-// ---------------------------------------------------------------------------
-
 function redact(text, secrets) {
   let out = String(text);
   for (const secret of secrets) {
@@ -436,10 +253,6 @@ function redact(text, secrets) {
   return out;
 }
 
-// SDK failures are not always plain Errors: the @openrouter/sdk error
-// classes carry statusCode (not status) and a nested error.message, and
-// a dummy/invalid key fails as "User not found." — which is a 401 even
-// though the text never says so. Extract message + status defensively.
 function errorMessage(error) {
   if (error instanceof Error) return error.message || String(error);
   if (error && typeof error === "object") {
@@ -482,7 +295,6 @@ async function main() {
   const emitQueue = [];
   let emitting = false;
   const out = (obj) => {
-    // Promise-based write so process.exit below never truncates stdout.
     const line = `${JSON.stringify(obj)}\n`;
     return new Promise((resolve) => {
       emitQueue.push([line, resolve]);
@@ -523,8 +335,7 @@ async function main() {
     exitCode = code;
     try {
       rl.close();
-    } catch { /* already closed */ }
-    // Drain the emit queue before exiting so the final line is not lost.
+    } catch {  }
     while (emitting || emitQueue.length > 0) {
       await new Promise((r) => setTimeout(r, 5));
     }
@@ -535,10 +346,10 @@ async function main() {
     cancelled = true;
     try {
       runAbort?.abort(new Error(reason));
-    } catch { /* controller already aborted */ }
+    } catch {  }
     try {
       if (runResult) await runResult.cancel();
-    } catch { /* cancel is best-effort; the abort signal is authoritative */ }
+    } catch {  }
     for (const [id, pending] of pendingToolResults) {
       pending.reject(new Error(reason));
       pendingToolResults.delete(id);
@@ -606,8 +417,6 @@ async function main() {
       const config = run.config && typeof run.config === "object" ? run.config : {};
       const maxSteps = Number.isInteger(config.maxSteps) && config.maxSteps >= 1
         && config.maxSteps <= 200 ? config.maxSteps : DEFAULT_MAX_STEPS;
-      // NOTE: named maxCostDollars deliberately — a local called `maxCost`
-      // would shadow the imported maxCost() stop-condition factory.
       const maxCostDollars = typeof config.maxCost === "number" && config.maxCost > 0
         ? config.maxCost : DEFAULT_MAX_COST;
       const toolTimeoutMs = Number.isInteger(config.toolTimeoutMs)
@@ -618,9 +427,8 @@ async function main() {
       const allowFinalResponse = config.allowFinalResponse === undefined
         ? true : config.allowFinalResponse;
 
-      // --- Build the tool list -------------------------------------------------
       const requestTools = Array.isArray(run.tools) ? run.tools : [];
-      const swiftcodeByModelName = new Map(); // modelName -> original name
+      const swiftcodeByModelName = new Map();
       const swiftcodeTools = [];
       if (run.toolSource === "swiftcode" || run.toolSource === "combined") {
         for (const t of requestTools) {
@@ -642,16 +450,8 @@ async function main() {
       }
       const swiftcodeNames = new Set(swiftcodeTools.map((t) => t.modelName));
 
-      const requestedByKey = new Map(); // name + args JSON -> { id, modelName }
-      const requestedById = new Map(); // SDK call id -> row id
-      // Two identical calls in one turn (same tool, same args) must
-      // NOT collapse to one row. The name+args key alone cannot tell
-      // them apart, so the SDK's own call id is the primary key:
-      // execute() passes context.callId and the stream consumer
-      // registers call.id. A call whose stream event and execute()
-      // arrive in either order still merges to exactly one row,
-      // because both paths check the id map first; the name+args
-      // map is only a fallback for calls whose SDK id is unknown.
+      const requestedByKey = new Map();
+      const requestedById = new Map();
       const emitToolEvent = (fields) => out({
         type: "tool_event",
         event: {
@@ -694,10 +494,6 @@ async function main() {
         return async (params, context) => {
           const args = params && typeof params === "object" ? params : {};
           const id = ensureRequested(modelName, displayName, "swiftcode", args, context?.callId);
-          // If the stream consumer already registered this call, the id
-          // above is the stream's id; otherwise it is the execute
-          // context's call id (or a generated one) — either way exactly
-          // one `requested` event exists for this call.
           await emitToolEvent({
             toolCallId: id,
             toolName: displayName,
@@ -713,8 +509,7 @@ async function main() {
               reject(new Error(
                 `Timed out after ${toolTimeoutMs}ms waiting for Swift to answer tool call "${displayName}".`,
               ));
-            }, toolTimeoutMs + 30_000); // backstop only; the SDK's own
-            // timeoutMs (below) is what reports tool_timeout to the model.
+            }, toolTimeoutMs + 30_000);
             const onAbort = () => {
               clearTimeout(timer);
               pendingToolResults.delete(id);
@@ -738,9 +533,6 @@ async function main() {
               },
             });
           }).catch(async (error) => {
-            // A user-initiated cancel is NOT a tool failure: the old
-            // code emitted "failed", so the UI showed a cancelled
-            // tool under an Error heading.
             await emitToolEvent({
               toolCallId: id,
               toolName: displayName,
@@ -750,7 +542,7 @@ async function main() {
               error: isCancelledError(error) ? "Cancelled" : redact(error.message || String(error), secrets),
               completedAt: new Date().toISOString(),
             });
-            throw error; // SDK surfaces this as a tool error to the model.
+            throw error;
           });
           await emitToolEvent({
             toolCallId: id,
@@ -780,14 +572,8 @@ async function main() {
           let modelName = host.modelName;
           let displayName = host.modelName;
           if (run.toolSource === "combined" && swiftcodeNames.has(modelName)) {
-            // SwiftCode wins; the host tool is renamed, never dropped
-            // silently and never allowed to shadow the native tool.
             modelName = `openrouter_${modelName}`;
             displayName = modelName;
-            // The renamed name must itself not collide with a
-            // SwiftCode tool (e.g. a native tool literally named
-            // "openrouter_fetch_url"): that would reintroduce the
-            // ambiguity the rename exists to prevent. Fail loudly.
             if (swiftcodeNames.has(modelName)) {
               await fail(
                 `Tool name collision: a SwiftCode tool is already named "${modelName}", ` +
@@ -843,10 +629,6 @@ async function main() {
         }
       }
 
-      // --- Build callModel input ----------------------------------------------
-      // instructions = SwiftCode's real system prompt (verbatim, and
-      // re-sent by the SDK on every turn — see header). History + the new
-      // user turn become the input item array.
       const roleMap = {
         user: "user",
         assistant: "assistant",
@@ -888,10 +670,6 @@ async function main() {
           if (!call || typeof call.name !== "string") continue;
           const args = call.arguments && typeof call.arguments === "object"
             ? call.arguments : {};
-          // Identity is the SDK call id, not name+args: two identical
-          // calls (same tool, same args) have different ids and must
-          // produce two rows. execute() already owning this id is the
-          // only skip case.
           if (typeof call.id === "string" && call.id.length > 0
               && requestedById.has(call.id)) continue;
           const displayName = swiftcodeByModelName.get(call.name) || call.name;
@@ -913,16 +691,9 @@ async function main() {
           });
         }
       })();
-      // Argument deltas for in-flight calls (and preliminary generator
-      // results, which this bridge never produces) are consumed and
-      // discarded: the parsed calls above are the UI source of truth.
       const toolStream = (async () => {
-        for await (const _event of result.getToolStream()) { /* drain */ }
+        for await (const _event of result.getToolStream()) {  }
       })();
-      // Attach no-op handlers NOW: a stream consumer can reject before
-      // getText() settles, and an unobserved rejection crashes Node
-      // before the run's catch below can report it. allSettled below
-      // still observes the original promises.
       textStream.catch(() => {});
       toolCallsStream.catch(() => {});
       toolStream.catch(() => {});
@@ -992,7 +763,6 @@ async function main() {
     }
     if (msg.type === "cancel") {
       void abortRun("cancelled by Swift").then(() => {
-        // If no run is active yet, cancellation just ends the process.
         if (!runPromise) void finish(0);
       });
       return;
@@ -1003,7 +773,6 @@ async function main() {
   rl.on("close", () => {
     if (runFinished || exitCode !== null) return;
     if (runPromise) {
-      // Swift went away mid-run: abort the SDK run, then exit.
       void abortRun("Swift closed stdin").then(() => finish(0));
     } else {
       void finish(0);
@@ -1013,9 +782,6 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    // Message only, never a raw stack: a stack could carry the run
-    // payload or key-adjacent frames, and the manager path tails
-    // stderr into Settings diagnostics.
     process.stderr.write(`openrouter-bridge fatal: ${error?.message ?? error}\n`);
     process.exit(1);
   });

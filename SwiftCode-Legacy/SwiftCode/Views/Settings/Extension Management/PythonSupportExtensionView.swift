@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Python Support Extension View
 struct PythonSupportExtensionView: View {
     @State private var isEnabled = true
     @State private var pythonVersion = "3.11"

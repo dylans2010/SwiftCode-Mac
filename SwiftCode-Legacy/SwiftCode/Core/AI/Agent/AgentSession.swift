@@ -39,7 +39,6 @@ public final class AgentSession: Identifiable, @MainActor Codable, Sendable {
         self.lastModified = lastModified
     }
 
-    // Codable conformance for @MainActor class
     enum CodingKeys: String, CodingKey {
         case id, messages, checklist, turnState, mode, title, isPinned, lastModified
     }

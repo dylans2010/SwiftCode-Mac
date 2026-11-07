@@ -6,12 +6,12 @@ import Virtualization
 public struct VMMetrics: Sendable, Identifiable, Hashable {
     public let id: UUID
     public let timestamp: Date
-    public let cpuUsage: Double // %
-    public let memoryUsage: Double // %
-    public let networkIn: Double // MB/s
-    public let networkOut: Double // MB/s
-    public let diskRead: Double // MB/s
-    public let diskWrite: Double // MB/s
+    public let cpuUsage: Double
+    public let memoryUsage: Double
+    public let networkIn: Double
+    public let networkOut: Double
+    public let diskRead: Double
+    public let diskWrite: Double
     public let runningProcessesCount: Int
 }
 
@@ -48,7 +48,7 @@ public final class VMMonitoringManager: @unchecked Sendable {
                 networkOut: netOut,
                 diskRead: diskRead,
                 diskWrite: diskWrite,
-                runningProcessesCount: 0 // Avoid random generated process counts
+                runningProcessesCount: 0
             )
 
             var list = self.metricsHistory[vmID] ?? []

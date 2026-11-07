@@ -1,31 +1,6 @@
 import SwiftUI
 import SwiftCodeAssistant
 
-/// Dashboard view for all Assist Workers associated with the active task.
-/// Supports status, progress, scope, result, errors, dependencies, cancellation, and reassignment.
-///
-/// Port of Legacy
-/// `SwiftCode/Backend/Assist/Subagents/UI/WorkersMainView.swift`,
-/// rebuilt for the SwiftCodeUI target (default accent, no Legacy orange).
-///
-/// Wiring: reads the injected `WorkerRuntimeState` (default `.shared`);
-/// the same instance is handed to the detail and stop sheets so every
-/// sheet observes the same live state. Stop actions go through
-/// `WorkerStopConfirmationSheet`'s default stop path (runtime state);
-/// a host that routes stops through `WorkerHandoffCoordinator` can
-/// thread its own handler in by presenting the stop sheet itself.
-///
-/// Deviations from Legacy: worker rows used Legacy's
-/// `.liquidGlass(style: .standard, cornerRadius: 12)`, which has no
-/// destination equivalent; they now use
-/// `.background(.thinMaterial, in: RoundedRectangle(...))`, the
-/// destination's own card treatment (`ModernGroupBoxStyle.swift`).
-/// The empty state is honest about which case it is: no workers at all
-/// reads "No workers are running", while a filter with no matches keeps
-/// Legacy's "No workers match the selected filter." Legacy also held
-/// the runtime state in a plain property, which does not subscribe the
-/// view to `@Observable` changes; this port holds it in `@Bindable`,
-/// as `WorkersHeaderButton` already did in Legacy.
 @MainActor
 public struct WorkersMainView: View {
     @Bindable var runtimeState: WorkerRuntimeState
@@ -93,8 +68,6 @@ public struct WorkersMainView: View {
         }
     }
 
-    // MARK: - Header
-
     private var headerBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "person.3.sequence.fill")
@@ -123,8 +96,6 @@ public struct WorkersMainView: View {
         .padding(.vertical, 12)
     }
 
-    // MARK: - Metrics
-
     private var metricsBar: some View {
         HStack(spacing: 16) {
             Spacer()
@@ -147,8 +118,6 @@ public struct WorkersMainView: View {
         }
     }
 
-    // MARK: - Filter
-
     private var filterBar: some View {
         HStack {
             Spacer()
@@ -162,8 +131,6 @@ public struct WorkersMainView: View {
             Spacer()
         }
     }
-
-    // MARK: - Empty State
 
     private var emptyState: some View {
         Group {
@@ -187,8 +154,6 @@ public struct WorkersMainView: View {
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 48)
     }
-
-    // MARK: - Worker Row
 
     @ViewBuilder
     private func workerRow(_ worker: Worker) -> some View {
@@ -357,8 +322,6 @@ public struct WorkersMainView: View {
         }
     }
 
-    // MARK: - Filtering
-
     private var filteredWorkers: [Worker] {
         switch filterMode {
         case .all:
@@ -373,8 +336,6 @@ public struct WorkersMainView: View {
             }
         }
     }
-
-    // MARK: - Helpers
 
     private func statusColor(for status: WorkerStatus) -> Color {
         switch status {

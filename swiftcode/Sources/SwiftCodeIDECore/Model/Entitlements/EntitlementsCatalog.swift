@@ -1,26 +1,6 @@
 import Foundation
 import SwiftCodeSigning
 
-/// The entitlements capability catalog: every toggle the entitlements
-/// editor offers, grouped by section, with the payload each one edits.
-///
-/// The entries are Dylan's own Legacy catalog data
-/// (`Views/Editor/EntitlementsEditorCatalog.swift`, 128 definitions),
-/// transcribed to SwiftCode's `EntitlementValue` model. Five duplicate raw keys
-/// in Legacy (`com.apple.developer.system-extension.install`,
-/// `com.apple.developer.authentication-services.autofill-credential-provider`,
-/// `com.apple.security.device.usb`, `com.apple.security.device.bluetooth`,
-/// `com.apple.security.device.serial`) appear twice there; this catalog
-/// keeps each key once (first occurrence). Legacy's separate 17-entry
-/// manager catalog (`Core/Editor/EntitlementsEditorManager.swift`) is
-/// subsumed: every one of its keys is in this catalog.
-///
-/// Enabling a capability writes its `defaultValue` under `rawKey`;
-/// disabling it removes the key — the toggle semantics of Legacy's
-/// `EntitlementsEditorView.setCapability(_:on:)`. Composite capabilities
-/// (iCloud) control more than one key; see `EntitlementsEditorModel`.
-
-/// A section shown as a filter category and UI group.
 public enum EntitlementCapabilitySection: String, CaseIterable, Identifiable, Sendable {
     case all = "All"
     case sandbox = "Sandbox"
@@ -63,26 +43,16 @@ public enum EntitlementCapabilitySection: String, CaseIterable, Identifiable, Se
     }
 }
 
-/// What kind of payload a capability carries beyond its on/off switch.
 public enum CapabilityPayloadKind: Sendable {
-    /// Pure boolean toggle — enabling sets the key, disabling removes it.
     case none
-    /// An array of string identifiers the user can add/remove.
     case idList(placeholder: String)
-    /// An array of strings restricted to a fixed set of real values.
     case fixedValueList(allowed: [String])
-    /// A string picked from a fixed set of options.
     case choice(options: [String])
-    /// A free-form string value.
     case stringValue(placeholder: String)
-    /// An array of strings built from a service prefix plus a host (Associated Domains).
     case prefixedList(prefixes: [String], placeholder: String)
-    /// iCloud composite: container identifiers + key-value store identifier + NSUbiquitousContainers.
     case iCloudComposite
 }
 
-/// One toggleable capability. Enabling it writes the real entitlement key;
-/// disabling it removes the key from the entitlements file.
 public struct CapabilityDefinition: Identifiable, Sendable {
     public var id: String { rawKey }
     public let rawKey: String
@@ -92,9 +62,7 @@ public struct CapabilityDefinition: Identifiable, Sendable {
     public let section: EntitlementCapabilitySection
     public let payload: CapabilityPayloadKind
     public let defaultValue: EntitlementValue
-    /// Composite capabilities control more than one entitlement key (e.g. iCloud).
     public let compositeKeys: [String]
-    /// True when Apple only grants the entitlement through a special request.
     public let requiresSpecialApproval: Bool
 
     public init(
@@ -126,7 +94,6 @@ public enum EntitlementCapabilityCatalog {
     public static let iCloudKVStoreKey = "com.apple.developer.ubiquity-kvstore-identifier"
     public static let ubiquitousContainersKey = "NSUbiquitousContainers"
 
-    /// Every capability, in Legacy's order, each raw key once.
     public static let definitions: [CapabilityDefinition] = [
         CapabilityDefinition(
             rawKey: "com.apple.security.app-sandbox",
@@ -1237,13 +1204,10 @@ public enum EntitlementCapabilityCatalog {
         ),
     ]
 
-    /// The definition for a raw key, if the catalog manages it.
     public static func definition(for rawKey: String) -> CapabilityDefinition? {
         definitions.first { $0.rawKey == rawKey }
     }
 
-    /// Every raw key the catalog manages, plus the composite keys it
-    /// controls (used to find keys no toggle manages).
     public static var allRawKeys: Set<String> {
         var out: Set<String> = []
         for d in definitions {
@@ -1253,7 +1217,6 @@ public enum EntitlementCapabilityCatalog {
         return out
     }
 
-    /// The definitions of one section, in catalog order.
     public static func definitions(in section: EntitlementCapabilitySection) -> [CapabilityDefinition] {
         section == .all ? definitions : definitions.filter { $0.section == section }
     }

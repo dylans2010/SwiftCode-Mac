@@ -1,13 +1,5 @@
 import Foundation
 
-/// `swiftcode new`: New Project from the command line, over the same catalog,
-/// options and generators as the sheets (`templates.md` §SwiftCode
-/// implementation).
-///
-///     swiftcode new --list [--platform P] [--json]
-///     swiftcode new --template <id|title> [--platform P] --name N [--org O]
-///               [--option key=value]... [--git] [--save-as S]
-///               [--add-to <.xcworkspace|.xcodeproj>] [--group G] <dir>
 public enum NewProjectCLI {
     public static let usage = """
     usage: swiftcode new --list [--platform P] [--json]
@@ -17,8 +9,6 @@ public enum NewProjectCLI {
 
     """
 
-    /// Runs the command; returns the exit status. Output and errors go
-    /// to the given handlers (stdout/stderr by default).
     public static func run(_ args: [String], out: (String) -> Void = { print($0) },
                            err: (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) },
                            gitEnvironment: [String: String]? = nil) -> Int32 {

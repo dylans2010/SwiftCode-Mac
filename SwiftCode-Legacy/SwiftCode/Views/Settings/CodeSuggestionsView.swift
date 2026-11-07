@@ -6,7 +6,6 @@ struct CodeSuggestionsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Intro card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -24,7 +23,6 @@ struct CodeSuggestionsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Suggestions Categories
                 ForEach(CodeSuggestionCategory.allCases, id: \.self) { category in
                     if let items = suggestions.groupedSuggestions[category], !items.isEmpty {
                         GroupBox {

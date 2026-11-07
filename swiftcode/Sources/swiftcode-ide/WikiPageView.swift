@@ -1,15 +1,7 @@
-// WikiPageView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/WikiPageView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: wiki page editing/creation UI (the destination wikiEditor is read-only; createOrUpdateWikiPage exists in the store with no UI)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DocNSTextView, WikiPage.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
 
-// MARK: - WIKI PAGE LIST VIEW (PANEL 2)
 struct WikiPageListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -108,7 +100,6 @@ struct WikiPageListView: View {
     }
 }
 
-// MARK: - WIKI PAGE DETAIL VIEW (PANEL 3)
 struct WikiPageDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var page: WikiPage? = nil
@@ -238,7 +229,6 @@ struct WikiPageDetailView: View {
     }
 }
 
-// Deprecated old container
 struct WikiPageView: View {
     let coordinator: PersonalDocumentationCoordinator
 

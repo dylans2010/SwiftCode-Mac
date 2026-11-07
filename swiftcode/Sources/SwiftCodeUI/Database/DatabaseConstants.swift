@@ -1,9 +1,5 @@
 import Foundation
 
-/// The column types each provider offers in the schema designer.
-///
-/// Ported verbatim from Legacy's
-/// `Views/Utilities/Database/Helpers/DatabaseConstants.swift`.
 public struct DatabaseConstants {
     public static let standardSQLiteTypes = ["INTEGER", "TEXT", "REAL", "BLOB", "NULL"]
 

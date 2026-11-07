@@ -2,15 +2,8 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-// Apps, document apps, watchOS and visionOS (`templates.md` § "Catalog by
-// template"). Source texts are SwiftCode's own; the APIs are Apple's public
-// SDK documentation (SwiftUI, SwiftData, Core Data, UIKit, AppKit).
-
 extension ProjectGenerator {
-    // MARK: Source sets
 
-    /// `TApp.swift` and `ContentView.swift` for the SwiftUI lifecycle, with
-    /// the storage the options chose.
     static func swiftUISources(_ c: GenContext, folder: String, storage: String, cloud: Bool) -> [(String, String)] {
         let t = c.t
         var imports = "import SwiftUI"
@@ -31,7 +24,6 @@ extension ProjectGenerator {
                         fatalError("The model container could not be made: \\(error)")
                     }
                 }()
-
 
             """
             content = """
@@ -121,8 +113,6 @@ extension ProjectGenerator {
                 ("\(folder)/ContentView.swift", content)]
     }
 
-    /// The UIKit scene-based app in Swift: delegates, a view controller and
-    /// the storyboards (`viewControllerBody` is the class body).
     static func uikitSwiftSources(_ c: GenContext, folder: String, rt: InterfaceBuilderFiles.Runtime, viewControllerImports: String = "import UIKit",
                                   viewControllerBody: String = "", viewClass: String? = nil, viewControllerName: String = "ViewController",
                                   launchScreen: Bool = true) -> [(String, String)] {
@@ -170,7 +160,6 @@ extension ProjectGenerator {
         return out
     }
 
-    /// The UIKit scene-based app in Objective-C.
     static func uikitObjCSources(_ c: GenContext, folder: String, rt: InterfaceBuilderFiles.Runtime) -> [(String, String)] {
         [
             ("\(folder)/main.m", """
@@ -214,8 +203,6 @@ extension ProjectGenerator {
         ]
     }
 
-    /// The Cocoa lifecycle in Swift or Objective-C, with a storyboard or a
-    /// XIB (`viewClass`/`viewControllerBody` for games).
     static func cocoaSources(_ c: GenContext, folder: String, xib: Bool, objc: Bool, viewControllerImports: String = "import Cocoa",
                              viewControllerBody: String = "", viewClass: String? = nil) -> [(String, String)] {
         let module: String? = objc ? nil : c.module
@@ -273,9 +260,6 @@ extension ProjectGenerator {
         return out
     }
 
-    // MARK: App
-
-    /// Multiplatform, iOS, macOS and tvOS ▸ App.
     static func app(_ c: GenContext) throws -> GeneratedProject {
         let sdk = c.sdk
         let n = c.n
@@ -302,7 +286,6 @@ extension ProjectGenerator {
             exceptions.append("Info.plist")
             entry = c.objc ? "\(n)/ViewController.m" : "\(n)/ViewController.swift"
         }
-        // CloudKit's Info.plist merges with the storyboard app's.
         files += st.files.filter { f in !(f.0 == "\(n)/Info.plist" && files.contains { $0.0 == f.0 }) }
         settings += st.settings.filter { s in !settings.contains { $0.0 == s.0 } }
         if c.on(TemplateOptionID.hostInCloudKit), sdk.sdkroot == "appletvos" {
@@ -314,8 +297,6 @@ extension ProjectGenerator {
         return try recipe(c, [target] + t.targets, files + t.files, entry: entry)
     }
 
-    // MARK: Document App
-
     static func documentApp(_ c: GenContext) throws -> GeneratedProject {
         let sdk = c.sdk, n = c.n, t = c.t
         let interface = c.option(TemplateOptionID.interface).isEmpty ? "SwiftUI" : c.option(TemplateOptionID.interface)
@@ -324,7 +305,6 @@ extension ProjectGenerator {
         let swiftData = storageKind == "SwiftData"
         let ext = String(n.lowercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) }.prefix(12))
         let fileExt = ext.isEmpty ? "document" : ext
-        // SwiftCode's placeholder UTI: the bundle identifier plus ".document".
         let typeID = "\(c.bundleID).document"
         var files: [(String, String)] = []
         var settings = appBlock(c, bundleID: c.bundleID, swiftUI: swiftUI)
@@ -477,8 +457,6 @@ extension ProjectGenerator {
         return try recipe(c, [target] + tt.targets, files + tt.files, entry: entry)
     }
 
-    /// An `NSDocument` (or `NSPersistentDocument`) app with a storyboard
-    /// or XIBs.
     static func cocoaDocumentSources(_ c: GenContext, folder: String, xib: Bool, coreData: Bool, typeID: String) -> [(String, String)] {
         let base = coreData ? "NSPersistentDocument" : "NSDocument"
         let body: String
@@ -537,7 +515,6 @@ extension ProjectGenerator {
         return out
     }
 
-    /// A UIKit document-browser app (`UIDocument`).
     static func uikitDocumentSources(_ c: GenContext, folder: String, typeID: String) -> [(String, String)] {
         [
             ("\(folder)/AppDelegate.swift", "import UIKit\n\n@main\nclass AppDelegate: UIResponder, UIApplicationDelegate {\n    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession,\n                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {\n        UISceneConfiguration(name: \"Default Configuration\", sessionRole: connectingSceneSession.role)\n    }\n}\n"),
@@ -636,8 +613,6 @@ extension ProjectGenerator {
         ]
     }
 
-    // MARK: watchOS
-
     static func watchApp(_ c: GenContext) throws -> GeneratedProject {
         let n = c.n
         let companion = c.option(TemplateOptionID.watchAppType) == "Watch App with New Companion iOS App"
@@ -679,7 +654,6 @@ extension ProjectGenerator {
             phone.embeds = [.watch([watch])]
             targets.insert(phone, at: 0)
         } else {
-            // The watch-only container: an iOS-SDK wrapper with no folder.
             let s: [(String, PlistValue)] = [("PRODUCT_NAME", "$(TARGET_NAME)"), ("PRODUCT_BUNDLE_IDENTIFIER", .string(c.bundleID)),
                                              ("INFOPLIST_KEY_CFBundleDisplayName", .string(n)), ("MARKETING_VERSION", "1.0"), ("CURRENT_PROJECT_VERSION", "1")]
             var container = ProjectRecipe.Target(name: n, productType: "com.apple.product-type.application.watchapp2-container", productPath: "\(n).app",
@@ -692,9 +666,6 @@ extension ProjectGenerator {
         return try recipe(c, targets + tt.targets, files + tt.files, entry: "\(watch)/ContentView.swift", projectSDK: .some(nil))
     }
 
-    // MARK: visionOS
-
-    /// visionOS ▸ App and Immersive Environment App.
     static func visionApp(_ c: GenContext, environment: Bool) throws -> GeneratedProject {
         let n = c.n
         let renderer = environment ? "RealityKit" : c.option(TemplateOptionID.immersiveSpaceRenderer)
@@ -896,7 +867,6 @@ extension ProjectGenerator {
         return try recipe(c, [target] + tt.targets, files + tt.files, entry: "\(n)/ContentView.swift")
     }
 
-    /// A small USD scene (SwiftCode's own): one sphere of `radius` meters.
     static func usdScene(name: String, radius: Double) -> String {
         """
         #usda 1.0
@@ -917,7 +887,6 @@ extension ProjectGenerator {
         """
     }
 
-    /// A CompositorServices render loop that clears every frame.
     static let metalImmersiveRenderer = #"""
     import CompositorServices
     import Metal

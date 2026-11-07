@@ -4,7 +4,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "EcosystemViews")
 
-// MARK: - KNOWLEDGE GRAPH VIEW
 public struct KnowledgeGraphView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -17,7 +16,7 @@ public struct KnowledgeGraphView: View {
     struct GraphNode: Identifiable {
         let id: UUID
         let label: String
-        let kind: String // "doc", "whiteboard", "snippet", "commit", "issue"
+        let kind: String
         let detail: String
     }
 
@@ -36,7 +35,6 @@ public struct KnowledgeGraphView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Controls
             HStack(spacing: 12) {
                 NativeSearchField(text: $searchText, placeholder: "Search nodes...")
                     .frame(width: 200)
@@ -68,7 +66,6 @@ public struct KnowledgeGraphView: View {
 
             Divider()
 
-            // 2D Visual Canvas
             GeometryReader { geo in
                 let filteredNodes = nodes.filter { node in
                     let matchText = searchText.isEmpty || node.label.lowercased().contains(searchText.lowercased())
@@ -77,11 +74,9 @@ public struct KnowledgeGraphView: View {
                 }
 
                 ZStack {
-                    // Grid background
                     gridBackground
                         .opacity(0.3)
 
-                    // Draw relationship lines
                     Canvas { context, size in
                         for edge in edges {
                             guard let srcNode = filteredNodes.first(where: { $0.id == edge.sourceID }),
@@ -98,7 +93,6 @@ public struct KnowledgeGraphView: View {
                         }
                     }
 
-                    // Nodes representation
                     ForEach(filteredNodes) { node in
                         let point = position(for: node.id, in: geo.size)
                         VStack(spacing: 4) {
@@ -166,7 +160,6 @@ public struct KnowledgeGraphView: View {
     }
 
     private func position(for id: UUID, in size: CGSize) -> CGPoint {
-        // Deterministic pseudo-random placements to keep graph visual consistent
         let hash = Double(id.uuidString.hashValue)
         let angle = hash.truncatingRemainder(dividingBy: 360) * .pi / 180.0
         let radius = 150.0 + abs(hash.truncatingRemainder(dividingBy: 250))
@@ -203,39 +196,33 @@ public struct KnowledgeGraphView: View {
         var newNodes: [GraphNode] = []
         var newEdges: [GraphEdge] = []
 
-        // 1. Documents
         if let docs = try? coordinator.documents.fetchDocuments() {
             for doc in docs {
                 newNodes.append(GraphNode(id: doc.id, label: doc.title, kind: "doc", detail: doc.moduleKindRaw))
             }
         }
 
-        // 2. Whiteboards
         if let boards = try? coordinator.whiteboards.fetchWhiteboards() {
             for b in boards {
                 newNodes.append(GraphNode(id: b.id, label: b.title, kind: "whiteboard", detail: "Whiteboard Sketch"))
             }
         }
 
-        // 3. Snippets
         if let snippets = try? coordinator.snippets.fetchSnippets() {
             for s in snippets {
                 newNodes.append(GraphNode(id: s.id, label: s.title, kind: "snippet", detail: s.language))
             }
         }
 
-        // 4. Simulated Commits/Issues
         let commit1ID = UUID()
         let issue1ID = UUID()
         newNodes.append(GraphNode(id: commit1ID, label: "feat: redesign SourceControl", kind: "commit", detail: "Git Commit"))
         newNodes.append(GraphNode(id: issue1ID, label: "Bug #104: Navigation crash", kind: "issue", detail: "Git Issue"))
 
-        // Add relationships as edges
         if let docs = try? coordinator.documents.fetchDocuments() {
             for doc in docs {
                 if let rels = try? coordinator.relationships.fetchRelationships(for: doc.id) {
                     for rel in rels {
-                        // Attempt to link to existing document node
                         if let matchedTarget = newNodes.first(where: { $0.label.lowercased() == rel.targetName.lowercased() }) {
                             newEdges.append(GraphEdge(sourceID: doc.id, targetID: matchedTarget.id))
                         }
@@ -244,7 +231,6 @@ public struct KnowledgeGraphView: View {
             }
         }
 
-        // Add generic sample edges to make graph look beautifully interconnected
         if newNodes.count >= 2 {
             for i in 0..<(newNodes.count - 1) {
                 newEdges.append(GraphEdge(sourceID: newNodes[i].id, targetID: newNodes[i+1].id))
@@ -267,8 +253,6 @@ public struct KnowledgeGraphView: View {
     }
 }
 
-
-// MARK: - PROJECT TIMELINE VIEW
 public struct ProjectTimelineView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -282,7 +266,6 @@ public struct ProjectTimelineView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Controls
             HStack(spacing: 12) {
                 Picker("Category", selection: $selectedCategory) {
                     Text("All Entries").tag("All")
@@ -309,7 +292,6 @@ public struct ProjectTimelineView: View {
 
             Divider()
 
-            // Timeline List
             let filteredItems = items.filter { item in
                 let matchCat = selectedCategory == "All" || item.category == selectedCategory
                 let matchText = searchText.isEmpty || item.title.lowercased().contains(searchText.lowercased()) || item.detail.lowercased().contains(searchText.lowercased())
@@ -323,7 +305,6 @@ public struct ProjectTimelineView: View {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         ForEach(filteredItems) { item in
                             HStack(alignment: .top, spacing: 16) {
-                                // Dot & vertical line indicator
                                 VStack(spacing: 4) {
                                     ZStack {
                                         Circle()
@@ -411,8 +392,6 @@ public struct ProjectTimelineView: View {
     }
 }
 
-
-// MARK: - ANALYTICS DASHBOARD VIEW
 public struct AnalyticsView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -428,7 +407,6 @@ public struct AnalyticsView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header with Time Range
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Personal Productivity Analytics")
@@ -448,7 +426,6 @@ public struct AnalyticsView: View {
 
                 Divider()
 
-                // Key Performance Cards - Fully Adaptive Grid
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 400), spacing: 16)], spacing: 16) {
                     analyticsCard(title: "Documentation Growth", value: "\(totalDocs) notes", desc: "+3.2% vs last period", icon: "doc.text.fill", color: .blue)
                     analyticsCard(title: "Active Writing Work", value: "\(writingCount) additions", desc: "Average 120 words/day", icon: "pencil.line", color: .green)
@@ -456,7 +433,6 @@ public struct AnalyticsView: View {
                     analyticsCard(title: "AI Project Usage", value: "34 tokens", desc: "LLM contextual reasoning", icon: "sparkles", color: .indigo)
                 }
 
-                // Complex layout blocks - Adaptive stack (horizontal on wide screen, vertical on narrow)
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 20) {
                         statisticsGraphModule
@@ -590,8 +566,6 @@ public struct AnalyticsView: View {
     }
 }
 
-
-// MARK: - PROJECT INTELLIGENCE & PROJECT MEMORY
 public struct IntelligenceView: View {
     let coordinator: PersonalDocumentationCoordinator
 
@@ -608,7 +582,6 @@ public struct IntelligenceView: View {
 
     public var body: some View {
         HSplitView {
-            // Left Panel: Project Intelligence Audit
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -652,7 +625,6 @@ public struct IntelligenceView: View {
             .padding()
             .frame(maxWidth: .infinity)
 
-            // Right Panel: Project Memory Oracle Q&A
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Project Memory Q&A Oracle")
@@ -732,8 +704,6 @@ public struct IntelligenceView: View {
     }
 }
 
-
-// MARK: - WHITEBOARD LIST VIEW (PANEL 2)
 struct WhiteboardListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -832,8 +802,6 @@ struct WhiteboardListView: View {
     }
 }
 
-
-// MARK: - WHITEBOARD CANVAS DETAIL VIEW (PANEL 3)
 public struct WhiteboardCanvasDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var board: WhiteboardRecord? = nil
@@ -848,7 +816,7 @@ public struct WhiteboardCanvasDetailView: View {
         var x: CGFloat
         var y: CGFloat
         var title: String
-        var kind: String // "sticky", "rect", "circle", "connector", "uml"
+        var kind: String
         var colorHex: String
     }
 
@@ -857,7 +825,6 @@ public struct WhiteboardCanvasDetailView: View {
     public var body: some View {
         VStack(spacing: 0) {
             if let board = board {
-                // Canvas Toolbar
                 HStack(spacing: 12) {
                     Text(board.title)
                         .font(.headline)
@@ -889,12 +856,10 @@ public struct WhiteboardCanvasDetailView: View {
 
                 Divider()
 
-                // Visual Canvas Area
                 GeometryReader { geo in
                     ZStack {
-                        Color.white.opacity(0.01) // Captures gestures
+                        Color.white.opacity(0.01)
 
-                        // Infinite dot grid representation
                         Canvas { context, size in
                             let gridSpacing: CGFloat = 30
                             for x in stride(from: CGFloat(0), to: size.width, by: gridSpacing) {
@@ -906,7 +871,6 @@ public struct WhiteboardCanvasDetailView: View {
                             }
                         }
 
-                        // Render Canvas Elements
                         ForEach(elements) { element in
                             VStack(spacing: 6) {
                                 if element.kind == "sticky" {
@@ -1078,8 +1042,6 @@ public struct WhiteboardCanvasDetailView: View {
     }
 }
 
-
-// MARK: - CODE SNIPPET LIST VIEW (PANEL 2)
 struct SnippetListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -1201,8 +1163,6 @@ struct SnippetListView: View {
     }
 }
 
-
-// MARK: - CODE SNIPPET DETAIL VIEW (PANEL 3)
 struct SnippetDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var snippet: CodeSnippetRecord? = nil
@@ -1353,8 +1313,6 @@ struct SnippetDetailView: View {
     }
 }
 
-
-// MARK: - PROJECT SNAPSHOT LIST VIEW (PANEL 2)
 struct SnapshotListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
@@ -1475,8 +1433,6 @@ struct SnapshotListView: View {
     }
 }
 
-
-// MARK: - PROJECT SNAPSHOT DETAIL VIEW (PANEL 3)
 struct SnapshotDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var snapshot: ProjectSnapshotRecord? = nil
@@ -1602,8 +1558,6 @@ struct SnapshotDetailView: View {
     }
 }
 
-
-// Deprecated legacy container wrappers to preserve backwards-compatible symbols
 public struct WhiteboardsListView: View {
     let coordinator: PersonalDocumentationCoordinator
     public init(coordinator: PersonalDocumentationCoordinator) {

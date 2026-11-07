@@ -44,7 +44,6 @@ public struct AssistFileBackupTool: AssistTool {
         } catch {
             return .failure("Backup failed: \(error.localizedDescription)")
         }
-        // Verify byte count matches.
         let srcSize = AssistWorkspaceScan.fileSize(of: url)
         let dstSize = AssistWorkspaceScan.fileSize(of: backupURL)
         guard srcSize == dstSize else {

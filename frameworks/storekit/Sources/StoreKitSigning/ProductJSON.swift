@@ -1,11 +1,8 @@
-// The product's JSON representation (formats.md §1) synthesized from the catalog.
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 
 public enum ProductJSON {
-    /// The catalog resource for `product` in a session locale and storefront.
-    /// Keys are written sorted; code and win-back offers are not part of it.
     public static func value(_ product: CatalogProduct, catalog: Catalog, locale: String, storefront: Storefront) -> JSONValue {
         let priceLocale = storefront.priceLocaleIdentifier(locale: locale)
         func formatted(_ price: Decimal) -> String { PriceFormatter.displayPrice(price, priceLocale: priceLocale) }
@@ -52,7 +49,6 @@ public enum ProductJSON {
         return .object(["id": .string(product.internalID), "type": .string("in-apps"), "attributes": .object(attributes)])
     }
 
-    /// The compact JSON bytes (`Product.jsonRepresentation`).
     public static func data(_ product: CatalogProduct, catalog: Catalog, locale: String, storefront: Storefront) -> Data {
         Data(JSONWriter.compact(value(product, catalog: catalog, locale: locale, storefront: storefront)).utf8)
     }

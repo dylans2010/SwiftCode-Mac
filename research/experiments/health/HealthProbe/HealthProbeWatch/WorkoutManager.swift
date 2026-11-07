@@ -2,7 +2,6 @@ import Foundation
 import HealthKit
 import WatchConnectivity
 
-/// Runs one workout session with a live builder and reports every sample and callback.
 final class WorkoutManager: NSObject, ObservableObject {
     static let shared = WorkoutManager()
 
@@ -36,7 +35,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         start(configuration: c)
     }
 
-    /// Main thread only.
     func start(configuration c: HKWorkoutConfiguration) {
         guard !running else { return }
         do {
@@ -69,7 +67,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    /// Main thread only.
     func end() {
         guard let s = session, let b = builder else { return }
         let save = saveToHealth
@@ -89,7 +86,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    /// Keeps the queries open for 60 s after the end, to see late samples, then stops.
     private func wrapUp() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
             self.queries.forEach { self.store.stop($0) }
@@ -105,7 +101,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    /// Anchored queries limited to samples that start at or after the session start.
     private func startQueries() {
         let predicate = HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate)
         for id in ProbeTypes.quantities {
@@ -139,7 +134,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    /// Main thread only.
     private func emit(_ event: ProbeEvent, keepDelivered: Bool = false) {
         var e = event
         e.session = sessionID
@@ -204,8 +198,6 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
     }
 }
 
-/// Sends batches to the phone: a live message when the phone is reachable, otherwise
-/// (or when the message fails) a queued user-info transfer.
 final class WatchLink: NSObject, WCSessionDelegate {
     private var backlog: [Data] = []
 

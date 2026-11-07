@@ -9,7 +9,6 @@ struct SimulatorAppsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Installed Applications", systemImage: "app.badge")
                     .font(.headline)
@@ -26,7 +25,6 @@ struct SimulatorAppsView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

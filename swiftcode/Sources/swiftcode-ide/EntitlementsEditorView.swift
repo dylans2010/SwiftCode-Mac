@@ -3,12 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The `.entitlements` editor for the Linux IDE shell: the capability
-/// catalog as toggle cards grouped by section, with each capability's
-/// payload editor, the validation findings, the keys no toggle manages,
-/// and the raw XML. Every edit goes through `EntitlementsEditorModel`;
-/// the AppKit IDE renders the same model with
-/// `EntitlementsEditorController` (SwiftCodeUI).
 struct EntitlementsEditorView: View {
     @Bindable var model: EntitlementsEditorModel
     @Environment(\.colorScheme) private var scheme
@@ -41,8 +35,6 @@ struct EntitlementsEditorView: View {
         .background(c.content)
         .shellTarget("entitlements editor")
     }
-
-    // MARK: - Toolbar
 
     private func toolbar(_ c: ShellColors) -> some View {
         HStack(spacing: 8) {
@@ -103,8 +95,6 @@ struct EntitlementsEditorView: View {
         .background(c.sidebar)
     }
 
-    // MARK: - Status & validation
-
     private func fileStatusCard(_ c: ShellColors) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
@@ -161,8 +151,6 @@ struct EntitlementsEditorView: View {
             }
         }
     }
-
-    // MARK: - Capabilities
 
     private func capabilitySection(_ section: EntitlementCapabilitySection, _ c: ShellColors) -> some View {
         let defs = EntitlementCapabilityCatalog.definitions(in: section)
@@ -249,8 +237,6 @@ struct EntitlementsEditorView: View {
         }
     }
 
-    // MARK: - Uncovered keys
-
     private func uncoveredKeysSection(_ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Other Keys").font(.headline)
@@ -289,8 +275,6 @@ struct EntitlementsEditorView: View {
         }
     }
 
-    // MARK: - Raw XML
-
     private func rawXMLSection(_ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -314,8 +298,6 @@ struct EntitlementsEditorView: View {
     }
 }
 
-/// An editable list of string identifiers (App Groups, keychain groups,
-/// merchant identifiers, …), as Legacy's `EntitlementIDListEditor`.
 private struct IDListEditor: View {
     @Binding var ids: [String]
     let placeholder: String
@@ -348,8 +330,6 @@ private struct IDListEditor: View {
     }
 }
 
-/// A list restricted to a fixed set of values (iCloud services,
-/// Sign in with Apple), as Legacy's `FixedValueListEditor`.
 private struct FixedValueListEditor: View {
     @Binding var values: [String]
     let allowed: [String]
@@ -369,8 +349,6 @@ private struct FixedValueListEditor: View {
     }
 }
 
-/// Associated domains: a prefix picker plus a host field, as Legacy's
-/// `AssociatedDomainsEditor`.
 private struct AssociatedDomainsEditor: View {
     @Binding var domains: [String]
     let prefixes: [String]
@@ -411,9 +389,6 @@ private struct AssociatedDomainsEditor: View {
     }
 }
 
-/// The iCloud composite: container identifiers, the key-value store
-/// identifier, and the ubiquitous containers, as Legacy's
-/// `ICloudCompositeEditor` + `UbiquitousContainersEditor`.
 private struct ICloudCompositeEditor: View {
     @Bindable var model: EntitlementsEditorModel
     @State private var newContainer = ""
@@ -468,10 +443,6 @@ private struct ICloudCompositeEditor: View {
         newContainer = ""
     }
 }
-
-
-// Ported from Legacy `SwiftCode/Views/Editor/EntitlementsEditorView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: EntitlementIDListEditor, UbiquitousContainersEditor, EntitlementDictionaryEditor, EntitlementRowView.
 
 struct EntitlementIDListEditor: View {
     @Binding var ids: [String]
@@ -543,10 +514,6 @@ struct EntitlementIDListEditor: View {
     }
 }
 
-/// Honest model of the real NSUbiquitousContainers dictionary: each container ID
-/// maps to a dictionary with NSUbiquitousContainerName (String),
-/// NSUbiquitousContainerIsDocumentScopePublic (Boolean), and
-/// NSUbiquitousContainerSupportedFolderLevels (None / One / Any).
 struct UbiquitousContainersEditor: View {
     @Binding var containers: [String: [String: Any]]
     @State private var newID = ""
@@ -786,7 +753,6 @@ struct EntitlementRowView: View {
                     .labelsHidden()
                 }
 
-                // Inspect
                 Button(action: onSelect) {
                     Image(systemName: "slider.horizontal.3")
                         .foregroundStyle(.secondary)
@@ -794,7 +760,6 @@ struct EntitlementRowView: View {
                 .buttonStyle(.plain)
                 .help("Inspect Capability")
 
-                // Duplicate
                 Button(action: onDuplicate) {
                     Image(systemName: "plus.square.on.square")
                         .foregroundStyle(.secondary)
@@ -802,7 +767,6 @@ struct EntitlementRowView: View {
                 .buttonStyle(.plain)
                 .help("Duplicate Capability")
 
-                // Delete
                 Button(action: onDelete) {
                     Image(systemName: "trash")
                         .foregroundStyle(.secondary)

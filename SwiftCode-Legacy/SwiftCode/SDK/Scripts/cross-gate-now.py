@@ -4,11 +4,10 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Package Manifest and Diagnostics Guides
+
     guides_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(guides_dir, exist_ok=True)
-    
+
     extra_guides = [
         ("swift-package-manager-manifest-specification", "Swift Package Manager Package.swift Specification and Build Settings Reference"),
         ("diagnostic-error-catalog-reference", "DiagnosticsKit Diagnostic Error Taxonomy and Actionable Remediation Rules"),
@@ -29,7 +28,6 @@ def main():
                 f.write("    public init() {}\n")
                 f.write("}\n```\n\n")
 
-    # 2. Update components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

@@ -1,26 +1,5 @@
 import SwiftUI
 
-// MARK: - SDKFirstLaunchInstallerView
-//
-// First-launch sheet for SwiftCode Studio (spec §5, "Studio first-launch
-// SDK installer").
-//
-// Presented once per the persisted choice in `SDKStudioFirstLaunchChoice`
-// (wired from `SDKStudioView`). Explains what the SDK is, where it will
-// be installed (`~/.swiftcode/sdk`), and offers Install / Remind me
-// later / Decline.
-//
-// - Install runs the REAL `SDKInstaller` (live stdout/stderr streaming,
-//   post-install verification; success is reported only when
-//   `node_modules/@swiftcode/sdk/package.json` resolves with a version).
-// - Failure shows the REAL error text, never a fake "installed".
-// - Decline (or Remind me later) leaves Studio fully usable: the choice
-//   is persisted in UserDefaults and the sheet simply dismisses. Nothing
-//   in Studio is gated on the SDK being installed.
-//
-// macOS 15, Swift 6. Installer and shell checks are documented in
-// SDK/Documentation/Release-Readiness.md; full-app QA remains a release gate.
-
 @MainActor
 public struct SDKFirstLaunchInstallerView: View {
     @Environment(\.dismiss) private var dismiss
@@ -45,8 +24,6 @@ public struct SDKFirstLaunchInstallerView: View {
         .frame(minWidth: 560, idealWidth: 620, maxWidth: 720)
         .interactiveDismissDisabled(model.phase == .installing)
     }
-
-    // MARK: - Prompt
 
     private var promptContent: some View {
         Group {
@@ -105,8 +82,6 @@ public struct SDKFirstLaunchInstallerView: View {
         .liquidGlass(style: .standard, cornerRadius: 8)
     }
 
-    // MARK: - Installing
-
     private var installingContent: some View {
         Group {
             HStack(spacing: 10) {
@@ -153,8 +128,6 @@ public struct SDKFirstLaunchInstallerView: View {
         }
     }
 
-    // MARK: - Success
-
     private func successContent(_ result: SDKInstaller.InstallResult) -> some View {
         Group {
             Label("SDK Installed", systemImage: "checkmark.circle.fill")
@@ -179,8 +152,6 @@ public struct SDKFirstLaunchInstallerView: View {
             }
         }
     }
-
-    // MARK: - Failure
 
     private func failureContent(_ result: SDKInstaller.InstallResult) -> some View {
         Group {
@@ -220,10 +191,6 @@ public struct SDKFirstLaunchInstallerView: View {
     }
 }
 
-// MARK: - SDKFirstLaunchInstallerModel
-
-/// View model driving the install sheet. All installer callbacks hop
-/// back to the main actor before touching `@Published` state.
 @MainActor
 final class SDKFirstLaunchInstallerModel: ObservableObject {
     enum Phase: Equatable {
@@ -266,23 +233,16 @@ final class SDKFirstLaunchInstallerModel: ObservableObject {
 
     private func append(line: SDKInstaller.LogLine) {
         logLines.append(line)
-        // Bound the transcript; the full log is also in the result.
         if logLines.count > 1000 {
             logLines.removeFirst(logLines.count - 1000)
         }
     }
 }
 
-// MARK: - SDKStudioFirstLaunchChoice
-
-/// Persists the user's first-launch SDK choice. Non-secret UI state, so
-/// UserDefaults is the right store (never Keychain, never the leaky
-/// general KeychainService).
 enum SDKStudioFirstLaunchChoice {
     private static let choiceKey = "com.swiftcode.sdk.studio.firstLaunch.choice"
     private static let remindLaterDateKey = "com.swiftcode.sdk.studio.firstLaunch.remindLaterDate"
 
-    /// How long "Remind me later" snoozes the prompt.
     private static let remindLaterInterval: TimeInterval = 7 * 24 * 60 * 60
 
     private enum Choice: String {
@@ -291,12 +251,7 @@ enum SDKStudioFirstLaunchChoice {
         case remindLater
     }
 
-    /// Whether the first-launch sheet should be presented. False when
-    /// the SDK already verifies as installed, when the user declined,
-    /// or when a "remind later" snooze is still active.
     static func shouldPrompt() -> Bool {
-        // A healthy install needs no prompt — and re-records the choice
-        // in case the install happened outside this sheet.
         if case .ok = SDKInstaller.inspect() {
             recordInstalled()
             return false
@@ -309,9 +264,6 @@ enum SDKStudioFirstLaunchChoice {
         }
         switch choice {
         case .installed:
-            // Install was recorded but no longer verifies (missing /
-            // corrupt / version mismatch): this IS the idempotent repair
-            // path — prompt again so the user can re-install.
             return true
         case .declined:
             return false

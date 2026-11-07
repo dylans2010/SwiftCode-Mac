@@ -1,21 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/AI/ChatUIComponents.swift (Legacy main ab03f681)
-//
-// Destination: swiftcode-ide/Views/Chat/ChatUIComponents.swift (same target as
-// `ChatAIInterfaceView`, its only consumer — no other production file
-// references these components).
-//
-// Adaptations (behaviour preserved unless noted):
-// * `ChatMessageBubble` drops the timestamp row: Legacy's `ChatMessage`
-//   carried `timestamp`, but the production `ChatMessage`
-//   (`SwiftCodeAssistant/Core.swift`) has no timestamp by design (H-E:
-//   do not add a stored `id` — same reasoning covers `timestamp`; it
-//   would change the type's Equatable/Codable behaviour for every
-//   provider). The bubble is display-only otherwise, verbatim.
-// * Imports added: `SwiftCodeAssistant` (`ChatMessage`),
-//   `SwiftCodeUI` (`.liquidGlass`, used by `AssistantGlassCardModifier`).
-//   Everything else is verbatim, including the internal access level.
-
 import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeUI
@@ -53,9 +35,6 @@ struct AssistantTheme {
 }
 
 struct AssistantGlassCardModifier: ViewModifier {
-    // Previously a hand-rolled glass stack (gradient fill + ultraThinMaterial
-    // + white stroke + shadow). The shared LiquidGlass HUD style is the same
-    // dark translucent card, so delegate to it instead of duplicating it.
     func body(content: Content) -> some View {
         content
             .liquidGlass(style: .hud, cornerRadius: 24)

@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/WorkspaceHealthView.swift` (SwiftCode-Mac migration, P-UTIL).
-// All referenced managers (OperationsCoordinator/OperationsPanel, OperationQueueManager, NotificationCenterManager, WorkspaceTimelineManager, WorkspaceHealth, WorkspaceIntelligence, DiagnosticsManager, SecurityManager, BuildHistoryManager, SCOperationsStorageManager, SCOperationsSigningManager, PerformanceManager, DependencyManager) exist in SwiftCodeIDEShell; ModernGroupBoxStyle/.liquidGlass in SwiftCodeUI.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDEShell
 import SwiftCodeUI
@@ -19,7 +15,6 @@ struct WorkspaceHealthView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Workspace Health Score")
                         .font(.title2)
@@ -30,7 +25,6 @@ struct WorkspaceHealthView: View {
                 }
                 .padding(.bottom, 10)
 
-                // Large circle dial chart
                 GroupBox {
                     HStack(spacing: 30) {
                         ZStack {
@@ -69,14 +63,12 @@ struct WorkspaceHealthView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 10 Scoring factors breakdown
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Scoring Factors Breakdown (10 Core Parameters)")
                             .font(.headline)
                             .padding(.bottom, 4)
 
-                        // 1. Build Health
                         let failedBuilds = bhm.buildRecords.filter { $0.status == "Failed" }.count
                         HealthFactorRow(
                             title: "Build Health",
@@ -87,7 +79,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 2. Package Health
                         let packageIssues = DependencyManager.shared.dependencies.filter { $0.status == "Update Available" }.count
                         HealthFactorRow(
                             title: "Package Health",
@@ -98,7 +89,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 3. Storage
                         let isStorageLow = storage.totalSystemFreeGB < 10.0
                         HealthFactorRow(
                             title: "Storage Footprint",
@@ -109,7 +99,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 4. Diagnostics Integrity
                         HealthFactorRow(
                             title: "Diagnostics Integrity",
                             detail: "\(dm.issues.count) compiler reference issues flagged",
@@ -119,7 +108,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 5. Security & Credentials
                         let criticalSec = sec.findings.filter { $0.severity == "Critical" }.count
                         HealthFactorRow(
                             title: "Security Scan",
@@ -130,7 +118,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 6. Signing & Certificates
                         let invalidCerts = sign.certificates.filter { !$0.isValid }.count
                         HealthFactorRow(
                             title: "Signing Profiles",
@@ -141,7 +128,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 7. Documentation
                         let docHealthy = wi.docCoverageRatio >= 0.6
                         HealthFactorRow(
                             title: "Documentation Coverage",
@@ -152,7 +138,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 8. Testing Integrity
                         let testHealthy = wi.testCoverageRatio >= 0.5
                         HealthFactorRow(
                             title: "Testing Integrity",
@@ -163,7 +148,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 9. Build Stability
                         HealthFactorRow(
                             title: "Build Stability",
                             detail: "Tracked compile success profiles across targets",
@@ -173,7 +157,6 @@ struct WorkspaceHealthView: View {
 
                         Divider()
 
-                        // 10. Compile Performance
                         let perfHealthy = perf.averageBuildDuration < 8.0
                         HealthFactorRow(
                             title: "Workstation Performance",

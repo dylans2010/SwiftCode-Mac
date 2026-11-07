@@ -265,24 +265,20 @@ struct BuildToolbarView: View {
             if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: activeDoc.content) {
                 Button {
                     Task {
-                        // 1. Save current editor contents immediately
                         await editorViewModel.saveActiveDocument()
 
-                        // 2. Launch Visual UI Builder immediately
                         NotificationCenter.default.post(
                             name: .toolbarToolActivated,
                             object: nil,
                             userInfo: ["toolID": "visual_ui_builder"]
                         )
 
-                        // 3. Focus the Default Artboard
                         if let visDoc = DocumentCoordinator.shared.visualUIDocument {
                             if let defaultArtboard = visDoc.scene.artboards.first(where: { $0.name == "Default" }) {
                                 visDoc.scene.activeArtboardID = defaultArtboard.id
                             }
                         }
 
-                        // 4. Start a brand-new preview session
                         let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
                         await PreviewManager.shared.startFreshLivePreviewSession(
                             sourcePath: activeDoc.url.path,
@@ -297,7 +293,6 @@ struct BuildToolbarView: View {
                 .help("Launch Live Viewport for the active Swift document")
             }
 
-            // ESSENTIAL ACTIONS: Scheme selector
             if !buildManager.discoveredSchemes.isEmpty {
                 Picker("Scheme", selection: $buildManager.selectedScheme) {
                     ForEach(buildManager.discoveredSchemes, id: \.self) { scheme in
@@ -314,7 +309,6 @@ struct BuildToolbarView: View {
             openSwiftFilesMenu
             swiftActionsMenu
 
-            // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
             HStack(spacing: 8) {
                 ForEach(toolbarManager.enabledTools) { tool in
                     ToolbarToolView(tool: tool, toolbarManager: toolbarManager, buildManager: buildManager)
@@ -325,17 +319,14 @@ struct BuildToolbarView: View {
             Divider()
                 .frame(height: 16)
 
-            // ESSENTIAL ACTIONS: Build & Stop Buttons
             HStack(spacing: 8) {
                 Button(action: {
                     Task {
-                        // Automatically open XcodeBuildLogView
                         NotificationCenter.default.post(
                             name: .toolbarToolActivated,
                             object: nil,
                             userInfo: ["toolID": "xcode_build_logs"]
                         )
-                        // Trigger build in background
                         await buildManager.runBuild(projectURL: projectURL)
                     }
                 }) {
@@ -385,8 +376,6 @@ struct BuildToolbarView: View {
         }
     }
 }
-
-// MARK: - Toolbar Tool View
 
 @MainActor
 struct ToolbarToolView: View {
@@ -460,8 +449,6 @@ struct ToolbarToolView: View {
     }
 }
 
-// MARK: - Pinned Tool Drop Delegate
-
 struct PinnedToolDropDelegate: DropDelegate {
     let tool: ToolbarTool
     let manager: ToolbarManager
@@ -494,4 +481,3 @@ struct PinnedToolDropDelegate: DropDelegate {
         }
     }
 }
-

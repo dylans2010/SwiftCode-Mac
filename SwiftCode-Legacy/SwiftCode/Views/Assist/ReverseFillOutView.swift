@@ -1,10 +1,3 @@
-//
-//  ReverseFillOutView.swift
-//  SwiftCode
-//
-//  Compact popover Form for configuring @Reverse static reverse engineering analysis.
-//
-
 import SwiftUI
 import AppKit
 
@@ -33,7 +26,6 @@ public struct ReverseFillOutView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass.circle.fill")
                     .font(.system(size: 16))
@@ -64,7 +56,6 @@ public struct ReverseFillOutView: View {
 
             Divider()
 
-            // Form
             Form {
                 Section("Target Artifact") {
                     HStack(spacing: 6) {
@@ -116,7 +107,6 @@ public struct ReverseFillOutView: View {
 
             Divider()
 
-            // Footer
             HStack {
                 Button("Cancel") {
                     isPresented = false

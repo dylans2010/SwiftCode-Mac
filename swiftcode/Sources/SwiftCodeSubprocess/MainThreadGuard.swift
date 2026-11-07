@@ -1,28 +1,9 @@
 import Foundation
 
-/// Debug-build checks that blocking work (a subprocess the caller waits
-/// for, a large file walk, a network round trip) does not run on the main
-/// thread, where it would stall the IDE's user interface.
-///
-/// Every place that waits synchronously for such work calls
-/// `blockingCall(_:)` first. In release builds the call compiles to
-/// nothing. In debug builds, on the main thread only:
-///
-/// - inside `violations(during:)` the call is recorded (tests use this to
-///   fail when a known-slow operation runs on the main thread);
-/// - with `SWIFTCODE_MAIN_THREAD_GUARD=log` it is printed to standard error
-///   with the caller's stack; with `=trap` it also stops the process.
-///
-/// Command-line tools (`swiftcode`, `swiftcodebuild`) do all their work on the
-/// main thread on purpose; the guard is off for them unless asked for.
 public enum MainThreadGuard {
-    /// A blocking call made on the main thread.
     public struct Violation: Sendable, CustomStringConvertible {
-        /// What blocked, e.g. "git status".
         public var operation: String
-        /// The `#fileID:line` of the blocking call.
         public var location: String
-        /// The main thread's stack at the call (symbolic, one frame a line).
         public var stack: [String]
         public var description: String { "\(operation) at \(location)" }
     }
@@ -31,8 +12,6 @@ public enum MainThreadGuard {
         case off, log, trap
     }
 
-    /// `SWIFTCODE_MAIN_THREAD_GUARD` (`log` or `trap`); always `off` in
-    /// release builds.
     public static let mode: Mode = {
         #if DEBUG
         return ProcessInfo.processInfo.environment["SWIFTCODE_MAIN_THREAD_GUARD"].flatMap(Mode.init(rawValue:)) ?? .off
@@ -45,8 +24,6 @@ public enum MainThreadGuard {
     nonisolated(unsafe) private static var recorders = 0
     nonisolated(unsafe) private static var recorded: [Violation] = []
 
-    /// Call right before waiting for blocking work. `operation` names it
-    /// (it is evaluated only when the call is reported).
     @inline(__always)
     public static func blockingCall(_ operation: @autoclosure () -> String, fileID: StaticString = #fileID, line: UInt = #line) {
         #if DEBUG
@@ -74,9 +51,6 @@ public enum MainThreadGuard {
     }
     #endif
 
-    /// Runs `body` and returns the blocking calls it made on the main
-    /// thread (always empty in release builds). `body` is synchronous, so
-    /// nothing else can run on the main thread meanwhile.
     public static func violations(during body: () throws -> Void) rethrows -> [Violation] {
         lock.lock()
         if recorders == 0 { recorded = [] }

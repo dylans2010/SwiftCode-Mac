@@ -3,11 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The Symbol navigator (⌘3): files with their declarations nested, each
-/// with its letter badge (`SymbolBadge`), drawn with the outline metrics of
-/// `WorkspaceChrome` (22-point rows, 12 points per level, the triangle at
-/// x 12, the badge at x 25, the name at x 45). Selecting a declaration
-/// opens its line; the bottom bar filters by name.
 struct SymbolNavigator: View {
     @Bindable var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -88,10 +83,6 @@ struct SymbolRowView: View {
     }
 }
 
-/// The Symbol navigator's bottom bar: the other navigators' filter capsule
-/// (`NavigatorFilterBar`: the filter options glyph with its chevron, the
-/// field, the same insets and outline), with a working field and a clear
-/// button. It has no "+" (there is nothing to add), as the Find navigator.
 struct SymbolFilterBar: View {
     @Bindable var symbols: SymbolNavigatorModel
     @Environment(\.colorScheme) private var scheme

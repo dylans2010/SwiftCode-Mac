@@ -1,10 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationAuditLogView.swift
-// Adapted for SwiftCode: reads the real CollaborationManager activity log.
-// Legacy's hardcoded dark background / white text become system-adaptive
-// (no forced dark paint on macOS); cards use the system thin material in
-// place of Legacy's `.liquidGlass`, which has no destination equivalent.
-
 import SwiftUI
 import SwiftCodeCollaboration
 

@@ -1,15 +1,6 @@
 import Foundation
 import Observation
 
-/// A local process debug session (Legacy `DebugSessionViewModel`'s
-/// `LocalProcessDebugSession` / `LocalDebugVariable`, Dylan's own code, ported under MIT).
-/// This is the simple launch-and-observe runner: it starts an executable
-/// with `Foundation.Process`, streams its output, and records the PID,
-/// environment and a one-frame call stack. It is NOT the DAP/LLDB debug
-/// session in `SwiftCodeDebug` — that is a different, fuller debugger. The
-/// call stack is `[String]` (function names) to avoid colliding with
-/// `SwiftCodeDebug.StackFrame`.
-
 public struct LocalDebugVariable: Identifiable, Sendable {
     public let id = UUID()
     public let name: String
@@ -44,11 +35,6 @@ public struct LocalProcessDebugSession: Sendable {
     }
 }
 
-/// Launches an executable and streams its output (Legacy
-/// `DebugSessionViewModel`). The initial variable list is real data: the
-/// PID, executable path, and the process environment (first 10 entries).
-/// The initial call stack is a single `_start` frame, exactly as Legacy
-/// recorded it — a real stack trace needs the DAP debugger, not this runner.
 @Observable
 @MainActor
 public final class DebugSessionViewModel {

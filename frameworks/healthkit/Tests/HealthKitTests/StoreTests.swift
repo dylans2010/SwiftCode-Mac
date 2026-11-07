@@ -5,8 +5,6 @@ import Testing
 private func code(_ e: (any Error)?) -> Int? { (e as NSError?)?.code }
 private func domain(_ e: (any Error)?) -> String? { (e as NSError?)?.domain }
 
-/// C-STORE: `simulator-baseline.md` §3–§4 (save, resave, delete, delete twice,
-/// delete of type, authorization gates, persistence across a restart).
 @Suite("C-STORE simulator-baseline.md §4")
 struct StoreTests {
     @Test("§4.1 save, resave without duplicate, completion off the caller's thread")
@@ -23,7 +21,7 @@ struct StoreTests {
             }
         }
         #expect(thread.current == false)
-        try await store.save(s)                     // same object again: success, no duplicate
+        try await store.save(s)
         #expect(try await store.count(T.steps) == 1)
         let back = try #require(try await store.samples(T.steps).first as? HKQuantitySample)
         #expect(back.uuid == s.uuid)
@@ -32,7 +30,6 @@ struct StoreTests {
         #expect(back.sourceRevision.version == "7")
         #expect(back.device == nil)
         #expect(back.quantity.doubleValue(for: .count()) == 100)
-        // a sample older than 1900 is accepted
         try await store.save(T.stepSample(1, Date(timeIntervalSince1970: -5e9), Date(timeIntervalSince1970: -5e9 + 60)))
         #expect(try await store.count(T.steps) == 2)
     }
@@ -46,13 +43,11 @@ struct StoreTests {
         try await b.grant()
         let s1 = T.stepSample(1, T.at(0, 8), T.at(0, 8, 1)), s2 = T.stepSample(2, T.at(0, 9), T.at(0, 9, 1))
         try await a.save([s1, s2])
-        // B cannot delete A's sample (code 3), nor a never-saved one
         await expectCode(3) { try await b.delete(s1) }
         await expectCode(3) { try await a.delete(T.stepSample(9, T.at(0), T.at(0))) }
         try await a.delete(s1)
-        await expectCode(3) { try await a.delete(s1) }   // already deleted
+        await expectCode(3) { try await a.delete(s1) }
         #expect(try await a.count(T.steps) == 1)
-        // delete of type with an empty match: success, 0; then a match
         #expect(try await a.deleteObjects(of: T.steps, predicate: HKQuery.predicateForObjects(withMetadataKey: "nothing")) == 0)
         #expect(try await a.deleteObjects(of: T.steps, predicate: HKQuery.predicateForSamples(withStart: T.at(0), end: T.at(1))) == 1)
         #expect(try await a.count(T.steps) == 0)
@@ -78,19 +73,16 @@ struct StoreTests {
         let store = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
         try await store.grant(share: [T.steps], read: [T.steps, T.heartRate])
         #expect(store.authorizationStatus(for: T.steps) == .sharingAuthorized)
-        #expect(store.authorizationStatus(for: T.heartRate) == .sharingDenied)      // read-only: never disclosed
+        #expect(store.authorizationStatus(for: T.heartRate) == .sharingDenied)
         #expect(try await store.statusForAuthorizationRequest(toShare: [T.steps], read: [T.heartRate]) == .unnecessary)
-        // saving a type granted for reading only: code 4
         await expectCode(4) { try await store.save(T.qs(T.heartRate, 60, T.bpm, T.at(0, 8))) }
-        // a second request for the same set completes without asking
         let asked = Locked(0)
         daemon.setConsentResponder { _ in
             asked.withLock { $0 += 1 }
-            return nil   // cancel
+            return nil
         }
         try await store.requestAuthorization(toShare: [T.steps], read: [T.steps, T.heartRate])
         #expect(asked.current == 0)
-        // a new type asks; cancelling completes with code 7
         await expectCode(7) { try await store.requestAuthorization(toShare: [T.bodyMass], read: []) }
         #expect(asked.current == 1)
     }
@@ -142,7 +134,7 @@ struct StoreTests {
             daemon.close()
         }
         let daemon = try SwiftCodeHealthDaemon(databaseURL: url)
-        daemon.setConsentResponder { _ in nil }   // grants must be remembered, not re-asked
+        daemon.setConsentResponder { _ in nil }
         let store = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
         #expect(daemon.objectCounts() == counts)
         #expect(counts[T.steps.identifier] == 2)
@@ -153,7 +145,6 @@ struct StoreTests {
     }
 }
 
-/// C-ANCHOR: `queries.md` §4 and §9.
 @Suite("C-ANCHOR queries.md §4 §9")
 struct AnchorTests {
     @Test("§4 fresh store, limit 2: the first two samples in insertion order (1000, 500)")
@@ -162,7 +153,6 @@ struct AnchorTests {
         let (added, deleted, anchor) = try await g.a.anchored(T.steps, anchor: nil, limit: 2)
         #expect(added.map { ($0 as! HKQuantitySample).quantity.doubleValue(for: .count()) } == [1000, 500])
         #expect(deleted.isEmpty)
-        // continuing from the returned anchor yields the rest
         let (rest, _, _) = try await g.a.anchored(T.steps, anchor: anchor)
         #expect(rest.count == 6)
     }
@@ -218,14 +208,14 @@ struct AnchorTests {
         #expect(await eventually { events.current.count == 1 })
         try await store.save(sync(8, 2))
         #expect(await eventually { events.current.count == 2 })
-        try await store.save(sync(9, 1))       // lower version: success, ignored
-        try await store.save(T.stepSample(1, T.at(0), T.at(0)))   // a marker change set
+        try await store.save(sync(9, 1))
+        try await store.save(T.stepSample(1, T.at(0), T.at(0)))
         #expect(await eventually { events.current.count == 3 })
         store.stop(q)
         let e = events.current
         #expect(e[0] == (1, 0))
         #expect(e[1] == (1, 1))
-        #expect(e[2] == (1, 0))      // the marker; the v1 save produced no update
+        #expect(e[2] == (1, 0))
         let stored = try await store.samples(T.steps, HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier))
         #expect(stored.count == 1)
         #expect((stored.first as? HKQuantitySample)?.quantity.doubleValue(for: .count()) == 8)

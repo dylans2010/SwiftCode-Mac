@@ -4,8 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// A package repository in a fresh temporary folder, with a local identity
-/// and no signing; a bare repository beside it is the only "remote".
 private struct Sandbox {
     let folder: URL
     let dir: URL
@@ -39,7 +37,6 @@ private struct Sandbox {
         try git("commit", "-q", "-m", message)
     }
 
-    /// main and feature both change line 2 of main.swift.
     func makeConflict() throws {
         try git("switch", "-q", "-c", "feature")
         try commit("Sources/App/main.swift", "let a = 1\nlet b = 20\nlet c = 3\n", "Feature b")
@@ -58,10 +55,6 @@ private struct Sandbox {
     }
 }
 
-/// Awaits `body` for at most `seconds`. Past that the test records an
-/// issue and goes on. A main actor that never yields cannot even report
-/// the timeout, so a watchdog thread stops the test process after twice
-/// the time, with a message, instead of letting the suite hang.
 @MainActor
 func waitFor<T: Sendable>(_ what: String, seconds: Double = 180, sourceLocation: SourceLocation = #_sourceLocation,
                           _ body: @escaping @MainActor () async -> T) async -> T? {
@@ -88,7 +81,6 @@ func waitFor<T: Sendable>(_ what: String, seconds: Double = 180, sourceLocation:
     return value
 }
 
-/// Polls `condition` until it holds, for at most `seconds`.
 @MainActor
 func eventually(_ what: String, seconds: Double = 60, sourceLocation: SourceLocation = #_sourceLocation,
                 _ condition: @MainActor () async -> Bool) async {
@@ -125,9 +117,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
     return nil
 }
 
-/// Gap #13: branch workflows, the conflict editor, Compare Files and
-/// Authors in the window (`specs/ide/source-control.md`, `comparison.md`,
-/// "SwiftCode implementation").
 @MainActor
 @Suite(.serialized) struct SourceControlBranchWorkflowTests {
     @Test func navigatorMenusDriveBranchTagStashAndRemoteOperations() async throws {
@@ -148,7 +137,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(find(roots, key: "group:Branches")?.title == "Branches")
         #expect(find(roots, key: "remote:origin")?.title == "origin")
 
-        // The row menus, through the navigator's own context menu.
         wc.navigator.select(1)
         #expect(wc.navigator.selectSourceControlRow(key: "branch:feature"))
         let menu = NSMenu()
@@ -160,14 +148,11 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
             "New \u{201C}scm-ui-branches\u{201D} Remote…", "Add Existing Remote…", "|", "View on Host…", "|",
             "Apply Stashed Changes…", "Export Stashed Changes as Patch File…", "|", "Delete…",
         ])
-        // The navigator's outline carries the row menu (merge-sheet.md §1.1).
         #expect(wc.navigator.hasRowMenu)
         #expect(scm.rowMenuItems(forKey: "branch:main").first { $0.title == "Delete…" }?.isEnabled == false)
         #expect(scm.rowMenuItems(forKey: "group:Remotes").map(\.title) == ["Add Remote…"])
         #expect(scm.rowMenuItems(forKey: "remote:origin").map { $0.isSeparatorItem ? "|" : $0.title } == ["Fetch \u{201C}origin\u{201D}", "|", "Remove \u{201C}origin\u{201D}…"])
 
-        // Create and switch, rename, delete (an unmerged branch is forced
-        // after the second confirmation, which is automatic off screen).
         scm.createBranch("topic", checkout: true)
         await waitFor("source control") { await scm.idle() }
         #expect(scm.snapshot.currentBranch == "topic")
@@ -180,7 +165,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         await waitFor("source control") { await scm.idle() }
         #expect(scm.snapshot.branches.map(\.name) == ["feature", "main"])
 
-        // Stash: apply from its menu item; then delete it.
         let apply = try #require(scm.rowMenuItems(forKey: "stash:stash@{0}").first { $0.title == "Apply Stashed Changes" })
         _ = (apply.target as? NSObject)?.perform(apply.action, with: apply)
         await waitFor("source control") { await scm.idle() }
@@ -189,7 +173,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         await waitFor("source control") { await scm.idle() }
         #expect(scm.snapshot.stashes.isEmpty)
 
-        // Tags; pushing a branch and a tag to the bare remote.
         scm.createTag("v2", message: "Two")
         scm.run(.deleteTag("v1"))
         await waitFor("source control") { await scm.idle() }
@@ -221,13 +204,11 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(sheet.state.files == [file] && sheet.state.currentFile == file)
         #expect(sheet.state.stepperText == "1/1" && sheet.state.token(forHunk: 0)?.glyph == "?")
         #expect(!sheet.mergeButton.isEnabled && sheet.mergeButton.title == "Merge")
-        // The panes: the current branch on the left, never git's markers.
         #expect(sheet.canvas.rows.map { $0.left?.text } == ["let a = 1", "let b = 200", "let c = 3"])
         #expect(sheet.canvas.rows.map { $0.right?.text } == ["let a = 1", "let b = 20", "let c = 3"])
         #expect(sheet.state.leftFooter?.branch == "main" && sheet.state.rightFooter?.branch == "feature")
         #expect(sheet.state.leftFooter?.isHead == true && sheet.state.leftFooter?.author == "SwiftCode Test")
 
-        // The window's state: navigator header, Integrate menu, menu titles.
         scm.setMode(.changes)
         #expect(wc.navigator.rows(1).first?.detail == "main (Merging \u{201C}feature\u{201D})")
         #expect(scm.rowMenuItems(forKey: "change:" + file).map(\.title) == ["Resolve Conflicts…", "Mark as Resolved"])
@@ -238,19 +219,16 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(MenuTitles.title(generic: "Continue", in: wc.menuContext) == "Continue Merge")
         #expect(scm.rowMenuItems(forKey: "branch:feature").first { $0.title.hasPrefix("Merge") }?.isEnabled == false)
 
-        // Choose: Right, then both; the change stays selected.
         sheet.choose(.theirs)
         #expect(sheet.state.currentHunk == 0 && sheet.canvas.rows[1].left?.text == "let b = 20")
         #expect(sheet.mergeButton.isEnabled && sheet.state.token(forHunk: 0)?.glyph == "1")
         sheet.choose(.oursThenTheirs)
         #expect(sheet.canvas.rows.compactMap { $0.left?.text } == ["let a = 1", "let b = 200", "let b = 20", "let c = 3"])
-        // By hand (double-click a change's left lines).
         sheet.beginEditing()
         #expect(sheet.state.isEditing && !sheet.canvas.handEditorScroll.isHidden)
         sheet.setEditedText("let b = 2_000\n")
         #expect(sheet.state.document?.result == "let a = 1\nlet b = 2_000\nlet c = 3\n")
 
-        // Merge: writes, stages and commits; the sheet closes.
         sheet.mergeButton.performClick(nil)
         await eventually("the merge commit") { await scm.idle(); return scm.mergeSheet == nil }
         guard case .completed? = scm.lastIntegrationResult else { Issue.record("expected the merge commit"); return }
@@ -259,8 +237,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(try s.git("rev-list", "--parents", "-n", "1", "HEAD").split(separator: " ").count == 3)
     }
 
-    /// Mark as Resolved (the change row's item, Integrate) still writes and
-    /// stages one file; Continue then makes the commit.
     @Test func markAsResolvedThenContinue() async throws {
         let s = try Sandbox("scm-ui-resolved")
         defer { s.cleanUp() }
@@ -282,8 +258,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(try s.read("Sources/App/main.swift") == "let a = 1\nlet b = 200\nlet c = 3\n")
     }
 
-    /// Cancel asks, then aborts the merge (off screen the question is
-    /// answered at once).
     @Test func cancelAbortsTheMerge() async throws {
         let s = try Sandbox("scm-ui-cancel")
         defer { s.cleanUp() }
@@ -302,10 +276,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(try s.read("Sources/App/main.swift") == "let a = 1\nlet b = 200\nlet c = 3\n")
     }
 
-    /// Regression: `idle()` once waited on a wrapper task that finished
-    /// before the code clearing it ran; awaiting a finished task does not
-    /// suspend, so the main actor spun and the suite hung. Every read is
-    /// now a task that removes itself as its last step.
     @Test func conflictEditorIdleNeverSpinsOnAFinishedRead() async throws {
         let s = try Sandbox("scm-ui-idle")
         defer { s.cleanUp() }
@@ -316,7 +286,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         let editor = ConflictEditorController(repository: repo, focus: file)
         _ = editor.view
         for _ in 0..<40 {
-            // Reads started from outside idle(), in every interleaving.
             Task { await editor.show(file: file) }
             editor.reloadFiles()
             await Task.yield()
@@ -324,9 +293,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
             #expect(editor.loading == nil)
         }
         #expect(editor.document?.conflictCount == 1 && editor.currentFile == file)
-        // The invariant idle() relies on: once a tracked task has finished,
-        // it is no longer listed (a finished task's `value` returns without
-        // suspending, so a listed one would make idle() spin).
         let t = editor.track { _ = await Task.detached { 1 }.value }
         await t.value
         #expect(editor.loading == nil)
@@ -353,7 +319,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(scm.snapshot.integration == .none && scm.mergeSheet == nil)
         #expect(try s.git("rev-parse", "HEAD") == before)
 
-        // A cherry-pick of a clean commit from another branch.
         try s.git("switch", "-q", "main")
         try s.git("switch", "-q", "-c", "side")
         try s.commit("Sources/App/Side.swift", "let side = 1\n", "Side file")
@@ -380,14 +345,12 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         let right = try file("right.txt", "one\nTWO\nthree\nfour\nfive\n")
         let base = try file("base.txt", "one\ntwo\nthree\n4\n")
 
-        // The command: SwiftCode ▸ Open Developer Tool ▸ Compare Files….
         #expect(AppCommands.handles("compareFiles:") && AppCommands.shared.responds(to: NSSelectorFromString("compareFiles:")))
         let tools = CommandTable.menus[0].1.compactMap { item -> [MenuItemSpec]? in
             if case .submenu("Open Developer Tool", let items) = item { return items } else { return nil }
         }.first ?? []
         #expect(tools.contains(.command(.init("Compare Files…", "", [], "compareFiles:"))))
 
-        // Two files: every difference takes the right side until changed.
         let two = CompareFilesWindowController.show(left: left, right: right, display: false)
         let e2 = two.editor
         _ = e2.view
@@ -397,8 +360,8 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(e2.pairControl.isHidden && !e2.choiceControl.isEnabled(forSegment: 4))
         #expect(!e2.saveButton.isHidden && e2.resolveButton.isHidden && e2.continueButton.isHidden)
         #expect(e2.resultText == "one\nTWO\nthree\nfour\nfive\n")
-        e2.choose(.ours)          // first difference: left
-        #expect(e2.hunkLabel.stringValue == "Difference 1 of 2")   // nothing unresolved to jump to
+        e2.choose(.ours)
+        #expect(e2.hunkLabel.stringValue == "Difference 1 of 2")
         e2.nextHunk(nil)
         #expect(e2.hunkLabel.stringValue == "Difference 2 of 2")
         e2.choose(.ours)
@@ -407,14 +370,12 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(try String(contentsOf: out2, encoding: .utf8) == "one\ntwo\nthree\nfour\n")
         two.close()
 
-        // Three files: the ancestor decides what is a conflict.
         let three = CompareFilesWindowController.show(left: left, right: right, ancestor: base, display: false)
         let e3 = three.editor
         _ = e3.view
         let doc = try #require(e3.document)
         #expect(doc.chunks.map(\.kind) == [.unchanged, .theirsOnly, .unchanged, .conflict])
         #expect(!e3.pairControl.isHidden && e3.choiceControl.isEnabled(forSegment: 4))
-        // The first undecided hunk is selected: the conflict.
         #expect(e3.currentHunk == 1 && e3.hunkLabel.stringValue == "Change 2 of 2 (conflict)")
         #expect(throws: (any Error).self) { try e3.save(to: folder.appendingPathComponent("refused.txt")) }
         e3.choose(.ours)
@@ -456,7 +417,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(e.gutter.authorsToolTip(line: 2)?.hasPrefix(String(second.prefix(7)) + " \u{2014} Grace Second <grace@swiftcode.invalid>") == true)
         #expect(e.gutter.authorsToolTip(line: 2)?.hasSuffix("Change b") == true)
 
-        // Unsaved edits: new lines are not committed yet.
         e.textView.string = "let a = 1\nlet new = 0\nlet b = 22\nlet c = 3\n"
         e.textView.didChangeText()
         e.recomputeSourceChanges()
@@ -465,7 +425,6 @@ private func find(_ items: [OutlineItem], key: String) -> OutlineItem? {
         #expect(e.gutter.authorsText(line: 2) == "Not Committed Yet")
         #expect(e.gutter.authorsText(line: 3) == "Grace Second  Today")
 
-        // Show Last Change for Line: the commit's history, selected.
         e.textView.setSelectedRange(NSRange(location: ("let a = 1\nlet new = 0\n" as NSString).length, length: 0))
         let line = e.currentLine, text = e.text
         #expect(await waitFor("Show Last Change") { await wc.sourceControl.showLastChange(path: path, line: line, contents: text) } == true)

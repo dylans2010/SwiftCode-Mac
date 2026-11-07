@@ -3,12 +3,6 @@ import Foundation
 import CoreGraphics
 #endif
 
-// The headless back end (09-open-design.md §4): deterministic in-memory
-// windows of a fixed size and scale, events posted by tests, and a virtual
-// clock that jumps to each deadline the run loop waits for (so a test of
-// "0.5 s later" takes no real time and every frame lands on the 60 Hz grid).
-
-/// Clipboard text kept in memory.
 @MainActor
 public final class MemoryClipboard: PlatformClipboard {
     public var text: String?
@@ -16,7 +10,6 @@ public final class MemoryClipboard: PlatformClipboard {
     public init() {}
 }
 
-/// An in-memory window.
 @MainActor
 public final class HeadlessWindow: PlatformWindow {
     public let id: PlatformWindowID
@@ -25,14 +18,12 @@ public final class HeadlessWindow: PlatformWindow {
     public var scale: Double
     public var refreshRate: Double
     public private(set) var isClosed = false
-    /// Frames presented so far.
     public private(set) var presentedFrames = 0
     public private(set) var lastFrame: PixelBuffer?
     public private(set) var isTextInputActive = false
     public private(set) var textInputCaret: CGRect?
     public var vulkan: (any PlatformVulkanSurface)? { nil }
     public let popupParent: PlatformWindowID?
-    /// Where a pop-up was placed (points from its parent's origin).
     public let popupOrigin: CGPoint
     private weak var backend: HeadlessBackend?
 
@@ -84,22 +75,17 @@ public final class HeadlessWindow: PlatformWindow {
     public func close() { isClosed = true }
 }
 
-/// The test back end.
 @MainActor
 public final class HeadlessBackend: PlatformBackend {
     public let name = "headless"
     public private(set) var now: TimeInterval
     public let clipboard: any PlatformClipboard = MemoryClipboard()
-    /// Scale and refresh rate of new windows.
     public var defaultScale: Double
     public var defaultRefreshRate: Double
-    /// URLs handed to the desktop.
     public private(set) var openedURLs: [URL] = []
-    /// Number of `waitForEvents` calls that would have slept with no deadline.
     public private(set) var idleWaits = 0
     private var allWindows: [HeadlessWindow] = []
     private var nextID: PlatformWindowID = 1
-    /// Pending events with their due times (stable order for equal times).
     private var queue: [(time: TimeInterval, seq: Int, event: PlatformEvent)] = []
     private var seq = 0
 
@@ -112,11 +98,8 @@ public final class HeadlessBackend: PlatformBackend {
     public var windows: [any PlatformWindow] { allWindows.filter { !$0.isClosed } }
     public var headlessWindows: [HeadlessWindow] { allWindows.filter { !$0.isClosed } }
 
-    /// When true, pop-up windows are refused (tests of the overlay fallback).
     public var refusesPopups = false
 
-    /// The desktop settings (R10): the reference defaults; a test changes
-    /// them like a user changing a desktop setting (`.settingsChanged`).
     public var settings = PlatformSettings() {
         didSet { if settings != oldValue { post(.settingsChanged) } }
     }
@@ -136,19 +119,16 @@ public final class HeadlessBackend: PlatformBackend {
 
     public func post(_ event: PlatformEvent) { post(event, at: now) }
 
-    /// Queues an event for back-end time `time` (not before now).
     public func post(_ event: PlatformEvent, at time: TimeInterval) {
         seq += 1
         queue.append((max(time, now), seq, event))
         queue.sort { ($0.time, $0.seq) < ($1.time, $1.seq) }
     }
 
-    /// The due time of the earliest queued event.
     public var nextEventTime: TimeInterval? { queue.first?.time }
 
     public func waitForEvents(until deadline: TimeInterval?) -> [PlatformEvent] {
         if let first = queue.first, first.time <= now + 1e-9 { return takeDue() }
-        // Nothing due: the clock jumps to the deadline or the next event.
         var target = deadline
         if let t = queue.first?.time { target = target.map { min($0, t) } ?? t }
         guard let target else {
@@ -168,7 +148,6 @@ public final class HeadlessBackend: PlatformBackend {
         return out
     }
 
-    /// Moves the clock forward without delivering anything.
     public func advanceClock(by seconds: TimeInterval) { now += max(0, seconds) }
 
     public func openExternally(_ url: URL) -> Bool {

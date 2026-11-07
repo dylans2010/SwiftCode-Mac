@@ -1,19 +1,8 @@
-// OVRender: the display list, the rasteriser and the compositors of
-// OpenViews (09-open-design.md §2, §3.5, §3.6; 10-plan.md round R5). This
-// module knows nothing about views: SwiftUICore lowers its view graph to a
-// `DisplayList`, and a `Compositor` turns display lists into pixels on a
-// `RenderSurface` that the platform host (OVPlatform, round R7) or a test
-// provides.
-//
-// Geometry is in points unless a name says pixels; `RenderFrame.scale`
-// converts. The origin is the top left corner, y grows downwards.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// A 2-D affine transform: x' = a·x + c·y + tx, y' = b·x + d·y + ty.
 public struct RenderTransform: Hashable, Sendable {
     public var a: Double
     public var b: Double
@@ -41,7 +30,6 @@ public struct RenderTransform: Hashable, Sendable {
         RenderTransform(a: sx, b: 0, c: 0, d: sy, tx: 0, ty: 0)
     }
 
-    /// Rotation by `radians`, clockwise on screen (y grows downwards).
     public static func rotation(_ radians: Double) -> RenderTransform {
         let co = cos(radians), si = sin(radians)
         return RenderTransform(a: co, b: si, c: -si, d: co, tx: 0, ty: 0)
@@ -49,7 +37,6 @@ public struct RenderTransform: Hashable, Sendable {
 
     public var isIdentity: Bool { self == .identity }
 
-    /// `self` applied after `inner`: a point goes through `inner` first.
     public func concatenating(_ inner: RenderTransform) -> RenderTransform {
         RenderTransform(a: a * inner.a + c * inner.b,
                         b: b * inner.a + d * inner.b,
@@ -71,7 +58,6 @@ public struct RenderTransform: Hashable, Sendable {
                                tx: -(ia * tx + ic * ty), ty: -(ib * tx + id * ty))
     }
 
-    /// The axis-aligned bounding box of `rect` after the transform.
     public func boundingBox(of rect: CGRect) -> CGRect {
         if rect.isNull { return rect }
         let pts = [apply(CGPoint(x: rect.minX, y: rect.minY)), apply(CGPoint(x: rect.maxX, y: rect.minY)),
@@ -82,7 +68,6 @@ public struct RenderTransform: Hashable, Sendable {
     }
 }
 
-/// A size in device pixels.
 public struct PixelSize: Hashable, Sendable {
     public var width: Int
     public var height: Int
@@ -93,7 +78,6 @@ public struct PixelSize: Hashable, Sendable {
     public var isEmpty: Bool { width <= 0 || height <= 0 }
 }
 
-/// A rectangle in device pixels (top-left origin).
 public struct PixelRect: Hashable, Sendable {
     public var x: Int
     public var y: Int
@@ -123,7 +107,6 @@ public struct PixelRect: Hashable, Sendable {
         return PixelRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
 
-    /// The smallest pixel rectangle covering `rect` (points) at `scale`.
     public static func covering(_ rect: CGRect, scale: Double) -> PixelRect {
         if rect.isNull || rect.isEmpty { return PixelRect(x: 0, y: 0, width: 0, height: 0) }
         let x0 = Int((rect.minX * scale).rounded(.down)), y0 = Int((rect.minY * scale).rounded(.down))

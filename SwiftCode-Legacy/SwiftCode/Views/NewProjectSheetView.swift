@@ -75,16 +75,13 @@ public struct NewProjectSheetView: View {
     public var body: some View {
         NavigationStack {
             HStack(spacing: 0) {
-                // Left Column: Liquid Glass Sidebar
                 sidebarView
                     .frame(width: 230)
 
-                // Divider line
                 Rectangle()
                     .fill(Color.white.opacity(0.08))
                     .frame(width: 1)
 
-                // Right Column: Content Viewport
                 VStack(spacing: 0) {
                     headerView
 
@@ -155,8 +152,6 @@ public struct NewProjectSheetView: View {
             Text("Please enter a name for your imported project.")
         }
     }
-
-    // MARK: - Sidebar
 
     private var sidebarView: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -251,8 +246,6 @@ public struct NewProjectSheetView: View {
         .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
     }
 
-    // MARK: - Header
-
     private var headerView: some View {
         HStack(spacing: 14) {
             ZStack {
@@ -328,8 +321,6 @@ public struct NewProjectSheetView: View {
             }
         )
     }
-
-    // MARK: - Content View
 
     @ViewBuilder
     private var contentView: some View {

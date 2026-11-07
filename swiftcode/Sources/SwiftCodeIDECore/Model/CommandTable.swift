@@ -1,8 +1,5 @@
 import Foundation
 
-/// The menu bar as data: menu titles, items, key equivalents and the action
-/// each item sends up the responder chain. See `specs/ide/menus.md` and the
-/// normative menu bar of `specs/ide/reference-ui-5.md` §1–§2.
 public struct MenuCommand: Equatable, Sendable {
     public struct Modifiers: OptionSet, Sendable, Hashable {
         public let rawValue: Int
@@ -13,25 +10,12 @@ public struct MenuCommand: Equatable, Sendable {
         public static let control = Modifiers(rawValue: 8)
     }
 
-    /// The generic title: the one shown with no workspace window
-    /// (reference-ui-5.md §1.3). `MenuTitles` gives the title in context.
     public var title: String
-    /// The key as AppKit expects it: lowercase letters (with `.shift` for
-    /// ⇧), the shifted character for shifted punctuation ("{" for ⇧[, §1.8),
-    /// AppKit's private-use characters for arrows and function keys (see
-    /// `Key`). Empty for no shortcut.
     public var key: String
-    /// The shortcut's modifiers. For an alternate without a shortcut, the
-    /// modifiers that reveal it.
     public var modifiers: Modifiers
-    /// Objective-C selector name, e.g. `"buildProduct:"`.
     public var action: String
-    /// For navigator / inspector selection commands: the index to select.
     public var tag: Int
-    /// An alternate of the item just above it, shown only while its extra
-    /// modifiers are held (§1.2).
     public var isAlternate: Bool
-    /// Shown only while this holds (§1.5); nil = always.
     public var condition: MenuCondition?
 
     public init(_ title: String, _ key: String = "", _ modifiers: Modifiers = [], _ action: String, tag: Int = 0,
@@ -45,59 +29,41 @@ public struct MenuCommand: Equatable, Sendable {
         self.condition = condition
     }
 
-    /// A command whose shortcut is written in menu notation ("⌥⇧⌘W",
-    /// "⌃F6", "⌘{"). See `Shortcut.parse`.
     public init(_ title: String, shortcut: String, _ action: String, tag: Int = 0, isAlternate: Bool = false, condition: MenuCondition? = nil) {
         let (k, m) = Shortcut.parse(shortcut)
         self.init(title, k, m, action, tag: tag, isAlternate: isAlternate, condition: condition)
     }
 
-    /// The shortcut in menu notation, e.g. `⇧⌘K`. Order: ⌃⌥⇧⌘.
     public var shortcutText: String {
         guard !key.isEmpty else { return "" }
         return Shortcut.text(key: key, modifiers: modifiers)
     }
 
-    /// The keystroke in one canonical spelling, for comparisons: shifted
-    /// punctuation becomes ⇧ plus the unshifted key ("⌘{" → "⇧⌘["), so two
-    /// spellings of one keystroke compare equal.
     public var canonicalShortcut: String {
         guard !key.isEmpty else { return "" }
         return Shortcut.canonical(key: key, modifiers: modifiers)
     }
 
-    /// Whether SwiftCode performs this command (§1.1: the others are listed
-    /// disabled).
     public var isAvailable: Bool { !action.hasPrefix("swiftcodeUnavailable") }
 }
 
-/// Characters AppKit uses for non-printing keys in key equivalents.
 public enum Key {
     public static let up = "\u{F700}", down = "\u{F701}", left = "\u{F702}", right = "\u{F703}"
     public static let f6 = "\u{F709}", f7 = "\u{F70A}", f8 = "\u{F70B}"
     public static let `return` = "\r", space = " ", delete = "\u{8}", tab = "\t"
-    /// F1…F12.
     public static func function(_ n: Int) -> String { String(UnicodeScalar(0xF703 + n)!) }
     static let names: [String: String] = {
         var n: [String: String] = [up: "↑", down: "↓", left: "←", right: "→", `return`: "↩", space: "Space", delete: "⌫", tab: "⇥"]
         for i in 1...12 { n[function(i)] = "F\(i)" }
         return n
     }()
-    /// The unshifted key of each shifted character on a US keyboard
-    /// (reference-ui-5.md §1.8: "⇧⌘[" and "⌘{" are one keystroke).
     public static let shiftedBase: [String: String] = [
         "{": "[", "}": "]", "<": ",", ">": ".", "?": "/", ":": ";", "|": "\\", "\"": "'", "~": "`", "_": "-", "+": "=",
         "!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9", ")": "0",
     ]
 }
 
-/// Menu shortcut notation (⌃⌥⇧⌘, then the key).
 public enum Shortcut {
-    /// Parses "⌥⇧⌘W" into AppKit's key and modifiers. Letters become
-    /// lowercase (⇧ stays a modifier); "↩", arrows, "Space", "⌫", "⇥" and
-    /// "F1"…"F12" become AppKit's characters; other characters are kept
-    /// (write "⌘{" for ⇧⌘[, as AppKit expects). Modifiers alone ("⌥")
-    /// give an empty key (an alternate without a shortcut).
     public static func parse(_ s: String) -> (String, MenuCommand.Modifiers) {
         var mods: MenuCommand.Modifiers = []
         var rest = Substring(s)
@@ -131,14 +97,10 @@ public enum Shortcut {
         return s
     }
 
-    /// Menu notation for a key and modifiers ("⇧⌘K", "⌘↩", "F6"): modifiers
-    /// in ⌃⌥⇧⌘ order, then the key's name or the uppercased character.
     public static func text(key: String, modifiers: MenuCommand.Modifiers) -> String {
         modifierText(modifiers) + (Key.names[key] ?? key.uppercased())
     }
 
-    /// `text(key:modifiers:)` after moving shift into the modifiers (shifted
-    /// punctuation and uppercase letters), so equal keystrokes compare equal.
     public static func canonical(key: String, modifiers: MenuCommand.Modifiers) -> String {
         var k = key, m = modifiers
         if let base = Key.shiftedBase[k] { k = base; m.insert(.shift) }
@@ -146,33 +108,19 @@ public enum Shortcut {
         return text(key: k, modifiers: m)
     }
 
-    /// The canonical form of a shortcut written in menu notation.
     public static func canonical(_ s: String) -> String {
         let (k, m) = parse(s)
         return k.isEmpty ? modifierText(m) : canonical(key: k, modifiers: m)
     }
 }
 
-/// When a conditional item is shown (reference-ui-5.md §1.5).
 public enum MenuCondition: String, Sendable, Equatable {
-    /// A source editor has focus (Navigate ▸ counterparts, line, placeholders, changes).
     case sourceEditorFocused
-    /// The workspace's repository has a remote (Integrate ▸ Create Pull Request…).
     case repositoryHasRemote
-    /// A merge, rebase or cherry-pick stopped, or files have conflicts
-    /// (Integrate ▸ Resolve Conflicts…, Continue, Abort; SwiftCode's own items).
     case integrationInProgress
-    /// A debug session is running (Debug ▸ Debug Workflow ▸ Load Symbols…).
     case debugging
-    /// The separate Close Window ⇧⌘W item: hidden while ⌘W itself reads
-    /// Close Window (one editor tab; reference-ui-3.md §5.2).
     case separateCloseWindow
-    /// File ▸ New ▸ Group items: hidden while the project navigator's
-    /// selection is in (or is) a folder, where groups cannot go
-    /// (reference-ui-6.md §8 item 6, M6).
     case groupsAllowed
-    /// Edit ▸ Paste ▸ Move Item Here: shown only when an item was cut for
-    /// moving (reference-ui-6.md §8 item 4, M4).
     case itemToMove
 }
 
@@ -180,44 +128,32 @@ public enum MenuItemSpec: Equatable, Sendable {
     case command(MenuCommand)
     case separator
     case submenu(String, [MenuItemSpec])
-    /// A section label: a disabled title heading a section (§1.4).
     case label(String)
 }
 
-/// The menu bar, in order. The application menu is first.
 public enum CommandTable {
-    /// Shorthand for the modifier set in the table below.
     public typealias M = MenuCommand.Modifiers
 
-    /// Navigators in selector-bar order; ⌘1…⌘9 select them (reference-ui.md §2).
     public static let navigators = ["Project", "Source Control", "Bookmarks", "Find", "Issues", "Tests", "Debug", "Breakpoints", "Reports"]
-    /// Inspectors for source files in tab order; ⌥⌘1… select them.
     public static let inspectors = ["File", "History", "Quick Help"]
 
-    /// A command SwiftCode does not perform yet: listed (so the menus match
-    /// the reference) with an action nothing implements, so AppKit shows
-    /// it disabled. Each gets its own selector name. It keeps its
-    /// reference shortcut so nothing else can take it (§1.1).
     package static func unavailable(_ title: String) -> MenuItemSpec { u(title) }
 
     static func unavailableAction(_ title: String) -> String {
         "swiftcodeUnavailable\(title.filter { $0.isLetter || $0.isNumber }):"
     }
 
-    // Builders, so the table reads like the spec.
     static func c(_ t: String, _ s: String = "", _ a: String, tag: Int = 0, when: MenuCondition? = nil) -> MenuItemSpec {
         .command(.init(t, shortcut: s, a, tag: tag, condition: when))
     }
     static func u(_ t: String, _ s: String = "", when: MenuCondition? = nil) -> MenuItemSpec {
         .command(.init(t, shortcut: s, unavailableAction(t), condition: when))
     }
-    /// An alternate of the item above; `a` nil = not performed yet.
     static func alt(_ t: String, _ s: String, _ a: String? = nil, when: MenuCondition? = nil) -> MenuItemSpec {
         .command(.init(t, shortcut: s, a ?? unavailableAction(t), isAlternate: true, condition: when))
     }
     static let sep = MenuItemSpec.separator
 
-    /// The menu bar, in reference-ui-5.md §2 order.
     public static let menus: [(String, [MenuItemSpec])] = [
         ("SwiftCode", appMenu),
         ("File", fileMenu),
@@ -225,7 +161,7 @@ public enum CommandTable {
         ("View", viewMenu),
         ("Find", findMenu),
         ("Navigate", navigateMenu),
-        ("Editor", EditorMenu.items),  // §2.7; see EditorMenu.swift
+        ("Editor", EditorMenu.items),
         ("Product", productMenu),
         ("Debug", debugMenu),
         ("Integrate", integrateMenu),
@@ -233,7 +169,6 @@ public enum CommandTable {
         ("Help", helpMenu),
     ]
 
-    /// §2.1. Services ▸ is the system's (an empty submenu AppKit fills).
     static var appMenu: [MenuItemSpec] {
         [
             c("About SwiftCode", "", "showAboutWindow:"),
@@ -242,8 +177,6 @@ public enum CommandTable {
             c("Settings…", "⌘,", "showSettings:"),
             .submenu("Behaviors", [u("No Custom Behaviors"), sep, c("Edit Behaviors…", "", "showBehaviorsSettings:")]),
             sep,
-            // The tools found in the developer directory go before the separator.
-            // Device Hub (device-hub.md: Xcode ▸ Open Developer Tool ▸ Device Hub opens it).
             .submenu("Open Developer Tool", [c("Device Hub", "", "showDevices:"), c("Database Explorer", "", "showDatabaseExplorer:"), c("Compare Files…", "", "compareFiles:"), sep, c("More Developer Tools…", "", "openMoreDeveloperTools:")]),
             .submenu("Services", []),
             sep,
@@ -256,13 +189,9 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.2.
     static var fileMenu: [MenuItemSpec] {
         [
             .submenu("New", [
-                // The coding assistant (coding-assistant.md §4): the prompt
-                // in the pane, a new editor tab, or the next editor pane
-                // (reference-ui-6.md §9.5).
                 c("Conversation", "⌃⌘H", "newConversation:"),
                 alt("Conversation in New Tab", "⌃⌥⌘H", "newConversationInNewTab:"),
                 alt("Conversation in Editor Pane", "⌃⌥⇧⌘H", "newConversationInEditorPane:"),
@@ -275,7 +204,6 @@ public enum CommandTable {
                 c("Window", "⇧⌘T", "newWorkspaceWindow:"),
                 sep,
                 c("Empty File", "", "newEmptyFile:"),
-                // "New File from Clipboard" while enabled (MenuTitles; §8 item 6).
                 c("File from Clipboard", "", "newFileFromClipboard:"),
                 c("File from Template…", "⌘N", "newFile:"),
                 u("Target…"),
@@ -296,7 +224,6 @@ public enum CommandTable {
             c("Add Package Dependencies…", "", "addPackageDependencies:"),
             sep,
             c("Open…", "⌘O", "openDocument:"),
-            // §3.2: filled from RecentProjects when opened (RecentProjectsMenuDelegate).
             .submenu("Open Recent", [c("Clear Menu", "", "clearRecentProjects:")]),
             c("Open Quickly…", "⇧⌘O", "openQuickly:"),
             sep,
@@ -339,9 +266,6 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.3. AutoFill, Start Dictation… and Emoji & Symbols are the
-    /// system's; AppKit adds them. Copy ▸ and Paste ▸ are submenus
-    /// (reference-ui-6.md §8 item 4, M4).
     static var editMenu: [MenuItemSpec] {
         [
             c("Undo", "⌘Z", "undo:"),
@@ -377,10 +301,6 @@ public enum CommandTable {
         ]
     }
 
-    /// Edit ▸ Format: the standard macOS text Format menu (§2.3 item 10),
-    /// with AppKit's standard text actions. Only Show Fonts and the two
-    /// spelling items carry shortcuts, so ⌘B, ⌘I, ⌘U … stay with Build,
-    /// Profile and Test.
     static var formatMenu: [MenuItemSpec] {
         [
             c("Show Fonts", "⌃⇧⌘T", "orderFrontFontPanel:"),
@@ -429,7 +349,6 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.4. View ▸ Editor holds the jump-bar keyboard menus (M4).
     static var viewMenu: [MenuItemSpec] {
         [
             .submenu("Editor", [
@@ -455,11 +374,8 @@ public enum CommandTable {
             sep,
             .submenu("Navigators", navigators.enumerated().map { i, n in c(n, "⌘\(i + 1)", "showNavigator:", tag: i) } + [
                 sep,
-                // "Hide Coding Assistant" while shown (MenuTitles; reference-ui-6.md §9.5, A7).
                 c("Show Coding Assistant", "⌘0", "showCodingAssistant:"),
-                // Wiring (wiring-views): the workspace's Collaboration window.
                 c("Show Collaboration…", "", "showCollaboration:"),
-                // Wiring (W-DEVTOOLS-HUB): the workspace's DevTools hub sheet (WorkspaceView.swift).
                 c("Show Developer Tools…", "", "showDevTools:"),
                 c("Show Navigator", "", "toggleNavigator:"),
                 c("Filter in Navigator", "⌥⌘J", "filterInNavigator:"),
@@ -469,7 +385,6 @@ public enum CommandTable {
                 sep,
                 c("Show Debug Area", "⇧⌘Y", "toggleDebugArea:"),
             ]),
-            // The focused editor's inspectors replace the first group at display.
             .submenu("Inspectors", inspectors.enumerated().map { i, n in c(n, "⌥⌘\(i + 1)", "showInspector:", tag: i) } + [
                 sep,
                 c("Show Inspector", "", "toggleInspector:"),
@@ -485,13 +400,10 @@ public enum CommandTable {
             c("Show Window Tab Bar", "", "toggleWindowTabBar:"),
             c("Show All Window Tabs", "⌘|", "showAllWindowTabs:"),
             sep,
-            // Its own action: AppKit rebinds a toggleFullScreen: item to fn-F (§1.6).
             c("Enter Full Screen", "⌃⌘F", "toggleWorkspaceFullScreen:"),
         ]
     }
 
-    /// §2.5. "Workspace" is the generic scope; `MenuTitles` names the
-    /// container (Project, Workspace, Package).
     static var findMenu: [MenuItemSpec] {
         [
             c("Find in Workspace", "⇧⌘F", "findInWorkspace:"),
@@ -506,7 +418,6 @@ public enum CommandTable {
             c("Find Ancestor Types", "", "findAncestorTypes:"),
             c("Find Descendent Types", "", "findDescendentTypes:"),
             c("Find Conforming Types", "", "findConformingTypes:"),
-            // "Find in Selected File…" for a file (MenuTitles; §8 item 6).
             c("Find in Selected Groups…", "", "findInSelectedGroups:"),
             sep,
             c("Find…", "⌘F", "performFindPanelAction:", tag: 1),
@@ -533,7 +444,6 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.6.
     static var navigateMenu: [MenuItemSpec] {
         let src = MenuCondition.sourceEditorFocused
         return [
@@ -596,9 +506,6 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.9. Profile (⌘I) runs Gauge, SwiftCode's profiler (specs/ide/profiler.md
-    /// §5); Build For ▸ Profiling builds with the Profile action's
-    /// configuration.
     static var productMenu: [MenuItemSpec] {
         [
             c("Run", "⌘R", "runProduct:"),
@@ -656,7 +563,6 @@ public enum CommandTable {
             c("Export Localizations…", "", "exportLocalizations:"),
             c("Import Localizations…", "", "importLocalizations:"),
             sep,
-            // reference-ui-2.md §7.8; the scheme rows follow, filled at display.
             .submenu("Scheme", [
                 c("Choose Scheme", "⌃0", "chooseScheme:"),
                 c("Select Next Scheme", "⌃⌘]", "selectNextScheme:"),
@@ -666,8 +572,6 @@ public enum CommandTable {
                 u("New Scheme…"),
                 c("Manage Schemes…", "", "manageSchemes:"),
             ]),
-            // The device, simulator and generic rows follow their labels,
-            // filled at display (§11.4; DynamicMenus.fillDestinations).
             .submenu("Destination", [
                 c("Choose Destination", "⌃)", "chooseDestination:"),
                 c("Select Next Destination", "⌃⌥⌘]", "selectNextDestination:"),
@@ -685,7 +589,6 @@ public enum CommandTable {
                 sep,
                 c("Manage Devices…", "⇧⌘2", "showDevices:"),
             ]),
-            // One row per test plan follows, filled at display.
             .submenu("Test Plan", [
                 c("Select Next Test Plan", "", "selectNextTestPlan:"),
                 c("Select Previous Test Plan", "", "selectPreviousTestPlan:"),
@@ -699,9 +602,6 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.10. Commands SwiftCode's lldb-dap session supports work (§10.2); the
-    /// others (follow program counter, library info, symbols, memory,
-    /// interrupt, crash logs, GPU, view debugging, StoreKit) stay disabled.
     static var debugMenu: [MenuItemSpec] {
         let similar = ["Type", "Process", "PID", "Library", "Subsystem", "Category", "TID"]
         return [
@@ -766,7 +666,6 @@ public enum CommandTable {
             .submenu("Simulate Location", []),
             .submenu("Induce Device Conditions", []),
             .submenu("View Debugging", [
-                // D4: disabled until the simulator can capture views.
                 u("Capture View Hierarchy"),
                 sep,
                 u("Show View Frames"),
@@ -782,7 +681,6 @@ public enum CommandTable {
                     u("Color Layer Formats"), u("Color Immediately"), u("Color Misaligned Images"),
                     u("Color Offscreen-Rendered Yellow"), u("Color Compositing Fast-Path Blue"), u("Flash Updated Regions"),
                 ]),
-                // On the SwiftCode simulator: Environment Overrides (DebugAppearanceMenu).
                 .submenu("Appearance", [
                     c("System Appearance", "", "debugAppearanceSystem:"), sep, c("Light", "", "debugAppearanceLight:"),
                     c("Dark", "", "debugAppearanceDark:"), c("High Contrast Light", "", "debugAppearanceHighContrastLight:"),
@@ -806,8 +704,6 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.11. Generic titles are the ones shown with no workspace; the
-    /// enablement rules are `IntegrateMenuState`'s.
     static var integrateMenu: [MenuItemSpec] {
         [
             .label("Source Control"),
@@ -825,7 +721,6 @@ public enum CommandTable {
             sep,
             c("Add", "", "scmAddSelected:"),
             c("Cherry-Pick…", "", "scmCherryPick:"),
-            // SwiftCode's place for it (merge-sheet.md, open question 7).
             c("Merge…", "", "scmMerge:"),
             c("Stash Changes…", "", "scmStash:"),
             c("Resolve Conflicts…", "", "scmResolveConflicts:", when: .integrationInProgress),
@@ -840,16 +735,12 @@ public enum CommandTable {
             c("Clone…", "", "scmClone:"),
             c("New Git Repository…", "", "scmNewRepository:"),
             sep,
-            // The reference's cloud CI section; SwiftCode has no such service.
             .label("Cloud"),
             u("Create Workflow…"),
             u("Manage Workflows…"),
         ]
     }
 
-    /// §2.12. Minimize All, Zoom All, Fill and Center, the tiling
-    /// submenus, Touch Bar, Arrange in Front and the window list are the
-    /// system's; AppKit adds them.
     static var windowMenu: [MenuItemSpec] {
         [
             c("Minimize", "⌘M", "performMiniaturize:"),
@@ -862,7 +753,6 @@ public enum CommandTable {
             c("Merge All Windows", "", "mergeAllWindows:"),
             sep,
             c("Developer Documentation", "⇧⌘0", "showDeveloperDocumentation:"),
-            // §3.1 (AppDelegate.showWelcomeWindow).
             c("Welcome to SwiftCode", "⇧⌘1", "showWelcomeWindow:"),
             c("Downloads", "⇧⌘9", "showDownloads:"),
             c("Organizer", "⌥⇧⌘O", "showOrganizer:"),
@@ -871,7 +761,6 @@ public enum CommandTable {
         ]
     }
 
-    /// §2.13.
     static var helpMenu: [MenuItemSpec] {
         [
             c("Developer Documentation", "⇧⌘0", "showDeveloperDocumentation:"),
@@ -882,18 +771,14 @@ public enum CommandTable {
             c("The Swift Programming Language", "", "showSwiftBook:"),
             c("Report a Bug…", "", "reportBug:"),
             sep,
-            // The hints are on in the factory state (reference-ui-6.md §8
-            // item 6); disabled until their behavior is specified.
             u("Hide Keyboard Hints", "⌥⌘?"),
             c("Show Quick Help for Selected Item", "⌃⌘?", "showQuickHelpForSelection:"),
             c("Search Documentation for Selected Text", "⌃⌥⌘/", "searchDocumentationForSelection:"),
         ]
     }
 
-    /// Every command, flattened, for shortcut lookups and conflict tests.
     public static var allCommands: [MenuCommand] { commands(in: menus.flatMap(\.1)) }
 
-    /// The commands in `items`, depth-first through submenus.
     public static func commands(in items: [MenuItemSpec]) -> [MenuCommand] {
         items.flatMap { item -> [MenuCommand] in
             switch item {
@@ -904,12 +789,10 @@ public enum CommandTable {
         }
     }
 
-    /// The first command with this exact title, in menu order.
     public static func command(titled title: String) -> MenuCommand? {
         allCommands.first { $0.title == title }
     }
 
-    /// The table's command for an action and tag (its generic title).
     public static func command(action: String, tag: Int = 0) -> MenuCommand? {
         byAction["\(action)#\(tag)"]
     }
@@ -921,12 +804,7 @@ public enum CommandTable {
     }()
 }
 
-/// ⌘W with one editor tab (`specs/ide/reference-ui-3.md` §5.2): the File
-/// menu's ⌘W item reads Close Window and the separate ⇧⌘W Close Window
-/// item is hidden; with two or more tabs ⌘W is Close Tab.
 public enum CloseShortcutRule {
-    /// The ⌘W item's title for a window with `tabCount` editor tabs.
     public static func commandWTitle(tabCount: Int) -> String { tabCount <= 1 ? "Close Window" : "Close Tab" }
-    /// Whether the ⇧⌘W Close Window item is shown.
     public static func showsSeparateCloseWindow(tabCount: Int) -> Bool { tabCount > 1 }
 }

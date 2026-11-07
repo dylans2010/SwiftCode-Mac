@@ -21,7 +21,6 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 ALLOWLIST = os.path.join(REPO, ".github", "ci", "scan-allowlist.txt")
 MAX_BYTES = 3 * 1024 * 1024
 
-# Placeholder names that tests and docs use in example paths.
 PLACEHOLDER_USERS = r"(?:me|you|u|x|user|username|name|tester|test|someone|runner|example|<[^>]*>|\$[A-Za-z_{(]+.*)"
 
 PATTERNS = [
@@ -29,13 +28,11 @@ PATTERNS = [
      r"(?<![\d.])(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?![\d.])"),
     ("home folder of a real user", r"/(?:Users|home)/(?!" + PLACEHOLDER_USERS + r"(?:/|\b))[A-Za-z][A-Za-z0-9._-]+/"),
     ("removable volume path", r"/(?:Volumes|media|mnt)/(?!" + PLACEHOLDER_USERS + r"(?:/|\b))[A-Za-z0-9][A-Za-z0-9._ -]+/"),
-    # `.local` and friends only where a host is expected: `context.local` is ordinary code.
     ("private host name",
      r"(?:(?:https?|ssh|rsync|ftp)://|@|\bHost(?:Name)?\s+)[A-Za-z0-9][A-Za-z0-9.-]*\.(?:local|lan|internal|intranet|corp)(?![A-Za-z0-9_.-])"
      r"|\b(?:[a-z0-9-]+\.)+edu(?![A-Za-z0-9_-])"),
     ("ssh login",
      r"\bssh\s+(?:-\S+\s+(?:\S+\s+)?)*(?!<)[a-z_][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9.-]*"),
-    # Not `name@2x.png`, and not the reserved example domains.
     ("mail address",
      r"(?i)\b[A-Za-z0-9._%+-]+@(?!(?:[a-z0-9-]+\.)*(?:example|test|invalid)\b|example\.(?:com|org|net)\b"
      r"|users\.noreply\.github\.com\b|noreply\.github\.com\b|anthropic\.com\b|github\.com\b)"
@@ -53,12 +50,10 @@ FORBIDDEN_FILES = [
     ("build output", ["*/.build/*", "*/.build-*/*", "*/DerivedData/*"]),
 ]
 
-
 def tracked_files():
     """Paths git tracks, relative to the repository root."""
     output = subprocess.run(["git", "ls-files", "-z"], cwd=REPO, check=True, capture_output=True).stdout
     return [path for path in output.decode("utf-8", "surrogateescape").split("\0") if path]
-
 
 def load_allowlist(path):
     """Returns (glob, compiled regex) pairs. Lines are `glob<space>regex`; no regex allows the whole file."""
@@ -74,14 +69,12 @@ def load_allowlist(path):
             rules.append((pattern, re.compile(regex.strip()) if regex.strip() else None))
     return rules
 
-
 def allowed(path, match_text, rules):
     """True when an allowlist line covers this finding."""
     for pattern, regex in rules:
         if fnmatch.fnmatch(path, pattern) and (regex is None or regex.search(match_text)):
             return True
     return False
-
 
 def scan(paths, patterns, rules):
     """Returns findings as (path, line number, kind, text)."""
@@ -108,7 +101,6 @@ def scan(paths, patterns, rules):
                         findings.append((path, number, kind, match.group(0)))
     return findings
 
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--extra-patterns", help="file of more regular expressions, one per line, kept outside the repository")
@@ -125,14 +117,12 @@ def main():
 
     findings = scan(paths, patterns, rules)
     for path, number, kind, text in findings:
-        # Say where and what kind, and only the first characters: a log must not republish a secret.
         shown = text if kind not in ("GitHub token", "cloud or service key") else text[:6] + "…"
         print(f"{path}:{number}: {kind}: {shown}")
         if os.environ.get("GITHUB_ACTIONS"):
             print(f"::error file={path},line={max(number, 1)},title=Public scan::{kind}")
     print(f"Scanned {len(paths)} tracked files: {len(findings)} findings.")
     return 1 if findings else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

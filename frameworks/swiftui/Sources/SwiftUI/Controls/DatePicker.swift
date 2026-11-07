@@ -5,15 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// DatePicker, compact style (round R8). 06 §4 and golden
-// `datePicker.compact`: the label, 8 points, and a compact button holding the
-// formatted date with the bordered padding (12 × 7; 34.33 high at body),
-// filling a proposed width like a toggle row (fit[0×0] = 130.67 = 8 + the
-// button). The date is formatted in the environment's locale, calendar and
-// time zone (medium date style; short time style). A click opens a pop-up:
-// a month calendar for the date, steppers for the time (SwiftCode).
-
-/// Which parts of a date a picker edits.
 public struct DatePickerComponents: OptionSet, Sendable {
     public let rawValue: UInt
     public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -21,7 +12,6 @@ public struct DatePickerComponents: OptionSet, Sendable {
     public static let date = DatePickerComponents(rawValue: 1 << 1)
 }
 
-/// A control that selects a date.
 public struct DatePicker<Label: View>: View {
     public typealias Components = DatePickerComponents
     let selection: Binding<Date>
@@ -79,11 +69,8 @@ extension DatePicker where Label == Text {
     }
 }
 
-// MARK: - Styles
-
 @MainActor @preconcurrency
 public protocol DatePickerStyle {
-    /// SwiftCode's style identifier: 0 compact, 1 graphical.
     var _ovStyleKind: Int { get }
 }
 
@@ -102,7 +89,6 @@ public struct GraphicalDatePickerStyle: DatePickerStyle {
     public var _ovStyleKind: Int { 1 }
 }
 
-/// Shown compact (Linux has no wheel).
 public struct WheelDatePickerStyle: DatePickerStyle {
     public init() {}
     public var _ovStyleKind: Int { 0 }
@@ -139,9 +125,6 @@ extension View {
     }
 }
 
-// MARK: - Formatting
-
-/// The compact button's text for `date`.
 func formattedDate(_ date: Date, time: Bool, locale: Locale, calendar: Calendar, timeZone: TimeZone) -> String {
     let f = DateFormatter()
     f.locale = locale
@@ -151,8 +134,6 @@ func formattedDate(_ date: Date, time: Bool, locale: Locale, calendar: Calendar,
     f.timeStyle = time ? .short : .none
     return f.string(from: date)
 }
-
-// MARK: - Compact buttons
 
 struct CompactDateButtons: View {
     let selection: Binding<Date>
@@ -178,8 +159,6 @@ struct CompactDateButtons: View {
     }
 }
 
-/// A bordered-style button holding a formatted part of the date; opens
-/// `popup` below itself.
 struct CompactDateButton<Popup: View>: View {
     let text: String
     let popup: () -> Popup
@@ -207,10 +186,6 @@ struct CompactDateButton<Popup: View>: View {
     }
 }
 
-// MARK: - Calendar
-
-/// A month calendar: the month and year with previous/next buttons, the
-/// weekday initials and the days; the selected day is filled with the tint.
 struct CalendarGrid: View {
     let selection: Binding<Date>
     let range: ClosedRange<Date>?
@@ -312,7 +287,6 @@ struct DayCell: View {
     }
 }
 
-/// Hour and minute steppers (SwiftCode's time pop-up).
 struct TimeSteppers: View {
     let selection: Binding<Date>
     @Environment(\.calendar) private var calendar

@@ -1,12 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `Backend/Assist/Assist Frameworks/AssistExecutionContextPersistenceStore.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
-// Dependency of _AssistCriticalAutonomousEngine (context-persistence phase). Ledger SUPERSEDED by SwiftCodeAssistant/Agents/Conversation.swift — that is conversation persistence, not this UserDefaults PersistentContext store (hasRestorableContext(for:) etc.); no equivalent API in-target. Ported verbatim.
-// Remaining deps (now staged in AssistModels.swift by the parallel port — see _notes/agent-models-decisions.md): AssistContext (logger, sessionId).
-
 import Foundation
 
-/// Stores and retrieves persistent context across execution sessions
 @MainActor
 public final class AssistExecutionContextPersistenceStore {
     private let context: AssistContext
@@ -29,7 +22,6 @@ public final class AssistExecutionContextPersistenceStore {
         self.context = context
     }
 
-    /// Saves current context state
     public func saveContext(
         goal: String,
         completedTasks: [String],
@@ -59,7 +51,6 @@ public final class AssistExecutionContextPersistenceStore {
         }
     }
 
-    /// Loads saved context
     public func loadContext() -> PersistentContext? {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
               let persistentContext = try? JSONDecoder().decode(PersistentContext.self, from: data) else {
@@ -68,12 +59,10 @@ public final class AssistExecutionContextPersistenceStore {
         return persistentContext
     }
 
-    /// Clears persisted context
     public func clearContext() {
         UserDefaults.standard.removeObject(forKey: storageKey)
     }
 
-    /// Checks if there is a restorable context for the given session
     public func hasRestorableContext(for sessionID: UUID) -> Bool {
         guard let persisted = loadContext() else { return false }
         return persisted.sessionId == sessionID.uuidString

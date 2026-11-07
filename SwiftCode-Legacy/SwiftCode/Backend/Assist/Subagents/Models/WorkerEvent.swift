@@ -75,7 +75,6 @@ public struct WorkerEvent: Identifiable, Codable, Sendable {
         self.metadata = metadata
     }
 
-    /// Clean human-readable presentation for event timeline
     public var formattedTimestamp: String {
         let formatter = DateFormatter()
         formatter.timeStyle = .medium

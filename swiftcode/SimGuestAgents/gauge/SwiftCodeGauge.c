@@ -1,18 +1,3 @@
-// Gauge's in-app agent for the SwiftCode simulator (specs/ide/profiler.md §3.1).
-// Original SwiftCode code, built with the iOS simulator SDK's public headers.
-//
-// Inserted into an app launched under `swiftcode-simd --profile` (DYLD_INSERT_LIBRARIES).
-// It interposes three public functions through dyld's interposing section
-// (a `__DATA,__interpose` array of {replacement, original} pointer pairs):
-//   os_log_create                     remembers each handle's subsystem and category
-//   os_signpost_enabled               true while recording (the emit macros check it)
-//   _os_signpost_emit_with_name_impl  writes one record, then calls the original
-// Records go to the file named by SWIFTCODE_GAUGE_SIGNPOSTS, one write(2) each
-// (O_APPEND), so a killed app loses nothing already written:
-//   "YGS1", u16 record length, u8 type (0 event, 1 begin, 2 end), u8 0,
-//   u64 mach_absolute_time, u64 signpost id, u64 thread id (pthread_threadid_np),
-//   then subsystem, category, name and format as NUL-terminated strings.
-// The message is the format string; argument values are not decoded.
 #include <fcntl.h>
 #include <mach/mach_time.h>
 #include <os/lock.h>

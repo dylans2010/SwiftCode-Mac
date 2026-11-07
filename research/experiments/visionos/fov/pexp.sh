@@ -1,8 +1,4 @@
 #!/bin/bash
-# pexp.sh <run> <what> [domain:key=val ...]: restore the device's preferences, set the given keys, boot with camrec,
-# record wakeboardctl status and a screenshot, then <what>: "step" (30 deg yaw step and back), "sine" (1 Hz +-15 deg at ~75/s),
-# "probe" (StereoProbe layered for 12 s), any combination joined by +.
-# env: FOV_WORK, FOV_DYLIB (camrec copy), VHID; CR_PFLAGS/CR_TFLAGS/CR_OFLAGS are passed to camrec; PROBE_APP (StereoProbe.app) is installed before "probe".
 S=${FOV_WORK:?}; U=$(cat $S/udid); N=$1; W=$2; shift 2; O=$S/runs/$N; mkdir -p $O
 F=$(cd "$(dirname "$0")" && pwd); DD=~/Library/Developer/CoreSimulator/Devices/$U/data; PD=$DD/Library/Preferences
 export FOV_BACKUP=${FOV_BACKUP:-$S/prefs-backup}

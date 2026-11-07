@@ -1,24 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/On Device Intelligence/DeviceUtilityManager.swift
-//   (Legacy commit d51a8f0d)
-//
-// Adaptation — capability detection. Legacy derived the capability
-// level from a hardcoded OS-version heuristic (macOS 18 → full,
-// 17 → limited, older → unsupported). That heuristic is not a real
-// capability check, and its thresholds are wrong for the destination:
-// the real on-device model is Apple Foundation Models, which ships
-// with macOS 26 / iOS 26 (`FoundationModelsProvider`). So the level
-// here is read live from `SystemLanguageModel.default.availability`
-// behind the same `#if canImport(FoundationModels)` + `#available`
-// gates `FoundationModelsProvider` uses — `.available` → full, an
-// unavailable reason of `.deviceNotEligible` → unsupported, any other
-// unavailable reason (Apple Intelligence off, model still downloading)
-// → limited. Where the framework is absent the level is unsupported
-// with a reason naming the macOS 26 requirement. `getDeviceModel`
-// (sysctl `hw.model`) and `getOSVersion` (ProcessInfo) are Legacy's
-// real readings, kept; the sysctl call is Darwin-gated with the same
-// uname fallback `OfflineModels.swift` uses on Linux.
-
 import Foundation
 #if canImport(Darwin)
 import Darwin
@@ -44,7 +23,6 @@ public final class DeviceUtilityManager {
         sysctlbyname("hw.model", &model, &size, nil, 0)
         return String(cString: model)
 #else
-        // Linux: the machine identifier from uname, as in OfflineModels.swift.
         var systemInfo = utsname()
         uname(&systemInfo)
         let mirror = Mirror(reflecting: systemInfo.machine)

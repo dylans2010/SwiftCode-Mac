@@ -4,12 +4,6 @@ import SwiftCodeExtensions
 import SwiftCodeSDK
 import SwiftCodeSDKStudio
 
-// MARK: - SDKStudioSection
-//
-// Legacy: `SwiftCode/SDK/Studio/SDKStudioSection.swift` (spec §13.3).
-// Raw values are the exact display names; `Identifiable` (id = rawValue)
-// lets the Studio view drive a sidebar selection directly.
-
 enum SDKStudioSection: String, CaseIterable, Identifiable {
     case projects = "Projects"
     case codeEditor = "Code Editor"
@@ -42,12 +36,6 @@ enum SDKStudioSection: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - SDKStudioCodeEditorSection
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKStudioCodeEditorSection.swift`.
-// Kept for compatibility: anything addressing the section by its stable
-// string id ("codeEditor") keeps working unchanged.
-
 struct SDKStudioCodeEditorSection: Identifiable, Sendable, Hashable {
     var id: String { "codeEditor" }
     var title: String { "Code Editor" }
@@ -55,19 +43,6 @@ struct SDKStudioCodeEditorSection: Identifiable, Sendable, Hashable {
 
     init() {}
 }
-
-// MARK: - SDKStudioWindowManager
-//
-// Legacy: `SwiftCode/SDK/Studio/SDKStudioWindowManager.swift` — a
-// singleton owning one `NSWindow` hosting `SDKStudioView` through
-// `NSHostingController`, remembering the last section in UserDefaults.
-//
-// SwiftCode deviation: `swiftcode-ide` views are pure SwiftUI (no AppKit in this
-// target — see the other views in this directory), so this manager is the
-// section-persistence + presentation state. The macOS AppKit shell
-// (SwiftCodeUI/SwiftCodeApp) hosts `SDKStudioView` in its own window and drives
-// it through `openStudio(section:)` / `closeStudio()`; the remembered
-// section and open flag use Legacy's exact UserDefaults keys.
 
 @MainActor
 @Observable
@@ -109,12 +84,6 @@ final class SDKStudioWindowManager {
     }
 }
 
-// MARK: - Shared Studio chrome
-//
-// `ContentUnavailableView` and `GroupBox` do not exist in OpenViews
-// (the Linux SwiftUI), so Studio uses these two small stand-ins. They
-// render the same content on Apple's SwiftUI too.
-
 struct SDKStudioEmptyState: View {
     let title: String
     let systemImage: String
@@ -153,13 +122,6 @@ struct SDKStudioGroupBox<Content: View>: View {
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
     }
 }
-
-// MARK: - SDKStudioView
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKStudioView.swift` — the Studio
-// root: sidebar over the eleven sections, a shared `SDKCodeEditorState`,
-// an "Install SDK" toolbar button, the first-launch installer sheet, and
-// the SDK & Downloads resources section.
 
 @MainActor
 struct SDKStudioView: View {

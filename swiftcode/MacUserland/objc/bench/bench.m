@@ -1,11 +1,3 @@
-// bench.m - micro-benchmarks of an Objective-C runtime (specs/macos/
-// objc-runtime.md §12). The same program runs against the Mac's runtime,
-// against SwiftCode's runtime natively on a Mac, and under swiftcode-simd --macos.
-// Prints "<name>\t<ns per op>\t<ops>" per benchmark (median of trials).
-//
-//   bench [<bundle dir> <variant>]   (dir holds warm.bundle and, for t = 0-4,
-//                                     cats<t>-<variant>.bundle and its
-//                                     cats<t>-<variant>-control.bundle)
 #include <objc/NSObject.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -99,8 +91,6 @@ int main(int argc, char **argv) {
     LOOP_BENCH("send_super", N, ((void (*)(struct objc_super *, SEL))objc_msgSendSuper2)(&sup, nop),
                ((void (*)(struct objc_super *, SEL))objc_msgSendSuper2)(&sup, nop));
 
-    // Uncached: the first send of each of 200 selectors to fresh instances,
-    // 10 classes per trial (5 trials).
     {
         SEL sels[512];
         for (int j = 0; j < gen_u_methods; j++) sels[j] = sel_registerName(gen_u_names[j]);
@@ -117,8 +107,6 @@ int main(int argc, char **argv) {
         report("send_uncached", median(t, 5), (long)gen_u_count * gen_u_methods);
     }
 
-    // Class realization: the first message to each of 1000 classes
-    // (realize class and metaclass, +initialize, cache fill); 5 trials.
     {
         int per = gen_r_count / 5;
         double t[5];
@@ -130,7 +118,6 @@ int main(int argc, char **argv) {
         report("class_realize_first_msg", median(t, 5), gen_r_count);
     }
 
-    // Runtime class creation.
     {
         double t[5];
         char name[64];
@@ -184,13 +171,10 @@ int main(int argc, char **argv) {
     LOOP_BENCH("weak_load_retained", N / 4, , objc_release(objc_loadWeakRetained(&weak)));
     objc_storeWeak(&weak, nil);
 
-    // Category attachment: dlopen of 1000 categories x 4 methods on the
-    // (now realized) R classes, minus dlopen of the same bundle with its
-    // sections renamed so that no runtime reads them; five trials.
     if (argc > 2) {
         char path[1024];
         snprintf(path, sizeof path, "%s/warm.bundle", argv[1]);
-        dlopen(path, RTLD_NOW);   // the first dlopen's one-time costs
+        dlopen(path, RTLD_NOW);
         double t[5], f[5];
         int ok = 1;
         id rinst[1000];
@@ -220,8 +204,6 @@ int main(int argc, char **argv) {
             if (getenv("BENCH_VERBOSE")) printf("# trial %d: cats %.0f us control %.0f us\n", tr, cats / 1000, control / 1000);
         }
         report("category_attach_per_category", median(t, 5), gen_r_count * 5);
-        // The first send of a category method to each class afterwards
-        // (lookup and cache fill; a lazily merged table is built here).
         report("category_first_send_per_class", median(f, 5), gen_r_count * 5);
         printf("# category check %d\n", ok);
     }

@@ -1,15 +1,9 @@
 #!/bin/sh
-# Build HealthSim: HS.app (iOS simulator) with HSWatch.app embedded at
-# HS.app/Watch/, plus a standalone copy of the watch app and a second phone
-# app HSB.app (another data source, for cross-process tests).
-# Entitlements go into the __TEXT,__entitlements section (simulator style);
-# the ad-hoc signature carries none. No team, no profile.
-# Usage: build.sh OUTDIR
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}
 mkdir -p "$OUT"
-ent() { # appid extra
+ent() {
 cat <<PL
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -23,7 +17,7 @@ PL
 }
 USE='<key>NSHealthShareUsageDescription</key><string>HealthSim reads made-up test samples.</string>
 <key>NSHealthUpdateUsageDescription</key><string>HealthSim writes made-up test samples.</string>'
-build() { # sdk target define exe outdir entfile
+build() {
   SDK=$(xcrun --sdk "$1" --show-sdk-path)
   xcrun --sdk "$1" clang -target "$2" -isysroot "$SDK" -fobjc-arc -fmodules -Wall -Wno-deprecated-declarations -O0 -g \
     -I "$SRC" -c "$SRC/core.m" -o "$OUT/core-$3.o"
@@ -32,7 +26,7 @@ build() { # sdk target define exe outdir entfile
     -framework HealthKit -framework CoreLocation \
     -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker "$6" -o "$5/$4"
 }
-info() { # id exe name platform family extra
+info() {
 cat <<PL
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -57,7 +51,6 @@ PHONEX='<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMul
 WATCHX='<key>WKApplication</key><true/>
 <key>WKCompanionAppBundleIdentifier</key><string>dev.ycode.hs</string>
 <key>WKBackgroundModes</key><array><string>workout-processing</string></array>'
-
 P="$OUT/HS.app"; W="$P/Watch/HSWatch.app"; B="$OUT/HSB.app"
 rm -rf "$P" "$B" "$OUT/HSWatch.app"; mkdir -p "$W" "$B"
 ent dev.ycode.hs.watchkitapp "" > "$OUT/watch.entitlements"
@@ -71,7 +64,6 @@ info dev.ycode.hs HS HealthSim iPhoneSimulator 1 "$PHONEX" > "$P/Info.plist"
 codesign -f -s - "$P" >/dev/null 2>&1
 xcrun --sdk iphonesimulator swiftc -version >/dev/null
 cp "$P/HS" "$B/HS"
-# HSB: same binary, other bundle and application-identifier (re-link for its entitlements).
 build iphonesimulator arm64-apple-ios27.0-simulator PHONE HS "$B" "$OUT/phoneb.entitlements"
 info dev.ycode.hs.b HS HealthSimB iPhoneSimulator 1 "$PHONEX" > "$B/Info.plist"
 codesign -f -s - "$B" >/dev/null 2>&1

@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodePaywall
 
-/// The catalog holds Dylan's three App Store Connect product IDs as
-/// configuration, and offers are ordered cheapest-first. No prices
-/// are tested here because none exist in this target: prices come
-/// only from a live StoreKit fetch.
 struct PaywallProductCatalogTests {
 
     @Test("Catalog holds exactly the three Legacy product IDs")

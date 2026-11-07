@@ -1,7 +1,3 @@
-/*
- * ABI probe (callee side), compiled with the library flags by
- * common/abi_check.py. Clean-room SwiftCode code.
- */
 typedef __builtin_va_list va_list_t;
 
 __attribute__((visibility("default"))) int yc_abi_variadic(int n, ...)
@@ -14,7 +10,6 @@ __attribute__((visibility("default"))) int yc_abi_variadic(int n, ...)
     return a + (int)b + n;
 }
 
-/* Ten arguments: the 9th (char) and 10th (short) go on the stack. */
 __attribute__((visibility("default"))) int yc_abi_many(long a0, long a1, long a2, long a3, long a4, long a5,
                                                        long a6, long a7, char c8, short s9)
 {

@@ -6,31 +6,27 @@ import SwiftCodeDarwinABI
 @Suite struct DispatchTests {
     @Test func decodeOrder() throws {
         let env = try Env()
-        // Private range wins over the BSD low-16-bit decode (0x0003 would be `read`).
         var f = TrapFrame()
         try env.put([UInt8](repeating: 0xEE, count: 16), at: Env.scratch)
         #expect(env.svc(0x7963_0003, [Env.scratch, 64], frame: &f) == .resume)
         #expect(!f.carry && f.x[0] == Env.scratch)
         #expect(try env.string(Env.scratch) == "/")
 
-        // Platform call: x3 = 2 sets TPIDRRO, x3 = 3 reads it back; x0 and carry untouched on set.
         f = TrapFrame(spsr: 0x2000_0000)
         env.svc(0x8000_0000, [0x3_2000_8000], x3: 2, frame: &f)
         #expect(f.tpidrro == 0x3_2000_8000 && f.x[0] == 0x3_2000_8000 && f.carry)
         f.x[0] = 0
         env.svc(0x8000_0000, [], x3: 3, frame: &f)
         #expect(f.x[0] == 0x3_2000_8000)
-        env.svc(0x8000_0000, [0x77], x3: 9, frame: &f)  // other selectors: no-op
+        env.svc(0x8000_0000, [0x77], x3: 9, frame: &f)
         #expect(f.x[0] == 0x77 && f.tpidrro == 0x3_2000_8000)
 
-        // Negative: Mach. Upper 32 bits of x16 are ignored.
-        let (o1, f1) = env.svc(0xFFFF_FFFF_FFFF_FFE4)  // -28 task_self_trap
+        let (o1, f1) = env.svc(0xFFFF_FFFF_FFFF_FFE4)
         #expect(o1 == .resume && f1.x[0] == 0x103)
-        let (_, f2) = env.svc(0x0000_0000_FFFF_FFE5)  // -27 thread_self_trap
+        let (_, f2) = env.svc(0x0000_0000_FFFF_FFE5)
         #expect(f2.x[0] == 0x203)
 
-        // BSD by the low 16 bits.
-        let (_, f3) = env.svc(0x0001_0014)  // 20 getpid
+        let (_, f3) = env.svc(0x0001_0014)
         #expect(f3.x[0] == 100 && !f3.carry)
     }
 
@@ -38,7 +34,6 @@ import SwiftCodeDarwinABI
         let env = try Env()
         try env.putString("hi\n", at: Env.scratch)
         var f = TrapFrame()
-        // syscall(SYS_write, 1, buf, 3): number in x0, arguments shifted by one.
         env.svc(0, [4, 1, Env.scratch, 3], frame: &f)
         #expect(f.x[0] == 3 && !f.carry)
         #expect(env.sink.text(1) == "hi\n")
@@ -51,31 +46,30 @@ import SwiftCodeDarwinABI
         let env = try Env()
         var f = TrapFrame()
         f.x[1] = 0xDEAD
-        env.svc(6, [99], frame: &f)  // close(99)
+        env.svc(6, [99], frame: &f)
         #expect(f.carry && f.x[0] == 9 && f.x[1] == 0)
-        // Success clears carry and x1.
         f.x[1] = 0xBEEF
-        env.svc(24, [], frame: &f)  // getuid
+        env.svc(24, [], frame: &f)
         #expect(!f.carry && f.x[0] == 501 && f.x[1] == 0)
         #expect(env.svc(25).1.x[0] == 501 && env.svc(43).1.x[0] == 20 && env.svc(47).1.x[0] == 20)
         #expect(env.svc(327).1.x[0] == 0)
         let (_, ioctl) = env.svc(54, [1, 0x4004_7400, 0])
         #expect(ioctl.carry && ioctl.x[0] == 25)
-        let (_, g) = env.svc(427)  // fsgetpath with a null fsid pointer
+        let (_, g) = env.svc(427)
         #expect(g.carry && g.x[0] == 14)
         #expect(env.sink.lines.contains("trap bsd 6 close(99) -> error 9 (EBADF)"))
     }
 
     @Test func unimplementedTraps() throws {
         let env = try Env()
-        let (o, f) = env.svc(2)  // fork
+        let (o, f) = env.svc(2)
         guard case let .unimplemented(text) = o else { Issue.record("expected unimplemented"); return }
         #expect(text.hasPrefix("unimplemented bsd 2 fork("))
         #expect(f.carry && f.x[0] == 78)
-        let (o2, _) = env.svc(600)  // beyond the table: nosys
+        let (o2, _) = env.svc(600)
         guard case let .unimplemented(t2) = o2 else { Issue.record("expected unimplemented"); return }
         #expect(t2.hasPrefix("unimplemented bsd 600 nosys("))
-        let (o3, f3) = env.svc(UInt64(bitPattern: -62), [0x1003])  // clock_sleep_trap
+        let (o3, f3) = env.svc(UInt64(bitPattern: -62), [0x1003])
         guard case let .unimplemented(t3) = o3 else { Issue.record("expected unimplemented"); return }
         #expect(t3.hasPrefix("unimplemented mach -62 clock_sleep_trap(clock_name=0x1003"))
         #expect(f3.x[0] == 5)
@@ -91,7 +85,6 @@ import SwiftCodeDarwinABI
         guard case let .fatal(status, message) = o else { Issue.record("expected fatal"); return }
         #expect(status == 134)
         #expect(message.contains("dyld: missing symbol"))
-        // A non-SVC trap is fatal 70.
         var f = TrapFrame(kind: TrapFrame.Kind.el0Synchronous.rawValue)
         guard case let .fatal(s2, _) = env.kernel.handle(&f, memory: env.space) else { Issue.record("fatal"); return }
         #expect(s2 == 70)
@@ -138,15 +131,12 @@ import SwiftCodeDarwinABI
         let env = try Env()
         let (_, a) = env.svc(20)
         #expect(!a.flushTLB)
-        // A new mapping only fills invalid entries: no flush (guest-cpu.md §4.2) ...
         let (_, b) = env.svc(197, [0, 0x4000, 3, 0x1002, UInt64(bitPattern: -1), 0])
         #expect(!b.carry)
         #expect(b.flushTLB == GuestAddressSpace.flushOnAdditions)
-        // ... removing it does.
         let (_, c) = env.svc(73, [b.x[0], 0x4000])
         #expect(c.x[0] == 0 && !c.carry)
         #expect(c.flushTLB)
-        // ... and only that page's translation (vm-shim-protocol.md §5.2).
         if TrapFrame.invalidateByVA && !GuestAddressSpace.flushOnAdditions {
             #expect(c.tlbInvalidationRange == TLBRange(va: b.x[0], pages: 1))
         }
@@ -160,12 +150,10 @@ import SwiftCodeDarwinABI
             #expect(f.tlbInvalidationRange == TLBRange(va: 0x1_2345_C000, pages: 3))
             #expect(f.resumeFlags == 1 | 8 | (2 << 8) | ((0x1_2345_C000 >> 14) << 16))
         }
-        // The same range again keeps it; another one widens to the whole TLB.
         f.requestTLBInvalidation(TLBRange(va: 0x1_2345_C000, pages: 3))
         #expect(f.tlbInvalidationRange == (TrapFrame.invalidateByVA ? TLBRange(va: 0x1_2345_C000, pages: 3) : nil))
         f.requestTLBInvalidation(TLBRange(va: 0x4000, pages: 1))
         #expect(f.flushTLB && f.tlbInvalidationRange == nil)
-        // Too many pages, an unaligned VA or no range: the whole TLB.
         var g = TrapFrame()
         g.requestTLBInvalidation(TLBRange(va: 0x4000, pages: 257))
         #expect(g.flushTLB && g.tlbInvalidationRange == nil)
@@ -176,7 +164,6 @@ import SwiftCodeDarwinABI
         k.resumeFlags = 2
         k.requestTLBInvalidation(nil)
         #expect(k.resumeFlags == 3)
-        // Setting flushTLB directly asks for the whole TLB.
         var m = TrapFrame()
         m.requestTLBInvalidation(TLBRange(va: 0x8000, pages: 2))
         m.flushTLB = true

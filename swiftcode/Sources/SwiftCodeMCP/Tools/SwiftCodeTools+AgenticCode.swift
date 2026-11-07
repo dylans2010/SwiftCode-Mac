@@ -2,126 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy Agentic code-generation & analysis tools
-/// (Wave 8, slice F).
-///
-/// Behaviour source: Legacy's `SwiftCode/Tools/Agentic/`
-/// `GenerateCodeTool`, `RefactorCodeTool`, `ExplainCodeTool`,
-/// `ReviewCodeTool`, `DetectBugsTool`, `FixBugsTool`,
-/// `GenerateUnitTestsTool`, `GenerateIntegrationTestsTool`,
-/// `GenerateDocumentationTool`, `GenerateCommentsTool`,
-/// `CodeAnalysisTool`, `CodeIndexTool`, `ProjectIndexingTool`,
-/// `ProjectAuditTool`, `SecurityScanTool`, `LicenseScanTool`
-/// (Dylan's own code, ported under MIT), as specified in
-/// `specs/ide/agentic-code-draft.md`. Four tools from the slice are
-/// NOT in this array: `call_hierarchy` and `dependency_graph` are
-/// already served by the Wave 3 ports of the same IDs
-/// (`SwiftCodeTools+Search.swift`), and `semantic_code_search` /
-/// `cross_reference_search` are duplicates of the already-ported
-/// `semantic_query_engine` / `symbol_reference_graph` — the
-/// coordinator owns the alias proposals for those two.
-///
-/// Conventions, following Waves 1–3 and 6:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim (types and
-///   `required` lists), plus the `workspace` parameter Wave 1 adds
-///   to every tool. Legacy's Agentic schemas carry no per-property
-///   descriptions except `code_analysis.path` and
-///   `project_indexing.root_path`; the descriptions on the other
-///   properties are SwiftCode additions, recorded in the spec.
-///   Legacy's parameter-name aliases are NOT supported: SwiftCode's
-///   argument validation rejects unknown arguments before the
-///   handler runs.
-/// * Structured data keeps Legacy's keys where Legacy has any, with
-///   typed JSON values (integers, booleans) the way SwiftCode's other
-///   tools do — Legacy's Agentic tools return plain strings, so the
-///   structured keys here are SwiftCode's, recorded in the spec.
-/// * Path resolution for the project-scoped tools follows the
-///   static-analysis slice: the strict
-///   `staticAnalysisResolveScanPath` (blank → workspace root; any
-///   `..` → the Legacy "Invalid path" failure; a missing root
-///   fails as "Path not found"). No path is ever allowed to escape
-///   the workspace. The inline-code tools (`explain_code`,
-///   `detect_bugs`) take no path and need no workspace session,
-///   like `docstring_generator`.
-/// * All 16 tools are `readOnly: true, idempotent: true`,
-///   `writes: false`. No tool in this slice writes a file. There
-///   is no Autopilot bypass.
-///
-/// LLM tools (gap-closure wiring): the eight tools below are wired to
-/// the configured Assist LLM provider through `LLMToolCompletionService`
-/// (`swiftcode/Sources/SwiftCodeAssistant/Providers/LLMToolCompletion.swift`) — the host's
-/// own dispatch (`AssistantBackends.provider(_:)`, Wave 9 providers
-/// OpenRouter / OpenCode / Hermes / Foundation Models / SwiftCode Cloud,
-/// Wave 15 router selection), never a parallel client or registry.
-/// Legacy itself returns canned strings for seven of them
-/// (`generate_code`, `refactor_code`, `review_code`,
-/// `fix_bugs`, `generate_unit_tests`,
-/// `generate_integration_tests`, `generate_documentation`,
-/// `generate_comments`) — a fake in Legacy, not ported as real
-/// behaviour: the port sends the same request to the real provider
-/// instead. With no provider usable the handler fails honestly naming
-/// the provider (the message keeps the words "unavailable" and "LLM").
-/// `explain_code` is the exception: Legacy really
-/// calls OpenRouter, and the port implements the deterministic
-/// subset the project already accepted for `intel_explain_code` —
-/// a static structural explanation, labelled as such.
-/// The shared service also backs `code_refactor` (see
-/// `SwiftCodeTools+FileWriting.swift`), `code_review` (see
-/// `SwiftCodeTools+ReviewDocs.swift`) and `intel_autofix` (see
-/// `SwiftCodeTools+Planning.swift`).
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `detect_bugs`: Legacy runs `/usr/bin/swiftlint lint --quiet`
-///   but never passes the supplied `code` anywhere (it lints the
-///   process working directory) and returns swiftlint's stdout as
-///   "bugs". The port instead scans the supplied code itself for
-///   crash-prone patterns (postfix force unwrap, `try!`, `as!`,
-///   `fatalError` / `preconditionFailure`, empty `catch` blocks).
-///   Findings are heuristic leads, not confirmed bugs; matches
-///   inside strings and comments count, as in Legacy's own scans
-///   — except a `!` followed by `"` is not a force unwrap (it is
-///   almost always punctuation inside a string literal, e.g.
-///   `"Hello, \(name)!"`).
-/// * `code_analysis`: Legacy returns hardcoded mock text
-///   ("Complexity: Low", "Patterns: Observable, MVVM", "Potential
-///   Issues: None found."). The port computes every number from
-///   the scanned sources (line classes, decision points,
-///   declarations, force-unwrap and TODO counts, detected
-///   patterns) and derives the complexity rating and suggestions
-///   from those numbers. The decision-point count treats the
-///   parameter label `for` as a branch (regex `\bfor\b`), so a
-///   function `greeting(for:)` contributes one point — a known
-///   heuristic quirk, stated in the spec.
-/// * `code_index` / `project_indexing`: Legacy returns canned
-///   success strings (`project_indexing` hardcodes "124 symbols
-///   found across 42 files"). The port builds a real in-memory
-///   declaration index per call (regex scan, same heuristics as
-///   `dead_code_scan`) and reports the real counts. The index is
-///   not persisted and has no embeddings; the spec says so.
-/// * `project_audit`: Legacy returns a canned one-line report.
-///   The port runs seven real checks (README, license file, tests
-///   present, TODO markers, force unwraps, secrets / insecure
-///   endpoints, build system) over the real file counts.
-/// * `security_scan`: Legacy returns a canned "0 issues found".
-///   The port scans every file it can read as UTF-8 for
-///   hardcoded-secret assignments and insecure `http://`
-///   endpoints. Findings report file:line:kind only and never
-///   output matched secret values, as `secrets_scan` does.
-/// * `license_scan`: Legacy returns a canned "All dependencies
-///   use permissive licenses". The port reports the license
-///   files and SPDX identifiers it actually finds plus the
-///   dependency names/versions from `Package.resolved`, and
-///   states plainly that dependency license terms are not
-///   determined (no SPDX database or network lookup).
-///
-/// Wiring: the coordinator adds `agenticCodeTools` to
-/// `installTools()` in `SwiftCodeTools.swift` (this file must not edit
-/// that file). The alias proposals `semantic_code_search` →
-/// `semantic_query_engine` and `cross_reference_search` →
-/// `symbol_reference_graph` belong in `MCPServer.toolAliases`
-/// (also coordinator-owned).
 extension SwiftCodeMCPHost {
     var agenticCodeTools: [MCPTool] {
         return [
@@ -266,7 +146,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - LLM tools (wired to the configured Assist provider)
 
     func agenticCodeGenerateCode(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let prompt = call.arguments["prompt"]?.string,
@@ -345,18 +224,9 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared LLM service for MCP tools (gap-closure wiring)
 
-    /// Test seam (precedent: `agenticGitTestSecretStore`): tests set a
-    /// service backed by stub providers, so no live network or real
-    /// credential is ever touched. Production always uses
-    /// `llmToolService()` below.
     static var llmToolTestService: LLMToolCompletionService?
 
-    /// The LLM service for MCP tools: the host's Assist dispatch
-    /// (`CodingAssistantServices` — Settings' provider + model, the
-    /// secret store, and any test provider override), never a parallel
-    /// client or registry.
     func llmToolService() -> LLMToolCompletionService {
         if let test = Self.llmToolTestService { return test }
         let services = CodingAssistantServices.shared
@@ -369,10 +239,6 @@ extension SwiftCodeMCPHost {
         return LLMToolCompletionService(backends: services.backends(), providerOverrides: overrides)
     }
 
-    /// One LLM completion for a tool, mapping every failure to an
-    /// `MCPToolError` that keeps the words "unavailable" and "LLM".
-    /// `failureNote` replaces the default "No output was produced."
-    /// tail (tools with their own contract, e.g. `code_review`, name it).
     func llmToolComplete(systemPrompt: String, userText: String, toolName: String,
                          failureNote: String? = nil) async throws -> LLMToolCompletion {
         do {
@@ -384,9 +250,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Strips one surrounding markdown fence pair (Legacy's own
-    /// ```swift / ``` stripping in `code_refactor` / `intel_autofix`)
-    /// and trims the result.
     nonisolated static func llmToolStripFences(_ text: String) -> String {
         var out = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if out.hasPrefix("```") {
@@ -400,8 +263,6 @@ extension SwiftCodeMCPHost {
         return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// A code-only reply: fences stripped; empty after stripping is an
-    /// honest failure, never an empty file.
     nonisolated static func llmToolCodeOnly(_ completion: LLMToolCompletion, toolName: String) throws -> String {
         let code = llmToolStripFences(completion.text)
         guard !code.isEmpty else {
@@ -410,22 +271,12 @@ extension SwiftCodeMCPHost {
         return code
     }
 
-
-    // MARK: - Inline-code tools
-
-    /// The deterministic subset of Legacy's OpenRouter-backed
-    /// explanation: the same static structural explanation
-    /// `intel_explain_code` returns for a file, applied to the
-    /// supplied code. It names its types, functions and imports; it
-    /// does not understand what the code does.
     func agenticCodeExplainCode(_ call: MCPToolCall) throws -> MCPToolResult {
         let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code")
         let explanation = PlanningSupport.staticExplanation(of: code, at: "supplied code")
         return .structured(["explanation": .string(explanation)], summary: explanation)
     }
 
-    /// A heuristic scan of the supplied code for crash-prone
-    /// patterns. Findings are leads, not confirmed bugs.
     func agenticCodeDetectBugs(_ call: MCPToolCall) throws -> MCPToolResult {
         let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code")
         let lines = code.components(separatedBy: "\n")
@@ -442,8 +293,6 @@ extension SwiftCodeMCPHost {
         }
         return .structured(["findingCount": .int(findings.count), "findings": .string(findingText)], summary: summary)
     }
-
-    // MARK: - Code analysis and indexing
 
     func agenticCodeAnalyze(_ call: MCPToolCall) throws -> MCPToolResult {
         let (raw, root, scope) = try agenticCodeResolveScope(call, key: "path", missingMessage: "Missing path argument")
@@ -574,7 +423,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Project audit, security scan, license scan
 
     func agenticCodeAuditProject(_ call: MCPToolCall) throws -> MCPToolResult {
         let (raw, root, scope) = try agenticCodeResolveScope(call, key: "projectPath", missingMessage: "Missing projectPath")
@@ -720,32 +568,24 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared helpers (all prefixed `agenticCode`)
 
-    /// A declared type or function: kind (`class` / `struct` /
-    /// `enum` / `actor` / `protocol` / `func`), name, 1-based line.
     struct AgenticCodeDeclaration: Sendable {
         var kind: String
         var name: String
         var line: Int
     }
 
-    /// One heuristic bug finding: 1-based line, kind, trimmed line.
     struct AgenticCodeBugFinding: Sendable {
         var line: Int
         var kind: String
         var text: String
     }
 
-    /// One secret / insecure-endpoint finding: 1-based line and
-    /// kind only — the matched value is never carried.
     struct AgenticCodeSecretFinding: Sendable {
         var line: Int
         var kind: String
     }
 
-    /// The in-memory declaration index shared by `code_index` and
-    /// `project_indexing`.
     struct AgenticCodeIndex: Sendable {
         var fileCount: Int
         var symbolCount: Int
@@ -758,9 +598,6 @@ extension SwiftCodeMCPHost {
         var symbolsText: String
     }
 
-    /// A required inline-code argument; a missing or blank value
-    /// fails with Legacy's own message (e.g. "Missing code").
-    /// The original (untrimmed) code is returned.
     nonisolated static func agenticCodeRequiredCode(_ call: MCPToolCall, missingMessage: String) throws -> String {
         guard let code = call.arguments["code"]?.string,
               !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -769,8 +606,6 @@ extension SwiftCodeMCPHost {
         return code
     }
 
-    /// A required trimmed path argument; a missing or blank value
-    /// fails with Legacy's own message.
     nonisolated static func agenticCodeRequiredPath(_ call: MCPToolCall, _ key: String, missingMessage: String) throws -> String {
         guard let raw = call.arguments[key]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             throw MCPToolError(missingMessage)
@@ -778,10 +613,6 @@ extension SwiftCodeMCPHost {
         return raw
     }
 
-    /// Resolves a project-scoped path argument: the session, the
-    /// workspace root, and the strict scan scope. Any `..` fails
-    /// with the static-analysis "Invalid path" message; a missing
-    /// path fails with "Path not found: <raw>".
     func agenticCodeResolveScope(_ call: MCPToolCall, key: String, missingMessage: String) throws -> (raw: String, root: URL, scope: URL) {
         let s = try session(for: call)
         let raw = try Self.agenticCodeRequiredPath(call, key, missingMessage: missingMessage)
@@ -795,11 +626,6 @@ extension SwiftCodeMCPHost {
         return (raw, root, scope)
     }
 
-    /// Every file under a scope (file or directory): skips
-    /// `.git` / `DerivedData` / `.build` / `build` / `Pods` /
-    /// `node_modules` / `.swiftpm` / `.venv`, drops files over
-    /// 300 KB, at most 5000 files, sorted by path. Hidden files
-    /// are included (`.env` files are a common secret store).
     nonisolated static func agenticCodeEnumerateAllFiles(at root: URL) -> [URL] {
         let skippedDirs: Set<String> = [".git", "DerivedData", ".build", "build", "Pods", "node_modules", ".swiftpm", ".venv"]
         var isDir: ObjCBool = false
@@ -825,12 +651,6 @@ extension SwiftCodeMCPHost {
         return results.sorted { $0.path < $1.path }
     }
 
-    /// Top-level declarations and `func` declarations per line:
-    /// the type regex anchors at the trimmed line start (with an
-    /// optional access / `final` modifier), mirroring Legacy's
-    /// `extractDeclaredTypes`, plus `protocol`; function names use
-    /// Legacy's `\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)` regex. Full-line
-    /// comments are skipped; matches in strings still count.
     nonisolated static func agenticCodeScanDeclarations(_ lines: [String]) -> [AgenticCodeDeclaration] {
         guard let typeRegex = try? NSRegularExpression(
             pattern: "^(?:public |private |internal |fileprivate |open )?(?:final )?(class|struct|enum|actor|protocol)\\s+([A-Za-z0-9_]+)",
@@ -859,13 +679,6 @@ extension SwiftCodeMCPHost {
         return out
     }
 
-    /// Heuristic bug patterns in one file's (or one supplied code
-    /// string's) lines. A `!` counts as a force unwrap only when
-    /// it follows an identifier, `)`, `]` or `}`, is not part of
-    /// `!=`, and is not followed by `"` (punctuation inside a
-    /// string literal). Boolean negation (`!flag`) is not flagged.
-    /// Full-line comments are skipped; matches inside strings
-    /// otherwise still count.
     nonisolated static func agenticCodeBugFindings(_ lines: [String]) -> [AgenticCodeBugFinding] {
         guard let forceUnwrap = try? NSRegularExpression(pattern: "[A-Za-z0-9_\\]\\)\\}]!(?!=)(?!\\\")", options: []),
               let tryBang = try? NSRegularExpression(pattern: "\\btry!", options: []),
@@ -879,9 +692,6 @@ extension SwiftCodeMCPHost {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("//") { continue }
             let range = NSRange(line.startIndex..., in: line)
-            // `try!` / `as!` first: their `!` would also match the
-            // force-unwrap pattern (`y!` in `try!`), so the
-            // force-unwrap check runs only when neither matched.
             if tryBang.firstMatch(in: line, options: [], range: range) != nil {
                 findings.append(AgenticCodeBugFinding(line: index + 1, kind: "force try (try!)", text: trimmed))
             } else if asBang.firstMatch(in: line, options: [], range: range) != nil {
@@ -895,9 +705,6 @@ extension SwiftCodeMCPHost {
             if singleLineCatch.firstMatch(in: line, options: [], range: range) != nil {
                 findings.append(AgenticCodeBugFinding(line: index + 1, kind: "empty catch block", text: trimmed))
             }
-            // Multi-line empty catch: a line opening a `catch`
-            // block (`catch {`, `} catch {`, `} catch FooError {`)
-            // whose next non-blank line is a lone `}`.
             if trimmed.contains("catch") && trimmed.hasSuffix("{") {
                 var next = index + 1
                 while next < lines.count && lines[next].trimmingCharacters(in: .whitespaces).isEmpty { next += 1 }
@@ -909,8 +716,6 @@ extension SwiftCodeMCPHost {
         return findings
     }
 
-    /// Word-boundaried action-item markers (Legacy's `todo_scan`
-    /// pattern).
     nonisolated static func agenticCodeTodoCount(_ lines: [String]) -> Int {
         guard let regex = try? NSRegularExpression(pattern: "\\b(TODO|FIXME|XXX|HACK)\\b", options: []) else { return 0 }
         var count = 0
@@ -920,13 +725,6 @@ extension SwiftCodeMCPHost {
         return count
     }
 
-    /// Secret / insecure-endpoint patterns in one file's lines.
-    /// A secret finding names only the key (`api key`,
-    /// `password`, …) — the matched value is never returned.
-    /// `http://localhost` and `http://127.0.0.1` are not findings.
-    /// Full-line comments are skipped for `http://` (a commented
-    /// URL is harmless) but not for secrets (a commented-out
-    /// credential is still a leak).
     nonisolated static func agenticCodeSecretFindings(_ lines: [String]) -> [AgenticCodeSecretFinding] {
         guard let secret = try? NSRegularExpression(
             pattern: "(?i)\\b(password|passwd|api[_-]?key|apikey|secret|access[_-]?token|private[_-]?key)\\s*[:=]\\s*[\"'][^\"'\\n]{4,}[\"']",
@@ -948,9 +746,6 @@ extension SwiftCodeMCPHost {
             }
             if let match = secret.firstMatch(in: line, options: [], range: range),
                match.numberOfRanges >= 2, let keyRange = Range(match.range(at: 1), in: line) {
-                // `apiKey` / `API_KEY` / `api-key` all read as
-                // "api key": split camel humps, then lowercase and
-                // turn `_` / `-` into spaces.
                 let rawKey = String(line[keyRange])
                 var spaced = ""
                 for (offset, character) in rawKey.enumerated() {
@@ -968,10 +763,6 @@ extension SwiftCodeMCPHost {
         return findings
     }
 
-    /// Function spans by brace-depth tracking from each `func`
-    /// declaration line (heuristic: braces in strings or comments
-    /// shift spans, as in Legacy's `call_hierarchy` callee scan).
-    /// A function whose body never closes runs to end of file.
     nonisolated static func agenticCodeFunctionSpans(_ lines: [String]) -> [(name: String, start: Int, length: Int)] {
         guard let funcRegex = try? NSRegularExpression(pattern: "\\bfunc\\s+([A-Za-z_][A-Za-z0-9_]*)", options: []) else { return [] }
         var spans: [(name: String, start: Int, length: Int)] = []
@@ -1004,9 +795,6 @@ extension SwiftCodeMCPHost {
         return spans
     }
 
-    /// Builds the in-memory declaration index for a set of Swift
-    /// files: per-kind counts plus a capped `Kind Name —
-    /// rel:line` listing (at most 200 entries, scan order).
     nonisolated static func agenticCodeBuildIndex(files: [URL], root: URL) -> AgenticCodeIndex {
         var entries: [(kind: String, name: String, rel: String, line: Int)] = []
         for url in files {
@@ -1029,8 +817,6 @@ extension SwiftCodeMCPHost {
             symbolsText: capped.map { "\($0.kind) \($0.name) — \($0.rel):\($0.line)" }.joined(separator: "\n"))
     }
 
-    /// The license a license file's text appears to grant, from
-    /// its well-known phrases; "unrecognised terms" otherwise.
     nonisolated static func agenticCodeLicenseTerm(_ text: String) -> String {
         if text.contains("Apache License") { return "Apache License" }
         if text.contains("MIT License") { return "MIT License" }

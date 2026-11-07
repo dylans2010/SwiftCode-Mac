@@ -6,7 +6,6 @@ struct WorkspaceSearchView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             VStack(alignment: .leading, spacing: 4) {
                 Text("Global Operations Search")
                     .font(.title2)
@@ -19,7 +18,6 @@ struct WorkspaceSearchView: View {
 
             Divider()
 
-            // Large search input row
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .font(.title2)

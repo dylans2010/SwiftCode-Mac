@@ -52,8 +52,6 @@ import USDCore
     }
 
     @Test func directArcsBeatAncestralArcs() throws {
-        // OpenUSD: a reference authored on /A/B is stronger than /A's reference
-        // reaching /X/B; child names compose weakest first.
         let text = """
         #usda 1.0
         def "X" {

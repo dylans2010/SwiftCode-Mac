@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for CoreGraphics
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct CoreGraphicsSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "coregraphics.symbol.0"
     public var name: String = "CoreGraphicsSymbolName_0"

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct PortLookupView: View {
@@ -45,7 +42,6 @@ struct PortLookupView: View {
             TextField("Search port, service or description...", text: $searchText)
                 .textFieldStyle(.roundedBorder)
                 .padding()
-                
 
             List(filteredPorts, id: \.0) { port in
                 HStack(alignment: .top) {

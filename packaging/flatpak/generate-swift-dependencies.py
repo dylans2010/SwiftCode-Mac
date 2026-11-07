@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-# Regenerates swift-dependencies.json from swiftcode/Package.resolved and
-# swiftcode/Tools/swiftcode-swb/Package.resolved: one tarball per pin, by commit, with the
-# SHA-256 of what was downloaded now. Run it when a Package.resolved changes.
-#
-# usage: python3 -I packaging/flatpak/generate-swift-dependencies.py
 import hashlib
 import json
 import os
@@ -13,7 +8,6 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 PACKAGES = ["swiftcode/Package.resolved", "swiftcode/Tools/swiftcode-swb/Package.resolved"]
-
 
 def main():
     try:
@@ -40,7 +34,6 @@ def main():
     with open(os.path.join(HERE, "swift-dependencies.json"), "w") as f:
         json.dump([sources[k] for k in sorted(sources)], f, indent=2)
         f.write("\n")
-
 
 if __name__ == "__main__":
     main()

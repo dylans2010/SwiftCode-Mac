@@ -67,26 +67,16 @@ actor BinaryManager {
         return try await run(.graphviz, arguments: ["-Tsvg", dotURL.path, "-o", outputPath])
     }
 
-    /// Outcome of the Graphviz availability check / install attempt.
     enum GraphvizAvailability: Sendable {
-        /// `dot` was already on PATH (or bundled).
         case available
-        /// `dot` was missing and Homebrew just installed it successfully.
         case installedNow
-        /// `dot` is missing and Homebrew itself is not installed, so we cannot
-        /// install it automatically. Carries install guidance for the UI.
         case brewMissing
-        /// `dot` is missing and the `brew install graphviz` attempt failed.
         case installFailed(String)
     }
 
-    /// Ensures Graphviz (`dot`) is usable, installing it via Homebrew when it
-    /// is missing. Never shells out through /bin/sh — brew is launched with a
-    /// fixed executable path and an argv array.
     func ensureGraphvizAvailable() async -> GraphvizAvailability {
         if await validate(binary: .graphviz) { return .available }
 
-        // Drop any stale negative cache entry before re-probing.
         binaryCache[.graphviz] = nil
 
         let brewCandidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
@@ -195,7 +185,6 @@ actor BinaryManager {
             exitCode: process.terminationStatus
         )
         #else
-        // iOS/iPadOS fallback
         throw NSError(domain: "BinaryManager", code: 501, userInfo: [
             NSLocalizedDescriptionKey: "Command line tools (including git, npm, and xcodebuild) are not supported on iOS/iPadOS. Please use the integrated API-based features instead."
         ])

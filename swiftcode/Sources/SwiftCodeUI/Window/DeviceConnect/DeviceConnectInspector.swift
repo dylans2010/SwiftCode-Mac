@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Build/DeviceConnectKit/Views/Inspector/DeviceConnectInspector.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: DeviceConnectInspector.
-
 import SwiftUI
 
 public struct DeviceConnectInspector: View {

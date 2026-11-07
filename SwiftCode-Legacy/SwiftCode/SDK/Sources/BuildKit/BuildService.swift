@@ -38,12 +38,10 @@ public final class BuildService: Sendable {
         let startTime = Date()
         let ws = Workspace(path: config.projectPath)
 
-        // Determine build strategy based on files in project
         let executable: String
         var args: [String] = []
 
         if ws.fileAccess.exists(at: "swiftcode.json") {
-            // Extension: use npm run build or tsc if present
             if let npm = toolchain.resolveExecutable(name: "npm") {
                 executable = npm
                 args = ["run", "build"]
@@ -63,7 +61,6 @@ public final class BuildService: Sendable {
                 args.append(contentsOf: ["--target", target])
             }
         } else {
-            // Default to swiftc or xcodebuild
             guard let swift = toolchain.resolveExecutable(name: "swift") else {
                 throw WorkspaceError.readFailed(config.projectPath, "No supported build system detected")
             }

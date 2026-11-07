@@ -1,6 +1,5 @@
 import Foundation
 
-/// Base of every stored object (`interface.md` §3). Immutable; compared by UUID.
 public class HKObject: NSObject, NSSecureCoding, @unchecked Sendable {
     let record: ObjectRecord
 
@@ -14,7 +13,6 @@ public class HKObject: NSObject, NSSecureCoding, @unchecked Sendable {
     #else
     public var uuid: UUID { record.uuid }
     #endif
-    /// Assigned when saved; before that the calling app's current revision.
     public var sourceRevision: HKSourceRevision {
         HKSourceRevision(record: record.revision ?? SwiftCodeHealthClient.processDefault.revisionRecord)
     }
@@ -40,7 +38,6 @@ public class HKObject: NSObject, NSSecureCoding, @unchecked Sendable {
         super.init()
     }
 
-    /// Materialize the right class for a record.
     static func make(_ r: ObjectRecord) -> HKObject {
         switch r.kind {
         case .quantity:
@@ -53,7 +50,6 @@ public class HKObject: NSObject, NSSecureCoding, @unchecked Sendable {
     }
 }
 
-/// An object with a type and a date interval.
 public class HKSample: HKObject, @unchecked Sendable {
     public override class var supportsSecureCoding: Bool { true }
     public var sampleType: HKSampleType { TypeRegistry.sampleType(record.type)! }
@@ -82,13 +78,8 @@ public class HKSample: HKObject, @unchecked Sendable {
     }
 }
 
-// MARK: - Quantity samples
-
-/// A sample holding a quantity. Constructors return an `HKCumulativeQuantitySample`
-/// or an `HKDiscreteQuantitySample` depending on the type's aggregation style.
 public class HKQuantitySample: HKSample, @unchecked Sendable {
     public override class var supportsSecureCoding: Bool { true }
-    // swiftlint:disable:next force_cast - the registry holds the subclass registered for this identifier
     public var quantityType: HKQuantityType { TypeRegistry.type(record.type) as! HKQuantityType }
     public var quantity: HKQuantity { HKQuantity(unit: HKUnit(from: record.unit), doubleValue: record.value) }
     #if canImport(ObjectiveC)
@@ -135,7 +126,6 @@ extension _HKQuantitySampleFactory where Self: HKQuantitySample {
             try HKQuantitySample.makeRecord(type: quantityType, quantity: quantity, start: startDate, end: endDate,
                                             device: device, metadata: metadata)
         }
-        // swiftlint:disable:next force_cast - HKObject.make builds the subclass the record type names
         self = HKObject.make(r) as! Self
     }
     public init(type quantityType: HKQuantityType, quantity: HKQuantity, start startDate: Date, end endDate: Date,
@@ -147,11 +137,8 @@ extension _HKQuantitySampleFactory where Self: HKQuantitySample {
     }
 }
 
-// MARK: - Category samples
-
 public final class HKCategorySample: HKSample, @unchecked Sendable {
     public override class var supportsSecureCoding: Bool { true }
-    // swiftlint:disable:next force_cast - the registry holds the subclass registered for this identifier
     public var categoryType: HKCategoryType { TypeRegistry.type(record.type) as! HKCategoryType }
     #if canImport(ObjectiveC)
     @objc public var value: Int { record.categoryValue }
@@ -188,19 +175,13 @@ public final class HKCategorySample: HKSample, @unchecked Sendable {
     }
 }
 
-// MARK: - Correlations
-
-/// Groups related samples (`interface.md` §3). Saving a correlation saves its members.
 public final class HKCorrelation: HKSample, @unchecked Sendable {
     public override class var supportsSecureCoding: Bool { true }
-    // swiftlint:disable:next force_cast - the registry holds the subclass registered for this identifier
     public var correlationType: HKCorrelationType { TypeRegistry.type(record.type) as! HKCorrelationType }
     public var objects: Set<HKSample> {
-        // swiftlint:disable:next force_cast - correlation members are samples
         Set((record.members ?? []).map { HKObject.make($0) as! HKSample })
     }
     public func objects(for objectType: HKObjectType) -> Set<HKSample> {
-        // swiftlint:disable:next force_cast - correlation members are samples
         Set((record.members ?? []).filter { $0.type == objectType.identifier }.map { HKObject.make($0) as! HKSample })
     }
 
@@ -230,9 +211,6 @@ public final class HKCorrelation: HKSample, @unchecked Sendable {
     }
 }
 
-// MARK: - Deleted objects
-
-/// A tombstone returned by anchored queries (`queries.md` §4).
 public final class HKDeletedObject: NSObject, NSSecureCoding, @unchecked Sendable {
     let record: TombstoneRecord
     public var uuid: UUID { record.uuid }

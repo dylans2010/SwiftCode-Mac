@@ -2,26 +2,6 @@ import SwiftCodeAssistant
 import SwiftCodeGitHub
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/GitHubAccountView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The signed-in GitHub account: avatar, login, name, bio, company, blog,
-/// location, email, hireable status, follower/following counts, public and
-/// private repository counts, and account dates — plus Sign Out.
-///
-/// Legacy read a cached `GitHubUserInfo`; this port loads the live profile
-/// from `GitHubClient.getAuthenticatedUser()`. The profile fields the
-/// destination `GitHubUser` lacked (bio, company, blog, location, email,
-/// hireable, followers, following, publicRepos, totalPrivateRepos,
-/// createdAt, updatedAt) were added to the staged `GitHubModels.swift` for
-/// this port. Sign Out deletes the stored token from the `SecretStore`,
-/// which is the same account `GitHubClient(tokenProvider:)` reads
-/// (`SecretAccount.githubToken = "github.api-key"`).
-///
-/// Hook: present from the GitHub settings/account area with a client built
-/// from the default secret store:
-/// `GitHubClient(tokenProvider: { defaultSecretStore().readString(SecretAccount.githubToken) })`.
-/// `onSignOut` should dismiss the account UI and return to the sign-in flow.
 @MainActor
 public struct GitHubAccountView: View {
     public var client: GitHubClient

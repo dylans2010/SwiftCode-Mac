@@ -1,8 +1,5 @@
 import Foundation
 
-/// `ProjectOptions` (the iOS App options, `templates.md` §iOS App) as a
-/// view of a template's form, so callers that set options by type keep
-/// working with the data-driven options step.
 extension ProjectOptions {
     public init(form: TemplateOptionsForm) {
         self.init()
@@ -20,7 +17,6 @@ extension ProjectOptions {
 }
 
 extension TemplateOptionsForm {
-    /// Sets the fields `o` has values for (those the template offers).
     public mutating func apply(_ o: ProjectOptions) {
         set(TemplateOptionID.productName, o.productName)
         set(TemplateOptionID.organizationIdentifier, o.organizationIdentifier)
@@ -40,7 +36,6 @@ extension TemplateOptionsForm {
 }
 
 extension NewProjectFlowModel {
-    /// Sets the options from `ProjectOptions` (see `TemplateOptionsForm.apply`).
     public mutating func apply(_ o: ProjectOptions) {
         var f = form
         f.apply(o)

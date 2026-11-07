@@ -4,14 +4,8 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssetCatalog
 
-/// The done-criterion of CAR-WRITER phase 1 on macOS: cars that SwiftCode wrote
-/// load through public AppKit API only — `Bundle.image(forResource:)` (the
-/// bundle form of `NSImage(named:)`), `NSColor(named:bundle:)`, and
-/// `NSWorkspace.icon(forFile:)` for an app bundle whose icon is in the car.
 @MainActor
 struct RuntimeLoadTests {
-    /// Draws an image into a `size` × `size` sRGB bitmap (top-left origin
-    /// for `p`) under `appearance` (aqua when nil) and returns RGBA 0–255.
     func sample(_ image: NSImage, at p: (Int, Int), size: Int = 64, appearance: NSAppearance? = nil) -> [Int] {
         var px = [UInt8](repeating: 0, count: size * size * 4)
         let ok = px.withUnsafeMutableBytes { buf -> Bool in
@@ -28,7 +22,6 @@ struct RuntimeLoadTests {
         guard ok else { return [] }
         let o = (p.1 * size + p.0) * 4
         let a = Int(px[o + 3])
-        // Un-premultiply.
         return (0..<3).map { a == 0 ? 0 : min(255, (Int(px[o + $0]) * 255 + a / 2) / a) } + [a]
     }
 
@@ -55,7 +48,6 @@ struct RuntimeLoadTests {
         #expect(logo.size == NSSize(width: 10, height: 10))
         #expect(Set(logo.representations.map(\.pixelsWide)).isSuperset(of: [10, 20]))
         #expect(close(sample(logo, at: (32, 32)), [255, 0, 0, 255]))
-        // The dark variant draws under the dark appearance.
         #expect(close(sample(logo, at: (32, 32), appearance: NSAppearance(named: .darkAqua)), [0, 0, 255, 255]))
         let star = try #require(bundle.image(forResource: "Shapes/Star"))
         #expect(star.size == NSSize(width: 4, height: 4))
@@ -63,10 +55,6 @@ struct RuntimeLoadTests {
         #expect(close(s, [255, 255, 0, 128], 8), "\(s)")
     }
 
-    /// Large images: every pixel of a 1024 × 1024 image (a gradient with
-    /// noise, and a flat colour) comes back exactly. CoreUI stopped decoding
-    /// a single 1.4 MB LZVN block after 782,336 bytes; `LZFSE.blockSize`
-    /// keeps blocks small.
     @Test(arguments: CARCompression.allCases)
     func largeImagesDecodeCompletely(_ compression: CARCompression) throws {
         let dir = try Fixture.tempDir("rt")
@@ -105,8 +93,6 @@ struct RuntimeLoadTests {
         }
     }
 
-    /// CELM versions 2 and 3 draw as opaque, 0 and 1 keep alpha: SwiftCode writes
-    /// 1 for every bitmap but the opaque iOS-family app icons.
     @Test func celmVersionDecidesWhetherAlphaIsUsed() throws {
         let dir = try Fixture.tempDir("rt")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -149,7 +135,6 @@ struct RuntimeLoadTests {
         #expect(abs(p3.redComponent - 0.2) < 0.002 && abs(p3.greenComponent - 0.5) < 0.002 && abs(p3.blueComponent - 0.25) < 0.002)
     }
 
-    /// `Test.app` with an `Info.plist` naming the icon and the compiled files.
     func app(_ dir: URL, inputs: [URL], icns: Bool) throws -> URL {
         let app = dir.appendingPathComponent("IconTest-\(UUID().uuidString.prefix(8)).app")
         let res = app.appendingPathComponent("Contents/Resources")
@@ -166,7 +151,6 @@ struct RuntimeLoadTests {
         try FileManager.default.removeItem(at: res.appendingPathComponent("partial.plist"))
         try FileManager.default.removeItem(at: res.appendingPathComponent("deps"))
         try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
-        // Launch Services shows the generic icon for a bundle without its executable.
         let exe = app.appendingPathComponent("Contents/MacOS/IconTest")
         try Data("#!/bin/sh\n".utf8).write(to: exe)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exe.path)
@@ -180,7 +164,6 @@ struct RuntimeLoadTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let app = try app(dir, inputs: [try Fixture.catalog(in: dir)], icns: icns)
         let icon = NSWorkspace.shared.icon(forFile: app.path)
-        // The set's green fills the 1024 canvas; the generic app icon is not green.
         let c = sample(icon, at: (32, 32), size: 64)
         #expect(close(c, [0, 204, 51, 255], 10), "\(c) (icns \(icns))")
     }
@@ -191,10 +174,8 @@ struct RuntimeLoadTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let app = try app(dir, inputs: [try Fixture.icon(in: dir)], icns: icns)
         let icon = NSWorkspace.shared.icon(forFile: app.path)
-        // Inside the rounded rectangle, left of the white layer: the fill colour.
         let c = sample(icon, at: (10, 32), size: 64)
         #expect(close(c, [230, 51, 26, 255], 12), "\(c) (icns \(icns))")
-        // Outside it, the corner is transparent.
         #expect(sample(icon, at: (1, 62), size: 64).last ?? 255 < 40)
     }
 }

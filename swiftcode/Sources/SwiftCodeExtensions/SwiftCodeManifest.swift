@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - swiftcode.json model (spec §2.2)
-
 public struct ManifestRuntime: Codable, Equatable, Hashable, Sendable {
     public var language: String
     public var entrypoint: String
@@ -63,10 +61,6 @@ public struct ManifestAssist: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-/// One struct for `swiftcode.json`, with the strict validator's
-/// expectations and the `"^1.0.0"` range default (the documented
-/// authoring default). Unknown top-level keys are preserved in
-/// `unknownFields` so visual editing never destroys them.
 public struct SwiftCodeManifest: Codable, Equatable, Hashable, Sendable {
     public var manifestVersion: Int
     public var id: String
@@ -174,15 +168,10 @@ public struct ManifestDiagnostic: Identifiable, Equatable, Hashable, Sendable {
     }
 }
 
-// MARK: - Strict validator (spec §2.3)
-
-/// The strict `SDKManifestValidator` as the install-time gate. The
-/// lenient `ExtensionValidator` is NOT reimplemented (spec §2.3).
 public enum SwiftCodeManifestValidator {
     public static let maxManifestBytes = 64 * 1024
     public static let hostSDKVersion = "1.2.0"
 
-    /// 35 SDK ids + 6 `use.Security.*` method scopes (spec §5.1).
     public static var supportedCapabilities: Set<String> {
         Set(SDKCapabilityID.allCases.map { $0.rawValue }).union([
             "use.Security.keychain", "use.Security.audit", "use.Security.crypto",
@@ -198,8 +187,6 @@ public enum SwiftCodeManifestValidator {
         string.range(of: pattern, options: .regularExpression) != nil
     }
 
-    /// Throws `SwiftCodeExtensionError.manifest` when any error-severity
-    /// diagnostic is produced.
     public static func validate(data: Data) throws -> SwiftCodeManifest {
         if data.count > maxManifestBytes {
             throw SwiftCodeExtensionError.manifest(
@@ -221,7 +208,6 @@ public enum SwiftCodeManifestValidator {
         var diagnostics: [ManifestDiagnostic] = []
         let text = String(decoding: data, as: UTF8.self)
         func line(for field: String) -> Int? {
-            // Line numbers located by text search (spec §2.3).
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
             for (index, line) in lines.enumerated() where line.contains("\"\(field)\"") {
                 return index + 1
@@ -244,7 +230,6 @@ public enum SwiftCodeManifestValidator {
             error("manifest", "Manifest is not valid JSON.", "Fix the JSON syntax.")
             return diagnostics
         }
-        // Missing required keys.
         for key in ["manifestVersion", "id", "name", "version", "type", "runtime", "sdk", "capabilities"] {
             if object[key] == nil {
                 error(key, "Missing required field '\(key)'.", "Add '\(key)' to the manifest.")
@@ -342,7 +327,6 @@ public enum SwiftCodeManifestValidator {
                     error("capabilities", "Capability '\(id)' is missing a reason.", "Add a reason for the capability.")
                 }
                 if let granted = grantedCapabilities, !granted.contains(id) {
-                    // Diagnostic-only: this never grants anything.
                     warning("capabilities", "Capability '\(id)' is declared but not granted.", "Grant it in Extensions > Permissions.")
                 }
             }
@@ -378,18 +362,14 @@ public enum SwiftCodeManifestValidator {
         return diagnostics
     }
 
-    /// SDK range whitelist for host SDK 1.2.0: exact `1.0.0` / `1.1.0` /
-    /// `1.2.0`, `^1.x.0`, `~1.x.0`, `>=1.x.0 <2.0.0`.
     public static func isSDKRangeCompatible(_ range: String) -> Bool {
         let trimmed = range.trimmingCharacters(in: .whitespaces)
         if ["1.0.0", "1.1.0", "1.2.0"].contains(trimmed) { return true }
         if trimmed.hasPrefix("^") || trimmed.hasPrefix("~") {
-            // Whitelist form is ^1.x.0 / ~1.x.0 with x in 0...2 and patch 0.
             guard let version = SemanticVersion(string: String(trimmed.dropFirst())) else { return false }
             return version.major == 1 && version.minor <= 2 && version.patch == 0
         }
         if trimmed.hasPrefix(">=") {
-            // ">=1.x.0 <2.0.0" (the space-separated upper bound is optional in practice).
             let lower = String(trimmed.dropFirst(2)).split(separator: " ").first.map(String.init) ?? ""
             guard let version = SemanticVersion(string: lower) else { return false }
             return version.major == 1

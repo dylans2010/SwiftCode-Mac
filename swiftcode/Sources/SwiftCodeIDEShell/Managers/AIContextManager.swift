@@ -1,10 +1,3 @@
-// AIContextManager.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AIContextManager.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: standalone buildContext(for:) returning a context payload; AIContextPayload type; token-count estimate
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AIContextPayload.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import SwiftData
 

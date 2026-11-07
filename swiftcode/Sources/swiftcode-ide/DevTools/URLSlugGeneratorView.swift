@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct URLSlugGeneratorView: View {
@@ -28,7 +25,7 @@ struct URLSlugGeneratorView: View {
                 }
             }
             .padding()
-            
+
             .background(Color.secondary.opacity(0.1))
             .cornerRadius(8)
 

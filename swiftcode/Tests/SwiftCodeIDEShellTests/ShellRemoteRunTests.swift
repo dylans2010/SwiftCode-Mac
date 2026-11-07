@@ -5,7 +5,6 @@ import SwiftCodeIDECore
 import SwiftCodeSimLink
 @testable import SwiftCodeIDEShell
 
-/// Run on a SwiftCode simulator host from the Linux shell (sim-link.md §10).
 struct ShellRemoteRunTests {
     @Test func destinationsCarryHostAndDevice() throws {
         let d = ShellRemoteRun.destination(host: "thor", device: LinkDeviceInfo(name: "p18", deviceType: "iphone-18-pro",
@@ -40,7 +39,6 @@ struct ShellRemoteRunTests {
         let phone = ShellRemoteRun.destination(host: "thor", device: LinkDeviceInfo(name: "p18", deviceType: "iphone-18-pro",
                                                                                     runtime: "/rt/iOS-27.0-24A434/RuntimeRoot", state: "running"))
         #expect(ShellRemoteRun.headsetArguments(destination: phone, toHeadset: true) == nil)
-        // `swiftcode sim remote view … --xr --background | --desktop` maps onto the same commands.
         #expect(HeadsetCLI.remoteView(["--host", "thor", "view", "vp", "--xr", "--background", "--foveate"])?.headset
                 == ["view", "vp", "--link", "--host", "thor", "--", "--foveate"])
         let back = HeadsetCLI.remoteView(["view", "vp", "--desktop"])

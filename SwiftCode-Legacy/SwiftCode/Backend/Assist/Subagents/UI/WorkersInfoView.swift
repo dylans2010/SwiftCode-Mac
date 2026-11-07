@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Detailed inspection view for a single Assist Worker.
-/// Strictly non-conversational — the only interactive control is "Stop Worker".
 @MainActor
 public struct WorkersInfoView: View {
     let workerID: UUID
@@ -63,8 +61,6 @@ public struct WorkersInfoView: View {
         }
     }
 
-    // MARK: - Header
-
     @ViewBuilder
     private func headerView(for worker: Worker) -> some View {
         HStack(alignment: .center, spacing: 10) {
@@ -105,8 +101,6 @@ public struct WorkersInfoView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
-
-    // MARK: - Sections
 
     @ViewBuilder
     private func statusSection(_ worker: Worker) -> some View {
@@ -457,8 +451,6 @@ public struct WorkersInfoView: View {
                 .foregroundStyle(.secondary)
         }
     }
-
-    // MARK: - Helpers
 
     private func statusColor(for status: WorkerStatus) -> Color {
         switch status {

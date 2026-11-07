@@ -4,14 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// The macOS half of the Organizer's paired screenshots (the Linux half is
-/// `swiftcode-ide` with `SWIFTCODE_IDE_ORGANIZER`). With `SWIFTCODE_ORGANIZER_SHOTS`
-/// (the output folder) and `SWIFTCODE_ORGANIZER_ARCHIVES` (an archives folder,
-/// such as the one `swiftcodebuild archive` fills) set, it opens the Organizer
-/// in a window with its toolbar and writes `mac-organizer-<appearance>-
-/// <state>.png` (the window's frame view drawn with `cacheDisplay`, never
-/// put on screen) for the archive list with the newest archive selected,
-/// and the Overview page's empty state. It never runs without the variables.
 @MainActor
 @Suite(.serialized) struct OrganizerParityProbeTests {
     nonisolated static let outDir = ProcessInfo.processInfo.environment["SWIFTCODE_ORGANIZER_SHOTS"]

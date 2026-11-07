@@ -1,13 +1,3 @@
-// LocalizationCore.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Localization/LocalizationCore.swift`
-// (SwiftCode-Mac migration, Localization slice). Verbatim except this header:
-// @Observable @MainActor localization store — project scanning, .strings /
-// .xcstrings read/write, language/key management, validation, CSV import/export.
-// Lives in SwiftCodeIDECore (same target as its DocumentCoordinator and
-// ProjectSessionStore references); swiftcode-ide reaches it via its
-// SwiftCodeIDECore dependency.
-
 import Foundation
 import os
 import Observation
@@ -17,7 +7,7 @@ private let logger = Logger(subsystem: "com.swiftcode.app", category: "Localizat
 public struct LocalizedKey: Identifiable, Codable, Hashable, Sendable {
     public var id: String { key }
     public var key: String
-    public var translations: [String: String] // LanguageCode -> Translated String
+    public var translations: [String: String]
     public var comment: String?
     public var isFavorite: Bool
 }
@@ -26,17 +16,16 @@ public struct LocalizationFile: Identifiable, Hashable, Sendable {
     public var id: String { path }
     public let name: String
     public let path: String
-    public let type: String // "xcstrings", "strings", "stringsdict", "infoplist"
+    public let type: String
 }
 
 public struct LocalizationValidationIssue: Identifiable, Hashable, Sendable {
     public let id = UUID()
     public let key: String
     public let message: String
-    public let severity: String // "ERROR" or "WARNING"
+    public let severity: String
 }
 
-// Codable models for Xcode 15+ String Catalogs (.xcstrings)
 struct XCStringsFile: Codable {
     var sourceLanguage: String
     var strings: [String: XCStringsEntry]
@@ -65,7 +54,6 @@ public final class LocalizationCore {
     public var isScanning: Bool = false
     public var projectRootURL: URL? = nil
 
-    // Changing selectedFile dynamically loads the actual keys and translations from disk!
     public var selectedFile: LocalizationFile? = nil {
         didSet {
             if let file = selectedFile {
@@ -85,11 +73,8 @@ public final class LocalizationCore {
 
     private init() {
         loadSettings()
-        // Do not scan synchronously in init() to prevent any MainActor freeze!
     }
 
-    /// Run the directory scanning processes asynchronously on detached background contexts
-    /// (Task.detached(priority: .userInitiated)) and publish updates to the @MainActor thread.
     public func scanProjectFiles(projectURL: URL? = nil) {
         guard !isScanning else { return }
         isScanning = true
@@ -112,7 +97,6 @@ public final class LocalizationCore {
 
             if let enumerator = enumerator {
                 while let fileURL = enumerator.nextObject() as? URL {
-                    // Fast path: skip scanning within heavy non-source directories
                     let pathString = fileURL.path
                     if pathString.contains("/build/") ||
                        pathString.contains("/.git/") ||
@@ -136,7 +120,6 @@ public final class LocalizationCore {
                 }
             }
 
-            // Seed default file structures on disk if none are found
             if found.isEmpty {
                 let xcstringsPath = "Localizable.xcstrings"
                 let xcstringsURL = rootURL.appendingPathComponent(xcstringsPath)
@@ -164,7 +147,6 @@ public final class LocalizationCore {
             let duration = Date().timeIntervalSince(startTime)
             logger.log("Asynchronous scanning completed in \(duration)s. Found \(found.count) files.")
 
-            // Safe MainActor publishing update
             let finalFound = found
             let xcstringsFiles = finalFound.filter { $0.type == "xcstrings" }
             let preferred = xcstringsFiles.first(where: { $0.name == "Localizable.xcstrings" }) ?? xcstringsFiles.first ?? finalFound.first
@@ -179,8 +161,6 @@ public final class LocalizationCore {
             }
         }
     }
-
-    // MARK: - Disk Read / Write Engine
 
     private func resolveFileURL(for file: LocalizationFile) -> URL {
         if file.path.hasPrefix("/") {
@@ -197,7 +177,6 @@ public final class LocalizationCore {
         logger.log("Reading real localization asset from disk: \(file.path)")
 
         if file.type == "xcstrings" {
-            // Parse Xcode String Catalog JSON
             if let data = try? Data(contentsOf: fileURL),
                let catalog = try? JSONDecoder().decode(XCStringsFile.self, from: data) {
                 self.defaultLanguage = catalog.sourceLanguage
@@ -221,7 +200,6 @@ public final class LocalizationCore {
                 logger.log("Loaded \(loaded.count) keys from String Catalog.")
             }
         } else {
-            // Parse standard .strings format: "key" = "value";
             if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
                 var loaded: [LocalizedKey] = []
                 let lines = content.components(separatedBy: .newlines)
@@ -230,7 +208,6 @@ public final class LocalizationCore {
                     let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmed.isEmpty || trimmed.hasPrefix("//") || trimmed.hasPrefix("/*") { continue }
 
-                    // Match "key" = "value";
                     let pattern = #"^\s*\"([^\"]+)\"\s*=\s*\"([^\"]*)\"\s*;\s*$"#
                     if let regex = try? NSRegularExpression(pattern: pattern, options: []),
                        let match = regex.firstMatch(in: trimmed, options: [], range: NSRange(trimmed.startIndex..., in: trimmed)) {
@@ -261,7 +238,6 @@ public final class LocalizationCore {
         logger.log("Serializing and writing updated localizations back to disk at: \(file.path)")
 
         if file.type == "xcstrings" {
-            // Format back to Xcode String Catalog schema
             var stringsMap: [String: XCStringsEntry] = [:]
             for record in keys {
                 var locs: [String: XCStringsLocalization] = [:]
@@ -279,7 +255,6 @@ public final class LocalizationCore {
                 logger.log("String Catalog saved successfully.")
             }
         } else {
-            // Format to standard .strings structure
             var output = ""
             for record in keys {
                 if let comment = record.comment, !comment.isEmpty {
@@ -292,8 +267,6 @@ public final class LocalizationCore {
             logger.log(".strings asset saved successfully.")
         }
     }
-
-    // MARK: - Language Management
 
     public func addLanguage(_ code: String) {
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -325,8 +298,6 @@ public final class LocalizationCore {
         saveFileContents()
     }
 
-    // MARK: - Key Management
-
     public func addKey(_ newKey: String, comment: String? = nil) {
         let trimmed = newKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -357,14 +328,11 @@ public final class LocalizationCore {
         saveFileContents()
     }
 
-    // MARK: - Validations
-
     public func validateTranslations() -> [LocalizationValidationIssue] {
         var issues: [LocalizationValidationIssue] = []
         let formatSpecifiers = ["%@", "%d", "%f", "%ld", "%lf"]
 
         for record in keys {
-            // Missing Translations
             for lang in activeLanguages {
                 let trans = record.translations[lang] ?? ""
                 if trans.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -374,7 +342,6 @@ public final class LocalizationCore {
                         severity: "WARNING"
                     ))
                 } else {
-                    // Placeholder checks
                     let defaultTrans = record.translations[defaultLanguage] ?? ""
                     for spec in formatSpecifiers {
                         let countInDefault = defaultTrans.components(separatedBy: spec).count - 1
@@ -392,8 +359,6 @@ public final class LocalizationCore {
         }
         return issues
     }
-
-    // MARK: - Import / Export
 
     public func exportCSV(to url: URL) throws {
         var csvString = "Key,Comment," + languages.joined(separator: ",") + "\n"
@@ -414,7 +379,6 @@ public final class LocalizationCore {
         let rows = content.components(separatedBy: .newlines)
         guard rows.count > 1 else { return }
 
-        // Parse header
         let headers = parseCSVRow(rows[0])
         guard headers.count > 2 else { return }
 
@@ -473,8 +437,6 @@ public final class LocalizationCore {
         result.append(current)
         return result
     }
-
-    // MARK: - Persistence Settings
 
     private func loadSettings() {
         let defaults = UserDefaults.standard

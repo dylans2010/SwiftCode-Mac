@@ -1,10 +1,3 @@
-// LocalizationManagerView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Localization/LocalizationManagerView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: project-wide string-catalog discovery/scanning across the project; CSV import/export of translations; AI translation of missing strings; validation checks (missing keys, format-specifier audit)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): LocalizedKey.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftCodeIDECore
 import SwiftUI
@@ -18,17 +11,14 @@ public struct LocalizationManagerView: View {
     @State private var newKeyComment = ""
     @State private var selectedLanguageCodeToAdd = "it"
 
-    // Validation alerts
     @State private var activeIssues: [LocalizationValidationIssue] = []
     @State private var isShowingValidationHUD = false
 
-    // AI Translation
     @State private var isAIProcessing = false
     @State private var aiTranslationResult = ""
     @State private var parsedAITranslations: [String: String] = [:]
     @State private var aiDidApply = false
 
-    // Sheet alerts
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showingAlert = false
@@ -65,15 +55,12 @@ public struct LocalizationManagerView: View {
 
     public var body: some View {
         HSplitView {
-            // MARK: - Panel 1: Catalogs & Languages Sidebar
             sidebarPanel
                 .frame(minWidth: 230, idealWidth: 250, maxWidth: 300)
 
-            // MARK: - Panel 2: Keys Directory & Search
             keysBrowserPanel
                 .frame(minWidth: 340, idealWidth: 380, maxWidth: 480)
 
-            // MARK: - Panel 3: Translation Editor & AI Co-Pilot
             detailEditorPanel
                 .frame(minWidth: 460, idealWidth: 570, maxWidth: .infinity)
         }
@@ -109,11 +96,8 @@ public struct LocalizationManagerView: View {
         }
     }
 
-    // MARK: - Sidebar Panel
-
     private var sidebarPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Catalog Files Section
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Label("STRING CATALOGS", systemImage: "text.book.closed.fill")
@@ -170,7 +154,6 @@ public struct LocalizationManagerView: View {
 
             Divider()
 
-            // Active Languages Section
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Label("ACTIVE LOCALES", systemImage: "globe")
@@ -242,7 +225,6 @@ public struct LocalizationManagerView: View {
 
             Divider()
 
-            // Footer Metrics
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(core.keys.count) Keys in Catalog")
@@ -269,14 +251,10 @@ public struct LocalizationManagerView: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // MARK: - Keys Browser Panel
-
     private var keysBrowserPanel: some View {
         VStack(spacing: 0) {
-            // Browser Toolbar
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
-                    // Search bar
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.secondary)
@@ -299,7 +277,6 @@ public struct LocalizationManagerView: View {
                     .padding(.vertical, 5)
                     .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
 
-                    // Add key button
                     Button {
                         showKeyCreationSheet = true
                     } label: {
@@ -311,7 +288,6 @@ public struct LocalizationManagerView: View {
                     .help("Add new localization key")
                 }
 
-                // Filter & Actions row
                 HStack(spacing: 8) {
                     Toggle(isOn: $core.filterMissingOnly) {
                         HStack(spacing: 4) {
@@ -354,7 +330,6 @@ public struct LocalizationManagerView: View {
 
             Divider()
 
-            // Keys List
             if core.isScanning && filteredKeys.isEmpty {
                 VStack(spacing: 12) {
                     ProgressView()
@@ -415,7 +390,6 @@ public struct LocalizationManagerView: View {
                                 }
                             }
 
-                            // Default translation preview
                             let defaultVal = record.translations[core.defaultLanguage] ?? ""
                             if !defaultVal.isEmpty {
                                 Text(defaultVal)
@@ -424,7 +398,6 @@ public struct LocalizationManagerView: View {
                                     .lineLimit(1)
                             }
 
-                            // Developer comment preview if present
                             if let comment = record.comment, !comment.isEmpty {
                                 Text("/* \(comment) */")
                                     .font(.system(size: 10, design: .monospaced))
@@ -452,13 +425,10 @@ public struct LocalizationManagerView: View {
         .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
     }
 
-    // MARK: - Detail Editor Panel
-
     private var detailEditorPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if let keyRecord = core.selectedKey {
-                    // Key Header
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .center) {
                             VStack(alignment: .leading, spacing: 3) {
@@ -495,7 +465,6 @@ public struct LocalizationManagerView: View {
                             .help("Delete key")
                         }
 
-                        // Developer Comment
                         VStack(alignment: .leading, spacing: 4) {
                             Text("DEVELOPER COMMENT")
                                 .font(.system(size: 9, weight: .bold))
@@ -518,7 +487,6 @@ public struct LocalizationManagerView: View {
                     .padding(14)
                     .background(Color(NSColor.windowBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
 
-                    // Translations per language
                     VStack(alignment: .leading, spacing: 12) {
                         Text("TRANSLATIONS")
                             .font(.system(size: 10, weight: .bold))
@@ -589,7 +557,6 @@ public struct LocalizationManagerView: View {
                         }
                     }
 
-                    // AI Translator Co-Pilot Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -652,7 +619,6 @@ public struct LocalizationManagerView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Quality & Format Specifiers Notice
                     let formatSpecifiers = extractFormatSpecifiers(from: keyRecord.translations[core.defaultLanguage] ?? "")
                     if !formatSpecifiers.isEmpty {
                         HStack(spacing: 8) {
@@ -683,8 +649,6 @@ public struct LocalizationManagerView: View {
         }
         .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
     }
-
-    // MARK: - Sheets
 
     private var languageManagementSheet: some View {
         VStack(spacing: 16) {
@@ -800,8 +764,6 @@ public struct LocalizationManagerView: View {
         .frame(width: 500, height: 400)
     }
 
-    // MARK: - Helpers
-
     private func displayName(for languageCode: String) -> String {
         Locale.current.localizedString(forLanguageCode: languageCode)?.capitalized ?? languageCode.uppercased()
     }
@@ -890,7 +852,6 @@ fr: Bonjour le monde
                 let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
                 aiTranslationResult = response
 
-                // Parse into dictionary
                 var dict: [String: String] = [:]
                 let lines = response.components(separatedBy: .newlines)
                 for line in lines {

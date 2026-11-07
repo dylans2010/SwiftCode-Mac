@@ -1,20 +1,3 @@
-// HealthProbe: black-box probe of HealthKit's public API behaviour on a simulator.
-// Our own code for Ycode's clean-room research. It calls only public
-// HealthKit/UIKit/CoreLocation API, uses made-up sample values only, and
-// prints one "HKPROBE ..." line per observation to stderr.
-//
-// Launch arguments:
-//   -phase basic     no authorization needed: availability, type model,
-//                    units, unauthorized behaviour, invalid requests
-//   -phase auth      request authorization for the probe's type set (sheet)
-//   -phase authb     request a smaller set (used by the second bundle)
-//   -phase status    authorization status / request status only
-//   -phase data      save, query, statistics, anchors, observer, delete
-//   -phase count     count this source's samples (persistence check)
-//   -phase cross     cross-source statistics (run from the second bundle)
-//   -phase session   HKWorkoutSession / live builder on iPhone
-//   -phase clinical  health-records availability and request
-//   -phase wipe      delete everything this source wrote
 #import <UIKit/UIKit.h>
 #import <HealthKit/HealthKit.h>
 #import <CoreLocation/CoreLocation.h>
@@ -23,7 +6,7 @@
 static CFTimeInterval gStart;
 static HKHealthStore *gStore;
 static NSCalendar *gUTC;
-static NSDate *gD0; // 2026-10-01T00:00:00Z, the reference day
+static NSDate *gD0;
 
 static void P(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void P(NSString *fmt, ...) {
@@ -49,7 +32,6 @@ static NSString *Thr(void) {
     return [NSString stringWithFormat:@"main=%d q=%s", [NSThread isMainThread], l ? l : "?"];
 }
 
-// Run an asynchronous step and wait (we run on a background serial queue).
 static void Wait(NSString *what, double secs, void (^body)(dispatch_block_t done)) {
     dispatch_semaphore_t s = dispatch_semaphore_create(0);
     body(^{ dispatch_semaphore_signal(s); });
@@ -179,7 +161,6 @@ static void PhaseBasic(void) {
     @try { src = [HKSource defaultSource]; P(@"defaultSource name=%@ bundle=%@", src.name, src.bundleIdentifier); }
     @catch (NSException *ex) { P(@"defaultSource EXCEPTION %@: %@", ex.name, ex.reason); }
 
-    // Every public identifier constant: its string value, and the object type it yields.
     size_t n; IdEntry *ids = Ids(&n);
     for (size_t i = 0; i < n; i++) {
         NSString *k = @(ids[i].kind), *v = ids[i].value;
@@ -218,7 +199,6 @@ static void PhaseBasic(void) {
             P(@"id %s kind=%@ value=%@", ids[i].sym, k, v);
         }
     }
-    // Series and singleton types.
     for (NSString *s in @[HKWorkoutRouteTypeIdentifier, HKDataTypeIdentifierHeartbeatSeries, @"NotAType"]) {
         @try { HKSeriesType *t = [HKObjectType seriesTypeForIdentifier:s];
             P(@"seriesType %@ -> %@ %@", s, NSStringFromClass([t class]), t.identifier); }
@@ -237,7 +217,6 @@ static void PhaseBasic(void) {
     HKQuantityType *a1 = QT(HKQuantityTypeIdentifierStepCount), *a2 = QT(HKQuantityTypeIdentifierStepCount);
     P(@"type identity same=%d equal=%d hashEq=%d desc=%@", a1 == a2, [a1 isEqual:a2], a1.hash == a2.hash, a1.description);
 
-    // Unit string grammar.
     NSArray *unitStrings = @[@"count", @"count/min", @"count/s", @"kg", @"g", @"mg", @"mcg", @"ug", @"ng", @"pg", @"dag", @"hg",
         @"lb", @"oz", @"st", @"m", @"km", @"cm", @"mm", @"um", @"nm", @"mi", @"ft", @"in", @"yd", @"L", @"mL", @"dL",
         @"fl_oz_us", @"fl_oz_imp", @"pt_us", @"pt_imp", @"cup_us", @"cup_imp", @"s", @"ms", @"min", @"hr", @"d",
@@ -259,7 +238,6 @@ static void PhaseBasic(void) {
             P(@"unit \"%@\" -> unitString=\"%@\" desc=\"%@\" null=%d%@", s, u.unitString, u.description, u.isNull, conv);
         } @catch (NSException *ex) { P(@"unit \"%@\" EXCEPTION %@: %@", s, ex.name, ex.reason); }
     }
-    // Unit algebra.
     @try {
         HKUnit *c = [HKUnit countUnit], *mn = [HKUnit minuteUnit], *kg = [HKUnit gramUnitWithMetricPrefix:HKMetricPrefixKilo];
         HKUnit *m = [HKUnit meterUnit], *s = [HKUnit secondUnit];
@@ -279,7 +257,6 @@ static void PhaseBasic(void) {
           [[HKUnit kilocalorieUnit] isEqual:[HKUnit largeCalorieUnit]], [HKUnit kilocalorieUnit].unitString,
           [HKUnit largeCalorieUnit].unitString, [HKUnit smallCalorieUnit].unitString, [HKUnit calorieUnit].unitString);
     } @catch (NSException *ex) { P(@"algebra EXCEPTION %@", ex.reason); }
-    // Conversions with golden values.
     struct { double v; const char *from, *to; } cv[] = {
         {100, "degC", "degF"}, {0, "degC", "K"}, {98.6, "degF", "degC"}, {1, "mi", "m"}, {1, "lb", "kg"}, {1, "st", "lb"},
         {1, "kcal", "kJ"}, {1, "Cal", "cal"}, {1, "atm", "mmHg"}, {1, "inHg", "mmHg"}, {1, "cmAq", "Pa"}, {1, "fl_oz_us", "mL"},
@@ -303,7 +280,6 @@ static void PhaseBasic(void) {
         P(@"quantity compare g vs m:"); P(@"  -> %ld", (long)[a compare:[HKQuantity quantityWithUnit:[HKUnit meterUnit] doubleValue:1]]); }
     @catch (NSException *ex) { P(@"quantity compare EXCEPTION %@: %@", ex.name, ex.reason); }
 
-    // Characteristic and other values without authorization.
     NSError *e = nil;
     NSDateComponents *dob = [gStore dateOfBirthComponentsWithError:&e];
     P(@"unauth dateOfBirth=%@ err=%@", dob, E(e)); e = nil;
@@ -314,7 +290,6 @@ static void PhaseBasic(void) {
 
     PrintStatus(@"basic");
 
-    // Unauthorized save / query / delete.
     HKQuantitySample *smp = [HKQuantitySample quantitySampleWithType:QT(HKQuantityTypeIdentifierStepCount)
         quantity:[HKQuantity quantityWithUnit:[HKUnit countUnit] doubleValue:10] startDate:At(0, 1, 0) endDate:At(0, 1, 1)];
     Wait(@"unauth save", 15, ^(dispatch_block_t done) {
@@ -345,7 +320,6 @@ static void PhaseBasic(void) {
                                     completion:^(NSDictionary *m, NSError *er) { P(@"unauth preferredUnits=%@ err=%@", m, E(er)); done(); }];
     });
 
-    // Invalid requests (expected to be rejected before any sheet appears).
     struct { const char *tag; NSSet *share, *read; } bad[] = {
         {"share-characteristic", [NSSet setWithObject:[HKObjectType characteristicTypeForIdentifier:HKCharacteristicTypeIdentifierDateOfBirth]], nil},
         {"share-correlation", [NSSet setWithObject:[HKObjectType correlationTypeForIdentifier:HKCorrelationTypeIdentifierBloodPressure]], nil},
@@ -368,7 +342,6 @@ static void PhaseBasic(void) {
             });
         } @catch (NSException *ex) { P(@"bad-request %@ EXCEPTION %@: %@", tag, ex.name, ex.reason); }
     }
-    // Sample construction validation.
     HKQuantityType *steps = QT(HKQuantityTypeIdentifierStepCount);
     @try { [HKQuantitySample quantitySampleWithType:steps quantity:[HKQuantity quantityWithUnit:[HKUnit meterUnit] doubleValue:1]
                                           startDate:At(0, 1, 0) endDate:At(0, 1, 1)]; P(@"construct incompatible-unit: ok"); }
@@ -402,9 +375,7 @@ static void PhaseBasic(void) {
             quantity:[HKQuantity quantityWithUnit:[HKUnit countUnit] doubleValue:1] startDate:At(0, 1, 0) endDate:At(0, 1, 0)]]];
         P(@"construct BP correlation with steps: ok %@", c); }
     @catch (NSException *ex) { P(@"construct BP correlation with steps EXCEPTION %@: %@", ex.name, ex.reason); }
-    // Enum helper functions.
     P(@"sleep asleepValues=%@", [[HKCategoryValueSleepAnalysisAsleepValues() allObjects] sortedArrayUsingSelector:@selector(compare:)]);
-    // PHQ-9 / GAD-7 score-range functions are marked unavailable on iOS (compile error), so not probed.
     for (double v = -1.0; v <= 1.0001; v += 0.25)
         P(@"stateOfMind valence %.2f -> classification %ld", v, (long)HKStateOfMindValenceClassificationForValence(v).integerValue);
     for (double pct = 0; pct <= 1.0001; pct += 0.1) {
@@ -601,9 +572,7 @@ static void PhaseData(void) {
     HKCorrelation *bp = [HKCorrelation correlationWithType:[HKObjectType correlationTypeForIdentifier:HKCorrelationTypeIdentifierBloodPressure]
                                                  startDate:At(0, 7, 30) endDate:At(0, 7, 30) objects:[NSSet setWithObjects:sys, dia, nil]];
     Save(@"bloodPressure-correlation", @[bp]);
-    // Save the same object twice.
     Save(@"resave-same-object", @[stepSamples[0]]);
-    // Sample older than earliestPermittedSampleDate and one in the future.
     Save(@"ancient", @[QS(HKQuantityTypeIdentifierStepCount, @"count", 1, [NSDate dateWithTimeIntervalSince1970:-5e9], [NSDate dateWithTimeIntervalSince1970:-5e9 + 60], nil)]);
     Save(@"old-60-days(own)", @[QS(HKQuantityTypeIdentifierStepCount, @"count", 61, At(-60, 12, 0), At(-60, 12, 1), nil)]);
     P(@"own sample 60 days before D0 readable: n=%lu", (unsigned long)Samples(@"old60", QT(HKQuantityTypeIdentifierStepCount),
@@ -617,7 +586,6 @@ static void PhaseData(void) {
     Save(@"not-authorized-type(restingHR read-only)", @[QS(HKQuantityTypeIdentifierRestingHeartRate, @"count/min", 50, At(0, 6, 0), At(0, 6, 0), nil)]);
     Save(@"not-requested-type(flights)", @[QS(HKQuantityTypeIdentifierFlightsClimbed, @"count", 3, At(0, 6, 0), At(0, 6, 1), nil)]);
 
-    // Workout via builder, with route.
     HKWorkoutConfiguration *cfg = [HKWorkoutConfiguration new];
     cfg.activityType = HKWorkoutActivityTypeRunning;
     cfg.locationType = HKWorkoutSessionLocationTypeOutdoor;
@@ -680,7 +648,6 @@ static void PhaseData(void) {
         P(@"routes for workout n=%lu", (unsigned long)routes.count);
     }
 
-    // Sample queries.
     NSPredicate *day0 = [HKQuery predicateForSamplesWithStartDate:At(0, 0, 0) endDate:At(1, 0, 0) options:HKQueryOptionNone];
     NSPredicate *day0strict = [HKQuery predicateForSamplesWithStartDate:At(0, 0, 0) endDate:At(1, 0, 0) options:HKQueryOptionStrictStartDate | HKQueryOptionStrictEndDate];
     NSPredicate *twodays = [HKQuery predicateForSamplesWithStartDate:At(0, 0, 0) endDate:At(2, 0, 0) options:HKQueryOptionNone];
@@ -749,7 +716,6 @@ static void PhaseData(void) {
     for (HKSample *s in Samples(@"hr", QT(HKQuantityTypeIdentifierHeartRate), nil, 0, @[byStart])) P(@"heartRate: %@", SampleDesc(s));
     for (HKSample *s in Samples(@"bm", QT(HKQuantityTypeIdentifierBodyMass), nil, 0, @[byStart])) P(@"bodyMass: %@", SampleDesc(s));
 
-    // Statistics (golden values).
     HKStatisticsOptions sumSrc = HKStatisticsOptionCumulativeSum | HKStatisticsOptionSeparateBySource;
     Stats(@"steps day0 sum", HKQuantityTypeIdentifierStepCount, day0, sumSrc, @"count");
     Stats(@"steps day0 strict sum", HKQuantityTypeIdentifierStepCount, day0strict, HKStatisticsOptionCumulativeSum, @"count");
@@ -778,7 +744,6 @@ static void PhaseData(void) {
     Stats(@"activeEnergy all", HKQuantityTypeIdentifierActiveEnergyBurned, nil, HKStatisticsOptionCumulativeSum, @"kcal");
     Stats(@"distance all", HKQuantityTypeIdentifierDistanceWalkingRunning, nil, HKStatisticsOptionCumulativeSum, @"km");
 
-    // Averaging rule for discrete types: body temperature on day 3 (degC).
     Save(@"avg-A two instants 10,20", @[QS(HKQuantityTypeIdentifierBodyTemperature, @"degC", 10, At(3, 1, 0), At(3, 1, 0), nil),
                                         QS(HKQuantityTypeIdentifierBodyTemperature, @"degC", 20, At(3, 1, 30), At(3, 1, 30), nil)]);
     Stats(@"avg-A", HKQuantityTypeIdentifierBodyTemperature, [HKQuery predicateForSamplesWithStartDate:At(3, 0, 0) endDate:At(3, 2, 0) options:0], HKStatisticsOptionDiscreteAverage, @"degC");
@@ -799,7 +764,6 @@ static void PhaseData(void) {
           HKStatisticsOptionDiscreteAverage, @"count/min");
     Stats(@"hr [06:00,09:01] (150,60,70,90)", HKQuantityTypeIdentifierHeartRate, [HKQuery predicateForSamplesWithStartDate:At(0, 6, 0) endDate:At(0, 9, 1) options:0],
           HKStatisticsOptionDiscreteAverage, @"count/min");
-    // Temporally weighted averaging: heart rate on day 4 (count/min).
     struct { const char *tag; double v1, s1, e1, v2, s2, e2; } tw[] = {
         {"tw-A two instants 60@0,120@30", 60, 0, 0, 120, 30, 30},
         {"tw-B instants 60@0,120@10", 60, 0, 0, 120, 10, 10},
@@ -815,10 +779,8 @@ static void PhaseData(void) {
         Stats(@(tw[k].tag), HKQuantityTypeIdentifierHeartRate, [HKQuery predicateForSamplesWithStartDate:b endDate:[b dateByAddingTimeInterval:7000] options:0],
               HKStatisticsOptionDiscreteAverage | HKStatisticsOptionDuration, @"count/min");
     }
-    // Cumulative proration inside a statistics query vs. a collection bucket.
     NSDateComponents *fiveMin = [NSDateComponents new]; fiveMin.minute = 5;
     Collection(@"steps 5-min around 08:00", HKQuantityTypeIdentifierStepCount, HKStatisticsOptionCumulativeSum, fiveMin, At(0, 0, 0), At(0, 8, 0), At(0, 8, 20), @"count");
-    // (the collection's "(all)" list for 5-minute buckets is long; it is printed but not needed)
     NSDateComponents *oneDay = [NSDateComponents new]; oneDay.day = 1;
     NSDateComponents *oneHour = [NSDateComponents new]; oneHour.hour = 1;
     NSDateComponents *sixHours = [NSDateComponents new]; sixHours.hour = 6;
@@ -827,7 +789,6 @@ static void PhaseData(void) {
     Collection(@"steps 6-hourly", HKQuantityTypeIdentifierStepCount, HKStatisticsOptionCumulativeSum, sixHours, At(0, 0, 0), At(0, 0, 0), At(2, 0, 0), @"count");
     Collection(@"hr hourly avg", HKQuantityTypeIdentifierHeartRate, HKStatisticsOptionDiscreteAverage | HKStatisticsOptionDiscreteMin | HKStatisticsOptionDiscreteMax,
                oneHour, At(0, 0, 0), At(0, 7, 0), At(0, 14, 0), @"count/min");
-    // Characteristics, sources, preferred units.
     NSError *e = nil;
     NSDateComponents *dob = [gStore dateOfBirthComponentsWithError:&e];
     P(@"auth dateOfBirth=%@ err=%@", dob, E(e)); e = nil;
@@ -865,7 +826,6 @@ static void PhaseData(void) {
         } else done();
     });
 
-    // Anchored query + observer query + delete.
     __block HKQueryAnchor *anchor = nil;
     Wait(@"anchored-initial", 30, ^(dispatch_block_t done) {
         HKAnchoredObjectQuery *q = [[HKAnchoredObjectQuery alloc] initWithType:QT(HKQuantityTypeIdentifierStepCount) predicate:nil anchor:nil limit:HKObjectQueryNoLimit
@@ -903,7 +863,6 @@ static void PhaseData(void) {
     Save(@"extra(observer)", @[extra]);
     [NSThread sleepForTimeInterval:3];
     P(@"after save: observerCalls=%d liveUpdates=%d (%.2fs)", observerCalls, updates, CACurrentMediaTime() - t0);
-    // Sync identifier replacement: same sync id, higher version replaces; lower version is ignored.
     Save(@"sync v2", @[QS(HKQuantityTypeIdentifierStepCount, @"count", 8, At(0, 20, 0), At(0, 20, 1), @{HKMetadataKeySyncIdentifier: @"ycode-sync-1", HKMetadataKeySyncVersion: @2})]);
     Save(@"sync v1 again", @[QS(HKQuantityTypeIdentifierStepCount, @"count", 9, At(0, 20, 0), At(0, 20, 1), @{HKMetadataKeySyncIdentifier: @"ycode-sync-1", HKMetadataKeySyncVersion: @1})]);
     for (HKSample *s in Samples(@"sync", QT(HKQuantityTypeIdentifierStepCount), [HKQuery predicateForObjectsWithMetadataKey:HKMetadataKeySyncIdentifier], 0, nil))
@@ -929,7 +888,6 @@ static void PhaseData(void) {
     P(@"after stopQuery: observerCalls=%d liveUpdates=%d", observerCalls, updates);
     @try { [gStore executeQuery:obs]; P(@"re-execute stopped query: no exception"); }
     @catch (NSException *ex) { P(@"re-execute stopped query EXCEPTION %@: %@", ex.name, ex.reason); }
-    // Background delivery.
     Wait(@"bg enable", 30, ^(dispatch_block_t done) {
         [gStore enableBackgroundDeliveryForType:QT(HKQuantityTypeIdentifierStepCount) frequency:HKUpdateFrequencyImmediate withCompletion:^(BOOL ok, NSError *er) {
             P(@"enableBackgroundDelivery(steps, immediate) ok=%d err=%@", ok, E(er)); done(); }]; });
@@ -939,7 +897,6 @@ static void PhaseData(void) {
     Wait(@"bg disable", 30, ^(dispatch_block_t done) {
         [gStore disableBackgroundDeliveryForType:QT(HKQuantityTypeIdentifierHeartRate) withCompletion:^(BOOL ok, NSError *er) {
             P(@"disableBackgroundDelivery(hr) ok=%d err=%@", ok, E(er)); done(); }]; });
-    // Delete one object by UUID; delete a non-existent object.
     NSArray *one = Samples(@"one", QT(HKQuantityTypeIdentifierBodyMass), nil, 1, @[byStart]);
     if (one.count) Wait(@"delete one", 30, ^(dispatch_block_t done) {
         [gStore deleteObject:one[0] withCompletion:^(BOOL ok, NSError *er) { P(@"deleteObject(bodyMass first) ok=%d err=%@", ok, E(er)); done(); }]; });
@@ -961,7 +918,6 @@ static void PhaseData(void) {
 #pragma mark - Phase: cross (second bundle)
 
 static void PhaseCross(void) {
-    // Bundle B saves overlapping steps, then reads statistics across both sources.
     NSPredicate *mine = [HKQuery predicateForObjectsFromSource:[HKSource defaultSource]];
     Wait(@"wipeB", 30, ^(dispatch_block_t done) {
         [gStore deleteObjectsOfType:QT(HKQuantityTypeIdentifierStepCount) predicate:mine withCompletion:^(BOOL ok, NSUInteger n, NSError *er) {

@@ -1,37 +1,21 @@
-// Hiccups, measured (specs/simulator/xr-viewer.md §13.1): a stretch without a
-// new picture while the headset is tracked, with what happened at each end, on
-// the viewer (`XRGapRecorder`) and on the display server (`XRServerGapLog`).
-// Counts and times only: no gaze, no pose values.
-
 import Foundation
 
-/// A number with `places` decimals (one argument at a time: see `XRServerGapLog.frameSent`).
 public func xrFixed(_ v: Double, _ places: Int = 0) -> String { String(format: "%.\(places)f", v) }
 
 public struct XRGapRecorder: Sendable {
-    /// Why the wearer saw nothing new.
     public enum Cause: String, Sendable, CaseIterable {
-        /// Nothing was asked of the guest: no camera move, no pinch.
         case idle
-        /// The eyes moved and the picture did not: a hover with nothing under it, or a guest late with it.
         case idleGaze = "idle-gaze"
-        /// Asked, the guest's presenter went on swapping, and no new picture came.
         case guestNoPicture = "guest-no-picture"
-        /// The guest's presenter itself stopped swapping.
         case guestStalled = "guest-stalled"
-        /// The picture left the server late, or the way here took the time.
         case stream
-        /// Here: received long before it was decoded or uploaded.
         case viewer
-        /// The headset loop itself: its own work between two frames.
         case viewerLoop = "viewer-loop"
-        /// The headset loop waited for the runtime (xrWaitFrame): the runtime's stall.
         case runtime
     }
 
     public struct Picture: Sendable, Equatable {
         public var sequence: UInt64, guestFrame: UInt64
-        /// Viewer ns, 0 when unknown (stages of the server's clock come with the frame timing).
         public var captureStart: UInt64 = 0, sendEnd: UInt64 = 0, received: UInt64 = 0, decoded: UInt64 = 0, uploaded: UInt64 = 0
         public init(sequence: UInt64, guestFrame: UInt64, captureStart: UInt64 = 0, sendEnd: UInt64 = 0, received: UInt64 = 0, decoded: UInt64 = 0, uploaded: UInt64 = 0) {
             (self.sequence, self.guestFrame, self.captureStart, self.sendEnd) = (sequence, guestFrame, captureStart, sendEnd)
@@ -42,7 +26,6 @@ public struct XRGapRecorder: Sendable {
     public struct Gap: Sendable, Equatable {
         public var milliseconds: Double
         public var cause: Cause
-        /// The gap's end against the session's start (s).
         public var at: Double
         public var guestFrames: UInt64
         public var captureGap: Double, transit: Double, here: Double
@@ -51,7 +34,6 @@ public struct XRGapRecorder: Sendable {
         public var cameraMoves: Int, pinchChanges: Int, saccades: Int
         public var headDegrees: Double, headCentimetres: Double
         public var hiddenMilliseconds: Double
-        /// From the first camera move or pinch in the gap to this picture (0: none).
         public var unanswered: Double
 
         public var description: String {
@@ -63,14 +45,11 @@ public struct XRGapRecorder: Sendable {
     }
 
     public var thresholdNanoseconds: UInt64 = 250_000_000
-    /// Fewer guest presents per second than this: its presenter has stopped (it swaps at 60 when alive).
     public var stalledPresentRate = 5.0
     public private(set) var gaps: [Gap] = []
     public private(set) var counts: [Cause: (count: Int, milliseconds: Double, longest: Double)] = [:]
-    /// Long headset frames whenever they happen (not only inside a gap).
     public private(set) var longFrames = 0, longestFrame = 0.0, runtimeStalls = 0
     public private(set) var hiddenFrames = 0, shownFrames = 0, longestHidden = 0.0
-    /// From a camera move or pinch to the next picture (ms).
     public private(set) var answers: [Double] = []
 
     private var start: UInt64?
@@ -86,13 +65,11 @@ public struct XRGapRecorder: Sendable {
         var cameraMoves = 0, pinchChanges = 0, saccades = 0
         var headDegrees = 0.0, headMetres = 0.0, hidden = 0.0
         var trackedThroughout = true
-        /// The first camera move or pinch since the last picture, and the first saccade.
         var firstAsk: UInt64?, firstSaccade: UInt64?
     }
 
     public init() {}
 
-    /// One headset frame: `waited` what xrWaitFrame took (ns), `work` the loop's own time in the last frame (ns).
     public mutating func frame(at now: UInt64, tracked isTracked: Bool, head: SpatialPose?, waited: UInt64 = 0, work: UInt64 = 0,
                                cameraMoved: Bool = false, pinchChanged: Bool = false, saccade: Bool = false, pictureHidden: Bool = false) {
         if start == nil { start = now }
@@ -134,11 +111,9 @@ public struct XRGapRecorder: Sendable {
         }
     }
 
-    /// A new picture reached the eyes. Returns the gap it ended, if there was one.
     @discardableResult
     public mutating func picture(_ p: Picture) -> Gap? {
         defer { last = p; interval = Interval() }
-        // What was asked since the last picture, answered by this one.
         if let a = interval.firstAsk, p.uploaded > a, answers.count < 100_000 { answers.append(Double(p.uploaded - a) / 1e6) }
         guard let l = last, p.uploaded > l.uploaded else { return nil }
         let span = p.uploaded - l.uploaded
@@ -159,8 +134,6 @@ public struct XRGapRecorder: Sendable {
         } else if Double(presents) * 1000 / ms < stalledPresentRate {
             cause = .guestStalled
         } else if let a = interval.firstAsk, p.uploaded &- a >= thresholdNanoseconds {
-            // Asked, and that long without an answer. (A rest that ends with the head's next move, its
-            // first picture about 200 ms later, is no such thing: the asking came only at the end.)
             cause = .guestNoPicture
         } else if let a = interval.firstSaccade, p.uploaded &- a >= thresholdNanoseconds {
             cause = .idleGaze
@@ -196,8 +169,6 @@ public struct XRGapRecorder: Sendable {
     }
 }
 
-/// The runtime's stalls the viewer can see: its headset loop keeps time whether
-/// or not the headset's data arrives, but the tracker's samples then grow old.
 public struct XRStaleTracking: Sendable {
     public var thresholdNanoseconds: Int64 = 250_000_000
     public private(set) var stretches = 0, longest = 0.0
@@ -206,7 +177,6 @@ public struct XRStaleTracking: Sendable {
 
     public init() {}
 
-    /// A sample of this age now; true when a stretch of stale samples just ended (`lastDescription` says how long).
     public mutating func note(age: Int64, at now: UInt64) -> Bool {
         if age >= thresholdNanoseconds {
             if since == nil { since = now }
@@ -224,8 +194,6 @@ public struct XRStaleTracking: Sendable {
     public var summary: String { "stretches of stale tracking \(stretches), longest \(xrFixed(longest)) ms" }
 }
 
-/// The display server's side of the same question: what the guest and the
-/// viewer did in a stretch with no frame sent.
 public struct XRServerGapLog: Sendable {
     public var thresholdNanoseconds: UInt64 = 250_000_000
     private var lastSent: UInt64?
@@ -241,7 +209,6 @@ public struct XRServerGapLog: Sendable {
 
     public mutating func scanned(changed: Bool) { scans += 1; if !changed { unchanged += 1 } }
     public mutating func poseDelivered(at now: UInt64) { poses += 1; if firstAsk == nil { firstAsk = now } }
-    /// The poses given to the guest so far (the difference since the last frame counts).
     public mutating func poses(total: Int, at now: UInt64) {
         if total > posesTotal {
             poses += total - posesTotal
@@ -261,7 +228,6 @@ public struct XRServerGapLog: Sendable {
     public mutating func heldBack() { heldByWindow += 1 }
     public mutating func encode(took: UInt64) { longestEncode = max(longestEncode, took) }
 
-    /// A frame went out at `now`, of the guest's present `record`. A line when it ended a gap; `load` is asked only then.
     public mutating func frameSent(at now: UInt64, record: UInt64, load: () -> String) -> String? {
         defer {
             lastSent = now
@@ -282,21 +248,14 @@ public struct XRServerGapLog: Sendable {
         else if let a = firstAsk, now &- a >= thresholdNanoseconds { kind = "asked, and the guest's picture did not change" }
         else if selections > 0 { kind = "only the gaze moved" }
         else { kind = "nothing asked" }
-        // Interpolated: Swift's variadic format on arm64 Linux crashed on this many arguments (a %@ past the registers).
         return "gap \(xrFixed(ms)) ms: \(kind); presents +\(presents), scans \(scans) (\(unchanged) unchanged), poses \(poses), selections \(selections), pinch changes \(pinchChanges), "
             + "unanswered \(xrFixed(firstAsk.map { Double(now &- $0) / 1e6 } ?? 0)) ms, held by the window \(heldByWindow), longest encode \(xrFixed(Double(longestEncode) / 1e6, 1)) ms, load \(load())"
     }
 }
 
-/// Hover target changes, from what the guest draws: with the camera still and
-/// no pinch, a small changed area is a hover highlight or an animation in one
-/// place; a new burst somewhere else is a new target. This is what the server
-/// can see of the guest's hit test (the guest does not report its target).
 public struct XRHoverCounter: Sendable {
-    /// A burst ends after this long without a change; a burst elsewhere is a new target.
     public var quietNanoseconds: UInt64 = 150_000_000
     public var movedFraction = 0.03
-    /// Larger than this share of the picture is not a hover.
     public var largestFraction = 0.25
     public private(set) var bursts = 0, targetChanges = 0
     private var lastAt: UInt64?
@@ -304,7 +263,6 @@ public struct XRHoverCounter: Sendable {
 
     public init() {}
 
-    /// A picture changed in this rectangle (fractions of the picture's size), the camera at rest.
     public mutating func damage(x: Double, y: Double, width: Double, height: Double, at now: UInt64) {
         guard width * height <= largestFraction else { return }
         let c = (x: x + width / 2, y: y + height / 2)

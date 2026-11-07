@@ -2,8 +2,6 @@ import Foundation
 import Observation
 import os.log
 
-/// Main coordinate manager for running the full sandbox application workflow.
-/// Driving coordination between Views, Project Resolver, XcodeBuildAPI, and SimulatorManager.
 @Observable
 @MainActor
 public final class FullAppRunManager: Sendable {
@@ -11,7 +9,6 @@ public final class FullAppRunManager: Sendable {
 
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "FullAppRun")
 
-    // Reactive State Isolation
     public var isRunning = false
     public var currentStep = ""
     public var buildDuration: TimeInterval = 0
@@ -21,7 +18,6 @@ public final class FullAppRunManager: Sendable {
 
     private init() {}
 
-    /// Main workflow entry point to execute the pipeline of saving, validating, building, and running.
     public func runFullApp() async {
         guard !isRunning else {
             appendLog("[SYSTEM] Warning: Application is already running.")
@@ -33,13 +29,11 @@ public final class FullAppRunManager: Sendable {
         buildDuration = 0
         startDurationTimer()
 
-        // 1. SAVE: Save workspace and editor states
         currentStep = "Saving workspace state..."
         appendLog("[SYSTEM] Autosaving modified workspace editor buffers...")
         await saveAllEditorBuffers()
 
         do {
-            // 2. RESOLVE: Resolve active project using XcodeBuildAPI
             currentStep = "Resolving active project..."
             appendLog("[SYSTEM] Discovered active project workspace path...")
 
@@ -51,7 +45,6 @@ public final class FullAppRunManager: Sendable {
             appendLog("  - Root Path: \(activeProj.url.path)")
             appendLog("  - Build Destination: \(XcodeBuildAPI.shared.determineBuildDestination().destination)")
 
-            // 3. VALIDATE: Ensure toolchain pathways are healthy using XcodeBuildAPI
             currentStep = "Validating compiler tools..."
             appendLog("[SYSTEM] Checking compiler path validity...")
             let validation = await XcodeBuildAPI.shared.validateBuildEnvironment()
@@ -59,14 +52,12 @@ public final class FullAppRunManager: Sendable {
                 throw NSError(domain: "FullAppRun", code: 1, userInfo: [NSLocalizedDescriptionKey: validation.errorDescription ?? "Build environment is invalid."])
             }
 
-            // 4. BUILD: Perform compile and link using XcodeBuildAPI
             currentStep = "Compiling application project..."
             appendLog("[SYSTEM] Executing project compilation context...")
 
             let buildResult = await XcodeBuildAPI.shared.buildProject()
 
             if buildResult.status == .failed {
-                // Pipe compiler logs
                 for log in buildResult.logs.lines {
                     appendLog(log)
                     UnifiedLogger.shared.log(log, severity: .error, subsystem: "Compiler", operation: "Compile")
@@ -80,11 +71,9 @@ public final class FullAppRunManager: Sendable {
                 return
             }
 
-            // Log build completion
             appendLog("[SYSTEM] Build completed successfully!")
             AlertSoundPlayer.shared.play(.buildSuccess)
 
-            // Populate the PreviewManager hostedView with the successfully built SwiftUI code
             if let activeDoc = DocumentCoordinator.shared.activeDocument {
                 let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
                 await PreviewManager.shared.startFreshLivePreviewSession(
@@ -94,7 +83,6 @@ public final class FullAppRunManager: Sendable {
                 )
             }
 
-            // 5. DEPLOY & LAUNCH: Simulator alignment
             currentStep = "Deploying and executing bundle on simulator..."
             appendLog("[SYSTEM] Aligning simulator application package...")
 
@@ -111,7 +99,6 @@ public final class FullAppRunManager: Sendable {
                 await SimulatorManager.shared.bootSelectedDevice()
             }
 
-            // Locate copy-aligned .app bundle via XcodeBuildAPI
             guard let appBundleURL = XcodeBuildAPI.shared.determineAppBundleURL() else {
                 throw NSError(domain: "FullAppRun", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to locate compiled .app bundle inside aligned packaging folder."])
             }
@@ -129,7 +116,6 @@ public final class FullAppRunManager: Sendable {
             appendLog("[RUNNER] Application container running! Streaming runtime logs...")
             currentStep = "Running application..."
 
-            // Feed logs immediately into system console and unified logger
             for log in SimulatorManager.shared.consoleLogs {
                 appendLog("[RUNTIME] \(log)")
                 UnifiedLogger.shared.log(log, severity: .runtime, subsystem: "Simulator", operation: "Runtime")
@@ -143,7 +129,6 @@ public final class FullAppRunManager: Sendable {
         }
     }
 
-    /// Terminates the application and resets execution states
     public func stopApplication() {
         XcodeBuildAPI.shared.cancelBuild()
         stopPipeline()
@@ -162,10 +147,8 @@ public final class FullAppRunManager: Sendable {
     }
 
     private func saveAllEditorBuffers() async {
-        // Save using core workspace logic
         ProjectSessionStore.shared.saveAll()
 
-        // Also save active editor document in coordinator
         if let activeDoc = DocumentCoordinator.shared.activeDocument {
             do {
                 try await TextBufferEngine.shared.save(content: activeDoc.content, to: activeDoc.url)

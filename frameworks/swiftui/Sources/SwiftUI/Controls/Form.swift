@@ -5,20 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Form and Section (round R8, grouped look). 06 §4 (informative; the
-// reference hosts rows in UIKit views): rows inset 20 + 20 points from the
-// container's edges, the first row 35 points down, rows at least
-// `defaultMinListRowHeight` (52) high. SwiftCode's grouped look: the grouped
-// background colour behind everything, each section a rounded group in the
-// row colour (radius 10) with hairline separators inset 20 points, section
-// headers and footers in the footnote style, secondary colour, 20 points
-// between sections. Loose rows (outside a `Section`) form sections of their
-// own. A form takes all the space proposed to it; scrolling arrives with R9.
-//
-// Rows are found at layout: every layout node a section's content produces
-// is a row (tuples, `ForEach`, groups and conditionals all flatten).
-
-/// Passes layout through to its one child; marks a form section's output.
 struct FormSectionMarker: NodeBehavior {
     var traitChild: Int? { 0 }
 
@@ -31,12 +17,6 @@ struct FormSectionMarker: NodeBehavior {
     }
 }
 
-/// The `.columns` look (SwiftCode's desktop form, the macOS IDE's Settings
-/// panes, `specs/ide/metrics.md` §8): no groups; the content 20 points
-/// from the top and bottom and 28 from the sides; headings in bold 12-point
-/// text; rows 10 points apart; each control's label right-aligned in a
-/// 200-point column with the control 8 points after it; footers in 11-point
-/// secondary text. The form's background is its container's.
 enum ColumnsFormMetrics {
     static let top: CGFloat = 20
     static let sides: CGFloat = 28
@@ -55,7 +35,6 @@ enum FormMetrics {
     static let headerBottom: CGFloat = 6
 }
 
-/// A filled rectangle (or rounded rectangle) layout node.
 @MainActor
 func fillNode(_ color: Color, environment env: EnvironmentValues, cornerRadius: CGFloat = 0) -> LayoutNode {
     let n = LayoutNode.color()
@@ -68,7 +47,6 @@ func fillNode(_ color: Color, environment env: EnvironmentValues, cornerRadius: 
     return n
 }
 
-/// A grouped section: `rows` in a rounded group with separators.
 @MainActor
 func formGroup(_ rows: [LayoutNode], environment env: EnvironmentValues) -> LayoutNode {
     let palette = ControlPalette(env.colorScheme)
@@ -89,9 +67,6 @@ func formGroup(_ rows: [LayoutNode], environment env: EnvironmentValues) -> Layo
         .background(fillNode(palette.groupedRow, environment: env, cornerRadius: FormMetrics.cornerRadius))
 }
 
-// MARK: - Form
-
-/// A container of grouped rows of controls.
 public struct Form<Content: View>: View {
     let content: Content
 
@@ -136,7 +111,6 @@ extension Form: PrimitiveView {
 }
 
 extension Form {
-    /// The `.columns` look: sections and loose rows in one column.
     func columnsLayout(_ parts: [LayoutNode]) -> LayoutNode {
         let rows = parts.map { $0.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) }
         return LayoutNode.vstack(alignment: .leading, spacing: ColumnsFormMetrics.rowSpacing, rows)
@@ -146,9 +120,6 @@ extension Form {
     }
 }
 
-// MARK: - Section
-
-/// Rows under an optional header and above an optional footer.
 public struct Section<Parent, Content, Footer> {
     let header: Parent
     let content: Content
@@ -201,8 +172,6 @@ extension Section where Parent == Text, Content: View, Footer == EmptyView {
 extension Section: PrimitiveView where Parent: View, Content: View, Footer: View {
     package func _makeChildren(node: ViewNode, old: Section?, transaction: Transaction) {
         if node.environment._formColumnWidth != nil {
-            // The columns look: bold headings in the label colour, small
-            // secondary footers.
             node.reconcileChildren([
                 (AnyHashable(0), AnyView(header.font(.system(size: ColumnsFormMetrics.headingSize, weight: .bold)).foregroundStyle(.primary))),
                 (AnyHashable(1), AnyView(content)),
@@ -225,7 +194,6 @@ extension Section: PrimitiveView where Parent: View, Content: View, Footer: View
         let footer = node.children[2].lower()
         guard env._inForm else { return header + rows + footer }
         if env._formColumnWidth != nil {
-            // Columns: the heading, the rows and the footer, 10 apart.
             let parts = (header + rows + footer).map { $0.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) }
             return [LayoutNode(FormSectionMarker(), children: [
                 LayoutNode.vstack(alignment: .leading, spacing: ColumnsFormMetrics.rowSpacing, parts),
@@ -246,9 +214,6 @@ extension Section: PrimitiveView where Parent: View, Content: View, Footer: View
     }
 }
 
-// MARK: - Form styles
-
-/// How a form arranges its content: grouped (the default) or columns.
 @MainActor @preconcurrency
 public protocol FormStyle {
     var _ovStyleKind: Int { get }
@@ -282,9 +247,6 @@ extension FormStyle where Self == ColumnsFormStyle {
 }
 
 extension View {
-    /// The look of forms below: grouped (the default) or columns (labels
-    /// right-aligned in a column, controls after it; the desktop's
-    /// settings form).
     public func formStyle<S: FormStyle>(_ style: S) -> some View {
         environment(\._formStyleKind, style._ovStyleKind)
     }

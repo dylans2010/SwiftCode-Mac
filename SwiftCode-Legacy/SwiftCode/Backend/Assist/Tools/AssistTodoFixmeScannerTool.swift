@@ -1,8 +1,3 @@
-//
-//  AssistTodoFixmeScannerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistTodoFixmeScannerTool: AssistTool {

@@ -1,18 +1,8 @@
-// NativeSettingsViews.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/NativeSettingsViews.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Backups, Offline Models, MCP Servers and Plugins panes in the settings window (those views exist as files but have no call site in the repo); Updates pane; Credits pane; Connect pane
-// References types from module(s) not in this target's Package.swift dependencies: swiftcode-ide — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, AssistSettingsView, LiquidGlassCard, UInt16.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeCloud
 import SwiftCodeConnect
 import SwiftUI
 import AppKit
-
-// MARK: - 1. SettingsCategory
 
 public enum SettingsCategory: String, CaseIterable, Identifiable, Sendable {
     case general = "general"
@@ -63,11 +53,7 @@ public enum SettingsCategory: String, CaseIterable, Identifiable, Sendable {
 
 }
 
-// MARK: - 0. NativeSettingsLayout & State
-
 public enum NativeSettingsLayout {
-    // Wide enough for the centered tab bar to show all 11 categories
-    // at once (no NSToolbar overflow ">>" menu, no scrolling).
     public static let width: CGFloat = 940
     public static let height: CGFloat = 640
 }
@@ -78,8 +64,6 @@ public final class NativeSettingsState {
     public static let shared = NativeSettingsState()
     public var selectedCategory: SettingsCategory = .general
 }
-
-// MARK: - 2. NativeSettingsContainerView
 
 public struct NativeSettingsContainerView: View {
     @Bindable var state: NativeSettingsState = .shared
@@ -96,9 +80,6 @@ public struct NativeSettingsContainerView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Centered tab bar (replaces the old NSToolbar tabs, which
-            // overflowed into a ">>" menu and pushed items to the right):
-            // every category is always visible, centered as one row.
             SettingsCategoryTabBar(selected: $state.selectedCategory)
                 .padding(.top, 10)
                 .padding(.bottom, 6)
@@ -110,7 +91,6 @@ public struct NativeSettingsContainerView: View {
                     alignment: .bottom
                 )
 
-            // Crisp, non-see-through header bar directly under the tab bar with native border divider
             HStack(spacing: 10) {
                 Image(systemName: state.selectedCategory.icon)
                     .font(.system(size: 15, weight: .semibold))
@@ -168,12 +148,6 @@ public struct NativeSettingsContainerView: View {
     }
 }
 
-// MARK: - Centered settings tab bar
-
-/// Every settings category as one centered row of compact icon+label
-/// buttons. No overflow menu, no scrolling, nothing pushed to the
-/// right: the row is centered in the window and sized so all 11
-/// categories fit at the 940 pt window width.
 public struct SettingsCategoryTabBar: View {
     @Binding var selected: SettingsCategory
 
@@ -212,8 +186,6 @@ public struct SettingsCategoryTabBar: View {
         .padding(.horizontal, 12)
     }
 }
-
-// MARK: - 3. NativeGeneralSettingsView
 
 public struct NativeGeneralSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -300,8 +272,6 @@ public struct NativeGeneralSettingsView: View {
         }
     }
 }
-
-// MARK: - 4. NativeThemesSettingsView
 
 public struct NativeThemesSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -399,8 +369,6 @@ public struct NativeThemesSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
-// MARK: - 5. NativeCloudSettingsView
 
 public struct NativeCloudSettingsView: View {
     @AppStorage("com.swiftcode.cloud.syncEnabled") private var syncEnabled = false
@@ -543,8 +511,6 @@ public struct NativeCloudSettingsView: View {
         }
     }
 }
-
-// MARK: - 6. NativeBackupsSettingsView
 
 public struct NativeBackupsSettingsView: View {
     @State private var backups: [BackupManifest] = []
@@ -689,8 +655,6 @@ public struct NativeBackupsSettingsView: View {
     }
 }
 
-// MARK: - 7. NativeConnectSettingsView
-
 public struct NativeConnectSettingsView: View {
     @State private var connectServer = ConnectServer.shared
     @State private var bonjour = BonjourAdvertiser.shared
@@ -829,8 +793,6 @@ public struct NativeConnectSettingsView: View {
     }
 }
 
-// MARK: - 8. NativeAssistSettingsView
-
 public struct NativeAssistSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
 
@@ -845,8 +807,6 @@ public struct NativeAssistSettingsView: View {
             .clipped()
     }
 }
-
-// MARK: - 9. NativeComposioSettingsView
 
 public struct NativeComposioSettingsView: View {
     public init() {}
@@ -864,8 +824,6 @@ public struct NativeComposioSettingsView: View {
     }
 }
 
-// MARK: - 10. NativeOfflineModelsSettingsView
-
 public struct NativeOfflineModelsSettingsView: View {
     public init() {}
 
@@ -881,8 +839,6 @@ public struct NativeOfflineModelsSettingsView: View {
         .clipped()
     }
 }
-
-// MARK: - 11. NativePluginsSettingsView
 
 public struct NativePluginsSettingsView: View {
     public init() {}
@@ -900,8 +856,6 @@ public struct NativePluginsSettingsView: View {
     }
 }
 
-// MARK: - 12. NativeUpdatesSettingsView
-
 public struct NativeUpdatesSettingsView: View {
     public init() {}
 
@@ -917,8 +871,6 @@ public struct NativeUpdatesSettingsView: View {
         .clipped()
     }
 }
-
-// MARK: - 13. NativeCreditsSettingsView
 
 public struct NativeCreditsSettingsView: View {
     public init() {}

@@ -10,7 +10,6 @@ struct GistRevisionsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Card
             HStack {
                 Label("Revision History", systemImage: "clock.arrow.circlepath")
                     .font(.headline)
@@ -38,7 +37,6 @@ struct GistRevisionsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Revisions List Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {

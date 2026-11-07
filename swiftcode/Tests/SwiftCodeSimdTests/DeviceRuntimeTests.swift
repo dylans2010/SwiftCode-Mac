@@ -2,14 +2,9 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// A device keeps its runtime (IOS27; specs/simulator/ipad.md §2.2 per-runtime
-/// state): the runtime a device boots is recorded in DEV/swiftcode-runtime; an
-/// older runtime version is refused before anything in DEV is written, a
-/// newer one boots and the record follows it.
 struct DeviceRuntimeTests {
     func layout(_ dev: String, _ rr: String) -> DeviceLayout {
         var l = DeviceLayout(dev: dev, runtimeRoot: rr, udid: nil, jobPaths: [])
-        // A type that runs on every runtime version used here (27.0–27.2).
         l.deviceType = .iPadA16
         l.lean = nil
         l.templatePath = nil
@@ -36,21 +31,16 @@ struct DeviceRuntimeTests {
         try VisionDeviceTypeTests.runtimeRoot(rr272, productName: "iPhone OS", version: "27.2", build: "24C5")
         try layout(dev, rr271).prepare()
         #expect(fm.contents(atPath: dev + "/swiftcode-runtime") == Data("iPhone OS 27.1 24A94401\n".utf8))
-        // An older runtime: refused, nothing written.
         let before = try fm.attributesOfItem(atPath: dev + "/swiftcode-runtime")[.modificationDate] as? Date
         #expect(throws: DeviceRuntimeDowngrade.self) { try layout(dev, rr270).prepare() }
         #expect(fm.contents(atPath: dev + "/swiftcode-runtime") == Data("iPhone OS 27.1 24A94401\n".utf8))
         #expect(try fm.attributesOfItem(atPath: dev + "/swiftcode-runtime")[.modificationDate] as? Date == before)
-        // A newer one: boots, and the record follows.
         try layout(dev, rr272).prepare()
         #expect(fm.contents(atPath: dev + "/swiftcode-runtime") == Data("iPhone OS 27.2 24C5\n".utf8))
-        // Each runtime with its own device directory: no conflict.
         try layout(base + "/dev27", rr270).prepare()
         #expect(fm.contents(atPath: base + "/dev27/swiftcode-runtime") == Data("iPhone OS 27.0 24A434\n".utf8))
     }
 
-    /// A device from before the record (no swiftcode-runtime) boots on any
-    /// runtime; the record is written then.
     @Test func olderDevicesGetARecord() throws {
         let fm = FileManager.default
         let base = DeviceTypeTests.tempDir("runtime-old")
@@ -64,7 +54,6 @@ struct DeviceRuntimeTests {
         #expect(fm.contents(atPath: dev + "/swiftcode-runtime") == Data("iPhone OS 27.0 24A434\n".utf8))
     }
 
-    /// Without --device-type a device boots as the type it recorded.
     @Test func recordedTypeIsTheDefault() throws {
         let fm = FileManager.default
         let base = DeviceTypeTests.tempDir("runtime-type")
@@ -74,15 +63,12 @@ struct DeviceRuntimeTests {
         #expect(DeviceLayout.recordedDeviceType(in: base + "/dev").flatMap(DeviceType.named) == .iPadA16)
     }
 
-    // MARK: iPhone 18 Pro (iphone-types.md §4, §5)
-
     @Test func iPhone18ProIdentity() throws {
         let t = DeviceType.iPhone18Pro, duo = DeviceType.iPhoneDuo
         #expect(DeviceType.named("iphone-18-pro") == t)
         #expect(t.modelIdentifier == "iPhone19,2" && t.productClass == "V63" && t.legacyAssetSuffix == "iphone")
         #expect(t.screen == DeviceScreen(width: 1206, height: 2622, scale: 3.0, pitch: 460.0) && t.extendedDisplayProperties)
         #expect(t.screen.pointWidth == 402 && t.screen.pointHeight == 874)
-        // Same key set as the iPhone Duo; the values of §4.2 changed.
         #expect(Set(t.capabilities.keys) == Set(duo.capabilities.keys))
         let changed = Set(t.capabilities.keys.filter { t.capabilities[$0] != duo.capabilities[$0] })
         #expect(changed == ["ArtworkTraits", "ScreenDimensionsCapability", "subtype", "DeviceCornerRadius", "modelIdentifier",
@@ -101,7 +87,6 @@ struct DeviceRuntimeTests {
                 && t.capabilities["RingerButtonCapability"] == .bool(true))
         #expect(t.capabilities["idiom"] == .string("phone") && t.capabilities["watch-companion"] == .bool(true)
                 && t.capabilities["DeviceSupportsDynamicIsland"] == .bool(true))
-        // The written plist keeps the number types.
         let xml = String(decoding: try PropertyListSerialization.data(fromPropertyList: t.capabilitiesPlist, format: .xml, options: 0), as: UTF8.self)
         #expect(DeviceTypeTests.element(xml, "DeviceCornerRadius")?.tag == "real")
         #expect(DeviceTypeTests.element(xml, "main-screen-orientation")?.tag == "real")
@@ -117,7 +102,6 @@ struct DeviceRuntimeTests {
                 && DeviceType.iPhone18Pro.runs(onVersion: "27.1") && DeviceType.iPadA16.runs(onVersion: "27.1"))
     }
 
-    /// 27.0 refuses the iPhone Duo (iphone-types.md §1): nothing in DEV is written.
     @Test func iPhoneDuoIsRefusedOn27_0() throws {
         let fm = FileManager.default
         let base = DeviceTypeTests.tempDir("runtime-duo")

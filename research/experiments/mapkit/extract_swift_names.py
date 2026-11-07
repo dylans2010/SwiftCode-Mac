@@ -20,12 +20,12 @@ MEM = re.compile(r'^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|open|static|cla
 TOPFUNC = re.compile(r'^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*public\s+(?:static\s+)?(func|var|let)\s+([\w`]+)')
 
 out = []
-stack = []          # (entry or None, depth at open)
+stack = []
 depth = 0
 pending_av = None
 unavailable = False
 for raw in lines:
-    s = re.sub(r'\b\w+::', '', raw.strip())  # drop module selectors (Module::Name)
+    s = re.sub(r'\b\w+::', '', raw.strip())
     if s.startswith('//') or not s:
         continue
     if s.startswith('@available'):

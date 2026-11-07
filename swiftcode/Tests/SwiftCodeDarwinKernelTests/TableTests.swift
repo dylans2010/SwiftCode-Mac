@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// Port traps reach the kernel's `MachIPC` (stage4a-contract.md §6, §8);
-/// the port semantics are tested in the MachIPC*Tests suites.
 @Suite struct PortTests {
     @Test func wellKnownAndDynamicNames() throws {
         let env = try Env()
@@ -12,11 +10,11 @@ import SwiftCodeDarwinABI
         #expect(env.svc(UInt64(bitPattern: -28)).1.x[0] == 0x103)
         #expect(env.svc(UInt64(bitPattern: -27)).1.x[0] == 0x203)
         #expect(env.svc(UInt64(bitPattern: -29)).1.x[0] == 0x303)
-        let reply = UInt32(env.svc(UInt64(bitPattern: -26)).1.x[0])  // mach_reply_port
+        let reply = UInt32(env.svc(UInt64(bitPattern: -26)).1.x[0])
         #expect(reply & 3 == 3 && ipc.entry(reply) != nil)
 
         let slot = Env.scratch + 0x10
-        let (_, a) = env.svc(UInt64(bitPattern: -16), [0x103, 1, slot])  // MACH_PORT_RIGHT_RECEIVE
+        let (_, a) = env.svc(UInt64(bitPattern: -16), [0x103, 1, slot])
         #expect(a.x[0] == 0)
         let name = try env.u32(slot)
         #expect(name & 3 == 3 && ipc.receiveTarget(of: name) == .port)
@@ -35,20 +33,17 @@ import SwiftCodeDarwinABI
         var (_, f) = env.svc(0x7963_0009, [name, old, lenp, 0, 0])
         #expect(!f.carry && f.x[0] == 0)
         #expect(try env.u64(old) == 16384 && env.u64(lenp) == 8)
-        // A 4-byte buffer gets a 4-byte integer.
         try env.put(leBytes(0xFFFF_FFFF_FFFF_FFFF), at: old)
         try env.put(leBytes(4), at: lenp)
         (_, f) = env.svc(0x7963_0009, [name, old, lenp, 0, 0])
         #expect(try env.u64(old) == 0xFFFF_FFFF_0000_4000 && env.u64(lenp) == 4)
 
-        // Size query (old = NULL).
         try env.putString("kern.osproductversion", at: name)
         (_, f) = env.svc(0x7963_0009, [name, 0, lenp, 0, 0])
         #expect(try !f.carry && env.u64(lenp) == 5)
         try env.put(leBytes(64), at: lenp)
         (_, f) = env.svc(0x7963_0009, [name, old, lenp, 0, 0])
         #expect(try env.string(old) == "27.1" && env.u64(lenp) == 5)
-        // Too small: ENOMEM.
         try env.put(leBytes(2), at: lenp)
         (_, f) = env.svc(0x7963_0009, [name, old, lenp, 0, 0])
         #expect(f.carry && f.x[0] == 12)
@@ -58,12 +53,8 @@ import SwiftCodeDarwinABI
             try env.put(leBytes(0xAAAA_AAAA_AAAA_AAAA), at: old)
             try env.put(leBytes(8), at: lenp)
             (_, f) = env.svc(0x7963_0009, [name, old, lenp, 0, 0])
-            // 4-byte integers stay 4 bytes in an 8-byte buffer (visionos.md §10.10.1).
             #expect(try !f.carry && env.u64(old) == 0xAAAA_AAAA_0000_0000 | expected && env.u64(lenp) == 4, "\(n)")
         }
-        // hw.optional.arm.caps: 13 bytes (cpu-features.md §2.3; all 0
-        // without an installed CPU profile); an 8-byte buffer gets the first
-        // 8 and ENOMEM.
         try env.putString("hw.optional.arm.caps", at: name)
         try env.put([UInt8](repeating: 0xAA, count: 16), at: old)
         try env.put(leBytes(16), at: lenp)
@@ -78,15 +69,12 @@ import SwiftCodeDarwinABI
             (_, f) = env.svc(0x7963_0009, [name, old, lenp, 0, 0])
             #expect(f.carry && f.x[0] == 2, "\(n)")
         }
-        // BSD 274 takes an explicit length.
         try env.putString("hw.ncpu", at: name)
         try env.put(leBytes(4), at: lenp)
         (_, f) = env.svc(274, [name, 7, old, lenp, 0, 0])
         #expect(try !f.carry && env.u32(old) == UInt32(GuestCPUs.count))
     }
 
-    /// visionos.md §10.10.1: integers at their natural width whatever the
-    /// buffer size; buffers prefilled with 0xAA.
     @Test func naturalWidths() throws {
         let env = try Env()
         let name = Env.scratch, old = Env.scratch + 0x100, lenp = Env.scratch + 0x200
@@ -101,8 +89,6 @@ import SwiftCodeDarwinABI
         func le(_ v: UInt64, _ width: Int) -> [UInt8] { (0..<width).map { UInt8(truncatingIfNeeded: v >> (8 * $0)) } }
         let aa = { (k: Int) in [UInt8](repeating: 0xAA, count: k) }
         let cpus = UInt64(GuestCPUs.count)
-        // 4-byte integers: 4 bytes and length 4 into 4, 8 and 16 bytes; ENOMEM,
-        // nothing written and length 0 for 2 bytes; size query 4.
         for n in ["hw.ncpu", "hw.activecpu", "hw.logicalcpu", "hw.logicalcpu_max", "hw.physicalcpu", "hw.physicalcpu_max",
                   "hw.perflevel0.physicalcpu", "hw.nperflevels", "hw.byteorder", "kern.maxproc", "vm.pagesize", "hw.physmem"] {
             for buffer: UInt64 in [4, 8, 16] {
@@ -115,16 +101,13 @@ import SwiftCodeDarwinABI
             #expect(try !f.carry && env.u64(lenp) == 4, "\(n)")
         }
         #expect(try read("hw.physicalcpu", buffer: 8).bytes == le(cpus, 4) + aa(12))
-        // 8-byte values narrowed for an exactly 4-byte buffer when they fit.
         #expect(try read("hw.pagesize", buffer: 8) == Outcome(errno: nil, length: 8, bytes: le(16384, 8) + aa(8)))
         #expect(try read("hw.pagesize", buffer: 16) == Outcome(errno: nil, length: 8, bytes: le(16384, 8) + aa(8)))
         #expect(try read("hw.pagesize", buffer: 4) == Outcome(errno: nil, length: 4, bytes: le(16384, 4) + aa(12)))
         #expect(try read("hw.pagesize", buffer: 2) == Outcome(errno: 12, length: 0, bytes: aa(16)))
         #expect(try read("hw.pagesize", buffer: 6) == Outcome(errno: 12, length: 0, bytes: aa(16)))
-        // A value that does not fit an int: ERANGE, nothing written, length unchanged.
         #expect(try read("kern.usrstack64", buffer: 4) == Outcome(errno: 34, length: 4, bytes: aa(16)))
         #expect(try read("kern.usrstack64", buffer: 8).length == 8)
-        // Never narrowed: ENOMEM for 4 bytes.
         for n in ["hw.cachelinesize", "hw.l2cachesize"] {
             #expect(try read(n, buffer: 4) == Outcome(errno: 12, length: 0, bytes: aa(16)), "\(n)")
             let o = try read(n, buffer: 16)
@@ -132,8 +115,6 @@ import SwiftCodeDarwinABI
         }
     }
 
-    /// HW_PAGESIZE by number is a 4-byte integer; the name `hw.pagesize`
-    /// translates to another MIB that answers 8 bytes (visionos.md §10.10.1).
     @Test func pagesizeByNumberAndByName() throws {
         let env = try Env()
         let mib = Env.scratch, old = Env.scratch + 0x100, lenp = Env.scratch + 0x200, name = Env.scratch + 0x300
@@ -154,7 +135,6 @@ import SwiftCodeDarwinABI
         try env.put(leBytes(8), at: lenp)
         (_, f) = env.svc(202, [mib, 2, old, lenp, 0, 0])
         #expect(try !f.carry && env.u64(lenp) == 8 && env.u64(old) == Stage3Layout.memorySize)
-        // name2oid of "hw.pagesize", then a read by that OID: 8 bytes.
         try putMIB([0, 3])
         try env.putString("hw.pagesize", at: name)
         try env.put(leBytes(48), at: lenp)
@@ -175,13 +155,11 @@ import SwiftCodeDarwinABI
         func putMIB(_ v: [Int32]) throws {
             try env.put(v.flatMap { x in (0..<4).map { UInt8(truncatingIfNeeded: x >> (8 * $0)) } }, at: mib)
         }
-        // {CTL_HW, HW_NCPU}
         try putMIB([6, 3])
         try env.put(leBytes(4), at: lenp)
         var (_, f) = env.svc(202, [mib, 2, old, lenp, 0, 0])
         #expect(try !f.carry && env.u32(old) == UInt32(GuestCPUs.count))
 
-        // name2oid {0, 3} then a read by the returned OID.
         try putMIB([0, 3])
         try env.putString("kern.osproductversion", at: name)
         try env.put(leBytes(48), at: lenp)
@@ -193,7 +171,6 @@ import SwiftCodeDarwinABI
         (_, f) = env.svc(202, [mib, 2, old + 0x40, lenp, 0, 0])
         #expect(try !f.carry && env.string(old + 0x40) == "27.1")
 
-        // Unknown MIB: ENOENT; a write: EPERM.
         try putMIB([1, 999])
         (_, f) = env.svc(202, [mib, 2, old, lenp, 0, 0])
         #expect(f.carry && f.x[0] == 2)

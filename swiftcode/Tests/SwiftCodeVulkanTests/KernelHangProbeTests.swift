@@ -1,28 +1,3 @@
-// Opt-in probe for a translated compute kernel that may not terminate
-// (stage8-contract.md §13.3): runs one kernel many times over random
-// inputs with a per-dispatch time limit and reports the first dispatch
-// that does not finish. The kernel comes from files swiftcode-airc wrote
-// (its own SPIR-V and reflection, for example a GPU-cache entry), so the
-// probe needs no guest library:
-//
-//   SWIFTCODE_TEST_HANG_SPV=k.spv SWIFTCODE_TEST_HANG_JSON=k.json swift test --filter KernelHangProbe
-//
-// Optional: SWIFTCODE_TEST_HANG_ROUNDS (default 40), SWIFTCODE_TEST_HANG_SEED,
-// SWIFTCODE_TEST_HANG_TG (threadgroup width,height; default 8,8),
-// SWIFTCODE_TEST_HANG_GRID (blocks per side, default 64),
-// SWIFTCODE_TEST_HANG_OUT (directory for the inputs of a dispatch that hung).
-// Replay: SWIFTCODE_TEST_HANG_REPLAY=DIR (inputs saved by an earlier hang; one
-// round) with SWIFTCODE_TEST_HANG_FIRST / SWIFTCODE_TEST_HANG_COUNT keeping only
-// that range of blocks (the others become zero bytes), to bisect for the
-// block that does not finish; SWIFTCODE_TEST_HANG_PLACE=i,j,... moves the kept
-// blocks to those block indices (other threads, warps or threadgroups).
-//
-// The bindings follow the reflection of the `astc` kernel family: buffer 0
-// 16-byte input blocks, buffers 1 and 3 byte tables, buffer 2 a small
-// parameter structure, texture 0 the written image. The parameter words
-// the kernel reads (byte offsets 8, 36, 40, 44, 48, 52 per its reflection
-// and its own SPIR-V) are set to plausible and to random values.
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
@@ -36,7 +11,6 @@ enum HangProbe {
     }
 }
 
-/// A small, seedable generator (SplitMix64) so that a hang can be replayed.
 struct SplitMix64: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 {
@@ -83,13 +57,10 @@ struct KernelHangProbeTests {
         try b.createTexture(tex, MetalTextureDescriptor(pixelFormat: MetalPixelFormat.rgba8Unorm, width: side, height: side, usage: 0x3,
                                                         resourceOptions: 0x20), iosurface: nil)
         let dims: [UInt32] = [4, 5, 6, 8, 10, 12]
-        // SWIFTCODE_TEST_HANG_TG=w,h: the threadgroup size (default 8,8; the
-        // render server's dispatches used 32,16).
         let tgParts = (HangProbe.env["SWIFTCODE_TEST_HANG_TG"] ?? "8,8").split(separator: ",").compactMap { Int($0) }
         let tg = (tgParts.count == 2 ? tgParts[0] : 8, tgParts.count == 2 ? tgParts[1] : 8)
         var slowest = 0.0
         var lastStatus = -1
-        // One dispatch over the current inputs; false when it did not finish in 8 s.
         func dispatchOnce() throws -> Bool {
             let done = DispatchSemaphore(value: 0)
             let status = StatusBox()
@@ -108,7 +79,6 @@ struct KernelHangProbeTests {
             return true
         }
         for round in 0..<rounds {
-            // Tables: valid partition indices (0...3) or anything.
             let tabMask: UInt8 = round % 3 == 2 ? 0xFF : 0x03
             for i in 0..<tableBytes { mem.pointer.storeBytes(of: UInt8(truncatingIfNeeded: rng.next()) & tabMask, toByteOffset: tabOff + i, as: UInt8.self) }
             for i in 0..<tableBytes { mem.pointer.storeBytes(of: round % 4 == 3 ? UInt8(truncatingIfNeeded: rng.next()) & 3 : 0, toByteOffset: zeroOff + i, as: UInt8.self) }
@@ -130,7 +100,6 @@ struct KernelHangProbeTests {
                     (mem.pointer + inOff + 16 * blk).initializeMemory(as: UInt8.self, repeating: 0, count: 16)
                 }
                 if let place = HangProbe.env["SWIFTCODE_TEST_HANG_PLACE"] {
-                    // Move the kept blocks (in order) to these block indices.
                     let kept = (first..<(first + count)).map { Array(UnsafeRawBufferPointer(start: mem.pointer + inOff + 16 * $0, count: 16)) }
                     (mem.pointer + inOff).initializeMemory(as: UInt8.self, repeating: 0, count: blockBytes)
                     for (k, dst) in place.split(separator: ",").compactMap({ Int($0) }).enumerated() where k < kept.count {
@@ -155,10 +124,10 @@ struct KernelHangProbeTests {
             }
             for i in 0..<14 { par[i] = round % 5 == 4 ? UInt32(truncatingIfNeeded: rng.next()) : 0 }
             let bw = dims[Int(rng.next() % 6)], bh = dims[Int(rng.next() % 6)]
-            par[2] = UInt32(grid * 16)           // offset 8: bytes per row of blocks
-            par[9] = 0; par[10] = 0              // offsets 36, 40: first block
-            par[11] = UInt32(rng.next() % 3)     // offset 44: mode flag (1 or other)
-            par[12] = bw; par[13] = bh           // offsets 48, 52: block size
+            par[2] = UInt32(grid * 16)
+            par[9] = 0; par[10] = 0
+            par[11] = UInt32(rng.next() % 3)
+            par[12] = bw; par[13] = bh
             for (i, v) in par.enumerated() { mem.pointer.storeBytes(of: v, toByteOffset: parOff + 4 * i, as: UInt32.self) }
             let start = DispatchTime.now().uptimeNanoseconds
             if try !dispatchOnce() {
@@ -171,7 +140,7 @@ struct KernelHangProbeTests {
                     try Data(bytes: mem.pointer + parOff, count: 64).write(to: URL(fileURLWithPath: "\(dir)/params.bin"))
                 }
                 Issue.record("round \(round): the kernel did not finish in 8 s (block \(bw)x\(bh), params \(parHex))")
-                return  // the queue is stuck; nothing more can run
+                return
             }
             let s = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9
             slowest = max(slowest, s)
@@ -182,19 +151,6 @@ struct KernelHangProbeTests {
     }
 }
 
-/// Replays a captured `astc` mip chain (a hang capture of
-/// VulkanHangReport.swift, stage8-contract.md §15.9) through the whole back
-/// end, as the guest submitted it: per level a copy of the level's blocks
-/// into one staging buffer, then the kernel over the level's blocks into a
-/// one-level view of a fresh mipmapped texture, with the captured buffer
-/// bytes as guest memory. Repeats the command buffer and reports a round
-/// that does not finish in 8 s.
-///
-///   SWIFTCODE_TEST_CAPTURE=DIR SWIFTCODE_TEST_CAPTURE_CHAIN=chain.txt swift test --filter CaptureReplay
-///
-/// chain.txt: one line per dispatch, `gridW gridH b0 b1 b2 b2offset b3 texW texH`
-/// (the hang report's handles: b0 blocks, b1 partition tables, b2 parameters,
-/// b3 zero partition tables). SWIFTCODE_TEST_CAPTURE_ROUNDS (default 20).
 @Suite(.serialized, .enabled(if: HangProbe.env["SWIFTCODE_TEST_CAPTURE"] != nil && VK.available, "needs SWIFTCODE_TEST_CAPTURE and a GPU"))
 struct CaptureReplayTests {
     @Test func capturedChainFinishes() throws {
@@ -218,7 +174,6 @@ struct CaptureReplayTests {
         let chainText = try String(contentsOfFile: HangProbe.env["SWIFTCODE_TEST_CAPTURE_CHAIN"] ?? "\(dir)/chain.txt", encoding: .utf8)
         let chain = chainText.split(separator: "\n").map { $0.split(separator: " ").compactMap { Int($0) } }.filter { $0.count == 9 }
         guard let first = chain.first else { Issue.record("empty chain"); return }
-        // Every captured buffer named by the chain, in guest memory of its own (16 KiB runs, as the guest's).
         var handles: [Int: MetalHandle] = [:]
         var pages: [HostPages] = []
         for id in Set(chain.flatMap { [$0[2], $0[3], $0[4], $0[6]] }) {
@@ -269,7 +224,7 @@ struct CaptureReplayTests {
                      scheduled: {}, completed: { s in status.value = s; done.signal() })
             if done.wait(timeout: .now() + 8) == .timedOut {
                 Issue.record("round \(round): the captured chain did not finish in 8 s")
-                return  // the queue is stuck
+                return
             }
             slowest = max(slowest, Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9)
             #expect(status.value == 4, "round \(round): status \(status.value)")
@@ -282,11 +237,6 @@ struct CaptureReplayTests {
     }
 }
 
-/// The loop guard on the GPU: Translator/tests/ir/control-flow.sh leaves
-/// `spin` (a loop that waits for in[0] == 1) translated with
-/// --loop-limit 1000; with in[0] = 0 every thread must stop at the guard
-/// (and store the guard edge's zero), with in[0] = 1 after one iteration.
-///   SWIFTCODE_TEST_LOOP_SPV=WORK/spin.spv SWIFTCODE_TEST_LOOP_JSON=WORK/spin.json
 @Suite(.serialized, .enabled(if: HangProbe.env["SWIFTCODE_TEST_LOOP_SPV"] != nil && VK.available, "needs SWIFTCODE_TEST_LOOP_SPV, SWIFTCODE_TEST_LOOP_JSON and a GPU"))
 struct LoopGuardGPUTests {
     @Test func guardEndsRunawayLoop() throws {

@@ -3,7 +3,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.ChooseModelForAgent", category: "ChooseModelForAgent")
 
-
 @MainActor
 public struct ChooseModelForAgent: View {
     @Environment(\.dismiss) private var dismiss
@@ -27,7 +26,6 @@ public struct ChooseModelForAgent: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Choose Model", systemImage: "cpu")
                     .font(.headline)
@@ -50,7 +48,6 @@ public struct ChooseModelForAgent: View {
 
             Divider()
 
-            // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -72,7 +69,6 @@ public struct ChooseModelForAgent: View {
 
             Divider()
 
-            // Models List
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     let categories = DynamicModelOption.ModelCategory.allCases
@@ -117,7 +113,6 @@ public struct ChooseModelForAgent: View {
         var modelsList: [DynamicModelOption] = []
         let filter = AssistModelFilter.shared
 
-        // 1. Apple Foundation Models
         if filter.isEnabled(AppleFoundationModel.afm3Core.rawValue) {
             modelsList.append(DynamicModelOption(
                 modelID: AppleFoundationModel.afm3Core.rawValue,
@@ -139,7 +134,6 @@ public struct ChooseModelForAgent: View {
             ))
         }
 
-        // 2. HuggingFace Local Models
         let localModels = OfflineModelManager.shared.installedModels
         for m in localModels {
             if filter.isEnabled(m.modelName) {
@@ -154,7 +148,6 @@ public struct ChooseModelForAgent: View {
             }
         }
 
-        // 3. Custom endpoint/link models
         if !settings.customModel.isEmpty && filter.isEnabled(settings.customModel) {
             modelsList.append(DynamicModelOption(
                 modelID: settings.customModel,
@@ -166,11 +159,8 @@ public struct ChooseModelForAgent: View {
             ))
         }
 
-        // 4. OpenRouter Cloud Models are added from the live fetch below.
-
         self.dynamicModels = modelsList
 
-        // Fetch live OpenRouter models asynchronously
         isFetching = true
         Task {
             do {

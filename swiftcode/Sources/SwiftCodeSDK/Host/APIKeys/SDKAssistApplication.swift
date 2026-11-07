@@ -1,37 +1,9 @@
 import Foundation
 
-// MARK: - SDKAssistApplication
-//
-// Ported from Legacy `SwiftCode/SDK/Host/APIKeys/SDKAssistApplication.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// A developer applies for Assist access for one extension. The host
-// reviews the application (status pending → approved/denied); approval
-// grants the key-bound `developerAIAssist` entitlement — and
-// `developerAIAllowsCloud` when the app's data leaves the device — on
-// the developer's API key. The grant happens BEFORE the approval is
-// persisted, so a stored approval never lacks its entitlement.
-//
-// KEY-ID ONLY (Wave 16 revision of the §5 / §19 item 8 flag): the
-// application record stores only the key ID (`Field.apiKeyID`), never
-// the presented secret. The secret is presented once at submit time as
-// proof of possession — verified against the Keychain-backed key store,
-// then dropped; nothing derived from the secret persists. Approval
-// grants entitlements by key ID alone (re-reading key metadata, so a
-// key revoked between submit and approve fails closed) and needs no
-// secret. This restores Legacy's own shape: Legacy's
-// `SDKAssistApplication` stored `apiKeyID: UUID`, never a secret — the
-// presented-secret field was a Wave 14 port deviation, not Legacy
-// behaviour.
-
-/// Which Assist SDK variant the application is for.
 public enum SDKAssistSDKVariant: String, Sendable, Codable, CaseIterable {
-    /// The extension embeds the host's Assist main view.
     case assistSDKUI = "assistSDK.UI"
-    /// The extension drives Assist headlessly over the IPC route.
     case assistSDK = "assistSDK"
 
-    /// Human-readable label for Studio.
     public var displayLabel: String {
         switch self {
         case .assistSDKUI: return "assistSDK.UI — with UI"
@@ -39,7 +11,6 @@ public enum SDKAssistSDKVariant: String, Sendable, Codable, CaseIterable {
         }
     }
 
-    /// Studio-facing description of what the variant unlocks.
     public var detail: String {
         switch self {
         case .assistSDKUI:
@@ -56,20 +27,12 @@ public enum SDKAssistApplicationStatus: String, Sendable, Codable {
     case denied
 }
 
-/// One Assist application, stored by the host. The store's timestamp is
-/// the authority for submission/decision time.
 public struct SDKAssistApplication: Sendable, Codable {
-    /// Minimum accepted length for the usage description, measured on
-    /// the trimmed text (Legacy `SDKAssistApplication`).
     public static let minimumUsageDescriptionLength = 40
 
     public struct Field: Sendable, Codable {
         public let extensionID: String
         public let displayName: String
-        /// The developer API key the entitlements bind to on approval.
-        /// Key ID ONLY — the presented secret is verified at submit time
-        /// (see `SDKAssistApplicationStore.submit(_:apiKeySecret:)`) and
-        /// never stored, in this field or anywhere derived from it.
         public let apiKeyID: UUID
         public let sdkVariant: SDKAssistSDKVariant
         public let usageDescription: String
@@ -113,8 +76,6 @@ public struct SDKAssistApplication: Sendable, Codable {
             case extensionID, displayName, apiKeyID, sdkVariant, usageDescription
             case hasOwnUI, ownUIDescription, usesThirdPartyModels, thirdPartyModels
             case dataLeavesDevice, dataDestination, contactEmail
-            /// Pre–Wave 16 key: records written while `Field` stored the
-            /// presented secret. Read-only migration source, never written.
             case legacyAPIKey = "apiKey"
         }
 
@@ -127,12 +88,6 @@ public struct SDKAssistApplication: Sendable, Codable {
             } else if let secret = try container.decodeIfPresent(String.self, forKey: .legacyAPIKey),
                       let idString = SDKAPIKeyCodec.extractPresentedKeyID(from: secret),
                       let id = UUID(uuidString: idString) {
-                // One-way migration: recover the key ID from a stored
-                // presented secret. The secret itself is discarded here —
-                // the re-encoded record carries only the ID. Extraction
-                // is unverified parsing (name only); the ID is trusted
-                // only as a pointer — approval re-reads key metadata
-                // from the store and refuses revoked/unknown keys.
                 apiKeyID = id
             } else {
                 throw DecodingError.dataCorruptedError(
@@ -164,15 +119,8 @@ public struct SDKAssistApplication: Sendable, Codable {
             try container.encode(dataLeavesDevice, forKey: .dataLeavesDevice)
             try container.encodeIfPresent(dataDestination, forKey: .dataDestination)
             try container.encode(contactEmail, forKey: .contactEmail)
-            // Deliberately never writes the legacy "apiKey" key: a
-            // migrated record re-encodes with the ID only, so the secret
-            // leaves the store on the next persist.
         }
 
-        /// Validates the application. Usage descriptions must be at least
-        /// `SDKAssistApplication.minimumUsageDescriptionLength` characters
-        /// (trimmed); the contact email must look like an email;
-        /// conditional fields are required when their flag is set.
         public func validate() throws {
             guard !extensionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw SDKError(code: .invalidArgument, message: "The extension ID is required.")
@@ -214,8 +162,6 @@ public struct SDKAssistApplication: Sendable, Codable {
     }
 }
 
-/// Stores Assist applications in the secret store (account
-/// `sdk.assistapp.<uuid>`). Only pending applications can be decided.
 public actor SDKAssistApplicationStore {
     public static let shared = SDKAssistApplicationStore(store: SDKSecretStoreFactory.defaultStore())
 
@@ -227,17 +173,6 @@ public actor SDKAssistApplicationStore {
         self.store = store
     }
 
-    /// Submits an application: validates the fields, requires the
-    /// extension to be installed, and verifies the presented secret
-    /// against the Keychain-backed key store. The secret is proof of
-    /// possession only: it must verify AND name the key the application
-    /// binds to (`field.apiKeyID`) — a secret for any other key is
-    /// rejected, so an application can never be bound to a key its
-    /// submitter does not hold. The secret is dropped after verification;
-    /// the stored record carries only the key ID. `verify` enforces
-    /// liveness (revoked/expired keys fail there), and approval later
-    /// re-reads key metadata, so revocation between submit and approve
-    /// is honoured without any secret at approval time.
     public func submit(_ field: SDKAssistApplication.Field, apiKeySecret: String) async throws -> SDKAssistApplication {
         try field.validate()
         guard await SDKExtensionRegistry.shared.installedExtension(id: field.extensionID) != nil else {
@@ -252,10 +187,6 @@ public actor SDKAssistApplicationStore {
         return application
     }
 
-    /// Approves a pending application. Grants `developerAIAssist` always,
-    /// plus `developerAIAllowsCloud` when the app uses third-party models
-    /// or its data leaves the device — grant BEFORE persist, so a stored
-    /// approval never lacks its entitlement.
     public func approve(id: UUID) async throws -> SDKAssistApplication {
         guard var application = try read(id: id), application.status == .pending else {
             throw SDKError(code: .invalidArgument, message: "Only a pending application can be decided.")
@@ -273,7 +204,6 @@ public actor SDKAssistApplicationStore {
         return application
     }
 
-    /// Denies a pending application. No entitlement is granted.
     public func deny(id: UUID) async throws -> SDKAssistApplication {
         guard var application = try read(id: id), application.status == .pending else {
             throw SDKError(code: .invalidArgument, message: "Only a pending application can be decided.")
@@ -286,9 +216,6 @@ public actor SDKAssistApplicationStore {
         return application
     }
 
-    /// Uninstall hook: revokes the Assist entitlements of every key
-    /// bound to applications for `extensionID`. Returns the number of
-    /// keys touched. Keys that no longer exist are skipped.
     public func revokeEntitlementsForExtension(_ extensionID: String) async -> Int {
         var count = 0
         for application in list() where application.field.extensionID == extensionID {
@@ -315,13 +242,7 @@ public actor SDKAssistApplicationStore {
         list().filter { $0.status == .pending }
     }
 
-    // MARK: - Private
-
     private func keyID(for application: SDKAssistApplication) -> UUID {
-        // The record stores the key ID directly — no extraction from a
-        // secret, no unverified parsing on the approval path. The key
-        // store re-verifies lifecycle state on every grant, so a key
-        // revoked between submit and approve fails closed there.
         application.field.apiKeyID
     }
 
@@ -344,13 +265,6 @@ public actor SDKAssistApplicationStore {
     }
 }
 
-
-// Ported from Legacy `SwiftCode/SDK/Host/APIKeys/SDKAssistApplication.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SDKAssistApplicationField, SDKAssistApplicationValidationError.
-
-/// Every validated field of the Assist access application form. Field-level
-/// validation errors are keyed by these, so Studio can render each error
-/// inline next to its field.
 public enum SDKAssistApplicationField: String, Sendable, Hashable, Codable, CaseIterable {
     case extensionID
     case displayName
@@ -366,9 +280,6 @@ public enum SDKAssistApplicationField: String, Sendable, Hashable, Codable, Case
     case contactEmail
 }
 
-/// Carries the field-level validation errors from
-/// `SDKAssistApplication.validate()` (or from the registry / API-key
-/// checks at submit time) keyed by field.
 public struct SDKAssistApplicationValidationError: Error, Sendable {
     public let errors: [SDKAssistApplicationField: String]
 

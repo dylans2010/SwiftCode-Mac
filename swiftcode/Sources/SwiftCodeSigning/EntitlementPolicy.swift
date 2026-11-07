@@ -1,21 +1,11 @@
 import Foundation
 
-/// Which entitlements need a provisioning profile, and whether a profile
-/// allows a value. Apple TN3125 and "Entitlements" (developer
-/// documentation): a profile's `Entitlements` dictionary is the allow list
-/// for restricted entitlements; strings and arrays of strings may hold
-/// patterns ending in `*`.
 public enum EntitlementPolicy {
-    /// Entitlements SwiftCode adds itself; a profile is checked for them separately.
     public static let derivedKeys: Set<String> = [
         "application-identifier", "com.apple.application-identifier", "com.apple.developer.team-identifier",
         "get-task-allow", "com.apple.security.get-task-allow",
     ]
 
-    /// Whether the entitlement needs a profile on the platform. On the Mac
-    /// the App Sandbox and Hardened Runtime entitlements
-    /// (`com.apple.security.*`) do not; on devices every entitlement does;
-    /// simulators take none from profiles.
     public static func isRestricted(_ key: String, on platform: SigningPlatform) -> Bool {
         switch platform {
         case .simulator: false
@@ -24,7 +14,6 @@ public enum EntitlementPolicy {
         }
     }
 
-    /// Glob match where `*` stands for any run of characters.
     public static func pattern(_ pattern: String, matches value: String) -> Bool {
         let p = Array(pattern), v = Array(value)
         var pi = 0, vi = 0, star = -1, mark = 0
@@ -38,7 +27,6 @@ public enum EntitlementPolicy {
         return pi == p.count
     }
 
-    /// Whether a profile value allows a requested value.
     public static func allows(_ allowed: EntitlementValue, _ requested: EntitlementValue) -> Bool {
         switch (allowed, requested) {
         case (.bool(let a), .bool(let r)): return a || !r
@@ -58,16 +46,11 @@ public enum EntitlementPolicy {
         }
     }
 
-    /// One reason a profile does not allow an entitlements dictionary.
     public enum Mismatch: Equatable, Sendable {
-        /// The profile does not list the entitlement.
         case missing(String)
-        /// The profile lists it with values that do not cover the request.
         case value(String)
     }
 
-    /// The requested entitlements the profile does not allow (restricted
-    /// ones only), in key order.
     public static func mismatches(_ requested: Entitlements, profile: ProvisioningProfile, platform: SigningPlatform) -> [Mismatch] {
         requested.keys.sorted().compactMap { key in
             guard isRestricted(key, on: platform), !derivedKeys.contains(key), let value = requested[key] else { return nil }
@@ -76,7 +59,6 @@ public enum EntitlementPolicy {
         }
     }
 
-    /// The restricted entitlements in a dictionary, in key order.
     public static func restrictedKeys(_ e: Entitlements, on platform: SigningPlatform) -> [String] {
         e.keys.filter { isRestricted($0, on: platform) && !derivedKeys.contains($0) }.sorted()
     }

@@ -9,7 +9,6 @@ struct GitConflictResolverView: View {
     var gitViewModel: GitViewModel
     var onDismiss: () -> Void
 
-    // State of file contents & resolution
     @State private var localContent = ""
     @State private var remoteContent = ""
     @State private var mergedContent = ""
@@ -17,11 +16,9 @@ struct GitConflictResolverView: View {
     @State private var conflictBlocks: [ConflictBlock] = []
     @State private var activeBlockIndex = 0
 
-    // Loading states
     @State private var isLoading = true
     @State private var errorMessage = ""
 
-    // AI suggestion states
     @State private var isRunningAIResolution = false
     @State private var aiSuggestionText = ""
 
@@ -34,7 +31,6 @@ struct GitConflictResolverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Merge Conflict Resolver", systemImage: "arrow.triangle.merge")
                     .font(.headline)
@@ -79,7 +75,6 @@ struct GitConflictResolverView: View {
 
     private var mainConflictWorkspace: some View {
         VStack(spacing: 0) {
-            // Sub-header stats & controls
             HStack {
                 Text("File: \(conflictedFile.path.lastPathComponent)")
                     .font(.subheadline.bold())
@@ -117,9 +112,7 @@ struct GitConflictResolverView: View {
 
             Divider()
 
-            // Side-by-Side View of the Active Conflict Block
             HSplitView {
-                // Left pane: Current change (HEAD)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("CURRENT CHANGE (HEAD)")
                         .font(.caption2.bold())
@@ -148,7 +141,6 @@ struct GitConflictResolverView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                // Right pane: Incoming change
                 VStack(alignment: .leading, spacing: 0) {
                     Text("INCOMING CHANGE")
                         .font(.caption2.bold())
@@ -181,7 +173,6 @@ struct GitConflictResolverView: View {
 
             Divider()
 
-            // Manual Live Editor & Validation Output Pane
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text("RESOLVED OUTPUT EDITOR (LIVE PREVIEW)")
@@ -214,7 +205,6 @@ struct GitConflictResolverView: View {
 
                 Divider()
 
-                // Merged manual text editor area
                 TextEditor(text: $mergedContent)
                     .font(.system(size: 11, design: .monospaced))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -223,7 +213,6 @@ struct GitConflictResolverView: View {
 
                 Divider()
 
-                // AI suggestions console
                 if !aiSuggestionText.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("AI Recommended Resolution:").font(.caption.bold()).foregroundStyle(.purple)
@@ -241,9 +230,7 @@ struct GitConflictResolverView: View {
                     Divider()
                 }
 
-                // Resolution save and stage checks
                 HStack {
-                    // Validation label
                     let markersCount = countConflictMarkers(mergedContent)
                     if markersCount > 0 {
                         Label("\(markersCount) conflict markers remaining!", systemImage: "exclamationmark.triangle.fill")
@@ -274,8 +261,6 @@ struct GitConflictResolverView: View {
         }
     }
 
-    // MARK: - Local marker parses logic
-
     private func parseConflictFile() {
         isLoading = true
         errorMessage = ""
@@ -285,7 +270,6 @@ struct GitConflictResolverView: View {
             let content = try String(contentsOf: path, encoding: .utf8)
             mergedContent = content
 
-            // Find git conflict blocks natively
             var blocks: [ConflictBlock] = []
             let lines = content.components(separatedBy: .newlines)
 
@@ -318,7 +302,6 @@ struct GitConflictResolverView: View {
 
             self.conflictBlocks = blocks
             if blocks.isEmpty {
-                // Since we are running on real data, if no conflict markers are parsed, let conflictBlocks remain empty so the safety validator warns the user
                 self.conflictBlocks = []
             }
 
@@ -335,8 +318,6 @@ struct GitConflictResolverView: View {
         let block = conflictBlocks[activeBlockIndex]
         let chosenText = useCurrent ? block.currentText : block.incomingText
 
-        // Replace conflict blocks in the merged live text natively
-        // Find markers inside text and replace first occurrence
         let lines = mergedContent.components(separatedBy: .newlines)
         var newLines: [String] = []
         var insideTargetConflict = false
@@ -413,10 +394,8 @@ struct GitConflictResolverView: View {
 
     private func executeSaveAndResolve() {
         do {
-            // Overwrite local file with resolved merged text
             try mergedContent.write(to: conflictedFile.path, atomically: true, encoding: .utf8)
 
-            // Stage file natively
             Task {
                 await gitViewModel.stage(conflictedFile)
                 await gitViewModel.refreshStatus()

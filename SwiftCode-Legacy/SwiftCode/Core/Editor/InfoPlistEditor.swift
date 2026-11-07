@@ -4,8 +4,6 @@ import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.Core", category: "InfoPlistEditor")
 
-// MARK: - Models
-
 public struct InfoPlistNSString: Sendable, Identifiable, Hashable {
     public var id: String { key }
     public let key: String
@@ -492,8 +490,6 @@ public struct InfoPlistNSStrings: Sendable {
     ]
 }
 
-// MARK: - InfoPlistEditor Class
-
 @Observable
 @MainActor
 public final class InfoPlistEditor: Sendable {
@@ -540,7 +536,6 @@ public final class InfoPlistEditor: Sendable {
         }
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-        // Automatically order / sort keys before saving
         let sortedEntries = sortDictionary(entries)
         let data = try PropertyListSerialization.data(fromPropertyList: sortedEntries, format: .xml, options: 0)
         try data.write(to: fileURL, options: .atomic)
@@ -613,7 +608,6 @@ public final class InfoPlistEditor: Sendable {
         return regex?.firstMatch(in: version, options: [], range: range) != nil
     }
 
-    // Advanced capabilities recommendation dictionary validation helper
     public func validatePrivacyKeys() -> [String: String] {
         var issues: [String: String] = [:]
         for key in entries.keys {
@@ -647,8 +641,6 @@ public final class InfoPlistEditor: Sendable {
             throw NSError(domain: "InfoPlistEditor", code: 400, userInfo: [NSLocalizedDescriptionKey: "XML is not a key-value dictionary structure"])
         }
     }
-
-    // MARK: - Undo / Redo
 
     private func recordUndo() {
         undoStack.append(entries)

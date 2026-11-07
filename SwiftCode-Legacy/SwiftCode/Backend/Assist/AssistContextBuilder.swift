@@ -37,8 +37,6 @@ public final class AssistContextBuilder {
         let project = ProjectSessionStore.shared.activeProject
         let workspaceRoot = project?.directoryURL ?? AssistContextBuilder.resolvedWorkspaceRoot()
 
-        // Re-apply the session's stored working directory (see dir_cd) so a
-        // cd survives context rebuilds across messages in the same session.
         if let fs = fileSystem as? AssistFileSystem {
             let stored = AssistWorkingDirectoryStore.shared.currentDirectory(for: sessionId, workspaceRoot: workspaceRoot)
             if stored.path != workspaceRoot.path {

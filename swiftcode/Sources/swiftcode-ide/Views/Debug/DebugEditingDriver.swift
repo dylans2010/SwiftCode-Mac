@@ -5,22 +5,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_DEBUG2=<prefix>  the debugger's editing walk (B2-DEBUG2) with the
-//                            pointer and keys, on a package whose
-//                            SWIFTCODE_IDE_DEBUG_FILE (main.swift) has a loop at
-//                            SWIFTCODE_IDE_DEBUG_LINE calling `report(_:stats:)`
-//                            with `i`, and a `check(_:)` that throws:
-//                            1. a conditional breakpoint (double-click in the
-//                               gutter, Condition "i == 3"), run, stop;
-//                            2. the gutter's context menu ▸ Edit Breakpoint…:
-//                               a log action that continues, run to the end;
-//                            3. "+" ▸ Symbolic Breakpoint… "report", run, stop;
-//                            4. "+" ▸ Swift Error Breakpoint, run, stop;
-//                            5. a plain breakpoint: Watch "i", Add Expression…,
-//                               Edit Value of stats.total, Continue, View
-//                               Memory, Debug Workflow ▸ Always Show Disassembly.
-//                            Writes <prefix>-<state>.png after each.
-
 #if os(Linux)
 @MainActor
 enum DebugEditingDriver {
@@ -34,7 +18,6 @@ enum DebugEditingDriver {
 
     static func wait(_ seconds: Double, _ condition: () -> Bool) async -> Bool { await DebugDriver.wait(seconds, condition) }
 
-    /// The gutter's point for a 1-based line of the open file.
     static func gutterPoint(_ w: WorkspaceShellModel, line: Int) -> CGPoint? {
         guard let source = ShellDriver.frame("source"), let editor = w.editor else { return nil }
         let c = SourceEditorController.of(editor)
@@ -42,8 +25,6 @@ enum DebugEditingDriver {
         return CGPoint(x: source.minX + 16, y: y)
     }
 
-    /// Two clicks 0.15 s apart: a press that comes in the same frame as the
-    /// release before it finds the toolkit's press tracking still resolved.
     static func doubleClick(_ p: CGPoint) async {
         await OpenViewsAutomation.click(at: p)
         await ShellDriver.pause(0.15)
@@ -114,7 +95,6 @@ enum DebugEditingDriver {
         w.open(path)
         await ShellDriver.pause(0.8)
 
-        // 1. A conditional breakpoint: a click adds it, a double-click edits it.
         guard let g = gutterPoint(w, line: line) else { say("debug2: no source editor"); return }
         func state() -> String { d.breakpoints.breakpoint(file: path, line: line).map { $0.isEnabled ? "on" : "off" } ?? "none" }
         await OpenViewsAutomation.click(at: g)
@@ -134,7 +114,6 @@ enum DebugEditingDriver {
             return
         }
         if !opened {
-            // Keep going through the gutter's context menu.
             await rightClick(g)
             await ShellDriver.clickText("Edit Breakpoint…", inPopup: true)
             _ = await wait(5) { d.breakpointEditor != nil }
@@ -151,8 +130,6 @@ enum DebugEditingDriver {
         await shot(prefix, "1-conditional-stop", w)
         await stop(w)
 
-        // 2. The gutter's context menu ▸ Edit Breakpoint…: a log message
-        // that continues.
         w.perform(.showBreakpointNavigator)
         await rightClick(g)
         await shot(prefix, "2-gutter-menu", w)
@@ -171,7 +148,6 @@ enum DebugEditingDriver {
         say("debug2: log run ended=\(ended) logged=\(logged) stops=\(w.session.stopCount)")
         await shot(prefix, "2-log-action-console", w)
 
-        // 3. "+" ▸ Symbolic Breakpoint…: "report" with a condition.
         w.perform(.deleteAllBreakpoints)
         w.perform(.showBreakpointNavigator)
         await ShellDriver.click("navigator add")
@@ -191,7 +167,6 @@ enum DebugEditingDriver {
         await shot(prefix, "3-symbolic-stop", w)
         await stop(w)
 
-        // 4. "+" ▸ Swift Error Breakpoint.
         w.perform(.deleteAllBreakpoints)
         w.perform(.showBreakpointNavigator)
         await ShellDriver.click("navigator add")
@@ -208,7 +183,6 @@ enum DebugEditingDriver {
         }
         await stop(w)
 
-        // 5. Watch, Add Expression…, Edit Value, View Memory, disassembly.
         w.perform(.deleteAllBreakpoints)
         await OpenViewsAutomation.click(at: g)
         await ShellDriver.pause(0.4)
@@ -226,7 +200,6 @@ enum DebugEditingDriver {
         OpenViewsAutomation.press(.return)
         _ = await wait(10) { d.variableRows.filter(\.isWatch).count == 2 }
         await shot(prefix, "5-watch-expressions", w)
-        // Edit Value: stats.total (double-click its row).
         if let f = ShellDriver.frame("disclosure stats") {
             await OpenViewsAutomation.click(at: CGPoint(x: f.midX, y: f.midY))
             _ = await wait(10) { d.variableRows.contains { $0.id == "stats/total" } }
@@ -246,19 +219,16 @@ enum DebugEditingDriver {
         }
         say("debug2: edited total=\(d.variableRows.first { $0.id == "stats/total" }?.value ?? "-") watches=\(d.variableRows.filter(\.isWatch).map(\.text))")
         await shot(prefix, "5-edit-value", w)
-        // Copy Value of i (the clipboard read back through the editor).
         await rightClick(target: "variable i")
         await ShellDriver.clickText("Copy Value", inPopup: true)
         let clip = w.editor.flatMap { SourceEditorController.of($0).connection?.clipboardText }
         say("debug2: clipboard after Copy Value=\(clip ?? "nil")")
-        // Continue: the watches follow the next stop.
         let stops = w.session.stopCount
         await ShellDriver.click("bar continue")
         _ = await wait(30) { w.session.stopCount > stops && d.isPaused && !d.watchValues.isEmpty }
         await ShellDriver.pause(0.6)
         say("debug2: after continue watches=\(d.variableRows.filter(\.isWatch).map(\.text))")
         await shot(prefix, "5-watch-after-continue", w)
-        // View Memory of "stats".
         await rightClick(target: "variable stats")
         await ShellDriver.clickText("View Memory of \"stats\"", inPopup: true)
         _ = await wait(10) { d.memoryBrowser?.block != nil || d.memoryBrowser?.message != nil }
@@ -267,7 +237,6 @@ enum DebugEditingDriver {
         await ShellDriver.click("memory next")
         await ShellDriver.pause(0.6)
         await ShellDriver.click("memory close")
-        // Debug ▸ Debug Workflow ▸ Always Show Disassembly.
         await ShellDriver.clickText("Debug", inPopup: false)
         await ShellDriver.clickText("Debug Workflow", inPopup: true)
         await shot(prefix, "5-debug-workflow-menu", w)

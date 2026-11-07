@@ -58,7 +58,6 @@ public struct VirtualMachineStorageView: View {
 
                         Divider()
 
-                        // Resize volume section
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Resize Primary Storage Drive:")
                                 .fontWeight(.medium)
@@ -72,7 +71,6 @@ public struct VirtualMachineStorageView: View {
                                     .frame(width: 70, alignment: .trailing)
                             }
 
-                            // Dynamic Warning message
                             HStack(spacing: 6) {
                                 Image(systemName: "exclamationmark.triangle")
                                     .foregroundStyle(.orange)

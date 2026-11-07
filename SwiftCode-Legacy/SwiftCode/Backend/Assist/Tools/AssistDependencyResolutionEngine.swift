@@ -30,7 +30,6 @@ public struct AssistDependencyResolutionEngine: AssistTool {
         guard let located = AssistXcodeProjectResolver.locate(in: context.workspaceRoot) else {
             return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root; cannot resolve package dependencies.")
         }
-        // Argument vector — never a shell string.
         let args = located.xcodebuildArgs + ["-resolvePackageDependencies"]
         let run: AssistArgvRunner.Result
         do {

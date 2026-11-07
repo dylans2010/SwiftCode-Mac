@@ -1,38 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/AssistRemoteFetchSupport.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/Tools/Support/AssistRemoteFetchSupport.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - AssistURLGuard initial-URL validation (blocked hostnames, IP-literal hosts, allowed-host allowlist) as a reusable guard — EnginesHTTP only guards redirects, and external_resource_gateway enforces HTTPS-only per-call
-//   - Streaming response-size cap during transfer (CappedDataDelegate) — destination enforces the cap after the full body is downloaded
-//   - General TTL response cache (AssistRemoteResponseCache) as a reusable type — only fetch_documentation's 24 h cache survives; GitHub rate-limit parsing is covered by GitHubRateLimit.parse
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/Support/SwiftCodeTools+EnginesSupport.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
 import Foundation
 
-// MARK: - Shared secure-fetch infrastructure for network-backed Assist tools.
-//
-//  Used by `fetch_documentation` (Apple Developer documentation) and
-//  `github_repo` (GitHub REST API). Centralizes the security contract so both
-//  tools share one audited implementation:
-//
-//    - HTTPS only, approved-host allow-list, per-hop redirect validation
-//    - SSRF protection: literal IPs, localhost/private names, userinfo and
-//      explicit ports are all rejected before any request is issued
-//    - Per-request timeouts and response-size caps enforced *during* transfer
-//    - Cooperative Task cancellation at every await boundary
-//    - Bounded in-memory response cache with TTL
-//    - Rate-limit header parsing (GitHub)
-//    - Never logs or surfaces credentials; error strings are model-safe
-//
-//  Retrieved content is treated as untrusted data by the callers: it is
-//  returned inside the tool result payload and must never override system
-//  instructions or authorize further tool use.
-
-/// Model-safe, credential-free fetch errors.
 public enum AssistRemoteFetchError: Error, Sendable, LocalizedError {
     case invalidURL(String)
     case disallowedScheme(String)
@@ -72,10 +39,7 @@ public enum AssistRemoteFetchError: Error, Sendable, LocalizedError {
     }
 }
 
-// MARK: - URL safety (SSRF protection)
-
 public enum AssistURLGuard: Sendable {
-    /// Hostnames that can never be fetched: loopback, private DNS suffixes.
     public static func isBlockedName(_ host: String) -> Bool {
         let h = host.lowercased()
         if h == "localhost" || h.hasSuffix(".localhost") { return true }
@@ -85,9 +49,6 @@ public enum AssistURLGuard: Sendable {
         return false
     }
 
-    /// True for IPv4 literals (1.2.3.4) and IPv6 literals (contain ':').
-    /// Literal IPs are never fetched: they bypass DNS-based allow-listing and
-    /// can reach link-local/metadata endpoints (e.g. 169.254.169.254).
     public static func isIPAddressLiteral(_ host: String) -> Bool {
         if host.contains(":") { return true }
         let parts = host.split(separator: ".")
@@ -98,8 +59,6 @@ public enum AssistURLGuard: Sendable {
         }
     }
 
-    /// Full pre-flight validation. Throws a model-safe error naming only the
-    /// reason and (for host errors) the host — never credentials or paths.
     public static func validate(_ url: URL, allowedHosts: Set<String>) throws {
         guard let scheme = url.scheme?.lowercased(), scheme == "https" else {
             throw AssistRemoteFetchError.disallowedScheme(url.scheme ?? "(none)")
@@ -126,8 +85,6 @@ public enum AssistURLGuard: Sendable {
     }
 }
 
-// MARK: - Fetch options
-
 public struct AssistFetchOptions: Sendable {
     public var timeout: TimeInterval = 30
     public var maxResponseBytes: Int = 2_000_000
@@ -135,15 +92,11 @@ public struct AssistFetchOptions: Sendable {
     public var allowedHosts: Set<String> = []
     public var userAgent: String = "SwiftCode-Assist/1.0 (macOS; +https://developer.apple.com)"
     public var extraHeaders: [String: String] = [:]
-    /// Expected content-type prefixes, e.g. ["application/json"]. Empty = any.
     public var acceptedContentTypes: [String] = []
-    /// Fail fast when the declared Content-Length already exceeds the cap.
     public var enforceDeclaredLength: Bool = true
 
     public init() {}
 }
-
-// MARK: - Response
 
 public struct AssistHTTPResponse: Sendable {
     public let data: Data
@@ -156,7 +109,6 @@ public struct AssistHTTPResponse: Sendable {
         httpResponse.value(forHTTPHeaderField: name)
     }
 
-    /// Content-Type with parameters stripped and lowercased.
     public var contentType: String? {
         guard let raw = header("Content-Type") else { return nil }
         return raw.split(separator: ";").first.map {
@@ -168,8 +120,6 @@ public struct AssistHTTPResponse: Sendable {
         String(data: data, encoding: .utf8)
     }
 }
-
-// MARK: - Rate-limit parsing (GitHub)
 
 public struct AssistRateLimitInfo: Sendable {
     public let limit: Int?
@@ -194,9 +144,6 @@ public struct AssistRateLimitInfo: Sendable {
     }
 }
 
-// MARK: - Secure client
-
-/// HTTPS client with redirect validation, SSRF guards, size caps and caching.
 public final class AssistSecureHTTPClient: Sendable {
     public static let shared = AssistSecureHTTPClient()
 
@@ -208,11 +155,9 @@ public final class AssistSecureHTTPClient: Sendable {
         config.timeoutIntervalForResource = 120
         config.httpShouldSetCookies = false
         config.httpCookieAcceptPolicy = .never
-        // Redirects are validated per-hop by CappedDataDelegate.
         self.session = URLSession(configuration: config)
     }
 
-    /// Performs a GET with full validation. Throws AssistRemoteFetchError.
     public func get(_ url: URL, options: AssistFetchOptions) async throws -> AssistHTTPResponse {
         try Task.checkCancellation()
         try AssistURLGuard.validate(url, allowedHosts: options.allowedHosts)
@@ -235,14 +180,10 @@ public final class AssistSecureHTTPClient: Sendable {
 
         let (response, finalURL): (URLResponse, URL)
         do {
-            // The delegate accumulates the body with an enforced byte cap and
-            // validates every redirect hop against the allow-list.
             let result = try await session.data(for: request, delegate: delegate)
             response = result.1
             finalURL = delegate.finalURL ?? url
         } catch is CancellationError {
-            // A redirect-validation failure cancels the task: surface the
-            // specific stashed reason instead of a generic cancellation.
             if let redirectError = delegate.redirectError { throw redirectError }
             throw AssistRemoteFetchError.cancelled
         } catch let urlError as URLError where urlError.code == .timedOut {
@@ -266,7 +207,6 @@ public final class AssistSecureHTTPClient: Sendable {
         }
         let data = delegate.body
 
-        // Content-type gate (when the caller declared expectations).
         if !options.acceptedContentTypes.isEmpty {
             let actual = (http.value(forHTTPHeaderField: "Content-Type") ?? "")
                 .split(separator: ";").first.map {
@@ -278,8 +218,6 @@ public final class AssistSecureHTTPClient: Sendable {
             }
         }
 
-        // Rate-limit exhaustion is reported distinctly so the tool can surface
-        // reset timing instead of retrying blindly.
         let rate = AssistRateLimitInfo.parse(from: http)
         if http.statusCode == 429 || (http.statusCode == 403 && rate.isExhausted) {
             throw AssistRemoteFetchError.rateLimited(resetAt: rate.resetAt)
@@ -287,8 +225,6 @@ public final class AssistSecureHTTPClient: Sendable {
 
         guard (200...299).contains(http.statusCode) else {
             var detail: String? = nil
-            // 512-byte peek at the error body for a GitHub-style message;
-            // truncated for the message only, never presented as content.
             if let body = String(data: data.prefix(512), encoding: .utf8), !body.isEmpty {
                 detail = Self.githubStyleMessage(from: body, status: http.statusCode)
             }
@@ -298,8 +234,6 @@ public final class AssistSecureHTTPClient: Sendable {
         return AssistHTTPResponse(data: data, httpResponse: http, finalURL: finalURL)
     }
 
-    /// Extracts a short, safe message from a GitHub-style JSON error body.
-    /// Never returns raw bodies: they may contain request IDs or internals.
     private static func githubStyleMessage(from body: String, status: Int) -> String {
         guard let data = body.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -310,8 +244,6 @@ public final class AssistSecureHTTPClient: Sendable {
         return trimmed.isEmpty ? "HTTP \(status)" : "HTTP \(status): \(String(trimmed.prefix(300)))"
     }
 }
-
-// MARK: - Delegate: redirect validation + capped body accumulation
 
 private final class CappedDataDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let options: AssistFetchOptions
@@ -331,8 +263,6 @@ private final class CappedDataDelegate: NSObject, URLSessionDataDelegate, @unche
         self.options = options
     }
 
-    // Redirects: validate every hop — https, no userinfo/port, no IP/local
-    // host, and the host must stay on the allow-list.
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -352,9 +282,6 @@ private final class CappedDataDelegate: NSObject, URLSessionDataDelegate, @unche
             lock.withLock { _finalURL = target }
             completionHandler(request)
         } catch {
-            // Stash the specific reason, then cancel: never follow an
-            // unvalidated redirect. get() rethrows the stashed error so the
-            // model sees "redirect to disallowed host", not "cancelled".
             let fetchError = (error as? AssistRemoteFetchError) ?? .network(error.localizedDescription)
             lock.withLock { _redirectError = fetchError }
             completionHandler(nil)
@@ -397,11 +324,6 @@ private final class CappedDataDelegate: NSObject, URLSessionDataDelegate, @unche
     }
 }
 
-// MARK: - Bounded TTL response cache
-
-/// In-memory GET cache with TTL and an entry cap. Keys are canonical URL
-/// strings; values never include credentials (Authorization headers are not
-/// part of the cache key — callers must namespace keys when auth varies).
 public actor AssistRemoteResponseCache {
     public struct Entry: Sendable {
         public let data: Data
@@ -431,7 +353,6 @@ public actor AssistRemoteResponseCache {
 
     public func set(_ key: String, data: Data, contentType: String?, finalURL: URL, statusCode: Int, ttl: TimeInterval? = nil) {
         if store.count >= maxEntries, store[key] == nil {
-            // Evict the entry expiring soonest.
             if let oldest = store.min(by: { $0.value.expiresAt < $1.value.expiresAt })?.key {
                 store.removeValue(forKey: oldest)
             }
@@ -450,9 +371,7 @@ public actor AssistRemoteResponseCache {
     }
 }
 
-// MARK: - Small JSON conveniences
-
-public enum AssistJSON: Sendable {    /// Parses JSON data into a Foundation object; throws a model-safe error.
+public enum AssistJSON: Sendable {
     public static func parse(_ data: Data) throws -> Any {
         do {
             return try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
@@ -469,7 +388,6 @@ public enum AssistJSON: Sendable {    /// Parses JSON data into a Foundation obj
         value as? [Any]
     }
 
-    /// Joins DocC-style rich-text spans ([{"text": ...}]) into plain text.
     public static func richText(_ value: Any?) -> String {
         guard let spans = value as? [[String: Any]] else {
             if let s = value as? String { return s }
@@ -479,11 +397,6 @@ public enum AssistJSON: Sendable {    /// Parses JSON data into a Foundation obj
     }
 }
 
-// MARK: - Tool input numerics
-
-/// Lenient integer extraction for tool arguments: model-provided numbers may
-/// arrive as Int, Double (JSON), or numeric strings. Mirrors the established
-/// AssistReadFileTool.parseLineNumber convention.
 public enum AssistInputNumbers: Sendable {
     public static func integer(_ value: Any?) -> Int? {
         if let i = value as? Int { return i }

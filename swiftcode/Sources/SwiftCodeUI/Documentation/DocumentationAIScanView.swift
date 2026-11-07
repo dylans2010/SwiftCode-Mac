@@ -1,15 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Features/AdvancedTools/Views/DocumentationAIScanView.swift
-//
-// Adapted for SwiftCode: Legacy asked `LLMService.shared` (which
-// does not exist here) with a hardcoded model path. The question
-// now goes through the injected `AssistantProvider` — the same
-// `ChatRequest` / `send(_:)` seam `DocumentationAnalyzer` uses —
-// with the provider's default model unless `model` is given.
-// The system prompt, the on-device fallback text and the rest of
-// the view are verbatim. `MarkdownBlockListView` /
-// `MarkdownParser` / `.liquidGlass` already exist here.
-
 import AppKit
 import SwiftCodeAssistant
 import SwiftUI
@@ -32,10 +20,7 @@ public struct LocalChatMsg: Identifiable, Sendable, Hashable {
 public struct DocumentationAIScanView: View {
     public let documentTitle: String
     public let scannedContent: String
-    /// Injected: the assistant back end to ask (Legacy used the
-    /// missing `LLMService.shared`).
     public let provider: AssistantProvider
-    /// Model id, or nil for the provider's default.
     public let model: String?
 
     public init(documentTitle: String, scannedContent: String, provider: AssistantProvider, model: String? = nil) {
@@ -75,7 +60,6 @@ public struct DocumentationAIScanView: View {
                     .transition(.opacity)
                 } else {
                     VStack(spacing: 0) {
-                        // Chat History / Initial Prompt
                         ScrollViewReader { proxy in
                             ScrollView {
                                 VStack(spacing: 16) {
@@ -173,7 +157,6 @@ public struct DocumentationAIScanView: View {
 
                 Divider()
 
-                // Input Bar
                 HStack(spacing: 12) {
                     TextField("Ask anything about this document...", text: $questionText)
                         .textFieldStyle(.plain)
@@ -254,7 +237,6 @@ Answer the user's questions based on this document and your expert Apple SDK kno
                 isProcessing = false
                 chatHistory.append(LocalChatMsg(isUser: false, content: response))
             } catch {
-                // Offline on-device analysis fallback
                 let fallback = """
 ### On-Device Document Analysis
 **Query:** \(question)

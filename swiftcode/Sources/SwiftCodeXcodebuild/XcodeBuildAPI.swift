@@ -1,54 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Build/XcodeBuildAPI.swift (commit d51a8f0d)
-//
-// Adapted for SwiftCode (macOS-only, like IPABuildService in this
-// target — xcodebuild, Homebrew and XcodeGen only exist there).
-// Legacy's class was an @Observable @MainActor orchestrator wired
-// into Legacy's app state; the managers it read do not exist in
-// SwiftCode, so the wiring is replaced with injected configuration
-// and the destination's own process conventions:
-//
-// - DocumentCoordinator / ProjectSessionStore / CodingManager
-//   (Legacy's "current workspace / project / editor" sources):
-//   replaced by an injected `projectRoot`. Discovery searches
-//   that root, then its ancestors (Legacy's findWorkspaceAncestor
-//   behaviour). `determineActiveWorkspace` is dropped: its return
-//   type is the destination's SwiftCodeWorkspace.Workspace, a
-//   different type from Legacy's Workspace.
-// - XcodeBuildManager (selected scheme/configuration/destination,
-//   xcodebuild path, toolchain, runBuild, buildLogs, status,
-//   cancelBuild): replaced by the injected selectedScheme /
-//   selectedConfiguration / selectedDestination properties, by
-//   the xcodebuild path convention IPABuildService uses
-//   (UserDefaults "xcodebuild_executable_path", else
-//   /usr/bin/xcodebuild), and by running xcodebuild directly
-//   (see buildProject). Destination resolution no longer uses
-//   the missing BuildDestinationResolver: the SDK is derived
-//   from the destination string with Legacy's own substring
-//   rules (simulator/iPhone/watch/tv/xr/macOS).
-// - ProcessRunnerTool: replaced by runProcess below (Foundation
-//   Process + Task.detached, the pattern IPABuildService uses in
-//   this target). The running build's Process is kept so
-//   cancelBuild can terminate it, as Legacy's delegated cancel did.
-// - UnifiedLogger: dropped from logStage — it lives in
-//   SwiftCodeIDECore, which depends on this target (a cycle).
-//   os.log (Logger) is kept.
-// - ProjectSessionStore.refreshFileTree: replaced by the injected
-//   `onFileTreeRefresh` callback.
-// - Legacy's BuildResult/BuildStatus are kept as NESTED types
-//   (XcodeBuildAPI.BuildResult) because the destination's
-//   SwiftCodeBuild.BuildResult is a different shape
-//   (status/exitCode/issues) and both modules are imported
-//   together elsewhere; a top-level duplicate would make the
-//   name ambiguous. Discovery returns the nested
-//   DiscoveredProject (Legacy's XcodeProject shape) because a
-//   top-level XcodeProject already exists nested in this
-//   target's XcodeProjectPluginSource.swift.
-// - The AppEntry/ContentView occurrences in Legacy are SwiftUI
-//   template TEXT inside string literals written to generated
-//   main.swift files; they are kept as text only. No ContentView
-//   type is ported.
-
 #if os(macOS)
 
 import Foundation
@@ -60,9 +9,6 @@ private let logger = Logger(subsystem: "com.swiftcode.Build", category: "XcodeBu
 @Observable
 @MainActor
 public final class XcodeBuildAPI: Sendable {
-    /// The project container discovery found (Legacy's XcodeProject
-    /// shape: container URL, display name, schemes). Nested because a
-    /// top-level `XcodeProject` already exists in this target.
     public struct DiscoveredProject: Sendable, Codable, Hashable, Identifiable {
         public var id: URL { url }
         public let url: URL
@@ -76,9 +22,6 @@ public final class XcodeBuildAPI: Sendable {
         }
     }
 
-    /// The outcome of a build: Legacy's BuildResult shape
-    /// (status / .app bundle / diagnostics / log lines). Nested
-    /// because SwiftCodeBuild.BuildResult is a different type.
     public struct BuildResult: Sendable, Codable {
         public let status: BuildStatus
         public let appBundleURL: URL?
@@ -101,30 +44,18 @@ public final class XcodeBuildAPI: Sendable {
 
     public static let shared = XcodeBuildAPI()
 
-    // Injected configuration (Legacy read all of this from its app
-    // state managers on every call).
-    /// The project root discovery and path resolution start from.
     public var projectRoot: URL
-    /// The scheme to build (nil = first discovered scheme).
     public var selectedScheme: String?
-    /// "Debug" or "Release" (anything else reads as Debug, as in Legacy).
     public var selectedConfiguration: String
-    /// The `xcodebuild -destination` string, e.g. "platform=macOS".
     public var selectedDestination: String
-    /// The bundle identifier for generated projects (nil = com.example.<name>).
     public var bundleIdentifier: String?
-    /// Saved destination SDKs for generated project.yml files.
     public var destinations: [String]?
-    /// Called after a generation step changes the project structure
-    /// on disk (Legacy called ProjectSessionStore.refreshFileTree).
     @ObservationIgnored public var onFileTreeRefresh: (@Sendable () -> Void)?
 
-    // Shared State & Configurations
     public private(set) var currentLogs: [String] = []
     public private(set) var isExecuting = false
     public private(set) var currentStage = ""
 
-    // XcodeGen Integration Properties
     public var showProjectGenerationUI = false
     public private(set) var xcodegenState: XcodeGenInstallationState = .missing
     public private(set) var installationStatusString = ""
@@ -157,16 +88,10 @@ public final class XcodeBuildAPI: Sendable {
         self.onFileTreeRefresh = onFileTreeRefresh
     }
 
-    /// The xcodebuild executable: the Build Center override when
-    /// set, else /usr/bin/xcodebuild (the IPABuildService
-    /// convention; Legacy read it from XcodeBuildManager).
     private static func xcodebuildPath() -> String {
         UserDefaults.standard.string(forKey: "xcodebuild_executable_path") ?? "/usr/bin/xcodebuild"
     }
 
-    // MARK: - Project Discovery & Existence Check
-
-    /// Checks if a valid .xcodeproj or .xcworkspace is present anywhere in our resolved path hierarchy.
     public func hasWorkspaceOrXcodeproj() -> Bool {
         logStage("Checking for existing project")
         let fm = FileManager.default
@@ -185,10 +110,6 @@ public final class XcodeBuildAPI: Sendable {
         return false
     }
 
-    /// Discovers the active project: the container at the project
-    /// root, else the nearest ancestor that holds one. (Legacy
-    /// also searched its workspace / editor / projects-directory
-    /// state; those sources do not exist in SwiftCode.)
     public func discoverActiveProject() -> DiscoveredProject? {
         logger.info("Starting project discovery...")
 
@@ -214,22 +135,17 @@ public final class XcodeBuildAPI: Sendable {
         do {
             let contents = try fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
 
-            // Look for .xcworkspace
             if let workspaceURL = contents.first(where: { $0.pathExtension == "xcworkspace" }) {
-                // Discover schemes inside
                 let schemes = discoverSchemes(at: workspaceURL)
                 return DiscoveredProject(url: workspaceURL, name: workspaceURL.deletingPathExtension().lastPathComponent, schemes: schemes)
             }
 
-            // Look for .xcodeproj
             if let xcodeprojURL = contents.first(where: { $0.pathExtension == "xcodeproj" }) {
                 let schemes = discoverSchemes(at: xcodeprojURL)
                 return DiscoveredProject(url: xcodeprojURL, name: xcodeprojURL.deletingPathExtension().lastPathComponent, schemes: schemes)
             }
 
-            // Look for Package.swift
             if let packageURL = contents.first(where: { $0.lastPathComponent == "Package.swift" }) {
-                // For Package.swift, scheme is usually same as name of the directory
                 let schemeName = url.lastPathComponent
                 return DiscoveredProject(url: packageURL, name: schemeName, schemes: [SchemeMetadata(name: schemeName)])
             }
@@ -263,7 +179,6 @@ public final class XcodeBuildAPI: Sendable {
         let fm = FileManager.default
         var schemes = Set<String>()
 
-        // Scan for xcshareddata/xcschemes or xcschemes
         if let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
             while let fileURL = enumerator.nextObject() as? URL {
                 if fileURL.pathExtension == "xcscheme" {
@@ -278,8 +193,6 @@ public final class XcodeBuildAPI: Sendable {
 
         return schemes.sorted().map { SchemeMetadata(name: $0) }
     }
-
-    // MARK: - Auto-resolved Path Configurations
 
     public func resolveProjectRoot() -> URL {
         projectRoot
@@ -296,7 +209,7 @@ public final class XcodeBuildAPI: Sendable {
                 return dir
             }
         }
-        return "Sources" // default fallback
+        return "Sources"
     }
 
     public func resolveResourcesDirectory() -> String? {
@@ -333,8 +246,6 @@ public final class XcodeBuildAPI: Sendable {
         }
         return paths
     }
-
-    // MARK: - Active Project Configuration Discovery
 
     public func determineActiveProject() -> DiscoveredProject? {
         return discoverActiveProject()
@@ -387,7 +298,6 @@ public final class XcodeBuildAPI: Sendable {
             proj.url.appendingPathComponent("build/DerivedData/Build/Products")
         ]
 
-        // Standard Xcode DerivedData fallback
         let homeDir = fm.homeDirectoryForCurrentUser
         let xcodeDerivedData = homeDir.appendingPathComponent("Library/Developer/Xcode/DerivedData")
         if let ddEntries = try? fm.contentsOfDirectory(at: xcodeDerivedData, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
@@ -406,7 +316,6 @@ public final class XcodeBuildAPI: Sendable {
             }
         }
 
-        // Fallback to managed sandbox builds folder
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let buildsDir = appSupport.appendingPathComponent("SwiftCode/Builds/\(proj.name)")
         if let items = try? fm.contentsOfDirectory(at: buildsDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
@@ -427,8 +336,6 @@ public final class XcodeBuildAPI: Sendable {
             path: proj.url
         )
     }
-
-    // MARK: - Validation & Environment
 
     public func validateBuildEnvironment() async -> EnvironmentValidation {
         currentStage = "Validating build environment..."
@@ -453,9 +360,6 @@ public final class XcodeBuildAPI: Sendable {
         )
     }
 
-    /// The first line of `xcodebuild -version` ("Xcode 27.1 ..."),
-    /// or "unknown" when xcodebuild cannot run. (Legacy read this
-    /// from XcodeBuildManager.)
     private func activeToolchainDescription() async -> String {
         guard let result = try? await runProcess(executable: Self.xcodebuildPath(), arguments: ["-version"], workingDirectory: nil),
               result.exitCode == 0,
@@ -465,9 +369,6 @@ public final class XcodeBuildAPI: Sendable {
         return String(firstLine)
     }
 
-    /// The SDK for a `-destination` string, with Legacy's own
-    /// substring rules from buildProject's resolver branch
-    /// (Legacy resolved this through BuildDestinationResolver).
     private func sdkForDestination(_ destination: String) -> String {
         let lower = destination.lowercased()
         if lower.contains("simulator") {
@@ -480,8 +381,6 @@ public final class XcodeBuildAPI: Sendable {
         if lower.contains("iphone") || lower.contains("ios") { return "iphoneos" }
         return "macosx"
     }
-
-    // MARK: - XcodeGen Detection & Installation
 
     public func checkXcodeGenInstallation() async -> XcodeGenInstallationState {
         logStage("Checking XcodeGen")
@@ -622,8 +521,6 @@ public final class XcodeBuildAPI: Sendable {
         }
     }
 
-    // MARK: - Project Generation (XcodeGen)
-
     public func generateProjectWithXcodeGen(
         projectName: String,
         scheme: String,
@@ -655,9 +552,6 @@ public final class XcodeBuildAPI: Sendable {
             }
         }
 
-        // Write main.swift template if missing. (The AppEntry /
-        // ContentView below are template TEXT written to the file,
-        // not types in this file.)
         let mainSwift = sourceURL.appendingPathComponent("main.swift")
         if !fm.fileExists(atPath: mainSwift.path) {
             let templateMain = """
@@ -687,7 +581,6 @@ struct ContentView: View {
             }
         }
 
-        // Generate Info.plist if missing
         let infoPlistURL = rootURL.appendingPathComponent("Info.plist")
         if !fm.fileExists(atPath: infoPlistURL.path) {
             let plistContent = """
@@ -709,13 +602,11 @@ struct ContentView: View {
             try? plistContent.write(to: infoPlistURL, atomically: true, encoding: .utf8)
         }
 
-        // Load project.yml template
         var templateContent = ""
         if let templateURL = Bundle.main.url(forResource: "project", withExtension: "yml"),
            let loaded = try? String(contentsOf: templateURL, encoding: .utf8) {
             templateContent = loaded
         } else {
-            // Robust fallback template
             templateContent = """
 name: __PROJECT_NAME__
 options:
@@ -863,9 +754,6 @@ schemes:
         }
     }
 
-    // MARK: - Project Generation (Tuist / Fallback)
-
-    /// Generates an Xcode project using Tuist or falls back to Package.swift/SPM or template generation.
     public func generateProject(projectName: String, scheme: String, bundleIdentifier: String, targetURL: URL) async -> GenerationResult {
         isExecuting = true
         currentStage = "Generating Xcode Project..."
@@ -874,12 +762,10 @@ schemes:
 
         let fm = FileManager.default
 
-        // Ensure the directory exists
         if !fm.fileExists(atPath: targetURL.path) {
             try? fm.createDirectory(at: targetURL, withIntermediateDirectories: true)
         }
 
-        // 1. Check if Tuist is available to generate
         let tuistPaths = ["/usr/local/bin/tuist", "/opt/homebrew/bin/tuist", "/usr/bin/tuist"]
         var resolvedTuist: String? = nil
         for path in tuistPaths {
@@ -892,7 +778,6 @@ schemes:
         if let tuistPath = resolvedTuist {
             appendLog("[SYSTEM] Discovered Tuist at \(tuistPath). Creating Project.swift config...")
 
-            // Generate Project.swift
             let projectSwiftContent = """
 import ProjectDescription
 
@@ -914,13 +799,11 @@ let project = Project(
             let projectSwiftURL = targetURL.appendingPathComponent("Project.swift")
             try? projectSwiftContent.write(to: projectSwiftURL, atomically: true, encoding: .utf8)
 
-            // Generate basic directories if not existing
             let sourcesDir = targetURL.appendingPathComponent("Sources")
             try? fm.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
 
             let mainSwift = sourcesDir.appendingPathComponent("main.swift")
             if !fm.fileExists(atPath: mainSwift.path) {
-                // AppEntry / ContentView here are template text, not types.
                 let templateMain = """
 import SwiftUI
 
@@ -968,7 +851,6 @@ struct ContentView: View {
             }
         }
 
-        // 2. Fallback: Generate standard SPM Package.swift & optionally use swift package generate-xcodeproj (if available)
         appendLog("[SYSTEM] Generating SPM Package.swift manifest...")
         let packageSwiftContent = """
 // swift-tools-version: 6.0
@@ -1015,7 +897,6 @@ struct AppEntry: App {
             try? templateMain.write(to: mainSwift, atomically: true, encoding: .utf8)
         }
 
-        // Run generate-xcodeproj if swift toolchain is present
         let swiftPath = "/usr/bin/swift"
         if fm.fileExists(atPath: swiftPath) {
             appendLog("[SYSTEM] Invoking 'swift package generate-xcodeproj'...")
@@ -1036,21 +917,11 @@ struct AppEntry: App {
             }
         }
 
-        // If xcodeproj generation fails but Package.swift is written successfully, return Package.swift as project URL
         isExecuting = false
         appendLog("[SYSTEM] Setup completed with Package.swift.")
         return GenerationResult(success: true, generatedProjectPath: packageSwiftURL, errorDescription: nil)
     }
 
-    // MARK: - Build Execution
-
-    /// Builds the discovered project with xcodebuild. (Legacy
-    /// delegated this to XcodeBuildManager.runBuild and read its
-    /// shared log/status state; that manager does not exist in
-    /// SwiftCode, so xcodebuild is run directly here and the
-    /// status is derived from its exit code. The generation
-    /// gate, scheme validation, diagnostics scan and .app
-    /// discovery are Legacy's.)
     public func buildProject() async -> BuildResult {
         guard !isExecuting else {
             return BuildResult(status: .cancelled, appBundleURL: nil, diagnostics: [], logs: BuildLogs(lines: ["Build already in progress."]))
@@ -1061,13 +932,11 @@ struct AppEntry: App {
         currentStage = "Building Project..."
         currentLogs.removeAll()
 
-        // 1. Check for existing project (.xcworkspace or .xcodeproj)
         let projectExists = hasWorkspaceOrXcodeproj()
         if !projectExists {
             appendLog("[SYSTEM] No existing .xcworkspace or .xcodeproj located. Transitioning to project generation workflow...")
             showProjectGenerationUI = true
 
-            // Suspend until completed or cancelled
             let success = await withCheckedContinuation { continuation in
                 self.generationContinuation = continuation
             }
@@ -1083,7 +952,6 @@ struct AppEntry: App {
                 )
             }
 
-            // Verify project now exists
             let verified = hasWorkspaceOrXcodeproj()
             if !verified {
                 isExecuting = false
@@ -1110,7 +978,6 @@ struct AppEntry: App {
             )
         }
 
-        // Validate scheme
         let activeScheme = determineActiveScheme()?.name ?? project.name
         guard project.schemes.contains(where: { $0.name == activeScheme }) else {
             isExecuting = false
@@ -1127,8 +994,6 @@ struct AppEntry: App {
         let resolvedSDK = sdkForDestination(resolvedDestString)
         appendLog("[SYSTEM] Resolved SDK: \(resolvedSDK) and destination: \(resolvedDestString)")
 
-        // Run the build. A Package.swift container builds with
-        // `swift build`; a project/workspace builds with xcodebuild.
         let projectDir = project.url.deletingLastPathComponent()
         let buildOutput: ProcessResult
         do {
@@ -1166,7 +1031,6 @@ struct AppEntry: App {
             )
         }
 
-        // Stream the output into our current logs for consistency.
         currentLogs = buildOutput.stdout.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         if !buildOutput.stderr.isEmpty {
             currentLogs.append(contentsOf: buildOutput.stderr.split(separator: "\n", omittingEmptySubsequences: false).map { "[ERROR] \($0)" })
@@ -1180,7 +1044,6 @@ struct AppEntry: App {
         }
         isExecuting = false
 
-        // Parse basic diagnostics
         var diagnostics: [BuildDiagnostics] = []
         for log in currentLogs {
             if log.lowercased().contains("error:") {
@@ -1198,8 +1061,6 @@ struct AppEntry: App {
         )
     }
 
-    // MARK: - Clean Execution
-
     public func cleanProject() async -> Bool {
         guard !isExecuting else { return false }
         isExecuting = true
@@ -1216,7 +1077,6 @@ struct AppEntry: App {
         let xcodebuild = Self.xcodebuildPath()
         let derivedData = determineDerivedDataLocation()
 
-        // 1. Delete DerivedData folder
         let fm = FileManager.default
         if fm.fileExists(atPath: derivedData.path) {
             do {
@@ -1227,7 +1087,6 @@ struct AppEntry: App {
             }
         }
 
-        // 2. Execute xcodebuild clean
         do {
             let result = try await runProcess(
                 executable: xcodebuild,
@@ -1251,9 +1110,6 @@ struct AppEntry: App {
         }
     }
 
-    // MARK: - Visual UI Document Discovery
-
-    /// Scans the entire active project to locate Swift files containing `@SwiftCodeVisualUIBuilderDocument`.
     public func scanForVisualUIDocuments() async -> [URL] {
         guard let project = discoverActiveProject() else { return [] }
         let projectDir = project.url.deletingLastPathComponent()
@@ -1274,19 +1130,12 @@ struct AppEntry: App {
         return documents.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    // MARK: - Cancel Execution
-
-    /// Terminates the running build process, if any. (Legacy
-    /// delegated to XcodeBuildManager.cancelBuild; the process
-    /// handle is kept here instead.)
     public func cancelBuild() {
         buildCancelled = true
         currentProcessBox?.terminate()
         isExecuting = false
         currentStage = "Cancelled"
     }
-
-    // MARK: - Logging helpers
 
     private func appendLog(_ log: String) {
         currentLogs.append(log)
@@ -1296,17 +1145,8 @@ struct AppEntry: App {
     private func logStage(_ stage: String) {
         currentStage = stage
         appendLog("[SYSTEM] Stage: \(stage)")
-        // Legacy also wrote to UnifiedLogger here; that type lives
-        // in SwiftCodeIDECore, which depends on this target, so it
-        // cannot be used from SwiftCodeXcodebuild.
     }
 
-    // MARK: - Process execution
-
-    /// Runs a tool to completion and captures its output. The
-    /// blocking wait happens in a detached task (never on the
-    /// MainActor), following the pattern IPABuildService uses in
-    /// this target. Throws only when the tool cannot start.
     private func runProcess(executable: String, arguments: [String], workingDirectory: URL?, registerForCancellation: Bool = false) async throws -> ProcessResult {
         let box = XcodeBuildProcessBox()
         if registerForCancellation { currentProcessBox = box }
@@ -1325,35 +1165,25 @@ struct AppEntry: App {
             process.standardError = errPipe
             box.process = process
             try process.run()
-            // stderr on its own thread (see Subprocess.run): reading
-            // the two pipes one after the other deadlocks when the
-            // child fills the second one first.
-            let errBox = ProcessDataBox()
-            let group = DispatchGroup()
-            group.enter()
-            Thread { errBox.data = errPipe.fileHandleForReading.readDataToEndOfFile(); group.leave() }.start()
+            async let errRead = Task.detached { errPipe.fileHandleForReading.readDataToEndOfFile() }.value
             let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-            group.wait()
+            let errData = await errRead
             process.waitUntilExit()
             return ProcessResult(
                 exitCode: process.terminationStatus,
                 stdout: String(decoding: outData, as: UTF8.self),
-                stderr: String(decoding: errBox.data, as: UTF8.self)
+                stderr: String(decoding: errData, as: UTF8.self)
             )
         }.value
     }
 }
 
-/// The captured output of one runProcess call.
 private struct ProcessResult: Sendable {
     var exitCode: Int32
     var stdout: String
     var stderr: String
 }
 
-/// A thread-safe holder for the currently running build process,
-/// so cancelBuild (MainActor) can terminate a process started in
-/// a detached task.
 private final class XcodeBuildProcessBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _process: Process?
@@ -1368,9 +1198,8 @@ private final class XcodeBuildProcessBox: @unchecked Sendable {
     }
 }
 
-/// A thread-safe holder for pipe data read on a helper thread.
 private final class ProcessDataBox: @unchecked Sendable {
     var data = Data()
 }
 
-#endif // os(macOS)
+#endif

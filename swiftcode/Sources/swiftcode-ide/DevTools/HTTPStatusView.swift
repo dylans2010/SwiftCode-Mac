@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct HTTPStatusView: View {
@@ -43,7 +40,6 @@ struct HTTPStatusView: View {
             TextField("Search status code or name...", text: $searchText)
                 .textFieldStyle(.roundedBorder)
                 .padding()
-                
 
             List(filteredStatuses, id: \.0) { status in
                 VStack(alignment: .leading, spacing: 4) {

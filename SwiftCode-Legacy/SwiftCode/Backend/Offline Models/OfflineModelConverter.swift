@@ -5,9 +5,6 @@ final class OfflineModelConverter: Sendable {
     private init() {}
 
     func convertIfNecessary(at url: URL) async throws {
-        // Detect format (Safetensors, GGUF) and convert to MLX if needed
-        // Since we don't have the actual conversion binaries in this environment,
-        // this is a logic shell.
         let fm = FileManager.default
         let contents = try fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
 
@@ -17,7 +14,6 @@ final class OfflineModelConverter: Sendable {
             return
         }
 
-        // Placeholder for actual conversion logic
         print("Converting model at \(url.path) to MLX format...")
     }
 }

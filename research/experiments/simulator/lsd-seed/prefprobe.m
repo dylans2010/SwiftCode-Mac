@@ -1,6 +1,3 @@
-// prefprobe: our probe (stage 7, agent I4). Writes one preference through
-// CFPreferences (cfprefsd), synchronizes, and reports whether the plist file
-// appeared under the home directory's Library/Preferences.
 #import <Foundation/Foundation.h>
 #include <sys/stat.h>
 int main(void) {

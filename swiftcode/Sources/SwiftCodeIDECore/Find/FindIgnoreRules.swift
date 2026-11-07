@@ -1,12 +1,6 @@
 import Foundation
 
-/// The files a workspace search skips inside folders: names that are
-/// never searched (version-control and build folders), and the patterns
-/// of `.gitignore` files and `.git/info/exclude` in the repository that
-/// holds the folder. See `specs/ide/navigators.md` §Find navigator,
-/// "SwiftCode implementation". Thread-safe; parsed files are cached.
 public final class FindIgnoreRules: @unchecked Sendable {
-    /// File and folder names never searched.
     public static let alwaysIgnored: Set<String> = [
         ".git", ".svn", ".hg", ".build", ".swiftpm", ".build-ide", "DerivedData", "xcuserdata", "node_modules", ".DS_Store",
     ]
@@ -15,11 +9,8 @@ public final class FindIgnoreRules: @unchecked Sendable {
         let regex: NSRegularExpression
         let negated: Bool
         let directoryOnly: Bool
-        /// The folder the pattern is relative to.
         let base: String
-        /// No "/" in the pattern: it is matched against the name alone.
         var nameOnly = false
-        /// Fast paths for a name pattern: the exact name, or "*<suffix>".
         var exactName: String?
         var nameSuffix: String?
 
@@ -36,7 +27,6 @@ public final class FindIgnoreRules: @unchecked Sendable {
         }
     }
 
-    /// Whether `.gitignore` files are read (the search can turn them off).
     public let readsGitIgnore: Bool
     private let lock = NSLock()
     private var patternsByDirectory: [String: [Pattern]] = [:]
@@ -45,11 +35,6 @@ public final class FindIgnoreRules: @unchecked Sendable {
 
     public init(readsGitIgnore: Bool = true) { self.readsGitIgnore = readsGitIgnore }
 
-    /// Whether a file (or folder) is skipped. Only the item itself is
-    /// judged: a search lists folders top-down and does not enter an
-    /// ignored one, and the folder it starts from is searched even when
-    /// an enclosing repository ignores it (a project opened from a build
-    /// folder).
     public func isIgnored(_ path: String, isDirectory: Bool = false) -> Bool {
         let name = (path as NSString).lastPathComponent
         if Self.alwaysIgnored.contains(name) { return true }
@@ -59,22 +44,16 @@ public final class FindIgnoreRules: @unchecked Sendable {
         return verdict(path, isDirectory: isDirectory, root: root)
     }
 
-    // MARK: Evaluation
-
-    /// The last pattern that matches decides; "!" patterns re-include.
     private func verdict(_ path: String, isDirectory: Bool, root: String) -> Bool {
         var ignored = false
         for p in patterns(along: (path as NSString).deletingLastPathComponent, root: root) {
             if p.directoryOnly && !isDirectory { continue }
-            // Only a pattern that could change the verdict is evaluated.
             if ignored != p.negated { continue }
             if p.matches(path: path) { ignored = !p.negated }
         }
         return ignored
     }
 
-    /// The patterns that apply to entries of `dir`: the repository's
-    /// exclude file, then each `.gitignore` from the root down.
     private func patterns(along dir: String, root: String) -> [Pattern] {
         if let cached = lock.withLock({ patternsAlong[dir] }) { return cached }
         var dirs: [String] = [dir]
@@ -96,7 +75,6 @@ public final class FindIgnoreRules: @unchecked Sendable {
         return parsed
     }
 
-    /// The nearest folder at or above `dir` that holds `.git`.
     private func repositoryRoot(of dir: String) -> String? {
         if let cached = lock.withLock({ repositoryRoots[dir] }) { return cached }
         var result: String?
@@ -110,11 +88,6 @@ public final class FindIgnoreRules: @unchecked Sendable {
         return result
     }
 
-    // MARK: Parsing
-
-    /// The patterns of one ignore file (gitignore syntax: `#` comments,
-    /// `!` negation, a trailing `/` for folders only, a `/` elsewhere
-    /// anchors the pattern to `base`, `*`, `?`, `[…]` and `**`).
     static func parse(_ text: String, base: String) -> [Pattern] {
         text.split(whereSeparator: \.isNewline).compactMap { raw -> Pattern? in
             var line = String(raw)
@@ -140,7 +113,6 @@ public final class FindIgnoreRules: @unchecked Sendable {
         }
     }
 
-    /// A gitignore glob as a regular expression (no anchors).
     static func globToRegex(_ glob: String) -> String {
         let c = Array(glob)
         var out = ""

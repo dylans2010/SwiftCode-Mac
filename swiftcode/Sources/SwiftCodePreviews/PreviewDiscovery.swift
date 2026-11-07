@@ -3,30 +3,19 @@ import Foundation
 import CoreGraphics
 #endif
 
-/// One preview declared in a Swift file. See `specs/ide/previews.md`.
 public struct PreviewDeclaration: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
-        /// `#Preview { … }`: the closure body.
         case macro(body: String)
-        /// A `PreviewProvider` type: its `previews` property is used.
         case provider(type: String)
     }
 
     public var name: String
     public var kind: Kind
-    /// `.fixedLayout(width:height:)`; nil = the view's fitting size.
     public var fixedSize: CGSize?
-    /// 1-based line of the declaration.
     public var line: Int
-    /// UTF-16 range of the whole `#Preview …` (for blanking it out).
     public var range: NSRange?
-    /// Whether the name was written (`#Preview("name")` or a provider).
     public var isNamed: Bool = true
-    /// The trait names written in the macro's `traits:` arguments
-    /// (`fixedLayout`, `sizeThatFitsLayout`, `landscapeLeft`, …), in order.
     public var traits: [String] = []
-    /// 1-based line of the body's opening brace (diagnostics in the body
-    /// map back from there); the declaration's line for a provider.
     public var bodyLine: Int
 
     public init(name: String, kind: Kind, fixedSize: CGSize?, line: Int, range: NSRange?, isNamed: Bool = true, traits: [String] = [],
@@ -41,45 +30,34 @@ public struct PreviewDeclaration: Equatable, Sendable {
         self.bodyLine = bodyLine ?? line
     }
 
-    /// How the preview is sized: the device's screen (the default), the
-    /// view's fitting size (`.sizeThatFitsLayout`), or a fixed size.
     public var layout: PreviewLayoutTrait {
         if let s = fixedSize { return .fixed(s) }
         return traits.contains("sizeThatFitsLayout") ? .sizeThatFits : .device
     }
 
-    /// The interface orientation the traits ask for (`.landscapeLeft`, …).
     public var orientation: PreviewOrientation {
         for t in traits { if let o = PreviewOrientation(rawValue: t) { return o } }
         return .portrait
     }
 
-    /// The canvas tab title (reference-ui-4.md §10): the written name,
-    /// else the view type the body starts with, else `name`.
     public var tabTitle: String {
         guard !isNamed, case .macro(let body) = kind else { return name }
         return PreviewDiscovery.leadingViewType(body) ?? name
     }
 }
 
-/// A preview's size trait.
 public enum PreviewLayoutTrait: Equatable, Sendable {
     case device
     case sizeThatFits
     case fixed(CGSize)
 }
 
-/// A preview's orientation trait (the trait's own name as raw value).
 public enum PreviewOrientation: String, Equatable, Sendable, CaseIterable {
     case portrait, portraitUpsideDown, landscapeLeft, landscapeRight
     public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
 }
 
-/// Finds the previews a Swift file declares, by scanning its text (no
-/// compiler). See `specs/ide/previews.md`.
 public enum PreviewDiscovery {
-    /// Finds `#Preview` macros and `PreviewProvider` types. Unnamed macros
-    /// are called `Preview`, `Preview 2`, … in file order.
     public static func previews(in text: String) -> [PreviewDeclaration] {
         let s = Array(text.utf16)
         var out: [PreviewDeclaration] = []
@@ -88,7 +66,6 @@ public enum PreviewDiscovery {
         func line(_ at: Int) -> Int { s[..<at].filter { $0 == 10 }.count + 1 }
         func skipSpace(_ j: inout Int) { while j < s.count, [32, 9, 10, 13].contains(s[j]) { j += 1 } }
         while i < s.count {
-            // Skip comments and string literals.
             if s[i] == 47, i + 1 < s.count, s[i + 1] == 47 { while i < s.count, s[i] != 10 { i += 1 }; continue }
             if s[i] == 47, i + 1 < s.count, s[i + 1] == 42 { i = closeComment(s, i); continue }
             if s[i] == 34 { i = closeString(s, i); continue }
@@ -99,7 +76,7 @@ public enum PreviewDiscovery {
                 var name: String?
                 var size: CGSize?
                 var traits: [String] = []
-                if j < s.count, s[j] == 40 /* ( */ {
+                if j < s.count, s[j] == 40  {
                     let close = matching(s, j, open: 40, close: 41)
                     let args = String(utf16CodeUnits: Array(s[(j + 1)..<max(j + 1, close - 1)]), count: max(0, close - 1 - (j + 1)))
                     name = firstStringLiteral(args)
@@ -108,7 +85,7 @@ public enum PreviewDiscovery {
                     j = close
                     skipSpace(&j)
                 }
-                guard j < s.count, s[j] == 123 /* { */ else { i = j; continue }
+                guard j < s.count, s[j] == 123  else { i = j; continue }
                 let end = matching(s, j, open: 123, close: 125)
                 let body = String(utf16CodeUnits: Array(s[(j + 1)..<(end - 1)]), count: end - 1 - (j + 1))
                 let named = name != nil
@@ -121,9 +98,6 @@ public enum PreviewDiscovery {
             }
             i += 1
         }
-        // PreviewProvider conformances: `struct X: PreviewProvider`.
-        // Searched in a copy with comments and string literals blanked,
-        // so a conformance inside either is not a preview.
         let code = codeOnly(text)
         let ns = code as NSString
         if let re = try? NSRegularExpression(pattern: "(?m)^\\s*(?:public\\s+|internal\\s+)?struct\\s+(\\w+)\\s*:[^{]*\\bPreviewProvider\\b") {
@@ -136,9 +110,6 @@ public enum PreviewDiscovery {
         return out.sorted { $0.line < $1.line }
     }
 
-    /// The first capitalized identifier of a body that is followed by `(`
-    /// or `{` (`Badge(text: "Hi")` → `Badge`), skipping `@Previewable`
-    /// lines and `let`/`var` declarations.
     public static func leadingViewType(_ body: String) -> String? {
         let code = codeOnly(body)
         for raw in code.split(separator: "\n") {
@@ -152,8 +123,6 @@ public enum PreviewDiscovery {
         return nil
     }
 
-    /// The text with comments and string literals replaced by spaces
-    /// (newlines kept), so offsets and line numbers are unchanged.
     public static func codeOnly(_ text: String) -> String {
         var s = Array(text.utf16)
         var i = 0
@@ -187,7 +156,6 @@ public enum PreviewDiscovery {
         return j
     }
 
-    /// The index after a string literal starting at `i` (`"…"` or `"""…"""`).
     static func closeString(_ s: [UInt16], _ i: Int) -> Int {
         if matches(s, i, "\"\"\"") {
             var j = i + 3
@@ -199,7 +167,6 @@ public enum PreviewDiscovery {
         return min(s.count, j + 1)
     }
 
-    /// The index after the bracket matching the one at `i`.
     static func matching(_ s: [UInt16], _ i: Int, open: UInt16, close: UInt16) -> Int {
         var j = i + 1, depth = 1
         while j < s.count {
@@ -214,7 +181,6 @@ public enum PreviewDiscovery {
 
     static func firstStringLiteral(_ args: String) -> String? {
         guard let a = args.firstIndex(of: "\"") else { return nil }
-        // Only when the literal is the first argument (the name).
         guard args[..<a].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         var out = ""
         var it = args[args.index(after: a)...].makeIterator()
@@ -229,9 +195,6 @@ public enum PreviewDiscovery {
         return nil
     }
 
-    /// The names after `.` in a `traits:` argument list (`traits:
-    /// .landscapeLeft, .fixedLayout(width: 1, height: 2)` → `landscapeLeft`,
-    /// `fixedLayout`); empty without `traits:`.
     static func traitNames(_ args: String) -> [String] {
         let code = codeOnly(args)
         guard let r = code.range(of: "traits:") else { return [] }
@@ -240,7 +203,6 @@ public enum PreviewDiscovery {
         var out: [String] = []
         var depth = 0
         var flat = ""
-        // Only top-level members: drop the text inside nested parentheses.
         for c in tail {
             if c == "(" { depth += 1; if depth == 1 { flat.append(" ") }; continue }
             if c == ")" { depth -= 1; continue }
@@ -259,10 +221,6 @@ public enum PreviewDiscovery {
         return CGSize(width: w, height: h)
     }
 
-    /// The text with every `#Preview` block and every entry-point attribute
-    /// (`@main`, `@UIApplicationMain`, `@NSApplicationMain`) replaced by
-    /// spaces (newlines kept): the copy compiles into a library without the
-    /// preview macros and without a second entry point.
     public static func blankingPreviewsAndEntryPoints(_ text: String) -> String {
         var units = Array(blankingPreviews(text).utf16)
         let code = Array(codeOnly(String(utf16CodeUnits: units, count: units.count)).utf16)
@@ -279,8 +237,6 @@ public enum PreviewDiscovery {
         return String(utf16CodeUnits: units, count: units.count)
     }
 
-    /// The text with every `#Preview` block replaced by spaces (newlines
-    /// kept), so copied sources compile without the preview macros.
     public static func blankingPreviews(_ text: String) -> String {
         var units = Array(text.utf16)
         for p in previews(in: text) {
@@ -291,16 +247,7 @@ public enum PreviewDiscovery {
     }
 }
 
-/// When the canvas area is drawn (`reference-ui-6.md` §4.4, E7 / E10):
-/// canvas mode is on in every new editor, and while it is on the canvas is
-/// drawn for a Swift file that declares a preview and left out for any
-/// other file. With canvas mode off (the user turned it off, or Assistant
-/// or Code Review is on) no canvas is drawn.
 extension PreviewDiscovery {
-    /// Whether a file's previews need UIKit, and so SwiftCode's iOS simulator
-    /// (issue #84): the file imports UIKit, or a `#Preview` body makes a
-    /// UIKit view or view controller (`UILabel(…)`, `UIViewController()`).
-    /// Comments and string literals do not count.
     public static func needsUIKit(text: String, previews: [PreviewDeclaration]? = nil) -> Bool {
         let code = codeOnly(text)
         for line in code.split(separator: "\n") {
@@ -319,16 +266,12 @@ extension PreviewDiscovery {
 public enum CanvasAutoShow {
     public enum Decision: Equatable, Sendable { case show, hide, keep }
 
-    /// Whether a file's text declares a preview (`#Preview` or a
-    /// `PreviewProvider`). Only Swift files have previews.
     public static func hasPreviews(fileName: String, text: String) -> Bool {
         guard (fileName as NSString).pathExtension == "swift",
               text.contains("#Preview") || text.contains("PreviewProvider") else { return false }
         return !PreviewDiscovery.previews(in: text).isEmpty
     }
 
-    /// What to do with the canvas: show it when canvas mode is on and the file
-    /// has previews, hide it otherwise, or keep it when it already matches.
     public static func decide(hasPreviews: Bool, canvasShown: Bool, canvasMode: Bool) -> Decision {
         let draw = canvasMode && hasPreviews
         if draw == canvasShown { return .keep }

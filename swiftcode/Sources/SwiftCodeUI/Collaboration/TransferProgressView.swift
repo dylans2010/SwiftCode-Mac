@@ -1,10 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Transfer Projects/TransferProgressView
-//
-// Verbatim apart from this header. `PeerSessionManager` /
-// `ProjectTransferManager` / `TransferSession` / `TransferPermission`
-// are in `SwiftCodeCollaboration`.
-
 import SwiftCodeCollaboration
 import SwiftUI
 

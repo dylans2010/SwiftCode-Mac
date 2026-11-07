@@ -6,7 +6,6 @@ struct SimulatorPreviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("SwiftUI Previews Workspace", systemImage: "eye.fill")
                     .font(.headline)
@@ -16,7 +15,6 @@ struct SimulatorPreviewView: View {
             .padding(.bottom, 16)
 
             HSplitView {
-                // Left properties and targets discoverer list
                 ScrollView {
                     VStack(spacing: 20) {
                         GroupBox {
@@ -71,7 +69,6 @@ struct SimulatorPreviewView: View {
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
                 .padding(.trailing, 12)
 
-                // Right canvas rendering
                 PreviewCanvasView()
                     .frame(minWidth: 400, idealWidth: 600, maxWidth: .infinity)
                     .padding(.leading, 12)

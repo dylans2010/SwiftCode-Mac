@@ -1,8 +1,3 @@
-//
-//  AssistFileChecksumVerifierTool.swift
-//  SwiftCode
-//
-
 import Foundation
 import CryptoKit
 

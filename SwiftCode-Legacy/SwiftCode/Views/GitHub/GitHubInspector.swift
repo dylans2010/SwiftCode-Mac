@@ -8,14 +8,12 @@ struct GitHubInspector: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Title
                 Label("Repository Info", systemImage: "info.circle.fill")
                     .font(.headline)
                     .foregroundStyle(.blue)
 
                 Divider()
 
-                // Working directory status
                 if let status = gitViewModel.status {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Local Status")

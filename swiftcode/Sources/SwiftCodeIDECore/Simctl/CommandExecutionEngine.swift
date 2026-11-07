@@ -1,10 +1,6 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/CommandExecutionEngine.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import os
 
-// SAFETY: ProcessExecutor is marked @unchecked Sendable because all access to the underlying Process object
-// and its termination/mutation state is synchronized internally via an NSLock instance (lock), ensuring thread-safety.
 public final class ProcessExecutor: @unchecked Sendable {
     private let process = Process()
     private let lock = NSLock()
@@ -69,10 +65,6 @@ public actor CommandExecutionEngine {
         Logger.process.debug("Starting execution of command: \(spec.executableURL.path) \(spec.arguments.joined(separator: " "))")
 
         #if !os(macOS)
-        // simctl/xcrun exist only on macOS with Xcode installed. Never
-        // fabricate a response: report the missing toolchain honestly.
-        // (Legacy returned canned Xcode/simctl output here; that fiction
-        // is removed in this port.)
         let record = CommandExecutionRecord(
             id: recordID,
             command: spec,
@@ -87,7 +79,6 @@ public actor CommandExecutionEngine {
         return record
         #else
 
-        // Check if executable exists on macOS
         guard FileManager.default.fileExists(atPath: spec.executableURL.path) else {
             let record = CommandExecutionRecord(
                 id: recordID,
@@ -104,7 +95,6 @@ public actor CommandExecutionEngine {
             return record
         }
 
-        // Standard execution logic
         var currentAttempt = 0
         let maxAttempts: Int = {
             if case .standard(let maxRetries, _) = spec.retryPolicy {
@@ -117,7 +107,6 @@ public actor CommandExecutionEngine {
 
         while currentAttempt < maxAttempts {
             if currentAttempt > 0 {
-                // Apply backoff delay if retry is configured
                 if case .standard(_, let backoffs) = spec.retryPolicy, currentAttempt - 1 < backoffs.count {
                     let backoff = backoffs[currentAttempt - 1]
                     try? await Task.sleep(for: backoff)
@@ -128,23 +117,18 @@ public actor CommandExecutionEngine {
             let attemptRecord = await runSingleProcessExecution(spec: spec, recordID: recordID, startedAt: startedAt)
             lastRecord = attemptRecord
 
-            // Determine if we should retry
             switch attemptRecord.outcome {
             case .success, .nonZeroExit:
-                // Do not retry on successful launch or explicit non-zero exits (not transient process failures)
                 appendToHistory(attemptRecord)
                 return attemptRecord
             case .timedOut, .launchFailed:
-                // Retryable transient failures
                 currentAttempt += 1
             case .cancelled:
-                // Immediately cancel
                 appendToHistory(attemptRecord)
                 return attemptRecord
             }
         }
 
-        // If all attempts failed, return the last failure record
         let finalRecord = lastRecord ?? CommandExecutionRecord(
             id: recordID,
             command: spec,

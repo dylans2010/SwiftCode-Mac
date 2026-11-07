@@ -1,55 +1,37 @@
 import SwiftCodeDarwinABI
 
-// Messages (`mach-ipc.md` §2): send (§2.8), queueing and blocking (§2.9),
-// receive (§2.10), copyout (§2.5), trailers (§2.6), and pseudo-receive.
-// Callers hold the kernel lock; blocking calls release it while they wait.
-
-/// A send, decoded from the trap arguments.
 struct MachSendRequest {
     var bits: UInt32
-    /// `send_size`.
     var size: Int
     var remote: UInt32
     var local: UInt32
     var voucher: UInt32
     var id: Int32
     var descriptorCount: UInt32
-    /// The bytes after the header (and after the body word when complex):
-    /// descriptors and inline data.
     var body: [UInt8]
-    /// The auxiliary data block of a vector send.
     var aux: [UInt8]?
 }
 
-/// A receive, decoded from the trap arguments.
 struct MachReceiveRequest {
     var name: UInt32
     var options: UInt64
     var buffer: UInt64
     var size: UInt64
     var timeout: UInt32
-    /// The aux vector's buffer and size (vector receives with two vectors).
     var auxBuffer: UInt64?
     var auxSize: UInt64 = 0
-    /// The sync-wait destination name (`MACH_RCV_SYNC_WAIT`).
     var syncDestination: UInt32 = 0
-    /// False: never wait (kevent delivery).
     var mayBlock = true
 }
 
-/// What a receive did.
 struct MachReceiveResult {
     var code: UInt32
-    /// Message + trailer bytes written, or the size needed for `MACH_RCV_TOO_LARGE`.
     var size: UInt64 = 0
-    /// The port name for `MACH_RCV_TOO_LARGE` with `MACH_RCV_LARGE_IDENTITY`.
     var identity: UInt32 = 0
     var auxSize: UInt64 = 0
-    /// A one-line summary for the trace.
     var note = ""
 }
 
-/// One parsed descriptor before copyin.
 enum DescriptorSpec {
     case port(name: UInt32, disposition: UInt32)
     case ool(address: UInt64, size: UInt32, deallocate: Bool, copy: UInt8, volatile: Bool)
@@ -58,14 +40,10 @@ enum DescriptorSpec {
 }
 
 extension MachIPC {
-    // MARK: Send
 
-    /// Sends a message (§2.8 steps 1–7). Returns the result and, for a send
-    /// failure after the rights were copied in, the message to pseudo-receive.
     func send(_ s: MachSendRequest, options: UInt64, timeout: UInt32, msg2: Bool,
               memory: any GuestVirtualMemory) -> (code: UInt32, pseudo: KMessage?, note: String) {
         let complex = s.bits & MachMsgBits.complex != 0
-        // 1. Sizes.
         if s.size < 24 || s.size % 4 != 0 { return (MachMsgReturn.sendMsgTooSmall, nil, "") }
         if s.size > Int(MachIPCLimits.maxSendSize) { return (MachMsgReturn.sendTooLarge, nil, "") }
         if complex {
@@ -83,7 +61,6 @@ extension MachIPC {
                 return (MachMsgReturn.sendInvalidOptions, nil, "")
             }
         }
-        // 2. Descriptors.
         var specs: [DescriptorSpec] = []
         var offset = 0
         if complex {
@@ -135,7 +112,6 @@ extension MachIPC {
         }
         let inline = Array(s.body[min(offset, s.body.count)...])
 
-        // 3. Header rights.
         var m: KMessage
         switch copyinHeader(s) {
         case let .failure(e): return (e.code, nil, "")
@@ -150,7 +126,6 @@ extension MachIPC {
             armSendPossible(p, name: s.remote)
         }
 
-        // 5. Body rights and memory.
         var oolBytes: UInt64 = 0
         for spec in specs {
             switch copyinItem(spec, memory: memory, oolBytes: &oolBytes) {
@@ -161,38 +136,31 @@ extension MachIPC {
             }
         }
 
-        // 6. Circularity.
         if isCircular(m) {
             destroyMessage(m)
             return (MachMsgReturn.success, nil, " [circular: destroyed]")
         }
 
-        // 7. Delivery.
         return deliver(m, options: options, timeout: timeout, msg2: msg2)
     }
 
-    /// Header copyin (§2.4), atomic.
     func copyinHeader(_ s: MachSendRequest) -> Result<KMessage, KernError> {
         let dd = MachMsgBits.remote(s.bits), rd = MachMsgBits.local(s.bits), vd = MachMsgBits.voucher(s.bits)
         let d = s.remote, r = s.local, v = s.voucher
-        // 1. Reply.
         if rd == 0 {
             if r != 0 { return .failure(KernError(MachMsgReturn.sendInvalidHeader)) }
         } else if !(MachMsgType.moveSend...MachMsgType.makeSendOnce).contains(rd) {
             return .failure(KernError(MachMsgReturn.sendInvalidHeader))
         }
-        // 2. Voucher.
         if vd != 0 {
             if vd != MachMsgType.moveSend && vd != MachMsgType.copySend || v == MachPortName.dead {
                 return .failure(KernError(MachMsgReturn.sendInvalidVoucher))
             }
         }
-        // 3. Destination.
         guard (MachMsgType.moveSend...MachMsgType.makeSendOnce).contains(dd) else {
             return .failure(KernError(MachMsgReturn.sendInvalidHeader))
         }
         guard MachPortName.isValid(d) else { return .failure(KernError(MachMsgReturn.sendInvalidDest)) }
-        // 4. Names in two slots.
         let voucherName = vd != 0 ? v : 0
         if voucherName != 0, d == voucherName, dd != MachMsgType.moveSend, dd != MachMsgType.copySend {
             return .failure(KernError(MachMsgReturn.sendInvalidDest))
@@ -208,7 +176,6 @@ extension MachIPC {
            let i = slot(of: d), entries[i].bits & T.send != 0, entries[i].urefs < 2 {
             return .failure(KernError(MachMsgReturn.sendInvalidDest))
         }
-        // 5. Lookups (no voucher objects exist in 4a).
         if voucherName != 0 { return .failure(KernError(MachMsgReturn.sendInvalidVoucher)) }
         if let i = slot(of: d), entries[i].port === bootstrapPort {
             return .failure(KernError(MachMsgReturn.sendInvalidDest))
@@ -223,7 +190,6 @@ extension MachIPC {
                 return .failure(KernError(MachMsgReturn.sendInvalidReply))
             }
         }
-        // 6. Apply.
         guard case let .success(dest) = copyin(d, dd, slot: .destination, apply: true) else {
             return .failure(KernError(MachMsgReturn.sendInvalidDest))
         }
@@ -241,7 +207,6 @@ extension MachIPC {
         return .success(m)
     }
 
-    /// Copies in one descriptor (§2.3, §2.8 step 5).
     func copyinItem(_ spec: DescriptorSpec, memory: any GuestVirtualMemory,
                     oolBytes: inout UInt64) -> Result<KItem, KernError> {
         switch spec {
@@ -310,7 +275,6 @@ extension MachIPC {
         try? memory.unmap(va: start, size: end - start)
     }
 
-    /// §2.8 step 6: a receive right in the message would end up in its own queue.
     func isCircular(_ m: KMessage) -> Bool {
         let carried = Set(m.receiveRights.map(ObjectIdentifier.init))
         guard !carried.isEmpty, var current = m.destination.port else { return false }
@@ -326,7 +290,6 @@ extension MachIPC {
         return true
     }
 
-    /// §2.8 step 7 and §2.9.
     func deliver(_ m: KMessage, options: UInt64, timeout: UInt32,
                  msg2: Bool) -> (code: UInt32, pseudo: KMessage?, note: String) {
         guard let p = m.destination.port else {
@@ -337,13 +300,6 @@ extension MachIPC {
             destroyMessage(m)
             return (MachMsgReturn.success, nil, " [destination dead: destroyed]")
         }
-        // mach_msg2 CFI rule 3 (`mach-ipc.md` §2.7). xnu exempts simulator
-        // processes, whose `mach_msg()` reaches kernel objects without
-        // KOBJECT_CALL (they pass SEND_ANY). Every guest of SwiftCode is a
-        // simulator process and SwiftCode's library sends `mach_msg()` with
-        // MQ_CALL, so a kernel-object destination accepts KOBJECT_CALL or
-        // MQ_CALL (the send-only-with-reply refusal applies to KOBJECT_CALL);
-        // an ordinary queue still requires MQ_CALL; SEND_ANY passes.
         if msg2 && options & MachMsgOption.sendAny == 0 {
             let ok: Bool
             if p.isKernelObject {
@@ -374,13 +330,9 @@ extension MachIPC {
                 return (MachMsgReturn.success, nil, "")
             }
             if let deadline, KernelClock.now() >= deadline { return (MachMsgReturn.sendTimedOut, m, "") }
-            // SNAPSHOT hook (agent SNAP, specs/simulator/snapshot.md §4.2): the
-            // message a blocked sender holds, so a snapshot can queue it.
             let caller = lock.callerContext
             let waiter = caller.map(ObjectIdentifier.init)
             if let waiter { p.snapshotPendingSends.append((waiter, m)) }
-            // The send push (scheduling-policy.md §4.6): while it waits, the
-            // sender's class raises the image that receives the port.
             var pushed: (DarwinKernel, Int)?
             if SchedPolicy.qosEnabled, SchedPolicy.sendPushEnabled, let ctx = caller,
                let target = p.receiver?.kernel {
@@ -393,7 +345,6 @@ extension MachIPC {
             if let (target, cls) = pushed { target.removeSendPush(cls) }
             if let waiter { p.snapshotPendingSends.removeAll { $0.context == waiter } }
             if result == .woken, p.grantedSlots > 0 {
-                // Woken for a freed slot (`dequeue`): it is this sender's.
                 p.grantedSlots -= 1
                 if p.active {
                     enqueue(m, on: p)
@@ -407,8 +358,6 @@ extension MachIPC {
         }
     }
 
-    /// The queue has room (§2.9): below `qlimit`, a send-once destination, or
-    /// a waiting receiver that would take the message at once.
     func canEnqueue(_ m: KMessage, on p: IPCPort) -> Bool {
         if case .sendOnce = m.destination { return true }
         if p.occupiedSlots < p.qlimit { return true }
@@ -416,9 +365,6 @@ extension MachIPC {
         return idle > p.messages.count
     }
 
-    // MARK: Receive
-
-    /// Receives a message (§2.10).
     func receive(_ r: MachReceiveRequest, context: ThreadContext?, memory: any GuestVirtualMemory) -> MachReceiveResult {
         guard let i = lookup(r.name) else { return MachReceiveResult(code: MachMsgReturn.rcvInvalidName) }
         let set = entries[i].set
@@ -431,7 +377,6 @@ extension MachIPC {
             }
         }
         let trailer = MachMsgOption.trailerSize(r.options)
-        // A new receive ends the servicing episode of the last one (scheduling-policy.md §4.3).
         if let context, context.carriedImportance != nil || context.ipcPushClass >= 0 { kernel?.endServicing(context) }
         let deadline: UInt64? = r.options & MachMsgOption.rcvTimeout != 0
             ? KernelClock.deadline(afterNanoseconds: UInt64(r.timeout) * 1_000_000) : nil
@@ -441,12 +386,6 @@ extension MachIPC {
         }
     }
 
-    /// Waits until the receive right `port` or the port set `set` (the
-    /// entry of `name` at `slot`) has a message, and returns the port to take
-    /// it from. Fails with `MACH_RCV_TIMED_OUT` (deadline passed, or
-    /// `mayBlock` false), `MACH_RCV_PORT_CHANGED` (the right moved, died, or
-    /// changed sets while waiting), or `MACH_RCV_INTERRUPTED`. Lock held at
-    /// depth 1 when it may block.
     func awaitMessage(name: UInt32, slot i: Int, port: IPCPort?, set: IPCPortSet?, deadline: UInt64?,
                       mayBlock: Bool) -> Result<IPCPort, KernError> {
         let stamp = port?.changeStamp ?? set!.changeStamp
@@ -481,12 +420,10 @@ extension MachIPC {
         }
     }
 
-    /// The set member with the oldest ready queue.
     func readyMember(_ s: IPCPortSet) -> IPCPort? {
         s.members.filter { !$0.messages.isEmpty }.min { $0.readyStamp < $1.readyStamp }
     }
 
-    /// Takes the first message of `source` into the receive buffer.
     func take(from source: IPCPort, request r: MachReceiveRequest, trailer: Int,
               memory: any GuestVirtualMemory, context: ThreadContext? = nil) -> MachReceiveResult {
         let first = source.messages.first!
@@ -541,9 +478,6 @@ extension MachIPC {
                                  note: tracesCalls ? " [id \(m.id) size \(out.bytes.count) seqno \(seqno) from \(hx(sourceName))]" : "")
     }
 
-    /// The header written for a too-large message received without
-    /// `MACH_RCV_LARGE` (§2.10 step 3): every right except the destination is
-    /// destroyed; COMPLEX is cleared (§7 question 2).
     func bareHeader(_ m: KMessage, local: UInt32, rightsAlreadyHandled: Bool = false) -> [UInt8] {
         var remote: UInt32 = 0
         if case .dead = m.reply { remote = MachPortName.dead }
@@ -563,14 +497,12 @@ extension MachIPC {
         return h
     }
 
-    /// The trailer (§2.6), cut to `size` bytes.
     func makeTrailer(_ m: KMessage, seqno: UInt32, port: IPCPort, size: Int) -> [UInt8] {
         var t: [UInt8] = []
         appendTrailer(m, seqno: seqno, port: port, size: size, to: &t)
         return t
     }
 
-    /// Appends the trailer (§2.6), cut to `size` bytes, to `t`.
     func appendTrailer(_ m: KMessage, seqno: UInt32, port: IPCPort, size: Int, to t: inout [UInt8]) {
         let base = t.count
         t.reserveCapacity(base + 68)
@@ -582,7 +514,6 @@ extension MachIPC {
             t.appendLE(UInt32(1))
             t.append(contentsOf: repeatElement(0, count: 32))
         } else {
-            // The sender's identity at send time (`processes.md` §4.5).
             let sender = m.sender ?? senderIdentity
             t.appendLE(sender.uid)
             t.appendLE(sender.gid)
@@ -593,8 +524,6 @@ extension MachIPC {
         t.removeLast(t.count - base - min(size, t.count - base))
     }
 
-    /// Copies a received message out into the space (§2.5): the header
-    /// (remote/local swapped), the descriptors, and the inline data.
     func copyoutReceived(_ m: KMessage, from p: IPCPort, options: UInt64, buffer: UInt64,
                          memory: any GuestVirtualMemory) -> (bytes: [UInt8], resource: UInt32, headerFailed: Bool) {
         let (replyName, replyOK) = copyout(m.reply)
@@ -632,8 +561,6 @@ extension MachIPC {
         }
     }
 
-    /// One descriptor in received form. `pseudo`: the sender's own message
-    /// coming back (guarded rights return without a new guard).
     func copyoutItem(_ item: KItem, options: UInt64, buffer: UInt64, memory: any GuestVirtualMemory,
                      resource: inout UInt32, pseudo: Bool = false) -> [UInt8] {
         switch item {
@@ -705,9 +632,6 @@ extension MachIPC {
         }
     }
 
-    /// §2.8 step 8: the message goes back into the sender's space, without
-    /// swapping remote and local. Returns the bytes (no trailer) and the
-    /// resource bits.
     func pseudoReceive(_ m: KMessage, memory: any GuestVirtualMemory) -> (bytes: [UInt8], resource: UInt32) {
         var resource: UInt32 = 0
         let (destName, destOK) = copyout(m.destination)

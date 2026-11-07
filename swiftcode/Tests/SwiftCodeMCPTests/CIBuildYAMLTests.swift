@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeMCP
 
-// MARK: - CI build YAML (bulk migration, Backend-Assist slice)
-//
-// Pure generation + heuristic validation: no network, no subprocess,
-// no provider. The file form writes into a temporary workspace.
-
 @Suite struct CIBuildYAMLTests {
     private func makeConfig(
         projectName: String = "DemoApp",

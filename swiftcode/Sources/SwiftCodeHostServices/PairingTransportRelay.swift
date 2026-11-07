@@ -1,82 +1,20 @@
-// The pairing transport relay (specs/simulator/device-pairing.md §7.2, P-6,
-// P-7; SwiftCode's decisions in §10).
-//
-// Under SwiftCode each simulated device is its own set of VMs with its own Mach
-// world, so the peer's `com.apple.IDSSimRPC.local` port cannot be handed to a
-// guest directly. Each device's host registers a host port of its own as
-// `com.apple.IDSSimRPC.remote.<peer>` in its guest (PairingHost, round W4);
-// this relay carries what arrives there into the peer's guest:
-//
-//   near half (device A)                          far half (device B)
-//   endpoint receive ── relay-request {seq} ──▶   send a new request to B's
-//   keeps A's reply right                         IDSSimRPC.local (702) with a
-//                                                 send-once reply port of its own
-//   reply on A's right ◀── relay-reply {seq} ──   B's reply (1100, RetCode)
-//
-// Rules (the spec's §4 and §7):
-//   - The out-of-line regions are copied byte for byte and delivered as
-//     out-of-line regions; the inline body (NDR, the byte count) and the
-//     message id are kept. Nothing is parsed.
-//   - Order per direction: one endpoint thread sends the requests over the
-//     link in arrival order; the far half sends them into its guest from one
-//     serial queue in the same order. Several requests may be in flight: the
-//     far half does not wait for one reply before sending the next request.
-//   - Peer absence: when the link is down, the peer's local port cannot be
-//     found, or the far send fails with a dead destination, the request is
-//     answered with RetCode MACH_SEND_INVALID_DEST (0x10000003), the code a
-//     sender sees when its peer is gone (§4.2). A request that gets no answer
-//     within the timeout is answered with MACH_SEND_TIMED_OUT. A guest never
-//     waits forever on the relay.
-//   - The relay adds no delay of its own (P-7).
-//   - Size (P-12, §12): no 16 MiB cap. A request (or reply) whose
-//     out-of-line regions are larger than one chunk crosses as `relay-chunk`
-//     frames of at most `chunkSize` bytes, then its `relay-request`
-//     (`relay-reply`) frame with the region sizes in place of the regions.
-//     The link is ordered, so the far half holds at most one partly
-//     assembled message per direction; the bytes queued for delivery into
-//     the guest are bounded by `queuedLimit` (the link's reader waits until
-//     the guest has taken enough), so later requests wait behind a large one
-//     as in the reference's ids_simd.
-//
-// Portable: it uses only the host task (MachHostTask) and a link given by its
-// owner, so the unit tests run it with two DarwinSystems standing in for the
-// two VMs.
-
 import Foundation
 import SwiftCodeDarwinKernel
 
-/// What a relay needs from its owner (the device's pairing host).
 public protocol PairingRelayLink: AnyObject, Sendable {
-    /// This device's UDID.
     var udid: String { get }
-    /// The host task (ports, sends, receives).
     var host: MachHostTask { get }
-    /// Sends a frame (a dictionary with a `type`) to the peer's host over the
-    /// link. False when there is no link with `peer`.
     @discardableResult func sendToPeer(_ peer: String, frame: [String: Any]) -> Bool
-    /// A send right (host-task name) to a name in this device's guest (702).
     func findInGuest(_ name: String) throws -> UInt32
 }
 
 public final class PairingTransportRelay: @unchecked Sendable {
     public struct Options: Sendable {
-        /// A request with no answer in this time is answered with MACH_SEND_TIMED_OUT.
         public var requestTimeout: TimeInterval
-        /// The far half retries a look-up of the guest's local port that
-        /// fails (a service not loaded yet) for this long before it answers
-        /// MACH_SEND_INVALID_DEST.
         public var lookupWait: TimeInterval
-        /// The largest request (all out-of-line bytes plus the body) carried;
-        /// a larger one is answered with MACH_SEND_TOO_LARGE. A sanity bound
-        /// only (no WatchConnectivity limit is documented, §11.3): 1 GiB.
         public var maximumPayload: Int
-        /// Out-of-line bytes per `relay-chunk` frame; a message whose regions
-        /// fit in one chunk crosses in one frame as before.
         public var chunkSize: Int
-        /// The most bytes of the peer's requests waiting for delivery into
-        /// this guest; beyond it the link's reader waits (a memory bound).
         public var queuedLimit: Int
-        /// The name of the guest's own transport port.
         public var localName: String
         public init(requestTimeout: TimeInterval = 60, lookupWait: TimeInterval = 20, maximumPayload: Int = 1 << 30,
                     chunkSize: Int = 4 << 20, queuedLimit: Int = 64 << 20,
@@ -89,9 +27,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
             self.localName = localName
         }
 
-        /// The options from the environment: `SWIFTCODE_PAIRING_RELAY_TIMEOUT_S`,
-        /// `SWIFTCODE_PAIRING_RELAY_LOOKUP_S`, `SWIFTCODE_PAIRING_RELAY_MAX_MB`,
-        /// `SWIFTCODE_PAIRING_RELAY_CHUNK_KB`.
         public static func fromEnvironment(_ env: [String: String] = ProcessInfo.processInfo.environment) -> Options {
             var o = Options()
             if let s = env["SWIFTCODE_PAIRING_RELAY_TIMEOUT_S"], let v = Double(s), v > 0 { o.requestTimeout = v }
@@ -102,29 +37,18 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
     }
 
-    /// Frame types on the link.
     public enum Frame {
         public static let request = "relay-request"
         public static let reply = "relay-reply"
-        /// A piece of a large message's out-of-line bytes: {seq, generation,
-        /// part: "request"|"reply", data}; the message's own frame follows
-        /// with `oolSizes` in place of `ool`.
         public static let chunk = "relay-chunk"
     }
 
-    /// Counters and times, per direction (`out`: this guest's requests to the
-    /// peer; `in`: the peer's requests delivered into this guest).
     public struct Statistics: Sendable, Equatable {
         public var requestsOut = 0, bytesOut = 0, repliesOut = 0, failedOut = 0, timedOutOut = 0
         public var requestsIn = 0, bytesIn = 0, failedIn = 0
         public var largestOut = 0, largestIn = 0
-        /// Messages that crossed in pieces, and the pieces (both directions of this half).
         public var chunkedOut = 0, chunksOut = 0
-        /// Near half: from taking a request off the endpoint to replying on
-        /// the guest's right (milliseconds), for answered requests.
         public var roundTripsMs: [Double] = []
-        /// Far half: from the near half's send to the delivery into this
-        /// guest (milliseconds; both halves read one host clock).
         public var oneWayMs: [Double] = []
 
         public func summary() -> String {
@@ -147,7 +71,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
     private var stats = Statistics()
     private static let keptSamples = 4096
 
-    // Near half: per peer, the requests waiting for the peer's answer.
     private struct Outgoing {
         var replyPort: UInt32
         var replyType: UInt32
@@ -159,19 +82,14 @@ public final class PairingTransportRelay: @unchecked Sendable {
     private var nextSeq: [String: Int] = [:]
     private var linkGeneration: [String: Int] = [:]
 
-    // Far half: per peer, the serial delivery queue and the guest's port;
-    // the reply ports of requests in flight (in one port set).
     private struct Incoming {
         var peer: String
         var seq: Int
-        /// The near half's link generation (echoed in the reply).
         var generation: Int
         var deadline: UInt64
     }
     private var deliverQueues: [String: DispatchQueue] = [:]
-    /// Pieces of large messages being assembled, by "<peer> <part> <seq>".
     private var assembling: [String: Data] = [:]
-    /// Bytes of the peer's requests queued for delivery into this guest.
     private var queuedBytes = 0
     private let queuedChanged = NSCondition()
     private var localPort: UInt32?
@@ -188,7 +106,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
 
     public var statistics: Statistics { lock.withLock { stats } }
 
-    /// Ends the relay's threads; requests in flight are answered as for a lost peer.
     public func stop(link: PairingRelayLink) {
         let peers = lock.withLock { () -> [String] in
             running = false
@@ -206,16 +123,10 @@ public final class PairingTransportRelay: @unchecked Sendable {
     private static func now() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
     private func deadline() -> UInt64 { Self.now() &+ UInt64(options.requestTimeout * 1e9) }
 
-    // MARK: Near half
-
-    /// A message taken off this guest's `remote.<peer>` endpoint. The relay
-    /// owns its rights: it is forwarded, answered, or discarded.
     public func endpoint(peer rawPeer: String, received m: MachHostReceivedMessage, link: PairingRelayLink) {
         let peer = rawPeer.uppercased()
         let host = link.host
         startThreads(link)
-        // Only out-of-line regions cross the link; a message carrying rights
-        // (none is expected, §4.3) cannot be relayed.
         var regions: [Data] = []
         var carriesRights = false
         for d in m.descriptors {
@@ -257,19 +168,12 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
         guard sendMessage(to: peer, frame: frame, regions: regions, part: "request", seq: seq, generation: generation,
                           stamp: true, link: link) else {
-            // No link: the peer is gone (its endpoint here is about to die too).
             answerOutgoing(peer: peer, seq: seq, code: MachMsgReturn.sendInvalidDest, link: link)
             if !wantsReply { lock.withLock { stats.failedOut += 1 } }
             return
         }
     }
 
-    // MARK: Pieces (P-12)
-
-    /// Sends a request or reply frame with its out-of-line regions: inline
-    /// (`ool`) when they fit in one chunk, else as `relay-chunk` frames
-    /// followed by the frame with `oolSizes`. `stamp` adds `sent` (the host
-    /// clock) just before the message's own frame. False when the link is gone.
     private func sendMessage(to peer: String, frame base: [String: Any], regions: [Data], part: String, seq: Int,
                              generation: Int, stamp: Bool, link: PairingRelayLink) -> Bool {
         var frame = base
@@ -303,7 +207,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         "\(peer) \(part) \(seq) \(generation)"
     }
 
-    /// A `relay-chunk` frame: appended to its message's bytes.
     private func receivedChunk(peer: String, frame f: [String: Any]) {
         guard let seq = (f["seq"] as? NSNumber)?.intValue, let part = f["part"] as? String, let data = f["data"] as? Data else { return }
         let generation = (f["generation"] as? NSNumber)?.intValue ?? 0
@@ -314,8 +217,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
     }
 
-    /// The out-of-line regions of a request or reply frame: `ool`, or the
-    /// assembled pieces split by `oolSizes`. Nil when pieces are missing.
     private func regions(of f: [String: Any], peer: String, part: String, seq: Int, generation: Int) -> [Data]? {
         guard let sizes = f["oolSizes"] as? [NSNumber] else { return (f["ool"] as? [Data]) ?? [] }
         let bytes = lock.withLock { assembling.removeValue(forKey: Self.assemblyKey(peer, part, seq, generation)) } ?? Data()
@@ -333,8 +234,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         return out
     }
 
-    /// Answers a request this half will not forward: a MIG error reply with
-    /// `code` when it has a reply right, else its rights are dropped.
     private func fail(_ m: MachHostReceivedMessage, code: UInt32, host: MachHostTask) {
         lock.withLock { stats.failedOut += 1 }
         for d in m.descriptors {
@@ -348,7 +247,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         sendErrorReply(port: m.replyPort, type: m.replyType, requestID: m.id, code: code, host: host)
     }
 
-    /// The MIG error reply: `id` + 100, NDR, RetCode.
     private func sendErrorReply(port: UInt32, type: UInt32, requestID: Int32, code: UInt32, host: MachHostTask) {
         let body = Self.ndr + Self.le32(code)
         do {
@@ -359,8 +257,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
     }
 
-    /// Answers the outgoing request `seq` of `peer` with an error code (the
-    /// peer is gone, or no answer came in time).
     private func answerOutgoing(peer: String, seq: Int, code: UInt32, link: PairingRelayLink) {
         guard let o = lock.withLock({ () -> Outgoing? in
             let o = outgoing[peer]?.removeValue(forKey: seq)
@@ -373,7 +269,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         sendErrorReply(port: o.replyPort, type: o.replyType, requestID: o.id, code: code, host: link.host)
     }
 
-    /// The peer's answer to one of this guest's requests.
     private func receivedReply(peer: String, frame f: [String: Any], link: PairingRelayLink) {
         guard let seq = (f["seq"] as? NSNumber)?.intValue else { return }
         let generation = (f["generation"] as? NSNumber)?.intValue ?? 0
@@ -404,7 +299,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
                                                   descriptors: regions.map { .ool(data: [UInt8]($0), copy: 1) }, body: body),
                           timeout: 0)
         } catch {
-            // The guest's reply right is gone (its sender ended): nothing to answer.
             try? host.deallocate(o.replyPort)
         }
         let ms = Double(Self.now() &- o.started) / 1e6
@@ -414,9 +308,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
     }
 
-    // MARK: Far half
-
-    /// A request of the peer's guest for this guest.
     private func receivedRequest(peer: String, frame f: [String: Any], link: PairingRelayLink) {
         guard let seq = (f["seq"] as? NSNumber)?.intValue else { return }
         let generation = (f["generation"] as? NSNumber)?.intValue ?? 0
@@ -429,8 +320,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
             if wantsReply { answerPeer(peer, seq: seq, generation: generation, code: MachMsgReturn.sendTooLarge, link: link) }
             return
         }
-        // The memory bound: wait while the guest has not taken enough of
-        // what is queued (one message larger than the bound still goes alone).
         let size = regions.reduce(body.count) { $0 + $1.count }
         let waitUntil = Date().addingTimeInterval(options.requestTimeout)
         queuedChanged.lock()
@@ -464,8 +353,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         link.sendToPeer(peer, frame: ["type": Frame.reply, "seq": seq, "generation": generation, "code": NSNumber(value: code)])
     }
 
-    /// The guest's local port: the cached right, else a 702 look-up retried
-    /// until `until` (the service may not be loaded yet).
     private func guestPort(link: PairingRelayLink, until: UInt64, stillWanted: () -> Bool) -> UInt32? {
         if let p = lock.withLock({ localPort }) { return p }
         var said = false
@@ -493,10 +380,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         if drop { try? host.deallocate(p) }
     }
 
-    /// Delivers one request of the peer into this guest. `generation` is the
-    /// near half's (echoed in the answer); `ownGeneration` this half's link
-    /// generation when the request came (a request of a link that has gone
-    /// is not delivered).
     private func deliver(peer: String, seq: Int, generation: Int, ownGeneration: Int, id: Int32, body: [UInt8], regions: [Data],
                          wantsReply: Bool, sent: UInt64?, deadline: UInt64, link: PairingRelayLink) {
         let host = link.host
@@ -536,7 +419,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
                     try? host.destroyPort(reply)
                 }
                 if e.code == MachMsgReturn.sendInvalidDest && attempts == 1 {
-                    // The cached right is dead (the service was reloaded): look it up again once.
                     forgetGuestPort(target, host: host)
                     continue
                 }
@@ -568,7 +450,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
     }
 
-    /// The far half's reply receiver and the timeout sweep.
     private func startThreads(_ link: PairingRelayLink) {
         let start = lock.withLock { () -> Bool in
             guard !threadsStarted, running else { return false }
@@ -615,7 +496,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
                 host.discard(m)
                 continue
             }
-            // Only out-of-line regions cross; rights in a reply (none expected) are dropped.
             var regions: [Data] = []
             for d in m.descriptors {
                 switch d {
@@ -625,9 +505,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
                 }
             }
             if MachPortName.isValid(m.replyPort) { try? host.deallocate(m.replyPort) }
-            // A send-once notification (the guest dropped the reply right):
-            // the request was taken but not answered.
-            // The near half answers MIG_SERVER_DIED, what a MIG client returns then.
             if m.isFromKernel && m.id == MachNotify.sendOnce {
                 answerPeer(entry.peer, seq: entry.seq, generation: entry.generation, code: MachKern.migServerDied, link: link)
                 continue
@@ -638,7 +515,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
     }
 
-    /// Answers what has waited past its deadline, on both halves.
     private func sweep() {
         let now = Self.now()
         let (late, lateIn, link, host) = lock.withLock { () -> ([(String, Int)], [(UInt32, Incoming)], PairingRelayLink?, MachHostTask?) in
@@ -661,10 +537,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         }
     }
 
-    // MARK: Link
-
-    /// A link frame of the relay (`relay-request`, `relay-reply`); false for
-    /// any other type.
     @discardableResult
     public func link(peer rawPeer: String, received frame: [String: Any], link: PairingRelayLink) -> Bool {
         let peer = rawPeer.uppercased()
@@ -677,10 +549,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
         return true
     }
 
-    /// The link with `peer` came up or went down. Down: this guest's requests
-    /// waiting for the peer are answered MACH_SEND_INVALID_DEST, and the
-    /// peer's requests in flight here are abandoned (their reply ports go).
-    /// Each link gets a new generation, so a late frame of an old link is ignored.
     public func linkChanged(peer rawPeer: String, up: Bool, link: PairingRelayLink) {
         let peer = rawPeer.uppercased()
         let (waiting, abandoned) = lock.withLock { () -> ([Int], [UInt32]) in
@@ -700,8 +568,6 @@ public final class PairingTransportRelay: @unchecked Sendable {
                 + (abandoned.isEmpty ? "" : "; \(abandoned.count) deliveries abandoned") + "; " + st.summary())
         }
     }
-
-    // MARK: Bytes
 
     static let ndr: [UInt8] = [0, 0, 0, 0, 1, 0, 0, 0]
     static func le32(_ v: UInt32) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24)] }

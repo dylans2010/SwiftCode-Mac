@@ -1,30 +1,8 @@
-/*
- * watchhid: Ycode research probe (original Ycode code, no Apple code).
- * Runs on the Mac. Black-box driver of the reference watch simulator's
- * input path, the approach of ../../simulator/hid/hidsend.m: build a message
- * with one of SimulatorKit's exported IndigoHIDMessageFor* builders, print
- * its bytes, and hand it to SimulatorKit's legacy HID client for a device.
- *
- * The builders' argument lists are not published. The probe verbs call a
- * builder with marker values in the first four integer and the first four
- * floating-point argument registers, so that the bytes show which argument
- * lands where (and which are ignored):
- *   watchhid <udid> probe crown|gesture      dump only, never sent
- *   watchhid <udid> crown <delta> [<n>]      send n crown events of delta
- *                                             (argument layout from the probe)
- *   watchhid <udid> button <source> [<ms>]   IndigoHIDMessageForButton down,
- *                                             hold ms (default 100), up
- *   watchhid <udid> hid <page> <usage> [<ms>] IndigoHIDMessageForHIDArbitrary
- *   watchhid <udid> gesture <a> <b>          IndigoHIDMessageForWatchGesture(a, b)
- *   watchhid <udid> dump <verb> ...          same verbs, print bytes only
- */
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
 #include <dlfcn.h>
 #include <malloc/malloc.h>
 
-/* Probe signature: four integer and four double arguments. On arm64 these
- * travel in x0-x3 and d0-d3 independently, so one call covers both kinds. */
 typedef void *(*ProbeFn)(uint64_t, uint64_t, uint64_t, uint64_t, double, double, double, double);
 typedef void *(*ButtonFn)(int32_t, int32_t, int32_t);
 typedef void *(*ArbFn)(int32_t, uint32_t, uint32_t, int32_t);
@@ -85,7 +63,6 @@ int main(int argc, char **argv)
             if (!client) { printf("no client: %s\n", e.description.UTF8String); return 1; }
         }
         if (!strcmp(verb, "crown") && dumpOnly && a >= argc) {
-            /* "probe crown": marker values. */
             send("crown probe x=(0x11,0x22,0x33,0x44) d=(1.5,2.5,3.5,4.5)",
                  crownFn(0x11, 0x22, 0x33, 0x44, 1.5, 2.5, 3.5, 4.5));
             send("crown probe x=(0,0,0,0) d=(-7.25,0,0,0)", crownFn(0, 0, 0, 0, -7.25, 0, 0, 0));

@@ -1,11 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/RepoPermManager.swift
-// Adapted for SwiftCode: RepoPermission scope table verbatim; the manager takes SwiftCodeGitHub's tokenProvider (SecretStore-backed) instead of Legacy's KeychainService. ObservableObject -> @Observable.
-
 import Foundation
 import Observation
-
-// MARK: - Repository Permission Model
 
 public struct RepoPermission: Identifiable, Sendable {
     public var id: String { scope }
@@ -13,10 +7,8 @@ public struct RepoPermission: Identifiable, Sendable {
     public let humanReadable: String
     public let icon: String
 
-    /// Maps a GitHub OAuth scope string to a human-readable description and icon.
     public static func from(scope: String) -> RepoPermission {
         switch scope {
-        // Repo scopes
         case "repo":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Private Repositories", icon: "folder.fill.badge.gearshape")
         case "repo:status":
@@ -29,31 +21,26 @@ public struct RepoPermission: Identifiable, Sendable {
             return RepoPermission(scope: scope, humanReadable: "Access Repository Invitations", icon: "envelope.fill")
         case "security_events":
             return RepoPermission(scope: scope, humanReadable: "Read And Write Security Events", icon: "shield.fill")
-        // Workflow
         case "workflow":
             return RepoPermission(scope: scope, humanReadable: "Update GitHub Actions Workflows", icon: "gearshape.2.fill")
-        // Packages
         case "write:packages":
             return RepoPermission(scope: scope, humanReadable: "Upload Packages To GitHub Package Registry", icon: "shippingbox.fill")
         case "read:packages":
             return RepoPermission(scope: scope, humanReadable: "Download Packages From GitHub Package Registry", icon: "shippingbox")
         case "delete:packages":
             return RepoPermission(scope: scope, humanReadable: "Delete Packages From GitHub Package Registry", icon: "shippingbox.fill")
-        // Org scopes
         case "admin:org":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Organizations And Teams", icon: "building.2.fill")
         case "write:org":
             return RepoPermission(scope: scope, humanReadable: "Read And Write org/team Membership And Projects", icon: "person.3.fill")
         case "read:org":
             return RepoPermission(scope: scope, humanReadable: "Read org/team Membership And Projects", icon: "person.3")
-        // Public key
         case "admin:public_key":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of User Public Keys", icon: "key.fill")
         case "write:public_key":
             return RepoPermission(scope: scope, humanReadable: "Write User Public Keys", icon: "key")
         case "read:public_key":
             return RepoPermission(scope: scope, humanReadable: "Read User Public Keys", icon: "key")
-        // Hooks
         case "admin:repo_hook":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Repository Hooks", icon: "webhook")
         case "write:repo_hook":
@@ -62,7 +49,6 @@ public struct RepoPermission: Identifiable, Sendable {
             return RepoPermission(scope: scope, humanReadable: "Read Repository Hooks", icon: "webhook")
         case "admin:org_hook":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Organization Webhooks", icon: "building.2.crop.circle")
-        // User
         case "user":
             return RepoPermission(scope: scope, humanReadable: "Update All User Data", icon: "person.fill.badge.plus")
         case "read:user":
@@ -71,7 +57,6 @@ public struct RepoPermission: Identifiable, Sendable {
             return RepoPermission(scope: scope, humanReadable: "Access User Email Addresses", icon: "envelope")
         case "user:follow":
             return RepoPermission(scope: scope, humanReadable: "Follow And Unfollow Users", icon: "person.fill.badge.plus")
-        // Misc
         case "gist":
             return RepoPermission(scope: scope, humanReadable: "Create Gists", icon: "doc.text.fill")
         case "notifications":
@@ -108,16 +93,6 @@ public struct RepoPermission: Identifiable, Sendable {
     }
 }
 
-// MARK: - Repo Permission Manager
-
-/// Reads the GitHub OAuth scopes granted to the signed-in token, by
-/// inspecting the `X-OAuth-Scopes` response header of `GET /user`.
-///
-/// Legacy read the token from its own KeychainService. SwiftCodeGitHub keeps
-/// the token behind a `tokenProvider` (SecretStore-backed — see
-/// `GitHubClient`), so this manager takes the same provider instead of
-/// reaching for a keychain itself. Pass `GitHubClient`'s provider, or
-/// `{ nil }` when no token is configured.
 @Observable
 @MainActor
 public final class RepoPermManager: Sendable {
@@ -131,7 +106,6 @@ public final class RepoPermManager: Sendable {
 
     private let baseURL = URL(string: "https://api.github.com")!
 
-    /// Fetches the scopes for the stored GitHub token by inspecting the X-OAuth-Scopes response header.
     public func fetchPermissions(tokenProvider: @escaping @Sendable () -> String? = { nil }) async {
         guard let token = tokenProvider(), !token.isEmpty else {
             errorMessage = "No GitHub token configured. Add one in GitHub & Git Configuration."

@@ -1,39 +1,5 @@
 import Foundation
 
-// MARK: - Worker Models (ported from Legacy)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised under
-// MIT): `SwiftCode/Backend/Assist/Subagents/Models/WorkerModels.swift`
-// — the full worker model layer: status lifecycle, phases, review
-// state, file changes, test records, progress, errors, assignments,
-// file ownership, context scope, results, reviews, handoffs,
-// cancellations, dependencies, and the primary `Worker` entity.
-// Logic, public API names, and Codable shapes are Legacy-verbatim.
-//
-// Destination: `SwiftCodeAssistant` (SwiftPM target, depends only on
-// `SwiftCodeSubprocess`). No new imports: Foundation only.
-//
-// Verification note (2026-11-06, destination commit `f5de49dd`):
-// `docs/ma-reconciliation.md` marks this file PARTIAL, claiming
-// `Worker` and `WorkerAssignment` already exist in the destination.
-// Verified by grep to be false — the only matches are NESTED types
-// in other modules, neither top-level in `SwiftCodeAssistant` and
-// neither with Legacy's shape:
-//   * `SnapshotTags.Worker` — a nested enum of snapshot tag constants
-//     (`SwiftCodeDarwinKernel/Snapshot/SnapshotTags.swift:65`).
-//   * `WorkerAssignment` nested inside a planning struct with only
-//     `name`/`scope`/`task`
-//     (`SwiftCodeMCP/SwiftCodeTools+PlanningSupport.swift:85`).
-// A further top-level `Worker` class exists in `SwiftCodeHypervisor`
-// (`VCPUPool.swift:131`, a vCPU host-thread wrapper) — a different
-// module, not imported by `SwiftCodeAssistant`, so no clash.
-// No other top-level type declared here exists anywhere in the
-// destination. All 22 top-level declarations below are therefore
-// ported (the reconciliation doc's count of 23 is off by one: the
-// file holds 21 types + 1 typealias = 22 top-level declarations).
-
-// MARK: - Worker Status & Lifecycle
-
 public enum WorkerStatus: String, Codable, Sendable, CaseIterable {
     case created = "CREATED"
     case queued = "QUEUED"
@@ -107,8 +73,6 @@ public enum WorkerStatus: String, Codable, Sendable, CaseIterable {
     }
 }
 
-// MARK: - Worker Lifecycle State Machine
-
 public struct WorkerLifecycleTransition: Codable, Sendable {
     public let from: WorkerStatus
     public let to: WorkerStatus
@@ -147,16 +111,12 @@ public struct WorkerLifecycleStateMachine: Codable, Sendable {
     }
 }
 
-// MARK: - Worker Phase
-
 public enum WorkerPhase: String, Codable, Sendable {
     case implementation = "Implementation"
     case testing = "Testing"
     case verification = "Verification"
     case review = "Review"
 }
-
-// MARK: - Review State
 
 public enum WorkerReviewState: String, Codable, Sendable {
     case notReviewed = "Not Reviewed"
@@ -180,8 +140,6 @@ public enum WorkerReviewState: String, Codable, Sendable {
         }
     }
 }
-
-// MARK: - File Changes
 
 public enum FileChangeType: String, Codable, Sendable {
     case created = "Created"
@@ -232,8 +190,6 @@ public struct WorkerFileChange: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
-// MARK: - Test Record
-
 public struct WorkerTestRecord: Identifiable, Codable, Sendable {
     public let id: UUID
     public let testName: String
@@ -261,8 +217,6 @@ public struct WorkerTestRecord: Identifiable, Codable, Sendable {
         self.failureReason = failureReason
     }
 }
-
-// MARK: - Worker Progress
 
 public struct WorkerProgress: Codable, Sendable {
     public var narrative: String
@@ -298,8 +252,6 @@ public struct WorkerProgress: Codable, Sendable {
     }
 }
 
-// MARK: - Worker Error
-
 public struct WorkerError: Codable, Sendable {
     public let code: String
     public let message: String
@@ -329,8 +281,6 @@ public struct WorkerError: Codable, Sendable {
     }
 }
 
-// MARK: - Worker Assignment
-
 public struct WorkerAssignment: Identifiable, Codable, Sendable {
     public let id: UUID
     public let name: String
@@ -354,15 +304,13 @@ public struct WorkerAssignment: Identifiable, Codable, Sendable {
         self.id = id
         self.name = name
         self.scope = scope
-        self.task = String(task.prefix(500)) // Enforce <= 500 characters
+        self.task = String(task.prefix(500))
         self.role = role
         self.dependencies = dependencies
         self.targetFiles = targetFiles
         self.preferredModel = preferredModel
     }
 }
-
-// MARK: - Worker File Ownership
 
 public struct WorkerFileOwnership: Codable, Sendable, Hashable {
     public let workerID: UUID
@@ -391,8 +339,6 @@ public enum FileOwnershipType: String, Codable, Sendable {
     case shared = "Shared"
     case readOnly = "Read-Only"
 }
-
-// MARK: - Worker Context Scope
 
 public struct WorkerContextScope: Codable, Sendable {
     public let workerID: UUID
@@ -424,8 +370,6 @@ public struct WorkerContextScope: Codable, Sendable {
         self.excludedFiles = excludedFiles
     }
 }
-
-// MARK: - Worker Result
 
 public struct WorkerResult: Codable, Sendable {
     public let workerID: UUID
@@ -476,8 +420,6 @@ public struct WorkerResult: Codable, Sendable {
     }
 }
 
-// MARK: - Worker Review
-
 public struct WorkerReview: Identifiable, Codable, Sendable {
     public let id: UUID
     public let workerID: UUID
@@ -514,8 +456,6 @@ public struct WorkerReview: Identifiable, Codable, Sendable {
         self.repairAssignment = repairAssignment
     }
 }
-
-// MARK: - Worker Handoff & Cancellation
 
 public typealias WorkerStopMode = WorkerHandoffMode
 
@@ -605,8 +545,6 @@ public struct WorkerDependency: Codable, Sendable {
         self.isSatisfied = isSatisfied
     }
 }
-
-// MARK: - Primary Worker Entity
 
 public struct Worker: Identifiable, Codable, Sendable {
     public let id: UUID
@@ -713,7 +651,6 @@ public struct Worker: Identifiable, Codable, Sendable {
         self.fileOwnerships = fileOwnerships
     }
 
-    /// All files affected by this worker
     public var allAffectedFiles: [String] {
         let set = Set(
             modifiedFiles.map { $0.path } +

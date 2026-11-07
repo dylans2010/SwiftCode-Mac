@@ -3,40 +3,12 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy project / Xcode / build tools (Wave 7, slice A),
-/// each driven black-box through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistBuildProjectTool`,
-/// `AssistTestRunnerTool`, `AssistProjectCleanTool`,
-/// `AssistProjectArchiveTool`, `AssistBuildLogAnalyzeTool`,
-/// `AssistBuildSystemDetectTool`, `AssistBuildConfigurationListTool`,
-/// `AssistBuildSettingsDiffTool`, `AssistBuildPhaseScriptsListTool`,
-/// `AssistXCResultParserTool`, `AssistDerivedDataLocateTool`,
-/// `AssistXcodeToolchainInfoTool` and
-/// `AssistXcodeDeviceDestinationTool` (Dylan's own code, ported under
-/// MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never
-/// on internals. Messages quoted verbatim are Legacy's. Message
-/// assertions use `firstText`, never an exact `resultText ==`
-/// (structured results emit two text blocks). Tests that run the
-/// real build/test seam are gated on `canBuildPackages`, like the
-/// `test` tool's own tests; nothing here claims a build passed
-/// without running one. Tests that need Xcode command line tools
-/// adapt to the environment: where `xcodebuild` / `xcrun` / a
-/// DerivedData directory is absent they assert the honest failure,
-/// where it is present they assert the real result.
 @MainActor
 @Suite(.serialized) struct SwiftCodeProjectBuildToolsTests {
-    /// The 13 Wave 7 slice A tool IDs, verified live from each
-    /// Legacy tool file's `id`.
     static let sliceAIDs = ["project_build", "project_test", "project_clean", "project_archive", "build_log_analyze",
                             "build_system_detect", "build_configuration_list", "build_settings_diff", "build_phase_scripts_list",
                             "xcresult_parser", "derived_data_locate", "xcode_toolchain_info", "xcode_device_destination_finder"]
 
-    /// Opens a copy of Greeter and installs the ported project/build
-    /// tools on the server (same shape as Wave 6's `opened`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -47,7 +19,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -71,18 +42,7 @@ import SwiftCodeAssistant
         for id in Self.sliceAIDs {
             #expect(host.server.tools.filter { $0.name == id }.count == 1, "\(id) must be registered exactly once")
         }
-        // The slice's Legacy aliases (`build` / `build_project` /
-        // `run_build` / `xcodebuild` → `project_build`, `test` /
-        // `run_tests` → `project_test`, `xcresult` →
-        // `xcresult_parser`, `device_destinations` →
-        // `xcode_device_destination_finder`) live in
-        // `MCPServer.toolAliases`, which the coordinator owns — they
-        // are reported as a wiring fragment instead of asserted
-        // here. `build` and `test` must NOT be added there: they
-        // would collide with SwiftCode's native `build` / `test`.
     }
-
-    // MARK: - Pure reads: build logs
 
     @Test func buildLogAnalyzeCountsDedupsAndTruncates() async throws {
         let sample = try TempSample()
@@ -104,8 +64,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("- Warnings: 1"))
         #expect(r.firstText.contains("ERROR: /Sources/A.swift:10: error: cannot find 'foo' in scope"))
         #expect(r.firstText.contains("WARNING: /Sources/B.swift:20: warning: unused variable 'x'"))
-        // A duplicated error line is counted once; the duplicate does
-        // not appear twice.
         #expect(r.firstText.components(separatedBy: "cannot find 'foo'").count - 1 == 1)
 
         try writeFixture(sample, "Logs/failed.log", "** BUILD FAILED **\n")
@@ -125,20 +83,14 @@ import SwiftCodeAssistant
         #expect(outside.isToolError && outside.firstText.contains("Cannot read build log at: ../outside.log"))
     }
 
-    // MARK: - Pure reads: build systems
-
     @Test func buildSystemDetectFindsSwiftPMAndXcodeBundles() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Greeter is a SwiftPM package.
         let r = try await host.server.callTool("build_system_detect")
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.structured?["count"]?.int == 1)
         #expect(r.firstText.contains("- SwiftPM: Package.swift"))
-        // A real .xcodeproj bundle and a Podfile are detected too —
-        // Legacy's check looked for entries literally named
-        // `xcworkspace` / `xcodeproj` and could never match these.
         try FileManager.default.createDirectory(atPath: sample.path("Foo.xcodeproj"), withIntermediateDirectories: true)
         try writeFixture(sample, "Podfile", "platform :ios\n")
         let again = try await host.server.callTool("build_system_detect")
@@ -148,10 +100,6 @@ import SwiftCodeAssistant
         #expect(again.firstText.contains("- CocoaPods: Podfile"))
     }
 
-    // MARK: - Pure reads: pbxproj (configurations, scripts)
-
-    /// A minimal pbxproj with two configuration lists (project +
-    /// target, Debug/Release) and one Run Script phase.
     static let pbxprojFixture = """
     /* Begin XCConfigurationList section */
     \t\tAAAAAAAA0000000000000001 /* Build configuration list for PBXProject "Greeter" */ = {
@@ -205,7 +153,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Greeter has no pbxproj.
         let none = try await host.server.callTool("build_configuration_list")
         #expect(none.isToolError && none.firstText.contains("No .pbxproj found in the workspace."))
         try writeFixture(sample, "Greeter.xcodeproj/project.pbxproj", Self.pbxprojFixture)
@@ -230,7 +177,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("- Run Script (phase: Run Script):"))
         #expect(r.firstText.contains("echo hello"))
         #expect(r.firstText.contains("echo world"))
-        // A script over 600 characters is truncated with Legacy's note.
         let longScript = String(repeating: "x ", count: 400)
         let longFixture = Self.pbxprojFixture.replacingOccurrences(of: "echo hello\\n echo world", with: longScript)
         try writeFixture(sample, "Greeter.xcodeproj/project.pbxproj", longFixture)
@@ -239,8 +185,6 @@ import SwiftCodeAssistant
         #expect(truncated.firstText.contains(" [truncated]"))
         #expect(truncated.firstText.contains("script truncated: showing first 600 of 800 characters"))
     }
-
-    // MARK: - Pure reads: xcconfig diff
 
     @Test func buildSettingsDiffReportsAddedRemovedChanged() async throws {
         let sample = try TempSample()
@@ -279,8 +223,6 @@ import SwiftCodeAssistant
         #expect(unreadable.isToolError && unreadable.firstText.contains("Cannot parse xcconfig at: Configs/nope.xcconfig"))
     }
 
-    // MARK: - project_clean (the slice's only write tool)
-
     @Test func projectCleanRequiresConfirmAndRemovesBuildDir() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -300,12 +242,10 @@ import SwiftCodeAssistant
         #expect(cleaned.structured?["removed"]?.string == "build/" && cleaned.structured?["scope"]?.string == "build")
         #expect(cleaned.firstText.contains("Cleaned: build/."))
         #expect(!exists(sample, "build"))
-        // A second clean reports that there was nothing to remove.
         let again = try await host.server.callTool("project_clean", ["scope": .string("build"), "confirm": .string("true")])
         #expect(!again.isToolError, "\(again.resultText)")
         #expect(again.structured?["removed"]?.string == "")
         #expect(again.firstText.contains("Nothing to clean. build/ did not exist."))
-        // A JSON boolean true counts as confirmation too.
         try writeFixture(sample, "build/dummy.txt", "x\n")
         let boolConfirmed = try await host.server.callTool("project_clean", ["scope": .string("build"), "confirm": .bool(true)])
         #expect(!boolConfirmed.isToolError, "\(boolConfirmed.resultText)")
@@ -350,8 +290,6 @@ import SwiftCodeAssistant
         #expect(r.structured?["removed"]?.string == "xcodebuild clean" && r.structured?["scope"]?.string == "derivedData")
     }
 
-    // MARK: - project_archive (argument validation; no xcodebuild here)
-
     @Test func projectArchiveRejectsBadArguments() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -373,16 +311,11 @@ import SwiftCodeAssistant
                                                                                "archivePath": .string("Archives/Greeter.xcarchive"),
                                                                                "exportOptionsPlist": .string("Nope.plist")])
         #expect(missingPlist.isToolError && missingPlist.firstText.contains("exportOptionsPlist 'Nope.plist' not found inside the workspace."))
-        // Greeter is a SwiftPM package, not an Xcode project — the
-        // archive cannot proceed, and it fails before any xcodebuild
-        // is attempted.
         let package = try await host.server.callTool("project_archive", ["scheme": .string("Greeter"),
                                                                           "archivePath": .string("Archives/Greeter.xcarchive")])
         #expect(package.isToolError && package.firstText.contains("No .xcodeproj or .xcworkspace found at the top level of the workspace."))
         #expect(!exists(sample, "Archives"))
     }
-
-    // MARK: - project_build / project_test (validation; real runs gated)
 
     @Test func projectBuildRejectsUnknownSchemeAndForeignProject() async throws {
         let sample = try TempSample()
@@ -422,8 +355,6 @@ import SwiftCodeAssistant
         #expect(tested.firstText.contains("Tests Passed"))
     }
 
-    // MARK: - DerivedData / toolchain / destinations (environment-adaptive)
-
     @Test func derivedDataLocateAdaptsToEnvironment() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -454,14 +385,10 @@ import SwiftCodeAssistant
             let r = try await host.server.callTool("xcresult_parser")
             #expect(!r.isToolError, "\(r.resultText)")
             #expect(r.firstText.contains("No .xcresult bundle found. Run a build or test suite first."))
-            // A non-existent explicit bundle falls through to the
-            // same search instead of failing.
             let explicit = try await host.server.callTool("xcresult_parser", ["bundlePath": .string("nope.xcresult")])
             #expect(!explicit.isToolError, "\(explicit.resultText)")
             #expect(explicit.firstText.contains("No .xcresult bundle found. Run a build or test suite first."))
         } else {
-            // A bundle exists: parsing it through the real
-            // xcresulttool must not error at the tool level.
             let r = try await host.server.callTool("xcresult_parser")
             #expect(!r.isToolError, "\(r.resultText)")
         }

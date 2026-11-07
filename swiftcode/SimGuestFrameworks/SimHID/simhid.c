@@ -1,47 +1,3 @@
-/*
- * simhid.c - SwiftCode's HID bundle for the iOS simulator guest
- * (specs/simulator/hid-input.md). backboardd loads the bundle named by
- * SIMULATOR_HID_SYSTEM_MANAGER and calls -initUsingHIDService:error: on
- * its principal class with its HID event system (spec §3). The bundle
- * publishes three virtual HID services in that event system (buttons,
- * keyboard, touch screen; §4), registers with swiftcode-simd's host service
- * dev.swiftcode.simulator.hid (§7), and turns the host's messages into HID
- * events dispatched from those services (§5).
- *
- * A foldable device (SWIFTCODE_SIMHID_DEVICE_MOTION=1; specs/simulator/foldable.md
- * §8.2) gets the device-motion control service (usage pair 0xFF61/0x5B,
- * I2), and with a second built-in display (SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY)
- * a touch screen for that display (I1); from which the host's hinge-angle and device-orientation
- * messages are dispatched as vendor-defined events whose data is a
- * dictionary in IOKit's text serialization (I3, §5.3 there).
- *
- * A watch (SWIFTCODE_SIMHID_DIGITAL_CROWN=1; specs/simulator/watchos.md W-9, §5.1,
- * §5.2, §12, §13) gets the Digital Crown service (usage pair 0xFF0B/1,
- * Built-In), from which each host crown message (kind 8) is dispatched as one
- * scroll event carrying the signed delta unchanged; backboardd routes it to
- * the keyboard focus. Its buttons service takes only the watch's button pairs
- * (crown press 0x0C/0x40, side 0x0C/0x95, screen 0x0C/0x30 and, with
- * SWIFTCODE_SIMHID_ACTION_BUTTON=1 on the Ultra types, the Action button
- * 0xFF01/0x200); any other pair is ignored (§5.2). A watch gesture (kind 9)
- * becomes one GenericGesture event (IOHIDFamily event type 39) made here and
- * dispatched from the bundle's watch-gestures service (§5.2): double tap =
- * gesture type 2 (HandTap) with tap count 2, flick = type 8 (HandFlick),
- * phase Ended (event flags 0x4000000), relative; single tap makes no event.
- *
- * A Vision Pro (SWIFTCODE_SIMHID_VISION=1; specs/simulator/visionos.md §5.3,
- * §5.5.2, V-10) gets the DigitalDial, PalomaPose, SelectionStream and
- * Manipulator services; host pose (kind 10), selection (kind 11) and crown
- * (kind 8) messages become the camera-pose, gaze-and-hands and dial events
- * of §5.5.2 (see "visionOS" below).
- *
- * Clean-room SwiftCode code, written from specs/simulator/hid-input.md,
- * specs/simulator/foldable.md, watchos.md and visionos.md only, with public C, Mach, CoreFoundation,
- * dispatch, IOKit (IOCFSerialize's text format, IOHIDFamily's event
- * constructors) and Objective-C runtime interfaces. Built without SDK headers like the framebuffer library: the
- * types and imported functions are declared here, and build.sh links
- * against .tbd stubs (imports.txt).
- */
-
 typedef __SIZE_TYPE__ size_t;
 typedef __UINT8_TYPE__ uint8_t;
 typedef __UINT16_TYPE__ uint16_t;
@@ -52,8 +8,6 @@ typedef __INT64_TYPE__ int64_t;
 typedef __UINTPTR_TYPE__ uintptr_t;
 
 #define NULL ((void *)0)
-
-/* ---- CoreFoundation (public API) ---- */
 
 typedef const void *CFTypeRef;
 typedef const void *CFAllocatorRef;
@@ -102,8 +56,6 @@ typedef const struct __CFData *CFDataRef;
 extern const uint8_t *CFDataGetBytePtr(CFDataRef);
 extern CFIndex CFDataGetLength(CFDataRef);
 
-/* ---- libSystem (public API) ---- */
-
 typedef void *dispatch_queue_t;
 typedef void *dispatch_source_t;
 typedef uint64_t dispatch_time_t;
@@ -142,8 +94,6 @@ extern void *dlsym(void *handle, const char *symbol);
 #define O_CLOEXEC 0x01000000
 #define DISPATCH_TIME_NOW 0ull
 
-/* ---- Mach (public API) ---- */
-
 typedef uint32_t mach_port_t;
 typedef int kern_return_t;
 typedef struct {
@@ -178,8 +128,6 @@ extern kern_return_t mach_msg(mach_msg_header_t *msg, int option, uint32_t send_
 #define MACH_MSG_PORT_DESCRIPTOR 0u
 #define MACH_MSGH_BITS_COMPLEX 0x80000000u
 
-/* ---- Objective-C runtime (public API) ---- */
-
 typedef struct objc_class *Class;
 typedef struct objc_object *id;
 typedef struct objc_selector *SEL;
@@ -198,8 +146,6 @@ extern void objc_registerProtocol(Protocol *proto);
 extern SEL sel_registerName(const char *name);
 extern void objc_msgSend(void);
 extern void objc_release(id);
-
-/* ---- IOKit HID (spec §4, §5; names and argument orders from the spec) ---- */
 
 typedef struct __IOHIDEvent *IOHIDEventRef;
 typedef struct __IOHIDService *IOHIDServiceRef;
@@ -233,26 +179,16 @@ extern IOHIDEventRef IOHIDEventCreateKeyboardEvent(CFAllocatorRef, uint64_t time
                                                    Boolean down, uint32_t options);
 extern void IOHIDEventAppendEvent(IOHIDEventRef parent, IOHIDEventRef child, uint32_t options);
 extern void IOHIDEventSetIntegerValue(IOHIDEventRef event, uint32_t field, CFIndex value);
-/* Looked up at run time (dlsym), so a runtime without them still loads the
- * bundle: IOHIDFamily's vendor-defined event constructor and IOKitUser's
- * IOCFSerialize (both public declarations). */
 typedef IOHIDEventRef (*VendorDefinedEventCreator)(CFAllocatorRef, uint64_t timeStamp, uint32_t usagePage, uint32_t usage,
                                                    uint32_t version, const uint8_t *data, CFIndex length, uint32_t options);
 typedef CFDataRef (*CFSerializer)(CFTypeRef object, uint32_t options);
-/* IOKitUser's scroll event constructor (public declaration; the axis values
- * are IOHIDFloat, a double on 64-bit). Looked up at run time. */
 typedef IOHIDEventRef (*ScrollEventCreator)(CFAllocatorRef, uint64_t timeStamp, double x, double y, double z, uint32_t options);
-/* IOHIDFamily's GenericGesture constructor (HIDEventAccessors.h /
- * IOHIDEvent.h, APSL 2.0: timestamp, gesture type, options), the generic
- * constructor (type, timestamp, options), and the event-flags and phase
- * setters. All looked up at run time. */
 typedef IOHIDEventRef (*GenericGestureCreator)(CFAllocatorRef, uint64_t timeStamp, uint32_t gestureType, uint32_t options);
 typedef IOHIDEventRef (*GenericEventCreator)(CFAllocatorRef, uint32_t type, uint64_t timeStamp, uint32_t options);
 typedef void (*EventFlagsSetter)(IOHIDEventRef, uint32_t flags);
 typedef void (*EventPhaseSetter)(IOHIDEventRef, uint32_t phase);
 
 #define TRANSDUCER_HAND 3u
-/* The scroll axis that carries the crown's delta (0 x, 1 y, 2 z; watchos.md §12). */
 #ifndef CROWN_AXIS_DEFAULT
 #define CROWN_AXIS_DEFAULT 1
 #endif
@@ -262,8 +198,6 @@ typedef void (*EventPhaseSetter)(IOHIDEventRef, uint32_t phase);
 #define MASK_POSITION 0x4u
 #define MASK_CANCEL 0x80u
 #define IORETURN_UNSUPPORTED ((int)0xE00002C7)
-
-/* ---- Small helpers (no C library) ---- */
 
 static char *put_text(char *p, char *end, const char *s) {
     while (*s && p < end) *p++ = *s++;
@@ -301,7 +235,6 @@ static void copy_bytes(void *dst, const void *src, size_t n) {
 
 static CFStringRef make_string(const char *s) { return CFStringCreateWithCString(NULL, s, kCFStringEncodingUTF8); }
 
-/* The log (spec §3 item 6): lines appended to $SWIFTCODE_SIMHID_LOG when set. */
 static int logFD = -2;
 static os_unfair_lock logLock;
 
@@ -328,7 +261,6 @@ static void log_line(const char *text, uint64_t a, uint64_t b) {
     os_unfair_lock_unlock(&logLock);
 }
 
-/* One log line with a CF string (or a C string when cf is NULL). */
 static void log_text(const char *text, CFStringRef cf, const char *c) {
     char value[160];
     value[0] = 0;
@@ -357,8 +289,6 @@ static void log_text(const char *text, CFStringRef cf, const char *c) {
     }
     os_unfair_lock_unlock(&logLock);
 }
-
-/* ---- Virtual services (spec §4) ---- */
 
 #define SERVICE_ID_BASE 0x59434F4400000000ull
 
@@ -443,7 +373,6 @@ static void set_string(CFMutableDictionaryRef d, const char *key, const char *va
     CFRelease(v);
 }
 
-/* A property dictionary with the primary usage and DeviceUsagePairs (§4.3). */
 static CFMutableDictionaryRef usage_properties(int64_t page, int64_t usage) {
     CFMutableDictionaryRef d = CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     set_number(d, "PrimaryUsagePage", page);
@@ -462,13 +391,8 @@ static CFMutableDictionaryRef usage_properties(int64_t page, int64_t usage) {
 static IOHIDEventSystemRef eventSystem;
 static dispatch_queue_t queue;
 static struct service buttons, keyboard, touchscreen;
-/* Foldable devices (foldable.md §8.2): the second display's touch screen
- * and the device-motion control service. */
 static struct service innerTouchscreen, motion;
-/* A watch (watchos.md §5, W-9): the Digital Crown service; the service the
- * GenericGesture events come from (§5.2). */
 static struct service crown, gestures;
-/* A watch: only its button pairs are dispatched (§5.2); actionButton on the Ultras. */
 static int watchButtons, actionButton;
 
 static void add_service(struct service *s) {
@@ -528,9 +452,6 @@ static void make_touchscreen(CFStringRef displayUUID) {
     make_touch_service(&touchscreen, 3, "touch screen service", displayUUID, "SwiftCode Touch Screen");
 }
 
-/* foldable.md §8.2 I2: primary pair 0xFF61/0x5B, DeviceUsagePairs with
- * that pair, a Product string, transport "Virtual". It never answers
- * copyEvent (the shared callbacks return NULL). */
 static void make_motion(void) {
     motion.id = SERVICE_ID_BASE | 4;
     motion.name = "device motion service";
@@ -539,7 +460,6 @@ static void make_motion(void) {
     set_string(motion.properties, "Transport", "Virtual");
 }
 
-/* watchos.md §5 (W-9): primary pair 0xFF0B/1 with DeviceUsagePairs, Built-In. */
 static void make_crown(void) {
     crown.id = SERVICE_ID_BASE | 6;
     crown.name = "digital crown service";
@@ -548,8 +468,6 @@ static void make_crown(void) {
     set_string(crown.properties, "Product", "SwiftCode Digital Crown");
 }
 
-/* watchos.md §5.2: the gesture events' own service (the reference's comes
- * from watchgesturesd, primary page and usage 0); Built-In. */
 static void make_gestures(void) {
     gestures.id = SERVICE_ID_BASE | 7;
     gestures.name = "watch gestures service";
@@ -558,11 +476,6 @@ static void make_gestures(void) {
     set_string(gestures.properties, "Product", "SwiftCode Watch Gestures");
 }
 
-/* ---- The second built-in display (foldable.md §8.1 D1) ----
- * SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY is "<id> <name> <device name> <width>
- * <height> <scale> <pitch> <uid>" (the framebuffer library's description of
- * it); its last word is the display's unique id, which QuartzCore reports
- * as the CADisplay's uniqueId (hid-input.md §6). Empty: not a foldable. */
 static CFStringRef copy_second_display_uid(void) {
     const char *spec = getenv("SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY");
     if (!spec || !*spec) return NULL;
@@ -581,11 +494,8 @@ static CFStringRef copy_second_display_uid(void) {
     return make_string(uid);
 }
 
-/* ---- Display association (§6) ---- */
-
 #define SWIFTCODE_DISPLAY_UID "59434F44-4500-4000-8000-000000000001"
 
-/* The main CADisplay's uniqueId (retained), or NULL. */
 static CFStringRef copy_display_uid(void) {
     Class cls = objc_getClass("CADisplay");
     if (!cls) return NULL;
@@ -601,7 +511,6 @@ static void find_display(void *unused) {
     (void)unused;
     CFStringRef uid = copy_display_uid();
     if (!uid && ++displayTries < 200) {
-        /* Every 50 ms for up to 10 s. */
         dispatch_after_f(dispatch_time(DISPATCH_TIME_NOW, 50000000), queue, NULL, find_display);
         return;
     }
@@ -623,8 +532,6 @@ static void find_display(void *unused) {
     }
 }
 
-/* ---- Events (§5) ---- */
-
 #define MAX_CONTACTS 5
 
 static struct {
@@ -635,10 +542,6 @@ static struct {
 static uint32_t nextIdentity = 1;
 static uint64_t lastTimestamp;
 
-/* The host's age of the event being handled, in microseconds (the touch,
- * key and button records' reserved word; uikit-feel-swiftcode.md §4.0): the
- * event is stamped that much before its arrival, so input the guest took
- * late keeps the spacing it was made with. 0: the arrival time. */
 static uint32_t eventAge;
 static uint32_t timebaseNumer, timebaseDenom;
 
@@ -652,7 +555,7 @@ static uint64_t timestamp(void) {
                 timebaseNumer = tb.numer;
                 timebaseDenom = tb.denom;
             } else {
-                timebaseNumer = 125, timebaseDenom = 3; /* the 24 MHz guest timebase */
+                timebaseNumer = 125, timebaseDenom = 3;
             }
         }
         uint64_t ticks = (uint64_t)eventAge * 1000u * timebaseDenom / timebaseNumer;
@@ -670,11 +573,11 @@ static void dispatch_from(struct service *s, IOHIDEventRef e) {
 }
 
 static const uint32_t edgeBitsFor[5] = {
-    0,           /* none */
-    0x02040000u, /* top: SwipeDown | SwipeLocked */
-    0x08040000u, /* left: SwipeRight | SwipeLocked */
-    0x01040000u, /* bottom: SwipeUp | SwipeLocked */
-    0x04040000u, /* right: SwipeLeft | SwipeLocked */
+    0,
+    0x02040000u,
+    0x08040000u,
+    0x01040000u,
+    0x04040000u,
 };
 
 struct touch_record {
@@ -704,7 +607,7 @@ static void touch(struct service *screen, const uint8_t *body, uint32_t count) {
             slots[r.index].edgeBits = r.edge < 5 ? edgeBitsFor[r.edge] : 0;
             mask = MASK_RANGE | MASK_TOUCH;
         } else if (!slots[r.index].down) {
-            continue; /* a contact that never began (or a restart): dropped */
+            continue;
         } else if (r.phase == 2) {
             mask = MASK_POSITION;
         } else if (r.phase == 3) {
@@ -746,16 +649,6 @@ static void key(struct service *s, uint32_t page, uint32_t usage, uint32_t down)
     dispatch_from(s, IOHIDEventCreateKeyboardEvent(NULL, timestamp(), page, usage, down ? 1 : 0, 0));
 }
 
-/* ---- Device motion: hinge angle and device orientation (foldable.md §5.3, §8.2 I3) ----
- * One vendor-defined event (usage page 0xFF61, usage 0x5B, version 0) per
- * value, from the device-motion service; its data is a dictionary with the
- * keys source, type and value in IOKit's text serialization. The runtime's
- * own IOCFSerialize writes it when the runtime exports it; otherwise the
- * bundle writes the same format itself (IOKitUser's IOCFSerialize format:
- * a dict element with alternating key and value elements, strings as
- * string elements, integers as integer elements with a size attribute and
- * hexadecimal text). */
-
 static VendorDefinedEventCreator vendorEventCreator;
 static CFSerializer serializer;
 static int motionResolved;
@@ -768,7 +661,6 @@ static void resolve_motion_functions(void) {
     log_line("device motion: vendor event constructor, IOCFSerialize found", vendorEventCreator != NULL, serializer != NULL);
 }
 
-/* The three-key dictionary's text, written by the bundle. */
 static size_t motion_text(char *buf, size_t size, const char *source, const char *type, const char *stringValue,
                           int64_t integerValue) {
     char *p = buf, *end = buf + size - 1;
@@ -840,8 +732,6 @@ static void hinge_angle(uint32_t degrees) {
     motion_event("hinge-slider-control", "range", NULL, (int64_t)degrees);
 }
 
-/* The host's orientation code (the relay's own codes, foldable.md §5.4)
- * → the orientation picker's value (§5.3). */
 static void device_orientation(uint32_t code) {
     const char *name;
     switch (code) {
@@ -857,11 +747,6 @@ static void device_orientation(uint32_t code) {
     }
     motion_event("orientation-picker-control", "enum", name, 0);
 }
-
-/* ---- The Digital Crown and watch gestures (watchos.md §5.1, §12) ----
- * One scroll event per host message, the delta unchanged (the guest does the
- * detents and acceleration). The axis that carries it is SwiftCode's choice
- * (§12): SWIFTCODE_SIMHID_CROWN_AXIS x, y or z (default below). */
 
 static uint32_t le32(const uint8_t *p);
 static uint64_t le64(const uint8_t *p);
@@ -885,7 +770,6 @@ static void crown_rotation(double delta, uint32_t axisOverride) {
         return;
     }
     double v[3] = {0, 0, 0};
-    /* Diagnostics: the message's second word may name the axis (1 x, 2 y, 3 z). */
     v[axisOverride >= 1 && axisOverride <= 3 ? (int)axisOverride - 1 : crownAxis] = delta;
     static uint32_t logged;
     if (logged < 10) {
@@ -896,7 +780,6 @@ static void crown_rotation(double delta, uint32_t axisOverride) {
     dispatch_from(&crown, scrollEventCreator(NULL, timestamp(), v[0], v[1], v[2], 0));
 }
 
-/* watchos.md §5.2 (the values of HIDHostService.WatchGestureEvent). */
 #define EVENT_TYPE_GENERIC_GESTURE 39u
 #define FIELD_GESTURE_TYPE (EVENT_TYPE_GENERIC_GESTURE << 16)
 #define FIELD_GESTURE_TAP_COUNT ((EVENT_TYPE_GENERIC_GESTURE << 16) | 1u)
@@ -910,14 +793,12 @@ static EventPhaseSetter phaseSetter;
 static int gestureResolved;
 
 static void watch_gesture(uint32_t gesture) {
-    /* §5.1's host numbering: 0 double tap, 1 flick, 2 single tap. */
     static uint32_t logged;
     uint32_t type, taps;
     switch (gesture) {
-    case 0: type = 2, taps = 2; break; /* HandTap, two taps */
-    case 1: type = 8, taps = 0; break; /* HandFlick */
+    case 0: type = 2, taps = 2; break;
+    case 1: type = 8, taps = 0; break;
     default:
-        /* Single tap: no receiver in the reference, no event; others unknown. */
         if (logged++ < 20) log_line("watch gesture: no event for this gesture (2: single tap), ignored", gesture, 0);
         return;
     }
@@ -935,8 +816,6 @@ static void watch_gesture(uint32_t gesture) {
                  (uint64_t)(gestureCreator != NULL) << 4 | (genericCreator != NULL),
                  (uint64_t)(flagsSetter != NULL) << 4 | (phaseSetter != NULL));
     }
-    /* Options carry the phase only when no setter exists (the constructors
-     * store their options as the event flags). */
     uint32_t options = flagsSetter || phaseSetter ? 0 : GESTURE_EVENT_FLAGS;
     uint64_t ts = timestamp();
     IOHIDEventRef e = NULL;
@@ -957,25 +836,6 @@ static void watch_gesture(uint32_t gesture) {
     dispatch_from(&gestures, e);
 }
 
-/* ---- visionOS: camera pose, gaze and hands, Digital Crown (visionos.md §5.5.2, V-10) ----
- * A Vision Pro (SWIFTCODE_SIMHID_VISION=1) gets four further services with the
- * usage pairs of visionos.md §5.3: DigitalDial (1 / 0x37), PalomaPose
- * (0xFF00 / 0x72), SelectionStream (0xFF00 / 0x71) and Manipulator
- * (0xFF00 / 0x6F; published, never used). A host pose message (kind 10)
- * becomes one vendor-defined event (0xFF00 / 0x72, version 13, no data,
- * flags 0x1) with a Translation child (the camera position) and an
- * Orientation child (quaternion, orientation type 3), dispatched from
- * PalomaPose. A selection message (kind 11) becomes one vendor-defined
- * event 0x6F (flags 0x2000003: phase Changed, absolute) with, unless it is
- * selection-only, a left and a right hand child (0x70, data {pinching,
- * chirality 2 left / 1 right, allowDirect}, flags 3 / 1, each with
- * Translation and Orientation children), then the gaze child (0x71, flags
- * 3) with an absolute Translation (ray origin) and an absolute Rotation
- * (ray direction); dispatched from SelectionStream. The crown (kind 8)
- * becomes a Scroll event (flags 0x10, y = the delta) from DigitalDial.
- * Constructors and setters are IOHIDFamily's (IOHIDEventTypes.h,
- * IOHIDEventFieldDefs.h, APSL 2.0), all looked up with dlsym. */
-
 #include "vision_orientation.h"
 
 #define EVENT_TYPE_TRANSLATION 4u
@@ -983,8 +843,6 @@ static void watch_gesture(uint32_t gesture) {
 #define EVENT_TYPE_ORIENTATION 10u
 #define FIELD_TRANSLATION(i) ((EVENT_TYPE_TRANSLATION << 16) | (i))
 #define FIELD_ROTATION(i) ((EVENT_TYPE_ROTATION << 16) | (i))
-/* The Orientation child's fields (type 3 in 10<<16|3, w x y z in 10<<16|8…11)
- * are set by its constructor (vision_orientation.h). */
 #define OPTION_ABSOLUTE 0x1u
 #define VISION_PAGE 0xFF00u
 #define VISION_VERSION 13u
@@ -992,7 +850,7 @@ static void watch_gesture(uint32_t gesture) {
 #define VISION_USAGE_HAND 0x70u
 #define VISION_USAGE_GAZE 0x71u
 #define VISION_USAGE_POSE 0x72u
-#define SELECTION_FLAGS 0x2000003u /* phase Changed (2) << 24 | absolute | collection */
+#define SELECTION_FLAGS 0x2000003u
 #define DIAL_FLAGS 0x10u
 
 typedef void (*FloatSetter)(IOHIDEventRef, uint32_t field, double value);
@@ -1016,7 +874,7 @@ static void make_vision_service(struct service *s, uint64_t number, const char *
 static void resolve_vision_functions(void) {
     if (visionResolved) return;
     visionResolved = 1;
-    resolve_motion_functions(); /* the vendor-defined constructor */
+    resolve_motion_functions();
     if (!scrollResolved) {
         scrollResolved = 1;
         scrollEventCreator = (ScrollEventCreator)dlsym(RTLD_DEFAULT, "IOHIDEventCreateScrollEvent");
@@ -1035,12 +893,10 @@ static void resolve_vision_functions(void) {
                  (uint64_t)(floatSetter != NULL) << 4 | (flagsSetter != NULL));
 }
 
-/* Sets the event flags (the constructor's options when no setter exists). */
 static void set_flags(IOHIDEventRef e, uint32_t flags) {
     if (e && flagsSetter) flagsSetter(e, flags);
 }
 
-/* A Translation (type 4) or Rotation (type 5) event with x, y, z. */
 static IOHIDEventRef vector_event(uint32_t type, uint64_t ts, const double v[3], uint32_t flags) {
     Vector3Creator create = type == EVENT_TYPE_TRANSLATION ? translationCreator : rotationCreator;
     IOHIDEventRef e = create ? create(NULL, ts, v[0], v[1], v[2], flags) : NULL;
@@ -1052,11 +908,6 @@ static IOHIDEventRef vector_event(uint32_t type, uint64_t ts, const double v[3],
     return e;
 }
 
-/* An Orientation event (type 10) of orientation type 3 (quaternion w, x,
- * y, z), made with IOHIDEventCreateQuaternionOrientationEvent: one made with
- * the generic constructor stays type 0 and loses the quaternion
- * (visionos.md §5.5.10). Without the constructor the pose and the hands go
- * without their rotation (logged once). */
 static IOHIDEventRef quaternion_event(uint64_t ts, const double q[4], uint32_t flags) {
     IOHIDEventRef e = (IOHIDEventRef)vision_quaternion_event(quaternionCreator, ts, q);
     if (!e) {
@@ -1079,7 +930,6 @@ static IOHIDEventRef vendor_event(uint64_t ts, uint32_t usage, const uint8_t *da
     return e;
 }
 
-/* Appends `child` to `parent` and releases it (NULL children are skipped). */
 static void append(IOHIDEventRef parent, IOHIDEventRef child) {
     if (!child) return;
     if (parent) IOHIDEventAppendEvent(parent, child, 0);
@@ -1090,10 +940,9 @@ static double read_f64(const uint8_t *p) {
     uint64_t bits = le64(p);
     double v;
     copy_bytes(&v, &bits, sizeof v);
-    return v == v && v < 1e9 && v > -1e9 ? v : 0; /* NaN and absurd values: 0 */
+    return v == v && v < 1e9 && v > -1e9 ? v : 0;
 }
 
-/* Kind 10: 7 f64, translation x, y, z, quaternion w, x, y, z (stage frame). */
 static void vision_pose(const uint8_t *k) {
     if (!pose.added) {
         log_line("vision: no pose service (not a Vision Pro); pose dropped", 0, 0);
@@ -1118,8 +967,6 @@ static void vision_pose(const uint8_t *k) {
     dispatch_from(&pose, parent);
 }
 
-/* One hand of kind 11 at `h` (48... bytes: u32 pinching, u32 allowDirect,
- * u32 extra, u32 0, 7 f64): its 0x70 event. */
 static IOHIDEventRef vision_hand(uint64_t ts, const uint8_t *h, int left) {
     uint32_t pinching = le32(h) ? 1 : 0, direct = le32(h + 4) ? 1 : 0, extra = le32(h + 8) & 0xFFFF;
     uint8_t data[3] = {(uint8_t)pinching, (uint8_t)(left ? 2 : 1), (uint8_t)direct};
@@ -1136,8 +983,6 @@ static IOHIDEventRef vision_hand(uint64_t ts, const uint8_t *h, int left) {
 #define VISION_HAND_SIZE 72u
 #define VISION_SELECTION_SIZE (8u + 48u + 2u * VISION_HAND_SIZE)
 
-/* Kind 11: u32 flags (bit 0: hands present), u32 0, ray origin 3 f64, ray
- * direction 3 f64, left hand, right hand (VISION_HAND_SIZE each). */
 static void vision_selection(const uint8_t *k) {
     if (!selectionStream.added) {
         log_line("vision: no selection service (not a Vision Pro); selection dropped", 0, 0);
@@ -1151,7 +996,7 @@ static void vision_selection(const uint8_t *k) {
         log_line("vision: the runtime has no vendor-defined event constructor; selection dropped", 0, 0);
         return;
     }
-    if (!flagsSetter && phaseSetter) phaseSetter(parent, 2); /* Changed */
+    if (!flagsSetter && phaseSetter) phaseSetter(parent, 2);
     const uint8_t *hand = k + 56;
     if (hands) {
         append(parent, vision_hand(ts, hand, 1));
@@ -1176,7 +1021,6 @@ static void vision_selection(const uint8_t *k) {
     dispatch_from(&selectionStream, parent);
 }
 
-/* Kind 8 on a Vision Pro: the Digital Crown as one Scroll event (flags 0x10, y). */
 static void vision_dial(double delta) {
     if (!dial.added) return;
     resolve_vision_functions();
@@ -1195,8 +1039,6 @@ static void vision_dial(double delta) {
     dispatch_from(&dial, e);
 }
 
-/* A host button message (kind 3). A watch takes only its own pairs (§5.2):
- * the reference's backboardd crashed on an unknown source, SwiftCode ignores it. */
 static void button(uint32_t page, uint32_t usage, uint32_t down) {
     if (watchButtons) {
         int known = page == 0x0C && (usage == 0x40 || usage == 0x95 || usage == 0x30);
@@ -1211,8 +1053,6 @@ static void button(uint32_t page, uint32_t usage, uint32_t down) {
     key(&buttons, page, usage, down);
 }
 
-/* ---- Host transport (§7) ---- */
-
 #define HID_SERVICE_NAME "dev.swiftcode.simulator.hid"
 #define MSG_REGISTER 0x59480001
 #define MSG_EVENT 0x59480002
@@ -1220,16 +1060,10 @@ static void button(uint32_t page, uint32_t usage, uint32_t down) {
 static mach_port_t receivePort;
 static dispatch_source_t receiveSource;
 
-/* ---- Event timing log (diagnostic, display-stream.md §10) ----
- * With SWIFTCODE_SIMHID_TIMING set to a path, every event message writes one
- * 32-byte little-endian entry into a ring of 4096 entries in that file
- * (offset (sequence mod 4096) × 32): u64 host sequence number, u64 mach
- * time when the message was taken from the port, u64 mach time after the
- * event was dispatched to the event system, u32 kind, u32 0. */
 static int timingFD = -2;
 
 static void write_timing(uint64_t sequence, uint64_t received, uint64_t dispatched, uint32_t kind) {
-    if (timingFD == -2) { /* the receive queue is serial: no lock needed */
+    if (timingFD == -2) {
         const char *path = getenv("SWIFTCODE_SIMHID_TIMING");
         timingFD = path && *path ? open(path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644) : -1;
     }
@@ -1252,7 +1086,6 @@ static void handle_event(const uint8_t *body, uint32_t size) {
     }
     uint32_t kind = le32(body + 4);
     const uint8_t *k = body + 16;
-    /* The first messages are logged (bring-up and support). */
     static uint32_t logged;
     if (logged < 40) {
         logged++;
@@ -1266,7 +1099,6 @@ static void handle_event(const uint8_t *body, uint32_t size) {
             log_line("malformed touch message (size, count)", size, count);
             return;
         }
-        /* Display 0: the main display; 1: the second (foldable.md §8.2 I1). */
         uint32_t display = le32(k);
         eventAge = le32(k + 8 + 12);
         touch(display == 1 ? &innerTouchscreen : &touchscreen, k + 8, count);
@@ -1321,7 +1153,7 @@ static void handle_event(const uint8_t *body, uint32_t size) {
         vision_selection(k);
         return;
     default:
-        return; /* unknown kinds are ignored */
+        return;
     }
     log_line("malformed message (size, kind)", size, kind);
 }
@@ -1335,7 +1167,7 @@ static void receive(void *unused) {
         } m;
         m.header.msgh_size = 0;
         kern_return_t kr = mach_msg(&m.header, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof m, receivePort, 0, 0);
-        if (kr != 0) return; /* drained (or an error: nothing more to read now) */
+        if (kr != 0) return;
         uint32_t size = m.header.msgh_size;
         if (m.header.msgh_id != MSG_EVENT || (m.header.msgh_bits & MACH_MSGH_BITS_COMPLEX) || size < sizeof(mach_msg_header_t) ||
             size > sizeof m) {
@@ -1379,7 +1211,7 @@ static void register_with_host(void *unused) {
         uint32_t descriptorCount;
         mach_msg_port_descriptor_t port;
         uint32_t version, flags;
-    } msg; /* 48 bytes: every field is 4-byte aligned, no padding */
+    } msg;
     _Static_assert(sizeof msg == 48, "registration message layout");
     uint8_t *raw = (uint8_t *)&msg;
     for (size_t i = 0; i < sizeof msg; i++) raw[i] = 0;
@@ -1397,8 +1229,6 @@ static void register_with_host(void *unused) {
     log_line(kr == 0 ? "registered with the host (port)" : "registration failed (kr)", kr == 0 ? receivePort : (uint64_t)(uint32_t)kr,
              0);
 }
-
-/* ---- The principal class (§3) ---- */
 
 #define CLASS_NAME "SwiftCodeSimHIDSystem"
 #define PROTOCOL_NAME "SimulatorClientHIDSystemManager"
@@ -1426,10 +1256,6 @@ static id init_using_hid_service(id self, SEL cmd, IOHIDEventSystemRef system, i
     make_keyboard();
     add_service(&buttons);
     add_service(&keyboard);
-    /* A foldable (SWIFTCODE_SIMHID_DEVICE_MOTION=1, or a second built-in
-     * display): the device-motion control service from the start (the
-     * relay's defaults are angle 0 and portrait; nothing is sent until the
-     * host changes the fold, foldable.md §8.2 I5). */
     const char *wantMotion = getenv("SWIFTCODE_SIMHID_DEVICE_MOTION");
     CFStringRef second = copy_second_display_uid();
     if ((wantMotion && wantMotion[0] == '1') || second) {
@@ -1448,8 +1274,6 @@ static id init_using_hid_service(id self, SEL cmd, IOHIDEventSystemRef system, i
         actionButton = wantAction && wantAction[0] == '1';
         log_line("watch: buttons crown, side, screen; Action button", (uint64_t)actionButton, 0);
     }
-    /* A Vision Pro (visionos.md §5.3, V-10): DigitalDial, PalomaPose,
-     * SelectionStream and Manipulator. */
     const char *wantVision = getenv("SWIFTCODE_SIMHID_VISION");
     if (wantVision && wantVision[0] == '1') {
         vision = 1;

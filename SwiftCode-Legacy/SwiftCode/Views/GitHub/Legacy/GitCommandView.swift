@@ -37,7 +37,6 @@ struct GitCommandView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Git Guided Commands", systemImage: "terminal.fill")
                     .font(.headline)
@@ -48,10 +47,8 @@ struct GitCommandView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Branch indicator
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -84,7 +81,6 @@ struct GitCommandView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Command groups
                     GroupBox {
                         commandGroup(
                             title: "Synchronization Operations",
@@ -143,8 +139,6 @@ struct GitCommandView: View {
         .onAppear { fetchBranches() }
     }
 
-    // MARK: - Subviews
-
     private func commandGroup(
         title: String,
         icon: String,
@@ -163,8 +157,6 @@ struct GitCommandView: View {
             }
         }
     }
-
-    // MARK: - Command Sheets
 
     private var commitInputSheet: some View {
         VStack(spacing: 20) {
@@ -317,8 +309,6 @@ struct GitCommandView: View {
         .frame(width: 400)
     }
 
-    // MARK: - Command Definitions
-
     private var syncCommands: [GitCommandCard] {
         [
             GitCommandCard(
@@ -434,8 +424,6 @@ struct GitCommandView: View {
             )
         ]
     }
-
-    // MARK: - Actions
 
     private func checkStatus() {
         let modified = sessionStore.modifiedFilePaths.count
@@ -659,8 +647,6 @@ struct GitCommandView: View {
     }
 }
 
-// MARK: - Git Command Models
-
 struct GitCommandCard: Identifiable {
     let id = UUID()
     let command: String
@@ -670,8 +656,6 @@ struct GitCommandCard: Identifiable {
     let isEnabled: Bool
     let action: () -> Void
 }
-
-// MARK: - Git Command Row
 
 struct GitCommandRow: View {
     let card: GitCommandCard

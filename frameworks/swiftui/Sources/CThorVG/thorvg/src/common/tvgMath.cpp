@@ -1,34 +1,7 @@
-/*
- * Copyright (c) 2021 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgMath.h"
 #include "tvgArray.h"
 
 #define BEZIER_EPSILON 1e-2f
-
-
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
 
 static float _lengthApprox(const Point& pt1, const Point& pt2)
 {
@@ -40,7 +13,6 @@ static float _length(const Point& pt1, const Point& pt2)
     Point diff = {pt2.x - pt1.x, pt2.y - pt1.y};
     return sqrtf(diff.x * diff.x + diff.y * diff.y);
 }
-
 
 template<typename LengthFunc>
 float _bezLength(const Bezier& cur, LengthFunc lineLengthFunc)
@@ -56,7 +28,6 @@ float _bezLength(const Bezier& cur, LengthFunc lineLengthFunc)
     return len;
 }
 
-
 template<typename LengthFunc>
 float _bezAt(const Bezier& bz, float at, float length, LengthFunc lineLengthFunc)
 {
@@ -64,7 +35,6 @@ float _bezAt(const Bezier& bz, float at, float length, LengthFunc lineLengthFunc
     auto smallest = 0.0f;
     auto t = 0.5f;
 
-    //just in case to prevent an infinite loop
     if (at <= 0) return 0.0f;
     if (at >= length) return 1.0f;
 
@@ -86,11 +56,6 @@ float _bezAt(const Bezier& bz, float at, float length, LengthFunc lineLengthFunc
     }
     return t;
 }
-
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
 
 namespace tvg {
 
@@ -129,8 +94,6 @@ float length(const PathCommand* cmds, uint32_t cmdsCnt, const Point* pts, uint32
     return length;
 }
 
-
-//https://en.wikipedia.org/wiki/Remez_algorithm
 float atan2(float y, float x)
 {
     if (y == 0.0f && x == 0.0f) return 0.0f;
@@ -142,7 +105,6 @@ float atan2(float y, float x)
     if (y < 0) return -r;
     return r;
 }
-
 
 bool inverse(const Matrix* m, Matrix* out)
 {
@@ -166,7 +128,6 @@ bool inverse(const Matrix* m, Matrix* out)
     return true;
 }
 
-
 bool identity(const Matrix* m)
 {
     if (m->e11 != 1.0f || m->e12 != 0.0f || m->e13 != 0.0f ||
@@ -176,7 +137,6 @@ bool identity(const Matrix* m)
     }
     return true;
 }
-
 
 void rotate(Matrix* m, float degree)
 {
@@ -191,7 +151,6 @@ void rotate(Matrix* m, float degree)
     m->e21 = m->e22 * sinVal;
     m->e22 *= cosVal;
 }
-
 
 Matrix operator*(const Matrix& lhs, const Matrix& rhs)
 {
@@ -212,7 +171,6 @@ Matrix operator*(const Matrix& lhs, const Matrix& rhs)
     return m;
 }
 
-
 bool operator==(const Matrix& lhs, const Matrix& rhs)
 {
     if (!tvg::equal(lhs.e11, rhs.e11) || !tvg::equal(lhs.e12, rhs.e12) || !tvg::equal(lhs.e13, rhs.e13) ||
@@ -223,7 +181,6 @@ bool operator==(const Matrix& lhs, const Matrix& rhs)
     return true;
 }
 
-
 void operator*=(Point& pt, const Matrix& m)
 {
     auto tx = pt.x * m.e11 + pt.y * m.e12 + m.e13;
@@ -232,14 +189,12 @@ void operator*=(Point& pt, const Matrix& m)
     pt.y = ty;
 }
 
-
 Point operator*(const Point& pt, const Matrix& m)
 {
     auto tx = pt.x * m.e11 + pt.y * m.e12 + m.e13;
     auto ty = pt.x * m.e21 + pt.y * m.e22 + m.e23;
     return {tx, ty};
 }
-
 
 Point normal(const Point& p1, const Point& p2)
 {
@@ -251,15 +206,13 @@ Point normal(const Point& p1, const Point& p2)
     return {-unitDir.y, unitDir.x};
 }
 
-
 void normalize(Point& pt)
 {
-    if (zero(pt)) return;       //prevent zero division
+    if (zero(pt)) return;
     auto ilength = 1.0f / sqrtf((pt.x * pt.x) + (pt.y * pt.y));
     pt.x *= ilength;
     pt.y *= ilength;
 }
-
 
 float Line::length() const
 {
@@ -320,7 +273,7 @@ void Bezier::split(float t, Bezier& left)
 {
     left.start = start;
     left.ctrl1 = start + t * (ctrl1 - start);
-    left.ctrl2 = ctrl1 + t * (ctrl2 - ctrl1);  // temporary holding spot
+    left.ctrl2 = ctrl1 + t * (ctrl2 - ctrl1);
     ctrl2 = ctrl2 + t * (end - ctrl2);
     ctrl1 = left.ctrl2 + t * (ctrl2 - left.ctrl2);
     left.ctrl2 = left.ctrl1 + t * (left.ctrl2 - left.ctrl1);
@@ -349,7 +302,6 @@ void Bezier::bounds(BBox& box, const Point& start, const Point& ctrl1, const Poi
     if (box.max.x < end.x) box.max.x = end.x;
     if (box.max.y < end.y) box.max.y = end.y;
 
-    //find x/y-direction extrema (solving derivative of Bezier curve)
     auto findMinMax = [&](float start, float ctrl1, float ctrl2, float end, float& min, float& max) -> void {
         auto a = -1.0f * start + 3.0f * ctrl1 - 3.0f * ctrl2 + end;
         auto b = start - 2.0f * ctrl1 + ctrl2;
@@ -396,7 +348,7 @@ bool Bezier::flatten(float tolerance) const
 
 uint32_t Bezier::segments(float scale) const
 {
-    static constexpr uint32_t MaxSegments = 1u << 10; // 2^10 segments cap keeps runtime bounded
+    static constexpr uint32_t MaxSegments = 1u << 10;
     auto tolerance = 0.5f / scale;
     uint32_t count = 0;
     Array<Bezier> stack;
@@ -420,4 +372,4 @@ uint32_t Bezier::segments(float scale) const
     return count;
 }
 
-}  // namespace tvg
+}

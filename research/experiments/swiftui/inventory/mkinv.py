@@ -52,8 +52,8 @@ def ver(r):
 def ios_ok(r):
     return r['ios'] is not None and not r['unavail']
 
-types = collections.OrderedDict()   # name -> {'kind','mod','ios','conf'}
-members = collections.defaultdict(list)  # parent -> [rec]
+types = collections.OrderedDict()
+members = collections.defaultdict(list)
 skipped = 0
 for r in recs:
     if not ios_ok(r):

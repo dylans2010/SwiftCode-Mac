@@ -3,38 +3,12 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy signing / entitlements / plist tools (Wave 7,
-/// slice D), each driven black-box through the server's real
-/// write-policy path against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistCodeSigningDiagnoseTool`,
-/// `AssistEntitlementsDiffTool`, `AssistEntitlementsTool`,
-/// `AssistInfoPlistAuditTool`, `AssistPlistTool`,
-/// `AssistProjectEntitlementsTool`, `AssistProjectInfoPlistTool`,
-/// `AssistProjectSigningTool`, `AssistProvisioningCheckTool`,
-/// `AssistProvisioningProfileReaderTool` and
-/// `AssistSigningCertificateInspectorTool` (Dylan's own code, ported
-/// under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never
-/// on internals. Messages quoted verbatim are Legacy's. Message
-/// assertions use `firstText`, never an exact `resultText ==`
-/// (structured results emit two text blocks). The macOS-only tools
-/// (`code_signing_diagnose`, `provisioning_check`,
-/// `provisioning_profile_reader`, `signing_certificate_inspector`)
-/// need `/usr/bin/codesign` / `/usr/bin/security`; on Linux they
-/// fail cleanly and the tests assert exactly that honest failure,
-/// never a fake result.
 @MainActor
 @Suite(.serialized) struct SwiftCodeSigningToolsTests {
-    /// The 11 Wave 7 slice D tool IDs, verified live from each
-    /// Legacy tool file's `id`.
     static let sliceDIDs = ["code_signing_diagnose", "entitlements_diff", "entitlements_manager", "info_plist_audit",
                             "plist_editor", "project_entitlements", "project_info_plist", "project_signing",
                             "provisioning_check", "provisioning_profile_reader", "signing_certificate_inspector"]
 
-    /// Opens a copy of Greeter and installs the ported signing tools
-    /// on the server (same shape as Wave 6's `opened`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -45,14 +19,12 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// Writes fixture bytes directly (for the binary-plist fixture).
     func writeFixtureData(_ sample: TempSample, _ rel: String, _ data: Data) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -63,12 +35,6 @@ import SwiftCodeAssistant
         FileManager.default.fileExists(atPath: sample.path(rel))
     }
 
-    /// A minimal `.xcodeproj` with signing settings, hand-written in
-    /// the shape of `SwiftCodeBuildTests`' `appProjectText` (known-good
-    /// minimal pbxproj): target Debug signs Automatic with an
-    /// Apple Development identity, target Release signs Manual with
-    /// an Apple Distribution identity, and the project's default
-    /// configuration is Release.
     static let signingProjectText = """
     // !$*UTF8*$!
     {
@@ -169,16 +135,7 @@ import SwiftCodeAssistant
         for id in Self.sliceDIDs {
             #expect(host.server.tools.filter { $0.name == id }.count == 1, "\(id) must be registered exactly once")
         }
-        // The slice's Legacy aliases (`plist` → `plist_editor`,
-        // `entitlements` → `entitlements_manager`,
-        // `signing_certificate` → `signing_certificate_inspector`,
-        // `provisioning_profile` → `provisioning_profile_reader`)
-        // live in `MCPServer.toolAliases`, which the coordinator
-        // owns — they are reported as wiring fragments instead of
-        // asserted here.
     }
-
-    // MARK: - code_signing_diagnose
 
     @Test func codeSigningDiagnoseRejectsMissingArgAndFile() async throws {
         let sample = try TempSample()
@@ -197,8 +154,6 @@ import SwiftCodeAssistant
         defer { sample.remove() }
         let host = try await opened(sample)
         #if os(Linux)
-        // No /usr/bin/codesign here: the honest failure, not a fake
-        // diagnosis. On macOS this path runs the real tool instead.
         let r = try await host.server.callTool("code_signing_diagnose", ["path": .string("Sources/Greeter/Greeter.swift")])
         #expect(r.isToolError && r.firstText.contains("not available on this platform"))
         #else
@@ -207,8 +162,6 @@ import SwiftCodeAssistant
         #expect(r.structured?["signed"]?.bool == false)
         #endif
     }
-
-    // MARK: - entitlements_diff
 
     @Test func entitlementsDiffReportsAddedRemovedChanged() async throws {
         let sample = try TempSample()
@@ -234,8 +187,6 @@ import SwiftCodeAssistant
         #expect(noParam.isToolError)
     }
 
-    // MARK: - entitlements_manager
-
     @Test func entitlementsManagerInspectAddRemove() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -258,7 +209,6 @@ import SwiftCodeAssistant
         #expect(!remove.isToolError, "\(remove.resultText)")
         #expect(remove.firstText.contains("Successfully removed entitlement 'com.example.removed' from App.entitlements"))
         #expect(!sample.read("App.entitlements").contains("com.example.removed"))
-        // A fresh file is created by add_entitlement, as in Legacy.
         let fresh = try await host.server.callTool("entitlements_manager",
                                                    ["action": .string("add_entitlement"), "filePath": .string("Fresh.entitlements"),
                                                     "entitlementKey": .string("com.apple.security.app-sandbox")])
@@ -298,8 +248,6 @@ import SwiftCodeAssistant
                 "a rejected change must write nothing")
     }
 
-    // MARK: - info_plist_audit
-
     @Test func infoPlistAuditFindsIssuesAndDuplicates() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -313,15 +261,11 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("info_plist_audit")
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.structured?["fileCount"]?.int == 2)
-        // Bad file: missing CFBundleName + bad version = 2 issues;
-        // the shared bundle id in two files = 1 more issue.
         #expect(r.structured?["issueCount"]?.int == 3)
         #expect(r.firstText.contains("- App/Info.plist: OK"))
         #expect(r.firstText.contains("- Other/Info.plist: missing CFBundleName; CFBundleShortVersionString '1.0-beta' is not x.y[.z]"))
         #expect(r.firstText.contains("DUPLICATE bundle id 'com.example.Greeter' in: App/Info.plist, Other/Info.plist"))
     }
-
-    // MARK: - plist_editor
 
     @Test func plistEditorReadSetDeleteTyped() async throws {
         let sample = try TempSample()
@@ -423,14 +367,10 @@ import SwiftCodeAssistant
         #expect(host.server.tools.filter { $0.name == "plist_edit" }.count == 1, "plist_edit stays registered exactly once")
         #expect(host.server.tools.filter { $0.name == "plist_editor" }.count == 1, "plist_editor is a separate registration")
         try writeFixture(sample, "Config.plist", Self.goodInfoPlist)
-        // `plist_editor` takes `filePath`, not `plist_edit`'s `path`:
-        // the plist_edit-shaped call is rejected before the handler.
         let wrongParams = try await host.server.callTool("plist_editor",
                                                          ["path": .string("Config.plist"), "action": .string("get"),
                                                           "key": .string("CFBundleName")])
         #expect(wrongParams.isToolError)
-        // And `plist_editor`'s own `list_keys` action does not exist
-        // on `plist_edit`.
         let listKeys = try await host.server.callTool("plist_editor",
                                                       ["action": .string("list_keys"), "filePath": .string("Config.plist")])
         #expect(!listKeys.isToolError && listKeys.firstText.contains("Plist contains 4 keys:"))
@@ -439,8 +379,6 @@ import SwiftCodeAssistant
                                                            "key": .string("CFBundleName")])
         #expect(editListKeys.isToolError && editListKeys.firstText.contains("Invalid action 'list_keys'"))
     }
-
-    // MARK: - project_entitlements
 
     @Test func projectEntitlementsScansAndExplicitPath() async throws {
         let sample = try TempSample()
@@ -462,8 +400,6 @@ import SwiftCodeAssistant
         #expect(outside.isToolError && outside.firstText.contains("is outside the workspace or contains '..'"))
     }
 
-    // MARK: - project_info_plist
-
     @Test func projectInfoPlistGetSetDelete() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -479,8 +415,6 @@ import SwiftCodeAssistant
         let all = try await host.server.callTool("project_info_plist", ["action": .string("get")])
         #expect(!all.isToolError && all.structured?["count"]?.int == 4)
         #expect(all.firstText.contains("Info.plist has 4 key(s):"))
-        // "2" is stored as an Int (Legacy's Bool/Int/Double/String
-        // reading) and the write is verified by re-reading.
         let set = try await host.server.callTool("project_info_plist",
                                                  ["action": .string("set"), "key": .string("CFBundleVersion"), "value": .string("2")])
         #expect(!set.isToolError, "\(set.resultText)")
@@ -511,9 +445,6 @@ import SwiftCodeAssistant
         defer { sample.remove() }
         let host = try await opened(sample)
         try writeFixture(sample, "App/Info.plist", Self.goodInfoPlist)
-        // `project_info_plist` is writes:true, so even a read-only
-        // `get` is refused while the server is read-only (same
-        // documented consequence as `test_snapshot_manage` list).
         let refused = try await host.server.callTool("project_info_plist", ["action": .string("get"), "key": .string("CFBundleName")])
         #expect(refused.isToolError && refused.firstText == MCPServer.readOnlyMessage("project_info_plist"))
         let reviewing = try await opened(sample, policy: .review { _ in false })
@@ -525,13 +456,10 @@ import SwiftCodeAssistant
                 "a rejected change must write nothing")
     }
 
-    // MARK: - project_signing
-
     @Test func projectSigningFromPbxproj() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // A SwiftPM package has no .xcodeproj: Legacy's message.
         let noProject = try await host.server.callTool("project_signing")
         #expect(noProject.isToolError && noProject.firstText.contains("No .xcodeproj or .xcworkspace found at the top level of the workspace."))
         try writeFixture(sample, "Fake.xcodeproj/project.pbxproj", Self.signingProjectText)
@@ -552,18 +480,13 @@ import SwiftCodeAssistant
         #expect(!release.isToolError, "\(release.resultText)")
         #expect(release.structured?["codeSignStyle"]?.string == "Manual")
         #expect(release.structured?["codeSignIdentity"]?.string == "Apple Distribution")
-        // An unknown configuration falls back to the project's
-        // default (Release), the builder's own rule.
         let bogus = try await host.server.callTool("project_signing", ["configuration": .string("Bogus")])
         #expect(!bogus.isToolError, "\(bogus.resultText)")
         #expect(bogus.structured?["codeSignStyle"]?.string == "Manual")
-        // A scheme naming the target selects it, and is echoed.
         let byScheme = try await host.server.callTool("project_signing", ["scheme": .string("SigningApp")])
         #expect(!byScheme.isToolError && byScheme.structured?["scheme"]?.string == "SigningApp")
         #expect(byScheme.structured?["codeSignStyle"]?.string == "Automatic")
     }
-
-    // MARK: - provisioning_check
 
     @Test func provisioningCheckFailsCleanlyWithoutSecurity() async throws {
         let sample = try TempSample()
@@ -573,8 +496,6 @@ import SwiftCodeAssistant
         #if os(Linux)
         #expect(r.isToolError && r.firstText.contains("security tool not found at /usr/bin/security."))
         #else
-        // On macOS the outcome depends on the machine's installed
-        // profiles; whatever it is, it must speak Legacy's messages.
         if r.isToolError {
             #expect(r.firstText.contains("Provisioning Profiles") || r.firstText.contains("security tool not found"))
         } else {
@@ -582,8 +503,6 @@ import SwiftCodeAssistant
         }
         #endif
     }
-
-    // MARK: - provisioning_profile_reader
 
     @Test func provisioningProfileReaderRejectsMissingAndUndecodable() async throws {
         let sample = try TempSample()
@@ -593,8 +512,6 @@ import SwiftCodeAssistant
         #expect(noParam.isToolError)
         let missing = try await host.server.callTool("provisioning_profile_reader", ["path": .string("Nope.mobileprovision")])
         #expect(missing.isToolError && missing.firstText.contains("Provisioning profile not found at: Nope.mobileprovision"))
-        // A text file is not a CMS envelope: the decode must fail
-        // cleanly, never report a fabricated profile.
         try writeFixture(sample, "Fake.mobileprovision", "this is not a provisioning profile\n")
         let fake = try await host.server.callTool("provisioning_profile_reader", ["path": .string("Fake.mobileprovision")])
         #expect(fake.isToolError)
@@ -605,24 +522,18 @@ import SwiftCodeAssistant
         #endif
     }
 
-    // MARK: - signing_certificate_inspector
-
     @Test func signingCertificateInspectorReportsRealKeychainState() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
         let r = try await host.server.callTool("signing_certificate_inspector")
         #if os(Linux)
-        // No /usr/bin/security here: the honest failure, never an
-        // empty list pretending the keychain was consulted.
         #expect(r.isToolError && r.firstText.contains("Failed to execute security find-identity"))
         #else
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.firstText.contains("Available Code Signing Certificates:") || r.firstText.contains("No valid code-signing identities found"))
         #endif
     }
-
-    // MARK: - Out-of-scope paths
 
     @Test func outOfScopePathsAreRefused() async throws {
         let sample = try TempSample()

@@ -1,9 +1,5 @@
 import Foundation
 
-// Workout objects (`interface.md` §5.1). The workout builder, routes and live
-// sessions are round R7; this file has the object model needed by the store and
-// the query engine (activity type, events, duration, totals).
-
 public final class HKWorkoutEvent: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let record: WorkoutEventRecord
     public var type: HKWorkoutEventType { HKWorkoutEventType(rawValue: record.type) ?? .marker }
@@ -68,7 +64,6 @@ public final class HKWorkout: HKSample, @unchecked Sendable {
     @available(*, deprecated, message: "Use statistics(for:)")
     public var totalFlightsClimbed: HKQuantity? { workoutRecord.totalFlightsClimbed?.quantity }
 
-    /// Per-type statistics; the builder that fills them is round R7.
     public var allStatistics: [HKQuantityType: HKStatistics] { [:] }
     public func statistics(for quantityType: HKQuantityType) -> HKStatistics? { allStatistics[quantityType] }
 
@@ -103,7 +98,6 @@ public final class HKWorkout: HKSample, @unchecked Sendable {
         self.init(record: r)
     }
 
-    /// Duration = end − start minus paused time (pause → resume pairs).
     static func activeDuration(start: Double, end: Double, events: [WorkoutEventRecord]) -> Double {
         var paused = 0.0
         var pauseStart: Double?
@@ -138,7 +132,6 @@ public final class HKWorkout: HKSample, @unchecked Sendable {
     }
 }
 
-/// Workout configuration (`interface.md` §5.1).
 public final class HKWorkoutConfiguration: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     public var activityType: HKWorkoutActivityType = .other
     public var locationType: HKWorkoutSessionLocationType = .unknown

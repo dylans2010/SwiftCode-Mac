@@ -3,34 +3,20 @@ import Observation
 import SwiftCodeIDECore
 import SwiftCodePlist
 
-/// The property list editor of the Linux IDE (`specs/ide/plist-editor.md`):
-/// the Key | Type | Value outline under a Root row, + and −, reordering,
-/// type changes, readable or raw key names, and the column headers' sort.
-/// Every edit is written to the file at once, in the file's own format
-/// (XML, binary or OpenStep); a file that is only looked at is never
-/// written, so it stays byte for byte as it was. No toolkit types: tested
-/// headless on macOS and Linux.
 @MainActor
 @Observable
 public final class PlistEditorModel {
     public let path: String
     public private(set) var document: PropertyListDocument
     public private(set) var tree: PlistTree
-    /// Expanded containers by index path (the root is always shown open).
     public private(set) var expanded: Set<[Int]>
-    /// The selected row's index path ([] = Root).
     public var selection: [Int]?
-    /// Editor ▸ Raw Keys and Values: raw key names instead of readable ones.
     public var showsRawKeys = false
-    /// The header the view is sorted by (nil: file order).
     public private(set) var sortColumn: PlistTree.SortColumn?
     public private(set) var sortAscending = true
-    /// Why the last edit was refused or could not be written.
     public private(set) var problem: String?
-    /// Bumped on every write (views and drivers wait on it).
     public private(set) var saveCount = 0
 
-    /// Reads `path`; throws when it is not a property list.
     public init(path: String) throws {
         self.path = path
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
@@ -40,7 +26,6 @@ public final class PlistEditorModel {
         expanded = Self.initiallyExpanded(d.root)
     }
 
-    /// The root and its first level of containers are open at first.
     static func initiallyExpanded(_ root: PropertyListItem) -> Set<[Int]> {
         var out: Set<[Int]> = [[]]
         for (i, kid) in PlistTree.children(of: root).enumerated() where PlistTree.isContainer(kid.value) && PlistTree.children(of: kid.value).count <= 12 {
@@ -57,18 +42,12 @@ public final class PlistEditorModel {
         }
     }
 
-    // MARK: Rows
-
-    /// One outline row.
     public struct Row: Identifiable, Equatable, Sendable {
         public var path: [Int]
         public var depth: Int
-        /// The Key column: "Root", a dictionary key (readable or raw) or "Item N".
         public var key: String
-        /// The raw key (dictionary children), else nil.
         public var rawKey: String?
         public var type: String
-        /// The Value column: a container's "(N items)", else its editable text.
         public var value: String
         public var isContainer: Bool
         public var isExpanded: Bool
@@ -78,8 +57,6 @@ public final class PlistEditorModel {
         public var id: String { path.isEmpty ? "root" : path.map(String.init).joined(separator: ".") }
     }
 
-    /// The rows shown: Root, then the open containers' children in the
-    /// view's order.
     public var rows: [Row] {
         var out: [Row] = []
         func add(_ v: PropertyListItem, path: [Int], depth: Int, key: String, rawKey: String?) {
@@ -100,10 +77,8 @@ public final class PlistEditorModel {
         return out
     }
 
-    /// The Key column's text for a raw key.
     public func displayedKey(_ key: String) -> String { showsRawKeys ? key : ProjectEditorModel.readableKey(key) }
 
-    /// The raw key a Key-column text stands for (a readable name maps back).
     public func rawKey(forDisplayed text: String, current: String) -> String {
         if text == displayedKey(current) { return current }
         return ProjectEditorModel.readableInfoKeys.first { $0.value == text }?.key ?? text
@@ -115,8 +90,6 @@ public final class PlistEditorModel {
         if on { expanded.insert(path) } else { expanded = expanded.filter { !$0.starts(with: path) || $0.count < path.count } }
     }
 
-    /// A header click: sorts by the column, or flips the order when it is
-    /// the column already; a third click goes back to file order.
     public func sort(by column: PlistTree.SortColumn) {
         if sortColumn != column {
             sortColumn = column
@@ -129,10 +102,6 @@ public final class PlistEditorModel {
         }
     }
 
-    // MARK: Edits
-
-    /// Renames a dictionary key (Key-column text, readable names map back).
-    /// A key already used in the same dictionary is refused.
     @discardableResult
     public func setKey(_ text: String, at path: [Int]) -> Bool {
         guard let last = path.last, let parent = tree.item(at: Array(path.dropLast())), case .dictionary(let entries) = parent,
@@ -146,8 +115,6 @@ public final class PlistEditorModel {
         return commit()
     }
 
-    /// Sets a value from Value-column text; refused when it does not parse
-    /// for the item's type.
     @discardableResult
     public func setValueText(_ text: String, at path: [Int]) -> Bool {
         guard let item = tree.item(at: path), !PlistTree.isContainer(item) else { return false }
@@ -160,7 +127,6 @@ public final class PlistEditorModel {
         return commit()
     }
 
-    /// The Type pop-up (and Editor ▸ Value Type): converts what it can.
     @discardableResult
     public func setType(_ type: String, at path: [Int]) -> Bool {
         guard let item = tree.item(at: path), item.typeName != type, PlistTree.types.contains(type) else { return false }
@@ -169,9 +135,6 @@ public final class PlistEditorModel {
         return commit()
     }
 
-    /// "+" and Editor ▸ Add Item: a new String item after the selected
-    /// row, or as the first child of a selected open container (the root
-    /// with no selection). Selects and returns the new item's path.
     @discardableResult
     public func addItem() -> [Int] {
         let sel = selection ?? []
@@ -183,14 +146,12 @@ public final class PlistEditorModel {
         }
         let p = tree.insert(after: sel, asChild: asChild)
         if asChild { expanded.insert(sel) }
-        // The rows after the new one in the same container moved down.
         shiftExpanded(inserting: p)
         selection = p
         commit()
         return p
     }
 
-    /// "−" (and the Delete key): removes the selected row. The root stays.
     @discardableResult
     public func removeSelected() -> Bool {
         guard let sel = selection, !sel.isEmpty, tree.item(at: sel) != nil else { return false }
@@ -202,11 +163,9 @@ public final class PlistEditorModel {
         return commit()
     }
 
-    /// Moves the selected item up (-1) or down (+1) among its siblings.
     @discardableResult
     public func moveSelected(by offset: Int) -> Bool {
         guard let sel = selection, let to = tree.move(at: sel, by: offset) else { return false }
-        // Open state follows the two swapped subtrees.
         let fromOpen = expanded.filter { $0.starts(with: sel) }
         expanded.subtract(fromOpen)
         let between = sel.last! < to.last! ? (sel.last! + 1)...to.last! : to.last!...(sel.last! - 1)
@@ -220,7 +179,6 @@ public final class PlistEditorModel {
         return commit()
     }
 
-    /// Editor ▸ Value Type ▸ <type> on the selection.
     @discardableResult
     public func setTypeOfSelection(_ type: String) -> Bool {
         guard let sel = selection else { return false }
@@ -229,12 +187,10 @@ public final class PlistEditorModel {
 
     public var selectedTypeName: String? { selection.flatMap { tree.item(at: $0)?.typeName } }
 
-    /// Can the selection be removed or moved.
     public var canRemove: Bool { (selection.map { !$0.isEmpty }) ?? false }
 
     public func clearProblem() { problem = nil }
 
-    /// Rereads the file (after the source view edited it).
     public func reload() throws {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
         document = try PropertyListDocument(data: data)
@@ -271,7 +227,6 @@ public final class PlistEditorModel {
         return false
     }
 
-    /// Writes the tree in the file's format.
     @discardableResult
     private func commit() -> Bool {
         document.root = tree.root

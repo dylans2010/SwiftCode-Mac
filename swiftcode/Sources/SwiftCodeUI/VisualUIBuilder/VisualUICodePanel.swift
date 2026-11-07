@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICodePanel.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Sidebar code viewing workspace displaying real-time standard Swift code of the active user-authored document.
 public struct VisualUICodePanel: View {
     let document: VisualUIDocument
 
@@ -30,7 +27,6 @@ public struct VisualUICodePanel: View {
 
             Divider()
 
-            // Source View
             ScrollView {
                 Text(generatedCode)
                     .font(.system(.caption, design: .monospaced))

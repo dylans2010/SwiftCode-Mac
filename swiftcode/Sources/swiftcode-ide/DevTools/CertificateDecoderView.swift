@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(Security)
 import SwiftUI
 import Security
@@ -37,7 +34,7 @@ struct CertificateDecoderView: View {
                         .font(.system(.body, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
-                        
+
                         .background(Color.secondary.opacity(0.1))
                         .cornerRadius(8)
                 }
@@ -63,8 +60,6 @@ struct CertificateDecoderView: View {
                 decodedInfo = "Subject: \(summary as String)\n"
             }
 
-            // For more details we would need SecCertificateCopyValues, but it's complex to parse.
-            // We'll provide at least the summary and basic confirmation.
             decodedInfo += "\nCertificate successfully parsed by Security framework."
         } else {
             decodedInfo = "Could not parse certificate data using Security framework."

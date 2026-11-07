@@ -1,17 +1,6 @@
 import Foundation
 import SwiftUI
 
-// Offline models, adapted from Legacy's `SwiftCode/Views/Settings/`
-// (`OfflineModelsView`, `InstalledOfflineModelsView`,
-// `ModelDownloadProgressView`, `ModelLinkInstallGuideView`) onto SwiftCode's
-// Ollama provider (`SwiftCodeAssistant/OllamaProvider.swift`), which talks to
-// the local Ollama server's public HTTP API. This view uses that same
-// API directly: `GET /api/tags` lists installed models, `POST /api/pull`
-// streams NDJSON progress while downloading, and `DELETE /api/delete`
-// removes a model. Nothing is faked: when Ollama is not running the
-// view says so and shows how to install it.
-
-/// One installed Ollama model, from `GET /api/tags`.
 struct OllamaInstalledModel: Identifiable, Equatable, Hashable {
     var id: String { name }
     var name: String
@@ -19,7 +8,6 @@ struct OllamaInstalledModel: Identifiable, Equatable, Hashable {
     var modifiedAt: Date?
 }
 
-/// List, download and delete locally installed Ollama models.
 struct OllamaModelsView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var baseURL = OllamaModelsClient.defaultBaseURL
@@ -200,7 +188,6 @@ struct OllamaModelsView: View {
     }
 }
 
-/// Minimal Ollama HTTP client for the model-management endpoints.
 struct OllamaModelsClient {
     static let defaultBaseURL = "http://127.0.0.1:11434"
     var baseURL: String
@@ -245,10 +232,6 @@ struct OllamaModelsClient {
         }
     }
 
-    /// Pulls a model, reporting streamed progress (`total`/`completed`
-    /// from Ollama's NDJSON progress events) to `onProgress`. The
-    /// callback is `@MainActor` so progress state is only ever set on
-    /// the main actor, even though the byte stream is read off it.
     func pullModel(name: String, onProgress: @escaping @MainActor @Sendable (Double?, String) -> Void) async throws {
         let url = URL(string: baseURL + "/api/pull")!
         var request = URLRequest(url: url)

@@ -2,15 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeCloud
 
-// All fixtures are synthetic: made-up users, sessions and files.
-// No real token, secret or credential is used anywhere; the stub
-// session secret is a placeholder.
-
-// MARK: - Stub transport
-
-/// A URLProtocol stub: the handler answers every request from canned
-/// data, and every request the client made is recorded for assertions.
-/// No live network.
 final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?
     nonisolated(unsafe) static var requests: [URLRequest] = []
@@ -72,8 +63,6 @@ func jsonBody(of request: URLRequest) -> [String: Any] {
     return object
 }
 
-// MARK: - Fixtures
-
 let sessionJSON = """
 {"$id":"sess_1","userId":"user_1","expire":"2027-01-15T10:30:00.000+00:00","provider":"email","current":true}
 """
@@ -92,8 +81,6 @@ let filesJSON = """
 
 let sessionCookieHeader = ["Set-Cookie": "a_session_6a670d0b0022e5f964b4=stub-secret-123; Path=/; HttpOnly"]
 
-/// Answers the auth happy path: session creation sets the cookie,
-/// account fetch returns the user, everything else is `{}`.
 func authHappyPath(_ request: URLRequest) -> (status: Int, headers: [String: String], body: Data) {
     switch request.url?.path {
     case "/v1/account/sessions/email":

@@ -1,8 +1,5 @@
-// HMHomeManager (object-model.md §2, simulator-baseline.md §2–§5).
-
 import Foundation
 
-/// object-model.md §2 delegate; every method is optional.
 public protocol HMHomeManagerDelegate: AnyObject {
     func homeManager(_ manager: HMHomeManager, didUpdate status: HMHomeManagerAuthorizationStatus)
     func homeManagerDidUpdateHomes(_ manager: HMHomeManager)
@@ -22,21 +19,15 @@ public extension HMHomeManagerDelegate {
 open class HMHomeManager: NSObject, @unchecked Sendable {
     public weak var delegate: HMHomeManagerDelegate?
     public private(set) var authorizationStatus: HMHomeManagerAuthorizationStatus = []
-    /// Empty until the first `homeManagerDidUpdateHomes`.
     public private(set) var homes: [HMHome] = []
 
     let connection: SwiftCodeConnection
-    /// The client identity this manager connected as.
     public let swiftcodeClient: SwiftCodeHomeClient
 
-    /// A manager on `SwiftCodeLocalHomeStore.shared` as the current process.
     public override convenience init() {
         self.init(swiftcodeStore: SwiftCodeLocalHomeStore.shared, client: .processDefault)
     }
 
-    /// A manager on a given store, acting as `client` (tests, tools,
-    /// multi-app simulations). A client without a usage string stops the
-    /// process, as HomeKit does (simulator-baseline.md §2, HK-B06).
     public init(swiftcodeStore store: SwiftCodeHomeStore, client: SwiftCodeHomeClient) {
         if client.enforcesRequirements && client.usageDescription == nil {
             fatalError("HomeKit: this app must have an NSHomeKitUsageDescription key in its Info.plist "
@@ -59,8 +50,6 @@ open class HMHomeManager: NSObject, @unchecked Sendable {
 
     @available(iOS, deprecated: 16.1, message: "No longer supported.")
     public var primaryHome: HMHome? { nil }
-
-    // MARK: Mutations
 
     public func addHome(withName name: String, completionHandler completion: @escaping (HMHome?, Error?) -> Void) {
         connection.request(.addHome(name: name)) { [weak self] result in
@@ -88,8 +77,6 @@ open class HMHomeManager: NSObject, @unchecked Sendable {
     public func removeHome(_ home: HMHome) async throws {
         try await asyncCall { removeHome(home, completionHandler: $0) }
     }
-
-    // MARK: Mirror
 
     func home(_ id: UUID) -> HMHome? { homes.first { $0.uniqueIdentifier == id } }
 

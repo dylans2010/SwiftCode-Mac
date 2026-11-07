@@ -2,23 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy core file-reading tools (Wave 1, slice B).
-///
-/// Behaviour source: Legacy's `AssistReadDirectoryTool`,
-/// `AssistTreeViewTool`, `AssistChangeDirectoryTool` /
-/// `AssistPrintWorkingDirectoryTool`, `AssistDirSizeReportTool`,
-/// `AssistFileMetadataTool`, `AssistFileHeadPreviewTool` and
-/// `AssistCountFileLinesTool` (Dylan's own code, ported under MIT), as
-/// specified in `specs/ide/assist-tool-catalogue.md` (§§3–8, 14, 18).
-/// Paths resolve with `resolveFileReadingPath` (the shared helper in
-/// `SwiftCodeTools+FileReadingSupport.swift`): a leading `/` is
-/// workspace-root-relative, anything else is relative to the session
-/// working directory `dir_cd` sets, and `..` past the workspace root is
-/// an error, never a clamp.
-///
-/// Legacy's structured results carry every value as a string; this port
-/// uses typed JSON values (integers and booleans) the way SwiftCode's other
-/// tools do (`file_read` and friends) — the keys are Legacy's verbatim.
 extension SwiftCodeMCPHost {
     var fileReadingTools: [MCPTool] {
         [
@@ -37,9 +20,6 @@ extension SwiftCodeMCPHost {
                 } catch {
                     throw MCPToolError("Failed to read directory at \(raw): \(error.localizedDescription)")
                 }
-                // Directory entries carry a trailing "/", as in Legacy; a
-                // child that resolves outside the workspace (a symlink
-                // pointing out) is listed without the marker.
                 var annotated: [String] = []
                 for entry in contents {
                     let child = url.appendingPathComponent(entry)
@@ -78,8 +58,6 @@ extension SwiftCodeMCPHost {
                 guard isDir.boolValue else {
                     throw MCPToolError("Failed to change directory to \(raw): Not a directory")
                 }
-                // Only set the session directory once the target is known
-                // good: on failure the working directory is unchanged.
                 h.currentDirectory = target
                 let contents = (try? FileManager.default.contentsOfDirectory(atPath: target.path))?.sorted() ?? []
                 return .structured(["path": .string(target.path), "previousPath": .string(previous.path),
@@ -107,8 +85,6 @@ extension SwiftCodeMCPHost {
                     let childIsDir = (try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
                     var size: Int64 = 0
                     if childIsDir {
-                        // Recursive size of the subdirectory (hidden
-                        // files skipped, as in Legacy).
                         if let enumerator = FileManager.default.enumerator(at: child, includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey],
                                                                             options: [.skipsHiddenFiles]) {
                             while let grand = enumerator.nextObject() as? URL {
@@ -127,7 +103,6 @@ extension SwiftCodeMCPHost {
                 for (name, size) in rows.prefix(limit) {
                     lines.append(String(format: "- %@ — %lld bytes (%.2f MB)", name, size, Double(size) / 1_048_576.0))
                 }
-                // Totals cover every immediate child, not just the shown rows.
                 let total = rows.reduce(0) { $0 + $1.size }
                 return .structured(["totalBytes": .int(Int(total)), "entryCount": .int(rows.count)], summary: lines.joined(separator: "\n"))
             },
@@ -197,10 +172,6 @@ extension SwiftCodeMCPHost {
                 guard let data = try? Data(contentsOf: url) else {
                     throw MCPToolError("Cannot read file: \(raw)")
                 }
-                // Encoding detection, in Legacy's order; ISO Latin-1
-                // decodes any byte sequence, so this only fails for a
-                // file no decoder accepts (which the fallback makes
-                // unreachable in practice — kept for parity).
                 var encoding = "utf-8"
                 var text: String? = String(data: data, encoding: .utf8)
                 if text == nil {
@@ -214,8 +185,6 @@ extension SwiftCodeMCPHost {
                 guard let content = text else {
                     throw MCPToolError("File is not decodable text (likely binary): \(raw)")
                 }
-                // Unlike file_read, no phantom trailing line is stripped:
-                // a file ending in a newline counts one extra line here.
                 let allLines = content.components(separatedBy: .newlines)
                 let head = allLines.prefix(n)
                 let numbered = head.enumerated().map { "\($0.offset + 1): \($0.element)" }.joined(separator: "\n")
@@ -235,11 +204,6 @@ extension SwiftCodeMCPHost {
                  output: Schema.output(["path": Schema.str, "fileCount": Schema.int, "totalLines": Schema.int, "codeLines": Schema.int,
                                         "commentLines": Schema.int, "blankLines": Schema.int, "totalBytes": Schema.int])) { h, call in
                 let s = try h.session(for: call)
-                // NOTE: Legacy's handler also accepted a `targetPath`
-                // alias for `path`, but it is not in Legacy's schema and
-                // SwiftCode's argument validation rejects unknown arguments
-                // before the handler runs, so the alias is intentionally
-                // not supported here.
                 guard let pathRaw = call.arguments["path"]?.string, !pathRaw.isEmpty else { throw MCPToolError("Missing required parameter: path") }
                 let targetURL = try h.resolveFileReadingPath(pathRaw, in: s)
                 var isDir: ObjCBool = false
@@ -258,14 +222,11 @@ extension SwiftCodeMCPHost {
                         if (isReg as? Bool) == true { fileURLs.append(url) }
                     }
                 } else {
-                    // A single file is analysed regardless of the filter.
                     fileURLs.append(targetURL)
                 }
                 var totalLines = 0, totalBlank = 0, totalComment = 0, totalCode = 0
                 var totalBytes: Int64 = 0
                 for fileURL in fileURLs {
-                    // Files that do not decode as UTF-8 are silently
-                    // skipped from the counts (but still count as files).
                     guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
                     totalBytes += h.fileReadingFileSize(of: fileURL)
                     for line in content.components(separatedBy: .newlines) {
@@ -321,47 +282,31 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: - Shared helpers for the file-reading tools
-
-    /// A required string argument; Legacy's missing-argument message.
     func fileReadingRequiredString(_ call: MCPToolCall, _ key: String) throws -> String {
         guard let s = call.arguments[key]?.string, !s.isEmpty else { throw MCPToolError("Missing required parameter: \(key)") }
         return s
     }
 
-    /// `"."` for the workspace root itself, else the path relative to it.
     func fileReadingRelativePath(of url: URL, in s: WorkspaceSession) -> String {
         let root = Self.folder(of: s.model)
         if url.standardizedFileURL.path == root.path { return "." }
         return relative(url.path, in: s)
     }
 
-    /// A file's size in bytes (0 when it cannot be read), as Legacy's
-    /// workspace scan reports it.
     func fileReadingFileSize(of url: URL) -> Int64 {
         ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber)?.int64Value ?? 0
     }
 
-    /// Legacy `tree_view`'s depth parser: an integer (also from a whole
-    /// number or an integer string) of at least 1; `nil` otherwise.
     func fileReadingParseDepth(_ value: AnyJSON) -> Int? {
         if let i = value.int, i >= 1 { return i }
         if let s = value.string, let i = Int(s.trimmingCharacters(in: .whitespaces)), i >= 1 { return i }
         return nil
     }
 
-    /// How a bad `maxDepth` value reads in the error message: the string
-    /// itself for a string, the JSON rendering otherwise.
     func fileReadingDepthDescription(_ value: AnyJSON) -> String {
         value.string ?? value.text
     }
 
-    /// Renders the tree rooted at `url`: `📂` for the root and each
-    /// directory, `📄` for files, `🔗` for symlinks (listed as leaves,
-    /// never followed, so a symlink cycle cannot recurse). A directory
-    /// whose canonical path was already visited renders as an
-    /// already-visited marker instead of recursing. Stops at 2000
-    /// entries, setting `truncated`.
     func fileReadingTree(at url: URL, depth: Int, maxDepth: Int, visited: inout Set<String>, entryCount: inout Int, truncated: inout Bool) -> String {
         guard depth <= maxDepth, !truncated else { return "" }
         let indent = String(repeating: "  ", count: depth)

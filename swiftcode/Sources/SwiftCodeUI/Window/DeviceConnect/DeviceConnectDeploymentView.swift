@@ -1,11 +1,3 @@
-// DeviceConnectDeploymentView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/DeviceConnectKit/Views/Deployment/DeviceConnectDeploymentView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: milestone pills; Open Simulator action; stop in-progress deployment
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Deployment/DeviceConnectDeploymentView.swift (derived from Legacy).
-// References a legacy type absent from the destination and from this worklist (wiring/integration gap): OpenConfiguration. (RuntimeService now resolves via DeviceConnectRuntimeService.)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeDeviceModel
 import SwiftCodeXcodebuild
 import SwiftUI
@@ -21,21 +13,16 @@ public struct DeviceConnectDeploymentView: View {
 
     public var body: some View {
         VStack(spacing: 16) {
-            // 1. Target Device Status Card
             targetDeviceCard
 
-            // 2. Deployment Actions Toolbar Card
             actionsCard
 
-            // 3. Deployment Pipeline Progress Card
             pipelineCard
 
-            // 4. Deployment Terminal Logs Card
             logsCard
         }
     }
 
-    // MARK: - Target Device Card
     private var targetDeviceCard: some View {
         HStack(spacing: 16) {
             if let device = deviceManager.selectedDevice {
@@ -130,7 +117,6 @@ public struct DeviceConnectDeploymentView: View {
         )
     }
 
-    // MARK: - Actions Card
     private var actionsCard: some View {
         HStack(spacing: 12) {
             Button(action: triggerDeploymentRun) {
@@ -198,7 +184,6 @@ public struct DeviceConnectDeploymentView: View {
         )
     }
 
-    // MARK: - Pipeline Card
     private var pipelineCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -215,7 +200,6 @@ public struct DeviceConnectDeploymentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Milestone Stepper
             HStack(spacing: 8) {
                 milestonePill(number: "1", title: "Save", isCompleted: deploymentManager.deploymentStatus != .idle)
                 Image(systemName: "chevron.right")
@@ -273,7 +257,6 @@ public struct DeviceConnectDeploymentView: View {
         )
     }
 
-    // MARK: - Logs Card
     private var logsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -298,7 +281,6 @@ public struct DeviceConnectDeploymentView: View {
     private func triggerDeploymentRun() {
         guard let selected = deviceManager.selectedDevice else { return }
 
-        // Dynamically resolve everything from XcodeBuildAPI
         let api = XcodeBuildAPI.shared
         let activeProj = api.determineActiveProject() ?? ProjectSessionStore.shared.activeProject.map { XcodeProject(url: $0.directoryURL.appendingPathComponent("\($0.name).xcodeproj"), name: $0.name, schemes: []) }
         let projectName = api.determineProductName()

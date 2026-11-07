@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// What the hosted tests check: code that lives in the app.
 enum PhoneModel {
     static let title = "HostPhone"
 }

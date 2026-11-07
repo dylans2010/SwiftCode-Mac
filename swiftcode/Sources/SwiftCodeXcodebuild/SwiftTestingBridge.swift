@@ -5,30 +5,19 @@ import Darwin
 import Glibc
 #endif
 
-/// Lists the swift-testing tests of a test bundle through swift-testing's
-/// documented ABI entry point (`swt_abiv0_getEntryPoint`, open source,
-/// `Documentation/ABI/JSON.md`). It runs in a child process
-/// (`swiftcodebuild __list-swift-tests <executable>`), because loading a test
-/// bundle loads the test frameworks into the process.
-/// See `specs/xcodebuild/test-actions.md` §4.
 public enum SwiftTestingBridge {
     public struct TestRecord: Equatable, Sendable {
-        /// `Module.Suite/function()/File.swift:line:column` for functions,
-        /// `Module.Suite` for suites.
         public var id: String
         public var name: String
         public var isSuite: Bool
         public var file: String?
         public var line: Int?
 
-        /// The identifier without the source-location suffix.
         public var specifier: String {
             guard !isSuite, let slash = id.lastIndex(of: "/"), id[id.index(after: slash)...].contains(".swift:") else { return id }
             return String(id[..<slash])
         }
-        /// Module name (before the first dot).
         public var module: String { String(specifier.prefix { $0 != "." }) }
-        /// `Suite/func()` or `func()` without the module.
         public var path: String { String(specifier.dropFirst(module.count + 1)) }
     }
 
@@ -37,8 +26,6 @@ public enum SwiftTestingBridge {
         _ recordHandler: @escaping @Sendable (_ recordJSON: UnsafeRawBufferPointer) -> Void
     ) async throws -> Bool
 
-    /// In the child: loads the bundle executable and prints one JSON record
-    /// per line on stdout. Exit 0 also when the bundle has no swift-testing.
     public static func listMain(executable: String) async -> Int32 {
         guard let handle = dlopen(executable, RTLD_NOW) else {
             FileHandle.standardError.write(Data("swiftcodebuild: cannot load \(executable): \(String(cString: dlerror()))\n".utf8))
@@ -51,7 +38,6 @@ public enum SwiftTestingBridge {
         let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: config.count, alignment: 1)
         defer { buffer.deallocate() }
         buffer.copyBytes(from: config)
-        // The library prints its own listing on stdout; keep only records.
         let out = dup(STDOUT_FILENO)
         let null = open("/dev/null", O_WRONLY)
         dup2(null, STDOUT_FILENO)
@@ -75,7 +61,6 @@ public enum SwiftTestingBridge {
         var all: [Data] { lock.withLock { items } }
     }
 
-    /// Parses the records the child printed.
     public static func parse(_ text: String) -> [TestRecord] {
         text.split(separator: "\n").compactMap { line in
             guard let obj = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],

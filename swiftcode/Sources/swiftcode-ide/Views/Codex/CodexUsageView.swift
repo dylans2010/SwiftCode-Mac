@@ -1,9 +1,3 @@
-// CodexUsageView.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/Codex UIs/CodexUsageView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Usage display UI (Estimated Tokens / Requests / Sessions usage cards); usage-mode note (tracked-only vs app-managed limits)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftUI
 

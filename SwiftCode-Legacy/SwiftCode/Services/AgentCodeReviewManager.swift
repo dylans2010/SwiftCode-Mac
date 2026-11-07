@@ -15,10 +15,8 @@ public final class AgentCodeReviewManager: ObservableObject {
         isReviewing = true
         errorMessage = nil
 
-        // Simulate AI analysis delay
         try? await Task.sleep(nanoseconds: 2_000_000_000)
 
-        // Mock result for now, as the actual AI integration would go through OpenRouterService
         let mockIssues = [
             CodeReviewIssue(
                 severity: .warning,

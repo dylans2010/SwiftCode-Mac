@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinKernel
 
-// The restore's thread starts (specs/simulator/snapshot.md §7 step 9, §12):
-// every restored thread gets its vCPU before any of them runs. The vCPU pool
-// is modelled: a start fails once the process has ended (the pool's
-// `isEnding`) or its vCPUs are used up; a started thread runs on its own host
-// thread, and one restored at an `exit` trap ends its process when it runs.
-
 @Suite struct SnapshotRestoreStartTests {
     final class FakeProcess: @unchecked Sendable {
         let pid: Int32
@@ -22,7 +16,6 @@ import Testing
         }
         var ended: Bool { lock.withLock { _ended } }
         func end() { lock.withLock { _ended = true } }
-        /// The pool's start: nil when the process ended or no vCPU is left.
         func reserve() -> Int? {
             lock.withLock {
                 guard !_ended, _used < capacity else { return nil }
@@ -35,13 +28,9 @@ import Testing
     struct FakeThread: Sendable {
         let process: FakeProcess
         let id: Int
-        /// Restored at its process's `exit` trap: it ends the process when it runs.
         let exits: Bool
     }
 
-    /// Starts `t` on its own host thread: with a gate it waits there first
-    /// (the restore hook); without one it runs at once, as the restore did
-    /// before the gate. Running an exiting thread ends its process.
     static func start(_ t: FakeThread, gate: SnapshotRestoreStartGate?, ran: DispatchGroup) -> Int? {
         guard let index = t.process.reserve() else { return nil }
         ran.enter()
@@ -60,8 +49,6 @@ import Testing
         return index
     }
 
-    /// Process 7's first thread was caught at its `exit` trap; its other
-    /// two threads come after it in the start order.
     static func scenario() -> (FakeProcess, FakeProcess, [FakeThread]) {
         let p1 = FakeProcess(pid: 1), p7 = FakeProcess(pid: 7)
         let threads = [FakeThread(process: p1, id: 1, exits: false), FakeThread(process: p7, id: 2, exits: true),
@@ -71,8 +58,6 @@ import Testing
     }
 
     @Test func withoutTheGateAnExitingThreadFailsTheRestore() {
-        // The §12 failure, made deterministic: the thread runs before its
-        // siblings are started, and the next start finds the pool ended.
         let (_, _, threads) = Self.scenario()
         let ran = DispatchGroup()
         #expect(throws: SnapshotError.self) {
@@ -91,7 +76,7 @@ import Testing
                                                            describe: { "pid \($0.process.pid): no vCPU for thread \($0.id)" })
         #expect(starts.started.map(\.thread.id) == [1, 2, 3, 4, 5])
         #expect(starts.skipped.isEmpty)
-        #expect(!p7.ended)  // nothing ran yet
+        #expect(!p7.ended)
         gate.release()
         #expect(ran.wait(timeout: .now() + 5) == .success)
         #expect(p7.ended && !p1.ended)
@@ -100,7 +85,7 @@ import Testing
 
     @Test func threadsOfAProcessThatEndedAreSkipped() throws {
         let (_, p7, threads) = Self.scenario()
-        p7.end()  // e.g. killed before its threads were started
+        p7.end()
         let gate = SnapshotRestoreStartGate()
         let ran = DispatchGroup()
         let starts = try SnapshotRestoreStartGate.startAll(threads, start: { Self.start($0, gate: gate, ran: ran) },
@@ -131,17 +116,12 @@ import Testing
     }
 }
 
-// A host file renamed while open is captured under its current name
-// (snapshot.md §12.3: atomic saves, "x.tmp" renamed to "x" before close).
 @Suite struct SnapshotRenamedFileTests {
     @Test func guestPathFollowsTheRename() {
         typealias C = KernelSnapshotCapture
-        // Guest path = host path (the device directory).
         #expect(C.guestPath(of: "/dev/data/a/x", renamedFrom: "/dev/data/a/x.tmp", guestPath: "/dev/data/a/x.tmp") == "/dev/data/a/x")
-        // A prefix that maps /private/tmp to DEV/data/tmp.
         #expect(C.guestPath(of: "/dev/data/tmp/sub/y", renamedFrom: "/dev/data/tmp/sub/y.tmp", guestPath: "/private/tmp/sub/y.tmp")
                 == "/private/tmp/sub/y")
-        // Moved out of the mapped directory: the guest path stays.
         #expect(C.guestPath(of: "/elsewhere/y", renamedFrom: "/dev/data/tmp/y.tmp", guestPath: "/private/tmp/y.tmp")
                 == "/private/tmp/y.tmp")
     }

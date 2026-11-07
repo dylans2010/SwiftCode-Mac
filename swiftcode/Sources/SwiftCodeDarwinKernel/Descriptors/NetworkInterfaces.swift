@@ -6,26 +6,6 @@ import Glibc
 import Darwin
 #endif
 
-// The network interfaces the guest sees (`specs/simulator/networking-swiftcode.md`
-// §3). Two interfaces, mirrored from the host:
-//
-// - `lo0` (guest index 1): the host's loopback interface and its addresses.
-// - `en0` (guest index 2): the host's primary interface (the one of its
-//   IPv4 default route, else the first running non-loopback interface with
-//   an address), with that interface's IPv4 and IPv6 addresses, MTU, and a
-//   locally administered link-layer address derived from the host's (the
-//   host's own is not shown). Its default gateways are the host's.
-//
-// Other host interfaces (bridges, VPNs, containers) are not shown. A guest
-// interface index maps to the host index of the interface it mirrors (for
-// IP_BOUND_IF, scope ids, packet info). The model is read from the host at
-// most every five seconds.
-//
-// The routing sysctls (`NET_RT_IFLIST`, `NET_RT_IFLIST2`, `NET_RT_DUMP`,
-// `NET_RT_DUMP2`, `NET_RT_FLAGS`) and the interface ioctls (`SIOCGIF*`) are
-// answered from this model in the Darwin layouts of the public
-// `net/if.h`, `net/route.h`, `net/if_dl.h` and `netinet6/in6_var.h`.
-
 struct GuestInterface: Equatable {
     struct IPv4: Equatable {
         var address: [UInt8]
@@ -42,10 +22,8 @@ struct GuestInterface: Equatable {
     var index: UInt32
     var hostIndex: UInt32
     var hostName: String
-    /// Darwin `IFF_*`.
     var flags: Int32
     var mtu: UInt32
-    /// `IFT_ETHER` or `IFT_LOOP`.
     var type: UInt8
     var linkAddress: [UInt8]
     var ipv4: [IPv4] = []
@@ -65,10 +43,8 @@ enum NetworkInterfaces {
     private static let mutex = NSLock()
     nonisolated(unsafe) private static var cached: [GuestInterface]?
     nonisolated(unsafe) private static var cachedAt: UInt64 = 0
-    /// Tests replace the model.
     nonisolated(unsafe) static var override: [GuestInterface]?
 
-    /// The guest's interfaces now (lo0, then en0 when the host has one).
     static var current: [GuestInterface] {
         mutex.lock()
         defer { mutex.unlock() }
@@ -81,9 +57,6 @@ enum NetworkInterfaces {
         return fresh
     }
 
-    /// Whether the guest can reach the world over IPv4 / IPv6: en0 has an
-    /// address of the family (a global one for IPv6) and a default router.
-    /// mDNSResponder's SuppressUnusable answers follow these.
     static var hasRoutableIPv4: Bool { current.contains { !$0.isLoopback && !$0.ipv4.isEmpty && $0.gateway4 != nil } }
     static var hasRoutableIPv6: Bool {
         current.contains { !$0.isLoopback && $0.gateway6 != nil && $0.ipv6.contains { !isLinkLocal($0.address) } }
@@ -92,20 +65,15 @@ enum NetworkInterfaces {
     static func interface(index: UInt32) -> GuestInterface? { current.first { $0.index == index } }
     static func interface(named name: String) -> GuestInterface? { current.first { $0.name == name } }
 
-    /// Guest interface index → host index (0 stays 0; an unknown index is
-    /// passed through unchanged).
     static func hostIndex(_ guest: UInt32) -> UInt32 {
         guard guest != 0 else { return 0 }
         return interface(index: guest)?.hostIndex ?? guest
     }
 
-    /// Host interface index → guest index (0 for an interface not shown).
     static func guestIndex(_ host: UInt32) -> UInt32 {
         guard host != 0 else { return 0 }
         return current.first { $0.hostIndex == host }?.index ?? 0
     }
-
-    // MARK: Reading the host
 
     private static func readHost() -> [GuestInterface] {
         struct HostIF {
@@ -153,7 +121,6 @@ enum NetworkInterfaces {
             }
             freeifaddrs(list)
         }
-        // IFF_LOOPBACK, IFF_UP | IFF_RUNNING (the same values on Linux and Darwin).
         let loopFlag: UInt32 = 0x8, upRunning: UInt32 = 0x41
         let loop = order.compactMap { hosts[$0] }.first { $0.flags & loopFlag != 0 }
         let routes = defaultRoutes()
@@ -189,8 +156,6 @@ enum NetworkInterfaces {
         return (0..<count).map { raw.load(fromByteOffset: offset + $0, as: UInt8.self) }
     }
 
-    /// The host's default routes: interface names and gateways (Linux:
-    /// `/proc/net/route`, `/proc/net/ipv6_route`).
     private static func defaultRoutes() -> (v4Interface: String?, v4Gateway: [UInt8]?, v6Interface: String?, v6Gateway: [UInt8]?) {
         var v4: (String, [UInt8], UInt32)?
         if let text = try? String(contentsOfFile: "/proc/net/route", encoding: .utf8) {
@@ -221,8 +186,6 @@ enum NetworkInterfaces {
         return UInt32(s.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    /// A locally administered unicast link address derived from the host
-    /// interface's (FNV-1a of its text), so the host's own is not exposed.
     static func guestLinkAddress(hostName: String) -> [UInt8] {
         let text = (try? String(contentsOfFile: "/sys/class/net/\(hostName)/address", encoding: .utf8)) ?? hostName
         var h: UInt64 = 0xcbf2_9ce4_8422_2325
@@ -230,9 +193,6 @@ enum NetworkInterfaces {
         return [0x02] + (0..<5).map { UInt8(truncatingIfNeeded: h >> (8 * UInt64($0))) }
     }
 
-    // MARK: Darwin structures
-
-    /// `struct sockaddr_dl` (at least 20 bytes).
     static func sockaddrDL(index: UInt32, name: String, type: UInt8, address: [UInt8]) -> [UInt8] {
         let nameBytes = Array(name.utf8)
         let length = max(20, 8 + nameBytes.count + address.count)
@@ -261,8 +221,6 @@ enum NetworkInterfaces {
 
     static func isLinkLocal(_ a: [UInt8]) -> Bool { a.count == 16 && a[0] == 0xFE && a[1] & 0xC0 == 0x80 }
 
-    /// The KAME form of a scoped address in the kernel's tables: the
-    /// interface index in bytes 2–3 is not used; scope ids are separate.
     private static func appendRounded(_ sa: [UInt8], to b: inout [UInt8]) {
         b += sa
         while b.count % 4 != 0 { b.append(0) }
@@ -271,29 +229,27 @@ enum NetworkInterfaces {
     private static func interfaceData(_ i: GuestInterface, wide: Bool) -> [UInt8] {
         var d: [UInt8] = [i.type, 0, 0, UInt8(i.linkAddress.count), i.isLoopback ? 0 : 14, 0, 0, 0]
         d.appendLE(i.mtu)
-        d.appendLE(UInt32(0))  // metric
+        d.appendLE(UInt32(0))
         if wide {
-            d.appendLE(UInt64(i.isLoopback ? 0 : 1_000_000_000))  // baudrate
-            d += [UInt8](repeating: 0, count: 88)                  // 11 counters
-            d += [UInt8](repeating: 0, count: 16)                  // timings, lastchange
+            d.appendLE(UInt64(i.isLoopback ? 0 : 1_000_000_000))
+            d += [UInt8](repeating: 0, count: 88)
+            d += [UInt8](repeating: 0, count: 16)
         } else {
             d.appendLE(UInt32(i.isLoopback ? 0 : 1_000_000_000))
-            d += [UInt8](repeating: 0, count: 44)                  // 11 counters
-            d += [UInt8](repeating: 0, count: 32)                  // timings, lastchange, unused, hwassist, reserved
+            d += [UInt8](repeating: 0, count: 44)
+            d += [UInt8](repeating: 0, count: 32)
         }
         return d
     }
 
-    /// `sysctl {CTL_NET, PF_ROUTE, 0, af, NET_RT_IFLIST(2), ifindex}`.
     static func interfaceList(family: Int32, index: UInt32, version2: Bool) -> [UInt8] {
         var out: [UInt8] = []
         for i in current where index == 0 || i.index == index {
-            // RTM_IFINFO(2) + the link-level address.
             var m: [UInt8] = []
             let header = version2 ? 160 : 112
             m.appendLE(UInt16(0))
             m += [5, version2 ? 0x12 : 0x0E]
-            m.appendLE(Int32(0x10))  // RTA_IFP
+            m.appendLE(Int32(0x10))
             m.appendLE(i.flags)
             m.appendLE(UInt16(i.index))
             m += [0, 0]
@@ -305,7 +261,6 @@ enum NetworkInterfaces {
             appendRounded(sockaddrDL(index: i.index, name: i.name, type: i.type, address: i.linkAddress), to: &m)
             m.putLE(UInt16(m.count), at: 0)
             out += m
-            // RTM_NEWADDR per address.
             func address(_ addrs: Int32, _ sockaddrs: [[UInt8]]) {
                 var a: [UInt8] = []
                 a.appendLE(UInt16(0))
@@ -346,11 +301,9 @@ enum NetworkInterfaces {
         var flags: Int32
     }
 
-    /// The guest's routing table.
     static func routes(family: Int32) -> [(family: Int32, route: Route)] {
         var out: [(Int32, Route)] = []
         let up: Int32 = 0x1, gatewayFlag: Int32 = 0x2, host: Int32 = 0x4, statik: Int32 = 0x800, cloning: Int32 = 0x100
-        // A default route: UP, GATEWAY, STATIC, PRCLONING, GLOBAL (networking.md §3.6).
         let defaultFlags: Int32 = up | gatewayFlag | statik | 0x10000 | 0x4000_0000
         for i in current {
             if family == 0 || family == InetABI.afInet {
@@ -390,7 +343,6 @@ enum NetworkInterfaces {
         return out
     }
 
-    /// `sysctl {CTL_NET, PF_ROUTE, 0, af, NET_RT_DUMP | NET_RT_DUMP2 | NET_RT_FLAGS, flags}`.
     static func routeDump(family: Int32, version2: Bool, requiredFlags: Int32) -> [UInt8] {
         var out: [UInt8] = []
         var seq: Int32 = 0
@@ -404,12 +356,12 @@ enum NetworkInterfaces {
             m += [0, 0]
             m.appendLE(r.flags)
             m.appendLE(addrs)
-            m.appendLE(Int32(0))       // pid / refcnt
+            m.appendLE(Int32(0))
             seq += 1
-            m.appendLE(version2 ? Int32(0) : seq)  // seq / parentflags
-            m.appendLE(Int32(0))       // errno / reserved
-            m.appendLE(Int32(0))       // use
-            m.appendLE(UInt32(0))      // inits
+            m.appendLE(version2 ? Int32(0) : seq)
+            m.appendLE(Int32(0))
+            m.appendLE(Int32(0))
+            m.appendLE(UInt32(0))
             var rmx = [UInt8](repeating: 0, count: 56)
             rmx.putLE(UInt32(interface(index: r.index)?.mtu ?? 1500), at: 4)
             m += rmx
@@ -429,8 +381,6 @@ enum NetworkInterfaces {
         return out
     }
 
-    /// The routing sysctl for MIB `{4, 17, ...}`; nil for a name this
-    /// layer does not serve (ENOENT for the caller).
     static func routingSysctl(_ mib: [Int32]) -> [UInt8]? {
         guard mib.count >= 5, mib[0] == 4, mib[1] == 17 else { return nil }
         let family = mib[3]
@@ -445,16 +395,9 @@ enum NetworkInterfaces {
         }
     }
 
-    // MARK: Interface ioctls
-
-    /// An `ioctl` of group 'i' on a socket: the bytes to write back at the
-    /// argument (the same size as `request`'s parameter), or an errno. For
-    /// SIOCGIFCONF the caller passes the guest buffer through `conf`.
     enum IoctlResult: Equatable {
         case reply([UInt8])
         case failure(Int32)
-        /// SIOCGIFCONF: the entries to copy to the guest buffer (each the
-        /// name and an address: 32 bytes, or 16 + sa_len when longer).
         case configuration([[UInt8]])
         case notMine
     }
@@ -489,12 +432,12 @@ enum NetworkInterfaces {
         }
         func int32(_ v: Int32) { var b: [UInt8] = []; b.appendLE(v); put(b) }
         switch request {
-        case 0xC020_6911:  // SIOCGIFFLAGS
+        case 0xC020_6911:
             var b: [UInt8] = []
             b.appendLE(Int16(truncatingIfNeeded: i.flags))
             put(b)
-        case 0xC020_6921, 0xC020_6925, 0xC020_6923, 0xC020_6922:  // SIOCGIF{ADDR,NETMASK,BRDADDR,DSTADDR}
-            guard let v = i.ipv4.first else { return .failure(49) }  // EADDRNOTAVAIL
+        case 0xC020_6921, 0xC020_6925, 0xC020_6923, 0xC020_6922:
+            guard let v = i.ipv4.first else { return .failure(49) }
             switch request {
             case 0xC020_6921: put(sockaddrIn(v.address))
             case 0xC020_6925: put(sockaddrIn(v.netmask))
@@ -504,31 +447,27 @@ enum NetworkInterfaces {
             default:
                 return .failure(DarwinErrnoCode.EINVAL)
             }
-        case 0xC020_6933, 0xC020_6948: int32(Int32(i.mtu))                     // SIOCGIFMTU, SIOCGIFALTMTU
-        case 0xC020_6917, 0xC020_6935: int32(0)                                // SIOCGIFMETRIC, SIOCGIFPHYS
-        case 0xC020_6944:                                                      // SIOCGIFDEVMTU
+        case 0xC020_6933, 0xC020_6948: int32(Int32(i.mtu))
+        case 0xC020_6917, 0xC020_6935: int32(0)
+        case 0xC020_6944:
             var b: [UInt8] = []
             b.appendLE(Int32(i.mtu)); b.appendLE(Int32(72)); b.appendLE(Int32(i.isLoopback ? 16384 : 9000))
             put(b)
-        case 0xC020_69AD:                                                      // SIOCGIFFUNCTIONALTYPE
-            int32(i.isLoopback ? 1 : 2)  // IFRTYPE_FUNCTIONAL_LOOPBACK / _WIRED
-        case 0xC020_698E, 0xC020_695B:                                         // SIOCGIFEFLAGS, SIOCGIFCAP
+        case 0xC020_69AD:
+            int32(i.isLoopback ? 1 : 2)
+        case 0xC020_698E, 0xC020_695B:
             put([UInt8](repeating: 0, count: 8))
-        case 0xC020_698A:                                                      // SIOCGIFLINKQUALITYMETRIC
-            int32(i.isLoopback ? -2 : 100)  // IFNET_LQM_THRESH_OFF / _GOOD
+        case 0xC020_698A:
+            int32(i.isLoopback ? -2 : 100)
         case 0xC020_699D, 0xC020_69A0, 0xC020_69CC, 0xC020_69DA, 0xC020_69CE, 0xC020_698C, 0xC020_69C0,
              0xC020_69BA, 0xC020_69C7, 0xC020_69D8:
-            // SIOCGIFDELEGATE, SIOCGIFEXPENSIVE, SIOCGIFCONSTRAINED,
-            // SIOCGIFULTRACONSTRAINED, SIOCGIFXFLAGS, SIOCGIFOPPORTUNISTIC,
-            // SIOCGIFLOWINTERNET, SIOCGIFTIMESTAMPENABLED, SIOCGIFLOWPOWER,
-            // SIOCGIFNOTRAFFICSHAPING (xnu sockio_private.h): none, off.
             put([UInt8](repeating: 0, count: 8))
-        case 0xC02C_6938, 0xC02C_6948:                                         // SIOCGIF(X)MEDIA
+        case 0xC02C_6938, 0xC02C_6948:
             guard !i.isLoopback else { return .failure(DarwinErrnoCode.EOPNOTSUPP) }
             var b: [UInt8] = []
             b.appendLE(Int32(0x20)); b.appendLE(Int32(0)); b.appendLE(Int32(3)); b.appendLE(Int32(0x20)); b.appendLE(Int32(0))
             put(b)
-        case 0xC120_6921, 0xC120_6925, 0xC120_6949, 0xC120_6951:              // in6_ifreq requests
+        case 0xC120_6921, 0xC120_6925, 0xC120_6949, 0xC120_6951:
             let asked = argument.count >= 16 + 28 ? Array(argument[(16 + 8)..<(16 + 24)]) : []
             guard let v = i.ipv6.first(where: { $0.address == asked }) ?? (request == 0xC120_6921 ? i.ipv6.first : nil) else {
                 return .failure(49)
@@ -536,8 +475,8 @@ enum NetworkInterfaces {
             switch request {
             case 0xC120_6921: put(sockaddrIn6(v.address, scope: isLinkLocal(v.address) ? i.index : 0))
             case 0xC120_6925: put(sockaddrIn6(ipv6Mask(v.prefixLength)))
-            case 0xC120_6949: put([UInt8](repeating: 0, count: 4))             // SIOCGIFAFLAG_IN6: no flags
-            default:                                                            // SIOCGIFALIFETIME_IN6: infinite
+            case 0xC120_6949: put([UInt8](repeating: 0, count: 4))
+            default:
                 var b = [UInt8](repeating: 0, count: 16)
                 b.appendLE(UInt32.max); b.appendLE(UInt32.max)
                 put(b)
@@ -549,8 +488,6 @@ enum NetworkInterfaces {
     }
 }
 
-/// The guest's network for host services (the SCDynamicStore host service
-/// publishes it as SystemConfiguration state; networking-swiftcode.md §5).
 public enum GuestNetwork {
     public struct Interface: Sendable {
         public let name: String
@@ -558,7 +495,6 @@ public enum GuestNetwork {
         public let mtu: Int
         public let ipv4: [IPv4]
         public let ipv6: [IPv6]
-        /// The default gateways through this interface (text form).
         public let router4: String?
         public let router6: String?
     }
@@ -574,11 +510,8 @@ public enum GuestNetwork {
         public let prefixLength: Int
     }
 
-    /// False with `SWIFTCODE_NO_NETWORK=1`.
     public static var enabled: Bool { !InetSocketPolicy.disabled }
 
-    /// The guest's interfaces now (lo0, then en0 when the host has one), with
-    /// their addresses as text.
     public static var interfaces: [Interface] {
         NetworkInterfaces.current.map { i in
             Interface(name: i.name, isLoopback: i.isLoopback, mtu: Int(i.mtu),
@@ -588,14 +521,12 @@ public enum GuestNetwork {
         }
     }
 
-    /// The host's name servers (text form).
     public static var nameServers: [String] {
         HostResolver.nameServers().map { $0.ipv6 ? text6($0.address) : text4($0.address) }
     }
 
     static func text4(_ a: [UInt8]) -> String { a.map(String.init).joined(separator: ".") }
 
-    /// RFC 5952 text of an IPv6 address (the longest run of zero groups as "::").
     static func text6(_ a: [UInt8]) -> String {
         guard a.count == 16 else { return "::" }
         let groups = (0..<8).map { UInt16(a[2 * $0]) << 8 | UInt16(a[2 * $0 + 1]) }

@@ -1,14 +1,5 @@
-// ExtensionsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/ExtensionsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Search field over extensions; Category filter UI
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ExtensionCategory, ExtensionManifest, SortOrder, VisualEffectView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeExtensions
 import SwiftUI
-
-// MARK: - Extensions View
 
 struct ExtensionsView: View {
     @StateObject private var manager = ExtensionManager.shared
@@ -35,7 +26,6 @@ struct ExtensionsView: View {
     var filteredExtensions: [ExtensionManifest] {
         var result = manager.extensions
 
-        // Filter by search
         if !searchText.isEmpty {
             result = result.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) ||
@@ -44,12 +34,10 @@ struct ExtensionsView: View {
             }
         }
 
-        // Filter by category
         if let category = selectedCategory {
             result = result.filter { $0.category == category }
         }
 
-        // Sort
         switch sortOrder {
         case .name:
             result.sort { $0.name < $1.name }
@@ -68,9 +56,7 @@ struct ExtensionsView: View {
 
     var body: some View {
         NavigationSplitView {
-            // Sidebar: Category filters & Extension List
             VStack(spacing: 0) {
-                // Categories Quick Picker
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         filterChip(label: "All", icon: "square.grid.2x2", selected: selectedCategory == nil) {
@@ -152,11 +138,9 @@ struct ExtensionsView: View {
                 }
             }
         } detail: {
-            // Detail View
             if let ext = selectedExtension {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        // Header info
                         HStack(spacing: 16) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 16)
@@ -177,7 +161,6 @@ struct ExtensionsView: View {
 
                             Spacer()
 
-                            // Download/Toggle Action
                             if ext.isDownloaded {
                                 Toggle(isOn: Binding(
                                     get: { ext.isEnabled },
@@ -201,7 +184,6 @@ struct ExtensionsView: View {
                         .padding()
                         .liquidGlass(style: .standard, cornerRadius: 12)
 
-                        // Description
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Description")
                                 .font(.headline)
@@ -211,7 +193,6 @@ struct ExtensionsView: View {
                                 .lineSpacing(4)
                         }
 
-                        // Categories & Metadata
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Metadata")
                                 .font(.headline)
@@ -236,7 +217,6 @@ struct ExtensionsView: View {
                             .font(.caption)
                         }
 
-                        // Actions Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Actions")
                                 .font(.headline)
@@ -328,8 +308,6 @@ struct ExtensionsView: View {
         }
     }
 
-    // MARK: - Category Filter Bar Helpers
-
     private func filterChip(label: String, icon: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
@@ -361,8 +339,6 @@ struct ExtensionsView: View {
         case .other:     return .secondary
         }
     }
-
-    // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: 16) {

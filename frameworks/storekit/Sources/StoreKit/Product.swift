@@ -1,11 +1,8 @@
-// `Product` and its nested types (configuration-file.md §3–§5; formats.md §1;
-// testing-session.md §3–§5, §9).
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 import StoreKitSigning
 
-/// An in-app product of the store.
 public struct Product: Identifiable, Hashable, Sendable {
     public typealias ID = String
 
@@ -17,9 +14,7 @@ public struct Product: Identifiable, Hashable, Sendable {
     public let displayPrice: String
     public let isFamilyShareable: Bool
     public let subscription: SubscriptionInfo?
-    /// The catalog resource (formats.md §1).
     public let jsonRepresentation: Data
-    /// The price locale (`en_US@currency=USD`).
     public let priceLocale: Locale
 
     init(_ p: CatalogProduct, catalog: Catalog, settings: EffectiveSettings) {
@@ -48,8 +43,6 @@ public struct Product: Identifiable, Hashable, Sendable {
         }
     }
 
-    /// `Product.products(for:)`: the configured products among `identifiers`;
-    /// unknown ones are left out (configuration-file.md §8 item 4).
     public static func products<C: Collection>(for identifiers: C) async throws -> [Product] where C.Element == String {
         let rt = SwiftCodeStoreKit.shared
         let found: [CatalogProduct]
@@ -59,7 +52,6 @@ public struct Product: Identifiable, Hashable, Sendable {
         return found.map { Product($0, catalog: catalog, settings: settings) }
     }
 
-    /// Buys the product (testing-session.md §4–§9).
     public func purchase(options: Set<PurchaseOption> = []) async throws -> PurchaseResult {
         let rt = SwiftCodeStoreKit.shared
         let settings = rt.store.settings
@@ -86,10 +78,8 @@ public struct Product: Identifiable, Hashable, Sendable {
         }
     }
 
-    /// The newest transaction of this product.
     public var latestTransaction: VerificationResult<Transaction>? { get async { await Transaction.latest(for: id) } }
 
-    /// This product's current entitlements.
     public var currentEntitlements: Transaction.Transactions { Transaction.currentEntitlements(for: id) }
 
     public var currentEntitlement: VerificationResult<Transaction>? { get async { await Transaction.currentEntitlement(for: id) } }
@@ -97,9 +87,6 @@ public struct Product: Identifiable, Hashable, Sendable {
     public static func == (a: Product, b: Product) -> Bool { a.jsonRepresentation == b.jsonRepresentation }
     public func hash(into h: inout Hasher) { h.combine(jsonRepresentation) }
 
-    // MARK: Nested types
-
-    /// `Product.ProductType`: raw values as the app sees them (configuration-file.md §3).
     public struct ProductType: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -111,20 +98,17 @@ public struct Product: Identifiable, Hashable, Sendable {
         public var localizedDescription: String { rawValue }
     }
 
-    /// `Product.PurchaseResult`.
     public enum PurchaseResult: Sendable {
         case success(VerificationResult<Transaction>)
         case userCancelled
         case pending
     }
 
-    /// `Product.PurchaseError` (errors.md §2).
     public enum PurchaseError: Error, Hashable, Sendable {
         case invalidQuantity, productUnavailable, purchaseNotAllowed, ineligibleForOffer, invalidOfferIdentifier
         case invalidOfferPrice, invalidOfferSignature, missingOfferParameters, paymentMethodBindingConfigurationRequired
     }
 
-    /// A subscription or offer period.
     public struct SubscriptionPeriod: Hashable, Sendable, CustomDebugStringConvertible {
         public enum Unit: Hashable, Sendable, CustomDebugStringConvertible {
             case day, week, month, year
@@ -169,7 +153,6 @@ public struct Product: Identifiable, Hashable, Sendable {
         public var debugDescription: String { "\(value) \(unit.debugDescription)\(value == 1 ? "" : "s")" }
     }
 
-    /// An introductory or promotional offer of a subscription.
     public struct SubscriptionOffer: Hashable, Sendable {
         public let id: String?
         public let type: OfferType
@@ -206,7 +189,6 @@ public struct Product: Identifiable, Hashable, Sendable {
             public var localizedDescription: String { rawValue }
         }
 
-        /// The signature of a promotional offer (`promotionalOffer(offerID:signature:)`).
         public struct Signature: Hashable, Sendable {
             public let keyID: String
             public let nonce: UUID

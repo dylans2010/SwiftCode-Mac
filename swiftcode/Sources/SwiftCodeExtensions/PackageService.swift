@@ -1,8 +1,6 @@
 import Foundation
 import SwiftCodeSubprocess
 
-// MARK: - VSIX package service (spec §6.3)
-
 public struct InstalledPackage: Sendable {
     public let directory: URL
     public let manifest: VSCodeManifest
@@ -15,12 +13,6 @@ public struct InstalledPackage: Sendable {
     }
 }
 
-/// Installs VSIX archives. ZIP handling: entry validation reads the
-/// archive's central directory with a small pure-Swift reader (no new
-/// SPM dependency — see the note below); extraction itself runs the
-/// fixed-argv system tools from the Wave 5 archive pattern
-/// (`/usr/bin/ditto -x -k` on macOS, `/usr/bin/unzip -q -o` on Linux).
-/// No package script is ever executed anywhere in the pipeline.
 public struct PackageService: Sendable {
     public enum Limits {
         public static let maxArchiveBytes: Int64 = 64 * 1024 * 1024
@@ -43,8 +35,6 @@ public struct PackageService: Sendable {
         storage.backupsDirectory.appendingPathComponent("\(extensionId).backup")
     }
 
-    /// Validates an extension id: non-empty, ≤ 214 chars, only
-    /// alphanumerics plus `._-`, no leading `.`, no `..`.
     public static func validate(extensionId: String) throws {
         guard !extensionId.isEmpty, extensionId.count <= 214 else {
             throw SwiftCodeExtensionError.package("Extension id must be non-empty and at most 214 characters.")
@@ -58,8 +48,6 @@ public struct PackageService: Sendable {
         }
     }
 
-    /// The §6.3 install pipeline. Blocking (runs system tools); call
-    /// from a background task, never the main thread.
     public func install(vsixURL: URL, identity: ExtensionIdentity) throws -> InstalledPackage {
         try Self.validate(extensionId: identity.id)
         let fileManager = FileManager.default
@@ -108,8 +96,6 @@ public struct PackageService: Sendable {
             }
         }
         let compatibility = Compatibility.evaluate(manifest: manifest)
-        // Commit with one directory move; the previous installation is
-        // moved aside first and restored if the commit fails.
         let destination = installDirectory(for: identity.id)
         let backup = backupDirectory(for: identity.id)
         var hadPrevious = false
@@ -132,13 +118,10 @@ public struct PackageService: Sendable {
         return InstalledPackage(directory: destination, manifest: manifest, compatibility: compatibility)
     }
 
-    /// Idempotent: an already-removed dir is not an error.
     public func uninstall(extensionId: String) throws {
         try? FileManager.default.removeItem(at: installDirectory(for: extensionId))
         try? FileManager.default.removeItem(at: backupDirectory(for: extensionId))
     }
-
-    // MARK: Entry validation (single pass, before anything is written)
 
     private func validateEntries(_ entries: [ZipEntry]) throws {
         guard entries.count <= Limits.maxEntries else {
@@ -146,7 +129,7 @@ public struct PackageService: Sendable {
         }
         var totalUncompressed: Int64 = 0
         for entry in entries {
-            if entry.name.hasPrefix("__MACOSX/") { continue } // Skipped.
+            if entry.name.hasPrefix("__MACOSX/") { continue }
             try Self.validateRelativePath(entry.name)
             if entry.isSymlink {
                 throw SwiftCodeExtensionError.package("VSIX entry '\(entry.name)' is a symlink, which is rejected.")
@@ -161,9 +144,6 @@ public struct PackageService: Sendable {
         }
     }
 
-    /// Relative path rules (§6.3 step 4): non-empty, ≤ 512 chars, no
-    /// NUL, not absolute, no backslash separator, no `.`/`..`
-    /// components, no drive-qualified `X:` component.
     static func validateRelativePath(_ path: String) throws {
         guard !path.isEmpty else { throw SwiftCodeExtensionError.package("VSIX contains an entry with an empty path.") }
         guard path.count <= Limits.maxRelativePathLength else {
@@ -183,8 +163,6 @@ public struct PackageService: Sendable {
         }
     }
 
-    // MARK: Extraction + post-extraction verification
-
     private func extract(vsixURL: URL, to staging: URL) throws {
 #if os(macOS)
         let output = try Subprocess.run("/usr/bin/ditto", ["-x", "-k", vsixURL.path, staging.path])
@@ -202,9 +180,6 @@ public struct PackageService: Sendable {
 #endif
     }
 
-    /// Post-extraction verification on disk (ZIP headers can lie):
-    /// reject any symlink or special file; verify the real extracted
-    /// byte total ≤ 512 MiB; every destination must stay inside staging.
     private func verifyExtractedTree(at staging: URL) throws {
         let fileManager = FileManager.default
         let stagingPath = staging.standardized.path
@@ -231,17 +206,6 @@ public struct PackageService: Sendable {
         }
     }
 
-    /// `swiftcode.json` package validation (spec §6.3, folded in from
-    /// `SDKPackageValidator`): root must be a directory, `swiftcode.json`
-    /// must exist, entrypoint must resolve inside the package
-    /// (symlinks resolved, max depth 40), walk caps of 10,000 entries /
-    /// 100 MB total / 255-byte names / no NUL.
-    ///
-    /// UNVERIFIED (U-4): whether Legacy's walk enforces the declared
-    /// executable-extension set and the `.env`/`node_modules`
-    /// exclusions. This implementation enforces the extension set and
-    /// the exclusions per the validator's header comment and records
-    /// that as a decision here.
     public static func validateSwiftCodePackage(at root: URL, manifest: SwiftCodeManifest) throws {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -288,13 +252,6 @@ public struct PackageService: Sendable {
     }
 }
 
-// MARK: - Minimal ZIP central-directory reader
-
-/// One central-directory entry: name, uncompressed size, and the
-/// Unix file-type bits from the external attributes (symlink
-/// detection). Only the central directory is read; no entry data is
-/// decompressed here. ZIP64 archives are rejected (sizes stored as
-/// 0xFFFFFFFF), as are multi-disk archives.
 struct ZipEntry: Sendable {
     let name: String
     let uncompressedSize: Int64
@@ -365,7 +322,6 @@ enum ZipCentralDirectory {
     }
 
     private static func findEndOfCentralDirectory(in data: Data) -> Int? {
-        // The EOCD is 22 bytes; a comment of up to 64 KiB may follow it.
         guard data.count >= 22 else { return nil }
         let searchStart = data.count > (65557 + 22) ? data.count - (65557 + 22) : 0
         var index = data.count - 22

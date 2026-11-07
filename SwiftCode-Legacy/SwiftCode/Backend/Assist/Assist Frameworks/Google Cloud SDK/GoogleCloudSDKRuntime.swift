@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKRuntime.swift
-//  SwiftCode
-//
-//  Primary native entry point and high-level manager for the Google Cloud SDK / Antigravity runtime.
-//
-
 import Foundation
 import Observation
 import os
@@ -41,7 +34,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
         }
     }
 
-    /// Prewarms the runtime environment in the background.
     public func prewarm() {
         Task { @MainActor in
             _ = try? await self.ensureStarted()
@@ -57,21 +49,18 @@ public final class GoogleCloudSDKRuntime: Sendable {
         return id
     }
 
-    /// Configures the Swift tool execution bridge callback on the bridge.
     private func setupToolExecutionBridge() async {
         await bridge.setToolExecutionHandler { @Sendable request in
             await GoogleCloudSDKRuntime.shared.executeSwiftTool(request: request)
         }
     }
 
-    /// Validates, checks permissions, and executes a SwiftCode tool for Antigravity.
     private func executeSwiftTool(request: GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?) {
         let toolRegistry = AssistManager.shared.registry
         let toolName = request.toolName
         let args = request.arguments
         let callId = request.requestId
 
-        // Instantly notify AssistManager that a tool has started execution on the main actor
         await MainActor.run {
             AssistManager.shared.reportToolStarted(
                 callId: callId,
@@ -93,7 +82,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
             return (false, nil, errorMsg)
         }
 
-        // Validate arguments
         let validation = toolRegistry.validate(toolId: toolName, arguments: args)
         guard validation.isValid else {
             let errorMsg = "Invalid arguments for '\(toolName)': \(validation.issue ?? "Schema mismatch")"
@@ -108,7 +96,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
             return (false, nil, errorMsg)
         }
 
-        // Ensure workspace root is valid; fail closed if no active project
         guard let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL else {
             let errorMsg = "Execution failed: No active workspace project selected."
             await MainActor.run {
@@ -122,7 +109,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
             return (false, nil, errorMsg)
         }
 
-        // Build execution context
         let context = AssistContextBuilder(
             logger: AssistManager.shared.logger,
             permissions: AssistPermissionsManager(),
@@ -131,7 +117,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
             git: AssistGitManager(project: ProjectSessionStore.shared.activeProject)
         ).buildContext(sessionId: UUID(uuidString: request.sessionId) ?? UUID())
 
-        // Evaluate permissions via AssistPermissionsManager
         let permissions = AssistPermissionsManager()
         if !permissions.authorizeOperation(toolName) {
             let errorMsg = "Permission denied for tool '\(toolName)'"
@@ -151,7 +136,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
             AssistEventNormalizer.shared.computeSemanticKey(toolName: toolName, arguments: args)
         }
 
-        // Tools that produce interactive, dynamic, or time-sensitive results must never be cached
         let nonCacheableTools: Set<String> = [
             "plan_ask_user", "plan-askuser", "execution_plan", "plan_task",
             "breakdown_task", "project_diff", "diff", "env_capture_logs",
@@ -161,7 +145,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
         ]
         let isCacheEligible = meta.isReadOnly && !nonCacheableTools.contains(toolName.lowercased())
 
-        // Runtime Result Reuse / Idempotency Check for Read-Only tools
         if isCacheEligible {
             let cached: String? = await MainActor.run {
                 toolRegistry.getCachedResult(semanticKey: semKey)
@@ -184,10 +167,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
             let effectiveArgs = validation.correctedInput ?? args
             let result = try await tool.execute(input: effectiveArgs, context: context)
             if result.success {
-                // Canonical model-facing payload: header, file-range metadata,
-                // capped output, structured data, diagnostics, files changed,
-                // diff. This replaces the ad-hoc flattening that dropped range
-                // metadata (path/start/end/totalLines/...) on the Gemini path.
                 let fullPayload = AssistToolResultFormatter.modelFacingPayload(toolId: toolName, result: result)
 
                 await MainActor.run {
@@ -234,7 +213,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
         }
     }
 
-    /// Verifies availability of the bundled Google Cloud SDK on disk.
     public func auditEnvironment() async {
         if let dir = GoogleCloudSDKProcess.resolveSDKDirectory() {
             self.isAvailable = true
@@ -247,7 +225,6 @@ public final class GoogleCloudSDKRuntime: Sendable {
         }
     }
 
-    /// Starts the Antigravity runtime bridge.
     public func start() async throws {
         guard !isRunning else { return }
 
@@ -273,14 +250,12 @@ public final class GoogleCloudSDKRuntime: Sendable {
         }
     }
 
-    /// Ensures the runtime is ready before performing operations.
     public func ensureStarted() async throws {
         if !isRunning {
             try await start()
         }
     }
 
-    /// Stops the Antigravity runtime and terminates the Python subprocess.
     public func stop() async {
         eventSubscriptionTask?.cancel()
         eventSubscriptionTask = nil
@@ -294,13 +269,11 @@ public final class GoogleCloudSDKRuntime: Sendable {
         appendLog("Google Cloud SDK runtime stopped.")
     }
 
-    /// Restarts the runtime.
     public func restart() async throws {
         await stop()
         try await start()
     }
 
-    /// Creates and returns a new native Antigravity session.
     public func createSession(id: String = UUID().uuidString, config: GoogleCloudSDKConfiguration? = nil) async throws -> GoogleCloudSDKSession {
         try await ensureStarted()
 
@@ -316,12 +289,10 @@ public final class GoogleCloudSDKRuntime: Sendable {
         return session
     }
 
-    /// Retrieves an active session by identifier.
     public func getSession(id: String) -> GoogleCloudSDKSession? {
         activeSessions[id]
     }
 
-    /// Closes an active session.
     public func closeSession(id: String) async {
         if let session = activeSessions.removeValue(forKey: id) {
             try? await session.close()

@@ -1,26 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/MuseSDKToolCall.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/MuseSDKToolCall.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - per-call card rendering (humanised titles, schema hiding, path extraction)
-// ADAPTATIONS:
-//   - `import AppKit` wrapped in #if canImport(AppKit) (destination convention). AppKit symbol sites the wiring phase must guard for Linux: L188:NSPasteboard, L189:NSPasteboard
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - FileActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - ToolActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
-//
-//  MuseSDKToolCall.swift
-//  SwiftCode
-//
-//  Dedicated UI displayed when calling Muse tools.
-//  Uses clean blue styling, badge "Muse Tool", with no all-caps headings and no "SDK" references.
-//
-
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
@@ -99,29 +76,24 @@ public struct MuseSDKToolCall: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Main Summary Row Button
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     isOpen.toggle()
                 }
             } label: {
                 HStack(spacing: 8) {
-                    // Status Icon
                     statusIcon
 
-                    // Muse SF Symbol in Blue
                     Image(systemName: "cpu.fill")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.blue)
                         .frame(width: 16, height: 16)
 
-                    // Human-Readable Title
                     Text(displayTitle)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
 
-                    // Distinct Muse Tool Badge in Blue (No SDK, no uppercase)
                     HStack(spacing: 3) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 8, weight: .bold))
@@ -135,14 +107,12 @@ public struct MuseSDKToolCall: View {
 
                     Spacer(minLength: 4)
 
-                    // Duration
                     if tool.duration > 0 {
                         Text(String(format: "%.1fs", tool.duration))
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.tertiary)
                     }
 
-                    // Chevron
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -154,7 +124,6 @@ public struct MuseSDKToolCall: View {
             }
             .buttonStyle(.plain)
 
-            // Expanded Details
             if isOpen {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()

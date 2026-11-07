@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: AppKitControls
-
 public struct AppKitControlsInterface_0000: Sendable, Codable {
     public let id: String = "appkitcontrols.api.0"
     public var title: String = "AppKitControls Symbol 0"

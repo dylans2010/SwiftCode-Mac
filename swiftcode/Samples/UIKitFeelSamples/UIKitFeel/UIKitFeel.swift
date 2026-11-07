@@ -1,23 +1,6 @@
-// UIKitFeel: SwiftCode's probe of how UIKit feels in the SwiftCode simulator
-// (specs/simulator/uikit-feel-swiftcode.md; the quantities of uikit-feel.md).
-// Original SwiftCode sample code, written from public UIKit documentation.
-//
-// The app shows one page at a time and logs what UIKit reports, one line per
-// fact, to /tmp/uikitfeel/log.txt (the device's DEV/data/tmp/uikitfeel on the
-// host): `<CACurrentMediaTime> <kind> <key=value ...>`. The host drives it by
-// appending commands to /tmp/uikitfeel/cmd.txt (`page scroll`, `mark ...`,
-// ...; see `Probe.run(_:)`) and by touching the screen through the display
-// stream (scripts/swiftcode-uikit-feel). Every page logs the rectangles of its
-// targets (`rect <name> x y w h`, window points) so that the driver knows
-// where to touch. UIKit only: it builds on Linux.
-
 import GameController
 import UIKit
 
-// MARK: - Log and commands
-
-/// The probe's log: lines are buffered and written by a background queue,
-/// so logging never waits for the file system on the main thread.
 final class ProbeLog: @unchecked Sendable {
     static let shared = ProbeLog()
     let directory: String
@@ -70,8 +53,6 @@ func f6(_ v: Double) -> String { String(format: "%.6f", v) }
 func rectText(_ r: CGRect) -> String { "\(f3(r.origin.x)) \(f3(r.origin.y)) \(f3(r.width)) \(f3(r.height))" }
 func insetText(_ i: UIEdgeInsets) -> String { "\(f3(i.top)) \(f3(i.left)) \(f3(i.bottom)) \(f3(i.right))" }
 
-/// Reads commands the host appends to cmd.txt (one per line) and runs them
-/// on the main thread.
 final class CommandReader: @unchecked Sendable {
     private let path: String
     private var offset: UInt64 = 0
@@ -108,8 +89,6 @@ final class CommandReader: @unchecked Sendable {
         }
     }
 }
-
-// MARK: - App
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -160,8 +139,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// Logs every touch the window receives: phase, the event's own timestamp
-/// (`ts`), and the position in window points.
 final class ProbeWindow: UIWindow {
     override func sendEvent(_ event: UIEvent) {
         if event.type == .touches, let touches = event.allTouches {
@@ -187,8 +164,6 @@ final class ProbeWindow: UIWindow {
     }
 }
 
-// MARK: - The probe: pages and commands
-
 final class Probe {
     let window: UIWindow
     let container = ContainerController()
@@ -213,7 +188,6 @@ final class Probe {
             + "gcKeyboard=\(GCKeyboard.coalesced != nil ? 1 : 0)")
     }
 
-    /// One command from the host.
     func run(_ line: String) {
         let w = line.split(separator: " ").map(String.init)
         guard let command = w.first else { return }
@@ -237,8 +211,6 @@ final class Probe {
             }
             container.show(page)
         case "offset":
-            // offset <points>: the scroll page's content offset along its axis
-            // ("top"/"bottom": the edge rest); paging: offset page <n>.
             (container.page as? ScrollPage)?.setOffset(w.dropFirst().map { $0 })
         case "kb-hide":
             (container.page as? KeyboardPage)?.field.resignFirstResponder()
@@ -259,8 +231,6 @@ final class Probe {
         }
     }
 
-    /// §7.2: a display link on the main run loop in common modes; "max"
-    /// asks for 80–120 Hz.
     func startLink(variant: String) {
         displayLink?.invalidate()
         let target = DisplayLinkTarget()
@@ -281,7 +251,6 @@ final class DisplayLinkTarget: NSObject {
     }
 }
 
-/// Holds the current page as its only child.
 final class ContainerController: UIViewController {
     private(set) var page: UIViewController?
 
@@ -328,13 +297,10 @@ final class ContainerController: UIViewController {
     }
 }
 
-/// Logs a view's rectangle in window points.
 func logRect(_ name: String, _ v: UIView) {
     guard let w = v.window else { return }
     log("rect", "\(name) " + rectText(v.convert(v.bounds, to: w)))
 }
-
-// MARK: - Scrolling (§3)
 
 final class ScrollPage: UIViewController, UIScrollViewDelegate {
     let paging: Bool
@@ -441,8 +407,6 @@ final class ScrollPage: UIViewController, UIScrollViewDelegate {
         log("did-scroll-top", "off=\(f3(axisOffset))")
     }
 }
-
-// MARK: - Gestures (§4)
 
 final class ProbeButton: UIButton {
     var name = ""
@@ -555,8 +519,6 @@ final class GesturesPage: UIViewController {
     }
 }
 
-// MARK: - Keyboard (§5)
-
 final class KeyboardPage: UIViewController {
     let field = UITextField()
     let marker = UIView()
@@ -630,8 +592,6 @@ final class KeyboardPage: UIViewController {
     }
 }
 
-// MARK: - Rotation (§6)
-
 final class RotationPage: UIViewController {
     private var link: CADisplayLink?
     private var last = CGSize.zero
@@ -664,8 +624,6 @@ final class RotationPage: UIViewController {
     }
 }
 
-// MARK: - Frame pacing (§7)
-
 final class DisplayPage: UIViewController {
     let box = UIView()
 
@@ -677,7 +635,6 @@ final class DisplayPage: UIViewController {
         view.addSubview(box)
     }
 
-    /// A 2 s linear move across the screen and back.
     func animate() {
         let w = view.bounds.width
         box.frame.origin.x = 20
@@ -688,9 +645,6 @@ final class DisplayPage: UIViewController {
     }
 }
 
-// MARK: - Pixels (§8)
-
-/// A test pattern with known pixels: 1-px checkerboards, text and hairlines.
 final class PixelsPage: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -705,8 +659,6 @@ final class PixelsPage: UIViewController {
         built = true
         let scale = view.window?.windowScene?.screen.scale ?? 3
         let px = 1 / scale
-        // Every row starts on a whole device pixel (the half-pixel cases add
-        // their half pixel to an aligned origin).
         var y = view.safeAreaInsets.top + 10
         func align() { y = (y * scale).rounded(.up) / scale }
         func label(_ name: String, _ text: String, _ font: UIFont, x: CGFloat, color: UIColor = .black) {
@@ -721,9 +673,6 @@ final class PixelsPage: UIViewController {
             view.addSubview(l)
             logRect(name, l)
         }
-        // The pixel-exact pattern for the device window check: 96 × 96 device
-        // pixels of a known sequence, pixel-aligned, at the top right (where
-        // a window too small for the whole screen still shows it).
         let pattern = Self.pattern(pixels: 96, scale: scale)
         let pv = UIImageView(image: pattern)
         align()
@@ -741,8 +690,6 @@ final class PixelsPage: UIViewController {
         label("red17", "Ilmn 0123 Sharp", .systemFont(ofSize: 17), x: 20, color: .red)
         y += 34
         align()
-        // A checkerboard drawn at the screen scale, pixel-aligned, and the
-        // same image half a pixel lower.
         let checker = Self.checkerboard(pixels: 48, scale: scale)
         for (name, dy) in [("checker", 0.0), ("checker-halfpx", 0.5)] {
             let iv = UIImageView(image: checker)
@@ -750,7 +697,6 @@ final class PixelsPage: UIViewController {
             view.addSubview(iv)
             logRect(name, iv)
         }
-        // A scale-1 bitmap shown at its point size (magnified) and stretched.
         let small = Self.checkerboard(pixels: 16, scale: 1)
         let mag = UIImageView(image: small)
         mag.frame = CGRect(x: 220, y: y, width: 16, height: 16)
@@ -763,7 +709,6 @@ final class PixelsPage: UIViewController {
         logRect("stretched", stretched)
         y += 60
         align()
-        // Hairlines: 1 px and 1 pt solid views at a half-pixel offset.
         for (name, h, x) in [("line-1px", px, 20.0), ("line-1pt", 1.0, 140.0)] as [(String, CGFloat, CGFloat)] {
             let v = UIView(frame: CGRect(x: x, y: y + px / 2, width: 100, height: h))
             v.backgroundColor = .black
@@ -789,8 +734,6 @@ final class PixelsPage: UIViewController {
         }
     }
 
-    /// Gray levels from a fixed linear congruential sequence; the host
-    /// computes the same (scripts/swiftcode-uikit-feel, `pattern_pixels`).
     static func pattern(pixels n: Int, scale: CGFloat) -> UIImage {
         var bytes = [UInt8](repeating: 0, count: n * n * 4)
         var s: UInt32 = 12345

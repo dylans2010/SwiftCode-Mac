@@ -2,18 +2,12 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// Device types (specs/simulator/ipad.md §3, §4, §9 round 1): the iPhone Duo
-/// output is unchanged byte for byte, the iPad records match the spec's
-/// tables key by key with their number types, and a device keeps its type.
 struct DeviceTypeTests {
-    // MARK: Helpers
 
     static func xml(_ plist: [String: Any]) throws -> Data {
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
     }
 
-    /// The XML element that follows `<key>key</key>` (its tag name:
-    /// integer, real, string, true, false, dict) and its text.
     static func element(_ xml: String, _ key: String) -> (tag: String, text: String)? {
         guard let k = xml.range(of: "<key>\(key)</key>") else { return nil }
         let rest = xml[k.upperBound...].drop { $0.isWhitespace }
@@ -29,12 +23,7 @@ struct DeviceTypeTests {
         FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-\(name)-\(UUID().uuidString)").path
     }
 
-    // MARK: iPhone Duo: unchanged
-
-    /// The capabilities generator as it was before device types (frozen
-    /// copy of DeviceCapabilities.plist at 3a5490d). Do not edit.
     enum Legacy {
-        /// The plist: {capabilities: {...}}.
         static func plist(width: Int, height: Int, scale: Double, pitch: Double, model: String) -> [String: Any] {
             let fallbacks = "APPLE10:APPLE9:APPLE8:APPLE7:APPLE6:APPLE5:APPLE4:APPLE3:APPLE3v1:APPLE2:APPLE1:GLES2,0"
             let artwork: [String: Any] = [
@@ -98,7 +87,6 @@ struct DeviceTypeTests {
             return ["capabilities": c]
         }
 
-        /// The identity part of DeviceLayout.child before device types.
         static let identity: [String: String] = [
             "SIMULATOR_DEVICE_NAME": "SwiftCode",
             "SIMULATOR_MODEL_IDENTIFIER": "iPhone19,4",
@@ -111,8 +99,6 @@ struct DeviceTypeTests {
         ]
     }
 
-    /// The legacy file plus, when the inner panel is published, the
-    /// `displays` list (device-capabilities.md §3.1; foldable.md §9 Q7).
     static func expectedDuoCapabilities(withDisplays: Bool) throws -> Data {
         var plist = Legacy.plist(width: 1398, height: 2034, scale: 3.0, pitch: 460.0, model: "iPhone19,4")
         if withDisplays, var c = plist["capabilities"] as? [String: Any] {
@@ -124,15 +110,11 @@ struct DeviceTypeTests {
 
     @Test func iPhoneCapabilitiesUnchangedByteForByte() throws {
         let legacy = try Self.xml(Legacy.plist(width: 1398, height: 2034, scale: 3.0, pitch: 460.0, model: "iPhone19,4"))
-        // Without the inner panel (SWIFTCODE_FOLD_DISPLAYS=0): byte for byte as before.
         #expect(try Self.xml(DeviceType.iPhoneDuo.capabilitiesPlist(withDisplays: false)) == legacy)
-        // With it (the default): the same plus `displays`.
         #expect(try Self.xml(DeviceType.iPhoneDuo.capabilitiesPlist(withDisplays: true)) == (try Self.expectedDuoCapabilities(withDisplays: true)))
         #expect(try Self.xml(DeviceCapabilities.plist(for: .iPhoneDuo))
             == (try Self.expectedDuoCapabilities(withDisplays: DeviceType.foldDisplaysEnabled)))
         #expect(DeviceType.default == .iPhoneDuo)
-        // No other type has a `displays` list but the watches, which keep
-        // theirs for the display round and do not write it (watchos.md §10).
         for t in DeviceType.all where t != .iPhoneDuo {
             if t.family == .watch {
                 #expect(t.displays?.count == 1 && (t.capabilitiesPlist["capabilities"] as? [String: Any])?["displays"] == nil, "\(t.id)")
@@ -142,9 +124,6 @@ struct DeviceTypeTests {
         }
     }
 
-    /// The iPhone Duo's `displays` list key by key with its plist types
-    /// (device-capabilities.md §3.1), and in agreement with the displays
-    /// SwiftCode publishes (names, ids, sizes; simframebuffer.md §4, §10).
     @Test func iPhoneDuoDisplaysList() throws {
         let plist = DeviceType.iPhoneDuo.capabilitiesPlist(withDisplays: true)
         let data = try Self.xml(plist)
@@ -177,18 +156,12 @@ struct DeviceTypeTests {
             == ["1C896A2B-F0D7-405C-8D0F-66E4B80AD044", nil, "BF0DC480-5EE2-4EC1-B02B-C75E94759832", nil, nil])
         #expect(list.map { $0["requiredFeatures"] as? [String] }
             == [nil, nil, nil, nil, ["com.apple.CoreSimulator.display.resizableScene"]])
-        // Key counts: 22 per built-in panel (the twenty that worked on the
-        // reference plus colorspace and refreshRate), 13 for TV-out and
-        // wireless, 18 for the resizable display.
         #expect(list.map(\.count) == [22, 13, 22, 13, 18])
-        // The plist types (integer vs real vs boolean) of §3.1.
         let text = String(decoding: data, as: UTF8.self)
         #expect(Self.element(text, "surfaceType")?.tag == "integer" && Self.element(text, "screenID")?.tag == "integer")
         #expect(Self.element(text, "scale")?.tag == "real" && Self.element(text, "hdpi")?.tag == "real"
             && Self.element(text, "cornerRadiusUL")?.tag == "real" && Self.element(text, "refreshRate")?.tag == "real")
         #expect(Self.element(text, "hasDigitizer")?.tag == "true" && Self.element(text, "nativeRotation")?.tag == "integer")
-        // Agreement with the published displays: the cover is the main
-        // screen, the inner entry is the second display SwiftCode publishes.
         let duo = DeviceType.iPhoneDuo, inner = try #require(duo.secondDisplay)
         #expect(list[0]["width"] as? Int == duo.screen.width && list[0]["height"] as? Int == duo.screen.height)
         #expect(list[2]["screenID"] as? Int == inner.id && list[2]["displayName"] as? String == inner.name
@@ -208,9 +181,7 @@ struct DeviceTypeTests {
         layout.lean = nil
         layout.templatePath = nil
         try layout.prepare()
-        // The capabilities file as before, plus `displays` with the inner panel.
         #expect(fm.contents(atPath: layout.capabilitiesPath) == (try Self.expectedDuoCapabilities(withDisplays: DeviceType.foldDisplaysEnabled)))
-        // The environment: every variable as before, with the same values.
         let child = layout.child
         for (key, value) in Legacy.identity { #expect(child[key] == value, "\(key)") }
         #expect(child["SIMULATOR_EXTENDED_DISPLAY_PROPERTIES"] == layout.extendedDisplayPath)
@@ -232,30 +203,21 @@ struct DeviceTypeTests {
             "IPHONE_TVOUT_EXTENDED_PROPERTIES", "SWIFTCODE_SIMHID_DEVICE_MOTION",
         ]).union(DeviceType.foldDisplaysEnabled ? ["SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY"] : [])
         #expect(Set(child.keys) == expectedKeys)
-        // The hinge input (foldable.md §8.2 I2); the inner panel by default
-        // (not with SWIFTCODE_FOLD_DISPLAYS=0).
         #expect(child["SWIFTCODE_SIMHID_DEVICE_MOTION"] == "1")
         #expect(child["SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY"]
             == (DeviceType.foldDisplaysEnabled ? "3 LCD-1 primary-1 2007 2853 3 460 59434F44-4500-4000-8000-000000000003" : nil))
         #expect(DeviceType.iPhoneDuo.secondDisplay?.environmentValue == "3 LCD-1 primary-1 2007 2853 3 460 59434F44-4500-4000-8000-000000000003")
-        // The bootstrap plist is the one these values make.
         #expect(fm.contents(atPath: layout.plistPath) == (try Self.xml(layout.bootstrapPlist)))
-        // The type is recorded.
         #expect(fm.contents(atPath: layout.deviceTypePath) == Data("iphone-duo\n".utf8))
-        // Deliberate change since 391af58 (ipad.md §10 Q8): a new device
-        // also gets its first-boot global preferences, US English.
         let prefs = try #require(fm.contents(atPath: layout.globalPreferencesPath))
         #expect(prefs == (try Self.xml(["AppleLanguages": ["en-US"], "AppleLocale": "en_US"])))
     }
 
-    /// ipad.md §10 Q8: only a device that never booted gets the first-boot
-    /// region; existing preferences and booted devices are left alone.
     @Test func firstBootLocaleOnlyForNewDevices() throws {
         let fm = FileManager.default
         let base = Self.tempDir("locale"), rr = base + "/rr"
         defer { try? fm.removeItem(atPath: base) }
         try fm.createDirectory(atPath: rr, withIntermediateDirectories: true)
-        // A booted device without a type record or preferences.
         let booted = base + "/booted"
         try fm.createDirectory(atPath: booted + "/data/var/run", withIntermediateDirectories: true)
         try Data().write(to: URL(fileURLWithPath: booted + "/data/var/run/launchd_bootstrap.plist"))
@@ -265,7 +227,6 @@ struct DeviceTypeTests {
         a.templatePath = nil
         try a.prepare()
         #expect(!fm.fileExists(atPath: a.globalPreferencesPath))
-        // A new device whose data already has preferences keeps them.
         let seeded = base + "/seeded"
         try fm.createDirectory(atPath: seeded + "/data/Library/Preferences", withIntermediateDirectories: true)
         let mine = try Self.xml(["AppleLocale": "en_GB"])
@@ -277,8 +238,6 @@ struct DeviceTypeTests {
         try b.prepare()
         #expect(fm.contents(atPath: b.globalPreferencesPath) == mine)
     }
-
-    // MARK: iPads (ipad.md §4.1, §4.2)
 
     struct PadExpectation {
         let type: DeviceType
@@ -353,7 +312,6 @@ struct DeviceTypeTests {
                         "GPSCapability": true, "contains-cellular-radio": true, "reverse-zoom": true]),
     ]
 
-    /// Real values compare by value ("2" and "2.0" are both a real 2).
     static func same(_ got: (tag: String, text: String)?, _ want: (String, String)) -> Bool {
         guard let got, got.tag == want.0 else { return false }
         if want.0 == "real" { return Double(got.text) == Double(want.1) }
@@ -365,11 +323,9 @@ struct DeviceTypeTests {
         let plist = DeviceCapabilities.plist(for: e.type)
         let caps = try #require(plist["capabilities"] as? [String: Any])
         #expect(plist.count == 1)
-        // The key set: the spec's tables, nothing else.
         let expected = Set(Self.padTrue + Self.padFalse + e.differing.keys + e.values.keys + ["ArtworkTraits", "ScreenDimensionsCapability"])
         #expect(Set(caps.keys) == expected)
         for key in Self.padAbsent { #expect(caps[key] == nil, "\(key) must be absent") }
-        // Values with their XML types, key by key.
         let artworkXML = String(decoding: try Self.xml(try #require(caps["ArtworkTraits"] as? [String: Any])), as: UTF8.self)
         for (key, want) in e.artwork { #expect(Self.same(Self.element(artworkXML, key), want), "ArtworkTraits.\(key)") }
         #expect((caps["ArtworkTraits"] as? [String: Any])?.count == e.artwork.count)
@@ -381,7 +337,6 @@ struct DeviceTypeTests {
         for key in Self.padTrue { #expect(Self.element(xml, key)?.tag == "true", "\(key)") }
         for key in Self.padFalse { #expect(Self.element(xml, key)?.tag == "false", "\(key)") }
         for (key, flag) in e.differing { #expect(Self.element(xml, key)?.tag == (flag ? "true" : "false"), "\(key)") }
-        // The file reads back as a property list.
         let back = try PropertyListSerialization.propertyList(from: try Self.xml(plist), format: nil) as? [String: Any]
         #expect((back?["capabilities"] as? [String: Any])?.count == expected.count)
     }
@@ -409,7 +364,6 @@ struct DeviceTypeTests {
         #expect(p["SIMULATOR_EXTENDED_DISPLAY_PROPERTIES"] == nil)
         #expect(p["IPHONE_TVOUT_EXTENDED_PROPERTIES"] == nil)
         #expect(p["SIMULATOR_VERSION_INFO"]?.hasSuffix("DeviceType: \(e.model)") == true)
-        // Every other variable is the iPhone's (ipad.md §4.1).
         let identity: Set<String> = ["SIMULATOR_MODEL_IDENTIFIER", "SIMULATOR_PRODUCT_CLASS", "SIMULATOR_LEGACY_ASSET_SUFFIX",
                                      "SIMULATOR_MAINSCREEN_WIDTH", "SIMULATOR_MAINSCREEN_HEIGHT", "SIMULATOR_MAINSCREEN_SCALE",
                                      "SIMULATOR_MAINSCREEN_PITCH", "SIMULATOR_VERSION_INFO"]
@@ -419,7 +373,6 @@ struct DeviceTypeTests {
         #expect(Set(p.keys).subtracting(i.keys).isEmpty)
         for (key, value) in p where !identity.contains(key) { #expect(i[key] == value, "\(key)") }
         #expect(p["SWIFTCODE_SIMHID_DEVICE_MOTION"] == nil)
-        // The written files.
         try pad.prepare()
         let written = try #require(fm.contents(atPath: pad.capabilitiesPath))
         #expect(written == (try Self.xml(DeviceCapabilities.plist(for: e.type))))
@@ -428,8 +381,6 @@ struct DeviceTypeTests {
         #expect(!env.contains { $0.hasPrefix("SIMULATOR_EXTENDED_DISPLAY_PROPERTIES=") || $0.hasPrefix("IPHONE_TVOUT_EXTENDED_PROPERTIES=") })
         #expect(env.contains("SIMULATOR_MODEL_IDENTIFIER=\(e.model)"))
     }
-
-    // MARK: Data
 
     @Test func typesByName() {
         #expect(Array(DeviceType.all.map(\.id).prefix(5)) == ["iphone-duo", "iphone-18-pro", "ipad-a16", "ipad-pro-13-m5", "vision-pro"])
@@ -442,8 +393,6 @@ struct DeviceTypeTests {
         #expect(DeviceType.iPadA16.family == .pad && DeviceType.iPadA16.pointerSystem)
     }
 
-    // MARK: A device keeps its type (ipad.md §4.3 R2)
-
     @Test func deviceKeepsItsType() throws {
         let fm = FileManager.default
         let dev = Self.tempDir("keep"), rr = dev + "-rr"
@@ -454,14 +403,13 @@ struct DeviceTypeTests {
         pad.lean = nil
         pad.templatePath = nil
         try pad.prepare()
-        try pad.prepare()  // again as the same type
+        try pad.prepare()
         var other = pad
         other.deviceType = .iPadPro13M5
         #expect(throws: DeviceTypeMismatch.self) { try other.prepare() }
         var phone = pad
         phone.deviceType = .iPhoneDuo
         #expect(throws: DeviceTypeMismatch.self) { try phone.prepare() }
-        // A restore checks too.
         phone.restoring = true
         #expect(throws: DeviceTypeMismatch.self) { try phone.prepare() }
         #expect(fm.contents(atPath: pad.deviceTypePath) == Data("ipad-a16\n".utf8))
@@ -486,8 +434,6 @@ struct DeviceTypeTests {
         #expect(fm.contents(atPath: phone.deviceTypePath) == Data("iphone-duo\n".utf8))
     }
 
-    /// Files put into a new device's `data` before its first boot (a probe
-    /// in data/tmp) do not make it an older device.
     @Test func newDeviceWithFilesIsNew() throws {
         let fm = FileManager.default
         let dev = Self.tempDir("new"), rr = dev + "-rr"

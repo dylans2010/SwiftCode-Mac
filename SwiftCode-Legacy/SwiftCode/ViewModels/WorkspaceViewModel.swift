@@ -31,14 +31,11 @@ public class WorkspaceViewModel: Sendable {
             await git.refreshStatus()
             await scanAndCacheXcodeProjects()
 
-            // Auto open the active file from session, and restore all open tabs from the session
             let sessionStore = ProjectSessionStore.shared
             if let session = sessionStore.activeSession {
-                // Restore navigation expanded nodes
                 projectTree.expandedNodeIDs = session.expandedNodeIDs
                 projectTree.selectedNodeID = session.selectedNodeID
 
-                // Restore open tabs
                 for node in session.openFileTabs {
                     let tabURL = projectURL.appendingPathComponent(node.path)
                     if tabURL != projectURL.appendingPathComponent(session.activeFileNode?.path ?? "") {
@@ -46,7 +43,6 @@ public class WorkspaceViewModel: Sendable {
                     }
                 }
 
-                // Then open the active file (which will select it)
                 if let activeNode = session.activeFileNode {
                     let fileURL = projectURL.appendingPathComponent(activeNode.path)
                     await editor.openFile(url: fileURL)
@@ -63,7 +59,6 @@ public class WorkspaceViewModel: Sendable {
     }
 
     private func findPrimarySwiftFile(in nodes: [ProjectNode]) -> URL? {
-        // First look for important files in the current level
         for node in nodes {
             if node.kind == .file {
                 let name = node.url.lastPathComponent
@@ -73,7 +68,6 @@ public class WorkspaceViewModel: Sendable {
             }
         }
 
-        // Then search recursively for any .swift file
         for node in nodes {
             if node.kind == .file && node.url.pathExtension == "swift" {
                 return node.url
@@ -85,7 +79,6 @@ public class WorkspaceViewModel: Sendable {
             }
         }
 
-        // Fallback to any file
         for node in nodes {
             if node.kind == .file {
                 return node.url
@@ -147,10 +140,8 @@ public class WorkspaceViewModel: Sendable {
 
     public func handleFileSelectionChange(nodeID: String?) {
         guard let nodeID = nodeID else { return }
-        // The ID is the full path of the file
         let url = URL(fileURLWithPath: nodeID)
 
-        // Ensure it's not a directory (IDs for folders also come through here)
         var isDir: ObjCBool = false
         if FileManager.default.fileExists(atPath: nodeID, isDirectory: &isDir), isDir.boolValue {
             if url.pathExtension != "xcodeproj" {

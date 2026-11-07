@@ -9,8 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-/// T-IMG golden scenes (10-plan.md §3.2): rendered headlessly at scale 2 and
-/// compared with the PNGs in Goldens/.
 @Suite("T-IMG golden scenes")
 @MainActor
 struct SampleSceneTests {

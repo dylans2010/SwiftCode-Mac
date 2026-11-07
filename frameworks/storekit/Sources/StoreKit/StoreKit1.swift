@@ -1,11 +1,7 @@
-// StoreKit 1 over the same store (simulator-baseline.md §7; errors.md §4;
-// formats.md §3): product requests, the payment queue, restore, the receipt.
-// Callbacks arrive on `SwiftCodeStoreKit.shared.callbackQueue` (the main queue by default).
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 
-/// `SKErrorDomain` errors (errors.md §4).
 public struct SKError: CustomNSError, Hashable, Sendable {
     public enum Code: Int, Hashable, Sendable {
         case unknown = 0, clientInvalid, paymentCancelled, paymentInvalid, paymentNotAllowed, storeProductNotAvailable
@@ -24,12 +20,10 @@ public struct SKError: CustomNSError, Hashable, Sendable {
     public static var errorDomainName: String { errorDomain }
 }
 
-/// `SKPaymentTransactionState`.
 public enum SKPaymentTransactionState: Int, Sendable {
     case purchasing = 0, purchased, failed, restored, deferred
 }
 
-/// Delegate of every request.
 public protocol SKRequestDelegate: AnyObject {
     func requestDidFinish(_ request: SKRequest)
     func request(_ request: SKRequest, didFailWithError error: any Error)
@@ -40,7 +34,6 @@ extension SKRequestDelegate {
     public func request(_ request: SKRequest, didFailWithError error: any Error) {}
 }
 
-/// Delegate of a products request.
 public protocol SKProductsRequestDelegate: SKRequestDelegate {
     func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse)
 }
@@ -54,7 +47,6 @@ open class SKRequest: NSObject, @unchecked Sendable {
     open func cancel() { isCancelled = true }
 }
 
-/// The products and the unknown identifiers of a request.
 open class SKProductsResponse: NSObject, @unchecked Sendable {
     public let products: [SKProduct]
     public let invalidProductIdentifiers: [String]
@@ -90,7 +82,6 @@ open class SKProductsRequest: SKRequest, @unchecked Sendable {
     }
 }
 
-/// `SKReceiptRefreshRequest`: writes the receipt (formats.md §3) and finishes.
 open class SKReceiptRefreshRequest: SKRequest, @unchecked Sendable {
     public let receiptProperties: [String: Any]?
 
@@ -110,7 +101,6 @@ open class SKReceiptRefreshRequest: SKRequest, @unchecked Sendable {
     }
 }
 
-/// A subscription period in StoreKit 1 units (week 1, month 2, year 3; plan.md §3.1).
 open class SKProductSubscriptionPeriod: NSObject, @unchecked Sendable {
     public let numberOfUnits: Int
     public let unit: SKProduct.PeriodUnit
@@ -126,9 +116,7 @@ open class SKProductSubscriptionPeriod: NSObject, @unchecked Sendable {
     }
 }
 
-/// An introductory or promotional offer in StoreKit 1 terms.
 open class SKProductDiscount: NSObject, @unchecked Sendable {
-    /// pay-as-you-go 0, pay-up-front 1, free trial 2 (plan.md §3.1).
     public enum PaymentMode: UInt, Sendable { case payAsYouGo = 0, payUpFront = 1, freeTrial = 2 }
     public enum `Type`: UInt, Sendable { case introductory = 0, subscription = 1 }
 
@@ -162,7 +150,6 @@ open class SKProduct: NSObject, @unchecked Sendable {
     public let localizedTitle: String
     public let localizedDescription: String
     public let price: NSDecimalNumber
-    /// `en_US@currency=USD`.
     public let priceLocale: Locale
     public let isFamilyShareable: Bool
     public let subscriptionPeriod: SKProductSubscriptionPeriod?
@@ -187,12 +174,10 @@ open class SKProduct: NSObject, @unchecked Sendable {
     }
 }
 
-/// A signed promotional offer for a StoreKit 1 payment.
 open class SKPaymentDiscount: NSObject, @unchecked Sendable {
     public let identifier: String
     public let keyIdentifier: String
     public let nonce: UUID
-    /// Base64 of the DER signature.
     public let signature: String
     public let timestamp: NSNumber
 
@@ -275,7 +260,6 @@ open class SKPaymentTransaction: NSObject, @unchecked Sendable {
     }
 }
 
-/// Observer of the payment queue.
 public protocol SKPaymentTransactionObserver: AnyObject {
     func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction])
     func paymentQueue(_ queue: SKPaymentQueue, removedTransactions transactions: [SKPaymentTransaction])
@@ -292,9 +276,7 @@ extension SKPaymentTransactionObserver {
 }
 
 open class SKStorefront: NSObject, @unchecked Sendable {
-    /// Alpha-3 (`USA`).
     public let countryCode: String
-    /// `143441`.
     public let identifier: String
 
     init(countryCode: String, identifier: String) {
@@ -303,7 +285,6 @@ open class SKStorefront: NSObject, @unchecked Sendable {
     }
 }
 
-/// The StoreKit 1 payment queue.
 open class SKPaymentQueue: NSObject, @unchecked Sendable {
     private final class WeakObserver {
         weak var value: (any SKPaymentTransactionObserver)?
@@ -321,14 +302,12 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
 
     public static func `default`() -> SKPaymentQueue { sharedLock.withLock { shared } }
 
-    /// SwiftCode extension: a fresh default queue (for tests that replace the runtime).
     public static func swiftcodeReset() {
         sharedLock.withLock { shared = SKPaymentQueue() }
     }
 
     public static func canMakePayments() -> Bool { true }
 
-    /// The storefront in force.
     open var storefront: SKStorefront? {
         let s = SwiftCodeStoreKit.shared.store.settings.storefront
         return SKStorefront(countryCode: s.countryCode, identifier: s.id)
@@ -366,9 +345,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
         notify { $0.paymentQueue(self, updatedTransactions: ts) }
     }
 
-    /// Renewals, approvals and refunds made by the store reach StoreKit 1 observers as new transactions.
     private func storeEvent(_ event: StoreEvent) {
-        // Restores and interrupted purchases are reported by the call that made them.
         guard case .transaction(let r) = event, !r.isRevoked, r.state != .restored, !r.hasPurchaseIssue else { return }
         let rt = SwiftCodeStoreKit.shared
         rt.callbackQueue.async { [self] in
@@ -379,7 +356,6 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Adds a payment: `purchasing`, then `purchased`, `deferred` or `failed` (simulator-baseline.md §7).
     open func add(_ payment: SKPayment) {
         let rt = SwiftCodeStoreKit.shared
         let p = payment.copyPayment()
@@ -429,7 +405,6 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
 
     open func restoreCompletedTransactions() { restoreCompletedTransactions(withApplicationUsername: nil) }
 
-    /// New transactions in state `restored` for each non-consumable and active subscription.
     open func restoreCompletedTransactions(withApplicationUsername username: String?) {
         let rt = SwiftCodeStoreKit.shared
         rt.callbackQueue.async { [self] in
@@ -447,6 +422,5 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
 }
 
 extension SwiftCodeStoreKit {
-    /// `Bundle.appStoreReceiptURL` equivalent: where the StoreKit 1 receipt lives.
     public var appStoreReceiptURL: URL? { receiptURL }
 }

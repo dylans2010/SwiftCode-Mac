@@ -1,10 +1,5 @@
 import Testing
 
-/// Process-wide FIFO async lock. Heavy integration suites (real lldb,
-/// sourcekit-lsp, SwiftBuild, simulators, preview hosts) hold it for their
-/// whole run, so at most one of them runs at a time while the fast unit
-/// suites stay parallel. This removes the CPU and toolchain contention that
-/// made timing-sensitive tests flake under load.
 actor HeavyIntegrationLock {
     static let shared = HeavyIntegrationLock()
     private var held = false
@@ -20,7 +15,6 @@ actor HeavyIntegrationLock {
     }
 }
 
-/// `@Suite(.heavyIntegration, ...)`: run the suite under `HeavyIntegrationLock`.
 struct HeavyIntegrationTrait: SuiteTrait, TestScoping {
     var isRecursive: Bool { false }
 

@@ -28,7 +28,6 @@ struct GitHubRemoteSetupView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // Header
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("Configure GitHub Remote", systemImage: "chevron.left.forwardslash.chevron.right")
@@ -42,7 +41,6 @@ struct GitHubRemoteSetupView: View {
                     .liquidGlass(style: .standard, cornerRadius: 12)
                 }
 
-                // Tab picker
                 Section {
                     Picker("Setup Method", selection: $selectedTab) {
                         ForEach(RemoteSetupTab.allCases, id: \.self) { tab in
@@ -52,7 +50,6 @@ struct GitHubRemoteSetupView: View {
                     .pickerStyle(.segmented)
                 }
 
-                // Content per tab
                 switch selectedTab {
                 case .existing:
                     existingRepoSection
@@ -78,8 +75,6 @@ struct GitHubRemoteSetupView: View {
         }
         .presentationDetents([.large])
     }
-
-    // MARK: - Existing Repo Section
 
     @ViewBuilder
     private var existingRepoSection: some View {
@@ -140,8 +135,6 @@ struct GitHubRemoteSetupView: View {
         }
     }
 
-    // MARK: - Create Repo Section
-
     @ViewBuilder
     private var createRepoSection: some View {
         Section {
@@ -165,8 +158,6 @@ struct GitHubRemoteSetupView: View {
         }
     }
 
-    // MARK: - Confirm Button
-
     @ViewBuilder
     private var confirmButton: some View {
         switch selectedTab {
@@ -189,8 +180,6 @@ struct GitHubRemoteSetupView: View {
             .disabled(newRepoName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreatingRepo)
         }
     }
-
-    // MARK: - Actions
 
     private func loadRepositories() async {
         isLoadingRepos = true
@@ -241,7 +230,6 @@ struct GitHubRemoteSetupView: View {
         }
     }
 
-    /// Persists the `githubRepo` field in ProjectManager and calls the completion handler.
     private func applyRemote(to project: Project) {
         if let idx = sessionStore.projects.firstIndex(where: { $0.id == project.id }) {
             sessionStore.projects[idx].githubRepo = project.githubRepo

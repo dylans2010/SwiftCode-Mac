@@ -1,25 +1,3 @@
-/*
- * isprobe: an IOSurface client written only against the PUBLIC IOSurface API
- * (IOSurfaceRef.h / IOSurfaceTypes.h). Original Ycode code (R5). It exercises
- * the calls whose wire traffic ismitm/isinterpose record, one step at a time,
- * printing "ISPROBE <step>" markers so captures can be aligned with calls.
- *
- * Usage: isprobe <test>[,<test>...] [args]
- *   basic      create BGRA 64x32, getters, lock/unlock (ro, avoid-sync), write, seeds, release
- *   values     set/copy/copy-all/remove values (string, number, data, dict, array)
- *   use        increment/decrement use count, is-in-use
- *   purge      set purgeable volatile / non-volatile / keep-current
- *   port       create mach port, look it up in the same process
- *   xpc        create XPC object, look it up
- *   formats    create surfaces in several sizes and pixel formats; print layouts
- *   share      create, fill, put a mach port in registered slot 2, spawn a child
- *              ("isprobe child-port") that looks it up, maps it and checks the pattern
- *   global     create with kIOSurfaceIsGlobal, spawn "isprobe child-id <id>"
- *   lookupid   IOSurfaceLookup(<id>) of an id this process did not create (arg)
- *   name       create with kIOSurfaceName "LCD"
- *   big        create the 1398x2034 BGRA surface backboardd uses
- *   wait       sleep 1 s (marker spacing)
- */
 #include <IOSurface/IOSurfaceRef.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <mach/mach.h>
@@ -308,7 +286,6 @@ static void t_formats(void)
         make_one(lab, d);
         CFRelease(d);
     }
-    /* Explicit bytes per row and alloc size. */
     CFMutableDictionaryRef d = props(10, 10, 4, 'BGRA');
     CFNumberRef bpr = num(256), as = num(65536);
     CFDictionarySetValue(d, kIOSurfaceBytesPerRow, bpr);
@@ -316,7 +293,6 @@ static void t_formats(void)
     CFDictionarySetValue(d, kIOSurfaceAllocSize, as);
     make_one("10x10 BGRA bpr 256 alloc 65536", d);
     CFRelease(d); CFRelease(bpr); CFRelease(as);
-    /* Bi-planar 4:2:0 ('420v') with explicit plane info, as CoreVideo would pass. */
     d = props(64, 48, 0, '420v');
     CFMutableArrayRef planes = CFArrayCreateMutable(NULL, 2, &kCFTypeArrayCallBacks);
     long pw[2] = { 64, 32 }, ph[2] = { 48, 24 }, pb[2] = { 1, 2 }, prow[2] = { 64, 64 }, poff[2] = { 0, 64 * 48 };
@@ -337,7 +313,6 @@ static void t_formats(void)
     CFDictionarySetValue(d, kIOSurfaceAllocSize, total);
     make_one("64x48 420v two planes", d);
     CFRelease(total); CFRelease(planes); CFRelease(d);
-    /* Invalid: zero width. */
     d = props(0, 10, 4, 'BGRA');
     make_one("0x10 BGRA (invalid)", d);
     CFRelease(d);
@@ -510,7 +485,6 @@ static void t_cast(void)
     MARK("cast: done");
 }
 
-/* Create a surface that is NOT global, fill it, and leave without releasing. */
 static void t_leak(void)
 {
     MARK("leak: create (not global), fill, exit without release");
@@ -525,7 +499,6 @@ static void t_leak(void)
     fflush(stdout);
 }
 
-/* Non-global surface: a child looks it up by id while the parent still holds it. */
 static void t_idshare(void)
 {
     MARK("idshare: create (not global)");
@@ -547,7 +520,6 @@ static void t_idshare(void)
     MARK("idshare: done");
 }
 
-/* When does IsInUse become true? */
 static void t_inuse(void)
 {
     MARK("inuse: create");

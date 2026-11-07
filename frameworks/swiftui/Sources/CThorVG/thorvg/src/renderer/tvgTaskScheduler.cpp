@@ -1,33 +1,6 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
-
 #include "tvgArray.h"
 #include "tvgInlist.h"
 #include "tvgTaskScheduler.h"
-
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
 
 namespace tvg {
 
@@ -91,7 +64,6 @@ struct TaskQueue {
     }
 };
 
-
 struct TaskSchedulerImpl
 {
     Array<thread*>                 threads;
@@ -130,7 +102,6 @@ struct TaskSchedulerImpl
     {
         Task* task;
 
-        //Thread Loop
         while (true) {
             auto success = false;
             for (uint32_t x = 0; x < threads.count * 2; ++x) {
@@ -147,7 +118,6 @@ struct TaskSchedulerImpl
 
     void request(Task* task)
     {
-        //Async
         if (threads.count > 0) {
             task->prepare();
             auto i = idx++;
@@ -155,7 +125,6 @@ struct TaskSchedulerImpl
                 if (taskQueues[(i + n) % threads.count]->tryPush(task)) return;
             }
             taskQueues[i % threads.count]->push(task);
-        //Sync
         } else {
             task->run(0);
         }
@@ -167,7 +136,7 @@ struct TaskSchedulerImpl
     }
 };
 
-#else //THORVG_THREAD_SUPPORT
+#else
 
 struct TaskSchedulerImpl
 {
@@ -176,17 +145,12 @@ struct TaskSchedulerImpl
     uint32_t threadCnt() { return 0; }
 };
 
-#endif //THORVG_THREAD_SUPPORT
+#endif
 
-
-} //namespace
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
+}
 
 static TaskSchedulerImpl* _inst = nullptr;
-static ThreadID _tid;   //dominant thread id
+static ThreadID _tid;
 
 void TaskScheduler::init(uint32_t threads)
 {
@@ -195,31 +159,26 @@ void TaskScheduler::init(uint32_t threads)
     _tid = tid();
 }
 
-
 void TaskScheduler::term()
 {
     delete(_inst);
     _inst = nullptr;
 }
 
-
 void TaskScheduler::request(Task* task)
 {
     if (_inst) _inst->request(task);
 }
-
 
 uint32_t TaskScheduler::threads()
 {
     return _inst ? _inst->threadCnt() : 0;
 }
 
-
 bool TaskScheduler::onthread()
 {
     return _tid != tid();
 }
-
 
 ThreadID TaskScheduler::tid()
 {

@@ -1,13 +1,6 @@
 import SwiftUI
 import SwiftCodeIDEShell
 
-/// Project dashboard — Legacy's `FoldersView`, `FolderCardView`,
-/// `FolderCreateView`, `HomeProjectCardView` and `GitHubRemoteSetupView`,
-/// rebuilt in SwiftCode style on top of `ProjectFolderStore`.
-///
-/// The host supplies the known projects and the open/delete actions (the
-/// Organizer owns those); the view owns folders, symbols and the remote
-/// setup sheet. Project symbols keep Legacy's UserDefaults key.
 public struct ProjectDashboardView: View {
     public var projects: [URL]
     public var onOpenProject: (URL) -> Void
@@ -144,7 +137,6 @@ public struct ProjectDashboardView: View {
     }
 }
 
-/// GitHub remote setup sheet (Legacy `GitHubRemoteSetupView`).
 public struct GitHubRemoteSetupSheet: View {
     public var projectURL: URL
     public var token: String?

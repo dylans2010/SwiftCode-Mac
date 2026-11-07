@@ -1,7 +1,3 @@
-/// Writes a `Layer` in the crate (`.usdc`) binary format, version 0.8.0
-/// (0.9.0 when the layer holds timecode values, 0.10.0 for path
-/// expressions), with compressed structural sections and compressed
-/// integer and floating-point arrays.
 public enum USDCWriter {
     public static func write(_ layer: Layer) throws -> [UInt8] {
         let writer = CrateWriter()
@@ -25,12 +21,8 @@ final class CrateWriter {
     var version = CrateVersion(major: 0, minor: 8, patch: 0)
 
     init() {
-        // A first token that is never a path element: a property element
-        // token is stored negated, so index 0 must not be one.
         _ = token(";-)")
     }
-
-    // MARK: Tables
 
     func token(_ s: String) -> Int {
         if let i = tokenIndex[s] { return i }
@@ -64,8 +56,6 @@ final class CrateWriter {
         return paths.count - 1
     }
 
-    // MARK: Output
-
     func align(_ n: Int) {
         while out.count % n != 0 { out.append(0) }
     }
@@ -84,10 +74,7 @@ final class CrateWriter {
         for k in 0..<8 { out[offset + k] = UInt8(truncatingIfNeeded: u >> (8 * UInt64(k))) }
     }
 
-    // MARK: Layer
-
     func write(_ layer: Layer) throws -> [UInt8] {
-        // Specs in depth-first order of the namespace.
         let ordered = layer.allPaths.sorted { a, b in
             a.elements.count != b.elements.count ? a.description < b.description : a.description < b.description
         }
@@ -118,7 +105,6 @@ final class CrateWriter {
             }
             specs.append((path(p), setIndex, spec.type.rawValue))
         }
-        // Empty path last so it never takes part in the tree.
         _ = path(.empty)
 
         var sections: [(String, Int, Int)] = []
@@ -171,7 +157,6 @@ final class CrateWriter {
             put(Int64(start))
             put(Int64(size))
         }
-        // Bootstrap.
         let magic = Array("PXR-USDC".utf8)
         for (i, b) in magic.enumerated() { out[i] = b }
         out[8] = version.major
@@ -189,7 +174,6 @@ final class CrateWriter {
 
     func writePaths() {
         put(UInt64(paths.count))
-        // Children of each path, in table order.
         var children: [Int: [Int]] = [:]
         for (i, p) in paths.enumerated() where !p.isEmpty && !p.isRoot {
             children[pathIndex[p.parent]!, default: []].append(i)
@@ -226,8 +210,6 @@ final class CrateWriter {
         writeCompressedInts(jumps)
     }
 
-    // MARK: Values
-
     static func crateType(_ vt: ValueType) -> CrateType {
         switch vt {
         case .timecode: return .timeCode
@@ -250,7 +232,6 @@ final class CrateWriter {
         case .variability(let v): return ValueRep(type: .variability, inlined: true, payload: UInt64(v.rawValue))
         case .dictionary(let d):
             if d.isEmpty { return ValueRep(type: .dictionary, inlined: true) }
-            // Nested values are written before the dictionary body.
             return try packStructured(.dictionary) { try self.writeDictionary(d) }
         case .tokenListOp(let op):
             return try packStructured(.tokenListOp) { try self.writeListOp(op) { self.put(UInt32(self.token($0))) } }
@@ -269,7 +250,6 @@ final class CrateWriter {
                 try self.writeListOp(op) { wide ? self.put($0) : self.put(UInt32(truncatingIfNeeded: $0)) }
             }
         case .path(let p):
-            // Single paths only occur as relationship defaults; store as a vector of one.
             return try packStructured(.pathVector) {
                 self.put(UInt64(1))
                 self.put(UInt32(self.path(p)))
@@ -317,15 +297,12 @@ final class CrateWriter {
         }
     }
 
-    /// Writes a structured value at the end of the output and returns its rep.
     func packStructured(_ type: CrateType, _ body: () throws -> Void) throws -> ValueRep {
         let start = out.count
         try body()
         return ValueRep(type: type, payload: UInt64(start))
     }
 
-    /// The crate's nested-value layout: an int64 forward offset, any data the
-    /// value needs, then the value's rep.
     func writeNested(_ value: Value) throws {
         let offsetLocation = out.count
         put(Int64(0))
@@ -375,12 +352,10 @@ final class CrateWriter {
 
     func packTimeSamples(_ samples: [TimeSample]) throws -> ValueRep {
         let start = out.count
-        // Times.
         put(Int64(0))
         let timesRep = try pack(.doubleVector(samples.map(\.time)))
         patch64(at: start, Int64(out.count - start))
         put(timesRep.data)
-        // Values.
         let valuesStart = out.count
         put(Int64(0))
         var reps: [ValueRep] = []
@@ -390,8 +365,6 @@ final class CrateWriter {
         for r in reps { put(r.data) }
         return ValueRep(type: .timeSamples, payload: UInt64(start))
     }
-
-    // MARK: Scalars and arrays
 
     func inlineInt8s(_ values: [Double]) -> UInt32? {
         var payload: UInt32 = 0

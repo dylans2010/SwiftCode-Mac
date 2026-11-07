@@ -1,40 +1,8 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// The guest's DNS service: the host end of `/var/run/mDNSResponder`
-// (`specs/simulator/networking-swiftcode.md` §4). On the Mac, the simulator's
-// processes reach the Mac's own mDNSResponder through this UNIX socket path;
-// in SwiftCode a guest connect to it reaches this in-VMM server, which answers
-// the requests of the `dnssd` client library from the host's resolver
-// (`HostResolver`).
-//
-// Wire protocol (Apple's open-source mDNSResponder, `dnssd_ipc.h`,
-// `dnssd_clientstub.c`, `uds_daemon.c`; Apache 2.0 / BSD):
-//
-// - Every message starts with a 28-byte header, integers big-endian:
-//   version (1), datalen, ipc_flags, op, an 8-byte client context (opaque,
-//   echoed in replies), reg_index. `datalen` bytes of data follow.
-// - Data fields are big-endian u16/u32 and NUL-terminated strings; trailing
-//   TLVs (type u16, length u16, value) follow when IPC_FLAGS_TRAILING_TLVS.
-// - A request on its own connection gets its 4-byte status (big-endian
-//   DNSServiceErrorType) as the first bytes on that connection. A
-//   connection opened with `connection_request` (DNSServiceCreateConnection)
-//   is shared: each later ("subordinate") request's data starts with an
-//   empty return-path string, and the client passes a socket with
-//   SCM_RIGHTS on the request's last byte; the status goes to that socket.
-//   `cancel_request` (63) ends the subordinate whose context matches.
-// - Replies: header (op = reply op) + flags u32, interface index u32,
-//   error u32, then the op's fields. addrinfo (72) and query (68) replies
-//   carry name, rrtype u16, rrclass u16, rdlen u16, rdata, ttl u32.
-//   kDNSServiceFlagsMoreComing (0x1) marks all but the last of a batch;
-//   kDNSServiceFlagsAdd (0x2) an answer being added. A missing record is
-//   an answer with error kDNSServiceErr_NoSuchRecord and empty rdata.
-
-/// The host end of a host-provided stream socket that also answers.
 protocol HostSocketEndpoint: AnyObject {
-    /// Bytes (and SCM_RIGHTS descriptions) the guest sent. Kernel lock held.
     func received(_ bytes: ArraySlice<UInt8>, rights: [DarwinOpenFile]?)
-    /// The guest end closed. Kernel lock held.
     func disconnected()
 }
 
@@ -55,22 +23,16 @@ enum DNSServiceIPC {
         static let noReply: UInt32 = 1, trailingTLVs: UInt32 = 2, noErrSD: UInt32 = 4
     }
 
-    /// `DNSServiceFlags`.
     static let moreComing: UInt32 = 0x1, add: UInt32 = 0x2, returnIntermediates: UInt32 = 0x1000,
                suppressUnusable: UInt32 = 0x8000
 
-    /// SuppressUnusable (networking.md §4.2): addresses of a family the guest
-    /// cannot route are not answered (loopback addresses always are).
     static func usable(_ address: [UInt8]) -> Bool {
         if address.count == 4 { return address[0] == 127 || NetworkInterfaces.hasRoutableIPv4 }
         return address == [UInt8](repeating: 0, count: 15) + [1] || NetworkInterfaces.hasRoutableIPv6
     }
-    /// `DNSServiceErrorType`.
     static let noError: Int32 = 0, unsupported: Int32 = -65544, badParam: Int32 = -65540,
                noSuchRecord: Int32 = -65554, noSuchName: Int32 = -65538
-    /// `kDNSServiceProtocol_IPv4`, `_IPv6`.
     static let protocolIPv4: UInt32 = 1, protocolIPv6: UInt32 = 2
-    /// The daemon version `DNSServiceGetProperty(kDNSServiceProperty_DaemonVersion)` reports.
     static let daemonVersion: UInt32 = 26_000_000
 
     struct Header: Equatable {
@@ -113,7 +75,6 @@ enum DNSServiceIPC {
         }
     }
 
-    /// A cursor over request data.
     struct Reader {
         var data: [UInt8]
         var offset = 0
@@ -140,7 +101,6 @@ enum DNSServiceIPC {
         }
     }
 
-    /// A reply message: header + flags, interface, error + `body`.
     static func reply(op: UInt32, context: [UInt8], flags: UInt32, interface: UInt32, error: Int32, body: [UInt8]) -> [UInt8] {
         var b = Header(datalen: UInt32(12 + body.count), op: op, context: context).bytes
         b.appendBE32(flags)
@@ -149,7 +109,6 @@ enum DNSServiceIPC {
         return b + body
     }
 
-    /// The body of an addrinfo or query answer.
     static func answer(name: String, type: UInt16, rrclass: UInt16 = 1, rdata: [UInt8], ttl: UInt32) -> [UInt8] {
         var b = Array(name.utf8) + [0]
         b.appendBE16(type)
@@ -167,7 +126,6 @@ enum DNSServiceIPC {
     }
 }
 
-/// One guest connection to the DNS service.
 final class DNSServiceConnection: HostSocketEndpoint, @unchecked Sendable {
     private weak var host: UnixSocket?
     private let lock: KernelLock
@@ -176,12 +134,9 @@ final class DNSServiceConnection: HostSocketEndpoint, @unchecked Sendable {
     private var pendingRights: [DarwinOpenFile] = []
     private var shared = false
     private var closed = false
-    /// Requests whose answers are pending, by client context.
     private var active: [[UInt8]: Int] = [:]
     private var nextRequest = 1
-    /// Diagnostics (`SWIFTCODE_DEBUG_DNSSD=1`): requests and answers on stderr.
     static let debug = getenv("SWIFTCODE_DEBUG_DNSSD").map { String(cString: $0) == "1" } ?? false
-    /// Statistics (tests, diagnostics).
     nonisolated(unsafe) static var requests = 0
 
     init(host: UnixSocket, lock: KernelLock, pid: Int32) {
@@ -222,16 +177,12 @@ final class DNSServiceConnection: HostSocketEndpoint, @unchecked Sendable {
         }
     }
 
-    // MARK: Sending (kernel lock held)
-
-    /// Bytes to the guest's end of the connection.
     private func send(_ bytes: [UInt8]) {
         guard !closed, let host, let peer = host.peer, !peer.closed else { return }
         peer.appendStream(bytes[...], rights: nil)
         host.changedWithPeer()
     }
 
-    /// Bytes to the client's error-return socket (an SCM_RIGHTS socket).
     private func send(_ bytes: [UInt8], toReturnSocket file: DarwinOpenFile) {
         guard case let .object(o) = file.node, let s = o as? UnixSocket, let peer = s.peer else { return }
         peer.appendStream(bytes[...], rights: nil)
@@ -243,13 +194,9 @@ final class DNSServiceConnection: HostSocketEndpoint, @unchecked Sendable {
         host?.disconnectStream()
     }
 
-    // MARK: Requests
-
     private func handle(_ h: DNSServiceIPC.Header, _ data: [UInt8]) {
         DNSServiceConnection.requests += 1
         var reader = DNSServiceIPC.Reader(data)
-        // A subordinate request: the return path (an empty string) and the
-        // error-return socket passed with SCM_RIGHTS.
         var returnSocket: DarwinOpenFile?
         let subordinate = shared && h.op != DNSServiceIPC.Op.cancel && h.ipcFlags & DNSServiceIPC.Flags.noErrSD == 0
         if subordinate { _ = reader.string() }
@@ -322,8 +269,6 @@ final class DNSServiceConnection: HostSocketEndpoint, @unchecked Sendable {
             let intermediates = flags & DNSServiceIPC.returnIntermediates != 0
             let suppress = flags & DNSServiceIPC.suppressUnusable != 0
             DispatchQueue.global(qos: .userInitiated).async { [self] in
-                // A and AAAA come from the host's getaddrinfo (hosts file,
-                // search rules), other types from the DNS client.
                 var outcome: HostResolver.Outcome
                 if type == HostResolver.typeA || type == HostResolver.typeAAAA {
                     let v6 = type == HostResolver.typeAAAA
@@ -378,8 +323,6 @@ final class DNSServiceConnection: HostSocketEndpoint, @unchecked Sendable {
              DNSServiceIPC.Op.reconfirm, DNSServiceIPC.Op.setDomain, DNSServiceIPC.Op.portMapping,
              DNSServiceIPC.Op.regRecord, DNSServiceIPC.Op.removeRecord, DNSServiceIPC.Op.addRecord,
              DNSServiceIPC.Op.updateRecord:
-            // Accepted, never answered: no multicast DNS services are seen
-            // or registered (networking-swiftcode.md §4.3).
             log("op \(h.op) accepted without results")
             status(DNSServiceIPC.noError)
 
@@ -396,7 +339,6 @@ final class DNSServiceConnection: HostSocketEndpoint, @unchecked Sendable {
         return id
     }
 
-    /// Sends a batch of answers (from a resolver thread).
     private func deliver(_ id: Int, _ context: [UInt8], op: UInt32, _ answers: [(error: Int32, body: [UInt8])], summary: String) {
         let interface = NetworkInterfaces.interface(index: NetworkInterfaces.primaryIndex) != nil ? NetworkInterfaces.primaryIndex : 0
         lock.withLock {

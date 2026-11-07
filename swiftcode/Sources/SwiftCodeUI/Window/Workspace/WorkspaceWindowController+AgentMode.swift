@@ -3,37 +3,20 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeMCP
 
-/// The window's agent mode (specs/ide/coding-assistant.md, "SwiftCode
-/// implementation"): SwiftCode's MCP tools over this window's session, served
-/// to each agent request on its own loopback endpoint with its own token;
-/// the agent's changes become proposals in its conversation, and its
-/// permission requests are asked in a sheet.
 @MainActor
 final class AgentModeHolder {
     var host: SwiftCodeMCPHost?
-    /// Answers permission requests instead of a sheet (tests): the chosen
-    /// option's id.
     var permissionResponder: ((String, [AgentAttachment.PermissionOption]) -> String?)?
-    /// The presenter that reviews SDK extension writes (gap closure):
-    /// the window's published server asks it about each granted write.
     var extensionChangePresenter = ExtensionChangeReviewPresenter()
-    /// Endpoints of requests still running (tests).
     var endpoints: [UUID: MCPHTTPTransport] = [:]
 }
 
 extension WorkspaceWindowController: SwiftCodeMCPHostDelegate {
-    /// The MCP tools over this window's session (made on first use).
     public var mcpHost: SwiftCodeMCPHost {
         if let h = agentModeHolder.host { return h }
         let h = SwiftCodeMCPHost(server: MCPServer(name: "swiftcode", version: MCPCommand.swiftcodeVersion, title: "SwiftCode"), session: session)
         h.delegate = self
         agentModeHolder.host = h
-        // Gap closure: the window's published server reviews
-        // extension writes through the same approval gate as host
-        // writes (`ExtensionChangeReviewPresenter`, a sheet on this
-        // window naming the extension). Reads run live; a granted
-        // write asks, an ungranted one never reaches the presenter
-        // (`MCPServer.run` grant-checks first). Last window wins.
         let presenter = agentModeHolder.extensionChangePresenter
         h.server.writePolicy = .review { [weak presenter] change in
             await presenter?.review(change) ?? false
@@ -42,22 +25,17 @@ extension WorkspaceWindowController: SwiftCodeMCPHostDelegate {
         return h
     }
 
-    /// The presenter that reviews SDK extension writes (tests set
-    /// its `reviewer` seam instead of showing a sheet).
     public var extensionChangePresenter: ExtensionChangeReviewPresenter {
         agentModeHolder.extensionChangePresenter
     }
 
-    /// Answers permission requests in tests.
     public var agentPermissionResponder: ((String, [AgentAttachment.PermissionOption]) -> String?)? {
         get { agentModeHolder.permissionResponder }
         set { agentModeHolder.permissionResponder = newValue }
     }
 
-    /// The running requests' MCP endpoints (tests).
     public var agentEndpoints: [UUID: String] { agentModeHolder.endpoints.mapValues(\.endpoint) }
 
-    /// Wires agent mode into the window's coding assistant.
     func installAgentMode(_ model: CodingAssistantModel) {
         model.agentAttachment = { [weak self, weak model] id in
             guard let self, let model else { return nil }
@@ -65,8 +43,6 @@ extension WorkspaceWindowController: SwiftCodeMCPHostDelegate {
         }
     }
 
-    /// One request's attachment: a server over the shared tools whose
-    /// writes are proposals in conversation `id`, on a new endpoint.
     func agentAttachment(for id: UUID, model: CodingAssistantModel) -> (AgentAttachment, () -> Void)? {
         let host = mcpHost
         host.remoteSimulator = RemoteSimulatorSettings.load(Preferences.shared.defaults)
@@ -96,8 +72,6 @@ extension WorkspaceWindowController: SwiftCodeMCPHostDelegate {
         mcpHostText(ofOpenFile: path) ?? (try? String(contentsOfFile: path, encoding: .utf8))
     }
 
-    /// An agent's permission request: a sheet with its options (allow
-    /// first); closing it cancels.
     func askAgentPermission(_ title: String, _ options: [AgentAttachment.PermissionOption]) async -> String? {
         if let r = agentModeHolder.permissionResponder { return r(title, options) }
         guard let w = window, w.isVisible, !options.isEmpty else { return options.first { !$0.allows }?.id }
@@ -111,20 +85,16 @@ extension WorkspaceWindowController: SwiftCodeMCPHostDelegate {
         return shown.indices.contains(i) ? shown[i].id : nil
     }
 
-    // MARK: SwiftCodeMCPHostDelegate
-
     public func mcpHostText(ofOpenFile path: String) -> String? {
         let url = URL(fileURLWithPath: path).standardizedFileURL
         return editorArea.allEditors.first { $0.fileURL?.standardizedFileURL == url }?.text
     }
 
-    /// Edited documents are saved before an agent builds or tests.
     public func mcpHostSaveAll() {
         for e in editorArea.allEditors where e.isDirty { try? e.save() }
         try? session.model.saveProjects()
     }
 
-    /// A tool wrote a file: an open editor without unsaved edits shows it.
     public func mcpHostDidWrite(_ path: String) {
         let url = URL(fileURLWithPath: path).standardizedFileURL
         guard let disk = try? String(contentsOf: url, encoding: .utf8) else { return }
@@ -134,10 +104,6 @@ extension WorkspaceWindowController: SwiftCodeMCPHostDelegate {
         }
     }
 
-    // MARK: The SwiftCode skill
-
-    /// Settings ▸ Coding Assistant ▸ SwiftCode skill: asks, then writes the
-    /// skill into the workspace folder.
     @objc public func installSwiftCodeSkill(_ sender: Any?) {
         let folder = workspaceFolder
         let paths = AgentSkill.paths.map { folder.appendingPathComponent($0).path }

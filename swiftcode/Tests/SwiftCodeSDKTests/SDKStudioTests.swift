@@ -4,21 +4,6 @@ import XCTest
 import SwiftCodeSDK
 import SwiftCodeSDKStudio
 
-// MARK: - Studio model tests
-//
-// Studio-owned behaviour: the code-editor model/state, find, snippets,
-// build-runner validation, wizard/scaffold, recent projects, grant
-// adapter, API-key model, Assist-access validation, user logger.
-//
-// The Legacy SDK core suite (SDKVersion, DiagnosticEngine, WorkspacePath,
-// ExtensionValidator, Toolchain, ProjectInspector, canonical capabilities)
-// is ported by the Wave 14 kits slice in SwiftCodeSDKTests.swift against the
-// canonical `SwiftCodeSDK` module — it is NOT duplicated here. (An earlier
-// draft of this file duplicated those types under SDK* names in
-// SwiftCodeExtensions; that duplication was removed when the kits slice's
-// verbatim ports were found.)
-
-
 @MainActor
 final class SDKStudioEditorTests: XCTestCase {
     private var tmp: URL!
@@ -56,19 +41,16 @@ final class SDKStudioEditorTests: XCTestCase {
         XCTAssertTrue(tokens.contains { $0.kind == .number })
         XCTAssertTrue(tokens.contains { $0.kind == .comment })
         XCTAssertTrue(tokens.contains { $0.kind == .string })
-        // Non-overlapping, sorted, in range.
         var previousEnd = 0
         for token in tokens {
             XCTAssertGreaterThanOrEqual(token.range.lowerBound, previousEnd)
             XCTAssertLessThanOrEqual(token.range.upperBound, "let x = 42 // hi\nlet s = \"str\"".utf16.count)
             previousEnd = token.range.upperBound
         }
-        // Capitalized identifier is a type name; plaintext has no keywords.
         let typeTokens = highlighter.highlight("let v: ContentView = ContentView()", language: .swift)
         XCTAssertTrue(typeTokens.contains { $0.kind == .typeName })
         XCTAssertTrue(highlighter.highlight("hello world", language: .plaintext).isEmpty)
         XCTAssertTrue(highlighter.highlight("", language: .swift).isEmpty)
-        // Nested block comment (Swift) is one comment token.
         let nested = highlighter.highlight("/* outer /* inner */ still */ let a = 1", language: .swift)
         XCTAssertEqual(nested.filter { $0.kind == .comment }.count, 1)
         XCTAssertTrue(nested.contains { $0.kind == .keyword })
@@ -105,7 +87,6 @@ final class SDKStudioEditorTests: XCTestCase {
         XCTAssertEqual(state.tabs.count, 1)
         XCTAssertEqual(state.activeTabID, tabID)
         XCTAssertEqual(state.activeDocument?.language, .typescript)
-        // Re-opening the same file activates the existing tab.
         XCTAssertEqual(try state.openFile(file), tabID)
         XCTAssertEqual(state.tabs.count, 1)
         state.updateText("const a = 2;\n", for: tabID)
@@ -113,7 +94,6 @@ final class SDKStudioEditorTests: XCTestCase {
         state.saveAllModifiedTabs()
         XCTAssertFalse(state.hasUnsavedChanges)
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "const a = 2;\n")
-        // Untitled tab, then close with neighbour activation.
         let untitled = state.newUntitledTab(language: .swift, initialText: "let x = 1")
         XCTAssertEqual(state.tabs.count, 2)
         XCTAssertEqual(state.activeTabID, untitled)
@@ -142,19 +122,14 @@ final class SDKStudioEditorTests: XCTestCase {
         let file = tmp.appendingPathComponent("a.swift")
         try "let a = 1\n".write(to: file, atomically: true, encoding: .utf8)
         let tabID = try state.openFile(file)
-        // Clean tab reloads automatically from disk.
         try "let a = 2\n".write(to: file, atomically: true, encoding: .utf8)
-        // Force the known date backwards so the check sees a change.
         state.updateDocument(forTab: tabID) { doc in
             SDKCodeDocument(id: doc.id, fileURL: doc.fileURL, language: doc.language, text: doc.text,
                             isDirty: false, lastKnownModificationDate: Date.distantPast)
         }
         state.checkExternalModifications()
         XCTAssertEqual(state.activeDocument?.text, "let a = 2\n")
-        // Dirty tab is flagged, not reloaded.
         state.updateText("let a = 3\n", for: tabID)
-        // Backdate the known stamp again: the 0.5 s staleness threshold
-        // would otherwise swallow a write made moments after the last one.
         state.updateDocument(forTab: tabID) { doc in
             SDKCodeDocument(id: doc.id, fileURL: doc.fileURL, language: doc.language, text: doc.text,
                             isDirty: true, cursorOffset: doc.cursorOffset,
@@ -194,7 +169,6 @@ final class SDKStudioEditorTests: XCTestCase {
         state.insertCodeSnippet("const hello = 1;")
         XCTAssertEqual(state.tabs.count, 1)
         XCTAssertTrue(state.activeDocument?.text.contains("const hello = 1;") ?? false)
-        // addCapabilityToManifest writes swiftcode.json in place.
         let manifestURL = tmp.appendingPathComponent("swiftcode.json")
         try """
         {"manifestVersion": 1, "id": "com.example.x", "name": "X", "version": "1.0.0", "type": "extension",
@@ -238,7 +212,6 @@ final class SDKStudioEditorTests: XCTestCase {
         XCTAssertFalse(coordinator.hasMatches)
         coordinator.setQuery("")
         XCTAssertEqual(coordinator.matchSummaryText, "")
-        // Editor text changes recompute without stealing the selection.
         stub.text = "foo foo"
         coordinator.setQuery("foo")
         stub.text = "foo foo foo"
@@ -266,11 +239,9 @@ final class SDKStudioEditorTests: XCTestCase {
 
     func testBuildRunnerValidation() async throws {
         let state = SDKCodeEditorState(projectRootURL: tmp)
-        // No manifest, no package.json, no Swift files: warning, still valid.
         let valid = await SDKCodeBuildRunner.shared.validateProject(at: tmp, into: state)
         XCTAssertTrue(valid)
         XCTAssertTrue(state.diagnostics.contains { $0.code == "NO_MANIFEST_OR_PROJECT" })
-        // Invalid manifest: errors, returns false.
         try """
         {"manifestVersion": 2, "id": "", "name": "X", "version": "bad", "type": "extension"}
         """.write(to: tmp.appendingPathComponent("swiftcode.json"), atomically: true, encoding: .utf8)
@@ -281,12 +252,6 @@ final class SDKStudioEditorTests: XCTestCase {
     }
     func testManagedBuildFailsHonestlyWithoutGrant() async {
         let state = SDKCodeEditorState(projectRootURL: tmp)
-        // Precondition: no grant for the `studio.editor` host identity
-        // exists — the host identity is never auto-granted (see the
-        // managed-build note in SDKStudioEditorModels). The managed
-        // build service authorizes `build.execute` BEFORE any engine
-        // runs, so the failure is engine-independent: it is reported as
-        // a PERMISSION_DENIED diagnostic, never a faked build.
         await SDKCodeBuildRunner.shared.run(
             SDKBuildRunRequest(projectRoot: tmp, kind: .xcodebuildSwift, schemeOrEntry: "MyScheme"),
             into: state)
@@ -355,7 +320,6 @@ final class SDKStudioModelTests: XCTestCase {
     }
 
     func testScaffoldCreatesProjects() throws {
-        // Extension scaffold.
         let extDir = tmp.appendingPathComponent("MyExt")
         let (target, written) = try SDKStudioScaffold.create(
             config: .newExtension,
@@ -368,12 +332,10 @@ final class SDKStudioModelTests: XCTestCase {
             SwiftCodeManifest.self, from: Data(contentsOf: extDir.appendingPathComponent("swiftcode.json")))
         XCTAssertEqual(manifest.id, "com.example.myext")
         XCTAssertTrue(manifest.capabilities.contains { $0.id == "build.execute" })
-        // Non-empty target is refused.
         XCTAssertThrowsError(try SDKStudioScaffold.create(
             config: .newExtension,
             values: ["id": "com.example.other", "name": "Other", "version": "0.1.0",
                      "description": "", "outDir": extDir.path, "sdkPackage": ""]))
-        // Swift scaffold.
         let swiftDir = tmp.appendingPathComponent("MyApp")
         let (_, swiftWritten) = try SDKStudioScaffold.create(
             config: .newSwiftProject,
@@ -382,7 +344,6 @@ final class SDKStudioModelTests: XCTestCase {
         XCTAssertTrue(swiftWritten.contains("ContentView.swift"))
         XCTAssertTrue(try String(contentsOf: swiftDir.appendingPathComponent("App.swift"), encoding: .utf8)
             .contains("struct MyAppApp"))
-        // TypeScript scaffold.
         let tsDir = tmp.appendingPathComponent("MyTS")
         let (_, tsWritten) = try SDKStudioScaffold.create(
             config: .newTypeScriptProject,
@@ -400,7 +361,6 @@ final class SDKStudioModelTests: XCTestCase {
         let loaded = SDKStudioRecentProjects.load(defaults: defaults)
         XCTAssertEqual(loaded.first, tmp.standardizedFileURL.path, "Most recent first")
         XCTAssertEqual(loaded.count, 2)
-        // Paths that no longer exist are filtered out.
         SDKStudioRecentProjects.record(tmp.appendingPathComponent("Gone"), defaults: defaults)
         XCTAssertFalse(SDKStudioRecentProjects.load(defaults: defaults)
             .contains(tmp.appendingPathComponent("Gone").path))
@@ -410,8 +370,6 @@ final class SDKStudioModelTests: XCTestCase {
 
     func testGrantStoreAdapter() async throws {
         let permissions = PermissionManager(grants: ["com.example.ext": [.workspaceRead, .network]])
-        // Injected temp record store: tombstones must not pollute the
-        // real grants file.
         let records = SDKGrantStore(storeURL: tmp.appendingPathComponent("SDKGrants.json"))
         let store = SDKPermissionManagerGrantStore(permissions: permissions, grantRecords: records)
         let grants = try await store.grants(for: "com.example.ext")
@@ -422,13 +380,10 @@ final class SDKStudioModelTests: XCTestCase {
         let other: SDKCapabilityID = first.capability == .workspaceRead ? .networkRequest : .workspaceRead
         try await store.revoke(first)
         let remaining = try await store.grants(for: "com.example.ext")
-        // Revoked grants stay as tombstones: the record keeps its
-        // revocation time and stops authorizing, instead of disappearing.
         let revoked = remaining.first { $0.capability == first.capability }
         XCTAssertNotNil(revoked)
         XCTAssertNotNil(revoked?.revokedAt)
         XCTAssertFalse(revoked?.isActive() ?? true)
-        // The other live grant is untouched.
         XCTAssertTrue(remaining.contains { $0.capability == other && $0.isActive() })
         try await store.revokeAll(for: "com.example.ext")
         let afterAll = try await store.grants(for: "com.example.ext")
@@ -440,9 +395,6 @@ final class SDKStudioModelTests: XCTestCase {
     }
 
     func testGrantStoreAdapterTombstoneResolvesExtensionName() async throws {
-        // The tombstone carries the extension's name and package digest
-        // at revocation time, so the grant manager can show revoked
-        // history (S-2).
         let extensionID = "com.swiftcode.sdk.test.tombstone-name"
         let digest = String(repeating: "b", count: 64)
         let manifest = SwiftCodeManifest(id: extensionID, name: "Tombstone Test App", version: "1.0.0-test")
@@ -474,14 +426,12 @@ final class SDKStudioModelTests: XCTestCase {
     }
 
     func testAssistAccessMapping() {
-        // Default SDK variant matches the Legacy form default.
         let app = SDKStudioAssistAccessApplication(
             extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
             usageDescription: "We use Assist to summarize code for the user.",
             hasOwnUI: false, ownUIDescription: nil, usesThirdPartyModels: false, thirdPartyModels: nil,
             dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
         XCTAssertEqual(app.sdkVariant, .assistSDKUI)
-        // 40-character minimum, matching the Host Field rule.
         let short = SDKStudioAssistAccessApplication(
             extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
             usageDescription: String(repeating: "x", count: 39),
@@ -494,9 +444,6 @@ final class SDKStudioModelTests: XCTestCase {
             hasOwnUI: false, ownUIDescription: nil, usesThirdPartyModels: false, thirdPartyModels: nil,
             dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
         XCTAssertNil(exact.validationErrors()["usageDescription"])
-        // makeField splits comma-separated third-party models and
-        // takes the key ID (not the secret) — the secret is a
-        // submit-time parameter only, never a stored property.
         let thirdParty = SDKStudioAssistAccessApplication(
             extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
             usageDescription: "We use Assist to summarize code for the user.",
@@ -512,8 +459,6 @@ final class SDKStudioModelTests: XCTestCase {
     }
 
     func testExampleManagerPreparesFromTemplate() throws {
-        // Repo root is four levels up from this file:
-        // swiftcode/Tests/SwiftCodeSDKTests/SDKStudioTests.swift
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -533,7 +478,6 @@ final class SDKStudioModelTests: XCTestCase {
             SwiftCodeManifest.self, from: Data(contentsOf: first.appendingPathComponent("swiftcode.json")))
         XCTAssertEqual(manifest.id, SDKExampleManager.exampleID)
         XCTAssertEqual(manifest.id, "com.example.repository-build-extension")
-        // A second call reuses the prepared copy instead of re-copying.
         let second = try SDKExampleManager.prepareExampleProject(
             templateURL: templateURL, projectsDirectory: projectsDir)
         XCTAssertEqual(first, second)

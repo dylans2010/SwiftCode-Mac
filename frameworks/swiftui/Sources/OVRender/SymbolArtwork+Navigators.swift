@@ -1,8 +1,3 @@
-// The Linux IDE's Symbol navigator symbol (SwiftCode's own navigator, which
-// takes the third place of the selector there), drawn for SwiftCode in the same
-// plain style as SymbolArtwork.swift: outlines on the 24 × 24 grid, stroke
-// 1.5 to 1.75. Licence: the repository's (MIT).
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
@@ -16,9 +11,6 @@ extension SymbolArtwork {
             SymbolArtwork(name: name, operations: ops, bodySize: size, bodyBaselineOffset: 11.0 / 3)
         }
         func s(_ p: RenderPath, _ width: Double) -> Operation { .stroke(p, width: width) }
-        // A declaration and two members: the navigator's rows, the type a
-        // badge (its letter square), the members dots under a tree line,
-        // each with its name.
         func f(_ p: RenderPath) -> Operation { .fill(p, evenOdd: false) }
         let badge = S.roundedRect(3, 3, 6.5, 6.5, 1.75)
         let names = S.join([S.poly([(12.5, 6.25), (21, 6.25)]), S.poly([(15, 12.75), (21, 12.75)]), S.poly([(15, 18.75), (21, 18.75)])])

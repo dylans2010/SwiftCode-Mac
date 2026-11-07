@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// The visionOS home guard's decisions (visionos.md §10.21): no press before
-/// the room's first frame plus the delay, never while RealityLauncher runs,
-/// at most `maxPresses` presses `delay` apart.
 @Suite struct VisionHomeGuardTests {
     @Test func pressesOnlyWhenTheHomeViewWasNotLaunched() {
         var p = VisionHomeGuardPolicy(delay: 60, maxPresses: 2)
@@ -32,7 +29,6 @@ import Testing
         #expect(!VisionHomeGuardPolicy.isLauncher("/RR/Applications/RealityLauncherHelper.app/RealityLauncherHelper"))
     }
 
-    /// visionos.md §10.26.1: Siri's assistant daemon waits for the shell by default.
     @Test func shellReadyHoldLabels() {
         #expect(VisionHomeGuardPolicy.shellReadyHoldLabels([:]) == ["com.apple.assistantd"])
         #expect(VisionHomeGuardPolicy.shellReadyHoldLabels(["SWIFTCODE_VISIONOS_SHELL_HOLD": "0"]).isEmpty)

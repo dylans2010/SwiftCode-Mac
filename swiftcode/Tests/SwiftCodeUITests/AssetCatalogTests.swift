@@ -40,12 +40,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let c = try #require(AssetCatalog.colors(of: ae.sets[0]).first)
         #expect(abs(c.red - 0.2) < 0.001 && abs(c.blue - 0.8) < 0.001 && c.space == .sRGB)
 
-        // Color edit in Display P3.
         try ae.setColor(.init(space: .displayP3, red: 1, green: 0.5, blue: 0, alpha: 1), at: 0)
         let json = try String(contentsOf: accent.appendingPathComponent("Contents.json"), encoding: .utf8)
         #expect(json.contains("\"color-space\" : \"display-p3\"") && json.contains("\"green\" : \"0.500\""))
 
-        // A new image set gets three slots; images go into slots.
         let set = try ae.addSet(kind: 0, name: "Logo")
         #expect(AssetCatalog.slots(of: set).map(\.title) == ["1x", "2x", "3x"])
         let src = swiftcodeDir.appendingPathComponent(".build-ide/logo@2x.png")
@@ -59,7 +57,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try ae.clearImage(slot: 1)
         #expect(AssetCatalog.slots(of: set)[1].filename == nil && !FileManager.default.fileExists(atPath: set.url.appendingPathComponent("logo@2x.png").path))
 
-        // A macOS app icon has ten slots.
         let icon = try ae.addSet(kind: 2)
         #expect(AssetCatalog.slots(of: icon).count == 10 && AssetCatalog.slots(of: icon).first?.title == "16x16pt 1x")
         ae.select("Accent")

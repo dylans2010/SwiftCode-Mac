@@ -1,38 +1,3 @@
-// visionOS input on the host (specs/simulator/visionos.md §5.5; SwiftCode's
-// choices in "SwiftCode implementation" there): the camera pose, the gaze ray
-// and the hands go to the HID bundle (kinds 10 and 11 of hid-input.md §7.3),
-// the Digital Crown as kind 8, and every camera pose also to vhmdd's
-// `set_pose` (§5.5.3: ARKit's DeviceAnchor follows vhmdd, the rendered view
-// follows the HID pose; the matrices agree). The room is chosen before the
-// boot by the preference of §5.5.4 and live by `set_active_environment`.
-//
-// Sources of input: the display stream's pose, selection and dial messages
-// (a viewer runs SpatialInteraction itself and sends stage-frame values), and
-// the control socket's `vision …` commands (the scripted driver; the same
-// SpatialInteraction runs here):
-//
-//   vision state                         camera, pointer, vhmdd, rooms
-//   vision pose <x> <y> <z> [yaw [pitch]] the camera, absolute (metres, degrees;
-//                                        positive yaw turns left, pitch looks up)
-//   vision move <forward> <right> <up>   the camera moved (metres, its own frame)
-//   vision turn <yaw> [pitch]            the camera turned (degrees)
-//   vision reset                         the camera back to the default eye
-//   vision gaze <x> <y>                  look at the point (display points)
-//   vision tap <x> <y> [hold-ms]         look and pinch (right hand), release
-//   vision pinch <x> <y>                 look and pinch, held
-//   vision drag <x> <y> [steps [ms]] [depth]  the pinched hand moved with the pointer
-//                                        (depth: forward/back, as Shift-drag)
-//   vision release                       open the hands
-//   vision magnify <x> <y> <factor> [steps [ms]]   both hands pinched, spread by factor
-//   vision rotate <x> <y> <degrees> [steps [ms]]   both hands pinched, turned (counter-clockwise)
-//   vision dial <delta> [count [ms]]     the Digital Crown
-//   vision home                          the Home button
-//   vision type <text>                   keys (letters, digits, space, - . , /)
-//   vision immersion <amount>            vhmdd's change_immersion_level, absolute (0…1; §5.5.9)
-//   vision get-pose                      vhmdd's pose (the matrix ARKit reads)
-//   vision rooms                         vhmdd's room list
-//   vision room <key>                    switch the room live (waits for the load)
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -46,9 +11,6 @@ final class VisionInputController: @unchecked Sendable {
     let log: (String) -> Void
     private let lock = NSLock()
     private var interaction: SpatialInteraction
-    // Coalescing (§5.5.7 item 4: about once per frame while they change):
-    // a selection whose pinch state equals the last one sent waits up to
-    // 16 ms and is replaced by a newer one; pinch changes are never dropped.
     private var lastSelectionSend: UInt64 = 0
     private var lastPinch: (Bool, Bool) = (false, false)
     private var pendingSelection: SpatialSelection?
@@ -56,7 +18,6 @@ final class VisionInputController: @unchecked Sendable {
     private var pendingImmersion: Double?
     private let immersionQueue = DispatchQueue(label: "swiftcode-vision-immersion")
     private let queue = DispatchQueue(label: "swiftcode-vision-input")
-    /// Counters (state, tests).
     private(set) var posesSent = 0, selectionsSent = 0, dialsSent = 0
 
     init(hid: HIDHostService, vhmd: VisionHMDClient, pointWidth: Double, pointHeight: Double, log: @escaping (String) -> Void) {
@@ -66,9 +27,6 @@ final class VisionInputController: @unchecked Sendable {
         interaction = SpatialInteraction(width: pointWidth, height: pointHeight)
     }
 
-    // MARK: Delivery
-
-    /// A camera pose: the HID pose and vhmdd's `set_pose`, same matrix.
     @discardableResult
     func send(pose: SpatialPose) -> Bool {
         lock.withLock {
@@ -79,8 +37,6 @@ final class VisionInputController: @unchecked Sendable {
         return hid.send(.visionPose(pose))
     }
 
-    /// The headset mode (xr-viewer.md §4): the rendered camera is an eye's
-    /// pose (or the head's), vhmdd gets the head (ARKit's device pose).
     @discardableResult
     func send(pose viewPose: SpatialPose, devicePose: SpatialPose) -> Bool {
         lock.withLock {
@@ -91,9 +47,6 @@ final class VisionInputController: @unchecked Sendable {
         return hid.send(.visionPose(viewPose))
     }
 
-    /// The immersion amount, absolute (visionos.md §5.5.9: the crown's turn
-    /// is vhmdd's change_immersion_level; amounts, never relative steps).
-    /// Latest wins on its own queue: a thumbstick never waits for the guest.
     func send(immersion amount: Double) {
         let a = min(max(amount, 0), 1)
         let first = lock.withLock { () -> Bool in
@@ -158,13 +111,10 @@ final class VisionInputController: @unchecked Sendable {
         return hid.send(.crownRotation(delta))
     }
 
-    /// The viewer went away: an open pinch is released (no stuck hands).
     func reset() {
         let s = lock.withLock { interaction.release() }
         if let s { _ = sendSelectionNow(s) }
     }
-
-    // MARK: Commands
 
     static let verb = "vision"
 
@@ -319,8 +269,6 @@ final class VisionInputController: @unchecked Sendable {
 
     private func fmt(_ v: Double) -> String { String(format: "%g", v) }
 
-    /// A camera move: the pose to both paths, then the gaze again (the ray
-    /// is in the stage frame and moves with the camera).
     private func cameraMoved(_ pose: SpatialPose) -> String {
         let ok = send(pose: pose)
         let gaze = lock.withLock { interaction.gazeSelection }
@@ -335,7 +283,6 @@ final class VisionInputController: @unchecked Sendable {
             + (vhmd.activeRoom.map { "; room \($0)" } ?? "")
     }
 
-    /// A character's page-7 usage and whether Shift is needed (US layout).
     static func keyUsage(_ c: Character) -> (UInt32, Bool)? {
         guard let a = c.asciiValue else { return nil }
         switch a {
@@ -354,15 +301,11 @@ final class VisionInputController: @unchecked Sendable {
     }
 }
 
-/// The rooms (visionos.md §2.6, §5.5.4) and the preference that picks one
-/// before the boot (V-13).
 enum VisionRooms {
     static let known = VisionHMDClient.knownRooms
     static let preferenceDomain = "com.apple.RealityEnvironment"
     static let preferenceKey = "activeSyntheticEnvironment"
 
-    /// A room key: one of the runtime's, or another plain identifier (a
-    /// later runtime may add rooms; vhmdd reports an unknown one).
     static func isValidKey(_ key: String) -> Bool {
         !key.isEmpty && key.count <= 64 && key.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
     }
@@ -371,7 +314,6 @@ enum VisionRooms {
         dev + "/data/Library/Preferences/\(preferenceDomain).plist"
     }
 
-    /// Writes the room into the device's preference file (other keys kept).
     static func writePreference(dev: String, room: String) throws {
         let path = preferencePath(dev: dev)
         var plist: [String: Any] = [:]
@@ -385,7 +327,6 @@ enum VisionRooms {
         try data.write(to: URL(fileURLWithPath: path), options: .atomic)
     }
 
-    /// The room the preference names, or nil.
     static func preference(dev: String) -> String? {
         guard let data = FileManager.default.contents(atPath: preferencePath(dev: dev)),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { return nil }

@@ -2,23 +2,10 @@ import Foundation
 import OVRender
 import Synchronization
 
-// Images (round R5): symbols drawn from SwiftCode's own set (OVRender
-// SymbolArtwork), raster images (PNG, JPEG) from bundles and asset catalogs,
-// and images given as pixels. Sizes follow 07 §3 and 04 §2.
-
-// MARK: - Symbol provider
-
-/// SwiftCode's symbol provider: metrics derived from each symbol's body-size box
-/// (SymbolArtwork), scaled with the font size and weight; `imageScale` is
-/// applied by the image leaf. Names outside the set get a visible
-/// placeholder of the default size (SwiftCode's choice, so missing artwork is
-/// noticed); with `missingSymbolsLayOutEmpty` they lay out 0 × 0 and draw
-/// nothing, as the reference does for unknown names (07 §3).
 package struct OpenSymbolProvider: SymbolProvider {
     package static let shared = OpenSymbolProvider()
     package var missingSymbolsLayOutEmpty = false
     package var displayScale: CGFloat = 3
-    // Image edges toward neighbours (golden "Default spacing", image rows).
     package var spacingAbove = SpacingPreference(kind: .image, towardStandard: 7.0 / 3, towardText: 0)
     package var spacingBelow = SpacingPreference(kind: .image, towardStandard: 10.0 / 3, towardText: 0)
 
@@ -30,8 +17,6 @@ package struct OpenSymbolProvider: SymbolProvider {
         SymbolArtwork.all[name] ?? (missingSymbolsLayOutEmpty ? nil : .placeholder(name: name))
     }
 
-    /// Weight factor on the symbol box: ultraLight 34.33 and black 38.67
-    /// against regular 36.33 at `.title` (07 §3), linear in between.
     static func weightFactor(_ w: Font.Weight) -> Double {
         let v = w.value
         return v >= 0 ? 1 + v / 0.62 * (38.67 / 36.33 - 1) : 1 + v / 0.8 * (1 - 34.33 / 36.33)
@@ -43,8 +28,6 @@ package struct OpenSymbolProvider: SymbolProvider {
         let px = Double(displayScale)
         func ceilPx(_ v: Double) -> CGFloat { CGFloat((v * px - 1e-6).rounded(.up) / px) }
         let w = Double(art.bodySize.width) * k, h = Double(art.bodySize.height) * k
-        // Natural (resizable) size: the artwork without the box's margins,
-        // in the proportions measured for star.fill (18.67 × 18 of 22 × 20.67).
         return SymbolMetrics(size: CGSize(width: ceilPx(w), height: ceilPx(h)),
                              baselineOffset: CGFloat((art.bodyBaselineOffset * k * px).rounded() / px),
                              naturalSize: CGSize(width: ceilPx(w * (56.0 / 66)), height: ceilPx(h * (54.0 / 62))))
@@ -52,8 +35,6 @@ package struct OpenSymbolProvider: SymbolProvider {
 }
 
 extension Image.Scale {
-    /// Size factors (width, height) relative to `.medium`, from star.fill:
-    /// small 17.67 × 16.33, large 28 × 26.67 against 22 × 20.67 (07 §3).
     package var factors: (CGFloat, CGFloat) {
         switch self {
         case .small: return (53.0 / 66, 49.0 / 62)
@@ -63,12 +44,6 @@ extension Image.Scale {
     }
 }
 
-// MARK: - Raster images
-
-/// Where named images come from: images registered in code, then the
-/// bundle's resources (`name.png`, `name@2x.png`, …) and asset catalogs
-/// (`*.xcassets/name.imageset/Contents.json`, the variant whose scale is
-/// closest to the display scale, preferring larger).
 package enum ImageAssets {
     package struct Loaded {
         package let image: RenderImage
@@ -81,7 +56,6 @@ package enum ImageAssets {
     private static let registry = Mutex<[String: Loaded]>([:])
     private static let cache = Mutex<[String: Loaded?]>([:])
 
-    /// Registers an image under `name` (tests, hosts with their own assets).
     package static func register(name: String, data: Data, scale: CGFloat = 1) {
         if let img = image(from: data) { registry.withLock { $0[name] = Loaded(image: img, scale: scale) } }
     }
@@ -109,7 +83,6 @@ package enum ImageAssets {
     private static func search(_ name: String, bundle: Bundle, displayScale: CGFloat) -> Loaded? {
         let fm = FileManager.default
         guard let root = bundle.resourceURL else { return nil }
-        // Plain files with optional @2x/@3x variants.
         let scales: [CGFloat] = [3, 2, 1].sorted { abs($0 - displayScale) < abs($1 - displayScale) }
         for s in scales {
             for ext in ["png", "jpg", "jpeg"] {
@@ -118,7 +91,6 @@ package enum ImageAssets {
                 if fm.fileExists(atPath: url.path), let l = load(url, scale: s) { return l }
             }
         }
-        // Asset catalogs.
         guard let items = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return nil }
         for cat in items where cat.pathExtension == "xcassets" {
             if let l = imageSet(named: name, in: cat, displayScale: displayScale) { return l }
@@ -146,7 +118,6 @@ package enum ImageAssets {
             for (s, f) in ordered { if let l = load(set.appendingPathComponent(f), scale: s) { return l } }
             return nil
         }
-        // Folders (namespaces) inside the catalog.
         guard let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey]) else { return nil }
         for sub in items where sub.pathExtension.isEmpty {
             if let l = imageSet(named: name, in: sub, displayScale: displayScale) { return l }
@@ -155,16 +126,11 @@ package enum ImageAssets {
     }
 }
 
-// MARK: - Drawing
-
 extension Image {
-    /// How an image's pixels are sampled when scaled.
     public enum Interpolation: Hashable, Sendable {
         case none, low, medium, high
     }
 
-    /// Whether an image is drawn as is or as a template filled with the
-    /// foreground style.
     public enum TemplateRenderingMode: Hashable, Sendable {
         case template, original
     }
@@ -183,7 +149,6 @@ extension Image {
 
     public func antialiased(_ isAntialiased: Bool) -> Image { self }
 
-    /// The drawing of this image in a node of `size`.
     package func draw(environment: EnvironmentValues, symbols: (any SymbolProvider)?) -> NodeDraw {
         let image = self
         return { rec, size in

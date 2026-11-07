@@ -1,21 +1,15 @@
 import Foundation
 
-// Swift query descriptors (`interface.md` §9; round R10). They wrap the
-// Objective-C-style queries with the same semantics.
-
-/// A query that produces one result.
 public protocol HKAsyncQuery: Sendable {
     associatedtype Output
     func result(for healthStore: HKHealthStore) async throws -> Output
 }
 
-/// A long-running query that produces a sequence of results.
 public protocol HKAsyncSequenceQuery: Sendable {
     associatedtype Results: AsyncSequence
     func results(for healthStore: HKHealthStore) -> Results
 }
 
-/// A sample type plus an optional predicate, typed by the sample class it yields.
 public struct HKSamplePredicate<Sample: HKSample>: @unchecked Sendable {
     public let sampleType: HKSampleType
     public let nsPredicate: NSPredicate?
@@ -54,15 +48,12 @@ extension HKSamplePredicate where Sample == HKWorkout {
     }
 }
 
-/// Run a callback query once and return what its handler produced.
 private func once<T: Sendable>(_ store: HKHealthStore,
                                _ make: (@escaping @Sendable (Result<T, any Error>) -> Void) -> HKQuery) async throws -> T {
     try await withCheckedThrowingContinuation { (k: CheckedContinuation<T, any Error>) in
         store.execute(make { k.resume(with: $0) })
     }
 }
-
-// MARK: - Samples
 
 public struct HKSampleQueryDescriptor<Sample: HKSample>: HKAsyncQuery, @unchecked Sendable {
     public var predicates: [HKSamplePredicate<Sample>]
@@ -88,8 +79,6 @@ public struct HKSampleQueryDescriptor<Sample: HKSample>: HKAsyncQuery, @unchecke
         return out
     }
 }
-
-// MARK: - Anchored objects
 
 public struct HKAnchoredObjectQueryDescriptor<Sample: HKSample>: HKAsyncQuery, HKAsyncSequenceQuery, @unchecked Sendable {
     public struct Result: @unchecked Sendable {
@@ -124,7 +113,6 @@ public struct HKAnchoredObjectQueryDescriptor<Sample: HKSample>: HKAsyncQuery, H
         }
     }
 
-    /// The initial result, then one element per committed change set.
     public func results(for healthStore: HKHealthStore) -> AsyncThrowingStream<Result, any Error> {
         AsyncThrowingStream { continuation in
             let q = query { _, a, d, n, e in
@@ -139,8 +127,6 @@ public struct HKAnchoredObjectQueryDescriptor<Sample: HKSample>: HKAsyncQuery, H
     }
 }
 
-// MARK: - Statistics
-
 public struct HKStatisticsQueryDescriptor: HKAsyncQuery, @unchecked Sendable {
     public var predicate: HKSamplePredicate<HKQuantitySample>
     public var options: HKStatisticsOptions
@@ -150,9 +136,7 @@ public struct HKStatisticsQueryDescriptor: HKAsyncQuery, @unchecked Sendable {
         self.options = options
     }
 
-    /// nil when no sample matches (the callback API reports code 11).
     public func result(for healthStore: HKHealthStore) async throws -> HKStatistics? {
-        // swiftlint:disable:next force_cast - the query was created with a quantity type
         let type = predicate.sampleType as! HKQuantityType
         let p = predicate.nsPredicate, o = options
         return try await once(healthStore) { done in
@@ -174,7 +158,6 @@ public struct HKStatisticsCollectionQueryDescriptor: HKAsyncQuery, HKAsyncSequen
     public var options: HKStatisticsOptions
     public var anchorDate: Date
     public var intervalComponents: DateComponents
-    /// SwiftCode extension: bucket calendar (default: the current calendar).
     public var swiftcodeCalendar: Calendar = .current
 
     public init(predicate: HKSamplePredicate<HKQuantitySample>, options: HKStatisticsOptions, anchorDate: Date,
@@ -186,7 +169,6 @@ public struct HKStatisticsCollectionQueryDescriptor: HKAsyncQuery, HKAsyncSequen
     }
 
     private func query() -> HKStatisticsCollectionQuery {
-        // swiftlint:disable:next force_cast - the query was created with a quantity type
         let q = HKStatisticsCollectionQuery(quantityType: predicate.sampleType as! HKQuantityType,
                                             quantitySamplePredicate: predicate.nsPredicate, options: options,
                                             anchorDate: anchorDate, intervalComponents: intervalComponents)
@@ -204,7 +186,6 @@ public struct HKStatisticsCollectionQueryDescriptor: HKAsyncQuery, HKAsyncSequen
         }
     }
 
-    /// The initial collection, then a new one after each change of the type.
     public func results(for healthStore: HKHealthStore) -> AsyncThrowingStream<Result, any Error> {
         AsyncThrowingStream { continuation in
             let q = query()
@@ -221,8 +202,6 @@ public struct HKStatisticsCollectionQueryDescriptor: HKAsyncQuery, HKAsyncSequen
         }
     }
 }
-
-// MARK: - Sources
 
 public struct HKSourceQueryDescriptor<Sample: HKSample>: HKAsyncQuery, @unchecked Sendable {
     public var predicate: HKSamplePredicate<Sample>

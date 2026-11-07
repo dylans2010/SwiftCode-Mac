@@ -7,11 +7,9 @@ public final class BuildDiagnosticsParser: Sendable {
         var diagnostics: [Diagnostic] = []
         let lines = output.components(separatedBy: .newlines)
 
-        // Regex for Swift/Clang errors: /path/to/file.swift:10:5: error: message
         let swiftPattern = #"^(.+?):(\d+):(\d+):\s*(error|warning|note):\s*(.+)$"#
         let swiftRegex = try? NSRegularExpression(pattern: swiftPattern)
 
-        // Regex for TypeScript errors: path/to/file.ts(10,5): error TS1234: message
         let tsPattern = #"^(.+?)\((\d+),(\d+)\):\s*(error|warning)\s*TS\d+:\s*(.+)$"#
         let tsRegex = try? NSRegularExpression(pattern: tsPattern)
 

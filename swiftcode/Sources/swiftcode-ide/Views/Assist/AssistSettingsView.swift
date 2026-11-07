@@ -1,63 +1,8 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Settings/AssistSettingsView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Assist/AssistSettingsView.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - free-models fallback list with cached free models
-//   - Foundation Models inference-diagnostics run
-//   - cached-model management
-//   - custom-endpoint headers editor
-// ADAPTATIONS:
-//   - Observation adaptation (fixes-observedobject): googleAuth (plain class) and quotaService (@Observable) moved to @State. MetaAccountAuthService and AntigravitySDKModelFetcher are still @ObservedObject — both types are undeclared (Audit F section 2), left untouched pending their ports.
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - APIKeyManager — UNOWNED (no worklist) (`SwiftCode/Views/Settings/GeneralSettingsView.swift`)
-//   - AddMCPServerView — other agent (views-native-ui) (`SwiftCode/Views/Settings/AddMCPServerView.swift`)
-//   - AllowedTerminalCommandsView — ported (SwiftCodeUI/App/AllowedTerminalCommandsView.swift, made public by H-E for this cross-module use)
-//   - AlternativeKeyManager — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AlternativeKeyManager.swift`)
-//   - AlternativeKeysView — other agent (views-native-ui) (`SwiftCode/Views/Settings/AlternativeKeysView.swift`)
-//   - AntigravitySDKModelFetcher — UNOWNED (no worklist) (`SwiftCode/Services/AntigravitySDKModelFetcher.swift`)
-//   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
-//   - AppleFoundationModel — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-//   - AssistAvailableModel — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistAvailableModel.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - AssistModelProvider — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistModels.swift`)
-//   - AssistProviderSelection — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistProviderConfiguration.swift`)
-//   - ComposioService — UNOWNED (no worklist) (`SwiftCode/Services/ComposioService.swift`)
-//   - FoundationModels — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-//   - GoogleCloudSDKLifecycleManager — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Assist Frameworks/Google Cloud SDK/GoogleCloudSDKLifecycleManager.swift`)
-//   - HermesDiscoveredModel — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/HermesProvider.swift`)
-//   - HermesError — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/HermesProvider.swift`)
-//   - KeychainService — other agent (services-networking-cloud) (`SwiftCode/Backend/Security/KeychainService.swift`)
-//   - LLMProvider — other agent (services-networking-cloud) (`SwiftCode/Features/AI/LLMService.swift`)
-//   - LLMService — other agent (services-networking-cloud) (`SwiftCode/Features/AI/LLMService.swift`)
-//   - MetaAccountAuthService — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseCodeCLIHelper.swift`)
-//   - ModernSkillsBrowserView — other agent (views-native-ui) (`SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift`)
-//   - OpenCodeModel — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistProviderConfiguration.swift`)
-//   - OpenRouterAssistProvider — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/OpenRouterAssistProvider.swift`)
-//   - OpenRouterClient — UNOWNED (no worklist) (`SwiftCode/Backend/AI/OpenRouterClient.swift`)
-//   - OpenRouterModel — other agent (other) (`SwiftCode/Core/AI/OpenRouterModel.swift`)
-//   - Python — unknown (`?`)
-//   - SCCloudConfiguration — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SCCloudDeviceFingerprint — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SCCloudModelClient — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SCCloudModelDiscovery — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SCCloudModelInfo — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/SCCloudModel.swift`)
-//   - SDKProvider — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/SDKRuntimeManager.swift`)
-//   - SDKRuntimeManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/SDKRuntimeManager.swift`)
-//   - SDKRuntimeStatus — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/SDKRuntimeManager.swift`)
-//   - UserMemoryManager — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/UserMemoryManager.swift`)
-//   - UserMemoryView — other agent (views-native-ui) (`SwiftCode/Views/Settings/UserMemoryView.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide settings window once AppSettings/AssistManager land (A6). Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
-
 import SwiftUI
 import os
 import SwiftCodeAssistant
 
 private let logger = Logger(subsystem: "com.swiftcode.AssistSettings", category: "AssistSettings")
-
-// MARK: - HeaderItem Helper
 
 struct HeaderItem: Identifiable, Codable, Equatable {
     var id = UUID()
@@ -65,15 +10,11 @@ struct HeaderItem: Identifiable, Codable, Equatable {
     var value: String
 }
 
-// MARK: - CachedModel Struct
-
 struct CachedModel: Codable, Identifiable, Equatable {
     var id: String { modelID }
     let modelID: String
-    let providerName: String // "OpenAI", "Anthropic", "Gemini"
+    let providerName: String
 }
-
-// MARK: - FreeModelsFallback Configuration Model
 
 @Observable
 @MainActor
@@ -90,13 +31,11 @@ public final class FreeModelsFallback {
         self.isEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
     }
 
-    /// Performs fallback-rotation logic for OpenRouter models containing "free" on their model ID.
     public func executeWithFallback<T>(task: @escaping (String) async throws -> T) async throws -> T {
         let allModels = (try? await OpenRouterClient.shared.fetchModels()) ?? []
         let freeModels = allModels.filter { $0.id.lowercased().contains("free") }
 
         guard isEnabled && !freeModels.isEmpty else {
-            // Default model request execution if toggle is off
             let currentDefaultModel = AppSettings.shared.selectedAssistModelID
             return try await task(currentDefaultModel)
         }
@@ -121,8 +60,6 @@ public final class FreeModelsFallback {
         }
     }
 }
-
-// MARK: - FreeORModels View
 
 struct FreeORModels: View {
     @Environment(\.dismiss) private var dismiss
@@ -190,14 +127,11 @@ struct FreeORModels: View {
     }
 }
 
-// MARK: - FoundationModelsView & FoundationModels Manager Wrapper
-
 @MainActor
 struct FoundationModelsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var manager = FoundationModels.shared
 
-    // Diagnostics State
     @State private var isTesting = false
     @State private var testLogs: [String] = []
     @State private var testResponse = ""
@@ -212,7 +146,6 @@ struct FoundationModelsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // GroupBox 1: Overview & Status
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -234,7 +167,6 @@ struct FoundationModelsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // GroupBox 2: Configuration
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -256,7 +188,6 @@ struct FoundationModelsView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
 
                     if manager.isEnabled {
-                        // GroupBox 3: Active Model Select
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack {
@@ -315,7 +246,6 @@ struct FoundationModelsView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // GroupBox 6: Test Models Diagnostics Console
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack {
@@ -360,7 +290,6 @@ struct FoundationModelsView: View {
                                     }
                                 }
 
-                                // Logs Terminal
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Diagnostic Run Logs")
                                         .font(.caption.bold())
@@ -392,7 +321,6 @@ struct FoundationModelsView: View {
                                     )
                                 }
 
-                                // Live Response Viewer
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Inference Text Response")
                                         .font(.caption.bold())
@@ -456,7 +384,6 @@ struct FoundationModelsView: View {
         Task {
             let startTime = Date()
 
-            // Stage 1: Initialization
             appendLog("[Info] Initializing Foundation Models...")
             guard FoundationModels.shared.isEnabled else {
                 appendLog("[Error] Failed: Foundation Models are disabled in settings.")
@@ -467,19 +394,15 @@ struct FoundationModelsView: View {
                 return
             }
 
-            // Stage 2: Creating session
             appendLog("[Info] Creating the generation session for \(FoundationModels.shared.selectedModel.rawValue)...")
             try? await Task.sleep(nanoseconds: 100_000_000)
 
-            // Stage 3: Building prompt
             appendLog("[Info] Building prompt: \"Respond with a short sentence confirming that Foundation Models are working.\"")
             let prompt = "Respond with a short sentence confirming that Foundation Models are working."
             try? await Task.sleep(nanoseconds: 500_000_000)
 
-            // Stage 4: Starting generation
             appendLog("[Info] Starting generation...")
 
-            // Stage 5: Receiving streamed output
             appendLog("[Info] Connecting to streaming response generation...")
 
             var generatedText = ""
@@ -520,8 +443,6 @@ struct FoundationModelsView: View {
     }
 }
 
-// MARK: - AssistSettingsView
-
 @MainActor
 struct AssistSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -560,42 +481,29 @@ struct AssistSettingsView: View {
     @State private var selectedFetchProvider: FetchProviderOption = .openRouter
     @State private var autoFetchTask: Task<Void, Never>? = nil
 
-    // Reverse (native REA integration) readiness state.
     @State private var reverseStatusText: String = "Not checked yet."
     @State private var isCheckingReverse = false
     @State private var reverseCapabilitiesText: String = ""
 
-    // API Key states
     @State private var openRouterKey = ""
     @State private var openaiKey = ""
     @State private var anthropicKey = ""
     @State private var geminiKey = ""
     @State private var composioKey = ""
     @State private var hasSavedKeys = false
-    // Google OAuth client secret input (stored in Keychain on save; the
-    // field itself never displays a saved secret).
     @State private var googleClientSecretInput = ""
-    // OAuth client ID override input (persisted via AppSettings).
     @State private var googleOAuthClientIDInput = ""
-    // Disclosure expansion state.
     @State private var isAPIKeysExpanded = false
-    // Terminal Command Approvals opens as a sheet: AssistSettingsView isn't
-    // hosted in a NavigationStack, so a NavigationLink would never navigate.
     @State private var showingTerminalCommands = false
     @State private var isAdvancedExpanded = false
-    // SwiftCode Cloud discovered models.
     @State private var cloudModels: [SCCloudModelInfo] = []
     @State private var cloudModelsUpdatedAt: Date? = nil
     @State private var isRefreshingCloudModels = false
 
-    // OpenRouter models state
     @State private var openRouterModels: [OpenRouterModel] = []
     @State private var isFetchingOpenRouterModels = false
     @State private var openRouterFetchError: String? = nil
 
-    // OpenRouter & OpenCode provider section state. OpenRouter's key is
-    // NOT entered here — it lives in the API Keys section below and in
-    // the Keychain; this section only tests and validates it.
     @State private var providerOpenRouterModels: [OpenRouterModel] = []
     @State private var isFetchingProviderOpenRouterModels = false
     @State private var providerOpenRouterError: String? = nil
@@ -612,9 +520,6 @@ struct AssistSettingsView: View {
     @State private var openCodeFetchError: String? = nil
     @State private var openCodeManualModel = ""
 
-    // Hermes provider state. Like the SDK state above, this holds
-    // only status strings, paths, and model specs — never credentials
-    // (Hermes keys live in ~/.hermes/.env, never in SwiftCode).
     @State private var hermesExecutablePath = HermesConfiguration.load().executablePath
     @State private var hermesManualModel = ""
     @State private var hermesToolsets = HermesConfiguration.load().toolsets
@@ -629,16 +534,11 @@ struct AssistSettingsView: View {
     @State private var isFetchingHermesModels = false
     @State private var hermesFetchError: String? = nil
 
-    // SDK runtime state, shown inside each provider's own card (the
-    // old shared "SDK Providers" card is gone). The runtimes are
-    // real JS processes managed by SDKRuntimeManager; this state
-    // only ever holds status strings and versions — never credentials.
     @State private var sdkStatuses: [SDKProvider: SDKRuntimeStatus] = [:]
     @State private var sdkInstallingProviders: Set<SDKProvider> = []
     @State private var sdkInstallErrors: [SDKProvider: String] = [:]
     @State private var sdkInstallNotices: [SDKProvider: String] = [:]
 
-    // Custom Model configurations
     @State private var customEndpointsManager = CustomEndpointManager.shared
     @State private var selectedEndpoint: SavedCustomEndpoint? = nil
     @State private var isEditingEndpoint = false
@@ -656,13 +556,11 @@ struct AssistSettingsView: View {
     @State private var localEndpointPort = "11434"
     @State private var endpointShowInPopup = true
 
-    // Cached Available Models configurations
     @State private var discoveryService = AssistModelDiscoveryService.shared
     @State private var cachedModels: [CachedModel] = []
     @State private var isFetchingAvailableModels = false
     @State private var availableModelsFetchError: String? = nil
 
-    // Sheets Toggles
     @State private var showFreeModelsSheet = false
     @State private var showFoundationModelsSheet = false
     @State private var showMCPServersSheet = false
@@ -671,44 +569,28 @@ struct AssistSettingsView: View {
     @State private var showAlternativeKeysSheet = false
     @State private var showUserMemorySheet = false
 
-    // Composio Service Integration
     @State private var composioService = ComposioService.shared
 
-    // Google Account Auth Integration & Antigravity Quota
-    // Account authentication ("Sign in with Google") is the default mode;
-    // API-key mode is an explicit opt-in alternative.
     @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "google_oauth"
-    // fixes-observedobject: `GoogleAccountAuthService` is a plain `NSObject` subclass, not
-    // `@Observable` — `@State` holds it without observation; reads are snapshots.
     @State private var googleAuth = GoogleAccountAuthService.shared
     @ObservedObject private var metaAuth = MetaAccountAuthService.shared
     @State private var quotaService = AntigravityQuotaService.shared
     @ObservedObject private var sdkModelFetcher = AntigravitySDKModelFetcher.shared
     @State private var showSignOutConfirmation = false
 
-    // Available Models Filter & Search
     @State private var availableModelsSearchText: String = ""
     @State private var selectedProviderFilter: String = "All"
 
-    // Download Resources State
     @State private var isDownloadingResources = false
     @State private var downloadStatusMessage = "Preparing pip installation..."
     @State private var downloadCompleted = false
     @State private var downloadErrorMessage: String? = nil
 
-    // Fallback rotation reference
     @State private var fallbackRotation = FreeModelsFallback.shared
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 0. Assist System Selection. The provider systems
-                // below (OpenRouter, OpenCode, Hermes) are settings
-                // focus, not execution switches: picking one shows
-                // only that provider's dedicated card below, and
-                // hides the other provider cards entirely. Execution
-                // still follows the selected model id — see
-                // assistSystemModelNote.
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .center, spacing: 10) {
@@ -846,11 +728,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 2 — "Assist Configuration" card:
-                // toolkit (System/Provider), routing, and cloud.
-                // Section 1 above is Assist System (provider +
-                // model-switching toggles); Section 3 below is the
-                // selected provider's own card.
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 10) {
@@ -874,13 +751,6 @@ struct AssistSettingsView: View {
 
                         Divider()
 
-                        // 1. Assist Toolkit — the single switch for
-                        // whose toolset a session uses. System =
-                        // SwiftCode's native tools. Provider = the
-                        // toolset of the provider picked on the
-                        // Assist System card above (not a separate
-                        // Cloud toolkit; the old "Cloud" value is
-                        // migrated to "Provider" on load).
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text("Assist Toolkit")
@@ -907,7 +777,6 @@ struct AssistSettingsView: View {
 
                         Divider()
 
-                        // 2. Model Routing Strategy
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text("Model Routing Strategy")
@@ -932,7 +801,6 @@ struct AssistSettingsView: View {
 
                         Divider()
 
-                        // 3. SwiftCode Cloud Model
                         swiftCodeCloudSection
 
                         if settings.isMetaAssist {
@@ -944,15 +812,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 3 — Provider cards. Only the card for the
-                // Assist System picked above is shown, never all at
-                // once. Each card is self-contained: its own
-                // connection controls, its own fetched-model list,
-                // and (for OpenRouter/OpenCode) its own SDK-runtime
-                // Install/Repair row. Hermes has no JS SDK runtime,
-                // so its card has Check installation instead. See
-                // Docs/Assist-OpenCode-OpenRouter-Providers.md and
-                // Docs/Assist-Hermes-Provider.md.
                 if settings.isOpenRouterAssist {
                     openRouterProvidersSection
                 }
@@ -963,8 +822,6 @@ struct AssistSettingsView: View {
                     hermesProvidersSection
                 }
 
-                // Reverse (native REA integration) — readiness, versions,
-                // capabilities, and runtime locations.
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 10) {
@@ -1057,14 +914,12 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 1. Account / Model Allowance Card (Meta vs Google Antigravity)
                 if settings.isMetaAssist {
                     MetaAssistModelsUI()
                 } else {
                     googleAccountCard
                 }
 
-                // 2. AI Provider API Keys (disclosure)
                 GroupBox {
                     DisclosureGroup(isExpanded: $isAPIKeysExpanded) {
                         VStack(alignment: .leading, spacing: 10) {
@@ -1202,10 +1057,8 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Advanced OAuth configuration
                 advancedOAuthSection
 
-                // 4. Modern Dynamic Available Models Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -1264,7 +1117,6 @@ struct AssistSettingsView: View {
                             .disabled(discoveryService.isDiscovering)
                         }
 
-                        // Modern Stats Pills
                         let stats = discoveryService.getDiscoveryStats()
                         HStack(spacing: 8) {
                             HStack(spacing: 4) {
@@ -1317,7 +1169,6 @@ struct AssistSettingsView: View {
                             }
                         }
 
-                        // Modern Search Bar
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
                                 .font(.caption)
@@ -1342,7 +1193,6 @@ struct AssistSettingsView: View {
                         .padding(.vertical, 6)
                         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
 
-                        // Provider Filter Chips
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 6) {
                                 let allFilters = ["All"] + discoveryService.modelsByProvider.map { $0.providerName }
@@ -1368,7 +1218,6 @@ struct AssistSettingsView: View {
                             .padding(.vertical, 2)
                         }
 
-                        // Grouped Filtered Models
                         let query = availableModelsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                         let filteredGroups = discoveryService.modelsByProvider.compactMap { group -> (providerName: String, models: [AssistAvailableModel])? in
                             if selectedProviderFilter != "All" && group.providerName != selectedProviderFilter {
@@ -1431,12 +1280,10 @@ struct AssistSettingsView: View {
                                         VStack(spacing: 5) {
                                             ForEach(group.models) { model in
                                                 HStack(spacing: 8) {
-                                                    // Status indicator dot
                                                     Circle()
                                                         .fill(modelStatusColor(model))
                                                         .frame(width: 6, height: 6)
 
-                                                    // Model details
                                                     VStack(alignment: .leading, spacing: 2) {
                                                         HStack(spacing: 6) {
                                                             Text(model.displayName)
@@ -1484,12 +1331,10 @@ struct AssistSettingsView: View {
 
                                                     Spacer()
 
-                                                    // Status label
                                                     Text(modelStatusLabel(model))
                                                         .font(.system(size: 10, weight: .medium))
                                                         .foregroundStyle(modelStatusColor(model))
 
-                                                    // Selection button
                                                     if settings.selectedAssistModelID == model.modelIdentifier {
                                                         Image(systemName: "checkmark.circle.fill")
                                                             .font(.system(size: 14))
@@ -1517,7 +1362,6 @@ struct AssistSettingsView: View {
                                                         .controlSize(.mini)
                                                     }
 
-                                                    // Model Removal / Protection
                                                     if discoveryService.isFoundationModel(model) {
                                                         Image(systemName: "lock.shield")
                                                             .font(.system(size: 11))
@@ -1559,7 +1403,6 @@ struct AssistSettingsView: View {
 
                         Divider().padding(.vertical, 2)
 
-                        // Automatic fallback rotation toggle
                         Toggle(isOn: Binding(
                             get: { fallbackRotation.isEnabled },
                             set: { fallbackRotation.isEnabled = $0 }
@@ -1578,7 +1421,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 5. Developer Integrations & Extensions
                 GroupBox {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
@@ -1595,7 +1437,6 @@ struct AssistSettingsView: View {
                         Divider()
                             .padding(.vertical, 2)
 
-                        // 1) Apple Foundation Models
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8)
@@ -1625,7 +1466,6 @@ struct AssistSettingsView: View {
                         .padding(10)
                         .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
 
-                        // 2) Model Context Protocol (MCP)
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8)
@@ -1655,7 +1495,6 @@ struct AssistSettingsView: View {
                         .padding(10)
                         .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
 
-                        // 3) Composio Integrations
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8)
@@ -1695,7 +1534,6 @@ struct AssistSettingsView: View {
                         .padding(10)
                         .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
 
-                        // 4) Agent Skills
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8)
@@ -1738,7 +1576,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 6. Custom Model Integration Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -1759,7 +1596,6 @@ struct AssistSettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
-                            // Only Use Free Models Toggle
                             Toggle(isOn: $settings.onlyUseFreeModels) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Only Use Free Models")
@@ -1775,7 +1611,6 @@ struct AssistSettingsView: View {
                             Divider()
                                 .padding(.vertical, 4)
 
-                            // 1. Saved Endpoints List
                             if customEndpointsManager.endpoints.isEmpty {
                                 Text("No custom endpoints configured. Click 'Add Custom' to register one.")
                                     .font(.caption)
@@ -1828,7 +1663,6 @@ struct AssistSettingsView: View {
                                 }
                             }
 
-                            // 2. Editing Form
                             if isEditingEndpoint {
                                 Divider()
                                     .padding(.vertical, 8)
@@ -1877,7 +1711,6 @@ struct AssistSettingsView: View {
                                                 .autocorrectionDisabled()
                                         }
 
-                                        // KEY-VALUE INTERACTIVE HEADERS FIELDS
                                         VStack(alignment: .leading, spacing: 8) {
                                             HStack {
                                                 Label("Custom HTTP Headers", systemImage: "list.bullet.rectangle")
@@ -2018,7 +1851,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 7. Terminal Command Approvals
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -2047,7 +1879,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Assist Memory Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 10) {
@@ -2108,7 +1939,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 5. About Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -2269,8 +2099,6 @@ struct AssistSettingsView: View {
                 googleAuth.signOut()
             }
         } message: {
-            // M-3: sign-out does not change the auth mode — say what actually
-            // happens instead of promising a switch to API-key auth.
             Text("Are you sure you want to sign out? Google models will be unavailable until you sign in again or switch to API key authentication in Settings.")
         }
         .onAppear {
@@ -2314,10 +2142,7 @@ struct AssistSettingsView: View {
     }
 
     @ViewBuilder
-    // MARK: - Model Routing Strategy Rows
 
-    /// Status row for the "Gemini Key Rotation" strategy. Extracted from the
-    /// settings body: the inline if/else exceeded the type-checker's budget.
     private var rotationKeysRow: some View {
         let keyCount = AlternativeKeyManager.shared.keys.count
         let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
@@ -2342,8 +2167,6 @@ struct AssistSettingsView: View {
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 
-    /// Status row for the "App Model Catalog" strategy. Extracted from the
-    /// settings body for the same reason as rotationKeysRow.
     private var appModelsStatsRow: some View {
         let stats = discoveryService.getDiscoveryStats()
         return HStack(spacing: 6) {
@@ -2365,8 +2188,6 @@ struct AssistSettingsView: View {
         .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 
-    // MARK: - OpenRouter & OpenCode Providers Section
-
     private var hasSavedOpenRouterKey: Bool {
         if let key = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !key.isEmpty {
             return true
@@ -2387,8 +2208,6 @@ struct AssistSettingsView: View {
         settings.selectedAssistModelID = storedID
         AssistProviderSelection.persistedProvider = provider
         if provider == .openCode {
-            // A new provider selection must never resume an OpenCode
-            // session cached under a previous selection.
             Task { await OpenCodeClient.shared.resetAllSessions() }
         }
     }
@@ -2404,14 +2223,9 @@ struct AssistSettingsView: View {
         }
         let agent = openCodeAgentName.trimmingCharacters(in: .whitespacesAndNewlines)
         config.agentName = agent.isEmpty ? OpenCodeConfiguration.defaultAgentName : agent
-        // The server is auto-managed for loopback URLs, so saving
-        // never stops a running managed server — the old "managed
-        // off → stop" branch is gone with the toggle.
         config.save()
         openCodeStatus = "OpenCode settings saved."
     }
-
-    // MARK: - OpenRouter Provider Section (shown only when OpenRouter is the selected Assist System)
 
     private var openRouterProvidersSection: some View {
         GroupBox {
@@ -2436,7 +2250,6 @@ struct AssistSettingsView: View {
 
                 Divider()
 
-                // MARK: OpenRouter
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("OpenRouter")
@@ -2571,8 +2384,6 @@ struct AssistSettingsView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    // MARK: - OpenCode Provider Section (shown only when OpenCode is the selected Assist System)
-
     private var openCodeProvidersSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 14) {
@@ -2596,7 +2407,6 @@ struct AssistSettingsView: View {
 
                 Divider()
 
-                // MARK: OpenCode
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("OpenCode")
@@ -2728,14 +2538,6 @@ struct AssistSettingsView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    // MARK: - Per-provider SDK runtime row
-
-    /// The SDK-runtime Install/Repair/Stop/Refresh controls for one
-    /// provider, rendered inside that provider's own card (the old
-    /// shared "SDK Providers" card was removed; its standalone tool
-    /// source picker was removed with it — the Assist Toolkit
-    /// picker in Assist Configuration now derives the tool source).
-    /// Hermes has no JS SDK runtime, so its card has no such row.
     private func sdkRuntimeRow(for provider: SDKProvider) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -2811,10 +2613,6 @@ struct AssistSettingsView: View {
 
     private func sdkInstall(provider: SDKProvider, force: Bool) {
         guard !sdkInstallingProviders.contains(provider) else { return }
-        // With force: false and an already-correct install,
-        // ensureInstalled returns the existing status without
-        // reinstalling — capture that fact now so the notice below
-        // does not claim a fresh install happened.
         let wasAlreadyInstalled = sdkStatuses[provider]?.isInstalled == true && !force
         sdkInstallingProviders.insert(provider)
         sdkInstallErrors[provider] = nil
@@ -2834,18 +2632,10 @@ struct AssistSettingsView: View {
         }
     }
 
-    // MARK: - Hermes Provider Section
-
     private var isHermesModelSelected: Bool {
         HermesModelID.isHermesModelID(settings.selectedAssistModelID)
     }
 
-    /// Honesty note for the Assist System picker: the picker only
-    /// chooses which provider card is shown. Execution follows the
-    /// selected model id, so when the two disagree the user must be
-    /// told — never left believing the shown provider is the active
-    /// one. Nil when the picker selection and the active model agree
-    /// (or when no provider system is picked).
     private var assistSystemModelNote: String? {
         let expected: AssistModelProvider?
         let systemName: String
@@ -3084,14 +2874,8 @@ struct AssistSettingsView: View {
         hermesStatus = "Hermes settings saved."
     }
 
-    // MARK: - SwiftCode Cloud Model Section
-
-    /// The whole "Use SwiftCode's Cloud Model" settings block. Extracted from
-    /// the settings body: the quota text's interpolation plus the ternary in
-    /// foregroundStyle exceeded the type-checker's budget inline.
     @ViewBuilder
     private var swiftCodeCloudSection: some View {
-        // Hoisted so the Toggle label stays a trivial expression.
         let cloudRemaining = SCCloudModelClient.shared.remainingRequestsToday
         let cloudLimit = SCCloudConfiguration.dailyRequestLimit
         return VStack(alignment: .leading, spacing: 6) {
@@ -3109,11 +2893,7 @@ struct AssistSettingsView: View {
             .controlSize(.small)
             .onChange(of: settings.useSwiftCodeCloudModel) { _, isOn in
                 if isOn {
-                    // Provision the device fingerprint the moment the user opts in.
-                    // The fingerprint itself is never exposed to the UI.
                     SCCloudDeviceFingerprint.ensureFingerprint()
-                    // Discover the server's models right away so the user
-                    // can pick one instead of waiting for the picker to load.
                     Task { await refreshCloudModels() }
                 }
             }
@@ -3130,11 +2910,7 @@ struct AssistSettingsView: View {
     }
 
     @ViewBuilder
-    // MARK: - SwiftCode Cloud Model List
 
-    /// Discovered cloud models with manual refresh. The server hosts many
-    /// models — this list (and the picker) is driven by live discovery,
-    /// never by a hardcoded single model.
     private var cloudModelListSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -3192,14 +2968,11 @@ struct AssistSettingsView: View {
             }
         }
         .onAppear {
-            // Seed from the persisted cache; the toggle's onChange kicks off
-            // a live refresh when the user opts in.
             cloudModels = SCCloudModelDiscovery.shared.models
             cloudModelsUpdatedAt = SCCloudModelDiscovery.shared.lastUpdated
         }
     }
 
-    /// Fetches the server's model list now and updates the section state.
     private func refreshCloudModels() async {
         await MainActor.run { isRefreshingCloudModels = true }
         let fresh = await SCCloudModelDiscovery.shared.refresh()
@@ -3212,7 +2985,6 @@ struct AssistSettingsView: View {
     }
 
     @ViewBuilder
-    // MARK: - Meta SDK Other Models Bridge Section
 
     private var metaSDKOtherModelsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -3262,7 +3034,6 @@ struct AssistSettingsView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Divider()
 
-                    // 2nd Toggle: Use Other Models when Rate Limited
                     Toggle(isOn: $settings.useOtherModelsWhenRateLimited) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Use Other Models when Rate Limited")
@@ -3277,7 +3048,6 @@ struct AssistSettingsView: View {
 
                     Divider()
 
-                    // Active Bridged Model Picker
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Bridged Model")
                             .font(.system(size: 11, weight: .medium))
@@ -3381,11 +3151,7 @@ struct AssistSettingsView: View {
     }
 
     @ViewBuilder
-    // MARK: - Google Account Authentication Card
 
-    /// Independent Google account authentication card. OAuth sessions are a
-    /// different credential kind from provider API keys, so they live in
-    /// their own card — not nested inside AI Provider API Keys.
     private var googleAccountCard: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -3408,8 +3174,6 @@ struct AssistSettingsView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    /// Truthful sign-in state: not signed in, signing in, authenticated,
-    /// failed, or expired — never a vague or stale label.
     private var googleAuthStatusBadge: some View {
         Group {
             if googleAuth.isAuthenticating {
@@ -3432,8 +3196,6 @@ struct AssistSettingsView: View {
         .font(.caption2)
     }
 
-    /// Sign-in controls for the unauthenticated state. Ordinary sign-in stays
-    /// here; low-level OAuth configuration lives under Advanced.
     private var googleSignInControls: some View {
         VStack(alignment: .leading, spacing: 10) {
             Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
@@ -3523,10 +3285,6 @@ struct AssistSettingsView: View {
         }
     }
 
-    // MARK: - Advanced OAuth Configuration
-
-    /// Low-level OAuth configuration. Ordinary sign-in stays in the Google
-    /// Account card above; these fields are for project/client overrides.
     private var advancedOAuthSection: some View {
         GroupBox {
             DisclosureGroup(isExpanded: $isAdvancedExpanded) {
@@ -3735,7 +3493,6 @@ struct AssistSettingsView: View {
                     .foregroundStyle(quotaService.fiveHourGaugeColor)
             }
 
-            // 5-Hour Limit
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Gemini 5-Hour Rate Limit")
@@ -3761,7 +3518,6 @@ struct AssistSettingsView: View {
                 }
             }
 
-            // Weekly Limit
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Gemini Weekly Allowance")
@@ -3906,7 +3662,6 @@ struct AssistSettingsView: View {
                     request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
                 }
 
-                // Construct HTTP request headers
                 for header in customHeaders {
                     let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
                     let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3922,7 +3677,6 @@ struct AssistSettingsView: View {
                 (data, response) = try await URLSession.shared.data(for: request)
             } catch {
                 if isEndpointLocal {
-                    // Try alternative local path http://localhost:port/models
                     let fallbackUrlString = "http://localhost:\(localEndpointPort.trimmingCharacters(in: .whitespacesAndNewlines))/models"
                     if let fallbackUrl = URL(string: fallbackUrlString) {
                         var fallbackRequest = URLRequest(url: fallbackUrl)
@@ -4048,7 +3802,6 @@ struct AssistSettingsView: View {
     }
 
     private func saveCachedModels() {
-        // No-op to prevent caching models in UserDefaults
     }
 
     private func modelStatusColor(_ model: AssistAvailableModel) -> Color {
@@ -4091,8 +3844,6 @@ struct AssistSettingsView: View {
         }
     }
 }
-
-
 
 extension AssistSettingsView {
     private func fetchModels(for option: FetchProviderOption) async {
@@ -4359,7 +4110,6 @@ extension AssistSettingsView {
             }
 
             if !success {
-                // Fallback: Deploy bundled Google Cloud SDK resources to user Python site-packages
                 await MainActor.run {
                     self.downloadStatusMessage = "Deploying bundled SDK resources..."
                 }
@@ -4390,7 +4140,6 @@ extension AssistSettingsView {
                                 try fm.copyItem(atPath: srcItem, toPath: dstItem)
                             }
 
-                            // Write executable google-antigravity launcher script
                             let launcherScript = """
                             #!/usr/bin/env python3
                             import sys
@@ -4441,7 +4190,6 @@ extension AssistSettingsView {
             }
 
             if success {
-                // Ensure google-antigravity executable is installed in ~/.local/bin
                 let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
                 let launcherScript = """
                 #!/usr/bin/env python3

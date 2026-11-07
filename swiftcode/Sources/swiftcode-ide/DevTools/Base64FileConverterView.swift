@@ -1,7 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/Base64FileConverterView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-// File encode/decode capability — prod's Base64ConverterView does text-only.
 import SwiftUI
 import SwiftCodeUI
 

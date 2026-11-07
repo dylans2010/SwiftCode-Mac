@@ -1,14 +1,7 @@
 import Foundation
 
-/// The editor side of predictive completion, without a toolkit
-/// (predictive-completion.md §4.5): when to ask (debounced, after typing;
-/// at once for Show Predictive Completion), cancelling, the suggestion
-/// anchored at the caret, typing through it, dismissing it and accepting
-/// it whole, by line or by word. The macOS editor drives it today; the
-/// Linux editor (milestone L2) is meant to drive the same object.
 @MainActor
 public final class PredictionSession {
-    /// A suggestion shown at a UTF-16 offset of the document.
     public struct Suggestion: Sendable, Equatable {
         public var anchor: Int
         public var text: String
@@ -22,18 +15,15 @@ public final class PredictionSession {
         case idle
         case requesting
         case ready(model: String?)
-        /// The backend cannot be used; `hint` says what to do.
         case unavailable(message: String, hint: String?)
     }
 
-    /// What the editor reports on each change.
     public struct Snapshot: Sendable {
         public var text: String
         public var caret: Int
         public var selectionLength: Int
         public var path: String
         public var language: String?
-        /// The other open files, for related snippets.
         public var otherFiles: [(path: String, text: String)]
         public init(text: String, caret: Int, selectionLength: Int = 0, path: String, language: String? = nil,
                     otherFiles: [(path: String, text: String)] = []) {
@@ -46,26 +36,18 @@ public final class PredictionSession {
         }
     }
 
-    /// How much an accept takes.
     public enum AcceptUnit: Sendable { case all, shown, line, word }
 
     public var settings: PredictiveCompletionSettings {
         didSet { if oldValue != settings { cancel(); if !settings.enabled { dismiss() } } }
     }
-    /// The coding assistant's Ollama address (shared when the settings
-    /// name none).
     public var assistantOllamaURL: String?
-    /// Makes the backend for a request (tests substitute stand-ins).
     public var makeBackend: (PredictiveCompletionSettings, String?) -> PredictionBackend = { s, shared in s.makeBackend(assistantOllamaURL: shared) }
-    /// After "nothing answers", automatic requests wait this long (Show
-    /// Predictive Completion always tries).
     public var unreachableBackoff: TimeInterval = 30
 
     public private(set) var suggestion: Suggestion?
     public private(set) var status: Status = .idle
-    /// The last finished request's result (timings, model).
     public private(set) var lastResult: PredictionResult?
-    /// Requests sent (tests and the spec's measurements).
     public private(set) var requestCount = 0
 
     public var onSuggestionChange: ((Suggestion?) -> Void)?
@@ -75,7 +57,6 @@ public final class PredictionSession {
     private var task: Task<Void, Never>?
     private var generation = 0
     private var backoffUntil: Date?
-    /// Text typed through the suggestion while its request still streams.
     private var typedAhead = ""
 
     public init(settings: PredictiveCompletionSettings = PredictiveCompletionSettings(), assistantOllamaURL: String? = nil) {
@@ -83,18 +64,11 @@ public final class PredictionSession {
         self.assistantOllamaURL = assistantOllamaURL
     }
 
-    /// A request is waiting or streaming.
     public var isBusy: Bool { task != nil }
 
-    // MARK: Events from the editor
-
-    /// The text changed by replacing `removed` UTF-16 units at `location`
-    /// with `inserted`. Typing the suggestion's next characters keeps the
-    /// rest; anything else drops it and (debounced) asks again.
     public func textDidChange(_ s: Snapshot, location: Int, removed: Int, inserted: String) {
         if let sug = suggestion, removed == 0, location == sug.anchor, !inserted.isEmpty, sug.text.hasPrefix(inserted) {
             let rest = String(sug.text.dropFirst(inserted.count))
-            // A request still streaming learns what was typed into it.
             if task != nil { typedAhead += inserted }
             set(rest.isEmpty ? nil : Suggestion(anchor: sug.anchor + inserted.utf16.count, text: rest))
             return
@@ -103,16 +77,14 @@ public final class PredictionSession {
         guard settings.enabled, s.selectionLength == 0 else { return cancel() }
         if let until = backoffUntil, until > Date() { return }
         let c = context(s, related: false)
-        guard !c.isMidLine else { return cancel() } // SwiftCode's choice: automatic suggestions only where the rest of the line is closers
+        guard !c.isMidLine else { return cancel() }
         request(c, snapshot: s, anchor: s.caret, force: false)
     }
 
-    /// The caret moved without an edit: a suggestion elsewhere goes away.
     public func selectionDidChange(caret: Int, length: Int) {
         if let sug = suggestion, caret != sug.anchor || length > 0 { dismiss() }
     }
 
-    /// Show Predictive Completion: asks now, wherever the caret is.
     public func forceRequest(_ s: Snapshot) {
         guard s.selectionLength == 0 else { return }
         set(nil)
@@ -120,14 +92,11 @@ public final class PredictionSession {
         request(context(s, related: false), snapshot: s, anchor: s.caret, force: true)
     }
 
-    /// Escape: hides the suggestion and stops a request.
     public func dismiss() {
         cancel()
         set(nil)
     }
 
-    /// The text to insert for an accept (the editor inserts it at the
-    /// anchor; that edit types through the suggestion). Nil: nothing shown.
     public func acceptText(_ unit: AcceptUnit) -> String? {
         guard let s = suggestion, !s.text.isEmpty else { return nil }
         switch unit {
@@ -138,9 +107,6 @@ public final class PredictionSession {
         }
     }
 
-    /// What the collapsed suggestion shows: through the end of its first
-    /// line with text (a suggestion that starts with a line break shows the
-    /// next line too).
     public static func collapsed(_ text: String) -> String {
         firstLine(text)
     }
@@ -160,8 +126,6 @@ public final class PredictionSession {
         return out
     }
 
-    /// The next segment: line breaks and spaces, then one run of word
-    /// characters or of other characters.
     static func nextWord(_ text: String) -> String {
         var out = ""
         var it = text.makeIterator()
@@ -180,11 +144,6 @@ public final class PredictionSession {
         return out
     }
 
-    // MARK: Requests
-
-    /// The context for a snapshot under the current limits; related
-    /// snippets only with `related` (they are picked after the debounce,
-    /// not on every keystroke).
     public func context(_ s: Snapshot, related includeRelated: Bool = true) -> CompletionContext {
         let limits = settings.limits
         var related: [RelatedSnippet] = []
@@ -201,8 +160,6 @@ public final class PredictionSession {
         return "\(settings.backend.rawValue) \(a) \(settings.model)"
     }
 
-    /// Asks for `c` (the cache key has no related snippets); `snapshot`
-    /// supplies them once the debounce is over.
     func request(_ c: CompletionContext, snapshot: Snapshot? = nil, anchor: Int, force: Bool) {
         cancel()
         generation += 1
@@ -250,7 +207,6 @@ public final class PredictionSession {
         }
     }
 
-    /// `text` (suggested at `anchor`) after what was typed into it meanwhile.
     func adjusted(_ text: String, anchor: Int) -> Suggestion? {
         guard text.hasPrefix(typedAhead) else { return nil }
         let rest = String(text.dropFirst(typedAhead.count))

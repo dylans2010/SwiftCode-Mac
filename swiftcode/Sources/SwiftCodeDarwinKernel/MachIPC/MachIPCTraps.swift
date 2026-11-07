@@ -1,14 +1,6 @@
 import SwiftCodeDarwinABI
 
-// The trap layer of `MachIPC` (`stage4a-contract.md` §6, §8;
-// `mach-ipc.md` §1.8, §2.7, §4; `host-libraries.md` §10). Mach traps return
-// a `kern_return_t` (or a port name) in x0 and leave carry alone. The
-// SwiftCode-private Mach routines `0x7963_2000 + n` return a `kern_return_t` in
-// x0 with carry clear.
-
 extension MachIPC {
-    /// Mach trap numbers this type serves (negative `x16`, `mach-ipc.md` §1.8),
-    /// one per trap its name spells.
     public enum Trap {
         public static let portAllocate = -16, portDeallocate = -18, portModRefs = -19, portMoveMember = -20,
                           portInsertRight = -21, portInsertMember = -22, portExtractMember = -23,
@@ -19,16 +11,10 @@ extension MachIPC {
                           threadGetSpecialReplyPort = -50, hostCreateMachVoucher = -70,
                           voucherExtractAttrRecipe = -72, portType = -76, portRequestNotification = -77
 
-        /// Every trap number above, for dispatch.
         public static let all: Set<Int> = [-16, -18, -19, -20, -21, -22, -23, -24, -25, -26, -27, -28, -29,
                                            -31, -32, -40, -41, -42, -44, -45, -46, -47, -50, -70, -72, -76, -77]
     }
 
-    /// The SwiftCode-private Mach routines (`host-libraries.md` §10, contract §7).
-    ///
-    /// Every routine number lies in `rangeStart...rangeEnd` (inclusive); a
-    /// constant without its own comment stands for the Mach routine its name
-    /// spells.
     public enum Routine {
         public static let rangeStart: UInt32 = 0x7963_2000
         public static let rangeEnd: UInt32 = 0x7963_20FF
@@ -39,56 +25,31 @@ extension MachIPC {
         public static let taskGetSpecialPort: UInt32 = 0x7963_2005
         public static let taskSetSpecialPort: UInt32 = 0x7963_2006
         public static let hostCreateMachVoucher: UInt32 = 0x7963_2007
-        /// `mach_ports_register3(task, p0, p1, p2)` (`processes.md` §3.4).
         public static let portsRegister3: UInt32 = 0x7963_2008
-        /// `mach_ports_lookup3(task, &p0, &p1, &p2)` (`processes.md` §3.4).
         public static let portsLookup3: UInt32 = 0x7963_2009
-        /// `mach_make_memory_entry_64(task, &size, offset, permission, &handle, parent)`.
         public static let makeMemoryEntry: UInt32 = 0x7963_200A
-        /// `mach_vm_map` with a memory object: `(task, &addr, size, mask, flags, &block)`,
-        /// block = u64 {object, offset, copy, cur, max, inherit}.
         public static let vmMapObject: UInt32 = 0x7963_200B
-        /// `mach_vm_remap(_new)`: `(task, &addr, size, mask, flags, &block)`, block = u64
-        /// {src_task, src_address, copy, &cur, &max, inherit, is_new}.
         public static let vmRemap: UInt32 = 0x7963_200C
-        /// `task_threads(task, &list, &count)`.
         public static let taskThreads: UInt32 = 0x7963_200D
-        /// `mach_port_get_context(task, name, &context)` / `mach_port_set_context(task, name, context)`.
         public static let portGetContext: UInt32 = 0x7963_200E
         public static let portSetContext: UInt32 = 0x7963_200F
-        /// `host_get_io_master(host, &main)` / `host_get_io_main`: the IOKit main port.
         public static let hostGetIOMain: UInt32 = 0x7963_2010
-        /// `thread_get_state(thread, flavor, state, &count)`.
         public static let threadGetState: UInt32 = 0x7963_2011
-        /// `thread_get_exception_ports(thread, mask, masks, &count, ports, behaviors, flavors)`.
         public static let threadGetExceptionPorts: UInt32 = 0x7963_2012
-        /// `thread_set_exception_ports(thread, mask, port, behavior, flavor)`.
         public static let threadSetExceptionPorts: UInt32 = 0x7963_2013
-        /// `mach_vm_read(task, addr, size, &data, &count)` within the caller's task.
         public static let vmRead: UInt32 = 0x7963_2014
-        /// `mach_vm_region(task, &addr, &size, flavor, info, &count, &object_name)` within the caller's task.
         public static let vmRegion: UInt32 = 0x7963_2015
-        /// `thread_info(thread, flavor, info, &count)` (app-launch.md §3.4).
         public static let threadInfo: UInt32 = 0x7963_2030
     }
 
-    /// `TASK_BOOTSTRAP_PORT`.
     static let taskBootstrapPort: Int32 = 4
-    /// The largest voucher recipe array `host_create_mach_voucher` accepts.
     static let maxVoucherRecipeSize: Int32 = 5120
 
-    // MARK: Entry point
-
-    /// Handles a Mach trap (negative `x16`) or a private trap in
-    /// `0x7963_2000…0x7963_20FF`. Returns nil for traps it does not own.
-    /// Takes the kernel lock (with `context`) when the caller does not hold it.
     public func handleTrap(x16: Int64, frame: inout TrapFrame, context: ThreadContext,
                            memory: any GuestVirtualMemory) -> TrapOutcome? {
         if lock.isHeldByCurrentThread {
             return handleTrapLocked(x16: x16, frame: &frame, context: context, memory: memory)
         }
-        // The lock split: the locked path of a Mach trap holds L0 first (its
-        // routines may use process state), then the port lock.
         if let l0 = lock.root, !l0.isHeldByCurrentThread, KernelThreadLocks.current.held.isEmpty {
             return l0.withLock(context: context) { handleTrap(x16: x16, frame: &frame, context: context, memory: memory) }
         }
@@ -107,8 +68,6 @@ extension MachIPC {
         guard Trap.all.contains(n) else { return nil }
         return handleMachTrap(n, &frame, context: context, memory: memory)
     }
-
-    // MARK: Mach traps
 
     private func handleMachTrap(_ n: Int, _ frame: inout TrapFrame, context: ThreadContext,
                                 memory: any GuestVirtualMemory) -> TrapOutcome {
@@ -204,7 +163,6 @@ extension MachIPC {
             return machMsgTrap(n, &frame, context: context, memory: memory)
 
         case Trap.taskForPid:
-            // SwiftCode (`processes.md` §3.5): self only; any other pid fails.
             let pidArg = i32(1)
             call.set("task_for_pid(target_tport=\(hx(u32(0))), pid=\(pidArg), t=\(hx(a[2])))")
             var name: UInt32 = 0
@@ -335,10 +293,6 @@ extension MachIPC {
         }
     }
 
-    // MARK: mach_msg traps
-
-    /// `mach_msg_trap` (−31) and `mach_msg_overwrite_trap` (−32): the header
-    /// is read from memory (§2.7).
     private func machMsgTrap(_ n: Int, _ frame: inout TrapFrame, context: ThreadContext,
                              memory: any GuestVirtualMemory) -> TrapOutcome {
         let a = frame.x.prefixArray(8)
@@ -397,7 +351,6 @@ extension MachIPC {
         return finish(MachMsgReturn.success)
     }
 
-    /// `mach_msg2_trap` (−47): header fields come from the registers (§2.7).
     private func machMsg2Trap(_ frame: inout TrapFrame, context: ThreadContext,
                               memory: any GuestVirtualMemory) -> TrapOutcome {
         let a = frame.x.prefixArray(8)
@@ -438,9 +391,6 @@ extension MachIPC {
                 messageAddress = vecs[0].data
                 sendSize = Int(vecs[0].sendSize)
                 if count == 2 {
-                    // xnu mach_msg_validate_data_vectors: an empty aux vector
-                    // means no aux data; a non-empty one needs data and at
-                    // least the 8-byte aux header.
                     let auxSize = Int(vecs[1].sendSize)
                     if auxSize != 0 && vecs[1].data == 0 { return finish(MachMsgReturn.sendInvalidData) }
                     if auxSize != 0 && auxSize < 8 { return finish(MachMsgReturn.sendAuxTooSmall) }
@@ -466,8 +416,6 @@ extension MachIPC {
             let request = MachSendRequest(bits: bits, size: sendSize, remote: lo(3), local: hi(3), voucher: lo(4),
                                           id: Int32(bitPattern: hi(4)), descriptorCount: lo(5), body: body, aux: aux)
             if Self.traceMessageStrings {
-                // Diagnostics: the printable runs of the body and aux data
-                // (os_log payloads, XPC keys and strings).
                 let runs = Self.printableRuns(body + (aux ?? []))
                 if !runs.isEmpty { note += " [strings: " + runs.joined(separator: " | ") + "]" }
             }
@@ -486,9 +434,6 @@ extension MachIPC {
         }
         if options & MachMsgOption.rcvMsg != 0 {
             var r = MachReceiveRequest(name: hi(5), options: options, buffer: data, size: UInt64(lo(6)), timeout: timeout)
-            // xnu mach_msg2_trap: the sync-wait link target is always the
-            // header's msgh_remote_port name, also on a combined send and
-            // receive (libxpc's pipe routines with a special reply port).
             r.syncDestination = lo(3)
             if vector {
                 let count = Int(lo(6))
@@ -507,8 +452,6 @@ extension MachIPC {
         }
         return finish(MachMsgReturn.success)
     }
-
-    // MARK: Private Mach routines
 
     private func handleRoutine(_ number: UInt32, _ frame: inout TrapFrame, context: ThreadContext,
                                memory: any GuestVirtualMemory) -> TrapOutcome {
@@ -699,13 +642,6 @@ extension MachIPC {
             return kr(code, note)
 
         case Routine.threadGetExceptionPorts, Routine.threadSetExceptionPorts:
-            // xnu osfmk/kern/ipc_tt.c thread_{get,set}_exception_ports (level
-            // 1): a thread of the caller's task; mask within the valid types;
-            // a set with a valid port needs a valid behavior. Get groups the
-            // types whose (port, behavior, flavor) are equal, in type order,
-            // up to the caller's count; a thread with nothing set reports 0
-            // entries. SwiftCode delivers no Mach exceptions: the ports are kept
-            // and reported only.
             let isGet = number == Routine.threadGetExceptionPorts
             let mask = u32(1)
             call.set(isGet
@@ -771,11 +707,6 @@ extension MachIPC {
             return kr(MachKern.success, " [\(entries.count) entries]")
 
         case Routine.vmRead:
-            // xnu osfmk/vm/vm_user.c mach_vm_read (level 1): a copy of
-            // [addr, addr+size) in new memory of the caller; the returned
-            // address keeps the source's offset within its page (the copy
-            // is of whole pages), count = size. Unmapped source:
-            // KERN_INVALID_ADDRESS. SwiftCode reads only the caller's own task.
             call.set("mach_vm_read(task=\(hx(u32(0))), addr=\(hx(a[1])), size=\(hx(a[2])), data=\(hx(a[3])), count=\(hx(a[4])))")
             guard isTaskSelf(u32(0)) else { return kr(MachKern.invalidArgument, " [only the caller's task]") }
             let page = VMLayout.pageSize
@@ -828,10 +759,6 @@ extension MachIPC {
             return kr(code, note)
 
         case Routine.portGetContext, Routine.portSetContext:
-            // xnu osfmk/ipc/mach_port.c: a receive right in the task's space
-            // (KERN_INVALID_RIGHT for a null/dead name, translate errors as
-            // usual); a strictly guarded port reads as context 0 and cannot be
-            // set (KERN_INVALID_ARGUMENT); a guarded one cannot be set either.
             let isGet = number == Routine.portGetContext
             let name = u32(1)
             call.set(isGet ? "mach_port_get_context(task=\(hx(u32(0))), name=\(hx(name)), out=\(hx(a[2])))"
@@ -864,9 +791,6 @@ extension MachIPC {
         }
     }
 
-    /// Copies in a port argument of a private routine as COPY_SEND
-    /// (NULL/DEAD pass through). A bad name or one without a send right is
-    /// `MACH_SEND_INVALID_RIGHT` (the MIG copyin failure).
     func copyinSendArgument(_ name: UInt32) -> Result<CarriedRight, KernError> {
         guard MachPortName.isValid(name) else { return .success(name == MachPortName.dead ? .dead : .null) }
         switch copyin(name, MachMsgType.copySend, slot: .body, apply: true) {
@@ -875,11 +799,6 @@ extension MachIPC {
         }
     }
 
-    // MARK: kevent
-
-    /// EVFILT_MACHPORT delivery with `MACH_RCV_MSG` (threads-and-events.md
-    /// §3.7.3): receives the first message of `port` into [buffer,
-    /// buffer+size) without waiting.
     public func receiveForKevent(port: UInt32, options: UInt32, buffer: UInt64, size: UInt64,
                                  context: ThreadContext, memory: any GuestVirtualMemory) -> KeventMachReceive? {
         lock.withLock {
@@ -894,11 +813,8 @@ extension MachIPC {
 }
 
 extension MachIPC {
-    /// Diagnostics: annotate traced mach_msg2 sends with the printable text
-    /// of their payload (set by the VMM with a trace option).
     nonisolated(unsafe) public static var traceMessageStrings = false
 
-    /// Runs of at least 6 printable ASCII bytes, at most 12 runs.
     static func printableRuns(_ bytes: [UInt8]) -> [String] {
         var runs: [String] = []
         var current: [UInt8] = []
@@ -915,10 +831,6 @@ extension MachIPC {
 }
 
 extension MachIPC {
-    /// The `mach_vm_region` answer for the first mapping at or above `from`
-    /// (mach/vm_region.h, level 1): consecutive pieces of one kind and
-    /// protection count as one region. nil: no mapping there; info nil: an
-    /// unknown flavor. Returns the info words, their count, and the region.
     static func regionInfo(_ memory: any GuestVirtualMemory, from: UInt64, flavor: UInt32)
         -> (info: [UInt8]?, count: UInt32, region: (va: UInt64, size: UInt64, text: String))? {
         let pieces = memory.regions(overlapping: from..<UInt64.max)
@@ -936,25 +848,23 @@ extension MachIPC {
         let maxProt = VMProtection.all.rawValue
         let shared: UInt32 = kind(first) == 2 ? 1 : 0
         let offset: UInt64 = { if case let .file(_, o, _) = first.backing { return o }; if case let .shared(_, o, _) = first.backing { return o }; return 0 }()
-        // share_mode: SM_COW 1 (private file), SM_PRIVATE 2 (anonymous), SM_SHARED 4.
         let shareMode: UInt8 = kind(first) == 2 ? 4 : (kind(first) == 1 ? 1 : 2)
         let text = "\(first.protection) \(["anonymous", "file", "shared"][kind(first)])"
         var b: [UInt8] = []
         switch flavor {
-        case 9:   // VM_REGION_BASIC_INFO_64: prot, max, inheritance, shared, reserved, offset (u64), behavior, wired (u16)
+        case 9:
             b = le32(prot) + le32(maxProt) + le32(shared == 1 ? 0 : 1) + le32(shared) + le32(0) + le64(offset)
                 + le32(0) + [0, 0, 0, 0]
             return (b, 9, (first.va, first.size, text))
-        case 10:  // VM_REGION_BASIC_INFO: the same with a 32-bit offset
+        case 10:
             b = le32(prot) + le32(maxProt) + le32(shared == 1 ? 0 : 1) + le32(shared) + le32(0)
                 + le32(UInt32(truncatingIfNeeded: offset)) + le32(0) + [0, 0, 0, 0]
             return (b, 8, (first.va, first.size, text))
-        case 12:  // VM_REGION_TOP_INFO: obj_id, ref_count, private/shared pages resident, share_mode
+        case 12:
             b = le32(UInt32(truncatingIfNeeded: first.gpa >> 14)) + le32(1) + le32(shared == 1 ? 0 : pages)
                 + le32(shared == 1 ? pages : 0) + [shareMode, 0, 0, 0]
             return (b, 5, (first.va, first.size, text))
-        case 13:  // VM_REGION_EXTENDED_INFO: prot, user_tag, resident, shared_now_private, swapped, dirtied, ref_count,
-                  // shadow_depth (u16), external_pager (u8), share_mode (u8), reusable
+        case 13:
             b = le32(prot) + le32(0) + le32(pages) + le32(0) + le32(0) + le32(kind(first) == 1 ? 0 : pages) + le32(1)
                 + [0, 0, kind(first) == 1 ? 1 : 0, shareMode] + le32(0)
             return (b, 9, (first.va, first.size, text))

@@ -5,105 +5,59 @@ import SwiftCodeEditorKit
 import SwiftCodeIDECore
 import SwiftCodeSyntax
 
-/// The view model of one workspace window of the SwiftUI shell (L1,
-/// `docs/PARITY.md` §5): the navigator, editor, inspector and debug areas'
-/// state over the core's `WorkspaceSession`. It has no toolkit types, so it
-/// runs and is tested headless on macOS and Linux; the views in `swiftcode-ide`
-/// read it through Observation.
 @MainActor
 @Observable
 public final class WorkspaceShellModel {
     @ObservationIgnored public let session: WorkspaceSession
 
-    // MARK: Areas (workspace-window.md §Areas)
-
-    /// Choosing a navigator leaves the Coding Assistant pane.
     public var navigator: ShellNavigator = .project { didSet { assistant.isShown = false } }
     public var isNavigatorShown = true
     public var isInspectorShown = true
-    /// Hidden at first; a build or run shows it (the build log is in it).
     public var isDebugAreaShown = false
     public enum DebugPane: String, CaseIterable, Sendable { case buildLog = "Build Log", console = "Console" }
     public var debugPane: DebugPane = .buildLog
 
-    // MARK: Project navigator
-
     public private(set) var root: NavigatorItem
     public var expanded: Set<String>
-    /// The selected row's id.
     public var selection: String? {
         didSet { if selection != oldValue, let id = selection, let item = root.find(id: id), item.isFile, let p = item.path { open(p) } }
     }
 
-    // MARK: Editor
-
-    /// The open file's name and language, or why it can't be shown. Its
-    /// `editor` holds the text.
     public internal(set) var document: SourceDocument?
-    /// The open file's editable text (nil for no file, or one that can't be
-    /// shown as text).
     public internal(set) var editor: EditorDocument?
-    /// Every file opened since the workspace opened: their undo histories and
-    /// unsaved text stay while another file is shown.
     @ObservationIgnored var openDocuments: [String: EditorDocument] = [:]
-    /// The files with unsaved changes (navigator marks, prompts).
     public internal(set) var editedPaths: Set<String> = []
-    /// The open file's property list, asset catalog or String Catalog
-    /// editor (StructuredEditors.swift), and the files shown as text instead.
     public internal(set) var structuredEditor: StructuredEditor?
     public internal(set) var sourceViewPaths: Set<String> = []
-    /// A save that needs the user: a change on disk, or an error.
     public var saveAlert: SaveAlert?
-    /// Asking about the open file's unsaved changes (Close Document).
     public var closeDocumentPrompt = false
-    /// The open file's text came back from an earlier session's recovery
-    /// copy; the banner offers to give it up.
     public internal(set) var recoveredPaths: Set<String> = []
-    /// Where unsaved text is kept against a crash (tests pass their own).
     @ObservationIgnored public var recovery = EditorRecovery.standard
     @ObservationIgnored var recoveryTask: Task<Void, Never>?
-    /// Starting sourcekit-lsp, and the pending text updates by file.
     @ObservationIgnored var languageStart: Task<Void, Never>?
     @ObservationIgnored var languageUpdates: [String: Task<Void, Never>] = [:]
-    /// Find and Replace in the open file.
     public let findBar = EditorFindBar()
-    /// Navigate ▸ Jump to Line…: the sheet is up.
     public var isJumpToLineShown = false
-    /// Bumped when the editor should take the keyboard.
     public internal(set) var editorFocusCount = 0
-    /// The issues of the open file, by 1-based line.
     public private(set) var editorIssues: [Int: EditorLineIssue] = [:]
-    /// The line the editor marks and scrolls to (from Find, an issue, or
-    /// Jump), 1-based.
     public private(set) var markedLine: Int?
-    /// Bumped on every reveal so the editor scrolls even to the same line.
     public private(set) var revealCount = 0
     @ObservationIgnored public private(set) var history = NavigationHistory()
     public private(set) var canGoBack = false
     public private(set) var canGoForward = false
-
-    // MARK: Find navigator
 
     public var findText = ""
     public var findIgnoreCase = true
     public private(set) var find = FindNavigatorModel()
     public private(set) var findRows: [FindFileRow] = []
     public private(set) var isSearching = false
-    /// The selected result row (a match row's id).
     public var findSelection: String? {
         didSet { if findSelection != oldValue, let id = findSelection { openFindResult(id) } }
     }
-    /// Bumped by Find in Workspace so the view focuses its query field.
     public private(set) var findFocusCount = 0
-    /// The title of results a language request put there ("greet — 3
-    /// references"), in place of the count; a search clears it.
     public private(set) var findResultsTitle: String?
-    /// Find ▸ Find Call Hierarchy's tree, shown in place of the results
-    /// (CallHierarchyRows.swift).
     public let callHierarchy = CallHierarchyModel()
     @ObservationIgnored private var findTask: Task<Void, Never>?
-
-    // MARK: Issues, activity, logs
 
     public private(set) var issueGroups: [IssueGroupRow] = []
     public private(set) var issueCounts: (errors: Int, warnings: Int) = (0, 0)
@@ -115,27 +69,15 @@ public final class WorkspaceShellModel {
     public private(set) var buildLog: [String] = []
     public private(set) var console = ""
     public private(set) var buildCount = 0
-    /// Build results: the bezel or a system notification (ShellBuildNotifier.swift).
     public let notifier = ShellBuildNotifier()
-    /// Breakpoints, the debug navigator and the variables view (ShellDebugModel.swift).
     public let debug: ShellDebugModel
-    /// Source control (SourceControlShellModel.swift).
     public let sourceControl: SourceControlShellModel
-    /// The Test and Report navigators (TestShellModel.swift).
     public let testing: TestShellModel
-    /// The Coding Assistant pane (ShellAssistantModel.swift).
     public let assistant = ShellAssistantModel()
-    /// The preview canvas (PreviewCanvasShellModel.swift).
     public let previewCanvas = PreviewCanvasShellModel()
 
-    // MARK: Language features (WorkspaceShellModel+Language.swift)
-
-    /// Quick Help, Jump to Definition, rename and their state.
     public let languageFeatures = ShellLanguageFeatures()
-    /// The Symbol navigator (SymbolNavigatorModel.swift).
     public let symbols: SymbolNavigatorModel
-
-    // MARK: Toolbar
 
     public private(set) var schemes: [String]
     public private(set) var destinations: [Destination]
@@ -166,8 +108,6 @@ public final class WorkspaceShellModel {
         connectPreviewCanvas()
     }
 
-    /// Opens a workspace: an `.xcodeproj`, `.xcworkspace`, `Package.swift`
-    /// or a package folder.
     public convenience init(url: URL, engine: BuildEngine = ShellBuildSetup.engine()) throws {
         let session = WorkspaceSession(model: try WorkspaceModel(url: url))
         session.engine = engine
@@ -177,14 +117,11 @@ public final class WorkspaceShellModel {
     public var workspaceName: String { session.model.displayName }
     public var containerKind: WorkspaceModel.ContainerKind { session.model.kind }
 
-    /// "<workspace> — <document>" (`workspace-window.md` §Areas), with
-    /// "Edited" while the file has unsaved changes.
     public var windowTitle: String {
         guard let document else { return workspaceName }
         return "\(workspaceName) — \(document.name)\(editedPaths.contains(document.path) ? " — Edited" : "")"
     }
 
-    /// What dynamic menu titles depend on.
     public var menuContext: MenuContext {
         var c = MenuContext()
         c.containerKind = containerKind
@@ -202,8 +139,6 @@ public final class WorkspaceShellModel {
         c.hasConflicts = sourceControl.snapshot.changes.contains { $0.status == .conflicted }
         return c
     }
-
-    // MARK: Session changes
 
     private func sessionChanged(_ change: WorkspaceSession.Change) {
         switch change {
@@ -234,9 +169,6 @@ public final class WorkspaceShellModel {
 
     public var allIssues: [IssueRow] { IssueRows.flattened(issueGroups) }
 
-    /// The activity view's text (`workspace-window.md` §Toolbar): nothing
-    /// while idle; the build's step; "<Result> • Today at <time>" after it
-    /// (`WorkspaceChrome.activityFinishedText`, as the AppKit IDE shows it).
     public var activityText: String {
         switch activity {
         case .idle: return ""
@@ -247,10 +179,7 @@ public final class WorkspaceShellModel {
         }
     }
 
-    /// Reads `activity` so views and menus that ask are updated when it changes.
     public var isBusy: Bool { _ = activity; return session.isBusy }
-
-    // MARK: Project navigator
 
     public func isExpanded(_ id: String) -> Bool { expanded.contains(id) }
 
@@ -258,8 +187,6 @@ public final class WorkspaceShellModel {
         if on { expanded.insert(id) } else { expanded.remove(id) }
     }
 
-    /// Navigate ▸ Reveal in Project Navigator: shows the project navigator
-    /// with the open file's row selected and its parents expanded.
     public func revealInProjectNavigator() {
         guard let path = document?.path, let ids = root.idPath(to: path) else { return }
         navigator = .project
@@ -268,9 +195,6 @@ public final class WorkspaceShellModel {
         selection = ids.last
     }
 
-    // MARK: Editor
-
-    /// Opens a file in the editor (it becomes the current history entry).
     public func open(_ path: String, line: Int? = nil) {
         sourceControl.hidePane()
         testing.hideReport()
@@ -287,7 +211,6 @@ public final class WorkspaceShellModel {
         editorFocusCount += 1
     }
 
-    /// Navigate ▸ Go Back / Go Forward through the opened files.
     public func goBack() {
         guard let p = history.back() else { return }
         showFromHistory(p)
@@ -309,18 +232,12 @@ public final class WorkspaceShellModel {
         canGoForward = history.canGoForward
     }
 
-    // MARK: Find navigator
-
-    /// Find ▸ Find in Workspace (⇧⌘F): shows the Find navigator and focuses
-    /// its field.
     public func showFindInWorkspace() {
         navigator = .find
         isNavigatorShown = true
         findFocusCount += 1
     }
 
-    /// Searches every file of the workspace (`FindEngine`), up to 1000
-    /// matches; rows fill in as files finish.
     public func runFind() {
         findTask?.cancel()
         findResultsTitle = nil
@@ -351,14 +268,10 @@ public final class WorkspaceShellModel {
         }
     }
 
-    /// Waits for the running search (tests, drivers).
     public func waitForFind() async { await findTask?.value }
 
     public var findCountText: String { findResultsTitle ?? find.countText }
 
-    /// Shows what a language request found (references, callers) in the
-    /// Find navigator as a search for `query` shows its matches, titled
-    /// `title` (`refactoring.md` §Find).
     public func showFindResults(query: String, title: String, _ results: [WorkspaceSearch.FileResult]) {
         findTask?.cancel()
         isSearching = false
@@ -387,8 +300,6 @@ public final class WorkspaceShellModel {
         }
     }
 
-    // MARK: Issues
-
     private func openIssue(_ id: String) {
         guard let row = allIssues.first(where: { $0.id == id }), let file = row.file else { return }
         open(file, line: row.line)
@@ -399,7 +310,6 @@ public final class WorkspaceShellModel {
         }
     }
 
-    /// The open file's issues for its gutter and line marks.
     func syncEditorIssues() {
         guard let path = document?.path else {
             if !editorIssues.isEmpty { editorIssues = [:] }
@@ -416,8 +326,6 @@ public final class WorkspaceShellModel {
         if out != editorIssues { editorIssues = out }
     }
 
-    /// Navigate ▸ Jump to Next / Previous Issue (⌘', ⇧⌘'): the issue after
-    /// (before) the selected one, wrapping; the Issue navigator follows.
     public func stepIssue(forward: Bool) {
         let all = allIssues
         guard !all.isEmpty else { return }
@@ -427,20 +335,14 @@ public final class WorkspaceShellModel {
         issueSelection = all[next].id
     }
 
-    // MARK: Product
-
-    /// The console's trash button: the console and, under it, the build log.
     public func clearConsole() {
         session.clearConsole()
         console = session.console
         buildLog = []
     }
 
-    /// Product ▸ Build (⌘B), Test (⌘U), Clean Build Folder (⇧⌘K), through
-    /// the session's engine.
     @discardableResult
     public func build(_ action: BuildRequest.Action = .build) async -> BuildResult {
-        // Builds see the saved files; a save that needs the user stops here.
         guard saveAllBeforeBuilding() else { return BuildResult(status: .failed, exitCode: 1, issues: []) }
         isDebugAreaShown = true
         debugPane = .buildLog
@@ -452,8 +354,6 @@ public final class WorkspaceShellModel {
         return result
     }
 
-    /// The SwiftCode simulator hosts' devices (ShellRemoteRun) for projects on
-    /// Linux; `SWIFTCODE_IDE_REMOTE_DESTINATIONS=0` leaves them out.
     static func remoteGroups(for model: WorkspaceModel) -> [DestinationGroup] {
         #if os(Linux)
         guard model.kind != .package, ProcessInfo.processInfo.environment["SWIFTCODE_IDE_REMOTE_DESTINATIONS"] != "0" else { return [] }
@@ -463,13 +363,9 @@ public final class WorkspaceShellModel {
         #endif
     }
 
-    /// The device window of the last remote run (Stop ends it).
     @ObservationIgnored private var remoteViewer: Process?
-    /// Stop before the device window opens (the build or the upload).
     @ObservationIgnored private var remoteCancel: RemoteRunCancel?
 
-    /// Run on a SwiftCode simulator host: build here, then upload, install,
-    /// launch and show the device (ShellRemoteRun).
     private func remoteRun(_ d: Destination) async {
         isDebugAreaShown = true
         debugPane = .console
@@ -480,7 +376,6 @@ public final class WorkspaceShellModel {
         let cancel = RemoteRunCancel()
         remoteCancel = cancel
         do {
-            // Under the debugger when the host is this computer (ShellSimulatorDebug).
             try await ShellSimulatorDebug.run(session: session, scheme: product, destination: d, packageRoot: ShellRemoteRun.toolsRoot(),
                                               phase: phase, cancel: cancel,
                                               started: { viewer in
@@ -496,8 +391,6 @@ public final class WorkspaceShellModel {
         }
     }
 
-    /// Product ▸ Run (⌘R): build, then launch the scheme's executable under
-    /// the debugger (lldb-dap); its output goes to the console.
     public func run() async {
         guard saveAllBeforeBuilding() else { return }
         if let d = destination, ShellRemoteRun.target(of: d) != nil { await remoteRun(d); return }
@@ -510,7 +403,6 @@ public final class WorkspaceShellModel {
         syncIssues()
     }
 
-    /// Product ▸ Stop (⌘.).
     public func stop() {
         remoteCancel?.cancel()
         remoteCancel = nil
@@ -520,11 +412,8 @@ public final class WorkspaceShellModel {
             remoteRunPhase(.ended, product: session.scheme ?? workspaceName, device: destination?.name ?? "")
         }
         remoteViewer = nil
-        // A simulator app's debugger detaches; the app runs on (ShellSimulatorDebug).
         if session.isDebuggingSimulatorStub { session.detachFromSimulatorStub() } else { session.stop() }
     }
-
-    // MARK: Commands
 
     public func isEnabled(_ c: ShellCommand) -> Bool {
         switch c {
@@ -555,8 +444,6 @@ public final class WorkspaceShellModel {
         }
     }
 
-    /// Performs a command (menus, toolbar and drivers all come here).
-    /// Open, Close and Welcome are the app's (`ShellAppModel.perform`).
     public func perform(_ c: ShellCommand) {
         switch c {
         case .open, .closeWorkspace, .welcome, .newProject, .about, .help, .releaseNotes, .reportBug, .swiftBook, .clone, .downloads: break

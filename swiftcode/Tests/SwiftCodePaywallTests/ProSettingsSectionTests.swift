@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodePaywall
 
-// MARK: - Settings Pro section (Wave 15)
-//
-// Pure-state tests only: the entitlement rule is Wave 13's
-// `PaywallEntitlementState` (already covered by
-// `PaywallEntitlementTests`); this suite covers the section's
-// own mapping onto it. No StoreKit, no network, no purchases.
-
 @Suite struct ProSettingsSectionTests {
     @Test func notProShowsUpgrade() {
         let state = ProSectionState(entitlement: PaywallEntitlementState())
@@ -50,8 +43,6 @@ import Testing
     }
 
     @Test func anyVerifiedEntitlementGrantsPro() {
-        // Legacy's faithful quirk, preserved: ANY verified current
-        // entitlement grants Pro, not just the three catalog IDs.
         let state = ProSectionState(entitlement: PaywallEntitlementState(purchasedProductIDs: ["some.future.product"]))
         #expect(state.isPro)
     }

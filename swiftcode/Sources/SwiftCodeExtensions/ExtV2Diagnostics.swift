@@ -1,14 +1,4 @@
-// Ported from Legacy SwiftCode/Backend/Extensions v2/Diagnostics/ExtV2Diagnostics.swift
-// (Dylan's own code; direct port authorised under MIT). Landed by H-E.
-// Adaptation: `ExtV2Storage` does not exist in this target — the rebuilt
-// `ExtensionStorage` already provides the identical `appendDiagnosticsLine(_:)`
-// (same JSONL file, same never-throw behaviour), so the service uses it.
-// Resolves ExtV2VSCodeAPI.swift's header note and
-// ExtensionViewModels.ExtV2DiagnosticsViewModel (`allEntries()`/`clear()`)
-// plus the `.info/.warning/.error` call sites in ExtensionRunView/ExtensionSettingsView.
 import Foundation
-
-// MARK: - Structured diagnostics
 
 public enum ExtV2DiagnosticLevel: String, Codable, Sendable {
     case info, warning, error
@@ -30,9 +20,6 @@ public struct ExtV2DiagnosticEntry: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// Append-only in-memory log plus a JSONL file, so a crash does not take
-/// the explanation of the crash with it. Never logs secrets or file
-/// contents — messages only.
 public final class ExtV2DiagnosticsService: @unchecked Sendable {
     public static let shared = ExtV2DiagnosticsService()
 

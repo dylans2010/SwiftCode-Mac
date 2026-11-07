@@ -7,24 +7,14 @@ import Glibc
 import Musl
 #endif
 
-/// Guest virtual memory as seen through the stage-1 tables. Implemented by
-/// the hypervisor; `TranslatingGuestMemory` is a ready-made implementation.
 public protocol GuestMemoryAccess {
-    /// Reads `count` bytes at `va`; throws `GuestMemoryError` when a page is
-    /// unmapped or not readable from EL0.
     func read(va: UInt64, count: Int) throws -> [UInt8]
-    /// Writes `bytes` at `va`; throws `GuestMemoryError` when a page is
-    /// unmapped or not writable from EL0.
     func write(va: UInt64, bytes: [UInt8]) throws
 }
 
-/// Why a guest virtual memory access failed.
 public enum GuestMemoryError: Error, Equatable, Sendable, CustomStringConvertible {
-    /// No valid translation for `va`.
     case unmapped(va: UInt64)
-    /// The page at `va` is mapped but EL0 may not access it this way.
     case accessDenied(va: UInt64)
-    /// The range wraps around the address space or has a negative length.
     case badRange(va: UInt64, count: Int)
 
     public var description: String {
@@ -36,13 +26,8 @@ public enum GuestMemoryError: Error, Equatable, Sendable, CustomStringConvertibl
     }
 }
 
-/// Guest memory reached by translating each VA through a `PageTableBuilder`
-/// and then accessing guest physical memory with the supplied closures. A
-/// range may cross pages; each page is translated separately.
 public struct TranslatingGuestMemory: GuestMemoryAccess {
     public var pageTables: PageTableBuilder
-    /// When true (the default), reads need an EL0-readable page and writes an
-    /// EL0-writable one, as a kernel checks user buffers.
     public var requireEL0Access: Bool
     public var readPhysical: (_ pa: UInt64, _ count: Int) throws -> [UInt8]
     public var writePhysical: (_ pa: UInt64, _ bytes: ArraySlice<UInt8>) throws -> Void
@@ -59,11 +44,9 @@ public struct TranslatingGuestMemory: GuestMemoryAccess {
         self.writePhysical = writePhysical
     }
 
-    /// Splits [va, va+count) into physically contiguous pieces, one per page.
     public func physicalPieces(va: UInt64, count: Int, write: Bool) throws -> [(pa: UInt64, count: Int)] {
         guard count >= 0, UInt64(count) <= UInt64.max - va else { throw GuestMemoryError.badRange(va: va, count: count) }
         var pieces: [(pa: UInt64, count: Int)] = []
-        // TCR_EL1.TBI0: the top byte of a guest data address is ignored.
         var cursor = va & VMLayout.addressWithoutTag
         var remaining = UInt64(count)
         while remaining > 0 {
@@ -99,28 +82,17 @@ public struct TranslatingGuestMemory: GuestMemoryAccess {
     }
 }
 
-/// What the VMM does after a trap.
 public enum TrapOutcome: Equatable, Sendable {
-    /// Re-enter the vCPU (`KVM_RUN`) with the edited frame.
     case resume
-    /// Stop the guest; the VMM exits with `status`.
     case exit(status: Int32)
-    /// Stop the guest and print the message; the VMM exits with
-    /// `VMLayout.fatalExitStatus` (70).
     case fatal(String)
 }
 
-/// The Darwin trap number in `x16`, classified as in
-/// `specs/simulator/darwin-arm64-abi.md` §1.
 public enum DarwinTrapNumber: Equatable, Sendable, CustomStringConvertible {
-    /// `0x80000000`: a machine-dependent platform call.
     case platform
-    /// A Mach trap −N (including the time fast traps −3 and −4); the payload is negative.
     case mach(Int32)
-    /// A BSD system call N (zero or positive).
     case bsd(Int32)
 
-    /// Interprets the low 32 bits of `x16` as a signed trap number.
     public init(x16: UInt64) {
         let n = Int32(truncatingIfNeeded: x16)
         if n == Int32.min {
@@ -141,8 +113,6 @@ public enum DarwinTrapNumber: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Darwin errno values used by the stage-2 calls (xnu `bsd/sys/errno.h`;
-/// `vm-shim-protocol.md` §6). A failed call returns one in x0 with carry set.
 public enum DarwinErrno {
     public static let EFAULT: UInt64 = 14
     public static let EBADF: UInt64 = 9
@@ -160,27 +130,21 @@ public enum DarwinErrno {
     }
 }
 
-/// The guest timebase: `mach_absolute_time` counts at 24 MHz, and
-/// `mach_timebase_info` reports numer/denom = 125/3 (ticks × 125 / 3 = ns).
 public enum MachTimebase {
     public static let frequency: UInt64 = 24_000_000
     public static let numer: UInt32 = 125
     public static let denom: UInt32 = 3
 
-    /// Converts nanoseconds to 24 MHz ticks without intermediate overflow.
     public static func ticks(fromNanoseconds ns: UInt64) -> UInt64 {
         let n = UInt64(numer), d = UInt64(denom)
         return (ns / n) * d + (ns % n) * d / n
     }
 
-    /// Converts 24 MHz ticks to nanoseconds without intermediate overflow.
     public static func nanoseconds(fromTicks t: UInt64) -> UInt64 {
         let n = UInt64(numer), d = UInt64(denom)
         return (t / d) * n + (t % d) * n / d
     }
 
-    /// Nanoseconds from the host's monotonic clock (uptime on macOS,
-    /// `CLOCK_MONOTONIC` on Linux).
     public static func hostMonotonicNanoseconds() -> UInt64 {
         #if canImport(Darwin)
         return clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
@@ -191,27 +155,18 @@ public enum MachTimebase {
         #endif
     }
 
-    /// The current guest `mach_absolute_time`: monotonic, never zero.
     public static func now() -> UInt64 {
         max(1, ticks(fromNanoseconds: hostMonotonicNanoseconds()))
     }
 }
 
-/// Handles SVC traps from EL0 the way the Darwin kernel would, for the
-/// stage-2 subset of `specs/simulator/vm-shim-protocol.md` §6.
 public struct DarwinTrapDispatcher {
-    /// What `getpid` returns.
     public var pid: Int32
-    /// Bytes written to guest fd 1 and fd 2, decoded as UTF-8.
     public var stdout: (String) -> Void
-    /// See `stdout`.
     public var stderr: (String) -> Void
-    /// Receives one line (without a newline) per handled trap.
     public var log: (String) -> Void
-    /// The source of `mach_absolute_time` / `mach_continuous_time`, in 24 MHz ticks.
     public var machAbsoluteTime: () -> UInt64
 
-    /// A dispatcher whose output goes to the host's stdout and stderr by default.
     public init(
         pid: Int32 = VMLayout.guestPID,
         stdout: @escaping (String) -> Void = DarwinTrapDispatcher.writeHostStdout,
@@ -226,28 +181,20 @@ public struct DarwinTrapDispatcher {
         self.machAbsoluteTime = machAbsoluteTime
     }
 
-    /// Writes `s` to the host process's standard output.
     public static func writeHostStdout(_ s: String) { FileHandle.standardOutput.write(Data(s.utf8)) }
-    /// Writes `s` to the host process's standard error.
     public static func writeHostStderr(_ s: String) { FileHandle.standardError.write(Data(s.utf8)) }
 
-    /// BSD call numbers handled in stage 2 (`vm-shim-protocol.md` §6; xnu
-    /// `bsd/kern/syscalls.master`).
     public enum BSD {
         public static let exit: Int32 = 1
         public static let write: Int32 = 4
         public static let getpid: Int32 = 20
     }
 
-    /// Mach fast traps handled in stage 2 (`vm-shim-protocol.md` §6): the
-    /// negative x16 trap numbers.
     public enum Mach {
         public static let machAbsoluteTime: Int32 = -3
         public static let machContinuousTime: Int32 = -4
     }
 
-    /// Handles one trap. For SVC the frame is edited in place (x0 and carry)
-    /// and `ELR` is left alone, since it already points after the `svc`.
     public mutating func handle(_ frame: inout TrapFrame, memory: any GuestMemoryAccess) -> TrapOutcome {
         guard frame.trapKind == .svc else {
             log("trap \(frame.trapKind.map { "kind \($0.rawValue)" } ?? "kind \(frame.kind)") fatal")

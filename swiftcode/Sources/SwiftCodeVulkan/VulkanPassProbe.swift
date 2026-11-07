@@ -1,34 +1,7 @@
-// Pass probes (diagnostics; visionos.md §10.20): where the pixels of a
-// frame are lost.
-//
-// `SWIFTCODE_GPU_PROBE=<names>` (comma-separated function names, entry point or
-// `entry#hash8`): a command buffer with a draw or dispatch of such a function
-// is probed. Its description (VulkanHangReport.swift) is logged, and
-// copies are recorded into a host buffer of the probe's own:
-//
-// - before every pass, each texture the pass binds for reading (level 0 of
-//   the binding, up to six layers) and each attachment it loads;
-// - after every pass, each attachment it stores or resolves into (the
-//   attachment's level and slice), each texture a kernel of the pass may
-//   write, and each blit destination.
-//
-// When the GPU has finished, one line per copy gives the texels that are
-// not zero, and per format class the channel means, alpha counts, the
-// number of NaN or infinite values and the range. Draws the replay skipped
-// in that command buffer are listed with the source line that skipped
-// them. `SWIFTCODE_GPU_PROBE_MAX` (default 4) probes at most, at least
-// `SWIFTCODE_GPU_PROBE_INTERVAL_S` (default 20) s apart; `SWIFTCODE_GPU_PROBE_MB`
-// (default 1536) caps the bytes one probe copies.
-//
-// `SWIFTCODE_GPU_PROBE_DUMP=<dir>`: each probed copy's bytes are also written
-// to <dir>/probe<N>-p<pass>-<in|out>-t<handle>-L<level>-S<slice>.bin (raw
-// texels, tightly packed rows) for offline viewing.
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
 
-/// One probed command buffer: the copies recorded into its buffer.
 final class PassProbe: @unchecked Sendable {
     struct Copy {
         var pass: Int
@@ -53,8 +26,6 @@ final class PassProbe: @unchecked Sendable {
     var used = 0
     var copies: [Copy] = []
     var notes: [String] = []
-    /// Inputs already copied (handle, level, layer): a texture read by
-    /// several passes is copied before the first only.
     var seenInputs: Set<String> = []
     var budgetExhausted = false
 
@@ -72,20 +43,9 @@ extension VulkanMetalBackend {
     static let probeInterval = Double(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_PROBE_INTERVAL_S"] ?? "") ?? 20
     static let probeBytes = (Int(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_PROBE_MB"] ?? "") ?? 1536) << 20
     static let probeDump = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_PROBE_DUMP"]
-    /// `SWIFTCODE_GPU_PROBE_AFTER_S`: no probe before this many seconds after the
-    /// first submission (a probe copies hundreds of MiB and delays the
-    /// guest's GPU work; early in a visionOS boot that kept the home view
-    /// from launching).
     static let probeStartDelay = Double(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_PROBE_AFTER_S"] ?? "") ?? 0
     nonisolated(unsafe) static var probeEpoch: UInt64 = 0
 
-    /// `SWIFTCODE_GPU_FRAME_MAP=<after s>,<count>[,<min commands>]` (diagnostics,
-    /// visionos.md §10.24): from that many seconds after the first
-    /// submission, the next <count> command buffers with at least <min
-    /// commands> (default 1) draws, dispatches and blits are described as in
-    /// a hang report (passes, attachments, functions, bound textures and
-    /// buffers): one frame's data flow from pass to pass, without copying
-    /// anything.
     static let frameMap: (after: Double, count: Int, minCommands: Int)? = {
         guard let v = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_FRAME_MAP"] else { return nil }
         let p = v.split(separator: ",").map { String($0) }
@@ -95,17 +55,11 @@ extension VulkanMetalBackend {
     nonisolated(unsafe) static var frameMapEpoch: UInt64 = 0
     nonisolated(unsafe) static var frameMapLogged = 0
 
-    /// `SWIFTCODE_GPU_FRAME_MAP_FILE=<path>` (diagnostics, visionos.md §10.29): a
-    /// frame map on request. When the file appears, its first word is how
-    /// many command buffers to describe (default 40), its second the least
-    /// commands one must have (default 1); the file is removed. A scripted
-    /// driver or a headset run can ask for the frame on screen right now.
     static let frameMapFile = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_FRAME_MAP_FILE"]
     nonisolated(unsafe) static var frameMapRequested = 0
     nonisolated(unsafe) static var frameMapRequestedMin = 1
     nonisolated(unsafe) static var frameMapRequestNumber = 0
 
-    /// Takes a pending request. Under the lock.
     func frameMapPollFile() {
         guard let path = Self.frameMapFile, access(path, F_OK) == 0 else { return }
         let words = ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "").split(whereSeparator: { $0.isWhitespace })
@@ -135,8 +89,6 @@ extension VulkanMetalBackend {
         return work
     }
 
-    /// Logs `mcb` for `SWIFTCODE_GPU_FRAME_MAP` or a request of
-    /// `SWIFTCODE_GPU_FRAME_MAP_FILE`. Under the lock, before the replay.
     func frameMapNote(_ mcb: MetalCommandBuffer) {
         frameMapPollFile()
         if Self.frameMapRequested > 0, Self.commandCount(mcb) >= Self.frameMapRequestedMin {
@@ -155,14 +107,11 @@ extension VulkanMetalBackend {
             + describeCommandBuffer(mcb, limit: 400))
     }
 
-    /// Whether a shader's name is one of `SWIFTCODE_GPU_PROBE`'s.
     func probeMatches(_ s: TranslatedShader?) -> Bool {
         guard let s else { return false }
         return Self.probeNames.contains(s.reflection.entryPoint ?? "") || Self.probeNames.contains(shaderName(s))
     }
 
-    /// Starts a probe of `mcb` when it uses a probed function and the
-    /// budget allows. Under the lock, before the replay.
     func beginProbe(_ mcb: MetalCommandBuffer) {
         guard !Self.probeNames.isEmpty, probesStarted < Self.probeMax else { return }
         let now = DispatchTime.now().uptimeNanoseconds
@@ -201,7 +150,6 @@ extension VulkanMetalBackend {
         probe = p
     }
 
-    /// Records a copy of one level and layer of `h` into the probe's buffer.
     func probeCopy(_ p: PassProbe, _ cb: VkCommandBuffer?, pass: Int, when: String, _ h: MetalHandle?, level: Int, slice: Int) {
         guard let h, let tex = textures[h] else { return }
         if when == "in" {
@@ -244,7 +192,6 @@ extension VulkanMetalBackend {
                                        depth: !f.isColor))
     }
 
-    /// Records a copy of (at most `probeBufferBytes` of) a buffer from `offset` on.
     func probeBuffer(_ p: PassProbe, _ cb: VkCommandBuffer?, pass: Int, when: String, _ h: MetalHandle?, offset: Int,
                      limit: Int = Int.max) {
         guard let h, let b = buffers[h], offset >= 0, offset < b.length else { return }
@@ -263,14 +210,12 @@ extension VulkanMetalBackend {
     }
     static let probeBufferBytes = (Int(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_PROBE_BUFFER_KB"] ?? "") ?? 16384) << 10
 
-    /// Every layer (up to six) of level 0 of a bound texture.
     func probeTexture(_ p: PassProbe, _ cb: VkCommandBuffer?, pass: Int, when: String, _ h: MetalHandle?) {
         guard let h, let tex = textures[h] else { return }
         let layers = tex.image.imageType == VK_IMAGE_TYPE_3D ? 1 : min(tex.layerCount, 6)
         for s in 0..<layers { probeCopy(p, cb, pass: pass, when: when, h, level: 0, slice: s) }
     }
 
-    /// Copies of what a pass reads, before it. Under the lock, outside a rendering.
     func probeBefore(_ pass: MetalPass, _ index: Int, _ cb: VkCommandBuffer?) {
         guard let p = probe else { return }
         barrier(cb)
@@ -284,7 +229,6 @@ extension VulkanMetalBackend {
                 }
             }
             for c in rp.commands { if case .setTexture(_, _, let t) = c { probeTexture(p, cb, pass: index, when: "in", t) } }
-            // The buffers bound at each draw of a probed function (64 KiB of each at most).
             var pipeline: VKRenderPipeline?
             var bound: [String: (MetalHandle?, Int)] = [:]
             for c in rp.commands {
@@ -320,7 +264,6 @@ extension VulkanMetalBackend {
         barrier(cb)
     }
 
-    /// Copies of what a pass wrote, after it. Under the lock, outside a rendering.
     func probeAfter(_ pass: MetalPass, _ index: Int, _ cb: VkCommandBuffer?) {
         guard let p = probe else { return }
         barrier(cb)
@@ -344,7 +287,6 @@ extension VulkanMetalBackend {
                 case .setTexture(let i, let t): bound[i] = t
                 case .dispatchThreads, .dispatchThreadgroups, .dispatchThreadgroupsIndirect:
                     for t in pipeline?.shader?.reflection.textures ?? [] where (t.access ?? "").contains("write") {
-                        // swiftlint:disable:next redundant_nil_coalescing - flattens a double optional
                         if let h = bound[t.index] ?? nil { written[h.raw] = h }
                     }
                 default: break
@@ -370,14 +312,11 @@ extension VulkanMetalBackend {
         barrier(cb)
     }
 
-    /// A draw of the probed command buffer that the replay skipped. Under the lock.
     func probeNoteSkip(pass: Int, command: Int, _ what: String) {
         guard let p = probe else { return }
         if p.notes.count < 200 { p.notes.append("pass \(pass) command \(command) \(what) skipped (replay line \(lastSkipLine))") }
     }
 
-    /// Ends the probe of the command buffer just replayed: its results are
-    /// read when the GPU has finished. Under the lock.
     func endProbe(_ entry: inout PendingSubmission) {
         guard let p = probe else { return }
         probe = nil
@@ -386,7 +325,6 @@ extension VulkanMetalBackend {
         entry.after = { [self] ok in
             earlier?(ok)
             guard ok else {
-                // Failed (a device reset calls this before it destroys the device).
                 logger?("[vulkan] probe \(p.number): the command buffer failed; no results")
                 yvk_buffer_destroy(self.ctx, &p.buffer)
                 return
@@ -402,15 +340,12 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// A probe abandoned (the replay failed). Under the lock.
     func abandonProbe() {
         guard let p = probe else { return }
         probe = nil
         log("probe \(p.number): replay failed")
         deferDestroy { [ctx] in yvk_buffer_destroy(ctx, &p.buffer) }
     }
-
-    // MARK: Statistics
 
     static func probeReport(_ p: PassProbe) -> [String] {
         var lines = ["probe \(p.number): results for \(p.label) (\(p.copies.count) copies, \(p.used >> 20) MiB)"]
@@ -430,7 +365,6 @@ extension VulkanMetalBackend {
         return lines
     }
 
-    /// Texel statistics of one copy (tightly packed rows of blocks).
     static func probeStatistics(_ ptr: UnsafeMutableRawPointer, _ c: PassProbe.Copy) -> String {
         if c.level < 0 {
             let b = ptr.assumingMemoryBound(to: UInt8.self)

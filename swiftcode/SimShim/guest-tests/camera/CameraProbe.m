@@ -1,26 +1,3 @@
-// CameraProbe.app (dev.swiftcode.CameraProbe): exercises the public capture API
-// in SwiftCode's simulator (specs/simulator/camera.md "SwiftCode implementation",
-// verification). Public AVFoundation, CoreMedia, CoreVideo, ImageIO and
-// UIKit API only. One mode per launch (swiftcode-simd --launch
-// dev.swiftcode.CameraProbe --app-arg <mode> [--app-arg …]):
-//
-//   discover                     default devices, discovery sessions, formats, authorization
-//   status                       the authorization status only
-//   request                      requests access (the system alert when not determined)
-//   stream FMT W H SECONDS [preview] [angle A] [mirror]
-//                                a session with a video data output (FMT 420v|420f|BGRA);
-//                                frame count, rate, sizes, formats, time stamps; the
-//                                last frame written to /tmp/camprobe-frame.png (and its
-//                                center pixel); with "preview" also a full-screen preview
-//                                layer that stays up after the counting
-//   preview SECONDS              only a preview layer (no data output), for screenshots
-//   photo                        one still from a photo output → /tmp/camprobe-photo.jpg
-//   input                        only creates the device input (authorization error check)
-//   outputs                      only creates a video data, movie file and photo output
-//   picker                       presents UIImagePickerController with the camera source
-//
-// Every result line starts with "camprobe: " (stdout, and /tmp/camprobe.txt).
-
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <ImageIO/ImageIO.h>
@@ -70,11 +47,8 @@ static void finish(int code) {
     exit(code);
 }
 
-// MARK: - Frames to PNG
-
 static uint8_t clamp8(int v) { return (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v); }
 
-/// BGRA bytes of a pixel buffer (4:2:0 converted with BT.601).
 static NSData *bgraOf(CVPixelBufferRef pb, size_t *w, size_t *h) {
     CVPixelBufferLockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
     size_t W = CVPixelBufferGetWidth(pb), H = CVPixelBufferGetHeight(pb);
@@ -125,8 +99,6 @@ static BOOL writePNG(NSData *bgra, size_t w, size_t h, NSString *path) {
     CGDataProviderRelease(p);
     return ok;
 }
-
-// MARK: - The probe
 
 @interface Probe : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate, AVCapturePhotoCaptureDelegate,
                              UIImagePickerControllerDelegate, UINavigationControllerDelegate>
@@ -200,7 +172,6 @@ static BOOL writePNG(NSData *bgra, size_t w, size_t h, NSString *path) {
 }
 
 - (void)stream {
-    // stream FMT W H SECONDS [preview] [angle A] [mirror]
     OSType format = parseFormat(self.args.count > 1 ? self.args[1] : @"420v");
     int w = self.args.count > 2 ? self.args[2].intValue : 1280, h = self.args.count > 3 ? self.args[3].intValue : 720;
     double seconds = self.args.count > 4 ? self.args[4].doubleValue : 5;
@@ -337,8 +308,6 @@ static BOOL writePNG(NSData *bgra, size_t w, size_t h, NSString *path) {
     if (self.counting) self.dropped++;
 }
 
-// MARK: Photo
-
 - (void)photo {
     AVCaptureDeviceInput *input = [self makeInput];
     if (!input) finish(2);
@@ -376,8 +345,6 @@ static BOOL writePNG(NSData *bgra, size_t w, size_t h, NSString *path) {
     });
 }
 
-// MARK: Picker
-
 - (void)picker {
     say(@"picker camera available %d, rear %d, front %d, media %@",
         [UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera],
@@ -398,8 +365,6 @@ static BOOL writePNG(NSData *bgra, size_t w, size_t h, NSString *path) {
     finish(0);
 }
 
-// MARK: Run
-
 - (void)run {
     NSString *mode = self.args.firstObject ?: @"discover";
     say(@"mode %@ (%@)", mode, [self.args componentsJoinedByString:@" "]);
@@ -416,7 +381,6 @@ static BOOL writePNG(NSData *bgra, size_t w, size_t h, NSString *path) {
             finish(0);
         }];
     } else if ([mode isEqualToString:@"outputs"]) {
-        // The outputs alone (no input, no session): each one's creation.
         say(@"video data output %@", [AVCaptureVideoDataOutput new] ? @"made" : @"nil");
         say(@"movie file output %@", [AVCaptureMovieFileOutput new] ? @"made" : @"nil");
         say(@"photo output %@", [AVCapturePhotoOutput new] ? @"made" : @"nil");
@@ -439,8 +403,6 @@ static BOOL writePNG(NSData *bgra, size_t w, size_t h, NSString *path) {
 }
 @end
 
-// The scene life cycle (required by the iOS 27 SDK: an app without a scene
-// manifest is refused at launch). Info.plist names SceneDelegate.
 @interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
 @property(nonatomic, strong) UIWindow *window;
 @property(nonatomic, strong) Probe *probe;

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct ShortcutItem: Identifiable, Hashable {
@@ -56,7 +53,6 @@ public struct XcodeShortcutsCheatsheetView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header with search & category filter
             VStack(spacing: 12) {
                 HStack {
                     Label("Xcode Keyboard Shortcuts", systemImage: "keyboard")
@@ -84,11 +80,9 @@ public struct XcodeShortcutsCheatsheetView: View {
                 }
             }
             .padding()
-            
 
             Divider()
 
-            // List of shortcuts
             List {
                 ForEach(filteredShortcuts) { item in
                     HStack {
@@ -119,6 +113,6 @@ public struct XcodeShortcutsCheatsheetView: View {
             }
             .listStyle(.inset)
         }
-        
+
     }
 }

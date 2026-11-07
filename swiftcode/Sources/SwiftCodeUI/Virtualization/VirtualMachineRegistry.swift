@@ -1,28 +1,6 @@
 import Foundation
 import SwiftCodeHypervisor
 
-/// The virtualization console's model (gap closure, specs/ide/
-/// gap-closure-windows-artboards.md §7).
-///
-/// Legacy's `VirtualizationWindowManager` showed a "Virtualization
-/// Console" (1100×750) over `SCVirtualizationEngine`, which
-/// instantiates real `VZVirtualMachine`s — Apple
-/// Virtualization.framework, macOS-only. SwiftCode's engine is the
-/// Linux-KVM `SwiftCodeHypervisor`: `Hypervisor.isAvailable`,
-/// `VirtualMachine(ramGPA:ramSize:)` (a bare KVM VM — RAM only),
-/// `makeVCPU`, memory slots, `close()`. It has no named-VM model,
-/// no guest-kernel loading, no disk, no display, and no VZ
-/// wrapper; on macOS KVM does not exist.
-///
-/// So this console is honest about what it is: a **registry of
-/// VM definitions** (a ported subset of Legacy's `VirtualMachine`
-/// model) + a **host probe** that really allocates a KVM VM +
-/// **Allocate / Release**, not Start / Stop. Allocate reserves a
-/// real KVM VM (RAM + vCPUs) and holds it; Release closes it. No
-/// guest kernel is loaded and there is no display — the window
-/// says so plainly. Booting a guest, snapshots, and networking
-/// need a VZ wrapper on macOS or a kernel-boot path on KVM, and
-/// are not claimed here.
 public struct VMRecord: Codable, Sendable, Equatable, Identifiable {
     public var id: UUID
     public var name: String
@@ -53,13 +31,9 @@ public struct VMRecord: Codable, Sendable, Equatable, Identifiable {
         self.bootCount = bootCount
     }
 
-    /// The guest OS types Legacy's wizard offered.
     public static let knownOSTypes = ["Ubuntu", "Debian", "Fedora", "Alpine"]
 }
 
-/// The persisted registry of VM definitions, at Application
-/// Support `SwiftCode/VirtualMachines/registry.json` (the same idea as
-/// the artboard store: user data, never inside a workspace).
 public final class VirtualMachineRegistry: @unchecked Sendable {
     public static let shared = VirtualMachineRegistry()
 
@@ -82,8 +56,6 @@ public final class VirtualMachineRegistry: @unchecked Sendable {
 
     public func record(id: UUID) -> VMRecord? { lock.withLock { records.first { $0.id == id } } }
 
-    /// Creates a definition (validating the disk image path when
-    /// one is given) and persists it. Returns the stored record.
     @discardableResult
     public func create(name: String, osType: String, version: String = "", cpuCores: Int = 2,
                        memoryMB: Int = 2048, storageGB: Int = 20, imagePath: String = "") throws -> VMRecord {
@@ -139,15 +111,77 @@ public final class VirtualMachineRegistry: @unchecked Sendable {
         try data.write(to: registryURL, options: .atomic)
     }
 
+    public func scanVirtualDiskFiles() {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: directory.path) else { return }
+        let allowedExtensions: Set<String> = ["img", "iso", "qcow2", "raw", "vmdk", "vhdx"]
+        guard let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: [.fileSizeKey, .creationDateKey, .isRegularFileKey], options: [.skipsHiddenFiles]) else { return }
+
+        lock.withLock {
+            var updated = records
+            for case let fileURL as URL in enumerator {
+                let ext = fileURL.pathExtension.lowercased()
+                guard allowedExtensions.contains(ext) else { continue }
+                let path = fileURL.path
+                if updated.contains(where: { $0.imagePath == path }) { continue }
+
+                let attrs = (try? fm.attributesOfItem(atPath: path)) ?? [:]
+                let fileSize = (attrs[.size] as? Int64) ?? 0
+                let createdDate = (attrs[.creationDate] as? Date) ?? Date()
+                let storageGB = max(1, Int(fileSize / (1024 * 1024 * 1024)))
+
+                let filename = fileURL.deletingPathExtension().lastPathComponent
+                let lowerName = filename.lowercased()
+                let osType: String
+                if lowerName.contains("ubuntu") { osType = "Ubuntu" }
+                else if lowerName.contains("debian") { osType = "Debian" }
+                else if lowerName.contains("fedora") { osType = "Fedora" }
+                else if lowerName.contains("alpine") { osType = "Alpine" }
+                else { osType = "Linux" }
+
+                let newRecord = VMRecord(
+                    name: filename.replacingOccurrences(of: "-", with: " ").capitalized,
+                    osType: osType,
+                    version: "",
+                    status: "Stopped",
+                    cpuCores: 2,
+                    memoryMB: 2048,
+                    storageGB: storageGB,
+                    imagePath: path,
+                    createdDate: createdDate,
+                    bootCount: 0
+                )
+                updated.append(newRecord)
+            }
+            records = updated
+        }
+        try? save()
+    }
+
+    public func verifyDiskImages() {
+        lock.withLock {
+            for i in records.indices {
+                if !records[i].imagePath.isEmpty {
+                    if !FileManager.default.fileExists(atPath: records[i].imagePath) {
+                        records[i].status = "Image Missing"
+                    }
+                }
+            }
+        }
+    }
+
     public func load() {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: registryURL.path),
-              let data = try? Data(contentsOf: registryURL) else { return }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        if let decoded = try? decoder.decode([VMRecord].self, from: data) {
-            lock.withLock { records = decoded }
+        if fm.fileExists(atPath: registryURL.path),
+           let data = try? Data(contentsOf: registryURL) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let decoded = try? decoder.decode([VMRecord].self, from: data) {
+                lock.withLock { records = decoded }
+            }
         }
+        scanVirtualDiskFiles()
+        verifyDiskImages()
     }
 }
 
@@ -163,8 +197,6 @@ public enum VirtualMachineRegistryError: Error, LocalizedError, Equatable {
     }
 }
 
-/// The result of probing the host hypervisor (a real KVM
-/// allocation attempt, not a capability guess).
 public struct VirtualMachineHostProbe: Sendable, Equatable {
     public var hypervisorAvailable: Bool
     public var vcpusAllocated: Int
@@ -180,12 +212,6 @@ public struct VirtualMachineHostProbe: Sendable, Equatable {
 }
 
 public enum VirtualMachineHostProbeRunner {
-    /// Probes the host by really doing it: checks
-    /// `Hypervisor.isAvailable`, then creates a bare KVM VM with
-    /// 256 MB of RAM and one vCPU, then closes it. On a Linux host
-    /// with /dev/kvm this succeeds; on macOS `isAvailable` is
-    /// false and the probe reports that honestly instead of
-    /// claiming a VM can run.
     public static func probe() -> VirtualMachineHostProbe {
         guard Hypervisor.isAvailable else {
             return VirtualMachineHostProbe(hypervisorAvailable: false,
@@ -208,8 +234,6 @@ public enum VirtualMachineHostProbeRunner {
     }
 }
 
-/// Allocation is only possible on an arm64 Linux host with KVM; elsewhere
-/// the console reports it honestly.
 public enum VirtualMachineAllocationError: Error, LocalizedError {
     case unavailable
     public var errorDescription: String? {
@@ -217,10 +241,6 @@ public enum VirtualMachineAllocationError: Error, LocalizedError {
     }
 }
 
-/// A real, held KVM allocation for a registry record: the VM the
-/// console's Allocate button reserves, released by `release()`.
-/// No guest kernel is loaded and there is no display — this is
-/// allocation, not a boot.
 public final class AllocatedVirtualMachine: @unchecked Sendable {
     public let record: VMRecord
     #if os(Linux) && arch(arm64)
@@ -233,8 +253,6 @@ public final class AllocatedVirtualMachine: @unchecked Sendable {
         self.record = record
     }
 
-    /// Allocates the KVM VM (RAM + vCPUs) and holds it. Throws the
-    /// real `KVMError` when allocation fails.
     public func allocate() throws {
         guard !isAllocated else { return }
         #if os(Linux) && arch(arm64)

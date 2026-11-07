@@ -1,56 +1,26 @@
 import SwiftUI
 import SwiftCodeCloud
 
-/// Global studio settings + live connection diagnostics.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseSettingsView.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - The four settings are now persisted with `@AppStorage`
-///   (Legacy kept them in memory only, so they reset on every
-///   launch).
-/// - Every diagnostic step runs for real against the active
-///   connection through `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`):
-///   file access (the file exists, or is created and reported as
-///   such), read/write (a real create/insert/drop round-trip on a
-///   throwaway `_swiftcode_diagnostics_test` table), driver
-///   latency (ten real `SELECT 1` round-trips, averaged), and
-///   integrity (`PRAGMA integrity_check`, which must return
-///   `ok`). Legacy's 200 ms sleeps between steps were pacing
-///   theatre and are gone; the steps run back to back.
-/// - Legacy reported the Supabase networking check as "Passed"
-///   without checking anything. This port performs the real
-///   `SupabaseService().testConnection` and reports its outcome;
-///   PostgreSQL / MySQL / MariaDB have no driver in this package,
-///   so their networking check is honestly "N/A".
-/// - The health score is the same 20-points-per-passing-check
-///   scheme Legacy used.
 @MainActor
 struct DatabaseSettingsView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
 
-    // General Settings States (persisted; Legacy kept them in memory only)
     @AppStorage("com.swiftcode.database.enableAutosave") private var enableAutosave = true
     @AppStorage("com.swiftcode.database.maxHistoryCount") private var maxHistoryCount = 100
     @AppStorage("com.swiftcode.database.defaultSQLDialect") private var defaultSQLDialect = "SQLite"
     @AppStorage("com.swiftcode.database.useSSLForPostgres") private var useSSLForPostgres = true
 
-    // Connection Diagnostics States
     @State private var isRunningDiagnostics = false
     @State private var fileAccessStatus = "Pending"
     @State private var readWriteStatus = "Pending"
     @State private var driverLatency = "Pending"
     @State private var databaseIntegrity = "Pending"
     @State private var networkStatus = "Pending"
-    @State private var diagnosticsScore = 0 // max 100
+    @State private var diagnosticsScore = 0
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Settings Form Box
                 GroupBox("Global Studio Settings") {
                     Form {
                         Toggle("Enable Schema Autosave", isOn: $enableAutosave)
@@ -72,7 +42,6 @@ struct DatabaseSettingsView: View {
                     .padding(8)
                 }
 
-                // Diagnostics Center
                 GroupBox("Connection Diagnostics & Profiler") {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Verify local file authorization layers, check read/write disk latency, run driver benchmarks, and audit SQLite databases schema files.")
@@ -148,7 +117,6 @@ struct DatabaseSettingsView: View {
         }
     }
 
-    // MARK: - Status Badge Builder
     @ViewBuilder
     private func diagnosticStatusBadge(text: String) -> some View {
         HStack {
@@ -177,7 +145,6 @@ struct DatabaseSettingsView: View {
         }
     }
 
-    // MARK: - Handlers & Diagnostics
     private func runConnectionDiagnostics() {
         guard let conn = connManager.activeConnection else { return }
 
@@ -192,7 +159,6 @@ struct DatabaseSettingsView: View {
         Task { @MainActor in
             var score = 0
 
-            // 1. Test File Access
             if conn.provider == .sqlite {
                 do {
                     let existed = conn.sqliteFilePath.map { FileManager.default.fileExists(atPath: $0) } ?? false
@@ -207,11 +173,9 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 2. Test Read/Write IO Authorization
             if conn.provider == .sqlite {
                 do {
                     let explorer = try DatabaseViewSQLite.explorer(for: conn)
-                    // Create temp audit table
                     _ = try explorer.run(sql: "CREATE TABLE IF NOT EXISTS _swiftcode_diagnostics_test (id INTEGER PRIMARY KEY);")
                     _ = try explorer.run(sql: "INSERT INTO _swiftcode_diagnostics_test DEFAULT VALUES;")
                     _ = try explorer.run(sql: "DROP TABLE _swiftcode_diagnostics_test;")
@@ -225,7 +189,6 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 3. Driver Latency Loop
             if conn.provider == .sqlite {
                 do {
                     let explorer = try DatabaseViewSQLite.explorer(for: conn)
@@ -249,7 +212,6 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 4. Schema Integrity Check
             if conn.provider == .sqlite {
                 do {
                     let explorer = try DatabaseViewSQLite.explorer(for: conn)
@@ -265,7 +227,6 @@ struct DatabaseSettingsView: View {
                 score += 20
             }
 
-            // 5. PostgREST Networking
             if conn.provider == .supabase {
                 do {
                     let reachable = try await SupabaseService().testConnection(connection: conn)

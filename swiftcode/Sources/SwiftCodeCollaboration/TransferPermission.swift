@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/TransferPermission.swift
-// Adapted for SwiftCode: Transfer permission model + presets. Verbatim.
-
 import Foundation
 
 public struct TransferPermission: Codable, Hashable, Sendable {

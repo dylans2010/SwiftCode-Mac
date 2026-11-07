@@ -1,45 +1,8 @@
 import Foundation
 import SwiftCodeIDECore
 
-/// Shared helpers for the ported Legacy test-running / coverage tool
-/// family (Wave 6, slice A). See `SwiftCodeTools+Testing.swift` for the
-/// tools themselves.
-///
-/// Behaviour source: Legacy's `AssistTestRunSingleTool`,
-/// `AssistXctestDiscoveryTool`, `AssistTestLogParseTool`,
-/// `AssistTestFlakyDetectTool`, `AssistTestCoverageReportTool`,
-/// `AssistTestCoverageReporterTool`, `AssistTestDataFactoryTool`,
-/// `AssistTestSnapshotManageTool`, `AssistTestTargetAddTool`,
-/// `AssistUITestScaffoldTool`, `AssistInterfaceSimulatorTool`,
-/// `AssistPreflightChecksTool`, `AssistPerformanceBenchmarkTool`,
-/// `AssistCompilerDiagnosticsEngine`, `AssistCrashLogParseTool` and
-/// `AssistRuntimeDiagnosticsEngine` (Dylan's own code, ported under
-/// MIT).
-///
-/// Every helper is prefixed `testing` so it cannot collide with the
-/// other tool families' helpers. The rules that matter:
-///
-/// * Pure parsing/generation helpers are verbatim ports of Legacy's
-///   private helpers (same regexes, same sample values, same pbxproj
-///   block text, same snapshot-reference rules), including Legacy's
-///   quirks where the spec calls them out (notably the interface
-///   simulator's accessibility counting, which credits any line
-///   carrying an accessibility modifier, not just the element it
-///   decorates).
-/// * Nothing here runs a process or touches disk except the small
-///   resolvers/scanners, which stay inside the workspace root. The
-///   one deliberate exception is `test_coverage_reporter`'s
-///   DerivedData search, which reads the user's own
-///   `~/Library/Developer/Xcode/DerivedData` — a read-only search
-///   in the same class as `preflight_checks`' DerivedData check.
-/// * No helper invents a test result, a coverage number, or a
-///   diagnostic: the runners report what the real run produced.
 extension SwiftCodeMCPHost {
-    // MARK: - Validation
 
-    /// Legacy `AssistTestRunSingleTool.isValidTestId`: at least two
-    /// `/`-separated components, no spaces or newlines, none of
-    /// `;|&$`"'<>\!(){}[]*?~#`, no `..`.
     nonisolated static func testingIsValidTestId(_ value: String) -> Bool {
         if value.contains(" ") || value.contains("\n") || value.contains("\r") { return false }
         if value.components(separatedBy: "/").count < 2 { return false }
@@ -49,16 +12,11 @@ extension SwiftCodeMCPHost {
         return true
     }
 
-    /// Legacy's shell-character guard, shared by the execution tools:
-    /// `;|&$`"'<>\!()` plus newlines.
     nonisolated static func testingHasUnsafeShellCharacters(_ value: String) -> Bool {
         let forbidden = CharacterSet(charactersIn: ";|&$`\"'<>\\!()\n\r")
         return value.rangeOfCharacter(from: forbidden) != nil
     }
 
-    /// Legacy's identifier rule (test factory, UI scaffold, test
-    /// target): starts with a letter or `_`, then letters, digits
-    /// and `_` only.
     nonisolated static func testingIsValidSwiftIdentifier(_ value: String) -> Bool {
         guard let first = value.unicodeScalars.first else { return false }
         guard CharacterSet.letters.contains(first) || first == "_" else { return false }
@@ -66,16 +24,11 @@ extension SwiftCodeMCPHost {
         return value.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
-    // MARK: - Test-log parsing
-
-    /// One parsed `Test Case '…' passed/failed` outcome.
     struct TestingTestOutcome: Sendable {
         var test: String
         var passed: Bool
     }
 
-    /// Legacy `AssistTestLogParseTool.extractTestName`: the quoted
-    /// `Test Case '…'` name first, else the `-[…]` form.
     nonisolated static func testingExtractTestName(from line: String) -> String? {
         if let start = line.range(of: "Test Case '"),
            let end = line.range(of: "'", options: [], range: start.upperBound..<line.endIndex) {
@@ -90,10 +43,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Legacy `AssistTestLogParseTool`'s line scan: passed/failed
-    /// test-case counts, the failed-test list (deduped, first-seen
-    /// order), suite summary lines (all of them, the handler caps
-    /// the display at 10) and error lines (likewise).
     nonisolated static func testingParseTestLogLines(_ content: String) -> (passed: Int, failed: Int, failedTests: [String], suiteLines: [String], errorLines: [String]) {
         var passed = 0
         var failed = 0
@@ -125,9 +74,6 @@ extension SwiftCodeMCPHost {
         return (passed, failed, failedTests, suiteLines, errorLines)
     }
 
-    /// Legacy `AssistTestFlakyDetectTool.parseOutcomes`: one outcome
-    /// per `Test Case` line that says exactly one of passed/failed.
-    /// Lines saying both or neither are ignored.
     nonisolated static func testingParseTestOutcomes(from content: String) -> [TestingTestOutcome] {
         var results: [TestingTestOutcome] = []
         for rawLine in content.components(separatedBy: .newlines) {
@@ -143,14 +89,6 @@ extension SwiftCodeMCPHost {
         return results
     }
 
-    // MARK: - Crash-log parsing
-
-    /// Legacy `AssistCrashLogParseTool`'s scan: `Exception Type:` /
-    /// `Termination Reason:` / `Triggered by Thread:` (or `Crashed
-    /// Thread:`) lines, then the crashed thread's frames — lines
-    /// matching `^\d+\s+\S+`, truncated to 160 characters, at most
-    /// 12 — plus the JSON `.ips` fallback (exception.type,
-    /// termination.reason) when no `Exception Type:` line was seen.
     nonisolated static func testingParseCrashLog(_ text: String) -> (exception: String, terminationReason: String, crashedThread: String, frames: [String]) {
         var exception = ""
         var terminationReason = ""
@@ -180,12 +118,6 @@ extension SwiftCodeMCPHost {
         return (exception, terminationReason, crashedThread, frames)
     }
 
-    // MARK: - Test-data factory
-
-    /// Legacy `AssistTestDataFactoryTool.parseFields`: a comma list
-    /// of `name:Type` (a bare name defaults to `String`); every
-    /// field name must be a valid Swift identifier, every type
-    /// non-empty; at least one field must survive.
     nonisolated static func testingParseFixtureFields(_ raw: String) throws -> [(name: String, type: String)] {
         var fields: [(name: String, type: String)] = []
         for part in raw.components(separatedBy: ",") {
@@ -208,7 +140,6 @@ extension SwiftCodeMCPHost {
         return fields
     }
 
-    /// Legacy's JSON sample value per field type.
     nonisolated static func testingSampleJSONValue(for type: String, fieldName: String) -> String {
         switch type.lowercased() {
         case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
@@ -232,7 +163,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Legacy's Swift sample value per field type.
     nonisolated static func testingSampleSwiftValue(for type: String, fieldName: String) -> String {
         switch type.lowercased() {
         case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
@@ -252,8 +182,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Legacy's JSON fixture body: one object, two-space indent,
-    /// trailing newline.
     nonisolated static func testingBuildJSONFixture(fields: [(name: String, type: String)]) -> String {
         var lines: [String] = []
         lines.append("{")
@@ -265,8 +193,6 @@ extension SwiftCodeMCPHost {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    /// Legacy's Swift fixture body: a struct with a `static let
-    /// sample`, trailing newline.
     nonisolated static func testingBuildSwiftFixture(name: String, fields: [(name: String, type: String)]) -> String {
         var lines: [String] = []
         lines.append("import Foundation")
@@ -286,13 +212,6 @@ extension SwiftCodeMCPHost {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    /// Legacy `AssistTestDataFactoryTool.resolveFileURL`, confined
-    /// to the workspace: any `..` component refuses the path; a
-    /// trailing `/` names a directory for `<name>.<ext>`; a
-    /// `.json`/`.swift` suffix names the file itself (an absolute
-    /// path is used only when it is inside the workspace, unlike
-    /// Legacy, which used it as-is); anything else is treated as a
-    /// directory. The result must lie under the workspace root.
     func testingResolveFixtureURL(_ pathRaw: String, name: String, kind: String, in s: WorkspaceSession) -> URL? {
         if pathRaw.components(separatedBy: "/").contains("..") { return nil }
         let root = Self.folder(of: s.model).standardizedFileURL
@@ -313,12 +232,6 @@ extension SwiftCodeMCPHost {
         return candidate
     }
 
-    // MARK: - UI test scaffold / test target
-
-    /// Legacy `AssistUITestScaffoldTool.buildContent`: a final
-    /// `XCTestCase` with `setUpWithError` (launching
-    /// `XCUIApplication()`, or with the bundle identifier when one
-    /// is given), `tearDownWithError`, and a launch-state assertion.
     nonisolated static func testingBuildUITestContent(testName: String, targetApp: String) -> String {
         var lines: [String] = []
         lines.append("import XCTest")
@@ -348,9 +261,6 @@ extension SwiftCodeMCPHost {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    /// Legacy `AssistTestTargetAddTool.buildTestContent`: a minimal
-    /// `XCTestCase` — a launch test for a UI target, an arithmetic
-    /// example for a unit target.
     nonisolated static func testingBuildTestTargetContent(targetName: String, type: String) -> String {
         var lines: [String] = []
         lines.append("import XCTest")
@@ -372,9 +282,6 @@ extension SwiftCodeMCPHost {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    /// Legacy `AssistTestTargetAddTool.findXcodeproj`: a top-level
-    /// `.xcodeproj` first, then a recursive search skipping `.git`,
-    /// `build`, `DerivedData` and `Pods`.
     func testingFindXcodeproj(in workspaceRoot: URL) -> URL? {
         let fm = FileManager.default
         if let top = try? fm.contentsOfDirectory(at: workspaceRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
@@ -392,11 +299,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Legacy `AssistTestTargetAddTool.makeIDs`: 24-character
-    /// uppercase hex identifiers (a UUID with dashes removed),
-    /// unique within themselves and absent from the existing
-    /// pbxproj text. `nil` when 200 attempts do not yield enough —
-    /// Legacy would index out of range; this port fails instead.
     nonisolated static func testingMakePbxprojIDs(existing: String, count: Int) -> [String]? {
         var ids: [String] = []
         var attempts = 0
@@ -411,8 +313,6 @@ extension SwiftCodeMCPHost {
         return ids.count == count ? ids : nil
     }
 
-    /// Inserts `block` on the line after `anchor`'s line. `false`
-    /// when the anchor, or the end of its line, is missing.
     nonisolated static func testingInsertPbxprojBlock(_ text: inout String, block: String, afterAnchor anchor: String) -> Bool {
         guard let range = text.range(of: anchor) else { return false }
         guard let lineEnd = text.range(of: "\n", options: [], range: range.upperBound..<text.endIndex) else { return false }
@@ -420,12 +320,6 @@ extension SwiftCodeMCPHost {
         return true
     }
 
-    /// Legacy `AssistTestTargetAddTool`'s pbxproj edit, as a pure
-    /// function: the seven section blocks (target, product
-    /// reference, sources phase, frameworks phase, configuration
-    /// list, Debug and Release configurations) plus the `targets`
-    /// entry, inserted after their anchors. `nil` when any anchor
-    /// is missing — the caller writes nothing in that case.
     nonisolated static func testingInsertTestTarget(into pbxproj: String, targetName: String, type: String, ids: [String]) -> String? {
         guard ids.count >= 7 else { return nil }
         let targetID = ids[0]
@@ -458,12 +352,6 @@ extension SwiftCodeMCPHost {
         return text
     }
 
-    // MARK: - Snapshot files
-
-    /// Legacy `AssistTestSnapshotManageTool.findSnapshotFiles`:
-    /// image/text/json files under any `__Snapshots__` directory,
-    /// skipping `.git`, `build`, `DerivedData` and `Pods`, sorted
-    /// by path.
     nonisolated static func testingFindSnapshotFiles(in workspaceRoot: URL) -> [URL] {
         var results: [URL] = []
         guard let enumerator = FileManager.default.enumerator(at: workspaceRoot, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
@@ -481,8 +369,6 @@ extension SwiftCodeMCPHost {
         return results.sorted { $0.path < $1.path }
     }
 
-    /// Legacy's reference corpus: every Swift file outside
-    /// `__Snapshots__` (same skips as the finder), concatenated.
     nonisolated static func testingCollectSwiftSourceText(in workspaceRoot: URL) -> String {
         var combined = ""
         guard let enumerator = FileManager.default.enumerator(at: workspaceRoot, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return "" }
@@ -501,10 +387,6 @@ extension SwiftCodeMCPHost {
         return combined
     }
 
-    /// Legacy `AssistTestSnapshotManageTool.isReferenced`: the
-    /// file's base name appears in the sources, or any `.`-separated
-    /// part of at least 3 characters does, or the base name with its
-    /// digits stripped (at least 3 characters) does.
     nonisolated static func testingSnapshotIsReferenced(_ file: URL, in sourceText: String) -> Bool {
         let base = file.deletingPathExtension().lastPathComponent
         if base.isEmpty { return false }

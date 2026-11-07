@@ -1,12 +1,5 @@
-// The guest side of `dev.swiftcode.camera` (camera.md "SwiftCode implementation";
-// the wire format is CameraGuestProtocol.swift): requests on the host
-// endpoint, the process's frame port and its receive thread, and pixel
-// buffers made from the host's IOSurfaces with the public CoreVideo API.
-
 #import "YCCamera.h"
 
-// The Mach bootstrap look-up (launchd's public bootstrap API; the iOS SDK
-// ships no header for it, the symbols are in libSystem).
 extern mach_port_t bootstrap_port;
 extern kern_return_t bootstrap_look_up(mach_port_t bp, const char *service_name, mach_port_t *sp);
 
@@ -28,8 +21,6 @@ void YCLog(NSString *format, ...) {
 
 void (^YCFrameHandler)(YCFrameInfo frame);
 void (^YCEventHandler)(uint32_t stream, uint32_t kind, uint32_t width, uint32_t height);
-
-// MARK: - Messages
 
 #define YC_BASE 0x59434D00
 enum { YCReqDevices = 1, YCReqStart = 2, YCReqStop = 3, YCReqRelease = 4, YCToFrame = 200, YCToEvent = 201 };
@@ -70,7 +61,6 @@ static mach_port_t gReply = MACH_PORT_NULL;
 static mach_port_t gFrames = MACH_PORT_NULL;
 static BOOL gLookedUp = NO;
 
-/// The endpoint (looked up once; nil when SwiftCode registered none).
 static mach_port_t YCServicePort(void) {
     if (gLookedUp) return gService;
     gLookedUp = YES;
@@ -86,7 +76,6 @@ static mach_port_t YCServicePort(void) {
     return gService;
 }
 
-/// Sends `request` (its header filled here) and receives the reply into `reply`.
 static kern_return_t YCCall(mach_msg_header_t *request, mach_msg_size_t size, int n, YCReceiveBuffer *reply) {
     mach_port_t service = YCServicePort();
     if (service == MACH_PORT_NULL) return MACH_SEND_INVALID_DEST;
@@ -96,14 +85,11 @@ static kern_return_t YCCall(mach_msg_header_t *request, mach_msg_size_t size, in
     request->msgh_remote_port = service;
     request->msgh_local_port = gReply;
     request->msgh_id = YC_BASE + n;
-    // One buffer for the request and the reply (mach_msg receives into the
-    // message it sent).
     memset(reply, 0, sizeof(*reply));
     memcpy(reply->bytes, request, size);
     kern_return_t kr = mach_msg(&reply->simple.header, MACH_SEND_MSG | MACH_RCV_MSG | MACH_RCV_TIMEOUT | MACH_SEND_TIMEOUT, size,
                                 sizeof(*reply), gReply, 20000, MACH_PORT_NULL);
     if (kr == MACH_RCV_TIMED_OUT) {
-        // A late reply must not answer the next call: a new reply port.
         mach_port_mod_refs(mach_task_self(), gReply, MACH_PORT_RIGHT_RECEIVE, -1);
         gReply = MACH_PORT_NULL;
     }
@@ -155,8 +141,6 @@ NSArray<YCCameraInfo *> *YCHostDevices(void) {
     YCTrace(@"device list: %lu camera(s)", (unsigned long)out.count);
     return out;
 }
-
-// MARK: - Frames
 
 static void *YCFrameThread(void *arg);
 
@@ -271,9 +255,6 @@ static void *YCFrameThread(void *arg) {
     return NULL;
 }
 
-// MARK: - Pixel buffers
-
-/// Sends the frame back to the host when its pixel buffer is freed.
 @interface YCFrameToken : NSObject
 @property(nonatomic) uint32_t stream, slot;
 @property(nonatomic) uint64_t sequence;
@@ -321,7 +302,6 @@ CVPixelBufferRef YCCreatePixelBuffer(YCFrameInfo frame) {
         YCLog(@"frame %llu: CVPixelBufferCreateWithIOSurface %d", frame.sequence, rc);
         return NULL;
     }
-    // The host's conversion (camera-host.md §4): BT.601 Y'CbCr; sRGB-like primaries and transfer.
     if (frame.pixelFormat != kCVPixelFormatType_32BGRA) {
         CVBufferSetAttachment(pb, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_601_4, kCVAttachmentMode_ShouldPropagate);
     }

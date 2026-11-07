@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for CoreBluetooth
-
 public struct CoreBluetoothAPIEntity_0000: Sendable, Codable {
     public let id: String = "corebluetooth.api.0"
     public var name: String = "CoreBluetoothEntity_0"

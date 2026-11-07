@@ -1,8 +1,5 @@
 import Foundation
 
-/// A minimal macOS AppKit application project: one Swift file, a generated
-/// Info.plist, and an asset catalog with one color. Hand-written from
-/// `specs/formats/pbxproj.md`; IDs are arbitrary.
 let appProjectText = """
 // !$*UTF8*$!
 {
@@ -36,8 +33,6 @@ let appProjectText = """
 
 """
 
-/// With `--swiftcode-smoke` the app reports its bundle identifier and whether
-/// the asset catalog's color loaded, then exits without showing UI.
 let appSource = """
 import AppKit
 

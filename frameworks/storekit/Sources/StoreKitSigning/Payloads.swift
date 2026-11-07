@@ -1,13 +1,8 @@
-// Payloads of the signed transaction, renewal info and app transaction
-// (formats.md §2.2–§2.4), `deviceVerification`, and the batch signer.
 import Crypto
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 
-/// `deviceVerification` (formats.md §2.2): base64 of SHA-384 over the
-/// lower-case nonce followed by the lower-case vendor identifier, both in the
-/// hyphenated 8-4-4-4-12 form.
 public enum DeviceVerification {
     public static func value(nonce: UUID, vendorID: UUID) -> String {
         let text = nonce.uuidString.lowercased() + vendorID.uuidString.lowercased()
@@ -15,11 +10,8 @@ public enum DeviceVerification {
     }
 }
 
-/// What every payload of one signing batch shares (formats.md §2.2: JWS
-/// signed in one batch share the nonce, `deviceVerification` and `signedDate`).
 public struct SigningContext: Hashable, Sendable {
     public var bundleID: String
-    /// `identifierForVendor` / `AppStore.deviceVerificationID`.
     public var vendorID: UUID
     public var nonce: UUID
     public var signedDate: StoreMilliseconds
@@ -53,7 +45,6 @@ public struct SigningContext: Hashable, Sendable {
 func ms(_ v: StoreMilliseconds) -> JSONValue { .number(JSONNumber(literal: String(v))) }
 
 public enum Payloads {
-    /// The signed transaction payload (formats.md §2.2).
     public static func transaction(_ r: TransactionRecord, context: SigningContext) -> JSONValue {
         var o = context.common
         o["transactionId"] = .string(String(r.id))
@@ -94,7 +85,6 @@ public enum Payloads {
         return .object(o)
     }
 
-    /// The signed renewal info payload (formats.md §2.3).
     public static func renewalInfo(_ s: RenewalSnapshot, context: SigningContext) -> JSONValue {
         var o = context.common
         o["originalTransactionId"] = .string(String(s.originalTransactionID))
@@ -119,7 +109,6 @@ public enum Payloads {
         return .object(o)
     }
 
-    /// The signed app transaction payload (formats.md §2.4).
     public static func appTransaction(applicationVersion: String, originalApplicationVersion: String? = nil, context: SigningContext)
         -> JSONValue
     {
@@ -138,7 +127,6 @@ public enum Payloads {
     }
 }
 
-/// Signs store records for one app with the device identity.
 public struct StoreSigner: Sendable {
     public let identity: SigningIdentity
     public let bundleID: String
@@ -154,8 +142,6 @@ public struct StoreSigner: Sendable {
         SigningContext(bundleID: bundleID, vendorID: vendorID, nonce: nonce, signedDate: date.storeMilliseconds)
     }
 
-    /// Signs transactions as one batch (one nonce, one signed date).
-    /// `simulated` is the app's `verification` simulated error; `invalidSignature` corrupts the signatures.
     public func sign(_ records: [TransactionRecord], at date: Date, nonce: UUID = UUID(), simulated: SimulatedFailure? = nil) throws -> [String] {
         let ctx = context(at: date, nonce: nonce)
         let corrupt = simulated == .verification(.invalidSignature)

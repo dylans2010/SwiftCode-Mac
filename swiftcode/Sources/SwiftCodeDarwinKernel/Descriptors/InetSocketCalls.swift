@@ -6,20 +6,12 @@ import Glibc
 import Darwin
 #endif
 
-// The socket system calls on AF_INET / AF_INET6 sockets
-// (`specs/simulator/networking-swiftcode.md` §2). `socketCall` sends a call
-// here when its descriptor is an `InetSocket` (or, for `socket`, when the
-// domain is an IP one). Blocking calls wait on the socket's signals with
-// the kernel lock released; the host socket itself never blocks.
-
 extension DarwinKernel {
-    /// The IP socket behind `fd`, or nil when it is another kind of object.
     func inetSocket(_ fd: Int32) -> (InetSocket, DarwinOpenFile)? {
         guard let file = try? fileSystem.openFile(for: fd), let s = file.object as? InetSocket else { return nil }
         return (s, file)
     }
 
-    /// `socket(AF_INET/AF_INET6, type, protocol)`.
     func makeInetSocket(domain: Int32, type: Int32, proto: Int32) throws -> InetSocket {
         switch type {
         case InetABI.sockStream:
@@ -28,7 +20,7 @@ extension DarwinKernel {
             guard proto == 0 || proto == InetABI.ipprotoUDP || proto == InetABI.ipprotoICMP || proto == InetABI.ipprotoICMPv6
             else { throw fail(Code.EPROTONOSUPPORT) }
         case InetABI.sockRaw:
-            break  // the host decides (unprivileged: EPERM/EACCES)
+            break
         default:
             throw fail(Code.EPROTOTYPE)
         }
@@ -37,12 +29,9 @@ extension DarwinKernel {
         return InetSocket(domain: domain, type: type, proto: proto, hostFD: fd, lock: lock, creator: descriptorUser)
     }
 
-    /// Reads a guest sockaddr for an IP socket (length 2…255).
     func readInetAddress(_ va: UInt64, length: UInt64, for s: InetSocket, _ mem: any KernelGuestMemory) throws -> InetAddress? {
         guard length >= 2, length <= UInt64(SocketABI.maxAddressLength) else { throw fail(Code.EINVAL) }
         var raw = try mem.read(va: va, count: Int(length))
-        // An AF_UNSPEC address: a datagram disconnect (connect), or the
-        // socket's own family (old binaries that leave sa_family 0).
         if raw[1] == 0 {
             if s.domain == InetABI.afInet, raw.count >= 16 { raw[1] = UInt8(InetABI.afInet) } else { return nil }
         }
@@ -56,8 +45,6 @@ extension DarwinKernel {
     func guestAddress(fromHost b: [UInt8]) -> InetAddress? {
         InetAddress.fromHost(b, guestScope: NetworkInterfaces.guestIndex)
     }
-
-    // MARK: Calls
 
     func inetSocketCall(_ n: Int, _ a: [UInt64], _ s: InetSocket, _ file: DarwinOpenFile, _ call: inout CallText,
                         _ mem: any KernelGuestMemory) throws -> BSDResult {
@@ -175,7 +162,6 @@ extension DarwinKernel {
         let r = HostSocketCalls.withAddress(hostAddress(address)) { hostBind(s.hostFD, $0, $1) }
         guard r == 0 else { throw SocketErrno.last() }
         s.bound = true
-        // The bound address with the port the host chose (for a restore).
         if let raw = HostSocketCalls.name(s.hostFD, peer: false), let actual = guestAddress(fromHost: raw) {
             s.boundAddress = actual
         } else {
@@ -195,7 +181,6 @@ extension DarwinKernel {
                 c.state = .connected
                 c.bound = true
                 c.noSigPipe = s.noSigPipe
-                // The new descriptor inherits the listener's O_NONBLOCK (xnu accept).
                 let flags = DarwinOpen.O_RDWR | (file.statusFlags & DarwinOpen.O_NONBLOCK)
                 let newFD = try fileSystem.installObject(c, statusFlags: flags, closeOnExec: false)
                 let peer = guestAddress(fromHost: raw)
@@ -206,7 +191,6 @@ extension DarwinKernel {
             }
             let e = hostErrnoValue
             if e == hostEINTR { continue }
-            // A connection that went away before accept: try again (xnu).
             if e == hostECONNABORTED { continue }
             guard e == hostEAGAIN || e == hostEWOULDBLOCK else { throw DarwinErrnoError(SocketErrno.fromHost(e)) }
             if file.isNonBlocking { throw fail(Code.EAGAIN) }
@@ -215,9 +199,6 @@ extension DarwinKernel {
         }
     }
 
-    /// connect (and connectx): a datagram socket sets or clears its default
-    /// destination; a stream socket starts a host connect and, if the
-    /// descriptor blocks, waits for it.
     func inetConnect(_ s: InetSocket, _ file: DarwinOpenFile, to address: InetAddress?, wait: Bool = true) throws {
         guard s.hostFD >= 0 else { throw fail(Code.EINVAL) }
         if s.isReset {
@@ -225,7 +206,6 @@ extension DarwinKernel {
             throw fail(s.isStream ? Code.EISCONN : Code.EINVAL)
         }
         guard let address else {
-            // AF_UNSPEC: a datagram socket forgets its destination.
             guard !s.isStream else { throw fail(Code.EAFNOSUPPORT) }
             var unspec = [UInt8](repeating: 0, count: 16)
             #if canImport(Darwin)
@@ -266,11 +246,6 @@ extension DarwinKernel {
         try s.takeError()
     }
 
-    // MARK: connectx, disconnectx, socket_delegate, recvmsg_x, sendmsg_x
-
-    /// The Darwin-only socket calls (xnu `uipc_syscalls.c`; layouts from the
-    /// public `sys/socket.h`): `connectx` (447), `disconnectx` (448),
-    /// `socket_delegate` (450), `recvmsg_x` (480), `sendmsg_x` (481).
     func extendedSocketCall(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
         switch n {
@@ -286,7 +261,6 @@ extension DarwinKernel {
                 _ = try fileSystem.openFile(for: int(0))
                 throw fail(Code.EOPNOTSUPP)
             }
-            // sa_endpoints_t: srcif u32 @0, srcaddr @8, srcaddrlen u32 @16, dstaddr @24, dstaddrlen u32 @32.
             let e = try mem.read(va: a[1], count: 40)
             let srcIF = e.readLE(UInt32.self, at: 0)
             let src = e.readLE(UInt64.self, at: 8), srcLength = e.readLE(UInt32.self, at: 16)
@@ -304,12 +278,9 @@ extension DarwinKernel {
             guard let to = try readInetAddress(dst, length: UInt64(dstLength), for: s, mem) else { throw fail(Code.EINVAL) }
             call += " [\(to)]"
             let flags = UInt32(truncatingIfNeeded: a[3])
-            let resumeOnReadWrite = flags & 0x1 != 0  // CONNECT_RESUME_ON_READ_WRITE
+            let resumeOnReadWrite = flags & 0x1 != 0
             var sent = 0
             do {
-                // With CONNECT_RESUME_ON_READ_WRITE, xnu completes the call at
-                // once and connects on the first read or write; SwiftCode starts
-                // the host connect now and reports success.
                 try inetConnect(s, file, to: to, wait: !resumeOnReadWrite)
             } catch let e as DarwinErrnoError where e.errno == SocketErrno.EINPROGRESS && resumeOnReadWrite {
             }
@@ -323,7 +294,7 @@ extension DarwinKernel {
                 }
             }
             if a[6] != 0 { try writeU64(a[6], UInt64(sent), mem) }
-            if a[7] != 0 { try writeU32(a[7], 1, mem) }  // SAE_CONNID: one connection
+            if a[7] != 0 { try writeU32(a[7], 1, mem) }
             return .value(0)
 
         case DescriptorBSD.disconnectx:
@@ -348,7 +319,6 @@ extension DarwinKernel {
             }
             let count = Int(UInt32(truncatingIfNeeded: a[2]))
             guard count > 0, count <= 1024 else { throw fail(Code.EINVAL) }
-            // struct msghdr_x: a msghdr (48 bytes) + size_t msg_datalen.
             var done = 0
             for i in 0..<count {
                 let va = a[1] + UInt64(56 * i)
@@ -361,7 +331,6 @@ extension DarwinKernel {
                         let sent = try inetSend(s, file, bytes, to: m.to, control: m.control, flags: flags)
                         try writeU64(va + 48, UInt64(sent), mem)
                     } else {
-                        // After the first message, take only what is queued.
                         let flags = int(3) | (done > 0 ? InetABI.msgDontWait : 0)
                         _ = try receiveMessage(s, file, header: h, at: va, flags: flags, datalenField: va + 48, mem)
                     }
@@ -379,9 +348,6 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: Data
-
-    /// Sends on an IP socket (write, send, sendto, sendmsg, sendmsg_x).
     func inetSend(_ s: InetSocket, _ file: DarwinOpenFile, _ bytes: [UInt8], to address: InetAddress?,
                   control: [ControlMessage], flags: Int32) throws -> Int {
         s.lastUser = descriptorUser
@@ -458,14 +424,12 @@ extension DarwinKernel {
 
     struct InetReceive {
         var bytes: [UInt8] = []
-        /// The datagram's full length (MSG_TRUNC) or the bytes taken.
         var length = 0
         var from: InetAddress?
         var control: [ControlMessage] = []
         var flags: Int32 = 0
     }
 
-    /// Receives from an IP socket (read, recv, recvfrom, recvmsg, recvmsg_x).
     func inetReceive(_ s: InetSocket, _ file: DarwinOpenFile, max: Int, flags: Int32, controlRoom: Int) throws -> InetReceive {
         s.lastUser = descriptorUser
         if s.isReset {
@@ -499,7 +463,7 @@ extension DarwinKernel {
         let peek = flags & InetABI.msgPeek != 0
         let waitAll = s.isStream && flags & InetABI.msgWaitAll != 0 && !peek
         var hostFlags = SocketFlags.hostCallFlags(flags)
-        if !s.isStream { hostFlags |= HostNet.msgTrunc }  // the full datagram length
+        if !s.isStream { hostFlags |= HostNet.msgTrunc }
         let room = controlRoom > 0 || s.wants != ControlMessages.ReceiveWants() ? 512 : 0
         var out = InetReceive()
         while true {
@@ -525,7 +489,6 @@ extension DarwinKernel {
                 }
                 out.flags |= SocketFlags.darwinReceivedFlags(r.flags)
                 if r.returned == 0 {
-                    // End of stream.
                     s.shutRead = true
                     return out
                 }
@@ -557,15 +520,12 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: msghdr
-
     struct ParsedMessage {
         var to: InetAddress?
         var iov: [(base: UInt64, length: UInt64)]
         var control: [ControlMessage]
     }
 
-    /// A Darwin `msghdr` (or the first 48 bytes of a `msghdr_x`) of a send.
     func readMessage(_ h: [UInt8], for s: InetSocket, _ mem: any KernelGuestMemory) throws -> ParsedMessage {
         let name = h.readLE(UInt64.self, at: 0), nameLength = h.readLE(UInt32.self, at: 8)
         let iovBase = h.readLE(UInt64.self, at: 16), iovCount = h.readLE(Int32.self, at: 24)
@@ -582,8 +542,6 @@ extension DarwinKernel {
         return ParsedMessage(to: to, iov: iov, control: controls)
     }
 
-    /// recvmsg into the guest `msghdr` at `va` (`h` = its bytes). With
-    /// `datalenField` (recvmsg_x), the byte count is also stored there.
     func receiveMessage(_ s: InetSocket, _ file: DarwinOpenFile, header h: [UInt8], at va: UInt64, flags: Int32,
                         datalenField: UInt64?, _ mem: any KernelGuestMemory) throws -> Int {
         let name = h.readLE(UInt64.self, at: 0), nameRoom = h.readLE(UInt32.self, at: 8)
@@ -619,8 +577,6 @@ extension DarwinKernel {
         if let datalenField { try writeU64(datalenField, UInt64(r.bytes.count), mem) }
         return r.bytes.count
     }
-
-    // MARK: Options
 
     func setInetOption(_ s: InetSocket, level: Int32, name: Int32, value: [UInt8]) throws {
         let key = InetSocket.OptionKey(level: level, name: name)
@@ -745,8 +701,6 @@ extension DarwinKernel {
         }
     }
 
-    /// TCP_CONNECTION_INFO (`struct tcp_connection_info`, 112 bytes) from the
-    /// host's TCP_INFO (Linux) where it is known; zero otherwise.
     func tcpConnectionInfo(_ s: InetSocket) -> [UInt8] {
         var b = [UInt8](repeating: 0, count: InetABI.tcpConnectionInfoLength)
         var state: UInt8
@@ -764,24 +718,24 @@ extension DarwinKernel {
                                                7: InetABI.tcpsClosed, 8: InetABI.tcpsCloseWait, 9: InetABI.tcpsLastAck,
                                                10: InetABI.tcpsListen, 11: InetABI.tcpsClosing]
             state = linuxStates[t[0]] ?? state
-            b[1] = t[6] & 0x0F                                      // snd_wscale
-            b[2] = t[6] >> 4                                        // rcv_wscale
-            b.putLE(UInt32(t[5] & 0x0F), at: 4)                     // options (same bits)
+            b[1] = t[6] & 0x0F
+            b[2] = t[6] >> 4
+            b.putLE(UInt32(t[5] & 0x0F), at: 4)
             let mss = t.readLE(UInt32.self, at: 16)
-            b.putLE(t.readLE(UInt32.self, at: 8) / 1000, at: 12)    // rto (ms)
-            b.putLE(mss, at: 16)                                    // maxseg
-            b.putLE(t.readLE(UInt32.self, at: 76), at: 20)          // snd_ssthresh
-            b.putLE(t.readLE(UInt32.self, at: 80) &* mss, at: 24)   // snd_cwnd (bytes)
-            b.putLE(t.readLE(UInt32.self, at: 68) / 1000, at: 40)   // rttcur
-            b.putLE(t.readLE(UInt32.self, at: 68) / 1000, at: 44)   // srtt
-            b.putLE(t.readLE(UInt32.self, at: 72) / 1000, at: 48)   // rttvar
+            b.putLE(t.readLE(UInt32.self, at: 8) / 1000, at: 12)
+            b.putLE(mss, at: 16)
+            b.putLE(t.readLE(UInt32.self, at: 76), at: 20)
+            b.putLE(t.readLE(UInt32.self, at: 80) &* mss, at: 24)
+            b.putLE(t.readLE(UInt32.self, at: 68) / 1000, at: 40)
+            b.putLE(t.readLE(UInt32.self, at: 68) / 1000, at: 44)
+            b.putLE(t.readLE(UInt32.self, at: 72) / 1000, at: 48)
             if t.count >= 144 {
-                b.putLE(t.readLE(UInt32.self, at: 136).toU64, at: 56)  // txpackets (segs_out)
-                b.putLE(t.readLE(UInt64.self, at: 120), at: 64)        // txbytes (bytes_acked)
-                b.putLE(t.readLE(UInt32.self, at: 140).toU64, at: 80)  // rxpackets (segs_in)
-                b.putLE(t.readLE(UInt64.self, at: 128), at: 88)        // rxbytes
+                b.putLE(t.readLE(UInt32.self, at: 136).toU64, at: 56)
+                b.putLE(t.readLE(UInt64.self, at: 120), at: 64)
+                b.putLE(t.readLE(UInt32.self, at: 140).toU64, at: 80)
+                b.putLE(t.readLE(UInt64.self, at: 128), at: 88)
             }
-            b.putLE(UInt32(t.readLE(UInt32.self, at: 100)).toU64, at: 104)  // txretransmitpackets
+            b.putLE(UInt32(t.readLE(UInt32.self, at: 100)).toU64, at: 104)
         }
         #endif
         b[0] = state
@@ -793,14 +747,10 @@ private extension UInt32 {
     var toU64: UInt64 { UInt64(self) }
 }
 
-/// `SWIFTCODE_NO_NETWORK=1`: no IP sockets (EAFNOSUPPORT, the behavior before
-/// host networking).
 enum InetSocketPolicy {
     static let disabled = getenv("SWIFTCODE_NO_NETWORK").map { String(cString: $0) == "1" } ?? false
 }
 
-// The C library's names, which the kernel's own (`DarwinKernel.EINTR`,
-// `errno(of:)`, `shutdown`) would otherwise shadow inside its extensions.
 private var hostErrnoValue: Int32 { errno }
 private let hostEINTR = EINTR, hostEAGAIN = EAGAIN, hostEWOULDBLOCK = EWOULDBLOCK, hostEINPROGRESS = EINPROGRESS,
             hostECONNABORTED = ECONNABORTED, hostENOPROTOOPT = ENOPROTOOPT, hostEOPNOTSUPP = EOPNOTSUPP

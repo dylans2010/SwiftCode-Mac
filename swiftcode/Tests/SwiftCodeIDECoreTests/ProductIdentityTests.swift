@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// What the app says about itself (the About window, Help ▸ Report a Bug…,
-/// the icon's drawing) on macOS and Linux.
 @Suite struct ProductIdentityTests {
     @Test func bugReportCarriesVersionAndPlatformAndNothingPrivate() throws {
         let url = ProductIdentity.bugReportURL()
@@ -16,10 +14,8 @@ import Testing
         #expect(!url.absoluteString.contains(NSUserName()))
     }
 
-    /// The query's names and the platform choice are the form's.
     @Test func bugReportMatchesTheForm() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        // An rsync of swiftcode/ alone has no .github folder.
         guard let form = try? String(contentsOf: root.appendingPathComponent(".github/ISSUE_TEMPLATE/bug_report.yml"), encoding: .utf8) else { return }
         for id in ["id: version", "id: platform", "id: os"] { #expect(form.contains(id)) }
         #if arch(arm64) || os(Linux)
@@ -69,12 +65,10 @@ import Testing
         }
     }
 
-    /// The views draw the icon from `ProductIconGeometry`; its source is the SVG.
     @Test func iconGeometryMatchesTheSVG() throws {
         typealias G = ProductIconGeometry
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let svg = root.appendingPathComponent("packaging/icon/swiftcode-icon.svg")
-        // An rsync of swiftcode/ alone has no packaging folder.
         guard let text = try? String(contentsOf: svg, encoding: .utf8) else { return }
         for color in [G.fieldTop, G.fieldBottom, G.chevronColor, G.caretColor] { #expect(text.contains(color)) }
         func n(_ v: Double) -> String { String(Int(v)) }

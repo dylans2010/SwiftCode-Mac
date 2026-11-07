@@ -1,27 +1,9 @@
-// `swiftcode-xr-viewer --record <file.mp4>` (specs/simulator/xr-viewer.md §7.1):
-// what the wearer sees in the left eye — the simulator's picture with the
-// rendered hands drawn over it — as a 1920 × 1080 H.264 MP4 at 60 frames per
-// second. Frames are handed over by the headset loop without copying (the
-// newest wins; the recorder never makes it wait). During the session the
-// recorder's own thread scales, draws and JPEG-compresses each frame on the
-// CPU into a spool file next to the MP4; the GPU's video encoder is left to
-// the OpenXR runtime (WiVRn streams to the headset with it, and sharing it
-// slowed the headset to about 20 Hz in run 3). When the session ends the
-// spool is encoded to H.264 (NVENC through CSwiftCodeVideo) and the spool removed.
-// Nothing of the eye tracking is recorded unless `--record-cursor` asks for
-// the gaze cursor to be drawn.
-//
-// The MP4 is written by SwiftCode's own minimal writer (ISO/IEC 14496-12 boxes
-// and 14496-15's avcC; one track, one chunk): ftyp, mdat, then moov.
-
 import CSwiftCodeCodec
 import CSwiftCodeVideo
 import Foundation
 import SwiftCodeDisplayStream
 import SwiftCodeRemoteViewer
 
-/// One recorded frame: the picture's canvas and how it was rendered, the
-/// hands and (optionally) the gaze in the XR base space.
 struct XRRecordJob {
     var canvas: StreamCanvas
     var rendered: SpatialPose
@@ -35,8 +17,6 @@ struct XRRecordJob {
 final class XRVideoRecorder: @unchecked Sendable {
     static let width = 1920, height = 1080
     let path: String
-    /// Frames per second and the H.264 bit rate (kbit/s) of the file: 30 and
-    /// 1000 by default (about 7.5 MB a minute at 1080p).
     let fps: Int, bitrateKbps: Int
     private let cond = NSCondition()
     private var pending: XRRecordJob?
@@ -76,7 +56,6 @@ final class XRVideoRecorder: @unchecked Sendable {
         return true
     }
 
-    /// From the headset loop: the newest state (no copy, never waits).
     func submit(_ job: XRRecordJob) {
         cond.withLock {
             pending = job
@@ -91,7 +70,6 @@ final class XRVideoRecorder: @unchecked Sendable {
         spool = nil
         let ms = spooled > 0 ? Double(busyNs) / 1e6 / Double(spooled) : 0
         let live = String(format: "%.1f ms of CPU work per frame on the recorder's thread during the session", ms)
-        // After the session: the spool to H.264 and MP4.
         let t0 = viewerNanoseconds()
         let ok = encodeSpool()
         try? FileManager.default.removeItem(atPath: spoolPath)
@@ -99,7 +77,6 @@ final class XRVideoRecorder: @unchecked Sendable {
             + String(format: "encoded in %.1f s after the session", Double(viewerNanoseconds() - t0) / 1e9) + (ok ? "" : " (not finished)")
     }
 
-    /// The spooled JPEG frames → NVENC → MP4.
     private func encodeSpool() -> Bool {
         guard let data = FileManager.default.contents(atPath: spoolPath), !data.isEmpty else { return false }
         var err = [CChar](repeating: 0, count: 200)
@@ -129,7 +106,6 @@ final class XRVideoRecorder: @unchecked Sendable {
         return (try? writer?.finish()) != nil
     }
 
-    /// The drawn frame as a JPEG into the spool (CPU only).
     private func spoolFrame(at time: UInt64) {
         var out: UnsafeMutablePointer<UInt8>?
         var size = 0
@@ -143,8 +119,6 @@ final class XRVideoRecorder: @unchecked Sendable {
         spooled += 1
     }
 
-    /// `fps` frames a second on the recorder's own clock, each from the newest
-    /// state the headset loop handed over; a tick that falls behind is skipped.
     private func run() {
         let period: UInt64 = 1_000_000_000 / UInt64(fps)
         var next = viewerNanoseconds()
@@ -154,8 +128,6 @@ final class XRVideoRecorder: @unchecked Sendable {
                 return stopping ? nil : pending
             }
             guard let job else { return }
-            // Only while the headset is worn: the loop hands frames over only
-            // while it tracks; a stale state is not repeated into the file.
             if viewerNanoseconds() &- job.time > 200_000_000 {
                 Thread.sleep(forTimeInterval: 0.02)
                 next = viewerNanoseconds()
@@ -176,12 +148,9 @@ final class XRVideoRecorder: @unchecked Sendable {
         }
     }
 
-    // MARK: Drawing
-
     private func render(_ j: XRRecordJob) {
         let W = Self.width, H = Self.height
         let c = j.canvas
-        // The picture, scaled to 1920 × 1080 (a 2 × 2 box from the full size).
         if c.format == .nv12 {
             if scratch.count < c.width * c.height * 4 { scratch = [UInt8](repeating: 0, count: c.width * c.height * 4) }
             _ = c.withNV12 { y, uv, pitch, _ in
@@ -191,8 +160,6 @@ final class XRVideoRecorder: @unchecked Sendable {
         } else {
             c.withPixels { base, stride, _ in scale(from: base, width: c.width, height: c.height, stride: stride) }
         }
-        // The hands, as the left eye sees them over the picture (in the
-        // cropped part's pixels: the picture's focal length scaled to it).
         let crop = Self.crop(width: c.width, height: c.height)
         let k = Double(W) / Double(crop.width)
         let fFull = Double(c.width) / 2 / tan(max(0.1, j.fov.right))
@@ -213,8 +180,6 @@ final class XRVideoRecorder: @unchecked Sendable {
         }
     }
 
-    /// The centred 16:9 part of a picture of `w` × `h` (a tall or square
-    /// display is cropped top and bottom, a wide one at the sides).
     static func crop(width w: Int, height h: Int) -> (x: Int, y: Int, width: Int, height: Int) {
         if w * 9 >= h * 16 { let cw = h * 16 / 9; return ((w - cw) / 2, 0, cw, h) }
         let ch = w * 9 / 16
@@ -284,14 +249,11 @@ final class XRVideoRecorder: @unchecked Sendable {
         }
     }
 
-    // MARK: Encoding
-
     private func encode(at time: UInt64) {
         guard let e = encoder, let writer else { return }
         var out: UnsafePointer<UInt8>?
         var size = 0
         var idr: Int32 = 0
-        // An IDR every 2 s: the file can be cut and seeked.
         let force: Int32 = framesWritten % (2 * fps) == 0 ? 1 : 0
         let rc = image.withUnsafeBufferPointer { yvid_enc_encode(e, $0.baseAddress, Self.width * 4, nil, -1, force, &out, &size, &idr) }
         guard rc == 0, let out, size > 0 else { encodeFailures += 1; return }
@@ -304,9 +266,6 @@ final class XRVideoRecorder: @unchecked Sendable {
     }
 }
 
-// MARK: - MP4
-
-/// A minimal MP4 writer for one H.264 track (Annex B access units in).
 final class XRMP4Writer {
     enum WriterError: Error, CustomStringConvertible {
         case cannotOpen(String), noParameterSets
@@ -333,7 +292,6 @@ final class XRMP4Writer {
         var ftyp = XRBox("ftyp")
         ftyp.fourcc("isom"); ftyp.u32(512); for b in ["isom", "iso2", "avc1", "mp41"] { ftyp.fourcc(b) }
         try write(ftyp.bytes)
-        // mdat with a 64-bit size, patched at the end.
         var head = [UInt8]()
         head += XRBox.be32(1) + Array("mdat".utf8) + XRBox.be64(0)
         mdatStart = offset
@@ -345,10 +303,9 @@ final class XRMP4Writer {
         offset += UInt64(b.count)
     }
 
-    /// The NAL units of an Annex B access unit.
     static func nalUnits(_ p: UnsafeBufferPointer<UInt8>) -> [ArraySlice<UInt8>] {
         let a = Array(p)
-        var starts: [(Int, Int)] = []  // (start code position, payload start)
+        var starts: [(Int, Int)] = []
         var i = 0
         while i + 3 <= a.count {
             if a[i] == 0, a[i + 1] == 0, a[i + 2] == 1 { starts.append((i > 0 && a[i - 1] == 0 ? i - 1 : i, i + 3)); i += 3 } else { i += 1 }
@@ -370,7 +327,7 @@ final class XRMP4Writer {
             }
         }
         guard !sample.isEmpty else { return }
-        if sizes.isEmpty && !key { return }  // the file starts at an IDR
+        if sizes.isEmpty && !key { return }
         try write(sample)
         sizes.append(UInt32(sample.count))
         times.append(time)
@@ -380,14 +337,12 @@ final class XRMP4Writer {
     func finish() throws {
         defer { try? file.close() }
         guard let sps, let pps, sps.count >= 4, !sizes.isEmpty else { throw WriterError.noParameterSets }
-        // Durations from the frames' times (variable rate), the last one 1/60 s.
         var durations: [UInt32] = []
         for k in 0..<times.count {
             let d = k + 1 < times.count ? (times[k + 1] &- times[k]) * Self.timescale / 1_000_000_000 : Self.timescale / 60
             durations.append(UInt32(max(1, min(d, Self.timescale))))
         }
         let total = durations.reduce(UInt64(0)) { $0 + UInt64($1) }
-        // Patch mdat's size.
         try file.seek(toOffset: mdatStart + 8)
         try file.write(contentsOf: Data(XRBox.be64(offset - mdatStart)))
         try file.seekToEnd()
@@ -434,7 +389,6 @@ final class XRMP4Writer {
     }
 }
 
-/// An ISO base media box being built.
 struct XRBox {
     let type: String
     var body: [UInt8] = []
@@ -450,7 +404,6 @@ struct XRBox {
     mutating func zeros(_ n: Int) { body += [UInt8](repeating: 0, count: n) }
     mutating func raw(_ b: [UInt8]) { body += b }
     mutating func child(_ b: XRBox) { body += b.bytes }
-    /// The identity transformation matrix of mvhd and tkhd.
     mutating func matrix() { for v: UInt32 in [0x0001_0000, 0, 0, 0, 0x0001_0000, 0, 0, 0, 0x4000_0000] { u32(v) } }
 
     var bytes: [UInt8] { Self.be32(UInt32(8 + body.count)) + Array(type.utf8) + body }

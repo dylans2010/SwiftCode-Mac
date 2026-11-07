@@ -1,21 +1,13 @@
 import Foundation
 
-/// Workspace text search for the Find navigator. See
-/// `specs/ide/navigators.md` §Find navigator.
 public enum WorkspaceSearch {
     public struct Match: Equatable, Sendable {
         public var line: Int
-        /// The whole line, trimmed of leading whitespace.
         public var text: String
-        /// UTF-16 range of the match within the file.
         public var range: NSRange
-        /// 1-based UTF-16 column of the match in its line.
         public var column = 1
-        /// The match within `text` (clipped to it), for highlighting.
         public var highlight = NSRange(location: 0, length: 0)
-        /// Lines the match spans (a multi-line regular expression: more than 1).
         public var lineSpan = 1
-        /// The text that matched (Replace checks it is still there).
         public var matchedText = ""
         public init(line: Int, text: String, range: NSRange, column: Int = 1, highlight: NSRange = NSRange(location: 0, length: 0),
                     lineSpan: Int = 1, matchedText: String = "") {
@@ -29,13 +21,10 @@ public enum WorkspaceSearch {
         }
     }
 
-    /// Find options: Text or Regular Expression; Containing or Matching
-    /// Word; Ignoring or Matching Case.
     public struct Options: Equatable, Sendable {
         public var regularExpression = false
         public var wholeWord = false
         public var ignoreCase = true
-        /// Match: Starting With / Ending With (word boundary at one end).
         public enum Anchor: Sendable { case none, start, end }
         public var anchor: Anchor = .none
         public init(regularExpression: Bool = false, wholeWord: Bool = false, ignoreCase: Bool = true, anchor: Anchor = .none) {
@@ -45,8 +34,6 @@ public enum WorkspaceSearch {
             self.anchor = anchor
         }
 
-        /// The pattern that implements these options, or nil if the
-        /// regular expression is invalid.
         package func expression(for query: String) -> NSRegularExpression? {
             let q = FindQuery(query, options: self)
             return FindQuery.expression(regularExpression ? query : NSRegularExpression.escapedPattern(for: query), match: q.match, ignoreCase: ignoreCase)
@@ -58,42 +45,32 @@ public enum WorkspaceSearch {
         public var matches: [Match]
     }
 
-    /// Searches every text file under `root` (folder references and
-    /// folders included, binaries and ignored files skipped), in navigator
-    /// order, with `FindEngine`. Stops after `limit` matches.
     public static func search(_ query: String, in root: NavigatorNode, options: Options = Options(), limit: Int = 1000) -> [FileResult] {
         let q = FindQuery(query, options: options)
         let files = FindScopeResolver(root: root).candidates(for: .workspace)
         return FindEngine.search(FindEngine.Request(query: q, files: files, limit: limit)).files
     }
 
-    /// The matches of `query` in one text, with `options` applied; empty for an
-    /// empty or invalid query.
     public static func search(_ query: String, inText text: String, options: Options = Options()) -> [Match] {
         guard !query.isEmpty, let regex = options.expression(for: query) else { return [] }
         return search(regex, inText: text)
     }
 
     package static func search(_ regex: NSRegularExpression, inText text: String) -> [Match] {
-        // Empty matches (e.g. `^`) are not results.
         FindMatcher(regexes: [regex], allWords: false, needles: [], ignoreCase: false).matches(in: text)
     }
 }
 
-/// Declarations for the Symbol navigator, found by a light scan over the
-/// lexer's output (not a parser). See `specs/ide/navigators.md`.
 public enum SymbolScanner {
     public struct Symbol: Equatable, Sendable {
         public enum Kind: String, Sendable {
             case `class`, `struct`, `enum`, `protocol`, `extension`, actor, function, `typealias`, macro, interface, implementation
             case property, enumCase, initializer
-            /// Kinds whose body holds members.
             var isContainer: Bool { [.class, .struct, .enum, .protocol, .extension, .actor].contains(self) }
         }
         public var kind: Kind
         public var name: String
         public var line: Int
-        /// Members, for types (Swift only).
         public var children: [Symbol] = []
         public init(kind: Kind, name: String, line: Int, children: [Symbol] = []) {
             self.kind = kind
@@ -103,10 +80,8 @@ public enum SymbolScanner {
         }
     }
 
-    /// Top-level declarations (brace depth 0) of a file.
     public static func symbols(in text: String, language: SourceTokenizer.Language) -> [Symbol] {
         guard language.isCode else { return [] }
-        // Blank out comments and strings so their braces and words do not count.
         var units = Array(text.utf16)
         for t in SourceTokenizer(language: language).tokens(in: text)
         where [.comment, .docComment, .string, .preprocessor].contains(t.kind) {
@@ -139,13 +114,10 @@ public enum SymbolScanner {
         return out
     }
 
-    /// Swift declarations as a tree: types hold the declarations made
-    /// directly in their bodies; function bodies are not entered.
     static func swiftSymbols(_ words: [Word], index: LineIndex, kinds: [String: Symbol.Kind]) -> [Symbol] {
-        // Open type bodies: (symbol, depth of its members).
         var stack: [(Symbol, Int)] = []
         var top: [Symbol] = []
-        var pending: (Symbol, Int)?   // a type whose `{` has not been seen yet
+        var pending: (Symbol, Int)?
         func add(_ s: Symbol) {
             if stack.isEmpty { top.append(s) } else { stack[stack.count - 1].0.children.append(s) }
         }
@@ -184,8 +156,6 @@ public enum SymbolScanner {
 
     struct Word { var text: String; var offset: Int; var depth: Int; var isIdentifier: Bool }
 
-    /// Identifiers (with a leading `@` kept) and the punctuation `{ } ( ) ;`,
-    /// each with the brace depth before it.
     static func scanWords(_ s: String) -> [Word] {
         let u = Array(s.utf16)
         var out: [Word] = []
@@ -217,7 +187,6 @@ public enum SymbolScanner {
     }
 }
 
-/// One finished build, for the Report navigator.
 public struct BuildReport: Equatable, Sendable {
     public var title: String
     public var date: Date
@@ -225,7 +194,6 @@ public struct BuildReport: Equatable, Sendable {
     public var log: [String]
     public var errorCount: Int
     public var warningCount: Int
-    /// Where and how it ran (the build log and test report pages).
     public var context = ReportContext()
     package init(title: String, date: Date, succeeded: Bool, log: [String], errorCount: Int, warningCount: Int, context: ReportContext = ReportContext()) {
         self.title = title

@@ -29,7 +29,6 @@ public struct SDKVersion: Sendable, CustomStringConvertible {
     }
 
     public var isCompatibleWithHost: Bool {
-        // SwiftCode 1.0+ compatible
         major == 1
     }
 }

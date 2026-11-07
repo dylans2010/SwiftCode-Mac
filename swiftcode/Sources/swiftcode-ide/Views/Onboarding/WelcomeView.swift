@@ -3,12 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The Welcome screen (`reference-ui-6.md` §1.4, `metrics.md` §8): the
-/// AppKit IDE's Welcome window, 480 × 632, as a panel centered in the
-/// shell's window: the icon, "SwiftCode", the version, Open… | Clone… | New
-/// Project (107, 107 and 130 wide, 36 tall, 8 apart, top at 242), then the
-/// recent projects in a rounded box (x 60–420, y 295–572) with 48-point
-/// rows.
 struct WelcomeView: View {
     @Bindable var app: ShellAppModel
     @State private var selected = 0
@@ -19,7 +13,6 @@ struct WelcomeView: View {
         let c = ShellColors(scheme)
         ZStack(alignment: .topLeading) {
             c.content
-            // The round close button (W5), 36 points at (20, 20).
             Button { dismissWindow() } label: {
                 Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(c.secondaryLabel)
                     .frame(width: 36, height: 36)

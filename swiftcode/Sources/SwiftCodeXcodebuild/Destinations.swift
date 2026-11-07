@@ -2,10 +2,7 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeSettings
 
-/// `-destination` specifiers and `-showdestinations`.
-/// See `specs/xcodebuild/info-commands.md` §5.
 enum Destinations {
-    /// Parses `key=value[,key=value]`, or `generic/platform=…`.
     static func parse(_ spec: String) -> (generic: Bool, fields: [String: String]) {
         var s = spec
         var generic = false
@@ -18,7 +15,6 @@ enum Destinations {
         return (generic, fields)
     }
 
-    /// swift-build platform/sdk names for a destination platform name.
     static let platforms: [String: (platform: String, variant: String?)] = [
         "macOS": ("macosx", "macos"), "OS X": ("macosx", "macos"),
         "iOS": ("iphoneos", nil), "iOS Simulator": ("iphonesimulator", nil),
@@ -28,18 +24,12 @@ enum Destinations {
         "DriverKit": ("driverkit", nil),
     ]
 
-    /// The run destination for a scheme run. With no `-destination`, the
-    /// host Mac (the reference tool picks "the first of multiple matching
-    /// destinations", which is My Mac with the host architecture).
     static func runDestination(for specs: [String], targets: [SettingsTarget], configuration: String, overrides: [(String, String)] = [], generic: Bool = false,
                                context ctx: XcodebuildContext) throws(XcodebuildFailure) -> (RunDestination?, [(String, String)]) {
         guard let spec = specs.first else { return defaultDestination(targets: targets, configuration: configuration, overrides: overrides, generic: generic, context: ctx) }
         return (try explicitDestination(spec, context: ctx), [])
     }
 
-    /// The first matching destination: My Mac for macOS targets; for iOS
-    /// applications that can run on the Mac, "My Mac (Designed for iPad)",
-    /// which also describes the Mac as the target device.
     static func defaultDestination(targets: [SettingsTarget], configuration: String, overrides: [(String, String)], generic: Bool = false,
                                    context ctx: XcodebuildContext) -> (RunDestination?, [(String, String)]) {
         guard let t = targets.first else { return (RunDestination.hostMac(architecture: ctx.hostArchitecture), []) }
@@ -50,14 +40,11 @@ enum Destinations {
         let base = sdkroot.hasPrefix("/") ? URL(fileURLWithPath: sdkroot).lastPathComponent.lowercased().prefix { $0.isLetter }.description
             : sdkroot.prefix { $0.isLetter }.description
         if base.isEmpty || base == "macosx" {
-            // My Mac, in each architecture it can run, then Any Mac; an
-            // `ARCHS` override naming one architecture moves that one first.
             var archs = ctx.hostArchitecture == "arm64" ? ["arm64", "x86_64"] : ["x86_64"]
             if let a = overrides.last(where: { $0.0 == "ARCHS" })?.1, archs.contains(a) { archs.removeAll { $0 == a }; archs.insert(a, at: 0) }
             let id = macProvisioningUDID()
             var lines = archs.map { a in describe([("platform", "macOS"), ("arch", a)] + (id.map { [("id", $0)] } ?? []) + [("name", "My Mac")]) }
             let anyMac = describe([("platform", "macOS"), ("name", "Any Mac")])
-            // `archive` prefers the generic destination (every architecture).
             if generic { lines.insert(anyMac, at: 0) } else { lines.append(anyMac) }
             ctx.console.warning("Using the first of multiple matching destinations:\n" + lines.joined(separator: "\n"))
             var dest = RunDestination.hostMac(architecture: archs[0])
@@ -79,13 +66,9 @@ enum Destinations {
             return (RunDestination(platform: "iphoneos", sdk: "iphoneos", sdkVariant: nil, targetArchitecture: "arm64",
                                    supportedArchitectures: ["arm64"]), device)
         }
-        // Otherwise the Mac is still the first destination; for targets of
-        // another platform it does not match, so ONLY_ACTIVE_ARCH has no
-        // effect (observed: ONLY_ACTIVE_ARCH = NO).
         return (RunDestination.hostMac(architecture: ctx.hostArchitecture), [])
     }
 
-    /// `hw.model`, e.g. `Mac15,10`.
     static func hardwareModel() -> String? {
         #if os(macOS)
         var size = 0
@@ -115,14 +98,10 @@ enum Destinations {
         return RunDestination(platform: p.platform, sdk: p.platform, sdkVariant: p.variant, targetArchitecture: arch, supportedArchitectures: [arch])
     }
 
-    /// The Mac's provisioning UDID (the `id` the reference tool shows for
-    /// My Mac), read from `system_profiler` output.
     static func macProvisioningUDID() -> String? { hardwareOverview["Provisioning UDID"] }
 
-    /// `Model Name` (`MacBook Pro`).
     static func macModelName() -> String? { hardwareOverview["Model Name"] }
 
-    /// `system_profiler SPHardwareDataType` as key/value pairs (read once).
     static let hardwareOverview: [String: String] = {
         var out: [String: String] = [:]
         #if os(macOS)
@@ -145,13 +124,10 @@ enum Destinations {
         return out
     }()
 
-    /// One `{ key:value, … }` line.
     static func describe(_ pairs: [(String, String)]) -> String {
         "{ " + pairs.map { "\($0.0):\($0.1)" }.joined(separator: ", ") + " }"
     }
 
-    /// `subject` names the scheme's product in incompatibility errors
-    /// (its first buildable, such as `Hello.app`).
     static func listing(subject: String, supportedPlatforms: Set<String>, context ctx: XcodebuildContext) -> (compatible: [String], incompatible: [String]) {
         var compatible: [String] = []
         var incompatible: [String] = []
@@ -170,7 +146,6 @@ enum Destinations {
             if supportedPlatforms.contains(platforms[d.platform]?.platform ?? "") {
                 compatible.append(describe([("platform", d.platform), ("arch", d.arch), ("id", d.udid), ("name", d.name)]))
             } else {
-                // Incompatible devices show the device's own architecture.
                 incompatible.append(describe([("platform", d.platform), ("arch", d.deviceArch), ("id", d.udid), ("name", d.name),
                                               ("error", error(d.name, d.platform))]))
             }
@@ -184,10 +159,6 @@ enum Destinations {
         return (compatible, incompatible)
     }
 
-    /// The simulators' lines. A phone whose active paired watch is a
-    /// watchOS simulator is a destination of a watchOS scheme, listed as the
-    /// phone itself, with no watch in the entry (`specs/simulator/device-pairing.md`
-    /// §14.2); its watch is listed under its own name, as every watch is.
     static func simulatorLines(_ sims: [SimulatorEntry], phonesWithWatch: Set<String>, supportedPlatforms: Set<String>, arch: String,
                                error: (String, String) -> String) -> (compatible: [String], incompatible: [String]) {
         var compatible: [String] = []
@@ -204,10 +175,6 @@ enum Destinations {
         return (compatible, incompatible)
     }
 
-    /// `-showdestinations` for a package scheme, which builds for every
-    /// platform: My Mac and its variants, available devices, the generic
-    /// destinations of the installed platforms, then the simulators.
-    /// See `specs/xcodebuild/packages.md` §5.
     static func packageListing(context ctx: XcodebuildContext) -> [String] {
         let installed = Set(SDKRegistry(developerDirectory: ctx.developerDirectory ?? "").entries.map(\.platformName))
         let arch = ctx.hostArchitecture
@@ -240,7 +207,6 @@ enum Destinations {
         return out
     }
 
-    /// Generic destinations in listing order, with the platform SDK each needs.
     static let genericDestinations: [(platform: String, variant: String?, id: String?, name: String, sdk: String)] = [
         ("DriverKit", nil, nil, "Any DriverKit Host", "driverkit"),
         ("iOS", nil, "dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder", "Any iOS Device", "iphoneos"),
@@ -256,11 +222,9 @@ enum Destinations {
     ]
 }
 
-/// One simulator as `-showdestinations` lists it.
 struct SimulatorEntry: Equatable {
-    var platform: String   // `iOS Simulator`, …
+    var platform: String
     var udid: String
-    /// The runtime's full version (`26.4.1`).
     var os: String?
     var name: String
 }
@@ -268,12 +232,8 @@ struct SimulatorEntry: Equatable {
 enum Simulators {
     static let runtimePlatforms = ["iOS": "iOS Simulator", "tvOS": "tvOS Simulator", "watchOS": "watchOS Simulator",
                                    "xrOS": "visionOS Simulator", "visionOS": "visionOS Simulator"]
-    /// Platform order of the listing (observed).
     static let order = ["tvOS Simulator", "visionOS Simulator", "watchOS Simulator", "iOS Simulator"]
 
-    /// Available simulators from `xcrun simctl list -j devices` and the
-    /// runtimes' versions from `xcrun simctl list -j runtimes`, ordered by
-    /// platform, name (byte order) and OS version.
     static func entries(devicesJSON: Data, runtimesJSON: Data?) -> [SimulatorEntry] {
         var versions: [String: String] = [:]
         if let data = runtimesJSON, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -285,7 +245,6 @@ enum Simulators {
               let byRuntime = root["devices"] as? [String: [[String: Any]]] else { return [] }
         var out: [SimulatorEntry] = []
         for (runtime, devices) in byRuntime {
-            // com.apple.CoreSimulator.SimRuntime.iOS-26-4 → iOS, 26.4
             let parts = (runtime.split(separator: ".").last.map(String.init) ?? runtime).split(separator: "-").map(String.init)
             guard let first = parts.first, let platform = runtimePlatforms[first] else { continue }
             let fallback = parts.dropFirst().joined(separator: ".")
@@ -302,10 +261,6 @@ enum Simulators {
         }
     }
 
-    /// The phones (UDIDs) whose active pair's watch is one of `simulators`
-    /// and a watchOS simulator, from `xcrun simctl list -j pairs`
-    /// (`{"pairs": {<pair>: {"watch": {"udid": …}, "phone": {"udid": …},
-    /// "state": "(active, connected)"}}}`).
     static func phonesWithActiveWatch(pairsJSON: Data?, simulators: [SimulatorEntry]) -> Set<String> {
         guard let data = pairsJSON, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let pairs = root["pairs"] as? [String: [String: Any]] else { return [] }
@@ -329,20 +284,15 @@ enum Simulators {
     #endif
 }
 
-/// One physical device as `-showdestinations` lists it.
 struct DeviceEntry: Equatable {
     var platform: String
-    /// The architecture listed for a compatible device (`arm64e` → `arm64`).
     var arch: String
-    /// The device's CPU type name (`arm64e`).
     var deviceArch: String
     var udid: String
     var name: String
 }
 
 enum PhysicalDevices {
-    /// Physical devices with a connection (a transport) from `xcrun devicectl
-    /// list devices --json-output`; `arm64e` devices are listed as `arm64`.
     static func entries(devicectlJSON data: Data) -> [DeviceEntry] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = (root["result"] as? [String: Any])?["devices"] as? [[String: Any]] else { return [] }
@@ -369,7 +319,6 @@ enum PhysicalDevices {
 }
 
 #if os(macOS)
-/// Runs `xcrun` (read-only listings); its standard output, or nil.
 func xcrun(_ args: [String]) -> Data? {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")

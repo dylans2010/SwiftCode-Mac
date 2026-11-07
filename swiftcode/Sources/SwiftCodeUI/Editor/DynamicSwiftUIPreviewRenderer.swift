@@ -2,39 +2,22 @@ import SwiftUI
 import Observation
 import SwiftCodePreviews
 
-/// Preview playground demo UI/state (Legacy
-/// `SwiftCode/Core/Preview/DynamicSwiftUIPreviewRenderer.swift`,
-/// Dylan's own code, ported under MIT). The destination's preview
-/// hosts render real previews but had no playground demo; this
-/// restores `PreviewPlaygroundState` (username, items list, counter,
-/// drag/rotation demo chrome) and the five-tab demo deck. Two
-/// changes versus Legacy: the unused `Charts` import is dropped, and
-/// the Performance Metrics panel reads real values from
-/// `PreviewPerformanceMonitor` instead of Legacy's hardcoded
-/// "1.2ms / 120Hz" strings — those were invented numbers, not
-/// measurements.
-
-// MARK: - Reactive Playground Observable Model (Swift 6 strict concurrency safe)
 @Observable
 @MainActor
 public final class PreviewPlaygroundState {
     public static let shared = PreviewPlaygroundState()
 
-    // Interactive Form States
     public var username: String = "Jules"
     public var isNotificationsEnabled: Bool = true
     public var accentColor: Color = .purple
     public var counter: Int = 10
 
-    // List States
     public var items: [String] = ["Build Workspace", "Consolidate Engines", "Native Sidebars", "Playground Mode"]
     public var newItemText: String = ""
 
-    // Gestures States
     public var dragOffset: CGSize = .zero
     public var isDragging: Bool = false
 
-    // Animations States
     public var scale: Double = 1.0
     public var rotation: Double = 0.0
     public var isAnimatingBall: Bool = false
@@ -54,8 +37,6 @@ public final class PreviewPlaygroundState {
     }
 }
 
-// MARK: - Native SwiftUI Preview Playground View
-/// Highly polished native SwiftUI view hierarchy that operates on real state, bindings, and native SwiftUI layouts.
 public struct DynamicSwiftUIPreviewRenderer: View {
     let content: String
 
@@ -70,7 +51,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
     public var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
-                // Header category selector
                 Picker("Playground Deck", selection: $tabSelection) {
                     Text("Controls").tag(0)
                     Text("List & Cards").tag(1)
@@ -107,7 +87,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
         }
     }
 
-    // 1. Controls Panel
     private var controlsView: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Interactive Controls Console")
@@ -180,7 +159,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
         }
     }
 
-    // 2. List & Cards Panel
     private var listCardsView: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Dynamic List & Content Cards")
@@ -230,7 +208,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
         }
     }
 
-    // 3. Gestures Panel (With velocity/drag bouncing)
     private var gesturesView: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Spatial Gestures Simulator")
@@ -278,7 +255,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
         }
     }
 
-    // 4. Animations Panel (Bouncing ball & physics transitions)
     private var animationsView: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Animation & Physics Studio")
@@ -287,7 +263,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
 
             GroupBox {
                 VStack(spacing: 16) {
-                    // Ball bouncer
                     ZStack(alignment: .bottom) {
                         Color.secondary.opacity(0.04)
                             .frame(height: 120)
@@ -331,7 +306,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
                         ), in: 0...360)
                     }
 
-                    // Scaled/Rotated box
                     RoundedRectangle(cornerRadius: 12)
                         .fill(playgroundState.accentColor.opacity(0.12))
                         .stroke(playgroundState.accentColor, lineWidth: 2)
@@ -352,7 +326,6 @@ public struct DynamicSwiftUIPreviewRenderer: View {
         }
     }
 
-    // 5. Navigation Stack Panel
     private var navigationView: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Navigation Deck")

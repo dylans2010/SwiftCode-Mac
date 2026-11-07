@@ -6,22 +6,6 @@ import Glibc
 import Darwin
 #endif
 
-// IP sockets across a snapshot (`specs/simulator/networking-swiftcode.md` §6).
-// A host socket cannot be saved. The record keeps what the guest made of
-// the socket (domain, type, options, bound address, state); the restore
-// makes a new host socket of the same kind and re-applies the options, then:
-//
-// - a listening socket is bound to its old address and listens again;
-// - a datagram socket is bound again and, if it was connected, connected to
-//   its old peer;
-// - a stream socket that was connected or connecting is **reset**: its
-//   host socket is closed, the next call reports ECONNRESET once, reads then
-//   end at EOF and writes fail with EPIPE (as after a peer's reset);
-// - a fresh or bound stream socket is bound again.
-//
-// When a bind fails at restore (the port is taken on the host), the socket
-// is reset too, and the restore logs a warning.
-
 enum InetSnapshotTag {
     static let domain: UInt16 = 1, type: UInt16 = 2, proto: UInt16 = 3, creator: UInt16 = 4, lastUser: UInt16 = 5
     static let state: UInt16 = 6, flags: UInt16 = 7, pendingError: UInt16 = 8, receiveTimeout: UInt16 = 9
@@ -31,7 +15,6 @@ enum InetSnapshotTag {
 }
 
 extension InetSocket {
-    /// The record fields (lock held). `user` encodes a `DescriptorUser`.
     func snapshotFields(user: (DescriptorUser) -> SnapshotFields) -> SnapshotFields {
         typealias T = InetSnapshotTag
         var f = SnapshotFields()
@@ -73,9 +56,6 @@ extension InetSocket {
         return f
     }
 
-    /// A socket from its record, with a new host socket where the state
-    /// allows one. Returns the socket and a warning (nil when restored as
-    /// it was).
     static func restored(_ r: SnapshotFieldReader, lock: KernelLock,
                          user: (SnapshotFieldReader?) -> DescriptorUser) -> (InetSocket, String?) {
         typealias T = InetSnapshotTag
@@ -138,7 +118,6 @@ extension InetSocket {
         return (s, nil)
     }
 
-    /// Closes a host socket made during a restore that is then reset.
     func closeHostForRestore() {
         lock.withLock { closeHostSocket() }
     }

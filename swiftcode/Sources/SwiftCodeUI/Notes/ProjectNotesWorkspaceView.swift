@@ -5,90 +5,27 @@ import os
 import SwiftCodeIDECore
 import SwiftCodeAssistant
 
-// MARK: - Project Notes workspace (Wave 19, slice C)
-//
-// Ported from Legacy
-// `SwiftCode/Features/AdvancedTools/Views/ProjectNotesWorkspaceView.swift`
-// (Dylan's own code, ported under MIT). The model and state already live in
-// the destination (`SwiftCodeIDECore/Model/ProjectNotes.swift`:
-// `ProjectNote`, `ProjectNotebook`, `NoteAttachment`, `NoteVersion`,
-// `SavedSearch`, `ProjectNoteTemplates`, `ProjectNotesWorkspaceState`);
-// this file is only the view, plus the window manager/controller at the
-// end (Legacy kept them in the same file).
-//
-// Destination adaptations (behaviour preserved unless noted):
-// * State: Legacy used `ProjectNotesWorkspaceState.shared`; the destination
-//   state has no singleton, so the view owns
-//   `@State private var state = ProjectNotesWorkspaceState()` (it loads its
-//   JSON on init). The window manager is a singleton holding one window,
-//   so there is one live state instance in practice.
-// * Glass: Legacy's `.liquidGlass(...)` modifier has no destination
-//   equivalent — SwiftCode draws no glass of its own making
-//   (specs/ide/liquid-glass-swiftcode.md) and uses the system's materials
-//   through public API. Glass surfaces here use `.thinMaterial` in a
-//   rounded rectangle, the same treatment the destination's own SwiftUI
-//   views use.
-// * Legacy orange is gone: folder/pin/file accents that were `.orange`
-//   are `.accentColor`. Other semantic sidebar colours are unchanged.
-// * Editor: Legacy edited through `TextEditorRepresentable`, an NSTextView
-//   wrapper around its code editor (SUPERSEDED in the destination by
-//   `SourceEditorView`, which lives in the `swiftcode-ide` executable
-//   target and is not importable from `SwiftCodeUI`). The notes editor
-//   uses SwiftUI `TextEditor` instead — real editing, monospaced, word
-//   wrap on; the code-editor features (syntax highlighting, search
-//   highlight) are not carried over. See specs/ide/wave19-views.md.
-// * AI Copilot tab: Legacy streamed through its own `LLMService` with a
-//   hardcoded model fallback; the destination state deliberately carries
-//   no AI fields (AI lives in the Assistant). The tab runs one-shot
-//   completions through the destination's real provider dispatch
-//   (`LLMToolCompletionService`, gap-closure LLM wiring) and fails honestly
-//   — the error names the provider and what is missing. Legacy streamed
-//   tokens live; this tab shows a progress view and then the full reply.
-//   No model is ever hardcoded and nothing is generated from canned text.
-// * Saved searches: Legacy's state `saveSearch` appended to
-//   `savedSearches`; the destination state's `saveSearch` writes the
-//   search *history* instead. The bookmark button here appends to
-//   `state.savedSearches` directly (see `saveCurrentSearch`), preserving
-//   Legacy behaviour; the destination `saveSearch` semantics are a
-//   follow-up for the state file, not this view.
-// * The `Todo` smart-folder filter keeps Legacy's exact expression,
-//   including its operator-precedence quirk (see spec).
-// * Window frame autosave name is `SwiftCodeProjectNotesWindow` (Legacy's
-//   `ProjectNotesMainWindow` renamed per the rebrand's clean-break rule
-//   for persisted state).
-// * Linked files post the same `com.swiftcode.openFileInWorkspace`
-//   notification Legacy posted; whether the workspace observes it is
-//   unchanged from Legacy.
-// * Reachability (menu entry / hub) is the parent's integration step;
-//   see INTEGRATION.md.
-
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "ProjectNotesWorkspaceView")
 
 public struct ProjectNotesWorkspaceView: View {
     @State private var state = ProjectNotesWorkspaceState()
 
-    // Collapsible states
     @State private var showSidebar = false
     @State private var showInspector = false
 
-    // Sidebar states
     @State private var editingNotebookId: UUID? = nil
     @State private var editingNotebookName = ""
     @State private var showNewNotebookAlert = false
     @State private var newNotebookName = ""
 
-    // Batch Action states
     @State private var isBatchSelecting = false
     @State private var batchSelectedIds = Set<UUID>()
 
-    // Sorting & Category Filters
     @State private var sortOption: SortOption = .updatedAt
     @State private var categoryFilter: String = "All"
 
-    // Search query
     @State private var internalSearchQuery = ""
 
-    // Scratch Pad quick edit
     @State private var scratchPadText = ""
 
     public init() {}
@@ -102,7 +39,6 @@ public struct ProjectNotesWorkspaceView: View {
         var id: String { self.rawValue }
     }
 
-    // Available Categories
     private let categories = [
         "All", "Architecture", "API Documentation", "Build Notes", "Debugging Notes",
         "Deployment Notes", "Feature Planning", "Sprint Planning", "Bug Investigation",
@@ -113,11 +49,9 @@ public struct ProjectNotesWorkspaceView: View {
         "Dependency Notes", "General"
     ]
 
-    // MARK: - Filter Logic
     private var filteredNotes: [ProjectNote] {
         var result = state.notes
 
-        // 1. Notebook Filter (if not smart folder that overrides it)
         let overrideSmartFolders = ["Archived", "Favorites", "Pinned", "Recent", "Todo", "Daily Notes", "Scratch Pad"]
         if !overrideSmartFolders.contains(state.noteFilter) {
             if let selectedNotebookId = state.selectedNotebookId {
@@ -125,7 +59,6 @@ public struct ProjectNotesWorkspaceView: View {
             }
         }
 
-        // 2. Smart Folder Filters
         switch state.noteFilter {
         case "Pinned":
             result = result.filter { $0.isPinned && !$0.isArchived }
@@ -142,9 +75,6 @@ public struct ProjectNotesWorkspaceView: View {
                 return idxA < idxB
             }
         case "Todo":
-            // Legacy's exact expression, precedence quirk preserved:
-            // `&&` binds tighter than `||`, so this is
-            // `category == "Todo" || (content.contains("- [ ]") && !isArchived)`.
             result = result.filter { $0.category == "Todo" || $0.content.contains("- [ ]") && !$0.isArchived }
         case "Daily Notes":
             result = result.filter { $0.tags.contains("Daily") && !$0.isArchived }
@@ -154,19 +84,16 @@ public struct ProjectNotesWorkspaceView: View {
             break
         }
 
-        // 3. Category Filter
         if categoryFilter != "All" {
             result = result.filter { $0.category == categoryFilter }
         }
 
-        // 4. Tag Filtering (if query starts with #)
         if internalSearchQuery.hasPrefix("#") {
             let tag = String(internalSearchQuery.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
             if !tag.isEmpty {
                 result = result.filter { $0.tags.contains { $0.localizedCaseInsensitiveCompare(tag) == .orderedSame } }
             }
         } else if !internalSearchQuery.isEmpty {
-            // 5. Full-text search
             let q = internalSearchQuery.lowercased()
             result = result.filter {
                 $0.title.lowercased().contains(q) ||
@@ -178,7 +105,6 @@ public struct ProjectNotesWorkspaceView: View {
             }
         }
 
-        // 6. Sorting (skip if "Recent" smart folder which has its own sort order)
         if state.noteFilter != "Recent" {
             switch sortOption {
             case .title:
@@ -205,10 +131,8 @@ public struct ProjectNotesWorkspaceView: View {
         return Array(tagsSet).sorted()
     }
 
-    // MARK: - Body Layout
     public var body: some View {
         HStack(spacing: 0) {
-            // Sidebar Navigation (Left)
             if showSidebar && !state.isFocusMode {
                 sidebarView()
                     .frame(width: 250)
@@ -216,7 +140,6 @@ public struct ProjectNotesWorkspaceView: View {
                 Divider()
             }
 
-            // Middle Column: Notes List
             if !state.isFocusMode {
                 notesListView()
                     .frame(width: 320)
@@ -224,7 +147,6 @@ public struct ProjectNotesWorkspaceView: View {
                 Divider()
             }
 
-            // Right Column: Editor Workspace & Inspector
             HStack(spacing: 0) {
                 editorWorkspaceView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -241,7 +163,6 @@ public struct ProjectNotesWorkspaceView: View {
         .frame(minWidth: 1000, minHeight: 700)
         .onAppear {
             state.loadData()
-            // Sync internal search query from state if any
             internalSearchQuery = state.searchQuery
         }
         .onChange(of: state.searchQuery) { _, newValue in
@@ -249,11 +170,9 @@ public struct ProjectNotesWorkspaceView: View {
         }
     }
 
-    // MARK: - 1. Left Sidebar
     @ViewBuilder
     private func sidebarView() -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Label("KNOWLEDGE BASE", systemImage: "square.grid.3x3.fill")
                     .font(.system(size: 11, weight: .bold))
@@ -275,7 +194,6 @@ public struct ProjectNotesWorkspaceView: View {
             Divider()
 
             List {
-                // Smart Folders Section
                 Section(header: Text("Smart Folders")) {
                     SidebarRowButton(title: "All Notes", icon: "doc.text.fill", color: .blue, isSelected: state.noteFilter == "All") {
                         state.noteFilter = "All"
@@ -310,7 +228,6 @@ public struct ProjectNotesWorkspaceView: View {
                     }
                 }
 
-                // Notebooks Section
                 Section(header: Text("My Notebooks")) {
                     ForEach(state.notebooks) { notebook in
                         HStack {
@@ -348,7 +265,6 @@ public struct ProjectNotesWorkspaceView: View {
                         .onTapGesture {
                             state.noteFilter = "Notebook"
                             state.selectedNotebookId = notebook.id
-                            // select first note in notebook
                             if let firstNote = state.notes.first(where: { $0.notebookId == notebook.id && !$0.isArchived }) {
                                 state.selectNote(firstNote.id)
                             }
@@ -365,7 +281,6 @@ public struct ProjectNotesWorkspaceView: View {
                     }
                 }
 
-                // Saved Searches Section
                 if !state.savedSearches.isEmpty {
                     Section(header: Text("Saved Searches")) {
                         ForEach(state.savedSearches) { saved in
@@ -393,7 +308,6 @@ public struct ProjectNotesWorkspaceView: View {
                     }
                 }
 
-                // Tags cloud section
                 if !allTags.isEmpty {
                     Section(header: Text("Tags Cloud")) {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -459,10 +373,6 @@ public struct ProjectNotesWorkspaceView: View {
         }
     }
 
-    /// Legacy's state `saveSearch` appended to `savedSearches`; the
-    /// destination state's `saveSearch` writes the search *history*
-    /// instead, so the bookmark button saves here, directly, with
-    /// Legacy's dedup rule (case-insensitive, no duplicates).
     private func saveCurrentSearch(query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -472,7 +382,6 @@ public struct ProjectNotesWorkspaceView: View {
         }
     }
 
-    // Sidebar button helper
     private struct SidebarRowButton: View {
         let title: String
         let icon: String
@@ -498,11 +407,9 @@ public struct ProjectNotesWorkspaceView: View {
         }
     }
 
-    // MARK: - 2. Middle Notes List
     @ViewBuilder
     private func notesListView() -> some View {
         VStack(spacing: 0) {
-            // Search field
             HStack(spacing: 8) {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -548,7 +455,6 @@ public struct ProjectNotesWorkspaceView: View {
 
             Divider()
 
-            // Filters & Sorters toolbar
             HStack {
                 Picker("", selection: $sortOption) {
                     ForEach(SortOption.allCases) { opt in
@@ -575,7 +481,6 @@ public struct ProjectNotesWorkspaceView: View {
 
             Divider()
 
-            // Batch action header
             if isBatchSelecting {
                 HStack {
                     Text("\(batchSelectedIds.count) selected")
@@ -604,7 +509,6 @@ public struct ProjectNotesWorkspaceView: View {
                 Divider()
             }
 
-            // Cards list
             if filteredNotes.isEmpty {
                 ContentUnavailableView("No Notes Found", systemImage: "doc.text.magnifyingglass", description: Text("No documents match your filter. Write a new note or expand your keywords."))
                     .frame(maxHeight: .infinity)
@@ -732,13 +636,11 @@ public struct ProjectNotesWorkspaceView: View {
         return text.isEmpty ? "No content." : text
     }
 
-    // MARK: - 3. Right Editor Workspace
     @ViewBuilder
     private func editorWorkspaceView() -> some View {
         Group {
             if let note = state.activeNote {
                 VStack(spacing: 0) {
-                    // Toolbar
                     editorToolbarView(note)
 
                     Divider()
@@ -775,11 +677,7 @@ public struct ProjectNotesWorkspaceView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color(NSColor.windowBackgroundColor))
                     } else {
-                        // Regular HSplit view: Editor & Markdown Preview side-by-side
                         HSplitView {
-                            // Editor text input (SwiftUI TextEditor — see the
-                            // file header; Legacy's NSTextView wrapper is not
-                            // carried over).
                             VStack(spacing: 0) {
                                 if state.isEditingNote {
                                     TextEditor(text: $scratchPadText)
@@ -811,7 +709,6 @@ public struct ProjectNotesWorkspaceView: View {
 
                             Divider()
 
-                            // Preview panel
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 16) {
                                     HStack {
@@ -847,7 +744,6 @@ public struct ProjectNotesWorkspaceView: View {
     @ViewBuilder
     private func editorToolbarView(_ note: ProjectNote) -> some View {
         VStack(spacing: 0) {
-            // Row 1: Note Details & Global Modes
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -884,7 +780,6 @@ public struct ProjectNotesWorkspaceView: View {
 
                 Spacer()
 
-                // Layout control buttons
                 Group {
                     Button {
                         state.isFocusMode.toggle()
@@ -935,7 +830,6 @@ public struct ProjectNotesWorkspaceView: View {
 
                 Divider().frame(height: 16)
 
-                // Save or edit trigger
                 if state.isEditingNote {
                     Button {
                         state.saveActiveNote(content: scratchPadText)
@@ -956,7 +850,6 @@ public struct ProjectNotesWorkspaceView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
 
-            // Row 2: Formatting Toolbar Helpers (if editing)
             if state.isEditingNote && !state.isReadingMode && !state.isPresentationMode {
                 Divider()
                 HStack(spacing: 14) {
@@ -969,7 +862,6 @@ public struct ProjectNotesWorkspaceView: View {
 
                     Divider().frame(height: 14)
 
-                    // Template picker
                     Picker("Template:", selection: $state.selectedTemplateKey) {
                         Text("Choose a template...").tag("None")
                         ForEach(Array(ProjectNoteTemplates.builtInTemplates.keys).sorted(), id: \.self) { key in
@@ -987,7 +879,6 @@ public struct ProjectNotesWorkspaceView: View {
 
                     Spacer()
 
-                    // Category dropdown modifier
                     Picker("Category:", selection: Binding(
                         get: { note.category },
                         set: { newCat in
@@ -1016,11 +907,9 @@ public struct ProjectNotesWorkspaceView: View {
         state.updateActiveNoteContent(scratchPadText)
     }
 
-    // MARK: - 4. Collapsible Right Inspector Panel
     @ViewBuilder
     private func inspectorPanelView() -> some View {
         VStack(spacing: 0) {
-            // Tab Selector Header
             HStack {
                 InspectorTabButton(title: "AI", icon: "sparkles", selected: state.activeInspectorTab == "AI Copilot") {
                     state.activeInspectorTab = "AI Copilot"
@@ -1040,7 +929,6 @@ public struct ProjectNotesWorkspaceView: View {
 
             Divider()
 
-            // Tab Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if state.activeInspectorTab == "AI Copilot" {
@@ -1081,16 +969,6 @@ public struct ProjectNotesWorkspaceView: View {
         }
     }
 
-    // MARK: - Inspector Tab A: AI Copilot
-    //
-    // Runs one-shot completions through the destination's real provider
-    // dispatch (`LLMToolCompletionService`, gap-closure LLM wiring) using
-    // the provider + model chosen in Settings — never a hardcoded model,
-    // never canned text. Legacy streamed tokens live; this tab shows a
-    // progress view and then the full reply. When no provider is usable
-    // the error names the provider and what is missing (an API key, a
-    // running server, an endpoint URL, an installed CLI, Apple
-    // Intelligence); it is shown verbatim, never replaced by a fake.
     @State private var aiPrompt = ""
     @State private var aiOutputText = ""
     @State private var isAIProcessing = false
@@ -1138,7 +1016,6 @@ public struct ProjectNotesWorkspaceView: View {
 
             Divider()
 
-            // Custom prompt box
             VStack(alignment: .leading, spacing: 6) {
                 Text("Custom AI Prompt")
                     .font(.caption.bold())
@@ -1218,7 +1095,6 @@ public struct ProjectNotesWorkspaceView: View {
         aiPrompt = ""
         isAIProcessing = true
 
-        // Legacy's system prompt, with the active note as context.
         let systemPrompt = """
         You are a highly skilled, world-class technical documentation assistant.
         Help the developer refine, generate, format, structure, review, or summarize their markdown-based documentation.
@@ -1242,7 +1118,6 @@ public struct ProjectNotesWorkspaceView: View {
         }
     }
 
-    // MARK: - Inspector Tab B: Links & References
     @State private var showAddLinkSheet = false
     @State private var showAddFileRefSheet = false
     @State private var newFileRefPath = ""
@@ -1257,7 +1132,6 @@ public struct ProjectNotesWorkspaceView: View {
 
         return AnyView(
             VStack(alignment: .leading, spacing: 14) {
-                // Outbound Internal Links
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("INTERNAL LINKS")
@@ -1300,7 +1174,6 @@ public struct ProjectNotesWorkspaceView: View {
 
                 Divider()
 
-                // Backlinks
                 VStack(alignment: .leading, spacing: 6) {
                     Text("BACKLINKS")
                         .font(.system(size: 10, weight: .bold))
@@ -1329,7 +1202,6 @@ public struct ProjectNotesWorkspaceView: View {
 
                 Divider()
 
-                // Linked Files & Project Symbols
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("PROJECT REFERENCES")
@@ -1368,7 +1240,6 @@ public struct ProjectNotesWorkspaceView: View {
                             }
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                // post notification to open in workspace
                                 NotificationCenter.default.post(
                                     name: NSNotification.Name("com.swiftcode.openFileInWorkspace"),
                                     object: nil,
@@ -1493,7 +1364,6 @@ public struct ProjectNotesWorkspaceView: View {
         )
     }
 
-    // MARK: - Inspector Tab C: Attachments
     @State private var previewingAttachment: NoteAttachment? = nil
     @State private var attachmentPreviewContent = ""
 
@@ -1629,7 +1499,6 @@ public struct ProjectNotesWorkspaceView: View {
         }
     }
 
-    // MARK: - Inspector Tab D: Version History
     @ViewBuilder
     private func versionHistoryInspectorView() -> some View {
         guard let note = state.activeNote else {
@@ -1675,15 +1544,6 @@ public struct ProjectNotesWorkspaceView: View {
         )
     }
 }
-
-// MARK: - Native Window Manager & Controller
-//
-// Destination pattern (SQLite Explorer, CI, Deployment window controllers
-// in SwiftCodeUI): a shared manager that raises the existing window or
-// creates one, and an NSWindowController that builds the window. The
-// manager is a singleton holding one window, so there is one live
-// `ProjectNotesWorkspaceState` in practice (the view owns its state;
-// see the file header).
 
 @MainActor
 public final class ProjectNotesWindowManager: NSObject {

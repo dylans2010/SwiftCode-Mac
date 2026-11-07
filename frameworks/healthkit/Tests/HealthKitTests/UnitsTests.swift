@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import HealthKit
 
-/// C-UNITS: `units.md` §2–§6.
 @Suite("C-UNITS units.md")
 struct UnitsTests {
     static func parses(_ s: String) -> Bool { (try? HKUnit.parse(s)) != nil }
@@ -21,7 +20,6 @@ struct UnitsTests {
     ])
     func canonical(input: String, expected: String) throws {
         #expect(try HKUnit.parse(input).unitString == expected)
-        // every canonical string parses back to the same unit
         #expect(try HKUnit.parse(expected) === HKUnit.parse(input))
     }
 

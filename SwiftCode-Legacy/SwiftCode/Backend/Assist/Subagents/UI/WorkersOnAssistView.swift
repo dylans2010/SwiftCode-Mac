@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Compact worker status list embedded within the primary Assist chat view.
-/// Shows worker name, status, and a small SF Symbol. Not a card grid.
 @MainActor
 public struct WorkersOnAssistView: View {
     private var runtimeState = WorkerRuntimeState.shared

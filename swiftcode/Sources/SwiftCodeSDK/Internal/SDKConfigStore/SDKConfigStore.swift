@@ -1,16 +1,6 @@
 #if DEBUG
 import Foundation
 
-// MARK: - SDKConfigStore
-//
-// Ported from Legacy `SwiftCode/SDK/Internal/SDKConfigStore/SDKConfigStore.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// DEBUG ONLY. Loads the SDK configuration (`SwiftCodeSDK.json`) that
-// ships as a SwiftCodeSDK resource, and answers API deprecation questions.
-// The resource is resolved from `Bundle.module` first (SwiftPM) with
-// a `Bundle.main` fallback (app bundle).
-
 public struct SDKConfig: Sendable, Codable, Equatable {
     public let sdkVersion: String
     public let apiVersion: String
@@ -46,8 +36,6 @@ public enum SDKConfigError: Error, Sendable {
 }
 
 public enum SDKConfigStore {
-    /// Loads `SwiftCodeSDK.json` from the module bundle (or the main
-    /// bundle as a fallback).
     public static func load() throws -> SDKConfig {
         guard let url = Bundle.module.url(forResource: "SwiftCodeSDK", withExtension: "json")
                 ?? Bundle.main.url(forResource: "SwiftCodeSDK", withExtension: "json") else {
@@ -68,7 +56,6 @@ public enum SDKConfigStore {
         }
     }
 
-    /// Whether `api` is deprecated according to `config`.
     public static func isDeprecated(api: String, in config: SDKConfig) -> Bool {
         config.deprecatedAPIs.contains(api)
     }

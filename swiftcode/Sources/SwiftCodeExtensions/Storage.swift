@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Settings + storage (spec §3.5)
-
 public struct ExtensionSettings: Codable, Sendable {
     public var registryBaseURL: String
     public var autoUpdate: Bool
@@ -17,8 +15,6 @@ public struct ExtensionSettings: Codable, Sendable {
     }
 }
 
-/// The single storage root (deviation D-2):
-/// `~/Library/Application Support/SwiftCode/ExtensionsV2/`.
 public struct ExtensionStorage: Sendable {
     public let root: URL
 
@@ -49,7 +45,6 @@ public struct ExtensionStorage: Sendable {
         }
     }
 
-    /// Atomic write: temp file in the same directory, then move into place.
     public func writeAtomically<T: Encodable>(_ value: T, to url: URL) throws {
         let data = try JSONEncoder().encode(value)
         try writeAtomically(data, to: url)
@@ -67,7 +62,6 @@ public struct ExtensionStorage: Sendable {
         try FileManager.default.moveItem(at: temp, to: url)
     }
 
-    /// Missing/corrupt -> [] (a broken record file must never prevent launch).
     public func loadInstalled() -> [InstalledExtension] {
         guard let data = try? Data(contentsOf: installedFile),
               let decoded = try? JSONDecoder().decode([InstalledExtension].self, from: data) else {
@@ -80,7 +74,6 @@ public struct ExtensionStorage: Sendable {
         try writeAtomically(installed, to: installedFile)
     }
 
-    /// Missing/corrupt -> defaults.
     public func loadSettings() -> ExtensionSettings {
         guard let data = try? Data(contentsOf: settingsFile),
               let decoded = try? JSONDecoder().decode(ExtensionSettings.self, from: data) else {
@@ -93,7 +86,6 @@ public struct ExtensionStorage: Sendable {
         try writeAtomically(settings, to: settingsFile)
     }
 
-    /// Never throws: diagnostics must never break the operation they describe.
     public func appendDiagnosticsLine(_ line: String) {
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -110,7 +102,6 @@ public struct ExtensionStorage: Sendable {
         }
     }
 
-    /// Removes all staging entries (called at launch).
     public func cleanStaleStaging() {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: stagingDirectory, includingPropertiesForKeys: nil) else { return }
@@ -119,8 +110,6 @@ public struct ExtensionStorage: Sendable {
         }
     }
 }
-
-// MARK: - Diagnostics (spec §4.5)
 
 public enum DiagnosticLevel: String, Codable, Sendable {
     case info
@@ -145,9 +134,6 @@ public struct DiagnosticEntry: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// In-memory ring (capped at 2000 entries, oldest dropped) plus an
-/// append-only `diagnostics.jsonl`. Messages only — never secrets or
-/// file contents.
 public final class DiagnosticsService: @unchecked Sendable {
     public static let shared = DiagnosticsService()
 
@@ -202,7 +188,6 @@ public final class DiagnosticsService: @unchecked Sendable {
         entries.removeAll()
     }
 
-    /// `"[ISO8601] [level] <id>: <message>"` per line.
     public func exportReport() -> String {
         let formatter = ISO8601DateFormatter()
         return allEntries().map { entry in

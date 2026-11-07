@@ -1,13 +1,6 @@
 import Foundation
 import SwiftCodeCloud
 
-/// In-memory cache of fetched schemas, keyed by connection.
-///
-/// Ported verbatim from Legacy's
-/// `Views/Utilities/Database/Core/DatabaseCache.swift`.
-/// Main-actor isolated: the cache is a plain dictionary and the
-/// managers that read it (`DatabaseManager`, `DatabaseSyncManager`)
-/// already run on the main actor.
 @MainActor
 public final class DatabaseCache {
     public static let shared = DatabaseCache()

@@ -1,17 +1,3 @@
-// Terminal sandbox contract tests for @swiftcode/sdk (specs/ide/sdk-platform.md).
-//
-// Loads the real compiled dist/index.js and builds the real context via
-// createContext over a scripted fake HostConnection. The tests assert the
-// EXACT wire method and payload `context.terminalSandbox.run()` produces,
-// the client-side validation of the host's sandboxed-command rule (bare
-// allow-listed name or absolute path — never shell), typed error
-// propagation, and malformed-result detection.
-//
-// The client-side checks are an early, friendly failure only: the Swift
-// host (`SDKSandboxedTerminal`) re-validates everything. No request is ever
-// sent for an invalid call.
-//
-// Run: `npm run build && npm test` (npm test = `node --test tests/`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -24,12 +10,6 @@ const { createContext, SDKError } = await import(distUrl);
 
 const EXTENSION = { id: "test.ext", name: "Test Extension", version: "1.0.0" };
 
-/**
- * Scripted fake host implementing the HostConnection shape. `handlers`
- * maps an IPC method to `(payload, requestId) => responsePayload`; a
- * handler may throw to script an `ok:false`-style rejection. All inbound
- * requests are recorded for exact wire assertions.
- */
 function createFakeHost(handlers = {}) {
   const requests = [];
   const listeners = new Set();
@@ -84,7 +64,6 @@ const RESULT = {
   byteLimit: 262144,
 };
 
-/** Asserts a call throws SDKError/INVALID_ARGUMENT and sends nothing. */
 async function assertClientRejected(promise, host, label) {
   await assert.rejects(promise, (error) => {
     assert.ok(error instanceof SDKError, `${label}: expected SDKError, got ${error}`);

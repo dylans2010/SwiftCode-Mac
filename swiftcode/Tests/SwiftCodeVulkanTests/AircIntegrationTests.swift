@@ -1,15 +1,8 @@
-// End-to-end check of the shader path: the probe's own metallib
-// (SimShim/guest-tests/stage8, built by build-stage8.sh) translated by
-// swiftcode-airc and drawn through VulkanMetalBackend, compared with the
-// reference values of the same probe under CoreSimulator on a Mac.
-// Needs SWIFTCODE_AIRC (the translator) and SWIFTCODE_TEST_PROBE_METALLIB.
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
 @testable import SwiftCodeVulkan
 
-/// Translates "probe:NAME" by asking swiftcode-airc for function NAME of the probe library.
 final class ProbeLibraryTranslator: ShaderTranslator, @unchecked Sendable {
     let airc: AircProcessTranslator
     let library: [UInt8]
@@ -81,7 +74,6 @@ struct AircIntegrationTests {
             let p = out.bytes(4 * (y * 512 + x), 4)
             return [Int(p[2]), Int(p[1]), Int(p[0])]
         }
-        // Reference: the probe under CoreSimulator (iOS 27.0, Apple iOS simulator GPU).
         let reference: [(Int, Int, [Int])] = [(8, 8, [26, 26, 38]), (256, 80, [237, 9, 9]), (70, 440, [13, 237, 6]),
                                               (440, 440, [13, 6, 236]), (256, 300, [100, 77, 78])]
         for (x, y, want) in reference {

@@ -3,21 +3,6 @@ import Foundation
 import UniformTypeIdentifiers
 import SwiftCodeIDECore
 
-// MARK: - SQLite Explorer sections panel
-//
-// Gap-closure misc: the eight sections beyond Wave 17's browser
-// core — dashboard, migrations, backups, import/export, templates,
-// AI assistant, performance, logs — as one panel over the section
-// models in `SwiftCodeIDECore/Model/Database/` (each a port of the
-// Legacy manager or view it names). One generic panel rather than
-// eight bespoke views: a section picker, a detail text view the
-// section renders into, and a small action row rebuilt per section.
-// File actions use open/save panels; destructive ones (restore,
-// prune, vacuum, clear history) confirm first. The panel shares
-// the browser's connection (`model.database`), so what it does is
-// visible in the browser as soon as the window reloads its tables
-// (`onDatabaseChanged`).
-
 @MainActor
 public final class SQLiteExplorerSectionsController: NSWindowController {
     private enum Section: String, CaseIterable {
@@ -48,9 +33,6 @@ public final class SQLiteExplorerSectionsController: NSWindowController {
     private let dashboard: SwiftCodeIDECore.DatabaseDashboard
     private let history = DatabaseHistoryService.shared
 
-    /// Called after an action that changes the database file or its
-    /// schema (restore, migration, template, vacuum), so the browser
-    /// window can reload its tables.
     public var onDatabaseChanged: (() -> Void)?
 
     private var section: Section = .dashboard
@@ -94,8 +76,6 @@ public final class SQLiteExplorerSectionsController: NSWindowController {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: - Layout
 
     private func build() {
         guard let content = window?.contentView else { return }
@@ -143,8 +123,6 @@ public final class SQLiteExplorerSectionsController: NSWindowController {
         let button = NSButton(title: title, target: self, action: action)
         return button
     }
-
-    // MARK: - Section switching
 
     @objc private func sectionChanged() {
         select(Section.allCases[sectionPopup.indexOfSelectedItem])
@@ -200,8 +178,6 @@ public final class SQLiteExplorerSectionsController: NSWindowController {
         }
         render()
     }
-
-    // MARK: - Rendering
 
     private func setDetail(_ text: String) {
         detailTextView.string = text
@@ -336,8 +312,6 @@ public final class SQLiteExplorerSectionsController: NSWindowController {
         lines += history.fetchSavedQueries().map { "  \($0.title) [\($0.category)] — \($0.sql)" }
         setDetail(lines.joined(separator: "\n"))
     }
-
-    // MARK: - Actions
 
     @objc private func refreshClicked() { render() }
 

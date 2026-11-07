@@ -1,9 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderView.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Main entry point for the Visual UI Builder.
-/// Optimizes and routes the workspace to a native macOS AppKit split-view window.
 public struct VisualUIBuilderView: View {
     @Environment(\.dismiss) private var dismiss
 

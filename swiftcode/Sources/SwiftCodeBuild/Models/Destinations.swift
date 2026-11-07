@@ -1,27 +1,18 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// A run destination: where a scheme builds and runs. See
-/// `specs/ide/destinations.md`.
 public struct Destination: Equatable, Sendable, Hashable {
     public enum Kind: String, Sendable, Hashable {
         case mac, device, simulator
-        /// "Any … Device": build for the platform, nothing to run on.
         case generic
     }
 
     public var name: String
-    /// The `-destination` specifier.
     public var specifier: String
-    /// Platform display name: macOS, iOS, watchOS, tvOS, visionOS.
     public var platform: String
     public var kind: Kind
     public var osVersion: String?
     public var identifier: String?
-    /// A simulator's device type identifier
-    /// (`com.apple.CoreSimulator.SimDeviceType.<type>`), when the listing
-    /// names it. The default simulator (`reference-ui-6.md` §2.4.3) goes
-    /// by the type, not by the simulator's own (renamable) name.
     public var deviceType: String?
 
     public init(name: String, specifier: String, platform: String, kind: Kind, osVersion: String? = nil, identifier: String? = nil,
@@ -38,11 +29,9 @@ public struct Destination: Equatable, Sendable, Hashable {
     public static let myMac = Destination(name: "My Mac", specifier: "platform=macOS", platform: "macOS", kind: .mac)
     public static let anyMac = Destination(name: "Any Mac", specifier: "generic/platform=macOS", platform: "macOS", kind: .generic)
 
-    /// The `-destination` platform names for simulators of a platform.
     static func simulatorPlatform(_ p: String) -> String { "\(p) Simulator" }
 }
 
-/// A titled section of the destination pop-up.
 public struct DestinationGroup: Equatable, Sendable {
     public var title: String
     public var destinations: [Destination]
@@ -54,17 +43,13 @@ public struct DestinationGroup: Equatable, Sendable {
 
 public enum DestinationCatalog {
     static let platformOrder = ["macOS", "iOS", "watchOS", "tvOS", "visionOS"]
-    /// CoreSimulator runtime identifiers spell platforms this way.
     static let runtimePlatforms = ["iOS": "iOS", "watchOS": "watchOS", "tvOS": "tvOS", "xrOS": "visionOS", "visionOS": "visionOS"]
 
-    /// Simulators from `xcrun simctl list -j devices`. Only available
-    /// devices are listed; state (booted or not) does not matter.
     public static func simulators(fromSimctlJSON data: Data) -> [Destination] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let byRuntime = root["devices"] as? [String: [[String: Any]]] else { return [] }
         var out: [Destination] = []
         for (runtime, devices) in byRuntime {
-            // com.apple.CoreSimulator.SimRuntime.iOS-26-4 → iOS, 26.4
             let tail = runtime.split(separator: ".").last.map(String.init) ?? runtime
             let parts = tail.split(separator: "-").map(String.init)
             guard let first = parts.first, let platform = runtimePlatforms[first] else { continue }
@@ -79,8 +64,6 @@ public enum DestinationCatalog {
         return out
     }
 
-    /// Physical devices from `xcrun devicectl list devices --json-output`.
-    /// Simulated entries in that list are skipped (simctl covers them).
     public static func devices(fromDevicectlJSON data: Data) -> [Destination] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = (root["result"] as? [String: Any])?["devices"] as? [[String: Any]] else { return [] }
@@ -95,10 +78,6 @@ public enum DestinationCatalog {
         }
     }
 
-    /// Groups destinations the way the pop-up shows them: My Mac first,
-    /// then per platform a devices section (with "Any <platform> Device")
-    /// and a simulators section. Duplicate simulator names get their OS
-    /// version appended.
     public static func groups(devices: [Destination], simulators: [Destination]) -> [DestinationGroup] {
         var groups = [DestinationGroup(title: "My Mac", destinations: [.myMac]),
                       DestinationGroup(title: "Build", destinations: [.anyMac])]
@@ -108,10 +87,6 @@ public enum DestinationCatalog {
             let generic = Destination(name: "Any \(p) Device (arm64)", specifier: "generic/platform=\(p)", platform: p, kind: .generic)
             let devs = devices.filter { $0.platform == p }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
             groups.append(DestinationGroup(title: "\(p) Device", destinations: devs + [generic]))
-            // Names stay as they are, also when several runtimes have a
-            // simulator of that name: the menu rows carry the OS version
-            // and the pop-up shows the name only (`reference-ui-6.md`
-            // §2.4.1, §2.4.3: "iPhone 18 Pro", row "iPhone 18 Pro 27.0").
             let sims = simulators.filter { $0.platform == p }.sorted {
                 let n = $0.name.localizedStandardCompare($1.name)
                 return n != .orderedSame ? n == .orderedAscending : compareVersions($0.osVersion ?? "", $1.osVersion ?? "") == .orderedDescending
@@ -126,7 +101,6 @@ public enum DestinationCatalog {
     }
 
     #if os(macOS)
-    /// Reads both listings (read-only; nothing is booted or connected).
     public static func load(scratchDirectory: URL = FileManager.default.temporaryDirectory) -> [DestinationGroup] {
         func run(_ args: [String]) -> Data? {
             MainThreadGuard.blockingCall("xcrun \(args.joined(separator: " "))")

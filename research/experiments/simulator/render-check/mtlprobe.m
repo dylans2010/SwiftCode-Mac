@@ -1,9 +1,3 @@
-/*
- * mtlprobe: Ycode research probe R6 (original Ycode code). Public API only.
- * Reports whether a Metal device exists in a simulator process:
- * MTLCreateSystemDefaultDevice and MTLCopyAllDevices. Run with simctl spawn,
- * with or without the rcenv deny list (SIMCTL_CHILD_DYLD_INSERT_LIBRARIES).
- */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 int main(void)

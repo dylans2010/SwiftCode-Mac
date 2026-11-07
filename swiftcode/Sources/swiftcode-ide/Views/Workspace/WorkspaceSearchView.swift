@@ -1,9 +1,3 @@
-// WorkspaceSearchView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/WorkspaceSearchView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: search across archives, logs and diagnostics with categorized results
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -13,7 +7,6 @@ struct WorkspaceSearchView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             VStack(alignment: .leading, spacing: 4) {
                 Text("Global Operations Search")
                     .font(.title2)
@@ -26,7 +19,6 @@ struct WorkspaceSearchView: View {
 
             Divider()
 
-            // Large search input row
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .font(.title2)

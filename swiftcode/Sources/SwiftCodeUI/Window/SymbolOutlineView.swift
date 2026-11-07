@@ -1,9 +1,3 @@
-// SymbolOutlineView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Editor/SymbolOutlineView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Kind-grouped outline with per-kind counts; Statistics menu (symbol counts by kind)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeLanguage
 import SwiftUI
 
@@ -25,7 +19,6 @@ struct SymbolOutlineView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with Title and Stats
             HStack {
                 Text("Symbol Outline")
                     .font(.headline)
@@ -37,7 +30,6 @@ struct SymbolOutlineView: View {
             .padding(.top, 16)
             .padding(.bottom, 8)
 
-            // Local Filter/Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .font(.caption)
@@ -82,8 +74,6 @@ struct SymbolOutlineView: View {
         .onChange(of: sessionStore.activeFileContent) { _, _ in analyzeCurrentFile() }
     }
 
-    // MARK: - Kind Filter Bar
-
     private var kindFilterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -116,8 +106,6 @@ struct SymbolOutlineView: View {
         }
         .buttonStyle(.plain)
     }
-
-    // MARK: - Symbol List
 
     private var symbolList: some View {
         List(filteredSymbols) { symbol in
@@ -162,8 +150,6 @@ struct SymbolOutlineView: View {
         .scrollContentBackground(.hidden)
     }
 
-    // MARK: - Empty State
-
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "list.bullet.rectangle")
@@ -184,8 +170,6 @@ struct SymbolOutlineView: View {
         }
     }
 
-    // MARK: - Stats Menu
-
     private var statsMenu: some View {
         Menu {
             let stats = CodeStructureAnalyzer.shared.statistics(for: sessionStore.activeFileContent)
@@ -202,8 +186,6 @@ struct SymbolOutlineView: View {
         }
     }
 
-    // MARK: - Logic
-
     private func analyzeCurrentFile() {
         let content = sessionStore.activeFileContent
         guard !content.isEmpty else { symbols = []; return }
@@ -211,7 +193,6 @@ struct SymbolOutlineView: View {
     }
 
     private func jumpToSymbol(_ symbol: CodeSymbol) {
-        // Navigate to the line in the editor via a notification
         NotificationCenter.default.post(
             name: Notification.Name("JumpToLine"),
             object: nil,

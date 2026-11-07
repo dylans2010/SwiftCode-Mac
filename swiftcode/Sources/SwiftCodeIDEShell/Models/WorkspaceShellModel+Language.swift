@@ -4,73 +4,49 @@ import SwiftCodeEditorKit
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// The Quick Help popover over the editor (`language.md` §Features): the
-/// hover of the symbol at `offset` of `path`.
 public struct QuickHelpPopover: Equatable, Identifiable, Sendable {
     public var id: Int
     public var path: String
-    /// UTF-16 offset of the symbol's start (the popover hangs under it).
     public var offset: Int
     public var document: QuickHelpDocument
-    /// The hover as plain text (`QuickHelpFormatter.plain`).
     public var text: String
 }
 
-/// Editor ▸ Refactor ▸ Rename… in progress: the symbol the server accepted.
 public struct RenameRequest: Equatable, Sendable {
     public var path: String
     public var position: Position
-    /// The symbol's UTF-16 range in the file.
     public var range: NSRange
     public var oldName: String
 }
 
-/// The state of the language features of one workspace window (Quick
-/// Help, Jump to Definition, rename, references), over the session's
-/// language server. See `specs/ide/language.md` and `specs/ide/refactoring.md`.
 @MainActor
 @Observable
 public final class ShellLanguageFeatures {
-    /// The inspector's tabs, in capsule order (⌥⌘1 File, ⌥⌘3 Quick Help).
     public enum InspectorTab: Int, CaseIterable, Sendable { case file = 0, history = 1, quickHelp = 2 }
 
     public var inspectorTab: InspectorTab = .file
-    /// The popover shown over the editor.
     public internal(set) var popover: QuickHelpPopover?
-    /// The Quick Help inspector's content (the symbol at the insertion point).
     public internal(set) var inspectorHelp: QuickHelpDocument?
-    /// The rename sheet is up for this symbol.
     public internal(set) var rename: RenameRequest?
-    /// A rename across several files, waiting for the user (the sheet's preview).
     public internal(set) var renamePreview: RenamePreview?
-    /// The rename sheet asked the server and is waiting.
     public internal(set) var isRenaming = false
-    /// The occurrences of the symbol being renamed in the open file.
     public internal(set) var highlights: [NSRange] = []
-    /// What the last request found nothing for ("No definition found"),
-    /// shown briefly in the editor.
     public internal(set) var notice: String?
     @ObservationIgnored var popoverCount = 0
     @ObservationIgnored var noticeTask: Task<Void, Never>?
     @ObservationIgnored var inspectorTask: Task<Void, Never>?
-    /// The text of files a refactoring rewrote on disk (not open), by path.
     @ObservationIgnored public internal(set) var diskBackups: [String: String] = [:]
-    /// The declaration the insertion point is in (the jump bar's symbol
-    /// component), and the open file's declarations (its document items menu).
     public internal(set) var caretSymbol: SymbolScanner.Symbol?
     public internal(set) var documentSymbols: [SymbolScanner.Symbol] = []
     @ObservationIgnored var symbolsRevision: (path: String, revision: Int)?
     @ObservationIgnored var symbolTask: Task<Void, Never>?
-    /// Opens a web address (the app sets it).
     @ObservationIgnored public var openExternally: (URL) -> Void = { _ in }
 
     public init() {}
 }
 
 extension WorkspaceShellModel {
-    // MARK: Positions
 
-    /// The LSP position (0-based line, UTF-16 column) of an offset of `d`.
     func lspPosition(_ offset: Int, in d: EditorDocument) -> Position {
         let doc = d.buffer.document
         let o = min(max(0, offset), d.buffer.length)
@@ -78,7 +54,6 @@ extension WorkspaceShellModel {
         return Position(line: line, character: o - doc.lineStart(line))
     }
 
-    /// The offset of an LSP position in `d`, clamped to its line.
     func offset(of p: Position, in d: EditorDocument) -> Int {
         let doc = d.buffer.document
         guard p.line < doc.lineCount else { return d.buffer.length }
@@ -86,18 +61,14 @@ extension WorkspaceShellModel {
         return min(r.lowerBound + max(0, p.character), r.upperBound)
     }
 
-    /// The open file and the position of `offset` (the caret by default),
-    /// after the server has its current text; nil without a server.
     func languageTarget(at offset: Int? = nil) -> (url: URL, position: Position, document: EditorDocument)? {
         guard let d = editor, let language = session.language, d.readOnlyReason == nil else { return nil }
         let url = URL(fileURLWithPath: d.path)
         languageUpdates.removeValue(forKey: d.path)?.cancel()
         language.change(url, text: d.buffer.text)
-        // A selection asks about its start (a selected name, as a jump leaves it).
         return (url, lspPosition(offset ?? d.buffer.selection.range.lowerBound, in: d), d)
     }
 
-    /// The language commands need an editable file and a running server.
     func isLanguageCommandEnabled(_ c: ShellCommand) -> Bool {
         guard let d = editor, d.readOnlyReason == nil, session.language != nil else { return false }
         return c != .renameSymbol || !d.buffer.isReadOnly
@@ -117,14 +88,12 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// View ▸ Inspectors: shows the inspector at that tab.
     public func showInspector(_ tab: ShellLanguageFeatures.InspectorTab) {
         isInspectorShown = true
         languageFeatures.inspectorTab = tab
         if tab == .quickHelp { refreshQuickHelpInspector() }
     }
 
-    /// A message for a request that found nothing; it goes after a moment.
     func noteLanguage(_ message: String) {
         let f = languageFeatures
         f.notice = message
@@ -136,11 +105,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    // MARK: Jump to Definition
-
-    /// Navigate ▸ Jump to Definition (⌃⌘J), and ⌘- or Ctrl-click: asks the
-    /// server where the symbol at `offset` (the caret) is defined, opens that
-    /// file and selects the symbol there. False when there is none.
     @discardableResult
     public func jumpToDefinition(at offset: Int? = nil) async -> Bool {
         guard let t = languageTarget(at: offset) else { return false }
@@ -154,7 +118,6 @@ extension WorkspaceShellModel {
         return true
     }
 
-    /// Navigate ▸ Jump to Original Source: the declaration, else the definition.
     @discardableResult
     public func jumpToOriginalSource() async -> Bool {
         guard let t = languageTarget() else { return false }
@@ -167,25 +130,17 @@ extension WorkspaceShellModel {
         return true
     }
 
-    /// Opens a location: the file (a new history entry), the symbol selected
-    /// and scrolled to.
     public func reveal(_ loc: Location) {
         let path = loc.url.standardizedFileURL.path
         open(path, line: loc.start.line + 1)
         guard let d = editor, d.path == path else { return }
         let a = offset(of: loc.start, in: d)
         var b = offset(of: loc.end, in: d)
-        // A location without a range (sourcekit-lsp's definitions): the name there.
         if b <= a { b = identifierEnd(d.buffer, from: a) }
         d.buffer.setSelection(b > a ? EditorSelection(anchor: a, head: b) : EditorSelection(caret: a))
         refreshQuickHelpInspector()
     }
 
-    // MARK: Quick Help
-
-    /// ⌥-click, or Help ▸ Show Quick Help for Selected Item (⌃⌘?): the hover
-    /// of the symbol at `offset` (the caret) in a popover under it, and in
-    /// the Quick Help inspector. Nil (no popover) when the server has none.
     @discardableResult
     public func showQuickHelp(at offset: Int? = nil) async -> QuickHelpDocument? {
         guard let t = languageTarget(at: offset) else { return nil }
@@ -205,27 +160,21 @@ extension WorkspaceShellModel {
         return doc
     }
 
-    /// Quick Help's "Open in Developer Documentation": a documentation
-    /// search for the symbol's name.
     public func openDocumentation(for name: String) {
         var c = URLComponents(string: "https://developer.apple.com/search/")
         c?.queryItems = [URLQueryItem(name: "q", value: name)]
         if let u = c?.url { languageFeatures.openExternally(u) }
     }
 
-    /// Quick Help's file link: opens the defining file at the symbol.
     public func openQuickHelpFile(_ path: String) {
         dismissQuickHelp()
         open(path)
     }
 
-    /// The popover goes (Escape, a click, typing).
     public func dismissQuickHelp() {
         if languageFeatures.popover != nil { languageFeatures.popover = nil }
     }
 
-    /// The insertion point moved (the editor calls it): the popover goes, and
-    /// the Quick Help inspector, when shown, follows the symbol at the caret.
     public func caretMoved() {
         dismissQuickHelp()
         scheduleCaretSymbolUpdate()
@@ -233,10 +182,6 @@ extension WorkspaceShellModel {
         refreshQuickHelpInspector(after: 0.35)
     }
 
-    // MARK: Document symbols
-
-    /// The jump bar follows the insertion point after a moment (a scan per
-    /// keystroke would cost typing on a large file).
     func scheduleCaretSymbolUpdate() {
         let f = languageFeatures
         f.symbolTask?.cancel()
@@ -247,8 +192,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// Scans the open file's declarations when its text changed, and finds
-    /// the one at the caret (`DocumentSymbols`, as the macOS jump bar).
     public func updateCaretSymbol() {
         let f = languageFeatures
         guard let d = editor else {
@@ -268,14 +211,12 @@ extension WorkspaceShellModel {
         if at != f.caretSymbol { f.caretSymbol = at }
     }
 
-    /// The document items menu's choice: the declaration's line.
     public func openSymbol(_ s: SymbolScanner.Symbol) {
         guard let path = document?.path else { return }
         open(path, line: s.line)
         updateCaretSymbol()
     }
 
-    /// Reads the Quick Help of the symbol at the caret into the inspector.
     public func refreshQuickHelpInspector(after delay: Double = 0) {
         let f = languageFeatures
         f.inspectorTask?.cancel()
@@ -292,14 +233,8 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// Waits for the inspector's read (tests, drivers).
     public func quickHelpInspectorSettled() async { await languageFeatures.inspectorTask?.value }
 
-    // MARK: Rename
-
-    /// Editor ▸ Refactor ▸ Rename…: asks the server whether the symbol at the
-    /// caret can be renamed; if so marks its occurrences in the file and
-    /// opens the rename sheet. False (nothing shown) when it cannot.
     @discardableResult
     public func beginRename() async -> Bool {
         guard let t = languageTarget(), !t.document.buffer.isReadOnly else { return false }
@@ -324,10 +259,6 @@ extension WorkspaceShellModel {
         return true
     }
 
-    /// The rename sheet's Rename: asks the server for the edits. One file:
-    /// applied at once (one undo step) and the sheet closes. Several files:
-    /// kept as `renamePreview` for the sheet to show until
-    /// `applyRenamePreview()`. Returns the edit (nil: nothing to rename).
     @discardableResult
     public func commitRename(to newName: String) async -> WorkspaceEdit? {
         let f = languageFeatures
@@ -358,7 +289,6 @@ extension WorkspaceShellModel {
         return edit
     }
 
-    /// The preview's Rename: applies the edits and closes the sheet.
     @discardableResult
     public func applyRenamePreview() -> [String] {
         guard let p = languageFeatures.renamePreview else { return [] }
@@ -367,7 +297,6 @@ extension WorkspaceShellModel {
         return changed
     }
 
-    /// The sheet's Cancel (and its end after a rename).
     public func cancelRename() {
         let f = languageFeatures
         f.rename = nil
@@ -376,17 +305,10 @@ extension WorkspaceShellModel {
         focusEditor()
     }
 
-    /// A file's text as the user sees it: its editor buffer, else the disk.
     public func currentText(of path: String) -> String? {
         openDocuments[path]?.buffer.text ?? (try? String(contentsOfFile: path, encoding: .utf8))
     }
 
-    // MARK: Applying edits
-
-    /// Applies a workspace edit (`refactoring.md` §Applying edits): a file
-    /// open here changes in its buffer as one undo step; another file is
-    /// rewritten on disk (its old text kept in `diskBackups`) and the server
-    /// is told. Returns the paths changed.
     @discardableResult
     public func applyWorkspaceEdit(_ edit: WorkspaceEdit) -> [String] {
         var changed: [String] = []
@@ -414,16 +336,10 @@ extension WorkspaceShellModel {
         return changed
     }
 
-    // MARK: References and callers
-
-    /// Find ▸ Find Selected Symbol in Workspace (⌃⇧⌘F): the references in the
-    /// Find navigator ("greet — 3 references", then files and lines).
-    /// Returns how many.
     @discardableResult
     public func findSelectedSymbolInWorkspace() async -> Int {
         guard let t = languageTarget() else { return 0 }
         let session = session
-        // References and callers read the index, which a server may be updating: longer.
         let refs = await withLanguageTimeout([], timeout: 15, { await session.references(t.url, at: t.position) })
         let b = t.document.buffer
         let caret = b.caret
@@ -438,10 +354,6 @@ extension WorkspaceShellModel {
         return count
     }
 
-    /// Find ▸ Find Call Hierarchy (⌃⇧⌘H): the function at the caret, its
-    /// callers and their callers (two levels, `CallerTree`), as a tree in
-    /// the Find navigator under "Callers of greet". Returns how many callers
-    /// the tree holds.
     @discardableResult
     public func findCallHierarchy() async -> Int {
         guard let t = languageTarget() else { return 0 }
@@ -450,7 +362,6 @@ extension WorkspaceShellModel {
             noteLanguage("Not a callable symbol")
             return 0
         }
-        // The name as written ("greet"), not the server's qualified one.
         let b = t.document.buffer
         var name = b.string(b.identifierStart(before: b.caret)..<identifierEnd(b, from: b.caret))
         if name.isEmpty { name = tree.name }
@@ -468,8 +379,6 @@ extension WorkspaceShellModel {
     }
 }
 
-/// Runs a language request; `fallback` after `timeout` seconds (a server
-/// that is busy indexing, or gone, never holds the window).
 @MainActor
 func withLanguageTimeout<T: Sendable>(_ fallback: T, timeout: Double = 5, _ work: @escaping @MainActor () async -> T) async -> T {
     await withCheckedContinuation { (cont: CheckedContinuation<T, Never>) in

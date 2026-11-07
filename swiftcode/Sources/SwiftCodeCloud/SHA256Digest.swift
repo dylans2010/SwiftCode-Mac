@@ -1,14 +1,5 @@
 import Foundation
 
-/// SHA-256 (FIPS 180-4), implemented in pure Swift so the cloud
-/// target needs no cryptography dependency: `CloudAuthManager`
-/// derives the stable database user id from the SwiftCode id with
-/// `SHA256.hash`, exactly as Legacy did with CryptoKit.
-///
-/// Test vectors live in `SwiftCodeCloudTests` (`SHA-256 of ""` is
-/// `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
-/// of `"abc"` is
-/// `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`).
 public enum SHA256Digest {
     private static let k: [UInt32] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -29,7 +20,6 @@ public enum SHA256Digest {
         (value >> bits) | (value << (32 - bits))
     }
 
-    /// The 32-byte digest of `data`.
     public static func hash(_ data: Data) -> [UInt8] {
         var message = [UInt8](data)
         let bitLength = UInt64(data.count) * 8

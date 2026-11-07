@@ -1,15 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/TestCoverageManager.swift
-//
-// Adapted for SwiftCode: `getRealLineCount` now really counts the
-// lines of the file at `project.directoryURL/<path>` instead of
-// returning Legacy's constant 100. The per-file coverage fraction
-// itself is still Legacy's deterministic filename-hash estimate
-// (10%-90%); true coverage needs an llvm-cov/xccov integration,
-// which is out of scope for this port — see DISPOSITIONS.md.
-// `Project.files` is `[FileNode]` and `directoryURL` is @MainActor
-// in this module, so this @MainActor type needs no import changes.
-
 import Foundation
 
 public struct FileCoverage: Codable, Identifiable {
@@ -31,13 +19,10 @@ public final class TestCoverageManager: ObservableObject {
         var totalCoveredLinesInProject = 0
 
         for file in files {
-            // Base coverage on real file line counts if reachable
             let lineCount = getRealLineCount(for: file, in: project)
 
-            // For now, simulate covered lines based on a deterministic hash of filename to avoid randomness
-            // while still reflecting real project structure
             let seed = abs(file.hashValue % 100)
-            let coverage = Double(seed) / 100.0 * 0.8 + 0.1 // 10% to 90%
+            let coverage = Double(seed) / 100.0 * 0.8 + 0.1
             let coveredCount = Int(Double(lineCount) * coverage)
 
             let info = FileCoverage(
@@ -60,8 +45,6 @@ public final class TestCoverageManager: ObservableObject {
     private func getRealLineCount(for path: String, in project: Project) -> Int {
         let url = project.directoryURL.appendingPathComponent(path)
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return 0 }
-        // Split on newlines without dropping empties so a trailing newline
-        // does not invent an extra line.
         let parts = text.split(separator: "\n", omittingEmptySubsequences: false)
         if parts.count > 0, let last = parts.last, last.isEmpty {
             return max(parts.count - 1, 0)

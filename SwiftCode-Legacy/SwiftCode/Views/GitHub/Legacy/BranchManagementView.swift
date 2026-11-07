@@ -21,7 +21,6 @@ struct BranchManagementView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Branch Directory", systemImage: "arrow.triangle.branch")
                     .font(.headline)
@@ -51,7 +50,6 @@ struct BranchManagementView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     if isLoading && branches.isEmpty {
@@ -70,7 +68,6 @@ struct BranchManagementView: View {
                     } else if let error = errorMessage, branches.isEmpty {
                         emptyErrorView(error)
                     } else {
-                        // Card 1: Active Branch Info
                         GroupBox {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
@@ -90,7 +87,6 @@ struct BranchManagementView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // Card 2: Branch Directory List
                         GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(branches) { branch in
@@ -145,8 +141,6 @@ struct BranchManagementView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: notification != nil)
     }
-
-    // MARK: - Create Branch Sheet
 
     private var createBranchSheet: some View {
         VStack(spacing: 20) {
@@ -203,8 +197,6 @@ struct BranchManagementView: View {
         .frame(width: 400)
     }
 
-    // MARK: - Empty / Error View
-
     private func emptyErrorView(_ error: String) -> some View {
         GroupBox {
             VStack(spacing: 16) {
@@ -229,8 +221,6 @@ struct BranchManagementView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    // MARK: - Notification Banner
-
     private func notificationBanner(_ n: BranchNotification) -> some View {
         HStack(spacing: 10) {
             Image(systemName: n.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
@@ -250,8 +240,6 @@ struct BranchManagementView: View {
         )
         .padding(.horizontal, 16)
     }
-
-    // MARK: - Actions
 
     private func loadBranches() async {
         guard !owner.isEmpty else { return }
@@ -322,8 +310,6 @@ struct BranchManagementView: View {
         }
     }
 }
-
-// MARK: - Branch Management Row
 
 private struct BranchManagementRow: View {
     let branch: GitHubBranch

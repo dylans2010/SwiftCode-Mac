@@ -1,26 +1,16 @@
 import Foundation
 import HealthKit
 
-/// One observation made during a probe workout.
-///
-/// Times are seconds from the start of the workout session. The only absolute time is
-/// `startEpoch`. It is set on the session-start event so that the phone can limit its
-/// HealthKit queries to the session, and the phone removes it before anything leaves the
-/// device. Source and device names are never read. For metadata, only key names are kept.
 struct ProbeEvent: Codable {
     var v = 1
     var session = ""
     var seq = 0
-    /// "watch" or "phone": where the observation was made.
     var origin = "watch"
-    /// session, querySample, builderStatistic, workoutEvent, phoneStoreSample, phoneStoreWorkout
     var kind: String
     var type: String?
     var startOffset: Double?
     var endOffset: Double?
-    /// When the observing device saw it.
     var deliveredOffset: Double?
-    /// When the phone received it from the watch.
     var phoneReceivedOffset: Double?
     var value: Double?
     var sum: Double?
@@ -30,7 +20,6 @@ struct ProbeEvent: Codable {
     var note: String?
     var activity: UInt?
     var location: Int?
-    /// "message" or "userInfo": the WatchConnectivity path that carried it.
     var transport: String?
     var startEpoch: Double?
 
@@ -38,7 +27,6 @@ struct ProbeEvent: Codable {
 }
 
 enum ProbeTypes {
-    /// The only HealthKit types the probe asks to read. Nothing older than the session is queried.
     static let quantities: [HKQuantityTypeIdentifier] = [
         .heartRate, .activeEnergyBurned, .basalEnergyBurned, .distanceWalkingRunning, .stepCount,
     ]
@@ -60,7 +48,6 @@ enum ProbeTypes {
 
     static var shareTypes: Set<HKSampleType> { [HKObjectType.workoutType()] }
 
-    /// Builds the event for one quantity sample (type, offsets, value, metadata key names).
     static func event(for sample: HKQuantitySample, start: Date, kind: String, origin: String) -> ProbeEvent {
         let id = HKQuantityTypeIdentifier(rawValue: sample.quantityType.identifier)
         let unit = unit(for: id)

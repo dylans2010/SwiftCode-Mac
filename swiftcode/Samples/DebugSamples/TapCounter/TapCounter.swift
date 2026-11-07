@@ -1,10 +1,3 @@
-// TapCounter: the Linux IDE's simulator debugging sample (specs/ide/debug.md,
-// "The Linux IDE: apps on the simulator"). One button in the middle of the
-// screen; each tap runs `buttonTapped(_:)`, which counts the tap and shows
-// it. The end-to-end test puts its breakpoint in that handler. UIKit only:
-// it builds on Linux, where the SDK's SwiftUI macros have no plug-in.
-// Original SwiftCode sample code.
-
 import UIKit
 
 @main
@@ -17,7 +10,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-/// The scene life cycle (required by the iOS 27 SDK's UIKit).
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
@@ -31,7 +23,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// What the taps add up to.
 struct Tally {
     var taps = 0
     var lastStep = 0

@@ -1,7 +1,3 @@
-// XR-QUALITY: depth edges at rest and in motion, the GPU's YUV conversion and
-// mipmapped sampling, and the gaze → guest mapping with re-projection
-// (specs/simulator/xr-viewer.md §12, display-stream.md §14).
-
 import CSwiftCodeVideo
 import Foundation
 import Testing
@@ -9,10 +5,7 @@ import SwiftCodeDisplayStream
 @testable import SwiftCodeXRReprojection
 
 @Suite struct XRDepthEdgeTests {
-    /// At its own viewpoint a picture shows exactly as sent, depth edges included
-    /// (they used to take one flat colour: a band of depth texels around every window).
     @Test func atItsOwnViewpointEveryPixelIsThePicture() {
-        // Colour at 4 × the depth's resolution, as on the stream.
         let s = SyntheticScene(width: 640, height: 360)
         let (c, _) = s.render()
         let low = SyntheticScene(width: 160, height: 90)
@@ -31,7 +24,6 @@ import SwiftCodeDisplayStream
         }
     }
 
-    /// A small move keeps the edge triangles over the cache; a large one drops them.
     @Test func overTheCacheAnEdgeIsDroppedOnlyOnceStretched() {
         let s = SyntheticScene(width: 320, height: 180)
         let (c, d) = s.render()
@@ -42,11 +34,10 @@ import SwiftCodeDisplayStream
                                  width: s.width, height: s.height, settings: XRWarpSettings(gridStep: 1, mode: .discard)).covered
         }
         let rest = covered(0), tiny = covered(0.0005), large = covered(0.1)
-        #expect(tiny >= rest - s.width)      // only the picture's border moved off
+        #expect(tiny >= rest - s.width)
         #expect(large < rest)
     }
 
-    /// In a large disocclusion the fill is the background's colour, not the near surface's.
     @Test func aStretchedEdgeClosesInOnTheBackground() {
         let s = SyntheticScene(width: 320, height: 180)
         let (c, d) = s.render()
@@ -54,7 +45,6 @@ import SwiftCodeDisplayStream
         let r = XRReferenceWarp.warp(colour: c, colourWidth: s.width, colourHeight: s.height, depth: d, source: src,
                                      destination: XRViewGeometry(pose: SpatialPose(position: SpatialVector(0.2, 0, 0)), fov: s.fov),
                                      width: s.width, height: s.height, settings: XRWarpSettings(gridStep: 1, mode: .background))
-        // Beside the box (red, 1 m) at mid height, once it has moved left by 0.1 of the width against the wall.
         var red = 0, grey = 0
         let row = s.height / 2
         let edge = Int((0.625 - 0.2 / 1.0 / 2) * Double(s.width)), wall = Int((0.625 - 0.2 / 4.0 / 2) * Double(s.width))
@@ -66,18 +56,14 @@ import SwiftCodeDisplayStream
     }
 }
 
-/// A small disc floating before a wall (xr-depth.md §5.6): the shape of a home
-/// icon, whose depth used to fill a tube from it to the wall in the world cache.
 struct FloatingDiscScene {
     var width = 480, height = 480
     var fov = XRFieldOfView(left: -.pi / 4, right: .pi / 4, up: .pi / 4, down: -.pi / 4)
     let wall = 4.0, disc = 1.0, radius = 0.12
-    /// Bands of the wall (BGRA): dark above y = 0, below it light and mid grey in turn every 16 cm.
     func wallColour(x: Double, y: Double) -> (UInt8, UInt8, UInt8) {
         if y > 0 { return (40, 40, 40) }
         return Int(floor(y / 0.16)) & 1 == 0 ? (230, 230, 230) : (130, 130, 130)
     }
-    /// The scene from an eye at (`eyeX`, 0, 0). `window`: the disc's samples carry the windows layer's mark.
     func render(eyeX: Double = 0, window: Bool = false) -> (colour: [UInt8], depth: XRDepthImage) {
         let t = fov.tangents
         var c = [UInt8](repeating: 255, count: width * height * 4), q = [UInt16](repeating: 0, count: width * height)
@@ -88,7 +74,7 @@ struct FloatingDiscScene {
                 let i = py * width + px
                 let dx = eyeX + tx * disc, dy = ty * disc
                 if dx * dx + dy * dy < radius * radius {
-                    (c[i * 4], c[i * 4 + 1], c[i * 4 + 2]) = (220, 80, 30)    // blue
+                    (c[i * 4], c[i * 4 + 1], c[i * 4 + 2]) = (220, 80, 30)
                     q[i] = XRDepthSample.sample(distance: Float(disc), near: 0.1) & 0xFFFE | (window ? 1 : 0)
                 } else {
                     (c[i * 4], c[i * 4 + 1], c[i * 4 + 2]) = wallColour(x: eyeX + tx * wall, y: ty * wall)
@@ -103,7 +89,6 @@ struct FloatingDiscScene {
 @Suite(.serialized) struct XRPictureGPUTests {
     static let gpu: XRReprojector? = try? XRReprojector(vulkan: nil)
 
-    /// A smooth picture as planes, from BT.709 limited-range values.
     static func planes(width w: Int, height h: Int, yuv444: Bool) -> (y: [UInt8], u: [UInt8], v: [UInt8]) {
         var y = [UInt8](repeating: 0, count: w * h)
         let cw = yuv444 ? w : w / 2, ch = yuv444 ? h : h / 2
@@ -145,13 +130,11 @@ struct FloatingDiscScene {
             try gpu.setPictureYUV(yuv444: false, y: py.baseAddress!, u: puv.baseAddress!, v: nil, pitch: w, width: w, height: h, view: view)
         } }
         let out = try gpu.readPicture(width: w, height: h)
-        // The GPU interpolates chroma (the reference repeats it): a smooth ramp stays within a few levels.
         var worst = 0
         for i in 0..<(w * h) { for k in 0..<3 { worst = max(worst, abs(Int(out[i * 4 + k]) - Int(reference[i * 4 + k]))) } }
         #expect(worst <= 6, "the GPU differs from the reference by up to \(worst) levels")
     }
 
-    /// A one-pixel checker minified 8 × must come out flat, not aliased.
     @Test func aMinifiedPictureDoesNotAlias() throws {
         guard let gpu = Self.gpu else { return }
         let (w, h) = (1024, 1024)
@@ -168,12 +151,10 @@ struct FloatingDiscScene {
         let out = try gpu.readOffscreen(width: 128, height: 128)
         var lo = 255, hi = 0
         for r in 16..<112 { for x in 16..<112 { let g = Int(out[(r * 128 + x) * 4 + 1]); lo = min(lo, g); hi = max(hi, g) } }
-        // The average of black and white in linear light is about 188 in sRGB.
         #expect(hi - lo <= 6, "minified checker spans \(lo)…\(hi)")
         #expect(lo > 170 && hi < 205, "minified checker spans \(lo)…\(hi)")
     }
 
-    /// Cache texels next to empty ones keep their own colour when filtered, not darkened by the empties' zeros.
     @Test func filteredCacheEdgesAreNotDarkened() throws {
         guard let gpu = Self.gpu else { return }
         let (w, h) = (256, 256)
@@ -187,7 +168,6 @@ struct FloatingDiscScene {
         try gpu.clearCache()
         gpu.settings = XRWarpSettings(gridStep: 1, mode: .background)
         try gpu.updateCache()
-        // Only the cache, minified: its filled square's rim must not go dark.
         try gpu.render(eye: .identity, fov: .guest(width: 256, height: 256), target: .init(width: 256, height: 256), picture: false)
         let out = try gpu.readOffscreen(width: 256, height: 256)
         var darkRim = 0, lit = 0
@@ -201,22 +181,15 @@ struct FloatingDiscScene {
     }
 }
 
-/// What the wearer looks at must be what the guest's ray hits (xr-viewer.md §5.2):
-/// a target at a known place, a guest picture taken from a held camera, the head
-/// elsewhere. The guest's hit test works in the stage frame; what the wearer sees
-/// comes through the re-projection.
 @Suite struct XRSelectionTests {
-    /// The guest's window: a plane at z = −1.2 m in the stage frame.
     static let planeZ = -1.2
     static let fov = XRFieldOfView.guest(width: 1080, height: 1920)
 
-    /// The stage point a ray hits on the plane.
     static func hit(origin: SpatialVector, direction: SpatialVector) -> SpatialVector {
         let t = (planeZ - origin.z) / direction.z
         return SpatialVector(origin.x + direction.x * t, origin.y + direction.y * t, planeZ)
     }
 
-    /// A stage point's pixel (u, v) in a guest picture taken from `camera`.
     static func pixel(_ p: SpatialVector, camera: SpatialPose, fov: XRFieldOfView = XRSelectionTests.fov) -> (u: Double, v: Double) {
         let l = camera.rotation.conjugate.rotate(p - camera.position)
         let t = fov.tangents
@@ -224,14 +197,12 @@ struct FloatingDiscScene {
         return ((tx - t.left) / (t.right - t.left), (t.up - ty) / (t.up - t.down))
     }
 
-    /// The pose looking from `eye` at `target` (with no roll).
     static func look(from eye: SpatialVector, at target: SpatialVector) -> SpatialPose {
         let d = target - eye
         let yaw = atan2(-d.x, -d.z), pitch = asin(d.y / d.length)
         return SpatialPose(position: eye, rotation: SpatialQuaternion(yaw: yaw, pitch: pitch))
     }
 
-    /// The guest pixel the wearer's gaze selects, through the input mapping.
     static func selected(target: SpatialVector, head: SpatialPose, anchorHead: SpatialPose, camera: SpatialPose) -> (u: Double, v: Double) {
         var mapper = XRInputMapper(pointer: .eyes, stereo: false)
         mapper.filterGaze = false
@@ -244,8 +215,6 @@ struct FloatingDiscScene {
         return pixel(p, camera: camera)
     }
 
-    /// The picture's pixel the wearer sees along the gaze, through the reference warp:
-    /// each guest pixel is coloured by its own (u, v).
     static func seen(target: SpatialVector, eye: SpatialPose, camera: SpatialPose, fov: XRFieldOfView = XRSelectionTests.fov) -> (u: Double, v: Double)? {
         let (w, h) = (512, 512)
         var colour = [UInt8](repeating: 255, count: w * h * 4)
@@ -253,18 +222,16 @@ struct FloatingDiscScene {
             colour[(y * w + x) * 4 + 2] = UInt8(x * 255 / (w - 1))
             colour[(y * w + x) * 4 + 1] = UInt8(y * 255 / (h - 1))
         } }
-        // The depth of the plane as the camera sees it.
         let t = fov.tangents
         let (dw, dh) = (128, 128)
         var q = [UInt16](repeating: 0, count: dw * dh)
         for y in 0..<dh { for x in 0..<dw {
             let tx = t.left + (Double(x) + 0.5) / Double(dw) * (t.right - t.left), ty = t.up - (Double(y) + 0.5) / Double(dh) * (t.up - t.down)
             let dir = camera.rotation.rotate(SpatialVector(tx, ty, -1))
-            let s = (planeZ - camera.position.z) / dir.z       // the view distance along −Z is s
+            let s = (planeZ - camera.position.z) / dir.z
             q[y * dw + x] = s > 0 ? UInt16(min(65535, 65535 * 0.1 / s)) : 0
         } }
         let depth = XRDepthImage(width: dw, height: dh, samples: q, near: 0.1, fov: fov)
-        // The eye's own narrow view along the gaze: the middle pixel is the gaze.
         let g = look(from: eye.position, at: target)
         let narrow = XRFieldOfView(tangentLeft: -0.2, right: 0.2, up: 0.2, down: -0.2)
         let r = XRReferenceWarp.warp(colour: colour, colourWidth: w, colourHeight: h, depth: depth, source: XRViewGeometry(pose: camera, fov: fov),
@@ -280,8 +247,6 @@ struct FloatingDiscScene {
         #expect(abs(a.u - b.u) < tolerance && abs(a.v - b.v) < tolerance, "\(what): \(a) against \(b)")
     }
 
-    /// Still, moving within the hold, or having moved on from a stale picture: the
-    /// ray hits the target's guest pixel, and the re-projected picture shows it along the gaze.
     @Test(arguments: [
         ("still", SpatialPose.identity),
         ("1 cm and 1° inside the hold", SpatialPose(position: SpatialVector(0.01, -0.005, 0), rotation: SpatialQuaternion(yaw: 0.0175, pitch: 0))),
@@ -296,15 +261,12 @@ struct FloatingDiscScene {
         expectSame(seen, expected, "\(name): what the wearer sees")
     }
 
-    /// Without re-projection a picture is shown at its own pose: the wearer who
-    /// looks at the target along the camera's own ray selects the same pixel.
     @Test func withoutReprojectionTheSamePixelIsSelected() {
         let camera = SpatialPose(position: SpatialVector(0.02, 0, 0), rotation: SpatialQuaternion(yaw: 0.05, pitch: -0.02))
         let hit = Self.selected(target: Self.target, head: camera, anchorHead: .identity, camera: camera)
         expectSame(hit, Self.pixel(Self.target, camera: camera), "no re-projection")
     }
 
-    /// A stage anchored away from the base origin changes nothing: gaze, camera and picture share the stage frame.
     @Test func aTurnedAnchorKeepsTheMapping() {
         let anchorHead = SpatialPose(position: SpatialVector(0.4, 1.6, -0.2), rotation: SpatialQuaternion(yaw: 0.8, pitch: 0))
         var mapper = XRInputMapper(pointer: .eyes, stereo: false)
@@ -316,7 +278,6 @@ struct FloatingDiscScene {
         expectSame(hit, Self.pixel(Self.target, camera: .identity), "turned anchor")
     }
 
-    /// The gaze is the wearer's, whichever eye: a gaze from either eye's place hits the target.
     @Test(arguments: [-0.032, 0.032])
     func eitherEyesOriginHitsTheTarget(offset: Double) {
         let head = SpatialPose.identity
@@ -334,8 +295,6 @@ struct FloatingDiscScene {
     static let rule = XRFinalPictureRule(holdNanoseconds: 800_000_000, settleNanoseconds: 300_000_000)
     static let ms: UInt64 = 1_000_000
 
-    /// The camera came to rest at 1000 ms and a picture of it is already final: a hover
-    /// picture 100 ms later shows at once, not 800 ms after the head rested.
     @Test func aHoverAfterAFinalPictureIsFinalAtOnce() {
         let t = 1_100 * Self.ms
         #expect(Self.rule.isFinal(uploadedAt: t, commandedAt: 1_000 * Self.ms, now: t, finalFor: 1_000 * Self.ms, sweeping: false))
@@ -344,13 +303,11 @@ struct FloatingDiscScene {
     @Test func aPictureRightAfterAMoveIsNotFinal() {
         let t = 1_100 * Self.ms
         #expect(!Self.rule.isFinal(uploadedAt: t, commandedAt: 1_000 * Self.ms, now: t, finalFor: 500 * Self.ms, sweeping: false))
-        // …until it has been quiet, or arrived after the hold.
         #expect(Self.rule.isFinal(uploadedAt: t, commandedAt: 1_000 * Self.ms, now: t + 300 * Self.ms, finalFor: 500 * Self.ms, sweeping: false))
         let late = 1_800 * Self.ms
         #expect(Self.rule.isFinal(uploadedAt: late, commandedAt: 1_000 * Self.ms, now: late, finalFor: 500 * Self.ms, sweeping: false))
     }
 
-    /// A slow guest during a sweep: the last stop's picture never counts for this stop.
     @Test func aSweepStopNeverTakesTheLastStopsPicture() {
         let old = 900 * Self.ms, commanded = 1_000 * Self.ms
         #expect(!Self.rule.isFinal(uploadedAt: old, commandedAt: commanded, now: commanded + 2_400 * Self.ms, finalFor: 500 * Self.ms, sweeping: true))

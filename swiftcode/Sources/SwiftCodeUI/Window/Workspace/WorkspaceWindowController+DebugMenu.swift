@@ -3,13 +3,8 @@ import Darwin
 import SwiftCodeDebug
 import SwiftCodeIDECore
 
-/// The Debug menu's commands (`specs/ide/reference-ui-5.md` §2.10, §10.2)
-/// that act on the focused editor, the breakpoints and the console.
-/// Commands SwiftCode cannot perform stay listed and disabled (§1.1).
 extension WorkspaceWindowController {
-    // MARK: Caret
 
-    /// The focused source editor's file, line and 1-based column.
     var debugCaret: (file: String, line: Int, column: Int)? {
         guard editor.auxiliary == nil, let path = editor.fileURL?.path else { return nil }
         let tv = editor.textView
@@ -19,33 +14,24 @@ extension WorkspaceWindowController {
         return (path, line, loc - start + 1)
     }
 
-    // MARK: Execution
-
-    /// Debug ▸ Continue To Current Line (⌃⌘C).
     @objc public func continueToCurrentLine(_ sender: Any?) {
         guard let c = debugCaret else { return NSSound.beep() }
         Task { await session.continueToLine(file: c.file, line: c.line) }
     }
 
-    /// Debug ▸ Step Over Thread (⌃⇧F6) / Step Into Thread (⌃⇧F7).
     @objc public func stepOverThread(_ sender: Any?) { Task { await session.step("over", instruction: false, singleThread: true) } }
     @objc public func stepIntoThread(_ sender: Any?) { Task { await session.step("in", instruction: false, singleThread: true) } }
 
-    // MARK: Breakpoints
-
-    /// Debug ▸ Breakpoints ▸ Enable / Disable Breakpoints at Current Line.
     @objc public func toggleBreakpointsEnabledAtCurrentLine(_ sender: Any?) {
         guard let c = debugCaret else { return }
         session.breakpoints.toggleEnabled(file: c.file, line: c.line)
     }
 
-    /// Debug ▸ Breakpoints ▸ Create Column Breakpoint.
     @objc public func createColumnBreakpoint(_ sender: Any?) {
         guard let c = debugCaret else { return }
         session.breakpoints.addColumn(file: c.file, line: c.line, column: c.column)
     }
 
-    /// Debug ▸ Breakpoints ▸ Delete Column Breakpoints at Current Line.
     @objc public func deleteColumnBreakpointsAtCurrentLine(_ sender: Any?) {
         guard let c = debugCaret else { return }
         session.breakpoints.removeColumns(file: c.file, line: c.line)
@@ -57,14 +43,11 @@ extension WorkspaceWindowController {
         if window?.isVisible == true { askSymbolicBreakpoint() }
     }
 
-    /// Debug ▸ Breakpoints ▸ Create Test Failure Breakpoint: the adapter's
-    /// test-failure exception filter (§10.2; disabled without one).
     @objc public func createTestFailureBreakpoint(_ sender: Any?) {
         guard let f = session.testFailureFilter, !session.breakpoints.exceptionFilters.contains(f) else { return }
         session.breakpoints.exceptionFilters.append(f)
     }
 
-    /// The confirmation Delete All Breakpoints asks for.
     public func deleteAllBreakpointsAlert() -> NSAlert {
         let alert = NSAlert()
         alert.messageText = "Are you sure you want to delete all breakpoints?"
@@ -74,8 +57,6 @@ extension WorkspaceWindowController {
         return alert
     }
 
-    /// Debug ▸ Breakpoints ▸ Delete All Breakpoints: asks, then removes
-    /// every breakpoint (§10.2).
     @objc public func deleteAllBreakpoints(_ sender: Any?) {
         guard let window, window.isVisible else { return }
         deleteAllBreakpointsAlert().beginSheetModal(for: window) { [weak self] r in
@@ -83,9 +64,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    // MARK: Console
-
-    /// The rows of the console as the filter pop-up shows it.
     var consoleRows: [ConsoleRow] {
         ConsoleRows.rows(session.consoleEntries.filter { debugArea.consoleFilter.includes($0.kind) })
     }
@@ -102,51 +80,35 @@ extension WorkspaceWindowController {
         NSPasteboard.general.setString(ConsoleRows.copyText(row, metadata: metadata), forType: .string)
     }
 
-    /// Debug ▸ Console ▸ Copy Row with Visible Metadata (⌥⇧C), with All
-    /// Metadata, without Metadata.
     @objc public func copyConsoleRowWithVisibleMetadata(_ sender: Any?) {
         copyConsoleRow(debugArea.metadata.enabled ? debugArea.metadata : nil)
     }
     @objc public func copyConsoleRowWithAllMetadata(_ sender: Any?) { copyConsoleRow(ConsoleRows.allMetadata) }
     @objc public func copyConsoleRowWithoutMetadata(_ sender: Any?) { copyConsoleRow(nil) }
 
-    /// The selected row's source location, resolved in the workspace.
     var selectedConsoleSource: (file: String, line: Int)? {
         guard let row = selectedConsoleRow, let loc = ConsoleRows.sourceLocation(in: row.text),
               let file = ConsoleRows.resolve(loc.path, files: workspaceFiles) else { return nil }
         return (file, loc.line)
     }
 
-    /// Debug ▸ Console ▸ Jump To Source (⌥⇧⌘J).
     @objc public func jumpToConsoleSource(_ sender: Any?) {
         guard let s = selectedConsoleSource else { return NSSound.beep() }
         open(path: s.file, line: s.line)
     }
 
-    /// Debug ▸ Console ▸ Reload Console (⌥⌘K): re-renders with the current
-    /// metadata options.
     @objc public func reloadConsole(_ sender: Any?) {
         debugArea.setConsole(session.consoleText(debugArea.consoleFilter, metadata: debugArea.metadata))
     }
 
-    /// Debug ▸ Console ▸ Select Last Output (⌥⇧⌘A).
     @objc public func selectLastConsoleOutput(_ sender: Any?) {
         showDebugArea(true)
         if debugArea.selectLastOutput() == nil { NSSound.beep() }
     }
 
-    // MARK: Debug Workflow
-
-    /// Debug ▸ Debug Workflow ▸ Navigate to Source File when Process Pauses.
     @objc public func toggleNavigateToSourceOnPause(_ sender: Any?) { navigatesToSourceOnPause.toggle() }
-    /// Debug ▸ Debug Workflow ▸ Synchronize Insertion Point to Program Counter.
     @objc public func toggleSynchronizeInsertionPoint(_ sender: Any?) { synchronizesInsertionPoint.toggle() }
 
-    /// Shows a stop or a selected frame's line in the editor, once per
-    /// stop and frame: the top frame of a stop only while Navigate to
-    /// Source File when Process Pauses is on. The caret moves there when
-    /// Synchronize Insertion Point is on, a frame was chosen or another
-    /// file opens; otherwise the editor only scrolls to the line.
     func showDebugLocation(_ loc: (file: String, line: Int)) {
         let key = "\(session.stopCount)|\(loc.file):\(loc.line)|\(session.selectedFrameID ?? -1)"
         guard key != lastShownLocation else { return }
@@ -161,9 +123,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    // MARK: Executables and processes
-
-    /// Debug ▸ Debug Executable…: chooses a program and debugs it.
     @objc public func debugExecutable(_ sender: Any?) {
         guard let window, window.isVisible else { return }
         let panel = NSOpenPanel()
@@ -177,13 +136,11 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Debug ▸ Attach to Process ▸ <process>.
     @objc public func attachToListedProcess(_ sender: NSMenuItem) {
         guard let pid = sender.representedObject as? Int else { return }
         Task { await session.attach(to: String(pid)) }
     }
 
-    /// Enablement and check marks of this file's commands; nil = not one.
     func validateDebugMenuItem(_ item: NSMenuItem) -> Bool? {
         let caret = debugCaret
         let paused = session.stoppedThread != nil
@@ -221,14 +178,12 @@ extension WorkspaceWindowController {
 }
 
 extension SourceEditorController {
-    /// Scrolls a line into view without moving the caret.
     func scrollTo(line: Int) {
         guard let r = textView.lineIndex.range(ofLine: line) else { return }
         textView.scrollRangeToVisible(r)
     }
 }
 
-/// The processes Debug ▸ Attach to Process lists: the user's own, by name.
 public enum RunningProcesses {
     public struct Entry: Equatable, Sendable {
         public var pid: Int
@@ -253,8 +208,6 @@ public enum RunningProcesses {
         return out.sorted { ($0.name.lowercased(), $0.pid) < ($1.name.lowercased(), $1.pid) }
     }
 
-    /// The list, read again at most every two seconds: the menu bar's
-    /// delegate refreshes menus whenever it searches key equivalents.
     @MainActor
     static func recent(now: Date = Date()) -> [Entry] {
         if let c = cache, now.timeIntervalSince(c.date) < 2 { return c.list }
@@ -264,8 +217,6 @@ public enum RunningProcesses {
     }
     @MainActor private static var cache: (date: Date, list: [Entry])?
 
-    /// Fills Debug ▸ Attach to Process: "Getting Process List…" until the
-    /// list arrives, then one "<name> (<pid>)" row per process.
     @MainActor
     static func fill(_ menu: NSMenu, target: AnyObject?, entries: [Entry]?) {
         menu.removeAllItems()

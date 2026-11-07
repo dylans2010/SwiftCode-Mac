@@ -11,21 +11,16 @@ import SwiftCodeXcodebuild
         let t = TestDefaults("settings")
         defer { t.remove() }
         let d = t.defaults
-        #expect(BuildSystemPreference.current(d) == .swiftBuild) // the default
+        #expect(BuildSystemPreference.current(d) == .swiftBuild)
         #expect(BuildSystemPreference.swiftBuild.makeEngine(locateSwiftBuild: { nil }).name == "xcodebuild")
         let fb = BuildSystemPreference.swiftBuild.makeEngine(locateSwiftBuild: { "/x/swbuild" })
         #expect(fb.name == "swift-build")
-        // Workspaces are not described by our PIF yet: they go to xcodebuild.
         let engine = try! #require(fb as? FallbackEngine)
-        // A workspace that cannot be read falls back to xcodebuild.
         #expect(engine.engine(for: BuildRequest(container: .workspace("/w.xcworkspace"))).name == "xcodebuild")
         #expect((engine.primary as? SwiftBuildEngine)?.pifSource is XcodePIFSource)
         #expect(engine.engine(for: BuildRequest(container: .package("/p"))).name == "swift-build")
     }
 
-    /// The fallback test is XcodePIFSource's: a project that loads but
-    /// applies a build-tool plug-in where plug-ins cannot run goes to
-    /// xcodebuild (PIF-PKG's `supports`).
     @Test func fallbackUsesThePIFSourceSupportsCheck() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-fallback-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

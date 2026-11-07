@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeGitHub
 
-// Gap-closure tests: pushFile/getFileSHA, workflow runs/jobs/
-// artifacts/logs, releases, repo ZIP, createRepository. Stub
-// transport and fixtures only — no live network, no real token
-// (the stub token is a placeholder).
-
-// MARK: - Fixtures
-
 let fileContentJSON = """
 {"name":"README.md","path":"README.md","sha":"abc123sha","size":11,"content":"aGVsbG8gd29ybGQ=","encoding":"base64"}
 """
@@ -34,8 +27,6 @@ let releasesJSON = """
 """
 
 struct GitHubGapTests {
-
-    // MARK: - getFileSHA / pushFile
 
     @Test("getFileSHA returns the blob SHA for an existing file")
     func getFileSHAFound() async throws {
@@ -109,8 +100,6 @@ struct GitHubGapTests {
         }
     }
 
-    // MARK: - Workflow runs, jobs, artifacts, logs
-
     @Test("listWorkflowRuns decodes runs with actor, status badge, and running state")
     func listWorkflowRuns() async throws {
         let client = stubClient { _ in ok(workflowRunsJSON) }
@@ -155,11 +144,6 @@ struct GitHubGapTests {
 
     @Test("getWorkflowRunLogsURL returns the response URL")
     func getWorkflowRunLogsURL() async throws {
-        // With a real URLSession GitHub answers the /logs endpoint
-        // with a 302 to a short-lived download URL and the session
-        // follows it, so the response URL is that download URL.
-        // The stub transport does not follow redirects, so here the
-        // returned URL is the request URL itself.
         let client = stubClient { _ in ok("") }
         let url = try await client.getWorkflowRunLogsURL(owner: "octocat", repo: "Hello-World", runID: 101)
         #expect(url.absoluteString == "https://api.github.com/repos/octocat/Hello-World/actions/runs/101/logs")
@@ -182,8 +166,6 @@ struct GitHubGapTests {
         #expect(data == Data([0x50, 0x4B, 0x03, 0x04]))
         #expect(StubURLProtocol.requests[0].url?.path == "/repos/octocat/Hello-World/actions/artifacts/301/zip")
     }
-
-    // MARK: - Releases, repo ZIP, create repository
 
     @Test("listReleases decodes releases with assets")
     func listReleases() async throws {

@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: CoreMedia
-
 public struct CoreMediaInterface_0000: Sendable, Codable {
     public let id: String = "coremedia.api.0"
     public var title: String = "CoreMedia Symbol 0"

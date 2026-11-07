@@ -7,10 +7,6 @@ import SwiftCodeSyntax
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Council round 2 (`specs/ide/fidelity-council.md`): the Welcome window
-/// (row 45), the minimap's bars (row 8), the module name after `import`
-/// (row 48) and the top bounce (row 40). The toolbar overflow (row 34) is
-/// in `ToolbarIssuesR39R41Tests`.
 @MainActor
 @Suite(.serialized) struct CouncilRound2Glass3Tests {
     func editor(_ text: String, name: String = "Bounce.swift") throws -> (WorkspaceWindowController, SourceEditorController) {
@@ -32,8 +28,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return (wc, wc.editor)
     }
 
-    // MARK: Row 45: Welcome window
-
     @Test func welcomeTitleIsCapHeight13() throws {
         guard #available(macOS 26, *) else { return }
         _ = NSApplication.shared
@@ -46,13 +40,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(font.fontDescriptor.symbolicTraits.contains(.bold))
         let content = try #require(w.window?.contentView)
         content.layoutSubtreeIfNeeded()
-        // Baselines 38 (name) and 19 (version) above the buttons' top.
         let top = content.bounds.height
         let nameBaseline = top - (w.nameLabel.frame.minY + w.nameLabel.baselineOffsetFromBottom)
         let versionBaseline = top - (w.versionLabel.frame.minY + w.versionLabel.baselineOffsetFromBottom)
         #expect(abs(nameBaseline - (WelcomeWindowController.buttonsTop - 38)) < 1, "\(nameBaseline)")
         #expect(abs(versionBaseline - (WelcomeWindowController.buttonsTop - 19)) < 1, "\(versionBaseline)")
-        // "SwiftCode" is about as wide as the reference's 49-point name.
         #expect(w.nameLabel.intrinsicContentSize.width < 70)
     }
 
@@ -72,10 +64,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         defer { w.window?.close() }
         w.window?.contentView?.layoutSubtreeIfNeeded()
         #expect(w.entries.count == 3)
-        // 47-point pitch.
         #expect(abs(w.table.rect(ofRow: 1).minY - w.table.rect(ofRow: 0).minY - 47) < 0.01)
-        // Separators under the text: from x 56 to 14 before the box's edge,
-        // none under the last row, none touching the selected row.
         let width = w.recentsBox.frame.width
         let rows = (0..<3).map { r -> RecentRowView in
             let v = try! #require(w.tableView(w.table, rowViewForRow: r) as? RecentRowView)
@@ -90,7 +79,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(rows[0].separatorRect == nil)
         rows[1].isNextRowSelected = true
         #expect(rows[1].separatorRect == nil)
-        // The path keeps its end.
         let cell = try #require(w.tableView(w.table, viewFor: nil, row: 0) as? NSTableCellView)
         let path = try #require(cell.subviews.compactMap { $0 as? NSTextField }.first { $0 !== cell.textField })
         #expect(path.lineBreakMode == .byTruncatingHead)
@@ -98,21 +86,15 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try? FileManager.default.removeItem(at: base)
     }
 
-    // MARK: Row 8: one minimap bar per token
-
     @Test func minimapBarsFollowTokens() throws {
         let text = "// Section 1: a comment block\n    let s = \"two words\"  \nstruct A {}\n"
         let storage = NSAttributedString(string: text, attributes: [.foregroundColor: NSColor.black])
         let doc = SyntaxDocument(text: text, language: .swift)
         let tokens = MinimapView.tokenInteriors(doc.tokens(in: 0..<(text as NSString).length))
         let rows = MinimapView.rows(of: storage, columns: 200, tabWidth: 4, wraps: false, tokens: tokens)
-        // The whole comment, spaces included, is one bar.
         #expect(rows[0].count == 1 && rows[0][0].column == 0 && rows[0][0].length == 29, "\(rows[0])")
-        // Code breaks between tokens; the string is one bar; indentation
-        // and trailing spaces are not drawn.
         #expect(rows[1].map(\.column) == [4, 8, 10, 12] && rows[1].last?.length == 11, "\(rows[1])")
         #expect(rows[2].map(\.column) == [0, 7, 9], "\(rows[2])")
-        // Without tokens (plain text) every word is a bar.
         let plain = MinimapView.rows(of: storage, columns: 200, tabWidth: 4, wraps: false)
         #expect(plain[0].count == 6)
     }
@@ -126,8 +108,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(e.minimap.rows[1].count == 1, "\(e.minimap.rows[1])")
         #expect(e.minimap.rows[2].count == 4, "\(e.minimap.rows[2])")
     }
-
-    // MARK: Row 48: `import Foundation`
 
     @Test func importedModuleIsPlainText() throws {
         let (wc, e) = try editor("import Foundation\nlet d: Date = Date()\n")
@@ -144,29 +124,20 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(color(of: "Date") == typeColor || color(of: "Date") != plain)
     }
 
-    // MARK: Row 40: the top bounce
-
     @Test func bounceSpringMatchesTheReference() {
-        // Round 3 (editor-area.md E.1) superseded round 2's single spring:
-        // a run past the top (peak about 67 ms after the crossing), then
-        // the critically damped return at round 2's ω 12.6.
         #expect(TopBounce.omega == 12.6)
-        // The reference's 48-point overshoot: a crossing at about 2470 pt/s.
         let v = TopBounce.velocity(forPeak: 48)
         #expect(abs(v - 2470) < 60, "\(v)")
         #expect(abs(TopBounce.peakTime - 0.067) < 0.001)
         #expect(abs(TopBounce.overscroll(velocity: v, at: TopBounce.peakTime) - 48) < 0.01)
-        // From the peak it is the critically damped spring peak·(1+ωt)e^(−ωt).
         for t in stride(from: 0.0, through: 0.6, by: 0.05) {
             let spring = 48 * (1 + 12.6 * t) * exp(-12.6 * t)
             #expect(abs(TopBounce.overscroll(velocity: v, at: TopBounce.peakTime + t) - spring) < 0.01)
         }
-        // Half gone about 140 ms after the peak; within a point 440 ms after it.
         #expect(TopBounce.overscroll(velocity: v, at: TopBounce.peakTime + 0.15) < 24)
         #expect(TopBounce.overscroll(velocity: v, at: TopBounce.peakTime + 0.44) < 1.3)
         let d = TopBounce.duration(velocity: v)
         #expect(d > 0.55 && d < 0.75, "\(d)")
-        // A very fast flick is limited to a quarter of the view.
         #expect(abs(TopBounce.peak(velocity: TopBounce.effectiveVelocity(50_000, visibleHeight: 800)) - 200) < 0.01)
         #expect(TopBounce.effectiveVelocity(v, visibleHeight: 800) == v)
     }
@@ -175,14 +146,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         var t = TopBounce.VelocityTracker()
         for i in 0..<10 { t.add(30, at: Double(i) * 0.01) }
         #expect(abs(t.velocity - 3000) < 1 && t.hasSample)
-        t.add(0, at: 0.5)   // no motion: ignored
+        t.add(0, at: 0.5)
         #expect(abs(t.velocity - 3000) < 1)
         t.reset()
         #expect(t.velocity == 0)
     }
 
-    /// A momentum flick toward the top, as scroll events: the bounce takes
-    /// over at the crossing, runs past the top and settles back on it.
     @Test func momentumFlickBouncesAtTheTop() throws {
         var text = ""
         for i in 0..<300 { text += "let value\(i) = \(i)\n" }
@@ -191,13 +160,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let scroll = try #require(e.scrollView as? EditorScrollView)
         let clip = scroll.contentView
         let top = EditorTopBounce.top(of: scroll)
-        clip.scroll(to: NSPoint(x: 0, y: top + 20))   // the first momentum event crosses
+        clip.scroll(to: NSPoint(x: 0, y: top + 20))
         scroll.reflectScrolledClipView(clip)
         var frames: [CGFloat] = []
         var lowest = CGFloat.greatestFiniteMagnitude
         scroll.topBounce.onFrame = { frames.append($0); lowest = min(lowest, clip.bounds.minY) }
-        // Events 10 ms apart: a gesture, then momentum of 30 points each
-        // (3000 pt/s) until the top is crossed, then the momentum's tail.
         let t0 = ProcessInfo.processInfo.systemUptime
         var sent = 0
         func send(_ delta: Double, phase: Int64, momentum: Int64) {
@@ -223,7 +190,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             guardCount += 1
         }
         #expect(scroll.topBounce.isRunning)
-        for _ in 0..<5 { send(10, phase: 0, momentum: 2) }   // swallowed
+        for _ in 0..<5 { send(10, phase: 0, momentum: 2) }
         send(0, phase: 0, momentum: 3)
         let deadline = Date().addingTimeInterval(2)
         while scroll.topBounce.isRunning, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.005)) }
@@ -231,10 +198,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(abs(clip.bounds.minY - top) < 0.5, "rests at \(clip.bounds.minY), top \(top)")
         let peak = scroll.topBounce.lastPeak
         print("bounce: peak \(peak) over \(frames.count) frames, view \(clip.bounds.height)")
-        // About 3000 pt/s gives about 57 points (editor-area.md E.1); the
-        // timer's frames sample it.
         #expect(peak > 40 && peak < 65, "peak \(peak)")
-        // The text really moved past the top by the peak.
         #expect(abs((top - lowest) - peak) < 0.5, "lowest \(lowest), top \(top)")
     }
 }

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 #if canImport(os)
 import os
@@ -9,7 +6,7 @@ import os
 @Observable
 @MainActor
 final class AdvancedRegexDebuggerViewModel {
-    var regexPattern: String = "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b" // Email pattern
+    var regexPattern: String = "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
     var sampleText: String = "Send requests to support@example.com or info@example.com for info."
     var matchResults: [String] = []
     var explanation: String = ""
@@ -38,7 +35,6 @@ final class AdvancedRegexDebuggerViewModel {
                 }
             }
 
-            // Build simple structural explanation
             explanation = "Parsed Pattern: '\(regexPattern)'\nDetected \(matches.count) matched substring(s) in the sample text."
             logger.info("Successfully executed regex query")
         } catch {
@@ -93,9 +89,9 @@ struct AdvancedRegexDebuggerDevToolView: View {
                         Text(viewModel.explanation)
                             .font(.subheadline)
                             .padding()
-                            
+
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            
+
                             .cornerRadius(8)
                     }
                 }

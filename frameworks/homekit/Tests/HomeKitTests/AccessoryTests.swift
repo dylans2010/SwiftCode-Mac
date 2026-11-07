@@ -1,6 +1,3 @@
-// Accessories, services and characteristics through the in-memory test
-// accessory (object-model.md §5–§7; plan.md HK-A20–A24, A27, A28).
-
 import Foundation
 import Testing
 @testable import HomeKit
@@ -114,7 +111,6 @@ struct DiscoveryTests {
         #expect(children[0].category.categoryType == HMAccessoryCategoryTypeLightbulb)
         #expect(children[1].category.categoryType == HMAccessoryCategoryTypeSwitch)
         await expectCode(.cannotRemoveNonBridgeAccessory) { try await h.removeAccessory(children[0]) }
-        // Bridged accessories control through the bridge's endpoint.
         try await characteristic(children[0], HMCharacteristicTypePowerState).writeValue(true)
         #expect(bridge.value(of: HMCharacteristicTypePowerState, aid: 2) == .bool(true))
         try await h.removeAccessory(hub)
@@ -182,7 +178,6 @@ struct CharacteristicTests {
         #expect(device.writes.count == writesBefore, "rejected values never reach the accessory")
         #expect(brightness.value as? Int == 40)
 
-        // Completion runs on main and sees the new value.
         let seen = await withCheckedContinuation { (c: CheckedContinuation<(Bool, Int?), Never>) in
             brightness.readValue { _ in c.resume(returning: (onMainQueue(), brightness.value as? Int)) }
         }
@@ -224,7 +219,6 @@ struct CharacteristicTests {
         #expect(r.log == ["value CurrentTemperature 23.5"])
         #expect(r.offMain == 0)
 
-        // A characteristic without a subscription stays silent.
         device.simulateChange(HMCharacteristicTypeBatteryLevel, to: .uint(50))
         await settle(store)
         #expect(r.log.count == 1)
@@ -235,7 +229,6 @@ struct CharacteristicTests {
         await settle(store)
         #expect(r.log.count == 1)
 
-        // Writes by another client reach subscribers; the writer itself is not notified.
         let bulb = SwiftCodeTestAccessory.lightbulb(name: "Shared Bulb")
         let mine = try await pair(bulb, into: h, store: store)
         let otherManager = await loadedManager(store)

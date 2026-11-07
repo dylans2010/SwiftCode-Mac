@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/SCTimelineView.swift` (SwiftCode-Mac migration, P-UTIL).
-// All referenced managers (OperationsCoordinator/OperationsPanel, OperationQueueManager, NotificationCenterManager, WorkspaceTimelineManager, WorkspaceHealth, WorkspaceIntelligence, DiagnosticsManager, SecurityManager, BuildHistoryManager, SCOperationsStorageManager, SCOperationsSigningManager, PerformanceManager, DependencyManager) exist in SwiftCodeIDEShell; ModernGroupBoxStyle/.liquidGlass in SwiftCodeUI.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDEShell
 import SwiftCodeUI
@@ -22,7 +18,6 @@ struct SCTimelineView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Engineering Activity Timeline")
@@ -53,7 +48,6 @@ struct SCTimelineView: View {
 
             Divider()
 
-            // Filter and Search Toolbar
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -79,7 +73,6 @@ struct SCTimelineView: View {
 
             Divider()
 
-            // Events List
             if tm.filteredEvents.isEmpty {
                 ContentUnavailableView {
                     Label("No Events Found", systemImage: "calendar.badge.exclamationmark")
@@ -92,7 +85,6 @@ struct SCTimelineView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(tm.filteredEvents) { item in
                             HStack(alignment: .top, spacing: 16) {
-                                // Timeline indicator segment
                                 VStack(spacing: 4) {
                                     Circle()
                                         .fill(colorForCategory(item.category))

@@ -1,11 +1,3 @@
-// The Noise Protocol Framework (revision 34, Trevor Perrin, public domain;
-// noiseprotocol.org/noise.html), the parts SwiftCode's simulator link uses
-// (specs/simulator/sim-link.md §3): the XX handshake pattern and its psk3
-// variant, with Curve25519, ChaCha20-Poly1305 and SHA-256
-// ("Noise_XX_25519_ChaChaPoly_SHA256", "Noise_XXpsk3_25519_ChaChaPoly_SHA256").
-// The primitives come from swift-crypto (Apache-2.0; CryptoKit on Apple
-// platforms, BoringSSL elsewhere). Section numbers below are the spec's.
-
 import Crypto
 import Foundation
 
@@ -25,7 +17,6 @@ public enum NoiseError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-/// §5.1 CipherState: a key and a 64-bit nonce.
 public struct NoiseCipherState: Sendable {
     public private(set) var key: SymmetricKey?
     public private(set) var nonce: UInt64 = 0
@@ -34,7 +25,6 @@ public struct NoiseCipherState: Sendable {
 
     public var hasKey: Bool { key != nil }
 
-    /// The 96-bit ChaChaPoly nonce: 32 bits of zeros, then n little-endian (§12.3).
     static func nonceBytes(_ n: UInt64) -> [UInt8] {
         [0, 0, 0, 0] + (0..<8).map { UInt8(truncatingIfNeeded: n >> (8 * UInt64($0))) }
     }
@@ -71,7 +61,6 @@ public struct NoiseCipherState: Sendable {
         return out
     }
 
-    /// §4.2 Rekey(): k = the first 32 bytes of ENCRYPT(k, maxnonce, zerolen, zeros).
     public mutating func rekey() throws {
         guard let key else { return }
         let out = try Self.seal(key, UInt64.max, ad: [], [UInt8](repeating: 0, count: 32))
@@ -79,7 +68,6 @@ public struct NoiseCipherState: Sendable {
     }
 }
 
-/// §5.2 SymmetricState.
 public struct NoiseSymmetricState: Sendable {
     public private(set) var ck: [UInt8]
     public private(set) var h: [UInt8]
@@ -95,7 +83,6 @@ public struct NoiseSymmetricState: Sendable {
         Array(HMAC<SHA256>.authenticationCode(for: data, using: SymmetricKey(data: key)))
     }
 
-    /// §4.3 HKDF(chaining_key, input_key_material, num_outputs).
     public static func hkdf(_ ck: [UInt8], _ ikm: [UInt8], _ outputs: Int) -> [[UInt8]] {
         let temp = hmac(ck, ikm)
         let o1 = hmac(temp, [1])
@@ -131,17 +118,12 @@ public struct NoiseSymmetricState: Sendable {
         return p
     }
 
-    /// §5.2 Split(): the initiator's sending and receiving ciphers' keys.
     public func split() -> (initiatorToResponder: [UInt8], responderToInitiator: [UInt8]) {
         let o = Self.hkdf(ck, [], 2)
         return (o[0], o[1])
     }
 }
 
-/// §5.3 HandshakeState for XX (and XXpsk3):
-///   -> e
-///   <- e, ee, s, es
-///   -> s, se            (psk3: then psk)
 public struct NoiseXX: Sendable {
     public let initiator: Bool
     public let psk: [UInt8]?
@@ -156,7 +138,6 @@ public struct NoiseXX: Sendable {
         psk ? "Noise_XXpsk3_25519_ChaChaPoly_SHA256" : "Noise_XX_25519_ChaChaPoly_SHA256"
     }
 
-    /// `ephemeral`: a fixed ephemeral key (test vectors only).
     public init(initiator: Bool, staticKey: Curve25519.KeyAgreement.PrivateKey, prologue: [UInt8], psk: [UInt8]? = nil,
                 ephemeral: Curve25519.KeyAgreement.PrivateKey? = nil) {
         self.initiator = initiator
@@ -177,7 +158,6 @@ public struct NoiseXX: Sendable {
         }
     }
 
-    /// The handshake hash (§5.2 GetHandshakeHash), valid during and after the handshake.
     public var handshakeHash: [UInt8] { symmetric.h }
 
     public var isComplete: Bool { step == 3 }
@@ -211,9 +191,6 @@ public struct NoiseXX: Sendable {
         at += n
     }
 
-    /// Writes the next handshake message (1 for the initiator, 2 for the
-    /// responder, 3 for the initiator). `beforePayload` sees the handshake
-    /// hash just before the payload is encrypted (identity signatures).
     public mutating func writeMessage(payload: ([UInt8]) throws -> [UInt8]) throws -> [UInt8] {
         var out: [UInt8] = []
         switch (step, initiator) {
@@ -221,12 +198,12 @@ public struct NoiseXX: Sendable {
             writeE(&out)
         case (1, false):
             writeE(&out)
-            symmetric.mixKey(try Self.dh(e!, re!))  // ee
+            symmetric.mixKey(try Self.dh(e!, re!))
             try writeS(&out)
-            symmetric.mixKey(try Self.dh(s, re!))   // es
+            symmetric.mixKey(try Self.dh(s, re!))
         case (2, true):
             try writeS(&out)
-            symmetric.mixKey(try Self.dh(s, re!))   // se
+            symmetric.mixKey(try Self.dh(s, re!))
             if let psk { symmetric.mixKeyAndHash(psk) }
         default:
             throw NoiseError.wrongState
@@ -236,8 +213,6 @@ public struct NoiseXX: Sendable {
         return out
     }
 
-    /// Reads the next handshake message; returns its payload. `hashBeforePayload`
-    /// gets the handshake hash just before the payload was decrypted.
     public mutating func readMessage(_ msg: [UInt8], hashBeforePayload: inout [UInt8]) throws -> [UInt8] {
         var at = 0
         switch (step, initiator) {
@@ -245,12 +220,12 @@ public struct NoiseXX: Sendable {
             try readE(msg, &at)
         case (1, true):
             try readE(msg, &at)
-            symmetric.mixKey(try Self.dh(e!, re!))  // ee
+            symmetric.mixKey(try Self.dh(e!, re!))
             try readS(msg, &at)
-            symmetric.mixKey(try Self.dh(e!, remoteStatic!))  // es
+            symmetric.mixKey(try Self.dh(e!, remoteStatic!))
         case (2, false):
             try readS(msg, &at)
-            symmetric.mixKey(try Self.dh(e!, remoteStatic!))  // se
+            symmetric.mixKey(try Self.dh(e!, remoteStatic!))
             if let psk { symmetric.mixKeyAndHash(psk) }
         default:
             throw NoiseError.wrongState
@@ -261,7 +236,6 @@ public struct NoiseXX: Sendable {
         return payload
     }
 
-    /// After message 3: (send, receive) ciphers for this side.
     public func transportCiphers() throws -> (send: NoiseCipherState, receive: NoiseCipherState) {
         guard isComplete else { throw NoiseError.wrongState }
         let (a, b) = symmetric.split()

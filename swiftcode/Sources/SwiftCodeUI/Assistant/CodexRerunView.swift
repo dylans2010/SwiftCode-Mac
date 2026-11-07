@@ -1,10 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/AI/AI New/Codex UIs/CodexRerunView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim. BLOCKED reference: CodexWorkspaceStore (Legacy
-// `Views/AI/AI New/Codex UIs/CodexMainView.swift`, PARTIAL, another scope) —
-// the view reads .shared.prompt/.previousOutput. The `rerun` closure is host-owned.
-// Wiring: the Codex assistant pane, next to the prompt input.
-
 import SwiftUI
 
 struct CodexRerunView: View {

@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// T-ENV (10-plan.md §3.2): the 08 §1 defaults at the scene root and live
-// updates when a platform setting changes (08 §1.1), on the headless host;
-// the desktop settings sources (environment variables, settings file,
-// portal text) of OVPlatform.
-
 @MainActor
 final class EnvReads {
     static let shared = EnvReads()
@@ -70,8 +65,6 @@ struct EnvironmentProbe: View {
 @Suite("R10 live environment (T-ENV)")
 struct EnvironmentLiveTests {
     @Test func defaultsOfTheReferenceTable() {
-        // 08 §1, the values a fresh environment and the headless host's root
-        // (default platform settings) have.
         EnvReads.shared.env = nil
         let h = Harness { EnvironmentProbe() }
         _ = h
@@ -100,28 +93,22 @@ struct EnvironmentLiveTests {
         let h = Harness { VStack { SchemeReader(); OtherReader() } }
         #expect(r.scheme == .light && r.schemeBodies == 1 && r.otherBodies == 1)
         let textBefore = h.frame { ($0 as? Text)?.plainString == "Body text" }
-        // Dark mode (08 §1.1 "appearance dark").
         h.backend.settings.darkAppearance = true
         h.run(until: 1)
         #expect(r.scheme == .dark && r.schemeBodies == 2)
         #expect(r.otherBodies == 1)
-        // Content size accessibility-large (AX2): Dynamic Type and the list
-        // row minimum follow (06 §3: 59).
         h.backend.settings.contentSizeIndex = 8
         h.run(until: 1.5)
         #expect(r.size == .accessibility2 && r.rowHeight == 59 && r.schemeBodies == 2)
         let textAfter = h.frame { ($0 as? Text)?.plainString == "Body text" }
         #expect((textAfter?.height ?? 0) > (textBefore?.height ?? 0) + 5)
-        // Increased contrast, reduce motion.
         h.backend.settings.increasedContrast = true
         h.backend.settings.reduceMotion = true
         h.run(until: 2)
         #expect(r.contrast == .increased && r.reduceMotion == true)
-        // An Arabic locale lays out right to left.
         h.backend.settings.localeIdentifier = "ar_SA"
         h.run(until: 2.5)
         #expect(r.direction == .rightToLeft && r.locale == "ar_SA")
-        // Back to the defaults, one change at a time.
         h.backend.settings = PlatformSettings()
         h.run(until: 3)
         #expect(r.scheme == .light && r.size == .large && r.direction == .leftToRight && r.contrast == .standard)

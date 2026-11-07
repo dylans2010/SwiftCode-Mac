@@ -1,8 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-// Bookmark commands of the workspace window; the bookmark model is in
-// SwiftCodeIDECore (Session/Bookmarks.swift).
 extension WorkspaceWindowController {
     var bookmarks: BookmarkStore {
         if let b = bookmarkStoreHolder.store { return b }
@@ -14,13 +12,11 @@ extension WorkspaceWindowController {
         return b
     }
 
-    /// The trimmed text of a line of the focused editor.
     func lineText(_ line: Int) -> String {
         guard let r = editor.textView.lineIndex.range(ofLine: line) else { return "" }
         return (editor.text as NSString).substring(with: r).trimmingCharacters(in: .whitespaces)
     }
 
-    /// Edit ▸ Bookmark Line: the caret's line, labelled with its text.
     @objc public func bookmarkLine(_ sender: Any?) { addLineBookmark() }
 
     @discardableResult
@@ -32,7 +28,6 @@ extension WorkspaceWindowController {
         return b
     }
 
-    /// Edit ▸ Bookmark File: the focused file, labelled with its name.
     @objc public func bookmarkFile(_ sender: Any?) { addFileBookmark() }
 
     @discardableResult
@@ -43,7 +38,6 @@ extension WorkspaceWindowController {
         return b
     }
 
-    /// "With Dialog": asks for the label first (only for a window on screen).
     @objc public func bookmarkLineWithDialog(_ sender: Any?) { askLabel(default: lineText(editor.currentLine)) { [weak self] l in
         guard let self, let b = self.addLineBookmark() else { return }
         self.bookmarks.add(Bookmark(file: b.file, line: b.line, label: l))

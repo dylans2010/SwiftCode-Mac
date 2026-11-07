@@ -1,4 +1,3 @@
-// air.cpp: AIR metadata readers.
 #include "air.h"
 
 #include "error.h"
@@ -67,12 +66,9 @@ const char *stageName(Stage s) {
     return "?";
 }
 
-// Parses a node; `first` is the operand index of the kind string.
 static AirNode parseNode(MDNode *N, unsigned first) {
     AirNode n;
     auto *K = dyn_cast_or_null<MDString>(N->getOperand(first).get());
-    // [[function_constant(name)]] on an argument or output: the node starts
-    // with air.function_constant and a {predicate global, type, name} node.
     if (K && K->getString() == "air.function_constant" && first + 2 < N->getNumOperands()) {
         if (auto *P = dyn_cast_or_null<MDNode>(N->getOperand(first + 1).get()))
             if (P->getNumOperands() > 2)
@@ -82,7 +78,6 @@ static AirNode parseNode(MDNode *N, unsigned first) {
     }
     if (!K) fail("internal", "AIR node without a kind string");
     n.kind = K->getString().str();
-    // The kind is a key too: its own values (render-target indices) follow it.
     n.keys.push_back({n.kind, {}});
     for (unsigned i = first + 1; i < N->getNumOperands(); i++) {
         Metadata *M = N->getOperand(i).get();
@@ -140,8 +135,6 @@ EntryInfo entryInfo(Module &M, Function *F) {
     fail("not-an-entry-point", F->getName().str());
 }
 
-// Lays out the integer leaves of a constant at their data-layout offsets
-// (little-endian). False when the constant holds something else.
 static bool constantBytes(const DataLayout &DL, Constant *C, std::vector<uint8_t> &out, uint64_t at) {
     Type *T = C->getType();
     uint64_t alloc = DL.getTypeAllocSize(T);
@@ -182,7 +175,6 @@ std::vector<ConstexprSampler> constexprSamplers(Module &M) {
     if (!S) return out;
     const DataLayout &DL = M.getDataLayout();
     for (MDNode *N : S->operands()) {
-        // Operands: a name string and the global (order as observed); find the global.
         for (const MDOperand &O : N->operands()) {
             auto *V = dyn_cast_or_null<ValueAsMetadata>(O.get());
             if (!V) continue;
@@ -229,8 +221,6 @@ std::vector<FunctionConstant> functionConstants(Module &M) {
         if (auto *S = dyn_cast_or_null<MDString>(N->getOperand(2).get())) fc.name = S->getString().str();
         if (auto *C = mdconst::dyn_extract_or_null<ConstantInt>(N->getOperand(3))) fc.index = (unsigned)C->getZExtValue();
         if (!fc.init) continue;
-        // The static initializer copies the initializer global into the
-        // internal global that functions load: store (load INIT), VALUE.
         for (User *U : fc.init->users()) {
             auto *LI = dyn_cast<LoadInst>(U);
             if (!LI) continue;
@@ -270,4 +260,4 @@ SamplerFields decodeSampler(uint64_t w) {
     return f;
 }
 
-}  // namespace airc
+}

@@ -1,8 +1,3 @@
-//
-//  AssistSwiftFormatLintTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSwiftFormatLintTool: AssistTool {
@@ -47,28 +42,23 @@ public struct AssistSwiftFormatLintTool: AssistTool {
         for (i, line) in lines.enumerated() {
             let lineNum = i + 1
 
-            // 1. Line length
             if line.count > 140 {
                 issues.append("Line \(lineNum): Line exceeds 140 characters (\(line.count) chars).")
             }
 
-            // 2. Trailing whitespace
             if line.hasSuffix(" ") || line.hasSuffix("\t") {
                 issues.append("Line \(lineNum): Trailing whitespace detected.")
             }
 
-            // 3. Tab indentation instead of spaces
             if line.hasPrefix("\t") {
                 issues.append("Line \(lineNum): Hard tab indentation used instead of spaces.")
             }
 
-            // 4. Trailing semicolon
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasSuffix(";") && !trimmed.contains("/*") {
                 issues.append("Line \(lineNum): Redundant trailing semicolon.")
             }
 
-            // 5. Multiple consecutive empty lines
             if trimmed.isEmpty {
                 consecutiveEmptyLines += 1
                 if consecutiveEmptyLines > 2 {

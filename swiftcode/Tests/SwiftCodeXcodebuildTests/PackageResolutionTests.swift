@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeXcodebuild
 
-/// `-resolvePackageDependencies` against packages in local git
-/// repositories (no network).
 @Suite(.serialized) struct PackageResolutionTests {
     func sh(_ tool: String, _ args: [String], in dir: URL) throws {
         let p = Process()
@@ -18,7 +16,6 @@ import Testing
         if p.terminationStatus != 0 { throw CocoaError(.fileWriteUnknown) }
     }
 
-    /// A package repository with tags 1.0.0, 1.1.0 and 2.0.0.
     func makeRepository(at dir: URL) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: dir.appendingPathComponent("Sources/Shapes"), withIntermediateDirectories: true)
@@ -40,8 +37,7 @@ import Testing
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-resolve-\(UUID().uuidString)")
         let repo = root.appendingPathComponent("Shapes")
-        guard (try? makeRepository(at: repo)) != nil else { return } // no git: skipped
-        // The project: one tool target using the package's product.
+        guard (try? makeRepository(at: repo)) != nil else { return }
         let projDir = root.appendingPathComponent("App")
         try fm.createDirectory(at: projDir.appendingPathComponent("App.xcodeproj"), withIntermediateDirectories: true)
         let pbx = multiProjectText
@@ -59,7 +55,6 @@ import Testing
         #expect(pin?["identity"] as? String == "shapes")
         #expect((pin?["state"] as? [String: Any])?["version"] as? String == "1.1.0")
         #expect(fm.fileExists(atPath: cloned + "/checkouts/shapes/Package.swift"))
-        // No packages: just the summary line.
         let none = try writeMultiProject().deletingLastPathComponent().path
         let n = runTool(["-resolvePackageDependencies"], cwd: none)
         #expect(n.code == 0 && n.out.hasSuffix("\nresolved source packages: \n"))

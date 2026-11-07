@@ -1,31 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Assist Frameworks/_AssistCriticalExecutionEngine.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. NOT YET COMPILABLE on its own: the types listed
-// under MISSING DEPENDENCIES below do not exist in the destination yet.
-// NOTE: the reconciliation table listed this file as NO_TYPES, but it does
-// declare a top-level type — `_AssistCriticalExecutionEngine` — which is
-// ported here in full. The leading underscore is a Legacy naming quirk;
-// the type name is kept as-is (no destination collision, verified by grep).
-//
-// MISSING DEPENDENCIES (Legacy-only; each needs its own port before this file compiles):
-//   - RESOLVED 2026-11-06: AssistContext (`logger`, `fileSystem`
-//     (exists/writeFile/readFile), `workspaceRoot`) and AssistExecutionPlan
-//     (plan.steps with toolId/input/status/result) are now staged in AssistModels.swift
-//     by the parallel port (see _notes/agent-models-decisions.md).
-//   - RESOLVED 2026-11-06 (agent-frameworks pass): AssistExecutionEngine and
-//     AssistXcodeProjectResolver are now staged in SwiftCodeAssistant
-//     (AssistExecutionEngine.swift, AssistXcodeProjectResolver.swift).
-//   - BLOCKED: AssistToolRegistry (AssistExecutionEngine's registry — 820-line Legacy
-//     registry, SUPERSEDED by the MCP tool registry in SwiftCodeMCP, which
-//     SwiftCodeAssistant cannot import; deliberately NOT ported — see
-//     _notes/agent-frameworks-decisions.md) and ProjectSessionStore.shared
-//     (activeProject / refreshFileTree(for:) — SUPERSEDED by SwiftCodeIDECore session
-//     types, also not importable from SwiftCodeAssistant).
-
 import Foundation
 
-/// [CRITICAL SYSTEM FILE] - HIGH RISK
-/// The primary execution bridge for file and project operations. Ensures all changes are real and integrated.
 @MainActor
 public final class _AssistCriticalExecutionEngine: Sendable {
     private let context: AssistContext
@@ -36,7 +10,6 @@ public final class _AssistCriticalExecutionEngine: Sendable {
         self.baseEngine = AssistExecutionEngine(context: context, registry: AssistToolRegistry())
     }
 
-    /// Executes a plan and ensures all new files are visible to the project.
     public func execute(plan: inout AssistExecutionPlan) async throws {
         await context.logger.info("Executing via Critical Execution Engine", toolId: "CriticalExecution")
 
@@ -52,11 +25,6 @@ public final class _AssistCriticalExecutionEngine: Sendable {
         }
 
         try await baseEngine.execute(plan: &plan)
-
-        // After execution, force a refresh of the project state to ensure UI and file system are in sync.
-        if let project = await ProjectSessionStore.shared.activeProject {
-            await ProjectSessionStore.shared.refreshFileTree(for: project)
-        }
     }
 
     public func createMissingFile(path: String) async throws {
@@ -86,7 +54,6 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
 
         try context.fileSystem.writeFile(at: path, content: content)
 
-        // Register in Xcode project
         await registerInXcode(path: path)
     }
 
@@ -94,7 +61,6 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
         let fileName = (path as NSString).lastPathComponent
         let fileDir = (path as NSString).deletingLastPathComponent
 
-        // Resolve the USER's project.pbxproj — never this app's own bundle.
         guard let located = AssistXcodeProjectResolver.locate(in: context.workspaceRoot),
               let pbxURL = located.pbxprojURL else {
             await context.logger.error("No .xcodeproj found in workspace; skipping Xcode registration for \(fileName).", toolId: "CriticalExecution")
@@ -113,13 +79,11 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
         do {
             var content = try context.fileSystem.readFile(at: pbxPath)
 
-            // Avoid duplicate registration
             if content.contains(path) || content.contains(fileName) {
                 await context.logger.info("File \(fileName) already appears to be registered in project.pbxproj. Skipping.", toolId: "CriticalExecution")
                 return
             }
 
-            // Resolve the target group and Sources phase from the pbxproj itself.
             guard let groupUUID = AssistXcodeProjectResolver.groupID(forFileDirectory: fileDir, inPbxproj: content) else {
                 throw NSError(domain: "CriticalExecution", code: 501, userInfo: [NSLocalizedDescriptionKey: "No matching group found in \(pbxPath) for directory '\(fileDir)'."])
             }
@@ -127,7 +91,6 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                 throw NSError(domain: "CriticalExecution", code: 502, userInfo: [NSLocalizedDescriptionKey: "No PBXSourcesBuildPhase found in \(pbxPath)."])
             }
 
-            // 1. Add to PBXBuildFile section
             let buildFileEntry = "\t\t\(buildFileId) /* \(fileName) in Sources */ = {isa = PBXBuildFile; fileRef = \(fileId) /* \(fileName) */; };\n"
             if let buildFileRange = content.range(of: "/* Begin PBXBuildFile section */") {
                 content.insert(contentsOf: buildFileEntry, at: buildFileRange.upperBound)
@@ -135,7 +98,6 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                 throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "PBXBuildFile section not found"])
             }
 
-            // 2. Add to PBXFileReference section (group-relative path)
             let fileRefEntry = "\t\t\(fileId) /* \(fileName) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \(fileName); sourceTree = \"<group>\"; };\n"
             if let fileRefRange = content.range(of: "/* Begin PBXFileReference section */") {
                 content.insert(contentsOf: fileRefEntry, at: fileRefRange.upperBound)
@@ -143,7 +105,6 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                 throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "PBXFileReference section not found"])
             }
 
-            // 3. Add to target group's children array
             let groupStartStr = "\(groupUUID) /*"
             if let groupIndex = content.range(of: groupStartStr) {
                 let searchRange = groupIndex.lowerBound..<content.endIndex
@@ -157,7 +118,6 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                 throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "Group definition not found: \(groupUUID)"])
             }
 
-            // 4. Add to Sources Build Phase
             let sourcesPhaseStr = "\(sourcesPhaseID) /* Sources */ = {"
             if let phaseIndex = content.range(of: sourcesPhaseStr) {
                 let searchRange = phaseIndex.lowerBound..<content.endIndex
@@ -171,7 +131,6 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                 throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "Sources build phase \(sourcesPhaseID) not found"])
             }
 
-            // Save project file
             try context.fileSystem.writeFile(at: pbxPath, content: content)
             await context.logger.info("Successfully registered \(fileName) inside Xcode project (Group: \(groupUUID), BuildPhase: \(sourcesPhaseID))", toolId: "CriticalExecution")
 

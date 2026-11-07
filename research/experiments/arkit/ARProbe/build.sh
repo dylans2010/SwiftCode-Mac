@@ -1,10 +1,4 @@
 #!/bin/sh
-# Build ARProbe for the iOS simulator with the installed Xcode, in three
-# variants that differ only in Info.plist:
-#   ARProbe.app        camera usage string present            dev.ycode.arprobe
-#   ARProbeNoCam.app   no NSCameraUsageDescription            dev.ycode.arprobe.nocam
-#   ARProbeReq.app     UIRequiredDeviceCapabilities = [arkit] dev.ycode.arprobe.req
-# Usage: build.sh OUTDIR   (OUTDIR must be on the Mac, not on the drive)
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}
@@ -15,8 +9,7 @@ xcrun --sdk iphonesimulator clang -target arm64-apple-ios27.0-simulator -isysroo
   -framework UIKit -framework ARKit -framework SceneKit -framework SpriteKit -framework Metal \
   -framework AVFoundation -framework CoreLocation -framework QuartzCore \
   "$SRC/main.m" -o "$OUT/ARProbe.bin"
-
-plist() { # name bundle-id extra-xml
+plist() {
   cat <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -38,8 +31,7 @@ $3
 </dict></plist>
 EOF
 }
-
-mk() { # app-name bundle-id extra-xml
+mk() {
   rm -rf "$OUT/$1.app"; mkdir -p "$OUT/$1.app"
   cp "$OUT/ARProbe.bin" "$OUT/$1.app/ARProbe"
   plist "$1" "$2" "$3" > "$OUT/$1.app/Info.plist"

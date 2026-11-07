@@ -1,19 +1,4 @@
 'use strict';
-// SwiftCode extension host (specs/ide/extensions-platform.md §4.4).
-//
-// One Node process per VS Code extension. Speaks NDJSON JSON-RPC v1
-// over stdin/stdout: one JSON object per line, `jsonrpc: "2.0"`,
-// `protocolVersion: 1`. Intercepts only `require('vscode')`; every
-// other `require` resolves normally from the extension's own
-// directory / node_modules.
-//
-// D-9 (recorded disagreement, fixed here): `workspace.applyEdit`
-// sends `host.applyEdit` as `{path, edits: [...]}` — the shape the
-// Swift handler requires — not the `{edit}` shape Legacy's shim
-// sent, which the handler could never serve.
-//
-// `vscode.version` is '1.85.0'. Unsupported APIs throw a descriptive
-// error, never fake success.
 const fs = require('fs');
 const path = require('path');
 
@@ -31,10 +16,9 @@ function entryPathFromArgv() {
 
 const entryPath = entryPathFromArgv();
 
-// ---- NDJSON transport -------------------------------------------------
 let inputBuffer = '';
 let nextHostRequestId = 1;
-const pendingHostRequests = new Map(); // id -> {resolve, reject, timer}
+const pendingHostRequests = new Map();
 
 function send(message) {
   process.stdout.write(JSON.stringify(message) + '\n');
@@ -68,22 +52,20 @@ function unsupported(api) {
   return new Error(`SwiftCode does not support ${api} (see Docs/Extensions-v2.md API matrix).`);
 }
 
-// ---- Host state --------------------------------------------------------
 const state = {
   messages: [],
   outputLines: [],
   statusBar: null,
   completionLanguages: new Set(),
   hoverLanguages: new Set(),
-  treeProviders: new Map(), // viewId -> provider
-  commands: new Map(), // commandId -> handler
-  diagnostics: new Map(), // uri -> diagnostics
+  treeProviders: new Map(),
+  commands: new Map(),
+  diagnostics: new Map(),
 };
 
 let extensionExports = null;
 let activated = false;
 
-// ---- The vscode shim ---------------------------------------------------
 class Position {
   constructor(line, character) { this.line = line; this.character = character; }
 }
@@ -180,7 +162,6 @@ const vscode = {
       const content = await sendRequestToSwift('host.readFile', { path: p });
       return { uri: Uri.file(p), fileName: p, getText: () => (typeof content === 'string' ? content : '') };
     },
-    // D-9: the Swift handler requires {path, edits: [...]}.
     async applyEdit(edit) {
       const params = { path: edit.path, edits: edit.edits || [] };
       return sendRequestToSwift('host.applyEdit', params);
@@ -238,7 +219,6 @@ const vscode = {
   authentication: { getSession: () => { throw unsupported('vscode.authentication'); } },
 };
 
-// Intercept only require('vscode').
 const Module = require('module');
 const originalResolveFilename = Module._resolveFilename;
 Module._resolveFilename = function (request, ...args) {
@@ -251,7 +231,6 @@ Module._load = function (request, ...args) {
   return originalLoad.call(this, request, ...args);
 };
 
-// ---- Contribution collection ------------------------------------------
 async function collectContribution() {
   const treeItems = [];
   for (const [viewId, provider] of state.treeProviders) {
@@ -282,7 +261,6 @@ async function collectContribution() {
   };
 }
 
-// ---- Requests from Swift -------------------------------------------------
 async function handleSwiftRequest(message) {
   const { id, method, params } = message;
   try {
@@ -324,7 +302,6 @@ async function handleSwiftRequest(message) {
       }
       case 'didChangeTextDocument':
       case 'didChangeConfiguration':
-        // Reserved methods (spec §4.3): accepted, no sender yet.
         return { result: null };
       default:
         throw new Error(`Unknown method: ${method}`);
@@ -346,10 +323,9 @@ process.stdin.on('data', (chunk) => {
     try {
       message = JSON.parse(line);
     } catch {
-      continue; // A line that is neither a response nor a parseable request is ignored.
+      continue;
     }
     if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
-      // Response to one of our host-initiated requests.
       const pending = pendingHostRequests.get(message.id);
       if (!pending) continue;
       pendingHostRequests.delete(message.id);
@@ -361,7 +337,6 @@ process.stdin.on('data', (chunk) => {
         send({ jsonrpc: '2.0', protocolVersion: PROTOCOL_VERSION, id: message.id, ...outcome });
       });
     }
-    // Anything else is ignored.
   }
 });
 

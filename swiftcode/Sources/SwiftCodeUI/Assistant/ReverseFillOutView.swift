@@ -1,18 +1,4 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Assist/ReverseFillOutView.swift
-//
-// Verbatim apart from this header. `ReverseOperation` /
-// `ReverseObjdumpOperation` come from `SwiftCodeAssistant`.
-// Called from `AssistMainView` (swiftcode-ide) as
-// `ReverseFillOutView(isPresented:onInsert:onSubmit:)`.
-
 import SwiftCodeAssistant
-//
-//  ReverseFillOutView.swift
-//  SwiftCode
-//
-//  Compact popover Form for configuring @Reverse static reverse engineering analysis.
-//
 
 import SwiftUI
 import AppKit
@@ -42,7 +28,6 @@ public struct ReverseFillOutView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass.circle.fill")
                     .font(.system(size: 16))
@@ -73,7 +58,6 @@ public struct ReverseFillOutView: View {
 
             Divider()
 
-            // Form
             Form {
                 Section("Target Artifact") {
                     HStack(spacing: 6) {
@@ -125,7 +109,6 @@ public struct ReverseFillOutView: View {
 
             Divider()
 
-            // Footer
             HStack {
                 Button("Cancel") {
                     isPresented = false

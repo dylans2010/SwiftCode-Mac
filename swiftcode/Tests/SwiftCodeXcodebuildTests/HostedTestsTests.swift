@@ -2,12 +2,9 @@ import Foundation
 import Testing
 @testable import SwiftCodeXcodebuild
 
-/// Hosted tests (`TEST_HOST`), the test-host protocol, test plans and the
-/// result-bundle reader. See `specs/ide/testing.md` and
-/// `specs/xcodebuild/test-actions.md`, "SwiftCode implementation".
 @Suite struct TestHostProtocolTests {
     func report(_ fields: [String: Any]) -> String {
-        let data = try! JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]) // swiftlint:disable:this force_try
+        let data = try! JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys])
         return TestHostProtocol.prefix + String(decoding: data, as: UTF8.self)
     }
 
@@ -16,10 +13,8 @@ import Testing
         #expect(plain.text == "Test Case '-[M.C t]' started." && plain.event == nil)
         let r = TestHostProtocol.split(report(["kind": "runFinished", "session": "s", "v": 1]))
         #expect(r.text == nil && r.event?.kind == "runFinished" && r.event?.string("session") == "s")
-        // The app's partial line before a report stays the app's.
         let mixed = TestHostProtocol.split("app says " + report(["kind": "agentLoaded"]))
         #expect(mixed.text == "app says " && mixed.event?.kind == "agentLoaded")
-        // A broken report is ordinary text.
         #expect(TestHostProtocol.split(TestHostProtocol.prefix + "{nope").event == nil)
     }
 
@@ -33,7 +28,6 @@ import Testing
         #expect(b["path"] as? String == "T.xctest" && b["module"] as? String == "T")
         #expect(b["only"] as? [String] == ["C/test()"] && b["skip"] as? [String] == ["D"])
         #expect((o["repetition"] as? [String: Any])?["mode"] as? String == "retryOnFailure")
-        // No repetition: no key.
         #expect(!TestHostProtocol.Plan(bundles: []).json.contains("repetition"))
     }
 
@@ -64,12 +58,10 @@ import Testing
     func report(_ fields: [String: Any]) -> String {
         var f = fields
         f["session"] = f["session"] ?? "S"
-        let data = try! JSONSerialization.data(withJSONObject: f, options: [.sortedKeys]) // swiftlint:disable:this force_try
+        let data = try! JSONSerialization.data(withJSONObject: f, options: [.sortedKeys])
         return TestHostProtocol.prefix + String(decoding: data, as: UTF8.self)
     }
 
-    /// A transcript of one host running two bundles, as the agent and the
-    /// libraries print it.
     var transcript: [String] {
         [
             "app: launching",
@@ -107,7 +99,6 @@ import Testing
         let unit = c.parts[0].parser.results
         #expect(unit.map(\.name) == ["testA", "testB"] && unit.map(\.status) == [.passed, .failed])
         #expect(unit[1].issues.first?.file == "/src/U.swift")
-        // The suite comes from the agent's swiftTest report (hosted bundles cannot be listed beforehand).
         let swift = c.parts[1].parser.results
         #expect(swift.count == 1 && swift[0].suite == "Model" && swift[0].status == .failed)
         #expect(swift[0].issues.first?.file == "/src/M.swift")
@@ -116,7 +107,6 @@ import Testing
 
     @Test func otherSessionsAndCrashes() {
         let c = HostRunCollector(session: "S", targets: [target("UnitTests")]) { _ in }
-        // A stale report from an earlier run (another session) is ignored.
         c.feed(report(["kind": "runFinished", "session": "OLD"]))
         #expect(!c.isFinished)
         c.feed(report(["kind": "agentLoaded"]))
@@ -210,7 +200,6 @@ import Testing
         #expect(f.configurations(only: [], skip: []).map(\.name) == ["English", "Repeated"])
         #expect(f.configurations(only: ["Repeated"], skip: []).map(\.name) == ["Repeated"])
         #expect(f.configurations(only: [], skip: ["English"]).map(\.name) == ["Repeated"])
-        // A plan without configurations has one.
         let bare = try #require(TestPlanFile(data: Data(#"{"testTargets":[]}"#.utf8), name: "Bare"))
         #expect(bare.configurations(only: [], skip: []).map(\.name) == ["Configuration 1"])
     }
@@ -232,7 +221,6 @@ import Testing
         #expect(out[1].repetition?.mode == TestPlanFile.Repetition.Mode.untilFailure && out[1].environment["MODE"] == "repeat")
         let only = TestActions.expand([t], plan: f, try #require(try? ArgumentParser.parse(["-only-test-configuration", "English", "test"])))
         #expect(only.count == 1 && only[0].configuration == "English")
-        // One configuration: not named in the results.
         let single = try #require(TestPlanFile(data: Data(#"{"configurations":[{"id":"1","name":"C","options":{}}],"testTargets":[]}"#.utf8), name: "P"))
         #expect(TestActions.expand([t], plan: single, inv).map { $0.configuration } == [String?.none])
     }
@@ -298,9 +286,6 @@ import Testing
         #expect(RemoteTestHost.words("  ").isEmpty)
     }
 
-    /// Test builds for a simulator ask swift-build to embed the testing
-    /// libraries in the host (its SKIP_COPYING_TEST_FRAMEWORKS escape hatch);
-    /// other builds keep swift-build's default.
     @Test func simulatorTestBuildsEmbedTheTestingLibraries() {
         let copy = [("SKIP_COPYING_TEST_FRAMEWORKS", "NO")]
         for sdk in ["iphonesimulator", "iphonesimulator27.0", "/X/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator27.0.sdk", "xrsimulator"] {
@@ -401,7 +386,6 @@ import Testing
     @Test func framesDecode() throws {
         let payload = [UInt8](repeating: 7, count: 300_000)
         #expect(try XCResultReader.unframe(Zstd.rawFrame(payload), id: "x") == payload)
-        // An RLE block (type 1) and a compressed one (type 2).
         let rle: [UInt8] = [0x28, 0xB5, 0x2F, 0xFD, 0x20, 5, UInt8((1 | (1 << 1) | (5 << 3)) & 0xFF), 0, 0, 9]
         #expect(try XCResultReader.unframe(rle, id: "x") == [9, 9, 9, 9, 9])
         let compressed: [UInt8] = [0x28, 0xB5, 0x2F, 0xFD, 0x20, 5, UInt8(1 | (2 << 1) | (5 << 3)), 0, 0, 1, 2, 3, 4, 5]

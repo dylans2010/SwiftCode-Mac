@@ -1,27 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PersonalDocCommandPalette.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// ADAPTED (not verbatim): the destination rebuilt Personal Documentation on different
-// model types (SwiftCodeIDEShell/PersonalDocumentationModel.swift), so the Legacy
-// types are mapped onto the destination equivalents:
-//   Document -> PersonalDocDocument, WikiPage -> PersonalDocWikiPage,
-//   WhiteboardRecord -> PersonalDocWhiteboard, CodeSnippetRecord -> PersonalDocSnippet,
-//   ProjectSnapshotRecord -> PersonalDocSnapshot, ModuleKind -> PersonalDocModuleKind.
-// The Legacy coordinator's per-area sub-stores (coordinator.documents/.wiki/.whiteboards/
-// .snippets/.snapshots) do not exist in the destination coordinator; all reads/writes
-// go through coordinator.store (PersonalDocStore): fetchDocuments() / fetchWikiPages() /
-// fetchWhiteboards() / fetchSnippets() / fetchSnapshots() and createDocument(title:kind:) /
-// createOrUpdateWikiPage(title:content:) / createWhiteboard(title:) /
-// createSnippet(title:code:language:category:). All destination store methods are
-// non-throwing (Legacy used try?), and the create calls return the created record.
-// Per-module accentColor was dropped by design in the destination model, so navigation
-// and document rows use the default accent instead of kind.accentColor.
-// Also: the unused `import SwiftData` / `import Observation` are dropped (no SwiftData
-// types are used here), `.liquidGlass(...)` -> `.background(.thinMaterial, ...)`
-// (no liquidGlass modifier exists in the destination), and AppKit is imported under
-// canImport for the NSColor use.
-// Wiring: PersonalDocumentationView (swiftcode-ide) — present as a command-palette
-// sheet/popup over the Personal Documentation window; onDismiss closes it.
-
 import SwiftUI
 import SwiftCodeIDEShell
 #if canImport(AppKit)
@@ -36,7 +12,6 @@ public struct PersonalDocCommandPalette: View {
     @State private var searchText = ""
     @State private var selectedCategory: PaletteCategory = .all
 
-    // State cached lists to search locally after fetch
     @State private var documents: [PersonalDocDocument] = []
     @State private var wikiPages: [PersonalDocWikiPage] = []
     @State private var whiteboards: [PersonalDocWhiteboard] = []
@@ -86,7 +61,6 @@ public struct PersonalDocCommandPalette: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Search Input
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16))
@@ -113,7 +87,6 @@ public struct PersonalDocCommandPalette: View {
 
             Divider()
 
-            // Category Bar
             Picker("Category", selection: $selectedCategory) {
                 ForEach(PaletteCategory.allCases) { cat in
                     Text(cat.rawValue).tag(cat)
@@ -127,7 +100,6 @@ public struct PersonalDocCommandPalette: View {
 
             Divider()
 
-            // Filtered Items List
             List {
                 let items = filteredItems
                 if items.isEmpty {
@@ -171,7 +143,6 @@ public struct PersonalDocCommandPalette: View {
 
             Divider()
 
-            // Footer bar
             HStack {
                 Text("Double-click or press return to open selection")
                     .font(.system(size: 10))
@@ -203,7 +174,6 @@ public struct PersonalDocCommandPalette: View {
     private var filteredItems: [PaletteItem] {
         var result: [PaletteItem] = []
 
-        // 1. Navigation items (ModuleKind links)
         if selectedCategory == .all || selectedCategory == .nav {
             for kind in PersonalDocModuleKind.allCases {
                 if searchText.isEmpty || kind.rawValue.localizedCaseInsensitiveContains(searchText) {
@@ -219,7 +189,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 2. Document items
         if selectedCategory == .all || selectedCategory == .docs {
             for doc in documents {
                 if searchText.isEmpty || doc.title.localizedCaseInsensitiveContains(searchText) {
@@ -235,7 +204,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 3. Wiki page items
         if selectedCategory == .all || selectedCategory == .wiki {
             for page in wikiPages {
                 if searchText.isEmpty || page.title.localizedCaseInsensitiveContains(searchText) {
@@ -251,7 +219,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 4. Ecosystem items (Whiteboards, Snippets, Snapshots)
         if selectedCategory == .all || selectedCategory == .ecosystem {
             for wb in whiteboards {
                 if searchText.isEmpty || wb.title.localizedCaseInsensitiveContains(searchText) {
@@ -293,7 +260,6 @@ public struct PersonalDocCommandPalette: View {
             }
         }
 
-        // 5. Add Quick Creation Actions at the top or bottom of the search
         if selectedCategory == .all {
             let actions = [
                 PaletteItem(

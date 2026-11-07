@@ -26,11 +26,9 @@ FUNC_TYPES = {0: "vertex", 1: "fragment", 2: "kernel", 3: "unqualified",
               4: "visible", 5: "extern", 6: "intersection", 7: "mesh",
               8: "object"}
 
-
 def u16(b, o): return struct.unpack_from("<H", b, o)[0]
 def u32(b, o): return struct.unpack_from("<I", b, o)[0]
 def u64(b, o): return struct.unpack_from("<Q", b, o)[0]
-
 
 def parse_tags(b, o, end):
     """Parse a tag list: 4-char tag, u16 length, payload; ENDT ends it."""
@@ -45,7 +43,6 @@ def parse_tags(b, o, end):
         tags.append((t, b[o:o + n]))
         o += n
     return tags, o
-
 
 def decode_tag(t, d):
     if t == "NAME":
@@ -65,7 +62,6 @@ def decode_tag(t, d):
         return d.hex() if len(d) <= 64 else "<%d bytes>" % len(d)
     return d.hex()
 
-
 def bitcode_ident(b, o, n):
     """Return (wrapper fields, producer string) of a bitcode module."""
     info = {}
@@ -77,9 +73,6 @@ def bitcode_ident(b, o, n):
     else:
         start = o
     info["raw_magic"] = b[start:start + 4].hex()
-    # The IDENTIFICATION block carries a printable producer string such as
-    # "LLVM<ver>" or a vendor name; find the longest printable run near the
-    # start without decoding the bitstream.
     window = b[start:start + 256]
     runs, cur = [], bytearray()
     for c in window:
@@ -91,7 +84,6 @@ def bitcode_ident(b, o, n):
             cur = bytearray()
     info["printable_near_start"] = runs[:4]
     return info, start
-
 
 def fat_slices(b):
     """Slices of a universal file (big-endian header). Magic 0xCBFEBABE is
@@ -108,7 +100,6 @@ def fat_slices(b):
                     "magic": b[off:off + 4].hex()})
     return out
 
-
 def dump(path, extract_dir=None):
     b = open(path, "rb").read()
     slices = fat_slices(b)
@@ -116,7 +107,6 @@ def dump(path, extract_dir=None):
         mt = [s for s in slices if b[s["offset"]:s["offset"] + 4] == b"MTLB"]
         if not mt:
             raise SystemExit("no MTLB slice: %s" % slices)
-        # Take the MTLB slice with the highest cpusubtype (newest AIR).
         pick = max(mt, key=lambda s: int(s["cpusubtype"], 16))
         b = b[pick["offset"]:pick["offset"] + pick["size"]]
     if b[:4] != b"MTLB":
@@ -148,7 +138,6 @@ def dump(path, extract_dir=None):
         funcs.append({t: decode_tag(t, d) for t, d in tags})
         funcs[-1]["_tags"] = [t for t, _ in tags]
         o += size
-    # Header extension: a tag list right after the function list.
     ext = []
     fl_end = sec["function_list"]["offset"] + sec["function_list"]["size"]
     if o < sec["public_metadata"]["offset"]:
@@ -157,7 +146,6 @@ def dump(path, extract_dir=None):
     h["function_list_end"] = fl_end
     h["header_extension"] = ext
 
-    # Public and private metadata: per function, u32 size + tag list.
     def md(kind):
         base = sec[kind]["offset"]
         out = []
@@ -175,7 +163,6 @@ def dump(path, extract_dir=None):
     for f, a, c in zip(funcs, pub, priv):
         f["_public_tags"] = a
         f["_private_tags"] = c
-    # Bitcode modules (distinct offsets).
     mods = {}
     for f in funcs:
         off = f.get("OFFT", {}).get("bitcode")
@@ -197,7 +184,6 @@ def dump(path, extract_dir=None):
             with open(os.path.join(extract_dir, "%d.bc" % i), "wb") as fh:
                 fh.write(b[p:p + info["size"]])
     return h
-
 
 if __name__ == "__main__":
     args = sys.argv[1:]

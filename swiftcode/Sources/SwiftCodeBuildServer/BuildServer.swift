@@ -1,9 +1,6 @@
 import Foundation
 import SwiftCodeDebug
 
-/// A Build Server Protocol server over a byte channel (JSON-RPC 2.0 with
-/// `Content-Length` framing), answering the requests sourcekit-lsp sends
-/// to an external build server. See `specs/ide/language.md` §Build server.
 public final class BuildServer: @unchecked Sendable {
     public static let version = "0.1"
     public static let bspVersion = "2.2.0"
@@ -12,15 +9,12 @@ public final class BuildServer: @unchecked Sendable {
     public let preparer: ModulePreparer
     private let send: @Sendable (Data) -> Void
     private let log: @Sendable (String) -> Void
-    /// State requests run here, in order.
     private let queue = DispatchQueue(label: "swiftcode.bsp.state")
-    /// Preparation runs here so that it does not hold up other requests.
     private let prepareQueue = DispatchQueue(label: "swiftcode.bsp.prepare")
     private var decoder = DAPFraming.Decoder()
     private let inputLock = NSLock()
     private var initialized = false
     private var timer: DispatchSourceTimer?
-    /// Set by `build/exit`.
     public private(set) var exited = false
     public var onExit: (@Sendable () -> Void)?
 
@@ -32,7 +26,6 @@ public final class BuildServer: @unchecked Sendable {
         self.log = log
     }
 
-    /// Feeds incoming bytes; complete messages are handled.
     public func receive(_ data: Data) {
         inputLock.lock()
         let bodies = decoder.append(data)
@@ -43,8 +36,6 @@ public final class BuildServer: @unchecked Sendable {
         }
     }
 
-    /// Checks the watched files every `interval` seconds and reports
-    /// changed targets (`buildTarget/didChange`).
     public func startWatching(interval: TimeInterval = 2) {
         let t = DispatchSource.makeTimerSource(queue: queue)
         t.schedule(deadline: .now() + interval, repeating: interval)
@@ -58,10 +49,8 @@ public final class BuildServer: @unchecked Sendable {
         timer = nil
     }
 
-    // MARK: Dispatch
-
     func handle(_ message: JSON) {
-        guard let method = message["method"]?.string else { return } // responses to us: none expected
+        guard let method = message["method"]?.string else { return }
         let params = message["params"] ?? .null
         guard let id = message["id"] else { return notification(method, params) }
         switch method {
@@ -125,11 +114,10 @@ public final class BuildServer: @unchecked Sendable {
             exited = true
             onExit?()
         default:
-            break // $/cancelRequest and others
+            break
         }
     }
 
-    /// Must run on `queue`.
     private func reloadAndNotify() {
         let changed = model.reloadIfChanged()
         guard !changed.isEmpty else { return }
@@ -138,8 +126,6 @@ public final class BuildServer: @unchecked Sendable {
             notify("buildTarget/didChange", ["changes": .array(changed.map { ["target": ["uri": .string($0)], "kind": 2] })])
         }
     }
-
-    // MARK: Results
 
     func initializeResult() -> JSON {
         let ctx = model.context
@@ -193,8 +179,6 @@ public final class BuildServer: @unchecked Sendable {
         return ["target": ["uri": .string(t.id)], "sources": .array(items)]
     }
 
-    // MARK: Output
-
     func reply(_ id: JSON, _ result: JSON) {
         send(DAPFraming.frame(JSON.object(["jsonrpc": "2.0", "id": id, "result": result]).encoded()))
     }
@@ -207,7 +191,6 @@ public final class BuildServer: @unchecked Sendable {
         send(DAPFraming.frame(JSON.object(["jsonrpc": "2.0", "method": .string(method), "params": params]).encoded()))
     }
 
-    /// The file path of a `file:` URI.
     static func path(_ uri: String) -> String? {
         guard let url = URL(string: uri), url.isFileURL else { return nil }
         return url.standardizedFileURL.path

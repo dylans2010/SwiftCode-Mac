@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeXcodebuild
 
-/// Expected texts come from specs/xcodebuild/ (black-box observations).
 @Suite struct ListAndErrorTests {
     @Test func listText() throws {
         let proj = try writeMultiProject()
@@ -26,7 +25,6 @@ import Testing
             Schemes:
                 App
                 Lib
-
 
         """)
     }
@@ -79,11 +77,9 @@ import Testing
         var r = runTool(["-showBuildSettings", "-alltargets", "FOO=bar baz"], cwd: dir, settings: fake)
         #expect(r.code == 0)
         let blocks = r.out.components(separatedBy: "Build settings for action build and target ")
-        // All targets, then the first again (observed).
         #expect(blocks.dropFirst().map { $0.prefix { $0 != ":" } } == ["Lib", "App", "Lib"])
         #expect(r.out.contains("    /usr/local/bin/swiftcodebuild -showBuildSettings -alltargets \"FOO=bar baz\"\n"))
         #expect(r.out.contains("Build settings from command line:\n    FOO = bar baz\n\n"))
-        // Byte order: upper case before lower case; empty values keep "= ".
         #expect(r.out.contains("    AAA = \n    ACTION = build\n    CONFIGURATION = Debug\n    PATH = /bin\n    TARGET_NAME = Lib\n    ZED = z\n    arch = undefined_arch\n\n"))
         r = runTool(["-showBuildSettings", "-json", "-configuration", "Release"], cwd: dir, settings: fake)
         let list = try JSONSerialization.jsonObject(with: Data(r.out.utf8)) as? [[String: Any]]
@@ -129,12 +125,9 @@ import Testing
         let app = objects[3]["contents"] as! [String: Any]
         #expect(app["guid"] as? String == projectGUID + MD5.hex("B10000000000000000000030"))
         #expect((app["dependencies"] as? [[String: Any]])?.first?["guid"] as? String == projectGUID + MD5.hex("B10000000000000000000020"))
-        // The library product is linked by target reference.
         let phases = app["buildPhases"] as! [[String: Any]]
         let frameworks = phases.first { $0["type"] as? String == "com.apple.buildphase.frameworks" }!
         #expect((frameworks["buildFiles"] as? [[String: Any]])?.first?["targetReference"] as? String == projectGUID + MD5.hex("B10000000000000000000020"))
-        // Synchronized folder: its C file joins the sources phase, the JSON
-        // file nothing (no resources phase), nested folders become groups.
         let sources = phases.first { $0["type"] as? String == "com.apple.buildphase.sources" }!
         #expect((sources["buildFiles"] as? [[String: Any]])?.count == 2)
         let project = objects[1]["contents"] as! [String: Any]
@@ -154,7 +147,6 @@ import Testing
 }
 
 @Suite struct SDKRegistryTests {
-    /// A fake developer directory with SDK metadata files only.
     func makeDeveloperDirectory() throws -> String {
         let fm = FileManager.default
         let dev = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-dev-\(UUID().uuidString)")

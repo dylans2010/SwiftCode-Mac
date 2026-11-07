@@ -1,8 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// One template tile: the icon above the title; selected tiles get an
-/// accent background (`specs/ide/reference-ui-3.md` §5.3).
 @MainActor
 final class TemplateTile: NSView {
     let entry: TemplateEntry
@@ -53,8 +51,6 @@ final class TemplateTile: NSView {
     }
 }
 
-/// The new-file sheet body: platform tabs and filter on top, then the
-/// templates as an icon grid in sections (a bold header above each).
 @MainActor
 final class TemplateGridView: NSView {
     static let columns = 6
@@ -64,8 +60,6 @@ final class TemplateGridView: NSView {
     private(set) var headers: [NSTextField] = []
     var onSelect: ((TemplateEntry) -> Void)?
     var onChoose: ((TemplateEntry) -> Void)?
-    /// The section header pinned at the top while scrolling: it shows the
-    /// title of the section the top of the visible area is in.
     let stickyHeader = StickyHeaderView()
 
     init(top: NSView) {
@@ -127,7 +121,6 @@ final class TemplateGridView: NSView {
             let grid = NSGridView(views: rows)
             grid.rowSpacing = 4
             grid.columnSpacing = 4
-            // Fixed columns: a short last row keeps the tiles' positions.
             for i in 0..<grid.numberOfColumns { grid.column(at: i).width = TemplateTile.size.width }
             content.addArrangedSubview(grid)
         }
@@ -136,13 +129,10 @@ final class TemplateGridView: NSView {
 
     @objc private func clipScrolled(_ n: Notification) { updateStickyHeader() }
 
-    /// Pins the header of the section at the top of the visible area. When
-    /// the next header reaches the pinned one, it pushes it up.
     func updateStickyHeader() {
         content.layoutSubtreeIfNeeded()
         let top = scroll.contentView.bounds.minY
         let height = stickyHeader.fittingSize.height
-        // Header y positions in the (flipped) document.
         let ys = headers.map { content.convert($0.frame, from: $0.superview).minY - 4 }
         guard let i = ys.lastIndex(where: { $0 <= top }), top > 0 else {
             stickyHeader.isHidden = true
@@ -161,13 +151,10 @@ final class TemplateGridView: NSView {
     }
 }
 
-/// A stack view with a top-left origin, so a scroll view's document starts
-/// at the top.
 final class FlippedStack: NSStackView {
     override var isFlipped: Bool { true }
 }
 
-/// The pinned section header: a bold label on the grid's background.
 final class StickyHeaderView: NSView {
     let label = NSTextField(labelWithString: "")
     override init(frame: NSRect) {

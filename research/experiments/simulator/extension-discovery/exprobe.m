@@ -1,14 +1,3 @@
-// exprobe: our own probe of app-extension discovery in the iOS simulator
-// runtime (Ycode stage 7/8 bring-up). Classes and selectors are found by
-// name at run time (objc_getClass, respondsToSelector:); nothing is linked
-// privately.
-//   exprobe methods <Class>...   list class and instance selectors (names, type encodings)
-//   exprobe plugins [filter]     LSApplicationWorkspace -installedPlugins: count, identifiers
-//   exprobe points [filter]      extension point records known to LaunchServices
-//   exprobe appex [filter] [point] app-extension records (all, or of one extension point)
-//   exprobe record <bundle id>   one app-extension record
-//   exprobe app <bundle id>      one application record (platform, SDK)
-//   exprobe macho <path>         slices and LC_BUILD_VERSION through mach-o/utils.h
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
@@ -19,15 +8,12 @@
 #import <sys/stat.h>
 #import <fcntl.h>
 
-// dyld's platform SPI as declared in Apple's open-source dyld (include/mach-o/dyld_priv.h).
 extern uint32_t dyld_get_active_platform(void);
 extern uint32_t dyld_get_base_platform(uint32_t platform);
 extern bool dyld_is_simulator_platform(uint32_t platform);
 extern uint32_t dyld_get_sdk_version(const struct mach_header *mh);
 extern void dyld_get_image_versions(const struct mach_header *mh, void (^callback)(uint32_t platform, uint32_t sdk, uint32_t minos));
 
-// -init… through objc_msgSend under ARC: the receiver is consumed and the
-// result is returned retained (as for a direct -init call).
 typedef id (*InitWithIDError)(__attribute__((ns_consumed)) id, SEL, id, NSError **) __attribute__((ns_returns_retained));
 
 static void listMethods(const char *name) {
@@ -84,7 +70,6 @@ int main(int argc, char **argv) {
             return 0;
         }
         if ([mode isEqual:@"appex"]) {
-            // All app-extension records, or those of one extension point (argv[3]).
             Class rc = objc_getClass("LSApplicationExtensionRecord");
             id e;
             if (argc > 3) {
@@ -112,7 +97,6 @@ int main(int argc, char **argv) {
             return 0;
         }
         if ([mode isEqual:@"macho"]) {
-            // Public dyld API (mach-o/utils.h): every slice, then the best one; LC_BUILD_VERSION of each.
             void (^show)(const struct mach_header *, uint64_t, size_t) = ^(const struct mach_header *mh, uint64_t off, size_t size) {
                 printf("  slice cputype=0x%x filetype=%u ncmds=%u offset=%llu size=%zu", mh->cputype, mh->filetype, mh->ncmds,
                        (unsigned long long)off, size);
@@ -134,14 +118,12 @@ int main(int argc, char **argv) {
             return 0;
         }
         if ([mode isEqual:@"register"]) {
-            // LSApplicationWorkspace -registerApplication: with a bundle URL (argv[2]); then the record again.
             id ws = call0((id)objc_getClass("LSApplicationWorkspace"), "defaultWorkspace");
             BOOL ok = ((BOOL (*)(id, SEL, id))objc_msgSend)(ws, sel_registerName("registerApplication:"), [NSURL fileURLWithPath:@(argv[2])]);
             printf("registerApplication: %s\n", ok ? "YES" : "NO");
             return ok ? 0 : 1;
         }
         if ([mode isEqual:@"dyldplat"]) {
-            // dyld's view of platforms: this process, and an executable read into memory (argv[2]).
             uint32_t active = dyld_get_active_platform();
             printf("active platform %u base %u simulator %d\n", active, dyld_get_base_platform(active), dyld_is_simulator_platform(active));
             dyld_get_image_versions(_dyld_get_image_header(0), ^(uint32_t p, uint32_t sdk, uint32_t minos) {
@@ -162,7 +144,6 @@ int main(int argc, char **argv) {
             return 0;
         }
         if ([mode isEqual:@"mmapplat"]) {
-            // The file mapped as a loader would (read-only, MAP_PRIVATE | MAP_RESILIENT_CODESIGN), then dyld's view of it.
             int fd = open(argv[2], O_RDONLY | O_NOFOLLOW);
             struct stat st;
             if (fd < 0 || fstat(fd, &st) != 0) { printf("open/fstat failed: %d\n", errno); return 1; }

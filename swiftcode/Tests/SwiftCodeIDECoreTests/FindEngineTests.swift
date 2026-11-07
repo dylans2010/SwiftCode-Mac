@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// A fresh folder outside any repository (the ignore rules read the
-/// enclosing repository's `.gitignore`, and this worktree ignores its
-/// build folders).
 func findScratch(_ name: String) throws -> URL {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-find-\(name)-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -17,13 +14,9 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
     try text.write(to: url, atomically: true, encoding: .utf8)
 }
 
-/// specs/ide/navigators.md §Find navigator, "SwiftCode implementation": the
-/// query kinds, match styles and case, regular expressions, the engine.
 @Suite struct FindQueryTests {
     static let text = "greet Greet greeting regreet\nx_greet greet_x GREET\n"
 
-    /// Every Text / Regular Expression / Multiple Words × match style ×
-    /// case combination on one text.
     @Test(arguments: [FindQuery.Kind.text, .regularExpression, .multipleWords])
     func everyOptionCombination(kind: FindQuery.Kind) throws {
         let query = switch kind {
@@ -31,7 +24,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         case .multipleWords: "greet regreet"
         default: "greet"
         }
-        // (match, ignoreCase) → match count.
         let single: [FindQuery.Match: (Int, Int)] = [
             .containing: (7, 5), .matchingWord: (3, 1), .startingWith: (5, 3), .endingWith: (5, 3),
         ]
@@ -44,11 +36,9 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
                 let found = try #require(q.matcher()).matches(in: Self.text)
                 let expected = (kind == .multipleWords ? words : single)[match]!
                 #expect(found.count == (ignoreCase ? expected.0 : expected.1), "\(kind) \(match) ignoreCase=\(ignoreCase): \(found.map(\.matchedText))")
-                // Multiple Words: only the line holding every word.
                 if kind == .multipleWords { #expect(Set(found.map(\.line)) == [1]) }
             }
         }
-        // Words on different lines give nothing.
         #expect(FindQuery("greeting x_greet", kind: .multipleWords).matcher()?.matches(in: Self.text).isEmpty == true)
     }
 
@@ -61,24 +51,19 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
 
     @Test func regularExpressionsCapturesAndLines() throws {
         let src = "struct A {\n    let x = 1\n}\nstruct Bee {\n  let y = 2\n}\nfunc f() {}\n"
-        // `^` and `$` are line anchors; `.` stays in its line.
         let funcs = try #require(FindQuery("^func", kind: .regularExpression).matcher()).matches(in: src)
         #expect(funcs.map(\.line) == [7])
         #expect(try #require(FindQuery("A.*let", kind: .regularExpression).matcher()).matches(in: src).isEmpty)
-        // Multi-line: `\n` crosses lines; the row is the first line, the span counts lines.
         let multi = try #require(FindQuery("struct (\\w+) \\{\\n\\s+let", kind: .regularExpression).matcher()).matches(in: src)
         #expect(multi.map(\.line) == [1, 4] && multi.map(\.lineSpan) == [2, 2])
         #expect(multi[0].text == "struct A {")
-        // Capture groups feed the replacement template.
         let q = FindQuery("let (\\w+) = (\\d+)", kind: .regularExpression)
         let res = WorkspaceSearch.FileResult(path: "/x", matches: try #require(q.matcher()).matches(in: src))
         let plan = ReplacePlan(query: q, replacement: "var $1: Int = $2 * 10", results: [res])
         #expect(plan.newText(file: 0, text: src).text.contains("var x: Int = 1 * 10") && plan.newText(file: 0, text: src).replaced == 2)
-        // Text mode: `$1` is literal.
         let lit = FindQuery("let", kind: .text)
         let litPlan = ReplacePlan(query: lit, replacement: "$1", results: [.init(path: "/x", matches: try #require(lit.matcher()).matches(in: src))])
         #expect(litPlan.newText(file: 0, text: src).text.contains("$1 x = 1"))
-        // Invalid expressions and empty matches give nothing.
         #expect(FindQuery("(", kind: .regularExpression).matcher() == nil)
         #expect(try #require(FindQuery("x*", kind: .regularExpression).matcher()).matches(in: "abc").isEmpty)
         #expect(FindQuery("", kind: .text).matcher() == nil && FindQuery("x", kind: .symbols).matcher() == nil)
@@ -90,7 +75,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         #expect("let a = Greet".utf8.withContiguousStorageIfAvailable { m.mayMatch(UnsafeRawBufferPointer($0)) } == false)
         let cs = try #require(FindQuery("Greeter", ignoreCase: false).matcher())
         #expect("GREETER".utf8.withContiguousStorageIfAvailable { cs.mayMatch(UnsafeRawBufferPointer($0)) } == false)
-        // Non-ASCII queries and regular expressions with metacharacters are not pre-checked.
         #expect(FindQuery("café").matcher()?.needles.isEmpty == true)
         #expect(FindQuery("a.b", kind: .regularExpression).matcher()?.needles.isEmpty == true)
         #expect(FindQuery("plain", kind: .regularExpression).matcher()?.needles.count == 1)
@@ -170,7 +154,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
             }
         }
         #expect(seen == paths && finished?.matchCount == 50 && finished?.cancelled == false)
-        // Leaving the stream early stops the search.
         var first: String?
         for await e in FindEngine.stream(.init(query: FindQuery("token"), paths: paths)) {
             if case .file(let f) = e { first = f.path; break }
@@ -178,7 +161,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         #expect(first == paths[0])
     }
 
-    /// The legacy entry point searches the workspace tree, folders included.
     @Test func workspaceSearchUsesTheEngine() throws {
         let dir = try findScratch("legacy")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -189,12 +171,7 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
     }
 }
 
-/// Scopes, folder references and ignore rules.
 @Suite struct FindScopeTests {
-    /// project ▸ Sources (group: A, B) ▸ Synced (folder) ▸ Assets (folder
-    /// reference); the repository ignores `*.log`, `build/`, `/Generated`
-    /// (anchored: not `Assets/Generated`), but keeps `keep.log`; `Assets`
-    /// ignores `docs/**/*.tmp` in its own `.gitignore`.
     func fixture() throws -> (URL, NavigatorNode) {
         let dir = try findScratch("scopes")
         try FileManager.default.createDirectory(at: dir.appendingPathComponent(".git"), withIntermediateDirectories: true)
@@ -220,7 +197,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         ])
         let synced = NavigatorNode(name: "Synced", kind: .folder, path: p("Synced"), children: NavigatorTree.directory(p("Synced")))
         let assets = NavigatorNode(name: "Assets", kind: .file, path: p("Assets"))
-        // Listed by reference: searched although the repository ignores /Generated.
         let generated = NavigatorNode(name: "H.swift", kind: .file, path: p("Generated/H.swift"))
         let root = NavigatorNode(name: "Demo", kind: .container, path: p("Demo.xcodeproj"), children: [sources, synced, assets, generated])
         return (dir, root)
@@ -235,7 +211,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         #expect(names(r.candidates(for: .workspace), dir) == [
             "Sources/A.swift", "Sources/B.m", "Synced/C.swift", "Synced/keep.log", "Assets/Data/D.json", "Assets/Generated/G.swift", "Generated/H.swift",
         ])
-        // Without .gitignore only the fixed names are skipped.
         let plain = FindScopeResolver(root: root, ignore: FindIgnoreRules(readsGitIgnore: false))
         #expect(names(plain.candidates(for: .workspace), dir).contains("Synced/debug.log"))
         #expect(!names(plain.candidates(for: .workspace), dir).contains("Assets/node_modules/x.js"))
@@ -266,7 +241,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         #expect(names(r.candidates(for: .custom("Sources ObjC")), dir) == ["Sources/B.m"])
         #expect(names(r.candidates(for: .custom("Regex")), dir) == ["Assets/Generated/G.swift"])
         #expect(r.candidates(for: .custom("Empty")).isEmpty && r.candidates(for: .custom("Missing")).isEmpty)
-        // Scopes and the engine together.
         let s = FindEngine.search(FindEngine.Request(query: FindQuery("token"), files: r.candidates(for: .group(p("Sources")))))
         #expect(s.files.count == 2)
     }
@@ -281,7 +255,6 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
     }
 }
 
-/// Replace mode: inclusion, preview, Replace All, undo and redo across files.
 @Suite struct FindReplaceTests {
     final class Memory: @unchecked Sendable {
         var files: [String: String]
@@ -308,8 +281,8 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         let q = FindQuery("old", match: .matchingWord)
         var plan = ReplacePlan(query: q, replacement: "new", results: try results(q, mem))
         #expect(plan.includedCount == 5 && plan.includedFileCount == 3)
-        plan.setIncluded(false, file: 0, match: 1)   // a.swift: keep the second "old"
-        plan.setIncluded(false, file: 2)             // c.swift left alone
+        plan.setIncluded(false, file: 0, match: 1)
+        plan.setIncluded(false, file: 2)
         #expect(plan.includedCount == 3 && plan.includedFileCount == 2)
         let pv = plan.preview(file: 0, match: 0, text: mem.files["/a.swift"]!)
         #expect(pv.before == "let old = old + 1" && pv.after == "let new = old + 1")
@@ -318,11 +291,9 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         history.record(t)
         #expect(t.replacedCount == 3 && t.changes.map(\.path) == ["/a.swift", "/b.swift"] && t.title == "Replace 3 Occurrences")
         #expect(mem.files == ["/a.swift": "let new = old + 1\n", "/b.swift": "new()\nnew()\n", "/c.swift": "print(old)\n"])
-        // One undo restores every file; redo replays.
         #expect(history.undo(mem.io).restored == ["/a.swift", "/b.swift"])
         #expect(mem.files["/a.swift"] == "let old = old + 1\n" && mem.files["/b.swift"] == "old()\nold()\n")
         #expect(history.redo(mem.io).restored.count == 2 && mem.files["/b.swift"] == "new()\nnew()\n")
-        // A file edited since is not overwritten.
         mem.files["/b.swift"] = "edited\n"
         let o = history.undo(mem.io)
         #expect(o.restored == ["/a.swift"] && o.conflicts == ["/b.swift"] && mem.files["/b.swift"] == "edited\n")
@@ -333,11 +304,10 @@ func put(_ dir: URL, _ rel: String, _ text: String) throws {
         let mem = Memory(["/a.txt": "alpha beta\n", "/b.txt": "alpha\n"])
         let q = FindQuery("alpha")
         let plan = ReplacePlan(query: q, replacement: "omega", results: try results(q, mem))
-        mem.files["/a.txt"] = "ALPHA beta\n"   // changed since the search
+        mem.files["/a.txt"] = "ALPHA beta\n"
         mem.failWrites = ["/b.txt"]
         let t = plan.apply(mem.io)
         #expect(t.stale == ["/a.txt"] && t.failed == ["/b.txt"] && t.changes.isEmpty)
-        // Multiple Words can overlap ("ab" and "b"): the first wins.
         let w = FindQuery("ab b", kind: .multipleWords)
         let wp = ReplacePlan(query: w, replacement: "X", results: [.init(path: "/w", matches: try #require(w.matcher()).matches(in: "ab b\n"))])
         #expect(wp.newText(file: 0, text: "ab b\n").text == "X X\n")

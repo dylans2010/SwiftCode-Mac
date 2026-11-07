@@ -1,17 +1,3 @@
-/*
- * ismitm: man-in-the-middle for com.apple.IOSurface.Remote (original Ycode
- * code, R5). Runs inside the simulator (simctl spawn). It spawns a program
- * whose bootstrap special port is a port we own (as bsmitm does, see
- * bootstrap-wire.md Appendix A), relays every bootstrap request to the real
- * bootstrap port, and in the reply to a look-up of the target name (legacy 207
- * or XPC 804) replaces the service's send right with a send right to our own
- * proxy port. The proxy (isproxy.h) records every message in both directions
- * and forwards it to the real host service.
- *
- * Usage: ismitm <log file> <program> [args...]
- * Env: YC_IS_NAME (default com.apple.IOSurface.Remote), YC_IS_MAPTEST=1,
- *      YC_IS_FAKE=1 (relay to our own test server, isserver.h, instead of the host service).
- */
 #include "isproxy.h"
 #include "isserver.h"
 #include <spawn.h>
@@ -35,7 +21,6 @@ static void *bs_thread(void *arg)
         kern_return_t kr = mach_msg(h, MACH_RCV_MSG | MACH_RCV_VOUCHER, 0, 65536, g_fake, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
         if (kr) { fprintf(g_isp_out, "bs: receive 0x%x\n", kr); break; }
         int target = memmem(req, h->msgh_size, g_name, strlen(g_name)) != NULL;
-        /* Log only the routine and whether it names the target. */
         const char *nm = NULL;
         for (size_t o = 24; o + 5 < h->msgh_size; o += 4)
             if (!memcmp(req + o, "name\0\0\0\0", 8) && o + 16 < h->msgh_size) { nm = (const char *)req + o + 16; break; }
@@ -77,7 +62,6 @@ static void *bs_thread(void *arg)
                     if (target && i == 0 && rep[off + 10] == 17) {
                         mach_port_t real = isp_rd32(rep + off);
                         if (getenv("YC_IS_FAKE")) {
-                            /* Point the client at our own test server instead of the host's. */
                             mach_port_deallocate(mach_task_self(), real);
                             real = srv_start();
                             fprintf(g_isp_out, "-- (fake server mode)\n");
@@ -107,7 +91,6 @@ static void *bs_thread(void *arg)
     return NULL;
 }
 
-/* Copy the child's stdout lines into the log, so probe markers line up with traffic. */
 static int g_pipe[2];
 static void *out_thread(void *arg)
 {

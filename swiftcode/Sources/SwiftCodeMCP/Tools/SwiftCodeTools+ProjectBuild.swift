@@ -3,110 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// The ported Legacy project / Xcode / build tool family (Wave 7,
-/// slice A).
-///
-/// Behaviour source: Legacy's `AssistBuildProjectTool`,
-/// `AssistTestRunnerTool`, `AssistProjectCleanTool`,
-/// `AssistProjectArchiveTool`, `AssistBuildLogAnalyzeTool`,
-/// `AssistBuildSystemDetectTool`, `AssistBuildConfigurationListTool`,
-/// `AssistBuildSettingsDiffTool`, `AssistBuildPhaseScriptsListTool`,
-/// `AssistXCResultParserTool`, `AssistDerivedDataLocateTool`,
-/// `AssistXcodeToolchainInfoTool` and
-/// `AssistXcodeDeviceDestinationTool` (Dylan's own code, ported under
-/// MIT). Full per-tool behaviour, including the deliberate deviations,
-/// is in `~/SwiftCode-Migration-Workspace/scratch/wave7-slice-a-spec.md`.
-///
-/// Conventions, following Waves 1–6:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   The Legacy aliases for this slice (`build` / `build_project` /
-///   `run_build` / `xcodebuild` → `project_build`, `test` /
-///   `run_tests` → `project_test`, `xcresult` → `xcresult_parser`,
-///   `device_destinations` →
-///   `xcode_device_destination_finder`) live in
-///   `MCPServer.toolAliases`, which the coordinator owns — they are
-///   not added here. (`build` and `test` must NOT be added there:
-///   they would collide with SwiftCode's native `build` / `test`.)
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data (`xcresult_parser`,
-///   `xcode_device_destination_finder`) return a plain text result.
-/// * Paths resolve through the session resolvers
-///   (`resolveFileReadingPath`, `resolve`) and never escape the
-///   workspace, with two deliberate, read-only exceptions:
-///   `xcresult_parser` searches the user's own DerivedData for
-///   `.xcresult` bundles (its Legacy default) and accepts an
-///   explicit bundle path as-is; `derived_data_locate` lists the
-///   user's own DerivedData directory.
-/// * Approval gating: the one writing tool (`project_clean`) is
-///   `writes: true` with `destructive` annotations; its `build/`
-///   removal goes through an explicit `MCPChange` + `approve()`.
-///   `project_archive` is an execution tool (`writes: false`): it
-///   creates the `.xcarchive` as its build product, the way the
-///   `build` tool creates build products. There is no Autopilot
-///   bypass.
-/// * Build/test execution reuses SwiftCode's own build seam — the
-///   session's `build(.build)` / `runTests()` / `build(.clean)`,
-///   the same path the `build` / `test` / `clean` tools use — never
-///   a second runner and never a shell. `project_archive` is the
-///   one exception: SwiftCode's build seam has no archive action, so it
-///   runs the real `xcodebuild archive` with the fixed-argv runner
-///   (`terminalRunFixed`, off the main actor), as do
-///   `xcode_toolchain_info` (`xcodebuild -version` / `-showsdks`)
-///   and, via `runXcrun`, `xcresult_parser` (`xcrun xcresulttool`)
-///   and `xcode_device_destination_finder` (`xcrun simctl`).
-///   Execution always runs the real command and reports its actual
-///   output — no result is ever invented.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `project_build`: no `/usr/bin/xcodebuild` is spawned and no
-///   `-scheme` / `-configuration` / `-destination` argv is built.
-///   The session build is used, so the scheme's own build
-///   configuration is honoured and the `configuration` argument is
-///   accepted but does not override it. `projectPath` must name
-///   the already-open workspace (the `compiler_diagnostics_engine`
-///   rule) instead of being located by scanning the workspace
-///   root. The `marker` data key is derived from the build status
-///   (the session build has no xcodebuild stdout marker), and
-///   there is no `BuildOutputAccumulator` line parser — the
-///   session reports issues directly.
-/// * `project_test`: Legacy's `AssistVerificationPipeline`
-///   (`xcodebuild test`) is replaced by the session test runner,
-///   the same path the `test` tool and `test_run_single` use.
-/// * `project_clean`: the `derivedData` scope runs the session
-///   clean (`s.build(.clean)`) instead of `xcodebuild clean`
-///   against a located project; the `removed` value still says
-///   `"xcodebuild clean"`, as in Legacy. The `build/` removal is
-///   additionally gated by the write policy (both `confirm="true"`
-///   AND `approve()` are required).
-/// * `project_archive`: the project comes from the open
-///   workspace's model instead of a top-level scan, and the run is
-///   bounded at 900 s (Legacy waited unboundedly).
-/// * `build_system_detect`: Legacy's Xcode-project check looked
-///   for entries literally named `xcworkspace` / `xcodeproj`,
-///   which a real `Foo.xcworkspace` / `Foo.xcodeproj` bundle never
-///   is — a verbatim port would report "no build system" for
-///   every real Xcode project. The port counts any root entry with
-///   those extensions instead.
-/// * `xcresult_parser`: stdout only is parsed (Legacy merged
-///   stdout+stderr into one pipe); the run is bounded at 120 s.
-/// * `xcode_device_destination_finder`: runtime sections are
-///   sorted (Legacy iterated the JSON dictionary, whose order is
-///   unspecified). Despite the description mentioning physical
-///   devices, Legacy only ever ran `simctl list devices` — the
-///   port keeps that (simulators only).
-/// * `build_configuration_list` / `build_phase_scripts_list`:
-///   Legacy's pbxproj regexes are reproduced verbatim (they are
-///   file-format patterns, not Apple code).
-/// * `generate_xcodeproj` (`AssistGenerateXcodeprojTool`, in the
-///   same Legacy file as `project_build`) is NOT in this slice and
-///   is not ported here.
 extension SwiftCodeMCPHost {
     var projectBuildTools: [MCPTool] {
         let execution = MCPToolAnnotations(readOnly: false, idempotent: false)
@@ -222,7 +118,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Build / test / clean (session seam)
 
     func projectBuildBuild(_ call: MCPToolCall) async throws -> MCPToolResult {
         let configuration = call.string("configuration") ?? "Debug"
@@ -260,9 +155,6 @@ extension SwiftCodeMCPHost {
 
     func projectBuildTest(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
-        // Legacy's `project_test` accepts a `projectPath`: run
-        // `/usr/bin/swift test` in that package directory instead of
-        // the open workspace's scheme-based test run.
         if let projectPath = call.arguments["projectPath"]?.string,
            !projectPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return try await projectBuildTestPackage(call, projectPath: projectPath)
@@ -297,11 +189,6 @@ extension SwiftCodeMCPHost {
                            summary: summary)
     }
 
-    /// `project_test` with a `projectPath`: runs `/usr/bin/swift
-    /// test` in that package directory (Legacy's form) and reports
-    /// the passed/failed test-case counts parsed from the output
-    /// (`Test Case '…' passed/failed` lines), with the run's tail
-    /// when it fails.
     private func projectBuildTestPackage(_ call: MCPToolCall, projectPath: String) async throws -> MCPToolResult {
         let s = try session(for: call)
         let dir = try resolveFileReadingPath(projectPath, in: s)
@@ -392,8 +279,6 @@ extension SwiftCodeMCPHost {
                            summary: summary.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    // MARK: - Archive (fixed-argv xcodebuild; the build seam has no archive action)
-
     func projectBuildArchive(_ call: MCPToolCall) async throws -> MCPToolResult {
         let scheme = try call.require("scheme").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !scheme.isEmpty else { throw MCPToolError("Missing required parameter: scheme") }
@@ -465,8 +350,6 @@ extension SwiftCodeMCPHost {
                            summary: "Archived scheme '\(scheme)' to '\(rawArchivePath)' (exit 0).")
     }
 
-    // MARK: - Pure reads: logs, systems, configurations, settings, scripts
-
     func projectBuildAnalyzeLog(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         guard let raw = call.arguments["path"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
@@ -503,7 +386,6 @@ extension SwiftCodeMCPHost {
                            summary: out.joined(separator: "\n"))
     }
 
-    /// De-duplication preserving first order (Legacy's `NSOrderedSet`).
     nonisolated static func projectBuildDedup(_ values: [String]) -> [String] {
         var seen = Set<String>()
         return values.filter { seen.insert($0).inserted }
@@ -515,10 +397,6 @@ extension SwiftCodeMCPHost {
         let fm = FileManager.default
         let entries = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
         var found: [(name: String, system: String)] = []
-        // Project bundles (Legacy's order: workspace first, then
-        // project). Legacy looked for entries literally named
-        // `xcworkspace` / `xcodeproj`, which a real bundle never is;
-        // the port counts any root entry with those extensions.
         for ext in ["xcworkspace", "xcodeproj"] {
             if let bundle = entries.filter({ $0.pathExtension == ext }).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).first {
                 found.append((name: bundle.lastPathComponent, system: "." + ext))
@@ -533,9 +411,6 @@ extension SwiftCodeMCPHost {
         for (name, system) in checks {
             let url = root.appendingPathComponent(name)
             var isDir: ObjCBool = false
-            // Directories only count for bundle-style markers, and
-            // none of these markers starts with ".", so effectively
-            // files only — Legacy's rule, preserved.
             if fm.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue {
                 found.append((name: name, system: system))
             }
@@ -663,14 +538,10 @@ extension SwiftCodeMCPHost {
         return .structured(["count": .int(matches.count)], summary: lines.joined(separator: "\n"))
     }
 
-    /// Legacy's `AssistTextFormat.truncated`: the first `limit`
-    /// characters plus a note when the text was longer.
     nonisolated static func projectBuildTruncated(_ text: String, limit: Int, label: String) -> (String, Bool) {
         guard text.count > limit else { return (text, false) }
         return (String(text.prefix(limit)) + "\n… [\(label): showing first \(limit) of \(text.count) characters]", true)
     }
-
-    // MARK: - xcresult / DerivedData / toolchain / destinations
 
     func projectBuildParseXCResult(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -760,7 +631,6 @@ extension SwiftCodeMCPHost {
         return .structured(["count": .int(rows.count)], summary: lines.joined(separator: "\n"))
     }
 
-    /// Legacy's `AssistWorkspaceScan.fileSize`.
     nonisolated static func projectBuildFileSize(of url: URL) -> Int64 {
         Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
     }

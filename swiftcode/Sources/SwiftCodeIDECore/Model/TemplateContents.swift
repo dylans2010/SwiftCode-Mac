@@ -1,16 +1,7 @@
 import Foundation
 import SwiftCodePlist
 
-/// What each New File template writes (reference-ui-5.md §11.3, P10):
-/// SwiftCode's own minimal contents, with no header comments and no copied
-/// wording. Every Source template gives a non-empty file that compiles.
-/// Paths may name a folder ("Media.xcassets/Contents.json"): the first
-/// component is the item added to the project. Formats follow public
-/// documentation (asset catalogs, Settings bundles, DocC, GPX, GeoJSON,
-/// privacy manifests, string catalogs, Interface Builder documents as in
-/// `templates.md`).
 enum TemplateContents {
-    /// A Swift / C identifier made from a file name.
     static func identifier(_ name: String) -> String {
         var s = String(name.map { $0.isLetter || $0.isNumber || $0 == "_" ? $0 : "_" })
         if s.first?.isNumber ?? true { s = "_" + s }
@@ -89,7 +80,6 @@ enum TemplateContents {
 
     static let catalogInfo = "{\n  \"info\" : {\n    \"author\" : \"swiftcode\",\n    \"version\" : 1\n  }\n}\n"
 
-    /// (relative path, contents) for an entry and a name (without extension).
     static func files(_ entry: TemplateEntry, name n: String, platform: String) -> [(String, String)]? {
         let id = identifier(n)
         let cocoa = platform == "macOS"
@@ -167,8 +157,6 @@ enum TemplateContents {
         case "StoreKit Configuration File":
             return [(file, "{\n  \"identifier\" : \"\(UUID().uuidString.prefix(8))\",\n  \"nonRenewingSubscriptions\" : [\n\n  ],\n  \"products\" : [\n\n  ],\n  \"settings\" : {\n\n  },\n  \"subscriptionGroups\" : [\n\n  ],\n  \"version\" : {\n    \"major\" : 4,\n    \"minor\" : 0\n  }\n}\n")]
         case "SceneKit Catalog", "GameKit Bundle", "Icon Composer Icon", "Mapping Model":
-            // Folder documents whose inner format is not specified: the
-            // folder itself (spec question in the round report).
             return [("\(file)/", "")]
         default: return nil
         }

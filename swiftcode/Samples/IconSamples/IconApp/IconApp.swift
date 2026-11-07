@@ -1,9 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// An app whose Assets.car and icon files SwiftCode's asset compiler writes
-/// (`specs/formats/assets-car.md`, "SwiftCode implementation"). Prints one line
-/// for the run log saying what it found in its catalog, then shows the same.
 @main
 struct IconApp: App {
     static let report: String = {

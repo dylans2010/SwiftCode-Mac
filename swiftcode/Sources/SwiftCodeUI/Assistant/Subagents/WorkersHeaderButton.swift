@@ -1,17 +1,6 @@
 import SwiftUI
 import SwiftCodeAssistant
 
-/// Header toolbar button providing a native entry point to the Workers
-/// system from Assist. Displays "Workers · N" with an active-worker
-/// count and a live dot, and opens the full dashboard.
-///
-/// Port of Legacy
-/// `SwiftCode/Backend/Assist/Subagents/UI/WorkersHeaderButton.swift`,
-/// rebuilt for the SwiftCodeUI target (default accent, no Legacy orange).
-///
-/// Wiring: reads the injected `WorkerRuntimeState` (default
-/// `.shared`). The dashboard sheet is handed the same instance so the
-/// button and the dashboard always agree on live counts.
 @MainActor
 public struct WorkersHeaderButton: View {
     @Bindable var runtimeState: WorkerRuntimeState

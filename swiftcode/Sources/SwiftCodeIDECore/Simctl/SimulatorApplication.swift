@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimulatorApplication.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 
 public struct SimulatorApplication: Identifiable, Hashable, Codable, Sendable {

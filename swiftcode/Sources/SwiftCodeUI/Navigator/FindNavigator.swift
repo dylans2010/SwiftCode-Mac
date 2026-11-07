@@ -1,10 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Find navigator's state and the controls `NavigatorAreaController`
-/// does not own: the Replace row, the count line, the running search and
-/// the hooks the window sets. See `specs/ide/navigators.md` §Find
-/// navigator, "SwiftCode implementation".
 @MainActor
 final class FindNavigatorUI {
     var model = FindNavigatorModel()
@@ -18,16 +14,11 @@ final class FindNavigatorUI {
     var running: Task<Void, Never>?
     let history = ReplaceHistory()
     let fieldDelegate = ReplaceFieldDelegate()
-    /// File texts read for regular-expression previews, per search.
     var previewTexts: [String: String] = [:]
-    /// The last semantic result shown (tests, the count line).
     var semanticResult: SemanticFind.Result?
-    /// The Custom Scopes editor last opened.
     var scopeEditor: FindScopeEditorController?
-    /// Set while the results' selection is changed from code.
     var selectingFromCode = false
 
-    // Hooks the window sets.
     var buffers: (() -> [String: String])?
     var openFiles: (() -> [String])?
     var semantic: (@MainActor (FindQuery) async -> SemanticFind.Result)?
@@ -38,48 +29,38 @@ final class FindNavigatorUI {
     var customScopes: [CustomFindScope] { Preferences.shared.findCustomScopes }
 }
 
-/// Reports edits of the replacement field.
 final class ReplaceFieldDelegate: NSObject, NSTextFieldDelegate {
     var onChange: (() -> Void)?
     func controlTextDidChange(_ obj: Notification) { onChange?() }
 }
 
-/// A Replace-mode checkbox in a result row.
 final class FindCheckbox: NSButton {
     var file = 0
     var match: Int?
 }
 
 extension NavigatorAreaController {
-    // MARK: Hooks and state (the window, tests)
 
-    /// Unsaved editor text by path (searched instead of the file).
     public var findBuffers: (() -> [String: String])? {
         get { findUI.buffers }
         set { findUI.buffers = newValue }
     }
-    /// The files open in this window (the Open Files scope).
     public var findOpenFiles: (() -> [String])? {
         get { findUI.openFiles }
         set { findUI.openFiles = newValue }
     }
-    /// Runs a semantic kind (the window asks its language server).
     public var findSemantic: (@MainActor (FindQuery) async -> SemanticFind.Result)? {
         get { findUI.semantic }
         set { findUI.semantic = newValue }
     }
-    /// How Replace reads and writes files (default: the disk).
     public var findReplaceIO: ReplaceIO? {
         get { findUI.io }
         set { findUI.io = newValue }
     }
-    /// Performs a Replace (the window groups it for undo); default: the
-    /// plan applied through `findReplaceIO`, recorded in `findReplaceHistory`.
     public var findPerformReplace: ((ReplacePlan) -> ReplaceTransaction)? {
         get { findUI.performReplace }
         set { findUI.performReplace = newValue }
     }
-    /// Opens a match and selects it (default: `onOpen` at its line).
     public var onOpenFindMatch: ((String, WorkspaceSearch.Match) -> Void)? {
         get { findUI.onOpenMatch }
         set { findUI.onOpenMatch = newValue }
@@ -92,8 +73,6 @@ extension NavigatorAreaController {
     public var findReplaceButton: NSButton { findUI.replaceButton }
     public var isShowingFindReplaceRow: Bool { !findUI.replaceRow.isHidden }
     public var lastSemanticFindResult: SemanticFind.Result? { findUI.semanticResult }
-
-    // MARK: Controls
 
     func installFindControls(in root: NSView) {
         let ui = findUI
@@ -140,8 +119,6 @@ extension NavigatorAreaController {
         ])
     }
 
-    /// Shows the Replace row in Replace mode and the count line while the
-    /// Find navigator is selected.
     func applyFindVisibility(_ shown: Bool) {
         let replace = shown && findUI.model.mode == .replace
         findUI.replaceRow.isHidden = !replace
@@ -160,8 +137,6 @@ extension NavigatorAreaController {
         findUI.replaceField.toolTip = textual ? nil : "Replace works with Text, Multiple Words and Regular Expression"
     }
 
-    /// The query the header describes for `text`. Symbols ▸ Definitions
-    /// matches names containing the text; ▸ References the exact name.
     public func findQuery(_ text: String) -> FindQuery {
         let kind = FindQuery.Kind(rawValue: findStyle.indexOfSelectedItem) ?? .text
         let ignoreCase = findCaseToggle.state != .on
@@ -172,7 +147,6 @@ extension NavigatorAreaController {
         return FindQuery(text, kind: kind, match: FindQuery.Match(rawValue: findMatch.indexOfSelectedItem) ?? .containing, ignoreCase: ignoreCase)
     }
 
-    /// Mode, kind, match and case as the pop-ups would set them.
     public func setFindOptions(mode: FindNavigatorModel.Mode? = nil, kind: FindQuery.Kind? = nil, match: Int? = nil, ignoreCase: Bool? = nil) {
         _ = view
         if let mode { findMode.selectItem(at: mode.rawValue) }
@@ -183,8 +157,6 @@ extension NavigatorAreaController {
         findOptionsDidChange()
     }
 
-    /// The Match pop-up lists Definitions and References for Symbols, the
-    /// match styles otherwise.
     func syncFindMatchItems() {
         let symbols = findStyle.indexOfSelectedItem == FindQuery.Kind.symbols.rawValue
         let titles = symbols ? FindQuery.SymbolRole.allCases.map(\.title) : Self.findMatches
@@ -212,7 +184,6 @@ extension NavigatorAreaController {
         if selectedIndex == 3 { outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<outlineView.numberOfRows), columnIndexes: [0]) }
     }
 
-    /// Return in the query field: a streamed search, noted in the history.
     func submitFind() {
         let q = findField.stringValue
         if !q.isEmpty {
@@ -222,10 +193,6 @@ extension NavigatorAreaController {
         beginFind(q)
     }
 
-    // MARK: Searching
-
-    /// The engine request for a textual query in the selected scope, with
-    /// the window's unsaved buffers; nil without a workspace.
     func findRequest(_ q: FindQuery) -> FindEngine.Request? {
         guard let root = workspaceRoot else { return nil }
         let resolver = FindScopeResolver(root: root, openFiles: findUI.openFiles?() ?? [], currentResults: lastResultFiles,
@@ -248,8 +215,6 @@ extension NavigatorAreaController {
         return q
     }
 
-    /// Searches at once (textual kinds); semantic kinds start in the
-    /// background (`beginFind` returns their task).
     func runFind(_ text: String) {
         let q = prepareFind(text)
         if q.kind.isSemantic {
@@ -260,8 +225,6 @@ extension NavigatorAreaController {
         finishFind(FindEngine.search(req))
     }
 
-    /// Searches in the background, showing files as they are found; a new
-    /// search cancels this one.
     @discardableResult
     public func beginFind(_ text: String) -> Task<Void, Never> {
         let q = prepareFind(text)
@@ -319,7 +282,6 @@ extension NavigatorAreaController {
         }
     }
 
-    /// Shows a semantic result: a heading row with the tree under it.
     public func showSemanticResult(_ r: SemanticFind.Result, selectNavigator: Bool = true) {
         _ = view
         findUI.semanticResult = r
@@ -347,7 +309,6 @@ extension NavigatorAreaController {
         updateReplaceButtons()
     }
 
-    /// Letter badges for LSP symbol kinds (as the jump bar's).
     static func symbolGlyph(_ kind: Int?) -> String {
         switch kind {
         case 5: "c.square.fill"
@@ -362,16 +323,12 @@ extension NavigatorAreaController {
         }
     }
 
-    // MARK: Rows
-
-    /// Replaces the rows without opening what the selection lands on.
     func showFindRows(_ rows: [OutlineItem]) {
         findUI.selectingFromCode = true
         setFindRows(rows)
         findUI.selectingFromCode = false
     }
 
-    /// One row per file, "name  (N)", then one per match with its line.
     func findRows() -> [OutlineItem] {
         findUI.model.results.enumerated().map { fi, f in
             let name = (f.path as NSString).lastPathComponent
@@ -386,8 +343,6 @@ extension NavigatorAreaController {
         }
     }
 
-    /// The match highlighted in its row; in Replace mode a checkbox and
-    /// the replacement shown after the struck-out match.
     func decorateFindRow(_ item: OutlineItem, cell: NSTableCellView, image: NSImageView, label: NSTextField) {
         guard let idx = item.findIndex, findUI.model.results.indices.contains(idx.file) else { return }
         let plan = findUI.model.plan
@@ -427,8 +382,6 @@ extension NavigatorAreaController {
         return plan.replacementText(for: plan.files[file].matches[match], in: findUI.previewTexts[path] ?? "")
     }
 
-    /// The row text with the match emphasized; with a replacement, the
-    /// match struck out and the replacement after it.
     static func matchTitle(_ m: WorkspaceSearch.Match, replacement: String?, included: Bool, size: CGFloat) -> NSAttributedString {
         let text = m.text as NSString
         let h = NSIntersectionRange(m.highlight, NSRange(location: 0, length: text.length))
@@ -458,16 +411,12 @@ extension NavigatorAreaController {
         setFindInclusion(sender.state != .off, file: sender.file, match: sender.match)
     }
 
-    /// Includes or leaves out a match (or a file's matches) in Replace.
     public func setFindInclusion(_ on: Bool, file: Int, match: Int?) {
         findUI.model.plan?.setIncluded(on, file: file, match: match)
         if isViewLoaded, selectedIndex == 3 { outlineView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<outlineView.numberOfRows), columnIndexes: [0]) }
         updateReplaceButtons()
     }
 
-    // MARK: Opening and stepping
-
-    /// The rows selected in the outline that are results.
     var selectedFindRows: [OutlineItem] {
         guard isViewLoaded, selectedIndex == 3 else { return [] }
         return outlineView.selectedRowIndexes.compactMap { outlineView.item(atRow: $0) as? OutlineItem }.filter { $0.findIndex != nil }
@@ -484,8 +433,6 @@ extension NavigatorAreaController {
         if let open = findUI.onOpenMatch { open(path, m) } else { onOpen?(path, m.line) }
     }
 
-    /// Moving the selection with the keyboard opens the selected match (a
-    /// click opens it through `rowClicked`).
     func findSelectionChanged() {
         defer { updateReplaceButtons() }
         let mouse: Set<NSEvent.EventType> = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown]
@@ -494,11 +441,8 @@ extension NavigatorAreaController {
         openFindRow(item)
     }
 
-    /// The search in progress, if any (tests await it).
     public var runningFind: Task<Void, Never>? { findUI.running }
 
-    /// Find ▸ Find Next / Previous in Workspace: the next match across
-    /// files (wrapping), selected in the results and opened.
     @discardableResult
     public func stepFindResult(forward: Bool) -> (path: String, match: WorkspaceSearch.Match)? {
         guard let hit = findUI.model.step(forward: forward), let c = findUI.model.cursor else { NSSound.beep(); return nil }
@@ -516,12 +460,9 @@ extension NavigatorAreaController {
         return hit
     }
 
-    // MARK: Replace
-
     @objc func replaceAllClicked() { replaceAllFindMatches() }
     @objc func replaceClicked() { replaceSelectedFindMatches() }
 
-    /// Replace All: every checked match. Returns the transaction.
     @discardableResult
     public func replaceAllFindMatches() -> ReplaceTransaction? {
         guard var plan = findUI.model.plan, plan.includedCount > 0 else { NSSound.beep(); return nil }
@@ -529,8 +470,6 @@ extension NavigatorAreaController {
         return performFindReplace(plan)
     }
 
-    /// Replace: the checked matches of the selected rows (a file row
-    /// stands for its matches).
     @discardableResult
     public func replaceSelectedFindMatches() -> ReplaceTransaction? {
         guard var plan = findUI.model.plan else { NSSound.beep(); return nil }
@@ -562,8 +501,6 @@ extension NavigatorAreaController {
         return t
     }
 
-    /// Undo of the last Replace without a window (the window uses its undo
-    /// manager): every file restored at once.
     @discardableResult
     public func undoFindReplace() -> ReplaceHistory.Outcome {
         let o = findUI.history.undo(findUI.io ?? .disk)
@@ -578,15 +515,11 @@ extension NavigatorAreaController {
         return o
     }
 
-    /// The results follow the files after a replace or its undo.
     public func rerunAfterReplace() {
         guard !lastQuery.isEmpty, findUI.model.query.kind.isTextual else { return }
         runFind(lastQuery)
     }
 
-    // MARK: Custom scopes
-
-    /// Custom Scopes…: the editor sheet (FindScopeEditor.swift).
     func editCustomScopes() {
         rebuildScopeMenu()
         let editor = FindScopeEditorController(scopes: findUI.customScopes)
@@ -599,6 +532,5 @@ extension NavigatorAreaController {
         findUI.scopeEditor = editor
     }
 
-    /// The Custom Scopes editor last opened (tests drive it without a sheet).
     public var lastScopeEditor: FindScopeEditorController? { findUI.scopeEditor }
 }

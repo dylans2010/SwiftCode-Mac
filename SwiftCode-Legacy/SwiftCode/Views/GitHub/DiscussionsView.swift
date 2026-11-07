@@ -4,23 +4,18 @@ import SwiftUI
 struct DiscussionsView: View {
     let project: Project?
 
-    // Category selection states
     @State private var selectedCategory = "Q&A"
     @State private var searchPattern = ""
 
-    // Discussion threads states
     @State private var selectedThreadID: String?
     @State private var threads: [DiscussionThread] = []
 
-    // Local-added replies to simulate instant comment updates on live threads
     @State private var localReplies: [String: [DiscussionReply]] = [:]
     @State private var replyText = ""
 
-    // AI summary state
     @State private var isSummarizingThread = false
     @State private var aiSummaryText = ""
 
-    // Fetch states
     @State private var isLoading = false
     @State private var errorMessage: String?
 
@@ -66,19 +61,16 @@ struct DiscussionsView: View {
 
     private var mainContent: some View {
         HSplitView {
-            // Sidebar Pane 1: Category browser
             categoryPanel
                 .frame(width: 180)
                 .frame(maxHeight: .infinity)
                 .layoutPriority(1)
 
-            // Split Pane 2: Thread list
             threadListPanel
                 .frame(width: 250)
                 .frame(maxHeight: .infinity)
                 .layoutPriority(2)
 
-            // Split Pane 3: Selected thread workspace
             threadDetailWorkspacePanel
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(3)
@@ -129,7 +121,6 @@ struct DiscussionsView: View {
 
     private var threadListPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Search field
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Search threads...", text: $searchPattern)
@@ -196,7 +187,6 @@ struct DiscussionsView: View {
         ScrollView {
             if let thread = selectedThread {
                 VStack(alignment: .leading, spacing: 18) {
-                    // Title block
                     VStack(alignment: .leading, spacing: 8) {
                         Text(thread.title)
                             .font(.title2.bold())
@@ -222,14 +212,12 @@ struct DiscussionsView: View {
 
                     Divider()
 
-                    // Thread Body
                     Text(thread.body)
                         .font(.body)
                         .textSelection(.enabled)
 
                     Divider()
 
-                    // AI Thread summarization
                     VStack(alignment: .leading, spacing: 8) {
                         Text("AI Thread Summarizer").font(.subheadline.bold())
                         Text("Synthesize thread consensus and highlight accepted answers or action points.")
@@ -256,7 +244,6 @@ struct DiscussionsView: View {
 
                     Divider()
 
-                    // Replies Catalog
                     VStack(alignment: .leading, spacing: 12) {
                         Text("REPLIES (\(activeReplies.count))")
                             .font(.caption2.bold())
@@ -280,7 +267,6 @@ struct DiscussionsView: View {
 
                                 HStack {
                                     Button {
-                                        // Upvote behavior
                                     } label: {
                                         Label("Upvote", systemImage: "arrow.up")
                                             .font(.caption2)
@@ -295,7 +281,6 @@ struct DiscussionsView: View {
                             Divider()
                         }
 
-                        // Add Reply Editor Form
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Post a Reply").font(.caption.bold())
                             TextEditor(text: $replyText)

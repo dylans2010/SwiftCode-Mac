@@ -1,10 +1,7 @@
-// Shared helpers. All data here is made up; no real address book is read.
-
 import Foundation
 import Testing
 @testable import Contacts
 
-/// A store on a fresh database in its own temporary directory.
 final class TestStore: @unchecked Sendable {
     let dir: URL
     let url: URL
@@ -17,7 +14,6 @@ final class TestStore: @unchecked Sendable {
             databaseURL: url, authorizationStatus: status, limitedContactIdentifiers: limited, bundleIdentifier: bundle))
     }
 
-    /// Another store on the same database.
     func another(status: CNAuthorizationStatus = .authorized, limited: Set<String> = [],
                  bundle: String = "org.swiftcode.tests") -> CNContactStore {
         CNContactStore(swiftcodeConfiguration: SwiftCodeContactStoreConfiguration(
@@ -70,7 +66,6 @@ func save(_ store: CNContactStore, author: String? = nil, _ build: (CNSaveReques
     try store.execute(r)
 }
 
-/// Runs `body` and checks that it fails with the code.
 @discardableResult
 func expectCode(_ code: CNError.Code, sourceLocation: SourceLocation = #_sourceLocation, _ body: () throws -> Void) -> CNError? {
     do {
@@ -89,7 +84,6 @@ func expectCode(_ code: CNError.Code, sourceLocation: SourceLocation = #_sourceL
     return nil
 }
 
-/// The exception raised by `body`, if any.
 func raised<T>(_ body: () -> T) -> CNException? {
     do {
         _ = try CNException.catching(body)
@@ -105,7 +99,6 @@ func formatted(_ c: CNContact, _ style: CNContactFormatterStyle = .fullName) -> 
     CNContactFormatter.string(from: c, style: style)
 }
 
-/// Text of a CRLF vCard as lines (without the line ends).
 func vcardLines(_ data: Data) -> [String] {
     let s = String(decoding: data, as: UTF8.self)
     var lines = s.components(separatedBy: "\r\n")
@@ -125,7 +118,6 @@ func onMainQueue() -> Bool {
     return DispatchQueue.getSpecific(key: mainKey) == true
 }
 
-/// Lets queued main-queue work run.
 func drainMain() async {
     _ = mainKeyOnce
     await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in

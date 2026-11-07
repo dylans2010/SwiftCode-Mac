@@ -1,10 +1,3 @@
-// BuildStatusView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/BuildStatusView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: 3-step status view (Step 1 repository connection, Step 2 asset preparation, Step 3 build execution with logs/guide)
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/BuildStatusView.swift (derived from Legacy).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 import AppKit
@@ -17,7 +10,6 @@ struct BuildStatusView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Native AppKit Build Status Container
             AppKitBuildStatusViewContainer(project: project, owner: owner, repo: repo)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -33,8 +25,6 @@ struct BuildStatusView: View {
     }
 }
 
-// MARK: - AppKit Build Status Container
-
 struct AppKitBuildStatusViewContainer: NSViewRepresentable {
     let project: Project
     let owner: String
@@ -45,7 +35,6 @@ struct AppKitBuildStatusViewContainer: NSViewRepresentable {
         mainView.wantsLayer = true
         mainView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
-        // Layout stack
         let stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.alignment = .leading
@@ -62,19 +51,15 @@ struct AppKitBuildStatusViewContainer: NSViewRepresentable {
             stackView.trailingAnchor.constraint(equalTo: mainView.trailingAnchor)
         ])
 
-        // Add Section 1: Connection Hub Box
         let connectionBox = createConnectionBox()
         stackView.addArrangedSubview(connectionBox)
 
-        // Add Section 2: Preparation Box
         let preparationBox = createPreparationBox()
         stackView.addArrangedSubview(preparationBox)
 
-        // Add Section 3: Build Execution Box
         let executionBox = createExecutionBox()
         stackView.addArrangedSubview(executionBox)
 
-        // Add Section 4: Live Logs & Guide Box
         let logsAndGuideBox = createLogsAndGuideBox()
         stackView.addArrangedSubview(logsAndGuideBox)
 
@@ -82,10 +67,7 @@ struct AppKitBuildStatusViewContainer: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        // AppKit updates managed natively
     }
-
-    // MARK: - AppKit Component Builders
 
     private func createConnectionBox() -> NSBox {
         let box = NSBox()
@@ -209,7 +191,7 @@ struct AppKitBuildStatusViewContainer: NSViewRepresentable {
 
         let compileButton = NSButton(title: "Compile (xcodebuild)", target: nil, action: nil)
         compileButton.bezelStyle = .rounded
-        compileButton.keyEquivalent = "\r" // Enter key equivalent
+        compileButton.keyEquivalent = "\r"
 
         let cancelBuildButton = NSButton(title: "Cancel Active Build", target: nil, action: nil)
         cancelBuildButton.bezelStyle = .rounded

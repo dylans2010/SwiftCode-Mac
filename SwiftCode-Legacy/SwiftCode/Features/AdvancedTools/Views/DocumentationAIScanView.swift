@@ -49,7 +49,6 @@ struct DocumentationAIScanView: View {
                     .transition(.opacity)
                 } else {
                     VStack(spacing: 0) {
-                        // Chat History / Initial Prompt
                         ScrollViewReader { proxy in
                             ScrollView {
                                 VStack(spacing: 16) {
@@ -147,7 +146,6 @@ struct DocumentationAIScanView: View {
 
                 Divider()
 
-                // Input Bar
                 HStack(spacing: 12) {
                     TextField("Ask anything about this document...", text: $questionText)
                         .textFieldStyle(.plain)
@@ -218,7 +216,6 @@ Answer the user's questions based on this document and your expert Apple SDK kno
                 isProcessing = false
                 chatHistory.append(LocalChatMsg(isUser: false, content: response))
             } catch {
-                // Offline on-device analysis fallback
                 let fallback = """
 ### On-Device Document Analysis
 **Query:** \(question)

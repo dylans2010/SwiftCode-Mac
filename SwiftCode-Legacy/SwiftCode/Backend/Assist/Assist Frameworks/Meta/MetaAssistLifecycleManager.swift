@@ -1,11 +1,3 @@
-//
-//  MetaAssistLifecycleManager.swift
-//  SwiftCode
-//
-//  Background lifecycle manager that ensures the Meta Muse Code SDK engine (TypeScript/Node)
-//  starts up at application launch and runs continuously when 'Assist on Meta' is active.
-//
-
 import Foundation
 import Combine
 import os
@@ -26,13 +18,11 @@ public final class MetaAssistLifecycleManager: ObservableObject {
 
     private init() {}
 
-    /// Activates background manager. Called at application launch.
     public func startMonitoring() {
         guard !isMonitoring else { return }
         isMonitoring = true
         logger.info("Starting Meta Assist background lifecycle manager...")
 
-        // Observe AppSettings.shared.assistSystemID changes
         AppSettings.shared.$assistSystemID
             .removeDuplicates()
             .sink { [weak self] systemID in
@@ -43,7 +33,6 @@ public final class MetaAssistLifecycleManager: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // Prewarm and start engine automatically on launch so it is available right away
         Task { @MainActor in
             await self.ensureRunning()
         }
@@ -58,7 +47,6 @@ public final class MetaAssistLifecycleManager: ObservableObject {
         cancellables.removeAll()
     }
 
-    /// Explicit request to start the engine and keep it running.
     public func startEngine() async throws {
         isIntentionalStop = false
         guard MuseCodeCLIHelper.shared.isInstalled() else {
@@ -113,7 +101,7 @@ public final class MetaAssistLifecycleManager: ObservableObject {
         healthCheckTask?.cancel()
         healthCheckTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000) // Check every 5 seconds
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
                 guard let self = self, !Task.isCancelled else { break }
 
                 guard AppSettings.shared.isMetaAssist else { continue }

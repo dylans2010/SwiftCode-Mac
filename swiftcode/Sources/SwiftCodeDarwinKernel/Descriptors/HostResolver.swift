@@ -5,48 +5,28 @@ import Glibc
 import Darwin
 #endif
 
-// Name resolution on the host for the guest's DNS service
-// (`specs/simulator/networking-swiftcode.md` §4). Address lookups use the
-// host's `getaddrinfo` (so `/etc/hosts` and the host's resolver
-// configuration apply); record queries (`DNSServiceQueryRecord`: HTTPS,
-// SRV, TXT, CNAME...) use a small DNS client of SwiftCode's own that asks the
-// host's name servers (`/etc/resolv.conf`) over UDP, and over TCP when the
-// answer is truncated (RFC 1035, RFC 6891 for the EDNS(0) buffer size,
-// RFC 7766 for TCP). Every call blocks; callers run it off the kernel lock.
-
 enum HostResolver {
     struct Record: Equatable {
         var name: String
         var type: UInt16
         var rrclass: UInt16
         var ttl: UInt32
-        /// Uncompressed rdata (names inside CNAME, NS, PTR, MX, SOA and SRV
-        /// rdata are expanded).
         var rdata: [UInt8]
     }
 
     enum Outcome: Equatable {
-        /// Records of the asked type (after CNAMEs, which are included first).
         case records([Record])
-        /// NXDOMAIN.
         case noSuchName
-        /// The name exists but has no record of that type.
         case noRecords
-        /// No answer (server failure, timeout).
         case failure
     }
 
     static let typeA: UInt16 = 1, typeCNAME: UInt16 = 5, typeAAAA: UInt16 = 28
-    /// TTL reported for getaddrinfo answers (the host call gives none).
     static let addressTTL: UInt32 = 60
 
-    /// Tests replace the lookups.
     nonisolated(unsafe) static var addressOverride: ((String, Bool) -> [[UInt8]]?)?
     nonisolated(unsafe) static var queryOverride: ((String, UInt16, UInt16) -> Outcome)?
 
-    /// The IPv4 (or IPv6) addresses of `name` from the host's getaddrinfo:
-    /// nil when the name does not exist (or the lookup failed), an empty
-    /// list when it has no address of that family.
     static func addresses(_ name: String, ipv6: Bool) -> [[UInt8]]? {
         if let addressOverride { return addressOverride(name, ipv6) }
         var hints = addrinfo()
@@ -59,9 +39,8 @@ enum HostResolver {
         var result: UnsafeMutablePointer<addrinfo>?
         let r = getaddrinfo(name, nil, &hints, &result)
         guard r == 0 else {
-            // A name with addresses of the other family only is "no data".
             #if canImport(Glibc)
-            if r == -5 || r == -9 { return [] }  // EAI_NODATA, EAI_ADDRFAMILY (GNU)
+            if r == -5 || r == -9 { return [] }
             #endif
             if r == EAI_NONAME, let other = otherFamilyExists(name, ipv6: ipv6), other { return [] }
             return nil
@@ -90,10 +69,6 @@ enum HostResolver {
         return true
     }
 
-    // MARK: DNS client
-
-    /// The host's name servers (`/etc/resolv.conf`), as sockaddr-ready
-    /// (family, bytes) pairs.
     static func nameServers() -> [(ipv6: Bool, address: [UInt8])] {
         guard let text = try? String(contentsOfFile: "/etc/resolv.conf", encoding: .utf8) else {
             return [(false, [127, 0, 0, 1])]
@@ -114,7 +89,6 @@ enum HostResolver {
         return out.isEmpty ? [(false, [127, 0, 0, 1])] : out
     }
 
-    /// A DNS query for `name` (type, class) at the host's name servers.
     static func query(_ name: String, type: UInt16, rrclass: UInt16 = 1) -> Outcome {
         if let queryOverride { return queryOverride(name, type, rrclass) }
         let id = UInt16.random(in: 0...UInt16.max)
@@ -185,9 +159,7 @@ enum HostResolver {
     }
 }
 
-/// DNS message encoding and decoding (RFC 1035).
 enum DNSMessage {
-    /// The wire form of a domain name (nil for an invalid one).
     static func encodeName(_ name: String) -> [UInt8]? {
         var out: [UInt8] = []
         let trimmed = name.hasSuffix(".") ? String(name.dropLast()) : name
@@ -203,17 +175,16 @@ enum DNSMessage {
         return out.count <= 255 ? out : nil
     }
 
-    /// A recursive query with an EDNS(0) OPT record (1232-byte buffer).
     static func query(id: UInt16, name: String, type: UInt16, rrclass: UInt16) -> [UInt8]? {
         guard let qname = encodeName(name) else { return nil }
         var m: [UInt8] = []
         m.appendBE16(id)
-        m.appendBE16(0x0100)  // RD
+        m.appendBE16(0x0100)
         m.appendBE16(1); m.appendBE16(0); m.appendBE16(0); m.appendBE16(1)
         m += qname
         m.appendBE16(type)
         m.appendBE16(rrclass)
-        m += [0]              // OPT: root name
+        m += [0]
         m.appendBE16(41)
         m.appendBE16(1232)
         m.appendBE32(0)
@@ -223,8 +194,6 @@ enum DNSMessage {
 
     static func isTruncated(_ m: [UInt8]) -> Bool { m.count >= 4 && m[2] & 0x02 != 0 }
 
-    /// Reads a (possibly compressed) name at `offset`: the dotted name
-    /// (with a trailing dot) and the offset after it in the message.
     static func readName(_ m: [UInt8], at offset: Int) -> (name: String, next: Int)? {
         var labels: [String] = []
         var p = offset
@@ -251,23 +220,21 @@ enum DNSMessage {
         return (labels.joined(separator: ".") + ".", next ?? p)
     }
 
-    /// rdata with its embedded names expanded (types whose rdata carries
-    /// compressible names).
     static func expandRData(_ m: [UInt8], type: UInt16, at offset: Int, length: Int) -> [UInt8]? {
         func name(at o: Int) -> (bytes: [UInt8], next: Int)? {
             guard let r = readName(m, at: o), let b = encodeName(r.name) else { return nil }
             return (b, r.next)
         }
         switch type {
-        case 2, 5, 12:  // NS, CNAME, PTR
+        case 2, 5, 12:
             return name(at: offset)?.bytes
-        case 15:        // MX
+        case 15:
             guard length >= 3, let n = name(at: offset + 2) else { return nil }
             return Array(m[offset..<(offset + 2)]) + n.bytes
-        case 33:        // SRV
+        case 33:
             guard length >= 7, let n = name(at: offset + 6) else { return nil }
             return Array(m[offset..<(offset + 6)]) + n.bytes
-        case 6:         // SOA
+        case 6:
             guard let a = name(at: offset), let b = name(at: a.next), b.next + 20 <= m.count else { return nil }
             return a.bytes + b.bytes + Array(m[b.next..<(b.next + 20)])
         default:
@@ -275,8 +242,6 @@ enum DNSMessage {
         }
     }
 
-    /// The outcome of a reply to query `id` for `type`; nil when the reply
-    /// is not usable (wrong id, malformed).
     static func outcome(_ m: [UInt8], id: UInt16, type: UInt16) -> HostResolver.Outcome? {
         guard m.count >= 12, m.readBE16(at: 0) == id, m[2] & 0x80 != 0 else { return nil }
         let rcode = m[3] & 0x0F

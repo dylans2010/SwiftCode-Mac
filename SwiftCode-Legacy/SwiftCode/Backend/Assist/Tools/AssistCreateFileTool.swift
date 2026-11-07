@@ -42,7 +42,6 @@ public struct AssistCreateFileTool: AssistTool {
                 try context.fileSystem.createDirectory(at: dirPath)
             }
 
-            // Live Diff Streamer: Broadcast edit initiation
             LiveDiffStreamer.shared.beginEdit(
                 filePath: path,
                 operationType: .create,
@@ -55,10 +54,8 @@ public struct AssistCreateFileTool: AssistTool {
                 isFinal: false
             )
 
-            // Write updated content
             try context.fileSystem.writeFile(at: path, content: content)
 
-            // Auto-register new file on Xcode project.pbxproj
             _ = try? XcodeProjWriter.shared.addFileReference(filePath: path, projectURL: context.workspaceRoot)
 
             LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: content)

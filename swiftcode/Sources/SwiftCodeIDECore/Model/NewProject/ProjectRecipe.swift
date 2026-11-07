@@ -3,22 +3,14 @@ import SwiftCodePlist
 import SwiftCodeProject
 import SwiftCodeSubprocess
 
-/// A platform's SDK facts (`templates.md` § "Platform rows",
-/// `specs/build-settings.md`): SDK, supported platforms, the
-/// deployment-target setting, device family, runpath, and the destination
-/// a build check uses.
 public struct TemplateSDK: Equatable, Sendable {
     public var platform: String
     public var sdkroot: String
     public var supportedPlatforms: String
-    /// Deployment-target setting names (more than one for SDK `auto`).
     public var deploymentKeys: [String]
     public var deviceFamily: String?
-    /// `LD_RUNPATH_SEARCH_PATHS` for apps.
     public var runpath: [PlistValue]
-    /// The destination a build check uses (`generic/platform=…`).
     public var buildDestination: String
-    /// The SDK name `xcrun --sdk` takes for `V(p)`.
     var versionSDK: String
 
     public static let iOS = TemplateSDK(platform: "iOS", sdkroot: "iphoneos", supportedPlatforms: "iphoneos iphonesimulator",
@@ -44,7 +36,6 @@ public struct TemplateSDK: Equatable, Sendable {
     public static let driverKit = TemplateSDK(platform: "DriverKit", sdkroot: "driverkit", supportedPlatforms: "driverkit",
                                               deploymentKeys: ["DRIVERKIT_DEPLOYMENT_TARGET"], deviceFamily: nil, runpath: [],
                                               buildDestination: "generic/platform=DriverKit", versionSDK: "driverkit")
-    /// One target for iPhone, iPad, Mac and Apple Vision (SDK `auto`).
     public static let multiplatform = TemplateSDK(platform: "Multiplatform", sdkroot: "auto",
                                                   supportedPlatforms: "iphoneos iphonesimulator macosx xros xrsimulator",
                                                   deploymentKeys: ["IPHONEOS_DEPLOYMENT_TARGET", "MACOSX_DEPLOYMENT_TARGET", "XROS_DEPLOYMENT_TARGET"],
@@ -63,8 +54,6 @@ public struct TemplateSDK: Equatable, Sendable {
         }
     }
 
-    /// `V(p)`: the installed SDK's version (major.minor), from `xcrun`
-    /// on a Mac; elsewhere, or without the SDK, SwiftCode's default.
     public static func version(_ key: String) -> String {
         let sdk: String = switch key {
         case "IPHONEOS_DEPLOYMENT_TARGET": "iphoneos"
@@ -77,21 +66,16 @@ public struct TemplateSDK: Equatable, Sendable {
         return SDKVersions.shared.version(sdk)
     }
 
-    /// The platform row: SDK and deployment target(s).
     var platformRow: [(String, PlistValue)] {
         guard sdkroot != "auto" else { return deploymentKeys.map { ($0, .string(Self.version($0))) } }
         return [("SDKROOT", .string(sdkroot))] + deploymentKeys.map { ($0, .string(Self.version($0))) }
     }
 
-    /// Whether Release adds `VALIDATE_PRODUCT = YES`.
     var validatesProduct: Bool { ["iphoneos", "appletvos", "watchos", "xros"].contains(sdkroot) }
 }
 
-/// The installed SDK versions, read once.
 final class SDKVersions: @unchecked Sendable {
     static let shared = SDKVersions()
-    /// SwiftCode's default when no SDK can be asked (Linux, tests on a host
-    /// without the platform).
     static let fallback = "27.0"
     private let lock = NSLock()
     private var cache: [String: String] = [:]
@@ -112,14 +96,10 @@ final class SDKVersions: @unchecked Sendable {
     }
 }
 
-/// A project to generate (`templates.md` § "Generated project, common to
-/// all templates"): targets, the files under the project folder and
-/// where they go. `makeProject()` builds the pbxproj object by object.
 struct ProjectRecipe {
     struct Embed {
         var name: String
         var targets: [String]
-        /// `dstSubfolderSpec` (`build-pif.md` §Copy-files destinations).
         var subfolderSpec: String
         var path: String
         var codeSignOnCopy = false
@@ -128,9 +108,6 @@ struct ProjectRecipe {
         static func watch(_ t: [String]) -> Embed { Embed(name: "Embed Watch Content", targets: t, subfolderSpec: "16", path: "$(CONTENTS_FOLDER_PATH)/Watch") }
     }
 
-    /// A Copy Files phase that copies files, not products (man pages,
-    /// public headers): name, `dstSubfolderSpec`, `dstPath`, whether it
-    /// runs only when installing.
     struct CopyPhase {
         var subfolderSpec: String
         var path: String
@@ -140,7 +117,6 @@ struct ProjectRecipe {
     struct Target {
         enum Kind: Equatable {
             case native
-            /// `PBXLegacyTarget`: runs an external build tool.
             case legacy(tool: String, arguments: String)
         }
         var kind = Kind.native
@@ -148,9 +124,7 @@ struct ProjectRecipe {
         var productType: String
         var productPath: String
         var productFileType: String
-        /// Synchronized folders the target owns (paths under the project folder).
         var folders: [String]
-        /// Items of the target's first folder left out of it (Info.plist).
         var exceptions: [String] = []
         var settings: [(String, PlistValue)]
         var debugSettings: [(String, PlistValue)] = []
@@ -159,34 +133,21 @@ struct ProjectRecipe {
         var copyPhases: [CopyPhase] = []
         var dependencies: [String] = []
         var embeds: [Embed] = []
-        /// Names of targets whose products this one links (Frameworks phase).
         var links: [String] = []
-        /// For test bundles: the target they test (`TestTargetID`).
         var testedTarget: String?
-        /// The target's SDK, for multi-SDK projects (its own platform row).
         var sdk: TemplateSDK?
-        /// Swift settings (§ "Swift settings"); nil for Objective-C, C, C++.
         var swiftVersion: String? = "5.0"
-        /// SDK frameworks linked by name ("Messages", "DriverKit").
         var sdkFrameworks: [String] = []
     }
 
     var name: String
     var targets: [Target]
     var files: [(String, String)]
-    /// The project's platform row; nil for multi-SDK and SDK-`auto`
-    /// projects (each target carries its own).
     var projectSDK: TemplateSDK?
     var projectSettings: [(String, PlistValue)] = []
-    /// `DEVELOPMENT_TEAM`, when a team is chosen.
     var team: String?
-    /// The `ORGANIZATIONNAME` attribute.
     var organizationName: String?
-    /// Whether the project-level Swift configuration settings are written.
     var swift = true
-    /// A deployment target replacing `V(p)` in every deployment setting
-    /// (`swiftcode new --option deploymentTarget=…`; tests that run on older
-    /// simulator runtimes).
     var deploymentOverride: String?
 
     func deployment(_ s: [(String, PlistValue)]) -> [(String, PlistValue)] {
@@ -194,12 +155,9 @@ struct ProjectRecipe {
         return s.map { $0.0.hasSuffix("_DEPLOYMENT_TARGET") ? ($0.0, .string(v)) : $0 }
     }
 
-    /// The IDE version the project records (`LastUpgradeCheck` and
-    /// `CreatedOnToolsVersion`): the reference release SwiftCode matches.
     static let toolsVersion = "27.1"
     static var toolsVersionDigits: String { toolsVersion.replacingOccurrences(of: ".", with: "").padding(toLength: 4, withPad: "0", startingAt: 0) }
 
-    /// § "Project-level settings in every template".
     static func common() -> [(String, PlistValue)] {
         var s: [(String, PlistValue)] = [
             ("ALWAYS_SEARCH_USER_PATHS", "NO"), ("ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS", "YES"),
@@ -222,8 +180,6 @@ struct ProjectRecipe {
         return s
     }
 
-    /// Settings that are the project's platform row, dropped from a target
-    /// that repeats them.
     static let platformKeys: Set<String> = ["SDKROOT", "IPHONEOS_DEPLOYMENT_TARGET", "MACOSX_DEPLOYMENT_TARGET", "WATCHOS_DEPLOYMENT_TARGET",
                                             "TVOS_DEPLOYMENT_TARGET", "XROS_DEPLOYMENT_TARGET", "DRIVERKIT_DEPLOYMENT_TARGET"]
 
@@ -277,7 +233,6 @@ struct ProjectRecipe {
                 folderOrder.append(f)
             }
         }
-        // SDK frameworks: one reference each, in a Frameworks group.
         var sdkRefs: [String: String] = [:]
         for t in targets { for f in t.sdkFrameworks where sdkRefs[f] == nil {
             sdkRefs[f] = obj([("isa", "PBXFileReference"), ("lastKnownFileType", "wrapper.framework"), ("name", .string("\(f).framework")),
@@ -317,7 +272,6 @@ struct ProjectRecipe {
                                  ("remoteGlobalIDString", .string(dep)), ("remoteInfo", .string(d))])
                 deps.append(obj([("isa", "PBXTargetDependency"), ("target", .string(dep)), ("targetProxy", .string(proxy))]))
             }
-            // Target settings: the platform row (multi-SDK) or without it.
             var s = t.settings
             var release = t.releaseSettings
             if let sdk = t.sdk {
@@ -326,7 +280,6 @@ struct ProjectRecipe {
                 if sdk.validatesProduct { release.append(("VALIDATE_PRODUCT", "YES")) }
             } else if let ps = projectSDK {
                 let row = Dictionary(ps.platformRow, uniquingKeysWith: { a, _ in a })
-                // Hosted unit tests keep a copy of the deployment target.
                 let keepDeployment = t.productType.hasSuffix("unit-test") && t.settings.contains { $0.0 == "TEST_HOST" }
                 s.removeAll { k, v in row[k] == v && !(keepDeployment && k != "SDKROOT") }
             }

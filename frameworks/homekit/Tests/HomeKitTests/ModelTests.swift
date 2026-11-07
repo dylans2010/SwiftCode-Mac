@@ -1,6 +1,3 @@
-// Homes, rooms, zones, service groups, users, delegate fan-out, name rules
-// and persistence (object-model.md §1–§4, §12; plan.md HK-A01–A06, A10–A11).
-
 import Foundation
 import Testing
 @testable import HomeKit

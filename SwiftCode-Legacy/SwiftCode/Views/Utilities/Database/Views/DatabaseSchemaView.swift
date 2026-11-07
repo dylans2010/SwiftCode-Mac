@@ -6,12 +6,10 @@ struct DatabaseSchemaView: View {
     @State private var tableOffsets: [String: CGSize] = [:]
     @State private var scale: CGFloat = 1.0
 
-    // Segmented tab selector
-    @State private var selectedTab = 0 // 0 = ER Diagram Workspace, 1 = Constraint Designer
+    @State private var selectedTab = 0
 
-    // Constraint states
     @State private var selectedConstraintTable = ""
-    @State private var constraintType = "Foreign Key" // Foreign Key, Unique, Check
+    @State private var constraintType = "Foreign Key"
     @State private var sourceColumn = ""
     @State private var targetTable = ""
     @State private var targetColumn = ""
@@ -22,7 +20,6 @@ struct DatabaseSchemaView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Upper Selection Bar
             HStack(spacing: 16) {
                 Picker("", selection: $selectedTab) {
                     Text("Interactive ER Diagram").tag(0)
@@ -51,7 +48,6 @@ struct DatabaseSchemaView: View {
             Divider()
 
             if selectedTab == 0 {
-                // Interactive ER Diagram Canvas with simplified lightweight background grid
                 ZStack {
                     Color(NSColor.controlBackgroundColor)
                         .opacity(0.3)
@@ -59,7 +55,6 @@ struct DatabaseSchemaView: View {
 
                     ScrollView([.horizontal, .vertical]) {
                         ZStack {
-                            // Lines showing Foreign Key Relationships
                             ForEach(tables) { table in
                                 ForEach(table.relationships) { rel in
                                     RelationLineView(
@@ -69,7 +64,6 @@ struct DatabaseSchemaView: View {
                                 }
                             }
 
-                            // Tables boxes
                             ForEach(tables) { table in
                                 SchemaTableCard(table: table)
                                     .offset(tableOffsets[table.name] ?? .zero)
@@ -90,7 +84,6 @@ struct DatabaseSchemaView: View {
                     }
                 }
             } else {
-                // Constraint & Foreign Key Designer Pane
                 constraintDesignerPane()
             }
         }
@@ -104,7 +97,6 @@ struct DatabaseSchemaView: View {
         }
     }
 
-    // MARK: - Constraint Designer Pane View
     @ViewBuilder
     private func constraintDesignerPane() -> some View {
         ScrollView {
@@ -249,7 +241,6 @@ struct DatabaseSchemaView: View {
         }
     }
 
-    // MARK: - Handlers & Loading
     private func loadTables() {
         guard let conn = connManager.activeConnection else { return }
         Task {
@@ -262,7 +253,6 @@ struct DatabaseSchemaView: View {
                     tables = try await SupabaseService.shared.fetchTables(connection: conn)
                 }
 
-                // Lay tables out in a grid
                 var x: CGFloat = 50
                 var y: CGFloat = 50
                 for table in tables {
@@ -296,7 +286,6 @@ struct DatabaseSchemaView: View {
             ddl += "BEGIN TRANSACTION;\n"
             ddl += "ALTER TABLE \(selectedConstraintTable) RENAME TO _\(selectedConstraintTable)_old;\n"
 
-            // Re-create new table with foreign key constraint mapping
             if let currentTableObj = tables.first(where: { $0.name == selectedConstraintTable }) {
                 var colsDDL: [String] = []
                 for col in currentTableObj.columns {
@@ -318,7 +307,6 @@ struct DatabaseSchemaView: View {
         } else if constraintType == "Unique" {
             ddl = "CREATE UNIQUE INDEX idx_uniq_\(selectedConstraintTable)_\(sourceColumn) ON \(selectedConstraintTable) (\(sourceColumn));"
         } else {
-            // Check constraint
             ddl = "-- SQLite Check constraints must be defined at CREATE TABLE.\n"
             ddl += "-- Schema validation rules:\n"
             ddl += "SELECT case when NOT (\(checkExpression)) then raise(fail, 'Check Constraint Violated!') else 'Passed' end FROM \(selectedConstraintTable);\n"
@@ -326,18 +314,15 @@ struct DatabaseSchemaView: View {
 
         constraintLogs = ddl
 
-        // Execute DDL statements
         Task {
             do {
                 if constraintType == "Unique" {
                     _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: ddl)
                     alertMessage = "Unique constraint index generated successfully!"
                 } else if constraintType == "Check" {
-                    // Try to execute check on active dataset
                     _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: "SELECT * FROM \(selectedConstraintTable) LIMIT 10;")
                     alertMessage = "Check Constraint validation code generated. Rebuild database schemas during next migration deployment."
                 } else {
-                    // Execute full transaction
                     let statements = ddl.components(separatedBy: ";").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     for stmt in statements {
                         _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: stmt + ";")
@@ -359,8 +344,6 @@ struct DatabaseSchemaView: View {
     }
 }
 
-// MARK: - Relation Line View
-
 struct RelationLineView: View {
     let sourceOffset: CGSize
     let targetOffset: CGSize
@@ -371,7 +354,6 @@ struct RelationLineView: View {
             let endPoint = CGPoint(x: targetOffset.width + 120, y: targetOffset.height + 80)
             path.move(to: startPoint)
 
-            // Curved cubic bezier line
             let control1 = CGPoint(x: startPoint.x + 100, y: startPoint.y)
             let control2 = CGPoint(x: endPoint.x - 100, y: endPoint.y)
             path.addCurve(to: endPoint, control1: control1, control2: control2)
@@ -380,14 +362,11 @@ struct RelationLineView: View {
     }
 }
 
-// MARK: - Schema Table Card
-
 struct SchemaTableCard: View {
     let table: DatabaseTable
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Image(systemName: "tablecells.fill")
                     .foregroundColor(.white)
@@ -399,7 +378,6 @@ struct SchemaTableCard: View {
             .frame(width: 240, alignment: .leading)
             .background(Color.blue)
 
-            // Columns
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(table.columns) { col in
                     HStack {

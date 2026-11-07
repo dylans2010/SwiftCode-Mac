@@ -1,17 +1,11 @@
 import Foundation
 
-// MARK: - ProjectBuilderManager
-
-/// Manages generation of user-project build files via XcodeGen.
-/// SwiftCode's own project files are not modified.
 @MainActor
 final class ProjectBuilderManager: Sendable {
     static let shared = ProjectBuilderManager()
     private init() {}
 
     private let fm = FileManager.default
-
-    // MARK: - Public Entry Points
 
     @MainActor
     func prepareXcodeFiles(for project: Project) {
@@ -46,21 +40,16 @@ final class ProjectBuilderManager: Sendable {
             return true
         }
 
-        // Xcode always stores an internal workspace within the project bundle.
         let internalWorkspace = xcodeProj
             .appendingPathComponent("project.xcworkspace")
             .appendingPathComponent("contents.xcworkspacedata")
         return fm.fileExists(atPath: xcodeProj.path) && fm.fileExists(atPath: internalWorkspace.path)
     }
 
-    // MARK: - Generation
-
     @MainActor
     private func prepareXcodeFiles(projectDir: URL, projectName: String) {
         guard !hasBuildArtifacts(in: projectDir, projectName: projectName) else { return }
 
-        // Local generation is disabled in favor of GitHub Actions remote generation.
-        // This method now serves as a fallback or a way to ensure basic structure.
         do {
             try ensureSubdirectories(in: projectDir)
         } catch {
@@ -68,7 +57,6 @@ final class ProjectBuilderManager: Sendable {
         }
     }
 
-    /// Triggers the remote project generation on GitHub.
     @MainActor
     func triggerRemoteGeneration(for project: Project) async throws {
         guard let repoString = project.githubRepo else {
@@ -77,11 +65,6 @@ final class ProjectBuilderManager: Sendable {
 
         let (owner, repo) = try GitHubRepositoryManager.shared.parseRepoURL(repoString)
         let branch = "build-project"
-
-        // Load the build-project.yml content
-        // Note: In Replit environment we should use the actual path.
-        // For the app itself it might be different, but here we can try to find it.
-        // The user said it's in SwiftCode/Backend/CI Building/build-project.yml
 
         let templatePath = Bundle.main.path(forResource: "build-project", ofType: "yml")
         let fallbackPath = "SwiftCode/Backend/CI Building/build-project.yml"
@@ -95,18 +78,14 @@ final class ProjectBuilderManager: Sendable {
             throw NSError(domain: "ProjectBuilderManager", code: 4, userInfo: [NSLocalizedDescriptionKey: "Could not find build-project.yml template."])
         }
 
-        // 1. Ensure the build-project branch exists
         do {
             try await GitHubService.shared.createBranch(owner: owner, repo: repo, branchName: branch, fromBranch: "main")
         } catch {
-            // Ignore error if branch already exists
             print("ProjectBuilderManager: Branch \(branch) might already exist or error: \(error.localizedDescription)")
         }
 
-        // 2. Push all current files to the build-project branch
         try await GitHubService.shared.pushProject(project, owner: owner, repo: repo, commitMessage: "Prepare project for remote generation", branch: branch)
 
-        // 3. Push the workflow file to the branch
         let workflowPath = ".github/workflows/build-project.yml"
         let existingSHA = try? await GitHubService.shared.getFileSHA(owner: owner, repo: repo, path: workflowPath, branch: branch)
         try await GitHubService.shared.pushFile(
@@ -119,10 +98,7 @@ final class ProjectBuilderManager: Sendable {
             branch: branch
         )
 
-        // The GHA workflow will be triggered automatically by the push to 'build-project' branch.
     }
-
-    // MARK: - Helpers
 
     private func ensureSubdirectories(in projectDir: URL) throws {
         for sub in ["Sources", "Views", "Features"] {
@@ -267,8 +243,6 @@ targets:
             ])
         }
     }
-
-    // MARK: - File Collection
 
     private func collectSwiftFiles(in projectDir: URL) -> [String] {
         var allFiles: [String] = []

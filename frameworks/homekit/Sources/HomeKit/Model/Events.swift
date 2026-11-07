@@ -1,15 +1,7 @@
-// Trigger events and number ranges (object-model.md §9,
-// simulator-baseline.md §7: copy/mutableCopy classes, fresh identifiers,
-// identity equality, `isSupported(forHome:)`).
-
 import Foundation
 #if canImport(CoreLocation)
-// Re-exported so `CLRegion` is visible to `import HomeKit` code, as with the
-// system framework's module.
 @_exported import CoreLocation
 #else
-/// Minimal Core Location types for platforms without it (SwiftCode shim:
-/// coordinates and circular regions only).
 public typealias CLLocationDegrees = Double
 public typealias CLLocationDistance = Double
 
@@ -41,9 +33,6 @@ open class CLCircularRegion: CLRegion, @unchecked Sendable {
 }
 #endif
 
-/// A fresh event identifier. Observed identifiers carry version nibble 5
-/// (simulator-baseline.md §7); SwiftCode draws random bits and sets that nibble
-/// and the RFC 4122 variant.
 func freshEventIdentifier() -> UUID {
     var u = UUID().uuid
     u.6 = (u.6 & 0x0F) | 0x50
@@ -51,11 +40,6 @@ func freshEventIdentifier() -> UUID {
     return UUID(uuid: u)
 }
 
-// MARK: - Base
-
-/// Abstract event. Equality is identity (two events with equal content are
-/// not equal); `copy()` gives the immutable class, `mutableCopy()` the
-/// `HMMutable…` class, both with a new identifier.
 open class HMEvent: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
     public let uniqueIdentifier: UUID
 
@@ -69,8 +53,6 @@ open class HMEvent: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
         super.init()
     }
 
-    /// Whether the home's hub can run this kind of event: false without a
-    /// home (except location events), true when the hub is connected.
     open class func isSupported(forHome home: HMHome?) -> Bool {
         guard let home else { return false }
         return home.homeHubState == .connected
@@ -116,13 +98,9 @@ open class HMEvent: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
     }
 }
 
-// MARK: - Characteristic events
-
-/// Fires when a characteristic changes (to `triggerValue`, if given).
 open class HMCharacteristicEvent<TriggerValueType: NSCopying>: HMEvent, @unchecked Sendable {
     public internal(set) var characteristic: HMCharacteristic
     public internal(set) var triggerValue: TriggerValueType?
-    /// Stored form of a value received from the store for another client's event.
     var storedValue: SwiftCodeHomeValue?
 
     public init(characteristic: HMCharacteristic, triggerValue: TriggerValueType?) {
@@ -164,7 +142,6 @@ open class HMMutableCharacteristicEvent<TriggerValueType: NSCopying>: HMCharacte
     }
 }
 
-/// Fires when a numeric characteristic enters a range.
 open class HMCharacteristicThresholdRangeEvent: HMEvent, @unchecked Sendable {
     public internal(set) var characteristic: HMCharacteristic
     public internal(set) var thresholdRange: HMNumberRange
@@ -207,9 +184,6 @@ open class HMMutableCharacteristicThresholdRangeEvent: HMCharacteristicThreshold
     }
 }
 
-// MARK: - Location and presence
-
-/// Fires on entering or leaving a region. Supported without a home.
 open class HMLocationEvent: HMEvent, @unchecked Sendable {
     public internal(set) var region: CLRegion?
 
@@ -256,7 +230,6 @@ open class HMMutableLocationEvent: HMLocationEvent, @unchecked Sendable {
     }
 }
 
-/// Fires when users arrive or leave (object-model.md §9 values).
 open class HMPresenceEvent: HMEvent, @unchecked Sendable {
     public internal(set) var presenceEventType: HMPresenceEventType
     public internal(set) var presenceUserType: HMPresenceEventUserType
@@ -297,12 +270,8 @@ open class HMMutablePresenceEvent: HMPresenceEvent, @unchecked Sendable {
     }
 }
 
-// MARK: - Time events
-
-/// Abstract base of time events (iOS 11).
 open class HMTimeEvent: HMEvent, @unchecked Sendable {}
 
-/// Fires at matching date components.
 open class HMCalendarEvent: HMTimeEvent, @unchecked Sendable {
     public internal(set) var fireDateComponents: DateComponents
 
@@ -329,7 +298,6 @@ open class HMMutableCalendarEvent: HMCalendarEvent, @unchecked Sendable {
     }
 }
 
-/// Fires at sunrise or sunset plus an offset.
 open class HMSignificantTimeEvent: HMTimeEvent, @unchecked Sendable {
     public internal(set) var significantEvent: HMSignificantEvent
     public internal(set) var offset: DateComponents?
@@ -370,7 +338,6 @@ open class HMMutableSignificantTimeEvent: HMSignificantTimeEvent, @unchecked Sen
     }
 }
 
-/// End event: a duration after the trigger fired.
 open class HMDurationEvent: HMTimeEvent, @unchecked Sendable {
     public internal(set) var duration: TimeInterval
 
@@ -397,10 +364,6 @@ open class HMMutableDurationEvent: HMDurationEvent, @unchecked Sendable {
     }
 }
 
-// MARK: - Number range (iOS 11)
-
-/// Min-only, max-only or both; value equality; min > max is accepted
-/// (simulator-baseline.md §7).
 open class HMNumberRange: NSObject, @unchecked Sendable {
     public let minValue: NSNumber?
     public let maxValue: NSNumber?

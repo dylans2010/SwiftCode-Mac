@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The comparison (code review) editor: HEAD on the left, the working copy
-/// on the right, rows aligned, removed lines red, added green, changed
-/// both. See `specs/ide/comparison.md`.
 @MainActor
 public final class ComparisonView: NSView, NSTextViewDelegate {
     public let leftView = NSTextView()
@@ -13,24 +10,15 @@ public final class ComparisonView: NSView, NSTextViewDelegate {
     let leftTitle = NSTextField(labelWithString: "")
     let rightTitle = NSTextField(labelWithString: "")
     public private(set) var rows: [LineDiff.Row] = []
-    /// reference-ui-4.md §15.3: the working copy on the left, the
-    /// comparison source on the right (false = the older layout).
     public var workingCopyOnLeft = true
-    /// The band of ribbons joining change regions across the columns.
     let ribbons = RibbonView()
-    /// Ribbon regions in row units (tests).
     public var ribbonChanges: [ReviewChange] { ribbons.changes }
-    /// Markers on the side without lines (tests).
     var insertionMarkers: [RibbonView.InsertionMarker] { ribbons.insertionMarkers }
-    /// Set while the working-copy column is editable; receives the edited
-    /// file text (line numbers and filler rows removed).
     public var onWorkingCopyEdit: ((String) -> Void)? {
         didSet { workingView.isEditable = onWorkingCopyEdit != nil; workingView.isRichText = onWorkingCopyEdit == nil }
     }
-    /// The column showing the working copy.
     public var workingView: NSTextView { workingCopyOnLeft ? leftView : rightView }
     private var lastOld = "", lastOldTitle = "", lastNewTitle = ""
-    /// The scroll-sync observers, removed when the view goes away.
     private var scrollObservers: [NSObjectProtocol] = []
 
     public override init(frame: NSRect) {
@@ -73,7 +61,6 @@ public final class ComparisonView: NSView, NSTextViewDelegate {
             split.leadingAnchor.constraint(equalTo: leadingAnchor), split.trailingAnchor.constraint(equalTo: trailingAnchor),
             leftScroll.widthAnchor.constraint(equalTo: rightScroll.widthAnchor),
         ])
-        // Scroll both sides together, whichever side scrolls.
         for (from, to) in [(leftScroll, rightScroll), (rightScroll, leftScroll)] {
             from.contentView.postsBoundsChangedNotifications = true
             scrollObservers.append(NotificationCenter.default.addObserver(
@@ -96,9 +83,6 @@ public final class ComparisonView: NSView, NSTextViewDelegate {
         for o in scrollObservers { NotificationCenter.default.removeObserver(o) }
     }
 
-    /// The file text in an edited working-copy column: each row is a
-    /// six-character number column then the line; filler rows (blank
-    /// number, no text) are dropped; typed new lines keep their text.
     public static func fileText(fromColumn column: String) -> String {
         var lines = column.components(separatedBy: "\n")
         if lines.last?.isEmpty == true { lines.removeLast() }
@@ -119,7 +103,6 @@ public final class ComparisonView: NSView, NSTextViewDelegate {
         guard let edit = onWorkingCopyEdit, (n.object as? NSTextView) === workingView else { return }
         let text = Self.fileText(fromColumn: workingView.string)
         edit(text)
-        // Re-diff, keeping the caret near where it was.
         let caret = workingView.selectedRange()
         let handler = onWorkingCopyEdit
         show(old: lastOld, new: text, oldTitle: lastOldTitle, newTitle: lastNewTitle)
@@ -154,8 +137,6 @@ public final class ComparisonView: NSView, NSTextViewDelegate {
         }
         leftView.textStorage?.setAttributedString(workingCopyOnLeft ? right : left)
         rightView.textStorage?.setAttributedString(workingCopyOnLeft ? left : right)
-        // Ribbons in row units: rows are aligned, so a change spans the same
-        // rows on both sides; each side's band covers its non-filler rows.
         var bands: [ReviewChange] = []
         var i = 0
         while i < rows.count {

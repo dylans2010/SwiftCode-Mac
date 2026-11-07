@@ -1,16 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Persistence/PreferencesStore.swift
-//   (Legacy main ab03f681) — verbatim, no adaptations.
-//   Staged by migration subagent F2 (unowned-dependency triage) — NOT yet
-//   landed in the repo.
-//
-// Destination: SwiftCodeIDECore/Model/PreferencesStore.swift.
-//
-// Home chosen: `SwiftCodeIDECore` — all 12 live main call sites are there
-// (`SettingsViewModel`: `selected_ai_model`, `custom_ai_endpoint`,
-// `custom_ai_headers`, `use_custom_ai`, `user_name`,
-// `file_header_template`). Foundation-only actor over UserDefaults.
-
 import Foundation
 
 public actor PreferencesStore {

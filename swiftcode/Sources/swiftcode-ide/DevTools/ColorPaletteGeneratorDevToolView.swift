@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 #if canImport(os)
 import os
@@ -16,7 +13,6 @@ final class ColorPaletteGeneratorViewModel {
     private let logger = DevToolsLogger(subsystem: "swiftcode.devtools", category: "ColorPaletteGenerator")
 
     func generate() {
-        // Generates simple harmonious variations based on base color
         switch harmonyRule {
         case "Monochromatic":
             generatedPalette = [baseHex, "#60A5FA", "#93C5FD", "#BFDBFE", "#DBEAFE"]
@@ -86,7 +82,7 @@ struct ColorPaletteGeneratorDevToolView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(8)
-                            
+
                         }
                     }
                 }

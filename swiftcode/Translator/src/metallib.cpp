@@ -1,6 +1,3 @@
-// metallib.cpp: metallib container reader (metal-shaders.md section 2.9:
-// accept MTLB and the two universal forms, bound every offset, parse tag
-// lists generically, keep NAME, TYPE, HASH, VERS and the module slice).
 #include "metallib.h"
 
 #include "error.h"
@@ -37,7 +34,6 @@ std::string sha256Hex(const std::string &bytes) {
     return tmp.hashHex();
 }
 
-// Picks the MTLB slice of a universal container (section 2.8).
 static std::string sliceOf(const std::string &data) {
     const uint8_t *b = (const uint8_t *)data.data();
     if (data.size() < 8) fail("bad-container", "too short");
@@ -119,4 +115,4 @@ Metallib parseMetallib(const std::string &input) {
     return lib;
 }
 
-}  // namespace airc
+}

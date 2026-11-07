@@ -1,12 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
-//
-//  SkillDescriptor.swift
-//  SwiftCode
-//
-//  Unified, strongly-typed descriptor for agent skills across all discovery ecosystems.
-//
-
 import Foundation
 
 public enum SkillSourceKind: String, Codable, Sendable, CaseIterable {
@@ -75,7 +66,6 @@ public struct SkillDescriptor: Identifiable, Codable, Sendable, Hashable {
         self.isEnabled = isEnabled
     }
 
-    /// Loads the actual SKILL.md instruction contents from disk.
     public var skillMarkdownContent: String? {
         let skillUrl = URL(fileURLWithPath: path).appendingPathComponent("SKILL.md")
         return try? String(contentsOf: skillUrl, encoding: .utf8)

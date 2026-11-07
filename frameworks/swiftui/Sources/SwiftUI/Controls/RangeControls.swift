@@ -6,31 +6,19 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Slider and Stepper (round R8). Golden `slider`: 0 × 31 unproposed, the
-// proposed width otherwise. 06 §4: a tap on the slider's track does not
-// change the value (only dragging the thumb does). Golden `stepper`:
-// label + 8 + a 94 × 32 control, filling a proposed width (fit[0×0] = 102).
-// 06 §4: a tap on "+" increments by 1 (the step).
-
-// MARK: - Slider
-
-/// "30%": a value's place in a range, as accessibility reads it (08 §2).
 func accessibilityPercent(_ v: Double, _ r: ClosedRange<Double>) -> String {
     let span = r.upperBound - r.lowerBound
     let f = span > 0 ? (v - r.lowerBound) / span : 0
     return "\(Int((f * 100).rounded()))%"
 }
 
-/// Slider geometry (SwiftCode; the height is the golden 31).
 enum SliderMetrics {
     static let height: CGFloat = 31
     static let thumb: CGFloat = 24
     static let track: CGFloat = 6
-    /// Extra distance around the thumb that still grabs it.
     static let grabSlop: CGFloat = 4
 }
 
-/// A control that selects a value from a range by dragging its thumb.
 public struct Slider<Label: View, ValueLabel: View>: View {
     let value: Binding<Double>
     let bounds: ClosedRange<Double>
@@ -45,8 +33,6 @@ public struct Slider<Label: View, ValueLabel: View>: View {
         SliderBody(value: value, bounds: bounds, step: step, onEditingChanged: onEditingChanged,
                    minimumValueLabel: minimumValueLabel.map { AnyView($0) },
                    maximumValueLabel: maximumValueLabel.map { AnyView($0) })
-        // R10 (08 §2): adjustable, the value as a percentage of the range;
-        // a step (or a tenth of the range) per adjustment.
         .accessibilityControl(.slider, value: { accessibilityPercent(value.wrappedValue, bounds) },
                               label: (label as? Text)?.plainString,
                               adjust: { d in
@@ -85,8 +71,6 @@ extension Slider where Label == EmptyView, ValueLabel == EmptyView {
 }
 
 extension Slider where ValueLabel == EmptyView {
-    /// The label is not shown (as on the reference outside forms); it names
-    /// the slider for accessibility.
     public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V> = 0...1,
                                         @ViewBuilder label: () -> Label,
                                         onEditingChanged: @escaping (Bool) -> Void = { _ in }) where V.Stride: BinaryFloatingPoint {
@@ -104,7 +88,6 @@ extension Slider where ValueLabel == EmptyView {
 }
 
 extension Slider {
-    /// With labels for the minimum and maximum at the ends of the track.
     public init<V: BinaryFloatingPoint>(value: Binding<V>, in bounds: ClosedRange<V>, step: V.Stride = 1,
                                         @ViewBuilder label: () -> Label,
                                         @ViewBuilder minimumValueLabel: () -> ValueLabel,
@@ -134,7 +117,6 @@ struct SliderBody: View {
         span > 0 ? min(max((v - bounds.lowerBound) / span, 0), 1) : 0
     }
 
-    /// The value for a fraction, snapped to the step and clamped.
     func snapped(_ f: Double) -> Double {
         var v = bounds.lowerBound + min(max(f, 0), 1) * span
         if let step, step > 0 {
@@ -219,13 +201,10 @@ struct SliderBody: View {
     }
 }
 
-// MARK: - Stepper
-
 enum StepperMetrics {
     static let size = CGSize(width: 94, height: 32)
 }
 
-/// A control that increments or decrements a value.
 public struct Stepper<Label: View>: View {
     let label: Label
     let onIncrement: (() -> Void)?
@@ -280,8 +259,6 @@ public struct Stepper<Label: View>: View {
                            canIncrement: canIncrement(), canDecrement: canDecrement())
                 .accessibilityHidden(true)
         }
-        // R10: an adjustable element with the label (the reference's stepper
-        // element was not found, 10-plan.md §4 question 6; SwiftCode's choice).
         .accessibilityControl(.stepper, adjust: { d in if d == .increment { inc?() } else { dec?() } })
     }
 }
@@ -316,7 +293,6 @@ extension Stepper where Label == Text {
     }
 }
 
-/// The − / + pair (94 × 32, golden): two 47-point halves on a capsule.
 struct StepperControl: View {
     let onIncrement: (() -> Void)?
     let onDecrement: (() -> Void)?
@@ -329,8 +305,6 @@ struct StepperControl: View {
     @State private var pressed: Int?
     @State private var isFocused = false
 
-    /// In a `.columns` form: the desktop's small stepper, up over down in a
-    /// 15 × 22 rounded bezel.
     static let compactSize = CGSize(width: 15, height: 22)
 
     private func half(_ index: Int, symbol: String, enabled: Bool, action: (() -> Void)?) -> some View {

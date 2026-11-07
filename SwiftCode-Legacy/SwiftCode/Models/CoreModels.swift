@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Code Error
-
 public struct CodeError: Identifiable, Sendable {
     public let id = UUID()
     public let fileName: String
@@ -41,17 +39,12 @@ public struct CodeError: Identifiable, Sendable {
     }
 }
 
-// MARK: - Search Result
-
 public struct SearchResult: Identifiable, Codable, Sendable {
     public let id: UUID
     public let fileName: String
     public let filePath: String
     public let lineNumber: Int
     public let snippet: String
-    // NOTE: Range<String.Index> is not Codable (String.Index has no public
-    // Codable conformance), so it's intentionally excluded from
-    // encode/decode below. It's transient UI-highlight state only.
     public let matchRange: Range<String.Index>?
 
     public init(id: UUID = UUID(), fileName: String? = nil, filePath: String, lineNumber: Int, snippet: String, matchRange: Range<String.Index>? = nil) {
@@ -90,8 +83,6 @@ public struct SearchResult: Identifiable, Codable, Sendable {
         try container.encode(snippet, forKey: .snippet)
     }
 }
-
-// MARK: - Index Entry
 
 public struct IndexEntry: Identifiable, Sendable {
     public let id = UUID()

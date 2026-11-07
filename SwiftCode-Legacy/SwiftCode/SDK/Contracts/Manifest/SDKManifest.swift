@@ -1,11 +1,5 @@
 import Foundation
 
-// MARK: - SDKManifestJSONValue
-//
-// Lossless representation of arbitrary JSON values so `SDKManifest` can
-// preserve unknown top-level fields during visual editing and re-serialization
-// without stripping custom or forward-compatible keys.
-
 public indirect enum SDKManifestJSONValue: Codable, Equatable, Hashable, Sendable {
     case string(String)
     case int(Int)
@@ -65,11 +59,6 @@ public indirect enum SDKManifestJSONValue: Codable, Equatable, Hashable, Sendabl
     }
 }
 
-// MARK: - SDKManifest
-//
-// Versioned extension manifest (manifestVersion 1), per Docs/Intro-to-SDK.md
-// §7.1. Decoded from `swiftcode.json` at an extension package root.
-
 public struct SDKManifest: Codable, Equatable, Hashable, Sendable {
     public var manifestVersion: Int
     public var id: String
@@ -81,12 +70,7 @@ public struct SDKManifest: Codable, Equatable, Hashable, Sendable {
     public var sdk: SDKManifestSDKRef
     public var capabilities: [SDKManifestCapability]
     public var contributes: SDKManifestContributions?
-    /// Descriptive metadata only (spec §9.1, ADR §9): `requested: true` does
-    /// NOT grant Assist access — the broker denies it independently.
-    /// Absent from the JSON → `requested: false`.
     public var assist: SDKManifestAssist
-    /// Preserves any unrecognized top-level JSON fields so visual editing
-    /// never destroys custom or forward-compatible manifest properties.
     public var unknownFields: [String: SDKManifestJSONValue]
 
     public init(
@@ -192,8 +176,6 @@ public struct SDKManifest: Codable, Equatable, Hashable, Sendable {
         }
     }
 
-    /// Serializes the manifest to deterministic, pretty-printed UTF-8 JSON bytes
-    /// with a trailing newline, preserving any `unknownFields`.
     public func encodedPrettyJSON() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -204,19 +186,14 @@ public struct SDKManifest: Codable, Equatable, Hashable, Sendable {
         return data
     }
 
-    /// Serializes the manifest to a formatted JSON string.
     public func encodedPrettyString() throws -> String {
         let data = try encodedPrettyJSON()
         return String(data: data, encoding: .utf8) ?? "{}\n"
     }
 }
 
-// MARK: - SDKManifestRuntime
-
 public struct SDKManifestRuntime: Codable, Equatable, Hashable, Sendable {
-    /// v1 supports `typescript` only.
     public var language: String
-    /// Relative path (inside the package) to the runtime entry file.
     public var entrypoint: String
     public var minimumSwiftCodeVersion: String
 
@@ -233,14 +210,9 @@ public struct SDKManifestRuntime: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-// MARK: - SDKManifestSDKRef
-
 public struct SDKManifestSDKRef: Codable, Equatable, Hashable, Sendable {
-    /// Must be `@swiftcode/sdk`.
     public var name: String
-    /// Semver range the extension supports (v1 whitelist, see validator).
     public var versionRange: String
-    /// Host/runtime IPC contract version. Must equal 1.
     public var protocolVersion: Int
 
     public init(name: String = "@swiftcode/sdk", versionRange: String = "1.2.0", protocolVersion: Int = 1) {
@@ -256,12 +228,8 @@ public struct SDKManifestSDKRef: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-// MARK: - SDKManifestCapability
-
 public struct SDKManifestCapability: Codable, Equatable, Hashable, Identifiable, Sendable {
-    /// One of the canonical capability IDs (`SDKCapability.all`).
     public var id: String
-    /// Plain-language justification for the capability request.
     public var reason: String
 
     public init(id: String, reason: String) {
@@ -275,12 +243,8 @@ public struct SDKManifestCapability: Codable, Equatable, Hashable, Identifiable,
     }
 }
 
-// MARK: - SDKManifestCommandContribution
-
 public struct SDKManifestCommandContribution: Codable, Equatable, Hashable, Identifiable, Sendable {
-    /// Lowercase kebab-case command identifier, unique within the manifest.
     public var id: String
-    /// Human-readable command title.
     public var title: String
 
     public init(id: String, title: String) {
@@ -294,8 +258,6 @@ public struct SDKManifestCommandContribution: Codable, Equatable, Hashable, Iden
     }
 }
 
-// MARK: - SDKManifestContributions
-
 public struct SDKManifestContributions: Codable, Equatable, Hashable, Sendable {
     public var commands: [SDKManifestCommandContribution]
 
@@ -308,10 +270,7 @@ public struct SDKManifestContributions: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-// MARK: - SDKManifestAssist
-
 public struct SDKManifestAssist: Codable, Equatable, Hashable, Sendable {
-    /// Descriptive metadata only. Never interpreted as a grant (ADR §9).
     public var requested: Bool
 
     public init(requested: Bool) {

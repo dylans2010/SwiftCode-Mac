@@ -2,7 +2,6 @@ import Foundation
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// A `MachIPC` over a fake address space, with an RW scratch region.
 final class IPCEnv: @unchecked Sendable {
     static let scratch: UInt64 = 0x1_0000_0000
     static let scratchSize: UInt64 = 0x40000
@@ -23,7 +22,6 @@ final class IPCEnv: @unchecked Sendable {
 
     let lineBox: LineBox
 
-    /// Runs one trap through `MachIPC.handleTrap`. Returns x0.
     @discardableResult
     func trap(_ n: Int64, _ args: [UInt64] = [], context: ThreadContext? = nil) -> UInt64 {
         var f = TrapFrame()
@@ -39,15 +37,11 @@ final class IPCEnv: @unchecked Sendable {
         UInt32(truncatingIfNeeded: trap(n, args, context: context))
     }
 
-    // Memory.
-    // The fake backing is not thread-safe: guest memory is touched under the
-    // kernel lock, as the kernel itself does.
     func put(_ bytes: [UInt8], at va: UInt64) { lock.withLock { try! space.write(va: va, bytes: bytes) } }
     func read(_ va: UInt64, _ count: Int) -> [UInt8] { lock.withLock { try! space.read(va: va, count: count) } }
     func r32(_ va: UInt64) -> UInt32 { read(va, 4).readLE(UInt32.self, at: 0) }
     func r64(_ va: UInt64) -> UInt64 { read(va, 8).readLE(UInt64.self, at: 0) }
 
-    // Port helpers (target = task 0x103).
     let task: UInt64 = 0x103
     var out: UInt64 { Self.scratch + 0x3F000 }
 
@@ -88,19 +82,15 @@ final class IPCEnv: @unchecked Sendable {
         return (k, r32(out + 0x200))
     }
 
-    // Messages.
     static let sendBuffer: UInt64 = scratch
     static let receiveBuffer: UInt64 = scratch + 0x8000
 
-    /// Sends `msg` with `mach_msg_trap` (−31).
     func send(_ msg: [UInt8], options: UInt64 = MachMsgOption.sendMsg, timeout: UInt32 = 0,
               at buffer: UInt64 = IPCEnv.sendBuffer, context: ThreadContext? = nil) -> UInt32 {
         put(msg, at: buffer)
         return kr(-31, [buffer, options, UInt64(msg.count), 0, 0, UInt64(timeout), 0], context: context)
     }
 
-    /// Receives on `name` with `mach_msg_trap`. Returns the code and the
-    /// buffer contents (`size` bytes).
     func receive(_ name: UInt32, size: UInt64 = 0x400, options: UInt64 = MachMsgOption.rcvMsg | MachMsgOption.rcvTimeout,
                  timeout: UInt32 = 0, at buffer: UInt64 = IPCEnv.receiveBuffer,
                  context: ThreadContext? = nil) -> (UInt32, [UInt8]) {
@@ -117,7 +107,6 @@ final class LineBox: @unchecked Sendable {
     var all: [String] { lock.withLock { lines } }
 }
 
-/// Builds a message in user layout.
 struct TestMessage {
     var remote: UInt32
     var remoteDisposition: UInt32
@@ -170,7 +159,6 @@ struct TestMessage {
     }
 }
 
-/// A received message, decoded.
 struct Received {
     let raw: [UInt8]
     var bits: UInt32 { raw.readLE(UInt32.self, at: 0) }
@@ -181,7 +169,6 @@ struct Received {
     var id: Int32 { raw.readLE(Int32.self, at: 20) }
     func u32(_ at: Int) -> UInt32 { raw.readLE(UInt32.self, at: at) }
     func u64(_ at: Int) -> UInt64 { raw.readLE(UInt64.self, at: at) }
-    /// The trailer that follows the message.
     func trailer(_ field: Int) -> UInt32 { raw.readLE(UInt32.self, at: Int(size) + field) }
 
     init(_ raw: [UInt8]) { self.raw = raw }

@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Services/AntigravitySDKModelFetcher.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: AntigravitySDKModelFetcher.
-
 import Foundation
 import Observation
 import SwiftUI
@@ -33,8 +30,6 @@ public final class AntigravitySDKModelFetcher {
         models.first { $0.id == id } ?? Self.seedModels.first { $0.id == id }
     }
 
-    /// Returns true if `modelID` belongs to the Antigravity SDK catalog
-    /// (either dynamically fetched or in the canonical seed catalog).
     public func isAntigravityCatalogModel(_ modelID: String) -> Bool {
         let normalized = modelID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if models.contains(where: { $0.id.lowercased() == normalized }) {
@@ -51,7 +46,6 @@ public final class AntigravitySDKModelFetcher {
         return models.filter { $0.thinkingLevel.lowercased() == normalized }
     }
 
-    /// Dynamically fetches models directly from the Google Antigravity SDK CLI runtime.
     @discardableResult
     public func fetchModels() async -> [AntigravitySDKModel] {
         guard !isFetching else { return models }
@@ -84,7 +78,6 @@ public final class AntigravitySDKModelFetcher {
         AntigravitySDKModel(id: "gemini-3-flash", displayName: "Gemini 3 Flash", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),
     ]
 
-    // MARK: - Disk Cache
     private func loadCachedModels() {
         if let data = UserDefaults.standard.data(forKey: Self.cacheKey),
            let decoded = try? JSONDecoder().decode([AntigravitySDKModel].self, from: data),
@@ -101,7 +94,6 @@ public final class AntigravitySDKModelFetcher {
         }
     }
 
-    // MARK: - SDK Execution
     private func fetchFromSDKRuntime() async -> [AntigravitySDKModel] {
         return await Task.detached(priority: .userInitiated) {
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
@@ -250,7 +242,6 @@ public final class AntigravitySDKModelFetcher {
                 if let output = String(data: data, encoding: .utf8) {
                     let lines = output.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                     if !lines.isEmpty {
-                        // Merge any runtime default model with the canonical Antigravity seed catalog
                         var merged: [AntigravitySDKModel] = []
                         var seen = Set<String>()
                         for id in lines {

@@ -2,8 +2,6 @@ import Foundation
 import CryptoKit
 import OSLog
 
-// MARK: - Sound Installer
-
 public final class SoundInstaller: Sendable {
     public static let shared = SoundInstaller()
 
@@ -16,8 +14,6 @@ public final class SoundInstaller: Sendable {
 
     private init() {}
 
-    // MARK: - Public Installation API
-
     public struct IntegrationStatus: Sendable {
         public let installedCount: Int
         public let totalCount: Int
@@ -25,7 +21,6 @@ public final class SoundInstaller: Sendable {
         public let directoryURL: URL
     }
 
-    /// Check how many of the custom application sounds are installed in ~/Library/Sounds/
     public func systemSettingsStatus() -> IntegrationStatus {
         let destinationDir = userSoundsDirectory
         var installed = 0
@@ -43,14 +38,11 @@ public final class SoundInstaller: Sendable {
         )
     }
 
-    /// Installs custom alert sounds into ~/Library/Sounds/ safely with clean, normal sound names.
-    /// Also cleans up any legacy "SwiftCode_" prefixed files from ~/Library/Sounds/.
     @discardableResult
     public func installSoundsIfNeeded() -> [String: Bool] {
         var results: [String: Bool] = [:]
         let destinationDir = userSoundsDirectory
 
-        // 1. Ensure ~/Library/Sounds directory exists with standard 0o755 permissions
         do {
             if !FileManager.default.fileExists(atPath: destinationDir.path) {
                 try FileManager.default.createDirectory(
@@ -67,10 +59,8 @@ public final class SoundInstaller: Sendable {
             return results
         }
 
-        // 2. Clean up any legacy "SwiftCode_*" files so macOS System Settings shows clean, normal sound names
         cleanupLegacyPrefixedSounds()
 
-        // 3. Iterate through all custom application sounds and install with clean normal filenames
         for sound in SoundCatalog.customSounds {
             let success = installSound(sound, in: destinationDir)
             results[sound.filename] = success
@@ -79,7 +69,6 @@ public final class SoundInstaller: Sendable {
         return results
     }
 
-    /// Automatically removes any legacy files beginning with "SwiftCode_" from ~/Library/Sounds/
     public func cleanupLegacyPrefixedSounds() {
         let destinationDir = userSoundsDirectory
         guard let files = try? FileManager.default.contentsOfDirectory(
@@ -101,14 +90,11 @@ public final class SoundInstaller: Sendable {
         }
     }
 
-    /// Safely uninstalls only custom application sounds from ~/Library/Sounds/.
-    /// Leaves all other sounds in ~/Library/Sounds/ completely untouched.
     @discardableResult
     public func uninstallSounds() -> [String: Bool] {
         var results: [String: Bool] = [:]
         let destinationDir = userSoundsDirectory
 
-        // Clean up legacy prefixed sounds as well
         cleanupLegacyPrefixedSounds()
 
         for sound in SoundCatalog.customSounds {
@@ -137,10 +123,7 @@ public final class SoundInstaller: Sendable {
         return results
     }
 
-    // MARK: - Internal Installation Logic
-
     private func installSound(_ sound: AppSound, in destinationDir: URL) -> Bool {
-        // 1. Locate source asset in bundle, dev repo, or explicit URL
         let sourceURL: URL
         if let bundleURL = sound.bundleURL, FileManager.default.fileExists(atPath: bundleURL.path) {
             sourceURL = bundleURL
@@ -163,7 +146,6 @@ public final class SoundInstaller: Sendable {
 
         let destinationURL = destinationDir.appendingPathComponent(sound.filename)
 
-        // 2. Check if already installed, identical, and permissions correct
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             if isFileIdentical(sourceURL: sourceURL, destinationURL: destinationURL) {
                 try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: destinationURL.path)
@@ -172,7 +154,6 @@ public final class SoundInstaller: Sendable {
             }
         }
 
-        // 3. Perform atomic copy/replace
         let success = copyAtomically(from: sourceURL, to: destinationURL)
         if success {
             try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: destinationURL.path)
@@ -200,7 +181,6 @@ public final class SoundInstaller: Sendable {
             .appendingPathComponent(".tmp_\(UUID().uuidString)_\(destinationURL.lastPathComponent)")
 
         do {
-            // Write to temporary file in same directory for atomic replace
             try? FileManager.default.removeItem(at: tempURL)
             try FileManager.default.copyItem(at: sourceURL, to: tempURL)
 

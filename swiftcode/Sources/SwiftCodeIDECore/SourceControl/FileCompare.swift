@@ -1,17 +1,9 @@
 import Foundation
 
-/// Compare Files without a window: `swiftcode compare` (`specs/ide/comparison.md`,
-/// "SwiftCode implementation"). Two files give a unified diff (the format of
-/// POSIX `diff -u`, which `UnifiedDiffLines` reads back); three files (with
-/// an ancestor) give the merged text, conflicts marked as git marks them.
 public enum FileCompare {
-    /// A unified diff of two texts: `---`/`+++` headers, then hunks with
-    /// `@@ -a,b +c,d @@` and `context` lines around each change. Empty
-    /// when the texts have the same lines.
     public static func unifiedDiff(old: String, new: String, oldName: String, newName: String, context: Int = 3) -> String {
         let a = LineDiff.lines(old), b = LineDiff.lines(new)
         let ops = LineDiff.diff(a, b)
-        // Old and new line numbers (1-based) before each op.
         var positions: [(Int, Int)] = []
         var o = 1, n = 1
         for op in ops {
@@ -24,7 +16,6 @@ public enum FileCompare {
         }
         let changed = ops.indices.filter { if case .same = ops[$0] { false } else { true } }
         guard !changed.isEmpty else { return "" }
-        // Group changes whose context windows touch.
         var groups: [ClosedRange<Int>] = []
         for c in changed {
             let lo = max(0, c - context), hi = min(ops.count - 1, c + context)
@@ -42,7 +33,6 @@ public enum FileCompare {
                 }
             }
             let (os, ns) = positions[g.lowerBound]
-            // An empty side starts at the line before (diff -u's convention).
             func range(_ start: Int, _ count: Int) -> String { count == 0 ? "\(start - 1),0" : (count == 1 ? "\(start)" : "\(start),\(count)") }
             out.append("@@ -\(range(os, oldCount)) +\(range(ns, newCount)) @@")
             out += body
@@ -50,9 +40,6 @@ public enum FileCompare {
         return out.joined(separator: "\n") + "\n"
     }
 
-    /// Runs `swiftcode compare <left> <right> [--ancestor <base>] [--merge <out>]`.
-    /// Exit status: 0 same (two files) or merged cleanly (three), 1
-    /// different or conflicts, 2 bad arguments or unreadable files.
     public static func run(_ args: [String], print: (String) -> Void = { Swift.print($0, terminator: "") },
                            error report: (String) -> Void = { FileHandle.standardError.write(Data($0.utf8)) }) -> Int32 {
         var files: [String] = [], ancestor: String?, mergeOut: String?

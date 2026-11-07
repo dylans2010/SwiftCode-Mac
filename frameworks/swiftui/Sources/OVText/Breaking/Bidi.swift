@@ -1,15 +1,3 @@
-// Bidirectional text: our implementation of the Unicode Bidirectional
-// Algorithm (Unicode Standard Annex #9) for what OpenViews needs —
-// paragraph direction, resolved embedding levels and the visual order of a
-// line — operating on grapheme clusters.
-//
-// Coverage: P2–P3, W1–W7, N1–N2, I1–I2, L1–L2. Not covered: explicit
-// embeddings, overrides and isolates (X1–X10; their control characters are
-// treated as boundary neutrals and isolates as other neutrals), bracket
-// pairs (N0) and mirrored glyphs (L4, a rendering concern). Bidi classes
-// come from ranges of the right-to-left blocks and the general category.
-
-/// UAX #9 bidi classes.
 public enum BidiClass: Hashable, Sendable {
     case L, R, AL, EN, ES, ET, AN, CS, NSM, BN, B, S, WS, ON
 
@@ -17,7 +5,6 @@ public enum BidiClass: Hashable, Sendable {
 
     var isStrong: Bool { self == .L || self == .R || self == .AL }
 
-    // swiftlint:disable:next cyclomatic_complexity
     private static func classify(_ s: Unicode.Scalar) -> BidiClass {
         let v = s.value
         switch v {
@@ -63,23 +50,17 @@ public enum BidiClass: Hashable, Sendable {
     }
 }
 
-/// Direction of a paragraph.
 public enum TextDirection: Hashable, Sendable {
     case leftToRight, rightToLeft
 }
 
-/// Resolved levels of one paragraph.
 public struct BidiParagraph: Sendable {
-    /// Paragraph embedding level (0 = left-to-right, 1 = right-to-left).
     public let baseLevel: UInt8
-    /// One level per cluster (before L1).
     public let levels: [UInt8]
     let classes: [BidiClass]
 
     public var direction: TextDirection { baseLevel & 1 == 0 ? .leftToRight : .rightToLeft }
 
-    /// Resolves a paragraph of clusters. `base`: nil = from the first strong
-    /// character (P2–P3), falling back to `fallback`.
     public init(_ clusters: [Character], base: TextDirection? = nil, fallback: TextDirection = .leftToRight) {
         let original = clusters.map { $0.unicodeScalars.first.map(BidiClass.init) ?? .ON }
         classes = original
@@ -93,32 +74,25 @@ public struct BidiParagraph: Sendable {
         levels = BidiParagraph.resolve(original, base: base8)
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func resolve(_ original: [BidiClass], base: UInt8) -> [UInt8] {
         let n = original.count
         guard n > 0 else { return [] }
         let sos: BidiClass = base & 1 == 0 ? .L : .R
         var t = original
-        // X9 (simplified): boundary neutrals take the class of what precedes.
         for i in 0..<n where t[i] == .BN { t[i] = i > 0 ? t[i - 1] : sos }
-        // W1.
         for i in 0..<n where t[i] == .NSM { t[i] = i > 0 ? t[i - 1] : sos }
-        // W2.
         var lastStrong = sos
         for i in 0..<n {
             if t[i].isStrong { lastStrong = t[i] }
             if t[i] == .EN && lastStrong == .AL { t[i] = .AN }
         }
-        // W3.
         for i in 0..<n where t[i] == .AL { t[i] = .R }
-        // W4.
         if n >= 3 {
             for i in 1..<(n - 1) {
                 if t[i] == .ES && t[i - 1] == .EN && t[i + 1] == .EN { t[i] = .EN }
                 if t[i] == .CS && t[i - 1] == t[i + 1] && (t[i - 1] == .EN || t[i - 1] == .AN) { t[i] = t[i - 1] }
             }
         }
-        // W5.
         var i = 0
         while i < n {
             guard t[i] == .ET else { i += 1; continue }
@@ -128,15 +102,12 @@ public struct BidiParagraph: Sendable {
             if touchesEN { for k in i..<j { t[k] = .EN } }
             i = j
         }
-        // W6.
         for k in 0..<n where t[k] == .ES || t[k] == .ET || t[k] == .CS { t[k] = .ON }
-        // W7.
         lastStrong = sos
         for k in 0..<n {
             if t[k] == .L || t[k] == .R { lastStrong = t[k] }
             if t[k] == .EN && lastStrong == .L { t[k] = .L }
         }
-        // N1, N2.
         func strongDir(_ c: BidiClass) -> BidiClass? {
             switch c {
             case .L: return .L
@@ -155,7 +126,6 @@ public struct BidiParagraph: Sendable {
             for k in i..<j { t[k] = dir }
             i = j
         }
-        // I1, I2.
         var levels = [UInt8](repeating: base, count: n)
         for k in 0..<n {
             if base & 1 == 0 {
@@ -167,12 +137,9 @@ public struct BidiParagraph: Sendable {
         return levels
     }
 
-    /// Visual order (logical cluster indices, left to right) of the clusters
-    /// `range` forming one line (L1 trailing-whitespace reset, then L2).
     public func visualOrder(_ range: Range<Int>) -> [Int] {
         guard !range.isEmpty else { return [] }
         var lv = Array(levels[range])
-        // L1: separators and trailing whitespace go to the paragraph level.
         var k = lv.count - 1
         while k >= 0 {
             let c = classes[range.lowerBound + k]

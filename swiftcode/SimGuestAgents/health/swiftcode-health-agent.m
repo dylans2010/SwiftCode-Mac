@@ -1,44 +1,3 @@
-// swiftcode-health-agent: SwiftCode's guest health agent
-// (specs/simulator/health-simulation.md §8.1, H-1…H-4; "SwiftCode implementation").
-//
-// The executable of a small app bundle, `SwiftCodeHealth.app` (bundle id
-// dev.swiftcode.health, display name "SwiftCode Health"), that swiftcode-simd stages into
-// DEV/data/Library/SwiftCode/ and runs as a launchd daemon of the device (its
-// plist in DEV/data/Library/LaunchDaemons, like the settings agent). Its
-// simulated-entitlements section (__TEXT,__entitlements) carries
-// application-identifier = dev.swiftcode.health and com.apple.developer.healthkit,
-// so HealthKit gives it its own source (healthd takes the source's bundle id
-// from application-identifier; simulator-baseline.md §6).
-//
-// It connects an AF_UNIX stream socket to /private/var/run/dev.swiftcode.health,
-// which the VMM answers itself (the host channel of simulator-features.md
-// §I.2: a 4-byte big-endian length, then an XML property list with a
-// dictionary root; SwiftCodeSimFeatures/HealthChannel.swift has the requests),
-// and carries out the host's requests with HealthKit's public API only:
-//
-//   authorize {share:[ids], read:[ids]}   requestAuthorizationToShareTypes:readTypes:
-//   write {samples:[…], device?}          HKQuantitySample / HKCategorySample, saveObjects:
-//                                         in batches of at most 200
-//   workout {activity, start, end, samples:[…], route?:[[lat, lon, t]…], metadata?}
-//                                         HKWorkoutBuilder (+ HKWorkoutRouteBuilder)
-//   delete {types:[ids]}                  deleteObjectsOfType:predicate: with the
-//                                         agent's own source (other sources are never touched)
-//   count {types:[ids]}                   HKSampleQuery counts of the agent's own samples
-//   status                                availability, source, authorization per type
-//   ping
-//
-// The host validates every sample first (HealthImport.swift), so HealthKit's
-// validation exceptions should never happen; the agent still catches them and
-// reports the first one. Every sample carries the metadata key
-// `SwiftCodeSynthetic` (1): the data is synthetic and was written by SwiftCode.
-//
-// `--selftest` (a diagnostic): asks for heart-rate and step-count access,
-// saves one heart-rate sample and counts the agent's heart-rate samples,
-// logging each result, then serves the host channel as usual.
-//
-// Clean-room: written from the spec and the public HealthKit, Foundation and
-// CoreLocation headers; no Apple binary was read.
-
 #import <Foundation/Foundation.h>
 #import <HealthKit/HealthKit.h>
 #import <CoreLocation/CoreLocation.h>
@@ -66,8 +25,6 @@ static void logLine(NSString *fmt, ...) {
     fprintf(stderr, "swiftcode-health-agent[%d]: %s\n", getpid(), s.UTF8String);
     fflush(stderr);
 }
-
-// MARK: - Frames
 
 static BOOL writeAll(int fd, const uint8_t *p, size_t n) {
     while (n > 0) {
@@ -108,19 +65,15 @@ static void sendMessage(NSDictionary *message) {
     [gWriteLock unlock];
 }
 
-// MARK: - Helpers
-
 static NSString *errorText(NSError *e) {
     if (!e) return @"failed";
     return [NSString stringWithFormat:@"%@ code %ld: %@", e.domain, (long)e.code, e.localizedDescription];
 }
 
-/// Waits for a completion that signals `s` (false: it never came).
 static BOOL waitFor(dispatch_semaphore_t s) {
     return dispatch_semaphore_wait(s, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kCallTimeout * NSEC_PER_SEC))) == 0;
 }
 
-/// The object type of an identifier: quantity, category, or the workout type.
 static HKObjectType *objectType(NSString *identifier) {
     if (![identifier isKindOfClass:NSString.class]) return nil;
     if ([identifier isEqual:@"HKWorkoutTypeIdentifier"]) return [HKObjectType workoutType];
@@ -145,8 +98,6 @@ static NSDate *dateValue(id v) {
     return nil;
 }
 
-/// Plist metadata → HealthKit metadata (strings, numbers, dates; `{value, unit}`
-/// dictionaries become quantities), plus the synthetic-data mark.
 static NSDictionary *metadataValue(id v) {
     NSMutableDictionary *m = [NSMutableDictionary dictionaryWithObject:@1 forKey:@"SwiftCodeSynthetic"];
     if (![v isKindOfClass:NSDictionary.class]) return m;
@@ -176,7 +127,6 @@ static HKDevice *deviceValue(id d) {
                           localIdentifier:s(@"localIdentifier") UDIDeviceIdentifier:nil];
 }
 
-/// One sample of the host's `{type, start, end, value, unit?, metadata?}`, or nil with `*why`.
 static HKSample *makeSample(NSDictionary *d, HKDevice *device, NSString **why) {
     if (![d isKindOfClass:NSDictionary.class]) {
         *why = @"a sample that is not a dictionary";
@@ -215,7 +165,6 @@ static HKSample *makeSample(NSDictionary *d, HKDevice *device, NSString **why) {
     return nil;
 }
 
-/// Saves `objects` in batches. Returns the number saved; `*firstError` the first failure.
 static NSUInteger saveAll(NSArray<HKObject *> *objects, NSString **firstError) {
     NSUInteger saved = 0;
     for (NSUInteger i = 0; i < objects.count; i += kBatch) {
@@ -241,8 +190,6 @@ static NSUInteger saveAll(NSArray<HKObject *> *objects, NSString **firstError) {
     }
     return saved;
 }
-
-// MARK: - Requests
 
 static NSDictionary *authStatuses(NSArray *identifiers) {
     NSMutableDictionary *out = [NSMutableDictionary dictionary];
@@ -457,8 +404,6 @@ static NSDictionary *handle(NSDictionary *request) {
     return @{@"ok": @NO, @"error": [NSString stringWithFormat:@"unknown request '%@'", op ?: @"?"]};
 }
 
-// MARK: - Self-test
-
 static void selftest(void) {
     NSDictionary *st = status(@{@"types": @[HKQuantityTypeIdentifierHeartRate, HKQuantityTypeIdentifierStepCount]});
     logLine(@"selftest: status %@", st);
@@ -469,8 +414,6 @@ static void selftest(void) {
                                                                      @"value": @72, @"unit": @"count/min"}]}));
     logLine(@"selftest: count %@", countSamples(@{@"types": types}));
 }
-
-// MARK: - The connection
 
 static int connectToHost(void) {
     for (size_t i = 0; i < sizeof kSocketPaths / sizeof kSocketPaths[0]; i++) {

@@ -1,22 +1,15 @@
 import Foundation
 import SwiftCodeSyntax
 
-/// How far a caret movement or a deletion reaches.
 public enum EditorMovement: Equatable, Hashable, Sendable {
-    /// One user-perceived character (grapheme cluster).
     case character
-    /// To the next or previous word boundary: words are letters, digits and
-    /// underscores; any other non-space run is its own word.
     case word
-    /// To the line's start (the first non-blank first, then column 0) or end.
     case line
-    /// To the line's very start or end.
     case hardLine
     case document
 }
 
 extension EditorBuffer {
-    // MARK: Character classes
 
     enum UnitKind { case word, punctuation, space, newline }
 
@@ -30,9 +23,6 @@ extension EditorBuffer {
         }
     }
 
-    // MARK: Targets
-
-    /// Where `unit` from `offset` lands.
     public func target(of unit: EditorMovement, from offset: Int, forward: Bool) -> Int {
         let u = document.units
         let o = normalized(offset)
@@ -55,14 +45,12 @@ extension EditorBuffer {
         }
     }
 
-    /// The offset one grapheme cluster after `o` (a line ending counts as one).
     public func characterBoundary(after o: Int) -> Int {
         let u = document.units
         guard o < u.count else { return u.count }
         let n = document.line(containing: o)
         let r = document.lineRange(n)
         if o >= r.upperBound { return n + 1 < document.lineCount ? document.lineStart(n + 1) : u.count }
-        // ASCII followed by ASCII (or the line's end) is a cluster of its own.
         if u[o] < 0x80, o + 1 >= r.upperBound || u[o + 1] < 0x80 { return o + 1 }
         var at = r.lowerBound
         for c in String(decoding: u[r], as: UTF16.self) {
@@ -72,7 +60,6 @@ extension EditorBuffer {
         return r.upperBound
     }
 
-    /// The offset one grapheme cluster before `o`.
     public func characterBoundary(before o: Int) -> Int {
         let u = document.units
         guard o > 0 else { return 0 }
@@ -117,10 +104,6 @@ extension EditorBuffer {
         return o
     }
 
-    // MARK: Moving
-
-    /// Moves the caret. Without `extending`, a selection collapses to its
-    /// edge on `.character`.
     public func move(_ unit: EditorMovement, forward: Bool, extending: Bool = false) {
         if !extending, !selection.isEmpty, unit == .character {
             setCaret(forward ? selection.range.upperBound : selection.range.lowerBound)
@@ -130,7 +113,6 @@ extension EditorBuffer {
         if extending { extendSelection(to: to) } else { setCaret(to) }
     }
 
-    /// Moves the caret `lines` lines down (negative: up), keeping its x.
     public func moveVertically(lines: Int, extending: Bool = false, layout: EditorLineLayout) {
         let keptGoal = goalX
         let from = !extending && !selection.isEmpty ? (lines > 0 ? selection.range.upperBound : selection.range.lowerBound) : selection.head
@@ -149,7 +131,6 @@ extension EditorBuffer {
         goalX = x
     }
 
-    /// Where the identifier (letters, digits, `_`) that ends at `offset` starts.
     public func identifierStart(before offset: Int) -> Int {
         let u = document.units
         var i = min(max(offset, 0), u.count)
@@ -157,9 +138,6 @@ extension EditorBuffer {
         return i
     }
 
-    // MARK: Word and line selection
-
-    /// The word (or run of spaces, or single punctuation mark) at `offset`.
     public func wordRange(at offset: Int) -> Range<Int> {
         let u = document.units
         guard !u.isEmpty else { return 0..<0 }
@@ -167,7 +145,6 @@ extension EditorBuffer {
         let line = document.lineRange(n)
         guard !line.isEmpty else { return line }
         var i = min(max(offset, line.lowerBound), line.upperBound - 1)
-        // Past the line's end or between a word and a space: the word before.
         if offset >= line.upperBound || (offset > line.lowerBound && Self.kind(u[i]) != .word && Self.kind(u[offset - 1]) == .word) {
             i = max(line.lowerBound, min(offset, line.upperBound) - 1)
         }
@@ -179,7 +156,6 @@ extension EditorBuffer {
         return lo..<hi
     }
 
-    /// The line at `offset`, with its line ending.
     public func lineRangeIncludingEnding(at offset: Int) -> Range<Int> {
         let n = document.line(containing: min(max(offset, 0), length))
         return document.lineStart(n)..<(n + 1 < lineCount ? document.lineStart(n + 1) : length)
@@ -195,15 +171,12 @@ extension EditorBuffer {
         setSelection(EditorSelection(anchor: r.lowerBound, head: r.upperBound))
     }
 
-    /// Extends a word or line selection started at `start` to `offset`
-    /// (double- and triple-click drags).
     public func extendGranular(from start: Range<Int>, to offset: Int, lines: Bool) {
         let w = lines ? lineRangeIncludingEnding(at: offset) : wordRange(at: offset)
         let lo = min(start.lowerBound, w.lowerBound), hi = max(start.upperBound, w.upperBound)
         setSelection(offset < start.lowerBound ? EditorSelection(anchor: hi, head: lo) : EditorSelection(anchor: lo, head: hi))
     }
 
-    /// Selects the 1-based line `line`, clamped (Jump to Line).
     public func selectLine(number line: Int) {
         let n = min(max(line - 1, 0), lineCount - 1)
         setCaret(document.lineStart(n))

@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// A reusable, highly-optimized AppKit host that wraps and renders actual, live interactive SwiftUI views natively.
 public struct PreviewHost<Content: View>: NSViewRepresentable {
     private let content: Content
 
@@ -22,7 +21,6 @@ public struct PreviewHost<Content: View>: NSViewRepresentable {
     }
 }
 
-/// A native host that bridges pre-instantiated AppKit views into SwiftUI, utilized by the Dynamic Link Runtime.
 public struct NativePreviewHost: NSViewRepresentable {
     public let hostedView: NSView
 
@@ -47,7 +45,6 @@ public struct NativePreviewHost: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: NSView, context: Context) {
-        // Core AppKit layout handles update notifications automatically
         nsView.needsLayout = true
     }
 }

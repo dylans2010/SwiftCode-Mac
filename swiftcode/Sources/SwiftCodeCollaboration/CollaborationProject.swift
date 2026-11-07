@@ -1,22 +1,9 @@
-// The project handle the collaboration and transfer system operates on.
-//
-// Legacy's collaboration family took SwiftCode's app `Project` model (id,
-// name, directoryURL, file count, transfer settings). SwiftCode has no such
-// model — the workspace is `WorkspaceSession` — so the ported system carries
-// the small projection it actually needs. `CollaborationProject` is that
-// projection: an identity, a display name, and the project directory on
-// disk. Nothing else from Legacy's `Project` (file trees, CI build
-// configuration, destinations, `project.json` metadata) is referenced here.
-
 import Foundation
 
-/// A project as the collaboration system sees it: identity, name, and the
-/// directory on disk. Constructed by the IDE shell from the open workspace.
 public struct CollaborationProject: Codable, Sendable, Hashable {
     public var id: UUID
     public var name: String
     public var directoryURL: URL
-    /// The transfer permission last applied to this project, if any.
     public var transferPermission: TransferPermission?
 
     public init(id: UUID = UUID(), name: String, directoryURL: URL,
@@ -27,8 +14,6 @@ public struct CollaborationProject: Codable, Sendable, Hashable {
         self.transferPermission = transferPermission
     }
 
-    /// Number of files under the project directory (directories excluded).
-    /// Counted live; used for transfer progress totals.
     public var fileCount: Int {
         guard let enumerator = FileManager.default.enumerator(
             at: directoryURL,
@@ -44,10 +29,6 @@ public struct CollaborationProject: Codable, Sendable, Hashable {
     }
 }
 
-/// Provenance recorded when a project arrives over a transfer. Legacy kept
-/// this inside its `Project` model (`transferConfiguration`, written through
-/// `ProjectSessionStore`); SwiftCode writes it as a `transfer.json` sidecar next
-/// to the imported project (`ProjectTransferManager.importPackage`).
 public struct TransferConfiguration: Codable, Sendable, Hashable {
     public var originPeerID: String
     public var permission: TransferPermission

@@ -6,9 +6,6 @@ import SwiftCodeAssistant
 import SwiftCodeMCP
 @testable import SwiftCodeUI
 
-/// An agent back end that works like Claude Code in agent mode: it calls
-/// the attached SwiftCode MCP server over HTTP (file_edit), asks for a
-/// permission and reports what it got.
 final class FakeAgent: AgentAttachable, @unchecked Sendable {
     var kind: ProviderKind { .claudeCode }
     let attachment: AgentAttachment?
@@ -81,7 +78,6 @@ final class FakeAgent: AgentAttachable, @unchecked Sendable {
         #expect(message.activity.contains { $0.hasPrefix("Agent mode:") })
         let proposals = ChangeProposal.parse(message.text, target: nil)
         #expect(proposals.count == 1 && proposals.first?.path == "Sources/Demo/Model.swift")
-        // The file is untouched until the review.
         #expect(try String(contentsOf: env.modelURL, encoding: .utf8).contains("var value = 1"))
         let review = try #require(wc.reviewProposal(proposals[0], message: message, conversation: id))
         review.accept()
@@ -91,7 +87,6 @@ final class FakeAgent: AgentAttachable, @unchecked Sendable {
         #expect(done.text.contains("permission: yes"))
         #expect(done.resolvedProposals[proposals[0].blockIndex] == .accepted)
         #expect(try String(contentsOf: env.modelURL, encoding: .utf8) == "struct Model {\n    var value = 2\n}\n")
-        // The agent got SwiftCode's agent instructions; its endpoint is gone.
         #expect(wc.agentEndpoints.isEmpty && model.pendingAgentChangeCount == 0)
     }
 
@@ -137,7 +132,6 @@ final class FakeAgent: AgentAttachable, @unchecked Sendable {
             #expect(text.hasPrefix("---\nname: swiftcode\n") && text.contains("`file_edit` (writes)") && text.contains("`simulator_screenshot`"))
         }
         #expect(CodingAssistantSettingsPane.mcpCommandLine().hasSuffix(" mcp"))
-        // The IDE's tools use the window's own session.
         #expect(wc.mcpHost.session === wc.session && wc.mcpHost.server.tools.count == 29)
         #expect(wc.mcpHostText(ofOpenFile: env.modelURL.path) == nil)
     }

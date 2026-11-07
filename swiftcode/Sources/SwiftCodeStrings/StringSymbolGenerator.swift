@@ -1,16 +1,8 @@
 import Foundation
 
-/// Swift symbols for a catalog's manually managed strings (the build
-/// setting `STRING_CATALOG_GENERATE_SYMBOLS`; swift-build runs `xcstringstool
-/// generate-symbols --language swift`, writing
-/// `GeneratedStringSymbols_<table>.swift`). The shape of the generated
-/// code is SwiftCode's: static members of `LocalizedStringResource`, a property
-/// for a string without arguments and a function for one with arguments.
-/// See `specs/ide/string-catalog.md`, "SwiftCode implementation".
 public enum StringSymbolGenerator {
     public static func fileName(table: String) -> String { "GeneratedStringSymbols_\(table).swift" }
 
-    /// One generated member.
     public struct Symbol: Equatable, Sendable {
         public var name: String
         public var key: String
@@ -23,8 +15,6 @@ public enum StringSymbolGenerator {
         }
     }
 
-    /// The symbols of the catalog's keys with `extractionState` `manual`,
-    /// in key order. Keys whose specifiers have no Swift type are skipped.
     public static func symbols(_ catalog: StringCatalog) -> [Symbol] {
         var used = Set<String>()
         var out: [Symbol] = []
@@ -62,7 +52,6 @@ public enum StringSymbolGenerator {
         return out
     }
 
-    /// The Swift type an argument of a specifier's value type takes.
     public static func swiftType(_ valueType: String) -> String? {
         guard let conv = valueType.last else { return nil }
         let length = String(valueType.dropLast())
@@ -75,9 +64,6 @@ public enum StringSymbolGenerator {
         }
     }
 
-    /// A Swift identifier from free text: words joined in camel case,
-    /// format specifiers dropped, `_` before a leading digit, backticks
-    /// around keywords.
     public static func identifier(_ text: String, lowerFirst: Bool) -> String {
         var stripped = text
         let specs = FormatSpecifier.parse(text)
@@ -95,7 +81,6 @@ public enum StringSymbolGenerator {
         var out = ""
         for (i, w) in words.enumerated() {
             if i == 0 {
-                // Keep camelCase keys as they are; lower an initial capital.
                 out += lowerFirst ? w.prefix(1).lowercased() + w.dropFirst() : w
             } else {
                 out += w.prefix(1).uppercased() + w.dropFirst()
@@ -112,7 +97,6 @@ public enum StringSymbolGenerator {
                                         "protocol", "public", "repeat", "rethrows", "return", "self", "Self", "static", "struct",
                                         "subscript", "super", "switch", "throw", "throws", "true", "try", "typealias", "var", "where", "while"]
 
-    /// A Swift string literal.
     static func literal(_ s: String) -> String {
         var out = "\""
         for u in s.unicodeScalars {
@@ -129,8 +113,6 @@ public enum StringSymbolGenerator {
         return out + "\""
     }
 
-    /// The default value as a `String.LocalizationValue` literal whose
-    /// interpolations give the same format as the key.
     static func defaultValueLiteral(_ value: String, arguments: [(label: String, type: String)]) -> String {
         let specs = FormatSpecifier.parse(value)
         var out = "\""
@@ -154,7 +136,6 @@ public enum StringSymbolGenerator {
         return out + "\""
     }
 
-    /// The generated Swift file.
     public static func swiftSource(_ catalog: StringCatalog, table: String) -> String {
         let syms = symbols(catalog)
         let token = "__SwiftCodeStringSymbolsBundle_" + identifier(table, lowerFirst: false).replacingOccurrences(of: "`", with: "")

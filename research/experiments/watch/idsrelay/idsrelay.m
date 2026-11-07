@@ -1,25 +1,3 @@
-/*
- * idsrelay: Ycode research probe (original Ycode code, no Apple code).
- * Runs on the Mac. A man-in-the-middle on the pairing transport between two
- * paired, booted simulators. The reference host gives each device a host-side
- * bootstrap name "com.apple.IDSSimRPC.remote.<peer UDID>" whose port is the
- * peer's "com.apple.IDSSimRPC.local" receive port (pairing-observations.md).
- * This tool does the same with ports of its own:
- *
- *   idsrelay <udidA> <udidB> <seconds> [--no-swap]
- *
- *   1. looks up "com.apple.IDSSimRPC.local" in A and in B (send rights),
- *   2. makes two receive ports, and (unless --no-swap) replaces the name
- *      "com.apple.IDSSimRPC.remote.<B>" in A and "...remote.<A>" in B with
- *      them (unregister, then register),
- *   3. forwards every message that arrives on them to the real peer port,
- *      unchanged except for the destination, and prints the header, the
- *      descriptors and the first 256 body bytes of each,
- *   4. after <seconds>, puts the reference ports back under those names.
- *
- * The daemons cache the port they looked up, so the caller restarts them
- * (or their peer) after step 2 for traffic to take the new path.
- */
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
 #include <mach/mach.h>
@@ -113,9 +91,6 @@ static void dump(const char *dir, mach_msg_header_t *h)
     printf("\n");
 }
 
-/* Reply interception: for a request that carries a send-once reply right,
- * the relay substitutes a reply port of its own, so the reply passes through
- * it too and can be recorded. */
 #define MAXR 4096
 static mach_port_t r_ours[MAXR], r_orig[MAXR]; static unsigned r_bits[MAXR]; static int r_n;
 
@@ -146,7 +121,7 @@ int main(int argc, char **argv)
                nameInA.UTF8String, curInA, nameInB.UTF8String, curInB);
         if (!realA || (!prereg && !realB)) return 1;
         if (noswap) return 0;
-        mach_port_t set, toB, toA; /* toB: registered in A, forwards to B. */
+        mach_port_t set, toB, toA;
         mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_PORT_SET, &set);
         mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &toB);
         mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &toA);
@@ -183,7 +158,6 @@ int main(int argc, char **argv)
             int ri = -1;
             for (int i = 0; i < r_n; i++) if (r_ours[i] == on) { ri = i; break; }
             if (ri >= 0) {
-                /* A reply on one of our reply ports: record and pass back. */
                 dump("REPLY", h);
                 h->msgh_bits = MACH_MSGH_BITS_SET(r_bits[ri], 0, 0, bits & MACH_MSGH_BITS_COMPLEX);
                 h->msgh_remote_port = r_orig[ri];
@@ -194,7 +168,7 @@ int main(int argc, char **argv)
                 r_ours[ri] = r_ours[--r_n]; r_orig[ri] = r_orig[r_n]; r_bits[ri] = r_bits[r_n];
                 continue;
             }
-            BOOL fromA = on == toB; /* arrived on the port A sends to */
+            BOOL fromA = on == toB;
             dump(fromA ? "A->B" : "B->A", h);
             mach_port_t target = fromA ? realB : realA;
             if (!target) { printf("  dropped: peer not up\n"); mach_msg_destroy(h); continue; }

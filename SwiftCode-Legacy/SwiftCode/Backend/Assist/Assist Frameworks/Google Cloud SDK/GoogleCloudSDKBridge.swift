@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKBridge.swift
-//  SwiftCode
-//
-//  Bridge actor coordinating the Python subprocess and structured IPC transport.
-//
-
 import Foundation
 import os
 
@@ -30,12 +23,10 @@ public actor GoogleCloudSDKBridge {
         }
     }
 
-    /// Sets the handler closure for incoming tool execution requests (`tool.execute`).
     public func setToolExecutionHandler(_ handler: @escaping @Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) async {
         await transport.setToolExecutionHandler(handler)
     }
 
-    /// Starts the bridge subprocess and completes the readiness handshake.
     public func start() async throws {
         if isStarted, await isRunning {
             return
@@ -52,7 +43,6 @@ public actor GoogleCloudSDKBridge {
             throw error
         }
 
-        // Perform initial handshake via runtime.start
         let handshakeResult = try await transport.sendRequest(method: "runtime.start", params: [:], timeout: 10.0)
         if let version = handshakeResult.sdkVersion {
             self.sdkVersion = version
@@ -73,7 +63,6 @@ public actor GoogleCloudSDKBridge {
         await transport.emitEvent(.runtimeStopped)
     }
 
-    /// Stops the bridge cleanly.
     public func stop() async {
         if isStarted {
             _ = try? await transport.sendRequest(method: "runtime.stop", params: [:], timeout: 3.0)
@@ -85,12 +74,10 @@ public actor GoogleCloudSDKBridge {
         logger.info("Google Cloud SDK bridge stopped")
     }
 
-    /// Subscribes to the broadcast event stream from the bridge.
     public func subscribeEvents() async -> AsyncStream<GoogleCloudSDKEvent> {
         await transport.subscribeEvents()
     }
 
-    /// Creates an active agent session with Antigravity.
     public func createSession(sessionId: String, config: GoogleCloudSDKConfiguration) async throws -> GoogleCloudSDKResponse {
         try await start()
         var params = config.toDictionary()
@@ -98,7 +85,6 @@ public actor GoogleCloudSDKBridge {
         return try await transport.sendRequest(method: "session.create", params: params, timeout: 60.0)
     }
 
-    /// Resumes an existing agent session.
     public func resumeSession(sessionId: String, config: GoogleCloudSDKConfiguration) async throws -> GoogleCloudSDKResponse {
         try await start()
         var params = config.toDictionary()
@@ -106,13 +92,11 @@ public actor GoogleCloudSDKBridge {
         return try await transport.sendRequest(method: "session.resume", params: params, timeout: 60.0)
     }
 
-    /// Closes an active agent session.
     public func closeSession(sessionId: String) async throws -> GoogleCloudSDKResponse {
         guard isStarted else { return GoogleCloudSDKResponse() }
         return try await transport.sendRequest(method: "session.close", params: ["sessionId": sessionId], timeout: 10.0)
     }
 
-    /// Dispatches a message to the agent session for turn execution.
     public func sendMessage(sessionId: String, content: String, attachments: [GoogleCloudSDKAttachment] = []) async throws -> GoogleCloudSDKResponse {
         try await start()
         let attachmentsDict = attachments.map { $0.toDictionary() }
@@ -121,20 +105,14 @@ public actor GoogleCloudSDKBridge {
             "content": content,
             "attachments": attachmentsDict,
         ]
-        // message.send only acknowledges that the bridge queued a turn; model
-        // inference and tool execution continue on the event stream. A long
-        // RPC timeout here hides a dead bridge and can leave Assist appearing
-        // stuck long before the turn-level inactivity watchdog runs.
         return try await transport.sendRequest(method: "message.send", params: params, timeout: 30.0)
     }
 
-    /// Cancels active turn execution in an agent session.
     public func cancelMessage(sessionId: String) async throws -> GoogleCloudSDKResponse {
         guard isStarted else { return GoogleCloudSDKResponse() }
         return try await transport.sendRequest(method: "message.cancel", params: ["sessionId": sessionId], timeout: 5.0)
     }
 
-    /// Queries the runtime health and active session count.
     public func getStatus() async throws -> GoogleCloudSDKResponse {
         try await start()
         return try await transport.sendRequest(method: "runtime.status", params: [:], timeout: 5.0)

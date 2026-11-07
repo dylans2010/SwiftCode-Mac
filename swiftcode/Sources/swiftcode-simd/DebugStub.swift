@@ -1,22 +1,9 @@
-// swiftcode-simd: the debug stub (specs/simulator/debug-stub.md). `--debug-server
-// unix:<path>|<port>` serves LLDB's gdb-remote protocol for one guest process
-// at a time: a new connection is attached to the app `--launch` started
-// (when there is one), or attaches with `vAttach`/`vAttachName`/`vAttachWait`.
-// The protocol is SwiftCodeDebug's GDBRemoteServer; this file is the simulator
-// side: threads, registers and memory of a guest image, and the kernel's
-// debug hooks (SwiftCodeDarwinKernel/Kernel/DebugHooks.swift).
-
 import Foundation
 import SwiftCodeDebug
 
-/// `--debug-server` and its companions.
 struct DebugServerOptions {
-    /// `unix:<path>`, `<host>:<port>` or `<port>`.
     var address: String
-    /// `--debug-server-log`: every packet to stderr.
     var log = false
-    /// `--debug-launch-stopped`: the `--launch` app is held at its first
-    /// instruction until a debugger attaches (debug-stub.md §7).
     var launchStopped = false
 }
 
@@ -31,23 +18,14 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
     nonisolated(unsafe) static var shared: SimDebugServer?
 
     let options: DebugServerOptions
-    /// The pid `--launch` reported, once it did.
     var launchedPID: () -> Int32? = { nil }
-    /// The OS type for `qHostInfo` and `qProcessInfo` (ios, watchos, xros;
-    /// debug-stub.md §4.3).
     var osType = "ios"
-    /// The runtime's ProductVersion and ProductBuildVersion (`qHostInfo`
-    /// `os_version`, `os_build`; debug-stub.md §4.3).
     var osVersion = ""
     var osBuild = ""
-    /// The `--launch` app's executable name (CFBundleExecutable), for
-    /// `--debug-launch-stopped`.
     var launchExecutable: String?
     private var launcher: VMMLauncher?
     private var listener: GDBRemoteListener?
 
-    /// A wait for the next spawn of an executable: the image is held at its
-    /// first instruction for the debugger (debug-stub.md §7). Guarded by `waitLock`.
     final class SpawnWait {
         let name: String
         var process: SimDebugProcess?
@@ -55,7 +33,6 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
     }
     private let waitLock = NSLock()
     private var spawnWaits: [SpawnWait] = []
-    /// The `--debug-launch-stopped` wait for the launched app.
     private var launchWait: SpawnWait?
 
     init(options: DebugServerOptions) { self.options = options }
@@ -99,13 +76,7 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
         }
     }
 
-    // MARK: GDBRemoteHost
-
     var hostInfo: [(String, String)] {
-        // With an OS version LLDB uses its newer image loader, which asks
-        // the stub for the images (jGetLoadedDynamicLibrariesInfos) and
-        // puts its breakpoint on the image list's notification function
-        // (debug-stub.md §4.3, §4.4).
         var pairs = [("cputype", "16777228"), ("cpusubtype", "0"), ("ostype", osType), ("vendor", "apple"), ("endian", "little"),
                      ("ptrsize", "8"), ("vm-page-size", "16384")]
         if !osVersion.isEmpty { pairs.append(("os_version", osVersion)) }
@@ -115,7 +86,6 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
         return pairs
     }
 
-    /// The runtime root's SystemVersion.plist: (ProductVersion, ProductBuildVersion).
     static func runtimeVersion(root: String) -> (String, String) {
         let path = root + "/System/Library/CoreServices/SystemVersion.plist"
         guard let data = FileManager.default.contents(atPath: path),
@@ -125,11 +95,6 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
         return (plist["ProductVersion"] as? String ?? "", plist["ProductBuildVersion"] as? String ?? "")
     }
 
-    // MARK: Spawn holds (debug-stub.md §7)
-
-    /// The launcher calls this for every new image before its main thread
-    /// starts (kernel lock held). An image a debugger waits for is attached
-    /// here, so its main thread parks before its first instruction.
     func imageWillStart(_ image: GuestImageInstance) {
         let wait: SpawnWait? = waitLock.withLock {
             spawnWaits.first { $0.process == nil && Self.matches(image, $0.name) }
@@ -143,7 +108,6 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
         Self.name(i) == name || i.record.executable == name
     }
 
-    /// Waits for `wait` to get its process (polled every millisecond).
     private func process(of wait: SpawnWait, seconds: Double) -> SimDebugProcess? {
         let deadline = Date().addingTimeInterval(seconds)
         while Date() < deadline {
@@ -166,7 +130,6 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
     }
 
     func initialProcess() -> GDBRemoteProcess? {
-        // --debug-launch-stopped: the launched app, held at its first instruction.
         if let w = launchWait, let held = waitLock.withLock({ w.process }) {
             removeWait(w)
             launchWait = nil
@@ -187,9 +150,6 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
     func attach(name: String, wait: Bool, includeExisting: Bool) -> Result<GDBRemoteProcess, GDBRemoteError> {
         if !wait || includeExisting, let image = images.first(where: { Self.matches($0, name) }) { return attach(pid: Int(image.pid)) }
         guard wait else { return .failure(GDBRemoteError(0x01, "no process named \(name)")) }
-        // The next process of that name, for 10 minutes: the launcher holds
-        // it at its first instruction (imageWillStart), so the debugger
-        // attaches before any of its code runs.
         let w = SpawnWait(name: name)
         waitLock.withLock { spawnWaits.append(w) }
         defer { removeWait(w) }
@@ -201,7 +161,6 @@ final class SimDebugServer: GDBRemoteHost, @unchecked Sendable {
     }
 }
 
-/// One attached guest image.
 final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendable {
     let image: GuestImageInstance
     let kernel: DarwinKernel
@@ -210,18 +169,11 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
     private let osType: String
     private let osVersion: String
 
-    // Events (the kernel hook signals; `waitForEvent` waits).
     private let condition = NSCondition()
     private var pendingThread: UInt64?
     private var interruptRequested = false
-    /// The thread an interrupt or the attach reports (SIGSTOP).
     private var signalThread: UInt64?
-    /// Memory was written since the last resume (TLB flush on resume).
     private var codeChanged = false
-    /// The threads as of the last stop. The kernel may make a workqueue
-    /// thread while the process is stopped (it starts held); the client
-    /// sees it at the next stop, so the thread list does not change under
-    /// a stopped process (debug-stub.md §6).
     private var stopThreads: [UInt64] = []
 
     private init(image: GuestImageInstance, osType: String, osVersion: String) {
@@ -237,9 +189,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         return p.finishAttach()
     }
 
-    /// Attaches to an image whose main thread has not started (the
-    /// launcher's spawn hold): every thread is held, so the main thread
-    /// parks before its first instruction. Kernel lock held; does not wait.
     static func hold(_ image: GuestImageInstance, server: SimDebugServer) -> SimDebugProcess? {
         let p = SimDebugProcess(image: image, osType: server.osType, osVersion: server.osVersion)
         guard p.kernel.debugAttach(p) else { return nil }
@@ -247,12 +196,8 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         return p
     }
 
-    /// An image held at its start: its main thread has not parked yet.
     private var heldAtStart = false
 
-    /// Waits until every thread is stopped (an image held at its start:
-    /// until its main thread parked before its first instruction), then
-    /// reports the attach stop.
     func finishAttach() -> Result<SimDebugProcess, GDBRemoteError> {
         var stopped = waitUntilStopped(seconds: 10)
         if stopped, heldAtStart {
@@ -273,8 +218,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         return .success(self)
     }
 
-    /// Waits until every held thread is stopped, kicking vCPUs that still
-    /// run guest code every millisecond.
     private func waitUntilStopped(seconds: Double) -> Bool {
         let deadline = Date().addingTimeInterval(seconds)
         var rounds = 0
@@ -289,12 +232,8 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
 
     private func thread(_ tid: UInt64) -> ThreadContext? { kernel.debugThreads.first { $0.threadID == tid } }
 
-    // MARK: KernelDebugger (kernel lock held)
-
     func kernelDebugException(_ kernel: DarwinKernel, thread: ThreadContext, stop: KernelDebugStop) -> KernelDebugDecision {
         if case .breakpoint = stop.kind, !breakpoints.contains(stop.pc) {
-            // A breakpoint removed while the thread was on its way into its
-            // trap: no `brk` is there any more, so it runs the instruction.
             let now = rawRead(stop.pc, 4)
             if now.count == 4, GDBRemoteHex.littleEndianValue(now) & 0xFFE0_001F != 0xD420_0000 { return .retry }
         }
@@ -305,8 +244,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         return .stop
     }
 
-    // MARK: GDBRemoteProcess
-
     var pid: Int { Int(image.pid) }
 
     var processInfo: [(String, String)] {
@@ -316,11 +253,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
             + (osVersion.isEmpty ? [] : [("os_version", osVersion)])
     }
 
-    // MARK: Images (debug-stub.md §4.3)
-
-    /// dyld's list: `infoArrayCount` × `dyld_image_info` at `infoArray`
-    /// (the struct `dyld_sim` keeps in the host page), plus `dyld_sim`
-    /// itself (`dyldImageLoadAddress`) when the list lacks it.
     func loadedImages() -> [(address: UInt64, path: String)]? {
         let infos = kernel.allImageInfosAddress
         let head = rawRead(infos, 40)
@@ -329,7 +261,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         let array = GDBRemoteMachO.u64(head, DyldAllImageInfos.Offset.infoArray)
         let dyld = GDBRemoteMachO.u64(head, DyldAllImageInfos.Offset.dyldImageLoadAddress)
         var out: [(address: UInt64, path: String)] = []
-        // NULL while dyld_sim updates it: the dyld entry alone.
         if array != 0, count > 0 {
             let bytes = rawRead(array, 24 * count)
             for o in stride(from: 0, to: bytes.count / 24 * 24, by: 24) {
@@ -344,19 +275,14 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         return out
     }
 
-    /// From the image list's `libSystemInitialized` and the kernel's record
-    /// of `dyld_sim`'s "main called" notification.
     var dyldState: GDBRemoteDyldState? {
         if kernel.debugDyldMainCalled { return .programRunning }
         let infos = kernel.allImageInfosAddress
         let head = rawRead(infos, 32)
         guard head.count == 32 else { return nil }
         if head[DyldAllImageInfos.Offset.libSystemInitialized] != 0 { return .libSystemInitialized }
-        // The host's list holds only the main executable until dyld_sim adds images.
         return GDBRemoteMachO.u32(head, DyldAllImageInfos.Offset.infoArrayCount) > 1 ? .dyldInitialized : .notStarted
     }
-
-    // MARK: Hardware watchpoints (debug-stub.md §6.2)
 
     struct Watch: Equatable {
         var address: UInt64
@@ -364,17 +290,12 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         var kind: GDBRemoteWatchKind
         var registers: VCPUPool.HardwareWatchpoint
     }
-    /// In register order.
     private var watches: [Watch] = []
-    /// The threads the last resume stepped.
     private var steppedThreads: Set<UInt64> = []
     private var stepStarts: [UInt64: UInt64] = [:]
 
     var watchpointSlots: Int { min(image.pool.hardwareWatchpointCount, 16) }
 
-    /// DBGWVR/DBGWCR for a range: a byte-select within one doubleword, or
-    /// an aligned power of two of 8 bytes or more (MASK). EL0 accesses only
-    /// (PAC 0b10); LSC 1 load, 2 store, 3 both (Arm ARM, DBGWCR<n>_EL1).
     static func registers(address: UInt64, size: Int, kind: GDBRemoteWatchKind) -> VCPUPool.HardwareWatchpoint? {
         let lsc: UInt64 = kind == .read ? 1 : kind == .write ? 2 : 3
         let common: UInt64 = 1 | (0b10 << 1) | (lsc << 3)
@@ -406,9 +327,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         return .success(())
     }
 
-    /// The watchpoint an access at `hit` matched: the one whose range holds
-    /// it, else the nearest one whose doublewords overlap the access's
-    /// (a wide access reports its first byte, which may lie before the range).
     func watchStop(hit: UInt64) -> GDBRemoteStopReason {
         if let i = watches.firstIndex(where: { hit >= $0.address && hit < $0.address + UInt64($0.size) }) {
             return .watchpoint(address: hit, index: i, hit: hit)
@@ -422,8 +340,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
 
     var sharedLibraryInfoAddress: UInt64? { kernel.allImageInfosAddress }
 
-    /// From the image list `dyld_sim` keeps: sharedCacheUUID (160) and
-    /// sharedCacheBaseAddress (176) (dyld-sim-handoff.md §4.5).
     var sharedCacheInfo: (base: UInt64, uuid: [UInt8])? {
         let infos = kernel.allImageInfosAddress
         let uuid = rawRead(infos &+ UInt64(DyldAllImageInfos.Offset.sharedCacheUUID), 16)
@@ -441,8 +357,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
     func threadName(_ tid: UInt64) -> String? { nil }
 
     func dispatchQueueAddress(_ tid: UInt64) -> UInt64? {
-        // The libdispatch queue slot of the thread's TSD (as
-        // THREAD_IDENTIFIER_INFO reports it, ThreadInfo.swift).
         guard let t = thread(tid), t.pthreadAddress != 0 else { return nil }
         return t.pthreadAddress + 224 + 20 * 8
     }
@@ -454,9 +368,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         }
         switch stop.kind {
         case let .breakpoint(immediate):
-            // A thread the client stepped that stops at one of its
-            // breakpoints has not executed that instruction: the step
-            // ended there (LLDB's step-over-breakpoint plans expect `trace`).
             if steppedThreads.contains(tid), breakpoints.contains(stop.pc) {
                 if let from = stepStarts[tid], stop.pc != from &+ 4 {
                     stderrLine("swiftcode-simd: debug: thread \(tid) stepped from 0x\(String(from, radix: 16)) to the breakpoint at 0x\(String(stop.pc, radix: 16))")
@@ -475,19 +386,14 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         }
     }
 
-    /// The vCPU that runs `t` (it is stopped: parked at its gate or in a
-    /// kernel call, never in KVM_RUN), for its FP/SIMD registers.
     private func vcpu(of t: ThreadContext) -> VCPU? {
         image.pool.activeWorkers().first { $0.context === t }?.vcpu
     }
 
     func registers(_ tid: UInt64) -> GDBRemoteThreadRegisters? {
         guard let t = thread(tid), let f = kernel.debugRegisters(t) else { return nil }
-        // PSTATE as thread_get_state reports it: NZCV, EL0t (the step bit off).
         var r = GDBRemoteThreadRegisters(x: Array(f.x.prefix(31)), sp: f.spEL0, pc: f.elr,
                                          cpsr: UInt32(truncatingIfNeeded: f.spsr) & 0xF000_0000)
-        // FP/SIMD live in the vCPU (the shim saves none of them): v0–v31,
-        // fpsr, fpcr, as the snapshot reads them (SnapshotSupport.swift).
         if let v = vcpu(of: t) {
             var fp = [UInt8](repeating: 0, count: 520)
             if fp.withUnsafeMutableBufferPointer({ ckvm_get_fp_state(v.fd, $0.baseAddress) }) >= 0 {
@@ -516,7 +422,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         return true
     }
 
-    /// Memory without the breakpoint table: page by page, as far as it is readable.
     func rawRead(_ address: UInt64, _ count: Int) -> [UInt8] {
         var out: [UInt8] = []
         var cursor = address
@@ -534,8 +439,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
 
     func rawWrite(_ address: UInt64, _ bytes: [UInt8]) -> Bool {
         do {
-            // Read-only code moves to a private copy of its page first
-            // (GuestAddressSpace.write without EL0 checks).
             try image.space.write(va: address, bytes: bytes, checkingEL0Access: false)
             codeChanged = true
             return true
@@ -544,16 +447,10 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         }
     }
 
-    /// Reads for the client. One field is shown as dyld fills it in: the
-    /// image list's own address (`dyldAllImageInfosAddress`, offset 104),
-    /// which SwiftCode leaves 0 (stage3-contract.md §6) and LLDB compares with
-    /// the address `qShlibInfoAddr` gave to detect a slid dyld
-    /// (debug-stub.md §4.3). Guest memory is not changed.
     func readMemory(_ address: UInt64, count: Int) -> [UInt8] {
         var bytes = rawRead(address, count)
         let field = kernel.allImageInfosAddress &+ UInt64(DyldAllImageInfos.Offset.dyldAllImageInfosAddress)
         let end = address &+ UInt64(bytes.count)
-        // Only a field the guest left 0 is filled in.
         if field < end, field &+ 8 > address, rawRead(field, 8) == [UInt8](repeating: 0, count: 8) {
             let own = kernel.allImageInfosAddress
             for i in 0..<8 {
@@ -565,7 +462,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
     }
     func writeMemory(_ address: UInt64, bytes: [UInt8]) -> Bool { rawWrite(address, bytes) }
 
-    /// Memory the debugger allocated (`_M`), by address: its size.
     private var allocations: [UInt64: UInt64] = [:]
 
     func allocateMemory(size: UInt64, permissions: String) -> UInt64? {
@@ -584,7 +480,7 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
     func deallocateMemory(_ address: UInt64) -> Bool {
         guard let size = allocations.removeValue(forKey: address) else { return false }
         _ = try? kernel.debugLocked { try image.space.unmap(va: address, size: size) }
-        codeChanged = true   // an unmap leaves stale translations
+        codeChanged = true
         return true
     }
 
@@ -600,7 +496,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
             if case let .file(path, _, _) = r.backing { name = path }
             return GDBRemoteMemoryRegion(start: r.va, size: r.size, permissions: perms, name: name)
         }
-        // Unmapped: up to the next mapping.
         let next = regions.first(where: { $0.va > a })?.va ?? (UInt64(1) << 47)
         let start = regions.last(where: { $0.end <= a })?.end ?? 0
         return GDBRemoteMemoryRegion(start: start, size: next > start ? next - start : 0, permissions: nil)
@@ -611,7 +506,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
             switch r {
             case .stop: return .stay
             case let .continue(signal):
-                // A fault's own signal passed back: the fault takes its course.
                 guard let signal, let tid, case .exception = stopInfo(tid).reason, stopInfo(tid).signal == signal else { return .run(deliverSignal: false) }
                 return .run(deliverSignal: true)
             case .step: return .step
@@ -622,7 +516,6 @@ final class SimDebugProcess: GDBRemoteProcess, KernelDebugger, @unchecked Sendab
         steppedThreads = Set(mapped.filter { $0.value == .step }.keys)
         stepStarts = [:]
         for tid in steppedThreads { stepStarts[tid] = registers(tid)?.pc }
-        // `others` with a signal: only the named threads get signals.
         let rest = map(others, nil)
         condition.lock()
         pendingThread = nil

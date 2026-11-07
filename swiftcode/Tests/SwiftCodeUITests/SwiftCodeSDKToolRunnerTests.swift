@@ -4,28 +4,8 @@ import SwiftCodeMCP
 import SwiftCodeSDK
 import SwiftCodeExtensions
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter SwiftCodeSDKToolRunnerTests`.
-//
-// Wave 17, Slice B: tests for the real grant-enforcing runner
-// (`SwiftCodeSDKToolRunner`) against a test MCP server. The server's
-// write policy is `.review`, so a granted write must ask the user
-// and a refused write must never reach the approval UI. The
-// backend's snapshot / live-grant checks are covered in
-// `SwiftCodeSDKTests/SDKAssistToolRunnerTests` with a fake runner; the
-// MCP gate itself in `SwiftCodeMCPTests/MCPCallerIdentityTests`. What
-// is proven here is the runner's own work: capability → MCP tool
-// mapping, alias resolution, argument conversion, caller identity
-// on the change, and the approval outcome deciding the effect.
-
 final class SwiftCodeSDKToolRunnerTests: XCTestCase {
 
-    // MARK: - Fakes
-
-    /// Records whether the write effect ran and which changes the
-    /// review closure saw. Shared between the tool handler (which
-    /// must ask approval before effecting) and the test.
     private final class WriteLog: @unchecked Sendable {
         var effects: [String] = []
         var seenChanges: [MCPChange] = []
@@ -38,8 +18,6 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
             MCPTool(name: "file_read", title: "Read", description: "Reads.",
                     inputSchema: ["type": "object", "properties": ["path": ["type": "string"], "times": ["type": "integer"]],
                                   "required": ["path"], "additionalProperties": false]) { call in
-                // The integer argument proves the string-wire
-                // conversion: "times" arrives as "2" over IPC.
                 let times = call.int("times") ?? 1
                 return .text(String(repeating: "contents:\(call.string("path") ?? "")", count: times))
             },
@@ -82,8 +60,6 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
         }
     }
 
-    // MARK: - Mapping
-
     func testMappingIsDenyByDefault() {
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .workspaceRead).contains("file_read"))
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .workspaceRead).contains("dir_read"))
@@ -93,7 +69,6 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .buildExecute).contains("project_build"))
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .terminalSandbox).contains("use_terminal"))
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .networkRequest).contains("fetch_url"))
-        // UI surfaces, security scopes, Assist variants: no tools.
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .assistInvoke).isEmpty)
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .uiContribute).isEmpty)
         XCTAssertTrue(SDKAssistToolMapping.mcpTools(for: .credentialsUse).isEmpty)
@@ -108,8 +83,6 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
         XCTAssertEqual(SwiftCodeSDKToolRunner.mcpArgument("README.md"), .string("README.md"))
         XCTAssertEqual(SwiftCodeSDKToolRunner.mcpArgument(""), .string(""))
     }
-
-    // MARK: - Granted runs
 
     func testGrantedReadRuns() async throws {
         let log = WriteLog()
@@ -134,8 +107,6 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
         XCTAssertEqual(result.output, "contents:README.md")
     }
 
-    // MARK: - Refusals happen before approval
-
     func testUngrantedWriteRefusedBeforeApproval() async {
         let log = WriteLog()
         let server = makeServer(log: log)
@@ -153,8 +124,6 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
         let log = WriteLog()
         let server = makeServer(log: log)
         let runner = SwiftCodeSDKToolRunner(serverProvider: { server })
-        // `assist.invoke` is granted in the snapshot but maps to no
-        // MCP tool: refused, never run.
         await assertThrowsCode(.permissionDenied) {
             try await runner.runTool(
                 session: self.makeSession(allowedToolIDs: ["assist.invoke"]),
@@ -178,17 +147,12 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
         let log = WriteLog()
         let server = makeServer(log: log)
         let runner = SwiftCodeSDKToolRunner(serverProvider: { server })
-        // `git_status` is mapped for source-control.read but this
-        // test server does not provide it: an honest invalid-argument
-        // error, not a fabricated result.
         await assertThrowsCode(.invalidArgument) {
             try await runner.runTool(
                 session: self.makeSession(allowedToolIDs: ["source-control.read"]),
                 call: SDKAssistToolCall(toolName: "source-control.read", arguments: ["tool": "git_status"]))
         }
     }
-
-    // MARK: - Approval decides the effect
 
     func testGrantedWriteAsksUserAndEffectFollowsAnswer() async throws {
         let log = WriteLog()
@@ -218,8 +182,6 @@ final class SwiftCodeSDKToolRunnerTests: XCTestCase {
         let log = WriteLog()
         let server = makeServer(log: log)
         let runner = SwiftCodeSDKToolRunner(serverProvider: { server })
-        // Caller B holds only workspace.write; a read call on B's
-        // session is refused even though A could run it.
         await assertThrowsCode(.permissionDenied) {
             try await runner.runTool(
                 session: self.makeSession(extensionID: "com.example.test-b", allowedToolIDs: ["workspace.write"]),

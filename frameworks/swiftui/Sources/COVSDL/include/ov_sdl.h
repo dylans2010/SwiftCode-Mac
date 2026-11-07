@@ -1,16 +1,3 @@
-/*
- * COVSDL: OpenViews' bridge to SDL3 (round R7, 09-open-design.md §4).
- *
- * SDL3 (zlib licence, SDL3-LICENSE.txt next to this target) is not linked at
- * build time. Its public headers (release 3.4.18, the subset this bridge
- * includes; unmodified) are vendored under include/SDL3/, and the library is
- * loaded at run time with dlopen. The package therefore builds on every host
- * without SDL3 installed; the SDL back end of OVPlatform is available where a
- * libSDL3 can be found (see ov_sdl_load).
- *
- * The function table below takes each prototype from the vendored headers
- * (__typeof__), so the calls are type-checked against SDL's declarations.
- */
 #ifndef OV_SDL_H
 #define OV_SDL_H
 
@@ -87,16 +74,13 @@ typedef struct OVSDLAPI {
     OV_SDL_FN(Vulkan_DestroySurface);
     OV_SDL_FN(Vulkan_GetVkGetInstanceProcAddr);
     OV_SDL_FN(Vulkan_LoadLibrary);
-    /* R10/R11 */
     OV_SDL_FN(GetSystemTheme);
     OV_SDL_FN(MinimizeWindow);
-    /* AT-SPI export */
     OV_SDL_FN(GetWindowPosition);
 } OVSDLAPI;
 
 #undef OV_SDL_FN
 
-/* Window flags (the SDL macros use SDL_UINT64_C, which Swift cannot import). */
 static const uint64_t OV_SDL_WINDOW_RESIZABLE = SDL_WINDOW_RESIZABLE;
 static const uint64_t OV_SDL_WINDOW_HIGH_PIXEL_DENSITY = SDL_WINDOW_HIGH_PIXEL_DENSITY;
 static const uint64_t OV_SDL_WINDOW_VULKAN = SDL_WINDOW_VULKAN;
@@ -104,41 +88,14 @@ static const uint64_t OV_SDL_WINDOW_HIDDEN = SDL_WINDOW_HIDDEN;
 static const uint64_t OV_SDL_WINDOW_POPUP_MENU = SDL_WINDOW_POPUP_MENU;
 static const uint64_t OV_SDL_WINDOW_NOT_FOCUSABLE = SDL_WINDOW_NOT_FOCUSABLE;
 
-/*
- * Loads libSDL3 and resolves the table. `path` may be NULL: then the
- * OV_SDL3_LIBRARY environment variable, the dynamic loader's search path
- * (LD_LIBRARY_PATH, rpath; DYLD paths on Apple hosts) and the usual user and
- * Homebrew prefixes are tried. Returns NULL and writes a reason into `error`
- * when no usable library is found. The table is loaded once per process.
- */
 const OVSDLAPI *ov_sdl_load(const char *path, char *error, size_t error_len);
 
-/* The library file that was loaded (empty before a successful load). */
 const char *ov_sdl_loaded_path(void);
 
-/*
- * The file descriptor of the window system connection behind `window` (the
- * X11 display or the Wayland display), or -1. The run loop watches it so it
- * can sleep until either the window system or the main queue has work.
- */
 int ov_sdl_display_fd(const OVSDLAPI *api, SDL_Window *window);
 
-/*
- * Gives an X11 window the keyboard focus (XSetInputFocus through SDL's own
- * libX11). Returns 1 when done, 0 on other window systems. Used when a pop-up
- * menu closes: without a window manager the focus fell to the root window.
- */
 int ov_sdl_x11_focus(const OVSDLAPI *api, SDL_Window *window);
 
-/*
- * Checks the Vulkan surface path of a window created with SDL_WINDOW_VULKAN:
- * creates an instance with the extensions SDL requires, a surface for the
- * window, and asks every physical device whether a queue family can present
- * to it. Writes a one-line report (device names, supported families, the
- * surface's current extent) into `report`. Returns the number of devices that
- * can present, or a negative value on failure. Vulkan structures are declared
- * locally (Vulkan API, Khronos registry), so no Vulkan headers are needed.
- */
 int ov_vk_probe_surface(const OVSDLAPI *api, SDL_Window *window, char *report, size_t report_len);
 
 #endif

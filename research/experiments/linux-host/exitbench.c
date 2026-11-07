@@ -1,26 +1,3 @@
-/*
- * exitbench: compare two ways a KVM arm64 guest can ring the host, measured
- * as nanoseconds per round trip (guest -> KVM_EXIT -> host -> KVM_RUN).
- * Ycode's own code; it runs a tiny hand-assembled guest loop, no Apple code.
- *
- *   mmio   the guest stores to an unbacked GPA. KVM returns KVM_EXIT_MMIO
- *          and advances the guest PC itself. This is Ycode's doorbell exit
- *          (specs/simulator/vm-shim-protocol.md section 5).
- *   hvc    the guest issues HVC with a vendor SMCCC function id, and an
- *          SMCCC filter range with action FWD_TO_USER makes KVM return
- *          KVM_EXIT_HYPERCALL (Documentation/virt/kvm/devices/vm.rst,
- *          KVM_ARM_VM_SMCCC_FILTER). PC is already past the HVC on exit.
- *
- * The question (native-mode feasibility, item 5): is a forwarded HVC exit
- * cheaper than our MMIO doorbell? Both leave EL1, trap to EL2, and return to
- * host userspace with one KVM_RUN per crossing; this measures the delta.
- *
- * Build (Thor, arm64):  cc -O2 -o exitbench exitbench.c
- * Run:   ./exitbench [iterations]      (default 300000; runs both modes)
- * Facts: the public Linux KVM API (api.rst, vm.rst) and the Arm ARM
- * (instruction encodings). The SMCCC-filter uapi constants are defined here
- * because this box's /usr/include/linux/kvm.h predates them.
- */
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/kvm.h>
@@ -34,7 +11,6 @@
 #include <time.h>
 #include <unistd.h>
 
-/* --- SMCCC filter uapi (arch/arm64/include/uapi/asm/kvm.h), redefined --- */
 #define YC_KVM_ARM_VM_SMCCC_CTRL 0
 #define YC_KVM_ARM_VM_SMCCC_FILTER 0
 #define YC_KVM_SMCCC_FILTER_FWD_TO_USER 2
@@ -45,12 +21,8 @@ struct yc_kvm_smccc_filter {
     uint8_t pad[15];
 };
 
-/* A vendor-specific hypervisor service function id (SMCCC): bit 31 = fast
- * call, owner field = vendor. It is outside the Arm Architecture range
- * (0x8000_0000..0x8000_FFFF) that the filter refuses. */
 #define YC_HVC_FUNCTION 0x86000000u
 
-/* GPAs. RAM holds the guest loop; the doorbell is deliberately unbacked. */
 #define GUEST_RAM 0x40000000ull
 #define GUEST_DOORBELL 0x09000000ull
 
@@ -77,18 +49,16 @@ static uint64_t now_ns(void)
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 
-/* The two guest programs, hand-assembled (little-endian arm64). Each is an
- * endless loop that performs one host exit per iteration. */
 static const uint32_t prog_mmio[] = {
-    0xd2a12001, /* movz x1, #0x0900, lsl #16   ; x1 = GUEST_DOORBELL        */
-    0xd2800000, /* mov  x0, #0                                              */
-    0xf9000020, /* str  x0, [x1]               ; -> KVM_EXIT_MMIO           */
-    0x17ffffff, /* b    .-4                     ; back to the store          */
+    0xd2a12001,
+    0xd2800000,
+    0xf9000020,
+    0x17ffffff,
 };
 static const uint32_t prog_hvc[] = {
-    0x52b0c000, /* movz w0, #0x8600, lsl #16   ; w0 = YC_HVC_FUNCTION       */
-    0xd4000002, /* hvc  #0                      ; -> KVM_EXIT_HYPERCALL      */
-    0x17ffffff, /* b    .-4                     ; back to the hvc            */
+    0x52b0c000,
+    0xd4000002,
+    0x17ffffff,
 };
 
 static int vm_fd, kvm_fd;
@@ -106,7 +76,6 @@ static int make_vcpu(const uint32_t *prog, size_t prog_words, uint8_t *ram, int 
         die("KVM_ARM_PREFERRED_TARGET");
     if (ioctl(vcpu, KVM_ARM_VCPU_INIT, &init) < 0)
         die("KVM_ARM_VCPU_INIT");
-    /* EL1h, DAIF masked (0x3c5). MMU off: PC is a GPA. */
     set_reg(vcpu, CORE(regs.pc), GUEST_RAM + (uint64_t)(mmio_entry ? 0 : 0));
     set_reg(vcpu, CORE(regs.pstate), 0x3c5);
     return vcpu;
@@ -178,13 +147,8 @@ int main(int argc, char **argv)
 
     printf("exitbench: %ld iterations each\n", iters);
 
-    /* MMIO doorbell (no filter needed). */
     double mmio = bench("mmio", prog_mmio, sizeof prog_mmio / 4, ram, iters, 0);
 
-    /* Install an SMCCC filter: forward the one vendor function id to
-     * userspace. Must be set before any vCPU in the VM has run; this VM has
-     * only had the MMIO vCPU, which was created and run, so KVM may refuse
-     * with EBUSY. If so, redo on a fresh VM. */
     struct yc_kvm_smccc_filter filt = {
         .base = YC_HVC_FUNCTION,
         .nr_functions = 1,
@@ -199,7 +163,6 @@ int main(int argc, char **argv)
     if (ioctl(vm_fd, KVM_SET_DEVICE_ATTR, &attr) < 0) {
         if (errno != EBUSY && errno != ENXIO && errno != ENOTTY && errno != EINVAL)
             die("KVM_SET_DEVICE_ATTR(SMCCC_FILTER)");
-        /* Fresh VM: install the filter before creating/running a vCPU. */
         int fresh = ioctl(kvm_fd, KVM_CREATE_VM, 0);
         if (fresh < 0)
             die("KVM_CREATE_VM (fresh)");

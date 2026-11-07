@@ -3,14 +3,8 @@ import Testing
 @testable import SwiftCodeDebug
 @testable import SwiftCodeIDECore
 
-/// `Breakpoints_v2.xcbkptlist` and `swiftcode-breakpoints.json`
-/// (specs/ide/reference-ui-5.md §10.1, L6).
 @MainActor
 @Suite struct BreakpointPersistenceTests {
-    /// A file in the format §10.1 describes, written for this test: one
-    /// line breakpoint SwiftCode understands (with an attribute and a child
-    /// element it does not), one breakpoint kind it does not know, and a
-    /// column breakpoint.
     static let sample = """
     <?xml version="1.0" encoding="UTF-8"?>
     <Bucket
@@ -89,7 +83,6 @@ import Testing
         #expect(entries[0].breakpoint == BreakpointStore.Breakpoint(file: "/w/Sources/Shapes/Shapes.swift", line: 12, isEnabled: true, ignoreCount: 2))
         #expect(entries[1].breakpoint == BreakpointStore.Breakpoint(file: "/w/Sources/Shapes/Shapes.swift", line: 20, isEnabled: false, column: 17, autoContinue: true))
 
-        // Writing back the same breakpoints leaves the text as it was.
         var same = list
         var uuids = Dictionary(uniqueKeysWithValues: entries.map { (BreakpointList.key($0.breakpoint), $0.uuid) })
         same.update(entries.map(\.breakpoint), base: base, uuids: &uuids, landmark: { _, _ in nil })
@@ -101,7 +94,6 @@ import Testing
         let base = URL(fileURLWithPath: "/w")
         let entries = list.entries(base: base)
         var uuids = Dictionary(uniqueKeysWithValues: entries.map { (BreakpointList.key($0.breakpoint), $0.uuid) })
-        // Disable the first, drop the column breakpoint, add a new line.
         var first = entries[0].breakpoint
         first.isEnabled = false
         let added = BreakpointStore.Breakpoint(file: "/w/Sources/Shapes/Other.swift", line: 3, isEnabled: true)
@@ -110,10 +102,9 @@ import Testing
         #expect(text.contains("shouldBeEnabled = \"No\"\n            ignoreCount = \"2\""))
         #expect(text.contains("futureAttribute = \"kept &amp; unchanged\""))
         #expect(text.contains("<FutureChild"))
-        #expect(text.contains("landmarkName = \"area()\""))  // kept: no landmark found now
+        #expect(text.contains("landmarkName = \"area()\""))
         #expect(text.contains("BreakpointExtensionID = \"Example.Breakpoint.UnknownKind\""))
         #expect(!text.contains("0A1B2C3D-0000-4000-8000-000000000004"))
-        // The new one is last, with the attributes in §10.1's order.
         let reread = try BreakpointList(text: text)
         let again = reread.entries(base: base)
         #expect(again.map(\.breakpoint.line) == [12, 3])
@@ -143,7 +134,6 @@ import Testing
         #expect(BreakpointList.absolute("../x/b.swift", base: URL(fileURLWithPath: "/w/y")) == "/w/x/b.swift")
     }
 
-    /// Set breakpoints, "quit" (drop the session), reopen: they are there.
     @Test func breakpointsSurviveReopening() throws {
         let dir = try tempPackage()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -158,7 +148,7 @@ import Testing
             session.breakpoints.edit(file: file, line: 12) { $0.condition = "x > 1"; $0.actions = [.log("hit {x}")]; $0.ignoreCount = 1 }
             session.breakpoints.addColumn(file: file, line: 12, column: 16)
             session.breakpoints.click(file: file, line: 20)
-            session.breakpoints.click(file: file, line: 20)  // disabled
+            session.breakpoints.click(file: file, line: 20)
             session.breakpoints.symbolic = [.init(name: "malloc", condition: "size > 4")]
             session.breakpoints.exceptionFilters = ["swift_throw"]
             session.breakpoints.isActive = false
@@ -182,8 +172,6 @@ import Testing
         #expect(!s.isActive)
     }
 
-    /// The file is rewritten only when the breakpoint set changes; an
-    /// unknown proxy in it survives SwiftCode's edits.
     @Test func rewritesOnlyOnChange() throws {
         let dir = try tempPackage()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -196,12 +184,11 @@ import Testing
         #expect(!p.save(loaded))
         #expect(try String(contentsOf: url, encoding: .utf8) == Self.sample)
         var changed = loaded
-        changed.click(file: dir.appendingPathComponent("Sources/Shapes/Shapes.swift").path, line: 12)  // disable
+        changed.click(file: dir.appendingPathComponent("Sources/Shapes/Shapes.swift").path, line: 12)
         #expect(p.save(changed))
         let text = try String(contentsOf: url, encoding: .utf8)
         #expect(text.contains("Example.Breakpoint.UnknownKind") && text.contains("futureAttribute"))
         #expect(!p.save(changed))
-        // No extras file while there is nothing of SwiftCode's own to keep.
         #expect(!FileManager.default.fileExists(atPath: BreakpointList.extrasURL(container: dir, isPackage: true, user: "tester").path))
     }
 
@@ -221,7 +208,7 @@ import Testing
         s.removeColumns(file: "/a.c", line: 3)
         #expect(!s.hasColumnBreakpoints(file: "/a.c", line: 3) && s.breakpoint(file: "/a.c", line: 3) != nil)
         s.addColumn(file: "/a.c", line: 5, column: 2)
-        s.toggleExistence(file: "/a.c", line: 5)  // ⌘\ removes the line's breakpoints
+        s.toggleExistence(file: "/a.c", line: 5)
         #expect(s.breakpoints(file: "/a.c", line: 5).isEmpty)
         s.symbolic = [.init(name: "f")]
         s.exceptionFilters = ["cpp_throw"]

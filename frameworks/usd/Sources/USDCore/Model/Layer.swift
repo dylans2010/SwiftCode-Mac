@@ -1,18 +1,10 @@
-/// Errors from layer editing and file I/O.
 public struct USDError: Error, CustomStringConvertible, Sendable, Equatable {
     public var message: String
     public init(_ message: String) { self.message = message }
     public var description: String { message }
 }
 
-/// A layer: a map from paths to specs, the unit USD reads and writes.
-///
-/// Layers are values. The pseudo-root spec at `/` holds the layer metadata;
-/// prim specs keep their children in `primChildren` and `properties`
-/// (token vectors), variant sets in `variantSetChildren`, and variants in
-/// `variantChildren`, as in OpenUSD's Sdf data model.
 public struct Layer: Hashable, Sendable {
-    /// Where the layer came from (a file path or an anonymous tag).
     public var identifier: String
     public private(set) var specs: [Path: Spec]
 
@@ -20,8 +12,6 @@ public struct Layer: Hashable, Sendable {
         self.identifier = identifier
         specs = [.root: Spec(type: .pseudoRoot)]
     }
-
-    // MARK: Specs and fields
 
     public func spec(at path: Path) -> Spec? { specs[path] }
     public func hasSpec(at path: Path) -> Bool { specs[path] != nil }
@@ -33,16 +23,11 @@ public struct Layer: Hashable, Sendable {
         specs[path]!.fields[name] = value
     }
 
-    /// Inserts or replaces a spec without touching children lists (used by
-    /// the file readers, which store children lists as fields).
     public mutating func setSpec(_ spec: Spec?, at path: Path) {
         specs[path] = spec
     }
 
-    /// Paths of every spec, sorted.
     public var allPaths: [Path] { specs.keys.sorted() }
-
-    // MARK: Layer metadata
 
     public var pseudoRoot: Spec { specs[.root] ?? Spec(type: .pseudoRoot) }
 
@@ -88,24 +73,18 @@ public struct Layer: Hashable, Sendable {
     public var startTimeCode: Double? { self[metadata: FieldKey.startTimeCode]?.doubleValue }
     public var endTimeCode: Double? { self[metadata: FieldKey.endTimeCode]?.doubleValue }
 
-    // MARK: Children
-
-    /// Child prim names of a prim, variant or the root, in authored order.
     public func primChildren(of path: Path) -> [String] {
         specs[path]?.fields[FieldKey.primChildren]?.stringArray ?? []
     }
 
-    /// Property names of a prim or variant, in authored order.
     public func propertyNames(of path: Path) -> [String] {
         specs[path]?.fields[FieldKey.properties]?.stringArray ?? []
     }
 
-    /// Variant set names authored as specs under a prim.
     public func variantSetNames(of path: Path) -> [String] {
         specs[path]?.fields[FieldKey.variantSetChildren]?.stringArray ?? []
     }
 
-    /// Variant names of a variant set (`path` is the prim path).
     public func variantNames(of path: Path, set: String) -> [String] {
         specs[path.appendingVariantSelection(set: set, variant: "")]?.fields[FieldKey.variantChildren]?.stringArray ?? []
     }
@@ -134,8 +113,6 @@ public struct Layer: Hashable, Sendable {
         }
     }
 
-    /// Adds a spec and registers it in its parent's children list. The
-    /// parent must exist.
     @discardableResult
     public mutating func insertSpec(_ spec: Spec, at path: Path, index: Int? = nil) -> Bool {
         guard let (parent, list, name) = childList(for: path), specs[parent] != nil else { return false }
@@ -150,10 +127,6 @@ public struct Layer: Hashable, Sendable {
         return true
     }
 
-    // MARK: Creating specs
-
-    /// Creates (or returns) a prim spec; missing ancestors are created as
-    /// `over`s. Variant selections in the path must already exist.
     @discardableResult
     public mutating func createPrim(at path: Path, specifier: Specifier = .def, typeName: String? = nil) throws -> Path {
         guard path.isAbsolute, path.isPrimPath else { throw USDError("not an absolute prim path: \(path)") }
@@ -174,7 +147,6 @@ public struct Layer: Hashable, Sendable {
         return path
     }
 
-    /// Creates or updates an attribute spec.
     @discardableResult
     public mutating func createAttribute(at path: Path, typeName: TypeName, value: Value? = nil, variability: Variability = .varying,
                                          custom: Bool = false) throws -> Path {
@@ -189,7 +161,6 @@ public struct Layer: Hashable, Sendable {
         return path
     }
 
-    /// Creates or updates a relationship spec with explicit targets.
     @discardableResult
     public mutating func createRelationship(at path: Path, targets: [Path], custom: Bool = false) throws -> Path {
         guard path.isPropertyPath, specs[path.parent] != nil else { throw USDError("no owner for relationship \(path)") }
@@ -202,8 +173,6 @@ public struct Layer: Hashable, Sendable {
         return path
     }
 
-    /// Creates a variant set spec under a prim and adds it to the prim's
-    /// `variantSets` list op.
     public mutating func createVariantSet(_ name: String, on prim: Path) throws {
         guard specs[prim]?.type == .prim || specs[prim]?.type == .variant else { throw USDError("no prim at \(prim)") }
         let setPath = prim.appendingVariantSelection(set: name, variant: "")
@@ -218,7 +187,6 @@ public struct Layer: Hashable, Sendable {
         }
     }
 
-    /// Creates a variant (`/Prim{set=variant}`) and returns its path.
     @discardableResult
     public mutating func createVariant(_ variant: String, inSet set: String, on prim: Path) throws -> Path {
         try createVariantSet(set, on: prim)
@@ -227,14 +195,10 @@ public struct Layer: Hashable, Sendable {
         return path
     }
 
-    // MARK: Removing and moving
-
-    /// Every spec path at or below `path`.
     public func subtreePaths(_ path: Path) -> [Path] {
         specs.keys.filter { $0.hasPrefix(path) }
     }
 
-    /// Removes a spec and everything below it. Returns the removed specs.
     @discardableResult
     public mutating func removeSpec(at path: Path) -> [Path: Spec] {
         guard !path.isRoot else { return [:] }
@@ -248,9 +212,6 @@ public struct Layer: Hashable, Sendable {
         return removed
     }
 
-    /// Copies a spec subtree from another layer (or this one) to `destination`,
-    /// remapping internal paths in relationship targets and connections that
-    /// point inside the copied subtree. The destination's parent must exist.
     public mutating func copySpec(from source: Layer, at sourcePath: Path, to destination: Path) throws {
         guard source.specs[sourcePath] != nil else { throw USDError("no spec at \(sourcePath)") }
         guard let (parent, _, _) = childList(for: destination), specs[parent] != nil else {
@@ -268,7 +229,6 @@ public struct Layer: Hashable, Sendable {
         }
     }
 
-    /// Moves (renames or reparents) a spec subtree.
     public mutating func moveSpec(at path: Path, to destination: Path, index: Int? = nil) throws {
         guard specs[path] != nil else { throw USDError("no spec at \(path)") }
         guard specs[destination] == nil else { throw USDError("\(destination) already exists") }
@@ -303,10 +263,6 @@ public struct Layer: Hashable, Sendable {
         }
     }
 
-    // MARK: Traversal
-
-    /// Prim spec paths in depth-first authored order, including prims inside
-    /// variants (after the prim's own children).
     public func primPaths(under root: Path = .root) -> [Path] {
         var out: [Path] = []
         func visit(_ path: Path) {

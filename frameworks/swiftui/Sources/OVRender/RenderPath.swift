@@ -1,11 +1,8 @@
-// Paths and images in the display list.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// A path: subpaths of lines and Bézier curves.
 public struct RenderPath: Equatable, Sendable {
     public enum Element: Equatable, Sendable {
         case move(CGPoint)
@@ -27,13 +24,11 @@ public struct RenderPath: Equatable, Sendable {
     }
     public mutating func close() { elements.append(.close) }
 
-    /// A rectangle as one closed subpath (clockwise on screen).
     public init(rect r: CGRect) {
         self.init([.move(CGPoint(x: r.minX, y: r.minY)), .line(CGPoint(x: r.maxX, y: r.minY)),
                    .line(CGPoint(x: r.maxX, y: r.maxY)), .line(CGPoint(x: r.minX, y: r.maxY)), .close])
     }
 
-    /// The path with every point transformed.
     public func applying(_ t: RenderTransform) -> RenderPath {
         if t.isIdentity { return self }
         return RenderPath(elements.map { e in
@@ -47,8 +42,6 @@ public struct RenderPath: Equatable, Sendable {
         })
     }
 
-    /// Bounds of all points, control points included (a cheap superset of
-    /// the exact bounds); `.null` for an empty path.
     public var controlBounds: CGRect {
         var minX = Double.infinity, minY = Double.infinity, maxX = -Double.infinity, maxY = -Double.infinity
         func add(_ p: CGPoint) {
@@ -75,8 +68,6 @@ public struct RenderPath: Equatable, Sendable {
     }
 }
 
-/// Pixels of an image: 8-bit RGBA, premultiplied alpha, rows top to bottom
-/// without padding.
 public struct PixelImage: Equatable, Sendable {
     public var size: PixelSize
     public var rgba: [UInt8]
@@ -103,15 +94,12 @@ public struct PixelImage: Equatable, Sendable {
         self.rgba = px
     }
 
-    /// The premultiplied pixel at (x, y): r, g, b, a.
     public func pixel(x: Int, y: Int) -> (UInt8, UInt8, UInt8, UInt8) {
         let i = (y * size.width + x) * 4
         return (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3])
     }
 }
 
-/// An image in the display list: encoded bytes (PNG or JPEG) or pixels.
-/// Shared by reference; the rasteriser caches decoded images per instance.
 public final class RenderImage: Hashable, Sendable {
     public enum Source: Sendable {
         case png(Data)
@@ -120,7 +108,6 @@ public final class RenderImage: Hashable, Sendable {
     }
 
     public let source: Source
-    /// Size in pixels.
     public let pixelSize: PixelSize
 
     public init(source: Source, pixelSize: PixelSize) {

@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/PullRequestManager.swift
-// Adapted for SwiftCode: Pull-request workflow. Verbatim.
-
 import Foundation
 
 public struct PullRequestEvent: Equatable {

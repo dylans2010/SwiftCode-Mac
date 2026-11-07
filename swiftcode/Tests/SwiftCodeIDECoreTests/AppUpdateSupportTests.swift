@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// The pure update-support logic (ported from Legacy's in-app
-/// `AppUpdateSupportTests.runAll()` checks, as real Swift Testing tests).
-/// Only the Sparkle-free logic is covered here — feed configuration,
-/// release-notes parsing, and the Remind Me Later gate — never Sparkle,
-/// the network, or installation.
 @Suite struct AppUpdateSupportTests {
     @Test func feedURLIsHTTPSAndPointsAtSwiftCodeMacReleases() {
         #expect(AppUpdateConfiguration.feedURLString.hasPrefix("https://"))

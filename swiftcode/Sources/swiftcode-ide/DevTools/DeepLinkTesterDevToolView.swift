@@ -1,16 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/DeepLinkTesterDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-//
-// CLEANUP (2026-11-06, A1): the ported file only pretended to dispatch —
-// it logged "Dispatched: <url>" without opening anything, and its own
-// copy described pretend application URL routing. Nothing was ever
-// opened. Replaced with real routing: NSWorkspace checks whether an
-// application is registered for the URL's scheme
-// (urlForApplication(toOpen:)) and then really opens the URL
-// (NSWorkspace.shared.open), logging the real outcome — which app opened
-// it, a refusal, or that no application handles the scheme. No
-// pretend-routing copy remains.
 import SwiftUI
 import SwiftCodeUI
 import os.log
@@ -36,9 +23,6 @@ final class DeepLinkTesterViewModel {
             logger.info("Deep link not opened: no application registered for scheme \(url.scheme ?? "")")
             return
         }
-        // NSWorkspace.shared.open is the same synchronous open call used
-        // elsewhere in the codebase (AssistFinderTools, MuseCodeCLIHelper);
-        // its Bool return is the real result.
         if NSWorkspace.shared.open(url) {
             logs.insert("[\(timestamp)] Opened: \(url.absoluteString) (handler: \(appURL.lastPathComponent))", at: 0)
             logger.info("Successfully opened deep link: \(self.rawURL)")

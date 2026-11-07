@@ -1,12 +1,7 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/ProjectTransferManager.swift
-// Adapted for SwiftCode: Legacy's Project replaced by CollaborationProject; imports land in importDirectory with a transfer.json receipt instead of ProjectSessionStore.
-
 import Foundation
 import MultipeerConnectivity
 
 @MainActor
-// M-REST (2026-11-06): access raised to public so the ported Transfer Projects views in SwiftCodeUI can use it (no behaviour change).
 public final class ProjectTransferManager: ObservableObject {
     public static let shared = ProjectTransferManager()
 
@@ -94,8 +89,6 @@ public final class ProjectTransferManager: ObservableObject {
         }
     }
 
-    /// Where received projects are written. The IDE shell sets this to the
-    /// user's projects folder; the default is ~/Documents/SwiftCode Projects.
     public var importDirectory: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("SwiftCode Projects", isDirectory: true)
 
@@ -114,9 +107,6 @@ public final class ProjectTransferManager: ObservableObject {
                 try entry.data.write(to: fileURL)
             }
         }
-        // Record the transfer provenance next to the imported project (Legacy
-        // wrote this into its Project model via ProjectSessionStore; SwiftCode keeps
-        // it as a sidecar so the import stays a plain directory).
         let receipt = TransferConfiguration(originPeerID: peer.displayName, permission: package.permission,
                                             lastTransferSessionID: sessionID, lastTransferDate: Date())
         let receiptData = try JSONEncoder().encode(receipt)

@@ -1,15 +1,7 @@
-// The device windows' menus (device-hub.md §7, "SwiftCode implementation"):
-// the View menu's zoom and bezel items, the Device menu (the settings
-// submenus of simulator-features.md §7.1, Orientation, Keyboard, the
-// iPhone Duo's Fold) and the Controls menu, in the reference's order with
-// its labels, contextual to the device. Every item carries a
-// `DeviceCommand` (or an orientation) and goes to the key window's canvas.
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDeviceModel
 
-/// Finds the canvas the menus act on (the key device window's).
 @MainActor
 public protocol DeviceMenuTarget: AnyObject {
     var activeCanvas: DeviceCanvasView? { get }
@@ -23,7 +15,6 @@ public final class DeviceMenus: NSObject, NSMenuItemValidation {
         self.target = target
     }
 
-    /// One command's menu item with its key equivalent.
     public func item(_ c: DeviceCommand) -> NSMenuItem {
         let e = c.keyEquivalent
         let i = NSMenuItem(title: c.title, action: #selector(performCommand(_:)), keyEquivalent: e?.key ?? "")
@@ -40,9 +31,6 @@ public final class DeviceMenus: NSObject, NSMenuItemValidation {
         return i
     }
 
-    /// Controls: Home, Lock, App Switcher, Action Button, Rotate Left,
-    /// Rotate Right, Screenshot, Record Screen / Stop Recording; SwiftCode adds
-    /// Volume Up / Down.
     public func controlsMenu() -> NSMenu {
         let m = NSMenu(title: "Controls")
         for c in DeviceCommand.controlsMenu {
@@ -51,14 +39,10 @@ public final class DeviceMenus: NSObject, NSMenuItemValidation {
         return m
     }
 
-    /// The View menu's device items: Zoom In, Zoom Out, Zoom to Fit,
-    /// Physical Size, then Show / Hide Bezels.
     public func viewItems() -> [NSMenuItem] {
         DeviceCommand.zoomMenu.map(item) + [.separator(), item(.toggleBezels)]
     }
 
-    /// The Device menu's own items: Orientation ▸, Keyboard ▸ (Keyboard
-    /// Capture), and Fold ▸ for the iPhone Duo (SwiftCode: its pose commands).
     public func deviceItems() -> [NSMenuItem] {
         let orientation = NSMenuItem(title: "Orientation", action: nil, keyEquivalent: "")
         let om = NSMenu(title: "Orientation")
@@ -77,8 +61,6 @@ public final class DeviceMenus: NSObject, NSMenuItemValidation {
         let fm = NSMenu(title: "Fold")
         for c in [DeviceCommand.poseClosed, .posePartiallyOpen, .poseOpen] { fm.addItem(item(c)) }
         fold.submenu = fm
-        // A Vision Pro's room (visionos.md §2.6, §5.5.4; the reference's
-        // Simulated Scenes): switched live through the device's `vision room`.
         let room = NSMenuItem(title: "Room", action: nil, keyEquivalent: "")
         let rm = NSMenu(title: "Room")
         for (key, title) in Self.rooms {
@@ -91,7 +73,6 @@ public final class DeviceMenus: NSObject, NSMenuItemValidation {
         return [orientation, keyboard, fold, room]
     }
 
-    /// The runtime's rooms by key, with SwiftCode's titles (visionos.md §2.6).
     public static let rooms: [(key: String, title: String)] = [
         ("LivingRoomDay", "Living Room (Day)"), ("LivingRoomNight", "Living Room (Night)"),
         ("KitchenDay", "Kitchen (Day)"), ("KitchenNight", "Kitchen (Night)"),
@@ -140,7 +121,6 @@ public final class DeviceMenus: NSObject, NSMenuItemValidation {
         case .physicalSize: item.state = canvas.mode == .hub && canvas.zoom == .actual ? .on : .off
         default: break
         }
-        // Items for features the device does not have are hidden (§7).
         switch c {
         case .actionButton: item.isHidden = s?.spec.hasActionButton != true
         case .volumeUp, .volumeDown: item.isHidden = s.map { !$0.spec.hasVolumeButtons } ?? false

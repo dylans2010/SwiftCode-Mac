@@ -45,9 +45,6 @@ public struct AssistSimulatorBootTool: AssistTool {
         )
         let commandError = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Verify via simctl list regardless of the boot/shutdown exit code,
-        // because booting an already-booted device reports an error yet
-        // leaves the device in the desired state.
         let (listExit, listStdout, listStderr) = runProcess(
             executablePath: xcrunPath,
             arguments: ["simctl", "list", "devices", "-j"],

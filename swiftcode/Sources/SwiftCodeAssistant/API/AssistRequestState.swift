@@ -1,23 +1,5 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AssistRequestState.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim. Self-contained request-phase state machine + progress monitor.
-// Wiring: AssistManager.requestPhase (same batch).
-
-//
-//  AssistRequestState.swift
-//  SwiftCode
-//
-//  Unified request lifecycle state for Assist. Replaces the previous
-//  stringly-typed `currentActivityStatus` + scattered `isProcessing` Bool as
-//  the source of truth for what a request is doing; the UI string is derived
-//  from the phase so status labels always reflect real runtime events.
-//
-
 import Foundation
 
-/// Every observable phase of an Assist request, from submission to a terminal
-/// state. Every request must end in one of the terminal phases
-/// (completed / failed / cancelled / timedOut) — never stuck "running".
 public enum AssistRequestPhase: String, Sendable, CaseIterable {
     case idle
     case preparingRequest
@@ -39,8 +21,6 @@ public enum AssistRequestPhase: String, Sendable, CaseIterable {
     case cancelled
     case timedOut
 
-    /// The user-facing status text for this phase. Status labels in
-    /// AssistMainView are driven by this mapping, not by ad-hoc strings.
     public var statusText: String {
         switch self {
         case .idle: return "Idle"
@@ -65,8 +45,6 @@ public enum AssistRequestPhase: String, Sendable, CaseIterable {
         }
     }
 
-    /// Whether this phase is terminal: the request is over and the UI must
-    /// not show a spinner for it anymore.
     public var isTerminal: Bool {
         switch self {
         case .completed, .failed, .cancelled, .timedOut: return true
@@ -75,21 +53,11 @@ public enum AssistRequestPhase: String, Sendable, CaseIterable {
     }
 }
 
-/// Monotonic generation counter identifying a single user submission.
-/// Async callbacks capture the generation they were created under and ignore
-/// their results when the generation has advanced (conversation cleared or a
-/// newer request started), which prevents late callbacks from repopulating a
-/// cleared conversation.
 public struct AssistRequestGeneration: Sendable, Equatable {
     public let value: Int
     public init(_ value: Int) { self.value = value }
 }
 
-/// Error thrown when a provider request exceeds its wall-clock budget.
-/// Surfaced to the user as an explicit timeout, never a silent stall.
-/// Conforms to LocalizedError so the custom message survives
-/// `error.localizedDescription` instead of degrading to a generic
-/// "operation couldn't be completed" string.
 public enum AssistRequestTimeoutError: LocalizedError, Sendable {
     case timedOut(TimeInterval)
 
@@ -101,9 +69,6 @@ public enum AssistRequestTimeoutError: LocalizedError, Sendable {
     }
 }
 
-/// Tracks streaming progress for the chat-mode watchdog. Thread-safe so the
-/// provider's token callback (which may not be MainActor-isolated) can record
-/// progress while a detached watchdog task reads it.
 public final class AssistStreamProgressMonitor: @unchecked Sendable {
     private let lock = NSLock()
     private var lastProgressAt: Date = Date()

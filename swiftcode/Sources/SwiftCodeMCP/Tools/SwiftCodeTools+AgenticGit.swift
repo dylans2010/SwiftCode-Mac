@@ -3,105 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeSubprocess
 
-/// The ported Legacy Agentic local-git tool family (Wave 8, slice C).
-///
-/// Behaviour source: Legacy's `AgentTool` implementations in
-/// `SwiftCode/Tools/Agentic/` (Dylan's own code, ported under MIT) —
-/// `GitStatusTool`, `GitDiffTool`, `GitAddTool`, `GitCommitTool`,
-/// `GitCheckoutTool`, `GitBranchTool`, `GitMergeTool`, `GitRebaseTool`,
-/// `GitResetTool`, `GitStashTool`, `GitPullTool`, `GitPushTool`,
-/// `GitCloneTool`, `GitBlameTool`, `GitLogTool`, `GitShowTool`,
-/// `GitTagTool`, `GitCherryPickTool`, `GitRevertTool` and
-/// `GitWorktreeTool`. Descriptions are Legacy's verbatim; schemas are
-/// Legacy's `schema` verbatim plus the `workspace` parameter Wave 1
-/// adds to every tool. The Agentic tools declare no capability, risk
-/// level or permission in Legacy (the `AgentTool` protocol carries
-/// only `name` / `description` / `schema` / `execute`), so those are
-/// derived from behaviour here and recorded in
-/// `specs/ide/agentic-git-draft.md`: read-only tools are `safeRead`,
-/// mutating tools `safeMutation`, `git_reset` (whose Legacy default
-/// is `--hard`) `potentiallyDestructive`; capability is
-/// `gitOperations` throughout; permission is `fileSystem` for
-/// mutating tools, `none` for read-only ones (Legacy's Assist
-/// derivation).
-///
-/// Conventions, following Wave 3 (`SwiftCodeTools+Git.swift`):
-///
-/// * Every git operation runs the `git` CLI (via `SwiftCodeSubprocess`,
-///   `HostTool.path("git")`) as an argument vector — never a shell —
-///   with the repository folder as its working directory, exactly as
-///   Legacy's `ProcessRunnerTool` runs do (`/usr/bin/git` there; the
-///   Flatpak-aware `HostTool` path here). The environment is Wave 3's
-///   `gitEnvironment()`: inherited, minus the variables that could
-///   point git at another repository, plus the
-///   never-wait-for-a-person settings. A workspace that is not a git
-///   repository fails with git's own "not a git repository" message —
-///   never invented log/blame/status output.
-/// * Workspace confinement: `repositoryPath` resolves with
-///   `resolveFileReadingPath` (plain relative paths against the
-///   session working directory; an absolute path inside the workspace
-///   is used as-is; `..` past the workspace root is an error). File
-///   arguments (`file`, `files`) are relativised against the
-///   repository folder the same way and must stay inside it.
-///   Branch/ref/commit arguments are validated with Wave 3's
-///   validators before they reach git. A leading `-` can therefore
-///   never be parsed as a git flag.
-/// * Approval gating: every mutating git operation gates BEFORE
-///   running git, through an explicit `MCPChange` + `call.approve`
-///   (the Wave 2 §6.2 shape for non-text operations, reused here via
-///   Wave 3's `gitApproveChange`; the change's path is the workspace
-///   root, relative path `"."`). The tools are registered
-///   `writes: true`, so `MCPServer.run` refuses them in `readOnly`
-///   server mode — the same treatment Wave 2 gives dry-run tools.
-/// * `git_pull`, `git_push` and `git_clone` run real remote
-///   operations (Wave 10): plain `git pull` / `git push` in the
-///   resolved repository, `git clone <remoteURL>
-///   <destinationPath>` for a remote URL the Wave 10 URL policy
-///   accepts (see `validateGitRemoteURL`). All three are writes and
-///   gate through `gitApproveChange` before git runs. HTTPS auth
-///   comes from the user's configured git credential helper; when
-///   the remote is a github.com HTTPS URL and a token is stored
-///   under `SecretAccount.githubToken`, it is best-effort seeded
-///   via `git credential approve` on stdin first (see
-///   `seedGitHubCredential`).
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `repositoryPath` is optional in the SwiftCode schema (Legacy
-///   requires it): omitted, the tool operates on the session
-///   workspace root, which is the SwiftCode workspace model. Given, it
-///   must stay inside the workspace — Legacy accepted any absolute
-///   path, SwiftCode confines it.
-/// * Legacy's read tools return `stdout` unchecked, so a failure
-///   (unknown file, unknown ref, no repository) silently returns
-///   an empty string. The port throws git's own message on a
-///   non-zero exit instead — never an invented empty result.
-/// * Legacy passes `branch`, `mode`, `target`, `action` and `hash`
-///   to argv unchecked. The port validates them first: branch names
-///   with Wave 3's strict allow-list, refs with `gitIsValidRef`,
-///   hashes with `gitIsValidCommit`, reset modes against
-///   `--soft/--mixed/--hard/--merge/--keep`, stash actions against
-///   `push/pop/list/show/drop/apply/clear`, worktree actions
-///   against `list/add/remove/move/lock/unlock/prune/repair`.
-/// * `git_worktree` keeps Legacy's single-token `action`: `add`,
-///   `remove` and `move` need extra arguments Legacy's schema does
-///   not provide, so git reports its usage error for them — the
-///   Legacy limitation, preserved honestly rather than papered over
-///   with an invented schema.
-/// * `git_stash show` keeps Legacy's plain form (no `-p`); Wave 3's
-///   `git_stash_operator` shows with `-p`.
-///
-/// ID collisions, resolved by the coordinator at wiring time
-/// (Wave 8): eight of these Agentic IDs collided with Assist
-/// registrations. Seven were entries in `MCPServer.toolAliases`
-/// (`git_status`, `git_diff`, `git_commit`, `git_branch`,
-/// `git_stash`, `git_blame`, `git_log` → the operator tools);
-/// those aliases are REMOVED, so the Agentic tools registered here
-/// own the names — the operator tools stay callable by their own
-/// names. The eighth, `git_cherry_pick`, is NOT registered here:
-/// the Wave 3 Assist tool was aligned in place instead (it accepts
-/// the Agentic `hash` + `repositoryPath` spellings alongside
-/// `commit`), so one registration serves both shapes.
 extension SwiftCodeMCPHost {
     var agenticGitTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -239,10 +140,6 @@ extension SwiftCodeMCPHost {
                                        "repositoryPath": Schema.string("Repository path. Defaults to the workspace root when omitted; must stay inside the workspace.")])) { h, call in
                 try await h.agenticGitTag(call)
             },
-            // NOTE (Wave 8): `git_cherry_pick` is NOT registered here —
-            // the Wave 3 Assist tool was aligned in place to accept the
-            // Agentic `hash` + `repositoryPath` spellings, so one
-            // registration serves both shapes (see SwiftCodeTools+Git.swift).
             tool("git_revert", "Git Revert",
                  "Reverts a Git commit.",
                  input: Schema.object(["workspace": Schema.workspace,
@@ -266,12 +163,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Agentic git helpers (all `agenticGit`-prefixed)
 
-    /// The repository folder a call operates on: Legacy's
-    /// `repositoryPath` when given, else the workspace root. The
-    /// path resolves inside the workspace (`resolveFileReadingPath`)
-    /// and must be a directory.
     func agenticGitRepoDir(_ call: MCPToolCall, in s: WorkspaceSession) throws -> URL {
         guard let raw = call.string("repositoryPath") else { return Self.folder(of: s.model) }
         let url = try resolveFileReadingPath(raw, in: s)
@@ -282,11 +174,6 @@ extension SwiftCodeMCPHost {
         return url
     }
 
-    /// A file argument as a path relative to `repoDir`, for argv.
-    /// Absolute paths must already be inside the repository;
-    /// relative paths resolve against it, and `..` that escapes it
-    /// is an error. A leading `-` is rejected so it can never be
-    /// parsed as a git flag.
     nonisolated static func agenticGitRepoRelativePath(_ raw: String, repoDir: URL) throws -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw MCPToolError("Empty file path.") }
@@ -308,9 +195,6 @@ extension SwiftCodeMCPHost {
         return String(resolved.path.dropFirst(root.count + 1))
     }
 
-    /// Runs git with `args` in `root` (Wave 3's `runGit`); returns
-    /// the combined output on success, else throws with `failure`
-    /// plus git's own message.
     nonisolated static func agenticGitRun(_ args: [String], in root: URL, failure: String) throws -> String {
         let result = try Self.runGit(args, in: root)
         let output = result.combined
@@ -320,9 +204,6 @@ extension SwiftCodeMCPHost {
         return output
     }
 
-    /// The conflicted files of a stopped merge / cherry-pick /
-    /// rebase, from `git status --porcelain` (the two-letter codes
-    /// for unmerged paths, as Wave 3's cherry-pick helper does).
     nonisolated static func agenticGitConflictedFiles(in root: URL) -> [String] {
         guard let status = try? runGit(["status", "--porcelain"], in: root), status.status == 0 else { return [] }
         let conflictCodes: Set<String> = ["DD", "AU", "UD", "UA", "DU", "AA", "UU"]
@@ -337,43 +218,21 @@ extension SwiftCodeMCPHost {
         return files
     }
 
-    /// Legacy's success string when git printed nothing, else git's
-    /// own output — the shape every mutating handler below returns.
     nonisolated static func agenticGitSuccess(output: String, fallback: String) -> MCPToolResult {
         .text(output.isEmpty ? fallback : output)
     }
 
-    // MARK: - Remote URLs and GitHub credential seeding (Wave 10)
-
-    /// Test seam for remote git auth: when set, the secret store
-    /// used instead of `defaultSecretStore()`. Tests set a
-    /// `MemorySecretStore` so no real keychain or config file is
-    /// touched; production never sets it. (Same shape as
-    /// `agenticDataTestSecretStore`.)
     nonisolated(unsafe) static var agenticGitTestSecretStore: SecretStore?
 
     nonisolated static func agenticGitSecretStore() -> SecretStore {
         agenticGitTestSecretStore ?? defaultSecretStore()
     }
 
-    /// A remote URL after the Wave 10 URL policy has accepted it.
     struct ValidatedGitRemoteURL: Sendable {
-        /// The argument passed to git: the URL as given for
-        /// https/SSH remotes, the resolved absolute path for a
-        /// local path.
         var gitArgument: String
-        /// The `path` field for `git credential approve`, when the
-        /// remote is a github.com HTTPS URL (`""` when the URL has
-        /// no repository path); `nil` for every other remote.
         var githubHTTPSPath: String?
     }
 
-    /// The repository path of a github.com HTTPS URL
-    /// (`dylans2010/repo.git` for
-    /// `https://github.com/dylans2010/repo.git`, `""` for bare
-    /// `https://github.com`), or `nil` when `raw` is not one.
-    /// URLs with embedded credentials are never one: a token must
-    /// come from the secret store, never from a URL.
     nonisolated static func gitHubHTTPSPath(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("https://"), !trimmed.contains(" "),
@@ -385,14 +244,6 @@ extension SwiftCodeMCPHost {
         return String(path.dropFirst())
     }
 
-    /// Accepts a remote URL under the Wave 10 policy, or throws:
-    /// `https://` URLs, `git@host:` SCP-like SSH remotes, and local
-    /// paths resolving inside the workspace. Anything else (other
-    /// schemes, absolute paths outside the workspace, embedded
-    /// credentials, a leading `-`) is rejected with a clear error.
-    /// The URL itself is the only thing that may appear in an
-    /// error; a token never appears in one, because URLs carrying
-    /// credentials are rejected before they reach git.
     func validateGitRemoteURL(_ raw: String, in s: WorkspaceSession) throws -> ValidatedGitRemoteURL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw MCPToolError("Remote URL must not be empty.") }
@@ -410,10 +261,6 @@ extension SwiftCodeMCPHost {
             return ValidatedGitRemoteURL(gitArgument: trimmed,
                                          githubHTTPSPath: Self.gitHubHTTPSPath(trimmed))
         }
-        // SCP-like SSH syntax (`git@github.com:owner/repo.git`):
-        // `user@host:path`, none of the three parts empty, no `/`
-        // or whitespace in the user/host, no whitespace in the
-        // path. A leading `/`, `.` or `~` is a local path, never SSH.
         if !trimmed.hasPrefix("/"), !trimmed.hasPrefix("."), !trimmed.hasPrefix("~"),
            let at = trimmed.firstIndex(of: "@"), let colon = trimmed.firstIndex(of: ":"),
            at < colon {
@@ -428,25 +275,10 @@ extension SwiftCodeMCPHost {
                 return ValidatedGitRemoteURL(gitArgument: trimmed, githubHTTPSPath: nil)
             }
         }
-        // Otherwise a local path: it must resolve inside the workspace.
         let url = try resolveFileReadingPath(trimmed, in: s)
         return ValidatedGitRemoteURL(gitArgument: url.path, githubHTTPSPath: nil)
     }
 
-    /// Best-effort GitHub credential seeding for one github.com
-    /// HTTPS remote: when a token is stored under
-    /// `SecretAccount.githubToken`, `git credential approve` is fed
-    /// `protocol` / `host` / `path` / `username` / `password` on
-    /// STDIN (the token as the password — never in argv, a URL, or
-    /// a log), so the following git command can authenticate from
-    /// the user's configured credential helper. Failures are ignored
-    /// silently; the git command itself reports auth failure
-    /// honestly if it still cannot authenticate. A `nil` path means
-    /// "not a github.com HTTPS remote": nothing is seeded. Nothing
-    /// is written to any file and git's config is untouched.
-    /// `Subprocess.run` cannot feed stdin (it uses /dev/null), so
-    /// this runs `git credential approve` with Foundation's
-    /// `Process` directly.
     nonisolated static func seedGitHubCredential(githubHTTPSPath path: String?, in directory: URL) {
         guard let path,
               let token = agenticGitSecretStore().readString(SecretAccount.githubToken)?
@@ -476,11 +308,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Best-effort seeding for the repository's `origin` remote:
-    /// reads it with `git remote get-url origin` and seeds only
-    /// when it is a github.com HTTPS URL. A missing or unreadable
-    /// origin, or a non-GitHub remote, seeds nothing — the git
-    /// command that follows reports the real outcome.
     nonisolated static func seedGitHubCredentialForOrigin(in root: URL) {
         guard let result = try? runGit(["remote", "get-url", "origin"], in: root), result.status == 0 else { return }
         let url = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -489,7 +316,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Agentic git handlers: read-only
 
     func agenticGitStatus(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -577,8 +403,6 @@ extension SwiftCodeMCPHost {
         let out = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         return .text(out.isEmpty ? "No tags in the repository." : result.stdout)
     }
-
-    // MARK: - Agentic git handlers: mutating (local)
 
     func agenticGitAdd(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -681,19 +505,12 @@ extension SwiftCodeMCPHost {
         guard allowed.contains(action) else {
             throw MCPToolError("Unsupported stash action '\(action)'. Valid: push, pop, list, show, drop, apply, clear.")
         }
-        // `list` and `show` only report; every other action moves
-        // stashed state.
         if action != "list" && action != "show" {
             try await gitApproveChange(tool: call.name, summary: "Git stash \(action)", in: s, call: call)
         }
         let output = try Self.agenticGitRun(["stash", action], in: root, failure: "Git stash \(action) failed")
         return Self.agenticGitSuccess(output: output, fallback: "Successfully executed git stash \(action)")
     }
-
-    // NOTE (Wave 8): no `agenticGitCherryPick` handler — the Wave 3
-    // Assist `gitCherryPick` was aligned in place to accept the
-    // Agentic `hash` + `repositoryPath` spellings (see
-    // SwiftCodeTools+Git.swift), so the Agentic shape is served there.
 
     func agenticGitRevert(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -718,10 +535,6 @@ extension SwiftCodeMCPHost {
         guard allowed.contains(action), !action.contains(" "), !action.contains("\t") else {
             throw MCPToolError("Unsupported worktree action '\(actionRaw)'. Valid: list, add, remove, move, lock, unlock, prune, repair.")
         }
-        // `list` and `prune` only report. The rest change worktrees;
-        // `add` / `remove` / `move` need extra arguments Legacy's
-        // schema does not provide, so git reports its usage error
-        // for them — the Legacy limitation, preserved honestly.
         if action != "list" && action != "prune" {
             try await gitApproveChange(tool: call.name, summary: "Git worktree \(action)", in: s, call: call)
         }
@@ -729,13 +542,7 @@ extension SwiftCodeMCPHost {
         return Self.agenticGitSuccess(output: output, fallback: "Git worktree \(action) completed.")
     }
 
-    // MARK: - Agentic git handlers: remote (Wave 10)
-
     func agenticGitPull(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Wave 10: Legacy's plain `git pull` in the repository.
-        // HTTPS auth comes from the user's configured credential
-        // helper, plus a best-effort seed from the stored GitHub
-        // token when `origin` is a github.com HTTPS URL.
         let s = try session(for: call)
         let root = try agenticGitRepoDir(call, in: s)
         try await gitApproveChange(tool: call.name, summary: "Git pull", in: s, call: call)
@@ -745,8 +552,6 @@ extension SwiftCodeMCPHost {
     }
 
     func agenticGitPush(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Wave 10: Legacy's plain `git push` in the repository;
-        // auth seeding as in `agenticGitPull`.
         let s = try session(for: call)
         let root = try agenticGitRepoDir(call, in: s)
         try await gitApproveChange(tool: call.name, summary: "Git push", in: s, call: call)
@@ -756,9 +561,6 @@ extension SwiftCodeMCPHost {
     }
 
     func agenticGitClone(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Wave 10: Legacy's `git clone <remoteURL>
-        // <destinationPath>`, with the Wave 10 URL policy on the
-        // remote and the destination confined to the workspace.
         let s = try session(for: call)
         guard let remoteURL = call.string("remoteURL"),
               let destinationRaw = call.string("destinationPath") else {

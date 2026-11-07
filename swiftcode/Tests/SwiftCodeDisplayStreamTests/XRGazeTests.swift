@@ -1,14 +1,7 @@
-// The gaze path with synthetic gaze of a recorded shape (no real eye data):
-// fixations with the tracker's noise (0.30° RMS from frame to frame, as run 8
-// measured it), saccades of the main sequence at 1.6–1.9 per second (run 8),
-// blinks, a head that sways with the vestibulo-ocular reflex holding the eye
-// on its target. Specs: xr-viewer.md §13.
-
 import Foundation
 import Testing
 @testable import SwiftCodeDisplayStream
 
-/// A small deterministic generator (SplitMix64).
 struct GazeRandom {
     var state: UInt64
     init(seed: UInt64) { state = seed }
@@ -30,16 +23,11 @@ func direction(yaw: Double, pitch: Double) -> SpatialVector {
     SpatialQuaternion(yaw: yaw * .pi / 180, pitch: pitch * .pi / 180).rotate(SpatialVector(0, 0, -1))
 }
 
-/// A wearer: one target (yaw, pitch in the world, degrees) at a time, the eye
-/// arriving by a saccade of the main sequence (about 21 ms + 2.2 ms per degree).
 struct SyntheticWearer {
     static let dt = 1.0 / 90
     var random: GazeRandom
-    /// Per axis: 0.15° gives 0.30° RMS from frame to frame in two dimensions.
     var noise = 0.15
-    /// The head's sway about yaw (degrees, Hz); the reflex keeps the eye on the target in the world.
     var swayDegrees = 0.0, swayHz = 0.3
-    /// The tracker's constant error in head space (degrees).
     var biasYaw = 0.0, biasPitch = 0.0
     private(set) var eye = (yaw: 0.0, pitch: 0.0)
     private var from = (yaw: 0.0, pitch: 0.0), to = (yaw: 0.0, pitch: 0.0)
@@ -59,7 +47,6 @@ struct SyntheticWearer {
         SpatialPose(position: SpatialVector(0, 1.6, 0), rotation: SpatialQuaternion(yaw: swayDegrees * sin(2 * .pi * swayHz * time) * .pi / 180, pitch: 0))
     }
 
-    /// The tracker's sample at `time` (the true eye, then bias and noise).
     mutating func sample(at time: Double) -> XRTrackingSample {
         if saccadeStart >= 0 {
             let u = min(1, (time - saccadeStart) / saccadeLength)
@@ -75,11 +62,9 @@ struct SyntheticWearer {
         return XRTrackingSample(time: time, head: h, gaze: SpatialPose(position: h.position, rotation: SpatialQuaternion(yaw: wy, pitch: wp).normalized))
     }
 
-    /// The true direction of the eye now, world frame.
     var trueDirection: SpatialVector { direction(yaw: eye.yaw, pitch: eye.pitch) }
 }
 
-/// A session of `seconds`: saccades among places on the windows at a rate like run 8's.
 func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 0, seed: UInt64 = 7) -> (stats: XRGazeStats, errors: (fixating: Double, after100ms: Double)) {
     var wearer = SyntheticWearer(seed: seed)
     wearer.swayDegrees = sway
@@ -112,8 +97,6 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
         return s
     }
 
-    /// Run 8's "filter removed 1.5–1.9°" comes out of the old filter on synthetic gaze of the same
-    /// noise and saccade rate. It is the first 100 ms after each saccade (3.8° RMS), not a lasting offset.
     @Test func theOldFilterRemovesWhatRun8MeasuredInTheFirstMoments() {
         let (stats, errors) = wanderingSession(seconds: 120, settings: Self.legacy)
         #expect(abs(stats.rawJitterDegrees - 0.32) < 0.05)
@@ -130,7 +113,6 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
         #expect(errors.after100ms < 0.15)
     }
 
-    /// On one fixation the ray is steadier than the samples: under a third of the tracker's step.
     @Test func aFixationIsSteady() {
         var wearer = SyntheticWearer(seed: 13)
         var mapper = XRInputMapper()
@@ -141,14 +123,12 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
         #expect(mapper.gazeStats.saccades == 0)
     }
 
-    /// The old filter crosses what lies between: each 3° cell it passes could be a hover the guest draws.
     @Test func theRayDoesNotTravelAcrossWhatLiesBetween() {
         let (old, _) = wanderingSession(seconds: 120, settings: Self.legacy)
         let (new, _) = wanderingSession(seconds: 120, settings: XRGazeSettings())
         #expect(new.cellChanges * 3 < old.cellChanges * 2)
     }
 
-    /// A 10° saccade: how long until the ray is within 1° of the eye.
     func settle(_ settings: XRGazeSettings) -> Double {
         var wearer = SyntheticWearer(seed: 3)
         wearer.noise = 0
@@ -170,17 +150,14 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
 
     @Test func aSaccadeLandsWithinAFrameOrTwoOfTheEye() {
         let old = settle(Self.legacy), new = settle(XRGazeSettings())
-        // The saccade itself takes 43 ms; the old filter arrives about 80 ms after it.
         #expect(old > 0.1)
         #expect(new < 0.043 + 3 * SyntheticWearer.dt)
     }
 
-    /// The head moves, the eye holds its target: the reflex turns the eye in the
-    /// head, and a filter in head space lags it, dragging the ray off in the world.
     @Test func aSwayingHeadDoesNotDragTheRay() {
         func error(_ settings: XRGazeSettings) -> Double {
             var wearer = SyntheticWearer(seed: 11)
-            wearer.swayDegrees = 6       // ±6° at 0.3 Hz: up to 11°/s
+            wearer.swayDegrees = 6
             var mapper = XRInputMapper()
             mapper.gazeSettings = settings
             var sum = 0.0, n = 0
@@ -197,14 +174,13 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
         #expect(error(XRGazeSettings()) < 0.2)
     }
 
-    /// The eyes carried with the head (a head turn, eyes still in the head): no lag either.
     @Test func eyesThatTravelWithTheHeadAreNotLeftBehind() {
         var mapper = XRInputMapper()
         var random = GazeRandom(seed: 5)
         var worst = 0.0
         var t = 0.0
         while t < 4 {
-            let yaw = 40 * sin(2 * .pi * 0.25 * t)      // up to 63°/s
+            let yaw = 40 * sin(2 * .pi * 0.25 * t)
             let head = SpatialPose(position: SpatialVector(0, 1.6, 0), rotation: SpatialQuaternion(yaw: yaw * .pi / 180, pitch: 0))
             let local = direction(yaw: 3 + 0.15 * random.gaussian(), pitch: 0.15 * random.gaussian())
             let (y, p) = xrYawPitch(head.rotation.rotate(local))
@@ -216,7 +192,6 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
         #expect(worst < 0.7)
     }
 
-    /// One outlying sample is not a saccade.
     @Test func oneOutlierDoesNotMoveTheRay() {
         var f = XRGazeFilter()
         let head = SpatialQuaternion.identity
@@ -230,7 +205,6 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
         #expect(f.lastSaccadeAt == nil)
     }
 
-    /// At a target's edge the ray does not flicker across it.
     @Test func theRayDoesNotChatterAtATargetsEdge() {
         func crossings(_ settings: XRGazeSettings) -> Int {
             var wearer = SyntheticWearer(seed: 9)
@@ -242,7 +216,6 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
             while t < 30 {
                 let out = mapper.map(wearer.sample(at: t))
                 let (y, _) = xrYawPitch(out.selection.rayDirection)
-                // The edge exactly where the eye looks, on the true side of the anchor's frame.
                 let now = y * 180 / .pi > 0.5
                 if let i = inside, i != now { n += 1 }
                 inside = now
@@ -253,14 +226,12 @@ func wanderingSession(seconds: Double, settings: XRGazeSettings, sway: Double = 
         var raw = XRGazeSettings()
         raw.filter = .raw
         let (r, f) = (crossings(raw), crossings(XRGazeSettings()))
-        #expect(r > 800)        // about one sample in two
+        #expect(r > 800)
         #expect(f * 10 < r)
     }
 }
 
-/// Targets on a window: a grid of squares; which one does a pinch select?
 struct TargetGrid {
-    /// The side of a target, degrees (60 pt at 2 m is about 1.3°, at 1 m 2.5°).
     var side: Double
     var spacing: Double
     func hit(_ d: SpatialVector) -> (Int, Int)? {
@@ -280,7 +251,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
 }
 
 @Suite struct XRGazeSelectionTests {
-    /// Trials: look at a target, pinch `delay` after the saccade began. The share that selects it.
     func selectionRate(_ settings: XRGazeSettings, side: Double, spacing: Double, delay: Double, sway: Double = 0, biasYaw: Double = 0, biasPitch: Double = 0, seed: UInt64 = 21) -> Double {
         let grid = TargetGrid(side: side, spacing: spacing)
         var wearer = SyntheticWearer(seed: seed)
@@ -305,7 +275,7 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
             wearer.look(at: target, time: t)
             let begin = t
             while t - begin < delay { _ = step(0.08) }
-            let out = step(0.01)        // the pinch
+            let out = step(0.01)
             trials += 1
             if let h = grid.hit(out.selection.rayDirection), h == (i, j) { good += 1 }
             for _ in 0..<9 { _ = step(0.01) }
@@ -314,7 +284,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         return Double(good) / Double(trials)
     }
 
-    /// Small targets at a quick look: where the old filter's trip across costs a selection.
     @Test func aQuickLookSelectsTheTarget() {
         let old = selectionRate(XRGazeLagTests.legacy, side: 1.3, spacing: 2, delay: 0.15)
         let new = selectionRate(XRGazeSettings(), side: 1.3, spacing: 2, delay: 0.15)
@@ -322,8 +291,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(new > old + 0.05)
     }
 
-    /// With steady eyes and an unmoving tracker error both filters select 1.3° targets once the
-    /// eyes have rested for 200 ms: the filter alone does not explain "hard to grab" (xr-viewer.md §13.3).
     @Test func aRestedLookSelectsWithEitherFilter() {
         #expect(selectionRate(XRGazeLagTests.legacy, side: 1.3, spacing: 2, delay: 0.25) > 0.97)
         #expect(selectionRate(XRGazeSettings(), side: 1.3, spacing: 2, delay: 0.25) > 0.97)
@@ -333,7 +300,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(selectionRate(XRGazeSettings(), side: 1.3, spacing: 2, delay: 0.3, sway: 6) > 0.97)
     }
 
-    /// The ray stays where the pinch began, however the eyes and the hand move.
     @Test func aPinchHoldsTheRayUntilTheRelease() {
         var wearer = SyntheticWearer(seed: 2)
         var mapper = XRInputMapper()
@@ -350,19 +316,16 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         wearer.look(at: (12, 3), time: t)
         var last = begun
         for _ in 0..<30 { last = step(0.01); #expect(last.selection.rayDirection == begun.selection.rayDirection) }
-        // The release's own message still carries the pinch's place.
         _ = step(0.08)
         let released = step(0.08)
         #expect(mapper.rayFrozen)
         #expect(released.selection.right?.pinching == false)
         #expect(released.selection.rayDirection == begun.selection.rayDirection)
-        // Then the ray is the eyes' again.
         let after = step(0.08)
         #expect(!mapper.rayFrozen)
         #expect(xrAngleDegrees(after.selection.rayDirection, mapper.anchor!.toStage(direction: direction(yaw: 12, pitch: 3))) < 1)
     }
 
-    /// The eyes leave as the fingers close: the pinch takes what they were on.
     @Test func aPinchJustAfterASaccadeSelectsWhatTheEyesLeft() {
         func selected(rewind: Double) -> SpatialVector {
             var settings = XRGazeSettings()
@@ -379,7 +342,7 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
                 return mapper.map(s)
             }
             for _ in 0..<60 { _ = step(0.08) }
-            wearer.look(at: (8, 0), time: t)    // the eyes move on (39 ms)
+            wearer.look(at: (8, 0), time: t)
             for _ in 0..<5 { _ = step(0.08) }
             return step(0.01).selection.rayDirection
         }
@@ -387,7 +350,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(xrAngleDegrees(selected(rewind: 0), direction(yaw: 8, pitch: 0)) < 1)
     }
 
-    /// A blink holds the last ray; it does not jump to the head's forward.
     @Test func aDropoutHoldsTheRay() {
         var wearer = SyntheticWearer(seed: 6)
         wearer.noise = 0
@@ -396,7 +358,7 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         var t = 0.0
         while t < 1 { _ = mapper.map(wearer.sample(at: t)); t += SyntheticWearer.dt }
         let target = direction(yaw: 10, pitch: 5)
-        for _ in 0..<18 {       // 200 ms
+        for _ in 0..<18 {
             var s = wearer.sample(at: t)
             s.gaze = nil
             let out = mapper.map(s)
@@ -404,7 +366,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
             #expect(mapper.gazeHeld)
             t += SyntheticWearer.dt
         }
-        // Long gone: the fallback (the head).
         for _ in 0..<40 {
             var s = wearer.sample(at: t)
             s.gaze = nil
@@ -418,7 +379,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(mapper.gazeStats.heldFrames >= 18)
     }
 
-    /// A constant error of the tracker: what a calibration takes away.
     @Test func aCalibrationFindsTheTrackersBias() {
         var wearer = SyntheticWearer(seed: 8)
         wearer.biasYaw = 1.5
@@ -440,7 +400,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(r.targets == 5)
         #expect(abs(r.yaw + 1.5) < 0.15 && abs(r.pitch - 1) < 0.15)
         #expect(r.spread < 0.2)
-        // With it, a 2° target at a look.
         var settings = XRGazeSettings()
         let plain = XRGazeSelectionTests().selectionRate(settings, side: 2, spacing: 3, delay: 0.4, biasYaw: 1.5, biasPitch: -1)
         settings.biasYaw = r.yaw * .pi / 180
@@ -450,7 +409,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(corrected > 0.9)
     }
 
-    /// A target the wearer does not look at, a gaze that wanders off: skipped, no bias.
     @Test func aCalibrationWithoutAFixationGivesNothing() {
         var calibration = XRGazeCalibration()
         var t = 0.0
@@ -467,7 +425,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         XRTrackingSample(time: t, head: SpatialPose(position: SpatialVector(0, 1.6, 0)), hands: [nil, gap.map { hand(gap: $0, at: p) }])
     }
 
-    /// Fingers hiding each other: the tracker loses the hand for a few frames in mid-pinch.
     @Test func aLostHandDoesNotReleaseThePinch() {
         var m = XRInputMapper()
         var t = 0.0
@@ -493,7 +450,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(close(out.selection.right!.position, SpatialInteraction.rightRest, tolerance: 0.001))
     }
 
-    /// Closing and opening the fingers moves their midpoint: a tap must not become a drag.
     @Test func fingersClosingAreNotADrag() {
         var m = XRInputMapper()
         var t = 0.0
@@ -508,7 +464,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
             #expect(last.position == begin.position)
         }
         #expect(last.pinching)
-        // A real move goes through, without a jump at the edge of the dead zone.
         t += 0.011
         let far = m.map(sample(t, gap: 0.01, at: SpatialVector(0.1 + 0.05, 1.3, -0.4))).selection.right!
         #expect(abs((far.position - begin.position).length - 0.05) < 0.02)
@@ -530,7 +485,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(gate.nearMisses == 1)
     }
 
-    /// The log's words carry times and states, never a direction.
     @Test func thePinchLogHasNoDirection() {
         var m = XRInputMapper()
         var wearer = SyntheticWearer(seed: 1)
@@ -573,7 +527,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         for i in 1...100 as ClosedRange<UInt64> { let v = w.open(at: i); #expect(v); w.didSend(sequence: i, at: i) }
     }
 
-    /// A frame lost on UDP is covered by the next ack; a lost ack, by the timeout.
     @Test func lostAcksDoNotStopTheStream() {
         var w = XRFrameWindow(window: 2)
         w.didSend(sequence: 1, at: 0)
@@ -600,7 +553,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
     func pose(_ yaw: Double) -> SpatialPose { SpatialPose(position: .zero, rotation: SpatialQuaternion(yaw: yaw * .pi / 180, pitch: 0)) }
     let ms: UInt64 = 1_000_000
 
-    /// Pictures at `first` and at `second`, frames between, the last picture's stages as given.
     func gap(presents: UInt64, cameraMoves: Bool = false, saccade: Bool = false, frameEvery: UInt64 = 11,
              received: UInt64 = 495, capture: UInt64 = 480, waited: UInt64 = 0, work: UInt64 = 0) -> XRGapRecorder.Gap? {
         var r = XRGapRecorder()
@@ -625,7 +577,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(gap(presents: 30)?.cause == .idle)
         #expect(gap(presents: 30, saccade: true)?.cause == .idleGaze)
         #expect(gap(presents: 30, cameraMoves: true)?.cause == .guestNoPicture)
-        // Asked only at the very end: a rest, and a quick answer.
         do {
             var r = XRGapRecorder()
             r.picture(.init(sequence: 1, guestFrame: 100, uploaded: 5 * ms))
@@ -636,11 +587,8 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
             #expect(r.answers == [100])
         }
         #expect(gap(presents: 0, cameraMoves: true)?.cause == .guestStalled)
-        // The picture was captured early and took the way here: the stream.
         #expect(gap(presents: 30, received: 480, capture: 100)?.cause == .stream)
-        // Here long before it was uploaded.
         #expect(gap(presents: 30, received: 100, capture: 90)?.cause == .viewer)
-        // The headset loop stopped for 300 ms, waiting for the runtime.
         #expect(gap(presents: 30, frameEvery: 300, waited: 280)?.cause == .runtime)
         #expect(gap(presents: 30, frameEvery: 300, waited: 5, work: 280)?.cause == .viewerLoop)
     }
@@ -696,7 +644,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(h.bursts == 1 && h.targetChanges == 0)
         h.damage(x: 0.4, y: 0.2, width: 0.05, height: 0.05, at: 300 * ms)
         #expect(h.bursts == 2 && h.targetChanges == 1)
-        // The same place again: a new burst, not a new target. The whole picture: not a hover.
         h.damage(x: 0.4, y: 0.2, width: 0.05, height: 0.05, at: 600 * ms)
         h.damage(x: 0, y: 0, width: 1, height: 1, at: 900 * ms)
         #expect(h.bursts == 3 && h.targetChanges == 1)
@@ -708,7 +655,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         let rule = XRFreshOnTopRule(afterNanoseconds: 350_000_000)
         #expect(!rule.isOnTop(now: 200_000_000, commandedAt: 0, oneView: true, sweeping: false))
         #expect(rule.isOnTop(now: 350_000_000, commandedAt: 0, oneView: true, sweeping: false))
-        // Not in a sweep (a stop's picture must be final), not with eye pictures, not when turned off.
         #expect(!rule.isOnTop(now: 999_000_000, commandedAt: 0, oneView: true, sweeping: true))
         #expect(!rule.isOnTop(now: 999_000_000, commandedAt: 0, oneView: false, sweeping: false))
         #expect(!XRFreshOnTopRule(afterNanoseconds: 0).isOnTop(now: 999_000_000, commandedAt: 0, oneView: true, sweeping: false))
@@ -731,7 +677,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         #expect(!speed(degreesPerSecond: 1).isSlow(limitDegrees: 0))
     }
 
-    /// A head that sways by 2° and 1.5 cm: the camera stays with the wider band, and followed with run 8's.
     @Test func aSwayInsideTheBandMovesNoCamera() {
         func moves(degrees: Double, metres: Double) -> Int {
             var hold = XRCameraHold()
@@ -759,14 +704,12 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
         let d = direction(yaw: 20, pitch: -10)
         let q = XRGazeReticle.pose(origin: eye, direction: d, distance: 2, eye: eye, degrees: 1.4)
         #expect((q.pose.position - (eye + d * 2)).length < 1e-9)
-        // The quad's +Z towards the eye, 1.4° across at 2 m.
         let z = q.pose.rotation.rotate(SpatialVector(0, 0, 1))
         #expect(xrAngleDegrees(z, (eye - q.pose.position).normalized) < 1e-6)
         #expect(abs(q.size - 2 * 2 * tan(0.7 * .pi / 180)) < 1e-9)
     }
 
     @Test func theSentRayIsWhatTheDotShows() {
-        // Through the mapper and back: the dot's place is the ray of the selection in the base space, a turned anchor included.
         var m = XRInputMapper()
         let head = SpatialPose(position: SpatialVector(1, 1.6, 2), rotation: SpatialQuaternion(yaw: 0.7, pitch: 0))
         let g = direction(yaw: 45, pitch: 5)
@@ -784,9 +727,9 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
             let px = XRGazeReticle.image(state: state, size: n)
             #expect(px.count == n * n * 4)
             func at(_ x: Int, _ y: Int) -> [UInt8] { Array(px[(y * n + x) * 4..<(y * n + x) * 4 + 4]) }
-            #expect(at(n / 2, n / 2)[3] > 200)          // the dot
-            #expect(at(n / 2 + 14, n / 2)[3] == 0)      // open between the dot and the ring
-            #expect(at(n / 2 + 26, n / 2)[3] > 200)     // the ring
+            #expect(at(n / 2, n / 2)[3] > 200)
+            #expect(at(n / 2 + 14, n / 2)[3] == 0)
+            #expect(at(n / 2 + 26, n / 2)[3] > 200)
             #expect(at(0, 0)[3] == 0)
             colours.insert(Array(at(n / 2, n / 2)[0..<3]))
         }
@@ -794,7 +737,6 @@ func hand(gap: Double, at p: SpatialVector = SpatialVector(0.1, 1.3, -0.4)) -> X
     }
 
     @Test func theDotLandsOnTheSurface() {
-        // A wall 2 m ahead of the camera, everywhere.
         let found = XRGazeReticle.distance(origin: .zero, direction: SpatialVector(0, 0, -1)) { p in (2, -p.z) }
         #expect(abs(found! - 2) < 0.02)
         #expect(XRGazeReticle.distance(origin: .zero, direction: SpatialVector(0, 0, -1)) { _ in nil } == nil)

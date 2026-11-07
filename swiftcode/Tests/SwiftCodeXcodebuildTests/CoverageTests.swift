@@ -8,8 +8,6 @@ import Testing
         S(line: l, column: c, count: n, hasCount: has, isRegionEntry: entry, isGap: false)
     }
 
-    /// A function on lines 2–5 with an if/else: the line counts and the
-    /// column ranges whose count differs from the line's.
     @Test func linesAndSubranges() {
         let segments = [seg(2, 40, 2), seg(3, 12, 2), seg(3, 18, 1), seg(4, 10, 2, true, false), seg(4, 26, 0),
                         seg(5, 10, 1), seg(6, 6, 0, false, false)]
@@ -18,7 +16,6 @@ import Testing
         #expect(lines[0] == .init(executable: false, count: 0, subranges: []))
         #expect(lines[1].executable && lines[1].count == 2 && lines[1].subranges.isEmpty)
         #expect(lines[2].count == 2 && lines[2].subranges == [.init(column: 18, length: 0, count: 1)])
-        // The count is the largest of the wrapped count (1) and the counts of regions starting on the line.
         #expect(lines[3].count == 1 && lines[3].subranges == [.init(column: 10, length: 16, count: 2), .init(column: 26, length: 0, count: 0)])
         #expect(lines[4].count == 1 && lines[4].subranges == [.init(column: 1, length: 9, count: 0)])
         #expect(lines[5].executable && lines[5].count == 1)
@@ -26,7 +23,6 @@ import Testing
 
     @Test func notExecutableAfterTheEnd() {
         let lines = Coverage.lineCoverage([seg(1, 10, 3), seg(1, 20, 0, false, false), seg(3, 1, 0, false, true)])
-        // Line 3 starts a skipped region: not executable, and trailing non-executable lines are dropped.
         #expect(lines.count == 1 && lines[0].count == 3)
     }
 
@@ -70,12 +66,10 @@ import Testing
         #expect(files.map(\.name) == ["Coverage", "Index", "Metadata.plist"])
         let c = files[0].bytes
         func u32(_ b: [UInt8], _ o: Int) -> Int { Int(b[o]) | Int(b[o + 1]) << 8 | Int(b[o + 2]) << 16 | Int(b[o + 3]) << 24 }
-        // Runs: line 1 not executable; line 2 count 4; line 3 not executable; lines 4–6 count 0.
         #expect(u32(c, 0) == 4)
         #expect([u32(c, 4), u32(c, 8)] == [Int](arrayLiteral: 0, 0))
         #expect([u32(c, 12), u32(c, 16)] == [Int](arrayLiteral: 4, 0x8000_0000))
         #expect([u32(c, 28), u32(c, 32)] == [Int](arrayLiteral: 0, 0x8002_0000))
-        // One subrange: line 5, column 5, length 3, count 2, 0.
         #expect(u32(c, 36) == 1 && (0..<5).map { u32(c, 40 + 4 * $0) } == [5, 5, 3, 2, 0])
         let i = files[1].bytes
         #expect(u32(i, 0) == 1 && u32(i, 4) == 20 && u32(i, 12) == 0)
@@ -90,7 +84,6 @@ import Testing
         #expect(Set(names).isSuperset(of: ["XCTHCodeCoverage", "XCTHCodeCoverageTarget", "XCTHCodeCoverageFile"]))
         let chains = (plist["$objects"] as? [Any] ?? []).compactMap { ($0 as? [String: Any])?["$classes"] as? [String] }
         #expect(chains.contains(["XCTHCodeCoverage", "XCTHCoverageDataContainer", "NSObject"]))
-        // Written by hand: the same bytes on every platform.
         let fixed = try #require(Coverage.reportArchive(sample(), name: "report"))
         #expect(SHA256.hex(fixed) == "715777bf9c15d2590c68814f9fc84cdce68ee34cba5b2dbcd04623f94077b7a6")
     }
@@ -105,7 +98,6 @@ import Testing
         #expect(p["a"] as? String == "caf\u{E9}" && p["n"] as? Int == -2 && p["big"] as? Int == 1 << 40)
         #expect(p["d"] as? Data == Data([1, 2, 3]) && (p["s"] as? String)?.count == 300)
         #expect((p["z"] as? [Int]) == (0..<20).map { $0 * 1000 })
-        // Keys sorted by bytes; a dictionary's key references come first.
         #expect(BinaryPlist.encode(.dict([("b", .int(1)), ("a", .int(2))])) == BinaryPlist.encode(.dict([("a", .int(2)), ("b", .int(1))])))
     }
 
@@ -116,7 +108,6 @@ import Testing
         let a = try store.putFile(Array("a".utf8)), b = try store.putFile(Array("b".utf8))
         let d = try store.putDirectory([("Zed", false, a), ("Alpha", true, b)])
         let refs = [UInt8](try Data(contentsOf: dir.appendingPathComponent("Data/refs." + d)))
-        // Listing sorted by name; references in listing order (not by id).
         #expect(refs == [2, 65] + XCResultStore.rawID(b)! + [65] + XCResultStore.rawID(a)!)
         let stored = [UInt8](try Data(contentsOf: dir.appendingPathComponent("Data/data." + d)))
         let text = String(decoding: stored[12...], as: UTF8.self)
@@ -125,7 +116,6 @@ import Testing
 }
 
 @Suite struct CoverageSummaryTests {
-    /// The summary swiftcodebuild writes for the IDE's Coverage page.
     @Test func summaryJSON() throws {
         let f = CoverageData.Function(name: "add", lineNumber: 1, executionCount: 1, executableLines: 4, coveredLines: 3)
         let file = CoverageData.File(path: "/p/Sources/Calc/Calc.swift", functions: [f], lines: [])

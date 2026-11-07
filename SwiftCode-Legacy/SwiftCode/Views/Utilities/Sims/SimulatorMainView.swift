@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Native Simulator Window Manager
 @MainActor
 public final class SimulatorWindowManager: NSObject, NSWindowDelegate {
     public static let shared = SimulatorWindowManager()
@@ -29,7 +28,6 @@ public final class SimulatorWindowManager: NSObject, NSWindowDelegate {
     }
 }
 
-// MARK: - Native Simulator Window Controller
 @MainActor
 public class SimulatorWindowController: NSWindowController {
     public init() {
@@ -78,12 +76,10 @@ public struct SimulatorMainView: View {
         NavigationStack {
             AdaptivePage {
                 VStack(spacing: 0) {
-                    // Header Toolbar Action Control Group
                     headerToolbarView
 
                     Divider()
 
-                    // Main View Content Workspace
                     mainWorkspaceView
                 }
             }

@@ -1,24 +1,15 @@
-// Keyboard usages for the portable viewers (USB HID Usage Tables §10, page
-// 7). SDL's scancodes are defined as the HID keyboard usages (SDL3
-// SDL_scancode.h: "The values in this enumeration are based on the USB usage
-// page standard"), so a scancode in 4…0xE7 is sent as is; the guest applies
-// its own keyboard layout. `usages(for:)` types US-layout text (scripts).
-
 import Foundation
 
 public enum HIDKeys {
     public static let keyboardPage: UInt16 = 7
     public static let leftShift: UInt16 = 0xE1
 
-    /// An SDL scancode → the usage to send, nil for none (0–3 are "no
-    /// event"/errors; above 0xE7 are SDL's own media keys).
     public static func usage(sdlScancode s: Int32) -> UInt16? {
         (4...0xE7).contains(s) ? UInt16(s) : nil
     }
 
     public static func isModifier(_ usage: UInt16) -> Bool { (0xE0...0xE7).contains(usage) }
 
-    /// A character of US text → (usage, shift).
     public static func usage(for ch: Character) -> (usage: UInt16, shift: Bool)? {
         guard let a = ch.asciiValue else { return nil }
         switch a {
@@ -42,8 +33,6 @@ public enum HIDKeys {
         return nil
     }
 
-    /// Key events (usage, down) that type `text`; characters without a
-    /// US-layout key are skipped.
     public static func events(typing text: String) -> [(usage: UInt16, down: Bool)] {
         var out: [(UInt16, Bool)] = []
         for ch in text {

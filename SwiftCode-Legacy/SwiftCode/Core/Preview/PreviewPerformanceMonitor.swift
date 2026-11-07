@@ -11,11 +11,10 @@ public final class PreviewPerformanceMonitor {
     public var totalRenders: Int = 0
     public var cacheHitRate: Double = 0.0
 
-    // Enhanced metrics for production diagnostics
     public var runtimeStartupTime: Double = 0.0
     public var sessionLifetime: Double = 0.0
-    public var memoryUsage: Double = 0.0 // in MBs
-    public var cpuUsage: Double = 0.0 // in percentage
+    public var memoryUsage: Double = 0.0
+    public var cpuUsage: Double = 0.0
     public var renderingFailures: Int = 0
     public var runtimeExceptions: Int = 0
 
@@ -52,7 +51,6 @@ public final class PreviewPerformanceMonitor {
         sessionStartTime = Date()
         runtimeExceptions = 0
         renderingFailures = 0
-        // Simulate background system resource observation
         memoryUsage = Double.random(in: 45.0...120.0)
         cpuUsage = Double.random(in: 1.5...12.0)
     }

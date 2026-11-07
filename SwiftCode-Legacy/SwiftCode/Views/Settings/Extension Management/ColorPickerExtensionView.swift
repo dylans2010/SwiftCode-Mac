@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Color Picker Extension View
 struct ColorPickerExtensionView: View {
     @State private var showInlineSwatches = true
     @State private var colorFormat = "hex"

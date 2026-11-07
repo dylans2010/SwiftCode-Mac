@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// visionOS R1 (specs/simulator/visionos.md §3, §7.1 V-1…V-4, §7.2 R1): the
-/// Apple Vision Pro record, runtime detection by `ProductName`, the type and
-/// runtime platform must agree, SwiftCode's guest images are retagged for the
-/// visionOS simulator platform, and the iPhone Duo's output is unchanged.
 struct VisionDeviceTypeTests {
     static func runtimeRoot(_ path: String, productName: String?, version: String, build: String) throws {
         let dir = path + "/System/Library/CoreServices"
@@ -15,9 +11,6 @@ struct VisionDeviceTypeTests {
         try DeviceTypeTests.xml(plist).write(to: URL(fileURLWithPath: dir + "/SystemVersion.plist"))
     }
 
-    /// A minimal thin arm64 dylib image: header, one LC_BUILD_VERSION
-    /// (platform 7, minos 27.0, sdk 27.1, no tools), one LC_ID_DYLIB-sized
-    /// filler command, some payload.
     static func image(signed: Bool = false) -> Data {
         var b: [UInt8] = []
         func u32(_ v: UInt32) { for i in 0..<4 { b.append(UInt8(truncatingIfNeeded: v >> (8 * i))) } }
@@ -29,8 +22,6 @@ struct VisionDeviceTypeTests {
         b += Array(repeating: 0xAB, count: 64)
         return Data(b)
     }
-
-    // MARK: The record (V-1, §3.3)
 
     @Test func visionProRecord() throws {
         let t = try #require(DeviceType.named("vision-pro"))
@@ -89,8 +80,6 @@ struct VisionDeviceTypeTests {
         }
     }
 
-    // MARK: Environment and bootstrap (V-3, §3.4)
-
     @Test func visionProEnvironment() throws {
         let fm = FileManager.default
         let dev = DeviceTypeTests.tempDir("vision"), rr = dev + "-rr"
@@ -111,7 +100,6 @@ struct VisionDeviceTypeTests {
         #expect(c["SIMULATOR_VERSION_INFO"]
             == "SwiftCode - Device: SwiftCode (11111111-2222-3333-4444-555555555555) - Runtime: visionOS 27.0 (24M362) - DeviceType: RealityDevice14,1")
         #expect(c["SWIFTCODE_FRAMEBUFFER_DISPLAY_UID"] == "731F1373-97EF-4DCA-BC31-14C516B3E06F")
-        // The iPhone's set minus the two extended-display variables, plus SwiftCode's display id.
         var phone = layout
         phone.deviceType = .iPhoneDuo
         #expect(Set(phone.child.keys).subtracting(c.keys) == Set<String>(["SIMULATOR_EXTENDED_DISPLAY_PROPERTIES", "IPHONE_TVOUT_EXTENDED_PROPERTIES",
@@ -122,8 +110,6 @@ struct VisionDeviceTypeTests {
         #expect(fm.contents(atPath: layout.deviceTypePath) == Data("vision-pro\n".utf8))
         #expect(fm.contents(atPath: layout.capabilitiesPath) == (try DeviceTypeTests.xml(DeviceCapabilities.plist(for: .visionPro))))
     }
-
-    // MARK: Type and runtime platform agree (V-1, V-2)
 
     @Test func platformMismatchIsRefused() throws {
         let fm = FileManager.default
@@ -148,8 +134,6 @@ struct VisionDeviceTypeTests {
         }
     }
 
-    /// A Vision Pro device cannot later boot as an iPhone on the same runtime
-    /// (and vice versa): the recorded type and the platform both refuse it.
     @Test func visionDeviceKeepsItsType() throws {
         let fm = FileManager.default
         let base = DeviceTypeTests.tempDir("vkeep")
@@ -162,14 +146,11 @@ struct VisionDeviceTypeTests {
         v.lean = nil
         v.templatePath = nil
         try v.prepare()
-        // The same DEV on the iOS runtime as an iPhone: the recorded type refuses it.
         var p = DeviceLayout(dev: base + "/dev", runtimeRoot: ios, udid: nil, jobPaths: [])
         p.lean = nil
         p.templatePath = nil
         #expect(throws: DeviceTypeMismatch.self) { try p.prepare() }
     }
-
-    // MARK: Guest images for the visionOS simulator platform
 
     @Test func retagRewritesOnlyTheBuildVersion() throws {
         let original = Self.image()
@@ -182,7 +163,6 @@ struct VisionDeviceTypeTests {
         #expect(out.count == original.count)
         #expect(GuestImagePlatform.platform(of: out) == 12)
         let diff = zip(original, out).enumerated().filter { $0.element.0 != $0.element.1 }.map(\.offset)
-        // platform (offset 40) and sdk (offset 48); minos was already 27.0.
         #expect(Set(diff).isSubset(of: Set(40..<52)))
         #expect(throws: GuestImagePlatform.Failure.self) {
             try GuestImagePlatform.retagged(Self.image(signed: true), platform: 12, minOS: v, sdk: v)
@@ -219,7 +199,6 @@ struct VisionDeviceTypeTests {
             #expect(GuestImagePlatform.platform(of: hid) == platform)
             if platform == 7 { #expect(fb == image && hid == image, "iOS: the copies are the built files, byte for byte") }
         }
-        // A host-library copy is refreshed only when it differs.
         let target = base + "/hl/libsystem_kernel.dylib"
         _ = try GuestImagePlatform.adaptedCopy(of: src + "/SimFramebuffer", to: target, for: .visionOS, version: "27.0")
         let first = try fm.attributesOfItem(atPath: target)[.systemFileNumber] as? Int
@@ -227,11 +206,6 @@ struct VisionDeviceTypeTests {
         #expect(try fm.attributesOfItem(atPath: target)[.systemFileNumber] as? Int == first)
     }
 
-    // MARK: iPhone Duo unchanged on an iOS runtime that names itself
-
-    /// With a `ProductName` in the iOS runtime's SystemVersion.plist, the
-    /// iPhone Duo's environment is the one DeviceTypeTests checks without
-    /// it: same keys, "Runtime: iOS", no display id variable.
     @Test func iPhoneUnchangedWithProductName() throws {
         let fm = FileManager.default
         let dev = DeviceTypeTests.tempDir("iphone-pn"), rr = dev + "-rr", rr2 = dev + "-rr2"
@@ -243,11 +217,9 @@ struct VisionDeviceTypeTests {
         a.lean = nil
         b.lean = nil
         #expect(a.runtimePlatform() == .iOS)
-        // Everything but the runtime root's own path is the same.
         let strip: ([String: String]) -> [String: String] = { $0.mapValues { $0.replacingOccurrences(of: rr2, with: "RR").replacingOccurrences(of: rr, with: "RR") } }
         #expect(strip(a.child) == strip(b.child))
         #expect(a.child["SWIFTCODE_FRAMEBUFFER_DISPLAY_UID"] == nil)
-        // The R1 diagnostics add nothing unless the host asks for them.
         if ProcessInfo.processInfo.environment["SWIFTCODE_FRAMEBUFFER_CALLS"] == nil,
            ProcessInfo.processInfo.environment["SWIFTCODE_CHILD_ENV"] == nil {
             #expect(a.child["SWIFTCODE_FRAMEBUFFER_CALLS"] == nil)

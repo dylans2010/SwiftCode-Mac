@@ -1,6 +1,3 @@
-// ljprobe: our own probe (Ycode stage 9, agent J): asks launchd about pids
-// through AppServerSupport's OSLaunchdJob (class and selectors by name):
-// +copyJobWithPid:, -getCurrentJobInfo. Also by process name.
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>

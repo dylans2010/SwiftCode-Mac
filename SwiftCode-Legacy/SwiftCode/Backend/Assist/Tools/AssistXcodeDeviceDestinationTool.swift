@@ -1,8 +1,3 @@
-//
-//  AssistXcodeDeviceDestinationTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistXcodeDeviceDestinationTool: AssistTool {

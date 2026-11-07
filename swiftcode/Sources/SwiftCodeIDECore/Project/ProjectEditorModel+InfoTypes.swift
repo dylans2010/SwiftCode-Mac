@@ -2,29 +2,17 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-// The Info tab's type sections: the model half; the views are in SwiftCodeUI (InfoTypeSections.swift).
-
-/// The Info tab's type sections (reference-ui-3.md §1.7): Document Types,
-/// Exported and Imported Type Identifiers and URL Types, read from and
-/// written to the target's Info.plist file. A target with a generated
-/// Info.plist (`GENERATE_INFOPLIST_FILE = YES`, `INFOPLIST_KEY_*`) and no
-/// `INFOPLIST_FILE` has no entries; adding the first one creates
-/// `<Target>/Info.plist` holding only the type keys, references it from the
-/// main group and sets `INFOPLIST_FILE`. The build merges that file with the
-/// generated keys (build-pif.md), so generation stays on.
 extension ProjectEditorModel {
     public static let infoTypeKeys: [(title: String, key: String)] = [
         ("Document Types", "CFBundleDocumentTypes"), ("Exported Type Identifiers", "UTExportedTypeDeclarations"),
         ("Imported Type Identifiers", "UTImportedTypeDeclarations"), ("URL Types", "CFBundleURLTypes"),
     ]
 
-    /// The key in each entry that names it in its row.
     static let infoTypeNameKeys = [
         "CFBundleDocumentTypes": "CFBundleTypeName", "UTExportedTypeDeclarations": "UTTypeIdentifier",
         "UTImportedTypeDeclarations": "UTTypeIdentifier", "CFBundleURLTypes": "CFBundleURLName",
     ]
 
-    /// A new entry's keys (public Info.plist key reference).
     static func newInfoTypeEntry(_ key: String) -> PropertyListItem {
         switch key {
         case "CFBundleDocumentTypes":
@@ -44,13 +32,11 @@ extension ProjectEditorModel {
         return file.hasPrefix("/") ? URL(fileURLWithPath: file) : proj.projectDirectory(xcodeprojURL: xcodeprojURL).appendingPathComponent(file)
     }
 
-    /// The entries of one type section (an Info.plist array key).
     public func infoTypeEntries(_ key: String, target: String, configuration: String) -> [PropertyListItem] {
         if case .array(let a)? = infoDictionary(target: target, configuration: configuration).first(where: { $0.key == key })?.value { return a }
         return []
     }
 
-    /// The row title of an entry: its name key, or "Untitled".
     public static func infoTypeEntryName(_ entry: PropertyListItem, key: String) -> String {
         if case .dictionary(let d) = entry, let n = infoTypeNameKeys[key],
            case .string(let s)? = d.first(where: { $0.key == n })?.value, !s.isEmpty { return s }
@@ -59,14 +45,10 @@ extension ProjectEditorModel {
 
     public enum InfoTypeError: Error { case noInfoPlistFile }
 
-    /// The target generates its Info.plist from build settings.
     public func generatesInfoPlist(target: String, configuration: String) -> Bool {
         resolve(target: target, configuration: configuration)?.settings["GENERATE_INFOPLIST_FILE"].uppercased() == "YES"
     }
 
-    /// For a generated Info.plist without a file: creates
-    /// `<Target>/Info.plist` (an empty dictionary), references it and sets
-    /// `INFOPLIST_FILE` for every configuration of the target.
     mutating func createInfoPlistFile(target: String) throws -> URL {
         let rel = "\(target)/Info.plist"
         let url = proj.projectDirectory(xcodeprojURL: xcodeprojURL).appendingPathComponent(rel)
@@ -79,8 +61,6 @@ extension ProjectEditorModel {
         return url
     }
 
-    /// Replaces a section's entries in the Info.plist file; an empty list
-    /// removes the key.
     public mutating func setInfoTypeEntries(_ key: String, _ entries: [PropertyListItem], target: String, configuration: String) throws {
         let url: URL
         if let u = infoPlistURL(target: target, configuration: configuration) {

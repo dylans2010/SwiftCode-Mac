@@ -1,20 +1,7 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Features/AdvancedTools/Views/DocumentationAIInsightsView.swift
-//
-// Adapted for SwiftCode: production's `DocumentationAnalyzer`
-// (`SwiftCodeIDECore/Assistant/DocumentationAnalyzer.swift`) has
-// no `.shared` — it is built with an injected `AssistantProvider`
-// and model, and it is `@Observable`, not `ObservableObject`.
-// The analyzer is therefore injected (W1 wires the presenter;
-// see DISPOSITIONS.md) instead of `DocumentationAnalyzer.shared`.
-// `AIInsightResults`, `MarkdownBlockListView`, `MarkdownParser`
-// and `.liquidGlass` all already exist in the destination.
-
 import SwiftCodeIDECore
 import SwiftUI
 
 public struct DocumentationAIInsightsView: View {
-    /// Injected: production's `DocumentationAnalyzer` has no `.shared`.
     public let analyzer: DocumentationAnalyzer
     @Environment(\.dismiss) private var dismiss
 
@@ -77,7 +64,6 @@ public struct DocumentationAIInsightsView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Retry") {
-                // Retry logic if needed, currently analyzer holds state
             }
             .buttonStyle(.bordered)
         }

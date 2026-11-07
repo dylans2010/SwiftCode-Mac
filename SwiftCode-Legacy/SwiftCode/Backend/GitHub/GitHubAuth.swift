@@ -4,7 +4,6 @@ final class GitHubAuth: @unchecked Sendable {
     static let shared = GitHubAuth()
     private init() {}
 
-
     var token: String? {
         KeychainService.shared.get(forKey: KeychainService.githubToken)
     }
@@ -39,8 +38,6 @@ final class GitHubAuth: @unchecked Sendable {
         return request
     }
 }
-
-// MARK: - Errors
 
 enum GitHubAuthError: LocalizedError {
     case missingToken

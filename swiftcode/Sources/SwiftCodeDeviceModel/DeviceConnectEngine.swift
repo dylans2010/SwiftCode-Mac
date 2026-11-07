@@ -6,25 +6,6 @@ import Darwin
 import Glibc
 #endif
 
-/// The DeviceConnectKit engine layer, ported from Legacy
-/// (`SwiftCode/Views/Build/DeviceConnectKit/Core/`): discovery,
-/// the deploy pipeline, environment validation, runtime monitoring,
-/// sessions, and the notification names.
-///
-/// Two deviations from Legacy, both recorded here:
-/// - `DeploymentPipeline` no longer calls
-///   `XcodeBuildAPI.shared.determineAppBundleURL()` — that Legacy
-///   type is not in this slice. The bundle is located by the
-///   products-directory scan Legacy already used as its fallback.
-/// - Its first stage no longer sleeps 0.5s while claiming to save
-///   the project: this pipeline never saved anything. Saving is the
-///   host's job before deploying; the stage now says so.
-/// - `RuntimeCoordinator` no longer fabricates random CPU/memory
-///   numbers. It probes real liveness with `kill(pid, 0)` and
-///   reports `DeviceMetrics.unavailable` (`isAvailable == false`)
-///   for the values it cannot read. There is no supported API for
-///   per-process CPU/memory of an app on a tethered device from this
-///   layer.
 public actor DeviceConnectCommandExecutor {
     public static let shared = DeviceConnectCommandExecutor()
 
@@ -78,12 +59,9 @@ public actor DeploymentPipeline {
 
         let start = Date()
 
-        // Stage 1: Save Project. This pipeline does not save files:
-        // the host must save the workspace before deploying.
         onStateUpdate(.savingProject, "Saving project changes...")
         onLogUpdate("Save the workspace before deploying: this pipeline builds the files on disk as they are.")
 
-        // Stage 2: Validate Environment
         onStateUpdate(.validatingEnvironment, "Validating environment...")
         onLogUpdate("Running ValidateEnvironmentCommand...")
         do {
@@ -99,15 +77,12 @@ public actor DeploymentPipeline {
             return false
         }
 
-        // Stage 3: Resolve Build Target
         onStateUpdate(.resolvingBuildTarget, "Resolving build target...")
         onLogUpdate("Setting target destination to: id=\(device.udid)")
 
-        // Stage 4: Resolve Signing
         onStateUpdate(.resolvingSigning, "Resolving signing configuration...")
         onLogUpdate("Validating apple developer signing certificates...")
 
-        // Stage 5: Build Project
         onStateUpdate(.buildingProject, "Building project...")
         onLogUpdate("Running BuildProjectCommand...")
         let buildSuccess = try? await BuildProjectCommand().execute(
@@ -124,7 +99,6 @@ public actor DeploymentPipeline {
             return false
         }
 
-        // Stage 6: Validate Build
         onStateUpdate(.validatingBuild, "Validating build artifacts...")
         var effectiveAppBundleURL = appBundleURL
         let fm = FileManager.default
@@ -150,7 +124,6 @@ public actor DeploymentPipeline {
 
         onLogUpdate("Located compiled app bundle at \(effectiveAppBundleURL.path)")
 
-        // Stage 7: Install Application
         onStateUpdate(.installingApplication, "Installing application...")
         onLogUpdate("Running InstallApplicationCommand...")
         let installSuccess = try? await InstallApplicationCommand().execute(
@@ -165,7 +138,6 @@ public actor DeploymentPipeline {
             return false
         }
 
-        // Stage 8: Launch Application
         onStateUpdate(.launchingApplication, "Launching application...")
         onLogUpdate("Running LaunchApplicationCommand...")
         let pid = try? await LaunchApplicationCommand().execute(
@@ -179,11 +151,9 @@ public actor DeploymentPipeline {
             return false
         }
 
-        // Stage 9: Begin Runtime Monitoring
         onStateUpdate(.running, "Application running.")
         onLogUpdate("Application launched with PID \(actualPID). Starting runtime monitors...")
 
-        // Stage 10: Begin Log Streaming
         onLogUpdate("Streaming syslog Console output...")
 
         let end = Date()
@@ -254,9 +224,6 @@ public actor DeviceDiscovery {
                     let devices = try await DiscoverDevicesCommand().execute()
                     onDiscover(devices)
                 } catch {
-                    // Discovery failures are silent by design: an
-                    // empty list is the "no devices" state, and the
-                    // next poll retries.
                 }
 
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
@@ -301,7 +268,7 @@ public final class DeviceConnectNotificationCenter: Sendable {
 }
 
 public actor RuntimeCoordinator {
-    private var monitoringTasks: [String: Task<Void, Never>] = [:] // deviceUDID: Task
+    private var monitoringTasks: [String: Task<Void, Never>] = [:]
 
     public init() {}
 
@@ -310,8 +277,6 @@ public actor RuntimeCoordinator {
 
         monitoringTasks[deviceUDID] = Task { [deviceUDID, bundleID, pid, onStateChanged, onMetrics] in
             onStateChanged(.running)
-            // One honest reading up front: liveness is real, the
-            // numbers are not available from this layer.
             onMetrics(.unavailable)
 
             while !Task.isCancelled {
@@ -329,9 +294,6 @@ public actor RuntimeCoordinator {
         monitoringTasks.removeValue(forKey: deviceUDID)
     }
 
-    /// `kill(pid, 0)` probes existence without signalling: 0 means
-    /// the process exists, `EPERM` means it exists but is owned by
-    /// someone else, anything else means it is gone.
     private static func processIsAlive(pid: Int32) -> Bool {
 #if canImport(Darwin) || canImport(Glibc)
         if kill(pid, 0) == 0 { return true }

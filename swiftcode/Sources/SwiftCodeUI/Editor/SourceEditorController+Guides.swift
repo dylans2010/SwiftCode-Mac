@@ -1,12 +1,7 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Editor ▸ Scope Guides and Editor ▸ Invisibles (`specs/ide/source-editor.md`,
-/// "SwiftCode implementation"): drawn under the text from the structure model
-/// and the laid-out line fragments.
 extension SourceEditorController {
-    /// Recomputes the scope guides' blocks (with the folds: after typing
-    /// pauses in large files).
     func updateScopeGuides() {
         guard Preferences.shared.scopeGuides != .none, fileURL != nil else {
             if !syntax.scopeBlocks.isEmpty { syntax.scopeBlocks = [] }
@@ -16,7 +11,6 @@ extension SourceEditorController {
         textView.needsDisplay = true
     }
 
-    /// The blocks the scope guides draw (0-based lines; tests).
     public var scopeGuideBlocks: [SyntaxBlock] { syntax.scopeBlocks }
 }
 
@@ -27,15 +21,12 @@ extension SourceTextView {
         if p.showInvisibles { drawInvisibles(in: rect) }
     }
 
-    /// A thin vertical line from below each block's first line to above
-    /// its last, at the column where the first line's text starts.
     func drawScopeGuides(_ blocks: [SyntaxBlock], in rect: NSRect) {
         let width = ("0" as NSString).size(withAttributes: [.font: Theme.font]).width
         let x0 = textContainerOrigin.x + (textContainer?.lineFragmentPadding ?? 0)
         let ns = string as NSString
         NSColor.tertiaryLabelColor.withAlphaComponent(0.35).setFill()
         for b in blocks {
-            // LineIndex lines are 1-based.
             guard let top = lineRect(b.startLine + 1), let bottom = lineRect(b.endLine + 1) else { continue }
             let guide = NSRect(x: 0, y: top.maxY, width: 1, height: bottom.minY - top.maxY)
             guard guide.height > 0, guide.minY < rect.maxY, guide.maxY > rect.minY else { continue }
@@ -50,7 +41,6 @@ extension SourceTextView {
         }
     }
 
-    /// `·` for spaces, `→` for tabs, `¬` at line ends, in the visible lines.
     func drawInvisibles(in rect: NSRect) {
         guard let tlm = textLayoutManager, let tcm = tlm.textContentManager,
               let viewport = tlm.textViewportLayoutController.viewportRange else { return }

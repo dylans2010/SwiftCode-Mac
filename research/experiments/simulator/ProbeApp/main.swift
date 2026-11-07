@@ -1,4 +1,3 @@
-// Ycode simulator probe: reports what the simulator gives a launched app.
 import UIKit
 import MachO
 

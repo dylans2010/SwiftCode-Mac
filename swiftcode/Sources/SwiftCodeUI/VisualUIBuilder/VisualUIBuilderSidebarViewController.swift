@@ -1,18 +1,14 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderSidebarViewController.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 import AppKit
 import SwiftUI
 
-// MARK: - Native Sidebar Selection state for Visual UI Builder
 @Observable
 @MainActor
 public final class VisualUIBuilderSidebarState {
     public static let shared = VisualUIBuilderSidebarState()
-    public var selectedIndex: Int = 0 // 0 = Library, 1 = Hierarchy
+    public var selectedIndex: Int = 0
     private init() {}
 }
 
-// MARK: - Visual UI Builder Sidebar Node
 public final class VisualUIBuilderSidebarNode: NSObject {
     public let title: String
     public let icon: String?
@@ -28,7 +24,6 @@ public final class VisualUIBuilderSidebarNode: NSObject {
     }
 }
 
-// MARK: - Native Left Sidebar View Controller for Visual UI Builder
 public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     public let document: VisualUIDocument
 
@@ -55,7 +50,6 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
         rootVisualEffectView.state = .active
         rootVisualEffectView.autoresizingMask = [.width, .height]
 
-        // 1. Setup outline view for category switcher
         let scroll = NSScrollView()
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
@@ -82,18 +76,16 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
 
         rootVisualEffectView.addSubview(scroll)
 
-        // 2. Setup dynamic hosting content container below the switcher
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
         rootVisualEffectView.addSubview(container)
         self.contentContainer = container
 
-        // Setup constraints (OutlineView on top, ContentContainer taking the rest)
         NSLayoutConstraint.activate([
             scroll.leadingAnchor.constraint(equalTo: rootVisualEffectView.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: rootVisualEffectView.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: rootVisualEffectView.topAnchor, constant: 40),
-            scroll.heightAnchor.constraint(equalToConstant: 120), // Compact switcher on top
+            scroll.heightAnchor.constraint(equalToConstant: 120),
 
             container.leadingAnchor.constraint(equalTo: rootVisualEffectView.leadingAnchor),
             container.trailingAnchor.constraint(equalTo: rootVisualEffectView.trailingAnchor),
@@ -110,7 +102,6 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
             for group in nodes {
                 outline.expandItem(group)
             }
-            // Select Library (row index 1 because row 0 is Group Header "COMPONENTS")
             outline.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
         }
         updateHostedContent()
@@ -126,14 +117,11 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
         return [group]
     }
 
-    // MARK: - Dynamic Swappable Content Management
     private func updateHostedContent() {
         guard let container = contentContainer else { return }
 
-        // Remove old hosting view if any
         hostingView?.removeFromSuperview()
 
-        // Create new SwiftUI content view based on selection
         let selectedIndex = VisualUIBuilderSidebarState.shared.selectedIndex
         let swiftUIView: AnyView
         if selectedIndex == 0 {
@@ -153,7 +141,6 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
             )
         }
 
-        // Host SwiftUI inside NSHostingView
         let newHostingView = NSHostingView(rootView: swiftUIView)
         newHostingView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(newHostingView)
@@ -166,8 +153,6 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
             newHostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])
     }
-
-    // MARK: - NSOutlineViewDataSource
 
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
@@ -193,8 +178,6 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
         }
         return false
     }
-
-    // MARK: - NSOutlineViewDelegate
 
     public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
         if let node = item as? VisualUIBuilderSidebarNode {
@@ -266,7 +249,6 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
     }
 }
 
-// MARK: - Native Sidebar Custom Cell
 class VisualUIBuilderSidebarCellView: NSTableCellView {
     let iconView = NSImageView()
 

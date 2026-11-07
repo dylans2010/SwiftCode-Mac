@@ -3,7 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// JSON Schema 2020-12 fragments for tool definitions.
 enum Schema {
     static func object(_ properties: [String: AnyJSON], required: [String] = []) -> AnyJSON {
         ["type": "object", "properties": .object(properties), "required": .strings(required), "additionalProperties": false]
@@ -22,7 +21,6 @@ enum Schema {
     static func array(_ items: AnyJSON, _ description: String) -> AnyJSON {
         ["type": "array", "items": items, "description": .string(description)]
     }
-    /// An output schema: an object whose listed properties are required.
     static func output(_ properties: [String: AnyJSON]) -> AnyJSON {
         ["type": "object", "properties": .object(properties), "required": .strings(properties.keys.sorted())]
     }
@@ -35,7 +33,6 @@ enum Schema {
 }
 
 extension SwiftCodeMCPHost {
-    /// The server's instructions (what an agent reads first).
     public static let instructions = """
     SwiftCode's tools for Apple-platform and Swift projects (Swift packages, .xcodeproj, .xcworkspace), on macOS and Linux. \
     Start with workspace_open (or workspace_describe when one is open). Typical loop: build → issues → file_read → \
@@ -45,7 +42,6 @@ extension SwiftCodeMCPHost {
     remote Linux host (when one is set up); simulator_screenshot returns an image.
     """
 
-    /// Every SwiftCode tool, in the order `tools/list` shows them.
     func installTools() {
         server.instructions = Self.instructions
         server.resources = SwiftCodeResources(host: self)
@@ -61,7 +57,6 @@ extension SwiftCodeMCPHost {
             + agenticCLITools + agenticCodeTools + agenticDataTools + agenticPlanningTools
     }
 
-    /// A tool whose handler runs on the main actor.
     func tool(_ name: String, _ title: String, _ description: String, input: AnyJSON, output: AnyJSON? = nil,
               annotations: MCPToolAnnotations = .read, writes: Bool = false,
               _ body: @escaping @MainActor (SwiftCodeMCPHost, MCPToolCall) async throws -> MCPToolResult) -> MCPTool {

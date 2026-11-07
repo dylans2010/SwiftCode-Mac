@@ -1,7 +1,6 @@
 import Testing
 @testable import HostMac
 
-/// Swift Testing inside HostMac.app (TEST_HOST).
 struct HostMacSwiftTests {
     @Test func addsInTheApp() {
         #expect(Arithmetic.add(2, 3) == 5)

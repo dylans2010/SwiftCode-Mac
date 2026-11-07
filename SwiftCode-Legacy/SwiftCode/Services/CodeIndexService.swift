@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Code Indexing Service
-
 @MainActor
 final class CodeIndexService: ObservableObject {
     static let shared = CodeIndexService()
@@ -10,8 +8,6 @@ final class CodeIndexService: ObservableObject {
     @Published var isIndexing = false
 
     private init() {}
-
-    // MARK: - Index Project
 
     func indexProject(at directoryURL: URL) {
         isIndexing = true
@@ -22,13 +18,9 @@ final class CodeIndexService: ObservableObject {
         }
     }
 
-    // MARK: - Index Single File
-
     func indexFile(content: String, filePath: String) -> [IndexEntry] {
         Self.parseSwiftSymbols(in: content, filePath: filePath)
     }
-
-    // MARK: - Search
 
     func searchProject(
         query: String,
@@ -45,8 +37,6 @@ final class CodeIndexService: ObservableObject {
             fileExtension: fileExtension
         )
     }
-
-    // MARK: - Scanning
 
     private static func scanDirectory(_ url: URL) async -> [IndexEntry] {
         let fm = FileManager.default
@@ -67,8 +57,6 @@ final class CodeIndexService: ObservableObject {
 
         return results
     }
-
-    // MARK: - Symbol Parsing
 
     private static func parseSwiftSymbols(in content: String, filePath: String) -> [IndexEntry] {
         var entries: [IndexEntry] = []
@@ -115,8 +103,6 @@ final class CodeIndexService: ObservableObject {
         return entries
     }
 
-    // MARK: - Full Text Search
-
     private static func searchFiles(
         query: String,
         in directoryURL: URL,
@@ -133,7 +119,6 @@ final class CodeIndexService: ObservableObject {
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
-        // Comprehensive list of searchable text file extensions
         let allTextExtensions = Set([
             "swift", "json", "plist", "yml", "yaml", "md", "txt", "xml",
             "html", "css", "js", "ts", "tsx", "jsx", "py", "rb", "go",
@@ -144,7 +129,6 @@ final class CodeIndexService: ObservableObject {
             "dart", "scala", "clj", "ex", "exs", "erl", "hs", "elm"
         ])
 
-        // Build a regex or plain search closure
         let matchLine: (String) -> Bool
         if useRegex {
             let options: NSRegularExpression.Options = caseSensitive ? [] : .caseInsensitive
@@ -154,7 +138,6 @@ final class CodeIndexService: ObservableObject {
                     return regex.firstMatch(in: line, range: range) != nil
                 }
             } else {
-                // Invalid regex — fall back to plain search
                 matchLine = Self.plainMatcher(query: query, caseSensitive: caseSensitive)
             }
         } else {
@@ -163,7 +146,6 @@ final class CodeIndexService: ObservableObject {
 
         while let fileURL = enumerator.nextObject() as? URL {
             let ext = fileURL.pathExtension.lowercased()
-            // Apply file extension filter if set
             if let filterExt = fileExtension {
                 guard ext == filterExt else { continue }
             } else {
@@ -186,7 +168,6 @@ final class CodeIndexService: ObservableObject {
                 }
             }
 
-            // Also match file name itself (only when using plain search)
             if !useRegex {
                 let lname = caseSensitive ? fileName : fileName.lowercased()
                 let lq = caseSensitive ? query : query.lowercased()
@@ -204,7 +185,6 @@ final class CodeIndexService: ObservableObject {
         return results
     }
 
-    /// Returns a closure that checks whether a line contains `query` using plain-text matching.
     private static func plainMatcher(query: String, caseSensitive: Bool) -> (String) -> Bool {
         let lq = caseSensitive ? query : query.lowercased()
         return { line in (caseSensitive ? line : line.lowercased()).contains(lq) }

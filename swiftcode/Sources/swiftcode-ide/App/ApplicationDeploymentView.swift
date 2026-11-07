@@ -1,9 +1,3 @@
-// ApplicationDeploymentView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/ApplicationDeploymentView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: drag-and-drop .app/.ipa deployment onto a simulator; target-device display for deployment
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
@@ -15,7 +9,6 @@ struct ApplicationDeploymentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("App Deployment & Drag-Drop", systemImage: "square.and.arrow.down.fill")
                     .font(.headline)
@@ -24,7 +17,6 @@ struct ApplicationDeploymentView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

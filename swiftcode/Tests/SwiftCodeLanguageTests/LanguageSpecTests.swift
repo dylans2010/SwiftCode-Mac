@@ -3,7 +3,6 @@ import Testing
 import SwiftCodeDebug
 @testable import SwiftCodeLanguage
 
-/// Pure checks of specs/ide/language.md and refactoring.md parsing rules.
 @Suite struct LanguageSpecTests {
     @Test func languageIDs() {
         func id(_ n: String) -> String { LSPClient.languageID(for: URL(fileURLWithPath: "/x/" + n)) }

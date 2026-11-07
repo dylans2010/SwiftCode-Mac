@@ -11,7 +11,6 @@ public struct ParsedPreview: Sendable, Codable, Hashable {
     }
 }
 
-/// Structured Preview target model representing a parsed `#Preview` declaration.
 public struct PreviewTarget: Sendable, Codable, Hashable, Identifiable {
     public var id: String { title }
     public let title: String
@@ -197,11 +196,9 @@ public actor PreviewDiscoveryService {
     public func discoverPreviewTargets(inSourceCode sourceCode: String, filename: String? = nil) async -> [String] {
         logger.info("[BEGIN] Scanning source code for SwiftUI Previews with deterministic precedence")
 
-        // 1. Modern #Preview macro
         let parsed = PreviewBlockParser.parsePreviews(in: sourceCode)
         let modernPreviews = parsed.map { $0.title }
 
-        // 2. Legacy PreviewProvider protocol
         var legacyPreviews: [String] = []
         if let regexLegacy = try? NSRegularExpression(pattern: #"struct\s+(\w+)\s*:\s*PreviewProvider"#, options: []) {
             let nsStr = sourceCode as NSString
@@ -213,7 +210,6 @@ public actor PreviewDiscoveryService {
             }
         }
 
-        // 3. Bare View conforming types
         var bareViews: [String] = []
         let pattern = #"struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:[^\{]*\s+)?View\b"#
         if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
@@ -243,8 +239,6 @@ public actor PreviewDiscoveryService {
         return result
     }
 }
-
-// MARK: - Swift View Detector Helper
 
 public struct SwiftViewDetector {
     public static func detectViews(in sourceCode: String) -> [String] {
@@ -293,7 +287,6 @@ public struct SwiftViewDetector {
         }
 
         let previewBlock = """
-
 
 #Preview {
     \(primaryView)()

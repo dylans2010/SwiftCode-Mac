@@ -3,55 +3,16 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy archive and data tools (Wave 5), each driven
-/// black-box through the server's real write-policy path against a
-/// copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistZipFileTool`,
-/// `AssistUnzipFileTool`, `AssistTarArchiveCreateTool`,
-/// `AssistTarArchiveExtractTool`, `AssistGzipCompressTool`,
-/// `AssistGzipDecompressTool` (`AssistArchiveTools.swift`),
-/// `AssistBinaryPlistConverterTool`,
-/// `AssistJsonValidateTool`, `AssistJSONValidatorTool`,
-/// `AssistYAMLParserTool`, `AssistYamlValidateTool` — Dylan's own
-/// code, ported under MIT.
-///
-/// Assertions are on the tool RESULT (message + on-disk state),
-/// never on internals. Messages quoted verbatim are Legacy's; where
-/// the SwiftCode port may legitimately word a failure differently
-/// (path-safety wording, the Linux `zip`/`unzip` tool names), the
-/// test asserts the behaviour plus a tolerant message match.
-///
-/// Platform notes: this machine has no Swift toolchain and the
-/// tests run on Linux here, so `zip_file` / `unzip_file` exercise
-/// the Linux `zip` / `unzip` path, not the macOS `ditto` path —
-/// the `ditto` path stays pending verification on Dylan's Mac (see
-/// the Wave 5 report). `binary_plist_converter` runs the
-/// `PropertyListSerialization` round-trip on both platforms.
 @MainActor
 @Suite(.serialized) struct SwiftCodeArchiveDataTests {
-    /// The 6 Wave 5 archive tool IDs, verified live from the Legacy
-    /// registry (`AssistToolRegistry.registerAllTools` + each
-    /// tool's `id`).
     static let archiveIDs = ["gzip_compress_file", "gzip_decompress_file", "tar_archive_create",
                              "tar_archive_extract", "unzip_file", "zip_file"]
-    /// The 5 Wave 5 data tool IDs, verified live from the Legacy
-    /// registry.
     static let dataIDs = ["binary_plist_converter", "json_validate", "json_validator_tool",
                           "yaml_parser_tool", "yaml_validate"]
 
-    /// Opens a copy of Greeter and installs the ported archive and
-    /// data tools on the server (same shape as Wave 2's `opened`;
-    /// the coordinator wires `archiveTools` and `dataTools` into
-    /// `installTools()`). Defaults to `.allow`: every archive tool
-    /// and four of the five data tools are `writes: true`, so the
-    /// read-only policy refuses them before they run.
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` may already
-        // wire `archiveTools` / `dataTools`, so a plain `+=` would
-        // register them twice.
         let ported = Set(host.archiveTools.map(\.name) + host.dataTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.archiveTools + host.dataTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -59,7 +20,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -103,8 +63,6 @@ import SwiftCodeAssistant
             "json_validate": ["path", "valid", "written"], "json_validator_tool": [],
             "yaml_parser_tool": [], "yaml_validate": ["heuristic", "path", "valid", "written"],
         ]
-        // Legacy risk → annotations: only `yaml_parser_tool` is
-        // read-only; everything else here is a safeMutation write.
         for tool in archiveTools + dataTools {
             #expect(tool.title == expectedTitles[tool.name])
             #expect(tool.inputSchema["properties"]?["workspace"] != nil, "\(tool.name) is missing the workspace parameter")
@@ -121,8 +79,6 @@ import SwiftCodeAssistant
             }
         }
     }
-
-    // MARK: - Archive: zip / unzip
 
     @Test func zipAndUnzipRoundTrip() async throws {
         let sample = try TempSample()
@@ -191,8 +147,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("Archive file not found at: nope.zip"))
     }
 
-    // MARK: - Archive: tar
-
     @Test func tarGzipRoundTrip() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -238,8 +192,6 @@ import SwiftCodeAssistant
         #expect(r2.isToolError)
         #expect(r2.firstText.contains("Archive not found at: nope.tar"))
     }
-
-    // MARK: - Archive: gzip
 
     @Test func gzipRoundTripWithDefaults() async throws {
         let sample = try TempSample()
@@ -312,8 +264,6 @@ import SwiftCodeAssistant
         #expect(!fileExists(sample, "a.zip"))
     }
 
-    // MARK: - Data: binary plist
-
     @Test func binaryPlistRoundTrip() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -373,8 +323,6 @@ import SwiftCodeAssistant
         #expect(invalid.isToolError)
         #expect(invalid.firstText.contains("Failed to read plist at `bad.plist`"))
     }
-
-    // MARK: - Data: json_validate
 
     @Test func jsonValidateValidAndInvalid() async throws {
         let sample = try TempSample()
@@ -438,8 +386,6 @@ import SwiftCodeAssistant
         #expect(missing.firstText.contains("JSON validation requires an existing file: nope.json"))
     }
 
-    // MARK: - Data: json_validator_tool (the near-duplicate)
-
     @Test func jsonValidatorToolValidReportsTopLevelType() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -457,9 +403,6 @@ import SwiftCodeAssistant
     @Test func jsonValidatorToolRejectsFragmentUnlikeJsonValidate() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // A top-level scalar is valid for `json_validate` (allowFragments)
-        // but invalid for `json_validator_tool` (no options) — the pair's
-        // sharpest behavioural difference.
         try writeFixture(sample, "scalar.json", "42")
         let host = try await opened(sample)
         let validate = try await host.server.callTool("json_validate", ["path": .string("scalar.json")])
@@ -491,8 +434,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError)
         #expect(r.firstText.contains("JSON Validation Error in `bad.json`:"))
     }
-
-    // MARK: - Data: yaml_parser_tool
 
     @Test func yamlParserReportsTabsAndKeys() async throws {
         let sample = try TempSample()
@@ -527,8 +468,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError)
         #expect(r.firstText.contains("File not found at: nope.yml"))
     }
-
-    // MARK: - Data: yaml_validate
 
     @Test func yamlValidatePassesCleanFile() async throws {
         let sample = try TempSample()

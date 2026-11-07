@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// The three-way merge, conflict markers, merge documents, blame and the
-/// Integrate menu's conflict items (`specs/ide/comparison.md` and
-/// `source-control.md`, "SwiftCode implementation").
 struct ThreeWayMergeTests {
     typealias Chunk = ThreeWayMerge.Chunk
 
@@ -50,7 +47,6 @@ struct ThreeWayMergeTests {
         doc.choose(.ours, hunk: 0)
         #expect(doc.step(from: 0, forward: true, unresolvedOnly: true) == 1)
         doc.choose(.ours, hunk: 1)
-        // Hunk 2 is one-sided (resolved by default).
         #expect(doc.step(from: 1, forward: true, unresolvedOnly: true) == nil)
     }
 
@@ -82,7 +78,6 @@ struct ThreeWayMergeTests {
         #expect(ConflictMarkers.hasConflicts(text))
         #expect(!ConflictMarkers.hasConflicts("no markers\n======= not one\n"))
         #expect(ConflictMarkers.parse("<<<<<<< a\nopen\n") == nil)
-        // A line of seven '<' followed by text without a space is not a marker.
         #expect(ConflictMarkers.parse("<<<<<<<x\n")?.chunks.map(\.kind) == [.unchanged])
     }
 
@@ -102,7 +97,6 @@ struct ThreeWayMergeTests {
         let blocks = GitBlame.blocks(lines)
         #expect(blocks.map(\.firstLine) == [1, 2, 3, 4] && blocks.map(\.lineCount) == [1, 1, 1, 1])
 
-        // Unsaved edits: changed lines are not committed yet.
         let edited = try #require(repo.blame(of: s.path("f.txt"), contents: "one\nTWO\nnew line\nnew 2\nthree\nfour\n"))
         #expect(edited.count == 6)
         #expect(edited[2].isUncommitted && edited[3].isUncommitted && !edited[4].isUncommitted)
@@ -114,7 +108,6 @@ struct ThreeWayMergeTests {
         #expect(GitBlame.details(lines[1]).hasPrefix("\(lines[1].shortHash) \u{2014} Second Author <second@swiftcode.invalid>\n"))
         #expect(GitBlame.details(lines[1]).hasSuffix("\n\nSecond"))
 
-        // Not in the history or outside the repository: none.
         try s.write("untracked.txt", "x\n")
         #expect(repo.blame(of: s.path("untracked.txt")) == nil)
         #expect(repo.blame(of: "/etc/hosts") == nil)
@@ -125,7 +118,6 @@ struct ThreeWayMergeTests {
         let d = FileCompare.unifiedDiff(old: "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n", new: "1\nTWO\n3\n4\n5\n6\n7\n8\n9\n10\n11\n",
                                         oldName: "a.txt", newName: "b.txt", context: 1)
         #expect(d == "--- a.txt\n+++ b.txt\n@@ -1,3 +1,3 @@\n 1\n-2\n+TWO\n 3\n@@ -10 +10,2 @@\n 10\n+11\n")
-        // UnifiedDiffLines reads it back with line numbers.
         let parsed = UnifiedDiffLines.parse(String(d[try #require(d.range(of: "@@")).lowerBound...]))
         #expect(parsed.filter { $0.kind == .added }.map(\.new) == [2, 11])
         #expect(parsed.filter { $0.kind == .removed }.map(\.old) == [2])
@@ -146,7 +138,6 @@ struct ThreeWayMergeTests {
         #expect(FileCompare.run([l, r], print: { out += $0 }, error: { err += $0 }) == 1 && out.hasPrefix("--- \(l)\n+++ \(r)\n"))
         out = ""
         #expect(FileCompare.run([l, l], print: { out += $0 }, error: { err += $0 }) == 0 && out.isEmpty)
-        // Changes on neighbouring lines conflict, as in git's merge.
         #expect(ThreeWayMerge.merge(base: ["a", "b", "c"], ours: ["a", "B", "c"], theirs: ["a", "b", "C"]).map(\.kind) == [.unchanged, .conflict])
         #expect(FileCompare.run([l, r, "--ancestor", base], print: { out += $0 }, error: { err += $0 }) == 0 && out == "a\nB\nc\nD\ne\n")
         let merged = folder.appendingPathComponent("merged").path
@@ -162,7 +153,6 @@ struct ThreeWayMergeTests {
         typealias M = SourceControlRowMenu
         func titles(_ key: String, _ ctx: M.Context) -> [String] { M.items(forKey: key, in: ctx).map { $0.action == nil ? "|" : $0.title } }
         let ctx = M.Context(currentBranch: "main", remotes: ["origin"])
-        // The current branch (SwiftCode's choice): no merge group, Pull and Push.
         #expect(titles("branch:main", ctx) == ["Switch to \u{201C}main\u{201D}…", "New Branch from \u{201C}main\u{201D}…",
                                               "Rename \u{201C}main\u{201D}…", "Tag \u{201C}main\u{201D}…", "|",
                                               "New \u{201C}Repository\u{201D} Remote…", "Add Existing Remote…", "Pull…", "Push \u{201C}main\u{201D}…", "|",
@@ -179,18 +169,14 @@ struct ThreeWayMergeTests {
         #expect(titles("group:Tags", ctx) == ["New Tag…"] && titles("unknown", ctx).isEmpty)
         #expect(titles("change:/r/a.swift", ctx).isEmpty)
         #expect(titles("change:/r/a.swift", M.Context(conflicted: ["/r/a.swift"])) == ["Resolve Conflicts…", "Mark as Resolved"])
-        // While a merge is stopped, switching and merging are disabled.
         let busy = M.Context(currentBranch: "main", integration: .merging(branch: "dev"))
         #expect(M.items(forKey: "branch:dev", in: busy).filter { $0.action != nil && !$0.isEnabled }.map(\.title)
                 == ["Switch to \u{201C}dev\u{201D}…", "Merge \u{201C}dev\u{201D} into \u{201C}main\u{201D}…", "Merge \u{201C}main\u{201D} into \u{201C}dev\u{201D}…",
                     "New \u{201C}Repository\u{201D} Remote…", "Add Existing Remote…", "View on Host…", "Apply Stashed Changes…",
                     "Export Stashed Changes as Patch File…"])
-        // Detached HEAD: no merge.
         #expect(M.items(forKey: "branch:dev", in: M.Context()).first { $0.title.hasPrefix("Merge") }?.isEnabled == false)
     }
 
-    /// `merge-sheet.md` §1.1: a branch that is not the current one, with no
-    /// remote and no stash: 12 items in 6 groups, which are enabled.
     @Test func localBranchMenuMatchesTheReference() {
         typealias M = SourceControlRowMenu
         let ctx = M.Context(currentBranch: "main", repositoryName: "project")
@@ -206,7 +192,6 @@ struct ThreeWayMergeTests {
         #expect(items.filter { $0.action != nil }.map(\.isEnabled)
                 == [true, true, true, true, true, false, false, false, false, false, false, true])
         #expect(items[5].action == .merge("feature"))
-        // A stash and a hosted remote enable their items.
         let more = M.Context(currentBranch: "main", remotes: ["origin"], repositoryName: "project", stashes: ["stash@{0}"],
                              remoteURLs: ["git@example.com:me/project.git"])
         let m = M.items(forKey: "branch:feature", in: more)

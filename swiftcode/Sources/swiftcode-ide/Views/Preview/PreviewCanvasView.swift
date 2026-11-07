@@ -4,15 +4,6 @@ import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodePreviews
 
-// The preview canvas (`specs/ide/previews.md` §Canvas, §Linux "The Linux
-// canvas"; `PreviewCanvasShellModel` holds its state): a header with one
-// tab per preview, the pictures (the selected preview in a device frame,
-// every preview in Grid, its variants side by side), errors in place, and
-// the bottom bar (device, Live, Selectable, Grid, Variants; zoom; canvas
-// settings). SwiftCode's own drawing.
-
-/// The source editor with the canvas beside it, or below it when the
-/// editor area is narrow (Editor ▸ Layout).
 struct PreviewEditorSplit<Content: View>: View {
     var canvas: PreviewCanvasShellModel
     @ViewBuilder var content: Content
@@ -56,13 +47,11 @@ struct PreviewCanvasView: View {
         .shellTarget("canvas")
     }
 
-    /// The canvas's backdrop: a little darker than the editor.
     static func background(_ scheme: ColorScheme) -> Color {
         scheme == .dark ? Color(.sRGB, red: 0.13, green: 0.13, blue: 0.14) : Color(.sRGB, red: 0.95, green: 0.95, blue: 0.96)
     }
 }
 
-/// One tab per preview: a spinner while updating, then an eye; the status at the end.
 struct PreviewCanvasHeader: View {
     var canvas: PreviewCanvasShellModel
     @Environment(\.colorScheme) private var scheme
@@ -103,8 +92,6 @@ struct PreviewCanvasHeader: View {
     }
 }
 
-/// The canvas's middle: paused, starting, the pictures, an error or the
-/// needs-a-simulator card.
 struct PreviewCanvasBody: View {
     var canvas: PreviewCanvasShellModel
     @Environment(\.colorScheme) private var scheme
@@ -160,8 +147,6 @@ struct PreviewCanvasBody: View {
     }
 }
 
-/// The pictures, arranged in rows (Fit: every tile at the largest zoom up
-/// to 100 %), with the update's banner over them when it failed.
 struct PreviewTilesView: View {
     var canvas: PreviewCanvasShellModel
     @Environment(\.colorScheme) private var scheme
@@ -195,10 +180,7 @@ struct PreviewTilesView: View {
     }
 }
 
-/// One tile: its caption, then the picture (in the device's frame for a
-/// preview without a layout trait).
 struct PreviewTileView: View {
-    /// The device bezel's width at 100 %.
     static let bezel: CGFloat = 9
     var canvas: PreviewCanvasShellModel
     var tile: PreviewCanvasShellModel.Tile
@@ -215,8 +197,6 @@ struct PreviewTileView: View {
                 .frame(height: PreviewCanvasShellModel.captionHeight)
             ZStack {
                 if tile.isDevice {
-                    // SwiftCode's own bezel: a dark band around the screen, its
-                    // corners the device's screen corners plus the band.
                     let radius = CGFloat(canvas.device.panels[0].uprightCornerRadii.largest) * zoom
                     let bezel = max(3, Self.bezel * zoom)
                     RoundedRectangle(cornerRadius: radius + bezel).fill(Color(.sRGB, white: 0.08, opacity: 1))
@@ -241,7 +221,6 @@ struct PreviewTileView: View {
 
     @ViewBuilder var picture: some View {
         if let url = tile.image, let crop = tile.crop, let screen = tile.screen, crop.width > 0 {
-            // A picture of the whole device screen (UIKit previews): the tile's region of it.
             GeometryReader { geo in
                 let k = geo.size.width / crop.width
                 ZStack(alignment: .topLeading) {
@@ -253,15 +232,13 @@ struct PreviewTileView: View {
                 .clipped()
             }
         } else if let url = tile.image {
-            FileImage(url: url)   // AssetCatalogEditorView.swift
+            FileImage(url: url)
         } else {
             Rectangle().fill(tile.variant.colorScheme == "dark" ? Color.black : Color.white)
         }
     }
 }
 
-/// A failed update over the last picture: one line per error (a link
-/// that opens the file at the line) or the host's message.
 struct PreviewBanner: View {
     var canvas: PreviewCanvasShellModel
     var banner: PreviewCanvasShellModel.Banner
@@ -296,7 +273,6 @@ struct PreviewBanner: View {
     }
 }
 
-/// No picture yet and the update failed.
 struct PreviewErrorCard: View {
     var canvas: PreviewCanvasShellModel
     var title: String
@@ -337,7 +313,6 @@ struct PreviewErrorCard: View {
     }
 }
 
-/// UIKit previews without a simulator host: what to set up (not an error).
 struct PreviewNeedsSimulatorCard: View {
     var canvas: PreviewCanvasShellModel
     var title: String
@@ -358,8 +333,6 @@ struct PreviewNeedsSimulatorCard: View {
     }
 }
 
-/// The bottom bar: device pop-up and the mode buttons at the left, the
-/// zoom pop-up in the middle, Capture and Canvas Settings at the right.
 struct PreviewCanvasBottomBar: View {
     var canvas: PreviewCanvasShellModel
     @State private var settingsShown = false
@@ -448,7 +421,6 @@ struct PreviewCanvasBottomBar: View {
     }
 }
 
-/// Canvas Settings: the switches, all off by default.
 struct PreviewCanvasSettingsView: View {
     var canvas: PreviewCanvasShellModel
 

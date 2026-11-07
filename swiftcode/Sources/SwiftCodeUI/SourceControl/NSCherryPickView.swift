@@ -1,23 +1,6 @@
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/NSCherryPickView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// Commit-picker dialog for cherry-picking.
-///
-/// Legacy listed REMOTE GitHub commits (`GitHubService` / `APIKeyManager`)
-/// and executed through `GitMenuBarCommandExecutor`. This port lists the
-/// LOCAL history via `GitRepository.log(limit:)` — the commits that can
-/// actually be cherry-picked into this checkout — with "Load more"
-/// pagination, a SHA field, and Apply running the real
-/// `GitRepository.cherryPick(_:)`.
-///
-/// Hook: present from the source-control navigator / history view. If a
-/// cherry-pick conflicts, route through
-/// `SourceControlCoordinator.cherryPick(_:)` instead, which runs the
-/// conflict editor (`integrate` path); this dialog reports the failure and
-/// leaves the working tree for the coordinator to reconcile.
 @MainActor
 public struct NSCherryPickView: View {
     public var repository: GitRepository

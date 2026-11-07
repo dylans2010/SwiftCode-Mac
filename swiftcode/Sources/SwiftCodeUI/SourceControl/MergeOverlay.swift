@@ -1,23 +1,13 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The layer over the whole workspace window, toolbar included, that
-/// holds the merge confirmation and the merge sheet
-/// (`specs/ide/merge-sheet.md` §1.2, §2, §10): the veil that darkens the
-/// window, then the alert centred on it or the sheet below the toolbar.
-/// It is the window frame's top subview, so it covers the toolbar and
-/// takes every click while it is up (the window stays key).
 @MainActor
 public final class MergeOverlayView: NSView {
-    /// Black over the window; its opacity animates (§1.2).
     public let veil = CALayer()
     public private(set) var alert: MergeAlertView?
     public private(set) var sheet: MergeSheetController?
-    /// Where the toolbar ends, from the window's top (the sheet's top).
     public var toolbarBottom: CGFloat = 52
-    /// Reduce Motion: the sheet fades only (tests set it).
     public var reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    /// Called once the overlay has gone.
     var onClose: (() -> Void)?
 
     public override init(frame: NSRect) {
@@ -38,7 +28,6 @@ public final class MergeOverlayView: NSView {
 
     var palette: MergeSheetPalette { MergeSheetPalette.forDark(effectiveAppearance.isDarkMerge) }
 
-    /// The veil's full opacity in this appearance.
     public var veilOpacity: Float { Float(palette.veilOpacity) }
 
     public override func layout() {
@@ -57,8 +46,6 @@ public final class MergeOverlayView: NSView {
         }
     }
 
-    // Every click lands on the overlay while it is up (the window is modal
-    // to it); clicks on the veil do nothing.
     public override func hitTest(_ point: NSPoint) -> NSView? {
         guard !isHidden else { return nil }
         return super.hitTest(point) ?? (frame.contains(point) ? self : nil)
@@ -66,22 +53,15 @@ public final class MergeOverlayView: NSView {
 
     public override func mouseDown(with event: NSEvent) {}
 
-    // MARK: Installing
-
-    /// The overlay of `window`, installed over its frame view.
     static func install(in window: NSWindow) -> MergeOverlayView? {
         guard let frameView = window.contentView?.superview else { return nil }
         if let existing = frameView.subviews.compactMap({ $0 as? MergeOverlayView }).first { return existing }
         let o = MergeOverlayView(frame: frameView.bounds)
         frameView.addSubview(o, positioned: .above, relativeTo: nil)
-        // The toolbar's bottom: the content layout rect's top.
         o.toolbarBottom = max(0, window.frame.height - window.contentLayoutRect.maxY)
         return o
     }
 
-    // MARK: Veil
-
-    /// Darkens (or clears) the window over `duration`, ease-out.
     func setVeil(on: Bool, duration: Double) {
         let to: Float = on ? veilOpacity : 0
         let from = veil.presentation()?.opacity ?? veil.opacity
@@ -95,10 +75,6 @@ public final class MergeOverlayView: NSView {
         veil.add(a, forKey: "veil")
     }
 
-    // MARK: Alert
-
-    /// Shows the merge confirmation (§1.2): the veil darkens over 255 ms
-    /// and the alert is drawn at once; Merge turns accent once it is up.
     @discardableResult
     func showAlert(_ alert: MergeAlertView) -> MergeAlertView {
         self.alert?.removeFromSuperview()
@@ -113,7 +89,6 @@ public final class MergeOverlayView: NSView {
         return alert
     }
 
-    /// Fades the alert out over 90 ms (§1.2, "Clicking Merge").
     func dismissAlert() {
         guard let a = alert else { return }
         alert = nil
@@ -127,10 +102,6 @@ public final class MergeOverlayView: NSView {
         DispatchQueue.main.asyncAfter(deadline: .now() + MergeSheetMotion.alertOut) { a.removeFromSuperview() }
     }
 
-    // MARK: Sheet
-
-    /// Shows the merge sheet (§10): it fades in over 90 ms while sliding
-    /// down 32 points over 200 ms; with Reduce Motion it fades only.
     func showSheet(_ sheet: MergeSheetController) {
         self.sheet = sheet
         let v = sheet.view
@@ -143,7 +114,6 @@ public final class MergeOverlayView: NSView {
         window?.makeFirstResponder(sheet.canvas)
     }
 
-    /// The sheet's appear (or, reversed, disappear) animations.
     func animateSheet(in appearing: Bool) {
         guard let layer = sheet?.view.layer else { return }
         let fade = CABasicAnimation(keyPath: "opacity")
@@ -157,8 +127,6 @@ public final class MergeOverlayView: NSView {
         guard !reduceMotion else { layer.removeAnimation(forKey: "sheetSlide"); return }
         let c = MergeSheetMotion.slideCurve
         let slide = CABasicAnimation(keyPath: "transform.translation.y")
-        // The frame view is not flipped below us: a layer moved up has a
-        // larger y in a layer tree that is not flipped.
         let up = (layer.superlayer?.isGeometryFlipped ?? false) || isFlipped ? -MergeSheetMotion.slideDistance : MergeSheetMotion.slideDistance
         slide.fromValue = appearing ? up : 0
         slide.toValue = appearing ? 0 : up
@@ -168,8 +136,6 @@ public final class MergeOverlayView: NSView {
         layer.add(slide, forKey: "sheetSlide")
     }
 
-    /// Closes the sheet (SwiftCode's choice, open question 3: the appearance
-    /// reversed) and the veil, then removes the overlay.
     func close(animated: Bool = true) {
         let duration = animated ? max(MergeSheetMotion.sheetOutSlide, MergeSheetMotion.veilIn) : 0
         if animated, sheet != nil { animateSheet(in: false) }
@@ -196,19 +162,15 @@ extension NSAppearance {
 }
 
 extension NSColor {
-    /// An sRGB colour from a hex value (0xRRGGBB).
     convenience init(mergeHex hex: UInt32, alpha: CGFloat = 1) {
         let c = MergeSheetPalette.components(hex)
         self.init(srgbRed: CGFloat(c.r), green: CGFloat(c.g), blue: CGFloat(c.b), alpha: alpha)
     }
 }
 
-/// A push button drawn as the sheet's and the alert's buttons are
-/// (§1.2, §9): a rounded fill, the label centred; the default one accent.
 @MainActor
 public final class MergeButton: NSControl {
     public var title: String { didSet { needsDisplay = true } }
-    /// Accent fill and white text.
     public var isDefaultLook = false { didSet { needsDisplay = true } }
     public var keyEquivalent = ""
     var fontSize: CGFloat = 13
@@ -229,7 +191,6 @@ public final class MergeButton: NSControl {
 
     var palette: MergeSheetPalette { MergeSheetPalette.forDark(effectiveAppearance.isDarkMerge) }
 
-    /// The fill and label colours as drawn now.
     public var colors: (fill: NSColor, label: NSColor) {
         let p = palette
         if !isEnabled { return (NSColor(mergeHex: p.disabledButton), NSColor(mergeHex: p.disabledButtonLabel)) }
@@ -248,7 +209,6 @@ public final class MergeButton: NSControl {
         s.draw(at: NSPoint(x: ((bounds.width - size.width) / 2).rounded(), y: ((bounds.height - size.height) / 2).rounded()))
     }
 
-    /// The width the title needs at least.
     func fittingWidth(minimum: CGFloat) -> CGFloat {
         let w = (title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: fontSize)]).width
         return max(minimum, (w + 28).rounded())

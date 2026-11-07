@@ -1,22 +1,11 @@
-// The display server's pure parts (DisplayServer.swift; display-stream.md
-// §4): the frame record, the client's mirror of the display with the tile
-// comparison, tile encoding, and compressed PNG screenshots. Not tied to
-// the VMM, so they build and are tested on every platform.
-
 import CSwiftCodeCodec
 import Foundation
 import SwiftCodeDisplayStream
 import SwiftCodeHostServices
 
-/// The frame record of the headless framebuffer library
-/// (SimGuestFrameworks/SimFramebuffer/simframebuffer.c): one 96-byte record
-/// per display, display 1 at offset 0 and a foldable's second display at
-/// offset 96 (its slot).
 struct FrameRecord: Equatable {
     var surface: UInt32
     var frame: UInt64
-    /// The last backlight state and UI orientation the guest set on the
-    /// display (foldable.md §8.1 D2), nil until it set one.
     var backlight: UInt64?
     var uiOrientation: UInt64?
 
@@ -32,14 +21,11 @@ struct FrameRecord: Equatable {
     }
 }
 
-/// A rectangle in device pixels.
 struct PixelRect: Equatable {
     var x: Int, y: Int, width: Int, height: Int
     var area: Int { width * height }
 }
 
-/// The client's copy of the display (device pixels, packed BGRA) and the
-/// tile comparison against the presented surface (display-stream.md §4.2).
 final class DisplayMirror: @unchecked Sendable {
     let width: Int, height: Int
     let tile: Int
@@ -56,9 +42,6 @@ final class DisplayMirror: @unchecked Sendable {
 
     deinit { pixels.deallocate() }
 
-    /// Rectangles whose pixels differ from `source` (rows `bytesPerRow`
-    /// apart), merged; their pixels are copied into the mirror. `full`:
-    /// the whole image, whatever changed.
     func update(from source: UnsafeRawPointer, bytesPerRow: Int, full: Bool) -> [PixelRect] {
         let tilesX = (width + tile - 1) / tile, tilesY = (height + tile - 1) / tile
         var rects: [PixelRect] = []
@@ -94,9 +77,6 @@ final class DisplayMirror: @unchecked Sendable {
         return rects
     }
 
-    /// Dirty tiles → rectangles: runs per tile row (gaps of up to two tiles
-    /// joined), runs with the same span in consecutive rows joined; many
-    /// pieces, or most of the screen, become one bounding box.
     static func merge(dirty: [Bool], tilesX: Int, tilesY: Int, tile: Int, width: Int, height: Int) -> [PixelRect] {
         var done: [(x0: Int, x1: Int, y0: Int, y1: Int)] = []
         var open: [(x0: Int, x1: Int, y0: Int, y1: Int)] = []
@@ -143,19 +123,13 @@ final class DisplayMirror: @unchecked Sendable {
     }
 }
 
-/// Encodes mirror rectangles into tiles (display-stream.md §4.3).
 struct TileEncoder {
     var encoding: DisplayEncoding
     var quality: Int
     var downscale: Int
     private var scratch: [UInt8] = []
 
-    /// Rectangles taller than this many stream rows are cut into bands of
-    /// this height, encoded in parallel (and decodable in parallel by the
-    /// viewer): a whole-screen change costs about a quarter of the time of
-    /// one JPEG (display-stream.md §4.3).
     static let bandRows = 256
-    /// At most this many bands are encoded at once.
     static let maxParallel = ProcessInfo.processInfo.environment["SWIFTCODE_DISPLAY_JPEG_THREADS"].flatMap(Int.init) ?? 8
 
     init(encoding: DisplayEncoding, quality: Int, downscale: Int) {
@@ -164,8 +138,6 @@ struct TileEncoder {
         self.downscale = downscale
     }
 
-    /// `rects` cut into bands of at most `bandRows` stream rows (device rows
-    /// a multiple of the tile size, so bands start on 32-pixel stream rows).
     static func bands(_ rects: [PixelRect], downscale f: Int, bandRows: Int = TileEncoder.bandRows) -> [PixelRect] {
         let band = bandRows * f
         var out: [PixelRect] = []
@@ -173,7 +145,6 @@ struct TileEncoder {
             if r.height <= band { out.append(r); continue }
             var y = r.y
             while y < r.y + r.height {
-                // Align the cuts to multiples of `band` from the image top.
                 let next = min(r.y + r.height, (y / band + 1) * band)
                 out.append(PixelRect(x: r.x, y: y, width: r.width, height: next - y))
                 y = next
@@ -182,8 +153,6 @@ struct TileEncoder {
         return out
     }
 
-    /// Encodes every rectangle, banded, on up to `maxParallel` threads; the
-    /// tiles come back in order. Nil entries (encoder failures) are dropped.
     func encodeAll(_ rects: [PixelRect], mirror: DisplayMirror) -> [DisplayTile] {
         let pieces = Self.bands(rects, downscale: downscale)
         if pieces.count == 1 {
@@ -197,7 +166,6 @@ struct TileEncoder {
             var e = me
             var i = w
             while i < pieces.count {
-                // Each band reads only its own rows of the mirror and writes only its own slot.
                 results.set(i, e.encode(pieces[i], mirror: mirror))
                 i += workers
             }
@@ -205,7 +173,6 @@ struct TileEncoder {
         return results.tiles
     }
 
-    /// One slot per band, filled by the encoding threads.
     private final class BandResults: @unchecked Sendable {
         private var slots: [DisplayTile?]
         private let lock = NSLock()
@@ -255,7 +222,7 @@ struct TileEncoder {
                     data = out
                 }
             case .h264, .hevc, .hevc444:
-                return  // whole pictures go through VideoFrameEncoder (§14), not tiles
+                return
             }
         }
         guard let data else { return nil }
@@ -263,7 +230,6 @@ struct TileEncoder {
     }
 }
 
-/// PNG with zlib compression (screenshots for the viewer).
 enum CompressedPNG {
     private static let table: [UInt32] = (0..<256).map { n -> UInt32 in
         var c = UInt32(n)
@@ -284,7 +250,6 @@ enum CompressedPNG {
         return be32(UInt32(data.count)) + body + be32(crc(body))
     }
 
-    /// RGBA → PNG; falls back to the uncompressed writer without zlib.
     static func encode(width: Int, height: Int, rgba: [UInt8]) -> [UInt8] {
         guard swiftcodec_zlib_available() != 0 else { return PNG.encode(width: width, height: height, rgba: rgba) }
         var raw = [UInt8]()

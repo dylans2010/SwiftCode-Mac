@@ -1,15 +1,6 @@
-//
-//  AssistImageInspectionTools.swift
-//  SwiftCode
-//
-//  Created on 2026-10-18.
-//
-
 import Foundation
 import ImageIO
 import CoreGraphics
-
-// MARK: - Helper
 
 private func resolveWorkspaceImageInspectionURL(_ raw: String, workspaceRoot: URL) -> URL? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -29,8 +20,6 @@ private func resolveWorkspaceImageInspectionURL(_ raw: String, workspaceRoot: UR
     }
     return candidate
 }
-
-// MARK: - Image Encode Base64 Tool (safeRead)
 
 public struct AssistImageEncodeBase64Tool: AssistTool {
     public let id = "image_encode_base64"
@@ -101,8 +90,6 @@ public struct AssistImageEncodeBase64Tool: AssistTool {
         }
     }
 }
-
-// MARK: - Image Get Dimensions Tool (safeRead)
 
 public struct AssistImageGetDimensionsTool: AssistTool {
     public let id = "image_get_dimensions"
@@ -179,8 +166,6 @@ public struct AssistImageGetDimensionsTool: AssistTool {
         )
     }
 }
-
-// MARK: - Image Extract Metadata Tool (safeRead)
 
 public struct AssistImageExtractMetadataTool: AssistTool {
     public let id = "image_extract_metadata"

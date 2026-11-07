@@ -1,17 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationConflictResolverView.swift
-//   (Legacy main ab03f681)
-//
-// Destination: SwiftCodeUI/Collaboration/CollaborationConflictResolverView.swift.
-// Verbatim except this header and the `import SwiftCodeCollaboration`
-// (Legacy's CollaborationManager/BranchConflict live there).
-// Sibling of ConflictResolverView (the simpler list view, landed by A4);
-// this is the detailed resolver with local/remote diff cards and
-// Accept Current / Accept Incoming actions.
-//
-// Wiring: presented wherever conflicts need detailed resolution;
-// CollaborationMainView routes to ConflictResolverView today.
-
 import SwiftCodeCollaboration
 
 import SwiftUI
@@ -65,13 +51,11 @@ public struct CollaborationConflictResolverView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        // Diff Preview
                         HStack(spacing: 12) {
                             diffCard(title: "Local", content: conflict.localChange, color: .blue)
                             diffCard(title: "Remote", content: conflict.remoteChange, color: .orange)
                         }
 
-                        // Resolution Actions
                         VStack(spacing: 10) {
                             resolutionButton(title: "Accept Current", icon: "arrow.uturn.backward", color: .blue) {
                                 self.manager.resolveConflict(conflict.id, using: .useCurrent, actorID: self.actorID)

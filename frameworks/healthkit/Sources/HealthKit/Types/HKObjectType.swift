@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Identifier value types (string-valued, interop: `identifiers.md`)
-
 public struct HKQuantityTypeIdentifier: RawRepresentable, Hashable, Sendable {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
@@ -38,15 +36,12 @@ public struct HKScoredAssessmentTypeIdentifier: RawRepresentable, Hashable, Send
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }
 
-// MARK: - Registry data
-
 enum TypeKind: String, Sendable {
     case quantity, category, characteristic, correlation, document, clinical, scoredAssessment
     case workout, series, activitySummary, audiogram, electrocardiogram, visionPrescription
     case stateOfMind, medicationDoseEvent, userAnnotatedMedication
 }
 
-/// The unit family a quantity type accepts (`identifiers.md` "dimension").
 enum QuantityDimension: String, Sendable {
     case scalar, mass, length, volume, time, energy, temperature, pressure, speed, frequency, power
     case conductance, soundPressureLevel, effortScore, pharmacology, volumeFlow, energyRatePerMass
@@ -107,7 +102,6 @@ struct TypeInfo: Sendable {
 }
 
 enum TypeRegistry {
-    /// Allowed values of each category value enumeration (`identifiers.md`).
     static let categoryValueSets: [String: Set<Int>] = {
         func s<E: CaseIterable & RawRepresentable>(_: E.Type) -> Set<Int> where E.RawValue == Int {
             Set(E.allCases.map(\.rawValue))
@@ -134,7 +128,6 @@ enum TypeRegistry {
         ]
     }()
 
-    /// Types the system computes; apps may read but not share them (level 1, partial list).
     static let systemComputed: Set<String> = [
         "HKCategoryTypeIdentifierAppleStandHour", "HKQuantityTypeIdentifierAppleStandTime",
         "HKQuantityTypeIdentifierAppleExerciseTime", "HKQuantityTypeIdentifierAppleMoveTime",
@@ -207,9 +200,6 @@ enum TypeRegistry {
     static func sampleType(_ identifier: String) -> HKSampleType? { all[identifier] as? HKSampleType }
 }
 
-// MARK: - Classes (`interface.md` §2)
-
-/// An interned, immutable data type. The same identifier always yields the same object.
 public class HKObjectType: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let info: TypeInfo
     public var identifier: String { info.identifier }
@@ -243,7 +233,6 @@ public class HKObjectType: NSObject, NSSecureCoding, NSCopying, @unchecked Senda
     public class func seriesType(forIdentifier identifier: String) -> HKSeriesType? {
         TypeRegistry.type(identifier) as? HKSeriesType
     }
-    // swiftlint:disable force_cast - the registry holds the subclass registered for this identifier
     public class func workoutType() -> HKWorkoutType { TypeRegistry.type(HKWorkoutTypeIdentifier) as! HKWorkoutType }
     public class func activitySummaryType() -> HKActivitySummaryType {
         TypeRegistry.type("HKActivitySummaryTypeIdentifier") as! HKActivitySummaryType
@@ -266,7 +255,6 @@ public class HKObjectType: NSObject, NSSecureCoding, NSCopying, @unchecked Senda
     public class func userAnnotatedMedicationType() -> HKUserAnnotatedMedicationType {
         TypeRegistry.type(HKDataTypeIdentifierUserAnnotatedMedicationConcept) as! HKUserAnnotatedMedicationType
     }
-    // swiftlint:enable force_cast
 
     public func requiresPerObjectAuthorization() -> Bool { info.perObject }
 
@@ -291,7 +279,6 @@ public class HKObjectType: NSObject, NSSecureCoding, NSCopying, @unchecked Senda
 public class HKSampleType: HKObjectType, @unchecked Sendable {
     public override class var supportsSecureCoding: Bool { true }
     public var isMaximumDurationRestricted: Bool { info.maximumDuration != nil }
-    /// Reading this on an unrestricted type does not raise (`interface.md` §2); it answers 0.
     public var maximumAllowedDuration: TimeInterval { info.maximumDuration ?? 0 }
     public var isMinimumDurationRestricted: Bool { info.minimumDuration != nil }
     public var minimumAllowedDuration: TimeInterval { info.minimumDuration ?? 0 }
@@ -318,10 +305,8 @@ public final class HKWorkoutType: HKSampleType, @unchecked Sendable {
 }
 public final class HKSeriesType: HKSampleType, @unchecked Sendable {
     public override class var supportsSecureCoding: Bool { true }
-    // swiftlint:disable force_cast - the registry holds the subclass registered for this identifier
     public class func workoutRoute() -> HKSeriesType { TypeRegistry.type(HKWorkoutRouteTypeIdentifier) as! HKSeriesType }
     public class func heartbeat() -> HKSeriesType { TypeRegistry.type(HKDataTypeIdentifierHeartbeatSeries) as! HKSeriesType }
-    // swiftlint:enable force_cast
 }
 public final class HKDocumentType: HKSampleType, @unchecked Sendable {
     public override class var supportsSecureCoding: Bool { true }
@@ -354,9 +339,6 @@ public final class HKUserAnnotatedMedicationType: HKObjectType, @unchecked Senda
     public override class var supportsSecureCoding: Bool { true }
 }
 
-// MARK: - Swift refinements: non-optional initializers that return the interned type
-
-// swiftlint:disable force_cast - the registry interns one instance of this exact class per identifier
 public protocol _HKTypeInterning {}
 extension HKObjectType: _HKTypeInterning {}
 extension _HKTypeInterning where Self: HKQuantityType {
@@ -418,4 +400,3 @@ extension _HKTypeInterning where Self: HKScoredAssessmentType {
 extension _HKTypeInterning where Self: HKWorkoutType {
     public init() { self = HKObjectType.workoutType() as! Self }
 }
-// swiftlint:enable force_cast

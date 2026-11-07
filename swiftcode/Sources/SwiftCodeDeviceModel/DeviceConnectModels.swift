@@ -1,21 +1,5 @@
 import Foundation
 
-/// The DeviceConnectKit model layer, ported from Legacy
-/// (`SwiftCode/Views/Build/DeviceConnectKit/Models/`): the physical
-/// iOS-device connect / build / deploy subsystem. SwiftCode's Device Hub
-/// covers simulators and remote sessions; this is the missing
-/// physical-device side (README "Further out": signing, distribution
-/// and physical devices).
-///
-/// Two deliberate deviations from Legacy, both recorded here:
-/// - Legacy's `BuildStatus` is renamed `DeviceBuildStatus`:
-///   `SwiftCodeBuild` already defines a `BuildStatus`, and the two
-///   modules meet in `SwiftCodeUI`.
-/// - `DeviceMetrics` gains `isAvailable` (default `true`) and an
-///   `.unavailable` value. Legacy's runtime monitor fabricated
-///   random CPU/memory numbers when it had none; this port reports
-///   real liveness only (see `RuntimeCoordinator`) and marks the
-///   numbers unavailable instead of inventing them.
 public enum DeviceBuildStatus: String, Codable, Sendable, CaseIterable, Hashable {
     case idle = "Idle"
     case building = "Building"
@@ -39,7 +23,6 @@ public struct ConnectedDevice: Identifiable, Codable, Sendable, Hashable {
     public let architecture: String
     public let udid: String
 
-    // Connection
     public let isConnected: Bool
     public let isAvailable: Bool
     public let isBusy: Bool
@@ -47,7 +30,6 @@ public struct ConnectedDevice: Identifiable, Codable, Sendable, Hashable {
     public let isWireless: Bool
     public let isUSB: Bool
 
-    // Development Mode
     public let isDeveloperModeEnabled: Bool
     public let isTrusted: Bool
     public let isDeploymentSupported: Bool
@@ -225,13 +207,11 @@ public struct DeviceLog: Identifiable, Codable, Sendable, Hashable {
 }
 
 public struct DeviceMetrics: Codable, Sendable, Hashable {
-    public var cpuUsage: Double // percentage
-    public var memoryUsage: Double // megabytes
-    public var batteryLevel: Double // percentage
+    public var cpuUsage: Double
+    public var memoryUsage: Double
+    public var batteryLevel: Double
     public var activeThreads: Int
-    public var diskAvailable: Double // gigabytes
-    /// False when no live values could be read: the numbers are
-    /// unknown, not zero. See `RuntimeCoordinator`.
+    public var diskAvailable: Double
     public var isAvailable: Bool
 
     public init(
@@ -250,8 +230,6 @@ public struct DeviceMetrics: Codable, Sendable, Hashable {
         self.isAvailable = isAvailable
     }
 
-    /// The honest "no live values" reading: zeros with
-    /// `isAvailable == false`, never fabricated numbers.
     public static let unavailable = DeviceMetrics(
         cpuUsage: 0, memoryUsage: 0, batteryLevel: 0,
         activeThreads: 0, diskAvailable: 0, isAvailable: false)
@@ -262,17 +240,15 @@ public struct DeviceSession: Identifiable, Codable, Sendable, Hashable {
     public let deviceUDID: String
     public let deviceName: String
     public let projectName: String
-    public let configuration: String // Debug, Release
+    public let configuration: String
     public let startTime: Date
     public var endTime: Date?
 
-    // Statuses
     public var buildStatus: DeviceBuildStatus
     public var deploymentStatus: DeploymentStatus
     public var runtimeStatus: RuntimeStatus
     public var signingStatus: SigningStatus
 
-    // Durations and Metrics
     public var buildDuration: TimeInterval
     public var installDuration: TimeInterval
     public var launchDuration: TimeInterval
@@ -283,7 +259,6 @@ public struct DeviceSession: Identifiable, Codable, Sendable, Hashable {
         return Date().timeIntervalSince(startTime)
     }
 
-    // Logs and Diagnostics
     public var buildLogs: String
     public var runtimeLogs: String
     public var errors: [String]

@@ -9,40 +9,9 @@ import SwiftUI
 import SwiftUICore
 #endif
 
-// The R9 sample, a "mini IDE", extended in R10/R11: a NavigationSplitView
-// with a file outline in the sidebar, a text editor over a scrolling console
-// in a draggable vertical split, a sheet (build settings) and an alert
-// (delete); since R11 a menu bar (File, Edit, View, Project, …) with
-// keyboard shortcuts, a window toolbar with Build and Run, a context menu on
-// the outline rows, and a Settings window whose values live in `@AppStorage`
-// (R10). Run it with a display (X11 or Wayland) and libSDL3:
-//
-//   OV_SDL3_LIBRARY=<prefix>/lib/libSDL3.so.0 swift run ov-mini-ide
-//
-// Environment switches (all optional):
-//   OV_SAMPLE_SCRIPT=1        drive it with synthetic events through SDL's
-//                             queue (outline, scrolling, the split, menus,
-//                             shortcuts, toolbar, context menu, Settings,
-//                             sheet, alert), print the state after each
-//                             step, quit
-//   OV_SCREENSHOT_PREFIX=<p>  write <p>-light.png, -menu.png, -context.png,
-//                             -settings.png, -sheet.png, -alert.png and
-//                             -dark.png during the script (menus are
-//                             composited from their pop-up windows)
-//   OV_COLOR_SCHEME=dark      start in dark mode (R10: a platform setting)
-//   OV_PRINT_TARGETS=1        print window-coordinate frames of the parts
-//                             (for external drivers such as xdotool),
-//                             including the items of an open menu
-//   OV_QUIT_AFTER=<s>         print the state and quit after s seconds
-//                             (OV_SCREENSHOT=<file> writes the window first;
-//                             OV_SHOT_REQUEST=<file>: a driver writes a PNG
-//                             path there to get a screenshot meanwhile)
-//   OV_TRACE=1                trace the app host on stderr
-
 struct FileKey: FocusedValueKey { typealias Value = String }
 
 extension FocusedValues {
-    /// The file whose editor has keyboard focus (enables File > Save).
     var editorFile: String? {
         get { self[FileKey.self] }
         set { self[FileKey.self] = newValue }
@@ -63,7 +32,6 @@ struct MiniIDEApp: App {
     }
 }
 
-/// The menu bar's own commands.
 struct IDECommands: Commands {
     @FocusedValue(\.editorFile) var editorFile: String?
 
@@ -91,7 +59,6 @@ struct IDECommands: Commands {
     }
 }
 
-/// The Settings window (values in the app's UserDefaults).
 struct IDESettingsView: View {
     @AppStorage("ide.editorFontSize") private var fontSize = 13
     @AppStorage("ide.showLineNumbers") private var lineNumbers = true
@@ -174,10 +141,8 @@ final class IDEState {
     var deleted: [String] = []
     var configuration = "Debug"
     var parallel = true
-    /// Forces dark mode (the script's last step); nil follows the platform.
     var dark: Bool?
     var console: [String] = (1...200).map { String(format: "[%03d] Compiling module %d of 200", $0, $0) }
-    // R11: what the commands did.
     var status = "Ready"
     var builds = 0
     var runs = 0
@@ -227,7 +192,6 @@ final class IDEState {
     }
 }
 
-/// Marks a part for the drivers (its frame is looked up by name).
 struct Target<Content: View>: View, NamedTarget {
     let name: String
     let content: Content
@@ -263,7 +227,6 @@ struct MiniIDEView: View {
                     }
                 }
                 .listStyle(.sidebar)
-                // R11: a context menu on the outline's rows.
                 .contextMenu(forSelectionType: String.self) { ids in
                     Button("Open") { state.selection = ids.first }
                         .disabled(ids.isEmpty)
@@ -280,7 +243,6 @@ struct MiniIDEView: View {
         } detail: {
             DetailView(state: state)
         }
-        // R11: the window toolbar (outside the navigation containers).
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Target("tb status") { Text(state.status).font(.subheadline).foregroundStyle(.secondary) }
@@ -355,9 +317,6 @@ struct DetailView: View {
     }
 }
 
-/// The editor: its font size and line-number setting come from the
-/// Settings window (`@AppStorage`, R10); it publishes its file for File >
-/// Save (R11).
 struct EditorPane: View {
     @Bindable var state: IDEState
     let file: String
@@ -419,7 +378,6 @@ struct BuildSettingsSheet: View {
     }
 }
 
-/// Automation for the done-criterion runs (see the header).
 @MainActor
 enum IDEDriver {
     static var started = false
@@ -429,7 +387,6 @@ enum IDEDriver {
         guard !started, let host = AppHost.current else { return }
         started = true
         if env["OV_SAMPLE_SCRIPT"] != nil || env["OV_QUIT_AFTER"] != nil {
-            // Reproducible runs: the Settings values start at their defaults.
             for k in ["ide.editorFontSize", "ide.showLineNumbers", "ide.appearance"] { UserDefaults.standard.removeObject(forKey: k) }
         }
         say("backend \(host.backend.name)\((host.backend as? SDLBackend).map { " SDL " + $0.libraryDescription } ?? "")")
@@ -445,8 +402,6 @@ enum IDEDriver {
         if env["OV_SAMPLE_SCRIPT"] != nil { await script(host, window) }
         if let s = env["OV_QUIT_AFTER"], let t = Double(s) {
             var elapsed = 0.0
-            // Report the state while an external driver works; a driver can
-            // ask for a screenshot by writing its path to OV_SHOT_REQUEST.
             while elapsed < t {
                 await pause(0.25)
                 elapsed += 0.25
@@ -484,7 +439,6 @@ enum IDEDriver {
         return out
     }
 
-    /// The console's scroll offset and the split's pane heights.
     static func report(_ window: WindowHost) {
         var offsets: [CGFloat] = []
         window.graph.root?.forEachNode { n in
@@ -500,8 +454,6 @@ enum IDEDriver {
                    editor?.height ?? 0, console?.height ?? 0, "\(IDEState.shared.showSettings)", "\(IDEState.shared.showDelete)"))
     }
 
-    /// The frame of a `Text` with this string in `window` (menu titles and
-    /// items).
     static func textFrame(_ s: String, in window: WindowHost) -> CGRect? {
         var out: CGRect?
         window.graph.root?.forEachNode { n in
@@ -512,10 +464,8 @@ enum IDEDriver {
         return out
     }
 
-    /// The open pop-ups of the main window, outermost first.
     static func popups(_ host: AppHost) -> [WindowHost] { host.windows.filter(\.isPopup) }
 
-    /// A pop-up's origin in the main window (nested submenus add up).
     static func origin(of p: WindowHost) -> CGPoint {
         var o = p.popupOrigin
         var w = p.popupOwner
@@ -529,7 +479,6 @@ enum IDEDriver {
 
     static func printTargets(_ window: WindowHost, quiet: Bool = false) {
         let scale = window.platform.pixelSize.width > 0 ? Double(window.platform.pixelSize.width) / window.size.width : 1
-        // R11: menu titles, the toolbar's buttons and the items of an open menu.
         for title in window.services.menuBar?.menuTitles ?? [] {
             if let f = textFrame(title, in: window) {
                 say(String(format: "target menu_%@ %.0f %.0f %.0f %.0f", title.replacingOccurrences(of: " ", with: "_"),
@@ -605,8 +554,6 @@ enum IDEDriver {
             say("screenshot: no readback for \(path)")
             return
         }
-        // Menus are pop-up windows of their own: draw them over the window's
-        // image at their places (R11).
         if let host = AppHost.current, !w.isPopup {
             let scale = Double(image.width) / max(1, w.size.width)
             for p in popups(host) {
@@ -642,41 +589,34 @@ enum IDEDriver {
         await pause(0.3)
     }
 
-    /// The R11 steps: menus, shortcuts, toolbar, context menu, Settings.
     static func r11(_ host: AppHost, _ w: WindowHost, prefix: String?, step: (String) -> Void) async {
         let id = w.platform.id
         let s = IDEState.shared
         say("menus: \(w.services.menuBar?.menuTitles ?? [])")
-        // File > New File… with the pointer.
         await clickText(host, "File", in: w)
         say("open menu items: \(popups(host).last.map(items) ?? [])")
         if let prefix { shot(w, prefix + "-menu.png") }
         if let p = popups(host).last { await clickText(host, "New File…", in: p) }
         step("File > New File…")
-        // Shortcuts: Ctrl+B, Ctrl+Shift+N; the toolbar's Run.
         await key(host, id, .character("b"), [.control])
         await key(host, id, .character("n"), [.control, .shift])
         if let r = frame("tb run", in: w) { await click(host, id, CGPoint(x: r.midX, y: r.midY)) }
         step("Ctrl+B, Ctrl+Shift+N, toolbar Run")
-        // Save is enabled while the editor has focus (a focused value).
         await key(host, id, .character("s"), [.control])
         if let e = frame("editor", in: w) { await click(host, id, CGPoint(x: e.midX, y: e.minY + 30)) }
         await key(host, id, .character("s"), [.control])
         step("Ctrl+S without and with the editor focused")
-        // Edit > Select All, Edit > Copy (on the focused editor).
         await clickText(host, "Edit", in: w)
         if let p = popups(host).last { await clickText(host, "Select All", in: p) }
         await clickText(host, "Edit", in: w)
         if let p = popups(host).last { await clickText(host, "Copy", in: p) }
         say("clipboard: \((host.backend.clipboard.text ?? "").prefix(24).replacingOccurrences(of: "\n", with: "⏎"))…")
         step("Edit > Select All, Copy")
-        // The keyboard: F10, Right, Right, Escape.
         await key(host, id, .function(10))
         await key(host, id, .rightArrow)
         await key(host, id, .rightArrow)
         say("menu open by keyboard: \(w.services.menuBar?.openIndex.map { w.services.menuBar?.menuTitles[$0] ?? "" } ?? "none")")
         await key(host, id, .escape)
-        // A context menu on an outline row: right click, Open.
         if let r = frame("row Sources/App/App.swift", in: w) {
             post(host, .pointer(PointerEvent(window: id, phase: .down, location: CGPoint(x: r.midX, y: r.midY), button: 3,
                                              isPressed: true, timestamp: host.backend.now)))
@@ -689,7 +629,6 @@ enum IDEDriver {
         if let prefix { shot(w, prefix + "-context.png") }
         if let p = popups(host).last { await clickText(host, "Open", in: p) }
         step("context menu Open on App.swift")
-        // Settings: Ctrl+, opens the window; toggle line numbers there.
         await key(host, id, .character(","), [.control])
         await pause(0.5)
         if let sw = host.windows.first(where: { !$0.isPopup && $0 !== w }) {
@@ -711,7 +650,6 @@ enum IDEDriver {
         _ = s
     }
 
-    /// Text in a pop-up's rows.
     static func items(_ p: WindowHost) -> [String] {
         var out: [String] = []
         p.graph.root?.forEachNode { n in if let t = n.view as? Text { out.append(t.plainString) } }
@@ -727,7 +665,6 @@ enum IDEDriver {
             report(w)
         }
         step("launched")
-        // Expand "Sources" with its chevron, then "App", select a file.
         for folder in ["row Sources", "row Sources/App"] {
             if let f = frame(folder, in: w) { await click(host, id, CGPoint(x: f.minX - 10, y: f.midY)) }
         }
@@ -735,8 +672,6 @@ enum IDEDriver {
         if let f = frame("row Sources/App/ContentView.swift", in: w) { await click(host, id, CGPoint(x: f.midX, y: f.midY)) }
         await pause(0.3)
         step("selected ContentView.swift")
-        // Keyboard: Up selects App.swift, Left goes to the folder, Left
-        // collapses it.
         await key(host, id, .upArrow)
         step("Up")
         await key(host, id, .leftArrow)
@@ -746,7 +681,6 @@ enum IDEDriver {
         await key(host, id, .rightArrow)
         await key(host, id, .downArrow)
         step("Right, Right, Down")
-        // Scroll the console with the wheel and with a drag.
         if let c = frame("console", in: w) {
             for _ in 0..<12 {
                 post(host, .scroll(ScrollEvent(window: id, location: CGPoint(x: c.midX, y: c.midY),
@@ -766,7 +700,6 @@ enum IDEDriver {
             await pause(1.5)
             step("drag-scrolled (fling) the console")
         }
-        // Drag the editor/console divider up by 100 points.
         if let d = dividers(in: w).last(where: { $0.width > $0.height }) {
             var p = CGPoint(x: d.midX, y: d.midY)
             pointer(host, id, .down, p)
@@ -781,7 +714,6 @@ enum IDEDriver {
         }
         if let prefix { shot(w, prefix + "-light.png") }
         await r11(host, w, prefix: prefix, step: step)
-        // The sheet: open with Build…, close with Done.
         if let b = frame("build", in: w) { await click(host, id, CGPoint(x: b.midX, y: b.midY)) }
         await pause(0.6)
         step("opened the sheet")
@@ -789,7 +721,6 @@ enum IDEDriver {
         if let d = frame("sheet done", in: w) { await click(host, id, CGPoint(x: d.midX, y: d.midY)) }
         await pause(0.8)
         step("closed the sheet")
-        // The alert: Delete, then its destructive button.
         if let b = frame("delete", in: w) { await click(host, id, CGPoint(x: b.midX, y: b.midY)) }
         await pause(0.6)
         step("opened the alert")

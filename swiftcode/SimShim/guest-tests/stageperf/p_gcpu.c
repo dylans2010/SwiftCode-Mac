@@ -1,20 +1,3 @@
-/* SwiftCode performance probe: guest execution efficiency (specs/simulator/guest-cpu.md).
- * Original SwiftCode code. The same source builds as a guest program (iOS
- * simulator platform, build-stageperf.sh) and as a native Linux arm64 program
- * (cc -O2 -pthread p_gcpu.c), so each workload can be timed both ways on the
- * same host.
- *
- * Usage: p_gcpu [-r repeats] [-d dir] [-f file] [phase ...]
- *   phases (default: all but "switch" and "null"; "files" and "file" only with -d/-f):
- *   alu chase tlb16k tlb4k hash copy touch branch str files file atomic timer trap churn
- *   switch null
- *   -d dir: a directory of regular files for "files" (open, mmap, read, unmap)
- *   -f file: a large read-only file for "file" (cold and warm page touches)
- * Every result line: "gcpu <name> <median> <unit> (min <a> max <b>, n <r>)".
- * "null" does nothing (start-up cost of the program for counter baselines).
- * Native only: GCPU_NO_THP=1 turns transparent huge pages off for the process
- * (prctl PR_SET_THP_DISABLE), so its anonymous memory is 4 KiB pages as the
- * guest's mostly is. */
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <fcntl.h>
@@ -80,7 +63,6 @@ static void *big_alloc(size_t size)
     return p;
 }
 
-/* ---- 1. alu: a dependent integer chain ---- */
 static void phase_alu(void)
 {
     double v[MAXR];
@@ -95,8 +77,6 @@ static void phase_alu(void)
     report("alu", "ns/it", v, repeats);
 }
 
-/* ---- pointer chases ---- */
-/* n slots; slot i at base + i*stride + (i*rot % wrap); a random cycle. */
 static void **make_chain(char *mem, size_t n, size_t stride, size_t rot, size_t wrap)
 {
     size_t *order = malloc(n * sizeof(size_t));
@@ -127,7 +107,7 @@ static void chase_case(const char *name, size_t n, size_t stride, size_t rot, si
     size_t bytes = n * stride + 4096;
     char *mem = big_alloc(bytes);
     void **p = make_chain(mem, n, stride, rot, wrap);
-    run_chase(p, n < hops ? n : hops); /* warm */
+    run_chase(p, n < hops ? n : hops);
     double v[MAXR];
     for (int r = 0; r < repeats; r++) v[r] = run_chase(p, hops);
     report(name, "ns/hop", v, repeats);
@@ -142,7 +122,6 @@ static void phase_chase(void)
     chase_case("chase_dram_512m", 8388608, 64, 0, 0, 4000000);
 }
 
-/* One cache line per page: the data stays cached, the translations do not. */
 static void phase_tlb(size_t page, const char *prefix)
 {
     static const size_t counts[] = {64, 512, 2048, 8192, 32768};
@@ -153,7 +132,6 @@ static void phase_tlb(size_t page, const char *prefix)
     }
 }
 
-/* ---- hash table (open addressing, 16-byte slots) ---- */
 static void phase_hash(void)
 {
     const size_t slots = (size_t)1 << 22, mask = slots - 1;
@@ -191,7 +169,6 @@ static void phase_hash(void)
     munmap(tab, slots * 16);
 }
 
-/* ---- memory bandwidth ---- */
 __attribute__((noinline, no_builtin("memcpy")))
 static void own_copy(uint64_t *restrict d, const uint64_t *restrict s, size_t bytes)
 {
@@ -208,7 +185,7 @@ static void copy_case_at(const char *name, size_t bytes, int kind, size_t src_of
     char *src = big_alloc(bytes + 64) + src_off, *dst = big_alloc(bytes + 64);
     memset(src, 1, bytes);
     memset(dst, 2, bytes);
-    size_t total = (size_t)1 << 30; /* about 1 GiB moved per repeat */
+    size_t total = (size_t)1 << 30;
     size_t rounds = total / bytes;
     if (rounds < 1) rounds = 1;
     double v[MAXR];
@@ -247,7 +224,6 @@ static void phase_copy(void)
     copy_case("bzero_128m", 128 << 20, 3);
 }
 
-/* ---- fresh memory: map, touch every 4 KiB, unmap ---- */
 static void phase_touch(void)
 {
     const size_t bytes = 64 << 20;
@@ -268,10 +244,9 @@ static void phase_touch(void)
     report("touch_warm_64m", "ns/16k", vw, repeats);
 }
 
-/* ---- branches ---- */
 static void phase_branch(void)
 {
-    const size_t n = 1 << 18; /* 1 MiB of sorted keys */
+    const size_t n = 1 << 18;
     uint32_t *a = malloc(n * sizeof(uint32_t));
     for (size_t i = 0; i < n; i++) a[i] = (uint32_t)(i * 7 + 3);
     const size_t lookups = 4000000;
@@ -283,7 +258,7 @@ static void phase_branch(void)
         for (size_t q = 0; q < lookups; q++) {
             uint32_t key = (uint32_t)(next() % (n * 7));
             size_t lo = 0, hi = n;
-            while (lo < hi) { /* data-dependent branch each step */
+            while (lo < hi) {
                 size_t mid = (lo + hi) / 2;
                 if (a[mid] < key) lo = mid + 1; else hi = mid;
                 __asm__ volatile("" ::: "memory");
@@ -295,7 +270,6 @@ static void phase_branch(void)
     }
     report("bsearch_1m", "ns/op", v, repeats);
 
-    /* An interpreter-style dispatch over random opcodes (indirect branches). */
     const size_t ops = 1 << 16;
     uint8_t *code = malloc(ops);
     for (size_t i = 0; i < ops; i++) code[i] = (uint8_t)(next() % 8);
@@ -323,7 +297,6 @@ static void phase_branch(void)
     free(a);
 }
 
-/* ---- path string compares (a loader comparing install names) ---- */
 __attribute__((noinline)) static int own_strcmp(const char *a, const char *b)
 {
     while (*a && *a == *b) { a++; b++; }
@@ -363,7 +336,6 @@ static void phase_str(void)
     free(paths);
 }
 
-/* ---- a loader-like file workload: stat, open, map, read headers, unmap ---- */
 static void phase_files(void)
 {
     if (!dir_arg) { printf("gcpu files: skipped (no -d)\n"); return; }
@@ -416,7 +388,6 @@ static void phase_files(void)
     report("files_touch", "ns/16k", vt, repeats);
 }
 
-/* ---- a large read-only file: first touches (cold for this process), then warm ---- */
 static void phase_file(void)
 {
     if (!file_arg) { printf("gcpu file: skipped (no -f)\n"); return; }
@@ -436,7 +407,6 @@ static void phase_file(void)
         size_t t = order[i]; order[i] = order[j]; order[j] = t;
     }
     uint64_t s = 0;
-    /* cold: the first touch of every 4 KiB of the span, in order */
     double t0 = now_ns();
     for (size_t o = 0; o < span; o += 4096) s += (unsigned char)p[o];
     double cold = (now_ns() - t0) / (double)(span / 4096);
@@ -455,7 +425,6 @@ static void phase_file(void)
     free(order);
 }
 
-/* ---- atomics and locks ---- */
 static _Atomic uint64_t shared_ctr __attribute__((aligned(128)));
 static _Atomic int ping __attribute__((aligned(128)));
 static long contend_iters;
@@ -534,7 +503,6 @@ static void phase_atomic(void)
     report("pingpong_rtt", "ns/rt", v, repeats);
 }
 
-/* ---- the clock ---- */
 static void phase_timer(void)
 {
     double v[MAXR];
@@ -569,7 +537,6 @@ static void phase_timer(void)
     report("clock_call", "ns/op", v, repeats);
 }
 
-/* ---- a real trap (no fast path): the VM exit round trip in the guest ---- */
 static void phase_trap(void)
 {
     double v[MAXR];
@@ -584,7 +551,6 @@ static void phase_trap(void)
     report("trap_getppid", "us/op", v, repeats);
 }
 
-/* ---- page-table churn by another thread while this one walks 2,048 pages ---- */
 static _Atomic int churn_stop;
 static _Atomic long churn_ops;
 static void *churn_thread(void *arg)
@@ -630,16 +596,12 @@ static void phase_churn(void)
     munmap(mem, bytes);
 }
 
-/* ---- thread switches: a 2,048-page chase in slices, another thread runs
- * between slices (alternating through a mutex and condition variable). With
- * the process on one host core this shows what a switch to another thread of
- * the same process costs the chase afterwards (TLB contents). ---- */
 static pthread_mutex_t sw_m = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t sw_c = PTHREAD_COND_INITIALIZER;
 static int sw_turn, sw_stop;
 static void *switch_thread(void *arg)
 {
-    char *own = arg; /* touches its own 64 pages between slices */
+    char *own = arg;
     pthread_mutex_lock(&sw_m);
     while (!sw_stop) {
         while (sw_turn != 1 && !sw_stop) pthread_cond_wait(&sw_c, &sw_m);

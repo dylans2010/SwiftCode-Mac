@@ -1,10 +1,3 @@
-// BaseEditorView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/BaseEditorView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: formatting toolbar; table editing (insert/add/delete rows/columns, alignment); live preview panel; search-and-replace bar; right inspector panel; document statistics; tag editing UI
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DocNSTextView, MetadataContent, ModuleKind, RandomAccessCollection, ToolbarContent, WorkspaceState.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeUI
@@ -22,28 +15,23 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
     public let kind: ModuleKind
     public let documentID: UUID?
 
-    // Custom sections passed by specialized editors
     @ViewBuilder public let specializedToolbar: () -> ToolbarContent
     @ViewBuilder public let specializedMetadata: () -> MetadataContent
     public let validationMessage: String?
 
-    // Shared state
     @State private var document: Document? = nil
     @State private var titleText = ""
     @State private var markdownText = ""
     @State private var isRenaming = false
     @State private var editTitleText = ""
 
-    // Table parameters
     @State private var tableRows = 3
     @State private var tableCols = 3
     @State private var showTableCreatorPopover = false
 
-    // Collapsible & Visual metadata state
     @State private var newTagText = ""
-    @State private var selectedSidePanelTab = 0 // 0 = Live Preview, 1 = Right Inspector
+    @State private var selectedSidePanelTab = 0
 
-    // Search and Replace state
     @State private var showSearchAndReplace = false
     @State private var searchQuery = ""
     @State private var replaceQuery = ""
@@ -77,22 +65,17 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
 
             VStack(spacing: 0) {
                 if let doc = document {
-                    // Header Area
                     headerArea(for: doc, mode: mode, state: state)
 
                     Divider()
 
-                    // Formatting Toolbar
                     adaptiveFormattingToolbar(mode: mode)
 
-                    // Search & Replace Bar
                     if showSearchAndReplace {
                         searchAndReplaceBar()
                     }
 
-                    // Content Split View
                     HStack(spacing: 0) {
-                        // Left-Center: Editing Canvas
                         VStack(spacing: 0) {
                             DocNSTextView(text: Binding(
                                 get: { markdownText },
@@ -106,7 +89,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                         }
                         .frame(maxWidth: .infinity)
 
-                        // Conditional Side Panels (Live Preview and Inspector)
                         sidePanelsArea(for: doc, mode: mode, state: state)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -116,7 +98,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 }
             }
             .background(
-                // Invisible shortcut button for Cmd+F
                 ZStack {
                     Button("") {
                         withAnimation {
@@ -140,8 +121,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             isRenaming = false
         }
     }
-
-    // MARK: - Layout Component: Header Area
 
     @ViewBuilder
     private func headerArea(for doc: Document, mode: EditorLayoutMode, state: WorkspaceState) -> some View {
@@ -195,7 +174,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             Spacer()
 
             if mode != .compact {
-                // Validation Message Indicator
                 if let validation = validationMessage {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -210,7 +188,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                     .cornerRadius(6)
                 }
 
-                // Preview Toggler
                 Toggle(isOn: Binding(
                     get: { state.showLivePreview },
                     set: { val in withAnimation { state.showLivePreview = val } }
@@ -229,7 +206,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 .toggleStyle(.button)
                 .help("Show/Hide document metadata inspector")
 
-                // Action Buttons
                 HStack(spacing: 8) {
                     Button {
                         duplicateDocument()
@@ -240,7 +216,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                     .buttonStyle(.bordered)
                 }
             } else {
-                // Compact Window Actions Menu
                 Menu {
                     Toggle(isOn: Binding(
                         get: { state.showLivePreview },
@@ -276,14 +251,11 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // MARK: - Layout Component: Formatting Toolbar
-
     @ViewBuilder
     private func adaptiveFormattingToolbar(mode: EditorLayoutMode) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 if mode == .compact {
-                    // Under compact window: collapse advanced tools into simple dropdowns/menus
                     Menu {
                         Section("Headers") {
                             Button("Header 1") { formatText(with: "# ", suffix: "") }
@@ -330,7 +302,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
 
                     specializedToolbar()
                 } else {
-                    // Under normal/wide window: show primary formatting tools directly
                     ControlGroup {
                         Button { formatText(with: "# ", suffix: "") } label: { Text("H1").bold() }.help("Heading 1")
                         Button { formatText(with: "## ", suffix: "") } label: { Text("H2").bold() }.help("Heading 2")
@@ -365,7 +336,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
 
                     Divider().frame(height: 16)
 
-                    // Markdown Tables Menu
                     Menu {
                         Button {
                             tableRows = 3; tableCols = 3
@@ -429,8 +399,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
         }
     }
 
-    // MARK: - Layout Component: Search & Replace Bar
-
     @ViewBuilder
     private func searchAndReplaceBar() -> some View {
         VStack(spacing: 0) {
@@ -484,8 +452,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             Divider()
         }
     }
-
-    // MARK: - Layout Component: Side Panels
 
     @ViewBuilder
     private func sidePanelsArea(for doc: Document, mode: EditorLayoutMode, state: WorkspaceState) -> some View {
@@ -566,7 +532,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
     private func rightInspectorPanel(for doc: Document) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // 1. Validation HUD (if any)
                 if let validation = validationMessage {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -590,7 +555,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                     )
                 }
 
-                // 2. Document Status & Priority Pickers
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Parameters")
                         .font(.caption.bold())
@@ -636,7 +600,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(8)
 
-                // 3. Document Statistics
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Statistics")
                         .font(.caption.bold())
@@ -671,7 +634,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(8)
 
-                // 4. Tag Manager
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Tags")
                         .font(.caption.bold())
@@ -717,7 +679,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(8)
 
-                // 5. Template Helpers
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Markdown Quick Templates")
                         .font(.caption.bold())
@@ -751,7 +712,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(8)
 
-                // 6. Specialized Metadata (rendered if present)
                 let specMeta = specializedMetadata()
                 if !(specMeta is EmptyView) {
                     VStack(alignment: .leading, spacing: 10) {
@@ -770,8 +730,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Layout Component: Empty State
-
     @ViewBuilder
     private func emptyStateView() -> some View {
         ContentUnavailableView {
@@ -785,8 +743,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             }
         }
     }
-
-    // MARK: - Core Operations & Calculations
 
     private func reloadData() {
         guard let id = documentID else {
@@ -891,8 +847,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
         } catch {}
     }
 
-    // MARK: - Search and Replace Logic
-
     private func performReplace() {
         guard !searchQuery.isEmpty else { return }
         if let range = markdownText.range(of: searchQuery) {
@@ -912,8 +866,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             try? coordinator.documents.updateDocument(doc)
         }
     }
-
-    // MARK: - Markdown Tables Processing
 
     private func insertCustomTable() {
         var tableMarkdown = "\n"
@@ -1034,7 +986,6 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
     }
 }
 
-// Simple Helper for Horizontal Flow Layout of Tags
 struct PersonalDocHFlowLayout: View {
     let spacing: CGFloat
     let items: [AnyView]

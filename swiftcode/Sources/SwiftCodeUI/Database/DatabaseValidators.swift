@@ -1,11 +1,5 @@
 import Foundation
 
-/// Name validation for the schema designer: table and column names
-/// must be non-empty, alphanumeric-or-underscore, and (for tables)
-/// must not start with a digit.
-///
-/// Ported verbatim from Legacy's
-/// `Views/Utilities/Database/Helpers/DatabaseValidators.swift`.
 public struct DatabaseValidators {
     public static func validateTableName(_ name: String) -> (isValid: Bool, message: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)

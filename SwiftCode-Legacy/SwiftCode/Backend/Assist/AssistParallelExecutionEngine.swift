@@ -1,7 +1,6 @@
 import Foundation
 import os
 
-/// Structured description of an atomic operation in a parallel execution plan.
 public struct AssistOperation: Identifiable, Sendable {
     public let id: String
     public let name: String
@@ -33,7 +32,6 @@ public struct AssistOperation: Identifiable, Sendable {
     }
 }
 
-/// Status of an operation within the parallel execution engine.
 public enum AssistOperationStatus: String, Sendable {
     case queued
     case running
@@ -43,7 +41,6 @@ public enum AssistOperationStatus: String, Sendable {
     case skipped
 }
 
-/// Result of executing an individual operation.
 public struct AssistOperationResult: Sendable {
     public let operationId: String
     public let status: AssistOperationStatus
@@ -56,7 +53,6 @@ public struct AssistOperationResult: Sendable {
     }
 }
 
-/// Aggregate summary of executing a dependency graph of operations.
 public struct AssistParallelExecutionReport: Sendable {
     public let totalOperations: Int
     public let completedCount: Int
@@ -70,9 +66,6 @@ public struct AssistParallelExecutionReport: Sendable {
     }
 }
 
-/// Bounded concurrency execution engine for Assist operations.
-/// Evaluates dependency graphs, checks resource collision (e.g. conflicting file modifications),
-/// and executes independent operations concurrently.
 @MainActor
 public final class AssistParallelExecutionEngine: Sendable {
     public static let shared = AssistParallelExecutionEngine()
@@ -82,7 +75,6 @@ public final class AssistParallelExecutionEngine: Sendable {
 
     private init() {}
 
-    /// Executes a list of operations respecting dependencies and file write serialization.
     public func execute(
         operations: [AssistOperation],
         context: AssistContext,
@@ -97,7 +89,6 @@ public final class AssistParallelExecutionEngine: Sendable {
         logger.info("Starting parallel execution of \(operations.count) operations.")
 
         while !pending.isEmpty || !running.isEmpty {
-            // Check for task cancellation
             if Task.isCancelled {
                 for (_, task) in running {
                     task.cancel()
@@ -114,13 +105,11 @@ public final class AssistParallelExecutionEngine: Sendable {
                 break
             }
 
-            // Find candidates whose dependencies have succeeded and do not collide on write paths
             var scheduledAny = false
             var index = 0
             while index < pending.count && running.count < maxConcurrentOperations {
                 let op = pending[index]
 
-                // Check dependencies
                 let depsSatisfied = op.dependencies.allSatisfy { depId in
                     completed[depId]?.isSuccess == true
                 }
@@ -130,7 +119,6 @@ public final class AssistParallelExecutionEngine: Sendable {
                 }
 
                 if depFailed {
-                    // Skip operation if an upstream dependency failed
                     pending.remove(at: index)
                     completed[op.id] = AssistOperationResult(
                         operationId: op.id,
@@ -148,14 +136,12 @@ public final class AssistParallelExecutionEngine: Sendable {
                     continue
                 }
 
-                // Check write collisions: if this operation mutates a path currently being mutated, wait
                 let touchesActivePath = op.targetPaths.contains { activeMutatingPaths.contains($0) }
                 if op.isMutating && touchesActivePath {
                     index += 1
                     continue
                 }
 
-                // Ready to schedule
                 pending.remove(at: index)
                 scheduledAny = true
 
@@ -206,7 +192,6 @@ public final class AssistParallelExecutionEngine: Sendable {
                 running[opId] = task
             }
 
-            // If nothing is currently running and nothing could be scheduled, we have a cycle or deadlock
             if running.isEmpty && !pending.isEmpty && !scheduledAny {
                 logger.error("Parallel execution deadlock detected: pending operations cannot satisfy dependencies.")
                 for op in pending {
@@ -222,9 +207,7 @@ public final class AssistParallelExecutionEngine: Sendable {
                 break
             }
 
-            // Wait for at least one running operation to complete
             if !running.isEmpty {
-                // Yield briefly to allow concurrent tasks to progress
                 try? await Task.sleep(nanoseconds: 50_000_000)
 
                 var completedInThisCycle: [String] = []
@@ -241,31 +224,24 @@ public final class AssistParallelExecutionEngine: Sendable {
                     }
                 }
 
-                // Check for finished tasks
                 for (opId, task) in running {
                     if !completedInThisCycle.contains(opId) {
-                        // Check if task is finished
-                        // In Swift Task, we can check if it's done by awaiting with a tiny timeout or polling
-                        // Here we can await task completion via race or poll
                     }
                 }
             }
 
-            // Efficiently harvest completed tasks
             for (opId, task) in running {
-                // We await the first completed task
                 let result = await task.value
                 running.removeValue(forKey: opId)
                 completed[opId] = result
                 onProgress?(opId, result.status)
 
-                // Release mutating paths
                 if let matchedOp = operations.first(where: { $0.id == opId }), matchedOp.isMutating {
                     for path in matchedOp.targetPaths {
                         activeMutatingPaths.remove(path)
                     }
                 }
-                break // Break loop to re-evaluate pending queue
+                break
             }
         }
 

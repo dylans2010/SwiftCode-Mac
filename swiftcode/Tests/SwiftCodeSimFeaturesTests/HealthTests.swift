@@ -2,18 +2,12 @@ import Foundation
 import Testing
 @testable import SwiftCodeSimFeatures
 
-/// HEALTH-1/2 (specs/simulator/health-simulation.md §3, §8.3, "SwiftCode
-/// implementation"): the type table, units, import validation, the
-/// scenario generators' statistics and the host channel's frames.
 struct HealthTypeTableTests {
     @Test func tableHasTheSpecsTypes() {
         #expect(HealthTypes.quantityRows.count == 121)
         #expect(HealthTypes.categoryRows.count == 72)
-        // §3.2's 26, plus the environmental audio event's identifier, which shares
-        // its string value with the older audio exposure event (one type at run time).
         #expect(HealthTypes.readOnly.count == 27)
         #expect(Set(HealthTypes.categoryRows.filter { HealthTypes.readOnly.contains($0.0) }.map(\.1)).count == 14)
-        // Every read-only identifier is in the table (or is ECG / the activity summary).
         for id in HealthTypes.readOnly where id != "HKActivitySummaryTypeIdentifier" { #expect(HealthTypes.all[id] != nil, "\(id)") }
         let hr = HealthTypes.all["HKQuantityTypeIdentifierHeartRate"]!
         #expect(hr.dimension == .frequency && !hr.cumulative && hr.writable && hr.storeCode == 5 && hr.storeUnit == "count/s")
@@ -140,7 +134,6 @@ struct HealthImportTests {
             #expect(f.description.contains("health seed"))
             #expect(f.description.contains("HEALTH-3"))
         }
-        // The same file for seeding: the read-only samples are kept apart.
         let s = try HealthImport.read(Data(csv.utf8), format: .csv, now: now, seeding: true)
         #expect(s.samples.count == 1 && s.readOnly.count == 2)
     }
@@ -157,10 +150,8 @@ struct HealthImportTests {
             .contains { $0.contains("end is before start") })
         #expect(problems(HealthSample(type: "HKQuantityTypeIdentifierStepCount", start: t, end: t + 5 * 86400, value: 1, unit: "count"))
             .contains { $0.contains("maximum duration") })
-        // Audio exposure needs a duration (§3.3).
         #expect(problems(HealthSample(type: "HKQuantityTypeIdentifierEnvironmentalAudioExposure", start: t, value: 60, unit: "dBASPL"))
             .contains { $0.contains("minimum duration") })
-        // Insulin delivery needs its reason (§3.3).
         #expect(problems(HealthSample(type: "HKQuantityTypeIdentifierInsulinDelivery", start: t, value: 2, unit: "IU"))
             .contains { $0.contains("HKInsulinDeliveryReason") })
         #expect(problems(HealthSample(type: "HKQuantityTypeIdentifierOxygenSaturation", start: t, value: 97, unit: "%"))
@@ -240,7 +231,6 @@ struct HealthScenarioTests {
         #expect((50...85).contains(mean(hr)))
         let resting = values(out.samples, HealthScenarios.restingHR)
         #expect(resting.count == 1 && (55...80).contains(resting[0]))
-        // Asleep (00:00–07:00) lower than the afternoon.
         let night = out.samples.filter { $0.type == HealthScenarios.hr && $0.start < day.addingTimeInterval(6 * 3600) }.map(\.value)
         let afternoon = out.samples.filter { $0.type == HealthScenarios.hr && $0.start >= day.addingTimeInterval(13 * 3600)
             && $0.start < day.addingTimeInterval(17 * 3600) }.map(\.value)
@@ -266,7 +256,6 @@ struct HealthScenarioTests {
         let hr = values(w.samples, HealthScenarios.hr)
         #expect(hr.count == 360)
         #expect(hr.allSatisfy { (120...165).contains($0) })
-        // The plateau is reached within about 90 s.
         #expect(hr.dropFirst(24).allSatisfy { $0 >= 125 })
         #expect(spacing(w.samples, HealthScenarios.distance).allSatisfy { abs($0 - 2.56) < 1e-6 })
         let d = values(w.samples, HealthScenarios.distance)
@@ -282,7 +271,6 @@ struct HealthScenarioTests {
             let stages = out.samples.filter { $0.type == HealthScenarios.sleep && $0.value != 0 }.sorted { $0.start < $1.start }
             let inBed = out.samples.filter { $0.type == HealthScenarios.sleep && $0.value == 0 }
             #expect(inBed.count == 1)
-            // Back to back, no overlaps.
             for (a, b) in zip(stages, stages.dropFirst()) { #expect(a.end == b.start) }
             #expect(stages.first?.value == 3, "the night starts with Core")
             let onset = stages.first!.start
@@ -290,13 +278,11 @@ struct HealthScenarioTests {
             let firstREM = stages.first { $0.value == 5 }!.start.timeIntervalSince(onset)
             #expect(firstDeep <= 3600, "Deep within the first hour (\(firstDeep))")
             #expect((3600...7200).contains(firstREM), "REM after 1–2 h (\(firstREM))")
-            // Transitions.
             for (a, b) in zip(stages, stages.dropFirst()) {
                 if a.value == 4 { #expect(b.value == 3 || b.value == 2) }
                 if a.value == 2 { #expect(b.value == 3) }
                 if a.value == 5 { #expect(b.value == 3 || b.value == 2) }
             }
-            // Shares of the time asleep plus awake.
             var total: [Int: Double] = [:]
             for s in stages { total[Int(s.value), default: 0] += s.duration }
             let all = total.values.reduce(0, +)
@@ -306,15 +292,12 @@ struct HealthScenarioTests {
             #expect((0.12...0.24).contains(share(4)), "deep \(share(4))")
             #expect((0.18...0.28).contains(share(5)), "REM \(share(5))")
             #expect((0.03...0.10).contains(share(2)), "awake \(share(2))")
-            // Deep mostly in the first third, REM mostly in the last third.
             let third = all / 3
             let deepEarly = stages.filter { $0.value == 4 && $0.start.timeIntervalSince(onset) < third }.reduce(0) { $0 + $1.duration }
             let remLate = stages.filter { $0.value == 5 && $0.start.timeIntervalSince(onset) >= 2 * third }.reduce(0) { $0 + $1.duration }
             #expect(deepEarly > (total[4] ?? 0) / 2)
             #expect(remLate > (total[5] ?? 0) / 2 - 1)
-            // Awake periods are short.
             #expect(stages.filter { $0.value == 2 }.allSatisfy { $0.duration <= 8 * 60 })
-            // Overnight vitals.
             let hr = values(out.samples, HealthScenarios.hr)
             #expect(hr.allSatisfy { (42...77).contains($0) })
             #expect(spacing(out.samples, HealthScenarios.spo2).allSatisfy { $0 == 1801 })
@@ -427,7 +410,6 @@ struct HealthChannelTests {
         let reqs = HealthChannel.writes(samples)
         #expect(reqs.map { ($0["samples"] as! [Any]).count } == [1000, 1000, 500])
         for r in reqs { #expect(HealthChannel.frame(r) != nil) }
-        // A whole workout scenario fits in one frame.
         var o = HealthScenarioOptions(date: t, timeZone: TimeZone(identifier: "UTC")!)
         o.seed = 3
         let w = try HealthScenarios.generate("workout", o).workouts[0]

@@ -1,28 +1,13 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// The socket system calls (`specs/simulator/stage4b-contract.md` §6 item 3,
-// `specs/simulator/processes.md` §5): argument decoding with the Darwin
-// layouts (`sockaddr_un`, `msghdr`, `cmsghdr`, `xucred`), then the
-// `UnixSocket` model. Owner: agent F.
-//
-// SCM_RIGHTS receive, when `msg_control` is too short or NULL
-// (`processes.md` §5.5 allows this choice): only the descriptors whose
-// 4-byte slot is copied out completely are installed; the others are
-// closed (xnu would leave them open in the receiver).
-
 extension DarwinKernel {
-    /// The socket behind `fd` (EBADF, ENOTSOCK).
     func socketObject(_ fd: Int32) throws -> (UnixSocket, DarwinOpenFile) {
         let file = try fileSystem.openFile(for: fd)
         guard let s = file.object as? UnixSocket else { throw fail(Code.ENOTSOCK) }
         return (s, file)
     }
 
-    /// Reads a guest `sockaddr_un` of `length` bytes (`processes.md` §5.3):
-    /// `sun_len` becomes `length`; the family must be 0 or AF_UNIX
-    /// (EAFNOSUPPORT); the path (cut at the first NUL) must not be empty
-    /// by length (EINVAL). A length outside 2…255 is EINVAL.
     func readUnixAddress(_ va: UInt64, length: UInt64, _ mem: any KernelGuestMemory) throws -> UnixAddress {
         guard length >= 2, length <= UInt64(SocketABI.maxAddressLength) else { throw fail(Code.EINVAL) }
         var raw = try mem.read(va: va, count: Int(length))
@@ -34,9 +19,6 @@ extension DarwinKernel {
         return UnixAddress(raw: raw, path: path)
     }
 
-    /// Copies `address` out the BSD way: at most `*lengthPointer` bytes to
-    /// `va`, then the untruncated length to `*lengthPointer` (0 when there
-    /// is no address).
     func copyOutAddress(_ address: [UInt8]?, to va: UInt64, lengthPointer: UInt64, _ mem: any KernelGuestMemory) throws {
         guard lengthPointer != 0 else { return }
         let room = Int(try mem.read(va: lengthPointer, count: 4).readLE(UInt32.self, at: 0))
@@ -51,7 +33,6 @@ extension DarwinKernel {
 
     func socketCall(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
-        // An IP socket (networking-swiftcode.md §2): its own layer.
         if n != DescriptorBSD.socket, n != DescriptorBSD.socketpair, let file = try? fileSystem.openFile(for: int(0)) {
             if let s = file.object as? InetSocket {
                 call.set(Self.socketCallText(n, a))
@@ -140,7 +121,7 @@ extension DarwinKernel {
             let (s, _) = try socketObject(int(0))
             guard s.kind == .stream else { throw fail(Code.EOPNOTSUPP) }
             guard !s.isConnected, s.peer == nil else { throw fail(Code.EINVAL) }
-            guard s.address != nil else { throw fail(Code.EINVAL) }  // uipc_listen: unbound
+            guard s.address != nil else { throw fail(Code.EINVAL) }
             let backlog = int(1)
             s.backlog = backlog <= 0 || backlog > Int32(SocketABI.maxBacklog) ? SocketABI.maxBacklog : Int(backlog)
             s.isListening = true
@@ -164,7 +145,6 @@ extension DarwinKernel {
             guard fileSystem.freeDescriptorCount >= 1 else { throw fail(Code.EMFILE) }
             let c = s.pending.removeFirst()
             c.lastUser = descriptorUser
-            // The new descriptor inherits the listener's O_NONBLOCK (xnu accept).
             let flags = DarwinOpen.O_RDWR | (file.statusFlags & DarwinOpen.O_NONBLOCK)
             let fd = try fileSystem.installObject(c, statusFlags: flags, closeOnExec: false)
             if a[1] != 0 {
@@ -259,7 +239,6 @@ extension DarwinKernel {
         }
     }
 
-    /// The trace text of a socket call on a descriptor.
     static func socketCallText(_ n: Int, _ a: [UInt64]) -> String {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }
         switch n {
@@ -284,9 +263,6 @@ extension DarwinKernel {
         }
     }
 
-    /// `socket(domain, type, protocol)`: AF_UNIX STREAM and DGRAM (AF_INET
-    /// and AF_INET6 are `makeInetSocket`); other domains are EAFNOSUPPORT;
-    /// another type is EPROTONOSUPPORT, a protocol other than 0 too.
     func makeSocket(domain: Int32, type: Int32, proto: Int32) throws -> UnixSocket {
         guard domain == SocketABI.afUnix else { throw fail(Code.EAFNOSUPPORT) }
         guard proto == 0 else { throw fail(Code.EPROTONOSUPPORT) }
@@ -294,11 +270,6 @@ extension DarwinKernel {
         return UnixSocket(kind: kind, lock: lock, creator: descriptorUser)
     }
 
-    // MARK: sendto / sendmsg / recvmsg
-
-    /// `sendto`. A descriptor that is not a socket keeps stage 4a's
-    /// behavior: the text is logged and the call fails with ENOTSOCK (the
-    /// simulator runtime's logging calls `sendto` on descriptor 0 today).
     private func sendtoCall(_ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         let fd = Int32(truncatingIfNeeded: a[0])
         let flags = Int32(truncatingIfNeeded: a[3])
@@ -320,7 +291,6 @@ extension DarwinKernel {
         return .value(UInt64(try socketSend(s, file, bytes, rights: nil, to: address, flags: flags)))
     }
 
-    /// A Darwin `struct msghdr` (48 bytes, `processes.md` §5.1).
     private struct MessageHeader {
         var name: UInt64
         var nameLength: UInt32
@@ -362,14 +332,8 @@ extension DarwinKernel {
         return .value(UInt64(try socketSend(s, file, bytes, rights: rights, to: address, flags: flags)))
     }
 
-    /// The control data of `sendmsg` (`processes.md` §5.5 send side, xnu
-    /// `unp_internalize`): exactly one SOL_SOCKET / SCM_RIGHTS message whose
-    /// `cmsg_len` equals `msg_controllen` (else EINVAL); each fd open (EBADF)
-    /// and not confined (EINVAL). The descriptions are captured now.
     func internalizeRights(_ va: UInt64, length: UInt32, _ mem: any KernelGuestMemory) throws -> [DarwinOpenFile] {
         guard length >= 12 else { throw fail(Code.EINVAL) }
-        // sockargs: the in-kernel copy (fds widened to pointers) must fit a
-        // 2048-byte cluster.
         guard (Int(length) - 12) * 2 + 12 <= 2048 else { throw fail(Code.EINVAL) }
         let c = try mem.read(va: va, count: Int(length))
         let cmsgLength = c.readLE(UInt32.self, at: 0)
@@ -408,7 +372,6 @@ extension DarwinKernel {
             let slots = room >= 12 ? min(rightsCount, (room - 12) / 4) : 0
             var fds: [Int32] = []
             if let rights = r.rights {
-                // Install what fits before copying out (all or none: EMSGSIZE).
                 guard fileSystem.freeDescriptorCount >= slots else { throw fail(Code.EMSGSIZE) }
                 for f in rights.prefix(slots) { fds.append(try fileSystem.install(f, closeOnExec: false)) }
             }
@@ -423,7 +386,6 @@ extension DarwinKernel {
         } else if rightsCount > 0 {
             outFlags |= SocketABI.msgCtrunc
         }
-        // Rights that were not installed are released here (closed).
 
         try scatter(r.bytes, into: iov, mem)
         var nameLength: UInt32 = 0
@@ -439,9 +401,6 @@ extension DarwinKernel {
         return .value(UInt64(r.bytes.count))
     }
 
-    // MARK: Options
-
-    /// A `struct timeval` (16 bytes on arm64) as nanoseconds; 0 = none.
     private func timeval(_ v: [UInt8]) throws -> UInt64? {
         guard v.count >= 16 else { throw fail(Code.EINVAL) }
         let sec = v.readLE(Int64.self, at: 0), usec = Int64(v.readLE(Int32.self, at: 8))
@@ -460,9 +419,6 @@ extension DarwinKernel {
         return b
     }
 
-    /// `setsockopt`. SOL_SOCKET options SwiftCode does not model are stored and
-    /// read back; any SOL_LOCAL option (and any other level) is EOPNOTSUPP
-    /// (`processes.md` §5.6).
     func setSocketOption(_ s: UnixSocket, level: Int32, name: Int32, value: [UInt8]) throws {
         guard level == SocketABI.solSocket else { throw fail(Code.EOPNOTSUPP) }
         func intValue() throws -> Int32 {
@@ -497,7 +453,6 @@ extension DarwinKernel {
         s.signals.fire()
     }
 
-    /// `getsockopt` value bytes.
     func socketOption(_ s: UnixSocket, level: Int32, name: Int32) throws -> [UInt8] {
         func int(_ v: Int) -> [UInt8] {
             var b: [UInt8] = []
@@ -536,7 +491,6 @@ extension DarwinKernel {
         }
     }
 
-    /// `LOCAL_PEER*` (`processes.md` §5.6).
     private func localPeerOption(_ s: UnixSocket, name: Int32) throws -> [UInt8] {
         switch name {
         case SocketABI.localPeerCred:
@@ -551,12 +505,10 @@ extension DarwinKernel {
             return b
         case SocketABI.localPeerUUID, SocketABI.localPeerEUUID:
             guard let p = s.peer else { throw fail(Code.ENOTCONN) }
-            // The peer process's main-executable UUID (zero if it is gone).
             return system.processes[p.lastUser.pid]?.executableUUID ?? [UInt8](repeating: 0, count: 16)
         case SocketABI.localPeerToken:
             guard let p = s.peer else { throw fail(Code.ENOTCONN) }
             let user = p.lastUser
-            // The process must still exist; the token describes it now.
             if let k = system.kernel(forPID: user.pid) { return k.descriptorAuditToken }
             if let k = user.kernel, !k.isTerminating { return k.descriptorAuditToken }
             throw fail(Code.EINVAL)

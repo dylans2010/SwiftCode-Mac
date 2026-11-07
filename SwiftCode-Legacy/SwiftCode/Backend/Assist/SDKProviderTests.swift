@@ -1,15 +1,5 @@
 import Foundation
 
-// MARK: - SDK provider tests (OpenCode SDK + OpenRouter Agent SDK)
-//
-// Follows the AssistRuntimeTestSuite convention: in-app
-// RuntimeTestCaseResult cases, wired into AssistRuntimeTestSuite.
-// Every case here is offline and deterministic — no server, no API key,
-// no network, no bridge launch. Live behaviour (a real opencode server,
-// a real OpenRouter key, a real model run) is verified by the Settings
-// install/status/connection checks and is listed as unverified in
-// Docs/Assist-SDK-Providers.md.
-
 @MainActor
 public final class SDKProviderTests: Sendable {
     public static let shared = SDKProviderTests()
@@ -33,8 +23,6 @@ public final class SDKProviderTests: Sendable {
         RuntimeTestCaseResult(testName: name, passed: passed, message: message, duration: Date().timeIntervalSince(start))
     }
 
-    // 1. SDK routing: opencode ids go to OpenCode; bare native ids and
-    // non-slash ids never take the SDK path.
     public func testApplicableKind() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -58,9 +46,6 @@ public final class SDKProviderTests: Sendable {
         return result("SDK Providers: session routing", start, passed, message)
     }
 
-    // 1b. Positive OpenRouter routing: a slash id with no discovery
-    // record takes the persisted-provider fallback (openRouter).
-    // A synthetic id is used so no real discovery record can veto it.
     public func testApplicableKindOpenRouterPersistedFallback() async -> RuntimeTestCaseResult {
         let start = Date()
         let original = AssistProviderSelection.persistedProvider
@@ -76,8 +61,6 @@ public final class SDKProviderTests: Sendable {
         )
     }
 
-    // 2. Tool-source combinations: cross-provider sources are rejected
-    // (nil), never silently remapped; combined maps for both providers.
     public func testToolSourceMapping() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -103,7 +86,6 @@ public final class SDKProviderTests: Sendable {
         return result("SDK Providers: tool-source mapping", start, passed, message)
     }
 
-    // 3. Tool-source setting persists independently and restores.
     public func testToolSourceSettingRoundTrip() async -> RuntimeTestCaseResult {
         let start = Date()
         let original = SDKToolSourceSetting.load()
@@ -118,8 +100,6 @@ public final class SDKProviderTests: Sendable {
         )
     }
 
-    // 4. Event store: a duplicate toolCallId merges in place (no second
-    // row) and a terminal state never regresses.
     public func testEventStoreMerge() async -> RuntimeTestCaseResult {
         let start = Date()
         let store = SDKToolEventStore()
@@ -140,10 +120,6 @@ public final class SDKProviderTests: Sendable {
         )
     }
 
-    // 4b. Merge edge cases the happy-path test did not cover:
-    // terminal -> different terminal never regresses, a same-state
-    // refresh never invents (or drops) a result, and the same
-    // toolCallId under a different source is a different call.
     public func testEventStoreMergeExtended() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -171,8 +147,6 @@ public final class SDKProviderTests: Sendable {
         return result("SDK Providers: event merge edge cases", start, passed, message)
     }
 
-    // 4c. Cancellation reaches a terminal UI state: requested/running
-    // rows become cancelled, terminal rows are untouched.
     public func testEventStoreCancelNonTerminal() async -> RuntimeTestCaseResult {
         let start = Date()
         let store = SDKToolEventStore()
@@ -195,10 +169,6 @@ public final class SDKProviderTests: Sendable {
         )
     }
 
-    // 5. View routing contract: a SwiftCode-source call inside an
-    // OpenRouter run still belongs to the OpenRouter view, because its
-    // serving provider is openrouter. The views filter on provider,
-    // not on source (see ORToolsUIView / OCToolsUIView).
     public func testEventProviderRouting() async -> RuntimeTestCaseResult {
         let start = Date()
         let events = [

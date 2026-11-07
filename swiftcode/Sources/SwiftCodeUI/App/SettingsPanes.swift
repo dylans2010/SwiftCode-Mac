@@ -4,18 +4,12 @@ import UniformTypeIdentifiers
 import SwiftCodeAssistant
 import SwiftCodeCloud
 import SwiftCodeCompletion
-import SwiftCodeGoogleAuth
 import SwiftCodeIDECore
 import SwiftCodePaywall
 import SwiftCodeSettings
 import SwiftCodeWorkspace
 import SwiftCodeSubprocess
 
-/// Shared form helpers for the settings panes: the grouped-card form of
-/// `specs/ide/settings.md` R3.3. A heading starts a section (its header
-/// over a new card); rows go into the current card, separated by lines;
-/// notes become the help text of the row before them; anything else (a
-/// preview, a list, a way back) sits between the cards.
 @MainActor
 public class SettingsPane: NSViewController {
     let prefs: Preferences
@@ -30,15 +24,9 @@ public class SettingsPane: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The form's row titles in order (labels, or the button title for
-    /// rows without a label); headings are listed as "# <title>". Rebuilt
-    /// with the form (for tests and the spec).
     public private(set) var rowTitles: [String] = []
-    /// The rows by title, for tests that drive controls.
     private var rowsByTitle: [(title: String, row: SettingsRowView)] = []
-    /// The cards in order (for tests and the geometry checks).
     public private(set) var cards: [SettingsCardView] = []
-    /// The section headers in order.
     public private(set) var headers: [NSTextField] = []
     private var currentCard: SettingsCardView?
     private enum Kind { case header, card, footnote, loose }
@@ -51,12 +39,9 @@ public class SettingsPane: NSViewController {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 0
-        // The first header's cap top is 76 down the window (24 under the
-        // title area; a 13-point label's cap top is 3 inside its frame).
         stack.edgeInsets = NSEdgeInsets(top: SettingsMetrics.firstHeaderCapTop - SettingsMetrics.titleAreaHeight - 3,
                                         left: SettingsMetrics.cardInset, bottom: SettingsMetrics.cardInset, right: SettingsMetrics.cardInset)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        // Long forms (General, Editing ▸ Display) scroll.
         let scroll = NSScrollView()
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
@@ -74,8 +59,6 @@ public class SettingsPane: NSViewController {
             scroll.topAnchor.constraint(equalTo: root.topAnchor), scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor), doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
-            // The cards keep x 200–690 whatever the scroller style: a
-            // legacy scroller's track covers the right margin (R3.3).
             doc.widthAnchor.constraint(equalTo: scroll.widthAnchor),
             stack.topAnchor.constraint(equalTo: doc.topAnchor), stack.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: doc.trailingAnchor), stack.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
@@ -97,9 +80,6 @@ public class SettingsPane: NSViewController {
         build()
     }
 
-    /// Adds a view to the form with the measured spacing before it: a card
-    /// 33 to the next header's cap top, a header's cap top 22.5 above its
-    /// card, 12 around anything else.
     private func append(_ v: NSView, _ kind: Kind) {
         if let last = stack.arrangedSubviews.last, let lastKind {
             let gap: CGFloat
@@ -121,7 +101,6 @@ public class SettingsPane: NSViewController {
         lastKind = kind
     }
 
-    /// The card rows go into, started when there is none.
     private var card: SettingsCardView {
         if let currentCard { return currentCard }
         let c = SettingsCardView()
@@ -131,12 +110,8 @@ public class SettingsPane: NSViewController {
         return c
     }
 
-    /// The width of a card (and of the views between them).
     static var contentWidth: CGFloat { SettingsMetrics.cardWidth }
 
-    /// A row of the current card: the label at the left (no colon), the
-    /// control at the right. An empty label takes the title of a switch
-    /// or button control.
     func row(_ label: String, _ control: NSView) {
         var t = label
         if t.hasSuffix(":") { t.removeLast() }
@@ -152,8 +127,6 @@ public class SettingsPane: NSViewController {
         rowsByTitle.append((t, r))
     }
 
-    /// Help text under the last row's label; a card of its own when the
-    /// section has no row yet.
     func note(_ s: String) {
         if let r = currentCard?.rowViews.last as? SettingsRowView, !r.isContent {
             r.setHelp(s)
@@ -164,8 +137,6 @@ public class SettingsPane: NSViewController {
         card.add(r)
     }
 
-    /// A row that opens a sub-page: its title and a chevron; the whole row
-    /// is the button.
     func drill(_ title: String, _ action: @escaping () -> Void) {
         let chevron = NSTextField(labelWithString: "\u{203A}")
         chevron.font = .systemFont(ofSize: 17)
@@ -177,7 +148,6 @@ public class SettingsPane: NSViewController {
         card.add(r)
     }
 
-    /// A sub-page's way back ("‹ Editing"), above its cards.
     func backRow(_ title: String, _ action: @escaping () -> Void) {
         let b = ClosureButton(title: "\u{2039} " + title, target: nil, action: nil)
         b.bezelStyle = .inline
@@ -185,13 +155,11 @@ public class SettingsPane: NSViewController {
         loose(b)
     }
 
-    /// A view between the cards (it ends the current card).
     func loose(_ v: NSView) {
         currentCard = nil
         append(v, .loose)
     }
 
-    /// A note under the current card, in the help style (it ends the card).
     func footnote(_ text: String) {
         let f = NSTextField(wrappingLabelWithString: "")
         f.attributedStringValue = SettingsRowView.helpText(text)
@@ -208,12 +176,10 @@ public class SettingsPane: NSViewController {
         append(box, .footnote)
     }
 
-    /// A card that holds one view (a list, a preview), inset `inset`.
     func cardContent(_ v: NSView, inset: CGFloat = SettingsMetrics.labelInset) {
         card.add(SettingsRowView(content: v, inset: inset))
     }
 
-    /// Ends the current card: the next row starts a new one.
     func endCard() { currentCard = nil }
 
     func heading(_ s: String) {
@@ -224,7 +190,6 @@ public class SettingsPane: NSViewController {
         rowTitles.append("# " + s)
     }
 
-    /// The control in the row titled `title` (tests drive controls by row).
     public func control<T: NSView>(_ type: T.Type, inRow title: String) -> T? {
         _ = view
         for (t, r) in rowsByTitle where t == title {
@@ -236,20 +201,17 @@ public class SettingsPane: NSViewController {
         return nil
     }
 
-    /// The row titled `title`.
     public func rowView(_ title: String) -> SettingsRowView? {
         _ = view
         return rowsByTitle.first { $0.title == title }?.row
     }
 
-    /// Selects a pop-up item in a row and fires its action, as a click would.
     public func choose(_ item: String, inRow title: String) {
         guard let p = control(NSPopUpButton.self, inRow: title) else { return }
         p.selectItem(withTitle: item)
         if let a = p.action { _ = (p.target as AnyObject?)?.perform(a, with: p) }
     }
 
-    /// Flips a switch (or checkbox) row, as a click would.
     public func toggle(_ title: String) {
         if let s = control(NSSwitch.self, inRow: title) {
             s.state = s.state == .on ? .off : .on
@@ -261,7 +223,6 @@ public class SettingsPane: NSViewController {
         if let a = b.action { _ = (b.target as AnyObject?)?.perform(a, with: b) }
     }
 
-    /// A card pop-up: the value and a circular chevron button.
     func popUp(_ titles: [String], selected: String, _ action: @escaping (String) -> Void) -> NSPopUpButton {
         let p = ClosurePopUp(frame: .zero, pullsDown: false, card: true)
         p.addItems(withTitles: titles)
@@ -270,7 +231,6 @@ public class SettingsPane: NSViewController {
         return p
     }
 
-    /// A switch; a row with an empty label takes its title.
     func check(_ title: String, _ on: Bool, _ action: @escaping (Bool) -> Void) -> NSSwitch {
         let s = ClosureSwitch(title: title)
         s.state = on ? .on : .off
@@ -286,7 +246,6 @@ public class SettingsPane: NSViewController {
         return f
     }
 
-    /// A trailing value (read-only text) in the label colour.
     func value(_ s: String) -> NSTextField {
         let l = NSTextField(labelWithString: s)
         l.textColor = .secondaryLabelColor
@@ -303,7 +262,6 @@ final class ClosurePopUp: NSPopUpButton {
         target = self
         action = #selector(fire)
     }
-    /// A card's pop-up (`SettingsCardPopUpCell`).
     convenience init(frame: NSRect, pullsDown: Bool, card: Bool) {
         self.init(frame: frame, pullsDown: pullsDown)
         guard card else { return }
@@ -328,14 +286,10 @@ final class ClosureField: NSTextField {
     @objc func fire() { onCommit?(self) }
 }
 
-// MARK: General
-
-/// Settings ▸ General (reference-ui-5.md §9.1).
 @MainActor
 public final class GeneralSettingsPane: SettingsPane {
     public init(prefs: Preferences = .shared) { super.init("General", prefs: prefs) }
 
-    /// The last confirmation text shown (tests); nil when none.
     public private(set) var lastConfirmation: String?
 
     override func build() {
@@ -397,21 +351,8 @@ public final class GeneralSettingsPane: SettingsPane {
         proSection()
     }
 
-    /// Whether the Pro section has refreshed entitlements once.
-    /// The refresh runs a single time per pane lifetime: the
-    /// refresh itself ends in `rebuild()`, which re-runs `build()`,
-    /// so an unguarded refresh would loop forever.
     private var proSectionRefreshed = false
 
-    /// The Pro section (Wave 15, Legacy
-    /// `GeneralSettingsView.proSection`): the IDE's only
-    /// production Pro gate. Pro members see the member line;
-    /// everyone else gets the "Upgrade to Pro" button that
-    /// presents the Wave 13 paywall as a sheet. The row title is
-    /// the same in both states so the pane's structure does not
-    /// depend on entitlement. No feature is gated here — Legacy
-    /// gated nothing behind Pro either, and no gate is invented.
-    /// SwiftCode style: no orange accent, sentence case.
     private func proSection() {
         if PaywallStore.shared.isPro {
             let member = NSTextField(labelWithString: "SwiftCode Pro Member!")
@@ -433,15 +374,12 @@ public final class GeneralSettingsPane: SettingsPane {
         }
     }
 
-    /// Presents the Wave 13 paywall as a sheet.
     private func showPaywall() {
         presentAsSheet(NSHostingController(rootView: PaywallView()))
     }
 
-    /// The help under Restore open projects and workspaces (SwiftCode's words).
     public static let restoreHelp = "Use System Setting reopens them unless \u{201C}Close windows when quitting an application\u{201D} is on in "
         + "System Settings \u{25B8} Desktop & Dock."
-    /// The help under Window tabs have independent sidebar widths.
     public static let sidebarWidthsHelp = "Each tab of a window keeps its own navigator and inspector widths, so the tab bar moves when you "
         + "switch between tabs."
 
@@ -455,7 +393,6 @@ public final class GeneralSettingsPane: SettingsPane {
     public static let resetSettingsMessage = "Reset all SwiftCode settings to their defaults?"
     public static let resetWarningsMessage = "Show all warnings you chose not to be asked about again?"
 
-    /// Asks first (as a sheet), then runs `action`.
     func confirm(_ message: String, _ info: String, _ action: @escaping () -> Void) {
         lastConfirmation = message
         guard let w = view.window, w.isVisible else { return }
@@ -480,10 +417,8 @@ public final class GeneralSettingsPane: SettingsPane {
         }
     }
 
-    /// Writes the settings file (Export…).
     public func exportSettings(to url: URL) throws { try prefs.exportSettings().write(to: url, options: .atomic) }
 
-    /// Reads a settings file (Import…) and shows its values.
     public func importSettings(from url: URL) throws {
         try prefs.importSettings(Data(contentsOf: url))
         if isViewLoaded { rebuild() }
@@ -509,88 +444,44 @@ public final class GeneralSettingsPane: SettingsPane {
     }
 }
 
-// MARK: Accounts
-
 @MainActor
 public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
-    /// The SwiftCode cloud account (slice B): injectable so tests can
-    /// substitute a stub-backed manager; the app uses the shared one.
     public let authManager: CloudAuthManager
     public let cloudManager: CloudManager
     public let syncEngine: CloudSyncEngine
-    /// The Google account (Wave 15, slice C): Legacy's
-    /// `GoogleAccountAuthService` — the separate Google Cloud /
-    /// Antigravity OAuth identity, not the Appwrite account above.
-    /// Injectable so tests can substitute a stub-backed service;
-    /// the app uses the shared one.
     public let googleAuthService: GoogleAccountAuthService
-    /// The SwiftCode section's selected tab.
     public var selectedCloudTab: CloudAccountsTab = .account { didSet { if isViewLoaded { rebuild() } } }
-    /// The last sync statistics (`CloudSyncEngine.getStatistics()`).
     public var statistics = CloudStatistics()
-    /// The server test's result text, if a test has run.
     public var connectionResult: String?
-    /// Whether the last server test succeeded, if one has run.
     public var connectionSucceeded: Bool?
     public var isTestingConnection = false
-    /// The last account action's message (verification sent, or a
-    /// user-facing error), shown in the account tab.
     public var accountMessage: String?
-    /// The delete-account confirmation text shown (tests); nil when
-    /// the alert was never asked for.
     public var shownDeleteConfirmation: String?
-    /// The SwiftCode id field the account tab shows (tests).
     public var swiftCodeIDField: NSTextField?
-    /// The SwiftCode section's explanation: the account signs in to
-    /// Dylan's Appwrite backend, and only a session secret is kept,
-    /// in the Keychain — never the password.
     public static let swiftCodeExplanation = "Sign in with your SwiftCode Cloud account to enable cloud sync and backups. "
         + "The account signs in to Dylan's Appwrite backend; SwiftCode stores only a session secret in the Keychain, never your password."
-    /// Scopes the + button's "never asks for credentials" wording:
-    /// it is about App Store Connect keys, not the SwiftCode account.
     public static let appStoreConnectScopeNote = "The explanation the + button shows above refers to App Store Connect keys: "
         + "SwiftCode never asks for or stores those credentials. The SwiftCode account below is separate."
-    /// The server test's success text (Legacy's wording).
     public static let connectionSucceededText = "Connection Succeeded (Appwrite Server Reachable)"
-    /// The delete-account alert's title (Legacy's wording).
     public static let deleteAccountTitle = "Permanently Delete SwiftCode Account?"
-    /// The delete-account alert's text (Legacy's exact wording).
     public static let deleteAccountMessage = "Warning: This will permanently delete your user account and all remote credentials "
         + "on the Appwrite authentication server. This action is destructive and cannot be undone."
     public static let verificationSentText = "Verification email sent."
 
-    /// Whether the Google section has triggered its one session
-    /// restore (the service does not restore in `init`).
     var googleRestoreAttempted = false
-    /// The Google section's explanation: the account signs in to
-    /// Google for the Gemini / Antigravity models in Assist, and
-    /// only OAuth tokens are kept, in the Keychain — never the
-    /// Google password.
     public static let googleExplanation = "Sign in with Google to use the Gemini / Antigravity models in Assist. "
         + "SwiftCode stores only OAuth tokens in the Keychain, never your Google password. "
         + "Sign-in opens your browser (macOS only); on Linux the browser flow is unavailable."
-    /// The Google section's note when the OAuth client secret is not
-    /// configured: the browser step succeeds but Google refuses the
-    /// token exchange without it.
     public static let googleMissingSecretNote = "No OAuth client secret is configured: the browser authorization "
         + "will succeed, but Google will refuse the token exchange. Enter your OAuth client's secret below "
         + "(Google Cloud Console → APIs & Services → Credentials → your OAuth client); it is stored in the Keychain."
-    /// The Google section's Assist-scope status when the session has
-    /// the required scopes.
     public static let googleScopesReadyText = "Ready for Assist"
-    /// The Google section's Assist-scope status when the session
-    /// lacks the required scopes.
     public static let googleScopesMissingText = "Re-authentication needed for Assist"
 
-    /// The one background statistics load (guarded in the extension).
     var statsTask: Task<Void, Never>?
     var presentedAuthSheet: CloudAuthSheetController?
     var presentedChangeEmailSheet: CloudChangeEmailSheetController?
     var presentedChangePasswordSheet: CloudChangePasswordSheetController?
-    /// Wiring (wiring-views): the hosted SwiftUI account views (GitHub,
-    /// Supabase) added by `buildGitHubSection()` /
-    /// `buildSupabaseSection()` (`CloudAccountsSettings.swift`). Kept so
-    /// a `rebuild()` can detach the previous hosting controller first.
     var gitHubAccountHosting: NSHostingController<GitHubAccountView>?
     var supabaseHosting: NSHostingController<SupabaseCloudView>?
 
@@ -602,24 +493,17 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
         self.syncEngine = syncEngine
         self.googleAuthService = googleAuthService
         super.init(AccountsPage.title, prefs: prefs)
-        // Rebuild when the Google sign-in state changes (sign-in,
-        // sign-out, restore, verification failure).
         googleAuthService.onStateChange = { [weak self] in
             guard let self, self.isViewLoaded else { return }
             self.rebuild()
         }
     }
-    // Informational only: SwiftCode never asks for or stores credentials.
-    /// The explanation shown by + (for tests).
     public static let notSupported = AccountsPage.explanation(keychain: true)
     public private(set) var shownMessage: String?
-    /// The App Store Connect API keys the list shows (none until #43).
     var keyStore: any AppStoreConnectKeyStore = NoAppStoreConnectKeys()
 
-    /// The list's card: the list, then a bar with + under a separator.
     public static let listHeight: CGFloat = 240
     public static let barHeight: CGFloat = 28
-    /// The empty list's text (for tests).
     public private(set) var emptyLabel: NSTextField?
     public private(set) var addButton: NSButton?
 
@@ -663,8 +547,6 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
         emptyLabel = empty
         addButton = add
         cardContent(box, inset: 0)
-        // The SwiftCode account section (slice B), below the App Store
-        // Connect key list, which is unchanged above.
         buildSwiftCodeSection()
     }
 
@@ -675,7 +557,6 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
         return "\(r.title) (\(r.detail))"
     }
 
-    /// The sheet + shows.
     public func makeAlert() -> NSAlert {
         let a = NSAlert()
         a.messageText = AccountsPage.sheetTitle
@@ -690,14 +571,9 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
     }
 }
 
-// MARK: Behaviors
-
-/// Categories, each drilling into its events; each event lists its actions
-/// with + (add) and − (remove) (reference-ui.md §4).
 @MainActor
 public final class BehaviorsSettingsPane: SettingsPane {
     public private(set) var event: Preferences.Event = .buildStarts
-    /// The open category (nil = the category list).
     public private(set) var category: String?
     public init(prefs: Preferences = .shared) { super.init("Behaviors", prefs: prefs) }
 
@@ -714,7 +590,6 @@ public final class BehaviorsSettingsPane: SettingsPane {
         open(category: e.category)
     }
 
-    /// The actions + offers.
     public static func addableActions() -> [String] { Preferences.Behavior.addableActions() }
 
     public func add(_ action: String, to e: Preferences.Event) {
@@ -729,7 +604,6 @@ public final class BehaviorsSettingsPane: SettingsPane {
         if isViewLoaded { rebuild() }
     }
 
-    /// Event groups the user collapsed (each group's disclosure button).
     public private(set) var collapsed: Set<Preferences.Event> = []
     public func isCollapsed(_ e: Preferences.Event) -> Bool { collapsed.contains(e) }
     public func toggleCollapsed(_ e: Preferences.Event) {
@@ -749,8 +623,6 @@ public final class BehaviorsSettingsPane: SettingsPane {
         heading(category)
         let list = events(in: category)
         if list.isEmpty { note("SwiftCode has no events in this category.") }
-        // One card per event: its name with a disclosure button, its
-        // actions with −, and + to add one.
         for e in list {
             let disclose = ClosureButton(title: "", target: nil, action: nil)
             disclose.bezelStyle = .disclosure
@@ -783,10 +655,6 @@ public final class BehaviorsSettingsPane: SettingsPane {
     }
 }
 
-// MARK: Notifications
-// (Settings ▸ Coding Assistant is CodingAssistantSettingsPane.swift.)
-
-/// Which events notify (the Behaviors "Notify" action), per event.
 @MainActor
 public final class NotificationsSettingsPane: SettingsPane {
     public init(prefs: Preferences = .shared) { super.init("Notifications", prefs: prefs) }
@@ -807,9 +675,6 @@ extension String {
     var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
 
-// MARK: Navigation
-
-/// Settings ▸ Navigation (reference-ui-5.md §9.2).
 @MainActor
 public final class NavigationSettingsPane: SettingsPane {
     public init(prefs: Preferences = .shared) { super.init("Navigation", prefs: prefs) }
@@ -854,26 +719,19 @@ public final class NavigationSettingsPane: SettingsPane {
     }
 }
 
-// MARK: Themes
-
 @MainActor
 public final class ThemesSettingsPane: SettingsPane {
     public init(prefs: Preferences = .shared) { super.init("Appearance", prefs: prefs) }
     public enum Segment: Int { case theme, fonts, editor }
     public var segment: Segment = .theme { didSet { if isViewLoaded { rebuild() } } }
 
-    /// One color row and one font row per token kind, in SwiftCode's token set
-    /// (reference-ui-5.md §9.4). Plain Text is the theme's text color and
-    /// source font.
     public static let tokenRows: [(title: String, kind: SourceTokenizer.Kind)] = [
         ("Plain Text", .identifier), ("Comments", .comment), ("Documentation Comments", .docComment), ("Strings", .string),
         ("Numbers", .number), ("Keywords", .keyword), ("Preprocessor Statements", .preprocessor), ("Attributes", .attribute),
         ("Type Names", .typeName),
     ]
 
-    /// The System / Light / Dark thumbnails.
     public private(set) var appearanceButtons: [NSButton] = []
-    /// The live code preview under the thumbnails.
     public let preview = NSTextView(frame: NSRect(x: 0, y: 0, width: 520, height: 120))
     public static let previewCode = """
     /// A greeting, said once.
@@ -911,7 +769,6 @@ public final class ThemesSettingsPane: SettingsPane {
         }
     }
 
-    /// A thumbnail: a small window drawn light, dark, or split (System).
     static func thumbnail(_ a: Preferences.Appearance) -> NSImage {
         NSImage(size: NSSize(width: 68, height: 44), flipped: false) { r in
             let path = NSBezierPath(roundedRect: r.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6)
@@ -938,7 +795,6 @@ public final class ThemesSettingsPane: SettingsPane {
         for (b, x) in zip(appearanceButtons, Preferences.Appearance.allCases) { b.state = x == a ? .on : .off }
     }
 
-    /// The preview shows sample code in the selected theme.
     func buildPreview() {
         preview.isEditable = false
         preview.isSelectable = false
@@ -957,7 +813,6 @@ public final class ThemesSettingsPane: SettingsPane {
 
     @objc func segmentChosen(_ c: NSSegmentedControl) { segment = Segment(rawValue: c.selectedSegment) ?? .theme }
 
-    /// Selects a theme (the "Choose…" menu).
     public func chooseTheme(_ name: String) {
         prefs.themeName = name
         if isViewLoaded { rebuild() }
@@ -992,7 +847,6 @@ public final class ThemesSettingsPane: SettingsPane {
         row("", NSStackView(views: [dup, del, imp, exp]))
     }
 
-    /// One font row per token kind: the font's name and an editable size.
     func buildFonts() {
         let t = prefs.theme
         for (title, kind) in Self.tokenRows {
@@ -1010,27 +864,22 @@ public final class ThemesSettingsPane: SettingsPane {
         row("Font size:", number(Int(t.consoleFontSize)) { [weak self] n in self?.edit { $0.consoleFontSize = Double(max(6, min(48, n))) } })
     }
 
-    /// A token kind's font as the Fonts rows show it.
     public func font(for kind: SourceTokenizer.Kind) -> EditorTheme.FontSpec {
         let t = prefs.theme
         if kind != .identifier, let f = t.tokenFonts?[kind.rawValue] { return f }
         return EditorTheme.FontSpec(name: t.fontName, size: t.fontSize)
     }
 
-    /// Sets a token kind's font (Plain Text: the source font) in the
-    /// selected user theme.
     public func setFont(_ f: EditorTheme.FontSpec, for kind: SourceTokenizer.Kind) {
         edit { t in
             if kind == .identifier { t.fontName = f.name; t.fontSize = f.size } else { t.tokenFonts = (t.tokenFonts ?? [:]).merging([kind.rawValue: f]) { $1 } }
         }
     }
 
-    /// Sets a token kind's color (Plain Text: the text color).
     public func setColor(_ c: NSColor, for kind: SourceTokenizer.Kind) {
         edit { t in if kind == .identifier { t.foreground = EditorTheme.hex(c) } else { t.tokens[kind.rawValue] = EditorTheme.hex(c) } }
     }
 
-    /// Edits the selected user theme (built-ins are left alone).
     public func edit(_ f: (inout EditorTheme) -> Void) { prefs.editSelectedTheme(f) }
 
     @objc public func duplicateClicked() {
@@ -1074,23 +923,14 @@ final class ClosureColorWell: NSColorWell {
     @objc func fire() { onChange?(color) }
 }
 
-// MARK: Editing
-
-/// Editing, with Display, Completion and Indentation sub-pages.
 @MainActor
 public final class TextEditingSettingsPane: SettingsPane {
     public enum Page: String { case main = "Editing", display = "Display", completion = "Completion", indentation = "Indentation" }
     public var page: Page = .main { didSet { if isViewLoaded { rebuild() } } }
     public init(prefs: Preferences = .shared) { super.init("Editing", prefs: prefs) }
-    /// Predictive completion's Test result and download progress
-    /// (TextEditingSettingsPane+Prediction.swift).
     public internal(set) var predictionProbe: BackendProbe?
     public internal(set) var predictionMessage = ""
     var predictionTask: Task<Void, Never>?
-    /// Wiring (wiring-views): the hosted `CodeSuggestionsView` section on
-    /// the Completion page (`buildSuggestionsSection()` in
-    /// TextEditingSettingsPane+Prediction.swift). Kept so a `rebuild()`
-    /// can detach the previous hosting controller first.
     var suggestionsHosting: NSHostingController<AnyView>?
 
     override func build() {
@@ -1104,7 +944,6 @@ public final class TextEditingSettingsPane: SettingsPane {
             heading("When Editing")
             row("", check("Automatically trim trailing whitespace", prefs.trimTrailingWhitespace) { [prefs] in prefs.trimTrailingWhitespace = $0 })
             row("", check("Trim whitespace-only lines", prefs.trimWhitespaceOnlyLines) { [prefs] in prefs.trimWhitespaceOnlyLines = $0 })
-            // specs/ide/predictive-completion.md §5: the switch; its backend is on the Completion page.
             row("", check("Predictive code completion", prefs.predictiveCompletion.enabled) { [prefs] on in
                 var s = prefs.predictiveCompletion
                 s.enabled = on
@@ -1115,7 +954,6 @@ public final class TextEditingSettingsPane: SettingsPane {
                 prefs.generateStringCatalogComments = $0
             })
         case .display:
-            // reference-ui-5.md §9.3, in order. The minimap is Editor ▸ Minimap.
             backRow("Editing") { [weak self] in self?.page = .main }
             heading("Display")
             row("", check("Line numbers", prefs.showLineNumbers) { [prefs] in prefs.showLineNumbers = $0 })
@@ -1168,8 +1006,6 @@ public final class TextEditingSettingsPane: SettingsPane {
     }
 }
 
-// MARK: Key Bindings
-
 @MainActor
 public final class KeyBindingsSettingsPane: SettingsPane, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public private(set) var rows: [KeyBindings.Entry] = []
@@ -1218,8 +1054,6 @@ public final class KeyBindingsSettingsPane: SettingsPane, NSTableViewDataSource,
         if (obj.object as? NSSearchField) === search { query = search.stringValue }
     }
 
-    /// Sets a shortcut from text like `⌃⇧⌘K` (empty clears). Returns false
-    /// on a conflict (shown under the table) or unreadable text.
     @discardableResult
     public func setShortcut(_ text: String, forRow i: Int) -> Bool {
         guard rows.indices.contains(i), let (key, mods) = Self.parse(text) else { return false }
@@ -1229,8 +1063,6 @@ public final class KeyBindingsSettingsPane: SettingsPane, NSTableViewDataSource,
         return lastConflicts.isEmpty
     }
 
-    /// `⌃⌥⇧⌘` prefixes then one key (or `F6`, `↩`, …); the core's parser,
-    /// shared with the Linux IDE.
     static func parse(_ text: String) -> (String, MenuCommand.Modifiers)? {
         KeyBindings.parse(text).map { ($0.key, $0.modifiers) }
     }
@@ -1253,16 +1085,10 @@ public final class KeyBindingsSettingsPane: SettingsPane, NSTableViewDataSource,
     }
 }
 
-// MARK: Source Control
-
 @MainActor
 public final class SourceControlSettingsPane: SettingsPane {
-    /// Reads a git configuration key; nil reads git's global
-    /// configuration off the main thread when the pane is shown.
     let readConfig: ((String) -> String?)?
-    /// The author read in the background (`readConfig` nil).
     private var loadedAuthor: (name: String?, email: String?)?
-    /// The background read, while it runs.
     public private(set) var loading: Task<Void, Never>?
 
     public init(prefs: Preferences = .shared, readConfig: ((String) -> String?)? = nil) {
@@ -1282,7 +1108,6 @@ public final class SourceControlSettingsPane: SettingsPane {
         }
     }
 
-    /// `git config --global --get <key>` (read-only).
     public nonisolated static func gitConfig(_ key: String) -> String? {
         MainThreadGuard.blockingCall("git config \(key)")
         return GitGlobalConfig.value(key)
@@ -1293,8 +1118,7 @@ public final class SourceControlSettingsPane: SettingsPane {
 
     private func value(_ key: String, _ loaded: String??) -> String {
         if let readConfig { return readConfig(key) ?? "Not set" }
-        guard loadedAuthor != nil else { return "" }   // still reading
-        // swiftlint:disable:next redundant_nil_coalescing - flattens a double optional
+        guard loadedAuthor != nil else { return "" }
         return (loaded ?? nil) ?? "Not set"
     }
 
@@ -1307,8 +1131,6 @@ public final class SourceControlSettingsPane: SettingsPane {
     }
 }
 
-// MARK: Components
-
 @MainActor
 public final class ComponentsSettingsPane: SettingsPane {
     public struct Component: Equatable, Sendable {
@@ -1316,8 +1138,6 @@ public final class ComponentsSettingsPane: SettingsPane {
         public var version: String
         public var kind: String
     }
-    /// The installed components; read in the background (simctl) when
-    /// none are given.
     public private(set) var components: [Component]
     public private(set) var loading: Task<Void, Never>?
     private var loaded: Bool
@@ -1341,8 +1161,6 @@ public final class ComponentsSettingsPane: SettingsPane {
         }
     }
 
-    /// SDKs of the active developer directory, then simulator runtimes
-    /// from `xcrun simctl list runtimes -j` (both read-only).
     public nonisolated static func installed() -> [Component] {
         var out: [Component] = []
         if let dev = Workspace.activeDeveloperDirectory() {
@@ -1352,7 +1170,6 @@ public final class ComponentsSettingsPane: SettingsPane {
         return out
     }
 
-    /// `runtimes[]`: `name`, `version`, `isAvailable`.
     public nonisolated static func runtimes(fromSimctlJSON data: Data) -> [Component] {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = obj["runtimes"] as? [[String: Any]] else { return [] }
@@ -1381,7 +1198,6 @@ public final class ComponentsSettingsPane: SettingsPane {
         heading("Installed (read-only)")
         if components.isEmpty && loaded { note("None found") }
         for c in components { row("\(c.kind):", value("\(c.name)  \(c.version)")) }
-        // The runtime wizard: add, copy and remove runtimes (runtime-onboarding.md §11.4).
         let get = NSButton(title: Self.runtimesTitle, target: self, action: #selector(showRuntimes(_:)))
         get.identifier = .init("components-runtimes")
         row("", get)
@@ -1391,17 +1207,13 @@ public final class ComponentsSettingsPane: SettingsPane {
     @objc func showRuntimes(_ sender: Any?) { RuntimeSetupWindowController.show(step: .runtimes) }
 }
 
-// MARK: Simulators (the remote SwiftCode simulator)
-
 @MainActor
 public final class SimulatorsSettingsPane: SettingsPane {
     public init(prefs: Preferences = .shared) { super.init("Simulators", prefs: prefs) }
-    /// The text fields' width (the labels keep the rest of the card).
     static let fieldWidth: CGFloat = 250
 
     public var settings: RemoteSimulatorSettings { RemoteSimulatorSettings.load(prefs.defaults) }
 
-    /// Changes one field and saves (user defaults only).
     public func update(_ f: (inout RemoteSimulatorSettings) -> Void) {
         var s = settings
         f(&s)
@@ -1439,8 +1251,6 @@ public final class SimulatorsSettingsPane: SettingsPane {
             }
             row(label, f)
         }
-        // More runtimes (run.md §Runtimes and device types): each root adds
-        // a destination per device type that runs on it.
         let others = ClosureField(string: s.otherRuntimeRoots.joined(separator: ", "))
         others.placeholderString = "/data/swiftcode/runtimes/iOS-27.0, …"
         others.widthAnchor.constraint(equalToConstant: Self.fieldWidth).isActive = true
@@ -1451,16 +1261,13 @@ public final class SimulatorsSettingsPane: SettingsPane {
         row("Other runtime roots:", others)
         note(RemoteSimulatorSettings.runtimesHelp)
         heading("Boot")
-        // Lean boot (off by default: a full boot, as the reference simulator) with its help text (run.md).
         let lean = check("Lean boot", s.leanBoot) { [weak self] on in self?.update { $0.leanBoot = on } }
         row("", lean)
         note(RemoteSimulatorSettings.leanBootHelp)
-        // Warm boot (on by default): restore a snapshot of the booted device (run.md §Warm boot).
         let warm = check("Warm boot from snapshot", s.warmBoot) { [weak self] on in self?.update { $0.warmBoot = on } }
         row("", warm)
         note(RemoteSimulatorSettings.warmBootHelp)
         heading("Camera")
-        // The device's camera (off by default, as the reference; camera.md "SwiftCode implementation").
         let camera = popUp(["Off", "Host webcam", "Synthetic pattern"],
                            selected: ["off": "Off", "on": "Host webcam", "synthetic": "Synthetic pattern"][s.camera] ?? "Off") { [weak self] title in
             let mode = ["Off": "off", "Host webcam": "on", "Synthetic pattern": "synthetic"][title] ?? "off"

@@ -106,7 +106,6 @@ struct ImportProjView: View {
                     await sessionStore.openProject(project)
                     dismiss()
                 } catch {
-                    // Error is handled by importManager
                 }
             }
         }

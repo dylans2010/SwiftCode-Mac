@@ -1,12 +1,3 @@
-/*
- * isnames: list the exported symbol NAMES of a loaded image (original Ycode
- * code, R5). It dlopens each argument, finds the image's mach header, and
- * walks the image's export trie (LC_DYLD_EXPORTS_TRIE or LC_DYLD_INFO[_ONLY])
- * in the mapped __LINKEDIT. Only names and export flags are printed; no code
- * is read. Works for images inside the simulator's shared cache.
- * Usage: isnames <image path> [<image path> ...]
- *        isnames -sym <image path> <name> ...   (dlsym check only)
- */
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
 #include <dlfcn.h>

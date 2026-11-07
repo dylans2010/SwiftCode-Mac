@@ -1,6 +1,3 @@
-// movetest (Ycode's own code): checks ycode/Sources/CKVM/hostcopy.c memmove/memcpy against a byte-wise reference
-// for every size 0..300 and every overlap offset -70..70.
-// Build: clang -O2 -o movetest movetest.c ../../../../ycode/Sources/CKVM/hostcopy.c -ldl
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>

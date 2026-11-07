@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// A temporary folder with stand-in executables.
 final class StandInTools {
     let dir: URL
     init() throws {
@@ -11,8 +10,6 @@ final class StandInTools {
     }
     deinit { try? FileManager.default.removeItem(at: dir) }
 
-    /// A shell script that saves its arguments and standard input, then
-    /// prints `lines` and exits with `status`.
     @discardableResult
     func tool(_ name: String, lines: [String], status: Int = 0, stderr: String = "", readsStdin: Bool = true) throws -> URL {
         let url = dir.appendingPathComponent(name)
@@ -152,7 +149,6 @@ final class StandInTools {
         }
     }
 
-    /// The stop button: cancelling interrupts a tool that keeps running.
     @Test func cancelInterruptsTheTool() async throws {
         let tools = try StandInTools()
         let exe = tools.dir.appendingPathComponent("claude")

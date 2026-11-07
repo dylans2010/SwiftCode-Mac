@@ -1,16 +1,12 @@
 import Foundation
 import os
 
-// MARK: - MCP Transport enum
-
 public enum MCPTransport: String, Codable, Sendable, CaseIterable {
     case stdio = "stdio"
     case http = "http"
     case https = "https"
     case sse = "sse"
 }
-
-// MARK: - MCP Authentication Type enum
 
 public enum MCPAuthenticationType: String, Codable, Sendable, CaseIterable {
     case none = "None"
@@ -21,16 +17,12 @@ public enum MCPAuthenticationType: String, Codable, Sendable, CaseIterable {
     case oauth = "OAuth"
 }
 
-// MARK: - MCP Server Status enum
-
 public enum MCPServerStatus: String, Codable, Sendable, CaseIterable {
     case disconnected = "Disconnected"
     case connecting = "Connecting"
     case connected = "Connected"
     case failed = "Failed"
 }
-
-// MARK: - MCP Error Struct
 
 public enum MCPError: LocalizedError, Sendable {
     case invalidURL(String)
@@ -65,8 +57,6 @@ public enum MCPError: LocalizedError, Sendable {
         }
     }
 }
-
-// MARK: - MCP Tool Input Schema
 
 public struct MCPToolSchema: Codable, Sendable, Hashable {
     public let type: String?
@@ -109,8 +99,6 @@ public struct MCPToolProperty: Codable, Sendable, Hashable {
     }
 }
 
-// MARK: - MCP Tool Representation
-
 public struct MCPTool: Codable, Sendable, Identifiable, Hashable {
     public var id: String { name }
     public let name: String
@@ -138,8 +126,6 @@ public struct MCPTool: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
-// MARK: - MCP Capability Representation
-
 public struct MCPCapability: Codable, Sendable {
     public let name: String
     public let value: String
@@ -149,8 +135,6 @@ public struct MCPCapability: Codable, Sendable {
         self.value = value
     }
 }
-
-// MARK: - MCP Server Metadata
 
 public struct MCPServerMetadata: Codable, Sendable {
     public let name: String
@@ -164,8 +148,6 @@ public struct MCPServerMetadata: Codable, Sendable {
     }
 }
 
-// MARK: - MCPServer State and Preferences
-
 public struct MCPServer: Codable, Sendable, Identifiable {
     public let id: UUID
     public var displayName: String
@@ -177,7 +159,6 @@ public struct MCPServer: Codable, Sendable, Identifiable {
     public var customHeaders: [String: String]?
     public var authType: MCPAuthenticationType
 
-    // Runtime state (non-persistent but updated inside Manager)
     public var status: MCPServerStatus
     public var lastError: String?
     public var toolCount: Int
@@ -219,8 +200,6 @@ public struct MCPServer: Codable, Sendable, Identifiable {
         self.tools = tools
     }
 }
-
-// MARK: - MCP Execution Request/Response
 
 public struct MCPExecutionRequest: Codable, Sendable {
     public let name: String
@@ -277,8 +256,6 @@ public struct MCPContentBlock: Codable, Sendable {
         self.mimeType = try? container.decodeIfPresent(String.self, forKey: .mimeType)
     }
 }
-
-// MARK: - MCP Logging Subsystem
 
 public enum MCPLogSeverity: String, Codable, Sendable, CaseIterable {
     case info = "INFO"

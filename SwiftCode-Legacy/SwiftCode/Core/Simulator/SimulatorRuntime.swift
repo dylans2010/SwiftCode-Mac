@@ -5,7 +5,7 @@ public struct SimulatorRuntime: Identifiable, Hashable, Codable, Sendable {
     public let identifier: String
     public let name: String
     public let version: String
-    public let platform: String // iOS, watchOS, tvOS, visionOS, macOS
+    public let platform: String
     public let isAvailable: Bool
     public let path: String?
 

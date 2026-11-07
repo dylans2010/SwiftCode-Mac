@@ -1,14 +1,6 @@
-// An in-memory accessory server for tests (Ycode-original; open-design.md §3
-// describes the networked `swiftcode-hap-sim` of R6, this is its in-process
-// cousin). It answers like a HAP accessory: an attribute database with
-// aid/iid numbering, HAP status codes for refused operations, events only
-// for changes the controller did not write itself, and a control API for
-// tests (press the device, force errors, cut the connection).
-
 import Foundation
 
 public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecked Sendable {
-    /// A service of a test accessory.
     public struct Service: Sendable {
         public var type: String
         public var isPrimary: Bool
@@ -23,7 +15,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
             self.characteristics = characteristics
         }
 
-        /// A service whose characteristics come from `SwiftCodeCharacteristicDefaults`.
         public init(type: String, isPrimary: Bool = false, characteristicTypes: [String]) {
             self.init(type: type, isPrimary: isPrimary, characteristics: characteristicTypes.map {
                 SwiftCodeCharacteristicDefaults.template($0)
@@ -33,7 +24,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
         }
     }
 
-    /// One accessory (aid) of the server.
     public struct Accessory: Sendable {
         public var name: String
         public var manufacturer: String
@@ -56,7 +46,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
     public let endpointID: String
     public let categoryNumber: Int
     public let name: String
-    /// HAP setup code (unused until R5/R7 pairing).
     public let setupCode: String
     public weak var delegate: SwiftCodeAccessoryEndpointDelegate?
 
@@ -69,7 +58,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
     private var writeLog: [(SwiftCodeCharacteristicAddress, SwiftCodeHomeValue)] = []
     private var identifies = 0
     private var authData: [SwiftCodeCharacteristicAddress: Data] = [:]
-    /// Simulated response time of every request.
     public var responseDelay: TimeInterval = 0
 
     public init(endpointID: String? = nil, category: Int, setupCode: String = "031-45-154", accessories: [Accessory]) {
@@ -116,9 +104,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
         return [u.0, u.1, u.2, u.3, u.4, u.5].map { String(format: "%02X", $0) }.joined(separator: ":")
     }
 
-    // MARK: Control API (tests)
-
-    /// Whether the server answers. Changing it tells the paired store.
     public var isReachable: Bool {
         get { lock.lock(); defer { lock.unlock() }; return reachable }
         set {
@@ -130,8 +115,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
         }
     }
 
-    /// Address of the first characteristic of `type` on accessory `aid`
-    /// (optionally inside a service of `serviceType`).
     public func address(of type: String, aid: Int = 1, serviceType: String? = nil) -> SwiftCodeCharacteristicAddress? {
         let t = SwiftCodeHomeCatalog.normalizedTypeUUID(type) ?? type
         let st = serviceType.map { SwiftCodeHomeCatalog.normalizedTypeUUID($0) ?? $0 }
@@ -143,15 +126,12 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
         return nil
     }
 
-    /// The device's current value.
     public func value(of type: String, aid: Int = 1) -> SwiftCodeHomeValue? {
         guard let a = address(of: type, aid: aid) else { return nil }
         lock.lock(); defer { lock.unlock() }
         return characteristic(a)?.value
     }
 
-    /// A change made on the device itself (button press, sensor reading):
-    /// stored, and sent as an event if the controller subscribed.
     public func simulateChange(_ type: String, to value: SwiftCodeHomeValue, aid: Int = 1) {
         guard let a = address(of: type, aid: aid) else { preconditionFailure("no characteristic \(type) on aid \(aid)") }
         lock.lock()
@@ -164,13 +144,11 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
         }
     }
 
-    /// Makes every request for this characteristic fail with `status` (nil clears).
     public func forceStatus(_ status: SwiftCodeHAPStatus?, for type: String, aid: Int = 1) {
         guard let a = address(of: type, aid: aid) else { return }
         lock.lock(); forced[a] = status; lock.unlock()
     }
 
-    /// Values written by the controller, in order.
     public var writes: [(address: SwiftCodeCharacteristicAddress, value: SwiftCodeHomeValue)] {
         lock.lock(); defer { lock.unlock() }
         return writeLog.map { (address: $0.0, value: $0.1) }
@@ -188,8 +166,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
         lock.lock(); defer { lock.unlock() }
         return authData[a]
     }
-
-    // MARK: SwiftCodeAccessoryEndpoint
 
     public func fetchDatabase(completion: @escaping @Sendable (Result<SwiftCodeAccessoryDatabase, SwiftCodeAccessoryFailure>) -> Void) {
         respond {
@@ -224,7 +200,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
             }
             if let authorizationData { self.authData[address] = authorizationData }
             self.writeLog.append((address, value))
-            // Write-only control points keep no readable value.
             if c.permissions.contains(.pairedRead) { self.setValue(value, at: address) }
             return .success(())
         } then: { completion($0) }
@@ -251,8 +226,6 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
             return .success(())
         } then: { completion($0) }
     }
-
-    // MARK: Internals (lock held)
 
     private func respond<T>(_ work: @escaping @Sendable () -> T, then: @escaping @Sendable (T) -> Void) {
         let delay = responseDelay
@@ -286,10 +259,7 @@ public final class SwiftCodeTestAccessory: SwiftCodeAccessoryEndpoint, @unchecke
     }
 }
 
-// MARK: - Presets
-
 extension SwiftCodeTestAccessory {
-    /// A dimmable color lightbulb (HAP category 5).
     public static func lightbulb(name: String = "Test Lightbulb") -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 5, accessories: [lightbulbAccessory(name: name)])
     }
@@ -303,7 +273,6 @@ extension SwiftCodeTestAccessory {
         ])
     }
 
-    /// An outlet (category 7).
     public static func outlet(name: String = "Test Outlet") -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 7, accessories: [Accessory(name: name, model: "Test Outlet", services: [
             Service(type: HMServiceTypeOutlet, isPrimary: true,
@@ -311,7 +280,6 @@ extension SwiftCodeTestAccessory {
         ])])
     }
 
-    /// A switch (category 8).
     public static func `switch`(name: String = "Test Switch") -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 8, accessories: [switchAccessory(name: name)])
     }
@@ -322,7 +290,6 @@ extension SwiftCodeTestAccessory {
         ])
     }
 
-    /// A thermostat (category 9).
     public static func thermostat(name: String = "Test Thermostat") -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 9, accessories: [Accessory(name: name, model: "Test Thermostat", services: [
             Service(type: HMServiceTypeThermostat, isPrimary: true, characteristicTypes: [
@@ -333,8 +300,6 @@ extension SwiftCodeTestAccessory {
         ])])
     }
 
-    /// A door lock with a lock-management service (category 6); its control
-    /// point is write-only, its version read-only without notifications.
     public static func lock(name: String = "Test Lock") -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 6, accessories: [Accessory(name: name, model: "Test Lock", services: [
             Service(type: HMServiceTypeLockMechanism, isPrimary: true, characteristicTypes: [
@@ -346,7 +311,6 @@ extension SwiftCodeTestAccessory {
         ])])
     }
 
-    /// A temperature sensor with a battery (category 10).
     public static func temperatureSensor(name: String = "Test Sensor") -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 10, accessories: [Accessory(name: name, model: "Test Sensor", services: [
             Service(type: HMServiceTypeTemperatureSensor, isPrimary: true,
@@ -357,7 +321,6 @@ extension SwiftCodeTestAccessory {
         ])])
     }
 
-    /// A garage door opener (category 4).
     public static func garageDoor(name: String = "Test Garage Door") -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 4, accessories: [Accessory(name: name, model: "Test Garage Door", services: [
             Service(type: HMServiceTypeGarageDoorOpener, isPrimary: true, characteristicTypes: [
@@ -367,8 +330,6 @@ extension SwiftCodeTestAccessory {
         ])])
     }
 
-    /// A bridge (category 2, aid 1, no services of its own beyond accessory
-    /// information) hosting `children` as aid 2, 3, ….
     public static func bridge(name: String = "Test Bridge", children: [Accessory]) -> SwiftCodeTestAccessory {
         SwiftCodeTestAccessory(category: 2, accessories: [Accessory(name: name, model: "Test Bridge", services: [])] + children)
     }

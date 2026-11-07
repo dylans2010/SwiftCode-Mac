@@ -1,13 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/ComposioService.swift
-//
-// Verbatim apart from this header. `KeychainService` (incl.
-// `KeychainService.composioAPIKey`) lives in `SwiftCodeAssistant`.
-// Placed in SwiftCodeUI/Assistant (not SwiftCodeMCP, which also has
-// Composio client code) because the live call site is
-// `AssistSettingsView` in swiftcode-ide, which depends on SwiftCodeUI
-// but not on SwiftCodeMCP.
-
 import SwiftCodeAssistant
 import Foundation
 import SwiftUI
@@ -15,8 +5,6 @@ import AppKit
 import os
 
 private let logger = Logger(subsystem: "com.swiftcode.composio", category: "ComposioService")
-
-// MARK: - Composio Connected Account Model
 
 public struct ComposioConnectedAccount: Identifiable, Codable, Sendable, Hashable {
     public var id: String { wordId ?? "\(toolkit)_\(status)" }
@@ -49,8 +37,6 @@ public struct ComposioConnectedAccount: Identifiable, Codable, Sendable, Hashabl
     }
 }
 
-// MARK: - Composio Execution Result
-
 public struct ComposioExecutionResult: @unchecked Sendable {
     public let success: Bool
     public let output: String
@@ -66,8 +52,6 @@ public struct ComposioExecutionResult: @unchecked Sendable {
         self.rawData = rawData
     }
 }
-
-// MARK: - Composio Service
 
 @Observable
 @MainActor
@@ -104,21 +88,17 @@ public final class ComposioService {
         }
     }
 
-    // MARK: - Credential Management
-
     public func loadCredentials() {
         if let storedKey = KeychainService.shared.get(forKey: KeychainService.composioAPIKey), !storedKey.isEmpty {
             self.apiKey = storedKey
             return
         }
 
-        // Check environment variable
         if let envKey = ProcessInfo.processInfo.environment["COMPOSIO_API_KEY"], !envKey.isEmpty {
             self.apiKey = envKey
             return
         }
 
-        // Check ~/.composio/user_data.json
         let userDataURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".composio/user_data.json")
         if let data = try? Data(contentsOf: userDataURL),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -143,8 +123,6 @@ public final class ComposioService {
         }
     }
 
-    // MARK: - CLI Path Resolution
-
     public var resolvedCLIPath: String? {
         for candidate in cliExecutableCandidates {
             if FileManager.default.isExecutableFile(atPath: candidate) {
@@ -154,13 +132,10 @@ public final class ComposioService {
         return nil
     }
 
-    // MARK: - Refresh Status & Connected Accounts
-
     public func refreshStatus() async {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        // 1. Try resolving whoami via CLI
         if let cliPath = resolvedCLIPath {
             let whoamiResult = await runProcess(executablePath: cliPath, arguments: ["whoami"])
             if whoamiResult.exitCode == 0 {
@@ -168,13 +143,11 @@ public final class ComposioService {
                 self.isConnected = true
             }
 
-            // 2. Fetch connected accounts via CLI
             let connResult = await runProcess(executablePath: cliPath, arguments: ["connections", "list"])
             if connResult.exitCode == 0, let data = connResult.stdout.data(using: .utf8) {
                 parseConnectionsJSON(data)
             }
         } else if !apiKey.isEmpty {
-            // Fallback: REST API validation
             await validateViaREST()
         } else {
             self.isConnected = false
@@ -243,8 +216,6 @@ public final class ComposioService {
         }
     }
 
-    // MARK: - Execute Tool
-
     public func executeTool(slug: String, argumentsJSON: String) async throws -> ComposioExecutionResult {
         isExecuting = true
         let startTime = Date()
@@ -255,13 +226,11 @@ public final class ComposioService {
 
         let cleanArgs = argumentsJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "{}" : argumentsJSON
 
-        // Prefer CLI execution if installed
         if let cliPath = resolvedCLIPath {
             let result = await runProcess(executablePath: cliPath, arguments: ["execute", slug, "-d", cleanArgs])
             let duration = Date().timeIntervalSince(startTime)
             let combinedOutput = result.stdout.isEmpty ? result.stderr : result.stdout
 
-            // Extract JSON from output
             var logId: String? = nil
             var isSuccess = result.exitCode == 0
             var responseData: [String: Any]? = nil
@@ -291,7 +260,6 @@ public final class ComposioService {
             )
         }
 
-        // Fallback: Direct REST API execution
         guard let url = URL(string: "https://backend.composio.dev/api/v3.1/tools/execute/\(slug)") else {
             throw NSError(domain: "ComposioService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid tool slug URL."])
         }
@@ -335,8 +303,6 @@ public final class ComposioService {
         )
     }
 
-    // MARK: - Generate Connect Link
-
     public func generateConnectLink(toolkit: String) async throws -> URL? {
         guard let cliPath = resolvedCLIPath else {
             throw NSError(domain: "ComposioService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Composio CLI is required to generate connect links."])
@@ -345,7 +311,6 @@ public final class ComposioService {
         let result = await runProcess(executablePath: cliPath, arguments: ["link", toolkit, "--no-wait", "--no-browser"])
         let output = result.stdout
 
-        // Scan for URL or parse JSON
         if let data = output.data(using: .utf8),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let redirectURLString = json["redirect_url"] as? String,
@@ -353,7 +318,6 @@ public final class ComposioService {
             return url
         }
 
-        // Regex scan for connect link URL
         let pattern = #"https://connect\.composio\.dev/link/[a-zA-Z0-9_\-]+"#
         if let regex = try? NSRegularExpression(pattern: pattern),
            let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
@@ -365,18 +329,13 @@ public final class ComposioService {
         return nil
     }
 
-    // MARK: - Test Connection
-
     public func testConnection() async throws -> ComposioExecutionResult {
-        // Run safe authenticated GitHub check or public Hackernews check
         if connectedAccounts.contains(where: { $0.toolkit.lowercased() == "github" && $0.isActive }) {
             return try await executeTool(slug: "GITHUB_GET_THE_AUTHENTICATED_USER", argumentsJSON: "{}")
         } else {
             return try await executeTool(slug: "HACKERNEWS_GET_USER", argumentsJSON: "{\"username\":\"pg\"}")
         }
     }
-
-    // MARK: - Process Execution Helper
 
     private func runProcess(executablePath: String, arguments: [String]) async -> (stdout: String, stderr: String, exitCode: Int32) {
         let currentKey = self.apiKey

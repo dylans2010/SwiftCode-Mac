@@ -5,8 +5,8 @@ public struct DatabaseIndex: Identifiable, Codable, Hashable {
     public var name: String
     public var columns: [String]
     public var isUnique: Bool
-    public var type: String // e.g. B-TREE, HASH, GIN, GiST, etc.
-    public var expression: String? // for functional or partial indexes
+    public var type: String
+    public var expression: String?
 
     public init(name: String, columns: [String], isUnique: Bool = false, type: String = "B-TREE", expression: String? = nil) {
         self.name = name

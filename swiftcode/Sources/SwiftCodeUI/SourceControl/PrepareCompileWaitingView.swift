@@ -1,10 +1,3 @@
-// PrepareCompileWaitingView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/PrepareCompileWaitingView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: prepare-compile waiting/progress view; GitHub Actions upload progress (Pushing your files…); extract progress steps
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/PrepareCompileWaitingView.swift (derived from Legacy).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeGitHub
 import SwiftCodeIDECore
@@ -109,8 +102,6 @@ struct PrepareCompileWaitingView: View {
         }
     }
 
-    // MARK: - Preparation
-
     @MainActor
     private func prepare() async {
         isPreparing = true
@@ -118,7 +109,6 @@ struct PrepareCompileWaitingView: View {
         logs = ""
 
         do {
-            // 0. Skip generation if artifacts already exist
             let projectDir = project.directoryURL
             let projectName = project.name
             if ProjectBuilderManager.shared.hasBuildArtifacts(in: projectDir, projectName: projectName) {
@@ -131,7 +121,6 @@ struct PrepareCompileWaitingView: View {
                 return
             }
 
-            // 1. Ensure project is linked to GitHub
             guard let repoURL = project.githubRepo else {
                 throw NSError(domain: "PrepareCompile", code: 1, userInfo: [NSLocalizedDescriptionKey: "Project must be linked to a GitHub repository for remote generation."])
             }
@@ -139,13 +128,11 @@ struct PrepareCompileWaitingView: View {
             let (owner, repo) = try GitHubRepositoryManager.shared.parseRepoURL(repoURL)
             let branch = "build-project"
 
-            // 2. Trigger remote generation
             statusMessage = "Uploading Project"
             subtext = "Pushing your files to GitHub Actions..."
             progress = 0.05
             try await ProjectBuilderManager.shared.triggerRemoteGeneration(for: project)
 
-            // 3. Extract artifacts and monitor progress
             try await BuildingSystemAPI.shared.fetchAndIntegrateGeneratedFiles(
                 for: project,
                 owner: owner,
@@ -156,7 +143,6 @@ struct PrepareCompileWaitingView: View {
                         self.progress = prog
                         self.subtext = status
 
-                        // Show estimated time remaining when extraction starts
                         if status == "Extracting Files…" {
                             self.timeRemaining = "Less than 1 minute"
                         } else if status == "Adding Files to App’s Directory…" {
@@ -173,7 +159,6 @@ struct PrepareCompileWaitingView: View {
                 }
             )
 
-            // Ensure files actually exist before finishing
             if ProjectBuilderManager.shared.hasBuildArtifacts(in: projectDir, projectName: project.name) {
                 statusMessage = "Ready!"
                 subtext = "Required files have been added successfully to the directory!"

@@ -2,14 +2,11 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// Find navigator rows (`navigators.md` §Find navigator): one row per file,
-/// "name (N)", with one child per match showing the trimmed line.
 public struct FindFileRow: Identifiable, Equatable, Sendable {
     public var path: String
     public var matches: [FindMatchRow]
     public var id: String { path }
     public var name: String { (path as NSString).lastPathComponent }
-    /// "name  (N)": two spaces, as the AppKit Find navigator writes it.
     public var title: String { "\(name)  (\(matches.count))" }
 }
 
@@ -18,7 +15,6 @@ public struct FindMatchRow: Identifiable, Equatable, Sendable {
     public var index: Int
     public var line: Int
     public var column: Int
-    /// The trimmed line split around the match.
     public var before: String, match: String, after: String
     public var id: String { "\(path)#\(index)" }
 
@@ -39,14 +35,10 @@ public struct FindMatchRow: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Issue navigator rows (`navigators.md` §Issue navigator, the core's
-/// `IssueNavigatorModel.tree`): the project row and one row per target, then
-/// files, then issues by line.
 public struct IssueGroupRow: Identifiable, Equatable, Sendable {
     public var id: String
     public var title: String
     public var countText: String
-    /// Issues with no file (the project row's own).
     public var issues: [IssueRow]
     public var files: [IssueFileRow]
 }
@@ -67,7 +59,6 @@ public struct IssueRow: Identifiable, Equatable, Sendable {
     public var isStale: Bool
 
     public var symbolName: String { ShellSymbols.severity(severity) }
-    /// "main.swift:12" for an issue with a location.
     public var locationText: String? {
         guard let f = file else { return nil }
         let name = (f as NSString).lastPathComponent
@@ -76,8 +67,6 @@ public struct IssueRow: Identifiable, Equatable, Sendable {
 }
 
 public enum IssueRows {
-    /// The navigator's rows for the session's issues, grouped as the core
-    /// groups them. Row ids are unique within the tree.
     public static func tree(_ diagnostics: [Diagnostic], grouping: IssueGrouping, model: IssueNavigatorModel = IssueNavigatorModel()) -> [IssueGroupRow] {
         let entries = model.entries(fresh: diagnostics)
         var counter = 0
@@ -97,7 +86,6 @@ public enum IssueRows {
         }
     }
 
-    /// Every issue in navigator order (⌘' and ⇧⌘' step through these).
     public static func flattened(_ groups: [IssueGroupRow]) -> [IssueRow] {
         groups.flatMap { g in g.files.flatMap(\.issues) + g.issues }
     }

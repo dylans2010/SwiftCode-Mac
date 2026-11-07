@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R11 (docs/PARITY.md §5.4): the in-window menu bar built from
-// `commands`, standard menus and groups, shortcuts routed through focus,
-// focused values for enablement, the Edit menu on R8's text editing, the
-// Settings scene and the window menu items.
-
 @MainActor
 @Suite("R11 commands and menu bar")
 struct CommandsTests {
@@ -33,10 +28,7 @@ struct CommandsTests {
 
     @Test func menusInTheirStandardOrder() {
         let h = CommandsHarness { Editor() }
-        // App, File, Edit, View (sidebar group from SidebarCommands), the
-        // app's Build menu after View, Window, Help.
         #expect(h.menuTitles == ["Demo", "File", "Edit", "View", "Build", "Window", "Help"])
-        // The menu bar is the first 26 points; the content starts below it.
         let bar = h.frame { String(describing: type(of: $0)) == "MenuBarView" }
         #expect(bar.map { abs($0.minY) < 0.01 && abs($0.height - 26) < 0.01 } == true)
         let body = h.textFrame("Body")
@@ -47,7 +39,6 @@ struct CommandsTests {
         let h = CommandsHarness { Editor() }
         h.openMenu("File", at: 1)
         #expect(h.popups.count == 1)
-        // New Window, Close Window (newItem), then the CommandGroup(after:).
         let items = h.openItems
         #expect(items.starts(with: ["New Window", "Ctrl+N", "Close Window", "Ctrl+W", "New File", "Ctrl+Shift+N"]))
         h.choose("New File", at: 1.5)
@@ -67,15 +58,12 @@ struct CommandsTests {
 
     @Test func shortcutsRunWithoutOpeningTheMenuAndFollowFocusedValues() {
         let h = CommandsHarness { Editor() }
-        // Nothing focused: Build is disabled (its focused value is nil); Run
-        // reads the scene value, present wherever the focus is.
         h.key(.character("b"), [.control], at: 1)
         h.key(.character("r"), [.control], at: 1.1)
         #expect(CommandLog.shared.entries == ["run Main"])
         h.openMenu("Build", at: 1.2)
         #expect(h.isItemEnabled("Build") == false)
         h.key(.escape, at: 1.3)
-        // Focus the field: the document is published, Build runs with it.
         h.key(.tab, at: 1.5)
         #expect(h.main.services.focus.focusedClient != nil)
         h.key(.character("b"), [.control], at: 1.6)
@@ -105,7 +93,6 @@ struct CommandsTests {
         h.key(.leftArrow, at: 1.3)
         #expect(h.main.services.menuBar?.openIndex == 6)
         #expect(h.openItems == ["OpenViews Guide"])
-        // Down focuses the item, Return chooses it.
         h.key(.downArrow, at: 1.4)
         h.key(.return, at: 1.5)
         #expect(CommandLog.shared.entries == ["guide"])
@@ -134,7 +121,6 @@ struct CommandsTests {
     @Test func editMenuActsOnTheFocusedTextField() {
         let h = CommandsHarness { Editor() }
         h.key(.tab, at: 1)
-        // Keyboard focus selects all (R8); copy through the menu.
         h.openMenu("Edit", at: 1.2)
         #expect(h.isItemEnabled("Copy") == true)
         #expect(h.isItemEnabled("Undo") == false)
@@ -163,7 +149,6 @@ struct CommandsTests {
         #expect(main.count == 2)
         guard let s = main.last, let pw = s.platform as? HeadlessWindow else { return }
         #expect(pw.title == "Settings")
-        // The content's ideal size (400 × 250) and no menu bar of its own.
         #expect(abs(s.size.width - 400) < 0.01 && abs(s.size.height - 250) < 0.01)
         #expect(s.services.menuBar == nil)
         h.openMenu("Demo", at: 1.5)
@@ -177,8 +162,6 @@ struct CommandsTests {
         h.key(.character("n"), [.control], at: 1)
         #expect(h.host.windows.filter { !$0.isPopup }.count == 2)
         h.openMenu("Window", at: 1.5)
-        // Minimize, the two open windows (current checked), the single
-        // window scene.
         let items = h.openItems
         #expect(items.contains("Minimize") && items.filter { $0 == "Main" }.count == 2 && items.contains("Activity"))
         h.choose("Activity", at: 1.7)
@@ -216,7 +199,6 @@ struct CommandsTests {
         #expect(KeyboardShortcut(.return, modifiers: []).displayText == "Enter")
         #expect(KeyboardShortcut("s", modifiers: [.command, .option]).displayText == "Ctrl+Alt+S")
         #expect(KeyboardShortcut(.leftArrow, modifiers: .control).displayText == "Ctrl+Left")
-        // Function keys as AppKit's characters (F6 is U+F709).
         #expect(KeyboardShortcut(KeyEquivalent("\u{F709}"), modifiers: []).displayText == "F6")
         #expect(KeyboardShortcut(KeyEquivalent("\u{F70A}"), modifiers: .control).displayText == "Ctrl+F7")
         #expect(KeyEquivalent(platformKey: .function(8)) == KeyEquivalent("\u{F70B}"))

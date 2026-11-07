@@ -1,6 +1,3 @@
-// The JSON objects of the WeatherKit REST API v1 (rest-api.md §4). Field
-// names are interop identifiers; documented required fields are
-// non-optional, documented optional fields optional.
 import Foundation
 
 enum REST {
@@ -200,7 +197,6 @@ enum REST {
         }
     }
 
-    /// ISO 8601 date-times, with or without fractional seconds.
     static func decoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in

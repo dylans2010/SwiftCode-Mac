@@ -1,17 +1,8 @@
-// SUIProbe: black-box probe of SwiftUI behaviour in the iOS simulator.
-// Original Ycode research code (KIT-SWIFTUI). It uses only the public SDK.
-// Each run executes one mode (launch argument `-mode <name>`) and prints
-// `SUP <key>=<value>` lines to stdout. Timed lines carry `t=<seconds>` since
-// App.init. A driver script (run.sh) injects input and changes device
-// settings from outside; the app prints `SUP target.<name>=<x>,<y>` (ratios
-// of the screen) for the places the script should touch.
 import SwiftUI
 import UIKit
 import QuartzCore
 import Darwin
 import MachO
-
-// MARK: - logging
 
 let t0 = CACurrentMediaTime()
 func elapsed() -> Double { CACurrentMediaTime() - t0 }
@@ -34,7 +25,6 @@ let mode: String = {
     return "layout"
 }()
 
-/// Seconds between exec of this process and now (from the kernel's process start time).
 func secondsSinceExec() -> Double {
     var info = kinfo_proc()
     var size = MemoryLayout<kinfo_proc>.stride
@@ -45,14 +35,12 @@ func secondsSinceExec() -> Double {
     return Double(tv.tv_sec - st.tv_sec) + Double(tv.tv_usec - st.tv_usec) / 1e6
 }
 
-/// Screen-ratio coordinates of a global rect's centre (for the input driver).
 func target(_ name: String, _ r: CGRect) {
     let s = UIScreen.main.bounds.size
     guard s.width > 0 else { return }
     log("target.\(name)", String(format: "%.4f,%.4f", r.midX / s.width, r.midY / s.height))
 }
 
-/// Records the latest value per key; values are printed when a case ends.
 final class Rec {
     static var values: [String: String] = [:]
     static var order: [String] = []
@@ -66,8 +54,6 @@ final class Rec {
         values = values.filter { !$0.key.hasPrefix(prefix) }
     }
 }
-
-// MARK: - app
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
@@ -157,7 +143,6 @@ struct Root: View {
     }
 }
 
-/// Logs the time of the first display-link callback (≈ first frame).
 @MainActor func firstFrame() {
     final class Once: NSObject {
         var link: CADisplayLink?
@@ -184,7 +169,6 @@ struct Root: View {
 
 var keep: [Any] = []
 
-/// Logs every loaded image whose path is under /System or /usr/lib (names only).
 func logImages(_ label: String) {
     var names: [String] = []
     for i in 0..<_dyld_image_count() {
@@ -197,7 +181,6 @@ func logImages(_ label: String) {
     for n in names.sorted() { log("images.\(label)", n) }
 }
 
-/// Window-level facts: screen, scale, safe area, size classes.
 @MainActor func logWindowFacts(_ label: String) {
     let s = UIScreen.main
     log("\(label).screen", "\(sz(s.bounds.size)) scale=\(f2(s.scale)) native=\(f2(s.nativeScale)) maxFPS=\(s.maximumFramesPerSecond)")

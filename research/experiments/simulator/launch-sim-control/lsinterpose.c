@@ -1,10 +1,3 @@
-/*
- * Ycode research probe helper (macOS): a dyld interposing library, loaded into
- * lsprobe with DYLD_INSERT_LIBRARIES. Original Ycode code. It logs the
- * libSystem calls that liblaunch_sim makes (its imports, level 4) and lets a
- * look-up of a name with our prefix resolve to lsprobe's port, so that the
- * library's control messages reach a port we serve. Contains no Apple code.
- */
 #include <mach/mach.h>
 #include <servers/bootstrap.h>
 #include <dlfcn.h>

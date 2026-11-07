@@ -1,11 +1,7 @@
 import Foundation
 import SwiftCodeBuild
 
-/// Build actions through swift-build (the `swiftcode-swb build` helper), with
-/// the reference tool's log format, banners and exit codes.
-/// See `specs/xcodebuild/build-actions.md`.
 enum BuildActions {
-    /// Actions swiftcodebuild performs; the rest are reported as gaps.
     static let supported: Set<BuildAction> = [.build, .analyze, .clean, .buildForTesting, .install, .test, .testWithoutBuilding, .archive, .docbuild]
 
     static func run(_ inv: Invocation, plan: Plan, context ctx: XcodebuildContext) throws(XcodebuildFailure) -> Int32 {
@@ -23,7 +19,6 @@ enum BuildActions {
         guard let helper = SwiftBuildSettingsProvider.locate(environment: ctx.environment, executableDirectory: ctx.executableDirectory) else {
             throw XcodebuildFailure("swiftcodebuild needs the swiftcode-swb helper (swift-build) to build; set SWIFTCODE_SWB to its path.", exitCode: ExitCode.software)
         }
-        // -resultBundlePath (checked for an existing file before the header).
         var session: ResultBundleSession?
         if let (path, given) = ResultBundleSession.requestedPath(inv, cwd: ctx.cwd) {
             let s = ResultBundleSession.make(plan: plan, path: path, given: given, explicit: true, context: ctx)
@@ -34,8 +29,6 @@ enum BuildActions {
         let quiet = inv.quiet
         for (index, action) in plan.actions.enumerated() {
             let started = Date()
-            // The run destination is chosen again (with its warning) for
-            // each further action.
             if index > 0, plan.scheme != nil {
                 _ = try? Destinations.runDestination(for: inv.destinations, targets: plan.targets, configuration: plan.configuration,
                                                      overrides: plan.overrides, generic: action == .archive, context: ctx)
@@ -49,8 +42,6 @@ enum BuildActions {
             switch action {
             case .test, .testWithoutBuilding:
                 let (name, file, _) = try TestActions.testPlan(inv, plan: plan)
-                // Test runs always write a bundle: the requested one or a
-                // default one in the DerivedData folder's Logs/Test.
                 let bundle = session ?? plan.arena.map { arena in
                     let p = ResultBundleSession.defaultTestPath(arena: arena, scheme: plan.scheme?.name ?? projectName, date: started)
                     return ResultBundleSession.make(plan: plan, path: p, given: p, explicit: false, context: ctx)
@@ -93,7 +84,6 @@ enum BuildActions {
                 if !b.ok { return ExitCode.dataError }
                 var outcome = b
                 do {
-                    // Without a scheme the archive action is only a build.
                     if plan.scheme != nil {
                         let path = try Archives.assemble(inv, plan: plan, context: ctx, created: started)
                         session?.archivePath = path
@@ -118,14 +108,11 @@ enum BuildActions {
         return 0
     }
 
-    /// Writes `<scheme>_<plan>_<sdk>-<arch>.xctestrun` into the products
-    /// directory after build-for-testing.
     static func writeTestRun(_ inv: Invocation, plan: Plan, context ctx: XcodebuildContext) throws(XcodebuildFailure) {
         guard let scheme = plan.scheme, let arena = plan.arena else { return }
         let (name, file, isDefault) = try TestActions.testPlan(inv, plan: plan)
         let targets = TestActions.applySelection(inv, to: try TestActions.targets(inv, plan: plan, testPlan: file, context: ctx))
         guard !targets.isEmpty else { return }
-        // The destination's platform (an iOS simulator run's file names iphonesimulator<version>).
         let platform = plan.runDestination?.sdk ?? targets.first?.platform ?? "macosx"
         let sdk = plan.overrides.last { $0.0 == "SDKROOT" }?.1 ?? SDKRegistry(developerDirectory: ctx.developerDirectory ?? "")
             .lookup(platform, relativeTo: ctx.cwd)?.canonicalName ?? platform
@@ -157,8 +144,6 @@ enum BuildActions {
         let package = plan.package
         var pif = XcodePIF(container: plan.container)
         if package == nil {
-            // The container's Swift packages (local folders and pinned
-            // checkouts in the source-packages folder), as SwiftPM's PIF.
             let dir = ResolvePackages.sourcePackagesDirectory(inv, name: plan.container.name, path: plan.container.url.path, context: ctx)
             var loader = PackageGraphLoader(container: plan.container, sourcePackagesDirectory: URL(fileURLWithPath: dir))
             if let dev = ctx.developerDirectory {
@@ -173,8 +158,6 @@ enum BuildActions {
         let work = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: work) }
         var targets = plan.targets
-        // `-alltargets` repeats the first target at the end of its listing;
-        // build each target once.
         var seen = Set<String>()
         targets = targets.filter { seen.insert(pif.targetGUID($0.project, $0.target)).inserted }
         let guids = package.map { p in
@@ -182,15 +165,12 @@ enum BuildActions {
         }
             ?? targets.map { pif.targetGUID($0.project, $0.target) }
         var buildParameters = plan.parameters(action: action)
-        // SWIFTCODE_ASSET_COMPILER=swiftcode: swift-build runs `swiftcode assets compile` for actool.
         buildParameters.synthesized += AssetCompilerHook.overrides(settings: plan.overrides, directory: work)
             + StringsCompilerHook.overrides(settings: plan.overrides, environment: ctx.environment)
         buildParameters.synthesized += TestActions.testFrameworkCopying(action: action,
                                                                         sdk: plan.runDestination?.sdk ?? plan.overrides.last { $0.0 == "SDKROOT" }?.1)
         let parameters = buildParameters.json
         let request: [String: Any] = [
-            // `clean` removes the whole build folder (Build/Products and
-            // Build/Intermediates.noindex, or the legacy `build` directory).
             "command": action == .clean ? "cleanBuildFolder" : "build",
             "locationStyle": plan.locationStyle ?? (plan.scheme == nil ? "legacy" : "regular"),
             "pif": package?.pif ?? work.appendingPathComponent("workspace.pif.json").path,
@@ -201,8 +181,6 @@ enum BuildActions {
             "implicitDependencies": plan.scheme?.buildImplicitDependencies ?? true,
             "hideShellScriptEnvironment": inv.has("-hideShellScriptEnvironment"),
             "continueAfterErrors": false,
-            // archive turns on the build system's archive validations and
-            // signs without the debugging entitlement.
             "schemeCommand": action == .archive ? "archive" : [.buildForTesting, .test, .testWithoutBuilding].contains(action) ? "test" : "launch",
             "debuggable": action != .archive,
         ]
@@ -216,16 +194,12 @@ enum BuildActions {
         }
 
         if !inv.quiet {
-            // The reference tool's own preparation steps, which swiftcodebuild
-            // performs too (request, project description, operation).
             for step in ["CreateBuildRequest", "SendProjectDescription", "CreateBuildOperation"] { console.out(step); console.out() }
         }
         var log = BuildLog(quiet: inv.quiet, console: console, schemeName: plan.scheme?.name, projectName: plan.container.mainProject?.name ?? plan.container.name)
         if plan.container.kind == .workspace { log.containerWord = "workspace" }
         log.deferTargetIssues = action == .archive || action == .docbuild
         if package == nil && action != .clean {
-            // Synchronized folders that are missing or hold no source the
-            // target builds (SwiftCode's own warnings, `build-pif.md`).
             for t in targets {
                 let name = t.target.string("name") ?? ""
                 for w in pif.synchronizedFolderWarnings(t.project, t.target) {
@@ -238,7 +212,6 @@ enum BuildActions {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: helper)
         p.arguments = ["build", requestURL.path]
-        // SWIFTCODE_STRINGS_COMPILER=swiftcode: swift-build finds SwiftCode's `xcstringstool` first.
         p.environment = StringsCompilerHook.environment(settings: plan.overrides, directory: work.appendingPathComponent("SwiftCodeStringsCompiler"),
                                                         base: ctx.environment)
         let out = Pipe()
@@ -267,27 +240,23 @@ enum BuildActions {
             log.internalError(errText.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         let outcome = BuildOutcome(ok: log.succeeded == true, issues: log.issues, started: started, ended: Date(), tasks: log.finishedTasks)
-        // The result bundle is written (and announced) before the banner.
         beforeBanner?(outcome)
         _ = log.finish(action: banner ?? action, successBanner: successBanner)
         return outcome
     }
 }
 
-/// Turns swift-build messages into the reference tool's build log.
 struct BuildLog {
     var quiet: Bool
     var console: Console
     var schemeName: String?
     var projectName: String
-    /// "project", or "workspace" for workspaces and packages.
     var containerWord = "project"
     var targets: [Int: (name: String, project: String)] = [:]
     var tasks: [Int: (rule: String, target: Int?)] = [:]
     var failed: [String] = []
     var succeeded: Bool?
     var errorCount = 0
-    /// Every error and warning, for the result bundle.
     struct Issue: Equatable {
         var kind: String
         var message: String
@@ -295,13 +264,10 @@ struct BuildLog {
         var line: Int?
         var targetName: String?
         var column: Int?
-        /// The compiler's category (`Semantic Issue`), when it gives one.
         var category: String?
-        /// The task that reported it.
         var taskID: Int?
     }
     var issues: [Issue] = []
-    /// Tasks as the result bundle's build log records them.
     struct TaskRecord {
         var id: Int
         var title: String
@@ -332,7 +298,6 @@ struct BuildLog {
         return s
     }
 
-    /// `path:line:column: kind: message`, as compilers print issues.
     func issueLine(_ m: [String: Any]) -> String {
         let kind = m["kind"] as? String ?? "error"
         let message = m["message"] as? String ?? ""
@@ -345,8 +310,6 @@ struct BuildLog {
         return prefix + kind + ": " + message
     }
 
-    /// A task header was printed and its separating blank line is due:
-    /// it comes when a task ends or before the next header.
     var sectionOpen = false
 
     mutating func closeSection() {
@@ -354,18 +317,11 @@ struct BuildLog {
         sectionOpen = false
     }
 
-    /// Output held back in quiet mode until the task ends.
     var pendingOutput: [Int: String] = [:]
 
-    /// Target-level issues are printed after the build's last task, just
-    /// before the banner (the reference's placement for `archive` and
-    /// `docbuild`), instead of when they arrive.
     var deferTargetIssues = false
     var deferredIssues: [String] = []
 
-    /// Whether a successful task's output is shown in quiet mode: it has an
-    /// error or warning line that is not a tool's own log line
-    /// (`<date> <time> <process>[<pid>:<thread>] …`).
     static func hasIssueLines(_ text: String) -> Bool {
         text.split(separator: "\n").contains { line in
             guard line.contains("error:") || line.contains("warning:") else { return false }
@@ -391,8 +347,6 @@ struct BuildLog {
             guard !quiet else { return }
             closeSection()
             console.out(rule + suffix(target))
-            // The command display already carries its 4-space indentation
-            // and the `cd` line.
             if var cmd = m["commandLineDisplayString"] as? String, !cmd.isEmpty {
                 while cmd.hasSuffix("\n") { cmd.removeLast() }
                 console.out(cmd)
@@ -408,8 +362,6 @@ struct BuildLog {
             }
             console.rawOut(text.hasSuffix("\n") ? text : text + "\n")
         case "output":
-            // Output not tied to a task (task output also arrives as
-            // `taskOutput`, in plain text).
             guard m["locationContext"] == nil || (m["locationContext"] as? [String: Any])?["taskID"] == nil, !quiet else { return }
             let text = Self.decodeData(m["data"])
             if !text.isEmpty { console.rawOut(text.hasSuffix("\n") ? text : text + "\n") }
@@ -439,9 +391,6 @@ struct BuildLog {
                                   column: loc?["column"] as? Int, category: Self.category(component, kind: kind), taskID: taskID)
                 if !issues.contains(issue) { issues.append(issue) }
             }
-            // Issues of a task are in its own output already, except those
-            // the build system itself reports for the task
-            // (`appendToOutputStream`), printed in the task's section.
             if context?["locationType"] as? String == "task" {
                 if kind == "error" { errorCount += 1 }
                 if m["appendToOutputStream"] as? Bool == true, kind == "error" || kind == "warning" || !quiet {
@@ -455,8 +404,6 @@ struct BuildLog {
             var line = issueLine(m)
             let targetLevel = context?["locationType"] as? String == "target"
             if targetLevel { line += suffix(context?["targetID"] as? Int) }
-            // Attached notes (such as the targets of the dependency graph)
-            // follow, indented.
             let lines = [line] + (m["childDiagnostics"] as? [[String: Any]] ?? []).map { "    " + ($0["message"] as? String ?? "") }
             if targetLevel && deferTargetIssues {
                 deferredIssues += lines
@@ -473,8 +420,6 @@ struct BuildLog {
         }
     }
 
-    /// The issue type the result bundle records: the compiler's
-    /// category, `Swift Compiler Error`/`Warning` for Swift, else nil.
     static func category(_ component: [String: Any]?, kind: String) -> String? {
         if let c = component?["categoryName"] as? String, !c.isEmpty { return c }
         if (component?["componentType"] as? String) == "swiftCompiler" { return kind == "error" ? "Swift Compiler Error" : "Swift Compiler Warning" }
@@ -486,7 +431,6 @@ struct BuildLog {
         succeeded = false
     }
 
-    /// Prints the banner; returns success.
     mutating func finish(action: BuildAction, successBanner: Bool = true) -> Bool {
         let ok = succeeded == true
         if ok {

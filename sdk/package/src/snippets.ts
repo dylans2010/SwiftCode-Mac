@@ -1,41 +1,9 @@
-/**
- * Preset TypeScript snippet library for `@swiftcode/sdk`.
- *
- * Every snippet is real, working TypeScript against the actual SDK API
- * (`SwiftCodeContext` from `./types.js`): paste a snippet's `code` into an
- * extension and run it. No invented methods — every call below maps to a
- * method on `SwiftCodeContext` that `createContext` implements and the
- * Swift host's `SDKIPCDispatcher` routes.
- *
- * Each snippet declares the exact capability wire ID (`capabilityId`,
- * from `swiftcode/Sources/SwiftCodeExtensions/Capabilities.swift`) that the
- * extension manifest must request for the snippet to work.
- *
- * The full manifest (`id`, `title`, `description`, `capabilityId`, `tags`,
- * `code`) is generated into `snippets.json` at the package root by
- * `npm run build:snippets` (see `scripts/build-snippets.mjs`) for the
- * Studio Capability & Snippet Library.
- */
-
-/** One preset, runnable snippet against the real `@swiftcode/sdk` API. */
 export interface Snippet {
-  /** Stable kebab-case identifier, unique within the library. */
   readonly id: string;
-  /** Short human-readable title shown in the snippet browser. */
   readonly title: string;
-  /** One or two sentences describing what the snippet does. */
   readonly description: string;
-  /**
-   * Exact capability wire ID the extension manifest must request
-   * (case-sensitive, from `SDKCapabilityID`).
-   */
   readonly capabilityId: string;
-  /** Search keywords for the snippet browser. */
   readonly tags: readonly string[];
-  /**
-   * Self-contained TypeScript: imports `SwiftCodeContext` from
-   * `@swiftcode/sdk` and exports an async `runExample(context)` function.
-   */
   readonly code: string;
 }
 
@@ -594,10 +562,6 @@ export async function runExample(context: SwiftCodeContext): Promise<void> {
   },
 ];
 
-/**
- * Case-insensitive search across id, title, description, tags, and code.
- * A blank query returns every snippet.
- */
 export function searchSnippets(query: string): Snippet[] {
   const needle = query.trim().toLowerCase();
   if (needle.length === 0) return [...SNIPPETS];
@@ -616,7 +580,6 @@ export function searchSnippets(query: string): Snippet[] {
   });
 }
 
-/** Returns the snippet with the given id, or `undefined` when unknown. */
 export function getSnippet(id: string): Snippet | undefined {
   return SNIPPETS.find((snippet) => snippet.id === id);
 }

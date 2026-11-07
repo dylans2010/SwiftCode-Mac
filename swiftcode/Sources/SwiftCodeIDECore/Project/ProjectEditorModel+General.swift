@@ -2,21 +2,12 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-// General tab edits (reference-ui-5.md §11.1.6, P6): Supported
-// Destinations +/− write the settings named in reference-ui-3.md §1.4.1;
-// Minimum Deployments "+" adds a platform row; the Identity rows' "+"
-// adds the key to Info and "→" reveals the setting in Build Settings.
-// The controls are in SwiftCodeUI (ProjectEditorGeneral.swift).
-
 extension ProjectEditorModel {
-    /// Every destination the "+" menu can offer, in menu order.
     public static let destinationChoices = [
         "iPhone", "iPad", "Mac (Mac Catalyst)", "Mac (Designed for iPad)", "Apple Vision (Designed for iPad)",
         "Mac", "Apple Vision", "Apple TV", "Apple Watch",
     ]
 
-    /// Platform settings per SDK: (`SUPPORTED_PLATFORMS` entries, device
-    /// family, deployment-target setting).
     static let sdkPlatforms: [String: (platforms: [String], family: String?, deployment: String)] = [
         "iOS": (["iphoneos", "iphonesimulator"], nil, "IPHONEOS_DEPLOYMENT_TARGET"),
         "macOS": (["macosx"], nil, "MACOSX_DEPLOYMENT_TARGET"),
@@ -25,13 +16,10 @@ extension ProjectEditorModel {
         "watchOS": (["watchos", "watchsimulator"], "4", "WATCHOS_DEPLOYMENT_TARGET"),
     ]
 
-    /// The destination that stands for an SDK when a platform row is added.
     static let primaryDestination = ["iOS": "iPhone", "macOS": "Mac", "visionOS": "Apple Vision", "tvOS": "Apple TV", "watchOS": "Apple Watch"]
 
     public static let deploymentVersions = ["27.0", "26.0", "18.0", "17.0"]
 
-    /// Destinations the "+" menu offers: those not present. The iPad-app
-    /// variants need iPhone or iPad.
     public func addableDestinations(target: String, configuration: String) -> [String] {
         let present = Set(supportedDestinations(target: target, configuration: configuration).map(\.name))
         let ios = present.contains("iPhone") || present.contains("iPad")
@@ -61,7 +49,6 @@ extension ProjectEditorModel {
         setSetting("TARGETED_DEVICE_FAMILY", families.joined(separator: ","), target: target)
     }
 
-    /// Adds a destination by writing the platform settings at target level.
     public mutating func addDestination(_ name: String, target: String, configuration: String) {
         var (p, f) = platformSettings(target: target, configuration: configuration)
         func add(_ sdk: String) {
@@ -90,8 +77,6 @@ extension ProjectEditorModel {
         writePlatforms(p, f, target: target)
     }
 
-    /// Removes a destination; removing the last iOS device also turns off
-    /// the iPad-app variants. The last destination stays.
     public mutating func removeDestination(_ name: String, target: String, configuration: String) {
         let present = supportedDestinations(target: target, configuration: configuration).map(\.name)
         guard present.contains(name), present.count > 1 else { return }
@@ -121,14 +106,11 @@ extension ProjectEditorModel {
         writePlatforms(p, f, target: target)
     }
 
-    /// SDKs the Minimum Deployments "+" can add (those without a row).
     public func addableDeploymentSDKs(target: String, configuration: String) -> [String] {
         let have = Set(minimumDeployments(target: target, configuration: configuration).map(\.sdk))
         return ["iOS", "macOS", "visionOS", "tvOS", "watchOS"].filter { !have.contains($0) }
     }
 
-    /// Adds a platform row: the SDK's primary destination and its
-    /// deployment target (the newest version offered).
     public mutating func addDeploymentPlatform(_ sdk: String, target: String, configuration: String) {
         guard let d = Self.primaryDestination[sdk], let setting = Self.sdkPlatforms[sdk]?.deployment else { return }
         addDestination(d, target: target, configuration: configuration)
@@ -137,15 +119,10 @@ extension ProjectEditorModel {
         }
     }
 
-    // MARK: Identity
-
-    /// An Identity row: its title, the build setting it edits, and the
-    /// Info.plist key it stands for.
     public struct IdentityRow: Equatable, Sendable {
         public var title: String
         public var setting: String
         public var infoKey: String
-        /// The value Info gets when "+" adds the key.
         public var infoValue: String
     }
 
@@ -157,7 +134,6 @@ extension ProjectEditorModel {
         .init(title: "Build", setting: "CURRENT_PROJECT_VERSION", infoKey: "CFBundleVersion", infoValue: "$(CURRENT_PROJECT_VERSION)"),
     ]
 
-    /// App categories (`LSApplicationCategoryType`, public values).
     public static let appCategories: [(title: String, value: String)] = [
         ("Business", "business"), ("Developer Tools", "developer-tools"), ("Education", "education"), ("Entertainment", "entertainment"),
         ("Finance", "finance"), ("Games", "games"), ("Graphics & Design", "graphics-design"), ("Healthcare & Fitness", "healthcare-fitness"),
@@ -166,14 +142,10 @@ extension ProjectEditorModel {
         ("Travel", "travel"), ("Utilities", "utilities"), ("Video", "video"), ("Weather", "weather"),
     ].map { ($0.0, "public.app-category." + $0.1) }
 
-    /// Whether the row's key is in the target's Info: then the row shows
-    /// "→" (reveal the setting), else "+" (add the key).
     public func identityRowInInfo(_ row: IdentityRow, target: String, configuration: String) -> Bool {
         infoItems(target: target, configuration: configuration).contains { $0.rawKey == row.infoKey }
     }
 
-    /// "+": adds the row's key to Info — as an `INFOPLIST_KEY_*` setting
-    /// for a generated Info.plist without a file, else to the file.
     public mutating func addIdentityKeyToInfo(_ row: IdentityRow, target: String, configuration: String) throws {
         if let url = infoPlistURL(target: target, configuration: configuration) {
             var doc = (try? PropertyListDocument(data: Data(contentsOf: url))) ?? PropertyListDocument(root: .dictionary([]))

@@ -3,14 +3,11 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Words the Linux shell uses for what it does not have yet.
 enum ShellText {
     static let notInBeta = "Not available on Linux in this beta"
     static func notInBeta(_ what: String) -> String { "\(what): not available on Linux in this beta" }
 }
 
-/// The app icon (`packaging/icon/swiftcode-icon.svg`) drawn from its geometry: a
-/// plum field, a cream chevron over a coral caret. Any size, no image file.
 struct SwiftCodeMark: View {
     var size: CGFloat
 
@@ -52,8 +49,6 @@ struct SwiftCodeMark: View {
     }
 }
 
-/// SwiftCode ▸ About SwiftCode: the icon, the version, the license, the links and the
-/// "not affiliated" line.
 struct AboutSheet: View {
     var app: ShellAppModel
     @Environment(\.colorScheme) private var scheme
@@ -84,7 +79,6 @@ struct AboutSheet: View {
     }
 }
 
-/// Welcome ▸ Clone…, Integrate ▸ Clone…: the address and the folder.
 struct CloneSheet: View {
     @Bindable var model: CloneShellModel
     var app: ShellAppModel

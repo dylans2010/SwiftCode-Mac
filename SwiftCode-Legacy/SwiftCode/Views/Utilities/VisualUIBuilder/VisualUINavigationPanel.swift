@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Navigation flow editor displaying active transitions, destinations, and sheet triggers
 public struct VisualUINavigationPanel: View {
     let document: VisualUIDocument
     let node: VisualComponentNode

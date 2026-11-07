@@ -1,30 +1,4 @@
-/*
- * Copyright (c) 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgSwCommon.h"
-
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
 
 static uint32_t _premultiply(uint32_t c1, uint32_t c2, uint8_t a)
 {
@@ -46,7 +20,6 @@ static RenderColor _unpremultiply(uint32_t c)
 
 static void _saturate(uint8_t& c1, uint8_t& c2, uint8_t& c3, const uint8_t& s1, const uint8_t& s2, const uint8_t& s3)
 {
-    // to saturation
     auto s = std::max(s1, std::max(s2, s3)) - std::min(s1, std::min(s2, s3));
 
     uint8_t v[3] = {c1, c2, c3};
@@ -98,10 +71,6 @@ static void _luminance(uint8_t& c1, uint8_t& c2, uint8_t& c3, int cl, int l)
     c2 = static_cast<uint8_t>(g);
     c3 = static_cast<uint8_t>(b);
 }
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
 
 uint32_t blendDifference(TVG_UNUSED const SwSurface* surface, uint32_t s, uint32_t d)
 {
@@ -221,7 +190,6 @@ uint32_t blendSoftLight(TVG_UNUSED const SwSurface* surface, uint32_t s, uint32_
     auto f = [](uint8_t s, uint8_t d) -> uint8_t {
         if (s <= 127) return (d - ((255 - 2 * s) * d * (255 - d)) / 65025);
 
-        // use Look up table for skip sqrt per every pixels.
         static constexpr uint8_t SQRT_LUT[256] = {
             0, 15, 22, 27, 31, 35, 39, 42, 45, 47, 50, 52, 55, 57, 59, 61,
             63, 65, 67, 69, 71, 73, 74, 76, 78, 79, 81, 82, 84, 85, 87, 88,

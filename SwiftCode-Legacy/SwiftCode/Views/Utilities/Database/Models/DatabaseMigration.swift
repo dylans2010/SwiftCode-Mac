@@ -2,7 +2,7 @@ import Foundation
 
 public struct DatabaseMigration: Identifiable, Codable, Hashable {
     public var id: UUID
-    public var version: String // timestamp based, e.g. "20260725190906"
+    public var version: String
     public var name: String
     public var sqlUp: String
     public var sqlDown: String

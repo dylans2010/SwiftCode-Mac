@@ -1,16 +1,9 @@
-// Guest probe: what the guest's networking libraries see (specs/simulator/networking-swiftcode.md §8).
-// Prints the simulator's SystemConfiguration store (every key and value), the
-// reachability flags of a name, the current Network.framework path, and the
-// states of one nw_connection.
-// Usage: p_netpath [host [port]]   (default example.com 80)
 #import <Foundation/Foundation.h>
 #import <Network/Network.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 
 #import <dlfcn.h>
 
-// SCDynamicStore exists in the iOS SystemConfiguration library, but its
-// header marks it macOS-only: the functions are looked up at run time.
 typedef const void *StoreRef;
 typedef StoreRef (*CreateFn)(CFAllocatorRef, CFStringRef, void *, void *);
 typedef CFArrayRef (*CopyKeyListFn)(StoreRef, CFStringRef);

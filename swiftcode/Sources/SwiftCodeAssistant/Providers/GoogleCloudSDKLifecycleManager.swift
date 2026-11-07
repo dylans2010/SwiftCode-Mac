@@ -1,47 +1,3 @@
-// Ported from Legacy (Dylan's own code; direct port authorised under MIT):
-//   SwiftCode-Legacy/SwiftCode/Backend/Assist/Assist Frameworks/Google Cloud SDK/
-//   GoogleCloudSDKLifecycleManager.swift
-// Body is verbatim Legacy except this header. Two known gaps, to be resolved
-// by wiring (do not invent the missing pieces here):
-//
-// 1. `GoogleCloudSDKRuntime` is NOT in SwiftCodeAssistant yet. At port time
-//    it still lives in SwiftCodeGoogleAuth
-//    (`swiftcode/Sources/SwiftCodeGoogleAuth/GoogleCloudSDK/GoogleCloudSDKRuntime.swift`),
-//    and SwiftCodeAssistant cannot import it — the dependency runs the other
-//    way (SwiftCodeGoogleAuth depends on SwiftCodeAssistant). A sibling port
-//    (R-GOOGLE-MOVE) is moving GoogleCloudSDKRuntime / GoogleCloudSDKSession
-//    into SwiftCodeAssistant; once that lands, the references in this file
-//    (`GoogleCloudSDKRuntime.shared`, `.start()`, `.stop()`, `.restart()`,
-//    `.isRunning`, `.isStarting`) resolve against the moved type, whose
-//    public API already matches what this file calls. Until then this file
-//    does not compile on its own.
-// 2. `AppSettings.shared.$assistSystemID` does not exist in the destination:
-//    `AppSettings` is now `@MainActor @Observable` with a plain
-//    `assistSystemID` var (see SwiftCodeAssistant/Models/AppSettings.swift), so
-//    there is no Combine publisher to sink. The `startMonitoring()` sink
-//    must be reworked in wiring to the destination convention —
-//    `withObservationTracking` (see `AssistManager.observeFallbackState()`),
-//    or host-driven like the sibling `MetaAssistLifecycleManager`, which
-//    dropped AppSettings observation entirely. `import Combine` likewise
-//    has no other live use in this target (Combine is unavailable on
-//    Linux); the import is kept verbatim for now and goes away with the
-//    sink rework. `AppSettings.shared.isGoogleCloudAssist` and
-//    `AppSettings.googleCloudAssistSystemID` DO exist in the destination
-//    and are used unchanged.
-//
-// Live call sites (already in the tree, previously dangling):
-//   swiftcode/Sources/swiftcode-ide/Views/Assist/AssistSettingsView.swift:4349, 4436
-//   both call `try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()`
-//   — that signature is preserved exactly here.
-//
-//  GoogleCloudSDKLifecycleManager.swift
-//  SwiftCode
-//
-//  Background lifecycle manager that ensures the Google Cloud SDK engine
-//  runs continuously whenever 'Assist on Google Cloud' is active, auto-restarting
-//  on unexpected exits, and shutting down cleanly only when the app terminates.
-//
-
 import Foundation
 import Combine
 import os
@@ -62,13 +18,11 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
 
     private init() {}
 
-    /// Activates the background manager. Called at application launch.
     public func startMonitoring() {
         guard !isMonitoring else { return }
         isMonitoring = true
         logger.info("Starting Google Cloud SDK background lifecycle manager...")
 
-        // Observe AppSettings.shared.assistSystemID changes
         AppSettings.shared.$assistSystemID
             .removeDuplicates()
             .sink { [weak self] systemID in
@@ -79,16 +33,13 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // Start engine automatically on every launch regardless of settings view or provider selection
         Task { @MainActor in
             await self.ensureRunning()
         }
 
-        // Start periodic health monitor loop
         startHealthCheckLoop()
     }
 
-    /// Stops monitoring and sets intentional stop flag.
     public func stopMonitoring() {
         isMonitoring = false
         healthCheckTask?.cancel()
@@ -96,7 +47,6 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
         cancellables.removeAll()
     }
 
-    /// Explicit request to start the engine and keep it running.
     public func startEngine() async throws {
         isIntentionalStop = false
         let runtime = GoogleCloudSDKRuntime.shared
@@ -105,7 +55,6 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
         logger.info("Google Cloud SDK engine started by lifecycle manager.")
     }
 
-    /// Explicit user stop request.
     public func stopEngine() async {
         isIntentionalStop = true
         let runtime = GoogleCloudSDKRuntime.shared
@@ -113,7 +62,6 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
         logger.info("Google Cloud SDK engine stopped intentionally.")
     }
 
-    /// Restarts the engine.
     public func restartEngine() async throws {
         isIntentionalStop = false
         guard AppSettings.shared.isGoogleCloudAssist else {
@@ -153,7 +101,7 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
         healthCheckTask?.cancel()
         healthCheckTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000) // Check every 5 seconds
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
                 guard let self = self, !Task.isCancelled else { break }
 
                 guard AppSettings.shared.isGoogleCloudAssist else { continue }
@@ -161,7 +109,6 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
 
                 let runtime = GoogleCloudSDKRuntime.shared
                 if !runtime.isRunning && !runtime.isStarting {
-                    // Check rate-limiting on restarts to avoid fast crash loops
                     let now = Date()
                     if now.timeIntervalSince(self.lastRestartAttempt) > 4.0 {
                         self.lastRestartAttempt = now

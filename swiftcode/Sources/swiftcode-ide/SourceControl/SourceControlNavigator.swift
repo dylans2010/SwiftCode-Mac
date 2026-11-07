@@ -3,11 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The Source Control navigator (⌘2; `reference-ui-4.md` §2): the
-/// Changes | Repositories control, then the repository's tree
-/// (`SourceControlShellModel.rows`). Selecting a change shows the commit
-/// editor, a branch, tag or stash its history; every row has the core's
-/// context menu (`SourceControlRowMenu`).
 struct SourceControlNavigator: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -16,8 +11,6 @@ struct SourceControlNavigator: View {
         let scm = model.sourceControl
         let c = ShellColors(scheme)
         VStack(spacing: 0) {
-            // Across the navigator, 9 from each side, the selected half in
-            // the accent colour (navigators.md round 3 §2).
             TextSegments(titles: SourceControlRows.modeTitles, selected: scm.mode.rawValue, target: "scm mode",
                          accentHeight: CGFloat(RepositoriesViewStyle.modeControlHeight)) { i in
                 scm.mode = SourceControlShellModel.Mode(rawValue: i) ?? .changes
@@ -63,8 +56,6 @@ struct SourceControlNavigator: View {
     }
 }
 
-/// A merge, rebase or cherry-pick stopped on conflicts: what is going on,
-/// Continue (once every conflict is marked resolved) and Abort.
 struct IntegrationBanner: View {
     var scm: SourceControlShellModel
     @Environment(\.colorScheme) private var scheme
@@ -92,15 +83,10 @@ struct IntegrationBanner: View {
     }
 }
 
-/// Text segments in a capsule (the navigator's Changes | Repositories,
-/// the commit editor's scope, the history's time scope): the selected one
-/// in a pill.
 struct TextSegments: View {
     var titles: [String]
     var selected: Int
     var target: String
-    /// A segment height: the selected segment filled with the accent
-    /// colour and a white label (nil: the quiet pill, 20 tall).
     var accentHeight: CGFloat?
     var select: (Int) -> Void
     @Environment(\.colorScheme) private var scheme
@@ -132,8 +118,6 @@ struct TextSegments: View {
     }
 }
 
-/// The navigator's outline with its context menus: the core's items, and
-/// for a change Stage or Unstage and Discard Changes….
 struct SourceControlOutline: View {
     var scm: SourceControlShellModel
     var model: WorkspaceShellModel
@@ -168,7 +152,6 @@ struct SourceControlOutline: View {
     }
 
     func select(_ r: OutlineRow) {
-        // Groups and folders open and close; everything else shows something.
         if r.id.hasPrefix("group:") || r.id.hasPrefix("folder:") || r.id.hasPrefix("remote:") {
             if r.isExpandable { scm.setExpanded(r.id, !r.isExpanded) }
             return
@@ -217,9 +200,6 @@ struct SourceControlOutline: View {
     }
 }
 
-/// What a navigator row shows at its right end: a count, a source-control
-/// letter (boxed in the Source Control navigator, plain in the project
-/// navigator).
 struct OutlineRowAccessories: View {
     var row: OutlineRow
     var colors: ShellColors
@@ -242,7 +222,6 @@ struct OutlineRowAccessories: View {
     }
 }
 
-/// A source-control status letter ("M", "A", "?", "D", "R", "C").
 struct StatusLetter: View {
     var letter: String
     var boxed: Bool
@@ -274,10 +253,6 @@ struct StatusLetter: View {
     }
 }
 
-// MARK: - Dialogs
-
-/// The window's source-control dialogs: a failed command, conflicts, the
-/// questions (Check Out…, Delete…), the name prompts and the commit sheet.
 struct SourceControlDialogs: ViewModifier {
     var scm: SourceControlShellModel
 
@@ -311,7 +286,6 @@ struct SourceControlDialogs: ViewModifier {
     }
 }
 
-/// New Branch…, New Tag…, Rename…, Add Remote…, Stash Changes….
 struct SourceControlPromptSheet: View {
     var scm: SourceControlShellModel
     @FocusState private var first: Bool
@@ -347,8 +321,6 @@ struct SourceControlPromptSheet: View {
     }
 }
 
-/// Integrate ▸ Commit… (⌥⌘C): the changed files with checkboxes, status
-/// letters and paths, the message, Cancel and Commit Files.
 struct CommitSheetView: View {
     var scm: SourceControlShellModel
     @Environment(\.colorScheme) private var scheme

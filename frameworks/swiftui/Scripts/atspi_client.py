@@ -1,39 +1,23 @@
 #!/usr/bin/env python3
-# OV-ATSPI: an AT-SPI client check of an OpenViews app, as an assistive
-# technology sees it. Uses the system's libatspi through its GObject
-# introspection bindings (at-spi2-core, LGPL-2.1-or-later; PyGObject,
-# LGPL-2.1-or-later), run as a separate process; not part of the package.
-#
-#   python3 -I Scripts/atspi_client.py [app name] [--xdotool <command>]
-#
-# Finds the application on the desktop, prints its tree (role, name,
-# states, actions), checks the window, menu bar, outline rows, editor and
-# toolbar buttons, invokes the Build button's action, then listens for
-# focus events while it moves the focus (Component.GrabFocus on the
-# editor, then on the outline; with --xdotool, also real clicks on the
-# outline and the editor). Prints PASS/FAIL lines and exits 1 on a failure.
 import sys
 import time
 
 import gi
 
 gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi, GLib  # noqa: E402
+from gi.repository import Atspi, GLib
 
 APP = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "ov-mini-ide"
 XDO = sys.argv[sys.argv.index("--xdotool") + 1] if "--xdotool" in sys.argv else None
 failures = []
-
 
 def check(ok, what):
     print(("PASS " if ok else "FAIL ") + what, flush=True)
     if not ok:
         failures.append(what)
 
-
 def states(a):
     return sorted(Atspi.StateType(s).value_nick for s in a.get_state_set().get_states())
-
 
 def actions(a):
     act = a.get_action_iface()
@@ -41,10 +25,8 @@ def actions(a):
         return []
     return [act.get_action_name(i) for i in range(act.get_n_actions())]
 
-
 def children(a):
     return [a.get_child_at_index(i) for i in range(a.get_child_count())]
-
 
 def walk(a, depth=0, out=None):
     if out is None:
@@ -60,7 +42,6 @@ def walk(a, depth=0, out=None):
             walk(c, depth + 1, out)
     return out
 
-
 def find_app(name, timeout=20):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -71,9 +52,7 @@ def find_app(name, timeout=20):
         time.sleep(0.5)
     return None
 
-
 ALIASES = {"push button": ("push button", "button")}
-
 
 def first(nodes, role, name=None):
     for n in nodes:
@@ -81,12 +60,10 @@ def first(nodes, role, name=None):
             return n
     return None
 
-
 def pump(seconds):
     loop = GLib.MainLoop()
     GLib.timeout_add(int(seconds * 1000), loop.quit)
     loop.run()
-
 
 app = find_app(APP)
 check(app is not None, "application %r is on the desktop" % APP)
@@ -106,7 +83,6 @@ rows = [n for n in nodes if n.get_role_name() == "tree item"]
 check(tree is not None and len(rows) >= 2, "an outline (tree) with rows: %s" % [r.get_name() for r in rows])
 folder = next((r for r in rows if "expandable" in states(r)), None)
 check(folder is not None and "expand or collapse" in actions(folder), "a folder row that expands")
-# Open a file: the row's default action selects it, and the editor shows it.
 file_row = next((r for r in rows if "expandable" not in states(r)), None)
 check(file_row is not None and file_row.get_action_iface().do_action(0), "activate the row %r" % (file_row.get_name() if file_row else None))
 time.sleep(1.0)
@@ -126,12 +102,10 @@ if build is not None:
     ext = build.get_component_iface().get_extents(Atspi.CoordType.WINDOW)
     check(ext.width > 0 and ext.height > 0, "Build has extents %s" % [ext.x, ext.y, ext.width, ext.height])
 
-# Invoke Build; the toolbar's status text follows.
 status_before = [n.get_name() for n in nodes if n.get_role_name() == "label"]
 ok = build.get_action_iface().do_action(0) if build else False
 check(ok, "DoAction(click) on Build returned true")
 time.sleep(1.0)
-
 
 def collect(a, out):
     out.append(a)
@@ -140,24 +114,20 @@ def collect(a, out):
             collect(c, out)
     return out
 
-
 nodes2 = collect(app, [])
 labels_after = [n.get_name() for n in nodes2 if n.get_role_name() == "label"]
 changed = [s for s in labels_after if s not in status_before]
 print("labels new after Build:", changed, flush=True)
 check(any("succeeded" in x for x in changed), "the toolbar status follows the build: %s" % changed)
 
-# Focus events.
 events = []
-
 
 def on_event(e):
     try:
         src = e.source
         events.append((e.type, e.detail1, src.get_role_name() if src else None, src.get_name() if src else None))
-    except Exception as x:  # noqa: BLE001
+    except Exception as x:
         events.append((e.type, e.detail1, "error", str(x)))
-
 
 listener = Atspi.EventListener.new(on_event)
 listener.register("object:state-changed:focused")
@@ -166,8 +136,6 @@ listener.register("object:text-changed")
 pump(1.0)
 tree = first(nodes2, "tree")
 editor = first(nodes2, "text")
-# Activating the row focused the outline: move the focus to the editor,
-# then back to the outline.
 check("focused" in states(tree), "the outline has the focus after the row was activated")
 check(editor is not None and editor.get_component_iface().grab_focus(), "GrabFocus on the editor")
 pump(1.5)
@@ -185,7 +153,6 @@ check(any(t.startswith("object:state-changed:focused") and d == 1 and r == "tree
       "focused event from the outline")
 print("events:", events, flush=True)
 
-# Editing through EditableText: the editor reports the insertion.
 del events[:]
 check(Atspi.EditableText.insert_text(editor, 0, "// ", 3), "InsertText into the editor")
 pump(1.5)
@@ -194,7 +161,6 @@ check(any(t.startswith("object:text-changed:insert") and r == "text" for t, d, r
 check(Atspi.Text.get_text(editor, 0, 3) == "// ", "the editor's text starts with the insertion")
 
 if XDO:
-    # A real click (XTEST) on the outline, then on the editor.
     import subprocess
 
     del events[:]

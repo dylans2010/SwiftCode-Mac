@@ -2,26 +2,6 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// Workspace Operations — Legacy's `Views/Utilities/Operations/` hub, ported
-/// onto SwiftCode's systems.
-///
-/// The hub is a navigation shell over stores SwiftCode already has plus the
-/// stores Legacy owned:
-/// - Project registry: SwiftCode's `ProjectRegistryStore` (actor, JSON) is the
-///   record; `OperationsProjectRegistry` here adds Legacy's live status
-///   columns (`.git` presence, `Package.swift` presence) computed from the
-///   file system, exactly as Legacy's `ProjectRegistryManager.updateStatus`
-///   did. Legacy's `SCProjectRegistryEntry` defaults ("Clean",
-///   "Up to date") are NOT carried over — an unchecked status reads
-///   "Unknown" until the check runs.
-/// - Build history / archives / notifications / operation log: JSON files
-///   under Application Support `SwiftCode/Operations/`, the same shape Legacy
-///   used (`SwiftCode/build_history.json`, `archives_metadata.json`).
-/// - Health, storage and security panels compute from live inputs (disk
-///   space, file-system checks, a bounded secret-pattern scan). Nothing
-///   here shows a number that was not measured in this run.
-
-/// The hub's panels (Legacy `OperationsPanel`, same cases and icons).
 public enum OperationsPanel: String, CaseIterable, Identifiable, Codable {
     case dashboard = "Dashboard"
     case projectRegistry = "Project Registry"
@@ -64,7 +44,6 @@ public enum OperationsPanel: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// An archived build (Legacy `SCArchive`).
 public struct OperationsArchive: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let projectName: String
@@ -83,7 +62,6 @@ public struct OperationsArchive: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
-/// One recorded build (Legacy `SCBuildRecord`).
 public struct OperationsBuildRecord: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let projectName: String
@@ -128,8 +106,6 @@ public struct OperationsLogEntry: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
-/// A registry entry with live status columns (Legacy `SCProjectRegistryEntry`,
-/// status filled by real file-system checks, never by defaults).
 public struct OperationsRegistryEntry: Identifiable, Sendable, Hashable {
     public let id: UUID
     public let name: String
@@ -168,7 +144,6 @@ private func saveJSON<T: Encodable>(_ value: [T], _ name: String) {
     try? data.write(to: dir.appendingPathComponent(name), options: .atomic)
 }
 
-/// Build history (Legacy `BuildHistoryManager`).
 @Observable
 @MainActor
 public final class OperationsBuildHistory {
@@ -195,7 +170,6 @@ public final class OperationsBuildHistory {
     }
 }
 
-/// Archive metadata (Legacy `ArchiveManager`).
 @Observable
 @MainActor
 public final class OperationsArchiveStore {
@@ -215,7 +189,6 @@ public final class OperationsArchiveStore {
     }
 }
 
-/// Notifications (Legacy `NotificationCenterManager`'s persisted list).
 @Observable
 @MainActor
 public final class OperationsNotificationStore {
@@ -238,7 +211,6 @@ public final class OperationsNotificationStore {
     public var unreadCount: Int { notifications.filter { !$0.isRead }.count }
 }
 
-/// The operation log (Legacy `LoggingAndAnalyticsManagers`' persisted log).
 @Observable
 @MainActor
 public final class OperationsLog {
@@ -254,7 +226,6 @@ public final class OperationsLog {
     }
 }
 
-/// A named background operation with real status (Legacy `OperationQueueManager`).
 @Observable
 @MainActor
 public final class OperationsQueue {
@@ -285,7 +256,6 @@ public final class OperationsQueue {
     }
 }
 
-/// Live workspace health, computed from measured inputs only.
 public enum OperationsHealth {
     public struct Factor: Sendable, Identifiable {
         public var id: String { name }
@@ -294,14 +264,12 @@ public enum OperationsHealth {
         public let healthy: Bool
     }
 
-    /// Disk free space for the volume holding `url` (bytes), or nil.
     public static func freeDiskSpace(at url: URL) -> Int64? {
         guard let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
               let free = values.volumeAvailableCapacityForImportantUsage else { return nil }
         return free
     }
 
-    /// Size of a directory tree in bytes (bounded walk; skips `.git`).
     public static func directorySize(at url: URL, maxFiles: Int = 2000) -> Int64 {
         var total: Int64 = 0
         var seen = 0
@@ -333,7 +301,6 @@ public enum OperationsHealth {
     }
 }
 
-/// A secret-pattern finding from a bounded workspace scan.
 public struct OperationsSecretFinding: Sendable, Identifiable {
     public var id: String { "\(file):\(line)" }
     public let file: String
@@ -342,8 +309,6 @@ public struct OperationsSecretFinding: Sendable, Identifiable {
 }
 
 public enum OperationsSecurity {
-    /// Bounded scan for committed-secret patterns. Skips `.git`, `.build`,
-    /// `DerivedData` and `xcuserdata`; reads at most `maxFiles` files.
     public static func scan(root: URL, maxFiles: Int = 500) -> [OperationsSecretFinding] {
         let patterns = ["AKIA[0-9A-Z]{16}", "api[_-]?key\\s*=\\s*[\"'][^\"']{8,}", "secret\\s*=\\s*[\"'][^\"']{8,}"]
         let regexes = patterns.compactMap { try? NSRegularExpression(pattern: $0) }
@@ -372,7 +337,6 @@ public enum OperationsSecurity {
     }
 }
 
-/// The hub coordinator (Legacy `OperationsCoordinator`).
 @Observable
 @MainActor
 public final class OperationsCoordinator {
@@ -397,9 +361,6 @@ public final class OperationsCoordinator {
         selectedPanel = panel
     }
 
-    /// Rebuilds the registry from `ProjectRegistryStore`, then fills the
-    /// status columns with real file-system checks (Legacy's exact checks:
-    /// `.git` exists, `Package.swift` exists).
     public func refreshRegistry() async {
         let stored = (try? await ProjectRegistryStore.shared.load()) ?? []
         var entries = stored.map { OperationsRegistryEntry(entry: $0) }

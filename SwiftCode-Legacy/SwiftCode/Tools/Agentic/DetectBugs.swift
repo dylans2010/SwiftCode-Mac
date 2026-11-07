@@ -13,7 +13,6 @@ public struct DetectBugsTool: AgentTool {
     ]
 
     public func run(code: String) async throws -> [String] {
-        // Real implementation using swiftlint or similar if available, otherwise basic regex
         let result = try await ProcessRunnerTool.shared.run(
             executableURL: URL(fileURLWithPath: "/usr/bin/swiftlint"),
             arguments: ["lint", "--quiet"]

@@ -5,32 +5,13 @@ import Glibc
 import Darwin
 #endif
 
-// The readiness pump of host-backed sockets (`specs/simulator/networking-swiftcode.md`
-// §2.4). Every host socket is non-blocking. A guest thread that must block
-// on one waits on the socket's `ObjectSignals` with the kernel lock
-// released, exactly as on a pipe; kevent and select register readiness
-// observers. Neither busy-waits: one host thread waits in `epoll_wait`
-// (Linux) or `kevent` (a Darwin host) on every socket that has a waiter or an
-// observer ("interest"), edge-triggered, and on an event takes the socket's
-// kernel lock and fires its signals, which wakes the waiters and re-checks
-// the knotes. A socket without interest is not registered, so traffic
-// nobody waits for costs nothing.
-//
-// Lock order: the poller's own mutex is a leaf. It is taken with or without
-// the kernel lock, and never held while the poller thread takes a kernel lock.
-
-/// What the poller calls when a host descriptor's state changed.
 protocol HostPolledObject: AnyObject {
-    /// Called on the poller thread, with no lock held.
     func hostDescriptorChanged()
 }
 
 #if canImport(Darwin)
 typealias HostKEvent = Darwin.kevent
 #else
-/// epoll, reached through the C library's symbols (the Glibc module does not
-/// import `sys/epoll.h`). `struct epoll_event` is packed (12 bytes) on
-/// x86-64 and naturally aligned (16 bytes) elsewhere.
 enum EPoll {
     typealias CreateFunction = @convention(c) (Int32) -> Int32
     typealias ControlFunction = @convention(c) (Int32, Int32, Int32, UnsafeMutableRawPointer?) -> Int32
@@ -65,7 +46,6 @@ final class HostSocketPoller: @unchecked Sendable {
     private var nextToken: UInt64 = 1
     private var started = false
     private var pollFD: Int32 = -1
-    /// Statistics: events delivered.
     private(set) var events: UInt64 = 0
 
     private struct WeakPolled {
@@ -75,7 +55,6 @@ final class HostSocketPoller: @unchecked Sendable {
     private init() {}
 
     private func startIfNeeded() {
-        // mutex held
         guard !started else { return }
         started = true
         #if canImport(Glibc)
@@ -92,8 +71,6 @@ final class HostSocketPoller: @unchecked Sendable {
         t.start()
     }
 
-    /// Registers `fd` for edge-triggered read/write/hang-up events. Returns
-    /// the token for `remove`.
     func add(fd: Int32, object: HostPolledObject) -> UInt64 {
         mutex.lock()
         defer { mutex.unlock() }
@@ -117,7 +94,6 @@ final class HostSocketPoller: @unchecked Sendable {
         return token
     }
 
-    /// Unregisters `fd` (before it is closed).
     func remove(fd: Int32, token: UInt64) {
         mutex.lock()
         defer { mutex.unlock() }
@@ -170,14 +146,11 @@ final class HostSocketPoller: @unchecked Sendable {
     }
 }
 
-/// Host socket helpers (the host calls are made through these so that the
-/// rest of the socket layer stays platform-neutral).
 enum HostSocketCalls {
     #if canImport(Glibc)
     static let sockNonBlock = Int32(SOCK_NONBLOCK.rawValue), sockCloexec = Int32(SOCK_CLOEXEC.rawValue)
     #endif
 
-    /// A new non-blocking, close-on-exec host socket.
     static func socket(family: Int32, type: Int32, proto: Int32) -> Int32 {
         #if canImport(Glibc)
         return Glibc.socket(family, type | sockNonBlock | sockCloexec, proto)
@@ -193,14 +166,12 @@ enum HostSocketCalls {
         #endif
     }
 
-    /// `poll` with a zero timeout: the host's revents.
     static func revents(_ fd: Int32) -> Int16 {
         var p = pollfd(fd: fd, events: Int16(POLLIN | POLLOUT) | rdHup, revents: 0)
         return Glibc_or_Darwin_poll(&p) > 0 ? p.revents : 0
     }
 
     #if canImport(Glibc)
-    /// POLLRDHUP (Linux; a GNU extension the module does not import).
     static let rdHup: Int16 = 0x2000
     #else
     static let rdHup: Int16 = 0
@@ -211,13 +182,11 @@ enum HostSocketCalls {
         poll(p, 1, 0)
     }
 
-    /// Bytes queued for reading (FIONREAD).
     static func bytesReadable(_ fd: Int32) -> Int {
         var n: Int32 = 0
         return ioctl(fd, HostNet.fionread, &n) == 0 ? Int(n) : 0
     }
 
-    /// Bytes not yet sent (SIOCOUTQ); 0 where unknown.
     static func bytesUnsent(_ fd: Int32) -> Int {
         #if canImport(Glibc)
         var n: Int32 = 0
@@ -229,7 +198,6 @@ enum HostSocketCalls {
         #endif
     }
 
-    /// SIOCATMARK: 1 when the read pointer is at the urgent mark.
     static func atMark(_ fd: Int32) -> Int32 {
         var mark: Int32 = 0
         #if canImport(Glibc)
@@ -249,7 +217,6 @@ enum HostSocketCalls {
         return setsockopt(fd, level, name, &v, 4)
     }
 
-    /// getsockopt into a buffer of `size` bytes; nil on failure (errno set).
     static func option(_ fd: Int32, level: Int32, name: Int32, size: Int) -> [UInt8]? {
         var b = [UInt8](repeating: 0, count: max(size, 4))
         var len = socklen_t(b.count)
@@ -262,7 +229,6 @@ enum HostSocketCalls {
         option(fd, level: level, name: name, size: 4).map { $0.readLE(Int32.self, at: 0) }
     }
 
-    /// A host address call (bind, connect) with `addr` as the sockaddr.
     static func withAddress(_ addr: [UInt8], _ body: (UnsafePointer<sockaddr>, socklen_t) -> Int32) -> Int32 {
         var storage = sockaddr_storage()
         return withUnsafeMutableBytes(of: &storage) { raw in
@@ -272,7 +238,6 @@ enum HostSocketCalls {
         }
     }
 
-    /// getsockname / getpeername: the host sockaddr bytes.
     static func name(_ fd: Int32, peer: Bool) -> [UInt8]? {
         var storage = sockaddr_storage()
         var len = socklen_t(MemoryLayout<sockaddr_storage>.size)
@@ -284,7 +249,6 @@ enum HostSocketCalls {
         return withUnsafeBytes(of: &storage) { Array($0.prefix(Int(len))) }
     }
 
-    /// accept: the new non-blocking descriptor and the peer address.
     static func accept(_ fd: Int32) -> (fd: Int32, address: [UInt8])? {
         var storage = sockaddr_storage()
         var len = socklen_t(MemoryLayout<sockaddr_storage>.size)
@@ -305,8 +269,6 @@ enum HostSocketCalls {
         return (n, withUnsafeBytes(of: &storage) { Array($0.prefix(Int(len))) })
     }
 
-    /// sendmsg with one buffer, an optional address and control data.
-    /// Returns the byte count or -1 (errno set).
     static func send(_ fd: Int32, _ bytes: ArraySlice<UInt8>, to address: [UInt8]?, control: [UInt8], flags: Int32) -> Int {
         var storage = sockaddr_storage()
         let nameLength = address.map { min($0.count, MemoryLayout<sockaddr_storage>.size) } ?? 0
@@ -338,9 +300,6 @@ enum HostSocketCalls {
         }
     }
 
-    /// recvmsg into a buffer of `max` bytes. Returns nil on failure (errno
-    /// set); otherwise the bytes (truncated to the buffer), the full length
-    /// the call returned, the address, the control data and the host flags.
     static func receive(_ fd: Int32, max: Int, controlRoom: Int, flags: Int32)
         -> (bytes: [UInt8], returned: Int, address: [UInt8], control: [UInt8], flags: Int32)? {
         var buffer = [UInt8](repeating: 0, count: Swift.max(max, 1))

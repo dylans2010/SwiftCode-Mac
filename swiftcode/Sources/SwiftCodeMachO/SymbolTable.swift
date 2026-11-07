@@ -1,12 +1,7 @@
 import Foundation
 
-/// The functions of a Mach-O image from its `LC_SYMTAB` (`nlist_64`
-/// entries; `specs/ide/profiler.md` §4.2): defined section symbols in
-/// executable sections, sorted by address, each ending where the next
-/// begins (or at its section's end).
 public struct SymbolTable: Sendable {
     public struct Function: Sendable, Equatable {
-        /// Link-time VM address.
         public var address: UInt64
         public var size: UInt64
         public var name: String
@@ -18,7 +13,6 @@ public struct SymbolTable: Sendable {
     }
 
     public let functions: [Function]
-    /// The image's `__TEXT` VM address (link-time; the mach header's address).
     public let textAddress: UInt64
 
     public init(functions: [Function], textAddress: UInt64) {
@@ -26,7 +20,6 @@ public struct SymbolTable: Sendable {
         self.textAddress = textAddress
     }
 
-    /// The function containing a link-time VM address.
     public func function(containing address: UInt64) -> Function? {
         var low = 0, high = functions.count
         while low < high {
@@ -38,13 +31,9 @@ public struct SymbolTable: Sendable {
         return address < f.address &+ f.size ? f : nil
     }
 
-    // MARK: Reading
-
     static let nStab: UInt8 = 0xE0, nType: UInt8 = 0x0E, nSect: UInt8 = 0x0E
-    /// S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS.
     static let instructionAttributes: UInt32 = 0x8000_0000 | 0x0000_0400
 
-    /// The symbol table of a Mach-O file (thin, or the slice at `offset`).
     public init(file reader: ByteReader, at offset: Int = 0) throws(MachOError) {
         let image = try MachOImage(reader, at: offset)
         try self.init(image: image) { (linkeditOffset: UInt64, _: Int) throws(MachOError) -> (ByteReader, Int) in
@@ -52,10 +41,6 @@ public struct SymbolTable: Sendable {
         }
     }
 
-    /// The symbol table of an image inside a shared cache: its `__LINKEDIT`
-    /// offsets are turned into VM addresses
-    /// (`linkedit.vmaddr + offset − linkedit.fileoff`) and located in the
-    /// cache's files.
     public init(cache: SharedCache, image: SharedCache.Image) throws(MachOError) {
         let macho = try cache.machO(for: image)
         guard let linkedit = macho.segment(named: "__LINKEDIT") else { throw MachOError("\(image.path): no __LINKEDIT") }
@@ -68,15 +53,12 @@ public struct SymbolTable: Sendable {
         }
     }
 
-    /// `locate(offset, byteCount)` gives the reader and position of a
-    /// `__LINKEDIT` file offset.
     init(image: MachOImage, locate: (UInt64, Int) throws(MachOError) -> (ByteReader, Int)) throws(MachOError) {
         textAddress = image.segment(named: "__TEXT")?.vmAddress ?? 0
         guard let st = image.symtab, st.symbolCount > 0 else {
             functions = []
             return
         }
-        // Executable sections, numbered from 1 in load-command order.
         var sections: [(start: UInt64, end: UInt64, code: Bool)] = []
         for seg in image.segments {
             for s in seg.sections {
@@ -107,7 +89,7 @@ public struct SymbolTable: Sendable {
         var out: [Function] = []
         out.reserveCapacity(raw.count)
         for (i, (address, name)) in raw.enumerated() {
-            if let last = out.last, last.address == address { continue } // aliases: keep the first name
+            if let last = out.last, last.address == address { continue }
             var next = i + 1
             while next < raw.count, raw[next].0 == address { next += 1 }
             let sectionEnd = sections.first { $0.start <= address && address < $0.end }?.end ?? address &+ 4

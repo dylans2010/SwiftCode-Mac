@@ -1,13 +1,5 @@
 import SwiftUI
 
-/// The workspace status bar — Legacy's `StatusBarView`, ported onto SwiftCode.
-///
-/// SwiftCode has no status bar today (the workspace window shows git state in
-/// the toolbar area and build state in the build bezel), so this is a new
-/// SwiftUI bar for the `swiftcode-ide` shell: current branch with ahead/behind
-/// counts, and a building indicator. It takes a plain `StatusBarState`
-/// value; feeding it from the workspace's source-control and build models
-/// is a wiring item (see the bulk Views-A wiring list).
 public struct StatusBarState: Equatable, Sendable {
     public var branchName: String?
     public var ahead: Int

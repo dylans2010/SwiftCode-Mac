@@ -2,10 +2,6 @@ import XCTest
 import SwiftCodeExtensions
 @testable import SwiftCodeSDK
 
-/// IPC dispatcher: envelope handling, the Assist gate, command table,
-/// and log routes. No live network, no real credentials — the session
-/// is keyless, so any route needing a grant denies (which is itself
-/// the assertion for several cases).
 final class SDKIPCDispatcherTests: XCTestCase {
     private func makeDispatcher() -> SDKIPCDispatcher {
         SDKIPCDispatcher(session: SDKRuntimeSessionInfo(
@@ -64,7 +60,6 @@ final class SDKIPCDispatcherTests: XCTestCase {
 
     func testAssistShapedMethodIsDeniedByGate() async throws {
         let dispatcher = makeDispatcher()
-        // `llm.complete` contains the deny-listed `llm.` fragment.
         let response = try decodeResponse(await dispatcher.dispatch(requestFrame(method: "llm.complete", payload: .null)))
         XCTAssertFalse(response.ok)
         XCTAssertEqual(response.error?.code, "ASSIST_DENIED")
@@ -92,16 +87,12 @@ final class SDKIPCDispatcherTests: XCTestCase {
 
     func testCommandsRegisterAndUnregister() async throws {
         let dispatcher = makeDispatcher()
-        // Register needs the `.uiContribute` grant — the keyless session
-        // has none, so this denies. That denial is the point: the
-        // dispatcher authorizes before touching the table.
         let denied = try decodeResponse(await dispatcher.dispatch(requestFrame(
             method: "commands.register",
             payload: .object(["id": .string("my-command"), "title": .string("My Command")])
         )))
         XCTAssertFalse(denied.ok)
         XCTAssertEqual(denied.error?.code, "PERMISSION_DENIED")
-        // Unregister of an unknown ID is a silent no-op success.
         let unregistered = try decodeResponse(await dispatcher.dispatch(requestFrame(
             method: "commands.unregister",
             payload: .object(["id": .string("my-command")])

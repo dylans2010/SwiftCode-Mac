@@ -1,12 +1,3 @@
-// CIBuildView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/CIBuildView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: CI configuration UI (project identification, scheme, versions, devices); start-build/upload action (the YAML generator has no UI caller)
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/CIBuildView.swift (derived from Legacy).
-// Ambiguous type reference(s) defined in several modules, import left out: CIBuildConfiguration.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AssistCIFunctions, BuildYMLConfig.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeMCP
 import SwiftUI
 

@@ -1,9 +1,3 @@
-// CreateNewAppUIOptionsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppUIOptionsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Layout-density picker; Enable-interface-animations toggle; Prioritize-accessibility toggle
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 public struct CreateNewAppUIOptionsView: View {

@@ -1,7 +1,7 @@
 import Foundation
 
 public struct GitCommit: Identifiable, Sendable, Codable {
-    public let id: String // Hash
+    public let id: String
     public let author: String
     public let email: String
     public let date: Date

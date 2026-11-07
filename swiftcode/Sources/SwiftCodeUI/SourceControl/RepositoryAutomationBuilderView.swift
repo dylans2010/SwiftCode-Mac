@@ -1,20 +1,8 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/RepositoryAutomationBuilderView.swift
-//
-// Verbatim apart from this header. Self-contained: `AutomationCategory`,
-// `AutomationActionType`, `AutomationStep` (+ nested `RunStatus`) and
-// `AutomationWorkflowStore` are all defined in this file; it references
-// no other SwiftCode type. (The simulation in the store's run path is
-// Legacy's own behaviour — it simulates step execution locally; the
-// real shell execution lives in `WorkflowManager`.)
-
 import SwiftUI
 import AppKit
 import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "RepositoryAutomationBuilder")
-
-// MARK: - Automation Builder Models
 
 public enum AutomationCategory: String, CaseIterable, Identifiable, Sendable {
     case repo = "Repository Operations"
@@ -35,7 +23,6 @@ public enum AutomationCategory: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum AutomationActionType: String, CaseIterable, Identifiable, Sendable {
-    // Repo
     case fetch = "Fetch"
     case pull = "Pull"
     case push = "Push"
@@ -43,19 +30,16 @@ public enum AutomationActionType: String, CaseIterable, Identifiable, Sendable {
     case commit = "Commit"
     case stash = "Stash"
 
-    // GitHub
     case createPR = "Create Pull Request"
     case mergePR = "Merge Pull Request"
     case triggerAction = "Trigger GitHub Action"
     case createIssue = "Create Issue"
 
-    // Dev
     case build = "Build Project"
     case test = "Run Tests"
     case format = "Format Code"
     case genDocs = "Generate Documentation"
 
-    // System
     case runCommand = "Run Terminal Command"
     case runScript = "Execute Shell Script"
     case sendNotification = "Send Notification"
@@ -128,7 +112,6 @@ public struct AutomationStep: Identifiable, Sendable {
     public var stopOnFailure: Bool = true
     public var parameters: [String: String] = [:]
 
-    // Live Execution Context (transient state, updated during runs)
     public enum RunStatus: Sendable {
         case idle
         case running
@@ -146,7 +129,6 @@ public final class AutomationWorkflowStore {
     public var activeStepIndex: Int?
 
     public init() {
-        // Pre-populate with a useful starter automation: Pull, Format, Build, Test, Notify
         steps = [
             AutomationStep(name: "Fetch Tracking Branch", type: .fetch, parameters: ["remote": "origin"]),
             AutomationStep(name: "Pull Commits", type: .pull, parameters: ["rebase": "true"]),
@@ -190,14 +172,12 @@ public final class AutomationWorkflowStore {
     }
 
     private func runStep(_ step: AutomationStep, project: Project) async throws {
-        // Simulate real step command delays or run actual light git actions where possible
         appendLog("Executing \(step.type.rawValue)...")
         for (key, val) in step.parameters {
             appendLog("  Parameter '\(key)': \(val)")
         }
 
-        // Simulating the actual command execution
-        try await Task.sleep(nanoseconds: 800_000_000) // 0.8s
+        try await Task.sleep(nanoseconds: 800_000_000)
     }
 
     private func appendLog(_ message: String) {
@@ -232,8 +212,6 @@ public final class AutomationWorkflowStore {
     }
 }
 
-// MARK: - Repository Automation Builder View
-
 @MainActor
 struct RepositoryAutomationBuilderView: View {
     let project: Project
@@ -243,7 +221,6 @@ struct RepositoryAutomationBuilderView: View {
 
     var body: some View {
         HSplitView {
-            // Left Panel: Preset library of Actions
             VStack(spacing: 0) {
                 Text("Action Catalog")
                     .font(.headline)
@@ -252,7 +229,6 @@ struct RepositoryAutomationBuilderView: View {
 
                 Divider()
 
-                // Categories Selector
                 Picker("Category", selection: $selectedCategory) {
                     ForEach(AutomationCategory.allCases) { cat in
                         Label(cat.rawValue, systemImage: cat.icon).tag(cat)
@@ -263,7 +239,6 @@ struct RepositoryAutomationBuilderView: View {
 
                 Divider()
 
-                // List of actions in category
                 List {
                     let filtered = AutomationActionType.allCases.filter { $0.category == selectedCategory }
                     ForEach(filtered) { type in
@@ -293,9 +268,7 @@ struct RepositoryAutomationBuilderView: View {
             .frame(minWidth: 260, idealWidth: 300, maxWidth: 360)
             .background(Color(NSColor.windowBackgroundColor))
 
-            // Middle & Right: Workflow Canvas & Live Execution Log
             VSplitView {
-                // Canvas Flow Area
                 VStack(spacing: 0) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -338,7 +311,6 @@ struct RepositoryAutomationBuilderView: View {
                 }
                 .frame(maxHeight: .infinity)
 
-                // Log output area
                 VStack(spacing: 0) {
                     HStack {
                         Label("Console Output", systemImage: "terminal")
@@ -369,14 +341,11 @@ struct RepositoryAutomationBuilderView: View {
         }
     }
 
-    // MARK: - Step Row View
-
     @ViewBuilder
     private func stepCardView(at index: Int, step: AutomationStep) -> some View {
         let isRunningStep = store.activeStepIndex == index
         VStack(spacing: 0) {
             HStack {
-                // Drag handle placeholder
                 Image(systemName: "line.3.horizontal")
                     .foregroundStyle(.secondary)
                     .padding(.trailing, 4)
@@ -395,14 +364,12 @@ struct RepositoryAutomationBuilderView: View {
 
                 Spacer()
 
-                // Status Indicator
                 if isRunningStep {
                     ProgressView()
                         .controlSize(.small)
                         .padding(.trailing, 8)
                 }
 
-                // Configuration expand toggle
                 Button {
                     if editingStepID == step.id {
                         editingStepID = nil
@@ -415,7 +382,6 @@ struct RepositoryAutomationBuilderView: View {
                 }
                 .buttonStyle(.plain)
 
-                // Trash delete
                 Button {
                     store.steps.remove(at: index)
                 } label: {
@@ -460,7 +426,6 @@ struct RepositoryAutomationBuilderView: View {
                 .bold()
                 .foregroundStyle(.secondary)
 
-            // Generic customizable parameters list depending on type
             let step = store.steps[index]
             ForEach(step.parameters.keys.sorted(), id: \.self) { key in
                 HStack {

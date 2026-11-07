@@ -2,121 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy Agentic planning & memory tool family (Wave 8,
-/// slice H): 8 of the 9 Agentic tools in this slice. The ninth,
-/// `ask_user`, is ALREADY-SERVED — `MCPServer.toolAliases` maps it to
-/// the Wave 4 `plan-AskUser` tool (verified live), so it is not
-/// registered here.
-///
-/// Behaviour source: Legacy's `AIContextMemoryTool`,
-/// `TaskPlannerTool`, `TodoManagerTool`, `ProgressTrackerTool`,
-/// `CheckpointCreatorTool`, `RollbackChangesTool`,
-/// `QuestionHandlerTool` and `ChecklistPlanTool` (Dylan's own code,
-/// ported under MIT), all registered in Legacy's Agentic registry
-/// (`SwiftCode/Tools/Agentic/ListTools.swift:137-145`). Legacy's
-/// implementations are stubs that return canned strings
-/// (`"Memory \(action)ed"`, `"Step 1 for \(goal)"`, a hardcoded
-/// `0.75` progress, `"Checkpoint '…' created"`, `"Awaiting user
-/// response..."`); the ports below implement the behaviour those
-/// strings promise, grounded in real SwiftCode state, and say so in the
-/// spec draft. Nothing is faked: where a Legacy behaviour cannot be
-/// honoured, the handler fails instead.
-///
-/// Conventions, following Waves 1–7:
-///
-/// * Schemas are Legacy's `schema` verbatim, plus the `workspace`
-///   parameter Wave 1 adds to every tool. Legacy's Agentic schemas
-///   have no titles or per-property descriptions; the descriptions
-///   below are the minimal wording needed to make each argument
-///   usable. Structured data keeps Legacy's keys, with typed JSON
-///   values (integers, booleans, numbers) the way SwiftCode's other
-///   tools do.
-/// * Approval gating: every writing handler gates BEFORE touching
-///   disk or host state, through `commit()` (workspace files) or
-///   `approveChangeWithoutFile()` / an explicit `MCPChange` +
-///   `approve()` (stores outside the workspace), exactly like the
-///   Wave 2 file-writing tools and Wave 7's `project_restore`.
-///   `MCPServer.run` already refuses `writes: true` tools when the
-///   server is read-only; the approval call is still required.
-///   There is no Autopilot bypass anywhere in this file.
-/// * Workspace confinement: plans, todos and context memory are
-///   filed per workspace root path, never app-global. The todo list
-///   is a workspace file (`.assist_temp/memory/todos.json`, the Wave
-///   4 memory-directory pattern); plans and context memory live in
-///   process-lifetime stores keyed by workspace root, like Wave 4's
-///   `SwiftCodeMemoryGraphStore` and `PlanningPlanStore` — they do not
-///   survive a server restart. Checkpoints live outside the
-///   workspace (a full-tree copy cannot live inside the tree it
-///   copies) in Application Support `SwiftCodeCheckpoints/`, a store
-///   deliberately separate from Wave 7's `SwiftCodeSnapshots/` — see
-///   below. No second memory store is invented: `ai_context_memory`
-///   reuses Wave 4's `SwiftCodeMemoryGraphStore`, and `task_planner`
-///   additionally records its steps in Wave 4's
-///   `PlanningPlanStore`, so `intel_breakdown_task` can break a
-///   `task_planner` plan down.
-///
-/// Deliberate deviations from Legacy, recorded here (full detail
-/// in the spec draft `specs/ide/agentic-planning-draft.md`):
-///
-/// * `ai_context_memory`: Legacy accepts any `action` string and
-///   echoes `"Memory \(action)ed"` without doing anything. The
-///   port defines the real vocabulary — `store` / `retrieve` /
-///   `list` / `clear` — backed by the Wave 4 memory graph, and
-///   fails unknown actions instead of echoing them. Summaries keep
-///   Legacy's `"Memory \(action)ed"` shape (`"Memory stored"`,
-///   `"Memory retrieved"`, `"Memory listed"`, `"Memory cleared"`).
-/// * `task_planner`: Legacy returns one canned step
-///   (`"Step 1 for \(goal)"`). The port splits the goal the way
-///   Wave 4's `intel_plan_task` does (clauses separated by `, . ;`
-///   or newlines; a generic four-step plan when the goal has no
-///   clauses), mints a `planId`, and stores the plan so
-///   `checklist_plan` / `progress_tracker` can work on it.
-/// * `todo_manager`: Legacy returns `["Todo list updated"]`
-///   without storing anything. The port keeps a real per-workspace
-///   todo list (`.assist_temp/memory/todos.json`) with `add` /
-///   `list` / `complete` / `remove` / `clear`. Mutations keep
-///   Legacy's `"Todo list updated"` wording as their summary
-///   prefix.
-/// * `progress_tracker`: Legacy always returns `0.75`. The port
-///   computes real progress from the slice's plan store: a plan
-///   ID reports the fraction of its tasks complete
-///   (`completed` = 1, `in_progress` = 0.5, `queued` / `failed` =
-///   0); a task ID reports that task's own progress. An unknown
-///   ID fails — no progress is invented.
-/// * `checkpoint_creator` / `rollback_changes`: Legacy's pair is
-///   two stubs with no store behind them, so a checkpoint that
-///   captured nothing would be fake. The port gives them a real
-///   store of their own: a full-tree copy per checkpoint in
-///   Application Support `SwiftCodeCheckpoints/<id>/files` plus
-///   `metadata.json` (the Wave 7 `project_snapshot` layout, in a
-///   separate directory). `rollback_changes` restores only
-///   checkpoints from that store — a `project_snapshot` ID fails
-///   and names `project_restore`, and a checkpoint from another
-///   workspace fails. This is NOT an alias of
-///   `project_snapshot` / `project_restore`: the parameter names
-///   differ (`description` / `checkpointID` vs `message` /
-///   `snapshot_id`), so an alias would fail validation, and the
-///   stores are separate by design.
-/// * `questions_handle`: Legacy returns `"Awaiting user response
-///   to question set..."` and blocks. Like Wave 4's `plan-AskUser`
-///   port, this port never blocks: it returns the question set as
-///   a structured pending handoff (`questionSetId`, the questions,
-///   `status: "pending"`) and returns immediately. The caller
-///   presents the questions and feeds answers back; the tool
-///   never waits.
-/// * `checklist_plan`: Legacy returns `"Checklist updated"`
-///   without storing anything. The port updates the workspace's
-///   current plan in the slice's plan store (creating one from the
-///   given tasks when no plan exists yet), matching tasks by `id`
-///   then by title, and reports the completed count and progress.
-/// * `ask_user` is not ported here: the alias already exists, but
-///   note the parameter mismatch recorded in the spec draft — the
-///   Agentic schema (`question`, `input_type`, `options`) is not a
-///   subset of `plan-AskUser`'s (`question`,
-///   `allowsMultipleAnswers`, `choices`), so an Agentic caller
-///   passing `input_type` / `options` fails validation. The alias
-///   is Legacy's own registry alias, kept as-is; the coordinator
-///   owns the alias table.
 extension SwiftCodeMCPHost {
     var agenticPlanningTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -221,9 +106,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// One checklist task in an Agentic plan, mirroring Legacy's
-/// `ChecklistPlanTool` task object (`id`, `title`, `status`,
-/// `detail`).
 struct AgenticPlanningTask: Codable, Sendable, Equatable {
     var id: String
     var title: String
@@ -237,9 +119,6 @@ struct AgenticPlanningTask: Codable, Sendable, Equatable {
         self.detail = detail
     }
 
-    /// Legacy's status weight, as used by `progress_tracker`:
-    /// `completed` counts fully, `in_progress` half, `queued` and
-    /// `failed` nothing.
     var progressWeight: Double {
         switch status {
         case "completed": return 1.0
@@ -249,21 +128,17 @@ struct AgenticPlanningTask: Codable, Sendable, Equatable {
     }
 }
 
-/// One plan created by `task_planner` (or implicitly by
-/// `checklist_plan`): a goal plus its checklist tasks.
 struct AgenticPlanningPlan: Codable, Sendable, Equatable {
     var id: String
     var goal: String
     var tasks: [AgenticPlanningTask]
     var createdAt: Date
 
-    /// Fraction of tasks complete, by status weight.
     var progress: Double {
         guard !tasks.isEmpty else { return 0.0 }
         return tasks.map(\.progressWeight).reduce(0.0, +) / Double(tasks.count)
     }
 
-    /// The plan's overall status, derived from its tasks.
     var status: String {
         if tasks.isEmpty { return "queued" }
         if tasks.allSatisfy({ $0.status == "completed" }) { return "completed" }
@@ -272,11 +147,6 @@ struct AgenticPlanningPlan: Codable, Sendable, Equatable {
     }
 }
 
-/// One process-lifetime plan store per workspace, mirroring Wave 4's
-/// `PlanningPlanStore` shape (NSLock + dictionary, never persisted)
-/// but holding structured plans instead of step strings, so
-/// `checklist_plan` can update task statuses and `progress_tracker`
-/// can compute real progress. Plans do not survive a server restart.
 final class AgenticPlanningPlanStore: @unchecked Sendable {
     static let shared = AgenticPlanningPlanStore()
 
@@ -286,8 +156,6 @@ final class AgenticPlanningPlanStore: @unchecked Sendable {
 
     private init() {}
 
-    /// Creates a plan, makes it the workspace's current plan, and
-    /// returns it.
     func create(workspace: String, goal: String, tasks: [AgenticPlanningTask]) -> AgenticPlanningPlan {
         lock.withLock {
             let plan = AgenticPlanningPlan(id: UUID().uuidString, goal: goal, tasks: tasks, createdAt: Date())
@@ -301,7 +169,6 @@ final class AgenticPlanningPlanStore: @unchecked Sendable {
         lock.withLock { plans[workspace]?[id] }
     }
 
-    /// The workspace's most recently created plan, if any.
     func currentPlan(workspace: String) -> AgenticPlanningPlan? {
         lock.withLock {
             guard let id = currentPlanIDs[workspace] else { return nil }
@@ -309,8 +176,6 @@ final class AgenticPlanningPlanStore: @unchecked Sendable {
         }
     }
 
-    /// Every plan of the workspace, oldest first (gap closure:
-    /// `session_progress_report` aggregates across plans).
     func plans(workspace: String) -> [AgenticPlanningPlan] {
         lock.withLock { (plans[workspace] ?? [:]).values.sorted { $0.createdAt < $1.createdAt } }
     }
@@ -319,7 +184,6 @@ final class AgenticPlanningPlanStore: @unchecked Sendable {
         lock.withLock { plans[workspace, default: [:]][plan.id] = plan }
     }
 
-    /// Finds a single task by ID anywhere in the workspace's plans.
     func task(workspace: String, id: String) -> (AgenticPlanningPlan, AgenticPlanningTask)? {
         lock.withLock {
             guard let workspacePlans = plans[workspace] else { return nil }
@@ -331,8 +195,6 @@ final class AgenticPlanningPlanStore: @unchecked Sendable {
     }
 }
 
-/// One todo-list item, persisted in the workspace's
-/// `.assist_temp/memory/todos.json`.
 struct AgenticPlanningTodo: Codable, Sendable, Equatable {
     var text: String
     var completed: Bool
@@ -340,11 +202,6 @@ struct AgenticPlanningTodo: Codable, Sendable, Equatable {
 }
 
 extension SwiftCodeMCPHost {
-    /// The checkpoint store: Application Support `SwiftCodeCheckpoints/`
-    /// (the Wave 7 `project_snapshot` layout — one directory per
-    /// checkpoint holding a full-tree `files/` copy plus
-    /// `metadata.json` — in a directory of its own, so checkpoints
-    /// and project snapshots can never be confused).
     nonisolated static func agenticPlanningCheckpointsDirectory() throws -> URL {
         let appSupport = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let dir = appSupport.appendingPathComponent("SwiftCodeCheckpoints", isDirectory: true)
@@ -354,14 +211,10 @@ extension SwiftCodeMCPHost {
         return dir
     }
 
-    /// `<workspace>/.assist_temp/memory/todos.json`.
     func agenticPlanningTodosURL(in s: WorkspaceSession) -> URL {
         memoryDirectory(in: s).appendingPathComponent("todos.json")
     }
 
-    /// The todo list, parsed from the workspace file (empty when the
-    /// file does not exist yet; an unparsable file also reads as
-    /// empty, like Wave 4's context store).
     func agenticPlanningLoadTodos(in s: WorkspaceSession) -> [AgenticPlanningTodo] {
         guard let text = text(of: agenticPlanningTodosURL(in: s)),
               let data = text.data(using: .utf8) else { return [] }
@@ -370,7 +223,6 @@ extension SwiftCodeMCPHost {
         return (try? decoder.decode([AgenticPlanningTodo].self, from: data)) ?? []
     }
 
-    /// The todo list rendered as pretty-printed, sorted-key JSON.
     nonisolated static func agenticPlanningRenderTodos(_ todos: [AgenticPlanningTodo]) -> String {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -379,16 +231,11 @@ extension SwiftCodeMCPHost {
         return "[]"
     }
 
-    /// The JSON form of one todo, for structured results.
     nonisolated static func agenticPlanningTodoJSON(_ todo: AgenticPlanningTodo) -> AnyJSON {
         ["text": .string(todo.text), "completed": .bool(todo.completed),
          "createdAt": .string(ISO8601DateFormatter().string(from: todo.createdAt))]
     }
 
-    /// Splits a goal into plan steps the way Wave 4's
-    /// `intel_plan_task` does: clauses separated by `, . ;` or
-    /// newlines, numbered; a generic four-step plan when the goal
-    /// has no clauses.
     nonisolated static func agenticPlanningSplitGoal(_ goal: String) -> [String] {
         let verbs = goal
             .components(separatedBy: CharacterSet(charactersIn: ",.;\n"))
@@ -400,9 +247,6 @@ extension SwiftCodeMCPHost {
         return verbs.enumerated().map { "\($0.offset + 1). \($0.element)" }
     }
 
-    /// The context-memory entries for a workspace, held in Wave 4's
-    /// memory graph under the `ai_context_memory` key as a JSON
-    /// array (a legacy newline-joined value still parses).
     func agenticPlanningContextEntries(in s: WorkspaceSession) -> [String] {
         guard let raw = SwiftCodeMemoryGraphStore.shared.retrieve(workspace: memoryWorkspaceKey(in: s), key: "ai_context_memory"),
               !raw.isEmpty else { return [] }
@@ -418,8 +262,6 @@ extension SwiftCodeMCPHost {
         SwiftCodeMemoryGraphStore.shared.store(workspace: memoryWorkspaceKey(in: s), key: "ai_context_memory",
                                            value: String(data: data, encoding: .utf8) ?? "[]")
     }
-
-    // MARK: - Context memory
 
     func agenticPlanningContextMemory(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -437,8 +279,6 @@ extension SwiftCodeMCPHost {
             agenticPlanningStoreContextEntries(entries, in: s)
             summary = "Memory stored"
         case "retrieve", "list":
-            // Legacy's "Memory \(action)ed" shape: retrieve ->
-            // "Memory retrieved", list -> "Memory listed".
             summary = action == "retrieve" ? "Memory retrieved" : "Memory listed"
         case "clear":
             agenticPlanningStoreContextEntries([], in: s)
@@ -451,8 +291,6 @@ extension SwiftCodeMCPHost {
                             "count": .int(entries.count)], summary: summary)
     }
 
-    // MARK: - Task planner
-
     func agenticPlanningTaskPlanner(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let goal = try call.require("goal")
@@ -462,8 +300,6 @@ extension SwiftCodeMCPHost {
         let steps = Self.agenticPlanningSplitGoal(goal)
         let tasks = steps.map { AgenticPlanningTask(id: UUID().uuidString, title: $0, status: "queued") }
         let plan = AgenticPlanningPlanStore.shared.create(workspace: memoryWorkspaceKey(in: s), goal: goal, tasks: tasks)
-        // Wave 4 interop: record the steps where
-        // `intel_breakdown_task` looks for them.
         PlanningPlanStore.shared.store(key: "plan:\(plan.id)", value: steps.joined(separator: "\n"))
         let stepsText = steps.joined(separator: "\n")
         let taskJSON: [AnyJSON] = tasks.map { ["id": .string($0.id), "title": .string($0.title), "status": .string($0.status)] }
@@ -471,8 +307,6 @@ extension SwiftCodeMCPHost {
                             "tasks": .array(taskJSON)],
                            summary: "Plan generated for goal: \(goal)")
     }
-
-    // MARK: - Todo manager
 
     func agenticPlanningTodoManager(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -532,8 +366,6 @@ extension SwiftCodeMCPHost {
                             "count": .int(todos.count)], summary: summary)
     }
 
-    // MARK: - Progress tracker
-
     func agenticPlanningProgressTracker(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let taskID = try call.require("taskID")
@@ -555,8 +387,6 @@ extension SwiftCodeMCPHost {
         return .structured(["taskID": .string(taskID), "progress": .double(progress), "status": .string(status)],
                            summary: "Progress for \(taskID): \(progress * 100)%")
     }
-
-    // MARK: - Checkpoints
 
     func agenticPlanningCheckpointCreator(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -638,8 +468,6 @@ extension SwiftCodeMCPHost {
                            summary: "Changes rolled back to \(checkpointID)")
     }
 
-    // MARK: - Question handoff
-
     func agenticPlanningQuestionsHandle(_ call: MCPToolCall) throws -> MCPToolResult {
         guard let questionsRaw = call.arguments["questions"]?.array, !questionsRaw.isEmpty else {
             throw MCPToolError("Missing required parameter: questions (at least one question is required)")
@@ -670,8 +498,6 @@ extension SwiftCodeMCPHost {
         return .structured(["questionSetId": .string(questionSetId), "questions": .array(questions),
                             "status": .string("pending")], summary: summary)
     }
-
-    // MARK: - Checklist plan
 
     func agenticPlanningChecklistPlan(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)

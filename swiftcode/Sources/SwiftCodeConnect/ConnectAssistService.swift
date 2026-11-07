@@ -1,11 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectAssistService.swift
-// Adapted for SwiftCode: Legacy answered every assist query with a canned string
-// ("Assist on Mac context for project '...': Prompt received: '...'"). That
-// is a fake answer and is NOT ported. The query is routed through the
-// ConnectWorkspaceProvider seam; with no provider (or no project) the device
-// gets an honest error instead of a fabricated reply.
-
 import Foundation
 import os.log
 

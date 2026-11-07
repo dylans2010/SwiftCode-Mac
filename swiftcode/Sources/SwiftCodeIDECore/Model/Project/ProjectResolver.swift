@@ -1,18 +1,5 @@
 import Foundation
 
-/// Resolved project metadata (Legacy
-/// `SwiftCode/Backend/Project/ProjectResolver.swift`, Dylan's own
-/// code, ported under MIT).
-///
-/// Legacy resolved against its singletons (`ProjectSessionStore`,
-/// `DocumentCoordinator`, `XcodeBuildManager`); the destination has
-/// none of those, so resolution is adapted to the destination's
-/// `WorkspaceModel`. (Callers in `SwiftCodeMCP` can combine this
-/// with `SwiftCodeMCPHost.discoverWorkspace(in:)`; this target does
-/// not depend on `SwiftCodeMCP`.)
-/// The ancestor walk-up rule is Legacy's: starting at the given URL,
-/// walk up until a directory containing a `Package.swift`,
-/// `.xcodeproj`, or `.xcworkspace` is found.
 public struct ResolvedProjectMetadata: Sendable {
     public let url: URL
     public let name: String
@@ -39,11 +26,7 @@ public enum ProjectResolutionError: Error, LocalizedError {
     }
 }
 
-/// Resolves the project that owns a file or directory, walking up
-/// ancestors until a project container is found.
 public enum ProjectResolver {
-    /// The project that owns `url` (the URL itself or an ancestor),
-    /// or nil when no container exists above it.
     public static func resolveActiveProject(from url: URL) throws -> ResolvedProjectMetadata {
         var current = url
         if !current.hasDirectoryPath {
@@ -58,8 +41,6 @@ public enum ProjectResolver {
         throw ProjectResolutionError.noProjectFound(url)
     }
 
-    /// Metadata for the project at `url` itself, or nil when `url`
-    /// is not a project container.
     public static func metadata(at url: URL) -> ResolvedProjectMetadata? {
         let fm = FileManager.default
         if fm.fileExists(atPath: url.appendingPathComponent("Package.swift").path) {

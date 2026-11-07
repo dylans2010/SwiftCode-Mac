@@ -1,15 +1,3 @@
-// CreateNewAppMetadataView.swift
-//
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppMetadataView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A at bc28f653 called this COVERED-BY-REDESIGN (NewProjectSheet template options form) —
-// that verdict is wrong for the SwiftUI wizard flow: the ported `CreateNewAppWizardView`
-// (SwiftCodeUI/Window/CreateNewAppWizardView.swift:123) constructs `CreateNewAppMetadataView(config:)`
-// and lists it as an absent wiring gap, so this file was a dangling reference in landed code.
-// NewProjectSheet is a separate AppKit flow; this is the wizard's step 2 (Identity / Platform /
-// Location). Binds to `CreateAppConfiguration` / `CreateAppPlatform`, both already in
-// SwiftCodeUI (CreateNewAppWizardView.swift). Verbatim port, no behaviour changes.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 
 public struct CreateNewAppMetadataView: View {

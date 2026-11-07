@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 
-/// specs/ide/reference-ui-2.md §4 (Report navigator), §5 (build log) and
-/// §6 (test report pages): the model types behind the views.
 struct ReportModelTests {
     func report(_ action: String, scheme: String? = "Demo", at t: TimeInterval, ok: Bool = true, errors: Int = 0,
                 log: [String] = [], location: ReportLocation = .local) -> BuildReport {
@@ -25,7 +23,7 @@ struct ReportModelTests {
                        report("Build", scheme: "Other", at: 250, ok: false, errors: 2), report("Build", at: 400, location: .cloud)]
         let g = ReportNavigatorModel.groups(reports, dayAndTime: { "T\(Int($0.timeIntervalSince1970))" })
         #expect(g.map(\.title) == ["Demo", "Other", "Package"])
-        #expect(g[0].rows.map(\.title) == ["Demo/Demo (Autocreated)", "Build"]) // newest first
+        #expect(g[0].rows.map(\.title) == ["Demo/Demo (Autocreated)", "Build"])
         #expect(g[0].rows[0].index == 1 && g[0].rows[0].detail == "T300" && g[0].rows[0].badge == "1")
         #expect(g[0].rows[0].children.map(\.title) == ReportNavigatorModel.testPages)
         #expect(g[0].rows[0].children[1].detail == "75.0%" && g[0].rows[0].children[2].badge == "1")
@@ -57,7 +55,6 @@ struct ReportModelTests {
         #expect(s.map(\.title) == ["Build target Demo", "Build target tool-product"])
         #expect(s[0].steps.map(\.title) == ["Compiling main.swift util.swift", "Emitting module Demo"])
         #expect(s[0].steps[0].children.map(\.title) == ["Compile main.swift util.swift"])
-        // Issues go to the task that compiled their file.
         #expect(s[0].steps[0].badge == "2" && s[0].steps[0].children[0].issues.map(\.message) == ["broken", "unused"])
         #expect(s[1].steps[0].badge == nil)
         #expect(BuildLogModel.subtitle(r.context) == "Package Demo | Configuration Debug | Destination My Mac | SDK macOS 27.2")

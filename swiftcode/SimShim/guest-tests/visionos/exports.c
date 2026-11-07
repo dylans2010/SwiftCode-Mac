@@ -1,11 +1,3 @@
-// exports: lists the exported symbol names (export trie) and the symbol
-// table names (LC_SYMTAB, the names dladdr reports) of a loaded image that
-// contain a given text (visionos.md §10.9, round R2b). Binary metadata only (names
-// from the image's export trie, evidence level 4); nothing is disassembled.
-//   exports <image path> <text> [<output file>]
-// The image is loaded with dlopen; its export trie (LC_DYLD_EXPORTS_TRIE, or
-// the export range of LC_DYLD_INFO_ONLY) is walked in memory.
-
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>

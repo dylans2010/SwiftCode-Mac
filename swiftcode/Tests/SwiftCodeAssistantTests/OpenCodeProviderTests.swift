@@ -2,12 +2,8 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Fixture model ids are invented ("acme/alpha") — no real provider or
-/// model is named here, so nothing can be mistaken for a catalog.
-
 @Suite struct OpenCodeProviderTests {
     @Test func parseModelsHandlesEveryCatalogShape() {
-        // `providers` array, `id` keys.
         let arrayShape = Data("""
             {"providers": [
                 {"id": "acme", "models": [{"id": "beta"}, {"id": "alpha"}]},
@@ -21,7 +17,6 @@ import Testing
             "acme/alpha", "acme/beta", "other/gamma",
         ])
 
-        // Provider-keyed object.
         let keyedShape = Data("""
             {"acme": {"models": [{"id": "alpha"}]}, "other": {"models": [{"id": "gamma"}]}}
             """.utf8)
@@ -29,8 +24,6 @@ import Testing
             "opencode:acme/alpha", "opencode:other/gamma",
         ])
 
-        // Models as a dictionary, plus duplicates and junk that must be
-        // skipped, never fabricated into a model.
         let dictShape = Data("""
             {"providers": [{"id": "acme", "models": {
                 "alpha": {}, "beta": {"modelID": "beta"}, "alpha2": {"id": "alpha"}
@@ -41,7 +34,6 @@ import Testing
             "opencode:acme/alpha", "opencode:acme/beta",
         ])
 
-        // Unparseable or empty bodies are an empty list, not a fallback.
         #expect(OpenCodeProvider.parseModels(Data("not json".utf8)) == [])
         #expect(OpenCodeProvider.parseModels(Data("{}".utf8)) == [])
         #expect(OpenCodeProvider.parseModels(Data("{\"providers\": []}".utf8)) == [])
@@ -50,7 +42,6 @@ import Testing
     @Test func parseStoredID() {
         #expect(OpenCodeProvider.parseStoredID("opencode:acme/alpha") == OpenCodeModelID(providerID: "acme", modelID: "alpha"))
         #expect(OpenCodeProvider.parseStoredID("acme/alpha") == OpenCodeModelID(providerID: "acme", modelID: "alpha"))
-        // A model id may itself contain a slash; only the first splits.
         #expect(OpenCodeProvider.parseStoredID("opencode:acme/a/b") == OpenCodeModelID(providerID: "acme", modelID: "a/b"))
         #expect(OpenCodeProvider.parseStoredID(nil) == nil)
         #expect(OpenCodeProvider.parseStoredID("") == nil)
@@ -65,12 +56,9 @@ import Testing
         #expect(OpenCodeProvider.parseEvent(delta)?.event == .text("Hel"))
         #expect(OpenCodeProvider.parseEvent(delta)?.sessionID == "s1")
 
-        // The bare `delta` string form.
         let bare = #"{"type":"message.part.delta","properties":{"sessionID":"s1","delta":"lo"}}"#
         #expect(OpenCodeProvider.parseEvent(bare)?.event == .text("lo"))
 
-        // Tool parts fail closed; text `updated` frames are ignored
-        // (they carry the full part, not a delta).
         let tool = #"{"type":"message.part.delta","properties":{"sessionID":"s1","part":{"type":"tool"}}}"#
         #expect(OpenCodeProvider.parseEvent(tool)?.event == .tool)
         let updated = #"{"type":"message.part.updated","properties":{"sessionID":"s1","part":{"type":"text","text":"Hello"}}}"#
@@ -85,13 +73,11 @@ import Testing
         let errPlain = #"{"type":"session.error","properties":{"message":"plain"}}"#
         #expect(OpenCodeProvider.parseEvent(errPlain)?.event == .error("plain"))
 
-        // Unknown types, [DONE], and non-JSON are ignored, never text.
         #expect(OpenCodeProvider.parseEvent(#"{"type":"session.created","properties":{}}"#)?.event == .ignored)
         #expect(OpenCodeProvider.parseEvent("[DONE]") == nil)
         #expect(OpenCodeProvider.parseEvent("") == nil)
         #expect(OpenCodeProvider.parseEvent("not json") == nil)
 
-        // Alternate session-id spellings.
         #expect(OpenCodeProvider.parseEvent(#"{"type":"session.idle","properties":{"sessionId":"s9"}}"#)?.sessionID == "s9")
         #expect(OpenCodeProvider.parseEvent(#"{"type":"session.idle","properties":{"session_id":"s8"}}"#)?.sessionID == "s8")
     }
@@ -105,7 +91,6 @@ import Testing
         #expect(body["system"] as? String == "Be brief.")
         let parts = body["parts"] as? [[String: String]]
         #expect(parts == [["type": "text", "text": "<user>\nHi\n</user>"]])
-        // Generation options are never sent (Legacy never sent them).
         #expect(body["temperature"] == nil && body["max_tokens"] == nil)
     }
 
@@ -131,10 +116,8 @@ import Testing
         let a = await p.availability()
         #expect(a.models.map(\.id) == ["opencode:acme/alpha", "opencode:acme/beta"])
         #expect(hits.count == 1)
-        // Within the TTL the cached list is reused without a request.
         _ = await p.availability()
         #expect(hits.count == 1)
-        // A manual refresh clears the cache, so the next check refetches.
         p.refreshModels()
         _ = await p.availability()
         #expect(hits.count == 2)
@@ -180,10 +163,8 @@ import Testing
         let r = try await collect(OpenCodeProvider(baseURL: server.baseURL).send(
             ChatRequest(model: "opencode:acme/alpha", instructions: "Be brief.", messages: [ChatMessage(.user, "Hi")],
                         workingDirectory: URL(fileURLWithPath: "/tmp"))))
-        // Events for another session are ignored; the run ends finished.
         #expect(r.text == "Hello")
         #expect(r.events.last == .finished(nil))
-        // Subscribe-first order: session, event feed, then the prompt.
         #expect(rec.requests.map(\.path) == ["/session", "/event", "/session/s1/prompt_async"])
         let prompt = try #require(rec.requests.first { $0.path.hasSuffix("prompt_async") })
         #expect(prompt.query["directory"] == "/tmp")
@@ -230,8 +211,6 @@ import Testing
             case "/session":
                 return .json(["id": state.nextSession()])
             case "/event":
-                // The single subscription survives the retry; events
-                // carry the final session id.
                 return .init(contentType: "text/event-stream", chunks: sse([
                     ["type": "message.part.delta", "properties": ["sessionID": "s2", "part": ["type": "text", "text": "ok"]]],
                     ["type": "session.idle", "properties": ["sessionID": "s2"]],

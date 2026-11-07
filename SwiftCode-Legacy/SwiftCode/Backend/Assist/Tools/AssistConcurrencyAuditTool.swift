@@ -44,7 +44,6 @@ public struct AssistConcurrencyAuditTool: AssistTool {
             let relative = relativePath(url, root: context.workspaceRoot)
             let lines = text.components(separatedBy: "\n")
 
-            // File-level: SwiftUI types without @MainActor anywhere in the file.
             if text.contains("import SwiftUI") && !text.contains("@MainActor") {
                 for (index, line) in lines.enumerated() where line.contains(": View") || line.contains(": ObservableObject") || line.contains(": App") {
                     findings.append((relative: relative, line: index + 1, issue: "SwiftUI type without @MainActor in file (heuristic — verify whether main-actor isolation is needed)"))
@@ -72,13 +71,11 @@ public struct AssistConcurrencyAuditTool: AssistTool {
                     findings.append((relative: relative, line: lineNumber, issue: "Mutable static var '\(String(line[nameRange]))' shared across threads (heuristic — verify synchronization)"))
                 }
 
-                // Track async function bodies by brace depth.
                 if funcRegex.firstMatch(in: line, options: [], range: range) != nil && line.contains("async") && !inAsyncFunction {
                     inAsyncFunction = true
                     asyncDepth = braceDepth
                 }
 
-                // Task block without await: scan ahead up to 40 lines.
                 if line.contains("Task") && line.contains("{") {
                     var innerDepth = 0
                     var sawBrace = false
@@ -132,8 +129,6 @@ public struct AssistConcurrencyAuditTool: AssistTool {
     }
 
     private func hasForceUnwrap(_ line: String) -> Bool {
-        // A force unwrap is "!" preceded by a value character (letter, digit,
-        // "_", ")", or "]") and not followed by "=" (which is "!=").
         let chars = Array(line)
         guard chars.count >= 2 else { return false }
         for index in 1..<chars.count {

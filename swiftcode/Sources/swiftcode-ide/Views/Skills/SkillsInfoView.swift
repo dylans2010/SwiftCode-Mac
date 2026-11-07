@@ -1,9 +1,3 @@
-// SkillsInfoView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Skills/SkillsInfoView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: structured skill detail (version, author, tags, recommended tools, guidance, full documentation rendering)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeUI
 import SwiftUI
@@ -19,7 +13,6 @@ struct SkillsInfoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header View info block
                 VStack(alignment: .leading, spacing: 14) {
                     Text(skill.scheme.name)
                         .font(.title2.weight(.bold))

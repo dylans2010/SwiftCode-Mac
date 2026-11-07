@@ -1,24 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - SDKCodeConsoleView
-//
-// Bottom console panel for the Studio code editor. A virtualized `List`
-// (lazy rows, cheap at the 5,000-entry cap) over
-// `SDKCodeEditorState.consoleEntries`, oldest first.
-//
-// REAL behaviors, no placeholders:
-// - Stream-colored prefixes: OUT (secondary), ERR (red), SYS (blue) pills.
-// - Timestamps rendered subtly per row.
-// - Auto-scroll to the latest entry while "Follow" is on; the toggle is
-//   honored on every append and when re-enabled.
-// - "Clear" calls `state.clearConsole()`, which genuinely empties the
-//   array (bounded by `SDKCodeEditorState.appendConsole(_:)`, so the list
-//   can never grow unbounded).
-// - Copy support two ways: drag-select text inside any row
-//   (`.textSelection(.enabled)`), and multi-row selection (click / ⇧-click
-//   / ⌘-click) copied verbatim to the pasteboard via "Copy Selected".
-
 @MainActor
 public struct SDKCodeConsoleView: View {
     @ObservedObject var state: SDKCodeEditorState
@@ -54,8 +36,6 @@ public struct SDKCodeConsoleView: View {
         .accessibilityLabel("Console")
     }
 
-    // MARK: - Header
-
     private var headerBar: some View {
         HStack(spacing: 8) {
             Text("Console")
@@ -86,8 +66,6 @@ public struct SDKCodeConsoleView: View {
         .padding(6)
     }
 
-    // MARK: - Empty state
-
     private var emptyState: some View {
         VStack(spacing: 6) {
             Image(systemName: "terminal")
@@ -101,16 +79,11 @@ public struct SDKCodeConsoleView: View {
         .padding()
     }
 
-    // MARK: - Behavior
-
-    /// Scrolls to the newest entry when following is enabled.
     private func scrollToLatest(_ proxy: ScrollViewProxy) {
         guard followOutput, let lastID = state.consoleEntries.last?.id else { return }
         proxy.scrollTo(lastID, anchor: .bottom)
     }
 
-    /// Copies the selected rows (in document order, with stream tags) to
-    /// the general pasteboard. Real copy — the text lands on the clipboard.
     private func copySelectionToPasteboard() {
         let selected = state.consoleEntries.filter { selection.contains($0.id) }
         guard !selected.isEmpty else { return }
@@ -122,11 +95,6 @@ public struct SDKCodeConsoleView: View {
     }
 }
 
-// MARK: - SDKCodeConsoleRow
-
-/// One console entry: subtle timestamp, stream-colored prefix pill, and
-/// the (already 4 KiB-bounded) text. Text selection is enabled per row so
-/// users can copy arbitrary spans, not just whole rows.
 private struct SDKCodeConsoleRow: View {
     let entry: SDKConsoleEntry
 
@@ -147,9 +115,6 @@ private struct SDKCodeConsoleRow: View {
     }
 }
 
-// MARK: - SDKCodeConsoleStreamBadge
-
-/// Stream-colored prefix pill: OUT (secondary), ERR (red), SYS (blue).
 private struct SDKCodeConsoleStreamBadge: View {
     let stream: SDKConsoleStream
 

@@ -1,8 +1,3 @@
-// sparse: can imported host memory be bound into a sparse residency buffer,
-// and do reads of its unbound parts return zero (no GPU stall)?
-// usage: sparse SPV MODE   MODE 0: read inside the bound page; 1: read the unbound page after it; 2: 4 bytes before it
-// Build (from swiftcode/, on a host with Vulkan; stage8-contract.md §15):
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o X scripts/gpu-probes/X.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>

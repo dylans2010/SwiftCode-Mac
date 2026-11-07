@@ -1,26 +1,3 @@
-// Adversarial exfiltration tests for the Security (Keychain) API (SEC-ADV-2).
-//
-// The security.* IPC API is REAL now (sdk/package/src/security.ts
-// over the real wire contract in SDKSecurityContracts.swift, served by the
-// security.* cases in SDKIPCDispatcher.swift). The design invariant is:
-// plaintext secrets NEVER cross this boundary in either direction. The
-// extension user never supplies a secret; the user types it into the host's
-// secure popup, and useValue only ever returns {status, body}.
-//
-// These tests build a fake in-process host harness implementing the
-// documented wire contract (a test-double transport, which is allowed in
-// tests) and then prove an attacker CANNOT extract plaintext through ANY
-// route. Every test asserts a NEGATIVE: no secret field in any client-
-// surfaced value, malformed input rejected with typed errors, cross-app
-// identity forgery denied.
-//
-// The single boundary this suite deliberately does NOT claim: a host is
-// the wire authority for the *documented* fields (valueID, label, status,
-// body). If a fully compromised host fabricates those fields' contents,
-// the client cannot distinguish fabrication from data — there is no secret
-// reference on the client side to compare against. The invariant under test
-// is that the client never ADDS exposure: every extra field the host
-// smuggles is stripped, and only the documented shapes reach extension code.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -39,38 +16,23 @@ const {
   SDKError,
 } = await import(distUrl);
 
-// The canary secret. It lives ONLY in the harness (the host). If this
-// string ever shows up in anything the client returns, throws, or sends,
-// exfiltration happened and the test fails.
 const CANARY = ["sk", "live", "canary", "0000"].join("-");
 
-// ---------------------------------------------------------------------------
-// Fake in-process host harness implementing the documented wire contract.
-//
-// The harness is session-bound: each instance represents ONE extension
-// session (callerApp), mirroring the host's contract that the Keychain
-// namespace's extension component is derived from the session-bound caller
-// identity, never from the payload. securityIDs are registered to the app
-// that first stores under them; any other session touching that securityID
-// is denied with a typed error.
 function createAdversarialHost({
   callerApp = "app-a",
   malicious = false,
-  smuggleIn = null, // extra response fields to attempt smuggling, or null
-  namespaces = null, // inject a shared namespace registry (multi-session tests)
-  store = null, // inject a shared value store (multi-session tests)
+  smuggleIn = null,
+  namespaces = null,
+  store = null,
 } = {}) {
   const requests = [];
-  // Default to fresh per-session maps; multi-session tests inject shared ones
-  // so two sessions hit the same backend while keeping separate identities.
-  namespaces = namespaces ?? new Map(); // securityID -> owning app
-  store = store ?? new Map(); // "<app>::<securityID>::<valueID>" -> { label, createdAt }
+  namespaces = namespaces ?? new Map();
+  store = store ?? new Map();
 
   const host = {
     get requests() { return requests; },
     get store() { return store; },
     get namespaces() { return namespaces; },
-    /** Pre-register a securityID owned by an app (simulates prior storage). */
     register(securityID, owner, valueID = "v1") {
       namespaces.set(securityID, owner);
       store.set(`${owner}::${securityID}::${valueID}`, {
@@ -100,8 +62,6 @@ function createAdversarialHost({
     return new SDKError("SDK_PERMISSION_DENIED", message, "corr-forge-test");
   }
 
-  // The smuggle pack: everything a compromised host tries to slip past the
-  // client. These sit OUTSIDE the documented response shapes.
   function smuggle() {
     const pack = {
       secret: CANARY,
@@ -120,13 +80,9 @@ function createAdversarialHost({
     return malicious ? { ...base, ...smuggle() } : base;
   }
 
-  // Session-bound namespace check. Mirrors the host contract: the payload's
-  // securityID is looked up against namespaces bound to the SESSION's
-  // caller identity. A session claiming another app's Security ID is
-  // rejected here, before any Keychain touch.
   function checkNamespace(securityID) {
     const owner = namespaces.get(securityID);
-    if (owner === undefined) return; // new securityID: first writer claims it
+    if (owner === undefined) return;
     if (owner !== callerApp) {
       throw deny(
         `securityID "${securityID}" belongs to another app's Security namespace`,
@@ -171,7 +127,7 @@ function createAdversarialHost({
         checkNamespace(payload.securityID);
         const key = `${callerApp}::${payload.securityID}::${payload.valueID}`;
         store.delete(key);
-        return withSmuggle(null); // host answers with null on success
+        return withSmuggle(null);
       }
       case "security.useValue": {
         checkNamespace(payload.securityID);
@@ -179,8 +135,6 @@ function createAdversarialHost({
         if (!store.has(key)) {
           throw new SDKError("SDK_NOT_FOUND", "no such value", "corr-forge-test");
         }
-        // The host attaches the secret as the Authorization header itself
-        // and performs the HTTPS request; only {status, body} come back.
         return withSmuggle({ status: 200, body: JSON.stringify({ ok: true }) });
       }
       default:
@@ -191,12 +145,6 @@ function createAdversarialHost({
   return host;
 }
 
-/**
- * Recursively walks every string reachable in `value` (including object
- * keys and nested arrays) and fails if any of them contains the canary.
- * This is the core negative assertion: the secret must not be observable
- * anywhere in client-surfaced data.
- */
 function assertNoSecret(value, where, seen = new Set()) {
   if (typeof value === "string") {
     assert.ok(
@@ -221,7 +169,6 @@ function assertNoSecret(value, where, seen = new Set()) {
   }
 }
 
-/** Like assertNoSecret, but also forbids the secret in JSON form of errors. */
 function assertErrorClean(error, where) {
   assert.ok(error instanceof SDKError, `expected SDKError at ${where}, got ${error}`);
   assertNoSecret(String(error.message), `${where} (error message)`);
@@ -254,7 +201,6 @@ describe("security exfiltration (adversarial)", () => {
       label: "GitHub token",
       prompt: "Paste your token.",
     });
-    // Deep shape: EXACTLY {valueID, created}. Any smuggled field is stripped.
     assert.deepEqual(result, { valueID: "github-token", created: true });
     assertNoSecret(result, "security.addValue result");
     assertNoSecret(JSON.stringify(result), "security.addValue JSON");
@@ -268,7 +214,6 @@ describe("security exfiltration (adversarial)", () => {
     assert.deepEqual(result, { status: 200, body: JSON.stringify({ ok: true }) });
     assertNoSecret(result, "security.useValue result");
     assertNoSecret(JSON.stringify(result), "security.useValue JSON");
-    // And the request the client SENT must carry no secret material either.
     const useReq = host.requests.find((r) => r.method === "security.useValue");
     assert.ok(useReq, "expected a security.useValue request");
     assertNoSecret(useReq.payload, "security.useValue outgoing payload");
@@ -297,7 +242,6 @@ describe("security exfiltration (adversarial)", () => {
     const result = await api.listValueIDs("api-keys");
     assert.equal(result.length, 2);
     for (const entry of result) {
-      // Deep shape: EXACTLY {valueID, label, createdAt}.
       assert.deepEqual(Object.keys(entry).sort(), ["createdAt", "label", "valueID"]);
       assertNoSecret(entry, `security.listValueIDs entry ${entry.valueID}`);
     }
@@ -314,12 +258,11 @@ describe("security exfiltration (adversarial)", () => {
   });
 
   it("malformed IPC: missing fields / wrong types / null / arrays -> typed errors, never a crash", async () => {
-    // Hand-rolled responders: each returns a malformed payload for its route.
     const malformedHosts = {
-      "security.addValue": () => ({ valueID: "x" }), // missing `created`
-      "security.hasValue": () => ({ hasValue: "yes" }), // wrong type
-      "security.listValueIDs": () => ({ values: [{ valueID: "x" }] }), // entry missing fields
-      "security.useValue": () => ({ status: "200", body: 42 }), // wrong types
+      "security.addValue": () => ({ valueID: "x" }),
+      "security.hasValue": () => ({ hasValue: "yes" }),
+      "security.listValueIDs": () => ({ values: [{ valueID: "x" }] }),
+      "security.useValue": () => ({ status: "200", body: 42 }),
     };
     for (const [method, responder] of Object.entries(malformedHosts)) {
       const host = createAdversarialHost();
@@ -335,7 +278,6 @@ describe("security exfiltration (adversarial)", () => {
       }[method]();
       await assertRejectsSDKError(call, "IPC_MALFORMED", `${method} malformed`);
     }
-    // Null / array / string payloads for every route.
     for (const raw of [null, [], "garbage", 42]) {
       const host = createAdversarialHost();
       const api = createSecurityAPI(host);
@@ -350,7 +292,6 @@ describe("security exfiltration (adversarial)", () => {
   it("malformed IPC: oversized garbage payloads -> typed error, no crash, no secret", async () => {
     const host = createAdversarialHost();
     const api = createSecurityAPI(host);
-    // 8 MiB of wrongly-shaped junk: must reject cleanly, not blow up.
     const junk = { status: "x".repeat(8 * 1024 * 1024), body: ["not", "a", "string"] };
     host.request = () => Promise.resolve(junk);
     const before = process.memoryUsage().heapUsed;
@@ -370,25 +311,21 @@ describe("security exfiltration (adversarial)", () => {
   });
 
   it("forged identity: a session claiming another app's Security ID is rejected", async () => {
-    // One shared backend, two sessions. app-a owns "api-keys".
     const backend = { namespaces: new Map([["api-keys", "app-a"]]), store: new Map() };
     const hostA = createAdversarialHost({ callerApp: "app-a" });
     const hostB = createAdversarialHost({ callerApp: "app-b" });
     for (const h of [hostA, hostB]) {
-      // Point both sessions at the same namespace registry.
       h.namespaces.clear();
       for (const [k, v] of backend.namespaces) h.namespaces.set(k, v);
       h.store.clear();
       for (const [k, v] of backend.store) h.store.set(k, v);
     }
     const apiB = createSecurityAPI(hostB);
-    // app-b tries to read, use, list, delete, and add under app-a's ID.
     await assertRejectsSDKError(apiB.hasValue("api-keys", "v1"), "SDK_PERMISSION_DENIED", "forged hasValue");
     await assertRejectsSDKError(apiB.listValueIDs("api-keys"), "SDK_PERMISSION_DENIED", "forged listValueIDs");
     await assertRejectsSDKError(apiB.deleteValue("api-keys", "v1"), "SDK_PERMISSION_DENIED", "forged deleteValue");
     await assertRejectsSDKError(apiB.useValue("api-keys", "v1", OP), "SDK_PERMISSION_DENIED", "forged useValue");
     await assertRejectsSDKError(apiB.addValue("api-keys", "evil"), "SDK_PERMISSION_DENIED", "forged addValue");
-    // And nothing about the denial leaks the secret.
     try {
       await apiB.hasValue("api-keys", "v1");
       assert.fail("expected rejection");
@@ -398,8 +335,6 @@ describe("security exfiltration (adversarial)", () => {
   });
 
   it("cross-app valueID: deleteValue/useValue against another app's value are denied", async () => {
-    // Two sessions, one shared backend: the namespace registry enforces the
-    // session-bound caller identity exactly like the host contract.
     const sharedNamespaces = new Map();
     const sharedStore = new Map();
     const hostA = createAdversarialHost({ callerApp: "app-a", namespaces: sharedNamespaces, store: sharedStore });
@@ -407,10 +342,8 @@ describe("security exfiltration (adversarial)", () => {
     const apiA = createSecurityAPI(hostA);
     const apiB = createSecurityAPI(hostB);
     await apiA.addValue("api-keys", "github-token");
-    // app-b cannot touch it, even naming the valueID directly.
     await assertRejectsSDKError(apiB.useValue("api-keys", "github-token", OP), "SDK_PERMISSION_DENIED", "cross-app useValue");
     await assertRejectsSDKError(apiB.deleteValue("api-keys", "github-token"), "SDK_PERMISSION_DENIED", "cross-app deleteValue");
-    // The value still exists for its owner afterwards.
     const apiA2 = createSecurityAPI(hostA);
     assert.equal(await apiA2.hasValue("api-keys", "github-token"), true);
   });
@@ -418,7 +351,6 @@ describe("security exfiltration (adversarial)", () => {
   it("malicious host: secret smuggled into EVERY response field the client surfaces stays stripped", async () => {
     const host = createAdversarialHost({ malicious: true });
     const api = createSecurityAPI(host);
-    // Sweep every method, walking every property of every returned value.
     const added = await api.addValue("api-keys", "github-token", { label: "L" });
     assertNoSecret(added, "addValue sweep");
     const has = await api.hasValue("api-keys", "github-token");
@@ -429,7 +361,6 @@ describe("security exfiltration (adversarial)", () => {
     assertNoSecret(used, "useValue sweep");
     const deleted = await api.deleteValue("api-keys", "github-token");
     assertNoSecret(deleted, "deleteValue sweep");
-    // And the standalone helpers (same installed-connection path) too.
     const api2 = createSecurityAPI(host);
     void api2;
     const added2 = await securityAddValue("api-keys", "k2");
@@ -446,8 +377,6 @@ describe("security exfiltration (adversarial)", () => {
   it("client never echoes secrets in IPC errors, even under a hostile host", async () => {
     const host = createAdversarialHost({ malicious: true });
     const api = createSecurityAPI(host);
-    // Host throws errors whose messages embed the canary — client must not
-    // re-surface it (client errors are constructed from codes, not bodies).
     host.request = () =>
       Promise.reject(new SDKError("SDK_HOST_EVIL", `host says: ${CANARY}`, "corr"));
     try {
@@ -456,11 +385,6 @@ describe("security exfiltration (adversarial)", () => {
     } catch (error) {
       assert.ok(error instanceof SDKError);
       assert.equal(error.code, "SDK_HOST_EVIL");
-      // The message came from the host verbatim; the CLIENT must not append
-      // the secret to anything it generates. Document the boundary: a
-      // hostile host controls its own error text, so the client cannot
-      // redact it — but the client never ADDS secret material of its own,
-      // because it never holds any.
       assertNoSecret(
         JSON.stringify({ code: error.code, name: error.name }),
         "client-generated error fields",
@@ -470,7 +394,7 @@ describe("security exfiltration (adversarial)", () => {
 
   it("standalone helpers share the same no-exfiltration guarantee (installed connection)", async () => {
     const host = createAdversarialHost({ malicious: true });
-    createSecurityAPI(host); // installs the connection for the standalone helpers
+    createSecurityAPI(host);
     const added = await securityAddValue("api-keys", "tok", { label: "x", prompt: "y" });
     assert.deepEqual(Object.keys(added).sort(), ["created", "valueID"]);
     assertNoSecret(added, "standalone addValue");

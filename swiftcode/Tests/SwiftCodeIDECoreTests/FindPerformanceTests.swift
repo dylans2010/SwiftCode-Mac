@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Workspace search on a large tree (specs/ide/navigators.md §Find
-/// navigator, "SwiftCode implementation", Performance): 5,000 generated
-/// source files in 50 folders, searched through a folder reference.
-/// `SWIFTCODE_FIND_PERF_TREE=<folder>` searches that folder too and prints
-/// the times.
 @Suite(.serialized) struct FindPerformanceTests {
     static func source(_ i: Int) -> String {
         var s = "import Foundation\n\n/// Model \(i).\npublic struct Model\(i): Codable, Equatable {\n"
@@ -51,7 +46,6 @@ import Testing
         #expect(word.matchCount == 10_000)
         let regex = measure("regex", files, FindQuery("func compute[0-7]\\(_ (\\w+): Int\\)", kind: .regularExpression))
         #expect(regex.matchCount == 40_000)
-        // Generous bounds: shared machines vary; the report quotes the printed times.
         #expect(rare.elapsed < 20 && regex.elapsed < 60)
 
         if let tree = ProcessInfo.processInfo.environment["SWIFTCODE_FIND_PERF_TREE"] {

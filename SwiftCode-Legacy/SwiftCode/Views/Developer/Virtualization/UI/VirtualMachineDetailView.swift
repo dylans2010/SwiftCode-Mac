@@ -5,15 +5,13 @@ public struct VirtualMachineDetailView: View {
 
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var selectedTab: DetailCategory = .consoleShell
-    @State private var consoleSubTab: String = "Terminal" // Default to Terminal
+    @State private var consoleSubTab: String = "Terminal"
     @State private var assistantQuery = ""
     @State private var assistantResponse = ""
 
-    // Multiple Terminals States
     @State private var terminalSessions: [String] = ["Shell Connection 1"]
     @State private var activeTerminalIndex: Int = 0
 
-    // Software Catalog installation simulation states
     @State private var installingPackageName: String? = nil
     @State private var installationProgress: Double = 0.0
 
@@ -63,7 +61,6 @@ public struct VirtualMachineDetailView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let vm = activeVM {
-                // Header Bar (Apple HIG Style)
                 HStack(spacing: 16) {
                     Button {
                         stateStore.selectedVMID = nil
@@ -97,7 +94,6 @@ public struct VirtualMachineDetailView: View {
 
                     Spacer()
 
-                    // VM Controls
                     HStack(spacing: 10) {
                         if vm.status == .stopped || vm.status == .error {
                             Button {
@@ -136,12 +132,10 @@ public struct VirtualMachineDetailView: View {
 
                 Divider()
 
-                // INTEGRATED ONBOARDING FIRST RUN EXPERIENCE
                 if vm.isFirstRun {
                     firstRunExperienceCard(vm: vm)
                 }
 
-                // Integrated Natural Language Assistant Row
                 GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 10) {
@@ -180,7 +174,6 @@ public struct VirtualMachineDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
 
-                // High-level segmented category pickers
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailCategory.allCases) { cat in
                         Label(cat.rawValue, systemImage: cat.icon)
@@ -193,7 +186,6 @@ public struct VirtualMachineDetailView: View {
 
                 Divider()
 
-                // Tab Content Workspace
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         switch selectedTab {
@@ -255,7 +247,6 @@ public struct VirtualMachineDetailView: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // FIRST RUN EXPERIENCE ONBOARDING CARD
     @ViewBuilder
     private func firstRunExperienceCard(vm: VirtualMachine) -> some View {
         GroupBox(label:
@@ -325,7 +316,6 @@ public struct VirtualMachineDetailView: View {
         stateStore.addLog("Onboarding guide completed successfully.", type: .success)
     }
 
-    // MULTIPLE TERMINALS VIEWS
     @ViewBuilder
     private func multipleTerminalsView(vm: VirtualMachine) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -373,7 +363,6 @@ public struct VirtualMachineDetailView: View {
                 .help("Spawn an additional terminal console")
             }
 
-            // Real Terminal Shell Panel
             VirtualMachineTerminalView(vmID: vmID)
                 .frame(minHeight: 300)
                 .overlay(
@@ -396,11 +385,9 @@ public struct VirtualMachineDetailView: View {
         stateStore.addLog("Closed interactive shell console Terminal.", type: .warning)
     }
 
-    // SOFTWARE CATALOG & HEALTH VIEW
     @ViewBuilder
     private func softwareCatalogView(vm: VirtualMachine) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Health Overview Panel
             GroupBox(label: Text("Sandbox Software Health Diagnosis").font(.headline).foregroundStyle(.blue)) {
                 HStack(spacing: 24) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -466,7 +453,6 @@ public struct VirtualMachineDetailView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
 
-            // Catalog Grid
             Text("Development Tools Catalog")
                 .font(.headline)
                 .foregroundStyle(.secondary)
@@ -485,7 +471,7 @@ public struct VirtualMachineDetailView: View {
         let name: String
         let version: String
         let isInstalled: Bool
-        let healthStatus: String // "Healthy", "Update Available", "Version Conflict", "Missing"
+        let healthStatus: String
 
         var iconColor: Color {
             isInstalled ? .green : .secondary
@@ -529,7 +515,6 @@ public struct VirtualMachineDetailView: View {
                 installationProgress = Double(step) / 10.0
             }
 
-            // Update VM package list
             if let idx = stateStore.virtualMachines.firstIndex(where: { $0.id == vmID }) {
                 let lowerName = name.components(separatedBy: " ").first?.lowercased() ?? name.lowercased()
                 if !stateStore.virtualMachines[idx].installedPackagesList.contains(lowerName) {
@@ -543,7 +528,6 @@ public struct VirtualMachineDetailView: View {
         }
     }
 
-    // DOCUMENTATION CENTER VIEW
     @ViewBuilder
     private func documentationCenterView(vm: VirtualMachine) -> some View {
         GroupBox(label:

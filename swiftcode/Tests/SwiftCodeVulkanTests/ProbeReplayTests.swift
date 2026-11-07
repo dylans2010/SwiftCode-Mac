@@ -1,18 +1,3 @@
-// Opt-in replay of one kernel dispatch from pass-probe dumps
-// (VulkanPassProbe.swift, `SWIFTCODE_GPU_PROBE_DUMP`; visionos.md §10.20): the
-// kernel's own SPIR-V and reflection (a GPU-cache entry of swiftcode-airc), the
-// bytes of the buffers it bound, and one RGBA8 texture it writes. Prints how
-// many texels the dispatch wrote and the first texel.
-//
-//   SWIFTCODE_TEST_REPLAY_SPV=k.spv SWIFTCODE_TEST_REPLAY_JSON=k.json \
-//   SWIFTCODE_TEST_REPLAY_BUFFERS=b0.bin,b1.bin,b2.bin,b3.bin \
-//   SWIFTCODE_TEST_REPLAY_TEXTURE=w,h[,levels,level] SWIFTCODE_TEST_REPLAY_GRID=w,h \
-//   [SWIFTCODE_TEST_REPLAY_TG=w,h] swift test --filter ProbeReplay
-//
-// With `levels` and `level` the texture is a one-level view of `level` of a
-// texture with `levels` levels whose level `level` is w x h (as the guest's
-// mip chains are); without, a one-level texture.
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost

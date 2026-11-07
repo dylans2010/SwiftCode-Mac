@@ -4,8 +4,6 @@ import Testing
 import SwiftCodeDarwinKernel
 import SwiftCodeXPC
 
-/// Snapshot and replay of the service (snapshot.md §8 option 2): the tables,
-/// the recipes, and a replay on a fresh back end under the old handles.
 @Suite struct SnapshotReplayTests {
     typealias Fixture = CoreTests.Fixture
 
@@ -14,17 +12,16 @@ import SwiftCodeXPC
         f.connect()
         let fn = Build.record(15) { $0.u32(0); $0.u32(0); $0.u32(0) }
         let ir = [UInt8](repeating: 0x4D, count: 300)
-        _ = f.replyData(Build.message(15, fn, [("functionIR", .data(ir))]))       // function ref 1
-        _ = f.replyData(Build.message(15, fn, [("functionIR", .data(ir + [1]))])) // function ref 2
+        _ = f.replyData(Build.message(15, fn, [("functionIR", .data(ir))]))
+        _ = f.replyData(Build.message(15, fn, [("functionIR", .data(ir + [1]))]))
         let payload = MetalKeyedPayloadBuilder.renderPipeline(top: [(1, 1), (2, 2)], label: "quad",
                                                               colorAttachments: [[(0, 0), (1, 80), (2, 1), (4, 5), (7, 5)]])
         let rp = Build.record(14) { $0.u32(0); $0.u32(UInt32(payload.count)); $0.append(payload) }
-        _ = f.replyData(Build.message(12, rp), on: 2)                               // pipeline ref 1
+        _ = f.replyData(Build.message(12, rp), on: 2)
         let tex = Build.record(1) { $0.append(Build.textureWords(usage: 1, format: 80, width: 8, height: 8, levels: 2)) }
-        _ = f.replyData(Build.message(8, tex))                                      // texture ref 1
-        _ = f.replyData(Build.message(12, Build.record(7) { $0.u32(0); $0.u32(1); $0.u32(81) }))  // view ref 2
+        _ = f.replyData(Build.message(8, tex))
+        _ = f.replyData(Build.message(12, Build.record(7) { $0.u32(0); $0.u32(1); $0.u32(81) }))
         _ = f.send(["messageType": .uint64(1), "length": .uint64(4096), "options": .uint64(0x20), "bufferIndex": .uint64(0)], on: 1)
-        // The pipeline's vertex function goes; the pipeline keeps it alive as a recipe.
         _ = f.send(Build.message(14, Build.record(1005) { $0.u32(1) }), on: 1)
         let before = f.backend.calls
         let handles = before.compactMap { c -> MetalHandle? in
@@ -43,7 +40,6 @@ import SwiftCodeXPC
         let report = g.core.restoreState(reader)
         #expect(report.processes == 1 && report.objects == 5 && report.ghosts == 1 && report.failures == 0)
         let replayed = g.backend.calls
-        // The released function is made for the pipeline and released after.
         guard case let .createFunction(f1, 300) = replayed.first, f1 == handles[0] else {
             Issue.record("calls \(replayed)")
             return
@@ -56,20 +52,12 @@ import SwiftCodeXPC
             Issue.record("no pipeline in \(replayed)")
         }
         #expect(replayed.contains(.createTextureView(handles[4], parent: handles[3], MetalTextureViewDescriptor(pixelFormat: 81))))
-        // The restored core goes on with the same refs and fresh handles: the
-        // next texture gets ref 4 (texture, view, buffer hold 1–3) and a handle after every old one.
         #expect(g.replyData(Build.message(8, tex)) == [4, 0, 0, 0])
         if case let .createTexture(h, _, _) = g.backend.calls.last { #expect(h > handles.max()!) } else { Issue.record("no texture") }
-        // Release of a restored object reaches the back end with its old handle.
         _ = g.send(Build.message(14, Build.record(1007) { $0.u32(1) }), on: 1)
         #expect(g.backend.calls.last == .release(handles[2]))
     }
 
-    /// A restore keeps the textures' heap slots (the back end is asked to
-    /// reserve them before the replay) and writes every argument-encoder
-    /// member again whose object's ID changed on the new back end
-    /// (visionos.md §10.21): the warm boot's argument buffers name the
-    /// restored textures, not the slots the cold boot's had.
     @Test func restoreKeepsSlotsAndRewritesArgumentMembers() throws {
         let f = Fixture()
         f.backend.textureIDBase = 1000
@@ -107,11 +95,9 @@ import SwiftCodeXPC
         g.backend.textureIDBase = 5000
         let report = g.core.restoreState(try SnapshotFieldReader(state.bytes))
         #expect(report.failures == 0)
-        // The slot the texture had is reserved before anything is made, and an empty call ends the restore.
         let reserved = g.backend.reservations
         #expect(reserved.count == 2 && reserved.last.map { $0.textures.isEmpty && $0.samplers.isEmpty } == true)
         #expect(reserved.first?.textures[textureHandle].map { $0.index == 1000 + UInt32(textureHandle.raw) && $0.count == 1 } == true)
-        // This back end gave it another ID: the member is written again with it.
         var warm = MetalByteWriter()
         warm.u64(5000 + textureHandle.raw)
         let writes = g.backend.calls.compactMap { c -> (Int, [UInt8])? in
@@ -120,7 +106,6 @@ import SwiftCodeXPC
         }
         #expect(writes.count == 1 && writes.first.map { $0.0 == 64 + 16 && $0.1 == warm.bytes } == true, "\(writes)")
         #expect(report.argumentMembers == 1 && report.argumentMembersChanged == 1 && report.textureIDsChanged == 1, "\(report)")
-        // A snapshot of the restored core keeps the member (now with the new value).
         let again = try #require(g.core.trySnapshotState(log: { _ in }))
         let h = Fixture()
         h.backend.textureIDBase = 5000

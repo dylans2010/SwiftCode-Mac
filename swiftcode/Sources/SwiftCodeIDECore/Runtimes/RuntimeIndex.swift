@@ -1,14 +1,6 @@
-// Apple's downloadable index and the selection rule
-// (`specs/simulator/runtime-downloads.md` §1–§3): which simulator runtimes
-// exist, which one fits a platform, build, version or SDK on an arm64 host,
-// and the Metal Toolchain entries. The index is a public property list; SwiftCode
-// fetches it for the user who asked (route B) and keeps one copy in its own
-// folder for the refresh interval. Portable (macOS and Linux).
-
 import Foundation
 
 extension SimPlatform {
-    /// The device platform the index names (`com.apple.platform.iphoneos`, §2.1).
     public var devicePlatformIdentifier: String {
         switch self {
         case .iOS: "com.apple.platform.iphoneos"
@@ -18,7 +10,6 @@ extension SimPlatform {
         }
     }
 
-    /// The MobileAsset type of its runtimes (§4.1).
     public var assetType: String {
         switch self {
         case .iOS: "com.apple.MobileAsset.iOSSimulatorRuntime"
@@ -28,7 +19,6 @@ extension SimPlatform {
         }
     }
 
-    /// The SDK canonical-name prefix of the device platform (`iphoneos27.1`).
     public var sdkPrefix: String {
         switch self {
         case .iOS: "iphoneos"
@@ -43,18 +33,13 @@ extension SimPlatform {
     }
 }
 
-/// One runtime in the index (`downloadables[]`, §2.1).
 public struct RuntimeIndexEntry: Sendable, Equatable, Hashable, Codable, Identifiable {
     public var identifier: String
     public var name: String
     public var platform: SimPlatform
-    /// Four parts; the fourth is the beta number (0 = release).
     public var fullVersion: String
-    /// `simulatorVersion.version` ("27.1").
     public var version: String
-    /// `simulatorVersion.buildUpdate`: the key (§2.1).
     public var build: String
-    /// Absent on old entries (the universal/x86 kind).
     public var architectures: [String]?
     public var contentType: String
     public var downloadMethod: String?
@@ -68,22 +53,17 @@ public struct RuntimeIndexEntry: Sendable, Equatable, Hashable, Codable, Identif
 
     public var id: String { "\(platform.rawValue)|\(build)|\((architectures ?? []).joined(separator: ","))" }
 
-    /// The beta number, 0 for a release.
     public var betaNumber: Int {
         let parts = fullVersion.split(separator: ".")
         return parts.count >= 4 ? Int(parts[3]) ?? 0 : 0
     }
     public var isRelease: Bool { betaNumber == 0 }
-    /// Fetched through MobileAsset (no Apple sign-in).
     public var isMobileAsset: Bool { downloadMethod == "mobileAsset" }
-    /// A legacy entry that needs Apple's developer sign-in: listed, never fetched (§1, §6.4).
     public var needsSignIn: Bool { !isMobileAsset }
 
-    /// "tvOS 27.2 (24K150)", with "beta 3" for betas.
     public var title: String { "\(platform.title) \(version)\(isRelease ? "" : " beta \(betaNumber)") (\(build))" }
 }
 
-/// A component (`otherDownloadables[]`, §2.3), e.g. the Metal Toolchain.
 public struct RuntimeComponentEntry: Sendable, Equatable, Codable {
     public var assetType: String
     public var identifier: String
@@ -92,20 +72,16 @@ public struct RuntimeComponentEntry: Sendable, Equatable, Codable {
     public var fileSize: Int64
     public var downloadMethod: String?
 
-    /// The MobileAsset type of a component (`metalToolchain` → `com.apple.MobileAsset.MetalToolchain`).
     public var mobileAssetType: String? { assetType == "metalToolchain" ? "com.apple.MobileAsset.MetalToolchain" : nil }
 }
 
-/// `sdkToSimulatorMappings[]` (§2.2).
 public struct RuntimeSDKMapping: Sendable, Equatable, Codable {
     public var sdkIdentifier: String
     public var sdkBuild: String
     public var simulatorBuild: String
-    /// `preferred`, `available`, `unavailable`; absent means available.
     public var affinity: String
 }
 
-/// `xcodeToOtherDownloadablesMappings[]` (§2.3).
 public struct RuntimeComponentMapping: Sendable, Equatable, Codable {
     public var assetType: String
     public var assetBuild: String
@@ -131,8 +107,6 @@ public struct RuntimeIndex: Sendable, Equatable {
         self.componentMappings = componentMappings
     }
 
-    /// Parses the property list (§2). Entries of other categories or
-    /// platforms are skipped.
     public static func parse(_ data: Data) throws -> RuntimeIndex {
         guard let top = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else {
             throw RuntimeDownloadError.badIndex("not a dictionary")
@@ -178,7 +152,6 @@ public struct RuntimeIndex: Sendable, Equatable {
         return nil
     }
 
-    /// The Metal Toolchain for an Xcode build (§2.3), else the newest one.
     public func metalToolchain(build: String? = nil, xcodeBuild: String? = RuntimeSelection.parityXcodeBuild) -> RuntimeComponentEntry? {
         let all = components.filter { $0.assetType == "metalToolchain" && $0.downloadMethod == "mobileAsset" }
         if let build { return all.first { $0.build == build } }
@@ -189,14 +162,11 @@ public struct RuntimeIndex: Sendable, Equatable {
     }
 }
 
-/// What the user asked for (§3's input).
 public struct RuntimeRequest: Sendable, Equatable {
     public var platform: SimPlatform
     public var build: String?
     public var version: String?
-    /// SwiftCode's chosen SDK build, when one is known.
     public var sdkBuild: String?
-    /// Always arm64 (§3 step 4, SwiftCode decision).
     public var architecture: String = "arm64"
 
     public init(platform: SimPlatform, build: String? = nil, version: String? = nil, sdkBuild: String? = nil) {
@@ -207,11 +177,8 @@ public struct RuntimeRequest: Sendable, Equatable {
     }
 }
 
-/// The host facts the selection looks at (§3 step 5).
 public struct RuntimeSelectionHost: Sendable, Equatable {
-    /// The Xcode version SwiftCode declares parity with.
     public var xcodeVersion: String
-    /// The macOS version on a Mac; nil on Linux (host versions are then ignored).
     public var macOSVersion: String?
     public var architecture: String
 
@@ -232,25 +199,19 @@ public struct RuntimeSelectionHost: Sendable, Equatable {
 }
 
 public enum RuntimeSelection {
-    /// Xcode 27.1 (27A9269), the reference SwiftCode matches.
     public static let parityXcodeVersion = "27.1"
     public static let parityXcodeBuild = "27A9269"
 
-    /// The runtimes the platform offers that SwiftCode can fetch: MobileAsset
-    /// entries, arm64-only (§3 steps 1 and 4), not excluded by the host
-    /// (step 5). Newest first.
     public static func candidates(_ index: RuntimeIndex, platform: SimPlatform, host: RuntimeSelectionHost = RuntimeSelectionHost()) -> [RuntimeIndexEntry] {
         sorted(index.runtimes.filter { e in
             e.platform == platform && e.isMobileAsset && e.architectures == ["arm64"] && fits(e, host: host)
         })
     }
 
-    /// Entries SwiftCode lists but cannot fetch (legacy, signed-in downloads).
     public static func signInOnly(_ index: RuntimeIndex, platform: SimPlatform) -> [RuntimeIndexEntry] {
         sorted(index.runtimes.filter { $0.platform == platform && $0.needsSignIn })
     }
 
-    /// Step 5: the host requirements.
     public static func fits(_ e: RuntimeIndexEntry, host: RuntimeSelectionHost) -> Bool {
         let cmp = SimRuntimeRecord.compareVersions
         if let min = e.minXcodeVersion, cmp(host.xcodeVersion, min) == .orderedAscending { return false }
@@ -263,9 +224,6 @@ public enum RuntimeSelection {
         return true
     }
 
-    /// The selection rule (§3): a build, else a version, else the SDK's
-    /// mapping (preferred, then available, never unavailable), else the
-    /// highest release; ties go to the highest build.
     public static func select(_ index: RuntimeIndex, _ r: RuntimeRequest, host: RuntimeSelectionHost = RuntimeSelectionHost()) throws -> RuntimeIndexEntry {
         let all = candidates(index, platform: r.platform, host: host)
         if let build = r.build {
@@ -291,8 +249,6 @@ public enum RuntimeSelection {
         throw RuntimeDownloadError.noRuntime("Apple's index lists no arm64 \(r.platform.title) runtime that SwiftCode can fetch.")
     }
 
-    /// Newest version first; a release before its betas, later betas
-    /// first; then the highest build.
     public static func sorted(_ list: [RuntimeIndexEntry]) -> [RuntimeIndexEntry] {
         list.sorted { a, b in
             let c = SimRuntimeRecord.compareVersions(a.version, b.version)
@@ -304,8 +260,6 @@ public enum RuntimeSelection {
     }
 }
 
-/// The index on disk (§6.2 step 1): one copy for this user, refreshed after
-/// `refreshInterval` with the ETag (an unchanged index costs a 304).
 public struct RuntimeIndexCache: Sendable {
     public var folder: String
     public init(folder: String) { self.folder = folder }
@@ -320,7 +274,6 @@ public struct RuntimeIndexCache: Sendable {
         var refreshInterval: TimeInterval
     }
 
-    /// The index: the cached copy while fresh, else a conditional GET.
     public func load(transport: any RuntimeTransport, now: Date = Date(), force: Bool = false) async throws -> RuntimeIndex {
         let fm = FileManager.default
         let meta = fm.contents(atPath: metaFile).flatMap { try? JSONDecoder.iso.decode(Meta.self, from: $0) }

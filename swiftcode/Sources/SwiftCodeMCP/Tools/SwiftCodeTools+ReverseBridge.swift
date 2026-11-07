@@ -2,49 +2,13 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The Swift side of the Reverse bridge: Legacy's
-/// `ReverseBridge` (`ReverseBridge.swift`) ported to SwiftCode.
-///
-/// One request per process: spawns `node ReverseBridge.mjs
-/// --rea-dir <rea-agents@6.5.0 dir>`, writes one NDJSON request
-/// line to stdin, closes stdin, and reads stdout to EOF. Stdout
-/// carries ONLY protocol frames (progress / result / error), one
-/// JSON object per line; diagnostics go to stderr. Nothing is
-/// downloaded or installed by the tool.
-///
-/// Resolution order (SwiftCode names first, Legacy `SWIFTCODE_*`
-/// names kept as aliases):
-/// * bridge: `SWIFTCODE_REVERSE_BRIDGE_PATH` / `SWIFTCODE_REVERSE_BRIDGE_PATH`
-///   env, then the `Bundle.module` resource `ReverseBridge.mjs`
-///   (needs the Package.swift resources wiring — without it the
-///   tool fails honestly naming the missing resource), then
-///   `~/Library/Application Support/SwiftCode/Reverse/ReverseBridge.mjs`.
-/// * REA dir: `SWIFTCODE_REVERSE_REA_DIR` / `SWIFTCODE_REVERSE_REA_DIR`
-///   env, then `<bridge>/node_modules/rea-agents`, then
-///   `~/Library/Application Support/SwiftCode/Reverse/node_modules/rea-agents`.
-///   The directory must contain `package.json` with
-///   `name == "rea-agents"` and `version == "6.5.0"`.
-/// * Node: `SWIFTCODE_NODE_PATH` / `SWIFTCODE_NODE_PATH` env, then
-///   `/opt/homebrew/bin/node`, `/usr/local/bin/node`, `/usr/bin/node`,
-///   then PATH. The major version must be 22, 24, or 26.
-///
-/// The child never receives secret-bearing environment variables.
-/// Cancellation is the timeout only (the full REA subsystem's
-/// manager lifecycle is not ported).
-///
-/// See `specs/ide/gap-closure-failing-tools.md` §9.
 extension SwiftCodeMCPHost {
-    /// The pinned REA package and protocol version (the bridge's
-    /// `PINNED_REA_VERSION` / `PROTOCOL_VERSION`).
     nonisolated static let reversePinnedREAVersion = "6.5.0"
     nonisolated static let reverseProtocolVersion = 1
     nonisolated static let reverseSupportedNodeMajors: Set<Int> = [22, 24, 26]
     nonisolated static let reverseMaxStdoutBytes = 8_388_608
     nonisolated static let reverseMaxStderrBytes = 65_536
 
-    /// Test seam: replaces the bridge spawn in tests. Receives the
-    /// request JSON and returns the bridge stdout text. Nil in
-    /// production.
     nonisolated(unsafe) static var reverseBridgeTestRunner: (@Sendable ([String: Any]) async throws -> String)?
 
     nonisolated static func reverseNonEmpty(_ value: String?) -> String? {
@@ -52,7 +16,6 @@ extension SwiftCodeMCPHost {
         return value
     }
 
-    /// Locates the bridge script.
     nonisolated static func reverseResolveBridgeURL() -> URL? {
         let fm = FileManager.default
         for key in ["SWIFTCODE_REVERSE_BRIDGE_PATH", "SWIFTCODE_REVERSE_BRIDGE_PATH"] {
@@ -71,7 +34,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Locates the pinned `rea-agents` package directory.
     nonisolated static func reverseResolveREADirectory(bridgeURL: URL?) -> URL? {
         let fm = FileManager.default
         var candidates: [String] = []
@@ -98,7 +60,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Resolves a Node.js executable without downloading anything.
     nonisolated static func reverseResolveNodeURL() -> URL? {
         let fm = FileManager.default
         func executable(at path: String) -> URL? {
@@ -123,8 +84,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Node major version for a resolved Node binary (`node --version`,
-    /// argv only, no shell). Nil when it cannot be determined.
     nonisolated static func reverseNodeMajorVersion(for nodeURL: URL) -> Int? {
         let process = Process()
         process.executableURL = nodeURL
@@ -140,9 +99,6 @@ extension SwiftCodeMCPHost {
         return text.split(separator: ".").first.flatMap { Int($0) }
     }
 
-    /// Host environment with secret-bearing variables stripped.
-    /// The bridge child never receives API keys, tokens,
-    /// passwords, or client secrets.
     nonisolated static let reverseSecretEnvNameFragments = [
         "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL",
         "PRIVATE_KEY", "API_KEY", "APIKEY", "ACCESS_KEY",
@@ -156,17 +112,12 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// One bridge protocol frame, decoded from a stdout line.
     struct ReverseBridgeFrame {
         var type: String
         var evidence: [String: Any]?
         var error: [String: Any]?
     }
 
-    /// Validates and decodes the bridge stdout frames: every line
-    /// must be one protocol frame, version 1, with the request's
-    /// id, and a type in progress/result/error. Returns the folded
-    /// result: the Evidence dict, or the bridge error dict.
     nonisolated static func reverseParseFrames(_ stdout: String, requestID: String, stderr: String, exitCode: Int32) throws -> [String: Any] {
         var evidence: [String: Any]?
         var bridgeError: [String: Any]?
@@ -204,10 +155,6 @@ extension SwiftCodeMCPHost {
         return evidence
     }
 
-    /// Runs one `analyze` request through the bridge and returns
-    /// the Evidence dict. Throws `MCPToolError` naming exactly
-    /// which piece is missing (bridge, REA dir, Node, version) and
-    /// how to supply it.
     func reverseBridgeAnalyze(operation: String, targetPath: String, objdumpOperation: String?,
                               symbol: String?, timeout: TimeInterval) async throws -> [String: Any] {
         let requestID = UUID().uuidString
@@ -244,11 +191,6 @@ extension SwiftCodeMCPHost {
                                            stderr: stderr, exitCode: exitCode)
     }
 
-    /// Spawns `node <bridge> --rea-dir <reaDir>`, writes the
-    /// request to stdin, closes stdin, and reads stdout to EOF
-    /// (bounded at 8 MiB; stderr at 64 KiB). The timeout kills the
-    /// child. Returns stdout, stderr, exit code, and whether the
-    /// timeout fired.
     nonisolated static func reverseSpawn(nodeURL: URL, bridgeURL: URL, reaDir: URL,
                                          requestData: Data, timeout: TimeInterval) async throws -> (Data, String, Int32, Bool) {
         try (await Task.detached {
@@ -298,7 +240,6 @@ extension SwiftCodeMCPHost {
                 if process.isRunning { process.interrupt() }
             }
             process.waitUntilExit()
-            // Let the pipe handlers drain the final bytes.
             try? await Task.sleep(nanoseconds: 100_000_000)
             outPipe.fileHandleForReading.readabilityHandler = nil
             errPipe.fileHandleForReading.readabilityHandler = nil
@@ -310,11 +251,6 @@ extension SwiftCodeMCPHost {
         }.value)
     }
 
-    // MARK: - Evidence rendering
-
-    /// Renders an Evidence dict as Markdown: id, operation,
-    /// provider, confidence, findings/sections when present, else
-    /// pretty JSON (capped at 8,000 characters).
     nonisolated static func reverseRenderEvidence(_ evidence: [String: Any]) -> String {
         var lines: [String] = []
         let id = evidence["evidence_id"] as? String ?? ""
@@ -352,10 +288,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-
-/// The off-main stdout/stderr accumulator for the Reverse bridge process,
-/// boxed so the `@Sendable` readability handlers can mutate it under its
-/// lock (Swift 6 region isolation).
 private final class ReverseOutputCapture: @unchecked Sendable {
     let lock = NSLock()
     var stdoutData = Data()

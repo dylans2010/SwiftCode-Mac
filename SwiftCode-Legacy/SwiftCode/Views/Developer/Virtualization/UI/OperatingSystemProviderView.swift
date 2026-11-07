@@ -36,7 +36,6 @@ public struct OperatingSystemProviderView: View {
 
                 Divider()
 
-                // Resource specifications grid
                 VStack(alignment: .leading, spacing: 8) {
                     Text("System Sizing & Recommendations:")
                         .fontWeight(.bold)
@@ -67,7 +66,6 @@ public struct OperatingSystemProviderView: View {
                         .cornerRadius(6)
                 }
 
-                // Official Action links
                 HStack(spacing: 12) {
                     Button {
                         if let url = URL(string: provider.officialDownloadPage) {

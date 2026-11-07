@@ -1,6 +1,3 @@
-// icprobe: our own probe of MobileInstallation's installed-content gathering
-// (Ycode stage 9, agent J): runs MILaunchServicesDatabaseGatherer by name and
-// prints what the enumerator receives for bundles whose id matches argv[1].
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>

@@ -6,6 +6,5 @@ public final class StylingRegistry: Sendable {
     private init() {}
 
     public func registerDefaults() {
-        // Initialization of layout providers, spacing systems, etc.
     }
 }

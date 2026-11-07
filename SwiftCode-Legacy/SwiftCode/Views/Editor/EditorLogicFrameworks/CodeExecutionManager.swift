@@ -1,9 +1,5 @@
 import Foundation
 
-// MARK: - Code Execution Manager
-// Manages code execution requests. On iOS, actual compilation is done via
-// GitHub Actions or remote endpoints; this class queues and tracks requests.
-
 enum ExecutionResult {
     case success(output: String)
     case failure(error: String)
@@ -29,8 +25,6 @@ final class CodeExecutionManager: ObservableObject {
 
     private init() {}
 
-    // MARK: - Submit
-
     func submit(code: String, language: String = "swift", projectName: String = "") async {
         let request = ExecutionRequest(
             code: code,
@@ -41,20 +35,15 @@ final class CodeExecutionManager: ObservableObject {
         await process(request)
     }
 
-    // MARK: - Process
-
     private func process(_ request: ExecutionRequest) async {
         isExecuting = true
         defer { isExecuting = false }
 
-        // On iOS, we cannot run a Swift compiler directly.
-        // We simulate or use a remote service.
         let result: ExecutionResult
 
         if request.language.lowercased() != "swift" {
             result = .notSupported(reason: "Only Swift execution is supported in this environment.")
         } else {
-            // Attempt a lightweight syntax check using regex heuristics
             result = await performSyntaxCheck(code: request.code)
         }
 
@@ -64,10 +53,7 @@ final class CodeExecutionManager: ObservableObject {
         lastResult = result
     }
 
-    // MARK: - Syntax Check (lightweight)
-
     private func performSyntaxCheck(code: String) async -> ExecutionResult {
-        // Count braces as a trivial balance check (single pass)
         var opens = 0
         var closes = 0
         for ch in code {
@@ -92,8 +78,6 @@ final class CodeExecutionManager: ObservableObject {
 
         return .success(output: "Syntax check passed. Use GitHub Actions to compile and run on a real device.")
     }
-
-    // MARK: - Clear
 
     func clearQueue() {
         queue.removeAll()

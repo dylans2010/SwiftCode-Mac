@@ -1,11 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Find navigator ▸ In … ▸ Custom Scopes…: the saved scopes on the left;
-/// the selected one's name, "Match All | Any of the following rules" and
-/// its rules (field, operator, value) on the right; Cancel and Save.
-/// SwiftCode's own layout (`specs/ide/navigators.md` §Find navigator, "SwiftCode
-/// implementation").
 public final class FindScopeEditorController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
     public private(set) var scopes: [CustomFindScope]
     public private(set) var selected: Int?
@@ -25,8 +20,6 @@ public final class FindScopeEditorController: NSViewController, NSTableViewDataS
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: Editing (also what the controls call)
 
     public func addScope() {
         var n = 1
@@ -74,13 +67,10 @@ public final class FindScopeEditorController: NSViewController, NSTableViewDataS
         refresh()
     }
 
-    /// Saves (scopes without a name or rules are dropped) and closes.
     public func save() {
         onSave?(scopes.filter { !$0.name.isEmpty && !$0.rules.isEmpty })
         if presentingViewController != nil { dismiss(nil) }
     }
-
-    // MARK: Views
 
     public override func loadView() {
         let col = NSTableColumn(identifier: .init("name"))
@@ -132,7 +122,6 @@ public final class FindScopeEditorController: NSViewController, NSTableViewDataS
         refresh()
     }
 
-    /// The rule rows as shown (tests): "Extension is swift".
     public var ruleTitles: [String] {
         guard let i = selected else { return [] }
         return scopes[i].rules.map { "\($0.field.title) \($0.op.title) \($0.value)" }

@@ -34,7 +34,6 @@ public final class CollaborationChatManager: ObservableObject {
         let message = CollaborationChatMessage(channelID: cid, authorID: authorID, text: text, attachment: attachment)
         messagesByChannel[cid, default: []].append(message)
 
-        // Broadcast via PeerSessionManager if in a live session
         if let data = try? JSONEncoder().encode(message) {
             PeerSessionManager.shared.sendDataToAll(data)
         }

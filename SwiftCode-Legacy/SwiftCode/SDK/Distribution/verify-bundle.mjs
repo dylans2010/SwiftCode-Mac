@@ -31,7 +31,6 @@ try {
   assert.equal(installed.id, 'com.example.bundle-smoke');
   const installedDir = join(extensions, installed.id, '0.1.0');
   assert.equal(JSON.parse(readFileSync(join(installedDir, 'swiftcode.json'))).id, installed.id);
-  // The host supplies the SDK to installed extensions; mirror its run tree.
   const run = join(root, 'run');
   mkdirSync(join(run, 'node_modules/@swiftcode'), { recursive: true });
   symlinkSync(join(toolkit, 'TypeScript/package'), join(run, 'node_modules/@swiftcode/sdk'));

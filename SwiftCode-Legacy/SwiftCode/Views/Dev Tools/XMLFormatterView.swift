@@ -25,7 +25,6 @@ struct XMLFormatterView: View {
     }
 
     func format() {
-        // Basic indentation-based XML formatter
         var result = ""
         var level = 0
         let tokens = input.replacingOccurrences(of: ">", with: ">\n").replacingOccurrences(of: "<", with: "\n<").components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }

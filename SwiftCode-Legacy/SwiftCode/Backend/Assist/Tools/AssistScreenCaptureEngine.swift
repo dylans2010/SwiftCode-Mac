@@ -45,7 +45,6 @@ public final class AssistScreenCaptureEngine: Sendable {
 
     private init() {}
 
-    /// Checks whether SwiftCode has permission to capture the screen.
     public func checkAuthorization(promptIfDenied: Bool = false) -> Bool {
         if CGPreflightScreenCaptureAccess() {
             return true
@@ -56,7 +55,6 @@ public final class AssistScreenCaptureEngine: Sendable {
         return false
     }
 
-    /// Captures the full screen for the specified display (or main display if nil).
     public func captureFullScreen(displayID: CGDirectDisplayID? = nil, includeCursor: Bool = true) async throws -> ScreenCaptureResult {
         guard checkAuthorization(promptIfDenied: true) else {
             throw ScreenCaptureError.permissionDenied("Screen capture access is not authorized by the operating system.")
@@ -88,7 +86,6 @@ public final class AssistScreenCaptureEngine: Sendable {
         )
     }
 
-    /// Captures a user-selected screen region using an interactive native selection overlay.
     @MainActor
     public func captureUserSelectedRegion() async throws -> ScreenCaptureResult {
         guard checkAuthorization(promptIfDenied: true) else {
@@ -100,7 +97,6 @@ public final class AssistScreenCaptureEngine: Sendable {
             throw ScreenCaptureError.regionSelectionCancelled
         }
 
-        // Convert Cocoa screen coordinates (origin bottom-left) to CoreGraphics coordinates (origin top-left of main display)
         let mainDisplayID = CGMainDisplayID()
         let mainDisplayHeight = CGFloat(CGDisplayPixelsHigh(mainDisplayID))
         let cgRect = CGRect(
@@ -110,7 +106,6 @@ public final class AssistScreenCaptureEngine: Sendable {
             height: selectedRect.height
         )
 
-        // Find which display contains this rect
         var targetDisplay = mainDisplayID
         var maxDisplayCount: UInt32 = 16
         var activeDisplays = [CGDirectDisplayID](repeating: 0, count: Int(maxDisplayCount))
@@ -159,7 +154,6 @@ public final class AssistScreenCaptureEngine: Sendable {
         )
     }
 
-    /// Encodes a CGImage to PNG Data.
     public func encodePNG(image: CGImage) throws -> Data {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(data as CFMutableData, UTType.png.identifier as CFString, 1, nil) else {
@@ -172,8 +166,6 @@ public final class AssistScreenCaptureEngine: Sendable {
         return data as Data
     }
 }
-
-// MARK: - Native Interactive Region Selection Overlay
 
 @MainActor
 private final class RegionSelectionOverlayWindow: NSWindow {
@@ -224,7 +216,7 @@ private final class RegionSelectionOverlayWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { // Escape
+        if event.keyCode == 53 {
             cancelSelection()
         } else {
             super.keyDown(with: event)
@@ -249,18 +241,15 @@ private final class RegionSelectionOverlayView: NSView {
             height: abs(current.y - start.y)
         )
 
-        // Clear out selected area
         NSGraphicsContext.saveGraphicsState()
         NSColor.clear.setFill()
         rect.fill(using: .copy)
 
-        // Border and highlight
         NSColor.systemBlue.setStroke()
         let path = NSBezierPath(rect: rect)
         path.lineWidth = 2.0
         path.stroke()
 
-        // Size badge
         let sizeText = "\(Int(rect.width)) × \(Int(rect.height))"
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: .semibold),

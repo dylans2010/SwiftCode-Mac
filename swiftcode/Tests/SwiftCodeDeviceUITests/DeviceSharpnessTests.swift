@@ -1,6 +1,3 @@
-// The device window shows the picture 1:1 without a filter when one image
-// pixel falls on one display pixel (specs/simulator/uikit-feel-swiftcode.md §8.4).
-
 #if os(macOS)
 import AppKit
 import Testing
@@ -10,14 +7,12 @@ import SwiftCodeDeviceModel
 @MainActor
 struct DeviceSharpnessTests {
     @Test func oneToOneIsDetected() {
-        // A 3× iPhone (1206 × 2622 px) at 603 × 1311 pt on a 2× display.
         #expect(DeviceView.showsPixelsOneToOne(image: CGSize(width: 1206, height: 2622), view: CGSize(width: 603, height: 1311), backing: 2))
         #expect(!DeviceView.showsPixelsOneToOne(image: CGSize(width: 1206, height: 2622), view: CGSize(width: 604, height: 1312), backing: 2))
         #expect(!DeviceView.showsPixelsOneToOne(image: CGSize(width: 1206, height: 2622), view: CGSize(width: 402, height: 874), backing: 2))
     }
 
     @Test func theScreenKeepsItsPixelSize() {
-        // integral() would make 603 × 1311 starting at 18.75 pt into 604 × 1312.
         let r = DeviceFrameView.pixelAligned(CGRect(x: 18.75, y: 18.75, width: 603, height: 1311), backing: 2)
         #expect(r == CGRect(x: 19, y: 19, width: 603, height: 1311))
         let odd = DeviceFrameView.pixelAligned(CGRect(x: 10.2, y: 3.3, width: 100.26, height: 50), backing: 2)
@@ -39,7 +34,6 @@ struct DeviceSharpnessTests {
         frame.screen.layoutSubtreeIfNeeded()
         #expect(frame.screen.bounds.width * backing == 1206 && frame.screen.bounds.height * backing == 2622)
         #expect(frame.screen.layer?.magnificationFilter == .nearest && frame.screen.layer?.minificationFilter == .nearest)
-        // Any other size is filtered.
         frame.scale = 1
         frame.frame = CGRect(origin: CGPoint(x: 10, y: 10), size: frame.intrinsicContentSize)
         frame.layoutSubtreeIfNeeded()

@@ -2,28 +2,6 @@ import Foundation
 import SwiftUI
 import SwiftCodeAssistant
 
-/// Detailed inspection view for a single Assist Worker.
-/// Strictly non-conversational — the only interactive control is "Stop Worker".
-///
-/// Port of Legacy
-/// `SwiftCode/Backend/Assist/Subagents/UI/WorkersInfoView.swift`,
-/// rebuilt for the SwiftCodeUI target (default accent, no Legacy orange).
-///
-/// Wiring: reads the injected `WorkerRuntimeState` (default `.shared`)
-/// and looks the worker up by `workerID` on every render, so the detail
-/// follows live status, progress, file, test, and handoff changes. The
-/// stop sheet uses `WorkerStopConfirmationSheet`'s default stop path
-/// (runtime state); pass an explicit `onStop` there if the host routes
-/// stops through `WorkerHandoffCoordinator` instead.
-///
-/// Deviation from Legacy: the status card used Legacy's
-/// `.liquidGlass(style: .standard, cornerRadius: 12)`, which has no
-/// destination equivalent (see `ProjectNotesWorkspaceView.swift`); it
-/// now uses `.background(.thinMaterial, in: RoundedRectangle(...))`,
-/// the destination's own card treatment (`ModernGroupBoxStyle.swift`).
-/// Legacy also held the runtime state in a plain property, which does
-/// not subscribe the view to `@Observable` changes; this port holds it
-/// in `@Bindable`, as `WorkersHeaderButton` already did in Legacy.
 @MainActor
 public struct WorkersInfoView: View {
     let workerID: UUID
@@ -86,8 +64,6 @@ public struct WorkersInfoView: View {
         }
     }
 
-    // MARK: - Header
-
     @ViewBuilder
     private func headerView(for worker: Worker) -> some View {
         HStack(alignment: .center, spacing: 10) {
@@ -128,8 +104,6 @@ public struct WorkersInfoView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
-
-    // MARK: - Sections
 
     @ViewBuilder
     private func statusSection(_ worker: Worker) -> some View {
@@ -480,8 +454,6 @@ public struct WorkersInfoView: View {
                 .foregroundStyle(.secondary)
         }
     }
-
-    // MARK: - Helpers
 
     private func statusColor(for status: WorkerStatus) -> Color {
         switch status {

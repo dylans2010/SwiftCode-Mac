@@ -4,8 +4,7 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Release Readiness and Audit Guide
+
     guides_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(guides_dir, exist_ok=True)
     with open(os.path.join(guides_dir, "release-readiness-and-audit.md"), "w") as f:
@@ -19,7 +18,6 @@ def main():
             f.write('{\n  "criterionId": "AUDIT-' + cid + '",\n  "status": "VERIFIED",\n  "scope": "macOS 14+"\n}\n')
             f.write("```\n\n")
 
-    # 2. Python Schemas
     py_schemas = os.path.join(dest, "languages", "python", "schemas")
     os.makedirs(py_schemas, exist_ok=True)
     for name in ["extension_runner_schema", "ast_validation_schema", "type_stub_catalog_schema"]:
@@ -41,7 +39,6 @@ def main():
         with open(os.path.join(py_schemas, f"{name}.json"), "w") as f:
             json.dump(schema, f, indent=2)
 
-    # 3. Security Rules
     sec_rules = os.path.join(dest, "resources", "diagnostics-rules", "security")
     os.makedirs(sec_rules, exist_ok=True)
     for cat in ["entitlements", "sandbox_profiles", "signature_verification", "audit_logging"]:
@@ -52,7 +49,6 @@ def main():
         with open(os.path.join(sec_rules, f"{cat}_rules.txt"), "w") as f:
             f.write("\n".join(lines))
 
-    # 4. Update components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

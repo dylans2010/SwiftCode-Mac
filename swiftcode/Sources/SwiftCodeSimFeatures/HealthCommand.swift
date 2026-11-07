@@ -1,17 +1,3 @@
-// `health …` command words (health-simulation.md §8.3 H-7): what
-// `swiftcode-simd --device DEV --health <words…>`, the launcher's
-// `swiftcode-sim --device DEV --health …` and the control socket take.
-//
-//   status
-//   authorize                              the agent asks for its grants again
-//   import <file.json|file.csv> [--open <bundle id>]
-//   scenario <name> [--date YYYY-MM-DD] [--days N] [--seed S] [--steps N] [--start <time>] [--with-read-only]
-//   stream heart-rate|spo2|respiratory-rate [--bpm A..B | --range A..B] [--every 5s] [--for 10m]
-//   stop
-//   clear                                  deletes the agent's samples (public delete API)
-//   grant <bundle id> | revoke <bundle id> the app's own requests answered (shut-down device; queued)
-//   seed <file> | seed scenario <name> […]  read-only types into a shut-down device (HEALTH-3)
-
 import Foundation
 
 public enum HealthCommand: Equatable, Sendable {
@@ -60,7 +46,6 @@ public enum HealthCommand: Equatable, Sendable {
         init(_ s: String) { description = s }
     }
 
-    /// Whether the command can run while the device is shut down.
     public var worksOffline: Bool {
         switch self {
         case .grant, .revoke, .seedFile, .seedScenario, .status: true
@@ -68,7 +53,6 @@ public enum HealthCommand: Equatable, Sendable {
         }
     }
 
-    /// `words` without the leading "health".
     public static func parse(_ words: [String]) throws -> HealthCommand {
         var w = words
         if w.first == "health" { w.removeFirst() }
@@ -179,7 +163,6 @@ public enum HealthCommand: Equatable, Sendable {
         }
     }
 
-    /// "YYYY-MM-DD" → that day's local midnight.
     public static func parseDay(_ text: String, timeZone: TimeZone) -> Date? {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")

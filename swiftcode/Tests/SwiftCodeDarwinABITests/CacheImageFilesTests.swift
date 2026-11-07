@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// Cache-only image files (app-launch.md §3.5).
 @Suite struct CacheImageFilesTests {
     static let images = [
         "/System/Library/Frameworks/UIKit.framework/UIKit",
@@ -11,8 +10,6 @@ import Testing
         "/usr/lib/libobjc.A.dylib",
     ]
 
-    /// A runtime root with framework directories that hold no executable,
-    /// WebKit linked from the cryptex directory (as in the 27.1 runtime).
     func makeTree() throws -> (TempTree, DarwinFileSystem) {
         let t = try TempTree()
         try t.writeFile("rr/System/Library/Frameworks/UIKit.framework/Info.plist", [1])
@@ -33,14 +30,12 @@ import Testing
         #expect(st.isRegularFile)
         #expect(st.mode & 0o777 == 0o555)
         #expect(st.dev != 0)
-        // lstat too, and the inode is stable.
         let l = try fs.stat(t.host("rr/System/Library/Frameworks/UIKit.framework/UIKit"), followSymlinks: false)
         #expect(l.ino == st.ino)
     }
 
     @Test func cryptexFrameworkThroughItsLink() throws {
         let (t, fs) = try makeTree()
-        // The link's spelling and the cryptex spelling both answer.
         let a = try fs.stat(t.host("rr/System/Library/Frameworks/WebKit.framework/WebKit"), followSymlinks: true)
         let b = try fs.stat(t.host("rr/System/Cryptexes/OS/System/Library/Frameworks/WebKit.framework/WebKit"),
                             followSymlinks: true)
@@ -57,14 +52,12 @@ import Testing
 
     @Test func excludedAndUnknownPathsStayMissing() throws {
         let (t, fs) = try makeTree()
-        for p in ["rr/usr/lib/system/libsystem_kernel.dylib",           // host-library directory
-                  "rr/System/Library/Frameworks/UIKit.framework/Other", // not an image
+        for p in ["rr/usr/lib/system/libsystem_kernel.dylib",
+                  "rr/System/Library/Frameworks/UIKit.framework/Other",
                   "rr/usr/lib/libobjc.B.dylib"] {
             #expect(throws: DarwinErrnoError.self) { _ = try fs.stat(t.host(p), followSymlinks: true) }
         }
-        // A path outside the runtime root is never an image.
         #expect(fs.cacheImageFiles?.imagePath(forGuestPath: "/usr/lib/libobjc.A.dylib") == nil)
-        // A missing directory component stays ENOENT.
         #expect(throws: DarwinErrnoError.self) {
             _ = try fs.stat(t.host("rr/System/Library/Frameworks/Nope.framework/Nope"), followSymlinks: true)
         }
@@ -74,7 +67,6 @@ import Testing
         let (t, fs) = try makeTree()
         let st = try fs.stat(t.host("rr/usr/lib/libz.1.dylib"), followSymlinks: true)
         #expect(st.size == 4)
-        // The library image is answered when no file exists.
         #expect(try fs.stat(t.host("rr/usr/lib/libobjc.A.dylib"), followSymlinks: true).isRegularFile)
     }
 

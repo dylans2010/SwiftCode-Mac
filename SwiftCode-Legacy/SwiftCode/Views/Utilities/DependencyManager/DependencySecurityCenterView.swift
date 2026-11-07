@@ -19,7 +19,6 @@ struct DependencySecurityCenterView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -46,7 +45,6 @@ struct DependencySecurityCenterView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Health Summary Grid Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Security Dashboard Health Index", systemImage: "heart.text.square.fill")
@@ -56,7 +54,6 @@ struct DependencySecurityCenterView: View {
                         Divider()
 
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 200))], spacing: 16) {
-                            // Risk score metric
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Risk Score")
                                     .font(.caption.bold())
@@ -71,7 +68,6 @@ struct DependencySecurityCenterView: View {
                             .padding()
                             .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
 
-                            // Scanned target count metric
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Scanned Targets")
                                     .font(.caption.bold())
@@ -82,7 +78,6 @@ struct DependencySecurityCenterView: View {
                             .padding()
                             .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
 
-                            // Advisory count metric
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Active Advisories")
                                     .font(.caption.bold())
@@ -100,7 +95,6 @@ struct DependencySecurityCenterView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Tab Selector Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Audit Dimensions", systemImage: "checklist")
@@ -130,7 +124,6 @@ struct DependencySecurityCenterView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Audit Results Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Scanned Findings Report", systemImage: "doc.text")
@@ -163,7 +156,6 @@ struct DependencySecurityCenterView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Selected Advisory Detailed Inspector (Inline Card)
                 if let advisory = selectedAdvisory {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {

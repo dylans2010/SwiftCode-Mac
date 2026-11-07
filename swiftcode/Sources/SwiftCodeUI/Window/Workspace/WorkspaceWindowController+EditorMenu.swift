@@ -2,11 +2,7 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// Editor menu actions and their enablement/check states
-/// (`specs/ide/reference-ui-4.md` §8, §14).
 extension WorkspaceWindowController {
-    /// Editor ▸ Show Editor Only (⌘↩): hides the canvas, the assistant and
-    /// the comparison, leaving the focused editor.
     @objc public func showEditorOnly(_ sender: Any?) {
         if canvasAuto.modeOn || canvas != nil { setCanvasMode(false) }
         if editorArea.tab.assistant != nil { toggleAssistant(nil) }
@@ -15,33 +11,23 @@ extension WorkspaceWindowController {
         updateToolbarState()
     }
 
-    /// Editor ▸ Show Issues / Hide All Issues.
     @objc public func showInlineIssues(_ sender: Any?) { for e in editorArea.allEditors { e.showsInlineIssues = true } }
     @objc public func hideInlineIssues(_ sender: Any?) { for e in editorArea.allEditors { e.showsInlineIssues = false } }
 
-    /// Editor ▸ Wrap Lines (⌃⇧⌘L): the editing preference.
     @objc public func toggleWrapLines(_ sender: Any?) { Preferences.shared.wrapLines.toggle() }
-    /// Editor ▸ Invisibles: draws spaces, tabs and line ends (a user setting).
     @objc public func toggleInvisibles(_ sender: Any?) { Preferences.shared.showInvisibles.toggle() }
-    /// Editor ▸ Code Coverage: the gutter's coverage ribbon from the last
-    /// test run that gathered coverage (a user setting).
     @objc public func toggleCodeCoverage(_ sender: Any?) {
         Preferences.shared.showCodeCoverage.toggle()
         refreshCodeCoverage()
     }
 
-    /// Gives the focused editor its file's coverage, or none when the
-    /// ribbon is off.
     func refreshCodeCoverage() {
         let counts = Preferences.shared.showCodeCoverage ? editor.fileURL.flatMap { session.coverageLineCounts(file: $0.path) } : nil
         editor.setCoverage(WorkspaceSession.coverageMarks(counts), shown: Preferences.shared.showCodeCoverage)
     }
 
-    /// Editor ▸ Authors (⌃⇧⌘A): the focused editor's blame column.
     @objc public func toggleAuthors(_ sender: Any?) { editor.showsAuthors.toggle() }
 
-    /// Editor ▸ Show Last Change for Line: the history of the commit that
-    /// last changed the caret's line, with that commit selected.
     @objc public func showLastChangeForLine(_ sender: Any?) {
         guard let url = editor.fileURL else { return }
         let line = editor.currentLine, text = editor.isDirty ? editor.text : nil
@@ -50,14 +36,11 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Editor ▸ Scope Guides: Editing ▸ Display ▸ Scope guides None ↔ Lines.
     @objc public func toggleScopeGuides(_ sender: Any?) {
         let p = Preferences.shared
         p.scopeGuides = p.scopeGuides == .none ? .lines : .none
     }
 
-    /// Editor ▸ Refactor ▸ <item>: performs the code action mapped to the
-    /// item (`RefactorCatalog`). Returns whether one was found.
     @discardableResult
     @objc public func performRefactorItem(_ sender: Any?) -> Bool {
         let tag = (sender as? NSMenuItem)?.tag ?? (sender as? Int) ?? -1
@@ -67,12 +50,11 @@ extension WorkspaceWindowController {
         return true
     }
 
-    /// Enablement and check marks of Editor menu items; nil = not ours.
     func validateEditorMenuItem(_ item: NSMenuItem) -> Bool? {
         switch item.action {
         case #selector(performRefactorItem(_:)):
             return RefactorCatalog.actionIndex(forItem: item.tag, in: cachedCodeActions) != nil
-        case #selector(toggleCanvas(_:)): item.state = canvasAuto.modeOn ? .on : .off   // E10: the mode, drawn or not
+        case #selector(toggleCanvas(_:)): item.state = canvasAuto.modeOn ? .on : .off
         case #selector(toggleAssistant(_:)): item.state = editorArea.tab.assistant != nil ? .on : .off
         case #selector(toggleComparison(_:)): item.state = editor.isShowingComparison || editor.isShowingInlineComparison ? .on : .off
         case NSSelectorFromString("toggleMinimap:"): item.state = editor.showsMinimap ? .on : .off

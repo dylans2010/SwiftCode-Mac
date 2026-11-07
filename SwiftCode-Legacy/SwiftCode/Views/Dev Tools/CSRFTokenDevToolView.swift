@@ -19,7 +19,6 @@ final class CSRFTokenDevToolViewModel {
             generatedToken = Data(bytes).map { String(format: "%02x", $0) }.joined()
             logger.info("Successfully generated secure CSRF anti-forgery token.")
         } else {
-            // Fallback securely in case SecRandom fails
             let randomData = (0..<bytesCount).map { _ in UInt8.random(in: 0...255) }
             generatedToken = Data(randomData).map { String(format: "%02x", $0) }.joined()
         }

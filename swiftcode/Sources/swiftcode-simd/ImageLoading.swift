@@ -1,7 +1,3 @@
-// swiftcode-simd: building one process image in a fresh VM (stage 3a layout,
-// stage-4a vCPU slots), and the helpers it needs. Contracts:
-// specs/simulator/stage3-contract.md, host-libraries.md, stage4a-contract.md.
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -11,13 +7,10 @@ import SwiftCodeDarwinKernel
 import SwiftCodeHypervisor
 import SwiftCodeMachO
 
-// MARK: - Stage 3a: helpers
-
 let pageSize = VMLayout.pageSize
 func roundUpPage(_ v: UInt64) -> UInt64 { (v + pageSize - 1) & ~(pageSize - 1) }
 func roundDownPage(_ v: UInt64) -> UInt64 { v & ~(pageSize - 1) }
 
-/// The real path of this executable (for locating SimShim/out next to the package).
 func executableDirectory() -> String? {
     var buffer = [Int8](repeating: 0, count: 4096)
     let n = readlink("/proc/self/exe", &buffer, buffer.count - 1)
@@ -26,9 +19,6 @@ func executableDirectory() -> String? {
     return (path as NSString).deletingLastPathComponent
 }
 
-/// Finds `SimShim/out/<name>`: the explicit path, then the current
-/// directory, then the package directory that holds this executable
-/// (`<package>/.build/<config>/swiftcode-simd`).
 func locateSimShimFile(_ name: String, explicit: String?) -> String {
     if let explicit { return explicit }
     var candidates = ["SimShim/out/\(name)"]
@@ -41,9 +31,6 @@ func locateSimShimFile(_ name: String, explicit: String?) -> String {
     die("cannot find SimShim/out/\(name) (tried \(candidates.joined(separator: ", "))); pass it explicitly", status: 66)
 }
 
-/// Finds SwiftCode's host-library directory: the explicit path, then
-/// `SimHostLibs/out` in the current directory, then next to the package that
-/// holds this executable. Nil when none exists.
 func locateHostLibraryDirectory(explicit: String?) -> (path: String?, tried: [String]) {
     if let explicit { return (absolutePath(explicit), [explicit]) }
     var candidates = ["SimHostLibs/out"]
@@ -59,7 +46,6 @@ func locateHostLibraryDirectory(explicit: String?) -> (path: String?, tried: [St
     return (nil, candidates)
 }
 
-/// The three host libraries (`host-libraries.md` §1), as guest paths.
 let hostLibraryNames = ["kernel", "platform", "pthread"]
 func hostLibraryGuestPath(_ name: String) -> String { "/usr/lib/system/libsystem_\(name).dylib" }
 
@@ -69,34 +55,19 @@ func absolutePath(_ path: String) -> String {
     return ((cwd as NSString).appendingPathComponent(path) as NSString).standardizingPath
 }
 
-/// Mach-O protection bits → VMProtection (same bit values: r 1, w 2, x 4).
 func vmProtection(_ p: Protection) -> VMProtection { VMProtection(rawValue: p.rawValue & 7) }
 
-// MARK: - Executable headers without a host mapping (boot-profile.md §9, SP2)
-
-/// The arm64 slice of an executable: where it starts in the file and its
-/// Mach-O header with the load commands (all an image build reads), read
-/// with `pread`. Mapping the whole file (`Data(contentsOf:, .alwaysMapped)`)
-/// cost an `mmap` and a `munmap` for each of three reads per image build;
-/// each takes the host process's address-space lock for writing, which every
-/// vCPU's stage-2 fault takes for reading.
 struct ExecutableHeader: @unchecked Sendable {
     enum Failure: Error { case notMachO, noARM64Slice, unreadable(Int32) }
-    /// The slice's offset in the file.
     let sliceOffset: Int
-    /// The header and load commands; offsets are relative to the slice.
     let reader: ByteReader
     let image: MachOImage
 
-    /// `SWIFTCODE_EXEC_HEADER_MAP=1`: map whole files as before (A/B).
     static let mapWholeFile = getenv("SWIFTCODE_EXEC_HEADER_MAP").map { String(cString: $0) == "1" } ?? false
 
     private static let cacheLock = HostMutex(name: "executable headers")
     nonisolated(unsafe) private static var cache: [String: ExecutableHeader] = [:]
 
-    /// The header of `fd`'s file (the arm64 slice; plain arm64 preferred
-    /// over arm64e variants), from the cache when the file (device, inode,
-    /// size, modification time) was read before.
     static func read(fd: Int32) throws(Failure) -> ExecutableHeader {
         var st = stat()
         guard fstat(fd, &st) == 0 else { throw .unreadable(errno) }
@@ -156,7 +127,6 @@ struct ExecutableHeader: @unchecked Sendable {
         return result
     }
 
-    /// As `read(fd:)`, for a path.
     static func read(path: String) throws(Failure) -> ExecutableHeader {
         let fd = open(path, O_RDONLY | O_CLOEXEC)
         guard fd >= 0 else { throw .unreadable(errno) }
@@ -165,8 +135,6 @@ struct ExecutableHeader: @unchecked Sendable {
     }
 }
 
-/// The `LC_UNIXTHREAD` PC of an arm64 image (`ARM_THREAD_STATE64`, flavor 6:
-/// the PC is 64-bit word 32 of the register state), or nil.
 func unixThreadPC(_ reader: ByteReader, headerOffset: Int) -> UInt64? {
     guard let ncmds = try? reader.u32(headerOffset + 16) else { return nil }
     var p = headerOffset + 32
@@ -180,36 +148,18 @@ func unixThreadPC(_ reader: ByteReader, headerOffset: Int) -> UInt64? {
     return nil
 }
 
-/// One image the VMM knows about, for attributing addresses.
 struct GuestImage {
     var name: String
     var start: UInt64
     var end: UInt64
-    /// The address offsets are reported against (the mach header).
     var base: UInt64
 }
 
-/// The dyld shared cache of the runtime, parsed once per host process and
-/// shared by every image's `ImageMap` (each image of a run maps the same
-/// cache). Thread-safe.
-///
-/// Four locks, so that a slow parse never stalls a fast question: `loadLock`
-/// guards the `SharedCache` value (its header and image table: fast);
-/// `smallLock` the mapping list, the main mapping and the libSystem image
-/// ranges (a few dozen Mach-O headers); `fullLock` the full image list
-/// (every cached image's Mach-O header: seconds); `crashLock` the
-/// crash-info sections (every image's segments: seconds).
-/// `prewarm()` builds everything on a background thread at start, so the
-/// first fault report or trace does not wait for the full parse under the
-/// kernel lock (`performance-contract.md` §6, C15).
 final class SharedCacheIndex: @unchecked Sendable {
     let cachePath: String
     private let loadLock = HostMutex(name: "shared cache index (load)")
     private let smallLock = HostMutex(name: "shared cache index (small)")
     private let fullLock = HostMutex(name: "shared cache index (full)")
-    /// The `__crash_info` list has its own lock: its parse (every image's
-    /// segments) takes seconds, and the full image list must not wait for it
-    /// (a trap's milestone note reads that list under the kernel lock).
     private let crashLock = HostMutex(name: "shared cache index (crash info)")
     private var cache: SharedCache?
     private var loadFailed = false
@@ -218,14 +168,12 @@ final class SharedCacheIndex: @unchecked Sendable {
     private var mappingList: [(file: String, mapping: SharedCache.Mapping)]?
     private var firstMapping: SharedCache.Mapping??
     private var libSystem: [GuestImage]?
-    /// Set (under `fullLock`) once `images` exists; read without a lock.
     private let imagesReady = Atomic<Bool>(false)
 
     init(cachePath: String) { self.cachePath = cachePath }
 
     private func sharedCache() -> SharedCache? {
         loadLock.withLock {
-            // An empty path: no shared cache (--macos, MacOSMode.swift).
             if cache == nil && !loadFailed && !cachePath.isEmpty {
                 do { cache = try SharedCache(contentsOf: URL(fileURLWithPath: cachePath)) } catch {
                     loadFailed = true
@@ -236,13 +184,10 @@ final class SharedCacheIndex: @unchecked Sendable {
         }
     }
 
-    /// The parsed cache (Gauge's symbols, profiler.md §4.2); nil when it cannot be read.
     func sharedCacheForSymbols() -> SharedCache? { sharedCache() }
 
-    /// The path (install name) of every image in the cache's image table.
     func imagePaths() -> [String] { sharedCache()?.images.map(\.path) ?? [] }
 
-    /// Builds every list on a background thread (call once, at start).
     func prewarm() {
         Thread.detachNewThread { [self] in
             let began = monotonicNanoseconds()
@@ -257,7 +202,6 @@ final class SharedCacheIndex: @unchecked Sendable {
         }
     }
 
-    /// Every mapping of every cache file (main file first), as in the headers.
     func mappings() -> [(file: String, mapping: SharedCache.Mapping)] {
         if let list = smallLock.withLock({ mappingList }) { return list }
         guard let cache = sharedCache() else { return [] }
@@ -266,7 +210,6 @@ final class SharedCacheIndex: @unchecked Sendable {
         return list
     }
 
-    /// The main file's first mapping (for addresses outside every image).
     func mainMapping() -> SharedCache.Mapping? {
         if let first = smallLock.withLock({ firstMapping }) { return first }
         let first = sharedCache()?.mainFile.mappings.first
@@ -274,15 +217,10 @@ final class SharedCacheIndex: @unchecked Sendable {
         return first
     }
 
-    /// True when `path` is one of the images the libSystem milestone
-    /// (host-libraries.md §8.1) watches for.
     static func isLibSystemPath(_ path: String) -> Bool {
         path.hasPrefix("/usr/lib/system/libsystem_") || path == "/usr/lib/libSystem.B.dylib"
     }
 
-    /// The __TEXT ranges of the cache's libsystem_* images and libSystem.B
-    /// (header addresses), sorted: the milestone check reads only these, not
-    /// the full image list.
     func libSystemImages() -> [GuestImage] {
         if let list = smallLock.withLock({ libSystem }) { return list }
         var list: [GuestImage] = []
@@ -297,9 +235,6 @@ final class SharedCacheIndex: @unchecked Sendable {
         return list
     }
 
-    /// Every cache image's `__crash_info` section (any `__DATA*` segment) at
-    /// its header address: the CrashReporter annotations a library fills
-    /// before it traps (Libc `CrashReporterClient.h`, level 1).
     func crashInfoSections() -> [(image: String, address: UInt64, size: UInt64)] {
         crashLock.withLock {
             if let crashInfo { return crashInfo }
@@ -318,7 +253,6 @@ final class SharedCacheIndex: @unchecked Sendable {
         }
     }
 
-    /// The cache images' __TEXT ranges at their header addresses, sorted.
     func cacheImages() -> [GuestImage] {
         fullLock.withLock {
             if let images { return images }
@@ -335,36 +269,23 @@ final class SharedCacheIndex: @unchecked Sendable {
         }
     }
 
-    /// The full list when it is built, else nil (never waits for the parse).
     func cacheImagesIfReady() -> [GuestImage]? {
         imagesReady.load(ordering: .acquiring) ? cacheImages() : nil
     }
 }
 
-/// Attributes guest addresses to images: the main executable, dyld_sim, the
-/// host page, and shared-cache images (their __TEXT ranges, from the cache's
-/// image list; the cache is never slid, but the VMM records the address
-/// delta it observes in dyld_sim's mmap calls). One per image (VM).
 final class ImageMap {
     var fixed: [GuestImage] = []
-    /// SwiftCode's host libraries are mapped by dyld_sim through `mmap` of their
-    /// VFS files; they are found through the address space's file-backed
-    /// regions with these guest paths.
     var space: GuestAddressSpace?
     var hostLibraryPaths: Set<String> = []
     static let hostLibrarySuffix = " [swiftcode]"
     let cache: SharedCacheIndex
-    /// Observed (mapped address − header address); 0 when dyld_sim maps the cache at the header addresses.
     var cacheDelta: UInt64 = 0
 
     init(cache: SharedCacheIndex) { self.cache = cache }
 
-    /// Every mapping of every cache file (main file first), as in the headers.
     func cacheMappings() -> [(file: String, mapping: SharedCache.Mapping)] { cache.mappings() }
 
-    /// An address in one of SwiftCode's host libraries. The base is the
-    /// containing mapping's VA minus its file offset, which is the mach
-    /// header for `__TEXT` (where ELR and LR point).
     private func hostLibrary(_ address: UInt64) -> (image: GuestImage, offset: UInt64)? {
         guard !hostLibraryPaths.isEmpty, let space, let file = space.file(at: address),
               hostLibraryPaths.contains(file.guestPath),
@@ -404,11 +325,6 @@ final class ImageMap {
         return "\(image.name) + \(hex(offset))"
     }
 
-    /// The libSystem milestone's attribution (host-libraries.md §8.1): the
-    /// image and offset when `address` lies in one of SwiftCode's host
-    /// libraries, in a cache libsystem_* image or in libSystem.B; nil
-    /// otherwise. Reads only the small libSystem list, never the full
-    /// cache index (whose first parse takes seconds).
     func libSystemAttribution(_ address: UInt64) -> (image: GuestImage, offset: UInt64)? {
         if fixed.contains(where: { address >= $0.start && address < $0.end }) { return nil }
         if let hit = hostLibrary(address) { return hit }
@@ -418,7 +334,6 @@ final class ImageMap {
         return (image, header - image.base)
     }
 
-    /// `describe`, or the plain address while the full cache index is not built yet.
     func describeIfCheap(_ address: UInt64) -> String {
         if cache.cacheImagesIfReady() == nil, address >= VMLayout.sharedRegionBase, address < VMLayout.sharedRegionEnd,
            libSystemAttribution(address) == nil {
@@ -428,31 +343,20 @@ final class ImageMap {
     }
 }
 
-/// Tracks dyld_sim's mmap calls of the shared-cache files.
 struct CacheMappingTracker {
     struct Pending { var address: UInt64; var size: UInt64; var flags: UInt64; var fd: Int32; var offset: UInt64; var path: String? }
     var expected: [(file: String, mapping: SharedCache.Mapping)] = []
-    /// Indices of `expected` seen mapped, with the address used.
     var seen: [Int: UInt64] = [:]
     var pending: Pending?
 }
 
-// MARK: - Stage 3a: the process image
-
-/// Stage 4a: the vCPU slots (`VCPUSlots`, GPA 0x4100_0000, 4 MiB) lie inside
-/// the stage-3 table arena (0x4020_0000 + 64 MiB), so the arena moves to
-/// 0x4200_0000 (64 MiB, up to 0x4600_0000, inside the 1 GiB of RAM). The
-/// second slot region follows it (0x4600_0000, 28 MiB).
 let stage4TableArenaGPA: UInt64 = 0x4200_0000
 
-/// The EL1 identity regions of an --exec VM: the stage-3 ones with the table
-/// arena moved, plus the vCPU slots.
 let stage4EL1Regions: [VMLayout.Region] = VMLayout.stage3EL1Regions.map { r in
     guard r.name == "page-tables" else { return r }
     return VMLayout.Region(name: r.name, va: stage4TableArenaGPA, size: VMLayout.stage3PageTableArenaSize, attributes: r.attributes)
 } + VCPUSlots.regions
 
-/// A loaded Mach-O image (main executable or dyld_sim).
 struct LoadedImage {
     var image: GuestImage
     var machHeader: UInt64
@@ -466,12 +370,10 @@ enum LoaderError: Error, CustomStringConvertible {
     var description: String { if case let .message(m) = self { return m }; return "" }
 }
 
-/// Builds the stage-3a process image in a fresh VM.
 final class ProcessBuilder {
     let vm: VirtualMachine
     let backing: KVMPhysicalBacking
     let space: GuestAddressSpace
-    /// Trace sink (nil = quiet).
     let traceLog: ((String) -> Void)?
 
     init(log: ((String) -> Void)?) throws {
@@ -492,10 +394,6 @@ final class ProcessBuilder {
         try space.flushPageTables()
     }
 
-    /// A builder over a VM reused from an image that ended (SP1): the VM
-    /// was reset (`VirtualMachine.resetForReuse`) and its old backing
-    /// scrubbed; the backing is made again over the same memslots and the
-    /// EL1 tables are written again into the (zeroed) RAM.
     init(reusing vm: VirtualMachine, backing old: KVMPhysicalBacking) throws {
         self.traceLog = nil
         self.vm = vm
@@ -508,14 +406,10 @@ final class ProcessBuilder {
 
     func log(_ text: @autoclosure () -> String) { if let traceLog { traceLog(text()) } }
 
-    /// Writes into guest memory regardless of page permissions (VMM loads).
     func poke(_ va: UInt64, _ bytes: [UInt8]) throws {
         try space.write(va: va, bytes: bytes, checkingEL0Access: false)
     }
 
-    /// Maps one segment: the file part with `protection` at `va`, then the
-    /// zero-fill part (anonymous, `zeroFillProtection`). The bytes of the last
-    /// file page beyond `fileSize` are zeroed when the segment has zero fill.
     func mapSegment(file: GuestFile, name: String, va: UInt64, vmSize: UInt64, fileOffset: UInt64, fileSize: UInt64,
                     protection: VMProtection, zeroFillProtection: VMProtection) throws {
         let fileSpan = roundUpPage(fileSize)
@@ -533,8 +427,6 @@ final class ProcessBuilder {
         log("map \(name) \(hex(va))-\(hex(va + max(vmSpan, fileSpan))) \(protection) file \(hex(fileOffset))+\(hex(fileSize))")
     }
 
-    /// The main executable: every segment at its preferred vmaddr (no slide),
-    /// with its initprot; __PAGEZERO (no access, no file data) is skipped.
     func loadMainExecutable(path: String, hostPath: String) throws -> LoadedImage {
         let file = try GuestFile.openReadOnly(hostPath: hostPath, guestPath: path)
         let sliceOffset: Int
@@ -563,7 +455,7 @@ final class ProcessBuilder {
         var low = UInt64.max, high: UInt64 = 0
         for segment in image.segments {
             if segment.vmSize == 0 { continue }
-            if segment.fileSize == 0 && segment.initialProtection.rawValue == 0 { continue }   // __PAGEZERO
+            if segment.fileSize == 0 && segment.initialProtection.rawValue == 0 { continue }
             if segment.fileOffset == 0 && segment.fileSize > 0 { header = segment.vmAddress }
             try mapSegment(file: file, name: "\((path as NSString).lastPathComponent) \(segment.name)", va: segment.vmAddress,
                            vmSize: segment.vmSize, fileOffset: UInt64(slice.offset) + segment.fileOffset,
@@ -578,10 +470,6 @@ final class ProcessBuilder {
                            machHeader: header, slide: 0, entry: entry, uuid: image.uuid)
     }
 
-    /// dyld_sim, as the host dyld maps it (dyld-sim-handoff.md §1.3): one
-    /// zero-filled read/write reservation of `mappedSize` at `base`, then each
-    /// file-backed segment over it with its initprot. Entry = LC_MAIN or the
-    /// LC_UNIXTHREAD PC, plus the slide.
     func loadDyldSim(path: String, guestPath: String, base: UInt64) throws -> LoadedImage {
         let file = try GuestFile.openReadOnly(hostPath: path, guestPath: guestPath)
         let sliceOffset: Int
@@ -644,9 +532,6 @@ final class ProcessBuilder {
     }
 }
 
-// MARK: - Stage 3a: run
-
-/// The `ret` stub's offset in the host page (host_stubs.S; dyld_all_image_infos.notification).
 let hostPageRetStubOffset: UInt64 = 0x0F00
 let a64Ret: UInt32 = 0xD65F_03C0
 
@@ -655,7 +540,6 @@ func uuidBytes(_ uuid: UUID?) -> [UInt8]? {
     return [u.0, u.1, u.2, u.3, u.4, u.5, u.6, u.7, u.8, u.9, u.10, u.11, u.12, u.13, u.14, u.15]
 }
 
-/// Trace aid: prints kevent_qos_s records (72 bytes each) from guest memory.
 func dumpKevents(_ space: GuestAddressSpace, list: UInt64, count: Int, label: String) {
     for i in 0..<min(count, 8) {
         guard let b = try? space.read(va: list + UInt64(i * 72), count: 72, checkingEL0Access: false) else { break }
@@ -667,8 +551,6 @@ func dumpKevents(_ space: GuestAddressSpace, list: UInt64, count: Int, label: St
     }
 }
 
-/// A string with one value per host thread (pthread TSD).
-/// A per-host-thread UInt64 (pthread key; diagnostics).
 final class PerThreadNanoseconds: @unchecked Sendable {
     private final class Box { var value: UInt64 = 0 }
     private var key = pthread_key_t()

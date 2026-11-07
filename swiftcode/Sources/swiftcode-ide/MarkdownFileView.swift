@@ -1,19 +1,8 @@
 import Foundation
 import SwiftUI
 
-// Rendered Markdown viewer, adapted from Legacy's
-// `SwiftCode/Views/Editor/MarkdownFileView.swift`. The destination has
-// no rendered-Markdown editor surface (README V2 lists it as planned),
-// so this is a real one: on macOS the Markdown is rendered through
-// Foundation's `AttributedString(markdown:)`; on other platforms the
-// raw text is shown with the same mode toggle. The toggle switches
-// between the rendered view and the raw source.
-
-/// View a Markdown file rendered, with a raw-source toggle.
 struct MarkdownFileView: View {
-    /// The Markdown source to display.
     var source: String
-    /// A title for the header, such as the file name.
     var title: String
 
     @Environment(\.colorScheme) private var scheme

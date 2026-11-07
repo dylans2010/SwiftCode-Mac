@@ -1,19 +1,6 @@
 import Foundation
 import ZIPFoundation
 
-// MARK: - Package installation (validate, extract, commit)
-//
-// Installation never extracts in place and never executes package
-// scripts. A VSIX is validated before a single byte is written (size,
-// entry count, path shape), extracted into staging, checked again on
-// disk (symlinks, special files, real byte total), and only then
-// committed with one directory move. The previous version is kept as
-// a backup so rollback is a move and a failed update leaves the old
-// installation untouched.
-
-/// The result of a successful install. `directory` is the committed
-/// location; the manifest and compatibility report come from the
-/// package that was actually extracted, not from registry metadata.
 public struct ExtV2InstalledPackage: Sendable {
     public let directory: URL
     public let manifest: ExtV2VSCodeManifest
@@ -27,9 +14,6 @@ public struct ExtV2InstalledPackage: Sendable {
 }
 
 public struct ExtV2PackageService: Sendable {
-    /// Hard caps. A package that exceeds them is rejected before it can
-    /// fill the disk or exhaust the file table; the limits are generous
-    /// enough for real language servers and themes.
     public enum Limits {
         public static let maxArchiveBytes: Int64 = 64 * 1024 * 1024
         public static let maxExtractedBytes: Int64 = 512 * 1024 * 1024
@@ -43,8 +27,6 @@ public struct ExtV2PackageService: Sendable {
         self.storage = storage
     }
 
-    // MARK: Locations
-
     public func installDirectory(for extensionId: String) -> URL {
         storage.extensionsDirectory.appendingPathComponent(extensionId, isDirectory: true)
     }
@@ -53,12 +35,6 @@ public struct ExtV2PackageService: Sendable {
         storage.backupsDirectory.appendingPathComponent("\(extensionId).backup", isDirectory: true)
     }
 
-    // MARK: Install
-
-    /// Validates, extracts, verifies and commits a downloaded VSIX.
-    /// Throws `ExtV2Error.package` with a specific reason on every
-    /// failure; the previous installation is never modified unless the
-    /// new package passed every check.
     public func install(vsixURL: URL, identity: ExtV2Identity) throws -> ExtV2InstalledPackage {
         try Self.validate(extensionId: identity.id)
 
@@ -103,8 +79,6 @@ public struct ExtV2PackageService: Sendable {
             throw ExtV2Error.package("Could not create a staging directory: \(error.localizedDescription)")
         }
 
-        // Single pass: every entry is validated before it is written,
-        // and the declared uncompressed total is capped as we go.
         var entryCount = 0
         var declaredBytes: Int64 = 0
         for entry in archive {
@@ -154,12 +128,9 @@ public struct ExtV2PackageService: Sendable {
             throw ExtV2Error.package("Package archive contains no entries.")
         }
 
-        // Zip headers can lie; verify what actually landed on disk.
         try Self.rejectSymlinksAndSpecialFiles(in: extractionRoot)
         try Self.verifyExtractedSize(in: extractionRoot, limit: Limits.maxExtractedBytes)
 
-        // A VSIX always carries its payload under `extension/`; anything
-        // else is a malformed package, not something to guess about.
         let packageRoot = extractionRoot.appendingPathComponent("extension", isDirectory: true)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: packageRoot.path, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -189,9 +160,6 @@ public struct ExtV2PackageService: Sendable {
         }
 
         let compatibility = ExtV2Compatibility.evaluate(manifest: manifest)
-        // Commit the whole extracted VSIX, not only `extension/`, so every
-        // file the package ships is kept. Readers resolve the manifest at
-        // `<install>/extension/package.json`, which this layout matches.
         try commit(stagedPackage: extractionRoot, extensionId: identity.id)
         return ExtV2InstalledPackage(
             directory: installDirectory(for: identity.id),
@@ -199,12 +167,6 @@ public struct ExtV2PackageService: Sendable {
             compatibility: compatibility)
     }
 
-    // MARK: Uninstall
-
-    /// Removes the installed package and its backup. Idempotent: an
-    /// extension whose directory was already removed is not an error,
-    /// so a failed cleanup cannot leave a record that can never be
-    /// deleted from the UI.
     public func uninstall(extensionId: String) throws {
         try Self.validate(extensionId: extensionId)
         let fileManager = FileManager.default
@@ -218,10 +180,6 @@ public struct ExtV2PackageService: Sendable {
         }
     }
 
-    // MARK: Commit
-
-    /// One move commits a staged package. The previous installation, if
-    /// any, is moved aside first and restored if the commit fails.
     private func commit(stagedPackage: URL, extensionId: String) throws {
         let fileManager = FileManager.default
         let finalDirectory = installDirectory(for: extensionId)
@@ -254,10 +212,6 @@ public struct ExtV2PackageService: Sendable {
         }
     }
 
-    // MARK: Validation helpers
-
-    /// Extension ids become directory names, so they are restricted to
-    /// the characters a `publisher.name` identity can contain.
     static func validate(extensionId: String) throws {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
         guard !extensionId.isEmpty, extensionId.count <= 214,
@@ -295,8 +249,6 @@ public struct ExtV2PackageService: Sendable {
                 throw ExtV2Error.package("Package entry uses a drive-qualified path: \(path)")
             }
         }
-        // Directory entries may end with a slash; extraction only needs
-        // the resolved path.
         return components.joined(separator: "/")
     }
 

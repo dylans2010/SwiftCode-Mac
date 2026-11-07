@@ -1,13 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Menu Bar/NSCreateRepositoryView.swift
-//
-// Adapted for production: repo creation goes through the production
-// `GitHubClient` instead of Legacy's `GitHubService`, and pushing local
-// code uses git (init / remote add / add / commit / push -u origin HEAD)
-// instead of Legacy's per-file Contents-API upload
-// (`GitHubService.initializeGitHubRepository`, not ported). Same end
-// state, and local history is preserved. Everything else verbatim.
-//
 import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeGitHub
@@ -105,11 +95,6 @@ public struct NSCreateRepositoryView: View {
         .frame(width: 280)
     }
 
-    /// Pushes the active project's local code into the just-created repo.
-    /// Legacy did this by uploading every file through the GitHub Contents
-    /// API (`GitHubService.initializeGitHubRepository`); this port pushes
-    /// over git instead — same end state, and it preserves local history.
-    /// Runs in the active project's directory (`runGit` resolves it).
     private func pushLocalCodeToGitHub(fullName: String) async throws {
         let parts = fullName.split(separator: "/")
         guard parts.count == 2 else {

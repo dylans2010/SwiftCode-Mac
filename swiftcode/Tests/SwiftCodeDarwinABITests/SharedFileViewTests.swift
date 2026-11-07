@@ -6,9 +6,6 @@ import Glibc
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// MAP_SHARED file mappings as host file views (`SharedMemoryObject(hostFile:…)`):
-/// writes through one view are seen through another, in a space that maps
-/// it, and by the host file.
 @Suite struct SharedFileViewTests {
     private func temporaryFile(size: Int, flags: Int32) -> (fd: Int32, path: String) {
         var template = Array("/tmp/swiftcode-shared-view-XXXXXX".utf8CString)
@@ -32,12 +29,10 @@ import Testing
         var bytes = [UInt8](repeating: 0, count: 4)
         #expect(pread(fd, &bytes, 4, 0x4010) == 4)
         #expect(bytes == [1, 2, 3, 4])
-        // A host write is seen through the views.
         var more: [UInt8] = [9, 8]
         #expect(pwrite(fd, &more, 2, 0x20) == 2)
         #expect(a.read(offset: 0x20, count: 2) == [9, 8])
 
-        // Through a guest address space: two mappings of the same file.
         let space = GuestAddressSpace(backing: FakePhysicalBacking())
         let va1 = try space.mapShared(a, offset: 0, at: nil, size: 0x8000, protection: .readWrite, hint: nil)
         let c = try #require(SharedMemoryObject(hostFile: fd, offset: 0, size: 0x8000, fileSize: 0x8000))
@@ -47,12 +42,11 @@ import Testing
     }
 
     @Test func pagesPastTheEndReadAsZero() throws {
-        // 0x5000 bytes: the second 16 KiB page is partly past the end.
         let (fd, path) = temporaryFile(size: 0x5000, flags: O_RDWR)
         defer { close(fd); unlink(path) }
         let a = try #require(SharedMemoryObject(hostFile: fd, offset: 0, size: 0x8000, fileSize: 0x5000))
         #expect(a.read(offset: 0x7FF0, count: 16) == [UInt8](repeating: 0, count: 16))
-        a.write(offset: 0x7FF0, bytes: [7])  // writable, not part of the file
+        a.write(offset: 0x7FF0, bytes: [7])
         var st = stat()
         #expect(fstat(fd, &st) == 0 && st.st_size == 0x5000)
     }
@@ -66,15 +60,11 @@ import Testing
         #expect(SharedMemoryObject(hostFile: rw, offset: 0x10, size: 0x4000, fileSize: 0x4000) == nil)
     }
 
-    /// service-fidelity.md §10: a view made while the file was short shows
-    /// what is later written past the old end, and its writes there reach
-    /// the file (SpotlightIndex maps 1 MiB of a 16 KiB file and grows it).
     @Test func viewsFollowTheFileWhenItGrows() throws {
         let (fd, path) = temporaryFile(size: 0x4000, flags: O_RDWR)
         defer { close(fd); unlink(path) }
         let a = try #require(SharedMemoryObject(hostFile: fd, offset: 0, size: 0x10000, fileSize: 0x4000))
         #expect(a.fileBackedBytes == 0x4000)
-        // A view that starts at the end of the file has no file pages yet.
         let b = try #require(SharedMemoryObject(hostFile: fd, offset: 0x8000, size: 0x8000, fileSize: 0x4000))
         #expect(b.fileBackedBytes == 0)
         #expect(ftruncate(fd, 0xC000) == 0)
@@ -90,7 +80,6 @@ import Testing
         #expect(b.read(offset: 0x1000, count: 1) == [0x42])
     }
 
-    /// Truncation makes the pages past the new end zeros again (no host fault).
     @Test func viewsFollowTheFileWhenItShrinks() throws {
         let (fd, path) = temporaryFile(size: 0x10000, flags: O_RDWR)
         defer { close(fd); unlink(path) }
@@ -106,8 +95,6 @@ import Testing
     }
 
     #if os(Linux)
-    /// A read-only descriptor's view (reopened for the host mapping) sees
-    /// later writes through another descriptor.
     @Test func readOnlyViewsSeeLaterWrites() throws {
         let (rw, path) = temporaryFile(size: 0x4000, flags: O_RDWR)
         defer { close(rw); unlink(path) }

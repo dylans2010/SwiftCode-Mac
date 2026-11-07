@@ -1,20 +1,8 @@
-// The simulator host's setup script (#70), as text: SwiftCode sends it over ssh
-// (`bash -s` reads it from standard input, so nothing is left on the host),
-// or the user saves it and runs it by hand. It is idempotent and reports
-// only unless asked to apply; steps that need root are listed first and run
-// only with `--root`, through the user's own `sudo` in a terminal. Every
-// line it prints on standard output starts with `SWIFTCODE-` (`HostSetupOutput`
-// reads them). The KVM SVE probe is our own C program, written from the
-// mechanism in `docs/postmortem-kvm-sve.md` §5: it never builds or installs
-// a kernel.
-
 import Foundation
 
 public enum HostSetupScript {
-    /// The file name when saved.
     public static let fileName = "swiftcode-host-setup"
 
-    /// The script (bash).
     public static var text: String { script.replacingOccurrences(of: "@PROBE_SOURCE@", with: probeSource) }
 
     static let script = #"""
@@ -462,13 +450,6 @@ if [ "$failed" = 0 ]; then echo "SWIFTCODE-DONE pass"; else echo "SWIFTCODE-DONE
 exit 0
 """#
 
-    /// The probe, in C (arm64 Linux): VMM-style threads run a guest that
-    /// never touches FP/SIMD (it only writes to an unmapped address, a KVM
-    /// MMIO exit), set the SVE predicate p0 after each `KVM_RUN` returns,
-    /// spin without system calls (a preemption may come), then count p0's
-    /// active lanes. A kernel without the fix loses the predicates at a
-    /// preemption; a fixed one never does. Prints one line:
-    /// `runs=N lost=M threads=T seconds=S vl=B`, or `error=…`.
     public static let probeSource = #"""
 /* swiftcode-kvm-sve-probe: SwiftCode's own test, after docs/postmortem-kvm-sve.md §5. */
 #define _GNU_SOURCE

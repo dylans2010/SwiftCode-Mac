@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgCanvas.h"
 #include "tvgTaskScheduler.h"
 #include "tvgLoader.h"
@@ -36,34 +14,25 @@
     #include "tvgWgRenderer.h"
 #endif
 
-
-/************************************************************************/
-/* Canvas Class Implementation                                          */
-/************************************************************************/
-
 Canvas::Canvas():pImpl(new Impl)
 {
 }
-
 
 Canvas::~Canvas()
 {
     delete(pImpl);
 }
 
-
 const list<Paint*>& Canvas::paints() const noexcept
 {
     return pImpl->scene->paints();
 }
-
 
 Result Canvas::add(Paint* target, Paint* at) noexcept
 {
     if (target) return pImpl->add(target, at);
     return Result::InvalidArguments;
 }
-
 
 Result Canvas::draw(bool clear) noexcept
 {
@@ -74,7 +43,6 @@ Result Canvas::draw(bool clear) noexcept
     return ret;
 }
 
-
 Result Canvas::update() noexcept
 {
     TVGLOG("RENDERER", "Update S. ------------------------------ Canvas(%p)", this);
@@ -84,18 +52,15 @@ Result Canvas::update() noexcept
     return ret;
 }
 
-
 Result Canvas::remove(Paint* paint) noexcept
 {
     return pImpl->remove(paint);
 }
 
-
 Result Canvas::viewport(int32_t x, int32_t y, int32_t w, int32_t h) noexcept
 {
     return pImpl->viewport(x, y, w, h);
 }
-
 
 Result Canvas::sync() noexcept
 {
@@ -113,10 +78,6 @@ Result Canvas::dirtyRegions(Region* regions, uint32_t cnt) const noexcept
     return pImpl->dirtyRegions(regions, cnt);
 }
 
-/************************************************************************/
-/* SwCanvas Class Implementation                                        */
-/************************************************************************/
-
 SwCanvas::SwCanvas() = default;
 
 SwCanvas::~SwCanvas()
@@ -125,7 +86,6 @@ SwCanvas::~SwCanvas()
     SwRenderer::term();
 #endif
 }
-
 
 Result SwCanvas::target(uint32_t* buffer, uint32_t stride, uint32_t w, uint32_t h, ColorSpace cs) noexcept
 {
@@ -137,16 +97,14 @@ Result SwCanvas::target(uint32_t* buffer, uint32_t stride, uint32_t w, uint32_t 
 
     pImpl->vport = {0, 0, (int32_t)w, (int32_t)h};
     pImpl->renderer->viewport(pImpl->vport);
-    pImpl->status = Status::Damaged;  // Paints must be updated again with this new target.
+    pImpl->status = Status::Damaged;
 
-    //FIXME: The value must be associated with an individual canvas instance.
     BitmapLoader::cs = static_cast<ColorSpace>(cs);
 
     return Result::Success;
 #endif
     return Result::NonSupport;
 }
-
 
 SwCanvas* SwCanvas::gen(EngineOption op) noexcept
 {
@@ -163,11 +121,6 @@ SwCanvas* SwCanvas::gen(EngineOption op) noexcept
     return nullptr;
 }
 
-
-/************************************************************************/
-/* GlCanvas Class Implementation                                        */
-/************************************************************************/
-
 GlCanvas::GlCanvas() = default;
 
 GlCanvas::~GlCanvas()
@@ -176,7 +129,6 @@ GlCanvas::~GlCanvas()
     GlRenderer::term();
 #endif
 }
-
 
 Result GlCanvas::target(void* display, void* surface, void* context, int32_t id, uint32_t w, uint32_t h, ColorSpace cs) noexcept
 {
@@ -188,16 +140,14 @@ Result GlCanvas::target(void* display, void* surface, void* context, int32_t id,
 
     pImpl->vport = {0, 0, (int32_t)w, (int32_t)h};
     pImpl->renderer->viewport(pImpl->vport);
-    pImpl->status = Status::Damaged;  // Paints must be updated again with this new target.
+    pImpl->status = Status::Damaged;
 
-    //FIXME: The value must be associated with an individual canvas instance.
     BitmapLoader::cs = static_cast<ColorSpace>(cs);
 
     return Result::Success;
 #endif
     return Result::NonSupport;
 }
-
 
 GlCanvas* GlCanvas::gen(EngineOption op) noexcept
 {
@@ -216,11 +166,6 @@ GlCanvas* GlCanvas::gen(EngineOption op) noexcept
     TVGLOG("RENDERER", "GlCanvas is not supported");
     return nullptr;
 }
-
-
-/************************************************************************/
-/* WgCanvas Class Implementation                                        */
-/************************************************************************/
 
 WgCanvas::WgCanvas() = default;
 
@@ -248,9 +193,8 @@ Result WgCanvas::target(const Context& context, void* target, uint32_t w, uint32
 
     pImpl->vport = {0, 0, (int32_t)w, (int32_t)h};
     pImpl->renderer->viewport(pImpl->vport);
-    pImpl->status = Status::Damaged;  // Paints must be updated again with this new target.
+    pImpl->status = Status::Damaged;
 
-    //FIXME: The value must be associated with an individual canvas instance.
     BitmapLoader::cs = static_cast<ColorSpace>(cs);
 
     return Result::Success;

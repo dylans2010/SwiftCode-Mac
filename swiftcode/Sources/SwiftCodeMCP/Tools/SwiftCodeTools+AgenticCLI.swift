@@ -2,93 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy Agentic build-system CLI / container tool family
-/// (Wave 8, slice E).
-///
-/// Behaviour source: Legacy's `CocoaPodsTool`, `CarthageTool`,
-/// `AndroidBuildTool`, `GradleTool`, `NpmTool`, `PnpmTool`,
-/// `YarnTool`, `BunTool`, `CargoTool`, `GoBuildTool`,
-/// `PythonPipTool`, `JavaMavenTool`, `DotNetCLITool`,
-/// `FlutterTool`, `ReactNativeTool`, `ExpoTool`,
-/// `DockerBuildTool`, `DockerRunTool`, `DockerComposeTool`,
-/// `KubernetesApplyTool` and `ViewContainerLogsTool`
-/// (`SwiftCode/Tools/Agentic/`, Dylan's own code, ported under MIT).
-/// Each Legacy tool is a thin wrapper: one fixed binary, one fixed
-/// argument vector, stdout + stderr concatenated as the result.
-/// The Agentic registry (`ListTools.swift`) declares no capability,
-/// risk, or permission metadata for these tools, so none is ported
-/// for them.
-///
-/// Classification (checked against the 316 already-ported MCP tools
-/// and the `toolAliases` table in `MCPServer.swift`): all 21 are
-/// PORTED. None is already served and none is a duplicate: the
-/// nearest neighbours only inspect (`carthage_cartfile_inspector`,
-/// `podfile_inspector`, `build_system_detect`) or take a free-form
-/// command string (`use_terminal`, which requires a `command`
-/// parameter these tools do not have), so no alias is valid — an
-/// alias passes arguments through unchanged and `Schema.object`
-/// rejects unknown keys.
-///
-/// Conventions, following Waves 1–7:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim (same property
-///   names, same required lists), plus the `workspace` parameter
-///   every SwiftCode tool carries and short descriptions on the
-///   parameters (Legacy declares none). Descriptions are Legacy's
-///   verbatim. Structured data keeps Legacy's result shape — the
-///   command's stdout and stderr — in the `use_terminal` output
-///   keys (`command`, `workingDirectory`, `stdout`, `stderr`,
-///   `stdoutTruncated`, `stderrTruncated`, `exitCode`, `duration`).
-/// * Every command runs as a subprocess argument vector — never a
-///   shell — with stdin closed and the never-wait-for-a-person
-///   environment (`terminalEnvironment`), bounded at 300 s like
-///   `use_terminal`. The `action` argument is passed as a single
-///   argv element, so shell syntax inside it can never run; it is
-///   the CLI's own subcommand, not a command line.
-/// * Binaries resolve on `PATH` (`terminalResolveProgram`); a
-///   missing binary fails honestly with `use_terminal`'s
-///   "was not found" message, naming the binary — never invented
-///   output. Legacy's fixed `/usr/bin/...` / `/usr/local/bin/...`
-///   paths are not reproduced: those paths do not exist for most of
-///   these tools on a modern Mac (Homebrew installs to
-///   `/opt/homebrew/bin`), and `use_system` already set the
-///   resolve-on-`PATH` precedent for a fixed Legacy path that does
-///   not exist.
-/// * Paths are workspace-confined (`resolveFileReadingPath`): a
-///   `path` that names a working directory must exist and be a
-///   directory; a `path` that names a file (manifest, compose file)
-///   must exist and be a file. Legacy accepted any absolute path.
-/// * Approval, no Autopilot: every executing tool gates its run
-///   through `terminalApproveChange` before the subprocess starts,
-///   exactly like `use_terminal`. The one pure read,
-///   `view_container_logs` (`docker logs`), requests no approval
-///   and is registered `writes: false`, like `process_monitor_tool`.
-///   All other tools are `writes: true` with execution annotations
-///   (`readOnly: false, idempotent: false`), so the server-level
-///   gate refuses them in `readOnly` mode before the handler runs.
-/// * A non-zero exit is an error result carrying the structured
-///   data; a timeout is an error result carrying the partial data.
-///   The real CLI output is always reported, never invented.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `android_build`: Legacy ran system `gradle assembleDebug`.
-///   The port prefers the project's `gradlew` wrapper when an
-///   executable one exists in the project directory (the standard
-///   Android build entry point), falling back to `gradle` on `PATH`.
-/// * `docker_compose`: Legacy ran the `docker-compose` binary.
-///   The port prefers it, falling back to `docker compose`
-///   (the v2 subcommand) when only `docker` is on `PATH`.
-/// * `python_pip`: Legacy ran `pip`. The port falls back to `pip3`
-///   when `pip` is not on `PATH`.
-/// * `react_native` / `expo`: Legacy ran `npx react-native <action>`
-///   / `npx expo <action>`; the port resolves `npx` on `PATH`
-///   instead of Legacy's fixed `/usr/bin/npx`.
-/// * `docker_build`: Legacy passed the build-context path as the
-///   `docker build` context argument with no working directory. The
-///   port runs with the context directory as its working directory
-///   and passes `.` as the context, which is equivalent and keeps
-///   the context inside the workspace.
 extension SwiftCodeMCPHost {
     var agenticCLITools: [MCPTool] {
         let execution = MCPToolAnnotations(readOnly: false, idempotent: false)
@@ -269,16 +182,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared runner
 
-    /// Runs one fixed-argv CLI (`displayCommand` is the human form,
-    /// e.g. `npm install`), after the approval gate when `gate` is
-    /// true. Mirrors `use_terminal`'s result shape: full stdout in
-    /// the summary's first 2000 chars, structured stdout capped at
-    /// the last 3000 chars and stderr at the last 2000, exit code
-    /// and duration as data. A non-zero exit or a timeout is an
-    /// error result carrying the same data — the CLI's real output
-    /// is always reported, never invented.
     func agenticCLIExecute(_ call: MCPToolCall, session s: WorkspaceSession, displayCommand: String,
                            executable: String, args: [String], workingDirectory: URL, gate: Bool) async throws -> MCPToolResult {
         if gate {
@@ -317,8 +221,6 @@ extension SwiftCodeMCPHost {
                       structured: .object(data))
     }
 
-    /// Resolves the first `names` entry found executable on `PATH`
-    /// (or as a path), or `nil` when none resolves.
     nonisolated static func agenticCLIResolve(_ names: [String], workingDirectory: URL) -> String? {
         for name in names {
             if let found = terminalResolveProgram(name, workingDirectory: workingDirectory) { return found }
@@ -326,13 +228,10 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// `use_terminal`'s honest missing-binary failure for `program`.
     nonisolated static func agenticCLIMissingBinary(_ program: String) -> MCPToolError {
         MCPToolError("Process execution failed: command '\(program)' was not found (no executable on PATH or at that path).")
     }
 
-    /// A `path` argument naming a working directory: it must resolve
-    /// inside the workspace, exist, and be a directory.
     func agenticCLIWorkingDirectory(_ path: String, in s: WorkspaceSession) throws -> URL {
         let url = try resolveFileReadingPath(path, in: s)
         var isDir: ObjCBool = false
@@ -342,8 +241,6 @@ extension SwiftCodeMCPHost {
         return url
     }
 
-    /// A `path` argument naming a file: it must resolve inside the
-    /// workspace, exist, and not be a directory.
     func agenticCLIFile(_ path: String, in s: WorkspaceSession) throws -> URL {
         let url = try resolveFileReadingPath(path, in: s)
         var isDir: ObjCBool = false
@@ -353,11 +250,6 @@ extension SwiftCodeMCPHost {
         return url
     }
 
-    // MARK: - `action` + `path` tools
-
-    /// The shared shape of Legacy's one-argument CLI wrappers:
-    /// `<program> [prefix...] <action>` in the `path` directory.
-    /// Legacy's missing-argument message is kept verbatim.
     func agenticCLIActionPath(_ call: MCPToolCall, program: String, prefix: [String] = []) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let action = call.string("action"), let path = call.string("path") else {
@@ -372,10 +264,6 @@ extension SwiftCodeMCPHost {
                                            args: prefix + [action], workingDirectory: dir, gate: true)
     }
 
-    // MARK: - `android_build`
-
-    /// Legacy's `gradle assembleDebug`, preferring the project's
-    /// `gradlew` wrapper when an executable one exists.
     func agenticCLIAndroidBuild(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let path = call.string("path") else {
@@ -396,9 +284,6 @@ extension SwiftCodeMCPHost {
                                            workingDirectory: dir, gate: true)
     }
 
-    // MARK: - `go_build`
-
-    /// Legacy's `go build` in the project directory.
     func agenticCLIGoBuild(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let path = call.string("path") else {
@@ -413,11 +298,6 @@ extension SwiftCodeMCPHost {
                                            workingDirectory: dir, gate: true)
     }
 
-    // MARK: - `python_pip`
-
-    /// Legacy's `pip <action> <package>` in the workspace root
-    /// (Legacy ran with no working directory); `pip3` is the
-    /// fallback when `pip` is not on `PATH`.
     func agenticCLIPythonPip(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let action = call.string("action"), let package = call.string("package") else {
@@ -432,10 +312,6 @@ extension SwiftCodeMCPHost {
                                            args: [action, package], workingDirectory: root, gate: true)
     }
 
-    // MARK: - `docker_build`
-
-    /// Legacy's `docker build -t <tag> <path>`, run with the build
-    /// context as the working directory and `.` as the context.
     func agenticCLIDockerBuild(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let path = call.string("path"), let tag = call.string("tag") else {
@@ -450,10 +326,6 @@ extension SwiftCodeMCPHost {
                                            workingDirectory: dir, gate: true)
     }
 
-    // MARK: - `docker_run`
-
-    /// Legacy's `docker run <image>` in the workspace root (Legacy
-    /// ran with no working directory).
     func agenticCLIDockerRun(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let image = call.string("image") else {
@@ -468,11 +340,6 @@ extension SwiftCodeMCPHost {
                                            workingDirectory: root, gate: true)
     }
 
-    // MARK: - `docker_compose`
-
-    /// Legacy's `docker-compose -f <path> <action>`, falling back to
-    /// `docker compose -f <path> <action>` when only `docker` is on
-    /// `PATH`.
     func agenticCLIDockerCompose(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let path = call.string("path"), let action = call.string("action") else {
@@ -493,10 +360,6 @@ extension SwiftCodeMCPHost {
                                            workingDirectory: root, gate: true)
     }
 
-    // MARK: - `kubernetes_apply`
-
-    /// Legacy's `kubectl apply -f <path>` in the workspace root
-    /// (Legacy ran with no working directory).
     func agenticCLIKubernetesApply(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let path = call.string("path") else {
@@ -512,11 +375,6 @@ extension SwiftCodeMCPHost {
                                            workingDirectory: root, gate: true)
     }
 
-    // MARK: - `view_container_logs`
-
-    /// Legacy's `docker logs <containerID>` in the workspace root
-    /// (Legacy ran with no working directory). The one pure read in
-    /// this slice: no approval gate, `writes: false`.
     func agenticCLIViewContainerLogs(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let containerID = call.string("containerID") else {

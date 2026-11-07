@@ -2,104 +2,6 @@ import Foundation
 import SwiftCodeIDECore
 import SwiftCodeMachO
 
-/// The ported Legacy security / privacy / platform audit tool family (Wave 6, slice C).
-///
-/// Behaviour source: Legacy's `AssistSecurityAuditTool`,
-/// `AssistNetworkSecurityAuditorTool`, `AssistPermissionsAuditTool`,
-/// `AssistPrivacyManifestAuditorTool`, `AssistAccessibilityAuditTool`,
-/// `AssistAccessibilityAuditScannerTool`, `AssistAccessLevelAuditTool`,
-/// `AssistDependencyLicensesTool`, `AssistFrameworkLinkerAuditorTool`,
-/// `AssistMemoryLeakDetectorTool`, `AssistMachOBinaryAnalyzerTool`,
-/// `AssistCoreDataModelInspectorTool`,
-/// `AssistSwiftDataSchemaAuditorTool`, `AssistBundleResourceAuditorTool`,
-/// `AssistBinarySizeReportTool`, `AssistImageAssetSizeReportTool`,
-/// `AssistLicenseHeaderCheckTool` and `AssistSecretsScanTool` (Dylan's
-/// own code, ported under MIT), as specified in
-/// `specs/ide/assist-testing-audits.md`.
-///
-/// Conventions, following Waves 1–5:
-///
-/// * Tool IDs, names, descriptions and property descriptions are
-///   Legacy's verbatim. The array order is Legacy's
-///   `registerAllTools()` order. Legacy's parameter-name aliases
-///   (`filePath`, `file_path`, `required_text`, …) are NOT supported:
-///   SwiftCode's argument validation rejects unknown arguments before the
-///   handler runs (same as Waves 1–2).
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers and booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data return a plain text result instead.
-/// * Path resolution follows each Legacy tool's own resolver shape.
-///   Tools that in Legacy appended the raw path to the workspace root
-///   with no validation (`security_audit_scanner`,
-///   `memory_leak_detector`, `accessibility_audit_scanner`,
-///   `mach_o_binary_analyzer`, and the explicit path of
-///   `network_security_auditor` / `core_data_model_inspector`) use the
-///   session-aware `resolveFileReadingPath` (plain relative paths
-///   resolve against the `dir_cd` working directory; `..` that stays
-///   inside the workspace is allowed). Tools with Legacy's strict
-///   per-tool resolvers (`accessibility_audit`, `secrets_scan`,
-///   `access_level_audit`, `license_header_check`,
-///   `binary_size_report`) use `auditResolveStrictPath` below, which
-///   rejects any `..`, resolves plain relative paths against the
-///   workspace root (never the session directory), and requires an
-///   absolute path to lie under the root. No path is ever allowed to
-///   escape the workspace — Legacy's unguarded appends are confined,
-///   not reproduced.
-/// * Approval gating: `privacy_manifest_auditor` is the only writing
-///   tool in this family (Legacy `riskLevel` `safeMutation`; its
-///   `generate` action writes `PrivacyInfo.xcprivacy`). Its write goes
-///   through `commit()` (the Wave 1 helper); the `audit` action writes
-///   nothing and needs no approval. The other 17 tools are Legacy
-///   `safeRead` and are registered `writes: false` with the default
-///   read-only annotations. There is no Autopilot, no second gate, and
-///   no bypass of `MCPWritePolicy`.
-/// * `memory_leak_detector` is a static source scan in Legacy (retain
-///   cycles, strong-`self` captures, unowned hazards, non-weak
-///   delegates); it never ran Instruments or a live process, and the
-///   port does not either. Its findings are heuristics, as Legacy's
-///   messages say ("Potential retain cycle", "Retain cycle risk").
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `mach_o_binary_analyzer` does NOT shell out to `/usr/bin/file`
-///   and `xcrun otool` (macOS-only CLIs; `xcrun` does not exist on
-///   Linux). It parses the binary with SwiftCode's own `SwiftCodeMachO`
-///   target (`MachOFile` / `MachOImage`: fat containers, per-slice
-///   CPU type, file type, segments, linked dylibs with kind and
-///   versions, install name, UUID, build version, rpaths, code
-///   signature, encryption flag) and reports that instead of the
-///   `file` / `otool -L` output text. A file that is not a Mach-O, or
-///   a 32-bit Mach-O (`MachOImage` parses 64-bit images only), fails
-///   honestly with the parser's message instead of reporting
-///   fabricated architectures. The `binaryPath` parameter name is
-///   kept verbatim (it is the only tool in this family whose Legacy
-///   parameter is not called `path`).
-/// * `framework_linker_auditor`, `swift_data_schema_auditor` and
-///   `bundle_resource_auditor` declare an optional `path` parameter
-///   in Legacy but never read it — they always scan the workspace
-///   root. The port keeps the parameter in the schema and likewise
-///   ignores it.
-/// * `dependency_licenses` is Legacy capability `repositoryDiscovery`
-///   (the only non-`diagnostics` tool here); SwiftCode's `MCPTool` has no
-///   capability field, so the distinction is recorded in the spec
-///   only.
-/// * `accessibility_audit`'s findings are sorted (Legacy appended
-///   them in enumeration order); `core_data_model_inspector`'s
-///   entities are reported in name order (Legacy iterated a
-///   dictionary). Both changes make output deterministic; the
-///   finding text itself is unchanged.
-/// * `permissions_audit`'s workspace scan uses Legacy's exact skip
-///   set (`.git`, `DerivedData`, `.build`, `Pods`, `node_modules`,
-///   `.swiftpm`, `Carthage`, `vendor`); the other whole-workspace
-///   scans use SwiftCode's shared `SearchWorkspace` skip set where Legacy
-///   used `AssistWorkspaceScan`, as Waves 3–4 do.
-/// * `secrets_scan` never outputs a matched secret value or a source
-///   line — findings are `file:line:pattern-label` only, exactly as
-///   Legacy does. The `accessibility_audit` / `secrets_scan` /
-///   `access_level_audit` / `license_header_check` /
-///   `binary_size_report` strict resolvers reject `..` as text, as
-///   Legacy's do.
 extension SwiftCodeMCPHost {
     var auditTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -237,7 +139,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Memory leaks, security, bundle resources, data models, privacy
 
     func auditMemoryLeaks(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -267,16 +168,13 @@ extension SwiftCodeMCPHost {
             for (idx, line) in lines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.hasPrefix("//") { continue }
-                // 1. Strong self capture in escaping closure.
                 if (trimmed.contains(".sink") || trimmed.contains("Task {") || trimmed.contains("DispatchQueue."))
                     && trimmed.contains("self.") && !trimmed.contains("[weak self]") && !trimmed.contains("[unowned self]") {
                     findings.append("\(relPath):\(idx + 1) Potential retain cycle: escaping closure captures strong 'self'. Consider adding '[weak self]'.")
                 }
-                // 2. Unowned self hazard in async / network call.
                 if trimmed.contains("[unowned self]") && (trimmed.contains("async") || trimmed.contains("await") || trimmed.contains("URLSession")) {
                     findings.append("\(relPath):\(idx + 1) Memory crash hazard: '[unowned self]' used in asynchronous or network context. Use '[weak self]' instead.")
                 }
-                // 3. Delegate property declared without 'weak'.
                 if (trimmed.hasPrefix("var delegate:") || trimmed.hasPrefix("public var delegate:") || trimmed.hasPrefix("weak var delegate:"))
                     && !trimmed.contains("weak ") {
                     findings.append("\(relPath):\(idx + 1) Retain cycle risk: Delegate property should be declared 'weak var delegate'.")
@@ -318,17 +216,14 @@ extension SwiftCodeMCPHost {
             for (idx, line) in lines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.hasPrefix("//") { continue }
-                // 1. Plain HTTP URLs (ATS violation).
                 if trimmed.contains("\"http://") && !trimmed.contains("localhost") && !trimmed.contains("127.0.0.1") {
                     findings.append("\(relPath):\(idx + 1) [ATS] Insecure plaintext HTTP URL detected: '\(trimmed)'. Upgrade to HTTPS.")
                 }
-                // 2. Hardcoded secret / token patterns.
                 let lower = trimmed.lowercased()
                 if (lower.contains("api_key = \"") || lower.contains("apikey = \"") || lower.contains("secret = \"") || lower.contains("password = \""))
                     && !trimmed.contains("\"\"") {
                     findings.append("\(relPath):\(idx + 1) [Credential] Potential hardcoded credential or secret assignment. Use Keychain or Environment variables.")
                 }
-                // 3. Sensitive logging.
                 if trimmed.contains("print(\"token") || trimmed.contains("print(\"password") || trimmed.contains("print(\"apiKey") {
                     findings.append("\(relPath):\(idx + 1) [Privacy] Sensitive credential leaked into debug console print statement.")
                 }
@@ -342,8 +237,6 @@ extension SwiftCodeMCPHost {
     }
 
     func auditBundleResources(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Legacy declares `path` but never reads it: the workspace root
-        // is always scanned.
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
         var assetCatalogs: [String] = []
@@ -362,7 +255,6 @@ extension SwiftCodeMCPHost {
             } else if ["ttf", "otf"].contains(fileURL.pathExtension.lowercased()) {
                 fontFiles.append(rel)
             }
-            // Check if Contents.json has missing image files.
             if fileURL.lastPathComponent == "Contents.json" && rel.contains(".imageset") {
                 if let data = try? Data(contentsOf: fileURL),
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -413,7 +305,6 @@ extension SwiftCodeMCPHost {
         guard let modelURL = modelDirURL, FileManager.default.fileExists(atPath: modelURL.path) else {
             return .text("No .xcdatamodeld Core Data models found in the workspace.")
         }
-        // Find contents file inside the current version.
         var contentsURL: URL?
         if let subitems = try? FileManager.default.contentsOfDirectory(at: modelURL, includingPropertiesForKeys: nil) {
             for sub in subitems {
@@ -429,7 +320,6 @@ extension SwiftCodeMCPHost {
         guard let contents = contentsURL, let xmlString = try? String(contentsOf: contents, encoding: .utf8) else {
             return .text("Found model at \(modelURL.lastPathComponent), but contents XML was unreadable.")
         }
-        // Simple XML attribute and entity parsing.
         var entities: [String: [String]] = [:]
         let entityRegex = try? NSRegularExpression(pattern: #"<entity name="([^"]+)""#, options: [])
         let attributeRegex = try? NSRegularExpression(pattern: #"<attribute name="([^"]+)"[^>]*attributeType="([^"]+)""#, options: [])
@@ -446,8 +336,6 @@ extension SwiftCodeMCPHost {
                 entities[currentEntity, default: []].append("\(attrName): \(attrType)")
             }
         }
-        // Entities are reported in name order (Legacy iterated a
-        // dictionary); the per-entity text is Legacy's.
         var report = "### Core Data Model: `\(modelURL.lastPathComponent)` (\(entities.count) entities):\n\n"
         for (name, attrs) in entities.sorted(by: { $0.key < $1.key }) {
             report += "#### Entity `\(name)`:\n"
@@ -464,8 +352,6 @@ extension SwiftCodeMCPHost {
     }
 
     func auditSwiftDataSchema(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Legacy declares `path` but never reads it: the workspace root
-        // is always scanned.
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
         var models: [(name: String, file: String, line: Int, properties: [String])] = []
@@ -537,7 +423,6 @@ extension SwiftCodeMCPHost {
                              call: call, session: s)
             return .text("Successfully generated compliant PrivacyInfo.xcprivacy at workspace root.")
         }
-        // Action: audit (any action other than 'generate' audits, as in Legacy).
         var userDefaultsUsage = 0
         var fileTimestampUsage = 0
         var diskSpaceUsage = 0
@@ -570,7 +455,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Mach-O, frameworks, network security, accessibility scanner, headers, access levels
 
     func auditMachOBinary(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -579,10 +463,6 @@ extension SwiftCodeMCPHost {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MCPToolError("Binary file not found at: \(url.path)")
         }
-        // Legacy shelled out to `/usr/bin/file` and `xcrun otool -L`
-        // (macOS-only). The port parses the binary with SwiftCode's own
-        // `SwiftCodeMachO` target instead; a file that is not a Mach-O, or
-        // a 32-bit Mach-O, fails honestly with the parser's message.
         let file: MachOFile
         do {
             file = try MachOFile(contentsOf: url)
@@ -636,8 +516,6 @@ extension SwiftCodeMCPHost {
     }
 
     func auditFrameworkLinker(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Legacy declares `path` but never reads it: the workspace is
-        // always searched for project.pbxproj.
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
         var pbxURL: URL?
@@ -743,15 +621,12 @@ extension SwiftCodeMCPHost {
             let lines = content.components(separatedBy: .newlines)
             for (idx, line) in lines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                // Check for Image(systemName: ...) without accessibilityLabel.
                 if trimmed.contains("Image(systemName:") && !trimmed.contains("accessibilityLabel") && !trimmed.contains("accessibilityHidden") {
-                    // Check next few lines to see if modifier is chained.
                     let nextSnippet = lines.dropFirst(idx).prefix(4).joined(separator: "\n")
                     if !nextSnippet.contains(".accessibilityLabel") && !nextSnippet.contains(".accessibilityHidden") {
                         warnings.append("`\(rel):\(idx + 1)`: SF Symbol Image has no explicit `.accessibilityLabel` or `.accessibilityHidden(true)`.")
                     }
                 }
-                // Check for Button with empty string or plain image label.
                 if trimmed.hasPrefix("Button(\"\")") || trimmed.hasPrefix("Button(\" \")") {
                     warnings.append("`\(rel):\(idx + 1)`: Button with empty label has no VoiceOver text description.")
                 }
@@ -774,9 +649,6 @@ extension SwiftCodeMCPHost {
         guard let root = auditResolveStrictPath(call.string("path"), in: s) else {
             throw MCPToolError("Invalid path: path must stay inside the workspace and must not contain '..'.")
         }
-        // Legacy also accepts the `required_text` alias; SwiftCode's
-        // argument validation rejects unknown arguments, so only
-        // `requiredText` is accepted here.
         let rawRequired = call.arguments["requiredText"]?.string
         let requiredText = (rawRequired?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? "Copyright"
         let files = Self.auditEnumerateSwiftFiles(at: root)
@@ -859,7 +731,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Binary sizes, image assets, secrets, permissions, accessibility, licenses
 
     func auditBinarySizes(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -979,7 +850,6 @@ extension SwiftCodeMCPHost {
                 for entry in compiled {
                     let range = NSRange(line.startIndex..<line.endIndex, in: line)
                     if entry.regex.firstMatch(in: line, options: [], range: range) != nil {
-                        // NEVER include the matched value or the line content.
                         let finding = "\(relative):\(index + 1):\(entry.label)"
                         if !seen.contains(finding) {
                             seen.insert(finding)
@@ -1045,7 +915,6 @@ extension SwiftCodeMCPHost {
                 }
             }
         }
-        // Heuristic: API usage in Swift files that normally needs a usage description.
         let checks: [(marker: String, requiredKey: String)] = [
             (marker: "AVCaptureDevice", requiredKey: "NSCameraUsageDescription"),
             (marker: "CLLocationManager", requiredKey: "NSLocationWhenInUseUsageDescription"),
@@ -1068,7 +937,6 @@ extension SwiftCodeMCPHost {
                 }
             }
             if !usedIn.isEmpty && !usageSet.contains(check.requiredKey) {
-                // Location also accepts the Always key as an alternative.
                 if check.requiredKey == "NSLocationWhenInUseUsageDescription" && usageSet.contains("NSLocationAlwaysUsageDescription") {
                     continue
                 }
@@ -1166,15 +1034,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared helpers for the audit tools
 
-    /// The strict per-tool resolver (Legacy's per-tool `resolvePath` /
-    /// `resolveInsideWorkspace` shape): a missing or blank path is the
-    /// workspace root; any `..` component is rejected; a leading-`/`
-    /// path is used as an absolute filesystem path and must lie under
-    /// the root; a relative path resolves against the workspace root,
-    /// never the session working directory. Returns `nil` on any
-    /// violation and the caller reports its own Legacy message.
     func auditResolveStrictPath(_ raw: String?, in s: WorkspaceSession) -> URL? {
         let root = Self.folder(of: s.model).standardizedFileURL
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return root }
@@ -1189,10 +1049,6 @@ extension SwiftCodeMCPHost {
         return candidate
     }
 
-    /// Legacy `AssistPermissionsAuditTool.listAllFiles`: every file
-    /// under `root`, skipping hidden files and the `.git`,
-    /// `DerivedData`, `.build`, `Pods`, `node_modules`, `.swiftpm`,
-    /// `Carthage`, `vendor` directories, sorted by path.
     nonisolated static func auditListAllFiles(under root: URL) -> [URL] {
         var found: [URL] = []
         let skipped = Set([".git", "DerivedData", ".build", "Pods", "node_modules", ".swiftpm", "Carthage", "vendor"])
@@ -1213,11 +1069,6 @@ extension SwiftCodeMCPHost {
         return found.sorted(by: { $0.path < $1.path })
     }
 
-    /// Legacy `AssistAccessibilityAuditTool.listSwiftFiles`: Swift
-    /// files under `root` (a single file root yields itself when it is
-    /// Swift), skipping hidden files and the `.git`, `DerivedData`,
-    /// `.build`, `Pods`, `node_modules`, `.swiftpm`, `Carthage`,
-    /// `vendor` directories, sorted by path.
     nonisolated static func auditListSwiftFiles(under root: URL) -> [URL] {
         var found: [URL] = []
         let skipped = Set([".git", "DerivedData", ".build", "Pods", "node_modules", ".swiftpm", "Carthage", "vendor"])
@@ -1244,12 +1095,6 @@ extension SwiftCodeMCPHost {
         return found.sorted(by: { $0.path < $1.path })
     }
 
-    /// Legacy `AssistAccessLevelAuditTool` / `AssistLicenseHeaderCheckTool`
-    /// `enumerateSwiftFiles`: Swift files under `root` at most 300 KB
-    /// each, at most 5000 files, skipping the `.git`, `DerivedData`,
-    /// `.build`, `Pods`, `node_modules` directories, sorted by path.
-    /// Hidden files are NOT skipped (Legacy passes no enumerator
-    /// options here).
     nonisolated static func auditEnumerateSwiftFiles(at root: URL) -> [URL] {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir) else { return [] }
@@ -1280,12 +1125,6 @@ extension SwiftCodeMCPHost {
         return results.sorted { $0.path < $1.path }
     }
 
-    /// Legacy `AssistSecretsScanTool.listScannableFiles`: every file
-    /// under `root` except binary-extension files, skipping the `.git`,
-    /// `DerivedData`, `.build`, `Pods`, `node_modules`, `.swiftpm`,
-    /// `Carthage`, `vendor`, `.doccarchive` directories. Hidden files
-    /// are NOT skipped (Legacy passes no enumerator options here). A
-    /// single-file root yields itself regardless of extension.
     nonisolated static func auditListScannableFiles(under root: URL) -> [URL] {
         var found: [URL] = []
         let skippedDirs = Set([".git", "DerivedData", ".build", "Pods", "node_modules", ".swiftpm", "Carthage", "vendor", ".doccarchive"])
@@ -1311,8 +1150,6 @@ extension SwiftCodeMCPHost {
         return found.sorted(by: { $0.path < $1.path })
     }
 
-    /// Workspace-relative display path (`"."` for the root itself),
-    /// as Legacy's per-tool `relativePath` helpers compute it.
     nonisolated static func auditRelativePath(_ url: URL, root: URL) -> String {
         let rootPath = root.standardized.path
         let path = url.standardized.path
@@ -1323,8 +1160,6 @@ extension SwiftCodeMCPHost {
         return url.lastPathComponent
     }
 
-    /// A plist file as a top-level dictionary, or `nil` when it cannot
-    /// be read or is not a dictionary (Legacy's `readPlist`).
     nonisolated static func auditReadPlist(at url: URL) -> [String: Any]? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         var format = PropertyListSerialization.PropertyListFormat.xml
@@ -1334,9 +1169,6 @@ extension SwiftCodeMCPHost {
         return plist
     }
 
-    /// A simple Markdown table (`| A | B |` with a `---` separator
-    /// row), the shape Legacy's `AssistTextFormat.markdownTable`
-    /// renders for `dependency_licenses`.
     nonisolated static func auditMarkdownTable(headers: [String], rows: [[String]]) -> String {
         var lines: [String] = []
         lines.append("| " + headers.joined(separator: " | ") + " |")
@@ -1350,7 +1182,6 @@ extension SwiftCodeMCPHost {
         return lines.joined(separator: "\n")
     }
 
-    /// Legacy `AssistBinarySizeReportTool.formatBytes`.
     nonisolated static func auditFormatBytes(_ bytes: Int64) -> String {
         let value = Double(bytes)
         if value >= 1_048_576 {
@@ -1362,14 +1193,10 @@ extension SwiftCodeMCPHost {
         return "\(bytes) bytes"
     }
 
-    /// A file's size in bytes (0 when it cannot be read), as Legacy's
-    /// `AssistWorkspaceScan.fileSize` reports it.
     nonisolated static func auditFileSize(of url: URL) -> Int64 {
         Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
     }
 
-    /// `.app` bundles under `root`, never descending into
-    /// `DerivedData` (or `.git`), as Legacy's `findAppBundles` does.
     nonisolated static func auditFindAppBundles(under root: URL) -> [URL] {
         var results: [URL] = []
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey],
@@ -1388,7 +1215,6 @@ extension SwiftCodeMCPHost {
         return results
     }
 
-    /// Regular files inside an `.app` bundle with their sizes.
     nonisolated static func auditSizedFiles(in app: URL) -> [(url: URL, size: Int64)] {
         var results: [(url: URL, size: Int64)] = []
         guard let enumerator = FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
@@ -1403,11 +1229,6 @@ extension SwiftCodeMCPHost {
         return results
     }
 
-    /// Legacy `AssistAccessibilityAuditTool.auditFile`: the per-file
-    /// heuristic — a `Button(`/`Image(` with no accessibility modifier
-    /// within 10 / 5 following lines, a `TextField(` with an empty
-    /// label, and a red/green/orange `foregroundColor` with no
-    /// accessibility modifier.
     nonisolated static func auditAccessibilityFindings(content: String, relativePath: String) -> [String] {
         let lines = content.components(separatedBy: .newlines)
         var findings: [String] = []
@@ -1467,10 +1288,6 @@ extension SwiftCodeMCPHost {
         return findings
     }
 
-    /// Legacy `AssistAccessLevelAuditTool.accessLevel`: public/open
-    /// take precedence over fileprivate/private; anything else is the
-    /// default internal level. `private(set)` still counts as private
-    /// only when no higher keyword is present.
     nonisolated static func auditAccessLevel(of line: String) -> String {
         if auditContainsWord(line, "public") { return "public" }
         if auditContainsWord(line, "open") { return "open" }
@@ -1485,10 +1302,6 @@ extension SwiftCodeMCPHost {
         return regex.firstMatch(in: line, options: [], range: range) != nil
     }
 
-    /// Legacy's `PrivacyInfo.xcprivacy` scaffold template, verbatim:
-    /// tracking off, no tracking domains, no collected data types, and
-    /// the UserDefaults (`CA92.1`) and File Timestamp (`C617.1`)
-    /// required-reason categories.
     nonisolated static let auditPrivacyManifestTemplate = """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

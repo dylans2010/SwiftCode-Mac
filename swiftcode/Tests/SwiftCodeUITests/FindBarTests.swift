@@ -25,13 +25,11 @@ import Testing
         #expect(!ed.textView.segmentRects(sel).isEmpty)
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "editor-find-bar.png")
 
-        // ⌘E: the selection becomes the query.
         let g = (ed.text as NSString).range(of: "Greeter")
         ed.textView.setSelectedRange(g)
         ed.performFind(tag: 7)
         #expect(ed.findBar.queryField.stringValue == "Greeter" && ed.find.matches.count == 2)
 
-        // Find and Replace.
         ed.performFind(tag: 12)
         ed.setFind("Greeter", replacement: "Welcomer")
         ed.replaceAll()

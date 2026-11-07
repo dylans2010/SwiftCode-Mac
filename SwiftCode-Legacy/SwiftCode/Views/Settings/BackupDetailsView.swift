@@ -27,7 +27,6 @@ struct BackupDetailsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // MARK: - Section 1: Detailed Metadata
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
@@ -84,8 +83,6 @@ struct BackupDetailsView: View {
                     .padding()
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
-
-                // MARK: - Section 2: Integrity & Verification
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -144,8 +141,6 @@ struct BackupDetailsView: View {
                     .padding()
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
-
-                // MARK: - Section 3: Recovery & Destruction Actions
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -210,8 +205,6 @@ struct BackupDetailsView: View {
             }
         }
     }
-
-    // MARK: - Integrity Verification
 
     private func testIntegrity() {
         isTestingIntegrity = true
@@ -315,8 +308,6 @@ struct BackupDetailsView: View {
         }
     }
 
-    // MARK: - Restore
-
     private func performRestore() {
         let alert = NSAlert()
         alert.messageText = "Restore Application State?"
@@ -366,8 +357,6 @@ struct BackupDetailsView: View {
         }
     }
 
-    // MARK: - Delete
-
     private func confirmDelete() {
         let alert = NSAlert()
         alert.messageText = "Delete Backup Snapshot?"
@@ -409,8 +398,6 @@ struct BackupDetailsView: View {
         }
     }
 }
-
-// MARK: - Subview Metadata Row Helper
 
 struct DetailRow: View {
     let label: String

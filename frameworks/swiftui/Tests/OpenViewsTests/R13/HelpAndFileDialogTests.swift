@@ -9,13 +9,8 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R13: tooltips (`help`), `toolbar(removing: .sidebarToggle)` and the
-// empty column bar, the file dialogs (`fileImporter`, `fileExporter`) and
-// OpenViews' `UTType`.
-
 @MainActor
 extension CommandsHarness {
-    /// The frame of the accessibility element with this identifier.
     func identified(_ id: String) -> CGRect? {
         AccessibilityTree.build(main).flattened.first { $0.identifier == id }?.frame
     }
@@ -29,7 +24,6 @@ extension CommandsHarness {
     }
 }
 
-/// A scratch folder: A.swift, notes.txt, Demo.xcodeproj/, Sub/B.swift, .hidden.
 func makeDialogFolder() throws -> URL {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("ov-r13-dialog-\(UUID().uuidString)")
     let fm = FileManager.default
@@ -114,17 +108,13 @@ struct HelpAndFileDialogTests {
         #expect(h.textFrame("Build the scheme") == nil)
         h.run(until: 2.0)
         guard let tip = h.textFrame("Build the scheme") else { Issue.record("no tooltip"); return }
-        // Under the pointer.
         #expect(tip.minY > build.midY && tip.minX >= build.midX - 1)
-        // Leaving hides it; the next view with help shows its tip at once.
         h.hover(CGPoint(x: clean.midX, y: clean.midY), at: 2.1)
         h.run(until: 2.15)
         #expect(h.textFrame("Build the scheme") == nil)
         #expect(h.textFrame("Remove the build products") != nil)
-        // A press hides it.
         h.click(CGPoint(x: clean.midX, y: clean.midY), at: 2.3)
         #expect(h.textFrame("Remove the build products") == nil)
-        // The help text is the accessibility hint.
         let tree = AccessibilityTree.build(h.main)
         #expect(tree.flattened.first { $0.label == "Build" }?.hint == "Build the scheme")
     }
@@ -145,7 +135,7 @@ struct HelpAndFileDialogTests {
             return
         }
         #expect(tip.maxX <= 800 && tip.maxY <= 500)
-        #expect(tip.maxY <= edge.midY)   // above the pointer: no room below
+        #expect(tip.maxY <= edge.midY)
     }
 
     struct Split: View {
@@ -164,11 +154,7 @@ struct HelpAndFileDialogTests {
         let with = CommandsHarness(menuBar: false, desktop: true) { Split(removed: false) }
         let without = CommandsHarness(menuBar: false, desktop: true) { Split(removed: true) }
         guard let a = with.textFrame("Side"), let b = without.textFrame("Side") else { Issue.record("columns"); return }
-        // The toggle's 44-point bar is gone.
-        #expect(a.minY - b.minY > 20)   // (the content is centred in its column)
-        // The split view settles: its toolbar registration does not
-        // re-evaluate the column's bar in a loop (the update ran into the
-        // pass limit on desktop hosts before R13).
+        #expect(a.minY - b.minY > 20)
         #expect(with.main.graph.passCount < 20 && without.main.graph.passCount < 20)
         var buttons = 0
         without.main.graph.root?.forEachNode { n in
@@ -197,7 +183,7 @@ struct HelpAndFileDialogTests {
         #expect(m.entries.map(\.name) == ["A.swift", "Demo.xcodeproj", "notes.txt", "Sub"])
         #expect(m.entries.map(\.isAllowed) == [true, true, false, false])
         #expect(m.entries.map(\.isFolder) == [false, false, false, true])
-        #expect(m.choice == nil)                      // nothing selected, folders not allowed
+        #expect(m.choice == nil)
         m.selection = [root.appendingPathComponent("notes.txt")]
         #expect(!m.canConfirm)
         m.selection = [root.appendingPathComponent("Sub")]
@@ -212,7 +198,6 @@ struct HelpAndFileDialogTests {
         #expect(m.goToPath() == nil && m.folder.lastPathComponent == "Sub")
         m.goTo = "/does/not/exist"
         #expect(m.goToPath() == nil && m.error != nil)
-        // A folder importer chooses the shown folder with nothing selected.
         let f = FilePanelModel(mode: .open(types: [.folder], multiple: false), start: root)
         #expect(f.choice?.map(\.path) == [FilePanelModel.normalized(root).path])
         #expect(f.entries.first { $0.name == "Sub" }?.isAllowed == true)
@@ -226,7 +211,6 @@ struct HelpAndFileDialogTests {
         h.run(until: 1.0)
         #expect(h.textFrame("A.swift") != nil && h.textFrame("Sub") != nil)
         #expect(h.textFrame(".hidden") == nil)
-        // A double click opens a folder.
         guard let sub = h.textFrame("Sub") else { return }
         h.click(CGPoint(x: sub.midX, y: sub.midY), at: 1.2)
         h.click(CGPoint(x: sub.midX, y: sub.midY), at: 1.3)
@@ -234,14 +218,12 @@ struct HelpAndFileDialogTests {
         #expect(h.textFrame("B.swift") != nil)
         h.click(identified: "file dialog up", at: 1.7)
         h.run(until: 1.9)
-        // A click selects, the confirm button chooses.
         guard let a = h.textFrame("A.swift") else { Issue.record("A.swift"); return }
         h.click(CGPoint(x: a.midX, y: a.midY), at: 2.0)
-        // At once (a double click waiting on the row does not hold the press).
         h.click(identified: "file dialog confirm", at: 2.2)
         h.run(until: 3.0)
         #expect(log.results == ["A.swift"])
-        #expect(h.textFrame("A.swift") == nil)       // dismissed
+        #expect(h.textFrame("A.swift") == nil)
     }
 
     @Test func theImporterCancelsWithEscape() throws {
@@ -266,7 +248,6 @@ struct HelpAndFileDialogTests {
         h.run(until: 2.0)
         #expect(log.results == ["Summary.txt"])
         #expect((try? String(contentsOf: root.appendingPathComponent("Summary.txt"), encoding: .utf8)) == "hello")
-        // Saving over notes.txt asks first.
         let m = FilePanelModel(mode: .save(type: .plainText, defaultName: "notes", write: { _ in }), start: root)
         #expect(m.name == "notes.txt")
         #expect(m.confirm() == nil && m.confirmReplace?.lastPathComponent == "notes.txt")

@@ -1,11 +1,3 @@
-//
-//  MetaAssistProvider.swift
-//  SwiftCode
-//
-//  "Assist with Meta" provider implementation powered by Muse Code SDK.
-//  Public UI identity is strictly "Assist with Meta".
-//
-
 import Foundation
 import os
 
@@ -72,7 +64,6 @@ public final class MetaAssistProvider: Sendable {
         self.activeSessionID = id
     }
 
-    /// Fetches live Meta models catalog from the MSP host via `model/list`.
     public func fetchModels() async throws -> [MetaModelItem] {
         let bridge = MuseCodeMSPBridge.shared
         if !bridge.isRunning {
@@ -162,7 +153,6 @@ public final class MetaAssistProvider: Sendable {
         ]
     }
 
-    /// Returns available models for "Assist with Meta".
     public func discoverModels() async -> [AssistAvailableModel] {
         let isConfigured = MuseCodeCLIHelper.shared.isInstalled()
         let hasCreds = await MuseCodeCLIHelper.shared.checkCredentials()
@@ -197,8 +187,6 @@ public final class MetaAssistProvider: Sendable {
         }
     }
 
-    /// Normalizes incoming tool identifiers by stripping "Muse." / "muse." namespaces
-    /// and mapping synonyms to canonical SwiftCode system tools.
     public static func normalizeToolName(_ name: String?) -> String {
         guard let name = name, !name.isEmpty else { return "system_tool" }
         var cleaned = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -231,7 +219,6 @@ public final class MetaAssistProvider: Sendable {
         return cleaned
     }
 
-    /// Initializes host session and executes prompt turn streaming text output back.
     public func executeTurn(
         prompt: String,
         history: [AssistMessage] = [],
@@ -263,7 +250,6 @@ public final class MetaAssistProvider: Sendable {
         let isInstalled = MuseCodeCLIHelper.shared.isInstalled()
         if !isInstalled {
             if isOtherActive {
-                // If CLI is not present on developer's machine, execute directly via MuseOtherModelsBridge
                 try await MuseOtherModelsBridge.shared.executeTurn(
                     prompt: prompt,
                     history: history,
@@ -288,7 +274,6 @@ public final class MetaAssistProvider: Sendable {
         let bridge = MuseCodeMSPBridge.shared
         try await bridge.startHost(workspaceRoot: workspaceRoot, baseURL: hostBaseURL)
 
-        // 1. Ensure SystemIndex is ready and retrieve canonical System Assets instructions
         await SystemIndexService.shared.ensureReady()
         let baselinePrompt = SystemIndexService.shared.baselinePrompt()
         let selectedModel = AppSettings.shared.metaAssistModelID.isEmpty ? Self.defaultModelID : AppSettings.shared.metaAssistModelID
@@ -302,9 +287,6 @@ public final class MetaAssistProvider: Sendable {
         let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
         let retrievedInstructions = instructionRetrieval.formattedForPrompt()
 
-        // 2. SwiftCode Native Tool Infrastructure Directive:
-        // Always enforce SwiftCode's native system tool infrastructure for execution,
-        // argument validation, path safety, and error handling across all model providers.
         let systemTools = AssistManager.shared.registry.allTools
         let toolSpecs = systemTools.map { tool in
             var spec = "- \(tool.id): \(tool.description)"
@@ -377,7 +359,6 @@ public final class MetaAssistProvider: Sendable {
         }
         fullPromptParts.append(toolkitDirective)
 
-        // Previous Conversation Memory for Muse
         let filteredHistory = history.filter {
             let t = $0.content.trimmingCharacters(in: .whitespacesAndNewlines)
             return !t.isEmpty && t != prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -451,7 +432,6 @@ public final class MetaAssistProvider: Sendable {
                     let kind = currentItem?.kind ?? ""
 
                     if field == "output" || kind == "toolCall" || kind == "userShell" {
-                        // Tool stdout / stderr — DO NOT dump to chat text!
                         if let id = itemId {
                             tracker.items[id]?.output.append(delta)
                         }
@@ -462,10 +442,8 @@ public final class MetaAssistProvider: Sendable {
                             }
                         }
                     } else if field?.hasPrefix("summary") == true || kind == "reasoning" {
-                        // Model thinking / reasoning stream
                         onThinkingDelta?(delta)
                     } else if field == "text" || field == nil || kind == "agentMessage" {
-                        // Actual assistant response text destined for user chat
                         onTextDelta(delta)
                     }
                 } else if method == "item/completed" {
@@ -501,9 +479,7 @@ public final class MetaAssistProvider: Sendable {
                             AssistManager.shared.finalizeCurrentThinkingDuration(elapsed)
                         }
                     } else if kind == "agentMessage" {
-                        // Authoritative message completion: "Deltas are for drawing, item/completed is the truth."
                         if let authoritativeText = item["text"] as? String, !authoritativeText.isEmpty {
-                            // The complete text is verified authoritative on item/completed
                             _ = authoritativeText
                         }
                     }
@@ -516,7 +492,6 @@ public final class MetaAssistProvider: Sendable {
                     hasResumed = true
                     continuation.resume(returning: ())
                 } else if method == "turn/unqueued" {
-                    // Turn was unqueued / reclaimed before running — settles cleanly without turn/completed
                     let unqueuedTurnId = params["turnId"] as? String
                     if unqueuedTurnId == self.activeTurnID {
                         guard !hasResumed else { return }
@@ -539,8 +514,6 @@ public final class MetaAssistProvider: Sendable {
                         let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
                         let isAutopilot = (ExecutionMode(rawValue: executionModeRaw) ?? .autopilot) == .autopilot
                         let isAllowed = isAutopilot ? true : permissionsManager.authorizeOperation(action)
-                        // Muse SDK approval choices: "allow_once", "allow_session", or "abort"
-                        // On Autopilot, approval is bypassed completely at system level!
                         let choice = isAllowed ? "allow_once" : "abort"
 
                         Task { @MainActor in
@@ -554,7 +527,6 @@ public final class MetaAssistProvider: Sendable {
                         }
                     }
                 } else if method == "approval/resolved" {
-                    // Durable policy result notification (policyResult: "allow" | "deny")
                     let decision = params["decision"] as? String ?? ""
                     let policyResult = params["policyResult"] as? String ?? ""
                     _ = (decision, policyResult)
@@ -563,7 +535,6 @@ public final class MetaAssistProvider: Sendable {
 
             Task { @MainActor in
                 do {
-                    // 1. Initialize & handshake ONLY ONCE across the lifetime of the bridge
                     if !bridge.isInitialized {
                         _ = try await bridge.sendCommand(method: "initialize", params: [
                             "clientInfo": [
@@ -576,10 +547,8 @@ public final class MetaAssistProvider: Sendable {
                         bridge.markInitialized()
                     }
 
-                    // 2. Start or resume Session
                     var sessionId: String = ""
                     if let existingSession = self.activeSessionID, self.activeWorkspaceRoot == workspaceRoot {
-                        // Attempt to resume session on host
                         do {
                             _ = try await bridge.sendCommand(method: "session/resume", params: [
                                 "sessionId": existingSession,
@@ -615,7 +584,6 @@ public final class MetaAssistProvider: Sendable {
                         self.activeWorkspaceRoot = workspaceRoot
                     }
 
-                    // 3. Start Turn with UUIDv7 commandId, reasoning effort, and ifBusy queue support
                     let turnCmdId = MuseUUIDv7.generate()
                     self.activeTurnID = turnCmdId
                     let reasoningEffort = AppSettings.shared.metaReasoningEffort.isEmpty ? "high" : AppSettings.shared.metaReasoningEffort
@@ -704,7 +672,6 @@ public final class MetaAssistProvider: Sendable {
         }
     }
 
-    /// Detects if an error from Meta/Muse SDK is due to rate limits (429), quota exhaustion, or capacity constraints.
     public static func isRateLimitError(_ error: Error) -> Bool {
         let desc = error.localizedDescription.lowercased()
         if let mspError = error as? MspError {
@@ -727,7 +694,6 @@ public final class MetaAssistProvider: Sendable {
             desc.contains("capacity")
     }
 
-    /// Switches the active model mid-session via `session/setModel` without losing session state.
     public func switchModel(modelId: String, providerId: String = "openai") async throws {
         guard let sessionId = activeSessionID else {
             AppSettings.shared.metaAssistModelID = modelId
@@ -749,7 +715,6 @@ public final class MetaAssistProvider: Sendable {
         ])
     }
 
-    /// Un-queues / reclaims a pending turn before it executes via `turn/unqueue`.
     public func unqueueTurn(turnId: String) async throws {
         guard let sessionId = activeSessionID else { return }
         let cmdId = MuseUUIDv7.generate()
@@ -760,7 +725,6 @@ public final class MetaAssistProvider: Sendable {
         ])
     }
 
-    /// Cancels current active turn, handling the already_terminal race condition gracefully.
     public func cancelTurn() async {
         await MuseOtherModelsBridge.shared.cancelTurn()
         guard let sessionId = activeSessionID else { return }
@@ -777,7 +741,6 @@ public final class MetaAssistProvider: Sendable {
             _ = try await MuseCodeMSPBridge.shared.sendCommand(method: "turn/cancel", params: params)
         } catch {
             if let mspError = error as? MspError, mspError.reason == "already_terminal" {
-                // The turn reached its own terminal naturally. Nothing failed.
                 return
             }
         }

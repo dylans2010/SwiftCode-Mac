@@ -1,13 +1,9 @@
 import Foundation
 
-/// Builds by running `xcodebuild` as a subprocess and reading its log.
-/// This is the interim engine; see `specs/ide/build.md` §Engines.
 public struct XcodebuildEngine: BuildEngine {
     public var name: String { "xcodebuild" }
-    /// The tool and any leading arguments. Tests replace it with a script.
     public var command: [String]
     public var environment: [String: String]?
-    /// Where `buildSettings(for:)` gets settings; nil = `xcodebuild -showBuildSettings`.
     public var settingsSource: (any BuildSettingsSource)?
 
     public init(command: [String] = ["/usr/bin/xcrun", "xcodebuild"], environment: [String: String]? = nil) {
@@ -15,13 +11,12 @@ public struct XcodebuildEngine: BuildEngine {
         self.environment = environment
     }
 
-    /// The command-line arguments for a request (without the tool itself).
     public static func arguments(for r: BuildRequest) -> [String] {
         var args: [String] = []
         switch r.container {
         case .project(let p): args += ["-project", p]
         case .workspace(let p): args += ["-workspace", p]
-        case .package: break // xcodebuild finds Package.swift in its working directory
+        case .package: break
         }
         if let s = r.scheme { args += ["-scheme", s] }
         if let c = r.configuration { args += ["-configuration", c] }
@@ -32,8 +27,6 @@ public struct XcodebuildEngine: BuildEngine {
         return args
     }
 
-    /// Short progress text for a log line, or nil. The build log names each
-    /// step with a leading verb (`CompileSwift`, `Ld`, …).
     public static func activity(for line: String) -> String? {
         let verbs: [(String, String)] = [
             ("CompileSwift", "Compiling"), ("SwiftCompile", "Compiling"), ("CompileC", "Compiling"),
@@ -56,10 +49,6 @@ public struct XcodebuildEngine: BuildEngine {
     }
 }
 
-/// Runs one build-tool process (stdout and stderr merged, stdin closed)
-/// and reports its lines, progress text and diagnostics as build events
-/// (`specs/ide/build.md` §Engines). Exit status 0 means success; cancel
-/// sends SIGINT and the result is `cancelled`.
 public enum ProcessBuild {
     public static func start(_ args: [String], currentDirectory: String? = nil, environment: [String: String]? = nil,
                              activity: @escaping @Sendable (String) -> String? = { _ in nil }) -> BuildOperation {
@@ -115,18 +104,11 @@ public enum ProcessBuild {
     }
 }
 
-/// Task counts read from a text build log (`specs/ide/reference-ui-6.md`
-/// §3.2). A SwiftPM log numbers its steps ("[3/7] Compiling …": step 3
-/// of 7 runs, so 2 are done). An xcodebuild log names each step when it
-/// begins (a line starting with a step name such as `CompileSwift`,
-/// `Ld`, `CodeSign`); the steps seen are the tasks known so far and every
-/// step before the latest one is done.
 public struct LogTaskCounter: Sendable {
     public private(set) var done = 0
     public private(set) var total = 0
     public init() {}
 
-    /// The counts after `line`, or nil when the line is not a step.
     public mutating func feed(_ line: String) -> (done: Int, total: Int)? {
         if line.hasPrefix("["), let close = line.firstIndex(of: "]") {
             let parts = line[line.index(after: line.startIndex)..<close].split(separator: "/")
@@ -142,8 +124,6 @@ public struct LogTaskCounter: Sendable {
         return (done, total)
     }
 
-    /// A step header: an unindented line whose first word is a step name
-    /// (a capitalized identifier) followed by its arguments.
     static func isStep(_ line: String) -> Bool {
         guard let first = line.first, first.isUppercase, line.contains(" ") else { return false }
         let word = line.prefix { $0 != " " }
@@ -151,7 +131,6 @@ public struct LogTaskCounter: Sendable {
         return stepNames.contains(String(word))
     }
 
-    /// The step names of an xcodebuild log that stand for one build task each.
     static let stepNames: Set<String> = [
         "CompileSwift", "SwiftCompile", "CompileSwiftSources", "SwiftDriver", "SwiftEmitModule", "SwiftMergeGeneratedHeaders",
         "CompileC", "Ld", "CodeSign", "CompileAssetCatalog", "CompileAssetCatalogVariant", "ProcessInfoPlistFile", "PhaseScriptExecution",
@@ -163,7 +142,6 @@ public struct LogTaskCounter: Sendable {
     ]
 }
 
-/// A thread-safe boolean that only goes from false to true.
 final class Flag: @unchecked Sendable {
     private let lock = NSLock()
     private var raised = false

@@ -1,12 +1,5 @@
-// SwiftPackageManagerExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/SwiftPackageManagerExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: SPM settings toggles (auto-resolve on open, auto-update policy patch/minor/manual)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - Swift Package Manager Extension View
 struct SwiftPackageManagerExtensionView: View {
     @State private var isEnabled = true
     @State private var autoResolve = true

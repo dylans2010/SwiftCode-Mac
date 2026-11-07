@@ -1,29 +1,11 @@
 import Foundation
 import os
 
-// MARK: - Review & recovery seams
-//
-// Legacy's scheduler called `WorkerReviewEngine.shared.review` and
-// `WorkerRecoveryEngine.shared.attemptRecovery` (Subagents/Review/ and
-// Subagents/Recovery/). Those engines are not in this target and are not
-// part of the parallel Models/Persistence port, so the scheduler takes
-// them as injected seams instead of referencing types that do not exist.
-// The defaults below carry Legacy's exact review and recovery *logic* —
-// they are real implementations, not stubs — under new names so the real
-// `WorkerReviewEngine` / `WorkerRecoveryEngine` can land later and replace
-// them without a rename collision. Swap the defaults for the real engines
-// when those files are ported; the scheduler's call sites do not change.
-
-/// Reviews a finished `WorkerResult` before the parent Assist accepts it.
 @MainActor
 public protocol WorkerReviewRunner: Sendable {
     func review(result: WorkerResult, worker: Worker) async -> WorkerReview
 }
 
-/// Legacy `WorkerReviewEngine.review` logic, verbatim: audits tests,
-/// known issues, and files-modified-vs-scope, then derives confidence and
-/// a repair assignment. Enforces SO6: a Worker's "Done" is never
-/// automatically accepted.
 @MainActor
 public struct DefaultWorkerReviewRunner: WorkerReviewRunner, Sendable {
     public init() {}
@@ -33,7 +15,6 @@ public struct DefaultWorkerReviewRunner: WorkerReviewRunner, Sendable {
         var issues: [String] = []
         var recommendedFixes: [String] = []
 
-        // 1. Audit Tests & Verification
         if result.tests.allSatisfy({ $0.passed }) && !result.tests.isEmpty {
             strengths.append("All \(result.tests.count) test assertions passed successfully.")
         } else if result.tests.contains(where: { !$0.passed }) {
@@ -41,7 +22,6 @@ public struct DefaultWorkerReviewRunner: WorkerReviewRunner, Sendable {
             recommendedFixes.append("Fix failing test assertions in \(worker.scope).")
         }
 
-        // 2. Audit Known Issues
         if !result.knownIssues.isEmpty {
             for issue in result.knownIssues {
                 issues.append("Unresolved issue: \(issue)")
@@ -49,7 +29,6 @@ public struct DefaultWorkerReviewRunner: WorkerReviewRunner, Sendable {
             }
         }
 
-        // 3. Audit Files Modified vs Declared Scope
         if result.modifiedFiles.isEmpty && result.createdFiles.isEmpty && result.deletedFiles.isEmpty {
             issues.append("No files were modified or created for assigned task.")
             recommendedFixes.append("Re-execute mutation operations for \(worker.scope).")
@@ -57,7 +36,6 @@ public struct DefaultWorkerReviewRunner: WorkerReviewRunner, Sendable {
             strengths.append("Modified \(result.modifiedFiles.count) files and created \(result.createdFiles.count) files within scope.")
         }
 
-        // 4. Calculate Confidence and Outcome
         let confidence: Double = issues.isEmpty ? 1.0 : max(0.2, 1.0 - (Double(issues.count) * 0.25))
         let status: WorkerReviewState = issues.isEmpty ? .accepted : .repairRequired
 
@@ -86,8 +64,6 @@ public struct DefaultWorkerReviewRunner: WorkerReviewRunner, Sendable {
     }
 }
 
-/// Attempts to recover a failed worker (model fallback, then strategy
-/// adjustment), re-executing it through the engine.
 @MainActor
 public protocol WorkerRecoveryRunner: Sendable {
     func attemptRecovery(
@@ -98,10 +74,6 @@ public protocol WorkerRecoveryRunner: Sendable {
     ) async -> Bool
 }
 
-/// Legacy `WorkerRecoveryEngine.attemptRecovery` logic, verbatim: first try
-/// a fallback model from `WorkerModelSelector`, then re-execute with a
-/// strategy-adjusted assignment. Enforces partial-work guarantees
-/// (INV-10): completed work is never discarded.
 @MainActor
 public struct DefaultWorkerRecoveryRunner: WorkerRecoveryRunner, Sendable {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkerRecoveryRunner")
@@ -119,7 +91,6 @@ public struct DefaultWorkerRecoveryRunner: WorkerRecoveryRunner, Sendable {
     ) async -> Bool {
         logger.info("Attempting recovery for worker '\(worker.name)' (Error: \(error.code))...")
 
-        // 1. Model Fallback if model failed
         if let fallbackModel = await WorkerModelSelector.shared.fallbackModel(for: worker.modelUsed) {
             logger.info("Switching worker '\(worker.name)' to fallback model: \(fallbackModel)")
             WorkerRuntimeState.shared.updateWorker(id: worker.id) { w in
@@ -163,7 +134,6 @@ public struct DefaultWorkerRecoveryRunner: WorkerRecoveryRunner, Sendable {
             return false
         }
 
-        // 2. Strategy adjustment: re-execute with modified approach
         WorkerRuntimeState.shared.updateWorker(id: worker.id) { w in
             w.currentAction = "Adjusting strategy: Bypassing failing step and proceeding to verification."
         }
@@ -215,9 +185,6 @@ public struct DefaultWorkerRecoveryRunner: WorkerRecoveryRunner, Sendable {
     }
 }
 
-// MARK: - Scheduler
-
-/// Schedules and coordinates live Worker execution with dependency resolution, concurrency control, and file ownership.
 @MainActor
 public final class WorkerScheduler: Sendable {
     public static let shared = WorkerScheduler()
@@ -238,7 +205,6 @@ public final class WorkerScheduler: Sendable {
         self.recoveryRunner = recoveryRunner ?? DefaultWorkerRecoveryRunner(turnRunner: turnRunner)
     }
 
-    /// Schedules and executes a set of Worker assignments under parent Assist coordination.
     public func scheduleAndExecute(
         assignments: [WorkerAssignment],
         parentTaskID: UUID,
@@ -246,7 +212,6 @@ public final class WorkerScheduler: Sendable {
     ) async -> [WorkerResult] {
         logger.info("Scheduling \(assignments.count) assignments for parent task \(parentTaskID)...")
 
-        // 1. Create and register all Worker entities in WorkerRuntimeState
         var createdWorkers: [Worker] = []
         var nameToID: [String: UUID] = [:]
 
@@ -272,7 +237,6 @@ public final class WorkerScheduler: Sendable {
             WorkerRuntimeState.shared.register(worker: worker)
         }
 
-        // 2. Wire dependencies between workers
         for (idx, assignment) in assignments.enumerated() {
             let depIDs = assignment.dependencies.compactMap { nameToID[$0] }
             createdWorkers[idx].dependencies = depIDs
@@ -282,12 +246,10 @@ public final class WorkerScheduler: Sendable {
             }
         }
 
-        // 3. Coordinate execution respecting dependencies and safety
         var completedResults: [WorkerResult] = []
         var remainingWorkerIDs = createdWorkers.map { $0.id }
 
         while !remainingWorkerIDs.isEmpty && !Task.isCancelled {
-            // Find all workers whose dependencies are completed
             let completedIDs = Set(completedResults.map { $0.workerID })
             let readyWorkers = createdWorkers.filter { worker in
                 remainingWorkerIDs.contains(worker.id) &&
@@ -295,7 +257,6 @@ public final class WorkerScheduler: Sendable {
             }
 
             if readyWorkers.isEmpty {
-                // Dependency deadlock or remaining workers are blocked/cancelled
                 logger.warning("No more ready workers could be scheduled. Deadlock or cancellation occurred.")
                 for remainingID in remainingWorkerIDs {
                     WorkerRuntimeState.shared.transitionWorker(
@@ -307,7 +268,6 @@ public final class WorkerScheduler: Sendable {
                 break
             }
 
-            // Run ready workers concurrently using cooperative async Tasks
             let tasks = readyWorkers.map { worker -> Task<WorkerResult, Never> in
                 let assignment = assignments.first(where: { $0.name == worker.name }) ?? WorkerAssignment(
                     name: worker.name,
@@ -351,7 +311,6 @@ public final class WorkerScheduler: Sendable {
         context: WorkerExecutionContext,
         dependencyResults: [WorkerResult]
     ) async -> WorkerResult {
-        // Build isolated context
         let prompt = await WorkerContextBuilder.shared.buildWorkerPrompt(
             for: worker,
             assignment: assignment,
@@ -359,7 +318,6 @@ public final class WorkerScheduler: Sendable {
             dependencyResults: dependencyResults
         )
 
-        // Execute worker
         let result = await self.engine.execute(
             worker: worker,
             scopedPrompt: prompt,
@@ -367,7 +325,6 @@ public final class WorkerScheduler: Sendable {
             modelID: worker.modelUsed
         )
 
-        // Review result with parent review gate
         let review = await reviewRunner.review(result: result, worker: worker)
         WorkerRuntimeState.shared.recordReview(id: worker.id, review: review)
 
@@ -409,7 +366,6 @@ public final class WorkerScheduler: Sendable {
         return result
     }
 
-    /// Cancels an active Worker with a mandatory non-empty reason
     public func cancelWorker(id: UUID, reason: String) {
         if let task = activeExecutionTasks[id] {
             task.cancel()
@@ -419,13 +375,6 @@ public final class WorkerScheduler: Sendable {
     }
 }
 
-// MARK: - WorkerPersistenceStore seam
-
-/// Backs `WorkerPersistenceStore`'s `WorkerScheduling` seam with the
-/// real scheduler. Added by the migration coordinator during
-/// cross-file verification. The resume path builds its execution
-/// context from the parent task id and the real workspace root —
-/// never a guessed root.
 extension WorkerScheduler: WorkerScheduling {
     public func scheduleAndExecute(
         assignments: [WorkerAssignment],

@@ -1,10 +1,4 @@
 #!/bin/sh
-# build.sh: configure and build swiftcode-airc (and the GPU test harness) on
-# Linux with the system LLVM 18, SPIRV-Tools and Vulkan packages. No sudo,
-# nothing installed.
-# Usage: build.sh [BUILD_DIR]   (default: ./build next to this script)
-# SWIFTCODE_AIRC_RPATH: the binary's only run-time search path, for a package
-# (literal, e.g. '$ORIGIN/../../..'); unset, CMake's build-tree default.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:-$HERE/build}

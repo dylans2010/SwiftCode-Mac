@@ -1,11 +1,4 @@
 #!/bin/sh
-# Builds the file-system and file-event guest probe (specs/simulator/
-# file-system-features.md, fsevents-host.md "SwiftCode implementation") for the
-# iOS simulator platform. Runs on macOS only.
-#   ../out/guest-tests/fsevents/p_fsevents   C: volume capabilities, document IDs,
-#       write generation counts, clonefile, renamex_np, an FSEvents stream
-# Copy the output to the Thor; run there with
-#   swiftcode-simd --device D --oneshot "<dir>/p_fsevents <guest folder>"
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/fsevents}"

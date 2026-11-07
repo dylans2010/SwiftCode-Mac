@@ -1,36 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Utilities/SFSymbolPickerView.swift
-//
-// Cleanup C26 (2026-11-06): the symbol detail card showed the same three values for
-// every symbol — Category "General, Core, Multi-Device", Availability
-// "iOS 13.0+ | macOS 10.15+", Accessibility "Primary Screenreader Compliant" — none
-// of which is per-symbol data. Real source: the SF Symbols catalog files the loader
-// already reads (`sfsymbol{4,5,6}.txt`, lines `name[,tag,...]`), which carry
-// per-symbol category tags and `multicolor`/`variablecolor` rendering tags. The
-// loader now parses those into `SFSymbolRecord.category` / `isMulticolor` (the old
-// parser only checked the second field for "multicolor", which is the category
-// position, so most multicolor symbols were misclassified). The card shows the
-// catalog categories, or "—" where the catalog has none. Availability and
-// accessibility have no per-symbol source in the catalog — the card honestly shows
-// "—" for both instead of the old universal claims. Do not re-seed them.
-
-// Verbatim apart from this header and the access changes noted below.
-// Self-contained: `SFSymbolRecord`, `CustomSymbolRenderingMode`,
-// `PickerSymbolWeightOption`, `PickerSymbolScaleOption`,
-// `SFSymbolResourceLoader`, `SFSymbolCacheManager`,
-// `SFSymbolPickerViewModel` are all defined in this file. Access
-// raised to public on `SFSymbolPickerView` (+ public init),
-// `SFSymbolResourceLoader` / `.shared` / `loadSymbols(version:)` and
-// `SFSymbolRecord` / `.name`, because `HomeProjectCardView`
-// (swiftcode-ide) calls the loader and reads `.name`. No name clash
-// with `SFSymbolBrowserView` (`App/`): its `SymbolRenderingMode` is
-// a nested enum of the browser view; this file's
-// `CustomSymbolRenderingMode` is distinct.
-
 import SwiftUI
 import AppKit
-
-// MARK: - Enums & Options
 
 enum CustomSymbolRenderingMode: String, CaseIterable, Identifiable {
     case monochrome = "Monochrome"
@@ -94,20 +63,14 @@ enum PickerSymbolScaleOption: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Models
-
 public struct SFSymbolRecord: Identifiable, Hashable, Sendable {
-    let id: String // Symbol name
-    let version: Int // 4, 5, or 6
+    let id: String
+    let version: Int
     let isMulticolor: Bool
-    /// Category tags from the SF Symbols catalog file (e.g. "health"), or
-    /// `nil` when the catalog lists none for this symbol.
     let category: String?
 
     public var name: String { id }
 }
-
-// MARK: - Resource Loader
 
 public final class SFSymbolResourceLoader: Sendable {
     public static let shared = SFSymbolResourceLoader()
@@ -139,9 +102,6 @@ public final class SFSymbolResourceLoader: Sendable {
             let lineStr = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !lineStr.isEmpty else { continue }
 
-            // Catalog line: `name[,tag,...]`. Tags after the name are a mix of
-            // category tags (e.g. `health`, `editing`) and rendering/release
-            // tags (`multicolor`, `variablecolor`, `whatsnew`).
             let parts = lineStr.split(separator: ",")
             let name = String(parts[0])
 
@@ -158,8 +118,6 @@ public final class SFSymbolResourceLoader: Sendable {
     }
 
     private func fallbackSymbols(version: Int) -> [SFSymbolRecord] {
-        // No catalog file found: minimal fallback with no category data
-        // (shown as "—"), not invented categories.
         return [
             SFSymbolRecord(id: "star.fill", version: version, isMulticolor: false, category: nil),
             SFSymbolRecord(id: "heart.fill", version: version, isMulticolor: true, category: nil),
@@ -171,8 +129,6 @@ public final class SFSymbolResourceLoader: Sendable {
         ]
     }
 }
-
-// MARK: - Cache Manager
 
 actor SFSymbolCacheManager {
     static let shared = SFSymbolCacheManager()
@@ -190,11 +146,9 @@ actor SFSymbolCacheManager {
     }
 }
 
-// MARK: - ViewModel
-
 @MainActor
 final class SFSymbolPickerViewModel: ObservableObject {
-    @Published var selectedVersion = 6 // 4, 5, or 6
+    @Published var selectedVersion = 6
     @Published var searchQuery = ""
     @Published var isSearching = false
     @Published var symbols: [SFSymbolRecord] = []
@@ -259,8 +213,6 @@ final class SFSymbolPickerViewModel: ObservableObject {
     }
 }
 
-// MARK: - Modernized SFSymbolPickerView
-
 public struct SFSymbolPickerView: View {
     @StateObject private var viewModel = SFSymbolPickerViewModel()
 
@@ -275,7 +227,6 @@ public struct SFSymbolPickerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // High layout density header using native picker
                 HStack(spacing: 16) {
                     Picker("Version", selection: $viewModel.selectedVersion) {
                         Text("SF Symbols 6").tag(6)
@@ -296,7 +247,6 @@ public struct SFSymbolPickerView: View {
 
                 Divider()
 
-                // Symbol browser grid
                 ScrollView {
                     if viewModel.isSearching {
                         VStack(spacing: 12) {
@@ -361,14 +311,11 @@ public struct SFSymbolPickerView: View {
     }
 }
 
-// MARK: - Redesigned SFSymbolDetailSheet (Symbol Inspector)
-
 struct SFSymbolDetailSheet: View {
     let symbol: SFSymbolRecord
     @ObservedObject var viewModel: SFSymbolPickerViewModel
     @Environment(\.dismiss) private var dismiss
 
-    // Configuration controls
     @State private var renderingMode: CustomSymbolRenderingMode = .monochrome
     @State private var symbolWeight: PickerSymbolWeightOption = .regular
     @State private var symbolScale: PickerSymbolScaleOption = .large
@@ -379,15 +326,12 @@ struct SFSymbolDetailSheet: View {
     @State private var backgroundOption = "Default"
     @State private var selectedTemplate = "Basic Image"
 
-    // Animation list
     @State private var effectTrigger = false
     @State private var activeEffect = "Bounce"
     let effects = ["Bounce", "Pulse", "Scale", "Appear", "Disappear"]
 
-    // Background list
     let backgrounds = ["Default", "Light", "Dark", "Accent"]
 
-    // Templates
     let codeTemplates = [
         "Basic Image", "Label", "Button", "ToolbarItem",
         "Navigation", "List Row", "Menu", "Context Menu",
@@ -397,9 +341,7 @@ struct SFSymbolDetailSheet: View {
     var body: some View {
         NavigationStack {
             HSplitView {
-                // Left Panel: Interactive Live Preview & Background Settings
                 VStack(spacing: 16) {
-                    // Background Toggles & Preview Card
                     GroupBox {
                         VStack(spacing: 12) {
                             Picker("Background", selection: $backgroundOption) {
@@ -419,7 +361,6 @@ struct SFSymbolDetailSheet: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Live Previews inside common SwiftUI components
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Component Integration Preview")
@@ -428,11 +369,9 @@ struct SFSymbolDetailSheet: View {
 
                             Divider()
 
-                            // Label
                             Label("Notification Alert", systemImage: symbol.name)
                                 .font(.headline)
 
-                            // Button
                             Button(action: {}) {
                                 HStack {
                                     Image(systemName: symbol.name)
@@ -442,7 +381,6 @@ struct SFSymbolDetailSheet: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.regular)
 
-                            // List Row representation
                             HStack {
                                 Image(systemName: symbol.name)
                                     .foregroundStyle(.blue)
@@ -460,7 +398,6 @@ struct SFSymbolDetailSheet: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Metadata Info Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Symbol Parameters").font(.caption.bold()).foregroundStyle(.secondary)
@@ -478,11 +415,9 @@ struct SFSymbolDetailSheet: View {
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 380)
                 .padding(16)
 
-                // Right Panel: Rendering Adjustments & Generated Code Multi-Templates
                 VStack(spacing: 0) {
                     ScrollView {
                         VStack(spacing: 16) {
-                            // Specifications Configurations Card
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Label("Symbol Parameters", systemImage: "slider.horizontal.3")
@@ -527,7 +462,6 @@ struct SFSymbolDetailSheet: View {
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            // Animations Config
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Label("Animations & SF Effects", systemImage: "sparkles")
@@ -553,7 +487,6 @@ struct SFSymbolDetailSheet: View {
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            // Generated Code Template Selector & Copy Block
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
                                     HStack {
@@ -603,8 +536,6 @@ struct SFSymbolDetailSheet: View {
         .frame(width: 850, height: 600)
     }
 
-    // MARK: - Animated Symbol Preview Generator
-
     @ViewBuilder
     private func animatedPreviewSymbol() -> some View {
         let baseImg = Image(systemName: symbol.name, variableValue: variableValue)
@@ -652,8 +583,6 @@ struct SFSymbolDetailSheet: View {
         }
     }
 
-    // MARK: - Previews Color
-
     private func previewColorBackground() -> Color {
         switch backgroundOption {
         case "Light": return .white
@@ -662,8 +591,6 @@ struct SFSymbolDetailSheet: View {
         default: return Color.secondary.opacity(0.08)
         }
     }
-
-    // MARK: - Generated Code Template Parser
 
     private func generateSwiftUICode() -> String {
         let weightStr = ".\(symbolWeight.rawValue.replacingOccurrences(of: " ", with: "").lowercased())"

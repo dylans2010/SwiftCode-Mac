@@ -26,7 +26,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import metallib_dump  # noqa: E402
+import metallib_dump
 
 DECL = re.compile(r'^declare\b.*?@"?((?:air|llvm)\.[\w.$]+)"?\(')
 NAMED_MD = re.compile(r'^!(air\.[\w.]+|llvm\.[\w.]+)\s*=')
@@ -39,13 +39,10 @@ IDENT = re.compile(r'^!\d+ = !\{!"((?:Apple|LLVM|clang|Metal)[^"]*)"\}')
 AIRVER = re.compile(r'^!\d+ = !\{i32 (\d+), i32 (\d+), i32 (\d+)\}')
 LANGVER = re.compile(r'^!\d+ = !\{!"(Metal|MetalCI|[A-Za-z]+)", i32 (\d+), i32 (\d+), i32 (\d+)\}')
 
-# Overload suffixes (types) collapsed to get an intrinsic "family".
 SUFFIX = re.compile(r'(\.(?:v\d+)?(?:[fiu]\d+|p\d+|i1|f16|bf16|f32|f64|i8|i16|i32|i64|s\.[\w]+))+$')
-
 
 def family(name):
     return SUFFIX.sub("", name)
-
 
 def scan_module(path_bc, path_ll, dis, acc, file_acc):
     r = subprocess.run([dis, path_bc, "-o", path_ll], capture_output=True, text=True)
@@ -98,7 +95,6 @@ def scan_module(path_bc, path_ll, dis, acc, file_acc):
     os.unlink(path_ll)
     return True
 
-
 def main():
     args = sys.argv[1:]
     dis = "llvm-dis-18"
@@ -128,7 +124,7 @@ def main():
         rel = os.path.relpath(p, root)
         try:
             h = metallib_dump.dump(p, scratch + "/mods")
-        except (Exception, SystemExit) as e:  # noqa: BLE001
+        except (Exception, SystemExit) as e:
             acc["parse_errors"][str(e)[:120]] += 1
             continue
         fa = {"intrinsic_families": set(), "named_metadata": set(),
@@ -179,7 +175,6 @@ def main():
     print("files", len(files), "modules", acc["modules_total"]["n"],
           "functions", acc["functions_total"]["n"],
           "dis_errors", sum(acc["dis_errors"].values()))
-
 
 if __name__ == "__main__":
     main()

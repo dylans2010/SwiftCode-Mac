@@ -4,12 +4,8 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// General sections per platform, the Project Document inspector writes,
-/// the Info type sections and User-Defined grouping (reference-ui-3.md §1).
-/// Projects are written only in temporary directories.
 @MainActor
 @Suite struct ProjectEditorPlatformTests {
-    /// The table in specs/formats/pbxproj.md (Project format).
     @Test func compatibilityTableMatchesSpec() {
         let spec: [(String, Int)] = [("Xcode 16.0", 77), ("Xcode 15.3", 63), ("Xcode 15.0", 60), ("Xcode 14.0", 56),
             ("Xcode 13.0", 55), ("Xcode 12.0", 54), ("Xcode 11.4", 53), ("Xcode 11.0", 52), ("Xcode 10.0", 51),

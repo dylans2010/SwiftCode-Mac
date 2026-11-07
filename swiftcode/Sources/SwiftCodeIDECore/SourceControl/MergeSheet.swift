@@ -1,20 +1,11 @@
 import Foundation
 import SwiftCodeSyntax
 
-/// The merge sheet's geometry, colours, motion and texts
-/// (`specs/ide/merge-sheet.md`), shared by the AppKit sheet and the Linux
-/// IDE's sheet so both draw the same thing. Values are points; colours are
-/// sRGB hex. Entries marked "SwiftCode's choice" answer the spec's open
-/// questions and say so there.
 public enum MergeSheetMetrics {
-    // §2 Frame
-    /// From each side of the window (and, SwiftCode's choice, from its bottom).
     public static let sheetInset = 24.0
     public static let cornerRadius = 16.0
-    /// The content box: 20 inside the sheet's sides, 11.5 below its top.
     public static let boxSideInset = 20.0
     public static let boxTopInset = 11.5
-    // §3 File list
     public static let fileListWidth = 198.0
     public static let fileListHeader = 27.0
     public static let fileRowHeight = 24.0
@@ -25,47 +16,32 @@ public enum MergeSheetMetrics {
     public static let filterHeight = 21.0
     public static let filterBottom = 3.5
     public static let segmentHeight = 17.0
-    // §4 Panes
     public static let jumpBarHeight = 36.0
     public static let footerHeight = 27.0
     public static let gutterWidth = 46.0
     public static let rulerWidth = 17.0
     public static let rulerMarkX = 2.0
     public static let rulerMarkWidth = 10.0
-    /// Line numbers end here, right-aligned, from the pane's left edge.
     public static let lineNumberRight = 27.0
-    /// Column 0 of the code, from the pane's left edge.
     public static let codeX = 41.0
-    /// The first line's top below the jump bar's rule.
     public static let firstLineTop = 8.0
-    /// The current-line highlight: from +8 to the text's right edge −8.
     public static let currentLineInset = 8.0
-    /// The editor's cell and line pitch (`editor-area.md` C.1).
     public static let cellWidth = 8.0
     public static let lineHeight = 18.0
-    /// A wrapped line's continuation starts this many columns past the
-    /// line's indentation, as in the editor.
     public static let wrapIndent = 4
-    // §5 Tokens
     public static let tokenWidth = 38.5
     public static let tokenHeight = 14.0
     public static let tokenLeft = 3.5
     public static let chevronCircle = 11.0
-    // §6 Shading: changed-word fills are the row less 1 at top and bottom.
     public static let wordInset = 1.0
-    // §8 Footer
     public static let footerTextX = 9.5
     public static let stepperWidth = 60.0
-    // §9 Buttons
     public static let buttonWidth = 84.0
     public static let buttonSpacing = 12.0
     public static let buttonGap = 21.5
-    /// SwiftCode's choice (open question 2): the buttons' height.
     public static let buttonHeight = 24.0
-    /// SwiftCode's choice (open question 1): the margin below the buttons.
     public static let bottomMargin = 18.0
 
-    // §1.2 The alert
     public static let alertWidth = 420.0
     public static let alertHeight = 133.0
     public static let alertIcon = 55.0
@@ -79,40 +55,28 @@ public enum MergeSheetMetrics {
     public static let alertButtonSpacing = 14.5
     public static let alertButtonTrailing = 20.5
     public static let alertButtonBottom = 18.0
-    /// SwiftCode's choice: the branch pop-up Integrate ▸ Merge… adds.
     public static let alertChooserHeight = 30.0
 
-    /// The sheet's frame in a window of `size` (origin top-left) whose
-    /// toolbar ends at `toolbarBottom`: 24 from each side, the top at the
-    /// toolbar's bottom, the bottom 24 above the window's (SwiftCode's choice,
-    /// open question 1: the sheet follows the window).
     public static func sheetFrame(window size: (width: Double, height: Double), toolbarBottom: Double) -> Rect {
         let h = max(240, size.height - toolbarBottom - sheetInset)
         return Rect(x: sheetInset, y: toolbarBottom, width: max(400, size.width - 2 * sheetInset), height: h)
     }
 
-    /// The content box inside a sheet of `size` (sheet coordinates).
     public static func contentBox(sheet size: (width: Double, height: Double)) -> Rect {
         let bottom = size.height - bottomMargin - buttonHeight - buttonGap
         return Rect(x: boxSideInset, y: boxTopInset, width: size.width - 2 * boxSideInset, height: max(120, bottom - boxTopInset))
     }
 
-    /// The alert's frame, centred in a window of `size`.
     public static func alertFrame(window size: (width: Double, height: Double), chooser: Bool = false) -> Rect {
         let h = alertHeight + (chooser ? alertChooserHeight : 0)
         return Rect(x: ((size.width - alertWidth) / 2).rounded(.down), y: ((size.height - h) / 2).rounded(.down), width: alertWidth, height: h)
     }
 
-    /// The columns inside a content box `width` wide (box coordinates;
-    /// the box's 1-point border is outside them): the file list, a rule,
-    /// the left pane, a rule, the gutter, a rule, the right pane (its
-    /// text, then the ruler).
     public struct Columns: Equatable, Sendable {
         public var fileList: Range1
         public var left: Range1
         public var gutter: Range1
         public var right: Range1
-        /// The right pane's text, without the ruler.
         public var rightText: Range1
         public var ruler: Range1
     }
@@ -131,7 +95,6 @@ public enum MergeSheetMetrics {
                        ruler: Range1(rightText.end, rulerWidth))
     }
 
-    /// The number of cells a pane `width` wide shows before wrapping.
     public static func columnsOfText(paneWidth: Double) -> Int {
         max(8, Int(((paneWidth - codeX - currentLineInset) / cellWidth).rounded(.down)))
     }
@@ -152,11 +115,8 @@ public enum MergeSheetMetrics {
     }
 }
 
-/// The sheet's colours (`merge-sheet.md` §1–§9, light, measured); the dark
-/// set is SwiftCode's choice until the reference's dark appearance is measured.
 public struct MergeSheetPalette: Equatable, Sendable {
     public var sheet: UInt32
-    /// The veil: black at this opacity (white becomes #CDCDCD).
     public var veilOpacity: Double
     public var boxBorder: UInt32
     public var columnRule: UInt32
@@ -208,7 +168,6 @@ public struct MergeSheetPalette: Equatable, Sendable {
         chevronCircle: 0x6B6C6B, selectedChevronCircle: 0xFF6569, rulerConflict: 0xFDB9B5, rulerClean: 0xD4D4D4,
         button: 0xEDEDED, buttonLabel: 0x252525, disabledButton: 0xF5F5F5, disabledButtonLabel: 0xB6B6B6, folder: 0x3A9AF5)
 
-    /// SwiftCode's choice: the same roles on dark surfaces.
     public static let dark = MergeSheetPalette(
         sheet: 0x1F1F1F, veilOpacity: 0.32, boxBorder: 0x3D3D3D, columnRule: 0x383838, bandRule: 0x333333, footerRule: 0x333333,
         label: 0xE6E6E6, secondaryLabel: 0x8C8C8C, disabledLabel: 0x6A6A6A, accent: 0x0A84FF, segmentPill: 0x1D3A5C,
@@ -222,57 +181,38 @@ public struct MergeSheetPalette: Equatable, Sendable {
 
     public static func forDark(_ dark: Bool) -> MergeSheetPalette { dark ? .dark : .light }
 
-    /// A colour's red, green and blue in 0…1.
     public static func components(_ hex: UInt32) -> (r: Double, g: Double, b: Double) {
         (Double((hex >> 16) & 0xFF) / 255, Double((hex >> 8) & 0xFF) / 255, Double(hex & 0xFF) / 255)
     }
 }
 
-/// The alert's and the sheet's motion (`merge-sheet.md` §1.2, §7, §10).
 public enum MergeSheetMotion {
-    /// The veil behind the alert darkens over this long, ease-out.
     public static let veilIn = 0.255
-    /// The alert is fully drawn within two frames.
     public static let alertIn = 0.017
-    /// Clicking Merge: the alert fades out over this long.
     public static let alertOut = 0.09
-    /// The sheet's fade in (and, with Reduce Motion, its only motion).
     public static let sheetFade = 0.09
-    /// The sheet's slide down from under the toolbar.
     public static let sheetSlide = 0.2
     public static let slideDistance = 32.0
-    /// The slide's timing curve (cubic Bézier control points): nearly
-    /// linear with a soft ease-out, fitted to §10's keyframes (within 2.5
-    /// points at every measured frame).
     public static let slideCurve = (x1: 0.4, y1: 0.3, x2: 0.6, y2: 1.0)
-    /// SwiftCode's choice (open question 3): closing reverses the opening.
     public static let sheetOutFade = 0.09
     public static let sheetOutSlide = 0.2
-    /// The Choose menu's dismissal in the reference (§7); SwiftCode's menus
-    /// close as the platform closes them and the pane changes in the next
-    /// frame.
     public static let chooseDismissal = 0.33
 
-    /// The sheet's opacity `t` seconds into its appearance.
     public static func sheetOpacity(at t: Double) -> Double {
         min(1, max(0, t / sheetFade))
     }
 
-    /// The sheet's vertical offset from its resting place (negative: above
-    /// it) `t` seconds into its appearance; 0 with Reduce Motion.
     public static func sheetOffset(at t: Double, reduceMotion: Bool = false) -> Double {
         guard !reduceMotion else { return 0 }
         let p = bezier(min(1, max(0, t / sheetSlide)), slideCurve)
         return -slideDistance * (1 - p)
     }
 
-    /// The veil's share of its full darkness `t` seconds into the alert.
     public static func veilProgress(at t: Double) -> Double {
         let p = min(1, max(0, t / veilIn))
         return 1 - (1 - p) * (1 - p) * (1 - p)
     }
 
-    /// A CSS-style cubic Bézier timing curve's progress at time share `x`.
     public static func bezier(_ x: Double, _ c: (x1: Double, y1: Double, x2: Double, y2: Double)) -> Double {
         func coord(_ t: Double, _ a: Double, _ b: Double) -> Double {
             let u = 1 - t
@@ -287,7 +227,6 @@ public enum MergeSheetMotion {
     }
 }
 
-/// Texts of the merge workflow (`merge-sheet.md` §1.2, §7, §9).
 public enum MergeSheetText {
     static func q(_ s: String) -> String { "\u{201C}\(s)\u{201D}" }
 
@@ -304,13 +243,10 @@ public enum MergeSheetText {
     public static let noEditor = "No Editor"
     public static let loading = "Loading\u{2026}"
 
-    /// The Choose menu: four items, a separator after the second.
     public static let chooseTitles = ["Choose Left", "Choose Right", "Choose Left Then Right", "Choose Right Then Left"]
     public static let chooseChoices: [MergeDocument.Choice] = [.ours, .theirs, .oursThenTheirs, .theirsThenOurs]
     public static let chooseSeparatorAfter = 1
 
-    /// SwiftCode's choice (open question 3): Cancel's question while an
-    /// operation is stopped.
     public static func cancelTitle(verb: String) -> String { "Abort the \(verb.isEmpty ? "operation" : verb.lowercased())?" }
     public static func cancelMessage(verb: String) -> String {
         let v = verb.isEmpty ? "operation" : verb.lowercased()
@@ -318,13 +254,7 @@ public enum MergeSheetText {
     }
 }
 
-/// One changed stretch's token in the centre gutter (§5).
 public enum MergeSheetToken {
-    /// The glyph: "?" for an undecided conflict, else a digit for the
-    /// choice in effect. SwiftCode's choice (open question 4), keeping the
-    /// two digits seen: Choose Right "1", a change taken automatically "3";
-    /// Choose Left "2", Left Then Right "4", Right Then Left "5", the
-    /// ancestor "6", written by hand "7".
     public static func glyph(choice: MergeDocument.Choice, kind: ThreeWayMerge.Chunk.Kind) -> String {
         if kind != .conflict, choice == MergeDocument.defaultChoice(kind) { return "3" }
         switch choice {
@@ -339,31 +269,22 @@ public enum MergeSheetToken {
     }
 }
 
-/// One aligned row of the two panes (§4.3): the left pane is the current
-/// branch's version with every choice applied, the right the incoming
-/// version. A change shorter on one side is padded with empty rows there
-/// (SwiftCode's choice, open question 5), so corresponding lines share a y.
 public struct MergeSheetRow: Equatable, Sendable {
     public enum Kind: Equatable, Sendable { case same, conflict, clean }
     public struct Side: Equatable, Sendable {
-        /// 1-based line number in that pane's text.
         public var number: Int
-        /// Tabs expanded to four columns.
         public var text: String
-        /// Changed words, as cell ranges of `text`.
         public var words: [Range<Int>]
     }
     public var left: Side?
     public var right: Side?
     public var kind: Kind
-    /// The change (index into the document's hunks) the row belongs to.
     public var hunk: Int?
     public var isFirstOfHunk: Bool
     public var isLastOfHunk: Bool
 }
 
 public enum MergeSheetLayout {
-    /// The aligned rows of a document.
     public static func rows(_ doc: MergeDocument) -> [MergeSheetRow] {
         var out: [MergeSheetRow] = []
         var l = 0, r = 0, h = 0
@@ -372,9 +293,6 @@ public enum MergeSheetLayout {
                 let left = doc.choices[h] == .unresolved ? c.ours : doc.lines(forHunk: h)
                 let right = c.theirs
                 let kind: MergeSheetRow.Kind = c.kind == .conflict ? .conflict : .clean
-                // Changed words of a conflict, line against line of the
-                // original sides; the left fills stay at those cells after
-                // a choice (§7, open question 6: as captured).
                 var lw: [[Range<Int>]] = [], rw: [[Range<Int>]] = []
                 if kind == .conflict {
                     for k in 0..<max(c.ours.count, c.theirs.count) {
@@ -411,8 +329,6 @@ public enum MergeSheetLayout {
         return out
     }
 
-    /// The left pane's whole text (every choice applied, an undecided
-    /// conflict showing the current branch's lines): what is highlighted.
     public static func leftText(_ doc: MergeDocument) -> [String] {
         var lines: [String] = []
         var h = 0
@@ -427,7 +343,6 @@ public enum MergeSheetLayout {
         return lines
     }
 
-    /// Tabs to the next multiple of four columns (the editor's tab width).
     public static func expandTabs(_ s: String) -> String {
         guard s.contains("\t") else { return s }
         var out = ""
@@ -445,9 +360,6 @@ public enum MergeSheetLayout {
         return out
     }
 
-    /// The words of `a` and `b` (runs of non-space characters) that the
-    /// other line does not have, by a longest common subsequence of words;
-    /// cell ranges, so the spaces between words are never included.
     public static func changedWords(_ a: String, _ b: String) -> (left: [Range<Int>], right: [Range<Int>]) {
         let ca = Array(a), cb = Array(b)
         let wa = words(a), wb = words(b)
@@ -482,16 +394,11 @@ public enum MergeSheetLayout {
         return out
     }
 
-    /// One visual line of a wrapped line: the cells it shows and the
-    /// column it starts at (0, or the indentation plus four).
     public struct Segment: Equatable, Sendable {
         public var cells: Range<Int>
         public var column: Int
     }
 
-    /// Wraps a line `columns` cells wide at the last space that fits (else
-    /// mid-word); continuation lines start four columns past the line's
-    /// indentation (`editor-area.md`).
     public static func wrap(_ text: String, columns: Int) -> [Segment] {
         let chars = Array(text)
         guard chars.count > columns, columns > 8 else { return [Segment(cells: 0..<chars.count, column: 0)] }
@@ -510,15 +417,12 @@ public enum MergeSheetLayout {
         return out
     }
 
-    /// A row's height: the taller side's visual lines × 18.
     public static func height(_ row: MergeSheetRow, columns: Int) -> Double {
         let l = row.left.map { wrap($0.text, columns: columns).count } ?? 1
         let r = row.right.map { wrap($0.text, columns: columns).count } ?? 1
         return Double(max(1, l, r)) * MergeSheetMetrics.lineHeight
     }
 
-    /// Syntax runs per line (tabs expanded): the highlighter's tokens in
-    /// their colour roles, the gaps plain (nil role).
     public static func highlight(_ lines: [String], fileName: String) -> [[(text: String, role: SyntaxTokenKind.Role?)]] {
         let language = SyntaxLanguage(fileName: fileName)
         let text = lines.joined(separator: "\n")
@@ -546,7 +450,6 @@ public enum MergeSheetLayout {
                 }
             }
             add(at, end, nil)
-            // Tabs expanded across the runs.
             var col = 0
             out.append(runs.map { run in
                 var s = ""
@@ -561,8 +464,6 @@ public enum MergeSheetLayout {
     }
 }
 
-/// A side's commit, as its footer shows it (§8): repository › branch ›
-/// date, author, short hash and "(HEAD)" on the current side.
 public struct MergeSheetFooter: Equatable, Sendable {
     public var repository: String
     public var branch: String
@@ -580,19 +481,16 @@ public struct MergeSheetFooter: Equatable, Sendable {
         self.isHead = isHead
     }
 
-    /// "1/3/26" (month/day/two-digit year).
     public var dateText: String {
         guard let date else { return "" }
         let c = Calendar(identifier: .gregorian).dateComponents(in: .current, from: date)
         return "\(c.month ?? 0)/\(c.day ?? 0)/\(String(format: "%02d", (c.year ?? 0) % 100))"
     }
 
-    /// The commit part: "1/3/26  Capture Test  1a2b3c4 (HEAD)".
     public var commitText: String {
         [dateText, author, shortHash + (isHead ? " (HEAD)" : "")].filter { !$0.isEmpty }.joined(separator: "  ")
     }
 
-    /// The footers of an operation's two sides.
     public static func read(_ repo: GitRepository, integration: GitRepository.IntegrationState, oursLabel: String,
                             theirsLabel: String) -> (left: MergeSheetFooter?, right: MergeSheetFooter?) {
         let name = repo.root.lastPathComponent

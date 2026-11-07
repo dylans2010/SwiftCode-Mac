@@ -1,15 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Deployments/DeploymentKeychainManager.swift
-//   (Legacy main ab03f681) — verbatim, no adaptations (internal, as Legacy).
-//   Staged by migration subagent F2 (unowned-dependency triage) — NOT yet
-//   landed in the repo.
-//
-// Destination: SwiftCodeAssistant/Models/DeploymentKeychainManager.swift.
-//
-// Dependency: `KeychainService` (staged in this same batch). Used by
-// `APIKeyManager` (staged in this same batch) for the GitHub/Netlify/
-// Vercel sync paths.
-
 import Foundation
 
 final class DeploymentKeychainManager: Sendable {

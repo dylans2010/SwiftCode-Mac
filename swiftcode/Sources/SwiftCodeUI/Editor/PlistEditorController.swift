@@ -2,15 +2,11 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodePlist
 
-/// One outline row: its index path in the property list.
 final class PlistNode: NSObject {
     let path: [Int]
     init(_ path: [Int]) { self.path = path }
 }
 
-/// The property-list editor: Key | Type | Value outline, + and −. Every
-/// edit is written to the file at once, in the file's own format (XML or
-/// binary). See `specs/ide/plist-editor.md`.
 @MainActor
 public final class PlistEditorController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSTextFieldDelegate {
     public let url: URL
@@ -76,20 +72,15 @@ public final class PlistEditorController: NSViewController, NSOutlineViewDataSou
         outline.expandItem(nil, expandChildren: true)
     }
 
-    /// Writes the file in its original format.
     func commit() {
         document.root = tree.root
         do { try document.data().write(to: url, options: .atomic) } catch { presentError(error) }
         reload()
     }
 
-    // MARK: Edits (also used by tests)
-
     public func setKey(_ key: String, at path: [Int]) { tree.setKey(key, at: path); commit() }
     public func setType(_ type: String, at path: [Int]) { tree.setType(type, at: path); commit() }
 
-    /// Sets a value from Value-column text; returns false if it does not
-    /// parse for the item's type.
     @discardableResult
     public func setValueText(_ text: String, at path: [Int]) -> Bool {
         guard let type = tree.item(at: path)?.typeName, let v = PlistTree.parse(text, as: type) else { NSSound.beep(); return false }
@@ -108,10 +99,8 @@ public final class PlistEditorController: NSViewController, NSOutlineViewDataSou
     public func remove(at path: [Int]) { tree.remove(at: path); commit() }
 
     var selectedPath: [Int]? { (outline.item(atRow: outline.selectedRow) as? PlistNode)?.path }
-    /// The selected row's index path (nil = none).
     public var selectedItemPath: [Int]? { selectedPath }
 
-    /// Selects the row of an index path ([] = Root).
     public func selectItem(at path: [Int]) {
         _ = view
         let row = outline.row(forItem: node(path))
@@ -120,8 +109,6 @@ public final class PlistEditorController: NSViewController, NSOutlineViewDataSou
 
     @objc private func addClicked() { addItem() }
 
-    /// "+" and Editor ▸ Add Item: a new item after the selected row, or as
-    /// the first child of a selected container (the root with no selection).
     @discardableResult
     public func addItem() -> [Int] {
         let p: [Int]
@@ -131,7 +118,6 @@ public final class PlistEditorController: NSViewController, NSOutlineViewDataSou
         return p
     }
 
-    /// Editor ▸ Value Type ▸ <type>: the selected row's type.
     @discardableResult
     public func setTypeOfSelection(_ type: String) -> Bool {
         guard let p = selectedPath else { return false }
@@ -140,12 +126,8 @@ public final class PlistEditorController: NSViewController, NSOutlineViewDataSou
         return true
     }
 
-    /// The selected row's type name ("String", …).
     public var selectedTypeName: String? { selectedPath.flatMap { tree.item(at: $0)?.typeName } }
 
-    /// Editor ▸ Raw Keys and Values: raw key names instead of readable
-    /// ones (`reference-ui-5.md` §2.8; readable names as in the target's
-    /// Info tab).
     public var showsRawKeys = false {
         didSet {
             guard oldValue != showsRawKeys else { return }
@@ -155,10 +137,8 @@ public final class PlistEditorController: NSViewController, NSOutlineViewDataSou
         }
     }
 
-    /// The Key column's text for a key.
     public func displayedKey(_ key: String) -> String { showsRawKeys ? key : ProjectEditorModel.readableKey(key) }
 
-    /// The key a Key-column text stands for (a readable name maps back).
     func rawKey(forDisplayed text: String, current: String) -> String {
         if text == displayedKey(current) { return current }
         return ProjectEditorModel.readableInfoKeys.first { $0.value == text }?.key ?? text
@@ -166,11 +146,9 @@ public final class PlistEditorController: NSViewController, NSOutlineViewDataSou
 
     @objc private func removeClicked() { if let p = selectedPath { remove(at: p) } }
 
-    // MARK: Outline
-
     public func outlineView(_ o: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         let path = (item as? PlistNode)?.path
-        if path == nil { return 1 } // the Root row
+        if path == nil { return 1 }
         return tree.item(at: path!).map { PlistTree.children(of: $0).count } ?? 0
     }
 

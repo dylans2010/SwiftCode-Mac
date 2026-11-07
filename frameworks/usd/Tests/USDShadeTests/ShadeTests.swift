@@ -86,7 +86,6 @@ import USDStage
         #expect(net.validate().isEmpty, "\(net.validate())")
         let preview = try ShadeNetwork(layer: layer, material: "/Looks/Preview")
         #expect(preview.validate().isEmpty, "\(preview.validate())")
-        // The composed reader sees the same network.
         let stage = Stage(rootLayer: layer, resolver: MemoryLayerResolver())
         #expect(try ShadeNetwork(stage: stage, material: "/Looks/Red") == net)
     }

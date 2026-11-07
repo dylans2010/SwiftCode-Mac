@@ -8,8 +8,6 @@ import Compression
 import ImageIO
 #endif
 
-/// The codecs under the car writer: LZFSE (LZVN blocks), zlib/DEFLATE and
-/// PNG. On macOS the system decoders check that our streams are standard.
 struct CodecTests {
     static func samples() -> [[UInt8]] {
         var rng = SystemRandomNumberGenerator()
@@ -53,8 +51,6 @@ struct CodecTests {
         }
     }
 
-    /// Mixed data (runs, repeats at every distance, random bytes) from a
-    /// fixed seed, through the system decoder.
     @Test func systemDecoderReadsOurLZFSEOnMixedData() {
         var seed: UInt64 = 0x5EED
         func next(_ n: Int) -> Int {
@@ -96,7 +92,6 @@ struct CodecTests {
     @Test func systemZlibReadsOurDeflate() throws {
         for s in Self.samples() {
             let z = Zlib.compress(s)
-            // NSData's zlib algorithm is raw DEFLATE: drop the 2-byte header and the Adler-32.
             let raw = Data(z[2..<(z.count - 4)])
             let back = try (raw as NSData).decompressed(using: .zlib) as Data
             #expect([UInt8](back) == s)
@@ -156,7 +151,6 @@ struct CodecTests {
         let src = try #require(CGImageSourceCreateWithData(data, nil))
         let img = try #require(CGImageSourceCreateImageAtIndex(src, 0, nil))
         #expect(img.width == 33 && img.height == 21)
-        // Draw it into a known RGBA buffer and compare.
         var px = [UInt8](repeating: 0, count: 33 * 21 * 4)
         let ok = px.withUnsafeMutableBytes { p -> Bool in
             guard let ctx = CGContext(data: p.baseAddress, width: 33, height: 21, bitsPerComponent: 8, bytesPerRow: 33 * 4,
@@ -166,7 +160,6 @@ struct CodecTests {
         }
         #expect(ok)
         #expect(px == b.rgba)
-        // And the other way: ImageIO's PNG through our decoder.
         let out = NSMutableData()
         let dst = try #require(CGImageDestinationCreateWithData(out as CFMutableData, "public.png" as CFString, 1, nil))
         CGImageDestinationAddImage(dst, img, nil)
@@ -193,13 +186,10 @@ struct CodecTests {
             chunk("IEND", [])
             return Data(w.bytes)
         }
-        // 2×1 palette, 1 bit: indices 1, 0; palette red, blue; index 0 half transparent.
         let pal = try PNG.decode(png([0, 0, 0, 2, 0, 0, 0, 1, 1, 3, 0, 0, 0], [("PLTE", [255, 0, 0, 0, 0, 255]), ("tRNS", [128])], [0, 0b1000_0000]))
         #expect(pal.rgba == [0, 0, 255, 255, 255, 0, 0, 128])
-        // 1×2 16-bit gray with alpha.
         let ga = try PNG.decode(png([0, 0, 0, 1, 0, 0, 0, 2, 16, 4, 0, 0, 0], [], [0, 0x80, 0, 0xFF, 0xFF, 0, 0x10, 0, 0, 0]))
         #expect(ga.rgba == [128, 128, 128, 255, 16, 16, 16, 0])
-        // 3×3 RGB, Adam7: passes 1 (0,0), 6 (1,0), 7 rows 1 — build by the pass rules.
         var raw: [UInt8] = []
         func px(_ x: Int, _ y: Int) -> [UInt8] { [UInt8(x * 10), UInt8(y * 10), 7] }
         for (x0, y0, dx, dy) in [(0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2)] {

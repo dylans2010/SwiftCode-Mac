@@ -1,42 +1,25 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Get a Simulator Runtime… (`specs/simulator/runtime-onboarding.md` §11):
-/// the paged assistant the headset setup uses (`liquid-glass-swiftcode.md` §11).
-/// Page dots show every step's state and jump to it; each page has the
-/// step's glyph, title and summary, then its choices, runtimes and checks
-/// (in grouped boxes; each check with its state, reason and one fix); Back,
-/// Re-check and Continue (Done on the last step) are in the footer.
-/// Nothing changes a machine until the user confirms a sheet that shows the
-/// exact command. Get a Runtime (#55) is in `RuntimeSetupWindowController+Download.swift`.
 @MainActor
 public final class RuntimeSetupWindowController: NSWindowController, NSWindowDelegate, NSTextFieldDelegate {
     public let session: RuntimeSetupSession
-    /// The one open wizard.
     public static var shared: RuntimeSetupWindowController?
-    /// Answers confirmations instead of a sheet (tests: true confirms,
-    /// false cancels, nil leaves it waiting for the test to answer).
     var answerConfirmation: ((RuntimeConfirmation) -> Bool?)?
-    /// Picks a file instead of the open panel (tests).
     var pickFile: (() -> String?)?
 
     let assistant = SetupAssistant(footnote: ExperimentalNotice.runtimes, footnoteID: "runtime-experimental",
                                    statusID: "runtime-status", dotsID: "runtime-steps-panel")
-    /// The content's scroll view and the footer (tests check they do not overlap).
     var scroll: NSScrollView { assistant.scroll }
     var footer: NSStackView { assistant.footer }
-    /// The step the page shows (a change moves the page).
     private var shownStep: RuntimeSetupStep?
     private var shownConfirmation: RuntimeConfirmation?
-    // The choices' fields.
     let hostField = NSTextField()
     let dataField = NSTextField()
     let linkField = NSTextField()
     let portsField = NSTextField()
-    /// Get a Runtime: where Xcode saves a copy (`-exportPath`).
     let exportField = NSTextField()
 
-    /// Shows the wizard (one at a time), on `step` when given, else on the first problem.
     @discardableResult
     public static func show(step: RuntimeSetupStep? = nil, session: RuntimeSetupSession? = nil) -> RuntimeSetupWindowController {
         let wc = shared ?? RuntimeSetupWindowController(session: session ?? RuntimeSetupSession(defaults: Preferences.shared.defaults))
@@ -54,9 +37,6 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
         return wc
     }
 
-    /// First launch (§3, §11.4): once per installation, when this Mac has no
-    /// usable runtime for the chosen platforms, the wizard opens. Not under
-    /// tests or with `SWIFTCODE_NO_FIRST_LAUNCH`.
     @discardableResult
     public static func offerAtFirstLaunch(defaults: UserDefaults = Preferences.shared.defaults,
                                           environment: [String: String] = ProcessInfo.processInfo.environment) -> Task<Void, Never>? {
@@ -91,15 +71,11 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
         if Self.shared === self { Self.shared = nil }
     }
 
-    // MARK: Navigation
-
     public func next() { if session.isLastStep { window?.close() } else { session.next() } }
     public func back() { session.back() }
 
     var primaryButton: NSButton { assistant.continueButton }
     var backButton: NSButton { assistant.backButton }
-
-    // MARK: Views
 
     private func build() {
         guard let root = window?.contentView else { return }
@@ -152,9 +128,7 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
 
     static func symbol(_ s: SetupCheckState?) -> (String, NSColor) { SetupAssistant.mark(dotState(s)) }
 
-    /// Rebuilds the window from the session.
     func refresh() {
-        // The fields follow the session unless the user is typing in one.
         let h = session.choices.host
         for (f, v) in [(hostField, h.destination), (dataField, h.dataDirectory), (linkField, h.linkName), (portsField, "\(h.tcpPort)/\(h.udpPort)")] where f.currentEditor() == nil && f.stringValue != v {
             f.stringValue = v
@@ -185,8 +159,6 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
         a.continueButton.title = session.isLastStep ? "Done" : "Continue"
         if let c = session.confirmation, c != shownConfirmation { present(c) }
     }
-
-    // MARK: Step contents
 
     func stepViews() -> [NSView] {
         rowRecords = []
@@ -395,7 +367,6 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
         let detail = NSTextField(wrappingLabelWithString: details.filter { !$0.isEmpty }.joined(separator: " · "))
         detail.textColor = .secondaryLabelColor
         detail.font = .systemFont(ofSize: 11)
-        // Beside a button the details leave it room.
         let room = SetupGroupBox.textWidth - (copy || rec.isRemovable ? 130 : 0)
         detail.preferredMaxLayoutWidth = room
         detail.widthAnchor.constraint(lessThanOrEqualToConstant: room).isActive = true
@@ -481,7 +452,6 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
             out.append(NSStackView(views: line))
             out.append(label)
         }
-        // Where Xcode would download (§11.6): the Get a Runtime step.
         let missing = SimPlatform.allCases.filter { p in session.choices.platforms.contains(p) && !(session.report?.readyPlatforms.contains(p) ?? false) }
         if let p = missing.first {
             out.append(heading("Don't have a runtime?"))
@@ -579,8 +549,6 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
         return scroll
     }
 
-    // MARK: Actions
-
     @objc func goToStep(_ sender: NSButton) { if let s = RuntimeSetupStep(rawValue: sender.tag) { session.show(s) } }
 
     @objc func fixActionClicked(_ sender: NSButton) {
@@ -656,9 +624,6 @@ public final class RuntimeSetupWindowController: NSWindowController, NSWindowDel
         assistant.statusLabel.stringValue = "Copied. Run it in your terminal."
     }
 
-    // MARK: Confirmation
-
-    /// The sheet that shows the exact command before anything runs.
     func present(_ c: RuntimeConfirmation) {
         shownConfirmation = c
         if let answerConfirmation {

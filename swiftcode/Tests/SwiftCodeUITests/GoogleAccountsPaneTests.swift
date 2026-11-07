@@ -7,16 +7,6 @@ import SwiftCodeAssistant
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-// The Google account section of Settings ▸ Accounts
-// (specs/ide/cloud-accounts.md §10): the signed-in email and
-// Assist-scope status, the client id/secret actions, and sign-out.
-// The browser sign-in itself is never driven here — on macOS it
-// would open a real `ASWebAuthenticationSession`. All fixtures are
-// synthetic; no live network, no real credentials, and the secret
-// store is always a MemorySecretStore, never the keychain. The
-// Antigravity and gcloud seams are neutralized, so tests never
-// touch the real keychain or CLI.
-
 @MainActor
 @Suite(.serialized) struct GoogleAccountsPaneTests {
 

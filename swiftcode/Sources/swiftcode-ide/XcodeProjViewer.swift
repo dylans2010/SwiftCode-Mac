@@ -1,17 +1,9 @@
-// XcodeProjViewer.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/XcodeProjViewer.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: viewer shell with category picker; target list with inline target-editing sub-tabs (General/Identity/Deployment/Signing/Info.plist/Entitlements); build-settings search
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): PBXTarget, XcodeProjModel.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 public struct XcodeProjViewer: View {
     public let model: XcodeProjModel
     @Environment(\.dismiss) private var dismiss
 
-    // Modern Tab Selection
     @State private var selectedCategory = "overview"
     @State private var selectedTarget: PBXTarget? = nil
     @State private var selectedSubTab = "general"
@@ -23,7 +15,6 @@ public struct XcodeProjViewer: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Elegant Header Area
             HStack(spacing: 16) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -65,7 +56,6 @@ public struct XcodeProjViewer: View {
 
             Divider()
 
-            // Segmented Picker for Categories (Replacing Sidebars!)
             Picker("", selection: $selectedCategory) {
                 Text("Overview").tag("overview")
                 Text("Targets").tag("targets")
@@ -80,7 +70,6 @@ public struct XcodeProjViewer: View {
 
             Divider()
 
-            // Main Detail Area
             VStack(spacing: 0) {
                 switch selectedCategory {
                 case "overview":
@@ -91,7 +80,6 @@ public struct XcodeProjViewer: View {
 
                 case "targets":
                     HStack(alignment: .top, spacing: 0) {
-                        // Left Panel: Targets List
                         VStack(alignment: .leading, spacing: 12) {
                             Text("TARGETS")
                                 .font(.caption.bold())
@@ -123,10 +111,8 @@ public struct XcodeProjViewer: View {
 
                         Divider()
 
-                        // Right Panel: Inline Target Details & Interactive Settings Editor
                         if let target = selectedTarget {
                             VStack(alignment: .leading, spacing: 0) {
-                                // Sub-tabs for Config editing (General, Identity, Deployment, Signing, Info.plist, Entitlements)
                                 Picker("", selection: $selectedSubTab) {
                                     Text("General").tag("general")
                                     Text("Identity").tag("identity")

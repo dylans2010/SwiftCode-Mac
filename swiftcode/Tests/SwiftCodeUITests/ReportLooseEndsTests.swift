@@ -4,8 +4,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// reference-ui-2.md §5 (step durations, All | Recent), §6.5 (coverage)
-/// and §9 (console metadata columns).
 struct ReportLooseEndsTests {
     func report(_ log: [String], times: [TimeInterval] = [], duration: TimeInterval = 0) -> BuildReport {
         var r = BuildReport(title: "Build Demo", date: Date(), succeeded: true, log: log, errorCount: 0, warningCount: 0)

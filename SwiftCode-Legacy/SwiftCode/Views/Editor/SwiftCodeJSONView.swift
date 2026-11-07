@@ -1,14 +1,5 @@
 import SwiftUI
 
-/// Decoded editor for `swiftcode.json`: the file is never shown as raw
-/// JSON. It decodes to `SDKManifest` and presents every field in
-/// organized sections, edits in place, and writes the manifest back
-/// (unknown top-level fields are preserved by `SDKManifest`'s codec,
-/// so visual editing never destroys forward-compatible properties).
-/// Rendered in-pane by EditorView, like the Localizable
-/// (.xcstrings) view: tabs, jump bar, sidebars, and the toolbar
-/// stay visible. This view never takes over the code editor and
-/// never posts .specialEditorActive.
 public struct SwiftCodeJSONView: View {
     public let fileURL: URL
 
@@ -16,9 +7,6 @@ public struct SwiftCodeJSONView: View {
     @State private var original: SDKManifest?
     @State private var loadError: String?
     @State private var saveError: String?
-    /// Decoded `project.json` found next to this manifest, if any.
-    /// Read-only: project metadata is edited in Project Settings,
-    /// never from the manifest editor.
     @State private var projectDetails: ProjectFileDetails?
     @State private var newCapabilityID = ""
     @State private var newCapabilityReason = ""
@@ -56,12 +44,9 @@ public struct SwiftCodeJSONView: View {
         }
     }
 
-    // MARK: - Form
-
     @ViewBuilder
     private func manifestForm(_ manifest: SDKManifest) -> some View {
         VStack(spacing: 0) {
-            // Header (in-view, not a toolbar): file identity + actions.
             HStack(spacing: 12) {
                 Image(systemName: "swift")
                     .font(.system(size: 18, weight: .semibold))
@@ -247,8 +232,6 @@ public struct SwiftCodeJSONView: View {
         }
     }
 
-    // MARK: - Bindings into the decoded manifest
-
     private func binding<Value>(_ keyPath: WritableKeyPath<SDKManifest, Value>) -> Binding<Value> {
         Binding(
             get: { manifest?[keyPath: keyPath] ?? defaultValue(for: keyPath) },
@@ -256,11 +239,7 @@ public struct SwiftCodeJSONView: View {
         )
     }
 
-    /// Fallback only for the get path before load completes; the form
-    /// is never rendered while `manifest` is nil, so this is unreachable
-    /// in practice. `fatalError` would be worse than a placeholder here.
     private func defaultValue<Value>(for keyPath: WritableKeyPath<SDKManifest, Value>) -> Value {
-        // String and Int are the only value types bound through this helper.
         if Value.self == String.self { return "" as! Value }
         if Value.self == Int.self { return 0 as! Value }
         if Value.self == Bool.self { return false as! Value }
@@ -286,8 +265,6 @@ public struct SwiftCodeJSONView: View {
         }
     }
 
-    // MARK: - Project details (project.json, read-only)
-
     private struct ProjectFileDetails {
         let path: String
         let name: String
@@ -300,13 +277,6 @@ public struct SwiftCodeJSONView: View {
         let lastOpened: Date?
     }
 
-    /// Finds the `project.json` that belongs to this manifest: a
-    /// sibling first (covers manifests at the project root and
-    /// manifests inside a project's `SwiftCode/` folder, where the
-    /// copy lives), then the project root when the manifest sits
-    /// inside `SwiftCode/`. Nothing else is consulted — a manifest
-    /// opened outside a project shows no project details rather
-    /// than some other project's metadata.
     private func loadProjectDetails() -> ProjectFileDetails? {
         let manifestDir = fileURL.deletingLastPathComponent()
         var candidates: [URL] = [manifestDir.appendingPathComponent("project.json")]
@@ -335,8 +305,6 @@ public struct SwiftCodeJSONView: View {
         }
         return nil
     }
-
-    // MARK: - Load / save
 
     private func load() {
         loadError = nil

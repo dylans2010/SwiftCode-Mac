@@ -1,7 +1,3 @@
-/*
- * ABI probe (caller side), compiled with the library flags by
- * common/abi_check.py. Clean-room SwiftCode code.
- */
 int yc_abi_variadic(int n, ...);
 int yc_abi_many(long, long, long, long, long, long, long, long, char, short);
 

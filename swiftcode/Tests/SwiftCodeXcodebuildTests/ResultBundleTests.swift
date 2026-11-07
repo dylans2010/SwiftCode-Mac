@@ -6,10 +6,8 @@ import Testing
     func hex(_ b: [UInt8]) -> String { b.map { String(format: "%02x", $0) }.joined() }
 
     @Test func digests() {
-        // RFC 7693 appendix A, and the empty message.
         #expect(hex(BLAKE2b.digest512(Array("abc".utf8))) == "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923")
         #expect(hex(BLAKE2b.digest512([])) == "786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce")
-        // More than one block.
         #expect(BLAKE2b.digest512([UInt8](repeating: 7, count: 300)).count == 64)
         #expect(SHA256.hex(Array("1".utf8)) == "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b")
         #expect(SHA256.hex([]) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
@@ -19,7 +17,6 @@ import Testing
         let v = XCRValue.reference("x", XCRType("Child", "Parent"))
         let text = String(decoding: XCRValue.encode(v), as: UTF8.self)
         #expect(text == "[T[K2:_nV9:Reference]K2:id[T[K2:_nV6:String]K2:_vV1:x]K10:targetType[T[K2:_nV14:TypeDefinition]K4:name[S6:StringK2:_vV5:Child]K9:supertype[S14:TypeDefinitionK4:name[S6:StringK2:_vV6:Parent]]]]")
-        // A type with supertypes is spelled out with its chain; arrays; UTF-8 byte lengths.
         let g = XCRValue.obj(XCRType("Group", "Base"), ["b": .array([.int(1), .bool(true)]), "a": .string("é")])
         #expect(String(decoding: XCRValue.encode(g), as: UTF8.self)
             == "[T[K2:_nV5:GroupK2:_s[K2:_nV4:Base]]K1:a[T[K2:_nV6:String]K2:_vV2:é]K1:b[T[K2:_nV5:Array][T[K2:_nV3:Int]K2:_vV1:1][T[K2:_nV4:Bool]K2:_vV4:true]]]")
@@ -29,7 +26,6 @@ import Testing
     @Test func framesAndCounts() {
         #expect(Zstd.rawFrame(Array("hello".utf8)) == [0x28, 0xB5, 0x2F, 0xFD, 0xA0, 5, 0, 0, 0, 0x29, 0, 0] + Array("hello".utf8))
         #expect(Zstd.rawFrame([]) == [0x28, 0xB5, 0x2F, 0xFD, 0xA0, 0, 0, 0, 0, 0x01, 0, 0])
-        // Two blocks for 128 KiB + 1 byte, the first not last.
         let big = Zstd.rawFrame([UInt8](repeating: 1, count: 128 * 1024 + 1))
         #expect(big.count == 9 + 3 + 128 * 1024 + 3 + 1)
         #expect(big[9] == 0x00 && big[10] == 0x00 && big[11] == 0x10)
@@ -44,7 +40,6 @@ import Testing
         let store = try XCResultStore(creating: dir)
         let leaf = try store.put(.string("leaf"))
         let leafData = try Data(contentsOf: dir.appendingPathComponent("Data/data." + leaf))
-        // Without references: the digest of the stored bytes.
         #expect(leaf == "0~" + XCResultStore.base64url(BLAKE2b.digest512([UInt8](leafData))))
         #expect(try Data(contentsOf: dir.appendingPathComponent("Data/refs." + leaf)) == Data([0]))
         let root = try store.put(.obj(XCRType("Holder"), ["r": .reference(leaf, XCRType("String"))]))
@@ -61,7 +56,6 @@ import Testing
 
     @Test func paths() {
         #if os(macOS)
-        // /tmp is a link to /private/tmp only on macOS.
         #expect(PathText.withoutPrivatePrefix("/private/tmp/x/y.xcresult") == "/tmp/x/y.xcresult")
         #endif
         #expect(PathText.withoutPrivatePrefix("/private/nonexistent/x") == "/private/nonexistent/x")
@@ -98,7 +92,6 @@ import Testing
         #expect(wrong?.status == .failed && wrong?.suite == "T")
         #expect(wrong?.issues.first?.message == "Expectation failed: f() == 5\nf() → 4")
         #expect(wrong?.issues.first?.file == "/src/F.swift")
-        // A parameterized test starts when its first case does.
         #expect(p.startIndex(of: "wrong()") < p.startIndex(of: "doubles(n:)"))
     }
 

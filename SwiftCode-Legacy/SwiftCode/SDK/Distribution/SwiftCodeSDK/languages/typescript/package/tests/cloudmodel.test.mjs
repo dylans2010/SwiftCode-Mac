@@ -1,14 +1,3 @@
-// Cloud model contract tests for @swiftcode/sdk (Docs/Intro-to-SDK.md §19.1, §19.2).
-//
-// Loads the real compiled dist/index.js and builds the real context via
-// createContext over a scripted fake HostConnection (the same pattern as
-// context.test.mjs). The fake host records every IPC method+payload the
-// context emits and answers from a script — the tests assert the EXACT
-// wire method and payload for context.cloudModel.complete(...), that host
-// denials surface as typed errors with the right codes, and that a
-// malformed host response is rejected instead of trusted.
-//
-// Run: `npm run build && npm test` (npm test = `node --test "tests/*.test.mjs"`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -21,19 +10,9 @@ const { createContext, SDKError, SDKCloudModelAccessError, CLOUD_MODEL_ACCESS_DE
 
 const EXTENSION = { id: "test.ext", name: "Test Extension", version: "1.0.0" };
 
-// The §13 cloud-model denial, verbatim — do not reword. Duplicated here
-// (not imported) so the test independently pins the exact user-facing
-// text. PROPOSED WORDING — Dylan finalizes it; when he does, this literal
-// and the exported constant must change together.
 const VERBATIM_CLOUD_DENIAL =
   "This app is not allowed to use the SwiftCode Cloud Model because access has not yet been verified. Please check with the app developer for further information.";
 
-/**
- * Scripted fake host implementing the HostConnection shape. `handlers`
- * maps an IPC method to `(payload, requestId) => responsePayload`; a
- * handler may throw to script an `ok:false`-style rejection. All inbound
- * requests are recorded for exact wire assertions.
- */
 function createFakeHost(handlers = {}) {
   const requests = [];
   let closed = false;
@@ -138,7 +117,6 @@ describe("cloudModel.complete wire contract", () => {
       assert.equal(error.code, "RESOURCE_LIMIT_EXCEEDED");
       return true;
     });
-    // The rejection carries the typed error only — no text to mistake for a model answer.
   });
 
   it("rejects an empty prompt client-side without sending anything", async () => {

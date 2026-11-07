@@ -1,7 +1,3 @@
-// car: do buffer device addresses survive a device re-creation with
-// bufferDeviceAddressCaptureReplay, for imported host memory and for
-// allocated memory (metal-sim-protocol.md §8.7)? usage: car
-// Build: gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o car scripts/gpu-probes/car.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +60,7 @@ int main(void) {
     if (yvk_context_create(&c, &opt, err, sizeof err)) { fprintf(stderr, "%s\n", err); return 1; }
     yvk_buffer filler; yvk_buffer_create(&c, 1 << 20, YVK_MEMORY_HOST, NULL, &filler, err, sizeof err);
     printf("C filler (no replay) at 0x%llx\n", (unsigned long long)filler.address);
-    for (int i = N - 1; i >= 0; i--) {  // reverse order, to see placement is by request
+    for (int i = N - 1; i >= 0; i--) {
         int host = i % 2 == 0;
         if (make(&c, host ? pages[i] : NULL, 65536, ba[i].bcap, ba[i].mcap, 1, &bc[i])) return 1;
         printf("C %d addr 0x%llx (%s)\n", i, (unsigned long long)bc[i].addr, bc[i].addr == ba[i].addr ? "same" : "DIFFERENT");

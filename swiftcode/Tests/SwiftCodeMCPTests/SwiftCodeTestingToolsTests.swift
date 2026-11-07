@@ -3,39 +3,13 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy test-running / coverage tools (Wave 6, slice A),
-/// each driven black-box through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistTestRunSingleTool`,
-/// `AssistXctestDiscoveryTool`, `AssistTestLogParseTool`,
-/// `AssistTestFlakyDetectTool`, `AssistTestCoverageReportTool`,
-/// `AssistTestCoverageReporterTool`, `AssistTestDataFactoryTool`,
-/// `AssistTestSnapshotManageTool`, `AssistTestTargetAddTool`,
-/// `AssistUITestScaffoldTool`, `AssistInterfaceSimulatorTool`,
-/// `AssistPreflightChecksTool`, `AssistPerformanceBenchmarkTool`,
-/// `AssistCompilerDiagnosticsEngine`, `AssistCrashLogParseTool` and
-/// `AssistRuntimeDiagnosticsEngine` (Dylan's own code, ported under
-/// MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never
-/// on internals. Messages quoted verbatim are Legacy's. Message
-/// assertions use `firstText`, never an exact `resultText ==`
-/// (structured results emit two text blocks). Tests that run the
-/// real build/test seam are gated on `canBuildPackages`, like the
-/// `test` tool's own tests; nothing here claims a build passed
-/// without running one.
 @MainActor
 @Suite(.serialized) struct SwiftCodeTestingToolsTests {
-    /// The 16 Wave 6 slice A tool IDs, verified live from each
-    /// Legacy tool file's `id`.
     static let sliceAIDs = ["test_run_single", "xctest_discovery", "test_log_parse", "test_flaky_detect",
                             "test_coverage_report", "test_coverage_reporter", "test_data_factory", "test_snapshot_manage",
                             "test_target_add", "ui_test_scaffold", "interface_simulator", "preflight_checks",
                             "performance_benchmark", "compiler_diagnostics_engine", "crash_log_parse", "runtime_diagnostics_engine"]
 
-    /// Opens a copy of Greeter and installs the ported testing tools
-    /// on the server (same shape as Wave 2's `opened`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -46,7 +20,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -65,13 +38,7 @@ import SwiftCodeAssistant
         for id in Self.sliceAIDs {
             #expect(host.server.tools.filter { $0.name == id }.count == 1, "\(id) must be registered exactly once")
         }
-        // The slice's only Legacy alias, `test_coverage` →
-        // `test_coverage_reporter` (registry alias table), lives in
-        // `MCPServer.toolAliases`, which the coordinator owns — it is
-        // reported as a wiring fragment instead of asserted here.
     }
-
-    // MARK: - Pure reads: logs, crashes, interface, preflight
 
     @Test func testLogParseCountsAndListsFailures() async throws {
         let sample = try TempSample()
@@ -150,8 +117,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("xcodebuild available"))
         #expect(r.firstText.contains("Free disk"))
         #expect(r.firstText.contains("Result: "))
-        // On this Linux host there is no xcodebuild, so at least one
-        // check honestly fails; the count itself is what matters.
         #expect((r.structured?["failureCount"]?.int ?? 0) >= 1)
     }
 
@@ -247,8 +212,6 @@ import SwiftCodeAssistant
         #expect(noParam.isToolError)
     }
 
-    // MARK: - Execution: benchmark + coverage reporter
-
     @Test func performanceBenchmarkRunsAllowListedCommand() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -279,13 +242,9 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // An explicit path that does not exist: Legacy answers success
-        // with the "no report" message, not a failure.
         let missing = try await host.server.callTool("test_coverage_reporter", ["reportPath": .string("Nope.xccovreport")])
         #expect(!missing.isToolError, "\(missing.resultText)")
         #expect(missing.firstText.contains("No active .xccovreport or coverage archive found in DerivedData."))
-        // A report file that does exist needs xcrun: present on macOS,
-        // absent here. Either way the tool must not invent coverage.
         try writeFixture(sample, "Fake.xccovreport", "")
         let fake = try await host.server.callTool("test_coverage_reporter", ["reportPath": .string("Fake.xccovreport")])
         if FileManager.default.isExecutableFile(atPath: "/usr/bin/xcrun") {
@@ -293,14 +252,10 @@ import SwiftCodeAssistant
         } else {
             #expect(fake.isToolError && fake.firstText.contains("Failed to execute xccov"))
         }
-        // No argument at all: success on either outcome (no DerivedData
-        // report here, a real xccov report on a Mac with one).
         let def = try await host.server.callTool("test_coverage_reporter")
         #expect(!def.isToolError, "\(def.resultText)")
         #expect(def.firstText.contains("No active .xccovreport") || def.firstText.contains("Test Coverage Report"))
     }
-
-    // MARK: - Writes: fixtures, scaffolds, snapshots, targets
 
     @Test func writesAreRefusedWhenReadOnly() async throws {
         let sample = try TempSample()
@@ -455,8 +410,6 @@ import SwiftCodeAssistant
         #expect(r.isToolError && r.firstText.contains("No .xcodeproj found in the workspace root."))
     }
 
-    // MARK: - Real build/test seam (needs a Swift toolchain)
-
     @Test func testRunSingleRunsOneDiscoveredTest() async throws {
         guard canBuildPackages else { return }
         let sample = try TempSample()
@@ -489,10 +442,6 @@ import SwiftCodeAssistant
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.structured?["status"]?.string == "Passed" && r.structured?["passed"]?.int == 2 && r.structured?["failed"]?.int == 0)
         #expect(r.firstText.contains("Test Coverage — Greeter / Greeter: Passed"))
-        // Coverage is reported only when the scheme gathers it; the
-        // Greeter package scheme does not enable it, so the honest
-        // outcome is the plain "no coverage gathered" message — but
-        // the assertion does not depend on that default.
         #expect(r.structured?["coverage"]?.string != nil)
         #expect(r.firstText.contains("No coverage data was gathered for this run.") || r.firstText.contains("Coverage: "))
     }
@@ -508,7 +457,6 @@ import SwiftCodeAssistant
         #expect((failed.structured?["error_count"]?.int ?? 0) >= 1)
         #expect(failed.firstText.contains("Compiler diagnostics collected (build FAILED, exit code 1)."))
         #expect(failed.structured?["errors"]?.string?.contains("salutaton") == true)
-        // The `project` argument must name the open workspace.
         let wrongProject = try await host.server.callTool("compiler_diagnostics_engine",
                                                          ["project": .string("Nope.xcodeproj")])
         #expect(wrongProject.isToolError && wrongProject.firstText.contains("is not the open workspace"))

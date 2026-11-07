@@ -1,90 +1,3 @@
-// InfrastructureAndVirtualizationManagers.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Storage/InfrastructureAndVirtualizationManagers.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: backup creation/listing; cloud status; dependency refresh; device listing; signing-certificate refresh; VM listing; cache / DerivedData cleaning; per-directory size breakdown
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// Cleanup C30 (2026-11-06): `SCOperationsSigningManager.refreshCertificates()`
-// fabricated a certificate (`CERT-DEV-001`, "Apple Development:
-// developer@example.com (XYZ789)", expiring exactly 365 days from now). It now
-// reads the real identities: `security find-identity -v -p codesigning` for the
-// (SHA-1, name) list, with expiry read from the matching keychain certificate
-// via `SecCertificateCopyNotValidAfter` (matched by subject summary, which is
-// the common name `find-identity` prints). Empty list when `security` is
-// unavailable or no identities exist. Type is derived from the real certificate
-// name ("Apple Development…" → Development, "…Distribution"/"Developer ID…" →
-// Distribution, otherwise the kind prefix before ":"). The expiry lookup is
-// implemented locally in this file (Foundation `Process` + Security framework)
-// because this target does not depend on SwiftCodeSigning — the same source
-// C22.19's Certificate Manager uses, without inventing a new one. Identities
-// whose expiry cannot be read are omitted rather than given an invented date;
-// if that ever hides a real identity, match by SHA-1 (`SecCertificateCopyData`
-// + SHA-1) instead of by name.
-//
-// Cleanup D5 (2026-11-06): `SCOperationsStorageManager` initialised with
-// invented sizes (projects 0.4 GB, caches 1.2 GB, DerivedData 0.8 GB,
-// archives 0.2 GB, logs 0.05 GB, backups 0.1 GB, 42.0 GB free) and only
-// ever re-measured projects, DerivedData and free space — caches, VMs,
-// archives, logs and backups kept their seeded values forever. All sizes
-// now start at 0.0 and `recalculateSizes()` measures every bucket from a
-// real source: projects directory, active project's build directory,
-// `~/Library/Caches/SwiftCode`, the `SwiftCode/Backups` directory,
-// archive records' recorded `binarySize`, and the VMs' configured disk
-// sizes (no VM disk path is recorded on the VM model, so nothing on disk
-// can be measured for them — the configured size is reported as such).
-// Logs stay 0.0: no on-disk log store exists (logs are in-memory only).
-// Free space was already a real filesystem-attributes reading; its fake
-// 42.0 initial value is gone (0.0 = no reading yet).
-// `SCOperationsDeviceManager` listed three hardcoded devices ("My Mac /
-// Mac Studio (M2 Max) / macOS 15.0", "iPhone 15 Simulator / iOS 18.0",
-// "iPad Pro Simulator / iOS 18.0"). It now enumerates real devices: this
-// Mac (host name, `sysctl hw.model`, OS version), physical devices from
-// `xcrun devicectl list devices`, and simulators from `xcrun simctl list
-// -j devices` (available devices only; booted → "Connected", otherwise
-// "Offline"). No `xcrun` / no devices means an empty list (apart from
-// this Mac), never invented rows. D4's C30 `refreshCertificates` code was
-// verified still intact and is untouched.
-//
-// Cleanup D6 (2026-11-06) — fabricated dependency / VM / cloud data deleted:
-// - `DependencyManager.refreshDependencies` seeded ZIPFoundation 0.9.19 /
-//   Playwright-Swift 0.1.3 when the list was empty, and stamped version
-//   "1.0.0" / license "MIT" / status "Up to date" on every parsed package.
-//   Dependencies now come only from the active project's real
-//   `Package.swift` (`.package(url:)` → "Swift Package", `.package(path:)`
-//   → "Local Package"); no Package.swift (or no `.package` lines) means
-//   an empty list. Version comes only from the real `Package.resolved`
-//   next to it (v1 `object.pins` or v2 `pins`, `state.version` matched by
-//   identity / package name / repository URL); otherwise "Unknown".
-//   Status is "Unknown" — no update check is performed — and license is
-//   "" (unstated). The `SCDependencyItem` init's license default is ""
-//   for the same reason (it used to stamp "MIT" on any caller that
-//   omitted it). `Package.resolved` pins that are not declared in
-//   `Package.swift` (transitive pins) are not listed: they are not the
-//   project's direct dependencies.
-// - `VirtualizationIntegration.refreshVMs` seeded "Default Ubuntu Server
-//   Host" / "Debian Testing Container" when the store was empty. It now
-//   lists only VMs actually registered in `VirtualizationStateStore`; an
-//   empty store means an empty list.
-// - `SCVirtualMachine.ipAddress` defaulted to "192.168.64.2". It is now
-//   `String? = nil` (unknown until the VM reports one). Residue, not
-//   fixed here: `refreshVMs` maps the store VM's `ipAddress` verbatim,
-//   and the store model (`swiftcode-ide` `VirtualMachine`) still defaults
-//   it to a random `192.168.64.x` and nothing ever assigns it a reported
-//   address, so a mapped address can still be invented upstream —
-//   fixing that default belongs to the VM model's owner, outside this
-//   file. No display site for `SCVirtualMachine.ipAddress` exists
-//   repo-wide (the monitor view reads the store model), so no call site
-//   needed updating.
-// - `CloudIntegration` reported storageQuotaUsedGB 0.4 / max 10.0 when
-//   authenticated. Both are now `Double? = nil` ("quota unknown"):
-//   no cloud provider API in this codebase reports storage quota
-//   (`SwiftCodeCloud.CloudManager` exposes only sync lifecycle, and
-//   `AuthManager` exposes auth state only), so nothing real can be
-//   reported. Nothing reads these properties today, so the optional
-//   change has no call-site fallout.
-// - D4's C30 `refreshCertificates` and D5's `recalculateSizes` /
-//   `refreshDevices` were verified still intact and are untouched.
 import Foundation
 import Observation
 #if canImport(Security)
@@ -95,8 +8,8 @@ public struct SCDependencyItem: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let name: String
     public let version: String
-    public let type: String // "Swift Package", "Local Package", "Binary Framework", "Git Repository"
-    public var status: String // "Up to date", "Update Available"
+    public let type: String
+    public var status: String
     public let homepage: String
     public let license: String
 
@@ -116,9 +29,6 @@ public struct SCDependencyItem: Identifiable, Codable, Sendable, Hashable {
 public final class SCOperationsStorageManager {
     public static let shared = SCOperationsStorageManager()
 
-    /// All sizes are measured by `recalculateSizes()`; 0.0 means "no
-    /// measurement yet", never a measured zero. Logs stay 0.0: no on-disk
-    /// log store exists (logs are in-memory only).
     public var projectUsageGB: Double = 0.0
     public var cacheUsageGB: Double = 0.0
     public var derivedDataGB: Double = 0.0
@@ -140,10 +50,6 @@ public final class SCOperationsStorageManager {
     public func recalculateSizes() {
         let projectsDir = ProjectSessionStore.shared.projectsDirectory
         let activeProjectDir = ProjectSessionStore.shared.activeProject?.directoryURL
-        // Values read on the main thread before the background measurement:
-        // archive sizes are recorded on the archive records, and VM disk
-        // sizes are the VMs' configured sizes (no VM disk path is recorded
-        // on the VM model, so nothing on disk can be measured for them).
         let archiveBytes = ArchiveManager.shared.archives.reduce(Int64(0)) { $0 + $1.binarySize }
         let vmConfiguredGB = Double(VirtualizationStateStore.shared.virtualMachines.reduce(0) { $0 + $1.storageGB })
         let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("SwiftCode")
@@ -180,7 +86,6 @@ public final class SCOperationsStorageManager {
                 self.cacheUsageGB = cacheUsage
                 self.vmUsageGB = vmConfiguredGB
                 self.archiveUsageGB = archiveUsage
-                // No on-disk log store exists; 0.0 means "no log files".
                 self.logUsageGB = 0.0
                 self.backupUsageGB = backupUsage
                 self.totalSystemFreeGB = freeGB
@@ -232,11 +137,6 @@ public final class DependencyManager {
 
         guard let project = ProjectSessionStore.shared.activeProject else { return }
 
-        // Direct dependencies come only from the project's real
-        // Package.swift. No Package.swift (or no `.package` lines in it)
-        // means an empty list — never seeded rows. Version comes only
-        // from the real Package.resolved next to it; status is "Unknown"
-        // (no update check is performed) and license is "" (unstated).
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
         guard FileManager.default.fileExists(atPath: packageURL.path),
               let contents = try? String(contentsOf: packageURL, encoding: .utf8),
@@ -271,7 +171,6 @@ public final class DependencyManager {
         }
     }
 
-    /// The first double-quoted value after `label` on this line, or nil.
     private static func quotedValue(after label: String, in line: String) -> String? {
         guard let labelRange = line.range(of: label) else { return nil }
         let rest = line[labelRange.upperBound...]
@@ -280,11 +179,6 @@ public final class DependencyManager {
         return String(rest[rest.index(after: open)..<close])
     }
 
-    /// `name → version` from the real Package.resolved in `directory`
-    /// (v2 top-level `pins`, or v1 `object.pins`). A pin states its
-    /// version under `state.version`; branch/revision pins carry no
-    /// version, so they contribute nothing. Empty when the file is
-    /// absent or unreadable.
     private static func resolvedVersions(in directory: URL) -> [String: String] {
         let resolvedURL = directory.appendingPathComponent("Package.resolved")
         guard let data = try? Data(contentsOf: resolvedURL),
@@ -321,9 +215,9 @@ public struct SCDevice: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public let name: String
     public let model: String
-    public let platform: String // "iOS", "macOS", "visionOS"
+    public let platform: String
     public let osVersion: String
-    public var status: String // "Connected", "Offline", "Simulated"
+    public var status: String
 
     public init(id: String, name: String, model: String, platform: String, osVersion: String, status: String) {
         self.id = id
@@ -346,18 +240,10 @@ public final class SCOperationsDeviceManager {
         refreshDevices()
     }
 
-    /// Real device enumeration: this Mac (host name, `sysctl hw.model`,
-    /// OS version), physical devices from `xcrun devicectl list devices`,
-    /// and simulators from `xcrun simctl list -j devices` (available
-    /// devices only; booted → "Connected", otherwise "Offline"). No
-    /// `xcrun` / no devices means an empty list (apart from this Mac),
-    /// never invented rows. Runs the listings synchronously, like
-    /// `SCOperationsSigningManager`'s `security find-identity` call.
     public func refreshDevices() {
         var found: [SCDevice] = []
 
         #if os(macOS)
-        // This Mac — the real local host.
         let version = ProcessInfo.processInfo.operatingSystemVersion
         let osVersion = "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
         let hostName = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
@@ -376,10 +262,6 @@ public final class SCOperationsDeviceManager {
         self.devices = found
     }
 
-    /// Physical devices from `xcrun devicectl list devices` (same JSON
-    /// shape `DestinationCatalog.devices(fromDevicectlJSON:)` parses).
-    /// Empty when `xcrun` is unavailable, the command fails, or no
-    /// physical device is attached.
     private static func physicalDevices() -> [SCDevice] {
         let scratch = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-devicectl-\(ProcessInfo.processInfo.processIdentifier).json")
@@ -396,9 +278,6 @@ public final class SCOperationsDeviceManager {
                   let platform = hw["platform"] as? String,
                   let udid = hw["udid"] as? String,
                   let name = props["name"] as? String else { return nil }
-            // hardwareProperties carries the model identifier when the
-            // listing provides one; fall back to the platform, never an
-            // invented model name.
             let model = (hw["model"] as? String) ?? (hw["deviceType"] as? String) ?? platform
             return SCDevice(
                 id: udid,
@@ -411,19 +290,13 @@ public final class SCOperationsDeviceManager {
         .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
-    /// Simulators from `xcrun simctl list -j devices` (same JSON shape
-    /// `DestinationCatalog.simulators(fromSimctlJSON:)` parses). Only
-    /// available devices are listed. Empty when `xcrun` is unavailable,
-    /// the command fails, or no simulator exists.
     private static func simulatorDevices() -> [SCDevice] {
         guard let data = runCommandData("/usr/bin/xcrun", ["simctl", "list", "-j", "devices"]),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let byRuntime = root["devices"] as? [String: [[String: Any]]] else { return [] }
-        // CoreSimulator runtime identifiers spell platforms this way.
         let runtimePlatforms = ["iOS": "iOS", "watchOS": "watchOS", "tvOS": "tvOS", "xrOS": "visionOS", "visionOS": "visionOS"]
         var out: [SCDevice] = []
         for (runtime, devices) in byRuntime {
-            // com.apple.CoreSimulator.SimRuntime.iOS-18-0 → iOS, 18.0
             let tail = runtime.split(separator: ".").last.map(String.init) ?? runtime
             let parts = tail.split(separator: "-").map(String.init)
             guard let first = parts.first, let platform = runtimePlatforms[first] else { continue }
@@ -431,7 +304,6 @@ public final class SCOperationsDeviceManager {
             for device in devices where (device["isAvailable"] as? Bool) ?? true {
                 guard let name = device["name"] as? String,
                       let udid = device["udid"] as? String else { continue }
-                // com.apple.CoreSimulator.SimDeviceType.iPhone-15 → iPhone 15
                 let model = (device["deviceTypeIdentifier"] as? String)?
                     .replacingOccurrences(of: "com.apple.CoreSimulator.SimDeviceType.", with: "")
                     .replacingOccurrences(of: "-", with: " ") ?? name
@@ -448,15 +320,11 @@ public final class SCOperationsDeviceManager {
         return out.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
-    /// Runs a command and returns its stdout as a string, or `nil` when
-    /// the executable is missing, the launch fails, or it exits non-zero.
     private static func runCommand(_ executable: String, _ arguments: [String]) -> String? {
         guard let data = runCommandData(executable, arguments) else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
-    /// Runs a command and returns its stdout data, or `nil` when the
-    /// executable is missing, the launch fails, or it exits non-zero.
     private static func runCommandData(_ executable: String, _ arguments: [String]) -> Data? {
         guard FileManager.default.isExecutableFile(atPath: executable) else { return nil }
         let process = Process()
@@ -477,7 +345,7 @@ public final class SCOperationsDeviceManager {
 public struct SCSigningCertificate: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public let name: String
-    public let type: String // "Development", "Distribution"
+    public let type: String
     public let expirationDate: Date
     public var isValid: Bool
 
@@ -505,9 +373,6 @@ public final class SCOperationsSigningManager {
         self.certificates = Self.loadSigningCertificates()
     }
 
-    /// Real code-signing identities from the user's keychain. Empty when
-    /// `/usr/bin/security` is unavailable, the command fails, or no
-    /// identities exist — never a fabricated certificate.
     private static func loadSigningCertificates() -> [SCSigningCertificate] {
         guard let output = runFindIdentity() else { return [] }
         let identities = parseFindIdentity(output)
@@ -515,8 +380,6 @@ public final class SCOperationsSigningManager {
         let expiries = certificateExpiriesByName()
         let now = Date()
         return identities.compactMap { identity in
-            // An identity whose certificate expiry cannot be read is omitted
-            // rather than given an invented date.
             guard let expiry = expiries[identity.name] else { return nil }
             return SCSigningCertificate(
                 id: "CERT-\(identity.hash)",
@@ -528,7 +391,6 @@ public final class SCOperationsSigningManager {
         }
     }
 
-    /// Runs `security find-identity -v -p codesigning` and returns its stdout.
     private static func runFindIdentity() -> String? {
         let security = "/usr/bin/security"
         guard FileManager.default.isExecutableFile(atPath: security) else { return nil }
@@ -546,9 +408,6 @@ public final class SCOperationsSigningManager {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Parses `find-identity -v` lines of the form `  1) <SHA-1> "<name>"`.
-    /// Lines that do not match (including the "0 valid identities found"
-    /// footer) are ignored.
     private static func parseFindIdentity(_ text: String) -> [(hash: String, name: String)] {
         var out: [(String, String)] = []
         var seen = Set<String>()
@@ -561,7 +420,6 @@ public final class SCOperationsSigningManager {
             var name = rest[space...].trimmingCharacters(in: .whitespaces)
             guard hash.count == 40, hash.allSatisfy(\.isHexDigit), name.hasPrefix("\"") else { continue }
             name.removeFirst()
-            // An invalid identity carries a reason after the closing quote.
             guard let close = name.lastIndex(of: "\"") else { continue }
             if seen.insert(hash.uppercased()).inserted {
                 out.append((hash.uppercased(), String(name[..<close])))
@@ -570,9 +428,6 @@ public final class SCOperationsSigningManager {
         return out
     }
 
-    /// Expiry date of every certificate in the keychain, keyed by subject
-    /// summary (the certificate's common name, as `find-identity` prints it).
-    /// Empty where there is no Security framework (Linux) or no certificates.
     private static func certificateExpiriesByName() -> [String: Date] {
 #if canImport(Security)
         let query: [String: Any] = [
@@ -595,8 +450,6 @@ public final class SCOperationsSigningManager {
 #endif
     }
 
-    /// "Development" / "Distribution" from the real certificate name, or the
-    /// kind prefix before ":" for any other certificate kind.
     private static func certificateType(for name: String) -> String {
         if name.hasPrefix("Apple Development") || name.hasPrefix("iPhone Developer") || name.hasPrefix("Mac Developer") {
             return "Development"
@@ -621,9 +474,6 @@ public struct SCVirtualMachine: Identifiable, Codable, Sendable, Hashable {
     public var status: String
     public var uptime: TimeInterval
     public var storageGB: Int
-    /// The VM's reported IP address, or `nil` when it has not reported
-    /// one. Never a placeholder address: the old "192.168.64.2" default
-    /// was invented, and display sites must render `nil` as "—"/"Unknown".
     public var ipAddress: String?
     public var snapshotCount: Int
     public var attachedProjectsCount: Int
@@ -655,12 +505,6 @@ public final class VirtualizationIntegration {
     }
 
     public func refreshVMs() {
-        // Only VMs actually registered in VirtualizationStateStore are
-        // listed. An empty store means an empty list — the old seeded
-        // "Default Ubuntu Server Host" / "Debian Testing Container" rows
-        // were invented. (The store VM's `ipAddress` is mapped verbatim;
-        // see the D6 header note — the store model can still carry an
-        // invented address upstream.)
         let storeVMs = VirtualizationStateStore.shared.virtualMachines
         self.virtualMachines = storeVMs.map { vm in
             SCVirtualMachine(
@@ -692,7 +536,6 @@ public final class BackupIntegration {
     }
 
     public func refreshBackups() {
-        // Look inside localized project archives or backups folder
         let fm = FileManager.default
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let backupsDir = appSupport.appendingPathComponent("SwiftCode/Backups")
@@ -736,12 +579,6 @@ public final class CloudIntegration {
 
     public var isConnected: Bool = false
     public var cloudUser: String? = nil
-    /// Cloud storage quota, or `nil` when unknown. No cloud provider API
-    /// in this codebase reports storage quota (`SwiftCodeCloud.CloudManager`
-    /// exposes only sync lifecycle — initialize/sync/start/stop/logout —
-    /// and `AuthManager` exposes auth state only), so nothing real can be
-    /// reported; `nil` means "quota unknown", never a measured zero. The
-    /// old authenticated-branch 0.4 GB used / 10.0 GB max were invented.
     public var storageQuotaUsedGB: Double? = nil
     public var storageQuotaMaxGB: Double? = nil
 
@@ -750,11 +587,9 @@ public final class CloudIntegration {
     }
 
     public func refreshCloudStatus() {
-        // Bridge with AuthManager and CloudManager
         if AuthManager.shared.isAuthenticated {
             self.isConnected = true
             self.cloudUser = AuthManager.shared.currentUser?.email ?? "Developer"
-            // Quota stays unknown: no provider endpoint reports it (see above).
             self.storageQuotaUsedGB = nil
             self.storageQuotaMaxGB = nil
         } else {

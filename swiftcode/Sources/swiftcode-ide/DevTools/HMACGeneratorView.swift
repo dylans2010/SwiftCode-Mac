@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(CryptoKit)
 import SwiftUI
 import CryptoKit
@@ -37,7 +34,7 @@ struct HMACGeneratorView: View {
                 Text(result)
                     .font(.system(.body, design: .monospaced))
                     .padding()
-                    
+
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.secondary.opacity(0.1))
                     .cornerRadius(8)

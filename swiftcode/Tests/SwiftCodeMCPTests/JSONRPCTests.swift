@@ -11,7 +11,6 @@ import Testing
         let text = v.text
         #expect(!text.contains("\n"))
         #expect(try AnyJSON.parse(text) == v)
-        // Sorted keys, slashes not escaped.
         #expect(AnyJSON.object(["b": "/x", "a": 1]).text == #"{"a":1,"b":"/x"}"#)
         #expect(AnyJSON.double(3).int == 3 && AnyJSON.double(3.5).int == nil)
     }
@@ -24,7 +23,6 @@ import Testing
         #expect(try JSONRPCMessage.parse(Data(#"{"jsonrpc":"2.0","id":1,"result":{}}"#.utf8)) == .result(id: .int(1), result: [:]))
         let e = try JSONRPCMessage.parse(Data(#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"no"}}"#.utf8))
         #expect(e == .error(id: .int(1), error: JSONRPCError(code: -32601, message: "no")))
-        // Not JSON-RPC 2.0, batches, null ids on requests, garbage.
         #expect(throws: JSONRPCError.self) { try JSONRPCMessage.parse(Data(#"{"id":1,"method":"m"}"#.utf8)) }
         #expect(throws: JSONRPCError.self) { try JSONRPCMessage.parse(Data(#"[{"jsonrpc":"2.0","method":"m"}]"#.utf8)) }
         #expect(throws: JSONRPCError.self) { try JSONRPCMessage.parse(Data(#"{"jsonrpc":"2.0","id":null,"method":"m"}"#.utf8)) }
@@ -47,7 +45,6 @@ import Testing
         #expect(f.flush() == nil)
     }
 
-    /// Two peers wired back to back.
     static func pair() -> (JSONRPCPeer, JSONRPCPeer) {
         final class Box: @unchecked Sendable { var a: JSONRPCPeer?; var b: JSONRPCPeer? }
         let box = Box()
@@ -78,7 +75,6 @@ import Testing
         } catch let e as JSONRPCError {
             #expect(e.code == -32601)
         }
-        // Concurrent requests are matched by id.
         async let x = client.request("add", ["a": 1, "b": 1])
         async let y = client.request("add", ["a": 10, "b": 10])
         #expect(try await [x, y] == [.int(2), .int(20)])

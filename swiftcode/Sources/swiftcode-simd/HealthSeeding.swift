@@ -1,11 +1,3 @@
-// `health seed` (health-simulation.md §8.6 H-13…H-15, round HEALTH-3): the
-// read-only types (sleep apnea events, breathing disturbances, AFib burden,
-// irregular-rhythm events, ECG classifications) written into a shut-down
-// device's store under its own system source, after a backup of the store
-// (HealthSeed.swift has the rows). Apps read them through the public API
-// after the next boot. ECGs have no waveform (H-14). Live insertion into a
-// running device is not offered (H-15).
-
 import Foundation
 import SwiftCodeHealthStore
 import SwiftCodeSimFeatures
@@ -27,7 +19,6 @@ enum HealthSeeding {
                 return "error \(path): \(error)"
             }
         case let .seedScenario(name, date, days, seed):
-            // Without --date: ending with the last complete day (no sample in the future).
             var o = HealthScenarioOptions(date: date.flatMap { HealthCommand.parseDay($0, timeZone: .current) } ?? now.addingTimeInterval(-86400 * Double(days)))
             o.days = days
             o.seed = seed

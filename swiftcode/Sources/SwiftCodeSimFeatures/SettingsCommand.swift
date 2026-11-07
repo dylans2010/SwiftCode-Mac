@@ -1,22 +1,3 @@
-// The settings commands of a device's control socket and of the
-// `swiftcode-simd --device DEV --ui|--accessibility|--location|--audio …`
-// command line (specs/simulator/simulator-features.md "SwiftCode
-// implementation" §I.4). One grammar for swiftcode-simd, the launcher, the
-// viewer and the IDE:
-//
-//   ui appearance [light|dark|toggle]                    (no value: prints light|dark)
-//   ui content_size [<size>|increment|decrement]         (simctl's names; no value: prints the size)
-//   ui increase_contrast [enabled|disabled]              (no value: prints enabled|disabled)
-//   ui liquid-glass [<opacity 0…1>] [clear|tinted]
-//   ui color-filter none|protanopia|deuteranopia|tritanopia|grayscale [<intensity 0.25…1>]
-//   ui larger-accessibility-sizes on|off
-//   accessibility reduce-motion|increase-contrast|show-borders|reduce-transparency|voiceover [on|off]
-//   location set <lat>,<lon> | preset <name> | start [--speed=S] [--distance=M|--interval=S] <lat,lon>…
-//            | run <scenario name> | file <path> | clear | list
-//   audio volume [<0…100>|up|down] | output [none|system|<uid>] | input [none|system|<uid>] | devices
-//   overrides <bundle id> [show | clear | <item>=<value>…]   (environment overrides; EnvironmentOverrides.swift)
-//   settings                                              (every setting, one per line)
-
 import Foundation
 
 public enum SimSettingsCommand: Equatable, Sendable {
@@ -28,7 +9,6 @@ public enum SimSettingsCommand: Equatable, Sendable {
     case getIncreaseContrast
     case getSwitch(AccessibilitySwitch)
     case location(LocationCommand)
-    /// `location file <path>`: a host file, read by the host (`SimLocation.parseFile`).
     case locationFile(String)
     case locationList
     case volume(Int)
@@ -48,8 +28,6 @@ public enum SimSettingsCommand: Equatable, Sendable {
         public var description: String { message }
     }
 
-    /// The first words of the settings commands (the control socket hands
-    /// these to the settings controller).
     public static let verbs: Set<String> = ["ui", "accessibility", "location", "audio", "overrides", "settings"]
 
     static func onOff(_ s: String) -> Bool? {
@@ -171,7 +149,6 @@ public enum SimSettingsCommand: Equatable, Sendable {
         case "run":
             let name = w.dropFirst().joined(separator: " ")
             guard !name.isEmpty else { throw ParseError("location run <scenario> (" + SimLocation.builtInScenarios.joined(separator: ", ") + ")") }
-            // A GPX, route or coordinate file of the host; a guest path to a scenario file; a runtime scenario's name.
             if name.hasSuffix(".gpx") || name.hasSuffix(".json") || name.hasSuffix(".txt") { return .locationFile(name) }
             return .location(.scenario(name: name))
         case "file":
@@ -201,9 +178,6 @@ public enum SimSettingsCommand: Equatable, Sendable {
         }
     }
 
-    /// Whether the command needs the running device's guest agent (getters
-    /// and live-only features), or can be written into a stopped device's
-    /// files for its next boot (persistent settings, audio).
     public var worksOffline: Bool {
         switch self {
         case .set(let s): SimFeatureMapping.persists(s)
@@ -215,7 +189,6 @@ public enum SimSettingsCommand: Equatable, Sendable {
         }
     }
 
-    /// The words of the command-line shorthands: `--ui a b` → ["ui", "a", "b"].
     public static let commandLineFlags: [String: String] = ["--ui": "ui", "--accessibility": "accessibility",
                                                             "--location": "location", "--audio": "audio",
                                                             "--overrides": "overrides", "--settings": "settings"]

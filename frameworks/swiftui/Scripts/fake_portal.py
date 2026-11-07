@@ -1,12 +1,3 @@
-# OV-R10 test tool (not part of the package): a stand-in for
-# org.freedesktop.portal.Settings on a private session bus, for checking the
-# settings-portal path of OVPlatform/Settings.swift without changing a real
-# desktop's settings. Answers ReadAll with light mode, then after 3 s
-# switches to dark and a 1.3 text scale (SettingChanged signals). Uses the
-# system's PyGObject (LGPL-2.1-or-later) at run time. Run:
-#
-#   dbus-run-session -- sh -c 'python3 -I fake_portal.py & sleep 1; ov-mini-ide'
-
 import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib

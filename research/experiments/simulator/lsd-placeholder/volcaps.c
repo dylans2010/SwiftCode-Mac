@@ -1,4 +1,3 @@
-// volcaps: our probe: ATTR_VOL_CAPABILITIES and ATTR_VOL_ATTRIBUTES (decoded) and statfs of each path.
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>

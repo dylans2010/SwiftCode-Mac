@@ -1,6 +1,3 @@
-/* CSwiftCodeVideo (see include/CSwiftCodeVideo.h). NVENC and NVDEC through the
- * public Video Codec SDK interfaces (vendored headers, MIT), resolved with
- * dlopen/dlsym from the NVIDIA driver's libraries. */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
@@ -11,8 +8,6 @@
 #include <string.h>
 
 void yvid_nv12_to_bgrx(const uint8_t *y, const uint8_t *uv, int pitch, int width, int height, uint8_t *dst, size_t dstStride) {
-    /* BT.709 limited range: what NVENC's RGB→YUV conversion does (measured on flat
-     * patches: red → Y 63, U 102, V 240), and what the encoder now signals in its VUI. */
     for (int j = 0; j < height; j++) {
         const uint8_t *yr = y + (size_t)j * pitch, *uvr = uv + (size_t)(j / 2) * pitch;
         uint8_t *o = dst + (size_t)j * dstStride;
@@ -28,7 +23,6 @@ void yvid_nv12_to_bgrx(const uint8_t *y, const uint8_t *uv, int pitch, int width
 }
 
 void yvid_yuv444_to_bgrx(const uint8_t *y, const uint8_t *u, const uint8_t *v, int pitch, int width, int height, uint8_t *dst, size_t dstStride) {
-    /* The same matrix as yvid_nv12_to_bgrx, chroma at every pixel. */
     for (int j = 0; j < height; j++) {
         const uint8_t *yr = y + (size_t)j * pitch, *ur = u + (size_t)j * pitch, *vr = v + (size_t)j * pitch;
         uint8_t *o = dst + (size_t)j * dstStride;
@@ -55,8 +49,6 @@ void yvid_yuv444_to_bgrx(const uint8_t *y, const uint8_t *u, const uint8_t *v, i
 static void seterr(char *error, size_t n, const char *fmt, long v) {
     if (error && n) snprintf(error, n, fmt, v);
 }
-
-/* ---- CUDA (driver API) ---- */
 
 static struct {
     tcuInit *Init;
@@ -90,8 +82,6 @@ static CUcontext cu_context(void) {
     CU.CtxPop(&popped);
     return ctx;
 }
-
-/* ---- NVENC ---- */
 
 typedef NVENCSTATUS (NVENCAPI *createInstance_fn)(NV_ENCODE_API_FUNCTION_LIST *);
 static NV_ENCODE_API_FUNCTION_LIST NV;
@@ -136,7 +126,6 @@ void yvid_enc_close(yvid_enc *e) {
     free(e);
 }
 
-/* The VUI says what the pictures are: BT.709 limited range, as NVENC converts BGRA. */
 #define SIGNAL_BT709(v) do { \
     (v).videoSignalTypePresentFlag = 1; (v).videoFormat = NV_ENC_VUI_VIDEO_FORMAT_UNSPECIFIED; (v).videoFullRangeFlag = 0; \
     (v).colourDescriptionPresentFlag = 1; (v).colourPrimaries = NV_ENC_VUI_COLOR_PRIMARIES_BT709; \
@@ -197,9 +186,6 @@ yvid_enc *yvid_enc_open2(int width, int height, const yvid_enc_params *params, c
     cfg.gopLength = NVENC_INFINITE_GOPLENGTH;
     cfg.frameIntervalP = 1;
     if (params->qp > 0) {
-        /* Constant QP: every picture at one quality, whatever it costs (the
-         * stream sends a picture only when it changes, so nothing would
-         * refine a picture a rate limit had starved; display-stream.md §14). */
         cfg.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CONSTQP;
         cfg.rcParams.constQP.qpInterP = cfg.rcParams.constQP.qpInterB = cfg.rcParams.constQP.qpIntra = (uint32_t)params->qp;
         cfg.rcParams.averageBitRate = 0;
@@ -207,7 +193,6 @@ yvid_enc *yvid_enc_open2(int width, int height, const yvid_enc_params *params, c
         cfg.rcParams.vbvBufferSize = 0;
         cfg.rcParams.vbvInitialDelay = 0;
     } else if (params->constantBitrate) {
-        /* CBR with a VBV of one frame at the nominal rate. */
         cfg.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
         cfg.rcParams.averageBitRate = (uint32_t)bitrateKbps * 1000u;
         cfg.rcParams.maxBitRate = (uint32_t)bitrateKbps * 1000u;
@@ -327,7 +312,6 @@ int yvid_enc_encode(yvid_enc *e, const uint8_t *bgra, size_t stride, const int32
     pic.outputBitstream = e->bitstream;
     pic.bufferFmt = NV_ENC_BUFFER_FORMAT_ARGB;
     pic.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-    /* AV1: repeatSeqHdr already puts the sequence header on every key frame. */
     if (forceIDR || e->first) pic.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR | (e->codec == YVID_AV1 ? 0 : NV_ENC_PIC_FLAG_OUTPUT_SPSPPS);
     est = NV.nvEncEncodePicture(e->session, &pic);
     if (est != NV_ENC_SUCCESS) {
@@ -350,7 +334,6 @@ int yvid_enc_encode(yvid_enc *e, const uint8_t *bgra, size_t stride, const int32
         memcpy(e->out, lb.bitstreamBufferPtr, lb.bitstreamSizeInBytes);
         *out = e->out;
         *outSize = lb.bitstreamSizeInBytes;
-        /* AV1 reports a key frame as I; a forced IDR is a key frame whatever it reports. */
         *isIDR = lb.pictureType == NV_ENC_PIC_TYPE_IDR || forceIDR || e->first;
         rc = 0;
         e->first = 0;
@@ -369,7 +352,7 @@ int yvid_enc_available(void) {
     pthread_mutex_lock(&encCheckLock);
     if (encChecked < 0) {
         char err[128];
-        yvid_enc *e = yvid_enc_open(256, 256, 60, 1000, err, sizeof err);  /* NVENC has a minimum size (above 64 x 64) */
+        yvid_enc *e = yvid_enc_open(256, 256, 60, 1000, err, sizeof err);
         encChecked = e != NULL;
         yvid_enc_close(e);
     }
@@ -422,8 +405,6 @@ done:
     return rc;
 }
 
-/* ---- NVDEC ---- */
-
 static struct {
     tcuvidCreateVideoParser *CreateParser;
     tcuvidParseVideoData *Parse;
@@ -446,7 +427,7 @@ static void dv_load(void) {
     S(CreateDecoder, "cuvidCreateDecoder") S(DestroyDecoder, "cuvidDestroyDecoder") S(DecodePicture, "cuvidDecodePicture")
     S(Map, "cuvidMapVideoFrame64") S(Unmap, "cuvidUnmapVideoFrame64")
 #undef S
-    *(void **)&DV.Caps = dlsym(h, "cuvidGetDecoderCaps");  /* optional: without it only H.264 4:2:0 is assumed */
+    *(void **)&DV.Caps = dlsym(h, "cuvidGetDecoderCaps");
     DV.ok = 1;
 }
 
@@ -455,7 +436,7 @@ struct yvid_dec {
     CUvideoparser parser;
     CUvideodecoder decoder;
     int width, height, codedW, codedH, cropTop, cropLeft;
-    int format;                  /* YVID_NV12 or YVID_YUV444 */
+    int format;
     uint8_t *planes;
     size_t planesCap;
     int got, failed;
@@ -538,7 +519,6 @@ static int CUDAAPI on_display(void *user, CUVIDPARSERDISPINFO *info) {
         c.WidthInBytes = (size_t)d->width;
         c.Height = (size_t)d->height;
         int ok = CU.Memcpy2D(&c) == CUDA_SUCCESS;
-        /* The chroma planes follow the output surface's luma rows (its height is the target height, rounded up to even). */
         unsigned long long rows = (unsigned long long)((d->height + 1) & ~1);
         c.srcDevice = (CUdeviceptr)(dev + (unsigned long long)pitch * rows);
         c.dstHost = d->planes + luma;
@@ -670,7 +650,7 @@ int yvid_dec_query(int codec, int yuv444, int bitDepth, yvid_dec_caps *caps) {
     return 0;
 }
 
-#else /* not Linux: no NVENC/NVDEC here */
+#else
 
 int yvid_enc_available(void) { return 0; }
 int yvid_enc_query(int codec, yvid_enc_caps *caps, char *error, size_t errorSize) {

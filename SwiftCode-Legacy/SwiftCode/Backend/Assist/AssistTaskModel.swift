@@ -1,36 +1,28 @@
 import Foundation
 
-// MARK: - Assist v3 Structured Task Model
-
-/// Represents the comprehensive state of an active autonomous agent engineering task.
 public struct AgentTask: Codable, Sendable, Identifiable {
     public let id: UUID
     public let createdAt: Date
     public var updatedAt: Date
 
-    // Core intent & boundaries
     public var originalRequest: String
     public var interpretedObjective: String
     public var constraints: [String]
     public var discoveredRequirements: [String]
 
-    // Scope & operations
     public var filesInvolved: [String]
     public var plannedOperations: [TaskOperation]
     public var completedOperations: [TaskOperation]
 
-    // Verification & Quality Gate
     public var verificationRequirements: [VerificationRequirement]
     public var completionCriteria: [CompletionCriterion]
 
-    // Diagnostics & Healing
     public var failures: [TaskFailure]
     public var repairAttempts: [RepairAttempt]
     public var toolHistory: [ToolExecutionRecord]
     public var importantObservations: [String]
     public var unresolvedIssues: [String]
 
-    // Budget & Lifecycle
     public var status: AgentSessionStatus
     public var budgets: TaskExecutionBudget
 
@@ -85,8 +77,6 @@ public struct AgentTask: Codable, Sendable, Identifiable {
     }
 }
 
-// MARK: - Task Operations
-
 public struct TaskOperation: Codable, Sendable, Identifiable, Hashable {
     public let id: UUID
     public let toolId: String
@@ -114,8 +104,6 @@ public struct TaskOperation: Codable, Sendable, Identifiable, Hashable {
         self.timestamp = timestamp
     }
 }
-
-// MARK: - Verification Requirements
 
 public enum VerificationKind: String, Codable, Sendable {
     case syntaxCheck = "Syntax Check"
@@ -149,8 +137,6 @@ public struct VerificationRequirement: Codable, Sendable, Identifiable {
         self.evaluatedAt = evaluatedAt
     }
 }
-
-// MARK: - Completion Criteria Contract
 
 public enum CompletionCriterionType: String, Codable, Sendable {
     case requestUnderstood = "REQUEST_UNDERSTOOD"
@@ -195,8 +181,6 @@ public struct CompletionCriterion: Codable, Sendable, Identifiable {
         ]
     }
 }
-
-// MARK: - Failure & Repair Tracking
 
 public enum FailureCategory: String, Codable, Sendable {
     case compilerError = "Compiler Error"
@@ -259,8 +243,6 @@ public struct RepairAttempt: Codable, Sendable, Identifiable {
     }
 }
 
-// MARK: - Tool History Record
-
 public struct ToolExecutionRecord: Codable, Sendable, Identifiable {
     public let id: UUID
     public let toolId: String
@@ -291,8 +273,6 @@ public struct ToolExecutionRecord: Codable, Sendable, Identifiable {
         self.timestamp = timestamp
     }
 }
-
-// MARK: - Execution Budgets
 
 public struct TaskExecutionBudget: Codable, Sendable {
     public var maxIterations: Int

@@ -1,41 +1,3 @@
-/*
- * mslog: XPC-level recorder for the simulator Metal driver's host connection
- * (original Ycode code, R7). Inserted with DYLD_INSERT_LIBRARIES into our own
- * test programs (simctl spawn) or into every job of a throwaway boot
- * (simctl boot with SIMCTL_CHILD_ variables).
- *
- * It interposes public and exported libxpc calls and records, for every
- * connection whose service name starts with a target prefix, the messages the
- * client sends, the replies it gets, and the events the connection delivers.
- * XPC objects are printed with our own walker (public xpc_* getters); data
- * objects can also be written whole to files. It never reads executable
- * memory: data and shared-memory objects are the client's own message
- * payloads.
- *
- * Env: YC_MS_DIR=<dir>     log to <dir>/<process>-<pid>.log (required)
- *      YC_MS_ONLY=a,b      only these process names (default: all)
- *      YC_MS_PREFIX=p      target name prefix (default com.apple.metal.simulator)
- *      YC_MS_DUMP=1        write every data object to <dir>/<process>-<pid>-<seq>.bin
- *      YC_MS_SHMEM=1       map shared-memory objects read-only and record size and a prefix
- *      YC_MS_LIGHT=1       with YC_MS_DUMP: write segments only up to their used length and skip
- *                          other data objects of 16 KiB or more (keeps a whole boot fast)
- *      YC_MS_HEX=n         bytes of each data object shown inline (default 128)
- *      YC_MS_DENY=a,b      names that fail (bootstrap_look_up 1102), '*' suffix = prefix
- *      YC_MS_SFB=1         (build with -DMS_SFB) also record SimFramebuffer swap calls (SwapBegin, SwapAddSurface,
- *                          SwapSubmit) by wrapping the pointers the client gets from dlsym,
- *                          so their order relative to Metal messages is visible
- *      YC_MS_FAKE=1        instead of the host service, connect the client to an in-process test
- *                          server (anonymous XPC listener) that answers from what the captures
- *                          showed; YC_FAKE_VERSION, YC_FAKE_PROFILE (handshake reply values),
- *                          YC_FAKE_LIMITS=a,b,c,d (op 37 reply, four u64), YC_FAKE_NOREPLY=list of
- *                          "mt" or "mt:op" items answered with an empty dictionary,
- *                          YC_FAKE_NOEVENTS=1 (never send events 100/101), YC_FAKE_ONLY101=1,
- *                          YC_FAKE_ERROR=n and YC_FAKE_STATUS=n (values in the events)
- *      YC_FAKE_ENC=len,align  (test server) encoded length and alignment answered to op 17
- *      YC_MS_REGIONS=n     at each command-buffer submission (messageType 6), print the
- *                          non-zero 16-byte lines of the first n bytes of every region the
- *                          driver shared with xpc_shmem_create (the client's own memory)
- */
 #include <xpc/xpc.h>
 #include <dispatch/dispatch.h>
 #include <mach/mach.h>
@@ -53,7 +15,7 @@
 extern const char *getprogname(void);
 extern kern_return_t bootstrap_look_up(mach_port_t bp, const char *name, mach_port_t *sp);
 extern void xpc_connection_enable_sim2host_4sim(xpc_connection_t c);
-extern pid_t ms_conn_pid(xpc_connection_t c) __asm__("_xpc_connection_get_pid"); /* exported libxpc name */
+extern pid_t ms_conn_pid(xpc_connection_t c) __asm__("_xpc_connection_get_pid");
 extern const struct _xpc_type_s _xpc_type_mach_send;
 #define YC_TYPE_MACH_SEND (&_xpc_type_mach_send)
 extern size_t xpc_shmem_map(xpc_object_t xshmem, void **region);
@@ -157,7 +119,6 @@ static void dumpfile(const void *p, size_t n, const char *kind)
 {
     if (!g_dump || !n) return;
     if (getenv("YC_MS_LIGHT")) {
-        /* Light mode: command-buffer segments trimmed to their used length; other data only below 16 KiB. */
         if (n == 65536) { uint32_t used; memcpy(&used, p, 4); if (used >= 8 && used <= n) n = used; }
         else if (n >= 16384) return;
     }
@@ -270,7 +231,6 @@ static void record(const char *tag, int id, xpc_object_t m, void *ra, double dt)
     pthread_mutex_unlock(&g_mx);
 }
 
-/* Our test programs call this through dlsym to put markers into the log. */
 __attribute__((visibility("default"))) void mslog_mark(const char *text)
 {
     FILE *f = lg();
@@ -298,7 +258,6 @@ static kern_return_t my_look_up(mach_port_t bp, const char *name, mach_port_t *s
 }
 INTERPOSE(my_look_up, bootstrap_look_up)
 
-/* ---- in-process test server (YC_MS_FAKE) ---- */
 static uint64_t g_fref = 0x100;
 
 static int fake_noreply(uint64_t mt, uint32_t op)
@@ -369,7 +328,6 @@ static void fake_msg(xpc_connection_t peer, xpc_object_t m)
             uint32_t v[4] = { (uint32_t)ref, 0, 0xffff0001u, 0xffffffffu };
             fake_reply_data(r, v, sizeof v);
         } else if (op == 17) {
-            /* YC_FAKE_ENC=len,align: the encoded length and alignment the test server answers */
             unsigned len = 64, al = 8;
             if (getenv("YC_FAKE_ENC")) sscanf(getenv("YC_FAKE_ENC"), "%u,%u", &len, &al);
             uint32_t v[4] = { (uint32_t)ref, 0, (al << 16) | (len & 0xffff), 0 };
@@ -527,9 +485,6 @@ static void my_handler(xpc_connection_t c, xpc_handler_t h)
 INTERPOSE(my_handler, xpc_connection_set_event_handler)
 
 #ifdef MS_SFB
-/* SimFramebuffer swap calls (signatures from simframebuffer.md section 3.6). Built only with
- * -DMS_SFB: interposing dlsym changes what RTLD_NEXT/RTLD_SELF/RTLD_DEFAULT look-ups see (they
- * are resolved relative to this image), which blanked the display in a whole-boot run. */
 typedef struct { double x, y, w, h; } ms_rect;
 static bool (*real_begin)(void *, uint64_t, void **);
 static bool (*real_add)(void *, void *, ms_rect, ms_rect, long, long);
@@ -570,7 +525,6 @@ static void *my_dlsym(void *h, const char *name)
 INTERPOSE(my_dlsym, dlsym)
 #endif
 
-/* Record which images create shared-memory objects, with address and length. */
 static xpc_object_t my_shmem_create(void *region, size_t len)
 {
     xpc_object_t o = xpc_shmem_create(region, len);

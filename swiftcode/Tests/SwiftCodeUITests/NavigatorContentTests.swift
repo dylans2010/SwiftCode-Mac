@@ -5,7 +5,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// A fake engine that writes a short log and succeeds or fails.
 struct LogEngine: BuildEngine {
     var fail: Bool
     var name: String { "log" }
@@ -32,7 +31,6 @@ struct LogEngine: BuildEngine {
         wc.applyDefaultLayout()
         let frame = window.contentView!.superview!
 
-        // Find navigator.
         wc.navigator.select(3)
         wc.navigator.find("greet")
         let files = wc.navigator.rows(3)
@@ -40,18 +38,15 @@ struct LogEngine: BuildEngine {
         #expect(files[0].children.map(\.line) == [1, 2, 5, 14, 15])
         _ = try snapshots.render(frame, to: "find-navigator.png")
 
-        // Symbols (jump bar / Open Quickly; Bookmarks took the navigator).
         wc.navigator.refreshSymbols()
         let syms = wc.navigator.symbolRows
         #expect(syms.first?.title == "main.swift")
         #expect(syms.first?.children.map(\.title) == ["Greeter"])
 
-        // Report navigator: newest first; selecting shows the log read-only.
         session.engine = LogEngine(fail: true)
         await session.build()
         session.engine = LogEngine(fail: false)
         await session.build()
-        // One group per scheme; the failed build carries an error badge.
         let reports = wc.navigator.rows(8).first?.children ?? []
         #expect(reports.count == 2)
         #expect(reports[0].badge == nil && reports[1].badge != nil && reports[0].title == "Build")

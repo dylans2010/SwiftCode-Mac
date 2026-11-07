@@ -1,11 +1,7 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/CodingDictionaryView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: CodingDictionaryCoordinator.
-
 import AppKit
 import SwiftUI
 import os
 
-// MARK: - Shared Coordinator
 @MainActor
 @Observable
 public final class CodingDictionaryCoordinator {
@@ -42,22 +38,8 @@ public final class CodingDictionaryCoordinator {
     }
 }
 
-// MARK: - Legacy SwiftUI dictionary window (P-UTIL port)
-// Ported from Legacy `SwiftCode/Views/Utilities/CodingDictionaryView.swift` (SwiftCode-Mac migration, P-UTIL).
-// NOT ported from that file: CodingDictionaryWindowManager (lines 9-36) and
-// CodingDictionaryWindowController (lines 48-99) — production already has its own of both
-// (CodingDictionaryWindowController.swift:153, :183, Wave-17 redesign); CodingDictionaryCoordinator
-// (lines 221-257) — already ported above in this file (H-E5). The toolbar-delegate + action extensions
-// on the controller are kept: they add Legacy's newSearch/refreshEntry/clearHistory items to prod's
-// controller (no member collisions).
-// UNRESOLVED REF: DictionaryCodeBlock calls SyntaxHighlighter.shared.highlight — SyntaxHighlighter is
-// unported by design (Audit A COVERED-BY-REDESIGN: SwiftSyntax lexers supersede it); that call needs a
-// SwiftSyntax-based replacement before this file compiles. All other refs resolve in SwiftCodeUI.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "CodingDictionaryView")
 
-// MARK: - Custom NSWindow Subclass to enforce properties
 public class CodingDictionaryWindow: NSWindow {
     override public var toolbar: NSToolbar? {
         get { super.toolbar }
@@ -133,7 +115,6 @@ extension CodingDictionaryWindowController {
     }
 }
 
-// MARK: - Native Split View Controller
 @MainActor
 public class CodingDictionarySplitViewController: NSSplitViewController {
     public init() {
@@ -167,7 +148,6 @@ public class CodingDictionarySplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // Left Panel: Sidebar View (SwiftUI Wrapper)
         let sidebarView = CodingDictionarySidebarWrapper()
         let sidebarVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(sidebarView))
         sidebarVC.sizingOptions = []
@@ -178,7 +158,6 @@ public class CodingDictionarySplitViewController: NSSplitViewController {
         sidebarItem.holdingPriority = .defaultLow + 10
         addSplitViewItem(sidebarItem)
 
-        // Right Panel: Detail View (SwiftUI Wrapper)
         let detailView = CodingDictionaryDetailWrapper()
         let detailVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(detailView))
         detailVC.sizingOptions = []
@@ -190,7 +169,6 @@ public class CodingDictionarySplitViewController: NSSplitViewController {
     }
 }
 
-// MARK: - Split View Wrappers
 struct CodingDictionarySidebarWrapper: View {
     @State private var coordinator = CodingDictionaryCoordinator.shared
 
@@ -231,7 +209,6 @@ struct CodingDictionaryDetailWrapper: View {
     }
 }
 
-// MARK: - Background Trigger View
 public struct CodingDictionaryView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -247,7 +224,6 @@ public struct CodingDictionaryView: View {
     }
 }
 
-// MARK: - Sidebar View
 private struct DictionarySidebarView: View {
     @Bindable var manager = DictionaryManager.shared
     @Binding var searchText: String
@@ -259,7 +235,6 @@ private struct DictionarySidebarView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Search Input Header
             VStack(alignment: .leading, spacing: 6) {
                 Text("Coding Dictionary")
                     .font(.headline)
@@ -284,14 +259,12 @@ private struct DictionarySidebarView: View {
                     .liquidGlass(style: .standard, cornerRadius: 8)
                 }
                 .buttonStyle(.plain)
-                // Register standard Command-K shortcut to activate Spotlight
                 .keyboardShortcut("k", modifiers: .command)
             }
             .padding([.top, .horizontal], 14)
 
             Divider()
 
-            // Search History Header
             HStack {
                 Text("Search History")
                     .font(.caption.weight(.semibold))
@@ -309,7 +282,6 @@ private struct DictionarySidebarView: View {
             }
             .padding(.horizontal, 14)
 
-            // History List
             if manager.history.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "clock.arrow.circlepath")
@@ -322,7 +294,6 @@ private struct DictionarySidebarView: View {
                 .frame(maxHeight: .infinity)
             } else {
                 List {
-                    // Pinned Items Section
                     let pinned = manager.history.filter { $0.isPinned }
                     if !pinned.isEmpty {
                         Section("Pinned") {
@@ -332,7 +303,6 @@ private struct DictionarySidebarView: View {
                         }
                     }
 
-                    // Recent Items Section
                     let recents = manager.history.filter { !$0.isPinned }
                     if !recents.isEmpty {
                         Section("Recents") {
@@ -401,7 +371,6 @@ private struct DictionarySidebarView: View {
     }
 }
 
-// MARK: - Detail View
 private struct DictionaryDetailView: View {
     @Bindable var manager = DictionaryManager.shared
     @Binding var searchText: String
@@ -428,7 +397,6 @@ private struct DictionaryDetailView: View {
             } else if let result = manager.currentResult {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        // Title Header Area
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(alignment: .top, spacing: 12) {
                                 Button {
@@ -477,7 +445,6 @@ private struct DictionaryDetailView: View {
 
                                 Spacer()
 
-                                // Confidence Indicator Card
                                 ConfidenceIndicatorView(score: result.confidence)
                             }
 
@@ -485,7 +452,6 @@ private struct DictionaryDetailView: View {
                                 .padding(.top, 8)
                         }
 
-                        // Low Confidence Banner Notice
                         if result.confidence < 75 {
                             HStack(spacing: 12) {
                                 Image(systemName: "exclamationmark.triangle.fill")
@@ -500,7 +466,6 @@ private struct DictionaryDetailView: View {
                             .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.1)))
                         }
 
-                        // Render Sections as collapsible copyable cards
                         VStack(spacing: 14) {
                             if !result.overview.isEmpty {
                                 DictionarySectionCard(title: "Overview", icon: "doc.text") {
@@ -790,7 +755,6 @@ private struct DictionaryDetailView: View {
                                 } copyText: { result.references.joined(separator: "\n") }
                             }
 
-                            // Expanded AI Cards
                             if !result.appleDocsSummary.isEmpty {
                                 DictionarySectionCard(title: "Apple Documentation Summary", icon: "doc.text.fill") {
                                     Text(result.appleDocsSummary)
@@ -895,7 +859,6 @@ private struct DictionaryDetailView: View {
     }
 }
 
-// MARK: - Confidence Indicator
 private struct ConfidenceIndicatorView: View {
     let score: Int
 
@@ -924,7 +887,6 @@ private struct ConfidenceIndicatorView: View {
     }
 }
 
-// MARK: - Section Card
 private struct DictionarySectionCard<Content: View>: View {
     let title: String
     let icon: String
@@ -943,7 +905,6 @@ private struct DictionarySectionCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Card Header
             HStack {
                 Image(systemName: icon)
                     .font(.subheadline)
@@ -953,7 +914,6 @@ private struct DictionarySectionCard<Content: View>: View {
                     .foregroundStyle(.primary)
                 Spacer()
 
-                // Actions
                 HStack(spacing: 12) {
                     Button {
                         let text = copyText()
@@ -992,7 +952,6 @@ private struct DictionarySectionCard<Content: View>: View {
             .padding(12)
             .background(Color.primary.opacity(0.03))
 
-            // Card Content
             if !isCollapsed {
                 VStack(alignment: .leading) {
                     content
@@ -1010,14 +969,12 @@ private struct DictionarySectionCard<Content: View>: View {
     }
 }
 
-// MARK: - Code Block View
 private struct DictionaryCodeBlock: View {
     let code: String
     @State private var isCopied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header with language format & copy button
             HStack {
                 Text("Swift Code")
                     .font(.caption.weight(.semibold))
@@ -1048,7 +1005,6 @@ private struct DictionaryCodeBlock: View {
             .padding(.vertical, 6)
             .background(Color.black.opacity(0.2))
 
-            // Content
             ScrollView(.horizontal, showsIndicators: true) {
                 let attr = try? AttributedString(SyntaxHighlighter.shared.highlight(code, fileExtension: "swift"))
                 Group {
@@ -1068,7 +1024,6 @@ private struct DictionaryCodeBlock: View {
     }
 }
 
-// MARK: - Error View
 private struct DictionaryErrorView: View {
     let errorState: DictionaryErrorState
     let onRetry: () -> Void
@@ -1152,7 +1107,6 @@ private struct DictionaryErrorView: View {
     }
 }
 
-// MARK: - Flow Layout Helper
 private struct FlowLayoutView: View {
     let items: [String]
     let itemContent: (String) -> AnyView
@@ -1191,4 +1145,3 @@ private struct FlowLayoutView: View {
         }
     }
 }
-

@@ -7,19 +7,6 @@ import OpenViews
 import SwiftUI
 #endif
 
-// ov-editor-bench (R13): how fast OpenViews scrolls a 10 000-line source
-// file drawn the way EditorKit will draw it (docs/PARITY.md §5.9 item 2): a
-// tall scroll content and a viewport-sized `Canvas` that draws only the
-// visible lines as text runs (line numbers and code, monospaced), at the
-// scroll offset. Headless back end, the window's real presenter (display
-// list, damage, ThorVG rasterisation, the software compositor); one wheel
-// step of 37 points per 60 Hz frame. Build it in release:
-//
-//     swift build -c release --product ov-editor-bench && .build/release/ov-editor-bench
-//
-// Switches: OV_BENCH_FRAMES (600), OV_BENCH_LINES (10000), OV_BENCH_SIZE
-// (1400x900), OV_BENCH_SCALE (1; 2 for a high-density window).
-
 struct BenchSurface: View {
     let lines: [String]
     static let lineHeight: CGFloat = 16
@@ -71,7 +58,6 @@ func benchSource(lines n: Int) -> [String] {
         "    print(index, word.uppercased(), word.count, word.reversed())",
         "}",
     ]
-    // Every line differs (as in a real file): the text plus its number.
     return (0..<n).map { i in templates[i % templates.count] + "  // \(i + 1)" }
 }
 
@@ -88,7 +74,6 @@ struct BenchApp: App {
     }
 }
 
-/// Times the window's presenter.
 @MainActor
 final class TimedPresenter: FramePresenter {
     let inner: any FramePresenter
@@ -135,7 +120,6 @@ struct EditorBenchMain {
         let scrollStep = -37.0
         for i in 0..<frames {
             t += 1.0 / 60
-            // Down to the end and back up.
             let dir = (i / 400) % 2 == 0 ? scrollStep : -scrollStep
             backend.post(.scroll(ScrollEvent(window: window.platform.id, location: CGPoint(x: Bench.size.width / 2, y: Bench.size.height / 2),
                                              delta: CGSize(width: 0, height: dir), timestamp: t)), at: t)
@@ -143,7 +127,6 @@ struct EditorBenchMain {
             host.run(until: t + 0.001)
             total.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9)
         }
-        // Page jumps: every frame shows lines not drawn before.
         var jumps: [Double] = []
         let jumpFrames = env["OV_BENCH_JUMPS"].flatMap { Int($0) } ?? 60
         for i in 0..<jumpFrames {
@@ -169,7 +152,6 @@ struct EditorBenchMain {
         let fps = 1.0 / (total.reduce(0, +) / Double(max(1, total.count)))
         print(String(format: "  sustainable: %.0f fps", fps))
         print("  page jumps (\(jumpFrames) frames of 3 screens each, all lines new): \(stats(jumps))")
-        // The presenter's parts, measured apart on the current frame.
         if let cp = timed?.inner as? CompositorPresenter {
             var dl: [Double] = [], raster: [Double] = []
             let r = SoftwareRasterizer()

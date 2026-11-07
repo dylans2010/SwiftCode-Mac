@@ -1,9 +1,3 @@
-// ConnectPairingApprovalSheet.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: pairing-approval sheet showing device model and pairing code ('Does this code match the iPhone?') with Approve/Reject
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeConnect
 import SwiftUI
 

@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Go Support Extension View
 struct GoSupportExtensionView: View {
     @State private var isEnabled = true
     @State private var gofmtOnSave = true

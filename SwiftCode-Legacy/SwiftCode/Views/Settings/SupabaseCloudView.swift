@@ -11,7 +11,6 @@ public struct SupabaseCloudView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Section 1: Connection Health & Latency Info
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -52,7 +51,6 @@ public struct SupabaseCloudView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Section 2: Current Sync Conflicts Resolver Table
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -118,13 +116,11 @@ public struct SupabaseCloudView: View {
     private func loadConflictsAndStats() {
         Task {
             syncStats = await CloudSyncEngine.shared.getStatistics()
-            // Sample conflicts lists can be safely preloaded
             conflicts = []
         }
     }
 
     private func resolveConflict(_ conflict: CloudConflict, strategy: ConflictResolutionStrategy) {
-        // Safe interactive conflict resolver callback logic
         withAnimation {
             conflicts.removeAll { $0.id == conflict.id }
         }

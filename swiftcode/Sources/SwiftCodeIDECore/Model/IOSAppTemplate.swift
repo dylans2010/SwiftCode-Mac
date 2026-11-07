@@ -2,7 +2,6 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// The iOS App project generator (specs/ide/templates.md, "iOS App").
 public enum IOSAppTemplate {
     public enum Failure: Error, CustomStringConvertible {
         case unsupported(String)
@@ -11,8 +10,6 @@ public enum IOSAppTemplate {
         }
     }
 
-    /// Creates `<location>/<Product Name>/…` from the iOS ▸ App template
-    /// (`templates.md` § Catalog: iOS ▸ App); returns the `.xcodeproj`.
     public static func create(options: ProjectOptions, in location: URL) throws -> URL {
         guard let d = ProjectTemplates.find("ios.app") else { throw Failure.unsupported("iOS ▸ App") }
         var f = d.makeForm()
@@ -199,7 +196,6 @@ public enum IOSAppTemplate {
         return out
     }
 
-    /// The UIKit scene-based sources, storyboards and scene-manifest Info.plist.
     static func storyboardFiles(name n: String, module: String) -> [(String, String)] {
         func board(_ id: String, _ vc: String) -> String {
             """
@@ -340,7 +336,6 @@ public enum IOSAppTemplate {
         let device: [(String, PlistValue)] = [("TARGETED_DEVICE_FAMILY", "1,2"), ("SUPPORTED_PLATFORMS", "iphoneos iphonesimulator"),
                                               ("CODE_SIGN_STYLE", "Automatic"), ("MARKETING_VERSION", "1.0"), ("CURRENT_PROJECT_VERSION", "1")]
 
-        // App sources.
         let storyboard = options.interface == .storyboard
         var sources = storyboard
             ? ["AppDelegate.swift", "SceneDelegate.swift", "ViewController.swift"].map { ref($0, "sourcecode.swift") }
@@ -400,12 +395,11 @@ public enum IOSAppTemplate {
         var targets = [appTarget]
         var products = [appProduct]
 
-        // Test targets.
         var testPairs: [(String, String)] = []
         if tests {
             testPairs = [("\(n)Tests", "com.apple.product-type.bundle.unit-test"), ("\(n)UITests", "com.apple.product-type.bundle.ui-testing")]
         }
-        let projectID = p.makeObjectID() // reserved for the PBXProject (proxies point at it)
+        let projectID = p.makeObjectID()
         for (tn, ptype) in testPairs {
             let src = ref("\(tn).swift", "sourcecode.swift")
             groups.append(group(tn, [src]))

@@ -1,22 +1,6 @@
-// ExtensionViewModels.swift
-//
-// Ported from Legacy `SwiftCode/Views/Extensions v2/ExtensionViewModels.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Home-section curation (featured/native/Xcode sections, ExtV2HomeViewModel search/sections)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): none remaining —
-// ExtV2CompatibilityReport / ExtV2ManifestParser / ExtV2Compatibility landed in SwiftCodeExtensions (S-FLAGS).
-// (ExtV2Manager / ExtV2InstalledExtension / ExtV2ExtensionMetadata now resolve via aliases in SwiftCodeExtensions/ExtV2Manager.swift; State.ready carries the canonical ExtensionContribution.)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import SwiftUI
 import SwiftCodeExtensions
-
-// MARK: - Extensions v2 view models
-//
-// View models translate manager state into what a view shows. They own
-// no install state themselves: every action goes through ExtV2Manager,
-// and every list re-reads from it, so the UI can never drift from the
-// authoritative records.
 
 public enum ExtV2HomeSection: String, CaseIterable, Identifiable {
     case discover, installed, updates, enabled, disabled, native, xcode, permissions, settings, diagnostics

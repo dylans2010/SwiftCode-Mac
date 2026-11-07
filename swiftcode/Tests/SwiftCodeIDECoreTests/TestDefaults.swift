@@ -3,9 +3,6 @@ import Foundation
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// A `UserDefaults` backed by a plist file in the worktree's git-ignored
-/// `.build-ide/defaults` folder (an absolute-path suite name), so tests
-/// never write to `~/Library/Preferences`. Call `remove()` when done.
 struct TestDefaults {
     let defaults: UserDefaults
     let suite: String
@@ -17,16 +14,12 @@ struct TestDefaults {
         defaults = UserDefaults(suiteName: suite)!
     }
 
-    /// Clears the domain and deletes its file.
     func remove() {
         defaults.removePersistentDomain(forName: suite)
         try? FileManager.default.removeItem(atPath: suite + ".plist")
     }
 }
 
-/// `Preferences.shared` on a fresh `TestDefaults` domain until `restore()`,
-/// so a test never sees what other runs left in the test runner's own
-/// defaults (a remote simulator set up in Settings, for example).
 @MainActor
 final class IsolatedPreferences {
     private let t: TestDefaults

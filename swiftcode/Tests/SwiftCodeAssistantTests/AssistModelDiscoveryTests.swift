@@ -2,14 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// MARK: - Provider model discovery (Wave 16, Slice D)
-//
-// Stub transport only: no live network, no real API keys. Fake
-// keys are assembled from parts so no source line carries a
-// key-shaped literal (see scan-public).
-
 @Suite struct AssistModelDiscoveryTests {
-    /// A stub transport keyed by host, counting calls.
     final class StubTransport: ModelDiscoveryTransport, @unchecked Sendable {
         private let lock = NSLock()
         var stubbed: [String: (Data, Int)] = [:]
@@ -57,8 +50,6 @@ import Testing
         )
         return (s, t)
     }
-
-    // MARK: - Per-provider parsing
 
     @Test func geminiParsesFiltersAndStripsPrefix() {
         let body = """
@@ -157,8 +148,6 @@ import Testing
         #expect(AssistModelDiscoveryService.parseClaudeModels("{}".data(using: .utf8)!).isEmpty)
     }
 
-    // MARK: - Discovery runs
-
     @Test func discoverAllRunsEveryLegConcurrently() async {
         let (service, transport) = Self.service()
         transport.stubbed = [
@@ -196,10 +185,6 @@ import Testing
             "dashscope.aliyuncs.com": (Data(), 500),
         ]
         let models = await service.discoverAllModels()
-        // Gemini falls back to the Antigravity seed catalog (9
-        // synthetic models); the other failing legs contribute
-        // nothing, and only Gemini records an error (the other
-        // legs fail silently, as in Legacy).
         #expect(models.contains { $0.id == "claude-sonnet-4-5" })
         #expect(models.filter { $0.isSynthetic }.count == 9)
         #expect(await service.lastDiscoveryErrors["Gemini"]?.contains("429") == true)
@@ -254,8 +239,6 @@ import Testing
         #expect(transport.callCount == 10)
     }
 
-    // MARK: - Removal
-
     @Test func removeModelRefusesFoundationModels() async {
         let (service, _) = Self.service(store: MemorySecretStore())
         _ = await service.discoverAllModels()
@@ -271,12 +254,8 @@ import Testing
     @Test func agentCompatibleExcludesRemovedAndUnconfigured() async {
         let (service, _) = Self.service(store: MemorySecretStore())
         _ = await service.discoverAllModels()
-        // Catalog fallback without OAuth: unconfigured, so none
-        // are agent-compatible.
         #expect(await service.agentCompatibleModels.isEmpty)
     }
-
-    // MARK: - Feeding the router
 
     @Test func candidatesTranslateToRoutableOpenRouterIDs() {
         let discovered = [

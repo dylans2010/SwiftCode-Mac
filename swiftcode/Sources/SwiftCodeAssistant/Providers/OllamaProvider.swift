@@ -3,14 +3,10 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// A local Ollama server through its native HTTP API (Ollama's public API
-/// documentation): `GET /api/tags` lists models, `POST /api/show` reports a
-/// model's context length, `POST /api/chat` streams NDJSON.
 public struct OllamaProvider: AssistantProvider {
     public let kind = ProviderKind.ollama
     public var baseURL: String
     public static let defaultBaseURL = "http://127.0.0.1:11434"
-    /// The model suggested when none is installed.
     public static let suggestedModel = "qwen2.5-coder"
 
     public init(baseURL: String = Self.defaultBaseURL) { self.baseURL = baseURL }
@@ -35,7 +31,6 @@ public struct OllamaProvider: AssistantProvider {
         }
     }
 
-    /// Model names from an `/api/tags` body, sorted by name.
     static func parseTags(_ body: Data) -> [ModelInfo] {
         guard let o = JSON.object(body), let list = o["models"] as? [[String: Any]] else { return [] }
         return list.compactMap { m in
@@ -50,15 +45,12 @@ public struct OllamaProvider: AssistantProvider {
         return Self.parseContextLength(r.body)
     }
 
-    /// The `<architecture>.context_length` entry of `/api/show`'s
-    /// `model_info`.
     static func parseContextLength(_ body: Data) -> Int? {
         guard let o = JSON.object(body), let info = o["model_info"] as? [String: Any] else { return nil }
         for (k, v) in info where k.hasSuffix(".context_length") { if let n = JSON.int(v) { return n } }
         return nil
     }
 
-    /// The `/api/chat` request body.
     static func chatBody(_ request: ChatRequest) -> [String: Any] {
         var messages: [[String: Any]] = [["role": "system", "content": request.instructions]]
         messages += request.messages.map { ["role": $0.role.rawValue, "content": $0.content] }
@@ -104,7 +96,6 @@ public struct OllamaProvider: AssistantProvider {
         }
     }
 
-    /// The events in one NDJSON line of a streamed `/api/chat` response.
     static func parseChatLine(_ line: String) throws -> [ChatEvent] {
         let t = line.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return [] }

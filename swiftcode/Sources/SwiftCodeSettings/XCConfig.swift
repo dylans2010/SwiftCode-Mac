@@ -1,13 +1,10 @@
 import Foundation
 
-/// Reads `.xcconfig` files into an ordered list of assignments, expanding
-/// `#include` directives in place. See `specs/build-settings.md` §1.
 public struct XCConfig: Sendable {
     public var url: URL
     public var assignments: [SettingAssignment]
     public var diagnostics: [String]
 
-    /// - Parameter developerDirectory: replaces a `<DEVELOPER_DIR>` prefix in include paths.
     public init(contentsOf url: URL, developerDirectory: String? = nil,
                 read: @escaping (URL) throws -> String = { try String(contentsOf: $0, encoding: .utf8) }) throws {
         self.url = url
@@ -17,7 +14,6 @@ public struct XCConfig: Sendable {
         diagnostics = state.diagnostics
     }
 
-    /// Parses text that is not backed by a file (includes resolve against `baseURL`).
     public init(text: String, baseURL: URL, developerDirectory: String? = nil,
                 read: @escaping (URL) throws -> String = { try String(contentsOf: $0, encoding: .utf8) }) {
         url = baseURL
@@ -68,7 +64,6 @@ public struct XCConfig: Sendable {
                     include(trimmed, from: url, origin: origin)
                     continue
                 }
-                // `//` starts a comment anywhere, including inside values.
                 if let c = line.range(of: "//") { line = line[..<c.lowerBound] }
                 var body = line.trimmingCharacters(in: .whitespaces)
                 if body.isEmpty { continue }
@@ -106,8 +101,6 @@ public struct XCConfig: Sendable {
             try? load(target, optional: optional)
         }
 
-        /// The `=` that separates name from value: the first one outside
-        /// `[...]` condition brackets.
         static func assignmentEquals(in s: String) -> String.Index? {
             var depth = 0
             for i in s.indices {

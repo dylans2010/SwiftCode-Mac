@@ -2,104 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy Agentic execution / build-runner tool family
-/// (Wave 8, slice B).
-///
-/// Behaviour source: Legacy's `ExecuteTerminalCommandTool`,
-/// `RunBuildTool`, `RunTestsTool`, `RunLinterTool`,
-/// `RunFormatterTool`, `RunTypeCheckerTool`,
-/// `RunStaticAnalysisTool`, `RunBenchmarkTool`,
-/// `RunApplicationTool`, `StopRunningProcessTool`,
-/// `GetProcessLogsTool`, `ReadBuildLogsTool`, `XcodeBuildTool`
-/// and `SwiftPackageManagerTool`
-/// (`SwiftCode/Tools/Agentic/*.swift`, Dylan's own code, ported
-/// under MIT). Only 9 of the 14 slice IDs are registered here —
-/// the other 5 are already served by ported tools or existing
-/// aliases (see `specs/ide/agentic-execution-draft.md` for the
-/// per-tool disposition table).
-///
-/// Conventions, following Waves 1–7:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Descriptions
-///   are Legacy's verbatim. Structured data keeps Legacy's shape
-///   where Legacy had one; Legacy's Agentic tools return a plain
-///   string, so the run tools report `exitCode` + `outputTail`
-///   (the `package_dependency_update` shape) instead of
-///   inventing Legacy keys.
-/// * Every command runs as a subprocess argument vector — never a
-///   shell — through `terminalRunFixed` (off the main actor),
-///   workspace-confined, with stdin closed. There is no Autopilot
-///   bypass. Test/build running maps onto the fixed-argv runner
-///   rather than a second runner: the session build seam has no
-///   build-tests action (the only `--build-tests` use in
-///   `SwiftCodeBuild` is inside the test runner, which also executes
-///   the tests), so `run_type_checker` and
-///   `run_static_analysis` run `swift build` directly, and
-///   `run_benchmark` / `run_application` run `swift run`
-///   directly. `projectPath` resolves with
-///   `resolveFileReadingPath` (a leading `/` is
-///   workspace-root-relative, plain relative paths resolve
-///   against the `dir_cd` session directory) and must name an
-///   existing directory inside the workspace — unlike
-///   `project_build`, it need not be the open workspace itself,
-///   so a package nested in the workspace can be built.
-/// * Approval gating: the two writing tools (`run_formatter`,
-///   which rewrites files in place through the SwiftFormat
-///   subprocess, and `stop_running_process`, which kills a
-///   process) are `writes: true` and gate through an explicit
-///   `MCPChange` + `approve()` before doing anything. The
-///   execution tools (`run_linter`, `run_type_checker`,
-///   `run_static_analysis`, `run_benchmark`,
-///   `run_application`) follow the `performance_benchmark` /
-///   `test_run_single` precedent: `execution` annotations,
-///   `writes: false`, no extra approval — they run real commands
-///   and report actual output, creating build products the way
-///   the `build` tool does. `read_build_logs` is a pure read.
-///
-/// Implemented (8): `run_linter`, `run_formatter`,
-/// `run_type_checker`, `run_static_analysis`, `run_benchmark`,
-/// `run_application`, `stop_running_process`,
-/// `read_build_logs`. Honestly failing (1): `get_process_logs`
-/// — registered with Legacy's ID and schema, validating its
-/// inputs first, then failing with the exact prerequisite (see
-/// below). No behaviour or result is invented for it.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `run_linter` / `run_formatter`: Legacy passed the raw
-///   `path` string as the tool argument with the path itself as
-///   the working directory (which fails to launch when the path
-///   is a file). The port passes the resolved absolute path and
-///   uses the path itself as the working directory when it is a
-///   directory, its parent when it is a file. The binaries are
-///   resolved on `PATH` (`terminalResolveProgram`) rather than
-///   Legacy's fixed `/usr/bin/swiftlint` /
-///   `/usr/bin/swiftformat`, so a Homebrew install works too.
-/// * `run_type_checker` / `run_static_analysis` / `run_benchmark`
-///   / `run_application`: Legacy waited unboundedly; the port
-///   bounds each run at 300 s through `terminalRunFixed` and
-///   fails on timeout. `run_application`'s `target` must be a
-///   single bare target name (no whitespace, no leading `-`),
-///   so it can never be reinterpreted as a `swift run` flag.
-/// * `run_application`: Legacy returned the combined output
-///   even when the app exited non-zero; the port reports a
-///   non-zero exit as a failure with the output tail, like the
-///   other run tools.
-/// * `stop_running_process`: Legacy called `kill(pid, SIGTERM)`
-///   directly with no guard. The port refuses PID 1 and its own
-///   PID, gates through the approval path, and runs
-///   `/bin/kill -TERM <pid>` as a fixed argv vector.
-/// * `get_process_logs`: Legacy's `run()` returned the
-///   placeholder string `"Log data for process <pid>"` with no
-///   real log source behind it. The port does not reproduce the
-///   placeholder: it fails naming the missing per-process log
-///   buffer (SwiftCode keeps run output keyed by run ID, never by
-///   PID, and tracks no child-process log store).
-/// * `read_build_logs`: Legacy returned the whole
-///   `.build/build.log` file. The port returns the last 8000
-///   characters with a truncation marker when the file is
-///   longer, so a large log cannot flood the result.
 extension SwiftCodeMCPHost {
     var agenticExecutionTools: [MCPTool] {
         let execution = MCPToolAnnotations(readOnly: false, idempotent: false)
@@ -188,10 +90,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared seams (agentic execution)
 
-    /// Resolves Legacy's required `projectPath` to an existing
-    /// directory inside the workspace.
     func agenticExecutionProjectDir(_ call: MCPToolCall) throws -> URL {
         let s = try session(for: call)
         guard let raw = call.arguments["projectPath"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
@@ -210,10 +109,6 @@ extension SwiftCodeMCPHost {
         return url
     }
 
-    /// Resolves Legacy's required `path` (a file or a directory)
-    /// inside the workspace, and the working directory to run a
-    /// file tool from: the path itself when it is a directory, its
-    /// parent when it is a file.
     func agenticExecutionTargetPath(_ call: MCPToolCall) throws -> (url: URL, workingDirectory: URL) {
         let s = try session(for: call)
         guard let raw = call.arguments["path"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
@@ -232,12 +127,6 @@ extension SwiftCodeMCPHost {
         return (url, isDir.boolValue ? url : url.deletingLastPathComponent())
     }
 
-    /// Runs `executable` with a fixed argv vector in
-    /// `workingDirectory`, bounded at 300 s, and turns the real
-    /// outcome into a structured result. `nil` from the runner
-    /// (could not launch) and a timeout are failures; a non-zero
-    /// exit is a failure carrying the output tail, as Legacy's
-    /// `execute()` did when the command failed.
     func agenticExecutionRunFixed(_ executable: String, _ args: [String], workingDirectory: URL,
                                   verb: String) async throws -> MCPToolResult {
         guard let run = (await Task.detached {
@@ -256,17 +145,12 @@ extension SwiftCodeMCPHost {
         throw MCPToolError("\(verb) failed with exit code \(run.exitCode).\n\(tail)")
     }
 
-    /// Resolves a program on `PATH` (Legacy's fixed
-    /// `/usr/bin/<name>` is on `PATH`, so a Homebrew install
-    /// works too), failing with the exact missing prerequisite.
     func agenticExecutionResolveProgram(_ name: String, workingDirectory: URL, tool: String, installHint: String) throws -> String {
         guard let resolved = Self.terminalResolveProgram(name, workingDirectory: workingDirectory) else {
             throw MCPToolError("\(tool) needs \(name), which was not found on PATH. \(installHint)")
         }
         return resolved
     }
-
-    // MARK: - `run_linter` / `run_formatter`
 
     func agenticExecutionLint(_ call: MCPToolCall) async throws -> MCPToolResult {
         let (url, workingDirectory) = try agenticExecutionTargetPath(call)
@@ -288,8 +172,6 @@ extension SwiftCodeMCPHost {
         return try await agenticExecutionRunFixed(swiftformat, [url.path], workingDirectory: workingDirectory,
                                                   verb: "SwiftFormat")
     }
-
-    // MARK: - `run_type_checker` / `run_static_analysis` / `run_benchmark` / `run_application`
 
     func agenticExecutionTypeCheck(_ call: MCPToolCall) async throws -> MCPToolResult {
         let dir = try agenticExecutionProjectDir(call)
@@ -329,8 +211,6 @@ extension SwiftCodeMCPHost {
                                                   verb: "swift run \(target)")
     }
 
-    // MARK: - `stop_running_process` (real kill, approval-gated)
-
     func agenticExecutionStopProcess(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let pid = call.arguments["pid"]?.int else {
             throw MCPToolError("Missing required parameter: pid")
@@ -361,17 +241,6 @@ extension SwiftCodeMCPHost {
         return .text("Process \(pid) terminated.")
     }
 
-    // MARK: - `get_process_logs` (real log reading)
-
-    /// First hit wins: (1) the host's own runs keyed by PID
-    /// (`HostRun.process.processIdentifier`) with their captured
-    /// output; (2) on macOS, the unified log
-    /// (`/usr/bin/log show --predicate 'processID == <pid>'`,
-    /// 45 s, TCC-denied fails honestly); (3) on Linux,
-    /// `journalctl _PID=<pid>` when present, plus `/proc/<pid>`
-    /// facts labelled as process info, not logs. Legacy returned
-    /// a placeholder string with no log source — that placeholder
-    /// is NOT reproduced: an unknown pid fails.
     func agenticExecutionProcessLogs(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let pid = call.arguments["pid"]?.int else {
             throw MCPToolError("Missing required parameter: pid")
@@ -436,8 +305,6 @@ extension SwiftCodeMCPHost {
         throw MCPToolError("No process with PID \(pid) exists, and no journald entries were found for it.")
 #endif
     }
-
-    // MARK: - `read_build_logs` (pure read)
 
     func agenticExecutionReadBuildLogs(_ call: MCPToolCall) throws -> MCPToolResult {
         let dir = try agenticExecutionProjectDir(call)

@@ -7,9 +7,6 @@ import SwiftCodeDisplayStream
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Live previews in the IDE (specs/ide/previews.md §Live previews, §Live
-/// canvas): the canvas layout, the tiles a canvas asks for, the preview
-/// device's commands, and the canvas controller's live state. No device.
 @MainActor @Suite(.timeLimit(.minutes(30))) struct LivePreviewCanvasTests {
     let phone = CGSize(width: 402, height: 874)
 
@@ -27,7 +24,6 @@ import SwiftCodeDisplayStream
         let grid = WorkspaceWindowController.liveTiles(previews: previews, titles: titles, selected: 0, grid: true, variants: nil,
                                                        base: PreviewVariant(), pinned: nil, screen: phone)
         #expect(grid.map(\.preview) == [0, 1, 2])
-        // B's trait turns it; C keeps its fixed size.
         #expect(grid[1].size == CGSize(width: 874, height: 402) && grid[1].variant.orientation == "landscapeLeft")
         #expect(grid[2].size == CGSize(width: 100, height: 50))
         let schemes = WorkspaceWindowController.liveTiles(previews: previews, titles: titles, selected: 0, grid: false, variants: .colorScheme,
@@ -50,7 +46,6 @@ import SwiftCodeDisplayStream
         let runs = RemoteSimulator.all(s).map(WorkspaceWindowController.previewDeviceTitle)
         let previews = WorkspaceWindowController.previewSimulators(s)
         let titles = previews.map(WorkspaceWindowController.previewDeviceTitle)
-        // The run destinations first, then the iPhone 18 Pro that 27.1 also boots.
         #expect(Array(titles.prefix(runs.count)) == runs && !runs.contains("iPhone 18 Pro (SwiftCode) 27.1"))
         #expect(titles.contains("iPhone 18 Pro (SwiftCode) 27.1"))
         let pro = previews.first { $0.target?.deviceType.id == "iphone-18-pro" }
@@ -71,7 +66,6 @@ import SwiftCodeDisplayStream
         c.setUpdating(true)
         #expect(c.headerTabs.map { $0.badge } == ["spinner", "spinner"] && c.statusText == "Updating…")
         c.setUpdating(false)
-        // A failed compile keeps the tiles and adds the banner.
         var opened: PreviewIssue?
         c.onIssue = { opened = $0 }
         let issue = PreviewIssue(file: URL(fileURLWithPath: "/p/ContentView.swift"), line: 14, message: "cannot find 'x' in scope")
@@ -81,7 +75,6 @@ import SwiftCodeDisplayStream
         #expect(opened == issue)
         c.clearBanner()
         #expect(c.bannerView == nil)
-        // Grid, variants, device and the settings ask for a new plan.
         c.attach(DeviceLiveSession(connection: ViewerConnection(address: .unix("/nonexistent"), settings: DisplayClientHello(client: "t"))))
         #expect(c.isLiveCanvas)
         let before = layouts
@@ -97,7 +90,6 @@ import SwiftCodeDisplayStream
         #expect(c.baseVariant.colorScheme == "dark" && c.baseVariant.dynamicType == nil)
         c.setSetting("Dynamic Type", true)
         #expect(c.baseVariant.dynamicType == "accessibility1")
-        // Live mode makes tiles interactive; Selectable reveals instead.
         c.setState(.live(tiles(2)))
         #expect((c.liveTileViews.first as? PreviewLiveTileView)?.interactive == true)
         var revealed: Int?
@@ -130,7 +122,6 @@ import SwiftCodeDisplayStream
         }
         #expect(rec.touches.map { $0[0].phase } == [.began, .ended])
         #expect(abs(Double(rec.touches[0][0].x) - (t.region.x + t.region.width / 2)) < 0.6)
-        // Not interactive (Selectable): no touches.
         v.interactive = false
         let e = try #require(NSEvent.mouseEvent(with: .leftMouseDown, location: v.convert(local, to: nil), modifierFlags: [], timestamp: 0,
                                                 windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))

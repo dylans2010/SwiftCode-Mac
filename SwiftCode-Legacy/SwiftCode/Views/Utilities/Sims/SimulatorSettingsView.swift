@@ -6,7 +6,6 @@ struct SimulatorSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Subsystem Settings", systemImage: "slider.horizontal.3")
                     .font(.headline)
@@ -15,7 +14,6 @@ struct SimulatorSettingsView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

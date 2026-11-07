@@ -4,31 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// Correctness gap closure, driven black-box where the slice owns
-/// the code and directly against the new handlers where the
-/// registration lives in a coordinator-owned file.
-///
-/// * Myers diff keys on `file_create` / `code_replace` go through
-///   the server (owned file, live now).
-/// * Parameter aliases are tested at the `MCPParameterAliases`
-///   engine; the `MCPServer.run` wiring is a coordinator patch —
-///   see `specs/ide/gap-closure-correctness.md` §2 for the
-///   end-to-end check to re-run after it lands.
-/// * `safe_undo`, `session_progress_report`,
-///   `swift_ast_inspector` and `symbol_rename_project` are tested
-///   by calling the new handlers in `CorrectnessGapHandlers.swift`
-///   directly (the registrations delegate there via coordinator
-///   patches). The `safe_undo` tests seed the journal the way
-///   `commit()` does — the `commit()` recording patch is
-///   coordinator-owned; see the spec §3 for the end-to-end check.
-/// * `session_progress_report` needs the `plans(workspace:)`
-///   accessor patch on `AgenticPlanningPlanStore` (compile
-///   dependency — see the spec §4); the tests seed plans through
-///   the existing `create` API.
-///
-/// No network, no credentials; workspaces are copies of
-/// `Samples/AgentSamples/Greeter`, journals are keyed per
-/// workspace so tests cannot see each other's entries.
 @MainActor
 @Suite(.serialized) struct CorrectnessGapTests {
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
@@ -41,9 +16,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// The first text block of a direct handler result
-    /// (`MCPToolResult`, not the `AnyJSON` `callTool` returns, so
-    /// the `firstText` helper in `TestSupport.swift` does not apply).
     func resultText(_ result: MCPToolResult) -> String {
         result.content.compactMap { $0["text"]?.string }.first ?? ""
     }
@@ -53,8 +25,6 @@ import SwiftCodeIDECore
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
-
-    // MARK: - Myers diff keys (file_create / code_replace)
 
     @Test func fileCreateReportsDiffForNewFile() async throws {
         let sample = try TempSample()
@@ -81,7 +51,6 @@ import SwiftCodeIDECore
         #expect(!overwritten.isToolError, "\(overwritten.resultText)")
         let overwriteDiff = overwritten.structured?["diff"]?.string ?? ""
         #expect(overwriteDiff.contains("-two") && overwriteDiff.contains("+TWO"))
-        // The unchanged tail is context, not changes.
         #expect(!overwriteDiff.contains("-three") && !overwriteDiff.contains("-five"))
         let replaced = try await host.server.callTool("code_replace", ["path": .string("DiffTests/a.txt"),
                                                                       "target": .string("three"),
@@ -92,12 +61,8 @@ import SwiftCodeIDECore
         #expect(replaceDiff.contains("@@ -"))
     }
 
-    // MARK: - Parameter-name aliases (engine)
-
     @Test func aliasTable() {
         let empty: Set<String> = []
-        // Legacy's validate(): filePath / file_path / targetFile /
-        // file fill path; file_content / code fill content.
         #expect(MCPParameterAliases.normalized(["filePath": .string("a.txt")], declaredProperties: empty) == ["path": .string("a.txt")])
         #expect(MCPParameterAliases.normalized(["file_path": .string("a.txt")], declaredProperties: empty) == ["path": .string("a.txt")])
         #expect(MCPParameterAliases.normalized(["targetFile": .string("a.txt")], declaredProperties: empty) == ["path": .string("a.txt")])
@@ -114,29 +79,19 @@ import SwiftCodeIDECore
 
     @Test func aliasDoesNotOverrideCanonical() {
         let empty: Set<String> = []
-        // Both given: the canonical value wins and the alias key is
-        // dropped, never rejected as unknown.
         #expect(MCPParameterAliases.normalized(["path": .string("a"), "filePath": .string("b")], declaredProperties: empty)
                 == ["path": .string("a")])
-        // A null alias carries no value and is dropped.
         #expect(MCPParameterAliases.normalized(["path": .string("a"), "filePath": .null], declaredProperties: empty)
                 == ["path": .string("a")])
     }
 
     @Test func aliasDoesNotSwallowDeclaredProperties() {
-        // `code` is code_insert's own parameter; `data` is
-        // ai_context_memory's. Neither may be consumed as a
-        // `content` alias for those tools.
         #expect(MCPParameterAliases.normalized(["code": .string("x")], declaredProperties: ["code"])
                 == ["code": .string("x")])
         #expect(MCPParameterAliases.normalized(["data": .string("x")], declaredProperties: ["data"])
                 == ["data": .string("x")])
-        // Unknown keys pass through untouched (validation still
-        // rejects them downstream, as before).
         #expect(MCPParameterAliases.normalized(["bogus": .int(1)], declaredProperties: []) == ["bogus": .int(1)])
     }
-
-    // MARK: - safe_undo (seeded journal, as commit() records it)
 
     @Test func safeUndoRestoresPreviousContent() async throws {
         let sample = try TempSample()
@@ -148,7 +103,6 @@ import SwiftCodeIDECore
         #expect(!result.isError)
         #expect(sample.read("UndoTests/a.txt") == "v1\n")
         #expect(resultText(result).contains("Undid file_write"))
-        // The entry is consumed: a second undo now fails honestly.
         do {
             _ = try await host.correctnessSafeUndo(MCPToolCall(name: "safe_undo", arguments: [:]))
             #expect(Bool(false), "expected safe_undo to fail with an empty journal")
@@ -185,8 +139,6 @@ import SwiftCodeIDECore
         #expect(sample.read("UndoTests/big.txt") == "big\n")
     }
 
-    // MARK: - session_progress_report (seeded plans)
-
     @Test func sessionProgressCountsRealPlans() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -219,8 +171,6 @@ import SwiftCodeIDECore
         #expect(result.structured?["phaseCount"]?.int == 0)
         #expect(resultText(result).contains("No engineering phases are registered"))
     }
-
-    // MARK: - swift_ast_inspector (real swift-syntax parse)
 
     static let astFixture = """
         import Foundation
@@ -259,7 +209,6 @@ import SwiftCodeIDECore
         #expect(text.contains("[struct] Config (line 9)"))
         #expect(text.contains("[enum] State (line 13)"))
         #expect(text.contains("Imports: Foundation."))
-        // The type name inside a string literal is NOT a declaration.
         #expect(!text.contains("Fake"))
     }
 
@@ -297,8 +246,6 @@ import SwiftCodeIDECore
         #expect(broken.hasError)
     }
 
-    // MARK: - symbol_rename_project (token-aware)
-
     static let renameFixture = """
         import Foundation
 
@@ -319,7 +266,6 @@ import SwiftCodeIDECore
         #expect(result.declarationFound && result.declarationKind == "struct")
         #expect(result.updated.contains("struct Gadget"))
         #expect(result.updated.contains("Gadget()"))
-        // Strings and the comment keep the old name.
         #expect(result.updated.contains("\"Widget\""))
         #expect(result.updated.contains("// Widget in a comment"))
         #expect(result.updated.contains("import Foundation"))

@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Documentation Generator Extension View
 struct DocCGeneratorExtensionView: View {
     @State private var isEnabled = true
     @State private var autoBuildOnSave = false

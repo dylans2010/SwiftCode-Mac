@@ -1,16 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/CommitsView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Adaptation: Destination GitCommit fields differ: a private extension maps subject/sha/author/email to message/hash/authorName/authorEmail so the 699-line body stays verbatim.
-// Adaptation: Range-compare runner: ProcessRunnerTool -> Subprocess.run (same call shape as GitService).
-// Adaptation: AI summary calls LLMService.shared.generateExternalResponse (SwiftCodeAssistant/LLMService.swift:360, public; import SwiftCodeAssistant present) — resolves.
-// Cleanup (2026-11-06, A2): the 'Changed Files Stats' section was Legacy's hardcoded rows
-// (3 fixed files, +142/-34) — deleted. Stats are now real per-commit `git diff --numstat` /
-// `git show --numstat` output via Subprocess.run (same pattern as executeRangeCompare below).
-// The "Signed" badge was also fabricated (`sha.count % 2 == 0` is always true for a 40-char SHA)
-// and removed: GitCommit carries no signature data, so no badge is shown rather than a fake one.
-// A real verified badge would need GitService.getLog to parse `%G?` (out of this slice).
-// `dateString` below is a real formatting of GitCommit.date (the property had no
-// production definition); the AI summary still calls the absent LLMService (wiring phase).
 import SwiftUI
 import os.log
 import SwiftCodeAssistant
@@ -19,9 +6,6 @@ import SwiftCodeSubprocess
 
 private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "CommitsView")
 
-// Compatibility: Legacy's GitCommit exposed subject/sha/author/email; the destination
-// model names them message/hash/authorName/authorEmail (subject = first line of message).
-// dateString is a real formatting of the commit date (no production definition exists).
 private extension GitCommit {
     var subject: String { message.components(separatedBy: "\n").first ?? message }
     var sha: String { hash }
@@ -37,8 +21,6 @@ private extension GitCommit {
     }()
 }
 
-/// One row of real `git diff --numstat` output for a commit. `additions` /
-/// `deletions` are nil for binary files (git prints `-` instead of a count).
 private struct ChangedFileStat: Sendable {
     let path: String
     let additions: Int?
@@ -49,45 +31,36 @@ private struct ChangedFileStat: Sendable {
 struct CommitsView: View {
     var gitViewModel: GitViewModel
 
-    // Navigation and inspection state
     @State private var selectedCommitID: String?
     @State private var searchKeyword = ""
     @State private var selectedAuthor = ""
     @State private var fileFilterPath = ""
     @State private var dateFilterEnabled = false
-    @State private var dateFilterStart = Date().addingTimeInterval(-2592000) // 30 days ago
+    @State private var dateFilterStart = Date().addingTimeInterval(-2592000)
     @State private var dateFilterEnd = Date()
 
-    // Range comparison states
     @State private var isCompareMode = false
     @State private var compareStartSHA = ""
     @State private var compareEndSHA = ""
     @State private var generatedDiffOutput = ""
     @State private var isGeneratingDiff = false
 
-    // AI Commit Assistant
     @State private var aiCommitSummary = ""
     @State private var isGeneratingAISummary = false
-    @State private var inspectorTab = 0 // 0 = Stats, 1 = AI Analyst, 2 = Actions
+    @State private var inspectorTab = 0
 
-    // Rollback operations state
     @State private var isRunningGitAction = false
     @State private var gitActionProgress = ""
     @State private var gitActionLog = ""
     @State private var showRollbackSuccess = false
     @State private var hasPushed = false
 
-    // Loaded commits count for lazy scrolling
     @State private var visibleCommitsLimit = 20
 
-    // Real per-commit diff stats for the selected commit (replaces the
-    // hardcoded rows). Loaded by loadChangedFiles.
     @State private var changedFiles: [ChangedFileStat] = []
     @State private var changedFilesError: String?
     @State private var isLoadingChangedFiles = false
 
-    /// Totals line computed from the real rows (binary files count toward
-    /// the file total but have no countable additions/deletions).
     private var changedFilesSummary: String {
         let totalAdds = changedFiles.compactMap(\.additions).reduce(0, +)
         let totalDels = changedFiles.compactMap(\.deletions).reduce(0, +)
@@ -98,7 +71,6 @@ struct CommitsView: View {
         return summary
     }
 
-    // Computed filtered commit list
     private var filteredCommits: [GitCommit] {
         var list = gitViewModel.history
 
@@ -123,26 +95,21 @@ struct CommitsView: View {
 
     var body: some View {
         HSplitView {
-            // Main Left Pane: Filter, Compare Bar, Graph + Commits list
             VStack(spacing: 0) {
-                // Header filters bar
                 filtersHeaderView
 
                 Divider()
 
-                // Range comparison configuration bar
                 if isCompareMode {
                     compareRangeHeaderView
                     Divider()
                 }
 
-                // Interactive Commit List & Visual Graph
                 commitListWithGraphView
             }
             .frame(minWidth: 450, maxWidth: .infinity)
             .layoutPriority(1)
 
-            // Resizable Right Panel: Commit Inspector & Details
             commitInspectorView
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 450)
                 .layoutPriority(2)
@@ -157,8 +124,6 @@ struct CommitsView: View {
         }
     }
 
-    // MARK: - Filters Header
-
     private var filtersHeaderView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
@@ -168,7 +133,6 @@ struct CommitsView: View {
 
                 Spacer()
 
-                // Keyword Search
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Search commits...", text: $searchKeyword)
@@ -202,7 +166,6 @@ struct CommitsView: View {
                 }
             }
 
-            // Advanced filter rows
             HStack(spacing: 16) {
                 HStack {
                     Text("Author:").font(.caption).foregroundStyle(.secondary)
@@ -233,8 +196,6 @@ struct CommitsView: View {
         .padding()
         .liquidGlass(style: .subtle, cornerRadius: 10)
     }
-
-    // MARK: - Compare Range Header
 
     private var compareRangeHeaderView: some View {
         HStack(spacing: 12) {
@@ -280,8 +241,6 @@ struct CommitsView: View {
         .background(Color.purple.opacity(0.08))
     }
 
-    // MARK: - Commit list with Git Graph lanes
-
     private var commitListWithGraphView: some View {
         ScrollViewReader { proxy in
             List {
@@ -302,23 +261,19 @@ struct CommitsView: View {
                                 aiCommitSummary = ""
                             } label: {
                                 HStack(spacing: 0) {
-                                    // Custom Git Graph lanes Canvas
                                     Canvas { context, size in
                                         let h = size.height
                                         let w = size.width
                                         let midY = h / 2.0
 
-                                        // Lane configurations
                                         let mainLaneX: CGFloat = 16.0
                                         let secondaryLaneX: CGFloat = 36.0
 
-                                        // Draw continuous branch lanes
                                         var path = Path()
                                         path.move(to: CGPoint(x: mainLaneX, y: 0))
                                         path.addLine(to: CGPoint(x: mainLaneX, y: h))
                                         context.stroke(path, with: .color(.purple), lineWidth: 2)
 
-                                        // Draw merge/secondary lane if commit has multiple parents (merges)
                                         if commit.parentHashes.count > 1 {
                                             var mergePath = Path()
                                             mergePath.move(to: CGPoint(x: mainLaneX, y: midY))
@@ -328,12 +283,10 @@ struct CommitsView: View {
                                             context.fill(Path(ellipseIn: CGRect(x: secondaryLaneX - 4, y: h - 4, width: 8, height: 8)), with: .color(.green))
                                         }
 
-                                        // Draw commit circle node
                                         let circleRect = CGRect(x: mainLaneX - 5, y: midY - 5, width: 10, height: 10)
                                         let color: Color = isSelected ? .orange : .purple
                                         context.fill(Path(ellipseIn: circleRect), with: .color(color))
 
-                                        // Highlight if HEAD/Current branch tip
                                         if index == 0 {
                                             let outerRing = CGRect(x: mainLaneX - 8, y: midY - 8, width: 16, height: 16)
                                             context.stroke(Path(ellipseIn: outerRing), with: .color(.orange), lineWidth: 1.5)
@@ -341,7 +294,6 @@ struct CommitsView: View {
                                     }
                                     .frame(width: 50, height: 44)
 
-                                    // Commit details
                                     VStack(alignment: .leading, spacing: 4) {
                                         HStack(spacing: 8) {
                                             Text(commit.subject)
@@ -349,7 +301,6 @@ struct CommitsView: View {
                                                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                                                 .lineLimit(1)
 
-                                            // Highlight HEAD or custom tag labels
                                             if index == 0 {
                                                 Text("HEAD")
                                                     .font(.system(size: 8, weight: .bold))
@@ -376,7 +327,6 @@ struct CommitsView: View {
 
                                     Spacer()
 
-                                    // SHA badge
                                     Text(String(commit.sha.prefix(7)))
                                         .font(.system(.caption2, design: .monospaced))
                                         .padding(.horizontal, 6)
@@ -391,7 +341,6 @@ struct CommitsView: View {
                             .id(commit.sha)
                         }
 
-                        // Lazy scroll Trigger older commits
                         if filteredCommits.count > visibleCommitsLimit {
                             Button {
                                 visibleCommitsLimit += 20
@@ -411,14 +360,11 @@ struct CommitsView: View {
         }
     }
 
-    // MARK: - Resizable Commit Inspector View
-
     private var commitInspectorView: some View {
         ScrollView {
             if let targetSHA = selectedCommitID,
                let commit = gitViewModel.history.first(where: { $0.sha == targetSHA }) {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Title Header
                     VStack(alignment: .leading, spacing: 6) {
                         Text("COMMIT SPECIFICATION")
                             .font(.caption2.bold())
@@ -465,9 +411,7 @@ struct CommitsView: View {
                     Divider()
 
                     if inspectorTab == 0 {
-                        // Tab 1: Stats
                         VStack(alignment: .leading, spacing: 12) {
-                            // Author info
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Author").font(.caption).foregroundStyle(.secondary)
                                 Text(commit.author).bold()
@@ -478,7 +422,6 @@ struct CommitsView: View {
 
                             Divider()
 
-                            // Parents Navigation
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Parent Commits").font(.caption).foregroundStyle(.secondary)
                                 if commit.parentHashes.isEmpty {
@@ -505,8 +448,6 @@ struct CommitsView: View {
 
                             Divider()
 
-                            // Changed files list & stats — real `git diff --numstat`
-                            // output for the selected commit (loaded by loadChangedFiles).
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Changed Files Stats").font(.caption).foregroundStyle(.secondary)
                                 if isLoadingChangedFiles {
@@ -530,7 +471,6 @@ struct CommitsView: View {
 
                             Divider()
 
-                            // Range Comparison results (if generated)
                             if !generatedDiffOutput.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Diff Range Comparisons")
@@ -551,7 +491,6 @@ struct CommitsView: View {
                             }
                         }
                     } else if inspectorTab == 1 {
-                        // Tab 2: AI Analyst
                         VStack(alignment: .leading, spacing: 12) {
                             Text("AI Commit Summarizer").font(.subheadline.bold())
                             Text("Let AI generate a professional code delta review for this revision commit.")
@@ -580,7 +519,6 @@ struct CommitsView: View {
                             }
                         }
                     } else {
-                        // Tab 3: Safety Actions
                         rollbackControlSection(for: commit)
                     }
                 }
@@ -611,7 +549,6 @@ struct CommitsView: View {
                     Text("-\(dels)").foregroundStyle(.red).font(.caption2.bold())
                 }
             } else {
-                // git prints `-` counts for binary files: no countable lines.
                 Text("binary").foregroundStyle(.secondary).font(.caption2.bold())
             }
         }
@@ -620,8 +557,6 @@ struct CommitsView: View {
         .cornerRadius(4)
         .help(path)
     }
-
-    // MARK: - Rollback controls card flat
 
     @ViewBuilder
     private func rollbackControlSection(for commit: GitCommit) -> some View {
@@ -676,13 +611,6 @@ struct CommitsView: View {
         .cornerRadius(6)
     }
 
-    // MARK: - Back-end Operations Executions
-
-    /// Real per-commit stats: `git diff --numstat <first-parent> <sha>`
-    /// (or `git show --numstat --root` for a root commit with no parent),
-    /// run off the main thread through Subprocess — the same git layer
-    /// executeRangeCompare uses. Failures surface as an error string in the
-    /// inspector instead of invented rows.
     private func loadChangedFiles(for sha: String?) async {
         guard let sha,
               let commit = gitViewModel.history.first(where: { $0.sha == sha }),
@@ -712,7 +640,6 @@ struct CommitsView: View {
                 let rows = output.stdoutText.split(separator: "\n").compactMap { line -> ChangedFileStat? in
                     let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
                     guard parts.count >= 3 else { return nil }
-                    // Binary files report "-" for both counts.
                     let adds = parts[0] == "-" ? nil : Int(parts[0])
                     let dels = parts[1] == "-" ? nil : Int(parts[1])
                     let path = parts[2...].joined(separator: "\t")

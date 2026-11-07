@@ -6,9 +6,6 @@ import SwiftCodeBuild
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// R31 (`specs/ide/reference-ui-5.md` §3, §4.3, §5.1): launch and the
-/// Welcome window, Open Recent, the window title, the idle activity text,
-/// the default run destination and the project navigator's first view.
 @MainActor
 @Suite(.serialized) struct LaunchWelcomeR31Tests {
     func tempDir(_ tag: String) throws -> URL {
@@ -17,7 +14,6 @@ import SwiftCodeProject
         return u.resolvingSymlinksInPath()
     }
 
-    /// An iOS app project ("Tour") made by SwiftCode's own template.
     func iosApp(in dir: URL, name: String = "Tour") throws -> URL {
         var o = ProjectOptions()
         o.productName = name
@@ -50,7 +46,6 @@ import SwiftCodeProject
         #expect(w.nameLabel.stringValue == "SwiftCode" && w.versionLabel.stringValue.hasPrefix("Version "))
         #expect([w.openButton.title, w.cloneButton.title, w.newProjectButton.itemTitles.first] == ["Open…", "Clone…", "New Project"])
         #expect(w.newProjectButton.pullsDown)
-        // reference-ui-6.md §1.5 (R45, W6): a separator before Choose Template….
         #expect(Array(w.newProjectButton.itemTitles.dropFirst()) == ["App", "Command Line Tool", "Package…", "Playground", "", "Choose Template…"])
         #expect(w.table.accessibilityLabel() == "Recent Projects")
         #expect(!w.nameLabel.stringValue.contains("Xcode"))
@@ -64,7 +59,7 @@ import SwiftCodeProject
         let app = AppDelegate()
         let w1 = app.showWelcomeWindow(nil)
         w1.close()
-        let w2 = app.showWelcomeWindow(nil)  // ⇧⌘1 brings it back
+        let w2 = app.showWelcomeWindow(nil)
         #expect(w1 === w2 && w2.window?.isVisible == true)
         w2.close()
     }
@@ -80,7 +75,7 @@ import SwiftCodeProject
         recents.note(a)
         recents.note(b)
         let w = WelcomeWindowController(recents: recents)
-        #expect(w.entries.map(\.path) == [b.path, a.path])  // newest first, the same as Open Recent
+        #expect(w.entries.map(\.path) == [b.path, a.path])
         #expect(w.table.numberOfRows == 2 && w.table.selectedRow == 0)
         let cell = try #require(w.tableView(w.table, viewFor: nil, row: 0) as? NSTableCellView)
         #expect(cell.textField?.stringValue == "Beta" && cell.textField?.toolTip == "Beta")
@@ -89,8 +84,7 @@ import SwiftCodeProject
         w.showWindow(nil)
         w.openSelected(nil)
         #expect(opened.map(\.path) == [b.path])
-        #expect(w.window?.isVisible == false)  // opening from the Welcome window closes it
-        // Clear Menu also empties the Welcome list.
+        #expect(w.window?.isVisible == false)
         recents.clear()
         #expect(w.entries.isEmpty && w.table.numberOfRows == 0)
     }
@@ -103,7 +97,6 @@ import SwiftCodeProject
         #expect(RecentProjects.displayName(one) == "ObsApp" && RecentProjects.displayName(pkg) == "Obs")
         #expect(RecentProjects.folderText(URL(fileURLWithPath: "/Volumes/External/Samples/App.xcodeproj")) == "External/Samples")
 
-        // The menu: entries, a separator, Clear Menu.
         let menu = NSMenu()
         RecentProjectsMenuDelegate.fill(menu, with: [one, pkg])
         #expect(menu.items.map(\.title) == ["ObsApp.xcodeproj", "Obs", "", "Clear Menu"])
@@ -111,7 +104,6 @@ import SwiftCodeProject
         RecentProjectsMenuDelegate.fill(menu, with: [])
         #expect(menu.items.map(\.title) == ["Clear Menu"])
 
-        // File ▸ Open Recent is a submenu filled from the list (not a disabled item).
         _ = NSApplication.shared
         let bar = MainMenu.make()
         let file = try #require(bar.item(withTitle: "File")?.submenu)
@@ -120,18 +112,14 @@ import SwiftCodeProject
         #expect(file.index(of: recent) == (file.indexOfItem(withTitle: "Open…") + 1))
     }
 
-    // MARK: L4, T4, L5, L8 — window title, idle activity, frame, Start Page
-
     @Test func windowTitleIdleActivityFrameAndStartPage() throws {
         let dir = try tempDir("title")
         defer { try? FileManager.default.removeItem(at: dir) }
         let proj = try iosApp(in: dir)
         let wc = try window(proj)
         #expect(wc.window?.title == "Tour \u{2014} Tour.xcodeproj")
-        #expect(wc.window?.frame.size == WorkspaceWindowController.defaultSize)  // toolbar included
-        #expect(wc.activityView.status.isEmpty)  // no "Ready" while idle
-        // First open: an empty editor under "No Selection", no Start Page
-        // (reference-ui-6.md §1.3 supersedes pass 5 §3.5; R38 tests).
+        #expect(wc.window?.frame.size == WorkspaceWindowController.defaultSize)
+        #expect(wc.activityView.status.isEmpty)
         wc.applyDefaultLayout()
         wc.window?.contentView?.layoutSubtreeIfNeeded()
         #expect(wc.editor.emptyView == nil && wc.editor.jumpBarTitles.last == "No Selection")
@@ -151,10 +139,8 @@ import SwiftCodeProject
         let stateURL = dir.appendingPathComponent("state.json")
         let wc = try window(proj, userState: stateURL)
         let p = wc.productPlatform
-        // New iOS apps target the SDK's version (templates.md § Notation, V(p)).
         let v = TemplateSDK.version("IPHONEOS_DEPLOYMENT_TARGET")
         #expect(p.platform == "iOS" && p.deploymentTarget == v)
-        // Before the simulators are listed: the generic simulator, never My Mac.
         #expect(wc.session.destination?.name == "Any iOS Simulator Device")
         #expect(wc.session.model.buildRequest(scheme: wc.session.scheme, destination: wc.session.destination, action: .build).destination
                 == "generic/platform=iOS Simulator")
@@ -163,7 +149,6 @@ import SwiftCodeProject
         #expect(wc.session.destination?.name == "iPhone 17")
         #expect(wc.destinationTitle.hasPrefix("iPhone 17"))
 
-        // An explicit choice is remembered for the scheme in user data.
         let ipad = try #require(wc.session.model.destinations.first { $0.name == "iPad Air" })
         wc.session.destination = ipad
         wc.rememberDestination()
@@ -187,8 +172,6 @@ import SwiftCodeProject
         #expect(mac.session.destination == .myMac)
     }
 
-    // MARK: N1–N4 — project navigator first view
-
     @Test func navigatorFirstView() throws {
         let dir = try tempDir("nav")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -197,10 +180,8 @@ import SwiftCodeProject
         let wc = try window(proj, userState: stateURL)
         wc.navigator.select(0)
         let root = try #require(wc.navigator.rows(0).first)
-        // N1: no Products group.
         #expect(root.title == "Tour" && !root.children.map(\.title).contains("Products"))
         #expect(!wc.session.model.root.children.map(\.name).contains("Products"))
-        // N2: file names without extensions (Hide All is the factory default).
         let td = TestDefaults("r31-prefs")
         defer { td.remove() }
         #expect(Preferences(defaults: td.defaults).fileExtensions == .hide)
@@ -208,10 +189,8 @@ import SwiftCodeProject
         func titles(_ items: [OutlineItem]) -> [String] { items.flatMap { [$0.title] + titles($0.children) } }
         let all = titles([root])
         #expect(all.contains("ContentView") && !all.contains { $0.hasSuffix(".swift") })
-        // N4: the root and its first group are expanded at first open.
         let first = try #require(root.children.first { $0.nodeKind != .file })
         #expect(wc.navigator.projectExpansion == [root.expansionKey, first.expansionKey].compactMap { $0 })
-        // N3: letters on file rows only.
         let file = try #require(wc.session.model.root.allFiles.first { $0.name == "ContentView.swift" }?.path)
         wc.navigator.setFileStatus([file: .modified, proj.path: .modified, proj.deletingLastPathComponent().appendingPathComponent("Tour").path: .modified])
         func find(_ items: [OutlineItem], _ t: String) -> OutlineItem? {
@@ -231,7 +210,6 @@ import SwiftCodeProject
         wc.navigator.select(0)
         let file = try #require(wc.session.model.root.allFiles.first { $0.name == "ContentView.swift" }?.path)
         wc.open(path: file, line: nil)
-        // Collapse the first group: the expansion is saved.
         wc.navigator.onProjectExpansionChange?([try #require(wc.navigator.rows(0).first?.expansionKey)])
         let saved = WorkspaceUserState.load(from: stateURL)
         #expect(saved.recentFiles == [file])
@@ -239,7 +217,7 @@ import SwiftCodeProject
 
         let again = try window(proj, userState: stateURL)
         again.navigator.select(0)
-        #expect(again.navigator.recentFiles == [file])  // the Start Page's Recent Files (L9)
+        #expect(again.navigator.recentFiles == [file])
         #expect(again.navigator.projectExpansion == saved.expandedRows)
     }
 }

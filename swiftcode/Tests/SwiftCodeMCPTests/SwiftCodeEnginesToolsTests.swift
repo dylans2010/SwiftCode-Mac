@@ -3,55 +3,14 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Engines / Web / Reverse tools (Wave 5), each driven
-/// black-box through the server's real write-policy path against a
-/// copy of `Samples/AgentSamples/Greeter`, plus pure-logic tests for
-/// the DocC parsing, candidate resolution, diff, and Reverse
-/// validation helpers in `SwiftCodeTools+EnginesSupport.swift`.
-///
-/// Behaviour source: Legacy `AssistCodeMutationEngine`,
-/// `AssistDependencyResolutionEngine`, `AssistExternalResourceGateway`,
-/// `AssistPatchApplicationEngine`, `AssistFetchDocumentationTool`,
-/// `ReverseToolAdapter` (+ `ReverseTargetValidator`) and
-/// `AssistXcodeProjectResolver.locate` (Dylan's own code, ported
-/// under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state),
-/// never on internals. Messages quoted verbatim are Legacy's; where
-/// the SwiftCode port may legitimately word a failure differently
-/// (path-safety wording, the no-shell deviation), the test asserts
-/// the behaviour plus a tolerant message match.
-///
-/// Platform notes: this machine has no Swift toolchain and the
-/// tests run on Linux here, so `dependency_resolution_engine`
-/// asserts Legacy's exact "requires macOS runtime" failure on Linux
-/// (on macOS it would fail at the project lookup for Greeter, which
-/// has no `.xcodeproj`). No test performs a live network fetch:
-/// `fetch_documentation` and `external_resource_gateway` are covered
-/// up to the point where they would touch the network (argument
-/// validation, URL allow-list, candidate resolution, DocC / HTML
-/// parsing, rendering); their live behaviour — DocC JSON from
-/// developer.apple.com, gateway JSON from a real HTTPS endpoint —
-/// stays pending on Dylan's Mac.
 @MainActor
 @Suite(.serialized) struct SwiftCodeEnginesToolsTests {
-    /// The 6 Wave 5 Engines / Web / Reverse tool IDs, verified live
-    /// from the Legacy registry (`AssistToolRegistry.registerAllTools`
-    /// + each tool's `id`).
     static let engineIDs = ["code_mutation_engine", "dependency_resolution_engine", "external_resource_gateway",
                             "patch_application_engine", "fetch_documentation", "reverse_analyze"]
 
-    /// Opens a copy of Greeter and installs the ported engine tools
-    /// on the server (same shape as Wave 2's `opened`; the
-    /// coordinator wires `engineTools` into `installTools()`).
-    /// Defaults to `.allow`: most engine tools are `writes: true`,
-    /// so the read-only policy refuses them before they run.
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` may already
-        // wire `engineTools`, so a plain `+=` would register them
-        // twice.
         let ported = Set(host.engineTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.engineTools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -59,15 +18,12 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// A host with the ported engine tools installed but no workspace
-    /// open, for the tools that must not need one.
     func bareHost() -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         let ported = Set(host.engineTools.map(\.name))
@@ -113,8 +69,6 @@ import SwiftCodeAssistant
         #expect(tools.first { $0.name == "external_resource_gateway" }?.annotations.openWorld == true,
                 "external_resource_gateway is an external side effect")
     }
-
-    // MARK: - `code_mutation_engine`
 
     @Test func codeMutationEngineReplacesSymbolBody() async throws {
         let sample = try TempSample()
@@ -203,8 +157,6 @@ import SwiftCodeAssistant
         #expect(sample.read("Sources/Greeter/Target.txt") == "hello\n")
     }
 
-    // MARK: - `patch_application_engine`
-
     @Test func patchApplicationEngineAppliesPatch() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -257,15 +209,10 @@ import SwiftCodeAssistant
         #expect(diff == "--- a/f.swift\n+++ b/f.swift\n-b\n+B")
     }
 
-    // MARK: - `dependency_resolution_engine`
-
     @Test func dependencyResolutionEngineFailsWithoutProjectOrRuntime() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Greeter is a Swift package with no .xcodeproj, so on macOS
-        // this fails at the project lookup; on Linux it fails in
-        // Legacy's own `#else` branch. Either way no xcodebuild runs.
         let r = try await host.server.callTool("dependency_resolution_engine",
                                                ["packageURL": .string("https://example.com/foo.git")])
         #expect(r.isToolError)
@@ -286,11 +233,7 @@ import SwiftCodeAssistant
                 "\(r.resultText)")
     }
 
-    // MARK: - `external_resource_gateway`
-
     @Test func externalResourceGatewayRejectsHttp() async throws {
-        // No workspace is needed: the rejection comes from the URL
-        // allow-list, not from any project state.
         let host = bareHost()
         let r = try await host.server.callTool("external_resource_gateway",
                                                ["url": .string("http://example.com/api.json")])
@@ -315,8 +258,6 @@ import SwiftCodeAssistant
                 && (r.resultText.contains("missing the required argument") || r.resultText.contains("Missing or invalid url")),
                 "\(r.resultText)")
     }
-
-    // MARK: - `fetch_documentation` (no live fetch in tests)
 
     @Test func fetchDocumentationRequiresQueryOrURL() async throws {
         let sample = try TempSample()
@@ -345,10 +286,6 @@ import SwiftCodeAssistant
     }
 
     @Test func fetchDocumentationNeedsNoWorkspace() async throws {
-        // The handler never calls session(for:): documentation comes
-        // from developer.apple.com, not the open project. A bad
-        // language fails in the handler, proving the call got past
-        // any workspace requirement.
         let host = bareHost()
         let r = try await host.server.callTool("fetch_documentation",
                                                ["query": .string("View"), "language": .string("rust")])
@@ -364,8 +301,6 @@ import SwiftCodeAssistant
         #expect(dotted.map(\.docPath) == ["documentation/swiftui/view", "documentation/swiftui"])
         let fromURL = try EnginesDocs.resolveCandidates(query: "", urlString: "https://developer.apple.com/de/documentation/swiftui/view", framework: nil)
         #expect(fromURL.map(\.docPath) == ["documentation/swiftui/view"])
-        // A single-token query without a framework cannot be resolved
-        // to a path reliably: it throws instead of guessing.
         #expect(throws: EnginesHTTPError.self) {
             try EnginesDocs.resolveCandidates(query: "View", urlString: "", framework: nil)
         }
@@ -409,7 +344,6 @@ import SwiftCodeAssistant
         #expect(page.relatedLinks.first?.url == "https://developer.apple.com/documentation/swiftui/text")
         #expect(page.retrievalMethod == "docc-json")
         #expect(page.canonicalURL.absoluteString == "https://developer.apple.com/documentation/swiftui/view")
-        // Not documentation at all: the schema drift guard returns nil.
         #expect(EnginesDocs.parseDocCJSON(data: Data("{}".utf8),
                                           canonicalURL: URL(string: "https://developer.apple.com/documentation/x")!,
                                           finalJSONURL: URL(string: "https://developer.apple.com/documentation/x")!,
@@ -442,8 +376,6 @@ import SwiftCodeAssistant
         #expect(!rendered.contains("macOS 10.15+"), "the platform filter keeps only the matching availability line")
         #expect(rendered.contains("Text: https://developer.apple.com/documentation/swiftui/text"))
     }
-
-    // MARK: - `reverse_analyze` (honestly failing)
 
     @Test func reverseAnalyzeRejectsUnknownOperation() async throws {
         let sample = try TempSample()
@@ -527,8 +459,6 @@ import SwiftCodeAssistant
         #expect(EnginesReverseValidator.clampTimeout(.int(5000)) == 1800)
         #expect(EnginesReverseValidator.clampTimeout(.double(42.5)) == 42.5)
     }
-
-    // MARK: - Read-only policy
 
     @Test func readOnlyPolicyRefusesEngineWrites() async throws {
         let sample = try TempSample()

@@ -1,21 +1,3 @@
-/*
- * argprobe: our own argument-buffer probe for the simulator (original Ycode
- * code, OBS-ARGBUF). Written against the public Metal API only.
- *
- * For each argument-buffer layout (a struct of our own shader source, or a
- * list of MTLArgumentDescriptor objects) it makes an argument encoder, fills
- * a shared buffer with 0xEE, points the encoder at it, sets every member to a
- * distinctive value (buffers: our data buffer at offset 16 x (k + 1);
- * textures and samplers: separate objects; inline data: a marker byte
- * written through constantDataAtIndex:) and prints the bytes that changed.
- * The function's reflection is printed afterwards (offsets as the driver
- * reports them). When run under mslog.dylib, every step puts a marker into
- * the recorder's log, so op 16 / 17 / 19 records can be matched to calls.
- *
- * Usage: argprobe [layout ...]   (default: all)   argprobe draw   (op 29 probe)
- *        argprobe lib <metallib> [filter]                  list function names
- *        argprobe lib <metallib> - <function> [index]      encoder(s) for a function's argument buffer(s)
- */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <dlfcn.h>
@@ -35,8 +17,6 @@ static void mark(NSString *s)
     fflush(stdout);
     if (g_mark) g_mark(s.UTF8String);
 }
-
-/* ---- layouts: our own structs ---- */
 
 typedef struct { const char *name, *decl; } Layout;
 
@@ -68,7 +48,6 @@ static const Layout kLayouts[] = {
     { "texfirst", "struct A { texture2d<float> t [[id(0)]]; sampler s [[id(1)]]; device float *b [[id(2)]]; float4 c [[id(3)]]; };" },
 };
 
-/* A kernel that touches every member, so nothing is dropped from the struct. */
 static NSString *kernelFor(const Layout *L)
 {
     return [NSString stringWithFormat:
@@ -76,8 +55,6 @@ static NSString *kernelFor(const Layout *L)
          "kernel void k(constant A &a [[buffer(0)]], device float *o [[buffer(1)]], uint i [[thread_position_in_grid]])"
          " { o[i] = (float)sizeof(A) + (float)(ulong)&a; }\n", L->decl];
 }
-
-/* ---- objects to set ---- */
 
 static NSMutableArray *g_keep;
 
@@ -116,9 +93,7 @@ static id<MTLSamplerState> newSampler(void)
     return s;
 }
 
-/* ---- reflection walk: prints and sets each member ---- */
-
-static int g_k;  /* running member counter for distinct values */
+static int g_k;
 
 static void setMember(id<MTLArgumentEncoder> ae, uint8_t *base, NSUInteger idx, MTLDataType dt,
                       MTLTextureReferenceType *tr, const char *name)
@@ -179,7 +154,6 @@ static void walkType(id<MTLArgumentEncoder> ae, uint8_t *base, NSUInteger idx, M
             snprintf(nm, sizeof nm, "%s[%lu]", name, (unsigned long)e);
             if (at.elementType == MTLDataTypeStruct && !doSet) continue;
             if (at.elementType == MTLDataTypeStruct) {
-                /* nested struct elements: their members' indices are relative to ei */
                 for (MTLStructMember *m in at.elementStructType.members) {
                     char nn[192];
                     snprintf(nn, sizeof nn, "%s.%s", nm, m.name.UTF8String);
@@ -314,8 +288,6 @@ static void doLayout(const Layout *L)
     }
 }
 
-/* ---- layouts from argument descriptors ---- */
-
 static MTLArgumentDescriptor *ad(MTLDataType dt, NSUInteger idx, NSUInteger len, MTLTextureType tt, MTLBindingAccess acc)
 {
     MTLArgumentDescriptor *d = [MTLArgumentDescriptor argumentDescriptor];
@@ -355,8 +327,6 @@ static void doDescriptors(const char *name, NSArray<MTLArgumentDescriptor *> *li
     dump(ab.contents, 4096);
 }
 
-/* ---- a library given by path (public API only): list functions, make an encoder ---- */
-
 static void doLib(const char *path, const char *filter, const char *fn, int idx)
 {
     NSError *e = nil;
@@ -375,7 +345,6 @@ static void doLib(const char *path, const char *filter, const char *fn, int idx)
         printf("  constant %s index %lu type %lu required %d\n", k.UTF8String, (unsigned long)c.index, (unsigned long)c.type, c.required);
     }
     if (f.functionConstantsDictionary.count) {
-        /* specialize with zeros for every constant */
         MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new];
         uint8_t zero[64] = { 0 };
         for (NSString *k in f.functionConstantsDictionary) {
@@ -389,7 +358,6 @@ static void doLib(const char *path, const char *filter, const char *fn, int idx)
     NSMutableArray *idxs = [NSMutableArray new];
     if (idx >= 0) [idxs addObject:@(idx)];
     else if (getenv("ARGPROBE_VERTEX")) {
-        /* list the function's arguments through a render pipeline's reflection */
         id<MTLFunction> v = [lib newFunctionWithName:@(getenv("ARGPROBE_VERTEX"))];
         if (v.functionConstantsDictionary.count) {
             MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new];
@@ -432,8 +400,6 @@ static void doLib(const char *path, const char *filter, const char *fn, int idx)
     }
 }
 
-/* ---- range setters ---- */
-
 static void doRange(void)
 {
     Layout L = { "range", "struct A { device float *b0 [[id(10)]]; device float *b1 [[id(11)]]; device float *b2 [[id(12)]]; texture2d<float> t0 [[id(20)]]; texture2d<float> t1 [[id(21)]]; sampler s0 [[id(30)]]; sampler s1 [[id(31)]]; };" };
@@ -469,8 +435,6 @@ static void doRange(void)
     dump(ab.contents, 1024);
 }
 
-/* ---- op 29 probe (Q24) ---- */
-
 static void doDraw(void)
 {
     NSString *src = @"#include <metal_stdlib>\nusing namespace metal;\n"
@@ -494,7 +458,6 @@ static void doDraw(void)
     memset(vb.contents, 0, 4096);
     id<MTLBuffer> ib = [dev newBufferWithLength:4096 options:0];
     memset(ib.contents, 0, 4096);
-    /* fill a first command buffer's segment with records whose high halves are distinctive, then the probe draws */
     for (int round = 0; round < 3; round++) {
         mark([NSString stringWithFormat:@"draw round %d", round]);
         MTLRenderPassDescriptor *rp = [MTLRenderPassDescriptor renderPassDescriptor];
@@ -506,7 +469,6 @@ static void doDraw(void)
         [re setRenderPipelineState:ps];
         [re setVertexBuffer:vb offset:0 atIndex:0];
         if (round == 0) {
-            /* records with large values at the positions op 29's last word will occupy in later rounds */
             for (int j = 0; j < 8; j++)
                 [re setViewport:(MTLViewport){ 1.5, 2.5, 3.5, 4.5, 0.0, 1.0 }];
         }
@@ -524,9 +486,6 @@ static void doDraw(void)
     }
 }
 
-/* op 29 with stale high bytes: does the host use only the low 16 bits? A vertex function writes the
- * base instance it sees into a buffer (rasterization off). Round 0 leaves viewport records (doubles)
- * where round 1's op 29 lands. */
 static void doDraw2(void)
 {
     NSString *src = @"#include <metal_stdlib>\nusing namespace metal;\n"

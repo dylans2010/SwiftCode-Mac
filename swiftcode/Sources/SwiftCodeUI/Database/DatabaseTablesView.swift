@@ -2,39 +2,6 @@ import AppKit
 import SwiftUI
 import SwiftCodeCloud
 
-/// Tables & views browser: spreadsheet mode plus a triggers &
-/// views manager.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseTablesView.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - Tables come from `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`) for SQLite, and from
-///   `SupabaseService().fetchTables` for Supabase (the
-///   destination's value type — no `.shared`). Other providers
-///   have no schema driver in this package, so the list stays
-///   empty and a status line says so instead of failing silently.
-/// - Trigger/view listing, creation, and dropping run for real
-///   against SQLite through `SQLiteExplorerModel.run`, reading
-///   `sqlite_master` directly. `DROP` statements quote the object
-///   name; Legacy interpolated it raw.
-/// - The record spreadsheet is `DatabaseRecordViewer`, which
-///   reads and writes real rows through the same explorer.
-/// - Table creation is `DatabaseTableEditor`, which creates the
-///   table for real through `DatabaseSchemaManager`.
-/// - Legacy's zero-argument `.onChange` closures are the
-///   two-argument form (the destination SDK's `onChange`).
-/// - Legacy's `liquidGlass` header is gone (SwiftCodeUI has no
-///   such modifier); the header is a plain row on a subtle
-///   background.
-/// - The view complements, rather than duplicates, the SQLite
-///   Explorer window (`SQLiteExplorerWindowController`): that
-///   window is file-oriented (open a file, page rows, run SQL),
-///   while this view is connection-oriented (the active saved
-///   connection, its tables, its triggers and views, its record
-///   editor).
 @MainActor
 struct DatabaseTablesView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
@@ -44,15 +11,13 @@ struct DatabaseTablesView: View {
     @State private var showingCreateForm = false
     @State private var loadErrorMessage = ""
 
-    // Switch between Spreadsheet and Triggers/Views Manager
-    @State private var selectedMode = 0 // 0 = Data Spreadsheet, 1 = Trigger & View Manager
+    @State private var selectedMode = 0
 
-    // Triggers and Views states
     @State private var dbTriggers: [[String: String]] = []
     @State private var dbViews: [[String: String]] = []
     @State private var selectedTrigger: [String: String]?
     @State private var selectedView: [String: String]?
-    @State private var newObjectType = "View" // View, Trigger
+    @State private var newObjectType = "View"
     @State private var newObjectName = "v_users_active"
     @State private var newObjectSQL = "CREATE VIEW v_users_active AS\nSELECT * FROM users WHERE status = 'active';"
     @State private var showCreateObjectSheet = false
@@ -60,7 +25,6 @@ struct DatabaseTablesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Table selector bar
             HStack(spacing: 16) {
                 Text("Tables & Views")
                     .font(.headline)
@@ -106,9 +70,7 @@ struct DatabaseTablesView: View {
             Divider()
 
             if selectedMode == 0 {
-                // Spreadsheet mode
                 HStack(spacing: 0) {
-                    // Table Names Sidebar List
                     VStack(spacing: 0) {
                         if isLoading {
                             ProgressView()
@@ -135,7 +97,6 @@ struct DatabaseTablesView: View {
 
                     Divider()
 
-                    // Record Spreadsheet Viewer
                     if let table = selectedTable {
                         DatabaseRecordViewer(table: table)
                     } else {
@@ -143,7 +104,6 @@ struct DatabaseTablesView: View {
                     }
                 }
             } else {
-                // Trigger & View Manager
                 triggerAndViewManagerPane()
             }
         }
@@ -218,11 +178,9 @@ struct DatabaseTablesView: View {
         }
     }
 
-    // MARK: - Trigger & View Manager UI Pane
     @ViewBuilder
     private func triggerAndViewManagerPane() -> some View {
         HSplitView {
-            // Left list of triggers & views
             VStack(alignment: .leading, spacing: 0) {
                 Text("SQL VIEWS")
                     .font(.caption2.bold())
@@ -291,7 +249,6 @@ struct DatabaseTablesView: View {
 
             Divider()
 
-            // Detail / Code viewer
             VStack(spacing: 0) {
                 if let view = selectedView {
                     VStack(alignment: .leading, spacing: 14) {

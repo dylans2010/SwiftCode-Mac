@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimulatorCommandExecutor.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import os
 
@@ -18,21 +16,16 @@ public actor SimulatorCommandExecutor {
         logger.info("[BEGIN] Executing command '\(command.name)': \(command.executable) \(command.arguments.joined(separator: " "))")
         let startTime = Date()
 
-        // Safely check if the target executable exists
         let fm = FileManager.default
         let hasExecutable = fm.fileExists(atPath: command.executable)
 
         guard hasExecutable else {
-            // Never fabricate success output for a missing tool: simctl
-            // requires macOS with Xcode installed. (Legacy returned canned
-            // Xcode/simctl output here; that fiction is removed in this port.)
             logger.error("[FAILED] Executable not found at '\(command.executable)'")
             throw SimulatorError.executionFailed(
                 command: command.name, exitCode: -1,
                 output: "Executable not found at '\(command.executable)'. simctl requires macOS with Xcode installed.")
         }
 
-        // Native command execution using Process & Pipe safely (no force unwraps)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command.executable)
         process.arguments = command.arguments
@@ -45,7 +38,6 @@ public actor SimulatorCommandExecutor {
         do {
             try process.run()
 
-            // Asynchronous timeout control using modern task group
             let exitCode = try await withThrowingTaskGroup(of: Int32.self) { group in
                 group.addTask {
                     process.waitUntilExit()
@@ -68,7 +60,6 @@ public actor SimulatorCommandExecutor {
                 return result
             }
 
-            // Capture stdout/stderr safely (no force unwraps, handles empty cases gracefully)
             let outputData: Data
             if let data = try? outputPipe.fileHandleForReading.readToEnd() {
                 outputData = data

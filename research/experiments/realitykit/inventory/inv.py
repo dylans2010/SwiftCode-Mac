@@ -1,10 +1,9 @@
 import re, sys
-# Inventory of a swiftinterface: names, kinds, availability only (no declarations).
 path = sys.argv[1]
 lines = open(path, encoding='utf-8').read().split('\n')
 avail = []
 attrs = []
-stack = []  # (indent, label)
+stack = []
 declre = re.compile(r'^(\s*)((?:@[\w.]+(?:\([^)]*\))?\s+)*)((?:(?:public|open|internal|private|fileprivate|final|nonisolated|static|class|override|convenience|required|indirect|mutating|nonmutating|dynamic|optional|weak|unowned|lazy|package|borrowing|consuming|isolated)\s+)*)(struct|class|enum|protocol|actor|extension|typealias|var|let|func|init[?!]?|subscript|case|associatedtype|macro|deinit)\b\s*(.*)$')
 def ident(kind, rest):
     if kind.startswith('init') or kind=='subscript':
@@ -22,7 +21,6 @@ def ident(kind, rest):
         return rest.split('{')[0].strip()
     return re.split(r'[\s:<{=]', rest)[0]
 def labels(s):
-    # crude: take first parenthesised group, collect argument labels
     depth=0; buf=''; out=[]; started=False
     for ch in s:
         if ch=='(':

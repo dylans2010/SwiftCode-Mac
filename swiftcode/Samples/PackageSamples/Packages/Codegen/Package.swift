@@ -1,8 +1,4 @@
 // swift-tools-version: 6.0
-// A build-tool plug-in for the package samples. `CodegenPlugin` runs
-// `codegen-tool` (built for the host) on every `.codegen` file of a target and
-// compiles the Swift it writes. The package's own `Codegen` library uses it,
-// and project targets can apply it too (`XcodeBuildToolPlugin`).
 import PackageDescription
 
 let package = Package(

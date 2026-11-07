@@ -15,7 +15,6 @@ public final class StoreKitWorkspaceSession: Identifiable {
     public var activeURL: URL? = nil
     public var selectedSection: String = "Dashboard"
 
-    // Undo/Redo Stacks
     public var undoStack: [StoreKitConfig] = []
     public var redoStack: [StoreKitConfig] = []
 

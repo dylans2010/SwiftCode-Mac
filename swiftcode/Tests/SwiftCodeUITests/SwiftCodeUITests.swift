@@ -8,8 +8,6 @@ import SwiftCodeBuild
 private let worktreeSwiftCode = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
 @Suite struct ModelTests {
-    /// CLAUDE.md rule 5: no trademark-shaped symbols (the Swift bird, the
-    /// Apple logo, Xcode's hammer) anywhere in SwiftCode's UI.
     @MainActor @Test func noTrademarkSymbols() throws {
         let forbidden = ["swift", "applelogo", "hammer", "hammer.fill", "xcode", "applewatch", "visionpro", "iphone", "ipad"]
         for p in ["macOS", "iOS", "watchOS", "tvOS", "visionOS"] {
@@ -24,7 +22,6 @@ private let worktreeSwiftCode = URL(fileURLWithPath: #filePath).deletingLastPath
         }
         let all = NavigatorAreaController.symbols + InspectorAreaController.symbols + DebugAreaController.barButtons.map(\.0)
         #expect(all.allSatisfy { !forbidden.contains($0) })
-        // The device windows too (device-hub.md: SwiftCode draws its own device glyphs).
         for sub in ["Sources/SwiftCodeUI", "Sources/SwiftCodeDeviceUI", "Sources/swiftcode-sim-viewer"] {
             let dir = worktreeSwiftCode.appendingPathComponent(sub)
             for case let f as URL in FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)! where f.pathExtension == "swift" {
@@ -37,7 +34,6 @@ private let worktreeSwiftCode = URL(fileURLWithPath: #filePath).deletingLastPath
     }
 }
 
-/// A build engine that reports fixed issues.
 struct FakeEngine: BuildEngine {
     var issues: [Diagnostic]
     var name: String { "fake" }
@@ -54,9 +50,6 @@ struct FakeEngine: BuildEngine {
 @Suite(.serialized) struct WindowSnapshotTests {
     static let out = worktreeSwiftCode.appendingPathComponent(".build-ide/snapshots")
 
-    /// The sample package in `.build-ide/<directory>`. Suites that keep a
-    /// language server on it pass their own directory: the shared one is
-    /// rewritten and built by other suites while they run.
     func samplePackage(directory: String = "Sample") throws -> URL {
         let dir = worktreeSwiftCode.appendingPathComponent(".build-ide/\(directory)")
         let src = dir.appendingPathComponent("Sources/Sample")
@@ -109,12 +102,11 @@ struct FakeEngine: BuildEngine {
         window.appearance = NSAppearance(named: .aqua)
         wc.applyDefaultLayout()
         #expect(wc.editor.fileURL?.path == main)
-        // File names without extension (reference-ui-6.md §4.1, E1).
         #expect(wc.editor.pathComponents.map(\.0) == ["Sample", "Sources", "Sample", "main"])
 
         session.breakpoints.click(file: main, line: 8)
         session.breakpoints.click(file: main, line: 14)
-        session.breakpoints.click(file: main, line: 14) // disabled
+        session.breakpoints.click(file: main, line: 14)
         let result = await session.build()
         #expect(result.errorCount == 1)
         #expect(wc.activityView.errors == 1 && wc.activityView.warnings == 1)
@@ -126,17 +118,14 @@ struct FakeEngine: BuildEngine {
         let png = try render(window.contentView!.superview ?? window.contentView!, to: "workspace-window.png")
         #expect(FileManager.default.fileExists(atPath: png.path))
 
-        // The issue navigator.
         wc.navigator.select(4)
         _ = try render(window.contentView!.superview ?? window.contentView!, to: "issue-navigator.png")
 
-        // Area toggles (⌘0, ⌥⌘0, ⇧⌘Y).
         wc.toggleNavigator(nil)
         #expect(wc.navigatorItem.isCollapsed)
         wc.toggleDebugArea(nil)
         #expect(wc.debugItem.isCollapsed)
 
-        // ⌘/ comments the current line.
         wc.editor.reveal(line: 14)
         wc.editor.commentSelection(nil)
         #expect(wc.editor.text.contains("// let g = Greeter"))

@@ -2,8 +2,6 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeSubprocess
 
-/// A preview problem the canvas shows as a banner, with the source position
-/// it links to when there is one.
 public struct PreviewIssue: Equatable, Sendable, CustomStringConvertible {
     public var file: URL?
     public var line: Int
@@ -16,20 +14,15 @@ public struct PreviewIssue: Equatable, Sendable, CustomStringConvertible {
         self.message = message
     }
 
-    /// `File.swift:6: message`, or the message alone.
     public var description: String {
         guard let file else { return message }
         return "\(file.lastPathComponent):\(line): \(message)"
     }
 }
 
-/// Why a preview could not be shown.
 public enum PreviewFailure: Error, Equatable, Sendable, CustomStringConvertible {
-    /// The payload (or the host) did not compile; the first errors first.
     case compile([PreviewIssue])
-    /// The module or the target cannot be previewed.
     case unsupported(String)
-    /// The preview host or the device failed.
     case host(String)
 
     public var description: String {
@@ -46,18 +39,12 @@ public enum PreviewFailure: Error, Equatable, Sendable, CustomStringConvertible 
     }
 }
 
-/// Compiles preview payloads and hosts with the installed toolchain
-/// (`xcrun --sdk <sdk> swiftc`). See `specs/ide/previews.md` §Fast updates.
 public struct PreviewCompiler: Sendable {
     public var platform: PreviewPlatform
     public var deploymentTarget: String
-    /// The Swift module name the previewed code is compiled under.
     public var moduleName: String
-    /// The clang module cache (an absolute path; kept warm between compiles).
     public var moduleCache: URL
-    /// `xcrun`; tests may substitute a script.
     public var xcrun = "/usr/bin/xcrun"
-    /// Extra compiler flags (`-D` conditions, `-swift-version`).
     public var extraFlags: [String] = []
 
     public init(platform: PreviewPlatform, deploymentTarget: String, moduleName: String, moduleCache: URL) {
@@ -67,11 +54,6 @@ public struct PreviewCompiler: Sendable {
         self.moduleCache = moduleCache.standardizedFileURL
     }
 
-    /// The payload's arguments to `xcrun`: one whole-module, unoptimized
-    /// frontend job (the fastest for the small modules previews compile),
-    /// a dynamic library with its own install name (each generation is a
-    /// new image the host can load next to the old ones), `DEBUG` set as
-    /// in a debug build, Swift 5 language mode unless `extraFlags` say otherwise.
     public func payloadArguments(sources: [URL], output: URL) -> [String] {
         ["--sdk", platform.sdk, "swiftc",
          "-target", platform.targetTriple(deploymentTarget: deploymentTarget),
@@ -84,7 +66,6 @@ public struct PreviewCompiler: Sendable {
             + extraFlags + sources.map(\.path)
     }
 
-    /// Compiles a payload. Errors map back to the user's files and lines.
     public func compilePayload(_ sources: PreviewPayloadGenerator.Sources, output: URL) throws(PreviewFailure) {
         try? FileManager.default.createDirectory(at: moduleCache, withIntermediateDirectories: true)
         try? FileManager.default.removeItem(at: output)
@@ -97,8 +78,6 @@ public struct PreviewCompiler: Sendable {
         }
     }
 
-    /// The errors of a compiler log, mapped through the copies' line maps
-    /// (an error in a generated support file names no source).
     public static func issues(from log: String, lineMaps: [String: PreviewPayloadGenerator.LineMap]) -> [PreviewIssue] {
         let errors = DiagnosticParser.parse(log).filter { $0.severity == .error }
         var out: [PreviewIssue] = []
@@ -113,7 +92,6 @@ public struct PreviewCompiler: Sendable {
             let last = log.split(separator: "\n").last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }).map(String.init)
             out.append(PreviewIssue(file: nil, message: last ?? "Compiling the preview failed"))
         }
-        // Errors with a position in the user's files first.
         return out.filter { $0.file != nil } + out.filter { $0.file == nil }
     }
 }

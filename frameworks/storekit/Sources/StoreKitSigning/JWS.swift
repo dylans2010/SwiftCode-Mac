@@ -1,6 +1,3 @@
-// Compact JWS (RFC 7515) with ES256 (RFC 7518 §3.4): the builder used for
-// every signed transaction, renewal info and app transaction (formats.md
-// §2.1), and a verifier.
 import Crypto
 import Foundation
 import StoreKitConfiguration
@@ -22,24 +19,18 @@ public enum Base64URL {
     }
 }
 
-/// A decoded compact JWS.
 public struct DecodedJWS: Sendable {
     public let header: JSONValue
     public let payload: JSONValue
     public let payloadData: Data
-    /// The 64-byte r‖s signature.
     public let signature: Data
-    /// `base64url(header).base64url(payload)`.
     public let signingInput: Data
-    /// The `x5c` certificates, leaf first.
     public let certificates: [Certificate]
 }
 
 public enum JWS {
-    /// The `kid` of local-store signatures (formats.md §2.1).
     public static let keyID = "Apple_Xcode_Key"
 
-    /// The protected header: `alg` ES256, `kid`, `typ` JWT, `x5c` with the identity's certificates.
     public static func header(for identity: SigningIdentity, keyID: String = JWS.keyID) -> JSONValue {
         .object([
             "alg": .string("ES256"), "kid": .string(keyID), "typ": .string("JWT"),
@@ -47,9 +38,6 @@ public enum JWS {
         ])
     }
 
-    /// Signs a payload (written compact with sorted keys).
-    /// - Parameter corruptSignature: produce a signature that does not verify
-    ///   (the `verification` simulated error `invalidSignature`, testing-session.md §9).
     public static func sign(_ payload: JSONValue, identity: SigningIdentity, keyID: String = JWS.keyID, corruptSignature: Bool = false)
         throws -> String
     {
@@ -66,7 +54,6 @@ public enum JWS {
         return input + "." + Base64URL.encode(signature)
     }
 
-    /// Splits and decodes a compact JWS without checking the signature.
     public static func decode(_ compact: String) throws(VerificationFailure) -> DecodedJWS {
         let parts = compact.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3, let h = Base64URL.decode(parts[0]), let p = Base64URL.decode(parts[1]),
@@ -91,7 +78,6 @@ public enum JWS {
     }
 }
 
-/// Why a JWS failed verification (`VerificationResult.VerificationError`).
 public struct VerificationFailure: Error, Hashable, Sendable, CustomStringConvertible {
     public let reason: VerificationFailureReason
     public let detail: String
@@ -104,17 +90,9 @@ public struct VerificationFailure: Error, Hashable, Sendable, CustomStringConver
     public var description: String { "\(reason): \(detail)" }
 }
 
-/// Verifies compact JWS signatures.
-///
-/// Like the simulator, it checks the signature against the leaf
-/// certificate's key. With `trustedRoots` it also checks that the `x5c`
-/// chain leads to one of them (each certificate signed by the next, the
-/// last one a trusted root or signed by one) and, with `date`, that every
-/// certificate is valid then.
 public struct JWSVerifier: Sendable {
     public var trustedRoots: [Certificate]
     public var date: Date?
-    /// Payload keys that must be present (`missingRequiredProperties` otherwise).
     public var requiredPayloadKeys: [String]
 
     public init(trustedRoots: [Certificate] = [], date: Date? = nil, requiredPayloadKeys: [String] = []) {

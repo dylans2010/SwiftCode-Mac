@@ -7,20 +7,8 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Predictive completion in the macOS editor (specs/ide/predictive-completion.md
-/// §3, §8): real key events into a source editor whose backend is a
-/// stand-in server on 127.0.0.1 (no model, no network).
-///
-/// The editors here share nothing with other suites running at the same
-/// time: each has its own settings value (not `Preferences.shared`, which
-/// other suites swap), its own backend pointed at its own stand-in, no
-/// back-off, and a fixed model (no model pick). Waits are conditions whose
-/// deadlines count the main actor's own time (see `waitFor`).
 @MainActor
 @Suite(.serialized) struct PredictiveCompletionUITests {
-    /// A deadline for conditions that need the main actor and a loopback
-    /// round trip (in the main actor's own time; alone it takes well under
-    /// a second).
     static let deadline: TimeInterval = 60
 
     func editor(_ name: String, _ text: String, server: StandInServer, debounce: Int = 0) throws -> (SourceEditorController, NSWindow) {
@@ -56,17 +44,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     func tab(_ tv: NSTextView, _ flags: NSEvent.ModifierFlags = []) { key("\t", code: 48, flags: flags, into: tv) }
     func escape(_ tv: NSTextView) { key("\u{1b}", code: 53, into: tv) }
 
-    /// Waits until `cond` holds or `timeout` seconds of the main actor's
-    /// own time have passed; returns whether it held.
-    ///
-    /// The streamed reply is handled on the main actor, and other suites
-    /// hold it with synchronous work (a window build, a toolchain call)
-    /// for long stretches: 155 s at the start of a full run, during which
-    /// dozens of tests finish at the same instant. A wall-clock deadline
-    /// expired inside such a stall, and the first check after it failed
-    /// while the reply's pieces were still queued behind the stall
-    /// ("server saw 1", a partial or no suggestion). As `waitUntil`, time
-    /// spent waiting for the main actor counts at most 0.25 s a turn.
     @discardableResult
     func waitFor(_ cond: () -> Bool, timeout: TimeInterval = Self.deadline) async -> Bool {
         var waited = 0.0
@@ -79,7 +56,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return true
     }
 
-    /// What the session did, for failure messages.
     func state(_ e: SourceEditorController, _ server: StandInServer) -> Comment {
         let p = e.predictionSession
         return "status \(p.status), requests \(p.requestCount), busy \(p.isBusy), server saw \(server.generationRequests.count), suggestion \(String(describing: p.suggestion)), text \(e.text.debugDescription)"
@@ -99,9 +75,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let appeared = await waitFor { e.predictionSuggestion?.text == "items.count\nprint(total)" }
         try #require(appeared, state(e, server))
         #expect(e.predictionSuggestion?.anchor == 12)
-        // Collapsed: the first line shows (WWDC24 "Xcode essentials": Tab accepts what's shown).
         #expect(e.shownPredictionText == "items.count")
-        // The ghost text is drawn (the view's pixels change where it goes).
         #expect(tv.ghostOverlay.superview === tv && tv.subviews.last === tv.ghostOverlay)
         let withGhost = try #require(snapshot(tv))
         let saved = tv.ghostText
@@ -111,7 +85,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         tv.ghostText = saved
         #expect(withGhost != without)
         if let out = ProcessInfo.processInfo.environment["SWIFTCODE_PREDICT_SNAPSHOT"] { try withGhost.write(to: URL(fileURLWithPath: out)) }
-        // Holding Option shows every line.
         tv.flagsChanged(with: NSEvent.keyEvent(with: .flagsChanged, location: .zero, modifierFlags: .option, timestamp: 0, windowNumber: tv.window?.windowNumber ?? 0,
                                                context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 58)!)
         #expect(e.shownPredictionText == "items.count\nprint(total)")
@@ -120,11 +93,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         if let out = ProcessInfo.processInfo.environment["SWIFTCODE_PREDICT_SNAPSHOT"] { try expanded.write(to: URL(fileURLWithPath: out + ".expanded.tiff")) }
         tv.flagsChanged(with: NSEvent.keyEvent(with: .flagsChanged, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: tv.window?.windowNumber ?? 0,
                                                context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 58)!)
-        // Tab accepts the line shown; the rest stays.
         tab(tv)
         #expect(caretText(e) == "let total = items.count|\n")
         #expect(e.predictionSuggestion?.text == "\nprint(total)")
-        // Escape dismisses and leaves the text alone.
         escape(tv)
         #expect(e.predictionSuggestion == nil)
         #expect(e.text == "let total = items.count\n")
@@ -140,15 +111,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let appeared = await waitFor { e.predictionSuggestion?.text == "compute(value: 42)\nreturn" && !e.predictionSession.isBusy }
         try #require(appeared, state(e, server))
         let requests = server.generationRequests.count
-        // Typing what is suggested keeps the rest without a new request.
         type("comp", into: tv)
         #expect(e.predictionSuggestion?.text == "ute(value: 42)\nreturn")
         #expect(e.predictionSuggestion?.anchor == 12)
-        // ⌃Tab takes the next word.
         tab(tv, .control)
         #expect(caretText(e) == "let r = compute|\n")
         #expect(e.predictionSuggestion?.text == "(value: 42)\nreturn")
-        // ⌥Tab takes all of it.
         tab(tv, .option)
         #expect(caretText(e) == "let r = compute(value: 42)\nreturn|\n")
         #expect(e.predictionSuggestion == nil)
@@ -169,13 +137,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try #require(ready2, state(e, server))
         tv.setSelectedRange(NSRange(location: 2, length: 0))
         #expect(e.predictionSuggestion == nil)
-        // Tab without a suggestion indents as before.
         tv.setSelectedRange(NSRange(location: 10, length: 0))
         let before = e.text
         tab(tv)
         #expect(e.text != before)
-        // Escape with nothing to dismiss goes up the responder chain (it
-        // used to raise "unrecognized selector" from NSTextView's super).
         let indented = e.text
         escape(tv)
         #expect(e.text == indented && e.predictionSuggestion == nil)
@@ -186,16 +151,13 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let (e, _) = try editor("Command.swift", "let n: = 1\n", server: server)
         let tv = e.textView
         tv.setSelectedRange(NSRange(location: 7, length: 0))
-        // The menu item's action reaches the text view through the responder chain.
         #expect(NSApp.sendAction(NSSelectorFromString("showPredictiveCompletion:"), to: tv, from: nil))
         let ready3 = await waitFor { e.predictionSuggestion != nil }
         try #require(ready3, state(e, server))
         #expect(e.predictionSuggestion == .init(anchor: 7, text: "Int"))
-        // Drawn in the middle of a line: the rest of the line moves right.
         let mid = try #require(snapshot(tv))
         if let out = ProcessInfo.processInfo.environment["SWIFTCODE_PREDICT_SNAPSHOT"] { try mid.write(to: URL(fileURLWithPath: out + ".mid.tiff")) }
         escape(tv)
-        // Switched off: typing asks nothing.
         var s = try #require(e.predictionSettingsOverride)
         s.enabled = false
         e.predictionSettingsOverride = s
@@ -203,14 +165,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         tv.setSelectedRange(NSRange(location: 11, length: 0))
         let asked = e.predictionSession.requestCount
         type("x", into: tv)
-        // Off: no request is even scheduled (nothing to wait for).
         #expect(!e.predictionSession.isBusy && e.predictionSession.requestCount == asked && e.predictionSuggestion == nil)
         #expect(server.generationRequests.count == n)
     }
 
     @Test func settingsRowsAndTest() async throws {
-        // Its own Preferences on a test-only defaults suite, never installed as
-        // Preferences.shared (other suites' editors keep their own settings).
         let defaults = TestDefaults("predict-settings")
         defer { defaults.remove() }
         let p = Preferences(defaults: defaults.defaults, themesDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-predict-themes-\(UUID().uuidString)"))
@@ -239,7 +198,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(p.predictiveCompletion.backend == .llamaServer)
         #expect(p.predictiveCompletion.address == nil && p.predictiveCompletion.model.isEmpty)
         #expect(!pane.rowTitles.contains("Download a model"))
-        // Nothing at the address: the install line and the link.
         pane.choose("Ollama", inRow: "Backend")
         pane.updatePrediction { $0.address = "http://127.0.0.1:1" }
         done = false
@@ -256,10 +214,8 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(WorkspaceWindowController.predictionActivityText(.requesting) == nil)
     }
 
-    /// The first lines of the text view as pixels.
     func snapshot(_ v: NSView) -> Data? {
         v.window?.contentView?.layoutSubtreeIfNeeded()
-        // An off-screen window may not have sized the text view yet.
         if v.bounds.width < 100 { v.setFrameSize(NSSize(width: 700, height: max(v.bounds.height, 100))) }
         let r = NSRect(x: 0, y: 0, width: max(1, min(v.bounds.width, 600)), height: 80)
         guard let rep = v.bitmapImageRepForCachingDisplay(in: r) else { return nil }

@@ -31,7 +31,6 @@ public actor AgentModelCheck {
                 )
             }
 
-            // Validate the API key and fetch models as a check
             _ = try await LLMService.shared.validateAPIKey(provider: llmProvider, key: apiKey)
 
             let latency = Date().timeIntervalSince(startTime)

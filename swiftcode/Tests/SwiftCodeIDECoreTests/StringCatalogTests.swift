@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// A catalog written by hand in the documented layout.
 let sampleCatalog = """
 {
   "sourceLanguage" : "en",
@@ -70,7 +69,6 @@ let sampleCatalog = """
         #expect(String(decoding: c.data(), as: UTF8.self) == sampleCatalog)
         let nl = try StringCatalog(data: Data((sampleCatalog + "\n").utf8))
         #expect(String(decoding: nl.data(), as: UTF8.self) == sampleCatalog + "\n")
-        // Escapes and unicode survive.
         let odd = "{\n  \"a\" : \"tab\\there \\u00e9 ü \\ud83d\\ude00\",\n  \"n\" : 1.50\n}"
         let o = try StringCatalog(data: Data(odd.utf8))
         #expect(o.json["a"]?.stringValue == "tab\there é ü 😀")
@@ -103,7 +101,6 @@ let sampleCatalog = """
               }
             },
         """))
-        // Undoing the edit gives back the original bytes.
         c.setTranslation("", key: "Settings", language: "de")
         #expect(String(decoding: c.data(), as: UTF8.self) == sampleCatalog)
 

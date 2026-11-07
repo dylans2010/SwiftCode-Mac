@@ -2,9 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// The inspectors' data from the workspace (`specs/ide/reference-ui-5.md`
-/// §7): the File inspector's working copy and target membership, the
-/// History inspector's commits, Quick Help's documentation search.
 extension WorkspaceWindowController {
     func wireInspector() {
         inspector.fileInfo = { [weak self] url in self?.fileInspectorInfo(url) ?? FileInspectorInfo() }
@@ -17,8 +14,6 @@ extension WorkspaceWindowController {
         inspector.onSearchDocumentation = { [weak self] in self?.searchDocumentationForSelection(nil) }
     }
 
-    /// Working copy (outside git: none) and the targets of the project
-    /// that holds the file; in a package, the target folder the file is in.
     public func fileInspectorInfo(_ url: URL) -> FileInspectorInfo {
         var info = FileInspectorInfo()
         let path = url.standardizedFileURL.path
@@ -34,11 +29,8 @@ extension WorkspaceWindowController {
         switch session.model.kind {
         case .package:
             let base = session.model.url.standardizedFileURL.path
-            // reference-ui-6.md §6 (I1): a package's files show only
-            // Identity and Type and Text Settings.
             info.isPackageFile = path.hasPrefix(base + "/")
             for dir in ["Sources", "Tests"] where path.hasPrefix(base + "/\(dir)/") {
-                // Sources/<Target>/…: the folder names the target.
                 let parts = path.dropFirst(base.count + dir.count + 2).split(separator: "/")
                 if parts.count >= 2 {
                     info.memberships = [TargetMembership(targetID: String(parts[0]), name: String(parts[0]), isMember: true, isEditable: false)]
@@ -54,7 +46,6 @@ extension WorkspaceWindowController {
         return info
     }
 
-    /// The project whose tree holds `path`, with the file's memberships.
     func project(holding path: String) -> (String, (project: PBXProj, memberships: [TargetMembership]))? {
         for (projPath, proj) in session.model.projects.sorted(by: { $0.key < $1.key }) {
             let dir = proj.projectDirectory(xcodeprojURL: URL(fileURLWithPath: projPath))
@@ -64,7 +55,6 @@ extension WorkspaceWindowController {
         return nil
     }
 
-    /// Target Membership "+" / "−": edits the project and saves it.
     @discardableResult
     public func setTargetMembership(of url: URL, target: String, member: Bool) -> Bool {
         let path = url.standardizedFileURL.path
@@ -77,8 +67,6 @@ extension WorkspaceWindowController {
         return true
     }
 
-    /// A History inspector row: the commit in Code Review against the
-    /// working copy (§7.4).
     public func showHistoryCommit(_ commit: GitRepository.Commit, of url: URL) {
         if editor.fileURL?.standardizedFileURL != url.standardizedFileURL { open(path: url.path, line: nil) }
         endEditorModes(except: .codeReview)

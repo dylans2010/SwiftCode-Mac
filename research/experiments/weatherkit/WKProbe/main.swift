@@ -1,15 +1,3 @@
-// WKProbe: our own black-box probe for WeatherKit and Core Location in the
-// iOS Simulator. It calls only public API and prints what it observes to
-// stderr (one line per observation, prefixed with seconds since launch).
-//
-// Launch arguments:
-//   -mode weather   call every WeatherService entry point and report results/errors
-//   -mode location  Core Location authorization, updates, geocoding, then weather
-//   -mode codable   record the Codable shape of the WeatherKit model types
-//   -mode trap      reversed date range for an hourly query (crashes the app)
-//   -wait N         seconds to keep collecting location updates (default 8)
-//   -lat X -lon Y   location for weather calls (default 41.15, -81.36)
-
 import UIKit
 import CoreLocation
 import WeatherKit
@@ -63,8 +51,6 @@ func timed<T>(_ label: String, _ body: () async throws -> T) async -> T? {
     }
 }
 
-// MARK: weather
-
 func weatherProbe(_ loc: CLLocation) async {
     let svc = WeatherService.shared
     P("weather: shared===shared \(svc === WeatherService.shared); new instance distinct \(WeatherService() !== svc)")
@@ -97,20 +83,16 @@ func weatherProbe(_ loc: CLLocation) async {
     _ = await timed("dailySummary temperature", { try await svc.dailySummary(for: loc, including: .temperature) })
     _ = await timed("weather invalid lat=200", { try await svc.weather(for: CLLocation(latitude: 200, longitude: 0), including: .current) })
     _ = await timed("weather (0,0)", { try await svc.weather(for: CLLocation(latitude: 0, longitude: 0), including: .current) })
-    // concurrency: two simultaneous calls
     let t0 = Date()
     async let x: Void = { _ = await timed("concurrent A", { try await svc.weather(for: loc, including: .current) }) }()
     async let y: Void = { _ = await timed("concurrent B", { try await svc.weather(for: loc, including: .current) }) }()
     _ = await (x, y)
     P("concurrent pair total \(String(format: "%.3f", Date().timeIntervalSince(t0)))s")
-    // cancellation
     let task = Task { await timed("cancelled task", { try await svc.weather(for: loc) }) }
     task.cancel()
     _ = await task.value
     P("weather: END-OF-WEATHER")
 }
-
-// MARK: location
 
 final class LocObs: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
     let m = CLLocationManager()
@@ -168,7 +150,6 @@ func locationProbe(wait: Double) async {
     }
     try? await Task.sleep(nanoseconds: UInt64(wait * 1e9))
     await MainActor.run { o.m.stopUpdatingLocation(); P("loc: stopped after \(o.count) updates") }
-    // async API (iOS 17)
     let t0 = Date()
     let live = Task { () -> Int in
         var n = 0
@@ -205,8 +186,6 @@ func locationProbe(wait: Double) async {
     P("loc: END-OF-LOCATION")
     _ = o
 }
-
-// MARK: codable shape recorder
 
 final class Rec: @unchecked Sendable {
     var lines: [String] = []
@@ -255,8 +234,6 @@ func prim<T>(_ t: T.Type, _ rec: Rec) -> T? {
     return nil
 }
 
-// Candidate names tried, in order, when a value is an enum whose raw values or
-// case names are not public (no CaseIterable): public case names first, then guesses.
 let candidates = ["available", "temporarilyUnavailable", "unsupported", "unknown",
     "increase", "decrease", "steady", "mean", "highTemperature", "lowTemperature",
     "precipitationAmount", "snowfallAmount", "minor", "moderate", "severe", "extreme",
@@ -310,8 +287,6 @@ struct RKeyed<K: CodingKey>: KeyedDecodingContainerProtocol {
     }
     func contains(_ key: K) -> Bool { true }
     func decodeNil(forKey key: K) throws -> Bool {
-        // Optional values are reported present, except non-public air quality data, Foundation URL's
-        // optional "base" (it would recurse forever) and anything very deep.
         let absent = ["base", "airQuality", "news", "marineForecast", "tideEvents", "locationInfo", "weatherHighlights", "dataNotice", "historicalFacts", "periodForecasts"].contains(key.stringValue) || codingPath.count > 10
         rec.log(codingPath + [key], absent ? "?nil-check -> nil" : "?nil-check")
         return absent
@@ -413,8 +388,6 @@ func codableProbe() {
     P("codable: END-OF-CODABLE")
 }
 
-// MARK: app shell
-
 final class VC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -454,7 +427,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             case "location": await locationProbe(wait: wait)
             case "codable": codableProbe()
             case "trap":
-                // A date range whose end precedes its start; observed to trap.
                 let now = Date()
                 P("trap: building .hourly(startDate:endDate:) with end < start")
                 _ = await timed("including .hourly(start:end:) reversed", { try await WeatherService.shared.weather(for: CLLocation(latitude: lat, longitude: lon), including: .hourly(startDate: now, endDate: now.addingTimeInterval(-3600))) })

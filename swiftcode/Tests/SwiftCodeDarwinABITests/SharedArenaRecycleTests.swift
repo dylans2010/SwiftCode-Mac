@@ -1,13 +1,9 @@
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// Freed runs of the shared object arena are reused without a host mapping
-/// change (frame-profile.md §5.2): the next object of the same size gets the
-/// same run, zero-filled; a file view's run is never pooled.
 @Suite struct SharedArenaRecycleTests {
     @Test func aFreedRunIsReusedZeroFilled() throws {
         guard let arena = SharedObjectArena.shared, SharedObjectArena.recycleLimit > 0 else { return }
-        // A size no other test uses (tests run in parallel).
         let size: UInt64 = 0x5C000
         var first: SharedMemoryObject? = try SharedMemoryObject(size: size)
         let offset = try #require(first?.arenaOffset)

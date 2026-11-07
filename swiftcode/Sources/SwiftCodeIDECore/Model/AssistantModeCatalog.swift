@@ -1,13 +1,6 @@
 import Foundation
 
-/// The assistant editor's mode pop-up (`specs/ide/reference-ui-4.md` §16):
-/// every mode in the reference order. Implemented: Counterparts,
-/// Extensions, User Interfaces, Includes, Included By, Callers, Callees
-/// (language server call hierarchy), Test Classes, Generated Interface and
-/// Documentation Preview; the rest are listed disabled (no data). Manual
-/// (SwiftCode's own) follows.
 public enum AssistantModeCatalog {
-    /// The pop-up's mode titles, in reference order.
     public static let titles = [
         "Counterparts",
         "Superclasses", "Subclasses", "Siblings", "Extensions", "Categories", "Protocols",
@@ -22,7 +15,6 @@ public enum AssistantModeCatalog {
         "Manual",
     ]
 
-    /// Titles that map to the file-list modes of `AssistantMode`.
     public static func fileMode(_ title: String) -> AssistantMode? {
         switch title {
         case "Counterparts": .counterparts
@@ -33,7 +25,6 @@ public enum AssistantModeCatalog {
         }
     }
 
-    /// The pop-up title of an `AssistantMode`.
     public static func title(of mode: AssistantMode) -> String {
         switch mode {
         case .counterparts: "Counterparts"
@@ -46,7 +37,6 @@ public enum AssistantModeCatalog {
 
     static let cFamily: Set<String> = ["h", "hpp", "hh", "m", "mm", "c", "cpp", "cc", "cxx"]
 
-    /// The modes that can have data for `path` (the others are disabled).
     public static func enabled(for path: String, hasLanguageService: Bool) -> Set<String> {
         let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
         var on: Set<String> = ["Counterparts", "Manual"]
@@ -61,7 +51,6 @@ public enum AssistantModeCatalog {
         return on
     }
 
-    /// Files whose `#include`/`#import "…"` names `path`.
     public static func includedBy(_ path: String, in files: [String], readFile: (String) -> String?) -> [String] {
         let name = URL(fileURLWithPath: path).lastPathComponent
         return files.filter { f in
@@ -73,7 +62,6 @@ public enum AssistantModeCatalog {
         }.sorted()
     }
 
-    /// Swift files with `extension <Type>` for the file's first declared type.
     public static func extensions(of path: String, in files: [String], readFile: (String) -> String?) -> [String] {
         guard let type = readFile(path).flatMap(AssistantMode.firstDeclaredType) else { return [] }
         return files.filter { f in
@@ -84,8 +72,6 @@ public enum AssistantModeCatalog {
         }.sorted()
     }
 
-    /// For a source file: storyboards/xibs whose objects use its first type
-    /// as `customClass`. For an IB document: the classes' files.
     public static func userInterfaces(of path: String, in files: [String], readFile: (String) -> String?) -> [String] {
         let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
         if ext == "storyboard" || ext == "xib" { return AssistantMode.topLevelObjects.files(for: path, in: files, readFile: readFile) }
@@ -96,8 +82,6 @@ public enum AssistantModeCatalog {
         }.sorted()
     }
 
-    /// A generated interface of Swift source: declarations with their doc
-    /// comments, bodies and private members omitted (SwiftCode's own rendering).
     public static func generatedInterface(_ text: String) -> String {
         let modifiers: Set<String> = ["public", "internal", "open", "package", "static", "class", "final", "override", "mutating", "nonmutating",
                                       "nonisolated", "convenience", "required", "indirect", "lazy", "weak", "unowned", "dynamic", "async"]
@@ -160,8 +144,6 @@ public enum AssistantModeCatalog {
         return out.joined(separator: "\n")
     }
 
-    /// Documentation Preview: each documented declaration's Quick Help
-    /// sections, as plain text.
     public static func documentationPreview(_ text: String) -> String {
         var blocks: [String] = []
         var doc: [String] = []

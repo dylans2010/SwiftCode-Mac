@@ -1,15 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/MemberManagementView.swift
-// Adapted for SwiftCode: role changes and removal call the real
-// PermissionsManager.assignRole / removeMember; the invite link opens the
-// real InviteMembersView. One destination limit: Legacy read permission
-// flags directly (permission.versionControl.push etc.), but
-// TransferPermission's stored properties are INTERNAL to
-// SwiftCodeCollaboration, so the grid reads the real public API instead —
-// PermissionsManager.hasPermission(_:for:projectPermission:) — with the
-// acting user's own permission (permission(for: actorID)) as the project
-// permission argument.
-
 import SwiftUI
 import SwiftCodeCollaboration
 

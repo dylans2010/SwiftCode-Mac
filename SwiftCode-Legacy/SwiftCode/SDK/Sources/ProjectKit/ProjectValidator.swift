@@ -8,7 +8,6 @@ public final class ProjectValidator: Sendable {
     public func validate(metadata: ProjectMetadata) -> [Diagnostic] {
         var diagnostics: [Diagnostic] = []
 
-        // Validate identifier format
         let id = metadata.id
         if id.isEmpty {
             diagnostics.append(Diagnostic(
@@ -26,7 +25,6 @@ public final class ProjectValidator: Sendable {
             ))
         }
 
-        // Validate root path existence
         let ws = Workspace(path: metadata.rootPath)
         if !FileManager.default.fileExists(atPath: ws.root.normalizedPath) {
             diagnostics.append(Diagnostic(
@@ -37,7 +35,6 @@ public final class ProjectValidator: Sendable {
             ))
         }
 
-        // Validate targets
         if metadata.targets.isEmpty {
             diagnostics.append(Diagnostic(
                 code: .projectMissingTarget,

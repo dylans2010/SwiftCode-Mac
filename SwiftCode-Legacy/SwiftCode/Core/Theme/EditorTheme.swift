@@ -4,7 +4,7 @@ import SwiftUI
 public struct EditorTheme: Identifiable, Codable, Sendable, Equatable {
     public let id: String
     public var name: String
-    public var background: String // Hex string
+    public var background: String
     public var foreground: String
     public var keywordColor: String
     public var stringColor: String

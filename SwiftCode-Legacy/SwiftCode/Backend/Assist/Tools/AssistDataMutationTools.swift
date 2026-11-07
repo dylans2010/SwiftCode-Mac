@@ -1,13 +1,4 @@
-//
-//  AssistDataMutationTools.swift
-//  SwiftCode
-//
-//  Created on 2026-10-18.
-//
-
 import Foundation
-
-// MARK: - Helper
 
 private func resolveWorkspaceDataMutationURL(_ raw: String, workspaceRoot: URL) -> URL? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -27,8 +18,6 @@ private func resolveWorkspaceDataMutationURL(_ raw: String, workspaceRoot: URL) 
     }
     return candidate
 }
-
-// MARK: - Format JSON File Tool
 
 public struct AssistFormatJsonFileTool: AssistTool {
     public let id = "format_json_file"
@@ -80,8 +69,6 @@ public struct AssistFormatJsonFileTool: AssistTool {
         }
     }
 }
-
-// MARK: - CSV to JSON Tool
 
 public struct AssistCsvToJsonTool: AssistTool {
     public let id = "csv_to_json"
@@ -168,8 +155,6 @@ public struct AssistCsvToJsonTool: AssistTool {
         }
     }
 }
-
-// MARK: - JSON to CSV Tool
 
 public struct AssistJsonToCsvTool: AssistTool {
     public let id = "json_to_csv"
@@ -267,8 +252,6 @@ public struct AssistJsonToCsvTool: AssistTool {
     }
 }
 
-// MARK: - Plist to JSON Tool
-
 public struct AssistPlistToJsonTool: AssistTool {
     public let id = "plist_to_json"
     public let name = "Convert Plist to JSON"
@@ -336,8 +319,6 @@ public struct AssistPlistToJsonTool: AssistTool {
         }
     }
 }
-
-// MARK: - JSON to Plist Tool
 
 public struct AssistJsonToPlistTool: AssistTool {
     public let id = "json_to_plist"
@@ -413,8 +394,6 @@ public struct AssistJsonToPlistTool: AssistTool {
         }
     }
 }
-
-// MARK: - Batch Rename Files Tool
 
 public struct AssistBatchRenameFilesTool: AssistTool {
     public let id = "batch_rename_files"

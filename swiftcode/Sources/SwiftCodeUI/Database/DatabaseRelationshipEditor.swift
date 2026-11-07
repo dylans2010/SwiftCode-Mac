@@ -1,25 +1,6 @@
 import SwiftUI
 import SwiftCodeCloud
 
-/// Designs one relationship between two tables and hands it to the
-/// caller.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseRelationshipEditor.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - Legacy's `liquidGlass` header is gone (SwiftCodeUI has no
-///   such modifier); the header is a plain row on a subtle
-///   background.
-/// - Added a live preview of the `ADD CONSTRAINT` DDL the
-///   relationship describes, with a note that SQLite defines
-///   foreign keys at `CREATE TABLE` time: on an existing SQLite
-///   table this relationship is applied by the Schema Designer's
-///   table rebuild, not by running the previewed statement (SQLite
-///   has no `ADD CONSTRAINT` for foreign keys). The editor itself
-///   executes nothing — it returns a `DatabaseRelationship` to
-///   `onSave`, exactly as Legacy did.
 @MainActor
 struct DatabaseRelationshipEditor: View {
     @Environment(\.dismiss) private var dismiss
@@ -34,7 +15,6 @@ struct DatabaseRelationshipEditor: View {
     @State private var onDelete: ReferentialAction = .cascade
     @State private var onUpdate: ReferentialAction = .cascade
 
-    /// The `ADD CONSTRAINT` DDL this relationship describes.
     private var generatedSQL: String {
         guard !sourceTable.isEmpty, !sourceColumn.isEmpty,
               !targetTable.isEmpty, !targetColumn.isEmpty else { return "" }

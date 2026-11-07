@@ -2,11 +2,7 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// Edits behind the project editor's controls (reference-ui-3.md §1):
-/// per-configuration settings (Signing scope), build-phase creation and
-/// removal, and orientation checkboxes.
 extension ProjectEditorModel {
-    /// Writes a setting in one configuration of a target (or the project).
     public mutating func setSetting(_ name: String, _ value: String, target: String?, configuration: String) {
         let owner = target.flatMap { self.target(named: $0)?.id } ?? proj.rootObject
         let v = value.trimmingCharacters(in: .whitespaces)
@@ -15,8 +11,6 @@ extension ProjectEditorModel {
         }
     }
 
-    /// Adds a new, empty build phase of `isa` at the end of the target's
-    /// phases. Returns its ID (nil when the target is unknown).
     @discardableResult
     public mutating func addBuildPhase(isa: String, target name: String) -> String? {
         guard var t = target(named: name) else { return nil }
@@ -37,7 +31,6 @@ extension ProjectEditorModel {
         return id
     }
 
-    /// Removes a build phase from its target, with its build files.
     public mutating func removeBuildPhase(_ id: String) {
         guard let phase = proj[id] else { return }
         for bf in phase.references("files") { proj[bf] = nil }
@@ -48,8 +41,6 @@ extension ProjectEditorModel {
         proj[id] = nil
     }
 
-    // MARK: Orientations
-
     public static let orientations: [(title: String, value: String)] = [
         ("Portrait", "UIInterfaceOrientationPortrait"), ("Upside Down", "UIInterfaceOrientationPortraitUpsideDown"),
         ("Landscape Left", "UIInterfaceOrientationLandscapeLeft"), ("Landscape Right", "UIInterfaceOrientationLandscapeRight"),
@@ -57,13 +48,11 @@ extension ProjectEditorModel {
 
     public static func orientationSetting(device: String) -> String { "INFOPLIST_KEY_UISupportedInterfaceOrientations_\(device)" }
 
-    /// Orientation values a device (iPhone, iPad) supports.
     public func orientations(device: String, target: String, configuration: String) -> Set<String> {
         Set((resolve(target: target, configuration: configuration)?.settings[Self.orientationSetting(device: device)] ?? "")
             .split(separator: " ").map(String.init))
     }
 
-    /// Turns one orientation on or off, keeping the canonical order.
     public mutating func setOrientation(_ value: String, device: String, on: Bool, target: String, configuration: String) {
         var set = orientations(device: device, target: target, configuration: configuration)
         if on { set.insert(value) } else { set.remove(value) }
@@ -73,8 +62,6 @@ extension ProjectEditorModel {
 }
 
 extension Capability {
-    /// Short description for the capability library's detail pane (SwiftCode's
-    /// own wording, after Apple's public entitlement documentation).
     public var summary: String {
         switch self {
         case .appSandbox: "Restricts the app to its own container and the resources it declares."
@@ -86,7 +73,6 @@ extension Capability {
         }
     }
 
-    /// A generic SF Symbol for the library list.
     public var symbolName: String {
         switch self {
         case .appSandbox: "shippingbox"

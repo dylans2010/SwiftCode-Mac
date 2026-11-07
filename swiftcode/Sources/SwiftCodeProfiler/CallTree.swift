@@ -1,12 +1,8 @@
 import Foundation
 
-/// Which samples a view uses (`specs/ide/profiler.md` §4.4).
 public struct SampleFilter: Sendable, Equatable {
-    /// [begin, end) in ns since the recording began; nil: all.
     public var range: Range<UInt64>?
-    /// Thread ids; nil: all threads.
     public var threads: Set<UInt64>?
-    /// Include blocked and idle samples ("All States").
     public var allStates: Bool
 
     public init(range: Range<UInt64>? = nil, threads: Set<UInt64>? = nil, allStates: Bool = false) {
@@ -23,8 +19,6 @@ public struct SampleFilter: Sendable, Equatable {
     }
 }
 
-/// A function as the analysis sees it: an image and the symbol's start (or
-/// the raw offset when the address has no symbol).
 public struct FunctionRef: Sendable, Hashable {
     public var image: Int
     public var start: UInt64
@@ -39,9 +33,7 @@ public struct CallTreeOptions: Sendable, Equatable {
     public var separateByThread = false
     public var hideSystemLibraries = false
     public var flattenRecursion = false
-    /// Images (by id) whose frames are removed (their cost goes to callers).
     public var chargedImages: Set<Int> = []
-    /// Functions removed from every path.
     public var chargedFunctions: Set<FunctionRef> = []
     public init(invert: Bool = false, separateByThread: Bool = false, hideSystemLibraries: Bool = false, flattenRecursion: Bool = false,
                 chargedImages: Set<Int> = [], chargedFunctions: Set<FunctionRef> = []) {
@@ -54,19 +46,16 @@ public struct CallTreeOptions: Sendable, Equatable {
     }
 }
 
-/// One node of a call tree.
 public final class CallTreeNode: @unchecked Sendable {
     public enum Key: Hashable, Sendable {
         case root
         case thread(UInt64)
         case function(FunctionRef)
-        /// Samples with no app frame left after Hide System Libraries.
         case system
     }
 
     public let key: Key
     public let name: String
-    /// The image's name ("" for thread and system nodes).
     public let imageName: String
     public let imageKind: GaugeTrace.ImageKind
     public internal(set) var total = 0
@@ -85,7 +74,6 @@ public final class CallTreeNode: @unchecked Sendable {
 
     public var function: FunctionRef? { if case .function(let f) = key { f } else { nil } }
 
-    /// The path of keys from the root's child to this node.
     public var path: [Key] {
         var out: [Key] = []
         var n: CallTreeNode? = self
@@ -93,7 +81,6 @@ public final class CallTreeNode: @unchecked Sendable {
         return out.reversed()
     }
 
-    /// From this node, the child with the most total samples, repeatedly.
     public var heaviestPath: [CallTreeNode] {
         var out: [CallTreeNode] = [self]
         var n = self
@@ -104,7 +91,6 @@ public final class CallTreeNode: @unchecked Sendable {
         return out
     }
 
-    /// Depth-first nodes (this one first).
     public func allNodes() -> [CallTreeNode] {
         var out: [CallTreeNode] = []
         var stack: [CallTreeNode] = [self]
@@ -115,16 +101,13 @@ public final class CallTreeNode: @unchecked Sendable {
         return out
     }
 
-    /// The first node (depth first) whose name contains `text`.
     public func find(_ text: String) -> CallTreeNode? {
         allNodes().first { $0.name.localizedCaseInsensitiveContains(text) }
     }
 }
 
-/// A call tree over a trace (§4.4).
 public struct CallTree: Sendable {
     public let root: CallTreeNode
-    /// Samples counted (the root's total).
     public var sampleCount: Int { root.total }
     public let intervalNs: UInt64
 
@@ -134,8 +117,6 @@ public struct CallTree: Sendable {
         let names = SymbolNames(trace: t)
         let root = CallTreeNode(key: .root, name: "All", imageName: "", imageKind: .unknown, parent: nil)
         intervalNs = t.recording.sampleIntervalNs
-        // Count samples per (thread, stack) first: the tree is built once per
-        // distinct path, not per sample.
         var counts: [Pair: Int] = [:]
         for i in 0..<t.samples.count where filter.includes(t, i) {
             counts[Pair(thread: o.separateByThread ? t.samples.thread[i] : 0, stack: t.samples.stack[i]), default: 0] += 1
@@ -163,7 +144,6 @@ public struct CallTree: Sendable {
                 let (name, image, kind) = f.map { names.describe($0) } ?? ("<system>", "", .system)
                 node = Self.child(of: node, key: key, name: name, image: image, kind: kind)
                 node.total += n
-                // The leaf (top-down) or the first (inverted) frame carries the self cost.
                 if (!o.invert && depth == ordered.count - 1) || (o.invert && depth == 0) { node.selfCount += n }
             }
         }
@@ -187,9 +167,6 @@ public struct CallTree: Sendable {
         for c in n.children { sort(c) }
     }
 
-    /// The functions of a stack, outermost first, after the options'
-    /// transforms. nil stands for `<system>` (only as the single element,
-    /// when every frame was hidden).
     static func functions(_ t: GaugeTrace, _ names: SymbolNames, stack: Int, options o: CallTreeOptions) -> [FunctionRef?] {
         var out: [FunctionRef?] = []
         var seen: Set<FunctionRef> = []
@@ -209,8 +186,6 @@ public struct CallTree: Sendable {
         return out
     }
 
-    /// Top Functions: each function's self samples and total samples (a
-    /// function is counted once per sample however often it recurs).
     public static func topFunctions(trace t: GaugeTrace, filter: SampleFilter = SampleFilter(),
                                     options o: CallTreeOptions = CallTreeOptions()) -> [(function: FunctionRef, name: String, image: String, selfCount: Int, total: Int)] {
         let names = SymbolNames(trace: t)
@@ -229,10 +204,8 @@ public struct CallTree: Sendable {
     }
 }
 
-/// Names of frames and functions in a trace.
 public struct SymbolNames: Sendable {
     let trace: GaugeTrace
-    /// Image id → index in `trace.images`.
     let imageIndex: [Int: Int]
 
     public init(trace: GaugeTrace) {
@@ -246,7 +219,6 @@ public struct SymbolNames: Sendable {
 
     public func kind(_ image: Int) -> GaugeTrace.ImageKind { self.image(image)?.kind ?? .unknown }
 
-    /// The function a frame belongs to.
     public func function(ofFrame id: Int) -> FunctionRef {
         let f = trace.frames[id]
         guard let img = image(f.image) else { return FunctionRef(image: f.image, start: f.offset) }
@@ -254,17 +226,12 @@ public struct SymbolNames: Sendable {
         return FunctionRef(image: f.image, start: f.offset)
     }
 
-    /// (symbol name, image name, kind).
     public func describe(_ f: FunctionRef) -> (name: String, image: String, kind: GaugeTrace.ImageKind) {
         guard let img = image(f.image) else { return ("0x" + String(f.start, radix: 16), "?", .unknown) }
         if let i = img.symbolIndex(at: f.start), img.symbols[i].start == f.start { return (img.symbols[i].name, img.name, img.kind) }
-        // No symbol: the offset in the image (the image is the second field,
-        // which reports print next to the name).
         return ("0x" + String(f.start, radix: 16), img.name, img.kind)
     }
 
-    /// A frame as "name (image)" or "name + 0x… (image)" with the offset
-    /// inside the function.
     public func describeFrame(_ id: Int) -> String {
         let f = trace.frames[id]
         guard let img = image(f.image) else { return "0x" + String(f.offset, radix: 16) }

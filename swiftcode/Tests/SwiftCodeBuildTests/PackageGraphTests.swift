@@ -3,10 +3,7 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeBuild
 
-/// Transitive resolution against local git repositories (never the network).
 @Suite(.serialized) struct PackageGraphTests {
-    /// A package repo named `name` whose manifest depends on `deps`
-    /// (`.package(url:…)` lines), with one commit per tag.
     static func repo(_ root: URL, _ name: String, deps: [String], tags: [String]) throws -> URL {
         let dir = root.appendingPathComponent(name)
         try FileManager.default.createDirectory(at: dir.appendingPathComponent("Sources/\(name)"), withIntermediateDirectories: true)
@@ -38,11 +35,9 @@ import SwiftCodeProject
         #expect(pins.map(\.identity) == ["app", "base"])
         #expect(pins.map(\.version) == ["0.1.0", "1.1.0"])
 
-        // The project also pins Base to 1.0.0: both rules allow it.
         let both = try resolver.resolveGraph([(a.absoluteString, .exact("0.1.0")), (b.absoluteString, .exact("1.0.0"))])
         #expect(both.first { $0.identity == "base" }?.version == "1.0.0")
 
-        // 2.x for Base conflicts with App's 1.x requirement.
         #expect {
             try resolver.resolveGraph([(a.absoluteString, .exact("0.1.0")), (b.absoluteString, .upToNextMajor(from: "2.0.0"))])
         } throws: { e in
@@ -50,7 +45,6 @@ import SwiftCodeProject
             return s.contains("could not be resolved") && s.contains("base") && s.contains("the project requires 2.0.0 – Next Major")
                 && s.contains("app 0.1.0 requires 1.0.0 – 2.0.0")
         }
-        // A branch and a version rule on the same package conflict.
         #expect(throws: PackageResolver.ResolveError.self) {
             try resolver.resolveGraph([(a.absoluteString, .exact("0.1.0")), (b.absoluteString, .branch("main"))])
         }

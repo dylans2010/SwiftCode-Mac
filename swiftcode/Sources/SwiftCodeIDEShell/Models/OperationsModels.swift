@@ -1,9 +1,3 @@
-// OperationsModels.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Models/OperationsModels.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: SCBackup type and any backup functionality
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public struct SCProjectRegistryEntry: Identifiable, Codable, Sendable, Hashable {
@@ -108,7 +102,7 @@ public struct SCNotification: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let title: String
     public let subtitle: String
-    public let type: String // e.g. "Package", "Certificate", "Build", "Storage", "Diagnostics"
+    public let type: String
     public let date: Date
     public var isRead: Bool
 

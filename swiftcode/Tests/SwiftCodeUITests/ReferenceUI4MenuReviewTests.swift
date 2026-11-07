@@ -56,16 +56,13 @@ private func titles(_ items: [MenuItemSpec]) -> [String] {
         #expect(wc.editor.stepReviewChange(forward: true) == 0)
         #expect(wc.editor.currentLine == 2)
         #expect(wc.editor.stepReviewChange(forward: true) == 1)
-        // Editing updates the marks.
         wc.editor.textView.setSelectedRange(NSRange(location: 0, length: 0))
         wc.editor.textView.insertText("// top\n", replacementRange: NSRange(location: 0, length: 0))
         #expect(wc.editor.gutter.marks.changes[1] == .added)
-        // Swap.
         wc.editor.reviewBar.swap.performClick(nil)
         #expect(wc.editor.reviewBar.leftSource.title == "Last Commit")
         wc.editor.reviewBar.swap.performClick(nil)
 
-        // Source picker: branches with "(current)", commits with fixed rows.
         let picker = try #require(wc.reviewSourcePicker(left: false))
         _ = picker.view
         #expect(picker.shownBranches.contains("main (current)") && picker.shownBranches.contains("feature"))
@@ -79,7 +76,6 @@ private func titles(_ items: [MenuItemSpec]) -> [String] {
         #expect(wc.editor.reviewBar.rightSource.title.hasSuffix("First"))
         #expect(wc.editor.isShowingInlineComparison)
 
-        // Side by side: working copy left, ribbons between.
         wc.showSideBySideComparison(nil)
         #expect(wc.editor.isShowingComparison && !wc.editor.isShowingInlineComparison)
         #expect(wc.editor.comparison.leftView.string.contains("let b = 20"))
@@ -109,7 +105,6 @@ private func titles(_ items: [MenuItemSpec]) -> [String] {
         #expect(!wc.validateMenuItem(item("showInlineIssues:")))
         wc.hideInlineIssues(nil)
         #expect(wc.validateMenuItem(item("showInlineIssues:")) && !wc.editor.showsInlineIssues)
-        // Refactor items follow the code actions at the cursor.
         let titles = RefactorCatalog.items.map(\.title)
         let memberwise = titles.firstIndex(of: "Generate Memberwise Initializer")!
         #expect(!wc.validateMenuItem(item("performRefactorItem:", tag: memberwise)))

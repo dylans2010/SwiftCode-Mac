@@ -1,9 +1,5 @@
 import Foundation
 
-/// Display formatting for database sizes and dates.
-///
-/// Ported verbatim from Legacy's
-/// `Views/Utilities/Database/Helpers/DatabaseFormatter.swift`.
 public struct DatabaseFormatter {
     public static func formatBytes(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()

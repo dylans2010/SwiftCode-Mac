@@ -3,15 +3,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// B2-DOWNLOAD (#55, `specs/simulator/runtime-downloads.md`): the index and
-/// the selection rule, the asset query's body (no Mac model fields on
-/// Linux), the signed answer's chain, key scrubbing, the resumable download
-/// and its checks, the archive reader (asset parts, pbzx, SHA-256), the
-/// decryptor's key handling, route C's command and progress, and the
-/// installer. Every fixture is made up here: no Apple index, key, hash list
-/// or runtime is in the repository, and nothing is fetched from Apple.
 @Suite struct RuntimeDownloadTests {
-    // MARK: Fixtures
 
     static func temp() -> String {
         let p = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-dl-tests-\(UUID().uuidString)").path
@@ -30,7 +22,6 @@ import Testing
         return d
     }
 
-    /// A small made-up index.
     static let indexData: Data = {
         let d: [String: Any] = [
             "version": "1", "refreshInterval": 86400,
@@ -67,8 +58,6 @@ import Testing
     static let mac = RuntimeHostDescription(isMac: true, productName: "macOS", productVersion: "40.0", buildVersion: "50A1",
                                             architecture: "arm64", macModel: "Mac99,1", client: "SwiftCode/9.9.9")
 
-    // MARK: Index and selection (§2, §3)
-
     @Test func indexParses() throws {
         let i = try RuntimeIndex.parse(Self.indexData)
         #expect(i.runtimes.count == 9)
@@ -82,23 +71,17 @@ import Testing
     @Test func selectionFollowsTheRule() throws {
         let i = try RuntimeIndex.parse(Self.indexData)
         let host = RuntimeSelectionHost(xcodeVersion: "50.0", macOSVersion: nil, architecture: "x86_64")
-        // No build, version or SDK: the highest release, ties to the highest build; arm64-only.
         #expect(try RuntimeSelection.select(i, RuntimeRequest(platform: .tvOS), host: host).build == "90J210")
         #expect(try RuntimeSelection.select(i, RuntimeRequest(platform: .tvOS), host: host).architectures == ["arm64"])
-        // A build; a version (release before beta).
         #expect(try RuntimeSelection.select(i, RuntimeRequest(platform: .tvOS, build: "90J200"), host: host).betaNumber == 2)
         #expect(try RuntimeSelection.select(i, RuntimeRequest(platform: .tvOS, version: "40.1"), host: host).build == "90J210")
-        // An SDK: preferred, then available; never unavailable.
         #expect(try RuntimeSelection.select(i, RuntimeRequest(platform: .tvOS, sdkBuild: "90J50"), host: host).build == "90J100")
         #expect(try RuntimeSelection.select(i, RuntimeRequest(platform: .tvOS, sdkBuild: "90J60"), host: host).build == "90J200")
-        // Entries without architectures and ones the Xcode version excludes are not offered.
         let builds = RuntimeSelection.candidates(i, platform: .tvOS, host: host).map(\.build)
         #expect(!builds.contains("90J300") && !builds.contains("90J400") && !builds.contains("89J1"))
         #expect(builds.first == "90J210")
-        // A sign-in-only build is named as such; an unknown one is not offered.
         #expect(throws: RuntimeDownloadError.needsSignIn("tvOS 89J1")) { try RuntimeSelection.select(i, RuntimeRequest(platform: .tvOS, build: "89J1"), host: host) }
         #expect(throws: RuntimeDownloadError.self) { try RuntimeSelection.select(i, RuntimeRequest(platform: .visionOS), host: host) }
-        // With a newer Xcode, the entry that needs it is offered.
         #expect(RuntimeSelection.candidates(i, platform: .tvOS, host: RuntimeSelectionHost(xcodeVersion: "99.1")).first?.build == "90J400")
     }
 
@@ -109,7 +92,6 @@ import Testing
         t.etag = "\"abc\""
         let cache = RuntimeIndexCache(folder: folder)
         _ = try await cache.load(transport: t, now: Date(timeIntervalSince1970: 1000))
-        // Fresh: no request. Stale: a conditional GET; 304 keeps the copy.
         _ = try await cache.load(transport: t, now: Date(timeIntervalSince1970: 2000))
         #expect(t.gets.count == 1)
         t.notModified = true
@@ -117,8 +99,6 @@ import Testing
         #expect(t.gets.count == 2 && t.gets.last?.etag == "\"abc\"")
         #expect(i.runtimes.count == 9)
     }
-
-    // MARK: The query (§4.1, owner decision O1)
 
     @Test func linuxQueryHasNoMacModelFields() throws {
         let body = RuntimeAssetQuery.body(assetType: SimPlatform.tvOS.assetType, build: "90J210", host: Self.linux)
@@ -166,8 +146,6 @@ import Testing
         #expect(throws: RuntimeDownloadError.self) { try RuntimeAssetQuery.parse(payload: Data("{\"Assets\":[]}".utf8), assetType: "t", build: "b") }
     }
 
-    // MARK: Keys never shown (§6.4)
-
     @Test func keysAreScrubbed() throws {
         let k = Self.key
         let b64 = Data(k.bytes).base64EncodedString()
@@ -182,14 +160,11 @@ import Testing
         let clean = RuntimeSecrets.scrub(leaked, extra: [k])
         #expect(!clean.contains(b64) && !clean.contains(hex) && !clean.contains(hex.uppercased()) && !clean.contains(url) && !clean.contains("anything"))
         #expect(clean.contains("<redacted>"))
-        // A registered key is scrubbed without being named.
         RuntimeSecrets.register(k)
         #expect(!RuntimeSecrets.scrub("x \(b64) y").contains(b64))
         RuntimeSecrets.forget(k)
         #expect(!RuntimeDownloadError.refused("HTTP 403").description.isEmpty)
     }
-
-    // MARK: Download, resume, checks (§4.3)
 
     static func asset(_ data: [UInt8], hash: [UInt8]? = nil) -> RuntimeAssetRecord {
         RuntimeAssetRecord(assetType: "t", build: "90J210", downloadSize: Int64(data.count), unarchivedSize: nil,
@@ -262,8 +237,6 @@ import Testing
         #expect(RuntimeDownloader.fileSize(file) == 4_000)
     }
 
-    // MARK: The signed answer (§4.1)
-
     @Test func signedAnswerChecksItsChain() throws {
         let root = P384.Signing.PrivateKey(), mid = P256.Signing.PrivateKey(), leaf = P256.Signing.PrivateKey()
         let rootCert = TestCert.make(subject: "Test Root", issuer: "Test Root", key: root.publicKey.x963Representation, curve: .p384, ca: true) { tbs in
@@ -285,7 +258,6 @@ import Testing
         let doc = try RuntimeSignedDocument(jws("{\"Assets\":[]}"))
         #expect(try doc.verify(root: rootCert) == "Test Signer")
         #expect(String(decoding: doc.payload, as: UTF8.self) == "{\"Assets\":[]}")
-        // Another signer, another root, a changed payload: refused.
         #expect(throws: RuntimeDownloadError.self) { try RuntimeSignedDocument(jws("{}", signer: P256.Signing.PrivateKey())).verify(root: rootCert) }
         let otherRoot = P384.Signing.PrivateKey()
         let otherCert = TestCert.make(subject: "Test Root", issuer: "Test Root", key: otherRoot.publicKey.x963Representation, curve: .p384, ca: true) { tbs in
@@ -297,8 +269,6 @@ import Testing
         #expect(throws: RuntimeDownloadError.self) { try RuntimeSignedDocument(parts.joined(separator: ".")).verify(root: rootCert) }
         #expect(throws: RuntimeDownloadError.self) { try RuntimeSignedDocument("not a document") }
     }
-
-    // MARK: The archive reader
 
     @Test func readerExtractsFilesDirectoriesAndLinks() throws {
         let dest = Self.temp() + "/out"
@@ -329,7 +299,6 @@ import Testing
         let s = try AppleArchiveReader(destination: dest, read: outer.source()).extract()
         #expect(s.files == 1 && s.verified == 1)
         #expect(FileManager.default.contents(atPath: dest + "/AssetData/Restore/x.dmg") == Data(content))
-        // A hash that does not match is refused.
         var bad = AAWriter()
         bad.attributes("AssetData/Restore/x.dmg", mode: 0o444, sha256: [UInt8](repeating: 0, count: 32))
         var outer2 = AAWriter()
@@ -344,7 +313,6 @@ import Testing
         let content = Array(repeating: Array("abcdefgh".utf8), count: 4000).flatMap { $0 }
         files.file("big.bin", content)
         let packed = files.bytes
-        // One XZ chunk holding the whole inner archive.
         guard let xz = XZTestEncoder.encode(packed) else { return }
         #expect(encoded.count < content.count)
         var pb = Array("pbzx".utf8) + PBZX.be(1 << 22)
@@ -362,7 +330,6 @@ import Testing
             w.file(path, [1])
             #expect(throws: RuntimeDownloadError.self, "\(path)") { try AppleArchiveReader(destination: Self.temp(), read: w.source()).extract() }
         }
-        // Through a link the archive made.
         let outside = Self.temp()
         var w = AAWriter()
         w.link("hop", to: outside)
@@ -380,16 +347,12 @@ import Testing
         }
     }
 
-    // MARK: The decryptor (owner decision O2)
-
     @Test func decryptorGetsTheKeyOnStandardInputOnly() async throws {
         let dir = Self.temp()
         var w = AAWriter()
         w.file("Info.plist", Array("hello".utf8))
         let plain = dir + "/plain.aa"
         FileManager.default.createFile(atPath: plain, contents: Data(w.bytes))
-        // A stand-in for the environment's python: records its arguments and
-        // what arrived on standard input, then writes the plain archive.
         let python = dir + "/python3"
         try """
         #!/bin/sh
@@ -431,9 +394,6 @@ import Testing
         #expect(PythonAEAExpander.environmentFolder("/data/rt") == "/data/rt/.tools/python-aea")
     }
 
-    /// With a real python-aea (`SWIFTCODE_TEST_AEA_PYTHON`, or SwiftCode's own
-    /// environment under `$SWIFTCODE_DATA`), a round trip: python-aea encrypts a
-    /// made-up archive with a made-up key; SwiftCode's expanders decrypt it.
     @Test func realDecryptorRoundTrip() async throws {
         let env = ProcessInfo.processInfo.environment
         guard let python = env["SWIFTCODE_TEST_AEA_PYTHON"], FileManager.default.isExecutableFile(atPath: python) else { return }
@@ -460,8 +420,6 @@ import Testing
                                                               into: dir + "/wrong", cancel: RuntimeCancellation()) { _ in }
         }
     }
-
-    // MARK: Route C
 
     @Test func xcodebuildCommandAndProgress() {
         #expect(XcodebuildDownload(platform: .visionOS).shownCommand == "xcodebuild -downloadPlatform visionOS")
@@ -499,8 +457,6 @@ import Testing
     }
 
     @Test func xcodebuildProgressLinesSplitAcrossWrites() async throws {
-        // One progress line written in two pieces, then the tool exits at once:
-        // the line is parsed whole (42 %, not 4 % and 2 %), and before `run` returns.
         let split = try Self.standIn("printf 'Downloading tvOS 40.0 Simulator: 4'\nsleep 0.2\nprintf '2%%\\r'\nprintf 'Downloading tvOS 40.0 Simulator: 100%%\\r'\nexit 0\n")
         let progress = EventBox2()
         let r = await XcodebuildDownloadRun(XcodebuildDownload(platform: .tvOS), tool: split)
@@ -509,9 +465,6 @@ import Testing
         #expect(progress.all == [0.42, 1.0])
     }
 
-    // MARK: Install (§6.2 steps 3–7)
-
-    /// A made-up exported bundle and the volume its disk image would hold.
     static func fakeBundle(_ dir: String, build: String = "90J210") throws -> (bundle: String, volume: String) {
         let fm = FileManager.default
         let bundle = dir + "/appletvsimulator_40.1_\(build).exportedBundle"
@@ -555,10 +508,8 @@ import Testing
         #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: place + "/RuntimeRoot/usr/lib/libz.dylib")) == "libz.1.dylib")
         let marker = try JSONDecoder().decode(RuntimeMarker.self, from: try #require(FileManager.default.contents(atPath: place + "/" + RuntimeFolders.marker)))
         #expect(marker.route == "download" && marker.build == "90J210" && marker.sha256 == "ab")
-        // SwiftCode's list shows it, with the identifier from runtime-Info.plist.
         let list = RuntimeBundleReader.swiftcodeRuntimes(in: folder)
         #expect(list.count == 1 && list[0].identifier == "com.apple.CoreSimulator.SimRuntime.tvOS-40-1" && list[0].isRemovable)
-        // A second install of the same build needs --replace; a different build is refused.
         let (_, volume2) = try Self.fakeBundle(dir + "/again")
         await #expect(throws: RuntimeDownloadError.self) {
             try await RuntimeInstaller(folder: folder, reader: StandInImageReader(volume: volume2)).install(
@@ -573,8 +524,6 @@ import Testing
         #expect(lines.text.contains("\"build\" : \"90J210\"") && lines.text.contains("\"route\" : \"download\""))
     }
 
-    /// Route B end to end with stand-ins for Apple: index, query, download,
-    /// decryption, the disk image; the archives are removed afterwards.
     @Test func routeBEndToEnd() async throws {
         let dir = Self.temp(), folder = dir + "/runtimes"
         let (_, volume) = try Self.fakeBundle(dir + "/src")
@@ -591,7 +540,6 @@ import Testing
         let d = RuntimeDirectDownload(folder: folder, transport: t, expander: StandInExpander(plain: outer.bytes),
                                       reader: StandInImageReader(volume: volume), host: Self.linux,
                                       selectionHost: RuntimeSelectionHost(xcodeVersion: "50.0", macOSVersion: nil, architecture: "x86_64"))
-        // The stand-in runtime claims about 13.8 GB; this computer's free space is not the test's subject.
         d.freeSpace = { _ in 100_000_000_000 }
         let asked = LockedText()
         d.query = { type, build in
@@ -607,7 +555,6 @@ import Testing
         #expect(record.title == "tvOS 40.1 (90J210)")
         #expect(phases.titles.contains { $0.hasPrefix("Downloading") } && phases.titles.contains { $0.hasPrefix("Decrypting") })
         #expect(phases.titles.last == "tvOS 40.1 (90J210) is ready.")
-        // The archive and the unpacked tree are gone; the runtime is listed.
         let left = (try? FileManager.default.contentsOfDirectory(atPath: folder + "/.partial")) ?? []
         #expect(left.isEmpty, "\(left)")
         #expect(RuntimeBundleReader.swiftcodeRuntimes(in: folder).map(\.build) == ["90J210"])
@@ -616,8 +563,6 @@ import Testing
     }
 
     #if os(macOS)
-    /// macOS's reader with a real (small) APFS disk image made here: attached
-    /// read-only, the RuntimeRoot copied with its links, detached again.
     @Test func hdiutilReadsAnAPFSImage() async throws {
         let dir = Self.temp()
         let (_, volume) = try Self.fakeBundle(dir)
@@ -631,7 +576,6 @@ import Testing
         #expect(r.build == "90J210")
         #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: folder + "/tvOS-40.1-90J210/RuntimeRoot/usr/lib/libz.dylib")) == "libz.1.dylib")
         #expect(FileManager.default.contents(atPath: folder + "/tvOS-40.1-90J210/RuntimeRoot/usr/lib/libz.1.dylib")?.count == 1000)
-        // Detached: the mount point is empty again.
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: dir + "/work/mount")) ?? []).isEmpty)
     }
     #endif
@@ -647,15 +591,12 @@ import Testing
     }
 }
 
-// MARK: - Stand-ins
-
 final class StubTransport: RuntimeTransport, @unchecked Sendable {
     let lock = NSLock()
     var index = Data()
     var etag: String?
     var notModified = false
     var payload: [UInt8] = []
-    /// Byte counts after which a connection drops (one per call).
     var dropAfter: [Int] = []
     var onDrop: (() -> Void)?
     var gets: [(url: URL, etag: String?)] = []
@@ -694,7 +635,6 @@ struct StandInImageReader: RuntimeImageReader {
     var title: String { "stand-in" }
     func withVolume<T: Sendable>(_ dmg: String, work: String, cancel: RuntimeCancellation, log: @escaping @Sendable (String) -> Void,
                                  _ body: @Sendable (String) async throws -> T) async throws -> T {
-        // A copy, as 7-Zip's extraction would make.
         let copy = work + "/volume"
         try? FileManager.default.removeItem(atPath: copy)
         try FileManager.default.createDirectory(atPath: work, withIntermediateDirectories: true)
@@ -739,7 +679,6 @@ final class PhaseBox: @unchecked Sendable {
     func add(_ p: RuntimeDownloadPhase) { lock.withLock { titles.append(p.title) } }
 }
 
-/// Writes Apple Archive entries (the fields the reader knows).
 struct AAWriter {
     var bytes: [UInt8] = []
 
@@ -770,7 +709,6 @@ struct AAWriter {
         entry(Self.typ("F") + Self.pat(path) + Array("UID1".utf8) + [0] + Array("MOD2".utf8) + Self.le(UInt64(mode), 2) + Array("SH2H".utf8) + sha256)
     }
 
-    /// A metadata entry whose DAT blob is a part.
     mutating func part(_ op: Character, _ data: [UInt8]) {
         entry(Self.typ("M") + Array("YOP1".utf8) + [op.asciiValue!] + Self.pat("main", key: "LBL") + Self.blob("DAT", data.count), blobs: [data])
     }
@@ -781,7 +719,6 @@ struct AAWriter {
         return m.bytes
     }
 
-    /// A reader's source over the bytes, in small pieces.
     func source() -> (Int) throws -> [UInt8] {
         let all = bytes
         var at = 0
@@ -796,7 +733,6 @@ struct AAWriter {
 enum PBZX {
     static func be(_ v: UInt64) -> [UInt8] { (0..<8).map { UInt8(truncatingIfNeeded: v >> (8 * UInt64(7 - $0))) } }
 
-    /// Stored (uncompressed) chunks.
     static func stored(_ data: [UInt8], chunk: Int) -> [UInt8] {
         var out = Array("pbzx".utf8) + be(UInt64(chunk))
         var i = 0
@@ -809,7 +745,6 @@ enum PBZX {
     }
 }
 
-/// liblzma's encoder, loaded as the reader loads its decoder (tests only).
 enum XZTestEncoder {
     typealias Encode = @convention(c) (UInt32, Int32, UnsafeRawPointer?, UnsafePointer<UInt8>, Int, UnsafeMutablePointer<UInt8>, UnsafeMutablePointer<Int>, Int) -> Int32
 
@@ -830,7 +765,6 @@ enum XZTestEncoder {
     }
 }
 
-/// Minimal X.509 certificates for the chain test.
 enum TestCert {
     enum Curve { case p256, p384 }
 

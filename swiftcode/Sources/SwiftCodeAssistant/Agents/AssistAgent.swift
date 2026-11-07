@@ -1,21 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistAgent.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Agents/AssistAgent.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - AssistAgent orchestrator (processIntent sequencing)
-//   - generateFinalReport
-//   - isRunning state
-// ADAPTATIONS:
-//   - Combine -> Observation (destination convention, cf. TasksAIPlanner.swift): `: ObservableObject` removed, class marked @Observable, @Published vars are plain stored vars, `import Observation` added. @MainActor NOT added — wiring to decide.
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistAIResponse — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistModels.swift`)
-//   - AssistLLMService — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistModels.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - AssistModelProvider — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistModels.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 import Observation
 
@@ -37,17 +19,13 @@ public final class AssistAgent {
         defer { isRunning = false }
 
         do {
-            // Claude Code-level execution flow via AssistAPI
 
-            // 1. Enhance Prompt (Internal step if not already specific)
             let enhanceResponse = await api.enhancePrompt(userInput: intent)
             let finalIntent = enhanceResponse.success ? (enhanceResponse.data?["enhancedPrompt"] ?? intent) : intent
 
-            // 2. Analyze
             let analyzeResponse = await api.analyze()
             await context.logger.info("Codebase analysis complete: \(analyzeResponse.markdown ?? "")")
 
-            // 3. Plan
             let planResponse = await api.plan(intent: finalIntent)
             guard planResponse.success, let planStr = planResponse.data?["plan"], let planData = planStr.data(using: .utf8) else {
                 return AssistAIResponse(content: "", success: false, error: "Failed to generate plan: \(planResponse.error ?? "Unknown error")")
@@ -55,7 +33,6 @@ public final class AssistAgent {
 
             let plan = try JSONDecoder().decode(AssistExecutionPlan.self, from: planData)
 
-            // 4. Execute (Autonomous engine integration)
             let takeoverEnabled = UserDefaults.standard.bool(forKey: "assist.takeoverEnabled")
 
             if takeoverEnabled {

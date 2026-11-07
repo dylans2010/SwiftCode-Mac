@@ -1,29 +1,13 @@
 import Foundation
 
-// Alignment guides (04-layout.md §4.3; api-inventory.md "Layout and geometry").
-//
-// An alignment guide is a function from a view's dimensions to a position
-// along one axis. Every view has a default value for every guide (from the
-// guide's `AlignmentID.defaultValue(in:)`); some views also carry *explicit*
-// values (text baselines, `alignmentGuide(_:computeValue:)`, containers that
-// merge their children's explicit values).
-
-/// Identifies an alignment guide and supplies its default value.
 public protocol AlignmentID {
-    /// The guide's value for a view that has no explicit value for it.
     static func defaultValue(in context: ViewDimensions) -> CGFloat
 }
 
-/// Built-in guides that merge their children's explicit values with a rule
-/// other than the default (the mean). Not public: the observed rule for the
-/// text baselines is "first = smallest, last = largest" (golden-layout.md,
-/// `hstack.center`, `hstack.textImage`, `vstack.texts`, `grid`).
 package protocol ExplicitCombiningAlignmentID: AlignmentID {
     static func combine(_ values: [CGFloat]) -> CGFloat?
 }
 
-/// The opaque key of an alignment guide on one axis. Keys are ordered by the
-/// order in which their guides were first used in this process.
 public struct AlignmentKey: Hashable, Comparable, Sendable {
     package let index: Int
     package let axis: Axis
@@ -39,14 +23,12 @@ public struct AlignmentKey: Hashable, Comparable, Sendable {
         (lhs.index, lhs.axis.rawValue) < (rhs.index, rhs.axis.rawValue)
     }
 
-    /// The guide's default value for a view of `size` (no explicit values).
     package func defaultValue(for size: CGSize) -> CGFloat {
         id.defaultValue(in: ViewDimensions(size: size))
     }
 
     package func defaultValue(in d: ViewDimensions) -> CGFloat { id.defaultValue(in: d) }
 
-    /// Merges explicit values produced by several children.
     package func combine(_ values: [CGFloat]) -> CGFloat? {
         guard !values.isEmpty else { return nil }
         if let c = id as? any ExplicitCombiningAlignmentID.Type { return c.combine(values) }
@@ -54,7 +36,6 @@ public struct AlignmentKey: Hashable, Comparable, Sendable {
     }
 }
 
-/// Process-wide numbering of alignment identifiers.
 package final class AlignmentRegistry: @unchecked Sendable {
     package static let shared = AlignmentRegistry()
     private let lock = NSLock()
@@ -76,13 +57,11 @@ package final class AlignmentRegistry: @unchecked Sendable {
     }
 }
 
-/// A guide along the horizontal axis (it gives an x position).
 public struct HorizontalAlignment: Equatable, Sendable {
     public let key: AlignmentKey
 
     public init(_ id: any AlignmentID.Type) { key = AlignmentKey(id: id, axis: .horizontal) }
 
-    /// Merges explicit values of this guide from several views.
     public func combineExplicit(_ values: some Sequence<CGFloat>) -> CGFloat? {
         key.combine(Array(values))
     }
@@ -102,7 +81,6 @@ public struct HorizontalAlignment: Equatable, Sendable {
     public static let trailing = HorizontalAlignment(Trailing.self)
 }
 
-/// A guide along the vertical axis (it gives a y position).
 public struct VerticalAlignment: Equatable, Sendable {
     public let key: AlignmentKey
 
@@ -121,8 +99,6 @@ public struct VerticalAlignment: Equatable, Sendable {
     private enum Bottom: AlignmentID {
         static func defaultValue(in d: ViewDimensions) -> CGFloat { d.height }
     }
-    // Baselines default to the bottom edge (golden `geometryReader`: 500/500
-    // for a 500-tall view without text).
     private enum FirstTextBaseline: ExplicitCombiningAlignmentID {
         static func defaultValue(in d: ViewDimensions) -> CGFloat { d.height }
         static func combine(_ values: [CGFloat]) -> CGFloat? { values.min() }
@@ -139,7 +115,6 @@ public struct VerticalAlignment: Equatable, Sendable {
     public static let lastTextBaseline = VerticalAlignment(LastTextBaseline.self)
 }
 
-/// A pair of horizontal and vertical guides.
 public struct Alignment: Equatable, Sendable {
     public var horizontal: HorizontalAlignment
     public var vertical: VerticalAlignment
@@ -166,8 +141,6 @@ public struct Alignment: Equatable, Sendable {
     public static let trailingLastTextBaseline = Alignment(horizontal: .trailing, vertical: .lastTextBaseline)
 }
 
-/// Supplies a view's explicit alignment-guide values, computed on demand and
-/// memoised.
 package final class ExplicitGuides {
     private let lookup: (AlignmentKey) -> CGFloat?
     private var memo: [AlignmentKey: CGFloat?] = [:]
@@ -182,7 +155,6 @@ package final class ExplicitGuides {
     }
 }
 
-/// A view's size together with its alignment guides.
 public struct ViewDimensions: Equatable {
     package let size: CGSize
     package let guides: ExplicitGuides?
@@ -200,7 +172,6 @@ public struct ViewDimensions: Equatable {
     public subscript(explicit guide: HorizontalAlignment) -> CGFloat? { explicitValue(guide.key) }
     public subscript(explicit guide: VerticalAlignment) -> CGFloat? { explicitValue(guide.key) }
 
-    /// Explicit value if any, otherwise the guide's default.
     package subscript(key key: AlignmentKey) -> CGFloat {
         explicitValue(key) ?? key.defaultValue(in: ViewDimensions(size: size))
     }

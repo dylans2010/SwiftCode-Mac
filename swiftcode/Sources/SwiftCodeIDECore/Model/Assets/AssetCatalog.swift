@@ -1,7 +1,5 @@
 import Foundation
 
-/// An asset catalog folder (`.xcassets`) and its sets, read and written as
-/// `Contents.json` files. See `specs/ide/asset-catalog.md`.
 public struct AssetCatalog {
     public enum Kind: String, Sendable, CaseIterable {
         case imageSet = "imageset", colorSet = "colorset", appIconSet = "appiconset"
@@ -12,8 +10,6 @@ public struct AssetCatalog {
         case brandAssets = "brandassets", imageStack = "imagestack", imageStackLayer = "imagestacklayer"
         case solidImageStack = "solidimagestack", solidImageStackLayer = "solidimagestacklayer", stickersIconSet = "stickersiconset"
 
-        /// The Contents.json array whose entries are file slots, nil for
-        /// sets without file slots.
         public var slotKey: String? {
             switch self {
             case .imageSet, .appIconSet, .arReferenceImage, .launchImage, .stickersIconSet: "images"
@@ -24,7 +20,6 @@ public struct AssetCatalog {
             }
         }
 
-        /// Sets that hold other sets (their children are listed too).
         public var isContainer: Bool {
             [.spriteAtlas, .arResourceGroup, .stickerPack, .brandAssets, .imageStack, .imageStackLayer, .solidImageStack, .solidImageStackLayer].contains(self)
         }
@@ -34,16 +29,12 @@ public struct AssetCatalog {
         public var name: String
         public var kind: Kind
         public var url: URL
-        /// Folder path inside the catalog ("" at the top level).
         public var group: String
     }
 
-    /// The `.xcassets` folder.
     public let url: URL
-    /// Wraps the catalog at `url`; nothing is read until asked.
     public init(url: URL) { self.url = url }
 
-    /// All sets, depth-first in name order; plain folders are groups.
     public func sets() -> [AssetSet] {
         func walk(_ dir: URL, _ group: String) -> [AssetSet] {
             let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [])
@@ -63,17 +54,12 @@ public struct AssetCatalog {
         return walk(url, "")
     }
 
-    // MARK: Contents.json
-
-    /// The parsed `Contents.json` of folder `dir`; empty when missing or not
-    /// a JSON object.
     public static func readContents(_ dir: URL) -> [String: Any] {
         guard let data = try? Data(contentsOf: dir.appendingPathComponent("Contents.json")),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
         return obj
     }
 
-    /// Two-space indentation, `"key" : value`, keys sorted, newline at end.
     public static func json(_ obj: [String: Any]) throws -> Data {
         var d = try JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         d.append(0x0A)
@@ -86,28 +72,19 @@ public struct AssetCatalog {
 
     static var info: [String: Any] { ["author": "swiftcode", "version": 1] }
 
-    // MARK: Image sets
-
-    /// One image slot: scale and appearance (nil = any).
     public struct Slot: Equatable, Sendable, Hashable {
         public var idiom: String
         public var scale: String?
         public var size: String?
         public var appearance: String?
         public var filename: String?
-        /// App icon platform ("ios", "watchos", …) for single-size icons.
         public var platform: String?
 
-        /// The label drawn inside an empty slot: "1024x1024px" for a
-        /// single-size app icon, nil otherwise.
         public var boxLabel: String? {
             guard platform != nil, let size, scale == nil else { return nil }
             return size + "px"
         }
 
-        /// Caption lines under the slot (reference-ui-3 §3): a single-size
-        /// icon shows the platform and "1,024pt"; other slots show the
-        /// idiom ("Universal") then size/scale/appearance.
         public var captions: [String] {
             if let platform, scale == nil, let size {
                 let w = Int(size.split(separator: "x").first ?? "") ?? 0
@@ -140,14 +117,11 @@ public struct AssetCatalog {
         return d
     }
 
-    /// The image (or icon) slots of a set, in file order; empty for kinds
-    /// without slots.
     public static func slots(of set: AssetSet) -> [Slot] {
         guard let key = set.kind.slotKey else { return [] }
         return (readContents(set.url)[key] as? [[String: Any]] ?? []).map(slot)
     }
 
-    /// Creates `<name>.imageset` with universal 1x, 2x and 3x slots.
     @discardableResult
     public func addImageSet(named name: String, in group: String = "") throws -> AssetSet {
         let dir = url.appendingPathComponent(group).appendingPathComponent("\(name).imageset")
@@ -157,8 +131,6 @@ public struct AssetCatalog {
         return AssetSet(name: name, kind: .imageSet, url: dir, group: group)
     }
 
-    /// Copies an image file into the set and puts it in the slot with this
-    /// index (replacing what was there).
     public static func setImage(_ file: URL, slot index: Int, in set: AssetSet) throws {
         var obj = readContents(set.url)
         let key = set.kind.slotKey ?? "images"
@@ -179,7 +151,6 @@ public struct AssetCatalog {
         try writeContents(obj, to: set.url)
     }
 
-    /// Empties a slot and deletes its file from the set folder.
     public static func clearImage(slot index: Int, in set: AssetSet) throws {
         var obj = readContents(set.url)
         let key = set.kind.slotKey ?? "images"
@@ -191,7 +162,6 @@ public struct AssetCatalog {
         try? FileManager.default.removeItem(at: set.url.appendingPathComponent(old))
     }
 
-    /// Adds Dark-appearance slots for each scale (Appearances: Any, Dark).
     public static func addDarkAppearance(to set: AssetSet) throws {
         var obj = readContents(set.url)
         var images = obj["images"] as? [[String: Any]] ?? []
@@ -201,8 +171,6 @@ public struct AssetCatalog {
         obj["images"] = images
         try writeContents(obj, to: set.url)
     }
-
-    // MARK: Color sets
 
     public struct ColorValue: Equatable, Sendable {
         public enum Space: String, CaseIterable, Sendable { case sRGB = "srgb", displayP3 = "display-p3" }
@@ -219,8 +187,6 @@ public struct AssetCatalog {
         }
     }
 
-    /// Components may be written as floats ("0.200") or 8-bit values
-    /// ("51" or "0x33"); both read as 0…1.
     static func component(_ v: Any?) -> Double {
         let s = (v as? String) ?? (v as? NSNumber)?.stringValue ?? "0"
         if s.hasPrefix("0x"), let i = Int(s.dropFirst(2), radix: 16) { return Double(i) / 255 }
@@ -228,7 +194,6 @@ public struct AssetCatalog {
         return Double(s) ?? 0
     }
 
-    /// The color values of a color set, one per appearance, in file order.
     public static func colors(of set: AssetSet) -> [ColorValue] {
         (readContents(set.url)["colors"] as? [[String: Any]] ?? []).map { d in
             let c = d["color"] as? [String: Any] ?? [:]
@@ -242,7 +207,6 @@ public struct AssetCatalog {
 
     static func format(_ x: Double) -> String { String(format: "%.3f", min(max(x, 0), 1)) }
 
-    /// Writes one color of a set (index in `colors`), as float components.
     public static func setColor(_ v: ColorValue, at index: Int, in set: AssetSet) throws {
         var obj = readContents(set.url)
         var colors = obj["colors"] as? [[String: Any]] ?? []
@@ -257,8 +221,6 @@ public struct AssetCatalog {
         try writeContents(obj, to: set.url)
     }
 
-    /// Creates `<name>.colorset` in `group` with one white sRGB color. Throws
-    /// if the folder exists or cannot be written.
     @discardableResult
     public func addColorSet(named name: String, in group: String = "") throws -> AssetSet {
         let dir = url.appendingPathComponent(group).appendingPathComponent("\(name).colorset")
@@ -269,9 +231,6 @@ public struct AssetCatalog {
         return set
     }
 
-    // MARK: App icon
-
-    /// The macOS app icon slots: 16, 32, 128, 256 and 512 points at 1x and 2x.
     @discardableResult
     public func addMacAppIconSet(named name: String = "AppIcon", in parent: URL? = nil) throws -> AssetSet {
         let dir = (parent ?? url).appendingPathComponent("\(name).appiconset")
@@ -283,7 +242,6 @@ public struct AssetCatalog {
         return AssetSet(name: name, kind: .appIconSet, url: dir, group: "")
     }
 
-    /// The iOS single-size app icon: one universal 1024x1024 slot.
     @discardableResult
     public func addIOSAppIconSet(named name: String = "AppIcon") throws -> AssetSet {
         let dir = url.appendingPathComponent("\(name).appiconset")
@@ -293,9 +251,6 @@ public struct AssetCatalog {
         return AssetSet(name: name, kind: .appIconSet, url: dir, group: "")
     }
 
-    // MARK: Other set types (public Asset Catalog Format Reference)
-
-    /// The "+" menu titles of the other set types, with their kinds.
     public static let otherSetTitles: [(title: String, kind: Kind, defaultName: String)] = [
         ("Symbol Image Set", .symbolSet, "Symbol"), ("Data Set", .dataSet, "Data"),
         ("Texture Set", .textureSet, "Texture"), ("Sprite Atlas", .spriteAtlas, "Sprites"),
@@ -305,9 +260,6 @@ public struct AssetCatalog {
         ("Sticker", .sticker, "Sticker"), ("Sticker Sequence", .stickerSequence, "Sticker Sequence"),
     ]
 
-    /// The initial Contents.json of a new set of a kind: `info` plus one
-    /// universal slot for file-slot sets (symbol, data, AR image/object,
-    /// launch image) and nothing else for the rest.
     static func initialContents(_ kind: Kind) -> [String: Any] {
         var obj: [String: Any] = ["info": info]
         switch kind {
@@ -320,8 +272,6 @@ public struct AssetCatalog {
         return obj
     }
 
-    /// Creates `<name>.<extension>` of any kind except color sets and app
-    /// icons (they have their own initial slots).
     @discardableResult
     public func addSet(_ kind: Kind, named name: String, in group: String = "") throws -> AssetSet {
         switch kind {
@@ -335,8 +285,6 @@ public struct AssetCatalog {
         return AssetSet(name: name, kind: kind, url: dir, group: group)
     }
 
-    /// A plain folder (a group); "Folder with Namespace" sets
-    /// `properties.provides-namespace`.
     @discardableResult
     public func addFolder(named name: String, namespace: Bool = false, in group: String = "") throws -> URL {
         let dir = url.appendingPathComponent(group).appendingPathComponent(name)
@@ -347,27 +295,17 @@ public struct AssetCatalog {
         return dir
     }
 
-    /// Removes a set (the catalog's "−" and Editor ▸ Delete Selected
-    /// Items): its folder moves to the trash, never deleted outright (the
-    /// Finder's Trash on macOS, the freedesktop.org trash on Linux), as
-    /// the IDE's other destructive actions do. Returns where it went, so an
-    /// undo can put it back (`TrashBin.restore`).
     @discardableResult
     public func remove(_ set: AssetSet, bin: TrashBin = .user) throws -> URL { try bin.moveToTrash(set.url) }
 
-    /// Removes a folder (a group) of the catalog the same way: to the trash.
     @discardableResult
     public func removeFolder(_ folder: URL, bin: TrashBin = .user) throws -> URL {
-        // Only something inside the catalog, never the catalog itself.
         guard !relativePath(folder).isEmpty else { throw CocoaError(.fileWriteNoPermission) }
         return try bin.moveToTrash(folder)
     }
 }
 
-// MARK: Presentation model (specs/ide/reference-ui-3.md §3)
-
 extension AssetCatalog.Kind {
-    /// The type label at the top right of the set header.
     public var typeLabel: String {
         switch self {
         case .imageSet: "Image Set"; case .colorSet: "Color"; case .appIconSet: "App Icon"
@@ -396,7 +334,6 @@ extension AssetCatalog {
         switch p { case "ios": "iOS"; case "macos": "macOS"; case "watchos": "watchOS"; case "tvos": "tvOS"; case "xros", "visionos": "visionOS"; default: p }
     }
 
-    /// One inspector row: a label and either a value or a checkbox.
     public struct InspectorRow: Equatable, Sendable {
         public var label: String
         public var value: String?
@@ -411,7 +348,6 @@ extension AssetCatalog {
         public var rows: [InspectorRow]
     }
 
-    /// The attributes-inspector section for a set.
     public static func inspector(for set: AssetSet) -> InspectorSection {
         let obj = readContents(set.url)
         switch set.kind {
@@ -448,8 +384,6 @@ extension AssetCatalog {
         }
     }
 
-    /// One entry of the editor's "+" menu: an item, a separator ("-"), or
-    /// a submenu. `enabled` is false for sticker items outside a pack.
     public indirect enum AddMenuEntry: Equatable, Sendable {
         case item(String, enabled: Bool)
         case separator
@@ -460,7 +394,6 @@ extension AssetCatalog {
         }
     }
 
-    /// The "+" menu structure (reference-ui-3 §3.5).
     public static func addMenu(insideStickerPack: Bool = false) -> [AddMenuEntry] {
         func items(_ ts: [String], enabled: Bool = true) -> [AddMenuEntry] { ts.map { .item($0, enabled: enabled) } }
         return items(["Image Set", "Color Set", "Symbol Image Set", "Data Set"]) + [
@@ -477,18 +410,13 @@ extension AssetCatalog {
     }
 }
 
-// MARK: Outline filter and Color Set inspector edits (reference-ui-3 §3)
-
 extension AssetCatalog {
-    /// The sets whose name (or group path) contains `filter`, ignoring
-    /// case. An empty filter keeps every set.
     public static func filtered(_ sets: [AssetSet], by filter: String) -> [AssetSet] {
         let f = filter.trimmingCharacters(in: .whitespaces)
         guard !f.isEmpty else { return sets }
         return sets.filter { ($0.group.isEmpty ? $0.name : $0.group + "/" + $0.name).localizedCaseInsensitiveContains(f) }
     }
 
-    /// Device rows of the Color Set inspector: (label, idiom).
     public static let colorDevices: [(label: String, idiom: String)] = [
         ("Universal", "universal"), ("iPhone", "iphone"), ("iPad (and Mac Catalyst)", "ipad"),
         ("Mac Catalyst Scaled", "mac-catalyst"), ("CarPlay", "car"), ("Mac", "mac"),
@@ -508,9 +436,6 @@ extension AssetCatalog {
         try writeContents(obj, to: set.url)
     }
 
-    /// Turns a device checkbox on (copies the universal, or first, idiom's
-    /// entries with this idiom) or off (removes the idiom's entries; the
-    /// last idiom stays).
     public static func setColorIdiom(_ idiom: String, included: Bool, in set: AssetSet) throws {
         try editColors(set) { colors in
             let idiomOf = { (e: [String: Any]) in e["idiom"] as? String ?? "universal" }
@@ -528,8 +453,6 @@ extension AssetCatalog {
         }
     }
 
-    /// Appearances popup: "None" removes Dark entries; "Any, Dark" adds a
-    /// Dark entry after each Any entry (same color).
     public static func setColorDarkAppearance(_ dark: Bool, in set: AssetSet) throws {
         try editColors(set) { colors in
             if !dark { colors.removeAll(where: isDark); return }
@@ -543,8 +466,6 @@ extension AssetCatalog {
         }
     }
 
-    /// High Contrast checkbox: adds a high-contrast copy of each entry, or
-    /// removes them.
     public static func setColorHighContrast(_ on: Bool, in set: AssetSet) throws {
         try editColors(set) { colors in
             if !on { colors.removeAll(where: isHighContrast); return }
@@ -559,16 +480,12 @@ extension AssetCatalog {
 }
 
 extension AssetCatalog {
-    /// The asset catalog "+" menu (and Editor ▸ Add New Asset): the titles
-    /// SwiftCode can create, mapped to the editor's `addSet(kind:)` tags. Tags
-    /// from `otherKindBase` on index `AssetCatalog.otherSetTitles`.
     public enum AddMenuTags {
         public static let otherKindBase = 10
         public static let watchIcon = 40, visionIcon = 41, tvIcon = 42, messagesIcon = 43
         public static let folder = 100
         public static let folderFromSelection = 102, importFiles = 103, stickerFrame = 104
 
-        /// Menu title → tag.
         public static let creatable: [String: Int] = {
             var m = ["Image Set": 0, "Color Set": 1, "macOS App Icon": 2, "iOS App Icon": 3, "watchOS App Icon": watchIcon,
                      "visionOS App Icon": visionIcon, "tvOS App Icon and Top Shelf Image": tvIcon, "Messages Extension Icon": messagesIcon]

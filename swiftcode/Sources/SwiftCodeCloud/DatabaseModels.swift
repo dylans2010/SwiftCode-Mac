@@ -1,9 +1,5 @@
 import Foundation
 
-/// The database engines the Database utility knows about, ported
-/// verbatim from Legacy's `Views/Utilities/Database/Models/Database.swift`.
-/// Only the Supabase case is exercised by `SupabaseService`; the rest
-/// are carried over so a stored `DatabaseConnection` keeps its shape.
 public enum DatabaseProvider: String, Codable, CaseIterable, Sendable {
     case sqlite = "SQLite"
     case postgresql = "PostgreSQL"
@@ -12,11 +8,6 @@ public enum DatabaseProvider: String, Codable, CaseIterable, Sendable {
     case supabase = "Supabase PostgreSQL"
 }
 
-/// Metadata about a database on a connection, ported verbatim
-/// from Legacy's `Views/Utilities/Database/Models/Database.swift`.
-/// Recorded for the Database utility; `SupabaseService` does not
-/// populate it (PostgREST's OpenAPI schema carries no version /
-/// size / table count).
 public struct DatabaseInfo: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String
@@ -41,27 +32,18 @@ public struct DatabaseInfo: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// A saved database connection, ported verbatim from Legacy's
-/// `Views/Utilities/Database/Models/DatabaseConnection.swift`.
-/// For Supabase connections the project URL and anon key are the
-/// fields `SupabaseService` reads; the service key and JWT secret
-/// are stored here when the user supplies them, and are never
-/// logged. No credential is ever given a default value here.
 public struct DatabaseConnection: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String
     public var provider: DatabaseProvider
 
-    // SQLite connection configuration
     public var sqliteFilePath: String?
 
-    // Network-based connection configuration (Postgres, MySQL, MariaDB, Supabase)
     public var host: String?
     public var port: Int?
     public var databaseName: String?
     public var username: String?
 
-    // Supabase specific options
     public var supabaseURL: String?
     public var supabaseAnonKey: String?
     public var supabaseServiceKey: String?
@@ -89,12 +71,10 @@ public struct DatabaseConnection: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// One column of a table, ported verbatim from Legacy's
-/// `Views/Utilities/Database/Models/DatabaseColumn.swift`.
 public struct DatabaseColumn: Identifiable, Codable, Hashable, Sendable {
     public var id: String { name }
     public var name: String
-    public var type: String // e.g. TEXT, INTEGER, VARCHAR(255), uuid, etc.
+    public var type: String
     public var isPrimaryKey: Bool
     public var isForeignKey: Bool
     public var isNullable: Bool
@@ -129,11 +109,6 @@ public struct DatabaseColumn: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// A relationship between two tables, ported verbatim from Legacy's
-/// `Views/Utilities/Database/Models/DatabaseRelationship.swift`.
-/// `SupabaseService.fetchTables` does not populate relationships
-/// (PostgREST's OpenAPI schema does not describe them); the type is
-/// carried over so `DatabaseTable` keeps its shape.
 public enum RelationshipType: String, Codable, CaseIterable, Sendable {
     case oneToOne = "One-to-One"
     case oneToMany = "One-to-Many"
@@ -155,7 +130,7 @@ public struct DatabaseRelationship: Identifiable, Codable, Hashable, Sendable {
     public var sourceColumn: String
     public var targetTable: String
     public var targetColumn: String
-    public var junctionTable: String? // for Many-to-Many relationships
+    public var junctionTable: String?
     public var onDelete: ReferentialAction
     public var onUpdate: ReferentialAction
 
@@ -177,15 +152,13 @@ public struct DatabaseRelationship: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// An index on a table, ported verbatim from Legacy's
-/// `Views/Utilities/Database/Models/DatabaseIndex.swift`.
 public struct DatabaseIndex: Identifiable, Codable, Hashable, Sendable {
     public var id: String { name }
     public var name: String
     public var columns: [String]
     public var isUnique: Bool
-    public var type: String // e.g. B-TREE, HASH, GIN, GiST, etc.
-    public var expression: String? // for functional or partial indexes
+    public var type: String
+    public var expression: String?
 
     public init(
         name: String, columns: [String], isUnique: Bool = false,
@@ -199,12 +172,10 @@ public struct DatabaseIndex: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// A trigger on a table, ported verbatim from Legacy's
-/// `Views/Utilities/Database/Models/DatabaseTrigger.swift`.
 public struct DatabaseTrigger: Identifiable, Codable, Hashable, Sendable {
     public var id: String { name }
     public var name: String
-    public var event: String // BEFORE INSERT, AFTER UPDATE, etc.
+    public var event: String
     public var tableName: String
     public var actionStatement: String
 
@@ -216,8 +187,6 @@ public struct DatabaseTrigger: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// One table, ported verbatim from Legacy's
-/// `Views/Utilities/Database/Models/DatabaseTable.swift`.
 public struct DatabaseTable: Identifiable, Codable, Hashable, Sendable {
     public var id: String { name }
     public var name: String
@@ -249,8 +218,6 @@ public struct DatabaseTable: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// Database errors, ported verbatim from Legacy's
-/// `Views/Utilities/Database/Helpers/DatabaseErrorHandler.swift`.
 public enum DatabaseError: Error, LocalizedError, Sendable {
     case connectionFailed(String)
     case queryExecutionFailed(String, sql: String)

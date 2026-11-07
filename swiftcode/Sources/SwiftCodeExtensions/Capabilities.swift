@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - v2 capabilities (spec §5.1, 12 values)
-
 public enum ExtensionCapability: String, Codable, Sendable, CaseIterable {
     case workspaceRead
     case workspaceWrite
@@ -33,8 +31,6 @@ public enum ExtensionCapability: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// Risk level shown in the approval sheet. The v2 twelve have their
-    /// own mapping; `SDKCapabilityID.riskLevel` covers the SDK vocabulary.
     public var riskLevel: String {
         switch self {
         case .workspaceRead, .sourceControl: return "low"
@@ -43,12 +39,8 @@ public enum ExtensionCapability: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// Every v2 capability can be granted; deny-by-default is the
-    /// SDK's `assist.invoke` rule (§5.5), not a v2 concept.
     public var isGrantable: Bool { true }
 
-    /// Maps an SDK capability id to the v2 runtime capabilities that
-    /// enforce it (spec §5.3, a SwiftCode decision — Legacy never maps them).
     public static func v2Capabilities(for sdkCapability: SDKCapabilityID) -> [ExtensionCapability] {
         switch sdkCapability {
         case .workspaceRead, .projectRead, .sourceControlRead, .docsSearch, .symbolsBrowse, .dictionaryOpen:
@@ -73,8 +65,6 @@ public enum ExtensionCapability: String, Codable, Sendable, CaseIterable {
         }
     }
 }
-
-// MARK: - SDK capabilities (spec §5.1, 34 ids verbatim)
 
 public enum SDKCapabilityID: String, Codable, Sendable, CaseIterable {
     case projectRead = "project.read"
@@ -112,7 +102,6 @@ public enum SDKCapabilityID: String, Codable, Sendable, CaseIterable {
     case securityDeleteValue = "security.deleteValue"
     case securityUseValue = "security.useValue"
 
-    /// Risk levels from `ExtensionCapabilityID.riskLevel`.
     public var riskLevel: String {
         switch self {
         case .projectRead, .sourceControlRead, .docsSearch: return "low"
@@ -121,11 +110,8 @@ public enum SDKCapabilityID: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// `assist.invoke` is restricted deny-by-default; every other id is grantable.
     public var isGrantable: Bool { self != .assistInvoke }
 }
-
-// MARK: - Permissions (spec §5.2)
 
 public struct PermissionRequest: Sendable {
     public let extensionId: String
@@ -139,10 +125,6 @@ public struct PermissionRequest: Sendable {
     }
 }
 
-/// Deny-by-default grant store over `grants.json`
-/// (`{extensionId: [capability-rawValue]}`). Revocation takes effect
-/// on the next call. The grants file is written with mode `0600`
-/// (adopted from the SDK grant store, deviation D-2).
 public final class PermissionManager: @unchecked Sendable {
     public var promptHandler: (@Sendable (PermissionRequest) async -> Bool)?
 
@@ -155,7 +137,6 @@ public final class PermissionManager: @unchecked Sendable {
         self.grants = Self.loadGrants(from: storage)
     }
 
-    /// Test variant: in-memory grants only, no file backing.
     public init(grants: [String: Set<ExtensionCapability>]) {
         self.storage = nil
         self.grants = grants
@@ -164,7 +145,7 @@ public final class PermissionManager: @unchecked Sendable {
     private static func loadGrants(from storage: ExtensionStorage) -> [String: Set<ExtensionCapability>] {
         guard let data = try? Data(contentsOf: storage.grantsFile),
               let decoded = try? JSONDecoder().decode([String: [ExtensionCapability]].self, from: data) else {
-            return [:] // Unparseable -> empty, not fatal.
+            return [:]
         }
         return decoded.mapValues { Set($0) }
     }
@@ -197,8 +178,6 @@ public final class PermissionManager: @unchecked Sendable {
         }
     }
 
-    /// Already granted → `true` immediately. No `promptHandler`
-    /// installed → `false` (a headless call is a denial, not a queue).
     public func request(extensionId: String, capability: ExtensionCapability, reason: String) async -> Bool {
         if isGranted(extensionId: extensionId, capability: capability) { return true }
         guard let promptHandler else { return false }

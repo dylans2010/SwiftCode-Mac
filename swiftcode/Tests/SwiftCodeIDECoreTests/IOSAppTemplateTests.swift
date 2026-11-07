@@ -55,7 +55,6 @@ import SwiftCodeProject
         let proj = try #require(p.project)
         let ps = try #require(p.buildConfigurations(listID: proj.string("buildConfigurationList")).first?.attributes["buildSettings"]?.dictionary)
         #expect(ps["SDKROOT"]?.string == "iphoneos")
-        // Writer round trip.
         let text = try String(contentsOf: url.appendingPathComponent("project.pbxproj"), encoding: .utf8)
         #expect(try PBXProj(parsing: text).serialized(projectName: "Tour") == text)
     }
@@ -69,7 +68,6 @@ import SwiftCodeProject
         let url = try ProjectTemplate.app.create(platform: "iOS", options: options("Core", .none, .coreData), in: dir)
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("Core/Core/Core.xcdatamodeld/Core.xcdatamodel/contents").path))
         let p = try PBXProj(contentsOf: url.appendingPathComponent("project.pbxproj"))
-        // templates.md § Catalog: one synchronized folder per target, empty phases.
         #expect(p.objects(isa: "PBXFileSystemSynchronizedRootGroup").map { $0.string("path") } == ["Core"])
         #expect(p.objects(isa: "XCVersionGroup").isEmpty)
     }
@@ -91,7 +89,6 @@ import SwiftCodeProject
         }
         #expect(!fm.fileExists(atPath: dir.appendingPathComponent("Board/Board/ContentView.swift").path))
         let p = try PBXProj(contentsOf: url.appendingPathComponent("project.pbxproj"))
-        // The Info.plist is left out of the synchronized folder's members.
         #expect(p.objects(isa: "PBXFileSystemSynchronizedBuildFileExceptionSet").first?["membershipExceptions"]?.array == ["Info.plist"])
         let app = try #require(p.targets.first)
         let s = try #require(settings(p, target: app))
@@ -108,7 +105,6 @@ import SwiftCodeProject
         #expect(try PBXProj(parsing: text).serialized(projectName: "Board") == text)
     }
 
-    /// Builds the generated project for the iOS Simulator when an SDK exists.
     @Test(.timeLimit(.minutes(10))) func buildsForSimulator() async throws {
         guard let sdk = run("/usr/bin/xcrun", ["--sdk", "iphonesimulator", "--show-sdk-path"]), sdk.status == 0, !sdk.out.isEmpty,
               FileManager.default.isExecutableFile(atPath: "/usr/bin/xcodebuild") else { return }
@@ -118,8 +114,6 @@ import SwiftCodeProject
                         ("BoardApp", storyboardOptions("BoardApp", .xctest))]
         for (name, opts) in variants {
             let url = try ProjectTemplate.app.create(platform: "iOS", options: opts, in: dir)
-            // Off the main actor: suites running in parallel (debugger
-            // sessions) need it while xcodebuild runs.
             let args = ["-project", url.path, "-alltargets", "-sdk", "iphonesimulator", "-configuration", "Debug",
                         "SYMROOT=\(dir.path)/build", "OBJROOT=\(dir.path)/obj", "CODE_SIGNING_ALLOWED=NO", "build"]
             let r = await Task.detached { Self.run("/usr/bin/xcodebuild", args) }.value

@@ -1,32 +1,6 @@
 import Foundation
 import os
 
-// Ported from Legacy:
-//   SwiftCode/Backend/Assist/Subagents/Recovery/WorkerRecoveryEngine.swift
-// Direct port of Legacy behaviour (Dylan's own code, authorised for porting
-// under MIT). Depends on types ported in parallel into SwiftCodeAssistant:
-// Worker, WorkerError, WorkerAssignment, WorkerResult, WorkerRuntimeState,
-// WorkerModelSelector (Models), WorkerEngine and WorkerExecutionContext
-// (Engine), WorkerContextBuilder (Context), and
-// WorkerPersistenceStore + WorkerReconciliationReport (Persistence).
-// Declares no model types itself.
-//
-// `recoverFromDisk` is the crash-recovery entry point for this coordinator:
-// it delegates to WorkerPersistenceStore.restoreReconcileAndResume, the real
-// Legacy implementation that restores the persisted worker tree from disk,
-// reconciles claimed file changes against the filesystem, and resumes
-// interrupted workers — it never fabricates a recovered result.
-//
-// Coordinator fix (cross-file verification): Legacy's `AssistContext`
-// does not exist in the destination, so both methods take the
-// destination's narrow `WorkerExecutionContext` instead; the
-// persistence store has no `.shared` singleton, so the engine holds
-// an injected store backed by the real shared runtime state and
-// scheduler (see the `WorkerRuntimeStateProviding` / `WorkerScheduling`
-// conformances).
-
-/// Self-healing and error recovery coordinator for Assist Workers (M-RECOVER).
-/// Enforces partial work guarantees (INV-10): Completed work is never discarded.
 @MainActor
 public final class WorkerRecoveryEngine: Sendable {
     public static let shared = WorkerRecoveryEngine()
@@ -41,15 +15,6 @@ public final class WorkerRecoveryEngine: Sendable {
         )
     }
 
-    /// Full crash-recovery entry point: rebuild worker state from the
-    /// persistence store on disk, reconcile claimed vs actual file changes,
-    /// and resume interrupted workers (or leave them failed, honestly).
-    ///
-    /// Returns the restored tree (nil when nothing was persisted), the
-    /// reconciliation report (discrepancies = claimed changes the filesystem
-    /// does not bear out), and the real results of any resumed workers.
-    /// A worker whose claimed files do not exist is reported as a
-    /// discrepancy, never silently treated as recovered.
     public func recoverFromDisk(
         parentTaskID: UUID,
         workspaceRoot: URL
@@ -75,7 +40,6 @@ public final class WorkerRecoveryEngine: Sendable {
         return outcome
     }
 
-    /// Recovers a failed worker by re-executing with model fallback or strategy adjustment
     public func attemptRecovery(
         for worker: Worker,
         error: WorkerError,
@@ -84,7 +48,6 @@ public final class WorkerRecoveryEngine: Sendable {
     ) async -> Bool {
         logger.info("Attempting recovery for worker '\(worker.name)' (Error: \(error.code))...")
 
-        // 1. Model Fallback if model failed
         if let fallbackModel = await WorkerModelSelector.shared.fallbackModel(for: worker.modelUsed) {
             logger.info("Switching worker '\(worker.name)' to fallback model: \(fallbackModel)")
             WorkerRuntimeState.shared.updateWorker(id: worker.id) { w in
@@ -128,7 +91,6 @@ public final class WorkerRecoveryEngine: Sendable {
             return false
         }
 
-        // 2. Strategy adjustment: re-execute with modified approach
         WorkerRuntimeState.shared.updateWorker(id: worker.id) { w in
             w.currentAction = "Adjusting strategy: Bypassing failing step and proceeding to verification."
         }

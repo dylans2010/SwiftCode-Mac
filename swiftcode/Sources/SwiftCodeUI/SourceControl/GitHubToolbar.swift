@@ -1,25 +1,5 @@
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/GitHubToolbar.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The GitHub workspace toolbar: the section picker plus the refresh / sync
-/// actions for the connected project. Legacy's hardcoded dark paint is
-/// replaced with system-adaptive styling; the callbacks are unchanged.
-///
-/// `GitHubSidebarItem` is defined here because no destination equivalent
-/// exists (Legacy defined it in `GitHubSidebar.swift`, which has no port
-/// yet). A future GitHub sidebar port should reuse this enum rather than
-/// defining its own.
-///
-/// Hook: host this in the workspace toolbar bands
-/// (`WorkspaceWindowController+ToolbarBand.swift` /
-/// `+ToolbarRight.swift`) and wire the callbacks to the source-control
-/// coordinator / GitHub actions (refresh → reload the GitHub views,
-/// onPull/onPush/onFetch → `SourceControlCoordinator`, onClone →
-/// `GitHistory.clone`, onNewBranch/onNewPullRequest/onNewIssue → the
-/// corresponding creation sheets). Until then it is usable as a standalone
-/// toolbar view with caller-supplied closures.
 @MainActor
 public struct GitHubToolbar: View {
     public var currentSelection: GitHubSidebarItem
@@ -136,8 +116,6 @@ public struct GitHubToolbar: View {
     }
 }
 
-/// The GitHub workspace sections (Legacy `GitHubSidebar.swift` cases).
-/// A future GitHub sidebar port should reuse this enum.
 public enum GitHubSidebarItem: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case repositories = "Repositories"

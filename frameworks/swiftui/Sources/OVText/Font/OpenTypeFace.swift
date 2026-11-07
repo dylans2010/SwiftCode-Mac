@@ -1,25 +1,13 @@
 import Foundation
 import Synchronization
 
-// An OpenType / TrueType font file reader: just the tables text layout needs
-// (head, hhea, hmtx, maxp, OS/2, post, name, cmap formats 4 and 12, kern
-// format 0, and GPOS pair adjustment for the `kern` feature). Written from
-// the OpenType specification (Microsoft Typography, "OpenType font file",
-// table chapters). Glyph outlines are not read (rendering is round R5).
-//
-// Every read is bounds-checked: a damaged or hostile file yields an error or
-// zero values, never a crash.
-
-/// Errors reading a font file.
 public enum FontFileError: Error, Equatable {
     case notAFont
     case missingTable(String)
     case badCollectionIndex
 }
 
-/// Big-endian reads over a byte array.
 struct FontBytes {
-    /// The file (zero-based indices; a slice is rebased on creation).
     let bytes: Data
 
     init(_ data: Data) { bytes = data.startIndex == 0 ? data : Data(data) }
@@ -34,14 +22,12 @@ struct FontBytes {
     func contains(_ o: Int, _ length: Int) -> Bool { o >= 0 && length >= 0 && o + length <= bytes.count }
 }
 
-/// A face read from an OpenType (TrueType or CFF-flavoured) font file.
 public final class OpenTypeFace: FontFace, @unchecked Sendable {
     public let familyName: String
     public let styleName: String
     public let postScriptName: String
     public let traits: FontTraits
     public let unitsPerEm: Int
-    /// Vertical metrics in font units (descender positive).
     public let ascender: Int
     public let descender: Int
     public let lineGap: Int
@@ -55,14 +41,11 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
     private let kernPairs: [UInt32: Int16]
     private let gposKern: [PairAdjustment]
     private let kernCache = Mutex<[UInt64: Int32]>([:])
-    /// TrueType outline tables (`glyf`, `loca`; nil for CFF faces) and the
-    /// `loca` format (`head.indexToLocFormat` = 1: 32-bit offsets).
     let glyfTable: (offset: Int, length: Int)?
     let locaTable: (offset: Int, length: Int)?
     let locaLong: Bool
     var bytes: FontBytes { data }
 
-    /// Reads face `index` of a font file or collection.
     public convenience init(contentsOf url: URL, index: Int = 0) throws {
         try self.init(data: Data(contentsOf: url, options: .mappedIfSafe), index: index)
     }
@@ -119,7 +102,6 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
             let fsSelection = d.u16(os2 + 62)
             italic = italic || fsSelection & 1 != 0
             if fsSelection & 0x80 != 0 {
-                // USE_TYPO_METRICS: the typographic values are the line metrics.
                 asc = Int(d.i16(os2 + 68))
                 desc = -Int(d.i16(os2 + 70))
                 gap = Int(d.i16(os2 + 72))
@@ -147,8 +129,6 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
         gposKern = tables["GPOS"].map { OpenTypeFace.readGPOSKern(d, at: $0.offset) } ?? []
     }
 
-    // MARK: FontFace
-
     public func lineMetrics(size: Double) -> LineMetrics {
         let s = size / Double(unitsPerEm)
         return LineMetrics(ascent: Double(ascender) * s, descent: Double(descender) * s,
@@ -161,7 +141,6 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
         return g == 0 ? nil : g
     }
 
-    /// Advance in font units.
     public func advanceUnits(of glyph: GlyphID) -> Int {
         guard !advances.isEmpty else { return 0 }
         return Int(advances[min(Int(glyph), advances.count - 1)])
@@ -171,7 +150,6 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
         Double(advanceUnits(of: glyph)) * size / Double(unitsPerEm)
     }
 
-    /// Kerning in font units (GPOS `kern` feature, else the `kern` table).
     public func kerningUnits(_ left: GlyphID, _ right: GlyphID) -> Int {
         let key = UInt64(left) << 32 | UInt64(right)
         if let v = kernCache.withLock({ $0[key] }) { return Int(v) }
@@ -189,11 +167,9 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
         Double(kerningUnits(left, right)) * size / Double(unitsPerEm)
     }
 
-    // MARK: kern table (format 0)
-
     private static func readKern(_ d: FontBytes, at o: Int) -> [UInt32: Int16] {
         var pairs: [UInt32: Int16] = [:]
-        guard d.u16(o) == 0 else { return pairs } // Microsoft version 0 only
+        guard d.u16(o) == 0 else { return pairs }
         var p = o + 4
         for _ in 0..<Int(d.u16(o + 2)) {
             let length = Int(d.u16(p + 2)), coverage = d.u16(p + 4)
@@ -209,8 +185,6 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
         }
         return pairs
     }
-
-    // MARK: GPOS pair adjustment (kern feature)
 
     private static func readGPOSKern(_ d: FontBytes, at g: Int) -> [PairAdjustment] {
         let featureList = g + Int(d.u16(g + 6)), lookupList = g + Int(d.u16(g + 8))
@@ -229,7 +203,7 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
             var subtables: [Int] = []
             for s in 0..<Int(d.u16(l + 4)) {
                 var st = l + Int(d.u16(l + 6 + 2 * s))
-                if type == 9 { // extension
+                if type == 9 {
                     let extType = d.u16(st + 2)
                     st += Int(d.u32(st + 4))
                     type = extType
@@ -243,8 +217,6 @@ public final class OpenTypeFace: FontFace, @unchecked Sendable {
     }
 }
 
-/// One GPOS lookup of type 2 (pair adjustment): the first subtable that
-/// covers the left glyph decides.
 struct PairAdjustment {
     let subtables: [Int]
 
@@ -259,7 +231,6 @@ struct PairAdjustment {
                 guard covIndex < count else { continue }
                 let set = st + Int(d.u16(st + 10 + 2 * covIndex))
                 let n = Int(d.u16(set)), rec = 2 + size1 + size2
-                // Binary search on the second glyph.
                 var lo = 0, hi = n - 1
                 while lo <= hi {
                     let mid = (lo + hi) / 2
@@ -330,7 +301,6 @@ struct PairAdjustment {
     }
 }
 
-/// Character → glyph mapping from the `cmap` table (formats 4 and 12).
 struct CharacterMap {
     private struct Segment { let start: UInt32, end: UInt32, compute: (UInt32) -> GlyphID }
     private var segments: [Segment] = []
@@ -395,7 +365,6 @@ struct CharacterMap {
     }
 }
 
-/// Strings of the `name` table.
 struct NameTable {
     private var strings: [Int: String] = [:]
 

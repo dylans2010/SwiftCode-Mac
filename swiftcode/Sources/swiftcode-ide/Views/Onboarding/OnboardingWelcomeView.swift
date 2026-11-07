@@ -1,15 +1,3 @@
-// OnboardingWelcomeView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Onboarding/OnboardingWelcomeView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: 'Ready to Build? / Get Started' step; Terms of Service line
-// Wiring (wiring-views): `@EnvironmentObject AppSettings` replaced with
-// `@State AppSettings.shared` — `AppSettings` is `@Observable` (Observation),
-// not `ObservableObject`, and nothing injects it into the environment — and
-// `.liquidGlass` replaced with thinMaterial (no `liquidGlass` modifier exists
-// in the destination; cf. A6's Adaptive substitutions). The "Get Started"
-// button sets `hasCompletedOnboarding`, which dismisses the first-run sheet
-// in `ShellRootView`.
 import SwiftUI
 import SwiftCodeAssistant
 

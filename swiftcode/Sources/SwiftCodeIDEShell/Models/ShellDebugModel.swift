@@ -3,24 +3,13 @@ import Observation
 import SwiftCodeDebug
 import SwiftCodeIDECore
 
-/// The debugger's state for the SwiftUI shell (`specs/ide/debug.md`,
-/// `reference-ui-4.md` §5–§6): breakpoints in the gutter and the
-/// Breakpoint navigator, the Debug navigator's process, threads and frames,
-/// the variables view, the console's filter and input line, and the debug
-/// bar's commands. The session (`WorkspaceSession`) runs lldb-dap; this
-/// mirrors what it publishes so views read it through Observation, and
-/// turns the views' gestures into session calls. No toolkit types.
 @MainActor
 @Observable
 public final class ShellDebugModel {
     @ObservationIgnored public let session: WorkspaceSession
     @ObservationIgnored weak var workspace: WorkspaceShellModel?
 
-    // MARK: Session mirror
-
-    /// A debug session is running (lldb-dap is attached).
     public private(set) var isDebugging = false
-    /// The thread the program stopped on; nil while it runs.
     public private(set) var stoppedThread: Int?
     public var isPaused: Bool { stoppedThread != nil }
     public private(set) var threads: [DebugThread] = []
@@ -28,67 +17,43 @@ public final class ShellDebugModel {
     public private(set) var selectedFrameID: Int?
     public private(set) var variables: [Variable] = []
     public private(set) var badges: [String: String] = [:]
-    /// The selected frame's parameter names, read from its source
-    /// (lldb-dap lists arguments with the locals).
     public private(set) var frameArguments: Set<String> = []
     public private(set) var isLoadingVariables = false
     public private(set) var process: DebugProcessInfo?
-    /// The stop's line and its annotation ("Thread 1: breakpoint 1.1 (1)").
     public private(set) var stopMark: (file: String, line: Int, text: String)?
     public private(set) var breakpoints = BreakpointStore()
     public private(set) var breakpointIDs: [String: String] = [:]
-    /// "<process> › Thread <n> › <index> <function>" (the debug bar).
     public private(set) var barPath = ""
-    /// The console's text for `consoleFilter`.
     public private(set) var consoleText = ""
-    /// Watch expressions' values at this stop (listed first).
     public private(set) var watchValues: [Variable] = []
-    /// Always Show Disassembly's instructions and the PC's index.
     public private(set) var disassembly: [Instruction] = []
     public private(set) var disassemblyPCIndex: Int?
-
-    // MARK: View state
 
     public var variableScope: VariableScope = .auto
     public var variableFilter = ""
     public var consoleFilter: ConsoleEntry.Filter = .all { didSet { syncConsole() } }
-    /// The `(lldb)` prompt's line.
     public var consoleInput = ""
-    /// The debug area's halves (the console bar's two toggles).
     public var showsVariables = true
     public var showsConsole = true
-    /// Expanded aggregates by row id, and their fetched children.
     public internal(set) var expandedVariables: Set<String> = []
     public private(set) var childVariables: [String: [Variable]] = [:]
     public var selectedVariable: String?
-    /// The Debug and Breakpoint navigators' selected and collapsed rows.
     public var debugSelection: String?
     public var collapsedDebugRows: Set<String> = []
     public var breakpointSelection: String?
     public var collapsedBreakpointRows: Set<String> = []
-    /// The console row a click selected (Debug ▸ Console ▸ Copy Row).
     public var selectedConsoleRow: Int?
-    // Editing (ShellDebugModel+Editing.swift).
-    /// The breakpoint editor popover, when open.
     public var breakpointEditor: BreakpointEditorState?
-    /// The gutter breakpoint under the pointer (its context menu's).
     public var gutterMenuLine: Int?
-    /// The variables view row being edited in place, and its text.
     public var editingVariable: String?
     public var editText = ""
-    /// Add Expression…: the new expression's field.
     public var isAddingExpression = false
     public var expressionText = ""
-    /// View Memory's browser, when open.
     public var memoryBrowser: MemoryBrowserState?
-    /// Debug ▸ Debug Workflow ▸ Navigate to Source File when Process Pauses.
     public var navigatesToSourceOnPause = true
-    /// Copy and Copy Value (the toolkit's pasteboard, set by the app).
     @ObservationIgnored public var pasteboard: (any DebugPasteboard)?
-    /// Where ↑/↓ are in the console history (nil: the line being typed).
     @ObservationIgnored private var historyCursor: Int?
     @ObservationIgnored private var childrenTask: Task<Void, Never>?
-    /// Whether frames' source files are on this computer, by path.
     @ObservationIgnored private var sourceExists: [String: Bool] = [:]
 
     init(session: WorkspaceSession) {
@@ -97,14 +62,10 @@ public final class ShellDebugModel {
         session.observe { [weak self] change in self?.sessionChanged(change) }
     }
 
-    /// Loads the workspace's stored breakpoints (`Breakpoints_v2.xcbkptlist`,
-    /// `reference-ui-5.md` §10.1); later changes are saved there.
     public func restoreBreakpoints() {
         session.attachBreakpointFile()
         breakpoints = session.breakpoints
     }
-
-    // MARK: Session changes
 
     private func sessionChanged(_ change: WorkspaceSession.Change) {
         switch change {
@@ -159,8 +120,6 @@ public final class ShellDebugModel {
         consoleText = consoleFilter == .all ? session.console : session.consoleText(consoleFilter)
     }
 
-    /// Once per stop (`reference-ui-4.md` §5.2): the Debug navigator is
-    /// selected, the debug area shown, and the stop's line opened.
     private func noteStop() {
         guard session.stopCount != session.autoSelectedStop, let w = workspace else { return }
         session.autoSelectedStop = session.stopCount
@@ -171,8 +130,6 @@ public final class ShellDebugModel {
         if navigatesToSourceOnPause, let loc = session.currentLocation { show(file: loc.file, line: loc.line) }
     }
 
-    /// Opens a file at a line with the caret at the line's start (the
-    /// stop's band shows the line; a selection would cover it).
     func show(file: String, line: Int) {
         guard let w = workspace, FileManager.default.fileExists(atPath: file) else { return }
         w.open(file, line: line)
@@ -181,8 +138,6 @@ public final class ShellDebugModel {
             b.setCaret(b.document.lineRange(n).lowerBound)
         }
     }
-
-    // MARK: Commands
 
     public func isEnabled(_ c: ShellCommand) -> Bool {
         switch c {
@@ -227,32 +182,22 @@ public final class ShellDebugModel {
         }
     }
 
-    /// The open file and the caret's 1-based line.
     var caretLocation: (String, Int)? {
         guard let e = workspace?.editor else { return nil }
         return (e.path, e.buffer.caretLine + 1)
     }
 
-    /// Whether every breakpoint on the caret's line is enabled (nil: none).
     public var caretLineBreakpointsEnabled: Bool? {
         guard let (file, line) = caretLocation else { return nil }
         return breakpoints.lineIsEnabled(file: file, line: line)
     }
 
-    // MARK: Gutter
-
-    /// A click on a line number: adds a breakpoint, or enables or disables
-    /// the line's (`BreakpointStore.click`).
     public func gutterClick(file: String, line: Int) { session.breakpoints.click(file: file, line: line) }
 
-    /// A breakpoint dragged out of the gutter is deleted; dragged along it,
-    /// moved.
     public func gutterDrag(file: String, from: Int, to: Int?) {
         if let to { session.breakpoints.move(file: file, from: from, to: to) } else { session.breakpoints.remove(file: file, line: from) }
     }
 
-    /// What the gutter and the text show for a file: its breakpoints, and
-    /// the selected frame's line with the stop's annotation.
     public func marks(for file: String) -> EditorDebugMarks {
         var m = EditorDebugMarks()
         m.breakpointsActive = breakpoints.isActive
@@ -264,20 +209,13 @@ public final class ShellDebugModel {
         let frame = frames.first { $0.id == selectedFrameID } ?? frames.first
         if isPaused, let f = frame, f.file == file, f.line > 0 {
             m.pcLine = f.line
-            // The annotation belongs to the top frame's stop.
             if f.id == frames.first?.id, let s = stopMark, s.file == file, s.line == f.line { m.annotation = s.text }
         }
         return m
     }
 
-    // MARK: Debug navigator
-
     static func frameRowID(_ id: Int) -> String { "frame:\(id)" }
 
-    /// The Debug navigator (`reference-ui-4.md` §5.3): the process row
-    /// "<product>  PID n", its gauges, the threads, and the stopped
-    /// thread's frames (user frames, a dotted separator, the first system
-    /// frame of each run). Empty without a session.
     public var debugRows: [DebugNavigatorRow] {
         guard isDebugging, let p = process else { return [] }
         var out: [DebugNavigatorRow] = []
@@ -318,8 +256,6 @@ public final class ShellDebugModel {
         return out
     }
 
-    /// A user frame has its source on this computer: on Linux the C
-    /// library's start-up frames name absolute build paths that are not.
     func isUserFrame(_ f: StackFrame) -> Bool {
         guard DebugPresentation.isUserFrame(f), let file = f.file else { return false }
         if let known = sourceExists[file] { return known }
@@ -328,8 +264,6 @@ public final class ShellDebugModel {
         return exists
     }
 
-    /// A Debug navigator row was clicked: a frame shows its variables and
-    /// opens its line.
     public func selectDebugRow(_ id: String) {
         debugSelection = id
         guard let row = debugRows.first(where: { $0.id == id }), let frameID = row.frameID,
@@ -343,11 +277,6 @@ public final class ShellDebugModel {
         if on { collapsedDebugRows.remove(id) } else { collapsedDebugRows.insert(id) }
     }
 
-    // MARK: Breakpoint navigator
-
-    /// The Breakpoint navigator (`reference-ui-4.md` §6): "<project>  n
-    /// Breakpoint(s)", the exception and symbolic groups, then one group
-    /// per file with "line N" rows, "ID n.m" and the enabled marker.
     public var breakpointRows: [DebugNavigatorRow] {
         let store = breakpoints
         guard !store.isEmpty else { return [] }
@@ -392,7 +321,6 @@ public final class ShellDebugModel {
             guard open else { continue }
             for b in store.all where b.file == file {
                 let key = "\(b.file):\(b.line)"
-                // "report(_:)  17" in the function around it, else "line 17".
                 let symbol = SourceSymbolLocator.symbol(file: b.file, line: b.line)
                 let place = b.column.map { "\(b.line):\($0)" } ?? "\(b.line)"
                 let base = symbol.map { "\($0.name)  \(place)" } ?? "line \(place)"
@@ -410,7 +338,6 @@ public final class ShellDebugModel {
         return out
     }
 
-    /// A breakpoint row was clicked: its line opens.
     public func selectBreakpointRow(_ id: String) {
         breakpointSelection = id
         if let loc = breakpointRows.first(where: { $0.id == id })?.location { show(file: loc.file, line: loc.line) }
@@ -420,7 +347,6 @@ public final class ShellDebugModel {
         if on { collapsedBreakpointRows.remove(id) } else { collapsedBreakpointRows.insert(id) }
     }
 
-    /// The enabled marker at a breakpoint row's end.
     public func toggleBreakpointEnabled(_ id: String) {
         if id.hasPrefix("symbolic:"), let i = Int(id.dropFirst("symbolic:".count)), session.breakpoints.symbolic.indices.contains(i) {
             session.breakpoints.symbolic[i].isEnabled.toggle()
@@ -430,7 +356,6 @@ public final class ShellDebugModel {
         session.breakpoints.toggleEnabled(file: loc.file, line: loc.line)
     }
 
-    /// The row's context menu: Delete Breakpoint.
     public func deleteBreakpoint(_ id: String) {
         if let loc = breakpointRows.first(where: { $0.id == id })?.location {
             session.breakpoints.remove(file: loc.file, line: loc.line)
@@ -443,10 +368,6 @@ public final class ShellDebugModel {
         }
     }
 
-    // MARK: Variables view
-
-    /// The variables view's rows: the selected frame's variables for the
-    /// scope and filter, with expanded aggregates' children under them.
     public var variableRows: [VariableRow] {
         var out: [VariableRow] = []
         var seen = Set<String>()
@@ -462,7 +383,6 @@ public final class ShellDebugModel {
             guard open, let kids = childVariables[id] else { return }
             for k in kids { add(k, id: id + "/" + k.name, level: level + 1, badge: nil, container: v.variablesReference) }
         }
-        // Watch expressions first (`debug.md` §Variables view depth).
         for (i, v) in watchValues.enumerated() { add(v, id: Self.watchRowID(i), level: 0, badge: nil, watch: i) }
         let filter = variableFilter.lowercased()
         for v in variables where variableScope.includes(v.name) && (variableScope != .local || !v.name.hasPrefix("$"))
@@ -472,9 +392,6 @@ public final class ShellDebugModel {
         return out
     }
 
-    /// The parameter names of the function around a 1-based line: the
-    /// nearest `func`, `init` or `subscript` declaration at or above it,
-    /// its parameter list up to the matching parenthesis.
     static func parameterNames(file: String, line: Int) -> Set<String> {
         guard line > 0, let text = try? String(contentsOfFile: file, encoding: .utf8) else { return [] }
         let lines = text.components(separatedBy: "\n")
@@ -502,7 +419,6 @@ public final class ShellDebugModel {
         return t
     }
 
-    /// Expands or collapses an aggregate; its children are fetched once.
     public func setVariableExpanded(_ row: VariableRow, _ on: Bool) {
         guard row.isExpandable else { return }
         if !on {
@@ -518,8 +434,6 @@ public final class ShellDebugModel {
         }
     }
 
-    /// A new stop (or frame) has new references: the expanded aggregates'
-    /// children are fetched again by name.
     func reloadExpandedChildren() {
         childrenTask?.cancel()
         guard !expandedVariables.isEmpty, !variables.isEmpty || !watchValues.isEmpty else {
@@ -544,17 +458,12 @@ public final class ShellDebugModel {
         }
     }
 
-    /// Waits for children being fetched (tests).
     public func waitForChildren() async { await childrenTask?.value }
 
-    /// Print Description: `po <name>` in the console.
     public func printDescription(_ row: VariableRow) {
         Task { await session.printDescription(of: row.name) }
     }
 
-    // MARK: Console
-
-    /// Return in the console's field: the line goes to LLDB.
     public func submitConsoleLine() {
         let line = consoleInput
         consoleInput = ""
@@ -563,8 +472,6 @@ public final class ShellDebugModel {
         Task { await session.evaluateInConsole(line) }
     }
 
-    /// ↑ / ↓ in the console's field: older and newer entered lines; past
-    /// the newest, an empty line.
     public func consoleHistory(older: Bool) {
         let h = session.consoleHistory
         guard !h.isEmpty else { return }
@@ -581,7 +488,6 @@ public final class ShellDebugModel {
     }
 }
 
-/// One row of the Debug or Breakpoint navigator.
 public struct DebugNavigatorRow: Identifiable, Equatable, Sendable {
     public enum Kind: Equatable, Sendable { case process, gauge, thread, frame, separator, group, breakpoint }
     public var id: String
@@ -594,13 +500,9 @@ public struct DebugNavigatorRow: Identifiable, Equatable, Sendable {
     public var isExpanded = false
     public var isDimmed = false
     public var kind: Kind
-    /// A value at the row's right end (a gauge's reading, a breakpoint's ID).
     public var trailing: String?
-    /// The Energy Impact bar's fill (0…1).
     public var fill: Double?
-    /// A breakpoint's enabled marker (nil: none).
     public var marker: Bool?
-    /// The kind letter drawn on the row's icon ("F" function, "M" method).
     public var letter: String?
     public var frameID: Int?
     public var location: (file: String, line: Int)?
@@ -619,7 +521,6 @@ public struct DebugNavigatorRow: Identifiable, Equatable, Sendable {
         self.kind = kind
     }
 
-    /// The row as the shared outline draws it.
     public var outline: OutlineRow {
         OutlineRow(id: id, level: level, title: title, detail: nil, symbol: symbol, tint: tint, isBold: isBold, isExpandable: isExpandable,
                    isExpanded: isExpanded, isDimmed: isDimmed, opens: kind == .frame || kind == .breakpoint)
@@ -633,12 +534,9 @@ public struct DebugNavigatorRow: Identifiable, Equatable, Sendable {
     }
 }
 
-/// One row of the variables view: "A name: Type = value".
 public struct VariableRow: Identifiable, Equatable, Sendable {
-    /// The names from the top-level variable down ("s/x").
     public var id: String
     public var level: Int
-    /// "A" (argument) or "L" (local) for a frame's own variables.
     public var badge: String?
     public var name: String
     public var type: String?
@@ -646,31 +544,22 @@ public struct VariableRow: Identifiable, Equatable, Sendable {
     public var reference: Int
     public var isExpanded: Bool
     public var isExpandable: Bool { reference != 0 }
-    /// The reference of the aggregate it is listed in (nil: a frame's own
-    /// variable), for `setVariable`.
     public var container: Int?
-    /// Where its value is in memory (View Memory).
     public var memoryReference: String?
-    /// The watch expression's index, for a watch row.
     public var watchIndex: Int?
     public var isWatch: Bool { watchIndex != nil }
 
-    /// "name: Type = value" (the badge is drawn apart).
     public var text: String { name + (type.map { ": \($0)" } ?? "") + " = " + value }
 }
 
-/// The debugger's marks in one file's editor.
 public struct EditorDebugMarks: Equatable, Sendable {
     public struct Breakpoint: Equatable, Sendable {
         public var isEnabled: Bool
         public var isCustomized: Bool
     }
-    /// By 1-based line.
     public var breakpoints: [Int: Breakpoint] = [:]
     public var breakpointsActive = true
-    /// The selected frame's 1-based line while paused.
     public var pcLine: Int?
-    /// The stop's annotation on that line.
     public var annotation: String?
     public init() {}
 }

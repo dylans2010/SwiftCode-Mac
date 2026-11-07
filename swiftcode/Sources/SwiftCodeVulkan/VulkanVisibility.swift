@@ -1,22 +1,7 @@
-// Metal visibility results (`setVisibilityResultMode:offset:`, record 132,
-// and the render pass descriptor's visibility result buffer) on Vulkan
-// occlusion queries (visionos.md §10.20.8).
-//
-// While a pass's mode is boolean (1) or counting (2), its draws count the
-// samples that pass the depth and stencil tests into the 8-byte slot at the
-// mode's offset of the visibility result buffer; the slots are written when
-// the pass ends. Here every run of draws with one mode and offset (a
-// segment) is one occlusion query; after the pass the query results are
-// copied into the buffer as 64-bit values. A query cannot stay active across
-// the end of a dynamic rendering instance, so a feedback snapshot (which
-// ends and restarts rendering) also ends a segment. Slots the pass does not
-// use keep their bytes.
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
 
-/// The occlusion queries of one render pass.
 struct VisibilityQueries {
     let pool: VkQueryPool
     let first: UInt32
@@ -28,14 +13,11 @@ struct VisibilityQueries {
     var offset = 0
     var used: UInt32 = 0
     var active = false
-    /// (query, slot offset) per segment, in order.
     var segments: [(query: UInt32, offset: Int)] = []
-    /// Diagnostics: the pass's size and the draws of each segment.
     var label = ""
     var segmentDraws: [Int] = []
 }
 
-/// Diagnostics: one segment's query, read back after its recording completed.
 struct VisibilityRead {
     let pool: VkQueryPool
     let query: UInt32
@@ -45,12 +27,8 @@ struct VisibilityRead {
 extension VulkanMetalBackend {
     static let visibilityPoolSize = 1024
 
-    /// Diagnostics: the first visibility-result modes and passes are logged.
     nonisolated(unsafe) static var visibilityLogged = 0
 
-    /// Queries for a render pass that sets a non-zero visibility mode and has
-    /// a visibility result buffer: `count` of them, reset in `rec`'s command
-    /// buffer (outside rendering). Nil when the pass needs none.
     func visibilityQueries(_ pass: MetalRenderPass, _ rec: Recording, width: Int = 0, height: Int = 0) -> VisibilityQueries? {
         guard let d = pass.descriptor, pass.commands.contains(where: {
             if case .setVisibilityResultMode(let m, _) = $0 { return m != 0 }
@@ -60,7 +38,6 @@ extension VulkanMetalBackend {
             noteVisibility("visibility: a pass sets a visibility mode without a visibility result buffer; not counted")
             return nil
         }
-        // At most one segment begins per draw.
         let count = pass.commands.count
         guard count <= Self.visibilityPoolSize else {
             noteVisibility("visibility: a pass of \(count) commands is beyond the query pool (\(Self.visibilityPoolSize)); not counted")
@@ -95,8 +72,6 @@ extension VulkanMetalBackend {
         return p
     }
 
-    /// A submitted recording's query pools return to the free list once it
-    /// completes. Under the lock.
     func retireVisibilityPools(_ rec: Recording, serial: UInt64) {
         guard !rec.visibilityPools.isEmpty else { return }
         let pools = rec.visibilityPools
@@ -110,7 +85,6 @@ extension VulkanMetalBackend {
         }))
     }
 
-    /// Mode change (record 132): the running segment ends.
     func setVisibilityMode(_ v: inout VisibilityQueries, _ mode: UInt64, offset: Int, _ cb: VkCommandBuffer?) {
         endVisibilityQuery(&v, cb)
         v.mode = mode
@@ -120,7 +94,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Before a draw: a segment begins if the mode counts and none runs.
     func beginVisibilityQuery(_ v: inout VisibilityQueries, _ cb: VkCommandBuffer?) {
         if v.active, !v.segmentDraws.isEmpty { v.segmentDraws[v.segmentDraws.count - 1] += 1 }
         guard v.mode != 0, !v.active, v.used < v.capacity else { return }
@@ -133,16 +106,12 @@ extension VulkanMetalBackend {
         v.segmentDraws.append(1)
     }
 
-    /// Before rendering ends (pass end, feedback snapshot) or the mode changes.
     func endVisibilityQuery(_ v: inout VisibilityQueries, _ cb: VkCommandBuffer?) {
         guard v.active else { return }
         fn.vkCmdEndQuery!(cb, v.pool, v.first + v.used - 1)
         v.active = false
     }
 
-    /// After rendering ended: each slot receives its query's 64-bit result.
-    /// A slot counted by several segments receives the sum in Metal; here it
-    /// receives the last segment's count (logged).
     func writeVisibilityResults(_ v: VisibilityQueries, _ cb: VkCommandBuffer?, _ rec: Recording? = nil) {
         guard !v.segments.isEmpty else { return }
         var last: [Int: UInt32] = [:]
@@ -177,22 +146,12 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Diagnostics (`SWIFTCODE_DEBUG_VISIBILITY_FORCE=<u32>`): every counted
-    /// slot receives this value in both of its words instead of its query's
-    /// count (1: every segment visible, 0: none), to find out whether a
-    /// guest's draw decisions follow its visibility results (visionos.md §9 Q26).
     static let debugForcedVisibility = ProcessInfo.processInfo.environment["SWIFTCODE_DEBUG_VISIBILITY_FORCE"].flatMap(UInt32.init)
 
-    /// Diagnostics (`SWIFTCODE_DEBUG_VISIBILITY_STATS=1`): every counted
-    /// segment's result is read back after its recording completed and
-    /// counted as zero or not, per pass size, slot, mode and draws; a summary
-    /// of the keys that saw zeros is logged every 20 s (visionos.md §9 Q26).
     static let debugVisibilityStats = ProcessInfo.processInfo.environment["SWIFTCODE_DEBUG_VISIBILITY_STATS"] == "1"
     nonisolated(unsafe) static var visibilityCounts: [String: (zero: Int, nonzero: Int)] = [:]
     nonisolated(unsafe) static var visibilityCountsLogged = Date()
 
-    /// Diagnostics: the pass (size, attachments, the depth attachment's
-    /// actions and clear value, the depth states and the kinds of draws).
     func visibilityLabel(_ pass: MetalRenderPass, _ d: MetalRenderPassDescriptor, width: Int, height: Int, buffer: MetalHandle) -> String {
         var states = Set<String>(), kinds = [String: Int]()
         for c in pass.commands {
@@ -215,7 +174,6 @@ extension VulkanMetalBackend {
             + "draws \(kinds.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ",")) #\(buffer.raw)"
     }
 
-    /// Under the lock (graveyard actions run under it).
     func countVisibilityResults(_ reads: [VisibilityRead]) {
         for r in reads {
             var value: UInt64 = 0
@@ -239,25 +197,15 @@ extension VulkanMetalBackend {
     }
 }
 
-// MARK: - Diagnostics: the draws of passes of one size
-
 extension VulkanMetalBackend {
-    /// `SWIFTCODE_DEBUG_PASS_DRAWS=<width>x<height>`: each render pass of that
-    /// size whose draw list differs from the previous such pass's is logged
-    /// (host monotonic time, load actions, visibility buffer and slots, and
-    /// per draw the functions, index or vertex count, instances, base
-    /// instance and the first fragment texture), at most 20000 lines.
     static let debugPassDrawsSize: (Int, Int)? = {
         guard let v = ProcessInfo.processInfo.environment["SWIFTCODE_DEBUG_PASS_DRAWS"] else { return nil }
         let p = v.split(separator: "x").compactMap { Int($0) }
         return p.count == 2 ? (p[0], p[1]) : nil
     }()
     nonisolated(unsafe) static var debugPassDrawsLast: [String: String] = [:]
-    /// `SWIFTCODE_DEBUG_PASS_DRAWS_ALL=<after s>`: every such pass is logged
-    /// (no deduplication), from that many seconds after the first one.
     static let debugPassDrawsAllAfter = Double(ProcessInfo.processInfo.environment["SWIFTCODE_DEBUG_PASS_DRAWS_ALL"] ?? "")
     nonisolated(unsafe) static var debugPassDrawsFirst: UInt64 = 0
-    /// `SWIFTCODE_DEBUG_PASS_DRAWS_BUFFERS=1`: the fragment buffers bound at each draw too.
     static let debugPassDrawsBuffers = ProcessInfo.processInfo.environment["SWIFTCODE_DEBUG_PASS_DRAWS_BUFFERS"] == "1"
     nonisolated(unsafe) static var debugPassDrawsLines = 0
 
@@ -268,10 +216,7 @@ extension VulkanMetalBackend {
         var pipeline: VKRenderPipeline?
         var fragmentTexture: MetalHandle?
         var fragmentBuffers: [Int: MetalHandle] = [:]
-        // Fixed-function state at each draw (in the line, not the signature).
         var depthState = "-", cull: UInt64 = 0, winding: UInt64 = 0, clip: UInt64 = 0, stencilRef = ""
-        // The signature leaves out handles (textures and buffers change from
-        // frame to frame); the line has them.
         var sig: [String] = [], line: [String] = []
         for c in pass.commands {
             var s: String?, extra = ""

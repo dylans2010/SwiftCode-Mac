@@ -10,10 +10,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// OV-ATSPI: OpenViews roles and traits onto AT-SPI roles, states,
-// interfaces and actions (the README's table), and the bridge's requests
-// (actions, focus, text edits, values, selection) on a headless app.
-
 struct ProbeFile: Identifiable, Hashable {
     let id: String
     var children: [ProbeFile]?
@@ -104,7 +100,6 @@ struct ATSPIMappingTests {
         #expect(find(n, .link, "Docs")?.actions.map(\.name) == ["click"])
         let image = find(n, .image, "Delete")
         #expect(image?.identifier == "trash.icon")
-        // The outline is a tree of tree items; folders expand.
         let tree = find(n, .tree)
         #expect(tree?.isSelectionContainer == true)
         #expect(tree?.interfaces.contains(ATSPI.selection) == true)
@@ -112,7 +107,6 @@ struct ATSPIMappingTests {
         #expect(folder?.states.contains(.expandable) == true && folder?.states.contains(.collapsed) == true)
         #expect(folder?.actions.map(\.name) == ["activate", "expand or collapse"])
         #expect(find(n, .treeItem, "README.md")?.states.contains(.expandable) == false)
-        // Parents and indices are filled in; every key belongs to the window.
         let s = e.snapshot(ofWindow: w)!
         for k in s.orderedKeys where k != w {
             #expect(k.hasPrefix(w + "_"))
@@ -124,21 +118,17 @@ struct ATSPIMappingTests {
     @Test func requestsRunOnTheElements() {
         let (h, e, w) = setUp()
         var n = nodes(e, w)
-        // Click Build.
         let build = find(n, .pushButton, "Build")!
         ATSPIProbeLog.shared.builds = 0
         #expect(e.performAction(0, on: build.key))
         #expect(ATSPIProbeLog.shared.builds == 1)
-        // Toggle Wi-Fi off.
         #expect(e.performAction(0, on: find(n, .toggleButton, "Wi-Fi")!.key))
         n = nodes(e, w)
         #expect(find(n, .toggleButton, "Wi-Fi")?.states.contains(.checked) == false)
-        // Set the slider; increment the stepper.
         #expect(e.setValue(0.75, on: find(n, .slider)!.key))
         #expect(e.performAction(0, on: find(n, .spinButton)!.key))
         n = nodes(e, w)
         #expect(find(n, .slider)?.value?.current == 0.75)
-        // Focus the text field, edit it, move the caret.
         let field = find(n, .entry)!
         #expect(e.grabFocus(field.key))
         n = nodes(e, w)
@@ -151,7 +141,6 @@ struct ATSPIMappingTests {
         #expect(find(n, .entry)?.text?.caret == 2)
         #expect(e.setText("Open", on: field.key))
         #expect(find(nodes(e, w), .entry)?.text?.string == "Open")
-        // Select a tree row through the Selection interface; expand a folder.
         let tree = find(n, .tree)!
         let names = Dictionary(uniqueKeysWithValues: n.map { ($0.key, $0.name) })
         let readme = tree.children.firstIndex { names[$0] == "README.md" }!

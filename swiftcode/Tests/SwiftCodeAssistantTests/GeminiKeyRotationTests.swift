@@ -2,15 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// MARK: - Gemini key rotation (Wave 16, Slice D)
-//
-// `MemorySecretStore` only: no Keychain, no real API keys. Fake
-// keys are assembled from parts so no source line carries a
-// key-shaped literal (see scan-public).
-
 @Suite struct GeminiKeyRotationTests {
-    /// A fake Gemini-shaped key: the `AIza` prefix assembled from
-    /// parts, a tag, and repeated digits (obviously fake).
     static func fakeKey(_ tag: String) -> String {
         "AI" + "za" + tag + String(repeating: "7", count: 28)
     }
@@ -47,7 +39,6 @@ import Testing
         #expect(result.invalidKeysRejected == 1)
         #expect(await rotation.keys.count == 2)
         #expect(await rotation.activeKeyId == rotation.keys.first?.id)
-        // The stored metadata holds masked values and hashes only.
         #expect(await rotation.keys.allSatisfy { !$0.maskedValue.contains("7") || $0.maskedValue.hasSuffix("7777") })
         #expect(await rotation.keys.allSatisfy { $0.keyHash.count == 64 })
     }
@@ -66,7 +57,6 @@ import Testing
         #expect(first?.key == Self.fakeKey("alpha"))
         #expect(first?.metadata.state == .active)
         #expect(first?.metadata.lastUsed != nil)
-        // The same key is returned again while it is usable.
         let again = await rotation.getActiveOrNextKey()
         #expect(again?.key == Self.fakeKey("alpha"))
     }
@@ -75,14 +65,11 @@ import Testing
         let (rotation, _) = Self.manager()
         _ = await rotation.importKeys([Self.fakeKey("alpha"), Self.fakeKey("beta"), Self.fakeKey("gamma")].joined(separator: ","))
         let ids = await rotation.keys.map { $0.id }
-        // Active is alpha (first imported). Fail beta twice, gamma once.
         await rotation.markFailed(id: ids[1])
         await rotation.markFailed(id: ids[1])
         await rotation.markFailed(id: ids[2])
-        // Next available after alpha: gamma (1 failure) beats beta (2).
         let next = await rotation.selectNextAvailableKey(excludingId: ids[0])
         #expect(next?.key == Self.fakeKey("gamma"))
-        // The previous active key returns to .ready.
         #expect(await rotation.keys.first { $0.id == ids[0] }?.state == .ready)
         #expect(await rotation.activeKeyId == ids[2])
     }
@@ -94,7 +81,6 @@ import Testing
         await rotation.markRateLimited(id: ids[0], retryAfterSeconds: 3_600)
         #expect(await rotation.keys.first { $0.id == ids[0] }?.isAvailableForUse == false)
         #expect(await rotation.keys.first { $0.id == ids[0] }?.state == .rateLimited)
-        // The next available key is beta, not the cooled-down alpha.
         #expect(await rotation.selectNextAvailableKey()?.key == Self.fakeKey("beta"))
         await rotation.markHealthy(id: ids[0])
         #expect(await rotation.keys.first { $0.id == ids[0] }?.state == .ready)
@@ -109,9 +95,7 @@ import Testing
         await rotation.markFailed(id: ids[0], isPermanentAuthError: true)
         #expect(await rotation.keys.first { $0.id == ids[0] }?.state == .invalid)
         #expect(await rotation.keys.first { $0.id == ids[0] }?.isAvailableForUse == false)
-        // An invalid key is never selected again.
         #expect(await rotation.selectNextAvailableKey()?.key == Self.fakeKey("beta"))
-        // resetHealth leaves .invalid alone.
         await rotation.resetHealth()
         #expect(await rotation.keys.first { $0.id == ids[0] }?.state == .invalid)
     }
@@ -124,7 +108,6 @@ import Testing
         #expect(rotated != nil)
         #expect(rotated?.id != before)
         #expect(await rotation.activeKeyId == rotated?.id)
-        // With a single key there is nowhere to rotate to.
         let (single, _) = Self.manager()
         _ = await single.importKeys(Self.fakeKey("solo"))
         #expect(await single.rotateNow() == nil)

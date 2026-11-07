@@ -1,22 +1,14 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// View ▸ Show Quick Actions… (⇧⌘A, `specs/ide/reference-ui-5.md` §2.4
-/// item 5): a command palette listing every enabled menu command by title;
-/// choosing one runs it. Its layout is SwiftCode's (the reference's is still to
-/// observe, §12).
 public enum QuickActions {
     public struct Action {
         public var title: String
-        /// The menus above it, "File ▸ New".
         public var path: String
         public var shortcut: String
         public var item: NSMenuItem
     }
 
-    /// The enabled commands of a menu bar, in menu order. Menus are brought
-    /// up to date first (titles, conditions); each command is validated by
-    /// the responder that would perform it (the controller's window first).
     @MainActor
     public static func collect(from bar: NSMenu, controller: WorkspaceWindowController?) -> [Action] {
         var out: [Action] = []
@@ -36,7 +28,6 @@ public enum QuickActions {
         return out
     }
 
-    /// Whether the responder that would perform the item's action enables it.
     @MainActor
     static func isEnabled(_ i: NSMenuItem, action a: Selector, controller: WorkspaceWindowController?) -> Bool {
         var target: AnyObject? = i.target
@@ -51,8 +42,6 @@ public enum QuickActions {
         return true
     }
 
-    /// The actions matching a query (fuzzy, by title), best first; all of
-    /// them in menu order for an empty query.
     public static func filter(_ actions: [Action], _ query: String) -> [Action] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return actions }
@@ -63,14 +52,12 @@ public enum QuickActions {
     }
 }
 
-/// The Quick Actions sheet: a search field over the list of commands.
 @MainActor
 public final class QuickActionsController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public let field = NSSearchField()
     public let table = NSTableView()
     public private(set) var all: [QuickActions.Action]
     public private(set) var shown: [QuickActions.Action]
-    /// Runs the chosen action (after the sheet closes).
     var onChoose: ((QuickActions.Action) -> Void)?
     var onCancel: (() -> Void)?
 
@@ -167,8 +154,6 @@ public final class QuickActionsController: NSViewController, NSTableViewDataSour
 }
 
 extension WorkspaceWindowController {
-    /// View ▸ Show Quick Actions… (⇧⌘A). Returns the palette (shown as a
-    /// sheet while the window is on screen).
     @discardableResult
     @objc public func showQuickActions(_ sender: Any?) -> QuickActionsController? {
         let bar = NSApp?.mainMenu ?? MainMenu.make()

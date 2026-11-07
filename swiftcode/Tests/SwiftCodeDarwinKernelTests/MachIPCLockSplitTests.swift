@@ -4,11 +4,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// Several images of one system with the IPC lock split on
-/// (`specs/simulator/mach-ipc-locking.md` §4), many host threads each acting
-/// as one guest thread, and traps sent through the fast path or the locked
-/// path (as the VMM does: the fast path first, the locked path when it
-/// declines).
 final class SplitWorld: @unchecked Sendable {
     static let scratch: UInt64 = 0x1_0000_0000
     static let scratchSize: UInt64 = 0x40000
@@ -17,7 +12,6 @@ final class SplitWorld: @unchecked Sendable {
     let system = DarwinSystem(ipcLocks: true)
     var tasks: [TaskWorld.Task] = []
     private var nextThreadID: UInt64 = 10
-    /// Traps that took the fast path, and all traps.
     let fastCount = Atomic<Int>(0)
     let trapCount = Atomic<Int>(0)
 
@@ -29,7 +23,7 @@ final class SplitWorld: @unchecked Sendable {
     func add(pid: Int32) throws -> TaskWorld.Task {
         let fs = DarwinFileSystem(prefixes: [], console: { _, _ in })
         let kernel = DarwinKernel(fileSystem: fs, pid: pid, system: system)
-        kernel.tracing = false  // as in the VMM: the fast paths decline traced images
+        kernel.tracing = false
         let space = GuestAddressSpace(backing: FakePhysicalBacking())
         _ = try space.mapAnonymous(at: Self.scratch, size: Self.scratchSize, protection: .readWrite, hint: nil)
         let t = TaskWorld.Task(kernel: kernel, ipc: kernel.machIPC as! MachIPC, space: space)
@@ -37,7 +31,6 @@ final class SplitWorld: @unchecked Sendable {
         return t
     }
 
-    /// A guest thread of `t` (its own thread port).
     func thread(_ t: TaskWorld.Task) -> ThreadContext {
         let id = system.lock.withLock { () -> UInt64 in
             nextThreadID += 1
@@ -48,7 +41,6 @@ final class SplitWorld: @unchecked Sendable {
         return ctx
     }
 
-    /// One trap: the fast path when `fast` and it accepts, else the locked path.
     @discardableResult
     func trap(_ t: TaskWorld.Task, _ ctx: ThreadContext, _ n: Int64, _ args: [UInt64], fast: Bool) -> UInt64 {
         var f = TrapFrame()
@@ -68,7 +60,6 @@ final class SplitWorld: @unchecked Sendable {
         UInt32(truncatingIfNeeded: trap(t, ctx, n, args, fast: fast))
     }
 
-    // Guest memory is written and read under L0 (no fast path runs then).
     func put(_ t: TaskWorld.Task, _ bytes: [UInt8], at va: UInt64) { system.lock.withLock { try! t.space.write(va: va, bytes: bytes) } }
     func read(_ t: TaskWorld.Task, _ va: UInt64, _ count: Int) -> [UInt8] {
         system.lock.withLock { try! t.space.read(va: va, count: count) }
@@ -89,8 +80,6 @@ final class SplitWorld: @unchecked Sendable {
         }
     }
 
-    /// `mach_msg_trap`: send `msg` from `buffer` (and receive on `rcvName`
-    /// into the same buffer when it is not 0).
     func machMsg(_ t: TaskWorld.Task, _ ctx: ThreadContext, _ msg: [UInt8]?, at buffer: UInt64, rcvName: UInt32 = 0,
                  rcvTimeoutMs: UInt32? = nil, sendTimeoutMs: UInt32? = nil, fast: Bool) -> (UInt32, Received) {
         var options: UInt64 = 0
@@ -108,7 +97,6 @@ final class SplitWorld: @unchecked Sendable {
         return (k, r)
     }
 
-    /// `mach_msg2_trap`, send only, a simple message with `inline` body.
     func machMsg2Send(_ t: TaskWorld.Task, _ ctx: ThreadContext, remote: UInt32, disposition: UInt32, id: Int32,
                       inline: [UInt8], at buffer: UInt64, fast: Bool) -> UInt32 {
         put(t, [UInt8](repeating: 0, count: 24) + inline, at: buffer)
@@ -123,8 +111,6 @@ final class SplitWorld: @unchecked Sendable {
     }
 }
 
-/// Runs `body` on its own thread; the returned function waits for it (at
-/// most `seconds`, nil when it did not finish).
 func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable () -> T) -> () -> T? {
     let done = DispatchSemaphore(value: 0)
     let box = ResultBox<T>()
@@ -138,9 +124,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
 }
 
 @Suite struct MachIPCLockSplitTests {
-    /// Clients in several images call servers in other images (send with a
-    /// make-send-once reply port, receive the reply in the same trap), the
-    /// servers' threads answer; every trap picks the fast or the locked path.
     @Test func requestReplyStormAcrossImages() throws {
         let w = SplitWorld()
         let servers = try (0..<3).map { try w.add(pid: 200 + Int32($0)) }
@@ -202,18 +185,12 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(perServer.allSatisfy { ($0 ?? -1) >= 0 })
         #expect(perServer.reduce(0) { $0 + ($1 ?? 0) } == total)
         #expect(w.fastCount.load(ordering: .relaxed) > w.trapCount.load(ordering: .relaxed) / 3)
-        // Rights balance: one send-right entry per client, no message left.
         for (i, s) in servers.enumerated() {
             let c = w.counters(s, service[i])
             #expect(c?.srights == clients.count && c?.msgcount == 0 && c?.sorights == 0)
         }
     }
 
-    /// A server learns of messages through an EVFILT_MACHPORT knote of a
-    /// descriptor kqueue (its thread sleeps in `kevent64` on the event lock);
-    /// clients send on the fast path and then block for the answer, so the
-    /// knote hook (deferred to the server image's event lock) must run
-    /// before the client sleeps.
     @Test func kqueueHookWakesTheServerBeforeTheClientSleeps() throws {
         let w = SplitWorld()
         let server = try w.add(pid: 200)
@@ -233,7 +210,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         let serverDone = spawnThread { () -> Int in
             var n = 0, idle = 0
             while n < total && idle < 10 {
-                // Wait for the knote (2 s at most), then drain the port on the fast path.
                 let events = w.trap(server, sctx, 369, [9, c, 0, o, 1, 0, ts], fast: false)
                 if events == 0 { idle += 1; continue }
                 idle = 0
@@ -270,9 +246,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(w.fastCount.load(ordering: .relaxed) >= total)
     }
 
-    /// A one-message queue: senders on the fast path block in the full
-    /// queue (port lock waits); a receiver drains it on both paths. Every
-    /// message arrives once and each sender's messages in order.
     @Test func fullQueueBlocksSendersAndKeepsOrder() throws {
         let w = SplitWorld()
         let rx = try w.add(pid: 200)
@@ -324,16 +297,12 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(w.counters(rx, port)?.msgcount == 0)
     }
 
-    /// Receivers blocked on the fast path when the receive right dies (the
-    /// locked path destroys it) all return; senders get their errors; a
-    /// dead-name notification reaches its port.
     @Test func portDeathWakesFastWaitersAndNotifies() throws {
         let w = SplitWorld()
         let owner = try w.add(pid: 200), other = try w.add(pid: 201)
         let port = w.allocate(owner)
         let send = w.give(port, from: owner, to: other, disposition: MachMsgType.makeSend)
         let notify = w.allocate(other)
-        // Dead-name request on `send` in `other` (mach_port_request_notification, id 72).
         let octx = w.thread(other)
         w.put(other, le32(0), at: SplitWorld.out + 0x100)
         #expect(w.kr(other, octx, -77, [0x103, UInt64(send), 72, 0, UInt64(notify), UInt64(MachMsgType.makeSendOnce),
@@ -345,7 +314,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
                 w.machMsg(owner, ctx, nil, at: SplitWorld.scratch + 0x1000 * UInt64(k + 1), rcvName: port, fast: true).0
             })
         }
-        // Let them block, then destroy the receive right on the locked path.
         Thread.sleep(forTimeInterval: 0.1)
         let mctx = w.thread(owner)
         #expect(w.kr(owner, mctx, -19, [0x103, UInt64(port), UInt64(MachPortRight.receive), UInt64(UInt32(bitPattern: -1))]) == 0)
@@ -353,7 +321,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
             let code = r()
             #expect(code == MachMsgReturn.rcvPortChanged || code == MachMsgReturn.rcvInvalidName)
         }
-        // A send to the dead port (fast path) is not delivered; the dead-name notification arrived.
         let m = TestMessage(remote: send, remoteDisposition: MachMsgType.copySend, id: 7)
         let code = w.machMsg(other, octx, m.bytes, at: SplitWorld.scratch + 0x2000, fast: true).0
         #expect(code == MachMsgReturn.sendInvalidDest)
@@ -362,8 +329,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(got == 0 && note.id == MachNotify.deadName)
     }
 
-    /// A thread blocked on the fast path (a port-lock wait) is interrupted
-    /// by L0's `interrupt` (signal delivery), and the snapshot census sees it.
     @Test func interruptAndCensusReachFineLockWaiters() throws {
         let w = SplitWorld()
         let t = try w.add(pid: 200)
@@ -382,8 +347,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(result() == MachMsgReturn.rcvInterrupted)
     }
 
-    /// A woken waiter's signal is sent after the lock is released; timeouts
-    /// racing wakes never lose a wakeup (no thread stays blocked).
     @Test func deferredWakesAreNotLost() throws {
         let lock = KernelLock()
         let queue = WaitQueue()
@@ -411,7 +374,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(lock.withLock { queue.isEmpty })
     }
 
-    /// The held-lock record follows the order; a fine lock may be taken alone.
     @Test func lockOrderIsRecorded() throws {
         let w = SplitWorld()
         let t = try w.add(pid: 200)
@@ -430,8 +392,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         }
     }
 
-    /// Work posted to a busy event lock runs before the lock is let go; none
-    /// is left behind when every thread is done.
     @Test func postedWorkIsNeverLeftBehind() throws {
         let w = SplitWorld()
         let t = try w.add(pid: 200)
@@ -453,8 +413,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(done.load(ordering: .relaxed) == 12_000)
     }
 
-    /// IPC is off the kernel lock: while another thread holds L0, messages
-    /// go back and forth between two images on the fast path.
     @Test func fastPathRunsWhileL0IsHeld() throws {
         let w = SplitWorld()
         let a = try w.add(pid: 200), b = try w.add(pid: 201)
@@ -470,7 +428,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
             return 0
         }
         held.wait()
-        // Guest memory is written before (the helpers take L0): direct writes.
         let m = TestMessage(remote: send, remoteDisposition: MachMsgType.copySend, id: 77)
         try a.space.write(va: SplitWorld.scratch + 0x1000, bytes: m.bytes)
         var f = TrapFrame()
@@ -495,12 +452,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         #expect(holder() == 0)
     }
 
-    /// The port routine traps on the fast path (`mach-ipc-locking.md`
-    /// §4.10): client threads make, arm, use and destroy ports with the
-    /// routines (fast or locked at random) while they send to a server on
-    /// the fast path and a server thread receives; the no-senders
-    /// notifications each port sends itself are delivered and destroyed with
-    /// it, and at the end no name, right or message is left over.
     @Test func portRoutinesOnTheFastPathKeepRightsBalanced() throws {
         let w = SplitWorld()
         let server = try w.add(pid: 200), client = try w.add(pid: 201)
@@ -527,7 +478,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
         var waits: [() -> Int?] = []
         for j in 0..<threads {
             let ctx = contexts[j]
-            // Distinct guest words per thread: the fast routines write them without L0.
             let out = SplitWorld.scratch + 0x20000 + 0x100 * UInt64(j)
             let buffer = SplitWorld.scratch + 0x30000 + 0x1000 * UInt64(j)
             waits.append(spawnThread { () -> Int in
@@ -543,7 +493,6 @@ func spawnThread<T: Sendable>(seconds: Double = 60, _ body: @escaping @Sendable 
                     else { return -3 }
                     let m = TestMessage(remote: send, remoteDisposition: MachMsgType.copySend, id: 4242)
                     guard w.machMsg(client, ctx, m.bytes, at: buffer, fast: true).0 == 0 else { return -4 }
-                    // The last send right: the no-senders notification is queued on the port itself.
                     guard w.kr(client, ctx, -18, [0x103, UInt64(name)], fast: r % 2 == 0) == 0 else { return -5 }
                     guard w.counters(client, name)?.msgcount == 1 else { return -6 }
                     guard w.kr(client, ctx, -76, [0x103, UInt64(name), out + 16], fast: fast) == 0,

@@ -4,14 +4,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The `.storekit` editor for the Linux IDE shell: the sidebar sections
-/// Legacy's `StoreKitSidebarView` listed, the product/group lists, and the
-/// selected product's inspector. Every edit goes through
-/// `StoreKitEditorModel`; the AppKit IDE renders the same model with
-/// `StoreKitEditorController` (SwiftCodeUI). The Assets section is honestly
-/// unavailable: the `.storekit` format carries no images, so there is
-/// nothing to edit (Legacy's asset editor named local image files that the
-/// format never stored).
 struct StoreKitEditorView: View {
     @Bindable var model: StoreKitEditorModel
     @Environment(\.colorScheme) private var scheme
@@ -33,8 +25,6 @@ struct StoreKitEditorView: View {
         }
         .shellTarget("storekit editor")
     }
-
-    // MARK: - Sidebar
 
     private func sidebar(_ c: ShellColors) -> some View {
         List(selection: Binding<StoreKitEditorSection?>(get: { model.selectedSection }, set: { if let s = $0 { model.selectedSection = s } })) {
@@ -67,8 +57,6 @@ struct StoreKitEditorView: View {
         return order.map { ($0, map[$0]!) }
     }
 
-    // MARK: - Content
-
     @ViewBuilder
     private func content(_ c: ShellColors) -> some View {
         VStack(spacing: 0) {
@@ -100,8 +88,6 @@ struct StoreKitEditorView: View {
         }
     }
 
-    // MARK: - Dashboard
-
     private func dashboard(_ c: ShellColors) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -131,8 +117,6 @@ struct StoreKitEditorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-
-    // MARK: - Products
 
     private func productList(_ c: ShellColors) -> some View {
         HStack(spacing: 0) {
@@ -176,7 +160,6 @@ struct StoreKitEditorView: View {
         }
     }
 
-    /// Updates the selected product in place.
     private func updateSelected(_ edit: (inout ConfiguredProduct) -> Void) {
         guard let id = model.selectedProductID,
               let loc = model.allProducts.first(where: { $0.product.productID == id })?.location,
@@ -247,8 +230,6 @@ struct StoreKitEditorView: View {
         }
     }
 
-    // MARK: - Groups
-
     private func groupList(_ c: ShellColors) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
@@ -277,8 +258,6 @@ struct StoreKitEditorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-
-    // MARK: - Offers / localization / timeline
 
     private func offerList(_ c: ShellColors) -> some View {
         ScrollView {
@@ -345,8 +324,6 @@ struct StoreKitEditorView: View {
         }
     }
 
-    // MARK: - Settings
-
     private func settingsForm(_ c: ShellColors) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
@@ -405,8 +382,6 @@ struct StoreKitEditorView: View {
         }
     }
 
-    // MARK: - Validation
-
     private func validationList(_ c: ShellColors) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
@@ -436,8 +411,6 @@ struct StoreKitEditorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-
-    // MARK: - Simulator
 
     private func simulatorView(_ c: ShellColors) -> some View {
         @Bindable var simulation = model.simulation
@@ -522,8 +495,6 @@ struct StoreKitEditorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-
-    // MARK: - Templates / history / compare / search / logs / raw
 
     private func templateList(_ c: ShellColors) -> some View {
         ScrollView {
@@ -697,7 +668,6 @@ struct StoreKitEditorView: View {
     }
 }
 
-/// A labeled single-line field whose edits call back with the new text.
 private struct LabeledField: View {
     let label: String
     let text: String

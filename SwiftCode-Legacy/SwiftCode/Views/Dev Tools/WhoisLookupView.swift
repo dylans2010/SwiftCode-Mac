@@ -37,7 +37,6 @@ struct WhoisLookupView: View {
 
     func lookup() {
         isLoading = true
-        // Using a public WHOIS API
         guard let url = URL(string: "https://rdap.org/domain/\(domain)") else {
             isLoading = false
             return

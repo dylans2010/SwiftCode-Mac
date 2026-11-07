@@ -3,20 +3,6 @@ import SwiftUI
 import SwiftCodeExtensions
 import SwiftCodeSDKStudio
 
-// MARK: - Extensions
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKStudioExtensionsView.swift`.
-// Installed extensions, enable/disable, uninstall (which also revokes
-// all of the extension's grants, so no grant survives its extension),
-// and manual CLI install. The data source is SwiftCode's real
-// `ExtensionManager` (`installed`, `refreshInstalled`, `setEnabled`,
-// `uninstall`, `installLocalVSIX`) — the same store the rest of the IDE
-// uses. Legacy invoked commands through `SDKExtensionManager` and drove
-// installs through the SDK CLI (`SDKInstaller.resolveCLIURL()`); SwiftCode
-// installs through `ExtensionManager.install` / `installLocalVSIX`, so
-// the manual-command sheet records the equivalent local install instead
-// of shelling out to a CLI that does not exist in SwiftCode.
-
 @MainActor
 struct SDKStudioExtensionsView: View {
     @State private var extensions: [InstalledExtension] = []
@@ -117,8 +103,6 @@ struct SDKStudioExtensionsView: View {
             }
             HStack {
                 Button("Manage Grants") {
-                    // The grant manager is a separate Studio surface; the
-                    // selection drives it via the sidebar in the full app.
                     statusMessage = "Open the grant manager for \(ext.id) from the extension's detail view."
                 }
                 .font(.caption)
@@ -211,15 +195,6 @@ struct SDKStudioExtensionsView: View {
         }
     }
 }
-
-// MARK: - Available / installed extensions
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/AvailableExtensionsView.swift` —
-// the registry browser over `SDKExtensionManager.snapshot()`: list,
-// enable/disable, uninstall, invoke a contributed command and show its
-// result. SwiftCode's `ExtensionManager.search` is the registry browser and
-// `executeCommand` invokes commands; results are the manager's live
-// `searchResults` / `installed` lists.
 
 @MainActor
 struct SDKAvailableExtensionsView: View {
@@ -392,19 +367,6 @@ struct SDKAvailableExtensionsView: View {
     }
 }
 
-// MARK: - Grant manager
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKGrantManagerView.swift`.
-// One installed extension's capability grants, with revoke (confirm)
-// and the audit trail of revoked tombstones. The store is the Studio
-// grant seam: the default adapter reads live grants from SwiftCode's real
-// `PermissionManager` and merges the revoked tombstones kept in the
-// Host slice's `SDKGrantStore` (S-2) — revoked records stay visible
-// with their revocation time, extension name, and package digest.
-// Pre-authorization from the manifest editor grants through the real
-// `PermissionManager.grant` (the seam has no grant operation by design
-// — no second grant path was invented).
-
 @MainActor
 struct SDKGrantManagerView: View {
     let extensionID: String
@@ -516,9 +478,6 @@ struct SDKGrantManagerView: View {
         do {
             let name = await grantStore.extensionName(for: extensionID) ?? extensionID
             let grants = try await grantStore.grants(for: extensionID)
-            // The adapter returns live grants only; an extension with no
-            // grants and no installed record is "not found" only when the
-            // manager has no such extension at all.
             let installed = ExtensionManager.shared.installed.contains(where: { $0.id == extensionID })
             if !installed && grants.isEmpty {
                 loadState = .notFound

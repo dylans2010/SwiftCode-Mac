@@ -54,7 +54,6 @@ public final class ConnectFileService: @unchecked Sendable {
             return
         }
 
-        // Prevent path traversal attacks (e.g. ../../)
         guard !relativePath.contains("..") else {
             ConnectServer.shared.sendError(code: "INVALID_PATH", message: "Path traversal is strictly prohibited.", correlationID: envelope.messageID, on: session)
             return

@@ -10,11 +10,9 @@ public final class VirtualizationCoordinator {
     public var selectedVMID: UUID? = nil
     public var sidebarTab: VirtualizationStateStore.SidebarTab = .dashboard
 
-    // Terminal live output buffer per VM
     public var terminalSessions: [UUID: [String]] = [:]
 
     private init() {
-        // Listen to event bus log updates
         VirtualizationEventBus.shared.subscribe { [weak self] event in
             if case .log(let vmID, let line) = event {
                 Task { @MainActor in
@@ -36,7 +34,6 @@ public final class VirtualizationCoordinator {
             logs.removeFirst()
         }
         terminalSessions[vmID] = logs
-        // Post event
         VirtualizationEventBus.shared.post(.log(vmID, line))
     }
 }

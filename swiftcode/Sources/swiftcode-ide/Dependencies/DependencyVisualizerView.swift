@@ -1,21 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/DependencyVisualizerView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
-// Verbatim except added imports (SwiftCodeIDEShell for ParsedDependency /
-// DependencyRequirementType / DependencyVisualNode, which already exist there;
-// SwiftCodeUI for ModernGroupBoxStyle).
-// BLOCKED references (left intact, owned by other scopes or unaudited):
-// - ProjectSessionStore (Legacy `SwiftCode/Services/ProjectSessionStore.swift`):
-//   RESOLVED by fix W-V2 — landed in SwiftCodeIDECore (same target the executable
-//   already depends on); the import above is the only change needed.
-// - DependencyPlatformManager (Legacy
-//   `Views/Utilities/DependencyManager/DependencyPlatformManager.swift` — not in the
-//   audit, no owner yet) — buildDependencyGraph(dependencies:).
-// The Package.swift parsing itself (regex for .package(path:/url:) is in this file
-// and is ported whole. The root node's "v1.0.0 (Root)" label is Legacy's literal
-// display copy, kept as-is.
-// Wiring: PackageDiscoveryView (swiftcode-ide) — add a Graph/Visualizer tab or
-// entry point; no dependency-graph view exists yet.
-
 import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
@@ -31,7 +13,6 @@ struct DependencyVisualizerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Info Header Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -49,7 +30,6 @@ struct DependencyVisualizerView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Graph Map Canvas Card
                 GroupBox {
                     VStack(spacing: 12) {
                         HStack {
@@ -71,7 +51,6 @@ struct DependencyVisualizerView: View {
                         } else {
                             ScrollView([.horizontal, .vertical], showsIndicators: true) {
                                 VStack(spacing: 32) {
-                                    // Root Node (Active Project)
                                     VStack(spacing: 6) {
                                         Image(systemName: "folder.badge.gearshape")
                                             .font(.title2)
@@ -140,7 +119,6 @@ struct DependencyVisualizerView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Details Inspector Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Dependency Details", systemImage: "doc.text.magnifyingglass")

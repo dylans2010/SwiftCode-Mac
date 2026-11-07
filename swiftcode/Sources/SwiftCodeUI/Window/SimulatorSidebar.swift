@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorSidebar.swift` (SwiftCode-Mac migration, P-UTIL).
-// UNRESOLVED REF: SimulatorCreationView (creation sheet) lives in swiftcode-ide, which SwiftCodeUI cannot import — placed here because SimulatorMainView (SwiftCodeUI) references this sidebar; moving SimulatorCreationView into SwiftCodeUI, or re-pointing the sheet, is a coordinator follow-up.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDECore
 

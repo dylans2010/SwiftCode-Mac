@@ -1,44 +1,11 @@
-// NOTE (2026-10-12): No Swift toolchain exists in this environment, so
-// these tests have NOT been compiled or run — statically verified only.
-// They also require a real XCTest test target: this project currently
-// has none (the app target is the only target), so this file is
-// registered in the xcodeproj as a source reference only and is NOT in
-// any target's Sources build phase — `import XCTest` would not compile
-// in the app target. On Dylan's Mac: create an XCTest target for the
-// project, add this file to it, then run the suite with xcodebuild.
-//
-// The revocation test performs REAL Keychain I/O (createKey, verify,
-// revokeEntitlement). Test keys are labeled "SDKTest-enforce-…" and
-// revoked in async tearDown.
-
 import XCTest
 @testable import SwiftCode
 
-// MARK: - SDKAssistEnforcementTests
-//
-// Tests for Part-B enforcement (Docs/Intro-to-SDK.md §13–§14, task B6):
-//   - entitlement grant / revoke / require on `SDKAPIKeyStore`
-//   - `SDKAssistService` boundary: entitled vs not, wrong-key denial,
-//     the verbatim §13 message on EVERY denied path, forged manifest
-//     claims ignored (manifest is descriptive metadata only)
-//   - `SDKAssistGate.check`: the `assist.invoke` exemption is exact —
-//     lookalikes are still denied
-//   - cloud gate: `use.SwiftCodeModel` denied without
-//     `com.SwiftCode.developer-AI-Allows-Cloud`, allowed with it
-//   - revocation mid-session: entitlement revoked → in-flight session
-//     closed, subsequent calls denied at the boundary
-
 final class SDKAssistEnforcementTests: XCTestCase {
 
-    /// The verbatim §13 user error — pinned as a literal here (not via
-    /// the shared constant) so the test independently verifies the exact
-    /// user-facing text. Do not reword.
     private let verbatimAssistDenial =
         "This app is not allowed to use Assist because access has not yet been verified. Please check with the app developer for further information."
 
-    /// The proposed §13 cloud-model denial. PROPOSED WORDING — Dylan
-    /// finalizes it; when he does, this literal and
-    /// `SDKAssistGate.cloudModelDeniedUserMessage` must change together.
     private let verbatimCloudDenial =
         "This app is not allowed to use the SwiftCode Cloud Model because access has not yet been verified. Please check with the app developer for further information."
 
@@ -51,8 +18,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
         createdKeyIDs = []
         try await super.tearDown()
     }
-
-    // MARK: - Helpers
 
     private func caller(
         extensionID: String = "com.swiftcode.sdk.test.enforce",
@@ -91,8 +56,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
         }
     }
 
-    // MARK: - Entitlement grant / revoke / require
-
     func testGrantAndRevokeEntitlementRoundTrip() async throws {
         let (key, secret) = try await SDKAPIKeyStore.shared.createKey(
             label: "SDKTest-enforce-\(UUID().uuidString)",
@@ -105,7 +68,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
         var verified = try await SDKAPIKeyStore.shared.verify(secret: secret)
         XCTAssertTrue(verified.entitlements.contains(.developerAIAssist))
 
-        // Granting twice is idempotent — no duplicate, no error.
         try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key.id)
         verified = try await SDKAPIKeyStore.shared.verify(secret: secret)
         XCTAssertEqual(verified.entitlements.filter { $0 == .developerAIAssist }.count, 1)
@@ -114,7 +76,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
         verified = try await SDKAPIKeyStore.shared.verify(secret: secret)
         XCTAssertFalse(verified.entitlements.contains(.developerAIAssist))
 
-        // Revoking again is idempotent.
         try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, from: key.id)
     }
 
@@ -136,19 +97,16 @@ final class SDKAssistEnforcementTests: XCTestCase {
     }
 
     func testRequireEntitlementThrowsOnMissingEntitlement() async throws {
-        let key = testKey() // no entitlements
+        let key = testKey()
         do {
             try await SDKAPIKeyStore.shared.requireEntitlement(.developerAIAssist, for: key)
             XCTFail("requireEntitlement must throw when the entitlement is absent")
         } catch let sdkError as SDKError {
             XCTAssertEqual(sdkError.code, .apiKeyScopeInsufficient)
         }
-        // And passes when present.
         let entitled = testKey(entitlements: [.developerAIAssist])
         try await SDKAPIKeyStore.shared.requireEntitlement(.developerAIAssist, for: entitled)
     }
-
-    // MARK: - Service boundary: entitled vs not, wrong key, verbatim message
 
     func testCreateSessionDeniedWithoutKey() async {
         await assertAssistDenied {
@@ -169,8 +127,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
         )
         XCTAssertEqual(session.extensionID, "com.swiftcode.sdk.test.enforce")
         XCTAssertFalse(session.isClosed)
-        // The wrong-key rule: the SAME session is not usable from another
-        // extension, even with an entitled key.
         let otherKey = testKey(entitlements: [.developerAIAssist])
         let other = caller(extensionID: "com.swiftcode.sdk.test.other", apiKey: otherKey)
         do {
@@ -181,7 +137,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
         } catch let sdkError as SDKError {
             XCTAssertEqual(sdkError.code, .permissionDenied)
         }
-        // Clean up the session we created (entitlement still required).
         try await SDKAssistService.shared.closeSession(
             id: session.id, caller: caller(apiKey: key)
         )
@@ -214,9 +169,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
     }
 
     func testUIVariantDeniedWithoutEntitlement() async {
-        // SDKAssistUIOpener is the assistSDK.UI boundary: unentitled
-        // callers get the verbatim §13 message (single source of truth —
-        // the same string the headless variant emits).
         do {
             try await SDKAssistUIOpener.openAssistView(caller: caller(apiKey: testKey()))
             XCTFail("expected an .assistDenied denial")
@@ -228,12 +180,7 @@ final class SDKAssistEnforcementTests: XCTestCase {
         }
     }
 
-    // MARK: - Forged manifest claims are ignored
-
     func testForgedManifestClaimDoesNotGrantAssist() async {
-        // A manifest declaring `"assist": {"requested": true}` is
-        // DESCRIPTIVE metadata only: the gate reports it, the boundary
-        // never reads it.
         let manifest = SDKManifest(
             manifestVersion: 1,
             id: "com.swiftcode.sdk.test.forged",
@@ -254,18 +201,13 @@ final class SDKAssistEnforcementTests: XCTestCase {
         )
         XCTAssertTrue(SDKAssistGate.manifestRequestsAssist(manifest))
 
-        // …and yet the service boundary denies: only the key record counts.
         let forged = caller(extensionID: "com.swiftcode.sdk.test.forged")
         await assertAssistDenied {
             try await SDKAssistService.shared.createSession(caller: forged)
         }
     }
 
-    // MARK: - IPC gate: the assist.invoke exemption is exact
-
     func testGateExemptsExactlyAssistInvoke() async throws {
-        // The entitled route passes the gate; everything else containing a
-        // denied substring is still denied — including near-misses.
         try await SDKAssistGate.check(ipcMethod: "assist.invoke", callerExtensionID: "x")
         try await SDKAssistGate.check(ipcMethod: "ASSIST.INVOKE", callerExtensionID: "x")
 
@@ -280,10 +222,8 @@ final class SDKAssistEnforcementTests: XCTestCase {
         }
     }
 
-    // MARK: - Cloud gate
-
     func testCloudModelDeniedWithoutAllowsCloudEntitlement() async {
-        let key = testKey() // entitled for nothing
+        let key = testKey()
         do {
             try await SDKCapabilityBroker.authorize(.useSwiftCodeModel, for: caller(apiKey: key))
             XCTFail("expected a .cloudModelDenied denial")
@@ -296,17 +236,11 @@ final class SDKAssistEnforcementTests: XCTestCase {
     }
 
     func testCloudModelAllowedWithAllowsCloudEntitlement() async throws {
-        // The entitlement is the authorization: no grant lookup happens,
-        // and the call returns authorized. Quota is still enforced
-        // downstream by SDKCloudModelAdapter on every call.
         let key = testKey(entitlements: [.developerAIAllowsCloud])
         try await SDKCapabilityBroker.authorize(.useSwiftCodeModel, for: caller(apiKey: key))
     }
 
     func testCloudModelKeylessKeepsGrantPath() async {
-        // Keyless sessions keep the pre-Part-B grant path: with no grant
-        // for the fake extension ID this is .permissionDenied (not the
-        // entitlement denial).
         do {
             try await SDKCapabilityBroker.authorize(
                 .useSwiftCodeModel,
@@ -320,8 +254,6 @@ final class SDKAssistEnforcementTests: XCTestCase {
         }
     }
 
-    // MARK: - Revocation mid-session
-
     func testRevokeEntitlementClosesInFlightSessionsAndDeniesNextCall() async throws {
         let (key, secret) = try await SDKAPIKeyStore.shared.createKey(
             label: "SDKTest-enforce-\(UUID().uuidString)",
@@ -331,21 +263,16 @@ final class SDKAssistEnforcementTests: XCTestCase {
         createdKeyIDs.append(key.id)
         try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key.id)
 
-        // The production flow: the dispatcher re-verifies the secret on
-        // EVERY request, so the caller below carries fresh metadata.
         let verified = try await SDKAPIKeyStore.shared.verify(secret: secret)
         let extID = "com.swiftcode.sdk.test.revoke-\(UUID().uuidString)"
         let session = try await SDKAssistService.shared.createSession(
             caller: caller(extensionID: extID, apiKey: verified)
         )
 
-        // Revoke: the store hook closes the key's in-flight sessions.
         try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, from: key.id)
         let closedByHook = await SDKAssistService.shared.closeSessions(forKeyID: key.id)
         XCTAssertEqual(closedByHook, 0, "revokeEntitlement must already have closed the session")
 
-        // The next call re-verifies (fresh metadata, no entitlement) and
-        // is denied at the boundary with the verbatim message.
         let refreshed = try await SDKAPIKeyStore.shared.verify(secret: secret)
         XCTAssertFalse(refreshed.entitlements.contains(.developerAIAssist))
         let refreshedCaller = caller(extensionID: extID, apiKey: refreshed)

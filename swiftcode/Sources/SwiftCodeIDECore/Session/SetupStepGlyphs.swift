@@ -1,7 +1,3 @@
-/// Each setup step's glyph in the paged assistant (`liquid-glass-swiftcode.md`
-/// §11): a system symbol name, used as an interop identifier. On macOS the
-/// system draws it; on Linux SwiftCode's own symbol set has the runtime steps'
-/// names. None depicts an Apple product.
 extension RuntimeSetupStep {
     public var glyph: String {
         switch self {

@@ -1,14 +1,10 @@
 import Foundation
 
-/// One queued sync operation. Ported verbatim from Legacy's
-/// `SyncQueue.swift`.
 public enum SyncOperationType: String, Codable, Sendable {
     case upload
     case download
 }
 
-/// One queued sync operation. Ported verbatim from Legacy's
-/// `SyncQueue.swift`.
 public struct SyncOperation: Codable, Sendable, Identifiable, Equatable {
     public var id: UUID
     public let type: SyncOperationType
@@ -27,9 +23,6 @@ public struct SyncOperation: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-/// The in-memory FIFO of sync operations. Ported verbatim from
-/// Legacy's `SyncQueue.swift`. Nothing in Legacy ever drained this
-/// queue into a provider — it is queue surface for a later wave.
 public actor SyncQueue {
     public static let shared = SyncQueue()
 

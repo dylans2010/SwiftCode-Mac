@@ -2,7 +2,6 @@ import SwiftUI
 import Observation
 import os
 
-/// Document controller managing file I/O, autosave, and standard undo/redo states
 @Observable
 @MainActor
 public final class VisualUIDocument: Identifiable {
@@ -11,7 +10,6 @@ public final class VisualUIDocument: Identifiable {
     public var filePath: String?
     public var isDirty = false {
         didSet {
-            // Keep DocumentCoordinator in sync
             let dirty = isDirty
             Task { @MainActor in
                 DocumentCoordinator.shared.updateUnsavedStatus(isDirty: dirty)
@@ -19,8 +17,7 @@ public final class VisualUIDocument: Identifiable {
         }
     }
 
-    // Undo / Redo Stacks
-    private var undoStack: [String] = [] // Encoded JSON state representations
+    private var undoStack: [String] = []
     private var redoStack: [String] = []
 
     private let logger = Logger(subsystem: "com.swiftcode.visualuibuilder", category: "VisualUIDocument")
@@ -39,11 +36,9 @@ public final class VisualUIDocument: Identifiable {
             scene.artboards.append(simulatorArtboard)
             scene.activeArtboardID = defaultArtboard.id
         } else {
-            // Ensure "Default" artboard is always present and first
             if !scene.artboards.contains(where: { $0.name == "Default" }) {
                 scene.artboards.insert(defaultArtboard, at: 0)
             }
-            // Ensure "Simulator" artboard is always present and second
             if !scene.artboards.contains(where: { $0.name == "Simulator" }) {
                 let idx = scene.artboards.firstIndex(where: { $0.name == "Default" }) ?? 0
                 scene.artboards.insert(simulatorArtboard, at: idx + 1)
@@ -64,11 +59,9 @@ public final class VisualUIDocument: Identifiable {
     }
 
     public func propagateToEditor() {
-        // No-op. The Preview Engine and Visual UI Builder do not automatically generate or propagate SwiftUI source code.
     }
 
     public func synchronizeFromCode(_ code: String) {
-        // Safe regex matching Text("...")
         let pattern = #"Text\(\"([^\"]+)\"\)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return }
 
@@ -82,10 +75,8 @@ public final class VisualUIDocument: Identifiable {
             }
         }
 
-        // Apply extracted texts back to the document's nodes (matching type: .text or .button) sequentially!
         guard !extractedTexts.isEmpty else { return }
 
-        // Depth-first traversal of all nodes and update properties
         var index = 0
         func updateNodesRecursively(_ node: VisualComponentNode) {
             if node.type == .text || node.type == .button {
@@ -103,7 +94,6 @@ public final class VisualUIDocument: Identifiable {
             updateNodesRecursively(artboard.rootNode)
         }
 
-        // Also check for padding values e.g. .padding(12)
         let paddingPattern = #"\.padding\((\d+)\)"#
         if let paddingRegex = try? NSRegularExpression(pattern: paddingPattern, options: []) {
             let paddingMatches = paddingRegex.matches(in: code, options: [], range: nsRange)
@@ -130,12 +120,9 @@ public final class VisualUIDocument: Identifiable {
             }
         }
 
-        // Mark dirty to trigger UI updates
         self.isDirty = true
         logger.info("Synchronized edits from editor back to Visual UI Builder nodes.")
     }
-
-    // MARK: - Undo & Redo System
 
     public func checkpoint() {
         if let data = try? JSONEncoder().encode(scene), let jsonStr = String(data: data, encoding: .utf8) {
@@ -185,8 +172,6 @@ public final class VisualUIDocument: Identifiable {
         !redoStack.isEmpty
     }
 
-    // MARK: - File Management
-
     public func save(to path: String) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
@@ -218,8 +203,6 @@ public final class VisualUIDocument: Identifiable {
         }
     }
 }
-
-// MARK: - Saved Artboard Model
 
 @Observable
 public final class SavedArtboard: Identifiable, Codable, Hashable {
@@ -299,8 +282,6 @@ public final class SavedArtboard: Identifiable, Codable, Hashable {
     }
 }
 
-// MARK: - Saved Artboard Manager
-
 @MainActor
 @Observable
 public final class SavedArtboardManager {
@@ -334,7 +315,6 @@ public final class SavedArtboardManager {
     }
 
     public func createArtboard(name: String, artboard: VisualUIArtboard, category: String = "Uncategorized") {
-        // Deep copy root node so it's fully isolated
         let copiedLayout = VisualUIArtboard(
             name: artboard.name,
             deviceFrame: artboard.deviceFrame,
@@ -352,7 +332,6 @@ public final class SavedArtboardManager {
 
     public func duplicateArtboard(id: UUID) {
         if let original = savedArtboards.first(where: { $0.id == id }) {
-            // Prevent duplicate of Default or Simulator artboards
             if original.name == "Default" || original.name == "Simulator" || original.layout.name == "Default" || original.layout.name == "Simulator" { return }
             let dupLayout = VisualUIArtboard(
                 name: "\(original.layout.name) Copy",

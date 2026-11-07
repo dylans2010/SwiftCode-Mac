@@ -1,14 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/PRCreateView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The collaboration PR creator: title, description, draft, head/base
-// branches — plus the "Commits Included" selector, which is the piece
-// the destination's `PullRequestCreateView` (`swiftcode-ide`) lacks.
-// Accepts an optional `PullRequestDraftPayload` (from
-// `BranchWorkspaceManager.preparePullRequestPayload`) to pre-fill the
-// form. Presented as a sheet by `CollaborationPullRequestView` and by
-// `BranchWorkspaceView`.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

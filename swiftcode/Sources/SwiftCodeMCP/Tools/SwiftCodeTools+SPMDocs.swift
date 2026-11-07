@@ -3,73 +3,6 @@ import SwiftCodeAssistant
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// The ported Legacy SPM / dependency / docs tool family (Wave 7,
-/// slice C).
-///
-/// Behaviour source: Legacy's `AssistSwiftPackageTool`,
-/// `AssistPackageManifestReadTool`,
-/// `AssistPackageManifestValidateTool`,
-/// `AssistPackageDependencyAddTool`,
-/// `AssistPackageDependencyAuditTool`,
-/// `AssistPackageDependencyUpdateTool`,
-/// `AssistSPMDependencyTreeTool`,
-/// `AssistCarthageCartfileInspectorTool`,
-/// `AssistPodfileInspectorTool`, `AssistDoccBuildTool`,
-/// `AssistDocsGenerateTool`, `AssistDocsIndexBuildTool` and
-/// `AssistChangeLogTool` (Dylan's own code, ported under MIT).
-/// The behaviour contract is
-/// `~/SwiftCode-Migration-Workspace/scratch/wave7-slice-c-spec.md`.
-///
-/// Conventions, following Waves 1–6:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   The slice's Legacy aliases (`swift_package` / `spm` →
-///   `swift_package_manager`, `spm_tree` → `spm_dependency_tree`,
-///   `podfile` → `podfile_inspector`,
-///   `cartfile` → `carthage_cartfile_inspector`) live in
-///   `MCPServer.toolAliases`, which the coordinator owns — they
-///   are not added here.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers, booleans) the way SwiftCode's other tools do —
-///   Legacy's string-only map is not reproduced. Tools whose
-///   Legacy result carries no data return a plain text result.
-/// * Paths resolve through the session resolver
-///   (`resolveFileReadingPath`) and never escape the workspace.
-///   A `..` that stays inside the workspace resolves (the
-///   session resolver's rule) where Legacy's per-tool resolvers
-///   rejected any `..` as text.
-/// * Subprocess tools (`swift_package_manager`,
-///   `package_manifest_validate`, `package_dependency_update`,
-///   `package_dependency_audit`'s `show-dependencies` appendix,
-///   `docc_build`) run a fixed argument vector through
-///   `terminalRunFixed` (never a shell) and report the real
-///   tool's actual output — no result is ever invented. A missing
-///   toolchain fails honestly with the prerequisite named.
-///   Legacy waited unboundedly; `swift package` runs are bounded
-///   at 300 s and `xcodebuild docbuild` at 600 s.
-/// * Approval gating: the two writing tools
-///   (`package_dependency_add`, `docs_generate`) are `writes:
-///   true` with `safeMutation` annotations. Manifest edits and the
-///   generated doc go through `commit()`. There is no Autopilot
-///   bypass.
-/// * SwiftCodeProject reuse: `SwiftCodeProject.PackageDependencies`
-///   models package references in a `.pbxproj`, not
-///   `Package.swift` text, so it does not apply here —
-///   `Package.swift` is edited as text exactly as Legacy edits
-///   it, and the audit/tree tools parse the same files Legacy
-///   parses. No parallel package model is built.
-/// * `project_changelog` reads Legacy's global snapshot history
-///   (`<Application Support>/AssistSnapshots/*/metadata.json`)
-///   read-only, because SwiftCode has no snapshot store and no SwiftCode
-///   tool creates snapshots — so in practice it reports
-///   "No snapshot history found." unless Legacy snapshots exist.
-///   It never creates the directory and never invents history.
-/// * `podfile_inspector` keeps Legacy's quirk of declaring a
-///   `path` parameter it never reads: it always inspects the
-///   workspace root.
 extension SwiftCodeMCPHost {
     var spmDocsTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -186,7 +119,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Swift Package Manager (subprocess)
 
     func spmDocsSwiftPackage(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let action = call.arguments["action"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !action.isEmpty else {
@@ -219,10 +151,6 @@ extension SwiftCodeMCPHost {
         case "dump_manifest": arguments.append("dump-package")
         case "describe": arguments.append("describe")
         default:
-            // Legacy passed other `swift package` subcommands through.
-            // Only a single token of letters, digits, `_`, and `-` is
-            // accepted, so no flags or shell metacharacters can be
-            // smuggled in as the action.
             let token = action.lowercased()
             let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789_-")
             guard !token.isEmpty, token.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
@@ -243,8 +171,6 @@ extension SwiftCodeMCPHost {
         }
         throw MCPToolError("SPM \(action) failed with code \(run.exitCode):\n\(run.stderr)\n\(run.stdout)")
     }
-
-    // MARK: - Package manifest read / validate
 
     func spmDocsManifestRead(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -329,8 +255,6 @@ extension SwiftCodeMCPHost {
                             "exitCode": .int(Int(run.exitCode))],
                            summary: "Package manifest is valid: \(packageName) with \(targetCount) target(s).")
     }
-
-    // MARK: - Package dependencies: add / audit / update
 
     func spmDocsDependencyAdd(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let url = call.arguments["url"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty else {
@@ -503,7 +427,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Dependency tree / Carthage / CocoaPods (pure reads)
 
     func spmDocsDependencyTree(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -574,8 +497,6 @@ extension SwiftCodeMCPHost {
     }
 
     func spmDocsPodfileInspector(_ call: MCPToolCall) throws -> MCPToolResult {
-        // Legacy declares a `path` parameter but never reads it: the
-        // tool always inspects the workspace root. Kept verbatim.
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
         let podfile = root.appendingPathComponent("Podfile")
@@ -610,8 +531,6 @@ extension SwiftCodeMCPHost {
         }
         return .text(report)
     }
-
-    // MARK: - DocC build (subprocess)
 
     func spmDocsDoccBuild(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let scheme = call.arguments["scheme"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !scheme.isEmpty else {
@@ -658,8 +577,6 @@ extension SwiftCodeMCPHost {
                             "archive_path": .string(archive.path), "archive_relative": .string(relativeArchive)],
                            summary: "DocC build succeeded for scheme \(scheme). Archive: \(relativeArchive)")
     }
-
-    // MARK: - Docs generate / index (one write, one read)
 
     func spmDocsDocsGenerate(_ call: MCPToolCall) async throws -> MCPToolResult {
         let rawOutput = call.arguments["outputPath"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -747,16 +664,7 @@ extension SwiftCodeMCPHost {
                            summary: "Markdown index (\(docs.count) files):\n\(table)")
     }
 
-    // MARK: - Changelog (read-only snapshot history)
-
     func spmDocsChangelog(_ call: MCPToolCall) throws -> MCPToolResult {
-        // WIRING (wiring-backend): Legacy's `AssistChangeLogTool` reads
-        // the global AssistSnapshots store through
-        // `AssistSnapshotFunctions.listSnapshots()` (SwiftCodeAssistant,
-        // on main) — the same store, the same metadata.json shape, the
-        // same newest-first order. The previous inline directory scan
-        // duplicated that reader; it now calls it. No snapshots yet
-        // means "No snapshot history found.", never invented history.
         let snapshots = (try? AssistSnapshotFunctions.listSnapshots()) ?? []
         let log = snapshots.map { "[\($0.timestamp)] \($0.message) (ID: \($0.id))" }.joined(separator: "\n")
         return .structured(["log": .string(log.isEmpty ? "No snapshot history found." : log)],
@@ -765,7 +673,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Pure helpers (Legacy's extractors, kept verbatim)
 
     nonisolated static func spmDocsFirstQuotedString(in text: String) -> String? {
         guard let open = text.firstIndex(of: "\"") else { return nil }
@@ -909,8 +816,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - Manifest text surgery (Legacy's `package_dependency_add`)
-
     nonisolated static func spmDocsNormalizedRequirement(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return "from: \"1.0.0\"" }
@@ -972,8 +877,6 @@ extension SwiftCodeMCPHost {
         content.replaceSubrange(openBracket.upperBound..<closeBracket.lowerBound, with: replacement)
         return true
     }
-
-    // MARK: - File enumeration / generation helpers
 
     nonisolated static func spmDocsListSwiftFiles(under root: URL) -> [URL] {
         var found: [URL] = []

@@ -1,102 +1,12 @@
 import Foundation
 
-// MARK: - Meta turn executor (Wave 16, Slice B)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised
-// under MIT):
-//   * `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MetaAssistProvider.swift`
-//     — `executeTurn`, `normalizeToolName`, `isRateLimitError`,
-//     `switchModel`, `unqueueTurn`, `cancelTurn`, and the turn
-//     tracker (`TurnTracker.ItemState`).
-//
-// What this is: the MSP half of a Meta turn. The executor drives
-// one `muse serve` host session — initialize once, start or
-// resume a session, start a turn with `ifBusy: "queue"`, and
-// route the host's notifications into `ChatEvent`s until
-// `turn/completed` (or `turn/unqueued` for this turn) arrives.
-//
-// What is deliberately different from Legacy — read this before
-// assuming a behaviour carried over:
-//   * NO Autopilot bypass. Legacy decided approvals itself and,
-//     in Autopilot mode, approved everything at system level
-//     (`isAllowed = isAutopilot ? true : …`). Here every
-//     `approval/requested` goes through the host's permission
-//     UI (`AgentAttachment.requestPermission`, options
-//     `allow_once` / `abort`); with no attachment the decision
-//     is `abort`. The `muse` host still executes its own tools
-//     itself — SwiftCode observes them as `.activity` events and
-//     never runs a tool inside the provider.
-//   * NO SwiftCode MCP tool execution inside the provider.
-//     `SwiftCodeAssistant` does not (and cannot) depend on
-//     `SwiftCodeMCP` — the dependency runs the other way — so there
-//     is no `MCPServer` to call here. Tool calls the host makes
-//     are named (via `MetaToolNameNormalizer`, against SwiftCode's
-//     MCP ids when the host injects them) and reported as
-//     activity; they are not executed by SwiftCode. Wiring SwiftCode's
-//     MCP endpoint into `muse serve` would need a documented
-//     CLI mechanism for it, and none was found: Legacy passed no
-//     MCP configuration to the host, and Meta's public docs
-//     describe `muse serve` only as hosting the session protocol
-//     (with SDKs wrapping it). The attachment's `proposeChange`
-//     / `readFile` hooks are therefore unused by this provider
-//     until such a seam exists; the host's "SwiftCode's tools are
-//     attached" activity line (emitted by the IDE model when any
-//     provider attaches) overclaims for Meta and should be
-//     qualified by the host.
-//   * NO SystemIndex prompt. Legacy prefixed every turn with
-//     its canonical system assets (`baselinePrompt`, retrieved
-//     instructions, the full native-tool catalog with JSON
-//     schemas). SwiftCode has no `SystemIndexService`, and the MCP
-//     tool catalog cannot be listed from this target, so the
-//     turn carries the host's own instructions plus the
-//     conversation history (last 12 turns) and the current
-//     request — nothing invented, nothing from another provider.
-//   * NO `LLMService` fallback. Legacy's rate-limit catch ran
-//     the turn again through `MuseOtherModelsBridge.executeTurn`
-//     (its direct-LLM path). That path needs `LLMService` and
-//     `AssistManager` execution, neither of which exists in
-//     SwiftCode; the host-level router (Wave 15 failover) owns
-//     cross-provider failover instead. The executor still
-//     classifies rate limits (`isRateLimitError`, verbatim
-//     rules) so the host can fail over.
-//   * NO `MetaAccountAuthService` / login flow. A turn without
-//     credentials fails with `.notSignedIn` and a hint to run
-//     `muse` once in Terminal; SwiftCode never launches an
-//     interactive `muse login`.
-//   * Thinking deltas have no `ChatEvent` case, so they follow
-//     the ACP provider's precedent: accumulated and emitted as
-//     `.activity("Thinking: …")` once the buffer holds a blank
-//     line or passes 240 characters. Text deltas stream as
-//     `.text`; tool stdout/stderr deltas are tracked on the item
-//     and reported as tool progress activity — never dumped
-//     into the chat text (Legacy's own rule).
-//   * `session/modelChanged` does not write settings (there is
-//     no `AppSettings` here); the executor records the new id
-//     in `reportedModelID` for the host to read.
-//   * The provider, not the executor, owns the other-models
-//     proxy: `executeTurn` takes an optional `proxyBaseURL`
-//     (the `MuseOtherModelsBridge` proxy, started by the host
-//     when other-model mode is on) and passes it as
-//     `--base-url`, exactly as Legacy did.
-
-// MARK: - Tool-name normalization
-
-/// How a normalized tool name was resolved (for the unmapped
-/// record: only `.registry` and `.synonym` are confirmed
-/// mappings onto SwiftCode tools).
 public enum MetaToolNameSource: Sendable, Equatable {
-    /// One of Legacy's hardcoded synonym rules.
     case synonym
-    /// Present in the injected SwiftCode MCP tool ids.
     case registry
-    /// A static alias the MCP server itself honours
-    /// (`bash` → `use_terminal`, Legacy alias table, Wave 4).
     case alias
-    /// No mapping found: the cleaned name, recorded unmapped.
     case passthrough
 }
 
-/// The result of normalizing one tool name.
 public struct MetaNormalizedToolName: Sendable, Equatable {
     public let name: String
     public let source: MetaToolNameSource
@@ -106,26 +16,9 @@ public struct MetaNormalizedToolName: Sendable, Equatable {
     }
 }
 
-/// Normalizes incoming tool identifiers (Legacy
-/// `MetaAssistProvider.normalizeToolName`): strips a `Muse.` /
-/// `muse.` (etc.) namespace prefix, then maps synonyms to
-/// canonical SwiftCode tool ids — resolved against SwiftCode's MCP tool
-/// registry, NOT Legacy's `AssistManager` registry, which does
-/// not exist here.
-///
-/// The registry is the set of MCP tool ids the host injects
-/// (see `MetaAssistProvider.knownToolIDs`): the provider cannot
-/// import `SwiftCodeMCP` itself, so until the host injects the live
-/// catalogue the set is empty and every non-synonym name is
-/// recorded as unmapped rather than silently claimed to exist.
 public enum MetaToolNameNormalizer {
-    /// Prefixes stripped, in order, first match wins (Legacy).
     public static let namespacePrefixes = ["muse.", "Muse.", "muse_", "Muse_", "muse:", "Muse:", "muse-", "Muse-"]
 
-    /// Aliases the MCP server honours that this executor can
-    /// produce on its own (Legacy's alias table; the full table
-    /// lives in `MCPServer.toolAliases` and is applied at
-    /// `tools/call` time by the server itself).
     public static let mcpAliases: [String: String] = [
         "bash": "use_terminal",
         "sh": "use_terminal",
@@ -167,9 +60,6 @@ public enum MetaToolNameNormalizer {
     }
 }
 
-// MARK: - Turn tracker
-
-/// Per-turn item state (Legacy `TurnTracker.ItemState`).
 public struct MetaTurnItemState: Sendable, Equatable {
     public let kind: String
     public let tool: String?
@@ -183,9 +73,6 @@ public struct MetaTurnItemState: Sendable, Equatable {
     }
 }
 
-/// What the notification router produces for one host
-/// notification. The executor maps these onto `ChatEvent`s,
-/// approval decisions, and the turn's terminal continuation.
 public enum MetaTurnEvent: Sendable, Equatable {
     case text(String)
     case thinking(String)
@@ -200,23 +87,13 @@ public enum MetaTurnEvent: Sendable, Equatable {
     case ignored
 }
 
-/// Routes one MSP notification into turn events, against a
-/// tracker (Legacy's `bridge.setNotificationHandler` closure,
-/// factored pure so tests can drive it with fixtures).
-/// The tracker is mutated in place; unmapped tool names are
-/// appended to `unmappedToolNames` (deduped, in order).
 public enum MetaTurnNotificationRouter {
-    /// Whether a raw tool name is a Muse SDK tool (Legacy's
-    /// `isMuseTool` test): a `muse.`/`Muse.`-prefixed name, or a
-    /// name no SwiftCode registry knows.
     public static func isMuseTool(_ rawName: String, knownToolIDs: Set<String>) -> Bool {
         rawName.hasPrefix("muse.") || rawName.hasPrefix("Muse.") ||
             rawName.hasPrefix("muse_") || rawName.hasPrefix("Muse_") ||
             !knownToolIDs.contains(MetaToolNameNormalizer.normalize(rawName, knownToolIDs: knownToolIDs).name)
     }
 
-    /// The human-readable line for a tool start, in the Hermes
-    /// provider's style: name plus the most useful argument.
     public static func describeToolUse(_ name: String, argumentsJSON: String) -> String {
         guard let data = argumentsJSON.data(using: .utf8),
               let input = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -261,7 +138,6 @@ public enum MetaTurnNotificationRouter {
             guard !delta.isEmpty else { return [.ignored] }
             let kind = itemId.flatMap { tracker[$0]?.kind } ?? ""
             if field == "output" || kind == "toolCall" || kind == "userShell" {
-                // Tool stdout/stderr — tracked, never chat text.
                 if let id = itemId {
                     tracker[id]?.output.append(delta)
                 }
@@ -311,18 +187,13 @@ public enum MetaTurnNotificationRouter {
             let requirement = params?["currentRequirementId"] ?? params?["requirementId"]
             return [.approvalRequested(sessionID: sessionId, approvalID: approvalId, action: action, requirement: requirement)]
         case "approval/resolved":
-            return [.ignored] // Durable policy result; observed only.
+            return [.ignored]
         default:
             return [.ignored]
         }
     }
 }
 
-// MARK: - Turn state (one turn's mutable box)
-
-/// The mutable state of one running turn, shared between the
-/// bridge's reader task (which delivers notifications) and the
-/// executor actor (which resumes the turn). Guarded by one lock.
 final class MetaTurnState: @unchecked Sendable {
     let lock = NSLock()
     var tracker: [String: MetaTurnItemState] = [:]
@@ -330,9 +201,6 @@ final class MetaTurnState: @unchecked Sendable {
     var thinking = ""
     var resumed = false
 
-    /// Appends a thinking delta; returns the accumulated text to
-    /// emit when the buffer holds a blank line or passes 240
-    /// characters (the ACP provider's precedent), else nil.
     func appendThinking(_ delta: String) -> String? {
         lock.lock()
         defer { lock.unlock() }
@@ -342,7 +210,6 @@ final class MetaTurnState: @unchecked Sendable {
         return String(thinking.trimmingCharacters(in: .whitespacesAndNewlines).prefix(240))
     }
 
-    /// Marks the turn resumed; true when this call won the race.
     func claimResume() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -352,39 +219,16 @@ final class MetaTurnState: @unchecked Sendable {
     }
 }
 
-// MARK: - Executor
-
-/// Executes Meta turns against one MSP host (Legacy
-/// `MetaAssistProvider.executeTurn` + session bookkeeping).
-/// Actor-isolated so a second turn waits for the first: the
-/// shared bridge carries one notification handler at a time.
 public actor MetaAssistTurnExecutor {
     public static let shared = MetaAssistTurnExecutor()
 
-    /// The default turn budget (Wave 17): 300 seconds. Legacy's
-    /// `MetaAssistProvider` had no turn timeout at all
-    /// (verified: zero "timeout" hits in Legacy's provider
-    /// source). 300s is Legacy's own default for long-running
-    /// work (`ReverseManager`'s `timeoutSeconds`, 300) and sits
-    /// between the 15s skills-list timeout (a quick listing) and
-    /// no bound at all. A coding turn runs tools and long
-    /// generations, so the 30s CLI default
-    /// (`MuseCodeCLIHelper.runCommand`) would kill real turns.
-    /// A turn that exceeds the budget is cancelled, the Muse
-    /// host is stopped, and `MuseCodeCLIError.turnTimeout` is
-    /// thrown — a turn never hangs and never fabricates a
-    /// result. 0 disables the timeout.
     public static let defaultTurnTimeout: TimeInterval = 300
 
     public private(set) var activeSessionID: String?
     public private(set) var activeWorkspaceRoot: String?
     public private(set) var activeTurnID: String?
     public private(set) var completedTurns: [String: AnyJSON] = [:]
-    /// Tool names from the last turn that no mapping confirmed
-    /// (see `MetaToolNameNormalizer`).
     public private(set) var lastTurnUnmappedToolNames: [String] = []
-    /// The model id the host last reported via
-    /// `session/modelChanged`, if any.
     public private(set) var reportedModelID: String?
 
     private let bridge: MuseCodeMSPBridge
@@ -402,19 +246,12 @@ public actor MetaAssistTurnExecutor {
         reportedModelID = nil
     }
 
-    /// The client identity sent with `initialize` (Legacy).
     public static let clientInfo: AnyJSON = [
         "name": "swiftcode",
         "title": "SwiftCode",
         "version": "1.0.0",
     ]
 
-    /// Builds the turn's input text: the host's instructions,
-    /// then the recent history (last 12 turns, excluding a
-    /// duplicate of the current prompt), then the current
-    /// request. Legacy also prepended SystemIndex assets and
-    /// the full native-tool catalog; SwiftCode has neither (see the
-    /// file header), so nothing is invented in their place.
     public static func buildEffectivePrompt(instructions: String, history: [ChatMessage], prompt: String) -> String {
         var parts: [String] = []
         let system = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -440,10 +277,6 @@ public actor MetaAssistTurnExecutor {
         return parts.joined(separator: "\n\n")
     }
 
-    /// Parses a `model/list` response into catalog items
-    /// (Legacy `fetchModels`). Returns nil when the response
-    /// carries no usable list — the caller falls back to
-    /// `MetaAssistProvider.fallbackModels`.
     public static func parseModelList(_ response: AnyJSON) -> [MetaModelItem]? {
         guard let modelsArray = response["result"]?["models"]?.array else { return nil }
         var items: [MetaModelItem] = []
@@ -464,10 +297,6 @@ public actor MetaAssistTurnExecutor {
         return items.isEmpty ? nil : items
     }
 
-    /// Extracts a session id from a `session/start` response
-    /// (Legacy tried `result.session.sessionId`, then
-    /// `session.sessionId`, then a top-level `sessionId`, then
-    /// fell back to the command id).
     public static func parseSessionID(_ response: AnyJSON, fallback: String) -> String {
         if let id = response["result"]?["session"]?["sessionId"]?.string, !id.isEmpty { return id }
         if let id = response["session"]?["sessionId"]?.string, !id.isEmpty { return id }
@@ -475,9 +304,6 @@ public actor MetaAssistTurnExecutor {
         return fallback
     }
 
-    /// Whether the error is a "session is not loaded on this
-    /// host" failure (Legacy's retry trigger for `turn/start`):
-    /// the text, or an `MspError` with kind `sessionNotLoaded`.
     public static func isSessionNotLoaded(_ error: Error) -> Bool {
         let text = error.localizedDescription
         if text.contains("is not loaded on this host") { return true }
@@ -488,9 +314,6 @@ public actor MetaAssistTurnExecutor {
         return false
     }
 
-    /// Detects a rate-limit / quota / capacity failure (Legacy
-    /// `isRateLimitError`, verbatim rules, including the
-    /// `MuseCodeMSPError.reason` check).
     public static func isRateLimitError(_ error: Error) -> Bool {
         if let mspError = error as? MuseCodeMSPError {
             let reason = mspError.reason?.lowercased() ?? ""
@@ -513,27 +336,6 @@ public actor MetaAssistTurnExecutor {
             desc.contains("capacity")
     }
 
-    /// Initializes the host session and executes one turn,
-    /// streaming events back through `onEvent`. The caller yields
-    /// `.finished` after this returns.
-    ///
-    /// - Parameters:
-    ///   - executable: the located `muse` binary; nil throws
-    ///     `MuseCodeCLIError.executableNotFound`.
-    ///   - hasCredentials: whether a credential file exists;
-    ///     false (and no proxy) throws `.notSignedIn` — SwiftCode
-    ///     never launches an interactive login.
-    ///   - proxyBaseURL: the other-models proxy URL, when the
-    ///     host started one; passed as `--base-url`.
-    ///   - attachment: the agent-mode attachment; its
-    ///     `requestPermission` decides approvals. Nil means
-    ///     every approval is denied (`abort`).
-    ///   - knownToolIDs: SwiftCode MCP tool ids for name resolution.
-    ///   - turnTimeoutSeconds: the longest the turn may run
-    ///     (`defaultTurnTimeout`); a turn that exceeds it is
-    ///     cancelled, the host is stopped, and
-    ///     `MuseCodeCLIError.turnTimeout` is thrown. 0 disables
-    ///     the timeout.
     public func executeTurn(
         prompt: String,
         history: [ChatMessage] = [],
@@ -585,22 +387,6 @@ public actor MetaAssistTurnExecutor {
                     }
                 }
                 if turnTimeoutSeconds > 0 {
-                    // The turn budget (Wave 17). The timer races
-                    // the turn's own completion on `claimResume`,
-                    // so whichever wins settles the continuation
-                    // exactly once. On timeout the host is stopped
-                    // outright: `cancelTurn` cannot be relied on
-                    // against an unresponsive host (its
-                    // `sendCommand` has no timeout of its own and
-                    // would wait forever for a reply), while
-                    // `stopHost` terminates the process and fails
-                    // every pending request, so the runTurn task
-                    // unwinds instead of hanging. The executor's
-                    // session state is cleared in the `catch`
-                    // below, since a stopped host has no session
-                    // to resume. A timer that fires after a
-                    // normally completed turn loses the race and
-                    // does nothing.
                     Task {
                         try? await Task.sleep(nanoseconds: UInt64(turnTimeoutSeconds * 1_000_000_000))
                         guard !Task.isCancelled else { return }
@@ -654,7 +440,7 @@ public actor MetaAssistTurnExecutor {
             case .activity(let line):
                 onEvent(.activity(line))
             case .toolStarted:
-                break // The router's `.activity` line already covers it.
+                break
             case .toolProgress(_, let message):
                 onEvent(.activity(message))
             case .toolCompleted(_, let toolName, _, _, _):
@@ -679,11 +465,6 @@ public actor MetaAssistTurnExecutor {
         }
     }
 
-    /// Answers one `approval/requested` (Legacy's approval
-    /// branch, minus Autopilot): asks the host's permission UI
-    /// when attached, otherwise denies. Only the id `allow_once`
-    /// ever reaches the host as an allow; anything else,
-    /// including a cancelled prompt, becomes `abort`.
     private func decideApproval(
         sessionID: String,
         approvalID: String,
@@ -700,8 +481,6 @@ public actor MetaAssistTurnExecutor {
             let chosen = await attachment.requestPermission("Assist with Meta wants to \(action)", options)
             if chosen == "allow_once" { choice = "allow_once" }
         }
-        // Legacy's fallback requirement when the host sent neither
-        // `currentRequirementId` nor `requirementId`.
         let requirementID: AnyJSON = requirement ?? ["approvalId": .string(approvalID), "sourceIndex": .int(0)]
         _ = try? await bridge.sendCommand(method: "approval/decide", params: [
             "sessionId": .string(sessionID),
@@ -712,12 +491,6 @@ public actor MetaAssistTurnExecutor {
         ])
     }
 
-    // MARK: - Session / turn plumbing
-
-    /// Runs the initialize → session → turn sequence (Legacy's
-    /// `Task { @MainActor in … }` block inside `executeTurn`).
-    /// Returns once `turn/start` is accepted; the turn itself
-    /// completes through the `turn/completed` notification.
     private func runTurn(
         prompt: String,
         effectivePrompt: String,
@@ -725,15 +498,12 @@ public actor MetaAssistTurnExecutor {
         reasoningEffort: String,
         workspaceRoot: String
     ) async throws {
-        // 1. Initialize & handshake ONLY ONCE across the lifetime
-        // of the bridge.
         if !(await bridge.isInitialized) {
             _ = try await bridge.sendCommand(method: "initialize", params: ["clientInfo": Self.clientInfo])
             try await bridge.sendNotification(method: "initialized", params: [:])
             await bridge.markInitialized()
         }
 
-        // 2. Start or resume the session.
         var sessionId = ""
         if let existing = activeSessionID, activeWorkspaceRoot == workspaceRoot {
             do {
@@ -758,8 +528,6 @@ public actor MetaAssistTurnExecutor {
             activeWorkspaceRoot = workspaceRoot
         }
 
-        // 3. Start the turn with a UUIDv7 commandId, reasoning
-        // effort, and `ifBusy: "queue"`.
         let turnCmdId = MuseUUIDv7.generate()
         activeTurnID = turnCmdId
         func turnParams(sessionID: String) -> AnyJSON {
@@ -777,8 +545,6 @@ public actor MetaAssistTurnExecutor {
             turnRes = try await bridge.sendCommand(method: "turn/start", params: turnParams(sessionID: sessionId))
         } catch {
             if Self.isSessionNotLoaded(error) {
-                // The session is not loaded on this host: start a
-                // fresh session and retry the turn once (Legacy).
                 let freshCmdId = MuseUUIDv7.generate()
                 let freshRes = try await bridge.sendCommand(method: "session/start", params: [
                     "commandId": .string(freshCmdId),
@@ -799,12 +565,6 @@ public actor MetaAssistTurnExecutor {
         }
     }
 
-    // MARK: - Model / turn control
-
-    /// Switches the active model mid-session via
-    /// `session/setModel` without losing session state (Legacy
-    /// `switchModel`). With no session, the host just records
-    /// the choice (the provider's next turn uses it).
     public func switchModel(modelID: String, providerID: String = "openai") async throws {
         guard let sessionId = activeSessionID else { return }
         guard await bridge.isRunning else { return }
@@ -816,8 +576,6 @@ public actor MetaAssistTurnExecutor {
         ])
     }
 
-    /// Un-queues / reclaims a pending turn before it executes
-    /// (Legacy `unqueueTurn`).
     public func unqueueTurn(turnId: String) async throws {
         guard let sessionId = activeSessionID else { return }
         let cmdId = MuseUUIDv7.generate()
@@ -828,12 +586,6 @@ public actor MetaAssistTurnExecutor {
         ])
     }
 
-    /// Cancels the current turn (Legacy `cancelTurn`). The
-    /// `already_terminal` race is swallowed: a turn that reached
-    /// its own terminal naturally is not a failure. (Legacy also
-    /// cancelled the other-models bridge's active task; SwiftCode's
-    /// other-models path has no such task — the proxy streams
-    /// through the MSP host, which this cancel reaches.)
     public func cancelTurn() async {
         guard let sessionId = activeSessionID else { return }
         let turnId = activeTurnID ?? ""

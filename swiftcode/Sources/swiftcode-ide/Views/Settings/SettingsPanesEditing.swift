@@ -5,8 +5,6 @@ import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeSyntax
 
-/// Settings ▸ Editing, with its Display, Completion and Indentation pages
-/// (reference-ui-5.md §9.3; the macOS IDE's `TextEditingSettingsPane`).
 struct EditingSettingsPane: View {
     @Bindable var model: ShellSettingsModel
 
@@ -110,8 +108,6 @@ struct EditingSettingsPane: View {
     }
 }
 
-/// Editing ▸ Completion: completion while typing, and where predictive
-/// completion's model comes from (`specs/ide/predictive-completion.md` §5).
 struct CompletionSettingsPage: View {
     var back: () -> Void
     @State private var prediction = Preferences.shared.predictiveCompletion

@@ -3,17 +3,6 @@ import Foundation
 import SwiftUI
 import SwiftCodeCollaboration
 
-/// The Collaboration window (wiring-views): the workspace's
-/// `CollaborationMainView` in its own window, one per workspace folder
-/// (same shape as `CIWindowManager` for the CI dashboard).
-///
-/// The shell builds the managers from the open workspace — the
-/// `CollaborationProject` projection of the workspace folder plus the
-/// local peer id — because `CollaborationMainView` takes injected
-/// `CollaborationManager` + `CollaborationChatManager` and neither has a
-/// shared instance. The chat manager's public init is the one-line
-/// wiring addition on `CollaborationChatManager` (cf.
-/// `PullRequestManager`'s public init).
 @MainActor
 public final class CollaborationWindowManager: NSObject {
     public static let shared = CollaborationWindowManager()
@@ -73,8 +62,6 @@ extension CollaborationWindowManager: NSWindowDelegate {
 }
 
 extension WorkspaceWindowController {
-    /// View ▸ Navigators ▸ Show Collaboration…: the workspace's
-    /// Collaboration window (overview, branches, sync, reviews, chat).
     @objc public func showCollaboration(_ sender: Any?) {
         CollaborationWindowManager.shared.showWindow(workspaceFolder: workspaceFolder)
     }

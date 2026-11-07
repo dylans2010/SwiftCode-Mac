@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// `statEntry(inDirectory:name:)` (bsd-locking.md §14): one host `lstat`
-/// for an entry plainly inside its directory's prefix; the same answer as
-/// the full resolution for every kind of entry, including a nested prefix
-/// root, a guest symbolic link, a host symbolic link and a missing name.
 @Suite struct DirectoryEntryStatTests {
     @Test func entryStatMatchesTheFullResolution() throws {
         let tree = try TempTree()

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct ColorGradientGeneratorView: View {
@@ -20,7 +17,6 @@ struct ColorGradientGeneratorView: View {
                 ColorPicker("End Color", selection: $color2)
             }
             .padding()
-            
 
             VStack(alignment: .leading) {
                 Text("SwiftUI Code:")

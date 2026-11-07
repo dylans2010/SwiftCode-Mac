@@ -29,13 +29,11 @@ import SwiftCodeSubprocess
         }
     }
 
-    /// Stopping the consumer interrupts the child (SIGINT, then SIGTERM).
     @Test func cancellingInterruptsTheChild() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-stream-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let marker = dir.appendingPathComponent("interrupted")
-        // Traps SIGINT, records it and exits; otherwise it would run 30 s.
         let script = "trap 'echo yes > \"\(marker.path)\"; exit 130' INT; echo ready; i=0; while [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done"
         let started = Date()
         let task = Task {
@@ -46,7 +44,6 @@ import SwiftCodeSubprocess
         try await Task.sleep(nanoseconds: 500_000_000)
         task.cancel()
         _ = try? await task.value
-        // The trap runs once the current `sleep 0.1` returns.
         for _ in 0..<50 where !FileManager.default.fileExists(atPath: marker.path) { try await Task.sleep(nanoseconds: 100_000_000) }
         #expect(FileManager.default.fileExists(atPath: marker.path))
         #expect(Date().timeIntervalSince(started) < 10)

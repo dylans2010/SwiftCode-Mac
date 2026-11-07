@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - JSON Formatter Extension View
 struct JSONFormatterExtensionView: View {
     @State private var formatOnSave = true
     @State private var indentStyle = "spaces"

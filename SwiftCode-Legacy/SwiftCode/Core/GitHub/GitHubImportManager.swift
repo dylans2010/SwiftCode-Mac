@@ -4,7 +4,6 @@ final class GitHubImportManager: Sendable {
     static let shared = GitHubImportManager()
     private init() {}
 
-    // MARK: - Import from URL
     func importRepository(from urlString: String, branch: String = "main") async throws -> Project {
         try await GitHubImporter.shared.importRepository(from: urlString, branch: branch)
     }

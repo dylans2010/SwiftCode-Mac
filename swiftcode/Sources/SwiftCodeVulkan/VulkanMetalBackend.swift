@@ -1,27 +1,3 @@
-// VulkanMetalBackend: the Metal host service's GPU back end on Vulkan
-// (stage8-contract.md §5.2–§5.3, owner VK). Written from
-// specs/simulator/metal-sim-protocol.md, specs/simulator/metal-shaders.md
-// §4–§5, the Vulkan specification and public Metal documentation.
-//
-// Model:
-// - One Vulkan device and queue; one timeline semaphore numbers every
-//   queue submission ("serial"). A completion thread waits for serials in
-//   order, recycles their memory, destroys released objects whose last use
-//   is done, and calls the Metal completion handlers.
-// - Every image lives in VK_IMAGE_LAYOUT_GENERAL. Passes are separated by
-//   full memory barriers (Metal tracks hazards for the guest; we do not
-//   analyse them), command buffers start with one and end with a barrier to
-//   host reads.
-// - Shared buffers are the guest's pages, imported with
-//   VK_EXT_external_memory_host (4096-aligned containing range, cached per
-//   backing object). Private buffers are device memory.
-// - Textures are host-owned images. IOSurface textures also link to the
-//   surface's memory: a command buffer that reads one copies the surface in
-//   first, one that writes it copies it back before completion, so the
-//   pixels are in surface memory before `scheduled` is called.
-// - Shaders: translated by a ShaderTranslator (swiftcode-airc), bound per the
-//   SwiftCode Metal ABI (ShaderTranslation.swift).
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
@@ -37,153 +13,53 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         public var maxSamplers: UInt32 = 0
         public var maxStorageImages: UInt32 = 0
         public var validation = false
-        /// Size of each transient chunk (argument tables, staging).
         public var transientChunkSize = 4 << 20
         public var log: (@Sendable (String) -> Void)?
-        /// Translate and compile pipelines on worker threads; creation calls
-        /// return at once and submissions wait for the pipelines they use.
         public var asynchronousPipelines = true
-        /// Worker threads for translation and pipeline compiles.
         public var compileThreads = 4
-        /// `swiftcode-airc serve` processes (when no translator is given).
         public var translatorProcesses = ProcessInfo.processInfo.environment["SWIFTCODE_AIRC_PROCESSES"].flatMap { Int($0) }.map { max($0, 1) } ?? 4
-        /// Where the VkPipelineCache is loaded from and saved to (default:
-        /// $SWIFTCODE_VULKAN_PIPELINE_CACHE; nil: not persistent).
         public var pipelineCachePath: String? = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_PIPELINE_CACHE"]
-        /// Copy back to an IOSurface only the part of it a command buffer's
-        /// render passes can have drawn (the union of their scissor rects);
-        /// `SWIFTCODE_GPU_SURFACE_DAMAGE=0`: the whole surface every time.
         public var surfaceDamage = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_SURFACE_DAMAGE"] != "0"
-        /// Skip copying an IOSurface in when the image already holds its
-        /// pixels; `SWIFTCODE_GPU_SURFACE_SKIP_IN=0`: copy it in every time.
         public var surfaceSkipCopyIn = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_SURFACE_SKIP_IN"] != "0"
-        /// The completion thread waits for the GPU in slices of this many
-        /// ns and reads the timeline counter after each
-        /// (`SWIFTCODE_GPU_COMPLETION_POLL_US`, default 1000; 1000000: one
-        /// blocking wait per second as before).
         public var completionPollNs: UInt64 = UInt64(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_COMPLETION_POLL_US"]
             .flatMap { UInt64($0) }.map { max($0, 50) } ?? 1000) * 1000
-        /// Report `scheduled` as soon as a command buffer is on the Vulkan
-        /// queue (Metal's meaning) instead of at completion; CPU access to
-        /// an IOSurface the GPU is still writing then waits for the write
-        /// (`waitForSurfaceWrites`, called by the IOSurface service on locks
-        /// and host reads). `SWIFTCODE_GPU_EARLY_SCHEDULED=0`: at completion.
         public var earlyScheduled = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_EARLY_SCHEDULED"] != "0"
-        /// A CPU access that waits for pending GPU writes to an IOSurface
-        /// (`waitForSurfaceWrites`) waits in slices of this many ns and reads
-        /// the timeline counter after each: a blocking wait on the Thor
-        /// often returns late (§14.2 item 3). `SWIFTCODE_GPU_SURFACE_WAIT_POLL_US`
-        /// (default 200; 0: one blocking wait as before).
         public var surfaceWaitPollNs: UInt64 = UInt64(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_SURFACE_WAIT_POLL_US"]
             .flatMap { UInt64($0) } ?? 200) * 1000
-        /// Kernels (by entry-point name) dispatched one thread per
-        /// workgroup when their reflection allows it (§15.5): the guest
-        /// driver's ASTC decoder hangs the Thor's GPU when two lanes of one
-        /// subgroup decode different kinds of blocks. `SWIFTCODE_GPU_LANE_ISOLATED`
-        /// (comma-separated names; default `astc`; empty: none).
         public var laneIsolatedKernels: Set<String> = Set((ProcessInfo.processInfo.environment["SWIFTCODE_GPU_LANE_ISOLATED"] ?? "astc")
             .split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
-        /// Experimental, off by default (§15.6): import guest memory with this
-        /// many bytes of the host memory around the backing object, so that
-        /// a read a little outside it lands in mapped memory (on the Thor a
-        /// GPU access to an unmapped GPU address stalls the GPU for good).
-        /// On the Thor's driver imports that overlap other imports (or the
-        /// driver's own mappings) made later allocations fail with
-        /// VK_ERROR_OUT_OF_DEVICE_MEMORY, so it is not usable there.
-        /// `SWIFTCODE_GPU_IMPORT_SLACK_KB` (default 0). Only inside `importSlackWindow`.
         public var importSlack = (Int(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_IMPORT_SLACK_KB"] ?? "") ?? 0) * 1024
-        /// The host memory slack may come from (start, length): the shared
-        /// object arena, which holds only guest objects. Nil: no slack (the
-        /// memory around other mappings may be anything, the driver's own
-        /// mappings included: importing those broke later allocations).
         public var importSlackWindow: (UInt, UInt)?
-        /// A draw that samples a color attachment of its own pass samples a
-        /// copy made just before it (§15.6). `SWIFTCODE_GPU_FEEDBACK_COPY=0`: it
-        /// samples the attachment itself, as before.
         public var feedbackSnapshots = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_FEEDBACK_COPY"] != "0"
-        /// Feedback copies copy only the draw's scissor rectangle (2 texels
-        /// wider); `SWIFTCODE_GPU_FEEDBACK_COPY=whole`: the whole attachment level.
         public var feedbackWholeLevel = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_FEEDBACK_COPY"] == "whole"
-        /// Seconds between saves of a changed pipeline cache.
         public var pipelineCacheSaveInterval = 15.0
-        /// `shutdown()`: seconds the GPU may take to finish submitted work
-        /// before the completion thread abandons it (stage8-contract.md §12).
         public var shutdownGrace = 10.0
-        /// A submission still running after this many seconds is logged
-        /// once with a description of its command buffer
-        /// (`SWIFTCODE_GPU_HANG_REPORT_S`, default 2; VulkanHangReport.swift).
         public var hangReportSeconds = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_HANG_REPORT_S"].flatMap { Double($0) } ?? 2
-        /// The GPU watchdog (metal-sim-protocol.md §8.7): a submission still
-        /// running after this many seconds is ended (the device is waited
-        /// idle, which makes the driver stop the stuck work), its command
-        /// buffer fails, and the device is made again
-        /// (`SWIFTCODE_GPU_WATCHDOG_S`, default 10; 0: off, wait for ever).
         public var watchdogSeconds = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_WATCHDOG_S"].flatMap { Double($0) } ?? 10
-        /// The blocking watchdog (metal-sim-protocol.md §8.8): a submission
-        /// still running after this many seconds while command buffers of
-        /// *other* client processes wait behind it is ended as by the
-        /// watchdog. Every client shares the GPU queue, and on the Thor work
-        /// on another queue of the same device does not run while one
-        /// submission is stuck, so the stuck client would stop every other
-        /// one (`SWIFTCODE_GPU_BLOCKING_WATCHDOG_S`, default 2; 0: off).
         public var blockingWatchdogSeconds = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_BLOCKING_WATCHDOG_S"]
             .flatMap { Double($0) } ?? 2
-        /// A client process whose GPU work had to be ended this many times
-        /// loses GPU access: its later command buffers fail at once without
-        /// running (Metal's `MTLCommandBufferErrorAccessRevoked`), so it
-        /// cannot stall the others again (`SWIFTCODE_GPU_REVOKE_AFTER`,
-        /// default 2; 0: never).
         public var revokeAfterHangs = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_REVOKE_AFTER"].flatMap { Int($0) } ?? 2
-        /// Names a client process in GPU hang messages (for example
-        /// "WeatherPoster, guest pid 312"); called outside the back end's
-        /// lock. Nil: the service's process number only.
         public var describeProcess: (@Sendable (MetalProcessID) -> String?)?
-        /// True for a client process that never loses GPU access (the
-        /// render server and SpringBoard, `MetalSystemUI`): its stuck work is
-        /// still ended, and it may submit again. Called outside the lock.
         public var exemptFromRevocation: (@Sendable (MetalProcessID) -> Bool)?
-        /// After a device loss (or the watchdog) the device is made again and
-        /// every object rebuilt in place (VulkanDeviceReset.swift);
-        /// `SWIFTCODE_GPU_RECOVER=0`: the device stays lost and every later
-        /// command buffer fails, as before.
         public var recoverDevice = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_RECOVER"] != "0"
-        /// The watchdog ends stuck work by running an empty kernel on a second
-        /// device of ours (VulkanClientIsolation.swift `kickGPU`), not only by
-        /// waiting the device idle (`SWIFTCODE_GPU_KICK=0`: the wait alone).
         public var kick = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_KICK"] != "0"
-        /// A buffer a function reads that its command buffer left unbound
-        /// points at the dummy buffer (metal-shaders.md §4.11);
-        /// `SWIFTCODE_GPU_UNBOUND_DUMMY=0`: at address 0, as before (experiments).
         public var unboundBuffersReadDummy = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_UNBOUND_DUMMY"] != "0"
-        /// Recording without per-submission diagnostic strings (shader
-        /// names, dispatch notes, draw counts in the label; a hang report
-        /// describes the command buffer instead) and with argument tables
-        /// written from the bound slots only. `SWIFTCODE_METAL_RECORD_FAST=0`:
-        /// as before, including a read of the process environment on every
-        /// draw (stage8-contract.md §15).
         public var recordFast = ProcessInfo.processInfo.environment["SWIFTCODE_METAL_RECORD_FAST"] != "0"
-        /// Experiments: draws whose vertex or fragment shader name (entry
-        /// point, or `entry#hash8`) is in this list are skipped
-        /// (`SWIFTCODE_GPU_SKIP_SHADERS`, comma-separated; default none).
         public var skipShaders: Set<String> = Set((ProcessInfo.processInfo.environment["SWIFTCODE_GPU_SKIP_SHADERS"] ?? "")
             .split(separator: ",").map { String($0) })
         public init() {}
     }
 
     public let isAvailable: Bool
-    /// Why there is no device (nil when available).
     public let unavailableReason: String?
     public let deviceName: String
     public let options: Options
 
     let ctx: UnsafeMutablePointer<yvk_context>
-    /// The device's functions (taken again when the device is made again).
     var fn: yvk_dispatch
     let translator: ShaderTranslator?
-    /// The lock for every table below (and the completion condition).
     let cond = NSCondition()
 
-    // Objects.
     var buffers: [MetalHandle: VKBuffer] = [:]
     var textures: [MetalHandle: VKTexture] = [:]
     var samplers: [MetalHandle: VKSampler] = [:]
@@ -198,91 +74,58 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
     var formatCache: [UInt32: VulkanPixelFormat?] = [:]
     var textureIndices: IndexAllocator
     var samplerIndices: IndexAllocator
-    /// Restores (`reserveHeapSlots`): slots claimed for textures and
-    /// samplers that are about to be made again under these handles.
     var reservedTextureSlots: [MetalHandle: (index: UInt32, count: UInt32)] = [:]
     var reservedSamplerSlots: [MetalHandle: UInt32] = [:]
     var reservedSamplerIndices: Set<UInt32> = []
     var dummyImage: VKImage?
     var dummyView: VkImageView?
-    /// Kernel writes to textures without `shaderWrite` already logged (diagnostics).
     var writesWithoutUsageSeen: Set<String> = []
     var writesWithoutUsageLogged = 0
-    /// Functions whose unbound buffer slots were logged (diagnostics).
     var unboundBuffersSeen: Set<String> = []
     var mixedSizeLogs = 0
     var defaultSampler: VkSampler?
-    /// 64 KiB of zeros that unknown buffer handles point at.
     var dummyBuffer = yvk_buffer()
     var dummyBufferAddress: UInt64 { dummyBuffer.address }
 
-    // Translation cache (own lock: translation runs outside `cond`).
     let translationLock = NSLock()
     var translations: [TranslationKey: TranslatedShader] = [:]
 
-    // Submission.
     var timeline: VkSemaphore?
     var lastSubmitted: UInt64 = 0
     var completedSerial: UInt64 = 0
     var setup: Recording?
     var freeCommandBuffers: [VkCommandBuffer] = []
     var freeChunks: [TransientChunk] = []
-    /// Occlusion query pools for visibility results (VulkanVisibility.swift).
     var freeVisibilityPools: [VkQueryPool] = []
-    /// The process whose command buffer is being replayed (diagnostics).
     var debugReplayProcess: MetalProcessID = 0
     var pending: [PendingSubmission] = []
     var graveyard: [(serial: UInt64, action: () -> Void)] = []
     var deviceLost = false
-    /// Device resets so far (VulkanDeviceReset.swift) and the last one's report.
     var deviceResets = 0
     var lastResetReport = ""
-    /// The watchdog ended the work being waited for (the reset's report says so).
     var watchdogFired = false
-    /// Client isolation (VulkanClientIsolation.swift), under the lock: GPU
-    /// work ended per client process, processes whose access is revoked,
-    /// their refused command buffers, names given by `describeProcess`, and
-    /// the last hang's report (tests, diagnostics).
     var hangsByProcess: [MetalProcessID: Int] = [:]
     var revokedProcesses: Set<MetalProcessID> = []
     var refusedByProcess: [MetalProcessID: Int] = [:]
     var clientNames: [MetalProcessID: String] = [:]
     var lastHang = ""
-    /// `SWIFTCODE_GPU_INJECT_HANG` (VulkanHangInjection.swift), under the lock,
-    /// and when the back end started (monotonic ns).
     var hangInjection = HangInjection(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_INJECT_HANG"])
     let startedAt = DispatchTime.now().uptimeNanoseconds
-    /// The kick's second device (completion thread only; VulkanClientIsolation.swift).
     var kicker: UnsafeMutablePointer<yvk_context>?
-    /// Read without the lock: whether submissions look at `hangInjection` at all.
     let injectsHangs = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_INJECT_HANG"] != nil
-    /// Command buffers refused while the device was lost, recorded again by
-    /// the reset (VulkanDeviceReset.swift). Under the lock.
     var parked: [ResubmitItem] = []
-    /// A reset could not make the device again: it stays lost.
     var recoveryGivenUp = false
-    /// Called after the device was made again (MetalBackend.setDeviceResetHandler).
     var deviceResetHandler: (@Sendable () -> Void)?
-    /// Device use outside `cond` (pipeline compiles, timeline waits, the
-    /// pipeline cache's saves) enters this gate; a device reset closes it
-    /// and waits until no such use runs (VulkanDeviceReset.swift). Order:
-    /// the gate before `cond`, never the other way round.
     let gate = NSCondition()
     var gateUsers = 0
     var gateClosed = false
     var running = true
     var completionThread: Thread?
-    /// Set by `shutdown()`: after this (monotonic ns) the completion thread
-    /// stops waiting for the GPU. Under the lock.
     var shutdownDeadline: UInt64 = .max
-    /// The completion thread gave up on work the GPU had not finished at
-    /// shutdown. Under the lock.
     var abandonedAtShutdown = false
     var statistics = VulkanBackendStatistics()
-    /// Diagnostics: skipped commands by the replay source line that skipped them.
     var skipLines: [Int: Int] = [:]
 
-    // Pipelines (VulkanPipelines.swift).
     let compileQueue = OperationQueue()
     let libraries = PipelineLibraryCache()
     var pipelineCacheDirty = false
@@ -295,72 +138,45 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         var status: Int
         var scheduled: (@Sendable () -> Void)?
         var completed: (@Sendable (Int) -> Void)?
-        /// Runs on the completion thread after the GPU finished (always called).
         var after: ((_ ok: Bool) -> Void)?
-        /// When it was queued (monotonic ns; diagnostics).
         var queuedAt: UInt64 = DispatchTime.now().uptimeNanoseconds
-        /// What it is (diagnostics): the client process and command buffer.
         var label: String = ""
-        /// Its frame-trace line (`SWIFTCODE_METAL_TRACE`).
         var trace: FrameTraceInfo?
-        /// The Metal command buffer (hang and device-loss reports).
         var commandBuffer: MetalCommandBuffer?
-        /// Its dispatches' argument tables (hang reports; Recording.dispatchTables).
         var dispatchTables: [(pass: Int, command: Int, table: UnsafeMutableRawPointer)] = []
     }
 
-    /// Writes to each IOSurface plane's memory (copy-outs, host writes):
-    /// an image whose recorded generation differs copies the surface in.
     var surfaceGenerations: [SurfaceSyncKey: UInt64] = [:]
-    /// `scheduled` handlers of submitted command buffers, called outside the lock.
     var earlyScheduledQueue: [@Sendable () -> Void] = []
     let flushingScheduled = NSLock()
-    /// A flusher is running a list it took from `earlyScheduledQueue` (under the lock).
     var scheduledFlushRunning = false
-    /// The last serial that copies back to each IOSurface (by surface ID).
     var surfaceWriteSerials: [UInt32: UInt64] = [:]
-    /// The timeline value when a surface-write wait last timed out without
-    /// progress (nil: none); waits are skipped while the value stays there.
     var surfaceWaitStuckAt: UInt64?
 
-    /// Invalid buffer↔image copies still to be logged (VulkanCommandReplay.swift).
     var invalidCopyLogBudget = 20
 
-    /// Diagnostics: `SWIFTCODE_GPU_DAMAGE_LOG=<n>` logs the first n IOSurface render-pass writes.
     var damageLogBudget = Int(ProcessInfo.processInfo.environment["SWIFTCODE_GPU_DAMAGE_LOG"] ?? "") ?? 0
 
-    /// The GPU frame trace (`SWIFTCODE_METAL_TRACE=<file>`; VulkanFrameTrace.swift).
     var frameTrace: FrameTrace?
-    /// The headset viewer's depth tap (VulkanDepthTap.swift); nil until a viewer asks.
     var depthTapStorage: AnyObject?
 
-    /// Diagnostics (`SWIFTCODE_METAL_RECORD_PROFILE=1`): host ns spent in the
-    /// parts of recording a command buffer, by `RecordPart`. Under the lock.
     let recordProfiling = ProcessInfo.processInfo.environment["SWIFTCODE_METAL_RECORD_PROFILE"] == "1"
     var recordProfile = [UInt64](repeating: 0, count: RecordPart.allCases.count)
     var recordProfileCounts = [Int](repeating: 0, count: RecordPart.allCases.count)
 
-    /// Feedback snapshots (VulkanCommandReplay.swift): copy images by format,
-    /// size and swizzle, and the texture slots that point at one during a pass.
     var feedbackCopies: [String: VKTexture] = [:]
     var textureOverride: [MetalHandle: UInt64] = [:]
 
-    // Hang and device-loss reports (VulkanHangReport.swift).
     var checkpointRecords: [CheckpointRecord] = []
     var badBaseInstanceLogs = 0
-    /// Pass probes (VulkanPassProbe.swift): the probe of the command buffer
-    /// being replayed, how many were started and when the last one was.
     var probe: PassProbe?
     var probesStarted = 0
     var lastProbeAt: UInt64 = 0
-    /// The replay source line of the last skipped command (probe notes).
     var lastSkipLine = 0
-    /// The last released buffers' device address ranges and handles (diagnostics).
     var releasedBufferRanges: [(UInt64, UInt64, UInt64)] = []
     var nextCheckpointID: UInt32 = 1
     var deviceLossReported = false
 
-    // Held work (VulkanEventWaits.swift).
     var held: [HeldKey: [HeldItem]] = [:]
     var heldSince: [HeldKey: UInt64] = [:]
     var heldReported: [HeldKey: UInt64] = [:]
@@ -397,7 +213,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         deviceName = withUnsafeBytes(of: ctx.pointee.properties.deviceName) { raw in
             String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
         }
-        // Every slot has an entry in both the sampled and the storage array.
         textureIndices = IndexAllocator(capacity: min(ctx.pointee.heapSampledImages, ctx.pointee.heapStorageImages))
         samplerIndices = IndexAllocator(capacity: ctx.pointee.heapSamplers)
         timeline = yvk_timeline_create(ctx, 0)
@@ -419,23 +234,11 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
             frameTrace = FrameTrace(path: path, ctx: ctx, fn: fn)
             log(frameTrace == nil ? "frame trace: cannot write \(path) or no timestamp queries" : "frame trace: \(path)")
         }
-        // The translator processes load in the background, so that the
-        // first pipeline does not wait for them (SWIFTCODE_AIRC_PRESTART=0: at
-        // the first request, as before).
         if ProcessInfo.processInfo.environment["SWIFTCODE_AIRC_PRESTART"] != "0" {
             (self.translator as? AircTranslatorPool)?.prestart()
         }
     }
 
-    /// The ordered end of the backend (stage8-contract.md §12): finishes the
-    /// pipeline compiles, saves the pipeline cache, lets the GPU finish
-    /// submitted work (at most `Options.shutdownGrace` seconds), stops the
-    /// completion and held-work threads, waits for the device to be idle
-    /// and frees it. Afterwards no backend thread is inside the driver, so
-    /// the process may call exit(). Work still running at the grace limit
-    /// is abandoned: then nothing is freed (freeing objects the GPU still
-    /// uses is undefined) and the driver's own teardown at exit cleans up.
-    /// Idempotent; later calls return at once.
     public func shutdown() {
         cond.lock()
         let first = running
@@ -459,8 +262,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
             yvk_context_destroy(ctx)
             return
         }
-        // The completion thread waits for the GPU in steps of 1 s and stops
-        // at the deadline, so both threads end by about deadline + 1 s.
         let threadsDeadline = now &+ grace &+ 5_000_000_000
         var threadsDone = false
         while true {
@@ -482,14 +283,12 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         yvk_context_destroy(ctx)
     }
 
-    /// True once the completion and held-work threads have ended.
     var threadsStopped: Bool {
         cond.lock()
         defer { cond.unlock() }
         return completionThread == nil && heldThread == nil
     }
 
-    /// True after `shutdown()` gave up on unfinished GPU work (tests, diagnostics).
     public var abandonedWorkAtShutdown: Bool {
         cond.lock()
         defer { cond.unlock() }
@@ -501,20 +300,13 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         ctx.deallocate()
     }
 
-    /// SWIFTCODE_VULKAN_SKIP_DRAWS=1 (debugging): record no draws. Read once:
-    /// `ProcessInfo.environment` builds a dictionary of the whole
-    /// environment on every call (it cost about 30 µs per draw when it was
-    /// read in the draw path; stage8-contract.md §15).
     var skipDraws: Bool {
-        // `SWIFTCODE_METAL_RECORD_FAST=0` reads it on every draw as before (A/B of §15).
         options.recordFast ? Self.environmentSkipDraws : ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_SKIP_DRAWS"] != nil
     }
     static let environmentSkipDraws = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_SKIP_DRAWS"] != nil
 
-    /// SWIFTCODE_VULKAN_LOG=1: log object creation details (read once).
     var verbose: Bool { Self.environmentVerbose }
     static let environmentVerbose = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_LOG"] != nil
-    /// SWIFTCODE_VULKAN_DUMP_FUNCTIONS=<dir> (read once).
     static let environmentDumpFunctions = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_DUMP_FUNCTIONS"]
 
     func log(_ message: String) {
@@ -522,8 +314,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
     }
 
     var device: VkDevice? { ctx.pointee.device }
-
-    // MARK: - MetalBackend: device
 
     public func limits() -> MetalLimits {
         guard isAvailable else { return MetalLimits() }
@@ -537,11 +327,8 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
                            maxThreadgroupMemoryLength: UInt64(min(l.maxComputeSharedMemorySize, 32768)))
     }
 
-    /// The Vulkan device's subgroup size (Metal's thread execution width).
     public var subgroupSize: Int { Int(ctx.pointee.subgroupSize) }
 
-    /// The Vulkan pixel format a Metal pixel format gets on this device, nil
-    /// when unsupported.
     public func vulkanFormat(forMetal metal: UInt32) -> VulkanPixelFormat? {
         cond.lock(); defer { cond.unlock() }
         return resolveFormat(metal)
@@ -557,7 +344,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
                 return feats & (VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT.rawValue | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT.rawValue) != 0
             }
             if metal == 1 && (!(ctx.pointee.features.formatA8 != 0) || !usable(f)) {
-                // A8 stored as R8; views read alpha from red.
                 f.format = VK_FORMAT_R8_UNORM
                 f.swizzle = VkComponentMapping(r: VK_COMPONENT_SWIZZLE_ZERO, g: VK_COMPONENT_SWIZZLE_ZERO,
                                                b: VK_COMPONENT_SWIZZLE_ZERO, a: VK_COMPONENT_SWIZZLE_R)
@@ -578,8 +364,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         formatCache[metal] = result
         return result
     }
-
-    // MARK: - Buffers
 
     public func createBuffer(_ handle: MetalHandle, length: Int, storage: MetalStorageMode, guestMemory: GuestSharedRegion?) throws {
         guard isAvailable else { throw VulkanBackendError("no GPU") }
@@ -605,8 +389,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         statistics.buffers += 1
     }
 
-    /// Imports guest memory (cached by backing object). Returns the
-    /// allocation and the region's offset in it.
     func importRegion(_ g: GuestSharedRegion) throws -> (VKAllocation, Int) {
         let align = UInt(ctx.pointee.hostPointerAlignment)
         func range(_ p: UnsafeMutableRawPointer, _ n: Int) -> (UInt, Int) {
@@ -615,13 +397,10 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
             return (start, Int(end - start))
         }
         let regionStart = UInt(bitPattern: g.pointer)
-        // Prefer one import of the whole backing object, with slack around
-        // it when the host memory there can be imported as well (§15.6).
         let whole = range(g.objectPointer, g.objectLength)
         var candidates: [(UInt, Int)] = []
         let slack = UInt(max(0, options.importSlack)) & ~(align - 1)
         if slack > 0, let (w0, wlen) = options.importSlackWindow {
-            // Clipped to the window (both ends aligned): no slack outside it.
             let lo = max(whole.0 &- slack, (w0 + align - 1) & ~(align - 1))
             let hi = min(whole.0 + UInt(whole.1) + slack, (w0 + wlen) & ~(align - 1))
             if whole.0 >= slack, lo < whole.0 || hi > whole.0 + UInt(whole.1), lo <= whole.0, hi >= whole.0 + UInt(whole.1) {
@@ -635,7 +414,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         for (start, length) in candidates where regionStart >= start && regionStart + UInt(g.length) <= start + UInt(length) {
             let key = AllocationKey(objectID: g.objectID, start: start, length: length)
             if let a = imports[key] { return (a, Int(regionStart - start)) }
-            // A cached import of the object that contains this region also serves.
             if let a = imports.first(where: { $0.key.objectID == g.objectID && $0.key.start <= regionStart &&
                                                regionStart + UInt(g.length) <= $0.key.start + UInt($0.key.length) })?.value {
                 return (a, Int(regionStart - a.key!.start))
@@ -672,8 +450,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         return buffers[handle]?.address
     }
 
-    // MARK: - Textures
-
     public func createTexture(_ handle: MetalHandle, _ desc: MetalTextureDescriptor, iosurface: IOSurfaceBacking?) throws {
         guard isAvailable else { throw VulkanBackendError("no GPU") }
         cond.lock(); defer { cond.unlock() }
@@ -700,19 +476,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         if !fmt.isColor && feats & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT.rawValue != 0 {
             usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT.rawValue
         }
-        // Storage (kernel writes, read_write access) for textures Metal marks
-        // `shaderWrite` (or with no usage). `SWIFTCODE_GPU_STORAGE_USAGE=all`:
-        // for every texture whose format allows it (an experiment for guests
-        // that write textures without the flag, which Apple's GPUs carry
-        // out; such writes are logged and go to the dummy image otherwise,
-        // stage8-contract.md §15.9).
-        // Cube textures always: a kernel's or shader's `read()` of a cube
-        // face (Metal needs only `shaderRead`) goes through the storage view,
-        // since Vulkan cannot fetch a face from a sampled cube view
-        // (metal-shaders.md §4.4). Without one the reads saw the dummy
-        // image: visionOS RealityKit's `generateClampedMap` read its source
-        // environment cube as zeros, so every reflection was black
-        // (visionos.md §10.24). `SWIFTCODE_GPU_CUBE_STORAGE=0` restores the old rule.
         let cubeReads = isCube && Self.storageForCubeReads
         let wantsStorage = Self.storageForEveryTexture || desc.usage & MetalTextureUsage.shaderWrite != 0 || desc.usage == 0
             || cubeReads
@@ -721,13 +484,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
             usage |= VK_IMAGE_USAGE_STORAGE_BIT.rawValue
         } else if wantsStorage && samples == 1 && fmt.isColor && !fmt.isCompressed, let sibling = Self.storageSibling(fmt.format),
                   yvk_format_features(ctx, sibling) & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT.rawValue != 0 {
-            // An sRGB format cannot be a storage image, but Metal lets a
-            // kernel write such a texture through a view in the matching
-            // unorm format (`pixelFormatView`): visionOS RealityKit's ASTC
-            // decoder writes every level of the room's sRGB textures through
-            // RGBA8Unorm views (visionos.md §10.20). The image gets storage
-            // usage for those views (extended usage: each view is limited to
-            // the usages its own format supports).
             usage |= VK_IMAGE_USAGE_STORAGE_BIT.rawValue
             flags |= VK_IMAGE_CREATE_EXTENDED_USAGE_BIT.rawValue
         }
@@ -781,7 +537,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         let levels = desc.levels ?? 0..<p.levelCount
         let slices = desc.slices ?? 0..<p.layerCount
         let type = desc.textureType ?? p.textureType
-        // Metal view slices are 2D slices (cube faces count one each).
         var outer = identitySwizzle
         if let s = desc.swizzle, s.count == 4 {
             outer = VkComponentMapping(r: vkSwizzle(s[0]), g: vkSwizzle(s[1]), b: vkSwizzle(s[2]), a: vkSwizzle(s[3]))
@@ -796,7 +551,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         textures[handle] = tex
     }
 
-    /// Moves a new image to GENERAL (recorded into the setup command buffer).
     func initializeImage(_ image: VKImage) throws {
         let rec = try setupRecording()
         yvk_cmd_image_layout(rec.cb, image.vkImage, image.format.aspect, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL)
@@ -816,10 +570,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         }
     }
 
-    /// Creates the sampled and storage views of a texture and gives it a
-    /// heap index: the one reserved for `handle` by a restore, if any.
-    /// `keepSlot`: the texture keeps the heap slots it has (a device made
-    /// again after a loss: the guest holds their indices as resource IDs).
     func makeShaderViews(_ tex: VKTexture, handle: MetalHandle? = nil, keepSlot: Bool = false) {
         let kept: (index: UInt32, count: UInt32)? = keepSlot && tex.heapIndex != 0 ? (tex.heapIndex, max(tex.heapCount, 1)) : nil
         let reserved = kept ?? handle.flatMap { reservedTextureSlots.removeValue(forKey: $0) }
@@ -836,16 +586,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
             tex.shaderView = yvk_view_create(ctx, &vi, &err, err.count)
             if tex.shaderView == nil { log("sampled view: \(cString(err))") }
         }
-        // Any texture view's mapping is spelled out (composeSwizzle), so an
-        // exact comparison with identitySwizzle failed for every view: no
-        // view had a storage view, and a kernel writing a one-level view
-        // (visionOS RealityKit's ASTC mip chains and cube-map levels) wrote
-        // through the descriptor its heap slot last held, a released
-        // texture's, which stopped the Thor's GPU (stage8-contract.md §15.9).
-        // An sRGB texture written or read by kernels (Metal encodes and
-        // decodes on such accesses; Vulkan's sRGB formats cannot be storage
-        // images): its storage views have the unorm format of the same
-        // layout, and shaders convert in software (`srgbStorage`).
         var storageFormat = tex.format.format
         if image.usage & VK_IMAGE_USAGE_STORAGE_BIT.rawValue != 0, Self.srgbStorageViews,
            yvk_format_features(ctx, storageFormat) & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT.rawValue == 0,
@@ -867,7 +607,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         guard tex.shaderView != nil || tex.storageView != nil else {
             if let r = reserved {
                 if kept != nil {
-                    // It had views before: its slots name the dummy image.
                     for i in 0..<r.count {
                         yvk_heap_write_sampled(ctx, r.index + i, dummyView)
                         yvk_heap_write_storage(ctx, r.index + i, dummyView)
@@ -878,13 +617,10 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
             }
             return
         }
-        // One slot, or one per level when the texture has a storage view and
-        // several levels (explicit-level storage access, VKTexture.heapCount).
         let count = tex.storageView != nil && tex.levelCount > 1 ? UInt32(tex.levelCount) : 1
         var owned = count
         var slot: UInt32?
         if let r = reserved {
-            // The run it had (or a single slot where it fell back to one).
             if r.count == count || r.count == 1 || kept != nil {
                 slot = r.index
                 owned = kept != nil ? min(r.count, count) : r.count
@@ -897,9 +633,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         guard let index = slot else { return }
         tex.heapIndex = index
         tex.heapCount = owned
-        // Every slot of the texture gets a descriptor in both arrays: a
-        // missing view is the dummy image, never what the slot held before
-        // (a released texture's view: writing through it stops the Thor's GPU).
         yvk_heap_write_sampled(ctx, index, tex.shaderView ?? dummyView)
         yvk_heap_write_storage(ctx, index, tex.storageView ?? dummyView)
         guard tex.heapCount > 1 else { return }
@@ -915,8 +648,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         }
     }
 
-    /// The format of the same size class whose views can be storage images
-    /// when `format` itself cannot (the sRGB formats); nil when none.
     static func storageSibling(_ format: VkFormat) -> VkFormat? {
         switch format {
         case VK_FORMAT_R8G8B8A8_SRGB: return VK_FORMAT_R8G8B8A8_UNORM
@@ -928,20 +659,12 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         }
     }
 
-    /// sRGB textures get unorm storage views and shaders convert
-    /// (`VKTexture.srgbStorage`); `SWIFTCODE_GPU_SRGB_STORAGE=0`: no storage view
-    /// for them (kernel writes go to the dummy image, as before visionos.md §10.21).
     static let srgbStorageViews = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_SRGB_STORAGE"] != "0"
 
-    /// `SWIFTCODE_GPU_STORAGE_USAGE=all`: storage usage for every texture whose
-    /// format allows it, not only those Metal marks `shaderWrite`.
     static let storageForEveryTexture = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_STORAGE_USAGE"] == "all"
 
-    /// Storage usage (and views) for every cube texture, for `read()` of a
-    /// face; `SWIFTCODE_GPU_CUBE_STORAGE=0`: only for cubes Metal marks `shaderWrite`.
     static let storageForCubeReads = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_CUBE_STORAGE"] != "0"
 
-    /// A single-level, single-layer view for rendering into or copying.
     func attachmentView(_ tex: VKTexture, level: Int, slice: Int) -> VkImageView? {
         let key = level << 20 | slice
         if let v = tex.attachmentViews[key] { return v }
@@ -973,7 +696,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
             if let s = image.surface { releaseAllocationReference(s.allocation) }
         }
         deferDestroy { [ctx, fn, weak self] in
-            // The slots name the dummy image until they are handed out again.
             if index != 0, let self {
                 for i in 0..<count {
                     yvk_heap_write_sampled(ctx, index + i, self.dummyView)
@@ -986,16 +708,12 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         }
     }
 
-    // MARK: - Samplers and depth-stencil states
-
     public func createSampler(_ handle: MetalHandle, _ desc: MetalSamplerDescriptor) throws {
         guard isAvailable else { throw VulkanBackendError("no GPU") }
         cond.lock(); defer { cond.unlock() }
         samplers[handle] = try sampler(for: SamplerKey(desc), reserved: reservedSamplerSlots.removeValue(forKey: handle))
     }
 
-    /// The sampler of `key` (one per key); a new one gets the slot a restore
-    /// reserved for it, when given and not yet used by another key.
     func sampler(for key: SamplerKey, reserved: UInt32? = nil) throws -> VKSampler {
         if let s = samplerCache[key] { return s }
         let index: UInt32
@@ -1031,7 +749,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         i.minLod = max(k.lodMin, 0)
         i.maxLod = min(k.lodMax, 1000)
         if k.mipFilter == 0 {
-            // Not mipmapped: level 0 only (the Vulkan spec's recommended emulation).
             i.minLod = 0
             i.maxLod = 0.25
         }
@@ -1072,16 +789,9 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         return (t.heapIndex, max(t.heapCount, 1))
     }
 
-    /// Claims the slots in ascending order on the fresh allocators (a run
-    /// already claimed by another handle, or out of range, is skipped: that
-    /// object gets a new slot). Sampler slots are per sampler key, so
-    /// several handles can name one slot. Each call first gives back the
-    /// reservations of the previous one that no object used (the restore
-    /// ends with an empty call).
     public func reserveHeapSlots(textures: [MetalHandle: (index: UInt32, count: UInt32)], samplers: [MetalHandle: UInt32]) {
         guard isAvailable else { return }
         cond.lock(); defer { cond.unlock() }
-        // Reservations nobody used (an object that was not made again) go back.
         for run in reservedTextureSlots.values { textureIndices.release(run.index, count: run.count) }
         for index in reservedSamplerIndices { samplerIndices.release(index) }
         reservedTextureSlots = [:]
@@ -1109,21 +819,14 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         depthStencilStates[handle] = desc
     }
 
-    // MARK: - Functions and pipelines
-
     public func createFunction(_ handle: MetalHandle, metallib: [UInt8]) throws {
         cond.lock(); defer { cond.unlock() }
         functions[handle] = VKFunction(metallib: metallib)
-        // Debugging: SWIFTCODE_VULKAN_DUMP_FUNCTIONS=<dir> saves each function as sent.
         if let dir = Self.environmentDumpFunctions {
             let path = "\(dir)/function-\(handle.raw)-\(String(fnv1a64(metallib), radix: 16)).metallib"
             FileManager.default.createFile(atPath: path, contents: Data(metallib))
         }
     }
-
-    // Translation and pipelines: VulkanPipelines.swift.
-
-    // MARK: - Events
 
     public func createEvent(_ handle: MetalHandle) throws {
         guard isAvailable else { return }
@@ -1131,8 +834,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         events[handle] = VKEvent(semaphore: yvk_timeline_create(ctx, 0))
     }
 
-    /// `newSharedEventWithHandle:` (messageType 18): the same timeline
-    /// semaphore under a second handle.
     public func createEventAlias(_ handle: MetalHandle, of original: MetalHandle) throws {
         guard isAvailable else { return }
         cond.lock(); defer { cond.unlock() }
@@ -1154,33 +855,27 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         return yvk_timeline_value(ctx, s)
     }
 
-    // MARK: - Release
-
     public func release(_ handle: MetalHandle) {
         cond.lock(); defer { cond.unlock() }
         if let b = buffers.removeValue(forKey: handle) {
-            // Hang reports name addresses of released buffers (VulkanHangReport.swift).
             releasedBufferRanges.append((b.address, b.address + UInt64(b.length), handle.raw))
             if releasedBufferRanges.count > 16384 { releasedBufferRanges.removeFirst(4096) }
             releaseBuffer(b)
             return
         }
         if let t = textures.removeValue(forKey: handle) { releaseTexture(t); return }
-        if samplers.removeValue(forKey: handle) != nil { return }  // samplers stay cached (deduplicated)
+        if samplers.removeValue(forKey: handle) != nil { return }
         if depthStencilStates.removeValue(forKey: handle) != nil { return }
         if functions.removeValue(forKey: handle) != nil { return }
         if let p = renderPipelines.removeValue(forKey: handle) { releaseRenderPipeline(p); return }
         if let p = computePipelines.removeValue(forKey: handle) { releaseComputePipeline(p); return }
         if let e = events.removeValue(forKey: handle), let s = e.semaphore,
-           !events.values.contains(where: { $0 === e }) {  // aliases (messageType 18) keep it
+           !events.values.contains(where: { $0 === e }) {
             deferDestroy { [ctx, fn] in fn.vkDestroySemaphore!(ctx.pointee.device, s, nil) }
         }
     }
 
-    /// Runs `action` once all work submitted so far (including pending
-    /// setup work) has completed.
     func deferDestroy(_ action: @escaping () -> Void) {
-        // Held work may still use the object: after it is submitted.
         if !held.isEmpty {
             heldGraveyard.append(action)
             return
@@ -1193,14 +888,11 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
         }
     }
 
-    // MARK: - Dummy resources
-
     func createDummies() throws {
         cond.lock(); defer { cond.unlock() }
         try createDummiesLocked()
     }
 
-    /// Under the lock.
     func createDummiesLocked() throws {
         var info = yvk_image_info(type: VK_IMAGE_TYPE_2D, format: VK_FORMAT_R8G8B8A8_UNORM, width: 1, height: 1, depth: 1,
                                   mipLevels: 1, arrayLayers: 1, samples: VK_SAMPLE_COUNT_1_BIT,
@@ -1272,7 +964,6 @@ public final class VulkanMetalBackend: MetalBackend, @unchecked Sendable {
     }
 }
 
-/// The parts of recording a command buffer (`SWIFTCODE_METAL_RECORD_PROFILE=1`).
 enum RecordPart: Int, CaseIterable {
     case start, surfacesIn, passBegin, drawPrepare, table, renderCommands, passEnd, compute, blit, barriers, surfacesOut, submit, label
 
@@ -1280,7 +971,6 @@ enum RecordPart: Int, CaseIterable {
 }
 
 extension VulkanMetalBackend {
-    /// Adds the time since `start` to a part (when profiling). Under the lock.
     @inline(__always)
     func profiled(_ part: RecordPart, since start: UInt64) {
         guard recordProfiling else { return }
@@ -1298,62 +988,35 @@ extension VulkanMetalBackend {
     }
 }
 
-/// Counters for logs and tests.
 public struct VulkanBackendStatistics: Sendable {
     public var buffers = 0, textures = 0, samplers = 0, imports = 0
-    /// Client isolation (VulkanClientIsolation.swift): GPU hangs charged to
-    /// a client, clients whose GPU access was revoked, command buffers refused.
     public var clientHangs = 0, revokedClients = 0, revokedRefusals = 0, exemptFromRevocation = 0
     public var renderPipelines = 0, computePipelines = 0
     public var submissions = 0, draws = 0, dispatches = 0, blits = 0, skipped = 0
     public var surfaceUploads = 0, surfaceDownloads = 0
-    /// Metal command buffers completed, and their queue-to-completion
-    /// latency (total and largest, ns).
     public var completedCommandBuffers = 0
     public var latencyTotalNs: UInt64 = 0, latencyMaxNs: UInt64 = 0
-    /// GPU-side boot cost (diagnostics): translator calls (not answered by
-    /// the in-memory cache), whole-pipeline compiles, compute variants,
-    /// submissions that waited for a pipeline, and the CPU time spent
-    /// recording command buffers under the backend lock.
     public var translations = TimeCounter(), translationHits = 0
     public var renderCompiles = TimeCounter(), computeCompiles = TimeCounter()
     public var pipelineWaits = TimeCounter()
     public var recording = TimeCounter()
     public var surfaceBytesUp = 0, surfaceBytesDown = 0
-    /// Copy-ins skipped (the image held the surface's pixels), and the bytes
-    /// whole-surface copy-outs would have moved.
     public var surfaceUploadsSkipped = 0, surfaceBytesDownFull = 0
-    /// Completion waits that timed out although the GPU had reached the
-    /// value (the counter read after the slice found it).
     public var lateWakeups = 0
-    /// Command buffers reported scheduled at submission, and CPU accesses
-    /// that waited for a pending GPU write to an IOSurface.
     public var earlyScheduled = 0
     public var surfaceWriteWaits = TimeCounter()
-    /// Surface-write waits that timed out with the GPU making no progress.
     public var surfaceWriteWaitTimeouts = 0
-    /// Dispatches run one thread per workgroup (§15.5).
     public var laneIsolatedDispatches = 0
-    /// Argument tables in which a buffer the function reads was unbound
-    /// and points at the dummy buffer (metal-shaders.md §4.11).
     public var unboundBufferReads = 0
-    /// Render passes whose attachments differ in size (rendered at the smallest).
     public var mixedSizePasses = 0
-    /// Guest-memory imports made with slack around the object (§15.6).
     public var slackImports = 0
-    /// Copies of a color attachment made for a draw that samples it (§15.6).
     public var feedbackSnapshots = 0
     public var feedbackTexels = 0
-    /// Render passes with visibility-result queries, their queries, and
-    /// segments whose slot an earlier segment of the pass also counted.
     public var visibilityPasses = 0, visibilityQueries = 0, visibilitySharedSlots = 0
-    /// Queue-to-completion latency of Metal command buffers: counts below
-    /// 1, 2, 4, 8, 16, 33 ms and above.
     public var latencyBuckets = [Int](repeating: 0, count: 7)
     public static let latencyBucketLimitsNs: [UInt64] = [1, 2, 4, 8, 16, 33].map { $0 * 1_000_000 }
 }
 
-/// A count with total and largest duration (ns).
 public struct TimeCounter: Sendable, CustomStringConvertible {
     public var count = 0
     public var totalNs: UInt64 = 0, maxNs: UInt64 = 0
@@ -1369,7 +1032,6 @@ public struct TimeCounter: Sendable, CustomStringConvertible {
 }
 
 extension VulkanMetalBackend {
-    /// A copy of the backend's counters, taken under the backend lock.
     public var stats: VulkanBackendStatistics {
         cond.lock(); defer { cond.unlock() }
         return statistics
@@ -1377,8 +1039,6 @@ extension VulkanMetalBackend {
 }
 
 extension VulkanMetalBackend {
-    /// Diagnostics (`SWIFTCODE_METAL_STATS`): counters, queue depth, pipelines
-    /// still building or broken.
     public func diagnosticSummary() -> String? {
         guard isAvailable else { return nil }
         cond.lock()
@@ -1420,7 +1080,6 @@ extension VulkanMetalBackend {
         return recordProfileSummary
     }
 
-    /// Counts a skipped command (under the lock).
     func noteSkip(_ line: Int = #line) {
         statistics.skipped += 1
         skipLines[line, default: 0] += 1

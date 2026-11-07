@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Assist v3 Unified Diff Engine
-
 public struct DiffHunk: Codable, Sendable, Identifiable {
     public let id: UUID
     public let oldStart: Int

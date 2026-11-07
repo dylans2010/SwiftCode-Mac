@@ -17,7 +17,6 @@ struct ErrorsPanelView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Severity filter
                 HStack(spacing: 8) {
                     filterButton(nil, label: "All", count: errors.count)
                     filterButton(.error, label: "Errors", count: errors.filter { $0.severity == .error }.count)

@@ -5,11 +5,6 @@ import Testing
 import SwiftCodeSimFeatures
 @testable import SwiftCodeUI
 
-/// FEAT (`specs/ide/devices.md` §Settings, `debug.md` §Environment
-/// Overrides; `specs/simulator/simulator-features.md` §7): the settings
-/// boxes of a running SwiftCode simulator in Devices and Simulators, the debug
-/// bar's Environment Overrides and Simulate Location, and the commands they
-/// send. No network: the commands go to stand-ins.
 @MainActor
 @Suite(.serialized) struct SimulatorSettingsUITests {
     static let reply = """
@@ -54,7 +49,6 @@ import SwiftCodeSimFeatures
         #expect(sent == [["settings"]] && c.settingsSnapshot?.state.appearance == .dark)
         #expect(c.settingsControlsShown && c.settingsControlsEnabled)
         let boxes = c.settingsControls()
-        // Three cards (device-hub.md §11.3): 9, 1 and 3 rows on a 43-point pitch, every control enabled.
         #expect(boxes.identifier?.rawValue == "settings-controls")
         let cards = (boxes as? NSStackView)?.arrangedSubviews.compactMap { $0 as? InspectorCard } ?? []
         #expect(cards.map(\.rows.count) == [9, 1, 3])
@@ -64,7 +58,6 @@ import SwiftCodeSimFeatures
         let controls: [NSControl] = cards.flatMap(\.rows).compactMap { $0.control as? NSControl }
         #expect(controls.count == 13 && controls.allSatisfy(\.isEnabled))
         #expect(DevicesController.stoppedNote(in: boxes) == nil)
-        // Appearance, accessibility, text size, sound: one command each, then a read.
         await c.applySetting(["ui", "appearance", "light"], failureTitle: "Failed to Set Appearance")?.value
         #expect(sent.suffix(2) == [["ui", "appearance", "light"], ["settings"]] && failures.isEmpty)
         let sw = NSSwitch()
@@ -80,7 +73,6 @@ import SwiftCodeSimFeatures
         c.textSizeMoved(slider)
         await c.settingsTask?.value
         #expect(sent.suffix(2).first == ["ui", "content_size", "accessibility-extra-extra-extra-large"])
-        // A failure: the reference's alert title, the agent's message.
         let popup = NSPopUpButton()
         for choice in DevicesController.locationChoices where choice.title != "-" {
             let item = NSMenuItem(title: choice.title, action: nil, keyEquivalent: "")
@@ -100,7 +92,6 @@ import SwiftCodeSimFeatures
         c.deviceSettings = { _, _ in (true, "ok") }
         c.show(.simulators)
         #expect(c.settingsControlsShown && !c.settingsControlsEnabled && c.settingsTask == nil)
-        // The same cards, every row disabled, the reason under them (§11.3).
         let v = c.settingsControls()
         #expect(DevicesController.stoppedNote(in: v)?.stringValue == DevicesController.settingsStoppedMessage)
         let cards = (v as? NSStackView)?.arrangedSubviews.compactMap { $0 as? InspectorCard } ?? []
@@ -132,7 +123,6 @@ import SwiftCodeSimFeatures
         #expect(panel.checks[.reduceMotion]?.state == .on && panel.typeLabel.stringValue == "Small")
         await panel.set(.init())?.value
         #expect(sent.last?.isEmpty == true && sent.last?.commandWords(bundleID: "dev.x") == ["overrides", "dev.x", "clear"])
-        // A new run starts with none.
         d.environmentOverrides = EnvironmentOverrides(values: [.boldText: "on"])
         runKey = "dev.x#11"
         d.syncWithRun()

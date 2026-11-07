@@ -2,7 +2,6 @@ import Testing
 @testable import USDCore
 
 @Suite struct USDZTests {
-    /// `props.usdz` was packaged by OpenUSD (usd-core) from `props.usda`.
     @Test func readsOpenUSDPackages() throws {
         let archive = try USDZArchive.read(try Fixture.bytes("props.usdz"))
         #expect(archive.rootLayer?.name == "props.usda")
@@ -32,10 +31,10 @@ import Testing
     @Test func rejectsCompressedEntriesAndBadChecksums() throws {
         var bytes = USDZArchive(entries: [.init(name: "a.usda", data: Array("#usda 1.0\n".utf8))]).write()
         var bad = bytes
-        bad[14] ^= 0xFF // CRC in the local header is not checked; corrupt the data instead
+        bad[14] ^= 0xFF
         bad[64] ^= 0xFF
         #expect(throws: USDError.self) { try USDZArchive.read(bad) }
-        bytes[8] = 8 // method: deflate
+        bytes[8] = 8
         let central = bytes.count - 22 - (46 + 6)
         bytes[central + 10] = 8
         #expect(throws: USDError.self) { try USDZArchive.read(bytes) }

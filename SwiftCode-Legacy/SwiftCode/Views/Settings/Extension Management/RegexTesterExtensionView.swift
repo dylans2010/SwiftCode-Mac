@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Regex Tester Extension View
 struct RegexTesterExtensionView: View {
     @State private var pattern = ""
     @State private var testInput = ""

@@ -5,8 +5,6 @@ import SwiftCodeEditorKit
 @testable import SwiftCodeIDEShell
 import SwiftCodePreviews
 
-/// An engine that records requests and answers with the tiles' requested
-/// sizes (or a scripted failure), after an optional delay.
 final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
     let lock = NSLock()
     var requests: [PreviewCanvasRequest] = []
@@ -77,12 +75,11 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         c.focus(path: "/p/Card.swift", text: Self.card)
         #expect(c.isShown && c.isPaused)
         #expect(c.tabTitles == ["Card", "Compact", "Fixed"])
-        #expect(e.count == 0)   // nothing builds before resume
+        #expect(e.count == 0)
         c.resume()
         await settle(c)
         #expect(c.state == .rendered)
         #expect(c.tiles.count == 1 && c.tiles[0].isDevice && c.tiles[0].image != nil)
-        // A device-sized preview is laid out on the automatic device's screen.
         #expect(e.last?.tiles.first?.size == PreviewCanvasShellModel.automaticDevice.panels[0].uprightPointSize)
         #expect(c.timings.count == 1)
     }
@@ -105,7 +102,6 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         let before = e.count
         for i in 0..<5 { c.edited(path: "/p/Card.swift", text: Self.card.replacingOccurrences(of: "\"One\"", with: "\"One \(i)\"")) }
         await settle(c)
-        // One update for the burst, with the last text.
         #expect(e.count == before + 1)
         #expect(e.last?.text.contains("\"One 4\"") == true)
         #expect(c.timings.last?.reason == "edit")
@@ -124,17 +120,15 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         #expect(c.state == .rendered)
         #expect(c.banner?.title == "Compiling the preview failed")
         #expect(c.banner?.issues == [issue])
-        #expect(c.tiles.first?.image != nil)   // the last picture stays
+        #expect(c.tiles.first?.image != nil)
         var opened: (String, Int)?
         c.reveal = { opened = ($0, $1) }
         c.open(issue)
         #expect(opened?.0 == "/p/Card.swift" && opened?.1 == 9)
-        // Fixed: the banner goes.
         e.failure = nil
         c.edited(path: "/p/Card.swift", text: Self.card)
         await settle(c)
         #expect(c.banner == nil)
-        // Another file that fails before any picture: the error card.
         e.failure = .host("The preview host failed to start")
         c.focus(path: "/p/Other.swift", text: Self.card)
         await settle(c)
@@ -152,7 +146,6 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         let body = "import SwiftUI\n#Preview { let c = UIViewController(); return c }\n"
         #expect(PreviewCanvasShellModel.needsSimulator(text: body, previews: PreviewDiscovery.previews(in: body)))
         #expect(!PreviewCanvasShellModel.needsSimulator(text: Self.card, previews: PreviewDiscovery.previews(in: Self.card)))
-        // A comment naming UIKit does not count.
         let commented = "// import UIKit\n" + Self.card
         #expect(!PreviewCanvasShellModel.needsSimulator(text: commented, previews: PreviewDiscovery.previews(in: commented)))
 
@@ -164,7 +157,6 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         #expect(c.state == .needsSimulator(title: PreviewCanvasShellModel.needsSimulatorTitle, message: PreviewCanvasShellModel.needsSimulatorMessage))
         #expect(c.statusText == "Needs a simulator host")
         #expect(e.count == 0)
-        // With a simulator host the UIKit engine renders them.
         let s = FakePreviewEngine()
         let c2 = canvas(e, simulator: s)
         c2.focus(path: "/p/Badge.swift", text: uikit)
@@ -182,21 +174,21 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         c.setMode(.grid)
         var t = c.plannedTiles()
         #expect(t.map(\.preview) == [0, 1, 2])
-        #expect(t[1].requested == .zero)   // sizeThatFits: the ideal size
+        #expect(t[1].requested == .zero)
         #expect(t[2].requested == CGSize(width: 320, height: 200) && !t[2].isDevice)
         await settle(c)
         #expect(c.tiles.count == 3)
-        c.setMode(.variants)   // Color Scheme
+        c.setMode(.variants)
         t = c.plannedTiles()
         #expect(!c.isGrid && t.map(\.variant.colorScheme) == ["light", "dark"])
         #expect(t.map(\.caption) == ["Light", "Dark"])
-        c.setMode(.variants)   // Orientation
+        c.setMode(.variants)
         t = c.plannedTiles()
         let screen = c.screen
         #expect(t.map(\.requested) == [screen, CGSize(width: screen.height, height: screen.width)])
-        c.setMode(.variants)   // Dynamic Type
+        c.setMode(.variants)
         #expect(c.plannedTiles().map(\.variant.dynamicType) == PreviewVariant.dynamicTypeVariantSizes)
-        c.setMode(.variants)   // off
+        c.setMode(.variants)
         #expect(c.variantKind == nil && c.plannedTiles().count == 1)
         c.setSetting("Color Scheme", true)
         #expect(c.plannedTiles()[0].variant.colorScheme == "dark")
@@ -206,7 +198,6 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         c.chooseDevice(nil)
         #expect(c.deviceTitle == "Automatic – iPhone 18 Pro")
         await settle(c)
-        // Every layout change was a request, none a recompile of a new text.
         #expect(Set(e.requests.map(\.text)).count == 1)
     }
 
@@ -221,7 +212,7 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         await settle(c)
         #expect(c.selectedIndex == 2 && c.tiles.first?.preview == 2)
         c.tileClicked(c.tiles[0])
-        #expect(revealed == nil)   // Live: clicks reach the preview
+        #expect(revealed == nil)
         c.setMode(.selectable)
         c.tileClicked(c.tiles[0])
         #expect(revealed?.0 == "/p/Card.swift" && revealed?.1 == c.previews[2].line)
@@ -246,10 +237,8 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         #expect(one.frames[0].height <= 600)
         let small = PreviewCanvasShellModel.arrange([tile(0, 100, 50)], area: CGSize(width: 500, height: 600), zoom: nil)
         #expect(small.zoom == 1)
-        // Two phones in a wide canvas sit side by side.
         let two = PreviewCanvasShellModel.arrange([tile(0, 402, 874), tile(1, 402, 874)], area: CGSize(width: 1200, height: 900), zoom: nil)
         #expect(two.frames[0].minY == two.frames[1].minY && two.frames[1].minX > two.frames[0].maxX)
-        // A set zoom keeps its value and wraps to fit the width.
         let zoomed = PreviewCanvasShellModel.arrange([tile(0, 402, 874), tile(1, 402, 874)], area: CGSize(width: 500, height: 900), zoom: 1)
         #expect(zoomed.zoom == 1 && zoomed.frames[1].minY > zoomed.frames[0].maxY)
     }
@@ -289,13 +278,11 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         await settle(m.previewCanvas)
         #expect(e.count == 1)
         #expect(e.last?.locator.kind == .package)
-        // Typing in the editor (unsaved) reaches the canvas.
         let b = try #require(m.editor?.buffer)
         let r = (b.text as NSString).range(of: "\"One\"")
         b.replace(NSRange(location: r.location + 1, length: 3), with: "Uno")
         await settle(m.previewCanvas)
         #expect(e.count == 2 && e.last?.text.contains("\"Uno\"") == true)
-        // Closing the file hides the canvas.
         m.closeCurrentDocument(discard: true)
         #expect(!m.previewCanvas.isShown)
     }
@@ -309,7 +296,6 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         let m = loc.module(for: file)
         #expect(m.name == "DemoCore")
         #expect(Set(m.files.map(\.lastPathComponent)) == ["Card.swift", "Greeting.swift"])
-        // Outside a target: the file alone, named after it.
         let loose = URL(fileURLWithPath: pkg.path("Card View.swift"))
         let alone = loc.module(for: loose)
         #expect(alone.name == "Card_View" && alone.files.isEmpty)
@@ -327,7 +313,6 @@ final class FakePreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
         guard case .needsSimulator(let title, let message) = c.state else { Issue.record("\(c.state)"); return }
         #expect(title == "UIKit Previews Need Setup" && message.contains("SWIFTCODE_USER_SDK"))
         #expect(s.last?.deviceTypeID == "iphone-18-pro" && s.last?.screen == c.screen)
-        // The pieces: a preview device per type, regions on the screen, the viewer's script.
         #expect(SimulatorPreviewEngine.previewDevice(typeID: "iphone-18-pro") == "swiftcode-previews-iphone-18-pro")
         let screen = CGSize(width: 402, height: 874)
         let one = SimulatorPreviewEngine.regions([PreviewCanvasTileRequest(preview: 0, variant: PreviewVariant(), size: screen)], screen: screen)

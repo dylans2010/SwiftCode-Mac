@@ -11,7 +11,6 @@ final class BatteryStatusViewModel {
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "BatteryStatus")
 
     func refreshStatus() {
-        // macOS Battery Status retrieval simulation
         level = 85.0
         isCharging = false
         timeRemaining = "4 hours, 20 minutes"

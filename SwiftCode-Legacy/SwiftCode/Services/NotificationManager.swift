@@ -74,7 +74,6 @@ final class NotificationManager: ObservableObject {
             content.sound = .default
         }
 
-        // If the application is active in the foreground, also play immediately through AlertSoundPlayer
         if NSApplication.shared.isActive {
             let tone: AlertTone
             switch category {

@@ -1,14 +1,6 @@
 import SwiftUI
 import SwiftCodeIDEShell
 
-/// Personal Documentation — the SwiftUI window for Legacy's
-/// `NSPersonalDocumentationView` + its module views (dashboard, record list,
-/// record detail, editors, planning board, wiki, global search), rebuilt in
-/// SwiftCode style on top of `PersonalDocStore`.
-///
-/// The window is a `NavigationSplitView`: modules in the sidebar, records in
-/// the middle, a Markdown editor on the right. All state lives in the store
-/// (JSON in Application Support); the view holds no document data itself.
 public struct PersonalDocumentationView: View {
     @State private var coordinator: PersonalDocumentationCoordinator
     @State private var editedMarkdown: String = ""
@@ -56,8 +48,6 @@ public struct PersonalDocumentationView: View {
         .onChange(of: coordinator.selectedDocumentID) { _, _ in syncEditor() }
     }
 
-    // MARK: - Sidebar
-
     private var sidebar: some View {
         List(selection: $coordinator.selectedModuleKind) {
             ForEach(PersonalDocArchetype.allCases, id: \.self) { archetype in
@@ -72,8 +62,6 @@ public struct PersonalDocumentationView: View {
         .listStyle(.sidebar)
         .navigationTitle("Modules")
     }
-
-    // MARK: - Content list
 
     private var contentList: some View {
         Group {
@@ -189,8 +177,6 @@ public struct PersonalDocumentationView: View {
             }
         }
     }
-
-    // MARK: - Detail
 
     private var detail: some View {
         Group {

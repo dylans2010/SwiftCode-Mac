@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// reference-ui-5.md §11.2 (P7) and §7.6 (I6): folders as outline rows,
-/// every "+" item creatable, and the attributes inspector as a fourth
-/// inspector tab.
 @MainActor
 @Suite struct AssetCatalogR35Tests {
     func catalog() throws -> URL {
@@ -50,7 +47,6 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: tv.url.appendingPathComponent("App Icon.imagestack/Middle.imagestacklayer/Content.imageset/Contents.json").path))
         let msg = try c.addMessagesIcon(named: "iMessage App Icon", in: url)
         #expect(AssetCatalog.slots(of: msg).count == 12 && AssetCatalog.slots(of: msg).last?.idiom == "ios-marketing")
-        // The new containers list their parts as children.
         let ids = c.outline().map(\.id)
         #expect(ids.contains("App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Front.imagestacklayer/Content.imageset"))
     }

@@ -2,56 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// MARK: - Legacy Assist gap tests (Wave 18)
-//
-// The portable leftovers of Legacy's Assist provider/router tests
-// (Dylan's own code; direct port authorised under MIT) that the
-// Wave 9/15/16 ports did not already cover:
-//
-//   - `HermesProviderTests.testConfigurationRoundTrip`: SwiftCode's
-//     `HermesConfiguration` has no `load()`/`save()` (persistence
-//     lives in `AssistantSettings`), so only the pure half ports —
-//     `normalisedToolsets` ("file,web" preserved, whitespace-only
-//     means Hermes defaults).
-//   - `AssistProviderTests.testPersistedProviderRoundTrip`: the
-//     `AssistantSettings.provider` JSON round-trip for `.openCode`
-//     (Legacy's `assist.selectedProvider` key).
-//   - `AssistModelRouterTests.testDefaultAssistModelClaudeRouting` /
-//     `testDefaultAssistModelOpenAIRouting`: the "never Gemini" half —
-//     an explicit Claude/GPT selection must yield a non-Antigravity
-//     SDK config whose model is not a Gemini id. (The selection
-//     itself is already covered by
-//     `selectModelForSDKDefaultHonoursExplicitThirdPartyID`.)
-//   - `AssistModelRouterTests.testNoSilentGeminiFallback`: after a
-//     Claude turn failure the failover event still attributes the
-//     failure to the Claude model, and the failover target is the
-//     other Claude candidate — never the Gemini candidate that was
-//     eligible. (Legacy asserted the provider id contained
-//     "claude"; SwiftCode's event records the serving provider's display
-//     name, so the assertion is on the model ids instead.)
-//
-// Deliberately NOT ported from the same Legacy files:
-//   - `HermesProviderTests.testExecutableResolution`: covered —
-//     `CLIToolLocator.find` is tested in `CLIAgentTests` (nvm
-//     ordering, override, missing tool).
-//   - `HermesProviderTests.testProviderSelectionAndSDKGuard` and
-//     `SDKProviderTests` (all 8): SwiftCode has no
-//     `AssistSDKSessionRunner` / `SDKToolEventStore` /
-//     `SDKToolSourceSetting`; the routing half is covered by
-//     `providerKindForModelID` and `specificationPrefixesWin`.
-//   - `AssistModelRouterTests.testAlternativeKeySettingsPersistence`:
-//     SwiftCode has no persisted `alternativeKeysEnabled` toggle (it is
-//     a `buildConfig` parameter); the rotation behaviour itself is
-//     covered by `GeminiKeyRotationTests` and
-//     `AssistSDKModelSelectionTests`.
-//   - `AssistModelRouterTests.testDiscoveryServiceCachingAndStats`:
-//     caching is covered by `cacheIsReusedUntilForced`; SwiftCode's
-//     discovery exposes no stats API.
-//
-// No Swift toolchain exists in this environment, so these tests have
-// NOT been compiled or run — statically verified only. On Dylan's Mac:
-// run with `swift test --filter LegacyAssistGapTests`.
-
 @Suite struct LegacyAssistGapTests {
 
     @Test func hermesConfigurationNormalisedToolsets() {
@@ -112,8 +62,6 @@ import Testing
             executedToolsCount: 2, objective: "Fix the bug", automaticallySwitchModels: true,
             eligibleCandidates: candidates)
         let next = try #require(result)
-        // The Gemini candidate was eligible but must not be the
-        // silent fallback: failover goes to the other Claude model.
         #expect(next.nextModel.id == "anthropic/claude-haiku-4-5")
         #expect(!next.nextModel.id.contains("gemini"))
         let event = await router.lastFailoverEvent

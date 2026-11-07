@@ -1,9 +1,3 @@
-// ArchiveManagerView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/ArchiveManagerView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: exportArchive; ArchiveDetailView
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 #if canImport(UniformTypeIdentifiers)
 import UniformTypeIdentifiers
@@ -18,7 +12,6 @@ struct ArchiveManagerView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Archive Manager")
@@ -237,10 +230,6 @@ struct ArchiveDetailView: View {
         }
     }
 
-    /// Exports the archive's real record as a JSON manifest. The archive
-    /// carries metadata only (project, version, build, commit, notes) —
-    /// no app binary was ever captured for it — so the export is honestly
-    /// a manifest of that record, not a `.app` bundle.
     private func exportArchive() {
         isExporting = true
         exportError = nil

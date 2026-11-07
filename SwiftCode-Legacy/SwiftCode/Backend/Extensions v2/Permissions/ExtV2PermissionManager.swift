@@ -1,13 +1,5 @@
 import Foundation
 
-// MARK: - Permission manager
-//
-// Grants are explicit, persisted, and revocable. Defaults are deny:
-// with no prompt handler installed (e.g. a headless call), a request
-// returns false rather than assuming the user would have said yes.
-// A prompt is not a sandbox — the bridges check grants on every call,
-// and revocation takes effect immediately on the next call.
-
 public struct ExtV2PermissionRequest: Sendable {
     public let extensionId: String
     public let capability: ExtV2Capability
@@ -19,8 +11,6 @@ public final class ExtV2PermissionManager: @unchecked Sendable {
     private let lock = NSLock()
     private var grants: [String: Set<ExtV2Capability>]
 
-    /// Set by the UI layer to present a real approval prompt. Nil means
-    /// "no one can approve right now", which is a denial, not a queue.
     public var promptHandler: (@Sendable (ExtV2PermissionRequest) async -> Bool)?
 
     public init(storage: ExtV2Storage = ExtV2Storage()) {
@@ -33,8 +23,6 @@ public final class ExtV2PermissionManager: @unchecked Sendable {
         }
     }
 
-    /// Test variant: grants start in memory and any persistence goes
-    /// to a unique temporary directory, never the real grants file.
     public init(grants: [String: Set<ExtV2Capability>]) {
         self.storage = ExtV2Storage(root: FileManager.default.temporaryDirectory
             .appendingPathComponent("ExtV2Tests-\(UUID().uuidString)", isDirectory: true))

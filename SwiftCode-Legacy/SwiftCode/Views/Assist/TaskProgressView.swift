@@ -51,7 +51,6 @@ public struct TaskProgressView: View {
     }
 
     private func stepIcon(for step: PlanStep) -> some View {
-        // Find if this step is completed (is it in completedActions?)
         let isCompleted = agentSession.state.completedActions.contains(step.description)
         return Group {
             if isCompleted {

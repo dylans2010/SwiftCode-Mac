@@ -1,6 +1,5 @@
 import SwiftUI
 
-
 struct ToolbarMinimizedView: View {
     @State private var isExpanded = false
 
@@ -22,8 +21,6 @@ struct ToolbarMinimizedView: View {
         .help("Expand Toolbar")
     }
 }
-
-// MARK: - Expanded Panel
 
 struct ToolbarExpandedPanelView: View {
     @Binding var isPresented: Bool

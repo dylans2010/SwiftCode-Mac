@@ -1,18 +1,6 @@
 import Foundation
 import SwiftCodeHealthStore
 
-/// Import / export — Legacy's `Core/DatabaseExportManager.swift` +
-/// `Core/DatabaseImportManager.swift`, ported to the explorer's
-/// `SQLiteDatabase`.
-///
-/// Deviation, recorded and an improvement: Legacy's CSV import
-/// split rows on `components(separatedBy: ",")`, which breaks on
-/// any quoted field containing a comma. The port parses real CSV
-/// (quoted fields, `""` escapes, embedded newlines, CRLF) and
-/// infers column types from the values. Empty cells import as
-/// NULL. Export covers CSV, JSON and a SQL dump (schema + INSERTs);
-/// blobs export as base64 in JSON and `X'...'` hex in SQL.
-
 public enum DatabaseCSVError: Error, Equatable, Sendable {
     case unterminatedQuote
     case emptyInput
@@ -27,8 +15,6 @@ extension DatabaseCSVError: LocalizedError {
     }
 }
 
-/// A real CSV parser: quoted fields, `""` escapes, embedded
-/// newlines, CRLF/LF/CR line endings.
 public enum DatabaseCSVParser {
     public static func parse(_ input: String) throws -> [[String]] {
         guard !input.isEmpty else { throw DatabaseCSVError.emptyInput }
@@ -88,7 +74,6 @@ public enum DatabaseCSVParser {
         return rows.filter { !($0.count == 1 && $0[0].isEmpty) }
     }
 
-    /// Escapes one field for CSV output.
     public static func escape(_ field: String) -> String {
         guard field.contains(",") || field.contains("\"") || field.contains("\n") || field.contains("\r") else {
             return field
@@ -136,7 +121,6 @@ public final class DatabaseExportManager {
         return lines.joined(separator: "\n")
     }
 
-    /// One JSON object per row; blobs are base64 strings.
     public func exportJSON(table: String) throws -> String {
         let (columns, rows) = try tableRows(table)
         let objects: [[String: Any]] = rows.map { row in
@@ -150,14 +134,11 @@ public final class DatabaseExportManager {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// The `CREATE` statements for every table, view, index and
-    /// trigger, straight from `sqlite_master`.
     public func exportSchema() throws -> String {
         let rows = try db.query("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name")
         return rows.compactMap { $0.first?.text }.map { $0.hasSuffix(";") ? $0 : $0 + ";" }.joined(separator: "\n")
     }
 
-    /// `INSERT` statements rebuilding one table's rows.
     public func exportSQL(table: String) throws -> String {
         let (columns, rows) = try tableRows(table)
         let columnList = columns.map(DatabaseSQL.quoted).joined(separator: ", ")
@@ -208,10 +189,6 @@ public final class DatabaseImportManager {
         }
     }
 
-    /// Imports CSV into a table, creating it (with types inferred
-    /// from the values) when `createTable` is set. The first row is
-    /// the header. Returns the number of rows imported. Empty cells
-    /// import as NULL.
     @discardableResult
     public func importCSV(_ csv: String, into table: String, createTable: Bool = true) throws -> Int {
         let rows = try DatabaseCSVParser.parse(csv)
@@ -241,10 +218,6 @@ public final class DatabaseImportManager {
         }
     }
 
-    /// Imports a JSON array of objects into a table, creating it
-    /// when `createTable` is set. Columns are the union of the
-    /// objects' keys, in first-seen order. Returns the number of
-    /// rows imported.
     @discardableResult
     public func importJSON(_ json: String, into table: String, createTable: Bool = true) throws -> Int {
         guard let data = json.data(using: .utf8),

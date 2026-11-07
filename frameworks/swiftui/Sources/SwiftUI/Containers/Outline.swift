@@ -5,24 +5,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// OutlineGroup and DisclosureGroup (round R9; PARITY §5.4 R12: the IDE's
-// navigators).
-//
-// In a list (or any lazy container) an outline is flattened into rows: each
-// element is a row at its depth, with a disclosure triangle when it has
-// children (an empty array counts as children, nil does not); the rows of an
-// expanded element follow it. Rows stay lazy: only materialised rows build
-// their views, but the flattening walks the expanded part of the tree on
-// every update. Expansion is kept per row key by the container (collapsed by
-// default) unless a `DisclosureGroup` has an `isExpanded` binding. Outside a
-// lazy container the views lay out as nested disclosure groups (a chevron
-// button and the label, the content 20 points in when expanded). The chevron
-// rotates by 90° when expanded; Right and Left expand and collapse in a
-// focused list (List.swift).
-
-// MARK: - OutlineGroup
-
-/// A tree of rows built from data with a children key path.
 public struct OutlineGroup<Data: RandomAccessCollection, ID: Hashable, Parent, Leaf, Subgroup> {
     let data: Data
     let children: KeyPath<Data.Element, Data?>
@@ -30,7 +12,6 @@ public struct OutlineGroup<Data: RandomAccessCollection, ID: Hashable, Parent, L
     let content: (Data.Element) -> Leaf
 }
 
-/// The children of an outline subgroup (as a view).
 public struct OutlineSubgroupChildren: View {
     let view: AnyView
     public var body: some View { view }
@@ -75,7 +56,6 @@ extension OutlineGroup: View where Parent: View, Leaf: View, Subgroup: View {
     }
 }
 
-/// One element of an outline outside a lazy container.
 private struct OutlineNodeView<Element, Data: RandomAccessCollection>: View where Data.Element == Element {
     let element: Element
     let id: AnyHashable
@@ -122,9 +102,6 @@ extension OutlineGroup: LazyItemEnumerating where Leaf: View {
     }
 }
 
-// MARK: - DisclosureGroup
-
-/// A label that shows or hides its content.
 public struct DisclosureGroup<Label: View, Content: View>: View {
     let label: Label
     let content: () -> Content
@@ -195,8 +172,6 @@ extension DisclosureGroup: LazyItemEnumerating {
     package func _lazyItems(prefix: [AnyHashable], into items: inout LazyItems, context: LazyEnumerationContext) {
         let key = AnyHashable(prefix)
         let binding = isExpanded
-        // R13: inside a `ForEach` the label row takes the element's ID (its
-        // selection value), and that ID can start it expanded.
         let id = context.takeElementID()
         let expanded = binding?.wrappedValue ?? context.isExpanded(key, default: context.initiallyExpanded(id))
         let label = label
@@ -219,7 +194,6 @@ extension DisclosureGroup: LazyItemEnumerating {
     }
 }
 
-/// How disclosure groups look (the automatic look only).
 @MainActor @preconcurrency
 public protocol DisclosureGroupStyle {}
 

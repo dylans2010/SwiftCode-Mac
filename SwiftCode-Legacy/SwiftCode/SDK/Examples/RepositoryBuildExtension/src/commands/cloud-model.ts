@@ -1,10 +1,5 @@
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 
-/**
- * "cloud-model" command.
- *
- * Demonstrates calling the SwiftCode Cloud Model service for text generation.
- */
 export function createCloudModelCommand(context: SwiftCodeContext) {
   return {
     id: "cloud-model",

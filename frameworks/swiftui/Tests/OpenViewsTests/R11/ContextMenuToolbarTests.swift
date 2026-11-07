@@ -9,9 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R11: context menus (secondary click, long press, Shift+F10, list
-// selections) and window toolbars outside navigation containers.
-
 @MainActor
 @Suite("R11 context menus and window toolbars")
 struct ContextMenuToolbarTests {
@@ -53,10 +50,8 @@ struct ContextMenuToolbarTests {
     @Test func longTouchPressOpensItAndTheButtonDoesNotFire() {
         let h = CommandsHarness(menuBar: false) { Rows() }
         guard let blue = centre(h, .blue) else { Issue.record("frame"); return }
-        // A short tap runs the button.
         h.click(blue, kind: .touch, at: 1)
         #expect(CommandLog.shared.entries == ["tap blue"])
-        // Held 0.7 s: the menu opens at 0.5 s and the release does nothing.
         h.click(blue, kind: .touch, at: 2, duration: 0.7)
         #expect(h.popups.count == 1)
         #expect(CommandLog.shared.entries == ["tap blue"])
@@ -136,18 +131,15 @@ struct ContextMenuToolbarTests {
         guard let back = h.textFrame("Back"), let title = h.textFrame("Title"), let build = h.textFrame("Compile"),
               let run = h.textFrame("Run"), let status = h.textFrame("Status"), let content = h.textFrame("Content")
         else { Issue.record("frames"); return }
-        // Under the 26-point menu bar, a 38-point toolbar.
         #expect(back.midY > 26 && back.midY < 64)
         #expect(back.minX < 40)
         #expect(abs(title.midX - 400) < 1)
         #expect(build.maxX < run.minX && run.maxX > 700)
-        // Fixed spacer: 12 points plus the bar's spacing between Build and the group.
         #expect(run.minX - build.maxX > 12)
         #expect(status.minY > 450)
         #expect(content.midY > 64 && content.midY < 470)
         h.click(CGPoint(x: run.midX, y: run.midY), at: 1)
         #expect(CommandLog.shared.entries == ["run"])
-        // View > Hide Toolbar.
         h.openMenu("View", at: 1.5)
         #expect(h.openItems.contains("Hide Toolbar"))
         h.choose("Hide Toolbar", at: 1.7)

@@ -27,7 +27,6 @@ public final class VirtualMachineRegistry: Sendable {
             let decoder = JSONDecoder()
             return try decoder.decode([VirtualMachine].self, from: data)
         } catch {
-            // Seed defaults on error or first launch
             let defaults = [
                 VirtualMachine(
                     name: "Ubuntu Server LTS",

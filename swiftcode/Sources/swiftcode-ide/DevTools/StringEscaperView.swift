@@ -1,12 +1,9 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct StringEscaperView: View {
     @State private var input = "Hello \"World\"\nLine 2"
     @State private var output = ""
-    @State private var mode = 0 // 0: Escape, 1: Unescape
+    @State private var mode = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,7 +13,6 @@ struct StringEscaperView: View {
             }
             .pickerStyle(.segmented)
             .padding()
-            
 
             HSplitView {
                 TextEditor(text: $input)

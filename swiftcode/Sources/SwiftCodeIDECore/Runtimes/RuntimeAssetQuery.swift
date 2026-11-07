@@ -1,26 +1,12 @@
-// The MobileAsset query (`runtime-downloads.md` §4.1, §4.2): where one
-// runtime's bytes are, their size and SHA-256, and the archive's key. Owner
-// decision O1: the request describes the machine SwiftCode really runs on. On a
-// Mac those are the Mac's own values; on Linux its real OS, architecture and
-// SwiftCode's client name, and no Mac model fields. SwiftCode never presents itself
-// as a Mac it is not. A refusal is reported, with routes A and C offered.
-
 import Foundation
 
-/// The machine, as the query describes it.
 public struct RuntimeHostDescription: Sendable, Equatable {
     public var isMac: Bool
-    /// "macOS" or "Linux".
     public var productName: String
-    /// macOS version, or the Linux kernel release.
     public var productVersion: String
-    /// macOS build, or the distribution and its version ("ubuntu 26.04").
     public var buildVersion: String
-    /// `uname -m`.
     public var architecture: String
-    /// The Mac's model identifier (`hw.model`); nil on Linux.
     public var macModel: String?
-    /// "SwiftCode/<version>".
     public var client: String
 
     public init(isMac: Bool, productName: String, productVersion: String, buildVersion: String, architecture: String, macModel: String?, client: String) {
@@ -35,7 +21,6 @@ public struct RuntimeHostDescription: Sendable, Equatable {
 
     public var userAgent: String { "\(client) (\(productName) \(productVersion); \(architecture))" }
 
-    /// This machine's real values.
     public static func current() -> RuntimeHostDescription {
         let arch = SetupMachine.current.architecture
         let client = "SwiftCode/\(ProductIdentity.version)"
@@ -65,7 +50,6 @@ public struct RuntimeHostDescription: Sendable, Equatable {
     }
     #endif
 
-    /// `ID VERSION_ID` from /etc/os-release ("ubuntu 26.04").
     static func osRelease(_ text: String? = try? String(contentsOfFile: "/etc/os-release", encoding: .utf8)) -> String {
         var f: [String: String] = [:]
         for line in (text ?? "").split(whereSeparator: \.isNewline) {
@@ -75,7 +59,6 @@ public struct RuntimeHostDescription: Sendable, Equatable {
         return [f["ID"], f["VERSION_ID"]].compactMap { $0 }.joined(separator: " ")
     }
 
-    /// The host fields of the request: Mac model fields only on a Mac.
     public var requestFields: [String: Any] {
         var d: [String: Any] = ["ProductName": productName, "ProductVersion": productVersion, "BuildVersion": buildVersion,
                                 "HardwarePlatform": architecture]
@@ -86,7 +69,6 @@ public struct RuntimeHostDescription: Sendable, Equatable {
         return d
     }
 
-    /// What the confirmation shows the user before anything is sent.
     public var summary: String {
         var s = "\(productName) \(productVersion)"
         if !buildVersion.isEmpty { s += " (\(buildVersion))" }
@@ -96,7 +78,6 @@ public struct RuntimeHostDescription: Sendable, Equatable {
     }
 }
 
-/// One asset (§4.2).
 public struct RuntimeAssetRecord: Sendable, Equatable {
     public var assetType: String
     public var build: String
@@ -128,10 +109,8 @@ public struct RuntimeAssetRecord: Sendable, Equatable {
 
 public enum RuntimeAssetQuery {
     public static let url = URL(string: "https://gdmf.apple.com/v2/assets")!
-    /// The public "macOS Mobile Asset Customer" audience (§4.1).
     public static let audience = "02d8e57e-dd1c-4090-aa50-b4ed2aef0062"
 
-    /// The JSON body for one asset type and build.
     public static func body(assetType: String, build: String, host: RuntimeHostDescription) -> Data {
         var d = host.requestFields
         d["AssetType"] = assetType
@@ -142,8 +121,6 @@ public enum RuntimeAssetQuery {
         return (try? JSONSerialization.data(withJSONObject: d, options: [.sortedKeys])) ?? Data()
     }
 
-    /// Sends the query (TLS to Apple's root), checks the signed answer
-    /// (chain to Apple's G3 root) and returns the asset.
     public static func run(assetType: String, build: String, host: RuntimeHostDescription, transport: any RuntimeTransport,
                            trust: RuntimeTrust, now: Date = Date()) async throws -> RuntimeAssetRecord {
         let ca = try await trust.pemFile(.appleRoot, transport: transport)
@@ -157,7 +134,6 @@ public enum RuntimeAssetQuery {
         return try parse(payload: doc.payload, assetType: assetType, build: build)
     }
 
-    /// The asset from the signed document's payload.
     public static func parse(payload: Data, assetType: String, build: String) throws -> RuntimeAssetRecord {
         guard let obj = try JSONSerialization.jsonObject(with: payload) as? [String: Any] else {
             throw RuntimeDownloadError.untrusted("the answer has no body")

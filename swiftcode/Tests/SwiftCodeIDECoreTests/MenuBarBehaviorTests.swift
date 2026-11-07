@@ -4,14 +4,9 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-5.md §1–§2 behavior: titles in context (§1.3), conditional
-/// items and separators (§1.5), the system's items (§1.6), menus filled
-/// from state, the jump-bar keyboard menus (§2.4, §6.1.3), Quick Actions
-/// (§2.4 item 5) and the commands added with the menu bar.
 @MainActor
 @Suite(.serialized) struct MenuBarBehaviorTests {
     @Test func titlesInContext() {
-        // No workspace: the generic titles.
         #expect(MenuTitles.title(generic: "Close Document", in: nil) == "Close Document")
         var c = MenuContext()
         c.containerKind = .package
@@ -51,15 +46,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     }
 
     @Test func separatorsCollapseAroundHiddenItems() {
-        // item, —, (hidden), —, item, —, (hidden) → one separator, none trailing.
         let shown = MenuConditions.visibleSeparators(isSeparator: [false, true, false, true, false, true, false],
                                                      isVisible: [true, false, false, false, true, false, false])
         #expect(shown == [false, true, false, false, false, false, false])
         #expect(MenuConditions.visibleSeparators(isSeparator: [true, false, true], isVisible: [false, true, false]) == [false, false, false])
     }
 
-    /// §1.1: a disabled command keeps its shortcut; Key Bindings reports it
-    /// as a conflict.
     @Test func disabledCommandsHoldTheirShortcuts() {
         let t = TestDefaults("menu-keys")
         defer { t.remove() }
@@ -67,7 +59,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let build = KeyBindings.entries(p).first { $0.title == "Build" }!
         let c = KeyBindings.set(build.id, key: "b", modifiers: [.command, .control], p)
         #expect(c.map(\.title) == ["Compile File"])
-        // Any spelling of a keystroke: "{" with ⌘ is ⇧⌘[.
         let c2 = KeyBindings.conflicts(key: "[", modifiers: [.command, .shift], excluding: build.id, p)
         #expect(c2.map(\.title) == ["Show Previous Tab"])
         #expect(p.keyBindingOverrides.isEmpty)

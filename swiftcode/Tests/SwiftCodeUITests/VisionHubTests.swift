@@ -6,23 +6,11 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Device Hub ▸ Add Device ▸ Apple Vision Pro… (IDE-SMALL, `device-hub.md`
-/// §I.11): with a visionOS runtime set up the item creates an Apple Vision
-/// Pro of SwiftCode's (Name, OS Version "visionOS 27.0", Model "Apple Vision
-/// Pro"); its row is a visionOS device, Start boots it with the launcher
-/// (`--device-type vision-pro` on the visionOS runtime root) and Delete…
-/// erases it on the host. ssh is a local stand-in and the launcher a
-/// script that logs its arguments: no network.
 @MainActor
 @Suite(.serialized, .timeLimit(.minutes(5))) struct VisionHubTests {
     static let iosRoot = "/rr/iOS-27.0-24A434/RuntimeRoot"
     static let visionRoot = "/rr/xrOS-27.0-24O353/RuntimeRoot"
 
-    /// Boots print a line and stay until they are interrupted (as the
-    /// launcher does); `--erase` removes the device directory; control
-    /// commands answer at once (Device Hub asks a booted device for its
-    /// settings; a boot-like answer kept that call, and a child process,
-    /// alive until the end of the run).
     static let launcher = #"""
     #!/bin/sh
     R="$(dirname "$0")/.."
@@ -106,8 +94,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let r = try makeRemote(vision: true)
         defer { try? FileManager.default.removeItem(at: r.root) }
         try await withHub(r) { c, defaults in
-            // The visionOS runtime gives a fixed row and enables the item;
-            // the iPhone rows and run destinations are unchanged.
             let s = RemoteSimulatorSettings.load(defaults)
             #expect(s.visionTargets.map(\.name) == ["Apple Vision Pro (SwiftCode)"])
             #expect(s.targets.allSatisfy { $0.deviceType.platform == "iOS" })
@@ -117,7 +103,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(item.isEnabled && item.action == #selector(DevicesController.newVisionDeviceChosen(_:)))
             #expect(add.first { $0.title == "Apple TV…" }?.isEnabled == false)
 
-            // The form: Name (placeholder the model), OS Version, Model.
             var shown: HubDeviceForm?
             c.pairing.presentForm = { form, done in
                 shown = form
@@ -135,16 +120,13 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let row = try #require(c.rows.first { $0.name == "Test Vision" })
             #expect(row.platform == "visionOS" && row.isCreated && row.osVersion == "27.0")
             #expect(c.selected?.name == "Test Vision")
-            // Not a run destination of iOS schemes.
             #expect(!RemoteSimulatorSettings.load(defaults).targets.contains { $0.deviceDirectoryName == created[0].directoryName })
 
-            // Start: the launcher boots it on the visionOS runtime.
             let dir = r.devices.appendingPathComponent(created[0].directoryName).path
             await c.start(row)?.value
             #expect(c.rows.first { $0.name == "Test Vision" }?.state == "Booted")
             for _ in 0..<50 where !r.log.contains("--device") { try await Task.sleep(nanoseconds: 100_000_000) }
             #expect(r.log.contains("--device \(dir) --runtime-root \(Self.visionRoot) --device-type vision-pro"), "\(r.log)")
-            // Delete… is refused while it runs; after Shut Down it erases it.
             let booted = try #require(c.rows.first { $0.name == "Test Vision" })
             #expect(c.pairingMenuItems(for: booted).first { $0.title == "Delete…" }?.isEnabled == false)
             await c.shutDown(booted)?.value
@@ -168,8 +150,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    /// A runtime root whose platform was not read yet counts as visionOS
-    /// when its path names xrOS or visionOS.
     @Test func runtimePlatformFromThePath() {
         let s = RemoteSimulatorSettings(destination: "h", dataDirectory: "/d", runtimeRoot: Self.iosRoot, simdPath: "/s", deviceName: "dev")
         #expect(s.runtimePlatform(forRoot: Self.visionRoot) == "visionOS")

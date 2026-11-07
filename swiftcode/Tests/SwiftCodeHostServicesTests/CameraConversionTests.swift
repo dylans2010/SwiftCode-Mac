@@ -4,9 +4,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeHostServices
 
-/// Pixel arithmetic of the host camera layer (camera-host.md §4): exact
-/// values for the matrices, the range maps, chroma subsampling, the surface
-/// layouts, and the JPEG decoder.
 @Suite struct CameraConversionTests {
     func bgr(_ y: Int, _ cb: Int, _ cr: Int, full: Bool = false, matrix: Int = 601) -> [UInt8] {
         var out: [UInt8] = [0, 0, 0]
@@ -15,20 +12,15 @@ import Testing
     }
 
     @Test func matrices() {
-        // Video range: black and white ends, mid grey.
         #expect(bgr(16, 128, 128) == [0, 0, 0])
         #expect(bgr(235, 128, 128) == [255, 255, 255])
         #expect(bgr(126, 128, 128) == [128, 128, 128])
         #expect(bgr(126, 128, 128, matrix: 709) == [128, 128, 128])
-        // BT.601 video-range red (Y 81, Cb 90, Cr 240): B 0, G 0, R 254.
         #expect(bgr(81, 90, 240) == [0, 0, 254])
-        // BT.709 video-range red (Y 63, Cb 102, Cr 240).
         #expect(bgr(63, 102, 240, matrix: 709) == [0, 1, 255])
-        // Full range.
         #expect(bgr(128, 128, 128, full: true) == [128, 128, 128])
         #expect(bgr(0, 128, 255, full: true) == [0, 0, 178])
         #expect(bgr(255, 128, 128, full: true) == [255, 255, 255])
-        // Full-range BT.601 blue (Y 29, Cb 255, Cr 107) -> B 254, G 0, R 0.
         #expect(bgr(29, 255, 107, full: true) == [254, 0, 0])
     }
 
@@ -41,7 +33,6 @@ import Testing
         #expect(ycam_map_chroma(100, 0, 0) == 100 && ycam_map_luma(77, 1, 1) == 77)
     }
 
-    /// A 4 x 2 YUYV frame (Y0 Cb Y1 Cr per pair).
     let yuyv: [UInt8] = [10, 100, 20, 150, 30, 110, 40, 160,
                          50, 102, 60, 151, 70, 113, 80, 170]
 
@@ -62,9 +53,7 @@ import Testing
         let y = l.planes[0], c = l.planes[1]
         #expect(Array(m[y.offset..<(y.offset + 4)]) == [10, 20, 30, 40])
         #expect(Array(m[(y.offset + y.bytesPerRow)..<(y.offset + y.bytesPerRow + 4)]) == [50, 60, 70, 80])
-        // Each chroma sample: the mean of the two rows (4:2:2 -> 4:2:0).
         #expect(Array(m[c.offset..<(c.offset + 4)]) == [101, 151, 112, 165])
-        // '420f': the same through the range maps.
         let (lf, mf) = try convert(yuyv, .yuyv, width: 4, height: 2, bytesPerLine: 8, to: .biPlanar420Full)
         let yf = lf.planes[0], cf = lf.planes[1]
         #expect(Array(mf[yf.offset..<(yf.offset + 4)]) == [0, 5, 16, 28])
@@ -75,10 +64,8 @@ import Testing
     @Test func yuyvAndUYVYToBGRA() throws {
         let (l, m) = try convert(yuyv, .yuyv, width: 4, height: 2, bytesPerLine: 8, to: .bgra)
         #expect(l.bytesPerRow == 128)
-        // Pixel (1, 0): Y 20 with the pair's Cb 100, Cr 150; pixel (2, 1): Y 70, Cb 113, Cr 170.
         #expect(Array(m[4..<8]) == bgr(20, 100, 150) + [255])
         #expect(Array(m[(128 + 8)..<(128 + 12)]) == bgr(70, 113, 170) + [255])
-        // The same pixels from UYVY (Cb Y0 Cr Y1).
         var uyvy: [UInt8] = []
         for i in stride(from: 0, to: yuyv.count, by: 4) { uyvy += [yuyv[i + 1], yuyv[i], yuyv[i + 3], yuyv[i + 2]] }
         let (_, mu) = try convert(uyvy, .uyvy, width: 4, height: 2, bytesPerLine: 8, to: .bgra)
@@ -86,18 +73,15 @@ import Testing
     }
 
     @Test func planarSourcesToBGRA() throws {
-        // NV12 4 x 2: Y rows, then one Cb Cr row for both pixel rows.
         let nv12: [UInt8] = [10, 20, 30, 40, 50, 60, 70, 80, 90, 200, 140, 60]
         let (_, m) = try convert(nv12, .nv12, width: 4, height: 2, bytesPerLine: 4, to: .bgra)
         #expect(Array(m[0..<4]) == bgr(10, 90, 200) + [255])
         #expect(Array(m[(128 + 12)..<(128 + 16)]) == bgr(80, 140, 60) + [255])
-        // I420 and YV12 of the same image convert alike.
         let i420: [UInt8] = [10, 20, 30, 40, 50, 60, 70, 80, 90, 140, 200, 60]
         let yv12: [UInt8] = [10, 20, 30, 40, 50, 60, 70, 80, 200, 60, 90, 140]
         let (_, mi) = try convert(i420, .yu12, width: 4, height: 2, bytesPerLine: 4, to: .bgra)
         let (_, mv) = try convert(yv12, .yv12, width: 4, height: 2, bytesPerLine: 4, to: .bgra)
         #expect(Array(mi[0..<256]) == Array(m[0..<256]) && Array(mv[0..<256]) == Array(m[0..<256]))
-        // A short frame is refused.
         #expect(throws: CameraConversionError.shortFrame) {
             _ = try convert(Array(nv12.prefix(10)), .nv12, width: 4, height: 2, bytesPerLine: 4, to: .bgra)
         }
@@ -120,9 +104,6 @@ import Testing
         #expect(CameraSourceFormat.mjpeg.rawValue == 0x4750_4A4D && CameraSourceFormat.yuyv.description == "YUYV")
     }
 
-    // MARK: JPEG
-
-    /// A bit writer for hand-made entropy-coded data (F.1.2.3 byte stuffing).
     struct BitWriter {
         var bytes: [UInt8] = []
         var acc: UInt32 = 0, n = 0
@@ -141,8 +122,6 @@ import Testing
         mutating func pad() { while n != 0 { put(1, 1) } }
     }
 
-    /// The Annex K.3 DC codes (lengths per category), from the code-length
-    /// counts alone (canonical Huffman, Annex C).
     func dcCodes(_ bits: [Int]) -> [(code: Int, length: Int)] {
         var codes: [(Int, Int)] = [], code = 0
         for (i, n) in bits.enumerated() {
@@ -159,9 +138,6 @@ import Testing
         if s > 0 { w.put(diff > 0 ? diff : diff + (1 << s) - 1, s) }
     }
 
-    /// A 32 x 16 Y'CbCr 4:2:0 JPEG of flat 8 x 8 blocks (DC only, all
-    /// quantizers 1), no DHT (the decoder's Annex K tables), and a restart
-    /// after each MCU.
     func flatJPEG(luma: [[Int]], cb: [Int], cr: [Int]) -> [UInt8] {
         let lumaDC = dcCodes([0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0])
         let chromaDC = dcCodes([0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0])
@@ -178,11 +154,11 @@ import Testing
                 let dc = (level - 128) * 8
                 putDC(&w, dc - pred, lumaDC)
                 pred = dc
-                w.put(0b1010, 4)  // EOB, luma AC
+                w.put(0b1010, 4)
             }
             for level in [cb[mcu], cr[mcu]] {
                 putDC(&w, (level - 128) * 8, chromaDC)
-                w.put(0b00, 2)  // EOB, chroma AC
+                w.put(0b00, 2)
             }
             w.pad()
             j += w.bytes
@@ -202,7 +178,6 @@ import Testing
         #expect(img.width == 32 && img.height == 16 && img.components == 3 && img.hmax == 2 && img.vmax == 2)
         #expect(img.h.1 == 1 && img.v.1 == 1)
         func sample(_ plane: UnsafePointer<UInt8>?, _ stride: Int32, _ x: Int, _ y: Int) -> UInt8 { plane![y * Int(stride) + x] }
-        // Luma blocks in MCU order: top left, top right, bottom left, bottom right.
         for mcu in 0..<2 {
             for (b, level) in luma[mcu].enumerated() {
                 let x0 = mcu * 16 + (b % 2) * 8, y0 = (b / 2) * 8
@@ -213,7 +188,6 @@ import Testing
         }
         #expect(sample(img.plane.1, img.stride.1, 0, 0) == 90 && sample(img.plane.1, img.stride.1, 8, 7) == 160)
         #expect(sample(img.plane.2, img.stride.2, 7, 7) == 240 && sample(img.plane.2, img.stride.2, 15, 0) == 40)
-        // Through the converter: '420f' keeps full-range values.
         let (l, m) = try convert(jpeg, .mjpeg, width: 32, height: 16, bytesPerLine: 0, to: .biPlanar420Full)
         #expect(m[l.planes[0].offset + 8] == 235 && m[l.planes[1].offset] == 90 && m[l.planes[1].offset + 1] == 240)
         #expect(m[l.planes[1].offset + 16] == 160 && m[l.planes[1].offset + 17] == 40)
@@ -225,15 +199,12 @@ import Testing
         var j = flatJPEG(luma: [[1, 2, 3, 4], [5, 6, 7, 8]], cb: [1, 2], cr: [3, 4])
         let truncated = Array(j.prefix(40))
         #expect(ycam_jpeg_decode(d, truncated, truncated.count) == -1)
-        if let sof = j.indices.first(where: { j[$0] == 0xFF && j[$0 + 1] == 0xC0 }) { j[sof + 1] = 0xC2 }  // progressive
+        if let sof = j.indices.first(where: { j[$0] == 0xFF && j[$0 + 1] == 0xC0 }) { j[sof + 1] = 0xC2 }
         #expect(ycam_jpeg_decode(d, j, j.count) == -2)
         let notJPEG: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0, 0]
         #expect(ycam_jpeg_decode(d, notJPEG, notJPEG.count) == -1)
     }
 
-    /// Round trip through the system's libjpeg encoder where there is one
-    /// (CSwiftCodeCodec; full DCT content, encoder-written DHT): the synthetic
-    /// pattern comes back close to the original.
     @Test func jpegRoundTripThroughLibjpeg() throws {
         try roundTrip()
     }
@@ -265,7 +236,6 @@ import Testing
 
 func swiftcodecAvailable() -> Bool { swiftcodec_jpeg_available() != 0 }
 
-/// Baseline JPEG of BGRA pixels through the system's libjpeg (quality 95).
 func swiftcodecEncode(_ bgra: [UInt8], width: Int, height: Int, bytesPerRow: Int) -> [UInt8]? {
     var out: UnsafeMutablePointer<UInt8>?
     var size = 0

@@ -3,15 +3,9 @@ import Testing
 @testable import SwiftCodeDarwinKernel
 @testable import SwiftCodeHostServices
 
-/// PAIR-RELAY (device-pairing.md P-6, P-7, §10): the relay's two halves with
-/// two DarwinSystems standing in for the two VMs. Device A's "ids_simd" sends
-/// MIG 1000 requests to its endpoint (a host port of A); the near half sends
-/// them over a test link; the far half delivers them to B's "IDSSimRPC.local"
-/// (a host port of B served by a test thread) and carries B's reply back.
 @Suite(.serialized) struct PairingTransportRelayTests {
     static let ndr: [UInt8] = [0, 0, 0, 0, 1, 0, 0, 0]
 
-    /// One device: its system, its link, its relay.
     final class Device: PairingRelayLink, @unchecked Sendable {
         let udid: String
         let system = DarwinSystem()
@@ -20,10 +14,8 @@ import Testing
         weak var other: Device?
         let lock = NSLock()
         var linked = true
-        /// The guest's names for findInGuest (a receive right with a send right).
         var guestNames: [String: UInt32] = [:]
         var lookups = 0
-        /// Frames in flight are delivered in order on one queue, as a socket's reader thread would.
         let reader: DispatchQueue
         var frames: [[String: Any]] = []
 
@@ -35,7 +27,6 @@ import Testing
 
         func sendToPeer(_ peer: String, frame: [String: Any]) -> Bool {
             guard lock.withLock({ linked }), let other, other.udid == peer else { return false }
-            // The frame crosses as a binary property list, as on the rendezvous socket.
             guard let data = try? PropertyListSerialization.data(fromPropertyList: frame, format: .binary, options: 0),
                   let back = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
             else { Issue.record("frame not encodable: \(frame["type"] ?? "?")"); return false }
@@ -65,8 +56,6 @@ import Testing
         init(_ f: [String: Any]) { frame = f }
     }
 
-    /// B's ids_simd: serves its local port, records each request, replies
-    /// through `answer` (nil: hold the request until `release`).
     final class GuestServer: @unchecked Sendable {
         let host: MachHostTask
         let port: UInt32
@@ -102,7 +91,6 @@ import Testing
         UInt32(b[at]) | UInt32(b[at + 1]) << 8 | UInt32(b[at + 2]) << 16 | UInt32(b[at + 3]) << 24
     }
 
-    /// A and B linked both ways, B's local port served by `server`.
     func pair(_ options: PairingTransportRelay.Options = .init(requestTimeout: 10, lookupWait: 1),
               answer: @escaping @Sendable (MachHostReceivedMessage) -> UInt32? = { _ in 0 }) throws -> (Device, Device, GuestServer) {
         let a = Device("AAAAAAAA-0000-0000-0000-000000000001", options: options)
@@ -122,9 +110,6 @@ import Testing
         b.relay.stop(link: b)
     }
 
-    /// A's ids_simd sends one MIG 1000 (one OOL region, NDR, the byte count,
-    /// a send-once reply right) to its endpoint; the endpoint's message goes
-    /// to the relay. Returns the reply port (a receive right of A's host task).
     @discardableResult
     func send(_ a: Device, to peer: String, _ payload: [UInt8], id: Int32 = 1000, reply: Bool = true) throws -> UInt32 {
         let endpoint = try a.host.makePort(sendRight: true, qlimit: 64)
@@ -139,7 +124,6 @@ import Testing
         return replyPort
     }
 
-    /// The RetCode of the reply on `port` (and its id).
     func replyCode(_ a: Device, _ port: UInt32, timeout: UInt64 = 10_000_000_000) throws -> (id: Int32, code: UInt32) {
         let m = try a.host.receive(on: port, timeout: timeout)
         try? a.host.destroyPort(port)
@@ -162,7 +146,7 @@ import Testing
         let payload = (0..<1985).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ 7) }
         let r = try send(a, to: b.udid, payload)
         let (id, code) = try replyCode(a, r)
-        #expect(id == 1100 && code == 7)  // B's own RetCode reaches A
+        #expect(id == 1100 && code == 7)
         let m = try #require(server.lock.withLock { server.received.first })
         #expect(m.id == 1000 && m.isComplex && m.size == 56)
         #expect(m.descriptors.count == 1)
@@ -190,7 +174,6 @@ import Testing
             guard case let .ool(data, _, _) = m.descriptors.first else { Issue.record("no OOL"); return }
             #expect(data.count == size && data == payload)
         }
-        // Over the limit: answered at once with MACH_SEND_TOO_LARGE, nothing sent.
         let small = Device("CCCCCCCC-0000-0000-0000-000000000003",
                            options: .init(requestTimeout: 10, lookupWait: 1, maximumPayload: 1024))
         let r = try send(small, to: b.udid, [UInt8](repeating: 1, count: 2048))
@@ -198,10 +181,6 @@ import Testing
         small.relay.stop(link: small)
     }
 
-    /// H-16 (health-simulation.md §5.1, §8.7): healthd's sync messages over
-    /// `health.sync.classc` are 693 B … 88 679 B (median 1 427 B) in one
-    /// session, larger for a big backlog. Each crosses in one frame, byte for
-    /// byte, in order, without pieces, and quickly (the relay adds no delay).
     @Test func healthSyncSizedMessagesCrossInOneFrame() throws {
         let (a, b, server) = try pair()
         defer { finish(a, b, server) }
@@ -223,8 +202,6 @@ import Testing
         #expect(s.chunkedOut == 0 && s.largestOut == 262_144 + 12)
     }
 
-    /// P-12 (device-pairing.md §11.3, §12): a 20 MiB `transferFile` is one
-    /// request of the file's size; it crosses in pieces, byte for byte.
     @Test func aTwentyMebibyteRequestCrossesInPieces() throws {
         let (a, b, server) = try pair()
         defer { finish(a, b, server) }
@@ -239,11 +216,10 @@ import Testing
         #expect(data.count == size && data == payload)
         let frames = a.lock.withLock { a.frames }
         let chunks = frames.filter { $0["type"] as? String == "relay-chunk" }
-        #expect(chunks.count == 5)  // 4 MiB pieces
+        #expect(chunks.count == 5)
         #expect(chunks.allSatisfy { (($0["data"] as? Data)?.count ?? 0) <= 4 << 20 })
         let request = try #require(frames.last { $0["type"] as? String == "relay-request" })
         #expect(request["ool"] == nil && (request["oolSizes"] as? [Int]) == [size])
-        // Every frame fits the rendezvous socket's frame limit (17 MiB, PairLinkFrame).
         #expect(frames.allSatisfy {
             ((try? PropertyListSerialization.data(fromPropertyList: $0, format: .binary, options: 0))?.count ?? .max) <= 17 << 20
         })
@@ -251,8 +227,6 @@ import Testing
         #expect(s.chunkedOut == 1 && s.chunksOut == 5 && s.largestOut == size + 12)
     }
 
-    /// Later requests wait behind a large one (order per direction), and the
-    /// far half's queued bytes stay within its bound.
     @Test func piecesKeepTheOrderUnderTheMemoryBound() throws {
         let options = PairingTransportRelay.Options(requestTimeout: 20, lookupWait: 1, chunkSize: 1 << 20, queuedLimit: 3 << 20)
         let (a, b, server) = try pair(options)
@@ -271,8 +245,6 @@ import Testing
     }
 
     @Test func manyRequestsInFlightKeepTheirOrderAndRepliesFindTheirSenders() throws {
-        // B holds every request; then answers them in reverse order, each with
-        // RetCode = the index in its payload.
         let (a, b, server) = try pair { _ in nil }
         defer { finish(a, b, server) }
         var ports: [UInt32] = []
@@ -283,7 +255,7 @@ import Testing
             guard case let .ool(d, _, _) = m.descriptors[0] else { return 9999 }
             return Self.word(d, 0)
         }
-        #expect(order == (0..<50).map(UInt32.init))  // delivered in send order, all before any reply
+        #expect(order == (0..<50).map(UInt32.init))
         for m in held.reversed() {
             guard case let .ool(d, _, _) = m.descriptors[0] else { continue }
             server.reply(m, code: 1000 + Self.word(d, 0))
@@ -327,9 +299,7 @@ import Testing
         a.relay.linkChanged(peer: b.udid, up: false, link: a)
         b.relay.linkChanged(peer: a.udid, up: false, link: b)
         for p in waiting { #expect(try replyCode(a, p, timeout: 2_000_000_000).code == MachMsgReturn.sendInvalidDest) }
-        // B's late replies go nowhere (their reply ports are gone).
         for m in server.lock.withLock({ server.held }) { server.reply(m, code: 0) }
-        // A request after the loss: answered at once, never sent.
         let r = try send(a, to: b.udid, [1])
         #expect(try replyCode(a, r, timeout: 2_000_000_000).code == MachMsgReturn.sendInvalidDest)
         #expect(server.count == 3)
@@ -339,8 +309,6 @@ import Testing
         let opts = PairingTransportRelay.Options(requestTimeout: 10, lookupWait: 0.5)
         let (a, b, server) = try pair(opts)
         defer { finish(a, b, server) }
-        // Found, then the service goes away (its port dies): the cached right
-        // is dead, one new look-up fails too.
         #expect(try replyCode(a, try send(a, to: b.udid, [1])).code == 0)
         server.stop()
         try b.host.destroyPort(server.port)
@@ -348,7 +316,6 @@ import Testing
         let t0 = Date()
         #expect(try replyCode(a, try send(a, to: b.udid, [2])).code == MachMsgReturn.sendInvalidDest)
         #expect(Date().timeIntervalSince(t0) < 5)
-        // Not registered at all: looked up again until lookupWait, then refused.
         #expect(try replyCode(a, try send(a, to: b.udid, [3])).code == MachMsgReturn.sendInvalidDest)
         #expect(b.lock.withLock { b.lookups } >= 3)
     }
@@ -370,7 +337,6 @@ import Testing
         #expect(try replyCode(a, r).code == MachMsgReturn.sendTimedOut)
         #expect(Date().timeIntervalSince(t0) < 3)
         #expect(a.relay.statistics.timedOutOut == 1)
-        // The far half lets go of its reply port: B's late reply goes nowhere.
         Thread.sleep(forTimeInterval: 0.6)
         let m = try #require(server.lock.withLock { server.held.first })
         server.reply(m, code: 0)
@@ -379,7 +345,6 @@ import Testing
     }
 
     @Test func aDroppedReplyRightIsServerDied() throws {
-        // B's server takes the request and drops the reply right.
         let (a, b, server) = try pair { _ in nil }
         defer { finish(a, b, server) }
         let r = try send(a, to: b.udid, [7])
@@ -409,8 +374,6 @@ import Testing
         defer { finish(a, b, server) }
         let r = try send(a, to: b.udid, [1])
         #expect(waitUntil { server.count == 1 })
-        // The link drops and comes back before B answers: A's request was
-        // answered at the drop; B's answer, of the old link, finds nothing.
         a.relay.linkChanged(peer: b.udid, up: false, link: a)
         a.relay.linkChanged(peer: b.udid, up: true, link: a)
         #expect(try replyCode(a, r).code == MachMsgReturn.sendInvalidDest)

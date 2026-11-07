@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Form inspector to edit traits, dimensions, content strings, alignments, borders, shadows, and spacing of the active selection.
 public struct VisualUIInspector: View {
     @Bindable var document: VisualUIDocument
 
@@ -18,7 +17,6 @@ public struct VisualUIInspector: View {
                let node = document.scene.findNode(byID: selectedID) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        // Section 1: Identity & Metadata
                         GroupBox("Identity") {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
@@ -43,7 +41,6 @@ public struct VisualUIInspector: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Section 2: Component-Specific Content
                         GroupBox("Content") {
                             VStack(alignment: .leading, spacing: 8) {
                                 if node.type == .text || node.type == .button || node.type == .label || node.type == .textField || node.type == .secureField {
@@ -86,10 +83,8 @@ public struct VisualUIInspector: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Section 3: Visual Styling Controls
                         GroupBox("Styling") {
                             VStack(alignment: .leading, spacing: 10) {
-                                // Spacing & Alignment
                                 HStack {
                                     Text("Padding:")
                                     Spacer()
@@ -112,7 +107,6 @@ public struct VisualUIInspector: View {
                                     .frame(width: 60)
                                 }
 
-                                // Colors
                                 HStack {
                                     Text("Foreground:")
                                     Spacer()
@@ -139,7 +133,6 @@ public struct VisualUIInspector: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Section 4: Frame & Bounds Settings
                         GroupBox("Layout Constraints") {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
@@ -168,7 +161,6 @@ public struct VisualUIInspector: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-
                     }
                     .padding(8)
                 }
@@ -181,6 +173,5 @@ public struct VisualUIInspector: View {
             }
         }
     }
-
 
 }

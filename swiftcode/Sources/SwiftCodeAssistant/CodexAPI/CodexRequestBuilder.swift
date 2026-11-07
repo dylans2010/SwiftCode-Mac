@@ -1,13 +1,5 @@
 import Foundation
 
-/// Builds OpenAI Responses API requests for Codex (ported from Legacy's
-/// `CodexRequestBuilder`).
-///
-/// The system prompt is Legacy's, with the app name rebranded (SwiftCode
-/// -> SwiftCode). The request sends the system prompt (with the task type),
-/// the last 10 session messages, and the new prompt, with medium reasoning
-/// effort and medium verbosity, `store: false`, and no server-side
-/// persistence.
 struct CodexRequestBuilder: Sendable {
     let systemPrompt = """
     You are OpenAI Codex, the primary autonomous execution engine for SwiftCode. Your objective is to produce production-grade, highly optimized, and structurally sound code or plans.

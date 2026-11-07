@@ -1,12 +1,3 @@
-// lookuptrace: a tiny interposer (our own code) that logs every Mach service
-// lookup and XPC Mach-service connection a process makes, to stderr, so the
-// lines interleave with the probe app's report. Loaded into the probe app with
-// DYLD_INSERT_LIBRARIES passed through the launch request's environment.
-//
-// Output lines: "YCODE-LOOKUP <api> <name> -> <result>".
-// YCODE_DENY=<name>[,<name>...] makes bootstrap_look_up of those names fail with
-// 1102 (unknown service), to imitate a guest where that service does not exist.
-// Only calls that cross an image boundary (through a stub) are seen.
 #include <mach/mach.h>
 #include <xpc/xpc.h>
 #include <dispatch/dispatch.h>
@@ -15,8 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// The iOS SDK has no <servers/bootstrap.h> and marks the XPC Mach-service
-// constructor unavailable; these are the macOS public prototypes.
 extern kern_return_t bootstrap_look_up(mach_port_t bp, const char *service_name, mach_port_t *sp);
 extern xpc_connection_t ycode_xpc_mach(const char *name, dispatch_queue_t q, uint64_t flags)
     __asm__("_xpc_connection_create_mach_service");

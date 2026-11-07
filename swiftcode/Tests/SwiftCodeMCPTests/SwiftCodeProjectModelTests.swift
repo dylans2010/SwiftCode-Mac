@@ -3,42 +3,14 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy project-model / pbxproj tools (Wave 7, slice B),
-/// each driven black-box through the server's real write-policy path
-/// against a fixture `.xcodeproj` built inside a copy of
-/// `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistCreateNewAppTool`,
-/// `AssistGenerateXcodeprojTool`, `AssistPbxprojLintTool`,
-/// `AssistProjectBuildSettingsTool`, `AssistProjectCapabilitiesTool`,
-/// `AssistDiffTool`, `AssistProjectMutationController`,
-/// `AssistRestoreSnapshotTool`, `AssistProjectSchemeListTool`,
-/// `AssistSnapshotProjectTool`, `AssistProjectStructureMapTool`,
-/// `AssistProjectTargetAddTool`, `AssistProjectTargetListTool`,
-/// `AssistSchemeTestPlanListTool`, `AssistTargetDependenciesListTool`,
-/// `AssistTargetSourceListTool`, `AssistWorkspaceSettingsReadTool`,
-/// `AssistXcodeBuildSettingsTool` and `AssistXcodeSchemeTool`
-/// (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never
-/// on internals. Messages quoted verbatim are Legacy's. Message
-/// assertions use `firstText`, never an exact `resultText ==`
-/// (structured results emit two text blocks). Tests that run the
-/// real build/test seam are gated on `canBuildPackages`, like the
-/// `test` tool's own tests; nothing here claims a build passed
-/// without running one.
 @MainActor
 @Suite(.serialized) struct SwiftCodeProjectModelTests {
-    /// The 19 Wave 7 slice B tool IDs, verified live from each
-    /// Legacy tool file's `id`, in the slice's order.
     static let sliceBIDs = ["create_new_app", "generate_xcodeproj", "pbxproj_lint", "project_build_settings",
                             "project_capabilities", "project_diff", "project_mutation_controller", "project_restore",
                             "project_scheme_list", "project_snapshot", "project_structure_map", "project_target_add",
                             "project_target_list", "scheme_test_plan_list", "target_dependencies_list", "target_source_list",
                             "workspace_settings_read", "xcode_build_settings_inspector", "xcode_scheme_manager"]
 
-    /// Opens the fixture `.xcodeproj` and installs the ported project
-    /// tools on the server (same shape as Wave 6's `opened`).
     func openedProject(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -49,7 +21,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Opens the Greeter package itself (no `.xcodeproj` inside).
     func openedPackage(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -60,7 +31,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -75,15 +45,6 @@ import SwiftCodeAssistant
         (try? String(contentsOfFile: sample.path(rel), encoding: .utf8)) ?? ""
     }
 
-    /// The fixture `.xcodeproj`: two targets (`FixtureApp` app,
-    /// `FixtureFramework` framework; the app depends on the
-    /// framework), two source files, one missing file reference,
-    /// one duplicate path, one dangling build file, one scheme, one
-    /// test plan, one entitlements file, one `.xcsettings` file.
-    /// Reference counts the lint test relies on: 6 file references
-    /// (4 source + 2 products), 3 missing (Gone.swift,
-    /// FixtureApp.app, FixtureFramework.framework), 1 duplicate
-    /// (FixtureApp/App.swift twice), 1 dangling build file.
     func fixtureProject(_ sample: TempSample) throws {
         try writeFixture(sample, "FixtureApp/App.swift", "import Foundation\n\npublic struct App {\n    public init() {}\n}\n")
         try writeFixture(sample, "FixtureApp/Helper.swift", "import Foundation\n\npublic struct Helper {\n    public init() {}\n}\n")
@@ -142,9 +103,6 @@ import SwiftCodeAssistant
         try writeFixture(sample, "FixtureApp.xcodeproj/project.pbxproj", Self.fixturePbxproj)
     }
 
-    /// Minimal but realistic pbxproj (object version 56) for the
-    /// fixture. IDs are fixed 24-hex strings; comments follow
-    /// Xcode's layout because `pbxproj_lint`'s regexes read them.
     static let fixturePbxproj = """
     // !$*UTF8*$!
     {
@@ -407,15 +365,7 @@ import SwiftCodeAssistant
         for id in Self.sliceBIDs {
             #expect(host.server.tools.filter { $0.name == id }.count == 1, "\(id) must be registered exactly once")
         }
-        // The slice's Legacy aliases, `xcode_scheme` →
-        // `xcode_scheme_manager` and `build_settings` →
-        // `xcode_build_settings_inspector` (registry alias table),
-        // live in `MCPServer.toolAliases`, which the coordinator
-        // owns — they are reported as wiring fragments instead of
-        // asserted here.
     }
-
-    // MARK: - Pure reads: lint, schemes, targets, sources, plans, settings
 
     @Test func pbxprojLintCountsMissingDuplicatesAndDangling() async throws {
         let sample = try TempSample()
@@ -629,9 +579,6 @@ import SwiftCodeAssistant
         defer { sample.remove() }
         try fixtureProject(sample)
         guard gitAvailable() else {
-            // Without git the tool fails honestly; that path is
-            // covered by projectDiffFailsOutsideGitRepo's sibling
-            // assertion here.
             let host = try await openedProject(sample)
             let r = try await host.server.callTool("project_diff")
             #expect(r.isToolError && r.firstText.contains("Diff inspection failed:"))
@@ -650,7 +597,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("App.swift"))
         #expect(r.firstText.contains("diff hunks"))
         #expect((r.structured?["diff"]?.string ?? "").contains("changed"))
-        // A clean tree reports clean.
         #expect(runGit(["add", "-A"], in: dir) == 0)
         #expect(runGit(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "change"], in: dir) == 0)
         let clean = try await host.server.callTool("project_diff")
@@ -674,8 +620,6 @@ import SwiftCodeAssistant
         p.waitUntilExit()
         return p.terminationStatus
     }
-
-    // MARK: - Writes: build settings, capabilities, mutation, targets
 
     @Test func projectBuildSettingsReadsMergedSettings() async throws {
         let sample = try TempSample()
@@ -898,8 +842,6 @@ import SwiftCodeAssistant
         #expect(noName.isToolError)
         #expect(noName.firstText == "Could not determine the project name from 'project.yml'; xcodegen output cannot be approved as a change.")
     }
-
-    // MARK: - Snapshots
 
     func snapshotStoreURL(_ id: String) throws -> URL {
         try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)

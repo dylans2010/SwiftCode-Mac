@@ -1,19 +1,14 @@
 import Foundation
 
-/// Samples per source line of one function (`specs/ide/profiler.md` §4.4).
 public struct SourceAnnotation: Sendable, Equatable {
     public struct LineCount: Sendable, Equatable {
         public var line: Int
-        /// Samples whose leaf address is at this line.
         public var selfCount: Int
-        /// Self plus samples whose frame in the function is a call at this line.
         public var total: Int
     }
 
-    /// The source file most of the function's samples map to.
     public var file: String?
     public var lines: [LineCount]
-    /// Samples through the function (some may have no line).
     public var samples: Int
 
     public init(trace t: GaugeTrace, function f: FunctionRef, filter: SampleFilter = SampleFilter()) {
@@ -54,9 +49,6 @@ public struct SourceAnnotation: Sendable, Equatable {
         }
     }
 
-    /// The source text with a count column ("self total | line"), only the
-    /// lines from `context` before the first counted line to `context`
-    /// after the last.
     public func render(source: String, context: Int = 3) -> String {
         let text = source.split(separator: "\n", omittingEmptySubsequences: false)
         guard let first = lines.first?.line, let last = lines.last?.line else { return "" }

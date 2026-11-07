@@ -1,8 +1,3 @@
-// idregs_probe: reads the EL0-readable cache geometry registers (DCZID_EL0,
-// CTR_EL0) with SIGILL protection (Ycode research). Same build as
-// cpufeat_probe.c. DCZID_EL0 bits[3:0] = log2(words) of the DC ZVA block,
-// bit 4 = DZP (DC ZVA prohibited). CTR_EL0 DminLine bits[19:16],
-// IminLine bits[3:0] = log2(words).
 #include <stdio.h>
 #include <stdint.h>
 #include <signal.h>

@@ -2,19 +2,13 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// State for the assistant modes that are not file lists.
 @MainActor public final class AssistantExtraState {
     public internal(set) var customMode: String?
-    /// The last call-hierarchy lookup (tests await it).
     public internal(set) var task: Task<Void, Never>?
-    /// The ring Navigate ▸ Jump to Next / Previous Counterpart is cycling
-    /// through (`Counterparts.step`).
     var counterpartRing: [String]?
 }
 
-/// Assistant editor modes (`specs/ide/reference-ui-4.md` §16).
 extension WorkspaceWindowController {
-    /// The assistant's mode pop-up: every §16 mode, unavailable ones disabled.
     func configureAssistantModes(_ a: SourceEditorController, current: String) {
         let on = AssistantModeCatalog.enabled(for: current, hasLanguageService: session.language != nil)
         let selected = assistantExtra.customMode ?? AssistantModeCatalog.title(of: assistantMode)
@@ -24,7 +18,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Chooses a mode by its pop-up title.
     public func setAssistantModeTitle(_ title: String) {
         if let m = AssistantModeCatalog.fileMode(title) {
             setAssistantMode(m)

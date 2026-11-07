@@ -1,51 +1,18 @@
 import Foundation
 
-// MARK: - Offline documentation symbols (Wave 19 slice A)
-//
-// The documentation browser's model layer: Dylan's own
-// `DocumentationBrowserView.swift` models (`DocSymbol`,
-// `DocCSectionData` / collection / group / topic), ported verbatim
-// under MIT, plus the 57-topic catalogue.
-//
-// The catalogue is the 57 names on which Legacy's
-// `Documentation.sqlite` and `SwiftCode/Resources/DocSymbols.json`
-// agree exactly (verified with python3 sqlite3, read-only; the
-// 13 framework-level entries take the sqlite's `article` kind —
-// the JSON file's `class` for them is Legacy's own sloppiness).
-// `docPath` is the real DocC path, derived by the same rule the
-// destination's `EnginesDocs.resolveCandidates` uses with a
-// framework (symbol → `documentation/<fw>/<name>`; a topic that
-// IS the framework → the framework root `documentation/<fw>`);
-// the cache overwrites it with the fetched canonical path.
-// Legacy's book-slug paths (`/documentation/developerdocumentation/<name>`)
-// are NOT used: they are not real Apple URLs and would 404.
-//
-// Behaviour source: Legacy
-// `SwiftCode/Features/AdvancedTools/Views/DocumentationBrowserView.swift`
-// (DocSymbol, DocC models, defaultSections, platformDefaults).
-// Spec: `specs/ide/wave19-docs.md` §§2, 5.
-
-/// One offline documentation topic: a DocC page, fetched live once
-/// and served from the local cache afterwards.
 public struct DocSymbol: Identifiable, Codable, Hashable, Sendable {
     public var id: String { name }
     public let name: String
-    /// "class", "struct", "protocol", "func", "actor", "macro", "article".
     public let kind: String
     public let framework: String
     public let summary: String
     public let syntax: String
-    /// Platform -> introduced version, e.g. ["macOS": "10.15"].
     public let platforms: [String: String]
     public let inheritsFrom: String?
     public let conformsTo: [String]
-    /// First code listing from the DocC page; empty when the page
-    /// has none (the UI hides the sample section instead of showing
-    /// a synthetic stub).
     public let codeSample: String
     public let availability: String
     public let seeAlso: [String]
-    /// Real DocC path, e.g. "/documentation/swiftui/vstack".
     public let docPath: String
 
     public init(
@@ -97,8 +64,6 @@ public struct DocSymbol: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-// MARK: - Documentation hierarchy (sidebar navigation)
-
 public struct DocCSectionData: Identifiable, Hashable, Sendable {
     public var id: String { title }
     public let title: String
@@ -149,15 +114,10 @@ public struct DocCTopicData: Identifiable, Hashable, Sendable {
     }
 }
 
-// MARK: - The 57-topic catalogue
-
-/// One catalogue entry: the fetch key for one offline topic.
 public struct DocCatalogueTopic: Sendable, Hashable {
     public let name: String
     public let kind: String
     public let framework: String
-    /// Real DocC path without the leading slash, e.g.
-    /// "documentation/swiftui/vstack".
     public let docPath: String
 
     public init(name: String, kind: String, framework: String, docPath: String) {
@@ -169,10 +129,6 @@ public struct DocCatalogueTopic: Sendable, Hashable {
 }
 
 public enum DocumentationCatalogue {
-    /// The 57 topics, ordered by framework then name (the sqlite's
-    /// order). The live fetch corrects each topic's kind and
-    /// canonical path; the catalogue is the fetch list, not the
-    /// displayed data.
     public static let topics: [DocCatalogueTopic] = [
         DocCatalogueTopic(name: "AVAudioSession", kind: "class", framework: "AVFoundation", docPath: "documentation/avfoundation/avaudiosession"),
         DocCatalogueTopic(name: "AVFoundation", kind: "article", framework: "AVFoundation", docPath: "documentation/avfoundation"),
@@ -233,16 +189,12 @@ public enum DocumentationCatalogue {
         DocCatalogueTopic(name: "UIWindow", kind: "class", framework: "UIKit", docPath: "documentation/uikit/uiwindow"),
     ]
 
-    /// The 12 frameworks, in the hub's display order.
     public static let frameworks: [String] = [
         "SwiftUI", "Swift", "Foundation", "AppKit", "UIKit",
         "Combine", "SwiftData", "CoreData", "Metal", "CoreGraphics",
         "AVFoundation", "AppIntents",
     ]
 
-    /// Per-framework platform defaults (Legacy's `platformDefaults`,
-    /// ported verbatim) — used only when a fetched page lists no
-    /// availability of its own.
     public static let platformDefaults: [String: [String: String]] = [
         "SwiftUI": ["iOS": "13.0", "macOS": "10.15", "watchOS": "6.0", "tvOS": "13.0", "visionOS": "1.0"],
         "SwiftData": ["iOS": "17.0", "macOS": "14.0", "watchOS": "10.0", "tvOS": "17.0", "visionOS": "1.0"],
@@ -258,11 +210,6 @@ public enum DocumentationCatalogue {
         "AVFoundation": ["iOS": "4.0", "macOS": "10.7", "watchOS": "6.0", "tvOS": "9.0", "visionOS": "1.0"],
     ]
 
-    /// The sidebar sections: Legacy's five section buckets, but
-    /// with collections = the 12 frameworks and kind-groups holding
-    /// only the 57 catalogue topics (Legacy's hardcoded tree listed
-    /// topics outside the 57 — navigation into the bundled archive,
-    /// not the offline index — so it is not reproduced).
     public static func defaultSections() -> [DocCSectionData] {
         func icon(for title: String) -> String {
             switch title {

@@ -12,7 +12,6 @@ public protocol OperatingSystemProvider: Sendable {
     var recommendedStorage: String { get }
     var installationNotes: String { get }
 
-    // Detailed resource metadata
     var releaseNotes: String { get }
     var minimumRequirements: String { get }
     var packageManagerGuide: String { get }
@@ -20,7 +19,6 @@ public protocol OperatingSystemProvider: Sendable {
     var securityAdvisories: String { get }
     var communityResources: String { get }
 
-    // Backward compatibility & raw specifications
     var recommendedCores: Int { get }
     var recommendedMemoryMB: Int { get }
     var recommendedStorageGB: Int { get }

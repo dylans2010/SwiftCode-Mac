@@ -4,7 +4,6 @@ import SwiftUI
 struct GitNotInstalledView: View {
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Git Required", systemImage: "exclamationmark.triangle")
                     .font(.headline)
@@ -13,7 +12,6 @@ struct GitNotInstalledView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

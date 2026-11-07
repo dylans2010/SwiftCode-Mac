@@ -3,8 +3,6 @@ import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.BuildSystem", category: "XcodeProjParse")
 
-// MARK: - Models
-
 public struct XcodeProjModel: Sendable, Identifiable {
     public var id: String { projectURL.path }
     public let projectURL: URL
@@ -14,7 +12,7 @@ public struct XcodeProjModel: Sendable, Identifiable {
     public let fileReferences: [PBXFileReference]
     public let buildConfigurations: [PBXBuildConfiguration]
     public let buildPhases: [PBXBuildPhase]
-    public let buildFiles: [String: String] // buildFileUUID -> fileRefUUID
+    public let buildFiles: [String: String]
 }
 
 public struct PBXTarget: Sendable, Identifiable, Hashable {
@@ -55,17 +53,14 @@ public struct PBXBuildPhase: Sendable, Identifiable {
     public var id: String { uuid }
     public let uuid: String
     public let isa: String
-    public let files: [String] // Build file UUIDs
+    public let files: [String]
 }
-
-// MARK: - XcodeProjParse Service
 
 public final class XcodeProjParse: Sendable {
     public static let shared = XcodeProjParse()
 
     private init() {}
 
-    /// Parses an xcodeproj directory or a pbxproj file.
     public func parse(projectURL: URL) throws -> XcodeProjModel {
         var pbxprojURL = projectURL
         if projectURL.pathExtension == "xcodeproj" {
@@ -92,7 +87,6 @@ public final class XcodeProjParse: Sendable {
             }
         } catch {
             logger.warning("Standard PropertyListSerialization failed: \(error.localizedDescription). Falling back to manual text scanning.")
-            // Safe manual scanning fallback in case serialization is not supported on some Linux sandbox environments
             return try parseManual(data: data, projectURL: projectURL)
         }
 
@@ -193,7 +187,6 @@ public final class XcodeProjParse: Sendable {
         )
     }
 
-    /// Fallback manual scanner for parsing pbxproj format using regex and line-by-line reading.
     private func parseManual(data: Data, projectURL: URL) throws -> XcodeProjModel {
         guard let text = String(data: data, encoding: .utf8) else {
             throw NSError(domain: "XcodeProjParse", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 pbxproj file"])
@@ -205,8 +198,6 @@ public final class XcodeProjParse: Sendable {
         var buildConfigurations: [PBXBuildConfiguration] = []
         var buildPhases: [PBXBuildPhase] = []
 
-        // Scan for NativeTargets
-        // Match UUID /* name */ = { isa = PBXNativeTarget; ... }
         let targetRegex = try NSRegularExpression(pattern: #"([A-Z0-9]{24})\s*/\* ([^*]+) \*/\s*=\s*\{\s*isa\s*=\s*(PBXNativeTarget|PBXAggregateTarget);[^}]*\}"#, options: [])
         let targetMatches = targetRegex.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
         for match in targetMatches {
@@ -225,7 +216,6 @@ public final class XcodeProjParse: Sendable {
             }
         }
 
-        // Scan for Groups
         let groupRegex = try NSRegularExpression(pattern: #"([A-Z0-9]{24})\s*/\* ([^*]*) \*/\s*=\s*\{\s*isa\s*=\s*(PBXGroup|PBXVariantGroup);[^}]*\}"#, options: [])
         let groupMatches = groupRegex.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
         for match in groupMatches {
@@ -241,7 +231,6 @@ public final class XcodeProjParse: Sendable {
             }
         }
 
-        // Scan for FileReferences
         let fileRegex = try NSRegularExpression(pattern: #"([A-Z0-9]{24})\s*/\* ([^*]+) \*/\s*=\s*\{\s*isa\s*=\s*PBXFileReference;[^}]*path\s*=\s*([^;]+);[^}]*\}"#, options: [])
         let fileMatches = fileRegex.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
         for match in fileMatches {
@@ -287,7 +276,6 @@ public final class XcodeProjWriter {
         return projectURL.appendingPathComponent("project.pbxproj")
     }
 
-    /// Updates or inserts a build setting key-value pair in project.pbxproj
     @discardableResult
     public func updateBuildSetting(
         key: String,
@@ -302,15 +290,12 @@ public final class XcodeProjWriter {
 
         var content = try String(contentsOf: pbxprojURL, encoding: .utf8)
 
-        // Escape value if needed
         let formattedValue = value.contains(" ") || value.contains("$") || value.contains("/") || value.contains("-") ? "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\"" : value
 
-        // Pattern for existing key in buildSettings
         let keyPattern = "(\\b" + NSRegularExpression.escapedPattern(for: key) + "\\s*=\\s*)([^;]+)(;)"
         if let regex = try? NSRegularExpression(pattern: keyPattern, options: []) {
             let matches = regex.matches(in: content, options: [], range: NSRange(content.startIndex..<content.endIndex, in: content))
             if !matches.isEmpty {
-                // Key exists: replace occurrences
                 content = regex.stringByReplacingMatches(
                     in: content,
                     options: [],
@@ -318,7 +303,6 @@ public final class XcodeProjWriter {
                     withTemplate: "$1\(formattedValue)$3"
                 )
             } else {
-                // Key doesn't exist: insert into buildSettings = { blocks
                 let buildSettingsPattern = "(buildSettings\\s*=\\s*\\{)"
                 if let bsRegex = try? NSRegularExpression(pattern: buildSettingsPattern, options: []) {
                     content = bsRegex.stringByReplacingMatches(
@@ -338,7 +322,6 @@ public final class XcodeProjWriter {
         return newModel
     }
 
-    /// Removes a build setting key from project.pbxproj
     @discardableResult
     public func removeBuildSetting(
         key: String,
@@ -368,7 +351,6 @@ public final class XcodeProjWriter {
         return newModel
     }
 
-    /// Updates the target name and its product name in project.pbxproj
     @discardableResult
     public func updateTargetName(
         oldName: String,
@@ -442,10 +424,6 @@ public final class XcodeProjWriter {
         return try updateBuildSetting(key: platformKey, value: version, projectURL: projectURL)
     }
 
-    /// Adds and registers a file in project.pbxproj:
-    /// - Adds PBXFileReference
-    /// - Adds PBXBuildFile in PBXSourcesBuildPhase (if source) or PBXResourcesBuildPhase (if resource)
-    /// - Adds to PBXGroup children
     @discardableResult
     public func addFileReference(
         filePath: String,
@@ -454,12 +432,8 @@ public final class XcodeProjWriter {
         let effectiveProjectURL: URL
         if let projectURL {
             effectiveProjectURL = projectURL
-        } else if let coordURL = DocumentCoordinator.shared.projectURL {
-            effectiveProjectURL = coordURL
-        } else if let sessionURL = ProjectSessionStore.shared.activeProject?.directoryURL {
-            effectiveProjectURL = sessionURL
         } else {
-            throw NSError(domain: "XcodeProjWriter", code: 404, userInfo: [NSLocalizedDescriptionKey: "No active Xcode project found."])
+            effectiveProjectURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         }
 
         let xcodeprojURL: URL
@@ -484,7 +458,6 @@ public final class XcodeProjWriter {
         let fileName = (filePath as NSString).lastPathComponent
         let fileExt = (filePath as NSString).pathExtension.lowercased()
 
-        // Check if already registered
         if content.contains("/* \(fileName) */") || content.contains("/* \(fileName) in Sources */") || content.contains("/* \(fileName) in Resources */") {
             return try XcodeProjParse.shared.parse(projectURL: xcodeprojURL)
         }
@@ -508,13 +481,11 @@ public final class XcodeProjWriter {
         default: fileType = "text"
         }
 
-        // 1. Add to PBXFileReference section
         let fileRefEntry = "\t\t\(fileRefID) /* \(fileName) */ = {isa = PBXFileReference; lastKnownFileType = \(fileType); path = \(fileName); sourceTree = \"<group>\"; };\n"
         if let range = content.range(of: "/* Begin PBXFileReference section */") {
             content.insert(contentsOf: fileRefEntry, at: range.upperBound)
         }
 
-        // 2. Add to PBXBuildFile section if source or resource
         if isSourceCode {
             let buildFileEntry = "\t\t\(buildFileID) /* \(fileName) in Sources */ = {isa = PBXBuildFile; fileRef = \(fileRefID) /* \(fileName) */; };\n"
             if let range = content.range(of: "/* Begin PBXBuildFile section */") {
@@ -539,7 +510,6 @@ public final class XcodeProjWriter {
             }
         }
 
-        // 3. Add to Main Group or matching group's children
         if let mainGroupRange = content.range(of: "children = (\n") {
             content.insert(contentsOf: "\t\t\t\t\(fileRefID) /* \(fileName) */,\n", at: mainGroupRange.upperBound)
         }

@@ -1,24 +1,9 @@
 #!/bin/sh
-# Build EKProbe and CNProbe for the iOS simulator with the installed Xcode, in
-# variants that differ in Info.plist usage strings and entitlements only:
-#   EKProbe.app        calendar full + write-only, reminders full strings   dev.ycode.ekprobe
-#   EKProbeWO.app      calendar write-only string only                      dev.ycode.ekprobe.wo
-#   EKProbeLegacy.app  pre-iOS-17 strings only (calendars, reminders)       dev.ycode.ekprobe.legacy
-#   EKProbeNone.app    no usage strings                                     dev.ycode.ekprobe.none
-#   CNProbe.app        contacts usage string                                dev.ycode.cnprobe
-#   CNProbeLim.app     same (second client, answered with limited access)   dev.ycode.cnprobe.lim
-#   CNProbeNone.app    no usage string                                      dev.ycode.cnprobe.none
-#   CNProbeNotes.app   usage string + contacts notes entitlement            dev.ycode.cnprobe.notes
-# Entitlements (if any) go into a __TEXT,__entitlements section as Xcode does
-# for simulator builds; the ad-hoc signature carries none. No team, no
-# provisioning profile, no account.
-# Usage: build.sh OUTDIR   (OUTDIR on the Mac's internal disk)
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}
 mkdir -p "$OUT"
 SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
-
 ent() {
   cat <<E2
 <?xml version="1.0" encoding="UTF-8"?>
@@ -28,7 +13,7 @@ $1
 </dict></plist>
 E2
 }
-plist() { # name bundle-id exe extra-xml
+plist() {
   cat <<E2
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -51,11 +36,10 @@ $4
 </dict></plist>
 E2
 }
-mk() { # app-name bundle-id src-dir exe frameworks entitlements-xml info-extra-xml
+mk() {
   A="$OUT/$1.app"; rm -rf "$A"; mkdir -p "$A"
   ent "<key>application-identifier</key><string>$2</string>$6" > "$OUT/$1.entitlements"
   FW=""; for f in $5; do FW="$FW -framework $f"; done
-  # shellcheck disable=SC2086
   xcrun --sdk iphonesimulator clang -target arm64-apple-ios27.0-simulator -isysroot "$SDK" \
     -fobjc-arc -fmodules -Wall -Wno-deprecated-declarations -Wno-unguarded-availability-new -O0 -g \
     $FW -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker "$OUT/$1.entitlements" \

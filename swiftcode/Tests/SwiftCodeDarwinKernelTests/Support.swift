@@ -3,15 +3,9 @@ import Synchronization
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// `FileChangeFeed` has one observer for the whole process, and suites run
-/// in parallel: a test that installs an observer holds this lock until it
-/// removes it, so another suite cannot replace it in the meantime.
 let fileChangeFeedLock = NSLock()
 
-/// Collects console output and log lines.
 final class Sink {
-    // Fast paths without L0 trace from several threads at once in the tests
-    // (`bsdFastForTests`): every access takes the sink's own lock.
     private let mutex = NSRecursiveLock()
     private var storedConsole: [Int32: [UInt8]] = [:]
     private var storedLines: [String] = []
@@ -28,8 +22,6 @@ final class Sink {
     func append(_ fd: Int32, _ bytes: [UInt8]) { mutex.lock(); storedConsole[fd, default: []] += bytes; mutex.unlock() }
 }
 
-/// A kernel over a fake physical backing, with a read-only VFS prefix at a
-/// temporary directory and an RW scratch region at `Env.scratch`.
 struct Env {
     static let scratch: UInt64 = 0x1_0000_0000
     static let scratchSize: UInt64 = 0x10000
@@ -39,8 +31,6 @@ struct Env {
     let sink: Sink
     let root: String
 
-    /// `device`: the root prefix's guest volume device (nil: the host's);
-    /// `rootDevice`: the synthetic "/" device.
     init(counter: @escaping () -> UInt64 = { 0x1234 }, frequency: UInt64 = 24_000_000,
          device: UInt32? = nil, rootDevice: UInt32? = nil) throws {
         let sink = Sink()
@@ -59,14 +49,12 @@ struct Env {
         self.sink = sink
     }
 
-    /// Writes a host file under the root and returns its guest path.
     func makeFile(_ name: String, _ bytes: [UInt8]) throws -> String {
         let path = root + "/" + name
         try Data(bytes).write(to: URL(fileURLWithPath: path))
         return path
     }
 
-    /// Runs one SVC with `x16` and the given argument registers.
     @discardableResult
     func svc(_ x16: UInt64, _ args: [UInt64] = [], x3: UInt64? = nil, frame: inout TrapFrame) -> DarwinKernel.Outcome {
         frame.kind = TrapFrame.Kind.svc.rawValue
@@ -95,8 +83,6 @@ struct Env {
 let reportedSplit = Atomic<Bool>(false)
 
 extension DarwinKernel {
-    /// As the VMM: an IPC fast path first (`SWIFTCODE_IPC_LOCKS_TESTS=1` turns
-    /// the lock split on in every test system), else the locked path.
     func handleTrying(_ frame: inout TrapFrame, context: ThreadContext, memory: any KernelGuestMemory) -> Outcome {
         if DarwinSystem.splitForTests || DarwinKernel.bsdFastForTests, !reportedSplit.exchange(true, ordering: .relaxed) {
             atexit {
@@ -109,7 +95,6 @@ extension DarwinKernel {
         if DarwinSystem.splitForTests, hasIPCFastPaths, let o = handleIPCFast(&frame, context: context, memory: memory) {
             return o
         }
-        // BSD traps without L0 (bsd-locking.md), as the VMM tries them.
         if DarwinKernel.bsdFastForTests, context.kernel === self,
            let o = handleBSDFast(&frame, context: context, memory: memory) {
             return o
@@ -129,7 +114,6 @@ func u32(_ b: [UInt8], _ o: Int) -> UInt32 { UInt32(le(b[o..<(o + 4)])) }
 func u16(_ b: [UInt8], _ o: Int) -> UInt16 { UInt16(le(b[o..<(o + 2)])) }
 func leBytes(_ v: UInt64) -> [UInt8] { (0..<8).map { UInt8(truncatingIfNeeded: v >> (8 * UInt64($0))) } }
 
-/// A deterministic RNG for the apple strings.
 struct CountingRNG: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 {

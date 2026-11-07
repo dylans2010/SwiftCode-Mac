@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/OperationsSidebarView.swift` (SwiftCode-Mac migration, P-UTIL).
-// All referenced managers (OperationsCoordinator/OperationsPanel, OperationQueueManager, NotificationCenterManager, WorkspaceTimelineManager, WorkspaceHealth, WorkspaceIntelligence, DiagnosticsManager, SecurityManager, BuildHistoryManager, SCOperationsStorageManager, SCOperationsSigningManager, PerformanceManager, DependencyManager) exist in SwiftCodeIDEShell; ModernGroupBoxStyle/.liquidGlass in SwiftCodeUI.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDEShell
 import SwiftCodeUI
@@ -11,7 +7,6 @@ struct OperationsSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 10) {
                 Image(systemName: "square.stack.3d.up.fill")
                     .font(.system(size: 18, weight: .bold))
@@ -32,7 +27,6 @@ struct OperationsSidebarView: View {
 
             Divider()
 
-            // List of Sidebar Items
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     SidebarSectionHeader(title: "Overview")

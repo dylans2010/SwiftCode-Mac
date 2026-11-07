@@ -1,9 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/API/Internal API/AssistAPIError.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim. Self-contained five-case error taxonomy for the internal Assist
-// API. Wiring: the internal API route handlers (AssistAPIRequest routes)
-// consume it; no destination caller exists yet.
-
 import Foundation
 
 public enum AssistAPIError: LocalizedError {

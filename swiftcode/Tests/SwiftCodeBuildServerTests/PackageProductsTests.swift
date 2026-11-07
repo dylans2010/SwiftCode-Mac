@@ -9,8 +9,6 @@ import SwiftCodeXcodebuild
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Package products in Xcode projects (language.md §Build server, "Package
-/// products"): search paths and module arguments from the build's PIF.
 @Suite struct PackageProductsTests {
     @Test func impartedWordsAreExpandedFromTheClientsSettings() {
         let s = ["BUILT_PRODUCTS_DIR": "/dd/Products/Debug-iphonesimulator", "OBJROOT": "/dd/Intermediates.noindex",
@@ -24,8 +22,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(SettingWords.split(PackageProducts.quoted("/a b/c")) == ["/a b/c"])
     }
 
-    /// The products' package targets, transitively: their imparted settings
-    /// for the client's configuration, added to the client's.
     @Test func impartedSettingsOfAProductAndItsTargets() throws {
         let dir = try freshScratch("package-imparted")
         let proj = try SampleProject.write(.portable, in: dir)
@@ -41,7 +37,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                                 "LD_RUNPATH_SEARCH_PATHS": ["$(RPATH_ORIGIN)"]]),
             target("C", deps: ["M"], imparted: ["OTHER_SWIFT_FLAGS": "-Xcc -fmodule-map-file=$(GENERATED_MODULEMAP_DIR)/C.modulemap",
                                                 "OTHER_CFLAGS": ["-Xclang", "-fno-x=$(UNKNOWN)"]]),
-            // A macro: its plug-in, not its (host) imparted settings.
             ["type": "target", "contents": ["guid": "M", "name": "Macros", "productTypeIdentifier": "com.apple.product-type.tool.host-build",
                                             "buildConfigurations": [["name": "Debug", "buildSettings": ["SWIFT_IMPLEMENTS_MACROS_FOR_MODULE_NAMES": ["Macros"]],
                                                                      "impartedBuildProperties": ["buildSettings": ["OTHER_SWIFT_FLAGS": ["-I", "/host"]]]]]]],
@@ -56,18 +51,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                       "FRAMEWORK_SEARCH_PATHS": "/mine"], targetID: "app")
         #expect(merged["FRAMEWORK_SEARCH_PATHS"] == "/mine /p/PackageFrameworks")
         #expect(merged["OTHER_SWIFT_FLAGS"] == "-Xcc -fmodule-map-file=/o/GeneratedModuleMaps/C.modulemap -load-plugin-executable /b/Debug/Macros#Macros")
-        // A flag list with a setting it cannot expand is left out whole.
         #expect(merged["OTHER_CFLAGS"] == nil)
         #expect(packages.merged(["X": "1"], targetID: "other") == ["X": "1"])
     }
 }
 
-/// `Samples/PackageSamples`: the iOS app `LocalPackageApp` uses the local
-/// package's static and dynamic products. The build server adds their
-/// search paths, builds them with swift-build when it prepares the app, and
-/// sourcekit-lsp then completes the package's API in the app. Needs the
-/// swift-build helper and the iOS Simulator SDK (macOS); the sample's other
-/// packages are fetched into the IDE's package cache when missing.
 @Suite(.serialized, .timeLimit(.minutes(10))) struct PackageSamplesBuildServerTests {
     static var helper: String? {
         let env = ProcessInfo.processInfo.environment
@@ -91,8 +79,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let args = try #require(model.arguments(for: app.path, targetID: target.id)).arguments
         #expect(args.contains(ctx.productsDirectory + "/PackageFrameworks"), "\(args)")
 
-        // Preparing the app builds the products: their modules are where the
-        // app's `-I` looks, and the app type-checks with its index arguments.
         let steps = ModulePreparer(model: model, packageHelper: helper).prepare([target.id])
         let step = try #require(steps.first { $0.packages })
         #expect(step.succeeded, "\(step.output)")
@@ -104,8 +90,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             return r.status == 0 ? nil : r.stderrText
         }
         #expect(try typechecks(args) == nil)
-        // A remote package with a C target (its module map), and a macro
-        // (its plug-in, built for the host).
         for (name, file) in [("RemotePackageApp", "RemotePackageApp/RemotePackageApp.swift"), ("MacroApp", "MacroApp/MacroApp.swift")] {
             let t = try #require(model.graph.targets.first { $0.name == name })
             let steps = ModulePreparer(model: model, packageHelper: helper).prepare([t.id])
@@ -115,7 +99,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(try typechecks(a) == nil, "\(name)")
         }
 
-        // sourcekit-lsp through swiftcode-bsp completes the package's API.
         guard let lsp = SourceKitLSP.locate(), let bsp = SourceKitLSPBuildServerTests.server else { return }
         let previous = ProcessInfo.processInfo.environment["SWIFTCODE_SWB"]
         setenv("SWIFTCODE_SWB", helper, 1)
@@ -126,7 +109,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let client = try LSPClient(transport: ProcessTransport(executable: lsp))
         defer { client.close() }
         try await client.initialize(root: folder, initializationOptions: BuildServerLaunch.initializationOptions)
-        // The app's file with one more use of the package (not saved).
         let text = try String(contentsOf: app, encoding: .utf8) + "\nlet probe = LocalKit.greeting\n"
         final class Box: @unchecked Sendable {
             let lock = NSLock()
@@ -142,7 +124,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
         defer { reader.cancel() }
         client.didOpen(app, text: text)
-        // Diagnostics without "no such module" once the products are prepared.
         var version = 1
         let start = Date()
         func ready() -> Bool {

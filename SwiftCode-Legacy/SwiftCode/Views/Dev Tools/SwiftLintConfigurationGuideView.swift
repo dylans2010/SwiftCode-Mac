@@ -44,7 +44,6 @@ public struct SwiftLintConfigurationGuideView: View {
                 }
 
                 HStack(alignment: .top, spacing: 20) {
-                    // Controls
                     VStack(spacing: 16) {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
@@ -87,7 +86,6 @@ public struct SwiftLintConfigurationGuideView: View {
                     }
                     .frame(width: 300)
 
-                    // Code examples preview
                     VStack(spacing: 16) {
                         ForEach(rules) { item in
                             GroupBox {

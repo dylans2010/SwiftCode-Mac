@@ -1,21 +1,10 @@
-// TerminalView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/TerminalView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: tabs; split panes; themes; SSH hosts; profiles; environment variables; command library; interactive sessions
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/TerminalView.swift (derived from Legacy).
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): Bindable, FileMatch, LayoutNode, LineType, TerminalLine.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeProfiler
 import SwiftUI
 import Combine
 import os
 import Foundation
 
-// MARK: - Logger setup
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "TerminalView")
-
-// MARK: - Themes
 
 public enum TerminalTheme: String, CaseIterable, Identifiable, Codable {
     case midnight = "Midnight Blue"
@@ -54,8 +43,6 @@ public enum TerminalTheme: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-// MARK: - Models
-
 public enum SplitDirection: Codable {
     case horizontal
     case vertical
@@ -92,16 +79,15 @@ public struct SSHHost: Identifiable, Codable {
     public var address: String
     public var port: Int
     public var username: String
-    public var authMethod: String // "password" or "publicKey"
+    public var authMethod: String
     public var keyPath: String
     public var group: String
     public var tags: String
     public var isFavorite: Bool
 }
 
-// MARK: - Split Layout Configuration
 public indirect enum LayoutNode: Codable {
-    case single(UUID) // Session ID
+    case single(UUID)
     case horizontal([LayoutNode])
     case vertical([LayoutNode])
 
@@ -122,8 +108,6 @@ public struct TerminalTab: Identifiable, Codable {
     public var isPinned: Bool = false
     public var colorHex: String? = nil
 }
-
-// MARK: - Terminal Session
 
 @Observable
 @MainActor
@@ -242,24 +226,19 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
     }
 }
 
-// MARK: - Terminal Manager (Central State)
-
 @Observable
 @MainActor
 public final class TerminalManager: @unchecked Sendable {
     public static let shared = TerminalManager()
 
-    // Workspace & Sessions
     public var tabs: [TerminalTab] = []
     public var activeTabID: UUID?
     public var sessions: [UUID: TerminalSession] = [:]
     public var activeSessionID: UUID?
 
-    // Custom UI settings
     public var theme: TerminalTheme = .midnight
     public var searchQuery = ""
 
-    // Saved Models
     public var savedHosts: [SSHHost] = []
     public var savedProfiles: [TerminalProfile] = []
     public var commandHistory: [String] = []
@@ -360,8 +339,6 @@ public final class TerminalManager: @unchecked Sendable {
     }
 }
 
-// MARK: - Redesigned Primary TerminalView
-
 @MainActor
 public struct TerminalView: View {
     @State private var manager = TerminalManager.shared
@@ -370,10 +347,8 @@ public struct TerminalView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Tab list toolbar
             tabHeaderView
 
-            // Central Terminal Output & Input Panel
             if let activeTab = manager.tabs.first(where: { $0.id == manager.activeTabID }),
                let sId = activeTab.layout.allSessionIDs.first,
                let session = manager.sessions[sId] {
@@ -385,7 +360,6 @@ public struct TerminalView: View {
         .background(manager.theme.backgroundColor)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                // Secondary Managers Launcher Button
                 Button {
                     isShowingManagementSuite = true
                 } label: {
@@ -448,8 +422,6 @@ public struct TerminalView: View {
         .background(manager.theme.headerColor)
     }
 
-    // MARK: - Advanced Management Suite Sheet
-
     private var terminalManagementSuiteSheet: some View {
         VStack(spacing: 0) {
             HStack {
@@ -466,7 +438,6 @@ public struct TerminalView: View {
             Divider()
 
             HSplitView {
-                // Navigation list for categories
                 List {
                     Section("Core Settings") {
                         NavigationLink(state: "Settings", label: "Terminal Settings", icon: "gearshape")
@@ -488,7 +459,6 @@ public struct TerminalView: View {
                 .listStyle(.sidebar)
                 .frame(width: 200)
 
-                // Detailed subview panel
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         switch selectedManagementTab {
@@ -530,8 +500,6 @@ public struct TerminalView: View {
         .padding(.vertical, 4)
         .foregroundStyle(selectedManagementTab == state ? Color.accentColor : Color.primary)
     }
-
-    // MARK: - Advanced Subpanels
 
     private var settingsManagementPanel: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -714,8 +682,6 @@ public struct TerminalView: View {
     }
 }
 
-// MARK: - Interactive Session Terminal View
-
 @MainActor
 struct InteractiveTerminalSessionView: View {
     @Bindable var session: TerminalSession
@@ -744,7 +710,6 @@ struct InteractiveTerminalSessionView: View {
                 .background(manager.theme.headerColor)
             }
 
-            // Command Area
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
@@ -772,7 +737,6 @@ struct InteractiveTerminalSessionView: View {
 
             Divider()
 
-            // Active Path Info bar
             HStack {
                 Text("Directory: \(session.currentDirectory)")
                     .font(.caption.monospaced())
@@ -790,7 +754,6 @@ struct InteractiveTerminalSessionView: View {
 
             Divider()
 
-            // Input command box
             HStack {
                 Text("❯")
                     .font(.system(.body, design: .monospaced))
@@ -837,8 +800,6 @@ struct InteractiveTerminalSessionView: View {
         return text.localizedCaseInsensitiveContains(manager.searchQuery)
     }
 }
-
-// MARK: - Rich Text Renderer for Terminal Line
 
 @MainActor
 struct RenderTextLine: View {

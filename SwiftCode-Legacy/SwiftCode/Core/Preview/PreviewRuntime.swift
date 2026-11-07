@@ -3,8 +3,6 @@ import AppKit
 import Observation
 import os
 
-/// Thread-safe, MainActor-isolated persistent preview execution runtime.
-/// Manages live SwiftUI instances, handles incremental loading, and preserves application state.
 @Observable
 @MainActor
 public final class PreviewRuntime {
@@ -14,7 +12,6 @@ public final class PreviewRuntime {
     private let loader = PreviewDynamicLoader()
     private let buildService = PreviewBuildService()
 
-    // Persistent runtime state
     public private(set) var activeViewInstances: [String: NSView] = [:]
     public private(set) var activeSessionID: String?
     public private(set) var lastCompiledAt: Date?
@@ -22,7 +19,6 @@ public final class PreviewRuntime {
 
     private init() {}
 
-    /// Starts or updates a persistent runtime session for a specific SwiftUI view.
     public func updateRuntimeSession(
         sourcePath: String,
         sourceCode: String,
@@ -33,7 +29,6 @@ public final class PreviewRuntime {
         isRunning = true
         let startTime = Date()
 
-        // Generate content hash for caching (ensuring whitespaces/comments are evaluated correctly)
         let codeHash = String(sourceCode.hashValue)
         let cacheKey = "\(sourcePath)_\(targetView)_\(codeHash)"
 
@@ -44,7 +39,6 @@ public final class PreviewRuntime {
             return cachedView
         }
 
-        // 2. Build / compile dynamic library using the compiler or query cache
         logHandler("Checking compilation cache...")
         let libraryURL: URL
         if let cachedDylibURL = await PreviewCache.shared.getBinary(forHash: codeHash) {
@@ -61,7 +55,6 @@ public final class PreviewRuntime {
                 )
                 lastCompiledAt = Date()
 
-                // Cache ONLY on successful builds to prevent poisoning the cache
                 await PreviewCache.shared.setBinary(libraryURL, forHash: codeHash)
             } catch {
                 isRunning = false
@@ -71,7 +64,6 @@ public final class PreviewRuntime {
             }
         }
 
-        // 3. Load compiled SwiftUI view as an AppKit native NSView
         logHandler("Executing live runtime dynamic link...")
         let module = CompiledPreviewModule(libraryURL: libraryURL, diagnostics: [], metadata: ["target": targetView])
         let entry = PreviewSimulationEntry(appName: "SwiftCode Preview", rootViewType: targetView, sceneType: "WindowGroup")
@@ -99,7 +91,6 @@ public final class PreviewRuntime {
         }
     }
 
-    /// Explicitly stops the active runtime and unloads dynamic binaries.
     public func stopRuntime() {
         logger.info("[RUNTIME] Terminating persistent sessions and cleaning resources.")
         loader.unloadCurrentModule()

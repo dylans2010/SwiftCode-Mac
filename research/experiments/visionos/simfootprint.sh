@@ -1,6 +1,4 @@
 #!/bin/sh
-# Sum phys_footprint over the processes of one booted simulator (macOS host).
-# Usage: simfootprint.sh <udid>   (needs simprocs.py next to it)
 here=$(dirname "$0")
 total=0
 for p in $(python3 -I "$here/simprocs.py" "$1" | grep -v '^#' | cut -f1); do

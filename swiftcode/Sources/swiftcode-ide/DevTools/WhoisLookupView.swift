@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct WhoisLookupView: View {
@@ -17,7 +14,6 @@ struct WhoisLookupView: View {
                     .disabled(domain.isEmpty || isLoading)
             }
             .padding([.top, .horizontal])
-            
 
             if isLoading {
                 ProgressView()
@@ -40,7 +36,6 @@ struct WhoisLookupView: View {
 
     func lookup() {
         isLoading = true
-        // Using a public WHOIS API
         guard let url = URL(string: "https://rdap.org/domain/\(domain)") else {
             isLoading = false
             return

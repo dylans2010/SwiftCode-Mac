@@ -1,38 +1,3 @@
-/*
- * Ycode research probe (macOS, arm64): black-box capture of the messages that
- * the runtime's host library liblaunch_sim.dylib sends on the simulator
- * control channel. Original Ycode code, written for
- * specs/simulator/launch-sim-control.md. Contains no Apple code. The library
- * is only dlopen'ed and its exported functions are called; nothing in it is
- * read or disassembled.
- *
- * Modes:
- *   lsprobe call <fn> [arg...]
- *       dlopen the library (path in YC_LIB), make a port P that this process
- *       serves on a thread, call <fn> with the arguments given (up to 12, each a
- *       token, see make_arg), dump every message that arrives on P (and on P2)
- *       and answer it as YC_REPLY says (see answer()). After the call, print
- *       the return value and the contents of every out-buffer argument.
- *   lsprobe host <launchd_sim> <plist>
- *       Host mode: act as launchd_sim's host bootstrap (answer its 708 startup
- *       request with a fresh receive right, as in bootstrap-wire.md §5.2),
- *       give it a holding-tank child (§5.4), keep the send right S to its
- *       service port, then put a relay port M in front of S, and run the
- *       script in YC_SCRIPT (lines "fn arg..."; P = M) against it. Every
- *       request and every reply that passes the relay is dumped.
- *   Script lines may also be pseudo-calls: "raw*" (messages built by our own
- *   writer from the spec, sent straight to the service port: rawbind, rawreg,
- *   rawfind, rawgetenv, rawunreg, rawwait, rawdeath, rawspawn, rawid),
- *   "sleep <s>", "sh <cmd>", "echo <text>", "destroyP", "destroyB",
- *   "destroyRecv".
- * lsinterpose.dylib (DYLD_INSERT_LIBRARIES) logs the library's libSystem calls
- * and resolves names with YC_NAME_PREFIX to P.
- * Environment: YC_LIB, YC_REPLY, YC_TIMEOUT (seconds), YC_ENVFILE, YC_SCRIPT,
- *   YC_PREQUEUE (host: queue a 701 before the 808 reply), YC_TANK_SLEEP,
- *   YC_PRE_SLEEP_MS, YC_W24, YC_TRACE_MSG, YC_SIM_STDERR,
- *   YC_SECONDS (how long host mode keeps launchd_sim alive after the script),
- *   YC_SETBS=1 (call mode: point our own bootstrap_port global at P2 too).
- */
 #include <mach/mach.h>
 #include <mach/message.h>
 #include <servers/bootstrap.h>
@@ -60,8 +25,6 @@ static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static mach_port_t g_P, g_P2, g_pset, g_B;
 
-/* ------------------------------------------------------------------ dump */
-
 static uint32_t rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
 static uint64_t rd64(const uint8_t *p) { uint64_t v; memcpy(&v, p, 8); return v; }
 static size_t al4(size_t x) { return (x + 3) & ~(size_t)3; }
@@ -86,7 +49,6 @@ static void hexdump(const uint8_t *p, size_t n, size_t base)
 static int is_xpc_magic(uint32_t m) { return m == 0x7870633f || m == 0x78706340; }
 static void ind(int d) { for (int i = 0; i < d; i++) fprintf(g_out, "  "); }
 
-/* Our decoder of the serialized object format of bootstrap-wire.md §3. */
 static size_t xpc_decode(const uint8_t *p, size_t n, size_t off, int depth, int *ports)
 {
     if (off + 4 > n) { fprintf(g_out, "<truncated>\n"); return n; }
@@ -246,8 +208,6 @@ static void dump_msg(const char *tag, mach_msg_header_t *h, int with_trailer)
     fflush(g_out);
 }
 
-/* ------------------------------------------------------------- answering */
-
 static mach_port_t new_port(int with_send)
 {
     mach_port_t p = MACH_PORT_NULL;
@@ -264,18 +224,6 @@ static int hexval(char c)
     return -1;
 }
 
-/*
- * YC_REPLY grammar (a ';'-separated list of per-msgh_id rules, first match
- * wins; "*" matches any id):
- *   <id|*>=none            do not answer (keep the reply right)
- *   <id|*>=err:<n>         simple reply, msgh_id = id+100, NDR, RetCode n (36 bytes)
- *   <id|*>=body:<hex>      simple reply, msgh_id = id+100, then these bytes after the header
- *   <id|*>=ports:<k>:<disp>:<hex>  complex reply, k port descriptors (fresh ports,
- *                          disposition MS=make-send, MR=move-receive, MSO=make-send-once),
- *                          then <hex> after the descriptors
- *   <id|*>=id:<n>:...      as above but force msgh_id n (prefix to any form)
- * Default: "*=err:0".
- */
 static void answer(mach_msg_header_t *h, const char *spec)
 {
     if (h->msgh_remote_port == MACH_PORT_NULL) { fprintf(g_out, "  (no reply port)\n"); return; }
@@ -343,11 +291,8 @@ static void answer(mach_msg_header_t *h, const char *spec)
     dump_msg("OUR-REPLY", r, 0);
     kern_return_t kr = mach_msg(r, MACH_SEND_MSG | MACH_SEND_TIMEOUT, r->msgh_size, 0, MACH_PORT_NULL, 1000, MACH_PORT_NULL);
     if (kr) fprintf(g_out, "  reply send failed 0x%x\n", kr);
-    h->msgh_remote_port = MACH_PORT_NULL; /* consumed */
+    h->msgh_remote_port = MACH_PORT_NULL;
 }
-
-/* --------------------------------------------------------- serve (call mode) */
-
 
 static void *serve_thread(void *arg)
 {
@@ -375,12 +320,8 @@ static void *serve_thread(void *arg)
     }
 }
 
-/* Interposition lives in lsinterpose.c (loaded with DYLD_INSERT_LIBRARIES).
- * It resolves names with our prefix to the port we publish here. */
 __attribute__((visibility("default"))) mach_port_t yc_interpose_port;
 __attribute__((visibility("default"))) FILE *yc_interpose_out;
-
-/* ------------------------------------------------------------- arguments */
 
 typedef uint64_t (*fn8)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
                         uint64_t, uint64_t, uint64_t, uint64_t);
@@ -390,26 +331,12 @@ static struct { uint8_t *p; size_t n; int idx; } g_outbufs[MAXOUT];
 static int g_nout;
 static uint32_t g_lastpid;
 
-/*
- * Argument tokens:
- *   P, P2       our ports (send right names in our space)
- *   port:<n>    a raw integer used as a port name
- *   i:<n>       integer
- *   s:<text>    pointer to a NUL-terminated string
- *   v:<a,b,..>  pointer to a NULL-terminated array of strings
- *   b[:<n>]     pointer to an out-buffer of n bytes (default 64), filled with 0xA5
- *   z[:<n>]     like b but zero-filled
- *   n           NULL
- *   q           a global dispatch queue
- *   blk         a block that prints its first four arguments
- *   fd:<n>      the integer n (an fd number)
- */
 static uint64_t make_arg(const char *t, int idx)
 {
     if (!strcmp(t, "P")) return g_P;
     if (!strcmp(t, "P2")) return g_P2;
     if (!strcmp(t, "B")) { if (!g_B) g_B = new_port(1); fprintf(g_out, "-- B = 0x%x\n", g_B); return g_B; }
-    if (!strcmp(t, "LP")) return g_lastpid; /* the pid from the last spawn's out-parameter */
+    if (!strcmp(t, "LP")) return g_lastpid;
     if (!strcmp(t, "R")) { mach_port_t r = new_port(0); fprintf(g_out, "-- R = 0x%x (receive right only)\n", r); return r; }
     if (!strncmp(t, "port:", 5)) return strtoull(t + 5, NULL, 0);
     if (!strncmp(t, "i:", 2)) return (uint64_t)strtoll(t + 2, NULL, 0);
@@ -462,12 +389,6 @@ static void open_lib(void)
     if (!g_lib) { fprintf(stderr, "dlopen: %s\n", dlerror()); exit(2); }
 }
 
-
-/* ------------------------------------------- our own control-channel writer */
-
-/* Messages built by our code from specs/simulator/launch-sim-control.md (no
- * library involved), sent straight to launchd_sim's service port, to check
- * that the spec is sufficient. */
 static mach_port_t g_service_send;
 
 static void raw_put_name(uint8_t *b, size_t *n, const char *name)
@@ -513,13 +434,13 @@ static void raw_call(int argc, char **argv)
     uint8_t b[8192];
     memset(b, 0, sizeof b);
     size_t n = 24;
-    if (!strcmp(argv[0], "rawbind") && argc > 1) {           /* 700: one port, no body */
+    if (!strcmp(argv[0], "rawbind") && argc > 1) {
         *(uint32_t *)(b + 24) = 1;
         mach_msg_port_descriptor_t *d = (mach_msg_port_descriptor_t *)(b + 28);
         d->name = (mach_port_t)make_arg(argv[1], 0); d->disposition = MACH_MSG_TYPE_COPY_SEND; d->type = MACH_MSG_PORT_DESCRIPTOR;
         n = 40;
         raw_send(b, n, 700, 1, "bind");
-    } else if (!strcmp(argv[0], "rawreg") && argc > 2) {     /* 701: one port, NDR, name[128] */
+    } else if (!strcmp(argv[0], "rawreg") && argc > 2) {
         *(uint32_t *)(b + 24) = 1;
         mach_msg_port_descriptor_t *d = (mach_msg_port_descriptor_t *)(b + 28);
         d->name = (mach_port_t)make_arg(argv[2], 0); d->disposition = MACH_MSG_TYPE_COPY_SEND; d->type = MACH_MSG_PORT_DESCRIPTOR;
@@ -530,12 +451,12 @@ static void raw_call(int argc, char **argv)
         raw_put_name(b, &n, argv[1]);
         int id = !strcmp(argv[0], "rawfind") ? 702 : (!strcmp(argv[0], "rawgetenv") ? 703 : 709);
         raw_send(b, n, id, 0, argv[0] + 3);
-    } else if (!strcmp(argv[0], "rawwait") && argc > 1) {    /* 705: NDR, pid */
+    } else if (!strcmp(argv[0], "rawwait") && argc > 1) {
         uint32_t ndr[2] = { 0, 1 }; memcpy(b + 24, ndr, 8);
         uint32_t pid = !strcmp(argv[1], "RP") ? g_rawpid : (uint32_t)strtoul(argv[1], NULL, 0);
         memcpy(b + 32, &pid, 4);
         raw_send(b, 36, 705, 0, "waitpid");
-    } else if (!strcmp(argv[0], "rawdeath")) {               /* 706: one receive right */
+    } else if (!strcmp(argv[0], "rawdeath")) {
         mach_port_t p = new_port(1);
         *(uint32_t *)(b + 24) = 1;
         mach_msg_port_descriptor_t *d = (mach_msg_port_descriptor_t *)(b + 28);
@@ -545,7 +466,6 @@ static void raw_call(int argc, char **argv)
         mach_port_type_t ty; mach_port_type(mach_task_self(), p, &ty);
         fprintf(g_out, "-- rawdeath: our name 0x%x now: send=%d dead=%d\n", p, !!(ty & MACH_PORT_TYPE_SEND), !!(ty & MACH_PORT_TYPE_DEAD_NAME));
     } else if (!strcmp(argv[0], "rawspawn") && argc > 7) {
-        /* rawspawn <cwd|-> <suspend 0|1> <cputype|0> <stdin fd> <stdout fd> <path> <a,b,..|-> <K=V,..|->  */
         const char *cwd = strcmp(argv[1], "-") ? argv[1] : NULL;
         int susp = atoi(argv[2]);
         uint32_t cpu = (uint32_t)strtoul(argv[3], NULL, 0);
@@ -555,8 +475,8 @@ static void raw_call(int argc, char **argv)
         const char *ev = argc > 8 ? argv[8] : "-";
         uint8_t blob[4096]; memset(blob, 0, sizeof blob);
         uint32_t *w = (uint32_t *)blob;
-        size_t r = 156; /* region start */
-        size_t ro = 0;  /* region offset */
+        size_t r = 156;
+        size_t ro = 0;
 #define PUTS(str) do { size_t l_ = strlen(str) + 1; memcpy(blob + r + ro, (str), l_); ro += l_; } while (0)
         PUTS(path);
         if (strcmp(av, "-")) {
@@ -596,7 +516,7 @@ static void raw_call(int argc, char **argv)
         raw_send(b, n, 704, 1, "spawn");
         mach_msg_header_t *h = (mach_msg_header_t *)b;
         if (h->msgh_size == 40) g_rawpid = *(uint32_t *)(b + 36);
-    } else if (!strcmp(argv[0], "rawid") && argc > 1) {      /* an id with an NDR-only body */
+    } else if (!strcmp(argv[0], "rawid") && argc > 1) {
         uint32_t ndr[2] = { 0, 1 }; memcpy(b + 24, ndr, 8);
         raw_send(b, 32, (int)strtol(argv[1], NULL, 0), 0, "unknown-id");
     } else {
@@ -608,19 +528,19 @@ static void raw_call(int argc, char **argv)
 static void do_call(int argc, char **argv)
 {
     if (!strncmp(argv[0], "raw", 3)) { raw_call(argc, argv); return; }
-    if (!strcmp(argv[0], "destroyP")) { /* pseudo-call: destroy P's receive right (a peer death) */
+    if (!strcmp(argv[0], "destroyP")) {
         kern_return_t kr = mach_port_mod_refs(mach_task_self(), g_P, MACH_PORT_RIGHT_RECEIVE, -1);
         fprintf(g_out, "-- destroyed receive right of P (0x%x): 0x%x\n", g_P, kr);
         fflush(g_out);
         return;
     }
-    if (!strcmp(argv[0], "destroyB")) { /* pseudo-call: destroy B's receive right */
+    if (!strcmp(argv[0], "destroyB")) {
         kern_return_t kr = mach_port_mod_refs(mach_task_self(), g_B, MACH_PORT_RIGHT_RECEIVE, -1);
         fprintf(g_out, "-- destroyed receive right of B (0x%x): 0x%x\n", g_B, kr);
         fflush(g_out);
         return;
     }
-    if (!strcmp(argv[0], "destroyRecv")) { /* pseudo-call: destroy every receive right we were sent */
+    if (!strcmp(argv[0], "destroyRecv")) {
         for (int i = 0; i < g_nrecvd; i++) {
             kern_return_t kr = mach_port_mod_refs(mach_task_self(), g_recvd[i], MACH_PORT_RIGHT_RECEIVE, -1);
             fprintf(g_out, "-- destroyed received receive right 0x%x: 0x%x\n", g_recvd[i], kr);
@@ -629,7 +549,7 @@ static void do_call(int argc, char **argv)
         fflush(g_out);
         return;
     }
-    if (!strcmp(argv[0], "sh")) { /* pseudo-call: run a host shell command (observation only) */
+    if (!strcmp(argv[0], "sh")) {
         char cmd[4096] = "";
         for (int i = 1; i < argc; i++) { strlcat(cmd, argv[i], sizeof cmd); strlcat(cmd, " ", sizeof cmd); }
         fprintf(g_out, "-- sh: %s\n", cmd);
@@ -661,7 +581,6 @@ static void do_call(int argc, char **argv)
         hexdump(g_outbufs[i].p, g_outbufs[i].n > 64 ? 64 : g_outbufs[i].n, 0);
         uint64_t v = rd64(g_outbufs[i].p);
         if (v != 0xA5A5A5A5A5A5A5A5ULL && v > 0x100000000ULL && v < 0x0000800000000000ULL) {
-            /* looks like a pointer: try it as a C string */
             const char *s = (const char *)(uintptr_t)v;
             fprintf(g_out, "   as char* -> \"%.200s\"\n", s);
         }
@@ -701,7 +620,6 @@ static int mode_call(int argc, char **argv)
     const char *to = getenv("YC_TIMEOUT");
     pthread_t w;
     pthread_create(&w, NULL, watchdog, (void *)(intptr_t)(to ? atoi(to) : 4));
-    /* several calls separated by "--" */
     int start = 0;
     for (int i = 0; i <= argc; i++) {
         if (i == argc || !strcmp(argv[i], "--")) {
@@ -714,11 +632,8 @@ static int mode_call(int argc, char **argv)
     return 0;
 }
 
-/* ------------------------------------------------------------- host mode */
-
 static mach_port_t g_fake_bs, g_relay, g_prequeue_reply;
 
-/* The host bootstrap: answer 708 as in bootstrap-wire.md §5.2; log the rest. */
 static void *bs_thread(void *arg)
 {
     (void)arg;
@@ -733,11 +648,9 @@ static void *bs_thread(void *arg)
         g_seq++;
         dump_msg("HOST-BOOTSTRAP-REQUEST", h, 1);
         if (h->msgh_id == 708 && h->msgh_remote_port) {
-            mach_port_t sp = new_port(1); /* receive right goes to launchd_sim, we keep send */
+            mach_port_t sp = new_port(1);
             const char *pq = getenv("YC_PREQUEUE");
             if (pq) {
-                /* Queue a register request (701) on the port while we still hold its
-                 * receive right; the message moves with the right in the 808 reply. */
                 struct { mach_msg_header_t h; mach_msg_body_t b; mach_msg_port_descriptor_t d;
                          uint32_t ndr[2]; char name[128]; } q;
                 memset(&q, 0, sizeof q);
@@ -767,7 +680,6 @@ static void *bs_thread(void *arg)
             fprintf(g_out, "  (host) 808 reply sent (0x%x); service port send right = 0x%x\n", kr, sp);
             g_service_send = sp;
         } else if (h->msgh_remote_port) {
-            /* a pipe request: answer {error: 1102/3/45} as a minimal host */
             unsigned routine = h->msgh_id & 0xffff;
             int64_t err = (routine == 207) ? 1102 : (routine == 804 ? 3 : 45);
             uint8_t rb[128]; memset(rb, 0, sizeof rb);
@@ -792,9 +704,6 @@ static void *bs_thread(void *arg)
     }
 }
 
-/* Relay: what the library sends to M goes to the real service port S, with
- * our own reply port; launchd_sim's reply is dumped and returned. Port-bearing
- * descriptors are moved on unchanged (we hold the rights in between). */
 static void fix_ool_for_resend(uint8_t *b)
 {
     mach_msg_header_t *h = (mach_msg_header_t *)b;
@@ -804,7 +713,6 @@ static void fix_ool_for_resend(uint8_t *b)
     for (uint32_t i = 0; i < cnt; i++) {
         uint8_t type = b[off + 11];
         if (type == MACH_MSG_PORT_DESCRIPTOR) {
-            /* received dispositions: 16 recv -> move recv, 17 send -> move send, 18 so -> move so */
             off += 12; continue;
         }
         if (type == MACH_MSG_OOL_DESCRIPTOR || type == MACH_MSG_OOL_VOLATILE_DESCRIPTOR) {
@@ -890,7 +798,6 @@ static char **load_env(void)
     return env;
 }
 
-/* Tokenize a script line in place (spaces separate; no quoting). */
 static int split(char *line, char **av, int max)
 {
     int n = 0;
@@ -908,7 +815,6 @@ static int mode_host(int argc, char **argv)
     g_relay = new_port(1);
     g_P = g_relay;
     g_P2 = new_port(1);
-    /* P2 is the "host-side endpoint" we register; serve it to see guest messages. */
     mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_PORT_SET, &g_pset);
     mach_port_move_member(mach_task_self(), g_P2, g_pset);
     pthread_t t1, t2, t3;
@@ -916,7 +822,6 @@ static int mode_host(int argc, char **argv)
     pthread_create(&t2, NULL, relay_thread, NULL);
     pthread_create(&t3, NULL, serve_thread, NULL);
 
-    /* environment plus the holding-tank variable */
     char **e2 = calloc(300, sizeof(char *));
     int n = 0;
     for (; env[n] && n < 290; n++) e2[n] = env[n];
@@ -957,7 +862,7 @@ static int mode_host(int argc, char **argv)
     const char *pre = getenv("YC_PRE_SLEEP_MS");
     usleep((useconds_t)(pre ? atoi(pre) : 1500) * 1000);
 
-    if (getenv("YC_DIRECT")) g_P = g_service_send; /* no relay: the library talks to S */
+    if (getenv("YC_DIRECT")) g_P = g_service_send;
     yc_interpose_port = g_P; yc_interpose_out = g_out;
     const char *script = getenv("YC_SCRIPT");
     if (script) {

@@ -13,7 +13,6 @@ import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple, Awaitable
 
-# Ensure bundled site-packages are available
 bridge_dir = os.path.dirname(os.path.abspath(__file__))
 sdk_root = os.path.dirname(bridge_dir)
 site_packages = os.path.join(sdk_root, "runtime", "lib", "python3.14", "site-packages")
@@ -51,12 +50,7 @@ from google.antigravity.tools.tool_runner import ToolWithSchema
 
 logger = logging.getLogger("AntigravityAgentRunner")
 
-
-# Header the Gemini Developer API requires on OAuth-authenticated requests so
-# usage is attributed to a quota project. See
-# https://ai.google.dev/gemini-api/docs/oauth
 USER_PROJECT_HEADER = "x-goog-user-project"
-
 
 class GeminiAuthConfigError(ValueError):
     """Raised when the Gemini auth mode/endpoint combination is misconfigured.
@@ -65,7 +59,6 @@ class GeminiAuthConfigError(ValueError):
     token, quota project, Vertex project/location) instead of letting the
     request fail later with a cryptic provider error.
     """
-
 
 def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
                         http_headers):
@@ -107,9 +100,6 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
     user_project = _clean(header_project) or project
 
     if vertex:
-        # Explicit Vertex AI selection. With an API key this is Vertex Express
-        # mode (project/location optional); otherwise (OAuth or ambient
-        # credentials) it is Standard mode and requires both.
         if api_key and not oauth_token:
             return ("vertex", project, location)
         if not project or not location:
@@ -121,8 +111,6 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
             )
         return ("vertex", project, location)
     if oauth_token:
-        # OAuth token present: use OAuth Developer API mode.
-        # Consumer Google / Antigravity accounts do NOT require a quota project.
         return ("oauth", user_project, location)
 
     if api_key:
@@ -133,7 +121,6 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
         "account authentication) nor an API key. Sign in with Google or enter a "
         "Gemini API key in SwiftCode Settings > Assist."
     )
-
 
 def canonicalize_antigravity_model(model_name: str) -> Tuple[str, Optional[str]]:
     """Maps an Antigravity model name (e.g. gemini-3.8-flash-high) to its canonical
@@ -150,7 +137,6 @@ def canonicalize_antigravity_model(model_name: str) -> Tuple[str, Optional[str]]
         return clean[:-9], "high"
     return clean, None
 
-
 ANTIGRAVITY_CATALOG_MODEL_IDS = (
     "gemini-3.8-flash",
     "gemini-3.8-flash-high",
@@ -164,7 +150,6 @@ ANTIGRAVITY_CATALOG_MODEL_IDS = (
     "claude-opus-4-6-thinking",
     "gpt-oss-120b-medium",
 )
-
 
 def resolve_antigravity_execution_mode(params):
     """Determine whether a session runs in Google-authenticated Antigravity mode ('antigravity')
@@ -199,7 +184,6 @@ def resolve_antigravity_execution_mode(params):
         return "api_key"
     return explicit_mode or ("antigravity" if oauth_token else "api_key")
 
-
 def resolve_session_credentials(params, *, is_gemini):
     """Resolve credentials only for their intended provider; never mutate os.environ."""
     api_key = (params.get("apiKey") or params.get("api_key") or "").strip() or None
@@ -219,7 +203,6 @@ def resolve_session_credentials(params, *, is_gemini):
         if not oauth_token and (not api_key or explicit_mode == "antigravity" or provider == "antigravity"):
             oauth_token = (os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN") or "").strip() or None
         if oauth_token:
-            # Remove stale key/bearer headers regardless of their casing.
             headers = {k: v for k, v in headers.items()
                        if k.lower() not in ("authorization", "x-goog-api-key", "x-api-key")}
             headers["Authorization"] = f"Bearer {oauth_token}"
@@ -227,7 +210,6 @@ def resolve_session_credentials(params, *, is_gemini):
         elif not api_key:
             api_key = (os.environ.get("GEMINI_API_KEY") or "").strip() or None
     return api_key, oauth_token, headers
-
 
 def _wrap_turn_error(err_msg: str) -> str:
     """Attach user guidance to a failed turn's error text — scope problems only.
@@ -249,7 +231,6 @@ def _wrap_turn_error(err_msg: str) -> str:
         )
     return err_msg
 
-
 def _require_custom_endpoint(*, provider: str, model: str, base_url: str) -> None:
     """Fail closed for custom-provider models without an explicit endpoint.
 
@@ -265,8 +246,6 @@ def _require_custom_endpoint(*, provider: str, model: str, base_url: str) -> Non
             "> Custom Model Setup, then try again." % model
         )
 
-
-
 def sanitize_schema(schema: Any) -> Any:
     """Sanitizes JSON schemas from clients to ensure full compliance with Gemini/OpenAPI."""
     if not isinstance(schema, dict):
@@ -274,16 +253,13 @@ def sanitize_schema(schema: Any) -> Any:
 
     cleaned = dict(schema)
 
-    # Force lowercase type for strict Anthropic and OpenAI schemas
     if "type" in cleaned and isinstance(cleaned["type"], str):
         cleaned["type"] = cleaned["type"].lower()
 
-    # If type is array, inspect and normalize items
     if cleaned.get("type") == "array":
         if "items" in cleaned:
             items = cleaned["items"]
             if isinstance(items, dict):
-                # Check for bad nesting like {'type': {'type': 'string'}} or {'type': {'type': 'object'}}
                 if "type" in items and isinstance(items["type"], dict):
                     inner = items["type"]
                     if "type" in inner and isinstance(inner["type"], str):
@@ -305,14 +281,12 @@ def sanitize_schema(schema: Any) -> Any:
         if isinstance(cleaned.get("items"), dict):
             cleaned["items"] = sanitize_schema(cleaned["items"])
 
-    # Recursively clean properties
     if "properties" in cleaned and isinstance(cleaned["properties"], dict):
         cleaned["properties"] = {
             k: sanitize_schema(v) for k, v in cleaned["properties"].items()
         }
 
     return cleaned
-
 
 class StreamingThoughtParser:
     """Parses streaming text chunks to separate <think>...</think> and <thought>...</thought>
@@ -402,7 +376,6 @@ class StreamingThoughtParser:
             self.pending = ""
         return results
 
-
 class ToolCallState:
     """Tracks state and identity for a single tool call to guarantee idempotency and stability."""
     def __init__(self, call_id: str, tool_name: str, args: Dict[str, Any]):
@@ -416,7 +389,6 @@ class ToolCallState:
         self.error: Optional[str] = None
         self.is_subagent = (tool_name == "start_subagent")
 
-
 class ActiveSession:
     def __init__(self, session_id: str, agent: Agent, emit_fn: Callable[[str, Dict[str, Any]], None]):
         self.session_id = session_id
@@ -425,11 +397,8 @@ class ActiveSession:
         self.active_response: Optional[types.ChatResponse] = None
         self.active_task: Optional[asyncio.Task[Any]] = None
         self.is_closed = False
-        # Map call_id -> ToolCallState
         self.active_tools: Dict[str, ToolCallState] = {}
-        # Queue of pending call_ids by tool_name
         self.pending_by_name: Dict[str, List[str]] = {}
-        # Set of call_ids that have finished (completed or failed) to guarantee deduplication
         self.finished_call_ids: set[str] = set()
 
     def get_or_create_tool_call(self, call_id: str, tool_name: str, args: Dict[str, Any]) -> ToolCallState:
@@ -445,7 +414,6 @@ class ActiveSession:
         if not pending_list:
             return None
 
-        # 1. Match by exact arguments if provided
         if args is not None:
             for idx, cid in enumerate(pending_list):
                 state = self.active_tools.get(cid)
@@ -453,7 +421,6 @@ class ActiveSession:
                     pending_list.pop(idx)
                     return state
 
-        # 2. Fall back to oldest unfinished call_id in FIFO order
         while pending_list:
             cid = pending_list.pop(0)
             state = self.active_tools.get(cid)
@@ -485,7 +452,6 @@ class ActiveSession:
                     })
         self.active_tools.clear()
         self.pending_by_name.clear()
-
 
 class AgentRunner:
     def __init__(
@@ -545,7 +511,6 @@ class AgentRunner:
             if session:
                 state = session.get_or_create_tool_call(call_id, tool_name, tool_args)
 
-            # Emit canonical start notifications once per tool call
             if not state or not state.started_emitted:
                 if state:
                     state.started_emitted = True
@@ -575,7 +540,6 @@ class AgentRunner:
 
             session = self.sessions.get(session_id)
             if session and call_id and call_id in session.finished_call_ids:
-                # Already finalized: suppress duplicate completion/failure event
                 return
 
             state: Optional[ToolCallState] = None
@@ -584,7 +548,6 @@ class AgentRunner:
                 if call_id and call_id in session.active_tools:
                     state = session.active_tools.get(call_id)
                 else:
-                    # Match by tool_name with an unfinished active tool
                     for cid, t_state in list(session.active_tools.items()):
                         if t_state.tool_name == tool_name and not t_state.finished:
                             state = t_state
@@ -610,7 +573,6 @@ class AgentRunner:
             elif session and call_id:
                 session.finished_call_ids.add(call_id)
 
-            # Determine whether execution failed (exception or error message string)
             is_failure = bool(err_val)
             error_message = str(err_val) if err_val else ""
             if not is_failure and isinstance(result_val, str) and (result_val.startswith("Error executing ") or result_val.startswith("Error: ")):
@@ -744,7 +706,6 @@ class AgentRunner:
                 if session:
                     state = session.get_or_create_tool_call(call_id, tool_name, kwargs)
 
-            # Ensure tool.started was emitted with this exact stable call_id
             if state and not state.started_emitted:
                 state.started_emitted = True
                 if state.is_subagent:
@@ -787,7 +748,6 @@ class AgentRunner:
                 else:
                     res = await request_fn(session_id, tool_name, kwargs, **call_kwargs)
 
-                # Handle async generator / generator streaming chunks
                 if inspect.isasyncgen(res) or hasattr(res, "__aiter__"):
                     chunks = []
                     async for item in res:
@@ -810,7 +770,6 @@ class AgentRunner:
                     return final_result
 
                 if isinstance(res, dict):
-                    # Surface tool.progress notification if intermediate progress or chunks are reported
                     prog = res.get("progress") or res.get("progressMessage") or res.get("message")
                     if prog:
                         if isinstance(prog, list):
@@ -907,12 +866,9 @@ class AgentRunner:
             registered_tools_schemas = params.get("tools", [])
             toolkit = (params.get("toolkit") or "System").strip()
 
-            # Dynamic tools & Built-in tools depending on Assist Toolkit setting
             dynamic_tools = []
             builtin_tools = []
 
-            # Always register all provided SwiftCode native tools as dynamic tools
-            # so that all native tools are fully available to the model and never missing from its environment.
             for t_schema in registered_tools_schemas:
                 if isinstance(t_schema, dict) and "name" in t_schema:
                     wrapper = self._build_swift_tool_wrapper(session_id, t_schema)
@@ -922,7 +878,6 @@ class AgentRunner:
                 builtin_tools.append(types.BuiltinTools.START_SUBAGENT)
 
             if toolkit.lower() == "cloud":
-                # In Cloud toolkit mode, also incorporate Antigravity SDK's built-in tools
                 for bt in types.BuiltinTools.default():
                     if bt not in builtin_tools:
                         builtin_tools.append(bt)
@@ -940,7 +895,6 @@ class AgentRunner:
             )
             system_instructions = (system_instructions + tool_mandate_instruction).strip()
 
-            # Build policies
             session_policies = []
             if workspaces:
                 session_policies.append(policy.workspace_only(workspaces))
@@ -961,7 +915,6 @@ class AgentRunner:
                 len(builtin_tools),
             )
 
-            # Determine provider & routing strategy
             provider = (params.get("provider") or "").lower()
             model_lower = str(model).lower()
             model_path_param = str(params.get("modelPath") or params.get("model_path") or params.get("litertModelPath") or "")
@@ -1081,8 +1034,6 @@ class AgentRunner:
             elif is_gemini:
                 harness_env = {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": "", "GOOGLE_OAUTH_ACCESS_TOKEN": ""}
                 if oauth_token:
-                    # Satisfy localharness's startup env check while keeping
-                    # GeminiAPIEndpoint.api_key="" so only OAuth headers are sent.
                     harness_env["GEMINI_API_KEY"] = "oauth-header-only"
                     harness_env["GOOGLE_OAUTH_ACCESS_TOKEN"] = oauth_token
 
@@ -1109,8 +1060,6 @@ class AgentRunner:
                 is_antigravity_claude = is_antigravity_mode and (provider in ("anthropic", "claude") or "claude" in model_lower)
 
                 if (is_antigravity_mode or oauth_token) and not vertex:
-                    # Antigravity execution mode (Google Sign-In session without direct API keys):
-                    # never route Claude to api.anthropic.com and never fail on missing GCP quota project.
                     auth_mode = "antigravity"
                     auth_project = next((v for k, v in http_headers.items() if k.lower() == USER_PROJECT_HEADER), None) or project
                     auth_location = location
@@ -1135,7 +1084,6 @@ class AgentRunner:
                             http_headers[USER_PROJECT_HEADER] = auth_project
                         config_kwargs["http_headers"] = http_headers
 
-                # Resolve Gemini thinking level options if specified or inferred from Antigravity model ID
                 thinking_level_param = params.get("thinkingLevel") or params.get("thinking_level") or inferred_thinking_level
                 gemini_options = None
                 if thinking_level_param:
@@ -1146,7 +1094,6 @@ class AgentRunner:
                     if enum_level is not None and hasattr(types, "GeminiModelOptions"):
                         gemini_options = types.GeminiModelOptions(thinking_level=enum_level)
 
-                # Build the explicit model endpoint for the resolved auth mode.
                 endpoint = None
                 if auth_mode == "vertex" and VertexEndpoint is not None:
                     if auth_project and auth_location:
@@ -1157,7 +1104,6 @@ class AgentRunner:
                             options=gemini_options,
                         )
                     else:
-                        # Vertex Express mode: API key authentication.
                         endpoint = VertexEndpoint(
                             api_key=api_key,
                             http_headers=http_headers,
@@ -1211,9 +1157,6 @@ class AgentRunner:
                 agent_config = LocalAgentConfig(**config_kwargs)
 
             else:
-                # Use LocalOpenAIAgentConfig with direct local endpoint or bridge adapter
-                # H-5: fail closed when a custom-provider model has no explicit
-                # endpoint instead of silently routing to a localhost default.
                 _require_custom_endpoint(provider=provider, model=model, base_url=base_url)
                 resolved_base_url = base_url
                 if provider in ("ollama", "lmstudio") and not resolved_base_url:
@@ -1257,7 +1200,6 @@ class AgentRunner:
 
             agent = Agent(config=agent_config)
 
-            # Enter agent async context
             await agent.__aenter__()
 
             session = ActiveSession(session_id, agent, self.emit_fn)
@@ -1290,7 +1232,6 @@ class AgentRunner:
                 response = await session.agent.chat(content)
                 session.active_response = response
 
-                # Stream rich semantic chunks as they arrive from backend
                 async for chunk in response.chunks:
                     is_thought = isinstance(chunk, Thought) or type(chunk).__name__ == "Thought" or hasattr(chunk, "signature")
                     if is_thought:
@@ -1339,7 +1280,6 @@ class AgentRunner:
 
                 stop_reason = str(response.stop_reason) if hasattr(response, "stop_reason") else "end_of_turn"
 
-                # Mark any orphaned tools before finalizing turn
                 session.mark_all_tools_failed("Turn completed without explicit tool completion")
 
                 emit("agent.completed", {
@@ -1369,8 +1309,6 @@ class AgentRunner:
             except Exception as e:
                 logger.exception("Error executing turn in session '%s': %s", session_id, e)
                 session.mark_all_tools_failed(f"Turn execution error: {str(e)}")
-                # C-5: only scope-specific failures get re-auth guidance; every
-                # other error passes through verbatim for Swift's classifier.
                 err_msg = _wrap_turn_error(str(e))
                 emit("agent.failed", {
                     "sessionId": session_id,
@@ -1389,7 +1327,6 @@ class AgentRunner:
         if not session:
             raise KeyError(f"Session '{session_id}' not found")
 
-        # Mark all in-flight tools as cancelled immediately so the UI does not hang
         session.mark_all_tools_failed("Tool execution was cancelled by user")
 
         if session.active_response:

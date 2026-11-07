@@ -1,4 +1,3 @@
-# setprefs.py <plist> [key=val ...]: write a plist with hmd.preferred-languages and the given keys (int, float, or s:string)
 import plistlib, sys
 d = {'hmd.preferred-languages': ['en-US']}
 for kv in sys.argv[2:]:

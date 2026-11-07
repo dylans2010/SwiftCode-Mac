@@ -1,7 +1,3 @@
-// SUIProbe anim mode: timing curves, springs, keyframes (pure API values), and
-// animations sampled while rendering (an Animatable modifier records the
-// interpolated value every time SwiftUI evaluates it), transactions and
-// transitions.
 import SwiftUI
 import QuartzCore
 
@@ -39,7 +35,6 @@ func logCurvesAndSprings() {
     log("keyframes.values", stride(from: 0.0, through: 3.0001, by: 0.1).map { f2(tl.value(time: $0)) }.joined(separator: ","))
 }
 
-/// Records every evaluation of the animated value: (seconds since start, value).
 final class Samples {
     static var data: [String: [(Double, Double)]] = [:]
     static var start: [String: Double] = [:]
@@ -130,7 +125,6 @@ struct AnimProbe: View {
             }
             t += 2.6
         }
-        // completion criteria .removed for a spring
         after(t) {
             current = "springRemoved"; Samples.begin("springRemoved")
             let from = x, to = x == 0 ? 100.0 : 0.0
@@ -138,10 +132,9 @@ struct AnimProbe: View {
             after(2.4) { Samples.report("springRemoved", from: from, to: to) }
         }
         t += 2.6
-        // transaction scoping: A has .animation(.linear(1), value:), B has none.
         after(t) {
             current = "implicitOnly"; Samples.begin("implicitOnly.A"); Samples.begin("implicitOnly.B")
-            a = 100; b = 100   // no withAnimation
+            a = 100; b = 100
             after(1.4) { Samples.report("implicitOnly.A", from: 0, to: 100); Samples.report("implicitOnly.B", from: 0, to: 100) }
         }
         t += 1.6
@@ -164,7 +157,6 @@ struct AnimProbe: View {
             after(1.4) { Samples.report("disables.A", from: 0, to: 100); Samples.report("disables.B", from: 100, to: 0) }
         }
         t += 1.6
-        // retargeting: start linear 1s to 100, at 0.5s retarget to 0 with a spring
         after(t) {
             current = "retarget"; Samples.begin("retarget")
             x = 0
@@ -176,7 +168,6 @@ struct AnimProbe: View {
             }
         }
         t += 2.6
-        // transitions
         after(t) {
             Samples.begin("transition"); logt("anim.transition.insert")
             withAnimation(.linear(duration: 1)) { shown = true }

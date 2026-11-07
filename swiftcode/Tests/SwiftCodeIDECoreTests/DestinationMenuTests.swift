@@ -24,9 +24,6 @@ import SwiftCodeBuild
         #expect(m.incompatible.map(\.name) == ["iPhone 17 (mismatched platform)"])
     }
 
-    /// reference-ui-5.md §11.4 item 1: runtime newest first; then iPhone,
-    /// iPad, Apple Vision; each by name in localized standard order. Names
-    /// are kept: the row shows the OS version.
     @Test func simulatorsByRuntimeThenFamilyThenName() {
         let sims = [sim("Apple Vision Pro", "visionOS", "26.0"), sim("iPad Air", "iOS", "26.1"), sim("iPhone 17 Pro", "iOS", "26.1"),
                     sim("iPhone Air", "iOS", "26.1"), sim("iPhone 17", "iOS", "26.1"), sim("iPhone 17e", "iOS", "26.1"),
@@ -36,9 +33,6 @@ import SwiftCodeBuild
                     "iPhone 17 26.0", "Apple Vision Pro 26.0"])
     }
 
-    /// §11.4 items 2–4: Vision rows of an iOS app, versions below the
-    /// deployment target in Incompatible with their reason, "(<runtime>)"
-    /// before the reason for a name on several runtimes.
     @Test func visionRowsAndIncompatibleReasons() {
         let sims = [sim("iPhone 17", "iOS", "26.1"), sim("iPhone 17", "iOS", "18.5"), sim("iPhone 16", "iOS", "18.5"),
                     sim("Apple Vision Pro", "visionOS", "26.0"), sim("Apple Watch X", "watchOS", "26.0")]
@@ -53,7 +47,6 @@ import SwiftCodeBuild
         #expect(m.rows("Devices").map(\.name) == ["My Mac (Designed for iPad)"])
         #expect(m.selectable.map(\.name).prefix(2) == ["My Mac (Designed for iPad)", "iPhone 17"])
         #expect(m.rows("Build").map(DestinationMenuModel.submenuTitle) == ["Any iOS Device (arm64)", "Any iOS Simulator Device (arm64, x86_64)"])
-        // A Mac-only product: My Mac is fine, the rest mismatched.
         let mac = DestinationMenuModel(current: nil, devices: [], simulators: sims, platforms: ["macOS"])
         #expect(mac.incompatible.count == sims.count && mac.incompatible.allSatisfy { $0.name.hasSuffix("(mismatched platform)") })
     }

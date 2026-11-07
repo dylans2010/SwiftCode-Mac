@@ -1,11 +1,3 @@
-// The wizard's Get a Runtime step (`runtime-downloads.md` §6.1;
-// `runtime-onboarding.md` §9–§11): the three routes in their order — on a
-// Mac, Xcode's own tool (C), then SwiftCode's direct download (B), then a runtime
-// the user has (A, the Add a Runtime step); on Linux, B then A, with C as
-// the way to fetch one on a Mac. Each route starts only from a confirmation
-// that shows the exact command; progress, Cancel, errors and Retry are here.
-// Shared by the macOS window and the Linux sheet.
-
 import Foundation
 import Observation
 
@@ -14,13 +6,11 @@ import Observation
 public final class RuntimeDownloadModel {
     public enum Route: String, Sendable { case xcode, direct }
 
-    /// What is running, or what last ran.
     public struct Activity: Sendable, Equatable {
         public enum State: Sendable, Equatable {
             case running
             case finished(String)
             case cancelled
-            /// The words, whether Retry can help, and whether Apple refused this computer (§4.1 O1).
             case failed(String, retry: Bool, refused: Bool)
         }
         public var route: Route
@@ -39,22 +29,18 @@ public final class RuntimeDownloadModel {
     public private(set) var platform: SimPlatform = .iOS
     public private(set) var index: RuntimeIndex?
     public private(set) var indexState: IndexState = .idle
-    /// The build chosen in the list; nil is the recommended one.
     public private(set) var selectedBuild: String?
     public private(set) var exportCopy = false
     public private(set) var exportPath: String
-    /// The routes' prerequisites (`download.*`): Xcode, the decryptor, the disk image reader, disk space.
     public private(set) var checks: [RuntimeCheck] = []
     public private(set) var activity: Activity?
     public private(set) var log = ""
     public private(set) var lastAction: RuntimeAction?
 
     @ObservationIgnored public var onChange: (() -> Void)?
-    /// After a route finished: the session reads the runtimes again.
     @ObservationIgnored public var onInstalled: (() -> Void)?
     @ObservationIgnored public var runner: any HeadsetCommandRunner
     @ObservationIgnored public var environment: [String: String]
-    /// Makes route B's pipeline (tests answer for Apple).
     @ObservationIgnored public var makeDirect: (String) -> RuntimeDirectDownload
     @ObservationIgnored public var host: RuntimeHostDescription
     @ObservationIgnored var direct: RuntimeDirectDownload?
@@ -76,8 +62,6 @@ public final class RuntimeDownloadModel {
     }
 
     func changed() { onChange?() }
-
-    // MARK: Choices
 
     public func setPlatform(_ p: SimPlatform, check: Bool = true) {
         guard p != platform else { return }
@@ -103,8 +87,6 @@ public final class RuntimeDownloadModel {
         changed()
     }
 
-    // MARK: The index
-
     public var candidates: [RuntimeIndexEntry] {
         guard let index else { return [] }
         return RuntimeSelection.candidates(index, platform: platform, host: .current)
@@ -115,13 +97,11 @@ public final class RuntimeDownloadModel {
         return try? RuntimeSelection.select(index, RuntimeRequest(platform: platform), host: .current)
     }
 
-    /// What route B would fetch.
     public var chosen: RuntimeIndexEntry? {
         if let b = selectedBuild, let e = candidates.first(where: { $0.build == b }) { return e }
         return recommended
     }
 
-    /// Reads Apple's index (only when asked: the step's Show Versions, or route B).
     public func loadIndex(force: Bool = false) {
         guard indexState != .loading else { return }
         indexState = .loading
@@ -140,12 +120,8 @@ public final class RuntimeDownloadModel {
         }
     }
 
-    // MARK: Prerequisites
-
-    /// Xcode on a Mac (route C): a full Xcode is selected, or a stand-in is named.
     public var xcodeAvailable: Bool { checks.first { $0.id == "download.xcode" }?.state == .ok }
 
-    /// Whether route B can start (its decryptor and reader are here).
     public var directReady: Bool {
         checks.filter { ["download.decryptor", "download.reader"].contains($0.id) }.allSatisfy { $0.state == .ok }
     }
@@ -196,22 +172,17 @@ public final class RuntimeDownloadModel {
         changed()
     }
 
-    // MARK: Actions
-
     public var xcodeDownload: XcodebuildDownload {
         XcodebuildDownload(platform: platform, exportPath: exportCopy && !exportPath.isEmpty ? exportPath : nil)
     }
 
-    /// Route C's action (a Mac with Xcode).
     public var xcodeAction: RuntimeAction? { machine.isMac && xcodeAvailable ? .downloadWithXcode(xcodeDownload) : nil }
 
-    /// Route B's action, once the index named what it fetches.
     public var directAction: RuntimeAction? {
         guard let e = chosen else { return nil }
         return .downloadDirect(RuntimeRequest(platform: platform, build: e.build))
     }
 
-    /// The command line that does what route B's button does.
     public func directCommand(_ r: RuntimeRequest) -> String {
         RuntimeCommands.line(["swiftcode", "runtime", "download", r.platform.rawValue] + (r.build.map { ["--build", $0] } ?? []))
     }
@@ -245,7 +216,6 @@ public final class RuntimeDownloadModel {
         }
     }
 
-    /// Starts a confirmed route.
     public func start(_ action: RuntimeAction) {
         guard activity?.isRunning != true else { return }
         lastAction = action
@@ -261,10 +231,8 @@ public final class RuntimeDownloadModel {
         xcodeRun?.cancel()
     }
 
-    /// Retry (and Resume after Cancel): the last route again.
     public func retry() { if let a = lastAction { start(a) } }
 
-    /// Adds output; a carriage return rewrites the current line, as a terminal would.
     func append(_ s: String) {
         let parts = RuntimeSecrets.scrub(s).replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\r", omittingEmptySubsequences: false)
         for (i, part) in parts.enumerated() {
@@ -375,7 +343,6 @@ public final class RuntimeDownloadModel {
         }
     }
 
-    /// What the Linux wizard tells the user about route C.
     public func macRouteNote(_ p: SimPlatform) -> String {
         "On a Mac with Xcode: xcodebuild -downloadPlatform \(p.downloadName) -exportPath <folder>, then copy the folder here and add it with Add a Runtime (or swiftcode runtime import <folder>)."
     }

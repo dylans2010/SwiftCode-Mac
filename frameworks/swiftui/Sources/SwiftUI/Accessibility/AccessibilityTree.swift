@@ -6,36 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// The accessibility tree of a window (round R10; 08 §2).
-//
-// Built from the laid-out view graph (SwiftCode's rules; the observed results
-// of 08 §2 are the tests' expectations):
-//  - A `Text` is a static-text element labelled with its string; an
-//    `Image` an image element labelled with its `accessibilityLabel`, its own
-//    label (`Image(_:bundle:label:)`), the symbol's default label (08 §2:
-//    "star.fill" → "Favorite"; SymbolAccessibilityLabels) or the asset name;
-//    decorative images are left out.
-//  - Controls annotate themselves (role, traits, value, actions) and combine
-//    the elements of their labels: Button ("button"), Toggle ("button" and
-//    toggle, value "1"/"0"), Slider and ProgressView (value as a percentage
-//    of the range; the slider is adjustable, the progress view updates
-//    frequently), Stepper (adjustable; open question 6 of `10-plan.md`),
-//    Link, text fields (value = the text, no label: 08 §2), Picker, Menu.
-//  - `accessibilityElement(children:)`: `.ignore` makes one element with the
-//    modifier's attributes only; `.combine` joins the labels inside with
-//    ", " (values likewise) and unions their traits; `.contain` makes a
-//    container of the elements inside. Lists are containers of rows.
-//  - `accessibilityHidden(true)` leaves the subtree out; so do suspended
-//    subtrees (covered pages, unselected tabs) and views that are not laid
-//    out (picker options, the commands host).
-//  - Attributes of a modifier that is not an element apply to the element
-//    (or elements) its content produces; the modifier nearest the view wins.
-//  - `accessibilitySortPriority`: higher first among siblings, ties in tree
-//    order.
-// Frames are window coordinates in points. The window is the root element
-// (role window, labelled with its title).
-
-/// One element of the tree.
 package struct AccessibilityElement: CustomStringConvertible {
     package var id: UInt64
     package var role: AccessibilityRole
@@ -49,11 +19,8 @@ package struct AccessibilityElement: CustomStringConvertible {
     package var isFocused = false
     package var headingLevel: AccessibilityHeadingLevel?
     package var sortPriority: Double = 0
-    /// Action names: "default", "increment", "decrement", custom names.
     package var actionNames: [String] = []
-    /// Outline rows with children (R10 export).
     package var isExpanded: Bool?
-    /// Sliders and progress views (R10 export).
     package var rangeValue: AccessibilityRangeValue?
     package var children: [AccessibilityElement] = []
     weak var node: ViewNode?
@@ -70,11 +37,8 @@ package struct AccessibilityElement: CustomStringConvertible {
         return parts.joined(separator: " ")
     }
 
-    /// The element and its descendants in pre-order.
     package var flattened: [AccessibilityElement] { [self] + children.flatMap(\.flattened) }
 
-    /// Leaf elements and labelled containers below the root (the list the
-    /// tests compare).
     package var exposedElements: [AccessibilityElement] {
         children.flatMap { c -> [AccessibilityElement] in
             let containers: Set<AccessibilityRole> = [.group, .list, .row, .toolbar, .menuBar, .dialog, .alert, .scrollView, .tabList]
@@ -98,7 +62,6 @@ package enum AccessibilityTree {
         return names.filter { t.contains($0.0) }.map(\.1)
     }
 
-    /// The tree of `window`.
     package static func build(_ window: WindowHost, title: String = "") -> AccessibilityElement {
         if window.graph.needsUpdate { window.update() }
         var root = AccessibilityElement(id: 1, role: .window, label: title.isEmpty ? nil : title, traits: [],
@@ -111,7 +74,6 @@ package enum AccessibilityTree {
         return root
     }
 
-    /// Runs an action of the element with `id` (true if it ran).
     @discardableResult
     package static func perform(_ action: String, on id: UInt64, in window: WindowHost) -> Bool {
         let tree = build(window)
@@ -138,12 +100,10 @@ package enum AccessibilityTree {
 
         func id(_ n: ViewNode) -> UInt64 { UInt64(UInt(bitPattern: ObjectIdentifier(n).hashValue)) | 2 }
 
-        /// The elements the subtree of `node` produces.
         mutating func elements(_ node: ViewNode, inherited: AccessibilityAttributes) -> [AccessibilityElement] {
             guard node.isAlive, !node.isSuspended else { return [] }
             var attrs = inherited
             if let m = (node.view as? any ModifierAccessing)?._anyModifier as? AccessibilityModifier {
-                // Modifiers nearer the view come later in the walk: they win.
                 attrs = inherited.merged(inner: m.attributes)
                 if attrs.hidden == true { return [] }
                 if let behavior = m.attributes.children ?? (m.attributes.role != nil ? .combine : nil) {
@@ -154,16 +114,10 @@ package enum AccessibilityTree {
             }
             if node.lastLowered.isEmpty && node.children.isEmpty { return [] }
             if let leaf = leafElement(node, attrs: attrs) { return [leaf] }
-            // Content of a modifier: the first child is the content, a second
-            // one (background/overlay) its secondary.
             var out: [AccessibilityElement] = []
             var children = node.children
             if node.view is WindowRootView {
-                // Reading order of a window: menu bar and toolbar, content,
-                // bottom bar, then presentations and pop-up overlays.
                 let rank: [AnyHashable: Int] = [AnyHashable("top"): 0, AnyHashable(0): 1, AnyHashable("bottom"): 2]
-                // The commands host is not laid out (its controls exist for
-                // their shortcuts; the menu bar shows them).
                 children = zip(node.childKeys, node.children).filter { $0.0 != AnyHashable("commands") }
                     .sorted { (rank[$0.0] ?? 3) < (rank[$1.0] ?? 3) }.map(\.1)
             }
@@ -179,7 +133,6 @@ package enum AccessibilityTree {
             }.map(\.element)
         }
 
-        /// Text and image leaves.
         func leafElement(_ node: ViewNode, attrs: AccessibilityAttributes) -> AccessibilityElement? {
             guard frame(node) != nil else { return nil }
             if let t = node.view as? Text {
@@ -239,7 +192,6 @@ package enum AccessibilityTree {
             return names
         }
 
-        /// An element made by `accessibilityElement(children:)` or a control.
         mutating func element(_ node: ViewNode, behavior: AccessibilityChildBehavior,
                               attrs: AccessibilityAttributes) -> AccessibilityElement {
             var inner: [AccessibilityElement] = []
@@ -260,8 +212,6 @@ package enum AccessibilityTree {
                 var traits: AccessibilityTraits = attrs.role == nil ? inner.reduce([]) { $0.union($1.traits) } : []
                 traits.formUnion(attrs.addTraits)
                 e.traits = traits.subtracting(attrs.removeTraits)
-                // R13: an identifier set inside (a list row's content) names
-                // the combined element.
                 if e.identifier == nil { e.identifier = inner.first { $0.identifier != nil }?.identifier }
                 for i in inner where e.actions.isEmpty { e.actions = i.actions }
                 if e.actionNames.isEmpty { e.actionNames = actionNames(attrs) }
@@ -275,7 +225,6 @@ package enum AccessibilityTree {
 }
 
 extension WindowHost {
-    /// The window's accessibility tree (R10).
     package func accessibilityTree(title: String = "") -> AccessibilityElement {
         AccessibilityTree.build(self, title: title.isEmpty ? platform.title : title)
     }

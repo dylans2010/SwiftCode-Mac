@@ -1,33 +1,3 @@
-/*
- * Ycode research probe: a man-in-the-middle on this process's OWN bootstrap
- * traffic (or on the traffic of a child it spawns). Original Ycode code,
- * written for specs/simulator/bootstrap-wire.md. Contains no Apple code.
- *
- * Modes:
- *   bsmitm self  <tests>   swap our own bootstrap port for a port we own, run
- *                          the tests on the main thread, relay on a 2nd thread.
- *   bsmitm spawn <tests>   make a port, posix_spawn ourselves ("child <tests>")
- *                          with that port as the child's TASK_BOOTSTRAP_PORT and
- *                          relay everything the child sends, from its start.
- *   bsmitm exec <path> [args...]   like spawn, but the child runs <path>.
- *   bsmitm serve <path> [args...]  like exec, but we do NOT forward: we answer
- *                          nothing and only record what arrives (for programs
- *                          that expect to own their bootstrap, e.g. an init).
- *   bsmitm host <path> [args...]   like serve, but we answer as a minimal host
- *                          bootstrap: check-in (206/805) gets a fresh receive
- *                          right, look-up gets 1102 (207) or 3 (804), anything
- *                          else gets error 45. Encodes replies in the format
- *                          observed in the relay captures.
- *   bsmitm hostfork <path> [args...]  like host, but the program gets a child
- *                          process of its own first (see fork_chain).
- * Environment knobs: YC_ENVFILE (KEY=VALUE lines for the child), YC_EXE (the
- * executable path when argv[0] differs), YC_SECONDS (serve/host run time).
- *
- * Every message received on the fake bootstrap port is dumped (header,
- * dispositions as received, descriptors, body hex), forwarded to the real
- * bootstrap port with our own reply port, the reply is dumped, and the reply
- * is sent back to the original reply right.
- */
 #include <mach/mach.h>
 #include <mach/message.h>
 #include <xpc/xpc.h>
@@ -44,26 +14,19 @@
 
 extern char **environ;
 
-/* Public bootstrap API (declared in the macOS SDK's servers/bootstrap.h; the
- * iOS simulator SDK does not ship that header, the functions exist). */
 typedef char ycode_name_t[128];
 extern kern_return_t bootstrap_look_up(mach_port_t bp, const char *name, mach_port_t *sp);
 extern kern_return_t bootstrap_check_in(mach_port_t bp, const char *name, mach_port_t *sp);
 extern kern_return_t bootstrap_register(mach_port_t bp, const char *name, mach_port_t sp);
 extern kern_return_t bootstrap_create_service(mach_port_t bp, const char *name, mach_port_t *sp);
 extern kern_return_t bootstrap_parent(mach_port_t bp, mach_port_t *pp);
-/* The SDK marks this unavailable on iOS; the symbol exists in the simulator's
- * libxpc. We bind to it under our own name. */
 extern xpc_connection_t ycode_xpc_create_mach_service(const char *name, dispatch_queue_t q,
                                                      uint64_t flags)
     __asm__("_xpc_connection_create_mach_service");
 #define YC_LISTENER   (1ULL << 0)
 #define YC_PRIVILEGED (1ULL << 1)
-/* audit_token_t: val[5] is the pid (public BSM layout). */
 static pid_t token_pid(audit_token_t t) { return (pid_t)t.val[5]; }
 
-/* Private SPI, declared from the old open-source launchd headers
- * (liblaunch/bootstrap_priv.h, launchd-842.92.1). */
 extern kern_return_t bootstrap_look_up2(mach_port_t bp, const char *name,
                                         mach_port_t *sp, pid_t pid, uint64_t flags);
 extern kern_return_t bootstrap_check_in2(mach_port_t bp, const char *name,
@@ -79,8 +42,6 @@ static int g_seq = 0;
 static FILE *g_out;
 
 #define BUFSZ (256 * 1024)
-
-/* ------------------------------------------------------------------ dump */
 
 static void hexdump(const uint8_t *p, size_t n, size_t base)
 {
@@ -102,10 +63,8 @@ static void hexdump(const uint8_t *p, size_t n, size_t base)
 static uint32_t rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
 static uint64_t rd64(const uint8_t *p) { uint64_t v; memcpy(&v, p, 8); return v; }
 
-/* Our own decoder of the XPC object stream, written from captures. */
 static size_t xpc_decode(const uint8_t *p, size_t n, size_t off, int depth, int *ports);
 
-/* Observed magic: the bytes "?cpx" or "@cpx" (little-endian u32). */
 static int is_xpc_magic(uint32_t m) { return m == 0x7870633f || m == 0x78706340; }
 
 static size_t al4(size_t x) { return (x + 3) & ~(size_t)3; }
@@ -126,7 +85,7 @@ static size_t xpc_decode(const uint8_t *p, size_t n, size_t off, int depth, int 
     case 0x5000: { double d; memcpy(&d, p + off, 8); fprintf(g_out, "double %g\n", d); return off + 8; }
     case 0x7000: fprintf(g_out, "date %lld\n", (long long)rd64(p + off)); return off + 8;
     case 0x8000: { uint32_t l = rd32(p + off);
-                   if (off + 4 + l > n) { /* large data: no inline bytes, carried by a port */
+                   if (off + 4 + l > n) {
                        fprintf(g_out, "data len=%u (not inline; port #%d)\n", l, (*ports)++); return off + 4; }
                    fprintf(g_out, "data len=%u\n", l);
                    hexdump(p + off + 4, l > 256 ? 256 : l, off + 4); return al4(off + 4 + l); }
@@ -234,7 +193,6 @@ static void dump_msg(const char *tag, mach_msg_header_t *h, int with_trailer)
     size_t end = h->msgh_size;
     fprintf(g_out, "  inline body: offset %zu, %zu bytes\n", off, end > off ? end - off : 0);
     if (end > off) hexdump(b + off, end - off, off);
-    /* Look for the XPC magic in the inline body. */
     for (size_t o = off; o + 8 <= end; o += 4) {
         if (is_xpc_magic(rd32(b + o))) {
             fprintf(g_out, "  XPC payload @%zu: magic=0x%x version=%u root=", o, rd32(b + o), rd32(b + o + 4));
@@ -252,8 +210,6 @@ static void dump_msg(const char *tag, mach_msg_header_t *h, int with_trailer)
     fflush(g_out);
 }
 
-/* ------------------------------------------------- XPC writer (host mode) */
-
 typedef struct { uint8_t *b; size_t n; } wbuf;
 static void w32(wbuf *w, uint32_t v) { memcpy(w->b + w->n, &v, 4); w->n += 4; }
 static void w64(wbuf *w, uint64_t v) { memcpy(w->b + w->n, &v, 8); w->n += 8; }
@@ -264,8 +220,6 @@ static void wkey(wbuf *w, const char *k)
     w->n += l;
     while (w->n & 3) w->b[w->n++] = 0;
 }
-/* Starts "?cpx", version 5, an empty root dictionary; returns the offset of
- * the dictionary's length word. */
 static size_t wdict_begin(wbuf *w)
 {
     w32(w, 0x7870633f); w32(w, 5); w32(w, 0xf000);
@@ -283,7 +237,6 @@ static int g_host_mode = 0;
 static mach_port_t g_checked_in[64];
 static int g_ncheckedin = 0;
 
-/* Answer one request like a minimal host bootstrap. */
 static void host_answer(mach_msg_header_t *h)
 {
     uint8_t buf[512];
@@ -293,11 +246,6 @@ static void host_answer(mach_msg_header_t *h)
     if (h->msgh_remote_port == MACH_PORT_NULL) { fprintf(g_out, "  (host) no reply port\n"); return; }
     wbuf w;
     if (h->msgh_id == 708) {
-        /* Black-box test of what the requester accepts as an answer to 708.
-         * YC_708 = A: complex, one port descriptor (MOVE_RECEIVE), no NDR (40 bytes)
-         *          B: complex, one port descriptor, then NDR (48 bytes)
-         *          C: like A but MAKE_SEND
-         *          E: simple 36-byte reply with RetCode = YC_708_CODE (default 1102) */
         const char *v = getenv("YC_708"); char variant = v ? v[0] : 'A';
         mach_port_t rp;
         mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &rp);
@@ -328,12 +276,11 @@ static void host_answer(mach_msg_header_t *h)
         return;
     }
     if (routine == 206 || routine == 805) {
-        /* check-in: return a fresh receive right */
         mach_port_t rp;
         mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &rp);
         mach_port_insert_right(mach_task_self(), rp, rp, MACH_MSG_TYPE_MAKE_SEND);
         if (g_ncheckedin < 64) g_checked_in[g_ncheckedin++] = rp;
-        mach_port_t keep = rp; /* we keep a send right under the same name */
+        mach_port_t keep = rp;
         mach_msg_port_descriptor_t *pd = (mach_msg_port_descriptor_t *)(buf + 28);
         r->msgh_bits = MACH_MSGH_BITS_SET(MACH_MSGH_BITS_REMOTE(h->msgh_bits), 0, 0, MACH_MSGH_BITS_COMPLEX);
         *(uint32_t *)(buf + 24) = 1;
@@ -345,7 +292,6 @@ static void host_answer(mach_msg_header_t *h)
         fprintf(g_out, "  (host) check-in answered with receive right 0x%x (we keep send)\n", rp);
     } else if ((routine == 207 || routine == 804) && memmem((uint8_t *)h + 24, h->msgh_size - 24,
                                                              "com.ycode.host.found", 21)) {
-        /* found: return a send right made from a fresh port; no other keys */
         mach_port_t sp;
         mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &sp);
         mach_msg_port_descriptor_t *pd = (mach_msg_port_descriptor_t *)(buf + 28);
@@ -375,9 +321,6 @@ static void host_answer(mach_msg_header_t *h)
     if (kr) fprintf(g_out, "  (host) reply send failed 0x%x\n", kr);
 }
 
-/* The server rejects (EPERM) pid-domain requests whose "handle" is not the
- * sender's pid. Because we relay from our own pid, optionally rewrite a
- * "handle" equal to the child's pid into ours (same size, in place). */
 static pid_t g_child_pid = 0;
 static void rewrite_handle(mach_msg_header_t *h)
 {
@@ -391,8 +334,6 @@ static void rewrite_handle(mach_msg_header_t *h)
         }
     }
 }
-
-/* --------------------------------------------------------------- relay */
 
 static void *relay_thread(void *arg)
 {
@@ -414,7 +355,6 @@ static void *relay_thread(void *arg)
         if (g_host_mode) { host_answer(h); continue; }
         if (getenv("YC_REWRITE_HANDLE")) rewrite_handle(h);
         if (g_serve_only) {
-            /* Keep the rights alive (do not reply); record only. */
             continue;
         }
         mach_port_t orig_reply = h->msgh_remote_port;
@@ -429,7 +369,6 @@ static void *relay_thread(void *arg)
         h->msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND,
                                           want_reply ? MACH_MSG_TYPE_MAKE_SEND_ONCE : 0,
                                           vt ? MACH_MSG_TYPE_MOVE_SEND : 0, complex);
-        /* Received OOL descriptors: send them on as virtual copies. */
         if (complex) {
             uint8_t *b = req;
             size_t off = 28;
@@ -482,16 +421,12 @@ static void *relay_thread(void *arg)
     return NULL;
 }
 
-/* ---------------------------------------------------------------- tests */
-
-/* Private libxpc pipe SPI (signatures as commonly documented publicly). */
 extern xpc_object_t xpc_pipe_create_from_port(mach_port_t port, uint64_t flags);
 extern int xpc_pipe_routine(xpc_object_t pipe, xpc_object_t msg, xpc_object_t *reply);
 extern int xpc_pipe_simpleroutine(xpc_object_t pipe, xpc_object_t msg);
 
 static mach_port_t g_sink = MACH_PORT_NULL;
 
-/* Receive raw messages on g_sink, dump them, optionally answer. */
 static void *sink_thread(void *arg)
 {
     (void)arg;
@@ -617,7 +552,6 @@ static void run_tests(const char *which)
 #pragma clang diagnostic pop
     }
     if (WANT("ident")) {
-        /* Send our candidate rights to the relay so it can compare names. */
         struct { mach_msg_header_t h; mach_msg_body_t b; mach_msg_port_descriptor_t d[8]; } m;
         memset(&m, 0, sizeof m);
         mach_port_t *pl = NULL; mach_msg_type_number_t pn = 0;
@@ -657,7 +591,6 @@ static void run_tests(const char *which)
         usleep(100000);
     }
     if (WANT("pipe")) {
-        /* Serialization of every common type, sent by libxpc's pipe to a port we own. */
         mach_port_t sp;
         mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &sp);
         mach_port_insert_right(mach_task_self(), sp, sp, MACH_MSG_TYPE_MAKE_SEND);
@@ -711,7 +644,6 @@ static void run_tests(const char *which)
             fprintf(g_out, "-- TEST simpleroutine data %zu -> %d\n", sizes[i], e);
             usleep(100000);
         }
-        /* rights plus an out-of-line body: descriptor order */
         xpc_object_t mix = xpc_dictionary_create(NULL, NULL, 0);
         xpc_dictionary_set_mach_send(mix, "a-send", s1);
         xpc_dictionary_set_data(mix, "b-blob", blob, 16000);
@@ -722,8 +654,6 @@ static void run_tests(const char *which)
         usleep(300000);
     }
     if (WANT("conn")) {
-        /* A connection to a name we checked in ourselves: see the raw XPC
-         * connection traffic (not bootstrap traffic). */
         mach_port_t rp = 0;
         kr = bootstrap_check_in(bootstrap_port, "com.ycode.probe.raw", &rp);
         note("check_in com.ycode.probe.raw", kr, rp);
@@ -791,8 +721,6 @@ static void run_tests(const char *which)
     fflush(g_out);
 }
 
-/* ----------------------------------------------------------------- main */
-
 static void make_fake(void)
 {
     task_get_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, &g_real_bs);
@@ -803,8 +731,6 @@ static void make_fake(void)
 
 static char **g_child_env = NULL;
 
-/* Environment for exec/serve/host modes: YC_ENVFILE names a file of
- * KEY=VALUE lines; without it the child inherits ours. */
 static void load_envfile(void)
 {
     const char *f = getenv("YC_ENVFILE");
@@ -822,12 +748,6 @@ static void load_envfile(void)
     fprintf(g_out, "child environment: %d variables from %s\n", n, f);
 }
 
-/* "hostfork": make the program's process have a child of its own before it
- * starts (fork; the first child forks a second one, the "tank", then execs the
- * program). The tank's pid is put in the variable named by YC_TANK_VAR.
- * YC_TANK = exit (tank exits at once) | sleep:N (tank sleeps N s, then exits).
- * The fake bootstrap is passed by making it our own task bootstrap port
- * around the fork (special ports are inherited across fork and exec). */
 static int fork_chain(char *const argv[])
 {
     const char *exe = getenv("YC_EXE");
@@ -835,7 +755,6 @@ static int fork_chain(char *const argv[])
     const char *var = getenv("YC_TANK_VAR"); if (!var) var = "XPC_SIMULATOR_HOLDING_TANK_HACK";
     int sleeps = 0;
     if (!strncmp(tank, "sleep:", 6)) sleeps = atoi(tank + 6);
-    /* environment with one slot for the tank variable */
     char **env = calloc(300, sizeof(char *));
     int n = 0;
     char **src = g_child_env ? g_child_env : environ;

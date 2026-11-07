@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Registry search (Open VSX, real results only)
-
 public struct ExtensionsSearchView: View {
     @ObservedObject private var manager = ExtV2Manager.shared
     @State private var query = ""

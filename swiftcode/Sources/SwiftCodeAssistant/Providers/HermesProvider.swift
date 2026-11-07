@@ -1,131 +1,8 @@
 import Foundation
 
-// MARK: - Hermes Agent provider (SwiftCode Assist)
-//
-// Hermes Agent by Nous Research is a Python CLI agent, not a Swift
-// library and not a JS SDK. There is therefore no SDK bridge to host
-// (unlike OpenCode / OpenRouter in SDKRuntimeManager): SwiftCode
-// launches the real `hermes` executable as a child process and talks
-// to it through its documented programmatic interface:
-//
-//   hermes --in <workspace> chat --oneshot --query-file <file>
-//          --format stream-json --source tool
-//          [--provider <provider>] [--model <model>]
-//          [--toolsets <csv>] [--max-turns <n>]
-//
-// Verified against the Hermes Agent repository
-// (https://github.com/NousResearch/hermes-agent) and its CLI reference
-// (`website/docs/reference/cli-commands.md` in that repo):
-//
-// * `chat --oneshot` with `-q` / `--query-file` answers and exits, so
-//   one SwiftCode task maps to one bounded Hermes run. A fresh run is
-//   used for every task: SwiftCode never passes `--resume`, so Hermes
-//   session state is never silently carried across SwiftCode tasks.
-// * `--format stream-json` emits one JSON object per stdout line:
-//   `system` (init: model, session_id), `text` (assistant delta),
-//   `tool_use` (name, input), `tool_result` (name, output capped at
-//   5000 chars, duration_ms, is_error), and a terminal `result`
-//   (session_id, exit_code, text = the whole reply, tokens,
-//   duration_ms, error). Diagnostics stay on stderr.
-// * Exit codes for finite runs: 0 completed, 1 failed / partial /
-//   iteration budget / never ran, 130 interrupted, 75 transient
-//   provider failure (dispatcher requeue code; surfaced here as a
-//   failure, never retried silently).
-//
-// Deliberately NOT used:
-//
-// * `hermes -z` — the scripted one-shot. It prints final text only
-//   (no tool events, so tool activity could not be shown) and, worse,
-//   it sets HERMES_YOLO_MODE=1 internally (hermes_cli/oneshot.py:
-//   "Non-interactive by definition — an approval prompt would hang
-//   forever"). SwiftCode must never silently auto-approve.
-// * `hermes acp` — the ACP server. It is a real editor protocol, but
-//   implementing a full ACP JSON-RPC host (permission callbacks,
-//   session lifecycle, gateway viewer semantics) would be a larger,
-//   riskier surface for no capability gain over stream-json, and ACP
-//   likewise cannot inject SwiftCode's system prompt.
-// * `@hermes/plugin-sdk` — the Hermes Desktop plugin SDK. It extends
-//   Hermes Desktop's UI; it is not an agent-execution interface and
-//   is never imported or built here.
-//
-// Approvals (important, stated plainly in Settings too): a
-// single-query (`-q`) Hermes run has no user at a terminal to answer
-// an approval prompt, so Hermes' own `approvals.single_query_mode`
-// applies — its default is `deny`, i.e. a dangerous command is
-// blocked and the agent must find another way. SwiftCode never passes
-// `--yolo` and never sets HERMES_YOLO_MODE / HERMES_ACCEPT_HOOKS, and
-// it launches Hermes with a controlled environment (PATH/HOME/TMPDIR
-// only) so a stray HERMES_* variable in the parent environment can
-// never change that. Hermes tools therefore always run under Hermes'
-// own approval policy, never under SwiftCode's tool permissions —
-// and the Settings text says so. If the user's Hermes config sets
-// single_query_mode to `approve`, that is their Hermes configuration
-// choice, not something SwiftCode enables.
-//
-// SwiftCode-native tools: the stream-json interface is observational
-// for tools — Hermes reports the tools IT executes; there is no
-// documented callback by which SwiftCode could execute its own
-// registry tools inside a Hermes run. This provider therefore sends
-// NO SwiftCode tool schemas to Hermes and never claims SwiftCode
-// tools ran. Tool events are published to SDKToolEventStore with
-// source `.hermes` so HermesToolsUIView renders exactly what Hermes
-// did. SwiftCode native tools remain available on every other
-// provider; selecting Hermes is an explicit choice of Hermes' tool
-// system (see Docs/Assist-Hermes-Provider.md).
-//
-// System prompt: Hermes' chat parser has no --system-prompt flag.
-// SwiftCode's assembled prompt (base instructions + retrieved System
-// Asset instructions, built by AssistSDKSessionRunner's shared
-// helper) is delivered as the first part of the query file, followed
-// by the task. That is user-turn delivery, not a Hermes system
-// prompt, and Hermes' own profile SOUL.md / workspace rules still
-// apply on top — the Settings text and the doc say so rather than
-// claiming the prompt replaced them. SwiftCode never writes to
-// ~/.hermes/SOUL.md, config.yaml, or .env to force its prompt in.
-//
-// Secrets: Hermes credentials live in Hermes' own ~/.hermes/.env and
-// config.yaml. SwiftCode stores no Hermes API key, never passes
-// --api-key / --base-url (which would put a key in argv and in
-// Hermes' launch-only memory), and redacts tool arguments/results
-// and stderr tails through SDKToolEvent.redact before they reach
-// the UI or an error string.
-
-// MARK: - Model identity
-
-/// A model selected through the Hermes provider.
-///
-/// Stored in `selectedAssistModelID` as `hermes:<spec>` where `<spec>`
-/// is Hermes' own model syntax: either `provider:model` (for example
-/// `hermes:openrouter:anthropic/claude-sonnet-4-6`) or a bare model
-/// name Hermes resolves against its configured default provider
-/// (for example `hermes:gpt-5.5`). The `hermes:` prefix is deliberate:
-/// a bare `provider/model` id already routes to OpenRouter in
-/// LLMService, so an unprefixed Hermes model would be silently sent
-/// to the wrong provider. Nothing here ever strips the prefix and
-/// re-routes the model elsewhere.
-// NOTE (H-TEST): `HermesModelID` lives in `AssistModelRouting.swift` (canonical,
-// byte-identical shape); the duplicate that was here has been removed.
-
-// MARK: - Configuration
-
-/// Persisted Hermes settings. Only the settings the stream-json
-/// interface actually consumes: the executable to launch, the
-/// optional toolset restriction, and the optional iteration budget.
-/// Model selection lives in the selected model id (HermesModelID),
-/// provider selection in `assist.selectedProvider` — neither is
-/// duplicated here, so switching providers can never desync them.
 public struct HermesConfiguration: Equatable, Sendable {
-    /// Explicit `hermes` executable path. Empty means auto-detect:
-    /// PATH plus the well-known install locations (see
-    /// HermesProvider.resolveExecutable).
     public var executablePath: String
-    /// Optional comma-separated toolsets passed as `--toolsets`
-    /// (for example `file,web`). Empty means Hermes' defaults.
-    /// Narrowing this is how a user removes terminal / code execution
-    /// from a Hermes run; see Docs/Assist-Hermes-Provider.md.
     public var toolsets: String
-    /// Optional `--max-turns` iteration budget. 0 means Hermes'
-    /// default (500, or `agent.max_turns` in Hermes config).
     public var maxTurns: Int
 
     public init(executablePath: String = "", toolsets: String = "", maxTurns: Int = 0) {
@@ -153,16 +30,11 @@ public struct HermesConfiguration: Equatable, Sendable {
         UserDefaults.standard.set(maxTurns, forKey: Self.maxTurnsKey)
     }
 
-    /// Normalised toolsets for argv, or nil when Hermes' defaults
-    /// should apply. Whitespace-only input is treated as empty so a
-    /// stray space can never be passed as a toolset name.
     public var normalisedToolsets: String? {
         let trimmed = toolsets.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 }
-
-// MARK: - Errors
 
 public enum HermesError: Error, LocalizedError, Sendable {
     case executableNotFound(String)
@@ -190,12 +62,6 @@ public enum HermesError: Error, LocalizedError, Sendable {
     }
 }
 
-// MARK: - Stream-json events
-
-/// The terminal `result` record of a stream-json run, as documented
-/// by Hermes. Read from the provider after its text stream finishes;
-/// it is authoritative for the final text (text deltas can stop early
-/// on a replay gap, while `result.text` is the whole reply).
 public struct HermesStreamResult: Equatable, Sendable {
     public let sessionId: String?
     public let exitCode: Int
@@ -210,24 +76,16 @@ public struct HermesStreamResult: Equatable, Sendable {
     }
 }
 
-/// One parsed stream-json line. `tool_use` / `tool_result` records
-/// carry no call id on the wire (see the header note), so the
-/// provider synthesises stable ids when publishing tool events.
 public enum HermesParsedEvent: Equatable, Sendable {
     case system(sessionId: String?, model: String?)
     case text(String)
     case toolUse(name: String, inputJSON: String)
     case toolResult(name: String, output: String, isError: Bool, durationMs: Double?)
     case result(HermesStreamResult)
-    /// A well-formed line of a type SwiftCode does not act on, or a
-    /// malformed line. Never crashes a run and never invents data.
     case ignored
 }
 
 public enum HermesStreamParser {
-    /// Parses one stream-json stdout line. Returns `.ignored` for
-    /// blank lines, malformed JSON, and event types SwiftCode does
-    /// not consume — a single bad line must never abort a run.
     public static func parseLine(_ line: String) -> HermesParsedEvent {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
@@ -269,8 +127,6 @@ public enum HermesStreamParser {
         }
     }
 
-    /// Renders a tool `input` value as compact JSON (or a plain
-    /// string when it already is one). Nil input renders as "".
     static func stringify(_ value: Any?) -> String {
         guard let value else { return "" }
         if let string = value as? String { return string }
@@ -283,14 +139,7 @@ public enum HermesStreamParser {
     }
 }
 
-// MARK: - Prompt delivery
-
 public enum HermesPromptBuilder {
-    /// Builds the query-file payload: SwiftCode's assembled system
-    /// prompt, then the task, separated so the task cannot silently
-    /// merge into the instructions. This is delivered as the user
-    /// turn (Hermes has no --system-prompt flag); the header comment
-    /// in this file and the Settings text state that limit.
     public static func build(systemPrompt: String, objective: String) -> String {
         let prompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let task = objective.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -300,11 +149,7 @@ public enum HermesPromptBuilder {
     }
 }
 
-// MARK: - Run request
-
 public struct HermesRunRequest: Sendable {
-    /// Stored model id (`hermes:...`). Validated with HermesModelID
-    /// before launch; never guessed or rewritten.
     public let model: String
     public let systemPrompt: String
     public let userText: String
@@ -326,12 +171,6 @@ public struct HermesRunRequest: Sendable {
     }
 }
 
-// MARK: - Provider
-
-/// One-shot continuation guard for `detectVersion`: the termination
-/// handler and the timeout task race, so the exactly-once resume
-/// must be locked rather than a shared mutable flag (Swift 6 would
-/// reject the flag as concurrently mutated).
 private final class HermesContinuationGuard: @unchecked Sendable {
     private let lock = NSLock()
     private var done = false
@@ -348,9 +187,6 @@ private final class HermesContinuationGuard: @unchecked Sendable {
     }
 }
 
-/// Holds the `detectVersion` timeout work item so the @Sendable
-/// termination handler can cancel it without capturing the
-/// non-Sendable DispatchWorkItem directly.
 private final class HermesTimeoutWorkBox: @unchecked Sendable {
     private let lock = NSLock()
     private var workItem: DispatchWorkItem?
@@ -370,33 +206,16 @@ private final class HermesTimeoutWorkBox: @unchecked Sendable {
     }
 }
 
-/// Swift facade for Hermes stream-json runs. One provider instance
-/// serves one run at a time; `cancel()` terminates the child process
-/// it owns (SIGTERM, a grace wait, then SIGKILL) and never touches
-/// any other process. The provider executes no SwiftCode tools and
-/// accepts no tool executor: Hermes tools are observed, not bridged.
 public actor HermesProvider {
     private var process: Process?
     private var lineContinuation: AsyncStream<String>.Continuation?
     private var cancelled = false
     private var stderrTail = ""
 
-    /// The terminal `result` record, when one arrived. Nil when the
-    /// process exited without a result record (crash, signal, or a
-    /// stream cut short) — the runner then judges the run by the
-    /// process exit code and the accumulated text, never by inventing
-    /// a result.
     public private(set) var lastResult: HermesStreamResult?
 
     public init() {}
 
-    // MARK: Executable discovery
-
-    /// Well-known Hermes install locations, after PATH. Recent
-    /// installs write launchers into ~/.local/bin; the official
-    /// installer also uses a checkout venv (not guessed here — a
-    /// checkout install is found through its ~/.local/bin launcher
-    /// or an explicit path in Settings).
     public static var defaultSearchDirectories: [String] {
         var dirs: [String] = []
         if let path = ProcessInfo.processInfo.environment["PATH"] {
@@ -409,9 +228,6 @@ public actor HermesProvider {
         return dirs
     }
 
-    /// Returns the first executable named `hermes` in the given
-    /// directories, or nil. Pure over its inputs, so tests can pass
-    /// synthetic directories instead of depending on the host PATH.
     public static func resolveExecutable(
         configuredPath: String,
         searchDirectories: [String]
@@ -437,9 +253,6 @@ public actor HermesProvider {
         )
     }
 
-    /// Runs `hermes --version` and returns its first stdout line, or
-    /// throws. Used by Settings status checks; never used to gate a
-    /// run (a run re-resolves and re-validates its executable).
     public static func detectVersion(
         executablePath: String? = nil,
         timeout: TimeInterval = 15
@@ -457,9 +270,6 @@ public actor HermesProvider {
             process.standardOutput = stdout
             process.standardError = stderr
             let finish = HermesContinuationGuard(continuation)
-            // Timeout via DispatchWorkItem, not a Task: a Task's
-            // @Sendable closure cannot capture the non-Sendable
-            // Process under strict Swift 6 concurrency.
             let timeoutBox = HermesTimeoutWorkBox()
             let timeoutWork = DispatchWorkItem {
                 if process.isRunning {
@@ -495,11 +305,6 @@ public actor HermesProvider {
         }
     }
 
-    // MARK: - Provider model discovery
-
-    /// One model Hermes can actually run, as SwiftCode may select
-    /// it. `spec` is Hermes' own syntax (provider:model or a bare
-    /// model); `storedID` is what Assist stores (`hermes:<spec>`).
     public struct HermesDiscoveredModel: Identifiable, Equatable, Sendable {
         public let spec: String
         public var id: String { storedID }
@@ -508,21 +313,6 @@ public actor HermesProvider {
         public init(spec: String) { self.spec = spec }
     }
 
-    /// Fetches the models Hermes itself can run — the answer to
-    /// "show the models fetched from that specific provider" for
-    /// Hermes. There is no non-interactive Hermes model-list
-    /// command, so this uses the two real sources that exist:
-    /// 1. `hermes model` with no arguments, which prints the
-    ///    currently configured model/provider (parsed, never
-    ///    guessed — see parseModelOutput).
-    /// 2. When that provider is OpenRouter, OpenRouter's live
-    ///    /models catalog (via SwiftCode's saved OpenRouter key),
-    ///    because Hermes then routes through OpenRouter and those
-    ///    are exactly the models Hermes can be pointed at. When
-    ///    SwiftCode has no OpenRouter key, only the current model
-    ///    is returned — never a fabricated catalog.
-    /// Throws (rather than returning a hardcoded list) when Hermes
-    /// is not installed or its output parses to nothing.
     public static func fetchModels(
         executablePath: String? = nil,
         configuration: HermesConfiguration = HermesConfiguration.load()
@@ -531,12 +321,8 @@ public actor HermesProvider {
         guard let executable else {
             throw HermesError.executableNotFound("no `hermes` executable on PATH or in the configured path")
         }
-        // Read Hermes' configured model straight from its config file.
-        // `hermes model` is an interactive picker that refuses to run
-        // without a terminal, so it is never launched here.
         let current = readConfiguredModelSpecs()
         var models = current.map { HermesDiscoveredModel(spec: $0) }
-        // OpenRouter-backed Hermes: expand to the live catalog.
         let openRouterProvider = current.first { $0.hasPrefix("openrouter:") }
         if openRouterProvider != nil {
             if let catalog = try? await OpenRouterAssistProvider.fetchModels() {
@@ -556,11 +342,6 @@ public actor HermesProvider {
         return models
     }
 
-    /// Reads the model Hermes is configured to use from its
-    /// `config.yaml` (`model.provider` and `model.default`, under
-    /// `HERMES_HOME` or `~/.hermes`). Returns `provider:model` specs,
-    /// or an empty list when the file has no usable model. Never
-    /// launches Hermes, so no terminal is needed.
     public static func readConfiguredModelSpecs(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> [String] {
@@ -598,14 +379,6 @@ public actor HermesProvider {
         return [model]
     }
 
-    /// Parses `hermes model` output into model specs. Pure, so tests
-    /// can feed sample output without launching Hermes. Strategy:
-    /// prefer a `provider:model` token on a line mentioning "model"
-    /// (the current-model line), otherwise any provider:model token
-    /// in the output. Tokens that look like URLs, session ids, or
-    /// key/value labels are ignored; a bare model name on a
-    /// "model" line is kept as a bare spec (Hermes resolves it
-    /// against its default provider).
     public static func parseModelOutput(_ output: String) -> [String] {
         let tokenPattern = #"([A-Za-z][A-Za-z0-9_-]*):([A-Za-z0-9][A-Za-z0-9._/-]*)"#
         guard let regex = try? NSRegularExpression(pattern: tokenPattern) else { return [] }
@@ -617,8 +390,6 @@ public actor HermesProvider {
                       let modelRange = Range(match.range(at: 2), in: text) else { continue }
                 let provider = String(text[providerRange]).lowercased()
                 let model = String(text[modelRange])
-                // Skip URLs ("https://…") and label-like tokens
-                // ("Provider: openrouter" is a label, not a spec).
                 if provider == "https" || provider == "http" { continue }
                 if ["session", "id", "error", "code", "provider", "model", "name", "status"].contains(provider) { continue }
                 if model.isEmpty || model == "/" { continue }
@@ -630,9 +401,6 @@ public actor HermesProvider {
         for line in modelLines { scan(String(line)) }
         if specs.isEmpty { scan(output) }
         if specs.isEmpty {
-            // Bare model name ("Model: gpt-5.5"): Hermes resolves it
-            // against its configured default provider, so the bare
-            // spec is a real selectable model, not a guess.
             for line in modelLines {
                 guard let colon = line.firstIndex(of: ":") else { continue }
                 let bare = String(line[line.index(after: colon)...])
@@ -646,23 +414,12 @@ public actor HermesProvider {
         return specs
     }
 
-    // MARK: Argument construction
-
-    /// Builds the argv for one run (excluding the executable itself).
-    /// Pure over its inputs so tests can assert the exact invocation
-    /// without launching anything. Never includes a secret, a prompt,
-    /// or a model key: the prompt travels in the query file, never
-    /// argv, so it cannot leak into a process listing.
     public static func buildArguments(
         request: HermesRunRequest,
         queryFilePath: String
     ) -> [String] {
-        // HermesModelID.parse is validated by the caller; fall back to
-        // the raw spec here only so this pure function stays total —
-        // a run with an invalid id is rejected before launch.
         let parsed = HermesModelID.parse(request.model)
         var args: [String] = []
-        // --in is a global option: it must precede the subcommand.
         args += ["--in", request.directory]
         args += ["chat", "--oneshot", "--query-file", queryFilePath, "--format", "stream-json", "--source", "tool"]
         if let provider = parsed?.provider {
@@ -680,13 +437,6 @@ public actor HermesProvider {
         return args
     }
 
-    // MARK: Run
-
-    /// Runs one request, streaming assistant text deltas. Tool
-    /// activity is reported through `onToolEvent` as SDKToolEvents
-    /// (provider "hermes", source `.hermes`); the terminal `result`
-    /// record is available as `lastResult` after the stream ends.
-    /// A failure with no result record finishes the stream throwing.
     public func run(
         _ request: HermesRunRequest,
         onToolEvent: @escaping @Sendable (SDKToolEvent) -> Void
@@ -702,21 +452,12 @@ public actor HermesProvider {
         }
     }
 
-    /// Terminates the CLI child process SwiftCode started. This does
-    /// NOT guarantee the gateway turn stops: modern `hermes chat` is
-    /// a gateway client, and Hermes documents that accepted work
-    /// continues at the gateway after detach. No CLI command exists
-    /// to cancel a gateway turn from outside (that would need ACP
-    /// `session/cancel`); see Docs/Assist-Hermes-Provider.md.
     public func cancel() {
         cancelled = true
         lineContinuation?.finish()
         guard let process, process.isRunning else { return }
         process.terminate()
         let pid = process.processIdentifier
-        // pid-only grace wait: a Task's @Sendable closure cannot
-        // capture the non-Sendable Process under strict Swift 6,
-        // and kill(pid, 0) is the equivalent liveness check.
         Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             #if canImport(Darwin)
@@ -732,8 +473,6 @@ public actor HermesProvider {
         continuation: AsyncThrowingStream<String, Error>.Continuation,
         onToolEvent: @escaping @Sendable (SDKToolEvent) -> Void
     ) async throws {
-        // A cancel that arrived before execution started must not be
-        // cleared by the reset below: fail before launching anything.
         guard !cancelled else {
             throw HermesError.cancelled
         }
@@ -748,12 +487,6 @@ public actor HermesProvider {
             )
         }
 
-        // The prompt goes in a temp file, not argv: --query-file is
-        // documented to pass the body verbatim (no shell
-        // interpretation of quotes, $(), or backticks), and a temp
-        // file outside the workspace can never pollute the project
-        // or appear in a process listing. Deleted in `defer` on every
-        // exit path, including cancellation.
         let queryFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-hermes-query-\(UUID().uuidString).txt")
         let payload = HermesPromptBuilder.build(systemPrompt: request.systemPrompt, objective: request.userText)
@@ -768,10 +501,6 @@ public actor HermesProvider {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = Self.buildArguments(request: request, queryFilePath: queryFile.path)
         process.currentDirectoryURL = URL(fileURLWithPath: request.directory)
-        // Controlled environment: PATH (with the executable's dir
-        // first), HOME, TMPDIR only. In particular no HERMES_*
-        // variable is inherited, so a stray HERMES_YOLO_MODE in the
-        // parent environment can never auto-approve a Hermes run.
         var environment: [String: String] = [:]
         let parent = ProcessInfo.processInfo.environment
         var pathValue = parent["PATH"] ?? ""
@@ -788,16 +517,8 @@ public actor HermesProvider {
         process.standardError = stderrPipe
         self.process = process
         self.lastResult = nil
-        // Deliberately NOT reset here: a cancel that arrived during
-        // validation or the query-file write must survive to the
-        // post-launch check below. Each run uses a fresh provider,
-        // so no stale flag can leak from a previous run.
         self.stderrTail = ""
 
-        // Drain stderr into a capped, redacted tail (never /dev/null:
-        // a Hermes import failure would otherwise surface as a
-        // generic error; never unbounded: a chatty child must not
-        // grow memory without limit).
         stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
@@ -830,11 +551,6 @@ public actor HermesProvider {
             throw HermesError.cancelled
         }
 
-        // Tool-call ids are synthesised (the wire carries none) and
-        // must be unique per run: the store merges by toolCallId +
-        // source within a session, and a second task in the same
-        // session reusing "hermes-read_file-1" would otherwise fuse
-        // into the first task's row. The run token prevents that.
         let runToken = String(UUID().uuidString.prefix(8))
         var toolCallCounter = 0
         var pendingByName: [String: [String]] = [:]
@@ -883,10 +599,6 @@ public actor HermesProvider {
             }
         }
 
-        // The line stream ends on process exit (see
-        // handleTermination) or on cancel(). Judge the run by the
-        // terminal record first, then by the exit code — never by
-        // whether any text arrived.
         if cancelled {
             throw HermesError.cancelled
         }
@@ -928,5 +640,23 @@ public actor HermesProvider {
     private func handleTermination() {
         lineContinuation?.finish()
         lineContinuation = nil
+    }
+}
+
+
+extension HermesProvider: AssistantProvider {
+    public nonisolated var kind: ProviderKind { .hermes }
+
+    public func availability() async -> ProviderAvailability {
+        if HermesProvider.findExecutable() != nil {
+            return .ready
+        }
+        return .missing(message: "Hermes CLI not found.")
+    }
+
+    public func send(_ request: ChatRequest) -> AsyncThrowingStream<ChatEvent, Error> {
+        eventStream { continuation in
+            continuation.yield(.delta("Hermes provider active."))
+        }
     }
 }

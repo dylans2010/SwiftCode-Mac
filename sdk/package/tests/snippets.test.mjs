@@ -1,18 +1,3 @@
-// Snippet library tests for @swiftcode/sdk.
-//
-// (a) Every snippet's `code` TYPECHECKS against the real built package:
-//     each code string is written to a temp .ts file that imports the real
-//     package types via a symlinked `node_modules/@swiftcode/sdk`, and
-//     `tsc --noEmit` runs over all of them under the same strict settings
-//     as the package build. A snippet that calls an invented method fails
-//     here — this is the "actually works" proof.
-// (b) `searchSnippets` finds "virtualization" -> the sandbox snippet.
-// (c) Every snippet's `capabilityId` is a real registry wire ID
-//     (swiftcode/Sources/SwiftCodeExtensions/Capabilities.swift).
-// (d) `snippets.json` is in sync with the compiled `src/snippets.ts` and
-//     carries the full executable `code` for every snippet.
-//
-// Run: `npm run build && npm test` (npm test = `node --test "tests/*.test.mjs"`).
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -25,7 +10,6 @@ const packageDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const distUrl = pathToFileURL(path.join(packageDir, "dist", "snippets.js")).href;
 const { SNIPPETS, searchSnippets, getSnippet } = await import(distUrl);
 
-/** Exact wire IDs from SDKCapabilityID (swiftcode/Sources/SwiftCodeExtensions/Capabilities.swift). */
 const REGISTRY_IDS = new Set([
   "project.read",
   "workspace.read",
@@ -159,9 +143,6 @@ describe("snippet code typechecks against the real package", () => {
   let snippetFiles = [];
 
   before(() => {
-    // Temp workspace: each snippet's code becomes its own .ts file, and
-    // `node_modules/@swiftcode/sdk` symlinks to this package so
-    // `import ... from "@swiftcode/sdk"` resolves to the REAL built types.
     workDir = mkdtempSync(path.join(tmpdir(), "swiftcode-snippets-"));
     const nmDir = path.join(workDir, "node_modules", "@swiftcode", "sdk");
     mkdirSync(path.dirname(nmDir), { recursive: true });
@@ -204,7 +185,6 @@ describe("snippet code typechecks against the real package", () => {
       exitCode = error.status ?? 1;
       output = (error.stdout ?? "") + (error.stderr ?? "");
     }
-    // Attribute errors per snippet file: `path/to/<id>.ts(line,col): error TS…`.
     const errorsById = new Map(snippetFiles.map((s) => [s.id, []]));
     for (const line of String(output).split("\n")) {
       for (const { id, file } of snippetFiles) {

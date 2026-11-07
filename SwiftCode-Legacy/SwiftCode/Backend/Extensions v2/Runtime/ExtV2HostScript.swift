@@ -1,26 +1,5 @@
 import Foundation
 
-// MARK: - Embedded Node.js extension-host script
-//
-// This is a real host, not a fixture: it runs a VS Code extension's
-// declared `main` entry in Node, with `require('vscode')` intercepted
-// and replaced by a shim that talks NDJSON RPC back to SwiftCode.
-// The shim implements the supported surface from ExtV2VSCodeAPI.matrix
-// and throws a descriptive error for the unsupported surface — it never
-// returns fake success. The extension runs out-of-process, so a crash
-// kills the host process, not SwiftCode.
-//
-// Protocol (one JSON object per line, both directions):
-//   SwiftCode -> host: {"jsonrpc":"2.0","protocolVersion":1,"id":"..",
-//                        "method":"activate"|"executeCommand"|"shutdown",
-//                        "params":{...}}
-//   host -> SwiftCode: a response {"jsonrpc":"2.0","id":"..","result":...}
-//     or a host-initiated request {"jsonrpc":"2.0","protocolVersion":1,
-//                        "id":"..","method":"host.*","params":{...}}
-//   SwiftCode replies to host-initiated requests with a response object.
-// Host-initiated requests are how an extension reads files, publishes
-// diagnostics, or registers providers mid-command.
-
 public enum ExtV2HostScript {
     public static let source: String = #"""
 'use strict';
@@ -283,8 +262,6 @@ process.on('uncaughtException', (e) => {
 });
 """#
 
-    /// The script file SwiftCode writes (and refreshes when it changes) so
-    /// the Node process has a real file to execute.
     public static func hostScriptURL(storage: ExtV2Storage) -> URL {
         storage.root.appendingPathComponent("host/extension-host.js")
     }

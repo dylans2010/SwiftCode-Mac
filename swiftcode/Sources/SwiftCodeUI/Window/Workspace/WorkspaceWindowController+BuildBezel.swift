@@ -2,48 +2,33 @@ import AppKit
 import UserNotifications
 import SwiftCodeIDECore
 
-// The Behaviors action "Notify with bezel or system notification"
-// (`specs/ide/build-notifications.md`): a result bezel over the workspace
-// window when it is in front, else a system notification.
-
-/// The window controller's bezel state (in `BehaviorStore`).
 struct BuildBezelState {
     var timeline = BezelTimeline()
     weak var view: BuildBezelView?
-    /// Tests: the window state to route by, and Reduce Motion.
     var windowStateOverride: BuildNotificationPolicy.WindowState?
     var reduceMotionOverride: Bool?
-    /// Notices sent to the system (or its fallback), oldest first.
     var systemNotices: [BuildNotice] = []
 }
 
 extension WorkspaceWindowController {
-    /// The finished activity's text (the one the behaviors run for), for
-    /// the notice's title.
     var finishedActivityText: String? {
         if case .finished(let s)? = behaviorStore.tracker.previous { return s }
         return nil
     }
 
-    /// Tests: route as if the window were in this state (nil = the real one).
     public var notificationWindowStateOverride: BuildNotificationPolicy.WindowState? {
         get { behaviorStore.bezel.windowStateOverride }
         set { behaviorStore.bezel.windowStateOverride = newValue }
     }
 
-    /// Tests: Reduce Motion on or off (nil = the system setting).
     public var bezelReduceMotionOverride: Bool? {
         get { behaviorStore.bezel.reduceMotionOverride }
         set { behaviorStore.bezel.reduceMotionOverride = newValue }
     }
 
-    /// The bezel on screen, if any.
     public var buildBezelView: NSView? { behaviorStore.bezel.view }
-    /// The title of the bezel on screen, nil when none is.
     public var buildBezelTitle: String? { behaviorStore.bezel.view == nil ? nil : behaviorStore.bezel.timeline.notice?.title }
-    /// How many bezels were shown (replacements included).
     public var buildBezelShowCount: Int { behaviorStore.bezel.timeline.showCount }
-    /// The notices that went to the system notification route.
     public var systemNotices: [BuildNotice] { behaviorStore.bezel.systemNotices }
 
     var notificationWindowState: BuildNotificationPolicy.WindowState {
@@ -52,7 +37,6 @@ extension WorkspaceWindowController {
                                                    isKey: window?.isKeyWindow ?? false, appIsActive: NSApp.isActive)
     }
 
-    /// Shows `n` as the bezel or a system notification (§3).
     func notify(_ n: BuildNotice) {
         switch BuildNotificationPolicy.route(notificationWindowState) {
         case .bezel: showBuildBezel(n)
@@ -62,7 +46,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Shows (or replaces) the bezel, then fades and removes it (§4).
     func showBuildBezel(_ n: BuildNotice) {
         guard let content = window?.contentView else { return }
         let reduce = behaviorStore.bezel.reduceMotionOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -107,9 +90,6 @@ extension WorkspaceWindowController {
     }
 }
 
-/// The bezel: a 200-point dark translucent rounded square with the glyph
-/// over a one-line title (§4). Draws itself, so it shows the same in a
-/// window and in an offscreen snapshot; clicks pass through.
 final class BuildBezelView: NSView {
     static let side: CGFloat = 200
     static let radius: CGFloat = 18
@@ -154,15 +134,11 @@ final class BuildBezelView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
-/// The system notification route (§3): `UserNotifications`, asked for
-/// authorisation once; denied, unavailable (no app bundle, as under a test
-/// runner) or failed → the Dock icon bounces instead.
 @MainActor
 enum SystemBuildNotifier {
     private static var authorization: Bool?
     private static var asking = false
 
-    /// A process that can use `UserNotifications` (an app bundle).
     static var isAvailable: Bool { Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil }
 
     static func post(_ n: BuildNotice, workspace: String) {
@@ -192,7 +168,6 @@ enum SystemBuildNotifier {
         }
     }
 
-    /// Bounces the Dock icon (a regular app only; quiet otherwise).
     static func fallback() {
         guard NSApp.activationPolicy() == .regular else { return }
         NSApp.requestUserAttention(.informationalRequest)

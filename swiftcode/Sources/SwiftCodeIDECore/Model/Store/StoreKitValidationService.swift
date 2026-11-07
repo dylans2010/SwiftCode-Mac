@@ -1,19 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Services/StoreKitValidationService.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: ValidationIssue, StoreKitValidationService.
-//
-// CLEANUP (2026-11-06, triage §C21) — `checkIAPCapabilityEnabled()` and
-// `checkAppSandboxConfigured()` used to unconditionally return `true`
-// ("mock validation for sandboxed development environment consistency"),
-// so validation could never flag a missing capability. They now inspect
-// the active project's real `.entitlements` files: IAP is enabled when
-// any of them contains `com.apple.developer.in-app-payments`; the sandbox
-// is configured when any sets `com.apple.security.app-sandbox` to true.
-// No active project, or no `.entitlements` file found, reports `false`
-// (capability not present, not assumed). Only `.entitlements` files
-// inside the active project's directory tree are scanned; a
-// `CODE_SIGN_ENTITLEMENTS` path pointing outside the tree is not
-// followed.
-
 import Foundation
 
 public struct ValidationIssue: Identifiable, Sendable {
@@ -21,7 +5,7 @@ public struct ValidationIssue: Identifiable, Sendable {
     public var severity: Severity
     public var category: Category
     public var message: String
-    public var objectID: String? // Related Product ID, etc.
+    public var objectID: String?
     public var fixType: ValidationFixType?
 
     public enum Severity: String, Codable, Sendable {
@@ -79,7 +63,6 @@ public final class StoreKitValidationService: Sendable {
         var productIDs = Set<String>()
         var referenceNames = Set<String>()
 
-        // 1. Validate Capability & Sandbox Setup (Dynamic project-level scanner)
         let hasIAP = checkIAPCapabilityEnabled()
         if !hasIAP {
             issues.append(ValidationIssue(
@@ -102,9 +85,7 @@ public final class StoreKitValidationService: Sendable {
             ))
         }
 
-        // 2. Validate Standard Products
         for product in config.products {
-            // Check Empty IDs
             if product.productID.isEmpty {
                 issues.append(ValidationIssue(
                     severity: .error,
@@ -126,7 +107,6 @@ public final class StoreKitValidationService: Sendable {
                 productIDs.insert(product.productID)
             }
 
-            // Check Duplicate Reference Names
             if product.referenceName.isEmpty {
                 issues.append(ValidationIssue(
                     severity: .warning,
@@ -146,7 +126,6 @@ public final class StoreKitValidationService: Sendable {
                 referenceNames.insert(product.referenceName)
             }
 
-            // Check Price
             if product.price < 0 {
                 issues.append(ValidationIssue(
                     severity: .error,
@@ -157,7 +136,6 @@ public final class StoreKitValidationService: Sendable {
                 ))
             }
 
-            // Validate Localizations
             if product.localizations.isEmpty {
                 issues.append(ValidationIssue(
                     severity: .warning,
@@ -190,7 +168,6 @@ public final class StoreKitValidationService: Sendable {
             }
         }
 
-        // 3. Validate Non-Renewing Subscriptions
         for sub in config.nonRenewingSubscriptions {
             if sub.productID.isEmpty {
                 issues.append(ValidationIssue(
@@ -234,7 +211,6 @@ public final class StoreKitValidationService: Sendable {
             }
         }
 
-        // 4. Validate Subscription Groups & Subscriptions
         for group in config.subscriptionGroups {
             if group.groupName.isEmpty {
                 issues.append(ValidationIssue(
@@ -286,7 +262,6 @@ public final class StoreKitValidationService: Sendable {
                     ))
                 }
 
-                // Check Period
                 let validPeriods = ["P1W", "P1M", "P2M", "P3M", "P6M", "P1Y"]
                 if !validPeriods.contains(sub.subscriptionPeriod) {
                     issues.append(ValidationIssue(
@@ -297,7 +272,6 @@ public final class StoreKitValidationService: Sendable {
                     ))
                 }
 
-                // Intro offers
                 for intro in sub.introductoryOffers {
                     if intro.price < 0 {
                         issues.append(ValidationIssue(
@@ -310,7 +284,6 @@ public final class StoreKitValidationService: Sendable {
                     }
                 }
 
-                // Promotional offers
                 var offerIDs = Set<String>()
                 for promo in sub.promotionalOffers {
                     if promo.offerID.isEmpty {
@@ -338,12 +311,6 @@ public final class StoreKitValidationService: Sendable {
         return issues
     }
 
-    // Capability checks — real inspection of the active project's
-    // `.entitlements` files (see header). IAP is enabled when any
-    // `.entitlements` file in the active project contains the
-    // `com.apple.developer.in-app-payments` key (the key Xcode writes
-    // when the capability is enabled); the sandbox is configured when
-    // any such file sets `com.apple.security.app-sandbox` to true.
     private func checkIAPCapabilityEnabled() -> Bool {
         activeProjectEntitlementKeys().contains("com.apple.developer.in-app-payments")
     }
@@ -352,11 +319,6 @@ public final class StoreKitValidationService: Sendable {
         activeProjectEntitlementKeys().contains("com.apple.security.app-sandbox")
     }
 
-    /// Entitlement keys set to a truthy value in the active project's
-    /// `.entitlements` files. Empty when there is no active project, no
-    /// `.entitlements` file is found, or this runs off the main thread
-    /// (the session store is `@MainActor`, and validation is invoked
-    /// from the StoreKit UI, which runs on the main thread).
     private func activeProjectEntitlementKeys() -> Set<String> {
         guard Thread.isMainThread else { return [] }
         return MainActor.assumeIsolated {
@@ -379,9 +341,6 @@ public final class StoreKitValidationService: Sendable {
         }
     }
 
-    /// An entitlement value that means "enabled": `true`, a non-zero
-    /// number, or a non-empty string/array/dictionary. (The IAP key, for
-    /// example, carries a merchant-ID array rather than a bool.)
     private static func isTruthyEntitlementValue(_ value: Any) -> Bool {
         switch value {
         case let bool as Bool: return bool

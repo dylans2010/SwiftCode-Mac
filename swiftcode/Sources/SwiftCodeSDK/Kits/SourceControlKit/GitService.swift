@@ -1,9 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Backend/Git/GitService.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Adaptation: ProcessRunnerTool (absent from production) -> SwiftCodeSubprocess.Subprocess.run; result.exitCode/stdout/stderr -> status/stdoutText/stderrText.
-// Adaptation: AppError.gitError (SwiftCodeIDECore, not visible from SwiftCodeSDK) -> GitError.commandFailed (SourceControlKit's own error type; WorktreeManager precedent).
-// Adaptation: GitCommit/GitBranch initialisers adapted to the destination models (shortHash/authorName/authorEmail; trackingRemote dropped, unused downstream).
-// Adaptation: Depends on PreferencesStore (F2's slice, staged in staging-wire/unowned/) for the git_executable_path override.
 import Foundation
 import SwiftCodeSubprocess
 
@@ -16,7 +10,6 @@ public actor GitService {
                 return URL(fileURLWithPath: customPath)
             }
 
-            // Try common paths to find a direct git executable that might not be a wrapper
             let commonPaths = [
                 "/usr/local/bin/git",
                 "/opt/homebrew/bin/git",
@@ -207,17 +200,14 @@ public actor GitService {
     }
 
     public func push(repositoryURL: URL) async throws {
-        // Run git push
         var result = try Subprocess.run(
             await gitURL.path,
             ["push"],
             currentDirectory: repositoryURL
         )
         if result.status != 0 {
-            // Check if it's because of no upstream branch
             let stderr = result.stderrText.lowercased()
             if stderr.contains("no upstream") || stderr.contains("set-upstream") {
-                // Get current branch
                 let branchResult = try Subprocess.run(
                     await gitURL.path,
                     ["branch", "--show-current"],
@@ -225,7 +215,6 @@ public actor GitService {
                 )
                 let branch = branchResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 if branchResult.exitCode == 0, !branch.isEmpty {
-                    // Try pushing with -u origin branch
                     result = try Subprocess.run(
                         await gitURL.path,
                         ["push", "-u", "origin", branch],

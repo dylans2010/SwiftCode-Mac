@@ -9,12 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// The compositors (09 §3.5–§3.6): the software compositor's damage
-// tracking, display-list identity and diffing, and the Vulkan compositor on
-// an offscreen target compared with the CPU rasteriser. Hosts without a
-// Vulkan loader (macOS) skip the Vulkan cases unless OV_REQUIRE_VULKAN=1;
-// OV_VULKAN_DEVICE picks the device (e.g. "llvmpipe" for lavapipe).
-
 @MainActor
 private func displayList<V: View>(_ v: V, width: CGFloat, height: CGFloat) -> DisplayList {
     let g = HeadlessRenderer.makeGraph(v, mode: .window(CGSize(width: width, height: height), safeAreaInsets: EdgeInsets()),
@@ -49,7 +43,6 @@ struct DisplayListDiffTests {
         let a = displayList(Scene(color: .red), width: 100, height: 40)
         let a2 = displayList(Scene(color: .red), width: 100, height: 40)
         #expect(DisplayListDiff.damage(from: a, to: a2).isEmpty || a.items.map(\.content) == a2.items.map(\.content))
-        // Within one graph, an update keeps item IDs; only the changed item damages.
         let graph = HeadlessRenderer.makeGraph(Scene(color: .red), mode: .window(CGSize(width: 100, height: 40), safeAreaInsets: EdgeInsets()),
                                                scale: 2, colorScheme: .light)
         graph.update()
@@ -60,7 +53,6 @@ struct DisplayListDiffTests {
         #expect(before.items.map(\.id) == after.items.map(\.id))
         let damage = DisplayListDiff.damage(from: before, to: after)
         #expect(damage.count == 1)
-        // The second square is at x = 55…75 (the stack, 50 wide, is centred in 100).
         if let d = damage.first {
             #expect(d.minX >= 54 && d.maxX <= 76, "\(d)")
         }
@@ -92,7 +84,6 @@ struct SoftwareCompositorTests {
         #expect(r1.damage == [PixelRect(x: 0, y: 0, width: 480, height: 340)])
         let again = try comp.render(RenderFrame(displayList: first, scale: 2, background: .white))
         #expect(again.damage.isEmpty)
-        // A second, changed list: only part of the surface is redrawn.
         var changed = first
         changed.items.append(DisplayItem(id: DisplayItemID(42), .fill(RenderPath(rect: CGRect(x: 10, y: 10, width: 20, height: 20)),
                                                                        .color(.black), .nonZero)))
@@ -104,7 +95,6 @@ struct SoftwareCompositorTests {
     }
 }
 
-/// The Vulkan compositor, when this host has a device.
 @MainActor
 private func vulkanCompositor(_ surface: any RenderSurface) throws -> (any Compositor)? {
     do {

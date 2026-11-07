@@ -1,10 +1,3 @@
-// AgentViewModel.swift
-//
-// Ported from Legacy `SwiftCode/ViewModels/AgentViewModel.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Pending-question answer submission + turn resume (submitAnswer/submitMultipleAnswers, findLastUnansweredToolCall)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AgentChatMode, AgentOrchestrator, AgentSession, AgentToolCall.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import Combine
 import Observation
@@ -19,7 +12,7 @@ public class AgentViewModel {
     public var session: AgentSession
     public var sessions: [AgentSession] = []
     public var attachments: [AgentAttachment] = []
-    
+
     public var isProcessing: Bool {
         switch session.turnState {
         case .awaitingModel, .executingTools:
@@ -66,11 +59,10 @@ public class AgentViewModel {
         logger.info("[sendUserMessage] Sending user message: \(text, privacy: .public).")
         let currentAttachments = attachments
         attachments.removeAll()
-        
+
         session.lastModified = Date()
 
         do {
-            // Re-discover or run turn
             try await orchestrator.runTurn(session: session, userMessage: text, attachments: currentAttachments)
             saveSessions()
         } catch {
@@ -95,7 +87,6 @@ public class AgentViewModel {
         }
     }
 
-    // MARK: - Persistence Placeholders (implemented in Step 4)
     private var persistenceURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let appSupport = paths[0].appendingPathComponent("SwiftCode", isDirectory: true)
@@ -108,7 +99,6 @@ public class AgentViewModel {
         do {
             let data = try JSONEncoder().encode(sessions)
             try data.write(to: persistenceURL, options: .atomic)
-            // Save selected session ID too
             UserDefaults.standard.set(session.id.uuidString, forKey: "com.swiftcode.agent.selectedSessionID")
             logger.info("[saveSessions] Successfully saved \(self.sessions.count) sessions.")
         } catch {
@@ -215,7 +205,6 @@ public class AgentViewModel {
             for content in message.content {
                 if case .toolCall(let call) = content {
                     if call.name == "ask_user" || call.name == "questions_handle" {
-                        // Check if there is already a result for this id
                         let hasResult = session.messages.contains { m in
                             m.content.contains { c in
                                 if case .toolResult(let res) = c { return res.toolCallId == call.id }

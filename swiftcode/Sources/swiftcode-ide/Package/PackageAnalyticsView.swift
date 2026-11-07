@@ -1,9 +1,3 @@
-// PackageAnalyticsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/PackageAnalyticsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: analytics metrics (community maintenance, release cadence, commit frequency, issue response time, PR merge rate, documentation quality, test coverage, Swift 6 readiness, health score breakdown)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -13,10 +7,8 @@ struct PackageAnalyticsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Overall health score widget
             GroupBox {
                 HStack(spacing: 24) {
-                    // Circular progress
                     ZStack {
                         Circle()
                             .stroke(Color.secondary.opacity(0.12), lineWidth: 10)
@@ -43,7 +35,6 @@ struct PackageAnalyticsView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Analytics breakdown categories
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: .infinity))], spacing: 16) {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
@@ -80,7 +71,6 @@ struct PackageAnalyticsView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
 
-            // Popularity Section
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Community Metrics", systemImage: "globe")

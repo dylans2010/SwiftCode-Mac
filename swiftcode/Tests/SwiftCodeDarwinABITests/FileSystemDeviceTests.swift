@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-// Stage 4c device nodes, device-mode standard descriptors, and guest
-// namespace symbolic links (`specs/simulator/stage4c-contract.md` §2, §4).
-
 private func errnoOf(_ body: () throws -> Void) -> Int32? {
     do { try body() } catch let e as DarwinErrnoError { return e.errno } catch { return -1 }
     return nil
@@ -15,7 +12,6 @@ private final class DeviceFixture {
     let fs: DarwinFileSystem
     var output: [Int32: [UInt8]] = [:]
 
-    /// `/R` read-only, `/private/tmp` and `/private/var` writable (device-mode-like).
     init(links: Bool = false) throws {
         tree = try TempTree()
         try tree.writeFile("ro/file", Array("data".utf8))
@@ -50,7 +46,6 @@ private final class DeviceFixture {
         #expect(errnoOf { _ = try f.fs.stat("/dev/null/x", followSymlinks: true) } == DarwinErrnoCode.ENOTDIR)
         #expect(try f.fs.realpath("/dev/zero") == "/dev/zero")
         #expect(errnoOf { _ = try f.fs.hostPathForExec("/dev/null") } == DarwinErrnoCode.EACCES)
-        // Turned off: /dev is not served.
         f.fs.servesDevices = false
         #expect(errnoOf { _ = try f.fs.stat("/dev/null", followSymlinks: true) } == DarwinErrnoCode.ENOENT)
     }
@@ -69,12 +64,11 @@ private final class DeviceFixture {
         #expect(errnoOf { _ = try f.fs.file(for: null) } == DarwinErrnoCode.ENODEV)
         let zero = try f.fs.open("/dev/zero", flags: DarwinOpen.O_RDONLY, mode: 0)
         #expect(try f.fs.read(zero, count: 7) == [UInt8](repeating: 0, count: 7))
-        #expect(errnoOf { _ = try f.fs.write(zero, [1]) } == DarwinErrnoCode.EBADF)  // opened read-only
+        #expect(errnoOf { _ = try f.fs.write(zero, [1]) } == DarwinErrnoCode.EBADF)
         let random = try f.fs.open("/dev/urandom", flags: DarwinOpen.O_RDONLY, mode: 0)
         let a = try f.fs.read(random, count: 64), b = try f.fs.read(random, count: 64)
         #expect(a.count == 64 && b.count == 64 && a != b)
         #expect(try f.fs.read(f.fs.open("/dev/random", flags: 0, mode: 0), count: 3).count == 3)
-        // Flags and errors.
         #expect(errnoOf { _ = try f.fs.open("/dev/tty", flags: DarwinOpen.O_RDWR, mode: 0) } == DarwinErrnoCode.ENXIO)
         #expect(errnoOf {
             _ = try f.fs.open("/dev/null", flags: DarwinOpen.O_RDONLY | DarwinOpen.O_DIRECTORY, mode: 0)
@@ -86,8 +80,6 @@ private final class DeviceFixture {
         #expect(errnoOf { _ = try f.fs.open("/dev/new", flags: DarwinOpen.O_WRONLY | DarwinOpen.O_CREAT, mode: 0o644) }
                 == DarwinErrnoCode.EROFS)
         #expect(errnoOf { try f.fs.unlink("/dev/null") } == DarwinErrnoCode.EROFS)
-        // /dev opens as a directory (listable through the host's /dev, where
-        // only the served names stat successfully).
         let dir = try f.fs.open("/dev", flags: DarwinOpen.O_RDONLY | DarwinOpen.O_DIRECTORY, mode: 0)
         let file = try f.fs.file(for: dir)
         #expect(file.isDirectory && file.guestPath == "/dev")
@@ -118,7 +110,6 @@ private final class DeviceFixture {
         _ = try f.fs.write(3, Array("cons".utf8))
         #expect(f.output[2] == Array("err".utf8) && f.output[1] == Array("cons".utf8))
         #expect(try f.fs.read(0, count: 4) == [])
-        // open(at:) replaces, and checks the range.
         #expect(try f.fs.open("/dev/zero", flags: DarwinOpen.O_RDONLY, mode: 0, at: 0) == 0)
         #expect(try f.fs.read(0, count: 2) == [0, 0])
         #expect(errnoOf { _ = try f.fs.open("/dev/zero", flags: 0, mode: 0, at: 256) } == DarwinErrnoCode.EBADF)
@@ -140,7 +131,6 @@ private final class DeviceFixture {
         #expect(try f.fs.readlink("/etc") == "private/etc")
         #expect(errnoOf { _ = try f.fs.readlink("/R/file") } == DarwinErrnoCode.EINVAL)
         #expect(errnoOf { _ = try f.fs.readlink("/R/none") } == DarwinErrnoCode.ENOENT)
-        // Lookups follow them; files land in the target prefix.
         let fd = try f.fs.open("/tmp/x", flags: DarwinOpen.O_WRONLY | DarwinOpen.O_CREAT, mode: 0o644)
         _ = try f.fs.write(fd, Array("ok".utf8))
         #expect(f.tree.contents("tmp/x") == Array("ok".utf8))
@@ -148,13 +138,10 @@ private final class DeviceFixture {
         #expect(try f.fs.path(for: fd) == "/private/tmp/x")
         try f.fs.chdir("/var/run")
         #expect(f.fs.cwd == "/private/var/run")
-        // O_NOFOLLOW on the link itself: ELOOP; the link cannot be removed.
         #expect(errnoOf { _ = try f.fs.open("/tmp", flags: DarwinOpen.O_RDONLY | DarwinOpen.O_NOFOLLOW, mode: 0) }
                 == DarwinErrnoCode.ELOOP)
         #expect(errnoOf { try f.fs.unlink("/tmp") } == DarwinErrnoCode.EROFS)
-        // /etc has no target here: following it fails, lstat works.
         #expect(errnoOf { _ = try f.fs.stat("/etc/hosts", followSymlinks: true) } == DarwinErrnoCode.ENOENT)
-        // Socket files are named by their canonical path.
         final class Sock: DarwinDescriptorObject {
             var fileType: UInt16 { DarwinStat.S_IFSOCK }
             func lastReferenceClosed() {}
@@ -163,12 +150,10 @@ private final class DeviceFixture {
         #expect(try f.fs.bindSocket(s, path: "/var/run/syslog", umask: 0o022) == "/private/var/run/syslog")
         guard case let .socket(o) = try f.fs.socketTarget("/private/var/run/syslog") else { Issue.record("socket"); return }
         #expect(o === s)
-        // A child keeps the links; a host symlink to "/tmp/…" follows them.
         let child = f.fs.makeChildCopy()
         #expect(try child.readlink("/tmp") == "private/tmp")
         try f.tree.symlink("ro/tmplink", to: "/tmp/x")
         #expect(try f.fs.realpath("/R/tmplink") == "/private/tmp/x")
-        // Paths are normalized when set.
         f.fs.guestSymlinks = ["/a/": "/private/tmp"]
         #expect(f.fs.guestSymlinks == ["/a": "/private/tmp"])
         #expect(try f.fs.realpath("/a/x") == "/private/tmp/x")

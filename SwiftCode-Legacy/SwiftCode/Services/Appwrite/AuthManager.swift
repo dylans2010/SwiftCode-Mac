@@ -15,7 +15,6 @@ private let logger = Logger(
 public final class AuthManager {
     public static let shared = AuthManager()
 
-    // Observable authentication state
     public private(set) var currentUser: Appwrite.User<[String: AnyCodable]>?
     public private(set) var currentSession: Appwrite.Session?
     public private(set) var swiftCodeID: String?
@@ -23,7 +22,6 @@ public final class AuthManager {
     public private(set) var isLoading = false
     public private(set) var authError: String?
 
-    // Appwrite client and account
     public let client: Client
     public let account: Account
 
@@ -32,9 +30,6 @@ public final class AuthManager {
         self.account = SwiftCode.account
     }
 
-    // MARK: - Session Restoration
-
-    /// Restores the active Appwrite session when one exists.
     public func restoreSession() async {
         isLoading = true
         authError = nil
@@ -79,9 +74,6 @@ public final class AuthManager {
         }
     }
 
-    // MARK: - Email and Password Authentication
-
-    /// Signs in with an email address and password.
     public func login(email: String, password: SecureString) async throws {
         isLoading = true
         authError = nil
@@ -105,7 +97,6 @@ public final class AuthManager {
         }
     }
 
-    /// Creates an account and signs in immediately afterward.
     public func createAccount(email: String, password: SecureString) async throws {
         isLoading = true
         authError = nil
@@ -130,9 +121,6 @@ public final class AuthManager {
         }
     }
 
-    // MARK: - OAuth
-
-    /// Starts Google OAuth authentication.
     public func loginWithGoogle() async throws {
         isLoading = true
         authError = nil
@@ -155,7 +143,6 @@ public final class AuthManager {
         }
     }
 
-    /// Starts GitHub OAuth authentication.
     public func loginWithGitHub() async throws {
         isLoading = true
         authError = nil
@@ -178,9 +165,6 @@ public final class AuthManager {
         }
     }
 
-    // MARK: - Password Recovery
-
-    /// Requests a password reset email.
     public func forgotPassword(email: String) async throws {
         isLoading = true
         authError = nil
@@ -204,7 +188,6 @@ public final class AuthManager {
         }
     }
 
-    /// Completes a password reset using the emailed recovery token.
     public func resetPassword(
         userId: String,
         secret: String,
@@ -229,9 +212,6 @@ public final class AuthManager {
         }
     }
 
-    // MARK: - Email Verification
-
-    /// Sends a verification email to the current user.
     public func sendVerificationEmail() async throws {
         logger.info("Requesting verification email...")
 
@@ -247,7 +227,6 @@ public final class AuthManager {
         }
     }
 
-    /// Completes email verification.
     public func verifyEmail(userId: String, secret: String) async throws {
         logger.info("Verifying email...")
 
@@ -266,9 +245,6 @@ public final class AuthManager {
         }
     }
 
-    // MARK: - Account Management
-
-    /// Changes the authenticated user's email address.
     public func changeEmail(
         newEmail: String,
         password: SecureString
@@ -288,7 +264,6 @@ public final class AuthManager {
         }
     }
 
-    /// Changes the authenticated user's password.
     public func changePassword(
         oldPassword: SecureString,
         newPassword: SecureString
@@ -307,7 +282,6 @@ public final class AuthManager {
         }
     }
 
-    /// Appwrite's client SDK does not expose account self-deletion.
     public func deleteAccount() async throws {
         logger.warning(
             "Account self-deletion is not supported by the Appwrite Apple SDK."
@@ -322,7 +296,6 @@ public final class AuthManager {
         )
     }
 
-    /// Ends the active Appwrite session and clears local authentication state.
     public func logout() async {
         isLoading = true
         authError = nil
@@ -344,9 +317,6 @@ public final class AuthManager {
         isLoading = false
     }
 
-    // MARK: - Stable Database User ID
-
-    /// Generates a deterministic UUID from a string using SHA-256.
     public func deterministicUUID(from string: String) -> UUID {
         let hash = SHA256.hash(data: Data(string.utf8))
         let bytes = Array(hash)
@@ -361,7 +331,6 @@ public final class AuthManager {
         return UUID(uuid: uuidBytes)
     }
 
-    /// Returns a deterministic UUID representing the current user's database key.
     public func dbUserID(from swiftCodeID: String) -> UUID {
         let cleanID = swiftCodeID
             .replacingOccurrences(of: "sc_id=", with: "")
@@ -370,10 +339,6 @@ public final class AuthManager {
         return deterministicUUID(from: cleanID)
     }
 
-    /// Compatibility entry point for existing callers.
-    ///
-    /// Remote profile synchronization was removed with the external cloud-profile
-    /// integration. The authoritative authentication profile remains in Appwrite.
     @available(*, deprecated, message: "Remote profile synchronization is not configured.")
     public func syncUserProfile() async {
         guard currentUser != nil, swiftCodeID != nil else {
@@ -384,9 +349,6 @@ public final class AuthManager {
         logger.info("Using the Appwrite user profile; no external profile sync is configured.")
     }
 
-    // MARK: - SwiftCode ID Generator
-
-    /// Generates a cryptographically secure SwiftCode ID.
     private func generateSwiftCodeID() -> String {
         var bytes = [UInt8](repeating: 0, count: 16)
         let status = SecRandomCopyBytes(
@@ -400,7 +362,6 @@ public final class AuthManager {
         if status == errSecSuccess {
             hexString = bytes.map { String(format: "%02X", $0) }.joined()
         } else {
-            // CryptoKit fallback if the system random-byte API fails.
             let fallbackValue = UUID().uuidString
                 + "\(ProcessInfo.processInfo.systemUptime)"
             let hash = SHA256.hash(data: Data(fallbackValue.utf8))

@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// High-polish native SwiftUI wrapper enclosing the PreviewHost with beautiful, clean device boundaries and environment controllers.
-/// No fake notches, Dynamic Islands, status bars, or screenshot mockups are rendered.
 public struct PreviewContainer<Content: View>: View {
     let state: PreviewState
     let content: Content

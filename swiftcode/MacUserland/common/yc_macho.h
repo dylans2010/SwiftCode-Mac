@@ -1,16 +1,11 @@
-// yc_macho.h - Mach-O format facts used by SwiftCode's dynamic linker and its
-// host tests (specs/macos/dyld.md §2). Clean-room SwiftCode code: the values are
-// interoperability facts from the public <mach-o/loader.h>,
-// <mach-o/fixup-chains.h> and <mach-o/nlist.h> headers (evidence level 1);
-// the declarations are our own.
 #ifndef YC_MACHO_H
 #define YC_MACHO_H
 
 #include <stdint.h>
 
 #define YC_MH_MAGIC_64 0xFEEDFACFu
-#define YC_FAT_MAGIC 0xCAFEBABEu     /* big-endian on disk */
-#define YC_FAT_MAGIC_64 0xCAFEBABFu  /* big-endian on disk */
+#define YC_FAT_MAGIC 0xCAFEBABEu
+#define YC_FAT_MAGIC_64 0xCAFEBABFu
 #define YC_CPU_TYPE_ARM64 0x0100000Cu
 
 #define YC_MH_EXECUTE 2u
@@ -46,7 +41,6 @@
 
 #define YC_SG_READ_ONLY 0x10u
 
-/* section flags: type in the low byte */
 #define YC_SECTION_TYPE 0xFFu
 #define YC_S_ZEROFILL 0x1u
 #define YC_S_MOD_INIT_FUNC_POINTERS 0x9u
@@ -107,7 +101,6 @@ struct yc_build_version_command {
     uint32_t cmd, cmdsize, platform, minos, sdk, ntools;
 };
 
-/* <mach-o/fixup-chains.h> */
 struct yc_chained_fixups_header {
     uint32_t fixups_version, starts_offset, imports_offset, symbols_offset;
     uint32_t imports_count, imports_format, symbols_format;
@@ -122,13 +115,11 @@ struct yc_chained_fixups_header {
 #define YC_CHAINED_PTR_START_NONE 0xFFFFu
 #define YC_CHAINED_PTR_START_MULTI 0x8000u
 
-/* special library ordinals (bind and import records) */
 #define YC_BIND_SELF 0
 #define YC_BIND_MAIN_EXECUTABLE (-1)
 #define YC_BIND_FLAT_LOOKUP (-2)
 #define YC_BIND_WEAK_LOOKUP (-3)
 
-/* export trie terminal flags */
 #define YC_EXPORT_KIND_MASK 0x03u
 #define YC_EXPORT_KIND_REGULAR 0x00u
 #define YC_EXPORT_KIND_THREAD_LOCAL 0x01u
@@ -137,7 +128,6 @@ struct yc_chained_fixups_header {
 #define YC_EXPORT_REEXPORT 0x08u
 #define YC_EXPORT_STUB_AND_RESOLVER 0x10u
 
-/* classic rebase/bind opcodes (LC_DYLD_INFO) */
 #define YC_REBASE_TYPE_POINTER 1
 #define YC_REBASE_OPCODE_MASK 0xF0
 #define YC_REBASE_IMMEDIATE_MASK 0x0F

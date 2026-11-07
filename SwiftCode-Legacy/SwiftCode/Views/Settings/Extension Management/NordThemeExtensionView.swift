@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Nord Theme Extension View
 struct NordThemeExtensionView: View {
     @State private var isActive = false
     @State private var variant = "dark"

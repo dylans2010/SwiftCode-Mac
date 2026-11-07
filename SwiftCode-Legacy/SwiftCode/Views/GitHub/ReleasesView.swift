@@ -12,14 +12,12 @@ struct ReleasesView: View {
     @State private var isFetching = false
     @State private var selectedRelease: GitHubReleaseInfo?
 
-    // Draft release state
     @State private var showDraftSheet = false
     @State private var draftTag = ""
     @State private var draftTitle = ""
     @State private var draftNotes = ""
     @State private var isPublishingDraft = false
 
-    // AI generation state
     @State private var isGeneratingAINotes = false
 
     private var context: RepositoryContext {
@@ -57,7 +55,6 @@ struct ReleasesView: View {
 
     private var mainContent: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack(spacing: 12) {
                 Label("Repository Releases", systemImage: "shippingbox.fill")
                     .font(.headline)
@@ -168,11 +165,8 @@ struct ReleasesView: View {
         }
     }
 
-    // MARK: - Release Detail Modal sheet
-
     private func releaseDetailsSheetView(for release: GitHubReleaseInfo) -> some View {
         VStack(spacing: 0) {
-            // Sheet Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(release.name ?? release.tagName)
@@ -192,10 +186,8 @@ struct ReleasesView: View {
 
             Divider()
 
-            // Sheet Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Release Notes section
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Release Notes")
                             .font(.headline)
@@ -212,7 +204,6 @@ struct ReleasesView: View {
 
                     Divider()
 
-                    // Assets list segment
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Binary Assets & Distributions")
                             .font(.headline)
@@ -224,7 +215,6 @@ struct ReleasesView: View {
                         }
                     }
 
-                    // Reference Links section
                     if let htmlUrlStr = release.htmlUrl, let htmlURL = URL(string: htmlUrlStr) {
                         Divider()
                         VStack(alignment: .leading, spacing: 8) {
@@ -263,7 +253,6 @@ struct ReleasesView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button("Download") {
-                // Mock download
             }
             .buttonStyle(.plain)
             .font(.caption2.bold())
@@ -273,8 +262,6 @@ struct ReleasesView: View {
         .background(Color.secondary.opacity(0.04))
         .cornerRadius(4)
     }
-
-    // MARK: - Draft Release Sheet
 
     private var draftReleaseSheetView: some View {
         VStack(spacing: 20) {
@@ -333,8 +320,6 @@ struct ReleasesView: View {
         .padding(24)
         .frame(width: 480, height: 500)
     }
-
-    // MARK: - Actions Operations Executions
 
     private func fetchReleases() {
         guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }

@@ -1,13 +1,4 @@
-// FilePreviewView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/FilePreviewView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Preview/Info tabs; markdown rendering; pretty-printed JSON; raw-text view; file info panel (name/path/extension/characters)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): PreviewContent, PreviewTab.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
-
-// MARK: - File Preview View
 
 struct FilePreviewView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
@@ -56,8 +47,6 @@ struct FilePreviewView: View {
         .onChange(of: sessionStore.activeFileNode) { _, _ in loadPreview() }
     }
 
-    // MARK: - Content Router
-
     @ViewBuilder
     private var content: some View {
         switch selectedTab {
@@ -66,8 +55,6 @@ struct FilePreviewView: View {
         case .info:     infoView
         }
     }
-
-    // MARK: - Preview
 
     @ViewBuilder
     private var previewView: some View {
@@ -138,8 +125,6 @@ struct FilePreviewView: View {
         }
     }
 
-    // MARK: - Raw View
-
     private var rawView: some View {
         ScrollView {
             Text(rawText)
@@ -160,8 +145,6 @@ struct FilePreviewView: View {
         case .error(let e): return "Error: \(e)"
         }
     }
-
-    // MARK: - Info View
 
     private var infoView: some View {
         List {
@@ -192,8 +175,6 @@ struct FilePreviewView: View {
         .font(.callout)
     }
 
-    // MARK: - JSON Preview
-
     private func jsonPreview(_ text: String) -> some View {
         ScrollView {
             Text(prettyJSON(text))
@@ -204,8 +185,6 @@ struct FilePreviewView: View {
                 .textSelection(.enabled)
         }
     }
-
-    // MARK: - Load Logic
 
     private func loadPreview() {
         guard let node = sessionStore.activeFileNode else {
@@ -244,13 +223,9 @@ struct FilePreviewView: View {
         }
     }
 
-    // MARK: - Markdown Renderer
-
     private func parseMarkdown(_ text: String) -> AttributedString {
         (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
     }
-
-    // MARK: - Pretty JSON
 
     private func prettyJSON(_ text: String) -> String {
         guard let data = text.data(using: .utf8),

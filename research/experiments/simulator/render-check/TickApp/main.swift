@@ -1,7 +1,3 @@
-// Ycode research R6 (original code): an app whose screen changes 5 times a second,
-// so the render server always has new content. It shows a large counter on a
-// background whose hue steps with the counter. Used to measure whether
-// presentation keeps going under each framebuffer/IOSurface variant.
 import UIKit
 
 final class TickController: UIViewController {

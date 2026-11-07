@@ -1,14 +1,10 @@
 import Foundation
 import USDCore
 
-/// The RealityKit component catalogue (`Resources/components.json`): for
-/// each `info:id`, the field names, USD types, editor defaults and whether a
-/// run verified them (`specs/tools/scene-composer/scene-usd.md` §4.3, §6.3).
 public struct ComponentCatalogue: Decodable, Sendable {
     public struct Field: Decodable, Sendable, Equatable {
         public var name: String
         public var type: String
-        /// USDA value text written for a new component when listed in `alwaysWrite`.
         public var `default`: String?
         public var allowed: [String]?
         public var verified: Bool
@@ -33,13 +29,9 @@ public struct ComponentCatalogue: Decodable, Sendable {
         public var fields: [Field]?
         public var structs: [Struct]?
         public var relationships: [Relationship]?
-        /// Fields are specified elsewhere (particles, audio, timelines);
-        /// the validator does not judge them yet.
         public var openFields: Bool?
-        /// The spec file that will define those fields.
         public var fieldsSpec: String?
 
-        /// Every field by dotted key (`Shape.pose.position`).
         public var fieldsByKey: [String: Field] {
             var out: [String: Field] = [:]
             for f in fields ?? [] { out[f.name] = f }
@@ -66,7 +58,6 @@ public struct ComponentCatalogue: Decodable, Sendable {
 
     public func kind(_ id: String) -> Kind? { components.first { $0.id == id } }
 
-    /// The bundled RealityKit catalogue.
     public static let realityKit: ComponentCatalogue = {
         guard let url = Bundle.module.url(forResource: "components", withExtension: "json"),
               let data = try? Data(contentsOf: url),
@@ -76,7 +67,6 @@ public struct ComponentCatalogue: Decodable, Sendable {
         return catalogue
     }()
 
-    /// A new component with the fields the reference always writes.
     public func makeComponent(_ id: String) throws -> Component {
         guard let kind = kind(id) else { throw USDError("unknown component \(id)") }
         var c = Component(primName: kind.primName, id: id)
@@ -90,9 +80,6 @@ public struct ComponentCatalogue: Decodable, Sendable {
     }
 }
 
-/// One component of an entity: a `RealityKitComponent` (or, for app-defined
-/// components, `RealityKitCustomComponent`) child prim. Fields of nested
-/// `RealityKitStruct` prims use dotted keys (`Shape.extent`).
 public struct Component: Equatable, Sendable {
     public var primName: String
     public var id: String
@@ -117,17 +104,12 @@ public struct Component: Equatable, Sendable {
     }
 }
 
-/// Where components live in USD. The RealityKit encoding is the only one
-/// for now; the protocol keeps the document model independent of it.
 public protocol ComponentStorage: Sendable {
     func components(of prim: Path, in layer: Layer) -> [Component]
     func write(_ component: Component, to prim: Path, in layer: inout Layer) throws
     func remove(_ primName: String, from prim: Path, in layer: inout Layer)
 }
 
-/// `scene-usd.md` §4.1: a component is a child prim of the entity with
-/// `uniform token info:id`, attributes named after the runtime's fields,
-/// nested `RealityKitStruct` prims and relationships for entity references.
 public struct RealityKitComponentStorage: ComponentStorage {
     public static let componentType = "RealityKitComponent"
     public static let customComponentType = "RealityKitCustomComponent"
@@ -197,8 +179,6 @@ public struct RealityKitComponentStorage: ComponentStorage {
     }
 }
 
-/// Checks component prims against the catalogue: everything the reference
-/// would drop silently (`compile.md` §2.5) is reported.
 public struct ComponentDiagnostic: Equatable, Sendable, CustomStringConvertible {
     public enum Severity: String, Sendable { case error, warning }
     public var severity: Severity

@@ -4,16 +4,8 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The file-inspection tools (Wave 1 slice C) against a copy of
-/// `Samples/AgentSamples/Greeter`.
-///
-/// The tools are exercised through `MCPServer.run`, exactly as `tools/call`
-/// dispatches them, but taken from `host.fileInspectionTools` directly:
-/// the array is not wired into `installTools()` yet (that file is owned by
-/// the coordinator), so `tools/call` cannot see these tools until then.
 @MainActor
 @Suite(.serialized) struct SwiftCodeFileInspectionTests {
-    /// Runs one inspection tool the way the server would, as a JSON result.
     func call(_ host: SwiftCodeMCPHost, _ name: String, _ args: [String: AnyJSON] = [:]) async throws -> AnyJSON {
         let tool = try #require(host.fileInspectionTools.first { $0.name == name })
         return await host.server.run(tool, MCPToolCall(name: name, arguments: args)).json
@@ -38,8 +30,6 @@ import SwiftCodeIDECore
         try data.write(to: url)
     }
 
-    /// Known digests of the three bytes `abc` (standard test vectors), so
-    /// the hash tools are checked against fixed values, not themselves.
     static let abcSHA256 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     static let abcSHA1 = "a9993e364706816aba3e25717850c26c9cd0d89d"
     static let abcMD5 = "900150983cd24fb0d6963f7d28e17f72"
@@ -123,10 +113,8 @@ import SwiftCodeIDECore
         #expect(sha1.structured?["hash"] == Self.abcSHA1)
         let md5 = try await call(host, "file_checksum_verifier", ["path": "abc.txt", "algorithm": "MD5"])
         #expect(md5.structured?["algorithm"]?.string == "md5" && md5.structured?["hash"] == Self.abcMD5)
-        // Legacy falls through to SHA-256 for an unknown algorithm name.
         let unknown = try await call(host, "file_checksum_verifier", ["path": "abc.txt", "algorithm": "sha512"])
         #expect(!unknown.isToolError && unknown.structured?["algorithm"]?.string == "sha256" && unknown.structured?["hash"] == Self.abcSHA256)
-        // Binary files hash fine; a directory does not.
         let bin = try await call(host, "file_checksum_verifier", ["path": "bin.dat"])
         #expect(!bin.isToolError && bin.structured?["size"]?.int == 5)
         let dir = try await call(host, "file_checksum_verifier", ["path": "Sources"])
@@ -147,7 +135,6 @@ import SwiftCodeIDECore
         #expect(!match.isToolError, "\(match.resultText)")
         #expect(match.structured?["match"]?.bool == true && match.structured?["computedHash"] == Self.abcSHA256)
         #expect(match.resultText.contains("Hash match: true."))
-        // A mismatch is a successful comparison with match false, not an error.
         let zeros = String(repeating: "0", count: 64)
         let mismatch = try await call(host, "file_hash_verify", ["path": "abc.txt", "expectedHash": zeros])
         #expect(!mismatch.isToolError && mismatch.structured?["match"]?.bool == false)
@@ -176,7 +163,6 @@ import SwiftCodeIDECore
 
         let all = try await call(host, "file_type_breakdown")
         #expect(!all.isToolError, "\(all.resultText)")
-        // Greeter: 5 Swift files (Package.swift included) + 1 .xcstrings.
         #expect(all.structured?["typeCount"]?.int == 2)
         let swift = all.structured?["types"]?.array?.first { $0["extension"] == ".swift" }
         #expect(swift?["files"]?.int == 5 && (swift?["bytes"]?.int ?? 0) > 0)
@@ -208,7 +194,6 @@ import SwiftCodeIDECore
         #expect(groups == [["dup/a.txt", "dup/b.txt"]])
         #expect(dupes.resultText.contains("Duplicate file groups (1):"))
 
-        // Files below minSize are ignored.
         let none = try await call(host, "find_duplicate_files", ["path": "dup", "minSize": 100])
         #expect(none.structured?["groupCount"]?.int == 0)
         #expect(none.resultText.contains("No duplicate files found under dup."))
@@ -276,7 +261,6 @@ import SwiftCodeIDECore
         #expect(audit.structured?["brokenCount"]?.int == 1)
         #expect(audit.structured?["escapingCount"]?.int == 1)
         let links = audit.structured?["links"]?.array ?? []
-        // The directory link is a leaf: nothing under Sources is listed.
         #expect(links.count == 4)
         let byPath = Dictionary(uniqueKeysWithValues: links.compactMap { l -> (String, AnyJSON)? in
             guard let p = l["path"]?.string else { return nil }

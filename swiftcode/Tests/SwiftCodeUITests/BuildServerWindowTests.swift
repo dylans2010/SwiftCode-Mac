@@ -5,10 +5,6 @@ import SwiftCodeBuildServer
 import SwiftCodeLanguage
 @testable import SwiftCodeUI
 
-/// A workspace window on an iOS project with an app, a framework and a test
-/// bundle: the session starts sourcekit-lsp through SwiftCode's build server
-/// (`specs/ide/language.md` §Build server) and gets live issues, completion
-/// of the framework's members and a definition in the framework.
 @MainActor
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(5))) struct BuildServerWindowTests {
     static let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -33,13 +29,11 @@ import SwiftCodeLanguage
         session.scheme = "App"
         await session.startLanguageService()
         let language = try #require(session.language)
-        // The server was opened on SwiftCode's private folder, which names swiftcode-bsp.
         let config = BuildServerLaunch.workspaceFolder(for: project).appendingPathComponent(".bsp/swiftcode.json")
         let argv = try JSONSerialization.jsonObject(with: Data(contentsOf: config)) as? [String: Any]
         #expect((argv?["argv"] as? [String])?.prefix(3) == [bsp, "serve", project.standardizedFileURL.path])
         #expect((argv?["argv"] as? [String])?.contains("App") == true)
 
-        // A deliberate error becomes a live issue.
         let text = try String(contentsOf: main, encoding: .utf8) + "let broken: Int = \"not a number\"\n"
         language.open(main, text: text)
         #expect(await waitUntil(120) {
@@ -47,14 +41,12 @@ import SwiftCodeLanguage
                 && !session.displayedIssues.contains { $0.message.lowercased().contains("no such module") }
         }, "\(session.displayedIssues.map(\.message))")
 
-        // Completion of the framework's members in the app.
         let lines = text.components(separatedBy: "\n")
         let line = try #require(lines.firstIndex { $0.contains("return g.") })
         let column = (lines[line] as NSString).range(of: "return g.").upperBound
         let items = await session.completions(main, at: Position(line: line, character: column))
         #expect(items.contains { $0.label.hasPrefix("greet(times:") })
 
-        // Jump to Definition into the framework.
         _ = try await language.client.request("workspace/synchronize", ["index": true])
         let use = try #require(lines.firstIndex { $0.contains("let g = Greeter") })
         let column2 = (lines[use] as NSString).range(of: "let g = Gree").upperBound
@@ -71,7 +63,6 @@ import SwiftCodeLanguage
         #expect(BuildServerLaunch.prepareWorkspaceFolder(container: project, environment: ["SWIFTCODE_BSP": "/bin/sh"], defaults: defaults) == nil)
         #expect(!BuildServerLaunch.isEnabled(environment: ["SWIFTCODE_BUILD_SERVER": "0"], defaults: .standard))
         #expect(BuildServerLaunch.isEnabled(environment: ["SWIFTCODE_BUILD_SERVER": "1"], defaults: defaults))
-        // Packages never use it.
         defaults.set(true, forKey: BuildServerLaunch.defaultsKey)
         #expect(BuildServerLaunch.prepareWorkspaceFolder(container: URL(fileURLWithPath: "/tmp/P"), environment: ["SWIFTCODE_BSP": "/bin/sh"],
                                                          defaults: defaults) == nil)

@@ -1,15 +1,4 @@
 #!/bin/sh
-# control-flow.sh: two translator behaviours of stage8-contract.md §13.3 on
-# small AIR modules of ours (LLVM 18 text, assembled with llvm-as-18):
-#  1. the loop guard: with --loop-limit a loop whose exit never comes is
-#     guarded (reflection "loop_limit"), a loop with a constant trip count
-#     is not, and without the option nothing changes;
-#  2. helpers kept out of line: a helper called under a branch on the
-#     thread position is inlined, the same helper called under a branch on
-#     a buffer value (the same for every thread) stays a DontInline function.
-# Leaves spin.spv/json (guarded, limit 1000) in WORK_DIR for the GPU check
-# in swiftcode's KernelHangProbeTests (SWIFTCODE_TEST_LOOP_SPV / _JSON).
-# Usage: control-flow.sh SWIFTCODE_AIRC WORK_DIR
 set -eu
 AIRC=$1; WORK=$2
 mkdir -p "$WORK"
@@ -20,12 +9,10 @@ ARGS='!3 = !{i32 0, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.re
 !4 = !{i32 1, !"air.buffer", !"air.location_index", i32 1, i32 1, !"air.read", !"air.address_space", i32 1, !"air.arg_type_size", i32 4, !"air.arg_type_align_size", i32 4, !"air.arg_type_name", !"uint", !"air.arg_name", !"in"}
 !5 = !{i32 2, !"air.thread_position_in_grid", !"air.arg_type_name", !"uint", !"air.arg_name", !"gid"}'
 pass=0; fail=0
-check() {  # DESCRIPTION COMMAND...
+check() {
     d=$1; shift
     if "$@" >/dev/null 2>&1; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: $d"; fi
 }
-
-# 1. Loops: `spin` waits for in[0] == 1 (never, with zeros); `four` runs 4 times.
 cat > "$WORK/loops.ll" <<IR
 $HEAD
 define void @spin(ptr addrspace(1) %out, ptr addrspace(1) %in, i32 %gid) {
@@ -76,8 +63,6 @@ check "spin: the guard compares with 1000" grep -q 'OpUGreaterThan' "$WORK/spin.
 check "spin without --loop-limit: no guard" sh -c "! grep -q loop_limit '$WORK/spin0.json'"
 "$AIRC" translate "$WORK/loops.bc" -f four --loop-limit 1000 -o "$WORK/four.spv" -r "$WORK/four.json" -S "$WORK/four.spvasm" >/dev/null
 check "four: constant trip count, no guard" sh -c "! grep -q loop_limit '$WORK/four.json'"
-
-# 2. Helpers: @h (60 instructions) is called twice by each kernel.
 {
     echo "$HEAD"
     echo 'define internal i32 @h(i32 %x0) noinline {'
@@ -133,6 +118,5 @@ check "div: helper called under a thread-dependent branch is inlined" sh -c "! g
 check "uni: helper called under a uniform branch stays out of line" grep -q DontInline "$WORK/uni.spvasm"
 AIRC_OUTLINE_DIVERGENT=1 "$AIRC" translate "$WORK/helpers.bc" -f div -S "$WORK/div-old.spvasm" -o "$WORK/div-old.spv" >/dev/null
 check "div with AIRC_OUTLINE_DIVERGENT=1: out of line (old behaviour)" grep -q DontInline "$WORK/div-old.spvasm"
-
 echo "control-flow: $pass passed, $fail failed"
 [ $fail -eq 0 ]

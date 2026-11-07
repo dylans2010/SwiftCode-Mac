@@ -62,7 +62,6 @@ struct SkillsView: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)) {
                     if filteredUploaded.isEmpty {
-                        // FIX: Explicitly render an empty state row inside the section to guarantee it shows
                         HStack(spacing: 8) {
                             Image(systemName: "brain.slash")
                                 .foregroundColor(.secondary)

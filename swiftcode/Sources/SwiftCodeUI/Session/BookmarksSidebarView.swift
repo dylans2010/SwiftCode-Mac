@@ -1,9 +1,3 @@
-// BookmarksSidebarView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Sidebar/BookmarksSidebarView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: folder grouping; search filter; create/edit bookmark sheets (icons, labels, folders); duplicate; rename & edit; delete-selected
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -16,7 +10,6 @@ struct BookmarksSidebarView: View {
     @State private var showCreateSheet = false
     @State private var editingBookmark: Bookmark? = nil
 
-    // Collapsed state for folders
     @State private var collapsedFolders = Set<String>()
 
     var filteredBookmarks: [Bookmark] {
@@ -33,7 +26,6 @@ struct BookmarksSidebarView: View {
         }
     }
 
-    // Group bookmarks by Folder
     var folderGroups: [String: [Bookmark]] {
         Dictionary(grouping: filteredBookmarks) { b in
             let f = b.folder?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -51,7 +43,6 @@ struct BookmarksSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Search Bar & Action Buttons
             HStack(spacing: 8) {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -243,8 +234,6 @@ struct BookmarksSidebarView: View {
     }
 }
 
-// MARK: - CreateNewBookmark Sheet
-
 struct CreateNewBookmark: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -308,8 +297,6 @@ struct CreateNewBookmark: View {
         .frame(width: 450, height: 400)
     }
 }
-
-// MARK: - EditBookmarkSheet
 
 struct EditBookmarkSheet: View {
     @Environment(\.dismiss) private var dismiss

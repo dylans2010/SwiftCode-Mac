@@ -1,33 +1,6 @@
 import SwiftUI
 import SwiftCodeCloud
 
-/// Creates a table on the active connection.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseTableEditor.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - Creation runs through the staged `DatabaseSchemaManager`
-///   (`shared.createTable(connection:table:)`), exactly as Legacy
-///   did. That manager generates the real `CREATE TABLE` DDL
-///   inline (`createTableSQL(table:provider:)`, ported from
-///   Legacy's `DatabaseUtilities`) and executes it against SQLite
-///   for real; for Supabase it goes through `SupabaseService`,
-///   which fails honestly when no SQL RPC is configured; for
-///   PostgreSQL / MySQL / MariaDB it fails honestly with
-///   `.schemaModificationFailed` instead of Legacy's silent
-///   no-op.
-/// - The DDL that will run is previewed live below the form, from
-///   the same `DatabaseSchemaManager.createTableSQL` the manager
-///   itself uses, so the preview cannot drift from what executes.
-/// - The column-type picker follows the active connection's
-///   provider (SQLite / Postgres / MySQL type lists from
-///   `DatabaseConstants`); Legacy always offered SQLite types.
-/// - Validation still uses `DatabaseValidators.validateTableName`.
-/// - Legacy's `liquidGlass` header is gone (SwiftCodeUI has no
-///   such modifier); the header is a plain row on a subtle
-///   background.
 @MainActor
 struct DatabaseTableEditor: View {
     @Environment(\.dismiss) private var dismiss
@@ -52,8 +25,6 @@ struct DatabaseTableEditor: View {
         }
     }
 
-    /// The `CREATE TABLE` statement that saving will run, from the
-    /// same generator the schema manager uses.
     private var createTablePreview: String {
         guard !tableName.isEmpty else { return "" }
         let table = DatabaseTable(
@@ -68,7 +39,6 @@ struct DatabaseTableEditor: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Create New Table")
                     .font(.headline)

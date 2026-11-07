@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Unit Test Generator Extension View
 struct UnitTestGenExtensionView: View {
     @State private var isEnabled = true
     @State private var testFramework = "xctest"

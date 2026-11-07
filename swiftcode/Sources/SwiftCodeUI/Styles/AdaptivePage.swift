@@ -3,13 +3,6 @@ import SwiftUI
 import AppKit
 #endif
 
-/// Adaptive page (Legacy
-/// `SwiftCode/UI/Styles/Styling/AdaptivePage.swift`, Dylan's own code,
-/// ported under MIT). Direct port except the screen metrics: Legacy
-/// read `NSScreen.main?.backingScaleFactor` and
-/// `NSApp.keyWindow?.styleMask`, which need AppKit, so those reads
-/// are `#if canImport(AppKit)`-guarded (scale 1.0, not fullscreen
-/// elsewhere).
 public struct AdaptivePage<Content: View>: View {
     let content: Content
     @Environment(\.colorScheme) var colorScheme

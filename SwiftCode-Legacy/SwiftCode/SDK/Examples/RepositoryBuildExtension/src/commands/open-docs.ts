@@ -1,10 +1,5 @@
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 
-/**
- * "open-docs" command.
- *
- * Opens the host documentation search view.
- */
 export function createOpenDocsCommand(context: SwiftCodeContext) {
   return {
     id: "open-docs",

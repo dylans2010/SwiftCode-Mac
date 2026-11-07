@@ -1,19 +1,6 @@
 import Foundation
 import SwiftCodeHealthStore
 
-/// Migrations — Legacy's `Core/DatabaseMigrationManager.swift` +
-/// `Models/DatabaseMigration.swift`, ported to the explorer's
-/// `SQLiteDatabase`.
-///
-/// Deviation, recorded: Legacy tracked applied migrations in
-/// `UserDefaults` (`com.swiftcode.database.migrations`). A registry
-/// in UserDefaults drifts the moment the database file is copied,
-/// renamed or opened on another machine, so the port tracks them in
-/// the database itself, in a `_swiftcode_migrations` table — the
-/// standard practice, and the table is a normal user-visible table
-/// the browser can inspect. `generate` / `apply` / `rollback` keep
-/// Legacy's shape: a migration is a versioned up/down SQL pair.
-
 public struct DatabaseMigration: Codable, Sendable, Equatable, Identifiable {
     public var id: Int { version }
     public var version: Int
@@ -33,8 +20,6 @@ public struct DatabaseAppliedMigration: Sendable, Equatable {
     public var version: Int
     public var name: String
     public var appliedAt: Date
-    /// The down SQL recorded when the migration was applied, so a
-    /// rollback never needs the original migration set.
     public var downSQL: String?
 
     public init(version: Int, name: String, appliedAt: Date, downSQL: String? = nil) {
@@ -71,9 +56,6 @@ public final class DatabaseMigrationManager {
         self.db = db
     }
 
-    /// Creates the tracking table if it does not exist yet. The
-    /// `down_sql` column records each migration's down SQL at apply
-    /// time, so `rollbackLatest` works from the database alone.
     public func ensureTrackingTable() throws {
         try db.execute("""
             CREATE TABLE IF NOT EXISTS \(DatabaseSQL.quoted(Self.trackingTable)) (
@@ -83,15 +65,12 @@ public final class DatabaseMigrationManager {
                 down_sql TEXT
             )
             """)
-        // Databases tracked before `down_sql` existed gain the column.
         let columns = try db.query("PRAGMA table_info(\(DatabaseSQL.quoted(Self.trackingTable)))")
         if !columns.contains(where: { $0.count > 1 && $0[1].text == "down_sql" }) {
             try db.execute("ALTER TABLE \(DatabaseSQL.quoted(Self.trackingTable)) ADD COLUMN down_sql TEXT")
         }
     }
 
-    /// A new migration versioned one past the highest applied (or
-    /// highest known) version — Legacy's `generate`.
     public func generate(name: String, up: String, down: String? = nil, known: [DatabaseMigration] = []) throws -> DatabaseMigration {
         try ensureTrackingTable()
         let appliedVersions = try applied().map(\.version)
@@ -113,14 +92,11 @@ public final class DatabaseMigrationManager {
         try applied().contains { $0.version == migration.version }
     }
 
-    /// Migrations in the given set that have not been applied yet.
     public func pending(_ migrations: [DatabaseMigration]) throws -> [DatabaseMigration] {
         let appliedVersions = Set(try applied().map(\.version))
         return migrations.filter { !appliedVersions.contains($0.version) }.sorted { $0.version < $1.version }
     }
 
-    /// Runs the up SQL in a transaction and records the migration.
-    /// Throws `.alreadyApplied` instead of running twice.
     public func apply(_ migration: DatabaseMigration) throws {
         try ensureTrackingTable()
         guard try !isApplied(migration) else { throw DatabaseMigrationError.alreadyApplied(migration.version) }
@@ -133,8 +109,6 @@ public final class DatabaseMigrationManager {
         }
     }
 
-    /// Runs the down SQL in a transaction and removes the record.
-    /// Throws `.notApplied` or `.noDownMigration`.
     public func rollback(_ migration: DatabaseMigration) throws {
         try ensureTrackingTable()
         guard try isApplied(migration) else { throw DatabaseMigrationError.notApplied(migration.version) }
@@ -148,11 +122,6 @@ public final class DatabaseMigrationManager {
         }
     }
 
-    /// Rolls back the most recently applied migration, using the
-    /// down SQL recorded at apply time. Returns the rolled-back
-    /// migration, or nil when nothing has been applied. Throws
-    /// `.noDownMigration` when the latest migration recorded no
-    /// down SQL.
     @discardableResult
     public func rollbackLatest() throws -> DatabaseAppliedMigration? {
         guard let latest = try applied().last else { return nil }

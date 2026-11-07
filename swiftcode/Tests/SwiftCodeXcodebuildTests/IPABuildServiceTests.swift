@@ -1,9 +1,3 @@
-// Tests for IPABuildService (Legacy -> SwiftCodeXcodebuild port).
-// macOS only: the service shells out to /usr/bin/xcodebuild. The build and
-// packaging flows need a real Xcode project and are NOT asserted here;
-// only the script resolution and managed-directory helpers are pinned.
-// Static only: not executed here (no Swift toolchain in this environment).
-
 #if os(macOS)
 
 import Foundation
@@ -38,4 +32,4 @@ struct IPABuildServiceTests {
     }
 }
 
-#endif // os(macOS)
+#endif

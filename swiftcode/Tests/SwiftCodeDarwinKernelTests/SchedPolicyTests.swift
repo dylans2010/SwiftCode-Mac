@@ -4,16 +4,9 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// Held while a test changes the process-wide scheduling switches, and by
-/// tests of other suites whose paths read them (the ulock fast path declines
-/// while `SchedPolicy.qosEnabled`).
 let schedSwitchesTestLock = NSRecursiveLock()
 
-/// The scheduling policy (`specs/simulator/scheduling-policy.md`): classes,
-/// the start hold, importance, the kernel lock's admission gate, inheritance.
-/// Serialized: the switches are process-wide.
 @Suite(.serialized) struct SchedPolicyTests {
-    /// Runs `body` with the given switches, restoring them afterwards.
     func with(hold: Bool = false, qos: Bool = false, bounds: [UInt64]? = nil, holdMax: UInt64? = nil,
               quiet: UInt64? = nil, _ body: () throws -> Void) rethrows {
         schedSwitchesTestLock.lock()
@@ -33,8 +26,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
         try body()
     }
 
-    // MARK: Classes (§4.4)
-
     @Test func classFromInputs() {
         #expect(SchedInputs(baseQoS: 0).schedClass == SchedClass.default)
         #expect(SchedInputs(baseQoS: 4).schedClass == SchedClass.default)
@@ -43,7 +34,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
         #expect(SchedInputs(baseQoS: 3).schedClass == SchedClass.utility)
         #expect(SchedInputs(baseQoS: 2).schedClass == SchedClass.background)
         #expect(SchedInputs(baseQoS: 1).schedClass == SchedClass.background)
-        // Overrides raise; a clamp caps; darwin-bg forces background; a push wins over all.
         #expect(SchedInputs(baseQoS: 3, overrideQoS: 6).schedClass == SchedClass.interactive)
         #expect(SchedInputs(baseQoS: 6, clampQoS: 3).schedClass == SchedClass.utility)
         #expect(SchedInputs(baseQoS: 0, clampQoS: 2).schedClass == SchedClass.background)
@@ -60,16 +50,12 @@ let schedSwitchesTestLock = NSRecursiveLock()
         #expect(ProcessTypeCode.primordialQoS(0) == 0)
     }
 
-    // MARK: Start hold and importance (§4.2, §4.3)
-
-    /// A port in the root's space, with its object.
     func port(_ env: ProcEnv) -> IPCPort {
         let ipc = env.rootKernel.machIPC as! MachIPC
         return env.system.lock.withLock {
             let (kr, name) = ipc.portAllocate(right: MachPortRight.receive)
             precondition(kr == 0)
             let p = ipc.entries[ipc.lookup(name)!].port!
-            // As launchd makes its service ports.
             p.importanceDonation = true
             p.tempOwner = true
             return p
@@ -92,7 +78,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
             let child = env.system.process(pid: pid)!
             #expect(env.system.lock.withLock { child.holdStart != nil && child.state == .running })
             #expect(launch.image.resumed == 0)
-            // A message without importance does nothing; one with importance on a watch port releases it.
             let p = port(env)
             let ipc = env.rootKernel.machIPC as! MachIPC
             env.system.lock.withLock {
@@ -104,7 +89,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
             #expect(launch.image.resumed == 1)
             #expect(env.system.lock.withLock { child.holdStart == nil && child.importanceBoosts == 1 && !child.isDarwinBG })
             #expect(env.system.schedStats.releasedByBoost == 1)
-            // The boost ends when the message leaves the queue (received by a non-receiver).
             env.system.lock.withLock {
                 _ = ipc.dequeue(p)
                 _ = ipc.dequeue(p)
@@ -114,9 +98,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
         }
     }
 
-    /// visionos.md §10.26.1: a job listed in `shellReadyHoldLabels` stays
-    /// held through boosts until the shell is ready, then starts; the quiet
-    /// test does not release it either; jobs not listed are unaffected.
     @Test func shellReadyHoldWaitsForTheShell() throws {
         try with(hold: true, holdMax: 60_000_000_000, quiet: 60_000_000_000) {
             let env = try ProcEnv()
@@ -134,7 +115,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
                 ipc.enqueue(message(importance: true), on: p)
                 ipc.enqueue(message(importance: true), on: q)
             }
-            // Boosted, still held; the other job starts at its boost.
             #expect(env.system.lock.withLock { child.holdStart != nil && child.importanceBoosts == 1 })
             #expect(launch.image.resumed == 0 && otherLaunch.image.resumed == 1)
             #expect(env.system.lock.withLock { child.holdBoostSource.contains("message id 7") })
@@ -142,7 +122,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
             #expect(launch.image.resumed == 1)
             #expect(env.system.lock.withLock { child.holdStart == nil && env.system.schedStats.releasedShellReady == 1 })
             #expect(env.system.schedStats.releasedByBoost == 1)
-            // Later spawns of the job are held as usual and boosts release them.
             let (_, _, again) = env.spawn(from: env.rootKernel, flags: 0, apptype: 0x600)
             let next = env.system.process(pid: again)!
             env.system.lock.withLock { next.holdLabel = "com.example.assistant" }
@@ -161,12 +140,10 @@ let schedSwitchesTestLock = NSRecursiveLock()
             let p = port(env)
             let ipc = env.rootKernel.machIPC as! MachIPC
             env.system.lock.withLock { ipc.enqueue(message(importance: true), on: p) }
-            // The root (no type) is not a receiver: nothing is credited yet.
             #expect(env.system.lock.withLock { p.importanceCount == 1 && p.creditedProcess == nil })
             let (_, e, pid) = env.spawn(from: env.rootKernel, flags: 0, apptype: 0x600)
             #expect(e == 0)
             let child = env.system.process(pid: pid)!
-            // Bind as the spawn would have (the helper passes no port actions): it is boosted, the hold ends.
             env.system.lock.withLock { ipc.bindImportanceWatchPorts([p], to: child) }
             #expect(env.system.lock.withLock { child.importanceBoosts == 1 && child.holdStart == nil })
             #expect(env.launcher.launches.last!.image.resumed == 1)
@@ -181,7 +158,7 @@ let schedSwitchesTestLock = NSRecursiveLock()
             env.system.lock.withLock {
                 var m = KMessage(complex: false, destination: .send(p), destinationType: 17, reply: .null, replyType: 0, id: 1)
                 ipc.annotateForScheduling(&m, options: MachMsgOption.sendMsg)
-                #expect(m.importance)  // the root (no type) donates; the port accepts importance
+                #expect(m.importance)
                 m.importance = false
                 ipc.annotateForScheduling(&m, options: MachMsgOption.sendMsg | MachMsgOption.sendNoImportance)
                 #expect(!m.importance)
@@ -215,7 +192,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
                 ipc.bindImportanceWatchPorts([p], to: child)
                 ipc.enqueue(message(importance: true), on: p)
             }
-            // A background daemon takes no watch ports and no boost: it stays darwin-bg and held.
             #expect(env.system.lock.withLock { child.holdStart != nil && child.importanceBoosts == 0 })
             let deadline = Date().addingTimeInterval(5)
             while env.launcher.launches.last!.image.resumed == 0 && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
@@ -228,7 +204,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
         try with(hold: true, holdMax: 60_000_000_000, quiet: 30_000_000) {
             let window = SchedPolicy.holdWindowNanoseconds, cpu = SchedPolicy.holdCPUFraction
             SchedPolicy.holdWindowNanoseconds = 100_000_000
-            // The test process's CPU use depends on the suites running beside it.
             SchedPolicy.holdCPUFraction = 0
             defer { (SchedPolicy.holdWindowNanoseconds, SchedPolicy.holdCPUFraction) = (window, cpu) }
             let env = try ProcEnv()
@@ -240,14 +215,10 @@ let schedSwitchesTestLock = NSRecursiveLock()
         }
     }
 
-    /// §4.2: while the host process keeps the CPUs busy the system is not
-    /// quiet, however idle the kernel lock is; once the CPU test passes,
-    /// the hold ends.
     @Test func busyHostCPUKeepsHolds() throws {
         try with(hold: true, holdMax: 60_000_000_000, quiet: 30_000_000) {
             let window = SchedPolicy.holdWindowNanoseconds, cpu = SchedPolicy.holdCPUFraction
             SchedPolicy.holdWindowNanoseconds = 100_000_000
-            // Any CPU use at all counts as busy: a spinning thread keeps it so.
             SchedPolicy.holdCPUFraction = 1e-9
             defer { (SchedPolicy.holdWindowNanoseconds, SchedPolicy.holdCPUFraction) = (window, cpu) }
             let stop = Atomic<Bool>(false)
@@ -271,7 +242,7 @@ let schedSwitchesTestLock = NSRecursiveLock()
         try with(hold: true, holdMax: 60_000_000_000, quiet: 60_000_000_000) {
             let env = try ProcEnv()
             let (_, _, pid) = env.spawn(from: env.rootKernel, flags: 0, apptype: 0x600)
-            #expect(env.bsd(env.rootKernel, 37, [UInt64(pid), 9]) == 0)  // kill(pid, SIGKILL)
+            #expect(env.bsd(env.rootKernel, 37, [UInt64(pid), 9]) == 0)
             let deadline = Date().addingTimeInterval(5)
             while env.system.lock.withLock({ !env.system.heldProcesses.isEmpty }) && Date() < deadline {
                 Thread.sleep(forTimeInterval: 0.01)
@@ -280,8 +251,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
             #expect(env.launcher.launches.last!.image.resumed == 0)
         }
     }
-
-    // MARK: Lock admission (§4.5)
 
     final class Order: @unchecked Sendable {
         let lock: KernelLock = {
@@ -314,7 +283,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
                 held.wait()
                 let high = context(SchedClass.interactive, 2), low = context(SchedClass.background, 3)
                 let h = spawn { s.lock.withLock(context: high) { s.order.append("ui") } }
-                // The high thread must be blocked on the mutex before the low one arrives.
                 let deadline = Date().addingTimeInterval(5)
                 while s.lock.higherContending(SchedClass.background) == 0 && Date() < deadline { Thread.sleep(forTimeInterval: 0.001) }
                 let l = spawn { s.lock.withLock(context: low) { s.order.append("bg") } }
@@ -337,7 +305,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
             let deadline = Date().addingTimeInterval(5)
             while s.lock.higherContending(SchedClass.background) == 0 && Date() < deadline { Thread.sleep(forTimeInterval: 0.001) }
             let l = spawn { s.lock.withLock(context: low) { s.order.append("bg") } }
-            // After its bound the low thread competes for the mutex itself.
             let deadline2 = Date().addingTimeInterval(5)
             while s.lock.contendingCount(SchedClass.background) == 0 && Date() < deadline2 { Thread.sleep(forTimeInterval: 0.001) }
             #expect(s.lock.contendingCount(SchedClass.background) == 1)
@@ -355,7 +322,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
                 spawn {
                     let ctx = context(i % SchedClass.count, UInt64(10 + i))
                     for n in 0..<1500 {
-                        // Some threads change class as they go (overrides, boosts).
                         if n % 100 == 0 { ctx.schedClassStore.store((i + n / 100) % SchedClass.count, ordering: .relaxed) }
                         s.lock.withLock(context: ctx) { s.counter += 1 }
                     }
@@ -367,12 +333,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
         }
     }
 
-    /// §4.7 (holders): a thread that waits for a kernel lock longer than the
-    /// promotion delay, held by a holder of a lower applied class, raises the
-    /// holder's host thread to its own class; the holder keeps the raised
-    /// class as its applied one when it lets go, so its next `apply` moves
-    /// it back (here with no demotion delay). A waiter of a class the holder
-    /// already has does not move it.
     @Test func lockHolderIsRaisedToItsWaitersClassAndMovedBack() {
         with(qos: true) {
             let moves = Mutex<[(tid: Int32, cls: Int)]>([])
@@ -418,7 +378,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
                 #expect(waiter.wait(timeout: .now() + 10) == .success)
                 let holderMoves = moves.withLock { $0.filter { $0.tid == tid }.map(\.cls) }
                 if waiterClass > holderClass {
-                    // Applied, raised by the waiter, moved back after the release.
                     #expect(holderMoves == [holderClass, waiterClass, holderClass])
                     #expect(appliedAfter.withLock { $0 } == waiterClass)
                 } else {
@@ -430,9 +389,6 @@ let schedSwitchesTestLock = NSRecursiveLock()
         }
     }
 
-    /// §4.7: a rise of the class is applied at once; a fall only once the
-    /// lower class has lasted the demotion delay (a fall that is undone in
-    /// time costs no move).
     @Test func demotionWaitsForTheDelay() {
         with(qos: true) {
             let moves = Mutex<[Int]>([])
@@ -444,20 +400,18 @@ let schedSwitchesTestLock = NSRecursiveLock()
             defer { HostSched.moveHook = nil; HostSched.threadID = savedTID; HostSched.demoteDelayNanoseconds = saved }
             let done = spawn {
                 HostSched.apply(SchedClass.interactive)
-                HostSched.apply(SchedClass.background)  // put off
-                HostSched.apply(SchedClass.interactive)  // undone: no move
-                HostSched.apply(SchedClass.utility)  // put off
+                HostSched.apply(SchedClass.background)
+                HostSched.apply(SchedClass.interactive)
+                HostSched.apply(SchedClass.utility)
                 Thread.sleep(forTimeInterval: 0.05)
-                HostSched.apply(SchedClass.utility)  // the delay passed
-                HostSched.apply(SchedClass.default)  // a rise: at once
+                HostSched.apply(SchedClass.utility)
+                HostSched.apply(SchedClass.default)
             }
             #expect(done.wait(timeout: .now() + 10) == .success)
             #expect(moves.withLock { $0 } == [SchedClass.interactive, SchedClass.utility, SchedClass.default])
         }
     }
 
-    /// §4.6 (send push): a sender blocked on a full queue raises the image
-    /// that receives the port to its class until it stops waiting.
     @Test func blockedSenderPushesOntoTheReceivingImage() throws {
         try with(qos: true) {
             let w = SplitWorld()

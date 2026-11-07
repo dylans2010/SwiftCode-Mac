@@ -2,7 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 
 extension Preferences {
-    /// Settings ▸ Coding Assistant (no secrets; see `CodingAssistantServices`).
     public var codingAssistant: AssistantSettings {
         get {
             guard let d = defaults.data(forKey: "SwiftCode.codingAssistant"),

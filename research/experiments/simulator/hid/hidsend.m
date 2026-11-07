@@ -1,19 +1,3 @@
-/*
- * hidsend: Ycode research probe (original Ycode code, no Apple code).
- * Runs on the Mac. Black-box driver of the reference simulator's input path,
- * following the approach documented by Meta's idb (MIT): build a message with
- * SimulatorKit's exported IndigoHIDMessageFor* functions, optionally hex-dump
- * it, and hand it to SimulatorKit's legacy HID client for a device.
- *
- *   hidsend <udid> tap <x> <y>            ratio coordinates 0..1
- *   hidsend <udid> drag <x0> <y0> <x1> <y1> <steps>
- *   hidsend <udid> key <hidUsage>         down then up
- *   hidsend <udid> button <source>        down then up, target 0x33
- *   hidsend <udid> hid <page> <usage>     arbitrary usage, target 0x32
- *   hidsend <udid> dump ...               same verbs, print bytes only
- *   hidsend <udid> orient <n>            GSEvent orientation via PurpleWorkspacePort
- *   HID_EDGE=<n> selects the builder edge argument (0 none, 1 top, 2 left, 3 bottom, 4 right)
- */
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <objc/message.h>
@@ -91,7 +75,6 @@ int main(int argc, char **argv)
             if (!client) { printf("no client: %s\n", e.description.UTF8String); return 1; }
         }
         if (!strcmp(verb, "orient")) {
-            /* The 108-byte orientation message to PurpleWorkspacePort, laid out as idb documents it. */
             NSError *e = nil;
             mach_port_t port = ((mach_port_t (*)(id, SEL, NSString *, NSError **))objc_msgSend)(device,
                 NSSelectorFromString(@"lookup:error:"), @"PurpleWorkspacePort", &e);

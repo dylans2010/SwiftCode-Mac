@@ -1,7 +1,5 @@
 import Foundation
 
-/// The SDKs installed in a developer directory, read from each SDK's
-/// `SDKSettings.json`.
 public struct SDKCatalog: Sendable {
     public struct SDK: Sendable, Equatable {
         public var canonicalName: String
@@ -23,9 +21,6 @@ public struct SDKCatalog: Sendable {
                 guard let data = try? Data(contentsOf: sdkURL.appendingPathComponent("SDKSettings.json")),
                       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let name = obj["CanonicalName"] as? String else { continue }
-                // Several bundle names (MacOSX.sdk, MacOSX27.0.sdk, MacOSX27.sdk)
-                // can alias one SDK. Xcode reports the name that carries the
-                // full version, so prefer that name.
                 let version = obj["Version"] as? String ?? ""
                 if let existing = found[name], existing.path.hasSuffix("\(version).sdk") { continue }
                 found[name] = SDK(canonicalName: name, version: version,
@@ -35,8 +30,6 @@ public struct SDKCatalog: Sendable {
         sdks = found.values.sorted { $0.canonicalName < $1.canonicalName }
     }
 
-    /// Resolves an `SDKROOT` value: a canonical name (`macosx27.0`), a base
-    /// name (`macosx`, which picks the newest version), or an SDK path.
     public func lookup(_ sdkroot: String) -> SDK? {
         if sdkroot.hasPrefix("/") {
             let real = URL(fileURLWithPath: sdkroot).resolvingSymlinksInPath().path

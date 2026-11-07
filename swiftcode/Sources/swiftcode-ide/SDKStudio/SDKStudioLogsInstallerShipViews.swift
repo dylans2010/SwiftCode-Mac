@@ -4,18 +4,6 @@ import SwiftCodeExtensions
 import SwiftCodeSDK
 import SwiftCodeSDKStudio
 
-// MARK: - Logs
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKStudioLogsView.swift` — three
-// panes:
-//   - User:      `SDKUserLogger.shared` sanitized in-memory entries.
-//   - Developer: the developer log stream (searchable).
-//   - Audit:     `SDKAuditLog.shared` durable security audit events.
-// SwiftCode mapping: User → `SDKStudioUserLogger` (sanitized, in-memory);
-// Developer → SwiftCode's `DiagnosticsService` (the extension diagnostics
-// stream, searchable, exportable); Audit → the Host slice's durable
-// `SDKAuditLog` (append-only JSON Lines, read via `recentEvents`).
-
 @MainActor
 struct SDKStudioLogsView: View {
     private enum Segment: String, CaseIterable {
@@ -233,15 +221,6 @@ private struct SDKStudioAuditLogsPane: View {
     }
 }
 
-// MARK: - First-launch installer
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKFirstLaunchInstallerView.swift`.
-// Phases prompt → installing (live log lines) → succeeded / failed;
-// "Remind Me Later" and "Decline" record the first-launch choice; the
-// install itself runs through the installer seam (`SDKStudioInstaller`),
-// wired to the Host slice's real `SDKInstaller` via
-// `SDKStudioInstallerHost`.
-
 @MainActor
 struct SDKFirstLaunchInstallerView: View {
     var installer: any SDKStudioInstaller
@@ -322,10 +301,6 @@ struct SDKFirstLaunchInstallerView: View {
     private func startInstall() {
         phase = .installing
         logLines = []
-        // Log lines arrive on the installer's (background) context, so
-        // they are collected in an actor and flushed to the view when the
-        // install finishes; live streaming into this view needs the
-        // AppKit host to forward lines onto the main actor.
         let collector = SDKInstallerLogCollector()
         Task {
             let result = await installer.install { line in
@@ -347,16 +322,6 @@ private actor SDKInstallerLogCollector {
     func append(_ line: String) { lines.append(line) }
     func all() -> [String] { lines }
 }
-
-// MARK: - Ship & export
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKShipExportView.swift` — project
-// summary (from `swiftcode.json` / inspector), export through the SDK
-// CLI (`SDKInstaller.resolveCLIURL()`), phases, and a manual-command
-// sheet when the CLI is unavailable. SwiftCode has no SDK CLI; export
-// packages the project directory into a `.tgz` via the system `tar`
-// (a real archive, not a placeholder) and reports the manual command
-// when that is unavailable.
 
 @MainActor
 struct SDKShipExportView: View {

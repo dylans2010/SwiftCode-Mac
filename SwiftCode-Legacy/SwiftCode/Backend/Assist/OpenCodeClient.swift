@@ -3,9 +3,6 @@ import os
 
 private let openCodeLogger = Logger(subsystem: "com.swiftcode.app", category: "OpenCodeClient")
 
-/// Exactly-once guard for the npm/bun install continuation: the
-/// termination handler and the timeout work item race, so a plain
-/// flag would be a data race under Swift 6.
 private final class OpenCodeInstallGuard: @unchecked Sendable {
     private let lock = NSLock()
     private var done = false
@@ -30,12 +27,6 @@ private final class OpenCodeInstallGuard: @unchecked Sendable {
     }
 }
 
-// MARK: - OpenCode errors
-//
-// Messages are user-facing and never include server URLs with embedded
-// credentials, request bodies, or model-provider keys (SwiftCode never
-// holds those keys for OpenCode — they live in OpenCode's own config).
-
 public enum OpenCodeError: LocalizedError, Equatable {
     case serverUnavailable(String)
     case invalidConfiguration(String)
@@ -43,11 +34,6 @@ public enum OpenCodeError: LocalizedError, Equatable {
     case modelUnavailable(String)
     case streamInterrupted(String)
     case agentNotFound(String)
-    /// The server executed (or attempted) a tool on a SwiftCode session.
-    /// SwiftCode sessions must be pure-model sessions: the `swiftcode`
-    /// agent denies every tool, so any tool part means the server is not
-    /// configured that way. Fail closed instead of surfacing a
-    /// provider-executed result as a SwiftCode tool result.
     case toolExecutionBlocked(String)
 
     public var errorDescription: String? {
@@ -63,12 +49,6 @@ public enum OpenCodeError: LocalizedError, Equatable {
     }
 }
 
-// MARK: - Defensive parsing of `GET /config/providers`
-
-/// Parses the OpenCode provider catalog without assuming one exact shape:
-/// the endpoint has returned both a `providers` array and provider-keyed
-/// objects across versions, and model entries use `id` or `modelID`.
-/// Anything unrecognised is skipped rather than fabricated into a model.
 public enum OpenCodeProviderCatalog {
     public static func parseModels(from data: Data) -> [OpenCodeModel] {
         guard let root = try? JSONSerialization.jsonObject(with: data) else { return [] }
@@ -81,7 +61,6 @@ public enum OpenCodeProviderCatalog {
                 if let providers = dict["providers"] {
                     collectProviders(from: providers)
                 } else {
-                    // Provider-keyed object: { "anthropic": { "models": [...] }, … }
                     for (key, entry) in dict {
                         if var entryDict = entry as? [String: Any] {
                             if entryDict["id"] == nil { entryDict["id"] = key }
@@ -134,11 +113,6 @@ public enum OpenCodeProviderCatalog {
     }
 }
 
-// MARK: - Event-stream parsing
-
-/// One parsed OpenCode SSE frame. Only the shapes SwiftCode acts on are
-/// distinguished; everything else is `.ignored` so a new event type from
-/// a newer server can never be mistaken for model text or a tool result.
 enum OpenCodeEvent {
     enum Kind {
         case textDelta(String)
@@ -200,34 +174,12 @@ enum OpenCodeEvent {
                (part["type"] as? String) == "tool" {
                 return .parsed(sessionID: sessionID, kind: .tool)
             }
-            // Text `updated` frames carry the full accumulated part, not a
-            // delta; yielding them would duplicate every delta already
-            // streamed, so they are deliberately ignored.
             return .parsed(sessionID: sessionID, kind: .ignored)
         }
         return .parsed(sessionID: sessionID, kind: .ignored)
     }
 }
 
-// MARK: - Native OpenCode server client
-
-/// Talks to an OpenCode server over its HTTP + SSE API, with no JS
-/// runtime, no bundled server, and no dependency on @opencode-ai/sdk.
-/// The server is loopback by default and is never exposed by SwiftCode:
-/// SwiftCode only ever connects out to the configured URL.
-///
-/// Lifecycle: SwiftCode manages the server itself for loopback
-/// URLs. `ensureServer()` auto-heals both failure modes that used
-/// to surface as user-facing errors: a missing server is started
-/// automatically, and a missing `opencode` binary is located in the
-/// well-known install locations or installed via npm/bun
-/// (`opencode-ai`) automatically. The user never has to start a
-/// server by hand or flip a Managed-server toggle to get OpenCode
-/// working. Only a non-loopback URL is left alone (SwiftCode never
-/// starts a server that listens on a LAN interface), and only a
-/// total auto-heal failure (no binary, no npm/bun, no network)
-/// surfaces — as one message describing what was tried, never as
-/// the old "start one yourself / turn Managed server on" errors.
 public actor OpenCodeClient {
     public static let shared = OpenCodeClient()
 
@@ -237,8 +189,6 @@ public actor OpenCodeClient {
 
     private init() {}
 
-    // MARK: Configuration
-
     public func configuration() -> OpenCodeConfiguration {
         OpenCodeConfiguration.load()
     }
@@ -247,18 +197,10 @@ public actor OpenCodeClient {
         sessionsByDirectory.removeValue(forKey: directory ?? "")
     }
 
-    /// Drops every cached OpenCode session id. Called when the user
-    /// switches providers in Settings so a later OpenCode run can never
-    /// resume a session from a previous provider selection.
     public func resetAllSessions() {
         sessionsByDirectory.removeAll()
     }
 
-    // MARK: Health
-
-    /// GET /global/health. A 200 is healthy; a 401 means the server
-    /// requires authentication SwiftCode deliberately does not handle
-    /// (keep the server on loopback without server auth instead).
     public func checkHealth() async -> Bool {
         let config = OpenCodeConfiguration.load()
         guard let url = endpointURL(config: config, path: "global/health", directory: nil) else {
@@ -281,11 +223,6 @@ public actor OpenCodeClient {
         }
     }
 
-    /// Auto-heals a missing OpenCode server. Never throws the old
-    /// "no server is running, start one yourself" or "no binary
-    /// was found, install it yourself" errors: both cases are
-    /// fixed here (start the server; locate or install the binary)
-    /// before any error is considered.
     public func ensureServer() async throws {
         if await checkHealth() { return }
         let config = OpenCodeConfiguration.load()
@@ -306,11 +243,6 @@ public actor OpenCodeClient {
         )
     }
 
-    // MARK: Managed server (automatic, loopback only)
-
-    /// Starts `opencode serve` for a loopback URL, installing the
-    /// binary first when it cannot be found anywhere. Async because
-    /// the install step runs npm/bun, which takes seconds.
     public func startManagedServer(config: OpenCodeConfiguration? = nil) async throws {
         let config = config ?? OpenCodeConfiguration.load()
         guard config.isLoopback else {
@@ -319,11 +251,6 @@ public actor OpenCodeClient {
             )
         }
         if let process = managedProcess, process.isRunning { return }
-        // The swiftcode agent definition (deny-all, so OpenCode acts
-        // as a pure model behind SwiftCode's tool loop) is written
-        // globally when missing, so a fresh server never fails a
-        // session for want of the agent. An existing file is never
-        // overwritten — a user's own agent definition wins.
         ensureSwiftCodeAgentDefinition()
         var binaryPath = findBinary(named: "opencode")
         if binaryPath == nil {
@@ -361,11 +288,6 @@ public actor OpenCodeClient {
         sessionsByDirectory.removeAll()
     }
 
-    /// Finds a binary by PATH first, then by the well-known install
-    /// locations (Homebrew, npm-global, ~/.local/bin). A GUI app's
-    /// PATH is often far shorter than a terminal's, so PATH alone
-    /// misses most real installs — that gap was the "binary not
-    /// found" error users kept hitting.
     private func findBinary(named name: String) -> String? {
         let probe = Process()
         probe.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -376,7 +298,6 @@ public actor OpenCodeClient {
         do {
             try probe.run()
         } catch {
-            // Fall through to the well-known locations below.
         }
         probe.waitUntilExit()
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
@@ -400,12 +321,6 @@ public actor OpenCodeClient {
         return nil
     }
 
-    /// Installs the OpenCode CLI globally via npm or bun
-    /// (`opencode-ai`, the published CLI package) and returns the
-    /// resulting binary path, or nil when neither installer is
-    /// available or the install fails. Runs off the main actor
-    /// (this client is an actor, not MainActor-isolated) with a
-    /// 180-second cap so a hung installer can never hang Assist.
     private func autoInstallOpenCodeBinary() async -> String? {
         for installer in ["npm", "bun"] {
             guard let installerPath = findBinary(named: installer) else { continue }
@@ -447,10 +362,6 @@ public actor OpenCodeClient {
         }
     }
 
-    /// Writes the `swiftcode` agent definition (deny-all) to the
-    /// global OpenCode config when it does not already exist, so a
-    /// fresh managed server accepts SwiftCode sessions immediately.
-    /// Never overwrites an existing definition.
     private func ensureSwiftCodeAgentDefinition() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let agentDir = home.appendingPathComponent(".config/opencode/agent", isDirectory: true)
@@ -465,10 +376,6 @@ public actor OpenCodeClient {
         }
     }
 
-    // MARK: Model discovery
-
-    /// Real models from the running server. Never a hardcoded catalog:
-    /// an empty or unparseable catalog is an error, not a fallback list.
     public func fetchModels() async throws -> [OpenCodeModel] {
         try await ensureServer()
         let config = OpenCodeConfiguration.load()
@@ -497,18 +404,6 @@ public actor OpenCodeClient {
         return models
     }
 
-    // MARK: Streaming prompt
-
-    /// Sends one Assist turn to the server and streams back text deltas.
-    ///
-    /// - `prompt` is the full Assist turn prompt (task, JSON tool protocol,
-    ///   history). It is sent as a text part, exactly as Assist built it.
-    /// - `systemPrompt` is SwiftCode's real system prompt (system assets),
-    ///   sent in the prompt's `system` field so it — not an OpenCode
-    ///   default — governs the turn.
-    /// - The session always names the `swiftcode` agent (see
-    ///   OpenCodeConfiguration). Tool parts fail the run closed.
-    /// - Cancellation aborts the server session.
     public func streamPrompt(
         prompt: String,
         systemPrompt: String?,
@@ -518,16 +413,10 @@ public actor OpenCodeClient {
         try await ensureServer()
         let config = OpenCodeConfiguration.load()
         var sessionID = try await session(for: directory)
-        // Subscribe to events before sending the prompt. If the prompt goes
-        // first, the server can emit session.idle before this subscriber is
-        // connected, and the run then waits for an event that already passed.
         var bytes = try await openEventStream(config: config, directory: directory)
         do {
             try await promptAsync(sessionID: sessionID, prompt: prompt, systemPrompt: systemPrompt, model: model, config: config, directory: directory)
         } catch let error as OpenCodeError {
-            // A stale cached session (server restarted) surfaces as a 404.
-            // Drop it and retry exactly once with a fresh session; any
-            // other failure propagates unchanged.
             if case .sessionFailed(let detail) = error, detail.contains("status 404") {
                 resetSession(directory: directory)
                 sessionID = try await session(for: directory)
@@ -538,9 +427,6 @@ public actor OpenCodeClient {
             }
         }
 
-        // Precompute the abort request here: the stream's onTermination
-        // closure must not capture actor `self` (strict concurrency), so
-        // cancellation aborts via this plain URLRequest instead.
         let abortRequest = abortRequest(sessionID: sessionID, config: config, directory: directory)
 
         return AsyncThrowingStream { [bytes, sessionID] continuation in
@@ -586,8 +472,6 @@ public actor OpenCodeClient {
         }
     }
 
-    /// Opens the server's SSE event stream and waits for its headers, so the
-    /// subscription is live before a prompt is sent.
     private func openEventStream(config: OpenCodeConfiguration, directory: String?) async throws -> URLSession.AsyncBytes {
         guard let eventURL = endpointURL(config: config, path: "event", directory: directory) else {
             throw OpenCodeError.invalidConfiguration("Invalid OpenCode server URL.")
@@ -604,8 +488,6 @@ public actor OpenCodeClient {
         }
         return bytes
     }
-
-    // MARK: Session plumbing
 
     private func session(for directory: String?) async throws -> String {
         let key = directory ?? ""
@@ -681,9 +563,6 @@ public actor OpenCodeClient {
         }
     }
 
-    /// Plain abort request (nonisolated use): built before the stream
-    /// exists so cancellation never needs actor state. Returns nil for
-    /// an invalid server URL, in which case there is nothing to abort.
     private func abortRequest(sessionID: String, config: OpenCodeConfiguration, directory: String?) -> URLRequest? {
         guard let url = endpointURL(config: config, path: "session/\(sessionID)/abort", directory: directory) else {
             return nil
@@ -693,8 +572,6 @@ public actor OpenCodeClient {
         request.timeoutInterval = 5
         return request
     }
-
-    // MARK: URL plumbing
 
     private func endpointURL(config: OpenCodeConfiguration, path: String, directory: String?) -> URL? {
         var components = URLComponents(url: config.serverURL, resolvingAgainstBaseURL: false)

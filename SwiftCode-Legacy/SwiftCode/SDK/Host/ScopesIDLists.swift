@@ -1,60 +1,19 @@
 import Foundation
 
-// MARK: - ScopesIDLists
-//
-// The host-side canonical scope-ID table, mirroring
-// SwiftCode/SDK/TypeScript/package/src/ScopesIDLists.ts (spec
-// Docs/Intro-to-SDK.md §8.1 fixed capability registry, §10.4 IPC methods).
-//
-// Every entry carries the fixed `SDKCapabilityID` as a TYPED enum case —
-// so a renamed or removed registry case fails to compile here — plus the
-// primary IPC method serving the capability (`nil` when the host has not
-// wired a method in this release; never a placeholder) and, for view
-// entries, the `viewId` payload value for `ui.openView`.
-//
-// The 12 `view` entries delegate to `SDKViewOpener`'s REAL registered
-// openers (`SDKViewOpenerBuiltIns.swift`) — nothing here is a stub. The
-// 18 `api` entries are served by their host adapters over IPC
-// (authorized per-call at `SDKCapabilityBroker` through the adapters, see
-// `SDKIPCDispatcher`'s security model), NOT by this table: there is no
-// view to open and this file must never fabricate one.
-//
-// ## SYNC CONTRACT
-//
-// This table and the TypeScript `SCOPES_ID_LIST` must stay identical:
-// same IDs, same kinds, same ipcMethods, same viewIds. The test
-// `SwiftCode/SDK/TypeScript/package/tests/scopes-sync.test.mjs` parses
-// BOTH files and FAILS on any drift in either direction. When adding a
-// capability to the fixed registry, add the entry in BOTH files in the
-// same change (in registry order, matching `SDKCapabilityRegistry.all`).
-
 public enum ScopesIDLists {
 
     public enum ScopeKind: String, Sendable {
-        /// Opens a host view through `ui.openView`.
         case view
-        /// Served by the host adapters over its own IPC method(s).
         case api
     }
 
     public struct ScopeEntry: Sendable {
-        /// Lookup key and wire capability ID.
         public let id: String
-        /// Short user-facing title (matches `SDKCapabilityInfo.title`).
         public let title: String
-        /// One-sentence plain-language description of what the scope allows.
         public let description: String
         public let kind: ScopeKind
-        /// Primary IPC method serving the capability, or `nil` when the
-        /// host has not wired a method in this release — never a
-        /// placeholder. A capability may span several methods
-        /// (e.g. `build.execute` also covers `build.wait`/`build.cancel`);
-        /// this field names the primary one.
         public let ipcMethod: String?
-        /// The fixed registry case — typed so registry drift fails here.
         public let capabilityId: SDKCapabilityID
-        /// For `kind == .view`: the exact `viewId` payload value sent to
-        /// `ui.openView`. `nil` for API entries.
         public let viewId: String?
 
         public init(
@@ -76,13 +35,6 @@ public enum ScopesIDLists {
         }
     }
 
-    /// Every capability in the fixed registry, in `SDKCapabilityRegistry.all`
-    /// order. 10 are views; 20 are API capabilities. `ipcMethod == nil`
-    /// means no host method is wired in this release — `assist.invoke`
-    /// additionally being deny-by-default (spec §9, `SDKAssistGate`).
-    /// The `assist.ui` / `assist.headless` entries name the entitled
-    /// `assist.invoke` route (task B2/B3); the dispatcher + gate path is
-    /// owned by the sibling task.
     public static let all: [ScopeEntry] = [
         ScopeEntry(
             id: "project.read",
@@ -374,27 +326,10 @@ public enum ScopesIDLists {
         ),
     ]
 
-    /// `all` keyed by `id`. Every key is a wire capability ID.
     public static let byId: [String: ScopeEntry] = Dictionary(
         uniqueKeysWithValues: all.map { ($0.id, $0) }
     )
 
-    /// Opens the view-backed scope with `id` through its REAL registered
-    /// opener (`SDKViewOpener` — authorization happens at
-    /// `SDKCapabilityBroker` on the `ui.openView` IPC route before this
-    /// is ever called; never call this from a path that bypasses that
-    /// gate).
-    ///
-    /// API capabilities have no view and this file serves none of them —
-    /// they are served by their host adapters over IPC (e.g. `build.run`,
-    /// `terminalSandbox.run`), each authorizing at the broker on every
-    /// call. Requesting an API scope here throws `.invalidArgument`
-    /// instead of fabricating a view open.
-    ///
-    /// - Throws: `.unknownCapability` for an ID outside the fixed
-    ///   registry; `.invalidArgument` for an API (non-view) capability;
-    ///   `.serviceUnavailable` (or the opener's own typed error) from the
-    ///   real opener when the view cannot be presented.
     public static func openScope(id: String) async throws {
         guard let entry = byId[id] else {
             throw SDKError(

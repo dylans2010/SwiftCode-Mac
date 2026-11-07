@@ -4,12 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// The macOS IDE's Library and Attributes inspector for every UIKit kind
-/// (#84; `library.md`, `interface-builder.md`): each kind inserted through
-/// the editor, its inspector built as controls, one field edited and
-/// saved; the Library panel at the measured sizes, the icon/list and
-/// details toggles, the search rule. Screenshots go to
-/// `.build-ide/b3-shots/`.
 private let swiftcodeRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
 @MainActor
@@ -37,7 +31,6 @@ private let swiftcodeRoot = URL(fileURLWithPath: #filePath).deletingLastPathComp
         try rep.representation(using: .png, properties: [:])?.write(to: Self.shots.appendingPathComponent(name))
     }
 
-    /// Selects what a kind needs (a table view for a cell, …) and inserts it.
     func insert(_ kind: K, in c: InterfaceBuilderController) throws -> String {
         let root = try #require(IBEditorSession.firstView(in: c.document))
         func host(_ k: K) throws -> IBDocument.Object {
@@ -57,8 +50,6 @@ private let swiftcodeRoot = URL(fileURLWithPath: #filePath).deletingLastPathComp
         return try #require(c.insert(kind), "\(kind)")
     }
 
-    /// Edits the first editable row of the Attributes inspector through the
-    /// editor (as the controls do). False when there is none.
     func editOneField(_ c: InterfaceBuilderController) -> Bool {
         for row in c.inspectorSections(.attributes).flatMap(\.rows) {
             switch row {
@@ -130,7 +121,6 @@ private let swiftcodeRoot = URL(fileURLWithPath: #filePath).deletingLastPathComp
         #expect(lib.viewToggle.frame.origin == NSPoint(x: 616, y: 19) && lib.detailsToggle.frame.origin == NSPoint(x: 644, y: 19))
         #expect(lib.listScroll.frame == NSRect(x: 0, y: 94, width: 272, height: 410) && lib.table.rowHeight == 48)
         #expect(lib.detailName.frame == NSRect(x: 282, y: 103, width: 390, height: 21) && lib.detailScroll.frame.size == NSSize(width: 381, height: 339))
-        // Filtering selects the first match; the detail area follows.
         lib.filter = "UIButton"
         #expect(lib.objects.count == 6 && lib.selectedObject == .button)
         #expect(lib.detail.name == "Button" && lib.detail.subtitle.hasPrefix("UIButton: "))
@@ -143,11 +133,9 @@ private let swiftcodeRoot = URL(fileURLWithPath: #filePath).deletingLastPathComp
         lib.toggleDetails()
         #expect(!lib.showsDetails && lib.view.frame.width == 272 && lib.search.frame.width == 148 && lib.detailName.isHidden)
         try shot(lib.view, "library-mac-no-details.png")
-        // Inserting reports the chosen kind.
         var inserted: K?
         lib.onInsertObject = { inserted = $0 }
         #expect(lib.insert(row: 3) && inserted == .tintedButton)
-        // A xib lists 79 kinds; a source file shows Snippets and Symbols.
         lib.setObjects(for: try IBDocument(url: Self.samples.appendingPathComponent("Card.xib")))
         #expect(lib.objects.count == 79 && lib.objects.contains(.window) && !lib.objects.contains(.containerView))
         lib.setObjects(for: nil)
@@ -184,7 +172,6 @@ private let swiftcodeRoot = URL(fileURLWithPath: #filePath).deletingLastPathComp
         let rep = try #require(c.view.bitmapImageRepForCachingDisplay(in: c.view.bounds))
         c.view.cacheDisplay(in: c.view.bounds, to: rep)
         try rep.representation(using: .png, properties: [:])?.write(to: Self.shots.appendingPathComponent("outline-mac.png"))
-        // Outline rows carry SwiftCode's icons.
         #expect(IBIcon.of(object: sw, in: c.document) == IBIcon.of(element: "switch"))
     }
 }

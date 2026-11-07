@@ -2,14 +2,7 @@ import Foundation
 import SwiftUI
 import SwiftCodeEditorKit
 
-/// Cell characters on the editor's grid (`editor-area.md` E.7, checklist
-/// row 75): a box-drawing, block, shape or braille character takes one
-/// cell whatever its face's advance; a narrower glyph is centred in the
-/// cell and a wider one clipped to it. Other text draws as before.
 extension SourceEditorPainter {
-    /// The rectangle (and ink strength) a Block Elements character fills in
-    /// its cell `c` (the glyph's box): eighths, halves, the full block and
-    /// the three shades; nil for the others.
     static func blockShape(_ v: UInt32, in c: CGRect) -> (CGRect, Double)? {
         let r = c.insetBy(dx: -0.25, dy: 0)
         func lower(_ n: CGFloat) -> CGRect { CGRect(x: r.minX, y: r.maxY - r.height * n / 8, width: r.width, height: r.height * n / 8) }
@@ -28,7 +21,6 @@ extension SourceEditorPainter {
         }
     }
 
-    /// Box Drawing and Block Elements.
     static func joinsNeighbours(_ c: Character) -> Bool {
         guard let v = c.unicodeScalars.first?.value else { return false }
         return (0x2500...0x259F).contains(v)
@@ -64,8 +56,6 @@ extension SourceEditorPainter {
                 let glyph = ctx.resolve(text([EditorRun(String(ch), role: r.role)]).font(f))
                 let measured = glyph.measure(in: CGSize(width: CGFloat.infinity, height: .infinity))
                 let w = measured.width
-                // Block elements are drawn as the shapes they name, a hair
-                // over their cell, so a row of them is one solid band.
                 if let v = ch.unicodeScalars.first?.value,
                    let (rect, alpha) = Self.blockShape(v, in: CGRect(x: cx, y: y, width: cell, height: measured.height)) {
                     ctx.fill(Path(rect), with: .color(palette.color(r.role).color.opacity(alpha)))
@@ -73,9 +63,6 @@ extension SourceEditorPainter {
                     continue
                 }
                 let box = CGRect(x: cx, y: y - height, width: cell, height: height * 3)
-                // Block elements and box lines join their neighbours, so a
-                // narrower face's glyph is widened to the cell (no seams);
-                // other cell glyphs are centred.
                 let stretch = Self.joinsNeighbours(ch) && w > 0 && w < cell ? cell / w : 1
                 let left = stretch > 1 ? cx : cx + (cell - w) / 2
                 ctx.drawLayer { layer in

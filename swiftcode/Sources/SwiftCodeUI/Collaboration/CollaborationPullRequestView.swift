@@ -1,19 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/CollaborationPullRequestView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The collaboration pull-request view: active PR list, PR detail
-// (edit, status, source/target, linked commits), diff entries, review
-// comments / threads, and Approve / Request Changes / Merge actions.
-// The destination's `PullRequestCreateView` (`swiftcode-ide`) covers
-// PR creation only; the list / detail / review side was absent.
-// `CollaborationMainView` instantiates this view for its
-// `.pullRequests` tab.
-//
-// Adaptations for SwiftCode: Legacy's hardcoded dark paint / white text
-// become system-adaptive, and `.liquidGlass` (no destination
-// equivalent) becomes the system thin material, as in the sibling
-// Collaboration views.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

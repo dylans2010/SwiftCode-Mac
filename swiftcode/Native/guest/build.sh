@@ -1,9 +1,4 @@
 #!/bin/sh
-# Builds the native-mode guest probe (specs/simulator/native-mode.md
-# section 8) for the iOS simulator platform. macOS only (xcrun).
-#   usage: sh build.sh <dir with libsystem_kernel.dylib>
-# The dylib is SwiftCode's own (swiftcode/SimHostLibs/out, built on Linux); the
-# probe links nothing else. Output: ../out/nt_probe (git-ignored).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 libs=${1:?usage: build.sh <dir with SwiftCode libsystem_kernel.dylib>}

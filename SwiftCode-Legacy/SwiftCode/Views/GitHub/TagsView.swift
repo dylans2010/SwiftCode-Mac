@@ -16,7 +16,6 @@ struct TagsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack(spacing: 12) {
                 Label("Repository Tags", systemImage: "tag.fill")
                     .font(.headline)
@@ -144,7 +143,6 @@ struct TagsView: View {
                     self.tags = tagLines
                 }
             } catch {
-                // Ignore silent catch
             }
             isFetching = false
         }

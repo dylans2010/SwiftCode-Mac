@@ -10,7 +10,6 @@ struct DatabaseIndexesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Index Creation Form
             GroupBox("Add New Index") {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -44,7 +43,6 @@ struct DatabaseIndexesView: View {
 
             Divider()
 
-            // Indexes list
             List(indexes) { idx in
                 HStack {
                     Image(systemName: "bolt.fill")
@@ -76,7 +74,6 @@ struct DatabaseIndexesView: View {
                     }
                 }
 
-                // Query sqlite_master to fetch indexes
                 let sql = "SELECT name, tbl_name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%';"
                 let rows = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: sql)
                 self.indexes = rows.map { row in

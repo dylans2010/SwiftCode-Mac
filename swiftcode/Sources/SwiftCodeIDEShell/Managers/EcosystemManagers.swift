@@ -1,41 +1,3 @@
-// EcosystemManagers.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/EcosystemManagers.swift`
-// (SwiftCode-Mac migration). REDESIGNED, not verbatim: Legacy persisted through
-// SwiftData (`StorageManager` / `ModelContext`, `@Model WhiteboardRecord` /
-// `CodeSnippetRecord` / `ProjectSnapshotRecord`, `DocumentManager`, `Document`,
-// `ModuleKind`, `LLMService`) — none of those types exists in production, and
-// production deliberately replaced that whole layer with the JSON-backed
-// `PersonalDocStore` (`PersonalDocWhiteboard` / `PersonalDocSnippet` /
-// `PersonalDocSnapshot` / `PersonalDocDocument`, same fields, same behaviour;
-// see `PersonalDocumentationModel.swift`). These managers are therefore thin
-// adapters over one `PersonalDocStore` instead of a second persistence system.
-//
-// Rename mapping (also documented in `PersonalDocCommandPalette.swift`):
-//   WhiteboardRecord -> PersonalDocWhiteboard, CodeSnippetRecord -> PersonalDocSnippet,
-//   ProjectSnapshotRecord -> PersonalDocSnapshot, ModuleKind -> PersonalDocModuleKind,
-//   Document -> PersonalDocDocument, StorageManager/DocumentManager -> PersonalDocStore,
-//   LLMService -> PersonalDocTextProvider (via the store; see below).
-//
-// Signature changes vs Legacy (no callers in production, verified by grep):
-//   - Managers take `init(store: PersonalDocStore)`; the store owns the project.
-//   - `SnapshotManager.createSnapshot(title:description:)` snapshots the store's
-//     own collections (Legacy took the collections as parameters).
-//   - `SnapshotManager.restoreSnapshot(_:)` takes only the snapshot (Legacy took
-//     three managers); the store restores its own collections.
-//   - `IntelligenceManager` methods no longer take a documents array (the store
-//     owns the documents); `runIntelligenceAudit()` delegates to
-//     `store.analyze(kind: .knowledgeGaps)`.
-//   - `EcosystemTimelineManager.fetchTimeline()` returns the store's real timeline
-//     mapped to `TimelineItem`. Legacy's three hardcoded rows (a fake git commit,
-//     a fake build success, a fake AI report) are NOT carried over — the store
-//     timeline is real data; see `PersonalDocStore.fetchTimeline()`.
-//   - `IntelligenceManager` text generation goes through the store's
-//     `textProvider` when one is wired; with none set it falls back to
-//     `PersonalDocLocalAnalyzer` / a locally assembled document, never to a
-//     claim that an LLM wrote it.
-//
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import Observation
 
@@ -106,8 +68,6 @@ public final class SnippetManager {
         if let provider = store.textProvider {
             return try await provider.generate(prompt: prompt)
         }
-        // No text provider wired: honest local description computed from the
-        // snippet itself, never presented as LLM output.
         let lines = record.code.components(separatedBy: .newlines)
         let nonEmpty = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         let preview = nonEmpty.prefix(5).joined(separator: "\n")
@@ -159,7 +119,7 @@ public struct TimelineItem: Identifiable, Sendable {
     public let id: UUID
     public let title: String
     public let detail: String
-    public let category: String // "document", "git", "build", "whiteboard", "snippet", "ai"
+    public let category: String
     public let date: Date
     public let author: String
     public let tags: [String]
@@ -175,10 +135,6 @@ public final class EcosystemTimelineManager {
     }
 
     public func fetchTimeline() throws -> [TimelineItem] {
-        // Real timeline from the store (documents, whiteboards, snippets, AI
-        // insights). Legacy appended three hardcoded rows here (a fake git
-        // commit, a fake build success, a fake AI report); those are gone —
-        // the store timeline is real data.
         store.fetchTimeline().map { item in
             TimelineItem(
                 id: item.id,
@@ -223,8 +179,6 @@ public final class IntelligenceManager {
             """
             return try await provider.generate(prompt: prompt)
         }
-        // No text provider wired: extractive local summary of the same
-        // documents, labelled as local.
         return "No text provider is configured, so this is a local summary, not an LLM answer.\n" +
             PersonalDocLocalAnalyzer.summarize(documents: documents)
     }
@@ -246,8 +200,6 @@ public final class IntelligenceManager {
             """
             return try await provider.generate(prompt: prompt)
         }
-        // No text provider wired: return the source itself inside an honestly
-        // labelled local document instead of claiming an LLM wrote it.
         return """
         # Documentation (\(sourceKind))
         _Assembled locally — no text provider is configured, so no LLM-generated prose is included._

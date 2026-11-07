@@ -1,9 +1,3 @@
-// SimulatorDiagnosticsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorDiagnosticsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: simulator diagnostics display UI; copy-all-diagnostics to clipboard; copy-command to clipboard; diagnostic outcome labels
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
@@ -19,10 +13,8 @@ public struct SimulatorDiagnosticsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Card 1: Environment Probe Info
                     environmentInfoCard
 
-                    // Card 2: Execution History Log (Bounded Ring Buffer)
                     executionHistoryCard
                 }
                 .padding(24)

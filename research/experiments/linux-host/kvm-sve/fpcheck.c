@@ -1,33 +1,3 @@
-// fpcheck: does the host kernel preserve a KVM vCPU thread's user-mode
-// register state? Each thread creates a tiny arm64 guest that loops on an
-// MMIO store (one KVM exit per store) and issues KVM_RUN with an inline
-// `svc`, so the compiler cannot keep anything live across the call. Run with
-// more threads than CPUs so that threads are preempted. This is the
-// reproducer for docs/postmortem-kvm-sve.md (Ycode's own code).
-//
-// Build: cc -O2 -march=armv8.2-a+sve -o fpcheck fpcheck.c -lpthread
-//        (add hostcopy.c from ycode/Sources/CKVM and -ldl to test that
-//        memcpy/memmove; build with clang, which honours no_builtin)
-// Run:   ./fpcheck <threads> <seconds> <kvm|nokvm> <kick|nokick> [mode] [args]
-//   kvm/nokvm    KVM_RUN, or sched_yield as the control system call
-//   kick         a helper thread sends SIGUSR2 to random workers every 50 us
-//   modes (default: v0..v31 across KVM_RUN):
-//     spin       v0..v31 across a busy loop (preemption only)
-//     pred       p0..p15 across KVM_RUN (even threads) or a spin (odd)
-//     gpr        x9..x28 across a spin
-//     kvmpred    KVM_RUN, then set p0..p15, spin, store, compare
-//                (the bug: set GUEST_NOFP=1)
-//     allregs    x1..x30, SP and NZCV across a raw KVM_RUN
-//     allspin    the same across a page fault and a spin
-//     longguest  guest runs a long FP loop; then v and p across a host spin
-//                (args: guest loop count / 65536, host spin iterations)
-//     memcpy     after KVM_RUN, 400 glibc memcpy/memmove calls of 17..96
-//                bytes, each checked (the bug: GUEST_NOFP=1)
-//     bare       KVM_RUN only (cost measurements; pin with taskset)
-//   environment:
-//     GUEST_NOFP=1  the guest never touches FP/SIMD (triggers the kernel bug)
-//     GUEST_FPCR=1  the guest reads FPCR once per run (the shim mitigation)
-// The summary line counts runs with any changed register (or lost copy).
 #include <errno.h>
 #include <signal.h>
 #include <stddef.h>
@@ -60,7 +30,6 @@ static void setReg(int fd, uint64_t id, uint64_t v) {
     if (ioctl(fd, KVM_SET_ONE_REG, &r) < 0) { perror("KVM_SET_ONE_REG"); exit(1); }
 }
 
-// KVM_RUN through a raw svc: x8 = __NR_ioctl, x0..x2 = fd, request, 0.
 static long rawRun(int fd) {
     register long x0 asm("x0") = fd;
     register long x1 asm("x1") = KVM_RUN;
@@ -80,24 +49,22 @@ static void *worker(void *arg) {
         if (vm < 0) { perror("KVM_CREATE_VM"); exit(1); }
         size_t memSize = 0x10000;
         uint32_t *mem = mmap(NULL, memSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-        // loop: fill d0..d31 and v0..v31.d[1] from x3 (guest FP use), then
-        // str x1, [x2] (MMIO exit), x3 += 1; b loop
         int k = 0;
-        if (longGuestMode) mem[k++] = guestLoopInsn;                // movz x4, #N, lsl #16
+        if (longGuestMode) mem[k++] = guestLoopInsn;
         if (!guestNoFP) {
-            for (int i = 0; i < 32; i++) mem[k++] = 0x9e670060 + i;   // fmov d<i>, x3
-            for (int i = 0; i < 32; i++) mem[k++] = 0x9eaf0060 + i;   // fmov v<i>.d[1], x3
+            for (int i = 0; i < 32; i++) mem[k++] = 0x9e670060 + i;
+            for (int i = 0; i < 32; i++) mem[k++] = 0x9eaf0060 + i;
         }
         if (longGuestMode) {
-            mem[k++] = 0x9e670061;                                // 1: fmov d1, x3
-            mem[k++] = 0x1e612820;                                // fadd d0, d1, d1
-            mem[k++] = 0xf1000484;                                // subs x4, x4, #1
-            mem[k++] = 0x54ffffa1;                                // b.ne 1b
+            mem[k++] = 0x9e670061;
+            mem[k++] = 0x1e612820;
+            mem[k++] = 0xf1000484;
+            mem[k++] = 0x54ffffa1;
         }
-        if (getenv("GUEST_FPCR")) mem[k++] = 0xd53b4405;          // mrs x5, fpcr (FP access, no FP register written)
-        mem[k++] = 0xf9000041;                                    // str x1, [x2]
-        mem[k++] = 0x91000463;                                    // add x3, x3, #1
-        mem[k] = 0x14000000 | ((uint32_t)(-k) & 0x03ffffff);      // b loop
+        if (getenv("GUEST_FPCR")) mem[k++] = 0xd53b4405;
+        mem[k++] = 0xf9000041;
+        mem[k++] = 0x91000463;
+        mem[k] = 0x14000000 | ((uint32_t)(-k) & 0x03ffffff);
         k++;
         struct kvm_userspace_memory_region region = { .slot = 0, .guest_phys_addr = 0x80000000, .memory_size = memSize, .userspace_addr = (uint64_t)mem };
         if (ioctl(vm, KVM_SET_USER_MEMORY_REGION, &region) < 0) { perror("KVM_SET_USER_MEMORY_REGION"); exit(1); }
@@ -108,10 +75,9 @@ static void *worker(void *arg) {
         int runSize = ioctl(kvm, KVM_GET_VCPU_MMAP_SIZE, 0);
         run = mmap(NULL, runSize, PROT_READ | PROT_WRITE, MAP_SHARED, vcpu, 0);
         setReg(vcpu, CORE(regs.pc), 0x80000000);
-        setReg(vcpu, CORE(regs.regs[2]), 0x10000000); // unmapped: MMIO exit
-        setReg(vcpu, CORE(regs.pstate), 0x3c5);         // EL1h, interrupts masked
-        setReg(vcpu, CORE(regs.regs[3]), 0x6775657374000000ull + (uint64_t)id); // "guest" pattern
-        // CPACR_EL1.FPEN = 0b11: the guest may use FP/SIMD.
+        setReg(vcpu, CORE(regs.regs[2]), 0x10000000);
+        setReg(vcpu, CORE(regs.pstate), 0x3c5);
+        setReg(vcpu, CORE(regs.regs[3]), 0x6775657374000000ull + (uint64_t)id);
         setReg(vcpu, KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM64_SYSREG | (3ull << 14) | (0ull << 11) | (1ull << 7) | (0ull << 3) | 2ull, 0x300000);
     }
     unsigned long runs = 0, bad = 0;
@@ -132,7 +98,6 @@ static void *worker(void *arg) {
                 register long x0 asm("x0") = vcpu; register long x1 asm("x1") = KVM_RUN; register long x2 asm("x2") = 0; register long x8 asm("x8") = __NR_ioctl;
                 asm volatile("svc #0" : "+r"(x0) : "r"(x1), "r"(x2), "r"(x8) : "memory");
             }
-            // glibc memcpy/memmove of 17..96 bytes, many times, each checked.
             unsigned char src[128], dst[128];
             for (int rep = 0; rep < 400; rep++) {
                 size_t n = 17 + (pattern[rep & 63] % 80);
@@ -197,7 +162,6 @@ static void *worker(void *arg) {
             continue;
         }
         if (allSpinMode) {
-            // x1..x30 (x0 = fd), NZCV and SP across a raw KVM_RUN.
             uint64_t rb[80];
             memset(rb, 0, sizeof rb);
             for (int i = 0; i < 31; i++) rb[i] = pattern[i];
@@ -246,7 +210,6 @@ static void *worker(void *arg) {
             continue;
         }
         if (allRegsMode) {
-            // x1..x30 (x0 = fd), NZCV and SP across a raw KVM_RUN.
             uint64_t rb[80];
             memset(rb, 0, sizeof rb);
             for (int i = 0; i < 31; i++) rb[i] = pattern[i];
@@ -321,7 +284,6 @@ static void *worker(void *arg) {
             continue;
         }
         if (gprMode && (id & 1)) {
-            // x10..x28 hold a pattern across a busy loop (preemption only).
             uint64_t gotg[19];
             asm volatile(
                 "ldp x10, x11, [%[p], #0]\n ldp x12, x13, [%[p], #16]\n ldp x14, x15, [%[p], #32]\n ldp x16, x17, [%[p], #48]\n"
@@ -346,8 +308,6 @@ static void *worker(void *arg) {
             continue;
         }
         if (predMode) {
-            // p0..p15 = whilelo(0, n_i) on bytes; spin (odd threads) or KVM_RUN
-            // (even threads); store them back and compare.
             uint64_t n[16];
             uint16_t got[16], want[16];
             for (int i = 0; i < 16; i++) { n[i] = pattern[i] % 17; want[i] = (uint16_t)((1u << n[i]) - 1); }
@@ -370,8 +330,6 @@ static void *worker(void *arg) {
                   "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15");
             (void)rr;
             runs++;
-            // Across a syscall the ABI lets the kernel zero P registers; check spin threads strictly,
-            // and syscall threads only for values other than the original or zero.
             for (int i = 0; i < 16; i++) {
                 int okv = got[i] == want[i] || (!(id & 1) && got[i] == 0);
                 if (!okv) {
@@ -415,7 +373,7 @@ static void *worker(void *arg) {
             "ldp q24, q25, [%[p], #384]\n ldp q26, q27, [%[p], #416]\n ldp q28, q29, [%[p], #448]\n ldp q30, q31, [%[p], #480]\n"
             "mov x0, %[fd]\n mov x1, %[req]\n mov x2, #0\n mov x8, %[nr]\n"
             "cbz %[kvm], 1f\n svc #0\n b 2f\n"
-            "1: mov x0, #0\n mov x8, %[yield]\n svc #0\n"   // control: sched_yield
+            "1: mov x0, #0\n mov x8, %[yield]\n svc #0\n"
             "2: mov %[r], x0\n"
             "stp q0, q1, [%[a], #0]\n stp q2, q3, [%[a], #32]\n stp q4, q5, [%[a], #64]\n stp q6, q7, [%[a], #96]\n"
             "stp q8, q9, [%[a], #128]\n stp q10, q11, [%[a], #160]\n stp q12, q13, [%[a], #192]\n stp q14, q15, [%[a], #224]\n"
@@ -477,7 +435,7 @@ int main(int argc, char **argv) {
     allRegsMode = argc > 5 && strcmp(argv[5], "allregs") == 0;
     allSpinMode = argc > 5 && strcmp(argv[5], "allspin") == 0;
     longGuestMode = argc > 5 && strcmp(argv[5], "longguest") == 0;
-    if (argc > 6) guestLoopInsn = 0xd2a00004u | ((uint32_t)atoi(argv[6]) << 5); // movz x4, #arg, lsl #16
+    if (argc > 6) guestLoopInsn = 0xd2a00004u | ((uint32_t)atoi(argv[6]) << 5);
     if (argc > 7) hostSpin = atol(argv[7]);
     struct sigaction sa;
     memset(&sa, 0, sizeof sa);

@@ -1,62 +1,23 @@
 import Foundation
 
-// Lazy containers (round R9; 06 §3, 10-plan.md T-LIST).
-//
-// Observed (06 §3): a `List` of 1 000 rows creates the 13 rows that are
-// visible (rows 0–12, pitch 52); a `LazyVStack` in a `ScrollView` creates 15
-// rows of 48 (the visible part runs 34 points into the bottom safe area) and
-// reports the exact content size for equal rows (1 000 × 48 − 8 = 47 992);
-// `scrollTo` creates the rows at the new position and removes the old ones;
-// a plain `VStack` creates everything.
-//
-// Design (SwiftCode's):
-// - Content is *enumerated*, not built: tuples, groups, conditionals and
-//   `AnyView` are walked; a `ForEach` contributes a collection whose
-//   element views are made only for the materialised indices
-//   (`LazyItemEnumerating`). Every item has a stable key (its structural
-//   path plus, for collection elements, the element ID) and keeps its view
-//   node, and state, while it stays materialised.
-// - Items are grouped in *units* along the axis (one item per unit for
-//   stacks, a row of cells for grids). Each unit's extent is measured when it
-//   is laid out and remembered by key; unmeasured units use the mean of the
-//   measured ones, so equal rows give the exact content size at once.
-// - After every layout pass the container compares the visible region (the
-//   enclosing scroll view's viewport, `ScrollViewportProviding`, in its own
-//   coordinates) with the units it materialised; when they differ it asks
-//   for another update, which creates the missing views and removes the
-//   others (their `onAppear`/`onDisappear` run then). A unit is visible when
-//   it overlaps the region by more than 0.01 point; there is no overscan, so
-//   the counts are the reference's.
-// - Outside a scroll view every item is materialised (as the reference's
-//   lazy stacks then behave like stacks).
-
-// MARK: - Items
-
-/// One materialisable item of a lazy container's content.
 package struct LazyItem {
     package enum Role: Equatable { case row, header, footer }
 
-    /// The item's identity inside its container.
     package let key: AnyHashable
-    /// The element ID of a `ForEach` item (implicit tag, `scrollTo` target).
     package let id: AnyHashable?
     package var role: Role = .row
-    /// The section the item belongs to (nil: none) and its place in it.
     package var section: AnyHashable?
     package var sectionIndex = 0
     package var isFirstInSection = false
     package var isLastInSection = false
-    /// Outline rows (`OutlineGroup`, `List(children:)`, `DisclosureGroup`).
     package var depth = 0
     package var outline: Outline?
-    /// Makes the item's view (evaluated only when materialised).
     package let make: @MainActor () -> any View
 
     package struct Outline {
         package var hasChildren: Bool
         package var isExpanded: Bool
         package var toggle: @MainActor () -> Void
-        /// The key of the parent outline row, if any.
         package var parentKey: AnyHashable?
 
         package init(hasChildren: Bool, isExpanded: Bool, toggle: @escaping @MainActor () -> Void, parentKey: AnyHashable?) {
@@ -75,11 +36,9 @@ package struct LazyItem {
     }
 }
 
-/// The enumerated items of a container's content.
 package struct LazyItems {
     package enum Segment {
         case single(LazyItem)
-        /// `count` items made on demand.
         case collection(count: Int, item: @MainActor (Int) -> LazyItem)
     }
 
@@ -103,7 +62,6 @@ package struct LazyItems {
     }
 
     @MainActor package func item(at i: Int) -> LazyItem {
-        // The segment whose start is the last one ≤ i.
         var lo = 0, hi = starts.count - 1
         while lo < hi {
             let mid = (lo + hi + 1) / 2
@@ -115,8 +73,6 @@ package struct LazyItems {
         }
     }
 
-    /// Marks items `from..<to` as belonging to section `key` (number
-    /// `index`); with `rows`, also the first and last row of the group.
     @MainActor package mutating func markSection(_ key: AnyHashable, index: Int, from first: Int, to end: Int, rows: Bool) {
         guard first < end else { return }
         let last = end - 1
@@ -152,24 +108,14 @@ package struct LazyItems {
     }
 }
 
-/// Shared state of one enumeration: outline expansion.
 package final class LazyEnumerationContext: @unchecked Sendable {
-    /// Keys of expanded outline rows and disclosure groups.
     package var expanded: Set<AnyHashable> = []
-    /// Keys whose expansion was decided by the user (else the default).
     package var decided: Set<AnyHashable> = []
-    /// Called when an outline row is toggled.
     package var onToggle: (@MainActor () -> Void)?
     package var depth = 0
     package var parentKey: AnyHashable?
-    /// Sections enumerated so far (their index).
     package var sectionCount = 0
-    /// (R13) The ID of the `ForEach` element being enumerated eagerly: the
-    /// first row it produces (a leaf, or a disclosure group's label) takes it
-    /// as its selection value.
     package var elementID: AnyHashable?
-    /// (R13) Whether an outline row with this ID starts expanded
-    /// (`outlineInitialExpansion`; nil: collapsed).
     package var initialExpansion: (@MainActor (AnyHashable) -> Bool)?
 
     package init() {}
@@ -178,13 +124,11 @@ package final class LazyEnumerationContext: @unchecked Sendable {
         decided.contains(key) ? expanded.contains(key) : d
     }
 
-    /// The default expansion of an outline row with `id`.
     @MainActor package func initiallyExpanded(_ id: AnyHashable?) -> Bool {
         guard let id, let f = initialExpansion else { return false }
         return f(id)
     }
 
-    /// The pending element ID, once.
     package func takeElementID() -> AnyHashable? {
         defer { elementID = nil }
         return elementID
@@ -197,13 +141,11 @@ package final class LazyEnumerationContext: @unchecked Sendable {
     }
 }
 
-/// Views that contribute items to a lazy container without being built.
 @MainActor
 package protocol LazyItemEnumerating {
     func _lazyItems(prefix: [AnyHashable], into items: inout LazyItems, context: LazyEnumerationContext)
 }
 
-/// Appends the items of `view` (a single item unless it enumerates).
 @MainActor
 package func enumerateLazyItems(_ view: any View, prefix: [AnyHashable], into items: inout LazyItems,
                                 context: LazyEnumerationContext) {
@@ -259,8 +201,6 @@ extension ForEach: LazyItemEnumerating where Content: View {
     package func _lazyItems(prefix: [AnyHashable], into items: inout LazyItems, context: LazyEnumerationContext) {
         let data = self.data, content = self.content, idOf = self.idOf
         let depth = context.depth, parent = context.parentKey
-        // Nested enumerations (an outline group or section inside a
-        // `ForEach` row) are flattened eagerly; plain rows stay lazy.
         if let first = data.first, content(first) is any LazyItemEnumerating {
             for element in data {
                 let id = AnyHashable(idOf(element))
@@ -281,24 +221,14 @@ extension ForEach: LazyItemEnumerating where Content: View {
     }
 }
 
-// MARK: - Scroll viewports
-
-/// The state of a scroll view as lazy containers inside it see it.
 @MainActor
 package protocol ScrollViewportProviding: AnyObject {
-    /// The part of the window the scroll view shows (its frame grown by the
-    /// content insets it scrolls under), from the last layout pass.
     var visibleWindowRect: CGRect? { get }
-    /// The scroll view's axes.
     var scrollAxes: Axis.Set { get }
-    /// Scrolls so that `rect` (window coordinates of the last layout) is
-    /// visible; with an anchor, so that the anchor point of `rect` meets the
-    /// same point of the visible region.
     func reveal(_ rect: CGRect, anchor: UnitPoint?, transaction: Transaction)
 }
 
 extension ViewNode {
-    /// The nearest scroll view above this node.
     package var enclosingScrollViewport: ScrollViewportProviding? {
         var n = parent
         while let m = n {
@@ -309,30 +239,17 @@ extension ViewNode {
     }
 }
 
-// MARK: - Container state
-
-/// The state of one lazy container: its items, the units it materialised
-/// and the extents it measured. Layout reads it off the main actor's
-/// isolation (layout runs on the main thread); views are made on it.
 package final class LazyContainerState: @unchecked Sendable {
     package var items = LazyItems()
-    /// Item keys by index (for extents and lookups).
     package private(set) var keys: [AnyHashable] = []
-    /// Items per unit (1 for stacks; the column count of a grid).
     package var unitSize = 1
-    /// Measured extents along the axis, by unit key.
     package var extents: [AnyHashable: CGFloat] = [:]
-    /// The materialised units.
     package private(set) var materialised: Range<Int> = 0..<0
-    /// The units the last layout found visible (nil: not known yet).
     package private(set) var visible: Range<Int>?
-    /// True when a scroll view encloses the container.
     package private(set) var isLazy = false
-    /// Unit starts along the axis from the last placement (units + 1 values).
     package var starts: [CGFloat] = []
     package var axis: Axis = .vertical
     package var spacing: CGFloat = 0
-    /// The container's window frame from the last layout.
     package private(set) var windowFrame: CGRect?
     package let context = LazyEnumerationContext()
     package weak var node: ViewNode?
@@ -345,16 +262,13 @@ package final class LazyContainerState: @unchecked Sendable {
         unitSize <= 1 ? (u < keys.count ? keys[u] : AnyHashable(u)) : AnyHashable(u)
     }
 
-    /// Item indices of a unit range.
     package func itemRange(_ units: Range<Int>) -> Range<Int> {
         let n = max(unitSize, 1)
         return min(units.lowerBound * n, items.count)..<min(units.upperBound * n, items.count)
     }
 
-    /// The unit holding item `i`.
     package func unit(ofItem i: Int) -> Int { i / max(unitSize, 1) }
 
-    /// Re-enumerates `content` and decides what to materialise.
     @MainActor package func update(content: any View, node: ViewNode) {
         self.node = node
         context.onToggle = { [weak node] in node?.invalidate(transaction: Transaction()) }
@@ -374,13 +288,10 @@ package final class LazyContainerState: @unchecked Sendable {
         } else if let v = visible {
             materialised = min(v.lowerBound, units)..<min(v.upperBound, units)
         } else {
-            // Before the first layout: the first unit, measured to estimate
-            // the others.
             materialised = 0..<min(units, 1)
         }
     }
 
-    /// The materialised items as keyed views (wrapped by `wrap`).
     @MainActor package func materialisedViews(wrap: ((LazyItem, Int) -> any View)?) -> [(AnyHashable, any View)] {
         itemRange(materialised).map { i in
             let it = items.item(at: i)
@@ -388,7 +299,6 @@ package final class LazyContainerState: @unchecked Sendable {
         }
     }
 
-    /// The mean measured extent (nil before any measurement).
     package func estimate(local: [Int: CGFloat]) -> CGFloat? {
         var sum: CGFloat = 0, n = 0
         for v in local.values { sum += v; n += 1 }
@@ -398,8 +308,6 @@ package final class LazyContainerState: @unchecked Sendable {
         return n > 0 ? sum / CGFloat(n) : nil
     }
 
-    /// Unit starts for the current items, using `local` extents (units laid
-    /// out now), remembered extents and the estimate for the rest.
     package func computeStarts(local: [Int: CGFloat]) -> [CGFloat] {
         let units = unitCount
         let est = estimate(local: local) ?? 0
@@ -415,13 +323,11 @@ package final class LazyContainerState: @unchecked Sendable {
         return out
     }
 
-    /// The along-axis extent of unit `u` from `starts`.
     package func extent(_ u: Int, in starts: [CGFloat]) -> CGFloat {
         let e = starts[u + 1] - starts[u]
         return u < starts.count - 2 ? e - spacing : e
     }
 
-    /// The frame of item `i` in the container's coordinates (cross extent 0).
     package func frame(ofItem i: Int) -> CGRect? {
         let u = unit(ofItem: i)
         guard u + 1 < starts.count else { return nil }
@@ -450,7 +356,6 @@ extension LazyContainerState: GeometryObserving {
         }
         let eps: CGFloat = 0.01
         var first = unitCount, last = -1
-        // Units are in order: binary search for the first unit ending after lo.
         var a = 0, b = unitCount
         while a < b {
             let m = (a + b) / 2
@@ -470,16 +375,9 @@ extension LazyContainerState: GeometryObserving {
     }
 }
 
-// MARK: - Stack layout
-
-/// The layout of a lazy stack's materialised units: each at its start along
-/// the axis (measured, remembered or estimated extents of the units before
-/// it), aligned across it; the stack answers the estimated content length
-/// and the widest materialised unit.
 package struct LazyStackBehavior: NodeBehavior {
     package let axis: Axis
     package let alignment: Alignment
-    /// Unit index of each child.
     package let units: [Int]
     package let state: LazyContainerState
 
@@ -543,14 +441,9 @@ package struct LazyStackBehavior: NodeBehavior {
     }
 }
 
-// MARK: - The container view
-
-/// A lazily materialising container (package; `LazyVStack`, `LazyHStack`,
-/// lazy grids and `List` are built on it).
 package struct LazyContainer: View {
     package enum Arrangement {
         case stack(Alignment)
-        /// Units of `columns(cross)` items laid out by `layout` (a grid).
         case grid(columns: @MainActor (CGFloat) -> Int, layout: @MainActor ([LayoutNode]) -> LayoutNode)
     }
 
@@ -558,9 +451,7 @@ package struct LazyContainer: View {
     package let axis: Axis
     package let spacing: CGFloat
     package let arrangement: Arrangement
-    /// Wraps each materialised item's view (list rows).
     package var wrap: (@MainActor (LazyItem, Int) -> any View)?
-    /// Receives the state (list controllers).
     package var attach: (@MainActor (LazyContainerState) -> Void)?
 
     package init(content: any View, axis: Axis, spacing: CGFloat, arrangement: Arrangement,
@@ -629,9 +520,6 @@ extension LazyContainer: PrimitiveView {
     }
 }
 
-/// A lazy grid: the materialised units (rows of a vertical grid) are laid
-/// out together by the grid's own layout and placed at the first unit's
-/// start; the other units use the measured mean extent.
 package struct LazyGridBehavior: NodeBehavior {
     package let axis: Axis
     package let columns: @MainActor (CGFloat) -> Int
@@ -682,9 +570,6 @@ package struct LazyGridBehavior: NodeBehavior {
     }
 }
 
-// MARK: - LazyVStack / LazyHStack
-
-/// Views one above the other, created as they scroll into view (06 §3).
 public struct LazyVStack<Content: View>: View {
     package let alignment: HorizontalAlignment
     package let spacing: CGFloat?
@@ -703,7 +588,6 @@ public struct LazyVStack<Content: View>: View {
     }
 }
 
-/// Views side by side, created as they scroll into view.
 public struct LazyHStack<Content: View>: View {
     package let alignment: VerticalAlignment
     package let spacing: CGFloat?
@@ -723,21 +607,15 @@ public struct LazyHStack<Content: View>: View {
 }
 
 package enum LazyMetrics {
-    /// Spacing between lazy stack items when none is given (the stacks'
-    /// standard spacing between equal views; 06 §3 rows 40 + 8).
     package static let defaultSpacing: CGFloat = 8
 }
 
-/// Views that stay pinned while a lazy container scrolls (accepted; pinning
-/// is not implemented).
 public struct PinnedScrollableViews: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
     public static let sectionHeaders = PinnedScrollableViews(rawValue: 1 << 0)
     public static let sectionFooters = PinnedScrollableViews(rawValue: 1 << 1)
 }
-
-// MARK: - Initial outline expansion (R13, SwiftCode's own API)
 
 private enum OutlineInitialExpansionKey: EnvironmentKey {
     static let defaultValue: (@MainActor (AnyHashable) -> Bool)? = nil
@@ -751,16 +629,10 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// OpenViews' own API (SwiftUI has none): which rows of the outlines in
-    /// this view's lists (`OutlineGroup`, `List(children:)`, and
-    /// `DisclosureGroup`s without an `isExpanded` binding inside a
-    /// `ForEach`) start expanded, by element ID. A row the user expanded or
-    /// collapsed keeps that state.
     public func outlineInitialExpansion(_ isExpanded: @escaping @MainActor (AnyHashable) -> Bool) -> some View {
         environment(\._outlineInitialExpansion, isExpanded)
     }
 
-    /// The rows whose IDs are in `ids` start expanded.
     public func outlineInitialExpansion<ID: Hashable>(_ ids: Set<ID>) -> some View {
         outlineInitialExpansion { id in (id.base as? ID).map(ids.contains) ?? false }
     }

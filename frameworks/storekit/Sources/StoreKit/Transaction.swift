@@ -1,10 +1,8 @@
-// `Transaction` (formats.md §2.2; testing-session.md §10).
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 import StoreKitSigning
 
-/// A signed in-app transaction, decoded from its JWS payload.
 public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValue {
     public typealias ID = UInt64
 
@@ -22,7 +20,6 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
     private func int(_ k: String) -> Int? { payload[k]?.numberValue?.intValue }
     private func date(_ k: String) -> Date? { int(k).map { Date(storeMilliseconds: StoreMilliseconds($0)) } }
 
-    /// The payload JSON.
     public var jsonRepresentation: Data { (try? JWS.decode(jws).payloadData) ?? Data() }
 
     public var id: UInt64 { string("transactionId").flatMap(UInt64.init) ?? 0 }
@@ -40,7 +37,6 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
     public var offerID: String? { string("offerIdentifier") }
     public var offerPaymentModeStringRepresentation: String? { string("offerDiscountType") }
     public var offerPeriodStringRepresentation: String? { string("offerPeriod") }
-    /// The applied offer.
     public var offer: Offer? {
         guard let type = offerType else { return nil }
         return Offer(id: offerID, type: type, paymentMode: offerPaymentModeStringRepresentation.map(Offer.PaymentMode.init(rawValue:)),
@@ -61,7 +57,6 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
         Storefront(countryCode: string("storefront") ?? "", id: string("storefrontId") ?? "", currencyCode: string("currency"))
     }
     public var storefrontCountryCode: String { string("storefront") ?? "" }
-    /// The price paid (`price` / 1000).
     public var price: Decimal? { int("price").map { Decimal($0) / 1000 } }
     public var currencyCode: String? { string("currency") }
     public var appTransactionID: String { string("appTransactionId") ?? "" }
@@ -70,10 +65,8 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
     public var ownershipType: OwnershipType { OwnershipType(rawValue: string("inAppOwnershipType") ?? "") }
     public var signedDate: Date { date("signedDate") ?? .distantPast }
 
-    /// `Transaction.finish()`: tells the store the content was delivered.
     public func finish() async { SwiftCodeStoreKit.shared.store.finish(transactionID: id) }
 
-    /// The status of the subscription this transaction belongs to.
     public var subscriptionStatus: Product.SubscriptionInfo.Status? {
         get async {
             let rt = SwiftCodeStoreKit.shared
@@ -85,23 +78,16 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
     public static func == (a: Transaction, b: Transaction) -> Bool { a.jws == b.jws }
     public func hash(into h: inout Hasher) { h.combine(jws) }
 
-    // MARK: Lists (testing-session.md §10 item 4)
-
-    /// Every transaction, newest first; finished consumables left out.
     public static var all: Transactions { list(SwiftCodeStoreKit.shared.store.transactionHistory()) }
 
-    /// One entry per non-consumable and active subscription.
     public static var currentEntitlements: Transactions { list(SwiftCodeStoreKit.shared.store.currentEntitlements()) }
 
-    /// Every unfinished transaction, renewals included.
     public static var unfinished: Transactions { list(SwiftCodeStoreKit.shared.store.unfinishedTransactions()) }
 
-    /// The transactions of one product.
     public static func all(for productID: String) -> Transactions {
         list(SwiftCodeStoreKit.shared.store.transactionHistory().filter { $0.productID == productID })
     }
 
-    /// The entitlements of one product.
     public static func currentEntitlements(for productID: String) -> Transactions {
         list(SwiftCodeStoreKit.shared.store.currentEntitlements().filter { $0.productID == productID })
     }
@@ -111,17 +97,13 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
         return rt.store.currentEntitlements().first { $0.productID == productID }.flatMap(rt.verificationResult)
     }
 
-    /// The newest transaction of a product.
     public static func latest(for productID: String) async -> VerificationResult<Transaction>? {
         let rt = SwiftCodeStoreKit.shared
         return rt.store.latestTransaction(for: productID).flatMap(rt.verificationResult)
     }
 
-    /// Transactions created outside a purchase call: renewals, approvals,
-    /// refunds, off-device purchases; it starts with the unfinished transactions.
     public static var updates: Transactions { Transactions(stream: SwiftCodeStoreKit.shared.updatesStream()) }
 
-    /// Signs and verifies one store record (for StoreKitTest).
     @_spi(SwiftCode) public static func swiftcodeVerified(_ record: TransactionRecord) async -> VerificationResult<Transaction>? {
         SwiftCodeStoreKit.shared.verificationResult(record)
     }
@@ -134,7 +116,6 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
         })
     }
 
-    /// An asynchronous sequence of verified transactions.
     public struct Transactions: AsyncSequence, Sendable {
         public typealias Element = VerificationResult<Transaction>
         let stream: AsyncStream<Element>
@@ -146,8 +127,6 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
             public mutating func next() async -> Element? { await base.next() }
         }
     }
-
-    // MARK: Value types
 
     public struct OfferType: RawRepresentable, Hashable, Sendable {
         public let rawValue: Int
@@ -203,12 +182,10 @@ public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValu
         public static let familyShared = OwnershipType(rawValue: "FAMILY_SHARED")
     }
 
-    /// `Transaction.RefundRequestError` (errors.md §2).
     public enum RefundRequestError: Error, Hashable, Sendable {
         case duplicateRequest, failed, ineligible
     }
 
-    /// `Transaction.RefundRequestStatus`.
     public enum RefundRequestStatus: Hashable, Sendable {
         case success, userCancelled
     }

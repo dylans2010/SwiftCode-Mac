@@ -1,40 +1,4 @@
 #!/usr/bin/env python3
-# swiftcode-frame-profile: turns a frame-profile window of swiftcode-simd
-# (SWIFTCODE_FRAME_PROFILE, specs/simulator/frame-profile.md) into a per-frame
-# timeline.
-#
-# usage: swiftcode-frame-profile <path>.<n> [--program backboardd] [--frames N] [--chains K]
-#                                       [--from S] [--to S]
-#   <path>.<n>   the window's files without the extension (.trace, .names, .summary)
-#   --program    the program whose pwrite of the frame record is the present (default backboardd)
-#   --frames     how many frame intervals to print in detail (default 12)
-#   --chains     how many critical-path steps to print per detailed frame (default 14)
-#   --from/--to  seconds from the window's start: only frames inside this span
-#   --boot       (a boot window, SWIFTCODE_FRAME_PROFILE_BOOT) the critical path from
-#                swiftcode-simd's start to the first home-screen frame instead
-#   --launch P   the critical path from the launch of program P (e.g. ylaunch) to
-#                the settled frame (the last present before --settle S without
-#                one, default 2) and to the first present after P ended
-#   --thread P[:main|wq|pthread|tN]  where P's threads spent --from..--to (seconds after start);
-#                with --long-ms M also each wait of M ms or more and the waker's path meanwhile
-#   --backbone P[:kind]  P's busiest such thread from --from to --to as the path: its own time,
-#                and each wait replaced by the waker's critical path back to the wait's start
-#   --wake-stats wakeups that woke a thread for nothing (it slept again in the same trap)
-#   --blocked-sends ID  time blocked in send-only mach_msg2 of message id ID (0x10000000: log messages)
-#   --stop-at S  (with --boot) end the walk S seconds after swiftcode-simd started
-#   --anchor P[,Q]  (with --boot) also walk back from the first launch of each program
-#   --edges N    (with --boot/--launch) print the path's last N hand-offs between threads
-#   --min-ms M   (with --boot/--launch) timeline steps shorter than M ms are summed (default 50)
-#   --top N      (with --boot/--launch) categories listed (default 40)
-#
-# Output: frame intervals; per program and thread: time in guest code, in
-# trap handlers (not sleeping), sleeping; traps by number with their service
-# time; wakeup latency (wake -> running again) by waker kind; and for every
-# frame interval the critical path walked backwards from the present
-# (guest compute, trap service, wakeup latency, waits on host services,
-# timed waits) summed over the frames.
-#
-# Run with python3 -I. No dependencies.
 
 import collections
 import struct
@@ -70,10 +34,8 @@ TRAP_NAMES = {
     116: "gettimeofday", 92: "fcntl", 54: "ioctl", 5: "open", 340: "stat64", 338: "stat64", 339: "fstat64", 340: "lstat64",
 }
 
-
 def tname(n):
     return TRAP_NAMES.get(n, str(n))
-
 
 def load(base):
     names = {}
@@ -98,22 +60,15 @@ def load(base):
     events.sort(key=lambda e: e[0])
     return events, names, host
 
-
 def pct(v, q):
     if not v:
         return 0
     s = sorted(v)
     return s[min(len(s) - 1, int(q * len(s)))]
 
-
-# ---------------------------------------------------------------------------
-# Critical path of a boot or an app launch (frame-profile.md §9,
-# boot-profile.md §8): --boot / --launch <program>.
-
 START_REQ, IMAGE_LAUNCH, LOCK_WAIT, SCREEN_CHECK, SCHED_SAMPLE, BIND = 8, 9, 10, 11, 12, 13
 DEBUG = False
 LOCK_NAMES = {0: "L0", 1: "event lock", 2: "port lock"}
-
 
 def load_trap_table():
     """BSD and Mach trap names from the generated Swift table next to this script, if present."""
@@ -136,12 +91,10 @@ def load_trap_table():
             if name and key not in TRAP_NAMES and name not in ("nosys", "enosys", "kern_invalid"):
                 TRAP_NAMES[key] = name
 
-
-SPAWN_TRAPS = {244, 59, 380, 66, 2}  # posix_spawn, execve, __mac_execve, vfork, fork
+SPAWN_TRAPS = {244, 59, 380, 66, 2}
 IPC_TRAPS = {-47, -31, 368, 369, 374, 375, -36, -33, 515, 516, 544, 301, 302, 303, 304, 305, -61, -90, -62, 423}
 FILE_TRAPS = {3, 5, 153, 338, 339, 340, 344, 396, 463, 466, 470, 220, 427, 202, 33, 34, 56, 92, 190, 191, 189, 196, 6, 4,
               154, 397, 398, 399, 342, 343, 128, 136, 137, 10, 461, 462, 216, 476, 477, 418, 419, 420, 421}
-
 
 def owner_of(cat):
     """The campaign owner of a critical-path category (boot-profile.md §8)."""
@@ -183,7 +136,6 @@ def owner_of(cat):
         return "BOOT-CP?"
     return "?"
 
-
 def cp_load(base):
     """Events (sorted), per-pid image list [(t, serial, program)], host names, the start line."""
     images = collections.defaultdict(list)
@@ -211,13 +163,11 @@ def cp_load(base):
     events.sort(key=lambda e: e[0])
     return events, images, host, start
 
-
 def unpack_key(arg):
     pid = arg >> 32
     if pid >= 0x80000000:
         pid -= 1 << 32
     return (pid, arg & 0xFFFFFFFF)
-
 
 def critical_path_mode(base, opt):
     import bisect
@@ -241,14 +191,13 @@ def critical_path_mode(base, opt):
 
     rel = lambda t: (t - t_proc) / 1e9
 
-    # ---- per-thread streams
     threads = collections.defaultdict(list)
-    wakes = collections.defaultdict(list)    # wakee -> [(t, waker pid, waker tid)]
-    locks = collections.defaultdict(list)    # thread -> [(t acquired, waited, level)]
-    launches = collections.defaultdict(list)  # pid -> [(t, requester pid, requester tid, suspended)]
+    wakes = collections.defaultdict(list)
+    locks = collections.defaultdict(list)
+    launches = collections.defaultdict(list)
     presents, checks, pw_all = [], [], []
-    binds = collections.defaultdict(list)    # guest thread -> [(t, host tid)]
-    samples = collections.defaultdict(list)  # host tid -> [(t, cpu us mod 2^32, run-queue ns)]
+    binds = collections.defaultdict(list)
+    samples = collections.defaultdict(list)
     for e in events:
         t, arg, pid, tid, trap, kind, tk, _ = e
         if kind in (TRAP_ENTER, TRAP_EXIT, BLOCK, UNBLOCK):
@@ -272,15 +221,12 @@ def critical_path_mode(base, opt):
         elif kind == SCREEN_CHECK:
             checks.append((t, trap & 0xFFFFFFFF, arg >> 32, (arg & 0xFFFFFFFF) / 100.0))
 
-    # segments per thread: (a, b, state, trap, info)
     segs = {}
     for key, evs in threads.items():
         s = []
         state, since, cur, info = None, None, None, None
         wk = wakes.get(key, [])
         wt_times = [w[0] for w in wk]
-        # A thread already alive when the window opened: its first event
-        # tells what it was doing since then.
         if evs and evs[0][5] != START_REQ:
             first = evs[0][5]
             state = {TRAP_ENTER: "guest", TRAP_EXIT: "trap", BLOCK: "trap", UNBLOCK: "sleep"}.get(first)
@@ -325,7 +271,6 @@ def critical_path_mode(base, opt):
             if e[5] != START_REQ and e[6]:
                 tk_of[k] = e[6]
                 break
-    # per pid: the ends of its traps (time, thread), for waits on timers
     pid_exits = collections.defaultdict(list)
     for k, v in segs.items():
         for x in v:
@@ -430,16 +375,11 @@ def critical_path_mode(base, opt):
                 t = a
             elif st == "sleep":
                 if info is None or info[0] >= t:
-                    # Timed out; or t lies inside a sleep that a later wakeup
-                    # ended: this thread released the lock as it went to sleep
-                    # and ran deferred wakeups then (it is the waker of record).
                     add(a2, t - a2, ("timed wait: %s %s" if info is None else "trap: %s %s") % (p, tname(trap)), p)
                     t = a
                     continue
                 wt, wp, wtid = info
                 if (wp, wtid) == key:
-                    # Woken by its own deferred wakeup (run when it released
-                    # the lock to sleep): it never really waited.
                     add(a2, t - a2, "trap: %s %s" % (p, tname(trap)), p)
                     t = a
                     continue
@@ -460,7 +400,7 @@ def critical_path_mode(base, opt):
                 else:
                     out.edges.append((wt, prog(wp, wt), p, tname(trap), TKIND.get(tk_of.get(key, 0), "?"), wtid, key[1]))
                     key, t = (wp, wtid), wt
-            else:  # start
+            else:
                 rp, rt, main, tk = info
                 kind = "main" if main else TKIND.get(tk, "?")
                 add(a2, t - a2, ("process start: %s" % p) if main else ("thread start: %s %s" % (p, kind)), p)
@@ -471,7 +411,6 @@ def critical_path_mode(base, opt):
                     out.edges.append((a, prog(rp, a), p, "start " + kind, kind, rt, key[1]))
                     key, t = (rp, rt), a
                     continue
-                # A host thread started it: a released start hold, the root, a restore.
                 launch = None
                 if main:
                     for (lt, lp, ltid, susp) in reversed(launches.get(key[0], [])):
@@ -481,8 +420,6 @@ def critical_path_mode(base, opt):
                 hn = hname(rt)
                 t = a
                 if not main:
-                    # Started by a host thread (a timer firing, a host service):
-                    # the process waited for it since its last trap before.
                     lst = pid_exits.get(key[0], [])
                     j = bisect.bisect_left(lst, (a, (0, 0))) - 1
                     if j < 0 or lst[j][0] <= stop:
@@ -543,7 +480,6 @@ def critical_path_mode(base, opt):
         for o, ns in byprog.most_common(20):
             print("%8.3f %5.1f %%  %s" % (ns / 1e9, 100 * ns / max(1, total_ns), o))
 
-    # frame-record writes (pwrite by the presenting program): exits
     wanted = opt.get("--program") or "backboardd"
     pw = []
     for key, s in segs.items():
@@ -566,7 +502,6 @@ def critical_path_mode(base, opt):
         (t_win - t_proc) / 1e9, len(events), len(presents), len(checks), sum(len(v) for v in launches.values())))
 
     if "--boot" in opt:
-        # Home: the first lit check followed by another lit check.
         home = None
         for (c0, c1) in zip(checks, checks[1:]):
             if c0[2] < 900 and c1[2] < 900:
@@ -587,8 +522,6 @@ def critical_path_mode(base, opt):
             "%.3f s" % rel(stop_at) if opt.get("--stop-at") else "swiftcode-simd start"))
         print("# (plus %.3f s from swiftcode-simd's start to the window: device preparation before the root spawn)" % ((t_win - t_proc) / 1e9))
     if opt.get("--thread"):
-        # One thread's time between --from and --to (seconds since swiftcode-simd
-        # started): guest code, traps (lock waits apart), sleeps by waker.
         name, _, which = opt["--thread"].partition(":")
         lo = t_proc + float(opt.get("--from") or 0) * 1e9
         hi = t_proc + float(opt.get("--to") or 1e6) * 1e9
@@ -648,8 +581,6 @@ def critical_path_mode(base, opt):
                     for c, ns in parts.most_common(6):
                         print("            %8.1f ms  %-16s %s" % (ns / 1e6, owner_of(c), c))
     if "--wake-stats" in opt:
-        # Wakeups after which the woken thread slept again in the same trap
-        # without returning (woken for nothing), per program and trap.
         spur, real, awake = collections.Counter(), collections.Counter(), collections.Counter()
         for key, evs in threads.items():
             cur = None
@@ -668,8 +599,6 @@ def critical_path_mode(base, opt):
         for k, c in spur.most_common(int(opt.get("--top") or 25)):
             print("%-28s %-18s spurious %7d  real %7d  awake between %.1f ms" % (k[0][:28], tname(k[1])[:18], c, real[k], awake[k] / 1e6))
     if opt.get("--blocked-sends"):
-        # Time spent blocked in send-only mach_msg2 traps of one message id
-        # (e.g. 0x10000000, the log messages to diagnosticd), per program.
         want = int(opt["--blocked-sends"], 0)
         blocked, calls, nblk = collections.Counter(), collections.Counter(), collections.Counter()
         for key, evs in threads.items():
@@ -695,11 +624,6 @@ def critical_path_mode(base, opt):
         for p, ns in blocked.most_common(int(opt.get("--top") or 25)):
             print("%-28s %7d %6d %8.3f" % (p[:28], calls[p], nblk[p], ns / 1e9))
     if opt.get("--backbone"):
-        # One thread's time from --from to --to as the path's backbone: its own
-        # running time (guest CPU, run queue, traps, lock waits) as is, and
-        # each of its waits replaced by the waker's critical path from the
-        # wakeup back to the wait's start (one level: the path returns to the
-        # backbone thread when the wait ends).
         name, _, which = opt["--backbone"].partition(":")
         lo = t_proc + float(opt.get("--from") or 0) * 1e9
         hi = t_proc + float(opt.get("--to") or 1e6) * 1e9
@@ -752,8 +676,6 @@ def critical_path_mode(base, opt):
         report("backbone %s t%d/%d from %.3f to %.3f s" % (name, key[1] & 0xFFFFFF, key[1] >> 24, rel(lo), rel(hi)),
                out, hi - lo, hi)
     if opt.get("--anchor"):
-        # Walk back from an image launch: the thread that registered it (a
-        # spawn or exec trap), at that moment.
         for name in opt["--anchor"].split(","):
             first = None
             for pid, lst in launches.items():
@@ -790,9 +712,6 @@ def critical_path_mode(base, opt):
         last_ev = max((e[0] for e in threads.get((trig[1], 1), [])), default=trig[0])
         print("# trigger: %s launched at %.3f s (pid %d; its last event %.3f s); settled frame %d at %.3f s; first present after the trigger +%.3f s" % (
             name, rel(trig[0]), trig[1], rel(last_ev), end[1], rel(end[0]), (after[0][0] - trig[0]) / 1e9 if after else -1))
-        # The app on screen: the first two checks in a row after the trigger
-        # whose mean brightness differs from the last check before it by more
-        # than 30 (the home screen gives way to the app's first screen).
         before = [c for c in checks if c[0] <= trig[0]]
         later = [c for c in checks if c[0] > trig[0]]
         ref = before[-1][3] if before else (later[0][3] if later else None)
@@ -811,12 +730,10 @@ def critical_path_mode(base, opt):
         else:
             print("# app visible: not found (no lasting brightness change after the trigger)")
         walk_from_present(end[0], trig[0], "launch: %s start -> settled frame" % name)
-        # also: to the first present after the request finished (ylaunch's end)
         firsts = [p for p in presents if p[0] > last_ev]
         if firsts:
             walk_from_present(firsts[0][0], trig[0], "launch: %s start -> first present after %s ended" % (name, name))
     return 0
-
 
 def main():
     args = sys.argv[1:]
@@ -844,11 +761,10 @@ def main():
     t0 = events[0][0]
     prog = lambda pid: names.get(pid, "host" if pid == 0 else "pid%d" % pid)
 
-    # Per-thread event lists.
     threads = collections.defaultdict(list)
     presents = []
-    wakes_by_wakee = collections.defaultdict(list)  # (pid, tid) -> [(t, waker pid, waker tid)]
-    timers = collections.defaultdict(list)  # (program, kind) -> lateness ns
+    wakes_by_wakee = collections.defaultdict(list)
+    timers = collections.defaultdict(list)
     for e in events:
         t, arg, pid, tid, trap, kind, tk, _ = e
         if kind == PRESENT:
@@ -870,19 +786,15 @@ def main():
     except OSError:
         pass
 
-    # ---- Frame intervals
     iv = [(b[0] - a[0]) / 1e6 for a, b in zip(presents, presents[1:])]
     if iv:
         print("\n## presents: %.1f /s over the window; interval ms p10 %.1f p50 %.1f p90 %.1f max %.1f" % (
             len(presents) / span, pct(iv, .1), pct(iv, .5), pct(iv, .9), max(iv)))
 
-    # ---- Per thread: segments
-    # state machine: guest (after exit), trap (after enter), sleep (after block)
-    seg_total = collections.defaultdict(lambda: [0, 0, 0])  # (pid,tid) -> guest, trap-running, sleep  (ns)
-    trap_stats = collections.defaultdict(lambda: [0, 0, 0])  # (prog, trap) -> count, service ns, sleep ns
-    wake_lat = collections.defaultdict(list)  # waker kind -> [ns]
+    seg_total = collections.defaultdict(lambda: [0, 0, 0])
+    trap_stats = collections.defaultdict(lambda: [0, 0, 0])
+    wake_lat = collections.defaultdict(list)
     tkinds = {}
-    # Indexed per thread for the critical path: lists of (start, end, state, trap, info)
     segs = {}
     for key, evs in threads.items():
         pid = key[0]
@@ -904,7 +816,6 @@ def main():
                 state, since = "sleep", t
             elif kind == UNBLOCK:
                 if since is not None and state == "sleep":
-                    # who woke it
                     w = None
                     for (wt, wp, wtid) in reversed(wakes_by_wakee.get(key, [])):
                         if wt <= t and wt >= since:
@@ -960,12 +871,10 @@ def main():
             print("%-28s %-11s %7d %8.0f %8.0f %8.0f %8.0f" % (prog(pid)[:28], "mk_timer" if k == 0 else "EVFILT_TIMER", len(v),
                   pct(v, .5) / 1e3, pct(v, .9) / 1e3, pct(v, .99) / 1e3, max(v) / 1e3))
 
-    # ---- Critical path per frame
     import bisect
     starts = {k: [x[0] for x in s] for k, s in segs.items()}
     wanted = opt["--program"]
     pids = {pid for pid, n in names.items() if n == wanted}
-    # pwrite traps of the present program: exits
     pw = []
     for key, s in segs.items():
         if key[0] in pids:
@@ -1059,7 +968,6 @@ def main():
     for (pa, pb) in zip(presents, presents[1:]):
         if pb[0] < lo or pb[0] > hi:
             continue
-        # the frame-record write that made this present
         j = bisect.bisect_right(pw, (pb[0], (1 << 62, 0))) - 1
         if j < 0:
             continue
@@ -1078,9 +986,6 @@ def main():
                 rest = sum(ns for _, ns, _ in chain[nchain:])
                 print("   %8.2f ms  (%d more steps)" % (rest / 1e6, len(chain) - nchain))
 
-    # ---- Input -> first present: viewer input arrives on the host thread
-    # that delivers HID events ("display-receive"); a gap of 300 ms starts a
-    # new gesture.
     inputs = sorted(t for (wakee, lst) in wakes_by_wakee.items() for (t, wp, wtid) in lst
                     if wp == 0 and host.get(wtid) == "display-receive")
     downs = [t for k, t in enumerate(inputs) if k == 0 or t - inputs[k - 1] > 300e6]
@@ -1111,7 +1016,6 @@ def main():
         for c, ns in totals.most_common(30):
             print("%8.2f  %5.1f %%  %s" % (ns / 1e6 / frames_done, 100 * ns / max(1, tot), c))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

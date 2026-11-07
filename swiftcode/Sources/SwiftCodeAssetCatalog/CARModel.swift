@@ -1,6 +1,5 @@
 import Foundation
 
-/// Rendition-key attributes (`specs/formats/assets-car.md` §4.1).
 public enum CARAttribute: UInt32, CaseIterable, Sendable, Comparable {
     case look = 0, element, part, size, direction, placeholder, value, appearance, dimension1, dimension2
     case state, layer, scale, localization, presentationState, idiom, subtype, identifier, previousValue, previousState
@@ -42,11 +41,9 @@ public enum CARAttribute: UInt32, CaseIterable, Sendable, Comparable {
     }
 }
 
-/// Values of the `idiom` attribute (§4.1).
 public enum CARIdiom: UInt16, CaseIterable, Sendable {
     case universal = 0, phone, pad, tv, car, watch, marketing, mac, vision
 
-    /// From an asset catalog `idiom` value.
     public init?(catalogName: String) {
         switch catalogName {
         case "universal": self = .universal
@@ -65,7 +62,6 @@ public enum CARIdiom: UInt16, CaseIterable, Sendable {
     public var name: String { ["universal", "phone", "pad", "tv", "car", "watch", "marketing", "mac", "vision"][Int(rawValue)] }
 }
 
-/// Part numbers of the kinds SwiftCode writes (§6).
 public enum CARPart {
     public static let image: UInt16 = 181
     public static let color: UInt16 = 217
@@ -89,20 +85,15 @@ public enum CARPart {
     }
 }
 
-/// The element every catalog asset uses (§4.1).
 public let carCatalogElement: UInt16 = 85
 
-/// Appearances by role; the names and numbers differ per platform (§4.4).
 public enum CARAppearance: CaseIterable, Sendable, Hashable {
     case any, dark, light, tinted
 }
 
-/// The platform a car is written for: it fixes the key format, the key
-/// semantics, the metadata platform and the appearance names.
 public enum CARPlatform: String, CaseIterable, Sendable {
     case iOS, macOS, watchOS, tvOS, visionOS
 
-    /// From `actool`'s `--platform` values (`icon-compile.md` §1).
     public init?(platformName p: String) {
         switch p {
         case "iphoneos", "iphonesimulator", "ios": self = .iOS
@@ -116,13 +107,11 @@ public enum CARPlatform: String, CaseIterable, Sendable {
 
     public var keySemantics: UInt32 { self == .macOS ? 1 : 2 }
 
-    /// The KEYFORMAT `actool` 27.1 writes (§3.3).
     public var keyFormat: [CARAttribute] {
         self == .macOS ? [.appearance, .localization, .element, .part, .size, .identifier, .dimension2, .layer, .scale]
             : [.appearance, .localization, .scale, .idiom, .subtype, .dimension2, .identifier, .element, .part]
     }
 
-    /// EXTENDED_METADATA's deployment platform (§3.2).
     public var metadataPlatform: String {
         switch self {
         case .iOS: "ios"
@@ -155,16 +144,10 @@ public enum CARPlatform: String, CaseIterable, Sendable {
         }
     }
 
-    /// CELM version for app-icon bitmaps (§7.3): 3 on iOS-family platforms
-    /// (opaque), 1 on macOS. Other bitmaps always use 1: versions 2 and 3
-    /// draw as opaque.
     public var celmVersion: UInt32 { self == .macOS ? 1 : 3 }
 }
 
-/// A colour as COLR stores it (§7.1).
 public struct CARColor: Equatable, Sendable {
-    /// Colour-space numbers: 0 generic, 1 sRGB, 2 gray gamma 2.2, 3 Display P3,
-    /// 4 extended sRGB, 5 extended linear sRGB, 6 extended gray.
     public var colorSpace: UInt8
     public var components: [Double]
 
@@ -190,7 +173,6 @@ public struct CARColor: Equatable, Sendable {
     }
 }
 
-/// One size of a MultiSized Image (§7.5), in points.
 public struct CARMultisizeEntry: Equatable, Sendable {
     public var width: UInt32
     public var height: UInt32
@@ -203,21 +185,14 @@ public struct CARMultisizeEntry: Equatable, Sendable {
 }
 
 public enum CARCompression: String, Sendable, CaseIterable {
-    /// CELM compression 0.
     case none
-    /// CELM compression 4: LZFSE in row chunks (KCBC).
     case lzfse
 }
 
-/// What a rendition holds; it fixes the part, layout and payload (§6).
 public enum CARContent: Equatable, Sendable {
-    /// An image-set bitmap (part 181, layout 12).
     case image(Bitmap)
-    /// A flattened app-icon bitmap (part 220, layout 12).
     case iconImage(Bitmap)
-    /// A colour (part 217, layout 1009).
     case color(CARColor)
-    /// The size list of an app icon (part 218, layout 1010).
     case multisize([CARMultisizeEntry])
 
     public var part: UInt16 {
@@ -238,15 +213,9 @@ public enum CARContent: Equatable, Sendable {
     }
 }
 
-/// One rendition: an asset name, its key attributes and its content.
 public struct CARRendition: Equatable, Sendable {
-    /// The asset (facet) name, e.g. `AppIcon` or `Folder/Image`.
     public var name: String
-    /// Key attributes besides element, part and identifier (which come from
-    /// the content and the asset name). Attributes the platform's key format
-    /// lacks are dropped.
     public var attributes: [CARAttribute: UInt16]
-    /// The CSI name field (a source file name, …).
     public var renditionName: String
     public var content: CARContent
     public var flags: UInt32

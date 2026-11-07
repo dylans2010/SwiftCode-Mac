@@ -26,7 +26,6 @@ struct PackageExplorerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 Button {
                     dismiss()
@@ -58,7 +57,6 @@ struct PackageExplorerView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    // Continuing browsing section
                     if !platformManager.continueBrowsing.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Label("Continue Browsing", systemImage: "clock.arrow.circlepath")
@@ -88,7 +86,6 @@ struct PackageExplorerView: View {
                         .padding(.horizontal, 24)
                     }
 
-                    // Featured Grid
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Featured & Editor's Picks", systemImage: "sparkles")
                             .font(.headline)
@@ -145,7 +142,6 @@ struct PackageExplorerView: View {
                     }
                     .padding(.horizontal, 24)
 
-                    // Trending / Popular Grid
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Trending & Recently Released", systemImage: "chart.line.uptrend.xyaxis")
                             .font(.headline)
@@ -198,7 +194,6 @@ struct PackageExplorerView: View {
                     }
                     .padding(.horizontal, 24)
 
-                    // AI Recommendations section
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {

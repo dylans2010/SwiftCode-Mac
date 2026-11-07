@@ -1,14 +1,5 @@
 import Foundation
 
-// MARK: - Workspace bridge
-//
-// The bridge is the only path by which extension-host code touches the
-// file system, and it is capability-gated on every call. Workspace
-// containment is enforced by path prefix after resolving symlinks:
-// a workspace-relative path that resolves outside the root is rejected
-// even if it looks relative. Git access goes through the real `git`
-// binary in the workspace root (read-only commands only).
-
 public struct ExtV2WorkspaceFile: Sendable {
     public let relativePath: String
     public let isDirectory: Bool
@@ -74,7 +65,6 @@ public final class ExtV2WorkspaceBridge: Sendable {
         ExtV2DiagnosticsService.shared.info("Wrote \(relativePath)", extensionId: extensionId)
     }
 
-    /// Read-only git status for the workspace, via the real git binary.
     public func gitStatus(extensionId: String) throws -> String {
         try permissions.check(extensionId: extensionId, capability: .sourceControl)
         let process = Process()

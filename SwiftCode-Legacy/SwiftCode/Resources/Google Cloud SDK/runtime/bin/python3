@@ -1,11 +1,8 @@
 #!/bin/bash
 set -e
-
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SDK_ROOT="$(cd "${DIR}/../.." && pwd)"
 SITE_PACKAGES="${SDK_ROOT}/runtime/lib/python3.14/site-packages"
-
-# Find suitable python3 binary (requires Python 3.14)
 PYTHON_BIN=""
 CANDIDATES=(
     "${SWIFTCODE_PYTHON_BIN:-}"
@@ -16,11 +13,9 @@ CANDIDATES=(
     "/usr/local/bin/python3"
     "/usr/bin/python3"
 )
-
 if command -v python3 >/dev/null 2>&1; then
     CANDIDATES+=("$(command -v python3)")
 fi
-
 for cand in "${CANDIDATES[@]}"; do
     if [ -n "${cand}" ] && [ -x "${cand}" ]; then
         PY_VER="$("${cand}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
@@ -30,22 +25,17 @@ for cand in "${CANDIDATES[@]}"; do
         fi
     fi
 done
-
 if [ -z "${PYTHON_BIN}" ]; then
     echo "Error: Google Cloud SDK runtime requires Python 3.14, but no Python 3.14 interpreter was found." >&2
     echo "Please install Python 3.14 or set SWIFTCODE_PYTHON_BIN to a valid Python 3.14 executable." >&2
     exit 1
 fi
-
-# Ensure localharness binary is extracted from localharness.gz if needed
 LH_DIR="${SITE_PACKAGES}/google/antigravity/bin"
 if [ -f "${LH_DIR}/localharness.gz" ] && [ ! -s "${LH_DIR}/localharness" ]; then
     gunzip -c "${LH_DIR}/localharness.gz" > "${LH_DIR}/localharness" 2>/dev/null || true
     chmod +x "${LH_DIR}/localharness" 2>/dev/null || true
 fi
-
 export PYTHONPATH="${SITE_PACKAGES}:${PYTHONPATH:-}"
 export PYTHONNOUSERSITE=1
 export PYTHONUNBUFFERED=1
-
 exec "${PYTHON_BIN}" "$@"

@@ -4,8 +4,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// specs/ide/reference-ui-2.md §4 (Report navigator), §5 (build log) and
-/// §6 (test report pages): the model types behind the views.
 struct ReportModelTests {
     func report(_ action: String, scheme: String? = "Demo", at t: TimeInterval, ok: Bool = true, errors: Int = 0,
                 log: [String] = [], location: ReportLocation = .local) -> BuildReport {

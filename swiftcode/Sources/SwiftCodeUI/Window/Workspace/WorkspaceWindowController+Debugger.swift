@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeDebug
 
-/// Debugger chrome (specs/ide/reference-ui-4.md §1.2, §5, §6): the Debug
-/// navigator on a stop, the debug bar's path and branch, the stop
-/// annotation, the breakpoint navigator's marker and extra "+" kinds.
 extension WorkspaceWindowController {
     func wireDebuggerUI() {
         wireSimulatorDebugBar()
@@ -11,8 +8,6 @@ extension WorkspaceWindowController {
         navigator.onToggleBreakpointEnabled = { [weak self] file, line in
             self?.session.breakpoints.edit(file: file, line: line) { $0.isEnabled.toggle() }
         }
-        // The branch menu lists the branches of the last source-control
-        // snapshot (no git call while the menu opens).
         debugArea.branchesProvider = { [weak self] in
             guard let self, self.sourceControl.snapshot.repository != nil else { return [] }
             return self.sourceControl.snapshot.branches.map { ($0.name, $0.isCurrent) }
@@ -23,9 +18,6 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// The debug bar's branch menu: switches with `git switch` (in the
-    /// background); an alert when git refuses (conflicts, local changes in
-    /// the way). Returns whether the switch happened.
     @discardableResult
     public func switchBranch(_ name: String) async -> Bool {
         guard let repo = repository else { NSSound.beep(); return false }
@@ -40,8 +32,7 @@ extension WorkspaceWindowController {
             if let window, window.isVisible { alert.beginSheetModal(for: window, completionHandler: nil) }
             return false
         }
-        refreshFileStatus(nil)   // the debug bar's branch too
-        // Open files show the switched-to branch's contents.
+        refreshFileStatus(nil)
         for e in editorArea.allEditors {
             guard let url = e.fileURL, e.auxiliary == nil, FileManager.default.fileExists(atPath: url.path) else { continue }
             let line = e.currentLine
@@ -50,7 +41,6 @@ extension WorkspaceWindowController {
         return true
     }
 
-    /// The folder whose git branch the debug bar shows.
     var sourceControlRoot: String {
         let url = session.model.url
         var isDir: ObjCBool = false
@@ -59,12 +49,8 @@ extension WorkspaceWindowController {
         return dir.path
     }
 
-    /// The debug bar's branch is read with the rest of the source-control
-    /// snapshot, in the background.
     func refreshBranch() { sourceControl.scheduleRefresh() }
 
-    /// After any debugger change: the Debug navigator once per stop, the
-    /// process row, the debug bar's path, the variables' badges and spinner.
     func refreshDebugChrome() {
         if session.stoppedThread != nil, session.stopCount > session.autoSelectedStop {
             session.autoSelectedStop = session.stopCount
@@ -84,10 +70,6 @@ extension WorkspaceWindowController {
         editor.setStopAnnotation(a != nil && a.map { URL(fileURLWithPath: $0.file).standardizedFileURL.path } == path.map { URL(fileURLWithPath: $0).standardizedFileURL.path } && topSelected && session.stoppedThread != nil ? a?.text : nil)
     }
 
-    /// Breakpoint navigator ▸ + ▸ Runtime Issue / Constraint Error / Test
-    /// Failure: symbolic breakpoints on the public hooks those reports
-    /// call (sanitizer report hooks; UIKit's unsatisfiable-constraints
-    /// symbol named in its console message; XCTest's XCTFail).
     func addSpecialBreakpoint(_ kind: NavigatorAreaController.NewBreakpointKind) {
         let names: [String]
         switch kind {

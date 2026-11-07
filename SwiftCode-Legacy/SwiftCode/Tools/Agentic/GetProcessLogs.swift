@@ -13,7 +13,6 @@ public struct GetProcessLogsTool: AgentTool {
     ]
 
     public func run(pid: Int32) async throws -> String {
-        // Implementation would normally retrieve from a log buffer
         return "Log data for process \(pid)"
     }
 

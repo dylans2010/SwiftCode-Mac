@@ -3,13 +3,6 @@ import CoreGraphics
 #endif
 import Foundation
 
-/// The Library's Objects tab (`library.md` §Reference Objects library):
-/// every UIKit object kind in list order, with its class, the XML element
-/// it writes, where it goes when inserted, its default size, and SwiftCode's
-/// own one-line summary and description. Storyboards list 80 kinds; xibs
-/// list 79 (no Main Menu, Container View or Storyboard Reference; Window
-/// and External Object added). macOS documents keep the AppKit kinds the
-/// editor has always offered.
 extension IBDocument {
     public enum NewObject: String, CaseIterable, Sendable {
         case label = "Label", button = "Button", grayButton = "Gray Button", tintedButton = "Tinted Button", filledButton = "Filled Button"
@@ -41,65 +34,43 @@ extension IBDocument {
         case panGesture = "Pan Gesture Recognizer", screenEdgePanGesture = "Screen Edge Pan Gesture Recognizer"
         case longPressGesture = "Long Press Gesture Recognizer", customGesture = "Custom Gesture Recognizer"
 
-        /// The kinds a storyboard lists, in Library order (80).
         public static let storyboardList: [Self] = allCases.filter { $0 != .window && $0 != .externalObject }
-        /// The kinds an iOS xib lists, in Library order (79).
         public static let xibList: [Self] = allCases.filter { ![.mainMenu, .containerView, .storyboardReference].contains($0) }
-        /// The kinds a macOS document lists (AppKit equivalents).
         public static let macList: [Self] = [.label, .button, .textField, .imageView, .view, .horizontalStackView, .verticalStackView]
 
-        /// The Library's list for a document.
         public static func list(for d: IBDocument) -> [Self] {
             !d.isFlippedRuntime ? macList : d.isStoryboard ? storyboardList : xibList
         }
 
-        /// Where an inserted object goes.
         public enum Placement: Sendable {
-            /// A subview of the target view (the three-part frame rule).
             case subview
-            /// A new scene (storyboards) or a top-level object (xibs).
             case scene
-            /// An object of the target's scene (storyboards) or a top-level object (xibs).
             case sceneObject
-            /// A gesture recognizer: a scene object connected to the target view.
             case gesture
             case tableCell, collectionCell, reusableView
-            /// A bar button item: into a toolbar's items or a navigation item.
             case barItem, barItemGroup
             case navigationItem, tabBarItem
-            /// A command or menu: into a menu's children or a button's menu.
             case menuElement
-            /// A top-level object of a xib (Window).
             case topLevel
         }
 
-        /// What the kind is: class, element, placement, size, and SwiftCode's
-        /// own texts (`library.md`: the reference's texts are not copied).
         public struct Info: Sendable {
             public var className: String
             public var element: String
             public var placement: Placement
-            /// The width a placed view gets; nil = the parent's width.
             public var width: CGFloat?
-            /// The height a placed view gets; nil for objects without a frame.
             public var height: CGFloat?
             public var summary: String
             public var details: String
         }
 
         public var info: Info { Self.table[self]! }
-        /// The class the object makes on iOS.
         public var className: String { info.className }
-        /// The element it writes on iOS.
         public var element: String { info.element }
         public var placement: Placement { info.placement }
-        /// The one-line description under the object's name.
         public var summary: String { info.summary }
-        /// The detail area's longer description.
         public var details: String { info.details }
 
-        /// The class the object makes, per runtime (shown in the Library's
-        /// detail area).
         public func className(iOS: Bool) -> String {
             if iOS { return className }
             switch self {
@@ -111,31 +82,20 @@ extension IBDocument {
             }
         }
 
-        /// The size a placed view gets. Sizes marked "(older)" in
-        /// `library.md` come from files written by earlier Xcode versions,
-        /// the best evidence there is; the others are SwiftCode's choice (the
-        /// reference's insert size is OPEN there).
         public var defaultSize: CGSize { size(parentWidth: 320) }
 
-        /// The default size inside a parent of the given width (bars and
-        /// cells take the parent's width).
         public func size(parentWidth: CGFloat) -> CGSize {
             CGSize(width: info.width ?? parentWidth, height: info.height ?? 128)
         }
 
-        /// The kind's subtitle in the detail area: `ClassName: summary`.
         public func subtitle(iOS: Bool = true) -> String { "\(className(iOS: iOS)): \(summary)" }
 
-        /// Whether a Library query matches (`library.md` §Search): every
-        /// whitespace-separated word of the query is a substring of the name
-        /// or of the class name, ignoring case.
         public func matches(_ query: String, iOS: Bool = true) -> Bool {
             let words = query.lowercased().split(whereSeparator: \.isWhitespace)
             let name = rawValue.lowercased(), cls = className(iOS: iOS).lowercased()
             return words.allSatisfy { name.contains($0) || cls.contains($0) }
         }
 
-        /// Objects matching a Library query, in list order.
         public static func matching(_ query: String, in list: [Self] = storyboardList, iOS: Bool = true) -> [Self] {
             list.filter { $0.matches(query, iOS: iOS) }
         }
@@ -147,10 +107,8 @@ extension IBDocument.NewObject {
         Info(className: c, element: e, placement: p, width: w, height: h, summary: s, details: d)
     }
 
-    // Sizes: "(older)" = seen in files from earlier Xcode versions
-    // (library.md §Insert defaults, item 2); every other size is SwiftCode's.
     static let table: [Self: Info] = [
-        .label: i("UILabel", "label", .subview, 42, 21, // (older)
+        .label: i("UILabel", "label", .subview, 42, 21,
                   "Shows one or more lines of read-only text.",
                   "A label shows text the user cannot edit: a title, a caption or a value. Set its text, font, colour and alignment in the Attributes inspector; set Lines to 0 to let it wrap."),
         .button: i("UIButton", "button", .subview, 75, 35,
@@ -177,10 +135,10 @@ extension IBDocument.NewObject {
         .textField: i("UITextField", "textField", .subview, 97, 34,
                       "Lets the user type one line of text.",
                       "A text field takes a single line of input: a name, a search term, a password. The Text Input Traits choose the keyboard, capitalization and return key."),
-        .slider: i("UISlider", "slider", .subview, 118, 30, // (older)
+        .slider: i("UISlider", "slider", .subview, 118, 30,
                    "Picks a value from a continuous range.",
                    "A slider sets a number between a minimum and a maximum by dragging its thumb along a track."),
-        .switchControl: i("UISwitch", "switch", .subview, 51, 31, // (older)
+        .switchControl: i("UISwitch", "switch", .subview, 51, 31,
                           "Turns a single setting on or off.",
                           "A switch shows and changes a two-state setting. Its value is the On state in the Attributes inspector."),
         .activityIndicator: i("UIActivityIndicatorView", "activityIndicatorView", .subview, 20, 20,
@@ -210,16 +168,16 @@ extension IBDocument.NewObject {
         .tableView: i("UITableView", "tableView", .subview, 320, 240,
                       "Shows rows of data in a scrolling list.",
                       "A table view shows a scrolling list of rows, in sections. Add prototype cells and fill them from a data source."),
-        .tableViewCell: i("UITableViewCell", "tableViewCell", .tableCell, nil, 43.67, // row height (older)
+        .tableViewCell: i("UITableViewCell", "tableViewCell", .tableCell, nil, 43.67,
                           "One row of a table view, used as a prototype.",
                           "A table view cell is a prototype row: design it once, give it an identifier, and dequeue it for every row of that kind. It goes into a table view."),
-        .imageView: i("UIImageView", "imageView", .subview, 240, 128, // (older)
+        .imageView: i("UIImageView", "imageView", .subview, 240, 128,
                       "Shows an image.",
                       "An image view shows an image from the asset catalog or a symbol, scaled by its content mode."),
         .collectionView: i("UICollectionView", "collectionView", .subview, 320, 240,
                            "Shows items in a flexible scrolling layout.",
                            "A collection view lays out items in a grid or any custom layout. Add prototype cells and supply the items from a data source."),
-        .collectionViewCell: i("UICollectionViewCell", "collectionViewCell", .collectionCell, 128, 128, // (older)
+        .collectionViewCell: i("UICollectionViewCell", "collectionViewCell", .collectionCell, 128, 128,
                                "One item of a collection view, used as a prototype.",
                                "A collection view cell is a prototype item, reused for every item of its kind. It goes into a collection view."),
         .collectionReusableView: i("UICollectionReusableView", "collectionReusableView", .reusableView, nil, 50,
@@ -279,7 +237,7 @@ extension IBDocument.NewObject {
         .locationButton: i("CLLocationButton", "clLocationButton", .subview, 44, 44,
                            "Asks for the location once, with one tap.",
                            "A Core Location button grants the app the user's location for one session when tapped, without a permission prompt."),
-        .navigationBar: i("UINavigationBar", "navigationBar", .subview, nil, 44, // (older)
+        .navigationBar: i("UINavigationBar", "navigationBar", .subview, nil, 44,
                           "A bar with a title and buttons at the top of a screen.",
                           "A navigation bar shows a navigation item's title and bar button items. A navigation controller provides its own."),
         .navigationItem: i("UINavigationItem", "navigationItem", .navigationItem, nil, nil,
@@ -300,13 +258,13 @@ extension IBDocument.NewObject {
         .flexibleSpace: i("UIBarButtonItem", "barButtonItem", .barItem, nil, nil,
                           "A gap that grows to fill a bar.",
                           "A flexible space item takes the free room in a toolbar, pushing the items around it apart."),
-        .tabBar: i("UITabBar", "tabBar", .subview, nil, 49, // (older)
+        .tabBar: i("UITabBar", "tabBar", .subview, nil, 49,
                    "A bar of tabs at the bottom of a screen.",
                    "A tab bar shows tab bar items; the selected one is highlighted. A tab bar controller provides its own."),
         .tabBarItem: i("UITabBarItem", "tabBarItem", .tabBarItem, nil, nil,
                        "One tab of a tab bar.",
                        "A tab bar item is the title, image and badge of a tab. It goes into a tab bar or a view controller."),
-        .searchBar: i("UISearchBar", "searchBar", .subview, nil, 44, // (older)
+        .searchBar: i("UISearchBar", "searchBar", .subview, nil, 44,
                       "A field for typing a search, with optional scopes.",
                       "A search bar takes a search term and can offer scope buttons and a cancel button."),
         .command: i("UICommand", "command", .menuElement, nil, nil,

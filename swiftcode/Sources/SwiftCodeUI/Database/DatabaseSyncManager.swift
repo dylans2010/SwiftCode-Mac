@@ -2,16 +2,9 @@ import Combine
 import Foundation
 import SwiftCodeCloud
 
-/// The difference between two schemas: tables (and columns)
-/// present on one side and missing or changed on the other.
 public struct DatabaseSchemaDiff: Sendable, Equatable {
-    /// Tables present in the source and absent from the destination.
     public var tablesOnlyInSource: [DatabaseTable]
-    /// Tables present in the destination and absent from the source.
     public var tablesOnlyInDestination: [DatabaseTable]
-    /// Tables present on both sides whose columns differ, as
-    /// (table name, columns only in source, columns only in
-    /// destination, columns whose declared type differs).
     public var changedTables: [(tableName: String, addedColumns: [DatabaseColumn], removedColumns: [DatabaseColumn], changedColumns: [(source: DatabaseColumn, destination: DatabaseColumn)])]
 
     public var isEmpty: Bool {
@@ -35,22 +28,6 @@ public struct DatabaseSchemaDiff: Sendable, Equatable {
     }
 }
 
-/// Copies a source schema onto a destination connection.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Core/DatabaseSyncManager.swift`,
-/// extended with the real schema diff Legacy never computed:
-/// `diffSchemas(from:to:)` compares the two live schemas table by
-/// table and column by column, and `synchronizeSchemas(from:to:)`
-/// now applies only the missing-table half of that diff (creating
-/// tables the destination lacks). Column-level differences are
-/// reported in the diff and deliberately not auto-applied — there
-/// is no `ALTER TABLE` path in `DatabaseSchemaManager`, and
-/// silently rewriting a live table's columns would be data loss
-/// dressed as a sync. Supabase reads go through the destination's
-/// `SupabaseService` value type (`SupabaseService()` — no
-/// `.shared`); providers with no driver in this package read as
-/// an empty schema, exactly as Legacy read them.
 @MainActor
 public final class DatabaseSyncManager: ObservableObject {
     public static let shared = DatabaseSyncManager()
@@ -61,8 +38,6 @@ public final class DatabaseSyncManager: ObservableObject {
 
     private init() {}
 
-    /// The live schema diff between two connections, computed from
-    /// the tables each side actually has.
     public func diffSchemas(from source: DatabaseConnection, to destination: DatabaseConnection) async throws -> DatabaseSchemaDiff {
         let sourceTables = try await fetchTables(for: source)
         let destinationTables = try await fetchTables(for: destination)
@@ -99,9 +74,6 @@ public final class DatabaseSyncManager: ObservableObject {
         )
     }
 
-    /// Creates, on the destination, every table the source has and
-    /// the destination lacks. Column differences are reported in
-    /// `lastDiff` and not auto-applied (see the type doc).
     public func synchronizeSchemas(from source: DatabaseConnection, to destination: DatabaseConnection) async throws {
         syncInProgress = true
         defer { syncInProgress = false }
@@ -116,12 +88,6 @@ public final class DatabaseSyncManager: ObservableObject {
         lastSyncTimestamp = Date()
     }
 
-    // MARK: - Private
-
-    /// The live tables of a connection, by provider. SQLite reads
-    /// through `DatabaseManager`; Supabase through
-    /// `SupabaseService`; anything else has no driver and reads as
-    /// an empty schema.
     private func fetchTables(for connection: DatabaseConnection) async throws -> [DatabaseTable] {
         switch connection.provider {
         case .sqlite:

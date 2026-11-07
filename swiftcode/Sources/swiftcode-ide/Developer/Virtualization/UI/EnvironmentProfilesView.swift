@@ -1,16 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/EnvironmentProfilesView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// Cleanup C24 (2026-11-06): the hardcoded `packageDashboardData` table is deleted — it
-// asserted per-profile package versions, install dates and "Update Available" flags
-// (e.g. Vapor: Swift Compiler 6.0-release, Git 2.43.0, PostgreSQL Client 16.1, all
-// "installed" 2026-01-10…) that were never measured. Real source: query the VM guest
-// for installed packages (guest agent / `dpkg -l` / `apk info` over the VM channel).
-// No such channel exists in this codebase yet (no SSH/guest-agent command path for
-// these VMs), so the dashboard honestly shows version/install date/status as
-// unknown and derives its rows only from the selected profile's own
-// `installedPackages` list (user-editable profile data). Do not re-seed versions
-// or dates here until a real guest query lands.
 import SwiftUI
 import SwiftCodeUI
 
@@ -46,16 +33,12 @@ public struct EnvironmentProfilesView: View {
     @State private var showingRecipeExport = false
     @State private var recipeExportJSON = ""
 
-    // Package Dashboard (C24): rows are derived from the selected profile's own
-    // `installedPackages` list. Version, install date and status are honestly
-    // unknown — the guest has not been queried (no guest-agent channel exists
-    // yet to run `dpkg -l` / `apk info` inside the VM).
     public struct VMPackage: Identifiable, Sendable {
         public let id: String
         public let name: String
         public let version: String
         public let installDate: String
-        public let status: String // "Unknown" until the guest is queried
+        public let status: String
     }
 
     private func packageDashboardRows(for profile: EnvironmentProfile) -> [VMPackage] {
@@ -73,7 +56,6 @@ public struct EnvironmentProfilesView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Service Profiles & Recipes")
                         .font(.system(size: 24, weight: .bold))
@@ -82,9 +64,7 @@ public struct EnvironmentProfilesView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Main split panes
                 HStack(alignment: .top, spacing: 16) {
-                    // Profile Management Card (Left Column)
                     GroupBox(label:
                         Label("Active Service Recipe", systemImage: "doc.text.image.fill")
                             .font(.headline)
@@ -107,7 +87,6 @@ public struct EnvironmentProfilesView: View {
                             if let prof = activeProfile {
                                 Divider()
 
-                                // Env variables list
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Environment Variables:")
                                         .fontWeight(.bold)
@@ -188,7 +167,6 @@ public struct EnvironmentProfilesView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                     .frame(maxWidth: .infinity)
 
-                    // Packages Inventory dashboard (Right Column)
                     GroupBox(label:
                         Label("Sandbox Package Inventory", systemImage: "shippingbox.fill")
                             .font(.headline)
@@ -255,7 +233,6 @@ public struct EnvironmentProfilesView: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                // Add Profile Form
                 GroupBox(label: Text("Create Custom Service Profile Recipe").font(.headline)) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {

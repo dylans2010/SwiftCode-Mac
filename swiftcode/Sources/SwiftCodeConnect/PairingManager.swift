@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/PairingManager.swift
-// Adapted for SwiftCode: Pairing approval flow. Verbatim.
-
 import Foundation
 import os.log
 

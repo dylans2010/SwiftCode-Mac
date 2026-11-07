@@ -1,16 +1,4 @@
 #!/bin/bash
-# swiftcode-uikit-feel-window: checks that the device window shows the device's
-# pixels exactly at 1:1 (specs/simulator/uikit-feel-swiftcode.md §8.4). The
-# UIKitFeel probe (Samples/UIKitFeelSamples) must be running on the device,
-# on its pixels page (`swiftcode-uikit-feel drive ... --suite pixels` leaves it
-# there). Runs the viewer of this platform with a script, saves the window at
-# each scale it offers and the server's own PNG, and looks for the probe's
-# 96 × 96 pixel pattern in each picture.
-#
-# usage: swiftcode-uikit-feel-window <display address> <guest.log of the probe> <out dir> [viewer options...]
-#   VIEWER   the viewer (default: .build/debug/swiftcode-sim-viewer next to this script's package)
-# Linux: the window is shot at Pixel Accurate (must be exact), Point Accurate and Fit.
-# macOS: the expanded window at Pixel Accurate (1:1, must be exact), zoom 1 and 0.75.
 set -u
 [ $# -ge 3 ] || { sed -n '2,15p' "$0"; exit 64; }
 addr=$1; log=$2; out=$3; shift 3
@@ -18,7 +6,7 @@ here=$(cd "$(dirname "$0")" && pwd); pkg=$(cd "$here/.." && pwd)
 VIEWER=${VIEWER:-$pkg/.build/debug/swiftcode-sim-viewer}
 mkdir -p "$out"
 fail=0
-check() {  # check <png> <must be exact: 1|0>
+check() {
     if python3 -I "$here/swiftcode-uikit-feel" pattern "$1" "$log"; then
         echo "window-check: $1: exact"
     elif [ "$2" = 1 ]; then
@@ -47,8 +35,6 @@ if [ "$(uname -s)" = Linux ]; then
     check "$out/linux-point.png" 0
     check "$out/linux-fit.png" 0
 else
-    # The expanded window, its canvas scrolled to the top: Pixel Accurate (one
-    # device pixel per display pixel, whatever the display's scale), 1 and 0.75.
     for z in pixel 1 0.75; do
         script=$out/window-$z.script
         {

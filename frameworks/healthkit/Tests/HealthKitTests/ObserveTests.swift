@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import HealthKit
 
-/// C-OBSERVE: observer timing and counts, long-running anchored updates, stop
-/// (`queries.md` §1, §4, §5).
 @Suite("C-OBSERVE queries.md §5")
 struct ObserveTests {
     @Test("§5 observer: once at start, then once per committed change set; none after stop")
@@ -23,10 +21,8 @@ struct ObserveTests {
         let s = T.stepSample(10, T.at(0, 8), T.at(0, 8, 1))
         try await store.save(s)
         #expect(await eventually { calls.current == 2 })
-        // one save of three objects is one change set
         try await store.save((1...3).map { T.stepSample(Double($0), T.at(0, 9, $0), T.at(0, 9, $0)) })
         #expect(await eventually { calls.current == 3 })
-        // other types do not fire
         try await store.save(T.qs(T.heartRate, 60, T.bpm, T.at(0, 8)))
         try await store.delete(s)
         #expect(await eventually { calls.current == 4 })
@@ -37,7 +33,6 @@ struct ObserveTests {
         try await Task.sleep(nanoseconds: 200_000_000)
         #expect(calls.current == 4)
         #expect(offMain.current)
-        // a stopped query cannot run again
         #expect(throws: HKRaise.self) { try q.markExecuted(store) }
     }
 

@@ -1,9 +1,6 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Settings/SoundPreviewView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 import SwiftUI
 import SwiftCodeUI
 
-/// macOS-native SwiftUI view allowing developers to audition and test all 22 synthesized alert tones
 public struct SoundPreviewView: View {
     @State private var player = AlertSoundPlayer.shared
     @State private var searchText: String = ""
@@ -68,12 +65,9 @@ public struct SoundPreviewView: View {
         .frame(minWidth: 540, minHeight: 480)
     }
 
-    // MARK: - Header Controls
-
     private var headerControls: some View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
-                // Title and Hero Icon
                 HStack(spacing: 10) {
                     Image(systemName: "waveform.circle.fill")
                         .font(.title2)
@@ -90,7 +84,6 @@ public struct SoundPreviewView: View {
 
                 Spacer()
 
-                // Master Mute Toggle
                 Toggle(isOn: $player.isMuted) {
                     Label(
                         player.isMuted ? "Muted" : "Sound Enabled",
@@ -103,7 +96,6 @@ public struct SoundPreviewView: View {
             }
 
             HStack(spacing: 16) {
-                // Volume Slider
                 HStack(spacing: 8) {
                     Image(systemName: "speaker.fill")
                         .font(.caption)
@@ -125,7 +117,6 @@ public struct SoundPreviewView: View {
 
                 Spacer()
 
-                // Search Bar
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
                         .font(.caption)
@@ -151,7 +142,6 @@ public struct SoundPreviewView: View {
                 .frame(maxWidth: 200)
             }
 
-            // Category Filter Picker
             Picker("", selection: $selectedGroup) {
                 ForEach(ToneGroupFilter.allCases) { filter in
                     Text(filter.rawValue).tag(filter)
@@ -163,8 +153,6 @@ public struct SoundPreviewView: View {
         .padding(14)
         .background(Color(NSColor.windowBackgroundColor))
     }
-
-    // MARK: - Tone List
 
     private var toneList: some View {
         ScrollView {
@@ -181,7 +169,6 @@ public struct SoundPreviewView: View {
         let isPlaying = player.currentlyPlayingTone == tone
 
         return HStack(spacing: 12) {
-            // Icon
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isPlaying ? Color.orange.opacity(0.2) : Color.primary.opacity(0.04))
@@ -192,7 +179,6 @@ public struct SoundPreviewView: View {
                     .foregroundStyle(isPlaying ? Color.orange : Color.primary)
             }
 
-            // Tone Information
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(tone.displayName)
@@ -217,7 +203,6 @@ public struct SoundPreviewView: View {
 
             Spacer()
 
-            // Play / Audition Button
             Button {
                 if isPlaying {
                     player.stop()
@@ -254,8 +239,6 @@ public struct SoundPreviewView: View {
                 .stroke(isPlaying ? Color.orange.opacity(0.4) : Color.primary.opacity(0.06), lineWidth: 1)
         )
     }
-
-    // MARK: - Footer
 
     private var footerBar: some View {
         HStack {

@@ -1,9 +1,4 @@
-// Generated from specs/simulator/data/bsd-syscalls.json and mach-traps.json
-// (trap names and argument names only; numbers are the array index).
-// Each entry is "name:arg1,arg2"; entries are separated by ";".
-
 enum GeneratedTrapNames {
-    /// BSD slots 0…557.
     static let bsd: String = [
         "nosys:;exit:rval;fork:;read:fd,cbuf,nbyte;write:fd,cbuf,nbyte;open:path,flags,mode;sys_close:fd;wait4:pid,status,options,rusage",
         "enosys:;link:path,link;unlink:path;enosys:;sys_chdir:path;sys_fchdir:fd;mknod:path,mode,dev;chmod:path,mode",
@@ -77,7 +72,6 @@ enum GeneratedTrapNames {
         "sys_record_system_event:type,subsystem,event,payload;mkfifoat:fd,path,mode;mknodat:fd,path,mode,dev;ungraftdmg:mountdir,flags;sys_coalition_policy_set:cid,flavor,value;sys_coalition_policy_get:cid,flavor",
     ].joined(separator: ";")
 
-    /// Mach slots 0…127 (index = −x16). Slots −3/−4 carry the fast-trap names.
     static let mach: String = [
         "kern_invalid:;kern_invalid:;kern_invalid:;mach_absolute_time:;mach_continuous_time:;kern_invalid:;kern_invalid:;kern_invalid:",
         "kern_invalid:;kern_invalid:;_kernelrpc_mach_vm_allocate_trap:target,addr,size,flags;_kernelrpc_mach_vm_purgable_control_trap:target,address,control,state;_kernelrpc_mach_vm_deallocate_trap:target,address,size;task_dyld_process_info_notify_get_trap:names_addr,names_count_addr;_kernelrpc_mach_vm_protect_trap:target,address,size,set_maximum,new_protection;_kernelrpc_mach_vm_map_trap:target,addr,size,mask,flags,cur_protection",

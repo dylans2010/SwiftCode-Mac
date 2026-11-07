@@ -1,28 +1,3 @@
-/*
- * machmsg.c - libsystem_kernel's Mach message routines: mach_msg2_internal
- * over Mach trap -47, mach_msg / mach_msg_overwrite and their send/receive
- * shorthands, mach_msg_destroy, mach_msg_server / mach_msg_server_once, and
- * mach_msg_priority_encode.
- *
- * Clean-room SwiftCode code. Facts used:
- *  - mach-ipc.md section 2.7: the mach_msg2 register packing (eight 64-bit
- *    words, "low 32 | high 32 << 32"), the option bits, the library-only
- *    SEND_INTERRUPT / RCV_INTERRUPT bits and the retry rules, MQ_CALL for
- *    mach_msg(), the legacy trap -32 layout;
- *  - mach-ipc.md sections 2.1-2.3: header, body word, descriptor layouts;
- *  - mach-ipc.md section 4.4: mach_msg_destroy semantics;
- *  - mach-ipc.md sections 2.8, 2.10, 5.1, 5.2: the MIG server conventions
- *    (reply header, mig_reply_error_t, MIG_NO_REPLY, MOVE_SEND replies
- *    sent with MACH_SEND_TIMEOUT 0, the send errors that leave a message
- *    intact) and RCV_LARGE, for mach_msg_server and mach_msg_server_once
- *    (device-pairing.md section 10: ids_simd serves its transport port with
- *    mach_msg_server_once);
- *  - the public Mach C API (xnu's open-source <mach/message.h>): routine
- *    signatures, mach_msg2_internal's eight packed arguments, and the
- *    mach_msg_priority_t field layout (relative priority bits 8-15, QoS
- *    bits 16-19, override QoS bits 20-23). The kernel ignores message
- *    priorities (mach-ipc.md section 2.7, MACH_SEND_OVERRIDE).
- */
 #include "yc_kernel.h"
 
 #define YC_MACH_SEND_MSG 0x00000001ull
@@ -39,7 +14,7 @@
 
 #define YC_MACH_MSGH_BITS_COMPLEX 0x80000000u
 #define YC_HEADER_SIZE 24u
-#define YC_BASE_SIZE 28u /* header + descriptor count */
+#define YC_BASE_SIZE 28u
 
 #define YC_LOW32 0x00000000FFFFFFFFull
 #define YC_PACK(lo, hi) ((yc_u64)(yc_u32)(lo) | ((yc_u64)(yc_u32)(hi) << 32))
@@ -52,8 +27,6 @@ struct yc_mach_msg_header {
     yc_port_t msgh_voucher_port;
     int msgh_id;
 };
-
-/* ------------------------------------------------------------- mach_msg2 */
 
 static inline int mach_msg2_trap_raw(yc_uintptr_t data, yc_u64 options, yc_u64 bits_send, yc_u64 remote_local,
                                      yc_u64 voucher_id, yc_u64 desc_rcvname, yc_u64 rcvsize_prio, yc_u64 timeout)
@@ -74,17 +47,6 @@ static inline int mach_msg2_trap_raw(yc_uintptr_t data, yc_u64 options, yc_u64 b
     return (int)x0;
 }
 
-/* mach_msg_return_t mach_msg2_internal(void *data,
- *     mach_msg_option64_t option64, uint64_t msgh_bits_and_send_size,
- *     uint64_t msgh_remote_and_local_port, uint64_t msgh_voucher_and_id,
- *     uint64_t desc_count_and_rcv_name, uint64_t rcv_size_and_priority,
- *     uint64_t timeout)
- * The arguments are already packed as trap -47 takes them. The library-only
- * interrupt bits are stripped before the trap. MACH_SEND_INTERRUPTED
- * retries the same call unless SEND_INTERRUPT was given;
- * MACH_RCV_INTERRUPTED retries as a receive-only call (SEND_MSG and
- * RCV_SYNC_WAIT cleared, send size and descriptor count 0) unless
- * RCV_INTERRUPT was given. */
 YC_EXPORT int mach_msg2_internal(void *data, yc_u64 option64, yc_u64 msgh_bits_and_send_size,
                                  yc_u64 msgh_remote_and_local_port, yc_u64 msgh_voucher_and_id,
                                  yc_u64 desc_count_and_rcv_name, yc_u64 rcv_size_and_priority, yc_u64 timeout)
@@ -99,19 +61,14 @@ YC_EXPORT int mach_msg2_internal(void *data, yc_u64 option64, yc_u64 msgh_bits_a
         if (mr == YC_MACH_RCV_INTERRUPTED && !(option64 & YC_MACH_RCV_INTERRUPT)) {
             trap_options &= ~(YC_MACH_SEND_MSG | YC_MACH_RCV_SYNC_WAIT);
             if (!(trap_options & YC_MACH64_MSG_VECTOR))
-                msgh_bits_and_send_size &= YC_LOW32; /* send size 0 */
-            desc_count_and_rcv_name &= ~YC_LOW32;   /* descriptor count 0 */
+                msgh_bits_and_send_size &= YC_LOW32;
+            desc_count_and_rcv_name &= ~YC_LOW32;
             continue;
         }
         return mr;
     }
 }
 
-/* Packs a scalar mach_msg call (msg, option, send_size, rcv_size,
- * rcv_name, timeout, priority) for trap -47 with MQ_CALL. The header
- * words are read from memory only when sending; on a receive-only call
- * with RCV_SYNC_WAIT the priority argument is the sync-wait destination
- * name and goes into the low half of x3. */
 static int mach_msg_scalar(struct yc_mach_msg_header *msg, yc_u32 option, yc_u32 send_size, yc_u32 rcv_size,
                            yc_port_t rcv_name, yc_u32 timeout, yc_u32 priority)
 {
@@ -131,22 +88,12 @@ static int mach_msg_scalar(struct yc_mach_msg_header *msg, yc_u32 option, yc_u32
                               YC_PACK(desc_count, rcv_name), YC_PACK(rcv_size, priority), timeout);
 }
 
-/* mach_msg_return_t mach_msg(mach_msg_header_t *msg, mach_msg_option_t
- *     option, mach_msg_size_t send_size, mach_msg_size_t rcv_size,
- *     mach_port_name_t rcv_name, mach_msg_timeout_t timeout,
- *     mach_msg_priority_t priority) */
 YC_EXPORT int mach_msg(struct yc_mach_msg_header *msg, yc_u32 option, yc_u32 send_size, yc_u32 rcv_size,
                        yc_port_t rcv_name, yc_u32 timeout, yc_u32 priority)
 {
     return mach_msg_scalar(msg, option, send_size, rcv_size, rcv_name, timeout, priority);
 }
 
-/* mach_msg_overwrite(msg, option, send_size, rcv_size, rcv_name, timeout,
- *     priority, rcv_msg, rcv_limit): with no separate receive buffer this
- * is mach_msg. A separate buffer uses the legacy trap -32 (x7 = rcv_msg),
- * which SwiftCode's kernel accepts (mach-ipc.md section 6, item 4). The ninth
- * argument (rcv_limit, on the stack) is not passed to any trap and is not
- * read. */
 YC_EXPORT int mach_msg_overwrite(struct yc_mach_msg_header *msg, yc_u32 option, yc_u32 send_size, yc_u32 rcv_size,
                                  yc_port_t rcv_name, yc_u32 timeout, yc_u32 priority,
                                  struct yc_mach_msg_header *rcv_msg)
@@ -190,11 +137,6 @@ YC_EXPORT int mach_msg_receive(struct yc_mach_msg_header *msg)
     return mach_msg(msg, YC_MACH_RCV_MSG, 0, msg->msgh_size, msg->msgh_local_port, 0, 0);
 }
 
-/* ----------------------------------------------------- mach_msg_destroy */
-
-/* Descriptor kinds and layouts (mach-ipc.md section 2.3). The type is the
- * byte at offset 11; port descriptors are 12 bytes, the others 16. Fields
- * are only 4-byte aligned. */
 #define YC_DESC_PORT 0
 #define YC_DESC_OOL 1
 #define YC_DESC_OOL_PORTS 2
@@ -213,11 +155,8 @@ static inline yc_u64 rd64(const char *p)
     return *(const yc_u64_a4 *)p;
 }
 
-/* mach_port_extract_right (MIG only; a generated stub until the kernel
- * serves it). */
 int mach_port_extract_right(yc_port_t task, yc_port_t name, yc_u32 msgt_name, yc_port_t *poly, yc_u32 *poly_poly);
 
-/* Releases one right carried with disposition `disp` (section 4.4). */
 static void destroy_right(yc_port_t name, yc_u32 disp)
 {
     yc_port_t task = mach_task_self_;
@@ -243,15 +182,10 @@ static void destroy_right(yc_port_t name, yc_u32 disp)
         break;
     }
     default:
-        /* COPY_SEND and anything else: the message holds no right. */
         break;
     }
 }
 
-/* void mach_msg_destroy(mach_msg_header_t *msg): releases the rights and
- * memory recorded in a received (or pseudo-received) message
- * (mach-ipc.md section 4.4). msgh_local_port is not touched. The
- * descriptor walk stops at msgh_size or at an unknown descriptor type. */
 YC_EXPORT void mach_msg_destroy(struct yc_mach_msg_header *msg)
 {
     yc_port_t task = mach_task_self_;
@@ -314,8 +248,6 @@ YC_EXPORT void mach_msg_destroy(struct yc_mach_msg_header *msg)
     }
 }
 
-/* ------------------------------------------------------- MIG servers */
-
 #define YC_MACH_RCV_LARGE 0x00000004u
 #define YC_MACH_SEND_TIMEOUT 0x00000010u
 #define YC_MACH_RCV_TIMEOUT 0x00000100u
@@ -323,18 +255,13 @@ YC_EXPORT void mach_msg_destroy(struct yc_mach_msg_header *msg)
 #define YC_MACH_SEND_TIMED_OUT 0x10000004
 #define YC_MACH_MSG_SUCCESS 0
 #define YC_MIG_NO_REPLY (-305)
-#define YC_MAX_TRAILER 68u /* mach_msg_max_trailer_t (mach-ipc.md section 2.6) */
+#define YC_MAX_TRAILER 68u
 #define YC_SERVER_STACK_BUFFER 8192u
-/* The receive-side bits of a server's options: RCV_LARGE, LARGE_IDENTITY,
- * RCV_TIMEOUT, RCV_INTERRUPT, RCV_VOUCHER and the trailer request (bits
- * 24-31). The send-side bits: SEND_TIMEOUT, SEND_INTERRUPT, the send
- * notification bit and SEND_NOIMPORTANCE. */
 #define YC_SERVER_RCV_BITS 0xFF000D0Cu
 #define YC_SERVER_SEND_BITS 0x000400F0u
 
 int mach_vm_allocate(yc_port_t task, yc_u64 *address, yc_u64 size, int flags);
 
-/* mig_reply_error_t (mach-ipc.md section 5.2): header, NDR, RetCode. */
 struct yc_mig_reply_error {
     struct yc_mach_msg_header head;
     yc_u8 ndr[8];
@@ -343,8 +270,6 @@ struct yc_mig_reply_error {
 
 typedef int (*yc_mig_demux_t)(struct yc_mach_msg_header *request, struct yc_mach_msg_header *reply);
 
-/* A buffer for one message: on the caller's stack when it fits, else
- * fresh pages. */
 struct yc_server_buffer {
     struct yc_mach_msg_header *msg;
     yc_u64 size;
@@ -360,7 +285,7 @@ static int server_buffer_get(struct yc_server_buffer *b, void *stack, yc_u64 siz
         return YC_MACH_MSG_SUCCESS;
     }
     yc_u64 address = 0;
-    int kr = mach_vm_allocate(mach_task_self_, &address, size, 1 /* VM_FLAGS_ANYWHERE */);
+    int kr = mach_vm_allocate(mach_task_self_, &address, size, 1 );
     if (kr != 0)
         return kr;
     b->msg = (struct yc_mach_msg_header *)(yc_uintptr_t)address;
@@ -376,18 +301,6 @@ static void server_buffer_put(struct yc_server_buffer *b)
     b->allocated = 0;
 }
 
-/* Receives one request on rcv_name, lets demux build the reply, and sends
- * it (the MIG server conventions of mach-ipc.md section 5.1):
- *  - the receive takes the caller's receive-side options (a RCV_TIMEOUT
- *    receive polls); with RCV_LARGE, a request larger than max_size is
- *    received into a buffer of its own size;
- *  - a simple reply whose RetCode is MIG_NO_REPLY is not sent and the
- *    request is left to the server; any other non-zero RetCode destroys the
- *    request's rights and memory (its reply right goes with the reply);
- *  - a reply with no destination is destroyed; one to a send right (not
- *    send-once) is sent with SEND_TIMEOUT 0; a reply the send leaves intact
- *    (INVALID_DEST, TIMED_OUT, INTERRUPTED) is destroyed.
- * Returns the receive error, else the reply's send result. */
 static int server_once(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t rcv_name, yc_u32 options,
                        void *request_stack, void *reply_stack)
 {
@@ -401,7 +314,6 @@ static int server_once(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t rcv_name
         mr = mach_msg(request.msg, rcv_options, 0, (yc_u32)request.size, rcv_name, 0, 0);
         if (mr != YC_MACH_RCV_TOO_LARGE || !(options & YC_MACH_RCV_LARGE))
             break;
-        /* The request stays queued; its size is in msgh_size. */
         want = (yc_u64)request.msg->msgh_size + YC_MAX_TRAILER;
         server_buffer_put(&request);
         mr = server_buffer_get(&request, request_stack, want);
@@ -418,7 +330,6 @@ static int server_once(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t rcv_name
         server_buffer_put(&request);
         return mr;
     }
-    /* A received voucher is not adopted: its right is released. */
     if (request.msg->msgh_voucher_port != YC_MACH_PORT_NULL) {
         (void)mach_port_deallocate(mach_task_self_, request.msg->msgh_voucher_port);
         request.msg->msgh_voucher_port = YC_MACH_PORT_NULL;
@@ -428,7 +339,6 @@ static int server_once(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t rcv_name
     struct yc_mig_reply_error *error = (struct yc_mig_reply_error *)reply.msg;
     if (!(reply.msg->msgh_bits & YC_MACH_MSGH_BITS_COMPLEX)) {
         if (error->ret_code == YC_MIG_NO_REPLY) {
-            /* The server keeps the request (and answers later). */
             server_buffer_put(&reply);
             server_buffer_put(&request);
             return YC_MACH_MSG_SUCCESS;
@@ -457,18 +367,12 @@ static int server_once(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t rcv_name
     return mr;
 }
 
-/* mach_msg_return_t mach_msg_server_once(boolean_t (*demux)(mach_msg_header_t *,
- *     mach_msg_header_t *), mach_msg_size_t max_size, mach_port_t rcv_name,
- *     mach_msg_options_t options): one request and its reply. */
 YC_EXPORT int mach_msg_server_once(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t rcv_name, yc_u32 options)
 {
     yc_u64 request_stack[YC_SERVER_STACK_BUFFER / 8], reply_stack[YC_SERVER_STACK_BUFFER / 8];
     return server_once(demux, max_size, rcv_name, options, request_stack, reply_stack);
 }
 
-/* mach_msg_return_t mach_msg_server(demux, max_size, rcv_name, options):
- * serves requests until a receive fails, and returns that error. A reply
- * that cannot be sent does not stop the loop. */
 YC_EXPORT int mach_msg_server(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t rcv_name, yc_u32 options)
 {
     yc_u64 request_stack[YC_SERVER_STACK_BUFFER / 8], reply_stack[YC_SERVER_STACK_BUFFER / 8];
@@ -476,13 +380,11 @@ YC_EXPORT int mach_msg_server(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t r
         int mr = server_once(demux, max_size, rcv_name, options, request_stack, reply_stack);
         yc_u32 code = (yc_u32)mr;
         if ((code & 0xFFFFC000u) == 0x10004000u)
-            return mr; /* a receive error (MACH_RCV_*) */
+            return mr;
         if (mr != YC_MACH_MSG_SUCCESS && (code & 0xFFFFC000u) != 0x10000000u)
-            return mr; /* not a send error: an allocation failure */
+            return mr;
     }
 }
-
-/* ------------------------------------------------------ message priority */
 
 #define YC_MSG_PRIORITY_RELPRI_SHIFT 8
 #define YC_MSG_PRIORITY_RELPRI_MASK (0xFFu << YC_MSG_PRIORITY_RELPRI_SHIFT)
@@ -491,9 +393,6 @@ YC_EXPORT int mach_msg_server(yc_mig_demux_t demux, yc_u32 max_size, yc_port_t r
 #define YC_MSG_PRIORITY_OVERRIDE_SHIFT 20
 #define YC_MSG_PRIORITY_OVERRIDE_MASK (0xFu << YC_MSG_PRIORITY_OVERRIDE_SHIFT)
 
-/* mach_msg_priority_t mach_msg_priority_encode(mach_msg_qos_t override_qos,
- *     mach_msg_qos_t qos, int relpri): the QoS and relative priority are
- * encoded only for a QoS class in 1...15; the override QoS likewise. */
 YC_EXPORT yc_u32 mach_msg_priority_encode(yc_u32 override_qos, yc_u32 qos, int relpri)
 {
     yc_u32 pri = 0;

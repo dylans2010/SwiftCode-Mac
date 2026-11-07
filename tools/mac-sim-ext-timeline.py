@@ -24,13 +24,11 @@ Writes DIR/<device>-boot<k>.json and prints a summary line per boot.
 """
 import argparse, json, os, subprocess, threading, time
 
-
 def run(*args, timeout=600, check=True):
     p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
     if check and p.returncode != 0:
         raise RuntimeError(f"{' '.join(args)}: {p.returncode} {p.stderr.strip()}")
     return p.stdout.strip()
-
 
 def cputime(s):
     days = 0
@@ -41,11 +39,9 @@ def cputime(s):
         sec = sec * 60 + float(x)
     return days * 86400 + sec
 
-
 def brightness(path):
     from PIL import Image, ImageStat
     return ImageStat.Stat(Image.open(path).convert("L").resize((70, 102))).mean[0]
-
 
 def snapshot(udid):
     rows = []
@@ -66,7 +62,6 @@ def snapshot(udid):
             if c not in keep:
                 keep.add(c); todo.append(c)
     return {pid: (cpu, comm) for pid, ppid, cpu, comm in rows if pid in keep}
-
 
 def one_boot(udid, name, k, args):
     run("xcrun", "simctl", "shutdown", udid, check=False)
@@ -116,12 +111,10 @@ def one_boot(udid, name, k, args):
     th.join(timeout=30)
     home = state["home"]
     exts = [p for p in procs.values() if ".appex/" in p["comm"]]
-    # alive / busy concurrency of extensions
     times = sorted({b[0] for b in busy})
     alive_max = max((sum(1 for p in exts if p["first"] <= t <= p["last"]) for t in times), default=0)
     busy_max = max((sum(1 for p in exts if t in p.get("busy_at", ())) for t in times), default=0)
     before = [p for p in exts if home is not None and p["first"] <= home]
-    # cores used by the device before home
     cores = []
     for i in range(1, len(busy)):
         dt = busy[i][0] - busy[i - 1][0]
@@ -143,7 +136,6 @@ def one_boot(udid, name, k, args):
           f"device cores before home {res['device_cores_mean_before_home']}", flush=True)
     return res
 
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", required=True)
@@ -162,7 +154,6 @@ def main():
     for k in range(1, args.boots + 1):
         one_boot(udid, args.device, k, args)
     run("xcrun", "simctl", "shutdown", udid, check=False)
-
 
 if __name__ == "__main__":
     main()

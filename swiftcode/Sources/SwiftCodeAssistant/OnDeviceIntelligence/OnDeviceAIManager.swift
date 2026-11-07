@@ -1,15 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/On Device Intelligence/OnDeviceAIManager.swift
-//   (Legacy commit d51a8f0d)
-//
-// Session, streaming and cancellation are Legacy's own. The streamed
-// text is the real reply from `AppleIntelligenceService` (which routes
-// through `FoundationModelsProvider`); the word-by-word pacing with a
-// 35 ms delay is presentation pacing of that real reply, not generated
-// content. Adaptation: Legacy was `ObservableObject` with `@Published`
-// state; the destination uses `@Observable` (see LocalModelManager /
-// OfflineModelManager), so this follows that convention.
-
 import Foundation
 import Observation
 

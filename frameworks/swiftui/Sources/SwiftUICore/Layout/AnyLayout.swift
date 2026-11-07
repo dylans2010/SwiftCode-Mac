@@ -1,13 +1,10 @@
 import Foundation
 
-/// A type-erased layout, so that a container can switch layouts while
-/// keeping its subviews' identities.
 public struct AnyLayout: Layout, Sendable {
     private let box: any AnyLayoutBox
 
     public init<L: Layout>(_ layout: L) { box = ConcreteLayoutBox(layout: layout) }
 
-    /// The wrapped layout's cache, type-erased.
     public struct Cache {
         fileprivate var value: Any
     }
@@ -40,7 +37,6 @@ public struct AnyLayout: Layout, Sendable {
         box.explicitAlignment(guide.key, bounds, proposal, subviews, &cache.value)
     }
 
-    /// The wrapped layout's stack orientation (for `Spacer`/`Divider`).
     package var stackOrientation: Axis? { box.stackOrientation }
 }
 

@@ -1,14 +1,7 @@
 import USDCore
 import USDStage
 
-/// A material's shading network as UsdShade stores it: a `Material` prim
-/// with terminal outputs (`outputs:mtlx:surface`, `outputs:surface`,
-/// `outputs:displacement`), `Shader` prims identified by `info:id` (MaterialX
-/// `ND_*` node definitions or `UsdPreviewSurface` ids), `NodeGraph`
-/// containers, typed `inputs:`/`outputs:` attributes and `.connect` paths.
 public struct ShadeNetwork: Equatable, Sendable {
-    /// A connection source: a node (path relative to the material, `""` for
-    /// the material itself) and one of its ports (`outputs:out`).
     public struct Source: Hashable, Sendable {
         public var node: String
         public var port: String
@@ -20,7 +13,6 @@ public struct ShadeNetwork: Equatable, Sendable {
     }
 
     public struct Port: Equatable, Sendable {
-        /// Name without the `inputs:`/`outputs:` prefix.
         public var name: String
         public var type: TypeName
         public var value: Value?
@@ -39,10 +31,8 @@ public struct ShadeNetwork: Equatable, Sendable {
     public enum NodeKind: String, Sendable { case shader = "Shader", nodeGraph = "NodeGraph" }
 
     public struct Node: Equatable, Sendable {
-        /// Path relative to the material (`Surface`, `Graph/Noise`).
         public var name: String
         public var kind: NodeKind
-        /// `info:id` (empty for node graphs).
         public var id: String
         public var inputs: [Port]
         public var outputs: [Port]
@@ -58,7 +48,6 @@ public struct ShadeNetwork: Equatable, Sendable {
         public func input(_ name: String) -> Port? { inputs.first { $0.name == name } }
         public func output(_ name: String) -> Port? { outputs.first { $0.name == name } }
 
-        /// A node for a MaterialX definition with its outputs declared.
         public static func make(_ name: String, definition: NodeDefinition) -> Node {
             Node(name: name, id: definition.name, outputs: definition.outputs.compactMap { o in
                 MaterialXLibrary.usdType(forMaterialXType: o.type).map { Port(name: o.name, type: $0) }
@@ -67,7 +56,6 @@ public struct ShadeNetwork: Equatable, Sendable {
     }
 
     public var material: Path
-    /// The material's own ports (terminals and interface inputs).
     public var outputs: [Port]
     public var inputs: [Port]
     public var nodes: [Node]
@@ -81,9 +69,6 @@ public struct ShadeNetwork: Equatable, Sendable {
 
     public func node(_ name: String) -> Node? { nodes.first { $0.name == name } }
 
-    // MARK: Reading
-
-    /// Reads the network below a `Material` prim of one layer.
     public init(layer: Layer, material: Path) throws {
         guard layer.hasSpec(at: material) else { throw USDError("no material at \(material)") }
         self.init(material: material)
@@ -102,7 +87,6 @@ public struct ShadeNetwork: Equatable, Sendable {
         }
     }
 
-    /// Reads the composed network below a `Material` prim of a stage.
     public init(stage: Stage, material: Path) throws {
         guard let prim = stage.prim(at: material) else { throw USDError("no material at \(material)") }
         self.init(material: material)
@@ -163,14 +147,10 @@ public struct ShadeNetwork: Equatable, Sendable {
         return (ins, outs)
     }
 
-    // MARK: Writing
-
-    /// The stage path of a node.
     public func path(of node: String) -> Path {
         node.split(separator: "/").reduce(material) { $0.appendingChild(String($1)) }
     }
 
-    /// Writes the network into a layer (creating or updating the prims).
     public func write(into layer: inout Layer) throws {
         try layer.createPrim(at: material, typeName: "Material")
         try writePorts(inputs, prefix: "inputs:", owner: material, into: &layer)
@@ -200,8 +180,6 @@ public struct ShadeNetwork: Equatable, Sendable {
         }
     }
 
-    // MARK: Validation
-
     public struct Diagnostic: Equatable, Sendable, CustomStringConvertible {
         public enum Severity: String, Sendable { case error, warning }
         public var severity: Severity
@@ -210,10 +188,6 @@ public struct ShadeNetwork: Equatable, Sendable {
         public var description: String { "\(severity.rawValue): \(node.isEmpty ? "material" : node): \(message)" }
     }
 
-    /// Checks node ids, input names and types against MaterialX definitions,
-    /// and that every connection reaches an existing port of a matching type.
-    /// `UsdPreviewSurface`-family ids are checked through their `ND_Usd…`
-    /// MaterialX definitions; unknown non-MaterialX ids are reported as warnings.
     public func validate(library: MaterialXLibrary = .standard) -> [Diagnostic] {
         var out: [Diagnostic] = []
         func port(_ source: Source) -> Port? {
@@ -258,8 +232,6 @@ public struct ShadeNetwork: Equatable, Sendable {
                                           message: "input '\(input.name)' is \(input.type), \(definition.name) declares \(declared.type)"))
                 }
             }
-            // USD-native ids (UsdPreviewSurface…) name their outputs differently
-            // from the MaterialX definitions that describe their inputs.
             for output in n.outputs where n.id.hasPrefix("ND_") && definition.output(output.name) == nil {
                 out.append(Diagnostic(severity: .error, node: n.name, message: "\(definition.name) has no output '\(output.name)'"))
             }

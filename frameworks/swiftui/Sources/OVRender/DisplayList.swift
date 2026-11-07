@@ -1,23 +1,12 @@
-// The display list (09-open-design.md §3.5): what the view graph lowers to.
-// An ordered tree of items, painted back to front. Every item carries a
-// stable ID derived from the identity of the view that produced it, so two
-// frames can be diffed (DisplayListDiff.swift) and cached rasterisations
-// reused. Items are values; images and glyph sources are shared references
-// compared by identity.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// Stable identity of a display item across frames: a hash of the producing
-/// view's identity path and the item's index within that view's output.
 public struct DisplayItemID: Hashable, Sendable, CustomStringConvertible {
     public var raw: UInt64
     public init(_ raw: UInt64) { self.raw = raw }
 
-    /// Derives a child ID: the same parent and discriminator always give
-    /// the same result (FNV-1a over both values).
     public func child(_ discriminator: UInt64) -> DisplayItemID {
         var h: UInt64 = 0xcbf2_9ce4_8422_2325
         for v in [raw, discriminator] {
@@ -44,9 +33,6 @@ public struct DisplayItemID: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "#" + String(raw, radix: 16) }
 }
 
-/// A colour in the sRGB transfer space with straight (not premultiplied)
-/// alpha, components 0…1. Extended-range and Display P3 colours are
-/// converted to sRGB by the producer; the rasteriser clamps.
 public struct RenderColor: Hashable, Sendable {
     public var red: Double
     public var green: Double
@@ -66,14 +52,12 @@ public struct RenderColor: Hashable, Sendable {
         RenderColor(red: red, green: green, blue: blue, alpha: alpha * a)
     }
 
-    /// 8-bit components, rounded and clamped.
     public var rgba8: (UInt8, UInt8, UInt8, UInt8) {
         func q(_ v: Double) -> UInt8 { UInt8(max(0, min(255, (v * 255).rounded()))) }
         return (q(red), q(green), q(blue), q(alpha))
     }
 }
 
-/// A gradient colour stop; `location` is 0…1.
 public struct RenderGradientStop: Hashable, Sendable {
     public var color: RenderColor
     public var location: Double
@@ -83,24 +67,16 @@ public struct RenderGradientStop: Hashable, Sendable {
     }
 }
 
-/// What happens outside a gradient's 0…1 range.
 public enum RenderSpread: Hashable, Sendable {
     case pad, `repeat`, reflect
 }
 
-/// How an area is painted.
 public enum RenderPaint: Equatable, Sendable {
     case color(RenderColor)
-    /// From `start` (location 0) to `end` (location 1), in the item's
-    /// coordinates.
     case linearGradient(stops: [RenderGradientStop], start: CGPoint, end: CGPoint, spread: RenderSpread)
-    /// Circles centred on `center`, from `startRadius` (0) to `endRadius` (1).
     case radialGradient(stops: [RenderGradientStop], center: CGPoint, startRadius: Double, endRadius: Double, spread: RenderSpread)
-    /// Angular sweep around `center`, from `startAngle` (0) to `endAngle`
-    /// (1), radians clockwise from the positive x axis.
     case conicGradient(stops: [RenderGradientStop], center: CGPoint, startAngle: Double, endAngle: Double)
 
-    /// The paint with every colour's alpha multiplied by `opacity`.
     public func multiplyingOpacity(_ opacity: Double) -> RenderPaint {
         if opacity == 1 { return self }
         func m(_ s: [RenderGradientStop]) -> [RenderGradientStop] {
@@ -127,7 +103,6 @@ public enum RenderLineJoin: Hashable, Sendable {
     case miter, round, bevel
 }
 
-/// Stroke parameters (lengths in the item's coordinates).
 public struct RenderStroke: Equatable, Sendable {
     public var lineWidth: Double
     public var lineCap: RenderLineCap
@@ -146,24 +121,16 @@ public struct RenderStroke: Equatable, Sendable {
     }
 }
 
-/// Blend modes a group can composite with. The separable and non-separable
-/// modes of the W3C Compositing and Blending spec plus `plusLighter`
-/// (additive). Porter-Duff operators beyond source-over are not in the
-/// display list (the rasteriser has no equivalent; 09 §3.6).
 public enum RenderBlendMode: Hashable, Sendable {
     case normal, multiply, screen, overlay, darken, lighten, colorDodge, colorBurn
     case softLight, hardLight, difference, exclusion, hue, saturation, color, luminosity
     case plusLighter
 }
 
-/// How an image is sampled when scaled.
 public enum RenderInterpolation: Hashable, Sendable {
     case none, low, medium, high
 }
 
-/// A clip region of a group: inside the path (or outside with `inverse`).
-/// With `stroke`, the region is the path's stroke outline instead of its
-/// inside.
 public struct RenderClip: Equatable, Sendable {
     public var path: RenderPath
     public var fillRule: RenderFillRule
@@ -177,25 +144,18 @@ public struct RenderClip: Equatable, Sendable {
     }
 }
 
-/// A group effect applied to the rendered content of a group.
 public enum RenderEffect: Equatable, Sendable {
-    /// Gaussian blur, `radius` in points (σ = radius / 2).
     case blur(radius: Double)
-    /// A shadow of the content's alpha below the content.
     case shadow(color: RenderColor, radius: Double, x: Double, y: Double)
-    /// Multiplies every colour component (premultiplied) by the colour.
     case colorMultiply(RenderColor)
 }
 
-/// A run of glyphs from one face at one size. Positions are the glyph
-/// origins on the baseline in the item's coordinates.
 public struct RenderGlyphRun: Equatable, Sendable {
     public var source: GlyphSourceRef
     public var size: Double
     public var glyphs: [UInt32]
     public var positions: [CGPoint]
     public var paint: RenderPaint
-    /// Horizontal shear for synthesised italics (tan of the slant angle).
     public var shear: Double
     public init(source: GlyphSourceRef, size: Double, glyphs: [UInt32], positions: [CGPoint], paint: RenderPaint, shear: Double = 0) {
         self.source = source
@@ -207,17 +167,11 @@ public struct RenderGlyphRun: Equatable, Sendable {
     }
 }
 
-/// Supplies glyph outlines to the rasteriser. SwiftUICore adapts OVText's
-/// faces to it; OVRender itself has no font code.
 public protocol GlyphOutlineSource: AnyObject, Sendable {
-    /// Design units per em.
     var unitsPerEm: Double { get }
-    /// The outline of `glyph` in design units, y up (as fonts store it), or
-    /// nil for an empty glyph.
     func outline(of glyph: UInt32) -> RenderPath?
 }
 
-/// A glyph source compared by identity.
 public struct GlyphSourceRef: Hashable, Sendable {
     public let source: any GlyphOutlineSource
     public init(_ source: any GlyphOutlineSource) { self.source = source }
@@ -225,7 +179,6 @@ public struct GlyphSourceRef: Hashable, Sendable {
     public func hash(into h: inout Hasher) { h.combine(ObjectIdentifier(source)) }
 }
 
-/// One element of a display list.
 public struct DisplayItem: Equatable, Sendable {
     public var id: DisplayItemID
     public var content: Content
@@ -236,39 +189,22 @@ public struct DisplayItem: Equatable, Sendable {
     }
 
     public enum Content: Equatable, Sendable {
-        /// Fills the inside of `path`.
         case fill(RenderPath, RenderPaint, RenderFillRule)
-        /// Strokes `path`.
         case stroke(RenderPath, RenderPaint, RenderStroke)
-        /// Paints glyphs.
         case glyphs(RenderGlyphRun)
-        /// Draws `image` scaled into `rect`, multiplied by `opacity`.
         case image(RenderImage, rect: CGRect, interpolation: RenderInterpolation, opacity: Double)
-        /// Children drawn into an isolated group, then composited.
         case group(DisplayGroup)
-        /// Space reserved for content another component draws (a native
-        /// view of the platform host). The rasteriser leaves it untouched.
         case placeholder(rect: CGRect, tag: String)
     }
 }
 
-/// A group: children rendered with the group's transform, then clipped,
-/// masked, filtered by its effects and composited with its opacity and
-/// blend mode.
 public struct DisplayGroup: Equatable, Sendable {
     public var transform: RenderTransform
     public var opacity: Double
     public var blendMode: RenderBlendMode
-    /// Clips in the group's local coordinates (those of the children,
-    /// before `transform`), intersected.
     public var clips: [RenderClip]
-    /// An alpha mask in the group's local coordinates: the group shows
-    /// where the mask is opaque.
     public var mask: DisplayList?
     public var effects: [RenderEffect]
-    /// A hint for the compositor: keep this group's rasterisation in its
-    /// own layer, so changes to `transform` and `opacity` only recomposite
-    /// (09 §3.6).
     public var isLayer: Bool
     public var children: [DisplayItem]
 
@@ -285,23 +221,18 @@ public struct DisplayGroup: Equatable, Sendable {
         self.children = children
     }
 
-    /// True when the group changes nothing about its children.
     public var isPlain: Bool {
         transform.isIdentity && opacity == 1 && blendMode == .normal && clips.isEmpty && mask == nil && effects.isEmpty && !isLayer
     }
 }
 
-/// An ordered list of items, painted back to front.
 public struct DisplayList: Equatable, Sendable {
     public var items: [DisplayItem]
     public init(_ items: [DisplayItem] = []) { self.items = items }
     public var isEmpty: Bool { items.isEmpty }
 }
 
-// MARK: - Translation
-
 extension RenderPaint {
-    /// The paint with its geometry moved by (dx, dy).
     public func translated(_ dx: Double, _ dy: Double) -> RenderPaint {
         func t(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + dx, y: p.y + dy) }
         switch self {
@@ -314,8 +245,6 @@ extension RenderPaint {
 }
 
 extension DisplayItem {
-    /// The item moved by (dx, dy): geometry is offset (groups get the
-    /// translation prepended to their transform).
     public func translated(_ dx: Double, _ dy: Double) -> DisplayItem {
         if dx == 0 && dy == 0 { return self }
         let tr = RenderTransform.translation(dx, dy)
@@ -341,8 +270,6 @@ extension DisplayItem {
     }
 }
 
-// MARK: - Colour multiplication
-
 extension RenderColor {
     public func multiplied(by m: RenderColor) -> RenderColor {
         RenderColor(red: red * m.red, green: green * m.green, blue: blue * m.blue, alpha: alpha * m.alpha)
@@ -362,8 +289,6 @@ extension RenderPaint {
 }
 
 extension DisplayItem {
-    /// The item with every paint multiplied by `m` (images keep their
-    /// pixels: the rasteriser has no per-pixel colour filter).
     public func multiplyingColors(by m: RenderColor) -> DisplayItem {
         var out = self
         switch content {

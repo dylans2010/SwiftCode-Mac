@@ -15,7 +15,6 @@ struct SimulatorConsoleView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Console Output & Streaming", systemImage: "terminal.fill")
                     .font(.headline)
@@ -46,7 +45,6 @@ struct SimulatorConsoleView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

@@ -2,10 +2,7 @@ import Foundation
 import Testing
 import SwiftCodeRelease
 
-/// `swiftcode/VERSION` is the source of truth; everything that states the version
-/// outside the scripts' reach must agree with it.
 @Suite struct VersionAgreementTests {
-    /// `swiftcode/` of this checkout.
     private static let package = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     private static let root = package.deletingLastPathComponent()
@@ -27,7 +24,7 @@ import SwiftCodeRelease
 
     @Test func theMetainfoNamesThisVersionAsItsNewestRelease() throws {
         let metainfo = Self.root.appendingPathComponent("packaging/flatpak/io.github.MarcoDotIO.Ycode.metainfo.xml")
-        guard FileManager.default.fileExists(atPath: metainfo.path) else { return } // an rsync of swiftcode/ alone
+        guard FileManager.default.fileExists(atPath: metainfo.path) else { return }
         let first = try Self.text(metainfo).firstMatch(of: /<release[^>]*version="([^"]+)"/)
         #expect(first.map { String($0.output.1) } == (try Self.versionFile()))
     }

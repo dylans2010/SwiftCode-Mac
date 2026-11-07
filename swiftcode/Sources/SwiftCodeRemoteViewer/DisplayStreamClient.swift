@@ -1,27 +1,13 @@
-// The portable viewer's side of the display stream (display-stream.md §2–§5,
-// §12): connects and reconnects through a transport (a Unix or TCP socket,
-// or SwiftCode's own secure link, sim-link.md), decodes frames into a
-// StreamCanvas on its own thread, keeps the clock estimate, the input
-// sequence and the latency probes, and tells the front end what happened
-// through `onEvent` (called on the connection thread; the front end moves
-// work to its own thread). Foundation only: the Linux window and the IDE
-// canvas use it.
-
 import Foundation
 import SwiftCodeDisplayStream
 
-/// A frame as the viewer received it.
 public struct ReceivedFrame: Sendable {
     public var frame: DisplayFrameSummary
-    /// Client ns: the last byte arrived, the canvas holds it.
     public var receivedAt: UInt64
     public var decodedAt: UInt64
-    /// The headset viewer's tag of this frame (xr-viewer.md §4.1), when the
-    /// server sent one; the image is then in that view's canvas.
     public var view: XRFrameView?
 }
 
-/// A frame without its pixel data.
 public struct DisplayFrameSummary: Sendable, Equatable {
     public var sequence: UInt64, guestFrame: UInt64, serverNanoseconds: UInt64, inputSequence: UInt32
     public var width: Int, height: Int, encoding: DisplayEncoding, isFull: Bool, tiles: Int, bytes: Int
@@ -37,17 +23,13 @@ public enum DisplayClientEvent: Sendable {
     case hello(DisplayServerHello)
     case status(DisplayStatus)
     case displayState(DisplayPanelState)
-    /// A new image is in `canvas` (fetch it with `withCanvas`).
     case frame(ReceivedFrame)
     case notice(String)
     case screenshot(token: UInt32, png: [UInt8])
     case commandReply(token: UInt32, text: String)
-    /// An input event reached the screen: label, ms from sending it to the
-    /// first frame that includes it (received and decoded).
     case latency(label: String, sequence: UInt32, milliseconds: Double)
     case pong(rttMilliseconds: Double)
     case timing(DisplayFrameTiming)
-    /// Foveated streaming: a frame's full-resolution inset (xr-viewer.md §4.5).
     case inset(XRInset)
 }
 
@@ -55,18 +37,10 @@ public final class DisplayStreamClient: @unchecked Sendable {
     public let connect: @Sendable () throws -> DisplayTransport
     public private(set) var settings: DisplayClientHello
     public var onEvent: @Sendable (DisplayClientEvent) -> Void = { _ in }
-    /// How long to wait between connection attempts.
     public var retryInterval: TimeInterval = 1
-    /// Reconnect after the connection ends (false: one connection).
     public var reconnects = true
-    /// The device's sound (§15), on the connection thread as packets arrive
-    /// (with the arrival time), not through `onEvent`.
     public var onAudio: (@Sendable (DisplayAudio, UInt64) -> Void)?
-    /// The headset mode's depth of each picture (frame depth 0x0C, xr-depth.md
-    /// §4), on the connection thread just after its frame was decoded (with the
-    /// arrival time), not through `onEvent`.
     public var onDepth: (@Sendable (XRFrameDepth, UInt64) -> Void)?
-    /// The room's environment (0x0D), on the connection thread.
     public var onEnvironment: (@Sendable (XREnvironment) -> Void)?
 
     private let lock = NSLock()
@@ -78,24 +52,17 @@ public final class DisplayStreamClient: @unchecked Sendable {
     private var nextToken: UInt32 = 0
     private var probes: [(seq: UInt32, sent: UInt64, label: String)] = []
     private var canvas: StreamCanvas?
-    /// The headset mode's per-view canvases (left, right; mono is `canvas`)
-    /// and the tag waiting for its frame.
     private var viewCanvases: [XRView: StreamCanvas] = [:]
     private var pendingView: XRFrameView?
     private var thread: Thread?
     private var finished = false
-    /// Another viewer took the display over: no reconnecting until `takeBack()`.
     private var takenOver = false
 
-    // Statistics (under the lock).
     private var clockState = ClockSync()
-    /// The clock estimate (§12.2).
     public var clock: ClockSync { lock.withLock { clockState } }
     private var bytesIn = 0, framesIn = 0, decodeNs: UInt64 = 0
-    /// The server's frame timings by sequence, until the frame is presented.
     private var timings: [UInt64: DisplayFrameTiming] = [:]
     public private(set) var hello: DisplayServerHello?
-    /// The server honours this client's `frameWindow` (display-stream.md §4.2).
     private var acksFrames = false
 
     public init(settings: DisplayClientHello, connect: @escaping @Sendable () throws -> DisplayTransport) {
@@ -103,7 +70,6 @@ public final class DisplayStreamClient: @unchecked Sendable {
         self.connect = connect
     }
 
-    /// A client of a socket address (`unix:<path>`, `<host>:<port>`, `<port>`).
     public convenience init(address: DisplayAddress, settings: DisplayClientHello) {
         self.init(settings: settings) { try DisplayConnection.connect(to: address) }
     }
@@ -123,25 +89,19 @@ public final class DisplayStreamClient: @unchecked Sendable {
 
     public var isStopped: Bool { lock.withLock { stopped } }
 
-    /// Another viewer has the display (display-stream.md §1.1).
     public var isTakenOver: Bool { lock.withLock { takenOver } }
 
-    /// Connects again after a takeover (taking the display back).
     public func takeBack() { lock.withLock { takenOver = false } }
     public var hasEnded: Bool { lock.withLock { finished } }
 
-    /// (bytes, frames, total decode ns) received so far.
     public var statistics: (bytes: Int, frames: Int, decodeNanoseconds: UInt64) { lock.withLock { (bytesIn, framesIn, decodeNs) } }
 
-    /// The canvas of the current stream (nil before the first frame).
     public var currentCanvas: StreamCanvas? { lock.withLock { canvas } }
 
-    /// The canvas of one view (the headset mode); `.mono` is `currentCanvas`.
     public func canvas(for view: XRView) -> StreamCanvas? {
         lock.withLock { view == .mono ? canvas : viewCanvases[view] }
     }
 
-    /// The server timing of a frame (once; it is forgotten after).
     public func takeTiming(sequence: UInt64) -> DisplayFrameTiming? {
         lock.withLock { timings.removeValue(forKey: sequence) }
     }
@@ -200,7 +160,6 @@ public final class DisplayStreamClient: @unchecked Sendable {
         case .hello(let h):
             lock.withLock { hello = h; acksFrames = h.frameAcks == true && (settings.frameWindow ?? 0) > 0 }
             emit(.hello(h))
-            // A first clock estimate at once (audio and stage times need it).
             for _ in 0..<3 { ping() }
         case .audio(let a):
             onAudio?(a, viewerNanoseconds())
@@ -253,7 +212,6 @@ public final class DisplayStreamClient: @unchecked Sendable {
                 decodeNs += decoded - received
                 return acksFrames
             }
-            // Decoded: room for the next picture (display-stream.md §4.2).
             if acks { send(.frameAck(sequence: f.sequence)) }
             emit(.frame(ReceivedFrame(frame: DisplayFrameSummary(f), receivedAt: received, decodedAt: decoded, view: tag)))
             if f.inputSequence > 0 {
@@ -271,8 +229,6 @@ public final class DisplayStreamClient: @unchecked Sendable {
         }
     }
 
-    // MARK: Sending (any thread)
-
     @discardableResult
     public func send(_ m: DisplayMessage) -> Bool {
         guard let t = lock.withLock({ transport }) else { return false }
@@ -282,8 +238,6 @@ public final class DisplayStreamClient: @unchecked Sendable {
 
     public var isConnected: Bool { lock.withLock { transport != nil } }
 
-    /// Sends an input event with the next sequence number; returns it (0:
-    /// not connected). A `label` makes it a latency probe.
     @discardableResult
     public func sendInput(label: String? = nil, _ make: (UInt32) -> DisplayInput) -> UInt32 {
         let seq = lock.withLock { () -> UInt32 in inputSequence &+= 1; return inputSequence }
@@ -308,7 +262,6 @@ public final class DisplayStreamClient: @unchecked Sendable {
         send(.ping(token: token))
     }
 
-    /// A fresh token for a screenshot request or a command.
     public func token() -> UInt32 { lock.withLock { nextToken &+= 1; return nextToken } }
 
     public func updateSettings(_ s: DisplayClientHello) {

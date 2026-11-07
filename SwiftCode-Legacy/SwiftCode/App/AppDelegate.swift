@@ -8,20 +8,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LoggingTool.info("SwiftCode launched.")
         setupDefaultPreferences()
 
-        // Start the single update service (Sparkle 2). This only starts
-        // Sparkle's scheduled cycle; it never blocks launch. A startup
-        // failure is logged and surfaced in Settings by the service.
         AppUpdateService.shared.start()
 
-        // Restore Studio window if it was left open in previous session
         if UserDefaults.standard.bool(forKey: "com.swiftcode.sdk.studio.isOpen") {
             SDKStudioWindowManager.shared.openStudio()
         }
 
-        // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
 
-        // Track closing windows to prevent closing settings or auxiliary windows from terminating the app
         NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: nil,
@@ -31,7 +25,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleWindowWillClose(window)
         }
 
-        // Start Google Cloud SDK (Python) and Meta Assist (TypeScript) background lifecycle monitoring automatically
         Task { @MainActor in
             GoogleCloudSDKLifecycleManager.shared.startMonitoring()
             try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
@@ -62,24 +55,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // Closing the Settings window or auxiliary window must NOT terminate the app
         if lastClosedWindowWasAuxiliaryOrSettings {
             lastClosedWindowWasAuxiliaryOrSettings = false
             return false
         }
 
-        // If settings window is currently visible, do not terminate
         if NativeSettingsWindowController.shared.isWindowOpen || SettingsWindowManager.shared.isSettingsOpen {
             return false
         }
 
-        // Check if there are any remaining visible workspace or welcome windows
         let remainingMainWindows = sender.windows.filter { window in
             guard window.isVisible else { return false }
             return !isSettingsOrAuxiliaryWindow(window)
         }
 
-        // Only terminate if all actual workspace/welcome windows are closed
         return remainingMainWindows.isEmpty
     }
 

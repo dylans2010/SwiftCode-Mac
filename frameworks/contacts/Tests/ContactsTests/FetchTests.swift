@@ -1,13 +1,7 @@
-// C-CN-FETCH (plan.md §3): predicate table interface.md §4.2, sort tables
-// §4.3, fetch calls §4.1 (unknown identifier, note key, enumeration,
-// CNFetchResult, mutable objects).
-
 import Foundation
 import Testing
 @testable import Contacts
 
-/// The probe data set of interface.md §4.2–§4.3 (made-up records) on top of
-/// the seed: seven probe contacts and "Noaccess Example".
 final class ProbeData {
     let t = TestStore()
     let c1: CNMutableContact, c2: CNMutableContact, c3: CNMutableContact, c4: CNMutableContact
@@ -16,9 +10,6 @@ final class ProbeData {
     var probe: [CNMutableContact] { [c1, c2, c3, c4, c5, c6, c7] }
 
     init() throws {
-        // c1: the Avery with an organization, nickname "Ave", job title
-        // "swiftcode-probe" and a UK phone. Its phonetic names are an
-        // assumption of this test (see README, spec question 3).
         c1 = person("Avery", "Example", org: "Example Widgets LLC")
         c1.nickname = "Ave"
         c1.jobTitle = "swiftcode-probe"
@@ -107,7 +98,6 @@ struct PredicateTests {
         let d = try ProbeData()
         let block = NSPredicate { obj, _ in (obj as? CNContact)?.familyName == "Sample" }
         #expect(try d.ids(block) == [d.c4.identifier])
-        // The constructors' predicates also evaluate on contact objects.
         #expect(CNContact.predicateForContacts(matchingName: "pix").evaluate(with: d.c5))
         #expect(!CNContact.predicateForContacts(matchingName: "pix").evaluate(with: d.c4))
     }

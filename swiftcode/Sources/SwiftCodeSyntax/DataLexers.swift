@@ -1,5 +1,3 @@
-/// JSON (RFC 8259), with the `//` and `/* */` comments JSON-with-comments
-/// files use: object keys, strings, numbers, `true` / `false` / `null`.
 struct JSONLexer: LineLexer {
     func lex(_ l: LineText, state: inout LexState, into out: inout [SyntaxToken]) {
         var i = l.start
@@ -27,7 +25,6 @@ struct JSONLexer: LineLexer {
                 i += 1
                 while i < l.end, l[i] != 34 { i += l[i] == 92 ? 2 : 1 }
                 i = min(i + 1, l.end)
-                // A key: the next character after spaces is a colon.
                 let next = l.firstNonSpace(from: i)
                 out.add(l[next] == 58 ? .key : .string, s, i)
                 continue
@@ -48,10 +45,6 @@ struct JSONLexer: LineLexer {
     }
 }
 
-/// YAML 1.2 (the subset configuration files use): comments, `---` and
-/// `...` document markers, `%` directives, keys, quoted strings (over
-/// lines), block scalars (`|`, `>`), numbers, booleans and null, anchors
-/// and aliases, tags, list markers.
 struct YAMLLexer: LineLexer {
     static let constants: Set<String> = ["true", "false", "True", "False", "TRUE", "FALSE", "yes", "no", "Yes", "No", "on", "off",
                                          "null", "Null", "NULL", "~"]
@@ -63,7 +56,6 @@ struct YAMLLexer: LineLexer {
         let indent = l.firstNonSpace(from: l.start) - l.start
         switch Mode(rawValue: state.mode) ?? .plain {
         case .blockScalar:
-            // Lines indented past the key, and blank lines, belong to the scalar.
             if l.isBlank || indent > Int(state.aux) {
                 out.add(.string, l.start, l.end)
                 state.open = l.isBlank ? nil : .string
@@ -84,18 +76,18 @@ struct YAMLLexer: LineLexer {
             if l.matches("---", at: i) && (l[i + 3] == 0 || isSpace(l[i + 3])) || l.matches("...", at: i) && (l[i + 3] == 0 || isSpace(l[i + 3])) {
                 out.add(.preprocessor, i, i + 3)
                 i += 3
-            } else if l[i] == 37 {   // %YAML, %TAG
+            } else if l[i] == 37 {
                 out.add(.preprocessor, i, l.end)
                 return
             }
         }
-        var atValueStart = true   // a key may start here
+        var atValueStart = true
         while i < l.end {
             let c = l[i]
             let s = i
             if isSpace(c) { i += 1; continue }
             if c == 35, s == l.start || isSpace(l[s - 1]) { out.add(.comment, s, l.end); return }
-            if c == 45, isSpace(l[i + 1]) || i + 1 == l.end, atValueStart {   // - item
+            if c == 45, isSpace(l[i + 1]) || i + 1 == l.end, atValueStart {
                 out.add(.listMarker, s, i + 1)
                 i += 1
                 continue
@@ -111,13 +103,13 @@ struct YAMLLexer: LineLexer {
                 i = e
                 continue
             }
-            if c == 38 || c == 42 {   // &anchor, *alias
+            if c == 38 || c == 42 {
                 i += 1
                 while i < l.end, !isSpace(l[i]), l[i] != 44, l[i] != 93, l[i] != 125 { i += 1 }
                 out.add(.variable, s, i)
                 continue
             }
-            if c == 33 {   // !tag
+            if c == 33 {
                 while i < l.end, !isSpace(l[i]) { i += 1 }
                 out.add(.preprocessor, s, i)
                 continue
@@ -125,15 +117,13 @@ struct YAMLLexer: LineLexer {
             if c == 124 || c == 62, isBlockScalarHeader(l, i) {
                 out.add(.keyword, s, l.end)
                 state = LexState(mode: Mode.blockScalar.rawValue, aux: Int32(indent))
-                // A `- |` item's scalar is indented past the dash too.
                 return
             }
             if c == 123 || c == 125 || c == 91 || c == 93 || c == 44 || c == 58 {
-                atValueStart = c != 58   // after `{`, `[` or `,` a key may follow; after `:` a value
+                atValueStart = c != 58
                 i += 1
                 continue
             }
-            // A plain scalar: up to `: `, ` #`, or a flow indicator.
             var j = i
             while j < l.end {
                 let d = l[j]
@@ -156,8 +146,6 @@ struct YAMLLexer: LineLexer {
         }
     }
 
-    /// `|`, `>`, with optional chomping and indentation indicators, then
-    /// only a comment.
     func isBlockScalarHeader(_ l: LineText, _ i: Int) -> Bool {
         var j = i + 1
         while j < l.end, l[j] == 43 || l[j] == 45 || isDigit(l[j]) { j += 1 }
@@ -165,13 +153,12 @@ struct YAMLLexer: LineLexer {
         return k == l.end || (l[k] == 35 && k > j)
     }
 
-    /// The end of a quoted scalar whose body starts at `i`, and whether it closed.
     func quoted(_ l: LineText, from i: Int, quote: UInt16) -> (Int, Bool) {
         var j = i
         while j < l.end {
             if quote == 34, l[j] == 92 { j += 2; continue }
             if l[j] == quote {
-                if quote == 39, l[j + 1] == 39 { j += 2; continue }   // '' escape
+                if quote == 39, l[j + 1] == 39 { j += 2; continue }
                 return (j + 1, true)
             }
             j += 1
@@ -180,20 +167,15 @@ struct YAMLLexer: LineLexer {
     }
 }
 
-/// Build configuration files (`.xcconfig`, `specs/formats/` and
-/// `specs/build-settings.md`): `//` comments, `#include` / `#include?`
-/// lines, `KEY[condition=value] = value` with `$(VAR)` / `${VAR}`
-/// references, strings and YES / NO.
 struct XcconfigLexer: LineLexer {
     func lex(_ l: LineText, state: inout LexState, into out: inout [SyntaxToken]) {
         var i = l.firstNonSpace(from: l.start)
-        if l[i] == 35 {   // #include "file"
+        if l[i] == 35 {
             var j = i + 1
             while j < l.end, isIdentPart(l[j]) || l[j] == 63 { j += 1 }
             out.add(.preprocessor, i, j)
             i = j
         } else if isIdentStart(l[i]) {
-            // The setting name, then its conditions.
             var j = i
             while j < l.end, isIdentPart(l[j]) { j += 1 }
             out.add(.key, i, j)
@@ -217,7 +199,7 @@ struct XcconfigLexer: LineLexer {
                 out.add(.string, s, i)
                 continue
             }
-            if c == 36 {   // $(VAR) ${VAR} $VAR
+            if c == 36 {
                 let close: UInt16? = l[i + 1] == 40 ? 41 : (l[i + 1] == 123 ? 125 : nil)
                 if let close {
                     var j = i + 2
@@ -235,7 +217,6 @@ struct XcconfigLexer: LineLexer {
                 continue
             }
             if !isSpace(c) {
-                // A word of the value: up to a space, a reference or a string.
                 while i < l.end, !isSpace(l[i]), l[i] != 36, l[i] != 34, !(l[i] == 47 && l[i + 1] == 47) { i += 1 }
                 let w = l.string(s, i)
                 if w == "YES" || w == "NO" { out.add(.keyword, s, i) }

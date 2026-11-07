@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Assist v3 AGENTS.md Scope & Precedence Model
-
 public struct DiscoveredAgentInstruction: Identifiable, Sendable, Codable {
     public let id: UUID
     public let filePath: String
@@ -28,20 +26,16 @@ public struct DiscoveredAgentInstruction: Identifiable, Sendable, Codable {
     }
 }
 
-// MARK: - Agent Repository Scanner & Instruction Resolver
-
 public final class AgentRepositoryScanner: @unchecked Sendable {
     public static let shared = AgentRepositoryScanner()
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "AgentRepositoryScanner")
 
-    // In-memory cache keyed by relative directory path
     private let cacheLock = NSLock()
     private var cachedInstructions: [String: DiscoveredAgentInstruction] = [:]
     private var lastScanResult: (root: String, timestamp: Date, instructions: [DiscoveredAgentInstruction])?
 
     private init() {}
 
-    /// Discovers all root and nested AGENTS.md instruction files in the workspace.
     public func discoverInstructions(in workspaceRoot: URL) -> [DiscoveredAgentInstruction] {
         cacheLock.lock()
         defer { cacheLock.unlock() }
@@ -89,7 +83,6 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
 
                 let modDate = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
 
-                // Check cache
                 if let cached = cachedInstructions[relativePath], cached.lastModified == modDate {
                     results.append(cached)
                     continue
@@ -110,7 +103,6 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
             }
         }
 
-        // Sort: Root first, then by directory depth (nearest to target file)
         results.sort {
             if $0.isRoot != $1.isRoot { return $0.isRoot }
             return $0.directoryPath.count < $1.directoryPath.count
@@ -120,7 +112,6 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
         return results
     }
 
-    /// Resolves the governing AGENTS.md instruction for a target file path based on proximity.
     public func governingInstruction(for filePath: String, in discovered: [DiscoveredAgentInstruction]) -> DiscoveredAgentInstruction? {
         let standardPath = URL(fileURLWithPath: filePath).standardizedFileURL.resolvingSymlinksInPath().path
         let normalizedFileDir = (standardPath as NSString).deletingLastPathComponent
@@ -152,7 +143,6 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
         return bestMatch ?? discovered.first(where: { $0.isRoot })
     }
 
-    /// Generates structured prompt context with strict anti-injection defenses.
     public func formatInstructionsForPrompt(instructions: [DiscoveredAgentInstruction], targetFiles: [String] = []) -> String {
         guard !instructions.isEmpty else {
             return ""

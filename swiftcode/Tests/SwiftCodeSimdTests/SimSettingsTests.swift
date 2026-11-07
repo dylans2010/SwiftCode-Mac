@@ -3,12 +3,7 @@ import Testing
 import SwiftCodeSimFeatures
 @testable import swiftcode_simd
 
-/// FEAT (simulator-features.md "SwiftCode implementation"): the host end of the
-/// settings channel against a stand-in agent, the control commands, the
-/// device files (offline writes, the queue, audio, overrides), and the
-/// agent's launchd job.
 @Suite(.serialized) struct SimSettingsTests {
-    /// A stand-in agent: keeps preferences in memory, records requests, answers.
     final class FakeAgent: SettingsAgentLink, @unchecked Sendable {
         weak var controller: SimSettingsController?
         let lock = NSLock()
@@ -115,13 +110,11 @@ import SwiftCodeSimFeatures
         c.replyTimeout = 0.2
         connect(c, a)
         #expect(c.handle(["ui", "appearance", "dark"]) == "error: the settings agent did not answer in time")
-        // A closed connection fails the waiting request at once.
         c.replyTimeout = 30
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { c.closed(a) }
         let t0 = Date()
         #expect(c.handle(["ui", "appearance", "dark"]) == "error: the settings agent's connection closed")
         #expect(Date().timeIntervalSince(t0) < 5)
-        // A newer connection replaces the older one.
         let b = FakeAgent(), d = FakeAgent()
         connect(c, b)
         connect(c, d)
@@ -178,10 +171,8 @@ import SwiftCodeSimFeatures
         let files = DeviceSettingsFiles(dev: dev)
         #expect(files.read(PreferenceRead(SimPrefs.accessibility, SimPrefs.reduceMotion)) == .int(1))
         #expect(files.read(PreferenceRead(SimPrefs.styleDomain, SimPrefs.styleKey)) == .int(2))
-        // The files are binary property lists, as cfprefsd writes them.
         let raw = FileManager.default.contents(atPath: files.preferencesPath(SimPrefs.styleDomain))!
         #expect(raw.starts(with: Array("bplist00".utf8)))
-        // The queue goes to the agent when it connects, once.
         let c = SimSettingsController(files: files, runtimeRoot: dev, log: { _ in })
         let a = FakeAgent()
         connect(c, a)

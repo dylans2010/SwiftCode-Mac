@@ -1,11 +1,5 @@
 import Foundation
 
-/// Preview-specific live reload (Legacy
-/// `SwiftCode/Core/Preview/PreviewLiveReloadManager.swift`, Dylan's
-/// own code, ported under MIT). Direct port — the destination had
-/// a general `FileSystemWatcher` and a `PreviewUpdatePlanner` but no
-/// watcher that starts/stops on a directory and fires `onChange`
-/// for previews.
 #if canImport(Darwin)
 import Darwin
 #endif

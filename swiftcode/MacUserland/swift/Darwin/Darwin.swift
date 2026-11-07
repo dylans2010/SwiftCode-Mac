@@ -1,15 +1,6 @@
-// Darwin.swift - SwiftCode's additions to the Darwin Swift overlay
-// (specs/macos/swift-runtime.md §4). The overlay is the Swift project's
-// shared platform sources (Platform.swift, Math.swift, TiocConstants.swift,
-// tgmath.swift; Apache-2.0 with the Runtime Library Exception) plus this
-// file, which is SwiftCode's own: the Darwin errno values (public
-// <sys/errno.h> constants) as POSIXErrorCode, and DarwinBoolean (the
-// MacTypes Boolean byte).
+@_exported import Darwin
+@_exported import _DarwinFoundation1._math
 
-@_exported import Darwin  // the Clang module
-@_exported import _DarwinFoundation1._math  // <math.h>, an explicit submodule
-
-/// Enumeration describing POSIX error codes (Darwin values).
 public enum POSIXErrorCode: Int32, Sendable {
   case EPERM = 1
   case ENOENT = 2
@@ -121,11 +112,9 @@ public enum POSIXErrorCode: Int32, Sendable {
 }
 
 extension POSIXErrorCode {
-  /// The error code that `EWOULDBLOCK` names.
   public static var EWOULDBLOCK: POSIXErrorCode { return .EAGAIN }
 }
 
-/// The MacTypes `Boolean`: one byte, zero is false.
 @frozen
 public struct DarwinBoolean: ExpressibleByBooleanLiteral, Sendable {
   @usableFromInline var _value: UInt8
@@ -135,7 +124,6 @@ public struct DarwinBoolean: ExpressibleByBooleanLiteral, Sendable {
     self._value = value ? 1 : 0
   }
 
-  /// The value of `self`, expressed as a `Bool`.
   @_transparent
   public var boolValue: Bool {
     return _value != 0
@@ -173,11 +161,9 @@ extension Bool {
   }
 }
 
-// <sys/signal.h>: the special handler values.
 public var SIG_DFL: sig_t? { return nil }
 public var SIG_IGN: sig_t { return unsafeBitCast(1, to: sig_t.self) }
 public var SIG_ERR: sig_t { return unsafeBitCast(-1, to: sig_t.self) }
 public var SIG_HOLD: sig_t { return unsafeBitCast(5, to: sig_t.self) }
 
-// <sys/mman.h>: mmap's failure value, ((void *)-1).
 public let MAP_FAILED: UnsafeMutableRawPointer! = UnsafeMutableRawPointer(bitPattern: -1)

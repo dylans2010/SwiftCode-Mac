@@ -1,31 +1,12 @@
-// The host's audio server `com.apple.audio.audiohald` (specs/simulator/
-// audio-host.md; visionos.md §10.17, §10.19): the endpoint every guest
-// CoreAudio client talks to. SwiftCode serves the smallest service the
-// reference was tested with (audio-host.md §8): the system object, one
-// 48 kHz stereo Float32 output device with one stream, IO contexts, the
-// private aggregates clients create, and the IO protocol of §10: a shared
-// region per running IO context, a 24-byte cycle message from the client
-// answered by a 24-byte wake paced at the device's real rate on the host's
-// monotonic clock, and a workgroup port the client's IO thread joins (a
-// work interval of SwiftCode's kernel, WorkInterval.swift). The output is
-// discarded, or written to `SWIFTCODE_AUDIO_CAPTURE=<path.wav>`. Real host
-// playback would take the blocks where the capture does (`deliver`).
-//
-// Written from audio-host.md and the public CoreAudio headers; no Apple code.
-
 import Foundation
 import SwiftCodeDarwinABI
 import SwiftCodeDarwinKernel
 
 public final class AudioHostService: @unchecked Sendable {
     public static let serviceName = "com.apple.audio.audiohald"
-    /// `SWIFTCODE_DEBUG_NO_AUDIO=1`: no service (A/B; the guest then has no
-    /// audio system, as before).
     public static let disabled = getenv("SWIFTCODE_DEBUG_NO_AUDIO").map { String(cString: $0) == "1" } ?? false
-    /// `SWIFTCODE_DEBUG_AUDIO=1`: one line per request (object, address, answer).
     static let debug = getenv("SWIFTCODE_DEBUG_AUDIO").map { String(cString: $0) == "1" } ?? false
 
-    /// Request n has ID 1010000 + n; its reply 1010100 + n (audio-host.md §2).
     public static let base: Int32 = 1_010_000
     public enum Message {
         public static let getObject: Int32 = 2, createIOContext: Int32 = 3, createAggregate: Int32 = 5
@@ -38,11 +19,9 @@ public final class AudioHostService: @unchecked Sendable {
         public static let workgroupPort: Int32 = 59, startIO: Int32 = 63, registerClient: Int32 = 71
     }
 
-    /// The NDR record; `MIG_BAD_ID`.
     static let ndr: [UInt8] = [0, 0, 0, 0, 1, 0, 0, 0]
     static let migBadID: Int32 = -303
 
-    /// IO region layout (audio-host.md §10).
     public enum Region {
         public static let ticksPerFrame = 0x000, framesPerTick = 0x008, rateScalar = 0x010, bufferFrames = 0x018
         public static let zeroTime = 0x020, nowTime = 0x060, inputTime = 0x0A0, outputTime = 0x0E0, cycle = 0x124
@@ -51,8 +30,6 @@ public final class AudioHostService: @unchecked Sendable {
         public static let plainCapacity: UInt32 = 8_192, aggregateCapacity: UInt32 = 196_608
     }
 
-    /// The workgroup a running IO thread joins: kWorkIntervalTypeCoreAudio,
-    /// joinable, its own thread group (`sys/work_interval.h`; level 1).
     public static let workgroupFlags = WorkIntervalABI.typeCoreAudio | WorkIntervalABI.flagJoinable | WorkIntervalABI.flagGroup
 
     public let servicePort: UInt32
@@ -64,23 +41,13 @@ public final class AudioHostService: @unchecked Sendable {
     let model = AudioObjectModel()
     private var stopping = false
 
-    /// Guest mach time now and its frequency (the device's host times are in
-    /// the guest's `mach_absolute_time` units). Set by the VMM; the default
-    /// is the 24 MHz timebase on the host's monotonic clock.
     private var guestClock: () -> (ticks: UInt64, frequency: UInt64) = { (MachTimebase.now(), MachTimebase.frequency) }
 
     public func setGuestClock(_ clock: @escaping () -> (ticks: UInt64, frequency: UInt64)) {
         lock.withLock { guestClock = clock }
         resumeRestoredIO()
     }
-    /// Where the output goes besides the capture (host playback would hook
-    /// in here): interleaved Float32 blocks and the host monotonic ns at
-    /// which the device plays them.
     public var deliver: (([Float], UInt64) -> Void)?
-    /// The device's volume and output choice (simulator-features.md §4.11,
-    /// §4.12, "SwiftCode implementation"): the output is scaled by the volume
-    /// (0…1) before the capture and `deliver`; with the output device "None"
-    /// it is silence. Set by the settings controller.
     public func setOutput(volume: Float, muted: Bool) {
         lock.withLock {
             outputGain = min(1, max(0, volume))
@@ -97,15 +64,12 @@ public final class AudioHostService: @unchecked Sendable {
         var port: UInt32
     }
 
-    /// One running IO context (audio-host.md §10).
     final class IOState {
         let contextID: UInt32
         let deviceID: UInt32
         let pid: Int32
         let region: SharedMemoryObject
         let regionSize: Int
-        /// A send right to the region's memory entry, kept so a snapshot
-        /// finds the region again by name.
         let entry: UInt32
         let ioPort: UInt32
         let wakePort: UInt32
@@ -113,13 +77,9 @@ public final class AudioHostService: @unchecked Sendable {
         var anchorNs: UInt64 = 0
         var anchorTicks: UInt64 = 0
         var ticksPerFrame = 500.0
-        /// The sample time of the last wake's "now" (frames since the anchor).
         var sampleTime = 0.0
         var lastWakeID: UInt32 = 0
-        /// A wake owed at a host time: its ID and sample time.
         var due: (id: UInt32, sampleTime: Double, at: UInt64)?
-        /// The block the client writes after the last wake: its frames and
-        /// the host time it plays at.
         var block: (frames: Int, at: UInt64)?
         var cycles = 0, restarts = 0, failedWakes = 0
         var peak: Float = 0
@@ -142,26 +102,21 @@ public final class AudioHostService: @unchecked Sendable {
     private var clients: [Int32: Client] = [:]
     private var running: [UInt32: IOState] = [:]
     private var contextByIOPort: [UInt32: UInt32] = [:]
-    /// The workgroup port (a host send right) of each IO context.
     private var workgroups: [UInt32: UInt32] = [:]
     private var firstSeen: Set<Int32> = []
-    /// Statistics.
     public private(set) var requestCount = 0
     public private(set) var totalCycles = 0
 
-    /// The capture file `SWIFTCODE_AUDIO_CAPTURE` names, if any.
     public static var capturePathFromEnvironment: String? {
         getenv("SWIFTCODE_AUDIO_CAPTURE").map { String(cString: $0) }.flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// Host monotonic ns when the service was made (log time stamps).
     let startNs = MachTimebase.hostMonotonicNanoseconds()
 
     public init(host: MachHostTask, log: @escaping (String) -> Void,
                 capturePath: String? = AudioHostService.capturePathFromEnvironment) throws {
         self.host = host
         let started = startNs
-        // Every line carries the seconds since the service was made.
         self.log = { line in
             let t = Double(MachTimebase.hostMonotonicNanoseconds() &- started) / 1e9
             log(line.hasPrefix("audio: ") ? "audio: [\(String(format: "%.3f", t)) s] " + line.dropFirst(7) : line)
@@ -198,17 +153,11 @@ public final class AudioHostService: @unchecked Sendable {
         t.start()
     }
 
-    /// Ends the service: its thread leaves its loop at the end of the
-    /// receive it is in (at most 200 ms; `waitUntilStopped`).
     public func stop() {
         lock.withLock { stopping = true }
         finishCapture()
     }
 
-    /// After `stop()`: waits until the service thread has left its loop, so
-    /// it receives nothing more from the service's ports (a second service
-    /// over the same host task, as after a restore in one process, then has
-    /// them alone). False if it is still running after `timeout` seconds.
     @discardableResult
     public func waitUntilStopped(timeout: TimeInterval = 5) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -218,11 +167,9 @@ public final class AudioHostService: @unchecked Sendable {
         }
     }
 
-    /// Whether the service thread runs (`start` until `run` returns).
     private let threadState = NSCondition()
     private var threadRunning = false
 
-    /// Writes the capture's pending audio and header (also at the end of a run).
     public func finishCapture() {
         lock.withLock {
             guard let c = capture else { return }
@@ -231,8 +178,6 @@ public final class AudioHostService: @unchecked Sendable {
                 + "\(c.blocks) blocks, \(c.nonZeroSamples) samples not zero, peak \(String(format: "%.4f", c.peak))")
         }
     }
-
-    // MARK: The service thread
 
     private func run() {
         log("audio: serving \(Self.serviceName): '\(AudioObjectModel.deviceName)', \(Int(AudioObjectModel.sampleRate)) Hz, "
@@ -247,9 +192,8 @@ public final class AudioHostService: @unchecked Sendable {
                 lock.withLock { handle(m) }
                 host.finishedMessage()
             } catch let e as MachHostError where e == .timedOut || e == .interrupted || e == .portChanged {
-                // A wake may be due.
             } catch let e as MachHostError where e == MachHostError(MachMsgReturn.rcvInvalidName) {
-                return  // the host task ended
+                return
             } catch {
                 if !lock.withLock({ stopping }) { log("audio: receive failed: \(error); stopping") }
                 return
@@ -257,8 +201,6 @@ public final class AudioHostService: @unchecked Sendable {
             lock.withLock { fireDueWakes(MachTimebase.hostMonotonicNanoseconds()) }
         }
     }
-
-    // MARK: Requests (lock held)
 
     func handle(_ m: MachHostReceivedMessage) {
         requestCount += 1
@@ -288,7 +230,6 @@ public final class AudioHostService: @unchecked Sendable {
         }
     }
 
-    /// Rights a request brought that the handler keeps (not dropped).
     private var keptRights: Set<UInt32> = []
 
     private func dropRights(_ m: MachHostReceivedMessage, keeping: Set<UInt32>) {
@@ -302,7 +243,6 @@ public final class AudioHostService: @unchecked Sendable {
         }
     }
 
-    /// Word `i` after the NDR record.
     static func word(_ m: MachHostReceivedMessage, _ i: Int) -> UInt32 {
         let at = 8 + 4 * i
         guard m.body.count >= at + 4 else { return 0 }
@@ -313,7 +253,6 @@ public final class AudioHostService: @unchecked Sendable {
         AudioPropertyAddress(word(m, i), word(m, i + 1), word(m, i + 2))
     }
 
-    /// The bytes of the request's `i`th out-of-line descriptor.
     static func ool(_ m: MachHostReceivedMessage, _ i: Int) -> [UInt8] {
         var k = 0
         for d in m.descriptors {
@@ -327,18 +266,14 @@ public final class AudioHostService: @unchecked Sendable {
 
     static func le(_ v: UInt32) -> [UInt8] { AudioHAL.le32(v) }
 
-    /// A simple reply: NDR, return code, values.
     static func simple(_ status: UInt32, _ values: [UInt32] = []) -> ([MachHostDescriptor], [UInt8]) {
         ([], ndr + le(status) + values.flatMap(le))
     }
 
-    /// A complex reply with one out-of-line region: NDR and a count.
     static func outOfLine(_ data: [UInt8], count: Int) -> ([MachHostDescriptor], [UInt8]) {
         ([.ool(data: data)], ndr + le(UInt32(count)))
     }
 
-    /// The reply (descriptors, body after them) to one request; nil for a
-    /// one-way message.
     func answer(_ m: MachHostReceivedMessage) -> ([MachHostDescriptor], [UInt8])? {
         let pid = m.sender?.pid ?? -1
         let n = m.id &- Self.base
@@ -473,8 +408,6 @@ public final class AudioHostService: @unchecked Sendable {
             return Self.simple(status)
 
         case Message.addListener, Message.removeListener:
-            // Listeners are accepted silently: no notification is ever sent
-            // (audio-host.md §8, boot b8).
             return nil
 
         case Message.createIOContext:
@@ -499,7 +432,6 @@ public final class AudioHostService: @unchecked Sendable {
             }
 
         case Message.setIOContextPort:
-            // The client's port for IO-context notifications: none is sent.
             trace(pid, "set IO context port \(obj)")
             return Self.simple(model.context(obj) == nil ? AudioHAL.badObject : 0)
 
@@ -529,8 +461,6 @@ public final class AudioHostService: @unchecked Sendable {
         if Self.debug { log("audio: pid \(pid): " + text()) }
     }
 
-    /// The object port of `id` (made on first use; the system object's is
-    /// the service port).
     private func objectPort(_ id: UInt32) -> UInt32 {
         if id == AudioObjectModel.systemID { return servicePort }
         if let p = objectPorts[id] { return p }
@@ -545,13 +475,11 @@ public final class AudioHostService: @unchecked Sendable {
         clients[pid] = Client(name: name, port: port)
         if MachPortName.isValid(port) {
             keptRights.insert(port)
-            // Its death tells that the client process ended.
             _ = try? host.requestNotification(port, id: MachNotify.deadName, notifyPort: notifyPort)
         }
         log("audio: client pid \(pid) registered (\(name.isEmpty ? "no name" : name))")
     }
 
-    /// A client's registration port died: its process ended.
     private func deadName(_ m: MachHostReceivedMessage) {
         guard m.id == MachNotify.deadName else {
             host.discard(m)
@@ -563,7 +491,6 @@ public final class AudioHostService: @unchecked Sendable {
             return
         }
         clients[pid] = nil
-        // The dead name's reference and the notification's.
         try? host.deallocate(name)
         try? host.deallocate(name)
         for (id, st) in running where st.pid == pid { stop(st, id, reason: "the client ended") }
@@ -575,8 +502,6 @@ public final class AudioHostService: @unchecked Sendable {
         log("audio: client pid \(pid) (\(client.name)) ended: \(removed.aggregates) aggregates and "
             + "\(removed.contexts) IO contexts removed")
     }
-
-    // MARK: IO (audio-host.md §10)
 
     private func startIO(_ id: UInt32, wake: UInt32, pid: Int32) -> ([MachHostDescriptor], [UInt8]) {
         let fail: ([MachHostDescriptor], [UInt8]) = ([.port(name: 0, disposition: MachMsgType.makeSend),
@@ -595,12 +520,10 @@ public final class AudioHostService: @unchecked Sendable {
             return fail
         }
         try? host.addMember(ioPort, to: portSet)
-        // One more send right to the entry: the reply moves one, the service keeps one.
         try? host.modRefs(entry, right: MachPortRight.send, delta: 1)
         let st = IOState(contextID: id, deviceID: ctx.deviceID, pid: pid, region: region, regionSize: size, entry: entry,
                          ioPort: ioPort, wakePort: wake)
         keptRights.insert(wake)
-        // The region's fixed part.
         let clock = guestClock()
         st.ticksPerFrame = Double(clock.frequency) / AudioObjectModel.sampleRate
         put(st, f64: st.ticksPerFrame, at: Region.ticksPerFrame)
@@ -651,8 +574,6 @@ public final class AudioHostService: @unchecked Sendable {
             + "peak \(String(format: "%.4f", st.peak))")
     }
 
-    /// The client's cycle message `id` on an IO port: it finished the cycle
-    /// of the last wake (its output is in the region) and waits for the next.
     private func cycle(_ ctxID: UInt32, id: UInt32, _ m: MachHostReceivedMessage) {
         host.discard(m)
         guard let st = running[ctxID] else { return }
@@ -676,8 +597,6 @@ public final class AudioHostService: @unchecked Sendable {
         let due = st.anchorNs + nanoseconds(frames: next)
         let period = nanoseconds(frames: frames)
         if now > due + period {
-            // Late by more than a cycle: restart the numbering with wake 0 at
-            // the cycle the device's clock is in now (audio-host.md §10).
             st.restarts += 1
             let elapsed = Double(now - st.anchorNs) * AudioObjectModel.sampleRate / 1e9
             wake(st, id: 0, sampleTime: max(next, (elapsed / frames).rounded(.down) * frames), frames: frames)
@@ -698,7 +617,6 @@ public final class AudioHostService: @unchecked Sendable {
 
     private func nanoseconds(frames: Double) -> UInt64 { UInt64(frames / AudioObjectModel.sampleRate * 1e9) }
 
-    /// Writes the cycle's timestamps and sends wake `id` (audio-host.md §10).
     private func wake(_ st: IOState, id: UInt32, sampleTime: Double, frames: Double) {
         st.due = nil
         st.sampleTime = sampleTime
@@ -723,14 +641,13 @@ public final class AudioHostService: @unchecked Sendable {
                     + "\(st.nonZero) output samples not zero")
             }
         } catch let e as MachHostError where e == MachHostError(MachMsgReturn.sendTimedOut) {
-            st.failedWakes += 1  // the client has not taken the previous wake
+            st.failedWakes += 1
         } catch {
             st.failedWakes += 1
             stop(st, st.contextID, reason: "the wake port is gone (\(error))")
         }
     }
 
-    /// The output the client wrote for a cycle (interleaved Float32 at 0x8000).
     private func take(_ st: IOState, _ block: (frames: Int, at: UInt64)) {
         let count = block.frames * Int(AudioObjectModel.channels)
         guard Region.outputData + count * 4 <= st.regionSize else { return }
@@ -766,8 +683,6 @@ public final class AudioHostService: @unchecked Sendable {
         st.region.host.storeBytes(of: v.littleEndian, toByteOffset: offset, as: UInt64.self)
     }
 
-    /// An AudioTimeStamp (64 bytes): sample time, host time, rate scalar,
-    /// word clock time, SMPTE time (24 bytes), flags, reserved.
     private func putTimeStamp(_ st: IOState, at offset: Int, sample: Double, host: UInt64, flags: UInt32) {
         put(st, f64: sample, at: offset)
         put(st, u64: host, at: offset + 8)
@@ -778,28 +693,18 @@ public final class AudioHostService: @unchecked Sendable {
         put(st, u32: 0, at: offset + 60)
     }
 
-    // MARK: Snapshot (snapshot.md §2.6; audio-host.md, "SwiftCode implementation")
-
     enum SnapTag {
         static let nextID: UInt16 = 1, powerHint: UInt16 = 2, volume: UInt16 = 3
         static let aggregates: UInt16 = 4, contexts: UInt16 = 5, objectPorts: UInt16 = 6, clients: UInt16 = 7
         static let workgroups: UInt16 = 8, running: UInt16 = 9
-        // aggregate
         static let id: UInt16 = 20, stream: UInt16 = 21, subdevice: UInt16 = 22, uid: UInt16 = 23, name: UInt16 = 24
         static let pid: UInt16 = 25, composition: UInt16 = 26, stereo: UInt16 = 27, layout: UInt16 = 28
-        // context
         static let device: UInt16 = 30, frames: UInt16 = 31, usageScopes: UInt16 = 32, usage: UInt16 = 33
-        // pairs, clients
         static let keys: UInt16 = 40, values: UInt16 = 41, port: UInt16 = 42
-        // running IO
         static let regionSize: UInt16 = 50, entry: UInt16 = 51, ioPort: UInt16 = 52, wakePort: UInt16 = 53
         static let sampleTime: UInt16 = 54, ticksPerFrame: UInt16 = 55
     }
 
-    /// The service's whole state as host-task names; nil while the service
-    /// is busy (the snapshot tries again). Called with the kernel lock
-    /// held: the service takes its lock before the kernel's, so this only
-    /// tries it.
     public func trySnapshotState() -> SnapshotFields? {
         guard lock.try() else { return nil }
         defer { lock.unlock() }
@@ -866,13 +771,6 @@ public final class AudioHostService: @unchecked Sendable {
         return g
     }
 
-    /// After a restore: the recorded state. The host task holds the
-    /// recorded rights under their recorded names (object and IO ports in
-    /// the service's port set, the clients' ports with their dead-name
-    /// requests, wake ports, memory entries, workgroup ports), so only the
-    /// tables come back. Each running IO context gets a wake 0 at once
-    /// (audio-host.md §10: a restart), so a client waiting since the save
-    /// carries on. Returns the number of running IO contexts.
     @discardableResult
     public func restoreState(_ r: SnapshotFieldReader) throws -> Int {
         typealias T = SnapTag
@@ -929,12 +827,8 @@ public final class AudioHostService: @unchecked Sendable {
         return io.count
     }
 
-    /// Restored IO contexts wait for the guest clock (`setGuestClock`).
     private var resumePending = false
 
-    /// After a restore, once the guest clock is known: each running IO
-    /// context's device clock goes on from its saved cycle, and the client
-    /// gets a wake 0 (a restart).
     public func resumeRestoredIO() {
         lock.withLock {
             guard resumePending else { return }
@@ -952,8 +846,6 @@ public final class AudioHostService: @unchecked Sendable {
             }
         }
     }
-
-    // MARK: Statistics (tests, logs)
 
     public var runningContexts: [UInt32] { lock.withLock { running.keys.sorted() } }
     public func cycles(of context: UInt32) -> Int { lock.withLock { running[context]?.cycles ?? 0 } }

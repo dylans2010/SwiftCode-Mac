@@ -1,14 +1,5 @@
 import SwiftUI
 
-/// Desktop-optimised view modifiers (Legacy
-/// `SwiftCode/UI/Styles/Styling/MacDesktopOptimized.swift`, Dylan's own
-/// code, ported under MIT).
-///
-/// Adapted: Legacy read the engine with `@EnvironmentObject`;
-/// there is no Combine / `EnvironmentObject` in this codebase, so
-/// the modifiers read it with `@Environment(AdaptiveLayoutEngine.self)`
-/// (installed by `StylingBootstrap.configureEnvironment`). The
-/// `.liquidGlass(...)` styles come from `SwiftCodeUI`'s `LiquidGlass`.
 public struct MacDesktopOptimizedModifier: ViewModifier {
     @Environment(AdaptiveLayoutEngine.self) var layoutEngine
 

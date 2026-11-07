@@ -20,10 +20,8 @@ public struct AssistBuildConfigurationListTool: AssistTool {
               let text = try? String(contentsOf: pbxproj, encoding: .utf8) else {
             return .failure("No .pbxproj found in the workspace.")
         }
-        // Map each XCConfigurationList to its configurations, then resolve owners.
         var lines = ["Build configurations:"]
         var configNames: Set<String> = []
-        // Find configuration lists and their buildConfigurations entries.
         guard let listPattern = try? NSRegularExpression(
             pattern: #"([0-9A-F]{24}) /\* Build configuration list for (PBXProject|PBXNativeTarget) "([^"]+)" \*/ = \{\s*isa = XCConfigurationList;.*?buildConfigurations = \((.*?)\);"#,
             options: [.dotMatchesLineSeparators]
@@ -31,7 +29,6 @@ public struct AssistBuildConfigurationListTool: AssistTool {
             return .failure("Internal regex error.")
         }
         let lists = listPattern.matches(in: text, range: NSRange(text.startIndex..., in: text))
-        // Map configuration id -> name.
         var configIdToName: [String: String] = [:]
         if let cp = try? NSRegularExpression(pattern: #"([0-9A-F]{24}) /\* ([^*]+?) \*/ = \{\s*isa = XCBuildConfiguration;"#) {
             for m in cp.matches(in: text, range: NSRange(text.startIndex..., in: text)) {

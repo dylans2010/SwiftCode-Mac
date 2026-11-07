@@ -2,24 +2,17 @@ import Foundation
 import USDCore
 import USDStage
 
-/// UsdGeom transform operations (`xformOp:*` attributes ordered by
-/// `xformOpOrder`), in USD's conventions: the op list is applied from last
-/// to first to a point, so the local matrix is `op[n-1] · … · op[0]` in
-/// row-vector form; `!resetXformStack!` cuts the parent transform; an
-/// `!invert!` prefix inverts an op.
 public enum Xform {
     public static let orderAttribute = "xformOpOrder"
     public static let resetToken = "!resetXformStack!"
     static let invertPrefix = "!invert!"
 
-    /// The op type of an op name: `translate` for `xformOp:translate:pivot`.
     public static func opType(_ name: String) -> String? {
         let parts = name.split(separator: ":")
         guard parts.count >= 2, parts[0] == "xformOp" else { return nil }
         return String(parts[1])
     }
 
-    /// The matrix of one op from its value.
     public static func matrix(opType: String, value: Value) -> Matrix4? {
         guard let c = value.doubleComponents else { return nil }
         switch opType {
@@ -32,7 +25,6 @@ public enum Xform {
         case "orient" where c.count == 4: return .rotation(Quat(real: c[0], imaginary: Vec3(c[1], c[2], c[3])))
         case "transform" where c.count == 16: return Matrix4(c)
         default:
-            // rotateXYZ, rotateZYX, …: the first-named axis is applied first.
             guard opType.hasPrefix("rotate"), opType.count == 9, c.count == 3 else { return nil }
             let axes = opType.dropFirst(6).map { "XYZ".firstIndex(of: $0).map { "XYZ".distance(from: "XYZ".startIndex, to: $0) } }
             guard axes.allSatisfy({ $0 != nil }) else { return nil }
@@ -42,8 +34,6 @@ public enum Xform {
         }
     }
 
-    /// The local transform of a composed prim and whether it resets the
-    /// parent transform.
     public static func localTransform(_ prim: Prim, time: Double? = nil) -> (matrix: Matrix4, resetsXformStack: Bool) {
         guard let order = prim.attribute(orderAttribute)?.value(at: time)?.stringArray else { return (.identity, false) }
         var m = Matrix4.identity
@@ -64,20 +54,17 @@ public enum Xform {
         return (m, reset)
     }
 
-    /// The prim's transform in world space (`local · parentWorld`).
     public static func worldTransform(_ prim: Prim, time: Double? = nil) -> Matrix4 {
         let (local, reset) = localTransform(prim, time: time)
         guard !reset, let parent = prim.parent, !parent.path.isRoot else { return local }
         return local * worldTransform(parent, time: time)
     }
 
-    /// The local transform that places a prim at `world` under its parent.
     public static func local(forWorld world: Matrix4, of prim: Prim, time: Double? = nil) -> Matrix4 {
         guard let parent = prim.parent, !parent.path.isRoot, let inv = worldTransform(parent, time: time).inverse else { return world }
         return world * inv
     }
 
-    /// XYZ Euler angles (degrees, X applied first) of a rotation.
     public static func eulerXYZ(_ q: Quat) -> Vec3 {
         let m = Matrix4.rotation(q)
         let b = asin(max(-1, min(1, -m[0, 2])))
@@ -93,15 +80,8 @@ public enum Xform {
         return Vec3(a * 180 / .pi, b * 180 / .pi, c * 180 / .pi)
     }
 
-    /// The op stack the composer writes (`scene-usd.md` §1: T·R·S with
-    /// `orient`), whatever stack the prim had before.
     public static let canonicalOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
-    /// Writes a TRS on a prim spec of `layer` as `translate` (double3),
-    /// `orient` (quatf, real first) and `scale` (float3) ops in that order;
-    /// other `xformOp:` attributes of the spec are removed. Existing op
-    /// attributes keep their value types. With `time` the values are written
-    /// as time samples.
     public static func setTRS(_ trs: TRS, at prim: Path, in layer: inout Layer, time: Double? = nil) throws {
         if !layer.hasSpec(at: prim) { try layer.createPrim(at: prim, specifier: .over) }
         let newOrder = canonicalOrder
@@ -136,7 +116,6 @@ public enum Xform {
                 try set(name, existingType(name, "float3"), [trs.scale.x, trs.scale.y, trs.scale.z])
             }
         }
-        // Ops no longer in the order are removed.
         for name in layer.propertyNames(of: prim) where name.hasPrefix("xformOp:") && !newOrder.contains(name) {
             layer.removeSpec(at: prim.appendingProperty(name))
         }

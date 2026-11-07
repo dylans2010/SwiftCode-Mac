@@ -1,27 +1,7 @@
-// libSwiftCodeEnvironmentOverrides.dylib: Environment Overrides inside one app
-// (specs/simulator/simulator-features.md §7.3; "SwiftCode implementation" §I.6;
-// SwiftCodeSimFeatures/EnvironmentOverrides.swift has the model).
-//
-// swiftcode-simd launches an app with DYLD_INSERT_LIBRARIES naming this library
-// and SWIFTCODE_ENV_OVERRIDES_DIR naming a directory of the device. The library
-// reads `<dir>/<bundle id>.plist` at launch and again on the Darwin
-// notification `dev.swiftcode.environment-overrides.changed`, and applies it to
-// this process only:
-//   - appearance, Dynamic Type, Increase Contrast and Bold Text as trait
-//     overrides of every window scene (UIKit's public UITraitOverrides);
-//   - the accessibility switches by answering UIKit's public status
-//     functions (dyld interposing, a public dyld feature) and posting their
-//     public change notifications.
-// Keys: appearance "light"|"dark", dynamic-type "<UICTContentSizeCategory…>",
-// increase-contrast, reduce-transparency, bold-text, reduce-motion,
-// on-off-labels, button-shapes, grayscale, smart-invert,
-// differentiate-without-color (booleans). An absent key is "No Override".
-
 #import <UIKit/UIKit.h>
 #import <Accessibility/Accessibility.h>
 #import <notify.h>
 
-// Button Shapes: the iOS 26.1+ name (Show Borders, AXShowBordersEnabled) and the older UIKit one.
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 static NSDictionary *gOverrides;
@@ -32,15 +12,12 @@ static void say(NSString *s) {
     fflush(stderr);
 }
 
-/// -1 no override, 0 off, 1 on.
 static int overrideOf(NSString *key) {
     NSDictionary *o = gOverrides;
     id v = o[key];
     if (![v respondsToSelector:@selector(boolValue)]) return -1;
     return [v boolValue] ? 1 : 0;
 }
-
-// MARK: - The status functions
 
 #define SWIFTCODE_INTERPOSE(replacement, original) \
     __attribute__((used)) static struct { const void *r; const void *o; } _interpose_##original \
@@ -60,8 +37,6 @@ SWIFTCODE_SWITCH(UIAccessibilityIsGrayscaleEnabled, @"grayscale")
 SWIFTCODE_SWITCH(UIAccessibilityIsInvertColorsEnabled, @"smart-invert")
 SWIFTCODE_SWITCH(UIAccessibilityShouldDifferentiateWithoutColor, @"differentiate-without-color")
 SWIFTCODE_SWITCH(UIAccessibilityDarkerSystemColorsEnabled, @"increase-contrast")
-
-// MARK: - Trait overrides
 
 static void applyToScene(UIWindowScene *scene) API_AVAILABLE(ios(17.0)) {
     id<UITraitOverrides> t = scene.traitOverrides;
@@ -90,8 +65,6 @@ static void applyToAllScenes(void) {
         }
     }
 }
-
-// MARK: - Loading
 
 static NSDictionary *readFile(void) {
     NSDictionary *d = gPath ? [NSDictionary dictionaryWithContentsOfFile:gPath] : nil;
@@ -133,7 +106,6 @@ __attribute__((constructor)) static void swiftcodeOverridesInit(void) {
     if (!dir || !bundleID) return;
     gPath = [[NSString stringWithUTF8String:dir] stringByAppendingPathComponent:[bundleID stringByAppendingString:@".plist"]];
     gOverrides = readFile();
-    // Scenes: on connection and when the app finishes launching.
     for (NSString *name in @[UISceneWillConnectNotification, UIApplicationDidFinishLaunchingNotification,
                              UISceneDidActivateNotification]) {
         [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue

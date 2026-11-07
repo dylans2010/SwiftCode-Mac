@@ -1,7 +1,3 @@
-// growprobe: our probe (stage 7, agent I4). Grows a buffer the way a
-// vm_allocate / vm_copy / vm_deallocate pattern does (256 KiB steps to
-// 16 MiB), writes a pattern after each step, and checks every word; also
-// interleaves malloc traffic. Prints the first mismatch, if any.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +26,6 @@ int main(void) {
         vm_deallocate(mach_task_self(), buf, size);
         void *noise[64]; for (int k = 0; k < 64; k++) { noise[k] = malloc(100 + k * 300); memset(noise[k], k, 100 + k * 300); }
         if (step % 3 == 0 && nregions < 32) {
-            // A malloc-style region: 4 MiB aligned to 4 MiB, filled with a pattern.
             vm_address_t r = 0;
             kr = vm_map(mach_task_self(), &r, 0x400000, 0x3fffff, VM_FLAGS_ANYWHERE | VM_MAKE_TAG(2), MACH_PORT_NULL, 0,
                              0, VM_PROT_DEFAULT, VM_PROT_ALL, VM_INHERIT_DEFAULT);

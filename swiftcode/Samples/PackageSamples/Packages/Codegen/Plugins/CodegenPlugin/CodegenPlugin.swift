@@ -1,7 +1,6 @@
 import Foundation
 import PackagePlugin
 
-/// Runs `codegen-tool` on each `.codegen` file of the target.
 @main
 struct CodegenPlugin: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {

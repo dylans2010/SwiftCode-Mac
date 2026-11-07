@@ -3,13 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Interface Builder's Identity, Attributes, Size and Connections
-/// inspectors in the inspector column (`interface-builder.md` §Layout,
-/// reference-ui-4.md §13). The sections and rows come from the shared
-/// model (`IBInspectorModel.swift`), as in the macOS inspector; every edit
-/// writes the attribute the row names. Attributes ends with the Control
-/// block (Title, Placeholder, Alignment, Enabled, Hidden); Size lists the
-/// selected view's constraints with an editable constant.
 struct IBInspectorView: View {
     var model: InterfaceBuilderShellModel
     var tab: IBInspectorTab
@@ -198,7 +191,6 @@ struct IBInspectorView: View {
                     ForEach(Array(values.enumerated()), id: \.offset) { pair in
                         Button { model.setChoice(r, pair.element) } label: {
                             Group {
-                                // SwiftCode's own glyph for the choice (IBLibraryObjects.swift).
                                 if let g = IBIcon.choiceGlyph(attribute: attr, value: pair.element, ink: pair.element == value ? .white : (scheme == .dark ? .lightGray : .dark)) {
                                     IBIconView(icon: g).frame(width: 14, height: 14)
                                 } else {
@@ -244,7 +236,6 @@ struct IBInspectorView: View {
         }
     }
 
-    /// A number field with its stepper (one step up or down from the value).
     func numberField(_ value: String, _ ph: String, _ c: ShellColors, target: String, attribute: String) -> some View {
         let v = Double(value) ?? Double(ph) ?? 0
         func text(_ x: Double) -> String { x == x.rounded() ? String(Int(x)) : String(x) }
@@ -263,7 +254,6 @@ struct IBInspectorView: View {
         .background { Capsule(style: .continuous).stroke(c.fieldStroke, lineWidth: 1) }
     }
 
-    /// Title, Placeholder (text fields), Alignment, Enabled and Hidden.
     func controlBlock(_ s: IBControlState, _ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             heading("Control", c)
@@ -277,7 +267,6 @@ struct IBInspectorView: View {
         }
     }
 
-    /// Each constraint mentioning the view, with its constant (0 removes it).
     func constants(_ cs: [IBDocument.Constraint], _ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             heading("Constraint Constants", c)
@@ -291,11 +280,6 @@ struct IBInspectorView: View {
     }
 }
 
-// MARK: Add New Constraints
-
-/// Editor ▸ Add New Constraints… (§Constraints): spacing to the nearest
-/// neighbor on each side (prefilled from the layout), Width and Height
-/// (prefilled from the frame), and centering in the container.
 struct IBAddConstraintsPanel: View {
     var model: InterfaceBuilderShellModel
     @State private var spacing: [IBDocument.Edge: String] = [:]
@@ -354,7 +338,6 @@ struct IBAddConstraintsPanel: View {
         .shellTarget("ib add constraints")
     }
 
-    /// Whether any box is checked (Add Constraints adds nothing otherwise).
     var hasChecks: Bool { !edges.isEmpty || useWidth || useHeight || centerX || centerY }
 
     var spec: IBDocument.NewConstraints {

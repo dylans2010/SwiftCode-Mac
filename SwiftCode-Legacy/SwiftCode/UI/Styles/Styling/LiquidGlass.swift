@@ -1,10 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - AppKit VisualEffectView Representable
-
-/// An AppKit `NSVisualEffectView` wrapper enabling macOS native vibrancy,
-/// material blurring, and dynamic desktop tinting inside SwiftUI hierarchies.
 public struct VisualEffectView: NSViewRepresentable {
     public var material: NSVisualEffectView.Material
     public var blendingMode: NSVisualEffectView.BlendingMode
@@ -41,10 +37,6 @@ public struct VisualEffectView: NSViewRepresentable {
     }
 }
 
-// MARK: - Specular Border Shine & Light Highlights
-
-/// Renders a dynamic, angle-graded specular border highlight mimicking the refraction
-/// and surface reflection of native Apple liquid glass on macOS.
 public struct SpecularBorder: View {
     @Environment(\.colorScheme) private var colorScheme
     public var cornerRadius: CGFloat
@@ -83,7 +75,6 @@ public struct SpecularBorder: View {
     }
 }
 
-/// A subtle specular top-edge refraction highlight reinforcing optical curvature.
 public struct SpecularTopHighlight: View {
     @Environment(\.colorScheme) private var colorScheme
     public var cornerRadius: CGFloat
@@ -116,23 +107,13 @@ public struct SpecularTopHighlight: View {
     }
 }
 
-// MARK: - Liquid Glass Style Presets
-
-/// Visual presets configuring the native material density, vibrancy, and specular properties.
 public enum LiquidGlassStyle: String, Sendable, CaseIterable {
-    /// Standard glass card/panel with balanced translucency and clean specular border.
     case standard
-    /// Prominent glass surface with elevated depth and pronounced edge specular shine.
     case prominent
-    /// Ultra-thin subtle glass layer for secondary containers and lists.
     case subtle
-    /// Frosted glass background tailored for floating sheets, drawers, or modals.
     case sheet
-    /// Native sidebar-grade vibrancy matching macOS source lists.
     case sidebar
-    /// Floating pill/toolbar with high vibrancy and behind-window blending.
     case floatingBar
-    /// Heads-Up Display dark translucent glass with high contrast.
     case hud
 
     public var material: NSVisualEffectView.Material {
@@ -191,19 +172,12 @@ public enum LiquidGlassStyle: String, Sendable, CaseIterable {
     }
 }
 
-// MARK: - Liquid Glass Background
-
-/// A composite view combining AppKit `NSVisualEffectView`, SwiftUI `.ultraThinMaterial`,
-/// ambient tint, specular border refraction, and dynamic drop shadows.
 public struct LiquidGlassBackground: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.liquidGlassEnabled) private var liquidGlassEnabled
 
     public var cornerRadius: CGFloat
     public var opacity: CGFloat
-    // Retained for source compatibility; see LiquidGlassModifier. The
-    // AppKit material controls diffusion, so this is not rendered as a
-    // content blur.
     public var blurRadius: CGFloat
     public var material: NSVisualEffectView.Material
     public var blendingMode: NSVisualEffectView.BlendingMode
@@ -259,7 +233,6 @@ public struct LiquidGlassBackground: View {
     public var body: some View {
         ZStack {
             if liquidGlassEnabled {
-                // 1. Native AppKit VisualEffectView for underlying vibrancy
                 VisualEffectView(
                     material: material,
                     blendingMode: blendingMode,
@@ -267,12 +240,10 @@ public struct LiquidGlassBackground: View {
                 )
                 .opacity(opacity)
 
-                // 2. SwiftUI ultraThinMaterial for multi-pass frosted diffusion
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .opacity(colorScheme == .dark ? 0.65 : 0.75)
 
-                // 3. Ambient tint overlay with dark/light mode balance
                 if let tint = tint {
                     tint.opacity(colorScheme == .dark ? 0.16 : 0.08)
                 } else {
@@ -280,13 +251,11 @@ public struct LiquidGlassBackground: View {
                         .opacity(colorScheme == .dark ? 0.22 : 0.12)
                 }
 
-                // 4. Specular border and reflection highlights
                 if showSpecularBorder {
                     SpecularBorder(cornerRadius: cornerRadius, lineWidth: borderWidth)
                     SpecularTopHighlight(cornerRadius: cornerRadius)
                 }
             } else {
-                // Fallback clean surface if disabled
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color(nsColor: .windowBackgroundColor))
             }
@@ -303,14 +272,6 @@ public struct LiquidGlassBackground: View {
     }
 }
 
-// MARK: - View Modifier
-
-/// Applies the native macOS Liquid Glass styling to any SwiftUI view.
-///
-/// `blurRadius` is retained for source compatibility only: neither
-/// `NSVisualEffectView` nor SwiftUI's materials expose an adjustable blur
-/// radius, and applying `.blur()` here would blur the view's own content.
-/// It is therefore intentionally not rendered, rather than faked.
 public struct LiquidGlassModifier: ViewModifier {
     @Environment(\.liquidGlassStyle) private var environmentStyle
     public var cornerRadius: CGFloat
@@ -323,8 +284,6 @@ public struct LiquidGlassModifier: ViewModifier {
     public var borderWidth: CGFloat
     public var shadowRadius: CGFloat
     public var shadowY: CGFloat
-    // Set only by the style-based init; nil means the caller chose an
-    // explicit material, which the environment style must not override.
     private var presetStyle: LiquidGlassStyle?
 
     public init(
@@ -373,10 +332,6 @@ public struct LiquidGlassModifier: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        // The environment style is the hierarchy default: it only replaces
-        // the default `.standard` preset, never an explicitly chosen preset
-        // or an explicit material. Previously `liquidGlassStyle` was set by
-        // `StylingBootstrap` but never read anywhere, so it had no effect.
         let useEnvironmentStyle = presetStyle == .standard && environmentStyle != .standard
         let effectiveStyle = useEnvironmentStyle ? environmentStyle : nil
         return content
@@ -397,19 +352,12 @@ public struct LiquidGlassModifier: ViewModifier {
     }
 }
 
-// MARK: - Liquid Glass Card Container
-
-/// A ready-to-use card component styled with native liquid glass, padding,
-/// dynamic specular highlights, and gentle elevation.
 public struct LiquidGlassCard<Content: View>: View {
     public var cornerRadius: CGFloat
     public var padding: CGFloat
     public var style: LiquidGlassStyle
     public var tint: Color?
     public var borderWidth: CGFloat
-    // Set only by the material-based init below; nil means "use `style`".
-    // Previously this init silently discarded its material/blendingMode
-    // arguments and always rendered `.standard`.
     private var explicitMaterial: NSVisualEffectView.Material?
     private var explicitBlendingMode: NSVisualEffectView.BlendingMode?
     @ViewBuilder public var content: () -> Content
@@ -477,15 +425,11 @@ public struct LiquidGlassCard<Content: View>: View {
     }
 }
 
-// MARK: - View Extension
-
 public extension GroupBoxStyle where Self == LiquidGlassGroupBoxStyle {
-    /// A native Liquid Glass group box style.
     static var liquidGlass: LiquidGlassGroupBoxStyle {
         LiquidGlassGroupBoxStyle()
     }
 
-    /// A native Liquid Glass group box style with custom preset style and corner radius.
     static func liquidGlass(
         style: LiquidGlassStyle = .standard,
         cornerRadius: CGFloat = 12,
@@ -495,7 +439,6 @@ public extension GroupBoxStyle where Self == LiquidGlassGroupBoxStyle {
     }
 }
 
-/// A `GroupBoxStyle` rendering contents inside an AppKit-backed liquid glass surface.
 public struct LiquidGlassGroupBoxStyle: GroupBoxStyle {
     public var cornerRadius: CGFloat
     public var style: LiquidGlassStyle
@@ -522,10 +465,7 @@ public struct LiquidGlassGroupBoxStyle: GroupBoxStyle {
     }
 }
 
-// MARK: - View Extension
-
 public extension View {
-    /// Applies liquid glass styling with custom corner radius, opacity, and blur radius.
     func liquidGlass(
         cornerRadius: CGFloat = 12,
         opacity: CGFloat = 0.88,
@@ -540,7 +480,6 @@ public extension View {
         )
     }
 
-    /// Applies liquid glass styling using an explicit style preset.
     func liquidGlass(
         style: LiquidGlassStyle = .standard,
         cornerRadius: CGFloat = 12,
@@ -557,7 +496,6 @@ public extension View {
         )
     }
 
-    /// Full control liquid glass modifier with material, blending mode, and specular properties.
     func liquidGlass(
         cornerRadius: CGFloat = 12,
         material: NSVisualEffectView.Material = .headerView,
@@ -581,8 +519,6 @@ public extension View {
     }
 }
 
-// MARK: - Environment Keys
-
 private struct LiquidGlassEnabledKey: EnvironmentKey {
     static let defaultValue: Bool = true
 }
@@ -592,13 +528,11 @@ private struct LiquidGlassDefaultStyleKey: EnvironmentKey {
 }
 
 public extension EnvironmentValues {
-    /// Controls whether Liquid Glass translucency and vibrancy effects are active.
     var liquidGlassEnabled: Bool {
         get { self[LiquidGlassEnabledKey.self] }
         set { self[LiquidGlassEnabledKey.self] = newValue }
     }
 
-    /// The default liquid glass style applied across the view hierarchy.
     var liquidGlassStyle: LiquidGlassStyle {
         get { self[LiquidGlassDefaultStyleKey.self] }
         set { self[LiquidGlassDefaultStyleKey.self] = newValue }
@@ -606,12 +540,10 @@ public extension EnvironmentValues {
 }
 
 public extension View {
-    /// Toggles Liquid Glass effect globally or for a sub-hierarchy.
     func liquidGlassEnabled(_ enabled: Bool) -> some View {
         environment(\.liquidGlassEnabled, enabled)
     }
 
-    /// Overrides default Liquid Glass style for this hierarchy.
     func liquidGlassStyle(_ style: LiquidGlassStyle) -> some View {
         environment(\.liquidGlassStyle, style)
     }

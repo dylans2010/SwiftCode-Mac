@@ -10,8 +10,6 @@ import SwiftCodePlist
         return (text, try PBXProj(parsing: text))
     }
 
-    /// Renames object IDs everywhere in the graph (so random IDs can be
-    /// compared with a fixture's).
     func renamed(_ p: PBXProj, _ map: [String: String]) -> PBXProj {
         func r(_ v: PlistValue) -> PlistValue {
             switch v {
@@ -72,7 +70,6 @@ import SwiftCodePlist
     @Test func localPackageAndNewFrameworksPhase() throws {
         var (_, proj) = try fixture()
         let target = proj.targets[0].id
-        // Drop the frameworks phase so adding a product creates one.
         let fw = try #require(proj.buildPhases(ofTarget: target).first { $0.isa == "PBXFrameworksBuildPhase" })
         proj.removePackage("0F0000000000000000000001")
         var t = try #require(proj[target])

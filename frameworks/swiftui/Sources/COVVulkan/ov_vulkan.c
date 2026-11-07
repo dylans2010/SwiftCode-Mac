@@ -1,7 +1,3 @@
-/*
- * ov_vulkan.c: OpenViews' Vulkan compositor (see COVVulkan.h). Written from
- * the Vulkan 1.3 specification.
- */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
@@ -15,10 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* ------------------------------------------------------------------ */
-/* Dispatch                                                            */
-/* ------------------------------------------------------------------ */
 
 #define OVK_GLOBAL(X) \
     X(vkCreateInstance) \
@@ -107,10 +99,6 @@ int ovk_load(char *err, size_t errlen) {
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Context                                                             */
-/* ------------------------------------------------------------------ */
-
 #define MAX_IMAGES 8
 
 typedef struct {
@@ -153,7 +141,6 @@ struct ovk_context {
     VkShaderModule vs, fs;
     VkSampler sampler;
 
-    /* Target. */
     VkFormat format;
     uint32_t width, height;
     VkSurfaceKHR surface;
@@ -345,7 +332,6 @@ ovk_context *ovk_create(const char *const *extensions, uint32_t extension_count,
                                        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY, .commandBufferCount = 1};
     c->f.vkAllocateCommandBuffers(c->device, &cai, &c->cmd);
 
-    /* Pipeline objects that do not depend on the target format. */
     VkDescriptorSetLayoutBinding b = {.binding = 0, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                       .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT};
     VkDescriptorSetLayoutCreateInfo dlci = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = 1, .pBindings = &b};
@@ -449,10 +435,6 @@ static int make_image(ovk_context *c, uint32_t w, uint32_t h, VkFormat format, V
     return c->f.vkCreateImageView(c->device, &vci, NULL, view) == VK_SUCCESS ? 0 : -1;
 }
 
-/* ------------------------------------------------------------------ */
-/* Targets                                                             */
-/* ------------------------------------------------------------------ */
-
 static void destroy_target(ovk_context *c) {
     if (!c->device) return;
     c->f.vkDeviceWaitIdle(c->device);
@@ -512,8 +494,6 @@ static int make_swapchain(ovk_context *c, uint32_t width, uint32_t height, char 
     VkSurfaceFormatKHR formats[64];
     if (fn > 64) fn = 64;
     c->f.vkGetPhysicalDeviceSurfaceFormatsKHR(c->phys, c->surface, &fn, formats);
-    /* Our pixels are already sRGB-encoded: prefer UNORM formats so they are
-     * stored as is. */
     VkSurfaceFormatKHR chosen = fn ? formats[0] : (VkSurfaceFormatKHR){VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
     for (uint32_t i = 0; i < fn; i++)
         if ((formats[i].format == VK_FORMAT_B8G8R8A8_UNORM || formats[i].format == VK_FORMAT_R8G8B8A8_UNORM) &&
@@ -572,10 +552,6 @@ int ovk_resize(ovk_context *c, uint32_t width, uint32_t height, char *err, size_
     }
     return ovk_set_offscreen(c, width, height, err, errlen);
 }
-
-/* ------------------------------------------------------------------ */
-/* Layers                                                              */
-/* ------------------------------------------------------------------ */
 
 void ovk_layer_release(ovk_context *c, uint32_t i) {
     if (i >= c->layer_count || !c->layers[i].live) return;
@@ -654,10 +630,6 @@ int ovk_layer_update(ovk_context *c, uint32_t i, const void *rgba, uint32_t x, u
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Frames                                                              */
-/* ------------------------------------------------------------------ */
-
 static void barrier(ovk_context *c, VkImage img, VkImageLayout from, VkImageLayout to, VkAccessFlags src, VkAccessFlags dst,
                     VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage) {
     VkImageMemoryBarrier b = {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .srcAccessMask = src, .dstAccessMask = dst,
@@ -684,7 +656,6 @@ int ovk_frame(ovk_context *c, const ovk_draw *draws, uint32_t count, const float
     VkCommandBufferBeginInfo bi = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
     c->f.vkBeginCommandBuffer(c->cmd, &bi);
 
-    /* Uploads of changed layer pixels. */
     for (uint32_t i = 0; i < c->layer_count; i++) {
         ovk_layer *l = &c->layers[i];
         if (!l->live || !l->pending) continue;

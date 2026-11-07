@@ -278,8 +278,6 @@ private struct GenericTransformerModel: OfflineLanguageModel {
 
     func generate(tokens: [Int]) -> AsyncThrowingStream<Int, Error> {
         AsyncThrowingStream { continuation in
-            // Placeholder generic inference path: once MLX runtime adapters are linked,
-            // this model can route through architecture-specific kernels.
             for token in tokens {
                 continuation.yield(token)
             }

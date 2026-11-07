@@ -3,7 +3,6 @@ import SwiftUI
 import Darwin
 import AppKit
 
-/// Loads dynamically compiled SwiftUI libraries and extracts native interactive views.
 public final class PreviewDynamicLoader {
     private var activeHandle: UnsafeMutableRawPointer?
 
@@ -21,7 +20,6 @@ public final class PreviewDynamicLoader {
 
         let symbolName = "__swiftcode_make_hosting_view"
         guard let symbol = dlsym(handle, symbolName) else {
-            // Fallback to static descriptive container if dlsym is not found
             let fallbackView = AnyView(
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle")
@@ -69,9 +67,6 @@ public final class PreviewDynamicLoader {
     }
 }
 
-// SAFETY JUSTIFICATION: LoadedPreviewSimulation is used purely for UI observation/rendering
-// and runtime dynamic linking handle cleanup on the @MainActor thread. Its properties
-// are only accessed and mutated on @MainActor, ensuring thread safety.
 public struct LoadedPreviewSimulation: @unchecked Sendable {
     public let nativeView: NSView
     public let hierarchyDescription: [String]

@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/CollaborationManager.swift
-// Adapted for SwiftCode: Legacy's Project replaced by CollaborationProject (id/name/directoryURL).
-
 import Foundation
 import Combine
 import MultipeerConnectivity
@@ -304,8 +300,6 @@ public final class CollaborationManager: ObservableObject {
         saveState()
     }
 
-    // MARK: - Presence Management
-
     public func broadcastPresence(currentFile: String? = nil, cursorPosition: Int? = nil, selectionRange: NSRange? = nil) {
         let presence = UserPresence(id: creatorID, currentFile: currentFile, cursorPosition: cursorPosition, selectionRange: selectionRange)
         updateUserPresence(presence)
@@ -336,8 +330,6 @@ public final class CollaborationManager: ObservableObject {
         let timeout: TimeInterval = 15.0
         activeUsers.removeAll { Date().timeIntervalSince($0.lastSeen) > timeout && $0.id != creatorID }
     }
-
-    // MARK: - Persistence
 
     public struct ProjectState: Codable {
         public let projectID: UUID

@@ -1,10 +1,5 @@
 import Foundation
 
-// Layout modifiers (04-layout.md §5; order semantics 03 §6): each wraps every
-// layout node its content produces (a modifier on a group of views applies to
-// each view). The arithmetic lives in the R3 engine's behaviours.
-
-/// A modifier that wraps each of the content's layout nodes.
 package struct LayoutEffectModifier: PrimitiveModifier {
     package let name: String
     package let apply: (LayoutNode) -> LayoutNode
@@ -14,8 +9,6 @@ package struct LayoutEffectModifier: PrimitiveModifier {
     }
 }
 
-/// `background` / `overlay` with a view: the secondary view is laid out in
-/// the content's bounds (several secondary views are stacked in a ZStack).
 package struct SecondaryLayerModifier<Secondary: View>: PrimitiveModifier {
     package let secondary: Secondary
     package let alignment: Alignment
@@ -37,12 +30,10 @@ extension View {
         modifier(LayoutEffectModifier(name: name, apply: apply))
     }
 
-    /// A fixed frame; nil dimensions take the content's size (04 §5).
     public func frame(width: CGFloat? = nil, height: CGFloat? = nil, alignment: Alignment = .center) -> some View {
         layoutEffect("frame") { $0.frame(width: width, height: height, alignment: alignment) }
     }
 
-    /// A flexible frame (04 §5).
     public func frame(minWidth: CGFloat? = nil, idealWidth: CGFloat? = nil, maxWidth: CGFloat? = nil,
                       minHeight: CGFloat? = nil, idealHeight: CGFloat? = nil, maxHeight: CGFloat? = nil,
                       alignment: Alignment = .center) -> some View {
@@ -54,7 +45,6 @@ extension View {
 
     public func padding(_ insets: EdgeInsets) -> some View { layoutEffect("padding") { $0.padding(insets) } }
 
-    /// Padding on `edges`; nil length = the default amount (04 §5).
     public func padding(_ edges: Edge.Set = .all, _ length: CGFloat? = nil) -> some View {
         layoutEffect("padding") { $0.padding(edges, length) }
     }
@@ -78,10 +68,6 @@ extension View {
     public func scaledToFit() -> some View { layoutEffect("scaledToFit") { $0.scaledToFit() } }
     public func scaledToFill() -> some View { layoutEffect("scaledToFill") { $0.scaledToFill() } }
 
-    // `offset`, `scaleEffect`, `rotationEffect`: Animation/Effects.swift
-    // (render effects whose values animate).
-
-    /// Centres the view at a point of its parent's space; takes the proposal.
     public func position(_ position: CGPoint) -> some View { layoutEffect("position") { $0.position(position) } }
     public func position(x: CGFloat = 0, y: CGFloat = 0) -> some View { layoutEffect("position") { $0.position(x: x, y: y) } }
 
@@ -102,7 +88,6 @@ extension View {
         layoutEffect("alignmentGuide") { $0.alignmentGuide(g, computeValue: computeValue) }
     }
 
-    /// Extends the view into the safe-area insets it touches (04 §7).
     public func ignoresSafeArea(_ regions: SafeAreaRegions = .all, edges: Edge.Set = .all) -> some View {
         layoutEffect("ignoresSafeArea") { $0.ignoresSafeArea(edges: edges) }
     }
@@ -112,11 +97,6 @@ extension View {
         layoutEffect("ignoresSafeArea") { $0.ignoresSafeArea(edges: edges) }
     }
 
-    /// Layers `background` behind the view, in the view's bounds.
-    ///
-    /// Disfavoured, as in the reference API (where this form is deprecated):
-    /// for a value that is both a view and a shape style — a `Color` — the
-    /// `ShapeStyle` overload `background(_:ignoresSafeAreaEdges:)` is chosen.
     @_disfavoredOverload
     public func background<V: View>(_ background: V, alignment: Alignment = .center) -> some View {
         modifier(SecondaryLayerModifier(secondary: background, alignment: alignment, isBackground: true))
@@ -126,8 +106,6 @@ extension View {
         modifier(SecondaryLayerModifier(secondary: content(), alignment: alignment, isBackground: true))
     }
 
-    /// Layers `overlay` in front of the view, in the view's bounds
-    /// (disfavoured like `background(_:alignment:)`).
     @_disfavoredOverload
     public func overlay<V: View>(_ overlay: V, alignment: Alignment = .center) -> some View {
         modifier(SecondaryLayerModifier(secondary: overlay, alignment: alignment, isBackground: false))
@@ -138,8 +116,6 @@ extension View {
     }
 }
 
-/// Safe-area regions (only the container region exists before R8's
-/// keyboard handling).
 public struct SafeAreaRegions: OptionSet, Sendable {
     public let rawValue: UInt
     public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -147,8 +123,6 @@ public struct SafeAreaRegions: OptionSet, Sendable {
     public static let keyboard = SafeAreaRegions(rawValue: 1 << 1)
     public static let all: SafeAreaRegions = [.container, .keyboard]
 }
-
-// MARK: - Geometry observation
 
 private final class GeometryChangeState<T: Equatable>: GeometryObserving {
     var last: T?
@@ -169,8 +143,6 @@ private final class GeometryChangeState<T: Equatable>: GeometryObserving {
     }
 }
 
-/// `onGeometryChange(for:of:action:)`: after layout, runs the action when
-/// the transformed geometry changes (including its first value).
 package struct GeometryChangeModifier<T: Equatable>: PrimitiveModifier {
     package let transform: (GeometryProxy) -> T
     package let action: (T, T) -> Void

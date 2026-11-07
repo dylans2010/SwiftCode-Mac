@@ -1,9 +1,3 @@
-// Pipeline creation times for QuartzCore's uber-shaders (the pipelines
-// backboardd creates first), with and without graphics pipeline libraries,
-// cold and warm. The runtime's QuartzCore metallib is read at run time
-// (SWIFTCODE_TEST_QC_METALLIB; never copied into the repository); SWIFTCODE_AIRC
-// translates. Run with __GL_SHADER_DISK_CACHE=0 so that "cold" is cold.
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
@@ -16,7 +10,6 @@ enum QCBench {
         return FileManager.default.isExecutableFile(atPath: a) && FileManager.default.fileExists(atPath: m)
     }()
 
-    /// (vertex, fragment) pairs whose varyings match.
     static let pairs = [("fixed_vert_lph_spc", "fixed_frag_lph_cph"), ("fixed_vert_lph_gen", "fixed_frag_lph_cpf"),
                         ("fixed_vert_lpf_gen", "fixed_frag_lpf_cpf")]
 
@@ -43,13 +36,11 @@ struct PipelineBenchmarkTests {
         let lib = [UInt8](try Data(contentsOf: URL(fileURLWithPath: QCBench.env["SWIFTCODE_TEST_QC_METALLIB"]!)))
         let airc = AircProcessTranslator(executable: URL(fileURLWithPath: QCBench.env["SWIFTCODE_AIRC"]!))
         let translator = ProbeLibraryTranslator(airc: airc, library: lib)
-        // Vertex inputs from the vertex functions' reflection.
         var inputs: [String: [ShaderReflection.VertexInput]] = [:]
         let t0 = Date()
         for (v, f) in QCBench.pairs {
             let vs = try translator.translate(TranslationRequest(metallib: Array("probe:\(v)".utf8)))
             inputs[v] = vs.reflection.vertexInputs ?? []
-            // Translate the fragment function now (airc caches it), so the timings below are Vulkan's.
             let fs = try translator.translate(TranslationRequest(metallib: Array("probe:\(f)".utf8), linkVertexHash: vs.reflection.hash))
             print("translated \(v) + \(f): \(fs.spirv.count) SPIR-V words")
         }
@@ -64,7 +55,7 @@ struct PipelineBenchmarkTests {
             let cachePath = cacheDir + "/\(useLibraries ? "gpl" : "full").bin"
             for round in ["cold", "warm"] {
                 var o = VulkanMetalBackend.Options()
-                o.asynchronousPipelines = false  // time each creation
+                o.asynchronousPipelines = false
                 o.pipelineCachePath = cachePath
                 let b = VulkanMetalBackend(translator: translator, options: o)
                 #expect(b.usesPipelineLibraries == useLibraries || !useLibraries)

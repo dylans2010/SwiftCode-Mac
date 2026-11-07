@@ -1,29 +1,16 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// `__ulock_wait` (515), `__ulock_wait2` (544), `__ulock_wake` (516) with real
-// waits between threads (`specs/simulator/threads-and-events.md` §4.1).
-//
-// With the lock split the ulock queues are the image's event-lock state
-// (L_P, `bsd-locking.md` §5): `ulocks` and every ulock wait queue are used
-// with L_P held, and the waits are on L_P, so the calls can run without L0
-// (`handleBSDFast`). Without the split L_P is L0.
-
-/// The waiters on one user address.
 final class ULockQueue {
-    /// The opcode every waiter on this key uses.
     var opcode: UInt32
     let waiters = WaitQueue()
-    /// `UL_UNFAIR_LOCK`: the owner named by the last waiter's lock word.
     var owner: ThreadContext?
-    /// The thread that carries this queue's inheritance push (`scheduling-policy.md` §4.6).
     weak var pushedOwner: ThreadContext?
 
     init(opcode: UInt32) { self.opcode = opcode }
 }
 
 extension DarwinKernel {
-    /// `__ulock_*` flag bits.
     enum ULockFlag {
         static let wakeAll: UInt32 = 0x0000_0100
         static let wakeThread: UInt32 = 0x0000_0200
@@ -42,7 +29,6 @@ extension DarwinKernel {
     static let EALREADY: Int32 = 37
     static let EOWNERDEAD: Int32 = 105
 
-    /// The opcodes wait and wake accept.
     private static let ulockOpcodes: Set<UInt32> = [1, 2, 3, 5, 6]
 
     private func ulockResult(_ e: Int32, noErrno: Bool) throws -> UInt64 {
@@ -50,14 +36,12 @@ extension DarwinKernel {
         throw Failure(errno: e)
     }
 
-    /// Converts a `mach_absolute_time` deadline to a host monotonic deadline.
     func hostDeadline(machTicks deadline: UInt64) -> UInt64 {
         let now = counter()
         guard deadline > now else { return KernelClock.now() }
         return KernelClock.deadline(afterNanoseconds: nanoseconds(ticks: deadline - now))
     }
 
-    /// Guest counter ticks → nanoseconds, saturating.
     func nanoseconds(ticks: UInt64) -> UInt64 {
         let f = max(counterFrequency, 1)
         let (hi, lo) = ticks.multipliedFullWidth(by: 1_000_000_000)
@@ -65,13 +49,10 @@ extension DarwinKernel {
         return f.dividingFullWidth((hi, lo)).quotient
     }
 
-    // MARK: wait
-
     func ulockWait(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         try withEvents { try ulockWaitLocked(n, a, &call, mem) }
     }
 
-    /// `ulockWait` with the event lock held.
     private func ulockWaitLocked(_ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> UInt64 {
         eventLock?.checkHeld("the ulock queues")
         let operation = UInt32(truncatingIfNeeded: a[0])
@@ -130,8 +111,6 @@ extension DarwinKernel {
         queue.opcode = op
         if op == ULock.unfairLock { queue.owner = owner }
         ulocks[addr] = queue
-        // Inheritance (scheduling-policy.md §4.6): the owner of an unfair
-        // lock runs at least at its waiters' highest class while they wait.
         let inherit = SchedPolicy.qosEnabled && op == ULock.unfairLock
         let result = queue.waiters.wait(on: eventWaitLock, deadline: deadline, tag: 0,
                                         beforeSleeping: inherit ? { [unowned self] in self.refreshULockPush(addr: addr, queue: queue) } : nil)
@@ -151,8 +130,6 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: wake
-
     func ulockWake(_ a: [UInt64], _ call: inout CallText) throws -> UInt64 {
         let operation = UInt32(truncatingIfNeeded: a[0])
         call.set("__ulock_wake(op=\(hx(operation)), addr=\(hx(a[1])), wake_value=\(hx(a[2])))")
@@ -166,7 +143,6 @@ extension DarwinKernel {
         return 0
     }
 
-    /// The wake rules of §4.1. Returns an errno or the number of threads woken.
     func ulockWakeCore(operation: UInt32, addr: UInt64, wakeValue: UInt64) -> (Int32?, Int) {
         withEvents { ulockWakeCoreLocked(operation: operation, addr: addr, wakeValue: wakeValue) }
     }
@@ -198,7 +174,6 @@ extension DarwinKernel {
             return (nil, n)
         }
         if op == ULock.unfairLock && !nonOwner, let owner = queue.owner, owner.isAlive, owner !== current {
-            // Not the owner: the real owner wakes later.
             return (nil, 0)
         }
         var woken: ThreadContext?

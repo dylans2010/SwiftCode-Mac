@@ -1,13 +1,3 @@
-//
-//  AssistSpeechUI.swift
-//  SwiftCode
-//
-//  Native speech recognition modal/sheet view for Assist.
-//  Uses Apple's native SFSpeechRecognizer and AVAudioEngine to record audio,
-//  provide real-time streaming transcription, and send transcribed prompts
-//  directly to Assist.
-//
-
 import SwiftUI
 import Speech
 import AVFoundation
@@ -38,7 +28,6 @@ public struct AssistSpeechUI: View {
 
     public var body: some View {
         VStack(spacing: 16) {
-            // Top Header Bar
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "mic.fill")
@@ -66,7 +55,6 @@ public struct AssistSpeechUI: View {
 
             Divider()
 
-            // Main Transcription Display Area
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     if transcribedText.isEmpty {
@@ -105,7 +93,6 @@ public struct AssistSpeechUI: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // Audio Visualizer Waveform / Pulsating Mic Trigger
             ZStack {
                 Circle()
                     .fill(isRecording ? Color.red.opacity(0.15) : Color.accentColor.opacity(0.12))
@@ -135,7 +122,6 @@ public struct AssistSpeechUI: View {
             }
             .padding(.vertical, 8)
 
-            // Action Buttons Footer
             HStack(spacing: 12) {
                 Button {
                     let text = transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -196,8 +182,6 @@ public struct AssistSpeechUI: View {
             stopRecording()
         }
     }
-
-    // MARK: - Speech Recognition Engine Lifecycle
 
     private func requestPermissions() {
         #if os(macOS)

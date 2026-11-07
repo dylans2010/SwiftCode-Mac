@@ -3,10 +3,6 @@ import SwiftCodeIDECore
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// The project editor: PROJECT / TARGETS list, tabs, and the tab content.
-/// Every edit goes through `ProjectEditorModel` and is reported with
-/// `onChange` (the window then writes the project). See
-/// `specs/ide/project-editor.md`.
 @MainActor
 public final class ProjectEditorController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate, NSComboBoxDelegate {
     public enum Tab: String, CaseIterable { case general = "General", signing = "Signing & Capabilities", resourceTags = "Resource Tags", info = "Info",
@@ -16,40 +12,26 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
 
     public internal(set) var model: ProjectEditorModel
     public var onChange: ((PBXProj) -> Void)?
-    /// nil = the project.
     public private(set) var selectedTarget: String?
     public private(set) var tab: Tab = .general
     public private(set) var configuration = "Debug"
-    /// The user picked a configuration; until then the list's
-    /// `defaultConfigurationName` is shown (project-editor.md §Layout).
     private var configurationChosen = false
     public var filter: ProjectEditorModel.Filter = .basic { didSet { if isViewLoaded && tab == .buildSettings { showTab() } } }
     public var settingsView: SettingsView = .combined { didSet { showTab() } }
     public var search = "" { didSet { reloadSettings() } }
     public internal(set) var settingRows: [ProjectEditorModel.SettingRow] = []
 
-    /// Collapsed sections of General, Info and Build Phases (by title
-    /// without its count). The Info type sections start collapsed.
     public var collapsedSections: Set<String> = ["Document Types", "Exported Type Identifiers", "Imported Type Identifiers", "URL Types"]
-    /// Expanded entry rows of the Info type sections ("<plist key>#<index>").
     public var expandedInfoEntries: Set<String> = []
-    /// Expanded container rows of the Info table (raw key paths), and the
-    /// path of each shown row.
     public var expandedInfoKeys: Set<String> = []
     public internal(set) var infoRowPaths: [String] = []
-    /// The shown tab's collapsible sections and tables (tests).
     var sectionViews: [String: CollapsibleSection] = [:]
     var tables: [String: StaticTable] = [:]
-    /// Filter fields of Resource Tags and Build Rules, by tab key.
     public var tabFilters: [String: String] = [:]
-    /// Resource Tags scope (All, Prefetched) and Build Rules scope (All, Custom).
     public internal(set) var resourceTagScope = "All"
     public internal(set) var buildRuleScope = "All"
-    /// Expanded rows of Project ▸ Info's Configurations table.
     public var expandedConfigurations: Set<String> = []
-    /// Signing & Capabilities scope: All, or one configuration.
     public internal(set) var signingScope = "All"
-    /// Build Settings view state (reference-ui-3.md §1.8).
     public var showsTitles = true { didSet { reloadSettings() } }
     public var showsDefinitions = false { didSet { reloadSettings() } }
     public var collapsedSettingSections: Set<String> = [] { didSet { reloadSettings() } }
@@ -80,7 +62,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         forTarget ? [.general, .signing, .resourceTags, .info, .buildSettings, .buildPhases, .buildRules] : [.info, .buildSettings, .packageDependencies]
     }
 
-    /// The Package Dependencies tab's + button (the window shows the Add Package sheet).
     public var onAddPackage: (() -> Void)?
 
     public override func loadView() {
@@ -96,7 +77,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         sidebarWidth = sideScroll.widthAnchor.constraint(equalToConstant: Self.sidebarWidth)
         sideScroll.documentView = sidebar
         sideScroll.drawsBackground = false
-        // The column's collapse button and its +/−/Filter footer (§11.1.2).
         collapseButton.target = self
         collapseButton.action = #selector(collapseClicked)
         collapseButton.isBordered = false
@@ -155,8 +135,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         select(target: model.targets.first?.string("name"), tab: .general)
     }
 
-    // MARK: Selection
-
     func reloadSidebar() {
         let q = sidebarFilter.stringValue.trimmingCharacters(in: .whitespaces)
         let names = model.targets.compactMap { $0.string("name") }.filter { q.isEmpty || $0.localizedCaseInsensitiveContains(q) }
@@ -167,8 +145,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         removeTargetButton.isEnabled = selectedTarget != nil
     }
 
-    // MARK: Target list (reference-ui-5.md §11.1.2, P2)
-
     static let sidebarWidth: CGFloat = 180
     let collapseButton = NSButton(image: NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "Hide the project and targets list")!,
                                   target: nil, action: nil)
@@ -178,7 +154,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
     let sidebarFooter = NSStackView()
     weak var sideScroll: NSScrollView?
 
-    /// The project and targets list is collapsed (its button stays).
     public private(set) var isSidebarCollapsed = false
 
     public func setSidebarCollapsed(_ c: Bool) {
@@ -192,7 +167,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
 
     @objc func collapseClicked() { setSidebarCollapsed(!isSidebarCollapsed) }
 
-    /// Filters the TARGETS rows by name.
     public func setSidebarFilter(_ text: String) {
         _ = view
         sidebarFilter.stringValue = text
@@ -201,7 +175,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
 
     @objc func sidebarFilterChanged() { reloadSidebar() }
 
-    /// The target-template sheet; shown when the window is visible.
     @discardableResult
     public func newTargetSheet() -> NewTargetSheetController {
         let names = model.targets.compactMap { $0.string("name") }
@@ -222,7 +195,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
 
     @objc func addTargetClicked() { newTargetSheet() }
 
-    /// Adds a target from a template and selects it.
     @discardableResult
     public func addTarget(template: String, platform: String, name: String, hostTarget: String?) throws -> String {
         let n = try model.addTarget(template: template, platform: platform, name: name, hostTarget: hostTarget)
@@ -250,8 +222,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         }
     }
 
-    /// Deletes a target (after the confirmation) and selects the first
-    /// remaining one, or the project.
     public func deleteTarget(_ name: String) {
         model.removeTarget(named: name)
         onChange?(model.proj)
@@ -274,7 +244,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         configPopUp.addItems(withTitles: names)
         configuration = configurationChosen && names.contains(configuration) ? configuration : (def ?? names.first ?? "Debug")
         configPopUp.selectItem(withTitle: configuration)
-        // Build Phases has no configuration pop-up (§11.1.4).
         configPopUp.isHidden = self.tab == .buildPhases
         let row = sidebarRows.firstIndex { !$0.isHeader && ($0.target == target) && (target != nil || $0.title == model.projectName) }
         if let row { sidebar.selectRowIndexes([row], byExtendingSelection: false) }
@@ -286,8 +255,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
 
     @objc private func tabChosen() { select(tab: Self.tabs(forTarget: selectedTarget != nil)[tabs.selectedSegment]) }
     @objc private func configChosen() { configuration = configPopUp.titleOfSelectedItem ?? configuration; configurationChosen = true; showTab() }
-
-    // MARK: Content
 
     func showTab() {
         content.subviews.forEach { $0.removeFromSuperview() }
@@ -314,7 +281,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         ])
     }
 
-    /// A form row: label, value, and the setting it edits (nil = read-only).
     typealias FormRow = (label: String, value: String, setting: String?)
 
     func resolved(_ name: String, target: String?) -> String {
@@ -359,19 +325,15 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         if let c = Capability(rawValue: b.identifier?.rawValue ?? "") { try? removeCapability(c) }
     }
 
-    /// Package Dependencies rows: per package its location, rule and the
-    /// products targets use.
     public var packageRows: [PackageDependencyModel.Row] {
         PackageDependencyModel(proj: model.proj, xcodeprojURL: model.xcodeprojURL, checkoutsDirectory: URL(fileURLWithPath: "/")).rows
     }
 
-    /// Replaces the project (after the window adds or resolves packages).
     public func reload(proj: PBXProj) {
         model.proj = proj
         if isViewLoaded { showTab() }
     }
 
-    /// Removes a package and the product dependencies on it.
     public func removePackage(_ id: String) {
         model.proj.removePackage(id)
         onChange?(model.proj)
@@ -398,8 +360,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         }
     }
 
-    /// Rows as a two-column form; rows with an empty value and no setting
-    /// are section headings.
     func form(_ rows: [FormRow]) -> NSView {
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -448,14 +408,12 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         return scroll
     }
 
-    /// A form field ended editing: write its setting.
     public func controlTextDidEndEditing(_ obj: Notification) {
         guard let f = obj.object as? NSTextField, let key = f.identifier?.rawValue, f.isEditable else { return }
         if key.hasPrefix("tag:") {
             renameResourceTag(String(key.dropFirst(4)), to: f.stringValue)
             return
         }
-        // A per-configuration row of the Levels view: "cfg:<configuration>:<setting>".
         let parts = key.split(separator: ":", maxSplits: 2).map(String.init)
         if parts.count == 3, parts[0] == "cfg" {
             model.setSetting(parts[2], f.stringValue, target: selectedTarget, configuration: parts[1])
@@ -466,7 +424,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
         setSetting(key, f.stringValue)
     }
 
-    /// The Team combo box: choosing a listed team writes it at once.
     public func comboBoxSelectionDidChange(_ n: Notification) {
         guard let c = n.object as? NSComboBox, let key = c.identifier?.rawValue, c.indexOfSelectedItem >= 0,
               let v = c.objectValueOfSelectedItem as? String else { return }
@@ -477,8 +434,6 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
     @objc func viewChosen(_ s: NSSegmentedControl) { settingsView = SettingsView(rawValue: s.selectedSegment) ?? .combined }
     @objc func searchChanged(_ f: NSSearchField) { search = f.stringValue }
 
-    /// Writes a setting at the selected level (target, or project) in every
-    /// configuration, then reports the change.
     public func setSetting(_ name: String, _ value: String) {
         if tab == .signing, signingScope != "All" {
             model.setSetting(name, value, target: selectedTarget, configuration: signingScope)
@@ -486,12 +441,10 @@ public final class ProjectEditorController: NSViewController, NSTableViewDataSou
             model.setSetting(name, value, target: selectedTarget)
         }
         onChange?(model.proj)
-        // The signing boxes' status depends on the team.
         if tab == .signing, name == "DEVELOPMENT_TEAM", isViewLoaded { showTab() }
         reloadSettings()
     }
 
-    /// Adds a file (relative to the project directory) to a target's phase.
     @discardableResult
     public func addFile(_ path: String, toPhase phase: String) -> String {
         let id = model.addFile(path, toPhase: phase)
@@ -525,7 +478,6 @@ extension ProjectEditorController {
     }
 }
 
-/// A flipped container so forms start at the top of their scroll view.
 final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }

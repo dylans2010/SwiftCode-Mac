@@ -1,11 +1,7 @@
-// C-CN-FORMAT formats.md §3: vCard export (§3.1 line mapping) and import
-// (§3.2, I1–I12). All cards and contacts are made up.
-
 import Foundation
 import Testing
 @testable import Contacts
 
-/// A contact that exercises every exported property.
 func richContact() -> CNMutableContact {
     let c = CNMutableContact()
     c.namePrefix = "Dr."; c.givenName = "Avery"; c.middleName = "Quinn"; c.familyName = "Example"; c.nameSuffix = "Jr."
@@ -181,7 +177,6 @@ struct VCardImportTests {
         #expect(c.dates.map(\.label) == original.dates.map(\.label))
         #expect(c.contactRelations.map(\.value) == original.contactRelations.map(\.value))
         #expect(c.contactRelations.map(\.label) == original.contactRelations.map(\.label))
-        // Imported contacts have every key, note included.
         #expect(c.isKeyAvailable(CNContactNoteKey))
         #expect(raised { c.note } == nil)
     }

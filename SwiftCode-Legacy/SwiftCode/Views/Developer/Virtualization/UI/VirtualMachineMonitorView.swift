@@ -24,9 +24,7 @@ public struct VirtualMachineMonitorView: View {
                 .foregroundStyle(.secondary)
 
             if let vm = activeVM, vm.status == .running {
-                // Monitor Grid layout
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    // CPU allocation Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -51,7 +49,6 @@ public struct VirtualMachineMonitorView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // RAM allocation Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -76,7 +73,6 @@ public struct VirtualMachineMonitorView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // IP Address Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -102,7 +98,6 @@ public struct VirtualMachineMonitorView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Disk Drive Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -128,7 +123,6 @@ public struct VirtualMachineMonitorView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Active Session duration HUD
                 GroupBox {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -157,7 +151,6 @@ public struct VirtualMachineMonitorView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Guest Agent offline state panel
                 GroupBox {
                     VStack(alignment: .center, spacing: 12) {
                         Image(systemName: "waveform.path.ecg.off")

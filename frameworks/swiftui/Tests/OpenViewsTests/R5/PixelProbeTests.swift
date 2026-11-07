@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// T-IMG pixel probes (10-plan.md §3.2): each case renders a small view
-// headlessly at scale 2 on white (black in dark mode) and samples pixels at
-// points. Colours are the 07 §4 values; tolerance ±2 per channel unless a
-// case says otherwise (anti-aliasing, JPEG, gradients ±3–10).
-
 private let white = (255, 255, 255, 255)
 private let black = (0, 0, 0, 255)
 
@@ -63,7 +58,6 @@ struct ShapeProbeTests {
         #expect(R5.probe(tri, 20, 2) == black)
         #expect(R5.probe(tri, 5, 5) == white)
         #expect(R5.probe(tri, 2, 39) == black)
-        // A shape used as a view fills with the foreground style (primary).
         let fg = draw(Rectangle().frame(width: 10, height: 10), "probe.foreground")
         #expect(R5.probe(fg, 5, 5) == black)
         let styled = draw(Rectangle().frame(width: 10, height: 10).foregroundStyle(Color.red), "probe.foregroundStyle")
@@ -79,8 +73,8 @@ struct ShapeProbeTests {
 
     @Test("Strokes are centred on the outline; strokeBorder stays inside") func strokes() {
         let s = draw(Rectangle().stroke(Color.black, lineWidth: 4).frame(width: 30, height: 30).padding(5), "probe.stroke")
-        #expect(R5.probe(s, 3.5, 20) == black)    // 2 pt outside the edge at x = 5
-        #expect(R5.probe(s, 6.5, 20) == black)    // 2 pt inside
+        #expect(R5.probe(s, 3.5, 20) == black)
+        #expect(R5.probe(s, 6.5, 20) == black)
         #expect(R5.probe(s, 2.5, 20) == white)
         #expect(R5.probe(s, 7.5, 20) == white)
         let b = draw(Rectangle().strokeBorder(Color.black, lineWidth: 4).frame(width: 30, height: 30).padding(5), "probe.strokeBorder")
@@ -90,14 +84,14 @@ struct ShapeProbeTests {
         #expect(R5.probe(b, 9.5, 20) == white)
         let dashed = draw(Rectangle().stroke(Color.black, style: StrokeStyle(lineWidth: 2, dash: [5, 5])).frame(width: 30, height: 30).padding(5),
                           "probe.dash")
-        #expect(R5.probe(dashed, 7.5, 5) == black)   // first dash from the top-left corner
-        #expect(R5.probe(dashed, 12.5, 5) == white)  // gap
+        #expect(R5.probe(dashed, 7.5, 5) == black)
+        #expect(R5.probe(dashed, 12.5, 5) == white)
     }
 
     @Test("trim draws part of the outline") func trim() {
         let img = draw(Rectangle().trim(from: 0, to: 0.25).stroke(Color.black, lineWidth: 2).frame(width: 30, height: 30).padding(5), "probe.trim")
-        #expect(R5.probe(img, 20, 5) == black)   // top edge (the first quarter)
-        #expect(R5.probe(img, 35, 20) == white)  // right edge not drawn
+        #expect(R5.probe(img, 20, 5) == black)
+        #expect(R5.probe(img, 35, 20) == white)
     }
 }
 
@@ -151,16 +145,15 @@ struct CompositingProbeTests {
             Color.yellow.frame(width: 20, height: 20)
             Color(red: 0.5, green: 0.5, blue: 1).frame(width: 20, height: 20).blendMode(.multiply)
         }, "probe.multiply")
-        // #FFCC00 × (128, 128, 255) → (128, 102, 0)
         #expect(R5.near(R5.probe(img, 10, 10), (128, 102, 0, 255), 3))
     }
 
     @Test("Background draws below, overlay above; border inside the frame") func layers() {
         let img = draw(Color.red.frame(width: 20, height: 20).background(Color.blue.frame(width: 30, height: 30))
                        .overlay(Color.green.frame(width: 6, height: 6)).padding(5), "probe.layers")
-        #expect(R5.probe(img, 2, 2) == R5.hex("#0088FF"))   // background around the base
-        #expect(R5.probe(img, 7, 7) == R5.hex("#FF383C"))    // base above the background
-        #expect(R5.probe(img, 15, 15) == R5.hex("#34C759"))  // overlay centred on top
+        #expect(R5.probe(img, 2, 2) == R5.hex("#0088FF"))
+        #expect(R5.probe(img, 7, 7) == R5.hex("#FF383C"))
+        #expect(R5.probe(img, 15, 15) == R5.hex("#34C759"))
         let b = draw(Color.white.frame(width: 20, height: 20).border(Color.black, width: 2), "probe.border")
         #expect(R5.probe(b, 1, 10) == black)
         #expect(R5.probe(b, 3, 10) == white)
@@ -193,10 +186,10 @@ struct CompositingProbeTests {
         #expect(R5.probe(o, 5, 5) == white)
         #expect(R5.probe(o, 25, 15) == black)
         let r = draw(Color.black.frame(width: 30, height: 6).rotationEffect(.degrees(90)).frame(width: 40, height: 40), "probe.rotation")
-        #expect(R5.probe(r, 20, 8) == black)   // vertical after rotation
+        #expect(R5.probe(r, 20, 8) == black)
         #expect(R5.probe(r, 8, 20) == white)
         let s = draw(Color.black.frame(width: 10, height: 10).scaleEffect(2).frame(width: 40, height: 40), "probe.scale")
-        #expect(R5.probe(s, 12, 20) == black)  // 20 × 20 around the centre
+        #expect(R5.probe(s, 12, 20) == black)
         #expect(R5.probe(s, 8, 20) == white)
     }
 
@@ -221,7 +214,7 @@ struct ContentProbeTests {
     @Test("PNG image: natural size, resizable, nearest-neighbour sampling") func png() {
         let natural = draw(Image(R5.quadrantsPNG, scale: 1), "probe.png.natural")
         #expect(R5.probe(natural, 1, 1) == (255, 0, 0, 255))
-        #expect(R5.probe(natural, 9, 1) == white)  // 8 × 6 points
+        #expect(R5.probe(natural, 9, 1) == white)
         let img = draw(Image(R5.quadrantsPNG).resizable().interpolation(.none).frame(width: 40, height: 30), "probe.png")
         #expect(R5.probe(img, 10, 7) == (255, 0, 0, 255))
         #expect(R5.probe(img, 30, 7) == (0, 255, 0, 255))
@@ -246,7 +239,7 @@ struct ContentProbeTests {
     @Test("Named images from a registered asset") func named() {
         ImageAssets.register(name: "r5.quadrants", data: R5.fixture("quadrants.png"), scale: 0.5)
         let img = draw(Image("r5.quadrants").interpolation(.none), "probe.named")
-        #expect(R5.probe(img, 3, 3) == (255, 0, 0, 255))   // 16 × 12 points at scale 0.5
+        #expect(R5.probe(img, 3, 3) == (255, 0, 0, 255))
         #expect(R5.probe(img, 12, 9) == (255, 255, 0, 255))
         #expect(R5.probe(img, 17, 3) == white)
     }
@@ -257,7 +250,6 @@ struct ContentProbeTests {
         let frame = CGRect(origin: .zero, size: size)
         #expect(R5.inkCount(img, in: frame, background: white) > 40)
         #expect(R5.inkCount(img, in: CGRect(x: size.width + 2, y: 0, width: 30, height: 30), background: white) == 0)
-        // Some pixels are clearly red.
         var red = false
         for x in stride(from: 0.25, to: Double(size.width), by: 0.5) {
             for y in stride(from: 0.25, to: Double(size.height), by: 0.5) {
@@ -272,12 +264,10 @@ struct ContentProbeTests {
         let star = draw(Image(systemName: "star.fill"), "probe.symbol")
         #expect(R5.inkCount(star, in: CGRect(x: 0, y: 0, width: 22, height: 20.67), background: white) > 100)
         #expect(R5.inkCount(star, in: CGRect(x: 23, y: 0, width: 17, height: 40), background: white) == 0)
-        // A name the set lacks shows a visible placeholder of the default box.
         let missing = draw(Image(systemName: "doesnotexist.symbol"), "probe.symbol.missing")
         #expect(R5.inkCount(missing, in: CGRect(x: 0, y: 0, width: 21, height: 21), background: white) > 20)
         let m = OpenSymbolProvider.shared.symbol(named: "doesnotexist.symbol", font: TextFont(size: 17))
         #expect(m?.size == CGSize(width: 62.0 / 3, height: 62.0 / 3))
-        // Reference parity: unknown names lay out 0 × 0 (07 §3).
         #expect(OpenSymbolProvider(missingSymbolsLayOutEmpty: true).symbol(named: "doesnotexist.symbol", font: TextFont(size: 17)) == nil)
         let tinted = draw(Image(systemName: "circle.fill").foregroundStyle(Color.red), "probe.symbol.tint")
         #expect(R5.probe(tinted, 10.33, 10.33) == R5.hex("#FF383C"))
@@ -337,11 +327,10 @@ struct ContentProbeTests {
         }
         let img = HeadlessRenderer.render(pinned(v), size: CGSize(width: 40, height: 40), scale: 2) { $0.layoutDirection = .rightToLeft }
         R5.save(img, "probe.rtl")
-        #expect(R5.probe(img, 35, 5) == R5.hex("#FF383C"))   // first child at the trailing (right) edge
+        #expect(R5.probe(img, 35, 5) == R5.hex("#FF383C"))
         #expect(R5.probe(img, 25, 5) == R5.hex("#0088FF"))
         let ltr = R5.render(pinned(Text("ab")), width: 40, height: 40)
         let rtl = HeadlessRenderer.render(pinned(Text("ab")), size: CGSize(width: 40, height: 40), scale: 2) { $0.layoutDirection = .rightToLeft }
-        // The same glyphs at the right edge: the ink pattern is translated, not flipped.
         let w = TypesetTextMeasurer.shared.measure(Text("ab").resolve(in: EnvironmentValues()), proposal: .unspecified).size.width
         let shift = Int(((40 - w) * 2).rounded())
         var same = 0, total = 0

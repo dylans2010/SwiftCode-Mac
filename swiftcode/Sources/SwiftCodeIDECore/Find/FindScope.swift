@@ -1,26 +1,14 @@
 import Foundation
 
-/// Where a workspace search looks (the Find navigator's "In …" pop-up).
-/// See `specs/ide/navigators.md` §Find navigator, "SwiftCode implementation".
 public enum FindScope: Equatable, Hashable, Sendable {
-    /// Every file of the workspace (Project, Workspace or Package).
     case workspace
-    /// One project of a multi-project workspace (its `.xcodeproj` path).
     case project(String)
-    /// A group, folder or file (Containing Groups, Find in Selected Groups…).
     case group(String)
-    /// The files open in this window's editors.
     case openFiles
-    /// The files of the last workspace search.
     case currentResults
-    /// A saved custom scope, by name.
     case custom(String)
 }
 
-/// One file to search, and whether it was found by listing a folder
-/// (synchronized folder, folder reference, package directory). Ignore
-/// rules apply to those only: a file the project lists by reference is
-/// always searched.
 public struct FindCandidate: Equatable, Hashable, Sendable {
     public var path: String
     public var inFolder: Bool
@@ -30,8 +18,6 @@ public struct FindCandidate: Equatable, Hashable, Sendable {
     }
 }
 
-/// A named set of rules that picks files (Custom Scopes…). SwiftCode's own
-/// design: the reference's custom-scope editor is an open question.
 public struct CustomFindScope: Codable, Equatable, Hashable, Sendable {
     public enum Field: String, Codable, CaseIterable, Sendable {
         case name, path, `extension`, location
@@ -59,8 +45,6 @@ public struct CustomFindScope: Codable, Equatable, Hashable, Sendable {
         }
     }
 
-    /// One condition. For `location`, the value is a folder or group path
-    /// (`is`: the file is inside it) or `Self.openFilesValue`.
     public struct Rule: Codable, Equatable, Hashable, Sendable {
         public var field: Field
         public var op: Operator
@@ -72,11 +56,9 @@ public struct CustomFindScope: Codable, Equatable, Hashable, Sendable {
         }
     }
 
-    /// The Location value meaning "open in an editor".
     public static let openFilesValue = "Open Files"
 
     public var name: String
-    /// All rules must hold (else any one).
     public var matchAll: Bool
     public var rules: [Rule]
 
@@ -86,8 +68,6 @@ public struct CustomFindScope: Codable, Equatable, Hashable, Sendable {
         self.rules = rules
     }
 
-    /// Whether a file belongs to the scope. A scope without rules holds
-    /// nothing.
     public func includes(_ path: String, isOpen: Bool) -> Bool {
         guard !rules.isEmpty else { return false }
         let results = rules.lazy.map { Self.holds($0, path: path, isOpen: isOpen) }
@@ -119,10 +99,6 @@ public struct CustomFindScope: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-/// Turns a scope into the files to search, in navigator order, without
-/// duplicates. Folder references (a file reference to a directory) and
-/// folders are listed recursively with `ignore` applied; bundles such as
-/// asset catalogs are not entered.
 public struct FindScopeResolver: Sendable {
     public var root: NavigatorNode
     public var openFiles: [String]
@@ -130,7 +106,6 @@ public struct FindScopeResolver: Sendable {
     public var customScopes: [CustomFindScope]
     public var ignore: FindIgnoreRules
 
-    /// Bundle extensions that are not searched inside.
     public static let opaqueBundles: Set<String> = [
         "xcassets", "xcodeproj", "xcworkspace", "xcdatamodeld", "xcdatamodel", "bundle", "framework", "xcframework", "app", "appex",
         "xctest", "dSYM", "car", "icon", "rcproject", "reality", "scnassets", "xcarchive", "xcresult",
@@ -163,7 +138,6 @@ public struct FindScopeResolver: Sendable {
         }
     }
 
-    /// The files under a row.
     public func collect(_ node: NavigatorNode) -> [FindCandidate] {
         var out: [FindCandidate] = []
         var seen = Set<String>()
@@ -175,7 +149,6 @@ public struct FindScopeResolver: Sendable {
                 if inFolder && ignore.isIgnored(p) { return }
                 var isDir: ObjCBool = false
                 if FileManager.default.fileExists(atPath: p, isDirectory: &isDir), isDir.boolValue {
-                    // A folder reference (or a bundle the navigator shows as a leaf).
                     guard !Self.opaqueBundles.contains((p as NSString).pathExtension) else { return }
                     listDirectory(p, into: add)
                 } else {
@@ -195,8 +168,6 @@ public struct FindScopeResolver: Sendable {
         return out
     }
 
-    /// Every file under a folder on disk, in name order, with the ignore
-    /// rules and hidden names applied.
     func listDirectory(_ dir: String, into add: (FindCandidate) -> Void) {
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: dir) else { return }

@@ -1,27 +1,3 @@
-// HealthSim probe core: Ycode research probe (original Ycode code, no Apple
-// code), written from Apple's public HealthKit documentation and SDK headers.
-// One source, built for the iOS simulator and the watchOS simulator.
-// Every value it writes is made up (synthetic); no real health data.
-//
-// Log lines: "HS <side> <unix time> <event> key=value ..." to stderr (NSLog)
-// and to <data container>/Documents/hs.log.
-//
-// Launch arguments: a list of phases, run in order on a worker thread:
-//   info                       availability, local device, request status
-//   status                     authorization status of every type
-//   auth all|small|read        request authorization (all types; a small
-//                              set for sync tests; read-only request)
-//   write                      save one synthetic sample of every type
-//   workout <secs> [run|walk|cycle|hiit] live workout session + builder,
-//                              logging every collected statistic and every
-//                              raw sample of the collected types
-//   observe <secs> [bg]        observer + anchored queries on a small set;
-//                              bg: enable background delivery first
-//   burst <n> <every-secs> <tag>  write n marked samples (steps, HR, SpO2,
-//                              sleep) with metadata hs.t (writer time)
-//   count                      per-type sample counts and sources
-//   dump <identifier> [n]      list the newest n samples of one type
-//   wait <secs>                sleep
 #import <Foundation/Foundation.h>
 #import <HealthKit/HealthKit.h>
 #import <CoreLocation/CoreLocation.h>
@@ -141,8 +117,6 @@ static void waitSem(dispatch_semaphore_t s, double secs)
     dispatch_semaphore_wait(s, secs < 0 ? DISPATCH_TIME_FOREVER : dispatch_time(DISPATCH_TIME_NOW, (int64_t)(secs * NSEC_PER_SEC)));
 }
 
-// ---------------------------------------------------------------- info, status
-
 static void phaseInfo(void)
 {
     HKDevice *d = [HKDevice localDevice];
@@ -199,8 +173,6 @@ static void phaseStatus(void)
         HSLog(@"status", @"value=%@ n=%lu types=%@", k, (unsigned long)by[k].count, [by[k] componentsJoinedByString:@","]);
 }
 
-// ---------------------------------------------------------------- auth
-
 static NSSet *parseIds(NSString *reason)
 {
     NSMutableSet *s = [NSMutableSet set];
@@ -246,8 +218,6 @@ static void phaseAuth(NSString *mode)
     HSLog(@"authDisallowedRead", @"n=%lu types=%@", (unsigned long)noRead.count, [[noRead.allObjects sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","]);
     waitSem(s, -1);
 }
-
-// ---------------------------------------------------------------- write
 
 static double synthValue(NSString *ident, NSString *unit)
 {
@@ -300,7 +270,7 @@ static NSDate *todayAt(double hours)
 
 static void phaseWrite(void)
 {
-    NSDate *a = todayAt(-3), *b = [a dateByAddingTimeInterval:300];   // 21:00 yesterday local, 5 minutes
+    NSDate *a = todayAt(-3), *b = [a dateByAddingTimeInterval:300];
     for (int i = 0; i < kNTypes; i++) {
         HSType t = kTypes[i];
         HKSampleType *st = typeFor(t);
@@ -334,7 +304,6 @@ static void phaseWrite(void)
                                                                                  startDate:aa endDate:bb metadata:mark(@"write")]; });
         }
     }
-    // Workout, then a route attached to it.
     __block HKWorkout *w = nil;
     saveOne(HKWorkoutTypeIdentifier, ^HKObject *{
         w = [HKWorkout workoutWithActivityType:HKWorkoutActivityTypeWalking startDate:todayAt(-2) endDate:[todayAt(-2) dateByAddingTimeInterval:1200]
@@ -357,7 +326,6 @@ static void phaseWrite(void)
         }];
         waitSem(s, 60);
     }
-    // Heartbeat series.
     {
         HKHeartbeatSeriesBuilder *hb = [[HKHeartbeatSeriesBuilder alloc] initWithHealthStore:gStore device:nil startDate:todayAt(-1)];
         dispatch_semaphore_t s = dispatch_semaphore_create(0);
@@ -370,7 +338,6 @@ static void phaseWrite(void)
         }];
         waitSem(s, 60);
     }
-    // Audiogram.
     saveOne(@"HKAudiogramSampleType", ^HKObject *{
         NSMutableArray *pts = [NSMutableArray array];
         for (NSNumber *f in @[ @500, @1000, @2000, @4000 ]) {
@@ -381,14 +348,11 @@ static void phaseWrite(void)
             if (p) [pts addObject:p];
         }
         return [HKAudiogramSample audiogramSampleWithSensitivityPoints:pts startDate:todayAt(-1) endDate:[todayAt(-1) dateByAddingTimeInterval:600] metadata:nil]; });
-    // State of mind.
     saveOne(@"HKStateOfMindTypeIdentifier", ^HKObject *{
         return [HKStateOfMind stateOfMindWithDate:todayAt(-1) kind:HKStateOfMindKindMomentaryEmotion valence:0.4 labels:@[ @(HKStateOfMindLabelCalm) ] associations:@[ @(HKStateOfMindAssociationFitness) ]]; });
     HSLog(@"write", @"type=HKElectrocardiogramType success=0 error=%@", @"no public initializer for HKElectrocardiogram (cannot be constructed by an app)");
     HSLog(@"writeDone", @"%@", @"");
 }
-
-// ---------------------------------------------------------------- workout
 
 @interface HSWorkout : NSObject <HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDelegate>
 @property (strong) HKWorkoutSession *session;
@@ -518,8 +482,6 @@ static void phaseWorkout(double secs, NSString *kind)
     for (HKQuery *q in qs) [gStore stopQuery:q];
 }
 
-// ---------------------------------------------------------------- observe, burst
-
 static void phaseObserve(double secs, BOOL bg)
 {
     NSMutableArray *qs = [NSMutableArray array];
@@ -559,8 +521,6 @@ static void phaseBurst(int n, double every, NSString *tag)
         if (i + 1 < n) [NSThread sleepForTimeInterval:every];
     }
 }
-
-// ---------------------------------------------------------------- count, dump
 
 static void phaseCount(void)
 {
@@ -603,8 +563,6 @@ static void phaseDump(NSString *ident, NSUInteger n)
     [gStore executeQuery:q];
     waitSem(s, 60);
 }
-
-// ---------------------------------------------------------------- entry
 
 void HSStart(NSArray<NSString *> *args, NSString *side)
 {

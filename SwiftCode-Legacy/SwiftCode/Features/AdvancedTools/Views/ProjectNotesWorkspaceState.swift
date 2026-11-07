@@ -10,7 +10,6 @@ private let logger = Logger(subsystem: "com.swiftcode.app", category: "ProjectNo
 public final class ProjectNotesWorkspaceState {
     public static let shared = ProjectNotesWorkspaceState()
 
-    // MARK: - Core State
     public var notebooks: [ProjectNotebook] = []
     public var notes: [ProjectNote] = []
     public var selectedNotebookId: UUID? = nil
@@ -20,30 +19,26 @@ public final class ProjectNotesWorkspaceState {
     public var searchQuery: String = ""
     public var searchHistory: [String] = []
     public var savedSearches: [SavedSearch] = []
-    public var noteFilter: String = "All" // "All", "Pinned", "Favorites", "Archived", "Recent", "Todo", "Daily Notes", "Scratch Pad"
+    public var noteFilter: String = "All"
     public var recentNoteIds: [UUID] = []
     public var frequentlyAccessedNoteIds: [UUID: Int] = [:]
 
-    // AI Workspace States
     public var activeAIConversation: [LocalChatMsg] = []
     public var isAIProcessing: Bool = false
     public var activeAIPrompt: String = ""
 
-    // Version History
     public var noteVersions: [NoteVersion] = []
 
-    // Productivity views
     public var isFocusMode: Bool = false
     public var isReadingMode: Bool = false
     public var isPresentationMode: Bool = false
     public var selectedTemplateKey: String = "None"
-    public var activeInspectorTab: String = "AI Copilot" // "AI Copilot", "Links", "Attachments", "History"
+    public var activeInspectorTab: String = "AI Copilot"
 
     private init() {
         loadData()
     }
 
-    // MARK: - Path Resolution
     var baseDirectoryURL: URL {
         let fileManager = FileManager.default
         let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL
@@ -64,7 +59,6 @@ public final class ProjectNotesWorkspaceState {
         return url
     }
 
-    // MARK: - Persistence DTOs
     private struct MetadataDTO: Codable {
         let notebooks: [ProjectNotebook]
         let notes: [ProjectNote]
@@ -75,7 +69,6 @@ public final class ProjectNotesWorkspaceState {
         let frequentlyAccessedNoteIds: [UUID: Int]
     }
 
-    // MARK: - Persistence Logic
     public func loadData() {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: metadataURL.path) else {
@@ -96,7 +89,6 @@ public final class ProjectNotesWorkspaceState {
             self.recentNoteIds = dto.recentNoteIds
             self.frequentlyAccessedNoteIds = dto.frequentlyAccessedNoteIds
 
-            // Ensure notes content is loaded from disk files if possible
             for i in 0..<notes.count {
                 let noteFile = baseDirectoryURL.appendingPathComponent("\(notes[i].id).md")
                 if fileManager.fileExists(atPath: noteFile.path),
@@ -124,13 +116,11 @@ public final class ProjectNotesWorkspaceState {
         do {
             let fileManager = FileManager.default
 
-            // 1. Write note contents to individual .md files
             for note in notes {
                 let noteFile = baseDirectoryURL.appendingPathComponent("\(note.id).md")
                 try note.content.write(to: noteFile, atomically: true, encoding: .utf8)
             }
 
-            // 2. Write metadata
             let dto = MetadataDTO(
                 notebooks: notebooks,
                 notes: notes,
@@ -197,7 +187,6 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         saveData()
     }
 
-    // MARK: - Computed Properties
     public var activeNote: ProjectNote? {
         notes.first { $0.id == selectedNoteId }
     }
@@ -206,19 +195,16 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         notebooks.first { $0.id == selectedNotebookId }
     }
 
-    // MARK: - Note Operations
     public func selectNote(_ id: UUID) {
         selectedNoteId = id
         if let note = notes.first(where: { $0.id == id }) {
             noteEditorText = note.content
             selectedNotebookId = note.notebookId
 
-            // Update recents
             recentNoteIds.removeAll { $0 == id }
             recentNoteIds.insert(id, at: 0)
             recentNoteIds = Array(recentNoteIds.prefix(10))
 
-            // Update frequently accessed
             frequentlyAccessedNoteIds[id, default: 0] += 1
             saveData()
         }
@@ -272,13 +258,11 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         notes.removeAll { $0.id == note.id }
         noteVersions.removeAll { $0.noteId == note.id }
 
-        // Remove from links & backlinks
         for i in 0..<notes.count {
             notes[i].linkedNoteIds.remove(note.id)
             notes[i].backlinkNoteIds.remove(note.id)
         }
 
-        // Physically delete .md file
         let fileURL = baseDirectoryURL.appendingPathComponent("\(note.id).md")
         try? FileManager.default.removeItem(at: fileURL)
 
@@ -301,7 +285,6 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         notes[noteIdx].readingTime = max(1, notes[noteIdx].wordCount / 200)
         notes[noteIdx].updatedAt = Date()
 
-        // Sync backlinks automatically from double bracket tags [[Note Title]]
         syncBacklinks(for: notes[noteIdx])
     }
 
@@ -319,7 +302,6 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         saveData()
     }
 
-    // MARK: - Notebook Operations
     public func createNotebook(name: String) {
         let newNotebook = ProjectNotebook(name: name)
         notebooks.append(newNotebook)
@@ -329,7 +311,6 @@ Feel free to customize, create notebooks, and start organizing your engineering 
 
     public func deleteNotebook(_ notebookId: UUID) {
         notebooks.removeAll { $0.id == notebookId }
-        // Orphaned notes fallback to first notebook
         if let fallbackId = notebooks.first?.id {
             for i in 0..<notes.count {
                 if notes[i].notebookId == notebookId {
@@ -343,9 +324,7 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         saveData()
     }
 
-    // MARK: - Internal Linking & Backlinks
     private func syncBacklinks(for note: ProjectNote) {
-        // Find notes that are mentioned via [[Note Title]] in content
         var targets = Set<UUID>()
         let pattern = #"\s*\[\[(.*?)\]\]"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
@@ -361,19 +340,16 @@ Feel free to customize, create notebooks, and start organizing your engineering 
             }
         }
 
-        // Apply links & backlinks
         guard let noteIdx = notes.firstIndex(where: { $0.id == note.id }) else { return }
         let oldTargets = notes[noteIdx].linkedNoteIds
         notes[noteIdx].linkedNoteIds = targets
 
-        // Add backlink to target notes
         for targetId in targets {
             if let targetIdx = notes.firstIndex(where: { $0.id == targetId }) {
                 notes[targetIdx].backlinkNoteIds.insert(note.id)
             }
         }
 
-        // Remove backlink from untargeted notes
         let removedTargets = oldTargets.subtracting(targets)
         for targetId in removedTargets {
             if let targetIdx = notes.firstIndex(where: { $0.id == targetId }) {
@@ -400,7 +376,6 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         saveData()
     }
 
-    // MARK: - Attachments Operations
     public func attachFile(to note: ProjectNote, fileURL: URL) {
         guard let idx = notes.firstIndex(where: { $0.id == note.id }) else { return }
 
@@ -441,7 +416,7 @@ Feel free to customize, create notebooks, and start organizing your engineering 
 
             notes[idx].attachments.append(attachment)
             if selectedNoteId == note.id {
-                selectedNoteId = note.id // trigger view refresh
+                selectedNoteId = note.id
             }
             saveData()
         } catch {
@@ -457,12 +432,11 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         try? FileManager.default.removeItem(at: fileURL)
 
         if selectedNoteId == note.id {
-            selectedNoteId = note.id // trigger view refresh
+            selectedNoteId = note.id
         }
         saveData()
     }
 
-    // MARK: - Version History Operations
     public func saveCurrentVersionSnapshot(for note: ProjectNote) {
         let snapshot = NoteVersion(noteId: note.id, content: note.content)
         noteVersions.append(snapshot)
@@ -477,7 +451,6 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         saveData()
     }
 
-    // MARK: - Saved Searches
     public func saveSearch(query: String) {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if !savedSearches.contains(where: { $0.query.localizedCaseInsensitiveCompare(query) == .orderedSame }) {
@@ -491,7 +464,6 @@ Feel free to customize, create notebooks, and start organizing your engineering 
         saveData()
     }
 
-    // MARK: - AI Action Features
     public func executeAICopilotStreaming(prompt: String, onToken: @escaping @Sendable @MainActor (String) -> Void) async {
         isAIProcessing = true
         activeAIPrompt = ""

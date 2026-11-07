@@ -4,14 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// `@Suite(.previewHostCheck, ...)`: no preview host outlives the test that
-/// started it (specs/ide/previews.md §The macOS host). After each test,
-/// passed, failed or thrown, a child of this process whose name starts with
-/// `SwiftCodePreview` (the long-lived Mac host or a built SwiftPM host) that is
-/// still alive after a short grace fails the test and is killed.
-///
-/// Use it only on `.heavyIntegration` suites: they run one at a time, so the
-/// children seen belong to the test being checked.
 struct PreviewHostCheckTrait: SuiteTrait, TestTrait, TestScoping {
     static let prefix = "SwiftCodePreview"
 
@@ -26,7 +18,6 @@ struct PreviewHostCheckTrait: SuiteTrait, TestTrait, TestScoping {
             Issue.record("\(test.name) left preview hosts running: \(left.map(\.description).joined(separator: ", "))")
             ProcessAudit.kill(left)
         }
-        // Forget hosts that were killed (and end any the registry still holds).
         PreviewRenderer.stopMacHosts()
         if let thrown { throw thrown }
     }

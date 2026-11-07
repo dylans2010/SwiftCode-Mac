@@ -1,8 +1,3 @@
-//
-//  AssistRegexReplaceInFilesTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistRegexReplaceInFilesTool: AssistTool {

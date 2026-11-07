@@ -1,9 +1,3 @@
-// SCLogsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/SCLogsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: copy-to-clipboard; exportLogs
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct SCLogsView: View {
@@ -14,7 +8,6 @@ struct SCLogsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Logging Center")
@@ -26,7 +19,6 @@ struct SCLogsView: View {
                 }
                 Spacer()
 
-                // Copy and export actions
                 HStack(spacing: 8) {
                     Button {
                         copyToClipboard()
@@ -47,7 +39,6 @@ struct SCLogsView: View {
 
             Divider()
 
-            // Segments selection and filtering
             HStack {
                 Picker("Log Stream", selection: Binding(
                     get: { lc.activeLogType },
@@ -77,7 +68,6 @@ struct SCLogsView: View {
 
             Divider()
 
-            // Console output area
             let filteredLogs = lc.logs.filter {
                 filterText.isEmpty || $0.lowercased().contains(filterText.lowercased())
             }

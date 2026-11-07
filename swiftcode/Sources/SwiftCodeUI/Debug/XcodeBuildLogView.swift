@@ -1,12 +1,3 @@
-// XcodeBuildLogView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/Xcode Build/XcodeBuildLogView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: copy build command; export logs to file; Console/Diagnostics tabs
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/Xcode Build/XcodeBuildLogView.swift (derived from Legacy).
-// Ambiguous type reference(s) defined in several modules, import left out: Severity.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): IPABuildView, LogFilterMode, SectionTab.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import AppKit
 
@@ -42,10 +33,8 @@ struct XcodeBuildLogView: View {
     @AppStorage("com.swiftcode.build.autoScrollToBottom") private var autoScrollToBottom = true
     @AppStorage("com.swiftcode.build.filterMode") private var filterMode: LogFilterMode = .all
 
-    // Segmented View Mode
     @State private var activeSection: SectionTab = .console
 
-    // Switch sheets
     @State private var showingIPABuilder = false
     @State private var showPlatformPickerSheet = false
     @State private var showSDKErrorDetailSheet = false
@@ -132,12 +121,10 @@ struct XcodeBuildLogView: View {
         @Bindable var buildManager = self.buildManager
         NavigationStack {
             VStack(spacing: 0) {
-                // Top Clean Toolbar
                 topToolbar
 
                 Divider()
 
-                // Main Content by Segment
                 switch activeSection {
                 case .console:
                     consoleSection
@@ -176,11 +163,9 @@ struct XcodeBuildLogView: View {
         }
     }
 
-    // MARK: - Top Toolbar
     private var topToolbar: some View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
-                // Segmented section picker
                 Picker("", selection: $activeSection) {
                     ForEach(SectionTab.allCases) { tab in
                         Label(tab.rawValue, systemImage: tab.icon).tag(tab)
@@ -191,10 +176,8 @@ struct XcodeBuildLogView: View {
 
                 Spacer()
 
-                // Status Badge
                 statusBadge
 
-                // Action Buttons
                 if buildManager.isBuilding {
                     Button(role: .destructive) {
                         buildManager.cancelBuild()
@@ -256,7 +239,6 @@ struct XcodeBuildLogView: View {
                 .fixedSize()
             }
 
-            // Sub-metrics row
             HStack(spacing: 16) {
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
@@ -333,10 +315,8 @@ struct XcodeBuildLogView: View {
         .background(Color.secondary.opacity(0.12), in: Capsule())
     }
 
-    // MARK: - Section 1: Console
     private var consoleSection: some View {
         VStack(spacing: 0) {
-            // Filter Bar
             HStack(spacing: 12) {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -368,7 +348,6 @@ struct XcodeBuildLogView: View {
 
             Divider()
 
-            // Console output area
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 3) {
@@ -420,7 +399,6 @@ struct XcodeBuildLogView: View {
         }
     }
 
-    // MARK: - Section 2: Diagnostics
     private var diagnosticsSection: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -515,7 +493,6 @@ struct XcodeBuildLogView: View {
         }
     }
 
-    // MARK: - Section 3: Settings
     private var settingsSection: some View {
         @Bindable var buildManager = self.buildManager
         return ScrollView {
@@ -651,7 +628,6 @@ struct XcodeBuildLogView: View {
         }
     }
 
-    // MARK: - Section 4: Packaging
     private var packagingSection: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -691,7 +667,6 @@ struct XcodeBuildLogView: View {
         }
     }
 
-    // MARK: - Sheets & Helpers
     private var platformPickerSheet: some View {
         NavigationStack {
             VStack(spacing: 0) {

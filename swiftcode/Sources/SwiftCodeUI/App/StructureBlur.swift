@@ -2,22 +2,11 @@ import Accelerate
 import AppKit
 import SwiftCodeIDECore
 
-/// Content seen through a bar keeps its shape (`liquid-glass.md` §9.1,
-/// §9.2; checklist rows 68 and 69): the views under the bar are drawn
-/// into a bitmap, blurred with a Gaussian of σ about 6 points and laid
-/// over the bar's background at the bar's share of the content's
-/// darkness. The system's header material averaged the content to a flat
-/// tint; this keeps the bands under the jump bar as bands.
 @MainActor
 enum StructureBlur {
-    /// The blur's standard deviation, in points (§8.3: about 6).
     static let sigma = CGFloat(BarBlur.sigma)
-    /// Pixels per point of the blurred bitmap: σ 6 loses nothing at half
-    /// resolution, and the bitmap is a quarter of the work.
     static let pixelsPerPoint: CGFloat = 0.5
 
-    /// `rect` (in `target`'s coordinates) of `sources` drawn over
-    /// `background` and blurred; nil when nothing could be drawn.
     static func image(of rect: NSRect, in target: NSView, sources: [NSView], background: NSColor) -> CGImage? {
         guard rect.width >= 1, rect.height >= 1, let window = target.window else { return nil }
         let margin = ceil(3 * sigma)
@@ -37,7 +26,6 @@ enum StructureBlur {
             let visible = r.intersection(v.bounds)
             guard !visible.isEmpty, let part = v.bitmapImageRepForCachingDisplay(in: visible) else { continue }
             v.cacheDisplay(in: visible, to: part)
-            // Where the part sits in the area, from the area's bottom left.
             let inTarget = target.convert(visible, from: v)
             let x = inTarget.minX - area.minX
             let y = target.isFlipped ? area.maxY - inTarget.maxY : inTarget.minY - area.minY
@@ -50,7 +38,6 @@ enum StructureBlur {
         return rep.cgImage
     }
 
-    /// A separable Gaussian blur in place (edges extended).
     static func blur(_ data: UnsafeMutablePointer<UInt8>, width: Int, height: Int, rowBytes: Int, sigma: CGFloat) {
         let kernel = GaussianKernel.weights(sigma: Double(sigma))
         guard kernel.count > 1 else { return }
@@ -67,8 +54,6 @@ enum StructureBlur {
         }
     }
 
-    /// Draws `image` (from `image(of:in:sources:background:)` for
-    /// `rect`) into `rect` at `share` over what is already there.
     static func draw(_ image: CGImage, for rect: NSRect, in view: NSView, share: CGFloat, clip: NSRect? = nil) {
         let margin = ceil(3 * sigma)
         let area = rect.insetBy(dx: -margin, dy: -margin)

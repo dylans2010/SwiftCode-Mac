@@ -1,5 +1,3 @@
-// Test support: our catalog (plan.md §3.1), a store on a manual clock, and an
-// optional OpenSSL runner for independent verification.
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
@@ -63,7 +61,6 @@ func probeConfiguration(storefront: String = "USA", locale: String = "en_US", ti
         appPolicies: AppPolicies(eula: "", policies: []))
 }
 
-/// 2026-10-19 12:00:00 UTC.
 let referenceStart = Date(timeIntervalSince1970: 1_792_411_200)
 let vendorID = UUID(uuidString: "6A1D3C2E-0F00-4B6B-9C1D-5E0D7C4C9A11")!
 let fixedNonce = UUID(uuidString: "3F2504E0-4F89-41D3-9A0C-0305E82C3301")!
@@ -82,7 +79,6 @@ func temporaryDirectory() -> URL {
     return url
 }
 
-/// Runs `openssl` from PATH, if there is one. Returns nil when OpenSSL is not installed.
 func openssl(_ arguments: [String]) -> (status: Int32, output: String)? {
     let path = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin").split(separator: ":")
         .map { "\($0)/openssl" }.first { FileManager.default.isExecutableFile(atPath: $0) }
@@ -99,10 +95,8 @@ func openssl(_ arguments: [String]) -> (status: Int32, output: String)? {
     return (p.terminationStatus, String(decoding: data, as: UTF8.self))
 }
 
-/// Whether the OpenSSL on PATH is OpenSSL 3 (LibreSSL lacks some commands used here).
 let hasOpenSSL3: Bool = openssl(["version"])?.output.hasPrefix("OpenSSL 3") ?? false
 
-/// The verification failure `body` throws, if any.
 func failureReason(_ body: () throws -> Void) -> VerificationFailureReason? {
     do { try body(); return nil } catch let e as VerificationFailure { return e.reason } catch { return nil }
 }

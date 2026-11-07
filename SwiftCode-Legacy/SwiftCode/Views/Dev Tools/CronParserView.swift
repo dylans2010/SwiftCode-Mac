@@ -30,8 +30,6 @@ struct CronParserView: View {
     }
 
     func parse() {
-        // In a real app, use a cron descriptor library.
-        // Here we provide a basic logic for simple expressions.
         let parts = cronExpression.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         if parts.count == 5 {
             description = "At minute \(parts[0]), hour \(parts[1]), day of month \(parts[2]), month \(parts[3]), day of week \(parts[4])"

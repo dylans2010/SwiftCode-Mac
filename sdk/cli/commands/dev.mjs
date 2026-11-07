@@ -1,34 +1,8 @@
 #!/usr/bin/env node
-/**
- * dev.mjs — local development loop for a SwiftCode TypeScript extension.
- *
- *   swiftcode dev [dir]
- *
- * Resolves `dir` (default: cwd), requires swiftcode.json + package.json +
- * tsconfig.json there, then runs an initial cycle and watches
- * `src/` (recursive) plus the three config files (single-file watchers).
- *
- * Each cycle, in order, with timestamped phase labels:
- *   1. [compile]  tsc -p tsconfig.json — errors stop the cycle, watcher stays alive.
- *   2. [manifest] + [package] — manifest + package validation (same checks the
- *      `validate` command runs; implemented here because commands/validate.mjs
- *      was not present in this checkout — see cli/agent_notes.md for the
- *      duplication note).
- *   3. [tests]    node --test tests/*.test.mjs when tests/ exists.
- *
- * v1 has NO host attachment (the Swift host driver arrives later), so there
- * are no runtime sessions to duplicate or restart here: dev only rebuilds,
- * revalidates, and retests. Run against the live host from SwiftCode Studio.
- * SIGINT / SIGTERM shut down cleanly (watchers closed, exit 0).
- */
 
 import { existsSync, readFileSync, readdirSync, watch } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-
-// ---------------------------------------------------------------------------
-// CLI contract (owned by the CLI-core module; implemented here exactly).
-// ---------------------------------------------------------------------------
 
 export const definition = {
   name: "dev",
@@ -48,10 +22,6 @@ const SUPPORTED_PROTOCOL_VERSION = 1;
 const ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z][A-Za-z0-9-]*)+$/;
 const SEMVER_PATTERN =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function ts() {
   return new Date().toLocaleTimeString("en-GB", { hour12: false });
@@ -78,12 +48,9 @@ function readJsonFile(filePath) {
   }
 }
 
-/** Locate the shipped manifest schema: the project copy first, then the SDK contracts. */
 function locateManifestSchema(dir) {
   const projectCopy = path.join(dir, "schemas", "swiftcode-extension-v1.schema.json");
   if (existsSync(projectCopy)) return projectCopy;
-  // cli/commands/dev.mjs -> cli/commands -> cli -> sdk -> Contracts/Manifest
-  // (Wave 14: the schema lives at sdk/Contracts/Manifest/ in this repo.)
   const thisFile = new URL(import.meta.url);
   const repoCopy = path.resolve(
     path.dirname(thisFile.pathname),
@@ -100,10 +67,6 @@ function tscBinary(dir) {
   const local = path.join(dir, "node_modules", ".bin", "tsc");
   return existsSync(local) ? local : "tsc";
 }
-
-// ---------------------------------------------------------------------------
-// Manifest validation (mirrors the `validate` command's checks).
-// ---------------------------------------------------------------------------
 
 function validateManifest(dir) {
   const problems = [];
@@ -160,7 +123,6 @@ function validateManifest(dir) {
     warnings.push(`type is ${JSON.stringify(m.type)} — only "extension" is supported in v1`);
   }
 
-  // runtime
   const runtime = m.runtime;
   if (typeof runtime !== "object" || runtime === null) {
     problems.push("runtime must be an object");
@@ -187,7 +149,6 @@ function validateManifest(dir) {
     }
   }
 
-  // sdk
   const sdk = m.sdk;
   if (typeof sdk !== "object" || sdk === null) {
     problems.push("sdk must be an object");
@@ -202,7 +163,6 @@ function validateManifest(dir) {
     }
   }
 
-  // capabilities
   const caps = m.capabilities;
   if (!Array.isArray(caps) || caps.length === 0) {
     problems.push("capabilities must be a non-empty array");
@@ -238,7 +198,6 @@ function validateManifest(dir) {
     }
   }
 
-  // contributions
   if (m.contributes?.commands !== undefined) {
     const commands = m.contributes.commands;
     if (!Array.isArray(commands)) {
@@ -256,7 +215,6 @@ function validateManifest(dir) {
     }
   }
 
-  // Assist posture: extensions must not request Assist (separate entitlement).
   if (m.assist?.requested === true) {
     problems.push(
       "assist.requested must not be true — Assist is a separately protected entitlement, not a manifest grant"
@@ -290,8 +248,6 @@ function validatePackage(dir, manifest) {
     problems.push(`${PACKAGE_FILE}: name must be a non-empty string`);
   }
   if (manifest && manifest.id) {
-    // Accept either the full id slug ("com-example-devfixture") or the last
-    // segment ("devfixture") — both appear in the wild and both are fine.
     const idStr = String(manifest.id);
     const candidates = new Set([
       idStr.replace(/\./g, "-").toLowerCase(),
@@ -318,10 +274,6 @@ function validatePackage(dir, manifest) {
   }
   return { problems, warnings };
 }
-
-// ---------------------------------------------------------------------------
-// Cycle phases
-// ---------------------------------------------------------------------------
 
 function phaseCompile(dir) {
   const binary = tscBinary(dir);
@@ -395,7 +347,6 @@ function phaseTests(dir) {
   let pass = null;
   let fail = null;
   for (const line of output.split("\n")) {
-    // node --test summary lines look like "ℹ pass 12" / "# pass 12".
     const m = line.match(/^[ℹ#]\s+(pass|fail)\s+(\d+)/u);
     if (m) {
       if (m[1] === "pass") pass = Number(m[2]);
@@ -413,11 +364,6 @@ function phaseTests(dir) {
   return true;
 }
 
-/**
- * One full cycle: compile → validate → test. Returns true when everything
- * passed. Phases are labeled so compile success is never confused with
- * manifest validity; a failed phase stops later phases but never the watcher.
- */
 function runCycle(dir) {
   log("dev", "cycle started");
   if (!phaseCompile(dir)) {
@@ -436,10 +382,6 @@ function runCycle(dir) {
   log("dev", "cycle done — compile OK, manifest valid, tests green");
   return true;
 }
-
-// ---------------------------------------------------------------------------
-// Help
-// ---------------------------------------------------------------------------
 
 function printHelp() {
   const lines = [
@@ -468,13 +410,7 @@ function printHelp() {
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
-
 export async function run(args, ctx) {
-  // The dispatcher passes the parsed-args object ({ _: [positionals], ...flags });
-  // a bare array is also accepted (per the command contract).
   const argv = Array.isArray(args) ? args : Array.isArray(args?._) ? args._ : [];
   const flags = Array.isArray(args) ? {} : args ?? {};
   if (argv.includes("--help") || argv.includes("-h") || flags.help === true) {
@@ -485,7 +421,6 @@ export async function run(args, ctx) {
   const positional = argv.filter((a) => typeof a === "string" && !a.startsWith("-"));
   const dir = path.resolve(positional[0] ?? ctx?.cwd ?? process.cwd());
 
-  // Required project files — missing any one is a hard failure, named explicitly.
   const missing = [MANIFEST_FILE, PACKAGE_FILE, TSCONFIG_FILE].filter(
     (f) => !existsSync(path.join(dir, f))
   );
@@ -500,7 +435,6 @@ export async function run(args, ctx) {
   log("dev", `watching ${dir}`);
   log("dev", "no host attachment in v1 — dev rebuilds/revalidates/retests only");
 
-  // Initial pass, then watch.
   runCycle(dir);
 
   let shuttingDown = false;
@@ -514,7 +448,6 @@ export async function run(args, ctx) {
       try {
         w.close();
       } catch {
-        /* already closed */
       }
     }
   };
@@ -564,8 +497,6 @@ export async function run(args, ctx) {
     watchTarget(path.join(dir, f), f);
   }
 
-  // Clean shutdown: SIGINT/SIGTERM print "stopping", close watchers, exit 0.
-  // The run() promise resolves so the dispatcher can set process.exitCode = 0.
   let resolveDone;
   const done = new Promise((resolve) => {
     resolveDone = resolve;

@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-/**
- * create-extension.mjs — generate a real, compilable SwiftCode TypeScript
- * extension project from the template in ../templates/extension-typescript.
- *
- * Usage:
- *   node create-extension.mjs --id com.example.my-ext --name "My Ext" \
- *     --outDir ./MyExt [--description "..."] [--version 0.1.0] [--sdk-path <path>]
- *
- * --sdk-path defaults to the real SDK package dir ../package (resolved
- * relative to this script); the generated package.json depends on it via a
- * file: URL, so npm install resolves @swiftcode/sdk from local source.
- */
 import { copyFile, mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -18,10 +6,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.join(here, "..", "templates", "extension-typescript");
-// The manifest schema lives at sdk/Contracts/Manifest/ in this repo
-// (Wave 14: copied verbatim from the Legacy SDK tree's Contracts/Manifest/).
-// Legacy resolved it two levels up from sdk/cli; the destination SDK root
-// is sdk/ itself, so it is one level up from here.
 const SCHEMA_SOURCE = path.join(
   here,
   "..",
@@ -90,7 +74,6 @@ async function main() {
 
   if (description.length > 1000) fail("--description must be at most 1000 characters");
 
-  // id-slug: last DNS label of the id, lowercased, used as the npm package name.
   const idSlug = id.split(".").pop().toLowerCase();
   if (!SLUG_PATTERN.test(idSlug)) fail(`derived package name "${idSlug}" is not a valid npm name`);
 
@@ -123,13 +106,9 @@ async function main() {
   };
   await copyTemplate(TEMPLATE_DIR, target, substitutions);
 
-  // The $schema pointer in swiftcode.json is "./schemas/...": ship the real
-  // schema with every generated project so the pointer is live.
   await mkdir(path.join(target, "schemas"), { recursive: true });
   await copyFile(SCHEMA_SOURCE, path.join(target, "schemas", "swiftcode-extension-v1.schema.json"));
 
-  // Pre-seed node_modules from the local @swiftcode/sdk package when available
-  // so generated projects can build and typecheck immediately, including offline.
   const sdkNodeModules = path.join(sdkDir, "node_modules");
   if (existsSync(sdkNodeModules)) {
     const targetNodeModules = path.join(target, "node_modules");

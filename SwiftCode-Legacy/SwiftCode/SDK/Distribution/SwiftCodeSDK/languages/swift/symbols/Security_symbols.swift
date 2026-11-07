@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for Security
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct SecuritySymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "security.symbol.0"
     public var name: String = "SecuritySymbolName_0"

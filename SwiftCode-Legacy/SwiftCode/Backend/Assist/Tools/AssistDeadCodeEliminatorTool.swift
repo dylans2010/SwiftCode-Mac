@@ -64,9 +64,7 @@ public struct AssistDeadCodeEliminatorTool: AssistTool {
         var deadDeclarations: [String] = []
 
         for decl in privateDeclarations {
-            // Count occurrences of decl.name in the whole file
             let occurrences = content.components(separatedBy: decl.name).count - 1
-            // If it occurs only 1 time, it is only declared and never called!
             if occurrences <= 1 {
                 deadDeclarations.append("Line \(decl.line): Unused private \(decl.kind) '\(decl.name)()' (0 calls in file).")
             }

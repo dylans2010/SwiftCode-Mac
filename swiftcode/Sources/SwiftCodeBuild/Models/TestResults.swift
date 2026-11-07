@@ -1,17 +1,12 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// The outcome of one test. See `specs/ide/testing.md`.
 public struct TestOutcome: Equatable, Sendable {
     public enum Status: String, Sendable { case passed, failed, skipped }
-    /// The test's class or suite, when the runner names it.
     public var suite: String?
-    /// The test function, without `()` (e.g. `testAdd`, `addsNumbers`).
     public var name: String
     public var status: Status
-    /// Failure messages with their locations.
     public var failures: [Diagnostic]
-    /// Seconds the test ran, when the runner reports it.
     public var duration: TimeInterval?
 
     public init(suite: String?, name: String, status: Status, failures: [Diagnostic] = [], duration: TimeInterval? = nil) {
@@ -23,9 +18,6 @@ public struct TestOutcome: Equatable, Sendable {
     }
 }
 
-/// Reads test results from runner output: XCTest's `Test Case '…' passed`
-/// lines (Darwin `-[Module.Class test]` and Linux `Class.test` forms) and
-/// swift-testing's `✔ Test name() passed` / `✘ Test name() failed` lines.
 public struct TestResultParser: Sendable {
     public private(set) var outcomes: [TestOutcome] = []
     private var pendingIssues: [String: [Diagnostic]] = [:]
@@ -40,7 +32,6 @@ public struct TestResultParser: Sendable {
             if let i = outcomes.firstIndex(where: { $0.name == o.name && $0.suite == o.suite }) { outcomes[i] = o } else { outcomes.append(o) }
             return o
         }
-        // XCTest failure: `/path/F.swift:12: error: -[Mod.Class testX] : message`
         if let d = DiagnosticParser.parseLine(line), d.severity == .error,
            let open = d.message.range(of: "-["), let close = d.message.range(of: "] : ") {
             let inner = d.message[open.upperBound..<close.lowerBound]
@@ -50,7 +41,6 @@ public struct TestResultParser: Sendable {
             pendingIssues[name, default: []].append(issue)
         } else if let d = DiagnosticParser.parseLine(line), d.severity == .error, let close = d.message.range(of: " : "),
                   case let id = d.message[..<close.lowerBound], !id.contains(" "), let dot = id.lastIndex(of: ".") {
-            // On Linux: `/path/F.swift:12: error: Class.testX : message`.
             var issue = d
             issue.message = String(d.message[close.upperBound...])
             pendingIssues[String(id[id.index(after: dot)...]), default: []].append(issue)
@@ -83,7 +73,6 @@ public struct TestResultParser: Sendable {
         return TestOutcome(suite: suite, name: name, status: status, duration: seconds(in: verdict))
     }
 
-    /// "passed (0.001 seconds)" or "passed after 0.001 seconds".
     static func seconds<S: StringProtocol>(in s: S) -> TimeInterval? {
         guard let r = s.range(of: " seconds") else { return nil }
         let head = s[..<r.lowerBound]
@@ -92,9 +81,6 @@ public struct TestResultParser: Sendable {
     }
 
     mutating func swiftTesting(_ line: String) -> TestOutcome? {
-        // ✔ Test addsNumbers() passed after 0.001 seconds.
-        // ✘ Test addsNumbers() recorded an issue at File.swift:3:5: Expectation failed: …
-        // ✘ Test addsNumbers() failed after 0.002 seconds with 1 issue.
         for (mark, status) in [("✔ Test ", TestOutcome.Status.passed), ("✘ Test ", .failed), ("➜ Test ", .skipped)] {
             guard let r = line.range(of: mark) else { continue }
             let rest = line[r.upperBound...]
@@ -121,39 +107,18 @@ public struct TestResultParser: Sendable {
     }
 }
 
-/// Runs a container's tests and reports output lines and outcomes.
-/// Packages use SwiftPM (`swift test`); projects and workspaces use
-/// `xcodebuild test`. See `specs/ide/testing.md`.
 public struct TestRunner: Sendable {
     public var xcodebuild: [String] = ["/usr/bin/xcrun", "xcodebuild"]
     public var swift: [String] = ["/usr/bin/env", "swift"]
-    /// Gather code coverage (the scheme's test action enables it):
-    /// `swift test --enable-code-coverage`, or `-enableCodeCoverage YES`.
     public var coverage = false
-    /// With `coverage`, where swiftcodebuild writes its coverage summary (it
-    /// reads the path from `SWIFTCODE_COVERAGE_SUMMARY`; other xcodebuild
-    /// tools ignore the variable and write nothing).
     public var coverageSummaryPath: String?
     public init() {}
 
-    /// The test plan to run (`-testPlan`, projects and workspaces); nil =
-    /// the scheme's default plan.
     public var testPlan: String?
 
-    /// Variables added to the runner's environment (the SwiftCode simulator's
-    /// host for swiftcodebuild: `SWIFTCODE_SIM_*`, testing.md "SwiftCode implementation").
     public var environment: [String: String] = [:]
-    /// Replaces the request's `-destination` (the SwiftCode simulator's tests:
-    /// `platform=iOS Simulator,name=SwiftCode Simulator,arch=arm64`).
     public var destinationOverride: String?
 
-    /// The command for a request; `only` narrows to `Suite/test` identifiers.
-    /// The request's action picks the step (Product ▸ Build For ▸ Testing,
-    /// Perform Action ▸ Test Without Building, `reference-ui-5.md` §2.9):
-    /// `build-for-testing` builds the tests only, `test-without-building`
-    /// runs tests an earlier `build-for-testing` built; any other action
-    /// builds and runs them (`test`). Packages map these to `swift build
-    /// --build-tests`, `swift test --skip-build` and `swift test`.
     public func command(for request: BuildRequest, only: [String] = []) -> (args: [String], cwd: String?) {
         let action: BuildRequest.Action = [.buildForTesting, .testWithoutBuilding].contains(request.action) ? request.action : .test
         switch request.container {
@@ -165,15 +130,12 @@ public struct TestRunner: Sendable {
             if action == .testWithoutBuilding { a.append("--skip-build") }
             if request.configuration == "Release" { a += ["-c", "release"] }
             if coverage && action == .test { a.append("--enable-code-coverage") }
-            // A word boundary after the name: `testAdd` must not also run
-            // `testAddsMore` (the filter is a regular expression).
             for o in only { a += ["--filter", o.replacingOccurrences(of: "/", with: ".") + "\\b"] }
             return (a, dir)
         default:
             var r = request
             r.action = action
             var a = xcodebuild + (coverage && action != .buildForTesting ? ["-enableCodeCoverage", "YES"] : []) + XcodebuildEngine.arguments(for: r)
-            // Options go before the action word and the setting overrides.
             let optionsEnd = a.count - 1 - r.settings.count
             var options: [String] = []
             if let testPlan, !testPlan.isEmpty { options += ["-testPlan", testPlan] }
@@ -186,10 +148,6 @@ public struct TestRunner: Sendable {
         }
     }
 
-    /// Product ▸ Build For ▸ Testing: the `build-for-testing` step as a
-    /// build operation (log lines, progress and diagnostics), run with the
-    /// same tool that runs the tests, so Test Without Building finds its
-    /// products.
     public func buildForTesting(_ request: BuildRequest) -> BuildOperation {
         var r = request
         r.action = .buildForTesting
@@ -197,7 +155,6 @@ public struct TestRunner: Sendable {
         return ProcessBuild.start(args, currentDirectory: cwd, activity: XcodebuildEngine.activity(for:))
     }
 
-    /// Runs and streams; finishes with all outcomes.
     public func run(_ request: BuildRequest, only: [String] = [],
                     onLine: @escaping @Sendable (String) -> Void = { _ in }) async -> (exitCode: Int32, outcomes: [TestOutcome]) {
         let (args, cwd) = command(for: request, only: only)
@@ -234,8 +191,6 @@ public struct TestRunner: Sendable {
         }
     }
 
-    /// The llvm-cov export JSON of a package's last coverage run
-    /// (`swift test --show-codecov-path`), nil when there is none.
     public func packageCoverageJSON(packageDirectory dir: String) -> Data? {
         MainThreadGuard.blockingCall("swift test --show-codecov-path")
         let p = Process()

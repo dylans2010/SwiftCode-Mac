@@ -3,7 +3,7 @@ import Network
 import os.log
 
 public struct TrustedDevice: Codable, Identifiable, Sendable {
-    public let id: String // deviceID
+    public let id: String
     public var name: String
     public var model: String
     public var pairingDate: Date

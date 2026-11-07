@@ -3,9 +3,6 @@ import Synchronization
 import Testing
 @testable import SwiftCodeDarwinKernel
 
-/// The per-thread trap ring that the blocked-thread report reads
-/// (`SWIFTCODE_THREAD_REPORT_AT_S`, SIGUSR1) while the thread's own host thread
-/// keeps recording traps, also on the paths that take no kernel lock.
 @Suite struct TrapRingTests {
     @Test func keepsTheLastSixteenOldestFirst() {
         let ring = TrapRing()
@@ -18,9 +15,6 @@ import Testing
         #expect(e.allSatisfy { $0.1 == $0.0 * 2 && $0.2 == $0.0 * 3 && $0.3 == $0.0 * 4 })
     }
 
-    /// One writer records as fast as it can while readers take reports over
-    /// and over (the second scheduled report of a long boot crashed when the
-    /// ring was an array shifted by `removeFirst` under a reader's `map`).
     @Test func readsWhileTheOwnerRecords() {
         let ring = TrapRing()
         let stop = Atomic<Bool>(false)

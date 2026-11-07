@@ -5,10 +5,6 @@ import SwiftCodeDarwinKernel
 @testable import SwiftCodeHostServices
 import SwiftCodeXPC
 
-/// The synthetic camera, negotiation, the surface ring, and the camera
-/// service end to end (camera-host.md §3, §5–§7). The opt-in hardware test
-/// (`SWIFTCODE_CAMERA_HW_TESTS=1` with a V4L2 camera attached) streams from the
-/// real device.
 @Suite(.serialized) struct CameraServiceTests {
     func surfaces() throws -> IOSurfaceHostService { try IOSurfaceHostService(host: DarwinSystem().hostTask, log: { _ in }) }
 
@@ -28,8 +24,6 @@ import SwiftCodeXPC
         return condition()
     }
 
-    // MARK: Synthetic camera
-
     @Test func syntheticFramesCountAndMove() throws {
         let cam = SyntheticCamera(width: 320, height: 240, interval: CameraFrameInterval(numerator: 1, denominator: 30), paced: false,
                                   firstFrame: 41, startTime: 1_000_000_000)
@@ -38,7 +32,6 @@ import SwiftCodeXPC
         for k in 0..<3 {
             guard let f = try cam.next(timeoutMilliseconds: 0) else { Issue.record("no frame"); return }
             #expect(f.deviceSequence == UInt32(41 + k) && f.synthetic)
-            // Presentation times: start + n x interval.
             #expect(f.timestamp == 1_000_000_000 + Int64(41 + k) * 33_333_333)
             let luma = { (x: Int, y: Int) in f.bytes[y * f.bytesPerLine + 2 * x] }
             #expect(SyntheticCamera.readCounter(width: 320, height: 240, luma: luma) == UInt32(41 + k))
@@ -48,10 +41,9 @@ import SwiftCodeXPC
             cam.recycle(f)
         }
         #expect(boxes[0] != boxes[1] && boxes[1] != boxes[2])
-        // Bars: the second bar is 75 % yellow.
         guard let f = try cam.next(timeoutMilliseconds: 0) else { return }
         let yellow = SyntheticCamera.ycbcr(r: 191, g: 191, b: 0)
-        let x = 320 / 8 + 21, y = 150  // below the box, inside the bars
+        let x = 320 / 8 + 21, y = 150
         #expect(f.bytes[y * f.bytesPerLine + 2 * x] == yellow.y && f.bytes[y * f.bytesPerLine + 2 * (x & ~1) + 1] == yellow.cb)
         #expect(yellow.y == 161 && yellow.cb == 44 && yellow.cr == 142)
         cam.close()
@@ -66,10 +58,6 @@ import SwiftCodeXPC
         #expect(took >= 90_000_000, "6 frames at 50 fps took \(took) ns")
     }
 
-    // MARK: Negotiation
-
-    /// A UVC webcam's table: YUYV up to 640x480 at 30 fps, 1280x720 at 10,
-    /// 1920x1080 at 5; MJPEG everywhere at 30.
     var webcam: [CameraFormatDescription] {
         func sizes(_ list: [(Int, Int, [UInt32])]) -> [CameraFrameSize] {
             list.map { CameraFrameSize(width: $0.0, height: $0.1, intervals: $0.2.map { CameraFrameInterval(numerator: 1, denominator: $0) }) }
@@ -92,10 +80,10 @@ import SwiftCodeXPC
         }
         #expect(pick(1280, 720, 30) == "MJPG 1280x720 30 fps")
         #expect(pick(640, 480, 30) == "YUYV 640x480 30 fps")
-        #expect(pick(640, 480, 15) == "YUYV 640x480 15 fps")  // the slowest interval that reaches the request
+        #expect(pick(640, 480, 15) == "YUYV 640x480 15 fps")
         #expect(pick(1280, 720, 10) == "YUYV 1280x720 10 fps")
-        #expect(pick(1000, 700, 30) == "MJPG 1280x720 30 fps")  // the smallest size that covers the request
-        #expect(pick(4000, 3000, 30) == "MJPG 1920x1080 30 fps")  // the largest
+        #expect(pick(1000, 700, 30) == "MJPG 1280x720 30 fps")
+        #expect(pick(4000, 3000, 30) == "MJPG 1920x1080 30 fps")
         #expect(pick(1920, 1080, 24) == "MJPG 1920x1080 24 fps")
         #expect(pick(1280, 720, 30, only: .yuyv) == "YUYV 1280x720 10 fps")
         #expect(pick(1280, 720, 30, only: CameraSourceFormat("H264")) == "none")
@@ -114,8 +102,6 @@ import SwiftCodeXPC
         #expect(throws: CameraError.self) { try CameraHostService.resolve("/dev/video9", devices: [cam]) }
     }
 
-    // MARK: Surfaces and the ring
-
     @Test func hostSurfacesAnswerLikeGuestSurfaces() throws {
         let s = try surfaces()
         let layout = CameraSurfaceLayout.make(.biPlanar420Video, width: 640, height: 480)
@@ -127,7 +113,6 @@ import SwiftCodeXPC
         }
         #expect(made.surface.width == 640 && made.surface.pixelFormat == 0x3432_3076 && made.surface.planes.count == 2)
         #expect(made.surface.planes[1].offset == layout.planes[1].offset)
-        // A guest connection looks it up by ID.
         let conn: UInt32 = 0x2201
         s.addTestConnection(conn)
         let r = XPCDict(s.perform(["Method": .uint64(2), "LookupID": .uint64(UInt64(made.surface.id))], connection: conn).0
@@ -135,7 +120,7 @@ import SwiftCodeXPC
         guard case let .data(state)? = r["SurfaceState"] else { Issue.record("no state"); return }
         func u32(_ d: [UInt8], _ i: Int) -> UInt32 { d.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4 * i, as: UInt32.self) } }
         #expect(u32(state, 1) == made.surface.id && u32(state, 3) == 640 && u32(state, 4) == 480 && u32(state, 7) == 0x3432_3076)
-        #expect(u32(state, 9) == 2)  // plane count
+        #expect(u32(state, 9) == 2)
         let p = XPCDict(s.perform(["Method": .uint64(6), "SurfaceID": .uint64(UInt64(made.surface.id)), "PlaneIndex": .uint64(1)],
                                   connection: conn).0.map { XPCDict.Entry(key: $0.0, value: $0.1) })
         guard case let .data(plane)? = p["PlaneState"] else { Issue.record("no plane state"); return }
@@ -143,9 +128,7 @@ import SwiftCodeXPC
         let a = XPCDict(s.perform(["Method": .uint64(21), "SurfaceID": .uint64(UInt64(made.surface.id))], connection: conn).0
             .map { XPCDict.Entry(key: $0.0, value: $0.1) })
         #expect(a["YCbCrMatrixIndex"]?.uint64Value == 6 && a["TransferFunctionIndex"]?.uint64Value == 1)
-        // The host's writes raise the seed.
         #expect(s.hostDidWrite(id: made.surface.id) == 1 && s.hostDidWrite(id: made.surface.id) == 2)
-        // Released by the host, it lives on while the guest references it.
         s.releaseHostSurface(port: made.port)
         #expect(s.surface(id: made.surface.id) != nil)
         _ = s.perform(["Method": .uint64(3), "SurfaceID": .uint64(UInt64(made.surface.id))], connection: conn)
@@ -158,7 +141,6 @@ import SwiftCodeXPC
                                          name: "ring", colorimetry: .video601)
         let ids = ring.surfaceIDs
         #expect(ids.count == 3 && Set(ids).count == 3)
-        // Round robin.
         var order: [Int] = []
         for _ in 0..<4 {
             guard let i = ring.acquire() else { Issue.record("no slot"); return }
@@ -166,7 +148,6 @@ import SwiftCodeXPC
             order.append(i)
         }
         #expect(order == [0, 1, 2, 0])
-        // A held slot and a slot a guest uses (Method 15) are skipped.
         let held = ring.acquire()!
         _ = ring.commit(held, hold: true)
         #expect(held == 1)
@@ -177,19 +158,16 @@ import SwiftCodeXPC
         let next = ring.acquire()
         #expect(next == 0)
         ring.cancel(next!)
-        // Everything busy: no slot (the frame would be dropped).
         let a = ring.acquire()!
         #expect(a == 0)
         #expect(ring.acquire() == nil)
         ring.cancel(a)
         ring.release(held)
         _ = s.perform(["Method": .uint64(16), "SurfaceID": .uint64(UInt64(ids[2]))], connection: conn)
-        #expect(ring.acquire() == 2)  // after the last written slot (1)
+        #expect(ring.acquire() == 2)
         ring.invalidate()
         #expect(s.surfaceSummary.isEmpty)
     }
-
-    // MARK: The service
 
     @Test func syntheticStreamEndToEnd() throws {
         let s = try surfaces()
@@ -198,7 +176,6 @@ import SwiftCodeXPC
         let events = Box<CameraEvent>()
         let config = CameraConfiguration(width: 320, height: 240, framesPerSecond: 60, output: .biPlanar420Video, ringSize: 3)
         let format = try service.start(selection: "synthetic", configuration: config, onFrame: { f in
-            // Read the counter strip back from the surface's luma plane.
             let info = s.surface(id: f.surfaceID)!
             let layout = CameraSurfaceLayout.make(f.format, width: f.width, height: f.height)
             let y = info.memory.host.assumingMemoryBound(to: UInt8.self)
@@ -223,7 +200,6 @@ import SwiftCodeXPC
         #expect(service.delivered >= 12 && service.dropped == 0)
     }
 
-    /// A capture that reports the device gone after a few frames.
     final class VanishingCapture: CameraCapture, @unchecked Sendable {
         let inner = SyntheticCamera(width: 160, height: 120, interval: CameraFrameInterval(numerator: 1, denominator: 100), paced: true)
         let device = CameraDevice(id: "v4l2:test-vanishing", kind: .v4l2, name: "Vanishing", path: "/nonexistent/video0", driver: "test",
@@ -267,7 +243,6 @@ import SwiftCodeXPC
         let config = CameraConfiguration(width: 64, height: 48, framesPerSecond: 200, output: .bgra, ringSize: 2,
                                          holdFramesUntilReleased: true)
         _ = try service.start(selection: "synthetic", configuration: config, onFrame: { frames.add($0) })
-        // Nothing is released: two frames fill the ring, the rest are dropped.
         #expect(waitFor(3) { service.dropped >= 5 })
         #expect(frames.all.count == 2)
         service.release(frames.all[0])
@@ -276,8 +251,6 @@ import SwiftCodeXPC
         #expect(third.slot == frames.all[0].slot && third.droppedBefore > 0)
         service.stop()
     }
-
-    // MARK: Hardware (opt-in)
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_CAMERA_HW_TESTS"] == "1"))
     func webcamStreams() throws {

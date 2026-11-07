@@ -1,11 +1,5 @@
 import Foundation
 
-/// Per-line authorship for the editor's Authors view and Show Last Change
-/// for Line (`specs/ide/source-control.md`, "SwiftCode implementation"), from
-/// `git blame --porcelain` (format in git's `git-blame` documentation:
-/// a header "<hash> <original line> <final line> [<group size>]", the
-/// commit's key-value lines the first time a commit appears, then the
-/// line itself after a tab).
 public enum GitBlame {
     public struct Commit: Equatable, Sendable {
         public var hash: String
@@ -13,24 +7,19 @@ public enum GitBlame {
         public var authorEmail: String
         public var date: Date
         public var summary: String
-        /// The path in that commit, when it differs (renames).
         public var filename: String
 
-        /// git's id for lines not committed yet (all zeros).
         public var isUncommitted: Bool { hash.allSatisfy { $0 == "0" } }
         public var shortHash: String { String(hash.prefix(7)) }
     }
 
-    /// Consecutive lines last changed by the same commit.
     public struct Block: Equatable, Sendable {
-        /// 1-based first line and line count in the blamed text.
         public var firstLine: Int
         public var lineCount: Int
         public var commit: Commit
         public var lines: ClosedRange<Int> { firstLine...(firstLine + lineCount - 1) }
     }
 
-    /// Parses porcelain output into one commit per line (index 0 = line 1).
     public static func parse(_ text: String) -> [Commit] {
         var commits: [String: Commit] = [:]
         var byLine: [Int: String] = [:]
@@ -40,7 +29,6 @@ public enum GitBlame {
         for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(raw)
             if line.hasPrefix("\t") {
-                // The line's text ends one entry.
                 if let h = current {
                     if commits[h] == nil { commits[h] = pending }
                     byLine[finalLine] = h
@@ -74,7 +62,6 @@ public enum GitBlame {
         return (1...last).compactMap { byLine[$0].flatMap { commits[$0] } }
     }
 
-    /// Groups per-line commits into blocks.
     public static func blocks(_ perLine: [Commit]) -> [Block] {
         var out: [Block] = []
         for (i, c) in perLine.enumerated() {
@@ -87,7 +74,6 @@ public enum GitBlame {
         return out
     }
 
-    /// Absolute blame dates: "Nov 6, 2026 at 1:03 PM".
     private static let absoluteDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -95,10 +81,6 @@ public enum GitBlame {
         return formatter
     }()
 
-    /// The annotation at the top of a block: "Author  date" ("Not
-    /// Committed Yet" for local changes). The date part follows the
-    /// `GitBlameSettings.dateFormat` preference: relative ("2d ago"),
-    /// absolute ("Nov 6, 2026 at 1:03 PM"), or the commit's short hash.
     public static func annotation(_ c: Commit, now: Date = Date(), calendar: Calendar = .current) -> String {
         if c.isUncommitted { return "Not Committed Yet" }
         let datePart: String
@@ -113,7 +95,6 @@ public enum GitBlame {
         return "\(c.author)  \(datePart)"
     }
 
-    /// The hover text: hash, author and email, date, and summary.
     public static func details(_ c: Commit, calendar: Calendar = .current) -> String {
         if c.isUncommitted { return "Not Committed Yet\nLocal changes not yet committed." }
         return "\(c.shortHash) \u{2014} \(c.author) <\(c.authorEmail)>\n\(GitDates.detail(c.date, calendar: calendar))\n\n\(c.summary)"
@@ -121,10 +102,6 @@ public enum GitBlame {
 }
 
 extension GitRepository {
-    /// Blame of a file. `contents` (the editor's text, unsaved edits
-    /// included) is blamed in place of the file on disk; lines that differ
-    /// from HEAD come back as not committed. nil when the file is not in
-    /// the repository's history or outside it.
     public func blame(of path: String, contents: String? = nil) -> [GitBlame.Commit]? {
         guard let rel = relative(path) else { return nil }
         var args = ["blame", "--porcelain"]

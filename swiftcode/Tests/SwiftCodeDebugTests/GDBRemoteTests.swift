@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDebug
 
-// The gdb-remote stub's protocol layer (specs/simulator/debug-stub.md):
-// framing, hex, the arm64 register layout, the breakpoint table, and the
-// server's packets against a scripted process.
-
-// MARK: Test doubles
-
 final class FakeConnection: GDBRemoteConnection, @unchecked Sendable {
     private let lock = NSLock()
     private var sent: [[UInt8]] = []
@@ -27,7 +21,6 @@ final class FakeConnection: GDBRemoteConnection, @unchecked Sendable {
     func send(_ bytes: [UInt8]) { lock.withLockFallback { sent.append(bytes) } }
     func close() {}
 
-    /// The bodies of the packets sent so far (acks dropped).
     var replies: [String] {
         lock.withLockFallback {
             var d = GDBRemoteDecoder()
@@ -114,7 +107,6 @@ final class FakeProcess: GDBRemoteProcess, @unchecked Sendable {
     func detach() { detached = true }
     func kill() { killed = true }
 
-    // Images and watchpoints (off unless a test sets them).
     var images: [(address: UInt64, path: String)]?
     var state: GDBRemoteDyldState?
     var slots = 0
@@ -147,7 +139,6 @@ final class FakeHost: GDBRemoteHost, @unchecked Sendable {
     func processes() -> [(pid: Int, name: String)] { [(0x2a, "Demo")] }
 }
 
-/// A server whose session is attached to `host.process`.
 private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
     let host = FakeHost()
     let c = FakeConnection()
@@ -156,13 +147,10 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
     return (s, host, c)
 }
 
-// MARK: Framing and hex
-
 @Suite struct GDBRemoteFramingTests {
     @Test func framesWithTheChecksum() {
         #expect(String(decoding: GDBRemoteFraming.frame("OK"), as: UTF8.self) == "$OK#9a")
         #expect(String(decoding: GDBRemoteFraming.frame(""), as: UTF8.self) == "$#00")
-        // `}`, `#`, `$` and `*` are escaped (XOR 0x20) and the checksum covers the escaped bytes.
         let framed = GDBRemoteFraming.frame([0x7D, 0x23, 0x24, 0x2A, 0x41])
         #expect(Array(framed.dropFirst().prefix(9)) == [0x7D, 0x5D, 0x7D, 0x03, 0x7D, 0x04, 0x7D, 0x0A, 0x41])
         let sum = GDBRemoteFraming.checksum([0x7D, 0x5D, 0x7D, 0x03, 0x7D, 0x04, 0x7D, 0x0A, 0x41])
@@ -184,13 +172,11 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
     }
 
     @Test func takesAnUnescapedClosingBrace() {
-        // LLDB sends `jGetSharedCacheInfo:{}` without escaping the last `}`.
         var d = GDBRemoteDecoder()
         let body = Array("jGetSharedCacheInfo:{}".utf8)
         let sum = GDBRemoteFraming.checksum(body)
         let raw = [UInt8(ascii: "$")] + body + [UInt8(ascii: "#"), GDBRemoteHex.digit(sum >> 4), GDBRemoteHex.digit(sum & 0xF)]
         #expect(d.append(raw + Array("$qC#b4".utf8)) == [.packet(body), .packet(Array("qC".utf8))])
-        // An escaped `#` (`}` 0x03) inside a body still decodes as one.
         #expect(d.append(GDBRemoteFraming.frame([0x41, 0x23, 0x42])) == [.packet([0x41, 0x23, 0x42])])
     }
 
@@ -211,8 +197,6 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(GDBRemoteHex.decodeText(GDBRemoteHex.encode(text: "DebugDemo")) == "DebugDemo")
     }
 }
-
-// MARK: Registers
 
 @Suite struct GDBRemoteRegisterTests {
     @Test func generalPurposeLayout() {
@@ -260,8 +244,6 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
     }
 }
 
-// MARK: Breakpoints
-
 @Suite struct GDBRemoteBreakpointTests {
     @Test func insertShadowRemove() {
         let p = FakeProcess()
@@ -270,10 +252,8 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(throws: Never.self) { try bp.insert(a).get() }
         #expect(p.readMemory(a, count: 4) == GDBRemoteBreakpoints.instructionBytes)
         #expect(GDBRemoteHex.littleEndianValue(GDBRemoteBreakpoints.instructionBytes) == UInt64(GDBRemoteBreakpoints.instruction))
-        // Reads see the original bytes, also when they cover part of it.
         #expect(bp.shadow(a - 2, p.readMemory(a - 2, count: 8)) == [6, 7, 8, 9, 10, 11, 12, 13])
         #expect(bp.shadow(a + 2, p.readMemory(a + 2, count: 1)) == [10])
-        // Inserting twice keeps the first original bytes.
         #expect(throws: Never.self) { try bp.insert(a).get() }
         #expect(bp.contains(a))
         #expect(throws: Never.self) { try bp.remove(a).get() }
@@ -301,8 +281,6 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
     }
 }
 
-// MARK: The server
-
 @Suite struct GDBRemoteServerTests {
     @Test func handshake() {
         let (s, _, _) = attachedServer()
@@ -314,10 +292,8 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(s.respond("qShlibInfoAddr") == "310008100")
         #expect(s.respond("vCont?") == "vCont;c;C;s;S")
         #expect(s.respond("qWatchpointSupportInfo:") == "num:0;")
-        // The clients' support probes (an empty argument) answer OK.
         #expect(s.respond("jGetLoadedDynamicLibrariesInfos:") == "OK")
         #expect(s.respond("jGetSharedCacheInfo:") == "OK")
-        // This process offers no image list and no dyld state.
         #expect(s.respond("jGetLoadedDynamicLibrariesInfos:{\"fetch_all_solibs\":true}")?.hasPrefix("E") == true)
         #expect(s.respond("jGetDyldProcessState")?.hasPrefix("E") == true)
         #expect(s.respond("jGetSharedCacheInfo:{}")
@@ -346,7 +322,7 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(c.waitForReplies(1) == ["OK"])
         c.feed("$qC#b4")
         #expect(c.waitForReplies(2).last == "QC101")
-        c.feed("")   // end of stream: the server detaches
+        c.feed("")
         for _ in 0..<2000 where !host.process.detached { usleep(1000) }
         #expect(host.process.detached)
     }
@@ -364,8 +340,8 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(t.contains("qaddr:2000;"))
         #expect(t.contains("threads:101,102;"))
         #expect(t.contains("thread-pcs:100004000,180000000;"))
-        #expect(t.contains("20:0040000001000000;"))   // pc
-        #expect(t.contains("21:00000060;"))           // cpsr
+        #expect(t.contains("20:0040000001000000;"))
+        #expect(t.contains("21:00000060;"))
         #expect(t.hasSuffix("reason:breakpoint;"))
         host.process.stops[0x102] = GDBRemoteThreadStop(signal: 11, reason: .exception("SIGSEGV: bad access"))
         let u = s.respond("qThreadStopInfo102") ?? ""
@@ -401,7 +377,6 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(s.respond("m100004000,4") == "00010203")
         #expect(s.respond("m100004000,0") == "")
         #expect(s.respond("m200000000,4")?.hasPrefix("E") == true)
-        // A read past the end of the mapping returns what is readable.
         #expect(s.respond("m10000403e,4") == "3e3f")
         #expect(s.respond("Z0,100004008,4") == "OK")
         #expect(host.process.memory[0x1_0000_400B] == 0xD4)
@@ -411,10 +386,8 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(host.process.memory[0x1_0000_400B] == 0xD4)
         #expect(s.respond("z0,100004008,4") == "OK")
         #expect(s.respond("m100004008,4") == "ffee0a0b")
-        // `x` replies with binary data (escaped by the framing).
         #expect(s.respond("x100004000,4") == nil)
         #expect(c.replies.last.map { Array($0.utf8) } == [0, 1, 2, 3])
-        // `X`: binary write.
         s.handle(body: Array("X100004000,2:".utf8) + [0x7D, 0x23])
         #expect(host.process.readMemory(0x1_0000_4000, count: 2) == [0x7D, 0x23])
         #expect(s.respond("qMemoryRegionInfo:100004010") == "start:100004000;size:4000;permissions:rx;name:\(GDBRemoteHex.encode(text: "/app/Demo"));")
@@ -425,11 +398,9 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         let (s, host, c) = attachedServer()
         host.process.nextEvent = .stopped(thread: 0x102)
         host.process.stops[0x102] = GDBRemoteThreadStop(signal: 5, reason: .trace)
-        // Step one thread, others stay stopped.
         #expect(s.respond("vCont;s:102") == nil)
         #expect(host.process.lastResume?.0 == [0x102: .step(signal: nil)])
         #expect(host.process.lastResume?.1 == .stop)
-        // While running, packets other than the interrupt are refused.
         #expect(s.respond("qfThreadInfo")?.hasPrefix("E") == true)
         host.process.events.signal()
         let stop = c.waitForReplies(1).last ?? ""
@@ -437,7 +408,6 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(stop.hasSuffix("reason:trace;"))
         for _ in 0..<1000 where s.respond("qC")?.hasPrefix("E") == true { usleep(1000) }
         #expect(s.respond("qC") == "QC102")
-        // Step one, continue the others; a signal for one thread.
         host.process.nextEvent = .stopped(thread: 0x101)
         #expect(s.respond("vCont;s:101;c") == nil)
         #expect(host.process.lastResume?.0 == [0x101: .step(signal: nil)])
@@ -489,7 +459,6 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
         #expect(s.respond("Z0,100004000,4") == "OK")
         #expect(s.respond("D") == "OK")
         #expect(host.process.detached)
-        // Detaching removed the breakpoint.
         #expect(host.process.memory[0x1_0000_4003] == 3)
         #expect(s.respond("vAttach;2a")?.hasPrefix("T") == true)
         #expect(s.respond("k") == "X09")
@@ -508,21 +477,15 @@ private func attachedServer() -> (GDBRemoteServer, FakeHost, FakeConnection) {
     }
 }
 
-// MARK: Images, dyld's state, watchpoints (debug-stub.md §4.3, §6.2)
-
-/// A minimal 64-bit Mach-O image: header, `__TEXT`, `LC_UUID`, `LC_BUILD_VERSION`.
 private func machOImage(fileType: UInt32, vmaddr: UInt64, uuidByte: UInt8, platform: UInt32) -> [UInt8] {
     var b: [UInt8] = []
     func u32(_ v: UInt32) { for i in 0..<4 { b.append(UInt8(truncatingIfNeeded: v >> (8 * UInt32(i)))) } }
     func u64(_ v: UInt64) { for i in 0..<8 { b.append(UInt8(truncatingIfNeeded: v >> (8 * UInt64(i)))) } }
     u32(0xFEED_FACF); u32(0x0100_000C); u32(0x8000_0000); u32(fileType)
     u32(3); u32(72 + 24 + 24); u32(0x0020_0085); u32(0)
-    // LC_SEGMENT_64 __TEXT
     u32(0x19); u32(72); b += Array("__TEXT".utf8) + [UInt8](repeating: 0, count: 10)
     u64(vmaddr); u64(0x4000); u64(0); u64(0x4000); u32(5); u32(5); u32(0); u32(0)
-    // LC_UUID
     u32(0x1B); u32(24); b += [UInt8](repeating: uuidByte, count: 16)
-    // LC_BUILD_VERSION: minos 27.0, sdk 27.1, no tools
     u32(0x32); u32(24); u32(platform); u32(0x001B_0000); u32(0x001B_0100); u32(0)
     return b
 }
@@ -548,7 +511,7 @@ private func imageServer() -> (GDBRemoteServer, FakeProcess) {
             return o < bytes.count ? Array(bytes[o..<min(bytes.count, o + n)]) : []
         })
         #expect(info.filetype == 2)
-        #expect(info.cpusubtype == 0)   // the capability bits are dropped
+        #expect(info.cpusubtype == 0)
         #expect(info.headerAndCommandsSize == 32 + 120)
         #expect(info.segments == [.init(name: "__TEXT", vmaddr: 0x1_0000_0000, vmsize: 0x4000, fileoff: 0, filesize: 0x4000, maxprot: 5)])
         #expect(info.uuid == [UInt8](repeating: 0xAB, count: 16))
@@ -572,10 +535,8 @@ private func imageServer() -> (GDBRemoteServer, FakeProcess) {
 
     @Test func addressesOnlyThenDetailsInBatches() throws {
         let (s, _) = imageServer()
-        // LLDB's first request on attach: every image, addresses only.
         #expect(s.respond("jGetLoadedDynamicLibrariesInfos:{\"fetch_all_solibs\":true,\"information-level\":\"address-only\",\"report_load_commands\":false}")
                 == "{\"images\":[{\"load_address\":4295000064},{\"load_address\":9663676416},{\"load_address\":38654705664}]}")
-        // Then the details of chosen images; an unreadable header is left out.
         let reply = try #require(s.respond("jGetLoadedDynamicLibrariesInfos:{\"solib_addresses\":[4295000064,38654705664],\"information-level\":\"full\"}"))
         let json = try #require(try JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any])
         let images = try #require(json["images"] as? [[String: Any]])
@@ -601,7 +562,6 @@ private func imageServer() -> (GDBRemoteServer, FakeProcess) {
         let all = try #require(s.respond("jGetLoadedDynamicLibrariesInfos:{\"fetch_all_solibs\":true}"))
         #expect(all.contains("\"filetype\":7"))
         #expect(all.contains("/usr/lib/dyld_sim"))
-        // {"image_count","image_list_address"}: dyld_image_info entries in memory.
         var list: [UInt8] = []
         for v: UInt64 in [0x2_4000_0000, 0x3000, 0] { for i in 0..<8 { list.append(UInt8(truncatingIfNeeded: v >> (8 * UInt64(i)))) } }
         for (i, b) in (list + Array("/usr/lib/dyld_sim\0".utf8)).enumerated() where i < 24 { p.memory[0x2000 + UInt64(i)] = b }
@@ -626,7 +586,7 @@ private func imageServer() -> (GDBRemoteServer, FakeProcess) {
         #expect(s.respond("qWatchpointSupportInfo:") == "num:2;")
         #expect(s.respond("Z2,16fdff8a0,8") == "OK")
         #expect(s.respond("Z4,1000,4") == "OK")
-        #expect(s.respond("Z3,2000,4")?.hasPrefix("E") == true)   // no third register
+        #expect(s.respond("Z3,2000,4")?.hasPrefix("E") == true)
         #expect(p.watches.map(\.2) == [.write, .access])
         #expect(s.respond("z4,1000,4") == "OK")
         #expect(p.watches.count == 1)

@@ -1,12 +1,9 @@
 import Foundation
 
-/// An `.icon` package (`specs/formats/icon-format.md` §1): `icon.json` and
-/// the flat `Assets/` folder its layers name.
 public struct IconPackage: Sendable {
     public var url: URL
     public var document: IconDocument
 
-    /// The icon name the build uses: the package name without `.icon`.
     public var name: String { url.deletingPathExtension().lastPathComponent }
     public var assetsURL: URL { url.appendingPathComponent("Assets") }
 
@@ -15,7 +12,6 @@ public struct IconPackage: Sendable {
         self.document = document
     }
 
-    /// Reads `<url>/icon.json`.
     public init(contentsOf url: URL) throws {
         let jsonURL = url.appendingPathComponent("icon.json")
         guard let data = try? Data(contentsOf: jsonURL) else { throw IconError("", "\(url.lastPathComponent) has no icon.json") }
@@ -23,8 +19,6 @@ public struct IconPackage: Sendable {
         self.document = try IconDocument(data: data)
     }
 
-    /// Writes `icon.json` (Icon Composer's layout) and, when `assets` names
-    /// a folder, copies its files into `Assets/`.
     public func write(to destination: URL? = nil, copyingAssetsFrom assets: URL? = nil) throws {
         let dest = destination ?? url
         let fm = FileManager.default
@@ -45,12 +39,10 @@ public struct IconPackage: Sendable {
 
     public func assetURL(_ imageName: String) -> URL { assetsURL.appendingPathComponent(imageName) }
 
-    /// The files in `Assets/`, sorted.
     public var assetNames: [String] {
         ((try? FileManager.default.contentsOfDirectory(atPath: assetsURL.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
     }
 
-    /// Every image name some layer uses in some appearance or idiom.
     public var referencedImageNames: [String] {
         var names: [String] = []
         for g in document.groups {
@@ -63,16 +55,11 @@ public struct IconPackage: Sendable {
         return names
     }
 
-    /// A layer image's natural size in points (§4.4): an SVG's `width` and
-    /// `height` (else its `viewBox`), a PNG's pixel size. Nil when the file
-    /// is missing or unreadable.
     public func naturalSize(of imageName: String) -> IconSize? {
         guard let data = try? Data(contentsOf: assetURL(imageName)) else { return nil }
         return IconImageInfo.naturalSize(data)
     }
 
-    /// The frames of every visible layer for an appearance and platform,
-    /// front-most group first (layers whose image is missing are left out).
     public func layerFrames(_ a: IconAppearance, _ p: IconPlatform) -> [(group: Int, layer: Int, frame: IconRect)] {
         let r = document.resolved(a, p)
         var out: [(Int, Int, IconRect)] = []
@@ -86,12 +73,10 @@ public struct IconPackage: Sendable {
     }
 }
 
-/// Reads image dimensions without decoding pixels.
 public enum IconImageInfo {
     public static func naturalSize(_ data: Data) -> IconSize? {
         let b = [UInt8](data.prefix(4096))
         if b.count >= 24, b.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
-            // The IHDR chunk comes first (after an optional CgBI chunk).
             var i = 8
             while i + 16 <= b.count {
                 let len = Int(b[i]) << 24 | Int(b[i + 1]) << 16 | Int(b[i + 2]) << 8 | Int(b[i + 3])
@@ -109,8 +94,6 @@ public enum IconImageInfo {
         return svgSize(String(decoding: data, as: UTF8.self))
     }
 
-    /// The `<svg>` element's `width`/`height` (numbers, optionally with `px`
-    /// or `pt`), else the `viewBox` size.
     public static func svgSize(_ text: String) -> IconSize? {
         guard let start = text.range(of: "<svg") else { return nil }
         guard let end = text[start.upperBound...].firstIndex(of: ">") else { return nil }
@@ -145,8 +128,6 @@ public enum IconImageInfo {
     }
 }
 
-// MARK: Validation
-
 public struct IconIssue: Equatable, Sendable, CustomStringConvertible {
     public enum Severity: String, Sendable { case warning, error }
     public var severity: Severity
@@ -156,9 +137,6 @@ public struct IconIssue: Equatable, Sendable, CustomStringConvertible {
 }
 
 extension IconPackage {
-    /// Problems that do not stop reading (§1, §3, §9): Icon Composer's
-    /// too-many-visible-groups warning, missing or unknown image files,
-    /// values the spec lists as unrecognized.
     public func validate() -> [IconIssue] {
         var out: [IconIssue] = []
         func warn(_ p: String, _ m: String) { out.append(IconIssue(severity: .warning, path: p, message: m)) }

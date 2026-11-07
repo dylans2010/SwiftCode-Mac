@@ -1,25 +1,11 @@
-// Debugging: a GPU hang on demand (metal-sim-protocol.md §8.8). With
-// `SWIFTCODE_GPU_INJECT_HANG=<name>@<seconds>[x<count>]` the first command
-// buffer of a client whose name (Options.describeProcess) contains <name>,
-// submitted at least <seconds> after the back end started, gets a kernel
-// in front of its work that never ends; <count> times (default 1), at
-// least 15 s apart. It
-// checks in a real boot that one client's stuck submission does not stop
-// the others (the blocking watchdog ends it, its client's command buffers
-// fail, and after `revokeAfterHangs` hangs the client loses GPU access).
-
 import Foundation
 import SwiftCodeMetalHost
 
 extension VulkanMetalBackend {
-    /// The armed injection (parsed once at start; nil: off).
     struct HangInjection {
         var name: String
         var afterNs: UInt64
         var remaining: Int
-        /// When the last kernel went in (monotonic ns): the next one waits
-        /// `spacingNs`, so that each hang is ended before the next one
-        /// (otherwise the reset fails the queued ones with the first).
         var lastAt: UInt64 = 0
         let spacingNs: UInt64 = 15_000_000_000
         let function = MetalHandle(0xFFFF_FFFF_FFFF_FF01)
@@ -35,9 +21,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Our own kernel that spins until buffer 0's first word is 1 (GLSL in
-    /// the test sources, TestShaders.spin); unbound, buffer 0 is the dummy
-    /// buffer's zeros, so it never ends.
     static let hangKernel: [UInt32] = [
         0x07230203, 0x00010600, 0x0008000b, 0x0000004c, 0x00000000, 0x00020011, 0x00000001, 0x00020011,
         0x0000000b, 0x00020011, 0x000014e3, 0x0006000b, 0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e,
@@ -117,7 +100,6 @@ extension VulkanMetalBackend {
         0x00010038,
     ]
 
-    /// Makes the injection's function and pipeline (at start, when armed).
     func prepareHangInjection() {
         guard let inj = hangInjection else { return }
         var reflection = ShaderReflection(stage: .kernel, entryPoint: "main")
@@ -142,8 +124,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// The command buffer, with the never-ending kernel in front when the
-    /// injection is armed and due for this client. Not under the lock.
     func injectHang(_ mcb: MetalCommandBuffer) -> MetalCommandBuffer {
         cond.lock()
         let now = DispatchTime.now().uptimeNanoseconds

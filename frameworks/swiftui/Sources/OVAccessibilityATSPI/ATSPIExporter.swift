@@ -1,51 +1,16 @@
 import Foundation
 import OVDBus
 
-// The AT-SPI2 exporter: exports an application's accessible objects on the
-// accessibility bus (at-spi2-core `xml/*.xml`, public interface
-// descriptions; SwiftCode's own implementation).
-//
-// - **Bus.** `AT_SPI_BUS_ADDRESS`, else `org.a11y.Bus.GetAddress` on the
-//   session bus (the bus launcher); no bus, no export.
-// - **Registration.** `org.a11y.atspi.Socket.Embed((so))` on the registry's
-//   root with our unique name and `/org/a11y/atspi/accessible/root`; the
-//   registry sets our `Application.Id` while the call runs (answered,
-//   because replies are awaited asynchronously) and returns the desktop.
-// - **Objects.** The application root (role application, children = the
-//   windows), one object per accessible node at
-//   `/org/a11y/atspi/accessible/<key>` with Accessible and Component, and
-//   Action, Text (+ EditableText), Value and Selection when the node has
-//   them; the Cache at `/org/a11y/atspi/cache` (`GetItems`,
-//   `AddAccessible`, `RemoveAccessible`).
-// - **Laziness.** No window's tree is built until a client asks for one of
-//   its objects. While no assistive technology has registered an event
-//   listener with the registry (`GetRegisteredEvents`,
-//   `EventListenerRegistered`/`Deregistered`), nothing is rebuilt after
-//   frames; with listeners, windows whose revision changed are rebuilt
-//   after each frame and the difference is sent as events.
-// - **Events** (`org.a11y.atspi.Event.*`, body `(siiva{sv})`): focus
-//   (`Event.Focus.Focus` and `state-changed:focused`), state changes,
-//   name/description/value property changes, children added and removed,
-//   text inserted and deleted, caret moves, window activate/deactivate,
-//   create and destroy. Only events a listener asked for are sent.
-
 @MainActor
 public final class ATSPIExporter: DBusObjectTree {
     public let connection: DBusConnection
     public weak var provider: (any ATSPIProvider)?
-    /// The id the registry gave the application (`Application.Id`).
     public private(set) var applicationID: Int32 = 0
-    /// The registry's desktop (the reply to Embed).
     public private(set) var desktop: (name: String, path: String)?
     public private(set) var isEmbedded = false
-    /// Snapshots made so far (windows a client asked for or that are kept
-    /// current for listeners).
     public private(set) var snapshots: [String: ATSPIWindowSnapshot] = [:]
-    /// Snapshot builds (statistics: laziness tests).
     public private(set) var buildCount = 0
-    /// Event listeners by the AT's bus name; nil until the registry told us.
     public private(set) var listeners: [String: [String]]?
-    /// Every event sent, as `object:state-changed:focused <key>` (tests).
     public var recordedEvents: [String]?
     public var log: ((String) -> Void)?
 
@@ -56,10 +21,6 @@ public final class ATSPIExporter: DBusObjectTree {
         self.provider = provider
     }
 
-    // MARK: Connecting
-
-    /// The accessibility bus address: `AT_SPI_BUS_ADDRESS`, else asked of
-    /// the bus launcher on the session bus. Nil when there is none.
     public static func accessibilityBusAddress(environment: [String: String] = ProcessInfo.processInfo.environment,
                                                timeout: Double = 3) -> String? {
         if let a = environment["AT_SPI_BUS_ADDRESS"], !a.isEmpty { return a }
@@ -74,8 +35,6 @@ public final class ATSPIExporter: DBusObjectTree {
         return a
     }
 
-    /// Connects to the accessibility bus, exports the root and registers
-    /// with the registry. Nil when there is no accessibility bus.
     public static func start(provider: any ATSPIProvider,
                              environment: [String: String] = ProcessInfo.processInfo.environment) -> ATSPIExporter? {
         guard let address = accessibilityBusAddress(environment: environment),
@@ -86,8 +45,6 @@ public final class ATSPIExporter: DBusObjectTree {
         return e
     }
 
-    /// Exports the objects, subscribes to the registry's listener signals
-    /// and embeds the application (replies arrive asynchronously).
     public func register() {
         connection.objects = self
         connection.onSignal = { [weak self] in self?.received($0) }
@@ -135,26 +92,20 @@ public final class ATSPIExporter: DBusObjectTree {
             l[bus, default: []].append(event)
             listeners = l
             log?("listener \(bus) \(event)")
-            // The state the next changes are measured against.
             afterFrame()
         case (ATSPI.registryInterface, "EventListenerDeregistered"):
             guard m.body.count >= 2, let bus = m.body[0].stringValue, let event = m.body[1].stringValue else { return }
             if let i = listeners?[bus]?.firstIndex(of: event) { listeners?[bus]?.remove(at: i) }
             if listeners?[bus]?.isEmpty == true { listeners?[bus] = nil }
         case ("org.freedesktop.DBus", "NameOwnerChanged"):
-            // An AT that left the bus listens no more.
             guard m.body.count == 3, let name = m.body[0].stringValue, m.body[2].stringValue?.isEmpty == true else { return }
             listeners?[name] = nil
         default: break
         }
     }
 
-    // MARK: Listening
-
-    /// True while some AT listens for events (or the registry did not say).
     public var hasListeners: Bool { listeners.map { !$0.isEmpty } ?? true }
 
-    /// True if a registered listener covers `event` (`class:major:minor`).
     public func wants(_ event: String) -> Bool {
         guard let listeners else { return true }
         let e = Self.components(event)
@@ -171,10 +122,6 @@ public final class ATSPIExporter: DBusObjectTree {
             .reversed().drop { $0.isEmpty }.reversed()
     }
 
-    // MARK: Keeping current
-
-    /// After a frame: with listeners, rebuild the windows whose revision
-    /// changed and send the differences; without, nothing.
     public func afterFrame() {
         guard connection.isConnected, let provider, hasListeners else { return }
         syncWindowList(provider.windowKeys())
@@ -187,7 +134,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
     }
 
-    /// The snapshot of window `w`, made now or brought up to date.
     @discardableResult
     func current(_ w: String) -> ATSPIWindowSnapshot? {
         guard let provider else { return nil }
@@ -241,7 +187,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
     }
 
-    /// Sends the events for the change from `old` to `new`.
     private func diff(_ old: ATSPIWindowSnapshot, _ new: ATSPIWindowSnapshot) {
         let removed = old.orderedKeys.filter { new.nodes[$0] == nil }
         let added = new.orderedKeys.filter { old.nodes[$0] == nil }
@@ -258,7 +203,6 @@ public final class ATSPIExporter: DBusObjectTree {
                 emitObject(p, "ChildrenChanged", "add", Int32(n.indexInParent), 0, ref(k))
             }
         }
-        // Focus is reported lost before it is reported gained.
         var gained: [String] = []
         for k in new.orderedKeys {
             guard let a = old.nodes[k], let b = new.nodes[k] else { continue }
@@ -320,8 +264,6 @@ public final class ATSPIExporter: DBusObjectTree {
         return String(v)
     }
 
-    // MARK: Emitting
-
     static func eventBody(_ detail: String, _ d1: Int32, _ d2: Int32, _ any: DBusValue) -> [DBusValue] {
         [.string(detail), .int32(d1), .int32(d2), .variant(any), .emptyProperties]
     }
@@ -335,7 +277,6 @@ public final class ATSPIExporter: DBusObjectTree {
         return out
     }
 
-    /// An `org.a11y.atspi.Event.Object` signal from `key` (nil: the root).
     private func emitObject(_ key: String?, _ member: String, _ detail: String, _ d1: Int32, _ d2: Int32, _ any: DBusValue) {
         let event = "object:" + Self.kebab(member) + (detail.isEmpty ? "" : ":" + detail)
         guard wants(event) else { return }
@@ -362,8 +303,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
     }
 
-    // MARK: Paths and references
-
     func path(_ key: String) -> String { ATSPI.objectPrefix + key }
 
     func ref(_ key: String) -> DBusValue { .structure([.string(connection.uniqueName ?? ""), .objectPath(path(key))]) }
@@ -377,7 +316,6 @@ public final class ATSPIExporter: DBusObjectTree {
         return .structure([.string(desktop.name), .objectPath(desktop.path)])
     }
 
-    /// The node key of an object path (nil: the root or not ours).
     static func key(of path: String) -> String? {
         guard path.hasPrefix(ATSPI.objectPrefix), path != ATSPI.rootPath else { return nil }
         let k = String(path.dropFirst(ATSPI.objectPrefix.count))
@@ -386,7 +324,6 @@ public final class ATSPIExporter: DBusObjectTree {
 
     static func window(of key: String) -> String { key.split(separator: "_", maxSplits: 1).first.map(String.init) ?? key }
 
-    /// The node `key`, its window's snapshot made current.
     public func node(_ key: String) -> ATSPINode? { current(Self.window(of: key))?.nodes[key] }
 
     private func windows() -> [String] {
@@ -394,8 +331,6 @@ public final class ATSPIExporter: DBusObjectTree {
         if knownWindows == nil { knownWindows = w }
         return w
     }
-
-    // MARK: DBusObjectTree
 
     public func interfaces(at path: String) -> [DBusInterfaceDescription]? {
         if path == ATSPI.rootPath { return [ATSPIInterfaces.accessible, ATSPIInterfaces.application] }
@@ -477,8 +412,6 @@ public final class ATSPIExporter: DBusObjectTree {
         return .error(name: DBusErrorName.propertyReadOnly, message: "\(interface).\(name) is read-only")
     }
 
-    // MARK: The root
-
     private func rootProperty(_ name: String, interface: String) -> DBusValue? {
         switch (interface, name) {
         case (ATSPI.accessible, "Name"): return .string(provider?.applicationName ?? "")
@@ -520,7 +453,6 @@ public final class ATSPIExporter: DBusObjectTree {
     }
 
     static let referenceType = DBusType.structure([.string, .objectPath])
-    /// `((so)(so)(so)iiassusau)`.
     static let cacheItemType = DBusType.structure([
         referenceType, referenceType, referenceType, .int32, .int32, .array(.string), .string, .uint32, .string, .array(.uint32),
     ])
@@ -536,8 +468,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
         return "C"
     }
-
-    // MARK: Cache
 
     func cacheItem(_ k: String) -> DBusValue? {
         guard let s = snapshots[Self.window(of: k)], let n = s.nodes[k] else { return nil }
@@ -560,8 +490,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
         return items
     }
-
-    // MARK: Accessible
 
     private func handleAccessible(_ call: DBusMessage, _ n: ATSPINode) -> DBusCallResult? {
         switch (call.member ?? "", call.signature) {
@@ -587,9 +515,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
     }
 
-    // MARK: Component
-
-    /// The node's extents in `coord` coordinates.
     func extents(_ n: ATSPINode, _ coord: UInt32) -> ATSPIRect {
         switch ATSPICoordType(rawValue: coord) ?? .screen {
         case .window: return n.frame
@@ -610,7 +535,6 @@ public final class ATSPIExporter: DBusObjectTree {
         case ("Contains", "iiu"):
             return .reply([.boolean(extents(n, uint(2)).contains(x: int(0), y: int(1)))])
         case ("GetAccessibleAtPoint", "iiu"):
-            // Deepest descendant containing the point (later siblings on top).
             let coord = uint(2)
             var hit: ATSPINode?
             var current = n
@@ -641,8 +565,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
     }
 
-    // MARK: Action
-
     private func handleAction(_ call: DBusMessage, _ n: ATSPINode) -> DBusCallResult {
         let i = call.body.first?.intValue ?? -1
         let action = n.actions.indices.contains(i) ? n.actions[i] : nil
@@ -661,8 +583,6 @@ public final class ATSPIExporter: DBusObjectTree {
         default: return .unknownMethod
         }
     }
-
-    // MARK: Text
 
     private func handleText(_ call: DBusMessage, _ n: ATSPINode) -> DBusCallResult {
         guard let t = n.text else { return .unknownMethod }
@@ -730,8 +650,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
     }
 
-    /// Character boxes: the node's extents divided evenly along its first
-    /// line (OpenViews does not export glyph geometry yet).
     private func characterExtents(_ n: ATSPINode, _ count: Int, _ offset: Int, _ coord: UInt32) -> ATSPIRect {
         let r = extents(n, coord)
         let w = count > 0 ? r.width / Int32(max(count, 1)) : 0
@@ -761,8 +679,6 @@ public final class ATSPIExporter: DBusObjectTree {
         }
     }
 
-    // MARK: Selection
-
     private func selectedChildren(_ n: ATSPINode) -> [String] {
         n.children.filter { node($0)?.states.contains(.selected) == true }
     }
@@ -784,7 +700,6 @@ public final class ATSPIExporter: DBusObjectTree {
     }
 }
 
-/// Text segments for the Text interface (scalar offsets).
 enum TextSegments {
     static func isSpace(_ c: Unicode.Scalar) -> Bool { c.properties.isWhitespace }
     static func isNewline(_ c: Unicode.Scalar) -> Bool { c == "\n" || c == "\r" || c == "\u{2028}" || c == "\u{2029}" }
@@ -798,7 +713,6 @@ enum TextSegments {
         }
     }
 
-    /// The segment around offset `o`.
     static func range(_ s: [Unicode.Scalar], at o: Int, boundary b: ATSPITextBoundary) -> Range<Int> {
         let n = s.count
         guard n > 0 else { return 0..<0 }
@@ -807,8 +721,6 @@ enum TextSegments {
         case .character:
             return o < n ? o..<(o + 1) : n..<n
         case .wordStart:
-            // From the start of the word at (or before) o to the start of
-            // the next word.
             var lo = min(o, n - 1)
             while lo > 0 && isSpace(s[lo]) { lo -= 1 }
             while lo > 0 && !isSpace(s[lo - 1]) { lo -= 1 }
@@ -817,7 +729,6 @@ enum TextSegments {
             while hi < n && isSpace(s[hi]) { hi += 1 }
             return lo..<hi
         case .wordEnd:
-            // From the end of the previous word to the end of this one.
             var hi = o
             while hi < n && isSpace(s[hi]) { hi += 1 }
             while hi < n && !isSpace(s[hi]) { hi += 1 }

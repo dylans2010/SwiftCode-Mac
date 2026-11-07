@@ -1,46 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Utilities/Database/Views/DatabaseDashboard.swift
-//   (Legacy main ab03f681)
-//
-// Destination: SwiftCodeUI/Database/DatabaseDashboard.swift.
-//
-// !!! NAME COLLISION — READ BEFORE LANDING !!!
-// This file declares the SwiftUI view `DatabaseDashboard`. The same name
-// is already the model class in SwiftCodeIDECore
-// (`SwiftCodeIDECore/Model/Database/DatabaseDashboard.swift`), and
-// `SwiftCodeUI/Database/SQLiteExplorerSectionsController.swift` uses that
-// class unqualified in TWO places (lines ~48 and ~80:
-// `private let dashboard: DatabaseDashboard` and
-// `self.dashboard = DatabaseDashboard(db: db)`). Landing this file as-is
-// makes those two references resolve to THIS view struct and breaks the
-// SQLite Explorer build. Landing MUST qualify them first:
-// `SwiftCodeIDECore.DatabaseDashboard` in both places. (The batch-2
-// split-controller header flags the same collision: "the Views port must
-// qualify or rename it" — this port qualifies the existing model use.)
-// The Legacy view name is kept deliberately: the split controller staged
-// alongside this file hosts `DatabaseDashboard(selectedSection:)` by that
-// name, and the migration ledger tracks the Legacy name.
-//
-// Adaptations (behaviour preserved unless noted):
-// * Legacy's two hardcoded metric values are wired to live readings
-//   instead of carried over: "3 Migrations" and "100/100" were literals
-//   in Legacy, and the health card's "Passed (0.1ms latency)" and the
-//   "PostgREST protocol pipelines are fully connected" claim were too.
-//   The view now loads `DatabaseDashboardStats` from the destination's
-//   `DatabaseDashboard` model (same name, other module — see the
-//   collision note) for the active connection's SQLite file and shows
-//   the real migration count, the real health-check pass ratio and the
-//   real integrity result; with no active SQLite connection it shows
-//   "—" / "No active SQLite connection" instead of inventing numbers.
-//   The other two metric cards were already live (active connection
-//   name, tracked-profile count) and are unchanged.
-// * `.groupBoxStyle(.liquidGlass)` has no destination equivalent —
-//   SwiftCode draws no glass of its own making — so the health card
-//   uses `.groupBoxStyle(ModernGroupBoxStyle())` (this target).
-// * `import SwiftCodeIDECore` (dashboard model) and
-//   `import SwiftCodeHealthStore` (SQLiteDatabase) added; SwiftCodeUI
-//   already depends on both.
-
 import SwiftUI
 import SwiftCodeHealthStore
 import SwiftCodeIDECore
@@ -53,7 +10,6 @@ struct DatabaseDashboard: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header Hero
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Image(systemName: "tablecells.badge.ellipsis")
@@ -67,7 +23,6 @@ struct DatabaseDashboard: View {
                         .foregroundColor(.secondary)
                 }
 
-                // Statistics Summary Grid
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 16) {
                     DashboardMetricCard(title: "Active DB Connection", value: connManager.activeConnection?.name ?? "None", icon: "cylinder.split.1x2.fill", color: .blue)
                     DashboardMetricCard(title: "Total Tracked Profiles", value: "\(connManager.connections.count)", icon: "network", color: .orange)
@@ -77,7 +32,6 @@ struct DatabaseDashboard: View {
 
                 Divider()
 
-                // Quick Launch Studio Views (Exposing ALL features cleanly)
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Exposed DBA Utilities & Workspaces")
                         .font(.title3.bold())
@@ -187,7 +141,6 @@ struct DatabaseDashboard: View {
 
                 Divider()
 
-                // Health Summary Card
                 GroupBox("Diagnostics & Real-time Monitor") {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -243,9 +196,6 @@ struct DatabaseDashboard: View {
         stats?.integrity ?? "Not run"
     }
 
-    /// Live dashboard stats for the active connection's SQLite file.
-    /// Non-SQLite connections and failures leave `stats` nil, which the
-    /// cards render as "—" rather than inventing numbers.
     private func loadStats() async {
         guard let path = connManager.activeConnection?.sqliteFilePath else {
             stats = nil

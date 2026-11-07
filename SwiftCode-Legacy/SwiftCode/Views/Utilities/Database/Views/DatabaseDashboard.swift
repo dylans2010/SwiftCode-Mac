@@ -7,7 +7,6 @@ struct DatabaseDashboard: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header Hero
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Image(systemName: "tablecells.badge.ellipsis")
@@ -21,7 +20,6 @@ struct DatabaseDashboard: View {
                         .foregroundColor(.secondary)
                 }
 
-                // Statistics Summary Grid
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 16) {
                     DashboardMetricCard(title: "Active DB Connection", value: connManager.activeConnection?.name ?? "None", icon: "cylinder.split.1x2.fill", color: .blue)
                     DashboardMetricCard(title: "Total Tracked Profiles", value: "\(connManager.connections.count)", icon: "network", color: .orange)
@@ -31,7 +29,6 @@ struct DatabaseDashboard: View {
 
                 Divider()
 
-                // Quick Launch Studio Views (Exposing ALL features cleanly)
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Exposed DBA Utilities & Workspaces")
                         .font(.title3.bold())
@@ -141,7 +138,6 @@ struct DatabaseDashboard: View {
 
                 Divider()
 
-                // Health Summary Card
                 GroupBox("Diagnostics & Real-time Monitor") {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {

@@ -1,21 +1,6 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/AssistUserTakeover.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Assist/AssistUserTakeover.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Manual Takeover Required prompt UI
-//   - Resume Autonomous Execution action
-//   - Abort and Clear Plan action
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
 import SwiftUI
 import SwiftCodeAssistant
 
-/// An alert-style UI triggered when the autonomous agent requires manual intervention.
 public struct AssistUserTakeover: View {
     let reason: String
     let onResume: () -> Void

@@ -1,18 +1,8 @@
-//
-//  MuseCodeCLIHelper.swift
-//  SwiftCode
-//
-//  Provides executable discovery, installation, credential checks, and asynchronous
-//  process execution helper for the "Assist with Meta" CLI (muse).
-//
-
 import Foundation
 import Combine
 #if canImport(AppKit)
 import AppKit
 #endif
-
-// MARK: - Muse Auth Config JSON Model
 
 public struct MuseAuthConfigFile: Codable, Sendable {
     public let schemaVersion: Int?
@@ -86,11 +76,9 @@ public actor MuseCodeCLIHelper {
 
     private init() {}
 
-    /// Discovers the path to the `muse` executable.
     nonisolated public func discoverExecutablePath() -> String? {
         let fileManager = FileManager.default
 
-        // Standard paths
         let candidatePaths = [
             NSString(string: "~/.local/bin/muse").expandingTildeInPath,
             "/usr/local/bin/muse",
@@ -106,7 +94,6 @@ public actor MuseCodeCLIHelper {
             }
         }
 
-        // Search PATH environment variable
         let envPath = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
         let paths = envPath.split(separator: ":").map(String.init)
         for dir in paths {
@@ -119,12 +106,10 @@ public actor MuseCodeCLIHelper {
         return nil
     }
 
-    /// Checks whether the `muse` CLI is available.
     nonisolated public func isInstalled() -> Bool {
         return discoverExecutablePath() != nil
     }
 
-    /// Locates the auth credentials JSON configuration file.
     nonisolated public func getAuthFilePath() -> String? {
         let fileManager = FileManager.default
         if let envPath = ProcessInfo.processInfo.environment["MUSE_AUTH_PATH"],
@@ -147,7 +132,6 @@ public actor MuseCodeCLIHelper {
         return standardPath
     }
 
-    /// Reads authentication metadata from the credentials configuration file.
     nonisolated public func readAuthInfo() -> (isAuthenticated: Bool, email: String?, fullName: String?) {
         guard let path = getAuthFilePath() else {
             return (false, nil, nil)
@@ -166,7 +150,6 @@ public actor MuseCodeCLIHelper {
                            (meta.storage != nil && !meta.storage!.isEmpty)
             return (hasCreds, email, name)
         }
-        // Fallback generic extraction if structure varies
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let providers = json["providers"] as? [String: Any],
            let meta = providers["meta"] as? [String: Any] {
@@ -178,8 +161,6 @@ public actor MuseCodeCLIHelper {
         return (false, nil, nil)
     }
 
-    /// Ensures ~/.config/muse/settings.json exists with valid default model and config.
-    /// Fixes CLI errors where muse fails with "failed to fetch model catalog: model catalog has no visible models".
     nonisolated public func ensureMuseConfigHealth() {
         let home = NSHomeDirectory()
         let configDir = (home as NSString).appendingPathComponent(".config/muse")
@@ -217,18 +198,15 @@ public actor MuseCodeCLIHelper {
         }
     }
 
-    /// Checks if valid account credentials exist.
     public func checkCredentials() async -> Bool {
         guard isInstalled() else { return false }
         return readAuthInfo().isAuthenticated
     }
 
-    /// Retrieves the authenticated email address if available.
     public func getUserEmail() async -> String? {
         return readAuthInfo().email
     }
 
-    /// Runs a `muse` command asynchronously using `Process`.
     public func runCommand(args: [String], environment: [String: String]? = nil, timeoutSeconds: Double = 30.0) async throws -> MuseCodeCLIExecutionResult {
         guard let executable = discoverExecutablePath() else {
             throw MuseCodeCLIError.executableNotFound
@@ -237,13 +215,11 @@ public actor MuseCodeCLIHelper {
         return try await runProcess(executablePath: executable, args: args, environment: environment, timeoutSeconds: timeoutSeconds)
     }
 
-    /// Reusable helper to run a process.
     public func runProcess(executablePath: String, args: [String], environment: [String: String]? = nil, timeoutSeconds: Double = 30.0) async throws -> MuseCodeCLIExecutionResult {
         MuseCodeCLIHelper.shared.ensureMuseConfigHealth()
 
         var processArgs = args
         if processArgs.contains("exec") && !processArgs.contains("--model") {
-            // Ensure default model is provided to avoid catalog visibility errors
             if let execIndex = processArgs.firstIndex(of: "exec") {
                 processArgs.insert(contentsOf: ["--model", "muse-wonder-1.0"], at: execIndex)
             }
@@ -260,7 +236,6 @@ public actor MuseCodeCLIHelper {
                     env[k] = v
                 }
             }
-            // Ensure PATH is comprehensive for GUI mac apps
             let home = NSHomeDirectory()
             let localBin = (home as NSString).appendingPathComponent(".local/bin")
             let museBin = (home as NSString).appendingPathComponent(".muse/bin")
@@ -291,14 +266,11 @@ public actor MuseCodeCLIHelper {
         }.value
     }
 
-    /// Runs the CLI login flow (`muse login`) using `Process`.
-    /// Emits authentication URL/code via callback, waits for login approval, and returns the authenticated email.
     public func runLoginFlow(onAuthURL: (@Sendable (URL, String?) -> Void)? = nil) async throws -> String {
         guard let executable = discoverExecutablePath() else {
             throw MuseCodeCLIError.executableNotFound
         }
 
-        // If already authenticated with valid credentials, return immediately
         let existingInfo = MuseCodeCLIHelper.shared.readAuthInfo()
         if existingInfo.isAuthenticated, let email = existingInfo.email, !email.isEmpty {
             MuseCodeCLIHelper.shared.ensureMuseConfigHealth()
@@ -381,7 +353,6 @@ public actor MuseCodeCLIHelper {
 
             try process.run()
 
-            // Feed newline after 1s in case prompt appears without triggering regex
             Task {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 if let nl = "\n".data(using: .utf8) {
@@ -401,7 +372,6 @@ public actor MuseCodeCLIHelper {
 
             MuseCodeCLIHelper.shared.ensureMuseConfigHealth()
 
-            // Re-read auth info after process exit
             let info = MuseCodeCLIHelper.shared.readAuthInfo()
             if let email = info.email, !email.isEmpty {
                 return email
@@ -422,9 +392,7 @@ public actor MuseCodeCLIHelper {
         }.value
     }
 
-    /// Attempts to install `muse` CLI globally via npm if missing.
     public func installCLIViaNPM() async throws {
-        // Find npm executable
         let fileManager = FileManager.default
         let npmCandidates = [
             "/opt/homebrew/bin/npm",
@@ -443,8 +411,6 @@ public actor MuseCodeCLIHelper {
         }
     }
 }
-
-// MARK: - Meta Account Auth Service
 
 @MainActor
 public final class MetaAccountAuthService: ObservableObject {
@@ -520,4 +486,3 @@ public final class MetaAccountAuthService: ObservableObject {
         }
     }
 }
-

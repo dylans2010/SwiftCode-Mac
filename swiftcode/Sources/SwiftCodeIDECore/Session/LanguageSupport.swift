@@ -4,40 +4,27 @@ import SwiftCodeDebug
 import SwiftCodeLanguage
 
 extension LineIndex {
-    /// The LSP position (0-based line, UTF-16 column) of an offset.
     public func position(at offset: Int) -> Position {
         let line = self.line(at: offset)
         return Position(line: line - 1, character: offset - starts[line - 1])
     }
 
-    /// The offset of an LSP position, clamped to the text.
     public func offset(of p: Position) -> Int {
         guard let r = range(ofLine: p.line + 1) else { return length }
         return r.location + min(max(0, p.character), r.length)
     }
 }
 
-/// The session's language service: one sourcekit-lsp per workspace window.
-/// Open documents are kept in sync; published diagnostics become live
-/// issues. See `specs/ide/language.md`.
 @MainActor
 public final class LanguageService {
     public let client: LSPClient
     private var versions: [URL: Int] = [:]
-    /// The hash of the text last sent per document (an `open` of an open
-    /// document with the same text is not an edit).
     private var textHashes: [URL: Int] = [:]
-    /// The text last sent per open document (a restarted server gets them again).
     public private(set) var openTexts: [URL: String] = [:]
-    /// Live issues by file path, from `publishDiagnostics`.
     public private(set) var liveIssues: [String: [Diagnostic]] = [:]
-    /// The diagnostics as sent, by file path (for code-action requests).
     public private(set) var liveDiagnostics: [String: [LSPDiagnostic]] = [:]
-    /// Edits the server asks to apply (`workspace/applyEdit`).
     package var onApplyEdit: ((WorkspaceEdit) -> Void)?
     var onIssuesChanged: (() -> Void)?
-    /// A document's text changed (the path, standardized): its build
-    /// issues no longer stand for it (`reference-ui-6.md` §5.2.2).
     var onEdited: ((String) -> Void)?
 
     public init(transport: DAPTransport, root: URL, initializationOptions: JSON? = nil) async throws {
@@ -56,16 +43,14 @@ public final class LanguageService {
         try await client.initialize(root: root, initializationOptions: initializationOptions)
     }
 
-    /// Converts LSP diagnostics (0-based) to issues (1-based lines/columns).
     public static func issues(file: String, _ list: [LSPDiagnostic]) -> [Diagnostic] {
         list.compactMap { d in
             let severity: Diagnostic.Severity
             switch d.severity {
             case 1: severity = .error
             case 2: severity = .warning
-            default: return nil // information and hints are not issues
+            default: return nil
             }
-            // Inline fix-its whose edits stay in this file become fix-its.
             let fixIts = d.fixIts.compactMap(\.edit).flatMap { e in
                 e.changes.filter { $0.key.standardizedFileURL.path == file }.flatMap(\.value).map { t in
                     Diagnostic.FixIt(file: file, start: .init(file: file, line: t.start.line + 1, column: t.start.character + 1),
@@ -101,13 +86,11 @@ public final class LanguageService {
         if textHashes.updateValue(h, forKey: url) != h { onEdited?(url.standardizedFileURL.path) }
     }
 
-    /// The file was written (`textDocument/didSave`).
     public func saved(_ url: URL) {
         guard versions[url] != nil else { return }
         client.didSave(url)
     }
 
-    /// No editor shows the file any more (`textDocument/didClose`).
     public func close(_ url: URL) {
         guard versions.removeValue(forKey: url) != nil else { return }
         textHashes[url] = nil
@@ -115,7 +98,6 @@ public final class LanguageService {
         client.didClose(url)
     }
 
-    /// A file that is not open changed on disk (`workspace/didChangeWatchedFiles`).
     public func fileChangedOnDisk(_ url: URL) {
         client.notify("workspace/didChangeWatchedFiles", ["changes": [["uri": .string(url.absoluteString), "type": 2]]])
     }
@@ -124,12 +106,10 @@ public final class LanguageService {
 }
 
 extension WorkspaceSession {
-    /// The directory the language server treats as the workspace root.
     var languageRoot: URL {
         model.kind == .package ? model.url : model.url.deletingLastPathComponent()
     }
 
-    /// Starts sourcekit-lsp (or `transport`) for this workspace.
     public func startLanguageService(transport: DAPTransport? = nil) async {
         let t: DAPTransport
         var root = languageRoot
@@ -139,7 +119,6 @@ extension WorkspaceSession {
         if let transport { t = transport } else {
             guard let path = await Task.detached(operation: { SourceKitLSP.locate() }).value else { return }
             t = ProcessTransport(executable: path)
-            // Projects and workspaces: through SwiftCode's build server (language.md §Build server).
             let (container, scheme, destination) = (model.url, startedContext.scheme, startedContext.destination)
             if let folder = await Task.detached(operation: {
                 BuildServerLaunch.prepareWorkspaceFolder(container: container, scheme: scheme, destination: destination)
@@ -154,7 +133,6 @@ extension WorkspaceSession {
             service.onIssuesChanged = { [weak self] in self?.languageIssuesChanged() }
             service.onEdited = { [weak self] in self?.noteFileEdited($0) }
             language = service
-            // The scheme or destination changed while the server started.
             buildContextChanged()
         } catch {
             appendConsole("SwiftCode: the language server did not start: \(error)\n")
@@ -176,7 +154,6 @@ extension WorkspaceSession {
         return (try? await language.client.definition(url, at: p))?.first
     }
 
-    /// The language server's document highlights of the symbol at `p`.
     public func documentHighlights(_ url: URL, at p: Position) async -> [DocumentHighlight] {
         guard let language else { return [] }
         return (try? await language.client.documentHighlights(url, at: p)) ?? []

@@ -5,12 +5,8 @@ import Testing
 import SwiftCodeProfiler
 @testable import SwiftCodeUI
 
-/// Gauge's window (specs/ide/profiler.md §6) on a synthetic trace, and the
-/// remote profile commands (§5). No network, no simulator.
 @MainActor
 @Suite(.serialized) struct GaugeWindowTests {
-    /// main → work (8 samples, lines 10/11) and main → helper (2), on two
-    /// threads, with a signpost, presents and a hang.
     static func trace(sourceFile: String) -> GaugeTrace {
         var b = GaugeTraceBuilder(recording: .init(target: "swiftcode-simulator", recorder: "test", command: "dev.swiftcode.Demo",
                                                     device: "iPhone 18 Pro", durationNs: 20_000_000, sampleIntervalNs: 1_000_000,
@@ -52,11 +48,9 @@ import SwiftCodeProfiler
         defer { w.close() }
         #expect(w.model.phase == .loaded && w.model.trace?.samples.count == 11)
         #expect(w.targetLabel.stringValue == "Demo on iPhone 18 Pro")
-        // The heaviest path is open: start > main > work.
         #expect(w.outline.numberOfRows >= 4)
         let rowNames = (0..<w.outline.numberOfRows).compactMap { (w.outline.item(atRow: $0) as? CallTreeNode)?.name }
         #expect(Array(rowNames.prefix(3)) == ["start", "main", "work"])
-        // Select work: the flame graph and the source follow.
         let work = try #require(w.model.tree?.root.find("work"))
         w.model.selectedPath = work.path
         #expect(w.outline.selectedRow == w.outline.row(forItem: work))
@@ -64,7 +58,6 @@ import SwiftCodeProfiler
         w.model.content = .source
         #expect(w.sourceView.string.contains("work — \(source.path)"))
         #expect(w.sourceView.string.contains("      6       6    10  line 10;"))
-        // A time range and Invert.
         w.timeline.select(0..<5_000_000)
         #expect(w.model.tree?.sampleCount == 5)
         w.model.options.invert = true
@@ -72,9 +65,7 @@ import SwiftCodeProfiler
         w.model.range = nil
         w.model.content = .flameGraph
         #expect(w.model.flame?.total == 11)
-        // A hang of the main thread (10 busy samples ≥ 4 ms).
         #expect(w.model.hangs.count == 1)
-        // A snapshot renders without the window on screen.
         let png = dir.appendingPathComponent("w.png")
         #expect(w.writeSnapshot(to: png))
         #expect(((try? Data(contentsOf: png))?.count ?? 0) > 1000)

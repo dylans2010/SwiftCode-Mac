@@ -1,26 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistToolResultFormatter.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Tools/AssistToolResultFormatter.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - AssistToolErrorCode taxonomy (referenced but never defined in the destination)
-//   - modelFacingPayload()
-//   - fileRangeMetadataLine()
-//   - capped() payload helper
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: None (library type) — activity formatter consumed by AssistAgentSession/transcript; result formatter consumed by tool execution in SwiftCodeMCP.
-
 import Foundation
 
-// MARK: - Assist Tool Error Codes
-
-/// Machine-readable error taxonomy for Assist tool failures.
-///
-/// Every tool failure carries one of these codes (via `AssistToolResult.toolErrorCode`)
-/// so models can branch on the failure kind instead of parsing message text.
-/// `recoveryHint` gives the model one actionable sentence for getting unstuck.
 public enum AssistToolErrorCode: String, Codable, Sendable, CaseIterable {
     case missingArgument
     case invalidInput
@@ -33,7 +12,6 @@ public enum AssistToolErrorCode: String, Codable, Sendable, CaseIterable {
     case unsupportedOperation
     case unknown
 
-    /// One actionable sentence telling the model how to recover from this failure.
     public var recoveryHint: String {
         switch self {
         case .missingArgument:
@@ -60,56 +38,19 @@ public enum AssistToolErrorCode: String, Codable, Sendable, CaseIterable {
     }
 }
 
-// MARK: - Canonical Model-Facing Tool Result Serializer
-
-/// The single canonical serializer for sending Assist tool results to AI models.
-///
-/// Every model-boundary serializer (Gemini runtime, other-models bridge, worker
-/// engine, transport) routes through `modelFacingPayload(toolId:result:)` so models
-/// always see the same sections, caps, truncation markers, and error taxonomy —
-/// in particular the file-range metadata (path/start/end/totalLines/...) that
-/// ad-hoc flattening used to drop on the Gemini path.
 public enum AssistToolResultFormatter {
 
-    /// Hard cap for the Output section, in characters.
     public static let maxOutputCharacters = 25_000
-    /// Hard cap for the Diff section, in characters.
     public static let maxDiffCharacters = 8_000
-    /// Hard cap for a single Structured data value, in characters.
     public static let maxStructuredValueCharacters = 8_000
 
-    // Data-dict keys. String literals (not AssistToolDataKey statics) so this
-    // file compiles unchanged whether AssistToolDataKey keeps its static-let
-    // shape or migrates to String raw-value cases; the values are identical.
     private static let contentKey = "content"
     private static let treeKey = "tree"
     private static let diffKey = "diff"
 
-    /// Builds the canonical model-facing payload for one tool execution.
-    ///
-    /// Layout:
-    /// ```
-    /// ### <toolId> — SUCCESS|FAILURE (<duration>s)
-    /// [<toolId>] path=… lines 240–280 of 5432, fullyAvailable=false   (when range metadata applies)
-    /// Output:
-    /// <output, capped at 25,000 chars with an exact truncation marker>
-    /// Structured data:
-    /// key=value ...
-    /// Diagnostics:
-    /// - ...
-    /// Files changed:
-    /// - ...
-    /// Diff:
-    /// <diff, capped at 8,000 chars>
-    /// Error [<code>]: <message>        (failures only)
-    /// Recovery: <hint>
-    /// Suggested next: a, b
-    /// Exit code: <n>
-    /// ```
     public static func modelFacingPayload(toolId: String, result: AssistToolResult) -> String {
         var lines: [String] = []
 
-        // Header.
         let status = result.success ? "SUCCESS" : "FAILURE"
         let durationText = String(format: "%.2fs", result.duration)
         lines.append("### \(toolId) — \(status) (\(durationText))")
@@ -117,15 +58,10 @@ public enum AssistToolResultFormatter {
         let data = result.data ?? [:]
         let primaryPayload = nonEmpty(data[contentKey]) ?? nonEmpty(data[treeKey])
 
-        // File-range metadata line: emitted when data carries keys beyond the
-        // content/tree payload (path, line ranges, counts, ...). This is the
-        // metadata the Gemini flattening path used to drop.
         if let rangeLine = fileRangeMetadataLine(toolId: toolId, data: data) {
             lines.append(rangeLine)
         }
 
-        // Output section: the primary payload (file content / tree) when one
-        // was provided, otherwise the tool's own output text.
         lines.append("Output:")
         let outputText: String
         if let primaryPayload {
@@ -137,8 +73,6 @@ public enum AssistToolResultFormatter {
         }
         lines.append(capped(outputText, limit: maxOutputCharacters))
 
-        // Structured data: every data key except the payload keys already
-        // shown above (and the diff, which has its own section).
         let skippedKeys: Set<String> = [contentKey, treeKey, diffKey]
         let structuredKeys = data.keys.filter { !skippedKeys.contains($0) }.sorted()
         if !structuredKeys.isEmpty {
@@ -168,12 +102,8 @@ public enum AssistToolResultFormatter {
             lines.append(capped(diff, limit: maxDiffCharacters))
         }
 
-        // Failure footer: machine-readable code, recovery hint, suggestions.
         if !result.success {
             let message = result.error ?? result.output
-            // NOTE: `toolErrorCode` is added to AssistToolResult by the
-            // error-code migration (Area 2) in the same module; this reference
-            // resolves once that lands.
             if let code = result.toolErrorCode {
                 lines.append("Error [\(code.rawValue)]: \(message)")
                 lines.append("Recovery: \(code.recoveryHint)")
@@ -191,12 +121,6 @@ public enum AssistToolResultFormatter {
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - Private helpers
-
-    /// One compact metadata line from file-range keys, e.g.
-    /// `[file_read] path=/x/y.swift, lines 240–280 of 5432, fullyAvailable=false`.
-    /// Returns nil when no range keys are present (i.e. data holds nothing
-    /// beyond the content/tree payload).
     private static func fileRangeMetadataLine(toolId: String, data: [String: String]) -> String? {
         var parts: [String] = []
         if let path = nonEmpty(data["path"]) {
@@ -226,8 +150,6 @@ public enum AssistToolResultFormatter {
         return "[\(toolId)] " + parts.joined(separator: ", ")
     }
 
-    /// Caps text at `limit` characters, marking truncation with the exact
-    /// canonical marker so a model never mistakes a cut payload for a whole one.
     private static func capped(_ text: String, limit: Int) -> String {
         guard text.count > limit else { return text }
         let head = String(text.prefix(limit))

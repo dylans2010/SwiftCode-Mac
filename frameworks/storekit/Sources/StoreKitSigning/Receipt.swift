@@ -1,12 +1,8 @@
-// The StoreKit 1 receipt (formats.md §3): the documented receipt ASN.1
-// payload in a CMS SignedData envelope (RFC 5652) signed with the device's
-// receipt identity.
 import Crypto
 import Foundation
 import StoreKitEngine
 
 public enum Receipt {
-    /// `YYYY-MM-DDTHH:MM:SSZ`.
     public static func rfc3339(_ date: Date) -> String {
         let c = DER.utcComponents(date)
         return String(format: "%04d-%02d-%02dT%02d:%02d:%02dZ", c.year!, c.month!, c.day!, c.hour!, c.minute!, c.second!)
@@ -16,24 +12,18 @@ public enum Receipt {
         DER.sequence([DER.integer(type), DER.integer(1), DER.octetString(value)])
     }
 
-    /// The SHA-1 of attribute 5: device identifier bytes, then the opaque
-    /// value, then the bundle identifier attribute's value bytes (the
-    /// documented receipt-validation hash, level 1).
     public static func deviceHash(vendorID: UUID, opaque: [UInt8], bundleIDValue: [UInt8]) -> [UInt8] {
         let u = vendorID.uuid
         let uuidBytes: [UInt8] = [u.0, u.1, u.2, u.3, u.4, u.5, u.6, u.7, u.8, u.9, u.10, u.11, u.12, u.13, u.14, u.15]
         return Array(Insecure.SHA1.hash(data: uuidBytes + opaque + bundleIDValue))
     }
 
-    /// The transactions a receipt lists: purchased or restored, not finished consumables.
     public static func listed(_ records: [TransactionRecord]) -> [TransactionRecord] {
         records.filter { r in
             (r.state == .purchased || r.state == .restored) && !(r.productType == .consumable && r.isFinished)
         }.sorted { $0.id < $1.id }
     }
 
-    /// The receipt payload: a SET of { type, version 1, value } with
-    /// attributes 0, 1, 2, 3, 4, 5, 8, 12, 17 × n, 21 (formats.md §3).
     public static func payload(
         bundleID: String, appVersion: String, vendorID: UUID, opaque: [UInt8], creationDate: Date, purchases: [TransactionRecord]
     ) -> [UInt8] {
@@ -66,8 +56,6 @@ public enum Receipt {
         return DER.set(attrs)
     }
 
-    /// Wraps a payload in CMS SignedData (no signed attributes; the signature
-    /// covers the content's SHA-256).
     public static func signedData(payload: [UInt8], identity: SigningIdentity) throws -> [UInt8] {
         let sha256 = DER.sequence([DER.oid(OID.sha256)])
         let ecdsa = DER.sequence([DER.oid(OID.ecdsaWithSHA256)])
@@ -89,7 +77,6 @@ public enum Receipt {
         return DER.sequence([DER.oid(OID.cmsSignedData), DER.explicit(0, signedData)])
     }
 
-    /// Builds the whole receipt file.
     public static func build(
         bundleID: String, appVersion: String, vendorID: UUID, opaque: [UInt8], creationDate: Date, purchases: [TransactionRecord],
         identity: SigningIdentity
@@ -101,7 +88,6 @@ public enum Receipt {
     }
 }
 
-/// A receipt read back: the payload attributes and the signer, verified.
 public struct DecodedReceipt: Sendable {
     public struct Attribute: Hashable, Sendable {
         public let type: Int
@@ -112,8 +98,6 @@ public struct DecodedReceipt: Sendable {
     public let attributes: [Attribute]
     public let certificate: Certificate
 
-    /// Parses a receipt and checks its signature with the embedded certificate
-    /// (and, if given, that the certificate is the expected one).
     public init(data: Data, expectedCertificate: Certificate? = nil) throws {
         let ci = try DERElement.parse(Array(data)).expect(0x30).children()
         guard ci.count == 2, ci[0].oidValue == OID.cmsSignedData else { throw DERError("not CMS SignedData") }
@@ -145,6 +129,5 @@ public struct DecodedReceipt: Sendable {
 
     public func values(_ type: Int) -> [[UInt8]] { attributes.filter { $0.type == type }.map(\.value) }
 
-    /// The in-app purchase entries (type 17), each as its own attributes.
     public func inAppPurchases() throws -> [[Attribute]] { try values(17).map(Self.attributes) }
 }

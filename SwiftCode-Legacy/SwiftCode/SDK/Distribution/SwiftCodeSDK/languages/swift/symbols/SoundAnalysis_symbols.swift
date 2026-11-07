@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for SoundAnalysis
-
 public struct SoundAnalysisAPIEntity_0000: Sendable, Codable {
     public let id: String = "soundanalysis.api.0"
     public var name: String = "SoundAnalysisEntity_0"

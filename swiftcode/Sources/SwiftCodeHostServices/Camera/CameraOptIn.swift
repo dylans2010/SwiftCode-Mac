@@ -1,28 +1,14 @@
-// The camera extension's switch and its effects on a device (camera.md
-// "SwiftCode implementation"): a per-device setting, off by default (parity:
-// no camera, as the reference simulator), kept in the device directory; the
-// rule that puts SwiftCode's guest capture layer into app processes when it is
-// on; the capabilities answers of a device with a camera; and the privacy
-// command's database rows (camera.md §6.2).
-
 import Foundation
 
-/// The device's camera setting (`swiftcode-simd --camera`, Settings ▸ Simulators).
 public struct CameraOptIn: Equatable, Sendable, CustomStringConvertible {
     public enum Mode: Equatable, Sendable {
-        /// No camera: the reference behavior (camera.md §7.1).
         case off
-        /// The first V4L2 camera of the host, else the synthetic one.
         case on
-        /// The synthetic test pattern (camera-host.md §7).
         case synthetic
-        /// One host camera: a device node (`/dev/video0`) or ID (`v4l2:…`).
         case device(String)
     }
 
     public var mode: Mode
-    /// Where the camera appears; nil: the device type's default (back on an
-    /// iPhone, external on an iPad).
     public var placement: CameraGuestPresentation.Placement?
 
     public init(mode: Mode = .off, placement: CameraGuestPresentation.Placement? = nil) {
@@ -34,7 +20,6 @@ public struct CameraOptIn: Equatable, Sendable, CustomStringConvertible {
 
     public var isOn: Bool { mode != .off }
 
-    /// `off`, `on`, `synthetic`, a `/dev/…` node or a `v4l2:` ID.
     public static func mode(_ text: String) -> Mode? {
         switch text.lowercased() {
         case "off", "none", "no", "0", "false": return .off
@@ -55,7 +40,6 @@ public struct CameraOptIn: Equatable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// The host camera selection (`CameraHostService.resolve`); nil when off.
     public var selection: String? {
         switch mode {
         case .off: nil
@@ -67,19 +51,14 @@ public struct CameraOptIn: Equatable, Sendable, CustomStringConvertible {
 
     public var description: String { modeName + (placement.map { " (\($0.rawValue))" } ?? "") }
 
-    /// The placement for a device type: the setting, else back on an iPhone
-    /// and external on an iPad (camera.md §7.2 C, step 9).
     public func placement(isPad: Bool) -> CameraGuestPresentation.Placement {
         placement ?? (isPad ? .external : .back)
     }
-
-    // MARK: Persistence (DEV/swiftcode-camera.plist)
 
     public static let fileName = "swiftcode-camera.plist"
 
     public static func path(dev: String) -> String { (dev as NSString).appendingPathComponent(fileName) }
 
-    /// The device's setting; off when there is none (or it is unreadable).
     public static func load(dev: String) -> CameraOptIn {
         guard let data = FileManager.default.contents(atPath: path(dev: dev)),
               let p = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
@@ -94,11 +73,6 @@ public struct CameraOptIn: Equatable, Sendable, CustomStringConvertible {
         try data.write(to: URL(fileURLWithPath: Self.path(dev: dev)), options: .atomic)
     }
 
-    // MARK: Capabilities (camera.md §7.2 C, step 9)
-
-    /// With a camera the device answers like one with a camera at that
-    /// position: `video-camera` and the position's key true; `camera-flash`
-    /// stays false (a webcam has no flash).
     public func applyCapabilities(_ plist: [String: Any], isPad: Bool) -> [String: Any] {
         guard isOn else { return plist }
         var out = plist
@@ -115,31 +89,16 @@ public struct CameraOptIn: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-// MARK: - Putting the capture layer into apps
-
-/// The guest capture layer (`libSwiftCodeCamera.dylib`) goes into app processes
-/// through the environment the kernel builds at spawn: an app's executable
-/// gets the library in `DYLD_INSERT_LIBRARIES` (a public dyld feature) and
-/// the endpoint's name in `SWIFTCODE_CAMERA_SERVICE`. Daemons and system
-/// services are left alone.
 public enum CameraAppInjection {
-    /// The dyld variable that names libraries to insert.
     public static let insertKey = "DYLD_INSERT_LIBRARIES"
-    /// The variable that gives the capture layer the endpoint's name; the
-    /// layer does nothing without it (`camera.md` §9.3).
     public static let serviceKey = "SWIFTCODE_CAMERA_SERVICE"
 
-    /// Apps and app extensions: executables inside an `.app` bundle under
-    /// an `Applications` folder or an installed-app container (system
-    /// CoreServices bundles such as SpringBoard are not apps).
     public static func isAppExecutable(_ path: String) -> Bool {
         guard path.contains(".app/") else { return false }
         if path.contains("/System/Library/CoreServices/") || path.contains("/System/Library/PrivateFrameworks/") { return false }
         return path.contains("/Containers/Bundle/Application/") || path.contains("/Applications/")
     }
 
-    /// `envp` with the library inserted (kept once, after any library the
-    /// environment already inserts) and the service variable set.
     public static func environment(_ envp: [String], library: String) -> [String] {
         var out: [String] = []
         var inserted = false
@@ -158,20 +117,11 @@ public enum CameraAppInjection {
     }
 }
 
-// MARK: - Privacy (camera.md §6.2)
-
-/// The TCC rows `swiftcode-simd --privacy` writes into the device's
-/// `data/Library/TCC/TCC.db` (table `access`; the row of camera.md §6.2:
-/// client type 0, auth reason 4, auth version 1; auth value 2 granted, 0
-/// denied; reset removes the row). The database is the guest `tccd`'s: it
-/// exists once the device has booted.
 public enum CameraPrivacy {
     public enum Action: String, Sendable, CaseIterable { case grant, revoke, reset }
 
-    /// Service names SwiftCode's command accepts, and their TCC service.
     public static let services: [String: String] = ["camera": "kTCCServiceCamera", "microphone": "kTCCServiceMicrophone"]
 
-    /// The TCC database of the device directory `dev`.
     public static func databasePath(dev: String) -> String { dev + "/data/Library/TCC/TCC.db" }
 
     public struct Failure: Error, CustomStringConvertible, Equatable {
@@ -179,7 +129,6 @@ public enum CameraPrivacy {
         public init(_ d: String) { description = d }
     }
 
-    /// The SQL for one action (bundle IDs quoted as SQL literals).
     public static func statements(_ action: Action, service: String, bundleID: String) -> [String] {
         let s = quote(service), c = quote(bundleID)
         let delete = "DELETE FROM access WHERE service = \(s) AND client = \(c) AND client_type = 0"
@@ -194,7 +143,6 @@ public enum CameraPrivacy {
 
     static func quote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "''") + "'" }
 
-    /// Applies an action to the device's database.
     public static func apply(_ action: Action, service: String, bundleID: String, dev: String) throws {
         guard let tcc = services[service] else {
             throw Failure("unknown service '\(service)' (\(services.keys.sorted().joined(separator: ", ")))")
@@ -216,18 +164,14 @@ public enum CameraPrivacy {
         }
     }
 
-    /// The auth value of the device's row, nil when there is none.
     public static func authValue(service: String, bundleID: String, dev: String) throws -> Int? {
         guard let tcc = services[service] else { throw Failure("unknown service '\(service)'") }
         let db = try SQLite(path: databasePath(dev: dev))
         defer { db.close() }
         let rows = try db.query("SELECT auth_value FROM access WHERE service = \(quote(tcc)) AND client = \(quote(bundleID)) AND client_type = 0")
-        // swiftlint:disable:next redundant_nil_coalescing - flattens a double optional
         return rows.first.flatMap { $0.first ?? nil }.flatMap { Int($0) }
     }
 
-    /// SQLite through the system library, loaded at run time (no build
-    /// dependency): `libsqlite3.so.0` on Linux, `libsqlite3.dylib` on macOS.
     final class SQLite {
         typealias Open = @convention(c) (UnsafePointer<CChar>, UnsafeMutablePointer<OpaquePointer?>, Int32, UnsafePointer<CChar>?) -> Int32
         typealias Callback = @convention(c) (UnsafeMutableRawPointer?, Int32, UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
@@ -265,7 +209,6 @@ public enum CameraPrivacy {
             freeFn = try Self.symbol("sqlite3_free", Free.self)
             errorFn = try Self.symbol("sqlite3_errmsg", ErrorMessage.self)
             var handle: OpaquePointer?
-            // SQLITE_OPEN_READWRITE (2); the database must exist (tests: | CREATE, 4).
             let rc = open(path, &handle, create ? 6 : 2, nil)
             guard rc == 0, let handle else {
                 if let handle { _ = closeFn(handle) }

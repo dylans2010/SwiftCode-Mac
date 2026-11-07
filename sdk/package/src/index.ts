@@ -1,13 +1,3 @@
-/**
- * Public entry point for `@swiftcode/sdk` — the real TypeScript SDK for
- * writing SwiftCode extensions.
- *
- * Extensions talk to the SwiftCode host over an NDJSON stdio IPC channel
- * (specs/ide/sdk-platform.md). This package implements the IPC client
- * (`createStdioConnection`), the error type (`SDKError`), and the full
- * developer-facing context (`createContext`) — not just the types.
- */
-
 export type {
   SwiftCodeExtension,
   ExtensionInfo,

@@ -1,21 +1,13 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The editor area: a tab bar (shown with two or more tabs) above the
-/// selected tab, which holds one or more editors split side by side or
-/// one below the other. Each editor has its own jump bar and history.
-/// See `specs/ide/editor-area.md`.
 @MainActor
 public final class EditorAreaController: NSViewController {
     @MainActor public final class Tab {
         public internal(set) var editors: [SourceEditorController]
-        /// Side by side (true) or one below the other.
         public internal(set) var sideBySide = true
         public internal(set) var focused = 0
-        /// The assistant editor of this tab, when shown (always the last).
         public internal(set) weak var assistant: SourceEditorController?
-        /// Pinned tabs are not replaced: opening a file adds a tab
-        /// (reference-ui-2.md §8).
         public internal(set) var isPinned = false
         let controller = NSSplitViewController()
         var split: NSSplitView { controller.splitView }
@@ -26,9 +18,7 @@ public final class EditorAreaController: NSViewController {
 
     public private(set) var tabs: [Tab] = []
     public private(set) var selectedTab = 0
-    /// Wires a new editor's callbacks (set by the window before use).
     public var configure: ((SourceEditorController) -> Void)?
-    /// Called when the focused editor changes.
     public var onFocusChange: ((SourceEditorController) -> Void)?
 
     private let tabBar = NSStackView()
@@ -46,23 +36,16 @@ public final class EditorAreaController: NSViewController {
     required init?(coder: NSCoder) { fatalError() }
 
     public var tab: Tab { tabs[selectedTab] }
-    /// View ▸ Show Editor Tab Bar: shows the bar even with one tab (it is
-    /// always shown with two or more).
     public var showsTabBar = false { didSet { reloadTabBar() } }
     public var isTabBarVisible: Bool { EditorTabPolicy.isBarVisible(shown: showsTabBar, tabCount: tabs.count) }
-    /// The tab under the mouse; only it shows the close "×".
     public private(set) var hoveredTab: Int? { didSet { if hoveredTab != oldValue { updateCloseButtons() } } }
-    /// Called when a tab's close button is clicked (the window saves and closes it).
     public var onCloseTabRequest: ((Int) -> Void)?
-    /// Group path for a tab's tooltip ("Obs › Sources › ObsKit").
     public var groupPath: ((URL) -> String)?
 
-    /// Pins or unpins the selected tab.
     public func togglePin() {
         tab.isPinned.toggle()
         reloadTabBar()
     }
-    /// Every editor of every tab.
     public var allEditors: [SourceEditorController] { tabs.flatMap(\.editors) }
     public var focusedEditor: SourceEditorController { tab.focusedEditor }
 
@@ -82,9 +65,6 @@ public final class EditorAreaController: NSViewController {
             content.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             content.leadingAnchor.constraint(equalTo: root.leadingAnchor), content.trailingAnchor.constraint(equalTo: root.trailingAnchor),
         ])
-        // Without a tab bar the editors run up under the toolbar (their
-        // text scrolls beneath it, liquid-glass.md §7.3); with one, they
-        // start below it.
         contentUnderToolbar = content.topAnchor.constraint(equalTo: root.topAnchor)
         contentBelowTabs = content.topAnchor.constraint(equalTo: tabBar.bottomAnchor)
         contentUnderToolbar.isActive = true
@@ -100,16 +80,12 @@ public final class EditorAreaController: NSViewController {
         }
     }
 
-    /// Where the canvas sits: beside one editor, or below it when the
-    /// editor area is narrow (reference-ui-4.md §10).
     public var canvasPlacement: CanvasPlacement? {
         guard canvas != nil else { return nil }
         return tab.editors.count == 1 ? canvasLayout ?? CanvasPlacement.placement(forWidth: isViewLoaded ? content.bounds.width : 0)
             : (tab.sideBySide ? .beside : .below)
     }
 
-    /// Editor ▸ Layout (`reference-ui-5.md` §2.7): nil = Automatic (the
-    /// width rule), `.beside` = Canvas on Right, `.below` = Canvas on Bottom.
     public var canvasLayout: CanvasPlacement? {
         didSet {
             guard oldValue != canvasLayout, isViewLoaded else { return }
@@ -153,7 +129,7 @@ public final class EditorAreaController: NSViewController {
         content.layoutSubtreeIfNeeded()
         if t.split.bounds.width > 0 { equalize(t); needsEqualize = false }
         reloadTabBar()
-        updatePaneChrome()   // +Panes.swift
+        updatePaneChrome()
     }
 
     private var needsEqualize = false
@@ -168,7 +144,6 @@ public final class EditorAreaController: NSViewController {
         }
     }
 
-    /// Gives every split the same share.
     func equalize(_ t: Tab) {
         let n = t.editors.count + (canvas == nil ? 0 : 1)
         guard n > 1 else { return }
@@ -177,8 +152,6 @@ public final class EditorAreaController: NSViewController {
         t.split.layoutSubtreeIfNeeded()
     }
 
-    /// Tab titles: the focused editor's file name, without its extension
-    /// (reference-ui-2.md §8).
     public var tabTitles: [String] {
         tabs.map { t in
             if let u = t.focusedEditor.fileURL { return EditorTabPolicy.title(for: u) }
@@ -226,7 +199,6 @@ public final class EditorAreaController: NSViewController {
         updateCloseButtons()
     }
 
-    /// The close buttons of the tab bar, by tab.
     public var closeButtons: [NSButton] {
         tabBar.arrangedSubviews.compactMap { $0.subviews.first { $0.identifier?.rawValue == "tab-close" } as? NSButton }
     }
@@ -235,7 +207,6 @@ public final class EditorAreaController: NSViewController {
         for (i, c) in closeButtons.enumerated() { c.isHidden = !EditorTabPolicy.showsCloseButton(tab: i, hovered: hoveredTab) }
     }
 
-    /// Sets the hovered tab (the tracking areas call this; tests may too).
     public func hover(_ i: Int?) { hoveredTab = i }
 
     public override func mouseEntered(with event: NSEvent) { hover(event.trackingArea?.userInfo?["tab"] as? Int) }
@@ -248,10 +219,6 @@ public final class EditorAreaController: NSViewController {
         if let onCloseTabRequest { onCloseTabRequest(b.tag) } else { closeTab(at: b.tag) }
     }
 
-    // MARK: Tabs
-
-    /// A new tab after the current one, showing a new editor (the window
-    /// opens the current file in it).
     @discardableResult
     public func newTab() -> SourceEditorController {
         defer { reloadTabBar() }
@@ -276,11 +243,9 @@ public final class EditorAreaController: NSViewController {
     public func selectNextTab() { selectTab((selectedTab + 1) % tabs.count) }
     public func selectPreviousTab() { selectTab((selectedTab + tabs.count - 1) % tabs.count) }
 
-    /// Closes the selected tab; false when it is the last one.
     @discardableResult
     public func closeTab() -> Bool { closeTab(at: selectedTab) }
 
-    /// Closes tab `i`; false when it is the last one.
     @discardableResult
     public func closeTab(at i: Int) -> Bool {
         guard tabs.count > 1, tabs.indices.contains(i) else { return false }
@@ -293,10 +258,6 @@ public final class EditorAreaController: NSViewController {
         return true
     }
 
-    // MARK: Splits
-
-    /// Adds an editor after the focused one (side by side, or below) and
-    /// focuses it.
     @discardableResult
     public func split(sideBySide: Bool) -> SourceEditorController {
         let t = tab
@@ -312,7 +273,6 @@ public final class EditorAreaController: NSViewController {
         return e
     }
 
-    /// Closes the focused editor of the tab; false when it is the only one.
     @discardableResult
     public func closeFocusedEditor() -> Bool {
         let t = tab
@@ -327,7 +287,6 @@ public final class EditorAreaController: NSViewController {
         return true
     }
 
-    /// Shows or creates the assistant editor (side by side, last).
     @discardableResult
     public func showAssistant() -> SourceEditorController {
         let t = tab
@@ -336,7 +295,7 @@ public final class EditorAreaController: NSViewController {
         configure?(e)
         prepare(e, in: t)
         if t.editors.count == 1 { t.sideBySide = true }
-        e.showsCloseButton = true   // reference-ui-5.md §6.1.4
+        e.showsCloseButton = true
         t.editors.append(e)
         t.assistant = e
         showSelected()
@@ -353,7 +312,6 @@ public final class EditorAreaController: NSViewController {
         showSelected()
     }
 
-    /// The preview canvas, shown right of the editors of the selected tab.
     public private(set) var canvas: NSViewController?
 
     public func showCanvas(_ c: NSViewController) {
@@ -366,8 +324,6 @@ public final class EditorAreaController: NSViewController {
         if isViewLoaded { showSelected() }
     }
 
-    /// Runs `body` with `e` focused, then restores the focus (to show a
-    /// file in a particular editor).
     public func withFocus<T>(_ e: SourceEditorController, _ body: () -> T) -> T {
         let t = tab
         guard let i = t.editors.firstIndex(where: { $0 === e }) else { return body() }

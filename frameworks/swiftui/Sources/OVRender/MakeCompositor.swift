@@ -1,29 +1,9 @@
-// The compositors (09-open-design.md §3.5–§3.6).
-//
-// SoftwareCompositor: the whole frame is rasterised on the CPU into one
-// persistent image; only the damage between the previous and the new
-// display list is redrawn, and only that is handed to the host.
-//
-// VulkanCompositor: a GPU layer tree. The top-level items of a display list
-// are cut into layers: every top-level group marked `isLayer` (and normally
-// blended) becomes its own layer, rasterised once in its local coordinates
-// and composited with its transform and opacity, so moving or fading it
-// costs no rasterisation; the runs of items between such groups become
-// full-surface layers ("slabs") that are redrawn only where they changed.
-// Layers are RGBA8 textures; a frame clears the target and draws the layers
-// in order as textured quads (premultiplied alpha).
-
 import COVVulkan
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// A compositor for `surface`. With `.automatic`, a Vulkan surface gets the
-/// Vulkan compositor when a device works and the software compositor
-/// otherwise; software and offscreen surfaces get the software compositor
-/// (which rasterises with ThorVG on the CPU). `.vulkan` on an offscreen
-/// surface renders through an offscreen Vulkan target (tests).
 public func makeCompositor(for surface: any RenderSurface,
                            preference: CompositorPreference = .automatic) throws -> any Compositor {
     switch (surface.presentation, preference) {
@@ -43,7 +23,6 @@ public func makeCompositor(for surface: any RenderSurface,
     }
 }
 
-/// An offscreen surface of a fixed size (tests, headless rendering).
 public final class OffscreenSurface: RenderSurface {
     public var pixelSize: PixelSize
     public var contentScale: Double
@@ -61,8 +40,6 @@ private func cString(_ chars: [CChar]) -> String {
 private func seconds(since start: DispatchTime) -> Double {
     Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
 }
-
-// MARK: - Software
 
 public final class SoftwareCompositor: Compositor {
     private let surface: any RenderSurface
@@ -108,8 +85,6 @@ public final class SoftwareCompositor: Compositor {
     public func invalidate() { last = nil }
 }
 
-// MARK: - Vulkan
-
 public final class VulkanCompositor: Compositor {
     private let surface: any RenderSurface
     private var ctx: OpaquePointer?
@@ -133,9 +108,7 @@ public final class VulkanCompositor: Compositor {
         case slab(Slab)
         case hoisted(Hoisted)
     }
-    /// Layer contents by texture index.
     private var layers: [UInt32: LayerState] = [:]
-    /// Texture index of each hoisted group by item ID; slabs by position.
     private var hoistedIndex: [DisplayItemID: UInt32] = [:]
     private var slabIndex: [UInt32] = []
     private var nextIndex: UInt32 = 0
@@ -233,7 +206,6 @@ public final class VulkanCompositor: Compositor {
         let scale = frame.scale
         var err = [CChar](repeating: 0, count: 512)
 
-        // Cut the list into slabs and hoisted layer groups.
         var segments: [Segment] = []
         var run: [DisplayItem] = []
         for item in frame.displayList.items {
@@ -315,7 +287,6 @@ public final class VulkanCompositor: Compositor {
                     }
                     layers[index] = .hoisted(Hoisted(content: content, origin: origin, scale: scale))
                 }
-                // Layer pixels → target pixels: scale ∘ transform ∘ origin offset ∘ 1/scale.
                 let t = RenderTransform.scale(scale, scale).concatenating(g.transform)
                     .concatenating(.translation(Double(origin.x) / scale, Double(origin.y) / scale))
                     .concatenating(.scale(1 / scale, 1 / scale))
@@ -324,7 +295,6 @@ public final class VulkanCompositor: Compositor {
                     .intersection(full))
             }
         }
-        // Release layers that are no longer used.
         for (id, index) in hoistedIndex where !usedHoisted.contains(id) {
             ovk_layer_release(ctx, index)
             layers[index] = nil
@@ -354,7 +324,6 @@ public final class VulkanCompositor: Compositor {
         guard let ctx else { throw CompositorError.unavailable("the compositor was invalidated") }
         var err = [CChar](repeating: 0, count: 512)
         if case .vulkan = surface.presentation {
-            // Draw the last frame again with a copy for reading.
             let status = lastDraws.withUnsafeBufferPointer { ovk_frame(ctx, $0.baseAddress, UInt32($0.count), lastClear, 1, &err, err.count) }
             guard status >= 0 else { throw CompositorError.vulkan(cString(err)) }
         }

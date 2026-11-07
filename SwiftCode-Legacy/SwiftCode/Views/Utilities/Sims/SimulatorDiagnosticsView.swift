@@ -11,10 +11,8 @@ public struct SimulatorDiagnosticsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Card 1: Environment Probe Info
                     environmentInfoCard
 
-                    // Card 2: Execution History Log (Bounded Ring Buffer)
                     executionHistoryCard
                 }
                 .padding(24)

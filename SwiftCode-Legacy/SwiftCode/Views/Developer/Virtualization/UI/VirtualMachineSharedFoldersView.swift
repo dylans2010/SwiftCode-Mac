@@ -153,7 +153,6 @@ public struct VirtualMachineSharedFoldersView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Share Folder Inline Help Info
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)

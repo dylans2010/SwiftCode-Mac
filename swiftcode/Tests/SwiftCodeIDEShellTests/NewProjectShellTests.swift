@@ -3,8 +3,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// The Linux shell's New Project sheet model (`templates.md` § SwiftCode
-/// implementation): template step, options, save step, Create and open.
 @MainActor
 @Suite struct NewProjectShellTests {
     @Test func templateOptionsSaveAndOpen() throws {
@@ -38,11 +36,9 @@ import Testing
         #expect(created.openURL.path.hasSuffix("Shell Tool/Shell Tool.xcodeproj"))
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("Shell Tool/Shell Tool/main.swift").path))
         #expect(app.workspace != nil)
-        // Remembered: the tab, the template and the save folder.
         let again = NewProjectShellModel(defaults: defaults)
         #expect(again.flow.platform == "macOS" && again.flow.selected?.id == "macos.command-line-tool" && again.location == dir.path)
         #expect(!again.createGitRepository)
-        // Package… is the package chooser.
         app.showNewProject(row: 2)
         #expect(app.newProject?.flow.chooser == .package)
         app.cancelNewProject()

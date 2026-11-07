@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// Adaptive grid (Legacy
-/// `SwiftCode/UI/Styles/Styling/AdaptiveGrid.swift`, Dylan's own code,
-/// ported under MIT). Direct port: column count, spacing, and padding
-/// follow the current breakpoint from `adaptiveMetrics`.
-
 public struct AdaptiveGrid<Data: RandomAccessCollection, ID: Hashable, Content: View>: View {
     @Environment(\.adaptiveMetrics) var metrics
     let data: Data

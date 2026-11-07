@@ -8,16 +8,6 @@ import Darwin
 import Glibc
 #endif
 
-// MARK: - SDKCodeLanguage
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKCodeLanguage.swift`.
-// Six languages, conservative inference (unknown extension → `.plaintext`,
-// never a guess), stable raw values. SwiftCode's `SyntaxLanguage` is the full
-// IDE lexer language set; this enum is the Studio editor's smaller contract
-// (its cases map 1:1 onto `SyntaxLanguage.swift/.json/.markdown/.plain` plus
-// TypeScript/JavaScript, which `SyntaxLanguage` does not model — the Studio
-// highlighter below covers those two).
-
 public enum SDKCodeLanguage: String, Sendable, Codable, CaseIterable, Hashable {
     case swift
     case typescript
@@ -62,18 +52,6 @@ public enum SDKCodeLanguage: String, Sendable, Codable, CaseIterable, Hashable {
         infer(fromFileExtension: url.pathExtension)
     }
 }
-
-// MARK: - SDK syntax highlighting
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKSyntaxHighlighter.swift` +
-// `SDKKeywordHighlighter.swift` (919 lines). The token contract is ported
-// verbatim (UTF-16 half-open ranges, six kinds, non-overlapping, total
-// function). The scanner itself is a compact single-pass implementation:
-// SwiftCode's full lexers (`SwiftCodeSyntax`: `SwiftClassifier`, `SwiftLineLexer`,
-// `CFamilyLexer`) already serve the main IDE editor, so the Studio adapter
-// only needs the Studio token shape — keywords, strings, comments
-// (including nested Swift `/* */`), numbers, and capitalized type names —
-// for the six Studio languages. It is not a second editor lexer.
 
 public enum SDKTokenKind: String, Sendable, Codable, CaseIterable, Hashable {
     case keyword
@@ -123,7 +101,6 @@ public struct SDKKeywordHighlighter: SDKSyntaxHighlighter {
         func isDigit(_ c: UInt16) -> Bool { c >= 48 && c <= 57 }
         while i < utf16.count {
             let c = utf16[i]
-            // Line comment.
             if c == 47, i + 1 < utf16.count, utf16[i + 1] == 47, language != .json {
                 var j = i + 2
                 while j < utf16.count, utf16[j] != 10 { j += 1 }
@@ -131,7 +108,6 @@ public struct SDKKeywordHighlighter: SDKSyntaxHighlighter {
                 i = j
                 continue
             }
-            // Block comment, nested for Swift.
             if c == 47, i + 1 < utf16.count, utf16[i + 1] == 42, language != .json {
                 var j = i + 2
                 var depth = 1
@@ -145,7 +121,6 @@ public struct SDKKeywordHighlighter: SDKSyntaxHighlighter {
                 i = j
                 continue
             }
-            // String literal: "..." (Swift, TS, JS, JSON) and `...` / '...' (TS/JS).
             if c == 34 || ((language == .typescript || language == .javascript) && (c == 39 || c == 96)) {
                 let quote = c
                 var j = i + 1
@@ -159,7 +134,6 @@ public struct SDKKeywordHighlighter: SDKSyntaxHighlighter {
                 i = min(j, utf16.count)
                 continue
             }
-            // Number.
             if isDigit(c) || (c == 46 && i + 1 < utf16.count && isDigit(utf16[i + 1])) {
                 var j = i
                 while j < utf16.count, isDigit(utf16[j]) || utf16[j] == 46 || utf16[j] == 95 { j += 1 }
@@ -167,7 +141,6 @@ public struct SDKKeywordHighlighter: SDKSyntaxHighlighter {
                 i = j
                 continue
             }
-            // Identifier: keyword, capitalized type name, or plain.
             if isIdentStart(c) {
                 var j = i
                 while j < utf16.count, isIdent(utf16[j]) { j += 1 }
@@ -207,12 +180,6 @@ public struct SDKKeywordHighlighter: SDKSyntaxHighlighter {
     ]
 }
 
-// MARK: - SDK console entries
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKConsoleEntry.swift`.
-// Bounded text (4 KiB per entry, enforced by the state); `system` covers
-// editor-generated status lines rather than child-process output.
-
 public enum SDKConsoleStream: String, Sendable, Codable, CaseIterable, Hashable {
     case stdout
     case stderr
@@ -246,16 +213,6 @@ public struct SDKConsoleEntry: Identifiable, Sendable, Hashable {
         SDKConsoleEntry(timestamp: date, stream: .stderr, text: text)
     }
 }
-
-// MARK: - SDK code documents and tabs
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKCodeDocument.swift`.
-// Value types: edits produce new values; `SDKCodeEditorState` owns the
-// collection. SwiftCode's `EditorDocument`/`EditorBuffer` (SwiftCodeEditorKit) is
-// the main IDE's document model — the Studio pane keeps its own value-type
-// document because its tabs, untitled buffers, and snippet/manifest flows
-// are Studio-specific, and it delegates disk open/save/change detection to
-// the same file semantics rather than duplicating `EditorDocument`.
 
 public struct SDKCodeDocument: Identifiable, Sendable, Hashable {
     public let id: UUID
@@ -329,12 +286,6 @@ public struct SDKCodeEditorTab: Identifiable, Sendable, Hashable {
     }
 }
 
-// MARK: - SDK file tree node
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKCodeFileNode.swift`.
-// Lazy children (`nil` until enumerated; files never carry children);
-// expansion state survives reloads.
-
 public struct SDKCodeFileNode: Identifiable, Sendable, Hashable {
     public var id: String { url.path }
     public let url: URL
@@ -360,8 +311,6 @@ public struct SDKCodeFileNode: Identifiable, Sendable, Hashable {
         SDKCodeFileNode(url: url, isDirectory: isDirectory, children: children, isExpanded: !isExpanded)
     }
 
-    /// Enumerates one directory level, sorted directories-first. Hidden
-    /// entries and `node_modules` are skipped, matching the Studio navigator.
     public static func loadChildren(of url: URL) -> [SDKCodeFileNode] {
         let fm = FileManager.default
         guard let items = try? fm.contentsOfDirectory(
@@ -380,11 +329,6 @@ public struct SDKCodeFileNode: Identifiable, Sendable, Hashable {
             }
     }
 }
-
-// MARK: - Editor errors, navigation, diagnostics
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKCodeEditorState.swift`
-// (header types).
 
 public enum SDKCodeEditorError: Error, Sendable {
     case unreadableFile(url: URL, reason: String)
@@ -434,16 +378,6 @@ public struct SDKEditorDiagnostic: Identifiable, Equatable, Sendable, Hashable {
         self.column = column
     }
 }
-
-// MARK: - SDKCodeEditorState
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKCodeEditorState.swift`.
-// The single source of truth for a Studio editor session: tabs, active
-// tab, project root (persisted in UserDefaults), diagnostics, console
-// (capped at 5,000 entries, oldest first), find query, navigation
-// requests, and external-modification tracking. `@Observable` (not
-// `ObservableObject`) to match SwiftCode's shell models and stay testable
-// headless on macOS and Linux.
 
 @MainActor
 @Observable
@@ -612,9 +546,6 @@ public final class SDKCodeEditorState {
         }
     }
 
-    /// Writes one tab to disk (used by the editor view's Save). Returns
-    /// `false` when the tab has no file URL (untitled — the view offers
-    /// Save As instead) or the write fails.
     @discardableResult
     public func saveTab(_ tabID: UUID) -> Bool {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }),
@@ -729,9 +660,6 @@ public final class SDKCodeEditorState {
                                       text: "Opened new \(preferredLanguage.displayName) buffer with snippet"))
     }
 
-    /// Adds or updates a capability in the active project's
-    /// `swiftcode.json` (JSON edited in place so unknown keys survive)
-    /// and synchronizes any open `swiftcode.json` tab.
     @discardableResult
     public func addCapabilityToManifest(capabilityId: String, reason: String) -> Bool {
         guard let root = projectRootURL else { return false }
@@ -816,13 +744,6 @@ public final class SDKCodeEditorState {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 }
-
-// MARK: - Find
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeFindCoordinator.swift`.
-// Literal substring search over the editor's current text (no regex);
-// case-insensitivity folds via `.caseInsensitive`. Offsets are UTF-16
-// code-unit offsets, the same convention as `SDKToken.range`.
 
 @MainActor
 public protocol SDKCodeFindableEditor: AnyObject {
@@ -920,18 +841,6 @@ public final class SDKCodeFindCoordinator {
     }
 }
 
-// MARK: - Build / run
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKBuildRunRequest.swift` +
-// `SDKCodeBuildRunner.swift`. Each kind maps to a real command line:
-// `.xcodebuildSwift` → the managed build service (`SDKBuildService` /
-// `SDKBuildHandle`, Wave 15 — the xcodebuild path no longer runs a raw
-// `Process`), `.typescriptExtension` → `npm run build`, `.nodeScript` →
-// `node <entry>` (local processes). Output streams live into the editor
-// console line by line; cancellation is cooperative by `taskID`
-// (SIGTERM, then SIGKILL after 3 s for local processes; handle cancel
-// for managed builds).
-
 public enum SDKBuildRunKind: String, Sendable, Codable, CaseIterable, Hashable {
     case xcodebuildSwift
     case typescriptExtension
@@ -966,13 +875,6 @@ public actor SDKCodeBuildRunner {
     public static let shared = SDKCodeBuildRunner()
     public static let hostExtensionID = "studio.editor"
 
-    /// Stable digest for the host identity: SHA-256 of
-    /// `"swiftcode.sdk.studio.editor"` (Legacy computed it at runtime via
-    /// CryptoKit; this target has no Crypto dependency, so the constant
-    /// is embedded — verify with
-    /// `python3 -c "import hashlib; print(hashlib.sha256(b'swiftcode.sdk.studio.editor').hexdigest())"`).
-    /// Distinct from every extension ID, so the managed build service's
-    /// one-build-per-extension slot never collides with extension builds.
     public static let hostPackageDigest = "f4a6727600315b3f0074a3aa515bc73a4ce6f37f5055e97d8f9aecceead8a927"
 
     private static let cancelGraceNanoseconds: UInt64 = 3_000_000_000
@@ -990,11 +892,6 @@ public actor SDKCodeBuildRunner {
 
     public init() {}
 
-    /// Validates the project at `projectRoot` (manifest via SwiftCode's strict
-    /// `SwiftCodeManifestValidator`; entrypoint existence as a warning) and
-    /// populates `editorState.diagnostics`. Returns `true` when zero errors
-    /// are found. A root without `swiftcode.json` is a standalone project:
-    /// verified structurally, not failed.
     @discardableResult
     public func validateProject(at projectRoot: URL, into editorState: SDKCodeEditorState) async -> Bool {
         await editorState.saveAllModifiedTabs()
@@ -1048,14 +945,6 @@ public actor SDKCodeBuildRunner {
         return errorCount == 0
     }
 
-    /// Executes `request` for real, streaming output lines into
-    /// `editorState` as they arrive. Does not return until the run reaches
-    /// a terminal state (or the request fails to start); the caller keeps
-    /// `request.taskID` and uses `cancel(taskID:)` to stop it early.
-    /// The project is validated first (manifest schema, semantic rules)
-    /// for TypeScript extensions and for any project with a
-    /// `swiftcode.json`; a failed validation aborts the run before
-    /// anything is launched.
     public func run(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
         guard active[request.taskID] == nil else {
             await editorState.appendConsole(.system("Build/run ignored: task \(request.taskID.uuidString) is already in flight."))
@@ -1076,25 +965,6 @@ public actor SDKCodeBuildRunner {
             await runLocalProcess(request, into: editorState)
         }
     }
-
-    // MARK: - Managed xcodebuild path (D-4, Wave 15)
-    //
-    // The xcodebuild path runs through the host's managed build service
-    // (`SDKBuildService` / `SDKBuildHandle`), never a raw `Process`:
-    // typed allow-list request, host environment only, one build per
-    // caller, bounded streams, and a truthful terminal result (exit 0
-    // AND `** BUILD SUCCEEDED **` AND zero parsed errors). When
-    // xcodebuild is unavailable the service fails honestly — the runner
-    // never fakes a build.
-    //
-    // Authorization: the service authorizes `build.execute` for the
-    // Studio host identity (`studio.editor`) through the capability
-    // broker, exactly as for an extension. With no grant the run fails
-    // here with `.permissionDenied` and the diagnostic tells the user
-    // to approve the capability for the Studio editor (Studio →
-    // Extensions → grant manager pre-authorization). The host identity
-    // is NOT auto-granted: silently granting the host its own build
-    // capability would bypass the approval model.
 
     private func runManagedBuild(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
         let taskID = request.taskID
@@ -1169,16 +1039,12 @@ public actor SDKCodeBuildRunner {
         }
     }
 
-    // MARK: - Local process path (npm / node)
-
     private func runLocalProcess(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
         await editorState.appendConsole(.system("Starting \(request.kind.displayName) in \(request.projectRoot.lastPathComponent)…"))
         let process = Process()
         process.currentDirectoryURL = request.projectRoot
         switch request.kind {
         case .xcodebuildSwift:
-            // Unreachable: the xcodebuild kind is handled by the managed
-            // path above. Kept for exhaustiveness if the dispatch changes.
             process.executableURL = URL(fileURLWithPath: "/usr/bin/xcodebuild")
             var args: [String] = []
             if let scheme = request.schemeOrEntry, !scheme.isEmpty { args += ["-scheme", scheme] }
@@ -1233,8 +1099,6 @@ public actor SDKCodeBuildRunner {
         }
     }
 
-    /// Genuine cancellation: terminates the underlying build handle or
-    /// local process for `taskID`.
     public func cancel(taskID: UUID) async {
         guard let entry = active[taskID] else { return }
         switch entry {
@@ -1242,9 +1106,6 @@ public actor SDKCodeBuildRunner {
             await handle.cancel()
         case .localProcess(let session):
             session.process.terminate()
-            // SIGTERM, then SIGKILL after the grace period if the pid still
-            // exists. Only the pid crosses into the detached task: the
-            // Process itself is not Sendable.
             let pid = session.process.processIdentifier
             Task {
                 try? await Task.sleep(nanoseconds: Self.cancelGraceNanoseconds)
@@ -1260,8 +1121,6 @@ public actor SDKCodeBuildRunner {
 
     private func lines(from handle: FileHandle) -> AsyncStream<String> {
         AsyncStream { continuation in
-            // The readability handler is @Sendable, so the mutable
-            // accumulator is a Sendable box, not a captured `var`.
             let buffer = StreamingLineBuffer()
             handle.readabilityHandler = { h in
                 let chunk = h.availableData
@@ -1286,21 +1145,6 @@ public actor SDKCodeBuildRunner {
         }
     }
 }
-
-// MARK: - Snippets
-//
-// Legacy: `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeSnippetLibraryView.swift`
-// (`SDKSnippet`, `SDKSnippetStore`, `SDKSnippetCodeVariant`,
-// `SDKSnippetCategoryFilter`). Legacy loads `snippets.json` (generated from
-// the TypeScript package) and synthesizes one snippet per canonical
-// capability so every capability has runnable code. SwiftCode has no
-// `snippets.json` yet, so the store synthesizes the same per-capability
-// catalog from `SDKCapabilityID.allCases` and accepts an optional decoded
-// `snippets.json` override (`loadAll(fromJSON:)`) with the same
-// "first non-empty file wins, then fill gaps" rule. The generated
-// TypeScript is starter code (import + capability request shape), not a
-// verbatim copy of the TypeScript package's per-scope calls — that package
-// is the Host/TS slice's to port exactly.
 
 public enum SDKSnippetCodeVariant: String, CaseIterable, Identifiable, Sendable {
     case typescript = "TypeScript"
@@ -1439,8 +1283,6 @@ public struct SDKSnippet: Codable, Identifiable, Hashable, Sendable {
 }
 
 public enum SDKSnippetStore {
-    /// One synthesized snippet per canonical SDK capability
-    /// (`SDKCapabilityID.allCases`, 35 ids), so every capability has code.
     public static func builtInSnippets() -> [SDKSnippet] {
         SDKCapabilityID.allCases.map { cap in
             let syntheticID = cap.rawValue.lowercased().replacingOccurrences(of: ".", with: "-")
@@ -1451,9 +1293,6 @@ public enum SDKSnippetStore {
         }
     }
 
-    /// Loads a `snippets.json` catalog when one decodes non-empty, then
-    /// fills gaps so every canonical capability is represented — the same
-    /// rule as Legacy's `loadAll()`.
     public static func loadAll(fromJSON data: Data? = nil) -> [SDKSnippet] {
         var loaded: [SDKSnippet] = []
         if let data,
@@ -1490,9 +1329,6 @@ public enum SDKSnippetStore {
     }
 }
 
-/// A Sendable byte accumulator for the off-main `readabilityHandler` in
-/// `lines(from:)` (a captured `var` is rejected by Swift 6 region
-/// isolation). Access is serialized by the file handle's read queue.
 private final class StreamingLineBuffer: @unchecked Sendable {
     var data = Data()
 }

@@ -21,7 +21,6 @@ public final class CloudManager {
         self.isSyncEnabled = UserDefaults.standard.bool(forKey: "com.swiftcode.cloud.syncEnabled")
     }
 
-    /// Initializes Cloud Services and performs an initial check of user state.
     public func initialize() async {
         guard !isInitialized else { return }
         logger.info("Initializing CloudManager...")
@@ -37,7 +36,6 @@ public final class CloudManager {
         }
     }
 
-    /// Triggers a live synchronization run.
     public func sync() async {
         guard await AuthManager.shared.isAuthenticated else {
             self.currentError = CloudError.unauthenticated.localizedDescription
@@ -57,21 +55,18 @@ public final class CloudManager {
         }
     }
 
-    /// Enables and starts continuous synchronization.
     public func startSync() async {
         self.isSyncEnabled = true
         UserDefaults.standard.set(true, forKey: "com.swiftcode.cloud.syncEnabled")
         await sync()
     }
 
-    /// Disables and stops continuous synchronization.
     public func stopSync() {
         self.isSyncEnabled = false
         UserDefaults.standard.set(false, forKey: "com.swiftcode.cloud.syncEnabled")
         self.syncState = .paused
     }
 
-    /// Clears cached local data and resets state upon user logout.
     public func handleLogout() async {
         stopSync()
         await cache.clear()

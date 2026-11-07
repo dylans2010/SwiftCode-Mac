@@ -1,17 +1,4 @@
-/// Parser for OpenStep-style ASCII property lists (the NeXTSTEP format used by
-/// `.pbxproj`, `.strings`, and many legacy defaults files).
-///
-/// Grammar (see `specs/formats/openstep-plist.md`):
-///
-///     value      := dictionary | array | data | string
-///     dictionary := '{' (string '=' value ';')* '}'
-///     array      := '(' (value (',' value)* ','?)? ')'
-///     data       := '<' (hexdigit | whitespace)* '>'
-///     string     := quoted | unquoted
-///
-/// `//` and `/* */` comments may appear anywhere whitespace may.
 public struct OpenStepParser {
-    /// A syntax error, with the 1-based line it was found on.
     public struct Error: Swift.Error, CustomStringConvertible, Equatable {
         public var message: String
         public var line: Int
@@ -21,29 +8,20 @@ public struct OpenStepParser {
     private let bytes: [UInt8]
     private var pos = 0
 
-    /// Creates a parser over the UTF-8 encoding of `text`.
     public init(_ text: String) { bytes = Array(text.utf8) }
-    /// Creates a parser over raw UTF-8 bytes.
     public init(bytes: [UInt8]) { self.bytes = bytes }
 
-    /// Parses one complete document. Throws `Error` on a syntax error or on
-    /// content after the top-level value.
     public static func parse(_ text: String) throws(Error) -> PlistValue {
         var p = OpenStepParser(text)
         return try p.parseDocument()
     }
 
-    /// Parses one complete document from UTF-8 bytes. Throws `Error` on a
-    /// syntax error or on content after the top-level value.
     public static func parse(bytes: [UInt8]) throws(Error) -> PlistValue {
         var p = OpenStepParser(bytes: bytes)
         return try p.parseDocument()
     }
 
-    /// Parses the whole input as one document: an optional UTF-8 BOM, then
-    /// one value surrounded by trivia. Throws `Error` if anything follows.
     public mutating func parseDocument() throws(Error) -> PlistValue {
-        // Skip a UTF-8 byte-order mark.
         if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { pos = 3 }
         try skipTrivia()
         let value = try parseValue()
@@ -51,8 +29,6 @@ public struct OpenStepParser {
         if pos < bytes.count { throw error("unexpected content after top-level value") }
         return value
     }
-
-    // MARK: - Values
 
     private mutating func parseValue() throws(Error) -> PlistValue {
         guard pos < bytes.count else { throw error("unexpected end of input") }
@@ -65,7 +41,7 @@ public struct OpenStepParser {
     }
 
     private mutating func parseDictionary() throws(Error) -> PlistDictionary {
-        pos += 1  // {
+        pos += 1
         var dict = PlistDictionary()
         while true {
             try skipTrivia()
@@ -83,7 +59,7 @@ public struct OpenStepParser {
     }
 
     private mutating func parseArray() throws(Error) -> [PlistValue] {
-        pos += 1  // (
+        pos += 1
         var items: [PlistValue] = []
         while true {
             try skipTrivia()
@@ -101,7 +77,7 @@ public struct OpenStepParser {
     }
 
     private mutating func parseData() throws(Error) -> [UInt8] {
-        pos += 1  // <
+        pos += 1
         var out: [UInt8] = []
         var high: UInt8?
         while pos < bytes.count {
@@ -135,7 +111,7 @@ public struct OpenStepParser {
 
     private mutating func parseQuoted(_ quote: UInt8) throws(Error) -> String {
         pos += 1
-        var units: [UInt16] = []  // UTF-16 so that \U escapes and surrogates compose naturally
+        var units: [UInt16] = []
         var runStart = pos
         func flush(_ end: Int) {
             if end > runStart {
@@ -183,7 +159,6 @@ public struct OpenStepParser {
                     }
                     units.append(v)
                 default:
-                    // \" \' \\ and any other character stand for themselves.
                     runStart = pos - 1
                     continue
                 }
@@ -194,8 +169,6 @@ public struct OpenStepParser {
         }
         throw error("unterminated quoted string")
     }
-
-    // MARK: - Trivia
 
     private mutating func skipTrivia() throws(Error) {
         while pos < bytes.count {
@@ -242,9 +215,7 @@ public struct OpenStepParser {
     }
 }
 
-/// Character classes shared by the parser and the writers.
 public enum OpenStepCharacters {
-    /// Characters the parser accepts in an unquoted string.
     public static func isUnquotedParseable(_ c: UInt8) -> Bool {
         switch c {
         case UInt8(ascii: "a")...UInt8(ascii: "z"), UInt8(ascii: "A")...UInt8(ascii: "Z"),

@@ -28,21 +28,6 @@ public struct ExtensionPackageInfo: Sendable, Codable {
     }
 }
 
-/// Packages and verifies extension archives.
-///
-/// Adaptations from Legacy (all recorded):
-/// - Validation goes through the strict `SwiftCodeManifestValidator` in
-///   `SwiftCodeExtensions` via `SDKManifestValidator`, not Legacy's lenient
-///   `ExtensionValidator` (spec §2.3: the lenient validator is not
-///   reimplemented). The manifest type is `SwiftCodeManifest`.
-/// - SHA-256 uses `SwiftCodeAssistant.SHA256` (the Linux-safe FIPS 180-4
-///   implementation) instead of CryptoKit, which is Apple-only.
-/// - `zip`/`unzip` run through `SwiftCodeSubprocess` instead of raw `Process`.
-/// - `fileCount` is the real number of files packaged. Legacy hardcoded
-///   `1`; that was placeholder data, not a measurement.
-/// - No signature verification is performed: Legacy had none either
-///   (`integrityMissingSignature` was a diagnostic code with no producer).
-///   Real signing belongs to the signing slice, not this packager.
 public final class ExtensionPackager: Sendable {
     public init() {}
 
@@ -64,12 +49,10 @@ public final class ExtensionPackager: Sendable {
         let archiveName = "\(manifest.id)-\(manifest.version).swiftcode-extension"
         let archivePath = outDir.root.appending(archiveName).normalizedPath
 
-        // Remove old archive if exists.
         if FileManager.default.fileExists(atPath: archivePath) {
             try FileManager.default.removeItem(atPath: archivePath)
         }
 
-        // Package using zip.
         let zipOutput = try Subprocess.run(
             "/usr/bin/zip",
             ["-r", "-q", "-9", archivePath, "swiftcode.json", "package.json", "dist", "README.md"],
@@ -77,7 +60,6 @@ public final class ExtensionPackager: Sendable {
         )
 
         if zipOutput.status != 0 || !FileManager.default.fileExists(atPath: archivePath) {
-            // Fallback: zip everything except node_modules and .git.
             _ = try Subprocess.run(
                 "/usr/bin/zip",
                 ["-r", "-q", "-9", archivePath, ".", "-x", "*.git*", "-x", "*node_modules*"],
@@ -136,11 +118,6 @@ public final class ExtensionPackager: Sendable {
         return (!hasErrors, diags)
     }
 
-    /// Counts the files the primary `zip` invocation would include:
-    /// `swiftcode.json`, `package.json`, `README.md`, and everything under
-    /// `dist/`, skipping hidden entries. Falls back to a whole-tree count
-    /// (excluding `.git` and `node_modules`) when the primary set is empty,
-    /// mirroring the zip fallback above.
     private func packagedFileCount(in ws: Workspace) throws -> Int {
         let fm = FileManager.default
         var count = 0

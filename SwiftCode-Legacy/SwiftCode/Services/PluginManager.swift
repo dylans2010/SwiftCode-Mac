@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Plugin Manifest
-
 struct PluginToolBinding: Codable, Hashable {
     var toolID: String
     var usageDescription: String
@@ -41,7 +39,6 @@ struct PluginManifest: Identifiable, Codable {
     var capabilities: [Capability]
     var isEnabled: Bool = true
 
-    // Advanced plugin metadata
     var tags: [String] = []
     var minimumSwiftCodeVersion: String = "1.0.0"
     var toolBindings: [PluginToolBinding] = []
@@ -111,8 +108,6 @@ struct PluginManifest: Identifiable, Codable {
         configurationSchema = try container.decodeIfPresent([PluginConfigField].self, forKey: .configurationSchema) ?? []
     }
 }
-
-// MARK: - Plugin Manager
 
 @MainActor
 final class PluginManager: ObservableObject {

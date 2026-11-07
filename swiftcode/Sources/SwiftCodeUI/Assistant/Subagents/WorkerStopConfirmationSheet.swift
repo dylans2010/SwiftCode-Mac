@@ -1,26 +1,6 @@
 import SwiftUI
 import SwiftCodeAssistant
 
-/// Native macOS modal sheet to stop a Worker.
-/// Requires a non-empty reason and allows choosing between:
-/// - Preserve: keep completed work with the parent task
-/// - Reassign: hand remaining work off to a replacement Worker
-///
-/// Port of Legacy
-/// `SwiftCode/Backend/Assist/Subagents/UI/WorkerStopConfirmationSheet.swift`,
-/// rebuilt for the SwiftCodeUI target (default accent, no Legacy orange).
-///
-/// Wiring: stopping goes through the injected `onStop` handler, called
-/// with the worker, the chosen `WorkerStopMode`, and the trimmed reason.
-/// The default handler calls
-/// `WorkerRuntimeState.shared.stopWorker(id:reason:mode:)`, which cancels
-/// the worker, records the handoff, and preserves completed work — the
-/// same state transition Legacy's sheet reached through
-/// `WorkerHandoffCoordinator`. The coordinator itself is not in the
-/// allowed model surface for this port, so a host that wants the
-/// coordinator's extra step — spawning a continuation worker when the
-/// mode is `.reassign` — should pass its own `onStop` that routes
-/// through the coordinator once it lands in SwiftCodeAssistant.
 @MainActor
 public struct WorkerStopConfirmationSheet: View {
     let worker: Worker
@@ -42,16 +22,12 @@ public struct WorkerStopConfirmationSheet: View {
         self.onDismiss = onDismiss
     }
 
-    /// The default stop path: straight into the shared runtime state.
-    /// Cancels the worker and records the handoff; it does not spawn a
-    /// replacement worker for `.reassign` — see the type documentation.
     public static func defaultStop(worker: Worker, mode: WorkerStopMode, reason: String) async {
         _ = WorkerRuntimeState.shared.stopWorker(id: worker.id, reason: reason, mode: mode)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.octagon.fill")
                     .font(.title2)
@@ -69,7 +45,6 @@ public struct WorkerStopConfirmationSheet: View {
 
             Divider()
 
-            // Required Reason
             VStack(alignment: .leading, spacing: 6) {
                 Text("Why are you stopping this Worker? (Required)")
                     .font(.subheadline.bold())
@@ -85,7 +60,6 @@ public struct WorkerStopConfirmationSheet: View {
                 }
             }
 
-            // Mode Selection
             VStack(alignment: .leading, spacing: 8) {
                 Text("What should happen to its work?")
                     .font(.subheadline.bold())
@@ -135,7 +109,6 @@ public struct WorkerStopConfirmationSheet: View {
 
             Divider()
 
-            // Action Buttons
             HStack {
                 Spacer()
 

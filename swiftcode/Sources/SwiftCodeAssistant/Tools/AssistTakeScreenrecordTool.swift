@@ -75,7 +75,6 @@ public struct AssistTakeScreenrecordTool: AssistTool {
         let outputFormat = (input["output_format"] as? String)?.lowercased() == "mp4" ? "mp4" : "mov"
         let purpose = input["purpose"] as? String
 
-        // Preflight Screen Recording permission
         guard AssistScreenCaptureEngine.shared.checkAuthorization(promptIfDenied: true) else {
             return AssistToolResult.failure(
                 "Screen Recording permission has not been granted. Grant Screen Recording permission to SwiftCode in macOS System Settings > Privacy & Security > Screen Recording, then retry.",
@@ -118,7 +117,6 @@ public struct AssistTakeScreenrecordTool: AssistTool {
             )
         }
 
-        // Save recording artifact
         let timestamp = Int(Date().timeIntervalSince1970)
         let safeAppName = recordResult.appName.replacingOccurrences(of: " ", with: "_").lowercased()
         let artifactName = "screenrecord_\(safeAppName)_\(timestamp).\(recordResult.outputFormat)"

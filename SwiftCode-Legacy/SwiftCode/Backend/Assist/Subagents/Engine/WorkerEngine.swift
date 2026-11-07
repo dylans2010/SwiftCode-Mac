@@ -152,8 +152,6 @@ public final class WorkerEngine: Sendable {
                                 filesModifiedByWorker.append(file)
                             }
                         }
-                        // Canonical model-facing payload replaces the silent prefix()
-                        // truncation: sections, caps, range metadata, error taxonomy.
                         let modelPayload = AssistToolResultFormatter.modelFacingPayload(toolId: toolId, result: result)
                         completedWork.append("Executed \(toolId):\n\(modelPayload)")
                         conversationHistory.append("- Action: Run \(toolId). Result: SUCCESS\n\(modelPayload)")

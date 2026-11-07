@@ -1,28 +1,3 @@
-/* exitcost: what one guest exit costs on this host, layer by layer (Linux
- * arm64 host tool for specs/simulator/guest-cpu.md §5). Original SwiftCode code,
- * written from the Linux KVM API documentation (Documentation/virt/kvm/
- * api.rst, devices/vm.rst, devices/arm-vgic-v3.rst), the Arm SMC Calling
- * Convention and PSCI specifications, and the Arm Architecture Reference
- * Manual. It runs a tiny guest of its own (EL1, MMU off) in a one-vCPU VM
- * and times one round trip per mode:
- *
- *   kern      HVC that KVM answers itself (PSCI_VERSION): the exception to
- *             the host kernel and back, no return to user space
- *   user      HVC forwarded to user space (SMCCC filter, KVM_EXIT_HYPERCALL):
- *             SwiftCode's doorbell; the VMM loop does nothing but KVM_RUN again
- *   user-fp   the same, and the guest touches FP/SIMD after each exit (the
- *             lazy FP/SIMD switch after every return to user space; SwiftCode's
- *             shim does this on every resume, SWIFTCODE_SHIM_FP_TOUCH)
- *   user-sig  the same as user, with KVM_SET_SIGNAL_MASK (SwiftCode's vCPUs set one)
- *   user-gic  the same as user, in a VM with an in-kernel vGICv3
- *   mmio      a store to a GPA with no memslot (KVM_EXIT_MMIO)
- *   ioctl     no guest: KVM_CHECK_EXTENSION on the VM fd (system call cost)
- *   syscall   no guest: getppid() on the host
- *
- *   cc -O2 -o exitcost exitcost.c
- *   exitcost [-n iterations] [-r rounds] [mode ...]   (default: all modes)
- * Prints "exitcost <mode> <median ns> ns (min .. max, n rounds)". Pin it with
- * taskset for stable numbers. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <pthread.h>
@@ -42,19 +17,16 @@
 #define RAM_GPA 0x40000000ull
 #define RAM_SIZE (2u << 20)
 #define MMIO_GPA 0x09000000ull
-#define FN_FORWARD 0xC6005943u   /* vendor hypervisor service, fast SMC64: forwarded to user space */
+#define FN_FORWARD 0xC6005943u
 #define FN_PSCI_VERSION 0x84000000u
 
-/* Guest code, copied into guest RAM at RAM_GPA (position independent). The
- * host selects the loop with x19: 0 = forwarded HVC, 1 = forwarded HVC + FP
- * touch, 2 = MMIO store, 3 = x20 PSCI_VERSION HVCs then one forwarded HVC. */
 extern const char guest_begin[], guest_end[];
 __asm__(
     ".text\n.balign 4\n.globl guest_begin\nguest_begin:\n"
     "  mov x2, #(3 << 20)\n  msr cpacr_el1, x2\n  isb\n"
-    "  movz w5, #0x5943\n  movk w5, #0xC600, lsl #16\n"   /* FN_FORWARD */
-    "  movz w6, #0x0000\n  movk w6, #0x8400, lsl #16\n"   /* FN_PSCI_VERSION */
-    "  movz x7, #0x0900, lsl #16\n"                        /* MMIO_GPA */
+    "  movz w5, #0x5943\n  movk w5, #0xC600, lsl #16\n"
+    "  movz w6, #0x0000\n  movk w6, #0x8400, lsl #16\n"
+    "  movz x7, #0x0900, lsl #16\n"
     "  cmp x19, #1\n  b.eq 20f\n  cmp x19, #2\n  b.eq 30f\n  cmp x19, #3\n  b.eq 40f\n"
     "10: mov w0, w5\n  hvc #0\n  b 10b\n"
     "20: mov w0, w5\n  hvc #0\n  fmov d0, x1\n  b 20b\n"
@@ -101,8 +73,8 @@ static struct vm make_vm(int x19, uint64_t x20, int gic, int sigmask)
     struct kvm_userspace_memory_region region = {
         .slot = 0, .guest_phys_addr = RAM_GPA, .memory_size = RAM_SIZE, .userspace_addr = (uint64_t)(uintptr_t)ram};
     if (ioctl(v.fd, KVM_SET_USER_MEMORY_REGION, &region) < 0) die("KVM_SET_USER_MEMORY_REGION");
-    struct { uint32_t base, nr; uint8_t action, pad[15]; } filter = {FN_FORWARD, 1, 2 /* FWD_TO_USER */, {0}};
-    struct kvm_device_attr fa = {.group = 0 /* KVM_ARM_VM_SMCCC_CTRL */, .attr = 0 /* KVM_ARM_VM_SMCCC_FILTER */,
+    struct { uint32_t base, nr; uint8_t action, pad[15]; } filter = {FN_FORWARD, 1, 2 , {0}};
+    struct kvm_device_attr fa = {.group = 0 , .attr = 0 ,
                                  .addr = (uint64_t)(uintptr_t)&filter};
     if (ioctl(v.fd, KVM_SET_DEVICE_ATTR, &fa) < 0) die("SMCCC filter");
     v.vcpu = ioctl(v.fd, KVM_CREATE_VCPU, 0);
@@ -134,7 +106,7 @@ static struct vm make_vm(int x19, uint64_t x20, int gic, int sigmask)
     v.run = mmap(NULL, (size_t)size, PROT_READ | PROT_WRITE, MAP_SHARED, v.vcpu, 0);
     if (v.run == MAP_FAILED) die("mmap kvm_run");
     set_reg(v.vcpu, CORE(regs.pc), RAM_GPA);
-    set_reg(v.vcpu, CORE(regs.pstate), 0x3c5); /* EL1h, DAIF masked */
+    set_reg(v.vcpu, CORE(regs.pstate), 0x3c5);
     set_reg(v.vcpu, CORE(regs.regs[19]), (uint64_t)x19);
     set_reg(v.vcpu, CORE(regs.regs[20]), x20);
     return v;
@@ -160,7 +132,6 @@ static int cmp(const void *a, const void *b)
 static long iterations = 200000;
 static int rounds = 7;
 
-/* ns per round trip of one mode, one round. */
 static double one_round(const char *mode)
 {
     long n = iterations;
@@ -181,11 +152,10 @@ static double one_round(const char *mode)
     int x19 = kern ? 3 : !strcmp(mode, "user-fp") ? 1 : !strcmp(mode, "mmio") ? 2 : 0;
     struct vm v = make_vm(x19, (uint64_t)n, !strcmp(mode, "user-gic"), !strcmp(mode, "user-sig"));
     uint32_t reason = x19 == 2 ? KVM_EXIT_MMIO : KVM_EXIT_HYPERCALL;
-    /* Warm up: the first exits fault in the guest page and load state. */
     if (kern) run_expect(&v, reason);
     else for (int i = 0; i < 1000; i++) run_expect(&v, reason);
     double t0 = now_ns();
-    if (kern) run_expect(&v, reason);   /* n in-kernel round trips, then one user exit */
+    if (kern) run_expect(&v, reason);
     else for (long i = 0; i < n; i++) run_expect(&v, reason);
     double ns = (now_ns() - t0) / (double)n;
     munmap(v.run, (size_t)ioctl(kvm_fd, KVM_GET_VCPU_MMAP_SIZE, 0));

@@ -4,7 +4,7 @@ Prints the baseline's services, then per log the names not in the baseline."""
 import re, sys, collections
 
 def load(p):
-    d = collections.defaultdict(dict)   # kind -> name -> first time
+    d = collections.defaultdict(dict)
     for l in open(p, errors='replace'):
         m = re.match(r'^SUPX (\S+) (\S+) (\S+)(?: kr=(-?\d+))?', l)
         if not m:

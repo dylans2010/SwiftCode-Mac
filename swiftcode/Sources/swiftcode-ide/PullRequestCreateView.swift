@@ -4,20 +4,7 @@ import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 
-// Pull-request creation, adapted from Legacy's
-// `SwiftCode/Views/Collaboration/PRCreateView.swift`,
-// `CollaborationPullRequestView.swift`, and
-// `SwiftCode/Views/AI/AI New/Codex UIs/CodexPullRequestView.swift` onto
-// SwiftCode's GitHub client (`SwiftCodeGitHub/Client/GitHubClient.swift`,
-// `createPullRequest(owner:repo:title:body:head:base:draft:)`).
-// The token is read from the secret store on each request (never
-// stored in this view, never displayed); creating a PR without a
-// token fails honestly with the client's `missingToken` error.
-// Branch lists come from the live `listBranches` API.
-
-/// Create a GitHub pull request for a repository.
 struct PullRequestCreateView: View {
-    /// Pre-filled `owner/repo`, when the host knows it.
     var owner: String
     var repo: String
 

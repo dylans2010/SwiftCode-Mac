@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeSimLink
 
-/// Creating a device on a host that `swiftcode-host-setup` just prepared: it has
-/// no pristine devices, so the device starts empty and its first boot sets
-/// it up (docs/SIMULATOR-UX.md, "Create a device").
 @Suite struct SimHostCreateTests {
     func devices(_ extra: String = "") throws -> (SimHostDevices, URL) {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-simhost-create-\(UUID().uuidString)")
@@ -37,8 +34,6 @@ import Testing
 }
 
 extension SimHostCreateTests {
-    /// A tree without guest tools boots devices but refuses a run at once,
-    /// saying what is missing (the 1.0.0-beta.2 aarch64 release has none).
     @Test func aTreeWithoutGuestToolsSaysItCannotRunApps() throws {
         let (d, home) = try devices()
         defer { try? FileManager.default.removeItem(at: home) }
@@ -61,8 +56,6 @@ extension SimHostCreateTests {
 }
 
 extension SimHostCreateTests {
-    /// A program that exists but whose libraries are missing here is a
-    /// problem `swiftcode-simhost check` reports (the host setup's self-test).
     @Test func aProgramThatCannotStartIsReported() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-loader-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -77,8 +70,6 @@ extension SimHostCreateTests {
 }
 
 extension SimHostCreateTests {
-    /// The service's sockets are close-on-exec, so a device's launcher does
-    /// not inherit (and keep bound) the service's ports.
     @Test func linkSocketsAreCloseOnExec() throws {
         let l = try LinkListener(host: "127.0.0.1", port: 0)
         defer { l.close() }
@@ -89,8 +80,6 @@ extension SimHostCreateTests {
 }
 
 extension SimHostCreateTests {
-    /// Only failed handshakes count against an address: ten in a minute
-    /// close it, older ones do not.
     @Test func onlyFailuresAreRateLimited() {
         let now = Date()
         #expect(SimHostService.allows(failures: [], now: now))
@@ -99,8 +88,6 @@ extension SimHostCreateTests {
         #expect(SimHostService.allows(failures: Array(repeating: now.addingTimeInterval(-61), count: 10), now: now))
     }
 
-    /// Many trusted connections in a row (a viewer reconnecting while its
-    /// device starts) are all served.
     @Test func trustedClientsAreNotRateLimited() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-ratelimit-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -128,8 +115,6 @@ extension SimHostCreateTests {
 }
 
 extension SimHostCreateTests {
-    /// The Linux IDE's UIKit previews create their preview device this way:
-    /// the empty device's folder holds nothing until its first boot.
     @Test func aPreviewDeviceStartsWithAnEmptyFolder() throws {
         let (d, home) = try devices()
         defer { try? FileManager.default.removeItem(at: home) }

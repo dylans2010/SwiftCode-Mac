@@ -6,7 +6,6 @@ struct RuntimeManagementView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Simulator Discovery Diagnostics", systemImage: "stethoscope")
                     .font(.headline)
@@ -25,7 +24,6 @@ struct RuntimeManagementView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

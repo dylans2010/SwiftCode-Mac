@@ -4,7 +4,6 @@ import SwiftCodeEditorKit
 import SwiftCodeIDECore
 import SwiftCodeSyntax
 
-/// A build's mark on a line of the open file.
 public struct EditorLineIssue: Equatable, Sendable {
     public var isError: Bool
     public var message: String
@@ -14,9 +13,7 @@ public struct EditorLineIssue: Equatable, Sendable {
     }
 }
 
-/// A save that needs the user.
 public enum SaveAlert: Equatable, Identifiable, Sendable {
-    /// The file changed on disk since it was read: nothing was written.
     case conflict(path: String, change: EditorDocument.DiskChange)
     case failed(path: String, message: String)
 
@@ -44,11 +41,9 @@ public enum SaveAlert: Equatable, Identifiable, Sendable {
     }
 }
 
-/// Editing, saving and files on disk (`docs/PARITY.md` §5.9 item 6).
 extension WorkspaceShellModel {
     public var hasUnsavedChanges: Bool { !editedPaths.isEmpty }
 
-    /// Shows `path`: its open document, else a new one from disk.
     func showFile(_ path: String) {
         if showStructured(path) { previewCanvasFocusChanged(); return }
         if let d = openDocuments[path] {
@@ -75,7 +70,7 @@ extension WorkspaceShellModel {
         findBar.documentChanged(to: editor)
         syncEditorIssues()
         sourceControl.noteText(of: path)
-        previewCanvasFocusChanged()   // WorkspaceShellModel+Previews.swift
+        previewCanvasFocusChanged()
     }
 
     func documentChanged(_ d: EditorDocument) {
@@ -88,11 +83,6 @@ extension WorkspaceShellModel {
         previewCanvasEdited(d)
     }
 
-    // MARK: Language server
-
-    /// Starts sourcekit-lsp for the workspace (the app does; tests do not):
-    /// its diagnostics become live issues in the Issue navigator and the
-    /// editor, kept current as the open files are edited.
     public func startLanguageService() {
         guard languageStart == nil else { return }
         languageStart = Task { [weak self] in
@@ -105,7 +95,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// Ends the language server (the workspace closes).
     public func stopLanguageService() {
         for t in languageUpdates.values { t.cancel() }
         languageUpdates = [:]
@@ -114,7 +103,6 @@ extension WorkspaceShellModel {
         Task { await language.stop() }
     }
 
-    /// The server gets the text after typing pauses for a moment.
     private func scheduleLanguageUpdate(_ d: EditorDocument) {
         guard session.language != nil else { return }
         let path = d.path
@@ -127,9 +115,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    // MARK: Recovery
-
-    /// A copy of the unsaved text comes back as an undoable edit of the file.
     private func restoreRecoveredText(_ d: EditorDocument) {
         guard d.readOnlyReason == nil, let e = recovery.entry(for: d.path) else { return }
         guard e.text != d.buffer.text else {
@@ -142,7 +127,6 @@ extension WorkspaceShellModel {
         recoveredPaths.insert(d.path)
     }
 
-    /// The recovery copies follow typing after a pause.
     private func scheduleRecoveryCopy() {
         recoveryTask?.cancel()
         recoveryTask = Task { [weak self] in
@@ -152,7 +136,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// Writes the edited files' copies and removes those of clean files (tests call it).
     public func writeRecoveryCopies() {
         for d in openDocuments.values {
             if d.isDirty {
@@ -163,7 +146,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// The banner's Discard: back to the file on disk.
     public func discardRecoveredText() {
         guard let d = editor else { return }
         recoveredPaths.remove(d.path)
@@ -172,7 +154,6 @@ extension WorkspaceShellModel {
         syncEdited(d)
     }
 
-    /// The user gave up unsaved changes: their copies go too.
     public func discardAllRecoveryCopies() {
         recoveryTask?.cancel()
         for p in editedPaths { recovery.discard(path: p) }
@@ -188,9 +169,6 @@ extension WorkspaceShellModel {
 
     public var editedDocumentNames: [String] { editedPaths.sorted().map { ($0 as NSString).lastPathComponent } }
 
-    // MARK: Saving
-
-    /// File ▸ Save. A change on disk or an error goes to `saveAlert`.
     @discardableResult
     public func saveCurrent() -> Bool {
         guard let d = editor else { return true }
@@ -216,7 +194,6 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// File ▸ Save All; stops at the first file that needs the user.
     @discardableResult
     public func saveAll() -> Bool {
         for p in editedPaths.sorted() {
@@ -230,14 +207,12 @@ extension WorkspaceShellModel {
 
     func saveAllBeforeBuilding() -> Bool { saveAll() }
 
-    /// The answer to a conflict: write over the disk's version.
     public func overwriteOnConflict() {
         guard case .conflict(let path, _)? = saveAlert, let d = openDocuments[path] else { return }
         saveAlert = nil
         _ = save(d, overwrite: true)
     }
 
-    /// File ▸ Revert to Saved: back to the file on disk (undoable).
     public func revertToSaved() {
         guard let d = editor else { return }
         if !d.reloadFromDisk() {
@@ -249,7 +224,6 @@ extension WorkspaceShellModel {
         syncEdited(d)
     }
 
-    /// File ▸ Close Document, once its changes are saved or given up.
     public func closeCurrentDocument(discard: Bool = false) {
         guard let path = document?.path else { return }
         if let d = editor, d.isDirty, !discard {
@@ -271,11 +245,6 @@ extension WorkspaceShellModel {
         previewCanvasFocusChanged()
     }
 
-    // MARK: Files on disk
-
-    /// Looks at the open files on disk (the view calls it about once a
-    /// second). An unedited file follows the disk; an edited one shows the
-    /// change (`EditorDocument.diskChange`) until the user decides.
     public func checkOpenFilesOnDisk() {
         for d in openDocuments.values {
             if d.checkDisk() == .modified, !d.isDirty {
@@ -285,27 +254,22 @@ extension WorkspaceShellModel {
         }
     }
 
-    /// The banner's Reload: the disk's version replaces the buffer (undoable).
     public func reloadFromDisk() {
         guard let d = editor else { return }
         _ = d.reloadFromDisk()
         syncEdited(d)
     }
 
-    /// The banner's Keep: the next save writes over the disk.
     public func keepEditorVersion() {
         guard let d = editor else { return }
         d.keepBufferOverDisk()
         syncEdited(d)
     }
 
-    /// Settings changed: open buffers take the new typing settings.
     public func preferencesChanged() {
         let options = Preferences.shared.typingOptions
         for d in openDocuments.values { d.buffer.typingOptions = options }
     }
-
-    // MARK: Commands
 
     func performEditing(_ c: ShellCommand) {
         switch c {
@@ -357,11 +321,8 @@ extension WorkspaceShellModel {
         apply(TextCommands.moveLines(in: b.text, selection: b.selection.nsRange, up: up))
     }
 
-    /// Gives the keyboard back to the editor (a bar or sheet went away).
     public func focusEditor() { editorFocusCount += 1 }
 
-    /// Jump to Line…: "120" or "120:8" (line and column, 1-based). False if
-    /// the text is not a line number.
     @discardableResult
     public func jumpToLine(_ text: String) -> Bool {
         let parts = text.trimmingCharacters(in: .whitespaces).split(separator: ":", maxSplits: 1)
@@ -379,7 +340,6 @@ extension WorkspaceShellModel {
     }
 }
 
-/// Find and Replace in the open file (`specs/ide/source-editor.md` §Find bar).
 @MainActor
 @Observable
 public final class EditorFindBar {
@@ -392,7 +352,6 @@ public final class EditorFindBar {
     public var options = WorkspaceSearch.Options()
     public private(set) var matches: [NSRange] = []
     public private(set) var current: Int?
-    /// Bumped when the bar's field should take the keyboard.
     public internal(set) var focusCount = 0
     @ObservationIgnored private weak var editor: EditorDocument?
     @ObservationIgnored private var find = EditorFind()
@@ -400,7 +359,6 @@ public final class EditorFindBar {
 
     public init() {}
 
-    /// "3 of 12", "No matches", or nothing with no query.
     public var countText: String {
         guard !query.isEmpty else { return "" }
         guard let current, !matches.isEmpty else { return "No matches" }
@@ -418,8 +376,6 @@ public final class EditorFindBar {
         pending?.cancel()
     }
 
-    /// The text changed: matches follow shortly (typing does not wait for a
-    /// search of the whole file).
     func textChanged() {
         guard isShown else { return }
         pending?.cancel()
@@ -430,8 +386,6 @@ public final class EditorFindBar {
         }
     }
 
-    /// Searches again now, the current match the first at or after the caret
-    /// (or the selection's start), which it selects.
     public func refresh() { search(selectingCurrent: true) }
 
     private func search(selectingCurrent: Bool) {
@@ -444,7 +398,6 @@ public final class EditorFindBar {
         find.replacement = replacement
         find.options = options
         find.update(text: b.text, from: b.selection.range.lowerBound)
-        // Only real changes: the editor redraws when they change.
         if matches != find.matches { matches = find.matches }
         if current != find.current { current = find.current }
         if selectingCurrent { selectCurrent() }
@@ -455,12 +408,10 @@ public final class EditorFindBar {
         b.setSelection(EditorSelection(r))
     }
 
-    /// Find Next and Find Previous: wraps around.
     public func step(forward: Bool) {
         if !isShown { isShown = true }
         guard let b = editor?.buffer else { return }
         if query != find.query || matches.isEmpty { search(selectingCurrent: false) }
-        // From where the caret is now: the user may have moved it.
         if let r = find.currentRange, EditorSelection(r) == b.selection {
             find.step(forward)
         } else if !forward, !matches.isEmpty {
@@ -475,7 +426,6 @@ public final class EditorFindBar {
         selectCurrent()
     }
 
-    /// Replace: the current match, then on to the next.
     public func replaceCurrent() {
         guard let b = editor?.buffer, !b.isReadOnly else { return }
         find.replacement = replacement
@@ -489,7 +439,6 @@ public final class EditorFindBar {
         selectCurrent()
     }
 
-    /// Replace All, as one undo step. Returns how many.
     @discardableResult
     public func replaceAll() -> Int {
         guard let d = editor, !d.buffer.isReadOnly else { return 0 }

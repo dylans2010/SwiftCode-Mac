@@ -3,10 +3,6 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// OpenAI models through the Responses API (`POST /v1/responses`, streamed
-/// as server-sent events), authorized either by a ChatGPT sign-in (plan
-/// usage, `OpenAIAccount`) or by an API key the user enters. Models come
-/// from `GET /v1/models` at run time; SwiftCode names none itself.
 public struct OpenAIProvider: AssistantProvider {
     public enum Credential: Sendable {
         case apiKey(String)
@@ -72,9 +68,6 @@ public struct OpenAIProvider: AssistantProvider {
         throw AssistantError.notSignedIn(hint: Self.signedOutHint)
     }
 
-    /// Both documented shapes: `{"models": [{slug, display_name,
-    /// visibility}]}` (plan usage; only `visibility == "list"` is shown) and
-    /// `{"data": [{id}]}` (API keys; GPT models first, newest names first).
     static func parseModels(_ body: Data) -> [ModelInfo] {
         guard let o = JSON.object(body) else { return [] }
         if let list = o["models"] as? [[String: Any]] {
@@ -92,13 +85,9 @@ public struct OpenAIProvider: AssistantProvider {
         }.map { ModelInfo(id: $0) }
     }
 
-    /// The Responses request body: instructions separately (system items
-    /// are not accepted with plan usage), the history as `input`, nothing
-    /// stored, streamed.
     static func responsesBody(_ request: ChatRequest) -> [String: Any] {
         let input: [[String: Any]] = request.messages.map { ["role": $0.role == .system ? "developer" : $0.role.rawValue, "content": $0.content] }
         var body: [String: Any] = ["model": request.model ?? "", "instructions": request.instructions, "input": input, "store": false, "stream": true]
-        // The Responses API takes no top_k or repeat penalty.
         let g = request.generation
         if let n = g.maxOutputTokens { body["max_output_tokens"] = n }
         if let t = g.temperature { body["temperature"] = t }
@@ -152,7 +141,6 @@ public struct OpenAIProvider: AssistantProvider {
 
     struct RetryableAuth: Error { var status: Int; var body: Data }
 
-    /// The events of one SSE `data:` payload.
     static func parseEvent(_ data: String, plan: Bool) throws -> [ChatEvent] {
         let d = data.trimmingCharacters(in: .whitespaces)
         if d.isEmpty || d == "[DONE]" { return [] }
@@ -170,7 +158,6 @@ public struct OpenAIProvider: AssistantProvider {
         case "response.incomplete":
             let r = o["response"] as? [String: Any]
             let reason = ((r?["incomplete_details"] as? [String: Any])?["reason"] as? String) ?? "incomplete"
-            // Stopped at the output limit: a cut-off reply, not an error.
             if reason == "max_output_tokens" {
                 let u = r?["usage"] as? [String: Any]
                 return [.truncated, .finished(u.map { TokenUsage(inputTokens: JSON.int($0["input_tokens"]), outputTokens: JSON.int($0["output_tokens"])) })]
@@ -184,8 +171,6 @@ public struct OpenAIProvider: AssistantProvider {
         }
     }
 
-    /// Maps an HTTP error (before the stream opened) to an error with the
-    /// recovery the error guide gives.
     static func mapError(status: Int, body: Data, plan: Bool) -> AssistantError {
         let (message, code) = HTTP.errorMessage(body)
         return mapCode(code, message: message, status: status, plan: plan)

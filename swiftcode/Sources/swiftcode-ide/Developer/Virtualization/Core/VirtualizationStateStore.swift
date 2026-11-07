@@ -1,7 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Core/VirtualizationStateStore.swift` (Dylan's own code; direct port authorised under MIT).
-// Supporting port for the Audit A MISSING Virtualization family: this file's types are referenced by the MISSING files
-// (Audit A lists it PARTIAL, not MISSING) and have no production equivalent. Static port only — no Swift toolchain here;
-// build verification pending on Dylan's Mac.
 import Foundation
 import Observation
 import SwiftCodeIDECore
@@ -21,7 +17,7 @@ public struct SearchEverywhereItem: Identifiable, Sendable, Hashable {
     public let id: UUID
     public let title: String
     public let subtitle: String
-    public let category: String // "Environment", "Template", "Image", "Snapshot", "Package", "Log", "Activity"
+    public let category: String
     public let icon: String
 }
 
@@ -47,7 +43,6 @@ public final class VirtualizationStateStore {
     public var preferenceAutoStartAgent: Bool = false
     public var preferenceDefaultNetworkMode: String = "NAT"
 
-    // Quick Start Presets
     public struct QuickStartTemplate: Identifiable, Sendable {
         public let id: String
         public let name: String
@@ -73,19 +68,16 @@ public final class VirtualizationStateStore {
         QuickStartTemplate(id: "blank", name: "Blank Linux Environment", icon: "terminal", description: "Minimal server deploy with raw network adapters.", recommendedCPU: 2, recommendedRAM_MB: 2048, recommendedStorage_GB: 20, installedPackages: ["git"], defaultPorts: [])
     ]
 
-    // Smart Recommendations & Auto-Optimization Helper
     public func getSmartRecommendation(osType: String, templateID: String) -> (cores: Int, memoryMB: Int, storageGB: Int) {
         let hostCores = ProcessInfo.processInfo.activeProcessorCount
         let hostMemoryBytes = ProcessInfo.processInfo.physicalMemory
         let hostMemoryGB = Int(hostMemoryBytes / (1024 * 1024 * 1024))
 
-        // Gather hardware recommendation based on os and template
         let template = quickStartTemplates.first { $0.id == templateID }
         var baseCores = template?.recommendedCPU ?? 2
         var baseMemory = template?.recommendedRAM_MB ?? 4096
         var baseStorage = template?.recommendedStorage_GB ?? 40
 
-        // Adjusted multiplier for heavier OS (e.g. Fedora/Ubuntu) vs lightweight (Alpine)
         var multiplierCores = 1
         var multiplierMemory = 1024
         var multiplierStorage = 10
@@ -104,9 +96,7 @@ public final class VirtualizationStateStore {
         var recommendedMemory = max(baseMemory, multiplierMemory)
         var recommendedStorage = max(baseStorage, multiplierStorage)
 
-        // Resource Auto-Optimization (if enabled)
         if autoOptimizeResources {
-            // Never allocate more than 50% of host cores or 50% of host RAM
             let safeCoresLimit = max(1, hostCores / 2)
             let safeMemoryLimitMB = max(1024, (hostMemoryGB / 2) * 1024)
 
@@ -121,7 +111,6 @@ public final class VirtualizationStateStore {
         return (recommendedCores, recommendedMemory, recommendedStorage)
     }
 
-    // Natural Language Virtualization Assistant translation
     public func processAssistantCommand(_ query: String, on vmID: UUID) -> String {
         guard let vm = virtualMachines.first(where: { $0.id == vmID }) else {
             return "Error: Selected environment not found."
@@ -189,14 +178,12 @@ public final class VirtualizationStateStore {
         return "Command received: '\(query)'. Dispatched command securely to virtual machine shell agent."
     }
 
-    // Search Everywhere results calculator
     public var searchEverywhereResults: [SearchEverywhereItem] {
         let q = searchEverywhereQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return [] }
 
         var results: [SearchEverywhereItem] = []
 
-        // 1. Environments
         for vm in virtualMachines {
             if vm.name.lowercased().contains(q) || vm.osType.lowercased().contains(q) || vm.labels.contains(where: { $0.lowercased().contains(q) }) {
                 results.append(SearchEverywhereItem(
@@ -209,7 +196,6 @@ public final class VirtualizationStateStore {
             }
         }
 
-        // 2. Templates
         for tmpl in quickStartTemplates {
             if tmpl.name.lowercased().contains(q) || tmpl.description.lowercased().contains(q) {
                 results.append(SearchEverywhereItem(
@@ -222,7 +208,6 @@ public final class VirtualizationStateStore {
             }
         }
 
-        // 3. Images
         for img in VMImageManager.shared.getInstalledImages() {
             if img.name.lowercased().contains(q) || img.operatingSystem.lowercased().contains(q) {
                 results.append(SearchEverywhereItem(
@@ -235,7 +220,6 @@ public final class VirtualizationStateStore {
             }
         }
 
-        // 4. Snapshots
         for vm in virtualMachines {
             for snap in vm.snapshots {
                 if snap.name.lowercased().contains(q) || snap.description.lowercased().contains(q) {
@@ -250,7 +234,6 @@ public final class VirtualizationStateStore {
             }
         }
 
-        // 5. Activity Logs
         for log in activityLogs {
             if log.message.lowercased().contains(q) {
                 results.append(SearchEverywhereItem(
@@ -306,7 +289,6 @@ public final class VirtualizationStateStore {
         self.virtualMachines = VirtualMachineRegistry.shared.load()
         addLog("Virtualization Workspace initialized.", type: .info)
 
-        // Listen to event bus
         VirtualizationEventBus.shared.subscribe { [weak self] event in
             Task { @MainActor in
                 self?.handleEvent(event)

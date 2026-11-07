@@ -4,22 +4,6 @@ import SwiftCodeIDECore
 import SwiftCodeExtensions
 #endif
 
-/// The Extensions panel (spec `extensions-platform.md` §1.2, §3–§8):
-/// the editor toolbar's Extensions button opens this popover. It lists
-/// installed extensions only — there is no remote marketplace UI (no
-/// reachable remote endpoint was found; Open VSX search/install is a
-/// later slice) — with enable/disable, the selected extension's
-/// permissions/capabilities (from the host's grant store), and a
-/// diagnostics view (host status, Node availability, recent errors).
-///
-/// The panel talks to the host through `ExtensionsPanelDataSource`,
-/// not to `ExtensionManager` directly: the host target is built in
-/// parallel by Slice B, so the adapter behind
-/// `#if canImport(SwiftCodeExtensions)` is the only place that names the
-/// spec §10 API, and the panel keeps working (honestly reporting the
-/// host as unavailable) until that target is wired in.
-
-/// One installed extension as the panel shows it.
 public struct ExtensionPanelRow: Sendable, Equatable {
     public var id: String
     public var displayName: String
@@ -47,8 +31,6 @@ public struct ExtensionPanelRow: Sendable, Equatable {
     }
 }
 
-/// The diagnostics view's data: host status, Node availability (a real
-/// check — spec §4.2 discovery), and recent error lines.
 public struct ExtensionsDiagnostics: Sendable, Equatable {
     public var hostAvailable: Bool
     public var hostStatus: String
@@ -64,19 +46,12 @@ public struct ExtensionsDiagnostics: Sendable, Equatable {
     }
 }
 
-/// What the panel needs from the extensions host. One seam, so the
-/// panel never invents host state: every row, grant, and diagnostic
-/// line comes from here.
 public protocol ExtensionsPanelDataSource: Sendable {
     func installedExtensions() async -> [ExtensionPanelRow]
     func setEnabled(_ id: String, enabled: Bool) async throws
     func diagnostics() async -> ExtensionsDiagnostics
 }
 
-/// Node.js discovery (spec §4.2), minus the settings path — the
-/// configured path lives in the host's settings, which only the host
-/// knows. Well-known paths first, then a `PATH` lookup. A real check:
-/// the returned path is an executable file, or nil.
 public enum ExtensionsNodeAvailability {
     public static func locate() -> String? {
         let fm = FileManager.default
@@ -92,9 +67,6 @@ public enum ExtensionsNodeAvailability {
     }
 }
 
-/// The data source while the `SwiftCodeExtensions` host target is not wired
-/// into the build: no rows, no enable/disable, and a diagnostics view
-/// that says so — with a real Node check, since that needs no host.
 @MainActor
 public final class UnavailableExtensionsDataSource: ExtensionsPanelDataSource {
     public init() {}
@@ -115,8 +87,6 @@ public final class UnavailableExtensionsDataSource: ExtensionsPanelDataSource {
 }
 
 #if canImport(SwiftCodeExtensions)
-/// The data source against the real host (spec §10.6): the manager is
-/// the single source of truth; the panel keeps no install-state copy.
 @MainActor
 public final class SwiftCodeExtensionsDataSource: ExtensionsPanelDataSource {
     public init() {}
@@ -176,8 +146,6 @@ public final class SwiftCodeExtensionsDataSource: ExtensionsPanelDataSource {
 }
 #endif
 
-/// The panel's state: rows + selection + diagnostics from the data
-/// source, nothing cached from anywhere else.
 @MainActor
 public final class ExtensionsPanelViewModel {
     public let dataSource: ExtensionsPanelDataSource
@@ -203,8 +171,6 @@ public final class ExtensionsPanelViewModel {
 
     public func select(id: String?) { selectedID = id }
 
-    /// Toggles the selected extension, then reloads so the row shows
-    /// the host's state (never an optimistic local copy).
     public func setEnabledSelected(_ enabled: Bool) async {
         guard let row = selectedRow else { return }
         do {
@@ -215,8 +181,6 @@ public final class ExtensionsPanelViewModel {
         }
     }
 
-    /// The diagnostics view's text: host status, Node availability,
-    /// then recent errors (or the honest empty line).
     public var diagnosticsText: String {
         guard let d = diagnostics else { return "" }
         var lines = [d.hostStatus,
@@ -228,11 +192,6 @@ public final class ExtensionsPanelViewModel {
     }
 }
 
-/// The Extensions popover's content: the installed list on the left,
-/// the selected extension's detail (state, enable/disable, granted
-/// capabilities, commands) and the diagnostics view on the right.
-/// AppKit, in the style of `QuickActionsController` (programmatic
-/// layout, anchor constraints, no redesign of the toolbar or settings).
 @MainActor
 public final class ExtensionsPanelViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     public static let size = NSSize(width: 620, height: 460)
@@ -294,9 +253,6 @@ public final class ExtensionsPanelViewController: NSViewController, NSTableViewD
         stateLabel.font = .systemFont(ofSize: 11)
         enableCheckbox.target = self
         enableCheckbox.action = #selector(enableToggled(_:))
-        // The detail column is laid out with explicit anchors (not a
-        // stack view: a vertical stack would size the scroll views to
-        // their fitting width, which collapses them).
         let capsLabel = Self.sectionLabel("Capabilities")
         let capsScroll = textScroll(capabilitiesText, height: 56)
         let cmdLabel = Self.sectionLabel("Commands")
@@ -374,10 +330,6 @@ public final class ExtensionsPanelViewController: NSViewController, NSTableViewD
             diagScroll.bottomAnchor.constraint(equalTo: detail.bottomAnchor),
         ])
         view = root
-        // Capability approval UI (gap closure): present the pending
-        // request as an Allow/Deny sheet instead of letting it fall
-        // through to the headless deny. The anchor is this panel's
-        // root view, so the sheet attaches to the panel's window.
         ExtensionPermissionApprovalCenter.shared.hasPresenter = true
         NotificationCenter.default.addObserver(
             self,
@@ -387,11 +339,6 @@ public final class ExtensionsPanelViewController: NSViewController, NSTableViewD
         Task { await viewModel.load(); refreshAll() }
     }
 
-    /// Shows the pending capability request as an Allow/Deny sheet
-    /// on this panel's window (gap closure, specs/ide/
-    /// gap-closure-misc.md §5). Runs on the main actor; with no
-    /// window to attach to, the request stays pending (the
-    /// SwiftUI host is the other presenter).
     @objc private func approvalRequestChanged() {
         guard let request = ExtensionPermissionApprovalCenter.shared.pendingRequest,
               let window = view.window else { return }
@@ -426,7 +373,6 @@ public final class ExtensionsPanelViewController: NSViewController, NSTableViewD
         return scroll
     }
 
-    /// Reloads the table and detail from the view model (tests drive it).
     public func refreshAll() {
         table.reloadData()
         let rows = viewModel.rows
@@ -471,8 +417,6 @@ public final class ExtensionsPanelViewController: NSViewController, NSTableViewD
     @objc func enableToggled(_ sender: Any?) {
         Task { await viewModel.setEnabledSelected(enableCheckbox.state == .on); refreshAll() }
     }
-
-    // MARK: NSTableView
 
     public func numberOfRows(in tableView: NSTableView) -> Int { viewModel.rows.count }
 

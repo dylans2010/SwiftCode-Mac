@@ -6,8 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Writes an `.xcarchive` in the documented layout: Info.plist, and (with
-/// `app`) an ad hoc signed application under Products/Applications.
 func makeArchive(in dir: URL, name: String, app: String?, version: String, build: String, created: Date, comment: String? = nil) throws -> URL {
     let fm = FileManager.default
     let url = dir.appendingPathComponent("\(name).xcarchive")
@@ -62,13 +60,11 @@ func makeArchive(in dir: URL, name: String, app: String?, version: String, build
 
         let org = OrganizerController(archivesDirectory: dir.appendingPathComponent("Archives"))
         org.select(archiveAt: a1)
-        // The app picker lists both apps; the list shows the chosen one's archives.
         #expect(org.appPickerTitles == ["Hello", "tool"] && org.selectedApp == "Hello")
         #expect(org.rows.map(\.title) == ["Hello", "Hello 2", "Hello 1"])
         #expect(org.detailRows.contains { $0 == ("Version", "1.0 (1)") } && org.detailRows.contains { $0 == ("Comment", "First") })
         #expect(org.detailRows.contains { $0 == ("Status", "Archived") })
 
-        // Distribute App → Copy App through swiftcodebuild's export path.
         let out = dir.appendingPathComponent("Export")
         let app = try #require(org.distribute(to: out))
         #expect(org.lastExport?.output.contains("** EXPORT SUCCEEDED **") == true)
@@ -100,7 +96,6 @@ func makeArchive(in dir: URL, name: String, app: String?, version: String, build
         #expect(wc.session.displayedIssues.first?.message.hasPrefix("Archive failed") == true)
     }
 
-    /// Synthetic listings (no real names or identifiers).
     static let simctl = """
     {"devicetypes": [{"identifier": "com.apple.CoreSimulator.SimDeviceType.Phone-A", "name": "Phone A"}],
      "runtimes": [{"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-30-1", "version": "30.1"}],
@@ -128,7 +123,6 @@ func makeArchive(in dir: URL, name: String, app: String?, version: String, build
         #expect(devs.count == 1 && devs[0].state == "paired, disconnected" && devs[0].model == "Test Model")
         let c = DevicesController(devices: devs, simulators: sims)
         c.view.frame = NSRect(x: 0, y: 0, width: 820, height: 480)
-        // A disconnected device is listed under Unavailable, after the simulators.
         c.show(.devices)
         #expect(c.detailRows.contains { $0 == ("Connection", "paired, disconnected") })
         c.show(.simulators)

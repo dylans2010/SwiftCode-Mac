@@ -12,7 +12,6 @@ public struct AgentUseComposio: View {
     public var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                // Header row
                 HStack(alignment: .center, spacing: 8) {
                     Image(systemName: toolkitIcon(for: metadata.toolkit))
                         .font(.headline)
@@ -44,7 +43,6 @@ public struct AgentUseComposio: View {
 
                     Spacer()
 
-                    // Pulse/Execution Status
                     if metadata.isExecuting {
                         HStack(spacing: 5) {
                             ProgressView()
@@ -81,7 +79,6 @@ public struct AgentUseComposio: View {
                     }
                 }
 
-                // Log ID and Latency Bar
                 HStack(spacing: 12) {
                     if let logId = metadata.logId, !logId.isEmpty {
                         Link(destination: URL(string: "https://dashboard.composio.dev/~/project/logs")!) {
@@ -104,7 +101,6 @@ public struct AgentUseComposio: View {
 
                     Spacer()
 
-                    // Expand / Collapse Details Button
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             isExpanded.toggle()
@@ -120,7 +116,6 @@ public struct AgentUseComposio: View {
                     .buttonStyle(.plain)
                 }
 
-                // Output / Arguments View
                 if isExpanded {
                     Divider()
 

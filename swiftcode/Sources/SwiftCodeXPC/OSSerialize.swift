@@ -1,16 +1,6 @@
-// The OSSerialize binary property-list format of xnu's libkern
-// (libkern/libkern/OSSerializeBinary.h, public open source; level 1), as
-// iosurface-remote.md §5.1 restates it: a u32 signature 0x000000D3, then
-// records. Each record starts with a u32 key: bit 31 marks the last element
-// of the enclosing collection, bits 24–30 are the type, bits 0–23 the length
-// or count; the payload follows, padded to 4 bytes. Object references
-// (type 0x0C) name an earlier object by its index in decoding order
-// (collections, keys and values, root = 0; references are not counted).
-
 public indirect enum OSValue: Equatable, Sendable, CustomStringConvertible {
     case dictionary([(key: String, value: OSValue)])
     case array([OSValue])
-    /// A number: its value and bit width (8, 16, 32 or 64).
     case number(UInt64, bits: Int)
     case string(String)
     case data([UInt8])
@@ -29,7 +19,6 @@ public indirect enum OSValue: Equatable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// The value for `key` of a dictionary.
     public subscript(key: String) -> OSValue? {
         if case let .dictionary(pairs) = self { return pairs.first { $0.key == key }?.value }
         return nil
@@ -83,8 +72,6 @@ public enum OSSerialize {
     }
     static let endCollection: UInt32 = 0x8000_0000
 
-    // MARK: Decoding
-
     public static func decode(_ bytes: [UInt8]) throws -> OSValue {
         var r = Reader(bytes: bytes)
         guard try r.u32() == signature else { throw OSSerializeError.badSignature }
@@ -110,7 +97,6 @@ public enum OSSerialize {
             return Array(bytes[at..<(at + n)])
         }
 
-        /// Reserves the index of a collection before its elements decode.
         mutating func reserve() -> Int {
             objects.append(.bool(false))
             return objects.count - 1
@@ -167,8 +153,6 @@ public enum OSSerialize {
             return v
         }
     }
-
-    // MARK: Encoding (no object references)
 
     public static func encode(_ value: OSValue) -> [UInt8] {
         var w: [UInt8] = []

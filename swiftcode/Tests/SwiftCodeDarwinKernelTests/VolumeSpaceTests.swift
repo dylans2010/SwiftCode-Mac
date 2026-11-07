@@ -3,18 +3,10 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// Volume sizes and free space (visionos.md §10.26.2): every path of one guest
-/// volume, "/" and its read-only parts included, reports the host file
-/// system's real sizes, taken from the volume's writable prefix (the device
-/// directory). Before, getattrlist on "/" reported 0 bytes free, and Photos
-/// refused to open its library ("insufficient free space 0").
 @Suite(.serialized) struct VolumeSpaceTests {
     typealias At = ProcEnv.At
     typealias Prefix = DarwinFileSystem.Prefix
 
-    /// Device mode in small: a read-only runtime root that is a volume of its
-    /// own, and a writable device directory and a read-only `/System` that
-    /// are part of "/"'s volume.
     static func devicePrefixes(_ root: String) -> [Prefix] {
         for d in ["rr/System", "dev/data/Media"] {
             try? FileManager.default.createDirectory(atPath: root + "/" + d, withIntermediateDirectories: true)
@@ -29,7 +21,6 @@ import SwiftCodeDarwinABI
     var k: DarwinKernel { env.rootKernel }
     init() throws { env = try ProcEnv(prefixes: Self.devicePrefixes) }
 
-    /// The host's sizes for `path` in 4096-byte blocks (total, available).
     func host(_ path: String) -> (UInt64, UInt64) {
         var vfs = statvfs()
         #expect(statvfs(path, &vfs) == 0)
@@ -37,7 +28,6 @@ import SwiftCodeDarwinABI
         return (UInt64(vfs.f_blocks) * unit / 4096, UInt64(vfs.f_bavail) * unit / 4096)
     }
 
-    /// getattrlist ATTR_VOL_INFO | SIZE | SPACEFREE | SPACEAVAIL | SPACEUSED (bytes).
     func volumeSizes(_ path: String) -> [Int64]? {
         var alist = [UInt8](repeating: 0, count: 24)
         alist.putLE(UInt16(5), at: 0)
@@ -50,7 +40,6 @@ import SwiftCodeDarwinABI
         return (0..<4).map { reply.readLE(Int64.self, at: 4 + 8 * $0) }
     }
 
-    /// statfs64: (f_blocks, f_bavail) in 4096-byte blocks.
     func statfs(_ path: String) -> (UInt64, UInt64)? {
         env.putString(k, path, at: At.out + 0x900)
         guard env.bsd(k, 345, [At.out + 0x900, At.out + 0x1000]) == 0 else { return nil }
@@ -64,7 +53,6 @@ import SwiftCodeDarwinABI
         #expect(DarwinKernel.volumeSpaceHostPath(mountPoint: "/", prefixes: prefixes) == env.root + "/dev")
         #expect(DarwinKernel.volumeSpaceHostPath(mountPoint: "/rr", prefixes: prefixes) == env.root + "/rr")
         #expect(DarwinKernel.volumeSpaceHostPath(mountPoint: "/elsewhere", prefixes: prefixes) == nil)
-        // Without a writable prefix: the one mounted there.
         let readOnly = prefixes.filter { !$0.writable }
         #expect(DarwinKernel.volumeSpaceHostPath(mountPoint: "/", prefixes: readOnly) == env.root + "/rr/System")
     }
@@ -75,7 +63,6 @@ import SwiftCodeDarwinABI
         for path in ["/", "/dev1/data/Media", "/System"] {
             let v = try #require(volumeSizes(path), "\(path)")
             #expect(v[0] == Int64(total) * 4096, "SIZE \(path)")
-            // The host's free space moves a little between the calls.
             #expect(abs(v[2] - Int64(avail) * 4096) < 64 << 20, "SPACEAVAIL \(path)")
             #expect(v[1] == v[2] && v[3] == v[0] - v[2], "SPACEFREE, SPACEUSED \(path)")
             let s = try #require(statfs(path), "statfs \(path)")

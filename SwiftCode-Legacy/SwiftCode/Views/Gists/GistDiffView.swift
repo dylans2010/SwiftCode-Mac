@@ -19,7 +19,6 @@ struct GistDiffView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Diff Viewer", systemImage: "arrow.left.and.right.square.fill")
                     .font(.headline)
@@ -79,7 +78,6 @@ struct GistDiffView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                     } else {
-                        // File Selection Card (if more than 1 file)
                         if diffFiles.count > 1 {
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 12) {
@@ -99,7 +97,6 @@ struct GistDiffView: View {
                             .groupBoxStyle(ModernGroupBoxStyle())
                         }
 
-                        // Diff Content Card
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 let indexToUse = min(selectedFileIndex, diffFiles.count - 1)

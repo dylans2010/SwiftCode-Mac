@@ -7,39 +7,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// NavigationStack (round R9; 06 §2.1, suite T-NAV).
-//
-// Measured (06 §2.1): a pushed destination is created and gets `onAppear` at
-// once; the push animates for about 0.5 s while the page below slides to
-// −30 % of the width; the page below gets `onDisappear` (and its tasks are
-// cancelled) at the end. A pop gives the page below `onAppear` at its start
-// and the popped page `onDisappear` at its end; pages under the top that
-// were never shown keep their appearance (pushing [4, 5] makes 4 appear with
-// no frame; popping to the root then makes 4 disappear at once and 5 at the
-// end); intermediate pages that were covered already disappeared. An edge
-// swipe pops interactively: the top page follows the finger and the page
-// below moves at 30 % (x = −0.3 W + 0.3 dx). The bar adds 82 points to the
-// top (inline and large titles alike).
-//
-// Design (SwiftCode's): the stack keeps a view node per page (the root, the
-// path's values and pages pushed by destination links); covered pages are
-// *suspended* (their state stays; `ViewNode.setSuspended`) rather than
-// removed. Transitions run on a frame driver for 0.5 s with the ease-in-out
-// curve; programmatic path changes animate unless the transaction disables
-// animations. Each page draws its own bar: a back button (chevron and the
-// previous page's title, or "Back") unless hidden, the title (inline:
-// headline, centred; large: bold large title below the controls on the
-// headless phone host) and toolbar items; 82 points high on the headless
-// host (the reference's inset), 44 on desktop hosts. Titles, toolbars and
-// bar options register with their page (an observable page context), so a
-// change re-renders only the bar. The back swipe starts within 20 points of
-// a page's leading edge; released past half the width (or faster than 500
-// points/s) it pops, else it returns.
-
-// MARK: - Environment
-
-/// Dismisses the current presentation: pops the navigation page, closes the
-/// sheet or cover it is in.
 @MainActor
 public struct DismissAction {
     let action: (@MainActor () -> Void)?
@@ -58,7 +25,6 @@ extension EnvironmentValues {
         set { self[DismissKey.self] = newValue }
     }
 
-    /// True inside a pushed page or a presentation.
     public var isPresented: Bool {
         get { self[IsPresentedKey.self] }
         set { self[IsPresentedKey.self] = newValue }
@@ -74,8 +40,6 @@ extension EnvironmentValues {
         set { self[PageContextKey.self] = newValue }
     }
 
-    /// True on window-system hosts (desktop bars and sheets); false on the
-    /// headless host, which keeps the reference phone's metrics.
     package var _desktopChrome: Bool {
         get { self[DesktopChromeKey.self] }
         set { self[DesktopChromeKey.self] = newValue }
@@ -83,20 +47,15 @@ extension EnvironmentValues {
 }
 
 enum NavigationMetrics {
-    /// 06 §2.1: the bar adds 82 points to the top inset.
     static let phoneBarHeight: CGFloat = 82
     static let desktopBarHeight: CGFloat = 44
     static let transitionDuration: TimeInterval = 0.5
-    /// The page below a pushed page sits at −30 % of the width (06 §2.1).
     static let parallax: CGFloat = 0.3
     static let edgeWidth: CGFloat = 20
 
     static func barHeight(_ env: EnvironmentValues) -> CGFloat { env._desktopChrome ? desktopBarHeight : phoneBarHeight }
 }
 
-// MARK: - NavigationPath
-
-/// A type-erased list of the values a navigation stack shows.
 public struct NavigationPath: Equatable {
     package var elements: [AnyHashable]
 
@@ -112,9 +71,6 @@ public struct NavigationPath: Equatable {
     public mutating func removeLast(_ k: Int = 1) { elements.removeLast(min(k, elements.count)) }
 }
 
-// MARK: - Contexts
-
-/// What views inside a stack use to navigate.
 @MainActor
 final class NavigationContext {
     var destinations: [ObjectIdentifier: (AnyHashable) -> AnyView?] = [:]
@@ -135,7 +91,6 @@ final class NavigationContext {
     func pop(view key: AnyHashable) { state?.popView(key) }
 }
 
-/// What a page shows in its bar (registered by the modifiers inside it).
 @MainActor
 @Observable
 final class NavigationPageContext {
@@ -167,9 +122,6 @@ package struct ToolbarEntryGroup {
     package let entries: [ToolbarEntry]
 }
 
-// MARK: - Stack state
-
-/// One page of a stack.
 struct NavigationPageRecord {
     enum Kind {
         case root
@@ -180,7 +132,6 @@ struct NavigationPageRecord {
     let kind: Kind
 }
 
-/// A width measured at layout (read by the stack's transitions).
 final class LayoutWidthBox: @unchecked Sendable {
     var value: CGFloat = 0
 }
@@ -195,7 +146,6 @@ final class NavigationStackState {
     var pageContexts: [AnyHashable: NavigationPageContext] = [:]
     var isBuilt = false
     var needsDestination = false
-    /// The page fully shown (the top when no transition runs).
     var shown = AnyHashable("root")
 
     struct Motion {
@@ -203,15 +153,12 @@ final class NavigationStackState {
         let kind: Kind
         let from: AnyHashable
         let to: AnyHashable
-        /// The page leaving the stack (kept until the end), if any.
         let outgoing: AnyHashable?
         var progress: Double = 0
         var driver: FrameDriver?
     }
     var motion: Motion?
-    /// The back swipe: the top page's translation, while dragging.
     var swipe: CGFloat?
-    /// Where the next pop starts (a released back swipe continues).
     var motionStart: Double?
     var width: CGFloat { widthBox.value }
 
@@ -246,7 +193,6 @@ final class NavigationStackState {
         node?.invalidate(transaction: Transaction())
     }
 
-    /// Pops to the page before `key`.
     @MainActor func pop(above key: AnyHashable, transaction: Transaction = Transaction()) {
         guard let i = pages.firstIndex(where: { $0.key == key }), i > 0 else { return }
         let keep = pages[..<i]
@@ -267,9 +213,6 @@ final class NavigationStackState {
     }
 }
 
-// MARK: - NavigationStack
-
-/// A stack of pages over a root view (06 §2.1).
 public struct NavigationStack<Data, Root: View>: View {
     let root: Root
     let readPath: (() -> [AnyHashable])?
@@ -366,8 +309,6 @@ extension NavigationStack: PrimitiveView {
     }
 
     private func build(_ s: NavigationStackState, node: ViewNode, transaction: Transaction) {
-        // The root first: its body registers the destinations (and the
-        // pages' destinations register theirs as they are built).
         let rootRecord = NavigationPageRecord(key: AnyHashable("root"), kind: .root)
         let ctxView: (any View) -> any View = { v in
             AnyView(_fromValue: v)!.environment(\._navigation, s.context)
@@ -383,7 +324,6 @@ extension NavigationStack: PrimitiveView {
         let oldTop = oldPages.last?.key ?? rootRecord.key
         let newTop = records.last!.key
         let newKeys = Set(records.map(\.key))
-        // Transitions (06 §2.1).
         let animate = s.isBuilt && !transaction.disablesAnimations && s.width > 0
         if oldTop != newTop, s.isBuilt {
             finishMotion(s, node: node)
@@ -395,7 +335,6 @@ extension NavigationStack: PrimitiveView {
             } else {
                 s.motion = nil
             }
-            // A pop shows the page below at once (onAppear at the start).
             if kind == .pop, let c = child(node, newTop) { c.setSuspended(false) }
         }
         var items: [(AnyHashable, any View)] = []
@@ -411,8 +350,6 @@ extension NavigationStack: PrimitiveView {
         node.reconcileChildren(items, transaction: transaction)
         for (k, _) in s.pageContexts where !newKeys.contains(k) && k != s.motion?.outgoing { s.pageContexts[k] = nil }
         if !s.isBuilt || s.motion == nil {
-            // No animation: the new top is shown, the page it covers is
-            // suspended at once.
             if s.isBuilt, oldTop != newTop, newKeys.contains(oldTop), let c = child(node, oldTop) {
                 if records.firstIndex(where: { $0.key == oldTop })! < records.count - 1 { c.setSuspended(true) }
             }
@@ -446,8 +383,6 @@ extension NavigationStack: PrimitiveView {
         node.graph.activate(driver)
     }
 
-    /// The end of a push or pop: the covered page disappears (it is
-    /// suspended), the page that left is removed.
     private func completeMotion(_ s: NavigationStackState, node: ViewNode) {
         guard let m = s.motion else { return }
         s.motion = nil
@@ -503,14 +438,11 @@ extension NavigationStack: PrimitiveView {
     }
 
     package func _preferences(node: ViewNode) -> PreferenceValues {
-        // Pages' preferences stay inside the stack (only the shown page's
-        // pass on).
         let s = state(node)
         return child(node, s.shown)?.preferenceValues() ?? PreferenceValues()
     }
 }
 
-/// Takes the proposed size and remembers its width (the transitions' unit).
 struct NavigationStackBehavior: NodeBehavior {
     let width: LayoutWidthBox
     var traitChild: Int? { nil }
@@ -528,13 +460,11 @@ struct NavigationStackBehavior: NodeBehavior {
 }
 
 extension NavigationStackState {
-    /// The back swipe (06 §2.1).
     @MainActor func handleSwipe(_ sample: DragSample?, ended: Bool, key: AnyHashable) {
         guard let node, motion == nil, pages.last?.key == key, pages.count >= 2 else { return }
         let below = pages[pages.count - 2].key
         let belowNode = zip(node.childKeys, node.children).first { $0.0 == below }?.1
         guard let sample else {
-            // Cancelled: back to the top page.
             swipe = nil
             belowNode?.setSuspended(true)
             node.graph.scheduleUpdate(transaction: Transaction())
@@ -550,8 +480,6 @@ extension NavigationStackState {
         swipe = nil
         let completes = dx > width / 2 || sample.velocity.width > 500
         if completes {
-            // Continue as a pop from where the finger left it (the page
-            // below already appeared).
             motionStart = width > 0 ? min(1, Double(dx / width)) : 1
             pop(above: key)
         } else {
@@ -561,7 +489,6 @@ extension NavigationStackState {
     }
 }
 
-/// A page: its bar over its content.
 struct NavigationPageHost: View {
     let content: AnyView
     let context: NavigationPageContext
@@ -584,7 +511,6 @@ struct NavigationPageHost: View {
     }
 }
 
-/// The back swipe's gesture (a high-priority gesture of non-root pages).
 struct EdgeSwipeModifier: ViewModifier {
     let handler: ((DragSample?, Bool) -> Void)?
     func body(content: Content) -> some View {
@@ -608,7 +534,6 @@ struct EdgeSwipeGesture: Gesture, PrimitiveGesture {
     }
 }
 
-/// A page's bar.
 struct NavigationBar: View {
     let context: NavigationPageContext
     let previous: NavigationPageContext?
@@ -618,11 +543,6 @@ struct NavigationBar: View {
     @Environment(\._desktopChrome) private var desktop
     @Environment(\._splitColumn) private var splitColumn
 
-    /// R13: a desktop split view's column shows no bar of its own when the
-    /// bar would be empty (no title, items or back button); the window
-    /// toolbar is the column's bar, as on desktop systems. (Decided here,
-    /// not in the page: the page must not depend on its toolbar, which its
-    /// content registers.)
     private var isEmpty: Bool {
         splitColumn != nil && desktop && !canGoBack && context.title == nil
             && !context.toolbar.contains { !$0.entries.isEmpty }
@@ -678,9 +598,6 @@ struct NavigationBar: View {
     }
 }
 
-// MARK: - Registrations
-
-/// `navigationTitle`, bar options and toolbars register with their page.
 struct PageRegistrationModifier: PrimitiveModifier {
     let apply: @MainActor (NavigationPageContext, ObjectIdentifier) -> Void
     let remove: (@MainActor (NavigationPageContext, ObjectIdentifier) -> Void)?
@@ -702,7 +619,6 @@ struct PageRegistrationModifier: PrimitiveModifier {
     }
 }
 
-/// `navigationDestination(for:)` registers with its stack.
 struct DestinationRegistrationModifier<D: Hashable, Destination: View>: PrimitiveModifier {
     let destination: (D) -> Destination
 
@@ -717,7 +633,6 @@ struct DestinationRegistrationModifier<D: Hashable, Destination: View>: Primitiv
     func _updated(old: DestinationRegistrationModifier, node: ViewNode) { sync(node) }
 }
 
-/// `navigationDestination(isPresented:)`: pushes while the binding is true.
 struct PresentedDestinationModifier<Destination: View>: PrimitiveModifier {
     let isPresented: Binding<Bool>
     let destination: () -> Destination
@@ -795,14 +710,12 @@ extension View {
 }
 
 extension Text {
-    /// The text's characters without styling (titles).
     package var plainString: String {
         let r = resolve(in: EnvironmentValues())
         return r.string
     }
 }
 
-/// Title display modes of a navigation bar.
 public enum NavigationBarItem {
     public enum TitleDisplayMode: Hashable, Sendable { case automatic, inline, large }
 }
@@ -815,10 +728,6 @@ public struct ToolbarTitleDisplayMode: Hashable, Sendable {
     public static let inlineLarge = ToolbarTitleDisplayMode(kind: 3)
 }
 
-// MARK: - NavigationLink
-
-/// A button that pushes a value (or a destination view) on the enclosing
-/// navigation stack.
 public struct NavigationLink<Label: View, Destination: View>: View {
     let label: Label
     let value: AnyHashable?
@@ -892,7 +801,6 @@ extension NavigationLink where Label == Text {
     }
 }
 
-/// The deprecated container: a stack on this host.
 public struct NavigationView<Content: View>: View {
     let content: Content
     public init(@ViewBuilder content: () -> Content) { self.content = content() }

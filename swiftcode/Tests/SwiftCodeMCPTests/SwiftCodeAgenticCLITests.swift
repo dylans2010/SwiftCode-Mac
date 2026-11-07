@@ -4,32 +4,16 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Agentic build-system CLI / container tools
-/// (Wave 8, slice E) against `Samples/AgentSamples/Greeter` (a
-/// copy). No test runs a CLI with side effects: live runs use only
-/// read-only actions (`--version`, `pip show pip`, `go build` in a
-/// Swift package — which fails fast with no Go files — and
-/// `docker logs` of a container that does not exist), and every
-/// other live check is gated on the binary actually being on `PATH`
-/// in this environment. A missing binary is the honest failure
-/// (`was not found`, naming the binary), never invented output.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAgenticCLITests {
-    /// The 21 Wave 8 slice E Agentic tool IDs, verified live from
-    /// Legacy's `ListTools.swift` (`AgentTool.identifier`).
     static let agenticCLIIDs = ["cocoapods", "carthage", "android_build", "gradle", "npm", "pnpm", "yarn", "bun",
                                 "cargo", "go_build", "python_pip", "java_maven", "dotnet_cli", "flutter",
                                 "react_native", "expo", "docker_build", "docker_run", "docker_compose",
                                 "kubernetes_apply", "view_container_logs"]
 
-    /// Opens a copy of Greeter and installs the ported Agentic CLI
-    /// tools on the server (same shape as Wave 2's `opened`; the
-    /// coordinator wires `agenticCLITools` into `installTools()`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` already wires
-        // `agenticCLITools`, so a plain `+=` would register them twice.
         let ported = Set(host.agenticCLITools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.agenticCLITools
         let r = try await host.server.callTool("workspace_open", ["path": .string(sample.url.path)])
@@ -37,8 +21,6 @@ import SwiftCodeIDECore
         return host
     }
 
-    /// Whether `name` resolves to an executable on this process's
-    /// `PATH` (the same lookup the tools use).
     func binaryOnPath(_ name: String) -> Bool {
         let pathEnv = ProcessInfo.processInfo.environment["PATH"] ?? ""
         return pathEnv.split(separator: ":").contains { dir in
@@ -69,8 +51,6 @@ import SwiftCodeIDECore
             "docker_build": ["path", "tag"], "docker_run": ["image"], "docker_compose": ["path", "action"],
             "kubernetes_apply": ["path"], "view_container_logs": ["containerID"],
         ]
-        // Legacy's verbatim descriptions (from each tool's
-        // `description` in `SwiftCode/Tools/Agentic/`).
         let expectedDescriptions: [String: String] = [
             "cocoapods": "Runs CocoaPods commands.", "carthage": "Runs Carthage commands.",
             "android_build": "Builds an Android project.", "gradle": "Runs Gradle commands.",
@@ -102,9 +82,6 @@ import SwiftCodeIDECore
                         "\(tool.name) must be a gated write/execution tool")
             }
         }
-        // The host serves them once installed (the coordinator wires
-        // `agenticCLITools` into `installTools()`; filter-first so they
-        // are not registered twice).
         let installed = Set(host.agenticCLITools.map(\.name))
         host.server.tools = host.server.tools.filter { !installed.contains($0.name) } + host.agenticCLITools
         let served = host.server.tools.map(\.name)
@@ -126,8 +103,6 @@ import SwiftCodeIDECore
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // Empty strings pass the schema (they are present) and reach
-        // the handler, which reports Legacy's exact messages.
         let cases: [(String, [String: AnyJSON], String)] = [
             ("cocoapods", ["action": .string(""), "path": .string("")], "Missing action or path"),
             ("carthage", ["action": .string(""), "path": .string("")], "Missing action or path"),
@@ -171,9 +146,6 @@ import SwiftCodeIDECore
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // One-argument wrappers: when the binary is absent the tool
-        // fails naming it; when present, `--version` is a read-only,
-        // side-effect-free run that must report its real output.
         let versionTools: [(String, String)] = [
             ("cocoapods", "pod"), ("carthage", "carthage"), ("gradle", "gradle"), ("npm", "npm"),
             ("pnpm", "pnpm"), ("yarn", "yarn"), ("bun", "bun"), ("cargo", "cargo"),
@@ -191,18 +163,12 @@ import SwiftCodeIDECore
                 #expect(r.firstText.contains("command '\(program)' was not found"), "\(id): \(r.firstText)")
             }
         }
-        // `react_native` / `expo` run through `npx`: when `npx` is
-        // absent the failure names it; when present no live call is
-        // made here, because `npx react-native` would fetch the
-        // package from the network.
         for id in ["react_native", "expo"] {
             if !binaryOnPath("npx") {
                 let r = try await host.server.callTool(id, ["action": .string("--version"), "path": .string(".")])
                 #expect(r.isToolError && r.firstText.contains("command 'npx' was not found"), "\(id): \(r.firstText)")
             }
         }
-        // `go build` in a Swift package fails fast with no Go files
-        // when `go` is present; when absent it names the binary.
         if binaryOnPath("go") {
             let r = try await host.server.callTool("go_build", ["path": .string(".")])
             #expect(r.isToolError && r.firstText.contains("exit code"), "go build in a Swift package: \(r.firstText)")
@@ -211,16 +177,10 @@ import SwiftCodeIDECore
             let r = try await host.server.callTool("go_build", ["path": .string(".")])
             #expect(r.isToolError && r.firstText.contains("command 'go' was not found"), "go_build: \(r.firstText)")
         }
-        // `gradle assembleDebug` is not run live when gradle is
-        // present (daemon startup plus a build attempt in a
-        // non-Android directory); only the missing-binary branch is
-        // asserted here.
         if !binaryOnPath("gradle") && !FileManager.default.isExecutableFile(atPath: sample.path("gradlew")) {
             let r = try await host.server.callTool("android_build", ["path": .string(".")])
             #expect(r.isToolError && r.firstText.contains("command 'gradle' was not found"), "android_build: \(r.firstText)")
         }
-        // `pip show pip` is a read-only query when `pip` is present;
-        // when absent the failure names `pip`.
         if binaryOnPath("pip") || binaryOnPath("pip3") {
             let r = try await host.server.callTool("python_pip", ["action": .string("show"), "package": .string("pip")])
             #expect(!r.isToolError, "pip show pip must run honestly: \(r.firstText)")
@@ -229,10 +189,6 @@ import SwiftCodeIDECore
             let r = try await host.server.callTool("python_pip", ["action": .string("show"), "package": .string("pip")])
             #expect(r.isToolError && r.firstText.contains("command 'pip' was not found"), "python_pip: \(r.firstText)")
         }
-        // Docker / kubectl tools are never run live when the binary
-        // is present (image builds, container runs, and `kubectl
-        // apply` all have side effects); only the missing-binary
-        // branch is asserted here.
         if !binaryOnPath("docker") {
             let build = try await host.server.callTool("docker_build", ["path": .string("."), "tag": .string("greeter:latest")])
             #expect(build.isToolError && build.firstText.contains("command 'docker' was not found"), "docker_build: \(build.firstText)")
@@ -241,8 +197,6 @@ import SwiftCodeIDECore
             let logs = try await host.server.callTool("view_container_logs", ["containerID": .string("no-such-container")])
             #expect(logs.isToolError && logs.firstText.contains("command 'docker' was not found"), "view_container_logs: \(logs.firstText)")
         } else {
-            // `docker logs` of a container that does not exist is a
-            // pure read: docker itself must fail honestly, exit 1.
             let logs = try await host.server.callTool("view_container_logs", ["containerID": .string("no-such-container-xyz")])
             #expect(logs.isToolError && logs.firstText.contains("exit code 1"), "docker logs of a missing container: \(logs.firstText)")
         }
@@ -268,9 +222,6 @@ import SwiftCodeIDECore
         let r = try await host.server.callTool("npm", ["action": .string("install"), "path": .string(".")])
         #expect(r.isToolError, "a writes:true execution tool must not run under the read-only policy")
         #expect(r.firstText.contains("read-only"), "read-only refusal: \(r.firstText)")
-        // The one pure read is not refused by the policy: it fails
-        // only on the missing binary (or on docker's own error),
-        // never on the read-only message.
         let logs = try await host.server.callTool("view_container_logs", ["containerID": .string("no-such-container")])
         #expect(!logs.firstText.contains("read-only"), "view_container_logs must not be refused by the read-only policy: \(logs.firstText)")
     }

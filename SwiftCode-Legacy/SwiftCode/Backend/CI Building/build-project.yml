@@ -1,10 +1,8 @@
 name: Build Project
-
 on:
   push:
     branches: [ build-project ]
   workflow_dispatch:
-
 jobs:
   generate:
     name: Generate Xcode Project
@@ -12,10 +10,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
       - name: Install XcodeGen
         run: brew install xcodegen
-
       - name: Resolve CI configuration
         id: ci_config
         run: |
@@ -23,7 +19,6 @@ jobs:
           import json
           import os
           from pathlib import Path
-
           defaults = {
             'platform': 'iOS',
             'deploymentTarget': '16.0',
@@ -31,7 +26,6 @@ jobs:
             'schemeName': 'Test',
             'bundleIdentifier': f"com.swiftcode.userproject.{os.environ.get('GITHUB_REPOSITORY', 'app').split('/')[-1].lower()}"
           }
-
           config_path = Path('.swiftcode/ci-build-config.json')
           if config_path.exists():
             with config_path.open('r', encoding='utf-8') as fh:
@@ -42,7 +36,6 @@ jobs:
             defaults['bundleIdentifier'] = loaded.get('bundleIdentifier', defaults['bundleIdentifier'])
             family = loaded.get('targetDeviceFamily', '')
             defaults['targetDeviceFamily'] = {'iPhone':'1','iPad':'2','iPhone + iPad':'1,2'}.get(family, defaults['targetDeviceFamily'])
-
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
             out.write(f"platform={defaults['platform']}\n")
             out.write(f"deployment_target={defaults['deploymentTarget']}\n")
@@ -50,13 +43,11 @@ jobs:
             out.write(f"scheme_name={defaults['schemeName']}\n")
             out.write(f"bundle_identifier={defaults['bundleIdentifier']}\n")
           PY
-
       - name: Detect Project Name and Sources
         id: detect
         run: |
           PROJECT_NAME=$(basename "$GITHUB_REPOSITORY")
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_OUTPUT
-
           SOURCES=""
           for dir in Sources Views Features; do
             if [ -d "$dir" ]; then
@@ -67,14 +58,11 @@ jobs:
               fi
             fi
           done
-
           if [ -z "$SOURCES" ]; then
             echo "::error::No source folders found (Sources/, Views/, Features/). At least one is required."
             exit 1
           fi
-
           printf "SOURCES<<EOF\n%s\nEOF\n" "$SOURCES" >> $GITHUB_OUTPUT
-
       - name: Create Info.plist if missing
         run: |
           if [ ! -f "Info.plist" ]; then
@@ -84,11 +72,9 @@ jobs:
           <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>\$(PRODUCT_BUNDLE_IDENTIFIER)</string></dict></plist>
           EOF
           fi
-
       - name: Generate project.yml
         run: |
           PROJECT_NAME="${{ steps.detect.outputs.PROJECT_NAME }}"
-
           cat <<EOF > project.yml
           name: $PROJECT_NAME
           options:
@@ -121,10 +107,8 @@ jobs:
                 targets:
                   ${{ steps.ci_config.outputs.scheme_name }}: all
           EOF
-
       - name: Run XcodeGen
         run: xcodegen generate
-
       - name: Upload Project Artifacts
         uses: actions/upload-artifact@v4
         with:

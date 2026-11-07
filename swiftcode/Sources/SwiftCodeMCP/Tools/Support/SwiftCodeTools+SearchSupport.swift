@@ -1,24 +1,5 @@
 import Foundation
 
-/// Shared workspace scanning for the ported Legacy search tools (Wave 3).
-///
-/// Behaviour source: Legacy's `AssistSearchFunctions`,
-/// `AssistWorkspaceScan` / `AssistWorkspacePaths` /
-/// `AssistToolingSupport` (Dylan's own code, ported under MIT), as
-/// specified in `specs/ide/assist-search-git-tools.md`. The rules that
-/// matter:
-///
-/// * `files(under:)` skips hidden files and any file whose *first*
-///   path component (relative to the root) is a skipped directory
-///   (`.git`, `.build`, `DerivedData`, …) — only the first component
-///   is checked, as in Legacy.
-/// * `searchText` skips hidden files, files over 1 MB, binary-extension
-///   files, and files that do not decode as UTF-8. Literal matches are
-///   case-insensitive; regex matches use a case-insensitive
-///   `NSRegularExpression`, one match per matching line.
-/// * `enumeratedFiles` (Legacy's `AssistToolingSupport` variant) keeps
-///   regular files only, skips hidden files, and drops files over
-///   `maxFileSize` (default 300 KB).
 enum SearchWorkspace {
     static let skippedDirs: Set<String> = [
         ".git", ".build", "build", "DerivedData", ".swiftpm",
@@ -30,8 +11,6 @@ enum SearchWorkspace {
         "swift", "m", "mm", "h", "hpp", "c", "cpp", "js", "ts", "tsx", "jsx", "py", "rb", "java", "kt", "go", "rs",
     ]
 
-    /// Enumerate files under `root`, skipping hidden files and skipped
-    /// top-level directories. Directories are never returned.
     nonisolated static func files(under root: URL, extensions: Set<String>? = nil, maxFiles: Int = 20000) -> [URL] {
         var results: [URL] = []
         let fm = FileManager.default
@@ -59,9 +38,6 @@ enum SearchWorkspace {
         files(under: root, extensions: ["swift"], maxFiles: maxFiles)
     }
 
-    /// Regular files only, hidden files skipped, files over
-    /// `maxFileSize` dropped. No skipped-directory rule (Legacy's
-    /// `AssistToolingSupport.enumeratedFiles` has none).
     nonisolated static func enumeratedFiles(at root: URL, allowedExtensions: Set<String>? = nil, maxFileSize: Int = 300_000) -> [URL] {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
@@ -81,7 +57,6 @@ enum SearchWorkspace {
         (try? String(contentsOf: url, encoding: .utf8))?.components(separatedBy: .newlines)
     }
 
-    /// Workspace-relative display path (`"."` for the root itself).
     nonisolated static func relative(_ url: URL, root: URL) -> String {
         let rootPath = root.standardized.path
         let path = url.standardized.path
@@ -92,13 +67,10 @@ enum SearchWorkspace {
         return path
     }
 
-    /// `true` for the extensions Legacy counts as code files.
     nonisolated static func isCodeFile(_ url: URL) -> Bool {
         codeExtensions.contains(url.pathExtension.lowercased())
     }
 
-    /// Function name declared on a `func ` line (strips generics and
-    /// parameters), mirroring Legacy's `AssistWorkspaceScan`.
     nonisolated static func declaredFuncName(_ line: String) -> String? {
         let t = line.trimmingCharacters(in: .whitespaces)
         guard t.hasPrefix("func ") || t.contains(" func ") else { return nil }
@@ -108,11 +80,6 @@ enum SearchWorkspace {
         return name.isEmpty ? nil : name
     }
 
-    /// Searches every eligible file under `directory` for `pattern`,
-    /// returning matching lines as `"<line>: <text>"` per file, sorted
-    /// by path. Literal matches are case-insensitive; regex matches use
-    /// a case-insensitive `NSRegularExpression` (an invalid pattern
-    /// throws, as in Legacy).
     nonisolated static func searchText(in directory: URL, pattern: String, isRegex: Bool) throws -> [(url: URL, matches: [String])] {
         let fm = FileManager.default
         let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
@@ -145,25 +112,11 @@ enum SearchWorkspace {
     }
 }
 
-/// One skill in the workspace's local skills library: a `SKILL.md` (or
-/// `SKILLS.md` / `*.SKILL.md`) file, usually under
-/// `.claude/skills/<name>/` or `.agents/skills/<name>/`.
-///
-/// SwiftCode has no equivalent of Legacy's `SkillIndex` (which indexed
-/// `~/Library/Application Support/SwiftCode/Skills/` plus imported
-/// Claude/Codex/VSCode/Antigravity libraries, with enable/disable
-/// toggles and a disk cache). The port indexes the workspace's own
-/// skill files instead — the surface SwiftCode actually has (its own
-/// installed skill lives at `.claude/skills/swiftcode/SKILL.md` and
-/// `.agents/skills/swiftcode/SKILL.md`; see `AgentSkill.swift`). Metadata
-/// parsing and scoring mirror Legacy's `SkillIndex` behaviour only.
 struct SearchSkill: Sendable {
     var id: String
     var name: String
     var description: String
-    /// Absolute path of the skill file.
     var path: String
-    /// Display name of the source (`"SwiftCode"`, `"Claude"`, …).
     var sourceKind: String
     var sourceDescription: String
     var tags: [String]
@@ -172,10 +125,6 @@ struct SearchSkill: Sendable {
 }
 
 enum SearchSkillIndex {
-    /// Token-scored search over the workspace's skill files, highest
-    /// score first (Legacy's scoring: exact name +100, name contains
-    /// +50, per token name +20, description +10, tag +15, body +5).
-    /// An empty query returns the first `limit` skills by name.
     nonisolated static func search(query: String, limit: Int, in root: URL) -> [SearchSkill] {
         let skills = collectSkills(in: root)
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -204,11 +153,6 @@ enum SearchSkillIndex {
         return scored.prefix(limit).map(\.skill)
     }
 
-    /// Every skill file under `root`, by name. One descriptor per
-    /// containing directory (the first skill file found there wins).
-    /// Unlike Legacy's `SkillIndex` (whose library root is not
-    /// hidden), this walk does NOT skip hidden files: SwiftCode's own
-    /// skill lives under `.claude/skills/`. Only `.git` is skipped.
     nonisolated static func collectSkills(in root: URL) -> [SearchSkill] {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: []) else { return [] }
@@ -237,10 +181,6 @@ enum SearchSkillIndex {
         return results
     }
 
-    /// Legacy's `SkillIndex.parseSkillMetadata`, adapted: the default
-    /// source is the workspace library (`"SwiftCode"`), and a path under
-    /// `.claude/skills` or `.agents/skills` takes that source unless
-    /// the frontmatter `source:` says otherwise.
     nonisolated static func parseSkillMetadata(from markdown: String, filename: String, directoryURL: URL, fileURL: URL) -> SearchSkill {
         var name = directoryURL.lastPathComponent
         if name.isEmpty || name == "." || name == "/" {

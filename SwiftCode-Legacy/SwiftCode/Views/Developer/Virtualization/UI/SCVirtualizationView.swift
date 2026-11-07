@@ -13,7 +13,6 @@ public struct SCVirtualizationView: View {
                 if let project = sessionStore.activeProject {
                     VirtualizationWindowManager.shared.showWindow(for: project)
                 } else {
-                    // Fallback to a professional workspace if none active
                     let fallbackProject = Project(name: "Virtualization Workspace")
                     VirtualizationWindowManager.shared.showWindow(for: fallbackProject)
                 }

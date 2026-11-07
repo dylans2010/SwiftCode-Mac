@@ -1,10 +1,4 @@
 #!/bin/sh
-# Run one MKProbe mode on a booted ycode-test-mapkit* simulator and drive it:
-# the app prints "SHOT <name>" (take a screenshot) and "READY <action>"
-# (perform an input or host action); the run ends at "done".
-# Usage: run.sh <udid> <build-dir> <out-dir> <mode> [variant]
-#   TAG=<name> names the output files (default mode[-variant]); NOTRACE=1 skips svctrace.
-#   APP=MKProbeNoLoc runs the variant without a location usage string.
 DEV=$1; BUILD=$2; OUT=$3; MODE=$4; VAR=${5:-}
 TAG=${TAG:-$MODE${VAR:+-$VAR}}
 APP=${APP:-MKProbe}
@@ -19,7 +13,6 @@ tap() { "$HS" "$DEV" tap "$1" "$2" >/dev/null 2>&1; }
 dtap() { tap "$1" "$2" & P=$!; sleep 0.12; tap "$1" "$2"; wait $P; }
 mark() { echo "MKPDRIVER $(date +%H:%M:%S) $1" >> "$OUT/$TAG.driver"; }
 : > "$OUT/$TAG.driver"
-
 jobs > "$OUT/$TAG.jobs.before"
 ARGS="-mode $MODE"; [ -n "$VAR" ] && ARGS="$ARGS -variant $VAR"
 if [ -n "${NOTRACE:-}" ]; then

@@ -1,10 +1,3 @@
-// DatabaseTemplatesView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/Views/DatabaseTemplatesView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: synthetic seed-data generator (names/products/statuses, row counts 5/25/100/500)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DatabaseConnectionManager.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -15,10 +8,8 @@ struct DatabaseTemplatesView: View {
     @State private var alertMessage = ""
     @State private var showingAlert = false
 
-    // Panel tab selection
-    @State private var selectedTab = 0 // 0 = Layout Templates, 1 = Seed Data Generator
+    @State private var selectedTab = 0
 
-    // Seed Generator states
     @State private var tablesList: [DatabaseTable] = []
     @State private var selectedSeedTable = ""
     @State private var rowsCountToGenerate = 25
@@ -35,7 +26,6 @@ struct DatabaseTemplatesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Mode Selectors
             Picker("", selection: $selectedTab) {
                 Text("Database Structural Templates").tag(0)
                 Text("Synthetic Seed Data Generator").tag(1)
@@ -47,7 +37,6 @@ struct DatabaseTemplatesView: View {
             Divider()
 
             if selectedTab == 0 {
-                // Templates Grid List
                 VStack(spacing: 0) {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -108,7 +97,6 @@ struct DatabaseTemplatesView: View {
                     }
                 }
             } else {
-                // Seed Data Generator View
                 seedGeneratorPane()
             }
         }
@@ -125,7 +113,6 @@ struct DatabaseTemplatesView: View {
         }
     }
 
-    // MARK: - Seed Data Generator UI Pane
     @ViewBuilder
     private func seedGeneratorPane() -> some View {
         ScrollView {
@@ -204,7 +191,6 @@ struct DatabaseTemplatesView: View {
         }
     }
 
-    // MARK: - Logic Operations
     private func loadTablesList() {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite, let path = conn.sqliteFilePath else { return }
         Task {

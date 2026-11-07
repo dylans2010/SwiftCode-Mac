@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// T-LIFE (10-plan.md §3.2): scene-phase sequences of 06-app-and-components.md
-// §1 on the headless host — launch order, deactivate/background/foreground,
-// openURL (with the reference's confirmation order), termination, delegate
-// adaptors, windows.
-
 @MainActor
 enum LifeLog {
     static var entries: [String] = []
@@ -40,7 +35,6 @@ struct LifeApp: App {
     init() { LifeLog.add("App.init") }
 
     var body: some Scene {
-        // swiftlint:disable:next redundant_discardable_let - a side effect inside a view builder
         let _ = LifeLog.add("App.body \(phase)")
         WindowGroup { LifeRoot() }
             .onChange(of: phase) { old, new in LifeLog.add("App phase \(old)→\(new)") }
@@ -198,10 +192,9 @@ struct AppLifecycleTests {
         #expect(host.windows[1].sceneID == "inspector")
         #expect(host.windows[1].phase == .active)
         tap(.red, at: 2.0)
-        #expect(host.windows.count == 2)   // a Window scene is unique
+        #expect(host.windows.count == 2)
         tap(.blue, at: 3.0)
         #expect(host.windows.count == 1)
-        // Closing the last window quits.
         backend.post(.window(main.platform.id, .closeRequested), at: 4.0)
         host.run(until: 4.0)
         #expect(host.windows.isEmpty)
@@ -214,7 +207,6 @@ struct AppLifecycleTests {
         var sizes: [CGSize] = []
         let h = Harness(size: CGSize(width: 300, height: 200)) {
             GeometryReader { g in
-                // swiftlint:disable:next redundant_discardable_let - a side effect inside a view builder
                 let _ = sizes.append(g.size)
                 Color.clear
             }

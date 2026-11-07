@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct APILatencyTrackerView: View {
@@ -30,7 +27,7 @@ struct APILatencyTrackerView: View {
                 }
             }
         }
-        
+
         .navigationTitle("API Latency")
         .background(Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea())
     }

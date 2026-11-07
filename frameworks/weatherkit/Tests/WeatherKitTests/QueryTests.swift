@@ -1,5 +1,3 @@
-// C-QUERY (plan.md §2): request composition against a recording backend
-// (behavior.md §1–§2, api.md §2.1).
 import CoreLocation
 import Foundation
 import Testing
@@ -84,7 +82,7 @@ struct QueryTests {
     @Test("behavior.md §1: date ranges are passed with exactly the caller's dates; no range sends none")
     func dateRanges() async throws {
         let (service, backend) = try makeService()
-        let start = Date(timeIntervalSince1970: 1_768_523_402)  // 2026-01-16T00:30:02Z
+        let start = Date(timeIntervalSince1970: 1_768_523_402)
         let end = start.addingTimeInterval(3 * 86_400 + 1)
         let daily = try await service.weather(for: fixtureLocation, including: .daily(startDate: start, endDate: end))
         #expect(products(backend) == [request(.forecastDaily, .dates(start: start, end: end))])

@@ -1,8 +1,4 @@
 // swift-tools-version: 5.9
-// A macro package for the package samples: `#greeting("name")` expands to a
-// string literal at compile time. The macro implementation is built for the
-// host and loaded by the compiler (swift-syntax, Apache-2.0, is fetched by
-// SwiftPM).
 import CompilerPluginSupport
 import PackageDescription
 

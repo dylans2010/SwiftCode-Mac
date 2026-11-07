@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/PreviewLogsView.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 import AppKit
 
@@ -25,7 +23,6 @@ public struct PreviewLogsView: View {
     private var filteredLogs: [PreviewDiagnosticsRecord] {
         var result = diagnostics.logs
 
-        // Category Filter
         switch selectedCategoryFilter {
         case .all:
             break
@@ -41,7 +38,6 @@ public struct PreviewLogsView: View {
             result = result.filter { ["diagnostics", "error", "cache", "llm"].contains($0.category.lowercased()) }
         }
 
-        // Search Filter
         if !searchQuery.isEmpty {
             let q = searchQuery.lowercased()
             result = result.filter { $0.message.lowercased().contains(q) || $0.category.lowercased().contains(q) }
@@ -52,10 +48,8 @@ public struct PreviewLogsView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header/Controls
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
-                    // Search field
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.secondary)
@@ -99,7 +93,6 @@ public struct PreviewLogsView: View {
                     .help("Clear Logs")
                 }
 
-                // Log category tabs
                 Picker("Filter", selection: $selectedCategoryFilter) {
                     ForEach(LogCategoryFilter.allCases) { filter in
                         Text(filter.rawValue).tag(filter)
@@ -131,19 +124,16 @@ public struct PreviewLogsView: View {
                             ForEach(filteredLogs) { log in
                                 let isSelected = selectedLogIDs.contains(log.id)
                                 HStack(alignment: .top, spacing: 8) {
-                                    // Timestamp
                                     Text(formattedTime(log.timestamp))
                                         .font(.system(.caption2, design: .monospaced))
                                         .foregroundColor(.secondary)
 
-                                    // Category Tag
                                     Text("[\(log.category.uppercased())]")
                                         .font(.system(.caption, design: .monospaced))
                                         .bold()
                                         .foregroundColor(categoryColor(log.category))
                                         .frame(width: 80, alignment: .leading)
 
-                                    // Message
                                     Text(log.message)
                                         .font(.system(.caption, design: .monospaced))
                                         .foregroundColor(.primary)

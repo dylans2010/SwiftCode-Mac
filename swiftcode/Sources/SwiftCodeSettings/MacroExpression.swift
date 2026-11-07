@@ -1,11 +1,8 @@
 import Foundation
 
-/// A parsed build-setting value: literal text mixed with macro references.
-/// See `specs/build-settings.md` §2.
 public struct MacroExpression: Equatable, Sendable {
     public indirect enum Segment: Equatable, Sendable {
         case literal(String)
-        /// `$(NAME:op1:op2=arg)`. The name may itself contain references.
         case reference(name: MacroExpression, operators: [Operator])
     }
 
@@ -23,10 +20,8 @@ public struct MacroExpression: Equatable, Sendable {
         segments = p.parseSequence(terminators: [])
     }
 
-    /// True if the expression contains no references.
     public var isLiteral: Bool { segments.allSatisfy { if case .literal = $0 { true } else { false } } }
 
-    /// Names referenced directly (not through nested names).
     public var referencedNames: [String] {
         segments.compactMap {
             if case .reference(let name, _) = $0, name.isLiteral { return name.literalText }
@@ -43,7 +38,6 @@ public struct MacroExpression: Equatable, Sendable {
         var i = 0
         init(_ s: [Unicode.Scalar]) { self.s = s }
 
-        /// Parses until one of `terminators` (unconsumed) or the end.
         mutating func parseSequence(terminators: Set<Unicode.Scalar>) -> [Segment] {
             var out: [Segment] = []
             var lit = ""
@@ -68,7 +62,7 @@ public struct MacroExpression: Equatable, Sendable {
                             out.append(ref)
                             continue
                         }
-                        i = save  // unterminated: keep as literal text
+                        i = save
                         lit.unicodeScalars.append(c)
                         i += 1
                         continue
@@ -90,7 +84,6 @@ public struct MacroExpression: Equatable, Sendable {
             return out
         }
 
-        /// After `$(` or `${`: parses `name(:op(=arg)?)*` and the closing bracket.
         mutating func parseReference(close: Unicode.Scalar) -> Segment? {
             let name = MacroExpression(segments: parseSequence(terminators: [":", close]))
             var ops: [Operator] = []
@@ -117,13 +110,7 @@ public struct MacroExpression: Equatable, Sendable {
     }
 }
 
-// MARK: - Operators
-
-/// The `$(X:op)` retrieval operators, as observed from `xcodebuild`.
 public enum MacroOperators {
-    /// Applies operator `name` (with its `=argument`, if any) to `value`.
-    /// Unknown operators return `value` unchanged. See
-    /// `specs/build-settings.md` §2 (Operators).
     public static func apply(_ name: String, argument: String?, to value: String) -> String {
         switch name {
         case "quote": return quote(value)
@@ -141,21 +128,18 @@ public enum MacroOperators {
             let f = file(value)
             return f.lastIndex(of: ".").map { String(f[$0...]) } ?? ""
         case "standardizepath": return standardize(value)
-        case "absolutepath": return value  // relative inputs observed unchanged
+        case "absolutepath": return value
         case "default": return value.isEmpty ? (argument ?? "") : value
         case "not": return isTrue(value) ? "NO" : "YES"
         case "relativeto": return relative(from: value, to: argument ?? "")
-        default: return value  // unknown operators leave the value alone
+        default: return value
         }
     }
 
-    /// Whether a setting value counts as true: `YES`, `TRUE` or `1`,
-    /// case-insensitive. Everything else, including empty, is false.
     public static func isTrue(_ v: String) -> Bool {
         ["yes", "true", "1"].contains(v.lowercased())
     }
 
-    /// Backslash-escapes whitespace, quotes, and backslashes only.
     static func quote(_ v: String) -> String {
         var out = ""
         for ch in v.unicodeScalars {
@@ -167,7 +151,6 @@ public enum MacroOperators {
         return out
     }
 
-    /// Replaces disallowed characters (and a leading digit) with `replacement`.
     static func identifier(_ v: String, replacement: Character, allowUnicodeLetters: Bool, allowHyphen: Bool) -> String {
         var out = ""
         for (i, ch) in v.enumerated() {
@@ -191,8 +174,6 @@ public enum MacroOperators {
         return String(v[v.index(after: slash)...])
     }
 
-    /// Resolves `.`/`..` and drops trailing slashes in absolute paths;
-    /// relative paths are returned unchanged.
     static func standardize(_ v: String) -> String {
         guard v.hasPrefix("/") else { return v }
         var parts: [Substring] = []
@@ -204,8 +185,6 @@ public enum MacroOperators {
         return "/" + parts.joined(separator: "/")
     }
 
-    /// `$(X:relativeto=Y)` yields the path of Y relative to X when both are
-    /// absolute; otherwise X unchanged.
     static func relative(from base: String, to target: String) -> String {
         guard base.hasPrefix("/"), target.hasPrefix("/") else { return base }
         let a = standardize(base).split(separator: "/")

@@ -1,16 +1,10 @@
 import Foundation
 
-/// The platforms a preview payload is compiled for. See
-/// `specs/ide/previews.md` §Fast updates.
 public enum PreviewPlatform: String, Codable, Sendable, CaseIterable {
-    /// iPhone and iPad on a simulator (SwiftCode's simulator on the Linux host).
     case iOS
-    /// Apple Vision on a simulator.
     case visionOS
-    /// The Mac itself (offscreen rendering in a host process on the Mac).
     case macOS
 
-    /// The SDK name `xcrun --sdk` takes.
     public var sdk: String {
         switch self {
         case .iOS: "iphonesimulator"
@@ -19,7 +13,6 @@ public enum PreviewPlatform: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// The target triple for a deployment target ("27.0").
     public func targetTriple(deploymentTarget: String, architecture: String = "arm64") -> String {
         switch self {
         case .iOS: "\(architecture)-apple-ios\(deploymentTarget)-simulator"
@@ -28,13 +21,8 @@ public enum PreviewPlatform: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// UIKit platforms host previews in `UIViewController`s, the Mac in
-    /// `NSViewController`s.
     public var usesUIKit: Bool { self != .macOS }
 
-    /// The platform of a destination (`Destination.platform`, a target's
-    /// `SDKROOT` or `SUPPORTED_PLATFORMS` word); nil when previews do not
-    /// support it.
     public init?(destinationPlatform p: String) {
         switch p.lowercased() {
         case "ios", "ios simulator", "iphonesimulator", "iphoneos", "ipados": self = .iOS
@@ -45,15 +33,11 @@ public enum PreviewPlatform: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// What a payload's previews are made of: UIKit view controllers (iOS,
-/// iPadOS, visionOS simulators), AppKit view controllers (the Mac), or
-/// OpenViews views that the payload renders itself (the Linux IDE).
 public enum PreviewPayloadKit: Sendable, Equatable {
     case uiKit, appKit, openViews
     public init(_ platform: PreviewPlatform) { self = platform.usesUIKit ? .uiKit : .appKit }
 }
 
-/// One file whose previews go into a payload, with its previews.
 public struct PreviewedFile: Equatable, Sendable {
     public var url: URL
     public var previews: [PreviewDeclaration]
@@ -63,30 +47,15 @@ public struct PreviewedFile: Equatable, Sendable {
     }
 }
 
-/// Generates the sources of a preview **payload**: a dynamic library that
-/// holds the previewed module's code and one factory per preview. A
-/// long-lived preview host loads each new payload and asks it for view
-/// controllers (`swiftcode_preview_make`), so an edit costs one compile of the
-/// payload, not a rebuild and relaunch of an app. See
-/// `specs/ide/previews.md` §Fast updates.
 public enum PreviewPayloadGenerator {
-    /// The C entry points every payload exports.
     public static let countSymbol = "swiftcode_preview_count"
     public static let makeSymbol = "swiftcode_preview_make"
     public static let supportFileName = "SwiftCodePreviewSupport.swift"
 
-    /// The support file: `__swiftcodeHost` overloads that turn a preview body
-    /// (SwiftUI content, a view controller or a view) into a view
-    /// controller. The UIKit and AppKit overloads are disfavoured: a body of
-    /// SwiftUI content resolves to the `@ViewBuilder` overload, a body that
-    /// returns a controller or a view does not type-check as content and
-    /// resolves to the matching UIKit/AppKit overload (the shapes of the
-    /// `#Preview` macro's public declarations).
     public static func supportFile(platform: PreviewPlatform, count: Int) -> String {
         supportFile(kit: PreviewPayloadKit(platform), count: count)
     }
 
-    /// The support file for a kit (`openViews`: `openViewsSupportFile`).
     public static func supportFile(kit payloadKit: PreviewPayloadKit, count: Int) -> String {
         if payloadKit == .openViews { return openViewsSupportFile(count: count) }
         let platform: PreviewPlatform = payloadKit == .uiKit ? .iOS : .macOS
@@ -136,9 +105,6 @@ public enum PreviewPayloadGenerator {
         return out
     }
 
-    /// Splits a `#Preview` body into `@Previewable` declarations (stored
-    /// properties of a wrapper view, per the documentation of
-    /// `@Previewable`) and the remaining content.
     public static func splitPreviewable(_ body: String) -> (properties: [String], content: String) {
         var props: [String] = [], rest: [Substring] = []
         for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -148,18 +114,11 @@ public enum PreviewPayloadGenerator {
         return (props, rest.joined(separator: "\n"))
     }
 
-    /// The wrappers appended to a previewed file's copy (so they see its
-    /// `fileprivate` declarations): one `__swiftcodePreview_<k>()` per preview,
-    /// numbered from `first`. A body with `@Previewable` lines becomes a
-    /// wrapper view whose stored properties they are.
     public static func wrappers(_ previews: [PreviewDeclaration], first: Int, platform: PreviewPlatform) -> String {
         wrapperText(previews, first: first, kit: PreviewPayloadKit(platform)).text
     }
 
-    /// The wrappers and, per preview, the 0-based line within the text on
-    /// which its body starts.
     static func wrapperText(_ previews: [PreviewDeclaration], first: Int, kit: PreviewPayloadKit) -> (text: String, bodyLines: [Int]) {
-        // OpenViews previews are views (`AnyView`), rendered by the payload itself.
         let vc = switch kit { case .uiKit: "UIViewController"; case .appKit: "NSViewController"; case .openViews: "AnyView" }
         let imports = switch kit { case .uiKit: "import SwiftUI\nimport UIKit\n"; case .appKit: "import SwiftUI\nimport AppKit\n"; case .openViews: "import SwiftUI\n" }
         var out = "\n// SwiftCode previews (generated)\n" + imports
@@ -187,14 +146,9 @@ public enum PreviewPayloadGenerator {
         return (out, lines)
     }
 
-    /// Maps a line of a source copy back to the user's file: lines of the
-    /// file itself map one to one (blanking keeps them); a line in an
-    /// appended wrapper maps into the `#Preview` body it came from.
     public struct LineMap: Equatable, Sendable {
         public var original: URL
-        /// Lines 1…`originalLines` of the copy are the file's own.
         public var originalLines: Int
-        /// (first copy line of a body, the body's line in the file), by copy line.
         public var bodies: [(copyLine: Int, fileLine: Int)]
 
         public func fileLine(_ copyLine: Int) -> Int {
@@ -209,34 +163,19 @@ public enum PreviewPayloadGenerator {
         }
     }
 
-    /// A generated payload's sources: the module's files (copies, previews
-    /// and entry points blanked, wrappers appended to previewed files) and
-    /// the support file.
     public struct Sources: Equatable, Sendable {
-        /// Every source to compile, in a stable order.
         public var files: [URL]
-        /// Source copy path → how its lines map to the user's file.
         public var lineMaps: [String: LineMap]
-        /// The previews in payload order (index = the factory's index).
         public var previews: [PreviewDeclaration]
-        /// Which previewed file each preview comes from.
         public var previewFiles: [URL]
-        /// The files whose text changed on disk in this generation.
         public var changed: [URL]
     }
 
-    /// Writes the payload sources for `moduleFiles` into `directory`
-    /// (`<n>_<File>.swift`; a file is rewritten only when its text changed,
-    /// stale files are removed). `previewed` lists the files whose previews
-    /// the payload exports (the focused file, then a pinned one); each must
-    /// be one of `moduleFiles`, else it is added. `texts` overrides a file's
-    /// text (an unsaved editor).
     public static func generate(moduleFiles: [URL], previewed: [PreviewedFile], platform: PreviewPlatform,
                                 into directory: URL, texts: [URL: String] = [:]) throws -> Sources {
         try generate(moduleFiles: moduleFiles, previewed: previewed, kit: PreviewPayloadKit(platform), into: directory, texts: texts)
     }
 
-    /// `generate` for a kit (`openViews`: payloads the Linux IDE's preview host loads).
     public static func generate(moduleFiles: [URL], previewed: [PreviewedFile], kit: PreviewPayloadKit,
                                 into directory: URL, texts: [URL: String] = [:]) throws -> Sources {
         let fm = FileManager.default
@@ -260,7 +199,6 @@ public enum PreviewPayloadGenerator {
             var map = LineMap(original: url, originalLines: own, bodies: [])
             if let first = firstIndex[url], let p = previewed.first(where: { $0.url.standardizedFileURL == url }) {
                 let w = wrapperText(p.previews, first: first, kit: kit)
-                // The wrapper text starts with a newline that ends the file's last line.
                 map.bodies = zip(w.bodyLines, p.previews).map { (own + $0.0, $0.1.bodyLine) }
                 text += w.text
             }
@@ -280,7 +218,6 @@ public enum PreviewPayloadGenerator {
         return Sources(files: files, lineMaps: maps, previews: order, previewFiles: fromFile, changed: changed)
     }
 
-    /// Writes `text` only when it differs; true when it was written.
     @discardableResult
     public static func write(_ text: String, to url: URL) throws -> Bool {
         if (try? String(contentsOf: url, encoding: .utf8)) == text { return false }

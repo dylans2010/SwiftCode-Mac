@@ -1,7 +1,3 @@
-// urlprobe: our own probe (Ycode stage 9, agent J). For each path: stat/lstat,
-// access(), NSURL resource values (all public keys), getattrlist with the
-// attribute set LaunchServices' file nodes request (decoded), and fcntl/xattr
-// answers. Used to compare the Mac's simulator (level 3) with Ycode.
 #import <Foundation/Foundation.h>
 #include <sys/attr.h>
 #include <sys/stat.h>

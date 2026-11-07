@@ -1,9 +1,3 @@
-// SimulatorDeviceCard.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorDeviceCard.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: dedicated device card (name, platform + OS version, state, status colour, platform icon)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 

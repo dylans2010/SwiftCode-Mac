@@ -1,26 +1,11 @@
-// Runtimes on a simulator host (#69; `runtime-onboarding.md` §11.5,
-// `sim-link.md`): the host's checks (reachable with an ssh key, paired over
-// SwiftCode's link, arm64 Linux, KVM, disk space, SwiftCode's version), the runtimes
-// in its data folder, and a copy of a runtime to it that shows progress and
-// resumes after an interruption. An offline host marks its rows unknown, not
-// missing. The checks reuse the wizard's checklist model (`RuntimeCheck`).
-
 import Foundation
 
-/// The simulator host the wizard sets up.
 public struct RuntimeHostSettings: Sendable, Equatable, Codable {
-    /// `user@host`: an ssh destination, keys only.
     public var destination = ""
-    /// SwiftCode's data folder on the host (`$SWIFTCODE_DATA`): runtimes, devices.
     public var dataDirectory = ""
-    /// The host's name on SwiftCode's link (`swiftcode sim remote pair … --name`),
-    /// when it differs from the ssh host name.
     public var linkName = ""
-    /// A built `swiftcode` on the host, for the version check (empty: on PATH).
     public var swiftcodePath = ""
-    /// Where the setup script writes `simhost.env` (empty: `~/.config/swiftcode`).
     public var configDirectory = ""
-    /// The link's ports on the host (`simhost.env`; another user's service may hold the defaults).
     public var tcpPort = 47800
     public var udpPort = 47801
 
@@ -31,18 +16,15 @@ public struct RuntimeHostSettings: Sendable, Equatable, Codable {
         self.swiftcodePath = swiftcodePath
     }
 
-    /// The host part of the destination ("user@sim-host" → "sim-host").
     public var hostName: String {
         let d = destination.split(separator: "@").last.map(String.init) ?? destination
         return d.split(separator: ":").first.map(String.init) ?? d
     }
 
-    /// The name its link peer has.
     public var peerName: String { linkName.isEmpty ? hostName : linkName }
 
     enum CodingKeys: String, CodingKey { case destination, dataDirectory, linkName, swiftcodePath, configDirectory, tcpPort, udpPort }
 
-    /// Fields saved by an older SwiftCode may be missing; they keep their defaults.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         destination = try c.decodeIfPresent(String.self, forKey: .destination) ?? ""
@@ -54,7 +36,6 @@ public struct RuntimeHostSettings: Sendable, Equatable, Codable {
         udpPort = try c.decodeIfPresent(Int.self, forKey: .udpPort) ?? 47801
     }
 
-    /// "47800/47801" (or "47800 47801") → the TCP and UDP ports; nil when not two ports.
     public static func ports(_ text: String) -> (Int, Int)? {
         let p = text.split(whereSeparator: { $0 == "/" || $0 == " " || $0 == "," }).compactMap { Int($0) }
         guard p.count == 2, p.allSatisfy({ (1...65535).contains($0) }) else { return nil }
@@ -66,15 +47,11 @@ public struct RuntimeHostSettings: Sendable, Equatable, Codable {
     public var runtimesFolder: String { RuntimeFolders.host(dataDirectory: dataDirectory) }
 }
 
-/// The host's checks (reachable, link, platform, KVM, disk, version, runtimes).
 public struct RuntimeHostChecker: Sendable {
     public var host: RuntimeHostSettings
     public var choices: RuntimeSetupChoices
-    /// Runs on the host (ssh with a key; tests answer for it).
     public var runner: any HeadsetCommandRunner
-    /// The hosts paired over SwiftCode's link on this machine (their names).
     public var pairedHosts: [String]
-    /// Runtime roots configured by hand for this host (Settings ▸ Simulators).
     public var configuredRoots: [String]
     public var localVersion: String
 
@@ -92,11 +69,6 @@ public struct RuntimeHostChecker: Sendable {
         public static let uname = "uname -sm"
         public static let kvm = RuntimeSetupChecker.Command.kvm
 
-        /// The named swiftcode's version; else the release the setup installed in
-        /// the data folder, read from its folder without running it (its
-        /// `manifest.json`, else `SwiftCode-<version>-<arch>`: the release's tools
-        /// may not start outside the Flatpak runtime); else the data folder's
-        /// or PATH's `swiftcode --version`.
         public static func version(_ swiftcodePath: String, dataDirectory: String = "") -> String {
             if !swiftcodePath.isEmpty { return "\(swiftcodePath.shellQuoted) --version 2>/dev/null | head -1" }
             let mine = (dataDirectory + "/bin/swiftcode").shellQuoted, host = (dataDirectory + "/bin/swiftcode-simhost").shellQuoted
@@ -106,8 +78,6 @@ public struct RuntimeHostChecker: Sendable {
                 + "if [ -n \"$v\" ]; then echo \"swiftcode $v (release folder)\"; elif [ -x \(mine) ]; then \(mine) --version; else swiftcode --version; fi; } 2>/dev/null | head -1"
         }
 
-        /// One line per runtime: `RT\t<path>\t<kilobytes or ->\t<SystemVersion.plist base64>\t<marker base64 or ->`.
-        /// SwiftCode's folders give their size from the marker (no `du` over 16 GB).
         public static func listRuntimes(folder: String, extraRoots: [String]) -> String {
             let roots = extraRoots.map(\.shellQuoted).joined(separator: " ")
             return """
@@ -137,7 +107,6 @@ public struct RuntimeHostChecker: Sendable {
         }
         let u = await runner.run(Command.uname)
         guard u.ok else {
-            // Offline or no key: every host row is unknown (§11.5), with the reason.
             report.checks.append(RuntimeCheck("host.reach", "Reachable", .unknown,
                                               "\(host.destination) did not answer, or does not accept your ssh key. The host may be offline.",
                                               fix: .command("ssh-copy-id \(host.destination)")))
@@ -179,7 +148,6 @@ public struct RuntimeHostChecker: Sendable {
                             fix: .command("swiftcode sim remote pair \(host.hostName) <code> --name \(host.peerName)"))
     }
 
-    /// `uname -sm` → arm64 Linux or not.
     public static func checkPlatform(_ unameSM: String) -> RuntimeCheck {
         let words = unameSM.split(separator: " ").map(String.init)
         let os = words.first ?? "", arch = words.last ?? ""
@@ -211,19 +179,16 @@ public struct RuntimeHostChecker: Sendable {
                             fix: .step(.prepare))
     }
 
-    /// The version in `swiftcode --version` ("swiftcode 1.0.0-beta.1 (…)" → "1.0.0-beta.1").
     public static func version(inVersionOutput s: String) -> String? {
         s.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "(" || $0 == ")" }).map(String.init)
             .first { $0.first?.isNumber == true && $0.contains(".") }
     }
 
-    /// A copy that stopped: its folder and how much is there.
     public struct Incoming: Sendable, Equatable {
         public var path: String
         public var bytes: Int64
     }
 
-    /// Parses `Command.listRuntimes`' lines.
     public static func parseListing(_ text: String, host: String, folder: String) -> (records: [SimRuntimeRecord], incoming: [Incoming]) {
         var records: [SimRuntimeRecord] = []
         var incoming: [Incoming] = []
@@ -248,13 +213,6 @@ public struct RuntimeHostChecker: Sendable {
     }
 }
 
-// MARK: - Copying a runtime to the host
-
-/// A copy of a RuntimeRoot to the host: `rsync --partial` into
-/// `<runtimes>/<name>.incoming/RuntimeRoot`, then the marker, then a rename
-/// into place. Interrupted, the `.incoming` folder stays; the same copy run
-/// again resumes (rsync sends only what is missing). Progress is the size
-/// of the `.incoming` folder against the source's size.
 public struct RuntimeTransfer: Sendable, Equatable {
     public var source: String
     public var record: SimRuntimeRecord
@@ -271,35 +229,28 @@ public struct RuntimeTransfer: Sendable, Equatable {
     public var destination: String { host.runtimesFolder + "/" + record.folderName }
     public var incoming: String { destination + RuntimeFolders.incomingSuffix }
 
-    /// ssh options for rsync's `-e` and the commands: a key only, never prompt.
     public static let sshOptions = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15"]
 
-    /// `rsync` arguments (the local program runs them).
     public func rsyncArguments(ssh: String) -> [String] {
         ["-a", "--partial", "-e", ([ssh] + Self.sshOptions).joined(separator: " "),
          source.hasSuffix("/") ? source : source + "/", "\(host.destination):\(incoming)/RuntimeRoot/"]
     }
 
-    /// Before: the folder exists. (Run on the host.)
     public var prepareCommand: String { "mkdir -p \((incoming + "/RuntimeRoot").shellQuoted)" }
 
-    /// After a complete copy: the marker, then the rename. (Run on the host.)
     public func finishCommand(markerJSON: String) -> String {
         "printf '%s\\n' \(markerJSON.shellQuoted) > \((incoming + "/" + RuntimeFolders.marker).shellQuoted)"
             + " && rm -rf \(destination.shellQuoted) && mv \(incoming.shellQuoted) \(destination.shellQuoted)"
     }
 
-    /// Kilobytes in the `.incoming` folder so far (run on the host).
     public var progressCommand: String { "du -sk \(incoming.shellQuoted) 2>/dev/null | cut -f1" }
 
-    /// The command line the confirmation shows.
     public func shownCommand(ssh: String = "ssh") -> String {
         "ssh \(host.destination.shellQuoted) \(prepareCommand.shellQuoted)\n"
             + RuntimeCommands.line(["rsync"] + rsyncArguments(ssh: ssh)) + "\n"
             + "ssh \(host.destination.shellQuoted) '<write swiftcode-runtime.json, rename \(record.folderName).incoming to \(record.folderName)>'"
     }
 
-    /// The fraction done (0…1) from the `.incoming` folder's kilobytes.
     public func fraction(copiedKB: Int64) -> Double {
         guard totalBytes > 0 else { return 0 }
         return min(1, Double(copiedKB * 1024) / Double(totalBytes))
@@ -310,18 +261,13 @@ public struct RuntimeTransfer: Sendable, Equatable {
     }
 }
 
-/// A transfer's state as the wizard shows it.
 public enum RuntimeTransferState: Sendable, Equatable {
     case idle
     case copying(copiedKB: Int64)
-    /// Stopped before the end (a dropped connection, Stop): Copy resumes.
     case interrupted(copiedKB: Int64, reason: String)
     case finished
     case failed(String)
 
-    /// An rsync exit status → the state after it (rsync's documented codes:
-    /// 20 a signal, 30 a timeout, 12/23/35 partial or protocol trouble from a
-    /// dropped connection, 255 ssh's own failure).
     public static func after(rsyncStatus s: Int32, copiedKB: Int64) -> RuntimeTransferState {
         switch s {
         case 0: .finished

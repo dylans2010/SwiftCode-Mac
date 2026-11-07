@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for WeatherKit
-
 public struct WeatherKitAPIEntity_0000: Sendable, Codable {
     public let id: String = "weatherkit.api.0"
     public var name: String = "WeatherKitEntity_0"

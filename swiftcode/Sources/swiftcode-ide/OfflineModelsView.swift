@@ -1,9 +1,3 @@
-// OfflineModelsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/OfflineModelsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: recommended-models list with compatibility; install-via-link flow; available-models fetch list
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeUI
 import SwiftUI
@@ -21,7 +15,6 @@ struct OfflineModelsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 1. Installed Models
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -37,7 +30,6 @@ struct OfflineModelsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Recommended Models
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -99,7 +91,6 @@ struct OfflineModelsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Install Model via Link
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -123,7 +114,6 @@ struct OfflineModelsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 4. Available Models on Hugging Face
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {

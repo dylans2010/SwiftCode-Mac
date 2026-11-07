@@ -1,60 +1,16 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "config.h"
 #include <cmath>
 #include "tvgCommon.h"
 #include "tvgMath.h"
 #include "tvgStr.h"
 
-
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
-
 static inline bool _floatExact(float a, float b)
 {
     return memcmp(&a, &b, sizeof(float)) == 0;
 }
 
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
-
 namespace tvg {
 
-/*
- * https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/strtof-strtof-l-wcstof-wcstof-l?view=msvc-160
- *
- * src should be one of the following form :
- *
- * [whitespace] [sign] {digits [radix digits] | radix digits} [{e | E} [sign] digits]
- * [whitespace] [sign] {INF | INFINITY}
- * [whitespace] [sign] NAN [sequence]
- *
- * No hexadecimal form supported
- * no sequence supported after NAN
- */
 float toFloat(const char *str, char **end)
 {
     if (end) *end = (char *) (str);
@@ -66,10 +22,8 @@ float toFloat(const char *str, char **end)
     unsigned long long integerPart = 0;
     int minus = 1;
 
-    //ignore leading whitespaces
     while (isspace(*iter)) iter++;
 
-    //signed or not
     if (*iter == '-') {
         minus = -1;
         iter++;
@@ -99,7 +53,6 @@ float toFloat(const char *str, char **end)
         return (minus == -1) ? -NAN : NAN;
     }
 
-    //Optional: integer part before dot
     if (isdigit(*iter)) {
         for (; isdigit(*iter); iter++) {
             integerPart = integerPart * 10ULL + (unsigned long long) (*iter - '0');
@@ -111,7 +64,6 @@ float toFloat(const char *str, char **end)
 
     val = static_cast<float>(integerPart);
 
-    //Optional: decimal part after dot
     if (*iter == '.') {
         unsigned long long decimalPart = 0;
         unsigned long long pow10 = 1;
@@ -126,7 +78,7 @@ float toFloat(const char *str, char **end)
                     pow10 *= 10ULL;
                 }
             }
-        } else if (isspace(*iter)) { //skip if there is a space after the dot.
+        } else if (isspace(*iter)) {
             a = iter;
             goto success;
         }
@@ -135,17 +87,14 @@ float toFloat(const char *str, char **end)
         a = iter;
     }
 
-    //Optional: exponent
     if (*iter == 'e' || *iter == 'E') {
         ++iter;
 
-        // Exception: svg 'em' unit. The caller resolves the multiplier.
         if ((*iter == 'm') || (*iter == 'M')) {
             a = iter + 1;
             goto success;
         }
 
-        //signed or not
         int minus_e = 1;
 
         if (*iter == '-') {
@@ -169,9 +118,7 @@ float toFloat(const char *str, char **end)
             goto success;
         }
 
-        //if ((_floatExact(val, 2.2250738585072011f)) && ((minus_e * static_cast<int>(exponentPart)) <= -308)) {
         if ((_floatExact(val, 1.175494351f)) && ((minus_e * static_cast<int>(exponentPart)) <= -38)) {
-            //val *= 1.0e-308f;
             val *= 1.0e-38f;
             a = iter;
             goto success;
@@ -205,7 +152,6 @@ error:
     return 0.0f;
 }
 
-// max: maximum number of characters to copy, size: length of the copied string
 char* duplicate(const char* str, size_t max, uint32_t* size)
 {
     if (!str) {
@@ -232,7 +178,6 @@ char* append(char* lhs, const char* rhs, size_t n)
     return strncat(lhs, rhs, n);
 }
 
-
 char* dirname(const char* path)
 {
     auto ptr = strrchr(path, '/');
@@ -243,7 +188,6 @@ char* dirname(const char* path)
     auto len = ptr ? size_t(ptr - path + 1) : SIZE_MAX;
     return duplicate(path, len);
 }
-
 
 char* filename(const char* path)
 {
@@ -259,7 +203,6 @@ char* filename(const char* path)
     return duplicate(ptr, len);
 }
 
-
 const char* fileext(const char* path)
 {
     auto ext = path;
@@ -270,7 +213,6 @@ const char* fileext(const char* path)
     }
     return ext;
 }
-
 
 char* concat(const char* a, const char* b)
 {

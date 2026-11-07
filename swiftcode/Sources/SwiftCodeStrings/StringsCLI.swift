@@ -1,9 +1,5 @@
 import Foundation
 
-/// `swiftcode strings` (`specs/ide/string-catalog.md`, "SwiftCode implementation"):
-/// compile catalogs (also as swift-build's `xcstringstool compile`),
-/// generate symbols, extract strings from source, and convert
-/// `.strings`/`.stringsdict` tables.
 public enum StringsCLI {
     public static let usage = """
     usage: swiftcode strings compile [--dry-run] [-l LANG]… [--force-build-all-strings] [--strings-encoding utf-8|utf-16]
@@ -48,8 +44,6 @@ public enum StringsCLI {
             return nil
         }
     }
-
-    // MARK: compile
 
     static func compile(_ args: [String]) -> Int32 {
         var options = StringCatalogCompiler.Options()
@@ -104,8 +98,6 @@ public enum StringsCLI {
         p.hasPrefix("/") ? p : (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent(p)
     }
 
-    // MARK: generate-symbols
-
     static func generateSymbols(_ args: [String]) -> Int32 {
         var outDir: String?
         var language = "swift"
@@ -137,7 +129,6 @@ public enum StringsCLI {
             do {
                 try FileManager.default.createDirectory(atPath: absolute(outDir), withIntermediateDirectories: true)
                 let text = Data(StringSymbolGenerator.swiftSource(catalog, table: table).utf8)
-                // Leave an unchanged file alone so the compiler does not rebuild.
                 if FileManager.default.contents(atPath: path) != text { try text.write(to: URL(fileURLWithPath: path), options: .atomic) }
             } catch {
                 err("\(input): error: cannot write \(path): \(error)")
@@ -147,9 +138,6 @@ public enum StringsCLI {
         return failed ? 1 : 0
     }
 
-    // MARK: extract
-
-    /// Source files under a folder (or the file itself).
     public static func sourceFiles(_ paths: [String]) -> [String] {
         let fm = FileManager.default
         let exts: Set<String> = ["swift", "m", "mm", "c", "cc", "cpp", "h", "hpp"]
@@ -238,9 +226,6 @@ public enum StringsCLI {
         return 0
     }
 
-    // MARK: convert
-
-    /// The `.lproj` tables of `table` in `directory`: language → (strings, stringsdict).
     public static func legacyTables(directory: String, table: String) -> [(language: String, strings: String?, stringsdict: String?)] {
         let fm = FileManager.default
         let items = (try? fm.contentsOfDirectory(atPath: directory)) ?? []
@@ -281,7 +266,6 @@ public enum StringsCLI {
         guard !found.isEmpty else { err("\(dir): error: no .lproj folder holds \(table).strings or \(table).stringsdict"); return 1 }
         var tables: [StringCatalogConverter.LanguageTable] = []
         for f in found {
-            // `Base.lproj` holds Interface Builder files, not a language.
             let language = f.language == "Base" ? sourceLanguage : f.language
             do { tables.append(try .read(language: language, strings: f.strings, stringsdict: f.stringsdict)) } catch {
                 err("\(f.strings ?? f.stringsdict ?? dir): error: \(error)")
@@ -298,8 +282,6 @@ public enum StringsCLI {
         out("\(path): \(catalog.keys.count) keys, \(catalog.languages.count) languages")
         return 0
     }
-
-    // MARK: info
 
     static func info(_ args: [String]) -> Int32 {
         guard let path = args.first, let catalog = load(path) else { err(usage); return 2 }

@@ -2,33 +2,21 @@ import AppKit
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The left area's Coding Assistant pane (reference-ui-6.md §9.2, A1):
-/// a header where the navigator selector sits, with "New Conversation" and
-/// its chevron (§9.3, A2) and "New Group"; the outline of conversations and
-/// groups with the Archive group always last; no bottom bar and no filter.
-/// Under the list, the selected conversation (`ConversationView`): SwiftCode
-/// keeps the transcript in the pane (coding-assistant.md §9).
 @MainActor
 public final class CodingAssistantViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate {
     public let model: CodingAssistantModel
-    /// Opens a proposal's review sheet (the window applies accepted changes).
     public var onReviewProposal: ((ChangeProposal, ConversationMessage, UUID) -> Void)? {
         didSet { conversationView.onReviewProposal = onReviewProposal }
     }
-    /// Opens Settings ▸ Coding Assistant.
     public var onOpenSettings: (() -> Void)? { didSet { conversationView.onOpenSettings = onOpenSettings } }
-    /// The current file and selection, for the attach menu.
     public var attachmentSource: (() -> (file: Attachment?, selection: Attachment?))? {
         didSet { conversationView.attachmentSource = attachmentSource }
     }
 
-    /// "New Conversation" (the button part) with its chevron (the menu).
     public let newConversationButton = NSComboButton()
     public let newGroupButton = NSButton(title: "New Group", target: nil, action: nil)
     public let list = NSOutlineView()
     public private(set) lazy var conversationView = ConversationView(model: model)
-    /// How many times the New Conversation menu was opened by the button
-    /// part (no back end set up), for tests.
     public private(set) var newConversationMenuPresentations = 0
     private var items: [Item] = []
     private var collapsedGroups: Set<UUID> = []
@@ -36,19 +24,13 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
     private var reloading = false
     static let dragType = NSPasteboard.PasteboardType("dev.swiftcode.conversation")
 
-    /// Header sizes (§9.2).
     public static let newConversationSize = NSSize(width: 146, height: 27)
     public static let newGroupSize = NSSize(width: 115, height: 27)
     public static let headerSpacing: CGFloat = 8
-    /// liquid-glass.md §2.4: each header button on its own 30-point glass
-    /// capsule (150 and 118 wide around the 146 × 27 and 115 × 27 buttons),
-    /// the capsules 7 apart and 7 from the area's edges, one point above the
-    /// toolbar's bottom (macOS 26 and later).
     static let capsuleOutset = (newConversation: CGFloat(2), newGroup: CGFloat(1.5))
     static let capsuleGap: CGFloat = 7
     let newConversationGlass = GlassBars.capsule()
     let newGroupGlass = GlassBars.capsule()
-    /// The header capsules as drawn (tests).
     public var headerCapsules: [NSView] { GlassBars.enabled ? [newConversationGlass, newGroupGlass] : [] }
 
     public init(model: CodingAssistantModel) {
@@ -72,7 +54,7 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         newGroupButton.action = #selector(newGroupClicked)
         newGroupButton.toolTip = "Add a group to the conversation list"
         let glass = GlassBars.enabled
-        if glass { newGroupButton.isBordered = false }   // its text sits on the capsule
+        if glass { newGroupButton.isBordered = false }
         let header = NSStackView(views: [newConversationButton, newGroupButton])
         header.orientation = .horizontal
         header.spacing = glass ? Self.capsuleGap + Self.capsuleOutset.newConversation + Self.capsuleOutset.newGroup : Self.headerSpacing
@@ -80,13 +62,12 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         for (b, size) in [(newConversationButton as NSView, Self.newConversationSize), (newGroupButton, Self.newGroupSize)] {
             b.translatesAutoresizingMaskIntoConstraints = false
             let w = b.widthAnchor.constraint(equalToConstant: size.width)
-            w.priority = .defaultHigh   // narrower when the area is narrower
+            w.priority = .defaultHigh
             w.isActive = true
             b.heightAnchor.constraint(equalToConstant: size.height).isActive = true
             b.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         }
 
-        // The outline of groups and conversations.
         let col = NSTableColumn(identifier: .init("title"))
         list.addTableColumn(col)
         list.outlineTableColumn = col
@@ -151,8 +132,6 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         reloadList()
     }
 
-    // MARK: Updates
-
     func apply(_ change: CodingAssistantModel.Change) {
         guard isViewLoaded else { return }
         switch change {
@@ -161,8 +140,6 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         case .status: reloadNewConversationMenu()
         }
     }
-
-    // MARK: Forwarded to the conversation view (tests and the window)
 
     public var providerPopUp: NSPopUpButton { conversationView.providerPopUp }
     public var statusLabel: NSTextField { conversationView.statusLabel }
@@ -180,18 +157,13 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
     public func attach(_ a: Attachment) { conversationView.attach(a) }
     public func focusMessageField() { view.window?.makeFirstResponder(conversationView.messageView) }
 
-    // MARK: New Conversation (§9.3, A2)
-
     func reloadNewConversationMenu() {
         newConversationButton.menu = NewConversationMenu.build(model, target: self, start: #selector(startWithProvider(_:)),
                                                                setUp: #selector(setUpProvider(_:)))
     }
 
-    /// The menu's rows as "Title" or "Title — Set Up" (tests).
     public var newConversationMenuTitles: [String] { NewConversationMenu.titles(newConversationButton.menu) }
 
-    /// The button part: a conversation with the chosen back end; with none
-    /// set up, the menu instead.
     @objc public func newConversationClicked() {
         if !model.availability.isEmpty && !model.hasUsableBackend {
             presentNewConversationMenu()
@@ -219,10 +191,7 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         startConversation()
     }
 
-    /// "Set Up": Settings ▸ Coding Assistant, where the back end is set up.
     @objc func setUpProvider(_ item: NSMenuItem) { onOpenSettings?() }
-
-    // MARK: Groups
 
     @objc public func newGroupClicked() {
         let g = model.newGroup()
@@ -233,9 +202,6 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         if view.window?.isVisible == true { renameGroup(g.id) }
     }
 
-    // MARK: The outline
-
-    /// One row: a group, the Archive group, or a conversation.
     public final class Item: NSObject {
         public enum Kind: Equatable { case group(UUID), archive, conversation(UUID) }
         let kind: Kind
@@ -289,18 +255,15 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
 
     func reloadRow(_ id: UUID) {
         guard let old = item(for: id), let c = model.conversation(id) else { return }
-        // Title or activity changed: the list follows.
         if old.title != c.title || old.isActive != c.isActive { reloadList() }
     }
 
-    /// The visible rows, indented two spaces per level (tests).
     public var listRows: [String] {
         (0..<list.numberOfRows).compactMap { r in
             (list.item(atRow: r) as? Item).map { String(repeating: "  ", count: list.level(forRow: r)) + $0.title }
         }
     }
 
-    /// The rows that are groups, with their glyph names (tests).
     public var groupGlyphs: [String: String] {
         Dictionary(items.filter(\.isContainer).map { ($0.title, Self.glyph($0)) }, uniquingKeysWith: { a, _ in a })
     }
@@ -363,8 +326,6 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         }
     }
 
-    // MARK: Drag a conversation into a group or the archive
-
     public func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
         guard let id = (item as? Item)?.conversationID else { return nil }
         let p = NSPasteboardItem()
@@ -387,8 +348,6 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         return true
     }
 
-    /// Files a conversation by drag and drop: onto a group, the Archive,
-    /// or the list itself (nil: the top level).
     public func drop(_ id: UUID, on target: Item.Kind?) {
         switch target {
         case .group(let g)?: model.move(id, toGroup: g)
@@ -397,8 +356,6 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
         case .conversation?: break
         }
     }
-
-    // MARK: Context menu
 
     var clickedItem: Item? {
         let row = list.clickedRow >= 0 ? list.clickedRow : list.selectedRow
@@ -491,11 +448,6 @@ public final class CodingAssistantViewController: NSViewController, NSOutlineVie
     }
 }
 
-/// The New Conversation menu (reference-ui-6.md §9.3, A2): a disabled
-/// heading, then one row per back end in SwiftCode's own names. A ready back
-/// end starts a conversation with it; one that is not set up shows how to
-/// set it up (its hint) and "Set Up", which opens Settings ▸ Coding
-/// Assistant. SwiftCode offers no install rows for other products.
 @MainActor
 enum NewConversationMenu {
     static let heading = "Model Providers"
@@ -529,7 +481,6 @@ enum NewConversationMenu {
         return menu
     }
 
-    /// "Name" with the action word right-aligned after it.
     static func titleWithAction(_ title: String, _ action: String) -> NSAttributedString {
         let p = NSMutableParagraphStyle()
         p.tabStops = [NSTextTab(textAlignment: .right, location: 260)]
@@ -539,8 +490,6 @@ enum NewConversationMenu {
         return s
     }
 
-    /// Rows as "Title", "Title — Set Up" (not set up) or "Title — Checking…";
-    /// the heading as "# Heading" (tests).
     static func titles(_ menu: NSMenu?) -> [String] {
         (menu?.items ?? []).map { item in
             if item.isSectionHeader { return "# " + item.title }

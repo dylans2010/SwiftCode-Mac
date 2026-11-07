@@ -1,19 +1,6 @@
 import Foundation
 import SwiftCodeHealthStore
 
-/// Dashboard — Legacy's `Views/DatabaseDashboard.swift` (+ the
-/// adjacent `Views/DatabaseStatisticsView.swift`), ported.
-///
-/// Legacy's dashboard showed hardcoded values (`"3 Migrations"`,
-/// a `"100/100"` health index). Every number here is computed from
-/// the open database: file size, page stats, integrity, per-table
-/// row counts, migration count from the `_swiftcode_migrations`
-/// tracking table (0 when the database has never run a migration),
-/// and backup count from the backup manager when one is supplied.
-/// "Health" is a checklist of real checks (integrity ok, every
-/// table has a primary key, every foreign-key column is indexed),
-/// not a score.
-
 public struct DatabaseHealthCheck: Sendable, Equatable {
     public var name: String
     public var passed: Bool

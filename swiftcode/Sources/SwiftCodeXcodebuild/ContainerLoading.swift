@@ -2,10 +2,6 @@ import Foundation
 import SwiftCodeProject
 
 extension Container {
-    /// Opens an `.xcodeproj` (with the projects it references) or an
-    /// `.xcworkspace` (with its projects), for other modules: the build
-    /// server (`specs/ide/language.md` §Build server) loads containers the
-    /// way swiftcodebuild does.
     public static func open(_ url: URL) throws -> Container {
         let url = url.standardizedFileURL
         do {
@@ -20,7 +16,6 @@ extension Container {
     }
 }
 
-/// Why `Container.open` failed.
 public struct ContainerOpenError: Error, CustomStringConvertible {
     public var description: String
 }

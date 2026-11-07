@@ -1,21 +1,5 @@
 import Foundation
 
-// MARK: - SwiftCode-native plugin SDK (v1)
-//
-// This is a separate extension model from VS Code compatibility: a
-// native plugin is Swift code that conforms to `ExtV2NativePlugin`,
-// declares its manifest (id, commands, capabilities), and runs through
-// the registry below. Trust boundary, stated plainly:
-//  - Plugins compiled into the app (like the sample) run in-process and
-//    are trusted exactly as much as the app itself.
-//  - Third-party native code is NOT loaded in-process by this SDK:
-//    there is no dynamic bundle loading here, because loading arbitrary
-//    native code in-process would bypass every permission check in this
-//    directory. A future signed-bundle loader must go through the
-//    permission manager and a review step before it exists.
-// Developers who need untrusted code should ship a VS Code extension
-// through the out-of-process host instead.
-
 public struct ExtV2NativePluginManifest: Codable, Hashable, Sendable {
     public let id: String
     public let name: String
@@ -37,9 +21,6 @@ public struct ExtV2NativePluginManifest: Codable, Hashable, Sendable {
     }
 }
 
-/// Context handed to a plugin at activation. It is capability-gated:
-/// workspace access checks the plugin's grants, exactly like a VS Code
-/// extension's bridge calls.
 public struct ExtV2NativePluginContext: Sendable {
     public let manifest: ExtV2NativePluginManifest
     public let workspaceRoot: URL?
@@ -69,16 +50,10 @@ public extension ExtV2NativePlugin {
     func deactivate() async {}
 }
 
-/// Registry for native plugins. Command handlers live here so the
-/// manager, Assist bridge, and Run view all resolve commands through
-/// one table instead of three competing registries.
 @MainActor
 public final class ExtV2NativePluginRegistry: ObservableObject {
     public static let shared = ExtV2NativePluginRegistry()
 
-    // Command table is static and lock-guarded so plugin contexts can
-    // register handlers from @Sendable closures without capturing
-    // MainActor-isolated registry state.
     nonisolated private static let commandLock = NSLock()
     nonisolated(unsafe) private static var commandTable: [String: @Sendable ([ExtV2JSONValue]) async throws -> ExtV2JSONValue] = [:]
 

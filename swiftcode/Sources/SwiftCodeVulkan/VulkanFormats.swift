@@ -1,25 +1,13 @@
-// Metal → Vulkan value mappings: pixel formats, vertex formats, blend,
-// compare and stencil functions, sampler fields. Metal raw values are the
-// public MTL* enum values (level 1: the SDK's Metal headers); Vulkan values
-// are from the Vulkan specification.
-
 import CVulkan
 
-/// How one Metal pixel format lives in Vulkan.
 public struct VulkanPixelFormat: Equatable, Sendable {
-    /// The Vulkan format of images created for it.
     public var format: VkFormat
-    /// The aspects the image has (color, depth, stencil).
     public var aspect: VkImageAspectFlags
-    /// The aspect a shader view samples (depth for depth/stencil formats, stencil for stencil-only views).
     public var viewAspect: VkImageAspectFlags
-    /// Bytes per texel or per compressed block; block size in texels.
     public var bytesPerBlock: Int
     public var blockWidth: Int
     public var blockHeight: Int
-    /// A component swizzle applied to every view (A8 on R8, for instance).
     public var swizzle: VkComponentMapping
-    /// The format only approximates Metal's (documented in the coverage table).
     public var approximate: Bool
 
     public var isDepth: Bool { aspect & VK_IMAGE_ASPECT_DEPTH_BIT.rawValue != 0 }
@@ -50,14 +38,11 @@ private func ds(_ f: VkFormat, _ aspect: UInt32, _ viewAspect: UInt32, _ bpp: In
                       blockHeight: 1, swizzle: identitySwizzle, approximate: false)
 }
 
-/// ASTC block sizes in Metal's order (4x4 … 12x12) and the matching Vulkan
-/// UNORM format of each (the SRGB format follows it).
 private let astcBlocks: [(Int, Int)] = [(4, 4), (5, 4), (5, 5), (6, 5), (6, 6), (8, 5), (8, 6), (8, 8), (10, 5),
                                         (10, 6), (10, 8), (10, 10), (12, 10), (12, 12)]
 private let astcLDR: [UInt32] = [204, 205, 206, 207, 208, 210, 211, 212, 213, 214, 215, 216, 217, 218]
 private let astcSRGB: [UInt32] = [186, 187, 188, 189, 190, 192, 193, 194, 195, 196, 197, 198, 199, 200]
 
-/// The static part of the pixel-format table (no device queries).
 public func metalPixelFormatTable(_ metal: UInt32) -> VulkanPixelFormat? {
     switch metal {
     case 1: return plain(VK_FORMAT_A8_UNORM_KHR, 1)
@@ -76,8 +61,6 @@ public func metalPixelFormatTable(_ metal: UInt32) -> VulkanPixelFormat? {
     case 32: return plain(VK_FORMAT_R8G8_SNORM, 2)
     case 33: return plain(VK_FORMAT_R8G8_UINT, 2)
     case 34: return plain(VK_FORMAT_R8G8_SINT, 2)
-    // Packed 16-bit formats: Metal names components from the least
-    // significant bits, Vulkan from the most significant.
     case 40: return plain(VK_FORMAT_R5G6B5_UNORM_PACK16, 2)
     case 41: return plain(VK_FORMAT_R5G5B5A1_UNORM_PACK16, 2)
     case 42: return plain(VK_FORMAT_R4G4B4A4_UNORM_PACK16, 2)
@@ -169,7 +152,6 @@ public func metalPixelFormatTable(_ metal: UInt32) -> VulkanPixelFormat? {
     }
 }
 
-/// `MTLVertexFormat` → Vulkan vertex attribute format.
 public func metalVertexFormat(_ metal: UInt32) -> VkFormat? {
     switch metal {
     case 1: return VK_FORMAT_R8G8_UINT
@@ -229,8 +211,6 @@ public func metalVertexFormat(_ metal: UInt32) -> VkFormat? {
     }
 }
 
-/// `MTLCompareFunction` → `VkCompareOp` (same order: Never, Less, Equal,
-/// LessEqual, Greater, NotEqual, GreaterEqual, Always).
 func vkCompare(_ metal: UInt8) -> VkCompareOp {
     switch metal {
     case 0: return VK_COMPARE_OP_NEVER
@@ -244,7 +224,6 @@ func vkCompare(_ metal: UInt8) -> VkCompareOp {
     }
 }
 
-/// `MTLStencilOperation` → `VkStencilOp`.
 func vkStencilOp(_ metal: UInt8) -> VkStencilOp {
     switch metal {
     case 1: return VK_STENCIL_OP_ZERO
@@ -258,7 +237,6 @@ func vkStencilOp(_ metal: UInt8) -> VkStencilOp {
     }
 }
 
-/// `MTLBlendFactor` → `VkBlendFactor`.
 func vkBlendFactor(_ metal: UInt32) -> VkBlendFactor {
     switch metal {
     case 0: return VK_BLEND_FACTOR_ZERO
@@ -284,7 +262,6 @@ func vkBlendFactor(_ metal: UInt32) -> VkBlendFactor {
     }
 }
 
-/// `MTLBlendOperation` → `VkBlendOp`.
 func vkBlendOp(_ metal: UInt32) -> VkBlendOp {
     switch metal {
     case 1: return VK_BLEND_OP_SUBTRACT
@@ -295,7 +272,6 @@ func vkBlendOp(_ metal: UInt32) -> VkBlendOp {
     }
 }
 
-/// `MTLColorWriteMask` (red 8, green 4, blue 2, alpha 1) → `VkColorComponentFlags` (R 1, G 2, B 4, A 8).
 func vkColorWriteMask(_ metal: UInt32) -> VkColorComponentFlags {
     var m: UInt32 = 0
     if metal & 0x8 != 0 { m |= VK_COLOR_COMPONENT_R_BIT.rawValue }
@@ -305,7 +281,6 @@ func vkColorWriteMask(_ metal: UInt32) -> VkColorComponentFlags {
     return m
 }
 
-/// `MTLPrimitiveType` → Vulkan topology.
 func vkTopology(_ metal: UInt32) -> VkPrimitiveTopology {
     switch metal {
     case 0: return VK_PRIMITIVE_TOPOLOGY_POINT_LIST
@@ -316,8 +291,6 @@ func vkTopology(_ metal: UInt32) -> VkPrimitiveTopology {
     }
 }
 
-/// The topology class of a primitive type: 1 point, 2 line, 3 triangle
-/// (the `MTLPrimitiveTopologyClass` values).
 func topologyClass(ofPrimitive metal: UInt32) -> UInt32 {
     switch metal {
     case 0: return 1
@@ -334,7 +307,6 @@ func vkTopology(forClass cls: UInt32) -> VkPrimitiveTopology {
     }
 }
 
-/// `MTLSamplerAddressMode` → Vulkan address mode (+ whether it needs a border).
 func vkAddressMode(_ metal: UInt8, mirrorClampSupported: Bool) -> VkSamplerAddressMode {
     switch metal {
     case 1: return mirrorClampSupported ? VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
@@ -345,7 +317,6 @@ func vkAddressMode(_ metal: UInt8, mirrorClampSupported: Bool) -> VkSamplerAddre
     }
 }
 
-/// `MTLSamplerBorderColor` → `VkBorderColor`.
 func vkBorderColor(_ metal: UInt8) -> VkBorderColor {
     switch metal {
     case 1: return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK
@@ -354,7 +325,6 @@ func vkBorderColor(_ metal: UInt8) -> VkBorderColor {
     }
 }
 
-/// `MTLTextureSwizzle` (Zero 0, One 1, Red 2, Green 3, Blue 4, Alpha 5) → `VkComponentSwizzle`.
 func vkSwizzle(_ metal: UInt8) -> VkComponentSwizzle {
     switch metal {
     case 0: return VK_COMPONENT_SWIZZLE_ZERO
@@ -367,10 +337,6 @@ func vkSwizzle(_ metal: UInt8) -> VkComponentSwizzle {
     }
 }
 
-/// Composes a view swizzle on top of a format's own swizzle (A8 stored as R8).
-/// Whether a mapping leaves every channel where it is: each component is
-/// IDENTITY or names its own channel (`composeSwizzle` spells an identity
-/// composition out as R, G, B, A). Storage views need this (Vulkan).
 func isIdentitySwizzle(_ m: VkComponentMapping) -> Bool {
     func same(_ s: VkComponentSwizzle, _ own: VkComponentSwizzle) -> Bool { s == VK_COMPONENT_SWIZZLE_IDENTITY || s == own }
     return same(m.r, VK_COMPONENT_SWIZZLE_R) && same(m.g, VK_COMPONENT_SWIZZLE_G) && same(m.b, VK_COMPONENT_SWIZZLE_B)

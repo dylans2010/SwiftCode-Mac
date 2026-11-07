@@ -9,177 +9,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeSubprocess
 
-/// The ported Legacy Terminal / system tool family (Wave 4).
-///
-/// Behaviour source: Legacy's `UseTermFunction`,
-/// `AssistTaskRunnerTool` (+ `AssistExecutionFunctions`),
-/// `AssistLogCaptureTool`, `AssistEnvironmentInfoTool`, `UseMCP`,
-/// `UseExtensionTool`, `AssistComposioTool`, `UseWorkersTool`,
-/// `AssistEnvironmentVariableManagerTool`,
-/// `AssistClipboardManagerTool`, `AssistProcessMonitorTool`,
-/// `AssistDiskSpaceAnalyzerTool`, `AssistSystemNotificationTool`,
-/// `AssistSystemTool`, `AssistTakeScreenshotTool` (+
-/// `AssistScreenCaptureEngine`), `AssistTakeScreenrecordTool` and
-/// `AssistUseAppTool` (Dylan's own code, ported under MIT), plus
-/// `AssistTool.swift` for the capability/risk/permission defaults
-/// and `AssistToolRegistry.swift` for the registration order. The
-/// 17 IDs below were verified live from the Legacy registry
-/// (`registerAllTools` + each tool's `id`); the map's 17-tool list
-/// was confirmed exactly, with no additions or removals.
-///
-/// Conventions, following Wave 1 (`SwiftCodeTools+FileReading.swift`),
-/// Wave 2 (`SwiftCodeTools+FileWriting.swift`) and Wave 3
-/// (`SwiftCodeTools+Git.swift`, `SwiftCodeTools+Search.swift`):
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Tools that do
-///   not touch a workspace (clipboard, notifications, `use_app`,
-///   the honestly-failing bridges) accept it and ignore it.
-///   Descriptions are Legacy's verbatim, except the
-///   `system_notification_tool` default title, which says "SwiftCode
-///   Assist" where Legacy says "SwiftCode Assist" (the product
-///   posting the notification). Structured data keeps Legacy's
-///   keys, with typed JSON values (integers and booleans) the way
-///   SwiftCode's other tools do — Legacy's string-only map is not
-///   reproduced. Tools whose Legacy result carries no data return a
-///   plain text result instead.
-/// * Every local command runs as a subprocess argument vector —
-///   never a shell — workspace-confined, with stdin closed and an
-///   environment that can never wait for a person (see
-///   `SwiftCodeTools+TerminalSupport.swift`). There is no Autopilot
-///   bypass: `use_terminal` gates every run through the approval
-///   path before executing, and `use_system`'s single mutation
-///   (`user_defaults_write`) needs both Legacy's `confirm: true`
-///   and the approval gate.
-/// * Risk → annotations follows the catalogue §1.3 table, extended
-///   the way Wave 3 extended it for `.execution` (`readOnly:
-///   false, idempotent: false`, `writes: true`):
-///   `safeRead` → read-only/idempotent, `writes: false`;
-///   `safeMutation` → `readOnly: false, idempotent: true`,
-///   `writes: true`; `externalSideEffect` → `readOnly: false,
-///   idempotent: false, openWorld: true`, `writes: true`.
-///   `system_notification_tool` additionally sets `openWorld: true`
-///   (a notification leaves the app, like the Finder tools'
-///   precedent) and `take_screenshot` / `take_screenrecord`
-///   likewise; `take_screenshot` is `writes: true` because the
-///   capture is saved as a workspace artifact, even though its
-///   Legacy risk is `safeRead`.
-/// * `env_info` and `system_notification_tool` declare no
-///   `parametersSchema` in Legacy (the protocol default: an empty
-///   object schema) although their `execute()` reads arguments.
-///   The port declares the parameters they actually read, so the
-///   arguments are validated instead of silently accepted.
-///
-/// Implemented (17): `use_terminal`, `task_runner`, `env_info`,
-/// `environment_variable_manager`, `clipboard_manager_tool`,
-/// `process_monitor_tool`, `disk_space_analyzer`,
-/// `system_notification_tool`, `use_system`, `take_screenshot`
-/// (fullscreen, region, and window — see
-/// `SwiftCodeTools+Screenshot.swift`), `use_extension` (wired to the
-/// `SwiftCodeExtensions` host, spec `extensions-platform.md` §7.2/§10;
-/// the real path is compiled in behind `#if
-/// canImport(SwiftCodeExtensions)` and fails honestly naming the
-/// missing host if the target is ever unwired), `env_capture_logs`
-/// (real snapshot history + memory + environment + recent output —
-/// see `SwiftCodeTools+FailingToolsSupport.swift`), `use_mcp` (real
-/// stdio / streamable-HTTP client — see
-/// `SwiftCodeTools+MCPClient.swift`), `use_composio` (real CLI-first
-/// client — see `SwiftCodeTools+ComposioClient.swift`), `use_workers`
-/// (Legacy validation + topological order + persisted plan; execution
-/// still honestly unavailable — no subagent runtime yet, see
-/// `SwiftCodeTools+WorkersRuntime.swift`), `take_screenrecord` (real
-/// ScreenCaptureKit engine on macOS — see
-/// `SwiftCodeTools+ScreenRecording.swift`), and `use_app` (full
-/// Accessibility engine — see `SwiftCodeTools+AppInteraction.swift`).
-/// The handlers in this file are thin delegations to those
-/// implementations; the registrations below are unchanged in ID
-/// and count (17 tools, no additions or removals).
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `use_terminal` ran its command through `/bin/zsh -c` in
-///   Legacy (`AgentTerminalService`). The port never runs a shell:
-///   the command string is tokenized into an argv vector and any
-///   shell metacharacter (`| & ; < > \` $ ( ) { } * ? ~ # !` or a
-///   newline) anywhere in the string is rejected, so pipes,
-///   redirects, variables, globbing, substitution and chaining
-///   can never run. A command that needs shell syntax must be
-///   split into separate tool calls. The program is resolved
-///   against `PATH` (or used as a path when it contains `/`).
-///   Legacy's allow-list / Full Access / Autopilot approval model
-///   is NOT ported: every run goes through SwiftCode's approval gate.
-///   Timeout is Legacy's 300 s.
-/// * `use_terminal`'s working directory resolves with
-///   `resolveFileReadingPath` (a leading `/` is
-///   workspace-root-relative, plain relative paths resolve against
-///   the `dir_cd` session directory); Legacy resolves through its
-///   filesystem layer with the same containment rule, and an empty
-///   value means the session working directory in both.
-/// * `task_runner`'s four registered tasks
-///   (`AssistExecutionFunctions.initializeRegistry`) are
-///   implemented locally; an unregistered `task_id` fails with
-///   Legacy's "not found in registry" message. The tasks are pure
-///   reads, so no approval is requested for them.
-/// * `env_capture_logs` cannot be implemented: SwiftCode's MCP host
-///   has no snapshot-history store (`AssistSnapshotFunctions`)
-///   and no Assist memory store. It fails naming both.
-/// * `environment_variable_manager` resolves its `.env` path with
-///   `resolveFileWritingPath` (relative to the workspace root,
-///   never the session directory, as Legacy does; absolute paths
-///   must stay inside the workspace, where Legacy allowed any
-///   absolute path). `set` writes through `commit()` and
-///   reproduces Legacy's exact line logic, including the leading
-///   blank line a brand-new file gets (an empty file splits to
-///   one empty line, then the new `KEY=value` line is appended).
-/// * `clipboard_manager_tool` is macOS-only (`NSPasteboard`); on
-///   other platforms it fails instead of using a helper binary.
-/// * `disk_space_analyzer` resolves an optional `path` with
-///   `resolveFileReadingPath` (relative against the session
-///   directory; Legacy resolves relative paths against the
-///   workspace root). The DerivedData path is Legacy's
-///   `~/Library/Developer/Xcode/DerivedData` and reads as 0 bytes
-///   where it does not exist.
-/// * `system_notification_tool`'s osascript fallback escapes
-///   backslashes as well as quotes (Legacy escaped quotes only)
-///   and reproduces Legacy's literal sound name "Submarine".
-/// * `use_system`'s `parameters.value` is declared without a JSON
-///   type (Legacy declares it a string, but its `execute()` also
-///   accepts booleans and numbers, and the port keeps those paths
-///   working). The macOS-only operations (`network_interfaces`,
-///   `system_log`, `service_status`, `config_read`,
-///   `user_defaults_write`) fail with an exact "only available on
-///   macOS" message elsewhere, instead of a launch failure.
-///   `listening_sockets` resolves `lsof` on `PATH` (Legacy's
-///   fixed `/usr/sbin/lsof` does not exist on Linux).
-///   `system_info`'s first line names the real OS instead of
-///   hardcoding "macOS", and `osBuild` is the kernel release from
-///   `uname -r` (Darwin's release on macOS).
-/// * `take_screenshot` implements fullscreen, region, and window
-///   capture via `SCScreenshotManager` (Legacy's engine; see
-///   `SwiftCodeTools+Screenshot.swift`). A `region` object crops the
-///   fullscreen capture with Legacy's scale / integral-rect math;
-///   a bare `capture_mode: "region"` with no `region` object still
-///   fails: the interactive region-selection overlay Legacy uses
-///   is not ported. Any other `capture_mode` value is treated as
-///   fullscreen, as Legacy does. `image_format` is declared but
-///   unused in Legacy and likewise ignored here: the output is
-///   always PNG. The `image.png` latest-copy mirror Legacy writes
-///   is reproduced under the same single approval as the
-///   timestamped artifact.
-/// * `use_app` is the full Accessibility engine (see
-///   `SwiftCodeTools+AppInteraction.swift`): `list_applications` now
-///   also lists installed apps (Legacy's four-directory scan),
-///   `launch` / `activate` (by bundle identifier, name, or PID),
-///   `close_application` (Legacy's `confirm: true` plus the
-///   approval gate), `list_windows` (AX windows with the
-///   CGWindowList number matched by frame), and all of Legacy's
-///   inspection / pointer / keyboard / menu / wait / verify
-///   actions, plus `inspect_application`, `inspect_window`, and
-///   `set_element_value`, which Legacy's dispatch did not handle.
-///   Sessions are per-pid (`app-<pid>`). Legacy's schema still
-///   requires `app_identifier` for `list_applications` even though
-///   the action does not need one (a filter string works as the
-///   value).
 extension SwiftCodeMCPHost {
     var terminalTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -401,10 +230,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    /// Asks the approval path about one terminal/system operation
-    /// before it runs (the Wave 2 §6.2 shape for non-text
-    /// operations): the change's path is the workspace root, since
-    /// a command has no single file.
     func terminalApproveChange(tool: String, summary: String, in s: WorkspaceSession, call: MCPToolCall) async throws {
         let root = Self.folder(of: s.model)
         let change = MCPChange(tool: tool, path: root.path, relativePath: ".", original: nil, proposed: "", summary: summary)
@@ -413,7 +238,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - `use_terminal`
 
     func useTerminal(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -433,9 +257,6 @@ extension SwiftCodeMCPHost {
             modifiesRepo = false
         }
 
-        // Resolve the working directory first: empty means the
-        // session working directory (see dir_cd), not the workspace
-        // root. It must exist and be a directory.
         let workingDirURL: URL
         if relativeWorkDir.isEmpty {
             workingDirURL = fileReadingDirectory(in: s)
@@ -451,9 +272,6 @@ extension SwiftCodeMCPHost {
             }
         }
 
-        // Tokenize into an argv vector: Legacy ran `/bin/zsh -c`,
-        // the port never runs a shell, so shell syntax is rejected
-        // here rather than reinterpreted.
         guard let argv = Self.terminalTokenizeCommand(command), let program = argv.first else {
             throw MCPToolError("Command '\(command)' cannot run without a shell (it uses pipes, redirects, variables, globbing, or other shell syntax). Split it into separate plain commands, or use a dedicated tool (git_*, file_*, build).")
         }
@@ -461,8 +279,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("Process execution failed: command '\(program)' was not found (no executable on PATH or at that path).")
         }
 
-        // Approval gate: every run, before executing. Legacy's
-        // allow-list / Full Access / Autopilot model is not ported.
         try await terminalApproveChange(tool: call.name,
                                         summary: "Run terminal command: \(command) — \(explanation) (estimated impact: \(estimatedImpact); modifies repo: \(modifiesRepo))",
                                         in: s, call: call)
@@ -502,11 +318,6 @@ extension SwiftCodeMCPHost {
                       structured: .object(data))
     }
 
-    // MARK: - `task_runner`
-
-    /// The four tasks `AssistExecutionFunctions.initializeRegistry`
-    /// registers in Legacy. Unknown IDs fail with Legacy's "not
-    /// found in registry" message.
     func runTask(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let taskId = try call.require("task_id")
@@ -539,9 +350,6 @@ extension SwiftCodeMCPHost {
         return "Dependency scan complete. SPM: \(hasPackageSwift), CocoaPods: \(hasPodfile), Carthage: \(hasCartfile)."
     }
 
-    /// Legacy's `collectSwiftFindings`: tab indentation, lines over
-    /// 140 characters, trailing whitespace, in every Swift file
-    /// (hidden files skipped, no skipped-directory rule).
     nonisolated static func terminalTaskLintProject(root: URL) -> String {
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey],
                                                         options: [.skipsHiddenFiles])
@@ -567,8 +375,6 @@ extension SwiftCodeMCPHost {
         return "Lint completed. Found \(findings.count) issue(s).\n\(findings.prefix(20).joined(separator: "\n"))"
     }
 
-    /// Legacy's `discoverTestFiles`: Swift files whose path
-    /// contains "test" (case-insensitive), by file name, sorted.
     nonisolated static func terminalTaskProjectTest(root: URL) -> String {
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey],
                                                         options: [.skipsHiddenFiles])
@@ -586,13 +392,9 @@ extension SwiftCodeMCPHost {
         return "Discovered \(testFiles.count) XCTest file(s). Sample: \(testFiles.prefix(5).joined(separator: ", "))"
     }
 
-    // MARK: - `env_capture_logs` (real: see `SwiftCodeTools+FailingToolsSupport.swift`)
-
     func captureLogs(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await captureLogsReal(call)
     }
-
-    // MARK: - `env_info`
 
     func environmentInfo(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -608,41 +410,24 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - `use_mcp` (real client: see `SwiftCodeTools+MCPClient.swift`)
 
     func useMCP(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await useMCPExternal(call)
     }
 
-    // MARK: - `use_extension` (wired to SwiftCodeExtensions)
-
-    /// The honestly-failing message while the `SwiftCodeExtensions` target
-    /// is not wired into this build (Slice B owns `Package.swift` and
-    /// the target): the host side of every action is absent, so no
-    /// action is faked from an empty local state.
     static let extensionsHostUnavailableMessage = "use_extension needs the Extensions v2 platform (ExtV2Manager + extension host with Node.js), which SwiftCode's MCP host does not have yet; no extension was listed, activated, or executed."
 
-    /// The `limit` argument (spec §7.2): default 50, clamped to
-    /// [1, 200]. The `Double` branch covers whole numerics (3.0);
-    /// a non-whole numeric never reaches here — the server's schema
-    /// validation rejects it first (`argumentProblem` in `run()`).
     func extensionLimit(_ call: MCPToolCall) -> Int {
         if let v = call.arguments["limit"]?.int { return min(200, max(1, v)) }
         if let d = call.arguments["limit"]?.double { return min(200, max(1, Int(d))) }
         return 50
     }
 
-    /// The 8,000-character output cap (spec §7.2): longer output is
-    /// truncated with `"\n... (truncated)"` appended.
     func extensionCap(_ text: String) -> String {
         guard text.count > 8000 else { return text }
         return String(text.prefix(8000)) + "\n... (truncated)"
     }
 
-    /// A `run_xcode_command` target after the host-independent
-    /// validation (file containment, readability, selection bounds)
-    /// has passed. The buffer itself is built on the host side, where
-    /// the `SourceTextBuffer` type lives.
     struct ExtensionXcodeFileTarget {
         let url: URL
         let relativePath: String
@@ -654,12 +439,6 @@ extension SwiftCodeMCPHost {
         let endColumn: Int
     }
 
-    /// Validates a `run_xcode_command` file + selection without touching
-    /// the host: the file must be workspace-relative (absolute or
-    /// escaping paths are an invalid request), must read as UTF-8, and
-    /// the selection (0-based, columns in Swift Characters / grapheme
-    /// clusters, spec §7.4) must lie inside the file. Defaults to the
-    /// whole file when no selection is given.
     func validateXcodeFileTarget(_ call: MCPToolCall) throws -> ExtensionXcodeFileTarget {
         let s = try session(for: call)
         let file = try call.require("file")
@@ -705,16 +484,10 @@ extension SwiftCodeMCPHost {
         guard let action = call.arguments["action"]?.string, known.contains(action) else {
             throw MCPToolError("Unknown or missing action. Use one of: \(known.joined(separator: ", ")).")
         }
-        // Confirm rule (Legacy, spec §7.2): the mutating actions require
-        // `confirm: true`. This is in addition to, not instead of, the
-        // Wave 2 `approve()` gate (§5.4), which the mutating branches
-        // below call before acting.
         let mutating: Set<String> = ["activate", "execute", "run_xcode_command", "enable", "disable"]
         if mutating.contains(action), call.bool("confirm") != true {
             throw MCPToolError("Action '\(action)' requires confirm: true.")
         }
-        // `extensionId` is required for every action except `list` and
-        // `list_xcode_commands` (spec §7.2).
         let extensionId: String?
         if action == "list" || action == "list_xcode_commands" {
             extensionId = call.string("extensionId")
@@ -729,9 +502,6 @@ extension SwiftCodeMCPHost {
                 throw MCPToolError("Action '\(action)' requires 'command'.")
             }
         }
-        // `run_xcode_command` validates its file + selection before the
-        // host is involved, so a bad path or selection fails the same
-        // way with or without the host present.
         let xcodeTarget: ExtensionXcodeFileTarget?
         if action == "run_xcode_command" {
             xcodeTarget = try validateXcodeFileTarget(call)
@@ -747,12 +517,6 @@ extension SwiftCodeMCPHost {
     }
 
 #if canImport(SwiftCodeExtensions)
-    /// The real `use_extension` dispatch against the spec §10.6
-    /// `ExtensionManager` API. Every branch follows spec §7.2 (per-action
-    /// behaviour, output cap, error mapping) and §5.4 (the single Wave 2
-    /// approval gate: mutating actions call `approve()` via
-    /// `terminalApproveChange`, `run_xcode_command` writes through
-    /// `commit()`; read-only actions and `deactivate` never approve).
     func useExtensionViaHost(_ action: String, extensionId: String?, call: MCPToolCall,
                              xcodeTarget: ExtensionXcodeFileTarget?) async throws -> MCPToolResult {
         do {
@@ -760,9 +524,6 @@ extension SwiftCodeMCPHost {
         } catch let toolError as MCPToolError {
             throw toolError
         } catch {
-            // Host errors are `SwiftCodeExtensionError` (a `LocalizedError`
-            // whose messages match Legacy verbatim, spec §10.1); anything
-            // else surfaces by its own description, never as a success.
             throw MCPToolError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
@@ -770,9 +531,6 @@ extension SwiftCodeMCPHost {
     func useExtensionHostDispatch(_ action: String, extensionId: String?, call: MCPToolCall,
                                   xcodeTarget: ExtensionXcodeFileTarget?) async throws -> MCPToolResult {
         let manager = ExtensionManager.shared
-        // The registry-only action needs no manager state; every other
-        // action loads it first (`ensureReady` is a no-op after the
-        // first load, spec §3.3).
         if action != "list_xcode_commands" {
             await manager.ensureReady()
         }
@@ -817,10 +575,6 @@ extension SwiftCodeMCPHost {
             guard manager.installed.contains(where: { $0.id == id }) else {
                 throw MCPToolError(SwiftCodeExtensionError.notInstalled(id).localizedDescription)
             }
-            // Mutating actions need a workspace session: it supplies the
-            // workspace root the host activates against, and the path the
-            // approval change is filed under (as in the other Wave 1–10
-            // mutating tools).
             let s = try session(for: call)
             manager.setWorkspaceRoot(Self.folder(of: s.model))
             try await terminalApproveChange(tool: call.name,
@@ -842,8 +596,6 @@ extension SwiftCodeMCPHost {
             return .structured(["action": .string("activate"), "state": .string("running")], summary: extensionCap(text))
 
         case "deactivate":
-            // Legacy classifies `deactivate` read-only: no confirm, no
-            // approval gate (spec §5.4/§7.2).
             let id = extensionId!
             manager.deactivate(extensionId: id)
             return .structured(["action": .string("deactivate")], summary: "Deactivated \(id).")
@@ -862,13 +614,7 @@ extension SwiftCodeMCPHost {
             try await terminalApproveChange(tool: call.name,
                                             summary: "Execute command '\(command)' from extension '\(id)' (runs extension code).",
                                             in: s, call: call)
-            // Args go as a single JSON object argument (empty args → no
-            // args), so the extension receives its named arguments
-            // intact (spec §7.2; the `key=value` form is Legacy's
-            // inconsistency, D-10, and is not used).
             let argsObject = call.arguments["args"]?.object ?? [:]
-            // Qualified: SwiftCodeMCP defines its own JSONValue (AssistTool.swift);
-            // the extension host API takes SwiftCodeExtensions.JSONValue.
             let args: [SwiftCodeExtensions.JSONValue] = argsObject.isEmpty ? [] : [.object(argsObject.mapValues { extensionJSONValue($0) })]
             let result: String
             do {
@@ -895,8 +641,6 @@ extension SwiftCodeMCPHost {
             do {
                 try await XcodeCommandRegistry.shared.perform(identifier: command, buffer: buffer)
             } catch {
-                // The buffer is in-memory: a throwing command leaves the
-                // file untouched (spec §7.2).
                 throw MCPToolError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             }
             let newContent = buffer.completeBuffer
@@ -906,8 +650,6 @@ extension SwiftCodeMCPHost {
                                    summary: "Command '\(command)' made no changes to \(target.relativePath).")
             }
             let linesAfter = newContent.components(separatedBy: .newlines).count
-            // The file write itself goes through `commit()` — the Wave 2
-            // gate (spec §5.4) — exactly as the file tools do.
             try await commit(MCPChange(tool: call.name, path: target.url.path, relativePath: target.relativePath,
                                        original: target.content, proposed: newContent,
                                        summary: "Run Xcode command '\(command)' on \(target.relativePath)"),
@@ -949,9 +691,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// `AnyJSON` → the host's `SwiftCodeExtensions.JSONValue` (same cases, same nesting).
-    /// Qualified because SwiftCodeMCP defines its own `JSONValue` (AssistTool.swift),
-    /// which would otherwise shadow the host type in this file.
     func extensionJSONValue(_ value: AnyJSON) -> SwiftCodeExtensions.JSONValue {
         switch value {
         case .null: return .null
@@ -964,11 +703,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// The `details` text (spec §7.2): display name + id, version, kind,
-    /// state, enabled, description; dependencies with satisfied/missing
-    /// per dep; granted capabilities (display names, or `"none"`);
-    /// `lastError` when set; for VS Code kind, the manifest re-parsed
-    /// with `Compatible:` + notes; running contribution commands.
     func extensionDetailsText(_ installed: InstalledExtension, manager: ExtensionManager) -> String {
         let m = installed.metadata
         var lines = ["\(m.displayName) (\(m.id))",
@@ -1011,10 +745,6 @@ extension SwiftCodeMCPHost {
         return lines.joined(separator: "\n")
     }
 
-    /// The `list_commands` text (spec §7.2). VS Code: the running
-    /// contribution's commands when the host is running, else the
-    /// manifest's `contributes.commands`; native: the plugin manifest's
-    /// commands; Xcode-command kind: the registered Xcode commands.
     func extensionCommandsText(_ id: String, manager: ExtensionManager) -> String {
         guard let installed = manager.installed.first(where: { $0.id == id }) else {
             return "Extension \(id) contributes no commands (not installed)."
@@ -1051,20 +781,13 @@ extension SwiftCodeMCPHost {
     }
 #endif
 
-
-    // MARK: - `use_composio` (real client: see `SwiftCodeTools+ComposioClient.swift`)
-
     func useComposio(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await useComposioExecute(call)
     }
 
-    // MARK: - `use_workers` (validation + plan: see `SwiftCodeTools+WorkersRuntime.swift`)
-
     func useWorkers(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await useWorkersReal(call)
     }
-
-    // MARK: - `environment_variable_manager`
 
     func environmentVariableManager(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -1114,9 +837,6 @@ extension SwiftCodeMCPHost {
                 throw MCPToolError("Action 'set' requires 'key'.")
             }
             let val = call.arguments["value"]?.string ?? ""
-            // Legacy's exact line logic: an empty (or missing) file
-            // splits to one empty line, so a brand-new file gets a
-            // leading blank line before the new `KEY=value` line.
             let existing = text(of: envURL) ?? ""
             var lines = existing.components(separatedBy: .newlines)
             var replaced = false
@@ -1141,8 +861,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - `clipboard_manager_tool`
-
     func clipboardManager(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let actionRaw = call.arguments["action"]?.string else {
             throw MCPToolError("Missing required parameter: action")
@@ -1165,8 +883,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("Unsupported action '\(actionRaw)'. Supported: 'read', 'copy'.")
         }
     }
-
-    // MARK: - `process_monitor_tool`
 
     func processMonitor(_ call: MCPToolCall) async throws -> MCPToolResult {
         _ = try session(for: call)
@@ -1213,8 +929,6 @@ extension SwiftCodeMCPHost {
         }
         return .text(report)
     }
-
-    // MARK: - `disk_space_analyzer`
 
     func diskSpaceAnalyzer(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -1267,8 +981,6 @@ extension SwiftCodeMCPHost {
         return .text(report)
     }
 
-    // MARK: - `system_notification_tool`
-
     func systemNotification(_ call: MCPToolCall) async throws -> MCPToolResult {
         let title = call.arguments["title"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "SwiftCode Assist"
         let subtitle = call.arguments["subtitle"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1287,10 +999,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - `use_system`
 
-    /// Legacy's sysctl allowlist (`AssistSystemTool`), with the
-    /// expected value kind.
     nonisolated static let terminalSysctlAllowlist: [String: TerminalSysctlKind] = [
         "kern.ostype": .string, "kern.osrelease": .string, "kern.osrevision": .string, "kern.version": .string,
         "kern.hostname": .string, "kern.maxproc": .int32,
@@ -1299,8 +1008,6 @@ extension SwiftCodeMCPHost {
         "hw.cpufrequency": .uint64, "machdep.cpu.brand_string": .string,
     ]
 
-    /// Domains that are never writable through this tool (Legacy's
-    /// `blockedDomains`): the global domain affects every app.
     nonisolated static let terminalBlockedDefaultsDomains: Set<String> = ["NSGlobalDomain"]
 
     nonisolated static func terminalClampedInt(_ value: AnyJSON?, default def: Int, min lo: Int, max hi: Int) -> Int {
@@ -1318,22 +1025,12 @@ extension SwiftCodeMCPHost {
         return Swift.min(Swift.max(v, lo), hi)
     }
 
-    /// Whether `text` looks like an OS permission refusal (Legacy's
-    /// `permissionDeniedIn`).
     nonisolated static func terminalPermissionDeniedIn(_ text: String) -> Bool {
         text.localizedCaseInsensitiveContains("permission denied")
             || text.localizedCaseInsensitiveContains("not permitted")
             || text.localizedCaseInsensitiveContains("operation not permitted")
     }
 
-    /// Runs one fixed-argv system binary with `use_system`'s
-    /// working directory (the workspace root) and timeout. `nil`
-    /// when the binary cannot start.
-    /// Runs one fixed-argv system binary with `use_system`'s working
-    /// directory (the workspace root) and timeout. `nil` when the
-    /// binary cannot start. The directory is a URL, not the session:
-    /// the detached task below may only capture `Sendable` values
-    /// (`WorkspaceSession` is `@MainActor`).
     func terminalUseSystemRun(_ path: String, _ args: [String], timeout: TimeInterval, workingDirectory: URL) async -> TerminalFixedRun? {
         (await Task.detached {
             Self.terminalRunFixed(path, args, workingDirectory: workingDirectory,
@@ -1413,8 +1110,6 @@ extension SwiftCodeMCPHost {
     func terminalDevEnvironment(in s: WorkspaceSession) async throws -> MCPToolResult {
         let root = Self.folder(of: s.model)
         var sections: [String] = []
-        // Each probe is a fixed binary + fixed argv; a missing tool
-        // is reported, not fabricated.
         let probes: [(label: String, path: String, args: [String])] = [
             ("xcodebuild", HostTool.path("xcodebuild"), ["-version"]),
             ("swift", HostTool.path("swift"), ["--version"]),
@@ -1499,8 +1194,6 @@ extension SwiftCodeMCPHost {
 
     func terminalListeningSockets(in s: WorkspaceSession) async throws -> MCPToolResult {
         let root = Self.folder(of: s.model)
-        // Legacy's fixed /usr/sbin/lsof does not exist on Linux, so
-        // the binary is resolved on PATH instead (same fixed argv).
         guard let lsof = Self.terminalResolveProgram("lsof", workingDirectory: Self.folder(of: s.model)) else {
             throw MCPToolError("Failed to launch lsof (not found on PATH)")
         }
@@ -1658,8 +1351,6 @@ extension SwiftCodeMCPHost {
         guard let rawValue = params["value"] else {
             throw MCPToolError("Missing required parameters.value (string, number, or boolean)")
         }
-        // `defaults write` needs a typed flag; only scalar JSON
-        // types are allowed.
         let writeArgs: [String]
         let expectedReadback: String
         if let b = rawValue.bool {
@@ -1705,8 +1396,6 @@ extension SwiftCodeMCPHost {
                             "verified": .bool(true), "content": .string(content)], summary: content)
     }
 
-    /// Reads one key from a user-domain defaults domain. `nil` when
-    /// the key (or domain) does not exist or the read fails.
     func terminalDefaultsRead(domain: String, key: String, in s: WorkspaceSession) async -> String? {
         guard let result = await terminalUseSystemRun("/usr/bin/defaults", ["read", domain, key], timeout: 10,
                                                       workingDirectory: Self.folder(of: s.model)),
@@ -1718,19 +1407,14 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - `take_screenshot` (fullscreen/region/window: see `SwiftCodeTools+Screenshot.swift`)
 
     func takeScreenshot(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await takeScreenshotReal(call)
     }
 
-    // MARK: - `take_screenrecord` (real engine: see `SwiftCodeTools+ScreenRecording.swift`)
-
     func takeScreenrecord(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await takeScreenrecordReal(call)
     }
-
-    // MARK: - `use_app` (AX engine: see `SwiftCodeTools+AppInteraction.swift`)
 
     func useApp(_ call: MCPToolCall) async throws -> MCPToolResult {
         try Self.terminalRequireMacOS("use_app")

@@ -1,17 +1,7 @@
-// The room's environment cube against the pictures (specs/simulator/xr-depth.md
-// §5.3). The cube is a panorama of the room taken from one point, the
-// guest's probe, somewhere in the room: not at the head. Its frame is known
-// (left-handed, `XRCubeFace.geometry(mirrored:)`), its values are linear with
-// the pictures' linear light. From final pictures with their depth, which give
-// surface points in the stage frame and how bright they are, this finds where
-// the probe is, the exposure, and the box the room fills. Drawing the cube on
-// that box from that point puts its walls where the pictures have them.
-
 import Foundation
 import SwiftCodeDisplayStream
 
 public enum XREnvironmentCalibration {
-    /// IEEE half → float.
     @inline(__always)
     public static func half(_ h: UInt16) -> Float {
         let s = UInt32(h >> 15) << 31, e = Int((h >> 10) & 0x1F), m = UInt32(h & 0x3FF)
@@ -23,10 +13,9 @@ public enum XREnvironmentCalibration {
         return Float(bitPattern: s | UInt32(e - 15 + 127) << 23 | (m << 13))
     }
 
-    /// The decoded cube: per face size × size linear RGB.
     public struct Cube: Sendable {
         public let size: Int
-        public let rgb: [[Float]]    // 6 faces, 3 floats per texel
+        public let rgb: [[Float]]
 
         public init(halfFloats data: [UInt8], size: Int) {
             self.size = size
@@ -43,7 +32,6 @@ public enum XREnvironmentCalibration {
             rgb = faces
         }
 
-        /// Luminance in a direction of the cube's frame.
         public func luminance(_ d: SpatialVector) -> Float {
             let (face, u, v) = XRCubeFace.lookup(d)
             let x = min(size - 1, max(0, Int(u * Double(size)))), y = min(size - 1, max(0, Int(v * Double(size))))
@@ -52,29 +40,21 @@ public enum XREnvironmentCalibration {
         }
     }
 
-    /// sRGB-encoded byte → linear.
     @inline(__always)
     public static func linear(_ b: UInt8) -> Float {
         let c = Float(b) / 255
         return c <= 0.04045 ? c / 12.92 : powf((c + 0.055) / 1.055, 2.4)
     }
 
-    /// A surface point seen in a final picture: stage frame, linear luminance.
     public typealias Sample = (point: SpatialVector, luminance: Float)
 
     public struct Result: Equatable, Sendable {
-        /// Where the cube was taken (stage frame).
         public var probe: SpatialVector
-        /// The room's extent (stage frame, axis-aligned).
         public var boxMin: SpatialVector, boxMax: SpatialVector
-        /// Normalised correlation at the probe (−1…1).
         public var score: Double
-        /// Picture / cube (linear), the median of their ratios.
         public var gain: Double
     }
 
-    /// Correlation of the samples' luminance with the cube seen from `probe`
-    /// (mirrored: stage direction (x, y, z) is cube direction (x, y, −z)).
     private static func score(cube: Cube, samples: [Sample], probe: SpatialVector) -> Double {
         var sx = 0.0, sy = 0.0, sxx = 0.0, syy = 0.0, sxy = 0.0
         for s in samples {
@@ -88,8 +68,6 @@ public enum XREnvironmentCalibration {
         return v > 1e-12 ? (sxy - sx * sy / n) / v.squareRoot() : -1
     }
 
-    /// The probe, the exposure and the room's box from samples of several
-    /// directions. nil with too few samples or nothing varying.
     public static func calibrate(cube: Cube, samples all: [Sample], searchRadius: Double = 6) -> Result? {
         guard all.count >= 64 else { return nil }
         let stride0 = max(1, all.count / 3000)
@@ -115,7 +93,6 @@ public enum XREnvironmentCalibration {
             }
         }
         guard best.score > -1 else { return nil }
-        // The exposure: the median of picture / cube where the cube is not a light.
         var ratios: [Float] = []
         ratios.reserveCapacity(samples.count)
         for s in samples {
@@ -125,7 +102,6 @@ public enum XREnvironmentCalibration {
         }
         ratios.sort()
         let gain = ratios.isEmpty ? 1 : Double(ratios[ratios.count / 2])
-        // The box: 1 % and 99 % of the points per axis, the probe inside.
         func bounds(_ f: (SpatialVector) -> Double) -> (Double, Double) {
             let v = all.map { f($0.point) }.sorted()
             return (v[v.count / 100], v[v.count - 1 - v.count / 100])
@@ -137,9 +113,6 @@ public enum XREnvironmentCalibration {
         return Result(probe: p, boxMin: lo, boxMax: hi, score: best.score, gain: gain)
     }
 
-    /// Inverse-depth samples (q = near / z · 65535, `XRDepthImage`'s) that put a
-    /// mirrored cube's faces on the box when drawn from the probe: `n` × `n`
-    /// per face, six faces; sample j of a row is at u = j / (n − 1).
     public static func boxDepth(probe: SpatialVector, boxMin: SpatialVector, boxMax: SpatialVector, n: Int, near: Double = 0.1) -> [UInt16] {
         var out = [UInt16](repeating: 0, count: 6 * n * n)
         for f in XRCubeFace.allCases {
@@ -147,7 +120,6 @@ public enum XREnvironmentCalibration {
             for j in 0..<n {
                 for i in 0..<n {
                     let tx = -1 + 2 * Double(i) / Double(n - 1), ty = 1 - 2 * Double(j) / Double(n - 1)
-                    // The local point (tx, ty, −1) · z in the stage is z · dir: z is where the ray meets the box.
                     let r = g.toStage.apply((tx, ty, -1, 0))
                     func hit(_ o: Double, _ d: Double, _ lo: Double, _ hi: Double) -> Double {
                         if d > 1e-9 { return (hi - o) / d }

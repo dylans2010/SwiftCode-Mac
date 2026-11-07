@@ -1,7 +1,3 @@
-// DocNSTextView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/DocNSTextView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import AppKit
 

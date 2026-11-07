@@ -1,5 +1,3 @@
-// trapbench: our probe (stage 7, agent I4). Times 100000 calls each of a few
-// cheap system calls (each one VM exit under Ycode).
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>

@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-# abi_check.py - proves that the host-library compile pipeline produces
-# Apple's arm64 calling convention (DarwinPCS), not generic AAPCS64.
-#
-# Clean-room SwiftCode code. It compiles common/abi_check/{callee,caller}.c with
-# the exact library flags, strips the platform tag (strip_platform.py),
-# links a throwaway dylib with ld64.lld, disassembles it with llvm-objdump,
-# and checks the DarwinPCS rules (public: Apple's "Writing ARM64 code for
-# Apple platforms"):
-#   1. variadic callee: va_start does not spill x1-x7 / q0-q7 to a register
-#      save area (anonymous arguments arrive on the stack);
-#   2. variadic caller: the anonymous arguments 0x11 and 0x22 are stored to
-#      the stack, not passed in w1/x2;
-#   3. stack arguments are packed at natural size and alignment: the char
-#      (9th argument) is at [sp] and the short (10th) at [sp, #2] in both
-#      the caller (strb/strh) and the callee (ldrsb/ldrsh); AAPCS64 would use
-#      8-byte slots ([sp, #8]).
-#
-# Usage: python3 -I abi_check.py --clang C --ld L --objdump O --out DIR -- CFLAGS...
 
 import argparse
 import os
@@ -26,13 +8,11 @@ import sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 
-
 def run(cmd):
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if p.returncode != 0:
         sys.exit("abi_check.py: %s failed:\n%s" % (cmd[0], p.stderr))
     return p.stdout
-
 
 def functions(disasm):
     funcs, cur = {}, None
@@ -45,7 +25,6 @@ def functions(disasm):
             insn = line.split(":", 1)[1].split(";", 1)[0]
             funcs[cur].append(" ".join(insn.replace("\t", " ").split()))
     return funcs
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -92,7 +71,6 @@ def main():
     cm = need("_yc_abi_call_many")
     if not any(re.match(r"strb\s+\w+, \[sp\]", i) for i in cm) or \
             not any(re.match(r"strh\s+\w+, \[sp, #0x2\]", i) for i in cm):
-        # both values packed into one 32-bit store at [sp], nothing at [sp, #8]
         if not any(re.match(r"str\s+w\w+, \[sp\]", i) for i in cm) or any("[sp, #0x8]" in i for i in cm):
             errors.append("10-argument caller does not pack char/short at [sp]/[sp, #2]: %s" % cm)
     if errors:
@@ -100,7 +78,6 @@ def main():
             sys.stderr.write("abi_check.py: FAIL: %s\n" % e)
         sys.exit(1)
     print("abi_check: DarwinPCS ok (variadic args on the stack, stack args packed at natural size)")
-
 
 if __name__ == "__main__":
     main()

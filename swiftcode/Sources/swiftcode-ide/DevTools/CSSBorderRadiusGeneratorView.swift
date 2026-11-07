@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct CSSBorderRadiusGeneratorView: View {
@@ -26,7 +23,6 @@ struct CSSBorderRadiusGeneratorView: View {
                 Slider(value: $bottomRight, in: 0...100) { Text("Bottom Right: \(Int(bottomRight))%") }
             }
             .padding()
-            
 
             Text("border-radius: \(Int(topLeft))px \(Int(topRight))px \(Int(bottomRight))px \(Int(bottomLeft))px;")
                 .font(.system(.caption, design: .monospaced))

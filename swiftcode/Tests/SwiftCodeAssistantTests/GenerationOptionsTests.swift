@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Output limit, sampling, cut-off replies and streamed usage
-/// (coding-assistant.md §3.5), against stand-in servers with recorded reply
-/// shapes. No network.
 @Suite struct GenerationOptionsTests {
     let options = GenerationOptions(maxOutputTokens: 512, temperature: 0.3, topP: 0.9, topK: 40, repeatPenalty: 1.1)
 
@@ -14,7 +11,6 @@ import Testing
 
     @Test func settingsDefaultAndOlderSaves() throws {
         #expect(AssistantSettings().generation == GenerationOptions(maxOutputTokens: 4096))
-        // Saved before the field existed: the default applies.
         let old = try JSONDecoder().decode(AssistantSettings.self, from: Data(#"{"provider":"ollama"}"#.utf8))
         #expect(old.generation.maxOutputTokens == 4096)
         var s = AssistantSettings()
@@ -44,8 +40,6 @@ import Testing
         #expect(b["top_k"] == nil && b["repeat_penalty"] == nil)
     }
 
-    /// llama-server: `finish_reason: "length"`, then the usage chunk
-    /// `stream_options.include_usage` adds (`choices: []`), then `[DONE]`.
     @Test func llamaServerCutOffAndUsage() async throws {
         let server = try LoopbackServer { _ in
             .init(contentType: "text/event-stream", chunks: sse([

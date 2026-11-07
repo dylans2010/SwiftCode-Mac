@@ -1,18 +1,9 @@
-// The type catalog (type-identifiers.md): lookups over the generated tables,
-// the HAP UUID scheme (§1) and the HAP category-number table
-// (accessory-protocols.md §2.5).
-
 import Foundation
 
-/// One public constant of type-identifiers.md.
 public struct SwiftCodeHomeCatalogEntry: Hashable, Sendable {
-    /// The constant's name, e.g. `HMServiceTypeLightbulb`.
     public let constantName: String
-    /// The name after the table prefix, e.g. `Lightbulb`.
     public let name: String
-    /// The constant's value (full uppercase UUID for HAP types).
     public let identifier: String
-    /// HAP short ID for service and characteristic types.
     public let shortID: UInt32?
     public let introduced: String
     public let deprecated: String?
@@ -28,7 +19,6 @@ public struct SwiftCodeHomeCatalogEntry: Hashable, Sendable {
     }
 }
 
-/// One characteristic value enumeration (type-identifiers.md §5).
 public struct SwiftCodeValueEnumerationEntry: Hashable, Sendable {
     public let name: String
     public let introduced: String
@@ -46,13 +36,9 @@ public struct SwiftCodeValueEnumerationEntry: Hashable, Sendable {
     }
 }
 
-/// SwiftCode's view of the identifier catalog. The tables live in
-/// `Generated/Catalog.swift`.
 public enum SwiftCodeHomeCatalog {
-    /// The HAP base UUID suffix (type-identifiers.md §1).
     public static let hapBaseSuffix = "-0000-1000-8000-0026BB765291"
 
-    /// Every public string constant (HK-B14 counts 255).
     public static var allConstants: [SwiftCodeHomeCatalogEntry] {
         serviceTypes + characteristicTypes + accessoryCategoryTypes + metadataFormats + metadataUnits
             + characteristicProperties + actionSetTypes + significantEvents + keyPaths + otherConstants
@@ -77,9 +63,6 @@ public enum SwiftCodeHomeCatalog {
         categoriesByID[identifier.uppercased()]
     }
 
-    /// The full uppercase form of a HAP type: a short hex ID (`"43"`, `"0x43"`)
-    /// expands with the HAP base; a full UUID is upper-cased. Nil if neither.
-    /// (type-identifiers.md §1: accept both, expose the full uppercase form.)
     public static func normalizedTypeUUID(_ text: String) -> String? {
         var t = text.trimmingCharacters(in: .whitespaces)
         if t.lowercased().hasPrefix("0x") { t = String(t.dropFirst(2)) }
@@ -90,8 +73,6 @@ public enum SwiftCodeHomeCatalog {
         return nil
     }
 
-    /// The short hex form HAP-IP sends for Apple-defined types (no leading
-    /// zeros), or the full UUID for anything else.
     public static func wireTypeString(_ identifier: String) -> String {
         let full = normalizedTypeUUID(identifier) ?? identifier
         if full.hasSuffix(hapBaseSuffix) {
@@ -102,14 +83,11 @@ public enum SwiftCodeHomeCatalog {
         return full
     }
 
-    /// English text for a service or characteristic type (SwiftCode's own wording,
-    /// derived from the catalog name); nil for custom types.
     public static func localizedDescription(forType identifier: String) -> String? {
         guard let entry = serviceType(identifier) ?? characteristicType(identifier) else { return nil }
         return words(entry.name)
     }
 
-    /// English text for an accessory category.
     public static func localizedDescription(forCategory identifier: String) -> String {
         guard let entry = accessoryCategoryType(identifier) else { return "Other" }
         return words(entry.name)
@@ -137,12 +115,8 @@ public enum SwiftCodeHomeCatalog {
         return out
     }
 
-    // MARK: HAP category numbers (accessory-protocols.md §2.5)
-
-    /// HAP `ci` category number → HomeKit category type string. Numbers the
-    /// ADK does not list (television, speaker, router, doorbell, …) are absent.
     public static let hapCategories: [Int: String] = [
-        0: HMAccessoryCategoryTypeOther,  // bridged accessory: no own category
+        0: HMAccessoryCategoryTypeOther,
         1: HMAccessoryCategoryTypeOther,
         2: HMAccessoryCategoryTypeBridge,
         3: HMAccessoryCategoryTypeFan,
@@ -170,7 +144,6 @@ public enum SwiftCodeHomeCatalog {
         30: HMAccessoryCategoryTypeShowerHead,
     ]
 
-    /// The category type string for a HAP category number (`Other` if unknown).
     public static func categoryType(forHAPCategory number: Int) -> String {
         hapCategories[number] ?? HMAccessoryCategoryTypeOther
     }

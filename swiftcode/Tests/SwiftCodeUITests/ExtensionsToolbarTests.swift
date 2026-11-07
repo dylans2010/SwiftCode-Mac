@@ -5,15 +5,6 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// The Extensions toolbar entry point + panel (Wave 11 Slice C).
-///
-/// Spec: `extensions-platform.md` §1.2 (Extensions on the editor
-/// toolbar beside Assist, not in the workspace sidebar), §3–§8 (what
-/// the panel shows). The toolbar tests pin the entry point's place in
-/// the default set; the panel tests drive
-/// `ExtensionsPanelViewController` against a stub data source (the
-/// real host target is Slice B's — see the `#if canImport` split in
-/// the panel file).
 @MainActor
 @Suite(.serialized) struct ExtensionsToolbarTests {
     func window() throws -> WorkspaceWindowController {
@@ -34,9 +25,6 @@ import SwiftCodeProject
         #expect(item.label == "Extensions" && item.toolTip == "Extensions")
         #expect(item.action == NSSelectorFromString("toggleExtensionsPanel:"))
         #expect(item.isBordered)
-        // The toolbar-fit steps only allow the editor-mode group in the
-        // overflow, so this button stays visible while the modes group
-        // goes into the "»" menu.
         #expect(item.visibilityPriority == .high)
     }
 
@@ -45,12 +33,8 @@ import SwiftCodeProject
         defer { wc.window?.close() }
         #expect(wc.extensionsPanel == nil)
         wc.toggleExtensionsPanel(nil)
-        // The panel controller is created on toggle (the popover itself
-        // needs a visible window, so it is not shown in tests).
         _ = try #require(wc.extensionsPanel)
     }
-
-    // MARK: - Panel against a stub data source
 
     @MainActor
     final class StubExtensionsDataSource: ExtensionsPanelDataSource {
@@ -99,7 +83,6 @@ import SwiftCodeProject
         #expect(c.commandsText.string.contains("first.run"))
         #expect(c.diagnosticsText.string.contains("Node.js found at /usr/local/bin/node"))
         #expect(c.diagnosticsText.string.contains("boom"))
-        // Selecting the second row swaps the detail (and shows its error).
         c.table.selectRowIndexes([1], byExtendingSelection: false)
         c.tableViewSelectionDidChange(Notification(name: NSTableView.selectionDidChangeNotification))
         #expect(c.nameLabel.stringValue == "Second")
@@ -107,15 +90,12 @@ import SwiftCodeProject
         #expect(c.enableCheckbox.state == .off)
         #expect(c.capabilitiesText.string == "none")
         #expect(c.commandsText.string == "No commands.")
-        // Toggling goes through the data source and reloads from it.
         await c.viewModel.setEnabledSelected(true)
         #expect(stub.setEnabledCalls.contains { $0 == ("pub.second", true) })
         #expect(c.viewModel.selectedRow?.isEnabled == true)
     }
 
     @Test func nodeAvailabilityIsCoherent() {
-        // A real check (spec §4.2): the reported path is an executable
-        // file when one is reported at all.
         let found = ExtensionsNodeAvailability.locate()
         if let path = found {
             #expect(FileManager.default.isExecutableFile(atPath: path))
@@ -130,7 +110,6 @@ import SwiftCodeProject
         await c.viewModel.load()
         c.refreshAll()
 #if canImport(SwiftCodeExtensions)
-        // The host is wired in: the panel loads from the real manager.
         #expect(c.viewModel.diagnostics?.hostAvailable == true)
 #else
         #expect(c.viewModel.rows.isEmpty)

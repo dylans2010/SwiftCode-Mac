@@ -66,7 +66,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         defer { heavy.unlock() }
         _ = NSApplication.shared
         let dir = try makePackage()
-        // Build once so the index has both files.
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         p.arguments = ["swift", "build", "--package-path", dir.path, "-Xswiftc", "-index-store-path", "-Xswiftc", dir.appendingPathComponent(".build/index-store").path]
@@ -83,7 +82,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         await wc.connectLanguageService(transport: nil)
         #expect(session.language != nil)
 
-        // Fix-its arrive with the diagnostics (var never mutated → let).
         #expect(await waitUntil(120) { session.displayedIssues.contains { !$0.fixIts.isEmpty } })
         let fixLine = try #require(session.displayedIssues.first { !$0.fixIts.isEmpty }?.location?.line)
         #expect(wc.editor.gutter.marks.fixable.contains(fixLine))
@@ -92,7 +90,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         wc.editor.textView.undoManager?.undo()
         #expect(wc.editor.text.contains("var label = \"total\""))
 
-        // References of `area` across both files (wait for the index).
         try caret(wc, at: "area()")
         var refs: [Location] = []
         for _ in 0..<40 {
@@ -104,12 +101,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wc.navigator.rows(3).first?.title.hasPrefix("area — 3 references") == true)
         #expect(wc.navigator.selectedIndex == 3)
 
-        // Call hierarchy of `total`: report calls it.
         try caret(wc, at: "total() -> Double")
         let calls = await wc.findCallHierarchy()
         #expect(calls.first?.hasPrefix("total") == true && calls.contains { $0.contains("report") })
 
-        // Rename `area` → `surface`: two files → preview, then apply.
         try caret(wc, at: "area()")
         let name = await wc.beginRename()
         #expect(name == "area")
@@ -122,13 +117,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wc.editor.text.contains("Circle(radius: 2).surface() + Circle(radius: 1).surface()"))
         #expect(try String(contentsOf: shapes, encoding: .utf8).contains("func surface() -> Double"))
         #expect(wc.refactoringBackups[shapes.standardizedFileURL.path]?.contains("func area()") == true)
-        // Undo in the open file; the closed file can be reverted.
         wc.editor.textView.undoManager?.undo()
         #expect(wc.editor.text.contains("Circle(radius: 2).area()"))
         wc.revertDiskRefactorings()
         #expect(try String(contentsOf: shapes, encoding: .utf8).contains("func area()"))
 
-        // Code actions on a struct: some refactoring is offered and works.
         wc.open(path: shapes.path, line: nil)
         let expr = (wc.editor.text as NSString).range(of: "radius * radius * 3")
         wc.editor.textView.setSelectedRange(expr)

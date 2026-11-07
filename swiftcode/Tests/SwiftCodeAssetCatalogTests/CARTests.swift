@@ -3,9 +3,6 @@ import Testing
 @testable import SwiftCodeAssetCatalog
 import SwiftCodeIcon
 
-/// CAR-WRITER phase 1 (specs/formats/assets-car.md): the container and
-/// CoreUI structures byte for byte where the spec gives bytes, and
-/// write-then-read round trips.
 struct CARStructureTests {
     func sample(_ platform: CARPlatform = .iOS, compression: CARCompression = .lzfse) throws -> (Data, CARWriter) {
         var w = CARWriter(platform: platform, deploymentTarget: "27.0", compression: compression)
@@ -94,11 +91,9 @@ struct CARStructureTests {
         let leaf = Array(try bom.block(leaves[0].block))
         #expect(leaf.u16be(at: 0) == 1 && leaf.u16be(at: 2) == 4)
         #expect(leaf.count == 4096 + 4 * 18)
-        // 4 zero bytes after the entries, then the keys back to back.
         #expect(leaf.u32be(at: 12 + 4 * 8) == 0)
         #expect(Array(leaf[(16 + 4 * 8)..<(16 + 4 * 8 + 18)]) == Array(try bom.block(leaves[0].entries[0].key)))
         for (j, e) in leaves[0].entries.enumerated() { #expect(leaves[0].keyCopies[j] == Array(try bom.block(e.key))) }
-        // Names use variable keys.
         #expect(try bom.treeInfo("FACETKEYS").keyLength == 0xFFFF_FFFF)
     }
 
@@ -139,7 +134,6 @@ struct CARStructureTests {
         t.u32le(1006); t.u32le(4); t.u32le(1)
         t.u32le(1007); t.u32le(4); t.u32le(16)
         #expect(Array(tall[184..<(184 + tlvLength)]) == t.bytes)
-        // CELM v1 (an image-set image may have alpha), LZFSE in KCBC chunks of height / 3 rows, the last with the rest.
         let p = Array(tall[(184 + tlvLength)...])
         #expect(Array(p[0..<4]) == Array("MLEC".utf8) && p.u32le(at: 4) == 1 && p.u32le(at: 8) == 4 && p.u32le(at: 12) == 3)
         var off = 16
@@ -155,7 +149,6 @@ struct CARStructureTests {
     @Test func colorAndMultisizePayloads() throws {
         let (data, _) = try sample()
         let rs = try BOMReader(data).tree("RENDITIONS").map(\.value)
-        // The first component (an f64 at 184 + 28 + 16) is 1.0 for red, 0.0 for blue.
         let red = rs.first { $0.u16le(at: 36) == 1009 && $0.u32le(at: 232) != 0 }!
         #expect(red.u32le(at: 12) == 0 && red.u32le(at: 20) == 0 && Array(red[24..<28]) == [0, 0, 0, 0] && red.u32le(at: 28) == 0)
         let tl = Int(red.u32le(at: 168))
@@ -176,7 +169,6 @@ struct CARStructureTests {
     @Test func renditionKeysAreSortedAsStoredBytes() throws {
         let car = try CARFile(data: try sample().0)
         #expect(car.structureIssues.isEmpty)
-        // By the stored bytes (little-endian values), the order the runtime searches.
         let keys = car.renditions.map { CARWriter.keyBytes($0.keyValues) }
         #expect(keys == keys.sorted { $0.lexicographicallyPrecedes($1) })
         #expect(car.renditions.allSatisfy { $0.key[.element] == 85 })
@@ -238,14 +230,11 @@ struct CARStructureTests {
         #expect(try PNG.decode(Data(e[0].data)).width == 256)
         #expect(try PNG.decode(Data(e[1].data)).width == 32)
         #expect(try PNG.decode(Data(e[3].data)).width == 128)
-        // ARGB: four run-length planes of 256 bytes each (A = 255, R = 0, G = 128, B = 255).
         #expect(Array(e[2].data.prefix(4)) == Array("ARGB".utf8))
-        // Runs are at most 130 bytes: 130 (code 255) then 126 (code 251).
         #expect(Array(e[2].data.dropFirst(4)) == [255, 255, 251, 255] + [255, 0, 251, 0] + [255, 128, 251, 128] + [255, 255, 251, 255])
     }
 }
 
-/// The compiler: inputs → car, loose files, partial Info.plist (icon-compile.md §3).
 struct AssetCompilerTests {
     @Test func iOSCatalogCompiles() throws {
         let dir = try Fixture.tempDir()
@@ -294,7 +283,6 @@ struct AssetCompilerTests {
         #expect(r.succeeded)
         let p = try #require(NSDictionary(contentsOf: out.appendingPathComponent("partial.plist")))
         #expect((p["CFBundleIcons~ipad"] as? NSDictionary)?["CFBundlePrimaryIcon"] as? NSDictionary == ["CFBundleIconFiles": ["AppIcon60x60", "AppIcon76x76"]])
-        // Both loose PNGs anyway.
         #expect(r.outputs.count == 3)
         let car = try CARFile(contentsOf: out.appendingPathComponent("Assets.car"))
         #expect(Set(car.renditions.filter { $0.part == CARPart.iconImage }.compactMap { $0.key[.idiom] }) == [1])
@@ -346,11 +334,9 @@ struct AssetCompilerTests {
         #expect(r.succeeded, "\(r.diagnostics)")
         let car = try CARFile(contentsOf: out.appendingPathComponent("Assets.car"))
         let icons = car.renditions.filter { $0.part == CARPart.iconImage }
-        // phone and pad × any, dark, tinted.
         #expect(icons.count == 6)
         #expect(Set(icons.compactMap { $0.key[.appearance] }) == [0, 1, 10])
         #expect(car.appearances.map(\.name).sorted() == ["ISAppearanceTintable", "UIAppearanceAny", "UIAppearanceDark"])
-        // The placeholder render: the fill colour in the corner, the white layer in the middle, dark fill in dark.
         func pixel(_ appearance: UInt16, _ x: Int, _ y: Int) -> [UInt8] {
             guard case .bitmap(let b, _, _, _) = icons.first(where: { $0.key[.appearance] == appearance })!.payload else { return [] }
             return Array(b.rgba[((y * b.width + x) * 4)..<((y * b.width + x) * 4 + 4)])
@@ -376,7 +362,7 @@ struct AssetCompilerTests {
                 == [[1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 1]])
         guard case .bitmap(let big, _, let v, _) = icons.first(where: { $0.key[.dimension2] == 7 })!.payload else { Issue.record("no bitmap"); return }
         #expect(v == 1 && big.width == 1024)
-        #expect(big.rgba[3] == 0)                                   // transparent corner
+        #expect(big.rgba[3] == 0)
         #expect(Array(big.rgba[((512 * 1024 + 120) * 4)..<((512 * 1024 + 120) * 4 + 4)]) == [230, 51, 26, 255])
         #expect(ICNS.entries(try Data(contentsOf: out.appendingPathComponent("AppIcon.icns"))).count == 4)
     }
@@ -413,11 +399,9 @@ struct AssetCompilerTests {
         let p = try #require(NSDictionary(contentsOf: out.appendingPathComponent("partial.plist")))
         let icons = try #require(p["CFBundleIcons"] as? NSDictionary)
         #expect(icons["CFBundleAlternateIcons"] as? NSDictionary == ["Night": ["CFBundleIconName": "Night"]])
-        // Only the primary icon writes loose PNGs.
         #expect(r.outputs.filter { $0.pathExtension == "png" }.count == 2)
         let missing = Fixture.compile([a], platform: "iphoneos", out: out, appIcon: "Other")
         #expect(missing.errors.map(\.message) == ["None of the input catalogs contained a matching stickers icon set, app icon set, or icon stack named \"Other\""])
-        // visionOS ignores an .icon without a word.
         let vision = Fixture.compile([a], platform: "xrsimulator", out: dir.appendingPathComponent("v"))
         #expect(vision.succeeded && vision.diagnostics.isEmpty && vision.outputs.isEmpty)
     }
@@ -438,7 +422,6 @@ struct AssetCompilerTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let cat = try Fixture.catalog(in: dir)
         let out = dir.appendingPathComponent("out")
-        // actool's spelling, as swift-build passes it.
         let status = AssetsCLI.run(["compile", cat.path, "--compile", out.path, "--output-format", "human-readable-text", "--notices", "--warnings",
                                     "--export-dependency-info", dir.appendingPathComponent("deps").path,
                                     "--output-partial-info-plist", dir.appendingPathComponent("p.plist").path, "--app-icon", "AppIcon",
@@ -451,7 +434,6 @@ struct AssetCompilerTests {
         let text = AssetsCLI.describe(try CARFile(contentsOf: out.appendingPathComponent("Assets.car")))
         #expect(text.lines.contains { $0.contains("facet AppIcon: Icon Image") })
         #expect(AssetsCLI.run(["compile", cat.path, "--compile", out.path, "--bogus"]) == 2)
-        // The symbol step writes its three files and no car.
         let sym = dir.appendingPathComponent("sym")
         #expect(AssetsCLI.run(["compile", cat.path, "--compile", sym.path, "--generate-swift-asset-symbols", sym.appendingPathComponent("S.swift").path,
                                "--generate-objc-asset-symbols", sym.appendingPathComponent("S.h").path,

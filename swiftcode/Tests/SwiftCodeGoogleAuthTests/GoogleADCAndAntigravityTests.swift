@@ -3,11 +3,6 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeGoogleAuth
 
-// Antigravity credential parsing and ADC file discovery. The
-// parsing tests are pure; the discovery tests use fixture files in
-// a temp home directory and a stub token endpoint — never the real
-// home directory, keychain, or network.
-
 struct GoogleAntigravityParsingTests {
 
     @Test("The nested token shape parses: refresh token, cached access token, client id, scopes")
@@ -65,7 +60,6 @@ struct GoogleAntigravityParsingTests {
 @MainActor
 struct GoogleADCFileTests {
 
-    /// An authorized_user ADC fixture. Placeholder values only.
     private let authorizedUserFixture = """
         {"client_id":"fixture-adc-client.apps.googleusercontent.com",\
         "client_secret":"fixture-adc-secret","refresh_token":"fixture-adc-refresh",\

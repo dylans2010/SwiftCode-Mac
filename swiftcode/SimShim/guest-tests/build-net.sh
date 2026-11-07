@@ -1,12 +1,4 @@
 #!/bin/sh
-# Builds the networking guest probes (specs/simulator/networking-swiftcode.md §8) for the
-# iOS simulator platform. Runs on macOS only.
-#   ../out/guest-tests/net/p_net          C: sockets, kevent/select/poll, interfaces, DNS
-#   ../out/guest-tests/net/p_urlsession   Objective-C: an NSURLSession data task
-#   ../out/guest-tests/net/p_netpath      the SystemConfiguration store, reachability, the
-#                                         Network.framework path and one nw_connection
-# Copy the output directory to the Thor; run there with
-#   swiftcode-simd --device D --oneshot "<dir>/p_net <host-port> example.com"
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/net}"

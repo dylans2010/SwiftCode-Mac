@@ -1,24 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/CodeReview.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/Models/CodeReview.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - The com.swiftcode.assist.enableCodeReview settings gate (disabled -> review_skipped, no review performed)
-//   - Review context from task history, completed actions, and the change list/build state — destination reviews the workspace code as it stands and says so in the prompt
-// ADAPTATIONS:
-//   - Added cross-target import(s): import SwiftCodeAssistant (destination module exists; types resolve as the owning ports land).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
-//   - AppleFoundationModel — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - FoundationModels — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-//   - LLMResponse — other agent (services-networking-cloud) (`SwiftCode/Features/AI/LLMService.swift`)
-//   - LLMService — other agent (services-networking-cloud) (`SwiftCode/Features/AI/LLMService.swift`)
-//   - ToolCapability — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - ToolRiskLevel — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+ReviewDocs.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
 import Foundation
 import SwiftCodeAssistant
 import os
@@ -52,7 +31,6 @@ public struct CodeReviewTool: AssistTool {
 
         await context.logger.info("Initializing Autonomous Code Review stage...", toolId: id)
 
-        // 1. Check if Code Review is enabled in settings
         let isReviewEnabled = UserDefaults.standard.object(forKey: "com.swiftcode.assist.enableCodeReview") as? Bool ?? true
         if !isReviewEnabled {
             await context.logger.info("Autonomous Code Review is disabled in settings. Skipping verification step.", toolId: id)
@@ -69,7 +47,6 @@ public struct CodeReviewTool: AssistTool {
             return .success("Code Review bypassed (disabled in settings).", data: ["status": "review_skipped"])
         }
 
-        // 2. Load System Prompt from Resource Bundle
         let systemPrompt: String
         do {
             systemPrompt = try CodeReviewSystemLoader.getReviewSystemPrompt()
@@ -79,23 +56,19 @@ public struct CodeReviewTool: AssistTool {
             return .failure(errorMsg)
         }
 
-        // 3. Gather context
         let originalRequest = AssistManager.shared.agentSession.state.objective
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
         let executionMode = isAgentMode ? "com.SwiftCode.Assist-Agent (Agentic Mode)" : "com.SwiftCode.Assist-Chat (Chat Mode)"
 
-        // Compile action & tool executions
         let completedActions = AssistManager.shared.agentSession.state.completedActions.joined(separator: "\n- ")
         let toolHistory = AssistManager.shared.agentSession.state.events.map { event in
             "[\(event.timestamp.description)] [\(event.state.rawValue)]: \(event.summary)"
         }.joined(separator: "\n")
 
-        // Build planning summary
         let planSummary = AssistManager.shared.agentSession.state.plan.map { step in
             "Step: \(step.description) (Tool: \(step.toolId)) - Status: \(step.status.rawValue)"
         }.joined(separator: "\n")
 
-        // Gather repo changes (created, modified, deleted)
         var changesSummary = "No snapshots or changes detected."
         do {
             let snapshots = try AssistSnapshotFunctions.listSnapshots()
@@ -122,7 +95,6 @@ public struct CodeReviewTool: AssistTool {
             changesSummary = "Failed to query repository changes: \(error.localizedDescription)"
         }
 
-        // Gather build results, validation results, and compiler diagnostics from events
         let buildEvents = AssistManager.shared.agentSession.state.events.filter { $0.summary.contains("Build") || $0.summary.contains("build") }
         let buildSummary = buildEvents.map { $0.summary }.joined(separator: "\n")
 
@@ -151,7 +123,6 @@ public struct CodeReviewTool: AssistTool {
         \(buildSummary.isEmpty ? "No recent build or validation tool output detected." : buildSummary)
         """
 
-        // 4. Dynamic Model Selection & Fallback Queue
         let primaryModelID: String
         if FoundationModels.shared.isEnabled {
             primaryModelID = FoundationModels.shared.selectedModel.rawValue
@@ -198,7 +169,6 @@ public struct CodeReviewTool: AssistTool {
                 let response: LLMResponse
 
                 if resolvedProvider == .offline || candidateModel == "AFM 3 Core" || candidateModel == "AFM 3 Core Advanced" {
-                    // For FoundationModels, we temporarily toggle the selected model
                     let originalFMEnabled = FoundationModels.shared.isEnabled
                     let originalFM = FoundationModels.shared.selectedModel
 
@@ -229,24 +199,21 @@ public struct CodeReviewTool: AssistTool {
 
                 let reviewText = response.completionText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Robust JSON Parsing
                 guard let reviewData = extractJSON(from: reviewText) else {
                     throw NSError(domain: "CodeReview", code: 400, userInfo: [NSLocalizedDescriptionKey: "Syntax Error: Reviewer returned an invalid or non-JSON formatted output."])
                 }
 
-                // Extract status to ensure contract compliance
                 let status = (reviewData["status"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if status != "task_ready" && status != "task_failed" {
                     throw NSError(domain: "CodeReview", code: 400, userInfo: [NSLocalizedDescriptionKey: "Contract Error: Reviewer returned invalid status '\(status)'."])
                 }
 
-                // Update global code review manager state
                 await updateReviewState(reviewData: reviewData)
 
                 let output = "Review completed via \(candidateModel). Status: \(status). Summary: \(reviewData["summary"] as? String ?? "")"
                 let serializedData = reviewData.mapValues { "\($0)" }
                 finalResult = .success(output, data: serializedData)
-                break // Succeeded! Stop trying fallbacks!
+                break
 
             } catch {
                 await context.logger.warning("Code review attempt with \(candidateModel) failed: \(error.localizedDescription). Trying next compatible model...", toolId: id)
@@ -299,12 +266,6 @@ public struct CodeReviewTool: AssistTool {
     }
 }
 
-// MARK: - Internal Helper Types
-// NOTE (MCP-DEP, 2026-11-06): CodeReviewInternalResult moved to SwiftCodeAssistant
-// (swiftcode/Sources/SwiftCodeAssistant/Tools/CodeReviewInternalResult.swift) — it is a
-// Foundation-only struct, and SwiftCodeAssistant (which cannot import SwiftCodeMCP)
-// needs it. This file keeps using it through `import SwiftCodeAssistant` above.
-
 @MainActor
 public final class CodeReviewSystemLoader {
     private static var cachedPrompt: String?
@@ -314,7 +275,6 @@ public final class CodeReviewSystemLoader {
             return cached
         }
 
-        // Canonical location: bundled System Assets (see SystemIndexService).
         guard let prompt = SystemIndexService.shared.bundledText(forRelativePath: "CodeReviewSystemAsset.md"),
               !prompt.isEmpty else {
             throw NSError(domain: "CodeReviewSystemLoader", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to locate CodeReviewSystemAsset.md in the bundled System Assets."])

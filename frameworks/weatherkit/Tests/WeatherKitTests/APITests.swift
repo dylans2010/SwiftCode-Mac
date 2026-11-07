@@ -1,6 +1,3 @@
-// C-API (plan.md §2): every public name of api.md, with its type, used from
-// client code (plain `import WeatherKit`, no testable access). Compiling this
-// file is most of the test; running it checks values from the fixtures.
 import CoreLocation
 import Foundation
 import Testing
@@ -10,7 +7,6 @@ import WeatherKit
 struct APITests {
     @Test("api.md §3: every model member has the documented type")
     func modelMembers() {
-        // §3.1 containers
         let _: KeyPath<Weather, CurrentWeather> = \.currentWeather
         let _: KeyPath<Weather, Forecast<MinuteWeather>?> = \.minuteForecast
         let _: KeyPath<Weather, Forecast<HourWeather>> = \.hourlyForecast
@@ -25,7 +21,6 @@ struct APITests {
         let _: KeyPath<WeatherMetadata, CLLocation> = \.location
         let _: KeyPath<WeatherAvailability, WeatherAvailability.AvailabilityKind> = \.minuteAvailability
         let _: KeyPath<WeatherAvailability, WeatherAvailability.AvailabilityKind> = \.alertAvailability
-        // §3.2 CurrentWeather
         let _: KeyPath<CurrentWeather, Date> = \.date
         let _: KeyPath<CurrentWeather, Double> = \.cloudCover
         let _: KeyPath<CurrentWeather, CloudCoverByAltitude> = \.cloudCoverByAltitude
@@ -43,12 +38,10 @@ struct APITests {
         let _: KeyPath<CurrentWeather, Measurement<UnitLength>> = \.visibility
         let _: KeyPath<CurrentWeather, Wind> = \.wind
         let _: KeyPath<CurrentWeather, WeatherMetadata> = \.metadata
-        // §3.3 MinuteWeather
         let _: KeyPath<MinuteWeather, Date> = \.date
         let _: KeyPath<MinuteWeather, Precipitation> = \.precipitation
         let _: KeyPath<MinuteWeather, Double> = \.precipitationChance
         let _: KeyPath<MinuteWeather, Measurement<UnitSpeed>> = \.precipitationIntensity
-        // §3.4 HourWeather
         let _: KeyPath<HourWeather, Date> = \.date
         let _: KeyPath<HourWeather, Double> = \.cloudCover
         let _: KeyPath<HourWeather, CloudCoverByAltitude> = \.cloudCoverByAltitude
@@ -68,7 +61,6 @@ struct APITests {
         let _: KeyPath<HourWeather, UVIndex> = \.uvIndex
         let _: KeyPath<HourWeather, Measurement<UnitLength>> = \.visibility
         let _: KeyPath<HourWeather, Wind> = \.wind
-        // §3.5 DayWeather
         let _: KeyPath<DayWeather, Date> = \.date
         let _: KeyPath<DayWeather, WeatherCondition> = \.condition
         let _: KeyPath<DayWeather, String> = \.symbolName
@@ -91,7 +83,6 @@ struct APITests {
         let _: KeyPath<DayWeather, DayPartForecast> = \.daytimeForecast
         let _: KeyPath<DayWeather, DayPartForecast> = \.overnightForecast
         let _: KeyPath<DayWeather, DayPartForecast?> = \.restOfDayForecast
-        // §3.6 DayPartForecast
         let _: KeyPath<DayPartForecast, Double> = \.cloudCover
         let _: KeyPath<DayPartForecast, CloudCoverByAltitude> = \.cloudCoverByAltitude
         let _: KeyPath<DayPartForecast, WeatherCondition> = \.condition
@@ -106,7 +97,6 @@ struct APITests {
         let _: KeyPath<DayPartForecast, Measurement<UnitLength>> = \.minimumVisibility
         let _: KeyPath<DayPartForecast, Wind> = \.wind
         let _: KeyPath<DayPartForecast, Measurement<UnitSpeed>> = \.highWindSpeed
-        // §3.7 amounts
         let _: KeyPath<PrecipitationAmountByType, Measurement<UnitLength>> = \.hail
         let _: KeyPath<PrecipitationAmountByType, Measurement<UnitLength>> = \.mixed
         let _: KeyPath<PrecipitationAmountByType, Measurement<UnitLength>> = \.rainfall
@@ -122,7 +112,6 @@ struct APITests {
         let _: KeyPath<CloudCoverByAltitude, Double> = \.low
         let _: KeyPath<CloudCoverByAltitude, Double> = \.medium
         let _: KeyPath<CloudCoverByAltitude, Double> = \.high
-        // §3.8 supporting values
         let _: KeyPath<Wind, Wind.CompassDirection> = \.compassDirection
         let _: KeyPath<Wind, Measurement<UnitAngle>> = \.direction
         let _: KeyPath<Wind, Measurement<UnitSpeed>> = \.speed
@@ -145,14 +134,12 @@ struct APITests {
         let _: KeyPath<Precipitation, String> = \.accessibilityDescription
         let _: KeyPath<PressureTrend, String> = \.accessibilityDescription
         let _: KeyPath<WeatherSeverity, String> = \.accessibilityDescription
-        // §3.9 WeatherAlert
         let _: KeyPath<WeatherAlert, URL> = \.detailsURL
         let _: KeyPath<WeatherAlert, String> = \.source
         let _: KeyPath<WeatherAlert, String> = \.summary
         let _: KeyPath<WeatherAlert, String?> = \.region
         let _: KeyPath<WeatherAlert, WeatherSeverity> = \.severity
         let _: KeyPath<WeatherAlert, WeatherMetadata> = \.metadata
-        // §3.10 changes and comparisons
         let _: KeyPath<WeatherChanges, [WeatherChange]> = \.changes
         let _: KeyPath<WeatherChanges, WeatherMetadata> = \.metadata
         let _: KeyPath<WeatherChange, Date> = \.date
@@ -172,7 +159,6 @@ struct APITests {
         let _: KeyPath<TrendBaseline<UnitLength>, TrendBaseline<UnitLength>.Kind> = \.kind
         let _: KeyPath<TrendBaseline<UnitLength>, Measurement<UnitLength>> = \.value
         let _: KeyPath<TrendBaseline<UnitLength>, Date> = \.startDate
-        // §3.11 statistics and summaries
         let _: KeyPath<DailyWeatherStatistics<DayTemperatureStatistics>, [DayTemperatureStatistics]> = \.days
         let _: KeyPath<DailyWeatherStatistics<DayTemperatureStatistics>, Date> = \.baselineStartDate
         let _: KeyPath<DailyWeatherStatistics<DayTemperatureStatistics>, WeatherMetadata> = \.metadata
@@ -207,7 +193,6 @@ struct APITests {
         let _: KeyPath<DayPrecipitationSummary, Date> = \.date
         let _: KeyPath<DayPrecipitationSummary, Measurement<UnitLength>> = \.precipitationAmount
         let _: KeyPath<DayPrecipitationSummary, Measurement<UnitLength>> = \.snowfallAmount
-        // §4 attribution
         let _: KeyPath<WeatherAttribution, String> = \.serviceName
         let _: KeyPath<WeatherAttribution, URL> = \.legalPageURL
         let _: KeyPath<WeatherAttribution, URL> = \.squareMarkURL
@@ -275,7 +260,6 @@ struct APITests {
         let backend = try FixtureWeatherBackend.bundled()
         let service = WeatherService(backend: backend, configuration: .init(language: "en-US", clock: { Date(timeIntervalSince1970: 1_768_478_400) }))
         let _: WeatherService = .shared
-        // swiftlint:disable:next redundant_type_annotation - checks the type name compiles
         let _: WeatherService = WeatherService()
         let location = CLLocation(latitude: 41.5, longitude: -81.5)
 

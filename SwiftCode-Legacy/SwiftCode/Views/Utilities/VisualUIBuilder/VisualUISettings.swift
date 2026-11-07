@@ -1,7 +1,6 @@
 import SwiftUI
 import Observation
 
-/// Preference configurations and viewport metrics for the Visual UI workspace
 @Observable
 @MainActor
 public final class VisualUISettings {
@@ -83,7 +82,6 @@ public final class VisualUISettings {
         let timestamp = formatter.string(from: Date())
         diagnosticsLogs.append("[\(timestamp)] \(message)")
 
-        // Keep last 100 entries
         if diagnosticsLogs.count > 100 {
             diagnosticsLogs.removeFirst()
         }

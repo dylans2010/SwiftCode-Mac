@@ -1,4 +1,3 @@
-# glass.py: fit glass = a*blur(bg, r) + c per channel over a box (full-res coords) (our analysis code)
 import sys, numpy as np
 from PIL import Image, ImageFilter
 bg=Image.open(sys.argv[1]).convert('RGB'); gl=Image.open(sys.argv[2]).convert('RGB')

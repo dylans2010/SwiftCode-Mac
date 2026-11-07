@@ -16,7 +16,6 @@ import UIKit
 public typealias RenderColor = UIColor
 #endif
 
-/// A token representing a syntactic construct in the source code.
 public struct HighlightToken: Sendable, Hashable, Identifiable {
     public let id = UUID()
     public let range: NSRange
@@ -24,7 +23,6 @@ public struct HighlightToken: Sendable, Hashable, Identifiable {
     public let text: String
 }
 
-/// Dynamic theme configuration for the CodeRenderEngine.
 public struct RenderTheme: Sendable, Hashable {
     public let background: RenderColor
     public let defaultText: RenderColor
@@ -99,10 +97,6 @@ public struct RenderTheme: Sendable, Hashable {
     )
 }
 
-/// A syntax-highlighted attributed string that can be passed between actors.
-///
-/// `NSAttributedString` is immutable after initialization and the render engine only stores immutable
-/// copies in this wrapper, making cross-actor transfer safe for the UI to enumerate later.
 public struct HighlightedAttributedContent: @unchecked Sendable {
     public let attributedString: NSAttributedString
 
@@ -111,23 +105,19 @@ public struct HighlightedAttributedContent: @unchecked Sendable {
     }
 }
 
-/// The centralized, high-performance rendering engine subsystem.
 public actor CodeRenderEngine {
     public static let shared = CodeRenderEngine()
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "CodeRenderEngine")
 
-    // Caches to avoid O(N) re-parsing / re-rendering
     private var tokenCache: [String: [HighlightToken]] = [:]
     private var highlightedCache: [String: HighlightedAttributedContent] = [:]
 
     private init() {}
 
-    /// Detect language from filename or file path.
     public func detectLanguage(from url: URL) -> SourceLanguage {
         SourceLanguage.from(url: url)
     }
 
-    /// Main background parsing API. Generates and caches tokens for a file.
     public func parseAndHighlight(
         _ text: String,
         language: SourceLanguage,
@@ -142,7 +132,6 @@ public actor CodeRenderEngine {
         let attributed = HighlightedAttributedContent(highlightContent(text, language: language, theme: theme))
         highlightedCache[cacheKey] = attributed
 
-        // Trim cache to prevent memory bloat
         if highlightedCache.count > 100, let oldestCacheKey = highlightedCache.keys.first {
             highlightedCache.removeValue(forKey: oldestCacheKey)
         }
@@ -150,8 +139,6 @@ public actor CodeRenderEngine {
         return attributed
     }
 
-    /// Low-level highlighting logic. Combines Splash syntax engine
-    /// and fallback high-precision regex matching patterns.
     private func highlightContent(
         _ text: String,
         language: SourceLanguage,
@@ -164,7 +151,6 @@ public actor CodeRenderEngine {
             let highlighter = SplashSyntaxHighlighter(format: SplashAttributedStringOutputFormat(theme: splashTheme))
             let result = highlighter.highlight(text)
 
-            // Adjust paragraph line spacing on the returned attributed string
             let mutable = NSMutableAttributedString(attributedString: result)
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.lineSpacing = 4
@@ -173,7 +159,6 @@ public actor CodeRenderEngine {
         }
         #endif
 
-        // High-precision custom regex-based highlighter fallback (used for other languages like JSON/Markdown)
         let font: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = 4
@@ -187,12 +172,10 @@ public actor CodeRenderEngine {
             .paragraphStyle: paragraphStyle
         ], range: fullRange)
 
-        // Skip tokenizing for plain text
         guard language != .plainText else {
             return attributed
         }
 
-        // Compile Regex patterns for high fidelity syntax coloring
         let patterns = compilePatterns(for: language, theme: theme)
 
         for entry in patterns {
@@ -202,8 +185,6 @@ public actor CodeRenderEngine {
                 let range = match.numberOfRanges > captureGroup ? match.range(at: captureGroup) : match.range
                 guard range.location != NSNotFound else { continue }
 
-                // SAFETY: Direct bounds check to ensure no out-of-bounds crash on modification
-                // Invariant: range must lie strictly within string length bounds
                 if range.location + range.length <= text.utf16.count {
                     attributed.addAttribute(.foregroundColor, value: entry.color, range: range)
                 }
@@ -230,22 +211,18 @@ public actor CodeRenderEngine {
 
         switch language {
         case .swift:
-            // 1. Comments (Block & Line) & TODO/FIXME annotations
             add(#"(\/\/[^\n]*)"#, color: theme.comment)
             add(#"(\/\*[\s\S]*?\*\/)"#, color: theme.comment)
             add(#"\b(TODO|FIXME)\b"#, color: theme.todo)
 
-            // 2. Strings (Double-quoted & Multi-line raw strings)
             add(#"("""[\s\S]*?""")"#, color: theme.string)
             add(#"("(?:[^"\\]|\\.)*")"#, color: theme.string)
 
-            // 3. Preprocessor, Compiler directives, Imports & Macros
             add(#"\b(import)\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: theme.keyword, captureGroup: 1)
             add(#"\bimport\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: theme.type, captureGroup: 1)
             add(#"(#if|#else|#elseif|#endif|#available|#unavailable|#selector|#keyPath|#file|#line|#function|#Preview)\b"#, color: theme.preprocessor)
             add(#"(@[a-zA-Z_][a-zA-Z0-9_]*)"#, color: theme.attribute)
 
-            // 4. Access Modifiers & Keywords
             let keywords = [
                 "struct", "class", "enum", "protocol", "extension", "actor", "macro",
                 "func", "var", "let", "init", "deinit", "subscript", "typealias",
@@ -258,20 +235,16 @@ public actor CodeRenderEngine {
             ]
             add("\\b(\(keywords.joined(separator: "|")))\\b", color: theme.keyword)
 
-            // 5. Types (Upper Camel Case) & Generics
             add(#"\b([A-Z][a-zA-Z0-9_]*)\b"#, color: theme.type)
 
-            // 6. Functions (calls and definitions)
             add(#"\bfunc\s+([a-zA-Z_][a-zA-Z0-9_]*)"#, color: theme.function, captureGroup: 1)
             add(#"\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(?"#, color: theme.function, captureGroup: 1)
 
-            // 7. Numbers (Hex, Binary, Octal, Decimal)
             add(#"\b(0x[0-9a-fA-F]+)\b"#, color: theme.number)
             add(#"\b(0b[01]+)\b"#, color: theme.number)
             add(#"\b(0o[0-7]+)\b"#, color: theme.number)
             add(#"\b(\d+\.?\d*(?:e[+-]?\d+)?)\b"#, color: theme.number)
 
-            // 8. Operators
             add(#"(\?\?|\.\.\.|\.\.<|\+|-|\*|\/|==|!=|<=|>=|<|>)"#, color: theme.operatorColor)
 
         case .json:

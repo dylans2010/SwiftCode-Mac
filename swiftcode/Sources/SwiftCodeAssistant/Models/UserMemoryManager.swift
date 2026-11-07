@@ -1,21 +1,3 @@
-// Ported from SwiftCode-Legacy SwiftCode/Backend/Assist/UserMemoryManager.swift
-// (Dylan's own code; direct port authorised under MIT). Legacy main ab03f681.
-// Audit A verdict: MISSING (Assist backend core). ADAPTATION (destination convention,
-// cf. TasksAIPlanner.swift / AssistManager.swift): Combine is unavailable on Linux, so
-// `import Combine` -> `import Observation`, ObservableObject/@Published -> @Observable
-// with plain stored vars. Behaviour unchanged. Only external dependency is
-// AppSettings.shared.enableUserMemory (SwiftCodeAssistant/Models/AppSettings.swift:312),
-// which exists. Consumed by the memory UI (swiftcode-ide/UserMemoryView.swift)
-// and the MCP memory tools.
-// Staged by M-ASSISTBE (Audit A MISSING Assist-backend batch).
-//
-//  UserMemoryManager.swift
-//  SwiftCode
-//
-//  Manages persistent user context and durable memory stored in `UserMemory.md`
-//  located in ~/Library/Application Support/SwiftCode/UserMemory.md.
-//
-
 import Foundation
 import Observation
 import os
@@ -67,8 +49,6 @@ public final class UserMemoryManager {
     public func reload() {
         loadMemory()
     }
-
-    // MARK: - Core Storage Operations
 
     public func loadMemory() {
         let url = memoryFileURL
@@ -162,13 +142,10 @@ public final class UserMemoryManager {
         }
     }
 
-    // MARK: - Markdown Serialization
-
     private func persistToDisk() -> Bool {
         var md = "# User Memory & Durable Context\n\n"
         md += "_Auto-maintained by SwiftCode Assist & User Settings._\n\n"
 
-        // Group by category
         let categories = Dictionary(grouping: entries, by: { $0.category })
         let sortedCategories = categories.keys.sorted()
 
@@ -209,7 +186,6 @@ public final class UserMemoryManager {
             }
 
             guard trimmed.hasPrefix("- **") else { continue }
-            // Format: - **Key**: Value <!-- updated: date -->
             guard let keyEnd = trimmed.range(of: "**:") else { continue }
             let keyStart = trimmed.index(trimmed.startIndex, offsetBy: 4)
             let key = String(trimmed[keyStart..<keyEnd.lowerBound]).trimmingCharacters(in: .whitespaces)

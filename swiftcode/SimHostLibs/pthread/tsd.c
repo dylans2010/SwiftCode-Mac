@@ -1,18 +1,3 @@
-/*
- * tsd.c - thread-specific data of SwiftCode's libsystem_pthread.
- *
- * Clean-room SwiftCode code, from host-library-init.md sections 3.1-3.4 and
- * POSIX pthread_key_create(3) / pthread_setspecific(3):
- *
- *   - the TSD is one flat array of 768 eight-byte slots at TPIDRRO_EL0;
- *     pthread_getspecific(k) is exactly the word at base + 8k (no range
- *     check), because clients and libdyld's TLV getter read it inline;
- *   - keys 0-9 are reserved, 10-255 are static keys (pthread_key_init_np,
- *     _pthread_setspecific_static), 256-767 are handed out by
- *     pthread_key_create, lowest free key first;
- *   - destructors run at thread exit, up to PTHREAD_DESTRUCTOR_ITERATIONS
- *     rounds, for every key with a destructor and a non-NULL value.
- */
 #include "yc_pthread.h"
 
 YC_EXPORT yc_pthread_t YC_FN(pthread_from_mach_thread_np)(yc_u32 port);
@@ -49,8 +34,6 @@ YC_EXPORT int YC_FN(pthread_setspecific)(unsigned long key, const void *value)
     return 0;
 }
 
-/* The simulator's direct-TSD path (host-library-init.md section 3.4):
- * any key below 256, the reserved ones included. */
 YC_EXPORT int YC_FN(_pthread_setspecific_static)(unsigned long key, const void *value)
 {
     if (key >= YC_TSD_FIRST_DYNAMIC_KEY)
@@ -100,8 +83,6 @@ YC_EXPORT int YC_FN(pthread_key_delete)(unsigned long key)
     if (key_state[key] == KEY_CREATED) {
         key_dtor[key] = YC_NULL;
         YC_STORE_REL(&key_state[key], KEY_FREE);
-        /* A later pthread_key_create may return this key: it must start
-         * out NULL. Clear it in every thread this library knows. */
         __yc_lock(&__yc_pt.list_lock);
         yc_pthread_t m = __yc_main_thread();
         m->tsd[key] = 0;
@@ -115,7 +96,6 @@ YC_EXPORT int YC_FN(pthread_key_delete)(unsigned long key)
     return r;
 }
 
-/* Clears the QoS slot of a thread (MACH_PORT_NULL = the caller). */
 YC_EXPORT void YC_FN(_pthread_clear_qos_tsd)(yc_u32 thread_port)
 {
     yc_uintptr_t *tsd = __yc_tsd();

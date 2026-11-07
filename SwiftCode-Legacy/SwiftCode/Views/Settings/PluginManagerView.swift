@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Plugin Manager View
-
 struct PluginManagerView: View {
     @StateObject private var pluginManager = PluginManager.shared
     @State private var showInstallHelp = false
@@ -10,7 +8,6 @@ struct PluginManagerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 1. Installed Plugins GroupBox
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -68,7 +65,6 @@ struct PluginManagerView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Guide / How to Install GroupBox
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -105,8 +101,6 @@ struct PluginManagerView: View {
         }
     }
 
-    // MARK: - Empty State
-
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "puzzlepiece.extension")
@@ -129,8 +123,6 @@ struct PluginManagerView: View {
         .padding(.vertical, 24)
     }
 }
-
-// MARK: - Plugin Row
 
 private struct PluginRowView: View {
     let plugin: PluginManifest

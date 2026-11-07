@@ -1,4 +1,3 @@
-// C-CACHE (plan.md §2): caching and expiry (behavior.md §3, design.md §6).
 import CoreLocation
 import Foundation
 import Testing
@@ -11,7 +10,7 @@ struct CacheTests {
         let clock = TestClock()
         let (service, backend) = try makeService(clock: clock)
         let first = try await service.weather(for: fixtureLocation, including: .current)
-        clock.advance(599)  // currentWeather expires after 600 s in the bundled set
+        clock.advance(599)
         let second = try await service.weather(for: fixtureLocation, including: .current)
         #expect(backend.requests.count == 1)
         #expect(first == second)
@@ -110,7 +109,6 @@ struct CacheTests {
             for: fixtureLocation, including: .daily(startDate: fixtureAnchor, endDate: fixtureAnchor.addingTimeInterval(86_400)))
         #expect(english.1.requests.count == 2)
 
-        // Two services sharing one persistent store, different languages.
         let backend = RecordingBackend(try FixtureWeatherBackend.bundled())
         let french = WeatherService(backend: backend, configuration: .init(language: "fr-FR", cacheDirectory: directory, clock: { clock.now }))
         let german = WeatherService(backend: backend, configuration: .init(language: "de-DE", cacheDirectory: directory, clock: { clock.now }))
@@ -136,7 +134,6 @@ struct CacheTests {
         clock.advance(601)
         let (third, thirdBackend) = try makeService(clock: clock, cacheDirectory: directory)
         _ = try await third.weather(for: fixtureLocation)
-        // current (600 s), minute (300 s) and alerts (600 s) expired; the rest did not.
         #expect(thirdBackend.requests.count == 1)
         #expect(Set(products(thirdBackend).map(\.product)) == [.currentWeather, .forecastNextHour, .weatherAlerts])
     }

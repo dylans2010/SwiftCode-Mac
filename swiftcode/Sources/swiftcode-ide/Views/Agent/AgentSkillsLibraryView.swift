@@ -2,26 +2,6 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Skills library, adapted from Legacy's `SwiftCode/Views/Agent/Skills/`
-// (`SkillsManagerView`, `SkillsLibraryView`, `SkillsEditorView`) and
-// `SwiftCode/Views/Settings/Skills/` (`BrowseSkillsView`, `CreateSkillView`,
-// `SkillsAddView`, `SkillsInfoView`, `SkillsView`, `ModernSkillsBrowserView`)
-// onto SwiftCode's skill surface: the workspace skill files the
-// `search_skills` MCP tool indexes (`.claude/skills/<name>/SKILL.md` and
-// `.agents/skills/<name>/SKILL.md`; see
-// `SwiftCodeMCP/SwiftCodeTools+SearchSupport.swift` and `AgentSkill.swift`).
-// Skills are real `SKILL.md` files on disk: list, search, create, edit,
-// import and delete all read and write those files. There is no
-// enable/disable toggle here because SwiftCode has no skill enable/disable
-// store; every skill file under those directories is indexed.
-//
-// Migration (Views/UI worklist, Legacy PARTIAL): Duplicate skill (Legacy
-// `SkillsManagerView.duplicate(_:)`) — copies the SKILL.md into a new
-// `<name>-copy` directory under the same skills root, rewriting the
-// front-matter `name:` and the `# <name>` heading, mirroring Legacy's
-// `# <name>` -> `# <name> Copy` rewrite in destination naming.
-
-/// One skill file discovered under a skills root directory.
 struct SkillsLibraryEntry: Identifiable, Equatable, Hashable {
     var id: URL { fileURL }
     var name: String
@@ -31,10 +11,7 @@ struct SkillsLibraryEntry: Identifiable, Equatable, Hashable {
     var directoryURL: URL
 }
 
-/// Browse, create, edit and delete the workspace's agent skills.
 struct AgentSkillsLibraryView: View {
-    /// The workspace root to scan, or `nil` to show only the
-    /// user-level skills directory.
     var workspaceRoot: URL?
 
     @Environment(\.colorScheme) private var scheme
@@ -188,9 +165,6 @@ struct AgentSkillsLibraryView: View {
         .frame(width: 420)
     }
 
-    // MARK: - Storage
-
-    /// The directories scanned for skills, in priority order.
     private var skillRoots: [(URL, String)] {
         var roots: [(URL, String)] = []
         if let workspaceRoot {
@@ -283,10 +257,6 @@ struct AgentSkillsLibraryView: View {
         }
     }
 
-    /// Duplicates a skill (Legacy `SkillsManagerView.duplicate(_:)`):
-    /// copies the SKILL.md into a new `<name>-copy` directory under the
-    /// same skills root, rewriting the front-matter `name:` and the
-    /// `# <name>` heading; `-2`, `-3`, ... when the name is taken.
     private func duplicateSkill(_ entry: SkillsLibraryEntry) {
         let fm = FileManager.default
         let baseName = sanitizedSkillName(entry.name)
@@ -315,9 +285,6 @@ struct AgentSkillsLibraryView: View {
         }
     }
 
-    /// Rewrites a duplicated SKILL.md's front-matter `name:` and its
-    /// `# <name>` heading to the new name (Legacy rewrote the heading to
-    /// `# <name> Copy`).
     private func rewriteSkillName(_ content: String, from oldName: String, to newName: String) -> String {
         var lines = content.components(separatedBy: .newlines)
         var inFrontMatter = false
@@ -334,7 +301,6 @@ struct AgentSkillsLibraryView: View {
             }
         }
         if !sawFrontMatterEnd {
-            // No front-matter block: only the heading rewrite applies.
         }
         if let idx = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "# \(oldName)" }) {
             lines[idx] = "# \(newName)"
@@ -379,7 +345,6 @@ struct AgentSkillsLibraryView: View {
 }
 
 extension SkillsLibraryEntry {
-    /// Parses the `name:` / `description:` front-matter of a SKILL.md file.
     static func parse(_ content: String, fallbackName: String) -> (String, String) {
         var name = fallbackName
         var description = "No description provided."

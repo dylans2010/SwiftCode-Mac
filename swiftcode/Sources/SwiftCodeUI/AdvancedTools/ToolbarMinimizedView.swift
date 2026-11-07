@@ -1,12 +1,4 @@
-// ToolbarMinimizedView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Toolbar/ToolbarMinimizedView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: minimized/expandable toolbar panel with tools grouped by category
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ToolbarTool, VisualEffectView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
-
 
 struct ToolbarMinimizedView: View {
     @State private var isExpanded = false
@@ -29,8 +21,6 @@ struct ToolbarMinimizedView: View {
         .help("Expand Toolbar")
     }
 }
-
-// MARK: - Expanded Panel
 
 struct ToolbarExpandedPanelView: View {
     @Binding var isPresented: Bool

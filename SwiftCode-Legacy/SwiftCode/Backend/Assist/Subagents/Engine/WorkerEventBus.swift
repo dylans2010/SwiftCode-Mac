@@ -1,7 +1,6 @@
 import Foundation
 import os
 
-/// Authoritative event bus for all Assist Worker lifecycle, progress, and file activity events.
 @MainActor
 public final class WorkerEventBus: Sendable {
     public static let shared = WorkerEventBus()
@@ -12,12 +11,10 @@ public final class WorkerEventBus: Sendable {
 
     private init() {}
 
-    /// Subscribes a closure to all Worker events
     public func subscribe(_ handler: @escaping (WorkerEvent) -> Void) {
         subscribers.append(handler)
     }
 
-    /// Creates an AsyncStream for streaming events
     public func eventStream() -> AsyncStream<WorkerEvent> {
         let streamID = UUID()
         return AsyncStream { continuation in
@@ -30,7 +27,6 @@ public final class WorkerEventBus: Sendable {
         }
     }
 
-    /// Emits a structured Worker event across subscribers, streams, and diagnostic telemetry
     public func emit(_ event: WorkerEvent) {
         logger.info("[WorkerEvent] [\(event.type.rawValue)] \(event.title) - \(event.details)")
 
@@ -50,12 +46,10 @@ public final class WorkerEventBus: Sendable {
         }
     }
 
-    /// Alias for emit — used by WorkerEngine for state transition events
     public func publish(_ event: WorkerEvent) {
         emit(event)
     }
 
-    /// Creates a filtered stream for a specific worker ID
     public func eventStream(for workerID: UUID) -> AsyncStream<WorkerEvent> {
         let streamID = UUID()
         return AsyncStream { continuation in

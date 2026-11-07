@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 #if canImport(os)
 import os
@@ -15,7 +12,6 @@ final class CURLConverterDevToolViewModel {
     private let logger = DevToolsLogger(subsystem: "swiftcode.devtools", category: "CURLConverter")
 
     func convert() {
-        // Quick basic conversion parser
         var method = "GET"
         if curlCommand.contains("-X POST") || curlCommand.contains("--request POST") {
             method = "POST"
@@ -25,7 +21,6 @@ final class CURLConverterDevToolViewModel {
             method = "DELETE"
         }
 
-        // simple URL extraction
         var url = "https://api.example.com"
         let parts = curlCommand.components(separatedBy: " ")
         if let foundUrl = parts.first(where: { $0.hasPrefix("http") }) {
@@ -104,7 +99,7 @@ struct CURLConverterDevToolView: View {
             }
             .padding()
         }
-        
+
         .navigationTitle("cURL Converter")
         .onAppear {
             viewModel.convert()

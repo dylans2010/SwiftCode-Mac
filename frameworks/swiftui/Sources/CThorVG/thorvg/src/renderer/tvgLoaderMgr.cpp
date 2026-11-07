@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include <atomic>
 #include "tvgInlist.h"
 #include "tvgLoaderMgr.h"
@@ -60,11 +38,6 @@ uintptr_t HASH_KEY(const char* data)
     return reinterpret_cast<uintptr_t>(data);
 }
 
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
-
-// TODO: remove it.
 atomic<ColorSpace> BitmapLoader::cs{ColorSpace::ARGB8888};
 
 static Key _key;
@@ -130,7 +103,7 @@ static tvg::Loader* _findByPath(const char* filename, Result& ret)
         else if (!strcmp(ext, "png")) type = FileType::Png;
         else if (!strcmp(ext, "jpg")) type = FileType::Jpg;
         else if (!strcmp(ext, "webp")) type = FileType::Webp;
-        else if (!strcmp(ext, "mp4")) type = FileType::Media;  // TODO: add common media formats
+        else if (!strcmp(ext, "mp4")) type = FileType::Media;
         if (type != FileType::Unknown) {
             ret = Result::NonSupport;
             return _find(type);
@@ -152,7 +125,7 @@ static FileType _convert(const char* mimeType)
     else if (!strcmp(mimeType, "png")) type = FileType::Png;
     else if (!strcmp(mimeType, "jpg") || !strcmp(mimeType, "jpeg")) type = FileType::Jpg;
     else if (!strcmp(mimeType, "webp")) type = FileType::Webp;
-    else if (!strcmp(mimeType, "mp4")) type = FileType::Media;  // TODO: add common media formats
+    else if (!strcmp(mimeType, "mp4")) type = FileType::Media;
     else if (!strcmp(mimeType, "raw")) type = FileType::Raw;
     else TVGLOG("RENDERER", "Given mimetype is unknown = \"%s\".", mimeType);
 
@@ -189,10 +162,6 @@ static tvg::Loader* _findFromCache(const char* data, uint32_t size, const char* 
     return nullptr;
 }
 
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
-
 bool LoaderMgr::init()
 {
     return true;
@@ -200,7 +169,6 @@ bool LoaderMgr::init()
 
 bool LoaderMgr::term()
 {
-    // force clean up the font loaders which is globally used.
     INLIST_SAFE_FOREACH(_activeLoaders, loader) {
         if (loader->type != FileType::Sfnt) continue;
         _activeLoaders.remove(loader);
@@ -230,7 +198,6 @@ tvg::Loader* LoaderMgr::loader(const char* filename, LoaderOps& ops, Result& ret
     ret = Result::InvalidArguments;
 
     if (auto loader = _findByPath(filename, ret)) {
-        // respect the return value here, but ignore trials with unknown MIME types.
         ret = loader->open(filename, ops);
         if (ret == Result::Success) {
             if (loader->cache(filename)) {
@@ -244,7 +211,6 @@ tvg::Loader* LoaderMgr::loader(const char* filename, LoaderOps& ops, Result& ret
 
     if (ret == Result::NonSupport) return nullptr;
 
-    // Unknown MimeType. Try with the candidates in the order
     for (int i = 0; i < static_cast<int>(FileType::Unknown); i++) {
         if (auto loader = _find(static_cast<FileType>(i))) {
             if (loader->open(filename, ops) == Result::Success) {
@@ -271,18 +237,14 @@ bool LoaderMgr::retrieve(const char* filename)
 
 tvg::Loader* LoaderMgr::loader(const char* data, uint32_t size, const char* mimeType, LoaderOps& ops, Result& ret)
 {
-    // Note that users could use the same data pointer with the different content.
-    // Thus caching is only valid for shareable.
     if (ops.owner == Ownership::Borrow) {
         if (auto loader = _findFromCache(data, size, mimeType)) return loader;
     }
 
-    // Try with the given MimeType
     if (mimeType) {
         auto type = _convert(mimeType);
         if (type != FileType::Unknown) ret = Result::NonSupport;
         if (auto loader = _find(type)) {
-            // respect the return value here, but ignore trials with unknown MIME types.
             ret = loader->open(data, size, ops);
             if (ret == Result::Success) {
                 if (ops.owner == Ownership::Borrow && loader->cache(HASH_KEY(data))) {
@@ -299,7 +261,6 @@ tvg::Loader* LoaderMgr::loader(const char* data, uint32_t size, const char* mime
 
     if (ret == Result::NonSupport) return nullptr;
 
-    // Unknown MimeType. Try with the candidates in the order
     for (int i = 0; i < static_cast<int>(FileType::Unknown); i++) {
         auto loader = _find(static_cast<FileType>(i));
         if (!loader) continue;
@@ -317,14 +278,10 @@ tvg::Loader* LoaderMgr::loader(const char* data, uint32_t size, const char* mime
 
 tvg::Loader* LoaderMgr::loader(const uint32_t* data, uint32_t w, uint32_t h, ColorSpace cs, Ownership owner)
 {
-    // Note that users could use the same data pointer with the different content.
-    // Thus caching is only valid for shareable.
     if (owner == Ownership::Borrow) {
-        // TODO: should we check premultiplied??
         if (auto loader = _findFromCache((const char*)(data), w * h, "raw")) return loader;
     }
 
-    // function is dedicated for raw images only
     auto loader = new RawLoader;
     if (loader->open(data, w, h, cs, owner)) {
         if (owner == Ownership::Borrow && loader->cache(HASH_KEY((const char*)data))) {
@@ -337,23 +294,20 @@ tvg::Loader* LoaderMgr::loader(const uint32_t* data, uint32_t w, uint32_t h, Col
     return nullptr;
 }
 
-// Loads fonts from memory. The loader is always cached so it remains available while setting the font.
 tvg::Loader* LoaderMgr::loader(const char* name, const char* data, uint32_t size, TVG_UNUSED const char* mimeType, const LoaderOps& ops)
 {
 #ifdef THORVG_SFNT_LOADER_SUPPORT
     if (auto loader = font(name)) {
-        // user owned memory can be freed anytime.
         if (loader->owner != Ownership::Borrow) {
             if (ops.owner == Ownership::Transfer) tvg::free((char*)data);
             return loader;
         }
     }
 
-    // function is dedicated for SFNT-based font loading
     auto loader = new SfntLoader;
     if (loader->open(data, size, ops) == Result::Success) {
         loader->name = duplicate(name);
-        loader->cached = true;  // force it.
+        loader->cached = true;
         ScopedLock lock(_key);
         _activeLoaders.back(loader);
         return loader;

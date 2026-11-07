@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-# swiftcode-launchd-spawns: program starts in a guest launchd.log (the device's
-# TMP/launchd.log), counted as parity-ladder.md and service-fidelity.md §15
-# count them: every "Successfully spawned" line, in every domain (user,
-# system and the per-process domains of XPC services and extensions), from
-# the log's first line for --window seconds (default 700).
-#
-# usage: swiftcode-launchd-spawns LOG [LOG2] [--window S] [--top N]
-#   one log: totals by kind (restart loops, per-process domains, apps, other
-#            daemons and agents), starts by reason, the most started labels
-#   two logs: the same for both, and the labels whose starts differ
-#
-# Run with python3 -I. No dependencies.
 
 import collections
 import datetime
@@ -18,18 +6,14 @@ import re
 import sys
 
 SPAWN = re.compile(r"\((user/\d+|system|pid/\d+)/([^ ]+) \[\d+\]\) <\w+>: Successfully spawned \S+ because (.*)")
-# Programs that restart at launchd's throttle rate in a full boot
-# (parity-ladder.md §3.3, §4.8; service-fidelity.md §11, §15).
 LOOPS = {"com.apple.mlhostd", "com.apple.proactiveeventtrackerd", "com.apple.facetimemessagestored",
          "com.apple.intelligencetasksd", "com.apple.managedappdistributiond", "com.apple.fileindexerd"}
-
 
 def stamp(line):
     try:
         return datetime.datetime.strptime(line[:26], "%Y-%m-%d %H:%M:%S.%f").timestamp()
     except ValueError:
         return None
-
 
 def kind(domain, label):
     if label in LOOPS:
@@ -39,7 +23,6 @@ def kind(domain, label):
     if label.startswith("UIKitApplication:"):
         return "apps"
     return "other daemons and agents"
-
 
 def load(path, window):
     starts = collections.Counter()
@@ -58,14 +41,12 @@ def load(path, window):
             if not m:
                 continue
             domain, label, reason = m.groups()
-            # Extension instances carry a UUID, apps a short hash: one label each.
             label = re.sub(r"\.[0-9A-F]{8}-[0-9A-F-]{27}$", ".<instance>", label)
             label = re.sub(r"\[[0-9a-f]{4}\]", "", label)
             starts[label] += 1
             reasons[reason] += 1
             kinds[kind(domain, label)] += 1
     return starts, reasons, kinds
-
 
 def main():
     args = sys.argv[1:]
@@ -95,7 +76,6 @@ def main():
         print("labels whose starts differ (second minus first):")
         for d, label in diff[:top]:
             print(f"  {d:+5d}  {a[label]:4d} -> {b[label]:4d}  {label}")
-
 
 if __name__ == "__main__":
     main()

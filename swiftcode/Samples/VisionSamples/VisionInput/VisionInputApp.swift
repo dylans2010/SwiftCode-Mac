@@ -1,10 +1,3 @@
-// SwiftCode's visionOS sample 4 (visionos.md "SwiftCode implementation", round R9):
-// one target per input path of §5.5.5, each logging what it received through
-// os.Logger (subsystem org.swiftcode.samples, category input, lines starting
-// "swiftcode-input:"), so a guest log stream shows what the gaze, the hands, the
-// Digital Crown and the keyboard delivered. A mixed immersive space opened at
-// launch adds a RealityKit sphere that takes a tap, and logs ARKit's
-// DeviceAnchor whenever it moves (the camera pose through vhmdd's set_pose).
 import ARKit
 import os
 import RealityKit
@@ -29,7 +22,6 @@ struct VisionInputApp: App {
     }
 }
 
-/// A labelled tile of the grid.
 struct Tile<Content: View>: View {
     let title: String
     let color: Color

@@ -8,14 +8,13 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: populate-distribution.py <DEST_DIR>")
         sys.exit(1)
-        
+
     dest = os.path.abspath(sys.argv[1])
     print(f"Populating distribution components into: {dest}")
 
-    # 1. Python Standard Library & Extension Ecosystem Typing Stubs
     py_stubs = os.path.join(dest, "languages", "python", "stubs")
     os.makedirs(py_stubs, exist_ok=True)
-    
+
     py_modules = [
         "os", "sys", "math", "json", "typing", "asyncio", "collections", "datetime", "pathlib",
         "subprocess", "shutil", "hashlib", "socket", "urllib", "http", "unittest", "dataclasses",
@@ -24,7 +23,7 @@ def main():
         "random", "uuid", "base64", "zlib", "gzip", "tarfile", "zipfile", "traceback",
         "requests", "pydantic", "aiohttp", "yaml", "cryptography", "jinja2", "click", "rich"
     ]
-    
+
     print("  - Generating Python typing stubs...")
     for mod in py_modules:
         lines = [
@@ -49,16 +48,15 @@ def main():
             lines.append('    def __init__(self, name: str, value: Any = ...) -> None: ...')
             lines.append('    def execute(self, payload: Dict[str, Any]) -> Any: ...')
             lines.append('    def validate(self) -> bool: ...\n')
-            
+
         with open(os.path.join(py_stubs, f"{mod}.pyi"), "w") as f:
             f.write("\n".join(lines))
 
-    # 2. Swift Tooling Diagnostics and Framework Symbol Catalogs
     swift_diag = os.path.join(dest, "languages", "swift", "diagnostics")
     swift_sym = os.path.join(dest, "languages", "swift", "symbols")
     os.makedirs(swift_diag, exist_ok=True)
     os.makedirs(swift_sym, exist_ok=True)
-    
+
     print("  - Generating Swift diagnostic catalogs & framework symbols...")
     categories = [
         "compiler", "linker", "syntax", "driver", "runtime", "concurrency",
@@ -102,7 +100,6 @@ def main():
         with open(os.path.join(swift_sym, f"{fw}_symbols.swift"), "w") as f:
             f.write("\n".join(lines))
 
-    # 3. Comprehensive Offline Documentation
     doc_api = os.path.join(dest, "documentation", "api")
     doc_guides = os.path.join(dest, "documentation", "guides")
     doc_tutorials = os.path.join(dest, "documentation", "tutorials")
@@ -111,7 +108,7 @@ def main():
     os.makedirs(doc_guides, exist_ok=True)
     os.makedirs(doc_tutorials, exist_ok=True)
     os.makedirs(doc_index, exist_ok=True)
-    
+
     print("  - Generating offline documentation and search index...")
     modules = ["SwiftCodeSDK", "ProjectKit", "BuildKit", "SourceControlKit", "WorkspaceKit", "DiagnosticsKit", "ExtensionKit"]
     for mod in modules:
@@ -137,7 +134,6 @@ def main():
         with open(os.path.join(doc_api, f"{mod}.md"), "w") as f:
             f.write("\n".join(lines))
 
-    # Inverted Search Index Database
     index_data = {
         "version": "1.0.0",
         "generated": "2026-10-13",
@@ -157,11 +153,10 @@ def main():
     with open(os.path.join(doc_index, "index.html"), "w") as f:
         f.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>SwiftCode SDK Documentation</title></head><body><h1>SwiftCode SDK Developer Portal</h1><p>Offline API Reference and Search Browser.</p></body></html>")
 
-    # 4. Test Fixtures and Compatibility Workspaces
     fixtures = os.path.join(dest, "tests", "fixtures")
     os.makedirs(fixtures, exist_ok=True)
     print("  - Generating integration fixtures and compatibility projects...")
-    
+
     for i in range(25):
         ext_dir = os.path.join(fixtures, f"extension-fixture-{i:02d}")
         os.makedirs(ext_dir, exist_ok=True)
@@ -189,16 +184,15 @@ def main():
         }
         with open(os.path.join(ext_dir, "swiftcode.json"), "w") as f:
             json.dump(manifest, f, indent=2)
-            
+
         os.makedirs(os.path.join(ext_dir, "dist"), exist_ok=True)
         with open(os.path.join(ext_dir, "dist", "index.js"), "w") as f:
             f.write(f'// Compiled test fixture {i}\nexports.activate = function(context) {{ console.log("Activated fixture {i}"); }};\n')
 
-    # 5. Manifest Inventory
     manifest_file = os.path.join(dest, "manifests", "components.json")
     os.makedirs(os.path.dirname(manifest_file), exist_ok=True)
     print("  - Computing component manifest catalog...")
-    
+
     components = []
     for root, _, files in os.walk(dest):
         for f in files:
@@ -211,7 +205,7 @@ def main():
                 components.append({"path": rel, "size": sz})
             except:
                 pass
-                
+
     with open(manifest_file, "w") as f:
         json.dump({"components": components, "totalComponents": len(components)}, f, indent=2)
 

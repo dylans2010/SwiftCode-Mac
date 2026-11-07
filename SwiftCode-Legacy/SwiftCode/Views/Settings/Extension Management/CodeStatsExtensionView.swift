@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Code Stats Extension View
 struct CodeStatsExtensionView: View {
     var body: some View {
         Form {

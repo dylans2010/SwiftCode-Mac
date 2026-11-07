@@ -5,32 +5,11 @@ import FoundationNetworking
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The real Composio client for `use_composio`, replacing the
-/// Wave 4 honest failure.
-///
-/// Legacy's `AssistComposioTool` prefers the `composio` CLI
-/// (`composio execute <slug> -d <argsJSON>`) and falls back to the
-/// REST API (`POST https://backend.composio.dev/api/v3.1/tools/execute/<slug>`,
-/// header `x-api-key` — or `x-user-api-key` for `uak_…` keys).
-/// The API key comes from exactly Legacy's order: the Keychain
-/// (SecretStore account `composio.api-key`), then the
-/// `COMPOSIO_API_KEY` environment variable, then
-/// `~/.composio/user_data.json` (`api_key`, `test_user_id`).
-/// The tool never writes a key and never puts one in its output.
-/// See `specs/ide/gap-closure-failing-tools.md` §6.
 extension SwiftCodeMCPHost {
-    /// The SecretStore account for the Composio API key. The
-    /// canonical constant lives in `SecretStore.SecretAccount`
-    /// (shared file — the one-line patch is delivered to the
-    /// coordinator; this local copy keeps the client working until
-    /// it lands).
     nonisolated static let composioSecretAccount = "composio.api-key"
 
-    /// Test seam: replaces the secret store in tests. Nil in
-    /// production.
     nonisolated(unsafe) static var composioTestSecretStore: SecretStore?
 
-    /// The CLI candidates, in Legacy's order, plus a PATH lookup.
     nonisolated static func composioCLICandidates() -> [String] {
         var candidates = [
             (NSHomeDirectory() as NSString).appendingPathComponent(".local/bin/composio"),
@@ -46,14 +25,10 @@ extension SwiftCodeMCPHost {
         return candidates.filter { seen.insert($0).inserted }
     }
 
-    /// The first CLI candidate that exists and is executable.
     nonisolated static func composioCLIPath() -> String? {
         composioCLICandidates().first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    /// The Composio API key in Legacy's order: SecretStore, then
-    /// `COMPOSIO_API_KEY`, then `~/.composio/user_data.json`.
-    /// Returns nil when no key is configured anywhere.
     nonisolated static func composioAPIKey() -> String? {
         let store = composioTestSecretStore ?? defaultSecretStore()
         if let key = store.readString(composioSecretAccount), !key.isEmpty { return key }
@@ -66,8 +41,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Legacy's slug validation: non-empty, `[A-Z0-9_]+`, max 128
-    /// characters.
     nonisolated static func composioValidateSlug(_ slug: String) throws -> String {
         let trimmed = slug.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw MCPToolError("toolSlug cannot be empty") }
@@ -79,14 +52,10 @@ extension SwiftCodeMCPHost {
         return trimmed
     }
 
-    /// Parses one JSON object out of CLI stdout: the whole output
-    /// when it is JSON, else the first `{…}` span that decodes.
-    /// Nil when no JSON object is present.
     nonisolated static func composioExtractJSONObject(_ text: String) -> [String: Any]? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let data = trimmed.data(using: .utf8),
            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] { return obj }
-        // Scan for the first brace span that decodes as an object.
         var depth = 0
         var start: String.Index?
         var index = trimmed.startIndex
@@ -108,18 +77,12 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// The Composio execution summary: `successful` + `logId` /
-    /// `log_id` when the response carries them, else the whole
-    /// response as pretty JSON.
     nonisolated static func composioSummarize(_ obj: [String: Any]) -> String {
         if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
            let text = String(data: data, encoding: .utf8) { return text }
         return String(describing: obj)
     }
 
-    /// `use_composio`: CLI first, REST fallback. Approval via
-    /// `approveChangeWithoutFile` (no Autopilot bypass). The key
-    /// is never written and never appears in the output.
     func useComposioExecute(_ call: MCPToolCall) async throws -> MCPToolResult {
         let slug = try Self.composioValidateSlug(call.string("toolSlug") ?? "")
         let argsText = call.string("arguments") ?? "{}"

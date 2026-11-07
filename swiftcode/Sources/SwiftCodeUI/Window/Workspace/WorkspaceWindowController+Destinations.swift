@@ -2,31 +2,21 @@ import AppKit
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// The run destination pop-up (`specs/ide/reference-ui-3.md` §4).
 extension WorkspaceWindowController {
-    /// The menu's layout for the current destinations and filter.
     public func destinationMenuModel(filter: String = "") -> DestinationMenuModel {
         let all = session.model.destinationGroups.flatMap(\.destinations)
         let proj = session.model.projects.keys.sorted().first.flatMap { session.model.projects[$0] }
         var (platforms, ipad) = proj.map(DestinationMenuModel.platforms(of:)) ?? ([], false)
-        // A scheme of another target (a watch app beside its iOS app,
-        // device-pairing.md §13): that target's platforms.
         if let s = schemeTargetPlatform { platforms = s.platforms; ipad = ipad && s.platforms.contains("iOS") }
-        // §11.4 item 3: destinations below the deployment target are incompatible.
         let product = productPlatform
         var targets: [String: String] = [:]
         if let p = product.platform, let t = product.deploymentTarget { targets[p] = t }
-        // §11.5: SwiftCode's remote simulator is listed with the simulators.
         return DestinationMenuModel(current: session.destination,
                                     devices: all.filter { $0.kind == .device },
                                     simulators: all.filter { $0.kind == .simulator || $0.isSwiftCodeRemoteSimulator },
                                     platforms: platforms, designedForIPad: ipad, deploymentTargets: targets, filter: filter)
     }
 
-    /// Rebuilds the toolbar's destination menu. `expandIncompatible`
-    /// (Product ▸ Destination ▸ Show All Run Destinations, §11.4 item 5)
-    /// lists the incompatible rows in the menu itself, under an
-    /// "Incompatible" header, instead of in the submenu.
     func rebuildDestinationMenu(filter: String = "", expandIncompatible: Bool = false) {
         let menu = destinationPopUp.menu!
         let filterItem: NSMenuItem
@@ -38,7 +28,6 @@ extension WorkspaceWindowController {
             field.target = self
             field.action = #selector(destinationFilterChanged(_:))
             field.sendsSearchStringImmediately = true
-            // NSMenuItem() is titled "NSMenuItem"; the pop-up would show that.
             filterItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             filterItem.view = field
         }
@@ -46,8 +35,6 @@ extension WorkspaceWindowController {
         menu.addItem(filterItem)
         let model = destinationMenuModel(filter: filter)
         func row(_ d: Destination) -> NSMenuItem {
-            // The OS version shows in the menu rows only, never in the
-            // pop-up's title (reference-ui-6.md §2.4, T2).
             let item = DestinationMenuItem(title: d.name, action: nil, keyEquivalent: "")
             item.representedObject = Self.menuKey(for: d)
             item.image = NSImage(systemSymbolName: Self.symbol(for: d), accessibilityDescription: nil)
@@ -59,8 +46,6 @@ extension WorkspaceWindowController {
             }
             return item
         }
-        // The pop-up also puts .on on its selected item (at first the
-        // filter row), so the Recent row is remembered by index.
         var recent: Int?
         for s in model.sections {
             menu.addItem(.separator())
@@ -87,12 +72,10 @@ extension WorkspaceWindowController {
         }
         menu.addItem(NSMenuItem(title: DestinationMenuModel.manageDevicesTitle, action: #selector(manageDevicesChosen(_:)), keyEquivalent: ""))
         menu.items.last?.target = self
-        // In place of the reference's Get (runtime-onboarding.md §5.1, §11.4).
         if filter.isEmpty {
             menu.addItem(NSMenuItem(title: Self.getRuntimeTitle, action: #selector(getRuntimeChosen(_:)), keyEquivalent: ""))
             menu.items.last?.target = self
         }
-        // Say where simulators come from when none is set up.
         if !model.sections.contains(where: { $0.destinations.contains(where: \.isSwiftCodeRemoteSimulator) }) && filter.isEmpty {
             let setUp = NSMenuItem(title: Self.setUpSimulatorTitle, action: #selector(setUpSimulatorChosen(_:)), keyEquivalent: "")
             setUp.target = self
@@ -105,26 +88,17 @@ extension WorkspaceWindowController {
             ?? menu.items.firstIndex(where: { $0.representedObject is String }) {
             destinationPopUp.selectItem(at: i)
         }
-        // Rows of the Incompatible submenu always show their versions.
         for item in menu.items { item.submenu?.items.forEach { ($0 as? DestinationMenuItem)?.showsVersion = true } }
         destinationPopUp.invalidateIntrinsicContentSize()
         scheduleToolbarFit()
     }
 
-    // MARK: Default destination (reference-ui-5.md §4.3, T1; reference-ui-6.md §2.4, T3, T11)
-
-    /// The product's platform and deployment target: the first project's
-    /// first target (nil for packages, which run on the Mac).
     public var productPlatform: (platform: String?, deploymentTarget: String?) {
         if let s = schemeTargetPlatform { return (s.platform, s.deploymentTarget) }
         let proj = session.model.projects.keys.sorted().first.flatMap { session.model.projects[$0] }
         return proj.map(DestinationMenuModel.productPlatform(of:)) ?? (nil, nil)
     }
 
-    /// The scheme's target when it is not the first project's first target
-    /// and supports other platforms (a watch app's scheme beside its iOS
-    /// app, device-pairing.md §13): its platforms, its platform and its
-    /// deployment target. Nil otherwise (the first target decides).
     var schemeTargetPlatform: (platforms: Set<String>, platform: String?, deploymentTarget: String?)? {
         guard let scheme = session.scheme, let key = session.model.projects.keys.sorted().first, let proj = session.model.projects[key] else { return nil }
         let name = WatchCompanion.targetName(scheme: scheme, schemes: session.model.loadSchemes())
@@ -135,17 +109,11 @@ extension WorkspaceWindowController {
         return (platforms, platform, platform.flatMap { WatchCompanion.deploymentTarget(ofTarget: name, platform: $0, in: proj) })
     }
 
-    /// The first project's first target: whether it supports macOS and
-    /// the device families it targets (none for packages).
     public var defaultDestinationTraits: (supportsMacOS: Bool, deviceFamilies: Set<String>?) {
         let proj = session.model.projects.keys.sorted().first.flatMap { session.model.projects[$0] }
         return proj.map(DestinationMenuModel.defaultDestinationTraits(of:)) ?? (false, nil)
     }
 
-    /// Picks the scheme's destination: the one remembered for the scheme
-    /// in user data, else the default for the product
-    /// (`DestinationCatalog.defaultDestination`). A destination chosen
-    /// explicitly (not by an earlier default) is kept.
     func chooseDefaultDestination() {
         let scheme = session.scheme ?? ""
         let (platform, target) = productPlatform
@@ -157,15 +125,9 @@ extension WorkspaceWindowController {
             return
         }
         let current = session.destination
-        // The session starts on the first destination (My Mac); that is a
-        // default too.
         let isDefault = current == nil || current == destinationDefault.applied
             || (destinationDefault.applied == nil && current == session.model.destinations.first)
         guard isDefault else { return }
-        // SwiftCode's remote simulator rows are rows of the Simulators section
-        // (reference-ui-5.md §11.5) and rank there like local simulators:
-        // by runtime, then family and name, so a local simulator of the same
-        // type and runtime comes first (reference-ui-6.md §2.4.3).
         let sims = session.model.destinations.filter { $0.kind == .simulator || $0.isSwiftCodeRemoteSimulator }
         let traits = defaultDestinationTraits
         let d = DestinationCatalog.defaultDestination(platform: platform, deploymentTarget: target, simulators: sims,
@@ -175,31 +137,19 @@ extension WorkspaceWindowController {
         destinationDefault.applied = d
     }
 
-    /// Remembers the current destination for the current scheme.
     func rememberDestination() {
         guard let d = session.destination else { return }
         destinationDefault.applied = nil
         let scheme = session.scheme ?? ""
-        // Simulators and SwiftCode's remote simulator by identifier; generic
-        // destinations by specifier.
         updateUserState { $0.destinations[scheme] = Self.menuKey(for: d) }
     }
 
-    /// The key that names one destination: its identifier (simulators,
-    /// devices, SwiftCode's remote simulator), else its specifier (generic
-    /// destinations). Specifiers alone are not unique: the remote
-    /// simulator builds for "generic/platform=iOS Simulator", the same as
-    /// Any iOS Simulator Device. Menu rows carry it; the scheme's
-    /// remembered choice is stored as it.
     public static func menuKey(for d: Destination) -> String { d.identifier ?? d.specifier }
 
-    /// The destination a key names: by identifier, else a destination
-    /// without one whose specifier matches.
     public static func destination(forKey key: String, in list: [Destination]) -> Destination? {
         list.first { $0.identifier == key } ?? list.first { $0.identifier == nil && $0.specifier == key }
     }
 
-    /// The destination name the toolbar shows.
     public var destinationTitle: String {
         destinationPopUp.titleOfSelectedItem ?? ""
     }
@@ -211,12 +161,6 @@ extension WorkspaceWindowController {
     @objc func getRuntimeChosen(_ sender: Any?) { RuntimeSetupWindowController.show() }
     @objc func setUpSimulatorChosen(_ sender: Any?) { SettingsWindowController.shared.show(pane: "Simulators") }
 
-    // MARK: SwiftCode's remote simulator row (reference-ui-5.md §11.5)
-
-    /// Reads each remote runtime's version once per runtime root (ssh, off
-    /// the main actor) and relists the destinations with them. Nothing
-    /// happens when the remote simulator is not set up or every version is
-    /// already known. `ssh` replaces the ssh program (tests).
     @discardableResult
     public func refreshRemoteRuntimeVersion(defaults: UserDefaults = Preferences.shared.defaults, ssh: String? = nil) -> Task<Void, Never>? {
         var settings = RemoteSimulatorSettings.load(defaults)
@@ -242,12 +186,8 @@ extension WorkspaceWindowController {
     }
 }
 
-/// A destination row: the destination's name, and its OS version
-/// right-aligned while the menu is open (`reference-ui-6.md` §2.4, T2).
 final class DestinationMenuItem: NSMenuItem {
     var osVersion: String?
-    /// Shows "<name>\t<version>" (menu open) or the name alone. (Setting
-    /// an attributed title also replaces `title`; the name is restored.)
     var showsVersion = false {
         didSet {
             guard showsVersion != oldValue else { return }
@@ -262,14 +202,9 @@ final class DestinationMenuItem: NSMenuItem {
             attributedTitle = text
         }
     }
-    /// The destination's name (the plain title).
     lazy var name: String = title
 }
 
-/// The destination pop-up: its title is the destination's glyph and name
-/// only, and it is as wide as that title, not as its widest menu row
-/// (`reference-ui-6.md` §2.4, T2). The menu rows show OS versions while
-/// the menu is open.
 final class DestinationPopUpButton: NSPopUpButton, NSMenuDelegate {
     override init(frame: NSRect, pullsDown flag: Bool) {
         super.init(frame: frame, pullsDown: flag)
@@ -282,13 +217,12 @@ final class DestinationPopUpButton: NSPopUpButton, NSMenuDelegate {
         didSet { menu?.delegate = self }
     }
 
-    /// The width of a pop-up holding only the selected row.
     override var intrinsicContentSize: NSSize {
         let probe = NSPopUpButton(frame: .zero, pullsDown: false)
         probe.isBordered = isBordered
         probe.controlSize = controlSize
         probe.font = font
-        probe.imagePosition = imagePosition   // glyphs only when the toolbar is short of room
+        probe.imagePosition = imagePosition
         if let arrow = (cell as? NSPopUpButtonCell)?.arrowPosition { (probe.cell as? NSPopUpButtonCell)?.arrowPosition = arrow }
         let item = NSMenuItem(title: selectedItem?.title ?? "", action: nil, keyEquivalent: "")
         item.image = selectedItem?.image

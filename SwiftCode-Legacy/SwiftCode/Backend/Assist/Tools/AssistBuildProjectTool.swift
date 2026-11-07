@@ -1,15 +1,5 @@
 import Foundation
 
-// MARK: - Build Project (approval-exempt by design)
-//
-// This tool runs `xcodebuild` directly through `Process` — it deliberately
-// does NOT route through the `use_terminal` tool, so it never triggers the
-// terminal approval prompt. Building the user's project is the one terminal
-// operation Assist may perform without user approval.
-//
-// It always targets the user's project (resolved from the workspace root),
-// never SwiftCode's own bundle.
-
 public struct AssistBuildProjectTool: AssistTool {
     public let id = "project_build"
     public let name = "Build Project"
@@ -75,7 +65,6 @@ public struct AssistBuildProjectTool: AssistTool {
         await context.logger.info("Building user project '\(project.name)' (scheme: \(scheme), config: \(configuration)) via xcodebuild — approval-exempt", toolId: id)
         let startTime = Date()
 
-        // Run in the background with live output streaming into the session log.
         let output = BuildOutputAccumulator()
         do {
             let succeeded = try await ProcessRunnerTool.shared.runStreamingAsync(
@@ -149,7 +138,6 @@ public struct AssistBuildProjectTool: AssistTool {
     }
 }
 
-/// Thread-safe accumulator with incremental line-oriented parsing for build markers and diagnostics.
 public final class BuildOutputAccumulator: @unchecked Sendable {
     private let lock = NSLock()
     public private(set) var stdout = ""
@@ -261,14 +249,6 @@ public final class BuildOutputAccumulator: @unchecked Sendable {
     }
 }
 
-// MARK: - Generate Xcode Project (xcodegen, approval-exempt by design)
-//
-// Generates `.xcodeproj` bundles from an XcodeGen `project.yml` spec, running
-// `xcodegen` directly through `Process` (never via `use_terminal`, so no
-// approval prompt). If XcodeGen is not installed, it is installed for the
-// user with Homebrew — also without an approval prompt, per explicit user
-// configuration.
-
 public struct AssistGenerateXcodeprojTool: AssistTool {
     public let id = "generate_xcodeproj"
     public let name = "Generate Xcode Project"
@@ -304,7 +284,6 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
 
         let startTime = Date()
 
-        // 1. Ensure xcodegen is available, installing it when missing.
         let xcodegenURL: URL
         do {
             xcodegenURL = try await ensureXcodegen(context: context)
@@ -312,7 +291,6 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
             return .failure(error.localizedDescription, code: .executionFailed)
         }
 
-        // 2. Run xcodegen generate in the background.
         var arguments = ["generate", "--spec", specURL.path]
         if useCache { arguments.append("--use-cache") }
 
@@ -326,7 +304,6 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
             let duration = Date().timeIntervalSince(startTime)
             let combined = res.stdout + "\n" + res.stderr
 
-            // 3. Verify a .xcodeproj was actually produced.
             let produced = findGeneratedProjects(in: context.workspaceRoot)
 
             if res.exitCode == 0, !produced.isEmpty {
@@ -360,8 +337,6 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
     }
 
     #if os(macOS)
-    /// Returns a usable xcodegen binary, installing it via Homebrew when absent.
-    /// Installation runs without a user approval prompt by explicit configuration.
     private func ensureXcodegen(context: AssistContext) async throws -> URL {
         let candidates = [
             "/opt/homebrew/bin/xcodegen",
@@ -371,7 +346,6 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
         for path in candidates where FileManager.default.fileExists(atPath: path) {
             return URL(fileURLWithPath: path)
         }
-        // Fall back to PATH lookup.
         let which = try await ProcessRunnerTool.shared.run(
             executableURL: URL(fileURLWithPath: "/usr/bin/which"),
             arguments: ["xcodegen"]
@@ -381,7 +355,6 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
             return URL(fileURLWithPath: found)
         }
 
-        // Not installed — install via Homebrew without prompting.
         await context.logger.info("xcodegen not found; installing via Homebrew (no approval prompt by configuration)", toolId: id)
         let brewURL = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
         let brewFallback = URL(fileURLWithPath: "/usr/local/bin/brew")

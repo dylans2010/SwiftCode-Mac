@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Installed extensions, driven by the manager's records
-
 public struct ExtensionsInstalledView: View {
     @ObservedObject private var manager = ExtV2Manager.shared
     @State private var selected: ExtV2InstalledExtension?

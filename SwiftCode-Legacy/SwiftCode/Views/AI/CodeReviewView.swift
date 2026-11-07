@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Code Review View
-
 struct CodeReviewView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var settings: AppSettings
@@ -65,8 +63,6 @@ struct CodeReviewView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Empty State
-
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Image(systemName: "magnifyingglass.circle")
@@ -100,8 +96,6 @@ struct CodeReviewView: View {
         .padding()
     }
 
-    // MARK: - Reviewing State
-
     private var reviewingView: some View {
         VStack(spacing: 24) {
             ProgressView()
@@ -116,18 +110,13 @@ struct CodeReviewView: View {
         }
     }
 
-    // MARK: - Result View
-
     private func resultView(_ result: CodeReviewResult) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Score card
                 scoreCard(result)
 
-                // Severity filter
                 severityFilter(result)
 
-                // Issues list
                 let filtered = filteredIssues(result)
                 if filtered.isEmpty {
                     Text("No issues found for this filter.")
@@ -235,8 +224,6 @@ struct CodeReviewView: View {
         return result.issues.filter { $0.severity == filter }
     }
 
-    // MARK: - Review History Sheet
-
     private var reviewHistorySheet: some View {
         NavigationStack {
             List {
@@ -278,8 +265,6 @@ struct CodeReviewView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Helpers
-
     private func startReview() async {
         guard let node = sessionStore.activeFileNode,
               !sessionStore.activeFileContent.isEmpty else { return }
@@ -302,8 +287,6 @@ struct CodeReviewView: View {
         }
     }
 }
-
-// MARK: - Issue Row View
 
 struct IssueRowView: View {
     let issue: CodeReviewIssue
@@ -374,8 +357,6 @@ struct IssueRowView: View {
     }
 }
 
-// MARK: - Issue Detail Sheet
-
 struct IssueDetailSheet: View {
     let issue: CodeReviewIssue
     @Environment(\.dismiss) var dismiss
@@ -384,7 +365,6 @@ struct IssueDetailSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Header
                     HStack {
                         Image(systemName: issue.severity.icon)
                             .foregroundStyle(severityColor)

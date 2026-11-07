@@ -3,14 +3,11 @@ import SwiftCodeProject
 import SwiftCodeSettings
 import SwiftCodeSubprocess
 
-/// Build locations (swift-build's "arena"). See
-/// `specs/xcodebuild/show-build-settings.md` §4.
 public struct Arena: Equatable, Sendable {
     public var derivedDataPath: String
     public var buildProductsPath: String
     public var buildIntermediatesPath: String
 
-    /// `<DerivedData>/<name>-<hash>` for a container, or the given path.
     public static func forContainer(_ c: Container, derivedDataPath: String?, derivedDataRoot root: String) -> Arena {
         if let d = derivedDataPath {
             return Arena(derivedDataPath: d, buildProductsPath: d + "/Build/Products", buildIntermediatesPath: d + "/Build/Intermediates.noindex")
@@ -35,10 +32,6 @@ public struct Arena: Equatable, Sendable {
     }
 }
 
-/// The per-container DerivedData folder name: `<name>-<28 letters>`, the
-/// letters derived from the MD5 of the container path (two 64-bit
-/// big-endian halves, each written as 14 base-26 digits a–z, most
-/// significant first).
 public enum DerivedDataName {
     public static func hash(_ path: String) -> String {
         let d = MD5.digest(Array(path.utf8))
@@ -54,20 +47,17 @@ public enum DerivedDataName {
         return half(d[0..<8]) + half(d[8..<16])
     }
 
-    /// Spaces in the name become underscores.
     public static func folder(name: String, path: String) -> String {
         name.replacingOccurrences(of: " ", with: "_") + "-" + hash(path)
     }
 }
 
-/// A run destination as swift-build takes it.
 public struct RunDestination: Equatable, Sendable {
     public var platform: String
     public var sdk: String
     public var sdkVariant: String?
     public var targetArchitecture: String
     public var supportedArchitectures: [String]
-    /// A generic destination ("Any Mac"): builds every architecture.
     public var disableOnlyActiveArch = false
 
     public init(platform: String, sdk: String, sdkVariant: String? = nil, targetArchitecture: String, supportedArchitectures: [String]) {
@@ -91,7 +81,6 @@ public struct RunDestination: Equatable, Sendable {
     }
 }
 
-/// What to evaluate settings (or build) for.
 public struct BuildParameters: Sendable {
     public var action: String
     public var configuration: String
@@ -99,8 +88,6 @@ public struct BuildParameters: Sendable {
     public var runDestination: RunDestination?
     public var overrides: [(String, String)]
     public var xcconfigPath: String?
-    /// Settings the tool itself adds for the run (code coverage, the run
-    /// destination's device): swift-build's "synthesized" overrides.
     public var synthesized: [(String, String)] = []
 
     public init(action: String, configuration: String, arena: Arena? = nil, runDestination: RunDestination? = nil,
@@ -113,7 +100,6 @@ public struct BuildParameters: Sendable {
         self.xcconfigPath = xcconfigPath
     }
 
-    /// swift-build's `SWBBuildParameters` JSON.
     public var json: [String: Any] {
         var table: [String: String] = [:]
         for (k, v) in overrides { table[k] = v }
@@ -134,7 +120,6 @@ public struct BuildParameters: Sendable {
     }
 }
 
-/// One target to evaluate.
 public struct SettingsTarget {
     public var project: LoadedProject
     public var target: PBXObject
@@ -142,15 +127,11 @@ public struct SettingsTarget {
 }
 
 public protocol SettingsProvider {
-    /// Exported settings per target, in order.
     func settings(container: Container, targets: [SettingsTarget], parameters: BuildParameters) throws -> [[String: String]]
-    /// Exported settings of targets of an existing build description (a
-    /// Swift package's, from SwiftPM), by target GUID, in order.
     func settings(pif: URL, guids: [String], parameters: BuildParameters) throws -> [[String: String]]
 }
 
 extension SettingsProvider {
-    /// Only swift-build evaluates a build description it did not generate.
     public func settings(pif: URL, guids: [String], parameters: BuildParameters) throws -> [[String: String]] {
         throw SettingsError(description: "this settings provider cannot evaluate a Swift package's build description")
     }
@@ -160,8 +141,6 @@ public struct SettingsError: Error, CustomStringConvertible {
     public var description: String
 }
 
-/// Evaluates settings with swift-build (through the `swiftcode-swb` helper),
-/// from a PIF SwiftCode generates.
 public struct SwiftBuildSettingsProvider: SettingsProvider {
     public var helper: String
     public var scratch: URL
@@ -171,7 +150,6 @@ public struct SwiftBuildSettingsProvider: SettingsProvider {
         self.scratch = scratch
     }
 
-    /// `SWIFTCODE_SWB`, then `swiftcode-swb` on `PATH`, then next to the executable.
     public static func locate(environment: [String: String], executableDirectory: String?) -> String? {
         let fm = FileManager.default
         if let p = environment["SWIFTCODE_SWB"], fm.isExecutableFile(atPath: p) { return p }
@@ -192,8 +170,6 @@ public struct SwiftBuildSettingsProvider: SettingsProvider {
         return try settings(pif: pifURL, guids: targets.map { pif.targetGUID($0.project, $0.target) }, parameters: parameters, work: work)
     }
 
-    /// Settings of targets of an existing build description (a Swift
-    /// package's, from SwiftPM).
     public func settings(pif pifURL: URL, guids: [String], parameters: BuildParameters) throws -> [[String: String]] {
         let work = scratch.appendingPathComponent("swiftcodebuild-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: work) }
@@ -229,9 +205,6 @@ public struct SwiftBuildSettingsProvider: SettingsProvider {
     }
 }
 
-/// Without swift-build: SwiftCode's own resolver (`SwiftCodeSettings`). It knows the
-/// project-defined levels and a few built-ins, not the defaults of the
-/// build system's specifications, so it prints fewer settings.
 public struct ResolverSettingsProvider: SettingsProvider {
     public var developerDirectory: String?
     public init(developerDirectory: String?) { self.developerDirectory = developerDirectory }
@@ -243,7 +216,6 @@ public struct ResolverSettingsProvider: SettingsProvider {
             b.developerDirectory = developerDirectory
             if let catalog { b.sdkLookup = { catalog.lookup($0) } }
             var o: [String: String] = [:]
-            // (-xcconfig files are not applied by this fallback.)
             for (k, v) in parameters.overrides { o[k] = v }
             b.overrides = o
             let resolved = try b.resolve(target: t.name, configuration: parameters.configuration)

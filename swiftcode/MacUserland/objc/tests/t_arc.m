@@ -1,7 +1,3 @@
-// t_arc.m - ARC conformance (compiled with -fobjc-arc; specs/macos/
-// objc-runtime.md §7-§9): strong and weak properties and locals, the
-// return-value hand-off, objc_opt_* entry points, @autoreleasepool,
-// copy properties, weak references cleared at dealloc, ivar destruction.
 #include <objc/NSObject.h>
 #include <objc/runtime.h>
 #include <stdio.h>
@@ -27,7 +23,7 @@ static int deallocs = 0;
 - (Node *)makeChild:(int)tag {
     Node *c = [Node node:tag];
     c.parent = self;
-    return c;   // returned +0 (autoreleased or handed off)
+    return c;
 }
 - (id)copyWithZone:(void *)zone {
     Node *n = [Node node:self.tag + 1000];
@@ -75,15 +71,12 @@ int main(void) {
     }
     printf("pool drained: weak %s deallocs %d\n", globalWeak ? "alive" : "nil", deallocs);
 
-    // objc_opt_* fast paths and overrides.
     Node *n = [Node new];
     printf("opt class %s self same %d kind %d responds %d %d\n", class_getName([n class]), [n self] == n,
            [n isKindOfClass:[NSObject class]], [n respondsToSelector:@selector(makeChild:)],
            [n respondsToSelector:@selector(missing)]);
     printf("class method new tag %d\n", [Node node:7].tag);
 
-    // Ivars of a holder are released when it goes away, in some order; the
-    // weak ivar is cleared.
     @autoreleasepool {
         Holder *h = [Holder new];
         h->a = [Node node:10];
@@ -93,7 +86,6 @@ int main(void) {
         h = nil;
     }
 
-    // Many autoreleased returns inside a loop with a pool per iteration.
     int sum = 0;
     for (int i = 0; i < 1000; i++) {
         @autoreleasepool {

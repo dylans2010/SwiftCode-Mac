@@ -1,18 +1,15 @@
 import Foundation
 
-// MARK: - Extension Manifest
-
-/// Represents the metadata and configuration for a SwiftCode Extension.
 struct ExtensionManifest: Identifiable, Codable, Hashable {
-    var id: String                      // Unique identifier (folder name)
+    var id: String
     var name: String
     var version: String
     var description: String
     var author: String
     var category: ExtensionCategory
     var capabilities: [ExtensionCapability]
-    var entryPoint: String              // Relative path to the main Swift file
-    var assetPaths: [String]            // Relative paths to asset files
+    var entryPoint: String
+    var assetPaths: [String]
     var isInstalled: Bool
     var isEnabled: Bool
     var isUserCreated: Bool
@@ -121,11 +118,6 @@ struct ExtensionManifest: Identifiable, Codable, Hashable {
     }
 }
 
-// MARK: - Extension Manager
-
-/// Manages all Extensions in SwiftCode: scanning, installing, enabling, disabling,
-/// creating, and deleting. Extensions are stored in the app's Documents/Extensions
-/// folder and load dynamically into the IDE when installed.
 @MainActor
 final class ExtensionManager: ObservableObject {
     static let shared = ExtensionManager()
@@ -134,7 +126,6 @@ final class ExtensionManager: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    /// Root directory for all user-created and installed extensions.
     var extensionsDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Extensions")
@@ -146,16 +137,9 @@ final class ExtensionManager: ObservableObject {
         Task { await scanExtensions() }
     }
 
-    /// Fetches all available extensions (both installed and remote placeholders).
-    /// In a real app, this might fetch from a remote API. For now, it combines
-    /// local extensions with potential remote ones.
     func getAllAvailableExtensions() -> [ExtensionManifest] {
-        // This would typically merge locally scanned extensions with a remote registry.
-        // For this task, we'll ensure the `extensions` array represents all of them.
         return extensions
     }
-
-    // MARK: - Built-in Extensions
 
     private var builtInManifests: [ExtensionManifest] {
         [
@@ -311,8 +295,6 @@ final class ExtensionManager: ObservableObject {
         ]
     }
 
-    /// Seeds built-in extensions into the Documents/Extensions folder on first launch.
-    /// Built-in extension folders are skipped individually if they already exist.
     func seedBuiltInExtensions() {
         let fm = FileManager.default
         let encoder = JSONEncoder()
@@ -343,9 +325,6 @@ final class ExtensionManager: ObservableObject {
         )
     }
 
-    // MARK: - Scan
-
-    /// Scans the Extensions directory for installed extension manifests.
     func scanExtensions() async {
         isLoading = true
         defer { isLoading = false }
@@ -356,7 +335,6 @@ final class ExtensionManager: ObservableObject {
             includingPropertiesForKeys: [.isDirectoryKey],
             options: .skipsHiddenFiles
         ) else {
-            // If directory listing fails, just show built-ins as not downloaded
             self.extensions = builtInManifests.map {
                 var m = $0
                 m.isDownloaded = false
@@ -370,7 +348,6 @@ final class ExtensionManager: ObservableObject {
         var found: [ExtensionManifest] = []
         let localIds = contents.map { $0.lastPathComponent }
 
-        // Add built-ins, checking if they are locally present
         for var manifest in builtInManifests {
             if localIds.contains(manifest.id) {
                 let manifestURL = extensionsDirectory.appendingPathComponent(manifest.id).appendingPathComponent("extension.json")
@@ -389,7 +366,6 @@ final class ExtensionManager: ObservableObject {
             found.append(manifest)
         }
 
-        // Add any other local extensions that are not built-in
         for url in contents {
             let id = url.lastPathComponent
             if !builtInManifests.contains(where: { $0.id == id }) {
@@ -406,12 +382,8 @@ final class ExtensionManager: ObservableObject {
         extensions = found.sorted { $0.name < $1.name }
     }
 
-    // MARK: - Download Extension
-
-    /// Marks an extension as downloaded, making it available for use.
     func downloadExtension(_ ext: ExtensionManifest) {
         guard let idx = extensions.firstIndex(where: { $0.id == ext.id }) else { return }
-        // Simulate download delay
         isLoading = true
         Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -425,7 +397,6 @@ final class ExtensionManager: ObservableObject {
         }
     }
 
-    /// Downloads all extensions at once.
     func downloadAllExtensions() {
         for i in extensions.indices {
             extensions[i].isDownloaded = true
@@ -434,8 +405,6 @@ final class ExtensionManager: ObservableObject {
             saveEnabledState(for: extensions[i].id, enabled: true)
         }
     }
-
-    // MARK: - Enable / Disable
 
     func toggleExtension(_ ext: ExtensionManifest) {
         guard let idx = self.extensions.firstIndex(where: { $0.id == ext.id }) else { return }
@@ -448,15 +417,11 @@ final class ExtensionManager: ObservableObject {
         let extensionName = self.extensions[idx].name
         let identificationTags = self.extensions[idx].identificationTags
 
-        // Handle use_test_tools if enabled for this extension
         if isEnabled && useTestTools {
             Task {
                 await TestToolsManager.shared.runExtensionTests(extensionID: extensionID)
             }
         }
-
-        // PLACEHOLDER: Notify the IDE to load or unload this extension's entry point.
-        // IDEExtensionLoader.shared.reload(self.extensions[idx])
 
         AssistCapabilityExecutor.executeIfNeeded(
             kind: AssistCapabilityKind.`extension`,
@@ -469,9 +434,6 @@ final class ExtensionManager: ObservableObject {
         )
     }
 
-    // MARK: - Install
-
-    /// Installs an extension from a source directory.
     func installExtension(from sourceURL: URL) throws {
         let destURL = extensionsDirectory.appendingPathComponent(sourceURL.lastPathComponent)
         if FileManager.default.fileExists(atPath: destURL.path) {
@@ -481,44 +443,31 @@ final class ExtensionManager: ObservableObject {
         Task { await scanExtensions() }
     }
 
-    // MARK: - Uninstall / Delete
-
-    /// Safely removes an extension folder and removes it from the IDE.
     func uninstallExtension(_ ext: ExtensionManifest) throws {
         let extURL = extensionsDirectory.appendingPathComponent(ext.id)
         if FileManager.default.fileExists(atPath: extURL.path) {
             try FileManager.default.removeItem(at: extURL)
         }
         extensions.removeAll { $0.id == ext.id }
-        // PLACEHOLDER: Notify the IDE to unload this extension.
-        // IDEExtensionLoader.shared.unload(ext)
     }
 
-    // MARK: - Create User Extension
-
-    /// Creates a new user-created extension under the Extensions directory.
-    /// Returns the folder URL of the created extension.
     @discardableResult
     func createExtension(manifest: ExtensionManifest, swiftFiles: [(name: String, content: String)], assetFiles: [(name: String, data: Data)]) throws -> URL {
         let folderURL = extensionsDirectory.appendingPathComponent(manifest.id)
         let fm = FileManager.default
 
-        // Create the extension folder
         try fm.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
-        // Save the manifest
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let manifestData = try encoder.encode(manifest)
         try manifestData.write(to: folderURL.appendingPathComponent("extension.json"))
 
-        // Save Swift source files
         for file in swiftFiles {
             let fileURL = folderURL.appendingPathComponent(file.name)
             try file.content.write(to: fileURL, atomically: true, encoding: .utf8)
         }
 
-        // Save asset files
         let assetsFolder = folderURL.appendingPathComponent("Assets")
         if !assetFiles.isEmpty {
             try fm.createDirectory(at: assetsFolder, withIntermediateDirectories: true)
@@ -537,9 +486,6 @@ final class ExtensionManager: ObservableObject {
         return folderURL
     }
 
-    // MARK: - Update Extension
-
-    /// Updates an existing extension's manifest and optionally its files.
     func updateExtension(manifest: ExtensionManifest) throws {
         guard let idx = extensions.firstIndex(where: { $0.id == manifest.id }) else { return }
         extensions[idx] = manifest
@@ -556,8 +502,6 @@ final class ExtensionManager: ObservableObject {
         )
     }
 
-    // MARK: - Filter Helpers
-
     func extensions(with capability: ExtensionManifest.ExtensionCapability) -> [ExtensionManifest] {
         extensions.filter { $0.isEnabled && $0.capabilities.contains(capability) }
     }
@@ -565,8 +509,6 @@ final class ExtensionManager: ObservableObject {
     func extensions(inCategory category: ExtensionManifest.ExtensionCategory) -> [ExtensionManifest] {
         extensions.filter { $0.category == category }
     }
-
-    // MARK: - Preferences Persistence
 
     private static let enabledKey = "com.swiftcode.extensions.enabled"
 

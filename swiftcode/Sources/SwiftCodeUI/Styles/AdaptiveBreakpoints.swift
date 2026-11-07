@@ -1,12 +1,5 @@
 import SwiftUI
 
-/// Adaptive breakpoints (Legacy
-/// `SwiftCode/UI/Styles/Styling/AdaptiveBreakpoints.swift`, Dylan's own
-/// code, ported under MIT). Direct port: compact 0 / regular 1024 /
-/// large 1440 / professional 1920 / ultra-wide 2560, with per-breakpoint
-/// columns (1/2/3/4/6), padding (16/20/24/32/40), and spacing
-/// (12/16/20/24/32).
-
 public enum AdaptiveBreakpoint: String, CaseIterable, Comparable, Sendable {
     case compactDesktop
     case regularDesktop

@@ -1,0 +1,442 @@
+[NOT_FOUND_BY_STEM] SwiftCode/App/SceneModel.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/App/SwiftCodeApp.swift
+    -> swiftcode/Package.swift
+    -> swiftcode/Tests/SwiftCodeReleaseTests/VersionAgreementTests.swift
+    -> swiftcode/Sources/swiftcode-ide/SwiftCodeIDEApp.swift
+    -> swiftcode/Sources/swiftcode-ide/SDKStudio/SDKStudioView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/Project/ProjectSessionStore.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/AI/OpenRouterAIProvider.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Assist/API/Internal API/AssistAPIResponse.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/API/AssistAPIRouter.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/API/AssistAPI.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Assist/AssistModelEligibilityPolicy.swift
+    -> swiftcode/Tests/SwiftCodeAssistantTests/AssistModelRoutingTests.swift
+    -> swiftcode/Sources/swiftcode-ide/MetaAssistModelsUI.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Assist/AssistSettingsView.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/Subagents/Models/WorkerModelSelector.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/Providers/LLMToolCompletion.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Assist/Functions/AssistFileFunctions.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Assist/Functions/AssistSearchFunctions.swift
+    -> swiftcode/Sources/SwiftCodeMCP/Tools/Support/SwiftCodeTools+SearchSupport.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Assist/Functions/AssistSkillsCheck.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Build/SwiftPackageBuildService.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Build/XcodeBuildService.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/BuildViewModel.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Debug/DebugRunnerService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Extensions v2/Dependencies/ExtV2DependencyResolver.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Extensions v2/NativeSDK/ExtV2NativeSDK.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Extensions v2/NativeSDK/ExtV2SamplePlugin.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Extensions v2/Permissions/ExtV2PermissionManager.swift
+    -> swiftcode/Sources/SwiftCodeMCP/Models/ExtV2AssistBridge.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Extensions v2/Resources/ExtV2ResourceLimits.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Extensions v2/Runtime/ExtV2HostManager.swift
+    -> swiftcode/Sources/SwiftCodeMCP/Models/ExtV2AssistBridge.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Extensions v2/Tests/ExtV2TestSuite.swift
+    -> swiftcode/Tests/SwiftCodeMCPTests/UseExtensionTests.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Extensions v2/Workspace/ExtV2WorkspaceBridge.swift
+    -> swiftcode/Sources/SwiftCodeExtensions/ExtV2EditorBridge.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Git/GitCredentialProvider.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/Models/SecretStore.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/GitHub/GitHubAPI.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/GitHub/GitHubAuth.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/Models/SecretStore.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/GitHubOAuth.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubImportManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubImporter.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/GitHub/GitHubGistService.swift
+    -> swiftcode/Sources/SwiftCodeGitHub/Services/GitHubGists.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/CommandLineToolTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/DocumentAppTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/FrameworkTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/GameMetalTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/GameSpriteKitTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/MultiplatformAppTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/SafariExtensionTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/StaticLibraryTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/SwiftMacroTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Persistence/Templates/SwiftPackageTemplate.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Backend/Projects/Collaboration/CollaborationSessionStore.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Store/EntitlementManager.swift
+    -> swiftcode/Sources/swiftcode-ide/GeneralSettingsView.swift
+    -> swiftcode/Sources/SwiftCodePaywall/PaywallDebugViews.swift
+    -> swiftcode/Sources/SwiftCodePaywall/PaywallStore.swift
+    -> swiftcode/Sources/SwiftCodePaywall/PaywallEntitlement.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Backend/Updates/AppUpdateService.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/UpdatesView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/UpdateWindowView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Utilities/AppUpdateSupport.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Core/AI/AIConversation.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Core/AI/Agent/AgentOrchestrator.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Assistant/AgentViewModel.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Core/AI/Agent/AgentTool.swift
+    -> swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeAgenticCLITests.swift
+    -> swiftcode/Sources/swiftcode-ide/GeneralSettingsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/PluginCodeCreateView.swift
+    -> swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+AgenticData.swift
+    -> swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+AgenticGit.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Core/AI/Agent/AgentToolRegistry.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Core/AI/Agent/CodePatchEngine.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Core/FileSystem/CodeReaderManager.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Core/Preview/PreviewBuildService.swift
+    -> swiftcode/Sources/SwiftCodeUI/Editor/PreviewRuntime.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Core/Preview/PreviewEngine.swift
+    -> swiftcode/Sources/SwiftCodeUI/VisualUIBuilder/PreviewManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/VisualUIBuilder/VisualUIPreviewPanel.swift
+    -> swiftcode/Sources/SwiftCodePreviews/PreviewSession.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Core/Preview/PreviewHostManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Core/Preview/PreviewInteractionManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Features/AI/ChooseModelView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Features/AdvancedTools/Views/AdvancedToolsDesignSystem.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Features/AdvancedTools/Views/AssetManagerView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Store/StoreKitEditors.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Features/AdvancedTools/Views/ExtensionMarketplaceView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Features/Debug Tools/DebuggingToolsView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Features/Testing/Views/TestToolsView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ExportProjManager.swift
+    -> swiftcode/Sources/swiftcode-ide/ExportProjView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ImportProjManager.swift
+    -> swiftcode/Sources/swiftcode-ide/ImportProjView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ManifestProjManager.swift
+    -> swiftcode/Sources/swiftcode-ide/InfoProjView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectCoordinator.swift
+    -> swiftcode/Sources/swiftcode-ide/InfoProjView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectDeserializer.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectErrorManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectFileManager.swift
+    -> swiftcode/Sources/swiftcode-ide/InfoProjView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectHashManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectIntegrityManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectJSONManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectPackageManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectPlistManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectResourceManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectSerializer.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectVersionManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Frameworks/Internal/ProjectXMLManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/SCProjectFormat.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Frameworks/SyntaxHighlighting/SwiftTokenizer.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Frameworks/SyntaxHighlighting/SyntaxHighlightingEngine.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/SDK/Host/ExtensionRegistry/SDKPackageValidator.swift
+    -> swiftcode/Sources/SwiftCodeExtensions/PackageService.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/SDK/Runtime/IPC/SDKIPCTransport.swift
+    -> swiftcode/Sources/SwiftCodeSDK/Runtime/IPC/SDKIPCDispatcher.swift
+[NOT_FOUND_BY_STEM] SwiftCode/SDK/Runtime/Isolation/SDKNodeLauncher.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/SDK/Sources/ExtensionKit/ExtensionCapability.swift
+    -> swiftcode/Tests/SwiftCodeExtensionsTests/CapabilityTests.swift
+    -> swiftcode/Sources/swiftcode-ide/SDKStudio/EditExtensionView.swift
+    -> swiftcode/Sources/swiftcode-ide/SDKStudio/SDKStudioManifestViews.swift
+    -> swiftcode/Sources/swiftcode-ide/SDKStudio/CreateExtensionView.swift
+    -> swiftcode/Sources/SwiftCodeExtensions/ExtensionManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/SDK/Sources/ExtensionKit/ExtensionRuntimeContracts.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/SDK/Sources/ExtensionKit/ExtensionValidator.swift
+    -> swiftcode/Tests/SwiftCodeSDKTests/SDKStudioTests.swift
+    -> swiftcode/Sources/SwiftCodeExtensions/SwiftCodeManifest.swift
+    -> swiftcode/Sources/SwiftCodeSDK/Kits/Tools/ExtensionValidatorMain.swift
+    -> swiftcode/Sources/SwiftCodeSDK/Kits/SwiftCodeSDK/SwiftCodeSDK.swift
+    -> swiftcode/Sources/SwiftCodeSDK/Kits/ExtensionKit/ExtensionPackager.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/SDK/Studio/Views/AssistAccessFormView.swift
+    -> swiftcode/Sources/swiftcode-ide/SDKStudio/SDKStudioSecurityViews.swift
+    -> swiftcode/Sources/SwiftCodeSDKStudio/SDKStudioModels.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/SDK/Studio/Views/AvailableExtensionsView.swift
+    -> swiftcode/Sources/swiftcode-ide/SDKStudio/SDKStudioExtensionsViews.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/SDK/Studio/Views/EnterSecuritySDKView.swift
+    -> swiftcode/Sources/swiftcode-ide/SDKStudio/SDKStudioSecurityViews.swift
+    -> swiftcode/Sources/SwiftCodeSDK/Host/Security/SDKSensitiveValuePrompt.swift
+[NOT_FOUND_BY_STEM] SwiftCode/SDK/Tests/SDKTests/SDKTests.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Services/Appwrite/AppwriteService.swift
+    -> swiftcode/Sources/SwiftCodeCloud/AppwriteConfiguration.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Services/Appwrite/AuthManager.swift
+    -> swiftcode/Tests/SwiftCodeAssistantTests/AssistModelRouterTests.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/NativeSettingsViews.swift
+    -> swiftcode/Sources/SwiftCodeCloud/AppwriteConfiguration.swift
+    -> swiftcode/Sources/SwiftCodeCloud/CloudManager.swift
+    -> swiftcode/Sources/SwiftCodeCloud/CloudAuthProvider.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Services/AssistNavigationRouter.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectConsole.swift
+    -> swiftcode/Sources/SwiftCodeUI/VisualUIBuilder/RunFullAppView.swift
+    -> swiftcode/Sources/SwiftCodeUI/VisualUIBuilder/VisualUICanvasView.swift
+    -> swiftcode/Sources/SwiftCodeUI/VisualUIBuilder/ArtboardSimulator.swift
+    -> swiftcode/Sources/SwiftCodeUI/VisualUIBuilder/VisualUIPreviewPanel.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Services/CodeIndexService.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/Agents/AgentContextBuilder.swift
+    -> swiftcode/Sources/SwiftCodeUI/Navigator/CodeSearchView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Services/LogManager.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Session/DeploymentLogStore.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/ViewModels/AIAssistantViewModel.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/AI/AIAssistantPanelView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/ViewModels/ProjectTreeViewModel.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Files/FileNavigatorSidebarView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/NewProject/FileTemplatesView.swift
+    -> swiftcode/Sources/SwiftCodeIDEShell/Models/WorkspaceViewModel.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/ViewModels/ThemeViewModel.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Settings/ThemeGalleryView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/SettingsView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/NewProject/WelcomeView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/AI/AI New/AICoreView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/AI/AI New/CodeChangesView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Agent/AgentModeView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/AI/AI New/Codex UIs/CodexErrorView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/CodexMainView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/AI/OnDeviceAIView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/AIChatInputView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/AI/AIAssistantPanelView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/AIChatMessageListView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/AI/AIAssistantPanelView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/AIModelPickerView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/AI/AIAssistantPanelView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Agent/AgentAttachmentChipView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Agent/AgentInputBarView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Agent/AgentChatView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Agent/AgentMessageBubbleView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Agent/AgentMessageListView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Agent/AgentChatView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Agent/Skills/SkillsEditorView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Agent/AgentSkillsLibraryView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Agent/Skills/SkillsLibraryView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Agent/AgentSkillsLibraryView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Agent/Skills/SkillsManagerView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Agent/AgentSkillsLibraryView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Assist/AssistErrorBubble.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Core/CommandExecutor.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Simctl/SimulatorCommandExecutor.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Core/ProcessRunner.swift
+    -> swiftcode/Sources/SwiftCodeDeviceModel/DeviceConnectProcessRunner.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/BuildManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectDeploymentView.swift
+    -> swiftcode/Sources/SwiftCodeDeviceModel/DeviceConnectManagers.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/ConsoleManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectConsole.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/DeploymentManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectToolbar.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectDeploymentView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/DeviceManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectToolbar.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectSidebar.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectDeploymentView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectInspector.swift
+    -> swiftcode/Sources/SwiftCodeDeviceModel/DeviceConnectManagers.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/EnvironmentManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectToolbar.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectEnvironmentView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectSidebar.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectDeploymentView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/HistoryManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectSessionsView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Managers/PreferencesManager.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/SessionManager.swift
+    -> swiftcode/Sources/swiftcode-ide/Developer/StateInspectorView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectSessionsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectSidebar.swift
+    -> swiftcode/Sources/SwiftCodeDeviceModel/DeviceConnectManagers.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Managers/SigningManager.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectInspector.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Services/DeviceService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Services/EnvironmentService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Services/InstallService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Services/LaunchService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Services/LogService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Services/NotificationService.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/DeviceConnectKit/Services/RuntimeService.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/DeviceConnect/DeviceConnectDeploymentView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Services/SigningService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/DeviceConnectKit/Views/Settings/DeviceConnectSettingsView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/LocalBuildDemoView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Window/LocalBuildView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Build/Xcode Build/AppleSignInView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Build/Xcode Build/IPABuildView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Debug/XcodeBuildLogView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/BuildConsoleView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Dashboard/FoldersView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Project/ProjectDashboardView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Dashboard/GitHubRemoteSetupView.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Project/ProjectDashboardView.swift
+    -> swiftcode/Sources/SwiftCodeIDEShell/Models/ProjectDashboardModel.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/DebugConsoleView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Dependencies/DependencyManagerView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Deployments/DeploymentsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentWindowController.swift
+    -> swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentService.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Developer/BuildPipelineDebugger/BuildPipelineDebuggerView.swift
+    -> swiftcode/Sources/swiftcode-ide/Developer/DeveloperDashboardView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Developer/Virtualization/UI/SCVirtualizationView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/DiffViewer/DiffViewerView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Editor/CodeEditorView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Editor/CodeEditorManagementView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Editor/EditorLogicFrameworks/AISuggestionEngine.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/Providers/LocalModelManager.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Editor/EditorLogicFrameworks/TextLayoutEngine.swift
+    -> swiftcode/Sources/SwiftCodeUI/Editor/CodeEditorView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Editor/LocalizingAppNewView.swift
+    -> swiftcode/Sources/SwiftCodeAssistant/Models/LocalizingAppService.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Editor/SwiftCodeJSONView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/EditorGutterView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/EditorTabBarView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/EditorTextView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Errors/ErrorsPanelView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Extensions v2/ExtensionDetailsView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Extensions v2/ExtensionDiagnosticsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Extensions/ExtensionsHomeView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Extensions v2/ExtensionPermissionsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Extensions/ExtensionsHomeView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Extensions v2/ExtensionsInstalledView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Extensions/ExtensionsHomeView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Gists/Components/GistCommentSectionView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GistBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Gists/Components/GistFileEditorView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GistBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Gists/Components/GistFileTabBar.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GistBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Gists/CreateGistView.swift
+    -> swiftcode/Sources/SwiftCodeUI/Editor/CodeEditorView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GistBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Gists/GistRevisionsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GistBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Gists/GistsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GistBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/ActionsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/CI/CIWindowController.swift
+    -> swiftcode/Sources/SwiftCodeUI/CI/WorkflowBuilderView.swift
+    -> swiftcode/Sources/SwiftCodeUI/CI/WorkflowsCreateView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/BranchesView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/GitBlameViewer.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/GitConflictResolverView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/SourceControlWorkspaceViews.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/GitHubEmptyStateView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/DiscussionsView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/GitHubErrorView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/GitHubInspector.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/IssueDetailView.swift
+    -> swiftcode/Sources/SwiftCodeGitHub/Services/GitHubIssueComments.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/IssuesView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/Legacy/BranchManagementView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/Legacy/GitCloneSheetView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/Legacy/GitCommitComposerView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/Legacy/GitConflictBannerView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/Legacy/GitDiffView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/SourceControlWorkspaceViews.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/GitHub/Legacy/GitHubIntegrationView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/Legacy/PullRequestView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/OrganizationsView.swift
+    -> swiftcode/Sources/SwiftCodeGitHub/Services/GitHubRemoteLists.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/ReleasesView.swift
+    -> swiftcode/Sources/SwiftCodeGitHub/Services/GitHubReleases.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/RepositoriesView.swift
+    -> swiftcode/Sources/SwiftCodeGitHub/Services/GitHubRemoteLists.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/RepositoryContext.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/DiscussionsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubIntelligenceAndOperations.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubSettingsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/RepositoryDashboardView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/GitHub/RepositoryDetailView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubRemoteBrowserView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/HomeProjectGridView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/IssueNavigatorView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Navigator/FileNavigatorView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/NewProjectSheetView.swift
+    -> swiftcode/Sources/SwiftCodeIDECore/Model/NewProject/WelcomeView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Onboarding/OnboardingSplashView.swift
+    -> swiftcode/Sources/swiftcode-ide/SwiftCodeIDEApp.swift
+    -> swiftcode/Sources/swiftcode-ide/Views/Onboarding/OnboardingView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/ProjectNavigatorView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/ProjectTreeRowView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/SectionView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Settings/BackupsView.swift
+    -> swiftcode/Sources/swiftcode-ide/BackupsSettingsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/SettingsView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Settings/CloudAuthViews.swift
+    -> swiftcode/Sources/SwiftCodeGoogleAuth/GoogleAuthError.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/CloudAccountsSettings.swift
+    -> swiftcode/Sources/SwiftCodeCloud/CloudAuthManager.swift
+    -> swiftcode/Sources/SwiftCodeCloud/AppwriteError.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Settings/CloudManagementView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/SettingsView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/CloudAccountsSettings.swift
+    -> swiftcode/Sources/SwiftCodeCloud/CloudManager.swift
+    -> swiftcode/Sources/SwiftCodeCloud/AppwriteAccountClient.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Settings/CloudStatusView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/CloudAccountsSettings.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Settings/CloudSyncView.swift
+    -> swiftcode/Sources/SwiftCodeUI/App/CloudAccountsSettings.swift
+    -> swiftcode/Sources/SwiftCodeCloud/CloudModels.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Settings/Extension Management/ExtensionDemoView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Settings/Extension Management/JSONFormatterExtensionView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Settings/Extension Management/MarkdownPreviewExtensionView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Settings/Extension Management/RegexTesterExtensionView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Sidebar/BreakpointsSidebarView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Sidebar/GitSidebarView.swift
+    -> swiftcode/Sources/swiftcode-ide/SidebarMainView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Sidebar/SearchSidebarView.swift
+    -> swiftcode/Sources/swiftcode-ide/SidebarMainView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Sidebar/TestsSidebarView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/TemplatePickerView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/ThemeEditorView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/DependencyManager/GitHubDiscoveryView.swift
+    -> swiftcode/Sources/swiftcode-ide/Package/PackageDiscoveryFiltersView.swift
+    -> swiftcode/Sources/swiftcode-ide/Package/PackageDiscoveryView.swift
+    -> swiftcode/Sources/SwiftCodeUI/SourceControl/GitHubIntelligenceAndOperations.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/DependencyManager/PackageExplorerView.swift
+    -> swiftcode/Sources/swiftcode-ide/Package/PackageDiscoveryView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/DependencyManager/ProjectCompatibilityView.swift
+    -> swiftcode/Sources/swiftcode-ide/Package/PackageDetailsView.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AIAnalysisManager.swift
+    -> swiftcode/Sources/SwiftCodeIDEShell/Models/PersonalDocumentationModel.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AnalyticsManager.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/DocumentManager.swift
+    -> swiftcode/Sources/SwiftCodeIDEShell/Managers/EcosystemManagers.swift
+    -> swiftcode/Sources/SwiftCodeIDEShell/Models/PersonalDocumentationModel.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/ExportManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/ImportManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/IndexingManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/JournalManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/MetadataManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/PlanningManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/RelationshipManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/ResearchManager.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/StorageManager.swift
+    -> swiftcode/Sources/SwiftCodeIDEShell/Managers/EcosystemManagers.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/TemplateManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/VersionHistoryManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/WikiManager.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/AIInsight.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/AnalyticsSnapshot.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/AttachmentRecord.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/DocumentVersion.swift
+    -> swiftcode/Sources/swiftcode-ide/RecordDetailView.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/EcosystemModels.swift
+[NOT_FOUND_BY_STEM] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/SmartCollection.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/Template.swift
+    -> swiftcode/Tests/SwiftCodeUITests/MenuBarGoldenTests.swift
+    -> swiftcode/Tests/SwiftCodeUITests/IOSAppTemplateTests.swift
+    -> swiftcode/Tests/SwiftCodeUITests/LaunchWelcomeR31Tests.swift
+    -> swiftcode/Tests/SwiftCodeUITests/NewProjectSheetTests.swift
+    -> swiftcode/Tests/SwiftCodeUITests/NewItemR35Tests.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/WikiPage.swift
+    -> swiftcode/Sources/swiftcode-ide/RecordListView.swift
+    -> swiftcode/Sources/swiftcode-ide/RecordDetailView.swift
+    -> swiftcode/Sources/swiftcode-ide/WikiPageView.swift
+    -> swiftcode/Sources/swiftcode-ide/PersonalDocCommandPalette.swift
+[REFERENCED_OR_CONSOLIDATED] SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderWindowController.swift
+    -> swiftcode/Sources/SwiftCodeUI/VisualUIBuilder/VisualUIBuilderWindowManager.swift

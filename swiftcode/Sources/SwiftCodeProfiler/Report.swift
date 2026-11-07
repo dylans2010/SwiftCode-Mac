@@ -1,11 +1,8 @@
 import Foundation
 
-/// Text renderings of a trace for `swiftcode profile` (`specs/ide/profiler.md` §7).
 public enum GaugeReport {
     static func ms(_ ns: UInt64) -> String { String(format: "%.1f ms", Double(ns) / 1e6) }
 
-    /// Recording, threads, top functions by self time, the heaviest stack,
-    /// signposts, hangs, frames and GPU.
     public static func summary(_ t: GaugeTrace, top: Int = 15, filter: SampleFilter = SampleFilter()) -> String {
         let r = t.recording
         var out = "Gauge trace: \(r.target)" + (r.command.isEmpty ? "" : " — \(r.command)") + "\n"
@@ -15,7 +12,6 @@ public enum GaugeReport {
                       Double(r.durationNs) / 1e9, Double(r.sampleIntervalNs) / 1e6, t.samples.count, t.threads.count)
         for n in r.notes { out += "Note: \(n)\n" }
 
-        // Threads by CPU samples.
         var cpu: [UInt64: (user: Int, kernel: Int, other: Int)] = [:]
         for i in 0..<t.samples.count where filter.range.map({ $0.contains(t.samples.time[i]) }) ?? true {
             var c = cpu[t.samples.thread[i]] ?? (0, 0, 0)
@@ -76,7 +72,6 @@ public enum GaugeReport {
         return out
     }
 
-    /// An indented call tree; nodes below `minPercent` of the root are cut.
     public static func tree(_ tree: CallTree, maxDepth: Int = 40, minPercent: Double = 0.5) -> String {
         let total = max(1, tree.root.total)
         var out = "   weight        %     self  symbol\n"

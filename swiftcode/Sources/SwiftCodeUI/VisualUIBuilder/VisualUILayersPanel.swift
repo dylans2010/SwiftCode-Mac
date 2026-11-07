@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUILayersPanel.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Panel managing individual scene layers, arranging Z-index hierarchies, bringing elements to front, or locking them securely.
 public struct VisualUILayersPanel: View {
     @Bindable var document: VisualUIDocument
 
@@ -20,7 +17,6 @@ public struct VisualUILayersPanel: View {
             if let activeID = document.scene.activeArtboardID,
                let artboard = document.scene.artboards.first(where: { $0.id == activeID }) {
                 VStack(spacing: 12) {
-                    // Quick Action Ordering buttons
                     HStack(spacing: 8) {
                         Button {
                             reorderSelectedLayer(direction: .up)
@@ -44,7 +40,6 @@ public struct VisualUILayersPanel: View {
 
                     ScrollView {
                         VStack(spacing: 4) {
-                            // Gather flat list of nodes for layer management
                             let nodes = flattenNodes(startNode: artboard.rootNode)
                             ForEach(nodes) { node in
                                 HStack {

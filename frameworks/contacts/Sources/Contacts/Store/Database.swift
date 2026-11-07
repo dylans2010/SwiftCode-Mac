@@ -1,15 +1,8 @@
-// SwiftCode's own SQLite schema for the contacts database (design.md §4), the
-// fresh-device seed (SwiftCode's made-up records; the fixed container and group
-// identifiers of interface.md §2.3) and the change journal.
-
 import Foundation
 
-/// The local container's identifier on every fresh device (interface.md §2.3).
 let localContainerIdentifier = "BC25D81B-8966-48EF-8FF9-D7389B6F89BD"
 let seedFriendsGroupIdentifier = "CCDA4756-71B4-4B25-8DD2-D3DA109F4561"
 let seedWorkGroupIdentifier = "2D6515F9-AE3D-460D-98A2-EFE81516739D"
-
-// MARK: - DateComponents bridging (portable)
 
 func dateComponents(_ ns: NSDateComponents) -> DateComponents {
     var c = DateComponents()
@@ -30,8 +23,6 @@ func nsDateComponents(_ c: DateComponents) -> NSDateComponents {
     if let v = c.day { ns.day = v }
     return ns
 }
-
-// MARK: - Value encoding
 
 enum Codec {
     static func json(_ obj: [String: Any]) -> String {
@@ -77,19 +68,16 @@ enum Codec {
         let o = object(text)
         let a = CNMutablePostalAddress()
         for k in CNPostalAddress.fieldKeys { a.setField(k, o[k] as? String ?? "") }
-        // swiftlint:disable:next force_cast - copy() of a CNMutablePostalAddress is a CNPostalAddress
         return a.copy() as! CNPostalAddress
     }
 }
 
-/// The multi-valued properties: key, encode, decode.
 enum MultiValue {
     static let keys = [
         CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactPostalAddressesKey, CNContactUrlAddressesKey,
         CNContactRelationsKey, CNContactSocialProfilesKey, CNContactInstantMessageAddressesKey, CNContactDatesKey,
     ]
 
-    /// (identifier, label, encoded value) rows of one property.
     static func rows(_ d: ContactData, _ key: String) -> [(String, String?, String)] {
         switch key {
         case CNContactPhoneNumbersKey: return d.phoneNumbers.map { ($0.identifier, $0.label, $0.value.stringValue) }
@@ -142,7 +130,6 @@ enum MultiValue {
     }
 }
 
-/// Scalar string properties and their columns.
 let scalarColumns: [(column: String, key: String, path: WritableKeyPath<ContactData, String>)] = [
     ("name_prefix", CNContactNamePrefixKey, \.namePrefix),
     ("given_name", CNContactGivenNameKey, \.givenName),
@@ -178,8 +165,8 @@ struct JournalRow {
     let seq: Int64
     let txn: Int64
     let author: String?
-    let kind: String      // contact, group, member
-    let op: String        // add, update, delete, remove
+    let kind: String
+    let op: String
     let recordID: String
     let groupID: String?
     let containerID: String?
@@ -237,8 +224,6 @@ final class ContactsDatabase {
         }
     }
 
-    // MARK: Meta
-
     func meta(_ key: String) -> String? {
         (try? conn.run("SELECT value FROM meta WHERE key = ?", [.text(key)]))?.first?.first?.text
     }
@@ -246,8 +231,6 @@ final class ContactsDatabase {
     func setMeta(_ key: String, _ value: String) throws {
         try conn.run("INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)", [.text(key), .text(value)])
     }
-
-    // MARK: Transactions
 
     func transaction<T>(_ body: () throws -> T) throws -> T {
         try conn.exec("BEGIN IMMEDIATE")
@@ -261,8 +244,6 @@ final class ContactsDatabase {
         }
     }
 
-    // MARK: Containers
-
     func containers() -> [CNContainer] {
         let rows = (try? conn.run("SELECT id, name, type FROM container ORDER BY rowid")) ?? []
         return rows.map { CNContainer(identifier: $0[0].text ?? "", name: $0[1].text, type: CNContainerType(rawValue: $0[2].int ?? 1) ?? .local) }
@@ -271,8 +252,6 @@ final class ContactsDatabase {
     func containerExists(_ id: String) -> Bool {
         !((try? conn.run("SELECT 1 FROM container WHERE id = ?", [.text(id)])) ?? []).isEmpty
     }
-
-    // MARK: Contacts
 
     func contactExists(_ id: String) -> Bool {
         !((try? conn.run("SELECT 1 FROM contact WHERE id = ?", [.text(id)])) ?? []).isEmpty
@@ -304,7 +283,6 @@ final class ContactsDatabase {
         return Dictionary(grouping: rows) { $0[0].text ?? "" }
     }
 
-    /// All contacts in storage order.
     func allContacts() -> [StoredContact] {
         let rows = (try? conn.run("SELECT \(selectColumns) FROM contact ORDER BY rowid")) ?? []
         let multi = multiRows("", [])
@@ -333,7 +311,6 @@ final class ContactsDatabase {
         }
     }
 
-    /// Writes the properties named by `keys`; the others stay as stored.
     func updateContact(id: String, keys: Set<String>, data d: ContactData) throws {
         var sets: [String] = []
         var args: [SQLValue] = []
@@ -362,8 +339,6 @@ final class ContactsDatabase {
         try conn.run("DELETE FROM multivalue WHERE contact_id = ?", [.text(id)])
         try conn.run("DELETE FROM member WHERE contact_id = ?", [.text(id)])
     }
-
-    // MARK: Groups
 
     func groups() -> [StoredGroup] {
         let rows = (try? conn.run("SELECT id, container_id, name FROM grp ORDER BY rowid")) ?? []
@@ -404,8 +379,6 @@ final class ContactsDatabase {
         try conn.run("DELETE FROM member WHERE group_id = ? AND contact_id = ?", [.text(group), .text(contact)])
     }
 
-    // MARK: Journal
-
     func maxSeq() -> Int64 {
         Int64((try? conn.run("SELECT COALESCE(MAX(seq), 0) FROM journal"))?.first?.first?.int ?? 0)
     }
@@ -429,8 +402,6 @@ final class ContactsDatabase {
         }
     }
 }
-
-// MARK: - Seed (SwiftCode's own made-up address book)
 
 enum Seed {
     static let rowan = "5E2A9C14-3B7D-4F61-8A20-C1D4E7F90A11"

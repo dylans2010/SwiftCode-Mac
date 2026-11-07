@@ -3,13 +3,7 @@ import Testing
 @testable import SwiftCodeHealthStore
 import SwiftCodeSimFeatures
 
-/// HEALTH-1/2 (health-simulation.md §6.2, §6.4, §8.2): grants answered in a
-/// shut-down device's store, on a stand-in store with the spec's documented
-/// tables and columns.
 struct HealthStoreGrantTests {
-    /// A store directory with two apps' rows: the agent asked to share and
-    /// read HR and steps; an app asked to read HR (shareable) and AFib burden
-    /// (read only), and to share steps.
     func makeStore() throws -> (HealthStore, String) {
         let dir = NSTemporaryDirectory() + "swiftcode-health-store-\(UUID().uuidString)"
         let health = dir + "/data/Library/Health"
@@ -37,9 +31,7 @@ struct HealthStoreGrantTests {
         let r = try store.grant(bundleID: "dev.swiftcode.health", now: Date(timeIntervalSinceReferenceDate: 100))
         #expect(r.rows == 2 && r.shared == 2 && r.changed == 2)
         #expect(try store.authorizationRows(bundleID: "dev.swiftcode.health").map(\.status) == [101, 101])
-        // Again: nothing changes.
         #expect(try store.grant(bundleID: "dev.swiftcode.health").changed == 0)
-        // Other sources untouched.
         #expect(try store.authorizationRows(bundleID: "dev.example.app").allSatisfy { $0.status == 100 })
     }
 
@@ -52,7 +44,6 @@ struct HealthStoreGrantTests {
         #expect(rows.first { $0.sourceID == 3 && $0.objectType == 7 }?.status == 101)
         #expect(rows.first { $0.sourceID == 3 && $0.objectType == 248 }?.status == 103)
         #expect(rows.first { $0.sourceID == 3 && $0.objectType == 5 }?.status == 103)
-        // A type never presented is left as it was.
         #expect(rows.first { $0.sourceID == 4 }?.status == 100)
         let v = try store.revoke(bundleID: "dev.example.app")
         #expect(v.denied == 4 && v.changed == 4)
@@ -88,8 +79,6 @@ struct HealthStoreGrantTests {
     }
 }
 
-/// HEALTH-3 (health-simulation.md §6.5, H-13/H-14): seeded rows on a
-/// stand-in store with the documented tables.
 struct HealthSeedTests {
     func makeStore(systemProvenance: Bool) throws -> (HealthStore, String) {
         let dir = NSTemporaryDirectory() + "swiftcode-health-seed-\(UUID().uuidString)"
@@ -136,7 +125,6 @@ struct HealthSeedTests {
         let r = try store.seed(samples, model: "Watch", now: t)
         #expect(r.total == 5 && r.madeProvenance)
         let db = try SQLiteDatabase(path: store.protectedPath)
-        // The new provenance: a copy of the agent's, now of the system source and the watch's device row.
         let prov = try db.query("SELECT sync_provenance, origin_product_type, source_id, device_id, tz_name FROM data_provenances WHERE ROWID = ?",
                                 [.int(r.provenance)])[0]
         #expect(prov == [.int(0), .text("Watch8,3"), .int(1), .int(1), .text("America/New_York")])
@@ -147,7 +135,7 @@ struct HealthSeedTests {
         let q = try db.query("SELECT quantity FROM quantity_samples ORDER BY data_id").compactMap { $0[0].real }
         #expect(q[0] == 0.02 && q[1] == 5 && abs(q[2] - 36.5) < 1e-9)
         let ecg = try db.query("SELECT private_classification, average_heart_rate, length(voltage_payload), symptoms_status FROM ecg_samples")[0]
-        #expect(ecg == [.int(4), .real(92), .int(0), .int(1)])  // AFib (public 2) is stored as 4
+        #expect(ecg == [.int(4), .real(92), .int(0), .int(1)])
         let s = try db.query("SELECT start_date, end_date FROM samples WHERE data_type = 144")[0]
         #expect(s == [.real(t.timeIntervalSinceReferenceDate), .real(t.timeIntervalSinceReferenceDate + 30)])
     }
@@ -167,7 +155,6 @@ struct HealthSeedTests {
             try store.seed([HealthSample(type: "HKQuantityTypeIdentifierWalkingHeartRateAverage", start: t, end: t + 60, value: 90, unit: "count/min")],
                            model: "Watch")
         }
-        // Nothing was written.
         let db = try SQLiteDatabase(path: store.protectedPath)
         #expect(try db.query("SELECT count(*) FROM samples")[0][0] == .int(0))
     }
@@ -177,7 +164,6 @@ struct HealthSeedTests {
     }
 }
 
-/// health-simulation.md §12.1: a watch app's grants are its companion's.
 struct HealthWatchAppTests {
     @Test func aWatchAppsCompanionIsFoundInTheInstalledBundle() throws {
         let data = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-watch-apps-\(UUID().uuidString)")

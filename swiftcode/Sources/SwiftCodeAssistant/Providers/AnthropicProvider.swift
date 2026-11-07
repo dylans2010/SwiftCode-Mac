@@ -3,30 +3,6 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Direct Anthropic chat client (Legacy
-/// `SwiftCode/Features/AI/LLMService.swift`'s Anthropic path, Dylan's
-/// own code, ported under MIT).
-///
-/// WIRING (wiring-backend): `kind` is now `.anthropic`
-/// (`ProviderKind.anthropic`, added in `Core.swift` and wired into the
-/// `AssistantBackends.provider(_:)` dispatch). It previously reported
-/// `.openRouter`, which misreported the provider in selection, the
-/// availability survey and model routing. It is a full
-/// `AssistantProvider` so it can be driven by the same `send` /
-/// `availability` contract.
-/// Why only Anthropic is ported as a direct client: Legacy's Gemini,
-/// Mistral and Qwen base URLs are OpenAI-compatible endpoints
-/// (`generativelanguage.googleapis.com/v1beta/openai`,
-/// `api.mistral.ai/v1`, `dashscope.aliyuncs.com/compatible-mode/v1`)
-/// with Bearer auth, so their chat already goes through the
-/// destination's `OpenAIProvider` (configurable `baseURL`) and the
-/// custom-endpoints path. Anthropic's Messages API is the one wire
-/// format that is not OpenAI-compatible (`x-api-key` +
-/// `anthropic-version` headers, a top-level `system` field,
-/// `max_tokens`, content blocks), so it gets its own provider.
-///
-/// API key: read from the secret store (`SecretAccount.anthropicKey`)
-/// when no key is passed in; never stored by this client.
 public struct AnthropicProvider: AssistantProvider {
     public let kind = ProviderKind.anthropic
     public static let defaultBaseURL = "https://api.anthropic.com/v1"
@@ -78,9 +54,6 @@ public struct AnthropicProvider: AssistantProvider {
         }
     }
 
-    /// The Messages API request body (Legacy `buildRequestBody` for
-    /// `.anthropic`): `model`, `max_tokens`, a top-level `system`
-    /// field, and `messages` with text content blocks.
     static func requestBody(model: String, instructions: String, messages: [ChatMessage], stream: Bool) -> [String: Any] {
         var body: [String: Any] = ["model": model, "max_tokens": 4096, "stream": stream]
         if !instructions.isEmpty { body["system"] = instructions }
@@ -145,9 +118,6 @@ public struct AnthropicProvider: AssistantProvider {
         case none
     }
 
-    /// One `data:` payload of the Anthropic Messages stream:
-    /// `content_block_delta` carries text, `message_delta` carries
-    /// the usage block, `message_stop` ends the message.
     static func parseEvent(_ data: String) throws -> [AnthropicChunk] {
         let trimmed = data.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty { return [.none] }

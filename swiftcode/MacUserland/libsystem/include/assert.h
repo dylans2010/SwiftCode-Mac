@@ -1,4 +1,3 @@
-/* SwiftCode freestanding <assert.h>. */
 #ifndef YCL_ASSERT_H
 #define YCL_ASSERT_H
 #ifdef __cplusplus

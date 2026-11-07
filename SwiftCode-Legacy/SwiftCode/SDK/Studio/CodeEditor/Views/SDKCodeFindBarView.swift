@@ -1,29 +1,10 @@
 import SwiftUI
 
-// MARK: - SDKCodeFindBarView
-//
-// The Studio code editor's find bar: a compact native macOS strip with a
-// query field, match-case toggle, live match count, and next/previous
-// navigation that REALLY moves the selection in the active editor.
-//
-// COORDINATION: the bar does not search itself. Its text field is bound to
-// `SDKCodeEditorState.findQuery` (the published source of truth), changes
-// are forwarded to the shared `SDKCodeFindCoordinator` via `setQuery(_)`,
-// and the coordinator drives the registered editor through
-// `SDKCodeFindableEditor.selectFindRange(_:)`. The case-sensitivity toggle
-// binds directly to `coordinator.caseSensitive`, so it genuinely changes
-// matching (the coordinator recomputes on toggle).
-//
-// The parent owns the bar's visibility and passes an `onDismiss` closure
-// (typically `{ showingFindBar = false }`, which is idempotent); Escape
-// dismisses the bar.
-
 @MainActor
 public struct SDKCodeFindBarView: View {
     @ObservedObject var state: SDKCodeEditorState
     @ObservedObject var coordinator: SDKCodeFindCoordinator
 
-    /// Called to dismiss the bar. Invoked idempotently.
     public var onDismiss: () -> Void
 
     @FocusState private var queryFieldFocused: Bool
@@ -99,7 +80,6 @@ public struct SDKCodeFindBarView: View {
         .onChange(of: state.findQuery) { _, newValue in
             coordinator.setQuery(newValue)
         }
-        // Escape dismisses, even while the query field has focus.
         .onExitCommand(perform: onDismiss)
     }
 }

@@ -1,10 +1,6 @@
 import Foundation
 
-/// What the Find navigator looks for: the query, its kind, the match style
-/// and case. See `specs/ide/navigators.md` §Find navigator, "SwiftCode
-/// implementation".
 public struct FindQuery: Equatable, Sendable {
-    /// The Kind pop-up, in menu order (`reference-ui-2.md` §3.3).
     public enum Kind: Int, CaseIterable, Sendable {
         case text, multipleWords, regularExpression, symbols, ancestorTypes, descendentTypes, conformingTypes, callHierarchy, assetReferences
 
@@ -22,18 +18,12 @@ public struct FindQuery: Equatable, Sendable {
             }
         }
 
-        /// Kinds searched in file text (SwiftCode's engine); the others ask the
-        /// language server.
         public var isTextual: Bool { self == .text || self == .multipleWords || self == .regularExpression }
-        /// Kinds answered by the language server.
         public var isSemantic: Bool { !isTextual && self != .assetReferences }
-        /// Replace mode works on textual kinds only.
         public var supportsReplace: Bool { isTextual }
-        /// Kinds SwiftCode implements (Asset References is listed disabled).
         public var isAvailable: Bool { self != .assetReferences }
     }
 
-    /// The Match pop-up for the textual kinds (`reference-ui-2.md` §3.4).
     public enum Match: Int, CaseIterable, Sendable {
         case containing, matchingWord, startingWith, endingWith
         public var title: String {
@@ -46,8 +36,6 @@ public struct FindQuery: Equatable, Sendable {
         }
     }
 
-    /// The Match pop-up for the Symbols kind (SwiftCode's items): where a
-    /// symbol is declared, or every use of it.
     public enum SymbolRole: Int, CaseIterable, Sendable {
         case definitions, references
         public var title: String { self == .definitions ? "Definitions" : "References" }
@@ -67,18 +55,14 @@ public struct FindQuery: Equatable, Sendable {
         self.symbolRole = symbolRole
     }
 
-    /// The query the older options describe (the editor's find bar).
     public init(_ text: String, options o: WorkspaceSearch.Options) {
         self.init(text, kind: o.regularExpression ? .regularExpression : .text,
                   match: o.wholeWord ? .matchingWord : o.anchor == .start ? .startingWith : o.anchor == .end ? .endingWith : .containing,
                   ignoreCase: o.ignoreCase)
     }
 
-    /// The words of a Multiple Words query.
     public var words: [String] { text.split(whereSeparator: { $0.isWhitespace }).map(String.init) }
 
-    /// The compiled matcher, or nil for an empty query, an invalid regular
-    /// expression, or a kind that is not textual.
     public func matcher() -> FindMatcher? {
         guard kind.isTextual, !text.isEmpty else { return nil }
         switch kind {
@@ -98,12 +82,9 @@ public struct FindQuery: Equatable, Sendable {
         }
     }
 
-    /// Word characters for the match styles: letters, digits and "_".
     static let notWordBefore = "(?<![\\p{L}\\p{N}_])"
     static let notWordAfter = "(?![\\p{L}\\p{N}_])"
 
-    /// The pattern with the match style applied. `^` and `$` match at
-    /// line boundaries; `.` does not cross a line (use `\n` or `[\s\S]`).
     static func expression(_ pattern: String, match: Match, ignoreCase: Bool) -> NSRegularExpression? {
         var p = pattern
         switch match {
@@ -117,36 +98,25 @@ public struct FindQuery: Equatable, Sendable {
         return try? NSRegularExpression(pattern: p, options: options)
     }
 
-    /// The UTF-8 bytes of an ASCII text, for the byte pre-check; nil when
-    /// the text has other characters.
     static func asciiNeedle(_ s: String) -> [UInt8]? {
         let b = Array(s.utf8)
         return !b.isEmpty && b.allSatisfy { $0 < 128 } ? b : nil
     }
 
-    /// The literal a regular expression stands for, when it has no
-    /// metacharacters at all (then the byte pre-check applies).
     static func literal(ofPattern p: String) -> String? {
         let meta = Set("\\^$.|?*+()[]{}")
         return p.contains(where: { meta.contains($0) }) ? nil : p
     }
 }
 
-/// A compiled query: one expression (Text, Regular Expression) or one per
-/// word (Multiple Words), and the ASCII byte strings a file must contain
-/// to be worth decoding.
 public struct FindMatcher: @unchecked Sendable {
-    // NSRegularExpression is immutable and safe to share between threads.
     let regexes: [NSRegularExpression]
     let allWords: Bool
     let needles: [[UInt8]]
     let ignoreCase: Bool
 
-    /// The single expression (Text and Regular Expression kinds).
     public var expression: NSRegularExpression? { allWords ? nil : regexes.first }
 
-    /// Whether the bytes can hold a match: every needle occurs (ASCII case
-    /// folded when ignoring case). True when there are no needles.
     public func mayMatch(_ bytes: UnsafeRawBufferPointer) -> Bool {
         needles.allSatisfy { Self.contains(bytes, $0, ignoreCase: ignoreCase) }
     }
@@ -176,9 +146,6 @@ public struct FindMatcher: @unchecked Sendable {
         return false
     }
 
-    /// The matches in a text, in order. Empty matches (such as `^`) are not
-    /// results. Multiple Words: on each line that holds every word, each
-    /// word's occurrences.
     public func matches(in text: String, limit: Int = .max) -> [WorkspaceSearch.Match] {
         let ns = text as NSString
         let all = NSRange(location: 0, length: ns.length)

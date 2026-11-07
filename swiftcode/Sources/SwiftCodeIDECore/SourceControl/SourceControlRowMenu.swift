@@ -1,13 +1,5 @@
 import Foundation
 
-/// The Source Control navigator's context menus as data, by row key
-/// ("branch:<name>", "remoteBranch:<remote>/<name>", "tag:<name>",
-/// "stash:<ref>", "remote:<name>", "group:<Branches|Tags|Remotes>",
-/// "repository", "change:<path>"). A local branch's menu is the
-/// reference's (`specs/ide/merge-sheet.md` §1.1: 12 items in 6 groups);
-/// the others are SwiftCode's design (`specs/ide/source-control.md`, "SwiftCode
-/// implementation"). Both the macOS navigator and the Linux shell build
-/// their menus from this.
 public enum SourceControlRowMenu {
     public enum Action: Equatable, Sendable {
         case checkout(String)
@@ -30,17 +22,12 @@ public enum SourceControlRowMenu {
         case removeRemote(String)
         case resolveConflicts(path: String)
         case markResolved(path: String)
-        /// Merge the current branch into this one (needs it checked out).
         case mergeInto(String)
-        /// Create a repository on a hosting account for this one.
         case newHostedRemote
-        /// The branch on its remote's web page.
         case viewOnHost(branch: String)
-        /// A stash's changes as a patch file.
         case exportStash(String)
     }
 
-    /// One item; nil `action` is a separator.
     public struct Item: Equatable, Sendable {
         public var title: String
         public var action: Action?
@@ -53,17 +40,13 @@ public enum SourceControlRowMenu {
         }
     }
 
-    /// What the menus depend on, from the window's snapshot.
     public struct Context: Equatable, Sendable {
         public var currentBranch: String?
         public var remotes: [String] = []
         public var integration: GitRepository.IntegrationState = .none
         public var conflicted: Set<String> = []
-        /// The repository's folder name ("New “name” Remote…").
         public var repositoryName = ""
-        /// Stash references, newest first.
         public var stashes: [String] = []
-        /// The remotes' URLs (View on Host).
         public var remoteURLs: [String] = []
         public init(currentBranch: String? = nil, remotes: [String] = [], integration: GitRepository.IntegrationState = .none,
                     conflicted: Set<String> = [], repositoryName: String = "", stashes: [String] = [], remoteURLs: [String] = []) {
@@ -132,11 +115,6 @@ public enum SourceControlRowMenu {
         return []
     }
 
-    /// A local branch (`merge-sheet.md` §1.1): Switch, New Branch, Rename,
-    /// Tag — the two merges — the two remote items — View on Host — the
-    /// two stash items — Delete. On the current branch (SwiftCode's choice,
-    /// open question 7) Switch and Delete are disabled, the merge group is
-    /// left out, and Pull and Push join the remote group.
     static func branchItems(_ b: String, _ ctx: Context) -> [Item] {
         let current = ctx.currentBranch ?? "HEAD"
         let idle = !ctx.integration.isInProgress
@@ -163,9 +141,6 @@ public enum SourceControlRowMenu {
         return out
     }
 
-    /// The web page of a remote's repository: an https URL as it is, an
-    /// scp-style or ssh URL ("git@host:owner/repo.git") as https; nil for
-    /// a local path. ".git" is dropped.
     public static func webURL(remote: String) -> String? {
         var s = remote.trimmingCharacters(in: .whitespaces)
         if s.hasSuffix(".git") { s.removeLast(4) }
@@ -177,7 +152,6 @@ public enum SourceControlRowMenu {
             guard let u = URLComponents(string: s), let host = u.host, !host.isEmpty else { return nil }
             return "https://\(host)\(u.path)"
         }
-        // user@host:path
         if let at = s.firstIndex(of: "@"), let colon = s[at...].firstIndex(of: ":"), !s.hasPrefix("/") {
             let host = s[s.index(after: at)..<colon], path = s[s.index(after: colon)...]
             guard !host.isEmpty, !path.isEmpty else { return nil }
@@ -186,7 +160,6 @@ public enum SourceControlRowMenu {
         return nil
     }
 
-    /// A branch's page on the first remote with a web address.
     public static func hostURL(branch: String, remoteURLs: [String]) -> URL? {
         guard let base = remoteURLs.lazy.compactMap(webURL(remote:)).first else { return nil }
         return URL(string: base + "/tree/" + (branch.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? branch))

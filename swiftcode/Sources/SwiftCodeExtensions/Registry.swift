@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Open VSX registry client (spec §6.1)
-
 public struct SearchPage: Sendable {
     public let results: [ExtensionMetadata]
     public let total: Int
@@ -18,10 +16,6 @@ public struct SearchPage: Sendable {
     }
 }
 
-/// Real client for the Open VSX REST API. No authentication, no API key,
-/// no account. `Accept: application/json`. Request timeout 30s, resource
-/// timeout 60s. Download and install limits are the unified set
-/// (64 MiB, deviation D-1).
 public final class RegistryClient: Sendable {
     private let baseURL: URL
     private let session: URLSession
@@ -91,7 +85,6 @@ public final class RegistryClient: Sendable {
         if let downloadURL = metadata.downloadURL { return downloadURL }
         let detailed = try await details(for: metadata.identity)
         if let downloadURL = detailed.downloadURL { return downloadURL }
-        // Constructed fallback (spec §6.1).
         return baseURL
             .appendingPathComponent(metadata.publisher)
             .appendingPathComponent(metadata.name)
@@ -100,8 +93,6 @@ public final class RegistryClient: Sendable {
             .appendingPathComponent("\(metadata.publisher).\(metadata.name)-\(metadata.version).vsix")
     }
 
-    /// Streams the VSIX to `destination`. Over the 64 MiB unified limit
-    /// the file is deleted and a package error is thrown (D-1).
     public func downloadVSIX(from url: URL, to destination: URL) async throws {
         let (tempURL, response): (URL, URLResponse)
         do {
@@ -142,7 +133,7 @@ public final class RegistryClient: Sendable {
         guard let namespace = dict["namespace"] as? String,
               let name = dict["name"] as? String,
               let version = dict["version"] as? String else {
-            return nil // Rows missing namespace/name/version are dropped.
+            return nil
         }
         let files = dict["files"] as? [String: Any]
         let download = (files?["download"] as? String).flatMap { URL(string: $0) }
@@ -159,8 +150,6 @@ public final class RegistryClient: Sendable {
     }
 }
 
-// MARK: - Dependency resolution (spec §6.4, pure, no IO)
-
 public struct DependencyResolution: Sendable {
     public let installOrder: [String]
     public let missing: [String]
@@ -176,11 +165,6 @@ public struct DependencyResolution: Sendable {
 }
 
 public enum DependencyResolver {
-    /// Topological order (dependencies first). A dependency is
-    /// satisfied only by an installed extension or one in the same
-    /// batch — never by assuming the registry will provide it later.
-    /// Cycles are reported as the stack slice plus the repeated id;
-    /// missing ids are de-duplicated in order of first sight.
     public static func resolve(requested: [VSCodeManifest], installedIDs: Set<String>,
                                manifestsByID: [String: VSCodeManifest]) -> DependencyResolution {
         var order: [String] = []
@@ -217,8 +201,6 @@ public enum DependencyResolver {
         return DependencyResolution(installOrder: order, missing: missing, cycles: cycles)
     }
 
-    /// Every declared dependency must be installed **and enabled**; a
-    /// disabled dependency counts as missing.
     public static func missingDependencies(for installed: InstalledExtension,
                                            installedByID: [String: InstalledExtension]) -> [String] {
         installed.dependencies.filter { dependency in

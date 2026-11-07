@@ -76,7 +76,6 @@ public final class PreviewProjectScanner: Sendable {
             dependencies[fileURL] = importedModules
         }
 
-        // Apply target membership filtering
         var filteredSwiftFiles = swiftFiles
         if let targetFiles = await getActiveTargetFiles(projectDirectory: projectDirectory) {
             filteredSwiftFiles = swiftFiles.filter { fileURL in

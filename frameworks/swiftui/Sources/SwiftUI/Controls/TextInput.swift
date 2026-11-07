@@ -8,35 +8,8 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Text input controls (round R8): `TextField`, `SecureField`, `TextEditor`.
-// Editing is OVText's `TextEditingModel` (selection, word and line movement,
-// undo, marked text), shared with the IDE's future EditorKit; this file is
-// the view side: layout, drawing (selection, text, marked-text underline, a
-// blinking caret), pointer selection, keys, focus and the binding.
-//
-// Sizes (golden-layout.md): a plain field is its content's width unproposed
-// and the proposed width otherwise, one line pitch high (22 at body: ascent +
-// descent + leading on the pixel grid), the text centred in it (baseline
-// 17.33); `.roundedBorder` adds 14 + 14 and 6 + 6 points (118 × 34, baseline
-// 23.33); a plain `SecureField` is a point lower (21, measured). 06 §5: a tap
-// focuses a field, typed keys are inserted, Return runs `onSubmit` and
-// removes focus.
-//
-// SwiftCode choices (no reference measurements): a click places the caret, a
-// double click selects a word, a triple click the paragraph (the field in a
-// single-line field); shift-click and drags extend; Tab focus selects all;
-// the caret blinks 0.53 s on, 0.53 s off and stops (shown) after 10 s
-// without activity; copy and cut act on the selection; secure fields do not
-// copy or cut. Keys use the Linux desktop conventions: Ctrl+arrows by word,
-// Ctrl+A/C/X/V/Z, Ctrl+Shift+Z and Ctrl+Y redo (Ctrl+Y only when no
-// shortcut of the window takes it).
-
-// MARK: - Styles
-
-/// How a text field looks.
 @MainActor @preconcurrency
 public protocol TextFieldStyle {
-    /// SwiftCode's style identifier (the reference API has no public requirement).
     var _ovStyleKind: Int { get }
 }
 
@@ -82,16 +55,11 @@ extension View {
     }
 }
 
-/// Field insets per style (golden `textfield.rounded`: 118 − 90 = 28 and
-/// 34 − 22 = 12).
 func fieldInsets(style: Int, multiline: Bool) -> EdgeInsets {
     if style == 2 { return EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14) }
     return multiline ? EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4) : EdgeInsets()
 }
 
-// MARK: - Views
-
-/// A control that edits a string on one line.
 public struct TextField<Label: View>: View {
     let text: Binding<String>
     let label: Label
@@ -148,7 +116,6 @@ extension TextField where Label == Text {
     }
 }
 
-/// A text field that hides what is typed.
 public struct SecureField<Label: View>: View {
     let text: Binding<String>
     let label: Label
@@ -186,8 +153,6 @@ extension SecureField where Label == Text {
     }
 }
 
-/// A multi-line text editing area (basic: wrapping, vertical scrolling to
-/// the caret; not a code editor).
 public struct TextEditor: View {
     let text: Binding<String>
 
@@ -200,9 +165,6 @@ public struct TextEditor: View {
     }
 }
 
-// MARK: - The editable text primitive
-
-/// The view every text input control lowers to.
 struct EditableText: View {
     enum Kind { case field, secure, growing, editor }
     let text: Binding<String>
@@ -211,7 +173,6 @@ struct EditableText: View {
     typealias Body = Never
 }
 
-/// The editing state of a text input; the focus system's text client.
 final class TextFieldState: TextInputClient, GeometryObserving {
     weak var node: ViewNode?
     let model = TextEditingModel()
@@ -221,27 +182,22 @@ final class TextFieldState: TextInputClient, GeometryObserving {
     var autocapitalization = TextInputAutocapitalization.never
     var submitActions: [() -> Void] = []
     var services: WindowServices?
-    /// Layout inputs of the last lowering.
     var insets = EdgeInsets()
     var textTop: CGFloat = 0
     var display = ResolvedText("")
     var measurer: TypesetTextMeasurer?
     var emptyLine: (height: CGFloat, ascent: CGFloat) = (20, 16)
-    /// Geometry of the last layout (field size, window frame).
     var size = CGSize.zero
     var frame = CGRect.zero
     var scroll = CGPoint.zero
-    // Caret blink.
     var caretVisible = true
     private var lastActivity: TimeInterval = 0
-    // Pointer selection.
     private var lastClick: (time: TimeInterval, point: CGPoint, count: Int)?
     private var dragAnchor: Range<Int>?
     private var focusFromClick = false
 
     var isSecure: Bool { kind == .secure }
     var multiline: Bool { kind == .editor || kind == .growing }
-    /// The input method's uncommitted text (R7 tests).
     var marked: String { model.markedText }
     var caret: Int { model.caret }
 
@@ -249,15 +205,11 @@ final class TextFieldState: TextInputClient, GeometryObserving {
 
     @MainActor func invalidate() { node?.invalidate(transaction: Transaction()) }
 
-    /// Writes the model's text to the binding when it changed, redraws and
-    /// restarts the blink.
     @MainActor func commit() {
         if text.wrappedValue != model.text { text.wrappedValue = model.text }
         activity()
         invalidate()
     }
-
-    // MARK: Blink
 
     @MainActor func activity() {
         lastActivity = now
@@ -288,15 +240,11 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         scheduleBlink()
     }
 
-    // MARK: Geometry
-
-    /// The display characters: bullets for secure fields.
     var displayString: String {
         let c = model.displayCharacters
         return isSecure ? String(repeating: "\u{2022}", count: c.count) : String(c)
     }
 
-    /// The layout of the display text in its own coordinates.
     func geometry() -> TextLayoutGeometry? {
         guard let measurer else { return nil }
         let contentWidth = max(0, size.width - insets.leading - insets.trailing)
@@ -311,7 +259,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
                                   emptyLineHeight: Double(emptyLine.height), emptyAscent: Double(emptyLine.ascent))
     }
 
-    /// Keeps the caret inside the visible part (scrolls the text).
     func updateScroll(_ g: TextLayoutGeometry) {
         let contentWidth = max(0, size.width - insets.leading - insets.trailing)
         let contentHeight = max(0, size.height - insets.top - insets.bottom - textTop)
@@ -331,13 +278,11 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         }
     }
 
-    /// A point in the field's local coordinates → a text offset.
     @MainActor func offset(at p: CGPoint) -> Int {
         guard let g = geometry() else { return model.count }
         let x = Double(p.x - insets.leading + scroll.x)
         let y = Double(p.y - insets.top - textTop + scroll.y)
         let o = g.offset(atX: x, y: y)
-        // Offsets in the display text include the marked text.
         if let r = model.displayMarkedRange, o > r.lowerBound { return max(r.lowerBound, o - r.count) }
         return min(o, model.count)
     }
@@ -347,10 +292,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         frame = geometry.frame
     }
 
-    // MARK: TextInputClient
-
-    /// Capitalisation of `s` typed after `before` (06 §5: "h" at the start of
-    /// an empty field became "H").
     private func capitalised(_ s: String, after before: ArraySlice<Character>) -> String {
         switch autocapitalization.kind {
         case .never: return s
@@ -383,9 +324,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         guard event.isDown else { return false }
         let m = event.modifiers
         let primary = m.contains(.control) || m.contains(.command)
-        // While an input method composes, its keys are its own: Backspace,
-        // arrows, Return and Escape edit the composition, not the field (no
-        // submit, no focus change). Shortcuts still reach the app.
         if model.hasMarkedText { return !primary }
         let shift = m.contains(.shift)
         if multiline, let g = geometry() { model.layout = g } else { model.layout = nil }
@@ -405,9 +343,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
                 case "z":
                     if shift { model.redo() } else { model.undo() }
                 case "y":
-                    // Ctrl+Y redoes unless the app gives the keystroke a
-                    // command (the Linux IDE's ⌘Y, Deactivate Breakpoints);
-                    // Ctrl+Shift+Z always redoes.
                     if services?.shortcuts.hasEnabledShortcut(key: event.key, modifiers: m) == true { return false }
                     model.redo()
                 default: return false
@@ -450,7 +385,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         case .escape:
             return false
         case .character, .space:
-            // The text arrives as a text input event.
             return true
         default:
             return false
@@ -458,8 +392,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         commit()
         return true
     }
-
-    // MARK: Edit menu (R11)
 
     @MainActor func canPerform(_ command: StandardEditCommand, clipboard: (any PlatformClipboard)?) -> Bool {
         let hasSelection = !model.selection.isEmpty
@@ -489,7 +421,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         commit()
     }
 
-    /// Return: `onSubmit` actions, then focus goes away (06 §5).
     @MainActor func submit() {
         for a in submitActions { a() }
         if let node, services?.focus.isFocused(node) == true { services?.focus.focus(nil) }
@@ -506,8 +437,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         isFocused = focused
         model.unmarkText()
         if focused {
-            // Keyboard focus selects everything (desktop convention); a click
-            // places the caret itself.
             if !focusFromClick { model.selectAll() }
             activity()
         } else {
@@ -517,8 +446,6 @@ final class TextFieldState: TextInputClient, GeometryObserving {
         focusFromClick = false
         invalidate()
     }
-
-    // MARK: Pointer selection
 
     @MainActor func pointer(_ e: PointerTrackRecognizer.Event) {
         switch e {
@@ -586,7 +513,6 @@ extension EditableText: PrimitiveView {
             }
             state.services = services
         }
-        // Read under tracking: a change of the bound string rebuilds the field.
         let value = node.trackContent { text.wrappedValue }
         if value != state.model.text { state.model.setText(value) }
         let style = env._textFieldStyle
@@ -631,19 +557,15 @@ extension EditableText: PrimitiveView {
     }
 }
 
-/// Forwards the leaf's layout geometry to the field state.
 final class EditableGeometryForwarder: GeometryObserving {
     weak var state: TextFieldState?
     func geometryChanged(_ geometry: NodeGeometry, node: ViewNode) { state?.geometryChanged(geometry, node: node) }
 }
 
-/// The drawn and measured part of a text input.
 struct EditableTextLeaf: View {
     let state: TextFieldState
     let placeholder: Text?
     let kind: EditableText.Kind
-    /// Inputs that change when the text or the focus does (so the leaf is
-    /// lowered again).
     let revision: Int
     let focused: Bool
     typealias Body = Never
@@ -677,8 +599,6 @@ extension EditableTextLeaf: PrimitiveView {
 }
 
 extension EnvironmentValues {
-    /// The control tint as a resolved colour (the accent unless `tint` set a
-    /// colour).
     var tintColorForControls: Color.Resolved {
         if let t = tintStyle?.base as? Color { return t.resolve(in: self) }
         if let t = tintStyle?.base as? Color.Resolved { return t }
@@ -686,7 +606,6 @@ extension EnvironmentValues {
     }
 }
 
-/// Measures an editable text: golden `textfield.*` and `secureField`.
 struct EditableTextBehavior: NodeBehavior {
     let state: TextFieldState
     let display: ResolvedText
@@ -698,7 +617,6 @@ struct EditableTextBehavior: NodeBehavior {
 
     private func ceilPx(_ v: CGFloat, _ scale: CGFloat) -> CGFloat { ((v * scale) - 1e-4).rounded(.up) / scale }
 
-    /// The line box (pitch), the height of one text line and its baseline.
     private func lineMetrics(_ node: LayoutNode) -> (pitch: CGFloat, text: CGFloat, baseline: CGFloat) {
         let scale = node.context.environment.displayScale
         var sample = display
@@ -757,8 +675,6 @@ struct EditableTextBehavior: NodeBehavior {
     func spacing(node: LayoutNode) -> ViewSpacing { ViewSpacing() }
 }
 
-/// Draws selection, text (or the placeholder), the marked-text underline and
-/// the caret, clipped to the content area.
 @MainActor
 func editableTextDraw(state: TextFieldState, placeholder: ResolvedText, environment env: EnvironmentValues) -> NodeDraw {
     { rec, size in
@@ -777,13 +693,11 @@ func editableTextDraw(state: TextFieldState, placeholder: ResolvedText, environm
         func rect(_ x: Double, _ y: Double, _ w: Double, _ h: Double, _ c: Color.Resolved) {
             sub.add(.fill(RenderPath(rect: CGRect(x: x + dx, y: y + dy, width: w, height: h)), .color(c.renderColor), .nonZero))
         }
-        // Selection.
         if let geometry, state.isFocused, !state.model.selection.isEmpty {
             var sel = tint
             sel.opacity = env.colorScheme == .dark ? 0.45 : 0.28
             for r in geometry.selectionRects(state.model.selectedRange) { rect(r.x, r.top, r.width, r.height, sel) }
         }
-        // Text.
         let shown = empty ? placeholder : state.display
         if !shown.string.isEmpty, let tm = rec.textMeasurer {
             var t = shown
@@ -793,13 +707,11 @@ func editableTextDraw(state: TextFieldState, placeholder: ResolvedText, environm
             textDraw(t, environment: env)(&textRec, CGSize(width: state.multiline ? content.width : m.size.width, height: m.size.height))
             sub.add(.group(DisplayGroup(transform: .translation(dx, dy), children: textRec.items)))
         }
-        // Marked text.
         if let geometry, let r = state.model.displayMarkedRange {
             for box in geometry.selectionRects(r) {
                 rect(box.x, box.top + box.height - 1.5, box.width, 1.5, Color.primary.resolve(in: env))
             }
         }
-        // Caret.
         if state.isFocused && state.caretVisible && state.model.selection.isEmpty {
             if let geometry {
                 let c = geometry.caret(at: state.model.displayCaret)

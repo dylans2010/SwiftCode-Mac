@@ -1,14 +1,5 @@
 import Foundation
 
-// MARK: - Open VSX registry client
-//
-// Uses the documented Open VSX REST API (https://open-vsx.org/swagger-ui/).
-// Search:  GET {base}/-/search?query=&size=&offset=
-// Details: GET {base}/{namespace}/{name}
-// Download: files.download from the response, falling back to the
-//           documented {base}/{namespace}/{name}/{version}/file/{file} form.
-// No rating or download-count fields are mapped or displayed.
-
 public struct ExtV2SearchPage: Sendable {
     public let results: [ExtV2ExtensionMetadata]
     public let total: Int
@@ -34,8 +25,6 @@ public final class ExtV2RegistryClient: Sendable {
         self.init(baseURL: URL(string: settings.registryBaseURL) ?? URL(string: "https://open-vsx.org/api")!)
     }
 
-    // MARK: Search
-
     public func search(query: String, offset: Int = 0, pageSize: Int = 20) async throws -> ExtV2SearchPage {
         var components = URLComponents(url: baseURL.appendingPathComponent("-/search"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
@@ -59,9 +48,6 @@ public final class ExtV2RegistryClient: Sendable {
         return try decodeExtension(data: data)
     }
 
-    /// Resolves a real download URL for the given version. Prefers the
-    /// server-reported file URL; the constructed fallback is used only
-    /// when the response omits it.
     public func downloadURL(for metadata: ExtV2ExtensionMetadata) async throws -> URL {
         if let direct = metadata.downloadURL { return direct }
         let detail = try await details(for: metadata.identity)
@@ -74,8 +60,6 @@ public final class ExtV2RegistryClient: Sendable {
             .appendingPathComponent("file")
             .appendingPathComponent(fileName)
     }
-
-    // MARK: Networking primitives
 
     private func get(url: URL) async throws -> Data {
         var request = URLRequest(url: url)
@@ -101,8 +85,6 @@ public final class ExtV2RegistryClient: Sendable {
         }
     }
 
-    /// Downloads a VSIX to a file (streamed by URLSession, not held fully
-    /// in memory twice). The caller validates size again before extraction.
     public func downloadVSIX(from url: URL, to destination: URL) async throws {
         do {
             let (tempURL, response) = try await session.download(from: url)
@@ -128,8 +110,6 @@ public final class ExtV2RegistryClient: Sendable {
             throw ExtV2Error.network("Extension download failed: \(error.localizedDescription)")
         }
     }
-
-    // MARK: Decoding (tolerant: unknown registry fields are ignored)
 
     private struct SearchResponse: Decodable {
         var extensions: [ExtensionJSON]?

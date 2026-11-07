@@ -6,16 +6,14 @@ import SwiftCodeDeviceModel
 import SwiftCodeDisplayStream
 @testable import SwiftCodeRemoteViewer
 
-/// The portable viewer's logic (display-stream.md §12, §13).
 struct RemoteViewerTests {
-    // MARK: Touches
 
     @Test func oneFingerMapsViewPointsToDevicePoints() {
         var m = TouchMapper(viewWidth: 201, viewHeight: 437, pointWidth: 402, pointHeight: 874)
         let down = m.down(ViewPoint(x: 100.5, y: 218.5), multiTouch: false, shift: false)
         #expect(down == [TouchContact(finger: 0, phase: .began, x: 201, y: 437)])
         let moved = m.drag(ViewPoint(x: 300, y: -5))
-        #expect(moved == [TouchContact(finger: 0, phase: .moved, x: 402, y: 0)])  // clamped
+        #expect(moved == [TouchContact(finger: 0, phase: .moved, x: 402, y: 0)])
         #expect(m.up(ViewPoint(x: 0, y: 0)) == [TouchContact(finger: 0, phase: .ended, x: 0, y: 0)])
         #expect(m.up(ViewPoint(x: 0, y: 0)) == nil)
         #expect(m.drag(ViewPoint(x: 1, y: 1)) == nil)
@@ -36,7 +34,6 @@ struct RemoteViewerTests {
     @Test func aTurnedPanelMapsBackToItsOwnPoints() {
         let panel = DisplayPanelState(display: "LCD-1", pixelWidth: 300, pixelHeight: 600, scale: 3, rotation: 90, hingeAngle: 180,
                                       targetAngle: nil, posture: "openFlat", orientation: "portrait")
-        // Shown turned: 200 × 100 points.
         var m = TouchMapper(viewWidth: 200, viewHeight: 100, pointWidth: 200, pointHeight: 100, panel: panel)
         let c = m.down(ViewPoint(x: 10, y: 20), multiTouch: false, shift: false)
         let n = panel.nativePoint(shownX: 10, shownY: 20)
@@ -52,7 +49,6 @@ struct RemoteViewerTests {
         #expect(m.scroll(at: ViewPoint(x: 0, y: 0), dx: 0, dy: 100, now: 1.05) == [[TouchContact(finger: 0, phase: .moved, x: 50, y: 100)]])
         #expect(m.endIdleScroll(now: 1.1) == nil)
         #expect(m.endIdleScroll(now: 1.3) == [TouchContact(finger: 0, phase: .ended, x: 50, y: 100)])
-        // A press during a scroll lifts the scroll's finger first.
         _ = m.scroll(at: ViewPoint(x: 10, y: 10), dx: 0, dy: 0, now: 2)
         #expect(m.down(ViewPoint(x: 20, y: 20), multiTouch: false, shift: false).first?.phase == .began)
         #expect(m.scrollFinger == nil)
@@ -67,8 +63,6 @@ struct RemoteViewerTests {
         #expect(m.indicator(hover: nil, multiTouch: false).isEmpty)
     }
 
-    // MARK: Layout
-
     @Test func fitScalesTheFrameIntoTheWindow() {
         let g = DeviceFrameGeometry(spec: .iPhone18Pro)
         let l = ViewerLayout(geometry: g, mode: .fit, windowWidth: 460, windowHeight: 900)
@@ -76,10 +70,8 @@ struct RemoteViewerTests {
         #expect(w <= 460 - 2 * ViewerLayout.margin + 0.001)
         #expect(h <= 900 - 2 * ViewerLayout.margin - ViewerLayout.controlBar + 0.001)
         #expect(abs(w - (460 - 2 * ViewerLayout.margin)) < 0.001 || abs(h - (900 - 2 * ViewerLayout.margin - ViewerLayout.controlBar)) < 0.001)
-        // The screen keeps the device's aspect.
         let s = l.screen
         #expect(abs(s.width / s.height - Double(g.screen.width / g.screen.height)) < 1e-9)
-        // A window point at the screen's centre is the screen's centre in view points.
         let p = l.screenPoint(s.x + s.width / 2, s.y + s.height / 2)
         #expect(abs(p.x - s.width / 2) < 1e-9 && abs(p.y - s.height / 2) < 1e-9)
     }
@@ -94,11 +86,9 @@ struct RemoteViewerTests {
         #expect(ViewerScaleMode(argument: "1:1") == .point)
     }
 
-    /// Pixel Accurate draws the stream 1:1, unfiltered (uikit-feel-swiftcode.md §8.4).
     @Test func pixelAccurateIsOneToOneOnWholePixels() {
         let g = DeviceFrameGeometry(spec: .iPhone18Pro)
         for density in [1.0, 1.5, 2.0] {
-            // An odd window size centres the drawing on a fraction of a unit.
             let l = ViewerLayout(geometry: g, mode: .pixel, windowWidth: 1001, windowHeight: 3001, pixelDensity: density, deviceScale: 3)
             let s = l.screen
             #expect(abs((s.x * density).rounded() - s.x * density) < 1e-9 && abs((s.y * density).rounded() - s.y * density) < 1e-9)
@@ -119,23 +109,18 @@ struct RemoteViewerTests {
         #expect(RemoteDeviceSession.displayButton(for: .crown) == .home)
     }
 
-    /// Frame buttons and the control row follow the shared table (watchos.md §5.2, DeviceButtonTable).
     @Test func buttonsFollowTheDeviceTable() throws {
-        // A phone: side → lock, Action → side, as before.
         #expect(RemoteDeviceSession.displayButton(for: .side) == .lock)
         #expect(RemoteDeviceSession.displayButton(for: .action) == .side)
-        // A watch: side button → side, crown → home, Action → action only when offered.
         #expect(RemoteDeviceSession.displayButton(for: .sideButton, watch: true) == .side)
         #expect(RemoteDeviceSession.displayButton(for: .crown, watch: true) == .home)
         #expect(RemoteDeviceSession.displayButton(for: .action, watch: true, actionOnTheWire: true) == .action)
         #expect(RemoteDeviceSession.displayButton(for: .action, watch: true, actionOnTheWire: false) == .side)
-        // Every button an Ultra's frame draws has a usage on an Ultra.
         let ultra = try #require(DeviceFrameSpec.watches.first { $0.hasActionButton })
         for b in DeviceFrameGeometry(spec: ultra).buttons {
             let d = RemoteDeviceSession.displayButton(for: b.kind, watch: true, actionOnTheWire: true)
             #expect(DeviceButtonTable.usage(of: d, for: .watch(actionButton: true)) != nil)
         }
-        // The control row.
         let offered = DeviceButtonTable.buttons(for: .watch(actionButton: true)).map(\.name)
         #expect(RemoteDeviceSession.controlButtons(watch: true, volume: false, offered: offered).map(\.title) == ["Crown", "Side", "Action", "Screen"])
         #expect(RemoteDeviceSession.controlButtons(watch: true, volume: false, offered: ["home", "lock", "side"]).map(\.button)
@@ -152,8 +137,6 @@ struct RemoteViewerTests {
         #expect(pts.allSatisfy { $0.0 >= 10 - 1e-9 && $0.0 <= 110 + 1e-9 && $0.1 >= 20 - 1e-9 && $0.1 <= 220 + 1e-9 })
     }
 
-    // MARK: Keys
-
     @Test func scancodesAreUsagesAndTextBecomesKeys() {
         #expect(HIDKeys.usage(sdlScancode: 4) == 4)
         #expect(HIDKeys.usage(sdlScancode: 0xE3) == 0xE3)
@@ -169,24 +152,18 @@ struct RemoteViewerTests {
         #expect(HIDKeys.events(typing: "é").isEmpty)
     }
 
-    // MARK: Clock
-
     @Test func clockOffsetTakesTheFastestPing() {
         var c = ClockSync()
         #expect(c.offset == nil)
-        // Server is 1 000 000 ns ahead; a slow sample first (asymmetric delay), then a fast one.
         c.add(sent: 10_000, server: 1_010_000 + 4_000, received: 18_000)
         c.add(sent: 100_000, server: 1_100_000 + 500, received: 101_000)
         #expect(c.best?.rtt == 1_000)
         #expect(c.offset == 1_000_000)
         #expect(c.uncertainty == 500)
         #expect(c.clientTime(server: 1_200_000) == 200_000)
-        // Old samples leave the window.
         c.add(sent: 70_000_000_000, server: 71_000_000_000 + 3_000, received: 70_000_010_000)
         #expect(c.samples.count == 1)
     }
-
-    // MARK: Canvas and PNG
 
     @Test func zlibTilesLandInTheCanvas() throws {
         guard swiftcodec_zlib_available() != 0 else { return }
@@ -199,18 +176,17 @@ struct RemoteViewerTests {
         z.removeLast(z.count - cap)
         let f = DisplayFrame(sequence: 1, guestFrame: 1, serverNanoseconds: 0, inputSequence: 0, width: 8, height: 4, encoding: .zlibBGRA,
                              isFull: false, tiles: [DisplayTile(x: 2, y: 1, width: 4, height: 2, data: z)])
-        _ = canvas.withPixels { _, _, d in d }  // clear the initial damage
+        _ = canvas.withPixels { _, _, d in d }
         #expect(canvas.apply(f))
         let damage = canvas.withPixels { p, row, d -> PixelRect in
             let b = p.assumingMemoryBound(to: UInt8.self)
             #expect(b[1 * row + 2 * 4] == 0)
             #expect(b[1 * row + 3 * 4] == 1)
             #expect(b[2 * row + 5 * 4 + 2] == 0xFF - 7)
-            #expect(b[0] == 0 && b[3] == 0xFF)  // untouched: opaque black
+            #expect(b[0] == 0 && b[3] == 0xFF)
             return d
         }
         #expect(damage == PixelRect(x: 2, y: 1, width: 4, height: 2))
-        // Out of bounds and corrupt tiles fail.
         var bad = f
         bad.tiles[0].x = 6
         #expect(!canvas.apply(bad))
@@ -237,15 +213,12 @@ struct RemoteViewerTests {
             let b = p.assumingMemoryBound(to: UInt8.self)
             #expect(abs(Int(b[100 * 4]) - 200) < 8 && abs(Int(b[100 * 4 + 1]) - 100) < 8 && abs(Int(b[100 * 4 + 2]) - 50) < 8)
         }
-        // A JPEG of another size than its tile is refused.
         var wrong = f
         wrong.tiles[0].width = 32
         wrong.tiles[0].height = 32
         #expect(!canvas.apply(wrong))
     }
 
-    /// H.264 through NVENC and NVDEC where both exist (an NVIDIA GPU; §14):
-    /// a frame and a partial update come back close to the source.
     @Test func videoRoundTripWhereNVIDIACodecsExist() throws {
         guard yvid_enc_available() != 0, yvid_dec_available() != 0 else { return }
         let w = 256, h = 128
@@ -270,7 +243,6 @@ struct RemoteViewerTests {
         }
         #expect(canvas.apply(try frame(nil, key: true, seq: 1)))
         #expect(canvas.format == .nv12)
-        // Only the right half changes; the encoder keeps the left half from before.
         paint(w / 2, w, 200, 30, 10)
         #expect(canvas.apply(try frame([Int32(w / 2), 0, Int32(w / 2), Int32(h)], key: false, seq: 2)))
         let rgba = canvas.rgba()
@@ -283,12 +255,10 @@ struct RemoteViewerTests {
         #expect(StreamCanvas.decodableEncodings.contains("h264"))
     }
 
-    /// HEVC through NVENC and NVDEC where both have it, 4:2:0 and 4:4:4 (§14): the
-    /// planes come back in the right format, and the colours through BT.709 close to the source.
     @Test(arguments: [(DisplayEncoding.hevc, StreamCanvas.Format.nv12), (.hevc444, .yuv444)])
     func hevcRoundTripWhereNVIDIACodecsExist(encoding: DisplayEncoding, format: StreamCanvas.Format) throws {
         guard yvid_enc_available() != 0, StreamCanvas.canDecode(encoding) else { return }
-        let (w, h) = (256, 256)      // NVDEC's HEVC has a minimum height of 144
+        let (w, h) = (256, 256)
         var px = [UInt8](repeating: 0, count: w * h * 4)
         for y in 0..<h { for x in 0..<w {
             let (r, g, b): (UInt8, UInt8, UInt8) = x < w / 2 ? (220, 40, 40) : (40, 200, 90)
@@ -316,7 +286,6 @@ struct RemoteViewerTests {
         }
         #expect(near(32, 220, 40, 40))
         #expect(near(200, 40, 200, 90))
-        // Point samples agree with the whole conversion.
         let s = canvas.samplesBGR([(x: 32, y: 64), (x: 200, y: 64)])
         #expect(Int(s[0].2) == Int(rgba[(64 * w + 32) * 4]) && Int(s[1].1) == Int(rgba[(64 * w + 200) * 4 + 1]))
     }

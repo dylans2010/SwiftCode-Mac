@@ -2,36 +2,6 @@ import AppKit
 import SwiftUI
 import SwiftCodeCloud
 
-/// Row Level Security policy editor for PostgreSQL / Supabase.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabasePermissionsView.swift`,
-/// rebuilt so the controls do something real.
-///
-/// Legacy's toggles and role list were purely presentational: the
-/// switches changed no state anywhere and the roles were a fixed
-/// list. This port keeps the two switches and the three roles, but
-/// wires the switches to the real DDL they describe, generated for
-/// the table picked from the active connection:
-///
-/// - "Enforce RLS" on generates `ALTER TABLE … ENABLE ROW LEVEL
-///   SECURITY`; off generates `DISABLE`.
-/// - "Restrict anonymous access" on generates `REVOKE SELECT,
-///   INSERT, UPDATE, DELETE … FROM anon`; off generates the
-///   matching `GRANT`.
-///
-/// The SQL is shown for review and copy. It is not executed here:
-/// the destination's `SupabaseService.executeSQL` fails honestly
-/// (PostgREST exposes no SQL-execution endpoint and Legacy
-/// configured no RPC for one), so running it would only report a
-/// failure — the SQL belongs in the Supabase SQL editor or `psql`.
-/// SQLite connections show that RLS is a PostgreSQL feature and
-/// does not apply, instead of generating meaningless DDL.
-///
-/// The three roles are Supabase's built-in roles — fixed by the
-/// platform on every project, not rows fetched from this database
-/// — and are labelled as such; effective access still depends on
-/// the project's policies.
 @MainActor
 struct DatabasePermissionsView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
@@ -43,8 +13,6 @@ struct DatabasePermissionsView: View {
     @State private var loadMessage = ""
     @State private var copied = false
 
-    /// The DDL the two switches describe for the selected table.
-    /// Empty for SQLite, where RLS does not exist.
     private var generatedSQL: String {
         guard let conn = connManager.activeConnection, conn.provider != .sqlite,
               !selectedTable.isEmpty else { return "" }
@@ -157,10 +125,6 @@ struct DatabasePermissionsView: View {
                 if conn.provider == .supabase {
                     tables = try await SupabaseService().fetchTables(connection: conn)
                 } else {
-                    // PostgreSQL / MySQL / MariaDB: no driver in
-                    // this package, so no table list can be fetched.
-                    // The toggles still generate real DDL, but there
-                    // is no table to target it at.
                     tables = []
                     loadMessage = "No driver for \(conn.provider.rawValue): table names cannot be listed, so no policy SQL can be targeted. Connect a Supabase project to pick a table."
                     return

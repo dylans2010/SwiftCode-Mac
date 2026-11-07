@@ -11,7 +11,6 @@ struct AddedMCPServersView: View {
             ForEach(manager.servers) { server in
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
-                        // Server Header with Status Badge
                         HStack(alignment: .center, spacing: 12) {
                             Image(systemName: server.transport == .stdio ? "terminal.fill" : "globe")
                                 .font(.title2)
@@ -23,7 +22,6 @@ struct AddedMCPServersView: View {
                                         .font(.headline)
                                         .foregroundStyle(.primary)
 
-                                    // Transport Badge
                                     Text(server.transport.rawValue.uppercased())
                                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                                         .padding(.horizontal, 6)
@@ -39,7 +37,6 @@ struct AddedMCPServersView: View {
 
                             Spacer()
 
-                            // Status Indicator Badge
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(statusColor(server.status))
@@ -55,7 +52,6 @@ struct AddedMCPServersView: View {
 
                         Divider()
 
-                        // Metadata Information Section
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .top, spacing: 6) {
                                 Image(systemName: server.transport == .stdio ? "folder.fill" : "link")
@@ -70,7 +66,6 @@ struct AddedMCPServersView: View {
                             }
 
                             HStack(spacing: 16) {
-                                // Auth Badge
                                 HStack(spacing: 4) {
                                     Image(systemName: "lock.shield.fill")
                                         .font(.caption2)
@@ -80,7 +75,6 @@ struct AddedMCPServersView: View {
                                         .foregroundColor(.secondary)
                                 }
 
-                                // Tool Count Badge
                                 HStack(spacing: 4) {
                                     Image(systemName: "hammer.fill")
                                         .font(.caption2)
@@ -92,7 +86,6 @@ struct AddedMCPServersView: View {
                             }
                         }
 
-                        // Inline error banner if any
                         if let lastError = server.lastError {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
@@ -109,7 +102,6 @@ struct AddedMCPServersView: View {
 
                         Divider()
 
-                        // Actions controls panel
                         HStack(spacing: 10) {
                             if server.status == .connected {
                                 Button(action: {

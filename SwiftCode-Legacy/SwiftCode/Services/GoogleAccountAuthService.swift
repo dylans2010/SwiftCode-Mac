@@ -1,12 +1,3 @@
-//
-//  GoogleAccountAuthService.swift
-//  SwiftCode
-//
-//  Authentication service for Google Accounts using ASWebAuthenticationSession,
-//  local loopback HTTP listener (RFC 8252 for Google OAuth Desktop Policy),
-//  PKCE (RFC 7636), and fallback to ambient Application Default Credentials (ADC).
-//
-
 import Foundation
 import AuthenticationServices
 import CryptoKit
@@ -18,8 +9,6 @@ import AppKit
 #endif
 
 private let logger = Logger(subsystem: "com.swiftcode.auth", category: "GoogleAccountAuthService")
-
-// MARK: - Google OAuth Token Response
 
 public struct GoogleOAuthTokens: Codable, Sendable {
     public let accessToken: String
@@ -65,13 +54,10 @@ public struct GoogleOAuthTokens: Codable, Sendable {
     }
 }
 
-// MARK: - Google Account Auth Service
-
 @MainActor
 public final class GoogleAccountAuthService: NSObject, ObservableObject {
     public static let shared = GoogleAccountAuthService()
 
-    // MARK: - Keychain Keys
     public nonisolated static let accessTokenKey = "google_oauth_access_token"
     public nonisolated static let refreshTokenKey = "google_oauth_refresh_token"
     public nonisolated static let userEmailKey = "google_account_email"
@@ -79,24 +65,15 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     public nonisolated static let scopeKey = "google_oauth_scope"
     private nonisolated static let explicitlySignedOutKey = "google_oauth_explicitly_signed_out"
 
-    // MARK: - Observable State
     @Published public private(set) var isAuthenticated: Bool = false
     @Published public private(set) var userEmail: String? = nil
     @Published public private(set) var isAuthenticating: Bool = false
     @Published public var authError: String? = nil
 
-    /// The most recent token-refresh failure reason, for user-facing
-    /// diagnostics ("session expired" messages name the refresh failure
-    /// instead of blaming a missing API key). Set on refresh failure,
-    /// cleared on success. (C-1)
     public private(set) var lastTokenRefreshError: String? = nil
 
-    /// True while a scope-upgrade re-authentication is in flight. The existing
-    /// session is kept until the new sign-in succeeds, so a cancelled or
-    /// failed upgrade leaves the previous session intact. (M-2)
     private var isScopeUpgradeReauth: Bool = false
 
-    // MARK: - OAuth Flow Session & Loopback
     private var authSession: ASWebAuthenticationSession?
     private var pendingCodeVerifier: String?
     private var pendingState: String?
@@ -104,29 +81,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     private var activeRedirectURI: String = "http://127.0.0.1:8085"
     private var hasProcessedCallback: Bool = false
 
-    // MARK: - OAuth Configuration
     private let callbackScheme = "swiftcode"
 
-    /// SwiftCode's own Google OAuth client ID (Desktop application type).
-    /// A plain string, not obfuscated: client IDs for PKCE public clients
-    /// are public identifiers by design, not secrets. No client secret is
-    /// used or needed (RFC 7636).
     public static let swiftCodeClientID = "671720100031-tkph1mke7c5bj3l93t5eemrplti78i77.apps.googleusercontent.com"
-    /// Scopes requested by SwiftCode's own "Sign in with Google" flow, per
-    /// the Gemini Developer API's documented OAuth contract
-    /// (https://ai.google.dev/gemini-api/docs/oauth): an access token without
-    /// generative-language.retriever is rejected with 403
-    /// ACCESS_TOKEN_SCOPE_INSUFFICIENT on generativelanguage.googleapis.com.
-    ///
-    /// These scopes are only requestable with an OAuth client you own.
-    /// Google's first-party clients (including the Antigravity IDE client this
-    /// app previously borrowed) do not have the generative-language.* scopes
-    /// registered, so the authorization server rejects the request outright
-    /// with "Unregistered scope(s) in the request" (Error 403:
-    /// restricted_client). The Antigravity-IDE-internal scopes (cclog,
-    /// experimentsandconfigs, aicode) are intentionally not requested here:
-    /// they belong to Google's IDE, not to Developer API usage, and would only
-    /// widen the consent screen on a personal client.
     public static let requiredScopes = [
         "https://www.googleapis.com/auth/cloud-platform",
         "https://www.googleapis.com/auth/generative-language.retriever",
@@ -139,17 +96,12 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     }
 
     private var clientID: String {
-        // Silent overrides for testing or advanced setups; otherwise
-        // SwiftCode's own OAuth client.
         if let env = ProcessInfo.processInfo.environment["GOOGLE_CLIENT_ID"], !env.isEmpty {
             return env
         }
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_ID"] as? String, !info.isEmpty {
             return info
         }
-        // User-editable override from Settings → Assist → Advanced. This is
-        // the single user-facing storage for the override; it is read here so
-        // the field actually controls the sign-in flow.
         let override = AppSettings.shared.assistGoogleOAuthClientIDOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         if !override.isEmpty {
             return override
@@ -157,26 +109,8 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return Self.swiftCodeClientID
     }
 
-    /// Keychain key for the user-configured OAuth client secret.
     private static let clientSecretKey = "google.oauth.clientSecret"
 
-    /// Client secret for the OAuth token exchange. Google's token endpoint
-    /// rejects the authorization-code exchange without it for this client
-    /// (400 invalid_request: "client_secret is missing."), even though the
-    /// browser authorization step succeeds and Google's installed-app docs
-    /// label the parameter "Optional". The secret is never embedded in the
-    /// distributed app: it comes from the user's own OAuth client, entered
-    /// in Settings and stored securely in Keychain, or from the
-    /// GOOGLE_CLIENT_SECRET environment variable / Info.plist key (for
-    /// testing and advanced setups).
-    ///
-    /// A desktop app cannot keep a secret truly confidential — anyone can
-    /// extract it from the installed app or its Keychain. That is accepted
-    /// here because Google requires the secret for the exchange; the secret
-    /// alone grants nothing without the user's own authorization grant, and
-    /// shipping it would let anyone impersonate SwiftCode's OAuth client.
-    /// The user enters their own client's secret, so the exposure is theirs
-    /// to manage, exactly as with an API key.
     private var clientSecret: String? {
         if let stored = KeychainService.shared.get(forKey: Self.clientSecretKey), !stored.isEmpty {
             return stored
@@ -190,11 +124,8 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return nil
     }
 
-    /// Whether a client secret is available from any configured source.
     public var hasClientSecret: Bool { clientSecret != nil }
 
-    /// Whether the secret is stored in Keychain (user-entered via Settings),
-    /// as opposed to an environment / Info.plist override.
     public var hasKeychainClientSecret: Bool {
         if let stored = KeychainService.shared.get(forKey: Self.clientSecretKey), !stored.isEmpty {
             return true
@@ -202,8 +133,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return false
     }
 
-    /// Stores the OAuth client's secret securely in Keychain. The secret is
-    /// never logged and never embedded in the app bundle.
     public func setClientSecret(_ secret: String) {
         let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
@@ -213,21 +142,15 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
     }
 
-    /// Removes a Keychain-stored client secret.
     public func clearClientSecret() {
         KeychainService.shared.delete(forKey: Self.clientSecretKey)
     }
-
-    // MARK: - Initialization
 
     private override init() {
         super.init()
         restoreSessionFromKeychain()
     }
 
-    // MARK: - Session Restoration & Runtime Verification
-
-    /// Verifies that an OAuth access token is valid and accepted by the Antigravity runtime.
     @discardableResult
     public func verifyRuntimeSession(accessToken overrideToken: String? = nil, depth: Int = 0) async -> Bool {
         let tokenToVerify: String?
@@ -242,7 +165,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             return false
         }
 
-        // Verify token via standard Google OAuth tokeninfo endpoint which accepts Antigravity/Cloud-Platform scopes
         guard let verifyURL = URL(string: "https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=\(token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token)") else {
             return false
         }
@@ -264,11 +186,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                        let refreshedToken = try? await self.refreshAccessToken(refreshToken: refreshToken) {
                         return await verifyRuntimeSession(accessToken: refreshedToken, depth: depth + 1)
                     }
-                    // The token was rejected and refresh did not recover it:
-                    // drop the dead access token so the rejection sticks. The
-                    // refresh token is kept for a later retry, and the next
-                    // launch will not resurrect this token via restore.
-                    // (M-1; the recursion above is bounded by depth.)
                     KeychainService.shared.delete(forKey: Self.accessTokenKey)
                     KeychainService.shared.delete(forKey: Self.expiresAtKey)
                     self.lastTokenRefreshError = "the saved sign-in was rejected by Google and the token refresh failed"
@@ -277,11 +194,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                     return false
                 }
             }
-            // For non-200 non-auth status codes or connection issues, consider valid if unexpired token is stored
             return true
         } catch {
             logger.debug("Runtime verification network probe skipped or failed: \(error.localizedDescription)")
-            // Fallback: check stored expiration timestamp
             let expiresAtStr = KeychainService.shared.get(forKey: Self.expiresAtKey)
             let expiresAt = Double(expiresAtStr ?? "0") ?? 0
             let now = Date().timeIntervalSince1970
@@ -293,15 +208,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         let isExplicitlySignedOut = UserDefaults.standard.bool(forKey: Self.explicitlySignedOutKey)
         guard !isExplicitlySignedOut else { return }
 
-        // 1. If Antigravity credentials exist in the system Keychain (from `agy` CLI or Google Cloud tools), import and use them
         if let creds = fetchAntigravityCredentialsFromKeychain() {
             if let token = creds.accessToken, !token.isEmpty {
                 KeychainService.shared.set(token, forKey: Self.accessTokenKey)
-                // Record an expiry for the CLI-imported token. The CLI does
-                // not tell us the token's real lifetime; assume the standard
-                // one hour (matching importExistingAntigravityCredentials) so
-                // the accessors refresh it when due instead of serving it
-                // unchecked forever. (C-4)
                 let assumedExpiry = Date().addingTimeInterval(3600).timeIntervalSince1970
                 KeychainService.shared.set(String(assumedExpiry), forKey: Self.expiresAtKey)
             }
@@ -320,7 +229,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             return
         }
 
-        // 2. Check stored session in app's KeychainService
         if let email = KeychainService.shared.get(forKey: Self.userEmailKey), !email.isEmpty,
            let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
             self.userEmail = email
@@ -345,8 +253,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Sign In (PKCE RFC 7636 + Loopback RFC 8252)
-
     public func signIn() {
         guard !isAuthenticating else { return }
 
@@ -362,7 +268,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         self.pendingCodeVerifier = verifier
         self.pendingState = state
 
-        // Start local loopback HTTP listener to comply with Google OAuth 2.0 policy for Desktop Apps
         let server = OAuthLoopbackServer()
         let port = server.start()
         self.loopbackServer = server
@@ -407,12 +312,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         self.authSession = session
 
         if !session.start() {
-            // Fallback: Open auth URL directly in system default browser if session fails to start
             NSWorkspace.shared.open(authURL)
         }
     }
-
-    // MARK: - Non-isolated Web Authentication Session Factory
 
     private nonisolated static func createWebAuthSession(
         url: URL,
@@ -474,8 +376,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         self.authSession = nil
     }
 
-    // MARK: - Sign Out
-
     public func signOut() {
         KeychainService.shared.delete(forKey: Self.accessTokenKey)
         KeychainService.shared.delete(forKey: Self.refreshTokenKey)
@@ -499,38 +399,23 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         AntigravityQuotaService.shared.resetToFresh()
     }
 
-    // MARK: - Assist Scope Verification & Re-Authentication
-
-    /// Verifies if the active OAuth session has the required scopes for Google Antigravity / Gemini models.
-    /// The decisive scope is generative-language.retriever: without it the
-    /// Gemini Developer API rejects OAuth requests with 403
-    /// ACCESS_TOKEN_SCOPE_INSUFFICIENT no matter what other scopes are present.
     public func hasRequiredAssistScopes() -> Bool {
         guard isAuthenticated else { return false }
-        // If Antigravity credentials exist in Keychain, they possess the required scopes
         if fetchAntigravityCredentialsFromKeychain() != nil {
             return true
         }
         if let storedScope = KeychainService.shared.get(forKey: Self.scopeKey), !storedScope.isEmpty {
             return storedScope.contains("generative-language.retriever") || storedScope.contains("cloud-platform")
         }
-        // If authenticated without recorded scope, treat as valid to prevent false lockouts
         return true
     }
 
-    /// Re-authenticates the user with the complete set of Assist scopes without requiring API keys.
-    /// Non-destructive: the existing session is kept until the new sign-in
-    /// succeeds. If the user cancels or the flow fails, the previous
-    /// (legacy-scope) session remains intact instead of the user being signed
-    /// out. (M-2)
     public func reAuthenticateForAssistScopes() {
         guard !isAuthenticating else { return }
         logger.info("Re-authenticating user to request Google Antigravity Assist scopes...")
         isScopeUpgradeReauth = true
         signIn()
     }
-
-    // MARK: - Antigravity Credentials & Keychain Extraction
 
     public struct AntigravityCredentials: Sendable {
         public let clientID: String
@@ -549,14 +434,12 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     }
 
     private func parseAntigravityCredentials(from data: Data) -> AntigravityCredentials? {
-        // Direct JSON format
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let creds = parseAntigravityJSON(json) {
                 return creds
             }
         }
 
-        // String representation (may contain go-keyring-base64: prefix or raw string)
         if let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
             return parseAntigravityString(str)
         }
@@ -582,14 +465,13 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     }
 
     private func parseAntigravityJSON(_ json: [String: Any]) -> AntigravityCredentials? {
-        // Structure 1: Nested { "token": { "refresh_token": "...", "access_token": "..." } } (Standard go-keyring / agy CLI)
         if let tokenObj = json["token"] as? [String: Any] {
             let refreshToken = (tokenObj["refresh_token"] as? String) ?? ""
             let accessToken = tokenObj["access_token"] as? String
             if !refreshToken.isEmpty || (accessToken != nil && !accessToken!.isEmpty) {
                 let clientID = (json["client_id"] as? String) ?? Self.swiftCodeClientID
                 let clientSecret = json["client_secret"] as? String
-                let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
+                let scopes = (json["scopes"] as? [String]) ?? []
                 return AntigravityCredentials(
                     clientID: clientID,
                     clientSecret: clientSecret,
@@ -600,11 +482,10 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             }
         }
 
-        // Structure 2: Flat { "refresh_token": "...", "client_id": "..." }
         if let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty {
             let clientID = (json["client_id"] as? String) ?? Self.swiftCodeClientID
             let clientSecret = json["client_secret"] as? String
-            let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
+            let scopes = (json["scopes"] as? [String]) ?? []
             let accessToken = json["access_token"] as? String
             return AntigravityCredentials(
                 clientID: clientID,
@@ -621,7 +502,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     public func fetchAntigravityCredentialsFromKeychain() -> AntigravityCredentials? {
         let accounts = ["antigravity", "antigravity-acp"]
 
-        // 1. Attempt direct SecItemCopyMatching for each account name
         for account in accounts {
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
@@ -638,7 +518,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             }
         }
 
-        // 2. Fallback to /usr/bin/security CLI
         for account in accounts {
             let process = Process()
             let pipe = Pipe()
@@ -665,7 +544,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return nil
     }
 
-    /// Automatically imports active credentials from the system Antigravity Keychain entry if available.
     @discardableResult
     public func importExistingAntigravityCredentials() async -> Bool {
         guard let creds = fetchAntigravityCredentialsFromKeychain() else {
@@ -740,9 +618,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return true
     }
 
-    // MARK: - Sign In via agy CLI (Process)
-
-    /// Authenticates via the background `agy` CLI process, automatically detecting and opening the Google Antigravity consent URL.
     public func signInViaCLI() {
         guard !isAuthenticating else { return }
 
@@ -785,13 +660,11 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     }
 
     private func performCLISignIn() async throws {
-        // 1. First, check if Antigravity is already authenticated in Keychain
         if await importExistingAntigravityCredentials() {
             logger.info("Successfully authenticated via existing Antigravity Keychain session.")
             return
         }
 
-        // 2. If not found in Keychain, launch the agy CLI in Terminal so user can perform interactive login
         guard let agyPath = findAgyCLI() else {
             throw NSError(
                 domain: "GoogleAccountAuthService",
@@ -820,9 +693,8 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             NSWorkspace.shared.open(scriptURL)
         }
 
-        // Poll for the credentials to appear in the Keychain (up to 120 seconds)
         for _ in 0..<80 {
-            try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s
+            try await Task.sleep(nanoseconds: 1_500_000_000)
             if await importExistingAntigravityCredentials() {
                 logger.info("Successfully completed authentication via agy CLI.")
                 return
@@ -886,26 +758,16 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return nil
     }
 
-    // MARK: - Access Token Accessors
-
-    /// Returns a valid access token asynchronously, refreshing if necessary or falling back to ambient ADC.
-    /// Never returns a known-expired token: if the stored token is past its
-    /// expiry and refresh fails, this tries ambient ADC and then returns nil
-    /// so callers surface a clear re-authentication prompt instead of sending
-    /// a dead token to the API. (C-4)
     public func getValidAccessToken() async throws -> String? {
-        // 1. Check stored OAuth access token in Keychain
         if let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
             let expiresAtStr = KeychainService.shared.get(forKey: Self.expiresAtKey)
             let expiresAt = Double(expiresAtStr ?? "0") ?? 0
             let now = Date().timeIntervalSince1970
 
-            // If token is valid or no expiration was recorded (expiresAt == 0), use it directly
             if expiresAt == 0 || expiresAt > (now + 60) {
                 return token
             }
 
-            // If expired, attempt token refresh via refresh token
             if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey) {
                 do {
                     let refreshedToken = try await refreshAccessToken(refreshToken: refreshToken)
@@ -920,14 +782,12 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             if let adcToken = checkAmbientADC() {
                 return adcToken
             }
-            // Do not return a known-expired token
             if expiresAt > 0 && expiresAt <= now {
                 return nil
             }
             return token
         }
 
-        // 2. Fall back to ambient Application Default Credentials
         if let adcToken = checkAmbientADC() {
             return adcToken
         }
@@ -935,10 +795,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return nil
     }
 
-    /// Synchronous accessor for access token, utilizing Keychain and ADC fallback.
-    /// Never returns an expired token: if the stored token is past its expiry
-    /// and refresh fails, this returns nil so callers surface a clear
-    /// re-authentication prompt instead of sending a dead token to the API.
     public func getValidAccessToken() -> String? {
         if let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
             let expiresAtStr = KeychainService.shared.get(forKey: Self.expiresAtKey)
@@ -958,7 +814,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             if let adcToken = checkAmbientADC() {
                 return adcToken
             }
-            // Do not return a known-expired token
             if expiresAt > 0 && expiresAt <= now {
                 return nil
             }
@@ -972,13 +827,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return nil
     }
 
-    // MARK: - Callback & Exchange
-
     private func handleCallbackURL(_ url: URL, verifier: String, state: String, redirectURI: String) async {
         guard !hasProcessedCallback else { return }
         hasProcessedCallback = true
-        // The scope-upgrade flow ends here regardless of outcome; the flag
-        // must not leak into a later unrelated sign-in. (M-2)
         defer { self.isScopeUpgradeReauth = false }
 
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
@@ -1011,7 +862,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         do {
             let tokens = try await exchangeCodeForTokens(code: code, verifier: verifier, redirectURI: redirectURI)
 
-            // Store tokens in Keychain
             KeychainService.shared.set(tokens.accessToken, forKey: Self.accessTokenKey)
             if let refreshToken = tokens.refreshToken {
                 KeychainService.shared.set(refreshToken, forKey: Self.refreshTokenKey)
@@ -1022,7 +872,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             let expiresAt = Date().addingTimeInterval(TimeInterval(tokens.expiresIn ?? 3600)).timeIntervalSince1970
             KeychainService.shared.set(String(expiresAt), forKey: Self.expiresAtKey)
 
-            // Fetch user email
             var email: String? = nil
             do {
                 email = try await fetchUserEmail(accessToken: tokens.accessToken)
@@ -1068,10 +917,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
     }
 
-    /// Maps a sign-in failure to the message the user actually sees. A
-    /// missing client secret gets specific remediation instead of Google's
-    /// terse "client_secret is missing."; every other failure passes through
-    /// with its original details preserved.
     public static func actionableSignInError(for error: Error) -> String {
         let description = error.localizedDescription
         let classification = GoogleAuthErrorClassification.classify(description, storedScopes: nil)
@@ -1278,8 +1123,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return nil
     }
 
-    // MARK: - PKCE Helpers (RFC 7636)
-
     private func generateCodeVerifier() -> String {
         var buffer = [UInt8](repeating: 0, count: 64)
         _ = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
@@ -1316,16 +1159,10 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return components?.url
     }
 
-    // MARK: - Ambient Application Default Credentials (ADC)
-
     public func checkAmbientADC() -> String? {
-        // H-3: an explicit sign-out must stick. Ambient credentials (CLI
-        // keychain entries, ADC files, gcloud) must not resurrect the session
-        // after the user signed out; otherwise "signed out" is a lie.
         if UserDefaults.standard.bool(forKey: Self.explicitlySignedOutKey) {
             return nil
         }
-        // 1. Antigravity keychain credentials
         if let creds = fetchAntigravityCredentialsFromKeychain() {
             if let existingToken = creds.accessToken, !existingToken.isEmpty {
                 return existingToken
@@ -1336,7 +1173,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             }
         }
 
-        // 2. GOOGLE_APPLICATION_CREDENTIALS environment variable
         if let credsPath = ProcessInfo.processInfo.environment["GOOGLE_APPLICATION_CREDENTIALS"],
            FileManager.default.fileExists(atPath: credsPath) {
             if let token = resolveTokenFromADCFile(at: credsPath) {
@@ -1344,7 +1180,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             }
         }
 
-        // 3. Standard location: ~/.config/gcloud/application_default_credentials.json
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         let defaultADCPath = "\(homeDir)/.config/gcloud/application_default_credentials.json"
         if FileManager.default.fileExists(atPath: defaultADCPath) {
@@ -1353,7 +1188,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             }
         }
 
-        // 4. gcloud CLI fallback
         if let gcloudToken = resolveTokenFromGCloudCLI() {
             return gcloudToken
         }
@@ -1439,8 +1273,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return nil
     }
 
-    // MARK: - Open URL Handler
-
     @discardableResult
     public func handleOpenURL(_ url: URL) -> Bool {
         let scheme = url.scheme?.lowercased()
@@ -1459,8 +1291,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return false
     }
 }
-
-// MARK: - ASWebAuthenticationPresentationContextProviding
 
 #if canImport(AppKit)
 extension GoogleAccountAuthService: ASWebAuthenticationPresentationContextProviding {
@@ -1481,44 +1311,20 @@ extension GoogleAccountAuthService: ASWebAuthenticationPresentationContextProvid
 }
 #endif
 
-// MARK: - Google Auth Error Classification
-
-/// Classifies provider authentication/authorization failures so the UI can
-/// explain the actual cause instead of collapsing everything into a generic
-/// "Authentication error" that prompts a useless re-authentication loop.
-///
-/// The classification preserves the original diagnostic fields (HTTP status,
-/// RPC status, reason, service, method) and distinguishes, at minimum:
-/// insufficient OAuth scopes, invalid/expired credentials, invalid API keys,
-/// quota/rate limits, and non-auth provider errors.
 public struct GoogleAuthErrorClassification: Sendable {
     public enum Kind: Sendable, Equatable {
-        /// 403 with ACCESS_TOKEN_SCOPE_INSUFFICIENT (or equivalent wording).
-        /// Carries the scopes recorded for the current session, if any, so the
-        /// caller can tell "token was minted before the required scope existed"
-        /// (fixable by re-auth) from "scopes present but endpoint rejected it"
-        /// (a real restriction: re-auth would loop forever).
         case scopeInsufficient(storedScopes: String?)
         case invalidOrExpiredCredential
         case apiKeyInvalid
         case quotaOrRateLimit
-        /// Google's token endpoint refused the exchange because the OAuth
-        /// client's secret was not sent (400 invalid_request:
-        /// "client_secret is missing."). The browser authorization step
-        /// succeeds; the failure happens at the token exchange. Fixable by
-        /// configuring the client's secret.
         case missingClientSecret
         case notAuthError
     }
 
     public let kind: Kind
-    /// HTTP status parsed from the error text, when present (e.g. 401, 403, 429).
     public let httpStatus: Int?
-    /// Google RPC reason parsed from the error text (e.g. ACCESS_TOKEN_SCOPE_INSUFFICIENT).
     public let reason: String?
-    /// Service parsed from the error text (e.g. generativelanguage.googleapis.com).
     public let service: String?
-    /// Method parsed from the error text (e.g. ...GenerativeService.StreamGenerateContent).
     public let method: String?
 
     public static func classify(_ errorText: String) -> GoogleAuthErrorClassification {
@@ -1526,15 +1332,11 @@ public struct GoogleAuthErrorClassification: Sendable {
         return classify(errorText, storedScopes: stored)
     }
 
-    /// Testable entry point: `storedScopes` is the scope string recorded for
-    /// the current session (nil when unknown).
     public static func classify(_ errorText: String, storedScopes: String?) -> GoogleAuthErrorClassification {
         let text = errorText
         let lower = text.lowercased()
 
         let httpStatus = firstHTTPStatus(in: text)
-        // Prefer the most specific known RPC reason; fall back to the first
-        // auth-related all-caps token in the text.
         let knownReasons = [
             "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
             "PERMISSION_DENIED",
@@ -1548,8 +1350,6 @@ public struct GoogleAuthErrorClassification: Sendable {
                     || candidate.contains("AUTH") || candidate.contains("QUOTA") || candidate.contains("RATE")
                 return relevant ? candidate : nil
             }
-        // Prefer the actual API service over incidental matches such as the
-        // "type.googleapis.com/..." prefix in RPC detail payloads.
         let knownServices = [
             "generativelanguage.googleapis.com",
             "aiplatform.googleapis.com",
@@ -1569,12 +1369,6 @@ public struct GoogleAuthErrorClassification: Sendable {
                 httpStatus: httpStatus, reason: reason, service: service, method: method)
         }
 
-        // The token endpoint explicitly reports a missing client secret.
-        // This is distinct from invalid/expired credentials: the user
-        // authorized successfully, but the code exchange needs the OAuth
-        // client's secret (Google: 400 invalid_request "client_secret is
-        // missing."). Check before the generic credential branch so the
-        // remediation ("configure the client secret") is specific.
         let mentionsMissingSecret =
             lower.contains("client_secret is missing") ||
             lower.contains("client secret is missing") ||
@@ -1618,7 +1412,6 @@ public struct GoogleAuthErrorClassification: Sendable {
             httpStatus: httpStatus, reason: reason, service: service, method: method)
     }
 
-    /// One-line diagnostic summary preserving the original failure details.
     public var diagnosticSummary: String {
         var parts: [String] = []
         if let httpStatus { parts.append("HTTP \(httpStatus)") }
@@ -1629,7 +1422,6 @@ public struct GoogleAuthErrorClassification: Sendable {
     }
 
     private static func firstHTTPStatus(in text: String) -> Int? {
-        // Matches "Error 403", "status 403", "HTTP 403", "code 403".
         guard let regex = try? NSRegularExpression(pattern: "(?:Error|error|status|HTTP|code)\\s*[:=]?\\s*(401|403|404|429|500|502|503)") else { return nil }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         guard let match = regex.firstMatch(in: text, range: range),
@@ -1645,8 +1437,6 @@ public struct GoogleAuthErrorClassification: Sendable {
         return String(text[matchRange])
     }
 }
-
-// MARK: - OAuth Loopback Server (RFC 8252 Compliance for Google OAuth Desktop Policy)
 
 @MainActor
 public final class OAuthLoopbackServer: @unchecked Sendable {

@@ -3,7 +3,7 @@ import Foundation
 public struct DatabaseColumn: Identifiable, Codable, Hashable {
     public var id: String { name }
     public var name: String
-    public var type: String // e.g. TEXT, INTEGER, VARCHAR(255), uuid, etc.
+    public var type: String
     public var isPrimaryKey: Bool
     public var isForeignKey: Bool
     public var isNullable: Bool

@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Main entry point for the Visual UI Builder.
-/// Optimizes and routes the workspace to a native macOS AppKit split-view window.
 public struct VisualUIBuilderView: View {
     @Environment(\.dismiss) private var dismiss
 

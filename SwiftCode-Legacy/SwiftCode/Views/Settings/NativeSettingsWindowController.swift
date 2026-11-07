@@ -1,14 +1,5 @@
-//
-//  NativeSettingsWindowController.swift
-//  SwiftCode
-//
-//  Created by Dylan on 10/27/26.
-//
-
 import SwiftUI
 import AppKit
-
-// MARK: - Native Safari Settings Window Controller
 
 @MainActor
 public final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate {
@@ -53,7 +44,6 @@ public final class NativeSettingsWindowController: NSWindowController, NSWindowD
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.managed]
 
-        // Explicitly ensure standard window buttons are enabled and not hidden
         window.standardWindowButton(.closeButton)?.isHidden = false
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         window.standardWindowButton(.zoomButton)?.isHidden = false
@@ -63,12 +53,8 @@ public final class NativeSettingsWindowController: NSWindowController, NSWindowD
         super.init(window: window)
         window.delegate = self
 
-        // No NSToolbar: the centered in-content tab bar in
-        // NativeSettingsContainerView shows every category at once.
         window.toolbar = nil
 
-        // Single persistent contentViewController hosting NativeSettingsContainerView
-        // reacting to NativeSettingsState.shared so the window frame never collapses
         let containerView = NativeSettingsContainerView(state: NativeSettingsState.shared)
             .environmentObject(AppSettings.shared)
 
@@ -91,18 +77,12 @@ public final class NativeSettingsWindowController: NSWindowController, NSWindowD
         fatalError("init(coder:) has not been implemented")
     }
 
-    // MARK: - Category UI Updating
-
     private func updateCategoryUI() {
         guard let window = self.window else { return }
 
-        // Centered window title displaying the selected category name
         window.title = selectedCategory.title
 
-        // Do not reset window.setContentSize to fixed dimensions here to preserve user resizing (this window never enters fullscreen)
     }
-
-    // MARK: - Public Window Management Methods
 
     public func showWindow(category: String? = nil) {
         if let categoryString = category,
@@ -155,10 +135,7 @@ public final class NativeSettingsWindowController: NSWindowController, NSWindowD
         window.orderOut(nil)
     }
 
-    // MARK: - NSWindowDelegate
-
     public func windowShouldClose(_ sender: NSWindow) -> Bool {
-        // Closing the settings window hides it and never terminates or closes the main app window
         sender.orderOut(nil)
         return false
     }

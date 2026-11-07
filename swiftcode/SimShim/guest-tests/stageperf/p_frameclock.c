@@ -1,24 +1,3 @@
-/* SwiftCode performance probe: can a guest thread keep a 60 Hz frame clock?
- * (specs/simulator/display-stream.md section 10). Original SwiftCode code.
- *
- * A render loop or a display link wakes once per display refresh. This
- * probe asks for a 60 Hz cadence (period 16 666 667 ns) through each
- * public wait primitive for SECONDS seconds and reports, in microseconds,
- * how late each wakeup came against its ideal time, and how many periods
- * were missed:
- *   wait_until   mach_wait_until(absolute deadline), deadlines advancing by
- *                one period (a drift-free loop);
- *   nanosleep    nanosleep(one period) back to back (relative);
- *   dispatch0    a dispatch timer source, interval one period, leeway 0;
- *   dispatchL    the same with the default leeway (DISPATCH_TIMER... none:
- *                leeway = interval / 10, as libdispatch documents);
- *   kevent       an EVFILT_TIMER, NOTE_NSECONDS, period one period;
- *   machrcv      mach_msg receive with MACH_RCV_TIMEOUT, re-armed to the
- *                next absolute period each time.
- * It also compares mach time with CLOCK_MONOTONIC over the run (rate error
- * in ppm) and prints the timebase.
- * Output: "frameclock <name> n= expect= late p50= p90= p99= max= missed=",
- * then "frameclock ok". */
 #include <dispatch/dispatch.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -43,7 +22,6 @@ static int compare_u64(const void *a, const void *b)
     return x < y ? -1 : x > y;
 }
 
-/* wake[i] = mach time of the i-th wakeup; ideal i-th time = start + (i+1) P. */
 static void report(const char *name, uint64_t start, const uint64_t *wake, int n)
 {
     static uint64_t late[MAX_SAMPLES];
@@ -79,8 +57,6 @@ static void run_wait_until(void)
 static void run_nanosleep(void)
 {
     uint64_t start = mach_absolute_time();
-    /* Relative sleeps drift by design; the lateness is measured against the
-     * previous wakeup + one period, i.e. the per-sleep overshoot. */
     static uint64_t over[MAX_SAMPLES];
     uint64_t prev = start, period = ns_to_ticks(PERIOD_NS);
     for (int i = 0; i < COUNT; i++) {
@@ -140,7 +116,7 @@ static void run_kevent(void)
         int r = kevent(kq, NULL, 0, &out, 1, &to);
         if (r <= 0) break;
         uint64_t now = mach_absolute_time();
-        for (intptr_t k = 0; k < out.data && n < COUNT; k++) samples[n++] = now; /* each expiry counts */
+        for (intptr_t k = 0; k < out.data && n < COUNT; k++) samples[n++] = now;
     }
     close(kq);
     report("kevent", start, samples, n);
@@ -158,8 +134,6 @@ static void run_machrcv(void)
             mach_msg_header_t h;
             char body[64];
         } m;
-        /* MACH_RCV_TIMEOUT takes milliseconds: round up, the usual way a
-         * millisecond API is driven at 60 Hz. */
         mach_msg(&m.h, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof m, port, (mach_msg_timeout_t)((wait_ms_x1000 + 999) / 1000),
                  MACH_PORT_NULL);
         samples[i] = mach_absolute_time();

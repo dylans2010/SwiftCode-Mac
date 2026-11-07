@@ -59,7 +59,6 @@ public struct AssistTreeViewTool: AssistTool {
         let indent = String(repeating: "  ", count: depth)
         result += "\(indent)📂 \(url.lastPathComponent)\n"
 
-        // Cycle guard: never descend into a canonical directory twice.
         let canonical = url.standardizedFileURL.resolvingSymlinksInPath().path
         if visited.contains(canonical) {
             return result + "\(indent)  ↩︎ [already visited: \(url.lastPathComponent)]\n"

@@ -1,6 +1,3 @@
-// string.c - memory and string functions of SwiftCode's libSystem
-// (specs/macos/libsystem.md §6). Clean-room SwiftCode code from the C standard's
-// descriptions. The block moves use libsystem_platform's primitives.
 #include "ycl.h"
 
 YCL_EXPORT void *memmove(void *d, const void *s, size_t n) { return _platform_memmove(d, s, n); }
@@ -175,8 +172,6 @@ YCL_EXPORT char *strsep(char **sp, const char *sep) {
     return s;
 }
 
-// The fortified forms (the SDK's _FORTIFY_SOURCE): `size` is the
-// destination's known size.
 YCL_EXPORT void *__memcpy_chk(void *d, const void *s, size_t n, size_t size) {
     if (n > size) abort();
     return memmove(d, s, n);
@@ -210,8 +205,6 @@ YCL_EXPORT size_t __strlcat_chk(char *d, const char *s, size_t n, size_t size) {
     return strlcat(d, s, n);
 }
 
-// strerror: the messages of the common errno values (public <sys/errno.h>
-// meanings), in SwiftCode's own table.
 static const struct {
     int code;
     const char *text;

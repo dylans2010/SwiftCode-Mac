@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/OperatingSystemProviderView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -39,7 +37,6 @@ public struct OperatingSystemProviderView: View {
 
                 Divider()
 
-                // Resource specifications grid
                 VStack(alignment: .leading, spacing: 8) {
                     Text("System Sizing & Recommendations:")
                         .fontWeight(.bold)
@@ -70,7 +67,6 @@ public struct OperatingSystemProviderView: View {
                         .cornerRadius(6)
                 }
 
-                // Official Action links
                 HStack(spacing: 12) {
                     Button {
                         if let url = URL(string: provider.officialDownloadPage) {

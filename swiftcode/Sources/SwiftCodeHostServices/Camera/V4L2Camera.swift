@@ -1,25 +1,12 @@
-// V4L2 cameras (camera-host.md §2, §3): discovery, format negotiation, and
-// memory-mapped streaming, through CSwiftCodeCamera's ioctl wrappers. Written
-// from the public Linux media API (V4L2) documentation. Off Linux there are
-// no V4L2 devices (every call reports ENOSYS).
-
 import CSwiftCodeCamera
 import Foundation
 
-/// V4L2 device access: the constants SwiftCode uses (values from the public
-/// `videodev2.h`), node discovery, and the capture-device operations
-/// (`camera-host.md` §2, §3).
 public enum V4L2 {
-    // Capability bits (videodev2.h).
-    /// `V4L2_CAP_VIDEO_CAPTURE`: the node captures video (`camera-host.md` §2.1).
     public static let capVideoCapture: UInt32 = 0x0000_0001
-    /// `V4L2_CAP_STREAMING`: the node supports streaming I/O (`camera-host.md` §2.1).
     public static let capStreaming: UInt32 = 0x0400_0000
-    // Buffer flags.
     static let bufFlagError: UInt32 = 0x0000_0040
     static let bufTimestampMask: UInt32 = 0x0000_e000
     static let bufTimestampMonotonic: UInt32 = 0x0000_2000
-    // Colorimetry.
     static let colorspaceJPEG: UInt32 = 7
     static let colorspaceREC709: UInt32 = 3
     static let ycbcrEnc601: UInt32 = 1
@@ -27,7 +14,6 @@ public enum V4L2 {
     static let quantizationFull: UInt32 = 1
     static let quantizationLimited: UInt32 = 2
 
-    /// The device nodes `/dev/video<N>`, in number order.
     public static func nodes(directory: String = "/dev") -> [String] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
         return names.compactMap { name -> (Int, String)? in
@@ -36,10 +22,6 @@ public enum V4L2 {
         }.sorted { $0.0 < $1.0 }.map(\.1)
     }
 
-    /// The capture devices (nodes with video capture and streaming; a UVC
-    /// camera's metadata node is left out), with their formats, sizes and
-    /// intervals. Nodes that cannot be opened are skipped; their errors
-    /// come back in `problems`.
     public static func devices(directory: String = "/dev") -> (devices: [CameraDevice], problems: [String]) {
         var devices: [CameraDevice] = [], problems: [String] = []
         for path in nodes(directory: directory) {
@@ -66,7 +48,6 @@ public enum V4L2 {
         }
     }
 
-    /// VIDIOC_ENUM_FMT, _FRAMESIZES, _FRAMEINTERVALS for one open node.
     static func formats(_ fd: Int32) -> [CameraFormatDescription] {
         var result: [CameraFormatDescription] = []
         var index: UInt32 = 0
@@ -82,7 +63,6 @@ public enum V4L2 {
         return result
     }
 
-    /// Common sizes offered from a stepwise or continuous range.
     static let commonSizes = [(160, 120), (320, 240), (352, 288), (640, 360), (640, 480), (800, 600), (960, 540),
                               (1024, 576), (1280, 720), (1280, 960), (1600, 900), (1920, 1080), (2560, 1440), (3840, 2160)]
 
@@ -121,7 +101,6 @@ public enum V4L2 {
             if type == 1 {
                 if v[0] > 0, v[1] > 0 { out.append(CameraFrameInterval(numerator: v[0], denominator: v[1])) }
             } else {
-                // Stepwise: the fastest and slowest ends, and 30 fps when inside.
                 let fastest = CameraFrameInterval(numerator: v[0], denominator: v[1])
                 let slowest = CameraFrameInterval(numerator: v[2], denominator: v[3])
                 out.append(fastest)
@@ -134,7 +113,6 @@ public enum V4L2 {
     }
 }
 
-/// Format negotiation (§3.2), a pure function of what the device offers.
 public enum CameraNegotiation {
     public struct Choice: Equatable, Sendable {
         public var format: CameraSourceFormat
@@ -142,14 +120,6 @@ public enum CameraNegotiation {
         public var interval: CameraFrameInterval
     }
 
-    /// The best (format, size, interval) for a request:
-    /// 1. size: the requested size; else the smallest size that covers it
-    ///    (both sides at least as large); else the largest smaller size;
-    /// 2. a format whose rate at that size reaches the request (within 5 %);
-    /// 3. format preference: NV12, YUYV, UYVY, YU12, YV12, then MJPEG;
-    /// 4. the faster rate.
-    /// The interval is the slowest one that still reaches the requested
-    /// rate, or the fastest when none does. Unsupported formats are skipped.
     public static func choose(_ formats: [CameraFormatDescription], width: Int, height: Int, framesPerSecond: Double,
                               only: CameraSourceFormat? = nil) -> Choice? {
         typealias Key = (Int, Int, Int, Int, Double)
@@ -180,7 +150,6 @@ public enum CameraNegotiation {
     }
 }
 
-/// An open, streaming V4L2 capture device.
 public final class V4L2Capture: CameraCapture, @unchecked Sendable {
     public let device: CameraDevice
     public private(set) var format: CameraStreamFormat
@@ -188,11 +157,8 @@ public final class V4L2Capture: CameraCapture, @unchecked Sendable {
     private var buffers: [(address: UnsafeMutableRawPointer, length: UInt32)] = []
     private var streaming = false
     private let path: String
-    /// Frames the driver flagged as corrupt or empty (skipped).
     public private(set) var corruptFrames = 0
 
-    /// Opens `device`, negotiates (§3.2), maps `bufferCount` buffers and
-    /// starts streaming.
     public init(device: CameraDevice, configuration: CameraConfiguration, bufferCount: Int = 4) throws {
         guard let path = device.path else { throw CameraError(.noDevice, "\(device.id) has no device node") }
         self.device = device
@@ -250,10 +216,6 @@ public final class V4L2Capture: CameraCapture, @unchecked Sendable {
 
     private var bytesPerLine = 0
 
-    /// The Y'CbCr encoding the driver reports (§4.1). JPEG is full range;
-    /// otherwise the driver's quantization and encoding, defaulting (as the
-    /// V4L2 colorspace rules do for sRGB-family sources) to video range and
-    /// BT.601, or BT.709 for the REC709 colorspace.
     static func colorimetry(_ f: ycam_format) -> CameraColorimetry {
         if f.pixelformat == CameraSourceFormat.mjpeg.rawValue || f.colorspace == V4L2.colorspaceJPEG {
             return .full601

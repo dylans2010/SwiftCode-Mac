@@ -1,15 +1,3 @@
-# SwiftLint configuration for swiftcode/, frameworks/ and composer/.
-# Run it with swiftcode/scripts/lint.sh (or `swiftlint lint` from the repository root).
-# Test directories carry a nested .swiftlint.yml that relaxes a few rules.
-#
-# The rules below are tuned to the existing house style. Size metrics and
-# naming rules are off: trap dispatchers are long switches by design, and ABI
-# mirrors use C names (mach_msg_header_t fields, x0, fd, k). The kept rules
-# catch real problems: forced casts and trys, redundant code, empty checks
-# spelled the slow way, unused bindings, and whitespace.
-
-# Only Swift packages are linted. The C, C++ and Metal sources under
-# swiftcode/Translator, swiftcode/SimShim, swiftcode/Native and the guest builds are not.
 included:
   - swiftcode/Package.swift
   - swiftcode/Sources
@@ -19,30 +7,22 @@ included:
   - composer/Package.swift
   - composer/Sources
   - composer/Tests
-
 excluded:
   - "**/.build"
   - swiftcode/.swiftpm
-  # Real project files read as test corpora.
   - swiftcode/Tests/SwiftCodeProjectTests/Fixtures
   - swiftcode/Tests/SwiftCodeWorkspaceTests/Fixtures
-  # Swift written by the packages' Scripts/ generators.
   - frameworks/healthkit/Sources/HealthKit/Generated
   - frameworks/homekit/Sources/HomeKit/Generated
   - frameworks/swiftui/Tests/OpenViewsTests/GoldenLayoutTests.swift
   - frameworks/swiftui/Tests/OpenViewsTests/GoldenSpacingTests.swift
   - frameworks/swiftui/Tests/OpenViewsTests/GoldenViewLayoutTests.swift
   - frameworks/swiftui/Tests/OpenViewsTests/Support/GoldenTextRuns.swift
-
 disabled_rules:
-  # Naming: ABI mirrors keep C names; math and register code uses k, fd, x0.
   - identifier_name
   - type_name
-  # Tables, wire layouts and one-line switch expressions run long on purpose.
   - line_length
-  # Both trailing-comma styles are in the tree; neither is a defect.
   - trailing_comma
-  # Size metrics: a tidy pass does not split functions or types.
   - cyclomatic_complexity
   - file_length
   - function_body_length
@@ -50,20 +30,12 @@ disabled_rules:
   - large_tuple
   - nesting
   - type_body_length
-  # House style: compact `if … { … }` lines followed by `else` on the next line,
-  # and one-line `switch` expressions.
   - statement_position
   - switch_case_alignment
-  # The suggested fix (String(bytes:encoding:)) returns nil on invalid UTF-8
-  # where String(decoding:as:) repairs it. That is a behavior change.
   - optional_data_string_conversion
-  # `class` members mirror overridable API shapes; `static` would make them final.
   - static_over_final_class
-  # Style only.
   - multiple_closures_with_trailing_closure
-  # "master" is the recurrence-series term in EventKit and an on-disk column name.
   - inclusive_language
-
 opt_in_rules:
   - array_init
   - contains_over_filter_count
@@ -85,15 +57,10 @@ opt_in_rules:
   - toggle_bool
   - unhandled_throwing_task
   - yoda_condition
-
 force_cast: error
 force_try: error
-
 redundant_discardable_let:
-  # `let _ = …` is how a view body runs a side effect.
   ignore_swiftui_view_bodies: true
-
 opening_brace:
-  # A wrapped signature or type header puts `{` on its own line.
   ignore_multiline_function_signatures: true
   ignore_multiline_type_headers: true

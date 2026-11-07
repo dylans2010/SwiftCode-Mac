@@ -1,27 +1,5 @@
-/*
- * nt_probe: the native-mode guest probe (specs/simulator/native-mode.md
- * section 8). Original SwiftCode code.
- *
- * A Darwin arm64 (iOS simulator platform) program that links only SwiftCode's
- * libsystem_kernel. It is built on macOS by build.sh in this directory and
- * run on arm64 Linux by ycnative (swiftcode/Native/runtime). It checks the
- * native-mode process contract (TSD base, errno through the TSD, the
- * commpage, the CPU-number register, library calls and raw svc #0x80
- * calls) and then times three kinds of call:
- *
- *   lib    getppid() through libsystem_kernel: its svc #0x80 was rewritten
- *          by the loader into a branch to the runtime (a function call);
- *   raw    an svc #0x80 in this program's own text, which the loader does
- *          not rewrite (as for code outside SwiftCode's libraries); it reaches
- *          the runtime through seccomp-bpf (SIGSYS) when that is enabled;
- *   clock  mach_absolute_time(), a Mach fast trap (-3) in the library.
- *
- * Exit status: 0 when every check passes, otherwise the number of the
- * first failed check (10..29).
- */
 #include <stdint.h>
 
-/* libsystem_kernel (Darwin names; no SDK headers are needed). */
 extern long write(int fd, const void *buf, unsigned long n);
 extern int getpid(void);
 extern int getppid(void);
@@ -31,7 +9,6 @@ extern uint64_t mach_absolute_time(void);
 struct nt_timebase { uint32_t numer, denom; };
 extern int mach_timebase_info(struct nt_timebase *info);
 
-/* ---- output without libc ------------------------------------------- */
 static char obuf[512];
 static unsigned olen;
 
@@ -68,7 +45,6 @@ static void put_x(uint64_t v)
     }
 }
 
-/* v is in tenths: prints "12.3". */
 static void put_d1(uint64_t v)
 {
     put_u(v / 10);
@@ -82,7 +58,6 @@ static void flush(void)
     olen = 0;
 }
 
-/* ---- direct register and trap access ------------------------------- */
 static inline uint64_t read_tpidrro(void)
 {
     uint64_t v;
@@ -97,7 +72,6 @@ static inline uint64_t read_tpidr(void)
     return v;
 }
 
-/* BSD 39 (getppid) issued from this program's own text. */
 static inline long raw_getppid(void)
 {
     register long x16 __asm__("x16") = 39;
@@ -106,7 +80,6 @@ static inline long raw_getppid(void)
     return x0;
 }
 
-/* BSD 9999 from this program's own text: carry set, x0 = ENOSYS (78). */
 static inline int raw_enosys(long *err)
 {
     register long x16 __asm__("x16") = 9999;
@@ -142,7 +115,6 @@ int main(int argc, char **argv, char **envp, char **apple)
     long rawIters = 100000;
     for (char **a = apple; a && *a; a++) {
         const char *s = *a;
-        /* "ycn_raw=0": the runtime has no seccomp path; skip raw calls. */
         if (s[0] == 'y' && s[1] == 'c' && s[2] == 'n' && s[3] == '_' && s[4] == 'r' && s[5] == 'a' &&
             s[6] == 'w' && s[7] == '=' && s[8] == '0')
             rawIters = 0;
@@ -150,40 +122,31 @@ int main(int argc, char **argv, char **envp, char **apple)
             quick = 1;
     }
 
-    /* 10: TSD base (TPIDRRO_EL0 as Darwin code reads it) points at slot 0,
-     * and slot 0 holds the pthread_t, which is the base minus 224. */
     uint64_t tsd = read_tpidrro();
     CHECK(tsd != 0 && (tsd & 15) == 0, 10);
     CHECK(((uint64_t *)tsd)[0] == tsd - 224, 11);
 
-    /* 12: the CPU-number register reads as a small CPU index. */
     CHECK((read_tpidr() & 0xFFF) < 256, 12);
 
-    /* 13: the commpage signature at 0xF_FFFF_C000. */
     const char *cp = (const char *)0xFFFFFC000ull;
     CHECK(cp[0] == 'c' && cp[1] == 'o' && cp[8] == '6' && cp[9] == '4', 13);
-    /* 14: the page shift fields say 16 KiB. */
     CHECK(cp[0x25] == 14, 14);
 
-    /* 15-16: library calls. */
     int pid = getpid();
     CHECK(pid > 0, 15);
     int ppid = getppid();
     CHECK(ppid > 0, 16);
 
-    /* 17-18: errno through TSD slot 1 (close(-1) is EBADF = 9). */
     CHECK(close(-1) == -1, 17);
     CHECK(*__error() == 9, 18);
     CHECK(__error() == (int *)((uint64_t *)tsd)[1], 19);
 
-    /* 20-21: time. */
     struct nt_timebase tb = { 0, 0 };
     CHECK(mach_timebase_info(&tb) == 0 && tb.numer && tb.denom, 20);
     uint64_t t0 = mach_absolute_time();
     uint64_t t1 = mach_absolute_time();
     CHECK(t0 && t1 >= t0, 21);
 
-    /* 22-23: raw svc from this program's text. */
     if (rawIters) {
         CHECK(raw_getppid() == ppid, 22);
         long err = 0;
@@ -203,7 +166,6 @@ int main(int argc, char **argv, char **envp, char **apple)
     put_s(")\n");
     flush();
 
-    /* ---- timing ---- */
     long libIters = quick ? 100000 : 2000000;
     long clockIters = quick ? 100000 : 2000000;
     if (quick && rawIters)

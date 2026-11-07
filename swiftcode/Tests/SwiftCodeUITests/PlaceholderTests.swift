@@ -42,18 +42,14 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(ns().substring(with: tv.selectedRange()) == "<#rhs#>")
         tv.keyDown(with: key(48, "\t", shift: true))
         #expect(ns().substring(with: tv.selectedRange()) == "<#lhs#>")
-        // Delimiters are hidden; the token text keeps the editor font.
         let attrs = tv.textStorage!.attributes(at: 12, effectiveRange: nil)
         #expect((attrs[.foregroundColor] as? NSColor) == .clear)
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "editor-placeholders.png")
-        // Return accepts the selected token's text.
         tv.keyDown(with: key(36, "\r"))
         #expect(tv.string == "let v = add(lhs, <#rhs#>)\n")
-        // Typing replaces a selected token.
         tv.keyDown(with: key(48, "\t"))
         tv.insertText("2", replacementRange: tv.selectedRange())
         #expect(tv.string == "let v = add(lhs, 2)\n")
-        // No placeholders left: Tab inserts a tab.
         tv.setSelectedRange(NSRange(location: 0, length: 0))
         #expect(!wc.editor.selectPlaceholder())
     }

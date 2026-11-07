@@ -1,20 +1,13 @@
 import Foundation
 
-/// A small least-recently-used cache of suggestions by the text around the
-/// caret (predictive-completion.md §4.4). Besides exact hits, a prefix that
-/// extends a cached one by text the cached suggestion starts with returns
-/// the rest of that suggestion (typing through, then deleting back, then
-/// typing again costs no request).
 public struct SuggestionCache: Sendable {
     public struct Key: Hashable, Sendable {
         public var prefixTail: String
         public var suffixHead: String
-        /// Backend, address and model: suggestions do not cross servers.
         public var source: String
     }
 
     public let capacity: Int
-    /// The characters of each side that make up a key.
     public let prefixWindow: Int
     public let suffixWindow: Int
     private var entries: [Key: String] = [:]
@@ -40,8 +33,6 @@ public struct SuggestionCache: Sendable {
         while order.count > capacity { entries[order.removeFirst()] = nil }
     }
 
-    /// The suggestion for `c`: an exact hit, or the rest of a cached
-    /// suggestion the newer prefix has typed into.
     public mutating func lookup(_ c: CompletionContext, source: String) -> String? {
         let k = key(c, source: source)
         if let s = entries[k] {

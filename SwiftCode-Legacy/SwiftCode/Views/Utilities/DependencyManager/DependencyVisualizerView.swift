@@ -10,7 +10,6 @@ struct DependencyVisualizerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Info Header Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -28,7 +27,6 @@ struct DependencyVisualizerView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Graph Map Canvas Card
                 GroupBox {
                     VStack(spacing: 12) {
                         HStack {
@@ -50,7 +48,6 @@ struct DependencyVisualizerView: View {
                         } else {
                             ScrollView([.horizontal, .vertical], showsIndicators: true) {
                                 VStack(spacing: 32) {
-                                    // Root Node (Active Project)
                                     VStack(spacing: 6) {
                                         Image(systemName: "folder.badge.gearshape")
                                             .font(.title2)
@@ -119,7 +116,6 @@ struct DependencyVisualizerView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Details Inspector Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Dependency Details", systemImage: "doc.text.magnifyingglass")

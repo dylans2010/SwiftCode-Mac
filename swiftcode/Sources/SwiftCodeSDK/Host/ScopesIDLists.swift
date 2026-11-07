@@ -1,21 +1,8 @@
 import Foundation
 import SwiftCodeExtensions
 
-// MARK: - ScopesIDLists
-//
-// Ported from Legacy `SwiftCode/SDK/Host/ScopesIDLists.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The fixed scope list: every capability an extension can request,
-// whether it opens a view or calls an API. 32 entries — NOT 35:
-// `use.Security` and `assist.main` are umbrella/entitlement surfaces,
-// not separately requestable scopes. Keep this list in sync with the
-// TypeScript `ScopesIDLists.ts` in the SDK distribution.
-
 public enum ScopeKind: String, Sendable, Codable {
-    /// Opens a host view through `ui.openView`.
     case view
-    /// Calls an IPC method.
     case api
 }
 
@@ -40,7 +27,6 @@ public struct ScopeEntry: Sendable {
 }
 
 public enum ScopesIDLists {
-    /// All scopes, in registry order.
     public static let all: [ScopeEntry] = [
         ScopeEntry(id: "project.read", title: "Project metadata", description: "Read basic facts about the active project.", kind: .api, ipcMethod: nil, capabilityId: .projectRead),
         ScopeEntry(id: "workspace.read", title: "Workspace file reading", description: "Read files inside the approved workspace scope.", kind: .api, capabilityId: .workspaceRead),
@@ -78,9 +64,6 @@ public enum ScopesIDLists {
 
     public static let byId: [String: ScopeEntry] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
 
-    /// Opens a view scope, or throws for an API scope / unknown scope.
-    /// View scopes open through the view-opener registry; API scopes are
-    /// not "openable" — they are authorized per call by the broker.
     public static func openScope(id: String) async throws {
         guard let entry = byId[id] else {
             throw SDKError(code: .unknownCapability, message: "Unknown scope: \(id).")

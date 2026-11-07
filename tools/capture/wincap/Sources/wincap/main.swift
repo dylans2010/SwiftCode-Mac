@@ -1,33 +1,3 @@
-// wincap: capture one window, or one app's windows, with ScreenCaptureKit.
-//
-//   wincap check
-//   wincap list   [--bundle ID | --pid N]
-//   wincap still  TARGET -o out.png
-//   wincap record TARGET -o out.mov [--duration S] [--fps N] [--codec C]
-//
-// TARGET is --bundle ID or --pid N, optionally narrowed by --window-id W or
-// --title TEXT (substring). Without either, the frontmost on-screen normal
-// window of the app is used. Nothing outside the chosen window (or, with --mode app, outside
-// that app's windows) is captured: the window does not need to be frontmost.
-//
-// Other options:
-//   --mode window|app   window (default): that window alone, with its sheets
-//                       and child windows. app: every window of that app (so
-//                       menus and popovers too) inside the chosen window's
-//                       frame plus --margin points; other apps are not drawn.
-//   --margin PT         extra points around the window in app mode (default 0)
-//   --shadow            keep the window shadow (window mode)
-//   --cursor            draw the pointer
-//   --colorspace srgb|p3    (default srgb)
-//   --fps N             frame rate cap for record (default 60)
-//   --codec prores4444|prores422hq|hevc|h264    (default prores4444)
-//   --duration S        stop after S seconds; otherwise SIGINT or SIGTERM stops
-//
-// record prints JSON lines on stdout ("ready", "first_frame", "done") and
-// writes OUT.json next to the video: the window, the scale, the display
-// refresh rate and each written frame's time (relative and wall clock).
-// Exit status 3 means Screen Recording permission is missing.
-
 import AppKit
 import AVFoundation
 import CoreMedia
@@ -36,8 +6,6 @@ import Foundation
 import ImageIO
 import ScreenCaptureKit
 import UniformTypeIdentifiers
-
-// MARK: - Options
 
 struct Options {
     var command = ""
@@ -100,8 +68,6 @@ func parse(_ args: [String]) -> Options {
     return o
 }
 
-// MARK: - Output
-
 let outputLock = NSLock()
 func emit(_ object: [String: Any]) {
     outputLock.lock(); defer { outputLock.unlock() }
@@ -118,9 +84,6 @@ func rectArray(_ r: CGRect) -> [Double] {
     [Double(r.origin.x), Double(r.origin.y), Double(r.width), Double(r.height)]
 }
 
-// MARK: - Permission
-
-/// The executable path and parent of a process, from the kernel.
 func processInfo(_ pid: pid_t) -> (path: String, parent: pid_t)? {
     var info = kinfo_proc()
     var size = MemoryLayout<kinfo_proc>.stride
@@ -132,9 +95,6 @@ func processInfo(_ pid: pid_t) -> (path: String, parent: pid_t)? {
     return (path, info.kp_eproc.e_ppid)
 }
 
-/// The chain of processes from this one up to launchd. macOS attributes the
-/// permission to the "responsible" app in this chain, usually the terminal or
-/// agent host that started us, not to wincap itself.
 func ancestry() -> [String] {
     var chain: [String] = []
     var pid = getpid()
@@ -155,12 +115,10 @@ func permissionReport() -> [String: Any] {
     ]
 }
 
-// MARK: - Window lookup
-
 struct Target {
     let window: SCWindow
     let filter: SCContentFilter
-    let captureRect: CGRect   // points: content rect (window mode) or source rect (app mode)
+    let captureRect: CGRect
     let scale: CGFloat
     let display: SCDisplay?
 }
@@ -185,7 +143,6 @@ func matches(_ w: SCWindow, _ o: Options) -> Bool {
     return w.windowLayer == 0
 }
 
-/// Front-to-back position of each on-screen window (0 = frontmost).
 let zOrder: [CGWindowID: Int] = {
     let list = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]) ?? []
     var order: [CGWindowID: Int] = [:]
@@ -213,7 +170,6 @@ func windowJSON(_ w: SCWindow) -> [String: Any] {
 func resolve(_ o: Options) async -> Target {
     guard o.bundle != nil || o.pid != nil || o.windowID != nil else { fail("give --bundle, --pid or --window-id") }
     let content = await shareableContent()
-    // On-screen first, then the frontmost, then the largest.
     let candidates = content.windows.filter { matches($0, o) }.sorted {
         if $0.isOnScreen != $1.isOnScreen { return $0.isOnScreen }
         let za = zOrder[$0.windowID] ?? Int.max, zb = zOrder[$1.windowID] ?? Int.max
@@ -288,8 +244,6 @@ func describe(_ t: Target, _ o: Options, _ c: SCStreamConfiguration) -> [String:
     ]
 }
 
-// MARK: - Still
-
 func still(_ o: Options) async {
     guard let out = o.output else { fail("still needs -o out.png") }
     let t = await resolve(o)
@@ -315,15 +269,12 @@ func still(_ o: Options) async {
     emit(["event": "still", "file": out, "size_px": [image.width, image.height], "pixel_scale": Double(t.scale)])
 }
 
-// MARK: - Record
-
 func hostSeconds() -> Double { CMClockGetTime(CMClockGetHostTimeClock()).seconds }
 
 final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     let writer: AVAssetWriter
     let input: AVAssetWriterInput
     let queue = DispatchQueue(label: "wincap.frames")
-    /// wall clock = host clock + offset
     let wallOffset = Date().timeIntervalSince1970 - hostSeconds()
     var firstPTS: CMTime?
     var frames: [[String: Double]] = []
@@ -369,7 +320,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 as? [[SCStreamFrameInfo: Any]],
               let raw = attachments.first?[.status] as? Int,
               SCFrameStatus(rawValue: raw) == .complete else {
-            skipped += 1   // idle (unchanged), blank or suspended frames carry no new image
+            skipped += 1
             return
         }
         let pts = CMSampleBufferGetPresentationTimeStamp(buffer)
@@ -393,13 +344,12 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     func finish() async {
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
-            queue.async { k.resume() }   // drain frames already queued
+            queue.async { k.resume() }
         }
         if firstPTS == nil {
             writer.cancelWriting()
             return
         }
-        // Make the last frame last until now, so a static end state has a duration.
         let end = CMTime(seconds: hostSeconds(), preferredTimescale: 1_000_000)
         input.markAsFinished()
         writer.endSession(atSourceTime: max(end, firstPTS! + CMTime(value: 1, timescale: 600)))
@@ -428,7 +378,6 @@ func record(_ o: Options) async {
     emit(["event": "ready", "wall": startWall, "size_px": [c.width, c.height], "pixel_scale": Double(t.scale),
           "window": windowJSON(t.window)])
 
-    // Stop on duration, SIGINT, SIGTERM or end of stdin, whichever comes first.
     let stopSignal = AsyncStream<String> { continuation in
         for sig in [SIGINT, SIGTERM] {
             signal(sig, SIG_IGN)
@@ -468,8 +417,6 @@ func record(_ o: Options) async {
 
 nonisolated(unsafe) var _signalSources: [DispatchSourceSignal] = []
 
-// MARK: - List and check
-
 func list(_ o: Options) async {
     let content = await shareableContent()
     let windows = content.windows.filter { w in
@@ -484,7 +431,6 @@ func list(_ o: Options) async {
 
 func check() async {
     var report = permissionReport()
-    // The preflight can be stale; asking for the window list is the real test.
     do {
         _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         report["screencapturekit"] = "ok"
@@ -496,9 +442,6 @@ func check() async {
     if (report["screen_recording"] as? Bool) != true { exit(3) }
 }
 
-// MARK: - Main
-
-// A connection to the window server; also keeps any Dock icon away.
 NSApplication.shared.setActivationPolicy(.prohibited)
 let options = parse(Array(CommandLine.arguments.dropFirst()))
 Task {

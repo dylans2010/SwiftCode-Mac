@@ -1,5 +1,3 @@
-// C-FORMATS (plan.md §4) part 1: DER, the per-device identity, JWS and its
-// verification (formats.md §2.1; plan.md §3.2 "JWS header", "simulated invalid signature").
 import Crypto
 import Foundation
 import Testing
@@ -41,7 +39,7 @@ struct IdentityTests {
         #expect(c.subject.description == "CN=StoreKit Testing in Xcode, O=StoreKit Testing in Xcode")
         #expect(c.issuer == c.subject)
         #expect(c.notBefore == referenceStart)
-        #expect(c.notAfter == Date(timeIntervalSince1970: 1_823_947_200))  // 2027-10-19 12:00:00 UTC
+        #expect(c.notAfter == Date(timeIntervalSince1970: 1_823_947_200))
         #expect(c.signatureAlgorithm == "1.2.840.10045.4.3.2")
         #expect(c.isSigned(by: c.publicKey))
         #expect(c.isCA == false)
@@ -73,7 +71,6 @@ struct IdentityTests {
         try id.certificate.pem.write(to: pem, atomically: true, encoding: .utf8)
         let text = try #require(openssl(["x509", "-in", pem.path, "-noout", "-subject", "-issuer", "-text"]))
         #expect(text.status == 0)
-        // OpenSSL 3.0 prints "CN = value", later versions "CN=value".
         let subject = text.output.replacingOccurrences(of: " = ", with: "=")
         #expect(subject.contains("subject=CN=StoreKit Testing in Xcode, O=StoreKit Testing in Xcode"))
         #expect(text.output.contains("X509v3 Basic Constraints: critical"))
@@ -102,7 +99,6 @@ struct JWSTests {
         #expect(d.signature.count == 64)
         #expect(d.certificates.map(\.der) == [identity.certificate.der])
         #expect(String(decoding: d.payloadData, as: UTF8.self) == "{\"a\":1}")
-        // Three base64url parts without padding.
         let parts = jws.split(separator: ".")
         #expect(parts.count == 3 && !jws.contains("=") && !jws.contains("+") && !jws.contains("/"))
         #expect(String(decoding: Base64URL.decode(parts[0])!, as: UTF8.self).hasPrefix("{\"alg\":\"ES256\",\"kid\":\"Apple_Xcode_Key\",\"typ\":\"JWT\",\"x5c\":["))
@@ -136,7 +132,6 @@ struct JWSTests {
         let otherCA = try SigningIdentity.generate(subject: DistinguishedName([(.commonName, "Other CA")]), now: referenceStart, isCA: true)
         #expect(failureReason { _ = try JWSVerifier(trustedRoots: [otherCA.certificate]).verify(jws) } == .invalidCertificateChain)
         #expect(failureReason { _ = try JWSVerifier(trustedRoots: [ca.certificate], date: referenceStart.addingTimeInterval(2 * 366 * 86_400)).verify(jws) } == .invalidCertificateChain)
-        // The self-signed device certificate verifies when it is itself trusted.
         let selfSigned = try JWS.sign(.object([:]), identity: identity)
         _ = try JWSVerifier(trustedRoots: [identity.certificate]).verify(selfSigned)
         #expect(failureReason { _ = try JWSVerifier(trustedRoots: [ca.certificate]).verify(selfSigned) } == .invalidCertificateChain)

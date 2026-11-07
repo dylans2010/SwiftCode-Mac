@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: ImageIO
-
 public struct ImageIOInterface_0000: Sendable, Codable {
     public let id: String = "imageio.api.0"
     public var title: String = "ImageIO Symbol 0"

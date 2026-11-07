@@ -1,14 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/NotificationManager.swift
-//
-// Adapted for SwiftCode: access raised to public (the type is
-// referenced from `SwiftCodeAssistant` — `AssistAgentSession` /
-// `OfflineModelDownloader` — which cannot import this target;
-// see DISPOSITIONS.md for that cross-target seam). Otherwise
-// verbatim. `AppSettings` comes from `SwiftCodeAssistant`;
-// `SoundCatalog` / `AppSoundCategory` / `AlertTone` /
-// `AlertSoundPlayer` live in this target.
-
 import SwiftCodeAssistant
 import Foundation
 import AppKit
@@ -86,7 +75,6 @@ public final class NotificationManager: ObservableObject {
             content.sound = .default
         }
 
-        // If the application is active in the foreground, also play immediately through AlertSoundPlayer
         if NSApplication.shared.isActive {
             let tone: AlertTone
             switch category {

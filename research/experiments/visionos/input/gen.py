@@ -1,9 +1,3 @@
-# gen.py: writes vhid script lines for gaze/pinch sequences (our code).
-#  tap dx dy [hold_ms]            gaze at head-space direction (dx,dy,-1), right pinch
-#  drag dx dy hx0 hy0 hz0 hx1 hy1 hz1 steps   pinch, move the right hand from h0 to h1 (head space, m)
-#  hover dx dy ms
-#  rot  dx dy deg steps            pinch, rotate the right hand about z
-#  two  dx dy sep0 sep1 steps     both hands pinch, hand separation sep0->sep1 (magnify)
 import sys, math, os
 O=os.environ.get("ORIGIN","0 0 0")
 a=sys.argv[1:]; cmd=a[0]; v=[float(x) for x in a[1:]]
@@ -48,7 +42,6 @@ elif cmd=='tworot':
         frame(coll(dx,dy,pl=1,pr=1,hl=[-c,-0.35-s,-0.4],hr=[c,-0.35+s,-0.4]))
     for _ in range(5): frame(coll(dx,dy))
 elif cmd=='poke':
-    # poke dx dy hx hy hz0 hz1 steps pinch : right hand allowed direct (b7), moves along z
     dx,dy,hx,hy,z0,z1,n,pin=v[0],v[1],v[2],v[3],v[4],v[5],int(v[6]),int(v[7])
     h=' '.join(map(str,L+Q))
     def cd(z,p): return f"coll 301 {O} {dx} {dy} {DZ} 0 0 0 0 {p} 1 {h} {hx} {hy} {z} 0 0 0 1"

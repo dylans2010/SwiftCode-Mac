@@ -1,15 +1,5 @@
 import Foundation
 
-// MARK: - Extensions v2 core models
-//
-// All Extensions v2 types carry the `ExtV2` prefix on purpose: the app
-// already has a legacy `ExtensionManager` / `ExtensionManifest` pair in
-// `SwiftCode/Services` and a second `ExtensionManifest` in `SwiftCode/SDK`.
-// Prefixing keeps the new platform unambiguous and avoids silent overloads.
-
-/// A stable extension identity. The `publisher.name` string is the lookup
-/// key everywhere (UI, storage, host, Assist); display names are never
-/// used as keys because two publishers may ship the same display name.
 public struct ExtV2Identity: Codable, Hashable, Sendable, CustomStringConvertible {
     public let publisher: String
     public let name: String
@@ -22,7 +12,6 @@ public struct ExtV2Identity: Codable, Hashable, Sendable, CustomStringConvertibl
         self.name = name
     }
 
-    /// Parses `publisher.name`. Returns nil when there is no publisher part.
     public init?(id: String) {
         guard let dot = id.firstIndex(of: ".") else { return nil }
         let publisher = String(id[..<dot])
@@ -33,8 +22,6 @@ public struct ExtV2Identity: Codable, Hashable, Sendable, CustomStringConvertibl
     }
 }
 
-/// Which runtime an extension belongs to. These are three distinct
-/// ecosystems, not three labels for the same thing (see Docs/Extensions-v2.md).
 public enum ExtV2Kind: String, Codable, Sendable, CaseIterable {
     case vscode
     case native
@@ -49,8 +36,6 @@ public enum ExtV2Kind: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// Lifecycle state, always derived from the authoritative manager/storage,
-/// never guessed by a view.
 public enum ExtV2State: String, Codable, Sendable, CaseIterable {
     case notInstalled
     case installed
@@ -79,9 +64,6 @@ public enum ExtV2State: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// A capability an extension may declare. A prompt is not a sandbox:
-/// capabilities gate what the bridges will actually do, and revocation
-/// takes effect on the next call (see ExtV2PermissionManager).
 public enum ExtV2Capability: String, Codable, Sendable, CaseIterable {
     case workspaceRead
     case workspaceWrite
@@ -114,9 +96,6 @@ public enum ExtV2Capability: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// Registry / local metadata. Download counts and ratings are deliberately
-/// absent: they are not part of the compatibility contract and must never
-/// be fabricated when a registry does not report them.
 public struct ExtV2ExtensionMetadata: Codable, Hashable, Sendable, Identifiable {
     public let publisher: String
     public let name: String
@@ -155,7 +134,6 @@ public struct ExtV2ExtensionMetadata: Codable, Hashable, Sendable, Identifiable 
     }
 }
 
-/// One installed extension, as persisted by ExtV2Storage.
 public struct ExtV2InstalledExtension: Codable, Hashable, Sendable, Identifiable {
     public let metadata: ExtV2ExtensionMetadata
     public var isEnabled: Bool
@@ -186,16 +164,12 @@ public struct ExtV2InstalledExtension: Codable, Hashable, Sendable, Identifiable
     }
 }
 
-/// An available update, computed by comparing registry metadata against the
-/// installed record — never assumed from a search listing alone.
 public struct ExtV2UpdateInfo: Hashable, Sendable, Identifiable {
     public let installed: ExtV2InstalledExtension
     public let latest: ExtV2ExtensionMetadata
     public var id: String { installed.id }
 }
 
-/// Errors surfaced to the UI. Every case carries a human-readable message;
-/// no error is ever a bare success or a swallowed failure.
 public enum ExtV2Error: Error, LocalizedError, Sendable {
     case notInstalled(String)
     case disabled(String)

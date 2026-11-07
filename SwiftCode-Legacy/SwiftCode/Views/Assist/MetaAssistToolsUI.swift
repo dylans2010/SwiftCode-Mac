@@ -1,19 +1,6 @@
-//
-//  MetaAssistToolsUI.swift
-//  SwiftCode
-//
-//  Small card-based Thinking UI for "Assist with Meta" / Muse turns.
-//  Displays thought process, live reasoning metrics, and plans what tools
-//  to use when thinking as an interactive planned-tools roadmap card.
-//
-
 import SwiftUI
 import AppKit
 
-// MARK: - Legacy MetaAssistToolsUI Adapter
-
-/// Backward-compatible wrapper that directs tool execution rendering to
-/// `MuseCallsNativeToolsUI` (now the default tool execution UI).
 public struct MetaAssistToolsUI: View {
     public let activityGroup: AssistActivityGroup
 
@@ -26,10 +13,6 @@ public struct MetaAssistToolsUI: View {
     }
 }
 
-// MARK: - Small Card-Based Thinking UI
-
-/// Small card-based Thinking UI that presents the model's reasoning process,
-/// streaming state, duration, and extracts a planned-tools roadmap based on thinking content.
 public struct MetaAssistThinkingUI: View {
     public let thinkingContent: String
     public let duration: TimeInterval?
@@ -51,16 +34,13 @@ public struct MetaAssistThinkingUI: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Small Card Container
             VStack(alignment: .leading, spacing: 0) {
-                // Header Bar (Collapsible Button)
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         isOpen.toggle()
                     }
                 } label: {
                     HStack(spacing: 7) {
-                        // Thinking Icon
                         if isStreaming {
                             ProgressView()
                                 .scaleEffect(0.4)
@@ -72,7 +52,6 @@ public struct MetaAssistThinkingUI: View {
                                 .frame(width: 14, height: 14)
                         }
 
-                        // Title
                         Text(headerTitle)
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .foregroundStyle(isStreaming ? Color.accentColor : Color.primary.opacity(0.85))
@@ -85,7 +64,6 @@ public struct MetaAssistThinkingUI: View {
 
                         Spacer()
 
-                        // Planned Tools Count Badge
                         let planned = plannedTools
                         if !planned.isEmpty {
                             HStack(spacing: 4) {
@@ -100,7 +78,6 @@ public struct MetaAssistThinkingUI: View {
                             .foregroundStyle(Color.purple)
                         }
 
-                        // Chevron
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.tertiary)
@@ -112,13 +89,11 @@ public struct MetaAssistThinkingUI: View {
                 }
                 .buttonStyle(.plain)
 
-                // Expanded Card Content
                 if isOpen {
                     VStack(alignment: .leading, spacing: 8) {
                         Divider()
                             .opacity(0.35)
 
-                        // 1. Planned Tools Roadmap (What tools to use when thinking)
                         let planned = plannedTools
                         if !planned.isEmpty {
                             VStack(alignment: .leading, spacing: 4) {
@@ -161,7 +136,6 @@ public struct MetaAssistThinkingUI: View {
                             .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
                         }
 
-                        // 2. Action Buttons (Expand & Copy)
                         HStack {
                             Text("REASONING STREAM")
                                 .font(.system(size: 9, weight: .bold, design: .monospaced))
@@ -209,7 +183,6 @@ public struct MetaAssistThinkingUI: View {
                             .buttonStyle(.plain)
                         }
 
-                        // 3. Scrollable Thinking Content
                         ScrollView([.horizontal, .vertical], showsIndicators: true) {
                             Text(thinkingContent)
                                 .font(.system(size: 11, design: .monospaced))
@@ -243,8 +216,6 @@ public struct MetaAssistThinkingUI: View {
         return "Thought Process & Tool Plan"
     }
 
-    // MARK: - Plan What Tools to Use When Thinking
-
     public struct PlannedToolInfo: Identifiable {
         public let id = UUID()
         public let name: String
@@ -256,7 +227,6 @@ public struct MetaAssistThinkingUI: View {
         var items: [PlannedToolInfo] = []
         let lower = thinkingContent.lowercased()
 
-        // Analyze reasoning text for tool intents
         if lower.contains("worker") || lower.contains("subagent") || lower.contains("parallel") || lower.contains("decompose") {
             items.append(PlannedToolInfo(name: "Coordinate Workers", icon: "person.3.sequence.fill", toolId: "use_workers"))
         }

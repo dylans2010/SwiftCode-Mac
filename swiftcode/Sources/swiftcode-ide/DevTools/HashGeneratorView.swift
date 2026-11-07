@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(CryptoKit)
 import SwiftUI
 import CryptoKit
@@ -36,14 +33,12 @@ struct HashGeneratorView: View {
             }
             .padding()
         }
-        
+
         .navigationTitle("Hash Generator")
     }
 
     func generateHashes() {
         let data = Data(inputText.utf8)
-
-        // MD5 and SHA-1 come from CryptoKit's Insecure namespace; all four digests below are real.
 
         sha256Hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         sha512Hash = SHA512.hash(data: data).map { String(format: "%02x", $0) }.joined()

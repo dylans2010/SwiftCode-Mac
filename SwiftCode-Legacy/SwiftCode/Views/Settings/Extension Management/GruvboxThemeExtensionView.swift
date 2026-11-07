@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Gruvbox Theme Extension View
 struct GruvboxThemeExtensionView: View {
     @State private var isActive = false
     @State private var contrast = "medium"

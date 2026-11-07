@@ -1,14 +1,3 @@
-// A directory as a byte stream (sim-link.md §6.2): how an app bundle built
-// on the client reaches the host. Entries, depth first:
-//
-//   u8 kind (1 directory, 2 file, 3 symbolic link, 0 end), u16 path length,
-//   path (UTF-8, relative, "/"-separated), u32 mode, u64 size, size bytes
-//   (a file's contents, a link's target)
-//
-// little-endian. The reader refuses absolute paths, "..", empty components
-// and link targets that leave the tree, so an archive cannot write outside
-// its destination.
-
 import Foundation
 
 public enum DirectoryArchive {
@@ -16,7 +5,6 @@ public enum DirectoryArchive {
 
     static func le(_ v: UInt64, _ n: Int) -> [UInt8] { (0..<n).map { UInt8(truncatingIfNeeded: v >> (8 * UInt64($0))) } }
 
-    /// Writes `root`'s tree through `emit` (chunks of at most 1 MiB).
     public static func write(_ root: URL, emit: ([UInt8]) throws -> Void) throws {
         let fm = FileManager.default
         func entry(_ kind: UInt8, _ path: String, _ mode: Int, _ body: [UInt8]) throws {
@@ -53,7 +41,6 @@ public enum DirectoryArchive {
         try emit([0])
     }
 
-    /// The archive of a directory as one array (tests, small trees).
     public static func bytes(of root: URL) throws -> [UInt8] {
         var out: [UInt8] = []
         try write(root) { out += $0 }
@@ -65,8 +52,6 @@ public enum DirectoryArchive {
         return !path.split(separator: "/", omittingEmptySubsequences: false).contains { $0.isEmpty || $0 == ".." || $0 == "." }
     }
 
-    /// Reads an archive into `destination` (created; must not exist).
-    /// `read(n)` returns exactly n bytes or nil. Returns the bytes read.
     @discardableResult
     public static func extract(into destination: URL, limit: Int = 4 << 30, read: (Int) -> [UInt8]?) throws -> Int {
         let fm = FileManager.default
@@ -105,7 +90,6 @@ public enum DirectoryArchive {
                 try h.close()
             case 3:
                 guard let target = String(bytes: try take(size), encoding: .utf8) else { throw Failure(description: "bad link") }
-                // The target, resolved from the link's directory, must stay inside the tree.
                 let base = path.split(separator: "/").dropLast().map(String.init)
                 var parts = target.hasPrefix("/") ? ["/"] : base
                 for c in target.split(separator: "/") {

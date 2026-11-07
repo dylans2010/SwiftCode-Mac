@@ -1,8 +1,3 @@
-//
-//  AssistSwiftDataSchemaAuditorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistSwiftDataSchemaAuditorTool: AssistTool {

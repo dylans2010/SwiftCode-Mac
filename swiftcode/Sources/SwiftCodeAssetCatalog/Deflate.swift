@@ -1,7 +1,5 @@
 import Foundation
 
-/// zlib streams (RFC 1950) with DEFLATE data (RFC 1951), for PNG. Portable
-/// Swift, so PNG reading and writing work the same on Linux and macOS.
 enum Zlib {
     struct DecodeError: Error, CustomStringConvertible {
         var message: String
@@ -30,8 +28,6 @@ enum Zlib {
         return try Inflate.inflate(b, from: 2)
     }
 
-    /// Fixed-Huffman DEFLATE with a greedy LZ77 matcher (level "fast"), or
-    /// stored blocks when that is smaller.
     static func compress(_ input: [UInt8]) -> [UInt8] {
         var out: [UInt8] = [0x78, 0x5E]
         let fixed = Deflate.fixedHuffman(input)
@@ -193,7 +189,6 @@ enum Deflate {
                 cnt -= 8
             }
         }
-        /// Huffman codes go most-significant bit first.
         mutating func code(_ c: UInt32, _ n: Int) {
             var r: UInt32 = 0
             for k in 0..<n { r |= ((c >> UInt32(k)) & 1) << UInt32(n - 1 - k) }
@@ -218,8 +213,8 @@ enum Deflate {
     static func fixedHuffman(_ input: [UInt8]) -> [UInt8] {
         var w = BitWriter()
         w.out.reserveCapacity(input.count / 2 + 16)
-        w.put(1, 1)   // last block
-        w.put(1, 2)   // fixed Huffman
+        w.put(1, 1)
+        w.put(1, 2)
         let n = input.count
         var table = [Int32](repeating: -1, count: 1 << 15)
         var i = 0
@@ -258,7 +253,6 @@ enum Deflate {
     }
 }
 
-/// CRC-32 (ISO-HDLC), for PNG chunks.
 enum CRC32 {
     static let table: [UInt32] = (0..<256).map { n -> UInt32 in
         var c = UInt32(n)

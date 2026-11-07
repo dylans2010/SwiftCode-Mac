@@ -1,6 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Menu Bar/NSPushView.swift
-//
 import SwiftUI
 import SwiftCodeIDECore
 

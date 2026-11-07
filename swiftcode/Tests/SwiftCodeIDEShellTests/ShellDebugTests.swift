@@ -5,9 +5,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// A debug adapter that answers in the DAP specification's shapes: one
-/// thread stopped in `main.swift` at line 2 (breakpoint 1), a local Int
-/// and a struct with two fields, a step to line 3, then the exit.
 final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
     let file: String
     private var receiving: (@Sendable (Data?) -> Void)?
@@ -90,8 +87,6 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(condition(), "timed out waiting for \(what)")
     }
 
-    // MARK: Gutter and Breakpoint navigator
-
     @Test func gutterClicksAddDisableAndDragBreakpoints() throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -99,16 +94,13 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         let main = pkg.path("Sources/Demo/main.swift")
         m.debug.gutterClick(file: main, line: 2)
         #expect(m.debug.marks(for: main).breakpoints[2] == .init(isEnabled: true, isCustomized: false))
-        // A second click disables it; a third enables it again.
         m.debug.gutterClick(file: main, line: 2)
         #expect(m.debug.marks(for: main).breakpoints[2]?.isEnabled == false)
         m.debug.gutterClick(file: main, line: 2)
-        // Dragged along the gutter it moves; out of it, it is deleted.
         m.debug.gutterDrag(file: main, from: 2, to: 1)
         #expect(m.debug.marks(for: main).breakpoints.keys.sorted() == [1])
         m.debug.gutterDrag(file: main, from: 1, to: nil)
         #expect(m.debug.marks(for: main).breakpoints.isEmpty)
-        // ⌘Y deactivates them all (drawn pale).
         m.debug.gutterClick(file: main, line: 2)
         m.perform(.toggleBreakpointsActive)
         #expect(m.debug.marks(for: main).breakpointsActive == false)
@@ -123,19 +115,15 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         let main = pkg.path("Sources/Demo/main.swift"), greeting = pkg.path("Sources/DemoCore/Greeting.swift")
         m.debug.gutterClick(file: main, line: 2)
         m.debug.gutterClick(file: greeting, line: 4)
-        // Files in path order (Sources/Demo before Sources/DemoCore).
         let rows = m.debug.breakpointRows
         #expect(rows.map(\.title) == ["Demo  2 Breakpoints", "main.swift", "line 2", "Greeting.swift", "line 4"])
         #expect(rows.map(\.level) == [0, 1, 2, 1, 2])
         #expect(rows[2].trailing == "ID 1.1" && rows[4].trailing == "ID 2.1")
         #expect(rows[2].marker == true)
-        // The marker disables it; the row stays, dimmed.
         m.debug.toggleBreakpointEnabled(rows[2].id)
         #expect(m.debug.breakpointRows[2].marker == false && m.debug.breakpointRows[2].isDimmed)
-        // Selecting a row opens its line.
         m.debug.selectBreakpointRow(rows[4].id)
         #expect(m.document?.path == greeting && m.editor?.buffer.caretLine == 3)
-        // Collapsing a file hides its rows; Delete Breakpoint removes one.
         m.debug.setBreakpointRowExpanded(rows[1].id, false)
         #expect(m.debug.breakpointRows.map(\.title) == ["Demo  2 Breakpoints", "main.swift", "Greeting.swift", "line 4"])
         m.debug.deleteBreakpoint(rows[4].id)
@@ -173,8 +161,6 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(b.debug.breakpoints.all.map(\.line) == [2])
     }
 
-    // MARK: A debug session
-
     @Test func aBreakpointStopShowsFramesVariablesAndStepsToTheExit() async throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -185,11 +171,9 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(!m.isEnabled(.pauseOrContinue) && !m.isEnabled(.stepOver))
         await m.session.debug(program: pkg.path(".build/debug/Demo"), adapter: adapter)
         await wait("the stop") { m.debug.isPaused && !m.debug.variables.isEmpty && m.navigator == .debug }
-        // The breakpoint went to lldb-dap before configurationDone.
         #expect(adapter.breakpointLines == [2])
         #expect(adapter.commands.firstIndex(of: "setBreakpoints")! < adapter.commands.firstIndex(of: "configurationDone")!)
 
-        // The stop: activity, Debug navigator, the line opened and marked.
         #expect(m.activityText == "Paused Demo")
         #expect(m.isDebugAreaShown && m.isNavigatorShown)
         #expect(m.document?.path == main && m.editor?.buffer.caretLine == 1 && m.editor?.buffer.selection.isEmpty == true)
@@ -198,7 +182,6 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(marks.annotation == "Thread 1: breakpoint 1.1 (1)")
         #expect(m.debug.barPath == "Demo › Thread 1 › 0 main")
 
-        // Debug navigator: the process, gauges, the thread and its frames.
         let rows = m.debug.debugRows
         #expect(rows.first?.title == "Demo  PID \(ProcessInfo.processInfo.processIdentifier)")
         #expect(rows.filter { $0.kind == .gauge }.map(\.title) == ["CPU", "Memory", "Energy Impact", "Disk", "Network"])
@@ -208,7 +191,6 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(rows.first { $0.title == "1 __libc_start_main" }?.isDimmed == true)
         #expect(m.debug.debugSelection == rows.first { $0.title == "0 main" }?.id)
 
-        // Variables: badges, types, registers left out; a struct expands.
         var vars = m.debug.variableRows
         #expect(vars.map(\.text) == ["count: Int = 2", "stats: Demo.Stats = Demo.Stats"])
         #expect(vars.map(\.badge) == ["L", "L"])
@@ -218,16 +200,13 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         vars = m.debug.variableRows
         #expect(vars.map(\.text) == ["count: Int = 2", "stats: Demo.Stats = Demo.Stats", "round: Int = 1", "total: Int = 10"])
         #expect(vars.map(\.level) == [0, 0, 1, 1] && vars[2].badge == nil)
-        // The filter and the scope pop-up.
         m.debug.variableFilter = "cou"
         #expect(m.debug.variableRows.map(\.name) == ["count"])
         m.debug.variableFilter = ""
 
-        // Menus while paused: Continue, steps enabled.
         #expect(ShellCommand.pauseOrContinue.title(in: m.menuContext) == "Continue")
         #expect(m.isEnabled(.stepOver) && m.isEnabled(.stepInto) && m.isEnabled(.stepOut))
 
-        // The console: the program's output, then an expression.
         #expect(m.console.contains("hello"))
         m.debug.consoleInput = "count * 2"
         m.debug.submitConsoleLine()
@@ -242,7 +221,6 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(m.debug.consoleText == "hello\n")
         m.debug.consoleFilter = .all
 
-        // Step Over: a new stop on line 3, the child still expanded.
         let stops = m.session.stopCount
         m.perform(.stepOver)
         await wait("the step") { m.session.stopCount > stops && m.debug.isPaused && m.debug.marks(for: main).pcLine == 3 }
@@ -251,7 +229,6 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(m.debug.variableRows.map(\.name) == ["count", "stats", "round", "total"])
         #expect(m.editor?.buffer.caretLine == 2)
 
-        // Continue to the exit.
         m.perform(.pauseOrContinue)
         await wait("the exit") { !m.debug.isDebugging && !m.isBusy }
         #expect(m.console.contains("Program ended with exit code: 0"))
@@ -268,12 +245,10 @@ final class ShellScriptedAdapter: DAPTransport, @unchecked Sendable {
         m.debug.gutterClick(file: main, line: 2)
         await m.session.debug(program: pkg.path(".build/debug/Demo"), adapter: ShellScriptedAdapter(file: main))
         await wait("the stop") { m.debug.isPaused && m.navigator == .debug }
-        // A frame without source keeps the editor as it is.
         let system = m.debug.debugRows.first { $0.title == "1 __libc_start_main" }!
         m.debug.selectDebugRow(system.id)
         #expect(m.debug.debugSelection == system.id)
         #expect(m.document?.path == main)
-        // Collapsing the thread hides its frames.
         let thread = m.debug.debugRows.first { $0.kind == .thread }!
         m.debug.setDebugRowExpanded(thread.id, false)
         #expect(!m.debug.debugRows.contains { $0.kind == .frame })

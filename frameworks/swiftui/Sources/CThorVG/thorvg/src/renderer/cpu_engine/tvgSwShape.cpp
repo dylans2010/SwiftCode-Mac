@@ -1,30 +1,4 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgSwCommon.h"
-
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
 
 static void _drawPoint(SwDashStroke& dash, const Point& start)
 {
@@ -53,7 +27,6 @@ static void _dashLineTo(SwDashStroke& dash, const Point& to, bool validPoint)
             }
             dash.path->lineTo(to);
         }
-    //draw the current line partially
     } else {
         while (len - dash.curLen > DASH_PATTERN_THRESHOLD) {
             Line left, right;
@@ -78,7 +51,6 @@ static void _dashLineTo(SwDashStroke& dash, const Point& to, bool validPoint)
             dash.ptCur = cur.pt1;
             dash.move = true;
         }
-        //leftovers
         dash.curLen -= len;
         if (!dash.curOpGap) {
             if (dash.move) {
@@ -88,7 +60,6 @@ static void _dashLineTo(SwDashStroke& dash, const Point& to, bool validPoint)
             dash.path->lineTo(cur.pt2);
         }
         if (dash.curLen < DASH_PATTERN_THRESHOLD && !tvg::zero(len)) {
-            //move to next dash
             dash.curIdx = (dash.curIdx + 1) % dash.cnt;
             dash.curLen = dash.pattern[dash.curIdx];
             dash.curOpGap = !dash.curOpGap;
@@ -107,7 +78,6 @@ static void _dashCubicTo(SwDashStroke& dash, const Point& ctrl1, const Point& ct
         return;
     }
 
-    //draw the current line fully
     if (len <= dash.curLen) {
         dash.curLen -= len;
         if (!dash.curOpGap) {
@@ -117,7 +87,6 @@ static void _dashCubicTo(SwDashStroke& dash, const Point& ctrl1, const Point& ct
             }
             dash.path->cubicTo(ctrl1, ctrl2, to);
         }
-    //draw the current line partially
     } else {
         while ((len - dash.curLen) > DASH_PATTERN_THRESHOLD) {
             Bezier left, right;
@@ -142,7 +111,6 @@ static void _dashCubicTo(SwDashStroke& dash, const Point& ctrl1, const Point& ct
             dash.ptCur = right.start;
             dash.move = true;
         }
-        //leftovers
         dash.curLen -= len;
         if (!dash.curOpGap) {
             if (dash.move) {
@@ -152,7 +120,6 @@ static void _dashCubicTo(SwDashStroke& dash, const Point& ctrl1, const Point& ct
             dash.path->cubicTo(cur.ctrl1, cur.ctrl2, cur.end);
         }
         if (dash.curLen < DASH_PATTERN_THRESHOLD && !tvg::zero(len)) {
-            //move to next dash
             dash.curIdx = (dash.curIdx + 1) % dash.cnt;
             dash.curLen = dash.pattern[dash.curIdx];
             dash.curOpGap = !dash.curOpGap;
@@ -168,17 +135,14 @@ static void _dashClose(SwDashStroke& dash, bool validPoint, uint32_t cmdBegin, u
     auto& cmds = dash.path->cmds;
     auto& pts = dash.path->pts;
 
-    // join the first and the last dashes across the seam only when both touch the start point
     if (cmds.count > cmdBegin + 1 &&
         tvg::closed(pts[ptBegin], dash.ptStart, DASH_PATTERN_THRESHOLD) &&
         tvg::closed(pts.last(), dash.ptStart, DASH_PATTERN_THRESHOLD)) {
-        // locate the end of the first dash
         auto cmdEnd = cmdBegin + 1, ptEnd = ptBegin + 1;
         for (; cmdEnd < cmds.count && cmds[cmdEnd] != PathCommand::MoveTo; ++cmdEnd) {
             ptEnd += (cmds[cmdEnd] == PathCommand::CubicTo) ? 3 : 1;
         }
 
-        // move the first dash behind the last to join them at the start point
         if (cmdEnd < cmds.count) {
             auto rotate = [](auto& arr, uint32_t from, uint32_t to) {
                 arr.grow(to - from);
@@ -188,9 +152,8 @@ static void _dashClose(SwDashStroke& dash, bool validPoint, uint32_t cmdBegin, u
             cmds[cmdBegin] = PathCommand::LineTo;
             rotate(pts, ptBegin, ptEnd);
             rotate(cmds, cmdBegin, cmdEnd);
-        } 
+        }
     }
-    // the next sub-path may continue without moveTo
     dash.move = true;
 }
 
@@ -223,7 +186,6 @@ static SwOutline* _genDashOutline(const RenderShape* rshape, SwMpool* mpool, uns
     dash.cnt = rshape->stroke->dash.count;
     auto offset = rshape->stroke->dash.offset;
 
-    //offset
     uint32_t offIdx = 0;
     if (!tvg::zero(offset)) {
         auto length = rshape->stroke->dash.length;
@@ -245,14 +207,12 @@ static SwOutline* _genDashOutline(const RenderShape* rshape, SwMpool* mpool, uns
     auto cmdBegin = dash.path->cmds.count;
     auto ptBegin = dash.path->pts.count;
 
-    //must begin with moveTo
     if (cmds[0] == PathCommand::MoveTo) {
         _dashMoveTo(dash, offIdx, offset, *pts);
         cmds++;
         pts++;
     }
 
-    //zero length segment with non-butt cap still should be rendered as a point - only the caps are visible
     auto validPoint = rshape->stroke->cap != StrokeCap::Butt;
     while (--cmdCnt > 0) {
         switch (*cmds) {
@@ -291,7 +251,6 @@ static SwOutline* _genDashOutline(const RenderShape* rshape, SwMpool* mpool, uns
 static bool _axisAlignedRect(const SwOutline* outline)
 {
     auto& path = *outline->path;
-    // TODO: We can return false if the coordinates have a fractional part, for smoother rectangle movement
     if (path.cmds.count != 5 || (path.cmds[0] != PathCommand::MoveTo && path.cmds[0] != PathCommand::LineTo)) return false;
     for (uint32_t i = 1; i < 4; ++i) {
         if (path.cmds[i] != PathCommand::LineTo) return false;
@@ -326,10 +285,6 @@ static SwOutline* _genOutline(const RenderShape* rshape, SwMpool* mpool, unsigne
     outline->fillRule = rshape->rule;
     return outline;
 }
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
 
 bool shapeGenRle(SwShape& shape, const RenderShape* rshape, const Matrix& transform, const RenderRegion& clipBox, RenderRegion& renderBox, SwMpool* mpool, unsigned tid, bool composite, bool antiAlias)
 {
@@ -367,7 +322,6 @@ void shapeReset(SwShape& shape)
     shape.fastTrack = false;
 }
 
-
 void shapeFree(SwShape& shape)
 {
     rleFree(shape.rle);
@@ -386,7 +340,6 @@ void shapeFree(SwShape& shape)
     }
 }
 
-
 void shapeDelStroke(SwShape& shape)
 {
     if (!shape.stroke) return;
@@ -396,14 +349,12 @@ void shapeDelStroke(SwShape& shape)
     shape.stroke = nullptr;
 }
 
-
 void shapeResetStroke(SwShape& shape, const RenderShape* rshape, const Matrix& transform, SwMpool* mpool, unsigned tid)
 {
     if (!shape.stroke) shape.stroke = tvg::calloc<SwStroke>(1, sizeof(SwStroke));
     strokeReset(shape.stroke, rshape, transform, mpool, tid);
     rleReset(shape.strokeRle);
 }
-
 
 bool shapeGenStrokeRle(SwShape& shape, const RenderShape* rshape, const Matrix& transform, const RenderRegion& clipBox, RenderRegion& renderBox, SwMpool* mpool, unsigned tid, bool antiAlias)
 {
@@ -413,7 +364,6 @@ bool shapeGenStrokeRle(SwShape& shape, const RenderShape* rshape, const Matrix& 
     SwOutline* outline;
 
     if (dash) outline = _genDashOutline(rshape, mpool, tid, rshape->trimpath());
-    // resuse outline generated by shape
     else outline = shape.outline ? shape.outline : _genOutline(rshape, mpool, tid, rshape->trimpath());
     if (!outline) return false;
 
@@ -430,7 +380,6 @@ bool shapeGenStrokeRle(SwShape& shape, const RenderShape* rshape, const Matrix& 
 
 bool shapeStrokeBBox(SwShape& shape, const RenderShape* rshape, Point* pt4, const Matrix& m, SwMpool* mpool)
 {
-    // TODO: We can skip generation here if the stroke hasn't been updated.
     if (rshape->strokeWidth() > 0.0f) {
         auto outline = _genOutline(rshape, mpool, 0, rshape->trimpath());
         if (!outline) return false;

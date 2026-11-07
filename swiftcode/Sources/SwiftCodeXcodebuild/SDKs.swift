@@ -1,33 +1,24 @@
 import Foundation
 
-/// The installed SDKs as `-showsdks` and `-version -sdk` report them.
-/// Read from SDK and platform metadata files (`SDKSettings.json`,
-/// `System/Library/CoreServices/SystemVersion.plist`, the platform's
-/// `Info.plist`). See `specs/xcodebuild/info-commands.md` §3.
 public struct SDKEntry: Equatable, Sendable {
-    /// Bundle name as listed, e.g. `MacOSX27.0.sdk`.
     public var bundleName: String
     public var path: String
     public var canonicalName: String
     public var displayName: String
     public var version: String
     public var isBaseSDK: Bool
-    /// Platform `Name` (`macosx`), `Description` (`macOS`), version and path.
     public var platformName: String
     public var platformDescription: String
     public var platformVersion: String
     public var platformPath: String
-    /// `SystemVersion.plist` string values.
     public var systemVersion: [String: String]
 
-    /// `-version -sdk` detail lines, in order.
     public var infoLines: [(key: String, value: String)] {
         var lines = [("SDKVersion", version), ("Path", path), ("PlatformVersion", platformVersion), ("PlatformPath", platformPath)]
         for k in systemVersion.keys.sorted() { lines.append((k, systemVersion[k]!)) }
         return lines
     }
 
-    /// The `-json` dictionary.
     public var json: [String: Any] {
         var d: [String: Any] = [
             "canonicalName": canonicalName, "displayName": displayName, "isBaseSdk": isBaseSDK,
@@ -35,8 +26,6 @@ public struct SDKEntry: Equatable, Sendable {
             "sdkPath": path, "sdkVersion": version,
         ]
         for (k, v) in systemVersion {
-            // `BuildID` → `buildID`, `ProductName` → `productName`; keys
-            // that already start in lower case stay.
             d[k.prefix(1).lowercased() + k.dropFirst()] = v
         }
         return d
@@ -60,8 +49,6 @@ public struct SDKRegistry: Sendable {
             let platformVersion = info["Version"] as? String ?? info["CFBundleShortVersionString"] as? String ?? ""
             let sdksDir = platformPath + "/Developer/SDKs"
             let names = ((try? fm.contentsOfDirectory(atPath: sdksDir)) ?? []).filter { $0.hasSuffix(".sdk") }.sorted()
-            // An unversioned bundle name (`MacOSX.sdk`) is left out when a
-            // versioned name resolves to the same directory.
             func real(_ n: String) -> String { URL(fileURLWithPath: sdksDir + "/" + n).resolvingSymlinksInPath().path }
             let versioned = Set(names.filter { $0.contains(where: \.isNumber) }.map(real))
             for n in names {
@@ -80,7 +67,6 @@ public struct SDKRegistry: Sendable {
                     platformVersion: platformVersion, platformPath: platformPath, systemVersion: sv))
             }
         }
-        // Sections in alphabetical order of the platform description.
         entries = all.enumerated().sorted { a, b in
             let c = a.element.platformDescription.caseInsensitiveCompare(b.element.platformDescription)
             return c == .orderedSame ? a.offset < b.offset : c == .orderedAscending
@@ -93,8 +79,6 @@ public struct SDKRegistry: Sendable {
         return obj
     }
 
-    /// Resolves a `-sdk` value: a canonical name (`macosx27.0`), a platform
-    /// name (`macosx`, newest version), or a path.
     public func lookup(_ value: String, relativeTo cwd: String) -> SDKEntry? {
         if let e = entries.first(where: { $0.canonicalName == value }) { return e }
         let base = entries.filter { $0.canonicalName.hasPrefix(value) && $0.canonicalName.dropFirst(value.count).first?.isNumber == true }
@@ -109,7 +93,6 @@ public struct SDKRegistry: Sendable {
         return nil
     }
 
-    /// `-showsdks` text.
     public func showsdksText() -> String {
         var out: [String] = []
         var current: String?
@@ -125,7 +108,6 @@ public struct SDKRegistry: Sendable {
         return out.joined(separator: "\n")
     }
 
-    /// One `-version -sdk` block (without the trailing blank line).
     public static func versionBlock(_ e: SDKEntry) -> String {
         (["\(e.bundleName) - \(e.displayName) (\(e.canonicalName))"] + e.infoLines.map { "\($0.key): \($0.value)" }).joined(separator: "\n")
     }

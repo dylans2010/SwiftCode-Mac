@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct VerboseLoggingView: View {
@@ -31,7 +28,7 @@ struct VerboseLoggingView: View {
                         Text(log.category.rawValue)
                             .font(.caption.bold())
                             .padding(.horizontal, 4)
-                            
+
                             .background(Color.blue.opacity(0.2))
                         Spacer()
                         Text(log.timestamp, style: .time)

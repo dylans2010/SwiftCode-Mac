@@ -1,17 +1,7 @@
 import SwiftUI
 
-// MARK: - Permissions: grant and revoke, with the boundary stated
-//
-// Toggling a capability here IS the user's approval — this is the
-// settings surface, not a prompt the extension can trigger on its own.
-// The enforcement itself lives in ExtV2PermissionManager and the
-// bridges, which check grants on every call; revoking here takes
-// effect on the next call an extension makes.
-
 public struct ExtensionPermissionsView: View {
     @ObservedObject private var manager = ExtV2Manager.shared
-    // The permission manager is not itself observable, so a toggle
-    // bumps this to re-read grants after each grant/revoke.
     @State private var refreshTick = 0
 
     public init() {}

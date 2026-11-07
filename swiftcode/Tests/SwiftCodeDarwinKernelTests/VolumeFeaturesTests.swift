@@ -3,9 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// What the data volume's capability bits promise (file-system-features.md;
-/// service-fidelity.md §11): document IDs and file flags, write generation
-/// counts, clones, exclusive and swapping renames, and the file-change feed.
 @Suite(.serialized) struct VolumeFeaturesTests {
     typealias At = ProcEnv.At
     static let cwd = UInt64(bitPattern: -2)
@@ -19,8 +16,6 @@ import SwiftCodeDarwinABI
 
     func put(_ s: String, _ va: UInt64) -> UInt64 { env.putString(k, s, at: va); return va }
 
-    /// getattrlist of common attributes: the words after the length, or the
-    /// negative errno.
     func attributes(_ path: String, common: UInt32 = 0, volume: UInt32 = 0, options: UInt64 = cmnExtended) -> [UInt32]? {
         var alist = [UInt8](repeating: 0, count: 24)
         alist.putLE(UInt16(5), at: 0)
@@ -35,7 +30,7 @@ import SwiftCodeDarwinABI
     }
 
     func statFlags(_ path: String) -> UInt32 {
-        #expect(env.bsd(k, 340, [put(path, At.out + 0x900), At.out + 0xA00]) == 0)  // lstat64
+        #expect(env.bsd(k, 340, [put(path, At.out + 0x900), At.out + 0xA00]) == 0)
         return env.read(k, At.out + 0xA00 + 116, 4).readLE(UInt32.self, at: 0)
     }
 
@@ -55,11 +50,10 @@ import SwiftCodeDarwinABI
     }
 
     @Test func capabilitiesIncludeTheFourBits() throws {
-        // ATTR_VOL_INFO | ATTR_VOL_CAPABILITIES: format, interfaces, 2 reserved; their valid masks.
         let caps = try #require(attributes(env.root, volume: 0x8002_0000, options: 0))
         #expect(caps.count == 8)
-        #expect(caps[0] & 0x0018_0000 == 0x0018_0000)               // DOCUMENT_ID, WRITE_GENERATION_COUNT
-        #expect(caps[1] & 0x000D_0000 == 0x000D_0000)               // CLONE, RENAME_SWAP, RENAME_EXCL
+        #expect(caps[0] & 0x0018_0000 == 0x0018_0000)
+        #expect(caps[1] & 0x000D_0000 == 0x000D_0000)
         #expect(caps[0] == 0x001A_4F47 && caps[1] == 0x000D_4302)
         #expect(caps[4] & caps[0] == caps[0] && caps[5] & caps[1] == caps[1])
     }
@@ -67,51 +61,46 @@ import SwiftCodeDarwinABI
     @Test func documentIDsFollowTrackedFiles() throws {
         let doc = env.root + "/doc", moved = env.root + "/moved"
         try Data("v1".utf8).write(to: URL(fileURLWithPath: doc))
-        #expect(attributes(doc, common: Self.documentID) == [0])            // untracked
-        #expect(attributes(doc, common: Self.documentID, options: 0) == nil)  // needs FSOPT_ATTR_CMN_EXTENDED
-        #expect(env.bsd(k, 34, [put(doc, At.out + 0x100), Self.tracked | 0x8000]) == 0)  // UF_TRACKED | UF_HIDDEN
+        #expect(attributes(doc, common: Self.documentID) == [0])
+        #expect(attributes(doc, common: Self.documentID, options: 0) == nil)
+        #expect(env.bsd(k, 34, [put(doc, At.out + 0x100), Self.tracked | 0x8000]) == 0)
         #expect(statFlags(doc) == 0x8040)
         let id = try #require(attributes(doc, common: Self.flagsAttr | Self.documentID)).last!
         #expect(id != 0)
         #expect(attributes(doc, common: Self.flagsAttr) == [0x8040])
-        // A rename keeps it.
         #expect(rename(doc, moved) == 0)
         #expect(attributes(moved, common: Self.documentID) == [id])
-        // Safe save: a new file renamed over the tracked one takes its ID.
         let tmp = env.root + "/moved.sb-tmp"
         try Data("v2".utf8).write(to: URL(fileURLWithPath: tmp))
         #expect(rename(tmp, moved) == 0)
         #expect(attributes(moved, common: Self.documentID) == [id])
         #expect(statFlags(moved) & 0x40 != 0)
-        // Delete and re-create under the same name: the tombstone gives it back.
         #expect(env.bsd(k, 10, [put(moved, At.out + 0x100)]) == 0)
-        let fd = open(moved, 0x601)  // O_WRONLY | O_CREAT | O_TRUNC
+        let fd = open(moved, 0x601)
         _ = env.bsd(k, 6, [fd])
         #expect(attributes(moved, common: Self.documentID) == [id])
-        // Clearing UF_TRACKED clears the ID; superuser flags are refused.
         #expect(env.bsd(k, 34, [put(moved, At.out + 0x100), 0]) == 0)
         #expect(attributes(moved, common: Self.documentID) == [0] && statFlags(moved) == 0)
-        #expect(env.bsd(k, 34, [put(moved, At.out + 0x100), 0x20000]) == -1)  // SF_IMMUTABLE: EPERM
-        // A new tracked file gets a new ID.
+        #expect(env.bsd(k, 34, [put(moved, At.out + 0x100), 0x20000]) == -1)
         #expect(env.bsd(k, 34, [put(moved, At.out + 0x100), Self.tracked]) == 0)
         #expect(try #require(attributes(moved, common: Self.documentID)).first! != id)
     }
 
     @Test func writeGenerationCountsChangeWithEveryWrite() throws {
         let path = env.root + "/gen"
-        let fd = open(path, 0x202)  // O_RDWR | O_CREAT
+        let fd = open(path, 0x202)
         pwrite(fd, "a")
         let g1 = try #require(attributes(path, common: Self.genCount)).first!
         #expect(g1 != 0)
-        #expect(attributes(path, common: Self.genCount) == [g1])           // stable without writes
-        pwrite(fd, "b")                                                     // same size, probably the same tick
+        #expect(attributes(path, common: Self.genCount) == [g1])
+        pwrite(fd, "b")
         let g2 = try #require(attributes(path, common: Self.genCount)).first!
         #expect(g2 != g1)
-        #expect(env.bsd(k, 15, [put(path, At.out + 0x100), 0o600]) == 0)    // chmod: not a write
+        #expect(env.bsd(k, 15, [put(path, At.out + 0x100), 0o600]) == 0)
         #expect(attributes(path, common: Self.genCount) == [g2])
-        #expect(attributes(path, common: Self.genCount, options: 0) == nil)  // EINVAL without the option
+        #expect(attributes(path, common: Self.genCount, options: 0) == nil)
         _ = env.bsd(k, 6, [fd])
-        #expect(try #require(attributes(env.root, common: Self.genCount)).first! != 0)  // directories have one too
+        #expect(try #require(attributes(env.root, common: Self.genCount)).first! != 0)
     }
 
     @Test func clonesCopyContentsAndAttributes() throws {
@@ -129,22 +118,19 @@ import SwiftCodeDarwinABI
         #expect(try String(contentsOfFile: dst, encoding: .utf8) == "payload")
         #expect(try (FileManager.default.attributesOfItem(atPath: dst)[.posixPermissions] as! Int) == 0o640)
         #expect(env.bsd(k, 234, [put(dst, At.out + 0x100), put("com.example.tag", At.out + 0x300), 0, 0, 0, 0]) == 1)
-        // Tracked like its source, with an ID of its own.
         let dstID = try #require(attributes(dst, common: Self.documentID)).first!
         #expect(dstID != 0 && dstID != srcID && statFlags(dst) & 0x40 != 0)
-        #expect(clone(src, dst, 0) == -17)                                  // EEXIST
-        #expect(clone(env.root + "/missing", env.root + "/x", 0) == -2)     // ENOENT
-        #expect(clone(src, env.root + "/x", 0x20) == -22)                   // unknown flag
+        #expect(clone(src, dst, 0) == -17)
+        #expect(clone(env.root + "/missing", env.root + "/x", 0) == -2)
+        #expect(clone(src, env.root + "/x", 0x20) == -22)
         #expect(clone(src, env.root + "/no/such/dir", 0) == -2)
-        // Directories clone recursively.
         let tree = env.root + "/tree"
         try FileManager.default.createDirectory(atPath: tree + "/sub", withIntermediateDirectories: true)
         try Data("leaf".utf8).write(to: URL(fileURLWithPath: tree + "/sub/leaf"))
         #expect(clone(tree, env.root + "/tree2", 0) == 0)
         #expect(try String(contentsOfFile: env.root + "/tree2/sub/leaf", encoding: .utf8) == "leaf")
-        // fclonefileat: the source must be open for reading.
         let wfd = open(src, 0x1)
-        #expect(env.bsd(k, 517, [wfd, Self.cwd, put(env.root + "/w", At.out + 0x500), 0]) == -9)  // EBADF
+        #expect(env.bsd(k, 517, [wfd, Self.cwd, put(env.root + "/w", At.out + 0x500), 0]) == -9)
         let rfd = open(src, 0x0)
         #expect(env.bsd(k, 517, [rfd, Self.cwd, put(env.root + "/r", At.out + 0x500), 0]) == 0)
         #expect(try String(contentsOfFile: env.root + "/r", encoding: .utf8) == "payload")
@@ -154,11 +140,11 @@ import SwiftCodeDarwinABI
         let a = env.root + "/a", b = env.root + "/b"
         try Data("A".utf8).write(to: URL(fileURLWithPath: a))
         try Data("B".utf8).write(to: URL(fileURLWithPath: b))
-        #expect(rename(a, b, flags: 0x4) == -17)                            // RENAME_EXCL onto an existing name
-        #expect(rename(a, b, flags: 0x2) == 0)                              // RENAME_SWAP
+        #expect(rename(a, b, flags: 0x4) == -17)
+        #expect(rename(a, b, flags: 0x2) == 0)
         #expect(try String(contentsOfFile: a, encoding: .utf8) == "B" && String(contentsOfFile: b, encoding: .utf8) == "A")
         #expect(rename(a, env.root + "/c", flags: 0x4) == 0)
-        #expect(rename(b, env.root + "/missing", flags: 0x2) == -2)         // swap needs both names
+        #expect(rename(b, env.root + "/missing", flags: 0x2) == -2)
         #expect(!FileManager.default.fileExists(atPath: env.root + "/b.swiftcode-swap"))
     }
 
@@ -181,11 +167,11 @@ import SwiftCodeDarwinABI
         let fd = open(file, 0x202)
         pwrite(fd, "x")
         _ = env.bsd(k, 6, [fd])
-        #expect(env.bsd(k, 136, [put(dir, At.out + 0x100), 0o755]) == 0)   // mkdir
-        #expect(env.bsd(k, 15, [put(file, At.out + 0x100), 0o600]) == 0)   // chmod
+        #expect(env.bsd(k, 136, [put(dir, At.out + 0x100), 0o755]) == 0)
+        #expect(env.bsd(k, 15, [put(file, At.out + 0x100), 0o600]) == 0)
         #expect(rename(file, dir + "/g") == 0)
-        #expect(env.bsd(k, 10, [put(dir + "/g", At.out + 0x100)]) == 0)    // unlink
-        #expect(env.bsd(k, 137, [put(dir, At.out + 0x100)]) == 0)          // rmdir
+        #expect(env.bsd(k, 10, [put(dir + "/g", At.out + 0x100)]) == 0)
+        #expect(env.bsd(k, 137, [put(dir, At.out + 0x100)]) == 0)
         let seen = box.lock.withLock { box.changes.map { "\($0.kind) \($0.item) \($0.path.dropFirst(root.count))" } }
         #expect(seen == ["created file /f", "modified file /f", "created directory /d", "owner file /f",
                          "renamed file /f", "renamed file /d/g", "removed file /d/g", "removed directory /d"])

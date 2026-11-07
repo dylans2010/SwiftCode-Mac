@@ -3,7 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// `KernelLock` and `WaitQueue` with real host threads (stage4a-contract.md §2, §8).
 @Suite(.serialized) struct KernelSyncTests {
     final class Shared: @unchecked Sendable {
         let lock = KernelLock()
@@ -34,7 +33,6 @@ import SwiftCodeDarwinABI
         let waiters = (0..<4).map { _ in
             spawn { s.lock.withLock { let r = s.queue.wait(on: s.lock, deadline: nil); s.results.append(r) } }
         }
-        // All four can be waiting at once only if wait releases the lock.
         let deadline = Date().addingTimeInterval(5)
         while s.lock.withLock({ s.queue.count }) < 4 && Date() < deadline { Thread.sleep(forTimeInterval: 0.001) }
         #expect(s.lock.withLock { s.queue.count } == 4)
@@ -54,14 +52,11 @@ import SwiftCodeDarwinABI
         let elapsed = KernelClock.now() - start
         #expect(r == .timedOut)
         #expect(elapsed >= 19_000_000 && elapsed < 2_000_000_000)
-        // A past deadline returns at once.
         #expect(s.lock.withLock { s.queue.wait(on: s.lock, deadline: 1) } == .timedOut)
         #expect(s.lock.withLock { s.queue.isEmpty })
     }
 
     @Test func noLostWakeupsUnderRaces() {
-        // Producer/consumer through a counter: every consumed item was produced,
-        // and nobody sleeps forever.
         let s = Shared()
         let consumers = (0..<4).map { _ in
             spawn {
@@ -82,7 +77,6 @@ import SwiftCodeDarwinABI
 
     @Test func beforeSleepingRunsAfterQueueing() {
         let s = Shared()
-        // The waiter wakes itself from beforeSleeping: no lost wake.
         let r = s.lock.withLock {
             s.queue.wait(on: s.lock, deadline: nil, tag: 7, beforeSleeping: { s.queue.wake(count: 1) })
         }
@@ -124,7 +118,6 @@ import SwiftCodeDarwinABI
         s.lock.withLock { s.lock.terminate() }
         #expect(tb.wait(timeout: .now() + 5) == .success)
         #expect(s.results == [.interrupted, .interrupted])
-        // After terminate every wait ends at once.
         #expect(s.lock.withLock { s.queue.wait(on: s.lock, deadline: nil) } == .interrupted)
     }
 
@@ -138,7 +131,6 @@ import SwiftCodeDarwinABI
                 seen.value = s.lock.currentContext === a
             }
         }
-        // Another context takes the lock while `a` sleeps.
         Thread.sleep(forTimeInterval: 0.01)
         s.lock.withLock(context: ThreadContext(threadID: 11, portName: 0x1103, vcpuIndex: 2, kind: .pthread)) {
             #expect(s.lock.currentContext?.threadID == 11)

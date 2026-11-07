@@ -1,21 +1,6 @@
 import AppKit
 import Foundation
 
-// MARK: - Virtualization console window (gap closure)
-//
-// The `virtualization.view` window (specs/ide/gap-closure-
-// windows-artboards.md §7): a VM registry (definitions, not
-// boots) over the Linux-KVM `SwiftCodeHypervisor`, with a host probe
-// and Allocate / Release. Legacy's window was a "Virtualization
-// Console" (1100×750) over `VZVirtualMachine` — Apple
-// Virtualization.framework, macOS-only — so its start/stop, guest
-// boot, snapshots and networking are NOT ported. This window says
-// that plainly: Allocate reserves a real KVM VM (RAM + vCPUs) and
-// holds it; Release closes it; no guest kernel is loaded and
-// there is no display.
-
-/// The virtualization console's window manager: one shared window,
-/// raised when already open.
 @MainActor
 public final class VirtualizationWindowManager: NSObject {
     public static let shared = VirtualizationWindowManager()
@@ -101,7 +86,6 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
             split.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
         ])
 
-        // Sidebar: the VM list + management buttons.
         let sidebar = NSView()
         let sidebarStack = NSStackView()
         sidebarStack.orientation = .vertical
@@ -140,9 +124,8 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
         manageRow.orientation = .horizontal
         manageRow.spacing = 8
         sidebarStack.addArrangedSubview(manageRow)
-        sidebarStack.addArrangedSubview(NSView()) // spacer
+        sidebarStack.addArrangedSubview(NSView())
 
-        // Detail pane.
         let detail = NSView()
         let detailStack = NSStackView()
         detailStack.orientation = .vertical
@@ -217,8 +200,6 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
         duplicateButton.isEnabled = true
         deleteButton.isEnabled = true
     }
-
-    // MARK: - Actions
 
     @objc private func createClicked() {
         let panel = NSAlert()
@@ -320,8 +301,6 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
             }
         }
     }
-
-    // MARK: - NSTableViewDataSource / Delegate
 
     public func numberOfRows(in tableView: NSTableView) -> Int { records.count }
 

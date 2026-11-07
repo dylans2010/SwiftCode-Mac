@@ -1,21 +1,11 @@
 import Foundation
 
-/// Compiling iOS-simulator payloads and the preview host on Linux (UIKit
-/// previews in the Linux IDE, issue #84; `specs/ide/previews.md` §Linux,
-/// "UIKit previews"): the toolchain's `swiftc` with the user's own copy of
-/// the iPhoneSimulator platform and toolchain resources (`SWIFTCODE_USER_SDK`,
-/// the developer folder `scripts/swiftcode-ios-build-linux` uses; never
-/// committed or redistributed) and an upstream `ld64.lld`.
 public struct PreviewIOSToolchain: Equatable, Sendable {
-    /// The developer folder (`Platforms/`, `Toolchains/`).
     public var developer: URL
     public var sdk: URL
-    /// `Toolchains/XcodeDefault.xctoolchain/usr/lib/swift` (the SDK's Swift resources).
     public var resourceDirectory: URL
-    /// `libclang_rt.iossim.a` (the simulator's compiler runtime).
     public var clangRuntime: URL
     public var linker: URL
-    /// The SDK's version ("27.1"): the deployment target payloads use.
     public var sdkVersion: String
 
     public init(developer: URL, sdk: URL, resourceDirectory: URL, clangRuntime: URL, linker: URL, sdkVersion: String) {
@@ -27,8 +17,6 @@ public struct PreviewIOSToolchain: Equatable, Sendable {
         self.sdkVersion = sdkVersion
     }
 
-    /// The pieces from `SWIFTCODE_USER_SDK` (and `SWIFTCODE_LD64`, else the newest
-    /// `/usr/lib/llvm-*/bin/ld64.lld`), or what is missing.
     public static func locate(environment: [String: String] = ProcessInfo.processInfo.environment) -> Result<PreviewIOSToolchain, PreviewFailure> {
         let fm = FileManager.default
         guard let dev = environment["SWIFTCODE_USER_SDK"], !dev.isEmpty else {
@@ -38,7 +26,6 @@ public struct PreviewIOSToolchain: Equatable, Sendable {
         let developer = URL(fileURLWithPath: dev)
         let sdks = developer.appendingPathComponent("Platforms/iPhoneSimulator.platform/Developer/SDKs")
         let names = ((try? fm.contentsOfDirectory(atPath: sdks.path)) ?? []).filter { $0.hasPrefix("iPhoneSimulator") && $0.hasSuffix(".sdk") }
-        // A versioned name first (iPhoneSimulator27.1.sdk), else the plain one.
         guard let name = names.filter({ $0 != "iPhoneSimulator.sdk" }).sorted().last ?? names.first else {
             return .failure(.unsupported("No iPhoneSimulator SDK in \(sdks.path)."))
         }
@@ -65,7 +52,6 @@ public struct PreviewIOSToolchain: Equatable, Sendable {
                                             sdkVersion: sdkVersion(sdk: sdk)))
     }
 
-    /// The SDK's version: `SDKSettings.json`'s `Version`, else the folder's name.
     public static func sdkVersion(sdk: URL) -> String {
         if let d = FileManager.default.contents(atPath: sdk.appendingPathComponent("SDKSettings.json").path),
            let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any], let v = o["Version"] as? String, !v.isEmpty {
@@ -75,8 +61,6 @@ public struct PreviewIOSToolchain: Equatable, Sendable {
         return digits.isEmpty ? "17.0" : String(digits)
     }
 
-    /// `swiftc` arguments for the simulator: a payload (`library`, with its
-    /// own install name) or the host's executable.
     public func arguments(sources: [URL], output: URL, moduleName: String, library: Bool, moduleCache: URL, extra: [String] = []) -> [String] {
         var a = ["-target", PreviewPlatform.iOS.targetTriple(deploymentTarget: sdkVersion), "-sdk", sdk.path,
                  "-resource-dir", resourceDirectory.path, "-module-cache-path", moduleCache.standardizedFileURL.path,
@@ -91,10 +75,6 @@ public struct PreviewIOSToolchain: Equatable, Sendable {
 }
 
 extension PreviewHost {
-    /// The host for a bundled plan (the Linux IDE's UIKit previews): the
-    /// plan and the payload travel inside the app, in `Previews/`, and a
-    /// relative payload path is resolved there. The app is uploaded and
-    /// launched for every update (no file delivery into the device yet).
     public static var bundledPlanSource: String {
         uikitSource
             .replacingOccurrences(of: #"?? "/tmp/swiftcode-previews""#, with: #"?? (Bundle.main.bundlePath + "/Previews")"#)

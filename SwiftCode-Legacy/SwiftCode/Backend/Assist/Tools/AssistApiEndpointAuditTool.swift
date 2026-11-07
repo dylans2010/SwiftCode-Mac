@@ -38,7 +38,6 @@ public struct AssistApiEndpointAuditTool: AssistTool {
                     guard let r = Range(m.range(at: 1), in: line) else { continue }
                     let urlString = String(line[r])
                     let host = URL(string: urlString)?.host ?? "(unparseable)"
-                    // Skip documentation/example hosts.
                     if host.contains("example.") || host.contains("apple.com") && urlString.contains("developer") { continue }
                     byHost[host, default: 0] += 1
                     if sites.count < limit {

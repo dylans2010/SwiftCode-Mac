@@ -93,7 +93,6 @@ public final class IOSDiscoveryService: NSObject, @unchecked Sendable {
                 break
             }
 
-            // Prefer port from TXT record if advertised explicitly
             if let portStr = txtDict["port"], let parsedPort = UInt16(portStr) {
                 port = parsedPort
             }

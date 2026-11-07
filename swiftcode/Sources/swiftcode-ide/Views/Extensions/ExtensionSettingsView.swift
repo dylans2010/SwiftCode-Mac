@@ -1,12 +1,4 @@
-// ExtensionSettingsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Extensions v2/ExtensionSettingsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Extension settings UI (Registry/Runtime/Maintenance sections)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
-
-// MARK: - Extensions settings (persisted via ExtV2Storage)
 
 public struct ExtensionSettingsView: View {
     @ObservedObject private var manager = ExtV2Manager.shared

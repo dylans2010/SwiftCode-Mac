@@ -1,15 +1,3 @@
-// airc-gpu.c: runs swiftcode-airc's SPIR-V on the Thor's Vulkan device with the
-// SwiftCode Metal-on-Vulkan ABI (src/abi.h: push constants with argument-table
-// addresses, buffers as device addresses, a bindless heap of sampled and
-// storage images and samplers in set 0) and compares the results with the
-// outputs of the same shaders on Metal (mtl-oracle.m). Follows the pattern
-// of R8's vkrun.c and vkdraw.c.
-//
-// Build: cc -O2 -o airc-gpu airc-gpu.c -lvulkan -lm
-// Usage: airc-gpu TESTS.txt SPV_DIR ORACLE_DIR OUT_DIR [TEST...]
-//        airc-gpu --compile VS.spv VS_ENTRY FS.spv FS_ENTRY   (pipeline creation time)
-//   SPV_DIR holds <library>.<function>.spv and .json from swiftcode-airc
-//   (fragment functions translated with --link-vertex).
 #define _GNU_SOURCE 1
 #include <vulkan/vulkan.h>
 #include <math.h>
@@ -21,7 +9,6 @@
 
 #include "gpu-data.h"
 
-// ABI (src/abi.h)
 enum { kPushSize = 32, kTableEntries = 192, kTableConstantData = 31, kTableTexture0 = 32, kTableSampler0 = 160,
        kTableConstexprSampler0 = 176, kHeapImages = 4096, kHeapSamplers = 256 };
 
@@ -105,8 +92,6 @@ static void writeImageDescriptor(uint32_t index, VkImageView view, int storage) 
     vkUpdateDescriptorSets(dev, 1, &w, 0, NULL);
 }
 
-// Creates an image (2D or 3D), uploads `data`, and puts it in the heap
-// (sampled, and storage when `storage`). Layout GENERAL throughout.
 static Img makeImage(VkFormat fmt, uint32_t w, uint32_t h, uint32_t d, uint32_t bpp, const void *data, int storage, int attachment) {
     Img im = {0};
     im.fmt = fmt; im.w = w; im.h = h; im.d = d; im.bpp = bpp;
@@ -169,9 +154,6 @@ static uint32_t makeSampler(VkFilter filter, VkSamplerAddressMode mode, VkBool32
     return index;
 }
 
-// ---------------------------------------------------------------------------
-// Reflection (a few keys, found by text search)
-
 static char *slurp(const char *path, size_t *len) {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -214,8 +196,6 @@ static size_t b64decode(const char *s, uint8_t *out) {
     return n;
 }
 
-// Fills the stage's argument table entries that come from the function
-// itself: constant data and constexpr samplers.
 static void functionEntries(const char *json, uint64_t *table) {
     const char *cd = strstr(json, "\"constant_data\"");
     if (cd) {
@@ -252,9 +232,6 @@ static VkShaderModule loadModule(const char *path) {
     return m;
 }
 
-// ---------------------------------------------------------------------------
-// Device
-
 static void initDevice(void) {
     VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, NULL, "airc-gpu", 1, "swiftcode", 1, VK_API_VERSION_1_3};
     VkInstanceCreateInfo ici = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, NULL, 0, &app};
@@ -267,7 +244,6 @@ static void initDevice(void) {
     VkQueueFamilyProperties *qp = calloc(nq, sizeof *qp);
     vkGetPhysicalDeviceQueueFamilyProperties(phys, &nq, qp);
     for (qfam = 0; qfam < nq && !((qp[qfam].queueFlags & VK_QUEUE_GRAPHICS_BIT) && (qp[qfam].queueFlags & VK_QUEUE_COMPUTE_BIT)); qfam++) {}
-    // Enable every supported feature of these structures (but robust access).
     VkPhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR wg = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_WORKGROUP_MEMORY_EXPLICIT_LAYOUT_FEATURES_KHR};
     VkPhysicalDeviceShaderAtomicFloatFeaturesEXT af = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT, &wg};
     VkPhysicalDeviceVulkan13Features f13 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, &af};
@@ -286,7 +262,6 @@ static void initDevice(void) {
     VkCommandPoolCreateInfo cp = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, qfam};
     CHECK(vkCreateCommandPool(dev, &cp, NULL, &cmdPool));
 
-    // The bindless heap (set 0).
     VkDescriptorSetLayoutBinding b[3] = {
         {0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, kHeapImages, VK_SHADER_STAGE_ALL, NULL},
         {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, kHeapImages, VK_SHADER_STAGE_ALL, NULL},
@@ -306,7 +281,6 @@ static void initDevice(void) {
     VkPushConstantRange pcr = {VK_SHADER_STAGE_ALL, 0, kPushSize};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &heapLayout, 1, &pcr};
     CHECK(vkCreatePipelineLayout(dev, &pli, NULL, &layout));
-    // Heap index 0: the null texture and the null sampler.
     uint32_t zero = 0;
     Img nullImg = makeImage(VK_FORMAT_R8G8B8A8_UNORM, 1, 1, 1, 4, &zero, 1, 0);
     writeImageDescriptor(0, nullImg.view, 0);
@@ -320,9 +294,6 @@ static void initDevice(void) {
     VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, heap, 2, 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &ii, NULL, NULL};
     vkUpdateDescriptorSets(dev, 1, &w, 0, NULL);
 }
-
-// ---------------------------------------------------------------------------
-// Tests
 
 typedef struct {
     char kind[16], name[64], lib[64], fn[64], fn2[64];
@@ -433,8 +404,6 @@ static int runCompute(const Test *t, const char *spvDir, uint8_t **outData, size
         tab[kTableTexture0 + 0] = i0.heap;
     }
     if (!strcmp(n, "t_argbuf")) {
-        // Argument buffer written by the CPU: texture and sampler handles
-        // (heap indices) and a buffer device address (abi.h).
         float t0[16 * 16 * 4];
         gd_tex0(t0);
         Img i0 = makeImage(VK_FORMAT_R32G32B32A32_SFLOAT, 16, 16, 1, 16, t0, 0, 0);
@@ -450,7 +419,7 @@ static int runCompute(const Test *t, const char *spvDir, uint8_t **outData, size
     }
     if (!strcmp(n, "t_tex_sample")) {
         tab[kTableSampler0 + 0] = makeSampler(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FALSE, VK_COMPARE_OP_NEVER, VK_FALSE);
-        tab[kTableTexture0 + 5] = 0;  // null texture
+        tab[kTableTexture0 + 5] = 0;
     }
     if (!strcmp(n, "t_tex_uint")) {
         uint32_t t2[256];
@@ -502,7 +471,6 @@ static int runRender(const Test *t, const char *spvDir, uint8_t **outData, size_
     VkVertexInputAttributeDescription va[2] = {{0, 0, VK_FORMAT_R32G32_SFLOAT, 0}, {1, 0, VK_FORMAT_R16G16B16A16_SFLOAT, 8}};
     VkPipelineVertexInputStateCreateInfo vis = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0, 1, &vb, 2, va};
     VkPipelineInputAssemblyStateCreateInfo ias = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP, VK_FALSE};
-    // Metal clip space has y up: a negative viewport height.
     VkViewport vp = {0.0f, (float)h, (float)w, -(float)h, 0.0f, 1.0f};
     VkRect2D sc = {{0, 0}, {w, h}};
     VkPipelineViewportStateCreateInfo vps = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, &vp, 1, &sc};
@@ -567,8 +535,6 @@ static int runRender(const Test *t, const char *spvDir, uint8_t **outData, size_
     return 1;
 }
 
-// --compile VS.spv VS_ENTRY FS.spv FS_ENTRY: time the creation of a
-// graphics pipeline from two modules (driver compile time).
 static int compileOnly(char **argv) {
     struct timespec t0, t1;
     VkShaderModule vm = loadModule(argv[0]), fm = loadModule(argv[2]);
@@ -593,7 +559,6 @@ static int compileOnly(char **argv) {
     cbs.pAttachments = cba;
     VkFormat fmts[4] = {VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM};
     VkPipelineRenderingCreateInfo rci = {VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, NULL, 0, 4, fmts};
-    // AIRC_GPU_NOOPT=1: VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT.
     VkPipelineCreateFlags flags = getenv("AIRC_GPU_NOOPT") ? VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT : 0;
     VkGraphicsPipelineCreateInfo gpi = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &rci, flags, 2, st, &vis, &ias, NULL, &vps, &rs, &ms,
         NULL, &cbs, NULL, layout, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, 0};

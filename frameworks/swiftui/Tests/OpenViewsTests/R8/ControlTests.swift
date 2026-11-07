@@ -9,13 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R8, suite T-CTL (interaction rules; the sizes are the golden cases
-// in GoldenViewLayoutTests): 06 §4 — a toggle tap flips its value, a button
-// acts on release inside, a tap on a slider's track does nothing (only the
-// thumb drags), a stepper's "+" adds 1 — plus SwiftCode's rules for pickers,
-// menus and their pop-up windows, keyboard focus and text editing. Headless
-// application hosts on the virtual clock (R7Support.swift).
-
 @MainActor
 final class Box<T> {
     var value: T
@@ -78,15 +71,13 @@ struct ControlTests {
         let log = EventLog()
         let h = Harness(size: CGSize(width: 400, height: 500)) { ControlsProbe(log: log) }
         guard let t = frame(h, Toggle<Text>.self) else { Issue.record("toggle"); return }
-        // The switch is at the trailing end (61 × 28); a tap on it flips.
         let sw = CGPoint(x: t.maxX - 30, y: t.midY)
         h.tap(sw, at: 1.0)
         h.run(until: 1.05)
         #expect(log.entries == ["on true"])
-        #expect(h.window.graph.isAnimating)       // the thumb slides (06 §4)
+        #expect(h.window.graph.isAnimating)
         h.tap(sw, at: 2.0)
         #expect(log.entries == ["on true", "on false"])
-        // A tap on the label does nothing (the reference's switch rule).
         h.tap(CGPoint(x: t.minX + 10, y: t.midY), at: 3.0)
         #expect(log.entries.count == 2)
     }
@@ -96,11 +87,9 @@ struct ControlTests {
         let h = Harness(size: CGSize(width: 400, height: 500)) { ControlsProbe(log: log) }
         guard let s = frame(h, SliderBody.self) else { Issue.record("slider"); return }
         #expect(abs(s.height - 31) < 0.01)
-        // 06 §4: a tap on the track does not change the value.
         h.tap(CGPoint(x: s.minX + 40, y: s.midY), at: 1.0)
         h.tap(CGPoint(x: s.maxX - 20, y: s.midY), at: 1.2)
         #expect(log.entries.isEmpty)
-        // Dragging the thumb does (step 0.1).
         let usable = s.width - SliderMetrics.thumb
         let thumb = CGPoint(x: s.minX + SliderMetrics.thumb / 2 + 0.5 * usable, y: s.midY)
         h.drag(from: thumb, delta: CGSize(width: usable * 0.2 / 10, height: 0), steps: 10, at: 2.0)
@@ -120,7 +109,7 @@ struct ControlTests {
         #expect(log.entries == ["count 2"])
         h.tap(plus, at: 1.5)
         h.tap(plus, at: 2.0)
-        h.tap(plus, at: 2.5)                      // 3 is the upper bound
+        h.tap(plus, at: 2.5)
         #expect(log.entries == ["count 2", "count 3"])
         h.tap(minus, at: 3.0)
         #expect(log.entries.last == "count 2")
@@ -145,11 +134,10 @@ struct ControlTests {
         let go = buttons[buttons.count - 2], off = buttons[buttons.count - 1]
         h.pointer(.down, go.center, at: 1.0)
         h.run(until: 1.1)
-        #expect(log.entries.isEmpty)              // nothing on touch-down
+        #expect(log.entries.isEmpty)
         h.pointer(.up, go.center, at: 1.2)
         h.run(until: 1.3)
         #expect(log.entries == ["go"])
-        // Released outside (beyond the slop): no action.
         h.pointer(.down, go.center, at: 2.0)
         h.pointer(.moved, CGPoint(x: go.maxX + 40, y: go.midY), at: 2.1)
         h.pointer(.up, CGPoint(x: go.maxX + 40, y: go.midY), at: 2.2)
@@ -183,8 +171,6 @@ struct ControlTests {
     @Test func tabFocusAndKeysActivateControls() {
         let log = EventLog()
         let h = Harness(size: CGSize(width: 400, height: 500)) { ControlsProbe(log: log) }
-        // Tab order is tree order: toggle, slider, stepper, segmented picker,
-        // menu picker, the enabled button (the disabled one is skipped).
         h.key(.tab, at: 1.0)
         h.key(.space, at: 1.1)
         #expect(log.entries == ["on true"])
@@ -201,14 +187,12 @@ struct ControlTests {
         h.key(.tab, at: 1.9)
         h.key(.return, at: 2.0)
         #expect(log.entries.last == "go")
-        h.key(.tab, modifiers: .shift, at: 2.1)  // back to the menu picker
+        h.key(.tab, modifiers: .shift, at: 2.1)
         h.key(.tab, at: 2.2)
-        h.key(.tab, at: 2.3)                      // wraps to the toggle
+        h.key(.tab, at: 2.3)
         h.key(.return, at: 2.4)
         #expect(log.entries.last == "on false")
     }
-
-    // MARK: Menus and pop-up windows
 
     @Test func menuPickerOpensAPopUpWindowAndChooses() {
         let log = EventLog()
@@ -222,7 +206,6 @@ struct ControlTests {
         #expect(pw.popupParent == h.windowID)
         #expect(abs(pw.popupOrigin.x - b.minX) < 0.01 && abs(pw.popupOrigin.y - (b.maxY + 4)) < 0.01)
         #expect(pw.size.width >= b.width && pw.size.height > 2 * MenuMetrics.rowHeight)
-        // The second row ("Beta") chooses and closes the pop-up.
         let row = CGPoint(x: 30, y: MenuMetrics.verticalPadding + MenuMetrics.rowHeight * 1.5)
         h.backend.post(.pointer(PointerEvent(window: pw.id, kind: .mouse, phase: .down, location: row, timestamp: 1.5)), at: 1.5)
         h.backend.post(.pointer(PointerEvent(window: pw.id, kind: .mouse, phase: .up, location: row, timestamp: 1.55)), at: 1.55)
@@ -241,8 +224,6 @@ struct ControlTests {
         h.backend.post(.key(KeyEvent(window: p.platform.id, key: .escape, timestamp: 1.2)), at: 1.2)
         h.run(until: 1.3)
         #expect(popupCount(h) == 0)
-        // Open again; a press in the main window closes it and is not
-        // delivered (the toggle under it does not flip).
         h.tap(b.center, at: 2.0)
         #expect(h.host.windows.filter(\.isPopup).count == 1)
         guard let t = frame(h, Toggle<Text>.self) else { return }
@@ -250,7 +231,6 @@ struct ControlTests {
         #expect(popupCount(h) == 0)
         let flipped = log.entries.contains("on true")
         #expect(!flipped)
-        // Keyboard: Down moves to the first row, Return chooses it.
         h.tap(b.center, at: 3.0)
         guard let q = h.host.windows.first(where: \.isPopup) else { Issue.record("popup"); return }
         h.backend.post(.key(KeyEvent(window: q.platform.id, key: .downArrow, timestamp: 3.2)), at: 3.2)
@@ -278,7 +258,6 @@ struct ControlTests {
         }
         h.tap(m.center, at: 1.0)
         guard let first = h.host.windows.first(where: \.isPopup) else { Issue.record("popup"); return }
-        // Rows: Copy, the divider, More.
         let moreY = MenuMetrics.verticalPadding + MenuMetrics.rowHeight * 1.5 + 1
         h.backend.post(.pointer(PointerEvent(window: first.platform.id, phase: .down, location: CGPoint(x: 30, y: moreY), timestamp: 1.5)), at: 1.5)
         h.backend.post(.pointer(PointerEvent(window: first.platform.id, phase: .up, location: CGPoint(x: 30, y: moreY), timestamp: 1.55)), at: 1.55)
@@ -320,13 +299,10 @@ struct ControlTests {
         tap(b.center, 1.0)
         #expect(host.windows.count == 1)
         #expect(w.overlayPopups.count == 1)
-        // The overlay's second row chooses.
         tap(CGPoint(x: b.minX + 30, y: b.maxY + 4 + MenuMetrics.verticalPadding + MenuMetrics.rowHeight * 1.5), 2.0)
         #expect(log.entries == ["menu b"])
         #expect(w.overlayPopups.isEmpty)
     }
-
-    // MARK: Text editing in fields
 
     struct FieldProbe: View {
         let log: EventLog
@@ -367,20 +343,16 @@ struct ControlTests {
         let log = EventLog()
         let h = Harness { FieldProbe(log: log) }
         guard let f = stateFrame(h, 0), let s = states(h).first else { Issue.record("field"); return }
-        // A click at the far right puts the caret at the end; shift-arrows
-        // select; typing replaces the selection.
         h.tap(CGPoint(x: f.maxX - 5, y: f.midY), at: 1.0)
         #expect(s.isFocused && s.model.caret == 11 && s.model.selection.isEmpty)
         h.key(.leftArrow, modifiers: [.shift, .control], at: 1.1)
         #expect(s.model.selectedText == "world")
         h.type("there", at: 1.2)
         #expect(log.entries.last == "text hello there")
-        // Undo restores the selection's text in one step; redo again.
         h.key(.character("z"), modifiers: .control, at: 1.6)
         #expect(log.entries.last == "text hello world")
         h.key(.character("z"), modifiers: [.control, .shift], at: 1.7)
         #expect(log.entries.last == "text hello there")
-        // A double click selects a word; Ctrl+X cuts it; Ctrl+V pastes.
         let x = f.minX + 14 + 10
         h.tap(CGPoint(x: x, y: f.midY), at: 2.0)
         h.tap(CGPoint(x: x, y: f.midY), at: 2.1)
@@ -420,11 +392,9 @@ struct ControlTests {
         #expect(!s.caretVisible)
         h.run(until: 1.05 + 1.1)
         #expect(s.caretVisible)
-        // Typing shows it again and restarts the cycle.
         h.run(until: 2.2)
         h.type("x", at: 2.25)
         #expect(s.caretVisible)
-        // After 10 s without activity it stays on and the timer stops.
         h.run(until: 14)
         #expect(s.caretVisible)
         #expect(h.window.services.nextTimerDeadline == nil)
@@ -459,13 +429,10 @@ struct ControlTests {
         h.key(.upArrow, at: 2.0)
         h.key(.upArrow, at: 2.1)
         #expect(s.model.caret <= 3)
-        // Tab inserts a tab in the editor.
         h.key(.tab, at: 2.2)
         let hasTab = log.entries.last?.contains("\t") == true
         #expect(hasTab)
     }
-
-    // MARK: Layout of forms and the background overloads
 
     @Test func formRowsAreInsetAndTall() {
         let h = Harness(size: CGSize(width: 400, height: 400)) {
@@ -486,14 +453,10 @@ struct ControlTests {
     }
 
     @Test func colorBackgroundUsesTheShapeStyleOverload() {
-        // `.background(Color.x)` resolves to the ShapeStyle form (the view
-        // form is disfavoured, as in the reference API), which fills a
-        // rectangle in the view's bounds.
         let v = Color.red.frame(width: 10, height: 10).background(Color.blue)
         #expect(String(describing: type(of: v)).contains("Rectangle"))
         let o = Text("A").overlay(Color.green.opacity(0.5))
         #expect(String(describing: type(of: o)).contains("Rectangle"))
-        // The view form still serves non-style views.
         let w = Text("A").background(Text("B"))
         #expect(!String(describing: type(of: w)).contains("Rectangle"))
     }

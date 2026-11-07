@@ -6,11 +6,9 @@ import FoundationNetworking
 import Security
 #endif
 
-/// RSA public keys of a JSON Web Key Set (RFC 7517), as DER.
 public enum JWKS {
     public struct Key: Sendable, Equatable {
         public var kid: String?
-        /// PKCS #1 `RSAPublicKey` DER.
         public var der: Data
     }
 
@@ -23,7 +21,6 @@ public enum JWKS {
         }
     }
 
-    /// `SEQUENCE { INTEGER n, INTEGER e }`.
     public static func rsaPublicKeyDER(modulus: Data, exponent: Data) -> Data {
         func integer(_ d: Data) -> Data {
             var v = Data(d.drop { $0 == 0 })
@@ -45,8 +42,6 @@ public enum JWKS {
 }
 
 #if canImport(Security)
-/// Verifies RS256 ID-token signatures with the keys at the issuer's
-/// `jwks_uri` (from OpenID discovery), using the Security framework.
 public struct JWKSSignatureVerifier: IDTokenSignatureVerifier {
     public init() {}
 

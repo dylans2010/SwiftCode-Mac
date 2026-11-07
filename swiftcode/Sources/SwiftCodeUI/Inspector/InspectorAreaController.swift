@@ -1,60 +1,35 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The right inspector area: a tab bar (File, History, Quick Help for
-/// source files) above the selected inspector. See
-/// `specs/ide/workspace-window.md` §Inspector area.
 @MainActor
 public final class InspectorAreaController: NSViewController {
     public static let symbols = WorkspaceChrome.inspectorSymbols
-    /// The standard tabs' tooltips, exactly (reference-ui-5.md §7.1).
     public static let toolTips = ["Show the File inspector", "Show the History inspector", "Show Quick Help inspector"]
-    /// File inspector: the working copy and targets of a file (set by the window).
     public var fileInfo: ((URL) -> FileInspectorInfo)?
-    /// Target Membership "+" / "−": (file, target ID, member).
     public var onSetMembership: ((URL, String, Bool) -> Void)?
-    /// History inspector: the commits that changed a file, newest first.
-    /// The file's commits (read from git in the background).
     public var historyProvider: ((URL) async -> [GitRepository.Commit])?
-    /// The history read in progress, if any.
     public private(set) var historyLoading: Task<Void, Never>?
     private var loadedHistory: (url: URL, commits: [GitRepository.Commit])?
     private var historyGeneration = 0
-    /// A history row was selected: show the commit in Code Review.
     public var onSelectHistoryCommit: ((URL, GitRepository.Commit) -> Void)?
-    /// Quick Help ▸ Search Documentation.
     public var onSearchDocumentation: (() -> Void)?
-    /// File inspector ▸ Location's folder button chose a new location
-    /// (file, chosen URL).
     public var onChooseLocation: ((URL, URL) -> Void)?
-    /// The rules drawn between sections of the shown inspector (tests).
     public private(set) var sectionRuleCount = 0
-    /// Rules inside sections (tests).
     public private(set) var innerRuleCount = 0
-    /// The shown file's info and history (tests).
     public private(set) var shownInfo: FileInspectorInfo?
     public private(set) var historyCommits: [GitRepository.Commit] = []
-    /// Target Membership rows selected for "−" (target IDs).
     public private(set) var selectedMemberships: Set<String> = []
-    /// The centered placeholder ("Not Applicable", "No History"); empty when none.
     public var centeredText: String { _ = view; return centerLabel.isHidden ? "" : centerLabel.stringValue }
     private let centerLabel = NSTextField(labelWithString: "")
-    /// The section headings of the shown inspector, in order (tests).
     public private(set) var sectionTitles: [String] = []
-    /// The rows of the shown inspector: (key, value) for text rows (tests).
     public private(set) var rowValues: [(String, String)] = []
-    /// The tab buttons' tooltips (tests).
     public var tabToolTips: [String] { buttons.map { $0.toolTip ?? "" } }
     public private(set) var selectedIndex = 0
     private var buttons: [NSButton] = []
     private let bar = NSStackView()
-    /// liquid-glass.md §2.5: the tab bar's glass capsule (248 × 30 at a
-    /// 260-point width: 5 from the divider, 6 from the right edge) and the
-    /// selected tab's recessed pill (about 78 × 24).
     let barGlass = GlassBars.capsule()
     let tabPill = SelectionPillView()
     static let tabPillSize = NSSize(width: 78, height: 24)
-    /// The tab bar as drawn (tests).
     var tabBarView: NSView { GlassBars.enabled ? barGlass : bar }
 
     public override func viewDidLayout() {
@@ -68,22 +43,14 @@ public final class InspectorAreaController: NSViewController {
         }
         if GlassBars.enabled { tabPill.follow(buttons.first { $0.tag == selectedIndex }, size: Self.tabPillSize) }
     }
-    /// Inspectors added by the focused editor (Interface Builder adds
-    /// Identity, Attributes, Size, Connections), after the standard three.
     public private(set) var extraInspectors: [(name: String, symbol: String)] = []
     private var extraProvider: ((Int) -> NSView)?
-    /// File inspector: Name was edited (old URL, new name).
     public var onRename: ((URL, String) -> Void)?
-    /// File inspector controls (tests).
     public private(set) var nameField: NSTextField?
     public private(set) var fileControls: [String: NSView] = [:]
 
-    /// The titles of every tab, standard ones first.
     public var tabNames: [String] { CommandTable.inspectors + extraInspectors.map(\.name) }
 
-    /// Shows editor-specific inspectors next to File / History / Quick
-    /// Help; `provider(i)` builds the view of extra inspector `i`. An empty
-    /// list removes them.
     public func setExtraInspectors(_ list: [(name: String, symbol: String)], provider: ((Int) -> NSView)?, select index: Int? = nil) {
         let changed = list.map(\.name) != extraInspectors.map(\.name)
         extraInspectors = list
@@ -93,7 +60,6 @@ public final class InspectorAreaController: NSViewController {
         if let index { select(index) } else if selectedIndex >= tabNames.count { select(0) } else { select(selectedIndex) }
     }
 
-    /// Rebuilds the current inspector (after the selection changed).
     public func refresh() { if isViewLoaded { select(selectedIndex) } }
 
     private func rebuildButtons() {
@@ -111,13 +77,10 @@ public final class InspectorAreaController: NSViewController {
         }
     }
     private let content = NSStackView()
-    /// The scroll view around the contents (tests).
     let contentScroll = NSScrollView()
     private var file: URL?
-    /// The Quick Help inspector's text (from the language server).
     public private(set) var quickHelp: String?
 
-    /// The defining file of the Quick Help symbol (the file link).
     public var quickHelpFile: String?
 
     public func showQuickHelp(_ text: String?, file: String? = nil) {
@@ -127,10 +90,6 @@ public final class InspectorAreaController: NSViewController {
     }
 
     public override func loadView() {
-        // The contents are laid out against `slideGuide`, as wide as the
-        // area: while the inspector slides in or out the guide keeps its
-        // full width pinned to the divider, so nothing reflows and the
-        // area clips it (editor-area.md §C.7).
         let root = NSView()
         root.clipsToBounds = true
         root.addLayoutGuide(slideGuide)
@@ -141,35 +100,26 @@ public final class InspectorAreaController: NSViewController {
             slideGuide.bottomAnchor.constraint(equalTo: root.bottomAnchor), guideFollowsArea!,
         ])
         bar.orientation = .horizontal
-        // §7.1: the tabs fill the bar's width as equal segments.
         bar.distribution = .fillEqually
         bar.spacing = 0
         rebuildButtons()
         let sep = NSBox.hairline()
         content.orientation = .vertical
         content.alignment = .leading
-        // metrics.md §12.4: rows on their own pitch (no stack spacing),
-        // 7 from the divider and 8 from the window's edge.
         content.spacing = 0
         content.edgeInsets = NSEdgeInsets(top: Self.contentTopInset, left: Self.leadingInset, bottom: Self.contentTopInset, right: Self.trailingInset)
         centerLabel.textColor = .secondaryLabelColor
         centerLabel.alignment = .center
         centerLabel.font = .systemFont(ofSize: 13)
         centerLabel.isHidden = true
-        // liquid-glass.md §2.1: a 1-point line between the editor and the
-        // inspector, the area's full height.
         let divider = NSBox()
         divider.boxType = .separator
         let glass = GlassBars.enabled
-        // The contents scroll when they are taller than the area.
         contentScroll.drawsBackground = false
         contentScroll.automaticallyAdjustsContentInsets = false
         contentScroll.contentInsets = NSEdgeInsets()
         contentScroll.hasVerticalScroller = true
         contentScroll.autohidesScrollers = true
-        // An overlay scroller: no lane narrows the inspector's columns (the
-        // reference showed none there; metrics.md §12.4 measures the rows
-        // to 8 from the window's edge).
         contentScroll.scrollerStyle = .overlay
         let doc = InspectorDocumentView()
         doc.translatesAutoresizingMaskIntoConstraints = false
@@ -191,7 +141,7 @@ public final class InspectorAreaController: NSViewController {
             barGlass.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(barGlass, positioned: .below, relativeTo: bar)
             root.addSubview(tabPill, positioned: .below, relativeTo: bar)
-            sep.alphaValue = 0   // no line under the floating bar
+            sep.alphaValue = 0
             NSLayoutConstraint.activate([
                 barGlass.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: GlassBars.topOffset),
                 barGlass.leadingAnchor.constraint(equalTo: divider.trailingAnchor, constant: 5),
@@ -199,8 +149,6 @@ public final class InspectorAreaController: NSViewController {
                 barGlass.heightAnchor.constraint(equalToConstant: GlassBars.height),
             ])
         }
-        // The empty inspector's line centres in the room below the tab bar
-        // (navigators.md round 3 §2: 38.5 lower than the inspector's centre).
         let below = NSLayoutGuide()
         root.addLayoutGuide(below)
         NSLayoutConstraint.activate([
@@ -209,7 +157,6 @@ public final class InspectorAreaController: NSViewController {
             centerLabel.centerYAnchor.constraint(equalTo: below.centerYAnchor),
         ])
         NSLayoutConstraint.activate([
-            // Below the toolbar (the inspector runs the full height).
             bar.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: glass ? GlassBars.topOffset + 2 : 4),
             bar.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: glass ? 10 : 8),
             bar.trailingAnchor.constraint(equalTo: slideGuide.trailingAnchor, constant: glass ? -10 : -8),
@@ -223,9 +170,6 @@ public final class InspectorAreaController: NSViewController {
             sep.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             sep.trailingAnchor.constraint(equalTo: slideGuide.trailingAnchor),
         ])
-        // The scroll view is placed by frame in `viewDidLayout` (from the
-        // separator down): constraints from the top bar to the bottom edge
-        // would let the contents size the area when it has no superview.
         contentScroll.translatesAutoresizingMaskIntoConstraints = true
         contentSeparator = sep
         view = root
@@ -236,11 +180,8 @@ public final class InspectorAreaController: NSViewController {
     private weak var contentSeparator: NSView?
     private var guideFollowsArea: NSLayoutConstraint?
     private var guideFixedWidth: NSLayoutConstraint?
-    /// Whether the contents are held at a fixed width for a slide.
     public private(set) var isSlidingRigidly = false
 
-    /// Holds the contents at `width`, pinned to the leading edge, while the
-    /// inspector's own width changes (the show/hide slide).
     public func beginRigidSlide(width: CGFloat) {
         _ = view
         isSlidingRigidly = true
@@ -264,7 +205,7 @@ public final class InspectorAreaController: NSViewController {
     public func select(_ index: Int) {
         selectedIndex = index
         for b in buttons { b.contentTintColor = TabGlyphTint.color(selected: b.tag == index) }
-        if isViewLoaded { view.needsLayout = true }   // the pill follows
+        if isViewLoaded { view.needsLayout = true }
         content.arrangedSubviews.forEach { $0.removeFromSuperview() }
         content.edgeInsets.top = Self.contentTopInset
         centerLabel.isHidden = true
@@ -285,8 +226,6 @@ public final class InspectorAreaController: NSViewController {
             if let q = quickHelp {
                 content.addArrangedSubview(QuickHelpView.make(QuickHelpDocument(hover: q, file: quickHelpFile)))
             } else {
-                // §7.5: the caret is not on a symbol. reference-ui-6.md §6
-                // (I3): "No Quick Help" and the button centered, then a rule.
                 content.addArrangedSubview(heading("Quick Help"))
                 let none = note("No Quick Help")
                 none.alignment = .center
@@ -313,16 +252,11 @@ public final class InspectorAreaController: NSViewController {
         centerLabel.isHidden = false
     }
 
-    // MARK: History inspector (§7.4)
-
-    /// Waits for the history read (tests).
     public func historyIdle() async {
         while let t = historyLoading { await t.value }
     }
 
     private func historyInspector() {
-        // The commits are read in the background; the inspector fills in
-        // when they arrive (if it still shows this file's history).
         historyGeneration += 1
         if let loaded = loadedHistory, loaded.url == file {
             loadedHistory = nil
@@ -347,8 +281,6 @@ public final class InspectorAreaController: NSViewController {
         historyRowViews = []
         guard !historyCommits.isEmpty else { showCentered("No History"); return }
         for (i, c) in historyCommits.enumerated() {
-            // reference-ui-6.md §6 (I2): author (emphasized) and subject on
-            // the left; the short hash over the relative date on the right.
             let author = NSTextField(labelWithString: c.authorName)
             author.font = .boldSystemFont(ofSize: 11)
             author.lineBreakMode = .byTruncatingTail
@@ -403,17 +335,13 @@ public final class InspectorAreaController: NSViewController {
         }
     }
 
-    /// The history rows: author, subject, relative day, short hash (tests).
     public var historyRows: [(author: String, subject: String, date: String, hash: String)] {
         historyCommits.map { ($0.authorName, $0.subject, GitDates.relativeDay($0.date), $0.shortHash) }
     }
-    /// Each shown history row's left (author, subject) and right (hash,
-    /// date) columns (tests).
     public private(set) var historyRowViews: [(left: NSStackView, right: NSStackView)] = []
 
     @objc private func historyRowClicked(_ b: NSButton) { selectHistoryRow(b.tag) }
 
-    /// Selects a history row: the commit shows in Code Review.
     public func selectHistoryRow(_ i: Int) {
         guard let file, i >= 0, i < historyCommits.count else { return }
         onSelectHistoryCommit?(file, historyCommits[i])
@@ -421,12 +349,10 @@ public final class InspectorAreaController: NSViewController {
 
     private func fileInspector() {
         guard let file else {
-            showCentered("Not Applicable")   // §7.2
+            showCentered("Not Applicable")
             return
         }
-        // reference-ui.md §6.
         fileControls = [:]
-        // metrics.md §16.2: the heading 3.5 higher, Name where it was.
         content.edgeInsets.top = Self.contentTopInset - InspectorStyle.firstHeadingRaise
         let identity = heading("Identity and Type")
         content.addArrangedSubview(identity)
@@ -441,21 +367,16 @@ public final class InspectorAreaController: NSViewController {
         content.addArrangedSubview(row("Name", name))
         let typeRow = row("Type", popUp("Type", ["Default - " + Self.typeName(for: file)]))
         content.addArrangedSubview(typeRow)
-        let typeRule = addInnerRule()   // metrics.md §13.3: a rule after Type
-        // §16.2: 28 from Type's ink to Location's.
+        let typeRule = addInnerRule()
         content.setCustomSpacing(0, after: typeRow)
         content.setCustomSpacing(InspectorStyle.afterTypeRule, after: typeRule)
         let info = fileInfo?(file) ?? FileInspectorInfo()
         shownInfo = info
-        // reference-ui-6.md §6 (I1): a file in a synchronized folder has
-        // the folder's location (a disabled pop-up, no folder button);
-        // otherwise the pop-up and the folder button are enabled.
         let choose = NSButton(image: NSImage(systemSymbolName: "folder", accessibilityDescription: "Choose location")!, target: self,
                               action: #selector(chooseLocationClicked))
         choose.isBordered = false
         choose.toolTip = "Choose location"
         let isProject = file.pathExtension == "xcodeproj"
-        // metrics.md §12.4: "Relative to Group", also in a synchronized folder.
         let location = popUp("Location", [isProject ? "Absolute" : "Relative to Group"])
         location.isEnabled = !isProject && !info.inSynchronizedFolder
         choose.isEnabled = !isProject
@@ -469,7 +390,6 @@ public final class InspectorAreaController: NSViewController {
         fileName.font = .systemFont(ofSize: 11)
         let fileNameRow = row("", fileName)
         content.addArrangedSubview(fileNameRow)
-        // 18 from the file name's line to the path's (metrics.md §13.3).
         content.setCustomSpacing(InspectorStyle.fileNameToPath, after: fileNameRow)
         let path = InspectorStyle.pathLabel(file.path)
         path.preferredMaxLayoutWidth = 140
@@ -480,11 +400,10 @@ public final class InspectorAreaController: NSViewController {
         let pathStack = NSStackView(views: [path, reveal])
         pathStack.alignment = .top
         let fullPath = row("Full Path", pathStack)
-        // The label is top-aligned with the path's first line.
         (fullPath as? NSStackView)?.alignment = .firstBaseline
         content.addArrangedSubview(fullPath)
         rowValues.append(("Full Path", file.path))
-        let pathRule = addInnerRule()   // and after Full Path
+        let pathRule = addInnerRule()
         if let wc = info.workingCopy, let rel = info.relativePath {
             for (k, v) in [("Working Copy", wc), ("Relative Path", rel)] {
                 content.addArrangedSubview(row(k, v))
@@ -492,38 +411,30 @@ public final class InspectorAreaController: NSViewController {
             }
         }
         if isProject {
-            // reference-ui-3.md §1.13.
             let rows = ProjectDocumentInspector.rows(for: file, controls: &fileControls)
             if !rows.isEmpty {
                 content.addArrangedSubview(heading("Project Document"))
                 for (k, v) in rows { content.addArrangedSubview(row(k, v)) }
             }
         }
-        // §6 (I1): a package's files show only Identity and Type and Text
-        // Settings.
         let isImage = ImageViewerController.handles(file)
         if !isProject && !info.isPackageFile {
             onDemandResourceTags(resource: isImage)
-            // §16.2: the tags section's rule 4 closer to Full Path's.
             if let i = content.arrangedSubviews.firstIndex(of: pathRule), i + 1 < content.arrangedSubviews.count,
                content.arrangedSubviews[i + 1] is NSBox {
                 content.setCustomSpacing(InspectorStyle.pathRuleToTagsRule, after: pathRule)
             }
-            if isImage { imageSections() }   // editor-area.md §C.6
+            if isImage { imageSections() }
             targetMembership(file, info)
         }
-        // An image has no Text Settings (§C.6).
         guard !isImage else { return }
         content.addArrangedSubview(heading("Text Settings"))
         for (key, items) in [("Text Encoding", WorkspaceChrome.textEncodingItems), ("Line Endings", WorkspaceChrome.lineEndingItems)] {
             let pop = popUp(key, items)
-            // "No Explicit …" titles are grey (metrics.md §12.4).
             InspectorStyle.dimFirstTitle(pop)
             content.addArrangedSubview(row(key, pop))
         }
-        addInnerRule()   // and after Line Endings
-        // Indentation from an EditorConfig file disables these controls
-        // and says so; encoding and line endings stay enabled.
+        addInnerRule()
         let p = Preferences.shared
         let config = editorConfig(file)
         shownEditorConfig = config
@@ -544,10 +455,7 @@ public final class InspectorAreaController: NSViewController {
         }
     }
 
-    /// The EditorConfig settings that apply to a file (tests can replace
-    /// the lookup).
     public var editorConfig: (URL) -> EditorConfig = { EditorConfig.settings(for: $0) }
-    /// The settings the shown File inspector used (tests).
     public private(set) var shownEditorConfig: EditorConfig?
 
     private func popUp(_ key: String, _ items: [String]) -> NSPopUpButton {
@@ -560,7 +468,6 @@ public final class InspectorAreaController: NSViewController {
         return b
     }
 
-    /// A value with a stepper and its label under them.
     private func stepper(_ label: String, _ value: Int) -> NSView {
         let field = NSTextField(labelWithString: "\(value)")
         field.font = .systemFont(ofSize: 11)
@@ -594,7 +501,6 @@ public final class InspectorAreaController: NSViewController {
         onRename?(file, f.stringValue)
     }
 
-    /// The folder button: choose the file's new location.
     @objc private func chooseLocationClicked() {
         guard let file, let window = view.window, window.isVisible else { return }
         let panel = NSOpenPanel()
@@ -612,13 +518,8 @@ public final class InspectorAreaController: NSViewController {
         NSWorkspace.shared.activateFileViewerSelecting([file])
     }
 
-    /// A human-readable file type, from the extension.
     static func typeName(for url: URL) -> String { WorkspaceChrome.fileTypeName(for: url) }
 
-    // MARK: Image Properties, Localization (editor-area.md §C.6)
-
-    /// The shown image's properties, once the image viewer has decoded it
-    /// (nil: "--" in every row).
     public var imageProperties: ImageFileProperties? {
         didSet { if oldValue != imageProperties, selectedIndex == 0 { refresh() } }
     }
@@ -630,8 +531,6 @@ public final class InspectorAreaController: NSViewController {
             rowValues.append((k, v))
         }
         content.addArrangedSubview(heading("Localization"))
-        // editor-area.md §D.8: a pop-up-style button as wide as the value
-        // area, 16 tall, filled, its title centred.
         let localize = NSButton(title: "Localize…", target: nil, action: nil)
         localize.controlSize = .small
         localize.font = .systemFont(ofSize: 11)
@@ -647,12 +546,9 @@ public final class InspectorAreaController: NSViewController {
         localize.widthAnchor.constraint(equalTo: content.widthAnchor, constant: -Self.horizontalInsets).isActive = true
     }
 
-    // MARK: On Demand Resource Tags, Target Membership (§7.3)
-
     private func onDemandResourceTags(resource: Bool = false) {
         content.addArrangedSubview(heading("On Demand Resource Tags"))
         let tags = NSTokenField()
-        // An image is a resource: a "Tags" field (editor-area.md §D.8).
         tags.placeholderString = resource ? "Tags" : "Only resources are taggable"
         tags.isEnabled = resource
         if resource {
@@ -676,18 +572,12 @@ public final class InspectorAreaController: NSViewController {
         let tags = fileControls["On Demand Resource Tags"]
         let afterTags = tags != nil && content.arrangedSubviews.last === tags
         content.addArrangedSubview(heading("Target Membership"))
-        // §16.2: the tags box runs deeper (Target Membership 12.5 lower).
         if afterTags, let tags { content.setCustomSpacing(InspectorStyle.ruleGap + InspectorStyle.tagsBoxExtra, after: tags) }
         let members = info.memberships.filter(\.isMember)
         selectedMemberships.formIntersection(members.map(\.targetID))
-        // reference-ui-6.md §6 (I1): a bordered table, one row per target
-        // (glyph, name, "Default" under it), and "+", "−", the pencil on
-        // its bottom edge inside the border.
         let table = NSStackView()
         table.orientation = .vertical
         table.alignment = .leading
-        // metrics.md §12.4: a bordered box 110 tall (1-point border), the
-        // rows at the top, a 19-point footer under a line.
         table.spacing = 2
         table.edgeInsets = NSEdgeInsets(top: 4, left: 4, bottom: 0, right: 4)
         table.wantsLayer = true
@@ -706,7 +596,6 @@ public final class InspectorAreaController: NSViewController {
             text.orientation = .vertical
             text.alignment = .leading
             text.spacing = 0
-            // The target's icon (metrics.md §16.2), not an empty outline.
             let icon = NSImageView(image: InspectorStyle.targetIcon())
             icon.setAccessibilityLabel("Target")
             let r = NSStackView(views: [icon, text])
@@ -736,7 +625,7 @@ public final class InspectorAreaController: NSViewController {
             return b
         }
         let add = small("plus", "Choose which targets include this file", #selector(addMembershipClicked(_:)))
-        add.isEnabled = true   // §6 (I1)
+        add.isEnabled = true
         let remove = small("minus", "Remove this file from selected targets", #selector(removeMembershipClicked))
         remove.isEnabled = info.memberships.contains { selectedMemberships.contains($0.targetID) && $0.isEditable }
         let edit = small("pencil", "Edit target membership options", nil)
@@ -775,14 +664,11 @@ public final class InspectorAreaController: NSViewController {
         toggleMembershipSelection(id)
     }
 
-    /// Selects or deselects a Target Membership row (by target ID).
     public func toggleMembershipSelection(_ targetID: String) {
         if !selectedMemberships.insert(targetID).inserted { selectedMemberships.remove(targetID) }
         refresh()
     }
 
-    /// The "+" menu: the targets that do not include the file (a disabled
-    /// "No Other Targets" when every target does).
     public func addMembershipMenu() -> NSMenu {
         let menu = NSMenu(title: "Targets")
         defer {
@@ -814,7 +700,6 @@ public final class InspectorAreaController: NSViewController {
         refresh()
     }
 
-    /// "−": removes the file from the selected targets.
     @objc public func removeMembershipClicked() {
         guard let file else { return }
         for id in selectedMemberships.sorted() { onSetMembership?(file, id, false) }
@@ -822,8 +707,6 @@ public final class InspectorAreaController: NSViewController {
         refresh()
     }
 
-    /// A section heading; from the second section on, a thin rule above it
-    /// (reference-ui-6.md §6, I1).
     private func heading(_ s: String) -> NSView {
         if !sectionTitles.isEmpty { addRule() }
         sectionTitles.append(s)
@@ -833,8 +716,6 @@ public final class InspectorAreaController: NSViewController {
         return InspectorRowBox(l, height: InspectorStyle.headingRowHeight, inset: -1)
     }
 
-    /// A rule inside a section (after Type, Full Path and Line Endings,
-    /// metrics.md §13.3), 6 from the controls.
     @discardableResult
     private func addInnerRule() -> NSView {
         if let last = content.arrangedSubviews.last { content.setCustomSpacing(InspectorStyle.ruleGap, after: last) }
@@ -846,7 +727,6 @@ public final class InspectorAreaController: NSViewController {
         return rule
     }
 
-    /// A thin rule across the inspector, 6 from the controls on each side.
     private func addRule() {
         if let last = content.arrangedSubviews.last { content.setCustomSpacing(InspectorStyle.ruleGap, after: last) }
         let rule = NSBox.hairline()
@@ -862,17 +742,10 @@ public final class InspectorAreaController: NSViewController {
         return l
     }
 
-    /// A label and its control. The row spans the content between the two
-    /// `contentInset`s, and fields and pop-ups fill the value column up to
-    /// the right inset (`specs/ide/metrics.md` §5): before, a 160-point
-    /// name field and long pop-up titles ran to within 5 points of the
-    /// window's edge or past it.
     private func row(_ key: String, _ control: NSView) -> NSView {
         let s = InspectorRowView(views: [keyLabel(key), control])
         s.alignment = .centerY
         s.spacing = InspectorStyle.keyToValue
-        // Row pitch (metrics.md §12.4): 22 for a pop-up row, 26 for the
-        // 22-point Name field (24 from it to the pop-up below).
         let pitch: CGFloat = control is NSPopUpButton || (control as? NSStackView)?.arrangedSubviews.first is NSPopUpButton ? 22
             : ((control as? NSTextField)?.isEditable == true ? 26 : 0)
         if pitch > 0 { s.heightAnchor.constraint(equalToConstant: pitch).isActive = true }
@@ -880,7 +753,6 @@ public final class InspectorAreaController: NSViewController {
             || ((control as? NSStackView)?.arrangedSubviews.first is NSPopUpButton)
         if fills {
             s.distribution = .fill
-            // The value column ends at the row's end (8 from the edge).
             control.trailingAnchor.constraint(equalTo: s.trailingAnchor).isActive = true
             control.setContentHuggingPriority(.defaultLow - 1, for: .horizontal)
             control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -906,35 +778,25 @@ public final class InspectorAreaController: NSViewController {
     private func keyLabel(_ key: String) -> NSTextField {
         let k = NSTextField(labelWithString: key)
         k.font = .systemFont(ofSize: 11)
-        k.textColor = .labelColor   // dark labels (editor-area.md §D.8)
+        k.textColor = .labelColor
         k.alignment = .right
         k.lineBreakMode = .byClipping
-        // A long key ("Alpha Channel") is tightened to fit the column
-        // rather than clipped.
         k.attributedStringValue = InspectorStyle.fitted(key, font: k.font!, width: Self.keyColumnWidth)
         k.widthAnchor.constraint(equalToConstant: Self.keyColumnWidth).isActive = true
         k.setContentCompressionResistancePriority(.required, for: .horizontal)
         return k
     }
 
-    /// The content's side insets (metrics.md §12.4): 7 from the divider,
-    /// 8 from the window's edge.
     static let leadingInset: CGFloat = 7
     static let trailingInset: CGFloat = 8
     static var horizontalInsets: CGFloat { leadingInset + trailingInset }
-    /// The larger of the two (layout checks).
     static let contentInset: CGFloat = 8
-    /// The room above the first heading and below the last row.
     static let contentTopInset: CGFloat = 4
-    /// The right-aligned key column ("Name", "Type", …): its ink ends at
-    /// the inspector's edge + 78.
     static let keyColumnWidth: CGFloat = 72
 
     @objc private func tabClicked(_ b: NSButton) { select(b.tag) }
 }
 
-/// An inspector row: as wide as the inspector's content less its two side
-/// insets, so nothing in it runs past the right inset.
 final class InspectorRowView: NSStackView {
     private var widthConstraint: NSLayoutConstraint?
 
@@ -949,7 +811,6 @@ final class InspectorRowView: NSStackView {
     }
 }
 
-/// The inspector's scrolled contents, top-down.
 final class InspectorDocumentView: NSView {
     override var isFlipped: Bool { true }
 }

@@ -22,13 +22,10 @@ struct GitCloneSheetView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            // Card 1: Remote Repository URL
             remoteURLCard
 
-            // Card 2: GitHub Repositories
             repositoriesCard
 
-            // Action / Error Section
             actionSection
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -47,8 +44,6 @@ struct GitCloneSheetView: View {
             Text("Please enter a name for the cloned project folder.")
         }
     }
-
-    // MARK: - Card 1: Remote Repository URL
 
     private var remoteURLCard: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -107,8 +102,6 @@ struct GitCloneSheetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .liquidGlass(style: .subtle, cornerRadius: 16)
     }
-
-    // MARK: - Card 2: GitHub Repositories
 
     private var repositoriesCard: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -222,7 +215,6 @@ struct GitCloneSheetView: View {
                                                 .font(.system(size: 12.5, weight: .semibold))
                                                 .foregroundStyle(Color.white)
 
-                                            // Visibility badge
                                             Text(repo.isPrivate ? "Private" : "Public")
                                                 .font(.system(size: 9.5, weight: .medium))
                                                 .foregroundStyle(repo.isPrivate ? Color.orange : Color.accentColor)
@@ -233,7 +225,6 @@ struct GitCloneSheetView: View {
                                                         .fill(repo.isPrivate ? Color.orange.opacity(0.15) : Color.accentColor.opacity(0.15))
                                                 )
 
-                                            // Branch badge
                                             HStack(spacing: 2) {
                                                 Image(systemName: "arrow.triangle.branch")
                                                     .font(.system(size: 8))
@@ -291,8 +282,6 @@ struct GitCloneSheetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .liquidGlass(style: .subtle, cornerRadius: 16)
     }
-
-    // MARK: - Action Section
 
     private var actionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -360,8 +349,6 @@ struct GitCloneSheetView: View {
             .keyboardShortcut(.defaultAction)
         }
     }
-
-    // MARK: - Logic
 
     private func executeClone(to parentURL: URL) {
         let destination = parentURL.appendingPathComponent(cloneProjectName)

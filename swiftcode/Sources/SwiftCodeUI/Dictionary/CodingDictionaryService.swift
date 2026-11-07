@@ -3,51 +3,11 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeSDK
 
-// MARK: - Coding dictionary service
-//
-// Wave 17, Slice C: the `dictionary.open` window, built whole. A port
-// of Legacy's `DictionaryManager`
-// (`SwiftCode/Backend/Dictionary/DictionaryManager.swift`, Dylan's
-// own code; direct porting authorised under MIT), with one deliberate
-// substitution: Legacy called `LLMService.shared.generateResponse`
-// (preferred model "AFM 3 Core", falling back to the default model);
-// SwiftCode calls the host's configured text-completion provider through
-// the same seam Wave 16 attached for extension turns
-// (`AssistantProvider.send(ChatRequest)`), resolved from the host's
-// own Coding Assistant settings. The system prompt and the JSON
-// schema it demands are Legacy's, verbatim apart from the product
-// name, and the brace-scanner JSON extraction is Legacy's.
-//
-// There is still no bundled term data — Legacy shipped none, and
-// none is invented here. Every entry is generated per query, exactly
-// as Legacy generated it; without a configured text provider the
-// window fails honestly (`.providerNotReady`) instead of showing a
-// fabricated entry. Agent providers (Claude Code, Codex,
-// Antigravity, ACP agents, Hermes, OpenCode, Meta Assist) are refused
-// with `.agentProvider`, reusing the partition
-// `SDKAssistHostBackend.textCompletionProviderKinds` as the single
-// source of truth, never silently downgraded: those providers run an
-// agent on the user's machine, which a one-shot definition lookup
-// must not trigger.
-//
-// History is the only persisted state, as in Legacy: past queries in
-// UserDefaults under a SwiftCode-namespaced key (Legacy used
-// `com.swiftcode.dictionary.history`).
-
-/// A dictionary lookup failure. The window shows `errorDescription`;
-/// the raw provider text is kept only for the invalid-JSON case, so
-/// the user can see what the model actually returned.
 public enum CodingDictionaryError: Error, Equatable, Sendable {
-    /// The configured provider cannot answer now (with the host's hint
-    /// for what the user can do, e.g. start Ollama).
     case providerNotReady(String)
-    /// The configured provider runs an agent, not a text completion.
     case agentProvider(ProviderKind)
-    /// The provider returned no text at all.
     case emptyResponse
-    /// The provider's text held no decodable entry JSON.
     case invalidJSON(String)
-    /// The provider request itself failed (network, key, server).
     case providerFailure(String)
 }
 
@@ -68,34 +28,17 @@ extension CodingDictionaryError: LocalizedError {
     }
 }
 
-/// The host provider + model for one dictionary lookup.
 public typealias CodingDictionaryProviderResolution = (provider: any AssistantProvider, modelID: String?)
 
-/// Generates coding-dictionary entries through the host's configured
-/// text-completion provider. Main-actor isolated: the window drives
-/// it, and `CodingAssistantServices` (which builds providers from
-/// host settings + the secret store) is main-actor isolated too. The
-/// provider is resolved per lookup from current settings, so a
-/// provider change in Settings applies to the next lookup without
-/// reopening the window.
 @MainActor
 public final class CodingDictionaryService {
-    /// UserDefaults key for the persisted query history. SwiftCode's own
-    /// namespace; Legacy's key was `com.swiftcode.dictionary.history`.
     public static let historyDefaultsKey = "com.swiftcode.dictionary.history"
 
-    /// Past queries, newest first. Pinned items sort first.
     public private(set) var history: [DictionaryHistoryItem] = []
 
     private let userDefaults: UserDefaults
     private let resolveProvider: (() async throws -> CodingDictionaryProviderResolution)?
 
-    /// - Parameters:
-    ///   - userDefaults: Where history is persisted. Tests pass a
-    ///     throwaway suite; the app passes `.standard`.
-    ///   - resolveProvider: How the host provider is found. `nil`
-    ///     resolves from the host's Coding Assistant settings; tests
-    ///     pass a stub returning a fake provider.
     public init(
         userDefaults: UserDefaults = .standard,
         resolveProvider: (() async throws -> CodingDictionaryProviderResolution)? = nil
@@ -105,12 +48,6 @@ public final class CodingDictionaryService {
         loadHistory()
     }
 
-    // MARK: - Lookup
-
-    /// Defines `query`, returning the decoded entry. Throws
-    /// `CodingDictionaryError` for every honest failure (provider not
-    /// ready, agent provider, empty or unparseable response, provider
-    /// failure). `CancellationError` propagates unchanged.
     @discardableResult
     public func define(query: String) async throws -> CodingDictionaryResult {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -129,8 +66,6 @@ public final class CodingDictionaryService {
             for try await event in provider.send(request) {
                 if case .text(let delta) = event { text += delta }
                 if case .finished = event { break }
-                // `.activity` (host agent activity) and `.truncated`
-                // are dropped: a definition is reply text only.
             }
         } catch is CancellationError {
             throw CancellationError()
@@ -152,13 +87,6 @@ public final class CodingDictionaryService {
         }
     }
 
-    // MARK: - Provider resolution
-
-    /// Resolves the host's configured text-completion provider, or
-    /// throws the honest reason it cannot serve a lookup. Mirrors
-    /// `SwiftCodeSDKAssistResolver` (same settings source, same provider
-    /// factory); the partition against agent providers is the shared
-    /// `SDKAssistHostBackend.textCompletionProviderKinds`.
     private func resolveTextProvider() async throws -> CodingDictionaryProviderResolution {
         let resolution: CodingDictionaryProviderResolution
         if let resolveProvider {
@@ -185,8 +113,6 @@ public final class CodingDictionaryService {
         return resolution
     }
 
-    // MARK: - History
-
     public func loadHistory() {
         if let data = userDefaults.data(forKey: Self.historyDefaultsKey),
            let decoded = try? JSONDecoder().decode([DictionaryHistoryItem].self, from: data) {
@@ -202,9 +128,6 @@ public final class CodingDictionaryService {
         }
     }
 
-    /// Records a query (newest first, deduplicated; pinned items stay
-    /// pinned and sort first). Legacy added every search to history
-    /// automatically; this keeps that behaviour.
     public func addToHistory(query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -239,13 +162,6 @@ public final class CodingDictionaryService {
         }
     }
 
-    // MARK: - Prompt and extraction (ported from Legacy)
-
-    /// Legacy's system prompt, verbatim apart from the product name
-    /// ("SwiftCode Coding Dictionary" for "SwiftCode Coding Dictionary").
-    /// It demands exactly one raw JSON object matching
-    /// `CodingDictionaryResult` — no fences, no preamble — and tells
-    /// the model to state uncertainty instead of inventing APIs.
     public static func systemPrompt(for query: String) -> String {
         """
         You are the central engine for the SwiftCode Coding Dictionary.
@@ -307,9 +223,6 @@ public final class CodingDictionaryService {
         """
     }
 
-    /// Legacy's brace-block scanner: the JSON object from the first
-    /// `{` to the last `}`. This is what lets a model that wraps its
-    /// answer in fences or prose still yield a decodable entry.
     public static func extractJSON(from text: String) -> String? {
         guard let firstBrace = text.firstIndex(of: "{"),
               let lastBrace = text.lastIndex(of: "}") else {

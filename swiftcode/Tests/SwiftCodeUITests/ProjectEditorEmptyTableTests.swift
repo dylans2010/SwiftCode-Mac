@@ -2,8 +2,6 @@ import AppKit
 import Testing
 @testable import SwiftCodeUI
 
-/// Empty General-tab tables draw their placeholder in the table body,
-/// below the column header, centered horizontally.
 @MainActor
 @Suite struct ProjectEditorEmptyTableTests {
     @Test func placeholderSitsBelowHeaderCentered() throws {
@@ -21,7 +19,6 @@ import Testing
         let s = scroll.convert(scroll.bounds, to: root)
         #expect(h.height > 0)
         #expect(!l.intersects(h), "placeholder \(l) overlaps header \(h) in \(s)")
-        // Body is the scroll view minus the header (non-flipped root: header is on top).
         let body = NSRect(x: s.minX, y: s.minY, width: s.width, height: h.minY - s.minY)
         #expect(body.contains(l))
         #expect(abs(l.midX - body.midX) < 1)

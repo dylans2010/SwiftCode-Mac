@@ -1,26 +1,3 @@
-// Staging SwiftCode's guest health agent into a device and the shut-down edits
-// of its health store (specs/simulator/health-simulation.md §8.1 H-1, §8.2
-// H-5/H-6, "SwiftCode implementation").
-//
-// The agent is an app bundle, `SwiftCodeHealth.app` (SimGuestAgents/build-health.sh;
-// `watchos/SwiftCodeHealth.app` for watch devices). At every cold boot it is
-// copied to DEV/data/Library/SwiftCode/SwiftCodeHealth.app and its executable runs as
-// a launchd daemon from DEV/data/Library/LaunchDaemons/dev.swiftcode.simulator.health.plist
-// (RunAtLoad, KeepAlive, Interactive; stderr in DEV/data/tmp/swiftcode-health-agent.log),
-// like the settings agent. HealthKit makes it a source of its own
-// (dev.swiftcode.health, "SwiftCode Health"): a daemon whose executable sits in an
-// app bundle with application-identifier and the HealthKit entitlement in
-// its simulated-entitlements section is a client with a source (open
-// question 1, answered on SwiftCode).
-//
-// Before the guest starts (a cold boot, never a snapshot restore: the
-// restored healthd has the store open), SwiftCode answers the agent's own
-// authorization request in the store (the rows healthd wrote when the agent
-// asked, status 100 / request 203 → 101) and applies the `health grant` and
-// `revoke` commands queued for the developer's apps, after a backup of the
-// store (HealthStore.swift). The agent's first boot on a new device therefore
-// only records its request; from the next cold boot on it may write.
-
 import Foundation
 import SwiftCodeHealthStore
 import SwiftCodeSimFeatures
@@ -46,9 +23,6 @@ extension DeviceLayout {
          "EnvironmentVariables": ["SWIFTCODE_HEALTH_AGENT": "1"]]
     }
 
-    /// The bundle built for this runtime's platform: `<dir>/SwiftCodeHealth.app`
-    /// on iOS, `<dir>/watchos/SwiftCodeHealth.app` on watchOS; nil elsewhere (a
-    /// signed image cannot be retagged for another platform).
     func healthAgentBuild(_ source: String) -> String? {
         switch runtimePlatform() {
         case .iOS: return source
@@ -74,12 +48,9 @@ extension DeviceLayout {
     }
 }
 
-/// A device's health files: the store, the queue of grants for its next
-/// cold boot, the store's backups.
 struct HealthDeviceFiles {
     let dev: String
     var store: HealthStore { HealthStore(dev: dev) }
-    /// `grant <bundle id>` / `revoke <bundle id>` lines, applied at the next cold boot.
     var pendingPath: String { dev + "/swiftcode-pending-health.txt" }
     var backupsPath: String { dev + "/swiftcode-health-backups" }
 
@@ -96,13 +67,10 @@ struct HealthDeviceFiles {
         }
     }
 
-    /// Queues a grant or revoke; a later line for the same app replaces an earlier one.
     func queue(_ verb: String, _ bundleID: String) {
         setPending(pending().filter { !$0.hasSuffix(" " + bundleID) } + ["\(verb) \(bundleID)"])
     }
 
-    /// The shut-down edits: the agent's grant, then the queued app grants.
-    /// A grant whose app has not asked yet stays queued. Returns log lines.
     @discardableResult
     func applyShutDownEdits(log: (String) -> Void) -> [String] {
         let s = store

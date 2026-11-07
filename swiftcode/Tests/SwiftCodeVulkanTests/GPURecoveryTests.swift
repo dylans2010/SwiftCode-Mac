@@ -1,7 +1,3 @@
-// GPU hangs and device recovery (metal-sim-protocol.md §8.7,
-// metal-shaders.md §4.11; agent GPU-SIRI). Each test makes its own back end:
-// a hang that the fix or the watchdog does not end would stop the shared one.
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
@@ -10,8 +6,6 @@ import Testing
 @Suite(.serialized, .enabled(if: VK.available, "needs a Vulkan GPU with VK_EXT_external_memory_host"),
        .disabled(if: IsolationGPU.drivesDisplay, "GPU drives a display"))
 struct GPURecoveryTests {
-    /// The add kernel (`out[i] = a[i] + b[i]` for i < count) with a
-    /// reflection that lists its four buffers as used, as swiftcode-airc's does.
     static func translator() -> PrebuiltShaderTranslator {
         let t = PrebuiltShaderTranslator()
         var add = ShaderReflection(stage: .kernel, entryPoint: "main")
@@ -48,11 +42,6 @@ struct GPURecoveryTests {
         func status(_ i: Int) -> Int { lock.lock(); defer { lock.unlock() }; return statuses[i] ?? -1 }
     }
 
-    /// visionOS's Siri orb kernel reads ten buffers and its command buffer
-    /// binds one; slots left unbound pointed at address 0, and that read
-    /// never completes on the Thor. Now they read the dummy buffer's zeros:
-    /// here the add kernel's count (buffer 3) is unbound, reads 0, and
-    /// nothing is written.
     @Test func unboundBufferReadsZerosInsteadOfHanging() throws {
         GPUHangTests.lock.lock()
         defer { GPUHangTests.lock.unlock() }
@@ -84,10 +73,6 @@ struct GPURecoveryTests {
         for h in [ha, hb, hout, pipe, fn] { b.release(h) }
     }
 
-    /// A kernel that never ends: the watchdog ends it, its command buffer
-    /// fails, the device is made again, and objects made before the hang
-    /// (buffers over guest memory, a texture, a pipeline) work afterwards
-    /// with the same GPU address and heap slot.
     @Test func watchdogEndsAHangAndTheDeviceComesBack() throws {
         GPUHangTests.lock.lock()
         defer { GPUHangTests.lock.unlock() }
@@ -117,7 +102,6 @@ struct GPURecoveryTests {
         let slotBefore = b.heapSlots(ofTexture: tex)
 
         let r = Results()
-        // The hang, and the work queued behind it on the same GPU queue.
         b.submit(MetalCommandBuffer(process: 1, queue: nil, commandBufferRef: VK.nextID(), passes: [.compute([
             .setComputePipelineState(pspin),
             .setBuffer(index: 0, buffer: hflag, offset: 0),
@@ -136,7 +120,6 @@ struct GPURecoveryTests {
         let deadline = DispatchTime.now() + 30
         _ = r.done.wait(timeout: deadline)
         _ = r.done.wait(timeout: deadline)
-        // Whatever happened, let a kernel that is still running end.
         guest.pointer.storeBytes(of: UInt32(1), toByteOffset: flagOff, as: UInt32.self)
         #expect(r.status(0) == MetalCommandBufferStatus.error, "the hung command buffer: status \(r.status(0))")
         #expect(r.status(1) == MetalCommandBufferStatus.completed, "the queued command buffer: status \(r.status(1))")
@@ -149,7 +132,6 @@ struct GPURecoveryTests {
         }
         #expect(b.heapSlots(ofTexture: tex)?.index == slotBefore?.index, "the texture keeps its heap slot")
 
-        // New work on the new device, with the same objects.
         for i in 0..<n { guest.floats(outOff, n)[i] = -1; guest.floats(bOff, n)[i] = 2 }
         b.submit(add, scheduled: {}, completed: { r.set(2, $0) })
         #expect(r.done.wait(timeout: .now() + 10) == .success)
@@ -160,8 +142,6 @@ struct GPURecoveryTests {
         for h in [hflag, hspin, ha, hb, hout, hcount, tex, pspin, fspin, padd, fadd] { b.release(h) }
     }
 
-    /// With recovery off (`SWIFTCODE_GPU_RECOVER=0`) the watchdog still ends the
-    /// hang, but the device stays lost: later work fails, as before.
     @Test func withoutRecoveryTheDeviceStaysLost() throws {
         GPUHangTests.lock.lock()
         defer { GPUHangTests.lock.unlock() }
@@ -194,11 +174,6 @@ struct GPURecoveryTests {
         #expect(b.deviceResetCount == 0)
     }
 
-    /// visionOS backboardd's immersion pass (XR-VIEWER's run x8): two
-    /// colour attachments of different sizes (172 × 172 and 16 × 16) cleared
-    /// and drawn in one pass. A render area of the larger one wrote past the
-    /// smaller image and never completed on the Thor; the pass is now
-    /// rendered at the smallest attachment's size.
     @Test func attachmentsOfDifferentSizesStayInsideTheSmallest() throws {
         GPUHangTests.lock.lock()
         defer { GPUHangTests.lock.unlock() }

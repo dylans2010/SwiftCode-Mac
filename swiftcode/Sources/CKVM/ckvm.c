@@ -1,12 +1,8 @@
-// CKVM implementation. See include/ckvm.h. Written against the public Linux
-// KVM API documentation and the kernel's uapi headers.
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE 1
 #endif
 #include "ckvm.h"
 
-// The bindings use the arm64 KVM uapi (core-register IDs, vCPU init), so
-// they are compiled only on arm64 Linux. Elsewhere only ckvm_available exists.
 #if !(defined(__linux__) && defined(__aarch64__))
 
 int ckvm_available(void) { return 0; }
@@ -120,11 +116,6 @@ void *ckvm_map_file_private_at(void *at, int fd, uint64_t offset, size_t file_by
         errno = EINVAL;
         return NULL;
     }
-    // The file mapping covers whole host pages (the bytes of its last page
-    // past the end of the file read as zeros), so the anonymous tail starts
-    // at the next host page boundary: MAP_FIXED needs an aligned address,
-    // and a file that ends inside a host page would otherwise fail with
-    // EINVAL (simulator performance-contract.md §6, C16).
     size_t page = (size_t)sysconf(_SC_PAGESIZE);
     size_t file_span = (file_bytes + page - 1) & ~(page - 1);
     if (file_span > total_size) file_span = total_size;
@@ -200,11 +191,6 @@ int ckvm_set_one_reg_u64(int vcpu_fd, uint64_t reg_id, uint64_t value) {
     return result_or_errno(ioctl(vcpu_fd, KVM_SET_ONE_REG, &reg));
 }
 
-// Diagnostics (`ckvm_debug_run_check`, SWIFTCODE_DEBUG_RUNCHECK=1): KVM_RUN
-// issued directly with SP, x29, x30, x18 and a known NZCV recorded just
-// before and after the system call, and the caller's stack frames (4 KiB
-// above this function's frame record) snapshotted and compared, so a change
-// in any of them across KVM_RUN aborts with both values.
 int ckvm_debug_run_check = 0;
 static _Thread_local uint64_t run_regs_before[5], run_regs_after[5];
 static _Thread_local unsigned char run_snapshot[4096];
@@ -295,13 +281,10 @@ __attribute__((constructor)) static void run_check_init(void) {
     }
 }
 
-// ---- Register IDs -------------------------------------------------------------
-
 #define CKVM_CORE_ID(field) \
     (KVM_REG_ARM64 | KVM_REG_SIZE_U64 | KVM_REG_ARM_CORE | KVM_REG_ARM_CORE_REG(field))
 
 uint64_t ckvm_reg_x(unsigned n) {
-    // regs.regs[n] is n 64-bit words (2n 32-bit words) into struct kvm_regs.
     return CKVM_CORE_ID(regs.regs[0]) + 2u * (uint64_t)n;
 }
 uint64_t ckvm_reg_sp_el0(void) { return CKVM_CORE_ID(regs.sp); }
@@ -360,8 +343,6 @@ void ckvm_publish_timeofday(void *block, uint64_t tick, uint64_t sec, uint64_t f
     __atomic_store_n(&w[0], tick, __ATOMIC_RELAXED);
 }
 
-// struct kvm_smccc_filter and the group/attribute numbers (arch/arm64
-// uapi asm/kvm.h, Linux 6.4+), spelled out so older headers still build.
 struct ckvm_smccc_filter {
     uint32_t base;
     uint32_t nr_functions;
@@ -377,13 +358,11 @@ int ckvm_set_smccc_filter(int vm_fd, uint32_t base, uint32_t count, uint8_t acti
     filter.action = action;
     struct kvm_device_attr attr;
     memset(&attr, 0, sizeof attr);
-    attr.group = 0; // KVM_ARM_VM_SMCCC_CTRL
-    attr.attr = 0;  // KVM_ARM_VM_SMCCC_FILTER
+    attr.group = 0;
+    attr.attr = 0;
     attr.addr = (uint64_t)(uintptr_t)&filter;
     return result_or_errno(ioctl(vm_fd, KVM_SET_DEVICE_ATTR, &attr));
 }
-
-// ---- struct kvm_run accessors ------------------------------------------------
 
 #define RUN(p) ((const struct kvm_run *)(p))
 
@@ -394,10 +373,6 @@ uint64_t ckvm_run_mmio_phys_addr(const void *run) { return RUN(run)->mmio.phys_a
 uint32_t ckvm_run_mmio_len(const void *run) { return RUN(run)->mmio.len; }
 uint8_t ckvm_run_mmio_is_write(const void *run) { return RUN(run)->mmio.is_write; }
 
-// The 8 data bytes of an MMIO exit as one little-endian word, read with a
-// single load (no memcpy call): the doorbell's frame address must arrive
-// intact even where the C library's copy routines are unreliable (see
-// hostcopy.c and docs/postmortem-kvm-sve.md).
 uint64_t ckvm_run_mmio_data_u64(const void *run) {
     return __atomic_load_n((const uint64_t *)(const void *)RUN(run)->mmio.data, __ATOMIC_RELAXED);
 }
@@ -439,15 +414,8 @@ uint64_t ckvm_run_arm_nisv_fault_ipa(const void *run) { return RUN(run)->arm_nis
 uint64_t ckvm_run_hypercall_nr(const void *run) { return RUN(run)->hypercall.nr; }
 uint64_t ckvm_run_hypercall_flags(const void *run) { return RUN(run)->hypercall.flags; }
 
-// ---- Kicking a vCPU thread and cache maintenance ------------------------------
-
 static void kick_handler(int signo) { (void)signo; }
 
-// Diagnostics (SWIFTCODE_DEBUG_SIGLOG=1): every kick delivered while the thread
-// was running user code (the interrupted instruction does not follow an
-// `svc`) is reported with the interrupted pc, sp, x29 and x30, and pc's
-// offset from `ckvm_run` (to symbolize against the binary). The kernel puts
-// a frame record {x29, x30} and the signal frame just below sp.
 static int siglog_enabled;
 static _Atomic unsigned long siglog_user, siglog_syscall;
 
@@ -483,11 +451,11 @@ int ckvm_kick_install(int signo) {
     siglog_enabled = e && e[0] == '1';
     if (siglog_enabled) {
         action.sa_sigaction = kick_handler_logging;
-        action.sa_flags = SA_SIGINFO; // no SA_RESTART: KVM_RUN must return -EINTR
+        action.sa_flags = SA_SIGINFO;
         atexit(siglog_summary);
     } else {
         action.sa_handler = kick_handler;
-        action.sa_flags = 0; // no SA_RESTART: KVM_RUN must return -EINTR
+        action.sa_flags = 0;
     }
     sigemptyset(&action.sa_mask);
     return result_or_errno(sigaction(signo, &action, NULL));
@@ -504,7 +472,7 @@ int ckvm_kick_mask_outside_run(int vcpu_fd, int signo) {
     sigdelset(&during, signo);
     struct { struct kvm_signal_mask header; uint64_t bits; } mask;
     memset(&mask, 0, sizeof mask);
-    mask.header.len = 8; // the kernel's sigset_t on arm64
+    mask.header.len = 8;
     memcpy(&mask.bits, &during, 8);
     return result_or_errno(ioctl(vcpu_fd, KVM_SET_SIGNAL_MASK, &mask));
 }
@@ -518,7 +486,7 @@ void ckvm_clean_dcache_range(const void *address, size_t size) {
     if (size == 0) return;
     uint64_t ctr;
     __asm__ volatile("mrs %0, ctr_el0" : "=r"(ctr));
-    uintptr_t line = (uintptr_t)4 << ((ctr >> 16) & 0xF); // DminLine: log2 of words
+    uintptr_t line = (uintptr_t)4 << ((ctr >> 16) & 0xF);
     uintptr_t start = (uintptr_t)address & ~(line - 1);
     uintptr_t end = (uintptr_t)address + size;
     for (uintptr_t p = start; p < end; p += line) {
@@ -534,8 +502,6 @@ uint64_t ckvm_host_id_aa64mmfr2(void) {
     __asm__ volatile("mrs %0, ID_AA64MMFR2_EL1" : "=r"(value));
     return value;
 }
-
-// ---- Watchdog ---------------------------------------------------------------
 
 #ifndef sigev_notify_thread_id
 #define sigev_notify_thread_id _sigev_un._tid
@@ -556,7 +522,7 @@ int ckvm_watchdog_arm(uint64_t milliseconds) {
         memset(&action, 0, sizeof action);
         action.sa_handler = watchdog_handler;
         sigemptyset(&action.sa_mask);
-        action.sa_flags = 0; // no SA_RESTART: KVM_RUN must return -EINTR
+        action.sa_flags = 0;
         if (sigaction(SIGALRM, &action, NULL) < 0) return -errno;
 
         struct sigevent event;
@@ -576,9 +542,6 @@ int ckvm_watchdog_arm(uint64_t milliseconds) {
 }
 
 int ckvm_watchdog_fired(void) { return watchdog_fired_flag ? 1 : 0; }
-
-
-// ---- Diagnostics: hardware write watchpoints --------------------------------
 
 #define HWWATCH_SLOTS 4
 static int hwwatch_fds[HWWATCH_SLOTS][2048];
@@ -631,13 +594,10 @@ void ckvm_hwwatch_disarm_slot(int slot) {
     pthread_mutex_unlock(&hwwatch_lock);
 }
 
-
-// ---- Diagnostics: lost-write checker ----------------------------------------
-
 #include <stdio.h>
 static void *memcheck_thread(void *arg) {
     long id = (long)arg;
-    enum { WORDS = 8192 };                       // 64 KiB on this thread's stack
+    enum { WORDS = 8192 };
     volatile uint64_t buf[WORDS];
     uint64_t *heap = malloc(WORDS * sizeof(uint64_t));
     volatile uint64_t *hp = heap;
@@ -681,10 +641,8 @@ int ckvm_memcheck_start(int threads) {
 int ckvm_hwwatch_arm(uint64_t address) { return ckvm_hwwatch_arm_slot(0, address); }
 void ckvm_hwwatch_disarm(void) { ckvm_hwwatch_disarm_slot(0); }
 
-#endif // __linux__ && __aarch64__
+#endif
 
-/* Diagnostics: the calling thread's return addresses by frame-pointer walk
-   (cheap enough for every map lookup), pointer-authentication bits dropped. */
 int ckvm_capture_frames(uintptr_t *out, int count) {
     void **fp = (void **)__builtin_frame_address(0);
     int n = 0;
@@ -697,15 +655,12 @@ int ckvm_capture_frames(uintptr_t *out, int count) {
     return n;
 }
 
-/* The calling thread's Linux thread id (diagnostics). */
 #if defined(__linux__) && defined(__aarch64__)
 long ckvm_gettid(void) { return (long)syscall(SYS_gettid); }
 #else
 long ckvm_gettid(void) { return 0; }
 #endif
 
-/* The calling thread's resource usage counters (diagnostics): minor and
- * major page faults, voluntary and involuntary context switches. */
 #if defined(__linux__)
 #include <sys/resource.h>
 void ckvm_thread_usage(long out[4]) {
@@ -713,8 +668,6 @@ void ckvm_thread_usage(long out[4]) {
     if (getrusage(RUSAGE_THREAD, &ru) != 0) { out[0] = out[1] = out[2] = out[3] = 0; return; }
     out[0] = ru.ru_minflt; out[1] = ru.ru_majflt; out[2] = ru.ru_nvcsw; out[3] = ru.ru_nivcsw;
 }
-/* The calling thread's user and system CPU time (microseconds) and minor
- * faults (diagnostics: the boot profile's per-trap cost table). */
 void ckvm_thread_times(unsigned long long out[3]) {
     struct rusage ru;
     if (getrusage(RUSAGE_THREAD, &ru) != 0) { out[0] = out[1] = out[2] = 0; return; }
@@ -740,9 +693,6 @@ int ckvm_task_stats(long tid, uint64_t out[8]) {
     close(fd);
     if (n <= 0) return -1;
     buf[n] = 0;
-    /* Fields after "pid (comm) ": 1 state, ... 10 minflt, 12 majflt,
-       14 utime, 15 stime, ... 43 guest_time (proc(5) numbering, 1-based
-       from pid; here counted from the state field = field 3). */
     char *p = strrchr(buf, ')');
     if (!p) return -1;
     p += 2;
@@ -811,14 +761,10 @@ int ckvm_vcpu_stats(int vcpu_fd, const char *const *names, int count, uint64_t *
 }
 #endif
 
-// ---- Kernel-lock holder stack samples (diagnostics) --------------------------
 #if defined(__linux__) && defined(__aarch64__)
 #include <execinfo.h>
 #include <sched.h>
 
-// States of the one sample slot: -1 idle, -2 requested, -3 being written by
-// the handler, >= 0 the number of frames written. The sampler cancels a late
-// request with -4 (the handler then does nothing).
 static volatile long stack_target_tid;
 static volatile int stack_state = -1;
 static void *stack_frames[64];
@@ -835,7 +781,7 @@ static void stack_handler(int signo) {
 
 int ckvm_stack_sampler_install(void) {
     void *warm[4];
-    (void)backtrace(warm, 4); // loads the unwinder outside a signal handler
+    (void)backtrace(warm, 4);
     struct sigaction action;
     memset(&action, 0, sizeof action);
     action.sa_handler = stack_handler;
@@ -872,30 +818,16 @@ int ckvm_stack_sample(long tid, void **out, int max, int timeout_us) {
     }
 }
 
-// ---- Parent death ---------------------------------------------------------
-
 int ckvm_signal_on_parent_death(int signo)
 {
     pid_t parent = getppid();
     if (prctl(PR_SET_PDEATHSIG, (unsigned long)signo, 0, 0, 0) < 0) return -errno;
-    // The parent may have ended before the request: then nothing would come.
     if (getppid() != parent || parent == 1) kill(getpid(), signo);
     return 0;
 }
 
 #endif
 
-/* ------------------------------------------------------------------ */
-/* Host-side CPU profile of the vCPU threads (diagnostics, guest-cpu.md §5).
- * SWIFTCODE_HOST_PROFILE=<path>: every vCPU host thread gets a CPU-time timer
- * (timer_create CLOCK_THREAD_CPUTIME_ID, SIGEV_THREAD_ID) that sends
- * SIGPROF every SWIFTCODE_HOST_PROFILE_US (default 200) µs of its CPU time
- * (guest time included). The handler records the interrupted PC and up to
- * 6 return addresses from the frame-pointer chain into a fixed buffer. At
- * exit the samples are written to <path> as lines "pc lr1 lr2 ..." (hex,
- * absolute), after a copy of /proc/self/maps, for offline symbolization.
- * Samples taken inside KVM_RUN (the ioctl) are kept: their PC is the
- * syscall instruction. */
 #if defined(__linux__) && defined(__aarch64__)
 #include <stdatomic.h>
 #define HOSTPROF_DEPTH 7

@@ -79,7 +79,6 @@ struct ExportProjView: View {
                     try await exportManager.exportProject(project, to: url)
                     dismiss()
                 } catch {
-                    // Error is handled by ExportProjManager
                 }
             }
         }

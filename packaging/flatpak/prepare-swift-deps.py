@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-# Runs inside the Flatpak build, which has no network. The Swift dependencies
-# arrive as tarballs pinned by SHA-256 (swift-dependencies.json) in deps/<identity>.
-# SwiftPM resolves from git, so each becomes a local git repository with the
-# version tag or branch its pin names, is mirrored in place of its URL, and the
-# pin's revision is rewritten to the local commit.
-#
-# usage: prepare-swift-deps.py <deps-dir> <package-dir>...
 import json
 import os
 import re
@@ -16,10 +9,8 @@ GIT = ["git", "-c", "user.name=swiftcode-build", "-c", "user.email=build@invalid
        "-c", "init.defaultBranch=swiftcode-pinned"]
 ENV = dict(os.environ, GIT_AUTHOR_DATE="2000-01-01T00:00:00Z", GIT_COMMITTER_DATE="2000-01-01T00:00:00Z")
 
-
 def git(cwd, *args):
     return subprocess.run(GIT + list(args), cwd=cwd, env=ENV, check=True, capture_output=True, text=True).stdout.strip()
-
 
 def repository(path, state):
     git(path, "init", "-q")
@@ -30,7 +21,6 @@ def repository(path, state):
     if "branch" in state:
         git(path, "branch", state["branch"])
     return git(path, "rev-parse", "HEAD")
-
 
 def main():
     deps = os.path.abspath(sys.argv[1])
@@ -60,7 +50,6 @@ def main():
         os.makedirs(config, exist_ok=True)
         with open(os.path.join(config, "mirrors.json"), "w") as f:
             json.dump({"object": mirrors, "version": 1}, f, indent=2)
-
 
 if __name__ == "__main__":
     main()

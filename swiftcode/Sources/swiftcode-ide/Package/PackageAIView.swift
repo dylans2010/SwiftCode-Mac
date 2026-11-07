@@ -1,9 +1,3 @@
-// PackageAIView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/PackageAIView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: AI package co-designer chat UI (prompt templates/presets, send prompt, favorites, conversation logs)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 
@@ -23,7 +17,6 @@ struct PackageAIView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header Info card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -44,7 +37,6 @@ struct PackageAIView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Prompt Templates card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Prompt Templates & Presets", systemImage: "square.stack.3d.up")
@@ -80,7 +72,6 @@ struct PackageAIView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Interactive Chat Input Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Send Custom Prompt", systemImage: "paperplane")
@@ -107,7 +98,6 @@ struct PackageAIView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Conversation History card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Conversation Logs", systemImage: "text.bubble")
@@ -125,7 +115,6 @@ struct PackageAIView: View {
                             VStack(spacing: 16) {
                                 ForEach(filteredChatHistory) { chat in
                                     VStack(alignment: .leading, spacing: 10) {
-                                        // User block
                                         HStack(alignment: .top, spacing: 8) {
                                             Image(systemName: "person.circle.fill")
                                                 .foregroundColor(.secondary)
@@ -149,7 +138,6 @@ struct PackageAIView: View {
                                             .buttonStyle(.plain)
                                         }
 
-                                        // AI response block
                                         HStack(alignment: .top, spacing: 8) {
                                             Image(systemName: "sparkles")
                                                 .foregroundColor(.blue)

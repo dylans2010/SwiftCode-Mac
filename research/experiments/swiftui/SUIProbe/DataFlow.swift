@@ -1,5 +1,3 @@
-// SUIProbe dataflow mode: which bodies are re-evaluated after which change,
-// view identity and state lifetime, onChange/task/preference ordering.
 import SwiftUI
 import Combine
 
@@ -80,7 +78,6 @@ struct EqChild: View, Equatable {
     var body: some View { let _ = Counts.hit("equatableChild"); Text("eq \(v)") }
 }
 
-/// A view with its own state that logs its creation, appearance and state value.
 struct Stateful: View {
     let tag: String
     @State var token: Int = {

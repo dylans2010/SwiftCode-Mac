@@ -3,149 +3,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy docs / review / repo-tooling family (Wave 6, slice D).
-///
-/// Behaviour source: Legacy's `AssistApiDocsCoverageTool`,
-/// `AssistApiEndpointAuditTool`, `AssistApiSurfaceExtractTool`,
-/// `AssistReadmeGenerateTool`, `AssistReadmeLocateTool`,
-/// `AssistRepoOverviewTool`, `AssistMarkdownLinkCheckTool`,
-/// `AssistMarkdownTocGenerateTool`, `CodeReviewTool` (in
-/// `CodeReview.swift`), `AssistAutomatedRepairEngine`,
-/// `AssistAutonomousReviewEngine`, `AssistDocStringGeneratorTool`,
-/// `AssistCodeSnippetTool`, `AssistIconGeneratorTool`,
-/// `AssistColorUsageAuditTool`, `AssistColorSetBuilderTool`,
-/// `AssistStaleFilesReportTool`, `AssistChangeImpactEstimateTool`,
-/// `AssistUndoTool`, `AssistValidateChangesTool`,
-/// `AssistSessionExportTool`, `AssistSessionProgressReportTool` and
-/// `AssistToolCapabilityLookupTool` (Dylan's own code, ported under MIT),
-/// as specified in `specs/ide/assist-testing-review-docs.md`.
-///
-/// Conventions, following Wave 1 (`SwiftCodeTools+FileReading.swift`), Wave 2
-/// (`SwiftCodeTools+FileWriting.swift`) and Wave 3 (`SwiftCodeTools+Search.swift`):
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers and booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced.
-/// * Path resolution is split the way Legacy splits it. Tools that route
-///   through `AssistFileSystem.resolve` / `AssistWorkspacePaths.resolve`
-///   (`readme_generate`, `markdown_link_check`,
-///   `change_impact_estimate`) use the session-aware
-///   `resolveFileReadingPath`. Tools that route through the clamping
-///   `AssistToolingSupport.resolvePath` (`autonomous_review_engine`,
-///   `safe_validate_changes`) use `resolveFileWritingClampedPath` (an
-///   escaping path silently becomes the workspace root, never an error).
-///   Tools with Legacy's strict per-tool resolvers
-///   (`api_surface_extract`, `icon_generator_tool`,
-///   `colorset_builder`) use `resolveFileWritingPath` (rejects empty
-///   paths, NUL bytes, a leading `~` and any `..`; relative paths resolve
-///   against the workspace root, never the session directory).
-///   `session_export` uses its own private resolver, matching Legacy's
-///   `resolveInsideWorkspace` exactly. `api_surface_extract` likewise
-///   keeps Legacy's private resolver (`reviewDocsApiSurfaceScope`:
-///   an empty path means the workspace root, `..` is refused).
-///   Workspace scans use `SearchWorkspace`, whose `files` /
-///   `swiftFiles` match Legacy's `AssistWorkspaceScan` (hidden files and
-///   `.git` / `.build` / `DerivedData` / `Pods` / `node_modules` /
-///   `.venv` skipped) and whose `enumeratedFiles` matches Legacy's
-///   `AssistToolingSupport.enumeratedFiles` (hidden files skipped, no
-///   skipped-directory rule, files over the size cap dropped).
-/// * Approval gating: every writing handler gates BEFORE touching disk.
-///   Text writes go through `commit()`; there are no non-text writes in
-///   this slice. `MCPServer.run` already refuses `writes: true` tools
-///   when the server is read-only; the approval call is still required.
-///   There is no Autopilot bypass. A tool's `writes` flag is static:
-///   `icon_generator_tool` is `writes: true` even for its read-only
-///   `validate` action, exactly as Legacy's `safeMutation` risk makes
-///   the whole tool mutating.
-///
-/// Honestly-failing tools (Wave 2 `code_refactor` precedent — failing
-/// honestly beats faking the work):
-///
-/// * `code_review` is wired to the configured Assist LLM provider
-///   (gap-closure wiring, through `LLMToolCompletionService` — see
-///   `SwiftCodeTools+AgenticCode.swift` for the shared service). Legacy
-///   performs the review by sending the task history, repository changes
-///   and build state to an LLM (Apple Foundation Models or the configured
-///   provider) and requiring a JSON verdict with status `task_ready` or
-///   `task_failed`. The port sends the workspace's Swift sources instead:
-///   SwiftCode's MCP host has no agent session (no objective, tool history or
-///   plan) and keeps no workspace snapshots, so there is no task history
-///   or change list to send — the prompt says so, and the reviewer must
-///   set `task_failed` when a verdict would need build or change evidence
-///   it does not have. The verdict contract (status, summary, strengths,
-///   issues, recommendedFixes, user_see, confidence) is Legacy's, from
-///   `CodeReviewSystemAsset.md`; the full 141-line asset is not ported
-///   (System Assets family) — the system prompt below is its condensed
-///   form. Legacy's hardcoded model fallback queue is NOT ported: the
-///   configured provider answers, or the tool fails honestly. With no
-///   provider usable it fails naming the provider; no review is faked.
-/// * `safe_undo` is registered with its Legacy ID, title, description
-///   and `potentiallyDestructive` annotations (`writes: true`), and
-///   its handler really restores the last modification from the undo
-///   journal (`SafeUndoJournal`, recorded by `commit()` — gap
-///   closure; see `specs/ide/gap-closure-correctness.md` §3 for why
-///   this is a per-file journal, not the `project_snapshot` store).
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `session_progress_report`: Legacy reads `AgentPhaseCoordinator`
-///   (engineering phases) and `AgentNotesManager` (last-saved time).
-///   SwiftCode has no phase coordinator; the counts come from the
-///   workspace's Agentic plans instead (gap closure), plus live
-///   session activity and failed-test count. The agent-notes line
-///   is real — it reports the modification time of the workspace's
-///   `agent_notes.md`, or "never saved" when the file does not exist.
-/// * `tool_capability_lookup`: Legacy looks the tool up in
-///   `AssistToolRegistry`, reporting its `capability`, `riskLevel` and
-///   `estimatedCost`. SwiftCode's tools carry no capability taxonomy and no
-///   cost model, so the lookup consults the live `server.tools` list
-///   (resolving `MCPServer.toolAliases` first, as Legacy's `getTool`
-///   does), reports the risk level derived from the tool's annotations
-///   (`destructive` → `potentiallyDestructive`, `writes` →
-///   `safeMutation`, otherwise `safeRead`), and omits the capability
-///   and estimated-cost lines.
-/// * `session_export`: Legacy's session ID is the agent session's UUID.
-///   SwiftCode has no agent-session UUID, so the export uses a deterministic
-///   UUID derived from the workspace root path (SHA-256 of the path,
-///   first 16 bytes formatted as a UUID) — stable per workspace. Its
-///   timestamp uses a plain `ISO8601DateFormatter` (Legacy's form);
-///   `stale_files_report` / `session_progress_report` use Legacy's
-///   `AssistWorkspacePaths.iso8601` (with fractional seconds).
-/// * `automated_repair_engine`: Legacy's description promises
-///   validation "by rebuilding", but its `execute()` never rebuilds —
-///   it only annotates the reported lines. The port does the same
-///   (annotation only, one `commit()` per annotated file, in diagnostic
-///   order, stopping at the first refusal) and performs no rebuild.
-/// * `code_snippet_manager`: Legacy's schema description lists a
-///   `keychain_helper` template, but its `switch` has no such case, so
-///   `keychain_helper` fails with the unknown-template message. The
-///   port preserves that: the description is verbatim and the template
-///   is not implemented.
-/// * `colorset_builder` rejects a `colorName` containing `/`, `\`,
-///   `..` or a NUL byte (Legacy would silently create nested
-///   directories for such a name). `icon_generator_tool` and
-///   `colorset_builder` resolve their catalog path inside the workspace
-///   (Legacy appended it to the workspace root without a containment
-///   check, so an absolute path outside the workspace would have been
-///   honoured).
-/// * `session_export`'s `overwrite` keeps Legacy's string type
-///   (`"true"`), not a boolean — a JSON boolean is rejected by argument
-///   validation, exactly as Legacy's `as? String` cast would ignore it.
-/// * `docstring_generator` is `safeRead` in Legacy (despite its
-///   `fileModification` capability): it writes nothing and only returns
-///   the generated comment text, so it is registered `writes: false`.
-///
-/// Wiring: the coordinator adds `reviewDocsTools` to `installTools()` in
-/// `SwiftCodeTools.swift` (this file must not edit that file). The registry
-/// aliases `docstring` → `docstring_generator`, `snippet` →
-/// `code_snippet_manager`, `icon_generator` → `icon_generator_tool`
-/// and `colorset` → `colorset_builder` (verified in Legacy's
-/// `AssistToolRegistry.toolAliases`) belong in `MCPServer.toolAliases`
-/// (also coordinator-owned).
 extension SwiftCodeMCPHost {
     var reviewDocsTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -342,63 +199,43 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared helpers for the review/docs tools
 
-    /// A required string argument; Legacy's missing-argument message.
     func reviewDocsRequiredString(_ call: MCPToolCall, _ key: String) throws -> String {
         guard let s = call.arguments[key]?.string else { throw MCPToolError("Missing required parameter: \(key)") }
         return s
     }
 
-    /// Legacy's `AssistWorkspacePaths.iso8601`: ISO 8601 with fractional
-    /// seconds.
     nonisolated static func reviewDocsIso8601(_ date: Date) -> String {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f.string(from: date)
     }
 
-    /// A file's size in bytes (0 when it cannot be read), as Legacy's
-    /// `AssistWorkspaceScan.fileSize` reports it.
     nonisolated static func reviewDocsFileSize(of url: URL) -> Int64 {
         Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
     }
 
-    /// A file's modification date, if it can be read.
     nonisolated static func reviewDocsModificationDate(of url: URL) -> Date? {
         (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
     }
 
-    /// Legacy's `AssistWorkspaceScan.findPbxproj`: the first `.pbxproj`
-    /// under the workspace root (hidden files skipped).
     nonisolated static func reviewDocsFindPbxproj(in root: URL) -> URL? {
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
         return enumerator.compactMap { $0 as? URL }.first { $0.pathExtension == "pbxproj" }
     }
 
-    /// The risk level a SwiftCode tool reports in `tool_capability_lookup`,
-    /// derived from its annotations the way Legacy derives it from its
-    /// `riskLevel`: `destructive` → `potentiallyDestructive`, `writes` →
-    /// `safeMutation`, otherwise `safeRead`.
     nonisolated static func reviewDocsRisk(of tool: MCPTool) -> String {
         if tool.annotations.destructive { return "potentiallyDestructive" }
         if tool.writes { return "safeMutation" }
         return "safeRead"
     }
 
-    /// A deterministic session UUID for `session_export`: SwiftCode has no
-    /// agent-session UUID (Legacy's `AssistContext.sessionId`), so the
-    /// first 16 bytes of the SHA-256 of the workspace root path are
-    /// formatted as a UUID — stable per workspace.
     nonisolated static func reviewDocsSessionUUID(root: URL) -> String {
         let digest = SHA256.hash(data: Data(root.path.utf8))
         let h = Array(digest).prefix(16).map { String(format: "%02x", $0) }.joined()
         return "\(h.prefix(8))-\(h.dropFirst(8).prefix(4))-\(h.dropFirst(12).prefix(4))-\(h.dropFirst(16).prefix(4))-\(h.dropFirst(20))"
     }
 
-    /// Legacy `AssistSessionExportTool.resolveInsideWorkspace`: trim,
-    /// reject empty and any `..` component; a leading-`/` path must be
-    /// the workspace root or under it; anything else appends to the root.
     nonisolated static func reviewDocsSessionExportURL(_ raw: String, root: URL) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -411,10 +248,6 @@ extension SwiftCodeMCPHost {
         return root.appendingPathComponent(trimmed)
     }
 
-    /// Legacy `AssistApiSurfaceExtractTool.resolvePath`: an empty path
-    /// means the workspace root; `..` is refused; a leading-`/` path
-    /// must be the workspace root or under it; anything else appends to
-    /// the root.
     nonisolated static func reviewDocsApiSurfaceScope(_ raw: String?, root: URL) -> URL? {
         let workspace = root.standardizedFileURL
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return workspace }
@@ -429,11 +262,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Legacy `AssistApiSurfaceExtractTool.enumerateSwiftFiles`: a single
-    /// Swift file (at most 300 KB) on its own; a directory enumerates
-    /// `.swift` files up to 300 KB each, skipping `.git` / `DerivedData`
-    /// / `.build` / `Pods` / `node_modules`, at most 5000 files, sorted
-    /// by path.
     nonisolated static func reviewDocsApiSurfaceFiles(at root: URL) -> [URL] {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir) else { return [] }
@@ -461,28 +289,18 @@ extension SwiftCodeMCPHost {
         return results.sorted { $0.path < $1.path }
     }
 
-    /// Legacy `AssistAutomatedRepairEngine.parseDiagnostic`: split a
-    /// diagnostic line on `:`; the path is the first field, the line
-    /// number the second (0 when it is not a number). `nil` when the
-    /// line has three or fewer fields.
     nonisolated static func reviewDocsParseDiagnostic(_ line: String) -> (path: String, lineNumber: Int)? {
         let parts = line.components(separatedBy: ":")
         guard parts.count > 3 else { return nil }
         return (path: parts[0], lineNumber: Int(parts[1]) ?? 0)
     }
 
-    /// A Markdown heading anchor the way
-    /// `AssistMarkdownTocGenerateTool` builds it: lowercase, keep only
-    /// alphanumerics, spaces and hyphens, spaces become hyphens.
     nonisolated static func reviewDocsAnchor(_ title: String) -> String {
         let lower = title.lowercased()
         let allowed = lower.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == " " || $0 == "-" }
         return String(String.UnicodeScalarView(allowed)).replacingOccurrences(of: " ", with: "-")
     }
 
-    /// Legacy `AssistColorSetBuilderTool.hexToRGBComponents`: a 6-digit
-    /// hex colour as `%.3f` sRGB components with alpha `1.000`; anything
-    /// else falls back to Legacy's `#007AFF` components.
     nonisolated static func reviewDocsHexComponents(_ hex: String) -> (r: String, g: String, b: String, a: String) {
         var cString = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if cString.hasPrefix("#") { cString.removeFirst() }
@@ -497,8 +315,6 @@ extension SwiftCodeMCPHost {
         return ("0.000", "0.478", "1.000", "1.000")
     }
 
-    /// The adaptive Light/Dark `.colorset` `Contents.json` Legacy's
-    /// `AssistColorSetBuilderTool` writes.
     nonisolated static func reviewDocsColorSetContents(lightHex: String, darkHex: String) -> String {
         let (lr, lg, lb, la) = reviewDocsHexComponents(lightHex)
         let (dr, dg, db, da) = reviewDocsHexComponents(darkHex)
@@ -544,9 +360,6 @@ extension SwiftCodeMCPHost {
         """
     }
 
-    /// The `AppIcon.appiconset` `Contents.json` Legacy's
-    /// `AssistIconGeneratorTool` scaffolds: one universal 1024×1024 slot
-    /// plus the ten macOS slots (16/32/128/256/512 at 1× and 2×).
     nonisolated static let reviewDocsIconContents = """
         {
           "images" : [
@@ -613,8 +426,6 @@ extension SwiftCodeMCPHost {
         }
         """
 
-    // MARK: - API surface and docs coverage
-
     func reviewDocsApiDocsCoverage(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
@@ -629,7 +440,6 @@ extension SwiftCodeMCPHost {
             for (i, line) in lines.enumerated() {
                 guard let p = declPattern, p.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil else { continue }
                 total += 1
-                // Look back up to 3 lines for /// or /**.
                 let back = max(0, i - 3)
                 let hasDoc = lines[back..<i].contains { l in
                     let t = l.trimmingCharacters(in: .whitespaces)
@@ -669,7 +479,6 @@ extension SwiftCodeMCPHost {
                     guard let r = Range(m.range(at: 1), in: line) else { continue }
                     let urlString = String(line[r])
                     let host = URL(string: urlString)?.host ?? "(unparseable)"
-                    // Skip documentation/example hosts.
                     if host.contains("example.") || host.contains("apple.com") && urlString.contains("developer") { continue }
                     byHost[host, default: 0] += 1
                     if sites.count < limit {
@@ -751,8 +560,6 @@ extension SwiftCodeMCPHost {
                            summary: output)
     }
 
-    // MARK: - Review engines and impact
-
     func reviewDocsAutomatedRepair(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let errors = call.arguments["errors"]?.string, !errors.isEmpty else {
             throw MCPToolError("Missing compiler errors payload")
@@ -761,9 +568,6 @@ extension SwiftCodeMCPHost {
         var fixed = 0
         for line in errors.components(separatedBy: .newlines) where line.contains(".swift:") {
             guard let parsed = Self.reviewDocsParseDiagnostic(line) else { continue }
-            // Legacy re-reads the file for every diagnostic, so a second
-            // diagnostic for the same file annotates the already-annotated
-            // text; the per-diagnostic read below preserves that.
             let url = try resolveFileReadingPath(parsed.path, in: s)
             let original: String
             do {
@@ -848,13 +652,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    /// Wired to the configured Assist LLM provider (see the file
-    /// header): the review sends the workspace's Swift sources — full
-    /// text up to a 24,000-character budget, remaining files by path
-    /// only — with a system prompt condensing Legacy's
-    /// `CodeReviewSystemAsset.md` and requiring its JSON verdict
-    /// contract. A non-JSON reply or a status other than `task_ready` /
-    /// `task_failed` is an honest failure: no review is recorded.
     func reviewDocsCodeReview(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
@@ -916,9 +713,6 @@ extension SwiftCodeMCPHost {
         return .text(lines.joined(separator: "\n"))
     }
 
-    /// Legacy `CodeReviewTool.extractJSON`: strips one fence pair, then
-    /// takes the first `{` through the last `}` and parses it. Returns
-    /// nil for a non-JSON reply.
     nonisolated static func reviewDocsExtractReviewJSON(_ text: String) -> [String: Any]? {
         let cleaned = llmToolStripFences(text)
         guard let first = cleaned.firstIndex(of: "{"),
@@ -928,24 +722,14 @@ extension SwiftCodeMCPHost {
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
-    /// Gap closure: restores the last modification from the undo
-    /// journal (`SafeUndoJournal`, recorded by `commit()`). See
-    /// `specs/ide/gap-closure-correctness.md` §3.
     func reviewDocsSafeUndo(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await correctnessSafeUndo(call)
     }
 
-    // MARK: - Doc comments and snippets
-
-    /// Legacy `AssistDocStringGeneratorTool.execute`: the `///` comment
-    /// for a declaration header — the summary, one `- Parameter` line
-    /// per `name: Type` pair, a `- Throws` line when the declaration
-    /// contains `throws`, and a `- Returns` line when it contains `->`.
     nonisolated static func reviewDocsDocComment(declaration: String, summary: String) -> String {
         var docLines: [String] = []
         docLines.append("/// \(summary)")
         docLines.append("///")
-        // Parse parameters from (arg1: Type, arg2: Type).
         if let openParen = declaration.firstIndex(of: "("),
            let closeParen = declaration.lastIndex(of: ")"),
            openParen < closeParen {
@@ -980,11 +764,6 @@ extension SwiftCodeMCPHost {
         return .text("Generated DocC Documentation:\n\n```swift\n\(result)\n```")
     }
 
-    /// Legacy `AssistCodeSnippetTool.execute`: the template for a
-    /// `templateId` (case-insensitive), with `name` substituted, or
-    /// `nil` for an unknown id. `keychain_helper` is listed in the
-    /// schema description but has no case in Legacy's `switch`, so it
-    /// is unknown here too.
     nonisolated static func reviewDocsSnippet(templateId: String, name: String) -> (title: String, snippet: String)? {
         switch templateId.lowercased() {
         case "observable_viewmodel":
@@ -1094,8 +873,6 @@ extension SwiftCodeMCPHost {
         return .text("\(title)\n\n```swift\n\(snippet)\n```")
     }
 
-    // MARK: - Colours and icons
-
     func reviewDocsColorUsageAudit(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
@@ -1139,8 +916,6 @@ extension SwiftCodeMCPHost {
         let colorName = try reviewDocsRequiredString(call, "colorName")
         let lightHex = try reviewDocsRequiredString(call, "lightHex")
         let darkHex = call.arguments["darkHex"]?.string ?? lightHex
-        // Legacy would silently create nested directories for a name
-        // containing a path separator; the port requires a single name.
         guard !colorName.isEmpty, !colorName.contains("/"), !colorName.contains("\\"), !colorName.contains(".."),
               !colorName.contains("\0") else {
             throw MCPToolError("Invalid colorName '\(colorName)': must be a single color set name, not a path.")
@@ -1173,7 +948,6 @@ extension SwiftCodeMCPHost {
                              call: call, session: s)
             return .text("Successfully created universal AppIcon.appiconset at: \(iconSetURL.path)")
         }
-        // Any other action value validates, as in Legacy.
         let contentsJSON = iconSetURL.appendingPathComponent("Contents.json")
         guard FileManager.default.fileExists(atPath: contentsJSON.path),
               let data = try? Data(contentsOf: contentsJSON),
@@ -1200,7 +974,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Markdown, README and repository overview
 
     func reviewDocsMarkdownLinkCheck(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -1226,9 +999,7 @@ extension SwiftCodeMCPHost {
             for m in matches {
                 guard let r = Range(m.range(at: 2), in: text) else { continue }
                 var dest = String(text[r])
-                // Skip anchors-only, absolute URLs, and mailto:.
                 if dest.hasPrefix("#") || dest.contains("://") || dest.hasPrefix("mailto:") { continue }
-                // Strip anchor.
                 if let hash = dest.firstIndex(of: "#") { dest = String(dest[..<hash]) }
                 if dest.isEmpty { continue }
                 checked += 1
@@ -1287,7 +1058,6 @@ extension SwiftCodeMCPHost {
            let start = content.range(of: "<!-- TOC -->"), let end = content.range(of: "<!-- /TOC -->"), start.lowerBound < end.upperBound {
             content.replaceSubrange(start.lowerBound..<end.upperBound, with: toc)
         } else {
-            // Insert after the first heading block.
             let lines = content.components(separatedBy: .newlines)
             if let firstHeading = lines.firstIndex(where: { $0.hasPrefix("# ") }) {
                 var mutable = lines
@@ -1321,14 +1091,12 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("File already exists at \(rawPath). Pass overwrite: true to replace it.")
         }
         let projectName = root.lastPathComponent
-        // Build systems.
         var systems: [String] = []
         let fm = FileManager.default
         if fm.fileExists(atPath: root.appendingPathComponent("Package.swift").path) { systems.append("SwiftPM") }
         if (try? fm.contentsOfDirectory(atPath: root.path))?.contains(where: { $0.hasSuffix(".xcworkspace") }) == true { systems.append("Xcode workspace") }
         else if (try? fm.contentsOfDirectory(atPath: root.path))?.contains(where: { $0.hasSuffix(".xcodeproj") }) == true { systems.append("Xcode project") }
         if fm.fileExists(atPath: root.appendingPathComponent("Podfile").path) { systems.append("CocoaPods") }
-        // Targets from pbxproj.
         var targets: [String] = []
         if let pbxproj = Self.reviewDocsFindPbxproj(in: root),
            let text = try? String(contentsOf: pbxproj, encoding: .utf8),
@@ -1424,8 +1192,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    // MARK: - Validation, sessions and staleness
-
     func reviewDocsSafeValidateChanges(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let path = call.arguments["path"]?.string ?? "."
@@ -1466,7 +1232,6 @@ extension SwiftCodeMCPHost {
         guard let outputURL = Self.reviewDocsSessionExportURL(outputRelative, root: root) else {
             throw MCPToolError("Invalid outputPath: '\(outputRelative)' must be a workspace-relative path without '..' and must stay inside the workspace.")
         }
-        // Legacy's `overwrite` is a string ("true"), not a boolean.
         let overwrite = (call.arguments["overwrite"]?.string ?? "").lowercased() == "true"
         if FileManager.default.fileExists(atPath: outputURL.path) && !overwrite {
             throw MCPToolError("Refusing to overwrite existing file at '\(outputRelative)'. Pass overwrite=true to replace it.")
@@ -1474,8 +1239,6 @@ extension SwiftCodeMCPHost {
         let title = call.arguments["title"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines)
         let effectiveTitle = (title?.isEmpty == false) ? title! : "Assist Session Export"
         let notes = call.arguments["notes"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        // Legacy's timestamp is a plain ISO8601DateFormatter (no
-        // fractional seconds), unlike `AssistWorkspacePaths.iso8601`.
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let sessionId = Self.reviewDocsSessionUUID(root: root)
         var markdown = "# \(effectiveTitle)\n\n"
@@ -1486,8 +1249,6 @@ extension SwiftCodeMCPHost {
         markdown += "Tool definitions live in AssistToolRegistry. This export contains session metadata only.\n\n"
         markdown += "## Notes\n\n"
         markdown += notes.isEmpty ? "_No notes provided._\n" : notes + "\n"
-        // Deliberately no conversation-history access: this tool exports
-        // metadata supplied in its inputs plus the session context only.
         let rel = fileReadingRelativePath(of: outputURL, in: s)
         try await commit(MCPChange(tool: call.name, path: outputURL.path, relativePath: rel, original: text(of: outputURL),
                                    proposed: markdown, summary: "Export session to \(rel)"), call: call, session: s)
@@ -1496,8 +1257,6 @@ extension SwiftCodeMCPHost {
                            summary: "Session export written to \(outputRelative) (session \(sessionId)).")
     }
 
-    /// Gap closure: counts real session progress from the workspace's
-    /// Agentic plans (see `CorrectnessGapHandlers.swift`).
     func reviewDocsSessionProgress(_ call: MCPToolCall) throws -> MCPToolResult {
         try correctnessSessionProgress(call)
     }
@@ -1530,8 +1289,6 @@ extension SwiftCodeMCPHost {
         guard let toolId = call.arguments["toolId"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !toolId.isEmpty else {
             throw MCPToolError("Missing required parameter: toolId")
         }
-        // Resolve aliases the way Legacy's `getTool` does, against
-        // SwiftCode's own alias table.
         let resolved = MCPServer.toolAliases[toolId] ?? toolId
         guard let tool = server.tools.first(where: { $0.name == resolved }) else {
             throw MCPToolError("No registered tool with id '\(toolId)'.")

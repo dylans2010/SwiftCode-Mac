@@ -1,5 +1,3 @@
-// T-O1 / HK-B14: the identifier catalog equals type-identifiers.md.
-
 import Foundation
 import Testing
 @testable import HomeKit
@@ -141,8 +139,6 @@ struct CatalogTests {
         #expect(HMCharacteristicValueWiFiSatelliteStatus.notConnected.rawValue == 2)
     }
 
-    /// Path of the spec when this test runs from the repository (not on a
-    /// machine that only has the package).
     static var specURL: URL? {
         var u = URL(fileURLWithPath: #filePath)
         for _ in 0..<5 { u.deleteLastPathComponent() }

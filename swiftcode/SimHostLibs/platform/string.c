@@ -1,16 +1,3 @@
-/*
- * string.c - the _platform_* memory and string functions of SwiftCode's
- * libsystem_platform.
- *
- * Clean-room SwiftCode code. Behavior follows the C standard and the public
- * man pages (memmove(3), memccpy(3), memset_pattern(3), strlcpy(3),
- * strnlen(3), bzero(3), ...). The simulator's libsystem_c re-exports the
- * standard names under these _platform_ names (host-library-surface.md
- * section 7), so memcpy and memmove both reach _platform_memmove.
- *
- * Built with -ffreestanding -fno-builtin: the compiler never turns these
- * loops into calls to the functions being defined.
- */
 #include "yc_platform.h"
 
 typedef yc_u64 __attribute__((may_alias, aligned(1))) yc_unaligned_u64;
@@ -19,16 +6,8 @@ typedef yc_u64 __attribute__((may_alias)) yc_word;
 #define WORD sizeof(yc_word)
 #define ONES 0x0101010101010101ull
 #define HIGHS 0x8080808080808080ull
-/* Nonzero iff some byte of w is zero. */
 #define HAS_ZERO(w) (((w) - ONES) & ~(w) & HIGHS)
 
-/*
- * Copies use 16-byte vector loads and stores at any alignment (arm64 allows
- * unaligned access to normal memory) and overlapping loads for the head and
- * tail, so a copy costs about one load and one store per 16 bytes
- * (guest-cpu.md section 4.4; the old byte loop took about one cycle per byte
- * when source and destination were not equally aligned).
- */
 typedef unsigned char yc_v16 __attribute__((vector_size(16), aligned(1), may_alias));
 typedef yc_u32 __attribute__((may_alias, aligned(1))) yc_unaligned_u32;
 typedef yc_u16 __attribute__((may_alias, aligned(1))) yc_unaligned_u16;
@@ -38,7 +17,6 @@ typedef yc_u16 __attribute__((may_alias, aligned(1))) yc_unaligned_u16;
 #define LD8(p) (*(const yc_unaligned_u64 *)(const void *)(p))
 #define ST8(p, v) (*(yc_unaligned_u64 *)(void *)(p) = (v))
 
-/* n <= 32. Every load happens before the first store, so any overlap is fine. */
 static inline void copy_upto32(unsigned char *d, const unsigned char *s, yc_size_t n)
 {
     if (n >= 16) {
@@ -75,11 +53,6 @@ YC_EXPORT void *YC_FN(_platform_memmove)(void *dst, const void *src, yc_size_t n
         return dst;
     }
     if ((yc_uintptr_t)d - (yc_uintptr_t)s >= n) {
-        /* Forward (the destination does not start inside the source). A
-         * store at d+i never reaches a byte the loop loads later: those are
-         * at s+j with j > i, and d < s or the regions do not overlap. The
-         * head and tail are loaded first and stored last (stored first, they
-         * could overwrite source bytes the loop still reads). */
         yc_v16 head = LD16(s), tail = LD16(s + n - 16);
         unsigned char *base = d, *end = d + n;
         yc_size_t k = 16 - ((yc_uintptr_t)d & 15);
@@ -105,7 +78,6 @@ YC_EXPORT void *YC_FN(_platform_memmove)(void *dst, const void *src, yc_size_t n
         ST16(end - 16, tail);
         ST16(base, head);
     } else {
-        /* Backward (the destination starts inside the source): the mirror. */
         yc_v16 head = LD16(s), tail = LD16(s + n - 16);
         unsigned char *base = d, *end = d + n;
         yc_size_t k = (yc_uintptr_t)(d + n) & 15;
@@ -148,8 +120,6 @@ YC_EXPORT void *YC_FN(_platform_memchr)(const void *p, int c, yc_size_t n)
 {
     const unsigned char *s = p;
     unsigned char ch = (unsigned char)c;
-    /* Bytes to an 8-byte boundary, then aligned words (an aligned word never
-     * crosses a page boundary), then the rest. */
     while (n && ((yc_uintptr_t)s & (WORD - 1))) {
         if (*s == ch)
             return (void *)s;
@@ -184,7 +154,6 @@ YC_EXPORT int YC_FN(_platform_memcmp)(const void *a, const void *b, yc_size_t n)
     return 0;
 }
 
-/* 0 when all n bytes at p are zero, 1 otherwise. */
 YC_EXPORT int YC_FN(_platform_memcmp_zero_aligned8)(const void *p, yc_size_t n)
 {
     const unsigned char *s = p;
@@ -200,8 +169,6 @@ YC_EXPORT int YC_FN(_platform_memcmp_zero_aligned8)(const void *p, yc_size_t n)
     return 0;
 }
 
-/* Stores the 16-byte pattern v over [d, d+n), the pattern's byte i at every
- * address d+k with k = i mod 16 (a byte fill has all lanes equal). */
 static inline void fill16(unsigned char *d, yc_v16 v, yc_size_t n)
 {
     if (n < 16) {
@@ -211,8 +178,6 @@ static inline void fill16(unsigned char *d, yc_v16 v, yc_size_t n)
     }
     unsigned char *end = d + n;
     yc_v16 tail = v;
-    /* The tail store's phase: lane i lands at end - 16 + i, which must hold
-     * pattern byte (n - 16 + i) mod 16. */
     yc_size_t shift = (n - 16) & 15;
     if (shift)
         for (int i = 0; i < 16; i++)
@@ -263,9 +228,6 @@ YC_EXPORT void *YC_FN(_platform_memset)(void *dst, int c, yc_size_t n)
     return dst;
 }
 
-/* Zeroing: large ranges use DC ZVA on whole zero blocks when EL0 may
- * (DCZID_EL0.DZP is 0; the shim sets SCTLR_EL1.DZE), as the Arm ARM
- * describes for it (D7.4.12); vector stores elsewhere. */
 static void zero_bytes(unsigned char *d, yc_size_t n)
 {
 #if defined(__aarch64__)
@@ -300,8 +262,6 @@ YC_EXPORT void YC_FN(__bzero)(void *dst, yc_size_t n)
     zero_bytes(dst, n);
 }
 
-/* memset_pattern{4,8,16}: repeat the pattern over len bytes; the last copy
- * may be partial. */
 static void fill_pattern(unsigned char *d, const unsigned char *pat, yc_size_t plen, yc_size_t len)
 {
     yc_v16 v;
@@ -328,8 +288,6 @@ YC_EXPORT void YC_FN(_platform_memset_pattern16)(void *dst, const void *pattern,
 YC_HIDDEN yc_size_t __yc_strlen(const char *str)
 {
     const char *s = str;
-    /* Bytes up to the next 8-byte boundary, then whole aligned words (an
-     * aligned word never crosses a page boundary). */
     while ((yc_uintptr_t)s & (WORD - 1)) {
         if (*s == 0)
             return (yc_size_t)(s - str);
@@ -377,8 +335,6 @@ YC_EXPORT char *YC_FN(_platform_strchr)(const char *s, int c)
     }
 }
 
-/* An unaligned 8-byte load at p stays inside p's 4 KiB page (so it reads no
- * byte of a page the string does not reach). */
 #define IN_PAGE8(p) (((yc_uintptr_t)(p) & 4095) <= 4096 - WORD)
 
 YC_EXPORT int YC_FN(_platform_strcmp)(const char *a, const char *b)
@@ -392,7 +348,6 @@ YC_EXPORT int YC_FN(_platform_strcmp)(const char *a, const char *b)
                 y += WORD;
                 continue;
             }
-            /* The difference or the end is in these 8 bytes. */
             for (int i = 0; i < (int)WORD; i++, x++, y++)
                 if (*x != *y || *x == 0)
                     return (int)*x - (int)*y;
@@ -436,8 +391,6 @@ YC_EXPORT char *YC_FN(_platform_strncpy)(char *dst, const char *src, yc_size_t n
     return dst;
 }
 
-/* strlcpy: copy at most size-1 bytes, always terminate when size > 0,
- * return strlen(src). */
 YC_EXPORT yc_size_t YC_FN(_platform_strlcpy)(char *dst, const char *src, yc_size_t size)
 {
     yc_size_t len = __yc_strlen(src);
@@ -449,8 +402,6 @@ YC_EXPORT yc_size_t YC_FN(_platform_strlcpy)(char *dst, const char *src, yc_size
     return len;
 }
 
-/* strlcat: append to a string in a buffer of the given total size; return
- * the length the result would have had (strnlen(dst, size) + strlen(src)). */
 YC_EXPORT yc_size_t YC_FN(_platform_strlcat)(char *dst, const char *src, yc_size_t size)
 {
     yc_size_t dlen = YC_FN(_platform_strnlen)(dst, size);

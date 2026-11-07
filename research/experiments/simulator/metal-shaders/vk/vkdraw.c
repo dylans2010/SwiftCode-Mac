@@ -1,22 +1,3 @@
-// vkdraw.c: Ycode R8 Vulkan render test (ours, stage 8a research).
-//
-// Draws one full-screen triangle into a 64x64 RGBA8 image with a vertex
-// and a fragment shader (SPIR-V, entry points given on the command line)
-// using the "R8 PoC graphics ABI" of airc:
-//   vertex attributes: location 0 = float2 position (binding 0),
-//                      location 1 = half4 color (binding 1, R16G16B16A16_SFLOAT)
-//   push constants: vertex buffer slots 0..3 at offset 0 (slot 1 = an
-//                   Xform { float2 scale, offset } buffer by device address),
-//                   fragment buffer slots 0..3 at offset 32
-//   set 0 binding 0: sampled images [16], binding 1: samplers [16]
-//                   (slot 0 = a 2x2 RGBA8 texture: red, green / blue, white;
-//                    nearest filtering)
-// The viewport has a negative height so that Metal's clip space (y up)
-// lands the right way up. Every pixel is checked against the texel the
-// Metal convention selects; the image is also written as a PPM file.
-//
-// Build: cc -O2 -o vkdraw vkdraw.c -lvulkan
-// Usage: vkdraw VS.spv VS_ENTRY FS.spv FS_ENTRY [OUT.ppm]
 #include <vulkan/vulkan.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,7 +108,6 @@ int main(int argc, char **argv) {
     VkQueue queue;
     vkGetDeviceQueue(dev, qfam, 0, &queue);
 
-    // Resources.
     VkDeviceMemory cmem, tmem;
     VkImage color = image(W, H, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, &cmem);
     VkImage tex = image(2, 2, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, &tmem);
@@ -156,7 +136,6 @@ int main(int argc, char **argv) {
     memcpy(xform.p, xf, sizeof xf);
     Buf readback = buffer(W * H * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-    // Descriptors: 16 sampled images and 16 samplers (all slots filled).
     VkDescriptorSetLayoutBinding binds[2] = {
         {0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 16, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_SAMPLER, 16, VK_SHADER_STAGE_FRAGMENT_BIT, NULL}};
@@ -180,7 +159,6 @@ int main(int argc, char **argv) {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 1, 0, 16, VK_DESCRIPTOR_TYPE_SAMPLER, smps}};
     vkUpdateDescriptorSets(dev, 2, wr, 0, NULL);
 
-    // Pipeline.
     VkPushConstantRange pcr = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 64};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &dsl, 1, &pcr};
     VkPipelineLayout pl;
@@ -193,7 +171,7 @@ int main(int argc, char **argv) {
     VkPipelineVertexInputStateCreateInfo vis = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0, 2, vb, 2, va};
     VkPipelineInputAssemblyStateCreateInfo ias = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
-    VkViewport vp = {0, H, W, -(float)H, 0, 1};  // Metal clip space: y up
+    VkViewport vp = {0, H, W, -(float)H, 0, 1};
     VkRect2D sc = {{0, 0}, {W, H}};
     VkPipelineViewportStateCreateInfo vps = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, &vp, 1, &sc};
     VkPipelineRasterizationStateCreateInfo rs = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
@@ -211,7 +189,6 @@ int main(int argc, char **argv) {
     VkPipeline pipe;
     CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &gpi, NULL, &pipe));
 
-    // Commands.
     VkCommandPoolCreateInfo cpci = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, 0, qfam};
     VkCommandPool cpool;
     CHECK(vkCreateCommandPool(dev, &cpci, NULL, &cpool));
@@ -253,7 +230,6 @@ int main(int argc, char **argv) {
     CHECK(vkQueueSubmit(queue, 1, &sub, VK_NULL_HANDLE));
     CHECK(vkQueueWaitIdle(queue));
 
-    // Check: Metal convention puts texel row 0 (red, green) at the top.
     const uint8_t *px = readback.p;
     unsigned bad = 0;
     for (int y = 0; y < H; y++)

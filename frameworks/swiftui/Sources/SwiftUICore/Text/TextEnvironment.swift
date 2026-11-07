@@ -1,11 +1,5 @@
 import Foundation
 
-// Environment values and view modifiers for text (round R4): line spacing,
-// minimum scale factor, tightening, text case, line-limit ranges and
-// reserved lines, and the view-level character attributes (`.bold()`,
-// `.fontWeight(_:)`, … on any view). `lineLimit`, `multilineTextAlignment`,
-// `truncationMode` and `font` are in Environment/EnvironmentKeys.swift.
-
 private enum LineSpacingKey: EnvironmentKey { static let defaultValue: CGFloat = 0 }
 private enum MinimumScaleFactorKey: EnvironmentKey { static let defaultValue: CGFloat = 1 }
 private enum AllowsTighteningKey: EnvironmentKey { static let defaultValue = false }
@@ -30,13 +24,10 @@ extension EnvironmentValues {
         get { self[TextCaseKey.self] }
         set { self[TextCaseKey.self] = newValue }
     }
-    /// Lines a text reserves even when it needs fewer (`lineLimit(_:reservesSpace:)`,
-    /// the lower bound of `lineLimit(_:)` with a range).
     package var lineLimitMinimum: Int? {
         get { self[LineLimitMinimumKey.self] }
         set { self[LineLimitMinimumKey.self] = newValue }
     }
-    /// Character attributes set by view-level text modifiers.
     package var textAttributes: TextAttributes {
         get { self[TextAttributesKey.self] }
         set { self[TextAttributesKey.self] = newValue }
@@ -49,12 +40,10 @@ extension View {
     public func allowsTightening(_ flag: Bool) -> some View { environment(\.allowsTightening, flag) }
     public func textCase(_ textCase: Text.Case?) -> some View { environment(\.textCase, textCase) }
 
-    /// At most `limit` lines; with `reservesSpace`, always as tall as `limit` lines.
     public func lineLimit(_ limit: Int, reservesSpace: Bool) -> some View {
         environment(\.lineLimit, limit).environment(\.lineLimitMinimum, reservesSpace ? limit : nil)
     }
 
-    /// Between `limits.lowerBound` (reserved) and `limits.upperBound` lines.
     public func lineLimit(_ limits: ClosedRange<Int>) -> some View {
         environment(\.lineLimit, limits.upperBound).environment(\.lineLimitMinimum, limits.lowerBound)
     }
@@ -70,7 +59,6 @@ extension View {
     private func textAttribute(_ apply: (inout TextAttributes) -> Void) -> some View {
         var inner = TextAttributes()
         apply(&inner)
-        // Inner settings win: an outer modifier only fills what is unset.
         return modifier(EnvironmentTransformModifier(label: "textAttributes", value: inner) {
             $0.textAttributes = inner.merged(under: $0.textAttributes)
         })

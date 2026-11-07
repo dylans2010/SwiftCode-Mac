@@ -1,8 +1,3 @@
-//
-//  AssistBundleResourceAuditorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistBundleResourceAuditorTool: AssistTool {
@@ -49,7 +44,6 @@ public struct AssistBundleResourceAuditorTool: AssistTool {
                 fontFiles.append(rel)
             }
 
-            // Check if Contents.json has missing image files
             if fileURL.lastPathComponent == "Contents.json" && rel.contains(".imageset") {
                 if let data = try? Data(contentsOf: fileURL),
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

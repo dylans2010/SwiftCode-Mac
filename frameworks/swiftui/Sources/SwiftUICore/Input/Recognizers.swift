@@ -1,13 +1,5 @@
 import Foundation
 
-// Recognizers of the gestures the `SwiftUI` module declares (drag, long
-// press, sequence, `updating`, button presses). They live here, beside the
-// runtime: a class can be subclassed outside its module only when it is
-// `open` (public API), and the recognizer classes are package API. The
-// public gesture values that make them are in the `SwiftUI` module
-// (Input/Gestures.swift).
-
-/// A drag's state as the recognizer measures it (window or local points).
 package struct DragSample: Equatable {
     package var time: TimeInterval
     package var location: CGPoint
@@ -15,9 +7,6 @@ package struct DragSample: Equatable {
     package var velocity: CGSize
 }
 
-/// The drag state machine. Velocity is the displacement over the samples of
-/// the last 0.1 s (at least the last two), divided by their time span (our
-/// estimator; the spec gives magnitudes, not the method).
 package final class DragRecognizer: GestureRecognizer {
     nonisolated package static let predictionInterval: CGFloat = 0.25
     nonisolated package static let velocityWindow: TimeInterval = 0.1
@@ -87,7 +76,6 @@ package class LongPressRecognizer: GestureRecognizer {
     let minimumDuration: Double
     let maximumDistance: CGFloat
     private var down: (t: TimeInterval, p: CGPoint)?
-    /// True while the press is physically down.
     package private(set) var isDown = false
 
     package init(minimumDuration: Double, maximumDistance: CGFloat, context: GestureContext) {
@@ -129,8 +117,6 @@ package class LongPressRecognizer: GestureRecognizer {
     }
 }
 
-/// `onLongPressGesture(…perform:onPressingChanged:)`: pressing true at
-/// touch-down, the action at the duration, pressing false at touch-up (06 §7).
 package final class LongPressActionRecognizer: LongPressRecognizer {
     let action: () -> Void
     let pressingChanged: ((Bool) -> Void)?
@@ -165,9 +151,6 @@ package final class LongPressActionRecognizer: LongPressRecognizer {
     }
 }
 
-/// Runs the second recognizer from the moment the first ends (a press still
-/// down is replayed to it as a touch-down where the pointer is). If the
-/// second fails, the sequence ends with `.second(first, nil)` (our rule).
 package final class SequenceRecognizer: GestureRecognizer {
     let a: GestureRecognizer
     let b: GestureRecognizer
@@ -241,8 +224,6 @@ package final class SequenceRecognizer: GestureRecognizer {
     }
 }
 
-/// Calls the updating body with each new value; resets the state once when
-/// the gesture ends, fails or is cancelled.
 package final class UpdatingRecognizer: WrappingRecognizer {
     let update: (Any) -> Void
     let reset: () -> Void
@@ -280,8 +261,6 @@ package final class UpdatingRecognizer: WrappingRecognizer {
     }
 }
 
-/// A button press: pressed while down (provisional), fails if the pointer
-/// leaves the frame by more than 10 pt (our slop), ends on release inside.
 package final class PressRecognizer: GestureRecognizer {
     package static let slop: CGFloat = 10
     let onPressed: (Bool) -> Void
@@ -340,9 +319,6 @@ package final class PressRecognizer: GestureRecognizer {
     }
 }
 
-/// Follows one press from down to up in the view's local coordinates, active
-/// from the press (round R8: text selection, slider thumbs, menus). Events
-/// are delivered when the arbiter lets the recognizer flush, in order.
 package final class PointerTrackRecognizer: GestureRecognizer {
     package enum Event: Equatable {
         case down(CGPoint, TimeInterval)
@@ -352,8 +328,6 @@ package final class PointerTrackRecognizer: GestureRecognizer {
     }
 
     let handler: (Event) -> Void
-    /// Decides at the press whether to track it (false: the gesture fails
-    /// and other gestures may take the press).
     let accepts: (CGPoint) -> Bool
     private var pending: [Event] = []
     private var delivered = false
@@ -414,14 +388,6 @@ package final class PointerTrackRecognizer: GestureRecognizer {
     }
 }
 
-/// A horizontal drag that starts at the leading edge of a view (round R9:
-/// the navigation stack's back swipe, 06 §2.1). It fails at touch-down
-/// outside the first `edgeWidth` points, when the press moves 10 points
-/// vertically before it moves 10 points horizontally, or on release before
-/// it started; it becomes active once the press moved 10 points towards the
-/// trailing side. While possible it holds nothing back, so taps and
-/// vertical scrolling near the edge keep working. Values are the drag's
-/// samples in the view's local coordinates.
 package final class EdgeSwipeRecognizer: GestureRecognizer {
     package static let threshold: CGFloat = 10
     let edgeWidth: CGFloat

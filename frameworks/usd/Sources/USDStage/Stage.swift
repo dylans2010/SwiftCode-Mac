@@ -1,17 +1,12 @@
 import Foundation
 import USDCore
 
-/// Composition arcs, weakest to strongest rank last: within one site, local
-/// opinions beat inherits, which beat variants, references, payloads and
-/// specializes (LIVRPS, OpenUSD's documented strength order).
 public enum ArcType: Int, Comparable, Sendable {
     case root = 0, inherit, variant, reference, payload, specialize
 
     public static func < (a: ArcType, b: ArcType) -> Bool { a.rawValue < b.rawValue }
 }
 
-/// A layer and its sublayers, strongest first, each with the time offset
-/// that maps its times to the stack root's.
 public final class LayerStack {
     public let identifier: String
     public let layers: [(layer: Layer, offset: LayerOffset)]
@@ -26,18 +21,12 @@ public final class LayerStack {
     func hasSpec(at path: Path) -> Bool { layers.contains { $0.layer.hasSpec(at: path) } }
 }
 
-/// One node of a prim index: a site (layer stack and path) that contributes
-/// opinions, and the arcs below it.
 public final class IndexNode {
     public let stack: LayerStack
     public internal(set) var path: Path
     public let arc: ArcType
-    /// Namespace depth of the prim where the arc was authored (deeper arcs of
-    /// the same type are stronger than ancestral ones).
     public let namespaceDepth: Int
-    /// Maps this node's times to stage times.
     public let offset: LayerOffset
-    /// Prefix maps from this node's namespace towards the stage's.
     let mappings: [(from: Path, to: Path)]
     public internal(set) var children: [IndexNode] = []
     let order: Int
@@ -60,14 +49,12 @@ public final class IndexNode {
         return n
     }
 
-    /// Nodes in strength order (strongest first).
     public var strengthOrdered: [IndexNode] {
         var out: [IndexNode] = [self]
         for c in children { out += c.strengthOrdered }
         return out
     }
 
-    /// Maps a path authored at this node into the stage namespace.
     public func mapToStage(_ p: Path) -> Path {
         var p = p
         for m in mappings where p.hasPrefix(m.from) { p = p.replacingPrefix(m.from, with: m.to) }
@@ -83,17 +70,11 @@ public final class IndexNode {
     }
 }
 
-/// A composed view of a root layer and everything it brings in: sublayers,
-/// references, payloads, inherits, specializes and variant selections.
-/// Instancing, relocates, value clips and implied inherits across reference
-/// arcs are not composed (see the package README).
 public final class Stage {
     public private(set) var rootLayer: Layer
     public let resolver: LayerResolver
-    /// Variant fallbacks per variant set, used when no selection is authored.
     public var variantFallbacks: [String: [String]] = [:] { didSet { invalidate() } }
     public var loadPayloads = true { didSet { invalidate() } }
-    /// Problems found while composing (missing layers, bad targets, cycles).
     public private(set) var errors: [String] = []
 
     private var stacks: [String: LayerStack] = [:]
@@ -113,7 +94,6 @@ public final class Stage {
         return Stage(rootLayer: layer, resolver: resolver)
     }
 
-    /// Replaces the root layer (after an edit) and recomposes lazily.
     public func setRootLayer(_ layer: Layer) {
         rootLayer = layer
         invalidate()
@@ -126,8 +106,6 @@ public final class Stage {
         nodeCounter = 0
         rootStack = buildStack(rootLayer, visited: [])
     }
-
-    // MARK: Layer stacks
 
     private func buildStack(_ layer: Layer, visited: Set<String>) -> LayerStack {
         if let s = stacks[layer.identifier] { return s }
@@ -161,9 +139,6 @@ public final class Stage {
         return buildStack(try resolver.layer(for: identifier), visited: [])
     }
 
-    // MARK: Prim indexes
-
-    /// The prim index of a stage path, or nil when no site has a spec.
     public func primIndex(_ path: Path) -> IndexNode? {
         if let cached = indexes[path] { return cached }
         let result = buildIndex(path)
@@ -193,14 +168,11 @@ public final class Stage {
         node.sortChildren()
     }
 
-    /// Specs at a node's site, strongest layer first.
     private func siteSpecs(_ node: IndexNode, at path: Path? = nil) -> [(layer: Layer, spec: Spec)] {
         let p = path ?? node.path
         return node.stack.layers.compactMap { entry in entry.layer.spec(at: p).map { (entry.layer, $0) } }
     }
 
-    /// A list-op field composed across a node's layers (weakest first), with
-    /// the strongest layer that mentions each item (the anchor for assets).
     private func composedList<T>(_ node: IndexNode, field: String, extract: (Value) -> ListOp<T>?) -> [(item: T, layer: Layer)] {
         var items: [T] = []
         var source: [T: Layer] = [:]
@@ -233,11 +205,9 @@ public final class Stage {
             return n
         }
 
-        // Inherits.
         for (target, _) in composedList(node, field: FieldKey.inheritPaths, extract: { if case .pathListOp(let op) = $0 { return op }; return nil }) {
             _ = make(node.stack, target, .inherit, .identity, mapFrom: target)
         }
-        // Variants.
         let sets = composedList(node, field: FieldKey.variantSetNames) { v -> ListOp<String>? in
             if case .stringListOp(let op) = v { return op }
             return nil
@@ -248,7 +218,6 @@ public final class Stage {
             guard node.stack.hasSpec(at: vPath) else { continue }
             _ = make(node.stack, vPath, .variant, .identity, mapFrom: anchorPath)
         }
-        // References and payloads.
         let refs = composedList(node, field: FieldKey.references) { v -> ListOp<Reference>? in
             if case .referenceListOp(let op) = v { return op }
             return nil
@@ -269,7 +238,6 @@ public final class Stage {
                 }
             }
         }
-        // Specializes.
         for (target, _) in composedList(node, field: FieldKey.specializes, extract: { if case .pathListOp(let op) = $0 { return op }; return nil }) {
             _ = make(node.stack, target, .specialize, .identity, mapFrom: target)
         }
@@ -318,9 +286,6 @@ public final class Stage {
         return nil
     }
 
-    // MARK: Opinions
-
-    /// Every spec contributing to a stage path, strongest first, with its node.
     public func opinions(_ path: Path) -> [(node: IndexNode, layer: Layer, spec: Spec, offset: LayerOffset)] {
         let primPath = path.primPath
         guard let index = primIndex(primPath) else { return [] }
@@ -340,7 +305,6 @@ public final class Stage {
         return out
     }
 
-    /// The strongest opinion of a field; dictionaries merge across opinions.
     public func resolvedField(_ field: String, at path: Path) -> Value? {
         var merged: [String: Value]?
         for o in opinions(path) {
@@ -366,8 +330,6 @@ public final class Stage {
         return out
     }
 
-    /// Names composed weakest to strongest (later, stronger sites append),
-    /// then reordered by the strongest order statement.
     private func composedNames(_ path: Path, list: String, order: String) -> [String] {
         guard let index = primIndex(path) else { return [] }
         var names: [String] = []
@@ -386,8 +348,6 @@ public final class Stage {
         if let reorder { names = ListOp(orderedItems: reorder).applied(to: names) }
         return names
     }
-
-    // MARK: Prims
 
     public func prim(at path: Path) -> Prim? {
         guard path.isRoot || primIndex(path) != nil else { return nil }
@@ -422,12 +382,9 @@ public final class Stage {
             self.includeAbstract = includeAbstract
         }
 
-        /// Every prim with a spec.
         public static let all = TraversalOptions(includeInactive: true, includeUndefined: true, includeAbstract: true)
     }
 
-    /// Depth-first prims below the root (pre-order), filtered like OpenUSD's
-    /// default traversal: active, defined and not abstract unless asked.
     public func traverse(_ options: TraversalOptions = TraversalOptions(), from start: Path = .root) -> [Prim] {
         var out: [Prim] = []
         func visit(_ path: Path) {
@@ -444,8 +401,6 @@ public final class Stage {
         visit(start)
         return out
     }
-
-    // MARK: Stage metadata
 
     public var upAxis: String { rootLayer.upAxis ?? "Y" }
     public var metersPerUnit: Double { rootLayer.metersPerUnit ?? 0.01 }

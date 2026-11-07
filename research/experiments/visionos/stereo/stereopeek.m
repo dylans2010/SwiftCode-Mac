@@ -1,13 +1,3 @@
-// stereopeek (our own code, OBS-VISION-STEREO, dirty room): how many views backboardd renders.
-// Inserted with SIMCTL_CHILD_DYLD_INSERT_LIBRARIES; inert outside backboardd and wakeboardd.
-// backboardd: logs textures made with arrayLength >= 2 (device and heap), the shared layer textures
-// it opens, render passes whose colour 0 is an array texture (renderTargetArrayLength, sizes) and,
-// in those passes, viewport, amplification, vertex-bytes and draw instance-count calls; after such a
-// pass ends it appends a blit of every slice into a shared buffer of its own (SP_CAPTURES times per
-// texture size) and writes the slices and their comparison (per-slice means, mean |a-b|, best
-// horizontal shift of slice 1 against slice 0).
-// wakeboardd: logs shared-texture descriptors and the rects of SFBSwapchainSwapAddSurface.
-// Output: $SP_DIR/sp.<process>.<pid>, raw slices $SP_DIR/<process>-<w>x<h>-c<n>-s<i>.rgba16f
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <IOSurface/IOSurfaceRef.h>
@@ -41,7 +31,6 @@ static void hook(Class c, SEL s, IMP imp, IMP *orig) {
     sp("hooked %s %s", class_getName(c), sel_getName(s));
 }
 
-// ------------------------------------------------------------ texture creation
 static IMP o_devTex, o_heapTex, o_heapTexOff, o_open, o_sharedDesc;
 static void noteDesc(const char *who, MTLTextureDescriptor *d, id t) {
     if (d.arrayLength < 2 && d.textureType != MTLTextureType2DArray) return;
@@ -66,11 +55,10 @@ static id h_open(id self, SEL _c, id handle) {
     return t;
 }
 
-// ------------------------------------------------------------ render passes
 static IMP o_draw3, o_dix5, o_rce, o_end, o_vp, o_vps, o_amp, o_vbytes, o_vbuf, o_draw4, o_draw5, o_dix6, o_dix8;
 static const void *kTag = &kTag;
-static NSMutableDictionary *g_sigCount;   // signature -> passes logged
-static NSMutableDictionary *g_capCount;   // size -> captures made
+static NSMutableDictionary *g_sigCount;
+static NSMutableDictionary *g_capCount;
 static int g_maxPasses = 6, g_maxCaps = 3;
 @interface SPTag : NSObject
 @property(strong) id cb; @property(strong) id tex; @property int calls; @property(copy) NSString *sig; @property BOOL layer;
@@ -146,7 +134,6 @@ static void compare(const char *tag, const uint8_t *p, size_t w, size_t h, size_
         char path[1024]; snprintf(path, sizeof path, "%s/%s-%s-s%zu.raw", g_dir, getprogname(), tag, s);
         FILE *f = fopen(path, "wb"); if (f) { fwrite(p + s * img, 1, img, f); fclose(f); }
     }
-    // channel values as float
     size_t n = w * h * 4; float *v = malloc(slices * n * sizeof(float));
     for (size_t s = 0; s < slices; s++) for (size_t i = 0; i < n; i++) {
         const uint8_t *q = p + s * img;
@@ -189,7 +176,6 @@ static void h_end(id self, SEL _c) {
     }];
 }
 
-// ------------------------------------------------------------ wakeboardd: NSUserDefaults reads
 static IMP o_ud_obj, o_ud_bool, o_ud_int, o_ud_dbl, o_ud_flt, o_ud_str, o_ud_init;
 static NSMutableDictionary *g_udSeen;
 static void udNote(id self, const char *how, NSString *key, NSString *val) {
@@ -218,7 +204,6 @@ static void hookDefaults(void) {
     hook(u, @selector(initWithSuiteName:), (IMP)h_ud_init, &o_ud_init);
 }
 
-// ------------------------------------------------------------ wakeboardd: swaps
 typedef struct { double x, y, w, h; } sprect_t;
 extern bool SFBSwapchainSwapAddSurface(void *sc, void *surf, sprect_t src, sprect_t dst, long a, long b) __attribute__((weak_import));
 static unsigned long g_adds;

@@ -4,12 +4,7 @@ import MLXNN
 import MLXOptimizers
 import MLXRandom
 
-/// Centralized MLX bootstrap and validation utilities.
 enum MLXIntegration {
-    /// Ensures MLX modules are linked into the application binary and available at runtime.
-    ///
-    /// The implementation intentionally references symbols from multiple MLX packages
-    /// so that SPM/Xcode will resolve and link all configured products.
     static func validateRuntime() {
         _ = Adam(learningRate: 1e-3)
         _ = GELU()
@@ -17,18 +12,15 @@ enum MLXIntegration {
     }
 }
 
-/// Common abstraction for loaded offline models.
 protocol OfflineLanguageModel {
     func generate(tokens: [Int]) -> AsyncThrowingStream<Int, Error>
 }
 
-/// Common abstraction for tokenizers.
 protocol OfflineTokenizer {
     func encode(text: String) -> [Int]
     func decode(tokens: [Int]) -> String
 }
 
-/// Factory for creating and managing MLX-backed models and tokenizers.
 final class LLMModelFactory: Sendable {
     static let shared = LLMModelFactory()
 

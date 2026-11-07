@@ -25,14 +25,12 @@ import argparse, concurrent.futures, hashlib, json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SWIFTCODE = os.path.dirname(HERE)
 
-
 def run(tool, args, cwd, timeout=300):
     try:
         p = subprocess.run([tool] + args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
         return {"out": p.stdout, "err": p.stderr, "code": p.returncode}
     except subprocess.TimeoutExpired:
         return {"out": "", "err": "timeout", "code": -999}
-
 
 def reference(args, cwd, cache, refresh):
     key = hashlib.sha256(json.dumps([args, cwd]).encode()).hexdigest()[:24]
@@ -46,20 +44,16 @@ def reference(args, cwd, cache, refresh):
         json.dump(r, f)
     return r
 
-
 NOISE = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+ xcodebuild\[|^swiftcodebuild: warning:")
-
 
 def normalize(r):
     out = r["out"].split("\n")
-    # The tool path in the invocation header differs by design.
     for i in range(len(out) - 1):
         if out[i] == "Command line invocation:":
             parts = out[i + 1].strip().split(" ", 1)
             out[i + 1] = "    <tool> " + (parts[1] if len(parts) > 1 else "")
     err = [l for l in r["err"].split("\n") if not NOISE.search(l)]
     return "\n".join(out), "\n".join(err), r["code"]
-
 
 def parse_settings(text):
     """{target: {name: value}} from -showBuildSettings text output."""
@@ -77,16 +71,13 @@ def parse_settings(text):
             cur = None
     return blocks
 
-
 def parse_settings_json(text):
     try:
         return [(e["target"], e["buildSettings"]) for e in json.loads(text)]
     except Exception:
         return []
 
-
-ENGINE_DEPENDENT = {"PATH"}  # first element names the build service's own location
-
+ENGINE_DEPENDENT = {"PATH"}
 
 class Stats:
     def __init__(self):
@@ -121,7 +112,6 @@ class Stats:
                     self.settings["extra"] += 1
                     self.extra_names[k] = self.extra_names.get(k, 0) + 1
 
-
 def load_manifest(path):
     projects = []
     for line in open(path):
@@ -132,11 +122,10 @@ def load_manifest(path):
         if p.endswith("project.pbxproj"):
             p = os.path.dirname(p)
         if ".app/Contents/" in p:
-            continue  # inside an application bundle: not opened (clean room)
+            continue
         if os.path.isdir(p):
             projects.append(p)
     return projects
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -149,7 +138,6 @@ def main():
     ap.add_argument("--builds", action="store_true",
                     help="run the build, test, result-bundle and archive cases on generated sample projects instead of the corpus")
     a = ap.parse_args()
-    # swiftcodebuild evaluates settings through its swift-build helper.
     local = os.path.join(SWIFTCODE, "Tools/swiftcode-swb/.build/debug/swiftcode-swb")
     if not os.environ.get("SWIFTCODE_SWB") and os.path.exists(local):
         os.environ["SWIFTCODE_SWB"] = local
@@ -164,7 +152,7 @@ def main():
     os.makedirs(scratch, exist_ok=True)
     only = set(filter(None, a.only.split(",")))
 
-    cases = []  # (kind, args, cwd, compare)
+    cases = []
     def add(kind, args, cwd, compare="exact"):
         if not only or kind in only:
             cases.append((kind, args, cwd, compare))
@@ -191,7 +179,6 @@ def main():
         add("showBuildSettings", ["-showBuildSettings", "-project", name], cwd, "settings")
         add("showBuildSettings-json-alltargets-Debug", ["-showBuildSettings", "-json", "-alltargets", "-configuration", "Debug", "-project", name], cwd, "settings-json")
         add("showBuildSettings-json-alltargets-Release", ["-showBuildSettings", "-json", "-alltargets", "-configuration", "Release", "-project", name], cwd, "settings-json")
-        # Scheme runs: DerivedData locations and the default run destination.
         listing = reference(["-list", "-json", "-project", name], cwd, a.cache, a.refresh)
         try:
             schemes = json.loads(listing["out"])["project"]["schemes"]
@@ -216,8 +203,6 @@ def main():
             if compare == "exact":
                 stats.case(kind, (ro, re_, rc) == (yo, ye, yc), label)
             elif compare == "list":
-                # The resolved-package lines come in no fixed order (two
-                # projects with the same packages list them differently).
                 stats.case(kind, (unordered_blocks(ro.split("\n")), re_, rc) == (unordered_blocks(yo.split("\n")), ye, yc), label)
             elif compare == "json":
                 try:
@@ -226,7 +211,6 @@ def main():
                     same = False
                 stats.case(kind, same, label)
             elif compare == "json-sdks":
-                # Entries for one SDK under several bundle names come in no fixed order.
                 key = lambda e: json.dumps(e, sort_keys=True)
                 try:
                     same = sorted(map(key, json.loads(ro))) == sorted(map(key, json.loads(yo))) and rc == yc
@@ -269,27 +253,15 @@ def main():
             print(f"  [{kind}] {d}")
     return 0
 
-
-# ---------------------------------------------------------------------------
-# Build cases (--builds): tests, result bundles, archives and exports on
-# hand-written sample projects the harness generates. These write files, so
-# they never touch corpus projects: each tool gets its own copy of the
-# samples and its own DerivedData. The reference tool's test runner cannot
-# load test bundles from some external volumes, so its work directory is in
-# the system temporary directory; swiftcodebuild's is under --cache.
-
 PBX_HEAD = "// !$*UTF8*$!\n{\n\tarchiveVersion = 1;\n\tclasses = {\n\t};\n\tobjectVersion = 77;\n\tobjects = {\n"
 PBX_TAIL = "\t};\n\trootObject = %s;\n}\n"
-
 
 def pbxproj(objects, root):
     return PBX_HEAD + "".join("\t\t%s = {%s};\n" % (k, v) for k, v in objects) + PBX_TAIL % root
 
-
 def project_config(sdk_extra=""):
     return ("isa = XCBuildConfiguration; buildSettings = {SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 15.0; ONLY_ACTIVE_ARCH = YES; %s}; name = Debug; " % sdk_extra,
             "isa = XCBuildConfiguration; buildSettings = {SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 15.0; %s}; name = Release; " % sdk_extra.replace("DEBUG_INFORMATION_FORMAT = dwarf; ", ""))
-
 
 def calc_sample():
     p = "C1000000000000000000"
@@ -341,7 +313,6 @@ def calc_sample():
             "@Suite struct SwiftFailing {\n    @Test func wrong() { #expect(Calc.mul(2, 2) == 5) }\n}\n"),
     }
 
-
 def cov_sample():
     """The Calc project with multi-line functions, an untested function and
     a struct, for line and column coverage."""
@@ -365,7 +336,6 @@ def cov_sample():
         "final class CounterTests: XCTestCase {\n    func testBump() {\n        var c = Counter()\n        c.bump()\n        c.bump(by: 3)\n        XCTAssertEqual(c.value, 4)\n    }\n}\n")
     files["CalcTests/CalcSwiftTests.swift"] = "import Testing\n@testable import CalcKit\n\n@Test func multiplies() {\n    #expect(Calc.mul(3, 4) == 12)\n}\n"
     return files
-
 
 def package_samples():
     """Three Swift packages: a library with tests, a library and a tool
@@ -404,17 +374,11 @@ def package_samples():
     return {"pkg/Greeter": greeter, "pkg/Tools": tools, "pkg/Uses": uses, "LocalDep": local_dep,
             "Loc": LOC_FILES, "../in": {"fr.xliff": LOC_TRANSLATED_XLIFF}}
 
-
-# An application with a String Catalog and a localized .strings file.
 LOC_FILES = {'Loc.xcodeproj/project.pbxproj': '// !$*UTF8*$!\n{\n\tarchiveVersion = 1;\n\tclasses = {\n\t};\n\tobjectVersion = 77;\n\tobjects = {\n\t\tF10000000000000000000001 = {isa = PBXBuildFile; fileRef = F10000000000000000000002; };\n\t\tF10000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };\n\t\tF10000000000000000000003 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Loc.app; sourceTree = BUILT_PRODUCTS_DIR; };\n\t\tF10000000000000000000004 = {isa = PBXGroup; children = (F10000000000000000000005, F10000000000000000000006); sourceTree = "<group>"; };\n\t\tF10000000000000000000005 = {isa = PBXGroup; children = (F10000000000000000000002, F10000000000000000000020, F10000000000000000000022); path = Loc; sourceTree = "<group>"; };\n\t\tF10000000000000000000006 = {isa = PBXGroup; children = (F10000000000000000000003); name = Products; sourceTree = "<group>"; };\n\t\tF10000000000000000000007 = {isa = PBXNativeTarget; buildConfigurationList = F10000000000000000000008; buildPhases = (F10000000000000000000009, F10000000000000000000010); buildRules = (); dependencies = (); name = Loc; productName = Loc; productReference = F10000000000000000000003; productType = "com.apple.product-type.application"; };\n\t\tF10000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (F1000000000000000000000A, F1000000000000000000000B); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };\n\t\tF10000000000000000000009 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (F10000000000000000000001); runOnlyForDeploymentPostprocessing = 0; };\n\t\tF10000000000000000000010 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (F10000000000000000000021, F10000000000000000000023); runOnlyForDeploymentPostprocessing = 0; };\n\t\tF10000000000000000000020 = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };\n\t\tF10000000000000000000021 = {isa = PBXBuildFile; fileRef = F10000000000000000000020; };\n\t\tF10000000000000000000022 = {isa = PBXVariantGroup; children = (F10000000000000000000024, F10000000000000000000025); name = Greetings.strings; sourceTree = "<group>"; };\n\t\tF10000000000000000000023 = {isa = PBXBuildFile; fileRef = F10000000000000000000022; };\n\t\tF10000000000000000000024 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Greetings.strings; sourceTree = "<group>"; };\n\t\tF10000000000000000000025 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Greetings.strings; sourceTree = "<group>"; };\n\t\tF1000000000000000000000A = {isa = XCBuildConfiguration; buildSettings = {PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = org.swiftcode.samples.Loc; GENERATE_INFOPLIST_FILE = YES; CODE_SIGN_IDENTITY = "-"; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES; LOCALIZATION_PREFERS_STRING_CATALOGS = YES; }; name = Debug; };\n\t\tF1000000000000000000000B = {isa = XCBuildConfiguration; buildSettings = {PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = org.swiftcode.samples.Loc; GENERATE_INFOPLIST_FILE = YES; CODE_SIGN_IDENTITY = "-"; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES; LOCALIZATION_PREFERS_STRING_CATALOGS = YES; }; name = Release; };\n\t\tF1000000000000000000000C = {isa = PBXProject; buildConfigurationList = F1000000000000000000000D; compatibilityVersion = "Xcode 15.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, fr, Base); mainGroup = F10000000000000000000004; productRefGroup = F10000000000000000000006; projectDirPath = ""; projectRoot = ""; targets = (F10000000000000000000007); };\n\t\tF1000000000000000000000D = {isa = XCConfigurationList; buildConfigurations = (F1000000000000000000000E, F1000000000000000000000F); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };\n\t\tF1000000000000000000000E = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 15.0; ONLY_ACTIVE_ARCH = YES; }; name = Debug; };\n\t\tF1000000000000000000000F = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 15.0; }; name = Release; };\n\t};\n\trootObject = F1000000000000000000000C;\n}\n', 'Loc/main.swift': 'import Foundation\n\n// Hand-written sample for localization export probes.\nprint(String(localized: "Hello, world!", comment: "Greeting shown at launch"))\nprint(String(localized: "Files: \\(3)", comment: "Number of files"))\nprint(NSLocalizedString("Goodbye", tableName: "Greetings", comment: "Farewell"))\n', 'Loc/Localizable.xcstrings': '{\n  "sourceLanguage" : "en",\n  "strings" : {\n    "Files: %lld" : {\n      "comment" : "Number of files",\n      "localizations" : {\n        "fr" : {\n          "stringUnit" : {\n            "state" : "translated",\n            "value" : "Fichiers : %lld"\n          }\n        }\n      }\n    },\n    "Hello, world!" : {\n      "comment" : "Greeting shown at launch",\n      "localizations" : {\n        "fr" : {\n          "stringUnit" : {\n            "state" : "needs_review",\n            "value" : "Bonjour, le monde !"\n          }\n        }\n      }\n    },\n    "Unused key" : {\n      "extractionState" : "manual",\n      "localizations" : {\n        "en" : {\n          "stringUnit" : {\n            "state" : "translated",\n            "value" : "Unused key value"\n          }\n        }\n      }\n    }\n  },\n  "version" : "1.0"\n}\n', 'Loc/en.lproj/Greetings.strings': '/* Farewell */\n"Goodbye" = "Goodbye";\n', 'Loc/fr.lproj/Greetings.strings': '/* Farewell */\n"Goodbye" = "Au revoir";\n'}
 
-# A translator's edits to the exported French XLIFF.
 LOC_TRANSLATED_XLIFF = '<?xml version="1.0" encoding="UTF-8"?>\n<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">\n  <file original="Loc/en.lproj/Greetings.strings" source-language="en" target-language="fr" datatype="plaintext">\n    <body>\n      <trans-unit id="Goodbye" xml:space="preserve">\n        <source>Goodbye</source>\n        <target>Salut</target>\n        <note>Farewell</note>\n      </trans-unit>\n    </body>\n  </file>\n  <file original="Loc/Loc-InfoPlist.xcstrings" source-language="en" target-language="fr" datatype="plaintext">\n    <body>\n      <trans-unit id="CFBundleName" xml:space="preserve">\n        <source>Loc</source>\n        <target>Loc FR</target>\n        <note>Bundle name</note>\n      </trans-unit>\n    </body>\n  </file>\n  <file original="Loc/Localizable.xcstrings" source-language="en" target-language="fr" datatype="plaintext">\n    <body>\n      <trans-unit id="Hello, world!" xml:space="preserve">\n        <source>Hello, world!</source>\n        <target state="translated">Bonjour le monde !</target>\n        <note>Greeting shown at launch</note>\n      </trans-unit>\n      <trans-unit id="Unused key" xml:space="preserve">\n        <source>Unused key value</source>\n        <target>Valeur inutilisée</target>\n        <note/>\n      </trans-unit>\n    </body>\n  </file>\n</xliff>\n'
 
-
-# A tool target using the Greeter package through a local reference.
 LOCAL_DEP_PBXPROJ = '// !$*UTF8*$!\n{\n\tarchiveVersion = 1;\n\tclasses = {\n\t};\n\tobjectVersion = 77;\n\tobjects = {\n\t\tD10000000000000000000001 = {isa = PBXBuildFile; fileRef = D10000000000000000000002; };\n\t\tD10000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };\n\t\tD10000000000000000000003 = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = App; sourceTree = BUILT_PRODUCTS_DIR; };\n\t\tD10000000000000000000004 = {isa = PBXGroup; children = (D10000000000000000000005, D10000000000000000000006); sourceTree = "<group>"; };\n\t\tD10000000000000000000005 = {isa = PBXGroup; children = (D10000000000000000000002); path = App; sourceTree = "<group>"; };\n\t\tD10000000000000000000006 = {isa = PBXGroup; children = (D10000000000000000000003); name = Products; sourceTree = "<group>"; };\n\t\tD10000000000000000000007 = {isa = PBXNativeTarget; buildConfigurationList = D10000000000000000000008; buildPhases = (D10000000000000000000009, D10000000000000000000010); buildRules = (); dependencies = (); name = App; packageProductDependencies = (D10000000000000000000012); productName = App; productReference = D10000000000000000000003; productType = "com.apple.product-type.tool"; };\n\t\tD10000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (D1000000000000000000000A, D1000000000000000000000B); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };\n\t\tD10000000000000000000009 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D10000000000000000000001); runOnlyForDeploymentPostprocessing = 0; };\n\t\tD10000000000000000000010 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (D10000000000000000000013); runOnlyForDeploymentPostprocessing = 0; };\n\t\tD10000000000000000000011 = {isa = XCLocalSwiftPackageReference; relativePath = ../pkg/Greeter; };\n\t\tD10000000000000000000012 = {isa = XCSwiftPackageProductDependency; productName = Greeter; };\n\t\tD10000000000000000000013 = {isa = PBXBuildFile; productRef = D10000000000000000000012; };\n\t\tD1000000000000000000000A = {isa = XCBuildConfiguration; buildSettings = {PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; }; name = Debug; };\n\t\tD1000000000000000000000B = {isa = XCBuildConfiguration; buildSettings = {PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; }; name = Release; };\n\t\tD1000000000000000000000C = {isa = PBXProject; buildConfigurationList = D1000000000000000000000D; compatibilityVersion = "Xcode 15.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = D10000000000000000000004; packageReferences = (D10000000000000000000011); productRefGroup = D10000000000000000000006; projectDirPath = ""; projectRoot = ""; targets = (D10000000000000000000007); };\n\t\tD1000000000000000000000D = {isa = XCConfigurationList; buildConfigurations = (D1000000000000000000000E, D1000000000000000000000F); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };\n\t\tD1000000000000000000000E = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 15.0; ONLY_ACTIVE_ARCH = YES; }; name = Debug; };\n\t\tD1000000000000000000000F = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 15.0; }; name = Release; };\n\t};\n\trootObject = D1000000000000000000000C;\n}\n'
-
 
 def single_target_sample(name, product_type, product, file_type, source, source_name, source_type, target_settings, project_extra):
     p = "A1000000000000000000"
@@ -437,7 +401,6 @@ def single_target_sample(name, product_type, product, file_type, source, source_
     o += [(p + "000E", debug), (p + "000F", release)]
     return {name + ".xcodeproj/project.pbxproj": pbxproj(o, p + "000C"), name + "/" + source_name: source}
 
-
 def samples():
     tool = lambda src: single_target_sample("Tool", "com.apple.product-type.tool", "Tool", '"compiled.mach-o.executable"', src, "main.c", "sourcecode.c.c", "", "")
     hello = single_target_sample(
@@ -459,13 +422,10 @@ def samples():
         },
     }
 
-
 def plist(d):
     import plistlib
     return plistlib.dumps(d).decode()
 
-
-# (kind, sample directory, arguments; {W} = the tool's work directory)
 BUILD_CASES = [
     ("test", "Calc", ["-scheme", "CalcTests", "-derivedDataPath", "{W}/dd/calc", "test"]),
     ("test-resultBundle", "Calc", ["-scheme", "CalcTests", "-derivedDataPath", "{W}/dd/calc", "-resultBundlePath", "{W}/rb/test.xcresult", "test"]),
@@ -537,16 +497,12 @@ XCRESULT_QUERIES = [("build-results", ["get", "build-results"]), ("summary", ["g
                     ("tests", ["get", "test-results", "tests"]), ("availability", ["get", "content-availability"])]
 VOLATILE_KEYS = {"startTime", "endTime", "finishTime", "duration", "durationInSeconds", "testIdentifier", "topInsights"}
 
-
 def observe(tool, kind, sample, args, work):
     """Runs one case and records what is compared: streams, exit status,
     result bundles (as xcresulttool reports them), archives (file tree and
     Info.plist), test run file keys, exported folders."""
     import plistlib
     argv = [x.replace("{W}", work) for x in args]
-    # Keep each tool's default DerivedData folder inside the work directory
-    # (never the user's Library): the documented -userdefault=value form,
-    # removed again from the invocation line it echoes.
     extra = ""
     if "-derivedDataPath" not in argv:
         extra = f" -IDECustomDerivedDataLocation={work}/dd/default"
@@ -559,7 +515,6 @@ def observe(tool, kind, sample, args, work):
             obs["bundles"][os.path.basename(x)] = {
                 name: json.loads(subprocess.run(["xcrun", "xcresulttool"] + q + ["--path", x], capture_output=True, text=True).stdout or "null")
                 for name, q in XCRESULT_QUERIES}
-            # Code coverage as xccov reads it: the report and each file's lines.
             def xccov(args):
                 p = subprocess.run(["xcrun", "xccov", "view"] + args + [x], capture_output=True, text=True)
                 return json.loads(p.stdout) if p.returncode == 0 and p.stdout.strip() else None
@@ -580,7 +535,6 @@ def observe(tool, kind, sample, args, work):
                     d.pop("CreationDate", None)
                     obs["plists"][os.path.basename(x)] = json.loads(json.dumps(d, default=str))
     if kind.startswith("loc-export"):
-        # Each catalog's XLIFF (tool line masked), source copies and contents.json (tool info masked).
         out_dir = argv[argv.index("-localizationPath") + 1]
         for b in sorted(os.listdir(out_dir)) if os.path.isdir(out_dir) else []:
             root = os.path.join(out_dir, b)
@@ -604,7 +558,6 @@ def observe(tool, kind, sample, args, work):
         got["project references the generated catalog"] = len(re.findall(r"Loc-InfoPlist\.xcstrings[^\n]*(PBXFileReference|PBXBuildFile)", pbx))
         obs["plists"]["imported files"] = got
     if kind.startswith("docbuild"):
-        # Documentation archives under the products folder.
         for d, dirs, files in os.walk(os.path.join(work, "dd")):
             for n in list(dirs):
                 if n.endswith(".doccarchive"):
@@ -629,7 +582,6 @@ def observe(tool, kind, sample, args, work):
                 obs["xctestrun"] = {"name": n, "keys": sorted(keys)}
     return obs
 
-
 def mask_paths(text, work):
     roots = {work, os.path.realpath(work)}
     roots |= {r[len("/private"):] for r in list(roots) if r.startswith("/private/")}
@@ -642,9 +594,7 @@ def mask_paths(text, work):
     text = re.sub(r"(?m)^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d (?=[A-Z])", "<time> ", text)
     return text
 
-
 STDERR_NOISE = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+[-+ 0-9]*\S+\[\d+[:\d]*\]|^(Details|Object|Method|Thread):  ?|^Please file a bug|^swiftcodebuild: warning:")
-
 
 def unordered_blocks(lines):
     """Runs of destination lines (`{ platform:...}`), of resolved-package
@@ -665,13 +615,11 @@ def unordered_blocks(lines):
     flush()
     return out
 
-
 def test_section(out, work):
     """The runner output between the build log and the session lines,
     timings masked; concurrent swift-testing lines as a multiset."""
     lines, on = [], False
     for l in out.split("\n"):
-        # The runner's output-barrier marker can split into other lines.
         l = l.replace("\u200b", "").replace("XCTestOutputBarrier", "")
         l = re.sub(r"^[A-Za-z]+(?=[◇✔✘↳])", "", l)
         if l.startswith("Test Suite '") or l.startswith("◇ Test run started") or l.startswith("Test Case"):
@@ -681,7 +629,7 @@ def test_section(out, work):
         if l.startswith("Test session results") or l.startswith("** TEST") or l == "Testing started":
             break
         if re.match(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+", l):
-            continue  # runner log lines
+            continue
         l = re.sub(r"at \d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+", "at T", l)
         l = re.sub(r"\(\d+\.\d+ seconds\)", "(N seconds)", l)
         l = re.sub(r"in \d+\.\d+ \(\d+\.\d+\) seconds", "in N (N) seconds", l)
@@ -692,7 +640,6 @@ def test_section(out, work):
     ordered = [l for l in lines if l[:1] not in "◇✔✘↳"]
     unordered = sorted(l for l in lines if l[:1] in "◇✔✘↳")
     return ordered, unordered
-
 
 def trailer(out, work):
     """What follows the last build-log section: session/bundle lines,
@@ -705,7 +652,6 @@ def trailer(out, work):
         start -= 1
     return [mask_paths(l, work) for l in lines[start:]]
 
-
 def banners(out, work):
     """Banners and result-bundle lines of every action, in order."""
     lines = out.split("\n")
@@ -714,14 +660,12 @@ def banners(out, work):
             or (i > 0 and lines[i - 1].startswith(("Result bundle written", "Test session results", "Writing result bundle")))]
     return [mask_paths(l, work) for l in keep]
 
-
 def header(out, work):
     """The invocation header and the lines before the build log."""
     lines = out.split("\n")
     stops = ("ComputePackagePrebuildTargetDependencyGraph", "CreateBuildRequest", "Test Suite", "◇", "Testing started", "Exported ", "** ", "[")
     end = next((i for i, l in enumerate(lines) if l.startswith(stops)), len(lines))
     return [mask_paths(l, work) for l in lines[:end]]
-
 
 def section_headers(out, work):
     """Unindented build-log lines (task headers, diagnostics) as a multiset,
@@ -731,11 +675,9 @@ def section_headers(out, work):
         if not l or l.startswith((" ", "\t", "Test ", "◇", "✔", "✘", "↳", "\u200b")) or re.match(r"^\d{4}-\d\d-\d\d ", l):
             continue
         l = re.sub(r"[0-9a-f]{32,}", "<hash>", mask_paths(l, work))
-        # Explicit-module file names carry a hash of the build's paths.
         l = re.sub(r"-[A-Z0-9]{8,}(?=\.(pcm|swiftmodule)\b)", "-<hash>", l)
         heads.append(l)
     return sorted(heads)
-
 
 def normalize_json(v, work):
     if isinstance(v, dict):
@@ -749,7 +691,6 @@ def normalize_json(v, work):
         return re.sub(r"\d+(\.\d+)?s$", "Ns", mask_paths(v, work))
     return v
 
-
 def build_main(a):
     import shutil, tempfile
     ycb_tool = os.path.abspath(a.swiftcodebuild)
@@ -761,7 +702,7 @@ def build_main(a):
     reference_obs = json.load(open(cache_file)) if os.path.exists(cache_file) else {}
     only = set(filter(None, a.only.split(",")))
     cases = [c for c in BUILD_CASES if not only or c[0] in only]
-    if a.refresh:  # re-run the reference for the selected cases only
+    if a.refresh:
         for kind, _, _ in cases:
             reference_obs.pop(kind, None)
 
@@ -805,7 +746,6 @@ def build_main(a):
         rerr = unordered_blocks([mask_paths(l, rw) for l in ref["err"].split("\n") if not STDERR_NOISE.search(l)])
         yerr = unordered_blocks([mask_paths(l, yw) for l in ycb["err"].split("\n") if not STDERR_NOISE.search(l)])
         if kind.startswith("error:"):
-            # Error cases: the first error line (swiftcodebuild keeps messages short).
             first = lambda lines: next((l for l in lines if "error:" in l), "")
             checks["error line"] = first(rerr) == first(yerr)
         else:
@@ -834,7 +774,6 @@ def build_main(a):
             checks[f"Info.plist {name}"] = info == ycb["plists"].get(name)
         if ref["xctestrun"]:
             checks["xctestrun name"] = ref["xctestrun"]["name"] == (ycb["xctestrun"] or {}).get("name")
-            # The reference adds its own diagnostic environment variables and coverage infos.
             plumbing = re.compile(r"EnvironmentVariables/(?!DYLD_FRAMEWORK_PATH|DYLD_LIBRARY_PATH|__X|XCODE_)|CodeCoverageBuildableInfos\[\]/")
             rk = [k for k in ref["xctestrun"]["keys"] if not plumbing.search(k)]
             checks["xctestrun keys"] = rk == [k for k in (ycb["xctestrun"] or {}).get("keys", []) if not plumbing.search(k)]
@@ -845,7 +784,6 @@ def build_main(a):
         for c, ok in checks.items():
             if not ok:
                 failures.append((kind, c))
-    # swiftcodebuild's observations, for inspecting differences.
     json.dump(dict(observed, work=ycb_work), open(os.path.join(a.cache, "builds-swiftcodebuild.json"), "w"))
     if not a.details:
         shutil.rmtree(ycb_work, ignore_errors=True)
@@ -874,7 +812,6 @@ def build_main(a):
         for kind, c in failures:
             print(f"  [{kind}] {c}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

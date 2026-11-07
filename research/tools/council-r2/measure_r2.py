@@ -18,11 +18,10 @@ import sys
 import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "council-r1"))
-import measure_captures as r1  # noqa: E402  (shared pixel and video helpers)
+import measure_captures as r1
 
-CONTENT_TOP = 86          # first editor row under the jump bar's separator
-GUTTER_BOX = (300, 336)   # x range of the line numbers
-
+CONTENT_TOP = 86
+GUTTER_BOX = (300, 336)
 
 def changed_frames(session, app, step, threshold=8):
     """(t, frame) for the first frame and every frame that differs from the one before."""
@@ -32,12 +31,10 @@ def changed_frames(session, app, step, threshold=8):
             yield t, frame
         prev = frame
 
-
 def step_action_time(session, app, step):
     manifest = json.loads((session / app / "manifest.json").read_text())
     entry = next(s for s in manifest["steps"] if s.get("video", "").startswith(step))
     return entry.get("t_action_in_video")
-
 
 def bars(session, app):
     """Mean colour of each bar region over the bands scroll: extremes over grey and red content."""
@@ -60,7 +57,6 @@ def bars(session, app):
                   "over red bands": r1.hexcolor(c[int(np.argmax(redness))])}
     return out
 
-
 def sticky(session, app):
     """Scroll offset per frame (rows matched against the before and after stills) and the header's presence."""
     before = r1.load_still(session, app, "03-editor-scroll-down-before.png").mean(axis=2)[:, 345:980]
@@ -81,13 +77,12 @@ def sticky(session, app):
         last = (offset, pinned)
     return rows
 
-
 def flick(session, app):
     """Offset per changed frame for the momentum flick, and a critically damped fit of the spring-back."""
     before = r1.load_still(session, app, "03-editor-scroll-down-before.png").mean(axis=2)[:, 345:980]
     doc = np.full((2000, before.shape[1]), np.nan)
     doc[200:957] = before[CONTENT_TOP:843]
-    if app == "xcode":   # the reference's after still sits exactly 600 below (Ycode's does not)
+    if app == "xcode":
         after = r1.load_still(session, app, "03-editor-scroll-down-after.png").mean(axis=2)[:, 345:980]
         doc[200 + 621:200 + 1357] = after[107:843]
     track = []
@@ -113,7 +108,6 @@ def flick(session, app):
             "spring-back omega": round(best[1], 2), "response s": round(2 * np.pi / best[1], 3),
             "rmse pt": round(best[0], 2)}
 
-
 def inspector(session, app):
     """Per changed frame: the inspector's leading edge, the wrap of line 6, the first line number's top."""
     out = {}
@@ -134,7 +128,6 @@ def inspector(session, app):
                      "frames (t, inspector edge x, line 6 row 1 end, row 2 end, first number top)": rows}
     return out
 
-
 def cadence(session, app):
     """Median and worst interval between frames in which the content changed."""
     rois = {"03-editor-scroll-down": (300, 120, 980, 800), "04-editor-flick-up": (300, 120, 980, 800),
@@ -152,7 +145,6 @@ def cadence(session, app):
                      "p90 ms": round(float(np.percentile(gaps, 90)), 1), "max ms": round(float(gaps.max()), 1)}
     return out
 
-
 def navigator(session, app):
     rest = r1.load_still(session, app, "02-editor-at-rest-after.png")
     out = {"selected band column x 200": r1.column_runs(rest, 200, 210, 250, tol=2),
@@ -169,13 +161,11 @@ def navigator(session, app):
         "filter capsule": (42, 843, 284, 873)}.items()}
     return out
 
-
 def separator_columns(im, x0, x1, y0=100, y1=800):
     """Columns that are a full-height 1-point line of about #E6E6E6 (the minimap's separator)."""
     band = im[y0:y1, x0:x1].astype(int)
     hit = (np.abs(band - 230).max(axis=2) <= 4).mean(axis=0)
     return [x0 + int(i) for i in np.nonzero(hit > 0.85)[0]]
-
 
 def minimap(session, app):
     """Minimap separator and scroll-bar lane in three editor widths (the narrow window still is drawn at 0.898)."""
@@ -187,7 +177,7 @@ def minimap(session, app):
     path = session / app / "17-narrow-window-after.png"
     alpha = np.asarray(r1.Image.open(path))[:, :, 3]
     opaque = np.nonzero(alpha[400] == 255)[0]
-    scale = (opaque.max() - opaque.min() + 1) / 1100   # the still may show the window shrunk
+    scale = (opaque.max() - opaque.min() + 1) / 1100
     narrow = r1.load_still(session, app, "17-narrow-window-after.png").mean(axis=2)
     top = int(np.nonzero(alpha[:, 500] == 255)[0].min())
     band = narrow[top + int(120 * scale):top + int(700 * scale)]
@@ -197,7 +187,6 @@ def minimap(session, app):
                                          "separator x (points)": [round(c / scale) for c in cols]}
     return out
 
-
 def welcome(session, app):
     im = r1.load_still(session, app, "18-welcome-window-after.png")
     return {"buttons row 178": r1.row_runs(im, 178, 500, 900, tol=3, min_len=2),
@@ -205,10 +194,8 @@ def welcome(session, app):
             "separator row 314": r1.row_runs(im, 314, 520, 870, tol=3, min_len=2),
             "title ink": r1.ink_box(im, (600, 100, 800, 126), threshold=60)}
 
-
 SECTIONS = {"bars": bars, "sticky": sticky, "flick": flick, "inspector": inspector,
             "cadence": cadence, "navigator": navigator, "minimap": minimap, "welcome": welcome}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -219,7 +206,6 @@ def main():
     for name in args.section:
         print(f"== {name} ({args.app})")
         print(json.dumps(SECTIONS[name](args.session, args.app), default=str))
-
 
 if __name__ == "__main__":
     main()

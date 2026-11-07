@@ -1,7 +1,3 @@
-// Guest probe: dispatch sources on sockets (specs/simulator/networking-swiftcode.md §8).
-// Dispatch sources are kevent knotes on workloops; this checks that socket
-// readiness reaches them: AF_UNIX (control), TCP connect completion
-// (EVFILT_WRITE), TCP data (EVFILT_READ), UDP data.
 #include <arpa/inet.h>
 #include <dispatch/dispatch.h>
 #include <fcntl.h>

@@ -1,10 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `Backend/Assist/AssistExecutionEngine.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
-// Dependency of _AssistCriticalExecutionEngine (baseEngine.execute(plan:)). Ledger SUPERSEDED by SwiftCodeMCP/Host/MCPServer.swift — the MCP server is non-importable from SwiftCodeAssistant and is not a plan-step execution loop; the staged critical engine delegates its whole execute(plan:) to this class. Ported verbatim, including AssistExecutionError.
-// BLOCKED sub-deps (recorded in _notes/agent-frameworks-decisions.md): AssistToolRegistry (820-line Legacy registry, SUPERSEDED by the MCP tool registry — deliberately NOT ported; see decision log) and ProjectSessionStore (SUPERSEDED, SwiftCodeIDECore, non-importable), plus TasksAIPlanner (staged alongside here).
-// Remaining deps (now staged in AssistModels.swift by the parallel port — see _notes/agent-models-decisions.md): AssistContext (logger, fileSystem, safetyLevel), AssistExecutionPlan/AssistExecutionStep/AssistExecutionStatus/AssistToolResult.
-
 import Foundation
 
 @MainActor
@@ -31,14 +24,12 @@ public final class AssistExecutionEngine {
             TasksAIPlanner.shared.updateStep(id: step.id, status: .running)
 
             do {
-                // Unified tool execution logic (integrating what was previously in AssistLoop)
                 guard let tool = registry.getTool(step.toolId) else {
                     throw AssistExecutionError.toolNotFound(step.toolId)
                 }
 
                 await self.context.logger.info("Executing tool: \(tool.name)", toolId: step.toolId)
 
-                // Map the input to [String: Any] as required by AssistTool protocol
                 var toolInput = step.input as [String: Any]
                 if i > 0, let previous = plan.steps[i - 1].result {
                     toolInput["previous_output"] = previous.output
@@ -73,11 +64,6 @@ public final class AssistExecutionEngine {
                         return
                     }
                 } else {
-                    if ["file_write", "code_refactor", "file_create", "file_append"].contains(step.toolId) {
-                        if let project = await ProjectSessionStore.shared.activeProject {
-                            await ProjectSessionStore.shared.refreshFileTree(for: project)
-                        }
-                    }
                 }
             } catch {
                 await context.logger.error("Step execution error: \(error.localizedDescription)", toolId: step.toolId)

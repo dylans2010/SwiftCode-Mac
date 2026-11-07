@@ -1,11 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Menu Bar/NSCloneView.swift
-//
-// Adapted for production: Legacy's `GitHubService.listUserRepositories`
-// and `GitHubRepoSummary` (Int id) do not exist here; the repo list now
-// comes from `GitHubRemoteListsClient` and the picker uses
-// `GitHubRepository` (String id = full name). Everything else verbatim.
-//
 import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeGitHub

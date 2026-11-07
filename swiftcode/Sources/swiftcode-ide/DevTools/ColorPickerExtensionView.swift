@@ -1,12 +1,5 @@
-// ColorPickerExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/ColorPickerExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: inline editor swatches; extension settings (swatch size, format picker Hex/RGB/HSB)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - Color Picker Extension View
 struct ColorPickerExtensionView: View {
     @State private var showInlineSwatches = true
     @State private var colorFormat = "hex"

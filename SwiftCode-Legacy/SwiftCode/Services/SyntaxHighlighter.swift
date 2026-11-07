@@ -16,8 +16,6 @@ final class SyntaxHighlighter: Sendable {
         self.markdownPatterns = Self.buildMarkdownPatterns()
     }
 
-    // MARK: - Theme
-
     struct Theme {
         let background: ColorType
         let defaultText: ColorType
@@ -87,8 +85,6 @@ final class SyntaxHighlighter: Sendable {
         )
     }
 
-    // MARK: - Pattern Storage
-
     private struct PatternEntry: Sendable {
         let regex: NSRegularExpression
         let captureGroup: Int
@@ -101,15 +97,11 @@ final class SyntaxHighlighter: Sendable {
     private let plistPatterns: [PatternEntry]
     private let markdownPatterns: [PatternEntry]
 
-    // MARK: - Highlight (entry point)
-
     @MainActor
     func highlight(_ source: String, fileExtension: String = "swift", theme: Theme = .dark) -> NSAttributedString {
         let patterns = patternsForExtension(fileExtension)
         return apply(patterns: patterns, to: source, theme: theme)
     }
-
-    // MARK: - Apply Patterns
 
     @MainActor
     private func apply(patterns: [PatternEntry], to source: String, theme: Theme) -> NSAttributedString {
@@ -136,8 +128,6 @@ final class SyntaxHighlighter: Sendable {
         return result
     }
 
-    // MARK: - Language Selection
-
     private func patternsForExtension(_ ext: String) -> [PatternEntry] {
         switch ext.lowercased() {
         case "sh", "bash", "zsh": return shellPatterns
@@ -147,8 +137,6 @@ final class SyntaxHighlighter: Sendable {
         default: return swiftPatterns
         }
     }
-
-    // MARK: Swift
 
     private static func buildSwiftPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
@@ -280,8 +268,6 @@ final class SyntaxHighlighter: Sendable {
         return p
     }
 
-    // MARK: Shell
-
     private static func buildShellPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
         add(#"(#[^\n]*)"#, color: { $0.comment }, to: &p)
@@ -299,8 +285,6 @@ final class SyntaxHighlighter: Sendable {
         return p
     }
 
-    // MARK: JSON
-
     private static func buildJSONPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
         add(#"("(?:[^"\\]|\\.)*")\s*:"#, color: { $0.type }, captureGroup: 1, to: &p)
@@ -310,8 +294,6 @@ final class SyntaxHighlighter: Sendable {
         return p
     }
 
-    // MARK: Plist
-
     private static func buildPlistPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
         add(#"(<!--[\s\S]*?-->)"#, color: { $0.comment }, to: &p)
@@ -319,8 +301,6 @@ final class SyntaxHighlighter: Sendable {
         add(#">([^<]+)<"#, color: { $0.string }, captureGroup: 1, to: &p)
         return p
     }
-
-    // MARK: Markdown
 
     private static func buildMarkdownPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
@@ -333,8 +313,6 @@ final class SyntaxHighlighter: Sendable {
         add(#"(^>\s+[^\n]*)"#, color: { $0.comment }, to: &p, options: [.anchorsMatchLines])
         return p
     }
-
-    // MARK: - Helper
 
     private static func add(
         _ pattern: String,

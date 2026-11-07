@@ -1,17 +1,6 @@
 import XCTest
 @testable import SwiftCodeUI
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter SQLiteExplorerTests`.
-//
-// Wave 17, Slice C: tests for the SQLite Explorer model
-// (`SQLiteExplorerModel`). Every test runs against an in-memory
-// database — no file, no window, no provider is involved. The model
-// is a thin layer over SwiftCode's existing `SQLiteDatabase`, so these
-// tests pin the browser behaviour (listing, schema, paging, SQL,
-// display strings, errors), not the SQLite engine itself.
-
 @MainActor
 final class SQLiteExplorerTests: XCTestCase {
 

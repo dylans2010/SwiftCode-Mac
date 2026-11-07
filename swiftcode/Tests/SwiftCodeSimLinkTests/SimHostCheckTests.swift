@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeSimLink
 
-/// `swiftcode-simhost check` (#70's self-test): what would stop `serve` from
-/// running a device, from the configuration alone. Boots nothing.
 struct SimHostCheckTests {
     @Test func problemsNameEveryMissingPiece() throws {
         let fm = FileManager.default
@@ -14,7 +12,6 @@ struct SimHostCheckTests {
         let text = "SWIFTCODE_SIM_HOME=\(home.path)\nSWIFTCODE_SIM_TREE=\(tree.path)\nSWIFTCODE_SIM_RUNTIME=\(rt.path)\n"
         let c = try SimHostConfig.load(text: text, environment: [:])
         #expect(c.problems().count == 4)
-        // The pieces, one by one.
         try fm.createDirectory(at: tree.appendingPathComponent(".build/release"), withIntermediateDirectories: true)
         try fm.createDirectory(at: tree.appendingPathComponent("SimShim/out"), withIntermediateDirectories: true)
         try fm.createDirectory(at: rt.appendingPathComponent("sbin"), withIntermediateDirectories: true)
@@ -24,7 +21,6 @@ struct SimHostCheckTests {
             if exec { try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path) }
         }
         #expect(c.problems() == [])
-        // A config without the tree is refused when it is read, as serve refuses it.
         #expect(throws: (any Error).self) { try SimHostConfig.load(text: "SWIFTCODE_SIM_HOME=/h\nSWIFTCODE_SIM_RUNTIME=/r\n", environment: [:]) }
     }
 }

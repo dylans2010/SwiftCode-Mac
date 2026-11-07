@@ -1,22 +1,5 @@
 import Foundation
 
-/// Filesystem service (Legacy
-/// `SwiftCode/Backend/FileSystem/FileSystemService.swift`, Dylan's own
-/// code, ported under MIT).
-///
-/// The destination had the pieces but not the service: `file_create`
-/// never prepended the Swift file header (`NewFileComment.
-/// generateHeader` existed and was unused), and no API offered the
-/// folders-first sorted listing. This port restores both contracts
-/// exactly: deferred directories (`.build`, `.git`, `DerivedData`,
-/// `node_modules`, `Pods`, `build`), symlinks excluded, folders
-/// first then `localizedStandardCompare` names, and the Swift header
-/// on `.swift` creates (author: the current user, project: the
-/// workspace's display name when known, else `"SwiftCode"`).
-///
-/// Wiring: no lifecycle hook — a stateless shared actor. The MCP
-/// `file_create` handler should route through this instead of writing
-/// directly (see the patched `SwiftCodeTools+FileWriting.swift`).
 public actor FileSystemService {
     public static let shared = FileSystemService()
 

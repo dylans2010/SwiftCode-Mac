@@ -1,30 +1,9 @@
 import Foundation
 import SwiftCodeExtensions
 
-/// Bridges the already-ported manifest surface to the SDK diagnostic model.
-///
-/// Legacy's lenient `ExtensionValidator` (validate a manifest value, or a
-/// file at a path, returning `[Diagnostic]`) was deliberately NOT
-/// reimplemented — the SwiftCode port uses the strict
-/// `SwiftCodeManifestValidator` from `SwiftCodeExtensions` (spec §2.3). This
-/// adapter preserves the kit-level call shape (`validateFile(at:)`) that
-/// `ExtensionPackager`, the CLI, and the tools relied on, mapping each
-/// `ManifestDiagnostic` onto an SDK `Diagnostic`.
-///
-/// Mapping rules:
-/// - severity `.error` → `.error`, `.warning` → `.warning`, `.info` → `.note`.
-/// - code: `manifest` field → `.manifestInvalidJSON`; missing-field errors
-///   → `.manifestMissingRequiredField`; `manifestVersion` → `.manifestInvalidVersion`;
-///   `capabilities` → `.manifestUnauthorizedCapability`; everything else
-///   → `.manifestInvalidJSON` for errors, `.manifestInvalidCapabilityReason`
-///   for warnings. The validator's message is kept verbatim; its suggestion
-///   becomes the remediation; the line becomes a location only when the
-///   package root is known (otherwise the diagnostic is global).
 public struct SDKManifestValidator: Sendable {
     public init() {}
 
-    /// Validates already-read manifest bytes. `packageRoot` is used only to
-    /// anchor the reported location; pass nil for a global diagnostic.
     public func validate(data: Data, packageRoot: String? = nil) -> [Diagnostic] {
         let diags = SwiftCodeManifestValidator.validateWithDiagnostics(
             data: data,
@@ -33,9 +12,6 @@ public struct SDKManifestValidator: Sendable {
         return diags.map { map($0, packageRoot: packageRoot) }
     }
 
-    /// Validates the `swiftcode.json` at `path`, whether `path` is the
-    /// manifest file itself or the directory containing it. Mirrors Legacy's
-    /// `ExtensionValidator.validateFile(at:)`.
     public func validateFile(at path: String) -> [Diagnostic] {
         let ws = Workspace(path: path)
         let manifestPath: String
@@ -67,9 +43,6 @@ public struct SDKManifestValidator: Sendable {
         }
     }
 
-    /// Decodes and validates in one step; throws the first error diagnostic
-    /// as a `SwiftCodeExtensionError.manifest`, matching
-    /// `SwiftCodeManifestValidator.validate(data:)`.
     public func validateAndDecode(data: Data) throws -> SwiftCodeManifest {
         try SwiftCodeManifestValidator.validate(data: data)
     }

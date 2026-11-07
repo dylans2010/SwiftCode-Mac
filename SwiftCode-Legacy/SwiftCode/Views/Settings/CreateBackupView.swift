@@ -122,8 +122,6 @@ struct CreateBackupView: View {
         .frame(width: 440, height: 420)
     }
 
-    // MARK: - Create Backup
-
     private func startBackup() {
         guard !isCreating else { return }
 
@@ -136,7 +134,6 @@ struct CreateBackupView: View {
             do {
                 progress = 0.2
 
-                // Create a local backup without a cloud provider.
                 try await BackupEngine.shared.performBackup(
                     cloudProvider: nil
                 )

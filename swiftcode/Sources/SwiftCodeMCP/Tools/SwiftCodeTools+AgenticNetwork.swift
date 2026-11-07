@@ -6,157 +6,6 @@ import SwiftCodeAssistant
 import SwiftCodeGitHub
 import SwiftCodeIDECore
 
-/// The ported Legacy Agentic network / packages / GitHub tool family
-/// (Wave 8, slice D).
-///
-/// Behaviour source: Legacy `SwiftCode/Tools/Agentic/FetchURL.swift`,
-/// `DownloadFile.swift`, `UploadFile.swift`, `HTTPRequest.swift`,
-/// `WebSearch.swift`, `DocumentationSearch.swift`,
-/// `APIReferenceSearch.swift`, `PackageSearch.swift`,
-/// `DependencyAudit.swift`, `InstallDependencies.swift`,
-/// `UpdateDependencies.swift`, `RemoveDependencies.swift`,
-/// `CreatePullRequest.swift`, `ReviewPullRequest.swift`,
-/// `ReadPullRequest.swift`, `ReadIssues.swift`, `CreateIssue.swift`,
-/// `UpdateIssue.swift`, `SearchIssues.swift` (Dylan's own code, ported
-/// under MIT). The 19 IDs below were verified live from each file's
-/// `static let identifier`.
-///
-/// Classification against the already-ported MCP tools (checked live:
-/// none of the 19 IDs is a registered tool or an entry in
-/// `MCPServer.toolAliases`):
-///
-/// * PORTED (7): `fetch_url`, `download_file`, `upload_file`,
-///   `http_request`, `install_dependencies`, `update_dependencies`,
-///   `remove_dependencies`. All seven are genuinely distinct from the
-///   ported tools: `fetch_url` returns raw text where
-///   `external_resource_gateway` requires a JSON body;
-///   `http_request` allows any method/headers/body where the gateway
-///   is GET-only and JSON-only; `download_file` / `upload_file` have
-///   no ported counterpart at all. `install_dependencies` /
-///   `update_dependencies` are NOT aliases of `swift_package_manager`
-///   / `package_dependency_update`: an alias passes arguments
-///   unchanged and `Schema.object` rejects unknown keys, but the
-///   Agentic tools require `projectPath` (which neither target has)
-///   while `swift_package_manager` additionally requires `action`
-///   (which the Agentic tools do not send), and
-///   `package_dependency_update` only ever runs in the workspace
-///   root. `dependency_audit` is NOT a duplicate of
-///   `package_dependency_audit`: the ported tool audits pins, the
-///   Agentic tool claims a vulnerability audit.
-/// * WIRED (gap-closure): `web_search` (DuckDuckGo Instant Answer
-///   API), `documentation_search` / `api_reference_search` (Apple
-///   DocC JSON search, symbols only for API search), `package_search`
-///   (Swift Package Index search page + GitHub public search
-///   fallback). See `SwiftCodeTools+SearchWeb.swift`.
-/// * HONESTLY-FAILING (1): `dependency_audit` is wired to a real OSV
-///   audit (see below); the remaining honest-fail entry is none.
-///   Each formerly-failing tool validates its inputs first, then
-///   fails naming the exact missing prerequisite when its backend
-///   is unavailable. No behaviour, no endpoint, and no result is
-///   invented for any of them.
-/// * WIRED (Wave 10): the seven GitHub tools, via the shared
-///   `GitHubClient` (`SwiftCodeGitHubHost.swift`). See the Wave 10
-///   deviation note below.
-/// * ALREADY-SERVED: none. DUPLICATE (aliasable): none.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * Workspace confinement. Legacy's file arguments (`projectPath`,
-///   `destinationPath`, `path`) were absolute filesystem paths
-///   subject only to Legacy's own permission checks. The port
-///   resolves them inside the open workspace (`resolveFileReadingPath`
-///   / `resolveFileWritingPath`): relative paths are workspace
-///   relative, absolute paths must stay under the workspace root,
-///   and `..` is refused. `install_dependencies` /
-///   `update_dependencies` / `remove_dependencies` therefore only
-///   operate on packages inside the workspace.
-/// * Approval gate. Legacy's Agentic tools run with no approval
-///   (its Autopilot mode bypasses approval entirely). The port puts
-///   every network fetch that writes, every upload, every mutating
-///   HTTP method, every `swift package` run, and the manifest edit
-///   behind the SwiftCode approval gate (`approveFileWritingChange` /
-///   `terminalApproveChange` / `commit()`), like Wave 5's
-///   `dependency_resolution_engine`. Plain `fetch_url` GETs and
-///   safe-method `http_request` calls need no approval, like
-///   `external_resource_gateway`.
-/// * HTTPS only. Legacy passed any URL string to `URLSession`. The
-///   port rejects non-HTTPS URLs (and URLs without a host) for all
-///   four network tools, the `external_resource_gateway` rule:
-///   `http://` would let an agent downgrade a fetch, and `file://`
-///   would read local files behind a network label.
-/// * Response caps. Legacy buffered responses unboundedly. The port
-///   caps response bodies (2 MB for text fetches, 10 MB for file
-///   downloads and uploads) and fails past the cap instead of
-///   buffering unboundedly, the `EnginesHTTP` rule.
-/// * `web_search` is NOT wired to Legacy's endpoint. Legacy called
-///   `https://ddg-api.herokuapp.com/search?q=…`, an unofficial
-///   DuckDuckGo proxy that is not a supported search backend. The
-///   port sends no request to it and invents no results.
-/// * `documentation_search`, `api_reference_search`, and
-///   `package_search` are NOT wired to a search engine. Legacy's
-///   implementations were stubs that returned a canned string
-///   ("Documentation for: …" / "API Reference for: …" / "Package
-///   search results for: …") without searching anything. Returning
-///   those strings would be fake behaviour, so the port fails
-///   honestly instead. `fetch_documentation` fetches a known Apple
-///   documentation page; it does not search, so it cannot serve
-///   these tools.
-/// * `dependency_audit` is NOT wired to a vulnerability source.
-///   Legacy returned "No vulnerabilities found …" without checking
-///   anything — a clean bill of health invented out of nothing.
-///   The port fails honestly instead; `package_dependency_audit`
-///   remains the tool for pin auditing.
-/// * `remove_dependencies` actually removes. Legacy returned
-///   "Package … removed from Package.swift at …" without editing
-///   anything. The port performs the removal for real: it deletes
-///   the matching `.package(...)` entry from the package-level
-///   `dependencies:` array and any `.product(name: …)` / bare-string
-///   references to it in target `dependencies:` arrays, through
-///   the approval gate. Matching is by explicit `name:`, by the
-///   last path component of `url:` (without a trailing `.git`), or
-///   by the URL itself. A bare string in a target's dependencies
-///   is treated as a product reference; the pathological case of a
-///   same-package target sharing the package's name would also be
-///   removed, which the spec records.
-/// * `http_request` method allow-list. Legacy passed any method
-///   string through. The port accepts only GET, HEAD, OPTIONS,
-///   POST, PUT, PATCH, DELETE.
-/// * The seven GitHub tools are wired to the real GitHub API
-///   (Wave 10), the Wave 3 `github_repo` precedent resolved: the
-///   host now has a GitHub API client (`GitHubClient`, with the
-///   token read fresh from `SecretAccount.githubToken`) and a
-///   credential flow. The four reads need no approval and no
-///   token for public repositories; the three writes
-///   (`create_pull_request`, `create_issue`, `update_issue`) fail
-///   fast with the client's `missingToken` error when no token is
-///   stored, then go through the Wave 2 approval gate
-///   (`gitApproveChange`) before calling the client, and are
-///   registered `writes: true` so the gate can ever pass (the
-///   server wires `approve` to always-false for `writes: false`
-///   tools) and so a read-only server refuses them. Legacy's
-///   canned return strings ("PR created: …" / "Issue created: …"
-///   with no API call behind them) are stubs, not behaviour: the
-///   real API results replace them. Each tool gains an optional
-///   `repository` argument ("owner/repo", defaulting to the
-///   workspace's git remote origin) except `read_issues`, whose
-///   `repository` was already required; no ID, description, or
-///   required parameter changed. `review_pull_request` is a
-///   READ-ONLY review summary: Legacy's schema has no body/event
-///   parameter, so posting a review is not expressible and no
-///   post path is invented. `update_issue` sends only the
-///   supplied fields (`title`/`body`; `state` is not in Legacy's
-///   schema and is never added). `search_issues` prepends
-///   `repo:owner/repo` to the query when a repository resolves,
-///   and otherwise searches unscoped, as Legacy's
-///   repository-less schema did.
-/// * Subprocess shape. `install_dependencies` /
-///   `update_dependencies` run `/usr/bin/swift package resolve` /
-///   `update` through `terminalRunFixed` (argument vector, never a
-///   shell), the `spmDocsSwiftPackage` shape, with a 300 s timeout.
-///   Legacy ran the same commands through its `ProcessRunnerTool`.
-/// * No `workspace` argument existed in Legacy; the port adds the
-///   optional SwiftCode `workspace` argument to every tool, the same
-///   convention every other ported family follows.
 extension SwiftCodeMCPHost {
     var agenticNetworkTools: [MCPTool] {
         let external = MCPToolAnnotations(readOnly: false, idempotent: false, openWorld: true)
@@ -352,19 +201,11 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared network helpers
 
-    /// Response-body cap for text fetches (fetch_url, http_request,
-    /// upload responses): the `EnginesHTTP` rule, not Legacy (which
-    /// buffered unboundedly).
     nonisolated static let agenticNetworkTextCap = 2_000_000
 
-    /// Body cap for file downloads and uploads.
     nonisolated static let agenticNetworkFileCap = 10_000_000
 
-    /// Legacy passed any URL string to `URLSession`. The port allows
-    /// only HTTPS URLs with a host (the
-    /// `external_resource_gateway` rule).
     nonisolated static func agenticNetworkHTTPSURL(_ raw: String) throws -> URL {
         guard let url = URL(string: raw), url.scheme?.lowercased() == "https", url.host != nil else {
             throw MCPToolError("Only HTTPS URLs with a host are allowed (got '\(raw)').")
@@ -372,9 +213,6 @@ extension SwiftCodeMCPHost {
         return url
     }
 
-    /// Sends `request` with `SwiftCodeAssistant.HTTP.send` (the codebase's
-    /// proven one-shot request helper), failing on transport errors,
-    /// on non-2xx statuses, and past `maxBytes` of body.
     func agenticNetworkSend(_ request: URLRequest, urlString: String, maxBytes: Int) async throws -> HTTP.Response {
         let response: HTTP.Response
         do {
@@ -391,8 +229,6 @@ extension SwiftCodeMCPHost {
         return response
     }
 
-    // MARK: - `fetch_url`
-
     func agenticNetworkFetchURL(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let urlString = call.string("url") else {
             throw MCPToolError("Missing url")
@@ -405,8 +241,6 @@ extension SwiftCodeMCPHost {
         return .structured(["status_code": .int(response.status), "content": .string(text)],
                            summary: "Fetched \(urlString) (HTTP \(response.status), \(response.body.count) bytes).")
     }
-
-    // MARK: - `download_file`
 
     func agenticNetworkDownloadFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let urlString = call.string("url") else {
@@ -421,8 +255,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("destinationPath must be inside the workspace and must not contain '..'.")
         }
         let rel = relative(destination.path, in: s)
-        // Approval gate before the network fetch and the write:
-        // a download is an external fetch plus a workspace write.
         try await approveFileWritingChange(tool: call.name, path: destination, relativePath: rel, original: nil,
                                            summary: "Download \(urlString) to \(rel)", call: call)
         var request = URLRequest(url: url)
@@ -439,8 +271,6 @@ extension SwiftCodeMCPHost {
         return .structured(["url": .string(urlString), "destinationPath": .string(rel), "bytes": .int(response.body.count)],
                            summary: "Downloaded \(urlString) to \(rel) (\(response.body.count) bytes)")
     }
-
-    // MARK: - `upload_file`
 
     func agenticNetworkUploadFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let pathRaw = call.string("path") else {
@@ -461,8 +291,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("File not found at '\(pathRaw)'.")
         }
         let rel = relative(source.path, in: s)
-        // Approval gate before the file leaves the workspace: an
-        // upload is an external side effect carrying workspace data.
         try await approveFileWritingChange(tool: call.name, path: source, relativePath: rel, original: nil,
                                            summary: "Upload \(rel) to \(urlString) (HTTP POST)", call: call)
         let data: Data
@@ -483,8 +311,6 @@ extension SwiftCodeMCPHost {
         return .structured(["status_code": .int(response.status), "content": .string(text)],
                            summary: "Uploaded \(rel) to \(urlString) (HTTP \(response.status)).")
     }
-
-    // MARK: - `http_request`
 
     func agenticNetworkHTTPRequest(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let urlString = call.string("url") else {
@@ -507,9 +333,6 @@ extension SwiftCodeMCPHost {
                 headers[key] = stringValue
             }
         }
-        // Mutating methods go through the approval gate (and therefore
-        // need an open workspace to approve against); safe methods are
-        // plain reads like `external_resource_gateway`.
         if !["GET", "HEAD", "OPTIONS"].contains(method) {
             let s = try session(for: call)
             try await terminalApproveChange(tool: call.name,
@@ -527,13 +350,6 @@ extension SwiftCodeMCPHost {
                            summary: "HTTP \(method) \(urlString) → \(response.status).")
     }
 
-    /// `dependency_audit`: a real OSV audit of the pinned SwiftPM
-    /// packages in `Package.resolved` (see
-    /// `SwiftCodeTools+DependencyAudit.swift`). Legacy returned "No
-    /// vulnerabilities found …" without checking anything — a clean
-    /// bill of health invented out of nothing. This port queries
-    /// OSV instead and reports "no advisories" as exactly that,
-    /// never as a guarantee of safety.
     func agenticNetworkDependencyAudit(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard call.string("projectPath") != nil else {
             throw MCPToolError("Missing projectPath")
@@ -541,13 +357,6 @@ extension SwiftCodeMCPHost {
         return try await dependencyAudit(call)
     }
 
-    // MARK: - `install_dependencies` / `update_dependencies`
-
-    /// Runs one `swift package` subcommand in a workspace-confined
-    /// project directory, the `spmDocsSwiftPackage` shape (argument
-    /// vector, never a shell; 300 s timeout), behind the approval
-    /// gate: resolving/updating fetches packages over the network
-    /// and writes into the package cache and `.build`.
     func agenticNetworkRunSwiftPackage(_ call: MCPToolCall, subcommand: String) async throws -> MCPToolResult {
         guard let projectPath = call.string("projectPath") else {
             throw MCPToolError("Missing projectPath")
@@ -593,8 +402,6 @@ extension SwiftCodeMCPHost {
         try await agenticNetworkRunSwiftPackage(call, subcommand: "update")
     }
 
-    // MARK: - `remove_dependencies`
-
     func agenticNetworkRemoveDependencies(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let projectPath = call.string("projectPath") else {
             throw MCPToolError("Missing projectPath or packageName")
@@ -635,13 +442,6 @@ extension SwiftCodeMCPHost {
                            summary: "Package \(trimmedName) removed from Package.swift at \(projectPath)")
     }
 
-    // MARK: - GitHub tools (Wave 10: wired to the real GitHub API)
-
-    /// Fetches a pull request with its changed files and its
-    /// reviews: the shared read for `read_pull_request` and the
-    /// read-only `review_pull_request` (both render from the same
-    /// data). GitHub failures become the tool error the model sees
-    /// (the client's own message); anything else propagates.
     func agenticNetworkFetchPullRequest(_ client: GitHubClient, owner: String, repo: String, number: Int) async throws
     -> (GitHubPullRequest, [GitHubPullRequestFile], [GitHubReview]) {
         do {
@@ -654,10 +454,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// The shared pull-request summary lines: number, title, state,
-    /// head → base, files changed with additions/deletions, and
-    /// existing review states. `asReview` frames it as a review
-    /// summary (see `agenticNetworkReviewPullRequest`).
     nonisolated static func agenticNetworkPullRequestLines(pr: GitHubPullRequest, files: [GitHubPullRequestFile],
                                                            reviews: [GitHubReview], asReview: Bool) -> [String] {
         let additions = files.reduce(0) { $0 + $1.additions }
@@ -690,7 +486,6 @@ extension SwiftCodeMCPHost {
         return lines
     }
 
-    /// The shared pull-request structured result.
     nonisolated static func agenticNetworkPullRequestJSON(pr: GitHubPullRequest, files: [GitHubPullRequestFile],
                                                           reviews: [GitHubReview]) -> AnyJSON {
         ["number": .int(pr.number), "title": .string(pr.title), "state": .string(pr.state),
@@ -703,15 +498,11 @@ extension SwiftCodeMCPHost {
          "reviews": .array(reviews.map { ["user": .string($0.userLogin), "state": .string($0.state)] })]
     }
 
-    /// One issue as a structured entry (shared by `read_issues` and
-    /// `search_issues`).
     nonisolated static func agenticNetworkIssueJSON(_ issue: GitHubIssue) -> AnyJSON {
         ["number": .int(issue.number), "title": .string(issue.title), "state": .string(issue.state),
          "url": .string(issue.htmlUrl)]
     }
 
-    /// One issue as a summary line (shared by `read_issues` and
-    /// `search_issues`).
     nonisolated static func agenticNetworkIssueLine(_ issue: GitHubIssue) -> String {
         "- #\(issue.number): \(issue.title) [\(issue.state)] \(issue.htmlUrl)"
     }
@@ -724,8 +515,6 @@ extension SwiftCodeMCPHost {
         let s = try session(for: call)
         let repo = try resolveGitHubRepo(call, s)
         do {
-            // Fail fast without a token, then the approval gate,
-            // then the client — in that order.
             try requireGitHubToken()
             try await gitApproveChange(tool: call.name,
                                        summary: "Create pull request \"\(title)\" in \(repo.owner)/\(repo.repo) (\(head) → \(base))",
@@ -745,10 +534,6 @@ extension SwiftCodeMCPHost {
         }
         let s = try session(for: call)
         let repo = try resolveGitHubRepo(call, s)
-        // READ-ONLY review summary: Legacy's schema has no body/event
-        // parameter, so posting a review is not expressible and no
-        // post path is invented. Reads need no approval and no token
-        // for public repositories.
         let (pr, files, reviews) = try await agenticNetworkFetchPullRequest(gitHubClient(), owner: repo.owner,
                                                                             repo: repo.repo, number: prNumber)
         let lines = Self.agenticNetworkPullRequestLines(pr: pr, files: files, reviews: reviews, asReview: true)
@@ -826,9 +611,6 @@ extension SwiftCodeMCPHost {
             try await gitApproveChange(tool: call.name,
                                        summary: "Update issue #\(issueNumber) in \(repo.owner)/\(repo.repo)",
                                        in: s, call: call)
-            // Only the supplied fields are sent (`state` is not in
-            // Legacy's schema and is never sent); the client omits
-            // nil fields from the PATCH body.
             let issue = try await gitHubClient().updateIssue(owner: repo.owner, repo: repo.repo, number: issueNumber,
                                                              title: title, body: body, state: nil)
             return .structured(["number": .int(issue.number), "title": .string(issue.title), "htmlUrl": .string(issue.htmlUrl)],
@@ -843,10 +625,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("Missing query")
         }
         let s = try session(for: call)
-        // An explicit `repository` scopes the query; otherwise the
-        // workspace's github.com origin scopes it when there is one.
-        // With neither, the query runs unscoped, as Legacy's
-        // repository-less schema did.
         let scoped: String
         if call.string("repository") != nil {
             let repo = try resolveGitHubRepo(call, s)
@@ -875,15 +653,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Package.swift manifest surgery (`remove_dependencies`)
 
-    /// Removes the package `name` from a Package.swift manifest:
-    /// the matching `.package(...)` entry in the package-level
-    /// `dependencies:` array, plus any `.product(name: …)` / bare
-    /// string references to it in target `dependencies:` arrays.
-    /// Returns false when no `.package` entry matched (nothing was
-    /// changed). See the file header for the matching rules and the
-    /// bare-string caveat.
     nonisolated static func agenticNetworkRemovePackage(named name: String, from content: inout String) -> Bool {
         let arrays = agenticNetworkDependenciesArrays(in: content)
         guard let packageArray = arrays.first else { return false }
@@ -894,10 +664,6 @@ extension SwiftCodeMCPHost {
             return false
         }
         agenticNetworkRemoveArrayElement(at: index, elements: elements, in: &content)
-        // Product references live in the target arrays. Re-scan after
-        // the package edit (indices shifted) and work from the last
-        // array backwards, so removing text in one array cannot shift
-        // the ranges of an array still to be processed.
         for array in agenticNetworkDependenciesArrays(in: content).dropFirst().reversed() {
             let targetElements = agenticNetworkArrayElements(in: content, arrayRange: array)
             for idx in targetElements.indices.reversed()
@@ -908,13 +674,6 @@ extension SwiftCodeMCPHost {
         return true
     }
 
-    /// Ranges (including brackets) of every `dependencies: [...]`
-    /// array literal in `content`, in file order: the package-level
-    /// array first, then each target's array. Bracket matching skips
-    /// strings, so a `]` inside a URL or version string cannot close
-    /// an array early. Multiline strings and string interpolation
-    /// are not special-cased; manifests do not use them in
-    /// dependency arrays.
     nonisolated static func agenticNetworkDependenciesArrays(in content: String) -> [Range<String.Index>] {
         var ranges: [Range<String.Index>] = []
         var searchFrom = content.startIndex
@@ -927,7 +686,6 @@ extension SwiftCodeMCPHost {
         return ranges
     }
 
-    /// The index just past the `]` matching the `[` at `open`.
     nonisolated static func agenticNetworkMatchingBracket(from open: String.Index, in content: String) -> String.Index? {
         var depth = 0
         var inString = false
@@ -956,10 +714,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// One top-level element of a Swift array literal: its trimmed
-    /// range in `content`, plus the range of the comma that follows
-    /// it (nil for the last element). Commas inside strings, parens,
-    /// or nested brackets do not split elements.
     nonisolated static func agenticNetworkArrayElements(in content: String, arrayRange: Range<String.Index>)
     -> [(element: Range<String.Index>, commaAfter: Range<String.Index>?)] {
         var elements: [(Range<String.Index>, Range<String.Index>?)] = []
@@ -1010,12 +764,6 @@ extension SwiftCodeMCPHost {
         return elements
     }
 
-    /// Removes the element at `index` from `content`: the element
-    /// plus its trailing comma when it has one (swallowing the one
-    /// following newline and the removed line's own indentation, so
-    /// the join stays clean), else the comma before it. Callers
-    /// removing several elements from one array must go from the
-    /// last index backwards, so earlier ranges stay valid.
     nonisolated static func agenticNetworkRemoveArrayElement(at index: Int,
                                                              elements: [(element: Range<String.Index>, commaAfter: Range<String.Index>?)],
                                                              in content: inout String) {
@@ -1035,9 +783,6 @@ extension SwiftCodeMCPHost {
         content.removeSubrange(start..<end)
     }
 
-    /// Whether a `.package(...)` element declares the package
-    /// `name`: an explicit `name:`, or the last path component of
-    /// its `url:` (without a trailing `.git`), or the URL itself.
     nonisolated static func agenticNetworkPackageEntry(_ element: String, matches name: String) -> Bool {
         guard element.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(".package(") else { return false }
         if let declared = agenticNetworkStringArgument(named: "name", in: element), declared == name { return true }
@@ -1051,11 +796,6 @@ extension SwiftCodeMCPHost {
         return false
     }
 
-    /// Whether a target-dependency element references the product
-    /// `name`: `.product(name: "<name>", …)` or a bare `"<name>"`
-    /// string (SwiftPM lets a target list a dependency product as a
-    /// plain string). A same-package target sharing the package's
-    /// name would also match; manifests do not do that in practice.
     nonisolated static func agenticNetworkProductReference(_ element: String, matches name: String) -> Bool {
         let trimmed = element.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix(".product(") {
@@ -1067,8 +807,6 @@ extension SwiftCodeMCPHost {
         return false
     }
 
-    /// The string value of `label: "…"` in `text`, or nil when the
-    /// label is absent or not followed by a string literal.
     nonisolated static func agenticNetworkStringArgument(named label: String, in text: String) -> String? {
         guard let labelRange = text.range(of: "\(label):") else { return nil }
         var i = labelRange.upperBound

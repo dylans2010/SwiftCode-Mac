@@ -9,18 +9,12 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// T-AX (10-plan.md §3.2): the element list of the reference's `a11y` screen
-// (08 §2): labels, values, hints and traits; decorative and hidden elements
-// left out; `.combine` joins labels with ", ". Then actions, containers,
-// controls and the menu bar.
-
 @MainActor
 final class AXLog {
     static let shared = AXLog()
     var entries: [String] = []
 }
 
-/// The `a11y` screen of 08 §2 (our reconstruction from the table).
 struct A11yScreen: View {
     @State var wifi = true
     @State var volume = 0.3
@@ -66,7 +60,6 @@ struct AccessibilityTests {
             if let v = el.value { s += "=\(v)" }
             return s + " [" + AccessibilityTree.traitNames(el.traits).joined(separator: "+") + "]"
         }
-        // 08 §2's rows in order (the stepper is SwiftCode's, open question 6).
         #expect(summary == [
             "Heading [header+staticText]",
             "Save [button]",
@@ -87,7 +80,6 @@ struct AccessibilityTests {
                                   .link, .textField, .progressIndicator])
         #expect(e[5].actionNames == ["increment", "decrement"])
         #expect(e[1].actionNames == ["default"])
-        // Frames are window points of the laid-out views.
         let heading = h.frame { ($0 as? Text)?.plainString == "Heading" }
         #expect(heading == e[0].frame)
     }
@@ -133,8 +125,6 @@ struct AccessibilityTests {
         let group = root.flattened.first { $0.role == .group && $0.children.count == 3 }
         #expect(group?.children.map(\.label) == ["High", "Mid", "Low"])
         let labels = root.exposedElements.compactMap(\.label)
-        // A label reads its title only; symbols have SwiftCode's default labels;
-        // an image-only button takes the image's label.
         #expect(labels.contains("Files") && !labels.contains("Folder"))
         #expect(labels.contains("Settings") && labels.contains("Add"))
         let custom = root.flattened.first { $0.label == "Custom" }
@@ -167,7 +157,6 @@ struct AccessibilityTests {
         let bar = root.flattened.first { $0.role == .menuBar }
         #expect(bar?.children.count == 7)
         #expect(bar?.children.first?.role == .menuBarItem)
-        // Opening a menu through its element's default action.
         if let file = bar?.children[1] { AccessibilityTree.perform("default", on: file.id, in: h.main) }
         #expect(h.popups.count == 1)
     }

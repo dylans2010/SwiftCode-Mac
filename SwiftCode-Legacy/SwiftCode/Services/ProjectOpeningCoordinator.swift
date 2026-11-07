@@ -49,20 +49,17 @@ actor ProjectOpeningCoordinator {
     private func resolveAndLoad(url: URL) async throws -> Project {
         logger.info("Starting load for project at: \(url.path)")
 
-        // 1. Resolve security-scoped bookmark if necessary
         let isAccessing = url.startAccessingSecurityScopedResource()
         defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
 
         try Task.checkCancellation()
 
-        // 2. Validate path
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
             logger.error("Project path not found or not a directory: \(url.path)")
             throw ProjectOpenError.pathNotFound
         }
 
-        // 3. Parse project.json
         let metaURL = url.appendingPathComponent("project.json")
         guard fm.fileExists(atPath: metaURL.path) else {
             logger.error("Metadata missing at: \(metaURL.path)")
@@ -90,7 +87,6 @@ actor ProjectOpeningCoordinator {
             throw ProjectOpenError.corruptedProjectFile
         }
 
-        // 4. Ensure necessary configurations exist
         if project.ciBuildConfiguration == nil {
             project.ciBuildConfiguration = CIBuildConfiguration()
         }
@@ -100,8 +96,6 @@ actor ProjectOpeningCoordinator {
 
         try Task.checkCancellation()
 
-        // 5. Build only the initial navigator level. The workspace lazily expands folders later,
-        // which avoids recursive package traversal and oversized project metadata during open.
         project.files = try await buildFileTreeInternal(at: url, relativeTo: url)
 
         logger.info("Successfully loaded project: \(project.name)")
@@ -144,7 +138,6 @@ actor ProjectOpeningCoordinator {
         }
     }
 
-    // Retained for backward compatibility/external interface callers
     func buildFileTreeInternal(at url: URL, relativeTo base: URL) async throws -> [FileNode] {
         try await Task.detached(priority: .userInitiated) {
             try self.buildFileTree(at: url, relativeTo: base)

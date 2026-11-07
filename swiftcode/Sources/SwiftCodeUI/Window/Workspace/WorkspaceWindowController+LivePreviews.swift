@@ -4,23 +4,14 @@ import SwiftCodeDeviceModel
 import SwiftCodeDeviceUI
 import SwiftCodeIDECore
 
-/// Times of one live preview update, in seconds from its start (a save,
-/// a resume, a layout change). See `specs/ide/previews.md` §Measurements.
 public struct LivePreviewTiming: Equatable, Sendable {
     public var kind: String
-    /// Generating the payload's sources.
     public var generate: Double = 0
-    /// Compiling the payload.
     public var compile: Double = 0
-    /// Building the host (first preview only) and starting the device.
     public var start: Double = 0
-    /// Sending the payload and the plan.
     public var upload: Double = 0
-    /// From the upload's end to the host's `ready`.
     public var load: Double = 0
-    /// From the start to the host's `ready`.
     public var ready: Double = 0
-    /// From the start to the first new picture on the canvas after `ready`.
     public var pixels: Double?
 
     public var summary: String {
@@ -29,23 +20,19 @@ public struct LivePreviewTiming: Equatable, Sendable {
     }
 }
 
-/// A window's live-preview state (one per workspace window).
 @MainActor
 final class LivePreviewState {
     var session: RemotePreviewSession?
     var inputs: PreviewInputs?
     var sources: PreviewPayloadGenerator.Sources?
     var task: Task<Void, Never>?
-    /// The pinned preview: its file and name (`previews.md` §Pinning).
     var pinned: (url: URL, name: String)?
-    /// Timings of the updates, newest last (tests and the report).
     var timings: [LivePreviewTiming] = []
     var pendingPixels: (start: Date, index: Int)?
     var observer: PixelsObserver?
     var issues: [PreviewIssue] = []
 }
 
-/// Notes the first picture after a `ready` (the "new pixels" time).
 @MainActor
 final class PixelsObserver: DeviceLiveSessionObserver {
     let onImage: () -> Void
@@ -54,10 +41,6 @@ final class PixelsObserver: DeviceLiveSessionObserver {
 }
 
 extension WorkspaceWindowController {
-    /// The platform the focused file's previews run on: the product's
-    /// (a project's first target), or for a package the run destination's
-    /// (a SwiftCode simulator → iOS), else the Mac. A package file whose
-    /// previews need UIKit runs on iOS (issue #84).
     public var previewPlatform: PreviewPlatform {
         if session.model.kind == .package {
             if session.destination?.isSwiftCodeRemoteSimulator == true { return .iOS }
@@ -67,9 +50,6 @@ extension WorkspaceWindowController {
         return productPlatform.platform.flatMap(PreviewPlatform.init(destinationPlatform:)) ?? .macOS
     }
 
-    /// The SwiftCode simulator a live preview runs on: the canvas's device
-    /// choice, else the run destination when it is a SwiftCode simulator, else
-    /// the first one of the settings for the platform (phones first).
     func previewSimulator(platform: PreviewPlatform) -> RemoteSimulator? {
         let settings = RemoteSimulatorSettings.load(Preferences.shared.defaults)
         guard settings.isConfigured else { return nil }
@@ -80,12 +60,6 @@ extension WorkspaceWindowController {
             ?? all.first
     }
 
-    /// The devices a preview can run on (SwiftCode decision, `previews.md`
-    /// §Live canvas): every run destination, plus every other device type
-    /// a runtime boots (previews look at sizes the run destinations leave
-    /// out, e.g. the iPhone 18 Pro on a runtime whose run destination is
-    /// the iPhone Duo). Such a type's device directory follows the run
-    /// destinations' naming (`<device name>-<type>-<runtime version>`).
     static func previewSimulators(_ settings: RemoteSimulatorSettings) -> [RemoteSimulator] {
         var out = RemoteSimulator.all(settings)
         let have = Set(out.compactMap { $0.target.map { "\($0.runtimeRoot)|\($0.deviceType.id)" } })
@@ -100,20 +74,15 @@ extension WorkspaceWindowController {
         return out
     }
 
-    /// The device menu's title for a SwiftCode simulator ("iPhone 18 Pro (SwiftCode) 27.0").
     static func previewDeviceTitle(_ r: RemoteSimulator) -> String {
         [r.target?.name ?? RemoteSimulator.deviceName, r.runtimeVersion].compactMap { $0 }.joined(separator: " ")
     }
 
-    /// The device's screen in points (its frame data; the hello's when live).
     static func screenPoints(_ r: RemoteSimulator) -> CGSize {
         let spec = r.target.flatMap { DeviceFrameSpec.named(typeID: $0.deviceType.id) } ?? .iPhone18Pro
         return spec.panels[0].uprightPointSize
     }
 
-    /// The tiles a live canvas asks for (SwiftCode design, `previews.md` §Canvas
-    /// layout): Grid → every preview; Variants → the selected preview in
-    /// each variant; otherwise the selected preview, after a pinned one.
     static func liveTiles(previews: [PreviewDeclaration], titles: [String], selected: Int, grid: Bool, variants: PreviewVariantKind?,
                           base: PreviewVariant, pinned: Int?, screen: CGSize) -> [PreviewTile] {
         guard !previews.isEmpty else { return [] }
@@ -135,9 +104,6 @@ extension WorkspaceWindowController {
         return out
     }
 
-    /// Discovers the focused file's previews and brings the live canvas up to
-    /// date the cheapest way (`PreviewUpdatePlanner`). See `previews.md`
-    /// §Fast updates.
     @discardableResult
     func refreshLivePreviews(platform: PreviewPlatform, reason: String = "refresh") -> Task<Void, Never>? {
         guard let c = canvas, let url = editor.fileURL else { return nil }
@@ -157,7 +123,6 @@ extension WorkspaceWindowController {
         let live = livePreview
         c.devices.automatic = Self.previewDeviceTitle(sim)
         c.devices.connected = Self.previewSimulators(sim.settings).map(Self.previewDeviceTitle)
-        // Another device than the running session's: start over on it.
         if let s = live.session, s.remote.remoteDevicePath != sim.previewDevice.remoteDevicePath {
             live.session = nil
             live.inputs = nil
@@ -165,7 +130,6 @@ extension WorkspaceWindowController {
         let session = live.session ?? RemotePreviewSessions.shared.session(for: sim, platform: platform)
         live.session = session
         c.attach(session.link?.session)
-        // Pinned preview (same module): exported first.
         var previewed = [PreviewedFile(url: url, previews: previews)]
         var pinnedIndex: Int?
         var allTitles = titles
@@ -195,7 +159,6 @@ extension WorkspaceWindowController {
         let activity = beginPreviewActivity()
         let task = Task { [weak self, weak c] in
             defer { self?.endPreviewActivity(activity) }
-            // The module, its sources and the decision.
             let resolved = await Task.detached { () -> Result<PreviewRenderer.Module, PreviewRenderer.Failure> in
                 do throws(PreviewRenderer.Failure) {
                     switch kind {
@@ -308,7 +271,6 @@ extension WorkspaceWindowController {
                 c.clearBanner()
                 c.setUpdating(false)
                 c.setState(.live(liveTiles))
-                // The first picture after ready is the update's "new pixels".
                 live.timings.append(timing)
                 self.watchPixels(start: start, index: live.timings.count - 1)
             } catch {
@@ -322,7 +284,6 @@ extension WorkspaceWindowController {
         return task
     }
 
-    /// What the canvas says when previews need a SwiftCode simulator and none is set up.
     static func needsSimulatorMessage(platform: PreviewPlatform, uikit: Bool) -> String {
         let what = uikit ? "UIKit previews" : "Previews for \(platform.rawValue)"
         return "\(what) run on a SwiftCode Simulator. Set one up in Settings ▸ Simulators (a simulator host and a runtime), then choose Check Again."
@@ -359,10 +320,8 @@ extension WorkspaceWindowController {
         s.addObserver(o)
     }
 
-    /// Timings of this window's live preview updates (newest last).
     public var livePreviewTimings: [LivePreviewTiming] { livePreview.timings }
 
-    /// Pins the canvas's selected preview, or unpins (`previews.md` §Pinning).
     func togglePin() {
         let live = livePreview
         if live.pinned != nil {
@@ -374,13 +333,11 @@ extension WorkspaceWindowController {
         refreshPreviews()
     }
 
-    /// Opens an issue's file at its line.
     func openPreviewIssue(_ issue: PreviewIssue) {
         guard let f = issue.file else { return }
         open(path: f.path, line: issue.line)
     }
 
-    /// Selectable mode: reveals a preview's `#Preview` line.
     func revealPreview(_ index: Int) {
         guard let url = editor.fileURL else { return }
         let previews = PreviewDiscovery.previews(in: editor.text)
@@ -390,7 +347,6 @@ extension WorkspaceWindowController {
 }
 
 extension PreviewCanvasController {
-    /// The status while the preview device starts ("Booting the preview device").
     public func setStartingText(_ text: String) {
         guard isViewLoaded else { return }
         statusLabel.stringValue = text

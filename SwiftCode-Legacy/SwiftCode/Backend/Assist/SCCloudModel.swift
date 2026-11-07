@@ -1,56 +1,17 @@
-//
-//  SCCloudModel.swift
-//  SwiftCode
-//
-//  SwiftCode Cloud Models — SwiftCode's hosted models, available in Assist through
-//  the "Use SwiftCode's Cloud Model" toggle in Assist settings.
-//
-//  What this file owns:
-//    • SCCloudConfiguration   — endpoint URLs, wire format, request building,
-//                               response parsing, and the internal-ID scheme.
-//    • SCCloudModelInfo       — one discovered model (endpoint name + metadata).
-//    • SCCloudModelDiscovery  — dynamic model discovery: queries the server's
-//                               model list (OpenAI-style /v1/models or Ollama
-//                               /api/tags depending on the wire format), caches
-//                               the result locally, and serves it to the picker,
-//                               router, and settings UI. The server hosts MANY
-//                               models — nothing here hardcodes a single model.
-//    • SCCloudDeviceFingerprint — per-device rate-limit identity: "ssc_" + SHA-256
-//                               of stable hardware identifiers. Generated when the
-//                               user enables the toggle. Stored in the Keychain,
-//                               NEVER exposed to the UI.
-//    • SCCloudRateLimiter     — 10 requests per rolling 24-hour window. Once the
-//                               limit is hit the device is locked out until 24h
-//                               after its oldest request in the window.
-//    • SCCloudModelClient     — sends a prompt to the cloud endpoint using the
-//                               selected discovered model, attaching the
-//                               fingerprint header so the backend can enforce
-//                               fair use too.
-//
-//  Fair-use model: the client enforces the 10/day cap locally AND sends the
-//  device fingerprint with every request so the server can enforce it
-//  independently.
-
 import Foundation
 import CryptoKit
 import os
 
 private let logger = Logger(subsystem: "com.swiftcode.Assist", category: "SCCloudModel")
 
-// MARK: - Configuration
-
 public enum SCCloudConfiguration {
 
-    /// Base URL fallback if no custom configuration or SCCloudModelsEndpoint.js is present.
     public static let defaultBaseURLString = "https://gives-appearance-bands-procedure.trycloudflare.com"
 
-    /// Reads the endpoint dynamically from `SCCloudModelsEndpoint.js` so the user can
-    /// change the URL at any time without recompiling or modifying Swift code.
     public static func readEndpointFromJSFile() -> String? {
         let fileName = "SCCloudModelsEndpoint.js"
         var candidatePaths: [String] = []
 
-        // 1. App Bundle resources
         if let bundlePath = Bundle.main.path(forResource: "SCCloudModelsEndpoint", ofType: "js") {
             candidatePaths.append(bundlePath)
         }
@@ -58,15 +19,12 @@ public enum SCCloudConfiguration {
             candidatePaths.append(resourceURL.appendingPathComponent(fileName).path)
         }
 
-        // 2. Current Working Directory
         let cwd = FileManager.default.currentDirectoryPath
         candidatePaths.append("\(cwd)/\(fileName)")
 
-        // 3. Known project root directories & parent traversal
         let homeDir = NSHomeDirectory()
         candidatePaths.append("\(homeDir)/SwiftCode-Mac/\(fileName)")
 
-        // Walk up parents from bundle executable (useful in local dev / DerivedData runs)
         if let execURL = Bundle.main.executableURL {
             var dir = execURL.deletingLastPathComponent()
             for _ in 0..<8 {
@@ -82,8 +40,6 @@ public enum SCCloudConfiguration {
                   let content = try? String(contentsOfFile: path, encoding: .utf8) else {
                 continue
             }
-            // Parse URL from JS patterns like:
-            // endpoint: "https://..." or "endpoint": 'https://...' or const endpoint = "https://..."
             let regexPatterns = [
                 #"endpoint\s*[:=]\s*["']([^"']+)["']"#,
                 #"["']endpoint["']\s*:\s*["']([^"']+)["']"#
@@ -113,39 +69,18 @@ public enum SCCloudConfiguration {
         return defaultBaseURLString
     }
 
-    /// Wire format used for chat requests and model discovery.
-    ///
-    /// `.openAICompatible` (recommended) uses:
-    ///   chat     → POST /v1/chat/completions
-    ///   discovery→ GET  /v1/models
-    /// `.ollamaNative` uses:
-    ///   chat     → POST /api/chat
-    ///   discovery→ GET  /api/tags
     public enum WireFormat: Sendable {
         case openAICompatible
         case ollamaNative
     }
     public static let wireFormat: WireFormat = .openAICompatible
 
-    // Endpoint paths (joined onto baseURLString).
     public static let chatCompletionsPath = "/v1/chat/completions"
     public static let modelsListPath = "/v1/models"
     public static let ollamaChatPath = "/api/chat"
     public static let ollamaTagsPath = "/api/tags"
 
-    /// Fallback model name sent when no discovery result exists yet
-    /// (e.g. the server is unreachable on first launch). Leave empty to
-    /// require a discovered model list instead of guessing a name.
     public static let defaultModelIdentifier = ""
-
-    // MARK: Internal identity scheme
-    //
-    // Inside SwiftCode every cloud model gets a stable internal ID:
-    //   "swiftcode-cloud"            — legacy single-model ID (pre-discovery).
-    //   "swiftcode-cloud:<name>"    — one per discovered model, where <name>
-    //                                 is the exact name the endpoint serves.
-    // Callers must use isCloudModelID(_:) — never string-compare against a
-    // single hardcoded ID — because the server hosts many models.
 
     public static let modelIDPrefix = "swiftcode-cloud"
 
@@ -153,43 +88,27 @@ public enum SCCloudConfiguration {
     public static let providerID = "swiftcode-cloud"
     public static let providerName = "SwiftCode Cloud"
 
-    /// Header carrying the device fingerprint on every cloud request.
-    /// The backend uses this value — and only this value — to rate-limit devices.
     public static let fingerprintHeaderName = "X-SwiftCode-Device-Fingerprint"
 
-    /// Fair-use policy: at most this many requests per rolling 24-hour window.
     public static let dailyRequestLimit = 10
     public static let rateLimitWindow: TimeInterval = 24 * 60 * 60
 
-    /// How long a chat request may take. Generous on purpose: on a small VPS
-    /// a cold model load plus slow generation can take minutes.
     public static let requestTimeout: TimeInterval = 180
     public static let resourceTimeout: TimeInterval = 300
 
-    /// True for the legacy "swiftcode-cloud" ID and every per-model
-    /// "swiftcode-cloud:<name>" ID.
     public static func isCloudModelID(_ id: String) -> Bool {
         id == modelIDPrefix || id.hasPrefix(modelIDPrefix + ":")
     }
 
-    /// "swiftcode-cloud:llama3.1:8b" → "llama3.1:8b". The result is
-    /// canonicalized (see canonicalModelName), so selections stored before
-    /// canonicalization keep resolving to the same model.
     public static func endpointName(forInternalID id: String) -> String? {
         guard isCloudModelID(id), id != modelIDPrefix else { return nil }
         return canonicalModelName(String(id.dropFirst(modelIDPrefix.count + 1)))
     }
 
-    /// "llama3.1:8b" → "swiftcode-cloud:llama3.1:8b".
     public static func internalID(forEndpointName name: String) -> String {
         "\(modelIDPrefix):\(name)"
     }
 
-    /// Canonical call name for a discovered model id. Strips Ollama's default
-    /// `:latest` tag so the name matches the server's documented call
-    /// convention (`gemini`, `gpt-oss`, `swiftcode-cloud` — bare aliases);
-    /// every other tag is kept verbatim. In Ollama, `name` and `name:latest`
-    /// address the same model, so this is purely a naming normalization.
     public static func canonicalModelName(_ discoveredID: String) -> String {
         let trimmed = discoveredID.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasSuffix(":latest") {
@@ -198,9 +117,6 @@ public enum SCCloudConfiguration {
         return trimmed
     }
 
-    /// One-line descriptions for the hosted models, shown in the picker and
-    /// settings so the models are tellable apart at a glance.
-    /// Keyed by canonical call name.
     public static let modelBlurbs: [String: String] = [
         "swiftcode-cloud": "Custom Swift assistant — Swift/SwiftUI code generation",
         "qwen2.5-coder:1.5b": "Ultra-fast coding — instant inline completions",
@@ -216,12 +132,10 @@ public enum SCCloudConfiguration {
         "llama3.2:1b": "Meta Llama 3.2 1B — ultra-lightweight chat",
     ]
 
-    /// Curated blurb for a canonical endpoint name, if one is known.
     public static func blurb(forEndpointName name: String) -> String? {
         modelBlurbs[name]
     }
 
-    /// Full chat URL for the active wire format.
     public static var chatURL: URL? {
         let path: String
         switch wireFormat {
@@ -231,7 +145,6 @@ public enum SCCloudConfiguration {
         return URL(string: baseURLString)?.appendingPathComponent(path)
     }
 
-    /// Full model-list URL for the active wire format.
     public static var modelsListURL: URL? {
         let path: String
         switch wireFormat {
@@ -241,7 +154,6 @@ public enum SCCloudConfiguration {
         return URL(string: baseURLString)?.appendingPathComponent(path)
     }
 
-    /// True once the base URL is a real HTTPS URL.
     public static var isConfigured: Bool {
         guard !baseURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let url = URL(string: baseURLString),
@@ -252,20 +164,11 @@ public enum SCCloudConfiguration {
         return true
     }
 
-    /// True when the user enabled the toggle AND selected any cloud model.
-    /// Reads the UI-facing settings only — the fingerprint itself is never consulted here.
-    /// Main-actor isolated because AppSettings is main-actor isolated.
     @MainActor
     public static var isEnabledAndSelected: Bool {
         AppSettings.shared.useSwiftCodeCloudModel
             && isCloudModelID(AppSettings.shared.selectedAssistModelID)
     }
-
-    // MARK: Request building
-    //
-    // Both wire formats POST { "model": "<name>", "messages": [...], "stream": false }.
-    // If the endpoint expects a different shape, change ONLY this function
-    // (and parseResponse below) — callers stay untouched.
 
     public static func makeRequest(
         prompt: String,
@@ -293,15 +196,6 @@ public enum SCCloudConfiguration {
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
         return request
     }
-
-    // MARK: Response parsing
-    //
-    // Accepts, in order:
-    //   1. OpenAI-style `choices[0].message.content`
-    //   2. Ollama-style `message.content` (native /api/chat, non-streaming)
-    //   3. Common single-string shapes ("response", "output", "text", …)
-    //   4. A bare non-empty string body.
-    // Adjust here if the endpoint returns something else.
 
     public static func parseResponse(_ data: Data) throws -> String {
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -333,11 +227,6 @@ public enum SCCloudConfiguration {
     }
 }
 
-// MARK: - Discovered model
-
-/// One model served by the cloud endpoint, as reported by the server's
-/// model-list endpoint. `endpointName` is the exact name to send in the
-/// "model" field of chat requests.
 public struct SCCloudModelInfo: Codable, Sendable, Hashable {
     public let endpointName: String
     public let ownedBy: String?
@@ -349,32 +238,20 @@ public struct SCCloudModelInfo: Codable, Sendable, Hashable {
         self.contextWindow = contextWindow
     }
 
-    /// Stable internal ID used by the picker, router, and settings.
     public var internalID: String {
         SCCloudConfiguration.internalID(forEndpointName: endpointName)
     }
 
-    /// Human-readable name. The endpoint name is shown verbatim so the user
-    /// always knows exactly which server-side model is selected.
     public var displayName: String { endpointName }
 
-    /// Curated one-line description for the picker/settings, if known.
     public var blurb: String? {
         SCCloudConfiguration.blurb(forEndpointName: endpointName)
     }
 }
 
-// MARK: - Model discovery
-//
-// Queries the server for the models it actually serves instead of hardcoding
-// a single model name. Results are cached in memory and persisted to disk
-// (Application Support) with a 1-hour TTL. A failed refresh never wipes the
-// previous list — the last known models stay selectable.
-
 public final class SCCloudModelDiscovery: @unchecked Sendable {
     public static let shared = SCCloudModelDiscovery()
 
-    /// How long a fetched model list is considered fresh.
     public static let cacheTTL: TimeInterval = 60 * 60
 
     private let lock = NSLock()
@@ -384,9 +261,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
 
     private init() {}
 
-    /// Best-known model list: memory cache, else the persisted snapshot, else empty.
-    /// If the endpoint URL has changed (e.g. updated in SCCloudModelsEndpoint.js),
-    /// stale models from the old URL are immediately evicted and refreshed in background.
     public var models: [SCCloudModelInfo] {
         lock.lock()
         let currentURL = SCCloudConfiguration.baseURLString
@@ -405,8 +279,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         }
         let (persisted, updatedAt, savedURL) = loadPersistedLocked()
         if let savedURL = savedURL, savedURL != currentURL {
-            // URL in SCCloudModelsEndpoint.js changed since last app run:
-            // ignore old persisted models and fetch fresh from new URL.
             cachedModels = nil
             cachedUpdatedAt = nil
             lock.unlock()
@@ -419,7 +291,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         return persisted
     }
 
-    /// When the current list was fetched, or nil if never fetched.
     public var lastUpdated: Date? {
         lock.lock()
         defer { lock.unlock() }
@@ -429,8 +300,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         return updatedAt
     }
 
-    /// True when there is no usable cached list, the cache is older than the TTL,
-    /// or the endpoint URL was changed in SCCloudModelsEndpoint.js.
     public var isStale: Bool {
         lock.lock()
         let currentURL = SCCloudConfiguration.baseURLString
@@ -441,17 +310,12 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         return Date().timeIntervalSince(updatedAt) > Self.cacheTTL
     }
 
-    /// Refreshes from the server when the cache is stale (or `force` is set).
-    /// Returns the best-known list — freshly fetched, or the previous cache
-    /// when the server is unreachable.
     @discardableResult
     public func refreshIfStale(force: Bool = false) async -> [SCCloudModelInfo] {
         if !force, !isStale { return models }
         return await refresh()
     }
 
-    /// Fetches the model list from the server now. Never throws: on failure the
-    /// previous cache is kept and returned.
     @discardableResult
     public func refresh() async -> [SCCloudModelInfo] {
         do {
@@ -478,8 +342,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         }
     }
 
-    // MARK: Network
-
     private func fetchFromServer() async throws -> [SCCloudModelInfo] {
         guard SCCloudConfiguration.isConfigured,
               let url = SCCloudConfiguration.modelsListURL else {
@@ -488,8 +350,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        // Identify the device for backend metering; discovery is NOT counted
-        // against the daily chat quota.
         if let fingerprint = SCCloudDeviceFingerprint.current, !fingerprint.isEmpty {
             request.setValue(fingerprint, forHTTPHeaderField: SCCloudConfiguration.fingerprintHeaderName)
         }
@@ -512,9 +372,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         }
     }
 
-    /// OpenAI-style: { "data": [ { "id": "…", "owned_by": "…" } ] }
-    /// Ids are canonicalized (`gemini:latest` → `gemini`) to match the
-    /// server's documented call names.
     private func parseOpenAIModels(_ data: Data) -> [SCCloudModelInfo] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let items = json["data"] as? [[String: Any]] else {
@@ -529,9 +386,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         }
     }
 
-    /// Ollama-style: { "models": [ { "name": "…", "details": { "context_length": … } } ] }
-    /// Names are canonicalized (`gemini:latest` → `gemini`) to match the
-    /// server's documented call names.
     private func parseOllamaTags(_ data: Data) -> [SCCloudModelInfo] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let items = json["models"] as? [[String: Any]] else {
@@ -549,8 +403,6 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
             return SCCloudModelInfo(endpointName: name, contextWindow: contextWindow)
         }
     }
-
-    // MARK: Persistence
 
     private struct Snapshot: Codable {
         let updatedAt: Double
@@ -582,28 +434,14 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
     }
 }
 
-// MARK: - Device fingerprint
-//
-// Per-device rate-limit identity: "ssc_" + hex(SHA-256(stable hardware details)).
-// Sources: host UUID, hardware model, CPU brand/count, non-loopback IP addresses.
-// The raw hardware values are hashed in memory and never persisted — only the
-// final "ssc_…" identifier is stored, in the Keychain.
-//
-// INTERNAL: this identifier must NEVER be exposed to the UI. It exists solely
-// so the rate limiter (and the backend, via the request header) can tell
-// devices apart for fair-use enforcement.
-
 enum SCCloudDeviceFingerprint {
     private static let keychainKey = "com.swiftcode.sccloud.deviceFingerprint"
     private static let prefix = "ssc_"
 
-    /// The stored fingerprint, or nil if the user never enabled the cloud model.
     static var current: String? {
         KeychainService.shared.get(forKey: keychainKey)
     }
 
-    /// Returns the fingerprint, generating and securely storing one on first use.
-    /// Called when the user flips the "Use SwiftCode's Cloud Model" toggle on.
     @discardableResult
     static func ensureFingerprint() -> String? {
         if let existing = current, !existing.isEmpty {
@@ -616,11 +454,9 @@ enum SCCloudDeviceFingerprint {
         return stored ?? generated
     }
 
-    /// One-way fingerprint: "ssc_" + SHA-256 hex of the hardware material.
     private static func generate() -> String {
         var components: [String] = []
 
-        // Stable host UUID for this machine.
         var hostUUID: uuid_t = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         if gethostuuid(&hostUUID, nil) == 0 {
             let hex = withUnsafeBytes(of: hostUUID) { bytes in
@@ -629,7 +465,6 @@ enum SCCloudDeviceFingerprint {
             components.append("hostuuid=\(hex)")
         }
 
-        // Hardware model (e.g. "Mac14,2"), CPU brand and core count.
         if let hwModel = sysctlString("hw.model") {
             components.append("hw.model=\(hwModel)")
         }
@@ -642,7 +477,6 @@ enum SCCloudDeviceFingerprint {
             components.append("ncpu=\(ncpu)")
         }
 
-        // Non-loopback IP addresses (best effort; hardware IDs dominate).
         for ip in ipAddresses() {
             components.append("ip=\(ip)")
         }
@@ -681,7 +515,6 @@ enum SCCloudDeviceFingerprint {
                 : socklen_t(MemoryLayout<sockaddr_in6>.size)
             if getnameinfo(addr, addrLen, &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
                 let ip = String(cString: host)
-                // Skip link-local; they add churn without identifying value.
                 if !ip.hasPrefix("fe80") && !ip.hasPrefix("169.254") {
                     result.append(ip)
                 }
@@ -690,13 +523,6 @@ enum SCCloudDeviceFingerprint {
         return Array(Set(result)).sorted()
     }
 }
-
-// MARK: - Rate limiter
-//
-// Sliding 24-hour window, 10 requests max. Request timestamps persist in
-// Application Support so the quota survives app restarts. Once the limit is
-// hit the device stays locked out until 24h after its oldest request inside
-// the window — i.e. quota frees up gradually as old requests age out.
 
 public final class SCCloudRateLimiter: @unchecked Sendable {
     public static let shared = SCCloudRateLimiter()
@@ -720,7 +546,6 @@ public final class SCCloudRateLimiter: @unchecked Sendable {
         return dir.appendingPathComponent("sccloud-usage.json")
     }
 
-    /// Evaluates the gate WITHOUT consuming quota.
     public func checkGate() -> Gate {
         lock.lock()
         defer { lock.unlock() }
@@ -737,24 +562,20 @@ public final class SCCloudRateLimiter: @unchecked Sendable {
         return Gate(allowed: true, remaining: remaining, retryAfter: nil)
     }
 
-    /// Records one completed request against the quota.
     public func recordRequest() {
         lock.lock()
         defer { lock.unlock() }
         var stamps = loadLocked()
         stamps.append(Date())
-        // Bound storage growth: keep at most a few windows' worth.
         let cutoff = Date().addingTimeInterval(-SCCloudConfiguration.rateLimitWindow * 2)
         stamps = stamps.filter { $0 > cutoff }
         saveLocked(stamps)
     }
 
-    /// UI-safe quota summary: counts only. The device fingerprint is never exposed.
     public var remainingToday: Int {
         checkGate().remaining
     }
 
-    /// Human-readable lockout ("7h 12m"), or nil when requests are still allowed.
     public var lockoutDescription: String? {
         let gate = checkGate()
         guard !gate.allowed, let retryAfter = gate.retryAfter else { return nil }
@@ -770,8 +591,6 @@ public final class SCCloudRateLimiter: @unchecked Sendable {
         }
         return "\(minutes)m"
     }
-
-    // MARK: Persistence
 
     private func loadLocked() -> [Date] {
         if let cached = cachedTimestamps { return cached }
@@ -794,8 +613,6 @@ public final class SCCloudRateLimiter: @unchecked Sendable {
     }
 }
 
-// MARK: - Errors
-
 public enum SCCloudError: LocalizedError, Sendable {
     case notConfigured
     case fingerprintUnavailable
@@ -805,7 +622,6 @@ public enum SCCloudError: LocalizedError, Sendable {
     case invalidResponse
     case noModelAvailable
 
-    /// Message safe to show in the chat UI.
     public var userFacingMessage: String {
         switch self {
         case .notConfigured:
@@ -818,9 +634,6 @@ public enum SCCloudError: LocalizedError, Sendable {
             }
             return "Daily limit reached — the SwiftCode Cloud Model allows \(SCCloudConfiguration.dailyRequestLimit) requests per day per device for fair use. Try again in 24 hours."
         case .network(let underlying):
-            // Timeouts get an honest, actionable message: on a small VPS a
-            // cold model load plus slow generation can genuinely exceed the
-            // timeout — it's usually not a dead endpoint.
             let nsError = underlying as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut {
                 return "The request timed out after \(Int(SCCloudConfiguration.requestTimeout))s without a response. The model may still be loading on the server (cold start takes a while on small machines) — try again, or pick a smaller model."
@@ -830,8 +643,6 @@ public enum SCCloudError: LocalizedError, Sendable {
             if statusCode == 530 || message.contains("Cloudflare Tunnel error") || message.contains("1033") || message.contains("<!doctype html>") || message.contains("<html") {
                 return "The SwiftCode Cloud model server is currently offline or unreachable (Cloudflare Tunnel Error 530/1033). Please try again later or select another model in Assist Settings."
             }
-            // The chat line shows a preview; the full body lives in the
-            // Server Error dialog via rawResponseBody.
             let preview = message.count > 300 ? String(message.prefix(300)) + "…" : message
             return "SwiftCode Cloud returned an error (HTTP \(statusCode)): \(preview)"
         case .invalidResponse:
@@ -843,14 +654,11 @@ public enum SCCloudError: LocalizedError, Sendable {
 
     public var errorDescription: String? { userFacingMessage }
 
-    /// HTTP status code when the server answered with an error, else nil.
     public var httpStatusCode: Int? {
         if case .server(let statusCode, _) = self { return statusCode }
         return nil
     }
 
-    /// The raw response body for server errors (up to the stored cap) — this
-    /// is what the Server Error dialog shows, straight from the API.
     public var rawResponseBody: String? {
         switch self {
         case .server(_, let body): return body
@@ -859,12 +667,6 @@ public enum SCCloudError: LocalizedError, Sendable {
         }
     }
 }
-
-// MARK: - Client
-//
-// Sends a prompt to the cloud endpoint using the SELECTED discovered model —
-// never a hardcoded single model. Every request carries the device fingerprint
-// header so the backend can enforce the same 10/day fair-use policy server-side.
 
 public final class SCCloudModelClient: Sendable {
     public static let shared = SCCloudModelClient()
@@ -878,12 +680,6 @@ public final class SCCloudModelClient: Sendable {
         self.session = URLSession(configuration: config)
     }
 
-    /// Completes a prompt against the SwiftCode Cloud endpoint.
-    /// - Parameters:
-    ///   - modelIdentifier: exact server-side model name. When nil, it is
-    ///     resolved from the user's selected cloud model (or the first
-    ///     discovered model for the legacy single-model selection).
-    /// - Throws: `SCCloudError` (rate-limited, not configured, network/server failures).
     public func complete(
         prompt: String,
         history: [(role: String, content: String)] = [],
@@ -903,12 +699,7 @@ public final class SCCloudModelClient: Sendable {
             throw SCCloudError.rateLimited(retryAfter: gate.retryAfter)
         }
 
-        // Model discovery is a metadata refresh, never a gate: use a fresh list
-        // when the cache is stale, but proceed with the previous cache when the
-        // server is unreachable.
         await SCCloudModelDiscovery.shared.refreshIfStale()
-        // AppSettings is main-actor isolated; hop there for the read, then
-        // resolve off the main thread.
         let selectedID = await MainActor.run { AppSettings.shared.selectedAssistModelID }
         let resolvedModel = try resolveModelIdentifier(explicit: modelIdentifier, selectedID: selectedID)
 
@@ -936,8 +727,6 @@ public final class SCCloudModelClient: Sendable {
             throw SCCloudError.invalidResponse
         }
 
-        // Any completed HTTP round-trip counts against the daily quota,
-        // success or failure — the request reached the backend.
         SCCloudRateLimiter.shared.recordRequest()
 
         switch http.statusCode {
@@ -947,8 +736,6 @@ public final class SCCloudModelClient: Sendable {
             logger.warning("[SCCloud] Backend reported 429 — treating as rate limited.")
             throw SCCloudError.rateLimited(retryAfter: nil)
         default:
-            // Store the full body (capped) so the Server Error dialog can show
-            // exactly what the API returned; the chat line shows a preview.
             let message: String
             if let text = String(data: data, encoding: .utf8),
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -960,9 +747,6 @@ public final class SCCloudModelClient: Sendable {
         }
     }
 
-    /// Resolves the exact server-side model name for a chat request.
-    /// `selectedID` must be captured from AppSettings on the main actor by the
-    /// caller — this stays nonisolated so it can run off the main thread.
     private func resolveModelIdentifier(explicit: String?, selectedID: String) throws -> String {
         if let explicit, !explicit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return explicit
@@ -970,8 +754,6 @@ public final class SCCloudModelClient: Sendable {
         if let endpointName = SCCloudConfiguration.endpointName(forInternalID: selectedID) {
             return endpointName
         }
-        // Legacy single-model selection (or nothing selected): use the first
-        // discovered model, else the configured fallback.
         if let first = SCCloudModelDiscovery.shared.models.first {
             logger.info("[SCCloud] Legacy cloud selection — using first discovered model: \(first.endpointName, privacy: .public)")
             return first.endpointName
@@ -983,8 +765,6 @@ public final class SCCloudModelClient: Sendable {
         }
         throw SCCloudError.noModelAvailable
     }
-
-    // MARK: UI-safe quota accessors (counts only — never the fingerprint)
 
     public var remainingRequestsToday: Int {
         SCCloudRateLimiter.shared.remainingToday

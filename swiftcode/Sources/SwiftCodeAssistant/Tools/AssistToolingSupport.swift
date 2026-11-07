@@ -1,10 +1,6 @@
 import Foundation
 
 public enum AssistToolingSupport {
-    /// Resolves a workspace-relative path. Never escapes the workspace root:
-    /// a path that would escape (via `..` or an absolute path) is clamped to
-    /// the root instead of silently pointing outside it. Callers that need a
-    /// hard failure on escape should use `AssistFileSystem.resolve` instead.
     public static func resolvePath(_ path: String?, workspaceRoot: URL) -> URL {
         let rawPath = (path?.isEmpty == false ? path! : ".")
         if rawPath == "." { return workspaceRoot }
@@ -120,15 +116,6 @@ public enum AssistToolingSupport {
     }
 }
 
-/// Argument-vector process runner for Assist tools.
-///
-/// Model-supplied values must NEVER be interpolated into a shell command
-/// string (`/bin/bash -lc "xcodebuild … \(scheme)"` lets a crafted scheme
-/// execute arbitrary shell). Pass argv arrays here instead: `Process`
-/// executes the binary directly with no shell, so metacharacters in an
-/// argument are inert. Runs are bounded: on timeout the process gets
-/// SIGTERM, then SIGKILL after a short grace period, and the call returns
-/// `timedOut: true` instead of hanging forever.
 public enum AssistArgvRunner {
     public struct Result: Sendable {
         public let exitCode: Int32
@@ -157,9 +144,8 @@ public enum AssistArgvRunner {
         var timedOut = false
         if waitResult == .timedOut {
             timedOut = true
-            process.terminate() // SIGTERM
+            process.terminate()
             if semaphore.wait(timeout: .now() + 5) == .timedOut {
-                // SIGKILL: Process has no kill(); use the POSIX call.
                 kill(process.processIdentifier, SIGKILL)
                 _ = semaphore.wait(timeout: .now() + 5)
             }

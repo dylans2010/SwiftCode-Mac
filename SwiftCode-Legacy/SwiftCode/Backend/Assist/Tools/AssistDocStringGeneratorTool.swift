@@ -33,7 +33,6 @@ public struct AssistDocStringGeneratorTool: AssistTool {
         docLines.append("/// \(summary)")
         docLines.append("///")
 
-        // Parse parameters from (arg1: Type, arg2: Type)
         if let openParen = declaration.firstIndex(of: "("),
            let closeParen = declaration.lastIndex(of: ")"),
            openParen < closeParen {

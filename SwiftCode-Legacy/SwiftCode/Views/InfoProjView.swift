@@ -89,13 +89,10 @@ struct InfoProjView: View {
 
     private func loadManifest() async {
         do {
-            // In a real scenario, we'd get the URL from project.directoryURL
-            // For now, we'll try to generate a temporary one or use the coordinator
             let packageURL = await project.directoryURL
             if ProjectFileManager.shared.exists(at: packageURL.appendingPathComponent("manifest.json")) {
                 self.manifest = try ProjectCoordinator.shared.getManifest(for: packageURL)
             } else {
-                // Fallback: create a manifest from project model if it doesn't exist
                 self.manifest = ManifestProjManager.shared.createInitialManifest(for: project)
             }
         } catch {

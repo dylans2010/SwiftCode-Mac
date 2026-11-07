@@ -1,23 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/AssistFixArtboardsTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/Tools/Assist/AssistFixArtboardsTool.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Booting a non-booted simulator via xcrun simctl boot
-//   - Realigning the build destination to the live simulator (no XcodeBuildManager destination exists in the destination)
-//   - Cleaning DerivedData / stale build artifacts (destination clears the preview-render cache instead; full_app scope defers to the clean tool)
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistToolingSupport — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistToolingSupport.swift`)
-//   - BuildDestinationResolver — UNOWNED (no worklist) (`SwiftCode/Services/BuildDestinationResolver.swift`)
-//   - DocumentCoordinator — other agent (editor-visual-artboards) (`SwiftCode/Core/Editor/DocumentCoordinator.swift`)
-//   - PreviewManager — other agent (other) (`SwiftCode/Core/Preview/PreviewManager.swift`)
-//   - SwiftViewDetector — UNOWNED (no worklist) (`SwiftCode/Core/Preview/PreviewDiscoveryService.swift`)
-//   - ToolCapability — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - ToolRiskLevel — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+Artboards.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
 import Foundation
 import SwiftCodeAssistant
 
@@ -53,7 +33,6 @@ public struct AssistFixArtboardsTool: AssistTool {
         let errorContext = input["errorContext"] as? String ?? ""
         var actionsTaken: [String] = []
 
-        // Pass 1: Simulator & Destination Audit
         let liveSims = await BuildDestinationResolver.shared.fetchAvailableSimulators()
         let bootedSim = liveSims.first(where: { $0.variant == "Booted" }) ?? liveSims.first(where: { $0.platform.contains("iOS") })
 
@@ -74,7 +53,6 @@ public struct AssistFixArtboardsTool: AssistTool {
             }
         }
 
-        // Pass 2: Clean DerivedData / Stale Build State
         if errorContext.localizedCaseInsensitiveContains("already in progress") ||
             errorContext.localizedCaseInsensitiveContains("exit code 70") ||
             errorContext.localizedCaseInsensitiveContains("exit code 65") ||
@@ -83,7 +61,6 @@ public struct AssistFixArtboardsTool: AssistTool {
             actionsTaken.append("Cleaned stale build artifacts and reset DerivedData build cache")
         }
 
-        // Pass 3: Audit Active Artboard Custom Source Code
         if let doc = DocumentCoordinator.shared.visualUIDocument,
            let activeID = doc.scene.activeArtboardID,
            let activeArtboard = doc.scene.artboards.first(where: { $0.id == activeID }) {
@@ -112,7 +89,6 @@ public struct AssistFixArtboardsTool: AssistTool {
             }
         }
 
-        // Pass 4: Verification Compile Pass
         if let activeDoc = DocumentCoordinator.shared.activeDocument {
             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
             await PreviewManager.shared.startFreshLivePreviewSession(

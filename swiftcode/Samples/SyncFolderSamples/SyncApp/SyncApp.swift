@@ -1,8 +1,5 @@
 import Foundation
 
-// A macOS app whose sources, asset catalog, string catalog, `.lproj` table,
-// data file, whole-folder resource and copied extra all come from one
-// synchronized folder. Run it to print what the bundle holds.
 @main
 struct SyncApp {
     static func main() {

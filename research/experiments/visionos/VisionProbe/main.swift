@@ -1,17 +1,3 @@
-// VisionProbe: our own black-box probe for the visionOS simulator (Ycode,
-// dirty-room observation; see research/notes/visionos-observations.md).
-//
-// On launch it prints (stdout and os_log, prefix "VP:"):
-//   - device identity (UIDevice, a few SIMULATOR_* variables),
-//   - what the guest's Metal device reports (families, limits, the features a
-//     visionOS renderer relies on: vertex amplification, rasterization-rate maps),
-//   - ARKit provider support and authorization state,
-// then opens a window, a volume and an immersive space with RealityKit
-// entities, runs an ARKitSession with world tracking inside the immersive
-// space and prints the device (head) pose once a second.
-//
-// Launch argument "-noImmersive" skips the volume and the immersive space.
-
 import ARKit
 import Metal
 import QuartzCore

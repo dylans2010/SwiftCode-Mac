@@ -1,9 +1,3 @@
-// CodexAPIKeyView.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/Codex UIs/CodexAPIKeyView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Validate action for the OpenAI API key
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftUI
 

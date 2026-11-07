@@ -1,5 +1,3 @@
-// SwiftCode's visionOS sample 2 (visionos.md §10.21): a volumetric window with a
-// RealityKit model (a box that turns on a tap, and a metallic sphere).
 import os
 import RealityKit
 import SwiftUI

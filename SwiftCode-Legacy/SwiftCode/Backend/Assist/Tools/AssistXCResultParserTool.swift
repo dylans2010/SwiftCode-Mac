@@ -1,8 +1,3 @@
-//
-//  AssistXCResultParserTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistXCResultParserTool: AssistTool {
@@ -36,7 +31,6 @@ public struct AssistXCResultParserTool: AssistTool {
             }
         }
 
-        // Search in DerivedData
         if targetURL == nil {
             let derivedData = URL(fileURLWithPath: ("~/Library/Developer/Xcode/DerivedData" as NSString).expandingTildeInPath)
             if let enumerator = FileManager.default.enumerator(at: derivedData, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) {

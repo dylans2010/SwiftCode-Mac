@@ -63,7 +63,6 @@ public class SettingsViewModel {
     }
 
     public func clearCache() {
-        // Implementation for clearing caches
         let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
         if let url = cacheURL {
             try? FileManager.default.removeItem(at: url)

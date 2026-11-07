@@ -12,7 +12,6 @@ import sys
 airc, libs, cache = sys.argv[1], sys.argv[2], sys.argv[3]
 p = subprocess.Popen([airc, "serve", "--cache", cache], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
-
 def request(header, payload=b""):
     h = json.dumps(header).encode()
     frame = struct.pack("<I", len(h)) + h + payload
@@ -23,16 +22,13 @@ def request(header, payload=b""):
     hl = struct.unpack("<I", body[:4])[0]
     return json.loads(body[4:4 + hl]), body[4 + hl:]
 
-
 failures = 0
-
 
 def check(name, cond, detail=""):
     global failures
     print(("PASS " if cond else "FAIL ") + name + ("" if cond else " " + detail))
     if not cond:
         failures += 1
-
 
 render = open(libs + "/render.metallib", "rb").read()
 basic = open(libs + "/compute_basic.metallib", "rb").read()
@@ -90,14 +86,12 @@ check("shutdown", h.get("status") == "ok")
 p.wait(timeout=10)
 check("exit status", p.returncode == 0, str(p.returncode))
 
-# A new process reads the disk cache.
 p = subprocess.Popen([airc, "serve", "--cache", cache], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 h, w = request({"id": 13, "op": "translate", "function": "draw_vs"}, render)
 check("disk cache", h.get("cached") is True and w[:4] == struct.pack("<I", 0x07230203), str(h)[:200])
 p.stdin.close()
 p.wait(timeout=10)
 check("exit on EOF", p.returncode == 0, str(p.returncode))
-# --dump-dir saves requests and outcomes; replay runs them again.
 import os, shutil
 dump = cache + "/dump"
 shutil.rmtree(dump, ignore_errors=True)

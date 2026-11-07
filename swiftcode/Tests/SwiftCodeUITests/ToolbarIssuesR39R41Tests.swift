@@ -7,8 +7,6 @@ import SwiftCodeBuild
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-6.md rounds R39 (toolbar layout and activity view, §2–§3)
-/// and R41 (Issue navigator grouping and merging, §5.1–§5.2).
 @MainActor
 @Suite(.serialized) struct ToolbarIssuesR39R41Tests {
     func scratch(_ name: String) -> URL {
@@ -23,11 +21,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return wc
     }
 
-    // MARK: R41
-
-    /// N1 + N2 acceptance in a project window: one warning reported by the
-    /// build and by the language service shows once, under its target and
-    /// file, capitalized; the capsule counts it once.
     @Test func issueNavigatorGroupsByTargetAndMergesCopies() throws {
         let dir = scratch("n1")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -40,7 +33,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         session.issues = [build]
         session.notify(.issues)
         #expect(session.displayedIssues.map(\.message) == ["Initialization of immutable value 'unused' was never used"])
-        // The grouping knows the project's targets.
         let g = session.issueGrouping
         #expect(g.projectName == "Tool" && g.targetOrder == ["Tool"] && g.targetsOfFile(greeter) == ["Tool"])
         #expect(g.targetsOfFile(proj.deletingLastPathComponent().appendingPathComponent("Elsewhere.swift").path).isEmpty)
@@ -49,15 +41,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(rows.first?.children.map(\.title) == ["Greeter"])
         #expect(rows.first?.children.first?.children.map(\.title) == ["Initialization of immutable value 'unused' was never used"])
         #expect(wc.issueCapsule.warnings == 1 && wc.issueCapsule.errors == 0)
-        // §5.2.2: the build's issues stand for the file until it is edited.
         #expect(session.liveIssuesHiddenFiles == [IssueMerge.canonicalPath(greeter)])
         session.noteFileEdited(greeter)
         #expect(session.liveIssuesHiddenFiles.isEmpty)
     }
 
-    // MARK: R39
-
-    /// A build engine that plays a fixed list of events.
     struct ScriptedEngine: BuildEngine {
         let events: [BuildEvent]
         var name: String { "scripted" }
@@ -70,9 +58,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    /// T4 (§3.1, §3.2): "Build", then "Building • Planning deferred
-    /// tasks", then "Building • n/m"; the spinner replaces the icon while
-    /// it runs; long subtitles truncate in the middle.
     @Test func activityViewShowsBuildProgressWithSpinner() async throws {
         let dir = scratch("t4")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -92,15 +77,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(seen == ["Build", "Building \u{2022} Planning deferred tasks", "Building \u{2022} 0/3", "Building \u{2022} 2/3", "Building \u{2022} 3/4"])
         #expect(spinning.dropFirst().allSatisfy { $0 })
         #expect(!wc.activityView.showsSpinner && wc.activityView.status.hasPrefix("Build Succeeded \u{2022} Today at "))
-        // Middle truncation.
         let long = "Finished running MyApp on iPhone 18 Pro Max"
         let short = ActivityView.truncatedStatus(long, width: 120)
         #expect(short.contains("\u{2026}") && short.first == "F" && short.hasSuffix("x"))
         #expect(ActivityView.truncatedStatus("Build", width: 120) == "Build")
     }
 
-    /// T6 (§2.1), T7 (§2.5), T9 (§2.3): accessibility titles, the
-    /// state-dependent toggle titles, and the issue capsule's buttons.
     @Test func toolbarTitlesAndIssueCapsuleButtons() throws {
         let dir = scratch("t6")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -108,8 +90,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let wc = window(session)
         let ids = wc.toolbarDefaultItemIdentifiers(NSToolbar()).map(\.rawValue)
         #expect(!ids.contains("account") && ids.last == "inspectorToggle")
-        // liquid-glass.md §2.2: Show Inspector sits at the far right of the
-        // inspector's section (a flexible space before it).
         #expect(Array(ids.suffix(7)) == ["addEditor", "editorOptions", "editorModes", "extensions",
                                          "NSToolbarInspectorTrackingSeparatorItemIdentifier",
                                          "NSToolbarFlexibleSpaceItem", "inspectorToggle"])
@@ -118,7 +98,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(add.label == "Add Editor" && add.toolTip == "Add Editor Tabs or Editor Panes")
         #expect(opts.label == "Editor Options" && opts.toolTip == "Adjust Editor Options")
         #expect(wc.schemePopUp.accessibilityTitle() == "Active Scheme" && wc.destinationPopUp.accessibilityTitle() == "Active Run Destination")
-        // T7: the inspector toggle and the debug-area toggle follow their state.
         #expect(wc.inspectorToggleItemTitle == "Hide Inspector")
         wc.inspectorItem.isCollapsed = true
         #expect(wc.inspectorToggleItemTitle == "Show Inspector")
@@ -126,8 +105,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(toggle.toolTip == "show debug area" && toggle.accessibilityTitle() == "show debug area")
         wc.showDebugArea(true)
         #expect(toggle.toolTip == "hide debug area" && toggle.accessibilityTitle() == "hide debug area")
-        // T9: an errors and an issues button; zero counts left out; each
-        // opens the Issue navigator.
         let cap = wc.issueCapsule
         cap.errors = 0; cap.warnings = 2
         #expect(cap.buttons.map { $0.accessibilityTitle() ?? "" } == ["Errors", "Issues", "Test Failures"])
@@ -137,8 +114,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wc.navigator.selectedIndex == 4 && wc.shownLeftPane == .navigators)
     }
 
-    /// T2 (§2.4.1): the destination pop-up shows the name only and is as
-    /// wide as that title; the version is in the open menu's rows.
     @Test func destinationPopUpShowsTheNameOnly() throws {
         let dir = scratch("t2")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -162,7 +137,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         probe.controlSize = .small
         probe.addItem(withTitle: wide.name)
         #expect(width < probe.intrinsicContentSize.width)
-        // While open, the rows carry their versions; closed, the names.
         let menu = try #require(popUp.menu)
         menu.delegate?.menuNeedsUpdate?(menu)
         #expect(row.attributedTitle?.string == "iPhone 18 Pro\t27.0")
@@ -170,11 +144,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(row.attributedTitle == nil && popUp.titleOfSelectedItem == "iPhone 18 Pro")
     }
 
-    /// Row 34 (liquid-glass.md §8.2): short of room, the scheme capsule
-    /// drops its titles, then the editor-mode group goes into the system's
-    /// "»" overflow, then the subtitle truncates in the middle. Add Editor, Editor Options, the scheme and the issue capsule
-    /// stay; Show Inspector stays at the far right; a wider window undoes
-    /// it all.
     @Test func toolbarOverflowsInOrder() throws {
         let dir = scratch("t1")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -209,24 +178,17 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             fits[w] = wc.toolbarFit
         }
         #expect(fits[2000] == ToolbarFit() && wc.overflowedToolbarItems.isEmpty && !wc.schemeShowsGlyphsOnly)
-        // At 1100 (the reference's narrow window), with this long scheme
-        // and destination, the modes are in "»" and the scheme shows glyphs.
         #expect(fits[1100]?.editorModesInOverflow == true && fits[1100]?.schemeGlyphsOnly == true)
-        // Monotone: a narrower window never gives up less.
         let order = [1600, 1400, 1250, 1150, 1100, 1050].compactMap { fits[$0] }
         let steps = ToolbarFit.steps(activityNatural: wc.activityView.naturalWidth)
         let ranks = order.compactMap { steps.firstIndex(of: $0) }
         #expect(ranks.count == order.count && ranks == ranks.sorted())
-        // In the "»" menu the group is "Editor Modes" with the three modes.
         let item = try #require(window.toolbar?.items.first { $0.itemIdentifier.rawValue == "editorModes" })
         #expect(item.visibilityPriority == .low)
         #expect(item.menuFormRepresentation?.title == "Editor Modes")
         #expect(item.menuFormRepresentation?.submenu?.items.map(\.title) == ["Canvas", "Assistant", "Code Review"])
     }
 
-    /// Row 34: the glyphs-only scheme capsule is about 87 points wide
-    /// (target glyph, "›", destination glyph), and its titles become
-    /// tooltips.
     @Test func schemeCapsuleGlyphsOnly() throws {
         let dir = scratch("t1g")
         defer { try? FileManager.default.removeItem(at: dir) }

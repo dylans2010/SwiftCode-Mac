@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Parsers/StoreKitParser.swift` (SwiftCode-Mac migration, P-UTIL).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import Foundation
 
 public final class StoreKitParser: Sendable {

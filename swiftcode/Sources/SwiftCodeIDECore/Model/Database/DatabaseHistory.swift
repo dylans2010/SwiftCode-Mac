@@ -1,21 +1,12 @@
 import Foundation
 
-/// Logs — Legacy's `Services/DatabaseHistoryService.swift`, ported.
-/// The logs section renders this service's query history (Legacy's
-/// `DatabaseLogsView` did the same); there is no separate log file.
-///
-/// Keys are `com.swiftcode.database.*` rather than Legacy's
-/// `com.swiftcode.database.*`: the port is a new app, and reading
-/// Legacy's keys would silently import another app's history.
-/// The three seeded saved queries are Legacy's, verbatim.
-
 public struct DatabaseQueryHistoryItem: Identifiable, Codable, Hashable {
     public let id: UUID
     public var sql: String
     public var timestamp: Date
     public var executionTimeMs: Double
     public var rowsAffected: Int
-    public var status: String // "SUCCESS" or "ERROR"
+    public var status: String
     public var errorMessage: String?
 
     public init(id: UUID = UUID(), sql: String, timestamp: Date = Date(), executionTimeMs: Double,

@@ -1,24 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/TestTools.swift
-//
-// Verbatim apart from this header. `Project` lives in this module
-// (`Model/Project.swift`); `directoryURL` is @MainActor and this
-// manager is @MainActor, so the access is unchanged.
-//
-// CLEANUP (2026-11-06, triage §C18) — `runExtensionTests` no longer
-// reports Legacy's simulated extension results: it slept 0.5 s, then
-// reported three fabricated passing tests (InitializationTest 0.15s,
-// CapabilityExecutionTest 0.22s, AssetLoadingTest 0.08s) and appended
-// "Tests completed successfully!" although nothing ever ran. No real
-// extension-test runner exists in the codebase (no extension host test
-// entry, no extension-ID → package-directory mapping to run
-// `swift test` against — the `runSwiftTests` pattern in this file
-// needs a project directory, and `runExtensionTests` only receives an
-// extension ID). Until such a runner exists, the function reports
-// honestly that no runner is available, records no results, and never
-// claims success. `runSwiftTests` still runs the real `swift test`
-// process — see DISPOSITIONS.md.
-
 import Foundation
 
 public enum TestStatus: String, Codable, Sendable {
@@ -112,7 +91,6 @@ public final class TestToolsManager: ObservableObject {
         do {
             try process.run()
 
-            // Run on a cooperative detached task to wait without blocking
             try await Task.detached { [process] in
                 process.waitUntilExit()
             }.value
@@ -149,14 +127,6 @@ public final class TestToolsManager: ObservableObject {
         self.process = nil
     }
 
-    /// Runs an extension's tests. There is currently no extension-test
-    /// runner: no extension host test entry exists and there is no
-    /// mapping from an extension ID to a package directory that
-    /// `swift test` could run in (unlike `runSwiftTests`, which runs the
-    /// real `swift test` process in a project's directory). So this
-    /// reports honestly that no runner is available, records no
-    /// results, and never claims success — it must not be changed back
-    /// to reporting fabricated passing tests.
     public func runExtensionTests(extensionID: String) async {
         guard !isRunning else { return }
 

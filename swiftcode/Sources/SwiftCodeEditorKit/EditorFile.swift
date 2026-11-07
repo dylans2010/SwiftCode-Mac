@@ -5,14 +5,11 @@ import Glibc
 import Darwin
 #endif
 
-/// How a file's bytes map to the editor's text, kept so a save writes back
-/// what it read: the byte order mark and the line endings.
 public struct EditorFileFormat: Equatable, Sendable {
     public enum Encoding: Equatable, Sendable {
         case utf8, utf8BOM, utf16LE, utf16BE
     }
     public var encoding: Encoding
-    /// The file's lines all end in CRLF; the buffer holds LF.
     public var crlf: Bool
     public init(encoding: Encoding = .utf8, crlf: Bool = false) {
         self.encoding = encoding
@@ -20,16 +17,13 @@ public struct EditorFileFormat: Equatable, Sendable {
     }
 }
 
-/// What identifies a file's state on disk.
 public struct EditorDiskStamp: Equatable, Sendable {
     public var size: Int64
     public var modified: Double
     public var inode: UInt64
-    /// FNV-1a of the bytes.
     public var contentHash: UInt64
 }
 
-/// Why a save failed; the buffer keeps the text.
 public enum EditorSaveError: Error, Equatable, CustomStringConvertible {
     case cannotWrite(path: String, reason: String)
     case verifyFailed(path: String)
@@ -43,13 +37,10 @@ public enum EditorSaveError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum EditorFile {
-    /// Files larger than this are not opened (as the read-only editor did).
     public static let sizeLimit = 16 << 20
 
-    /// What opening a file gave.
     public enum Contents: Equatable, Sendable {
         case text(String, EditorFileFormat, EditorDiskStamp)
-        /// Shown but not editable: saving would not give back its bytes.
         case readOnly(String, reason: String, EditorDiskStamp)
         case unavailable(String)
     }
@@ -64,14 +55,12 @@ public enum EditorFile {
             if data.prefix(8192).contains(0) || binaryExtensions.contains((path as NSString).pathExtension.lowercased()) {
                 return .unavailable("Binary file")
             }
-            // Not UTF-8: show it, but saving the replacement characters would destroy the bytes.
             return .readOnly(String(decoding: data, as: UTF8.self), reason: "\(name) is not valid UTF-8, so it is shown read-only.", stamp(path: path, data: data))
         }
         if binaryExtensions.contains((path as NSString).pathExtension.lowercased()) { return .unavailable("Binary file") }
         return .text(decoded.text, decoded.format, stamp(path: path, data: data))
     }
 
-    /// The text and format of `data`; nil when it is binary or invalid UTF-8.
     public static func decode(_ data: Data) -> (text: String, format: EditorFileFormat)? {
         let bytes = [UInt8](data)
         var format = EditorFileFormat()
@@ -97,8 +86,6 @@ public enum EditorFile {
             text = s
         }
         if text.utf8.contains(13) {
-            // Only a file that is CRLF throughout is normalized: a mixed one
-            // keeps its bytes (`\r` stays in the text, the line's end hides it).
             let u = Array(text.utf16)
             var crlf = 0, bareLF = 0, bareCR = 0
             for i in u.indices {
@@ -116,7 +103,6 @@ public enum EditorFile {
         return (text, format)
     }
 
-    /// The bytes for `text`, the inverse of `decode`.
     public static func encode(_ text: String, format: EditorFileFormat) -> Data {
         let t = format.crlf ? text.replacingOccurrences(of: "\n", with: "\r\n") : text
         switch format.encoding {
@@ -160,27 +146,16 @@ public enum EditorFile {
         #endif
     }
 
-    /// The stamp of `path` whose bytes are `data`.
     public static func stamp(path: String, data: Data) -> EditorDiskStamp {
         let st = statInfo(path)
         return EditorDiskStamp(size: Int64(data.count), modified: st.map(modified) ?? 0, inode: UInt64(st?.st_ino ?? 0), contentHash: hash(data))
     }
 
-    /// Whether `path` still looks as it did (size, time, inode), without
-    /// reading it. A changed look may still be the same bytes.
     public static func looksUnchanged(path: String, stamp: EditorDiskStamp) -> Bool {
         guard let st = statInfo(path) else { return false }
         return Int64(st.st_size) == stamp.size && modified(st) == stamp.modified && UInt64(st.st_ino) == stamp.inode
     }
 
-    /// Writes `data` so that `path` holds either its old bytes or all of the
-    /// new ones, never a mix, also across a crash: a temporary file beside
-    /// it, flushed and read back, renamed over it, then the directory flushed.
-    /// A symbolic link stays a link (its target is what changes); the mode and,
-    /// where allowed, the owner carry over. Where the directory takes no new
-    /// file or the path can't be renamed over (a bind-mounted file), the file
-    /// is written in place, after a copy of the old bytes beside the temporary
-    /// directory's, which stays if that write fails.
     @discardableResult
     public static func writeAtomically(_ data: Data, to path: String) throws -> EditorDiskStamp {
         let target = resolvedPath(path)
@@ -228,11 +203,8 @@ public enum EditorFile {
         return stamp(path: target, data: data)
     }
 
-    /// The real file behind `path` (symbolic links followed); `path` itself
-    /// when it does not exist.
     static func resolvedPath(_ path: String) -> String {
         guard let r = realpath(path, nil) else {
-            // A dangling link: its target is the file to create.
             var buf = [CChar](repeating: 0, count: 4096)
             let n = readlink(path, &buf, buf.count - 1)
             guard n > 0 else { return path }

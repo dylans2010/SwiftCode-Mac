@@ -1,51 +1,7 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistAgentSession.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Agents/AssistAgentSession.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - session runner: start/cancel/retryLastStep
-//   - detectStuck/replanFromStuck
-//   - observeResult / postConversationalMessage / publishCurrentActivityGroup / finalizeStreamedToolPreview
-//   - logChangeToSummary / updateAgentNotes / ExecutionSummaryData
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AIMessageAttachment — UNOWNED (no worklist) (`SwiftCode/Core/AI/AIMessage.swift`)
-//   - ActivityStatus — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - AgentFileContext — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Functions/FileAgentHelper.swift`)
-//   - AgentModelAdapter — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AgentModelAdapter.swift`)
-//   - AgentNotesManager — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AgentNotesManager.swift`)
-//   - AgentSkillResolver — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AgentSkillResolver.swift`)
-//   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
-//   - AssistActivityGroup — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - AssistConversationMemory — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistConversationMemory.swift`)
-//   - AssistIntentClassifier — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistIntentClassifier.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - AssistPlanner — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistPlanner.swift`)
-//   - AssistSDKSessionRunner — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistSDKSessionRunner.swift`)
-//   - AssistToolRouter — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - AssistVerificationPipeline — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistVerificationPipeline.swift`)
-//   - BuildActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - DiscoveredSkill — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AgentSkillResolver.swift`)
-//   - FileActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - FoundationModels — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-//   - HermesError — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/HermesProvider.swift`)
-//   - LLMService — other agent (services-networking-cloud) (`SwiftCode/Features/AI/LLMService.swift`)
-//   - LiveDiffStreamer — UNOWNED (no worklist) (`SwiftCode/Frameworks/Diff/MyersDiffAlgorithm.swift`)
-//   - NotificationManager — UNOWNED (no worklist) (`SwiftCode/Services/NotificationManager.swift`)
-//   - RecoveryActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - SDKSessionKind — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistSDKSessionRunner.swift`)
-//   - TestActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - ToolActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - VerificationActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - WorkerActivityItem — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 import Observation
 import os
 
-/// Struct to represent standard execution summary metrics.
 public struct ExecutionSummaryData: Codable, Sendable {
     public let objective: String
     public let totalDuration: TimeInterval
@@ -71,26 +27,11 @@ public final class AssistAgentSession: Sendable {
     public var successfulToolExecutionCount = 0
     public var recentToolResults: [AssistToolResult] = []
     public var recentErrors: [String] = []
-    /// One-time tool-stage SystemIndex retrieval flag. Reset per session
-    /// start; set after the first risky tool triggers safeguard guidance
-    /// injection so it never repeats within a session.
     private var didInjectToolStageGuidance = false
 
     private var isCancelled = false
-    /// Active SDK-backed run, if any, so cancellation reaches the
-    /// bridge process. Set only by the SDK branch in start().
     private var sdkRunner: AssistSDKSessionRunner?
-    /// Active Hermes run, if any, so cancellation reaches the Hermes
-    /// child process. Set only by the Hermes branch in start().
-    /// The transcript panel reuses the SDK panel plumbing: the Hermes
-    /// branch sets sdkSessionId / sdkSessionKind (.hermes) /
-    /// sdkMessageId, and AssistMainView renders HermesToolsUIView
-    /// for that kind.
     private var hermesRunner: HermesSessionRunner?
-    /// Last SDK-backed run, for transcript rendering: AssistChatBubble
-    /// shows ORToolsUIView / OCToolsUIView under exactly this message,
-    /// with events from SDKToolEventStore for this session id. Kept
-    /// after the run so the panel survives scrolling back to it.
     public var sdkSessionId: String?
     public var sdkSessionKind: SDKSessionKind?
     public var sdkMessageId: UUID?
@@ -103,19 +44,16 @@ public final class AssistAgentSession: Sendable {
     private var cachedToolSchemas: [AgentSessionStatus: String] = [:]
     private var lastNotesUpdateTime = Date.distantPast
 
-    // Active Activity Group tracking for conversational messages
     public var currentActivityGroup = AssistActivityGroup(isExecuting: true)
     private var currentAssistantMessageId: UUID?
     private var pendingImageAttachments: [AIMessageAttachment] = []
 
-    // Statistics for execution metrics dashboard
     public var executionSummary: ExecutionSummaryData?
     public let phaseCoordinator = AgentPhaseCoordinator.shared
     public var cachedDiscoveredSkills: [DiscoveredSkill] = []
 
     public init() {}
 
-    /// MainActor-isolated atomic state transition helper that validates transitions and updates internal state machine.
     @MainActor
     public func transition(to newState: AgentSessionStatus, reason: String, toolResult: String? = nil) {
         let oldState = self.state.status
@@ -149,8 +87,6 @@ public final class AssistAgentSession: Sendable {
         self.state.events.append(event)
         updateAgentNotes(currentAction: reason)
     }
-
-    // MARK: - Observation Loop
 
     @MainActor
     private func observeResult(toolId: String, input: [String: Any], result: AssistToolResult, explanation: String) {
@@ -196,8 +132,6 @@ public final class AssistAgentSession: Sendable {
 
         AssistErrorRecoveryEngine.shared.recordToolCallSignature(inputSignature)
     }
-
-    // MARK: - Stuck Detection
 
     @MainActor
     private func detectStuck() -> StuckDetectionEvent? {
@@ -267,8 +201,6 @@ public final class AssistAgentSession: Sendable {
         return nil
     }
 
-    // MARK: - Replanning
-
     @MainActor
     private func replanFromStuck(detection: StuckDetectionEvent) {
         self.state.replanningCount += 1
@@ -303,7 +235,6 @@ public final class AssistAgentSession: Sendable {
         self.state.recentToolCallWindow.removeAll()
     }
 
-    /// Helper to post or update conversational messages on AssistManager.shared.messages with attached ActivityGroup.
     @MainActor
     private func postConversationalMessage(_ content: String, isComplete: Bool = false) {
         var groupCopy = self.currentActivityGroup
@@ -311,14 +242,11 @@ public final class AssistAgentSession: Sendable {
 
         if let msgId = currentAssistantMessageId,
            let idx = AssistManager.shared.messages.firstIndex(where: { $0.id == msgId }) {
-            // Preserve the message identity so later streamed activity updates continue
-            // attaching to this transcript row instead of creating duplicate bubbles.
             var message = AssistManager.shared.messages[idx]
             message.content = content
             message.activityGroup = groupCopy.hasContent ? groupCopy : nil
             AssistManager.shared.messages[idx] = message
         } else {
-            // Create new message
             let newMsg = AssistMessage(
                 role: .assistant,
                 content: content,
@@ -366,7 +294,6 @@ public final class AssistAgentSession: Sendable {
         self.currentActivityGroup = AssistActivityGroup(isExecuting: true)
         self.currentAssistantMessageId = nil
 
-        // Initialize structured task, recovery engine, and phase coordinator
         phaseCoordinator.reset()
         _ = phaseCoordinator.startPhase("PHASE_01_INIT")
 
@@ -374,14 +301,11 @@ public final class AssistAgentSession: Sendable {
         self.currentTask = task
         AssistErrorRecoveryEngine.shared.resetSession()
 
-        // PHASE 1: Initializing
         transition(to: .initializing, reason: "Initializing autonomous session.")
         self.state.changeSummary.clear()
 
-        // Conversational start
         postConversationalMessage("I’ll inspect the project first and identify the relevant files before making any changes.")
 
-        // --- COMPREHENSIVE SESSION STATE VALIDATION ---
         let selectedModel = AssistModelManager.shared.selectedModelID
         let selectedProvider = LLMService.shared.provider(for: selectedModel)
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
@@ -391,7 +315,6 @@ public final class AssistAgentSession: Sendable {
 
         pipelineLogger.log("[start] Validating Assist session configuration. Selected Model: \(selectedModel), Selected Provider: \(selectedProvider.rawValue), Mode: \(isAgentMode ? "Agent" : "Chat"), Execution Mode: \(executionMode.rawValue)")
 
-        // 1. Verify selected model is not empty
         guard !selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             let errorMsg = "Session State Error: No model has been selected for this session."
             phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
@@ -399,7 +322,6 @@ public final class AssistAgentSession: Sendable {
             throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
 
-        // 2. Verify runtime execution mode is correct
         guard isAgentMode else {
             let errorMsg = "Session State Error: Attempted to run Agent session while execution mode is not set to Agent Mode."
             phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
@@ -407,16 +329,6 @@ public final class AssistAgentSession: Sendable {
             throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
 
-        // 2a. Hermes runs through HermesSessionRunner instead of the
-        // plan-based loop below. This branch runs BEFORE the SDK
-        // branch and before legacy validation: Hermes ids carry "/"
-        // and would otherwise be misclassified by the OpenRouter
-        // fallback, and the legacy key check would demand a
-        // SwiftCode-managed key Hermes does not have (its credentials
-        // live in ~/.hermes/.env). A failure here is terminal for
-        // the turn — it never falls back to another provider. A
-        // cancellation is not re-reported as a failure: cancel()
-        // already transitioned the session to .cancelled.
         if HermesModelID.isHermesModelID(selectedModel) {
             do {
                 let runner = HermesSessionRunner()
@@ -433,9 +345,6 @@ public final class AssistAgentSession: Sendable {
                 return
             } catch {
                 self.hermesRunner = nil
-                // HermesError.cancelled is only ever thrown for a
-                // user cancel, so it is a cancellation even if the
-                // session flag was not the path that raised it.
                 if isCancelled || Task.isCancelled {
                     return
                 }
@@ -448,23 +357,10 @@ public final class AssistAgentSession: Sendable {
             }
         }
 
-        // 2b. SDK-backed providers (OpenCode via @opencode-ai/sdk,
-        // OpenRouter via @openrouter/agent) run through
-        // AssistSDKSessionRunner instead of the plan-based loop below.
-        // This branch runs BEFORE the legacy validation: the legacy
-        // OpenCode check would fail a managed server that is not
-        // running yet, and the legacy key check would duplicate the
-        // SDK path's own validation. A failure here is terminal for
-        // the turn — it never falls back to the HTTP clients or to
-        // another provider. Chat-mode OpenRouter traffic (LLMService)
-        // is unaffected: this session only runs in agent mode.
         if let sdkKind = await AssistSDKSessionRunner.applicableKind(for: selectedModel) {
             do {
                 let runner = AssistSDKSessionRunner()
                 self.sdkRunner = runner
-                // The "I'll inspect…" message posted above becomes this
-                // run's transcript message; key the tool panel to it now
-                // so streaming events render under it while running.
                 self.sdkSessionId = context.sessionId.uuidString
                 self.sdkSessionKind = sdkKind
                 self.sdkMessageId = currentAssistantMessageId
@@ -483,18 +379,7 @@ public final class AssistAgentSession: Sendable {
             }
         }
 
-        // 3. Verify Authentication state and capabilities
-        // M-7: the legacy check was API-key-only and OAuth-unaware. A valid
-        // Google OAuth session satisfies the Google provider.
-        // N-3: use the async token accessor — the sync overload blocks up to
-        // 8 s on a semaphore during refresh and never tries ambient ADC.
         if OpenCodeModelID.isOpenCodeModelID(selectedModel) {
-            // OpenCode has no SwiftCode-managed API key: model credentials
-            // live in OpenCode's own configuration and SwiftCode only
-            // talks to the local server. Validate reachability instead of
-            // a key — and never fall through to the OpenRouter key check
-            // below (an `opencode:` id contains "/" and would otherwise
-            // be misclassified as an OpenRouter model).
             do {
                 try await OpenCodeClient.shared.ensureServer()
             } catch {
@@ -546,7 +431,6 @@ public final class AssistAgentSession: Sendable {
         AssistManager.shared.hasCodeReviewBeenInvoked = false
         AssistManager.shared.isCodeReviewRunning = false
 
-        // Assist v4: Multi-Goal State & Live Diff initialization
         let rootProvenance = GoalProvenance(
             createdReason: "Initial objective requested by user",
             evidenceTrigger: "Direct user prompt",
@@ -574,7 +458,6 @@ public final class AssistAgentSession: Sendable {
 
         self.contextManager = AgentContextManager(context: context)
 
-        // FAST-PATH: If this is a deterministic, high-confidence single tool call, execute directly!
         if let directToolId = classification.deterministicToolId,
            let directInput = classification.deterministicInput,
            let tool = registry.getTool(directToolId) {
@@ -625,7 +508,6 @@ public final class AssistAgentSession: Sendable {
             }
         }
 
-        // Codebase Analysis - only for complex or heavy autonomous tasks
         transition(to: .grounding, reason: "Analyzing codebase structure.")
         var preModSummary = ""
         if classification.profile == .complex || classification.profile == .heavy {
@@ -641,19 +523,16 @@ public final class AssistAgentSession: Sendable {
         }
         phaseCoordinator.completePhase("PHASE_02_GROUNDING", evidence: preModSummary)
 
-        // Dynamic Skills Discovery
         _ = phaseCoordinator.startPhase("PHASE_03_SKILLS")
         self.cachedDiscoveredSkills = await AgentSkillResolver.shared.discoverSkills(in: context.workspaceRoot)
         cachedMatchedSkills = AgentSkillResolver.shared.matchSkills(for: objective, in: self.cachedDiscoveredSkills)
         cachedSkillsBlock = "\n" + AgentSkillResolver.shared.formatSkillsBlock(matched: cachedMatchedSkills, totalDiscovered: self.cachedDiscoveredSkills.count) + "\n"
         phaseCoordinator.completePhase("PHASE_03_SKILLS", evidence: "\(cachedMatchedSkills.count) matching skills loaded.")
 
-        // Agent Notes Creation
         _ = phaseCoordinator.startPhase("PHASE_04_NOTES")
         updateAgentNotes(currentAction: "Initializing execution plan and notes.")
         phaseCoordinator.completePhase("PHASE_04_NOTES", evidence: "agent_notes.md created.")
 
-        // Pre-planning baseline verification
         self.validationCount += 1
         transition(to: .grounding, reason: "Verifying repository baseline integrity...")
         let fm = FileManager.default
@@ -670,7 +549,6 @@ public final class AssistAgentSession: Sendable {
             details: baselineDetails
         ))
 
-        // Execute execution_plan tool only for complex or heavy autonomous coding tasks
         if classification.profile == .complex || classification.profile == .heavy {
             postConversationalMessage("I’m analyzing the project structure and locating the relevant files.")
             _ = phaseCoordinator.startPhase("PHASE_04B_EXECUTION_PLAN")
@@ -702,7 +580,6 @@ public final class AssistAgentSession: Sendable {
             }
         }
 
-        // EXPLICIT TOOL EXECUTION: If user requested a specific tool first, run it immediately!
         if let explicit = classification.explicitTool, let tool = registry.getTool(explicit.toolId) {
             let formatted = AssistToolActivityFormatter.format(toolId: explicit.toolId, arguments: explicit.suggestedInput)
             postConversationalMessage("Priority Tool Request: Running \(formatted.runningLabel) first…")
@@ -733,17 +610,12 @@ public final class AssistAgentSession: Sendable {
             }
         }
 
-        // Production-grade adaptive orchestration trackers
         var lastRepoModificationCount = 0
         var lastSuccessfulToolCallCount = 0
         var lastValidationCount = 0
         var consecutiveNoProgressCycles = 0
         var codeReviewAttempts = 0
 
-        // --- SystemIndex task-instruction retrieval (legacy agent path) ---
-        // Retrieved once per session start and injected into every iteration's
-        // prompt. Recorded in AssistManager's request ledger so chunk IDs are
-        // never re-injected by a later request in the same conversation.
         let instructionQuery = InstructionQueryContext(
             userText: objective,
             taskCategory: SystemIndexService.classifyCategory(for: objective),
@@ -766,7 +638,6 @@ public final class AssistAgentSession: Sendable {
             self.iterationCount += 1
             AlertSoundPlayer.shared.play(.agentThinking)
 
-            // Budget Control: check limits
             let elapsed = Date().timeIntervalSince(startDate)
             if let exceededReason = task.budgets.isExceeded(
                 iterations: self.iterationCount,
@@ -782,7 +653,6 @@ public final class AssistAgentSession: Sendable {
                 return
             }
 
-            // Planning & Context Assembly
             _ = phaseCoordinator.startPhase("PHASE_05_PLANNING")
             transition(to: .planning, reason: "Formulating execution strategy...")
 
@@ -905,11 +775,6 @@ public final class AssistAgentSession: Sendable {
                 prompt: conversationPrompt,
                 modelId: activeModel,
                 attachments: activeAttachments,
-                // Only the OpenCode branch uses these; other providers
-                // keep their existing behaviour (see AgentModelAdapter).
-                // The system prompt is the real asset prompt, not an
-                // OpenCode default, and the directory scopes the OpenCode
-                // session to this workspace.
                 systemPrompt: assetSystemPrompt,
                 directory: context.workspaceRoot.path
             )
@@ -961,7 +826,6 @@ public final class AssistAgentSession: Sendable {
                 continue
             }
 
-            // Check if final response was reached
             if let finalResponse = jsonBlock["finalResponse"] as? String {
                 finalizeStreamedToolPreview(status: .skipped, result: "The model returned a final response instead of running this tool.")
                 self.validationCount += 1
@@ -1008,7 +872,6 @@ public final class AssistAgentSession: Sendable {
                 ))
                 phaseCoordinator.completePhase("PHASE_07_VERIFICATION", evidence: "Contract verified.")
 
-                // Execute final code review gate if enabled
                 _ = phaseCoordinator.startPhase("PHASE_08_REVIEW")
                 transition(to: .verifying, reason: "Executing code review verification...")
                 let isReviewEnabled = UserDefaults.standard.object(forKey: "com.swiftcode.assist.enableCodeReview") as? Bool ?? true
@@ -1042,7 +905,6 @@ public final class AssistAgentSession: Sendable {
 
                 phaseCoordinator.completePhase("PHASE_08_REVIEW", evidence: "Code review passed.")
 
-                // Final Conversational Completion
                 currentActivityGroup.isExecuting = false
                 let finalSummaryText = finalResponse.isEmpty ? "The fix is complete and verified." : finalResponse
                 AssistConversationMemory.shared.finalizeTurn(summary: finalSummaryText)
@@ -1055,7 +917,6 @@ public final class AssistAgentSession: Sendable {
                 return
             }
 
-            // Resilient Tool Extraction (supporting toolId, name, tool, function)
             let rawToolCandidate = (jsonBlock["toolId"] as? String)
                 ?? (jsonBlock["name"] as? String)
                 ?? (jsonBlock["tool"] as? String)
@@ -1069,7 +930,6 @@ public final class AssistAgentSession: Sendable {
 
             let toolId = MetaAssistProvider.normalizeToolName(rawToolName)
 
-            // Resilient Argument Extraction (supporting input, arguments, parameters, stringified JSON)
             var extractedInput: [String: Any]? = jsonBlock["input"] as? [String: Any]
                 ?? jsonBlock["arguments"] as? [String: Any]
                 ?? jsonBlock["parameters"] as? [String: Any]
@@ -1093,7 +953,6 @@ public final class AssistAgentSession: Sendable {
 
             let explanation = jsonBlock["explanation"] as? String ?? "Inspecting project"
 
-            // Pre-execution Schema Validation & Auto-correction
             let validation = AssistErrorRecoveryEngine.shared.validateToolCall(
                 toolId: toolId,
                 input: rawInput,
@@ -1116,7 +975,6 @@ public final class AssistAgentSession: Sendable {
             let newStep = PlanStep(toolId: toolId, description: explanation, input: toolInput)
             state.plan.append(newStep)
 
-            // Enforce phase allowlist at execution time
             let phaseTools = AssistToolRouter.shared.filterTools(for: self.state.status, in: registry)
             if !phaseTools.contains(where: { $0.id == toolId }) {
                 let meta = AssistToolRouter.shared.metadata(for: toolId)
@@ -1132,10 +990,6 @@ public final class AssistAgentSession: Sendable {
             _ = phaseCoordinator.startPhase("PHASE_06_EXECUTION")
             transition(to: .executing, reason: "Executing tool [\(toolId)]")
 
-            // One-time tool-stage instruction retrieval: before the first
-            // risky tool executes, pull safeguard/tool-call guidance into the
-            // conversation so the model has the current destructive-operation
-            // policy in context. The request ledger prevents re-injection.
             let toolMeta = AssistToolRouter.shared.metadata(for: toolId)
             if !didInjectToolStageGuidance && toolMeta.riskLevel >= .potentiallyDestructive {
                 didInjectToolStageGuidance = true
@@ -1164,7 +1018,6 @@ public final class AssistAgentSession: Sendable {
 
             state.toolCallCount += 1
 
-            // Record Tool in Activity Group
             let toolActivityIndex: Int
             if let streamedToolActivityIndex,
                streamedToolId == toolId,
@@ -1225,10 +1078,8 @@ public final class AssistAgentSession: Sendable {
 
                     logChangeToSummary(toolId: toolId, input: toolInput, explanation: explanation, output: result.output)
 
-                    // Track file modifications in Activity Group & Conversation Memory
                     AssistConversationMemory.shared.recordToolExecution(toolId: toolId)
 
-                    // Capture screenshot image attachment for visual inspection by the active model
                     if toolId == "take_screenshot", let base64 = result.data?["base64"], !base64.isEmpty {
                         let attachment = AIMessageAttachment(
                             mimeType: "image/png",
@@ -1265,7 +1116,6 @@ public final class AssistAgentSession: Sendable {
                         }
                     }
 
-                    // Track builds/tests in Activity Group & Conversation Memory
                     if toolId == "project_build" || toolId == "build_project" {
                         AssistConversationMemory.shared.recordBuildOutcome(result.success ? "Passed" : "Failed")
                         currentActivityGroup.builds.append(BuildActivityItem(

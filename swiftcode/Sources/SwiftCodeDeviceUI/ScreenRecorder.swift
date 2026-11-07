@@ -1,10 +1,3 @@
-// Record Screen (device-hub.md §4.4, "SwiftCode implementation"): the pictures
-// the viewer receives become an H.264 QuickTime movie on the Mac, each at
-// the time it arrived. SwiftCode decision: the movie has the size of the first
-// picture (even width and height); a later picture of another shape (a
-// rotation, the iPhone Duo's other panel) is fitted into it, centred on
-// black. Encoding runs on the recorder's own queue.
-
 #if os(macOS)
 import AVFoundation
 import CoreGraphics
@@ -27,7 +20,6 @@ public final class ScreenRecorder: @unchecked Sendable {
         try? FileManager.default.removeItem(at: url)
     }
 
-    /// Adds a picture at the current time.
     public func append(_ image: CGImage) {
         let now = CACurrentMediaTime()
         queue.async { [self] in appendLocked(image, at: now) }
@@ -80,20 +72,15 @@ public final class ScreenRecorder: @unchecked Sendable {
         }
     }
 
-    /// A picture of `image` size fitted into `box`, centred.
     static func fitted(_ image: CGSize, in box: CGSize) -> CGRect {
         let s = min(box.width / image.width, box.height / image.height)
         let w = image.width * s, h = image.height * s
         return CGRect(x: (box.width - w) / 2, y: (box.height - h) / 2, width: w, height: h)
     }
 
-    /// Ends the movie; `done` gets its URL (nil: nothing was recorded).
     public func finish(_ done: @escaping @Sendable (URL?) -> Void) {
         let now = CACurrentMediaTime()
         queue.async { [self] in
-            // The stream sends pictures only when the screen changes: the
-            // last one is repeated at the stop, so the movie lasts as long
-            // as the recording did.
             if let lastImage { appendLocked(lastImage, at: now) }
             guard let writer, let input else { done(nil); return }
             input.markAsFinished()

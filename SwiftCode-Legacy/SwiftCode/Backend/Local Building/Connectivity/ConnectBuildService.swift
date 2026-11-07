@@ -55,7 +55,6 @@ public final class ConnectBuildService: @unchecked Sendable {
 
         currentBuildState = .preparing
 
-        // Send Build Started event to connected sessions
         let startedPayload = ["project": project.name, "scheme": scheme]
         if let env = try? MessageEnvelope.encode(payload: startedPayload, type: .buildStarted, correlationID: envelope.messageID) {
             ConnectServer.shared.broadcast(envelope: env, requiringPermission: .buildExecute)
@@ -65,7 +64,6 @@ public final class ConnectBuildService: @unchecked Sendable {
             let startTime = Date()
             self.currentBuildState = .building
 
-            // Stream build progress
             let progress1 = ConnectBuildProgressPayload(phase: "Preparing dependencies", completedSteps: 1, totalSteps: 4, message: "Validating environment")
             if let env = try? MessageEnvelope.encode(payload: progress1, type: .buildProgress, correlationID: envelope.messageID) {
                 ConnectServer.shared.broadcast(envelope: env, requiringPermission: .buildExecute)

@@ -4,12 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// Opt-in, on the real remote simulator host: `SWIFTCODE_MCP_THOR=1` with the
-/// host in `SWIFTCODE_MCP_SIM_*` (or `SWIFTCODE_MCP_SIM_CONFIG`, a JSON file as
-/// `swiftcode mcp --simulator-config` reads). Boots the device through the
-/// tools, waits for a screenshot, and shuts the device down.
-/// `SWIFTCODE_MCP_THOR_SHOT` keeps the PNG at that path; `SWIFTCODE_MCP_THOR_WAIT`
-/// is how long to wait for it (seconds, default 600).
 @MainActor
 @Suite(.serialized, .timeLimit(.minutes(60))) struct MCPThorTests {
     nonisolated static var enabled: Bool { ProcessInfo.processInfo.environment["SWIFTCODE_MCP_THOR"] == "1" }
@@ -23,12 +17,9 @@ import SwiftCodeIDECore
         #expect(list.structured?["configured"]?.bool == true, "\(list.resultText)")
         let boot = try await host.server.callTool("simulator_boot")
         #expect(!boot.isToolError, "\(boot.resultText)")
-        // The launcher may wait for a boot slot on a shared host first.
         let wait = Double(env["SWIFTCODE_MCP_THOR_WAIT"] ?? "") ?? 600
         let deadline = Date().addingTimeInterval(wait)
         var png: Data?
-        // The launcher says when the home screen shows (warm boot watches
-        // the frames); the picture is taken after that, not of the boot.
         while Date() < deadline {
             try await Task.sleep(for: .seconds(10))
             let lines = try await host.server.callTool("simulator_logs", ["tail": 400]).resultText

@@ -1,7 +1,5 @@
 import Foundation
 
-/// Agent turn errors (Legacy `SwiftCode/Core/AI/Agent/AgentError.swift`,
-/// Dylan's own code, ported under MIT).
 public enum AgentError: Error, Codable, Sendable {
     case modelError(String)
     case toolError(String)
@@ -18,7 +16,6 @@ public enum AgentError: Error, Codable, Sendable {
     }
 }
 
-/// One tool invocation inside an agent turn (Legacy `AgentToolCall.swift`).
 public struct AgentToolCall: Codable, Sendable {
     public let id: String
     public let name: String
@@ -31,7 +28,6 @@ public struct AgentToolCall: Codable, Sendable {
     }
 }
 
-/// The result of one tool invocation (Legacy `AgentToolResult.swift`).
 public struct AgentToolResult: Codable, Sendable {
     public let toolCallId: String
     public let content: String

@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import swiftcode_simd
 
-/// watchOS W1 (specs/simulator/watchos.md §3, §7.1 W-1, W-2, W-4, W-6): the
-/// thirteen Apple Watch records, runtime detection by `ProductName` "Watch
-/// OS", the type and runtime platform must agree, the bootstrap has no
-/// extended-display variables, SwiftCode's guest images are retagged for platform
-/// 9, and the watch lean list keeps the pairing daemons.
 struct WatchDeviceTypeTests {
     static let ids = [
         "apple-watch-series-12-46mm", "apple-watch-series-12-42mm", "apple-watch-ultra-4-49mm",
@@ -25,13 +20,10 @@ struct WatchDeviceTypeTests {
         return (xml, try #require(plist["capabilities"] as? [String: Any]))
     }
 
-    // MARK: The records (W-1, §3.1)
-
     @Test func thirteenWatchTypes() throws {
         #expect(DeviceType.watches.map(\.id) == Self.ids)
         #expect(Array(DeviceType.all.map(\.id).suffix(13)) == Self.ids)
         #expect(Set(DeviceType.all.map(\.id)).count == DeviceType.all.count, "ids are unique")
-        // §3.1 per type: model, class, screen, corner radius, oldest runtime.
         let table: [(String, String, String, Int, Int, Double, String)] = [
             ("apple-watch-series-12-46mm", "Watch8,3", "N237b", 416, 496, 50, "27.0"),
             ("apple-watch-series-12-42mm", "Watch8,4", "N238s", 374, 446, 44, "27.0"),
@@ -55,11 +47,9 @@ struct WatchDeviceTypeTests {
             #expect(t.minRuntimeVersion == min && t.runs(onVersion: "27.0"), "\(id)")
             #expect(!t.extendedDisplayProperties && !t.pointerSystem && !t.isFoldable && t.displayUID == nil, "\(id)")
             #expect(t.capabilities["DeviceCornerRadius"] == .real(radius), "\(id)")
-            // The crown and the always-on display everywhere; the Action button on the Ultras.
             #expect(t.features.isSuperset(of: DeviceType.watchFeatures), "\(id)")
             #expect(t.features.contains(DeviceType.actionButtonFeature) == id.contains("ultra"), "\(id)")
         }
-        // Families agree with platforms for every type.
         for t in DeviceType.all { #expect((t.family == .watch) == (t.platform == .watchOS), "\(t.id)") }
     }
 
@@ -67,15 +57,11 @@ struct WatchDeviceTypeTests {
         #expect(DeviceType.default(for: .watchOS).id == "apple-watch-series-12-46mm")
         #expect(DeviceType.default(for: .watchOS, version: "27.0").id == "apple-watch-series-12-46mm")
         #expect(DeviceType.default(for: .watchOS, version: "").id == "apple-watch-series-12-46mm")
-        // On a 26.x runtime the 27.0 generation does not run: the first that does.
         #expect(DeviceType.default(for: .watchOS, version: "26.2").id == "apple-watch-series-11-46mm")
-        // iOS and visionOS unchanged.
         #expect(DeviceType.default(for: .iOS, version: "27.1") == .iPhoneDuo)
         #expect(DeviceType.default(for: .iOS, version: "27.0") == .iPhone18Pro)
         #expect(DeviceType.default(for: .visionOS, version: "27.0") == .visionPro)
     }
-
-    // MARK: Capabilities (§3.3)
 
     @Test func series12Capabilities() throws {
         let t = DeviceType.appleWatchSeries12_46mm
@@ -117,7 +103,6 @@ struct WatchDeviceTypeTests {
         for key in ["displays", "iconState", "marketing-name", "WatchAppButtonCapability", "MainScreenClass"] {
             #expect(caps[key] == nil, "\(key) must be absent")
         }
-        // The kept display entry (for W2): one integrated LCD, rotated 90.
         guard case .dictionary(let d)? = t.displays?.first else { Issue.record("no display entry"); return }
         #expect(d["displayName"] == .string("LCD") && d["deviceName"] == .string("primary") && d["screenID"] == .integer(1))
         #expect(d["width"] == .integer(416) && d["height"] == .integer(496) && d["hasDigitizer"] == .bool(true))
@@ -127,29 +112,22 @@ struct WatchDeviceTypeTests {
 
     @Test func perTypeDifferences() throws {
         func value(_ id: String, _ key: String) throws -> CapabilityValue? { try #require(DeviceType.named(id)).capabilities[key] }
-        // Cellular models (§3.3).
         for id in Self.ids {
             let cellular = ["apple-watch-series-12-42mm", "apple-watch-ultra-4-49mm", "apple-watch-series-9-45mm",
                             "apple-watch-series-9-41mm", "apple-watch-ultra-2-49mm", "apple-watch-ultra-3-49mm",
                             "apple-watch-se-3-44mm"].contains(id)
             for key in ["telephony", "sms", "contains-cellular-radio"] { #expect(try value(id, key) == .bool(cellular), "\(id) \(key)") }
-            // arm64 false on Series 9 and 10 and Ultra 2.
             let arm64 = !(id.contains("series-9") || id.contains("series-10") || id.contains("ultra-2"))
             #expect(try value(id, "arm64") == .bool(arm64), "\(id) arm64")
-            // The Action button capability on the Ultras only.
             #expect(try value(id, "WatchAppButtonCapability") == (id.contains("ultra") ? .bool(true) : nil), "\(id)")
-            // The 27.0 generation: memory class 3, APPLE11 (SwiftCode decision for the others: 2, APPLE8).
             let current = id.contains("series-12") || id.contains("ultra-4")
             #expect(try value(id, "memoryClass") == .integer(current ? 3 : 2), "\(id)")
             #expect(try value(id, "graphicsFeatureSetClass") == .string(current ? "APPLE11" : "APPLE8"), "\(id)")
             let t = try #require(DeviceType.named(id))
             #expect(t.capabilities["subtype"] == .integer(t.screen.height), "\(id)")
         }
-        // Model numbers only where the spec gives them.
         #expect(try value("apple-watch-se-3-40mm", "ModelNumber") == nil)
     }
-
-    // MARK: Runtime detection (W-2)
 
     @Test func runtimeDetection() throws {
         #expect(RuntimePlatform(productName: "Watch OS") == .watchOS)
@@ -170,7 +148,6 @@ struct WatchDeviceTypeTests {
         #expect(l.runtimePlatform() == .watchOS)
         let version = l.runtimeVersion()
         #expect(version.version == "27.0" && version.build == "24R362")
-        // Per-runtime state keyed by build: the record keeps the two-word name.
         let record = l.currentRuntimeRecord()
         #expect(record.line == "Watch OS 27.0 24R362\n")
         #expect(DeviceLayout.RuntimeRecord(line: record.line) == record)
@@ -179,8 +156,6 @@ struct WatchDeviceTypeTests {
         try l.recordRuntime()
         #expect(DeviceLayout.recordedRuntime(in: l.dev) == record)
     }
-
-    // MARK: Environment and bootstrap (W-4, §3.4)
 
     @Test func watchEnvironment() throws {
         let fm = FileManager.default
@@ -200,22 +175,17 @@ struct WatchDeviceTypeTests {
         #expect(c["SIMULATOR_VERSION_INFO"]
             == "SwiftCode - Device: SwiftCode (11111111-2222-3333-4444-555555555555) - Runtime: watchOS 27.0 (24R362) - DeviceType: Watch8,3")
         #expect(c["SWIFTCODE_SIMHID_DEVICE_MOTION"] == nil)
-        // W-9 (§12): the HID bundle publishes the Digital Crown service.
         #expect(c["SWIFTCODE_SIMHID_DIGITAL_CROWN"] == "1")
-        // W-7: a display unique id of the device's own, stable, SwiftCode-marked.
         let uid = try #require(c["SWIFTCODE_FRAMEBUFFER_DISPLAY_UID"])
         #expect(uid == DeviceLayout.displayUID(forDevice: "11111111-2222-3333-4444-555555555555") && uid.hasPrefix("59434F44-"))
         #expect(uid.count == 36 && uid != "59434F44-4500-4000-8000-000000000001")
         #expect(DeviceLayout.displayUID(forDevice: "11111111-2222-3333-4444-555555555556") != uid)
         #expect(DeviceLayout.displayUID(forDevice: "11111111-2222-3333-4444-555555555555".lowercased()) == uid)
-        // The iPhone's set minus the two extended-display variables (§3.4);
-        // SwiftCode's own additions: the display id (W-7) and the crown service (W-9, §12).
         var phone = layout
         phone.deviceType = .iPhone18Pro
         #expect(Set(phone.child.keys).subtracting(c.keys) == ["SIMULATOR_EXTENDED_DISPLAY_PROPERTIES", "IPHONE_TVOUT_EXTENDED_PROPERTIES"])
         #expect(Set(c.keys).subtracting(phone.child.keys) == ["SWIFTCODE_FRAMEBUFFER_DISPLAY_UID", "SWIFTCODE_SIMHID_DIGITAL_CROWN"])
         #expect(phone.child["SWIFTCODE_FRAMEBUFFER_DISPLAY_UID"] == nil, "the iOS types keep the library's constant")
-        // §5.2: the Action button's pair only on the Ultra types.
         #expect(c["SWIFTCODE_SIMHID_ACTION_BUTTON"] == nil)
         var ultra = layout
         ultra.deviceType = try #require(DeviceType.watches.first { $0.id == "apple-watch-ultra-4-49mm" })
@@ -228,8 +198,6 @@ struct WatchDeviceTypeTests {
         let child = try #require((plist["Bootstrap"] as? [String: Any])?["Child"] as? [String: String])
         #expect(child["SIMULATOR_EXTENDED_DISPLAY_PROPERTIES"] == nil && child["IPHONE_TVOUT_EXTENDED_PROPERTIES"] == nil)
     }
-
-    // MARK: Type and runtime platform agree (W-1)
 
     @Test func platformMismatchIsRefused() throws {
         let fm = FileManager.default
@@ -254,12 +222,9 @@ struct WatchDeviceTypeTests {
                 #expect(!fm.fileExists(atPath: l.dev), "nothing is written for a refused type")
             }
         }
-        // The refusal names the watch types for a watch runtime.
         let message = DeviceTypePlatformMismatch(type: .iPhone18Pro, runtime: .watchOS, runtimeRoot: watch).description
         #expect(message.contains("apple-watch-series-12-46mm") && !message.contains("iphone-duo"))
     }
-
-    // MARK: Guest images for platform 9
 
     @Test func guestImagesAreRetaggedForWatchOS() throws {
         let fm = FileManager.default
@@ -283,8 +248,6 @@ struct WatchDeviceTypeTests {
         let hid = try #require(fm.contents(atPath: hidPath + "/SimHID"))
         #expect(GuestImagePlatform.platform(of: fb) == 9 && GuestImagePlatform.platform(of: hid) == 9)
     }
-
-    // MARK: Lean boot (W-6)
 
     @Test func watchLeanListKeepsThePairingPath() throws {
         let watch = try #require(LeanBootProfile.from(environment: ["SWIFTCODE_LEAN_BOOT": "1"], platform: .watchOS))

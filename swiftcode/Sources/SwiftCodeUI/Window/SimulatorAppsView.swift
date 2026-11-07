@@ -1,18 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorAppsView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> thinMaterial and the refreshApps()
-// adaptation noted inline (Legacy's two hardcoded demo apps are fake data and
-// are NOT ported; the list now reads the real SimulatorManager.installedApps).
-// Resolved in-destination: SimulatorDevice (udid/platform/state/.booted),
-// SimulatorApplication, SimulatorManager.shared + launch/terminate/uninstall.
-// `.simulatorWorkspaceEmbedded()` is staged in this same batch (Adaptive styling).
-// ModernGroupBoxStyle already exists in SwiftCodeUI (same target).
-// Wiring: the simulator hub's apps tab (DevicesController, SwiftCodeUI/Window) —
-// it is currently a "No Apps" placeholder; this view replaces it. Note the list
-// stays honestly empty until SimulatorManager.refreshInstalledApplications'
-// simctl enumeration is implemented (it is an acknowledged stub in the
-// destination, outside this batch).
-
 import SwiftUI
 import SwiftCodeIDECore
 
@@ -25,7 +10,6 @@ struct SimulatorAppsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Installed Applications", systemImage: "app.badge")
                     .font(.headline)
@@ -42,7 +26,6 @@ struct SimulatorAppsView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {
@@ -130,14 +113,6 @@ struct SimulatorAppsView: View {
     }
 
     private func refreshApps() {
-        // Destination adaptation: Legacy listed two hardcoded demo apps
-        // (DemoApp / SwiftUI Preview Host, /Users/developer paths) — fake data,
-        // not real enumeration — so they are not ported. The real source is
-        // SimulatorManager.installedApps, populated by
-        // SimulatorManager.refreshInstalledApplications(); that simctl
-        // enumeration is still unimplemented in the destination (it leaves
-        // installedApps empty), so this list is honestly empty until it lands —
-        // no placeholder rows.
         guard device.state == .booted else {
             apps = []
             return

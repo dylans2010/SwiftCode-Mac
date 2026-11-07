@@ -1,6 +1,3 @@
-# mktype.py <name> <id-suffix> <width> <height> <refresh> : a test device type in ~/Library/Developer/CoreSimulator/Profiles/DeviceTypes,
-# a copy of the installed 4K Apple Vision Pro type whose integrated display (capabilities "displays" and
-# ScreenDimensionsCapability) is changed. Remove with: mktype.py --remove <name>. Local experiment only (dirty room).
 import plistlib, sys, os, shutil
 D = os.path.expanduser('~/Library/Developer/CoreSimulator/Profiles/DeviceTypes')
 if sys.argv[1] == '--remove':
@@ -23,8 +20,6 @@ def walk(o):
     elif isinstance(o, list):
         for v in o: walk(v)
 walk(c); plistlib.dump(c, open(cp, 'wb'))
-# Without this CoreSimulator creates a default device of the new type on every matching runtime at once
-# (it did on 2026-11-01: 15 devices on 26.4, 26.5 and 27.2, plus DefaultDevices records in device_set.plist).
 pp = os.path.join(dst, 'Contents/Resources/profile.plist'); pr = plistlib.load(open(pp, 'rb'))
 pr.pop('createByDefaultForRuntimeVersions', None); plistlib.dump(pr, open(pp, 'wb'))
 print('made', dst, i['CFBundleIdentifier'])

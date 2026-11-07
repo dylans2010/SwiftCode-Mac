@@ -3,15 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-// MARK: Library
-
-/// The Library over the Interface Builder editor (`library.md` §Reference
-/// Objects library ▸ Panel), at the measured sizes: 681 × 504 with the
-/// details shown, 272 × 504 without; the filter icon and search field, the
-/// icon/list and details toggles; the Objects, Image, Color and Symbols
-/// tabs; the flat list (48-point rows, or four 34-point icons to a row);
-/// and the detail area (name, `Class: summary`, description). Double-click
-/// or Return inserts the selected object; Escape closes the panel.
 struct IBLibraryPanel: View {
     var model: InterfaceBuilderShellModel
     @Environment(\.colorScheme) private var scheme
@@ -135,7 +126,6 @@ struct IBLibraryPanel: View {
         }
     }
 
-    /// The colour a Library colour row shows (light appearance).
     static func swatch(_ title: String) -> Color {
         switch title {
         case "System Blue Color": Color(red: 0, green: 0.48, blue: 1)
@@ -228,8 +218,6 @@ struct IBLibraryPanel: View {
     }
 }
 
-/// An `IBIcon` (shapes in a 16 × 16 box, `IBLibraryObjects.swift`) drawn
-/// at any size: the Library's 34-point icons and the outline's 16-point ones.
 struct IBIconView: View {
     var icon: IBIcon
 

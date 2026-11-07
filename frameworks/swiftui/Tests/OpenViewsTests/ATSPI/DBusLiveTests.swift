@@ -11,14 +11,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// OV-ATSPI against a real message bus: a private `dbus-daemon` (the
-// reference bus daemon, run as a separate program when it is installed;
-// the tests are skipped otherwise, as on macOS). Our client connects,
-// authenticates, calls, replies, signals and exports objects; then the
-// exporter registers with a stand-in registry and answers a stand-in
-// assistive technology, all over the bus.
-
-/// A private bus daemon with an open policy.
 final class PrivateBus {
     let process = Process()
     let address: String
@@ -66,21 +58,17 @@ final class PrivateBus {
     }
 
     deinit {
-        // Not waitUntilExit: on Linux it waits for the main queue, which a
-        // main-actor test holds.
         if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         try? FileManager.default.removeItem(at: directory)
     }
 }
 
-/// Progress on stderr with OV_ATSPI_TEST_TRACE=1 (diagnosing hangs).
 func trace(_ s: String) {
     if ProcessInfo.processInfo.environment["OV_ATSPI_TEST_TRACE"] != nil {
         FileHandle.standardError.write(Data("[atspi-test] \(s)\n".utf8))
     }
 }
 
-/// Pumps every connection until `done` or 5 s.
 @MainActor
 func pumpAll(_ connections: [DBusConnection], until done: () -> Bool) {
     let deadline = Date().addingTimeInterval(5)
@@ -89,7 +77,6 @@ func pumpAll(_ connections: [DBusConnection], until done: () -> Bool) {
     }
 }
 
-/// A method call from `from`, answered while all connections are pumped.
 @MainActor
 func roundTrip(_ from: DBusConnection, _ m: DBusMessage, _ all: [DBusConnection]) throws -> DBusMessage {
     var reply: DBusMessage?
@@ -100,7 +87,6 @@ func roundTrip(_ from: DBusConnection, _ m: DBusMessage, _ all: [DBusConnection]
     return r
 }
 
-/// A test object: `org.swiftcode.Test` with Echo, Fail and a Count property.
 @MainActor
 final class EchoObjects: DBusObjectTree {
     var count: Int32 = 3
@@ -127,9 +113,6 @@ final class EchoObjects: DBusObjectTree {
     }
 }
 
-/// A stand-in for the AT-SPI registry: owns `org.a11y.atspi.Registry`,
-/// answers Embed (setting the plug's Id first, as the real one does) and
-/// GetRegisteredEvents.
 @MainActor
 final class StandInRegistry: DBusObjectTree {
     let connection: DBusConnection
@@ -141,7 +124,7 @@ final class StandInRegistry: DBusObjectTree {
         let r = try connection.call(.methodCall(destination: DBusConnection.busName, path: DBusConnection.busPath,
                                                 interface: DBusConnection.busName, member: "RequestName",
                                                 body: [.string(ATSPI.registryName), .uint32(4)]))
-        #expect(r.body.first == .uint32(1)) // primary owner
+        #expect(r.body.first == .uint32(1))
         connection.objects = self
     }
 
@@ -173,7 +156,6 @@ final class StandInRegistry: DBusObjectTree {
 
     func property(_ name: String, interface: String, at path: String) -> DBusValue? { nil }
 
-    /// An AT registers a listener (the registry's signal).
     func register(_ bus: String, _ event: String) throws {
         events.append((bus, event))
         try connection.emit(path: ATSPI.registryPath, interface: ATSPI.registryInterface, member: "EventListenerRegistered",
@@ -199,21 +181,18 @@ struct DBusLiveTests {
             try roundTrip(b, .methodCall(destination: a.uniqueName, path: path, interface: iface, member: member, body: body), all)
         }
         trace("1 Echo a nested AT-SPI-shaped value, an")
-        // Echo a nested AT-SPI-shaped value, and a large one (several reads).
         let item = DBusValue.variant(.structure([.structure([.string(":1.9"), .objectPath("/x")]), .int32(-1),
                                                  .strings(["a", "b"]), .array(.uint32, [.uint32(5), .uint32(0)])]))
         #expect(try call("Echo", "org.swiftcode.Test", [item]).body == [item])
         let big = DBusValue.variant(.string(String(repeating: "abcdefgh", count: 40_000)))
         #expect(try call("Echo", "org.swiftcode.Test", [big]).body == [big])
         trace("2 Errors.")
-        // Errors.
         #expect(throws: DBusError.remote(name: "org.swiftcode.Test.Error.Failed", message: "asked to fail")) {
             try call("Fail", "org.swiftcode.Test")
         }
         #expect(throws: DBusError.self) { try call("Echo", "org.swiftcode.Test", [item], path: "/nothing") }
         #expect(throws: DBusError.self) { try call("Nope", "org.swiftcode.Test") }
         trace("3 Standard interfaces.")
-        // Standard interfaces.
         #expect(try call("Ping", "org.freedesktop.DBus.Peer").body.isEmpty)
         let xml = try call("Introspect", "org.freedesktop.DBus.Introspectable").body.first?.stringValue ?? ""
         #expect(xml.contains("<interface name=\"org.swiftcode.Test\">") && xml.contains("<arg type=\"v\" direction=\"in\"/>"))
@@ -228,7 +207,6 @@ struct DBusLiveTests {
         #expect(allProps?["Count"] == .variant(.int32(9)) && allProps?["Name"] == .variant(.string("echo")))
         #expect(throws: DBusError.self) { try call("Set", props, [.string("org.swiftcode.Test"), .string("Name"), .variant(.string("x"))]) }
         trace("4 Signals: b subscribes, a emits.")
-        // Signals: b subscribes, a emits.
         var got: [DBusMessage] = []
         b.onSignal = { if $0.interface == "org.swiftcode.Test" { got.append($0) } }
         try b.addMatch("type='signal',interface='org.swiftcode.Test'")
@@ -238,7 +216,6 @@ struct DBusLiveTests {
         pumpAll(all) { !got.isEmpty }
         #expect(got.first?.body == [.string("now")] && got.first?.sender == a.uniqueName)
         trace("5 A blocking call to the bus itself.")
-        // A blocking call to the bus itself.
         let names = try b.call(.methodCall(destination: DBusConnection.busName, path: DBusConnection.busPath,
                                            interface: DBusConnection.busName, member: "ListNames"))
         #expect(names.body.first?.arrayValue?.contains(.string(a.uniqueName ?? "")) == true)
@@ -266,9 +243,8 @@ struct DBusLiveTests {
         #expect(registry.plugs == [app.uniqueName ?? ""])
         #expect(exporter.desktop?.name == registry.connection.uniqueName)
         trace("6 Nobody listens and nobody asked: fram")
-        // Nobody listens and nobody asked: frames build nothing.
         h.run(until: h.now + 0.5)
-        _ = export.performAction(0, on: "w1") // no such element yet: nothing happens
+        _ = export.performAction(0, on: "w1")
         h.run(until: h.now + 0.5)
         #expect(exporter.buildCount == 0)
 
@@ -279,7 +255,6 @@ struct DBusLiveTests {
             try call(path, "org.freedesktop.DBus.Properties", "Get", [.string(iface), .string(name)]).first?.variantValue
         }
         trace("7 The application root.")
-        // The application root.
         #expect(try call(ATSPI.rootPath, ATSPI.accessible, "GetRole") == [.uint32(ATSPIRole.application.rawValue)])
         #expect(try prop(ATSPI.rootPath, ATSPI.accessible, "Name") == .string("Demo"))
         #expect(try prop(ATSPI.rootPath, ATSPI.application, "ToolkitName") == .string("OpenViews"))
@@ -289,8 +264,7 @@ struct DBusLiveTests {
         let windowPath = windows.first?.structValue?[1].stringValue ?? ""
         #expect(windowPath == ATSPI.objectPrefix + "w1")
         trace("8 Walk the tree as an AT would: names a")
-        // Walk the tree as an AT would: names and roles.
-        var found: [String: String] = [:] // "role:name" → path
+        var found: [String: String] = [:]
         func walk(_ path: String) throws {
             let role = try call(path, ATSPI.accessible, "GetRole").first?.intValue ?? -1
             let name = try prop(path, ATSPI.accessible, "Name")?.stringValue ?? ""
@@ -308,7 +282,6 @@ struct DBusLiveTests {
         #expect(found["\(ATSPIRole.text.rawValue):"] != nil)
         let fieldPath = found["\(ATSPIRole.entry.rawValue):"] ?? ""
         trace("9 Interfaces, states, extents, introspe")
-        // Interfaces, states, extents, introspection.
         let ifaces = try call(fieldPath, ATSPI.accessible, "GetInterfaces").first?.arrayValue ?? []
         #expect(ifaces.contains(.string(ATSPI.editableText)) && ifaces.contains(.string(ATSPI.component)))
         let state = ATSPIStateSet(words: (try call(fieldPath, ATSPI.accessible, "GetState").first?.arrayValue ?? []).compactMap {
@@ -321,22 +294,18 @@ struct DBusLiveTests {
         #expect(xml.contains("<interface name=\"org.a11y.atspi.Text\">"))
         #expect(try call(fieldPath, ATSPI.text, "GetText", [.int32(0), .int32(-1)]) == [.string("SwiftCode")])
         trace("10 The cache: the root and every object.")
-        // The cache: the root and every object.
         let items = try call(ATSPI.cachePath, ATSPI.cache, "GetItems").first?.arrayValue ?? []
         #expect(items.count == 1 + exporter.snapshots.values.reduce(0) { $0 + $1.nodes.count })
         #expect(items.count >= found.count)
 
         trace("11 Actions over the bus.")
-        // Actions over the bus.
         ATSPIProbeLog.shared.builds = 0
         #expect(try call(build ?? "", ATSPI.action, "GetName", [.int32(0)]) == [.string("click")])
         #expect(try call(build ?? "", ATSPI.action, "DoAction", [.int32(0)]) == [.boolean(true)])
         #expect(ATSPIProbeLog.shared.builds == 1)
 
         trace("12 An AT listens for focus: grabbing the")
-        // An AT listens for focus: grabbing the field's focus sends
         trace("13 state-changed:focused and focus: to i")
-        // state-changed:focused and focus: to it.
         var events: [DBusMessage] = []
         at.onSignal = { if $0.interface?.hasPrefix("org.a11y.atspi.Event") == true { events.append($0) } }
         try at.addMatch("type='signal',interface='org.a11y.atspi.Event.Object'")
@@ -345,7 +314,7 @@ struct DBusLiveTests {
         try registry.register(at.uniqueName ?? "", "focus:")
         try registry.register(at.uniqueName ?? "", "object:text-changed")
         pumpAll(all) { exporter.wants("focus:") }
-        h.run(until: h.now + 0.2) // a frame with listeners: the baseline
+        h.run(until: h.now + 0.2)
         #expect(try call(fieldPath, ATSPI.component, "GrabFocus") == [.boolean(true)])
         h.run(until: h.now + 0.2)
         pumpAll(all) { events.contains { $0.member == "Focus" } }
@@ -353,19 +322,14 @@ struct DBusLiveTests {
         #expect(focus?.path == fieldPath)
         #expect(events.contains { $0.member == "Focus" && $0.path == fieldPath })
         trace("14 Typing through EditableText sends tex")
-        // Typing through EditableText sends text-changed:insert.
         #expect(try call(fieldPath, ATSPI.editableText, "InsertText", [.int32(5), .string(" IDE"), .int32(4)]) == [.boolean(true)])
         h.run(until: h.now + 0.2)
         pumpAll(all) { events.contains { $0.member == "TextChanged" } }
         let insert = events.first { $0.member == "TextChanged" }
         #expect(insert?.body.prefix(4) == [.string("insert"), .int32(5), .int32(4), .variant(.string(" IDE"))])
         trace("15 Events nobody asked for are not sent.")
-        // Events nobody asked for are not sent.
         #expect(!(exporter.recordedEvents ?? []).contains { $0.hasPrefix("object:property-change") })
         trace("16 more listeners")
-        // With every object and window event wanted: a toggle's state, a
-        // slider's value, an outline folder's new children, the window's
-        // activation.
         try at.addMatch("type='signal',interface='org.a11y.atspi.Event.Window'")
         try registry.register(at.uniqueName ?? "", "object:")
         try registry.register(at.uniqueName ?? "", "window:")

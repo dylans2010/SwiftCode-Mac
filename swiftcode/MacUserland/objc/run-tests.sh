@@ -1,31 +1,17 @@
 #!/bin/sh
-# Conformance tests of SwiftCode's Objective-C runtime (specs/macos/
-# objc-runtime.md §12). Each tests/t_*.m prints one line per check; the
-# expected output in tests/<name>.expected is what the program prints on a
-# Mac with the Mac's own runtime.
-#
-#   sh run-tests.sh mac <out dir>
-#       (Mac) builds every test three ways with bench/build-mac.sh and
-#       checks the Mac's runtime and SwiftCode's runtime (native) against the
-#       expected output. Leaves <out>/<name> for swiftcode-simd.
-#   sh run-tests.sh simd <swiftcode-simd> <dir with the test programs>
-#       (arm64 Linux) runs each program under swiftcode-simd --macos with the
-#       userland root (MACOS_ROOT, default ../out/root) and checks it.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 mode=${1:?usage: run-tests.sh mac <out> | simd <swiftcode-simd> <dir>}
 passed=0
 failed=0
 tests="t_message t_memory t_arc t_runtime t_threads"
-
 flags_for() {
     case "$1" in
     t_arc) echo "-fobjc-arc" ;;
     *) echo "" ;;
     esac
 }
-
-check() { # check <label> <expected> <actual> <status>
+check() {
     if [ "$4" -ne 0 ]; then
         echo "FAIL $1: exit status $4"
         failed=$((failed + 1))
@@ -37,7 +23,6 @@ check() { # check <label> <expected> <actual> <status>
         passed=$((passed + 1))
     fi
 }
-
 case "$mode" in
 mac)
     out=${2:?usage: run-tests.sh mac <out dir>}

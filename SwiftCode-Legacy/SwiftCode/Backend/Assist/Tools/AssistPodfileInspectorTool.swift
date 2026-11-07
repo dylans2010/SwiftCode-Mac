@@ -1,8 +1,3 @@
-//
-//  AssistPodfileInspectorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistPodfileInspectorTool: AssistTool {

@@ -2,8 +2,6 @@ import Testing
 import USDCore
 @testable import USDStage
 
-/// A small composition scene. The expected values in the tests below were
-/// read from OpenUSD (usd-core 26.11) composing the same four layers.
 enum Scene {
     static let root = """
     #usda 1.0

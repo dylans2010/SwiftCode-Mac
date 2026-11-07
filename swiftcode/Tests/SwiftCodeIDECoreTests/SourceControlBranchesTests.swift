@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Branch workflows on temporary repositories (`specs/ide/source-control.md`,
-/// "SwiftCode implementation"). Every repository and the one "remote" (a bare
-/// repository) are created in a fresh temporary folder; nothing here
-/// touches another repository or the network.
 struct SCMSandbox {
     let folder: URL
     let repo: URL
@@ -22,7 +18,6 @@ struct SCMSandbox {
 
     func cleanUp() { try? FileManager.default.removeItem(at: folder) }
 
-    /// Local identity and no signing, whatever the user's global settings.
     func configure(_ dir: URL) throws {
         for (k, v) in [("user.name", "SwiftCode Test"), ("user.email", "test@swiftcode.invalid"), ("commit.gpgsign", "false"),
                        ("tag.gpgsign", "false"), ("core.autocrlf", "false"), ("merge.conflictstyle", "merge"), ("pull.rebase", "false")] {
@@ -50,7 +45,6 @@ struct SCMSandbox {
     var repository: GitRepository { GitRepository(containing: repo)! }
     func path(_ name: String) -> String { repository.root.appendingPathComponent(name).path }
 
-    /// main: "a b c d e" on five lines; feature and main then change line 3.
     func makeConflict() throws -> GitRepository {
         try commit("f.txt", "a\nb\nc\nd\ne\n", "Base")
         try git("switch", "-q", "-c", "feature")
@@ -60,7 +54,6 @@ struct SCMSandbox {
         return repository
     }
 
-    /// A bare repository next to the work tree, as `origin`.
     func makeRemote() throws -> URL {
         let bare = folder.appendingPathComponent("origin.git")
         _ = try GitRepository.run("/usr/bin/git", ["init", "-q", "--bare", "-b", "main", bare.path])
@@ -85,22 +78,18 @@ struct SCMSandbox {
         #expect(repo.currentBranch() == "topic")
         try s.commit("a.txt", "2\n", "Two")
 
-        // Rename the current branch; its name changes in place.
         try repo.renameBranch("topic", to: "topic-renamed")
         #expect(repo.currentBranch() == "topic-renamed")
         #expect(throws: GitRepository.GitError.self) { try repo.renameBranch("topic-renamed", to: "bad..name") }
 
         try repo.checkout("main", changes: .refuse)
         #expect(repo.currentBranch() == "main")
-        // Unmerged: refused without force.
         #expect(throws: GitRepository.GitError.self) { try repo.deleteBranch("topic-renamed") }
         try repo.deleteBranch("topic-renamed", force: true)
-        // Current branch: always refused.
         #expect(throws: GitRepository.GitError.self) { try repo.deleteBranch("main", force: true) }
         try repo.deleteBranch("feature/one")
         #expect(try repo.branches().map(\.name) == ["main"])
 
-        // A branch from a given start point.
         let first = try #require(repo.resolve("HEAD"))
         try s.commit("a.txt", "3\n", "Three")
         try repo.createBranch("old", from: first)
@@ -122,19 +111,16 @@ struct SCMSandbox {
         #expect(throws: GitRepository.GitError.self) { try repo.checkout("other", changes: .refuse) }
         #expect(repo.currentBranch() == "main")
 
-        // Carry: the edit comes along (both branches have the same a.txt).
         try repo.checkout("other", changes: .carry)
         #expect(repo.currentBranch() == "other")
         #expect(try s.read("a.txt") == "local edit\n")
 
-        // Stash: the edit is saved and the working copy is clean.
         let stash = try repo.checkout("main", changes: .stash)
         #expect(stash == "stash@{0}")
         #expect(repo.currentBranch() == "main")
         #expect(try s.read("a.txt") == "1\n")
         #expect(repo.stashList().first?.message == "Before switching to main")
 
-        // Conflicts block switching.
         _ = try s.makeConflict()
         _ = try repo.merge("feature")
         #expect(throws: GitRepository.GitError.self) { try repo.checkout("other", changes: .carry) }
@@ -155,7 +141,6 @@ struct SCMSandbox {
         #expect(repo.headHash() == repo.resolve("feature"))
         #expect(try repo.merge("feature") == .upToDate)
 
-        // Diverged: a merge commit with two parents.
         try repo.checkout("feature", changes: .refuse)
         try s.commit("c.txt", "c\n", "Add c")
         try repo.checkout("main", changes: .refuse)
@@ -166,7 +151,6 @@ struct SCMSandbox {
         #expect(try s.git("log", "-1", "--format=%s") == "Merge branch 'feature'\n")
         #expect(FileManager.default.fileExists(atPath: s.path("c.txt")))
 
-        // --no-ff even when a fast-forward was possible, with a message.
         try repo.createBranch("tiny", checkout: true)
         try s.commit("e.txt", "e\n", "Add e")
         try repo.checkout("main", changes: .refuse)
@@ -175,7 +159,6 @@ struct SCMSandbox {
         #expect(throws: GitRepository.GitError.self) { try repo.merge("nothing-here") }
     }
 
-    /// The done-criterion: a conflicting merge resolved through the model.
     @Test func conflictingMergeResolvedThroughTheModel() throws {
         let s = try SCMSandbox("conflict")
         defer { s.cleanUp() }
@@ -196,7 +179,6 @@ struct SCMSandbox {
         #expect(doc.hunks.count == 1 && doc.conflictCount == 1 && doc.unresolvedCount == 1)
         #expect(doc.oursLabel == "main" && doc.theirsLabel == "feature")
         #expect(doc.result == "a\nb\n<<<<<<< main\nMAIN\n=======\nFEATURE\n>>>>>>> feature\nd\ne\n")
-        // Unresolved text is refused.
         #expect(throws: GitRepository.GitError.self) { try repo.resolveConflict(file, text: doc.result) }
 
         doc.choose(.oursThenTheirs, hunk: 0)
@@ -236,7 +218,6 @@ struct SCMSandbox {
         #expect(try s.git("log", "--format=%s", "-3") == "Add b\nAdd c\nOne\n")
         #expect(try repo.rebase(onto: "main") == .upToDate)
 
-        // A conflicting rebase stops; resolve with the replayed side and go on.
         let t = try SCMSandbox("rebase-conflict")
         defer { t.cleanUp() }
         let r2 = try t.makeConflict()
@@ -253,7 +234,6 @@ struct SCMSandbox {
         #expect(r2.integrationState() == .none && r2.currentBranch() == "feature")
         #expect(try t.git("log", "--format=%s", "-3") == "Feature change\nMain change\nBase\n")
 
-        // Abort puts the branch back.
         try t.commit("f.txt", "a\nb\nAGAIN\nd\ne\n", "Again")
         try r2.checkout("main", changes: .refuse)
         try t.commit("f.txt", "a\nb\nMAIN2\nd\ne\n", "Main 2")
@@ -279,7 +259,6 @@ struct SCMSandbox {
         #expect(try s.git("log", "-1", "--format=%s") == "Feature change\n")
         #expect(try s.read("f.txt") == "a\nb\nMERGED\nd\ne\n")
 
-        // A clean revert of the pick.
         guard case .completed = try repo.revert("HEAD") else { Issue.record("expected a revert"); return }
         #expect(try s.read("f.txt") == "a\nb\nMAIN\nd\ne\n")
     }
@@ -305,12 +284,11 @@ struct SCMSandbox {
         #expect(try s.read("a.txt") == "2\n" && repo.stashList().isEmpty)
         #expect(FileManager.default.fileExists(atPath: s.path("new.txt")))
 
-        // A stash that conflicts with a later commit.
         try repo.stash(message: "edit")
         try s.commit("a.txt", "3\n", "Three")
         guard case .conflicts(let files) = try repo.applyStash("stash@{0}", pop: true) else { Issue.record("expected conflicts"); return }
         #expect(files == [s.path("a.txt")])
-        #expect(repo.stashList().count == 1)   // git keeps a conflicting stash
+        #expect(repo.stashList().count == 1)
         #expect(repo.integrationState() == .none)
         let doc = try #require(repo.mergeDocument(forConflictedFile: s.path("a.txt")))
         #expect(doc.oursLabel == "main" && doc.theirsLabel == "Stashed changes")
@@ -331,7 +309,7 @@ struct SCMSandbox {
         try repo.createTag("v2.0", message: "Second release")
         #expect(!repo.isValidTagName("bad tag") && !repo.isValidTagName("-v"))
         #expect(throws: GitRepository.GitError.self) { try repo.createTag("bad..tag") }
-        #expect(throws: GitRepository.GitError.self) { try repo.createTag("v1.0") }   // exists
+        #expect(throws: GitRepository.GitError.self) { try repo.createTag("v1.0") }
         let tags = repo.tagDetails()
         #expect(tags.map(\.name) == ["v1.0", "v2.0"])
         #expect(tags[0] == .init(name: "v1.0", commit: first, message: "", isAnnotated: false))
@@ -342,8 +320,6 @@ struct SCMSandbox {
         #expect(try repo.tags().map(\.name) == ["v2.0"])
     }
 
-    /// Remotes against a bare repository in the temporary folder (never a
-    /// real remote).
     @Test func remotesWithALocalBareRepository() throws {
         let s = try SCMSandbox("remote")
         defer { s.cleanUp() }
@@ -360,7 +336,6 @@ struct SCMSandbox {
         try s.commit("a.txt", "2\n", "Two")
         #expect(repo.aheadBehind("main").map { [$0.ahead, $0.behind] } == [1, 0])
 
-        // A second clone pushes a commit; the first pulls it.
         let other = s.folder.appendingPathComponent("other")
         try GitRepository.clone(bare.path, into: other)
         try s.configure(other)
@@ -371,14 +346,12 @@ struct SCMSandbox {
 
         try repo.fetch(remote: "origin")
         #expect(repo.aheadBehind("main").map { [$0.ahead, $0.behind] } == [1, 1])
-        // Diverged: fast-forward only refuses; a merge pull works.
         #expect(throws: GitRepository.GitError.self) { try repo.pull(remote: "origin", branch: "main") }
         guard case .completed = try repo.pull(remote: "origin", branch: "main", style: .merge) else { Issue.record("expected a merge"); return }
         #expect(FileManager.default.fileExists(atPath: s.path("o.txt")))
         try repo.push(remote: "origin", branch: "main")
         #expect(repo.aheadBehind("main").map { [$0.ahead, $0.behind] } == [0, 0])
 
-        // Branches and tags on the remote; checking out a remote branch.
         try repo.createBranch("shared")
         try repo.push(remote: "origin", branch: "shared")
         try repo.createTag("v1")

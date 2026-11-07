@@ -3,47 +3,11 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy planning / workflow / agent-control tools (Wave 4),
-/// each driven black-box through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `ExecutionPlanTool`, `AssistPlanTaskTool`,
-/// `AssistBreakdownTaskTool`, `AssistAutoFixErrorsTool`,
-/// `AssistExplainCodeTool`, `AssistGenerateTestsTool`, `PlanAskUserTool`
-/// and `ReportToUserTool` (Dylan's own code, ported under MIT), plus
-/// `Functions/System Assets/ExecutionPlans.md` and
-/// `Resources/WriteExecutionPlan.md`.
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never on
-/// internals. Messages quoted verbatim are Legacy's; where the SwiftCode port
-/// may legitimately word a failure differently, the test asserts the
-/// behaviour plus a tolerant message match.
-///
-/// Deliberate exceptions, asserted here rather than assumed:
-/// * `intel_autofix` is registered but always fails: Legacy implements it
-///   as a lint run plus an OpenAI-LLM rewrite, which has no faithful
-///   local port, so the test asserts it fails cleanly and changes
-///   nothing (Wave 2's `code_refactor` precedent).
-/// * `intel_explain_code` is honest static analysis, not an LLM call:
-///   the test asserts the result says so and is grounded in the file.
-/// * `plan-AskUser` returns a pending question handoff and never waits:
-///   the test asserts the payload shape and that the call returns.
-///
-/// NOTE (coordinator decision, Wave 4): `planningTools` is NOT wired into
-/// `installTools()` here — `SwiftCodeTools.swift` is owned by the coordinator.
-/// These tests install `planningTools` on the host themselves (the same
-/// shape as Wave 2's `opened`), so they verify the tools, not the wiring.
 @MainActor
 @Suite(.serialized) struct SwiftCodePlanningToolsTests {
-    /// The 8 Wave 4 tool IDs, verified live from the Legacy registry
-    /// (`AssistToolRegistry.registerAllTools` + each tool's `id`).
-    /// `plan-AskUser` breaks snake_case by design (documented intentional
-    /// exception in Legacy's `Tools/validate_tools.py`).
     static let wave4IDs = ["execution_plan", "intel_autofix", "intel_breakdown_task", "intel_explain_code",
                            "intel_generate_tests", "intel_plan_task", "plan-AskUser", "report_to_user"]
 
-    /// Opens a copy of Greeter and installs the ported planning tools on
-    /// the server (same shape as Wave 2's `opened`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -80,7 +44,6 @@ import SwiftCodeAssistant
             }
             #expect(!tool.annotations.destructive, "\(tool.name) must not be marked destructive")
         }
-        // The host actually serves them once installed.
         let sample = try TempSample()
         defer { sample.remove() }
         let servedHost = try await opened(sample)
@@ -103,11 +66,9 @@ import SwiftCodeAssistant
         #expect(steps.contains("3. run the tests"))
         #expect(planned.resultText.hasPrefix("Plan generated for task: Add a farewell method, update the docs, run the tests"))
 
-        // A second plan gets a different ID.
         let planned2 = try await host.server.callTool("intel_plan_task", ["task": .string("Something else")])
         #expect(planned2.structured?["planId"]?.string != planId)
 
-        // Breakdown expands every step into three lines and stores it.
         let broken = try await host.server.callTool("intel_breakdown_task", ["planId": .string(planId!)])
         #expect(!broken.isToolError, "\(broken.resultText)")
         let breakdown = broken.structured?["breakdown"]?.string ?? ""
@@ -116,11 +77,9 @@ import SwiftCodeAssistant
         #expect(breakdown.contains("- Implement and self-review: 1. Add a farewell method"))
         #expect(broken.resultText.hasPrefix("Task breakdown completed for plan \(planId!)"))
 
-        // An unknown plan ID fails; nothing is invented.
         let unknown = try await host.server.callTool("intel_breakdown_task", ["planId": .string("no-such-plan")])
         #expect(unknown.isToolError && unknown.firstText == "No stored plan found for planId: no-such-plan")
 
-        // A task with no commas still plans (Legacy's default steps).
         let plain = try await host.server.callTool("intel_plan_task", ["task": .string("do the thing")])
         #expect(!plain.isToolError)
         #expect((plain.structured?["steps"]?.string ?? "").contains("1. do the thing"))
@@ -140,7 +99,6 @@ import SwiftCodeAssistant
         #expect(explanation.contains("greeting"))
         #expect(explanation.contains("Lines: "))
 
-        // A missing file fails with Legacy's message shape.
         let missing = try await host.server.callTool("intel_explain_code", ["path": .string("Sources/Greeter/Nope.swift")])
         #expect(missing.isToolError && missing.resultText.contains("Failed to explain Sources/Greeter/Nope.swift"))
     }
@@ -165,14 +123,12 @@ import SwiftCodeAssistant
         #expect(stub.contains("func testPerformance()"))
         #expect(stub.contains("TODO: Test greeting behavior"))
 
-        // A custom output path is honoured.
         let custom = try await host.server.callTool("intel_generate_tests",
                                                     ["path": .string("Sources/Greeter/Greeter.swift"),
                                                      "testPath": .string("Tests/CustomTests.swift")])
         #expect(!custom.isToolError, "\(custom.resultText)")
         #expect(exists(sample, "Tests/CustomTests.swift"))
 
-        // Read-only policy refuses the write; nothing lands on disk.
         let refusedSample = try TempSample()
         defer { refusedSample.remove() }
         let refusedHost = try await opened(refusedSample, policy: .readOnly)
@@ -180,7 +136,6 @@ import SwiftCodeAssistant
         #expect(refused.isToolError && refused.resultText.contains("read-only"))
         #expect(!exists(refusedSample, "Tests/GreeterTests.swift"))
 
-        // A missing source file fails.
         let missing = try await host.server.callTool("intel_generate_tests", ["path": .string("Sources/Greeter/Nope.swift")])
         #expect(missing.isToolError && missing.resultText.contains("Failed generating tests for Sources/Greeter/Nope.swift"))
     }
@@ -213,10 +168,6 @@ import SwiftCodeAssistant
         #expect(planned.structured?["planFile"]?.string == "agent_notes.md")
         #expect(planned.structured?["mode"]?.string == "Plan")
         #expect(planned.structured?["stepCount"]?.int == 4, "read + search + build (Package.swift) + test")
-        // 4, not 1: Legacy's keyword match runs over every enumerated URL,
-        // so the directories named Greeter match too (Sources/Greeter,
-        // Tests/GreeterTests) alongside both Greeter Swift files. The
-        // directories are skipped when reading file contents.
         #expect(planned.structured?["relevantFileCount"]?.int == 4)
         #expect(planned.structured?["workerCount"]?.int == 0)
         let notes = sample.read("agent_notes.md")
@@ -239,7 +190,6 @@ import SwiftCodeAssistant
         #expect(notes.contains("- [ ] User decisions incorporated into plan"), "Plan mode adds the user-decisions criterion")
         #expect(notes.contains("*Plan generated by execution_plan tool."))
 
-        // Autopilot mode labels the plan Autopilot and drops the criterion.
         let auto = try await host.server.callTool("execution_plan",
                                                   ["objective": .string("Add a farewell method to Greeter"),
                                                    "mode": .string("autopilot")])
@@ -247,14 +197,11 @@ import SwiftCodeAssistant
         #expect(auto.structured?["mode"]?.string == "Autopilot")
         #expect(!sample.read("agent_notes.md").contains("User decisions incorporated into plan"))
 
-        // The documented lowercase "plan" is honoured (Legacy's rawValue
-        // init only matched capitalised "Plan", silently becoming Autopilot).
         let lower = try await host.server.callTool("execution_plan",
                                                    ["objective": .string("Add a farewell method to Greeter"),
                                                     "mode": .string("plan")])
         #expect(lower.structured?["mode"]?.string == "Plan")
 
-        // Read-only policy refuses the write; nothing lands on disk.
         let refusedSample = try TempSample()
         defer { refusedSample.remove() }
         let refusedHost = try await opened(refusedSample, policy: .readOnly)
@@ -264,7 +211,6 @@ import SwiftCodeAssistant
         #expect(refused.isToolError && refused.resultText.contains("read-only"))
         #expect(!exists(refusedSample, "agent_notes.md"))
 
-        // A missing objective fails at argument validation.
         let missing = try await host.server.callTool("execution_plan", ["mode": .string("plan")])
         #expect(missing.isToolError && missing.resultText.contains("missing the required argument \"objective\""))
     }
@@ -297,7 +243,6 @@ import SwiftCodeAssistant
         #expect(asked.resultText.contains("SwiftData (recommended)"))
         #expect(asked.resultText.contains("does not wait for an answer"))
 
-        // Free-form answers need no choices.
         let freeform = try await host.server.callTool("plan-AskUser",
                                                       ["question": .string("What should the feature be called?"),
                                                        "allowsMultipleAnswers": .bool(false),
@@ -306,7 +251,6 @@ import SwiftCodeAssistant
         #expect(!freeform.isToolError, "\(freeform.resultText)")
         #expect(freeform.resultText.contains("free-form answer"))
 
-        // Choices are required when free-form answers are not allowed.
         let noChoices = try await host.server.callTool("plan-AskUser",
                                                        ["question": .string("Pick one."),
                                                         "allowsMultipleAnswers": .bool(false),
@@ -314,7 +258,6 @@ import SwiftCodeAssistant
                                                         "userSpecification": .bool(false)])
         #expect(noChoices.isToolError && noChoices.firstText == "At least one choice is required when userSpecification is false.")
 
-        // An empty question fails.
         let empty = try await host.server.callTool("plan-AskUser",
                                                    ["question": .string(""),
                                                     "allowsMultipleAnswers": .bool(false),
@@ -345,7 +288,6 @@ import SwiftCodeAssistant
         #expect(reported.resultText.contains("- `Tests/GreeterTests.swift`"))
         #expect(reported.resultText.contains("**Verification:**\nswift build: clean. swift test: 3 passed."))
 
-        // A ```json wrapper carrying a summary is unwrapped.
         let wrapped = try await host.server.callTool("report_to_user",
                                                      ["summary": .string("```json\n{\"summary\": \"Wrapped report.\"}\n```")])
         #expect(!wrapped.isToolError, "\(wrapped.resultText)")
@@ -353,7 +295,6 @@ import SwiftCodeAssistant
         #expect(!wrapped.resultText.contains("```json"))
         #expect(wrapped.structured?["status"]?.string == "completed", "status defaults to completed")
 
-        // Internal runtime names are rewritten, never leaked.
         let leaked = try await host.server.callTool("report_to_user",
                                                     ["summary": .string("Fixed via use_workers in a batch.")])
         #expect(leaked.resultText.contains("parallel workers"))

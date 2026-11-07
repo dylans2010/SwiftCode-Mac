@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - AI Doc Generator Extension View
 struct AIDocGenExtensionView: View {
     @State private var isEnabled = true
     @State private var docStyle = "appleDocs"

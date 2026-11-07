@@ -1,21 +1,13 @@
-// CNPostalAddressFormatter (formats.md §2). The per-country layouts are
-// SwiftCode's own table: the rows of §2 fix the countries they cover; the
-// others follow common national practice (open question in the README).
-
 import Foundation
 
 struct AddressLayout {
-    /// Lines of (field key, separator placed before it when an earlier
-    /// field of the same line is present).
     let lines: [[(String, String)]]
 
     static let S = CNPostalAddressStreetKey, L = CNPostalAddressSubLocalityKey, C = CNPostalAddressCityKey
     static let A = CNPostalAddressSubAdministrativeAreaKey, T = CNPostalAddressStateKey
     static let Z = CNPostalAddressPostalCodeKey, N = CNPostalAddressCountryKey
 
-    /// street / city state postal / country (US, CA, AU; the fallback).
     static let northAmerican = AddressLayout(lines: [[(S, "")], [(C, ""), (T, " "), (Z, " ")], [(N, "")]])
-    /// street / postal city / country.
     static let postalCity = AddressLayout(lines: [[(S, "")], [(Z, ""), (C, " ")], [(N, "")]])
 
     static let table: [String: AddressLayout] = [
@@ -48,7 +40,6 @@ public class CNPostalAddressFormatter: Formatter, @unchecked Sendable {
     public override init() { super.init() }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
 
-    /// The pieces of the formatted address: (field key or nil, text).
     static func pieces(_ address: CNPostalAddress) -> [(String?, String)] {
         var out: [(String?, String)] = []
         for line in AddressLayout.layout(for: address).lines {

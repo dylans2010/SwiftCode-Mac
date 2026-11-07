@@ -6,9 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-4.md §15: controls in the debug bar, either source re-runs
-/// the comparison, the working copy is editable side by side, insertion
-/// markers; the commit sheet shows git's own diff.
 @MainActor
 @Suite(.serialized) struct CodeReviewRound28Tests {
     private func repo(_ name: String) throws -> (URL, URL) {
@@ -45,7 +42,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wc.debugArea.reviewSlot.arrangedSubviews.first === wc.editor.reviewBar)
         #expect(wc.editor.reviewBar.count.stringValue.contains("change"))
 
-        // Choosing a left-hand source (a commit) re-runs as two stored versions.
         let picker = try #require(wc.reviewSourcePicker(left: true))
         _ = picker.view
         let firstCommit = try #require(wc.repository?.recentCommits(limit: 5, path: main.path).last)
@@ -70,11 +66,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wc.toggleComparison(nil))
         let c = wc.editor.comparison
         #expect(c.workingView.isEditable)
-        // "let c = 3" exists only in the working copy: marker on the source side.
         c.layoutSubtreeIfNeeded()
         #expect(c.insertionMarkers.contains { !$0.leftSide && $0.kind == .added })
 
-        // Typing in the working column updates the file's text and re-diffs.
         let tv = c.workingView
         tv.setSelectedRange(NSRange(location: (tv.string as NSString).length, length: 0))
         tv.insertText("let d = 4", replacementRange: tv.selectedRange())

@@ -20,7 +20,6 @@ public struct CodeAnalysisTool: AgentTool {
             throw AgentError.toolError("Missing path argument")
         }
 
-        // Mock analysis results
         return """
 Analysis for \(path):
 - Complexity: Low

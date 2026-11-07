@@ -85,10 +85,6 @@ public struct AssistVersionControlOperator: AssistTool {
 
     #if os(macOS)
     private func isValidRefName(_ ref: String) -> Bool {
-        // Strict allow-list: letters, digits, and a small set of git-safe
-        // punctuation, plus the explicit HEAD~N / HEAD^N forms. The old
-        // validator skipped ALL checks whenever the ref contained "HEAD~"
-        // anywhere, so "HEAD~1; rm -rf …" passed validation.
         guard !ref.isEmpty, ref.count <= 256 else { return false }
         if ref == "HEAD" { return true }
         if let match = ref.range(of: #"^HEAD[~^]\d+$"#, options: .regularExpression), match == ref.startIndex..<ref.endIndex { return true }
@@ -100,7 +96,6 @@ public struct AssistVersionControlOperator: AssistTool {
     }
 
     private func runGit(args: [String], cwd: String) throws -> (status: Int32, output: String) {
-        // Argument vector (no shell) + bounded timeout via the shared runner.
         let run = try AssistArgvRunner.run(
             executableURL: URL(fileURLWithPath: "/usr/bin/git"),
             arguments: args,

@@ -2,107 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy search / code-navigation tools (Wave 3).
-///
-/// Behaviour source: Legacy's `AssistSearchTool`,
-/// `AssistRegexSearchTool`, `AssistSymbolSearchTool`,
-/// `AssistCallHierarchyTool`, `AssistCodeSummaryTool`,
-/// `AssistDependencyGraphTool`, `AssistImportGraphTool`,
-/// `AssistProtocolConformanceListTool`, `SearchSkillsTool`,
-/// `AssistSemanticQueryEngine`, `AssistSourceGraphBuilder`,
-/// `AssistSymbolMoveFileTool`, `AssistSymbolReferenceGraphTool`,
-/// `AssistSymbolRenameProjectTool`, `AssistTypeHierarchyTool` and
-/// `AssistDataInspectionTools` (`extract_code_symbols`) (Dylan's own
-/// code, ported under MIT), as specified in
-/// `specs/ide/assist-search-git-tools.md` and the catalogue
-/// (§§54–69). The workspace scan itself lives in
-/// `SwiftCodeTools+SearchSupport.swift` (`SearchWorkspace`,
-/// `SearchSkillIndex`).
-///
-/// Conventions, following Wave 1 (`SwiftCodeTools+FileReading.swift`) and
-/// Wave 2 (`SwiftCodeTools+FileWriting.swift`):
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Legacy's
-///   parameter-name aliases (`filePath`, `old_name`, `symbolName`, …)
-///   are NOT supported: SwiftCode's argument validation rejects unknown
-///   arguments before the handler runs (same as Wave 1).
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers and booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data (`symbol_reference_graph`, `search_skills`)
-///   return a plain text result instead.
-/// * Path resolution is split the way Legacy splits it. Tools whose
-///   Legacy implementation routes through the clamping
-///   `AssistToolingSupport.resolvePath` (`code_summary`,
-///   `dependency_graph`, `semantic_query_engine`,
-///   `source_graph_builder`) use `resolveFileWritingClampedPath` (an
-///   escaping path silently becomes the workspace root, never an
-///   error). Tools with Legacy's strict per-tool resolvers
-///   (`extract_code_symbols`, `symbol_move_file`,
-///   `symbol_rename_project`) use `resolveFileWritingPath` (rejects
-///   empty paths, NUL bytes, a leading `~` and any `..`). Tools with
-///   no path parameter scan the workspace root.
-/// * All 14 read-only tools are `readOnly: true, idempotent: true`,
-///   `writes: false`. The two mutating tools (`symbol_move_file`,
-///   `symbol_rename_project`) are `safeMutation` (`readOnly: false,
-///   idempotent: true`, `writes: true`) and gate through `commit()`
-///   — one approval per changed file, in order, stopping at the first
-///   refusal (the Wave 2 multi-file shape). There is no Autopilot
-///   bypass. `MCPServer.run` already refuses `writes: true` tools
-///   when the server is read-only.
-/// * Collisions with SwiftCode's existing tools: SwiftCode already has
-///   `search` (workspace text search) and `symbol_search` (symbol
-///   documentation). Legacy's `search_text` and `search_symbol` are
-///   DIFFERENT tools with different IDs and schemas and are
-///   registered as their own tools — nothing is merged or renamed.
-///   Legacy's `search` alias for `search_text` is deliberately NOT
-///   carried over (it would collide with SwiftCode's `search`); see the
-///   catalogue §53.5.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `search_text` / `search_regex` results are sorted by path.
-///   Legacy returns a dictionary (unordered); no caller could depend
-///   on its order, so the port is deterministic instead.
-/// * `semantic_query_engine` is a literal substring scan with three
-///   keyword expansions (`view` / `model` / `service`), exactly as
-///   Legacy implements it. Despite the name it performs no embedding
-///   or LLM semantic search, and the port does not pretend otherwise.
-/// * `symbol_rename_project` is a token-aware rename (gap
-///   closure): identifier tokens from the swift-syntax parse, so
-///   occurrences in comments, strings, and import paths are left
-///   alone. It is still not a semantic rename: it has no Swift
-///   symbol index, so shadowing is not resolved. The spec says so
-///   plainly.
-/// * `search_skills` searches the workspace's own skill files
-///   (`SKILL.md` / `SKILLS.md` / `*.SKILL.md`, usually under
-///   `.claude/skills/` or `.agents/skills/`). Legacy searched
-///   `SkillIndex`, an Application Support library SwiftCode does not
-///   have; the port searches the skill surface SwiftCode actually has,
-///   with Legacy's metadata parsing and scoring. Its guidance lines
-///   point at `file_read` (SwiftCode's canonical name) instead of
-///   Legacy's `read_file` alias.
-/// * `symbol_move_file`'s restore path is adapted to the gate: the
-///   source file is committed first, then the destination. If the
-///   destination commit fails, the source is restored to its
-///   original content (a direct write that undoes an approved
-///   change, net-zero) and the failure is reported. Verification
-///   failure likewise restores both files. A destination approval
-///   refusal therefore still leaves the workspace unchanged, as in
-///   Legacy — only the mechanism differs.
-/// * `resolveFileWritingPath` (strict) additionally rejects a
-///   leading `~`; Legacy's private resolvers for `symbol_move_file`
-///   / `symbol_rename_project` would have treated `~foo` as a
-///   relative path under the root. A `~`-leading path fails either
-///   way in practice, since no such file exists.
-///
-/// Wiring: the coordinator adds `searchTools` to `installTools()` in
-/// `SwiftCodeTools.swift` (this file must not edit that file). The
-/// registry aliases `search_dir` / `search_directory` / `find_file`
-/// → `search_text` and `symbol_graph` → `symbol_reference_graph`
-/// belong in `MCPServer.toolAliases` (also coordinator-owned); the
-/// `search` → `search_text` alias is NOT carried over (see above).
 extension SwiftCodeMCPHost {
     var searchTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -252,16 +151,11 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: - Shared helpers for the search tools
-
-    /// A required string argument; Legacy's missing-argument message.
     func searchRequiredString(_ call: MCPToolCall, _ key: String) throws -> String {
         guard let s = call.arguments[key]?.string else { throw MCPToolError("Missing required parameter: \(key)") }
         return s
     }
 
-    /// A required string argument that must be non-blank after
-    /// trimming; Legacy's missing-argument message.
     func searchRequiredTrimmedString(_ call: MCPToolCall, _ key: String) throws -> String {
         let raw = try searchRequiredString(call, key)
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -269,14 +163,10 @@ extension SwiftCodeMCPHost {
         return trimmed
     }
 
-    /// The workspace root for a call.
     func searchRoot(_ call: MCPToolCall) throws -> URL {
         Self.folder(of: try session(for: call).model)
     }
 
-    /// Legacy's identifier rule, shared by `symbol_move_file` and
-    /// `symbol_rename_project`: letters, digits, and underscores only,
-    /// and must not start with a digit.
     nonisolated static func isValidSearchIdentifier(_ value: String) -> Bool {
         guard !value.isEmpty else { return false }
         let allowed = CharacterSet.letters.union(.decimalDigits).union(CharacterSet(charactersIn: "_"))
@@ -284,8 +174,6 @@ extension SwiftCodeMCPHost {
         guard let first = value.unicodeScalars.first, !CharacterSet.decimalDigits.contains(first) else { return false }
         return true
     }
-
-    // MARK: - Text search
 
     func searchText(_ call: MCPToolCall) throws -> MCPToolResult {
         let root = try searchRoot(call)
@@ -331,8 +219,6 @@ extension SwiftCodeMCPHost {
         ]
         var allMatches: [String] = []
         for pattern in patterns {
-            // A pattern that fails to compile is skipped and logged by
-            // Legacy; the other patterns still run.
             guard let found = try? SearchWorkspace.searchText(in: root, pattern: pattern, isRegex: true) else { continue }
             for (url, matches) in found {
                 let rel = SearchWorkspace.relative(url, root: root)
@@ -344,14 +230,9 @@ extension SwiftCodeMCPHost {
                            summary: "Symbol search completed for '\(symbol)'")
     }
 
-    // MARK: - Symbol and declaration scans
-
     func extractCodeSymbols(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let pathRaw = try searchRequiredString(call, "path")
-        // No separate empty check: Legacy's strict resolver rejects an
-        // empty path with "Path is outside the workspace", not as a
-        // missing argument.
         guard let fileURL = resolveFileWritingPath(pathRaw, in: s) else {
             throw MCPToolError("Path is outside the workspace: \(pathRaw)")
         }
@@ -419,7 +300,6 @@ extension SwiftCodeMCPHost {
             }
         }
         if definitions.isEmpty && callers.isEmpty {
-            // Legacy's not-found result carries no `calleeCount` key.
             return .structured(["function": .string(fn), "definitionCount": .int(0), "callerCount": .int(0)],
                                summary: "No definition or callers found for function '\(fn)'.")
         }
@@ -562,8 +442,6 @@ extension SwiftCodeMCPHost {
         }
         return .text(report)
     }
-
-    // MARK: - Summaries and graphs
 
     func codeSummary(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -728,8 +606,6 @@ extension SwiftCodeMCPHost {
                            summary: "Semantic query returned \(hits.count) matches.")
     }
 
-    // MARK: - Skills
-
     func searchSkills(_ call: MCPToolCall) throws -> MCPToolResult {
         let root = try searchRoot(call)
         guard let query = call.arguments["query"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else {
@@ -757,8 +633,6 @@ extension SwiftCodeMCPHost {
         output += "\n> **Guidance**: Inspect the most relevant skill above using `file_read` if detailed execution instructions or rules are needed."
         return .text(output)
     }
-
-    // MARK: - Mutating tools (approval-gated)
 
     func moveSymbol(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -812,9 +686,6 @@ extension SwiftCodeMCPHost {
         guard let startIndex = declarationLine else {
             throw MCPToolError("Symbol '\(symbol)' declaration not found in \(relative(sourceURL.path, in: s)).")
         }
-        // Extract the brace-balanced block starting at the declaration
-        // line (Legacy's heuristic: brace counting, no string/comment
-        // parsing; 500-line cap; 20-line no-brace rule).
         var depth = 0
         var sawBrace = false
         var endIndex: Int? = nil
@@ -853,11 +724,6 @@ extension SwiftCodeMCPHost {
 
         let sourceRel = relative(sourceURL.path, in: s)
         let destinationRel = relative(destinationURL.path, in: s)
-        // Gate: one commit() per file, source first, then destination
-        // (the Wave 2 multi-file shape). If the destination commit
-        // fails after the source commit, the source is restored to its
-        // original content — Legacy's restore path, adapted to the
-        // gate (a direct write undoing an approved change, net-zero).
         try await commit(MCPChange(tool: call.name, path: sourceURL.path, relativePath: sourceRel,
                                    original: sourceContent, proposed: newSource,
                                    summary: "Move \(symbol) out of \(sourceRel)"), call: call, session: s)
@@ -871,7 +737,6 @@ extension SwiftCodeMCPHost {
             delegate?.mcpHostDidWrite(sourceURL.path)
             throw error
         }
-        // Verify: declaration present in destination, gone from source.
         let verifySource = (try? String(contentsOf: sourceURL, encoding: .utf8)) ?? ""
         let verifyDestination = (try? String(contentsOf: destinationURL, encoding: .utf8)) ?? ""
         let sourceRange = NSRange(verifySource.startIndex..., in: verifySource)
@@ -893,19 +758,10 @@ extension SwiftCodeMCPHost {
                            summary: "Moved symbol '\(symbol)' (\(declarationKind), \(blockLines.count) line(s)) from \(sourceRel) to \(destinationRel).")
     }
 
-    /// Gap closure: token-aware rename (`SymbolRenameEngine` —
-    /// identifier tokens from the swift-syntax parse, never raw
-    /// text). See `specs/ide/gap-closure-correctness.md` §6.
     func renameSymbolProject(_ call: MCPToolCall) async throws -> MCPToolResult {
         try await correctnessRenameSymbolProject(call)
     }
 
-    /// Legacy's `AssistSymbolRenameProjectTool.enumerateSwiftFiles`: a
-    /// single `.swift` file (≤ 300 KB) on its own, else a recursive
-    /// walk that skips `.git` / `DerivedData` / `.build` / `Pods` /
-    /// `node_modules` directories, `.swift` files only, ≤ 300 KB, at
-    /// most 5000 files, sorted by path. Hidden files are NOT skipped
-    /// (the enumerator uses no skip options).
     nonisolated static func renameScopeFiles(at root: URL) -> [URL] {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir) else { return [] }

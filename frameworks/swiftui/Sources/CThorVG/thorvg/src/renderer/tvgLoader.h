@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_LOADER_H_
 #define _TVG_LOADER_H_
 
@@ -39,25 +17,24 @@ struct AssetResolver
     void* data;
 };
 
-// Specifying how ownership of supplied data is handled.
 enum struct Ownership : uint8_t
 {
-    Borrow,   ///< The data remains owned by the caller and must stay valid while in use. (do not free it)
-    Copy,     ///< The data is copied, and the caller retains ownership of the original. (must free it)
-    Transfer  ///< Ownership of the data is transferred to the loaders. (must free it)
+    Borrow,
+    Copy,
+    Transfer
 };
 
 struct LoaderOps
 {
-    Type caller;  // which requests this?
+    Type caller;
     Ownership owner;
 };
 
 struct PictureOps : LoaderOps
 {
     AssetResolver* resolver;
-    const char* rpath;  // decide the relative path file if the file is loaded from memory
-    bool accessible;    // allow the accessor
+    const char* rpath;
+    bool accessible;
 
     PictureOps(Ownership owner, AssetResolver* resolver, const char* rpath, bool accessible) :
         LoaderOps{Type::Picture, owner}, resolver(resolver), rpath(rpath), accessible(accessible) {}
@@ -67,15 +44,14 @@ struct Loader
 {
     INLIST_ITEM(Loader);
 
-    // Use either hashkey(data) or hashpath(path)
     uintptr_t hashkey = 0;
     char* hashpath = nullptr;
 
-    FileType type;               // current loader file type
-    atomic<uint16_t> sharing{};  // reference count
+    FileType type;
+    atomic<uint16_t> sharing{};
     Ownership owner = Ownership::Borrow;
-    bool readied = false;        // read done already
-    bool cached = false;         // cached for sharing
+    bool readied = false;
+    bool cached = false;
 
     Loader(FileType type) : type(type) {}
 
@@ -113,7 +89,7 @@ struct Loader
     virtual Result open(const char* path, const LoaderOps& ops) { return Result::NonSupport; }
     virtual Result open(const char* data, uint32_t size, const LoaderOps& ops) { return Result::NonSupport; }
     virtual bool resize(Paint* paint, float w, float h) { return false; }
-    virtual bool sync() { return false; };  // finish immediately if any async update jobs, return true if something has been updated.
+    virtual bool sync() { return false; };
 
     virtual bool read()
     {
@@ -158,8 +134,8 @@ struct Loader
 
 struct ImageLoader : Loader
 {
-    float w = 0, h = 0;  // default image size
-    bool playable;       // true if this loader supports playback
+    float w = 0, h = 0;
+    bool playable;
 
     ImageLoader(FileType type, bool playable = false) : Loader(type), playable(playable) {}
 
@@ -171,7 +147,7 @@ struct ImageLoader : Loader
 
 struct BitmapLoader : ImageLoader
 {
-    static atomic<ColorSpace> cs;  // desired value
+    static atomic<ColorSpace> cs;
 
     RenderSurface surface;
 
@@ -186,15 +162,15 @@ struct BitmapLoader : ImageLoader
 struct AnimLoader : ImageLoader
 {
     float segmentBegin = 0.0f;
-    float segmentEnd;  // initialize the value with the total frame number
+    float segmentEnd;
 
     AnimLoader(FileType type) : ImageLoader(type, true) {}
     virtual ~AnimLoader() {}
 
-    virtual bool frame(float no) = 0;  // set the current frame number
-    virtual float totalFrame() = 0;  // return the total frame count
-    virtual float curFrame() = 0;  // return the current frame number
-    virtual float duration() = 0;  // return the animation duration in seconds
+    virtual bool frame(float no) = 0;
+    virtual float totalFrame() = 0;
+    virtual float curFrame() = 0;
+    virtual float duration() = 0;
     virtual Result segment(float begin, float end) = 0;
 
     void segment(float* begin, float* end)
@@ -206,14 +182,14 @@ struct AnimLoader : ImageLoader
 
 struct FontMetrics
 {
-    Point size;  // text width, height
+    Point size;
     float scale;
     Point align{}, box{}, spacing{1.0f, 1.0f};
     float fontSize = 0.0f;
-    uint32_t lines = 1;  // line count
+    uint32_t lines = 1;
     TextWrap wrap = TextWrap::None;
 
-    void* engine = nullptr;  // engine extension
+    void* engine = nullptr;
 
     ~FontMetrics()
     {
@@ -223,7 +199,7 @@ struct FontMetrics
 
 struct FontLoader : Loader
 {
-    static constexpr const float DPI = 96.0f / 72.0f;  // dpi base?
+    static constexpr const float DPI = 96.0f / 72.0f;
 
     char* name = nullptr;
 
@@ -240,4 +216,4 @@ struct FontLoader : Loader
 };
 }
 
-#endif //_TVG_LOADER_H_
+#endif

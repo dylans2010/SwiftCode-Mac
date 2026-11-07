@@ -1,5 +1,3 @@
-// timeprobe2: our probe (stage 7, agent I4). Calls each public wall-clock
-// interface 1000 times, so a Ycode trace shows which ones enter the kernel.
 #import <Foundation/Foundation.h>
 #include <time.h>
 #include <sys/time.h>

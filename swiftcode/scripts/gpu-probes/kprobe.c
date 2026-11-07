@@ -1,9 +1,3 @@
-// kprobe: runs a translated `astc`-family kernel (swiftcode-airc SPIR-V +
-// constant data) through CVulkan on random inputs, like
-// KernelHangProbeTests, without a Swift build.
-// usage: kprobe K.spv CONST.bin ROUNDS TGX TGY GRID SEED [FULLSUBGROUPS]
-// Build (from swiftcode/, on a host with Vulkan; stage8-contract.md §15):
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o X scripts/gpu-probes/X.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>

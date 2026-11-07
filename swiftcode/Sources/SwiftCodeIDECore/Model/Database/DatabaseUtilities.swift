@@ -1,10 +1,3 @@
-// DatabaseUtilities.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/Helpers/DatabaseUtilities.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: multi-provider CREATE TABLE dialect generation (PostgreSQL/Supabase SERIAL, MySQL AUTO_INCREMENT, provider-specific PK handling)
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeCloud — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public struct DatabaseUtilities {
@@ -46,7 +39,6 @@ public struct DatabaseUtilities {
             columnsSql.append(colDef)
         }
 
-        // Relationships / Foreign Keys
         for rel in table.relationships {
             if rel.type == .oneToMany || rel.type == .oneToOne {
                 var fkDef = "    FOREIGN KEY (\(rel.sourceColumn)) REFERENCES \(rel.targetTable)(\(rel.targetColumn))"

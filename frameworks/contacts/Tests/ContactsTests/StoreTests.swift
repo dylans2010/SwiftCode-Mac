@@ -1,7 +1,3 @@
-// C-CN-STORE (plan.md §3): fresh store, containers and groups
-// (interface.md §3), the save table (§5), images (§2.5), notifications
-// (§6.1) and the recorded authorization levels.
-
 import Foundation
 import Testing
 @testable import Contacts
@@ -13,7 +9,7 @@ struct FreshStoreTests {
         let t = TestStore()
         let all = try t.store.unifiedContacts(matching: nil, keysToFetch: nameKeys)
         #expect(all.count == 6)
-        #expect(all.allSatisfy { UUID(uuidString: $0.identifier) != nil })  // plain UUIDs for seed records
+        #expect(all.allSatisfy { UUID(uuidString: $0.identifier) != nil })
         #expect(all.filter { !$0.organizationName.isEmpty }.count == 2)
         let groups = try t.store.groups(matching: nil)
         #expect(groups.map(\.name) == ["Friends", "Work"])
@@ -47,7 +43,6 @@ struct FreshStoreTests {
         #expect(try t.store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: anyone.identifier)).map(\.identifier) == [local])
         #expect(try t.store.containers(matching: CNContainer.predicateForContainers(withIdentifiers: [local, "bogus"])).count == 1)
         #expect(try t.store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: "bogus")).isEmpty)
-        // SwiftCode answers with the group's container (open question C-CN-Q2).
         let g = CNMutableGroup()
         g.name = "Probe Group"
         try save(t.store) { $0.add(g, toContainerWithIdentifier: nil) }
@@ -149,7 +144,6 @@ struct SaveTests {
         #expect(try t.store.groups(matching: nil).count == 2)
         expectCode(.recordDoesNotExist) { _ = try t.store.unifiedContact(withIdentifier: extra.identifier, keysToFetch: []) }
 
-        // A request that refers to the group created by the failed request.
         expectCode(.recordDoesNotExist) {
             try save(t.store) {
                 $0.addMember(member, to: g)
@@ -161,7 +155,6 @@ struct SaveTests {
 
         try save(t.store) { $0.add(g, toContainerWithIdentifier: nil) }
         #expect(try t.store.groups(matching: nil).map(\.name) == ["Friends", "Work", "Probe Group"])
-        // Now membership works; a second add and removing a non-member are no-ops.
         let other = try t.store.unifiedContacts(matching: nil, keysToFetch: [])[1]
         try save(t.store) {
             $0.addMember(member, to: g)
@@ -233,7 +226,7 @@ struct SaveTests {
             #expect(try t.store.unifiedContact(withIdentifier: c.identifier, keysToFetch: keys(CNContactNoteKey)).note == "Bring the blue folder.")
         }
         let plain = person("Blake", "Example")
-        try save(t.store) { $0.add(plain, toContainerWithIdentifier: nil) }  // saved without a note: fine
+        try save(t.store) { $0.add(plain, toContainerWithIdentifier: nil) }
     }
 }
 

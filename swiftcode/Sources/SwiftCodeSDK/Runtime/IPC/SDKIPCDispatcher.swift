@@ -1,23 +1,10 @@
 import Foundation
 import SwiftCodeExtensions
 
-// MARK: - SDKRuntimeSessionInfo
-//
-// Minimal session identity for one extension runtime. The dropped
-// `SDKRuntimeSession` state machine stays dropped (spec §3.2/§3.4):
-// this is a value, not a lifecycle — the v2 host owns the runtime
-// lifecycle, and the dispatcher owns one session's worth of routing
-// state (build handles, registered commands) keyed by it.
-//
-// The presented API key secret is toxic: it is held only for the
-// session's lifetime, re-verified on every request, and never logged.
-
 public struct SDKRuntimeSessionInfo: Sendable {
     public let extensionID: String
-    /// SHA-256 package digest of the running install.
     public let packageDigest: String
     public let projectRootPath: String
-    /// The session-presented developer API key secret, if any.
     public let presentedAPIKey: String?
 
     public init(extensionID: String, packageDigest: String, projectRootPath: String, presentedAPIKey: String? = nil) {
@@ -28,15 +15,6 @@ public struct SDKRuntimeSessionInfo: Sendable {
     }
 }
 
-// MARK: - SDKCommandDefinition
-//
-// Wire type for `commands.register`. The dropped `SDKCommandRegistry`
-// stays dropped (v2 `NativePluginRegistry` + the MCP catalogue own
-// command execution); the dispatcher keeps a per-session table of
-// these definitions only, with Legacy's validation: kebab-case IDs,
-// titles 1–128 characters, max 64 commands per session, per-session
-// ownership (an unregister for an unknown ID is a silent no-op).
-
 public struct SDKCommandDefinition: Sendable, Codable, Equatable {
     public let id: String
     public let title: String
@@ -46,8 +24,6 @@ public struct SDKCommandDefinition: Sendable, Codable, Equatable {
         self.title = title
     }
 
-    /// Validates a command definition. IDs are kebab-case
-    /// (`^[a-z][a-z0-9-]{0,63}$`); titles are 1–128 trimmed characters.
     public static func validate(id: String, title: String) throws -> SDKCommandDefinition {
         guard id.count <= 64,
               id.range(of: "^[a-z][a-z0-9-]{0,63}$", options: .regularExpression) != nil else {
@@ -61,43 +37,11 @@ public struct SDKCommandDefinition: Sendable, Codable, Equatable {
     }
 }
 
-// MARK: - SDKIPCDispatcher
-//
-// Ported from Legacy `SwiftCode/SDK/Runtime/IPC/SDKIPCDispatcher.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Routes IPC requests for one extension runtime session. One
-// dispatcher per `SDKRuntimeSessionInfo`.
-//
-// Pipeline (per request):
-//  1. Peek the envelope: protocol version must be 1
-//     (`.ipcProtocolMismatch`), the frame must be a `.request`
-//     (`.ipcMalformed`), 1 MiB bound (`.resourceLimitExceeded`).
-//  2. `SDKAssistGate.check` FIRST — before routing or decoding.
-//  3. Re-verify the session API key on EVERY request (fail closed).
-//  4. Build `SDKCallerIdentity` from the SESSION, never the payload.
-//  5. Route inside a 60s timeout (detached watchdog; on timeout the
-//     operation keeps running detached and the caller gets
-//     `.ipcTimeout`).
-//
-// `dispatch` never throws: every failure becomes an `ok: false`
-// response carrying an `SDKErrorPayload`.
-//
-// TRANSPORT: the dropped `SDKIPCTransport` stays dropped (v2
-// `ExtensionRPC` is the one wire protocol). The dispatcher takes
-// `Data` in and returns `Data` out; the caller owns the transport and
-// installs `eventSink` to receive unsolicited events (build output,
-// Assist stream deltas). With no sink installed, events are dropped —
-// the host runtime must install one.
-
 public actor SDKIPCDispatcher {
-    /// Per-request timeout (60s).
     public static let requestTimeout: TimeInterval = 60
-    /// Maximum commands per session.
     public static let maxCommandsPerSession = 64
 
     private let session: SDKRuntimeSessionInfo
-    /// Receives unsolicited event frames (build output, Assist stream).
     public var eventSink: (@Sendable (Data) -> Void)?
 
     private var buildHandles: [UUID: SDKBuildHandle] = [:]
@@ -108,12 +52,7 @@ public actor SDKIPCDispatcher {
         self.eventSink = eventSink
     }
 
-    // MARK: - Entry point
-
-    /// Dispatches one IPC frame and returns the response frame. Never
-    /// throws: failures become `ok: false` responses.
     public func dispatch(_ data: Data) async -> Data {
-        // Peek the frame type first (1 MiB bound enforced here).
         let messageType: SDKMessageType
         do {
             messageType = try SDKIPCCodec.decodeEnvelopeType(from: data)
@@ -126,7 +65,6 @@ public actor SDKIPCDispatcher {
             return errorResponse(requestId: "", error: SDKError(code: .ipcMalformed, message: "Expected a request frame."))
         }
 
-        // Best-effort requestId + protocol version.
         let peek: EnvelopePeek
         do {
             peek = try JSONDecoder().decode(EnvelopePeek.self, from: data)
@@ -148,18 +86,14 @@ public actor SDKIPCDispatcher {
         }
 
         do {
-            // 2. Assist gate FIRST — before routing or decoding.
             try await SDKAssistGate.check(ipcMethod: envelope.method, callerExtensionID: session.extensionID)
-            // 3. Re-verify the session key on every request.
             let key = try await verifySessionAPIKey()
-            // 4. Caller identity comes from the SESSION, never the payload.
             let caller = SDKCallerIdentity(
                 extensionID: session.extensionID,
                 packageDigest: session.packageDigest,
                 projectRootPath: session.projectRootPath,
                 apiKey: key
             )
-            // 5. Route inside the 60s timeout.
             let payload = try await routeWithTimeout(method: envelope.method, payload: envelope.payload, requestId: envelope.requestId, caller: caller)
             return SDKIPCCodec.encodeResponse(SDKResponseEnvelope(requestId: envelope.requestId, payload: payload))
         } catch let error as SDKError {
@@ -169,15 +103,11 @@ public actor SDKIPCDispatcher {
         }
     }
 
-    /// Sends an unsolicited event frame to the installed sink (dropped
-    /// when no sink is installed).
     public func event(name: String, payload: JSONValue, requestId: String) {
         guard let eventSink else { return }
         let envelope = SDKEventEnvelope(requestId: requestId, event: name, payload: payload)
         eventSink(SDKIPCCodec.encodeEvent(envelope))
     }
-
-    // MARK: - Pipeline helpers
 
     private struct EnvelopePeek: Decodable {
         let protocolVersion: Int
@@ -190,8 +120,6 @@ public actor SDKIPCDispatcher {
 
     private func verifySessionAPIKey() async throws -> SDKAPIKey? {
         guard let secret = session.presentedAPIKey else { return nil }
-        // `SDKAPIKeyStore.verify` audits auth failures itself; the
-        // dispatcher just fails closed on any verification error.
         return try await SDKAPIKeyStore.shared.verify(secret: secret)
     }
 
@@ -207,13 +135,9 @@ public actor SDKIPCDispatcher {
                 throw SDKError(code: .serviceUnavailable, message: "The request produced no result.")
             }
             group.cancelAll()
-            // The route task keeps running detached when the timeout
-            // won the race (its result is simply dropped).
             return value
         }
     }
-
-    // MARK: - Routing
 
     private func route(method: String, payload: JSONValue, requestId: String, caller: SDKCallerIdentity) async throws -> JSONValue {
         switch method {
@@ -274,7 +198,7 @@ public actor SDKIPCDispatcher {
             return try encodeJSON(validated)
         case "commands.unregister":
             let id = try stringField(payload, "id")
-            commands.removeValue(forKey: id) // Unknown ID: silent no-op.
+            commands.removeValue(forKey: id)
             return .bool(true)
         case "ui.openView":
             return try await routeOpenView(payload: payload, caller: caller)
@@ -294,8 +218,6 @@ public actor SDKIPCDispatcher {
             throw SDKError(code: .invalidArgument, message: "Unknown IPC method: \(method).")
         }
     }
-
-    // MARK: - Build events
 
     private func forwardBuildEvents(handle: SDKBuildHandle, requestId: String) {
         Task.detached {
@@ -321,13 +243,8 @@ public actor SDKIPCDispatcher {
         guard let id = UUID(uuidString: idString), let handle = buildHandles[id] else {
             throw SDKError(code: .invalidArgument, message: "The build handle does not exist.")
         }
-        // Possession of the handle IS the authorization — handles live
-        // in this session's map only, so a foreign handle cannot be
-        // named here.
         return handle
     }
-
-    // MARK: - Assist invoke
 
     private func routeAssistInvoke(payload: JSONValue, requestId: String, caller: SDKCallerIdentity) async throws -> JSONValue {
         guard let key = caller.apiKey else {
@@ -392,11 +309,8 @@ public actor SDKIPCDispatcher {
         }
     }
 
-    // MARK: - Open view
-
     private func routeOpenView(payload: JSONValue, caller: SDKCallerIdentity) async throws -> JSONValue {
         let viewID = try stringField(payload, "viewId")
-        // `assist.main` is carved out to the entitled Assist opener.
         if viewID == SDKAssistUIOpener.assistMainViewID {
             try await SDKAssistUIOpener.openAssistView(caller: caller)
             return .bool(true)
@@ -409,10 +323,6 @@ public actor SDKIPCDispatcher {
         return .bool(true)
     }
 
-    // MARK: - Payload helpers
-
-    /// Decodes a payload through a JSON round-trip. Malformed payloads
-    /// become `.invalidArgument`, never a crash.
     private func decodePayload<T: Decodable>(_ payload: JSONValue, as type: T.Type) throws -> T {
         do {
             let data = try JSONEncoder().encode(payload)
@@ -450,8 +360,6 @@ public actor SDKIPCDispatcher {
         return id
     }
 
-    /// A log message from an extension. The message is sanitized by
-    /// `SDKUserLogger` on delivery — never logged raw.
     private struct ExtensionLogMessage {
         let level: SDKUserLogLevel
         let title: String

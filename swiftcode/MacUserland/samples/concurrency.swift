@@ -1,6 +1,3 @@
-// concurrency.swift - a stage-B sample (specs/macos/swift-runtime.md §9): actors,
-// task groups, Task.sleep on dispatch timers, detached tasks, the main
-// actor. Built by swift/build.sh; run-samples.sh checks concurrency.expected.
 actor Counter { var n = 0; func add(_ k: Int) { n += k } }
 @main struct Main {
   static func main() async {

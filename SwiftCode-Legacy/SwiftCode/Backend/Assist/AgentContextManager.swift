@@ -40,8 +40,6 @@ public struct AgentContext: Sendable, Codable {
     }
 }
 
-// MARK: - Context Engine
-
 public final class AssistContextEngine: @unchecked Sendable {
     private let context: AssistContext
     private let lock = NSLock()
@@ -66,8 +64,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         )
     }
 
-    // MARK: - Token Estimation
-
     public func estimateTokens(_ text: String) -> Int {
         max(1, text.count / 4)
     }
@@ -75,8 +71,6 @@ public final class AssistContextEngine: @unchecked Sendable {
     public func estimateTokens(for sections: [ModelContextSection]) -> Int {
         sections.reduce(0) { $0 + $1.estimatedTokens }
     }
-
-    // MARK: - Context Budget
 
     public func calculateBudget(modelId: String, systemPromptLength: Int) -> ContextBudget {
         let overhead = max(1, systemPromptLength / 4)
@@ -100,8 +94,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         default: return 128_000
         }
     }
-
-    // MARK: - Context Pressure Monitor
 
     public func updatePressureState(estimatedUsage: Int, capacity: Int) {
         let ratio = capacity > 0 ? Double(estimatedUsage) / Double(capacity) : 0
@@ -134,8 +126,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         defer { lock.unlock() }
         return _pressureState
     }
-
-    // MARK: - Tool Output Compaction
 
     public func compactToolResult(_ result: AssistToolResult, toolId: String) -> CompactedToolResult {
         lock.lock()
@@ -244,8 +234,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         return parts.joined(separator: " | ")
     }
 
-    // MARK: - Hierarchical Summaries
-
     public func addHierarchicalSummary(_ summary: HierarchicalSummary) {
         lock.lock()
         _hierarchicalSummaries.append(summary)
@@ -286,8 +274,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         return summary
     }
 
-    // MARK: - Priority-Based Context Building
-
     public func buildPrioritizedContext(
         for objective: String,
         plan: AssistExecutionPlan? = nil,
@@ -304,7 +290,6 @@ public final class AssistContextEngine: @unchecked Sendable {
     ) -> [ModelContextSection] {
         var sections: [ModelContextSection] = []
 
-        // P0: Always preserve
         sections.append(contentsOf: buildP0Sections(
             objective: objective,
             recentErrors: recentErrors,
@@ -312,7 +297,6 @@ public final class AssistContextEngine: @unchecked Sendable {
             verificationSummary: verificationSummary
         ))
 
-        // P1: Important context
         sections.append(contentsOf: buildP1Sections(
             plan: plan,
             completedActions: completedActions,
@@ -324,7 +308,6 @@ public final class AssistContextEngine: @unchecked Sendable {
             attachmentsBlock: attachmentsBlock
         ))
 
-        // P2: Useful but compressible
         sections.append(contentsOf: buildP2Sections())
 
         return sections.sorted { $0.priority < $1.priority }
@@ -565,8 +548,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         return parts.joined(separator: "\n")
     }
 
-    // MARK: - Context Compaction
-
     public func compactContext(
         sections: [ModelContextSection],
         budget: ContextBudget
@@ -579,23 +560,19 @@ public final class AssistContextEngine: @unchecked Sendable {
             return compacted
         }
 
-        // Phase 1: Compact P2 sections
         compacted = compactP2Sections(compacted)
         currentUsage = estimateTokens(for: compacted)
 
-        // Phase 2: Compact P1 tool results
         if currentUsage > budget.usableBudget {
             compacted = compactP1ToolResults(compacted)
             currentUsage = estimateTokens(for: compacted)
         }
 
-        // Phase 3: Compact P1 file contents
         if currentUsage > budget.usableBudget {
             compacted = compactP1FileContents(compacted)
             currentUsage = estimateTokens(for: compacted)
         }
 
-        // Phase 4: Aggressive - compact everything except P0
         if currentUsage > budget.usableBudget {
             compacted = compactAggressive(compacted, budget: budget)
             currentUsage = estimateTokens(for: compacted)
@@ -728,8 +705,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         return phases
     }
 
-    // MARK: - Context Recovery
-
     public func recoverFromContextPressure(
         originalPrompt: String,
         error: Error,
@@ -749,7 +724,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         while retryCount < maxRetries {
             retryCount += 1
 
-            // Aggressive compaction: keep only P0 + most recent P1
             let lines = currentPrompt.components(separatedBy: "\n")
             var compactedLines: [String] = []
             var inP0 = false
@@ -770,7 +744,6 @@ public final class AssistContextEngine: @unchecked Sendable {
 
             currentPrompt = compactedLines.joined(separator: "\n")
 
-            // Add compaction notice
             currentPrompt += "\n\n[SYSTEM: Context compacted due to pressure. Focus on unresolved errors and active objective.]"
 
             let capacity = modelContextWindow(for: modelId)
@@ -793,8 +766,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         )
     }
 
-    // MARK: - File Content Cache
-
     private func cachedFileContent(at path: String, maxChars: Int) -> String? {
         if let cached = fileContentCache[path] {
             let currentMtime = (try? context.workspaceRoot.appendingPathComponent(path).resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
@@ -807,8 +778,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         fileContentCache[path] = (mtime: mtime, content: raw)
         return raw.count > maxChars ? String(raw.prefix(maxChars)) + "\n... [TRUNCATED]" : raw
     }
-
-    // MARK: - Compaction Record
 
     public struct CompactionRecord: Sendable {
         public let timestamp: Date
@@ -823,8 +792,6 @@ public final class AssistContextEngine: @unchecked Sendable {
         return _compactionLog
     }
 }
-
-// MARK: - Legacy AgentContextManager (wrapper for backward compatibility)
 
 public final class AgentContextManager: @unchecked Sendable {
     private let context: AssistContext

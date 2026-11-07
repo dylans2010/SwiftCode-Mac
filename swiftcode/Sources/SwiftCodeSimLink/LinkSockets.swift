@@ -1,8 +1,3 @@
-// Sockets of the simulator link (sim-link.md §7): the host's TCP listener
-// (any address: every connection must pass the handshake before anything
-// is acted on) and UDP sockets for the media channel. TCP_NODELAY on every
-// connection (input events are small; Nagle would hold them).
-
 import Foundation
 import SwiftCodeDisplayStream
 #if canImport(Glibc)
@@ -34,15 +29,12 @@ public enum LinkSockets {
         #endif
     }
 
-    /// Receive and send timeouts (0: none).
     public static func setTimeouts(_ fd: Int32, seconds: TimeInterval) {
         var tv = timeval(tv_sec: Int(seconds), tv_usec: numericCast(Int((seconds - Double(Int(seconds))) * 1e6)))
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
     }
 
-    /// The host's sockets stay out of the devices it starts: a launcher that
-    /// inherited the listening port kept it bound after the service stopped.
     public static func closeOnExec(_ fd: Int32) {
         _ = fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC)
     }
@@ -52,7 +44,6 @@ public enum LinkSockets {
         setsockopt(fd, Int32(IPPROTO_TCP), TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
     }
 
-    /// An IPv4 socket address.
     public static func ipv4(_ host: String, _ port: Int) -> sockaddr_in? {
         var a = sockaddr_in()
         a.sin_family = sa_family_t(AF_INET)
@@ -78,7 +69,6 @@ public enum LinkSockets {
     }
 }
 
-/// The host's TCP listener.
 public final class LinkListener: @unchecked Sendable {
     public let fd: Int32
     public let port: Int
@@ -103,7 +93,6 @@ public final class LinkListener: @unchecked Sendable {
         self.port = Int(UInt16(bigEndian: bound.sin_port))
     }
 
-    /// The next connection and its peer's address; nil once closed.
     public func accept() -> (DisplayConnection, sockaddr_in)? {
         while true {
             var peer = sockaddr_in()
@@ -131,12 +120,10 @@ public final class LinkListener: @unchecked Sendable {
     }
 }
 
-/// A UDP socket (the media channel).
 public final class LinkDatagramSocket: @unchecked Sendable {
     public let fd: Int32
     public let port: Int
 
-    /// Bound to `host:port` (port 0: any free port).
     public init(host: String = "0.0.0.0", port: Int = 0, receiveBuffer: Int32 = 4 << 20, sendBuffer: Int32 = 4 << 20) throws {
         guard var addr = LinkSockets.ipv4(host, port) else { throw DisplaySocketError(message: "cannot resolve \(host)") }
         let fd = socket(AF_INET, LinkSockets.datagramType, 0)
@@ -171,7 +158,6 @@ public final class LinkDatagramSocket: @unchecked Sendable {
         return n == bytes.count
     }
 
-    /// The next datagram and its sender; nil on a timeout or once closed.
     public func receive(max: Int = 2048) -> ([UInt8], sockaddr_in)? {
         var buf = [UInt8](repeating: 0, count: max)
         var peer = sockaddr_in()

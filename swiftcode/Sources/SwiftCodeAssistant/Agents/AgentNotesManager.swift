@@ -2,8 +2,6 @@ import Foundation
 import Observation
 import os
 
-// MARK: - Assist v3 Agent Notes Manager
-
 @Observable
 @MainActor
 public final class AgentNotesManager: Sendable {
@@ -16,7 +14,6 @@ public final class AgentNotesManager: Sendable {
 
     private init() {}
 
-    /// Ensures that both agent_notes.md and legacy AgentNotes.md are strictly excluded from git tracking.
     public func ensureGitIgnored(in workspaceRoot: URL) {
         let gitignoreURL = workspaceRoot.appendingPathComponent(".gitignore")
         let entriesToAdd = [
@@ -59,7 +56,6 @@ public final class AgentNotesManager: Sendable {
         }
     }
 
-    /// Removes obsolete legacy AgentNotes.md files from earlier workflows to prevent pollution.
     public func cleanupLegacyNotes(in workspaceRoot: URL) {
         let legacyURL = workspaceRoot.appendingPathComponent("AgentNotes.md")
         if FileManager.default.fileExists(atPath: legacyURL.path) {
@@ -68,7 +64,6 @@ public final class AgentNotesManager: Sendable {
         }
     }
 
-    /// Renders and updates the full contract-compliant agent_notes.md artifact.
     @discardableResult
     public func updateNotes(
         task: AgentTask,
@@ -200,13 +195,11 @@ public final class AgentNotesManager: Sendable {
 
         self.currentNotesMarkdown = content
 
-        // Store outside workspace or in workspaceRoot as strictly git-ignored file
         let notesURL = workspaceRoot.appendingPathComponent("agent_notes.md")
         try? content.write(to: notesURL, atomically: true, encoding: .utf8)
         self.lastSavedURL = notesURL
         self.lastSavedTimestamp = Date()
 
-        // Surface agent_notes.md in the native artifact store (MainActor-isolated).
         Task { @MainActor in
             AssistArtifactStore.shared.refresh(workspaceRoot: workspaceRoot)
         }
@@ -214,7 +207,6 @@ public final class AgentNotesManager: Sendable {
         return content
     }
 
-    /// Removes temporary agent_notes.md after session completes or resets.
     public func cleanup(in workspaceRoot: URL) {
         let notesURL = workspaceRoot.appendingPathComponent("agent_notes.md")
         if FileManager.default.fileExists(atPath: notesURL.path) {

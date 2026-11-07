@@ -1,9 +1,6 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/CopyLogsButton.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB supporting file: the only in-tree consumers are the ported VUB files (VisualUIBuilderSplitViewController, VisualUICanvasView, RunFullAppView, VisualUIPreviewPanel).
 import SwiftUI
 import AppKit
 
-/// Reusable and robust utility button to copy log contents/text to the macOS clipboard, showing confirmation and disabling itself if empty.
 public struct CopyLogsButton: View {
     private let logTextProvider: @MainActor () -> String
     @State private var showCopiedConfirmation = false
@@ -49,7 +46,6 @@ public struct CopyLogsButton: View {
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        // Support very large log outputs without truncation or memory issues by assigning as NSPasteboard.PasteboardType.string
         pasteboard.setString(text, forType: .string)
 
         withAnimation(.spring()) {

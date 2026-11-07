@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - NDJSON JSON-RPC v1 wire protocol (spec §4.3)
-
 public struct RPCRequest: Codable, Sendable {
     public static let protocolVersion: Int = 1
     public let jsonrpc: String
@@ -43,10 +41,7 @@ public struct RPCErrorPayload: Codable, Sendable {
     }
 }
 
-/// One JSON object per line, both directions, UTF-8, `\n` terminated.
-/// Every message carries `jsonrpc: "2.0"` and `protocolVersion: 1`.
 public enum ExtensionRPC {
-    /// The 20 methods the host may send.
     public static let allowedHostMethods: Set<String> = [
         "host.log", "host.showMessage", "host.registerCommand", "host.registerTreeData",
         "host.setStatusBar", "host.appendOutput", "host.readFile", "host.writeFile",
@@ -57,20 +52,14 @@ public enum ExtensionRPC {
         "host.showQuickPick", "host.showInputBox",
     ]
 
-    /// The 6 methods SwiftCode may send.
     public static let allowedHostMethodsSwiftCode: Set<String> = [
         "activate", "deactivate", "executeCommand", "shutdown",
         "didChangeTextDocument", "didChangeConfiguration",
     ]
 
-    /// Error code for host replies; host fatal is -32001.
     public static let replyErrorCode = -32000
     public static let fatalErrorCode = -32001
 
-    /// Decodes one NDJSON line. Rejects: a line over 1 MiB, a
-    /// `protocolVersion != 1`, a method outside the direction's
-    /// allowlist. All three are host faults — never leniently accepted.
-    /// Oversize is checked on the raw line byte count.
     public static func decodeRequest(from line: Data, fromHost: Bool) throws -> RPCRequest {
         guard line.count <= ResourceLimits.maxIPCMessageBytes else {
             throw SwiftCodeExtensionError.host("IPC message exceeds the 1 MiB limit.")
@@ -104,8 +93,6 @@ public enum ExtensionRPC {
     }
 }
 
-/// The unified limit set (deviation D-1): the enforced
-/// `PackageService` figures everywhere, not the two Legacy sets.
 public enum ResourceLimits {
     public static let maxVSIXBytes: Int = 64 * 1024 * 1024
     public static let maxExtractedBytes: Int = 512 * 1024 * 1024

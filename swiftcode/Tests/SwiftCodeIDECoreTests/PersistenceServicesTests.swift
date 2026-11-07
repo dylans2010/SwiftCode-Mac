@@ -1,20 +1,9 @@
-// Tests for the Persistence-Services slice (Legacy -> SwiftCode ports).
-// Static only: these were not executed here (no Swift toolchain in this
-// environment); run `swift test --filter PersistenceServicesTests` on a Mac.
-
 import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// UnifiedLogger, FolderManager, ProjectRegistryStore, ThemeStore,
-/// ProjectZipImporter, LegacyProjectTemplates, LegacyProjectTemplateManager.
-/// The store tests touch real Application Support / UserDefaults state and
-/// clean up after themselves (restore the prior value before returning).
-/// Serialized: several tests share the singletons above.
 @Suite("Persistence-Services ports", .serialized)
 struct PersistenceServicesTests {
-
-    // MARK: - UnifiedLogger
 
     @Test("UnifiedLogger logs and filters by subsystem")
     @MainActor
@@ -25,7 +14,7 @@ struct PersistenceServicesTests {
         #expect(found.count >= 1)
         #expect(found.allSatisfy { $0.subsystem == "PersistenceTest" })
         logger.clear()
-        #expect(logger.logs.count == 1) // clear() itself logs one line
+        #expect(logger.logs.count == 1)
         logger.clear()
     }
 
@@ -41,8 +30,6 @@ struct PersistenceServicesTests {
         #expect(text.contains("hello"))
         logger.clear()
     }
-
-    // MARK: - FolderManager
 
     @Test("FolderManager create/rename/addProject/projects/delete")
     @MainActor
@@ -70,8 +57,6 @@ struct PersistenceServicesTests {
         #expect(!manager.folders.contains(where: { $0.folderId == folder.folderId }))
     }
 
-    // MARK: - ProjectRegistryStore
-
     @Test("ProjectRegistryStore save/load round-trips")
     func registryStoreRoundTrip() async throws {
         let store = ProjectRegistryStore.shared
@@ -86,22 +71,17 @@ struct PersistenceServicesTests {
         #expect(try await store.load().count == before.count)
     }
 
-    // MARK: - ThemeStore
-
     @Test("ThemeStore save/load round-trips a built-in theme")
     func themeStoreRoundTrip() async throws {
         let store = ThemeStore.shared
-        let theme = EditorTheme.builtIns[1] // SwiftCode Paper
+        let theme = EditorTheme.builtIns[1]
         try await store.saveTheme(theme)
         let loaded = try await store.loadThemes()
         #expect(loaded.contains(where: { $0.name == theme.name && $0.background == theme.background }))
-        // Clean up the file this test wrote.
         let dir = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("Themes", isDirectory: true)
         try? FileManager.default.removeItem(at: dir.appendingPathComponent(theme.fileName))
     }
-
-    // MARK: - ProjectZipImporter
 
     @Test("ProjectZipImporter export/import round-trips a directory")
     func zipRoundTrip() async throws {
@@ -127,8 +107,6 @@ struct PersistenceServicesTests {
         let roundTripped = try String(contentsOf: imported.directoryURL.appendingPathComponent("Sources/main.swift"), encoding: .utf8)
         #expect(roundTripped == "hello")
     }
-
-    // MARK: - LegacyProjectTemplates
 
     @Test("Every ported Legacy template has a name, icon and files")
     func legacyTemplatesAreComplete() {
@@ -162,16 +140,12 @@ struct PersistenceServicesTests {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? fm.removeItem(at: dir) }
-        // IntroductionTemplate has a nested "Features/EditorTips.swift" file:
-        // Legacy's engine failed on nested paths; the port creates parents.
         try await ProjectScaffoldTemplateEngine.shared.createProject(at: dir, template: IntroductionTemplate())
         #expect(fm.fileExists(atPath: dir.appendingPathComponent("Welcome.swift").path))
         #expect(fm.fileExists(atPath: dir.appendingPathComponent("Features/EditorTips.swift").path))
         let welcome = try String(contentsOf: dir.appendingPathComponent("Welcome.swift"), encoding: .utf8)
         #expect(welcome.contains("WelcomeView"))
     }
-
-    // MARK: - LegacyProjectTemplateManager
 
     @Test("LegacyProjectTemplateManager applies a template into a directory")
     @MainActor

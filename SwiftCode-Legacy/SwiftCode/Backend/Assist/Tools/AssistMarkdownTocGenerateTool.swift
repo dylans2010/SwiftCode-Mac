@@ -56,7 +56,6 @@ public struct AssistMarkdownTocGenerateTool: AssistTool {
            let start = text.range(of: "<!-- TOC -->"), let end = text.range(of: "<!-- /TOC -->"), start.lowerBound < end.upperBound {
             text.replaceSubrange(start.lowerBound..<end.upperBound, with: toc)
         } else {
-            // Insert after the first heading block.
             let lines = text.components(separatedBy: .newlines)
             if let firstHeading = lines.firstIndex(where: { $0.hasPrefix("# ") }) {
                 var mutable = lines

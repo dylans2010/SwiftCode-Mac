@@ -1,8 +1,3 @@
-//
-//  AssistBinaryPlistConverterTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistBinaryPlistConverterTool: AssistTool {

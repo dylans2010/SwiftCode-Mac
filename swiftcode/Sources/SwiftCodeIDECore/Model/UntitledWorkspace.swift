@@ -1,10 +1,6 @@
 import Foundation
 
 extension WorkspaceModel {
-    /// An empty, untitled workspace: the window File ▸ New ▸ Project ▸
-    /// Choose Template… opens behind its sheet (reference-ui-5.md §11.3,
-    /// P10). Its location is a fresh folder under the temporary directory
-    /// that nothing is saved into unless the user saves.
     public static func untitled() -> WorkspaceModel {
         WorkspaceModel(untitledAt: FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-untitled-\(UUID().uuidString)/Untitled.xcworkspace"))
@@ -17,6 +13,5 @@ extension WorkspaceModel {
         schemeNames = []
     }
 
-    /// Whether this is an untitled workspace (nothing on disk).
     public var isUntitled: Bool { kind == .workspace && !FileManager.default.fileExists(atPath: url.path) && projects.isEmpty }
 }

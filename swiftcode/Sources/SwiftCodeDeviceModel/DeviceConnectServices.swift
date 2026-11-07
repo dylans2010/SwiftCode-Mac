@@ -4,19 +4,6 @@ import Foundation
 import UserNotifications
 #endif
 
-/// The DeviceConnectKit services, ported from Legacy
-/// (`SwiftCode/Views/Build/DeviceConnectKit/Services/`): thin
-/// facades over the commands, one per concern.
-///
-/// Renames from Legacy, all mechanical: the bare names
-/// (`BuildService`, …) collide with `SwiftCodeSDK` types of the same
-/// name in modules `SwiftCodeUI` also imports, so every service here
-/// carries the `DeviceConnect` prefix.
-///
-/// `DeviceConnectNotificationService` posts a real user notification
-/// on Apple platforms. Where `UserNotifications` does not exist the
-/// call is a documented no-op: there is no notification centre to
-/// post to.
 public struct DeviceConnectBuildService: Sendable {
     public init() {}
 
@@ -120,8 +107,6 @@ public final class DeviceConnectNotificationService: Sendable {
 
         UNUserNotificationCenter.current().add(request) { _ in }
 #else
-        // No notification centre on this platform: the deployment
-        // result is already visible in the deployment log.
 #endif
     }
 }

@@ -1,8 +1,6 @@
 import SwiftUI
 import Combine
 
-// MARK: - Saved Repository Model
-
 struct SavedRepository: Identifiable, Codable, Equatable {
     var id: UUID
     var name: String
@@ -20,8 +18,6 @@ struct SavedRepository: Identifiable, Codable, Equatable {
         self.localProjectPath = localProjectPath
     }
 }
-
-// MARK: - Dashboard Layout
 
 enum DashboardLayout: String, Codable, CaseIterable {
     case grid = "Grid"
@@ -52,12 +48,6 @@ class AppSettings: ObservableObject {
     public static let nativeAssistSystemID = "com.swiftcode.assist.native"
     public static let googleCloudAssistSystemID = "com.swiftcode.Assist.Google-Cloud"
     public static let metaAssistSystemID = "com.swiftcode.Assist.Meta"
-    /// Provider systems shown on the Assist System card. These are
-    /// settings-focus selections, not separate execution backends:
-    /// execution still routes by the selected model id through the
-    /// native path (only Meta/Google Cloud divert it), so adding
-    /// these ids changes no routing — it only decides which
-    /// provider's dedicated settings card is shown below.
     public static let openRouterAssistSystemID = "com.swiftcode.assist.openrouter"
     public static let openCodeAssistSystemID = "com.swiftcode.assist.opencode"
     public static let hermesAssistSystemID = "com.swiftcode.assist.hermes"
@@ -95,18 +85,11 @@ class AppSettings: ObservableObject {
         }
     }
 
-    /// True for the provider toolset, including the legacy "Cloud"
-    /// value stored before the rename to "Provider". The stored
-    /// string is migrated to "Provider" on load (see init).
     public var isProviderToolkit: Bool {
         assistToolkit.caseInsensitiveCompare("provider") == .orderedSame
             || assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame
     }
 
-    /// The toolset name for the Assist System currently picked in
-    /// Assist Settings. This is what the "Provider" toolkit option
-    /// means: the toolset belonging to that provider, not a
-    /// separate Cloud toolkit.
     public var activeProviderToolkitName: String {
         if isOpenRouterAssist {
             return "OpenRouter SDK"
@@ -127,11 +110,6 @@ class AppSettings: ObservableObject {
         activeProviderToolkitName
     }
 
-    /// "Automatically Switch Models" (Assist System card). When off,
-    /// Assist may never switch to another model on a turn failure:
-    /// it waits on (retries) the selected model and shows that wait
-    /// in the activity status instead of failing over. Default true,
-    /// preserving the existing failover behaviour for current users.
     @Published var assistAutomaticallySwitchModels: Bool {
         didSet {
             debouncedSave("assistAutomaticallySwitchModels", assistAutomaticallySwitchModels)
@@ -139,10 +117,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    /// "Use Provider Models" (Assist System card). When on, Assist
-    /// may only use models fetched from the selected provider
-    /// (OpenRouter / OpenCode / Hermes provider-model lists) and
-    /// never any user-provided (custom) model. Default false.
     @Published var assistUseProviderModels: Bool {
         didSet {
             debouncedSave("assistUseProviderModels", assistUseProviderModels)
@@ -167,7 +141,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    // MARK: - Other Models with Meta SDK & Rate-Limit Fallback
     @Published var otherModelsWithMetaSDK: Bool {
         didSet {
             debouncedSave("otherModelsWithMetaSDK", otherModelsWithMetaSDK)
@@ -207,7 +180,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    // MARK: - Use Meta Slash Commands
     @Published var useMetaSlashCommands: Bool {
         didSet {
             debouncedSave("useMetaSlashCommands", useMetaSlashCommands)
@@ -215,10 +187,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    // MARK: - Assist Reverse (native REA integration)
-    // reverseEnabled gates the whole subsystem. reverseBridgePath /
-    // reverseReaDir are optional overrides; empty means "auto-resolve"
-    // (bundle resource / Application Support, then settings).
     @Published var reverseEnabled: Bool {
         didSet {
             debouncedSave("reverseEnabled", reverseEnabled)
@@ -240,7 +208,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    // MARK: - Assist User Memory
     @Published var enableUserMemory: Bool {
         didSet {
             debouncedSave("enableUserMemory", enableUserMemory)
@@ -280,9 +247,6 @@ class AppSettings: ObservableObject {
         didSet {
             debouncedSave("alternativeKeysEnabled", alternativeKeysEnabled)
             UserDefaults.standard.set(alternativeKeysEnabled, forKey: "assist.alternativeKeysEnabled")
-            // M-4: toggling key rotation changes which credentials back the
-            // Google provider — drop the discovery cache so a removed key
-            // stops advertising its models immediately.
             Task { await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true) }
         }
     }
@@ -304,12 +268,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    /// SwiftCode Cloud Model toggle (Assist settings → "Use SwiftCode's Cloud Model").
-    /// When on, the cloud model appears in the model picker and is usable under
-    /// every routing strategy (SDK Default, Gemini Key Rotation, App Model Catalog)
-    /// with no API key or sign-in required. The per-device rate-limit identity
-    /// (device fingerprint) is generated at toggle-on time and lives in the
-    /// Keychain via SCCloudDeviceFingerprint — it is NEVER stored here or shown in UI.
     @Published public var useSwiftCodeCloudModel: Bool {
         didSet {
             debouncedSave("useSwiftCodeCloudModel", useSwiftCodeCloudModel)
@@ -324,9 +282,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    /// Google Cloud project ID used as the quota project (x-goog-user-project)
-    /// for Google account (OAuth) authentication against the Gemini Developer
-    /// API. OAuth usage is attributed to — and billed to — this project.
     @Published var assistGoogleCloudProject: String {
         didSet {
             debouncedSave("assist_google_cloud_project", assistGoogleCloudProject)
@@ -334,11 +289,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    /// User-configured OAuth client ID override for Sign in with Google.
-    /// Empty means "use SwiftCode's built-in client". Read by
-    /// GoogleAccountAuthService alongside the GOOGLE_CLIENT_ID environment /
-    /// Info.plist overrides; this is the single user-editable storage for the
-    /// override so there is exactly one source of truth.
     @Published var assistGoogleOAuthClientIDOverride: String {
         didSet {
             debouncedSave("assist_google_oauth_client_id_override", assistGoogleOAuthClientIDOverride)
@@ -364,11 +314,6 @@ class AppSettings: ObservableObject {
     @Published var customModel: String {
         didSet { debouncedSave("customModel", customModel) }
     }
-    /// Explicit provider for the free-text custom model ID. The custom-model
-    /// record's providerID is resolved from this setting (or an exact
-    /// SDK-catalog match) — never inferred from the model name. Defaults to
-    /// Google so an authenticated Google session is never dropped for want of
-    /// a catalog entry. (C-2)
     @Published var customModelProviderID: String {
         didSet {
             debouncedSave("assist_custom_model_provider_id", customModelProviderID)
@@ -399,12 +344,10 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("fileHeaderCustomComment", fileHeaderCustomComment) }
     }
 
-    // MARK: - Theme
     @Published var selectedThemeID: String {
         didSet { debouncedSave("selectedThemeID", selectedThemeID) }
     }
 
-    // MARK: - Git / GitHub Configuration
     @Published var gitPath: String {
         didSet { debouncedSave("gitPath", gitPath) }
     }
@@ -421,7 +364,6 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("defaultGitHubRepo", defaultGitHubRepo) }
     }
 
-    // MARK: - Saved Repositories
     @Published var savedRepositories: [SavedRepository] = [] {
         didSet { persistSavedRepositories() }
     }
@@ -429,7 +371,6 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("startOnNewProject", startOnNewProject) }
     }
 
-    // MARK: - Extended Git Configuration
     @Published var sshKeyPath: String {
         didSet { debouncedSave("sshKeyPath", sshKeyPath) }
     }
@@ -449,7 +390,6 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("workflowMonitoringEnabled", workflowMonitoringEnabled) }
     }
 
-    // MARK: - Dashboard Customization
     @Published var dashboardLayout: DashboardLayout {
         didSet { debouncedSave("dashboardLayout", dashboardLayout.rawValue) }
     }
@@ -472,7 +412,6 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("showLastOpenedTime", showLastOpenedTime) }
     }
 
-    // MARK: - CoreML
     @Published var coreMLEnabled: Bool {
         didSet { debouncedSave("coreMLEnabled", coreMLEnabled) }
     }
@@ -486,7 +425,6 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("coreMLUsageLimit", coreMLUsageLimit) }
     }
 
-    // MARK: - File Navigator Customization
     @Published var fileNavigatorLayoutStyle: FileNavigatorLayoutStyle {
         didSet { debouncedSave("fileNavigatorLayoutStyle", fileNavigatorLayoutStyle.rawValue) }
     }
@@ -527,7 +465,6 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("hasCompletedOnboarding", hasCompletedOnboarding) }
     }
 
-    // MARK: - Save Location Customization
     @Published var saveProjectsOnCustomFolder: Bool {
         didSet { debouncedSave("saveProjectsOnCustomFolder", saveProjectsOnCustomFolder) }
     }
@@ -535,12 +472,10 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("customProjectsFolder", customProjectsFolder) }
     }
 
-    // MARK: - Bundle ID Customization
     @Published var defaultOrganization: String {
         didSet { debouncedSave("defaultOrganization", defaultOrganization) }
     }
 
-    // MARK: - Sounds Customization
     @Published var notificationSoundID: String {
         didSet { debouncedSave("notificationSoundID", notificationSoundID) }
     }
@@ -557,7 +492,6 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("completionSoundID", completionSoundID) }
     }
 
-    // MARK: - Settings Window Experience
     @Published var useNewSettingsWindow: Bool {
         didSet {
             debouncedSave("useNewSettingsWindow", useNewSettingsWindow)
@@ -565,8 +499,6 @@ class AppSettings: ObservableObject {
             NotificationCenter.default.post(name: NSNotification.Name("UseNewSettingsWindowDidChange"), object: useNewSettingsWindow)
         }
     }
-
-    // MARK: - Immediate Persistent Save
 
     private func debouncedSave(_ key: String, _ value: Any) {
         UserDefaults.standard.set(value, forKey: key)
@@ -577,19 +509,15 @@ class AppSettings: ObservableObject {
         UserDefaults.standard.synchronize()
     }
 
-    /// `true` when the user has chosen a custom OpenRouter model ID
     var isUsingCustomModel: Bool {
         !customModel.isEmpty && selectedModel == customModel
     }
-
 
     private init() {
         assistSystemID = UserDefaults.standard.string(forKey: "assistSystemID") ?? Self.nativeAssistSystemID
         var initialToolkit = UserDefaults.standard.string(forKey: "assistToolkit")
             ?? UserDefaults.standard.string(forKey: "assist.assistToolkit")
             ?? Self.defaultAssistToolkit
-        // Rename migration: the old "Cloud" toolkit value means the
-        // provider toolset, now stored as "Provider".
         if initialToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
             initialToolkit = "Provider"
             UserDefaults.standard.set("Provider", forKey: "assist.assistToolkit")
@@ -705,7 +633,6 @@ class AppSettings: ObservableObject {
         defaultOrganization = UserDefaults.standard.string(forKey: "defaultOrganization") ?? "com.SwiftCode"
         useNewSettingsWindow = UserDefaults.standard.object(forKey: "useNewSettingsWindow") as? Bool ?? true
 
-        // Initialize sound preferences with graceful migration
         let rawNotif = UserDefaults.standard.string(forKey: "notificationSoundID") ?? SoundCatalog.notificationA.id
         notificationSoundID = (rawNotif == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawNotif) != nil) ? rawNotif : SoundCatalog.notificationA.id
 
@@ -721,23 +648,19 @@ class AppSettings: ObservableObject {
         let rawComplete = UserDefaults.standard.string(forKey: "completionSoundID") ?? SoundCatalog.completeA.id
         completionSoundID = (rawComplete == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawComplete) != nil) ? rawComplete : SoundCatalog.completeA.id
 
-        // Load saved repositories
         loadSavedRepositories()
 
-        // Validate eligibility on launch
         validateCurrentSelectionsForEligibility()
     }
 
     public func validateCurrentSelectionsForEligibility() {
         guard onlyUseFreeModels else { return }
 
-        // 1. Validate metaSelectedOtherModelID
         if !metaSelectedOtherModelID.isEmpty && !AssistModelEligibilityPolicy.isEligible(modelID: metaSelectedOtherModelID, onlyUseFreeModels: true) {
             metaSelectedOtherModelID = ""
             metaSelectedOtherModelProvider = ""
         }
 
-        // 2. Validate selectedAssistModelID
         if !selectedAssistModelID.isEmpty && !AssistModelEligibilityPolicy.isEligible(modelID: selectedAssistModelID, onlyUseFreeModels: true) {
             let discovered = AssistModelDiscoveryService.shared.discoveredModels
             if let firstEligible = discovered.first(where: { AssistModelEligibilityPolicy.isEligible(modelID: $0.modelIdentifier, onlyUseFreeModels: true) }) {
@@ -745,8 +668,6 @@ class AppSettings: ObservableObject {
             }
         }
     }
-
-    // MARK: - Saved Repositories Persistence
 
     private static let savedReposKey = "savedRepositories"
 

@@ -1,12 +1,9 @@
-// format.c - the printf formatting engine of SwiftCode's libSystem
-// (specs/macos/libsystem.md §4). Clean-room SwiftCode code from the C standard's
-// description of the conversions.
 #include "ycl.h"
 
 struct spec {
     int left, plus, space, alt, zero;
-    int width, precision;  // precision -1 = none
-    int length;            // 0 int, 'H' char, 'h' short, 'l' long, 'L' long long / long double, 'z', 'j', 't'
+    int width, precision;
+    int length;
 };
 
 struct out {
@@ -30,7 +27,6 @@ static void pad(struct out *o, char c, int n) {
     }
 }
 
-// Emits a field: prefix (sign, 0x), zero padding to `zeros`, then digits.
 static void field(struct out *o, const struct spec *s, const char *prefix, const char *body, int bodylen, int zeros) {
     int plen = (int)strlen(prefix);
     int total = plen + zeros + bodylen;
@@ -66,16 +62,13 @@ static void integer(struct out *o, struct spec *s, uint64_t v, int negative, int
     field(o, s, prefix, digits + sizeof digits - n, n, zeros);
 }
 
-// Decimal digits of a non-negative double: integer part and `precision`
-// fraction digits, rounded half up (not correctly rounded for every value,
-// which SwiftCode's conversions do not promise yet).
 static int fixed_digits(double v, int precision, char *out, int cap) {
     if (precision > 17) precision = 17;
     double scale = 1;
     for (int i = 0; i < precision; i++) scale *= 10;
     double whole = v;
     int n = 0;
-    if (whole >= 1.8e19) {  // beyond uint64: print the integer part digit by digit
+    if (whole >= 1.8e19) {
         int exp = 0;
         while (whole >= 10) {
             whole /= 10;
@@ -92,8 +85,6 @@ static int fixed_digits(double v, int precision, char *out, int cap) {
     }
     uint64_t ip = (uint64_t)v;
     double frac = v - (double)ip;
-    // Round to nearest; an exact tie (frac * scale is computed exactly for
-    // short binary fractions such as 3.25) goes to the even digit.
     double scaled = frac * scale;
     uint64_t fp = (uint64_t)scaled;
     double rest = scaled - (double)fp;
@@ -174,7 +165,7 @@ static void floating(struct out *o, struct spec *s, double v, char conv) {
             }
         }
         n = fixed_digits(v, precision, body, 80);
-        if (n >= 2 && body[0] == '1' && body[1] == '0') {  // rounding carried to 10.x
+        if (n >= 2 && body[0] == '1' && body[1] == '0') {
             v /= 10;
             exp10++;
             n = fixed_digits(v, precision, body, 80);
@@ -182,7 +173,7 @@ static void floating(struct out *o, struct spec *s, double v, char conv) {
     } else {
         n = fixed_digits(v, precision, body, 80);
     }
-    if ((conv | 0x20) == 'g' && !s->alt) {  // %g drops trailing zeros
+    if ((conv | 0x20) == 'g' && !s->alt) {
         int dot = -1;
         for (int i = 0; i < n; i++)
             if (body[i] == '.') dot = i;
@@ -306,7 +297,7 @@ int ycl_vformat(ycl_sink sink, void *context, const char *fmt, va_list args) {
         case 'G':
         case 'a':
         case 'A': {
-            double v = va_arg(args, double);  // long double is double on arm64 Darwin
+            double v = va_arg(args, double);
             floating(&o, &s, v, conv == 'a' ? 'e' : conv == 'A' ? 'E' : conv);
             break;
         }

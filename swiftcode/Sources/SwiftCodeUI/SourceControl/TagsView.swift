@@ -1,23 +1,6 @@
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/TagsView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// Tags list for the repository, with a create-tag sheet (name + annotation
-/// message) and delete. Legacy drove this through `Project` +
-/// `AppSettings.gitPath` + `ProcessRunnerTool`; this port takes the
-/// `GitRepository` directly and runs real git operations:
-///
-/// - List/refresh → `GitRepository.tags()`
-/// - Create → `GitRepository.createTag(name:message:)` (annotated when a
-///   message is given, lightweight otherwise)
-/// - Delete → `GitRepository.deleteTag(_:)` (local tag; pushing the deletion
-///   is a remote operation and is intentionally not done here)
-///
-/// Hook: present from the source-control navigator's Tags group (a Tags
-/// group already exists in `SourceControlNavigatorModel`); the navigator
-/// can pass its repository through.
 @MainActor
 public struct TagsView: View {
     public var repository: GitRepository

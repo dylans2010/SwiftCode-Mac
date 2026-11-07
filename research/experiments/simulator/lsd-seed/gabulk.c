@@ -1,6 +1,3 @@
-// gabulk: our probe (stage 7, agent I4). getattrlistbulk(2) on a directory with
-// the attribute groups and options given; hex-dumps the first records.
-// Usage: gabulk <dir> <common> <dir> <file> <fork> <options> [records]
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import HealthKit
 
-/// C-TYPES: every identifier of `identifiers.md` (value, class, aggregation, dimension,
-/// duration limits, per-object flag) and the interning rules of `interface.md` §2.
 @Suite("C-TYPES identifiers.md")
 struct TypesTests {
     @Test("identifiers.md Quantity types (121): class, style, dimension, limits")
@@ -77,7 +75,7 @@ struct TypesTests {
         #expect(HKCategoryType(.menopausalState).maximumAllowedDuration == 0)
         #expect(HKCategoryType(.menopausalState).isMaximumDurationRestricted)
         #expect(!HKCategoryType(.pregnancy).isMaximumDurationRestricted)
-        #expect(HKCategoryType(.pregnancy).maximumAllowedDuration == 0)   // reading it does not raise
+        #expect(HKCategoryType(.pregnancy).maximumAllowedDuration == 0)
         #expect(HKCategoryType(.mindfulSession).maximumAllowedDuration == 2_419_200)
         #expect(HKObjectType.documentType(forIdentifier: .CDA)?.requiresPerObjectAuthorization() == true)
         #expect(HKObjectType.visionPrescriptionType().requiresPerObjectAuthorization())
@@ -88,7 +86,6 @@ struct TypesTests {
     @Test("interface.md §2 duration-limit census: 166 identifiers at 4 days, 21 at 14 days, 7 unrestricted categories")
     func durationCensus() {
         let sampleTypes = TypeRegistry.all.values.compactMap { $0 as? HKSampleType }
-        // 166 identifier rows; the deprecated audio-exposure-event alias shares its string value, so 165 types.
         #expect(sampleTypes.filter { $0.isMaximumDurationRestricted && $0.maximumAllowedDuration == 345600 }.count == 165)
         #expect(sampleTypes.filter { $0.maximumAllowedDuration == 1_209_600 }.count == 21)
         #expect(otherTypeTable.filter { $0.kind == .category && $0.maximumDuration == nil }.count == 7)
@@ -131,7 +128,7 @@ struct TypesTests {
         #expect(HKWorkoutActivityType.running.rawValue == 37)
         #expect(HKWorkoutActivityType.walking.rawValue == 52)
         #expect(HKWorkoutActivityType.other.rawValue == 3000)
-        #expect(HKWorkoutActivityType.allCases.count == 84)   // 86 cases, two unavailable on iOS
+        #expect(HKWorkoutActivityType.allCases.count == 84)
         #expect(HKWorkoutEventType.pauseOrResumeRequest.rawValue == 8)
         #expect(HKStatisticsOptions.duration.rawValue == 64)
         #expect(HKStatisticsOptions.mostRecent.rawValue == 32)

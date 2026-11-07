@@ -2,20 +2,12 @@ import AppKit
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// Inline issue annotations in the source editor
-/// (`specs/ide/reference-ui-4.md` §4): each line with an issue is tinted for
-/// its severity; at the line's right end sit the severity icon and the
-/// message (truncated with "…"); the offending symbol is underlined. After
-/// an edit the annotations turn grey (stale) until the next build replaces
-/// them.
 public enum InlineIssueLayout {
-    /// The issue shown on a line: the most severe one.
     public static func primary(_ list: [Diagnostic]) -> Diagnostic? {
         let rank: [Diagnostic.Severity: Int] = [.error: 0, .warning: 1, .note: 2, .remark: 3]
         return list.min { (rank[$0.severity] ?? 9) < (rank[$1.severity] ?? 9) }
     }
 
-    /// SF Symbol name for a severity (own choice of public symbols).
     public static func symbolName(_ s: Diagnostic.Severity) -> String {
         switch s {
         case .error: "xmark.octagon.fill"
@@ -33,14 +25,11 @@ public enum InlineIssueLayout {
         }
     }
 
-    /// The message, shortened with a trailing "…" so that its width (by
-    /// `measure`) fits `width`. Returns "" when not even "…" fits.
     public static func truncate(_ message: String, toWidth width: CGFloat, measure: (String) -> CGFloat) -> String {
         let oneLine = message.components(separatedBy: .newlines).first ?? message
         if measure(oneLine) <= width { return oneLine }
         if measure("…") > width { return "" }
         var chars = Array(oneLine)
-        // Binary search on the kept prefix length.
         var lo = 0, hi = chars.count
         while lo < hi {
             let mid = (lo + hi + 1) / 2
@@ -51,9 +40,6 @@ public enum InlineIssueLayout {
         return String(chars) + "…"
     }
 
-    /// The UTF-16 range to underline on the line `lineRange` of `text`: the
-    /// identifier (or operator run) starting at the 1-based `column`; the
-    /// first non-blank run of the line when there is no column.
     public static func underlineRange(column: Int, lineRange: NSRange, in text: NSString) -> NSRange? {
         var end = NSMaxRange(lineRange)
         while end > lineRange.location, [10, 13].contains(text.character(at: end - 1)) { end -= 1 }
@@ -77,7 +63,6 @@ public enum InlineIssueLayout {
         if isIdent(c0) {
             while stop < end, isIdent(text.character(at: stop)) { stop += 1 }
         } else if column > 0 {
-            // A single punctuation character (for example a missing brace).
         } else {
             while stop < end, !isBlank(text.character(at: stop)) { stop += 1 }
         }
@@ -86,14 +71,12 @@ public enum InlineIssueLayout {
 }
 
 extension SourceTextView {
-    /// Draws the annotations of the lines that intersect `rect`.
     func drawIssueAnnotations(in rect: NSRect) {
         guard showsIssues else { return }
         let ns = string as NSString
         for (line, list) in issues {
             guard let first = InlineIssueLayout.primary(list), let r = lineRect(line), r.intersects(rect) else { continue }
             let color = InlineIssueLayout.color(first.severity, stale: issuesStale)
-            // Issue presentation ▸ Show Minimized: the icon alone, at the line's right end.
             if displayState.minimizedIssues {
                 let size: CGFloat = 12
                 if let img = NSImage(systemSymbolName: InlineIssueLayout.symbolName(first.severity), accessibilityDescription: first.severity.rawValue) {
@@ -105,14 +88,12 @@ extension SourceTextView {
             color.withAlphaComponent(issuesStale ? 0.08 : 0.12).setFill()
             r.fill()
 
-            // The underline under the offending range.
             if let lr = lineIndex.range(ofLine: line),
                let u = InlineIssueLayout.underlineRange(column: first.location?.column ?? 0, lineRange: lr, in: ns) {
                 color.setStroke()
                 for seg in segmentRects(u) {
                     let p = NSBezierPath()
                     p.lineWidth = 1
-                    // A small wave, own drawing.
                     var x = seg.minX
                     let y = seg.maxY - 1.5
                     p.move(to: NSPoint(x: x, y: y))
@@ -126,7 +107,6 @@ extension SourceTextView {
                 }
             }
 
-            // Icon + message at the right end, truncated with "…".
             let font = NSFont.systemFont(ofSize: 11)
             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: issuesStale ? NSColor.secondaryLabelColor : NSColor.labelColor]
             let textEnd = lineIndex.range(ofLine: line).flatMap { lr -> CGFloat? in

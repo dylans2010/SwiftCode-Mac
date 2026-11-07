@@ -6,7 +6,7 @@ public struct QueryHistoryItem: Identifiable, Codable, Hashable {
     public var timestamp: Date
     public var executionTimeMs: Double
     public var rowsAffected: Int
-    public var status: String // "SUCCESS" or "ERROR"
+    public var status: String
     public var errorMessage: String?
 
     public init(id: UUID = UUID(), sql: String, timestamp: Date = Date(), executionTimeMs: Double, rowsAffected: Int, status: String, errorMessage: String? = nil) {
@@ -69,7 +69,6 @@ public final class DatabaseHistoryService {
         saveHistory()
     }
 
-    // MARK: - Saved Queries Management
     public func fetchSavedQueries() -> [SavedQueryItem] {
         return savedQueries
     }

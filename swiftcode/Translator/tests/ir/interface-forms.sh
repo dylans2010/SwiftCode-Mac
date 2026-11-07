@@ -1,31 +1,4 @@
 #!/bin/sh
-# interface-forms.sh: forms the visionOS runtime's functions sent to SwiftCode
-# (visionos.md section 10.13), each as a small AIR module of ours (LLVM 18
-# text, assembled with llvm-as-18), translated and validated:
-#  1. the weak compare-exchange atomic in the guest's operand form
-#     i32 (ptr addrspace(1), ptr, i32, i32, i32, i32, i1): a compare-exchange
-#     increment loop (left as cas.spv/json in WORK_DIR for the GPU check in
-#     swiftcode's CompareExchangeGPUTests: SWIFTCODE_TEST_CAS_SPV / _JSON);
-#  2. a fragment function that returns an explicit imageblock beside its
-#     colour and reads one as an input;
-#  3. a fragment function linked to a vertex function that does not write
-#     one of its inputs: accepted when the function never reads the input,
-#     refused when it does;
-#  4. the null guard on loads through pointers read from memory;
-#  5. vertex stage-in attributes the function never reads;
-#  6. storage writes and reads of a float texture convert sRGB for a handle
-#     with bit 32 set (visionos.md section 10.21): a kernel that writes
-#     linear (0.5, 0.25, 2^-9, 0.5) at its position and copies the texel at
-#     (0, 0) read back into out[gid] (left as srgbw.spv/json in WORK_DIR for
-#     swiftcode's SRGBStorageGPUTests: SWIFTCODE_TEST_SRGBW_SPV / _JSON);
-#  7. a threadgroup buffer argument whose node gives no threadgroup address
-#     space (the pointer is addrspace(3)) beside a device buffer of the same
-#     index (visionos.md section 10.24): it is threadgroup memory, a slot of
-#     the dynamic threadgroup size, not a second buffer 0;
-#  8. constexpr samplers whose global is a plain i64 (the form of the
-#     functions the guest sends, visionos.md section 10.24) and a [2 x i64]
-#     (our toolchain's form): both states are read (metal-shaders.md 3.7).
-# Usage: interface-forms.sh SWIFTCODE_AIRC WORK_DIR
 set -eu
 AIRC=$1; WORK=$2
 mkdir -p "$WORK"
@@ -33,20 +6,15 @@ LLVM_AS=${LLVM_AS:-llvm-as-18}
 HEAD='target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024-n8:16:32"
 target triple = "air64-apple-ios13.0.0-simulator"'
 pass=0; fail=0
-check() {  # DESCRIPTION COMMAND...
+check() {
     d=$1; shift
     if "$@" >/dev/null 2>&1; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: $d"; fi
 }
-spv() {  # NAME BC FUNCTION [extra translate options]: translate and validate
+spv() {
     n=$1; bc=$2; f=$3; shift 3
     "$AIRC" translate "$bc" -f "$f" -o "$WORK/$n.spv" -r "$WORK/$n.json" -S "$WORK/$n.spvasm" "$@" &&
         spirv-val --target-env vulkan1.3 "$WORK/$n.spv"
 }
-
-# 1. Compare-exchange: every thread adds 1 to out[0] with a weak
-#    compare-exchange loop; `expected` lives in private memory and is
-#    updated by a failed exchange. out[0] ends at the thread count only if
-#    the result is the success flag and `expected` is refreshed.
 cat > "$WORK/cas.ll" <<IR
 $HEAD
 declare i32 @air.atomic.global.cmpxchg.weak.i32(ptr addrspace(1), ptr, i32, i32, i32, i32, i1)
@@ -76,8 +44,6 @@ IR
 "$LLVM_AS" "$WORK/cas.ll" -o "$WORK/cas.bc"
 check "cas: translates and validates" spv cas "$WORK/cas.bc" cas
 check "cas: uses OpAtomicCompareExchange" grep -q OpAtomicCompareExchange "$WORK/cas.spvasm"
-
-# 2. Imageblock data in a fragment function (explicit layout { float, float }).
 cat > "$WORK/ib.ll" <<IR
 $HEAD
 %struct.IB = type { float, float }
@@ -107,9 +73,6 @@ check "imageblock fragment: translates and validates" spv ib "$WORK/ib.bc" ibfra
 check "imageblock fragment: one colour output, nothing else" sh -c "[ \$(grep -c '= OpVariable .* Output' '$WORK/ib.spvasm') -eq 1 ]"
 check "imageblock fragment: reflection names the dropped output" grep -q imageblock_output_dropped "$WORK/ib.json"
 check "imageblock fragment: reflection names the zero input" grep -q imageblock_input_zero "$WORK/ib.json"
-
-# 3. Linking: the vertex function writes position and uv; fragment `quiet`
-#    declares normal without reading it, fragment `loud` reads it.
 cat > "$WORK/vs.ll" <<IR
 $HEAD
 %struct.V = type { <4 x float>, <2 x float> }
@@ -159,9 +122,6 @@ check "linked fragment: one input variable (uv at the vertex function's location
 check "linked fragment, read input missing from the vertex outputs: refused" \
     sh -c "! '$AIRC' translate '$WORK/fs.bc' -f loud --link-vertex '$WORK/vs.bc:vmain' -o '$WORK/loud.spv'"
 check "unlinked fragment: both inputs declared" spv quiet0 "$WORK/fs.bc" quiet
-
-# 4. Null guard: a load through a pointer read from memory. Left as np.spv/json
-#    for swiftcode's NullPointerGPUTests (SWIFTCODE_TEST_NULLPTR_SPV / _JSON).
 cat > "$WORK/np.ll" <<IR
 $HEAD
 define void @np(ptr addrspace(1) %out, ptr addrspace(1) %in, i32 %gid) {
@@ -187,8 +147,6 @@ check "null guard: one guarded load in the reflection" grep -q '"null_guarded_lo
 check "null guard: the address is compared with 64 KiB" grep -q 'OpUGreaterThanEqual' "$WORK/np.spvasm"
 AIRC_NULL_GUARD=0 "$AIRC" translate "$WORK/np.bc" -f np -o "$WORK/np0.spv" -r "$WORK/np0.json" >/dev/null
 check "null guard off (AIRC_NULL_GUARD=0, new translator process): no guard" sh -c "! grep -q null_guarded '$WORK/np0.json'"
-
-# 5. Stage-in attributes the vertex function never reads get no input variable.
 cat > "$WORK/vin.ll" <<IR
 $HEAD
 define <4 x float> @vin(<3 x float> %position, <4 x float> %color, <2 x float> %uv) {
@@ -210,8 +168,6 @@ IR
 "$LLVM_AS" "$WORK/vin.ll" -o "$WORK/vin.bc"
 check "vertex inputs: translates and validates" spv vin "$WORK/vin.bc" vin
 check "vertex inputs: locations 0 and 7 declared, 1 not" sh -c "grep -q 'Location 0' '$WORK/vin.spvasm' && grep -q 'Location 7' '$WORK/vin.spvasm' && ! grep -q 'Location 1\$' '$WORK/vin.spvasm'"
-
-# 6. sRGB storage writes and reads.
 cat > "$WORK/srgbw.ll" <<IR
 $HEAD
 declare void @air.write_texture_2d.v4f32(ptr addrspace(1), <2 x i32>, <4 x float>, i32, i32)
@@ -237,8 +193,6 @@ IR
 check "sRGB storage: translates and validates" spv srgbw "$WORK/srgbw.bc" srgbw
 check "sRGB storage: tests bit 32 of the handle and converts with pow" sh -c "grep -q 'OpShiftRightLogical' '$WORK/srgbw.spvasm' && grep -q Pow '$WORK/srgbw.spvasm'"
 check "sRGB storage: reflection notes it" grep -q srgb_storage "$WORK/srgbw.json"
-
-# 7. A threadgroup buffer known by its pointer's address space only.
 cat > "$WORK/tgptr.ll" <<IR
 $HEAD
 define void @tgptr(ptr addrspace(1) %out, ptr addrspace(3) %strip, i32 %lid) {
@@ -267,8 +221,6 @@ assert tg['dynamic'] and [s['index'] for s in tg['slots']] == [0] and tg['slots'
 assert [b['name'] for b in d['buffers']] == ['out']
 " "$WORK/tgptr.json"
 check "threadgroup by pointer: stores go to the Workgroup array" grep -q 'Workgroup' "$WORK/tgptr.spvasm"
-
-# 8. Constexpr samplers in both global forms.
 cat > "$WORK/cs.ll" <<IR
 $HEAD
 @lin = internal addrspace(2) constant i64 -9188470239253747127
@@ -308,6 +260,5 @@ assert (a['mag_filter'], a['min_filter'], a['mip_filter'], a['s_address']) == ('
 assert (b['mag_filter'], b['mip_filter'], b['s_address'], b['t_address']) == ('linear', 'linear', 'repeat', 'repeat'), b
 assert a['lod_max'] == b['lod_max'] == 65504
 " "$WORK/cs.json"
-
 echo "interface forms: $pass passed, $fail failed"
 [ "$fail" = 0 ]

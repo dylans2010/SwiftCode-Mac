@@ -56,7 +56,6 @@ public final class OperationsCoordinator {
     public var showInspector: Bool = false
     public var isSidebarCollapsed: Bool = false
 
-    // State of background task queues
     public var activeTaskCount: Int = 0
 
     private init() {}

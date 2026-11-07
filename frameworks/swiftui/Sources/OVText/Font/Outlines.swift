@@ -1,10 +1,3 @@
-// Glyph outlines (round R5) from the TrueType `glyf`/`loca` tables, written
-// from the OpenType specification ("glyf — Glyph Data": simple glyphs with
-// on/off-curve points and implied midpoints; composite glyphs with offsets
-// and 2×2 transforms). CFF outlines are not read: a CFF-flavoured face
-// returns nil and its text is not drawn (09-open-design.md §3.6).
-
-/// One element of a glyph outline, in font design units with y up.
 public enum GlyphOutlineElement: Hashable, Sendable {
     case move(x: Double, y: Double)
     case line(x: Double, y: Double)
@@ -13,12 +6,10 @@ public enum GlyphOutlineElement: Hashable, Sendable {
 }
 
 extension FontFace {
-    /// The outline of `glyph` in design units (nil when the face has none).
     public func outline(of glyph: GlyphID) -> [GlyphOutlineElement]? {
         (self as? OpenTypeFace)?.trueTypeOutline(of: glyph, depth: 0)
     }
 
-    /// Design units per em (1000 for faces without outlines).
     public var designUnitsPerEm: Double {
         (self as? OpenTypeFace).map { Double($0.unitsPerEm) } ?? 1000
     }
@@ -109,12 +100,9 @@ extension OpenTypeFace {
         return out
     }
 
-    /// A closed contour of quadratic B-splines: consecutive off-curve points
-    /// imply an on-curve midpoint.
     private func contour(_ pts: [(Double, Double, Bool)]) -> [GlyphOutlineElement] {
         guard pts.count > 1 else { return [] }
         let n = pts.count
-        // Start at an on-curve point, or at the midpoint of the first two.
         var start: (Double, Double)
         var startIndex: Int
         if let i = pts.firstIndex(where: { $0.2 }) {

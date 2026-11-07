@@ -1,9 +1,3 @@
-// BuildHistoryView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/BuildHistoryView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: BuildRecordDetailPanel
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
 struct BuildHistoryView: View {
@@ -14,7 +8,6 @@ struct BuildHistoryView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Build History")
@@ -39,7 +32,6 @@ struct BuildHistoryView: View {
 
                 Divider()
 
-                // Filter Search Bar
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)

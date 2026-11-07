@@ -1,10 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/TransferSession.swift
-// Adapted for SwiftCode: Transfer session + audit models. Verbatim.
-
 import Foundation
 
-// M-REST (2026-11-06): access raised to public so the ported Transfer Projects views in SwiftCodeUI can use it (no behaviour change).
 public enum TransferSessionState: String, Codable {
     case discovered
     case connecting

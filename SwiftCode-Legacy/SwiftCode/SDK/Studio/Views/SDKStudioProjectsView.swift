@@ -1,38 +1,7 @@
-//
-//  SDKStudioProjectsView.swift
-//
-//  SwiftCode SDK — Studio project & extension creation hub.
-//
-//  Spec: Docs/Intro-to-SDK.md §13.3 — Studio is the ONLY UI surface where
-//  SwiftCode platform projects and extensions may be created. The main
-//  editor is restricted to editing; its New Project affordances redirect
-//  here (enforcement hook documented in SwiftCode/SDK/Studio/agent_notes.md).
-//
-//  Scaffolding is implemented NATIVELY in Swift: template file contents are
-//  embedded as string literals — faithful copies of
-//  SwiftCode/SDK/TypeScript/templates/extension-typescript/,
-//  SwiftCode/SDK/TypeScript/templates/project-typescript/, and the manifest
-//  schema at SwiftCode/SDK/Contracts/Manifest/ — and written to the chosen
-//  directory with placeholder substitution. No node process, no shell, no
-//  network: the wizard works entirely from inside the app.
-//
-//  Swift 6.0, macOS 15. AppKit is imported only for NSOpenPanel (directory
-//  picker) and NSWorkspace (Reveal in Finder); everything else is SwiftUI +
-//  Foundation.
-
-import AppKit // NSOpenPanel (directory picker), NSWorkspace (Reveal in Finder)
+import AppKit
 import Foundation
 import SwiftUI
 
-// MARK: - SDKStudioProjectsView
-
-/// Studio's project/extension creation hub (spec §13.3).
-///
-/// This view is the exclusive creation surface for SwiftCode platform
-/// projects and SDK extensions. Each card opens a wizard that really
-/// creates the project on disk, and users can also open existing or
-/// recent Studio projects directly into the Studio Code Editor or
-/// Visual Manifest Editor.
 public struct SDKStudioProjectsView: View {
 
     private static let recentProjectsKey = "com.swiftcode.sdk.studio.recentProjects"
@@ -261,8 +230,6 @@ public struct SDKStudioProjectsView: View {
     }
 }
 
-// MARK: - CreationCard
-
 private struct CreationCard: View {
     let systemImage: String
     let title: String
@@ -291,12 +258,8 @@ private struct CreationCard: View {
     }
 }
 
-// MARK: - Wizard model
-
-/// One input row in a scaffold wizard.
 private struct WizardField: Identifiable {
     enum Kind {
-        /// Single- or multi-line text. lines > 1 renders a TextEditor.
         case text(lines: Int)
         case directory
     }
@@ -307,7 +270,6 @@ private struct WizardField: Identifiable {
     let kind: Kind
     let help: String?
     let initialValue: String
-    /// Returns a human-readable error, or nil when the value is acceptable.
     let validate: (String) -> String?
 
     var id: String { key }
@@ -331,8 +293,6 @@ private struct WizardConfig {
     let banner: WizardBanner?
     let fields: [WizardField]
 }
-
-// MARK: - ScaffoldWizardView
 
 private struct ScaffoldWizardView: View {
     let config: WizardConfig
@@ -383,8 +343,6 @@ private struct ScaffoldWizardView: View {
         .frame(minWidth: 620, minHeight: 560)
         .padding(24)
     }
-
-    // MARK: Form
 
     private var formView: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -523,8 +481,6 @@ private struct ScaffoldWizardView: View {
         }
     }
 
-    // MARK: Validation
-
     private func binding(for key: String) -> Binding<String> {
         Binding(
             get: { values[key] ?? "" },
@@ -539,8 +495,6 @@ private struct ScaffoldWizardView: View {
     private var isValid: Bool {
         config.fields.allSatisfy { fieldError($0) == nil }
     }
-
-    // MARK: Directory picking
 
     private func browseDirectory(for key: String) {
         let panel = NSOpenPanel()
@@ -558,8 +512,6 @@ private struct ScaffoldWizardView: View {
             values[key] = url.path
         }
     }
-
-    // MARK: Creation
 
     private func create() {
         guard isValid, !isWriting else { return }
@@ -597,8 +549,6 @@ private struct ScaffoldWizardView: View {
             phase = .failure(message: message)
         }
     }
-
-    // MARK: Result views
 
     private func successView(target: URL, written: [String]) -> some View {
         VStack(spacing: 16) {
@@ -672,8 +622,6 @@ private struct ScaffoldWizardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
-// MARK: - Wizard configurations
 
 extension WizardConfig {
 
@@ -846,10 +794,6 @@ extension WizardConfig {
     }
 }
 
-// MARK: - Validators
-
-/// Client-side validation mirroring the rules in
-/// SwiftCode/SDK/TypeScript/cli/create-extension.mjs.
 private enum Validators {
 
     static func extensionID(_ value: String) -> String? {
@@ -936,8 +880,6 @@ private enum Validators {
     }
 }
 
-// MARK: - ScaffoldError
-
 private enum ScaffoldError: Error {
     case targetNotEmpty(path: String)
     case writeFailed(path: String, underlying: Error)
@@ -956,28 +898,13 @@ private enum ScaffoldError: Error {
     }
 }
 
-// MARK: - TemplateFile
-
-/// One file in an embedded template. `path` and `content` both undergo
-/// placeholder substitution; `isJSON` selects JSON-escaped substitution
-/// values so quotes and newlines in names/descriptions cannot break the
-/// generated JSON (a deliberate hardening over the .mjs generator, which
-/// substitutes raw).
 private struct SDKTemplateFile {
     let path: String
     let content: String
     let isJSON: Bool
 }
 
-// MARK: - ScaffoldEngine
-
-/// Native project scaffolding. Writes the embedded templates to disk with
-/// placeholder substitution — the Swift equivalent of
-/// SwiftCode/SDK/TypeScript/cli/create-extension.mjs, without requiring
-/// node or the source tree at runtime.
 private enum ScaffoldEngine {
-
-    // MARK: Entry points
 
     static func scaffoldExtension(
         values: [String: String],
@@ -993,8 +920,6 @@ private enum ScaffoldEngine {
         let sdkPackageDir = (values["sdkPackage"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         try validateSDKPackage(at: sdkPackageDir)
 
-        // id-slug: last DNS label of the id, lowercased — the npm package
-        // name, exactly as create-extension.mjs derives it.
         let idSlug = id.split(separator: ".").last.map(String.init) ?? id
         let sdkFileURL = URL(fileURLWithPath: sdkPackageDir, isDirectory: true).absoluteString
 
@@ -1040,10 +965,6 @@ private enum ScaffoldEngine {
               let bundleID = values["bundleId"], !bundleID.isEmpty else {
             throw ScaffoldError.writeFailed(path: "", underlying: ScaffoldEngine.missingValuesError())
         }
-        // __ORGANIZATION__ is derived from the bundle ID (everything before the
-        // last dot label), per the Standalone-Swift token contract: the README
-        // instructs "Organization Identifier: __ORGANIZATION__ → the bundle
-        // identifier becomes __BUNDLE_ID__".
         let organization: String = {
             var parts = bundleID.split(separator: ".")
             if parts.count > 1 {
@@ -1051,7 +972,6 @@ private enum ScaffoldEngine {
             }
             return parts.joined(separator: ".")
         }()
-        // No JSON files in this scaffold, so raw substitution everywhere.
         let subs: [(String, String)] = [
             ("__APP_NAME__", appName),
             ("__BUNDLE_ID__", bundleID),
@@ -1060,20 +980,6 @@ private enum ScaffoldEngine {
         return try writeFiles(swiftProjectTemplateFiles, substitutions: subs, jsonSubstitutions: subs, to: target, progress: progress)
     }
 
-    // MARK: SDK package resolution
-
-    /// Locates the local @swiftcode/sdk package directory, mirroring the
-    /// --sdk-path default of create-extension.mjs for the app context.
-    ///
-    /// Resolution order:
-    /// 1. `swiftcode-sdk` resource directory inside the app bundle
-    ///    containing package.json (the future packaging step).
-    /// 2. `SWIFTCODE_SDK_PACKAGE` environment variable (tilde-expanded),
-    ///    the dev escape hatch — same precedent as SWIFTCODE_NODE_PATH.
-    ///
-    /// Returns "" when nothing resolves; the wizard then requires the user
-    /// to pick the directory explicitly instead of generating a broken
-    /// package.json.
     static func defaultSDKPackageDir() -> String {
         let fm = FileManager.default
         if let resource = Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/TypeScript/package"),
@@ -1092,8 +998,6 @@ private enum ScaffoldEngine {
         return ""
     }
 
-    /// Verifies the directory holds a package.json naming @swiftcode/sdk —
-    /// the same check create-extension.mjs performs on --sdk-path.
     static func validateSDKPackage(at path: String) throws {
         let pkgURL = URL(fileURLWithPath: path).appendingPathComponent("package.json")
         guard let data = try? Data(contentsOf: pkgURL),
@@ -1105,8 +1009,6 @@ private enum ScaffoldEngine {
             throw ScaffoldError.invalidSDKPackage(path: path, reason: "package.json names \"\(name)\", not \"@swiftcode/sdk\"")
         }
     }
-
-    // MARK: File writing
 
     static func writeFiles(
         _ files: [SDKTemplateFile],
@@ -1127,10 +1029,6 @@ private enum ScaffoldEngine {
             }
         }
         var written: [String] = []
-        // Containment anchor: no template path may escape the target
-        // directory, even after placeholder substitution. All current
-        // template paths are static literals, so this is defense in depth
-        // against a future template that puts a placeholder in a path.
         let targetPath = target.standardizedFileURL.path
         for file in files {
             let subs = file.isJSON ? jsonSubstitutions : substitutions
@@ -1168,8 +1066,6 @@ private enum ScaffoldEngine {
         return result
     }
 
-    /// Minimal JSON string escaper for values substituted into .json
-    /// template files.
     static func jsonEscaped(_ value: String) -> String {
         var out = ""
         out.reserveCapacity(value.count)
@@ -1197,13 +1093,6 @@ private enum ScaffoldEngine {
         ])
     }
 
-    // MARK: Embedded templates
-
-    /// Faithful copies of SwiftCode/SDK/TypeScript/templates/extension-typescript/
-    /// plus the manifest schema shipped beside every generated extension
-    /// (the generator copies it from SwiftCode/SDK/Contracts/Manifest/).
-    /// Template bodies are expanded from the real files at authoring time —
-    /// see agent_notes.md.
     static let extensionTemplateFiles: [SDKTemplateFile] = [
         SDKTemplateFile(path: "swiftcode.json", content: #"""
 {"$schema":"./schemas/swiftcode-extension-v1.schema.json","assist":{"requested":false},"capabilities":[{"id":"source-control.read","reason":"Display repository status and diffs."},{"id":"build.execute","reason":"Run builds through SwiftCode's managed build service."}],"contributes":{"commands":[{"id":"inspect-repository","title":"Inspect Repository"},{"id":"run-build","title":"Build Current Project"}]},"description":"__EXTENSION_DESCRIPTION__","id":"__EXTENSION_ID__","manifestVersion":1,"name":"__EXTENSION_NAME__","runtime":{"entrypoint":"dist/index.js","language":"typescript","minimumSwiftCodeVersion":"1.0.0"},"sdk":{"name":"@swiftcode/sdk","protocolVersion":1,"versionRange":"^1.0.0"},"type":"extension","version":"__EXTENSION_VERSION__"}
@@ -1640,7 +1529,6 @@ describe("manifest", () => {
 """#, isJSON: false),
     ]
 
-    /// Faithful copies of SwiftCode/SDK/TypeScript/templates/project-typescript/.
     static let typeScriptProjectTemplateFiles: [SDKTemplateFile] = [
         SDKTemplateFile(path: "package.json", content: #"""
 {"dependencies":{},"description":"__PROJECT_DESCRIPTION__","devDependencies":{"@types/node":"26.6.5","typescript":"7.0.2"},"name":"__PACKAGE_SLUG__","private":true,"scripts":{"build":"tsc -p tsconfig.json","test":"node --test","typecheck":"tsc --noEmit -p tsconfig.json"},"type":"module","version":"__PROJECT_VERSION__"}
@@ -1744,10 +1632,6 @@ describe("standalone project", () => {
 """#, isJSON: false),
     ]
 
-    /// Standalone-Swift template (SwiftCode/SDK/Templates/Standalone-Swift/).
-    /// Token contract (see SwiftCode/SDK/Templates/agent_notes.md): __APP_NAME__,
-    /// __BUNDLE_ID__, __ORGANIZATION__ — literal substitution across every file;
-    /// template.json is wizard metadata and is NOT copied into the project.
     static let swiftProjectTemplateFiles: [SDKTemplateFile] = [
         SDKTemplateFile(path: "App.swift", content: #"""
 import SwiftUI

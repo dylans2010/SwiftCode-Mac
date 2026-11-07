@@ -1,15 +1,6 @@
-// VisualUIScene.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIScene.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: VisualUIScene type itself; findNode / findParent helpers; scene hash; typed VisualUIFramework enum (the destination stores framework as a free String)
-// Ambiguous type reference(s) defined in several modules, import left out: CodingKeys.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CodingKey, Encoder.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import Observation
 
-/// Supported Apple target frameworks in Visual UI Builder
 public enum VisualUIFramework: String, Codable, CaseIterable, Sendable, Identifiable {
     case swiftUI = "SwiftUI"
     case appKit = "AppKit"
@@ -32,9 +23,7 @@ public enum VisualUIFramework: String, Codable, CaseIterable, Sendable, Identifi
     }
 }
 
-/// Supported visual elements in Component Library
 public enum VisualComponentType: String, Codable, CaseIterable, Sendable {
-    // Basic Layout/Structural
     case vStack = "VStack"
     case hStack = "HStack"
     case zStack = "ZStack"
@@ -49,7 +38,6 @@ public enum VisualComponentType: String, Codable, CaseIterable, Sendable {
     case navigationSplitView = "NavigationSplitView"
     case tabView = "TabView"
 
-    // Basic Controls/Leaf Views
     case text = "Text"
     case button = "Button"
     case label = "Label"
@@ -66,7 +54,6 @@ public enum VisualComponentType: String, Codable, CaseIterable, Sendable {
     case spacer = "Spacer"
     case groupBox = "GroupBox"
 
-    // Advanced Native Views
     case canvas = "Canvas"
     case charts = "Charts"
     case map = "Map"
@@ -74,7 +61,6 @@ public enum VisualComponentType: String, Codable, CaseIterable, Sendable {
     case webView = "WebView"
     case sfSymbol = "SF Symbol"
 
-    // Modern / Expanded Controls
     case disclosureGroup = "DisclosureGroup"
     case contentUnavailableView = "ContentUnavailableView"
     case viewThatFits = "ViewThatFits"
@@ -162,14 +148,13 @@ public enum VisualComponentType: String, Codable, CaseIterable, Sendable {
     }
 }
 
-/// Serializable design node representing components in the layout canvas.
 @Observable
 public final class VisualComponentNode: Identifiable, Codable, Hashable {
     public let id: UUID
     public var type: VisualComponentType
     public var name: String
     public var children: [VisualComponentNode]
-    public var properties: [String: String] // Properties e.g. textValue, sfSymbolName, padding, cornerRadius, customColor
+    public var properties: [String: String]
     public var isLocked: Bool
     public var isHidden: Bool
 
@@ -191,7 +176,6 @@ public final class VisualComponentNode: Identifiable, Codable, Hashable {
         self.isHidden = isHidden
     }
 
-    // Codable support for Observable class
     enum CodingKeys: CodingKey {
         case id, type, name, children, properties, isLocked, isHidden
     }
@@ -226,7 +210,6 @@ public final class VisualComponentNode: Identifiable, Codable, Hashable {
         hasher.combine(id)
     }
 
-    /// Duplicate node recursively
     public func duplicated() -> VisualComponentNode {
         VisualComponentNode(
             id: UUID(),
@@ -240,15 +223,14 @@ public final class VisualComponentNode: Identifiable, Codable, Hashable {
     }
 }
 
-/// Represents an Artboard / Canvas screen target with customizable device frame
 @Observable
 public final class VisualUIArtboard: Identifiable, Codable, Hashable {
     public let id: UUID
     public var name: String
-    public var deviceFrame: String // iPhone 16 Pro, iPad Pro, Apple Vision Pro, etc.
+    public var deviceFrame: String
     public var rootNode: VisualComponentNode
     public var customSwiftUISource: String?
-    public var appearance: String? // "Light", "Dark", "System"
+    public var appearance: String?
     public var isPortrait: Bool?
     public var dynamicTypeSize: String?
     public var previewScale: Double?
@@ -319,7 +301,6 @@ public final class VisualUIArtboard: Identifiable, Codable, Hashable {
     }
 }
 
-/// Full Visual UI Builder document structure
 @Observable
 public final class VisualUIScene: Identifiable, Codable, Hashable {
     public let id: UUID
@@ -387,7 +368,6 @@ public final class VisualUIScene: Identifiable, Codable, Hashable {
         hasher.combine(id)
     }
 
-    /// Recursively find a node by UUID inside any artboard
     public func findNode(byID nodeID: UUID) -> VisualComponentNode? {
         for artboard in artboards {
             if let found = findNodeRecursively(startNode: artboard.rootNode, targetID: nodeID) {
@@ -409,7 +389,6 @@ public final class VisualUIScene: Identifiable, Codable, Hashable {
         return nil
     }
 
-    /// Recursively find the parent of a node inside any artboard
     public func findParentNode(ofNodeID nodeID: UUID) -> VisualComponentNode? {
         for artboard in artboards {
             if let found = findParentRecursively(startNode: artboard.rootNode, targetID: nodeID) {

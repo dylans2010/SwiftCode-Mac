@@ -1,17 +1,13 @@
 import Foundation
 
-// MARK: - Repository Permission Model
-
 struct RepoPermission: Identifiable {
     var id: String { scope }
     let scope: String
     let humanReadable: String
     let icon: String
 
-    /// Maps a GitHub OAuth scope string to a human-readable description and icon.
     static func from(scope: String) -> RepoPermission {
         switch scope {
-        // Repo scopes
         case "repo":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Private Repositories", icon: "folder.fill.badge.gearshape")
         case "repo:status":
@@ -24,31 +20,26 @@ struct RepoPermission: Identifiable {
             return RepoPermission(scope: scope, humanReadable: "Access Repository Invitations", icon: "envelope.fill")
         case "security_events":
             return RepoPermission(scope: scope, humanReadable: "Read And Write Security Events", icon: "shield.fill")
-        // Workflow
         case "workflow":
             return RepoPermission(scope: scope, humanReadable: "Update GitHub Actions Workflows", icon: "gearshape.2.fill")
-        // Packages
         case "write:packages":
             return RepoPermission(scope: scope, humanReadable: "Upload Packages To GitHub Package Registry", icon: "shippingbox.fill")
         case "read:packages":
             return RepoPermission(scope: scope, humanReadable: "Download Packages From GitHub Package Registry", icon: "shippingbox")
         case "delete:packages":
             return RepoPermission(scope: scope, humanReadable: "Delete Packages From GitHub Package Registry", icon: "shippingbox.fill")
-        // Org scopes
         case "admin:org":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Organizations And Teams", icon: "building.2.fill")
         case "write:org":
             return RepoPermission(scope: scope, humanReadable: "Read And Write org/team Membership And Projects", icon: "person.3.fill")
         case "read:org":
             return RepoPermission(scope: scope, humanReadable: "Read org/team Membership And Projects", icon: "person.3")
-        // Public key
         case "admin:public_key":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of User Public Keys", icon: "key.fill")
         case "write:public_key":
             return RepoPermission(scope: scope, humanReadable: "Write User Public Keys", icon: "key")
         case "read:public_key":
             return RepoPermission(scope: scope, humanReadable: "Read User Public Keys", icon: "key")
-        // Hooks
         case "admin:repo_hook":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Repository Hooks", icon: "webhook")
         case "write:repo_hook":
@@ -57,7 +48,6 @@ struct RepoPermission: Identifiable {
             return RepoPermission(scope: scope, humanReadable: "Read Repository Hooks", icon: "webhook")
         case "admin:org_hook":
             return RepoPermission(scope: scope, humanReadable: "Full Control Of Organization Webhooks", icon: "building.2.crop.circle")
-        // User
         case "user":
             return RepoPermission(scope: scope, humanReadable: "Update All User Data", icon: "person.fill.badge.plus")
         case "read:user":
@@ -66,7 +56,6 @@ struct RepoPermission: Identifiable {
             return RepoPermission(scope: scope, humanReadable: "Access User Email Addresses", icon: "envelope")
         case "user:follow":
             return RepoPermission(scope: scope, humanReadable: "Follow And Unfollow Users", icon: "person.fill.badge.plus")
-        // Misc
         case "gist":
             return RepoPermission(scope: scope, humanReadable: "Create Gists", icon: "doc.text.fill")
         case "notifications":
@@ -103,8 +92,6 @@ struct RepoPermission: Identifiable {
     }
 }
 
-// MARK: - Repo Permission Manager
-
 @MainActor
 final class RepoPermManager: ObservableObject, Sendable {
     static let shared = RepoPermManager()
@@ -117,7 +104,6 @@ final class RepoPermManager: ObservableObject, Sendable {
 
     private let baseURL = URL(string: "https://api.github.com")!
 
-    /// Fetches the scopes for the stored GitHub token by inspecting the X-OAuth-Scopes response header.
     @MainActor
     func fetchPermissions() async {
         guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {

@@ -1,22 +1,3 @@
-// SwiftCode's own guest images on a runtime of another platform (visionos.md
-// §7.2 R1). The host libraries, the headless framebuffer library and the HID
-// bundle are linked for the iOS simulator (platform 7; host-libraries.md,
-// SimGuestFrameworks/build.sh). dyld_sim loads an image into a process only
-// when the image is built for the process platform (host-library-loading.md
-// §2.1; an iOS-simulator process may also load visionOS-simulator images,
-// not the reverse), so on a visionOS runtime (platform 12) each of them
-// needs a copy whose `LC_BUILD_VERSION` names visionOS simulator. The code is
-// the same: the visionOS runtime's libraries are separate builds with the
-// same exported names (visionos.md §3.4), and SwiftCode's images import nothing
-// platform-specific. The linker in use (LLD 21) cannot write the visionOS
-// simulator platform, so the copy is made here, by rewriting the one load
-// command; the images carry no code signature that would cover it.
-//
-// Format facts (public <mach-o/loader.h>): mach_header_64 is 32 bytes (magic
-// 0xFEEDFACF, ncmds at 16, sizeofcmds at 20); a load command starts with
-// cmd, cmdsize; LC_BUILD_VERSION (0x32) has platform, minos, sdk at 8, 12,
-// 16 (versions packed as xxxx.yy.zz); LC_CODE_SIGNATURE is 0x1D.
-
 import Foundation
 
 enum GuestImagePlatform {
@@ -24,7 +5,6 @@ enum GuestImagePlatform {
         let description: String
     }
 
-    /// A packed Mach-O version (major << 16 | minor << 8 | patch) from "27.0" or "27.0.1".
     static func packedVersion(_ text: String) -> UInt32? {
         let parts = text.split(separator: ".").map { UInt32($0) }
         guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0 != nil }) else { return nil }
@@ -33,9 +13,6 @@ enum GuestImagePlatform {
         return p[0] << 16 | p[1] << 8 | p[2]
     }
 
-    /// The image with its `LC_BUILD_VERSION` naming `platform`, `minOS` and
-    /// `sdk`. A thin little-endian 64-bit image with exactly one build-version
-    /// command and no code signature; anything else is refused.
     static func retagged(_ image: Data, platform: UInt32, minOS: UInt32, sdk: UInt32) throws -> Data {
         var bytes = [UInt8](image)
         func u32(_ at: Int) -> UInt32 {
@@ -65,7 +42,6 @@ enum GuestImagePlatform {
         return Data(bytes)
     }
 
-    /// The platform of a thin 64-bit image (its LC_BUILD_VERSION), or nil.
     static func platform(of image: Data) -> UInt32? {
         let b = [UInt8](image)
         func u32(_ at: Int) -> UInt32 {
@@ -83,9 +59,6 @@ enum GuestImagePlatform {
         return nil
     }
 
-    /// Rewrites the file at `path` in place for `runtime` (nothing for iOS).
-    /// The file is written only when its bytes change, so a restored device
-    /// whose processes have it open keeps the same file.
     static func adapt(fileAt path: String, for runtime: RuntimePlatform, version: String) throws {
         guard runtime != .iOS else { return }
         guard let data = FileManager.default.contents(atPath: path) else {
@@ -96,8 +69,6 @@ enum GuestImagePlatform {
         if out != data { try out.write(to: URL(fileURLWithPath: path), options: .atomic) }
     }
 
-    /// A copy of `source` adapted for `runtime` at `target` (made or
-    /// refreshed only when its bytes differ); the target path.
     static func adaptedCopy(of source: String, to target: String, for runtime: RuntimePlatform, version: String) throws -> String {
         guard let data = FileManager.default.contents(atPath: source) else {
             throw Failure(description: "cannot read \(source)")

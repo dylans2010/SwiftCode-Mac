@@ -1,17 +1,3 @@
-// The host end of SwiftCode's health agent channel and the `health …` commands
-// of a running device (specs/simulator/health-simulation.md §8.1–§8.3,
-// "SwiftCode implementation").
-//
-// The guest health agent (SimGuestAgents/health, staged by
-// HealthAgentStaging.swift) connects to /private/var/run/dev.swiftcode.health,
-// which the VMM serves (HostStreamSockets.serve). After its hello the host
-// asks it to request share and read access for every writable type (the
-// request writes the agent's authorization rows; SwiftCode answers them while
-// the device is shut down, so from the next cold boot on the request
-// completes at once). Commands on the control socket (`health …`, the words
-// of HealthCommand) read files and generate scenarios here, validate every
-// sample, and send the agent write, workout, delete and count requests.
-
 import Foundation
 import SwiftCodeDarwinKernel
 import SwiftCodeSimFeatures
@@ -32,10 +18,8 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
     private var nextID = 1
     private var waiting: [Int: (semaphore: DispatchSemaphore, reply: [String: Any]?)] = [:]
     private(set) var hello: [String: Any]?
-    /// The agent's authorization: nil until asked; true when its key types are authorized.
     private(set) var authorized: Bool?
     private(set) var authorizeError: String?
-    /// Samples this host had the agent save in this run, per type.
     private(set) var written: [String: Int] = [:]
     private var stream: (generation: Int, description: String)?
     private var streamGeneration = 0
@@ -47,8 +31,6 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
     }
 
     var isConnected: Bool { lock.withLock { link != nil && hello != nil } }
-
-    // MARK: HostChannelServer
 
     func channelOpened(_ connection: HostChannelConnection) { opened(connection, pid: connection.pid) }
     func channel(_ connection: HostChannelConnection, received bytes: [UInt8]) { received(bytes, from: connection) }
@@ -137,7 +119,6 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
         }
     }
 
-    /// One request and its reply.
     func request(_ message: [String: Any], timeout: TimeInterval? = nil) -> Result<[String: Any], HealthError> {
         guard let l = waitForAgent() else { return .failure(.noAgent) }
         let s = DispatchSemaphore(value: 0)
@@ -157,15 +138,11 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
         return .failure(.agent(reply["error"] as? String ?? "failed", saved: (reply["saved"] as? NSNumber)?.intValue ?? 0))
     }
 
-    // MARK: Authorization
-
-    /// The types every scenario writes; asked for alone if the full list is refused.
     static let coreTypes = [HealthScenarios.hr, HealthScenarios.restingHR, HealthScenarios.hrv, HealthScenarios.spo2,
                             HealthScenarios.respiratory, HealthScenarios.steps, HealthScenarios.distance, HealthScenarios.activeEnergy,
                             HealthScenarios.basalEnergy, HealthScenarios.flights, HealthScenarios.sleep, HealthTypes.workout,
                             HealthTypes.workoutRoute]
 
-    /// Asks the agent to request its access: every writable type, share and read.
     @discardableResult
     func authorizeAgent() -> String {
         var types = HealthTypes.agentShareTypes
@@ -196,9 +173,6 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
         return text
     }
 
-    // MARK: Commands
-
-    /// `health …` words (the control socket). Answers "ok …" or "error …".
     func handle(_ words: [String]) -> String {
         let command: HealthCommand
         do { command = try HealthCommand.parse(words) } catch { return "error \(error)" }
@@ -207,7 +181,6 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
         case .authorize: return "ok " + authorizeAgent()
         case .importFile(let path, let open): return importFile(path, open: open)
         case let .scenario(name, date, days, seed, steps, start, withReadOnly):
-            // Without --date: the last complete day (and the night that ended this morning), so no sample lies in the future.
             let yesterday = Date().addingTimeInterval(-86400 * Double(days))
             var o = HealthScenarioOptions(date: date.flatMap { HealthCommand.parseDay($0, timeZone: timeZone) } ?? yesterday, timeZone: timeZone)
             o.days = days
@@ -228,7 +201,6 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
         case .clear: return clear()
         case .grant(var id), .revoke(var id):
             let verb = { if case .grant = command { return "grant" } else { return "revoke" } }()
-            // A watch app's rows are its companion's (health-simulation.md §12.1).
             let watchApp = id
             if let companion = HealthWatchApps.companion(of: id, deviceData: dev + "/data") { id = companion }
             HealthDeviceFiles(dev: dev).queue(verb, id)
@@ -280,7 +252,6 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
         return write(file.samples, workouts: file.workouts, what: (path as NSString).lastPathComponent, note: note)
     }
 
-    /// Writes samples (and workouts) through the agent; one line of counts.
     func write(_ samples: [HealthSample], workouts: [HealthWorkout], what: String, note: String?) -> String {
         let t0 = Date()
         var saved = 0, savedWorkouts = 0, workoutSamples = 0
@@ -329,8 +300,6 @@ final class HealthHost: HostChannelServer, @unchecked Sendable {
         case .failure(let e): return "error \(e)"
         }
     }
-
-    // MARK: Streams (H-12)
 
     func startStream(_ kind: HealthCommand.StreamKind, range: ClosedRange<Double>, every: TimeInterval, duration: TimeInterval?) -> String {
         guard waitForAgent() != nil else { return "error \(HealthError.noAgent)" }

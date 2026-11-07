@@ -4,7 +4,6 @@ import USDCore
 import USDShade
 import USDStage
 
-/// `swiftcode-scene`: the Scene Composer's command-line tool.
 public enum SceneComposerCLI {
     public static let version = "0.1.0"
 
@@ -84,7 +83,6 @@ public enum SceneComposerCLI {
 
     struct UsageError: Error { var message: String }
 
-    /// Splits flags (`--x`) from positional arguments.
     static func split(_ args: [String], flags: Set<String>, options: Set<String> = []) throws -> (positional: [String], flags: Set<String>, options: [String: String]) {
         var positional: [String] = []
         var set: Set<String> = []
@@ -117,8 +115,6 @@ public enum SceneComposerCLI {
         let layer = try resolver.layer(for: AssetPaths.normalize(absolute(file)))
         return (layer, Stage(rootLayer: layer, resolver: resolver))
     }
-
-    // MARK: info
 
     static func info(_ args: [String], out: inout some TextOutputStream) throws -> Int32 {
         let (pos, _, _) = try split(args, flags: [])
@@ -166,8 +162,6 @@ public enum SceneComposerCLI {
         for e in stage.errors { print("composition: \(e)", to: &out) }
         return 0
     }
-
-    // MARK: tree
 
     static func tree(_ args: [String], out: inout some TextOutputStream) throws -> Int32 {
         let (pos, flags, _) = try split(args, flags: ["--layer", "--all", "--components"])
@@ -224,8 +218,6 @@ public enum SceneComposerCLI {
         return 0
     }
 
-    // MARK: cat and convert
-
     static func cat(_ args: [String], out: inout some TextOutputStream) throws -> Int32 {
         let (pos, flags, _) = try split(args, flags: ["--flatten", "--sorted"])
         guard pos.count == 1 else { throw UsageError(message: "cat takes one file") }
@@ -261,8 +253,6 @@ public enum SceneComposerCLI {
         return 0
     }
 
-    /// Files a package needs: relative dependencies of the root layer and,
-    /// recursively, of USD layers it references. Paths keep their relative form.
     static func collectAssets(of layer: Layer, anchor: String, missing: inout [String]) throws -> [USDZArchive.Entry] {
         var entries: [USDZArchive.Entry] = []
         var seen: Set<String> = []
@@ -287,8 +277,6 @@ public enum SceneComposerCLI {
         missing = missingFiles
         return entries
     }
-
-    // MARK: validate
 
     static func validate(_ args: [String], out: inout some TextOutputStream) throws -> Int32 {
         let (pos, flags, _) = try split(args, flags: ["--strict"])
@@ -320,8 +308,6 @@ public enum SceneComposerCLI {
         print("\(errors) error\(errors == 1 ? "" : "s"), \(warnings) warning\(warnings == 1 ? "" : "s")", to: &out)
         return errors > 0 || (flags.contains("--strict") && warnings > 0) ? 1 : 0
     }
-
-    // MARK: edit
 
     static func edit(_ args: [String], out: inout some TextOutputStream) throws -> Int32 {
         guard let file = args.first, !file.hasPrefix("-") else { throw UsageError(message: "edit takes a file first") }
@@ -410,7 +396,6 @@ public enum SceneComposerCLI {
     }
 }
 
-/// Writes to a file handle as a text stream.
 struct FileHandleOutput: TextOutputStream {
     let handle: FileHandle
 

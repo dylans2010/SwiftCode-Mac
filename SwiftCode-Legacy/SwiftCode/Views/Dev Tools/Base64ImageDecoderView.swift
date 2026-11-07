@@ -104,7 +104,6 @@ public struct Base64ImageDecoderView: View {
 
         let trimmed = base64Input
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            // Strip common prefix wrappers (like 'data:image/png;base64,')
             .replacingOccurrences(of: "data:image/png;base64,", with: "")
             .replacingOccurrences(of: "data:image/jpeg;base64,", with: "")
             .replacingOccurrences(of: "data:image/gif;base64,", with: "")

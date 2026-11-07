@@ -1,9 +1,4 @@
-// stdlib.c - environment, number conversion, sorting, random numbers,
-// time and sleep for SwiftCode's libSystem (specs/macos/libsystem.md §6).
-// Clean-room SwiftCode code from the C standard and POSIX descriptions.
 #include "ycl.h"
-
-// --- environment ---
 
 YCL_EXPORT char *getenv(const char *name) {
     size_t n = strlen(name);
@@ -13,7 +8,7 @@ YCL_EXPORT char *getenv(const char *name) {
 }
 
 static os_unfair_lock env_lock;
-static char **owned_environ;  // the array setenv allocated, if any
+static char **owned_environ;
 
 YCL_EXPORT int unsetenv(const char *name) {
     if (!name || !*name || strchr(name, '=')) {
@@ -67,8 +62,6 @@ YCL_EXPORT int setenv(const char *name, const char *value, int overwrite) {
     return 0;
 }
 
-// --- number conversion ---
-
 static int is_space(int c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
 
 static int digit_value(int c) {
@@ -78,8 +71,6 @@ static int digit_value(int c) {
     return 99;
 }
 
-// Parses an integer; `*negative` tells the sign, the magnitude saturates at
-// `limit` (ERANGE).
 static uint64_t parse_integer(const char *s, char **end, int base, int *negative, uint64_t limit) {
     const char *p = s;
     while (is_space((unsigned char)*p)) p++;
@@ -135,13 +126,9 @@ YCL_EXPORT int atoi(const char *s) { return (int)strtol(s, 0, 10); }
 YCL_EXPORT long atol(const char *s) { return strtol(s, 0, 10); }
 YCL_EXPORT long long atoll(const char *s) { return strtoll(s, 0, 10); }
 
-// strtod, strtof, strtold and atof are LLVM libc's (llvm_libc.cpp).
-
 YCL_EXPORT int abs(int v) { return v < 0 ? -v : v; }
 YCL_EXPORT long labs(long v) { return v < 0 ? -v : v; }
 YCL_EXPORT long long llabs(long long v) { return v < 0 ? -v : v; }
-
-// --- sorting and searching ---
 
 static void swap_bytes(char *a, char *b, size_t n) {
     while (n--) {
@@ -151,7 +138,6 @@ static void swap_bytes(char *a, char *b, size_t n) {
     }
 }
 
-// An in-place heapsort: O(n log n), no allocation, no recursion.
 static void sift(char *base, size_t root, size_t count, size_t size, int (*cmp)(const void *, const void *)) {
     for (;;) {
         size_t child = 2 * root + 1;
@@ -187,8 +173,6 @@ YCL_EXPORT void *bsearch(const void *key, const void *array, size_t count, size_
     return 0;
 }
 
-// --- random numbers ---
-
 static uint64_t rand_state = 1;
 YCL_EXPORT void srand(unsigned seed) { rand_state = seed; }
 YCL_EXPORT int rand(void) {
@@ -214,18 +198,15 @@ YCL_EXPORT uint32_t arc4random(void) {
 }
 YCL_EXPORT uint32_t arc4random_uniform(uint32_t bound) {
     if (bound < 2) return 0;
-    uint32_t floor = (uint32_t)(0 - bound) % bound;  // reject the biased low range
+    uint32_t floor = (uint32_t)(0 - bound) % bound;
     for (;;) {
         uint32_t v = arc4random();
         if (v >= floor) return v % bound;
     }
 }
 
-// --- time and sleep ---
-
 static uint32_t timebase_numer, timebase_denom;
 
-// v * numer / denom without a 128-bit division (no compiler runtime here).
 static uint64_t scale(uint64_t v, uint32_t numer, uint32_t denom) {
     return v / denom * numer + v % denom * numer / denom;
 }
@@ -299,11 +280,9 @@ YCL_EXPORT int clock_gettime(int clock, struct ycl_timespec *ts) {
     return -1;
 }
 
-// --- small POSIX helpers ---
-
 YCL_EXPORT int isatty(int fd) {
     char termios[72];
-    if (ioctl(fd, 0x40487413ul /* TIOCGETA */, termios) == 0) return 1;
+    if (ioctl(fd, 0x40487413ul , termios) == 0) return 1;
     ycl_errno = YCL_ENOTTY;
     return 0;
 }
@@ -314,7 +293,7 @@ enum { SC_PAGESIZE = 29, SC_NPROCESSORS_CONF = 57, SC_NPROCESSORS_ONLN = 58 };
 YCL_EXPORT long sysconf(int name) {
     if (name == SC_PAGESIZE) return 16384;
     if (name == SC_NPROCESSORS_CONF || name == SC_NPROCESSORS_ONLN) {
-        int mib[2] = {6 /* CTL_HW */, 3 /* HW_NCPU */}, n = 0;
+        int mib[2] = {6 , 3 }, n = 0;
         size_t size = sizeof n;
         return __sysctl(mib, 2, &n, &size, 0, 0) == 0 && n > 0 ? n : 1;
     }

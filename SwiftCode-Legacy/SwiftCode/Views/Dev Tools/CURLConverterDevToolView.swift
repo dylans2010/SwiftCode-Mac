@@ -10,7 +10,6 @@ final class CURLConverterDevToolViewModel {
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "CURLConverter")
 
     func convert() {
-        // Quick basic conversion parser
         var method = "GET"
         if curlCommand.contains("-X POST") || curlCommand.contains("--request POST") {
             method = "POST"
@@ -20,7 +19,6 @@ final class CURLConverterDevToolViewModel {
             method = "DELETE"
         }
 
-        // simple URL extraction
         var url = "https://api.example.com"
         let parts = curlCommand.components(separatedBy: " ")
         if let foundUrl = parts.first(where: { $0.hasPrefix("http") }) {

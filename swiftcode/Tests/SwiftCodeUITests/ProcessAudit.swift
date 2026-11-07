@@ -2,19 +2,9 @@ import Darwin
 import Foundation
 import Testing
 
-/// Finds child processes the tests leave behind (debug adapters, language
-/// servers, simctl, build services). A leftover child keeps pipes, devices
-/// and the test helper's run loop busy, so the run would not end cleanly.
-///
-/// - After every `.heavyIntegration` suite, children with a long-lived tool
-///   name must be gone within a grace period, or the suite records an issue
-///   naming them (and they are killed).
-/// - At process exit, any child still alive fails the run (exit status 1).
 enum ProcessAudit {
-    /// Tools that are meant to live for one session and must be closed.
     static let sessionTools = ["lldb-dap", "lldb", "debugserver", "sourcekit-lsp", "clangd", "simctl",
                                "swbuild", "SWBBuildService", "swift-build", "swift-frontend",
-                               // Preview hosts: the Mac host and built SwiftPM hosts (specs/ide/previews.md §The macOS host)
                                "SwiftCodePreview"]
 
     struct Child: CustomStringConvertible {
@@ -30,7 +20,6 @@ enum ProcessAudit {
         return pids.prefix(Int(n)).filter { $0 > 0 }.compactMap { pid in
             var buf = [CChar](repeating: 0, count: 256)
             guard proc_name(pid, &buf, UInt32(buf.count)) > 0 else { return nil }
-            // A zombie (exited, not reaped yet) holds nothing open.
             var info = proc_bsdinfo()
             if proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0,
                info.pbi_status == UInt32(SZOMB) { return nil }
@@ -38,7 +27,6 @@ enum ProcessAudit {
         }
     }
 
-    /// Children still alive after `grace` seconds, among those `filter` keeps.
     static func leftovers(grace: Double, filter: (Child) -> Bool = { _ in true }) -> [Child] {
         let deadline = Date().addingTimeInterval(grace)
         while true {
@@ -48,7 +36,6 @@ enum ProcessAudit {
         }
     }
 
-    /// The child's arguments (`KERN_PROCARGS2`), to name what left it.
     static func commandLine(_ pid: pid_t) -> String {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
@@ -56,7 +43,6 @@ enum ProcessAudit {
         var buf = [UInt8](repeating: 0, count: size)
         guard sysctl(&mib, 3, &buf, &size, nil, 0) == 0 else { return "" }
         let argc = Int(buf.withUnsafeBytes { $0.load(as: Int32.self) })
-        // argc, the executable path, padding NULs, then argv.
         var i = 4
         while i < size, buf[i] != 0 { i += 1 }
         while i < size, buf[i] == 0 { i += 1 }
@@ -85,10 +71,8 @@ enum ProcessAudit {
         }
     }()
 
-    /// Installs the exit check (once).
     static func arm() { _ = armed }
 
-    /// After a heavy suite: its session tools must be gone.
     static func checkAfterSuite(_ name: String) {
         let left = leftovers(grace: 15, filter: isSessionTool)
         guard !left.isEmpty else { return }

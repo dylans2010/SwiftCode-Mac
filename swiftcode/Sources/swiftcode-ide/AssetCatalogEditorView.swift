@@ -9,13 +9,6 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The asset catalog editor (`specs/ide/asset-catalog.md`,
-/// `reference-ui-3.md` §3): the outline of folders and sets at the left
-/// with "+", "−" and the filter under it; the selected set at the right:
-/// its name and type, then its slots (image sets, app icons) or colors
-/// (color sets). A click on an empty slot chooses an image; a filled slot's
-/// context menu replaces or removes it, as does Delete. The set's
-/// attributes are in the inspector's Attributes tab.
 struct AssetCatalogEditorView: View {
     var model: AssetCatalogEditorModel
     @State private var importing = false
@@ -53,7 +46,6 @@ struct AssetCatalogEditorView: View {
     }
 }
 
-/// The "+" pull-down: the set kinds by platform, folders and Import….
 struct AddAssetMenu: View {
     var model: AssetCatalogEditorModel
     @Binding var importing: Bool
@@ -103,7 +95,6 @@ struct AddAssetMenu: View {
     }
 }
 
-/// The outline: folders and sets, 22-point rows indented by depth.
 struct AssetOutline: View {
     var model: AssetCatalogEditorModel
     @FocusState private var hasKeyboard: Bool
@@ -111,7 +102,6 @@ struct AssetOutline: View {
 
     var body: some View {
         let c = ShellColors(scheme)
-        // Icons show colors and images: drawn again after every edit.
         let _ = model.revision
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -168,11 +158,8 @@ struct AssetOutline: View {
     }
 }
 
-/// A row's icon: a folder, a color set's first color, an image set's first
-/// image, else the kind's symbol.
 struct AssetIcon: View {
     var row: AssetCatalog.OutlineRow
-    /// The editor's revision: a new one draws the icon again.
     var revision: Int
     var colors: ShellColors
 
@@ -193,7 +180,6 @@ struct AssetIcon: View {
         .frame(width: 18, height: 18)
     }
 
-    /// Symbols the shell's artwork has.
     static func symbol(_ r: AssetCatalog.OutlineRow) -> String {
         guard let k = r.set?.kind else { return "folder.fill" }
         switch k {
@@ -208,7 +194,6 @@ struct AssetIcon: View {
     }
 }
 
-/// The right side: the selected set's header and content.
 struct AssetDetail: View {
     var model: AssetCatalogEditorModel
     @Environment(\.colorScheme) private var scheme
@@ -259,7 +244,6 @@ struct AssetDetail: View {
     }
 }
 
-/// Image and app-icon slots, grouped by idiom, four to a row.
 struct SlotGrid: View {
     var model: AssetCatalogEditorModel
     @State private var chosenSlot: Int?
@@ -289,7 +273,6 @@ struct SlotGrid: View {
                             }
                         }
                     }
-                    // Single-size icons name their platform under the slot already.
                     if !(groups[g] ?? []).allSatisfy({ $0.element.platform != nil }) {
                         Text(verbatim: g).font(ShellFonts.small.weight(.semibold)).tracking(ShellFonts.smallTracking).foregroundStyle(c.secondaryLabel)
                     }
@@ -312,7 +295,6 @@ struct SlotGrid: View {
     }
 }
 
-/// One slot: the image or a dashed box, and its captions.
 struct SlotWell: View {
     var model: AssetCatalogEditorModel
     var slot: AssetCatalog.Slot
@@ -357,7 +339,6 @@ struct SlotWell: View {
     }
 }
 
-/// Color sets: per appearance, the swatch and its components.
 struct ColorSetDetail: View {
     var model: AssetCatalogEditorModel
     @Environment(\.colorScheme) private var scheme
@@ -387,8 +368,6 @@ struct ColorEntryView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(color.swiftUIColor)
                 .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(c.fieldStroke, lineWidth: 1) }
                 .frame(width: 84, height: 84)
-            // The slot's caption (reference-ui-3 §3.4): "Universal", and the
-            // appearance once there is more than one.
             VStack(alignment: .leading, spacing: 1) {
                 Text(verbatim: "Universal").font(ShellFonts.small.weight(.semibold)).tracking(ShellFonts.smallTracking).foregroundStyle(c.label)
                 if showsAppearance {
@@ -444,10 +423,6 @@ struct ColorEntryView: View {
     }
 }
 
-/// The inspector's Attributes tab for the selected set or folder
-/// (`reference-ui-5.md` §7.6): Name, then the set's rows (Color Set:
-/// devices, Appearances, High Contrast; App Icon: platforms), or a
-/// folder's Provides Namespace.
 struct AssetAttributesInspector: View {
     var model: AssetCatalogEditorModel
     @Environment(\.colorScheme) private var scheme
@@ -522,7 +497,6 @@ struct AssetAttributesInspector: View {
     }
 }
 
-/// Group captions for slots.
 enum AssetCatalogPlatform {
     static func title(_ p: String) -> String {
         switch p { case "ios": "iOS"; case "macos": "macOS"; case "watchos": "watchOS"; case "tvos": "tvOS"; case "xros", "visionos": "visionOS"; default: p }
@@ -543,8 +517,6 @@ extension AssetCatalog.ColorValue {
     }
 }
 
-/// An image file shown scaled to fit. OpenViews reads PNG and JPEG files
-/// through a bundle rooted at the file's folder; macOS reads any image.
 struct FileImage: View {
     var url: URL
 
@@ -569,7 +541,6 @@ struct FileImage: View {
     }
 }
 
-/// The inspector's fourth tab while an asset catalog is shown.
 enum AssetInspectorTab {
     static let index = 3
     static let symbol = "slider.horizontal.3"

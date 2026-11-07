@@ -1,12 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Settings/AppIconSelectView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
-// Icon gallery with search/filter, live Dock + welcome-window previews, and the
-// macOS 26+ appearance adaptation card. Depends on AppIconManager (same batch).
-// The private Color(hex: UInt32) helper does not collide in SwiftCodeUI
-// (only swiftcode-ide has a hex: String init).
-// Wiring: presented from the App Icon settings section / AppIconPickerView host.
-
 import SwiftUI
 #if os(macOS)
 import AppKit
@@ -14,25 +5,23 @@ import AppKit
 import UIKit
 #endif
 
-// MARK: - AppIconSelectView
-
 public struct AppIconSelectView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var iconManager = AppIconManager.shared
-    
+
     @State private var hoveredVariant: AppIconVariant?
     @State private var selectedCategory: AppIconCategory = .all
     @State private var searchText = ""
     @State private var previewTab: PreviewMode = .split
     @State private var selectedWallpaper: DockWallpaper = .sonoma
-    
+
     public init() {}
-    
+
     public enum PreviewMode: String, CaseIterable, Identifiable {
         case split = "Side-by-Side"
         case dock = "macOS Dock"
         case welcome = "Welcome View"
-        
+
         public var id: String { rawValue }
         public var iconName: String {
             switch self {
@@ -42,15 +31,15 @@ public struct AppIconSelectView: View {
             }
         }
     }
-    
+
     public enum DockWallpaper: String, CaseIterable, Identifiable {
         case sonoma = "Sonoma Sunset"
         case sequoia = "Sequoia Twilight"
         case cosmic = "Cosmic Deep"
         case silver = "Studio Silver"
-        
+
         public var id: String { rawValue }
-        
+
         public var gradientColors: [Color] {
             switch self {
             case .sonoma:
@@ -64,12 +53,11 @@ public struct AppIconSelectView: View {
             }
         }
     }
-    
-    // Active variant to preview (hovered icon takes precedence for instant feedback)
+
     private var previewVariant: AppIconVariant {
         hoveredVariant ?? iconManager.currentVariant
     }
-    
+
     private var filteredVariants: [AppIconVariant] {
         AppIconVariant.allCases.filter { variant in
             let matchesCategory = (selectedCategory == .all || variant.category == selectedCategory)
@@ -83,23 +71,19 @@ public struct AppIconSelectView: View {
             return matchesCategory && matchesText
         }
     }
-    
+
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             headerBar
-            
+
             Divider()
-            
+
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: 24) {
-                    // Live Previews Container (Dock & Welcome Window Replica)
                     livePreviewsSection
-                    
-                    // macOS 26+ Appearance Configuration (for Default icon)
+
                     appearanceAdaptationCard
-                    
-                    // Icon Gallery Section
+
                     iconGallerySection
                 }
                 .padding(24)
@@ -108,9 +92,7 @@ public struct AppIconSelectView: View {
         .frame(minWidth: 880, idealWidth: 960, minHeight: 640, idealHeight: 740)
         .background(Color(NSColor.windowBackgroundColor))
     }
-    
-    // MARK: - Header Bar
-    
+
     private var headerBar: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -125,10 +107,9 @@ public struct AppIconSelectView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            
+
             Spacer()
-            
-            // Preview Mode Switcher
+
             Picker("Preview View", selection: $previewTab) {
                 ForEach(PreviewMode.allCases) { mode in
                     Label(mode.rawValue, systemImage: mode.iconName).tag(mode)
@@ -136,7 +117,7 @@ public struct AppIconSelectView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 320)
-            
+
             Button("Done") {
                 dismiss()
             }
@@ -148,25 +129,22 @@ public struct AppIconSelectView: View {
         .padding(.vertical, 16)
         .background(.ultraThinMaterial)
     }
-    
-    // MARK: - Live Previews Section
-    
+
     private var livePreviewsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label("Live Environment Previews", systemImage: "macwindow.and.cursorarrow")
                     .font(.headline)
                     .foregroundStyle(.primary)
-                
+
                 Spacer()
-                
-                // Wallpaper Picker for realistic Dock backdrop
+
                 if previewTab == .split || previewTab == .dock {
                     HStack(spacing: 6) {
                         Text("Wallpaper:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        
+
                         Picker("", selection: $selectedWallpaper) {
                             ForEach(DockWallpaper.allCases) { wp in
                                 Text(wp.rawValue).tag(wp)
@@ -178,7 +156,7 @@ public struct AppIconSelectView: View {
                     }
                 }
             }
-            
+
             Group {
                 switch previewTab {
                 case .split:
@@ -196,9 +174,7 @@ public struct AppIconSelectView: View {
             }
         }
     }
-    
-    // MARK: - Realistic macOS Dock Preview Card
-    
+
     private var realisticDockPreviewCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -212,10 +188,8 @@ public struct AppIconSelectView: View {
                     .background(Capsule().fill(Color.primary.opacity(0.08)))
                     .foregroundStyle(.secondary)
             }
-            
-            // Dock Stage with selected wallpaper background
+
             ZStack(alignment: .bottom) {
-                // Desktop Wallpaper Canvas
                 LinearGradient(
                     colors: selectedWallpaper.gradientColors,
                     startPoint: .topLeading,
@@ -227,16 +201,12 @@ public struct AppIconSelectView: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(Color.white.opacity(0.15), lineWidth: 1)
                 )
-                
-                // Frosted Glass Dock Shelf
+
                 HStack(spacing: 14) {
-                    // Companion App: Finder
                     dockCompanionApp(name: "Finder", iconSystem: "face.smiling", bgGradient: [Color(hex: 0x38BDF8), Color(hex: 0x0284C7)])
-                    
-                    // Companion App: Safari
+
                     dockCompanionApp(name: "Safari", iconSystem: "safari.fill", bgGradient: [Color(hex: 0x60A5FA), Color(hex: 0x2563EB)])
-                    
-                    // SwiftCode Main App (Active/Hovered Icon)
+
                     VStack(spacing: 3) {
                         Group {
                             if let nsImg = NSImage(named: iconManager.resolvedPreviewImageName(for: previewVariant)) {
@@ -253,28 +223,23 @@ public struct AppIconSelectView: View {
                         .shadow(color: Color.black.opacity(0.4), radius: 6, y: 4)
                         .scaleEffect(hoveredVariant != nil ? 1.15 : 1.05)
                         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: hoveredVariant)
-                        
-                        // Active Application Running White Dot Indicator
+
                         Circle()
                             .fill(Color.white.opacity(0.9))
                             .frame(width: 4, height: 4)
                             .shadow(color: .white.opacity(0.6), radius: 2)
                     }
                     .help("SwiftCode (\(previewVariant.displayName))")
-                    
-                    // Companion App: Xcode
+
                     dockCompanionApp(name: "Xcode", iconSystem: "hammer.fill", bgGradient: [Color(hex: 0x38BDF8), Color(hex: 0x1E40AF)])
-                    
-                    // Companion App: Terminal
+
                     dockCompanionApp(name: "Terminal", iconSystem: "terminal.fill", bgGradient: [Color(hex: 0x334155), Color(hex: 0x0F172A)])
-                    
-                    // Divider
+
                     Rectangle()
                         .fill(Color.white.opacity(0.2))
                         .frame(width: 1, height: 40)
                         .padding(.horizontal, 2)
-                    
-                    // Companion App: Trash
+
                     dockCompanionApp(name: "Trash", iconSystem: "trash.fill", bgGradient: [Color(hex: 0x94A3B8), Color(hex: 0x64748B)])
                 }
                 .padding(.horizontal, 16)
@@ -301,7 +266,7 @@ public struct AppIconSelectView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
-    
+
     private func dockCompanionApp(name: String, iconSystem: String, bgGradient: [Color]) -> some View {
         VStack(spacing: 3) {
             ZStack {
@@ -309,20 +274,17 @@ public struct AppIconSelectView: View {
                     .fill(LinearGradient(colors: bgGradient, startPoint: .top, endPoint: .bottom))
                     .frame(width: 46, height: 46)
                     .shadow(color: Color.black.opacity(0.25), radius: 4, y: 2)
-                
+
                 Image(systemName: iconSystem)
                     .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(.white)
             }
-            
-            // Spacer to align with running indicator height
+
             Spacer().frame(height: 4)
         }
         .help(name)
     }
-    
-    // MARK: - Realistic Welcome Window Preview Card
-    
+
     private var welcomeWindowPreviewCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -336,62 +298,55 @@ public struct AppIconSelectView: View {
                     .background(Capsule().fill(Color.primary.opacity(0.08)))
                     .foregroundStyle(.secondary)
             }
-            
-            // Miniature Authentic macOS Window
+
             VStack(spacing: 0) {
-                // Window Title Bar
                 HStack(spacing: 7) {
                     Circle().fill(Color(hex: 0xED6A5E)).frame(width: 10, height: 10)
                     Circle().fill(Color(hex: 0xF4BF4F)).frame(width: 10, height: 10)
                     Circle().fill(Color(hex: 0x61C554)).frame(width: 10, height: 10)
-                    
+
                     Spacer()
                     Text("SwiftCode — Welcome")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    
-                    // Balance space for centering
+
                     Spacer().frame(width: 42)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(Color.primary.opacity(0.05))
-                
+
                 Divider()
-                
-                // Window Content Split: Recent Projects Sidebar + Hero Welcome Section
+
                 HStack(spacing: 0) {
-                    // Mini Left Column: Recent Projects
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Recent Projects")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.secondary)
                             .padding(.bottom, 2)
-                        
+
                         miniProjectRow(name: "SwiftCode.xcodeproj", time: "Just now", icon: "app.badge")
                         miniProjectRow(name: "WeatherKitApp", time: "Yesterday", icon: "cloud.sun.fill")
                         miniProjectRow(name: "SpatialVisionOS", time: "3 days ago", icon: "visionpro")
-                        
+
                         Spacer()
                     }
                     .padding(10)
                     .frame(width: 135)
                     .background(Color.primary.opacity(0.02))
-                    
+
                     Divider()
-                    
-                    // Mini Right Column: Welcome Hero Area with App Icon
+
                     VStack(spacing: 8) {
                         Spacer()
-                        
-                        // Mini Stylized App Icon
+
                         ZStack {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .fill(Color.orange.opacity(0.18))
                                 .frame(width: 58, height: 58)
                                 .blur(radius: 6)
-                            
+
                             Group {
                                 if let nsImg = NSImage(named: iconManager.resolvedPreviewImageName(for: previewVariant)) {
                                     Image(nsImage: nsImg)
@@ -406,18 +361,18 @@ public struct AppIconSelectView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                             .shadow(color: Color.black.opacity(0.3), radius: 6, y: 3)
                         }
-                        
+
                         Text("Welcome to SwiftCode")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(Color.orange)
-                        
+
                         Text("The desktop IDE for building and organizing cutting-edge Swift applications natively.")
                             .font(.system(size: 8))
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 12)
                             .lineLimit(2)
-                        
+
                         HStack(spacing: 6) {
                             Text("New Project")
                                 .font(.system(size: 8, weight: .semibold))
@@ -425,7 +380,7 @@ public struct AppIconSelectView: View {
                                 .padding(.vertical, 4)
                                 .background(Capsule().fill(Color.orange))
                                 .foregroundStyle(.white)
-                            
+
                             Text("Import Folder")
                                 .font(.system(size: 8, weight: .semibold))
                                 .padding(.horizontal, 8)
@@ -433,7 +388,7 @@ public struct AppIconSelectView: View {
                                 .background(Capsule().fill(Color.primary.opacity(0.08)))
                                 .foregroundStyle(.primary)
                         }
-                        
+
                         Spacer()
                     }
                     .frame(maxWidth: .infinity)
@@ -459,7 +414,7 @@ public struct AppIconSelectView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
-    
+
     private func miniProjectRow(name: String, time: String, icon: String) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon)
@@ -476,18 +431,16 @@ public struct AppIconSelectView: View {
         }
         .padding(.vertical, 1)
     }
-    
-    // MARK: - macOS 26+ Appearance Adaptation Card
-    
+
     private var appearanceAdaptationCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label("macOS 26+ Dynamic Appearance Adaptation", systemImage: "sparkles")
                     .font(.headline)
                     .foregroundStyle(Color.orange)
-                
+
                 Spacer()
-                
+
                 Text("Apple HIG Compliant")
                     .font(.caption2.bold())
                     .padding(.horizontal, 8)
@@ -495,15 +448,15 @@ public struct AppIconSelectView: View {
                     .background(Capsule().fill(Color.orange.opacity(0.12)))
                     .foregroundStyle(Color.orange)
             }
-            
+
             Text("On macOS 26+ and modern macOS releases, Apple enables app icons to automatically adapt to Dark, Tinted, Light, or Clear appearances. Configure how the primary default icon responds to system appearance:")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            
+
             HStack(spacing: 12) {
                 ForEach(DefaultIconAppearance.allCases) { appearance in
                     let isSelected = iconManager.defaultAppearance == appearance
-                    
+
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                             iconManager.setDefaultAppearance(appearance)
@@ -526,7 +479,7 @@ public struct AppIconSelectView: View {
                     .buttonStyle(.plain)
                 }
             }
-            
+
             Text(iconManager.defaultAppearance.description)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -542,14 +495,10 @@ public struct AppIconSelectView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
-    
-    // MARK: - Icon Gallery Section
-    
+
     private var iconGallerySection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Search & Category Filter Bar
             HStack(spacing: 16) {
-                // Search Field
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -565,20 +514,18 @@ public struct AppIconSelectView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                
-                // Active count tag
+
                 Text("\(filteredVariants.count) Icons Available")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
             }
-            
-            // Category Filter Pills
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(AppIconCategory.allCases) { category in
                         let count = category == .all ? AppIconVariant.allCases.count : AppIconVariant.allCases.filter { $0.category == category }.count
                         let isSelected = selectedCategory == category
-                        
+
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 selectedCategory = category
@@ -604,8 +551,7 @@ public struct AppIconSelectView: View {
                     }
                 }
             }
-            
-            // Icon Grid
+
             if filteredVariants.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
@@ -649,20 +595,17 @@ public struct AppIconSelectView: View {
     }
 }
 
-// MARK: - AppIconGalleryCard
-
 private struct AppIconGalleryCard: View {
     let variant: AppIconVariant
     let isSelected: Bool
     let isHovered: Bool
     let onHover: (Bool) -> Void
     let onSelect: () -> Void
-    
+
     var body: some View {
         Button(action: onSelect) {
             VStack(spacing: 8) {
                 ZStack(alignment: .topTrailing) {
-                    // Artwork Thumbnail
                     Group {
                         #if os(macOS)
                         if let nsImg = NSImage(named: variant.previewImageName) {
@@ -685,8 +628,7 @@ private struct AppIconGalleryCard: View {
                         radius: isHovered ? 10 : 5,
                         y: isHovered ? 6 : 3
                     )
-                    
-                    // Monospaced badge tag
+
                     if let symbol = variant.badgeSymbol {
                         Text(symbol)
                             .font(.system(size: 9, weight: .bold, design: .monospaced))
@@ -696,8 +638,7 @@ private struct AppIconGalleryCard: View {
                             .foregroundStyle(Color.white)
                             .offset(x: -4, y: 64)
                     }
-                    
-                    // Active selection checkmark badge
+
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .symbolRenderingMode(.palette)
@@ -708,14 +649,14 @@ private struct AppIconGalleryCard: View {
                     }
                 }
                 .padding(.top, 12)
-                
+
                 VStack(spacing: 2) {
                     Text(variant.displayName)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isSelected ? Color.orange : Color.primary)
                         .multilineTextAlignment(.center)
                         .lineLimit(1)
-                    
+
                     Text(variant.category.rawValue)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -740,8 +681,6 @@ private struct AppIconGalleryCard: View {
         .animation(.easeOut(duration: 0.15), value: isHovered)
     }
 }
-
-// MARK: - Color Hex Initializer
 
 private extension Color {
     init(hex: UInt32, alpha: Double = 1.0) {

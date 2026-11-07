@@ -1,20 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/AssistActivityView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Assist/AssistActivityView.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - activity feed with sections and per-event status colours
-//   - thought disclosure
-//   - build pass/fail activity entries
-// ADAPTATIONS:
-//   - `import AppKit` wrapped in #if canImport(AppKit) (destination convention). AppKit symbol sites the wiring phase must guard for Linux: none found
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - ActivityStatus — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-//   - AssistActivityGroup — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistActivityModels.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
@@ -529,7 +512,6 @@ public struct AssistActivityView: View {
     }
 }
 
-/// Inline collapsible thought inspector / disclosure showing live thinking duration and thought stream.
 public struct AssistThoughtDisclosureView: View {
     public let thinkingContent: String
     public let duration: TimeInterval?
@@ -626,4 +608,3 @@ public struct AssistThoughtDisclosureView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-

@@ -1,5 +1,3 @@
-// Compatibility Verification Fixture for macos15-sequoia - Target 14
-
 public struct CompatEntity_macos15_sequoia_14_0000: Sendable, Codable {
     public let id: String = "macos15-sequoia.14.0"
     public init() {}

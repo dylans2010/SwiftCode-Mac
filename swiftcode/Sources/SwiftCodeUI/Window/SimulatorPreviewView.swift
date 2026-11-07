@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorPreviewView.swift` (SwiftCode-Mac migration, P-UTIL).
-// PreviewManager resolved (landed by fix W-V2 at SwiftCodeUI/VisualUIBuilder/PreviewManager.swift). UNRESOLVED REF: PreviewConsoleView/PreviewCanvasView live in swiftcode-ide, which SwiftCodeUI cannot import — this file is placed here because SimulatorMainView (SwiftCodeUI) references it; moving those two views into SwiftCodeUI, or re-pointing this view, is a coordinator follow-up.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDECore
 
@@ -11,7 +7,6 @@ struct SimulatorPreviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("SwiftUI Previews Workspace", systemImage: "eye.fill")
                     .font(.headline)
@@ -21,7 +16,6 @@ struct SimulatorPreviewView: View {
             .padding(.bottom, 16)
 
             HSplitView {
-                // Left properties and targets discoverer list
                 ScrollView {
                     VStack(spacing: 20) {
                         GroupBox {
@@ -76,7 +70,6 @@ struct SimulatorPreviewView: View {
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
                 .padding(.trailing, 12)
 
-                // Right canvas rendering
                 PreviewCanvasView()
                     .frame(minWidth: 400, idealWidth: 600, maxWidth: .infinity)
                     .padding(.leading, 12)

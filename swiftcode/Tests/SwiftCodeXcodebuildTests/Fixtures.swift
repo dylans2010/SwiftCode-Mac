@@ -1,8 +1,6 @@
 import Foundation
 @testable import SwiftCodeXcodebuild
 
-/// A hand-written project: a static library and a tool that links it, the
-/// project based on an xcconfig. IDs are arbitrary.
 let multiProjectText = """
 // !$*UTF8*$!
 {
@@ -47,7 +45,6 @@ let multiProjectText = """
 
 """
 
-/// Writes the project (and its sources) into a fresh directory.
 func writeMultiProject(named name: String = "Multi") throws -> URL {
     let fm = FileManager.default
     let dir = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-tests-\(UUID().uuidString)")
@@ -63,7 +60,6 @@ func writeMultiProject(named name: String = "Multi") throws -> URL {
     return proj
 }
 
-/// Settings without swift-build, for formatting tests.
 struct FakeSettings: SettingsProvider {
     var values: [String: String]
     func settings(container: Container, targets: [SettingsTarget], parameters: BuildParameters) throws -> [[String: String]] {

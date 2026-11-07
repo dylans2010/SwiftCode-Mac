@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/OperationsNotificationsView.swift` (SwiftCode-Mac migration, P-UTIL).
-// All referenced managers (OperationsCoordinator/OperationsPanel, OperationQueueManager, NotificationCenterManager, WorkspaceTimelineManager, WorkspaceHealth, WorkspaceIntelligence, DiagnosticsManager, SecurityManager, BuildHistoryManager, SCOperationsStorageManager, SCOperationsSigningManager, PerformanceManager, DependencyManager) exist in SwiftCodeIDEShell; ModernGroupBoxStyle/.liquidGlass in SwiftCodeUI.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import SwiftCodeIDEShell
 import SwiftCodeUI
@@ -11,7 +7,6 @@ struct OperationsNotificationsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Notification Center")

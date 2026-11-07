@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Database Sidebar Node
 public final class DatabaseSidebarNode: NSObject {
     public let title: String
     public let icon: String?
@@ -17,7 +16,6 @@ public final class DatabaseSidebarNode: NSObject {
     }
 }
 
-// MARK: - Native Left Sidebar View Controller for Database Explorer
 public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     private var scrollView: NSScrollView?
     private var outlineView: NSOutlineView?
@@ -83,7 +81,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
             for group in nodes {
                 outline.expandItem(group)
             }
-            // Select row for Dashboard (row index 1 because row 0 is Group Header "WORKSPACE")
             outline.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
         }
     }
@@ -91,7 +88,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
     private func buildSidebarNodes() -> [DatabaseSidebarNode] {
         var groups: [DatabaseSidebarNode] = []
 
-        // 1. Workspace
         let workspace = DatabaseSidebarNode(title: "WORKSPACE", isGroup: true)
         workspace.children = [
             DatabaseSidebarNode(title: "Dashboard", icon: "square.grid.2x2", section: .dashboard),
@@ -100,7 +96,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
         ]
         groups.append(workspace)
 
-        // 2. Query & AI
         let queryAI = DatabaseSidebarNode(title: "QUERY & AI", isGroup: true)
         queryAI.children = [
             DatabaseSidebarNode(title: "SQL Editor", icon: "terminal", section: .sqlEditor),
@@ -109,7 +104,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
         ]
         groups.append(queryAI)
 
-        // 3. Maintenance
         let maintenance = DatabaseSidebarNode(title: "MAINTENANCE", isGroup: true)
         maintenance.children = [
             DatabaseSidebarNode(title: "Migrations", icon: "arrow.triangle.2.circlepath", section: .migrations),
@@ -118,7 +112,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
         ]
         groups.append(maintenance)
 
-        // 4. Performance & Setup
         let performanceSetup = DatabaseSidebarNode(title: "PERFORMANCE & SETUP", isGroup: true)
         performanceSetup.children = [
             DatabaseSidebarNode(title: "Performance", icon: "gauge.with.needle", section: .performance),
@@ -129,8 +122,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
 
         return groups
     }
-
-    // MARK: - NSOutlineViewDataSource
 
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
@@ -156,8 +147,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
         }
         return false
     }
-
-    // MARK: - NSOutlineViewDelegate
 
     public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
         if let node = item as? DatabaseSidebarNode {
@@ -229,7 +218,6 @@ public class DatabaseExplorerSidebarViewController: NSViewController, NSOutlineV
     }
 }
 
-// MARK: - Native Sidebar Custom Cell for Database
 class DatabaseSidebarCellView: NSTableCellView {
     let iconView = NSImageView()
 

@@ -2,12 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// The gap-closure LLM service (`LLMToolCompletionService`) against stub
-/// providers: no live network, no real credentials. The Ollama
-/// end-to-end test uses the in-module `LoopbackServer` on loopback only.
 @Suite struct LLMWiringGapTests {
-    /// A stub provider that answers with canned text (split into two
-    /// chunks, to prove streamed collection) and an optional truncation.
     struct StubProvider: AssistantProvider {
         var kind: ProviderKind
         var text: String
@@ -30,7 +25,6 @@ import Testing
         }
     }
 
-    /// A stub provider whose stream fails.
     struct FailingProvider: AssistantProvider {
         var kind: ProviderKind
         var message: String = "boom"

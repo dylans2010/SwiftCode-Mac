@@ -7,10 +7,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// UIKit view and view-controller previews in the macOS IDE (issue #84):
-/// they run on the simulator path, also from a package whose run
-/// destination is the Mac; with no SwiftCode simulator set up the canvas says
-/// what is needed instead of showing a build error.
 @MainActor @Suite(.timeLimit(.minutes(10))) struct UIKitPreviewCanvasTests {
     static let badge = """
     import UIKit
@@ -40,8 +36,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(c.simulatorSettingsButton != nil)
         c.simulatorSettingsButton?.performClick(nil)
         #expect(opened == 1)
-        #expect(refreshed == 1)   // resume
-        // No error card: the header still lists the previews.
+        #expect(refreshed == 1)
         #expect(c.headerTabs.map(\.title) == ["Badge", "Controller"])
     }
 

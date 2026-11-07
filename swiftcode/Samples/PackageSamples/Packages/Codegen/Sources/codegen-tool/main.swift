@@ -1,8 +1,5 @@
 import Foundation
 
-// codegen-tool <input.codegen> <output.swift>
-// Each `name = text` line of the input becomes `public static let name = "text"`
-// in an enum named after the input file.
 let args = CommandLine.arguments
 guard args.count == 3 else {
     FileHandle.standardError.write(Data("usage: codegen-tool <input.codegen> <output.swift>\n".utf8))

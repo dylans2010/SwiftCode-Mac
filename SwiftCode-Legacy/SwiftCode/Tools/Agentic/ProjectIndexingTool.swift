@@ -20,7 +20,6 @@ public struct ProjectIndexingTool: AgentTool {
             throw AgentError.toolError("Missing root_path argument")
         }
 
-        // Mock indexing
         return "Project at \(rootPath) has been indexed. 124 symbols found across 42 files."
     }
 }

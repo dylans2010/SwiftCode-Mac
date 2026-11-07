@@ -1,35 +1,19 @@
-// swiftcode-simd --device: the lean boot profile (specs/simulator/lean-boot.md).
-// Off by default. When on, the device boots with fewer background jobs
-// (launchd's per-label disabled overrides in TMP/disabled.plist, the file
-// `launchctl disable` writes; lean-boot.md §3) and, optionally, with the
-// busiest log subsystems set to level off (the files `log config
-// --subsystem S --mode level:off` writes; lean-boot.md §4). Plain Foundation.
-
 import Foundation
 
 struct LeanBootProfile: Equatable {
-    /// Labels written as disabled (`true`) into TMP/disabled.plist.
     var disabledLabels: [String]
-    /// Write level-off preferences for `loggingOffSubsystems`.
     var loggingOff: Bool
 
     var isEmpty: Bool { disabledLabels.isEmpty && !loggingOff }
 
-    /// The background jobs the lean profile disables (lean-boot.md §3.2):
-    /// on-demand jobs that are not on the path to the home screen, to app
-    /// install or to app launch, and that cost the most guest work in a
-    /// SwiftCode boot (measured) or start again and again.
     static let defaultDisabledLabels: [String] = [
-        // Suggestions, search and Spotlight indexing.
         "com.apple.suggestd",
         "com.apple.parsecd",
         "com.apple.parsec-fbf",
         "com.apple.searchd",
         "com.apple.spotlightknowledged",
         "com.apple.spotlightknowledged.updater",
-        // Accessibility asset downloads.
         "com.apple.accessibility.axassetsd",
-        // Proactive, intelligence, Siri and media-analysis background work.
         "com.apple.proactiveeventtrackerd",
         "com.apple.mlhostd",
         "com.apple.intelligencetasksd",
@@ -42,35 +26,20 @@ struct LeanBootProfile: Equatable {
         "com.apple.mediaanalysisd",
         "com.apple.photoanalysisd",
         "com.apple.sensorkitd",
-        // Paired-watch companions: the launcher that enables them, and the
-        // busiest one.
         "com.apple.nanoregistrylaunchd",
         "com.apple.pairedsyncd",
-        // FaceTime message store, HomeKit.
         "com.apple.facetimemessagestored",
         "com.apple.homed",
     ]
 
-    /// The paired-device daemons: on a watch they are the pairing path
-    /// (watchos.md §2.4, device-pairing.md §4: nanoregistryd and ids_simd
-    /// must run, W1's done-criterion), so the watch profile keeps them.
     static let pairingLabels: Set<String> = ["com.apple.nanoregistrylaunchd", "com.apple.pairedsyncd"]
 
-    /// The watchOS profile (watchos.md W-6; **SwiftCode decision**, for
-    /// development only; parity runs boot everything): the iOS labels that
-    /// are not the pairing path (labels the watch runtime lacks are inert;
-    /// watchos.md §10).
     static let watchOSDisabledLabels: [String] = defaultDisabledLabels.filter { !pairingLabels.contains($0) }
 
-    /// The labels the lean profile disables on a runtime of `platform`.
     static func defaultDisabledLabels(for platform: RuntimePlatform) -> [String] {
         platform == .watchOS ? watchOSDisabledLabels : defaultDisabledLabels
     }
 
-    /// The log subsystems that `logging` turns off (lean-boot.md §4.3): the
-    /// 40 subsystems with the most messages in a Mac simulator boot of the
-    /// same runtime (`log show`, level 3), without `com.apple.runtime-issues`
-    /// (Xcode's runtime-issue reports). Together 68 % of that boot's messages.
     static let loggingOffSubsystems: [String] = [
         "com.apple.containermanager", "com.apple.network", "com.apple.runningboard", "com.apple.xpc",
         "com.apple.Foundation", "com.apple.defaults", "com.apple.SpringBoard", "com.apple.launchservices",
@@ -84,17 +53,8 @@ struct LeanBootProfile: Equatable {
         "com.apple.UnifiedAssetFramework", "com.apple.CoreRoutine", "com.apple.HomeKit", "com.apple.Accessibility",
     ]
 
-    /// The subsystem preference `log config --subsystem S --mode level:off`
-    /// writes (lean-boot.md §4.3; a binary plist on the Mac, any plist format
-    /// reads the same).
     static var levelOffPreference: [String: Any] { ["DEFAULT-OPTIONS": ["Level": ["Enable": "off", "Persist": "off"]]] }
 
-    /// The profile from the environment, or nil when it is off.
-    ///
-    /// - `SWIFTCODE_LEAN_BOOT`: unset, empty or `0` = off; `1` or `daemons` =
-    ///   the disabled jobs; `logging` = os_log off only; `all` = both.
-    /// - `SWIFTCODE_LEAN_BOOT_DISABLE=label,label`: more labels to disable.
-    /// - `SWIFTCODE_LEAN_BOOT_KEEP=label,label`: labels taken off the list.
     static func from(environment env: [String: String], platform: RuntimePlatform = .iOS) -> LeanBootProfile? {
         let mode = (env["SWIFTCODE_LEAN_BOOT"] ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         let daemons: Bool, logging: Bool
@@ -118,22 +78,16 @@ struct LeanBootProfile: Equatable {
 
     static var fromProcessEnvironment: LeanBootProfile? { from(environment: ProcessInfo.processInfo.environment) }
 
-    /// The profile from swiftcode-simd's environment for a runtime of `platform`.
     static func fromProcessEnvironment(platform: RuntimePlatform) -> LeanBootProfile? {
         from(environment: ProcessInfo.processInfo.environment, platform: platform)
     }
 
-    /// The disabled-overrides dictionary for a boot: `existing` (an earlier
-    /// TMP/disabled.plist, label → disabled) with the profile's labels added
-    /// as disabled. An explicit `false` (enabled, e.g. after `launchctl
-    /// enable`) is kept.
     func disabledOverrides(existing: [String: Bool] = [:]) -> [String: Bool] {
         var result = existing
         for label in disabledLabels where result[label] == nil { result[label] = true }
         return result
     }
 
-    /// One line for the run log.
     var summary: String {
         var parts: [String] = []
         if !disabledLabels.isEmpty { parts.append("\(disabledLabels.count) jobs disabled") }

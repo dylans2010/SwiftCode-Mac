@@ -1,18 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/WorkflowRunsView.swift` (Dylan's own code; direct port authorised under MIT).
-// P-GH: confirmed genuinely missing from production at 7ac654a9 (V10 name sweep; see verify/v10-coverage).
-// Placed in SwiftCodeUI/CI beside WorkflowsCreateView.swift and WorkflowRunArtifactsView.
-// Added imports: SwiftCodeGitHub (GitHubArtifact) and SwiftCodeIDECore (Project).
-// Supporting models appended below, extracted verbatim from Legacy
-// Backend/Git/GitHubService.swift: WorkflowRunSummary (lines 913-929).
-// GitHubWorkflowStep was NOT copied: it already exists twice
-// in production (SwiftCodeGitHub/GitHubModels.swift:471, exact Legacy shape, and
-// SwiftCodeUI/CI/GitHubActionsService.swift:178, all-optional shape); the view's
-// jobs are now `SwiftCodeGitHub.GitHubWorkflowJob`, whose steps are the
-// GitHubModels shape, so `Text(step.name)` / `ForEach(id: \.number)` resolve.
-// UNRESOLVED REFERENCES (now resolved, H-GH): GitHubService landed in
-// SwiftCodeGitHub/GitHubService.swift — listWorkflowJobs /
-// listWorkflowArtifacts / downloadArtifact / getJobLogs are the service's
-// public methods returning the public GitHubModels types.
 import SwiftUI
 import AppKit
 import SwiftCodeGitHub
@@ -29,16 +14,13 @@ struct WorkflowRunsView: View {
     @State private var isLoading = false
     @State private var isLoadingArtifacts = false
 
-    // Console logs state
     @State private var selectedJobID: Int?
     @State private var consoleLogsText = ""
     @State private var isFetchingLogs = false
 
-    // Re-run workflow state
     @State private var isExecutingReRun = false
     @State private var executionOutput = ""
 
-    // Downloading artifact tracking
     @State private var downloadingArtifactID: Int?
 
     private var ownerAndRepo: (String, String)? {
@@ -50,7 +32,6 @@ struct WorkflowRunsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Workflow Run Specs", systemImage: "play.circle.fill")
                     .font(.headline)
@@ -74,9 +55,7 @@ struct WorkflowRunsView: View {
 
             Divider()
 
-            // Main Contents HSplitView
             HSplitView {
-                // Left Pane: Job and Step Hierarchies list
                 VStack(alignment: .leading, spacing: 0) {
                     Text("JOB & STEP HIERARCHIES")
                         .font(.caption2.bold())
@@ -127,7 +106,6 @@ struct WorkflowRunsView: View {
                                         .disabled(isFetchingLogs)
                                     }
 
-                                    // Render step hierarchy indented
                                     if let steps = job.steps {
                                         VStack(alignment: .leading, spacing: 4) {
                                             ForEach(steps, id: \.number) { step in
@@ -155,9 +133,7 @@ struct WorkflowRunsView: View {
                 .frame(width: 250)
                 .frame(maxHeight: .infinity)
 
-                // Right Pane: Logs Terminal Console + Artifacts Browser
                 VStack(spacing: 0) {
-                    // Logs Terminal
                     VStack(alignment: .leading, spacing: 0) {
                         Text("LOGS TERMINAL CONSOLE")
                             .font(.caption2.bold())
@@ -181,7 +157,6 @@ struct WorkflowRunsView: View {
 
                     Divider()
 
-                    // Artifacts Browser segment
                     VStack(alignment: .leading, spacing: 0) {
                         Text("BUILD ARTIFACTS BROWSER")
                             .font(.caption2.bold())
@@ -291,7 +266,6 @@ struct WorkflowRunsView: View {
                 let fetched = try await GitHubService.shared.listWorkflowArtifacts(owner: owner, repo: repo, runID: run.id)
                 self.artifacts = fetched
             } catch {
-                // silent failure, keep list empty
             }
             isLoadingArtifacts = false
         }
@@ -305,7 +279,6 @@ struct WorkflowRunsView: View {
             do {
                 let zipData = try await GitHubService.shared.downloadArtifact(owner: owner, repo: repo, artifactID: artifact.id)
 
-                // Save to Downloads directory
                 let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
                 let destURL = downloadsURL.appendingPathComponent(artifact.name.hasSuffix(".zip") ? artifact.name : "\(artifact.name).zip")
 
@@ -370,17 +343,6 @@ struct WorkflowRunsView: View {
         return formatter.string(fromByteCount: Int64(bytes))
     }
 }
-
-// ============================================================================
-// Supporting models — extracted verbatim from Legacy
-// `SwiftCode/Backend/Git/GitHubService.swift` (WorkflowRunSummary: lines 913-929).
-// The local WorkflowJob / WorkflowJobsResponse copies were deleted when
-// GitHubService landed (H-GH): the service's listWorkflowJobs returns the
-// public `SwiftCodeGitHub.GitHubWorkflowJob` (identical shape), which this
-// view now uses directly. WorkflowRunSummary stays local: it is this view's
-// input model and no service method produces it.
-
-// ============================================================================
 
 public struct WorkflowRunSummary: Identifiable, Decodable, Sendable {
     public let id: Int

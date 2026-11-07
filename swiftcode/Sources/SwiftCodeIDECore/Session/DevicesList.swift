@@ -2,37 +2,22 @@ import Foundation
 import SwiftCodeDeviceModel
 import SwiftCodeSubprocess
 
-/// A device or simulator of the hub's sidebar. See `specs/ide/devices.md`
-/// and `specs/ide/device-hub.md`.
 public struct DeviceRow: Equatable, Sendable {
     public var name: String
     public var identifier: String
     public var platform: String
     public var osVersion: String
-    /// `Booted` / `Shutdown` (simulators); pairing/connection (devices).
     public var state: String
-    /// Device type / model.
     public var model: String
     public var isAvailable: Bool
-    /// SwiftCode's remote simulator (the only row SwiftCode can erase).
     public var isSwiftCodeRemote = false
-    /// The device type folds (`foldable.md` §8.3 E1): the row offers the
-    /// fold controls.
     public var isFoldable = false
-    /// SwiftCode's device type id (its frame in the hub's canvas; nil: not a
-    /// SwiftCode simulator).
     public var deviceTypeID: String?
-    /// A SwiftCode simulator's device directory name under `<data>/devices`
-    /// (its pairs name it, `RemoteDevicePair`).
     public var deviceDirectory: String?
-    /// A device the user created in Device Hub (it can be deleted).
     public var isCreated = false
 
-    /// SwiftCode's remote simulator as a Simulators row: "Booted" while a run
-    /// uses it, else "Shutdown" (its state is saved between runs).
     public static func swiftcodeRemote(_ remote: RemoteSimulator, running: Bool) -> DeviceRow {
         let s = remote.settings
-        // One row per runtime and device type (run.md §Runtimes and device types).
         return DeviceRow(name: remote.target?.name ?? RemoteSimulator.deviceName, identifier: "\(s.destination):\(remote.remoteDevicePath)",
                          platform: remote.target?.deviceType.platform ?? "iOS", osVersion: remote.runtimeVersion ?? "",
                          state: running ? "Booted" : "Shutdown",
@@ -42,8 +27,6 @@ public struct DeviceRow: Equatable, Sendable {
                          isCreated: remote.target?.isCreated ?? false)
     }
 
-    /// A shut-down SwiftCode simulator row with no simulator behind it (the
-    /// layout probe's Device Hub, `LayoutProbe`).
     public static func shutDownSwiftCodeSimulator(name: String, identifier: String) -> DeviceRow {
         DeviceRow(name: name, identifier: identifier, platform: "iOS", osVersion: "27.1", state: "Shutdown",
                   model: "SwiftCode Simulator", isAvailable: true, isSwiftCodeRemote: true, isFoldable: false)
@@ -52,8 +35,6 @@ public struct DeviceRow: Equatable, Sendable {
 public enum DevicesList {
     static let runtimePlatforms = ["iOS": "iOS", "watchOS": "watchOS", "tvOS": "tvOS", "xrOS": "visionOS", "visionOS": "visionOS"]
 
-    /// `xcrun simctl list -j`: devices by runtime; runtime names and model
-    /// names come from the `runtimes` and `devicetypes` lists when present.
     public static func simulators(simctlJSON data: Data) -> [DeviceRow] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let byRuntime = root["devices"] as? [String: [[String: Any]]] else { return [] }
@@ -79,7 +60,6 @@ public enum DevicesList {
                                      isAvailable: d["isAvailable"] as? Bool ?? true))
             }
         }
-        // Versions compare numerically ("17.5" before "17.10").
         return out.sorted {
             if $0.platform != $1.platform { return $0.platform < $1.platform }
             if $0.name != $1.name { return $0.name < $1.name }
@@ -87,7 +67,6 @@ public enum DevicesList {
         }
     }
 
-    /// `xcrun devicectl list devices --json-output`: physical devices.
     public static func devices(devicectlJSON data: Data) -> [DeviceRow] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = (root["result"] as? [String: Any])?["devices"] as? [[String: Any]] else { return [] }
@@ -106,7 +85,6 @@ public enum DevicesList {
     }
 
     #if os(macOS)
-    /// Runs the two read-only listing commands.
     public static func load() -> (devices: [DeviceRow], simulators: [DeviceRow]) {
         func run(_ args: [String]) -> Data? {
             MainThreadGuard.blockingCall("xcrun \(args.joined(separator: " "))")

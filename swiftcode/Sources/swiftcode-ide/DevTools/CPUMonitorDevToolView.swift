@@ -1,15 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/CPUMonitorDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-//
-// CLEANUP (2026-11-06, A1): sampleCPU() invented its reading with
-// a random-number call. Replaced with real sampling: this
-// process's CPU percentage is computed from the delta of Mach task_info
-// user + system CPU time over the sample interval, divided by wall time
-// and core count (share of all cores, 0–100). Host-wide load, thread
-// count and resident memory come from DevToolsSystemMetrics (real Mach
-// readings). Until two samples exist, or on platforms without Mach, the
-// value is honestly shown as unavailable instead of a made-up number.
 import SwiftUI
 import SwiftCodeUI
 import os.log
@@ -17,8 +5,6 @@ import os.log
 @Observable
 @MainActor
 final class CPUMonitorViewModel {
-    /// This process's CPU use as a share of all cores, 0–100. Nil until
-    /// two real samples exist, or on platforms without Mach.
     var usagePercent: Double?
     var hostLoadPercent: Double?
     var threadCount: Int?
@@ -63,9 +49,6 @@ final class CPUMonitorViewModel {
         previousSample = (cpuSeconds: totalCPUSeconds, date: now)
     }
 
-    /// This process's accumulated user + system CPU time, from Mach
-    /// task_info (same pattern as MemoryInspectorView /
-    /// AssistResourceUsageMonitor). Nil where Mach is unavailable.
     private static func processCPUTotalSeconds() -> Double? {
         #if os(macOS)
         var info = mach_task_basic_info()

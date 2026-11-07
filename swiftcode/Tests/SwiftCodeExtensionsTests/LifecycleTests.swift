@@ -1,8 +1,6 @@
 import XCTest
 @testable import SwiftCodeExtensions
 
-// MARK: - Lifecycle (spec §3.3)
-
 @MainActor
 final class LifecycleTests: XCTestCase {
     private var root: URL!
@@ -92,8 +90,6 @@ final class LifecycleTests: XCTestCase {
     }
 
     func testUnparseableManifestFallsBackToEnabled() throws {
-        // Lenient fallback (D-12): an installed record whose manifest
-        // cannot be parsed is .enabled, not an error.
         let record = try installRecord(id: "acme.broken")
         let manifestURL = root.appendingPathComponent("extensions/acme.broken/extension/package.json")
         try "this is not json".write(to: manifestURL, atomically: true, encoding: .utf8)
@@ -107,7 +103,6 @@ final class LifecycleTests: XCTestCase {
         XCTAssertEqual(manager.installed.first?.state, .disabled)
         manager.setEnabled(extensionId: "acme.sample", enabled: true)
         XCTAssertEqual(manager.installed.first?.state, .enabled)
-        // Re-read from disk: the toggle persisted.
         let reloaded = ExtensionStorage(root: root).loadInstalled()
         XCTAssertEqual(reloaded.first?.isEnabled, true)
     }
@@ -118,11 +113,10 @@ final class LifecycleTests: XCTestCase {
         XCTAssertTrue(manager.installed.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: root.appendingPathComponent("extensions/acme.sample").path))
-        await manager.uninstall(extensionId: "acme.sample") // Idempotent.
+        await manager.uninstall(extensionId: "acme.sample")
     }
 
     func testActivateGuards() async throws {
-        // Not installed.
         do {
             _ = try await manager.activate(extensionId: "acme.nope")
             XCTFail("activate must throw for an unknown extension")
@@ -134,7 +128,6 @@ final class LifecycleTests: XCTestCase {
             _ = try await manager.activate(extensionId: "acme.sample")
             XCTFail("activate must throw for a disabled extension")
         } catch {}
-        // Incompatible.
         try persist([installRecord(id: "acme.sample", engineRequirement: ">=9.0.0")])
         do {
             _ = try await manager.activate(extensionId: "acme.sample")
@@ -169,8 +162,6 @@ final class LifecycleTests: XCTestCase {
     }
 }
 
-// MARK: - Package service (VSIX install)
-
 final class PackageServiceTests: XCTestCase {
     private func tempRoot() throws -> URL {
         let root = FileManager.default.temporaryDirectory
@@ -202,7 +193,6 @@ final class PackageServiceTests: XCTestCase {
                       "zip is not installed; cannot build a VSIX fixture.")
         let root = try tempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
-        // Build a minimal VSIX: extension/package.json + extension/dist/index.js.
         let source = root.appendingPathComponent("source")
         let extensionDir = source.appendingPathComponent("extension/dist")
         try FileManager.default.createDirectory(at: extensionDir, withIntermediateDirectories: true)
@@ -230,20 +220,13 @@ final class PackageServiceTests: XCTestCase {
         XCTAssertTrue(installed.compatibility.compatible)
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: installed.directory.appendingPathComponent("extension/package.json").path))
-        // Identity mismatch is rejected.
         XCTAssertThrowsError(try service.install(
             vsixURL: vsix, identity: ExtensionIdentity(publisher: "other", name: "sample")))
-        // Uninstall is idempotent.
         XCTAssertNoThrow(try service.uninstall(extensionId: "acme.sample"))
         XCTAssertNoThrow(try service.uninstall(extensionId: "acme.sample"))
     }
 
     func testZipCentralDirectoryRejectsSymlinkEntries() throws {
-        // A hand-built central directory is exercised through the
-        // public listing path via a real archive built with zip(1)
-        // when available; the symlink case is covered by the entry
-        // validator unit below through validateRelativePath-style
-        // checks. Here: a non-ZIP file is rejected as a package error.
         let root = try tempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let notZip = root.appendingPathComponent("not-a-vsix.vsix")
@@ -253,8 +236,6 @@ final class PackageServiceTests: XCTestCase {
                                                  identity: ExtensionIdentity(publisher: "acme", name: "sample")))
     }
 }
-
-// MARK: - Editor + Xcode commands
 
 final class EditorTests: XCTestCase {
     func testApplyEditsBasic() throws {
@@ -267,7 +248,6 @@ final class EditorTests: XCTestCase {
     }
 
     func testApplyEditsCountsEmojiAsOneColumn() throws {
-        // Columns count Swift Characters (grapheme clusters).
         let content = "a😀b\nsecond"
         let result = try EditorBridge.applyEdits(
             [TextEdit(range: TextRange(start: TextPosition(line: 0, character: 2),
@@ -332,7 +312,7 @@ final class EditorTests: XCTestCase {
                                                      end: SourcePosition(line: 9, column: 1)), newText: "x"),
         ]
         XCTAssertThrowsError(try buffer.applyEdits(edits))
-        XCTAssertEqual(buffer.completeBuffer, "one\ntwo") // Untouched.
+        XCTAssertEqual(buffer.completeBuffer, "one\ntwo")
     }
 
     func testUnknownXcodeCommandIsInvalidRequest() async {
@@ -364,8 +344,6 @@ final class EditorTests: XCTestCase {
         XCTAssertTrue(source.contains("1.85.0"))
     }
 }
-
-// MARK: - Small async-throw assertion helper
 
 func XCTAssertThrowsErrorAsync<T>(_ expression: @escaping () async throws -> T,
                                   _ message: @autoclosure () -> String = "",

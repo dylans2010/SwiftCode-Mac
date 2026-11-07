@@ -1,26 +1,11 @@
-// The stage-1 TTBR0 tables of a `GuestAddressSpace`: the format of
-// `PageTableBuilder` (vm-shim-protocol.md §3, stage3-contract.md §3: 16 KiB
-// granule, three levels, the root at the arena base, further tables
-// bump-allocated from the arena), kept as flat host-endian descriptor arrays
-// and changed in place. Changed tables are tracked and written to guest RAM
-// table by table. A range operation costs O(pages + tables touched), with no
-// copy of untouched tables.
-
-/// One address space's stage-1 page tables, kept on the host and written to
-/// the guest's table arena when they change (`vm-shim-protocol.md` §3).
 public final class GuestPageTables {
-    /// The guest physical address of the table arena; the root table is its first slot.
     public let tableArenaGPA: UInt64
-    /// The arena's length in bytes.
     public let tableArenaSize: Int
-    /// How many tables fit in the arena.
     public let capacity: Int
-    /// Tables allocated so far (the root included); they occupy arena slots 0..<tableCount.
     public private(set) var tableCount: Int
 
     private static let entries = VMLayout.entriesPerTable
     private static let page = VMLayout.pageSize
-    /// The VA span of one L3 table (32 MiB).
     private static let l3Span = page * UInt64(entries)
     private static let valid = AArch64.Descriptor.validTableOrPage
     private static let typeMask = AArch64.Descriptor.typeMask
@@ -30,14 +15,7 @@ public final class GuestPageTables {
     private var allocatedTables: Int
     private var dirtyFlags: [Bool]
     private var dirtyList: [Int] = []
-    /// Changes that made a valid leaf descriptor invalid or different
-    /// (`unmap`, `protect`): only these can leave stale TLB entries. A `map`
-    /// only fills invalid entries, which a TLB never holds (Arm ARM D8.13:
-    /// translations that fault are not cached), so it needs no TLB
-    /// invalidation (guest-cpu.md §4.2).
     public private(set) var invalidatingChanges: UInt64 = 0
-    /// The VA span [lo, hi) covering the invalidating changes since the last
-    /// `takeInvalidatedSpan()` (empty when lo >= hi).
     private var invalidatedLo = UInt64.max
     private var invalidatedHi: UInt64 = 0
 
@@ -47,14 +25,11 @@ public final class GuestPageTables {
         invalidatedHi = max(invalidatedHi, hi)
     }
 
-    /// The span of the invalidating changes since the last call (nil if
-    /// none), and forgets it.
     public func takeInvalidatedSpan() -> Range<UInt64>? {
         defer { invalidatedLo = .max; invalidatedHi = 0 }
         return invalidatedLo < invalidatedHi ? invalidatedLo..<invalidatedHi : nil
     }
 
-    /// An empty root table (dirty until the first flush).
     public init(tableArenaGPA: UInt64, tableArenaSize: Int) {
         precondition(VMLayout.isPageAligned(tableArenaGPA), "table arena GPA must be 16 KiB-aligned")
         precondition(tableArenaSize >= Int(VMLayout.pageSize), "table arena must hold at least one table")
@@ -69,7 +44,6 @@ public final class GuestPageTables {
         markDirty(0)
     }
 
-    /// The tables of `builder`, every one of them dirty.
     public convenience init(_ builder: PageTableBuilder) {
         self.init(tableArenaGPA: builder.tableArenaGPA, tableArenaSize: builder.tableArenaSize)
         let tables = builder.tables
@@ -88,10 +62,7 @@ public final class GuestPageTables {
 
     deinit { storage.deallocate() }
 
-    /// The L1 table's GPA (the value for `TTBR0_EL1`).
     public var rootGPA: UInt64 { tableArenaGPA }
-
-    // MARK: Slots
 
     private func gpa(ofSlot slot: Int) -> UInt64 { tableArenaGPA + UInt64(slot) * Self.page }
 
@@ -126,14 +97,12 @@ public final class GuestPageTables {
         Int((va >> (VMLayout.pageShift + UInt64(3 - level) * 11)) & 0x7FF)
     }
 
-    /// The next-level table that entry `index` of `slot` points at, if any.
     private func next(_ slot: Int, _ index: Int) -> Int? {
         let d = table(slot)[index]
         guard d & Self.typeMask == Self.valid else { return nil }
         return self.slot(ofTableAt: d & Self.oaMask)
     }
 
-    /// The L3 table slot for `va`, allocating the L2 and L3 tables if needed.
     private func l3(for va: UInt64) -> Int {
         let l2 = nextOrAllocate(0, Self.index(va, level: 1))
         return nextOrAllocate(l2, Self.index(va, level: 2))
@@ -151,13 +120,10 @@ public final class GuestPageTables {
         return s
     }
 
-    /// The L3 slot covering `va`, without allocating.
     private func existingL3(for va: UInt64) -> Int? {
         guard let l2 = next(0, Self.index(va, level: 1)) else { return nil }
         return next(l2, Self.index(va, level: 2))
     }
-
-    // MARK: Checks
 
     private static func validate(va: UInt64, size: UInt64) throws {
         guard VMLayout.isPageAligned(va), VMLayout.isPageAligned(size) else {
@@ -168,7 +134,6 @@ public final class GuestPageTables {
         guard va < vaLimit, size <= vaLimit - va else { throw PageTableError.virtualAddressOutOfRange(va: va, size: size) }
     }
 
-    /// The number of tables `map(va:size:)` would allocate.
     public func tablesNeeded(va: UInt64, size: UInt64) -> Int {
         guard size > 0 else { return 0 }
         var needed = 0
@@ -190,16 +155,10 @@ public final class GuestPageTables {
         return needed
     }
 
-    /// Throws `arenaExhausted` when mapping [va, va+size) needs more tables
-    /// than the arena has left. Changes nothing.
     public func checkCapacity(va: UInt64, size: UInt64) throws {
         if tableCount + tablesNeeded(va: va, size: size) > capacity { throw PageTableError.arenaExhausted(capacity: capacity) }
     }
 
-    // MARK: Changes
-
-    /// Maps [va, va+size) to [pa, pa+size). Either the whole range is mapped
-    /// or, on error, nothing changes. Errors as `PageTableBuilder.map`.
     public func map(va: UInt64, pa: UInt64, size: UInt64, attributes: PageAttributes) throws {
         guard VMLayout.isPageAligned(va), VMLayout.isPageAligned(pa), VMLayout.isPageAligned(size) else {
             throw PageTableError.unaligned(va: va, pa: pa, size: size)
@@ -207,7 +166,6 @@ public final class GuestPageTables {
         try Self.validate(va: va, size: size)
         let paLimit: UInt64 = 1 << VMLayout.physicalAddressBits
         guard pa < paLimit, size <= paLimit - pa else { throw PageTableError.physicalAddressOutOfRange(pa: pa, size: size) }
-        // Nothing in the range may be mapped yet.
         try forEachRun(va: va, size: size, allocate: false) { slot, first, count, runVA in
             guard let slot else { return }
             let t = table(slot)
@@ -228,8 +186,6 @@ public final class GuestPageTables {
         }
     }
 
-    /// Clears the leaf entries of [va, va+size); unmapped pages are skipped,
-    /// empty tables kept. Returns the number of pages unmapped.
     @discardableResult
     public func unmap(va: UInt64, size: UInt64) throws -> Int {
         try Self.validate(va: va, size: size)
@@ -253,9 +209,6 @@ public final class GuestPageTables {
         return cleared
     }
 
-    /// Rewrites the attributes of every page of [va, va+size), keeping each
-    /// output address. Every page must be mapped; otherwise nothing changes
-    /// and `notMapped` names the first hole.
     public func protect(va: UInt64, size: UInt64, attributes: PageAttributes) throws {
         try Self.validate(va: va, size: size)
         try forEachRun(va: va, size: size, allocate: false) { slot, first, count, runVA in
@@ -285,9 +238,6 @@ public final class GuestPageTables {
         if lo < hi { noteInvalidated(lo, hi) }
     }
 
-    /// Calls `body` for each L3 table's part of [va, va+size): the slot (nil
-    /// when the table does not exist and `allocate` is false), the first
-    /// entry index, the entry count, and the VA of the first entry.
     private func forEachRun(va: UInt64, size: UInt64, allocate: Bool,
                             _ body: (_ slot: Int?, _ first: Int, _ count: Int, _ va: UInt64) throws -> Void) rethrows {
         var cursor = va
@@ -303,9 +253,6 @@ public final class GuestPageTables {
         }
     }
 
-    // MARK: Queries
-
-    /// Translates a VA (offset kept). Nil if unmapped.
     public func translate(_ va: UInt64) -> (pa: UInt64, attributes: PageAttributes)? {
         guard va < 1 << VMLayout.virtualAddressBits, let slot = existingL3(for: va) else { return nil }
         let d = table(slot)[Self.index(va, level: 3)]
@@ -313,13 +260,11 @@ public final class GuestPageTables {
         return ((d & Self.oaMask) | (va & (Self.page - 1)), PageAttributes(leafDescriptor: d))
     }
 
-    /// The raw descriptor at `index` of the table at `tableGPA`, if that table exists.
     public func descriptor(tableGPA: UInt64, index: Int) -> UInt64? {
         guard let slot = slot(ofTableAt: tableGPA), (0..<Self.entries).contains(index) else { return nil }
         return table(slot)[index]
     }
 
-    /// Every table, as (gpa, 16 KiB of little-endian descriptors), in arena order.
     public var tables: [(gpa: UInt64, bytes: [UInt8])] {
         (0..<tableCount).map { (gpa(ofSlot: $0), bytes(ofSlot: $0)) }
     }
@@ -336,13 +281,8 @@ public final class GuestPageTables {
         }
     }
 
-    // MARK: Dirty tracking
-
-    /// True when some table changed since the last `writeDirtyTables`.
     public var hasDirtyTables: Bool { !dirtyList.isEmpty }
 
-    /// Hands every changed table (gpa, 16 KiB of little-endian descriptors) to
-    /// `write`, in arena order, and marks them clean. Returns how many.
     @discardableResult
     public func writeDirtyTables(_ write: (_ gpa: UInt64, _ bytes: UnsafeRawBufferPointer) throws -> Void) rethrows -> Int {
         guard !dirtyList.isEmpty else { return 0 }
@@ -357,7 +297,6 @@ public final class GuestPageTables {
                 try write(gpa(ofSlot: s), UnsafeRawBufferPointer(start: table(s), count: Int(Self.page)))
                 #endif
             } catch {
-                // The tables not written stay dirty.
                 dirtyList = Array(slots[n...])
                 throw error
             }

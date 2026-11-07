@@ -8,11 +8,9 @@ public final class ConflictResolver: Sendable {
 
     private init() {}
 
-    /// Resolves conflicts using Last Write Wins (LWW) based on timestamps and version number.
     public func resolve(local: CloudRecord, remote: CloudRecord) -> CloudRecord {
         logger.info("Resolving conflict for record \(local.recordKey, privacy: .public)")
 
-        // 1. Compare version numbers
         if local.version > remote.version {
             logger.info("Local record has higher version. Choosing Local.")
             return local
@@ -21,7 +19,6 @@ public final class ConflictResolver: Sendable {
             return remote
         }
 
-        // 2. Compare updated timestamps if versions are equal
         if local.updatedAt >= remote.updatedAt {
             logger.info("Local record has newer timestamp. Choosing Local.")
             return local

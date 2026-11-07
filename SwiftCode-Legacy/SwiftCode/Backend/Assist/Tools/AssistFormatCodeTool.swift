@@ -56,9 +56,6 @@ public struct AssistFormatCodeTool: AssistTool {
     }
 
     private func simpleFormat(_ content: String) -> String {
-        // Preserve leading whitespace (indentation). The previous version
-        // trimmed ALL whitespace, destroying every line's indentation.
-        // Only trailing whitespace is removed; blank runs collapse to one.
         var result: [String] = []
         var previousBlank = false
         for rawLine in content.components(separatedBy: .newlines) {

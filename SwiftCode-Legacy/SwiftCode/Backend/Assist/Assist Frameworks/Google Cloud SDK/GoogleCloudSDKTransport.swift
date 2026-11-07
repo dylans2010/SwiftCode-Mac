@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKTransport.swift
-//  SwiftCode
-//
-//  Unix domain socket IPC transport implementing structured JSON-RPC 2.0 framing.
-//
-
 import Foundation
 import Darwin
 import os
@@ -28,19 +21,16 @@ public actor GoogleCloudSDKTransport {
         }
     }
 
-    /// Sets the handler closure for incoming server-initiated tool execution requests (`tool.execute`).
     public func setToolExecutionHandler(_ handler: @escaping @Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) {
         self.toolExecutionHandler = handler
     }
 
-    /// Establishes connection to the Unix domain socket at the given path.
     public func connect(to socketPath: String, timeout: TimeInterval = 10.0) async throws {
         disconnect()
 
         let startTime = Date()
         var lastErr: Int32 = 0
 
-        // Poll for socket file availability (bridge may still be launching)
         while Date().timeIntervalSince(startTime) < timeout {
             if FileManager.default.fileExists(atPath: socketPath) {
                 let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
@@ -83,13 +73,12 @@ public actor GoogleCloudSDKTransport {
                     Darwin.close(fd)
                 }
             }
-            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         throw GoogleCloudSDKError.socketConnectionFailed("Timed out waiting for socket '\(socketPath)' (errno: \(lastErr))")
     }
 
-    /// Disconnects from the socket and cleans up pending requests.
     public func disconnect() {
         readTask?.cancel()
         readTask = nil
@@ -114,7 +103,6 @@ public actor GoogleCloudSDKTransport {
         eventContinuations.removeAll()
     }
 
-    /// Subscribes to the broadcast stream of incoming runtime events.
     public func subscribeEvents() -> AsyncStream<GoogleCloudSDKEvent> {
         let id = UUID()
         return AsyncStream { continuation in
@@ -131,14 +119,12 @@ public actor GoogleCloudSDKTransport {
         eventContinuations.removeValue(forKey: id)
     }
 
-    /// Explicitly broadcasts a runtime event to all active subscribers.
     public func emitEvent(_ event: GoogleCloudSDKEvent) {
         for (_, cont) in eventContinuations {
             cont.yield(event)
         }
     }
 
-    /// Sends a JSON-RPC 2.0 request and awaits the matching response.
     public func sendRequest(method: String, params: [String: Any] = [:], timeout: TimeInterval = 60.0) async throws -> GoogleCloudSDKResponse {
         guard socketFD >= 0 else {
             throw GoogleCloudSDKError.socketConnectionFailed("Socket is not connected")
@@ -247,7 +233,6 @@ public actor GoogleCloudSDKTransport {
             return
         }
 
-        // 1. Check for incoming server-initiated JSON-RPC request (has "method" AND "id")
         if let method = json["method"] as? String, let id = json["id"] {
             let params = json["params"] as? [String: Any] ?? [:]
             if method == "tool.execute" {
@@ -265,7 +250,6 @@ public actor GoogleCloudSDKTransport {
             }
         }
 
-        // 2. Response matching (has "id" but NO "method")
         if let id = json["id"] as? String {
             if let cont = pendingRequests.removeValue(forKey: id) {
                 requestTimeoutTasks.removeValue(forKey: id)?.cancel()
@@ -286,17 +270,12 @@ public actor GoogleCloudSDKTransport {
             return
         }
 
-        // 3. Notification / Event matching (has "method" but NO "id")
         if let method = json["method"] as? String {
             let params = json["params"] as? [String: Any] ?? [:]
             dispatchNotification(method: method, params: params)
         }
     }
 
-    /// Absolute ceiling for a tool-result string crossing the transport boundary.
-    /// Canonical section caps (25k output / 8k diff) are applied upstream by
-    /// `AssistToolResultFormatter`; this guards any oversized string that
-    /// bypassed it (e.g. a legacy cache entry) from blowing up the bridge.
     private static let maxTransportPayloadCharacters = 65_536
 
     private func executeTool(request: GoogleCloudSDKToolExecutionRequest, reqId: String) async {

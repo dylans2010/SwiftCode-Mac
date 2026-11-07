@@ -1,21 +1,3 @@
-/*
- * idsmsg: Ycode research probe (original Ycode code, no Apple code).
- * A recorder for the pairing transport's Mach messages, inserted with
- * DYLD_INSERT_LIBRARIES into every job of a throwaway boot
- * (SIMCTL_CHILD_DYLD_INSERT_LIBRARIES). It does nothing except in the
- * process named by YC_IDS_ONLY (default "ids_simd").
- *
- * It interposes the exported mach_msg() and records, for every call that
- * sends to or receives from any port, the header (id, size, dispositions),
- * the descriptors (port dispositions, OOL sizes), the inline body bytes and
- * (YC_IDS_SAVE=1) each OOL region to <dir>/<pid>-<seq>-<n>.bin. Calls that
- * only touch the process's own bootstrap traffic are recorded too; the
- * reader filters by message id.
- *
- * Env: YC_IDS_DIR=<dir>   log to <dir>/<process>-<pid>.log (required)
- *      YC_IDS_ONLY=name   process to record (default ids_simd)
- *      YC_IDS_SAVE=1      also write OOL regions to files (first 4 KiB each)
- */
 #include <mach/mach.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,8 +7,6 @@
 #include <time.h>
 
 extern const char *getprogname(void);
-/* The watchOS SDK marks mach_msg unavailable; the symbol exists in the
- * simulator's libsystem_kernel. Bind to it under our own name. */
 extern mach_msg_return_t yc_mach_msg(mach_msg_header_t *, mach_msg_option_t, mach_msg_size_t, mach_msg_size_t,
                                      mach_port_name_t, mach_msg_timeout_t, mach_port_name_t) __asm__("_mach_msg");
 

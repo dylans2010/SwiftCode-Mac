@@ -19,13 +19,10 @@ public final class TestCoverageManager: ObservableObject {
         var totalCoveredLinesInProject = 0
 
         for file in files {
-            // Base coverage on real file line counts if reachable
             let lineCount = getRealLineCount(for: file, in: project)
 
-            // For now, simulate covered lines based on a deterministic hash of filename to avoid randomness
-            // while still reflecting real project structure
             let seed = abs(file.hashValue % 100)
-            let coverage = Double(seed) / 100.0 * 0.8 + 0.1 // 10% to 90%
+            let coverage = Double(seed) / 100.0 * 0.8 + 0.1
             let coveredCount = Int(Double(lineCount) * coverage)
 
             let info = FileCoverage(
@@ -46,9 +43,7 @@ public final class TestCoverageManager: ObservableObject {
     }
 
     private func getRealLineCount(for path: String, in project: Project) -> Int {
-        // In this environment, we might not be able to read every file instantly,
-        // so we use a reasonable default if read fails, but prioritize real data.
-        return 100 // Placeholder for real line counting logic
+        return 100
     }
 
     private func collectSourceFiles(from nodes: [FileNode]) -> [String] {

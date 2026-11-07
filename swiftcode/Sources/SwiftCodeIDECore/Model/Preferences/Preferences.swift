@@ -1,23 +1,13 @@
 import Foundation
 
-/// User settings beyond Locations, kept in `UserDefaults` (key prefix
-/// `SwiftCode.`). Changing any value posts `Preferences.didChange`; open
-/// editors, consoles, windows and the menu bar apply it at once. See
-/// `specs/ide/settings.md`.
 @MainActor
 public final class Preferences {
-    /// Posted (object: the `Preferences`) after any setting changes.
     public static let didChange = Notification.Name("SwiftCodePreferencesDidChange")
-    /// The instance the app uses; tests substitute their own.
     public static var shared = Preferences()
 
-    /// The store behind every setting; keys carry the `SwiftCode.` prefix.
     public let defaults: UserDefaults
-    /// Where user themes (`.swiftcodetheme`) live.
     public let themesDirectory: URL
 
-    /// Registers `factoryDefaults` in `defaults`. `themesDirectory` defaults to
-    /// `Application Support/SwiftCode/Themes`.
     public init(defaults: UserDefaults = .standard, themesDirectory: URL? = nil) {
         self.defaults = defaults
         self.themesDirectory = themesDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -27,13 +17,8 @@ public final class Preferences {
 
     package func changed() { NotificationCenter.default.post(name: Self.didChange, object: self) }
 
-    /// Settings whose factory value is registered with the defaults
-    /// system (keys without the `SwiftCode.` prefix). Registered values are not
-    /// stored: a value the user sets is, and wins.
     public static let factoryDefaults: [String: Any] = ["minimap": true]
 
-    /// Registers `factoryDefaults` (in the registration domain, so reading
-    /// the plain defaults sees them too).
     public func registerFactoryDefaults() {
         defaults.register(defaults: Dictionary(uniqueKeysWithValues: Self.factoryDefaults.map { ("SwiftCode.\($0.key)", $0.value) }))
     }
@@ -41,32 +26,18 @@ public final class Preferences {
     func get<T>(_ key: String, _ fallback: T) -> T { defaults.object(forKey: "SwiftCode.\(key)") as? T ?? fallback }
     func set(_ key: String, _ value: Any?) { defaults.set(value, forKey: "SwiftCode.\(key)"); changed() }
 
-    // MARK: General
-
-    /// Settings ▸ General appearance: follow the system, or force light or dark.
     public enum Appearance: String, CaseIterable, Sendable { case system = "System", light = "Light", dark = "Dark" }
-    /// The app's appearance (default System); each shell maps it to its
-    /// own appearance (the AppKit shell: `nsAppearance`).
     public var appearance: Appearance {
         get { Appearance(rawValue: get("appearance", "System")) ?? .system }
         set { set("appearance", newValue.rawValue) }
     }
-    /// Whether the project navigator shows file name extensions.
     public enum FileExtensions: String, CaseIterable, Sendable { case hide = "Hide All", show = "Show All" }
-    /// Settings ▸ General ▸ File extensions; Hide All is the factory
-    /// default (reference-ui-5.md §5.1, N2).
     public var fileExtensions: FileExtensions {
         get { FileExtensions(rawValue: get("fileExtensions", FileExtensions.hide.rawValue)) ?? .hide }
         set { set("fileExtensions", newValue.rawValue) }
     }
-    /// Issues: show live issues (language server) in the editor and navigator.
     public var showLiveIssues: Bool { get { get("showLiveIssues", true) } set { set("showLiveIssues", newValue) } }
 
-    // MARK: Behaviors
-
-    /// The Behaviors events SwiftCode raises; the raw value is the row title.
-    /// Stored per event under `SwiftCode.behavior.<caseName>`. See
-    /// `specs/ide/settings.md` (Behaviors).
     public enum Event: String, CaseIterable, Sendable {
         case buildStarts = "When build starts", buildErrors = "When build generates errors"
         case buildWarnings = "When build generates warnings", buildSucceeds = "When build succeeds", buildFails = "When build fails"
@@ -74,31 +45,22 @@ public final class Preferences {
         case runEnds = "When running completes", runExitsUnexpectedly = "When running exits unexpectedly"
         case testSucceeds = "When testing succeeds", testFails = "When testing fails"
 
-        /// The Behaviors category the event belongs to.
         public var category: String { rawValue.contains("build") ? "Build" : (rawValue.contains("testing") ? "Testing" : "Running") }
     }
 
-    /// Behaviors categories in reference-ui.md §4 order, then Intelligence
-    /// and Playgrounds (reference-ui-5.md §9.4); SwiftCode's own events exist
-    /// for Build, Testing and Running, the others are listed empty.
     public static let behaviorCategories = ["Build", "Testing", "Running", "Search", "Localization Import / Export", "File",
                                             "Intelligence", "Playgrounds"]
 
-    /// Behaviors action labels (reference-ui-5.md §9.4).
     nonisolated public static let showDebuggerAction = "Debugger: Show Current Views"
     nonisolated public static let hideDebuggerAction = "Debugger: Hide Debugger"
     nonisolated public static let hideDebuggerIfNoOutputAction = "Debugger: Hide Debugger If No Output"
     nonisolated public static let notifyAction = "Notify with bezel or system notification"
 
-    /// What happens on an event.
     public struct Behavior: Codable, Equatable, Sendable {
-        /// Navigator index to show (0 Project … 8 Report), nil = none.
         public var showNavigator: Int?
         public var showDebugArea: Bool?
-        /// A system sound name (e.g. "Glass"), nil = none.
         public var sound: String?
         public var notify = false
-        /// Running completes: hide the debug area only if the run printed nothing.
         public var hideDebugAreaIfNoOutput = false
         public init(showNavigator: Int? = nil, showDebugArea: Bool? = nil, sound: String? = nil, notify: Bool = false,
                     hideDebugAreaIfNoOutput: Bool = false) {
@@ -117,7 +79,6 @@ public final class Preferences {
             hideDebugAreaIfNoOutput = try c.decodeIfPresent(Bool.self, forKey: .hideDebugAreaIfNoOutput) ?? false
         }
 
-        /// The actions as the Behaviors pane lists them.
         public var actionTitles: [String] {
             var a: [String] = []
             if let n = showNavigator, CommandTable.navigators.indices.contains(n) { a.append("Navigator: \(CommandTable.navigators[n])") }
@@ -129,124 +90,69 @@ public final class Preferences {
         }
     }
 
-    /// Defaults (reference-ui.md §4): errors show the Issues navigator;
-    /// success and failure notify; pausing shows the Debug navigator and
-    /// the debug area; output shows the debug area; completion hides it
-    /// only when there was no output.
     public static let defaultBehaviors: [Event: Behavior] = [
         .buildErrors: Behavior(showNavigator: 4), .buildSucceeds: Behavior(notify: true), .buildFails: Behavior(notify: true),
         .runPauses: Behavior(showNavigator: 6, showDebugArea: true), .runOutput: Behavior(showDebugArea: true),
         .runEnds: Behavior(hideDebugAreaIfNoOutput: true),
-        // SwiftCode's choice (build-notifications.md §1): test results notify too.
         .testSucceeds: Behavior(notify: true), .testFails: Behavior(notify: true),
     ]
 
-    /// The user's behavior for `e`, else its entry in `defaultBehaviors`, else
-    /// no actions.
     public func behavior(_ e: Event) -> Behavior {
         if let data = defaults.data(forKey: "SwiftCode.behavior.\(e)"), let b = try? JSONDecoder().decode(Behavior.self, from: data) { return b }
         return Self.defaultBehaviors[e] ?? Behavior()
     }
 
-    /// Stores `b` for `e` (JSON) and posts `didChange`.
     public func setBehavior(_ b: Behavior, for e: Event) {
         defaults.set(try? JSONEncoder().encode(b), forKey: "SwiftCode.behavior.\(e)")
         changed()
     }
 
-    // MARK: Navigation
-
-    // The Navigation pane's rows (reference-ui-5.md §9.2) are in
-    // Preferences+Reference.swift; they replace Activation and Navigation Style.
-
-    // MARK: Text editing
-
-    /// Editing ▸ Display: show the line-number gutter (default on).
     public var showLineNumbers: Bool { get { get("lineNumbers", true) } set { set("lineNumbers", newValue) } }
-    /// Editing ▸ Display: show the code folding ribbon (default off).
     public var showFoldingRibbon: Bool { get { get("foldingRibbon", false) } set { set("foldingRibbon", newValue) } }
-    /// Editor ▸ Minimap: on in the factory state (reference-ui-6.md §4.5,
-    /// E9); a user who turned it off keeps it off (the value is stored).
     public var showMinimap: Bool { get { get("minimap", Self.factoryDefaults["minimap"] as? Bool ?? true) } set { set("minimap", newValue) } }
-    /// Editing ▸ Display: draw the page guide at `pageGuideColumn` (default off).
     public var showPageGuide: Bool { get { get("pageGuide", false) } set { set("pageGuide", newValue) } }
-    /// Page guide column, in characters (default 80, at least 1).
     public var pageGuideColumn: Int { get { get("pageGuideColumn", 80) } set { set("pageGuideColumn", max(1, newValue)) } }
-    /// Indentation: indent with tab characters instead of spaces (default off).
     public var indentWithTabs: Bool { get { get("indentWithTabs", false) } set { set("indentWithTabs", newValue) } }
-    /// Width of a tab character, in columns (default 4, clamped to 1...16).
     public var tabWidth: Int { get { get("tabWidth", 4) } set { set("tabWidth", max(1, min(16, newValue))) } }
-    /// Columns per indentation step (default 4, clamped to 1...16).
     public var indentWidth: Int { get { get("indentWidth", 4) } set { set("indentWidth", max(1, min(16, newValue))) } }
-    /// Trim trailing whitespace on save, as one undo group (default on).
     public var trimTrailingWhitespace: Bool { get { get("trimWhitespace", true) } set { set("trimWhitespace", newValue) } }
-    /// Wrap lines to the editor width (default on); off scrolls horizontally.
     public var wrapLines: Bool { get { get("wrapLines", true) } set { set("wrapLines", newValue) } }
-    /// Spaces wrapped lines are indented by (Editing ▸ Display).
     public var wrappedLineIndent: Int { get { get("wrappedLineIndent", 4) } set { set("wrappedLineIndent", max(0, min(16, newValue))) } }
-    /// Highlight other instances of the selected symbol (default on), after
-    /// `highlightDelay`.
     public var highlightSelectedSymbol: Bool { get { get("highlightSelectedSymbol", true) } set { set("highlightSelectedSymbol", newValue) } }
-    /// Seconds before instances of the selected symbol are highlighted.
     public var highlightDelay: Double { get { get("highlightDelay", 0.25) } set { set("highlightDelay", max(0, min(5, newValue))) } }
-    /// Editor ▸ Invisibles: draw spaces, tabs and line ends (default off).
     public var showInvisibles: Bool { get { get("showInvisibles", false) } set { set("showInvisibles", newValue) } }
-    /// Editor ▸ Code Coverage: the gutter's coverage ribbon (default off).
     public var showCodeCoverage: Bool { get { get("showCodeCoverage", false) } set { set("showCodeCoverage", newValue) } }
-    /// Also trim lines that contain only whitespace (default off).
     public var trimWhitespaceOnlyLines: Bool { get { get("trimWhitespaceOnlyLines", false) } set { set("trimWhitespaceOnlyLines", newValue) } }
 
-    /// Editor ▸ Font Size (`reference-ui-5.md` §6.4): the source editor's
-    /// font size for every editor, nil = the theme's size. A user setting,
-    /// not a theme edit.
     public var sourceFontSize: Double? {
         get { (defaults.object(forKey: "SwiftCode.sourceFontSize") as? NSNumber)?.doubleValue }
         set { set("sourceFontSize", newValue.map { max(Self.fontSizeRange.lowerBound, min(Self.fontSizeRange.upperBound, $0)) }) }
     }
-    /// Font Size ▸ Increase / Decrease stay within these sizes.
     public static let fontSizeRange: ClosedRange<Double> = 6...48
 
-    /// One indentation step as text.
     public var indentUnit: String { indentWithTabs ? "\t" : String(repeating: " ", count: indentWidth) }
 
-    /// Indentation ▸ Syntax-aware indenting: Return indents by the code's
-    /// structure, and closers, `case`, `default` and `#else` re-indent
-    /// their line (default on). Off: Return keeps the line's indentation.
     public var autoIndent: Bool { get { get("autoIndent", true) } set { set("autoIndent", newValue) } }
-    /// Indentation ▸ Automatically insert closing brackets and quotes (default on).
     public var autoInsertClosers: Bool { get { get("autoInsertClosers", true) } set { set("autoInsertClosers", newValue) } }
-    /// Indentation ▸ Enclose selection in matching delimiters (default on).
     public var encloseSelection: Bool { get { get("encloseSelection", true) } set { set("encloseSelection", newValue) } }
-    /// Indentation ▸ Tab key (default: indents in leading whitespace).
     public var tabKeyBehavior: TabKeyBehavior {
         get { TabKeyBehavior(rawValue: get("tabKey", TabKeyBehavior.indentsInLeadingWhitespace.rawValue)) ?? .indentsInLeadingWhitespace }
         set { set("tabKey", newValue.rawValue) }
     }
-    /// The typing rules' settings (SwiftCodeSyntax `TypingRules`).
     public var typingOptions: TypingOptions {
         TypingOptions(indent: IndentOptions(usesTabs: indentWithTabs, tabWidth: tabWidth, indentWidth: indentWithTabs ? tabWidth : indentWidth),
                       autoIndent: autoIndent, autoClose: autoInsertClosers, encloseSelection: encloseSelection, tabKey: tabKeyBehavior)
     }
 
-    // MARK: Source control
-
-    /// Settings ▸ Source Control ▸ Enable source control (default on).
     public var sourceControlEnabled: Bool { get { get("sourceControl", true) } set { set("sourceControl", newValue) } }
 
-    // MARK: Debugger
-
-    /// Variables view: also list register scopes.
     public var showRegisters: Bool { get { get("showRegisters", false) } set { set("showRegisters", newValue) } }
 
-    // MARK: Themes
-
-    /// The selected theme's name (default: the first built-in).
     public var themeName: String {
         get { get("theme", EditorTheme.builtIns[0].name) }
         set { set("theme", newValue) }
     }
 
-    /// Built-in themes, then user themes (by name).
     public var themes: [EditorTheme] {
         let user = ((try? FileManager.default.contentsOfDirectory(at: themesDirectory, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "swiftcodetheme" }
@@ -255,11 +161,8 @@ public final class Preferences {
         return EditorTheme.builtIns + user.filter { u in !EditorTheme.builtIns.contains { $0.name == u.name } }
     }
 
-    /// The selected theme; falls back to the first built-in when
-    /// `themeName` names no theme.
     public var theme: EditorTheme { themes.first { $0.name == themeName } ?? EditorTheme.builtIns[0] }
 
-    /// Saves a user theme (built-in names are refused) and selects it.
     public func save(_ t: EditorTheme) throws {
         guard !EditorTheme.builtIns.contains(where: { $0.name == t.name }) else { throw CocoaError(.fileWriteNoPermission) }
         try FileManager.default.createDirectory(at: themesDirectory, withIntermediateDirectories: true)
@@ -267,7 +170,6 @@ public final class Preferences {
         themeName = t.name
     }
 
-    /// Duplicate: a copy named "<name> Copy" (numbered when taken).
     @discardableResult
     public func duplicate(_ t: EditorTheme) throws -> EditorTheme {
         var copy = t
@@ -278,15 +180,12 @@ public final class Preferences {
         return copy
     }
 
-    /// Deletes a user theme's file; built-in or unknown names are ignored.
-    /// Selects the first built-in when the deleted theme was selected.
     public func deleteTheme(named name: String) {
         guard let t = themes.first(where: { $0.name == name }), !EditorTheme.builtIns.contains(where: { $0.name == name }) else { return }
         try? FileManager.default.removeItem(at: themesDirectory.appendingPathComponent(t.fileName))
         if themeName == name { themeName = EditorTheme.builtIns[0].name } else { changed() }
     }
 
-    /// Import: copies a `.swiftcodetheme` file into the themes folder.
     @discardableResult
     public func importTheme(from url: URL) throws -> EditorTheme {
         let t = try EditorTheme.read(url)
@@ -294,13 +193,8 @@ public final class Preferences {
         return t
     }
 
-    /// Export: writes `t` as a `.swiftcodetheme` file at `url`.
     public func exportTheme(_ t: EditorTheme, to url: URL) throws { try t.write(to: url) }
 
-    // MARK: Key bindings
-
-    /// Custom shortcuts by command id (`action#tag`): `"⇧⌘K"`-style text
-    /// is not stored; `key` and modifier bits are.
     public struct Shortcut: Codable, Equatable, Hashable, Sendable {
         public var key: String
         public var modifiers: Int
@@ -311,8 +205,6 @@ public final class Preferences {
         public var mods: MenuCommand.Modifiers { MenuCommand.Modifiers(rawValue: modifiers) }
     }
 
-    /// Shortcut overrides by command id (`SwiftCode.keyBindings`, JSON). An empty
-    /// `key` removes the command's shortcut. Setting posts `didChange`.
     public var keyBindingOverrides: [String: Shortcut] {
         get {
             guard let d = defaults.data(forKey: "SwiftCode.keyBindings"), let m = try? JSONDecoder().decode([String: Shortcut].self, from: d) else { return [:] }
@@ -322,8 +214,6 @@ public final class Preferences {
     }
 }
 
-/// A source editor and console theme (`.swiftcodetheme`, JSON). Colors are
-/// `#RRGGBB` hex; an empty map entry falls back to the system color.
 public struct EditorTheme: Codable, Equatable, Sendable {
     public var name: String
     public var fontName: String
@@ -332,20 +222,13 @@ public struct EditorTheme: Codable, Equatable, Sendable {
     public var foreground: String?
     public var selection: String?
     public var currentLine: String?
-    /// Token colors by `SourceTokenizer.Kind` raw name.
     public var tokens: [String: String]
     public var consoleFontName: String
     public var consoleFontSize: Double
     public var consoleBackground: String?
     public var consoleText: String?
-    /// Per token kind (`SourceTokenizer.Kind` raw name): a font other than
-    /// the source font (Settings ▸ Appearance ▸ Fonts). Absent: the source
-    /// font (keywords bold).
     public var tokenFonts: [String: FontSpec]?
 
-    /// A font by name (empty: the monospaced system font) and size: a
-    /// portable font descriptor; each shell resolves it to its own font
-    /// (the AppKit shell: `font`).
     public struct FontSpec: Codable, Equatable, Sendable {
         public var name: String
         public var size: Double
@@ -355,10 +238,7 @@ public struct EditorTheme: Codable, Equatable, Sendable {
         }
     }
 
-    /// The source font as a descriptor (`fontName` empty: the monospaced
-    /// system font).
     public var fontSpec: FontSpec { FontSpec(name: fontName, size: fontSize) }
-    /// The console font as a descriptor.
     public var consoleFontSpec: FontSpec { FontSpec(name: consoleFontName, size: consoleFontSize) }
 
     public var fileName: String { name.replacingOccurrences(of: "/", with: "-") + ".swiftcodetheme" }
@@ -373,14 +253,8 @@ public struct EditorTheme: Codable, Equatable, Sendable {
         try e.encode(self).write(to: url, options: .atomic)
     }
 
-    /// A theme color entry as a portable value (nil: empty, absent or not
-    /// `#RRGGBB`); each shell converts it to its own color type (the
-    /// AppKit shell: `color(_:)`).
     public static func themeColor(_ hex: String?) -> ThemeColor? { ThemeColor(hex: hex) }
 
-    /// SwiftCode's own themes (colors chosen for SwiftCode, not taken from any
-    /// other product). "SwiftCode Default" uses system colors (follows light
-    /// and dark appearance).
     public static let builtIns: [EditorTheme] = [
         EditorTheme(name: "SwiftCode Default", fontName: "", fontSize: 13, background: nil, foreground: nil, selection: nil, currentLine: nil,
                     tokens: [:], consoleFontName: "", consoleFontSize: 11, consoleBackground: nil, consoleText: nil),
@@ -399,7 +273,6 @@ public struct EditorTheme: Codable, Equatable, Sendable {
     ]
 }
 
-/// Every menu command and its effective shortcut (Settings ▸ Key Bindings).
 @MainActor
 public enum KeyBindings {
     public struct Entry: Equatable, Sendable {
@@ -407,15 +280,11 @@ public enum KeyBindings {
         public var title: String
         public var menu: String
         public var command: MenuCommand
-        /// Whether the user changed it.
         public var customized: Bool
     }
 
-    /// `action#tag`, unique per command.
     static func id(_ c: MenuCommand) -> String { "\(c.action)#\(c.tag)" }
 
-    /// The menu commands with overrides applied, in menu order. Commands
-    /// SwiftCode does not perform are left out unless `includingUnavailable`.
     public static func entries(_ prefs: Preferences = .shared, includingUnavailable: Bool = false) -> [Entry] {
         let overrides = prefs.keyBindingOverrides
         var out: [Entry] = []
@@ -436,27 +305,20 @@ public enum KeyBindings {
         return out
     }
 
-    /// Entries whose title or menu contains the query (case-insensitive).
     public static func search(_ q: String, _ prefs: Preferences = .shared) -> [Entry] {
         let t = q.lowercased()
         return entries(prefs).filter { t.isEmpty || $0.title.lowercased().contains(t) || $0.menu.lowercased().contains(t) || $0.command.shortcutText.lowercased().contains(t) }
     }
 
-    /// Other commands already using a shortcut (the same keystroke in any
-    /// spelling, "⌘{" = "⇧⌘["). Commands SwiftCode lists disabled keep their
-    /// reference shortcut, so they count too (reference-ui-5.md §1.1).
     public static func conflicts(key: String, modifiers: MenuCommand.Modifiers, excluding id: String, _ prefs: Preferences = .shared) -> [Entry] {
         guard !key.isEmpty else { return [] }
         let wanted = Shortcut.canonical(key: key, modifiers: modifiers)
-        // A command listed in two menus (Window and Help ▸ Developer Documentation) is one conflict.
         var seen = Set<String>()
         return entries(prefs, includingUnavailable: true).filter {
             $0.id != id && $0.command.canonicalShortcut == wanted && seen.insert($0.id).inserted
         }
     }
 
-    /// Sets (or clears, with an empty key) a command's shortcut. Returns
-    /// the conflicting commands; nothing is saved when there are any.
     @discardableResult
     public static func set(_ id: String, key: String, modifiers: MenuCommand.Modifiers, _ prefs: Preferences = .shared) -> [Entry] {
         let c = conflicts(key: key, modifiers: modifiers, excluding: id, prefs)
@@ -467,14 +329,12 @@ public enum KeyBindings {
         return []
     }
 
-    /// Removes the override for command `id`, restoring its default shortcut.
     public static func reset(_ id: String, _ prefs: Preferences = .shared) {
         var o = prefs.keyBindingOverrides
         o[id] = nil
         prefs.keyBindingOverrides = o
     }
 
-    /// The effective shortcut for a menu command.
     public static func effective(_ c: MenuCommand, _ prefs: Preferences = .shared) -> MenuCommand {
         guard let o = prefs.keyBindingOverrides[id(c)] else { return c }
         var c = c
@@ -484,8 +344,6 @@ public enum KeyBindings {
     }
 }
 
-/// An opaque sRGB color with 8-bit components: how themes store colors
-/// (`#RRGGBB`), independent of any UI toolkit.
 public struct ThemeColor: Equatable, Hashable, Sendable {
     public var red: UInt8
     public var green: UInt8
@@ -496,8 +354,6 @@ public struct ThemeColor: Equatable, Hashable, Sendable {
         self.blue = blue
     }
 
-    /// Parses `#RRGGBB` or `RRGGBB` (surrounding spaces ignored); nil for
-    /// nil, empty or anything else.
     public init?(hex: String?) {
         guard var h = hex?.trimmingCharacters(in: .whitespaces), !h.isEmpty else { return nil }
         if h.hasPrefix("#") { h.removeFirst() }
@@ -505,10 +361,8 @@ public struct ThemeColor: Equatable, Hashable, Sendable {
         self.init(red: UInt8(v >> 16 & 0xFF), green: UInt8(v >> 8 & 0xFF), blue: UInt8(v & 0xFF))
     }
 
-    /// `#RRGGBB`, upper case.
     public var hex: String { String(format: "#%02X%02X%02X", Int(red), Int(green), Int(blue)) }
 
-    /// Components as fractions of 1, for toolkits that take them so.
     public var redFraction: Double { Double(red) / 255 }
     public var greenFraction: Double { Double(green) / 255 }
     public var blueFraction: Double { Double(blue) / 255 }

@@ -33,26 +33,20 @@ public struct CacheEntry: Codable, Sendable {
     public let actorDefined: Bool
 }
 
-// MARK: - Xcode Project Models (parsed from project.pbxproj)
-
-/// A build target discovered in the .xcodeproj, with per-configuration build settings.
 public struct InspectorTargetInfo: Identifiable, Hashable, Sendable {
     public var id: String
     public let name: String
     public let productType: String
     public let configurationNames: [String]
-    /// Configuration name -> build setting key -> value
     public let buildSettings: [String: [String: String]]
 }
 
-/// An Xcode scheme discovered next to the .xcodeproj.
 public struct InspectorSchemeInfo: Identifiable, Hashable, Sendable {
     public var id: String { name }
     public let name: String
     public let isShared: Bool
 }
 
-/// A Swift package dependency referenced by the .xcodeproj.
 public struct InspectorPackageInfo: Identifiable, Hashable, Sendable {
     public var id: String { url }
     public let name: String
@@ -106,8 +100,6 @@ public final class InspectorProjectScanner {
     public var aiRecommendations: [String] = []
     public var isScanning: Bool = false
 
-    // MARK: - Xcode project structure (parsed from project.pbxproj)
-
     public var projectDirectoryPath: String = ""
     public var xcodeProjectFound: Bool = false
     public var xcodeTargets: [InspectorTargetInfo] = []
@@ -115,7 +107,6 @@ public final class InspectorProjectScanner {
     public var buildConfigurations: [String] = []
     public var packageDependencies: [InspectorPackageInfo] = []
 
-    // Scanner file cache (persistence via UserDefaults)
     private var fileCache: [String: CacheEntry] = [:]
 
     private init() {
@@ -129,7 +120,6 @@ public final class InspectorProjectScanner {
 
         logger.log("Starting background project scan...")
 
-        // Direct linkage to the active project currently open in the workspace!
         let url: URL
         if let activeProject = ProjectSessionStore.shared.activeProject {
             url = activeProject.directoryURL
@@ -138,20 +128,17 @@ public final class InspectorProjectScanner {
             url = URL(fileURLWithPath: rootPath)
         }
 
-        // Read plist or project config info
         self.projectName = url.lastPathComponent
         if self.projectName.isEmpty || self.projectName == "." {
             self.projectName = "SwiftCode"
         }
 
-        // Run scanning on background task
         let cachedFiles = fileCache
         self.projectDirectoryPath = url.path
         let metrics = await Task.detached(priority: .userInitiated) {
             return InspectorProjectScanner.performBackgroundScan(at: url, cache: cachedFiles)
         }.value
 
-        // Update state
         self.projectName = metrics.projectName
         self.totalFiles = metrics.totalFiles
         self.totalFolders = metrics.totalFolders
@@ -181,7 +168,6 @@ public final class InspectorProjectScanner {
 
         self.recentChanges = metrics.recentChanges
 
-        // Xcode project structure
         self.xcodeProjectFound = metrics.xcodeProjectFound
         self.xcodeTargets = metrics.xcodeTargets
         self.xcodeSchemes = metrics.xcodeSchemes
@@ -191,11 +177,9 @@ public final class InspectorProjectScanner {
             self.buildConfigurationSummary = metrics.buildConfigurations.joined(separator: ", ")
         }
 
-        // Save cache updates
         self.fileCache = metrics.newCache
         saveCache()
 
-        // Calculate Project Health & AI Recommendations
         calculateHealthAndRecommendations()
         logger.log("Project scan complete!")
     }
@@ -289,7 +273,6 @@ public final class InspectorProjectScanner {
 
             if isDirectory {
                 totalFolders += 1
-                // Count frameworks
                 if fileURL.pathExtension == "framework" || fileURL.pathExtension == "xcframework" {
                     frameworkCount += 1
                 }
@@ -303,13 +286,11 @@ public final class InspectorProjectScanner {
             let path = fileURL.path
             let relativePath = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
 
-            // Folder analysis
             let parentFolder = fileURL.deletingLastPathComponent().path
             let parentRelativePath = parentFolder.replacingOccurrences(of: rootURL.path + "/", with: "")
             let entry = foldersMap[parentRelativePath] ?? (0, 0)
             foldersMap[parentRelativePath] = (entry.fileCount + 1, entry.totalSize + size)
 
-            // Extension grouping
             let ext = fileURL.pathExtension.lowercased()
             if ext == "swift" {
                 totalSwiftFiles += 1
@@ -336,7 +317,6 @@ public final class InspectorProjectScanner {
                 packageCount += 1
             }
 
-            // Line & content analysis (Swift files)
             var lines = 0
             var swiftUI = false
             var uikit = false
@@ -368,7 +348,6 @@ public final class InspectorProjectScanner {
                         asyncAwait = content.contains("async") && content.contains("await")
                         actorDefined = content.contains("actor ")
 
-                        // Cache update
                         localCache[path] = CacheEntry(
                             fileSize: size,
                             modificationDate: modDate,
@@ -407,7 +386,6 @@ public final class InspectorProjectScanner {
 
         let averageFileSize = totalFiles > 0 ? Double(totalBytes) / Double(totalFiles) : 0.0
 
-        // Fetch recent changes using git command if available
         var recentChangesList: [String] = []
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
@@ -428,7 +406,6 @@ public final class InspectorProjectScanner {
 
         let projName = rootURL.lastPathComponent.isEmpty ? "SwiftCode" : rootURL.lastPathComponent
 
-        // Parse the .xcodeproj for targets, schemes, configurations, and packages.
         let xcode = parseXcodeProject(at: rootURL)
 
         return BackgroundScanResult(
@@ -466,8 +443,6 @@ public final class InspectorProjectScanner {
         )
     }
 
-    // MARK: - Xcode Project Parsing
-
     private struct XcodeProjectParseResult: Sendable {
         let found: Bool
         let targets: [InspectorTargetInfo]
@@ -476,12 +451,9 @@ public final class InspectorProjectScanner {
         let packages: [InspectorPackageInfo]
     }
 
-    /// Locates the .xcodeproj under the project root and extracts targets,
-    /// build configurations + settings, schemes, and package dependencies.
     nonisolated private static func parseXcodeProject(at rootURL: URL) -> XcodeProjectParseResult {
         let fileManager = FileManager.default
 
-        // Find the .xcodeproj at the root or one level down.
         var xcodeprojURL: URL? = nil
         if let contents = try? fileManager.contentsOfDirectory(at: rootURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
             xcodeprojURL = contents.first(where: { $0.pathExtension == "xcodeproj" && $0.hasDirectoryPath })
@@ -509,7 +481,6 @@ public final class InspectorProjectScanner {
            let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
            let objects = plist["objects"] as? [String: Any] {
 
-            // Package dependencies (remote + local).
             for (_, obj) in objects {
                 guard let dict = obj as? [String: Any], let isa = dict["isa"] as? String else { continue }
                 if isa == "XCRemoteSwiftPackageReference", let repo = dict["repositoryURL"] as? String {
@@ -521,7 +492,6 @@ public final class InspectorProjectScanner {
                 }
             }
 
-            // Targets with their build configurations and settings.
             for (_, obj) in objects {
                 guard let dict = obj as? [String: Any],
                       let isa = dict["isa"] as? String,
@@ -561,7 +531,6 @@ public final class InspectorProjectScanner {
             }
         }
 
-        // Schemes (shared first-class citizens, plus user schemes).
         var schemes: [InspectorSchemeInfo] = []
         let schemeDirs = [
             projURL.appendingPathComponent("xcshareddata/xcschemes"),
@@ -626,45 +595,38 @@ public final class InspectorProjectScanner {
         var score = 100
         var recs: [String] = []
 
-        // Average file size check
-        if averageFileSize > 1024 * 1024 { // > 1MB
+        if averageFileSize > 1024 * 1024 {
             score -= 10
             recs.append("Average file size is extremely high. Consider compressing high-resolution assets or modularizing binary contents.")
         }
 
-        // Extremely long files checks
         let longFiles = longestSwiftFiles.filter { $0.lineCount > 1000 }
         if !longFiles.isEmpty {
             score -= min(15, longFiles.count * 3)
             recs.append("Detected \(longFiles.count) Swift files with over 1,000 lines (longest: \(longFiles.first?.name ?? "")). Splitting these long source files will improve compile-time performance.")
         }
 
-        // Concurrency usage
         if actorUsageCount == 0 && totalSwiftFiles > 50 {
             score -= 5
             recs.append("No Actors detected in a project with \(totalSwiftFiles) Swift files. Consider utilizing actors to protect shared mutable state in concurrent flows.")
         }
 
-        // Modern observation usage
         if observationUsageCount == 0 && swiftUIUsageCount > 10 {
             score -= 5
             recs.append("Your SwiftUI project doesn't use the Swift 5.9+ `@Observable` macro. Move away from legacy Combine ObservableObjects to prevent redundant UI layout updates.")
         }
 
-        // Localization
         if localizationCount == 0 {
             score -= 8
             recs.append("No localization keys/catalogs found. Add localized strings or `.xcstrings` to expand international user support.")
         }
 
-        // Large files check
-        let hugeFiles = largestFiles.filter { $0.size > 5 * 1024 * 1024 } // > 5MB
+        let hugeFiles = largestFiles.filter { $0.size > 5 * 1024 * 1024 }
         if !hugeFiles.isEmpty {
             score -= min(10, hugeFiles.count * 2)
             recs.append("Found \(hugeFiles.count) files larger than 5MB on disk. Verify if they should be excluded from Git via `.gitignore` or tracked via LFS.")
         }
 
-        // Package and dependencies check
         if packageCount > 10 {
             recs.append("High number of Swift packages detected (\(packageCount)). Regularly audit dependencies to avoid duplicate library link mismatches.")
         }
@@ -681,7 +643,6 @@ public final class InspectorProjectScanner {
         self.aiRecommendations = recs
     }
 
-    // MARK: - Cache Persistence
     private func loadCache() {
         if let data = UserDefaults.standard.data(forKey: "com.swiftcode.projectscanner.cache"),
            let decoded = try? JSONDecoder().decode([String: CacheEntry].self, from: data) {

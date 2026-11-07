@@ -3,10 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-// Snapshot records (specs/simulator/snapshot.md §6) and a kernel-object
-// round trip without a VM: capture a process with a queued Mach message and a
-// pipe holding bytes, restore it into a new system, and use both.
-
 @Suite struct SnapshotFormatTests {
     @Test func fieldsRoundTrip() throws {
         var inner = SnapshotFields()
@@ -78,13 +74,12 @@ import SwiftCodeDarwinABI
         let e = try ProcEnv()
         let k = e.rootKernel!
         let s = ProcEnv.scratch
-        // A receive right with a send right, and one message queued on it.
         let (_, allocated) = e.svc(k, UInt64(bitPattern: -16), [0x103, 1, s + 0x100])
         #expect(allocated.x[0] == 0)
         let name = e.read(k, s + 0x100, 4).readLE(UInt32.self, at: 0)
         e.svc(k, UInt64(bitPattern: -21), [0x103, UInt64(name), UInt64(name), 20])
         var msg: [UInt8] = []
-        msg.appendLE(UInt32(19))  // COPY_SEND
+        msg.appendLE(UInt32(19))
         msg.appendLE(UInt32(28))
         msg.appendLE(name)
         msg.appendLE(UInt32(0))
@@ -94,13 +89,11 @@ import SwiftCodeDarwinABI
         e.put(k, msg, at: s + 0x1000)
         let (_, sent) = e.svc(k, UInt64(bitPattern: -31), [s + 0x1000, 1, 28, 0, 0, 0, 0])
         #expect(sent.x[0] == 0)
-        // A pipe with five bytes in it.
         let (_, piped) = e.svc(k, 42)
         let (rfd, wfd) = (piped.x[0], piped.x[1])
         e.put(k, Array("hello".utf8), at: s + 0x2000)
         #expect(e.bsd(k, 4, [wfd, s + 0x2000, 5]) == 5)
 
-        // Capture.
         let records: [SnapshotRecord] = e.system.lock.withLock {
             let capture = KernelSnapshotCapture(system: e.system, classification: SnapshotClassification())
             capture.capture(images: [SnapshotImageInput(kernel: k, parked: [:], fpState: { _ in nil })],
@@ -109,11 +102,9 @@ import SwiftCodeDarwinABI
             return capture.records
         }
         let (_, decoded) = try SnapshotManifest.decode(SnapshotManifest.encode(records))
-        // cpu-features.md §9.4: the system record carries the published CPU features.
         let sys = try #require(decoded.first { $0.kind == SnapshotRecordKind.system.rawValue })
         #expect(try sys.fields().bytes(ST.System.cpuFeatures) == GuestCPUProfile.current.published.storedBytes)
 
-        // Restore into a new system.
         let system = DarwinSystem()
         let launcher = FakeLauncher()
         system.launcher = launcher
@@ -137,12 +128,10 @@ import SwiftCodeDarwinABI
             _ = k2.handle(&f, context: k2.mainThread, memory: space)
             return f
         }
-        // The message is still queued under the same name.
         let received = svc(-31, [s + 0x3000, 2 | 0x100, 0, 64, UInt64(name), 0, 0])
         #expect(received.x[0] == 0)
         let body = try system.lock.withLock { try space.read(va: s + 0x3000, count: 28) }
         #expect(body.readLE(Int32.self, at: 20) == 77 && body.readLE(UInt32.self, at: 24) == 1234)
-        // The pipe still holds its bytes, on the same descriptor.
         let read = svc(3, [rfd, s + 0x4000, 16])
         #expect(!read.carry && read.x[0] == 5)
         let text = try system.lock.withLock { try space.read(va: s + 0x4000, count: 5) }
@@ -150,11 +139,6 @@ import SwiftCodeDarwinABI
         system.terminateAllProcesses()
     }
 
-    /// snapshot.md §12.5: with the lock split, the host services' threads
-    /// use Mach state under the port lock and deliver to guest kqueues
-    /// under the event locks, not under L0. The restore rebuilds that state
-    /// holding all of them (it held L0 alone, and a host service's loop
-    /// raced the rebuild), and re-issues thread requests under the event lock.
     @Test func restoreHoldsTheFineLocksWhileItRebuildsObjects() throws {
         let e = try ProcEnv()
         let k = e.rootKernel!
@@ -183,18 +167,10 @@ import SwiftCodeDarwinABI
         }
         #expect(held?.l0 == true && held?.ports == true && held?.events == true)
         #expect(!portLock.isHeldByCurrentThread && !eventLock.isHeldByCurrentThread)
-        // The thread requests of §7 step 10 are re-issued under the event lock
-        // (with SWIFTCODE_LOCK_ORDER_CHECK=1 a workqueue change without it stops the process).
         system.lock.withLock { k2.snapshotReissueThreadRequests() }
         system.terminateAllProcesses()
     }
 
-    /// snapshot.md §12.5: a restored EVFILT_READ knote's readiness observer
-    /// runs under the descriptor object's lock (L0) and changes the kqueue
-    /// and the workqueue: like the registration's observer it must take the
-    /// image's event lock (the restore's copy did not, and its unguarded
-    /// changes raced the kevent fast paths: lost thread requests, a
-    /// corrupted heap).
     @Test func restoredReadinessObserverTakesTheEventLock() throws {
         let e = try ProcEnv()
         let k = e.rootKernel!
@@ -205,8 +181,8 @@ import SwiftCodeDarwinABI
         #expect(kq >= 0)
         var change: [UInt8] = []
         change.appendLE(rfd)
-        change.appendLE(Int16(-1))   // EVFILT_READ
-        change.appendLE(UInt16(0x1)) // EV_ADD
+        change.appendLE(Int16(-1))
+        change.appendLE(UInt16(0x1))
         change.appendLE(UInt32(0))
         change.appendLE(Int64(0))
         change.appendLE(UInt64(0))
@@ -234,8 +210,6 @@ import SwiftCodeDarwinABI
             k2.withEvents { k2.descriptorKQueue(Int32(kq))?.knotes.first { $0.filter == -1 } }
         }
         #expect(knote != nil)
-        // A write makes the pipe readable: the descriptor's observers run
-        // under L0, and the knote's observer takes the event lock.
         let before = eventLock.acquisitions
         try system.lock.withLock { try space.write(va: s + 0x2000, bytes: Array("x".utf8)) }
         var f = TrapFrame()
@@ -251,9 +225,6 @@ import SwiftCodeDarwinABI
         system.terminateAllProcesses()
     }
 
-    /// snapshot.md §12.5: a workloop marked as having a thread request that
-    /// no queue holds is never requested again by an activation; the
-    /// restore's step 10 requests it afresh.
     @Test func lostWorkloopRequestIsIssuedAgainAfterARestore() throws {
         let e = try ProcEnv()
         let k = e.rootKernel!
@@ -274,16 +245,13 @@ import SwiftCodeDarwinABI
         } }
     }
 
-    /// snapshot.md §12.5: a file the guest opened read-write and then made
-    /// read-only (mode 0400) is opened read-write again by the restore, not
-    /// replaced by an empty stand-in; its mode is left as it was.
     @Test func fileMadeReadOnlyAfterItsOpenStaysWritableAcrossARestore() throws {
         let e = try ProcEnv()
         let k = e.rootKernel!
         let s = ProcEnv.scratch
         let path = e.root + "/index"
         e.putString(k, path, at: s + 0x100)
-        let fd = e.bsd(k, 5, [s + 0x100, 0x202, 0o600])  // open(O_RDWR | O_CREAT)
+        let fd = e.bsd(k, 5, [s + 0x100, 0x202, 0o600])
         #expect(fd >= 0)
         e.put(k, Array("index".utf8), at: s + 0x200)
         #expect(e.bsd(k, 4, [UInt64(fd), s + 0x200, 5]) == 5)
@@ -309,7 +277,6 @@ import SwiftCodeDarwinABI
         #expect(!restore.warnings.contains { $0.contains("gone") })
         var st = stat()
         #expect(stat(path, &st) == 0 && st.st_mode & 0o777 == 0o400)
-        // The restored descriptor still writes to the file itself.
         var f = TrapFrame()
         f.kind = TrapFrame.Kind.svc.rawValue
         f.x[16] = 4
@@ -324,10 +291,6 @@ import SwiftCodeDarwinABI
         system.terminateAllProcesses()
     }
 
-    /// snapshot.md §5: a calendar-time EVFILT_TIMER (NOTE_ABSOLUTE without
-    /// NOTE_MACHTIME) is due by the wall clock after a restore, which moved
-    /// on while the snapshot sat on disk; an interval timer keeps the time
-    /// it had left (the guest's mach time did not move).
     @Test func calendarTimersFollowTheWallClockAcrossARestore() throws {
         let e = try ProcEnv()
         let k = e.rootKernel!
@@ -338,15 +301,13 @@ import SwiftCodeDarwinABI
         func change(_ ident: UInt64, fflags: UInt32, data: Int64) -> [UInt8] {
             var b: [UInt8] = []
             b.appendLE(ident)
-            b.appendLE(Int16(-7))      // EVFILT_TIMER
-            b.appendLE(UInt16(0x1))    // EV_ADD
+            b.appendLE(Int16(-7))
+            b.appendLE(UInt16(0x1))
             b.appendLE(fflags)
             b.appendLE(data)
             b.appendLE(UInt64(0))
             return b
         }
-        // 1: NOTE_ABSOLUTE | NOTE_SECONDS, 30 s of calendar time from now;
-        // 2: NOTE_SECONDS, an interval of 30 s.
         e.put(k, change(1, fflags: 0x09, data: wallNow + 30) + change(2, fflags: 0x01, data: 30), at: s + 0x1000)
         #expect(e.bsd(k, 363, [UInt64(kq), s + 0x1000, 2, 0, 0, 0]) == 0)
         let records: [SnapshotRecord] = e.system.lock.withLock {
@@ -364,7 +325,6 @@ import SwiftCodeDarwinABI
             DarwinFileSystem(prefixes: [.init(guestPath: e.root, hostPath: e.root, writable: true)], console: { _, _ in })
         }
         let k2 = plans[0].kernel
-        // The snapshot sat on disk for a minute.
         k2.wallClock = { (seconds: wallNow + 60, nanoseconds: 0) }
         let space = GuestAddressSpace(backing: FakePhysicalBacking())
         _ = try space.mapAnonymous(at: s, size: ProcEnv.scratchSize, protection: .readWrite, hint: nil)
@@ -375,7 +335,6 @@ import SwiftCodeDarwinABI
         }
         let calendar = knotes.first { $0.ident == 1 }, interval = knotes.first { $0.ident == 2 }
         #expect(restore.wallClockTimers == 1)
-        // Due at once (a timer thread may already have fired it).
         #expect(calendar.map { kn in kn.active || kn.timerFires > 0 || (kn.timerDeadline.map { $0 <= now } ?? false) } == true)
         #expect(interval?.timerDeadline.map { $0 > now + 20_000_000_000 } == true)
         system.terminateAllProcesses()

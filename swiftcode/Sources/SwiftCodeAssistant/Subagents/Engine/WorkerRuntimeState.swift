@@ -2,8 +2,6 @@ import Foundation
 import Observation
 import os
 
-/// The single authoritative shared runtime state for all Assist Workers.
-/// Observed directly by `WorkersOnAssistView`, `WorkersInfoView`, and `WorkersMainView` per INV-12.
 @Observable
 @MainActor
 public final class WorkerRuntimeState: Sendable {
@@ -18,11 +16,9 @@ public final class WorkerRuntimeState: Sendable {
     public var handoffs: [WorkerHandoff] = []
     public var selectedWorkerID: UUID?
 
-    // UI Navigation State
     public var isMainViewPresented: Bool = false
     public var isInfoViewPresented: Bool = false
 
-    // State Aggregations (O(1) computed properties for high responsiveness at 1, 5, 10+ workers)
     public var activeWorkers: [Worker] {
         workers.filter { $0.status.isActive }
     }
@@ -65,15 +61,12 @@ public final class WorkerRuntimeState: Sendable {
     }
 
     private init() {
-        // Wire into the event bus for real-time synchronization
         WorkerEventBus.shared.subscribe { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.handleIncomingEvent(event)
             }
         }
     }
-
-    // MARK: - State Mutations
 
     public func register(worker: Worker) {
         if let idx = workers.firstIndex(where: { $0.id == worker.id }) {
@@ -277,24 +270,14 @@ public final class WorkerRuntimeState: Sendable {
         selectedWorkerID = nil
     }
 
-    // MARK: - Internal Event Listener
-
     private func handleIncomingEvent(_ event: WorkerEvent) {
         guard let idx = workers.firstIndex(where: { $0.id == event.workerID }) else { return }
         workers[idx].eventHistory.append(event)
 
-        // Keep event history capped to prevent memory bloat on very long tasks
         if workers[idx].eventHistory.count > 100 {
             workers[idx].eventHistory.removeFirst(workers[idx].eventHistory.count - 100)
         }
     }
 }
 
-// MARK: - WorkerPersistenceStore seam
-
-/// Backs `WorkerPersistenceStore`'s `WorkerRuntimeStateProviding` seam
-/// with the real shared runtime state. Added by the migration
-/// coordinator during cross-file verification: the store was staged
-/// against this protocol and the state against Legacy's API, and the
-/// two had never been joined.
 extension WorkerRuntimeState: WorkerRuntimeStateProviding {}

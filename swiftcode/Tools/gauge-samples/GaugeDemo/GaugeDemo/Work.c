@@ -1,4 +1,3 @@
-// GaugeDemo's deliberate work (Work.h). Original SwiftCode sample code.
 #include "Work.h"
 #include <mach/mach_time.h>
 #include <os/log.h>
@@ -12,7 +11,6 @@ static os_log_t demo_log(void) {
     return log;
 }
 
-/// Counts primes below `limit` with a sieve (memory-bound inner loops).
 __attribute__((noinline)) static uint64_t sieve_primes(uint32_t limit) {
     uint8_t *composite = calloc(limit, 1);
     uint64_t count = 0;
@@ -25,7 +23,6 @@ __attribute__((noinline)) static uint64_t sieve_primes(uint32_t limit) {
     return count;
 }
 
-/// n × n matrix product (compute-bound).
 __attribute__((noinline)) static uint64_t multiply_matrices(int n, int seed) {
     double *a = malloc(sizeof(double) * n * n), *b = malloc(sizeof(double) * n * n), *c = calloc((size_t)n * n, sizeof(double));
     for (int i = 0; i < n * n; i++) { a[i] = (i * 7 + seed) % 13; b[i] = (i * 11 + seed) % 17; }

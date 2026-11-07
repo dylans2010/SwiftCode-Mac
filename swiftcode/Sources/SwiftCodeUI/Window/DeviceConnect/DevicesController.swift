@@ -5,20 +5,9 @@ import SwiftCodeIDECore
 import SwiftCodeSubprocess
 import SwiftUI
 
-/// Device Hub (`specs/ide/device-hub.md` §2.1, §3, §5, §6), opened by
-/// Product ▸ Destination ▸ Manage Devices… (⇧⌘2): a sidebar of devices and
-/// simulators in Available / Unavailable sections with a search field and
-/// the Add Device and Filter menus; a canvas with the selected device's
-/// live screen in SwiftCode's frame, or its status view with Start; an
-/// inspector with Settings, Reports and Info. SwiftCode's remote simulators can
-/// be started, shut down, folded, rotated, shown in a compact window and
-/// erased; other simulators and devices are listed read-only.
 @MainActor
 public final class DevicesController: NSSplitViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate,
     NSSearchFieldDelegate, DeviceMenuTarget {
-    /// The Filter menu's choices in the words of the earlier Devices /
-    /// Simulators switch: `devices` = Physical Devices, `simulators` =
-    /// Simulators, `all` = All Devices.
     public enum Section: Int { case devices, simulators, all }
     public enum InspectorTab: Int, CaseIterable { case settings, reports, info }
     public enum InfoTab: Int, CaseIterable { case info, apps, profiles }
@@ -26,14 +15,11 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     public private(set) var devices: [DeviceRow]
     public private(set) var simulators: [DeviceRow]
     public private(set) var selected: DeviceRow?
-    /// The sidebar's state (filter, search, sort, collapsed sections).
     public private(set) var sidebarModel = HubSidebarModel()
     public private(set) var inspectorTab: InspectorTab = .settings
     public private(set) var infoTab: InfoTab = .info
-    /// Info rows the user hid (Edit Visibility).
     public private(set) var hiddenInfoRows: Set<String> = []
     public private(set) var editingInfoVisibility = false
-    /// Where the hub keeps its state (§2.1 Persistence).
     public var defaults: UserDefaults = Preferences.shared.defaults
 
     let table = NSTableView()
@@ -44,9 +30,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     private let canvasVC = NSViewController()
     let inspectorVC = NSViewController()
     private let inspectorContent = FlippedStack()
-    /// Wiring (wiring-views): the hosted `SimulatorAppsView` for the
-    /// inspector's Apps tab. Kept so `updateInspector()` can detach the
-    /// previous hosting controller when the tab rebuilds.
     private var appsHosting: NSHostingController<SimulatorAppsView>?
     private let noResults = NSStackView()
     private var tableRows: [HubSidebarRow] = []
@@ -66,26 +49,16 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The camera setting of SwiftCode's simulators (DevicesController+Camera.swift):
-    /// reads and writes `RemoteSimulatorSettings.camera`. Set by the window.
     public var cameraSetting: (get: () -> String, set: (String) -> Void)?
-    /// Pairs of SwiftCode's simulators (DevicesController+Pairing.swift).
     public let pairing = HubPairing()
-    /// A Vision Pro in a headset (DevicesController+Headset.swift).
     public let headset = HubHeadset()
 
-    // MARK: Rows
-
-    /// Every row, physical devices first, then the simulators in their
-    /// list order (SwiftCode's own last). SwiftCode decision for the default order
-    /// (Q10): the order SwiftCode lists them; Sort By sorts.
     var allRows: [DeviceRow] { devices + simulators }
 
     private func hubDevice(_ r: DeviceRow) -> HubDevice {
         let family = r.deviceTypeID.flatMap { DeviceFrameSpec.named(typeID: $0)?.family } ?? HubDevice.family(platform: r.platform, name: r.name)
         let physical = devices.contains { $0.identifier == r.identifier }
         let running = physical ? r.state.contains("connected") && !r.state.contains("disconnected") : r.state == "Booted"
-        // A device that is not connected is listed under Unavailable (§5.1).
         let reachable = !physical || !(r.state.contains("disconnected") || r.state.contains("unavailable"))
         return HubDevice(id: r.identifier, name: r.name, platform: r.platform, osVersion: r.osVersion, family: family,
                          isSimulator: !physical, model: r.model, isRunning: running, isAvailable: r.isAvailable && reachable)
@@ -98,15 +71,12 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         tableRows = currentRows
     }
 
-    /// The sidebar's rows: the model's sections, in SwiftCode's order unless Sort By chose one.
     var currentRows: [HubSidebarRow] { sortChosen ? sidebarModel.rows : Self.unsortedRows(sidebarModel) }
 
-    /// The device rows shown (filter and search applied), in sidebar order.
     public var rows: [DeviceRow] {
         currentRows.compactMap { $0.device }.compactMap { d in allRows.first { $0.identifier == d.id } }
     }
 
-    /// The filter as the earlier switch's section.
     public var section: Section {
         switch sidebarModel.filter {
         case .physical: .devices
@@ -115,7 +85,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    /// Filter ▸ Physical Devices / Simulators / All Devices.
     public func show(_ s: Section) {
         setFilter(s == .devices ? .physical : s == .simulators ? .simulators : .all)
         select(row: 0)
@@ -134,7 +103,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     }
     private(set) var sortChosen = false
 
-    /// The sidebar's search (§5.1).
     public func setSearch(_ text: String) {
         sidebarModel.search = text
         if searchField.stringValue != text { searchField.stringValue = text }
@@ -161,7 +129,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    /// The model's rows in the given device order (no sort).
     static func unsortedRows(_ m: HubSidebarModel) -> [HubSidebarRow] {
         let q = m.search.trimmingCharacters(in: .whitespaces)
         let shown = m.devices.filter { m.filter.includes($0) && (q.isEmpty || $0.name.localizedCaseInsensitiveContains(q)) }
@@ -175,15 +142,9 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return out
     }
 
-    // MARK: SwiftCode's remote simulators
-
-    /// Adds SwiftCode's remote simulator to the list (or replaces it).
     public func setSwiftCodeRemote(_ row: DeviceRow?) { setSwiftCodeRemote(rows: row.map { [$0] } ?? []) }
 
-    /// SwiftCode's remote simulators, one row per runtime and device type (or
-    /// replaces them); a selected one stays selected when it is still listed.
     public func setSwiftCodeRemote(rows newRows: [DeviceRow]) {
-        // A device that is not running starts closed when it boots (§7).
         for r in newRows where r.state != "Booted" { hingeAngles[r.identifier] = nil }
         simulators.removeAll { $0.isSwiftCodeRemote }
         simulators.append(contentsOf: newRows)
@@ -195,7 +156,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    /// Replaces one remote row (same identifier).
     public func updateSwiftCodeRemote(_ row: DeviceRow) {
         guard let i = simulators.firstIndex(where: { $0.isSwiftCodeRemote && $0.identifier == row.identifier }) else { return }
         if row.state != "Booted" { hingeAngles[row.identifier] = nil }
@@ -211,63 +171,37 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    /// The remote rows as they are now (polled while the window is open:
-    /// runs and started devices change the rows' state). Set by the window.
     public var currentRemoteRows: (() -> [DeviceRow])?
 
-    // MARK: Folding SwiftCode's remote iPhone Duo (`foldable.md` §8.3 E1–E2)
-
-    /// The pose presets in the reference's words (device-hub.md §4.4) and their hinge angles.
     public static let foldPresets: [(title: String, angle: Int)] = DevicePosture.allCases.map { ($0.title, $0.angle) }
-    /// Sends a control command to the row's running device: (succeeded,
-    /// reply). Set by the window.
     public var foldDevice: ((DeviceRow, [String]) async -> (Bool, String))?
-    /// The hinge angle per row, as SwiftCode last commanded or read it (the
-    /// check mark; the guest reports no posture back, E2).
     public private(set) var hingeAngles: [String: Int] = [:]
-    /// What the last fold command reported.
     public private(set) var foldStatus: String?
-    /// The command in flight (tests await it).
     public private(set) var foldTask: Task<Void, Never>?
 
-    // MARK: Settings of a running SwiftCode simulator (DevicesController+Settings.swift)
-
-    /// Sends a settings command to the row's device: (succeeded, reply). Set by the window.
     public var deviceSettings: ((DeviceRow, [String]) async -> (Bool, String))?
-    /// The selected device's settings as last read (nil: unknown).
     public internal(set) var settingsSnapshot: DeviceSettingsSnapshot?
-    /// The location last chosen per row (the guest cannot report it).
     public internal(set) var chosenLocations: [String: String] = [:]
-    /// The command or read in flight (tests await it).
     public internal(set) var settingsTask: Task<Void, Never>?
-    /// Shows a failure: (title, message). Default: an alert; tests record it.
     public var presentSettingsFailure: (String, String) -> Void = { DevicesController.runSettingsFailureAlert($0, $1) }
-    /// The settings pane's width (the inspector less its insets).
     public static var settingsPaneWidth: CGFloat = 360
 
-    /// The pose commands apply to a foldable row only…
     public var foldControlsShown: Bool { selected?.isFoldable == true }
-    /// …and work while its device runs.
     public var foldControlsEnabled: Bool { foldControlsShown && selected?.state == "Booted" && foldDevice != nil }
 
-    /// The selected row's hinge angle (nil: unknown).
     public var hingeAngle: Int? { selected.flatMap { hingeAngles[$0.identifier] } }
 
-    /// Folds the selected device: a preset or any angle 0…180 (a sweep).
     @discardableResult
     public func fold(to angle: Int) -> Task<Void, Never>? {
         let a = min(180, max(0, angle))
         return sendFold(["fold", String(a)], angle: a, status: "Folding to \(a)°…")
     }
 
-    /// Rotate Left / Rotate Right: the device's next orientation.
     @discardableResult
     public func rotate(left: Bool) -> Task<Void, Never>? {
         sendFold(["rotate", left ? "left" : "right"], angle: nil, status: left ? "Rotating left…" : "Rotating right…")
     }
 
-    /// Reads the device's fold (its `state`): the check mark follows a
-    /// restored device too.
     @discardableResult
     public func refreshFold() -> Task<Void, Never>? {
         guard foldControlsEnabled, let row = selected, let foldDevice, foldTask == nil else { return nil }
@@ -305,27 +239,85 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     }
     @objc func rotateLeftChosen(_ sender: Any?) { rotate(left: true) }
     @objc func rotateRightChosen(_ sender: Any?) { rotate(left: false) }
+    @objc public func shakeChosen(_ sender: Any?) { triggerShake() }
+    @objc public func memoryPressureChosen(_ sender: Any?) { triggerMemoryPressure() }
+    @objc public func slowAnimationsChosen(_ sender: Any?) { toggleSlowAnimations() }
+    @objc public func standbyChosen(_ sender: Any?) { toggleStandbyMode() }
 
-    // MARK: Start, Shut Down, Restart (§4.1, §7; SwiftCode's remote simulators)
+    public private(set) var isSlowAnimationsEnabled: Bool = false
+    public private(set) var isStandbyModeEnabled: Bool = false
 
-    /// Starts a stopped device: (succeeded, message). Set by the window.
+    @discardableResult
+    public func triggerShake() -> Task<Void, Never>? {
+        guard let row = selected, row.state == "Booted" else { return nil }
+        return Task { [weak self] in
+            guard let self else { return }
+            if row.isSwiftCodeRemote, let deviceSettings = self.deviceSettings {
+                _ = await deviceSettings(row, ["trigger", "shake"])
+            } else {
+                _ = try? await SimctlService().triggerShake(udid: row.identifier)
+            }
+            self.canvas.showBanner("Device Shaken", seconds: 2)
+        }
+    }
+
+    @discardableResult
+    public func triggerMemoryPressure() -> Task<Void, Never>? {
+        guard let row = selected, row.state == "Booted" else { return nil }
+        return Task { [weak self] in
+            guard let self else { return }
+            if row.isSwiftCodeRemote, let deviceSettings = self.deviceSettings {
+                _ = await deviceSettings(row, ["trigger", "memory-pressure"])
+            } else {
+                _ = try? await SimctlService().triggerMemoryWarning(udid: row.identifier)
+            }
+            self.canvas.showBanner("Memory Warning Triggered", seconds: 2)
+        }
+    }
+
+    @discardableResult
+    public func toggleSlowAnimations() -> Task<Void, Never>? {
+        guard let row = selected, row.state == "Booted" else { return nil }
+        isSlowAnimationsEnabled.toggle()
+        let enabled = isSlowAnimationsEnabled
+        return Task { [weak self] in
+            guard let self else { return }
+            if row.isSwiftCodeRemote, let deviceSettings = self.deviceSettings {
+                _ = await deviceSettings(row, ["ui", "slow-animations", enabled ? "on" : "off"])
+            } else {
+                _ = try? await SimctlService().setSlowAnimations(udid: row.identifier, enabled: enabled)
+            }
+            self.canvas.showBanner(enabled ? "Slow Animations Enabled" : "Slow Animations Disabled", seconds: 2)
+        }
+    }
+
+    @discardableResult
+    public func toggleStandbyMode() -> Task<Void, Never>? {
+        guard let row = selected, row.state == "Booted" else { return nil }
+        isStandbyModeEnabled.toggle()
+        let enabled = isStandbyModeEnabled
+        return Task { [weak self] in
+            guard let self else { return }
+            if row.isSwiftCodeRemote, let deviceSettings = self.deviceSettings {
+                _ = await deviceSettings(row, ["power", "standby", enabled ? "on" : "off"])
+            } else {
+                _ = try? await SimctlService().setStandbyMode(udid: row.identifier, enabled: enabled)
+            }
+            self.canvas.showBanner(enabled ? "Standby Mode Active" : "Standby Mode Inactive", seconds: 2)
+        }
+    }
+
     public var startDevice: ((DeviceRow) async -> (Bool, String))?
-    /// Shuts a running device down (force: no save). Set by the window.
     public var shutDownDevice: ((DeviceRow, Bool) async -> (Bool, String))?
-    /// The live display of a running device (nil: none). Set by the window.
     public var makeDisplayLink: ((DeviceRow) -> RemoteDisplayLink?)?
-    /// Devices being started or shut down (the canvas shows a spinner).
     public private(set) var busyDevices: Set<String> = []
     public private(set) var lifecycleTask: Task<Void, Never>?
-    /// Each running device's display (shared by the canvas and its compact window).
     public private(set) var links: [String: RemoteDisplayLink] = [:]
-    /// The compact windows, by device.
     public private(set) var compactWindows: [String: DeviceWindowController] = [:]
 
     func canStart(_ r: DeviceRow) -> Bool { r.isSwiftCodeRemote && r.state != "Booted" && startDevice != nil && !busyDevices.contains(r.identifier) }
     func canShutDown(_ r: DeviceRow) -> Bool { r.isSwiftCodeRemote && r.state == "Booted" && shutDownDevice != nil && !busyDevices.contains(r.identifier) }
 
-    /// Device ▸ Start (the status view's Start).
     @discardableResult
     public func start(_ r: DeviceRow) -> Task<Void, Never>? {
         guard canStart(r), let startDevice else { return nil }
@@ -349,7 +341,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return task
     }
 
-    /// Device ▸ Shut Down / Force Shut Down.
     @discardableResult
     public func shutDown(_ r: DeviceRow, force: Bool = false) -> Task<Void, Never>? {
         guard canShutDown(r), let shutDownDevice else { return nil }
@@ -373,7 +364,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return task
     }
 
-    /// Device ▸ Restart: Shut Down, then Start.
     @discardableResult
     public func restart(_ r: DeviceRow) -> Task<Void, Never>? {
         guard canShutDown(r) else { return nil }
@@ -385,7 +375,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return task
     }
 
-    /// The display link of a running row (made on demand).
     func link(for r: DeviceRow) -> RemoteDisplayLink? {
         guard r.state == "Booted" else { return nil }
         if let l = links[r.identifier] { return l }
@@ -400,9 +389,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         links.removeValue(forKey: id)?.close()
     }
 
-    /// Open in New Window (§2.2): the device's compact window (one per
-    /// device; a second request brings it forward). It shows the same live
-    /// display as the canvas.
     @discardableResult
     public func openInNewWindow(_ r: DeviceRow? = nil) -> DeviceWindowController? {
         guard let r = r ?? selected, let l = link(for: r) else { NSSound.beep(); return nil }
@@ -411,8 +397,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         w.defaults = defaults
         w.handlesKeyEquivalents = true
         w.onExpand = { [weak self, weak w] in
-            // Expand (Q5, SwiftCode decision): the hub comes forward with the
-            // device selected and the compact window closes.
             guard let self else { return }
             if let i = self.rows.firstIndex(where: { $0.identifier == r.identifier }) { self.select(row: i) }
             self.view.window?.makeKeyAndOrderFront(nil)
@@ -440,12 +424,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    // MARK: Context menu (Q6, SwiftCode decision)
-
-    /// The context menu of a row (§5.2): Start or Shut Down and Restart,
-    /// Open in New Window, the iPhone Duo's poses and Rotate Left / Right,
-    /// and Erase All Content and Settings… for SwiftCode's simulators; nothing
-    /// for others (SwiftCode cannot operate them).
     public func contextMenu(forRow row: Int) -> NSMenu {
         let menu = NSMenu()
         guard rows.indices.contains(row), rows[row].isSwiftCodeRemote else { return menu }
@@ -460,6 +438,23 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         menu.addItem(.separator())
         for i in headsetMenuItems(for: r) { menu.addItem(i) }
         for i in pairingMenuItems(for: r) { menu.addItem(i) }
+        if r.state == "Booted" {
+            let shake = NSMenuItem(title: "Shake", action: #selector(shakeChosen(_:)), keyEquivalent: "")
+            shake.target = self
+            menu.addItem(shake)
+            let mem = NSMenuItem(title: "Simulate Memory Warning", action: #selector(memoryPressureChosen(_:)), keyEquivalent: "")
+            mem.target = self
+            menu.addItem(mem)
+            let slow = NSMenuItem(title: "Slow Animations", action: #selector(slowAnimationsChosen(_:)), keyEquivalent: "")
+            slow.target = self
+            slow.state = isSlowAnimationsEnabled ? .on : .off
+            menu.addItem(slow)
+            let standby = NSMenuItem(title: "Standby Mode", action: #selector(standbyChosen(_:)), keyEquivalent: "")
+            standby.target = self
+            standby.state = isStandbyModeEnabled ? .on : .off
+            menu.addItem(standby)
+            menu.addItem(.separator())
+        }
         if r.isFoldable {
             let on = r.state == "Booted" && foldDevice != nil && foldTask == nil && selected?.identifier == r.identifier
             let current = hingeAngles[r.identifier]
@@ -487,7 +482,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return menu
     }
 
-    /// Start (or Shut Down and Restart) for a row, and Force Shut Down.
     func lifecycleItems(for r: DeviceRow) -> [NSMenuItem] {
         func item(_ title: String, _ action: Selector, enabled: Bool) -> NSMenuItem {
             let i = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -520,7 +514,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         let clicked = table.clickedRow
         guard tableRows.indices.contains(clicked), let d = tableRows[clicked].device,
               let i = rows.firstIndex(where: { $0.identifier == d.id }) else { return }
-        // The fold commands act on the selected row: the clicked one.
         if selected?.identifier != d.id { select(row: i) }
         for item in contextMenu(forRow: i).items {
             item.menu?.removeItem(item)
@@ -528,21 +521,14 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    // MARK: Erasing SwiftCode's remote simulator
-
     public static let eraseTitle = "Erase All Content and Settings…"
-    /// Asks before erasing (default: an alert). Tests answer it.
     public var confirmErase: (DeviceRow) -> Bool = { DevicesController.runEraseAlert($0) }
-    /// Erases the row's device: (succeeded, message). Set by the window.
     public var eraseDevice: ((DeviceRow) async -> (Bool, String))?
-    /// What the last erase reported ("Erasing…", "Erased", the error).
     public private(set) var eraseStatus: String?
-    /// The erase in flight (tests await it).
     public private(set) var eraseTask: Task<Void, Never>?
 
     @objc func eraseChosen(_ item: NSMenuItem) { erase(row: item.tag) }
 
-    /// Erases a row's device after the confirmation.
     @discardableResult
     public func erase(row: Int) -> Task<Void, Never>? {
         guard eraseTask == nil, rows.indices.contains(row), rows[row].isSwiftCodeRemote, let eraseDevice else { return nil }
@@ -564,7 +550,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         if isViewLoaded, selected?.isSwiftCodeRemote == true { updateInspector() }
     }
 
-    /// The confirmation: an alert with Erase and Cancel.
     static func runEraseAlert(_ d: DeviceRow) -> Bool {
         let a = NSAlert()
         a.messageText = "Are you sure you want to erase “\(d.name)”?"
@@ -575,8 +560,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return a.runModal() == .alertFirstButtonReturn
     }
 
-    // MARK: Views
-
     public override func loadView() {
         super.loadView()
         view.frame = NSRect(x: 0, y: 0, width: 1100, height: 800)
@@ -586,7 +569,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
 
     public override func viewDidLoad() {
         super.viewDidLoad()
-        // FEAT-IMPL's settings boxes fit the inspector (280 less its insets).
         Self.settingsPaneWidth = 256
         splitView.dividerStyle = .thin
         sidebarVC.view = makeSidebar()
@@ -608,7 +590,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         for i in [side, center, inspector] { addSplitViewItem(i) }
         sidebarItem = side
         inspectorItem = inspector
-        // Add Device and Filter hide with the sidebar (device-hub.md §11.4).
         sidebarCollapseObservation = side.observe(\.isCollapsed) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.toolbarController.updateSidebarItems() }
         }
@@ -623,9 +604,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         statePoll = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.pollRemoteRows() } }
     }
 
-    /// The sidebar 240 wide and the inspector 280 (§2.1) the first time
-    /// the window appears (afterwards the saved widths). The layout probe
-    /// calls it for a window it keeps off screen.
     func placeFirstDividers() {
         let saved = splitView.autosaveName.map { UserDefaults.standard.object(forKey: "NSSplitView Subview Frames \($0)") != nil } ?? false
         if !saved, !placedDividers {
@@ -641,10 +619,7 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         statePoll = nil
     }
 
-    /// The remote rows' state follows runs and started devices.
     func pollRemoteRows() {
-        // A device that was booting when it was selected: its settings and
-        // fold are read once its display is live.
         if let r = selected, r.state == "Booted", links[r.identifier]?.session.isLive == true {
             if settingsSnapshot == nil, settingsTask == nil, settingsControlsEnabled { refreshSettings() }
             if foldControlsEnabled, hingeAngles[r.identifier] == nil, foldTask == nil { refreshFold() }
@@ -735,15 +710,12 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
         canvas.onCaptureChange = { [weak self] on in self?.toolbarController.updateCapture(on) }
         canvas.commandFallback = { [weak self] c in self?.performWithoutDisplay(c) ?? false }
-        // A Vision Pro: View in Headset / Back to Desktop (§I.12).
         canvas.headsetCommandEnabled = { [weak self] in self?.canToggleHeadset(self?.selected) ?? false }
         canvas.headsetCommandTitle = { [weak self] in self?.headsetCommandTitle(for: self?.selected) ?? "View in Headset" }
         canvas.onTakeBack = { [weak self] in if let r = self?.selected { self?.backToDesktop(r) } }
         return root
     }
 
-    /// Commands that work without a live display: the fold and rotation of
-    /// a running SwiftCode simulator go through its control socket (ssh).
     func performWithoutDisplay(_ c: DeviceCommand) -> Bool {
         switch c {
         case .poseClosed: return fold(to: 0) != nil
@@ -752,6 +724,10 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         case .rotateLeft: return rotate(left: true) != nil
         case .rotateRight: return rotate(left: false) != nil
         case .viewInHeadset: return toggleHeadset() != nil
+        case .shake: return triggerShake() != nil
+        case .memoryPressure: return triggerMemoryPressure() != nil
+        case .slowAnimations: return toggleSlowAnimations() != nil
+        case .standby: return toggleStandbyMode() != nil
         default: return false
         }
     }
@@ -761,14 +737,12 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         let scroll = NSScrollView()
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
-        // No empty scroll track (§11.3): the scroller shows only when the cards are taller.
         scroll.autohidesScrollers = true
         scroll.scrollerStyle = .overlay
         scroll.documentView = inspectorContent
         inspectorContent.orientation = .vertical
         inspectorContent.alignment = .leading
         inspectorContent.spacing = 10
-        // The cards 10 inside the inspector, the first 8 under the toolbar (§11.3).
         inspectorContent.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 12, right: 10)
         inspectorContent.translatesAutoresizingMaskIntoConstraints = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
@@ -787,8 +761,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return root
     }
 
-    // MARK: Selection
-
     public func select(row: Int) {
         selected = rows.indices.contains(row) ? rows[row] : nil
         multipleSelection = []
@@ -804,11 +776,8 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         showDetails()
     }
 
-    /// Several rows selected (the canvas says so; double-click opens a
-    /// compact window for each).
     public private(set) var multipleSelection: [DeviceRow] = []
 
-    /// Refreshes everything that shows the selection.
     func showDetails() {
         updateInspector()
         refreshCanvas()
@@ -816,7 +785,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         toolbarController.update()
     }
 
-    /// The canvas for the selection (§4.1).
     func refreshCanvas() {
         guard isViewLoaded else { return }
         if multipleSelection.count > 1 { canvas.pairedTitle = nil; canvas.showMessage("Multiple Devices Selected"); return }
@@ -831,13 +799,10 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         } else if r.isSwiftCodeRemote {
             canvas.showStopped(spec: spec, name: r.name, os: d.osTitle, action: r.state == "Booted" ? nil : "Start")
         } else {
-            // Other simulators and devices: listed only (SwiftCode does not operate them).
             canvas.showStopped(spec: spec, name: r.name, os: d.osTitle, action: nil)
         }
     }
 
-    /// The canvas with nothing selected; with no devices at all it says what
-    /// a device takes.
     var emptyCanvasMessage: String {
         guard devices.isEmpty, simulators.isEmpty else { return "No Selection" }
         return "No Devices\n\n\(ExperimentalNotice.simulator)\n\(ExperimentalNotice.simulatorSetup)"
@@ -854,8 +819,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    // MARK: Inspector (§6)
-
     public func selectInspectorTab(_ t: InspectorTab) {
         inspectorTab = t
         defaults.set(t.rawValue, forKey: Self.tabKey)
@@ -870,7 +833,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         updateInspector()
     }
 
-    /// The Info rows (label, value), the hidden ones left out.
     public var detailRows: [(String, String)] {
         guard let d = selected else { return [("No Selection", "")] }
         let physical = devices.contains { $0.identifier == d.identifier }
@@ -886,13 +848,9 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return out.filter { editingInfoVisibility || !hiddenInfoRows.contains($0.0) }
     }
 
-    /// Rebuilds the inspector's content for the tab.
     func updateInspector() {
         guard isViewLoaded else { return }
         inspectorContent.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        // Wiring (wiring-views): the Apps tab's hosted view is rebuilt by
-        // `buildAppsTab()`; drop the previous hosting controller here so
-        // switching tabs does not leave a detached child behind.
         appsHosting?.removeFromParent()
         appsHosting = nil
         switch inspectorTab {
@@ -905,7 +863,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
                     if headset.report == nil, headset.checkTask == nil { checkHeadset() }
                 }
             } else {
-                // §11.3: one card holding the message when SwiftCode offers no settings.
                 if selected == nil {
                     inspectorContent.addArrangedSubview(Self.secondary("No Selection"))
                 } else {
@@ -929,13 +886,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         }
     }
 
-    /// The Apps tab (wiring-views): `SimulatorAppsView` for the selected
-    /// simulator, resolved to the real `SimulatorDevice` by UDID from
-    /// `SimulatorManager.shared.devices` (the hub's simulator rows carry
-    /// the simctl UDID as their identifier). Physical devices and
-    /// unresolvable rows keep the honest "No Apps" placeholder. The
-    /// hosted view gets a fixed height: its inner `ScrollView` has no
-    /// intrinsic height for the inspector stack.
     private func buildAppsTab() {
         appsHosting?.view.removeFromSuperview()
         appsHosting?.removeFromParent()
@@ -996,7 +946,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         edit.controlSize = .small
         inspectorContent.addArrangedSubview(edit)
         inspectorContent.setCustomSpacing(12, after: group)
-        // Centred under the box.
         edit.centerXAnchor.constraint(equalTo: group.centerXAnchor).isActive = true
     }
 
@@ -1022,14 +971,11 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         defaults.set(Array(hiddenInfoRows), forKey: Self.hiddenInfoKey)
     }
 
-    /// Edit Visibility for tests: hides or shows a row.
     public func setInfoRow(_ label: String, visible: Bool) {
         if visible { hiddenInfoRows.remove(label) } else { hiddenInfoRows.insert(label) }
         defaults.set(Array(hiddenInfoRows), forKey: Self.hiddenInfoKey)
         updateInspector()
     }
-
-    // MARK: Sidebar table
 
     public func numberOfRows(in t: NSTableView) -> Int { tableRows.count }
 
@@ -1081,18 +1027,13 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     @objc func headerClicked(_ sender: NSButton) { if let t = sender.identifier?.rawValue { toggleSection(t) } }
 
     @objc func rowDoubleClicked(_ sender: Any?) {
-        // Double-click opens a compact window for each selected running device (§2.2).
         let picked = table.selectedRowIndexes.compactMap { tableRows.indices.contains($0) ? tableRows[$0].device : nil }
         for d in picked { if let r = allRows.first(where: { $0.identifier == d.id }), r.state == "Booted" { openInNewWindow(r) } }
     }
 
     @objc func searchChanged(_ sender: NSSearchField) { setSearch(sender.stringValue) }
 
-    // MARK: DeviceMenuTarget
-
     public var activeCanvas: DeviceCanvasView? { canvas }
-
-    // MARK: Window and persistence (§2.1)
 
     static let selectionKey = "SwiftCode.deviceHub.selection"
     static let tabKey = "SwiftCode.deviceHub.inspectorTab"
@@ -1104,8 +1045,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     static let bezelsKey = "SwiftCode.deviceHub.bezels"
     static let hiddenInfoKey = "SwiftCode.deviceHub.hiddenInfoRows"
 
-    /// Restores the hub's saved state: filter, collapsed sections, the
-    /// inspector tab and sub-tab, hidden Info rows, the selected device.
     public func restoreState() {
         if let f = defaults.string(forKey: Self.filterKey).flatMap(HubFilter.init(rawValue:)) { sidebarModel.filter = f }
         sidebarModel.collapsed = Set(defaults.stringArray(forKey: Self.collapsedKey) ?? [])
@@ -1122,9 +1061,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         Task { await refreshPairs() }
     }
 
-    /// The hub window (§2.1): 1100 × 800 at first, unified toolbar without
-    /// background, sidebar and inspector full height, the selected device
-    /// as title and its OS as subtitle; frame and split widths kept.
     public func makeWindow() -> NSWindow {
         let w = NSWindow(contentViewController: self)
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
@@ -1142,8 +1078,6 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
         return w
     }
 
-    /// View ▸ Hide Sidebar / Show Sidebar (§2.1): the window keeps its
-    /// width; the canvas takes the space.
     @objc public func toggleHubSidebar(_ sender: Any?) {
         guard let s = sidebarItem else { return }
         s.animator().isCollapsed.toggle()
@@ -1152,13 +1086,11 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
 
     public var sidebarShown: Bool { sidebarItem?.isCollapsed == false }
 
-    /// Ends the displays (the window closes).
     public func closeLinks() {
         for id in Array(links.keys) where compactWindows[id] == nil { links.removeValue(forKey: id)?.close() }
     }
 }
 
-/// The inspector's rounded group box (§6, §8: grouped-form style).
 final class GroupBoxView: NSView {
     init(content: NSView) {
         super.init(frame: .zero)
@@ -1181,9 +1113,6 @@ final class GroupBoxView: NSView {
     }
 }
 
-/// A sidebar row (§5.2): a 32-point disc with SwiftCode's device-class glyph
-/// (coloured on white while running, grey on grey otherwise), the name over
-/// "Simulator" or the model, and the OS version at the trailing edge.
 final class DeviceHubRowView: NSView {
     let device: HubDevice
 
@@ -1198,7 +1127,6 @@ final class DeviceHubRowView: NSView {
             disc.layer?.borderWidth = 0.5
             disc.layer?.borderColor = NSColor.separatorColor.cgColor
         }
-        // SwiftCode's own glyph (no product symbols, AGENTS.md rule 5): lit while running.
         let glyph = NSImageView(image: DeviceGlyph.of(d.family).image(height: d.family == .vision ? 11 : d.family == .watch ? 17 : 18,
                                                                       lit: d.isRunning))
         glyph.contentTintColor = d.isRunning ? .controlAccentColor : .secondaryLabelColor

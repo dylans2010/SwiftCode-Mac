@@ -4,11 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// B2-DOWNLOAD (#55): Get a Runtime in the macOS window. Route C runs a
-/// stand-in `xcodebuild` that prints download progress (nothing is installed
-/// into CoreSimulator or /Library/Developer); route B runs against stand-ins
-/// for Apple's index, asset service and CDN. With `SWIFTCODE_RUNTIME_SHOTS=<dir>`
-/// every state is photographed as `mac-download-*.png`.
 @MainActor
 @Suite(.serialized) struct RuntimeDownloadWindowTests {
     struct Runner: HeadsetCommandRunner {
@@ -22,9 +17,6 @@ import Testing
         }
     }
 
-    /// Apple's index (made up) and a slow, sparse "download". With `hold`
-    /// set, a download stops at 40 % until it is cancelled, so the test's
-    /// Cancel lands mid-download however busy the machine is.
     final class Transport: RuntimeTransport, @unchecked Sendable {
         let hold = LockedFlag()
         let index: Data = {
@@ -64,12 +56,6 @@ import Testing
         return p
     }
 
-    /// Progress as the stand-in prints it, every 50 ms (the real wording is
-    /// to be confirmed, `runtime-onboarding.md` §6.1; the reader takes any).
-    /// With a `gate`, it stops after printing `pause` % until that file
-    /// exists (at most a minute, so the stand-in always ends), and the test
-    /// looks at a download in progress, or cancels one, whenever it gets the
-    /// main actor, never in a window of a few frames.
     static func progressScript(gate: URL? = nil, pause: Int = 50) -> String {
         let wait = gate.map {
             "if [ $i -eq \(pause) ]; then n=0; while [ ! -e '\($0.path)' ] && [ $n -lt 1200 ]; do sleep 0.05; n=$((n + 1)); done; fi"
@@ -114,8 +100,6 @@ import Testing
         try #require(rep.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: dir).appendingPathComponent("mac-download-\(name).png"))
     }
 
-    /// Waits for `done`, counting only the time the main actor had
-    /// (`waitUntil`); a timeout is recorded where it happened.
     func until(_ what: String, limit: Double = 60, _ done: () -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async {
         if !(await waitUntil(limit, done)) { Issue.record("timed out waiting for \(what)", sourceLocation: sourceLocation) }
     }
@@ -135,14 +119,12 @@ import Testing
         s.downloads.environment = ["SWIFTCODE_XCODEBUILD": ok, "PATH": "/usr/bin:/bin"]
         let transport = Transport()
         let installed = LockedFlag()
-        // A stand-in host for the confirmation's host line and the request, whatever Mac runs the test.
         let host = RuntimeHostDescription(isMac: true, productName: "macOS", productVersion: "27.2", buildVersion: "26B1",
                                           architecture: "arm64", macModel: "Mac15,10", client: "SwiftCode/1.0.0-beta.2")
         s.downloads.host = host
         s.downloads.makeDirect = { folder in
             let d = RuntimeDirectDownload(folder: folder, transport: transport, expander: SystemAppleArchiveExpander(), reader: HdiutilImageReader(),
                                           host: host)
-            // Room for the archive whatever the host's disk holds (§6.2's space check is the model's, not this volume's).
             d.freeSpace = { _ in 200 << 30 }
             d.query = { type, build in
                 if installed.value { throw RuntimeDownloadError.refused("HTTP 403 (stand-in)") }
@@ -164,14 +146,12 @@ import Testing
         let root = try #require(wc.window?.contentView)
         #expect(s.downloads.xcodeAvailable)
         #expect(RuntimeSetupWindowTests.find("runtime-download-xcode", in: root) != nil)
-        // Route C comes first on a Mac, then route B, then route A.
         let texts = RuntimeSetupWindowTests.texts(root)
         let c = try #require(texts.firstIndex(of: "With Xcode (recommended on a Mac)")), b = try #require(texts.firstIndex(of: "Downloaded by SwiftCode")),
             a = try #require(texts.firstIndex(of: "A runtime you have"))
         #expect(c < b && b < a)
         try shot(wc, "01-step")
 
-        // Route C: the exact command, then progress, then done.
         s.downloads.setExportCopy(true)
         s.downloads.setExportPath("/tmp/SwiftCode Runtimes")
         wc.xcodeDownloadClicked()
@@ -181,7 +161,6 @@ import Testing
         try shot(alert: confirm, "03-xcode-confirm")
         wc.answerConfirmation = { shown = $0; return nil }
         s.confirm()
-        // The stand-in waits at 50 % for the gate: the phase is a progress line, not "Installing…".
         await until("route C's progress") { (s.downloads.activity?.fraction ?? 0) > 0.4 }
         #expect(s.downloads.activity?.isRunning == true)
         #expect(s.downloads.activity?.phase.contains("MB of") == true || s.downloads.activity?.phase.contains("GB") == true,
@@ -193,8 +172,6 @@ import Testing
         #expect(s.downloads.log.contains("-downloadPlatform") && s.downloads.log.contains("Done."))
         try shot(wc, "05-xcode-done")
 
-        // Cancel: an interrupt, as ⌃C (the stand-in waits at 10 % for a gate that never opens,
-        // so the cancel lands mid-download however busy the machine is).
         s.downloads.setExportCopy(false)
         s.downloads.environment["SWIFTCODE_XCODEBUILD"] = try Self.standIn(dir, Self.progressScript(gate: dir.appendingPathComponent("never"), pause: 10))
         s.request(try #require(s.downloads.xcodeAction))
@@ -205,7 +182,6 @@ import Testing
         #expect(s.downloads.activity?.state == .cancelled)
         try shot(wc, "06-xcode-cancelled")
 
-        // A failure: its last lines, and Retry.
         s.downloads.environment["SWIFTCODE_XCODEBUILD"] = try Self.standIn(dir, "echo 'Downloading tvOS 27.2 Simulator (24K150): 3%'\necho 'xcodebuild: error: The network connection was lost.' >&2\nexit 70\n")
         s.request(try #require(s.downloads.xcodeAction))
         s.confirm()
@@ -215,7 +191,6 @@ import Testing
         #expect(RuntimeSetupWindowTests.find("runtime-download-retry", in: root) != nil)
         try shot(wc, "07-xcode-failed")
 
-        // Route B: the versions, the confirmation (honest host line), progress, Cancel and Resume, a checksum failure.
         wc.showVersionsClicked()
         await until("the index") { s.downloads.indexState == .loaded }
         #expect(s.downloads.recommended?.build == "24K150")
@@ -225,7 +200,6 @@ import Testing
         #expect(direct.command == "swiftcode runtime download tvOS --build 24K150")
         #expect(direct.message.contains("Mac15,10") && direct.message.contains("SHA-256"))
         try shot(alert: direct, "09-direct-confirm")
-        // The stand-in transport holds at 40 % until the cancel, so the cancel never lands after the checksum.
         transport.hold.value = true
         s.confirm()
         await until("route B's progress") { (s.downloads.activity?.fraction ?? 0) > 0.3 }
@@ -240,7 +214,6 @@ import Testing
         guard case .failed(let why, _, _)? = s.downloads.activity?.state else { Issue.record("expected the checksum to fail"); return }
         #expect(why.contains("checksum"))
         try shot(wc, "12-direct-checksum")
-        // The service refuses: the other routes are offered.
         installed.value = true
         s.request(try #require(s.downloads.directAction))
         s.confirm()
@@ -250,7 +223,6 @@ import Testing
         try shot(wc, "13-direct-refused")
         wc.window?.appearance = NSAppearance(named: .darkAqua)
         try shot(wc, "13-direct-refused-dark")
-        // No key in anything shown.
         #expect(!s.downloads.log.contains(Data([UInt8](repeating: 9, count: 32)).base64EncodedString()))
     }
 }

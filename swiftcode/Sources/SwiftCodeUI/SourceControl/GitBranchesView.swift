@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/Legacy/GitBranchesView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Adaptation: Destination GitBranch is not Identifiable: ForEach uses id: \.name.
 import SwiftUI
 import SwiftCodeSDK
 
@@ -10,7 +7,6 @@ struct GitBranchesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Git Branches Directory", systemImage: "arrow.triangle.branch")
                     .font(.headline)
@@ -23,7 +19,6 @@ struct GitBranchesView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {
@@ -61,10 +56,10 @@ struct GitBranchesView: View {
                                         .background(branch.isCurrent ? Color.green.opacity(0.05) : Color.secondary.opacity(0.04))
                                         .cornerRadius(6)
                                         .contextMenu {
-                                            Button("Checkout") { /* Checkout */ }
-                                            Button("Merge into current") { /* Merge */ }
+                                            Button("Checkout") {  }
+                                            Button("Merge into current") {  }
                                             Divider()
-                                            Button("Delete", role: .destructive) { /* Delete */ }
+                                            Button("Delete", role: .destructive) {  }
                                         }
                                     }
                                 }

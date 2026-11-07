@@ -1,19 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// AF_UNIX sockets inside the VMM (`specs/simulator/stage4b-contract.md` §2
-// item 4 and §6 item 3; semantics `specs/simulator/processes.md` §5 and
-// xnu's `uipc_usrreq.c`). Every guest process of a device runs in one host
-// process, so a socket is a plain object shared under the kernel lock:
-// passing a descriptor passes a reference, and blocking is a `WaitQueue`
-// wait. Owner: agent F.
-//
-// Data lives in the receiver: a stream writer appends to its peer's receive
-// queue (back-pressure: at most the writer's SO_SNDBUF bytes in flight), a
-// datagram is appended to the target's queue or fails at once (ENOBUFS when
-// the target's SO_RCVBUF is full; Darwin never blocks a datagram sender).
-
-/// Darwin socket ABI values (`processes.md` §5.1).
 enum SocketABI {
     static let afUnspec: Int32 = 0, afUnix: Int32 = 1, afInet: Int32 = 2, afInet6: Int32 = 30
     static let sockStream: Int32 = 1, sockDgram: Int32 = 2
@@ -28,46 +15,29 @@ enum SocketABI {
                soNoSigPipe: Int32 = 0x1022, soNWrite: Int32 = 0x1024, soLingerSec: Int32 = 0x1080
     static let localPeerCred: Int32 = 1, localPeerPID: Int32 = 2, localPeerEPID: Int32 = 3,
                localPeerUUID: Int32 = 4, localPeerEUUID: Int32 = 5, localPeerToken: Int32 = 6
-    /// `SOMAXCONN`.
     static let maxBacklog = 128
-    /// `SOCK_MAXADDRLEN`.
     static let maxAddressLength = 255
-    /// The unnamed address (`getsockname` of an unbound socket, `accept`
-    /// and `recvfrom` of an unbound peer): a 16-byte `struct sockaddr` with
-    /// `sa_len` 16, family AF_UNIX, zero data.
     static let unnamed: [UInt8] = [16, 1] + [UInt8](repeating: 0, count: 14)
-    /// `net.local.stream.sendspace` / `recvspace`.
     static let streamBuffer = 8192
-    /// `net.local.dgram.maxdgram` (the datagram send buffer) and `recvspace`.
     static let datagramMax = 2048
     static let datagramReceiveBuffer = 4096
-    /// Default send low-water mark (EVFILT_WRITE fires above it).
     static let sendLowWater = 2048
 }
 
-/// A guest `sockaddr_un` (`processes.md` §5.3): the bytes as the kernel
-/// stores them (`sun_len` = the length given) and the path, cut at the
-/// first NUL.
 struct UnixAddress {
     var raw: [UInt8]
     var path: String
 }
 
-/// A weak reference to a socket.
 struct WeakSocket {
     weak var socket: UnixSocket?
 }
 
-/// What one receive call took.
 struct SocketReceive {
     var bytes: [UInt8] = []
-    /// The sender's address (datagrams).
     var from: [UInt8]?
-    /// Descriptions passed with SCM_RIGHTS, now owned by the caller.
     var rights: [DarwinOpenFile]?
-    /// With MSG_PEEK: how many rights wait with the data (not taken).
     var peekedRights = 0
-    /// The datagram was longer than the buffer.
     var truncated = false
 }
 
@@ -94,49 +64,31 @@ final class UnixSocket: KernelDescriptorObject {
     let lock: KernelLock
     let signals = ObjectSignals()
     let inode = DescriptorInodes.make()
-    /// The creator's credentials (`so_cred`: fstat's uid/gid).
     let creator: DescriptorUser
-    /// The process that last used this socket (`LOCAL_PEERPID` of its peer).
     var lastUser: DescriptorUser
 
-    // Naming and connection.
-    /// The bound (or, for an accepted socket, the listener's) address.
     var address: [UInt8]?
-    /// The canonical guest path of the socket file `bind` made.
     var boundPath: String?
-    /// The connected peer (stream) or the default destination (datagram).
     var peer: UnixSocket?
-    /// A datagram socket connected to a log path nobody serves.
     var logSink: String?
-    /// The host end of a host-provided stream socket (`HostStreamSockets`):
-    /// bytes the peer sends are handed to it instead of being queued.
     var hostSink: ((ArraySlice<UInt8>) -> Void)?
-    /// The host end of a host-provided socket that answers
-    /// (`HostStreamSockets.endpoint`): it gets what the peer sends, rights
-    /// included, and writes back into the peer's receive queue.
     var hostEndpoint: HostSocketEndpoint?
     var isConnected = false
     var cantReceiveMore = false
     var cantSendMore = false
     var closed = false
-    /// `so_error`: reported once by the next operation or SO_ERROR.
     var error: Int32 = 0
 
-    // Listening.
     var isListening = false
     var backlog = 0
     var pending: [UnixSocket] = []
-    /// The listener's credentials, recorded by `listen` (`unp_listen`).
     var listenUser: DescriptorUser?
 
-    // Receive queue.
     var segments: [Segment] = []
     var datagrams: [Datagram] = []
     var queuedBytes = 0
-    /// Datagram sockets whose default destination is this socket.
     var connectedSenders: [WeakSocket] = []
 
-    // Options.
     var sendBufferSize: Int
     var receiveBufferSize: Int
     var sendLowWater = SocketABI.sendLowWater
@@ -145,9 +97,7 @@ final class UnixSocket: KernelDescriptorObject {
     var receiveTimeout: UInt64?
     var sendTimeout: UInt64?
     var linger: (onOff: Int32, seconds: Int32) = (0, 0)
-    /// Other SOL_SOCKET options, stored as given.
     var otherOptions: [Int32: [UInt8]] = [:]
-    /// `LOCAL_PEERCRED`: recorded at connect / socketpair time.
     var peerCredentials: DescriptorUser?
 
     init(kind: Kind, lock: KernelLock, creator: DescriptorUser) {
@@ -165,9 +115,6 @@ final class UnixSocket: KernelDescriptorObject {
         lock.withLock { close() }
     }
 
-    /// xnu `soo_stat` + `uipc_sense`: `S_IFSOCK`, read bits while data can
-    /// still arrive or is queued, write bits while sending is allowed, the
-    /// queued byte count, the creator's uid/gid, SO_SNDBUF as the block size.
     func descriptorStat() -> DarwinStat {
         var mode = DarwinStat.S_IFSOCK
         if !cantReceiveMore || queuedBytes > 0 { mode |= 0o444 }
@@ -177,8 +124,6 @@ final class UnixSocket: KernelDescriptorObject {
         return DarwinStat(mode: mode, nlink: 0, ino: inode, uid: creator.uid, gid: creator.gid,
                           size: Int64(queuedBytes), blksize: Int32(clamping: blk))
     }
-
-    // MARK: Readiness (kevent)
 
     func readReadiness() -> (ready: Bool, data: Int64, eof: Bool) {
         if isListening { return (!pending.isEmpty, Int64(pending.count), closed) }
@@ -208,30 +153,21 @@ final class UnixSocket: KernelDescriptorObject {
     func addReadinessObserver(_ observer: @escaping () -> Void) -> Int { signals.addObserver(observer) }
     func removeReadinessObserver(_ token: Int) { signals.removeObserver(token) }
 
-    // MARK: State
-
-    /// Bytes this stream socket may still put in flight to its peer.
     var streamSpace: Int {
         guard let p = peer else { return 0 }
         return max(0, sendBufferSize - p.queuedBytes)
     }
 
-    /// The peer's address (`getpeername`, an accepted connection's address).
     var peerAddress: [UInt8]? {
         guard let p = peer else { return nil }
         return p.address ?? SocketABI.unnamed
     }
 
-    /// Wakes this socket's and its peer's waiters and observers.
     func changedWithPeer() {
         signals.fire()
         if let p = peer, p !== self { p.signals.fire() }
     }
 
-    /// Takes (or with `peek` copies) up to `max` stream bytes. Rights travel
-    /// with the bytes they were sent with: a call takes the rights of the
-    /// first segment it reads and stops before the next segment that
-    /// carries rights.
     func takeStream(max: Int, peek: Bool, allowRights: Bool)
         -> (bytes: [UInt8], rights: [DarwinOpenFile]?, peekedRights: Int, stoppedAtRights: Bool) {
         var out: [UInt8] = []
@@ -270,23 +206,20 @@ final class UnixSocket: KernelDescriptorObject {
         return (out, rights, peeked, false)
     }
 
-    /// Appends stream bytes (and rights) sent by the peer.
     func appendStream(_ bytes: ArraySlice<UInt8>, rights: [DarwinOpenFile]?) {
-        guard !cantReceiveMore else { return }  // shut down for reading: dropped
+        guard !cantReceiveMore else { return }
         if let hostEndpoint {
             hostEndpoint.received(bytes, rights: rights)
             return
         }
         if let hostSink {
-            hostSink(bytes)  // rights are dropped (released with this call)
+            hostSink(bytes)
             return
         }
         segments.append(Segment(bytes: Array(bytes), rights: rights))
         queuedBytes += bytes.count
     }
 
-    /// Drops everything queued (rights are released after the queue is
-    /// empty, since releasing one may close another socket).
     func flushReceiveQueue() {
         let dropped = (segments, datagrams)
         segments = []
@@ -295,8 +228,6 @@ final class UnixSocket: KernelDescriptorObject {
         withExtendedLifetime(dropped) {}
     }
 
-    /// A stream connection ends: both sides can neither send nor receive
-    /// more (queued data stays readable), and neither is connected.
     func disconnectStream() {
         guard let p = peer else { return }
         p.hostEndpoint?.disconnected()
@@ -309,10 +240,6 @@ final class UnixSocket: KernelDescriptorObject {
         p.signals.fire()
     }
 
-    /// The socket's last reference is gone (`uipc_detach`): pending
-    /// connections are dropped, the peer is disconnected, datagram senders
-    /// connected to it get ECONNRESET, queued data and rights are released.
-    /// The socket file stays (a later connect is refused).
     func close() {
         guard !closed else { return }
         closed = true
@@ -343,28 +270,15 @@ final class UnixSocket: KernelDescriptorObject {
     }
 }
 
-// MARK: - Data transfer
-
 extension DarwinKernel {
-    /// The paths a datagram may be sent to while nothing is bound there:
-    /// the syslog / ASL input sockets. Such a datagram (or a connect to the
-    /// path) is accepted and its text logged as a `note: sendto message:`
-    /// line, as stage 4a did for every `sendto`: the runtime's logging must
-    /// not fail before a log daemon exists (4c). Once a guest binds the path,
-    /// datagrams go to it.
     static let logSinkPaths: Set<String> = ["/var/run/syslog", "/var/run/asl_input", "/dev/log"]
 
-    /// Logs a datagram's text like stage 4a's `sendto` (NUL and newline as
-    /// spaces, trimmed, at most 2048 bytes).
     func logDatagramText(_ bytes: [UInt8]) {
         guard !bytes.isEmpty else { return }
         let text = String(decoding: bytes.prefix(2048).map { $0 == 0 || $0 == 10 ? 0x20 : $0 }, as: UTF8.self)
         trace("note: sendto message: \(text.trimmingCharacters(in: .whitespaces))")
     }
 
-    /// The socket bound at `path`, nil when the socket file has no open
-    /// socket (ECONNREFUSED for the caller). Lookup errors are thrown (ENOENT,
-    /// ENOTSOCK for a file that is no socket).
     func boundSocket(at path: String) throws -> UnixSocket? {
         switch try fileSystem.socketTarget(path) {
         case let .socket(o):
@@ -375,7 +289,6 @@ extension DarwinKernel {
         }
     }
 
-    /// Whether `path` is a log sink now: a log path with nothing at it.
     func isLogSink(_ path: String) -> Bool {
         let normalized = fileSystem.normalize(path, cwd: fileSystem.cwd)
         guard Self.logSinkPaths.contains(normalized) else { return false }
@@ -387,9 +300,6 @@ extension DarwinKernel {
         }
     }
 
-    /// Sends on a socket (write, send, sendto, sendmsg). EPIPE raises
-    /// SIGPIPE in the calling thread unless SO_NOSIGPIPE, MSG_NOSIGNAL, or
-    /// F_SETNOSIGPIPE applies.
     func socketSend(_ s: UnixSocket, _ file: DarwinOpenFile, _ bytes: [UInt8], rights: [DarwinOpenFile]?,
                     to address: UnixAddress?, flags: Int32) throws -> Int {
         guard flags & SocketABI.msgOOB == 0 else { throw fail(Code.EOPNOTSUPP) }
@@ -422,7 +332,6 @@ extension DarwinKernel {
         if s.cantSendMore { throw fail(Code.EPIPE) }
         try takeError(s)
         if !s.isConnected {
-            // xnu `uipc_send`: an address connects first.
             guard let address else { throw fail(Code.ENOTCONN) }
             try connectSocket(s, to: address)
         }
@@ -467,7 +376,6 @@ extension DarwinKernel {
                               to address: UnixAddress?) throws -> Int {
         if s.cantSendMore { throw fail(Code.EPIPE) }
         try takeError(s)
-        // sosend: a datagram must fit the send buffer.
         guard bytes.count <= s.sendBufferSize else { throw fail(Code.EMSGSIZE) }
         let target: UnixSocket
         if let address {
@@ -500,8 +408,6 @@ extension DarwinKernel {
         return bytes.count
     }
 
-    /// Receives from a socket (read, recv, recvfrom, recvmsg). Blocks for
-    /// data unless non-blocking (EAGAIN) or SO_RCVTIMEO passes (EAGAIN).
     func socketReceive(_ s: UnixSocket, _ file: DarwinOpenFile, max: Int, flags: Int32) throws -> SocketReceive {
         guard flags & SocketABI.msgOOB == 0 else { throw fail(Code.EOPNOTSUPP) }
         s.lastUser = descriptorUser
@@ -573,10 +479,6 @@ extension DarwinKernel {
         }
     }
 
-    // MARK: Connection
-
-    /// `connect` (and the implicit connect of a stream `sendto`):
-    /// `processes.md` §5.3 and xnu `unp_connect`.
     func connectSocket(_ s: UnixSocket, to address: UnixAddress) throws {
         s.lastUser = descriptorUser
         switch s.kind {
@@ -587,9 +489,6 @@ extension DarwinKernel {
             let sink = HostStreamSockets.sink(for: hostPath, from: descriptorUser)
             let endpoint = sink == nil ? HostStreamSockets.endpoint(for: hostPath) : nil
             if sink != nil || endpoint != nil {
-                // A host-provided socket (no guest listener): connected at
-                // once to a host end that consumes what is sent (and, for an
-                // endpoint, answers).
                 let host = UnixSocket(kind: .stream, lock: lock, creator: descriptorUser)
                 host.address = address.raw
                 host.hostSink = sink
@@ -606,7 +505,6 @@ extension DarwinKernel {
             guard let listener = try boundSocket(at: address.path) else { throw fail(Code.ECONNREFUSED) }
             guard listener.kind == s.kind else { throw fail(Code.EPROTOTYPE) }
             guard listener.isListening, listener !== s else { throw fail(Code.ECONNREFUSED) }
-            // sonewconn: refuse once more than 3/2 × backlog are pending.
             guard listener.pending.count <= 3 * listener.backlog / 2 else { throw fail(Code.ECONNREFUSED) }
             let server = UnixSocket(kind: .stream, lock: lock, creator: listener.creator)
             server.address = listener.address
@@ -644,7 +542,6 @@ extension DarwinKernel {
         }
     }
 
-    /// A datagram socket forgets its default destination.
     func disconnectDatagram(_ s: UnixSocket) {
         if let p = s.peer, p !== s { p.connectedSenders.removeAll { $0.socket == nil || $0.socket === s } }
         s.peer = nil

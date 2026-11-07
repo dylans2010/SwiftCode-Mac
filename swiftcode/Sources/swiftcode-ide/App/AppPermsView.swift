@@ -1,27 +1,4 @@
-// AppPermsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/AppPermsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Accessibility permission item; Full Disk Access permission item; Developer Mode permission item; per-permission tools-relied-upon lists and grant deep-links
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AXIsProcessTrusted, AXIsProcessTrustedWithOptions, DispatchSemaphore, SFSpeechRecognizer.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
-//
-//  AppPermsView.swift
-//  SwiftCode
-//
-//  Comprehensive System Permissions & Tool Authorizations Hub.
-//  Discovers, displays, and assists users in granting all macOS permissions
-//  required for full SwiftCode and Assist operation:
-//  - Accessibility (use_app, UI automation)
-//  - Screen Recording (take_screenshot, take_screenrecord)
-//  - Full Disk Access / Filesystem (file_read, file_write, dir_read, Git operations)
-//  - Developer Tools & Execution (use_terminal, project_build, CLI tools)
-//  - Automation / Apple Events (open_in_finder, reveal_in_finder, System Events)
-//  - Microphone (Assist Voice Assistant prompt)
-//  - Speech Recognition (Real-time dictation)
-//  - System Notifications (Build/worker alerts)
-//
 
 import SwiftUI
 import AppKit
@@ -31,8 +8,6 @@ import ScreenCaptureKit
 import AVFoundation
 import Speech
 import UserNotifications
-
-// MARK: - Permission Model
 
 public struct AppPermissionItem: Identifiable, Sendable {
     public let id: String
@@ -68,8 +43,6 @@ public struct AppPermissionItem: Identifiable, Sendable {
     }
 }
 
-// MARK: - App Permissions State Manager
-
 @MainActor
 public final class AppPermissionsManager: ObservableObject {
     public static let shared = AppPermissionsManager()
@@ -96,7 +69,6 @@ public final class AppPermissionsManager: ObservableObject {
     public func refreshStatus() {
         var items: [AppPermissionItem] = []
 
-        // 1. Accessibility (use_app, UI interaction)
         let axGranted = AXIsProcessTrusted()
         items.append(AppPermissionItem(
             id: "accessibility",
@@ -110,7 +82,6 @@ public final class AppPermissionsManager: ObservableObject {
             isGranted: axGranted
         ))
 
-        // 2. Screen Recording (take_screenshot, take_screenrecord)
         let screenGranted = CGPreflightScreenCaptureAccess()
         items.append(AppPermissionItem(
             id: "screen_recording",
@@ -124,7 +95,6 @@ public final class AppPermissionsManager: ObservableObject {
             isGranted: screenGranted
         ))
 
-        // 3. Full Disk Access (filesystem tools, external projects)
         let fdaGranted: Bool = {
             let path = NSHomeDirectory() + "/Library/Safari"
             return FileManager.default.isReadableFile(atPath: path)
@@ -141,7 +111,6 @@ public final class AppPermissionsManager: ObservableObject {
             isGranted: fdaGranted
         ))
 
-        // 4. Developer Tools & Shell Execution (use_terminal, project_build)
         let devModeGranted = DeveloperModeManager.shared.isDeveloperModeEnabled
         items.append(AppPermissionItem(
             id: "developer_tools",
@@ -155,7 +124,6 @@ public final class AppPermissionsManager: ObservableObject {
             isGranted: devModeGranted
         ))
 
-        // 5. Automation / Apple Events (Finder & System Events)
         items.append(AppPermissionItem(
             id: "automation",
             name: "Apple Events Automation",
@@ -165,10 +133,9 @@ public final class AppPermissionsManager: ObservableObject {
             toolsReliedUpon: ["open_in_finder", "reveal_in_finder", "Finder Control"],
             description: "Enables SwiftCode to reveal files and control macOS Finder and target applications via Apple Events.",
             systemSettingsURLString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
-            isGranted: true // Typically granted on first target dispatch
+            isGranted: true
         ))
 
-        // 6. Microphone (Assist Speech UI)
         let micGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         items.append(AppPermissionItem(
             id: "microphone",
@@ -182,7 +149,6 @@ public final class AppPermissionsManager: ObservableObject {
             isGranted: micGranted
         ))
 
-        // 7. Speech Recognition (SFSpeechRecognizer)
         let speechGranted = SFSpeechRecognizer.authorizationStatus() == .authorized
         items.append(AppPermissionItem(
             id: "speech_recognition",
@@ -196,7 +162,6 @@ public final class AppPermissionsManager: ObservableObject {
             isGranted: speechGranted
         ))
 
-        // 8. System Notifications
         let sema = DispatchSemaphore(value: 0)
         var notifGranted = false
         UNUserNotificationCenter.current().getNotificationSettings { settings in
@@ -268,7 +233,6 @@ public final class AppPermissionsManager: ObservableObject {
     }
 
     public func grantAll() {
-        // Trigger all native authorization prompts
         let promptKey = "AXTrustedCheckOptionPrompt" as CFString
         _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
         _ = CGRequestScreenCaptureAccess()
@@ -284,7 +248,6 @@ public final class AppPermissionsManager: ObservableObject {
             DispatchQueue.main.async { self?.refreshStatus() }
         }
 
-        // Open System Settings to Accessibility / Security as primary hub
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
@@ -299,8 +262,6 @@ public final class AppPermissionsManager: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 }
-
-// MARK: - AppPermsView
 
 public struct AppPermsView: View {
     @ObservedObject private var manager = AppPermissionsManager.shared
@@ -330,8 +291,6 @@ public struct AppPermsView: View {
             manager.refreshStatus()
         }
     }
-
-    // MARK: - Header Bar
 
     private var headerBar: some View {
         HStack(spacing: 12) {
@@ -369,8 +328,6 @@ public struct AppPermsView: View {
         .padding(.vertical, 14)
         .background(.thinMaterial)
     }
-
-    // MARK: - Hero Status Card
 
     private var heroStatusCard: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -425,7 +382,6 @@ public struct AppPermsView: View {
                 }
             }
 
-            // Progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
@@ -442,8 +398,6 @@ public struct AppPermsView: View {
         .padding(16)
         .liquidGlass(style: .standard, cornerRadius: 10)
     }
-
-    // MARK: - Permissions List
 
     private var permissionsList: some View {
         VStack(spacing: 12) {

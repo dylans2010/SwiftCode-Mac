@@ -1,9 +1,5 @@
 import Foundation
 
-/// Computes the full set of images an executable needs under a simulator
-/// runtime, following the lookup order in `specs/simulator/loader.md` §1:
-/// the shared cache first, then files under the runtime root, with `@rpath`,
-/// `@loader_path`, and `@executable_path` expanded.
 public struct DependencyClosure {
     public enum Source: Equatable, Sendable, CustomStringConvertible {
         case sharedCache(address: UInt64)
@@ -20,7 +16,6 @@ public struct DependencyClosure {
         public var installPath: String
         public var source: Source
         public var image: MachOImage
-        /// Paths this image loads (resolved install paths), in load-command order.
         public var dependencies: [String]
     }
 
@@ -28,14 +23,12 @@ public struct DependencyClosure {
         public var path: String
         public var requiredBy: String
         public var kind: MachOImage.DylibReference.Kind
-        /// Weak references may be absent at run time.
         public var isFatal: Bool { kind != .weak }
     }
 
     public let root: String
     public let cache: SharedCache?
     public private(set) var nodes: [String: Node] = [:]
-    /// Breadth-first load order starting from the executable.
     public private(set) var order: [String] = []
     public private(set) var missing: [Missing] = []
 
@@ -44,7 +37,6 @@ public struct DependencyClosure {
         self.cache = cache
     }
 
-    /// Resolves everything `executablePath` (a host path) depends on.
     public mutating func resolve(executable executablePath: String) throws {
         let exe = try MachOFile(contentsOf: URL(fileURLWithPath: executablePath)).image()
         let exeDir = (executablePath as NSString).deletingLastPathComponent
@@ -76,7 +68,6 @@ public struct DependencyClosure {
         }
     }
 
-    /// `@loader_path`/`@executable_path` substitution in LC_RPATH entries.
     private func expandRpaths(_ rpaths: [String], loaderDir: String, exeDir: String) -> [String] {
         rpaths.map {
             $0.replacingOccurrences(of: "@loader_path", with: loaderDir)
@@ -84,7 +75,6 @@ public struct DependencyClosure {
         }
     }
 
-    /// Candidate install paths for a load-command path, in search order.
     func candidates(_ path: String, loaderDir: String, exeDir: String, rpaths: [String]) -> [String] {
         if path.hasPrefix("@rpath/") {
             let rest = String(path.dropFirst("@rpath/".count))
@@ -102,9 +92,6 @@ public struct DependencyClosure {
     private func locate(_ path: String, loaderDir: String, exeDir: String, rpaths: [String])
         -> (String, Source, MachOImage)? {
         for candidate in candidates(path, loaderDir: loaderDir, exeDir: exeDir, rpaths: rpaths) {
-            // Absolute guest paths live in the cache or under the runtime root.
-            // Paths already inside the root (from @loader_path on a root file)
-            // are used as they are.
             let guestPath = candidate.hasPrefix(root) ? String(candidate.dropFirst(root.count)) : candidate
             if let cache, let entry = cache.image(path: guestPath), let image = try? cache.machO(for: entry) {
                 return (guestPath, .sharedCache(address: entry.address), image)

@@ -1,44 +1,5 @@
-//  AssistSDKSessionRunner.swift
-//  SwiftCode
-//
-//  Parent integration for the SDK-backed providers (OpenCode via
-//  @opencode-ai/sdk, OpenRouter via @openrouter/agent). This file is the
-//  single seam between AssistAgentSession and the two SDK provider
-//  facades. It owns:
-//
-//  - Deciding whether a selected model takes the SDK path at all.
-//  - Verifying the SDK runtime is installed (via SDKRuntimeManager) and
-//    the bridge script is installed under the runtime directory.
-//  - Building the run request from SwiftCode's real system prompt,
-//    conversation history, and registered tool schemas.
-//  - Executing SwiftCode-native tool calls through the native registry
-//    (validation + tool-level permission checks via AssistContext) and
-//    returning the model-facing payload — never a faked result.
-//  - Publishing tool events into SDKToolEventStore under the Assist
-//    session id, so ORToolsUIView / OCToolsUIView render the run.
-//
-//  What this file deliberately does NOT do:
-//  - It never falls back to the HTTP clients (OpenCodeClient /
-//    OpenRouterClient) when the SDK path is selected. A missing runtime,
-//    missing key, or bridge failure is an actionable error naming
-//    Assist Settings → SDK Providers, not a silent substitution.
-//  - It does not apply the plan-based phase allowlist. That allowlist
-//    belongs to the plan execution path; SDK runs are governed by
-//    registry validation plus the tool-level permission checks carried
-//    in AssistContext (the same checks plan tools go through at
-//    execution time). This is documented in Docs/Assist-SDK-Providers.md.
-//  - It does not own bridge processes: providers launch and terminate
-//    their bridges (FoundationProcessBridgeLauncher, shared by both
-//    providers); SDKRuntimeManager owns install / verification /
-//    Settings status. `cancel()` terminates the active provider bridge.
-
 import Foundation
 
-/// Which non-plan runtime serves an Assist agent session, if any.
-/// `.hermes` reuses this transcript-panel kind only: a Hermes run is
-/// not an SDK run (Hermes is a child-process CLI run, owned by
-/// HermesSessionRunner), but its tool panel is rendered under the
-/// same transcript message as the SDK runs, keyed by session id.
 public enum SDKSessionKind: Sendable {
     case openCode
     case openRouter
@@ -68,8 +29,6 @@ public enum SDKSessionRunnerError: LocalizedError, Sendable {
     }
 }
 
-/// Runs one SDK-backed Assist agent session. One instance serves one run
-/// at a time; AssistAgentSession holds it for cancellation.
 @MainActor
 public final class AssistSDKSessionRunner {
     private var activeOpenCode: OpenCodeSDKProvider?
@@ -77,27 +36,7 @@ public final class AssistSDKSessionRunner {
 
     public init() {}
 
-    /// Returns the SDK kind for a selected model, or nil when the model
-    /// must keep its existing (non-SDK) execution path. OpenCode ids
-    /// (`opencode:provider/model`) are checked first so they can never
-    /// be misclassified by the "/" heuristic below.
-    ///
-    /// OpenRouter routing deliberately does NOT key on the adapter's
-    /// name heuristics: a discovered OpenRouter model id such as
-    /// `anthropic/claude-sonnet-4-5` would be misread as native
-    /// Anthropic, and routing on the name alone could silently move a
-    /// native model to OpenRouter billing. The order is: (1) the
-    /// discovery record for this exact model id — authoritative when
-    /// present, and a non-OpenRouter record vetoes the SDK path;
-    /// (2) the persisted provider selection (set by the Settings
-    /// provider sections); (3) the adapter specification as a last
-    /// resort. Bare ids without "/" are never OpenRouter ids (native
-    /// Anthropic ids carry no slash), so they return nil immediately.
     public static func applicableKind(for selectedModel: String) -> SDKSessionKind? {
-        // Hermes ids carry "/" too (hermes:provider/model) and must
-        // never be claimed by the OpenRouter persisted-provider
-        // fallback below: Hermes runs go through HermesSessionRunner,
-        // not an SDK bridge.
         if HermesModelID.isHermesModelID(selectedModel) {
             return nil
         }
@@ -118,10 +57,6 @@ public final class AssistSDKSessionRunner {
         return nil
     }
 
-    /// Maps the persisted tool-source setting to an OpenCode run
-    /// source, or nil when the combination is unsupported (openrouter
-    /// tools do not exist for OpenCode sessions). Nil is an explicit
-    /// rejection, never a silent substitution.
     public static func openCodeToolSource(for setting: SDKToolSourceSetting) -> OpenCodeSDKToolSource? {
         switch setting {
         case .swiftcode: return .swiftcode
@@ -131,9 +66,6 @@ public final class AssistSDKSessionRunner {
         }
     }
 
-    /// Maps the persisted tool-source setting to an OpenRouter run
-    /// source, or nil when the combination is unsupported (opencode
-    /// tools do not exist for OpenRouter sessions).
     public static func openRouterToolSource(for setting: SDKToolSourceSetting) -> OpenRouterSDKToolSource? {
         switch setting {
         case .swiftcode: return .swiftcode
@@ -150,17 +82,11 @@ public final class AssistSDKSessionRunner {
         await activeOpenRouter?.cancel()
         activeOpenCode = nil
         activeOpenRouter = nil
-        // Cancellation must reach a terminal UI state: mark every
-        // non-terminal row for this run cancelled, so a cancelled run
-        // never leaves rows stuck in Running or misreports as Failed.
         if let sessionKey = lastSessionKey {
             SDKToolEventStore.shared.cancelNonTerminal(sessionId: sessionKey)
         }
     }
 
-    /// Runs one SDK session and returns the model's final text. Tool
-    /// events are published to the store as the run proceeds; the caller
-    /// (AssistAgentSession) owns posting the final text to the transcript.
     public func run(
         kind: SDKSessionKind,
         objective: String,
@@ -169,10 +95,6 @@ public final class AssistSDKSessionRunner {
         let systemPrompt = try await Self.buildSystemPrompt(objective: objective)
         let history = Self.historyItems(objective: objective)
         let tools = Self.toolDefinitions()
-        // The Assist Toolkit picker is the switch: System forces
-        // SwiftCode tools, Provider forces the picked provider's
-        // toolset. The old persisted tool-source setting is only a
-        // fallback for legacy values.
         let toolSource = SDKToolSourceSetting.effective()
         let sessionKey = context.sessionId.uuidString
         lastSessionKey = sessionKey
@@ -242,20 +164,10 @@ public final class AssistSDKSessionRunner {
             }
             return finalText
         case .hermes:
-            // Hermes is a child-process CLI runtime owned by
-            // HermesSessionRunner; applicableKind never returns it.
-            // Reject explicitly rather than silently running nothing.
             throw SDKSessionRunnerError.hermesUsesHermesRunner
         }
     }
 
-    /// Builds SwiftCode's assembled system prompt for one task:
-    /// the fresh baseline (cache invalidated first, so in-session
-    /// System Asset updates reach the next run) plus the per-task
-    /// retrieved instructions the legacy agent path injects. Shared
-    /// with HermesSessionRunner so both non-plan runtimes deliver
-    /// exactly the same SwiftCode prompt — there is only one prompt
-    /// construction, not one per provider.
     public static func buildSystemPrompt(objective: String) async throws -> String {
         AssistManager.shared.invalidateSystemPromptCache()
         let baselinePrompt = try AssistManager.shared.getSystemPrompt()
@@ -275,13 +187,6 @@ public final class AssistSDKSessionRunner {
             : "\(baselinePrompt)\n\n\(retrievedBlock)"
     }
 
-    // MARK: - Bridge installation
-
-    /// Verifies the pinned SDK is installed and the bridge script is in
-    /// place under the runtime directory (where ESM imports resolve).
-    /// Install state is revalidated from disk on every call — never
-    /// trusted from a previous launch — and nothing is installed
-    /// implicitly here: installation happens explicitly in Settings.
     private static func ensureBridgeScript(provider: SDKProvider, fileName: String) async throws -> String {
         let installed = SDKRuntimeManager.installedVersion(for: provider)
         guard installed == provider.pinnedVersion else {
@@ -294,12 +199,6 @@ public final class AssistSDKSessionRunner {
         let resourceName = (fileName as NSString).deletingPathExtension
         let bundleContents = Bundle.main.url(forResource: resourceName, withExtension: "mjs")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-        // Refresh on mismatch: the old code returned the installed
-        // copy whenever it existed, so app updates to a bridge script
-        // never propagated until the user deleted the runtime
-        // directory. Compare against the bundled copy when one is
-        // available; when it is not, a missing file is an error but
-        // an existing installed file is still usable.
         if FileManager.default.fileExists(atPath: installedURL.path) {
             if let bundleContents,
                let installedContents = try? String(contentsOf: installedURL, encoding: .utf8),
@@ -317,8 +216,6 @@ public final class AssistSDKSessionRunner {
         return written.path
     }
 
-    // MARK: - Request construction
-
     private struct HistoryItem {
         let role: String
         let text: String
@@ -330,25 +227,11 @@ public final class AssistSDKSessionRunner {
         let parametersJSON: String
     }
 
-    /// Last 20 non-notice transcript messages. System messages are
-    /// skipped: the system prompt already carries SwiftCode's
-    /// instructions, and re-injecting transcript system rows would
-    /// duplicate them.
-    ///
-    /// Two transcript rows are also removed, because the bridges
-    /// append the current user turn themselves: (1) the current
-    /// objective, already present as a user message, and (2) the
-    /// "I'll inspect…" placeholder assistant message posted by
-    /// AssistAgentSession.start before the SDK branch runs. Without
-    /// this, a run's input read `user(objective), assistant("I'll
-    /// inspect…"), user(objective)` — a duplicated objective with a
-    /// placeholder turn in the middle.
     private static func historyItems(objective: String) -> [HistoryItem] {
         var items = AssistManager.shared.messages.suffix(20).compactMap { message -> HistoryItem? in
             guard message.noticeLevel == nil, !message.content.isEmpty else { return nil }
             switch message.role {
             case .assistant:
-                // Placeholder posted at session start, not a real turn.
                 if message.content.contains("identify the relevant files before making any changes") {
                     return nil
                 }
@@ -357,19 +240,12 @@ public final class AssistSDKSessionRunner {
             case .system: return nil
             }
         }
-        // Drop a trailing user item equal to the objective: the
-        // bridge appends userText as the final turn, so keeping it
-        // here would send the objective twice.
         if let last = items.last, last.role == "user", last.text == objective {
             items.removeLast()
         }
         return items
     }
 
-    /// Every registered, non-disabled tool schema. Disabled tools are
-    /// never offered to a model; availability is re-checked at execution
-    /// time by registry validation, so a tool disabled mid-run still
-    /// fails closed.
     private static func toolDefinitions() -> [ToolDefinition] {
         let registry = AssistToolRegistry.shared
         return registry.getToolSchemas().compactMap { schema in
@@ -388,12 +264,6 @@ public final class AssistSDKSessionRunner {
         }
     }
 
-    // MARK: - Tool events
-
-    /// Re-keys bridge events to the Assist session id (bridges report
-    /// their own server/request session ids) and publishes them to the
-    /// store. The closure itself is non-isolated and Sendable: it
-    /// captures only the session key and hops to the MainActor store.
     private static func storeEventHandler(sessionKey: String) -> @Sendable (SDKToolEvent) -> Void {
         { event in
             let rekeyed = SDKToolEvent(
@@ -417,14 +287,6 @@ public final class AssistSDKSessionRunner {
         }
     }
 
-    // MARK: - Native tool execution
-
-    /// Executes one SwiftCode-native tool call through the registry.
-    /// Validation (registration, disabled/unavailable, required args,
-    /// types, path traversal) runs first; the corrected input from
-    /// validation is what executes. A failed validation, unknown tool,
-    /// or unsuccessful result throws — the bridge reports it to the
-    /// model as a tool error, never as a success.
     private static func executeNativeTool(
         name: String,
         argumentsJSON: String,

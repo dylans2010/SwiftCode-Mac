@@ -7,21 +7,6 @@ import SwiftCodeLanguage
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_LSP=<prefix>: drives the language features and the Symbol
-// navigator with synthetic input in a package opened by the app (a file
-// with a documented function called from another file), printing the
-// state after each step and writing <prefix>-<step>.png:
-//
-//   file, quickhelp-popover (⌥-click), quickhelp-inspector (⌥⌘3),
-//   jump-definition (Ctrl-click), document-items (the jump bar's
-//   symbol), references, callers, menu-navigate, menu-refactor,
-//   rename-sheet, rename-preview, rename-applied, symbols (⌘3),
-//   symbols-opened, symbols-filtered
-//
-// SWIFTCODE_IDE_LSP_FILE names the file to start in (default main.swift) and
-// SWIFTCODE_IDE_LSP_SYMBOL the symbol to work on there (default greet);
-// SWIFTCODE_IDE_LSP_NEW_NAME the rename's new name (default welcome).
-
 #if os(Linux)
 @MainActor
 enum LanguageDriver {
@@ -46,7 +31,6 @@ enum LanguageDriver {
             say("lsp: no file \(fileName)")
             return
         }
-        // The server, then its first answer (sourcekit-lsp loads the package first).
         for _ in 0..<240 where w.session.language == nil { await pause(0.25) }
         say("lsp: server \(w.session.language == nil ? "missing" : "started")")
         w.open(path)
@@ -66,11 +50,9 @@ enum LanguageDriver {
         say("lsp: server answered=\(ready) after \(Int(Date().timeIntervalSince(began))) s")
         await shot("file")
 
-        // ⌥-click on the symbol: Quick Help in a popover.
         await clickSymbol(at: start + 1, in: w, modifiers: [.option])
         for _ in 0..<40 where w.languageFeatures.popover == nil { await pause(0.25) }
         await shot("quickhelp-popover")
-        // The declaration's menu copies it (the macOS IDE's selectable text).
         if let f = ShellDriver.frame("quickhelp declaration") {
             OpenViewsAutomation.press(.escape)
             await pause(0.2)
@@ -86,17 +68,14 @@ enum LanguageDriver {
         await pause(0.4)
         say("lsp: popover after Escape=\(w.languageFeatures.popover != nil)")
 
-        // ⌥⌘3: the Quick Help inspector follows the insertion point.
         w.perform(.showQuickHelpInspector)
         await w.quickHelpInspectorSettled()
         await shot("quickhelp-inspector")
 
-        // Ctrl-click: Jump to Definition.
         await clickSymbol(at: start + 1, in: w, modifiers: [.control])
         for _ in 0..<40 where w.document?.name == fileName { await pause(0.25) }
         await pause(0.4)
         await shot("jump-definition")
-        // The jump bar's symbol: the file's declarations.
         await ShellDriver.click("jump bar symbol")
         await shot("document-items")
         OpenViewsAutomation.press(.escape)
@@ -104,7 +83,6 @@ enum LanguageDriver {
         w.perform(.goBack)
         await pause(0.5)
 
-        // The menus with the new commands enabled.
         await ShellDriver.clickText("Navigate", inPopup: false)
         await shot("menu-navigate")
         OpenViewsAutomation.press(.escape)
@@ -122,7 +100,6 @@ enum LanguageDriver {
         OpenViewsAutomation.press(.escape)
         await pause(0.4)
 
-        // References and callers in the Find navigator.
         w.open(path)
         if let o = offset(of: symbol, in: w) { w.editor?.buffer.setCaret(o + 1) }
         w.perform(.findSelectedSymbol)
@@ -132,7 +109,6 @@ enum LanguageDriver {
         for _ in 0..<80 where !(w.findResultsTitle ?? "").hasPrefix("Callers") { await pause(0.25) }
         await shot("callers")
 
-        // Rename across files: the sheet, the preview, applied.
         w.open(path)
         if let o = offset(of: symbol, in: w) { w.editor?.buffer.setCaret(o + 1) }
         w.perform(.renameSymbol)
@@ -161,7 +137,6 @@ enum LanguageDriver {
         say("lsp: occurrences of \(newName)( after rename: \(renamed.joined(separator: " ")) edited=\(w.editedPaths.count)")
         _ = w.saveAll()
 
-        // The Symbol navigator (⌘3): the files' declarations, then filtered.
         await ShellDriver.click("selector 2")
         for _ in 0..<40 where w.symbols.rows.isEmpty { await pause(0.25) }
         await shot("symbols")
@@ -180,7 +155,6 @@ enum LanguageDriver {
         say("lsp: symbols \(w.symbols.rows.map { String(repeating: " ", count: $0.level) + $0.title }.joined(separator: " | "))")
     }
 
-    /// The model's language state, for the log.
     static func details(_ w: WorkspaceShellModel) -> String {
         let f = w.languageFeatures
         return "lsp[popover=\(f.popover?.document.title ?? "none") inspector=\(f.inspectorHelp?.title ?? "none") tab=\(f.inspectorTab) "
@@ -189,7 +163,6 @@ enum LanguageDriver {
             + "symbolRows=\(w.symbols.rows.count) filter=\"\(w.symbols.filterText)\"]"
     }
 
-    /// The first whole-word occurrence of `name` in the open file.
     static func offset(of name: String, in w: WorkspaceShellModel) -> Int? {
         guard let text = w.editor?.buffer.text else { return nil }
         let ns = text as NSString
@@ -210,7 +183,6 @@ enum LanguageDriver {
         return Position(line: n, character: offset - b.document.lineStart(n))
     }
 
-    /// Clicks the character at `offset` of the open file with `modifiers` held.
     static func clickSymbol(at offset: Int, in w: WorkspaceShellModel, modifiers: KeyModifiers) async {
         guard let editor = w.editor, let source = ShellDriver.frame("source") else {
             say("lsp: no editor to click")

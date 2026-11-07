@@ -2,8 +2,6 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-// MARK: - Model
-
 private struct LibraryCodeSnippet: Identifiable, Codable, Hashable {
     let id: UUID
     var title: String
@@ -86,8 +84,6 @@ private enum LibraryCodeSnippetStore {
     }
 }
 
-// MARK: - Export document
-
 private struct SnippetsExportDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
 
@@ -105,8 +101,6 @@ private struct SnippetsExportDocument: FileDocument {
         FileWrapper(regularFileWithContents: payload)
     }
 }
-
-// MARK: - View
 
 struct SnippetsLibraryView: View {
     @State private var snippets: [LibraryCodeSnippet] = LibraryCodeSnippetStore.load()
@@ -212,8 +206,6 @@ struct SnippetsLibraryView: View {
         }
     }
 
-    // MARK: - Filtering
-
     private var allTags: [String] {
         Array(Set(snippets.flatMap { $0.tags })).sorted()
     }
@@ -253,8 +245,6 @@ struct SnippetsLibraryView: View {
 
         return list
     }
-
-    // MARK: - Cards
 
     private var headerCard: some View {
         GroupBox {
@@ -643,8 +633,6 @@ struct SnippetsLibraryView: View {
         snippet.usageCount == 1 ? "Used 1 time" : "Used \(snippet.usageCount) times"
     }
 
-    // MARK: - Create / edit sheet
-
     private var editSnippetSheet: some View {
         VStack(spacing: 0) {
             HStack {
@@ -716,8 +704,6 @@ struct SnippetsLibraryView: View {
         .frame(minWidth: 500, minHeight: 480)
     }
 
-    // MARK: - Operations
-
     private func prepareCreate() {
         draft = .empty
         draft.language = "Swift"
@@ -755,7 +741,6 @@ struct SnippetsLibraryView: View {
         if isCreatingNew {
             snippets.append(saved)
         } else if let idx = snippets.firstIndex(where: { $0.id == saved.id }) {
-            // Preserve the usage count from the stored copy in case the draft is stale.
             saved.usageCount = max(saved.usageCount, snippets[idx].usageCount)
             snippets[idx] = saved
         }
@@ -832,8 +817,6 @@ struct SnippetsLibraryView: View {
         updated.usageCount += 1
         updateSnippet(updated)
     }
-
-    // MARK: - Import / export
 
     private func importSnippets(from url: URL) {
         let didAccess = url.startAccessingSecurityScopedResource()

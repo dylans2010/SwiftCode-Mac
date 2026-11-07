@@ -1,11 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Menu Bar/NSCreatePRView.swift
-//
-// Adapted for production: Legacy's `GitHubRepositoryManager.parseRepoURL`
-// is inlined here (that manager is not ported) and PR creation goes
-// through the production `GitHubClient` instead of Legacy's
-// `GitHubService`. Everything else verbatim.
-//
 import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeGitHub
@@ -100,9 +92,6 @@ public struct NSCreatePRView: View {
         .frame(width: 280)
     }
 
-    /// Owner/repo parsing, verbatim logic from Legacy's
-    /// `GitHubRepositoryManager.parseRepoURL` (manager now ported in
-    /// SwiftCodeGitHub; the parse stays local to this dialog).
     private func parseRepoURL(_ urlString: String) throws -> (owner: String, repo: String) {
         let cleaned = urlString
             .trimmingCharacters(in: .whitespacesAndNewlines)

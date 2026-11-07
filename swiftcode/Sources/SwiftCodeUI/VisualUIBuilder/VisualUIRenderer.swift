@@ -1,43 +1,12 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIRenderer.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
-//
-// Cleanup C31 (2026-11-06): the live-preview list state was seeded with demo
-// content — `itemsList = ["Clean Code", "Visual Builder", "Preview Engine",
-// "Workspace Sync"]`, restored verbatim by "Reset State" — and the rendered
-// `.list` node ignored its own document node entirely. The list now derives its
-// rows from the document's list node model: each row is one of the list node's
-// children (`textValue` property, falling back to the child name), adding appends
-// a real `.text` child node to the document, deleting removes that child node,
-// and the list is empty until the user adds items. "Reset State" resets only
-// the transient preview state (counter, drag offsets); it never touches document
-// content, so it can no longer resurrect the demo rows.
-//
-// Cleanup D5 (2026-11-06): other demo defaults outside the C31 list fix:
-// - The `.form` username defaulted to "Jules" and its "Push
-//   Notifications" toggle (like the standalone `.toggle` case) defaulted
-//   to on. Both are now empty/off until the user sets them; the form
-//   reads transient preview state only, like the other controls.
-// - The `.charts` case drew three invented bars (5/12/18). A chart node
-//   carries no data model of its own, so bars now come from its children:
-//   a child with a numeric "value" property is one bar (labelled by its
-//   "textValue" or name). With no such children the chart renders an
-//   honest empty state, not pre-filled bars.
-// - Sheet/popover actions used to present invented fallback content
-//   ("Interactive Sheet Content") when the node had no child. They now
-//   present nothing in that case (and log why) instead of fabricating
-//   content.
 import SwiftUI
 import Charts
 import MapKit
 import Observation
 
-/// Visual Canvas Renderer that bridges abstract layout scene nodes directly into real live interactive SwiftUI views.
-/// Fully interactive supporting buttons, lists, navigation path structures, sliders, text fields, gestures, and environment behaviors.
 public struct VisualUIRenderer: View {
     let rootNode: VisualComponentNode
     @Bindable var document: VisualUIDocument
 
-    // Interactive State Variables
     @State private var textValues: [UUID: String] = [:]
     @State private var toggleValues: [UUID: Bool] = [:]
     @State private var sliderValues: [UUID: Double] = [:]
@@ -79,8 +48,6 @@ public struct VisualUIRenderer: View {
                             }
                         }
                         Button("Reset State") {
-                            // Transient preview state only. The list is document
-                            // content (the list node's children) and is not reset.
                             counter = 10
                             dragOffsets.removeAll()
                         }
@@ -147,7 +114,6 @@ public struct VisualUIRenderer: View {
 
         let baseView = Group {
             switch node.type {
-            // Layout & Stacks
             case .vStack:
                 VStack(alignment: .center, spacing: CGFloat(Double(node.properties["spacing"] ?? "8") ?? 8)) {
                     ForEach(node.children) { child in
@@ -186,7 +152,6 @@ public struct VisualUIRenderer: View {
                 }
                 .groupBoxStyle(.liquidGlass)
 
-            // ScrollViews & Lists
             case .scrollView:
                 ScrollView {
                     VStack(spacing: 8) {
@@ -197,10 +162,6 @@ public struct VisualUIRenderer: View {
                 }
 
             case .list:
-                // C31: rows come from the document's list node model — each
-                // child node is one row (`textValue`, else the child name).
-                // Empty until the user adds items; add/delete mutate the
-                // document node, not preview-local state.
                 List {
                     Section {
                         ForEach(node.children) { child in
@@ -273,7 +234,6 @@ public struct VisualUIRenderer: View {
                     }
                 }
 
-            // Controls
             case .text:
                 Text(node.properties["textValue"] ?? "Text Block")
                     .font(customFont(from: node))
@@ -364,12 +324,7 @@ public struct VisualUIRenderer: View {
             case .spacer:
                 Spacer()
 
-            // Advanced Elements
             case .charts:
-                // D5: the three bars (5/12/18) were invented demo data.
-                // See chartView(for:): bars come from the node's children
-                // (a child with a numeric "value" property is one bar);
-                // with no such children the chart is empty, not pre-filled.
                 chartView(for: node)
 
             case .map:
@@ -478,11 +433,6 @@ public struct VisualUIRenderer: View {
         )
     }
 
-    /// Chart rendering (D5): a chart node carries no data model of its
-    /// own, so bars come from its children — a child with a numeric
-    /// "value" property is one bar (labelled by its "textValue" or name).
-    /// With no such children the chart renders an honest empty state
-    /// instead of the invented 5/12/18 demo bars it used to draw.
     private func chartView(for node: VisualComponentNode) -> AnyView {
         let bars: [(label: String, value: Double)] = node.children.compactMap { child in
             guard let raw = child.properties["value"], let value = Double(raw) else { return nil }
@@ -537,20 +487,16 @@ public struct VisualUIRenderer: View {
                 navigationPath.append(artboard.rootNode)
             }
         } else {
-            // Context actions: Sheet presentation or increment
             if node.properties["actionType"] == "sheet" {
                 if let child = node.children.first {
                     activeSheetNode = child
                 } else {
-                    // D5: no invented fallback sheet content. With no child
-                    // node there is nothing to present.
                     VisualUISettings.shared.addLog("Sheet action ignored: node '\(node.name)' has no child node to present.")
                 }
             } else if node.properties["actionType"] == "popover" {
                 if let child = node.children.first {
                     activePopoverNode = child
                 } else {
-                    // D5: no invented fallback popover content.
                     VisualUISettings.shared.addLog("Popover action ignored: node '\(node.name)' has no child node to present.")
                 }
             } else {

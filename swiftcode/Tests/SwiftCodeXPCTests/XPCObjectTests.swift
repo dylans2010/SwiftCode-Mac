@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeXPC
 
-/// Little-endian helpers for building expected bytes from the spec's tables.
 func le32(_ v: UInt32) -> [UInt8] {
     [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24)]
 }
@@ -26,7 +25,7 @@ func ascii(_ s: String) -> [UInt8] { Array(s.utf8) }
         #expect(d.keys == ["b", "c"])
         d.append(key: "b", value: .bool(true))
         #expect(d.count == 3)
-        #expect(d["b"] == .int64(2)) // first match
+        #expect(d["b"] == .int64(2))
     }
 
     @Test func accessors() {

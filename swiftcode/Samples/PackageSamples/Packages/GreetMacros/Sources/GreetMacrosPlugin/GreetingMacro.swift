@@ -2,7 +2,6 @@ import SwiftCompilerPlugin
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// Expands `#greeting("name")` into a string literal.
 public struct GreetingMacro: ExpressionMacro {
     public static func expansion(of node: some FreestandingMacroExpansionSyntax,
                                  in context: some MacroExpansionContext) -> ExprSyntax {

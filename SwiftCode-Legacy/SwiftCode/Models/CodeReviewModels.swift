@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Code Review Result
-
 public struct CodeReviewResult: Identifiable, Codable {
     public var id = UUID()
     public let fileName: String
@@ -22,8 +20,6 @@ public struct CodeReviewResult: Identifiable, Codable {
         issues.filter { !$0.isResolved }.count
     }
 }
-
-// MARK: - Code Review Issue
 
 public struct CodeReviewIssue: Identifiable, Codable {
     public var id = UUID()

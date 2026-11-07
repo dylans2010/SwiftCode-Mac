@@ -1,5 +1,3 @@
-// Validation rules (plan.md R2: ids unique, group levels, periods, offers)
-// over the value forms of configuration-file.md §2–§7.
 import Foundation
 import Testing
 @testable import StoreKitConfiguration

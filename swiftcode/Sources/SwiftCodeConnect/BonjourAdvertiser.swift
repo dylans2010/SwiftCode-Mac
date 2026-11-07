@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/BonjourAdvertiser.swift
-// Adapted for SwiftCode: Bonjour advertisement of this Mac. Verbatim.
-
 import Foundation
 import Network
 import os.log
@@ -46,12 +42,10 @@ public final class BonjourAdvertiser: @unchecked Sendable {
             self.connectionHandler = onConnectionHandler
         }
 
-        // If already advertising on this exact port, no need to restart
         if isAdvertising && advertisedPort == port {
             return
         }
 
-        // Stop existing listener before binding to new port
         stopAdvertising()
 
         guard ConnectProtocol.validPortRange.contains(port) else {
@@ -101,7 +95,6 @@ public final class BonjourAdvertiser: @unchecked Sendable {
 
         self.listener = newListener
 
-        // Await socket binding state confirmation
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             final class ResumeState: @unchecked Sendable {
                 var hasResumed = false

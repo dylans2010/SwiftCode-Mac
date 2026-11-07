@@ -1,16 +1,8 @@
-// SimulatorMainView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorMainView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: SwiftUI tabbed main view; SimulatorWindowManager multi-window management
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): SimulatorPreviewView, SimulatorSidebar.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 import SwiftUI
 import AppKit
 
-// MARK: - Native Simulator Window Manager
 @MainActor
 public final class SimulatorWindowManager: NSObject, NSWindowDelegate {
     public static let shared = SimulatorWindowManager()
@@ -38,7 +30,6 @@ public final class SimulatorWindowManager: NSObject, NSWindowDelegate {
     }
 }
 
-// MARK: - Native Simulator Window Controller
 @MainActor
 public class SimulatorWindowController: NSWindowController {
     public init() {
@@ -87,12 +78,10 @@ public struct SimulatorMainView: View {
         NavigationStack {
             AdaptivePage {
                 VStack(spacing: 0) {
-                    // Header Toolbar Action Control Group
                     headerToolbarView
 
                     Divider()
 
-                    // Main View Content Workspace
                     mainWorkspaceView
                 }
             }

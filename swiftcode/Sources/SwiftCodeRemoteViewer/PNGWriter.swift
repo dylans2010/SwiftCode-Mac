@@ -1,12 +1,7 @@
-// A minimal PNG writer (PNG specification, RFC 2083: signature, IHDR,
-// one IDAT of zlib-compressed filter-0 rows, IEND) for the viewer's
-// screenshots of what it shows; zlib comes from CSwiftCodeCodec.
-
 import CSwiftCodeCodec
 import Foundation
 
 public enum PNGWriter {
-    /// RGBA rows (8 bits per channel, no padding) → PNG bytes; nil without zlib.
     public static func encode(rgba: [UInt8], width: Int, height: Int, level: Int32 = 6) -> [UInt8]? {
         guard width > 0, height > 0, rgba.count == width * height * 4 else { return nil }
         var raw = [UInt8]()
@@ -28,7 +23,7 @@ public enum PNGWriter {
         var out: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         var ihdr = [UInt8]()
         ihdr += be32(UInt32(width)) + be32(UInt32(height))
-        ihdr += [8, 6, 0, 0, 0]  // 8-bit, RGBA, deflate, filter 0, no interlace
+        ihdr += [8, 6, 0, 0, 0]
         chunk("IHDR", ihdr, into: &out)
         chunk("IDAT", compressed, into: &out)
         chunk("IEND", [], into: &out)
@@ -45,7 +40,6 @@ public enum PNGWriter {
         out += be32(crc)
     }
 
-    /// BGRX rows (any row stride) → RGBA rows.
     public static func rgba(fromBGRX p: UnsafeRawPointer, width: Int, height: Int, bytesPerRow: Int) -> [UInt8] {
         var out = [UInt8](repeating: 0xFF, count: width * height * 4)
         let s = p.assumingMemoryBound(to: UInt8.self)

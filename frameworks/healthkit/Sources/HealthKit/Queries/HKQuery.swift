@@ -1,12 +1,9 @@
 import Foundation
 
-/// No limit for object queries.
 public let HKObjectQueryNoLimit: Int = 0
 
 public typealias HKObserverQueryCompletionHandler = @Sendable () -> Void
 
-/// Base class of all queries (`queries.md` §1). A query is an immutable description
-/// that runs once: executing it a second time raises `NSInvalidArgumentException`.
 public class HKQuery: NSObject, @unchecked Sendable {
     public let objectType: HKObjectType?
     @available(*, deprecated, renamed: "objectType")
@@ -20,7 +17,6 @@ public class HKQuery: NSObject, @unchecked Sendable {
         var liveID: UUID?
     }
     let state = Locked(RunState())
-    /// Long-running results are delivered on a private serial queue per query.
     let handlerQueue = DispatchQueue(label: "dev.swiftcode.healthkit.query")
 
     init(objectType: HKObjectType?, predicate: NSPredicate?, node: PredicateNode? = nil) {
@@ -43,7 +39,6 @@ public class HKQuery: NSObject, @unchecked Sendable {
 
     var isStopped: Bool { state.withLock { $0.stopped } }
 
-    /// Start the query (subclasses). Runs on the caller's thread; work goes to the daemon queue.
     func run(on store: HKHealthStore) {}
 
     func stopRunning(_ store: HKHealthStore) {
@@ -55,7 +50,6 @@ public class HKQuery: NSObject, @unchecked Sendable {
         if let id { store.daemon.queue.async { store.daemon.unregister(id) } }
     }
 
-    /// Register for change sets (called on the daemon queue).
     func registerLive(_ store: HKHealthStore, onChange: @escaping (ChangeSet) -> Void) {
         let id = UUID()
         let ok = state.withLock { s -> Bool in
@@ -66,7 +60,6 @@ public class HKQuery: NSObject, @unchecked Sendable {
         if ok { store.daemon.register(id, client: store.swiftcodeClient.bundleIdentifier, onChange: onChange) }
     }
 
-    /// Deliver on the handler queue unless stopped.
     func deliver(_ body: @escaping @Sendable () -> Void) {
         handlerQueue.async { [self] in
             if !isStopped { body() }
@@ -96,7 +89,6 @@ public class HKQuery: NSObject, @unchecked Sendable {
     }
 }
 
-/// A sample type with an optional predicate (multi-type queries, iOS 15).
 public final class HKQueryDescriptor: NSObject, NSCopying, @unchecked Sendable {
     public let sampleType: HKSampleType
     public let predicate: NSPredicate?
@@ -108,7 +100,6 @@ public final class HKQueryDescriptor: NSObject, NSCopying, @unchecked Sendable {
     }
     public func copy(with zone: NSZone? = nil) -> Any { self }
 
-    /// OR over the descriptors, each restricted to its type.
     static func node(_ descriptors: [HKQueryDescriptor]) -> PredicateNode {
         .or(descriptors.map { d in
             .and([.typeIs(d.sampleType.identifier)] + (PredicateNode.from(d.predicate).map { [$0] } ?? []))
@@ -116,7 +107,6 @@ public final class HKQueryDescriptor: NSObject, NSCopying, @unchecked Sendable {
     }
 }
 
-/// Opaque position in the store's change sequence (`queries.md` §4).
 public final class HKQueryAnchor: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     let value: Int64
 
@@ -138,8 +128,6 @@ public final class HKQueryAnchor: NSObject, NSSecureCoding, NSCopying, @unchecke
     }
     public func copy(with zone: NSZone? = nil) -> Any { self }
 }
-
-// MARK: - Sample query
 
 public final class HKSampleQuery: HKQuery, @unchecked Sendable {
     public let limit: Int
@@ -180,7 +168,6 @@ public final class HKSampleQuery: HKQuery, @unchecked Sendable {
             let r = store.daemon.samples(types: types, node: node, limit: limit, sort: keys, client: client)
             deliver { [self] in
                 switch r {
-                // swiftlint:disable:next force_cast - sample queries return sample records
                 case .success(let recs): resultsHandler(self, recs.map { HKObject.make($0) as! HKSample }, nil)
                 case .failure(let e): resultsHandler(self, nil, e)
                 }
@@ -188,8 +175,6 @@ public final class HKSampleQuery: HKQuery, @unchecked Sendable {
         }
     }
 }
-
-// MARK: - Anchored object query
 
 public final class HKAnchoredObjectQuery: HKQuery, @unchecked Sendable {
     public typealias Handler = @Sendable (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, (any Error)?) -> Void
@@ -200,7 +185,6 @@ public final class HKAnchoredObjectQuery: HKQuery, @unchecked Sendable {
     let resultsHandler: Handler
     private let update = Locked<Handler?>(nil)
 
-    /// When set before execution, the query keeps running and reports each committed change set.
     public var updateHandler: Handler? {
         get { update.current }
         set { update.withLock { $0 = newValue } }
@@ -234,7 +218,6 @@ public final class HKAnchoredObjectQuery: HKQuery, @unchecked Sendable {
                 deliver { [self] in resultsHandler(self, nil, nil, nil, e) }
             case .success(let r):
                 deliver { [self] in
-                    // swiftlint:disable:next force_cast - anchored queries return sample records
                     resultsHandler(self, r.added.map { HKObject.make($0) as! HKSample },
                                    r.deleted.map { HKDeletedObject(record: $0) }, HKQueryAnchor(value: r.anchor), nil)
                 }
@@ -248,7 +231,6 @@ public final class HKAnchoredObjectQuery: HKQuery, @unchecked Sendable {
                     last = d.anchor
                     guard !(d.added.isEmpty && d.deleted.isEmpty), let h = updateHandler else { return }
                     deliver { [self] in
-                        // swiftlint:disable:next force_cast - anchored queries return sample records
                         h(self, d.added.map { HKObject.make($0) as! HKSample }, d.deleted.map { HKDeletedObject(record: $0) },
                           HKQueryAnchor(value: d.anchor), nil)
                     }
@@ -257,8 +239,6 @@ public final class HKAnchoredObjectQuery: HKQuery, @unchecked Sendable {
         }
     }
 }
-
-// MARK: - Observer query
 
 public final class HKObserverQuery: HKQuery, @unchecked Sendable {
     let types: [String]
@@ -287,7 +267,6 @@ public final class HKObserverQuery: HKQuery, @unchecked Sendable {
                 deliver { [self] in handler(self, nil, {}, HKError.notDetermined) }
                 return
             }
-            // once right after start (`queries.md` §5)
             deliver { [self] in handler(self, nil, {}, nil) }
             let watched = Set(types)
             registerLive(store) { [self] change in
@@ -301,10 +280,7 @@ public final class HKObserverQuery: HKQuery, @unchecked Sendable {
     }
 }
 
-// MARK: - Correlation query
-
 public final class HKCorrelationQuery: HKQuery, @unchecked Sendable {
-    // swiftlint:disable:next force_cast - the query was created with a correlation type
     public var correlationType: HKCorrelationType { objectType as! HKCorrelationType }
     public let samplePredicates: [HKSampleType: NSPredicate]?
     let completion: @Sendable (HKCorrelationQuery, [HKCorrelation]?, (any Error)?) -> Void
@@ -325,7 +301,6 @@ public final class HKCorrelationQuery: HKQuery, @unchecked Sendable {
                                               client: client)
             deliver { [self] in
                 switch r {
-                // swiftlint:disable:next force_cast - correlation queries return correlation records
                 case .success(let recs): completion(self, recs.map { HKObject.make($0) as! HKCorrelation }, nil)
                 case .failure(let e): completion(self, nil, e)
                 }
@@ -333,8 +308,6 @@ public final class HKCorrelationQuery: HKQuery, @unchecked Sendable {
         }
     }
 }
-
-// MARK: - Source query
 
 public final class HKSourceQuery: HKQuery, @unchecked Sendable {
     let completion: @Sendable (HKSourceQuery, Set<HKSource>?, (any Error)?) -> Void
@@ -360,8 +333,6 @@ public final class HKSourceQuery: HKQuery, @unchecked Sendable {
     }
 }
 
-// MARK: - Statistics queries
-
 public final class HKStatisticsQuery: HKQuery, @unchecked Sendable {
     let options: HKStatisticsOptions
     let completion: @Sendable (HKStatisticsQuery, HKStatistics?, (any Error)?) -> Void
@@ -376,7 +347,6 @@ public final class HKStatisticsQuery: HKQuery, @unchecked Sendable {
 
     override func run(on store: HKHealthStore) {
         let client = store.swiftcodeClient.bundleIdentifier
-        // swiftlint:disable:next force_cast - the query was created with a quantity type
         let type = objectType as! HKQuantityType
         store.daemon.queue.async { [self] in
             let r = store.daemon.statisticsInput(type: type.identifier, node: node, client: client)
@@ -415,7 +385,6 @@ public final class HKStatisticsCollectionQuery: HKQuery, @unchecked Sendable {
         get { updates.current }
         set { updates.withLock { $0 = newValue } }
     }
-    /// SwiftCode extension: the calendar used to lay out buckets (default: the current calendar).
     public var swiftcodeCalendar: Calendar {
         get { calendar.current }
         set { calendar.withLock { $0 = newValue } }
@@ -432,7 +401,6 @@ public final class HKStatisticsCollectionQuery: HKQuery, @unchecked Sendable {
 
     override func run(on store: HKHealthStore) {
         let client = store.swiftcodeClient.bundleIdentifier
-        // swiftlint:disable:next force_cast - the query was created with a quantity type
         let type = objectType as! HKQuantityType
         let daemon = store.daemon
         let calendar = swiftcodeCalendar

@@ -36,7 +36,6 @@ public final class AssistToolRegistry {
     private var schemaCache: [String: String] = [:]
     private var registryVersion: Int = 0
 
-    // Read-only result cache for runtime idempotency
     private var readOnlyResultCache: [String: (result: String, timestamp: Date)] = [:]
     private var lastMutationTimestamp: Date = Date.distantPast
 
@@ -146,7 +145,6 @@ public final class AssistToolRegistry {
         register(AssistRevealInFinderTool())
         register(ReportToUserTool())
 
-        // 15 New Specialized Engineering Tools
         register(AssistAssetCatalogTool())
         register(AssistSwiftPackageTool())
         register(AssistPlistTool())
@@ -163,7 +161,6 @@ public final class AssistToolRegistry {
         register(AssistGitStashTool())
         register(AssistXcodeSchemeTool())
 
-        // 45 New Deep Engineering, Diagnostics, Memory, & Tooling
         register(AssistSaveToMemoryTool())
         register(AssistViewMemoryTool())
         register(AssistManageMemoryTool())
@@ -210,10 +207,8 @@ public final class AssistToolRegistry {
         register(AssistDiskSpaceAnalyzerTool())
         register(AssistSystemNotificationTool())
 
-        // Native Reverse subsystem (REA, static inspection only).
         register(ReverseToolAdapter())
 
-        // 60 new tools (feature/assist-60-new-tools): Xcode project & build
         register(AssistProjectSchemeListTool())
         register(AssistProjectTargetListTool())
         register(AssistProjectBuildSettingsTool())
@@ -224,7 +219,6 @@ public final class AssistToolRegistry {
         register(AssistProjectSigningTool())
         register(AssistProjectCleanTool())
         register(AssistProjectArchiveTool())
-        // SwiftPM + assets/resources
         register(AssistPackageManifestReadTool())
         register(AssistPackageDependencyAddTool())
         register(AssistPackageDependencyUpdateTool())
@@ -236,7 +230,6 @@ public final class AssistToolRegistry {
         register(AssistLocalizationAuditTool())
         register(AssistLocalizeAppTool())
         register(AssistPlistEditTool())
-        // Code quality & analysis
         register(AssistDeadCodeScanTool())
         register(AssistDuplicateCodeScanTool())
         register(AssistTodoScanTool())
@@ -247,7 +240,6 @@ public final class AssistToolRegistry {
         register(AssistImportCleanupTool())
         register(AssistAccessLevelAuditTool())
         register(AssistConcurrencyAuditTool())
-        // Testing & QA
         register(AssistTestCoverageReportTool())
         register(AssistTestFlakyDetectTool())
         register(AssistTestSnapshotManageTool())
@@ -258,7 +250,6 @@ public final class AssistToolRegistry {
         register(AssistTestLogParseTool())
         register(AssistPerformanceBenchmarkTool())
         register(AssistBinarySizeReportTool())
-        // Git advanced + structured files
         register(AssistGitBisectTool())
         register(AssistGitCherryPickTool())
         register(AssistGitBranchCompareTool())
@@ -267,7 +258,6 @@ public final class AssistToolRegistry {
         register(AssistFileHashVerifyTool())
         register(AssistJsonValidateTool())
         register(AssistYamlValidateTool())
-        // Environment, devices, docs, security
         register(AssistSimulatorListTool())
         register(AssistSimulatorBootTool())
         register(AssistDeviceListTool())
@@ -279,7 +269,6 @@ public final class AssistToolRegistry {
         register(AssistAccessibilityAuditTool())
         register(AssistSessionExportTool())
 
-        // Artboards & Visual UI Builder Subsystem tools
         register(AssistArtboardListTool())
         register(AssistArtboardGetTool())
         register(AssistArtboardCreateTool())
@@ -289,7 +278,6 @@ public final class AssistToolRegistry {
         register(AssistArtboardRunAppTool())
         register(AssistFixArtboardsTool())
 
-        // Archive & Compression tools
         register(AssistZipFileTool())
         register(AssistUnzipFileTool())
         register(AssistTarArchiveCreateTool())
@@ -297,7 +285,6 @@ public final class AssistToolRegistry {
         register(AssistGzipCompressTool())
         register(AssistGzipDecompressTool())
 
-        // Image & Decoder tools
         register(AssistImageDecodeBase64Tool())
         register(AssistImageEncodeBase64Tool())
         register(AssistImageGetDimensionsTool())
@@ -306,7 +293,6 @@ public final class AssistToolRegistry {
         register(AssistImageExtractMetadataTool())
         register(AssistSvgToPngTool())
 
-        // Data & Structured file tools
         register(AssistFormatJsonFileTool())
         register(AssistCsvToJsonTool())
         register(AssistJsonToCsvTool())
@@ -318,8 +304,6 @@ public final class AssistToolRegistry {
         register(AssistExtractCodeSymbolsTool())
         register(AssistGenerateFileChecksumTool())
 
-        // Artifacts-intro expansion: 60 single-file tools (no git tooling).
-        // Repository intelligence
         register(AssistRepoOverviewTool())
         register(AssistProjectStructureMapTool())
         register(AssistRecentChangesTool())
@@ -328,7 +312,6 @@ public final class AssistToolRegistry {
         register(AssistStaleFilesReportTool())
         register(AssistEntryPointsDiscoverTool())
         register(AssistBuildSystemDetectTool())
-        // Code navigation
         register(AssistCallHierarchyTool())
         register(AssistTypeHierarchyTool())
         register(AssistProtocolConformanceListTool())
@@ -337,7 +320,6 @@ public final class AssistToolRegistry {
         register(AssistFunctionSizeReportTool())
         register(AssistStringLiteralAuditTool())
         register(AssistForceUnwrapScanTool())
-        // File operations
         register(AssistDirSizeReportTool())
         register(AssistFindDuplicateFilesTool())
         register(AssistFileTypeBreakdownTool())
@@ -345,7 +327,6 @@ public final class AssistToolRegistry {
         register(AssistFileHeadPreviewTool())
         register(AssistSymlinkAuditTool())
         register(AssistExecutableFilesScanTool())
-        // Diagnostics
         register(AssistSystemTool())
         register(AssistBuildLogAnalyzeTool())
         register(AssistSchemeTestPlanListTool())
@@ -360,7 +341,6 @@ public final class AssistToolRegistry {
         register(AssistImageAssetSizeReportTool())
         register(AssistPbxprojLintTool())
         register(AssistXctestDiscoveryTool())
-        // Build environment
         register(AssistXcodeToolchainInfoTool())
         register(AssistDerivedDataLocateTool())
         register(AssistBuildSettingsDiffTool())
@@ -369,19 +349,16 @@ public final class AssistToolRegistry {
         register(AssistBuildPhaseScriptsListTool())
         register(AssistBuildConfigurationListTool())
         register(AssistTargetSourceListTool())
-        // Documentation
         register(AssistReadmeGenerateTool())
         register(AssistDocsIndexBuildTool())
         register(AssistCodeCommentExtractTool())
         register(AssistApiDocsCoverageTool())
         register(AssistMarkdownLinkCheckTool())
         register(AssistMarkdownTocGenerateTool())
-        // Native artifacts
         register(AssistCreateArtifactTool())
         register(AssistListArtifactsTool())
         register(AssistReadArtifactTool())
         register(AssistDeleteArtifactTool())
-        // Workflow
         register(AssistSessionProgressReportTool())
         register(AssistPreflightChecksTool())
         register(AssistChangeImpactEstimateTool())
@@ -389,12 +366,10 @@ public final class AssistToolRegistry {
         register(AssistConflictMarkerScanTool())
         register(AssistToolCapabilityLookupTool())
 
-        // Native Screen Capture, Recording & App Interaction
         register(AssistTakeScreenshotTool())
         register(AssistTakeScreenrecordTool())
         register(AssistUseAppTool())
 
-        // External documentation & repository intelligence (native, no MCP)
         register(AssistFetchDocumentationTool())
         register(AssistGitHubRepoTool())
     }
@@ -403,9 +378,6 @@ public final class AssistToolRegistry {
     private var cachedToolSchemas: [[String: Any]]?
 
     public func register(_ tool: AssistTool) {
-        // Never silently overwrite on a duplicate ID: the first registration
-        // wins and the collision is logged, so a duplicate is loud, not a
-        // last-wins surprise.
         if tools[tool.id] != nil {
             print("[AssistToolRegistry] Duplicate tool ID '\(tool.id)' — keeping the first registration.")
             return
@@ -682,7 +654,6 @@ public final class AssistToolRegistry {
 
         var normalizedArgs = arguments
 
-        // Common parameter aliases
         if normalizedArgs["path"] == nil {
             if let p = normalizedArgs["filePath"] ?? normalizedArgs["file_path"] ?? normalizedArgs["targetFile"] ?? normalizedArgs["file"] {
                 normalizedArgs["path"] = p
@@ -709,7 +680,6 @@ public final class AssistToolRegistry {
             }
         }
 
-        // Default helpers for terminal execution
         if tool.id == "use_terminal" {
             if normalizedArgs["explanation"] == nil {
                 normalizedArgs["explanation"] = "Execute command"
@@ -722,7 +692,6 @@ public final class AssistToolRegistry {
             }
         }
 
-        // Automatic path relativization
         let projectRoot = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? ""
         for pathKey in ["path", "filePath", "sourcePath", "destinationPath", "source", "destination", "oldPath", "newName", "workingDirectory", "project"] {
             if var rawPath = normalizedArgs[pathKey] as? String {
@@ -757,12 +726,6 @@ public final class AssistToolRegistry {
             }
         }
 
-        // ".." is rejected for path keys, with two containment-checked
-        // exceptions: dir_cd (its ".." means "parent", clamped at the root by
-        // AssistFileSystem) and use_terminal's workingDirectory (resolved
-        // through AssistFileSystem by UseTermFunction). Both are still
-        // containment-checked downstream; the rejection here is defense in
-        // depth for keys with no downstream containment check.
         if tool.id != "dir_cd" {
             for pathKey in ["path", "filePath", "sourcePath", "destinationPath", "source", "destination", "oldPath", "newName", "project"] {
                 if let path = normalizedArgs[pathKey] as? String {

@@ -1,10 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Onboarding/OnboardingFeaturesView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
-// Self-contained feature list (Modern IDE / AI Powered / Cloud Deployment cards).
-// Wiring: WelcomeView (swiftcode-ide) onboarding flow — present as a page/section;
-// no feature list exists there yet.
-
 import SwiftUI
 
 struct OnboardingFeaturesView: View {

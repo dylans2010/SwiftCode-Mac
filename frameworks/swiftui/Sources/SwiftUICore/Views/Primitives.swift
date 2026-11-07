@@ -1,14 +1,6 @@
 import Foundation
 import OVRender
 
-// Primitive views and containers, lowered onto the R3 layout engine
-// (Engine/NodeBuilders.swift). Layout rules are those of 04-layout.md; this
-// file only says which engine node each view becomes.
-
-// MARK: - Image
-
-/// An image: a symbol, a named image from a bundle or asset catalog, or
-/// pixels (round R5 draws them; Render/ImageRendering.swift).
 public struct Image: Equatable, Sendable {
     package struct BundleRef: Equatable, @unchecked Sendable {
         package let bundle: Bundle
@@ -25,8 +17,6 @@ public struct Image: Equatable, Sendable {
     package var isResizable = false
     package var renderingModeValue: TemplateRenderingMode?
     package var interpolationValue: Interpolation?
-    /// Accessibility (R10): a decorative image is not exposed; `label` is
-    /// the image's own accessibility label.
     package var isDecorative = false
     package var accessibilityLabelText: String?
 
@@ -41,12 +31,10 @@ public struct Image: Equatable, Sendable {
         accessibilityLabelText = label.segments.map(\.string).joined()
     }
     package init(naturalSize: CGSize) { source = .natural(naturalSize) }
-    /// An image from decoded or encoded pixels; `scale` pixels per point.
     package init(_ image: RenderImage, scale: CGFloat = 1) { source = .raster(image, scale: scale) }
 
     public enum ResizingMode: Hashable, Sendable { case tile, stretch }
 
-    /// Relative size of symbol images.
     public enum Scale: Hashable, Sendable { case small, medium, large }
 
     public func resizable(capInsets: EdgeInsets = EdgeInsets(), resizingMode: ResizingMode = .stretch) -> Image {
@@ -91,8 +79,6 @@ extension Image: PrimitiveView {
     }
 }
 
-// MARK: - Colours and shapes
-
 extension Color: View {
     public typealias Body = Never
 }
@@ -106,18 +92,11 @@ extension Color: PrimitiveView {
     }
 }
 
-/// Corner style of rounded rectangles.
 public enum RoundedCornerStyle: Hashable, Sendable {
     case circular
     case continuous
 }
 
-// Rectangle, RoundedRectangle, Capsule, Ellipse and Circle are shapes
-// (Render/Shape.swift, round R5).
-
-// MARK: - Spacer
-
-/// Flexible space along the enclosing stack's axis (04 §2).
 public struct Spacer: View, Sendable {
     public var minLength: CGFloat?
     public init(minLength: CGFloat? = nil) { self.minLength = minLength }
@@ -129,9 +108,6 @@ extension Spacer: PrimitiveView {
     package func _lower(node: ViewNode) -> [LayoutNode] { [.spacer(minLength: minLength)] }
 }
 
-// MARK: - Layout containers
-
-/// A `Layout` applied to views (`HStackLayout() { … }`, stacks, grids).
 package struct LayoutContainer<L: Layout, Content: View>: View {
     package let layout: L
     package let content: Content
@@ -147,14 +123,12 @@ extension LayoutContainer: PrimitiveView {
 }
 
 extension Layout {
-    /// Lays out the views of `content` with this layout.
     @MainActor
     public func callAsFunction<V: View>(@ViewBuilder _ content: () -> V) -> some View {
         LayoutContainer(layout: self, content: content())
     }
 }
 
-/// Views side by side (04 §4).
 public struct HStack<Content: View>: View {
     package let layout: HStackLayout
     package let content: Content
@@ -165,7 +139,6 @@ public struct HStack<Content: View>: View {
     public typealias Body = Never
 }
 
-/// Views one above the other (04 §4).
 public struct VStack<Content: View>: View {
     package let layout: VStackLayout
     package let content: Content
@@ -176,7 +149,6 @@ public struct VStack<Content: View>: View {
     public typealias Body = Never
 }
 
-/// Views on top of each other (04 §4).
 public struct ZStack<Content: View>: View {
     package let layout: ZStackLayout
     package let content: Content
@@ -208,11 +180,6 @@ extension ZStack: PrimitiveView {
     package func _lower(node: ViewNode) -> [LayoutNode] { [.layout(layout, node.lowerChildren())] }
 }
 
-// MARK: - ForEach
-
-/// Views computed from a collection; each element's view is identified by
-/// its ID, so state follows the IDs when the collection is reordered
-/// (03 §2).
 public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content> {
     public var data: Data
     public var content: (Data.Element) -> Content
@@ -238,7 +205,6 @@ extension ForEach where Content: View, Data.Element: Identifiable, ID == Data.El
 }
 
 extension ForEach where Content: View, Data == Range<Int>, ID == Int {
-    /// A constant range of views, identified by offset.
     public init(_ data: Range<Int>, @ViewBuilder content: @escaping (Int) -> Content) {
         self.data = data
         self.content = content
@@ -256,7 +222,6 @@ extension ForEach: PrimitiveView where Content: View {
                 let id = idOf(element)
                 let n = seen[id, default: 0]
                 seen[id] = n + 1
-                // Duplicate IDs keep distinct identities by occurrence.
                 let key = n == 0 ? AnyHashable(id) : AnyHashable([AnyHashable(id), AnyHashable(n)])
                 items.append((key, content(element)))
             }
@@ -274,21 +239,15 @@ extension ForEach: PrimitiveView where Content: View {
     }
 }
 
-// MARK: - GeometryReader
-
-/// Access to the size and position of a geometry reader (04 §2).
 public struct GeometryProxy {
     package let geometry: NodeGeometry
 
     package init(_ geometry: NodeGeometry) { self.geometry = geometry }
 
-    /// The size proposed to (and taken by) the reader.
     public var size: CGSize { geometry.size }
 
-    /// The safe-area insets the reader's frame touches (04 §7).
     public var safeAreaInsets: EdgeInsets { geometry.safeAreaInsets }
 
-    /// The reader's frame in a coordinate space.
     public func frame(in coordinateSpace: CoordinateSpace) -> CGRect {
         switch coordinateSpace {
         case .global: return geometry.frame
@@ -298,8 +257,6 @@ public struct GeometryProxy {
     }
 }
 
-/// A coordinate space for geometry queries (named spaces are not yet
-/// resolved: they answer global coordinates).
 public enum CoordinateSpace: Hashable {
     case global
     case local
@@ -313,9 +270,6 @@ private final class GeometryReaderState: GeometryObserving {
     }
 }
 
-/// A container whose content is built from its own size and position. It
-/// takes the proposed size; its content is rebuilt after a layout pass that
-/// changed its geometry.
 public struct GeometryReader<Content: View>: View {
     public var content: (GeometryProxy) -> Content
     public init(@ViewBuilder content: @escaping (GeometryProxy) -> Content) { self.content = content }

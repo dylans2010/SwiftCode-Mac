@@ -5,21 +5,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_SIMDEBUG=<prefix>  the simulator debugger's walk (B3-SIMDEBUG,
-//                              debug.md "The Linux IDE: apps on the
-//                              simulator") with the pointer and keys: open
-//                              SWIFTCODE_IDE_DEBUG_FILE (default TapCounter.swift),
-//                              click the gutter at SWIFTCODE_IDE_DEBUG_LINE, pick
-//                              the destination SWIFTCODE_IDE_SIMDEBUG_DESTINATION
-//                              ("<device> (<host>)"), Product ▸ Run, wait
-//                              until the app runs under the debugger, tap the
-//                              device at SWIFTCODE_IDE_SIMDEBUG_DISPLAY (its display
-//                              socket, `unix:<path>`), wait for the stop,
-//                              expand `self`, evaluate SWIFTCODE_IDE_DEBUG_EXPR at
-//                              the (lldb) prompt, Step Over, Continue, tap
-//                              again, Stop; writes <prefix>-<state>.png after
-//                              each.
-
 #if os(Linux)
 @MainActor
 enum SimDebugDriver {
@@ -47,7 +32,6 @@ enum SimDebugDriver {
         }
     }
 
-    /// The walk; the app quits at its end, also when a step fails.
     static func run(_ app: ShellAppModel, prefix: String) async {
         await walk(app, prefix: prefix)
         OpenViewsAutomation.terminate()
@@ -64,7 +48,6 @@ enum SimDebugDriver {
         w.open(path)
         await ShellDriver.pause(0.8)
 
-        // The breakpoint: scroll the line into view, then click its number.
         w.jumpToLine("\(line)")
         if let b = w.editor?.buffer { b.setCaret(b.document.lineRange(b.caretLine).lowerBound) }
         await ShellDriver.pause(0.8)
@@ -75,7 +58,6 @@ enum SimDebugDriver {
         await ShellDriver.pause(0.5)
         guard !w.debug.breakpoints.all.isEmpty else { say("the gutter click made no breakpoint (line \(line), y \(Int(y)))"); return }
 
-        // The destination: the paired host's device.
         let wanted = env["SWIFTCODE_IDE_SIMDEBUG_DESTINATION"]
         say("destinations: \(w.destinations.map(\.name))")
         guard let d = w.destinations.first(where: { wanted == nil ? $0.identifier?.hasPrefix(ShellRemoteRun.prefix) == true : $0.name == wanted }) else {
@@ -85,7 +67,6 @@ enum SimDebugDriver {
         w.destination = d
         await shot(prefix, "breakpoint", w)
 
-        // Product ▸ Run: build, upload, boot or restore, launch, attach.
         await ShellDriver.clickText("Product", inPopup: false)
         await ShellDriver.clickText("Run", inPopup: true)
         let t0 = Date()
@@ -96,14 +77,12 @@ enum SimDebugDriver {
         await shot(prefix, "running", w)
         guard running else { return }
 
-        // A tap on the button: the handler's breakpoint stops the app.
         await tap(display)
         let stopped = await wait(120) { w.debug.isPaused && !w.debug.variables.isEmpty }
         say("stopped=\(stopped)")
         await ShellDriver.pause(1.0)
         await shot(prefix, "stopped", w)
 
-        // The variables view: open `self` (the controller and its tally).
         if let row = w.debug.variableRows.first(where: { $0.name == "self" && $0.isExpandable }), let f = ShellDriver.frame("disclosure \(row.id)") {
             await OpenViewsAutomation.click(at: CGPoint(x: f.midX, y: f.midY))
             _ = await wait(15) { w.debug.variableRows.contains { $0.level > 0 } }
@@ -112,7 +91,6 @@ enum SimDebugDriver {
         }
         await shot(prefix, "variables", w)
 
-        // The (lldb) prompt.
         let expr = env["SWIFTCODE_IDE_DEBUG_EXPR"] ?? "frame variable sender"
         if let field = ShellDriver.frame("console input") {
             await OpenViewsAutomation.click(at: CGPoint(x: field.midX, y: field.midY))
@@ -126,26 +104,22 @@ enum SimDebugDriver {
         }
         await shot(prefix, "console", w)
 
-        // Step Over with the debug bar's button.
         let stops = w.session.stopCount
         await ShellDriver.click("bar step over")
         let stepped = await wait(60) { w.session.stopCount > stops && w.debug.isPaused && !w.debug.variables.isEmpty }
         say("stepped=\(stepped) step=\(w.debug.variables.first { $0.name == "step" }?.value ?? "-")")
         await shot(prefix, "stepped", w)
 
-        // Continue: the app runs again.
         await ShellDriver.click("bar continue")
         let resumed = await wait(60) { !w.debug.isPaused && w.activityText.hasPrefix("Running") }
         say("continued=\(resumed)")
         await shot(prefix, "continued", w)
 
-        // The next tap stops again.
         await tap(display)
         let again = await wait(120) { w.debug.isPaused && !w.debug.variables.isEmpty }
         say("stopped again=\(again)")
         await shot(prefix, "stopped-again", w)
 
-        // Stop: the debugger detaches, the app runs on on the device.
         await ShellDriver.clickText("Product", inPopup: false)
         await ShellDriver.clickText("Stop", inPopup: true)
         let detached = await wait(60) { !w.session.isDebuggingSimulatorStub && !w.debug.isDebugging }

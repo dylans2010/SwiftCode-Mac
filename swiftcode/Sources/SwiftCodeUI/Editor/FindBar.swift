@@ -1,8 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The bar above the editor: query (and replacement) fields, option
-/// pop-ups, match count, previous/next and Done.
 @MainActor
 final class FindBarView: NSView {
     let queryField = NSSearchField()
@@ -51,7 +49,6 @@ final class FindBarView: NSView {
         stack.edgeInsets = NSEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
-        // Narrow editors (splits) clip the bar instead of growing.
         let fit = stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor)
         fit.priority = .defaultLow
         clipsToBounds = true

@@ -2,8 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import os
 
-// MARK: - Small helpers for the Project tab
-
 private struct InspectorSettingsGroup: Identifiable {
     var id: String { name }
     let name: String
@@ -27,7 +25,6 @@ struct ProjectInspectorView: View {
     @State private var alertMessage = ""
     @State private var showingAlert = false
 
-    // File detail state (populated by selecting a file row in the Analytics tab)
     @State private var selectedFileURL: URL?
     @State private var fileMetadata: InspectorFileMetadata?
     @State private var fileGitStatus: String?
@@ -36,7 +33,6 @@ struct ProjectInspectorView: View {
     @State private var fileSymbolsUnavailable = false
     @State private var gitStatusCache: [String: String] = [:]
 
-    // Project tab state
     @State private var selectedSettingsTargetID = ""
     @State private var selectedSettingsConfig = ""
     @State private var settingsSearch = ""
@@ -45,7 +41,6 @@ struct ProjectInspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header bar
             HStack {
                 HStack(spacing: 10) {
                     Image(systemName: "square.text.square")
@@ -58,7 +53,6 @@ struct ProjectInspectorView: View {
                 Spacer()
 
                 HStack(spacing: 12) {
-                    // Health Score Indicator
                     HStack(spacing: 6) {
                         Image(systemName: "heart.text.square.fill")
                             .foregroundColor(healthColor)
@@ -69,7 +63,6 @@ struct ProjectInspectorView: View {
                     .padding(.vertical, 4)
                     .background(healthColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
 
-                    // Scan button
                     Button {
                         Task {
                             await scanner.scan()
@@ -96,9 +89,7 @@ struct ProjectInspectorView: View {
 
             Divider()
 
-            // Main Tab View
             TabView(selection: $selectedTab) {
-                // Overview Tab
                 ScrollView {
                     overviewTab()
                 }
@@ -107,7 +98,6 @@ struct ProjectInspectorView: View {
                 }
                 .tag("Overview")
 
-                // Project Tab
                 ScrollView {
                     projectTab()
                 }
@@ -116,14 +106,12 @@ struct ProjectInspectorView: View {
                 }
                 .tag("Project")
 
-                // Structure Tab
                 ProjectArchitectureGraph()
                     .tabItem {
                         Label("Structure", systemImage: "circle.grid.3x3.fill")
                     }
                     .tag("Structure")
 
-                // Analytics Tab
                 ScrollView {
                     analyticsTab()
                 }
@@ -132,14 +120,12 @@ struct ProjectInspectorView: View {
                 }
                 .tag("Analytics")
 
-                // AI Review Tab
                 aiReviewTab()
                     .tabItem {
                         Label("AI Review", systemImage: "sparkles")
                     }
                     .tag("AI Review")
 
-                // Actions Tab
                 ScrollView {
                     actionsTab()
                 }
@@ -168,12 +154,9 @@ struct ProjectInspectorView: View {
         return .red
     }
 
-    // MARK: - Overview Tab View
-
     @ViewBuilder
     private func overviewTab() -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            // General Metadata Card
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Project Metadata", systemImage: "info.circle")
@@ -212,7 +195,6 @@ struct ProjectInspectorView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Code statistics card
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("General Code Statistics", systemImage: "chart.pie.fill")
@@ -233,7 +215,6 @@ struct ProjectInspectorView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // AI Recommendations & Health Check Card
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("AI Recommendations & Health Checks", systemImage: "sparkles")
@@ -256,7 +237,6 @@ struct ProjectInspectorView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Recent Project Changes Card
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Recent Changes (Git History)", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
@@ -305,8 +285,6 @@ struct ProjectInspectorView: View {
         .padding(10)
         .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
     }
-
-    // MARK: - Project Tab View
 
     @ViewBuilder
     private func projectTab() -> some View {
@@ -568,8 +546,6 @@ struct ProjectInspectorView: View {
         return (preferred.team, preferred.style, preferred.identity, varies)
     }
 
-    // MARK: Build Settings browser
-
     private var effectiveSettingsTarget: InspectorTargetInfo? {
         scanner.xcodeTargets.first(where: { $0.id == selectedSettingsTargetID }) ?? scanner.xcodeTargets.first
     }
@@ -779,17 +755,13 @@ struct ProjectInspectorView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    // MARK: - Analytics Tab View
-
     @ViewBuilder
     private func analyticsTab() -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Selected file detail (populated by tapping a file row below)
             if selectedFileURL != nil {
                 fileDetailCard()
             }
 
-            // Modern Swift Syntax Usage Card
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Modern Swift Feature Usage", systemImage: "atom")
@@ -810,7 +782,6 @@ struct ProjectInspectorView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // File sizes and line count analytics
             HStack(alignment: .top, spacing: 20) {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
@@ -879,7 +850,6 @@ struct ProjectInspectorView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
 
-            // Largest directories card
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Largest Folders & Modules", systemImage: "folder.badge.gearshape")
@@ -943,12 +913,6 @@ struct ProjectInspectorView: View {
         return formatter.string(fromByteCount: size)
     }
 
-    // MARK: - File Detail (per-file inspector for Analytics selections)
-
-    /// Resolves an absolute file URL from a scanner `FileMetrics` entry and loads
-    /// its on-disk metadata, localization siblings, git status, and (for Swift
-    /// files) symbol outline. Git status runs off the main thread via Process and
-    /// is cached per path so rescans of the same file stay cheap.
     private func selectInspectorFile(_ file: FileMetrics) {
         let rootPath = scanner.projectDirectoryPath
         guard !rootPath.isEmpty else { return }
@@ -977,8 +941,6 @@ struct ProjectInspectorView: View {
             }
         }
 
-        // Symbol outline for Swift sources, using the same real analyzer as the
-        // editor's Symbol Outline view.
         if url.pathExtension.lowercased() == "swift" {
             if let content = try? String(contentsOf: url, encoding: .utf8), !content.isEmpty {
                 fileSymbols = CodeStructureAnalyzer.shared.analyze(content)
@@ -1231,12 +1193,9 @@ struct ProjectInspectorView: View {
         }
     }
 
-    // MARK: - AI Review Tab View
-
     @ViewBuilder
     private func aiReviewTab() -> some View {
         HSplitView {
-            // Prompts Sidebar
             VStack(alignment: .leading, spacing: 12) {
                 Text("AI Assistant Presets")
                     .font(.headline)
@@ -1289,9 +1248,7 @@ struct ProjectInspectorView: View {
             .frame(width: 260)
             .background(Color(NSColor.windowBackgroundColor))
 
-            // AI Chat Workspace
             VStack(spacing: 0) {
-                // Prompt Bar
                 HStack {
                     TextField("Enter your request here...", text: $aiReviewPrompt)
                         .textFieldStyle(.roundedBorder)
@@ -1319,7 +1276,6 @@ struct ProjectInspectorView: View {
 
                 Divider()
 
-                // Response View
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         if isAIReviewRunning {
@@ -1393,8 +1349,6 @@ Prompt: \(aiReviewPrompt)
             isAIReviewRunning = false
         }
     }
-
-    // MARK: - Actions Tab View
 
     @ViewBuilder
     private func actionsTab() -> some View {
@@ -1563,8 +1517,6 @@ Generated: \(Date().description)
     }
 }
 
-// MARK: - Adaptive flow layout for configuration chips
-
 private struct ProjectInspectorFlowLayout: Layout {
     var spacing: CGFloat = 8
 
@@ -1614,9 +1566,6 @@ private struct ProjectInspectorFlowLayout: Layout {
     }
 }
 
-// MARK: - Per-file inspector support
-
-/// Deep on-disk metadata for a single project file, sourced from FileManager.
 private struct InspectorFileMetadata {
     let url: URL
     let name: String
@@ -1657,7 +1606,6 @@ private struct InspectorFileMetadata {
         )
     }
 
-    /// Human-readable permissions like "rw-r--r-- (644)".
     var permissionsText: String {
         let perms = posixPermissions & 0xFFF
         let names = ["r", "w", "x"]
@@ -1671,9 +1619,6 @@ private struct InspectorFileMetadata {
         return "\(readable) (\(String(perms, radix: 8)))"
     }
 
-    /// Localizations for this file: any "<base>.lproj" folder containing a
-    /// "<base>.strings" file, plus sibling "<base>.strings", "<base>.stringsdict"
-    /// or "<base>.xcstrings" files — all discovered via FileManager.
     static func localizations(for url: URL) -> [String] {
         let fileManager = FileManager.default
         let parent = url.deletingLastPathComponent()
@@ -1706,9 +1651,6 @@ private struct InspectorFileMetadata {
     }
 }
 
-/// Runs `git status --porcelain` for a single path inside the project directory
-/// and returns a human-readable status. Returns "Unmodified" when clean, or an
-/// honest "Not a git repository" when the project is not under git control.
 private func inspectorGitStatus(for url: URL, root: URL) -> String {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/git")

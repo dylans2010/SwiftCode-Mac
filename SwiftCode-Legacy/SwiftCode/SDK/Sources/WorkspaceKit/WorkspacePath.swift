@@ -34,8 +34,6 @@ public struct WorkspacePath: Sendable, Hashable, CustomStringConvertible {
         WorkspacePath(url.appendingPathComponent(component).path)
     }
 
-    /// Verifies that this path is within or equal to the designated root path,
-    /// protecting against directory traversal attacks (e.g. `../../etc/passwd`).
     public func isWithin(root: WorkspacePath) -> Bool {
         let rootNorm = root.normalizedPath
         let selfNorm = normalizedPath

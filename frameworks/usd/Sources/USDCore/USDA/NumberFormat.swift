@@ -1,6 +1,3 @@
-/// Number formatting for USDA: the shortest text that reads back to the
-/// same value, in the style OpenUSD writes (`1`, `0.25`, `1e-7`, `1.5e22`,
-/// `inf`, `nan`).
 public enum NumberFormat {
     public static func format(_ value: Double) -> String {
         if value.isNaN { return "nan" }
@@ -16,8 +13,6 @@ public enum NumberFormat {
         return layout(decompose(value.description), negative: value < 0)
     }
 
-    /// Halves, as OpenUSD prints them: six significant digits in `%g` style
-    /// (`0.333008`, `6.10352e-05`).
     public static func formatHalf(_ value: Float) -> String {
         if value.isNaN || value.isInfinite || value == 0 { return format(value) }
         let (digits, exponent) = decompose(Double(value).description)
@@ -35,8 +30,6 @@ public enum NumberFormat {
         return layout((d, e), negative: value < 0)
     }
 
-    /// Splits Swift's shortest description into significant digits and the
-    /// decimal exponent `n` such that value = 0.d1d2… × 10^n.
     static func decompose(_ text: String) -> (digits: [UInt8], exponent: Int) {
         var mantissa = Substring(text)
         if mantissa.first == "-" { mantissa = mantissa.dropFirst() }
@@ -88,8 +81,6 @@ public enum NumberFormat {
         return (kept, exponent)
     }
 
-    /// ECMAScript-style layout: plain decimal for 1e-6 ≤ |x| < 1e21,
-    /// otherwise `d.ddde-x` (no `+` on positive exponents).
     static func layout(_ parts: (digits: [UInt8], exponent: Int), negative: Bool) -> String {
         let digits = parts.digits.map { Character(Unicode.Scalar($0 + 48)) }
         let k = digits.count

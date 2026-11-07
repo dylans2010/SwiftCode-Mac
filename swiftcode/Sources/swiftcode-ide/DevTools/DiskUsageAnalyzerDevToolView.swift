@@ -1,18 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/DiskUsageAnalyzerDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-// The analyzer VIEW; prod only has the DevToolsDiskUsage helper enum.
-//
-// CLEANUP (2026-11-06, C6): Legacy's view listed hardcoded sizes
-// (DerivedData "4.8 GB", SwiftPM "1.2 GB", CocoaPods "840 MB",
-// App Support "120 MB") and its "Clean" button only rewrote the label to
-// "0 KB" while logging "Purged directory path size to mock cleanup" —
-// nothing was ever deleted. Replaced with real measurements:
-// each directory is sized with DevToolsDiskUsage.allocatedSize(of:)
-// (recursive allocated size from the live filesystem) on appear and on
-// rescan, and Clean now really removes the directory with
-// FileManager.removeItem, then re-scans. A missing directory shows
-// "Not present"; a scan failure is reported instead of a made-up number.
 import SwiftUI
 import SwiftCodeUI
 import os.log
@@ -44,8 +29,6 @@ final class DiskUsageAnalyzerViewModel {
 
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "DiskUsageAnalyzer")
 
-    /// Measures every listed directory from the live filesystem.
-    /// Enumeration runs off the main actor; results land back on it.
     func scan() {
         guard !isScanning else { return }
         isScanning = true
@@ -67,9 +50,6 @@ final class DiskUsageAnalyzerViewModel {
         }
     }
 
-    /// Really deletes the directory, then re-scans so the sizes shown
-    /// are the post-clean measurements. Failures are surfaced, never
-    /// reported as a successful clean.
     func cleanPath(_ itemID: UUID) {
         guard let index = paths.firstIndex(where: { $0.id == itemID }) else { return }
         let item = paths[index]

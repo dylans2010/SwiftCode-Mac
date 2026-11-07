@@ -1,24 +1,3 @@
-// The capture layer (camera.md "SwiftCode implementation"): makes the public
-// capture API of AVFoundation work in an app process for the camera the
-// host announces.
-//
-// - Discovery: AVCaptureDevice's class methods and AVCaptureDeviceDiscovery-
-//   Session's `devices` add one device, an instance of SwiftCodeCaptureDevice, a
-//   subclass of AVCaptureDevice made at run time, whose public properties
-//   answer from the host's device list. The microphone stays as the
-//   runtime reports it.
-// - Inputs: AVCaptureDeviceInput's initializers give a SwiftCodeCaptureDeviceInput
-//   for that device, after the authorization check the public API documents
-//   (the guest's tccd answers it; camera.md §6).
-// - Sessions: every AVCaptureSession's public methods are answered by this
-//   layer (inputs, outputs, connections, presets, configuration, running,
-//   interruption, notifications). A running session with the camera has a
-//   host stream; its frames go to video data outputs as CMSampleBuffers
-//   wrapping CVPixelBuffers backed by the host's IOSurfaces, to preview
-//   layers, and to photo outputs.
-//
-// Only public classes, selectors, functions and constants are used.
-
 #import "YCCamera.h"
 #include <stdatomic.h>
 #include <dlfcn.h>
@@ -26,8 +5,6 @@
 id YCCreateInstance(Class cls) NS_RETURNS_RETAINED;
 void YCUsePlainDealloc(Class cls);
 void YCUseNSObjectBasics(Class cls);
-
-// MARK: - Constants (AVFoundation's exported strings, read with dlsym)
 
 static NSString *YCConst(const char *name, NSString *fallback) {
     NSString *__unsafe_unretained *p = (NSString *__unsafe_unretained *)dlsym(RTLD_DEFAULT, name);
@@ -75,15 +52,11 @@ static void YCLoadConstants(void) {
     kCodecJPEG = YCConst("AVVideoCodecTypeJPEG", @"jpeg");
 }
 
-// MARK: - Runtime helpers
-
 static char kStateKey;
 
 static id YCState(id object) { return object ? objc_getAssociatedObject(object, &kStateKey) : nil; }
 static void YCSetState(id object, id state) { objc_setAssociatedObject(object, &kStateKey, state, OBJC_ASSOCIATION_RETAIN); }
 
-/// Replaces `sel` of `cls` (an inherited method gets its own override);
-/// returns the implementation it had, or NULL when `cls` has no such method.
 static IMP YCHook(Class cls, SEL sel, id block) {
     Method m = class_getInstanceMethod(cls, sel);
     if (!m) {
@@ -106,8 +79,6 @@ static IMP YCHookC(Class cls, SEL sel, IMP imp) {
 
 static IMP YCHookClass(Class cls, SEL sel, id block) { return YCHook(object_getClass(cls), sel, block); }
 
-/// An override in a subclass made here, with the superclass's type encoding
-/// (skipped when the superclass has no such method on this system).
 static void YCOverride(Class sub, SEL sel, id block) {
     Method m = class_getInstanceMethod(class_getSuperclass(sub), sel);
     if (!m) return;
@@ -131,17 +102,13 @@ static NSError *YCError(NSInteger code, NSString *text, NSString *reason) {
 
 static void YCRaise(NSString *name, NSString *text) { @throw [NSException exceptionWithName:name reason:text userInfo:nil]; }
 
-// MARK: - Classes
-
 static Class AVDevice, AVFormat, AVRange, AVInput, AVPort, AVConnection, AVSession, AVOutput, AVVideoOutput, AVPhotoOutput;
 static Class AVPreview, AVDiscovery, AVPhoto, AVResolved, AVPhotoSettings, AVMovieOutput;
 static Class cDevice, cFormat, cRange, cInput, cPort, cConnection, cPhoto, cResolved;
 
 static NSRecursiveLock *gLock;
-static id gDevice;                 // the one camera (a SwiftCodeCaptureDevice)
+static id gDevice;
 static YCCameraInfo *gInfo;
-
-// MARK: - State objects
 
 @interface YCDeviceState : NSObject
 @property(nonatomic, copy) NSArray *formats;
@@ -305,8 +272,6 @@ static YCPreviewState *PS(id layer) {
     return s;
 }
 
-// MARK: - Formats
-
 static id YCMakeRange(double minFPS, double maxFPS) {
     id r = YCCreateInstance(cRange);
     YCRangeState *s = [YCRangeState new];
@@ -338,8 +303,6 @@ static id YCMakeFormat(int w, int h, double minFPS, double maxFPS, OSType subtyp
 
 static YCFormatState *FS(id format) { return [YCState(format) isKindOfClass:YCFormatState.class] ? YCState(format) : nil; }
 
-/// The device's format for a size: exact, else the smallest that covers it,
-/// else the largest; the `subtype` variant.
 static id YCBestFormat(int w, int h, OSType subtype) {
     id exact = nil, cover = nil, largest = nil;
     for (id f in gDS.formats) {
@@ -352,8 +315,6 @@ static id YCBestFormat(int w, int h, OSType subtype) {
     return exact ?: cover ?: largest;
 }
 
-/// A preset's nominal size (camera.md "SwiftCode implementation": the host
-/// camera has the sizes it has; the nearest format is used).
 static BOOL YCPresetSize(NSString *preset, int *w, int *h) {
     struct { NSString *__unsafe_unretained p; int w, h; } table[] = {
         {kPresetHigh, 1920, 1080}, {kPresetMedium, 480, 360}, {kPresetLow, 192, 144}, {kPresetPhoto, 0, 0},
@@ -365,7 +326,6 @@ static BOOL YCPresetSize(NSString *preset, int *w, int *h) {
         *w = table[i].w;
         *h = table[i].h;
         if (table[i].p == kPresetPhoto) {
-            // The largest 4:3 size, else the largest.
             for (id f in gDS.formats) {
                 YCFormatState *s = FS(f);
                 if (s.width * 3 == s.height * 4 && s.width * s.height >= *w * *h) {
@@ -380,7 +340,6 @@ static BOOL YCPresetSize(NSString *preset, int *w, int *h) {
             }
         }
         if (table[i].p == kPresetHigh) {
-            // The largest 16:9 size up to 1920x1080.
             int bw = 0, bh = 0;
             for (id f in gDS.formats) {
                 YCFormatState *s = FS(f);
@@ -398,7 +357,6 @@ static CMTime YCDefaultMinDuration(id format) {
     return YCDuration(MIN(30.0, s.maxFPS > 0 ? s.maxFPS : 30.0));
 }
 
-/// Every session whose inputs include the camera.
 static NSArray *YCSessionsWithCamera(void);
 static void YCReconfigure(id session);
 
@@ -421,8 +379,6 @@ static void YCSetActiveFormat(id format, BOOL fromApp) {
         YCReconfigure(session);
     }
 }
-
-// MARK: - The device (SwiftCodeCaptureDevice)
 
 static BOOL YCIsVideo(NSString *mediaType) { return [mediaType isEqualToString:kVideo]; }
 
@@ -489,7 +445,6 @@ static void YCBuildDeviceClass(void) {
     YCOverride(c, @selector(isVirtualDevice), ^BOOL(id self) { return NO; });
     YCOverride(c, @selector(constituentDevices), ^NSArray *(id self) { return @[]; });
     YCOverride(c, @selector(linkedDevices), ^NSArray *(id self) { return @[]; });
-    // A webcam: no torch or flash, fixed focus, continuous automatic exposure and white balance.
     YCOverride(c, @selector(hasTorch), ^BOOL(id self) { return NO; });
     YCOverride(c, @selector(hasFlash), ^BOOL(id self) { return NO; });
     YCOverride(c, @selector(isTorchAvailable), ^BOOL(id self) { return NO; });
@@ -604,7 +559,6 @@ static void YCMakeDevice(YCCameraInfo *info) {
         int w = [d[@"width"] intValue], h = [d[@"height"] intValue];
         double lo = [d[@"minFrameRate"] doubleValue], hi = [d[@"maxFrameRate"] doubleValue];
         if (w <= 0 || h <= 0) continue;
-        // As on a device: a video-range and a full-range format per size.
         [formats addObject:YCMakeFormat(w, h, lo, hi, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)];
         [formats addObject:YCMakeFormat(w, h, lo, hi, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)];
     }
@@ -619,15 +573,12 @@ static void YCMakeDevice(YCCameraInfo *info) {
             (long)info.position, (unsigned long)formats.count, gDS.activeFormat);
 }
 
-// MARK: - Discovery (AVCaptureDevice class methods, discovery sessions)
-
 static BOOL YCMatchesPosition(AVCaptureDevicePosition p) { return p == AVCaptureDevicePositionUnspecified || p == gInfo.position; }
 
 static BOOL YCMatchesType(NSString *type) { return [type isEqualToString:YCDeviceTypeValue()]; }
 
 static char kDiscoveryKey;
 
-/// Debug: which image called a class-method hook (SWIFTCODE_CAMERA_DEBUG).
 static void YCTraceCaller(const char *what, void *ra) {
     if (!YCDebug) return;
     Dl_info info;
@@ -637,11 +588,6 @@ static void YCTraceCaller(const char *what, void *ra) {
 }
 #define YCCALLER(what) YCTraceCaller(what, __builtin_return_address(0))
 
-/// Whether a call comes from the runtime's own capture frameworks
-/// (AVFoundation, AVFCapture). They get the runtime's answers: their
-/// objects for a device are private, and a photo output's initializer that
-/// was handed the layer's device through a discovery session crashed. Apps,
-/// their libraries and the Swift overlay get the camera.
 static BOOL YCFromRuntime(void *ra) {
     static _Atomic(uintptr_t) runtimeBases[4];
     static _Atomic(uintptr_t) otherBases[16];
@@ -722,8 +668,6 @@ static void YCHookDiscovery(void) {
     });
 }
 
-// MARK: - Inputs and ports
-
 static id YCMakePort(id input) {
     id p = YCCreateInstance(cPort);
     YCPortState *s = [YCPortState new];
@@ -736,10 +680,6 @@ static id YCMakePort(id input) {
 static BOOL YCIsOurInput(id input) { return input && object_getClass(input) == cInput; }
 static BOOL YCIsOurPort(id port) { return port && object_getClass(port) == cPort; }
 
-/// The authorization the public API documents for creating an input
-/// (camera.md §7.2 C, step 9): denied or restricted → the "not authorized"
-/// error; not determined → the system asks (the guest's tccd shows its
-/// alert) and the input is made; frames are withheld until it is granted.
 static id YCMakeInput(NSError *__autoreleasing *error) {
     AVAuthorizationStatus status = [AVDevice authorizationStatusForMediaType:kVideo];
     YCTrace(@"input: authorization status %ld", (long)status);
@@ -801,8 +741,6 @@ static void YCBuildInputClasses(void) {
     oInputInit = YCHookC(AVInput, @selector(initWithDevice:error:), (IMP)YCInputInit);
 }
 
-// MARK: - Connections
-
 static YCConnectionState *CS(id connection) {
     id s = YCState(connection);
     return [s isKindOfClass:YCConnectionState.class] ? s : nil;
@@ -816,7 +754,6 @@ static id YCMakeConnection(NSArray *ports, id output, id layer) {
     s.previewLayer = layer;
     s.enabled = YES;
     s.autoMirror = YES;
-    // A front camera's preview is mirrored, as on a device.
     s.mirrored = layer != nil && gInfo.position == AVCaptureDevicePositionFront;
     s.angle = 0;
     YCSetState(c, s);
@@ -914,16 +851,11 @@ static NS_RETURNS_RETAINED id YCConnectionInitLayer(__attribute__((ns_consumed))
     return ((Init)oConnInitLayer)(self, _cmd, port, layer);
 }
 
-// MARK: - Sessions
-
-static __weak id gStreamSession;   // the session the host stream serves
+static __weak id gStreamSession;
 static uint32_t gStreamID;
-/// Frames delivered on the current stream (photos wait for kPhotoSettleFrames).
 static uint64_t gStreamFrames;
-/// A still comes from the 10th frame of a stream or later: a webcam's first
-/// frames after it opens are dark while its automatic exposure starts.
 static const uint64_t kPhotoSettleFrames = 10;
-static NSHashTable *gSessions;     // every session that had an input
+static NSHashTable *gSessions;
 
 static NSArray *YCSessionsWithCamera(void) {
     NSMutableArray *out = [NSMutableArray array];
@@ -943,8 +875,6 @@ static id YCConnectionFor(YCSessionState *ss, id output) {
     return nil;
 }
 
-/// Connections between the camera's ports and every output and preview
-/// layer that has none (inputs and outputs added "with no connections" are left out).
 static void YCConnectAll(id session) {
     YCSessionState *ss = SS(session);
     for (id input in ss.inputs) {
@@ -985,10 +915,6 @@ static BOOL YCSessionUsesCamera(YCSessionState *ss) {
     return NO;
 }
 
-/// What the host stream must deliver for this session: the active format's
-/// size, the frame rate of activeVideoMinFrameDuration, and the first video
-/// data output's pixel format (else the format's own; BGRA when only
-/// preview layers and photo outputs consume frames).
 static void YCStreamConfiguration(YCSessionState *ss, uint32_t *w, uint32_t *h, double *fps, OSType *format) {
     YCFormatState *f = FS(gDS.activeFormat);
     *w = (uint32_t)f.width;
@@ -1035,8 +961,6 @@ static void YCSetInterrupted(id session, BOOL interrupted) {
     [session didChangeValueForKey:@"interrupted"];
 }
 
-/// Starts (or restarts with a new configuration) the host stream for a
-/// session. Returns the host's status.
 static uint32_t YCStartStream(id session) {
     YCSessionState *ss = SS(session);
     uint32_t w, h;
@@ -1045,7 +969,6 @@ static uint32_t YCStartStream(id session) {
     YCStreamConfiguration(ss, &w, &h, &fps, &format);
     id previous = gStreamSession;
     if (previous && previous != session) {
-        // One stream per process: the other session is interrupted.
         YCSetInterrupted(previous, YES);
         YCPost(kInterruptedNote, previous, @{kReasonKey: @(AVCaptureSessionInterruptionReasonVideoDeviceInUseByAnotherClient)});
     }
@@ -1068,8 +991,6 @@ static void YCStopStream(id session) {
     YCHostStop(id);
 }
 
-/// After a configuration change: a running session's stream follows it
-/// (restarted only when what it asks the host for changed).
 static void YCReconfigure(id session) {
     YCSessionState *ss = SS(session);
     if (ss.configDepth > 0 || !ss.running || ss.interrupted) return;
@@ -1293,10 +1214,6 @@ static void YCHookSessionClass(Class cls) {
     });
 }
 
-// MARK: - Outputs
-
-/// The session an output was added to (nil before: the runtime's own
-/// answers apply, as during the output's initializer).
 static id YCOutputSession(id output) {
     YCOutputState *s = YCState(output);
     return [s isKindOfClass:YCOutputState.class] ? s.session : nil;
@@ -1332,7 +1249,6 @@ static void YCHookOutputs(void) {
         [gLock unlock];
     });
     YCHook(AVVideoOutput, @selector(setVideoSettings:), ^(id self, NSDictionary *settings) {
-        // Kept here (the stream follows them); nil until set, as in the runtime.
         objc_setAssociatedObject(self, @selector(videoSettings), settings, OBJC_ASSOCIATION_COPY);
         [gLock lock];
         if (OS(self).session) YCReconfigure(OS(self).session);
@@ -1342,8 +1258,6 @@ static void YCHookOutputs(void) {
         return objc_getAssociatedObject(self, @selector(videoSettings));
     });
 }
-
-// MARK: - Frames to outputs
 
 static NSInteger gAuthorization = -1;
 static uint64_t gAuthorizationChecked;
@@ -1385,11 +1299,9 @@ static CVPixelBufferRef YCPoolBuffer(YCOutputState *os, int w, int h, OSType for
     return out;
 }
 
-/// The frame rotated, mirrored and in `format` (BGRA from 4:2:0 or as the
-/// stream); NULL when nothing needs to change.
 static CVPixelBufferRef YCTransform(YCOutputState *os, CVPixelBufferRef src, int angle, BOOL mirror, OSType format) {
     OSType have = CVPixelBufferGetPixelFormatType(src);
-    if (format != kCVPixelFormatType_32BGRA) format = have;  // 4:2:0 variants are delivered as streamed
+    if (format != kCVPixelFormatType_32BGRA) format = have;
     if (angle == 0 && !mirror && format == have) return NULL;
     int w = (int)CVPixelBufferGetWidth(src), h = (int)CVPixelBufferGetHeight(src);
     int ow = (angle == 90 || angle == 270) ? h : w, oh = (angle == 90 || angle == 270) ? w : h;
@@ -1407,7 +1319,6 @@ static CVPixelBufferRef YCTransform(YCOutputState *os, CVPixelBufferRef src, int
                            (size_t)(w + 1) / 2, (size_t)(h + 1) / 2, 2, CVPixelBufferGetBaseAddressOfPlane(dst, 1),
                            CVPixelBufferGetBytesPerRowOfPlane(dst, 1), angle, mirror);
     } else {
-        // 4:2:0 to BGRA, then the rotation.
         size_t stride = (size_t)w * 4;
         uint8_t *tmp = (angle == 0 && !mirror) ? NULL : malloc(stride * (size_t)h);
         uint8_t *target = tmp ?: CVPixelBufferGetBaseAddress(dst);
@@ -1463,15 +1374,12 @@ static void YCDeliverVideo(id output, id connection, CVPixelBufferRef pb, CMSamp
     });
 }
 
-// MARK: - Images (preview, photos)
-
 static void YCFreeBytes(void *info, const void *data, size_t size) {
     (void)info;
     (void)size;
     free((void *)data);
 }
 
-/// The frame as BGRA bytes, rotated and mirrored; `*w`, `*h` the result's size.
 static uint8_t *YCBGRA(CVPixelBufferRef pb, int angle, BOOL mirror, int *w, int *h) {
     int sw = (int)CVPixelBufferGetWidth(pb), sh = (int)CVPixelBufferGetHeight(pb);
     OSType f = CVPixelBufferGetPixelFormatType(pb);
@@ -1512,8 +1420,6 @@ static CGImageRef YCImage(uint8_t *bgra, int w, int h) {
     CGDataProviderRelease(provider);
     return img;
 }
-
-// MARK: - Preview layers
 
 static dispatch_queue_t gPreviewQueue;
 
@@ -1557,7 +1463,6 @@ static void YCRenderPreview(CALayer *layer, CVPixelBufferRef pb) {
                 ps.content = [CALayer layer];
                 ps.content.masksToBounds = YES;
                 ps.content.name = @"dev.swiftcode.camera.preview";
-                // Below anything the app draws over the preview.
                 [layer insertSublayer:ps.content atIndex:0];
             }
             YCLayoutContent(layer, ps);
@@ -1629,7 +1534,6 @@ static void YCHookPreview(void) {
         ((void (*)(id, SEL, id))oSetGravity)(self, @selector(setVideoGravity:), g);
         YCLayoutContent(self, PS(self));
     });
-    // Point conversions for an unrotated preview (aspect fit, fill, resize).
     YCHook(AVPreview, @selector(captureDevicePointOfInterestForPoint:), ^CGPoint(id self, CGPoint p) {
         CGRect b = [(CALayer *)self bounds];
         YCStartReply r = gStreamSession ? SS(gStreamSession).stream : (YCStartReply){0};
@@ -1642,8 +1546,6 @@ static void YCHookPreview(void) {
         return CGPointMake((p.x - ox) / (iw * s), (p.y - oy) / (ih * s));
     });
 }
-
-// MARK: - Photos
 
 static dispatch_queue_t gPhotoQueue;
 static NSMutableArray<YCPhotoRequest *> *gPhotoRequests;
@@ -1782,8 +1684,6 @@ static void YCHookPhotoOutput(void) {
         [gPhotoRequests addObject:rq];
         [gLock unlock];
     });
-    // Before the output is added to a session the runtime answers (its
-    // initializer reads these; answering for it crashed the runtime).
     static IMP oCodecs, oPixelFormats, oFlashModes, oMaxDimensions;
     oCodecs = YCHook(AVPhotoOutput, @selector(availablePhotoCodecTypes), ^NSArray *(id self) {
         if (!YCOutputSession(self)) return ((NSArray *(*)(id, SEL))oCodecs)(self, @selector(availablePhotoCodecTypes));
@@ -1804,8 +1704,6 @@ static void YCHookPhotoOutput(void) {
     });
 }
 
-// MARK: - The frame path
-
 static void YCHandleFrame(YCFrameInfo f) {
     if (f.stream != gStreamID || !gStreamID) {
         YCHostRelease(f.stream, f.slot, f.sequence);
@@ -1820,7 +1718,6 @@ static void YCHandleFrame(YCFrameInfo f) {
         YCHostRelease(f.stream, f.slot, f.sequence);
         return;
     }
-    // From here the frame goes back to the host when the pixel buffer is freed.
     CMSampleTimingInfo timing = {CMClockMakeHostTimeFromSystemUnits(f.durationTicks), CMClockMakeHostTimeFromSystemUnits(f.presentationTicks),
                                  kCMTimeInvalid};
     CMSampleBufferRef sb = YCSampleBuffer(pb, timing);
@@ -1912,8 +1809,6 @@ static void YCHandleEvent(uint32_t stream, uint32_t kind, uint32_t width, uint32
     }
 }
 
-// MARK: - App lifecycle (interruption in the background, as on a device)
-
 static void YCObserveLifecycle(void) {
     NSString *background = YCConst("UIApplicationDidEnterBackgroundNotification", @"UIApplicationDidEnterBackgroundNotification");
     NSString *foreground = YCConst("UIApplicationWillEnterForegroundNotification", @"UIApplicationWillEnterForegroundNotification");
@@ -1924,7 +1819,7 @@ static void YCObserveLifecycle(void) {
         id session = gStreamSession;
         if (session && SS(session).running && !SS(session).interrupted) {
             YCStopStream(session);
-            gStreamSession = session;  // remembered for the return
+            gStreamSession = session;
             YCSetInterrupted(session, YES);
             [gLock unlock];
             YCPost(kInterruptedNote, session, @{kReasonKey: @(AVCaptureSessionInterruptionReasonVideoDeviceNotAvailableInBackground)});
@@ -1949,8 +1844,6 @@ static void YCObserveLifecycle(void) {
     }];
 }
 
-// MARK: - Installation
-
 void YCInstallCaptureLayer(void) {
     YCDebug = getenv("SWIFTCODE_CAMERA_DEBUG") && strcmp(getenv("SWIFTCODE_CAMERA_DEBUG"), "0") != 0;
     AVDevice = objc_getClass("AVCaptureDevice");
@@ -1974,8 +1867,6 @@ void YCInstallCaptureLayer(void) {
         YCLog(@"AVFoundation's capture classes are missing; no camera");
         return;
     }
-    // Debug: SWIFTCODE_CAMERA_SKIP names parts not to install (all, classes, discovery,
-    // photo, sessions, outputs, preview, connections), to find which one a failure needs.
     const char *skipEnv = getenv("SWIFTCODE_CAMERA_SKIP");
     NSString *skip = skipEnv ? @(skipEnv) : @"";
     BOOL (^skipping)(NSString *) = ^BOOL(NSString *part) {

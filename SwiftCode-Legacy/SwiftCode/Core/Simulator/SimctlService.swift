@@ -41,7 +41,6 @@ public actor SimctlService {
         do {
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
-            // 1. Parse runtimes
             var parsedRuntimes: [SimulatorRuntime] = []
             if let runtimesList = json["runtimes"] as? [[String: Any]] {
                 for r in runtimesList {
@@ -51,7 +50,6 @@ public actor SimctlService {
                     let platform = r["platform"] as? String ?? (name.contains("iOS") ? "iOS" : name.contains("watchOS") ? "watchOS" : name.contains("tvOS") ? "tvOS" : name.contains("visionOS") ? "visionOS" : "macOS")
                     let isAvailable = r["isAvailable"] as? Bool ?? true
 
-                    // Filter out unavailable runtimes
                     if isAvailable {
                         parsedRuntimes.append(SimulatorRuntime(
                             identifier: identifier,
@@ -64,16 +62,13 @@ public actor SimctlService {
                 }
             }
 
-            // Sort newest first
             parsedRuntimes.sort { r1, r2 in
                 r1.version.compare(r2.version, options: .numeric) == .orderedDescending
             }
 
-            // 2. Parse devices
             var parsedDevices: [SimulatorDevice] = []
             if let devicesMap = json["devices"] as? [String: [[String: Any]]] {
                 for (runtimeKey, devList) in devicesMap {
-                    // Match runtime version and platform
                     let cleanRuntimeID = runtimeKey.replacingOccurrences(of: "com.apple.CoreSimulator.SimRuntime.", with: "")
                     let parts = cleanRuntimeID.split(separator: "-")
                     let platform = parts.first.map(String.init) ?? "iOS"
@@ -117,7 +112,6 @@ public actor SimctlService {
         }
     }
 
-    // Core diagnostics checks
     public func runDiagnostics() async -> PipelineDiagnostics {
         let startTime = Date()
 
@@ -165,8 +159,6 @@ public actor SimctlService {
             latestExitCode: latestExit
         )
     }
-
-    // Core simctl command utilities
 
     public func bootDevice(udid: String) async throws {
         let command = SimulatorCommand.boot(udid: udid)

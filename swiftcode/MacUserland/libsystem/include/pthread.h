@@ -1,6 +1,3 @@
-/* SwiftCode freestanding <pthread.h>: the read-write lock libunwind uses, in
-   the public Darwin arm64 layout (200 bytes, initializer signature
-   0x2DA8B3B4). */
 #ifndef YCL_PTHREAD_H
 #define YCL_PTHREAD_H
 #ifdef __cplusplus

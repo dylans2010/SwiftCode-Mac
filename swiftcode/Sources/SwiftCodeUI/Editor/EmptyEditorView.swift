@@ -1,10 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The editor with no document (`specs/ide/reference-ui-4.md` §9): an Open
-/// Quickly field, a "Recent Files" heading and the recent files (icon, name
-/// without extension, folder breadcrumb). Clicking a row opens it; typing
-/// in the field searches like Open Quickly.
 @MainActor
 public final class EmptyEditorView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public struct Row: Equatable {
@@ -23,8 +19,6 @@ public final class EmptyEditorView: NSView, NSTableViewDataSource, NSTableViewDe
     var root: String = ""
     var onOpen: ((String, Int?) -> Void)?
 
-    /// A row for a path: the name without extension and the folder path
-    /// relative to `root`, joined with " › ".
     public static func row(path: String, root: String, line: Int? = nil) -> Row {
         let url = URL(fileURLWithPath: path)
         var folder = url.deletingLastPathComponent().path
@@ -35,9 +29,6 @@ public final class EmptyEditorView: NSView, NSTableViewDataSource, NSTableViewDe
         return Row(path: path, name: url.deletingPathExtension().lastPathComponent, breadcrumb: crumbs.joined(separator: " › "), line: line)
     }
 
-    /// The editor's background in the window's appearance (a colour
-    /// resolved once at creation stayed dark in a light window, against the
-    /// pure white of `editor-area.md` E.5).
     public override var wantsUpdateLayer: Bool { true }
     public override func updateLayer() {
         layer?.backgroundColor = Theme.backgroundColor.cgColor
@@ -83,7 +74,6 @@ public final class EmptyEditorView: NSView, NSTableViewDataSource, NSTableViewDe
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Recent files, most recent first.
     func configure(recent: [String], candidates: [FuzzyMatch.Candidate], root: String) {
         self.recent = recent
         self.candidates = candidates
@@ -91,8 +81,6 @@ public final class EmptyEditorView: NSView, NSTableViewDataSource, NSTableViewDe
         search(field.stringValue)
     }
 
-    /// Typing: an empty query lists Recent Files; otherwise Open Quickly
-    /// matches (the heading reads as the results).
     public func search(_ q: String) {
         field.stringValue = q
         if q.isEmpty {
@@ -118,7 +106,6 @@ public final class EmptyEditorView: NSView, NSTableViewDataSource, NSTableViewDe
 
     @objc func clicked() { if table.clickedRow >= 0 { open(row: table.clickedRow) } }
 
-    /// Opens a row (a click).
     public func open(row: Int) {
         guard rows.indices.contains(row) else { return }
         onOpen?(rows[row].path, rows[row].line)
@@ -148,9 +135,6 @@ public final class EmptyEditorView: NSView, NSTableViewDataSource, NSTableViewDe
 }
 
 extension SourceEditorController {
-    /// Shows the empty-editor view over the text (no document open),
-    /// below the jump bar, which reads "No Selection" (`reference-ui-5.md`
-    /// §3.5, L8).
     public func showEmptyState(recent: [String], candidates: [FuzzyMatch.Candidate], root: String, onOpen: @escaping (String, Int?) -> Void) {
         _ = view
         let v = emptyView ?? EmptyEditorView()
@@ -175,5 +159,4 @@ extension SourceEditorController {
     public var emptyView: EmptyEditorView? { emptyHolder.view }
 }
 
-/// Holds the empty view (an extension cannot add stored properties).
 @MainActor final class EmptyStateHolder { var view: EmptyEditorView? }

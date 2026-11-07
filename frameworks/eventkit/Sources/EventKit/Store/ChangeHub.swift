@@ -1,16 +1,7 @@
-// Change notifications (interface.md §5): one EKEventStoreChangedNotification
-// per committed change, posted on the main queue to every store instance on
-// the same database, whether the commit came from this process or another.
-//
-// In-process commits are fanned out directly. Commits by other processes are
-// found through the change journal: a poller per database reads the newest
-// journal sequence and posts one notification per foreign commit.
-
 import Foundation
 
 final class ChangeHub: @unchecked Sendable {
     static let shared = ChangeHub()
-    /// Identifies this process's journal rows.
     static let processToken = UUID().uuidString
     static let pollInterval: DispatchTimeInterval = .milliseconds(200)
 
@@ -48,12 +39,8 @@ final class ChangeHub: @unchecked Sendable {
         e.stores.removeAll { $0.store == nil }
     }
 
-    /// A commit by a store of this process.
     func didCommit(path: String, seq: Int64, userInfo: [String: Any]) {
         lock.lock()
-        // The poller skips this process's journal rows by writer token, so
-        // lastSeq is left to it (a foreign commit with a lower sequence must
-        // still be seen).
         let e = entries[path]
         let targets = e?.stores.compactMap(\.store) ?? []
         lock.unlock()
@@ -70,8 +57,6 @@ final class ChangeHub: @unchecked Sendable {
             }
         }
     }
-
-    // MARK: Cross-process polling
 
     private func startPolling(_ path: String, _ e: Entry) {
         let t = DispatchSource.makeTimerSource(queue: pollQueue)

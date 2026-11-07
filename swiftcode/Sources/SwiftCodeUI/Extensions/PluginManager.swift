@@ -1,14 +1,5 @@
-// PluginManager.swift
-//
-// Ported from Legacy `SwiftCode/Services/PluginManager.swift` (SwiftCode-Mac migration, Views/Settings worklist; Dylan's own code, direct port authorised under MIT).
-// Verbatim except `import SwiftUI` added (ObservableObject/@Published; matches the SwiftCodeUI sibling convention, e.g. AppIconManager.swift).
-// Resolves dangling refs in landed code: NativeSettingsViews.swift:892 and SettingsView.swift:509 construct PluginManagerView(); PluginCodeCreateView.swift:14 uses PluginManager.shared (plus PluginManifest/PluginAutomationStep/PluginConfigField/PluginToolBinding).
-// Note: Audit A called the v1 plugin system COVERED-BY-REDESIGN (deliberately dropped) — ported anyway because landed code still constructs the view; removing the references instead would have deleted live settings UI.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import SwiftUI
-
-// MARK: - Plugin Manifest
 
 struct PluginToolBinding: Codable, Hashable {
     var toolID: String
@@ -49,7 +40,6 @@ struct PluginManifest: Identifiable, Codable {
     var capabilities: [Capability]
     var isEnabled: Bool = true
 
-    // Advanced plugin metadata
     var tags: [String] = []
     var minimumSwiftCodeVersion: String = "1.0.0"
     var toolBindings: [PluginToolBinding] = []
@@ -119,8 +109,6 @@ struct PluginManifest: Identifiable, Codable {
         configurationSchema = try container.decodeIfPresent([PluginConfigField].self, forKey: .configurationSchema) ?? []
     }
 }
-
-// MARK: - Plugin Manager
 
 @MainActor
 final class PluginManager: ObservableObject {

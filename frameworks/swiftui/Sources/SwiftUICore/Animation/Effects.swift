@@ -1,13 +1,5 @@
 import Foundation
 
-// Render effects whose values animate (05-animation.md §1: opacity, offsets,
-// scale and rotation are animatable). None of them changes layout (04 §5,
-// 03 §6). Each effect keeps an `Animator` for its value; layout uses the
-// model value (geometry readers see model geometry), rendering
-// (`ViewGraph.presentedLayers()`) uses the presented value.
-
-/// The animator of an effect modifier's node, created on insertion and
-/// updated with each new value in the transaction that reached the modifier.
 @MainActor
 package func effectAnimator<D: VectorArithmetic>(_ node: ViewNode, _ data: D, isNew: Bool,
                                                  transaction: Transaction) -> Animator<D> {
@@ -20,7 +12,6 @@ package func effectAnimator<D: VectorArithmetic>(_ node: ViewNode, _ data: D, is
     return a
 }
 
-/// `opacity(_:)`.
 package struct _OpacityEffect: PrimitiveModifier, Equatable {
     package let opacity: Double
 
@@ -38,7 +29,6 @@ package struct _OpacityEffect: PrimitiveModifier, Equatable {
     }
 }
 
-/// `offset(_:)`; horizontal offsets follow the layout direction.
 package struct _OffsetEffect: PrimitiveModifier, Equatable {
     package let offset: CGSize
 
@@ -56,7 +46,6 @@ package struct _OffsetEffect: PrimitiveModifier, Equatable {
     }
 }
 
-/// `scaleEffect(_:anchor:)`.
 package struct _ScaleEffect: PrimitiveModifier, Equatable {
     package let scale: CGSize
     package let anchor: UnitPoint
@@ -80,7 +69,6 @@ package struct _ScaleEffect: PrimitiveModifier, Equatable {
     }
 }
 
-/// `rotationEffect(_:anchor:)` (the angle animates in radians).
 package struct _RotationEffect: PrimitiveModifier, Equatable {
     package let angle: Angle
     package let anchor: UnitPoint
@@ -100,8 +88,6 @@ package struct _RotationEffect: PrimitiveModifier, Equatable {
     }
 }
 
-/// An offset by a fraction of the view's own size (move, slide and push
-/// transitions: (−1, 0) is one width towards the leading edge).
 package struct _SizeRelativeOffsetEffect: PrimitiveModifier, Equatable {
     package let fraction: CGSize
 
@@ -124,10 +110,8 @@ package struct _SizeRelativeOffsetEffect: PrimitiveModifier, Equatable {
 }
 
 extension View {
-    /// Sets the transparency of the view (render only; animatable).
     public func opacity(_ opacity: Double) -> some View { modifier(_OpacityEffect(opacity: opacity)) }
 
-    /// Moves the rendering; layout is unchanged.
     public func offset(_ offset: CGSize) -> some View { modifier(_OffsetEffect(offset: offset)) }
     public func offset(x: CGFloat = 0, y: CGFloat = 0) -> some View {
         modifier(_OffsetEffect(offset: CGSize(width: x, height: y)))
@@ -150,9 +134,6 @@ extension View {
     }
 }
 
-/// `animation(_:)` without a value (deprecated): every change in the
-/// subtree gets `animation`, unless the transaction disables implicit
-/// animations.
 package struct UnconditionalAnimationModifier: PrimitiveModifier {
     package let animation: Animation?
 

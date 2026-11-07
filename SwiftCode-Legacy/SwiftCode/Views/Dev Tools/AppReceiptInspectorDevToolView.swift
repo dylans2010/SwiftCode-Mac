@@ -19,7 +19,6 @@ final class AppReceiptInspectorViewModel {
             return
         }
 
-        // Simulates PKCS7 ASN.1 decoding payload structure for App Store receipts
         if Data(base64Encoded: rawReceiptBase64) != nil {
             parsedPayload = """
             {

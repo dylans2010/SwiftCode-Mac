@@ -7,9 +7,6 @@ import Glibc
 import Darwin
 #endif
 
-/// `swiftcode mcp`: the SwiftCode MCP server for coding agents (Claude Code, Codex
-/// and other MCP clients), over stdio by default or Streamable HTTP on
-/// 127.0.0.1. See specs/ide/coding-assistant.md, "SwiftCode implementation".
 public enum MCPCommand {
     public static let help = """
     usage: swiftcode mcp [--workspace <path>] [--allow-writes] [--http [<port>]] [--simulator-config <file.json>]
@@ -76,7 +73,6 @@ public enum MCPCommand {
         return o
     }
 
-    /// The remote simulator from a JSON file, else the environment.
     public static func simulatorSettings(file: String?, environment: [String: String]) throws -> RemoteSimulatorSettings? {
         var s = RemoteSimulatorSettings()
         if let file {
@@ -102,7 +98,6 @@ public enum MCPCommand {
         return s
     }
 
-    /// Runs the server until its input ends (stdio) or forever (HTTP).
     public static func run(_ args: [String]) -> Never {
         if args.first == "install-skill" {
             let folder = URL(fileURLWithPath: args.dropFirst().first.map { ($0 as NSString).expandingTildeInPath } ?? FileManager.default.currentDirectoryPath)
@@ -126,11 +121,8 @@ public enum MCPCommand {
             exit(2)
         }
         let env = ProcessInfo.processInfo.environment
-        // Protocol output gets its own descriptor; anything else a library
-        // prints goes to standard error, so it cannot corrupt the stream.
         let protocolOut = dup(STDOUT_FILENO)
         if options.httpPort == nil { dup2(STDERR_FILENO, STDOUT_FILENO) }
-        // Runs on the SwiftCode Simulator do not attach the IDE's debugger.
         UserDefaults.standard.register(defaults: ["SwiftCode.remote.debugger": false])
 
         let simulator: RemoteSimulatorSettings?
@@ -191,7 +183,6 @@ public enum MCPCommand {
 }
 
 extension SwiftCodeMCPHost {
-    /// Ends programs `run` started (the server is exiting).
     public func shutDown() {
         for r in runs.values where r.status == nil { r.process.terminate() }
         if let s = session, let run = s.simulatorRun { s.stopSimulatorRun(remote: run.remote) }

@@ -1,14 +1,7 @@
 import Foundation
 import SwiftCodeAssistant
 
-/// A stand-in model server on 127.0.0.1 for tests (no model, no network):
-/// answers the endpoints the three backends use, Ollama's (`/api/tags`,
-/// `/api/show`, `/api/generate`), llama-server's `/infill` and the
-/// OpenAI-compatible ones (`/v1/models`, `/v1/completions`,
-/// `/v1/chat/completions`), streaming what `answer` returns in small
-/// pieces.
 public final class StandInServer: @unchecked Sendable {
-    /// What the server was asked: the endpoint path and the JSON body.
     public struct Received: @unchecked Sendable {
         public var path: String
         public var body: [String: Any]
@@ -19,12 +12,8 @@ public final class StandInServer: @unchecked Sendable {
     private let server: LoopbackServer
     private let lock = NSLock()
     private var log: [Received] = []
-    /// The model name the server reports.
     public let modelName: String
 
-    /// `answer` gets the prefix and suffix (for `/v1/completions`, the
-    /// whole prompt as the prefix); `chunk` characters are sent per piece,
-    /// `delay` seconds apart.
     public init(modelName: String = "stand-in-coder", chunk: Int = 4, delay: TimeInterval = 0.005, answer: @escaping Answer) throws {
         self.modelName = modelName
         let box = LogBox()
@@ -89,7 +78,6 @@ public final class StandInServer: @unchecked Sendable {
 
     public var baseURL: String { server.baseURL }
     public var received: [Received] { lock.lock(); defer { lock.unlock() }; return log }
-    /// The generation requests (not model listing).
     public var generationRequests: [Received] {
         received.filter { ["/api/generate", "/infill", "/v1/completions", "/v1/chat/completions"].contains($0.path) }
     }

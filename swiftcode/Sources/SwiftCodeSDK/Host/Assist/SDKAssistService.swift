@@ -1,45 +1,15 @@
 import Foundation
 import SwiftCodeExtensions
 
-// MARK: - SDKAssistService
-//
-// Ported from Legacy `SwiftCode/SDK/Host/Assist/SDKAssistService.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Host-owned Assist sessions for entitled extensions. An extension may
-// only touch sessions created under its own verified key, and only with
-// tools the host approved at session creation (snapshotted from the
-// ACTIVE grants — never extended afterwards).
-//
-// BACKEND BOUNDARY: `send`, `sendStreaming`, and `executeTool` require a
-// real Assist backend. With no backend attached they throw
-// `.serviceUnavailable` — the host NEVER fabricates responses, deltas,
-// or tool results. Attaching the host's real Assist stack is future
-// work; the candidate entry points audited in Legacy (`AssistManager`,
-// agent sessions, `LLMService`) were rejected as attachment points
-// because they would leak the user's conversation and keys across the
-// extension boundary. `SDKAssistBackend` is the seam a future
-// attachment must implement — it receives only the extension's own
-// session content, never the user's host conversation.
-
-/// The backend a future host attachment must implement to serve
-/// entitled Assist sessions. Until one is attached, the service throws
-/// `.serviceUnavailable` on every completion attempt.
 public protocol SDKAssistBackend: Sendable {
-    /// Completes one user message in `session`, returning the assistant
-    /// reply text. Receives only the extension's own session content.
     func complete(session: SDKAssistSession, message: String) async throws -> String
-    /// Streams a completion. Each element is a text delta; the final
-    /// element is the empty string signalling completion.
     func stream(session: SDKAssistSession, message: String) async -> AsyncThrowingStream<String, Error>
-    /// Executes one approved tool call and returns its output.
     func executeTool(session: SDKAssistSession, call: SDKAssistToolCall) async throws -> SDKAssistToolResult
 }
 
 public actor SDKAssistService {
     public static let shared = SDKAssistService()
 
-    /// Bounds (Legacy §13). Violations throw `.invalidArgument`.
     public static let maxMessageBytes = 65_536
     public static let maxHistoryEntries = 200
     public static let maxHistoryEntryBytes = 16_384
@@ -47,12 +17,8 @@ public actor SDKAssistService {
     public static let maxToolArgumentCount = 32
     public static let maxToolArgumentBytes = 16_384
 
-    /// The attached backend, if any. `nil` (the default) means every
-    /// completion attempt throws `.serviceUnavailable`.
     public var backend: (any SDKAssistBackend)?
 
-    /// Attaches (or clears) the host backend. A method so the host can
-    /// install it across the actor boundary.
     public func setBackend(_ backend: (any SDKAssistBackend)?) {
         self.backend = backend
     }
@@ -69,12 +35,6 @@ public actor SDKAssistService {
         self.permissions = permissions
     }
 
-    // MARK: - Entitlement
-
-    /// Requires the `developerAIAssist` entitlement on a VERIFIED key
-    /// record — the record `SDKAPIKeyStore.verify` returned, never a
-    /// caller-supplied claim. Denial uses the verbatim §13 message and
-    /// is audited as `assistDenied`.
     public func requireAssistEntitlement(key: SDKAPIKey, extensionID: String) async throws {
         guard key.entitlements.contains(.developerAIAssist) else {
             await SDKAuditLog.shared.record(.assistDenied, extensionID: extensionID, detail: "key \(key.id.uuidString)")
@@ -82,15 +42,6 @@ public actor SDKAssistService {
         }
     }
 
-    // MARK: - Sessions
-
-    /// The tool IDs the extension's LIVE grants allow right now
-    /// (Wave 17, Slice B): the same snapshot computation as
-    /// `createSession`, re-run against the current grants. The
-    /// tool runner asks this on every `executeTool`, so a revoked
-    /// grant closes the path even for a session created before the
-    /// revocation. The session snapshot is still the ceiling —
-    /// live grants can only narrow it, never extend it.
     public func liveAllowedToolIDs(for extensionID: String) -> [String] {
         let granted = Set(permissions.grantedCapabilities(for: extensionID))
         var allowed: [String] = []
@@ -102,10 +53,6 @@ public actor SDKAssistService {
         return allowed.sorted()
     }
 
-    /// Creates a session. Snapshots the extension's ACTIVE grants as
-    /// `allowedToolIDs`: an SDK capability is allowed only when ALL of
-    /// its mapped v2 capabilities are currently granted (conservative,
-    /// deny-by-default). The snapshot is never extended afterwards.
     public func createSession(
         key: SDKAPIKey,
         extensionID: String,
@@ -131,9 +78,6 @@ public actor SDKAssistService {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
-    /// Returns a live session the caller owns. Unknown ID →
-    /// `.invalidArgument`; another extension's session →
-    /// `.permissionDenied`; closed session → `.invalidArgument`.
     public func liveSession(id: UUID, extensionID: String) throws -> SDKAssistSession {
         guard let stored = sessions[id] else {
             throw SDKError(code: .invalidArgument, message: "The Assist session does not exist.")
@@ -147,12 +91,6 @@ public actor SDKAssistService {
         return stored.session
     }
 
-    // MARK: - Completion (backend boundary)
-
-    /// Sends a message. With no backend attached, throws
-    /// `.serviceUnavailable` after all validation — never a fabricated
-    /// reply. The user message is appended to the session history only
-    /// when a backend actually serves it.
     public func send(
         sessionID: UUID,
         key: SDKAPIKey,
@@ -176,8 +114,6 @@ public actor SDKAssistService {
         return SDKAssistResponse(sessionID: sessionID, text: text)
     }
 
-    /// Streams a completion. With no backend attached, yields `.started`
-    /// then `.failed(.serviceUnavailable)` — never fabricated deltas.
     public func sendStreaming(
         sessionID: UUID,
         key: SDKAPIKey,
@@ -217,10 +153,6 @@ public actor SDKAssistService {
         }
     }
 
-    /// Executes one approved tool call. The tool must be in the session's
-    /// snapshot `allowedToolIDs`; otherwise `.permissionDenied`. With no
-    /// backend attached, throws `.serviceUnavailable` — never a
-    /// fabricated tool result.
     public func executeTool(
         sessionID: UUID,
         key: SDKAPIKey,
@@ -253,8 +185,6 @@ public actor SDKAssistService {
         return try await backend.executeTool(session: session, call: call)
     }
 
-    // MARK: - Close (host-owned cleanup, no entitlement check by design)
-
     public func closeSession(id: UUID, extensionID: String) throws {
         guard var stored = sessions[id] else {
             throw SDKError(code: .invalidArgument, message: "The Assist session does not exist.")
@@ -266,8 +196,6 @@ public actor SDKAssistService {
         sessions[id] = stored
     }
 
-    /// Closes every session owned by `keyID` (revocation hook).
-    /// Returns the number of sessions closed.
     public func closeSessions(forKeyID keyID: UUID) -> Int {
         var closed = 0
         for (id, stored) in sessions where stored.keyID == keyID && !stored.session.isClosed {
@@ -279,8 +207,6 @@ public actor SDKAssistService {
         return closed
     }
 
-    /// Closes every session owned by `extensionID` (uninstall hook).
-    /// Returns the number of sessions closed.
     public func closeSessions(forExtensionID extensionID: String) -> Int {
         var closed = 0
         for (id, stored) in sessions where stored.session.extensionID == extensionID && !stored.session.isClosed {
@@ -292,10 +218,6 @@ public actor SDKAssistService {
         return closed
     }
 
-    // MARK: - Validation
-
-    /// Appends a completed exchange to a session's history. Actor-isolated
-    /// helper for the streaming path, which runs outside actor isolation.
     private func recordExchange(sessionID: UUID, userMessage: String, assistantText: String) {
         guard var stored = sessions[sessionID] else { return }
         stored.session.messages.append(SDKAssistMessage(role: .user, content: userMessage))

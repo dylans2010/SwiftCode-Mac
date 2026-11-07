@@ -3,10 +3,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// Operations stores and health: build history, archives, notifications,
-/// the live health factors and the bounded secret scan. Stores write under
-/// a temporary directory while `IDEProcess.isTestProcess` is true.
-/// The tests share those files, so the suite runs serially.
 @Suite(.serialized)
 @MainActor
 struct OperationsModelTests {
@@ -53,9 +49,6 @@ struct OperationsModelTests {
     @Test func secretScanFindsPlantedKey() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-ops-scan-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        // The key is assembled from parts so no AWS-style key literal ever
-        // appears in the source; it is the well-known documentation example,
-        // not a real credential.
         let exampleKey = "AKIA" + "IOSFODNN7EXAMPLE"
         try "let key = \"\(exampleKey)\"\n".write(to: dir.appendingPathComponent("Secrets.swift"), atomically: true, encoding: .utf8)
         try "nothing here\n".write(to: dir.appendingPathComponent("Clean.swift"), atomically: true, encoding: .utf8)

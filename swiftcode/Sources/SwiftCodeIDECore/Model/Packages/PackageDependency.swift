@@ -1,11 +1,4 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Models/PackageDependency.swift
-//
-// Verbatim apart from this header.
-
 import Foundation
-
-// MARK: - Package Dependency
 
 public struct PackageDependency: Identifiable, Codable, Sendable {
     public var id = UUID()

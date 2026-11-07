@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeGitHub
 
-// `GitHubProjectSync` (the portable remainder of Legacy's
-// `GitHubRepositoryManager.pushProject` / `pullFile`) against the same
-// stub transport `GitHubClientTests` uses. No live network, no real
-// token — the stub token is a placeholder.
-
 private func syncClient() -> GitHubClient {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [StubURLProtocol.self]
@@ -60,7 +55,6 @@ struct GitHubProjectSyncTests {
                 }
                 return (200, ["Content-Type": "application/json"], contentsResponseJSON(path: "a.swift", base64Content: "cHJpbnQoImhpIikK"))
             }
-            // GET (getFileSHA): the file does not exist yet.
             return (404, ["Content-Type": "application/json"], Data(#"{"message":"Not Found"}"#.utf8))
         }
         defer { StubURLProtocol.handler = nil }
@@ -69,7 +63,6 @@ struct GitHubProjectSyncTests {
         #expect(pushed == 2)
         #expect(putPaths.count == 2)
         #expect(putPaths.allSatisfy { $0.contains("/contents/") })
-        // Pushes carry the plain-text content as base64 with the message.
         #expect(putBodies.allSatisfy { $0["message"] as? String == "sync" })
         #expect(putBodies.allSatisfy { ($0["content"] as? String)?.isEmpty == false })
     }

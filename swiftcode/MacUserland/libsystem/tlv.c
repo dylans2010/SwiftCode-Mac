@@ -1,24 +1,3 @@
-// tlv.c - thread-local variables (`__thread`, C++ `thread_local`) for
-// macOS images (specs/macos/libsystem.md §14, dyld.md §9).
-//
-// Clean-room SwiftCode code from the public Mach-O facts: an image's
-// S_THREAD_LOCAL_VARIABLES section holds one descriptor per variable,
-// { thunk, key, offset }; the linker binds each thunk to libSystem's
-// `_tlv_bootstrap`; S_THREAD_LOCAL_REGULAR and S_THREAD_LOCAL_ZEROFILL
-// sections hold the initial values of the image's thread-local block, and
-// `offset` is the variable's place in that block. Compiled code calls
-// `thunk(descriptor)` with the descriptor in x0 and gets the variable's
-// address in x0; it assumes that x1-x28, the frame pointer and every
-// SIMD register survive the call.
-//
-// SwiftCode's design: `_tlv_bootstrap` sets up the descriptor's image on first
-// use (one pthread key per image; every descriptor of the image gets
-// `_ycl_tlv_get_addr` as its thunk and the key), then answers like
-// `_ycl_tlv_get_addr`, whose fast path is the key's TSD slot (at
-// TPIDRRO_EL0 + 8 * key, as libsystem_pthread lays it out) plus the offset.
-// The slow path allocates and fills the thread's block. `_tlv_atexit`
-// registers destructors of thread_local objects; they run when the thread
-// exits, before its blocks are freed.
 #include "ycl.h"
 #include "yc_macho.h"
 
@@ -31,8 +10,8 @@ struct tlv_descriptor {
 struct tlv_image {
     const struct yc_mach_header_64 *mh;
     unsigned long key;
-    uintptr_t start;  // address of the block's initial image
-    size_t size;      // whole block
+    uintptr_t start;
+    size_t size;
     struct tlv_image *next;
 };
 
@@ -60,7 +39,6 @@ static intptr_t slide_of(const struct yc_mach_header_64 *mh) {
     return 0;
 }
 
-// Calls `visit(section, slide, context)` for each section of `mh`.
 static void each_section(const struct yc_mach_header_64 *mh,
                          void (*visit)(const struct yc_section_64 *, intptr_t, void *), void *context) {
     intptr_t slide = slide_of(mh);
@@ -138,7 +116,6 @@ static struct tlv_image *image_for(struct tlv_descriptor *d) {
     return image;
 }
 
-// The slow path of both thunks, called with every register saved.
 void *ycl_tlv_slow(struct tlv_descriptor *d) {
     struct tlv_image *image = image_for(d);
     uint8_t *block = pthread_getspecific(image->key);
@@ -152,8 +129,6 @@ void *ycl_tlv_slow(struct tlv_descriptor *d) {
     return block + d->offset;
 }
 
-// Both thunks. The slow path keeps x1-x15 and q0-q31 (x16 and x17 are the
-// linker's scratch registers; x18 is reserved; x19-x28 are callee-saved).
 __asm__(".globl __ycl_tlv_get_addr\n"
         ".private_extern __ycl_tlv_get_addr\n"
         ".p2align 2\n"
@@ -226,8 +201,6 @@ __asm__(".globl __ycl_tlv_get_addr\n"
         "    ldp x29, x30, [sp], #16\n"
         "    ret\n");
 
-// --- destructors of thread_local objects ---
-
 struct tlv_dtor {
     void (*fn)(void *);
     void *object;
@@ -243,7 +216,6 @@ static os_unfair_lock dtor_lock;
 
 static void run_dtors(void *value) {
     struct tlv_dtor_list *list = value;
-    // Destructors may register more; run until the list stays empty.
     while (list->count) {
         struct tlv_dtor d = list->items[--list->count];
         d.fn(d.object);

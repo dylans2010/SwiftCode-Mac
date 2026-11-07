@@ -1,8 +1,3 @@
-// RKProbe: black-box probe of RealityKit behaviour in the iOS simulator.
-// Original Ycode research code (KIT-REALITYKIT). It uses only the public SDK.
-// Each run executes one mode (launch argument `-mode <name>`) and prints
-// `RKP <key>=<value>` lines to stdout. Screenshots are taken from outside
-// with `simctl io screenshot`.
 import SwiftUI
 import RealityKit
 import ARKit
@@ -10,8 +5,6 @@ import Metal
 import AVFoundation
 import Combine
 import CoreGraphics
-
-// MARK: - logging
 
 let t0 = Date()
 func now() -> Double { Date().timeIntervalSince(t0) }
@@ -35,9 +28,7 @@ let mode: String = {
     return "rv-basic"
 }()
 
-var keep: [Any] = []  // subscriptions and other objects kept alive
-
-// MARK: - Metal facts
+var keep: [Any] = []
 
 func logMetal() {
     guard let d = MTLCreateSystemDefaultDevice() else { log("metal.device", "nil"); return }
@@ -56,8 +47,6 @@ func logMetal() {
     log("metal.sampleCount4", d.supportsTextureSampleCount(4))
     log("metal.maxBufferLength", d.maxBufferLength)
 }
-
-// MARK: - shared scene
 
 @MainActor func makeStage() -> Entity {
     let root = Entity()
@@ -118,8 +107,6 @@ func logMetal() {
     }
 }
 
-// MARK: - ECS probe
-
 struct ProbeComponent: Component { var n = 0 }
 struct OtherComponent: Component { var s = "x" }
 struct TransientProbe: TransientComponent { var v = 1 }
@@ -151,7 +138,6 @@ struct SysC: System {
 }
 
 @MainActor func ecsProbe(root: Entity, scene: RealityKit.Scene) {
-    // Default component sets of the built-in entity classes.
     log("ecs.Entity.components", compNames(Entity()))
     log("ecs.ModelEntity.components", compNames(ModelEntity()))
     log("ecs.ModelEntityMesh.components", compNames(ModelEntity(mesh: .generateBox(size: 0.1))))
@@ -181,7 +167,6 @@ struct SysC: System {
     log("ecs.CollisionFilter.default", "group \(CollisionFilter.default.group.rawValue) mask \(CollisionFilter.default.mask.rawValue) sensor \(CollisionFilter.sensor.group.rawValue)/\(CollisionFilter.sensor.mask.rawValue)")
     log("ecs.PhysicsMaterial.default", "\(PhysicsMaterialResource.default)")
 
-    // Transform math.
     let parent = Entity(); parent.position = [1, 0, 0]; parent.scale = [2, 2, 2]
     parent.orientation = simd_quatf(angle: .pi / 2, axis: [0, 1, 0])
     let child = Entity(); parent.addChild(child); child.position = [0, 0, -1]
@@ -206,7 +191,6 @@ struct SysC: System {
     log("ecs.cloneTransient", compNames(tc.clone(recursive: false)))
     log("ecs.entityIDsMonotonic", "\(Entity().id) \(Entity().id)")
 
-    // Events and systems.
     keep.append(scene.subscribe(to: SceneEvents.DidAddEntity.self) { e in if e.entity.name.hasPrefix("ev") { trace("DidAddEntity(\(e.entity.name))") } })
     keep.append(scene.subscribe(to: SceneEvents.DidActivateEntity.self) { e in if e.entity.name.hasPrefix("ev") { trace("DidActivateEntity(\(e.entity.name))") } })
     keep.append(scene.subscribe(to: SceneEvents.WillDeactivateEntity.self) { e in if e.entity.name.hasPrefix("ev") { trace("WillDeactivateEntity(\(e.entity.name))") } })
@@ -256,8 +240,6 @@ struct SysC: System {
     }
 }
 
-// MARK: - physics probe
-
 @MainActor func physicsProbe(root: Entity, scene: RealityKit.Scene) {
     let floor = ModelEntity(mesh: .generateBox(width: 4, height: 0.1, depth: 4), materials: [SimpleMaterial(color: .gray, isMetallic: false)])
     floor.name = "pfloor"; floor.position = [0, -0.05, 0]
@@ -291,8 +273,6 @@ struct SysC: System {
     defMass.physicsBody = PhysicsBodyComponent()
     log("phys.defaultBody.mass", defMass.physicsBody!.massProperties.mass)
 
-    // Everything below is sampled on simulated time (sum of DidSimulate deltaTime), not wall time,
-    // because the host may be heavily loaded.
     var collisions: [String] = []
     var physT: Double = 0
     var marks: [Double] = [0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
@@ -348,14 +328,12 @@ struct SysC: System {
     })
 }
 
-// MARK: - animation probe
-
 @MainActor func animationProbe(root: Entity, scene: RealityKit.Scene) {
     let e = ModelEntity(mesh: .generateBox(size: 0.1), materials: [SimpleMaterial(color: .orange, isMetallic: false)])
     e.name = "anim"
     root.addChild(e)
     var events: [String] = []
-    var animT: Double = 0   // scene time: sum of SceneEvents.Update deltaTime since start
+    var animT: Double = 0
     keep.append(scene.subscribe(to: AnimationEvents.PlaybackStarted.self) { _ in events.append("started@\(String(format: "%.3f", animT))") })
     keep.append(scene.subscribe(to: AnimationEvents.PlaybackCompleted.self) { _ in events.append("completed@\(String(format: "%.3f", animT))") })
     keep.append(scene.subscribe(to: AnimationEvents.PlaybackLooped.self) { _ in events.append("looped@\(String(format: "%.3f", animT))") })
@@ -397,8 +375,6 @@ struct SysC: System {
     })
 }
 
-// MARK: - mesh probe
-
 @MainActor func meshFacts(_ name: String, _ m: MeshResource) {
     var parts = 0, verts = 0, tris = 0
     for model in m.contents.models { for p in model.parts { parts += 1; verts += p.positions.count; tris += (p.triangleIndices?.count ?? 0) / 3 } }
@@ -425,7 +401,6 @@ struct SysC: System {
     q.positions = MeshBuffers.Positions([[0, 0, 0], [0.2, 0, 0], [0.2, 0.2, 0], [0, 0.2, 0]])
     q.primitives = .polygons([4], [0, 1, 2, 3])
     do { meshFacts("descriptorQuadPolygon", try MeshResource.generate(from: [q])) } catch { log("mesh.quad.error", error) }
-    // LowLevelMesh triangle
     struct V { var p: SIMD3<Float>; var n: SIMD3<Float> }
     let attrs: [LowLevelMesh.Attribute] = [
         .init(semantic: .position, format: .float3, offset: 0),
@@ -453,7 +428,6 @@ struct SysC: System {
         let ext = try MeshResource(extruding: path)
         meshFacts("extrudedText", ext)
     } catch { log("mesh.extruded.error", error) }
-    // Visible sample of each generator.
     let ms: [(String, MeshResource)] = [("b", .generateBox(size: 0.15, cornerRadius: 0.02)), ("s", .generateSphere(radius: 0.08)),
         ("c", .generateCone(height: 0.15, radius: 0.08)), ("y", .generateCylinder(height: 0.15, radius: 0.08)),
         ("t", .generateText("RK", extrusionDepth: 0.02, font: .systemFont(ofSize: 0.1)))]
@@ -462,8 +436,6 @@ struct SysC: System {
         me.name = n; me.position = [Float(i) * 0.2 - 0.4, 0.1, 0.2]; root.addChild(me)
     }
 }
-
-// MARK: - material probe
 
 @MainActor func materialProbe(root: Entity) {
     var mats: [(String, any RealityKit.Material)] = []
@@ -479,7 +451,6 @@ struct SysC: System {
     mats.append(("occlusion", OcclusionMaterial()))
     var wire = SimpleMaterial(color: .white, isMetallic: false); wire.triangleFillMode = .lines
     mats.append(("wireframe", wire))
-    // CustomMaterial with our own surface shader.
     if let dev = MTLCreateSystemDefaultDevice(), let lib = dev.makeDefaultLibrary() {
         log("mat.custom.libraryFunctions", lib.functionNames.sorted().joined(separator: ","))
         do {
@@ -496,7 +467,6 @@ struct SysC: System {
         } catch { log("mat.customGeom.error", error) }
         log("mat.custom.supportsMutableUniformsResources", CustomMaterial.supportsMutableUniformsResources)
     } else { log("mat.custom.library", "nil") }
-    // ShaderGraphMaterial from our own hand-written USD (UsdPreviewSurface through MaterialX).
     Task { @MainActor in
         do {
             let url = Bundle.main.url(forResource: "sgmat", withExtension: "usda")!
@@ -519,8 +489,6 @@ struct SysC: System {
     log("mat.pbr.defaults2", "blending \(dp.blending) cull \(dp.faceCulling) opThresh \(String(describing: dp.opacityThreshold)) emissiveIntensity \(dp.emissiveIntensity) clearcoat \(dp.clearcoat.scale)")
     log("mat.simple.defaults", "rough \(SimpleMaterial().roughness) metal \(SimpleMaterial().metallic)")
 }
-
-// MARK: - texture and IBL probe
 
 func gradientImage(_ w: Int, _ h: Int) -> CGImage {
     let cs = CGColorSpace(name: CGColorSpace.sRGB)!
@@ -552,14 +520,11 @@ func gradientImage(_ w: Int, _ h: Int) -> CGImage {
         root.components.set(ImageBasedLightReceiverComponent(imageBasedLight: root))
         for c in root.children { c.components.set(ImageBasedLightReceiverComponent(imageBasedLight: root)) }
     } catch { log("ibl.error", error) }
-    // DrawableQueue
     do {
         let q = try TextureResource.DrawableQueue(.init(pixelFormat: .bgra8Unorm, width: 64, height: 64, usage: [.renderTarget, .shaderRead], mipmapsMode: .none))
         log("tex.drawableQueue", "ok \(q.width)x\(q.height)")
     } catch { log("tex.drawableQueue.error", error) }
 }
-
-// MARK: - USD probe
 
 @MainActor func dumpTree(_ e: Entity, _ depth: Int, _ out: inout [String]) {
     if out.count > 60 { return }
@@ -610,8 +575,6 @@ func gradientImage(_ w: Int, _ h: Int) -> CGImage {
     }
 }
 
-// MARK: - audio probe
-
 @MainActor func audioProbe(root: Entity, scene: RealityKit.Scene) {
     let fmt = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
     let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: 24000)!
@@ -634,8 +597,6 @@ func gradientImage(_ w: Int, _ h: Int) -> CGImage {
 }
 var audioStart: Double = 0
 
-// MARK: - perf probe
-
 @MainActor func perfProbe(root: Entity, count: Int) {
     let mesh = MeshResource.generateBox(size: 0.02)
     let mat = SimpleMaterial(color: .white, isMetallic: false)
@@ -648,8 +609,6 @@ var audioStart: Double = 0
     log("perf.entities", count)
 }
 
-// MARK: - particles
-
 @MainActor func particleProbe(root: Entity) {
     let presets: [(String, ParticleEmitterComponent)] = [("fireworks", .Presets.fireworks), ("magic", .Presets.magic),
         ("sparks", .Presets.sparks), ("snow", .Presets.snow)]
@@ -660,8 +619,6 @@ var audioStart: Double = 0
     let d = ParticleEmitterComponent()
     log("particles.default", "shape \(d.emitterShape) birthRate \(d.mainEmitter.birthRate) lifeSpan \(d.mainEmitter.lifeSpan) size \(d.mainEmitter.size) speed \(d.speed) timing \(d.timing)")
 }
-
-// MARK: - RealityRenderer offscreen probe
 
 @MainActor func rendererProbe() {
     do {
@@ -692,8 +649,6 @@ var audioStart: Double = 0
     } catch { log("renderer.error", error) }
 }
 
-// MARK: - views
-
 struct RVScene: View {
     var body: some View {
         RealityView { content in
@@ -708,7 +663,6 @@ struct RVScene: View {
             if mode == "rv-orbit" { content.camera = .virtual }
             keep.append(content.subscribe(to: SceneEvents.Update.self) { _ in })
             frameCounter({ h in keep.append(content.subscribe(to: SceneEvents.Update.self, h)) }, label: "rv")
-            // A plane anchor in a non-AR RealityView.
             let pa = AnchorEntity(plane: .horizontal); pa.name = "planeAnchor"; content.add(pa)
             let wa = AnchorEntity(world: [0, 0, 0]); wa.name = "worldAnchor"; content.add(wa)
             let cc = content

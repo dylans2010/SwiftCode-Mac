@@ -8,11 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 05-animation.md §1: animatable values are geometry from layout, opacity,
-// offsets, scale, rotation and custom `Animatable` views and modifiers; the
-// rendered value moves from old to new, the model value is new at once.
-// Plus PhaseAnimator, KeyframeAnimator and custom animations (10-plan.md R6).
-
 @MainActor
 private func layoutGraph<V: View>(_ view: V) -> ViewGraph {
     let g = ViewGraph(rootView: view, layout: HostLayout(.proposal(ProposedViewSize(width: 300, height: 300))))
@@ -47,7 +42,6 @@ struct GeometryAnimationTests {
         let g = layoutGraph(Probe(control: c))
         withAnimation(.linear(duration: 1)) { c.value = true }
         g.update()
-        // Layout (model) is final at once; the presentation starts at the old geometry.
         #expect(g.frame(named: "a")?.width == 200)
         #expect(g.presented("a")?.frame.width == 100)
         #expect(g.presented("b")?.frame.minX == 100)
@@ -101,7 +95,6 @@ struct EffectAnimationTests {
         let g = layoutGraph(Probe(control: c))
         withAnimation(.linear(duration: 1)) { c.value = 1 }
         g.update()
-        // Layout geometry (geometry readers) sees the model values.
         #expect(g.frame(named: "p") == CGRect(x: 200, y: 0, width: 20, height: 20))
         #expect(g.presented("p") == PresentedLayer(frame: CGRect(x: 0, y: 0, width: 10, height: 10), opacity: 1))
         g.advance(frames: 30)
@@ -282,7 +275,7 @@ struct AnimatorViewTests {
         #expect(s.matches(10, at: 1.0, tolerance: 1e-9, frames: 0))
         #expect(s.matches(7, at: 1.25, tolerance: 1e-9, frames: 0))
         #expect(s.last == 4)
-        #expect(s.count == 90)  // one evaluation per frame for 1.5 s (nothing changes at the trigger itself)
+        #expect(s.count == 90)
     }
 
     @Test("A repeating KeyframeAnimator loops from appearance")
@@ -297,8 +290,6 @@ struct AnimatorViewTests {
     }
 }
 
-/// A custom animation: holds the start value for half the duration, then
-/// jumps to the target.
 private struct StepAnimation: CustomAnimation {
     let duration: TimeInterval
     func animate<V: VectorArithmetic>(value: V, time: TimeInterval, context: inout AnimationContext<V>) -> V? {

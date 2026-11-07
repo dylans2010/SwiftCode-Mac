@@ -3,55 +3,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "SDKRuntimeManager")
 
-// MARK: - SDK providers hosted in a JS process
-//
-// This file is Workstream D (shared runtime infrastructure) for the
-// SDK-backed OpenCode / OpenRouter providers. It owns ONLY the runtime:
-// finding Node/Bun, installing the pinned npm packages into an
-// app-managed directory, and supervising the bridge processes that speak
-// the shared NDJSON contract. It owns no provider session logic, no tool
-// dispatch, and no UI beyond the status types the Settings view reads.
-//
-// The JS bridge scripts themselves are owned by Workstreams A (OpenCode)
-// and B (OpenRouter). They are placed in the runtime directory with
-// `writeBridgeScript` (see below) because the packages are ESM-only:
-// Node resolves `import "@openrouter/agent"` relative to the importing
-// file, so a bridge script must live under the runtime directory that
-// holds `node_modules`. `NODE_PATH` is also set for CommonJS consumers,
-// but it is NOT a substitute for script placement under ESM.
-//
-// Shared NDJSON contract (identical in every workstream; do not fork it):
-// Swift -> JS: {"type":"run","requestId","provider","model",
-//   "systemPrompt","userText","history":[{"role","text"}],
-//   "tools":[{"name","description","parameters"}],
-//   "toolSource":"swiftcode|openrouter|opencode|combined","config":{...}}
-// JS -> Swift, one JSON object per line: {"type":"text","delta"},
-//   {"type":"tool_event","event":{...SDKToolEvent fields...}},
-//   {"type":"tool_call","id","name","arguments"} (SwiftCode-native tool:
-//   JS awaits the matching tool_result), {"type":"done","finalText"},
-//   {"type":"error","message"}.
-// Readiness: the bridge prints {"type":"ready","provider","sdkVersion"}
-// as its FIRST line after imports resolve; the manager waits for it
-// (default 30 s) and treats its absence as a startup failure.
-// SDKToolEvent fields (owned by Workstream C; repeated here so this
-// file never invents a second shape): provider, sessionId, toolCallId,
-// toolName, source (swiftcode|openrouter|opencode), state
-// (requested|running|completed|failed|cancelled), arguments (string,
-// safe representation), result (string, optional), error (string,
-// optional), startedAt/completedAt (ISO8601, optional).
-//
-// Credentials: the OpenRouter key is resolved exactly as
-// OpenRouterClient.resolveOpenRouterAPIKey() does (Keychain via
-// APIKeyManager) and is passed ONLY as an environment variable of the
-// bridge process itself — never in argv, never in a log line, never in
-// a persisted file. OpenCode holds no SwiftCode-managed key: nothing
-// secret is put in an OpenCode bridge's environment at all.
-
-// MARK: - Provider + tool source
-
-/// An SDK-backed provider. `rawValue` is the directory name under the
-/// runtime root, the `provider` string in the NDJSON contract, and the
-/// suffix of the npm package name where applicable.
 public enum SDKProvider: String, CaseIterable, Sendable {
     case openCode = "opencode"
     case openRouter = "openrouter"
@@ -63,10 +14,6 @@ public enum SDKProvider: String, CaseIterable, Sendable {
         }
     }
 
-    /// Exact pinned npm package + version. `npm install` with an exact
-    /// version and the generated lockfile in the runtime directory is
-    /// the deterministic-management strategy; a version mismatch at
-    /// verification time is a corrupt install, not something to reuse.
     public var packageName: String {
         switch self {
         case .openCode: return "@opencode-ai/sdk"
@@ -84,11 +31,6 @@ public enum SDKProvider: String, CaseIterable, Sendable {
     public var pinnedRequirement: String { "\(packageName)@\(pinnedVersion)" }
 }
 
-/// Which tool ecosystem a session may use. Persisted under
-/// `assist.toolSource` (see SDKToolSourceSetting below); the provider
-/// (assist.selectedProvider) and model (selectedAssistModelID) are
-/// independent keys, so changing the tool source never silently changes
-/// the provider, model, system prompt, or credentials.
 public enum SDKToolSourceSetting: String, CaseIterable, Sendable {
     case swiftcode
     case openrouter
@@ -104,8 +46,6 @@ public enum SDKToolSourceSetting: String, CaseIterable, Sendable {
         }
     }
 
-    /// What each choice actually means, shown verbatim in Settings so
-    /// no combination is presented as safer than it is.
     public var explanation: String {
         switch self {
         case .swiftcode:
@@ -121,16 +61,6 @@ public enum SDKToolSourceSetting: String, CaseIterable, Sendable {
 
     private static let defaultsKey = "assist.toolSource"
 
-    /// The tool source a session actually uses, derived from the
-    /// Assist Toolkit picker (the single switch for this):
-    /// - System: SwiftCode tools, always.
-    /// - Provider: the toolset of the provider picked on the Assist
-    ///   System picker (OpenRouter tools for OpenRouter, OpenCode
-    ///   tools for OpenCode). Other systems do not run SDK sessions,
-    ///   so they fall back to the persisted setting.
-    /// Anything else (legacy persisted values) keeps the old
-    /// persisted setting, so removing the standalone tool-source
-    /// picker from Settings never silently changes a stored choice.
     @MainActor
     public static func effective() -> SDKToolSourceSetting {
         let toolkit = AppSettings.shared.assistToolkit
@@ -157,8 +87,6 @@ public enum SDKToolSourceSetting: String, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Status + errors
-
 public enum SDKRuntimeKind: String, Sendable {
     case node
     case bun
@@ -166,26 +94,17 @@ public enum SDKRuntimeKind: String, Sendable {
 
 public struct SDKRuntimeStatus: Equatable, Sendable {
     public let provider: SDKProvider
-    /// The JS runtime found on PATH, if any. Nil means the prerequisite
-    /// itself is missing — distinct from "runtime present, SDK missing".
     public let runtimeKind: SDKRuntimeKind?
     public let runtimePath: String?
     public let installedVersion: String?
     public let expectedVersion: String
-    /// The process identifier of a bridge this manager currently owns
-    /// for this provider, if one is running. Owned PIDs only — the
-    /// manager never reports or acts on processes it did not start.
     public let ownedProcessIdentifier: Int32?
-    /// Last bridge exit code observed for this provider, if a bridge
-    /// has terminated since launch. Nil while running or never started.
     public let lastBridgeExitCode: Int32?
 
     public var isRuntimeAvailable: Bool { runtimeKind != nil }
     public var isInstalled: Bool { installedVersion == expectedVersion }
     public var isBridgeRunning: Bool { ownedProcessIdentifier != nil }
 
-    /// Human-readable one-liner for Settings. Never contains a secret:
-    /// paths shown are binary paths, versions are package versions.
     public var summary: String {
         if let kind = runtimeKind, let installed = installedVersion, installed == expectedVersion {
             return "\(kind.rawValue) · \(provider.packageName) \(installed) installed"
@@ -238,12 +157,6 @@ public enum SDKRuntimeError: Error, LocalizedError, Sendable {
         case .bridgeScriptNotUnderRuntimeDirectory(let url):
             return "Bridge script \(url.path) is not under the SDK runtime directory, so ESM package imports would not resolve. Place it with writeBridgeScript."
         case .startupTimeout(let provider):
-            // No bridge log is rendered in Settings (installLog(for:)
-            // and lastBridgeExitCode have no Settings callers), so the
-            // old text pointed at UI that does not exist. Session
-            // bridges now surface their stderr tail in the run error
-            // instead; manager-bridge failures surface via
-            // startupFailed with the captured detail.
             return "\(provider.displayName) bridge did not report ready within the timeout. Check that the SDK runtime is installed and the provider is reachable, then try again."
         case .startupFailed(let provider, let detail):
             return "\(provider.displayName) bridge failed to start: \(detail)"
@@ -259,33 +172,11 @@ public enum SDKRuntimeError: Error, LocalizedError, Sendable {
     }
 }
 
-// MARK: - Manager
-
-/// Reusable Process supervisor + JS runtime manager for the SDK
-/// providers. One actor owns every install and every bridge process, so
-/// installs are single-flight, bridges are single-instance per provider,
-/// and termination always targets only PIDs this manager started.
-///
-/// Precedents imitated (not duplicated): GoogleCloudSDKProcess
-/// (actor-owned Process, pipe draining via bytes.lines, termination
-/// handler funnelled back onto the actor, graceful stop then kill) and
-/// MuseCodeCLIHelper (executable discovery, async process execution).
-/// Differences are deliberate: argument arrays only (never a shell
-/// string), a minimal environment (never the host's full environment),
-/// and no socket — the bridge protocol is stdio NDJSON, so a stale
-/// bridge from a crashed launch holds no port and cannot be mistaken
-/// for a new one.
 public actor SDKRuntimeManager {
     public static let shared = SDKRuntimeManager()
 
-    /// Install timeout. npm/bun installs of these two packages complete
-    /// in seconds on a normal connection; five minutes leaves ample
-    /// headroom for a cold cache without hanging Settings forever.
     public static let installTimeout: TimeInterval = 300
-    /// Readiness timeout for the bridge's first `{"type":"ready"}`
-    /// line, per the shared contract.
     public static let readyTimeout: TimeInterval = 30
-    /// Grace period between SIGTERM and SIGKILL on bridge shutdown.
     public static let terminationGrace: TimeInterval = 2
 
     private struct BridgeState {
@@ -297,8 +188,6 @@ public actor SDKRuntimeManager {
         var lines: [String] = []
         var stderrTail: [String] = []
         var terminationHandlers: [UUID: @Sendable (Int32) -> Void] = [:]
-        /// True once terminateBridge/terminateAllBridges asked for this
-        /// shutdown, so an expected exit is not reported as a crash.
         var shutdownRequested = false
     }
 
@@ -308,17 +197,6 @@ public actor SDKRuntimeManager {
 
     public init() {}
 
-    // MARK: Directories
-
-    /// App-managed runtime root. Follows the existing repo convention
-    /// (`Application Support/SwiftCode/...`, cf. GoogleCloudSDK under
-    /// `SwiftCode/GoogleCloudSDK` and SystemAssets under
-    /// `com.swiftcode.assist`): NOT the app bundle, which must never be
-    /// written after installation, and NOT the workspace, so app
-    /// relocation and updates do not orphan or duplicate the runtime.
-    /// First-run install creates it; repeat launches reuse it;
-    /// uninstallation is deleting this directory (documented in the
-    /// Settings section copy).
     public static func runtimeRoot() -> URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("SwiftCode", isDirectory: true)
@@ -329,18 +207,10 @@ public actor SDKRuntimeManager {
         runtimeRoot()?.appendingPathComponent(provider.rawValue, isDirectory: true)
     }
 
-    /// Where bridge scripts live: under the runtime directory so ESM
-    /// imports of the pinned packages resolve from `node_modules`.
     public static func bridgeDirectory(for provider: SDKProvider) -> URL? {
         runtimeDirectory(for: provider)?.appendingPathComponent("bridge", isDirectory: true)
     }
 
-    // MARK: Runtime detection
-
-    /// Resolves node (preferred) then bun from PATH entries plus
-    /// well-known install locations, by executable bit — never by
-    /// invoking a shell. Returns nil when neither exists; callers turn
-    /// that into `runtimeMissing`, never into a silent success.
     public static func detectRuntime() -> (kind: SDKRuntimeKind, path: String)? {
         let fm = FileManager.default
         var searchDirs: [String] = []
@@ -381,10 +251,6 @@ public actor SDKRuntimeManager {
         }
     }
 
-    /// Minimal environment for install/bridge processes: only what npm,
-    /// bun, and Node need. The host's full environment is never passed
-    /// through, and no credential is ever placed here (the OpenRouter
-    /// key is added to the bridge environment only, in launchBridge).
     private static func minimalEnvironment(runtimePath: String) -> [String: String] {
         let binDir = (runtimePath as NSString).deletingLastPathComponent
         let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
@@ -395,14 +261,6 @@ public actor SDKRuntimeManager {
         return env
     }
 
-    // MARK: Status + verification
-
-    /// Reads the installed package version straight from
-    /// `node_modules/<package>/package.json`. This is the verification
-    /// step: a missing file, unparseable file, or version mismatch is
-    /// a corrupt install, never a reason to proceed with a wrong
-    /// version. Install state is revalidated on every call — it is
-    /// never trusted from a previous launch.
     public static func installedVersion(for provider: SDKProvider) -> String? {
         guard let dir = runtimeDirectory(for: provider) else { return nil }
         let packageJSON = dir
@@ -438,24 +296,10 @@ public actor SDKRuntimeManager {
         return out
     }
 
-    /// Captured install output (capped), for display after an install
-    /// finishes or fails. Install output contains no credentials: the
-    /// install environment carries none.
     public func installLog(for provider: SDKProvider) -> [String] {
         installLogs[provider] ?? []
     }
 
-    // MARK: Install (single-flight)
-
-    /// Ensures the pinned SDK is installed and verified. Single-flight
-    /// per provider: concurrent callers await the same Task instead of
-    /// racing two `npm install` runs over one directory. `force`
-    /// (Repair) deletes `node_modules` first and reinstalls from the
-    /// pinned manifest, which is also the recovery path for interrupted
-    /// or corrupt installs. `progress` is an optional Sendable sink for
-    /// programmatic callers; the Settings view passes nil and shows a
-    /// spinner plus the final real result instead of streaming lines
-    /// into @State across isolation boundaries.
     public func ensureInstalled(
         for provider: SDKProvider,
         force: Bool = false,
@@ -497,8 +341,6 @@ public actor SDKRuntimeManager {
             throw SDKRuntimeError.installFailed(provider, detail: "Could not create \(dir.path): \(error.localizedDescription)")
         }
 
-        // A mismatched or unreadable install is corrupt: remove
-        // node_modules so a partial install can never be reused.
         let currentlyInstalled = Self.installedVersion(for: provider)
         if force || (currentlyInstalled != nil && currentlyInstalled != provider.pinnedVersion) {
             try? fm.removeItem(at: dir.appendingPathComponent("node_modules", isDirectory: true))
@@ -508,10 +350,6 @@ public actor SDKRuntimeManager {
             return status(for: provider)
         }
 
-        // Pinned manifest. "type": "module" so a .js bridge placed in
-        // this directory can import the ESM-only packages; .mjs bridge
-        // scripts work regardless. The lockfile npm/bun writes here is
-        // kept — it is the deterministic record of this install.
         let manifest: [String: Any] = [
             "name": "swiftcode-sdk-runtime-\(provider.rawValue)",
             "private": true,
@@ -546,7 +384,6 @@ public actor SDKRuntimeManager {
                 progress: progress
             )
         } catch let error as SDKRuntimeError {
-            // Interrupted/partial installs must not be left behind.
             try? fm.removeItem(at: dir.appendingPathComponent("node_modules", isDirectory: true))
             if case .installTimeout = error { throw SDKRuntimeError.installTimeout(provider) }
             throw error
@@ -560,7 +397,6 @@ public actor SDKRuntimeManager {
             throw SDKRuntimeError.installFailed(provider, detail: "Installer exited with code \(exitCode). \(tail)")
         }
 
-        // Verify after install: the version on disk must be the pin.
         guard let verified = Self.installedVersion(for: provider), verified == provider.pinnedVersion else {
             try? fm.removeItem(at: dir.appendingPathComponent("node_modules", isDirectory: true))
             throw SDKRuntimeError.corruptInstall(provider, found: Self.installedVersion(for: provider))
@@ -572,19 +408,10 @@ public actor SDKRuntimeManager {
 
     private static func installEnvironment(runtimePath: String, runtimeDir: URL) -> [String: String] {
         var env = minimalEnvironment(runtimePath: runtimePath)
-        // Keep npm's cache app-managed instead of shared global state,
-        // so a corrupt global cache cannot poison a reinstall.
         env["NPM_CONFIG_CACHE"] = runtimeDir.appendingPathComponent(".npm-cache", isDirectory: true).path
         return env
     }
 
-    // MARK: Bridge scripts
-
-    /// Writes a provider workstream's bridge script into the runtime
-    /// directory (the only location from which ESM imports resolve).
-    /// Refuses absolute paths and `..` traversal; only `.mjs` scripts
-    /// are accepted, because the packages are ESM-only and a `.js`
-    /// script's module mode would depend on the manifest.
     @discardableResult
     public func writeBridgeScript(for provider: SDKProvider, fileName: String, contents: String) throws -> URL {
         guard fileName.hasSuffix(".mjs"),
@@ -605,20 +432,12 @@ public actor SDKRuntimeManager {
         }
     }
 
-    // MARK: Bridge lifecycle
-
     public struct BridgeInfo: Sendable {
         public let provider: SDKProvider
         public let processIdentifier: Int32
         public let sdkVersion: String
     }
 
-    /// Launches a bridge process and waits for its readiness line.
-    /// Single-instance per provider: an already-running bridge is
-    /// terminated first, so provider switches and relaunches never
-    /// leave two bridges for one provider. `extraEnvironment` is for
-    /// provider-owned, non-secret values only; credentials are added
-    /// here, inside the manager, never by callers via argv.
     public func launchBridge(
         provider: SDKProvider,
         scriptURL: URL,
@@ -643,7 +462,6 @@ public actor SDKRuntimeManager {
             throw SDKRuntimeError.bridgeScriptNotUnderRuntimeDirectory(scriptURL)
         }
 
-        // No duplicate bridges for one provider.
         if bridges[provider] != nil {
             await terminateBridge(provider: provider)
         }
@@ -656,14 +474,9 @@ public actor SDKRuntimeManager {
             guard !key.isEmpty else { throw SDKRuntimeError.missingOpenRouterKey }
             environment["OPENROUTER_API_KEY"] = key
         }
-        // OpenCode deliberately receives no secret here: its model
-        // credentials live in OpenCode's own configuration, and SwiftCode
-        // only ever talks to the local server/bridge.
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: detected.path)
-        // Argument array only — never a shell string. Bun runs .mjs
-        // the same way; no per-runtime flag is needed.
         process.arguments = [scriptURL.path]
         process.environment = environment
         process.currentDirectoryURL = dir
@@ -675,29 +488,22 @@ public actor SDKRuntimeManager {
 
         let stdinPipe = Pipe()
         process.standardInput = stdinPipe
-        // No output stream exists yet: lines are buffered in state
-        // until the session owner calls takeBridgeOutputStream (below).
-        // That keeps exactly one consumer by construction.
         let state = BridgeState(process: process, stdin: stdinPipe.fileHandleForWriting)
         bridges[provider] = state
 
-        // Drain stdout into the buffer + stream, stderr into a capped
-        // tail. Both drains run so a chatty bridge can never deadlock
-        // on a full pipe — the exact failure mode this design exists
-        // to prevent.
         let stdoutTask = Task { [weak self] in
             do {
                 for try await line in stdoutPipe.fileHandleForReading.bytes.lines {
                     await self?.appendBridgeLine(provider: provider, line: line)
                 }
-            } catch { /* Pipe closed on termination; not an error. */ }
+            } catch {  }
         }
         let stderrTask = Task { [weak self] in
             do {
                 for try await line in stderrPipe.fileHandleForReading.bytes.lines {
                     await self?.appendBridgeStderr(provider: provider, line: line)
                 }
-            } catch { /* Pipe closed on termination; not an error. */ }
+            } catch {  }
         }
         bridges[provider]?.stdoutTask = stdoutTask
         bridges[provider]?.stderrTask = stderrTask
@@ -717,11 +523,6 @@ public actor SDKRuntimeManager {
         }
         logger.info("Launched \(provider.displayName, privacy: .public) bridge (PID: \(process.processIdentifier))")
 
-        // Readiness handshake: poll the buffered lines for the first
-        // {"type":"ready"} line; the bridge may emit nothing else
-        // before it. Absence within the timeout, or an early exit, is
-        // a startup failure — a running process alone is never treated
-        // as proof of readiness.
         let deadline = Date().addingTimeInterval(readyTimeout)
         var readyVersion: String?
         while Date() < deadline {
@@ -788,20 +589,10 @@ public actor SDKRuntimeManager {
         state.stdoutTask?.cancel()
         state.stderrTask?.cancel()
         state.stdoutContinuation?.finish()
-        // No need to nil the fields: the entry is dropped below, and
-        // exit info is preserved in the side maps.
-        // Keep lastExitCode/stderrTail for status reporting, but drop
-        // the dead process so a later launch is not mistaken for a
-        // running bridge. Termination handlers fire for both crashes
-        // and requested shutdowns; callers distinguish them via
-        // shutdownRequested, and status() reports lastBridgeExitCode.
         let handlers = state.terminationHandlers
         let wasShutdown = state.shutdownRequested
         let stderrTail = state.stderrTail
         bridges[provider] = nil
-        // Exit info is kept in side maps so status() can still report
-        // it after the process entry is gone (bridges holds live
-        // bridges only).
         lastBridgeExits[provider] = exitCode
         lastBridgeStderrTails[provider] = stderrTail
         for (_, handler) in handlers { handler(exitCode) }
@@ -814,17 +605,6 @@ public actor SDKRuntimeManager {
     private var lastBridgeExits: [SDKProvider: Int32] = [:]
     private var lastBridgeStderrTails: [SDKProvider: [String]] = [:]
 
-    /// Hands over the bridge's one output stream to its session owner
-    /// (Workstreams A/B). Call immediately after launchBridge and
-    /// retain the stream for the session. Exactly one consumer exists
-    /// by construction: a second call returns nil, so streaming events
-    /// can never be duplicated across two readers. Buffered lines
-    /// (minus the readiness line, already consumed by the handshake)
-    /// are replayed first, so attaching just after launch misses
-    /// nothing. Consumers MUST ignore `{"type":"ready"}` lines if one
-    /// ever appears; the handshake guarantees it is first, and the
-    /// replay here already filters it. The stream finishes when the
-    /// bridge exits.
     public func takeBridgeOutputStream(for provider: SDKProvider) -> AsyncStream<String>? {
         guard var state = bridges[provider], state.stdoutContinuation == nil else { return nil }
         let (stream, continuation) = AsyncStream<String>.makeStream()
@@ -836,9 +616,6 @@ public actor SDKRuntimeManager {
         return stream
     }
 
-    /// Sends one NDJSON line to a running bridge (a trailing newline
-    /// is appended). Never used for secrets: the only secret ever
-    /// given to a bridge is the OpenRouter key in its environment.
     public func sendBridgeLine(provider: SDKProvider, line: String) throws {
         guard let state = bridges[provider], state.process.isRunning else {
             throw SDKRuntimeError.bridgeNotRunning(provider)
@@ -863,26 +640,14 @@ public actor SDKRuntimeManager {
         bridges[provider]?.terminationHandlers.removeValue(forKey: id)
     }
 
-    /// Last observed bridge exit code for a provider, including after
-    /// the process entry has been dropped (see
-    /// handleBridgeTermination). Nil if no bridge has ever terminated.
     public func lastBridgeExitCode(for provider: SDKProvider) -> Int32? {
         lastBridgeExits[provider]
     }
 
-    /// Capped stderr tail of a bridge (live or just terminated), for
-    /// error display. Never contains credentials: bridge stderr is
-    /// the SDK's own output, and the bridge environment's secret is
-    /// never echoed by this manager.
     public func bridgeStderrTail(for provider: SDKProvider) -> [String] {
         bridges[provider]?.stderrTail ?? lastBridgeStderrTails[provider] ?? []
     }
 
-    // MARK: Termination
-
-    /// Terminates one bridge: SIGTERM, a grace wait, then SIGKILL if
-    /// still alive. Only ever targets the PID this manager started.
-    /// Safe to call for a provider with no bridge (no-op).
     public func terminateBridge(provider: SDKProvider, grace: TimeInterval = SDKRuntimeManager.terminationGrace) async {
         guard var state = bridges[provider] else { return }
         state.shutdownRequested = true
@@ -898,8 +663,6 @@ public actor SDKRuntimeManager {
                 #if canImport(Darwin)
                 Darwin.kill(process.processIdentifier, SIGKILL)
                 #endif
-                // Brief reap wait so lastBridgeExits records the real
-                // exit rather than a still-running status.
                 let reapDeadline = Date().addingTimeInterval(1)
                 while process.isRunning && Date() < reapDeadline {
                     try? await Task.sleep(nanoseconds: 50_000_000)
@@ -908,9 +671,6 @@ public actor SDKRuntimeManager {
         }
         state.stdoutTask?.cancel()
         state.stderrTask?.cancel()
-        // handleBridgeTermination (via terminationHandler) drops the
-        // entry; if it has not fired yet, drop it here so a stale entry
-        // can never be mistaken for a running bridge.
         if let remaining = bridges[provider] {
             remaining.stdoutContinuation?.finish()
             lastBridgeStderrTails[provider] = remaining.stderrTail
@@ -919,33 +679,16 @@ public actor SDKRuntimeManager {
         }
     }
 
-    /// Terminates every bridge this manager owns. Call on provider
-    /// switch (for the outgoing provider), session end, and app
-    /// termination. Never touches processes SwiftCode did not start.
     public func terminateAllBridges() async {
         for provider in Array(bridges.keys) {
             await terminateBridge(provider: provider)
         }
     }
 
-    /// App-termination path. Wire this from the app's termination
-    /// handling (the parent integration step): it SIGTERMs every owned
-    /// bridge immediately, then enforces the grace/KILL sequence, so
-    /// quitting the app does not orphan JS processes. Stale bridges
-    /// from a previous crashed launch cannot be identified safely
-    /// (their PIDs are not owned by this launch), so they are
-    /// deliberately never killed; stdio bridges hold no port, so a
-    /// stray process is inert apart from its own footprint, and its
-    /// PID is visible in the Settings status while this launch runs.
     public func shutdown() async {
         await terminateAllBridges()
     }
 
-    // MARK: Generic capturing process (installs)
-
-    /// Runs a short-lived process (npm/bun install) with argument array
-    /// only, controlled cwd, minimal env, drained pipes, timeout, and
-    /// cancellation. Returns the exit code; callers interpret it.
     private func runCapturingProcess(
         executable: String,
         arguments: [String],
@@ -970,14 +713,14 @@ public actor SDKRuntimeManager {
                 for try await line in stdoutPipe.fileHandleForReading.bytes.lines {
                     self.appendInstallLine(provider: logKey, line: line, progress: progress)
                 }
-            } catch { /* Pipe closed; not an error. */ }
+            } catch {  }
         }
         let stderrTask = Task {
             do {
                 for try await line in stderrPipe.fileHandleForReading.bytes.lines {
                     self.appendInstallLine(provider: logKey, line: line, progress: progress)
                 }
-            } catch { /* Pipe closed; not an error. */ }
+            } catch {  }
         }
 
         do {
@@ -1025,7 +768,6 @@ public actor SDKRuntimeManager {
         progress?(line)
     }
 }
-
 
 final class BufferWrapper: @unchecked Sendable {
     private var buffer = Data()

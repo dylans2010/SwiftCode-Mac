@@ -1,15 +1,5 @@
-// AICodeReviewView.swift
-//
-// Ported from Legacy `SwiftCode/Views/AI/AI New/AICodeReviewView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: score-card UI; severity filter chips; issue row list; issue detail sheet; Review Current File action
-// Ambiguous type reference(s) defined in several modules, import left out: Severity.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
-
-// MARK: - Code Review View
 
 struct AICodeReviewView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
@@ -72,8 +62,6 @@ struct AICodeReviewView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Empty State
-
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Image(systemName: "magnifyingglass.circle")
@@ -107,8 +95,6 @@ struct AICodeReviewView: View {
         .padding()
     }
 
-    // MARK: - Reviewing State
-
     private var reviewingView: some View {
         VStack(spacing: 24) {
             ProgressView()
@@ -123,18 +109,13 @@ struct AICodeReviewView: View {
         }
     }
 
-    // MARK: - Result View
-
     private func resultView(_ result: CodeReviewResult) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Score card
                 scoreCard(result)
 
-                // Severity filter
                 severityFilter(result)
 
-                // Issues list
                 let filtered = filteredIssues(result)
                 if filtered.isEmpty {
                     Text("No issues found for this filter.")
@@ -242,8 +223,6 @@ struct AICodeReviewView: View {
         return result.issues.filter { $0.severity == filter }
     }
 
-    // MARK: - Review History Sheet
-
     private var reviewHistorySheet: some View {
         NavigationStack {
             List {
@@ -285,8 +264,6 @@ struct AICodeReviewView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Helpers
-
     private func startReview() async {
         guard let node = sessionStore.activeFileNode,
               !sessionStore.activeFileContent.isEmpty else { return }
@@ -309,8 +286,6 @@ struct AICodeReviewView: View {
         }
     }
 }
-
-// MARK: - Issue Row View
 
 struct AICodeReviewIssueRowView: View {
     let issue: CodeReviewIssue
@@ -381,8 +356,6 @@ struct AICodeReviewIssueRowView: View {
     }
 }
 
-// MARK: - Issue Detail Sheet
-
 struct AICodeReviewIssueDetailSheet: View {
     let issue: CodeReviewIssue
     @Environment(\.dismiss) var dismiss
@@ -391,7 +364,6 @@ struct AICodeReviewIssueDetailSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Header
                     HStack {
                         Image(systemName: issue.severity.icon)
                             .foregroundStyle(severityColor)

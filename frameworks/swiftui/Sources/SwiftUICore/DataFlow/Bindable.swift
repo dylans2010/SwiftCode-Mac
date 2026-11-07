@@ -1,9 +1,6 @@
 import Foundation
 import Observation
 
-/// Bindings to the properties of an `@Observable` object (`$model.name`).
-/// Dependencies stay per property: reading through the binding is an
-/// observed property read (03 §3).
 @propertyWrapper
 @dynamicMemberLookup
 public struct Bindable<Value> {

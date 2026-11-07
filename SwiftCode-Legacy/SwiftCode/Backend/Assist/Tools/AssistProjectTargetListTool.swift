@@ -94,12 +94,10 @@ public struct AssistProjectTargetListTool: AssistTool {
         let lines = content.components(separatedBy: "\n")
         for (index, line) in lines.enumerated() {
             guard line.contains("isa = PBXNativeTarget") else { continue }
-            // Preferred: the /* Name */ comment on the same line.
             if let commentName = commentName(in: line), !commentName.isEmpty {
                 names.append(commentName)
                 continue
             }
-            // Fallback: look ahead for a `name = ...;` line within this block.
             var found: String?
             var cursor = index + 1
             while cursor < lines.count && cursor < index + 12 {

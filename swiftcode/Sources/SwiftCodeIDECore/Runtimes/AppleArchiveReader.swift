@@ -1,22 +1,3 @@
-// A plain Apple Archive stream (what a decrypted asset `.aar` holds),
-// extracted to a folder. SwiftCode's own reader of the public container format
-// (the field layout libNeoAppleArchive, MIT, documents): each entry is a
-// header — magic `AA01` or `YAA1`, a 16-bit little-endian header size, then
-// fields of a three-letter key and a one-letter type — followed by the blobs
-// its blob fields announce, in order. Types: `*` flag; `1 2 4 8` unsigned
-// integers; `P` a string with a 16-bit length; `F G H I J` hashes of 4, 20,
-// 32, 48, 64 bytes; `S T` times of 8 and 12 bytes; `A B C` blob sizes of 2,
-// 4, 8 bytes. Entries SwiftCode writes: directories, regular files and symbolic
-// links, with their modes and modification times. Nothing is written outside
-// the destination: absolute paths, `..` and paths through a symbolic link
-// are refused. Portable.
-//
-// An asset archive wraps its files in parts (seen in the decrypted asset,
-// read as data): metadata entries (type `M`) whose `YOP` field says what the
-// part is — `M` a manifest of the parts, `E` files to extract, `O` the files'
-// owners, modes and SHA-256 (`SH2`) to apply and check afterwards — and whose
-// `DAT` blob is a pbzx stream (stored or XZ chunks) holding a plain archive.
-
 import Crypto
 import Foundation
 #if canImport(Glibc)
@@ -31,11 +12,8 @@ public final class AppleArchiveReader {
         public var mode: UInt32?
         public var mtime: Int64?
         public var dataSize: Int64?
-        /// `YOP` of a metadata entry.
         public var operation: UInt8?
-        /// `SH2`: the file's SHA-256.
         public var sha256: [UInt8]?
-        /// Sizes of the blobs in header order (DAT, XAT, …), keyed by field.
         public var blobs: [(key: String, size: Int64)]
 
         public static func == (a: Entry, b: Entry) -> Bool {
@@ -46,15 +24,12 @@ public final class AppleArchiveReader {
     public struct Stats: Sendable, Equatable {
         public var files = 0, directories = 0, links = 0
         public var bytes: Int64 = 0
-        /// Files whose SHA-256 the archive named and that matched.
         public var verified = 0
         public var parts = 0
     }
 
-    /// What the entries of this stream do.
     enum Role { case extract, attributes }
     var role = Role.extract
-    /// The SHA-256 of each file written (path → digest), for the `O` part.
     var written: [String: [UInt8]] = [:]
     weak var parent: AppleArchiveReader?
     var root: AppleArchiveReader { parent?.root ?? self }
@@ -66,7 +41,6 @@ public final class AppleArchiveReader {
     public var cancel: RuntimeCancellation?
     var verifiedDirs: Set<String> = []
 
-    /// `read(n)` returns up to `n` bytes, or none at the end.
     public init(destination: String, read: @escaping (Int) throws -> [UInt8]) {
         self.destination = destination.hasSuffix("/") ? String(destination.dropLast()) : destination
         self.read = read
@@ -77,7 +51,6 @@ public final class AppleArchiveReader {
     private var buffer: [UInt8] = []
     private var bufferStart = 0
 
-    /// Exactly `n` bytes, or fewer at the very end (only before a header).
     func take(_ n: Int, allowShort: Bool = false) throws -> [UInt8] {
         while buffer.count - bufferStart < n {
             let more = try read(max(n - (buffer.count - bufferStart), 1 << 20))
@@ -97,7 +70,6 @@ public final class AppleArchiveReader {
         return out
     }
 
-    /// Parses one header's fields.
     public static func parseHeader(_ h: [UInt8]) throws -> Entry {
         var e = Entry(type: 0, path: "", blobs: [])
         var i = 6
@@ -166,7 +138,6 @@ public final class AppleArchiveReader {
         return e
     }
 
-    /// Extracts every entry; returns the counts.
     @discardableResult
     public func extract() throws -> Stats {
         try FileManager.default.createDirectory(atPath: destination, withIntermediateDirectories: true)
@@ -192,7 +163,6 @@ public final class AppleArchiveReader {
         return clean.isEmpty ? destination : destination + "/" + clean
     }
 
-    /// Refuses a parent that is not a real directory inside the destination.
     func checkParent(of full: String) throws {
         let parent = (full as NSString).deletingLastPathComponent
         if verifiedDirs.contains(parent) { return }
@@ -260,7 +230,6 @@ public final class AppleArchiveReader {
             try skipBlobs(e)
             stats.links += 1
         default:
-            // Other kinds (devices, fifos, sockets) have no place in an asset.
             try skipBlobs(e)
         }
         if let t = e.mtime, e.type != UInt8(ascii: "L") {
@@ -269,7 +238,6 @@ public final class AppleArchiveReader {
         }
     }
 
-    /// A metadata entry: its DAT blob is a part to extract (E) or to apply (O).
     func part(_ e: Entry) throws {
         for b in e.blobs {
             let op = e.operation.map { Character(UnicodeScalar($0)) }
@@ -281,7 +249,6 @@ public final class AppleArchiveReader {
                 left -= Int64(piece.count)
                 return piece
             }
-            // A part is a pbzx stream, or a plain archive.
             let first = try take(4)
             var replay: [UInt8]? = first
             let source: (Int) throws -> [UInt8] = { n in
@@ -317,7 +284,6 @@ public final class AppleArchiveReader {
         }
     }
 
-    /// An entry of an `O` part: the mode, and the SHA-256 checked against what was written.
     func apply(_ e: Entry) throws {
         try skipBlobs(e)
         let full = try target(e.path)
@@ -340,7 +306,6 @@ public final class AppleArchiveReader {
         }
     }
 
-    /// A reader over a file handle (a pipe from the decryptor, or a file).
     public static func reading(_ h: FileHandle, into destination: String) -> AppleArchiveReader {
         AppleArchiveReader(destination: destination) { n in Array(try h.read(upToCount: n) ?? Data()) }
     }

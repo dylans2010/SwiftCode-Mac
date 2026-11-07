@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDebug
 
-/// `InterprocessLock.acquire` waits without holding a thread: many tasks
-/// waiting for a lock held elsewhere leave the cooperative pool free.
 @Suite(.serialized) struct InterprocessLockTests {
     final class Flag: @unchecked Sendable {
         private let lock = NSLock()
@@ -25,9 +23,7 @@ import Testing
     @MainActor @Test func waitersLeaveThePoolFree() async throws {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-ipl-\(UUID().uuidString).lock").path
         defer { try? FileManager.default.removeItem(atPath: path) }
-        // Held by "another process" (another open file description).
         let held = InterprocessLock(path: path)
-        // More waiters than the pool has threads.
         let waiters = ProcessInfo.processInfo.activeProcessorCount * 2
         let counter = Counter()
         let all = Task.detached {
@@ -43,7 +39,6 @@ import Testing
             }
         }
         try await Task.sleep(nanoseconds: 300_000_000)
-        // Other work still runs on the pool while they wait.
         let ran = Flag()
         Task.detached { ran.set() }
         let end = Date().addingTimeInterval(5)
@@ -51,9 +46,6 @@ import Testing
         #expect(ran.isSet)
         #expect(counter.count == 0)
         held.unlock()
-        // Each waiter gets the lock, one at a time. (Waiting in flock on the
-        // pool, more waiters than threads could deadlock: the waiter that got
-        // the lock found no thread to continue on and never released it.)
         let done = Date().addingTimeInterval(30)
         while counter.count < waiters, Date() < done { try await Task.sleep(nanoseconds: 10_000_000) }
         #expect(counter.count == waiters && !counter.overlapped)

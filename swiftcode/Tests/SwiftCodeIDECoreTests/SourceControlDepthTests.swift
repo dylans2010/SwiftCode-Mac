@@ -20,8 +20,6 @@ private func freshRepo(_ name: String) throws -> URL {
         try "// \(f)\nlet \(f.lowercased()) = 1\n".write(to: dir.appendingPathComponent("Sources/App/\(f).swift"), atomically: true, encoding: .utf8)
     }
     try git(dir, "init", "-q", "-b", "main")
-    // An identity in the repository itself: commits made through GitRepository
-    // must not depend on the machine's global git configuration (CI has none).
     try git(dir, "config", "user.name", "SwiftCode Test")
     try git(dir, "config", "user.email", "test@swiftcode.invalid")
     try git(dir, "add", "-A")
@@ -29,13 +27,11 @@ private func freshRepo(_ name: String) throws -> URL {
     return dir
 }
 
-/// Depth checks for specs/ide/source-control.md.
 @MainActor
 @Suite(.serialized) struct SourceControlDepthTests {
     @Test func porcelainBadgeMapping() throws {
         let dir = try freshRepo("scm-depth-status")
         let src = dir.appendingPathComponent("Sources/App")
-        // Conflict on Both.swift: change it on two branches and merge.
         try git(dir, "checkout", "-q", "-b", "other")
         try "let both = 2\n".write(to: src.appendingPathComponent("Both.swift"), atomically: true, encoding: .utf8)
         try git(dir, "commit", "-q", "-am", "other")
@@ -43,7 +39,6 @@ private func freshRepo(_ name: String) throws -> URL {
         try "let both = 3\n".write(to: src.appendingPathComponent("Both.swift"), atomically: true, encoding: .utf8)
         try git(dir, "commit", "-q", "-am", "main")
         _ = try? git(dir, "merge", "-q", "other")
-        // Staged new file, deletion, rename.
         try "let added = 1\n".write(to: src.appendingPathComponent("Added.swift"), atomically: true, encoding: .utf8)
         try git(dir, "add", "Sources/App/Added.swift")
         try git(dir, "rm", "-q", "Sources/App/Gone.swift")
@@ -58,7 +53,7 @@ private func freshRepo(_ name: String) throws -> URL {
         #expect(s("Added.swift") == .added)
         #expect(s("Gone.swift") == .deleted)
         #expect(s("Renamed.swift") == .renamed)
-        #expect(s("Old.swift") == nil) // the original path is consumed, not listed
+        #expect(s("Old.swift") == nil)
         #expect(s("main.swift") == .modified)
         #expect(s("Untracked.swift") == .untracked)
         #expect(GitRepository.FileStatus.conflicted.rawValue == "C" && GitRepository.FileStatus.renamed.rawValue == "R")

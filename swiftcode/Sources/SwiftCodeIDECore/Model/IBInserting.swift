@@ -3,14 +3,7 @@ import CoreGraphics
 #endif
 import Foundation
 
-/// Inserting Library objects (`interface-builder.md` §Inserting objects,
-/// `library.md` §Insert defaults): views go into a view's `subviews`
-/// (made before the safe area, background colour and constraints when
-/// missing); controllers become new scenes (storyboards) or top-level
-/// objects (xibs); cells, bar items, menus and gesture recognizers go into
-/// the nearest object that can hold them. Only the new lines are added.
 extension IBDocument {
-    /// One edit's fresh IDs: unused in the document and in the edit.
     struct IDMaker {
         let document: IBDocument
         var taken = Set<String>()
@@ -24,17 +17,12 @@ extension IBDocument {
         }
     }
 
-    /// Where views inserted into `o` go: a cell's or an effect view's
-    /// content view, else `o`.
     public func subviewContainer(_ o: Object) -> Object {
         if ["tableViewCell", "collectionViewCell", "visualEffectView"].contains(o.element),
            let c = o.children.first(where: { $0.key == "contentView" }) { return c }
         return o
     }
 
-    /// Inserts a view as the last subview of `parentID`, with a frame in the
-    /// parent's stored coordinates. Returns the document and the new ID, or
-    /// `(self, "")` when the parent is not a view.
     public func inserting(_ kind: NewObject, into parentID: String, frame: CGRect) throws -> (IBDocument, String) {
         guard let parent = byID[parentID], parent.isView else { return (self, "") }
         var maker = IDMaker(document: self)
@@ -42,7 +30,6 @@ extension IBDocument {
         var ids: [String: String] = [:]
         var edits: [XMLEdit] = []
         if kind == .containerView, isFlippedRuntime, isStoryboard {
-            // The embedded controller: its own scene, as big as the container.
             let controller = maker.make()
             ids["@5"] = controller
             ids["@6"] = maker.make()
@@ -57,9 +44,6 @@ extension IBDocument {
         return (try edited(edits).addingSystemColorResources(since: self), id)
     }
 
-    /// A new scene holding `lines` (a controller) and a First Responder,
-    /// after the last scene, with a title comment; its canvas location is
-    /// right of the rightmost scene.
     func sceneInsertion(_ lines: [(Int, String)], title: String, maker: inout IDMaker) -> XMLEdit {
         let located = roots.compactMap(\.canvasLocation)
         let x = located.map(\.x).max().map { $0 + 520 } ?? CGFloat(roots.count) * 520
@@ -71,7 +55,6 @@ extension IBDocument {
         return containerInsertion(scene, container: "scenes", of: documentNode, containerBefore: { $0.name == "resources" })
     }
 
-    /// The xib's top-level `objects`, or a storyboard scene's.
     func objectsInsertion(_ lines: [(Int, String)], scene: Object?) -> XMLEdit? {
         if isStoryboard {
             guard let s = scene ?? roots.first, let objects = s.node.child("objects") else { return nil }
@@ -80,17 +63,12 @@ extension IBDocument {
         return containerInsertion(lines, container: "objects", of: documentNode, containerBefore: { $0.name == "resources" })
     }
 
-    /// `lines` with `key="…"` as the first element's first attribute.
     static func keyed(_ lines: [(Int, String)], _ key: String) -> [(Int, String)] {
         guard var first = lines.first, let space = first.1.firstIndex(of: " ") else { return lines }
         first.1.insert(contentsOf: " key=\"\(key)\"", at: space)
         return [first] + lines.dropFirst()
     }
 
-    /// Inserts an object that is not placed as a subview (controllers,
-    /// cells, bar items, menus, gesture recognizers, scene objects), next to
-    /// the object `targetID` (the selection): into it, an ancestor, or a
-    /// descendant that can hold it. Returns `(self, "")` when nothing can.
     public func inserting(_ kind: NewObject, near targetID: String?) throws -> (IBDocument, String) {
         var maker = IDMaker(document: self)
         let id = maker.make()

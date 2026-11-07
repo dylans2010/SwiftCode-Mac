@@ -137,7 +137,6 @@ public protocol AssistTool: Sendable {
     var prerequisites: [String] { get }
     var estimatedCost: Double { get }
 
-    // Unified capability extensions:
     var outputFormat: ToolOutputFormat { get }
     var requiredPermission: ToolPermissionRequirement { get }
     var supportedOperations: [String] { get }
@@ -234,4 +233,3 @@ public extension AssistTool {
         return "Workspace Project"
     }
 }
-

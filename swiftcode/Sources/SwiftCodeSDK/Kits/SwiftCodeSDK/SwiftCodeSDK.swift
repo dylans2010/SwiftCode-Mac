@@ -1,15 +1,5 @@
 import Foundation
 
-/// The SDK's single entry point: one coordinator owning every kit.
-///
-/// Legacy re-exported its kits with `@_exported import`; SwiftCodeSDK is a
-/// single module, so the kits are already visible to its clients and no
-/// re-export is needed.
-///
-/// Deviation from Legacy: `extensionValidator` is `SDKManifestValidator`
-/// (the adapter over SwiftCodeExtensions' strict `SwiftCodeManifestValidator`),
-/// not Legacy's lenient `ExtensionValidator`, which was deliberately not
-/// reimplemented (spec §2.3). See `Kits/ExtensionKit/ManifestValidatorAdapter.swift`.
 public final class SwiftCodeSDKCoordinator: Sendable {
     public let configuration: SDKConfiguration
     public let projectInspector: ProjectInspector

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct LoremIpsumGeneratorView: View {
@@ -18,7 +15,6 @@ struct LoremIpsumGeneratorView: View {
                     .buttonStyle(.borderedProminent)
             }
             .padding([.top, .horizontal])
-            
 
             TextEditor(text: .constant(result))
                 .font(.body)

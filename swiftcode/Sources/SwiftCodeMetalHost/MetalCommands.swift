@@ -1,31 +1,17 @@
-// The backend-neutral command model: a submitted command buffer (spec §8)
-// decoded into passes of commands, with every guest ref replaced by a
-// handle (nil = the guest's nil). Bindings are state, as in Metal: a set
-// command changes one slot until the end of its pass; process commands in
-// order (the driver's inline bytes rely on that, spec §5.1).
-
 import Foundation
 
-/// The stage a render binding applies to.
 public enum MetalRenderStage: UInt8, Sendable {
     case vertex
     case fragment
 }
 
-/// One submitted command buffer.
 public struct MetalCommandBuffer: Sendable {
     public var process: MetalProcessID
-    /// The queue (command buffers of one queue run in submission order).
     public var queue: MetalHandle?
-    /// The guest's command-buffer ref (reused once completed; not unique).
     public var commandBufferRef: UInt64
     public var passes: [MetalPass]
-    /// Records the decoder did not know (also present as `.unknown` commands).
     public var unknownRecordCount: Int
-    /// Problems found while decoding (malformed segments, unknown refs).
     public var diagnostics: [String]
-    /// When the host service received the submission (monotonic ns; 0 =
-    /// unknown). Diagnostics only (the back end's frame trace).
     public var receivedAtNs: UInt64 = 0
 
     public init(process: MetalProcessID, queue: MetalHandle?, commandBufferRef: UInt64, passes: [MetalPass] = [],
@@ -38,8 +24,6 @@ public struct MetalCommandBuffer: Sendable {
         self.diagnostics = diagnostics
     }
 
-    /// Every texture a render pass of this command buffer writes as an
-    /// attachment (color, depth, stencil, resolve).
     public var renderTargets: Set<MetalHandle> {
         var out: Set<MetalHandle> = []
         for case let .render(p) in passes {
@@ -54,14 +38,11 @@ public struct MetalCommandBuffer: Sendable {
     }
 }
 
-/// One encoder's work.
 public enum MetalPass: Sendable {
     case render(MetalRenderPass)
     case compute([MetalComputeCommand])
     case blit([MetalBlitCommand])
-    /// Event encoder records between encoders (spec §8.4, kind 3).
     case event([MetalEventCommand])
-    /// A segment of an encoder kind the decoder does not know.
     case unknown(kind: UInt8, records: [MetalUnknownRecord])
 }
 
@@ -71,18 +52,13 @@ public struct MetalUnknownRecord: Equatable, Sendable {
     public init(op: UInt32, body: [UInt8]) { self.op = op; self.body = body }
 }
 
-// MARK: Render
-
-/// An attachment of a render pass (spec §8.6).
 public struct MetalRenderPassAttachment: Equatable, Sendable {
     public var texture: MetalHandle?
     public var resolveTexture: MetalHandle?
     public var level: Int
     public var slice: Int
-    /// `MTLLoadAction` / `MTLStoreAction`.
     public var loadAction: UInt16
     public var storeAction: UInt16
-    /// The words marked open in the spec (+12, +16, +24), as sent.
     public var openWords: [UInt32]
 
     public init(texture: MetalHandle?, resolveTexture: MetalHandle? = nil, level: Int = 0, slice: Int = 0,
@@ -98,10 +74,8 @@ public struct MetalRenderPassAttachment: Equatable, Sendable {
 }
 
 public struct MetalColorAttachment: Equatable, Sendable {
-    /// The attachment index (0…7).
     public var index: Int
     public var attachment: MetalRenderPassAttachment
-    /// r, g, b, a.
     public var clearColor: [Double]
 
     public init(index: Int, attachment: MetalRenderPassAttachment, clearColor: [Double] = [0, 0, 0, 1]) {
@@ -114,8 +88,6 @@ public struct MetalColorAttachment: Equatable, Sendable {
     public var resolveTexture: MetalHandle? { attachment.resolveTexture }
 }
 
-/// A render pass descriptor (record 26). Only color attachments with a
-/// texture are listed; depth and stencil are nil without a texture.
 public struct MetalRenderPassDescriptor: Equatable, Sendable {
     public var colorAttachments: [MetalColorAttachment] = []
     public var depth: MetalRenderPassAttachment?
@@ -140,12 +112,10 @@ public struct MetalRenderPassDescriptor: Equatable, Sendable {
         self.renderTargetHeight = renderTargetHeight
     }
 
-    /// Width and height from the first attachment when the descriptor gives none.
     public var hasAttachments: Bool { !colorAttachments.isEmpty || depth != nil || stencil != nil }
 }
 
 public struct MetalRenderPass: Sendable {
-    /// Nil when the encoder's first record was not a begin-pass record (26).
     public var descriptor: MetalRenderPassDescriptor?
     public var commands: [MetalRenderCommand]
     public init(descriptor: MetalRenderPassDescriptor?, commands: [MetalRenderCommand] = []) {
@@ -166,7 +136,6 @@ public struct MetalScissorRect: Equatable, Sendable {
     public init(x: Int, y: Int, width: Int, height: Int) { self.x = x; self.y = y; self.width = width; self.height = height }
 }
 
-/// A non-indexed draw (records 0, 1, 3, 5).
 public struct MetalDraw: Equatable, Sendable {
     public var primitiveType: UInt32
     public var vertexStart: Int
@@ -182,10 +151,8 @@ public struct MetalDraw: Equatable, Sendable {
     }
 }
 
-/// An indexed draw (records 6, 7, 9, 29).
 public struct MetalIndexedDraw: Equatable, Sendable {
     public var primitiveType: UInt32
-    /// `MTLIndexType`: 0 UInt16, 1 UInt32.
     public var indexType: UInt32
     public var indexBuffer: MetalHandle?
     public var indexBufferOffset: Int
@@ -212,11 +179,9 @@ public enum MetalRenderCommand: Equatable, Sendable {
     case setBuffer(stage: MetalRenderStage, index: Int, buffer: MetalHandle?, offset: Int)
     case setBufferOffset(stage: MetalRenderStage, index: Int, offset: Int)
     case setTexture(stage: MetalRenderStage, index: Int, texture: MetalHandle?)
-    /// `lodClamp` nil: the sampler's own clamps.
     case setSamplerState(stage: MetalRenderStage, index: Int, sampler: MetalHandle?, lodMinClamp: Float?, lodMaxClamp: Float?)
     case setViewport(MetalViewport)
     case setScissorRect(MetalScissorRect)
-    /// `MTLCullMode`, `MTLWinding`, `MTLTriangleFillMode`, `MTLDepthClipMode`.
     case setCullMode(UInt64)
     case setFrontFacingWinding(UInt64)
     case setTriangleFillMode(UInt64)
@@ -224,44 +189,25 @@ public enum MetalRenderCommand: Equatable, Sendable {
     case setDepthBias(depthBias: Float, slopeScale: Float, clamp: Float)
     case setBlendColor(red: Float, green: Float, blue: Float, alpha: Float)
     case setStencilReference(front: UInt32, back: UInt32)
-    /// Deferred store actions: record 102 (`setColorStoreAction:atIndex:`,
-    /// u32 action then u32 index), 105 (`setDepthStoreAction:`, index
-    /// `depthAttachment`) and 120 (`setStencilStoreAction:`, index
-    /// `stencilAttachment`). The decoder also writes the action into the
-    /// pass's descriptor, so a back end that fixes store actions when the
-    /// pass begins needs nothing else (metal-sim-protocol.md §8.3).
     case setStoreAction(index: Int, action: UInt32)
-    /// Records 103, 106, 121 (`set…StoreActionOptions:`): u64 options.
     case setStoreActionOptions(index: Int, options: UInt64)
-    /// Record 24 (`updateFence:afterStages:`) and 25
-    /// (`waitForFence:beforeStages:`): a fence ref (from `newFence`, refs
-    /// are reused) and `MTLRenderStages` (1 vertex, 2 fragment).
     case updateFence(MetalHandle?, stages: UInt32)
     case waitForFence(MetalHandle?, stages: UInt32)
-    /// Record 132 (`setVisibilityResultMode:offset:`): u64 offset, u64 mode
-    /// (0 disabled, 1 boolean, 2 counting).
     case setVisibilityResultMode(UInt64, offset: Int)
     case draw(MetalDraw)
     case drawIndexed(MetalIndexedDraw)
     case drawIndirect(primitiveType: UInt32, indirectBuffer: MetalHandle?, indirectOffset: Int)
     case drawIndexedIndirect(primitiveType: UInt32, indexType: UInt32, indexBuffer: MetalHandle?, indexBufferOffset: Int,
                              indirectBuffer: MetalHandle?, indirectOffset: Int)
-    /// `memoryBarrierWithScope:afterStages:beforeStages:`.
     case memoryBarrier(scope: UInt16, afterStages: UInt8, beforeStages: UInt8)
-    /// Record 22 (`memoryBarrierWithResources:count:afterStages:beforeStages:`).
     case memoryBarrierResources([MetalHandle], afterStages: UInt16, beforeStages: UInt16)
-    /// Records 135/137 (`stages` nil for 135).
     case useResources([MetalHandle], usage: UInt32, stages: UInt16?)
-    /// Records 27 (`useHeap(s):…stages:`) and 134 (`useHeap(s):`, `stages` nil).
     case useHeaps([MetalHandle], stages: UInt16?)
     case unknown(op: UInt32, body: [UInt8])
 
-    /// `setStoreAction` index of the depth and stencil attachments.
     public static let depthAttachment = -1
     public static let stencilAttachment = -2
 }
-
-// MARK: Compute
 
 public struct MetalSize3: Equatable, Sendable {
     public var width: Int, height: Int, depth: Int
@@ -282,15 +228,11 @@ public enum MetalComputeCommand: Equatable, Sendable {
     case memoryBarrier(scope: UInt32)
     case memoryBarrierResources([MetalHandle])
     case useResources([MetalHandle], usage: UInt32, stages: UInt16?)
-    /// Record 134 (`useHeap(s):`).
     case useHeaps([MetalHandle])
-    /// Records 212 (`updateFence:`) and 213 (`waitForFence:`).
     case updateFence(MetalHandle?)
     case waitForFence(MetalHandle?)
     case unknown(op: UInt32, body: [UInt8])
 }
-
-// MARK: Blit
 
 public enum MetalBlitCommand: Equatable, Sendable {
     case copyBufferToTexture(source: MetalHandle?, sourceOffset: Int, bytesPerRow: Int, bytesPerImage: Int, size: MetalSize3,
@@ -301,7 +243,6 @@ public enum MetalBlitCommand: Equatable, Sendable {
                              options: UInt32)
     case copyTextureToTexture(source: MetalHandle?, sourceSlice: Int, sourceLevel: Int, sourceOrigin: MetalSize3, size: MetalSize3,
                               destination: MetalHandle?, destinationSlice: Int, destinationLevel: Int, destinationOrigin: MetalSize3)
-    /// Record 318: whole slices and levels.
     case copyTextureSlices(source: MetalHandle?, sourceSlice: Int, sourceLevel: Int, destination: MetalHandle?,
                            destinationSlice: Int, destinationLevel: Int, sliceCount: Int, levelCount: Int)
     case fillBuffer(MetalHandle?, location: Int, length: Int, value: UInt32)
@@ -312,11 +253,7 @@ public enum MetalBlitCommand: Equatable, Sendable {
     case unknown(op: UInt32, body: [UInt8])
 }
 
-// MARK: Event
-
 public enum MetalEventCommand: Equatable, Sendable {
-    /// Hold the rest of the command buffer until the event reaches `value`
-    /// (also by a later CPU signal, `MetalBackend.signalEvent`).
     case wait(MetalHandle?, value: UInt64)
     case signal(MetalHandle?, value: UInt64)
     case unknown(op: UInt32, body: [UInt8])

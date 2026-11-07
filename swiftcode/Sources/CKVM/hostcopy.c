@@ -1,24 +1,3 @@
-// memcpy and memmove for the swiftcode-simd process on arm64 Linux, written
-// without SVE instructions.
-//
-// Why: on hosts whose kernel keeps a KVM vCPU thread's SVE access enabled
-// after KVM_RUN while recording its state as FPSIMD-only (the vCPU did not
-// use FP/SIMD during that run), the thread's SVE predicate registers are
-// lost at its next context switch. glibc's SVE memcpy/memmove (selected by
-// IFUNC on SVE hosts) then store nothing, or only part, of a copy: lost
-// writes on vCPU host threads. Plain AdvSIMD/GPR code is unaffected, so
-// these definitions, which the executable exports and the dynamic linker
-// binds ahead of libc's, keep every memcpy/memmove call in the process
-// (Swift runtime included) off SVE. Measured with qtest/fpcheck on the
-// Thor (kernel 6.8.12-tegra): 4038 lost glibc copies in 30 s on 48 vCPU
-// threads whose guest never touched FP; 0 when the guest used FP.
-// Upstream Linux fixed this in commit fbc7e61195e2 ("KVM: arm64:
-// Unconditionally save+flush host FPSIMD/SVE/SME state"), backported to the
-// 5.15, 6.1, 6.6, 6.12 and 6.13 stable series but not to 6.8. The EL1 shim's
-// FP touch (resumeFlags bit 1, VCPUPool.shimFPTouch) is the second
-// mitigation: it also covers SVE in code other than memcpy/memmove.
-//
-// `SWIFTCODE_LIBC_MEMCPY=1` uses libc's versions again (A/B diagnostics).
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE 1
 #endif
@@ -78,9 +57,6 @@ void *memmove(void *dest, const void *src, size_t n) {
     unsigned char *d = dest;
     const unsigned char *s = src;
     if (d == s || n == 0) return dest;
-    // Forward is safe when the destination starts below the source (each
-    // chunk is read before anything at or above it is written) or when the
-    // ranges do not overlap.
     if (d < s || d >= s + n) copy_forward(d, s, n);
     else copy_backward(d, s, n);
     return dest;
@@ -89,7 +65,6 @@ void *memmove(void *dest, const void *src, size_t n) {
 __attribute__((no_builtin("memcpy", "memmove")))
 void *memcpy(void *restrict dest, const void *restrict src, size_t n) {
     if (use_libc) return libc_memcpy(dest, src, n);
-    // Callers that overlap by mistake still get memmove's result.
     return memmove(dest, src, n);
 }
 
@@ -103,4 +78,4 @@ __attribute__((constructor)) static void hostcopy_init(void) {
 
 #endif
 
-typedef int ckvm_hostcopy_unit; // keeps the file a non-empty unit elsewhere
+typedef int ckvm_hostcopy_unit;

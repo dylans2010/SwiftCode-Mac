@@ -17,38 +17,7 @@ import ImageIO
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The macOS Accessibility / app-interaction engine for `use_app`:
-/// Legacy's `AssistAppInteractionEngine` + `AssistUseAppTool`
-/// dispatch, ported to ApplicationServices + CoreGraphics.
-///
-/// * Per-pid sessions (`app-<pid>`, stable — Legacy minted a
-///   UUID per session; the id is reported, never required as an
-///   input): elements `elem_1…`, descriptors, selected window,
-///   windows, last screenshot.
-/// * `inspect_ui` / `get_accessibility_tree`: AX walk, max 100
-///   elements, depth 10, Legacy's actionable-roles filter.
-/// * Input-delivery actions (click, type, keys, shortcuts, menus,
-///   drag, scroll, set value) go through `approveChangeWithoutFile`
-///   (no Autopilot bypass); reads, waits, verify, select_window,
-///   and take_screenshot do not (the screenshot artifact save
-///   gates itself).
-/// * NEW vs Legacy's dispatch (which dropped them to its default
-///   error): `inspect_application`, `inspect_window`, and
-///   `set_element_value` (AX `kAXValueAttribute` set).
-/// * Window ids: the AX engine numbers by AX order (`window_1…`,
-///   Legacy's `listWindows`); the CGWindowList spelling
-///   (`window_<CGWindowID>`) is accepted wherever a window id is
-///   taken, resolved by matching frames; `list_windows` reports
-///   both.
-/// * `list_applications` also lists INSTALLED apps (Legacy's
-///   four-directory scan), closing the Wave 4 running-only limit.
-/// * Untrusted Accessibility → honest failure naming Accessibility
-///   in System Settings.
-///
-/// See `specs/ide/gap-closure-failing-tools.md` §10.
 extension SwiftCodeMCPHost {
-    /// `use_app`: the full dispatch. Non-AX actions reuse the
-    /// TerminalSupport helpers; AX actions go to the engine below.
     func useAppReal(_ call: MCPToolCall) async throws -> MCPToolResult {
 #if canImport(AppKit) && canImport(ApplicationServices)
         guard let rawAction = call.arguments["action"]?.string,
@@ -138,9 +107,7 @@ extension SwiftCodeMCPHost {
 }
 
 #if canImport(AppKit) && canImport(ApplicationServices)
-// MARK: - Sessions
 
-/// One app's interaction session (Legacy's `AppSession`).
 final class AXAppSession: @unchecked Sendable {
     let pid: Int32
     let bundleID: String
@@ -156,7 +123,6 @@ final class AXAppSession: @unchecked Sendable {
     var sessionID: String { "app-\(pid)" }
 }
 
-/// The host's AX sessions, keyed by pid.
 final class AXSessionsBox: @unchecked Sendable {
     private let lock = NSLock()
     private var sessions: [Int32: AXAppSession] = [:]
@@ -174,7 +140,6 @@ final class AXSessionsBox: @unchecked Sendable {
 
 private let axSessionsBox = AXSessionsBox()
 
-/// One accessible UI element (Legacy's `AccessibleUIElementDescriptor`).
 struct AXUIDescriptor: Sendable {
     var id: String
     var role: String
@@ -200,15 +165,12 @@ struct AXUIDescriptor: Sendable {
     }
 }
 
-/// One window (Legacy's `AppWindowInfo`).
 struct AXWindowInfo: Sendable {
     var id: String
     var title: String
     var frame: AXRect
     var isMain: Bool
     var isMinimized: Bool
-    /// The CGWindowList window number, when the window could be
-    /// matched by frame (lets callers use either spelling).
     var cgWindowID: Int?
     var json: AnyJSON {
         .object(["id": .string(id), "title": .string(title),
@@ -228,19 +190,12 @@ struct AXRect: Sendable {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Trust
 
-    /// Legacy's `checkAccessibilityAuthorization(promptIfDenied:)`:
-    /// true when trusted, else prompts once and reports false for
-    /// this call. Callers throw the honest failure naming
-    /// Accessibility in System Settings.
     func axRequireTrusted() throws {
         if AXIsProcessTrusted() { return }
         _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         throw MCPToolError("Accessibility access is not authorized. Grant it in macOS System Settings > Privacy & Security > Accessibility for SwiftCode, then retry.")
     }
-
-    // MARK: - Attribute helpers
 
     func axString(_ element: AXUIElement, _ attribute: String) -> String? {
         var valueRef: CFTypeRef?
@@ -289,8 +244,6 @@ extension SwiftCodeMCPHost {
         return windows
     }
 
-    // MARK: - Applications & windows
-
     struct AXDiscoveredApp: Sendable {
         var name: String
         var bundleIdentifier: String
@@ -299,10 +252,6 @@ extension SwiftCodeMCPHost {
         var pid: Int32?
     }
 
-    /// Legacy's `listApplications`: running first, then installed
-    /// apps scanned from `/Applications`,
-    /// `/System/Applications`, `/System/Applications/Utilities`,
-    /// `~/Applications`.
     func axListApplications(filter: String?) throws -> [AXDiscoveredApp] {
         var results: [AXDiscoveredApp] = []
         var seenBundleIDs: Set<String> = []
@@ -345,8 +294,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Legacy's `listWindows`: AX order, `window_1…`, with the
-    /// CGWindowList number matched by frame when possible.
     func axListWindows(for app: NSRunningApplication) -> [AXWindowInfo] {
         let cgWindows = terminalAppWindows(pid: app.processIdentifier)
         var results: [AXWindowInfo] = []
@@ -387,10 +334,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    /// Resolves a window id: AX spelling (`window_1…`, or a title
-    /// substring) or the CGWindowList spelling
-    /// (`window_<CGWindowID>`, matched by frame). Returns the AX
-    /// window element and its info.
     func axResolveWindow(app: NSRunningApplication, windowID: String) throws -> (element: AXUIElement, info: AXWindowInfo) {
         let windows = axWindows(app)
         let list = axListWindows(for: app)
@@ -409,8 +352,6 @@ extension SwiftCodeMCPHost {
         throw MCPToolError("Window matching '\(windowID)' was not found for application '\(app.localizedName ?? "")'.")
     }
 
-    /// Legacy's `selectWindow`: AX raise + set-main; records the
-    /// selection in the session.
     func axSelectWindow(app: NSRunningApplication, windowID: String) throws -> AXWindowInfo {
         let (element, info) = try axResolveWindow(app: app, windowID: windowID)
         _ = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
@@ -420,8 +361,6 @@ extension SwiftCodeMCPHost {
         return info
     }
 
-    // MARK: - UI inspection
-
     static let axActionableRoles: Set<String> = [
         "AXButton", "AXTextField", "AXTextArea", "AXPopUpButton", "AXMenuButton",
         "AXCheckBox", "AXRadioButton", "AXTab", "AXSlider", "AXMenuItem",
@@ -429,8 +368,6 @@ extension SwiftCodeMCPHost {
         "AXCell", "AXStaticText", "AXImage", "AXSheet", "AXDialog", "AXAlert",
     ]
 
-    /// Legacy's `inspectUI`: the selected window (or the first),
-    /// max 100 elements, depth 10.
     func axInspectUI(app: NSRunningApplication, maxElements: Int = 100, targetWindowID: String? = nil) -> ([AXUIDescriptor], AXAppSession) {
         let session = axSessionsBox.getOrCreate(for: app)
         let windows = axWindows(app)
@@ -462,7 +399,6 @@ extension SwiftCodeMCPHost {
         return (descriptors, session)
     }
 
-    /// Legacy's `collectElements` (verbatim logic).
     func axCollectElements(element: AXUIElement, windowFrame: AXRect?,
                            descriptors: inout [AXUIDescriptor], references: inout [String: AXUIElement],
                            counter: inout Int, maxCount: Int, currentDepth: Int, maxDepth: Int) {
@@ -500,10 +436,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Legacy's `resolveElement`: session id, then exact cached
-    /// title/identifier/label, then a unique substring match
-    /// (ambiguous → error naming the candidates), then a live
-    /// recursive search of the app's windows.
     func axResolveElement(app: NSRunningApplication, target: String) throws -> (element: AXUIElement, descriptor: AXUIDescriptor?) {
         let session = axSessionsBox.getOrCreate(for: app)
         let query = target.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -554,12 +486,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    // MARK: - Semantic actions
-
-    /// Legacy's `performSemanticAction`: press (with AXPick
-    /// fallback), set_value/type_text (AX value set), focus,
-    /// select, expand/collapse, else the named AX action.
-    /// Returns (dispatched, verified, observedChange).
     func axPerformSemanticAction(app: NSRunningApplication, target: String, actionName: String,
                                  value: String?, shouldVerify: Bool) async throws -> (Bool, Bool, String?) {
         let (element, _) = try axResolveElement(app: app, target: target)
@@ -607,10 +533,6 @@ extension SwiftCodeMCPHost {
         return (true, isVerified, stateChange)
     }
 
-    // MARK: - Menus
-
-    /// Legacy's `selectMenuItem`: walks the menu bar by the
-    /// `File > Save` path; a disabled item refuses.
     func axSelectMenuItem(app: NSRunningApplication, menuPath: String) throws {
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         var menuBarRef: CFTypeRef?
@@ -645,10 +567,6 @@ extension SwiftCodeMCPHost {
         return false
     }
 
-    // MARK: - Pointer & keyboard
-
-    /// Legacy's `click` (move, then down/up with clickCount; a
-    /// second pair for double-click; `clickCount: 0` moves only).
     func axClick(app: NSRunningApplication, target: String?, coordinates: CGPoint?, coordinateSpace: String,
                  button: String, clickCount: Int, shouldVerify: Bool) async throws -> CGPoint {
         let targetPoint: CGPoint
@@ -694,7 +612,6 @@ extension SwiftCodeMCPHost {
         return targetPoint
     }
 
-    /// Legacy's `drag` (move → down → dragged → up).
     func axDrag(app: NSRunningApplication, from: CGPoint, to: CGPoint, coordinateSpace: String) async throws {
         let startPt = axConvertToScreenCoordinates(point: from, space: coordinateSpace, app: app)
         let endPt = axConvertToScreenCoordinates(point: to, space: coordinateSpace, app: app)
@@ -713,7 +630,6 @@ extension SwiftCodeMCPHost {
         upEvent.post(tap: .cghidEventTap)
     }
 
-    /// Legacy's `scroll` (pixel wheel, dx/dy).
     func axScroll(app: NSRunningApplication, coordinates: CGPoint?, coordinateSpace: String, dx: Int, dy: Int) async throws {
         if let pt = coordinates {
             let screenPt = axConvertToScreenCoordinates(point: pt, space: coordinateSpace, app: app)
@@ -728,10 +644,6 @@ extension SwiftCodeMCPHost {
         scrollEvent.post(tap: .cghidEventTap)
     }
 
-    /// Legacy's `typeText`: focus the target first, then Unicode
-    /// injection per UTF-16 unit — or, for text over 100
-    /// characters, clipboard + Cmd+V with the prior clipboard
-    /// restored.
     func axTypeText(app: NSRunningApplication, target: String?, text: String, useClipboard: Bool) async throws {
         if let target, !target.isEmpty {
             _ = try? await axPerformSemanticAction(app: app, target: target, actionName: "focus", value: nil, shouldVerify: false)
@@ -763,7 +675,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Legacy's `resolveKeyCode` (verbatim table).
     static func axKeyCode(for keyName: String) -> CGKeyCode {
         switch keyName.lowercased() {
         case "return", "enter": return 36
@@ -826,7 +737,6 @@ extension SwiftCodeMCPHost {
         return flags
     }
 
-    /// Legacy's `pressKey`.
     func axPressKey(app: NSRunningApplication, keyName: String, modifiers: [String]) async throws {
         let keyCode = Self.axKeyCode(for: keyName)
         let flags = Self.axModifierFlags(modifiers)
@@ -843,7 +753,6 @@ extension SwiftCodeMCPHost {
         keyUp.post(tap: .cghidEventTap)
     }
 
-    /// Legacy's `pressShortcut` (`Cmd+S`, `Command+Shift+P`, …).
     func axPressShortcut(app: NSRunningApplication, shortcut: String) async throws {
         let parts = shortcut.components(separatedBy: "+").map { $0.trimmingCharacters(in: .whitespaces) }
         guard let keyPart = parts.last, !keyPart.isEmpty else {
@@ -852,9 +761,6 @@ extension SwiftCodeMCPHost {
         try await axPressKey(app: app, keyName: keyPart, modifiers: Array(parts.dropLast()))
     }
 
-    // MARK: - Waiting & verification
-
-    /// Legacy's `waitForElement` (200 ms poll, 1–60 s, default 5).
     func axWaitForElement(app: NSRunningApplication, target: String, timeoutSeconds: Double) async throws -> AXUIDescriptor {
         let maxIterations = Int(timeoutSeconds * 5.0)
         for _ in 0..<max(maxIterations, 1) {
@@ -872,7 +778,6 @@ extension SwiftCodeMCPHost {
         throw MCPToolError("Element matching '\(target)' did not appear within \(timeoutSeconds)s in '\(app.localizedName ?? "")'.")
     }
 
-    /// Legacy's `waitForWindow`.
     func axWaitForWindow(app: NSRunningApplication, windowTitle: String, timeoutSeconds: Double) async throws -> AXWindowInfo {
         let maxIterations = Int(timeoutSeconds * 5.0)
         for _ in 0..<max(maxIterations, 1) {
@@ -888,8 +793,6 @@ extension SwiftCodeMCPHost {
         throw MCPToolError("Window matching '\(windowTitle)' did not appear within \(timeoutSeconds)s.")
     }
 
-    /// Legacy's `verify`: case-insensitive contains-or-equal
-    /// against the element's value (falling back to its title).
     func axVerify(app: NSRunningApplication, target: String, expected: String) throws -> (verified: Bool, actual: String) {
         let (element, descriptor) = try axResolveElement(app: app, target: target)
         let actual = axString(element, kAXValueAttribute) ?? descriptor?.title ?? ""
@@ -898,9 +801,6 @@ extension SwiftCodeMCPHost {
         return (lower.contains(want) || lower == want, actual)
     }
 
-    // MARK: - Coordinates
-
-    /// Legacy's `convertToScreenCoordinates`.
     func axConvertToScreenCoordinates(point: CGPoint, space: String, app: NSRunningApplication) -> CGPoint {
         switch space.lowercased() {
         case "window":
@@ -918,11 +818,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    // MARK: - Screenshot
-
-    /// Legacy's `captureAppScreenshot`: fullscreen capture
-    /// cropped to the target window (main window when no id is
-    /// given), with Legacy's scale / integral-rect math.
     func axCaptureAppScreenshot(call: MCPToolCall, app: NSRunningApplication, windowID: String?) async throws -> MCPToolResult {
 #if canImport(ScreenCaptureKit)
         let s = try session(for: call)
@@ -992,11 +887,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    // MARK: - Dispatch
-
-    /// The AX action dispatch (Legacy's `AssistUseAppTool`
-    /// dispatch, extended with `inspect_application`,
-    /// `inspect_window`, and `set_element_value`).
     func axDispatch(call: MCPToolCall, action: String, app: NSRunningApplication, appIdentifier: String) async throws -> MCPToolResult {
         let appName = app.localizedName ?? appIdentifier
         let bundleID = app.bundleIdentifier ?? appIdentifier
@@ -1021,7 +911,6 @@ extension SwiftCodeMCPHost {
             return .object(out)
         }
 
-        /// Approval for input-delivery actions (no Autopilot).
         func approveInput(_ summary: String) async throws {
             try await approveChangeWithoutFile(tool: "use_app", summary: summary, call: call)
         }

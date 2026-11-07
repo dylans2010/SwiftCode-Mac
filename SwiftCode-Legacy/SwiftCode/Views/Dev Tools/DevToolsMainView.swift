@@ -26,10 +26,8 @@ struct DevToolsMainView: View {
 
     private var tools: [DevTool] {
         [
-            // Productivity
             DevTool(name: "Personal Documentation", description: "Project wiki, planning, whiteboards, snippets, & intelligence", icon: "doc.text.fill", category: "Productivity", destination: AnyView(NSPersonalDocumentationView())),
 
-            // Diagnostics & Logs
             DevTool(name: "Entitlement Inspector", description: "Verify active app capability settings", icon: "shield", category: "Diagnostics", destination: AnyView(EntitlementInspectorView())),
             DevTool(name: "Provisioning Profile Viewer", description: "Inspect mobile provisioning profiles", icon: "key", category: "Diagnostics", destination: AnyView(ProvisioningProfileViewerView())),
             DevTool(name: "Signing Inspector", description: "Validate certificates, identities, and signatures", icon: "lock.shield", category: "Diagnostics", destination: AnyView(SigningInspectorView())),
@@ -42,7 +40,6 @@ struct DevToolsMainView: View {
             DevTool(name: "Battery Status", description: "Inspect macOS battery power sources", icon: "battery.100", category: "Diagnostics", destination: AnyView(BatteryStatusDevToolView())),
             DevTool(name: "Biometric Auth Sim", description: "Simulate LocalAuthentication FaceID/TouchID prompt responses", icon: "faceid", category: "Diagnostics", destination: AnyView(BiometricAuthSimDevToolView())),
 
-            // Core Xcode & Build System
             DevTool(name: "Bundle Identifier Editor", description: "Read and rewrite project bundle ids", icon: "barcode", category: "Build System", destination: AnyView(BundleIdentifierEditorView())),
             DevTool(name: "Build Settings Explorer", description: "Explore PBX target settings", icon: "gearshape.2", category: "Build System", destination: AnyView(BuildSettingsExplorerView())),
             DevTool(name: "XCConfig Viewer", description: "Inspect active project .xcconfig configurations", icon: "doc.plaintext", category: "Build System", destination: AnyView(XCConfigViewerView())),
@@ -63,7 +60,6 @@ struct DevToolsMainView: View {
             DevTool(name: "Bundle Size Analyzer Tool", description: "Analyze compiled application bundle footprints", icon: "chart.pie", category: "Build System", destination: AnyView(BundleSizeAnalyzerDevToolView())),
             DevTool(name: "Environment Variable Inspector", description: "Search and inspect active process environment variables", icon: "chevron.left.forwardslash.chevron.right", category: "Build System", destination: AnyView(EnvVarInspectorDevToolView())),
 
-            // UI Design
             DevTool(name: "Designer", description: "Reverse-engineer website visual identities into SwiftUI", icon: "wand.and.stars", category: "UI Design", destination: AnyView(DesignerDevToolView())),
             DevTool(name: "Aspect Ratio Calculator", description: "Compute dimensions preserving photo proportions", icon: "aspectratio", category: "UI Design", destination: AnyView(AspectRatioCalculatorView())),
             DevTool(name: "CSS Border Radius Generator", description: "Generate beautiful container corner radius syntax", icon: "square.dashed", category: "UI Design", destination: AnyView(CSSBorderRadiusGeneratorView())),
@@ -80,7 +76,6 @@ struct DevToolsMainView: View {
             DevTool(name: "Color Palette Generator", description: "Build harmonious color variations", icon: "paintpalette.fill", category: "UI Design", destination: AnyView(ColorPaletteGeneratorDevToolView())),
             DevTool(name: "Contrast Checker", description: "WCAG contrast compliance test", icon: "eye.fill", category: "UI Design", destination: AnyView(ContrastCheckerDevToolView())),
 
-            // Conversion
             DevTool(name: "CSV to JSON", description: "Translate structured CSV schemas to JSON data", icon: "doc.text", category: "Conversion", destination: AnyView(CSVToJSONView())),
             DevTool(name: "JSON to CSV", description: "Convert JSON array keys to tabular CSV file layouts", icon: "table", category: "Conversion", destination: AnyView(JSONToCSVView())),
             DevTool(name: "JSON to C#", description: "Generate structural C# models from raw JSON responses", icon: "chevron.left.forwardslash.chevron.right", category: "Conversion", destination: AnyView(JSONToCSharpView())),
@@ -110,7 +105,6 @@ struct DevToolsMainView: View {
             DevTool(name: "Timestamp Converter", description: "Unix epoch to date", icon: "clock", category: "Conversion", destination: AnyView(TimestampConverterView())),
             DevTool(name: "Epoch Converter", description: "Seconds to readable UTC timestamp conversion", icon: "calendar.badge.clock", category: "Conversion", destination: AnyView(EpochConverterDevToolView())),
 
-            // Cryptography
             DevTool(name: "AES Encryption", description: "Symmetric key AES-256 GCM cryptor", icon: "key.fill", category: "Cryptography", destination: AnyView(AESEncryptionDevToolView())),
             DevTool(name: "Bcrypt Hash Generator", description: "Generate Bcrypt salt verification hashes", icon: "lock.circle", category: "Cryptography", destination: AnyView(BcryptHashGeneratorView())),
             DevTool(name: "HMAC Calculator", description: "Generate secure digests with secret keys", icon: "shield", category: "Cryptography", destination: AnyView(HMACCalculatorDevToolView())),
@@ -121,7 +115,6 @@ struct DevToolsMainView: View {
             DevTool(name: "Encryption Hash Tool", description: "Multi-algorithm secure data digest calculator", icon: "lock.rotation", category: "Cryptography", destination: AnyView(EncryptionToolDevToolView())),
             DevTool(name: "App Receipt Inspector", description: "Analyze local sandbox store receipts", icon: "doc.plaintext", category: "Cryptography", destination: AnyView(AppReceiptInspectorDevToolView())),
 
-            // Network
             DevTool(name: "API Response Viewer", description: "Fetch and pretty-print JSON response bodies", icon: "network", category: "Network", destination: AnyView(APIResponseViewerDevToolView())),
             DevTool(name: "cURL Converter", description: "Compile cURL bash terminal strings into Swift", icon: "terminal", category: "Network", destination: AnyView(CURLConverterDevToolView())),
             DevTool(name: "cURL Generator", description: "Construct console cURL commands from properties", icon: "chevron.right", category: "Network", destination: AnyView(CURLGeneratorDevToolView())),
@@ -136,7 +129,6 @@ struct DevToolsMainView: View {
             DevTool(name: "SSL Checker", description: "Verify SSL certificates", icon: "checkmark.seal", category: "Network", destination: AnyView(SSLCheckerView())),
             DevTool(name: "Whois Lookup", description: "Domain registration info", icon: "person.text.rectangle", category: "Network", destination: AnyView(WhoisLookupView())),
 
-            // Utilities
             DevTool(name: "Advanced Regex Debugger", description: "Debug, test, and analyze regular expressions", icon: "checklist", category: "Utilities", destination: AnyView(AdvancedRegexDebuggerDevToolView())),
             DevTool(name: "App Sandbox Explorer", description: "Navigate container application documents", icon: "folder", category: "Utilities", destination: AnyView(AppSandboxExplorerDevToolView())),
             DevTool(name: "App State Inspector", description: "Audit foreground/background active state logs", icon: "timer", category: "Utilities", destination: AnyView(AppStateInspectorDevToolView())),
@@ -206,7 +198,6 @@ struct DevToolsMainView: View {
             DevTool(name: "Device Info", description: "System and hardware info", icon: "desktopcomputer", category: "Utilities", destination: AnyView(DeviceInfoView())),
             DevTool(name: "Property List Viewer", description: "Inspect standard XML property lists", icon: "list.bullet.rectangle", category: "Utilities", destination: AnyView(PlistViewerView())),
 
-            // Interactive Cheat Sheets
             DevTool(name: "Xcode Shortcuts Guide", description: "Look up essential Xcode keyboard shortcuts", icon: "keyboard", category: "Cheat Sheets", destination: AnyView(XcodeShortcutsCheatsheetView())),
             DevTool(name: "SwiftUI Performance Cookbook", description: "Avoid main-thread layout bottleneck rules", icon: "gauge.badge.minus", category: "Cheat Sheets", destination: AnyView(SwiftUIPerformanceCheatsheetView())),
             DevTool(name: "Regex Syntax Playbook", description: "Quick token classes reference and lookup guides", icon: "text.magnifyingglass", category: "Cheat Sheets", destination: AnyView(RegexSyntaxCheatsheetView())),
@@ -220,7 +211,6 @@ struct DevToolsMainView: View {
             DevTool(name: "LLDB Debugger Playbook", description: "Frame variable backtrace printing commands", icon: "ant", category: "Cheat Sheets", destination: AnyView(LLDBDebuggerCheatsheetView())),
             DevTool(name: "SF Symbols Reference Guide", description: "Lookup catalog category symbols and codes", icon: "sparkles", category: "Cheat Sheets", destination: AnyView(SFSymbolsReferenceView())),
 
-            // New Utilities & UI Dev Tools
             DevTool(name: "Base64 Image Decoder", description: "Decode and preview visual binary graphic images", icon: "photo.fill", category: "Utilities", destination: AnyView(Base64ImageDecoderView())),
             DevTool(name: "HTTP Request Header Builder", description: "Assemble custom HTTP header parameters map", icon: "list.bullet.rectangle", category: "Utilities", destination: AnyView(HTTPRequestHeaderBuilderView())),
             DevTool(name: "JSON Types Schema Analyzer", description: "Recursively inspect object key types and paths", icon: "curlybraces", category: "Utilities", destination: AnyView(JSONTypeAnalyzerView())),
@@ -261,7 +251,6 @@ struct DevToolsMainView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // High-density Search Header Panel
                 HStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -287,9 +276,7 @@ struct DevToolsMainView: View {
 
                 Divider()
 
-                // Desktop compact list layout
                 List {
-                    // Favorites Group
                     if !favorites.isEmpty && searchText.isEmpty {
                         Section(header: Text("FAVORITE TOOLS").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
                             ForEach(tools.filter { favorites.contains($0.name) }) { tool in
@@ -298,7 +285,6 @@ struct DevToolsMainView: View {
                         }
                     }
 
-                    // Recents Group
                     if !recents.isEmpty && searchText.isEmpty {
                         Section(header: Text("RECENTLY USED").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
                             ForEach(recents.compactMap { name in tools.first(where: { $0.name == name }) }) { tool in
@@ -307,7 +293,6 @@ struct DevToolsMainView: View {
                         }
                     }
 
-                    // Collapsible Category Sections with Compact Rows
                     ForEach(categories, id: \.self) { category in
                         let catTools = filteredTools.filter { $0.category == category }
                         if !catTools.isEmpty {
@@ -331,7 +316,6 @@ struct DevToolsMainView: View {
     private func toolRow(for tool: DevTool) -> some View {
         NavigationLink(destination: tool.destination.onAppear { recordRecent(tool.name) }) {
             HStack(spacing: 12) {
-                // Colored SF Icon Background
                 ZStack {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color.orange.opacity(0.12))
@@ -354,7 +338,6 @@ struct DevToolsMainView: View {
 
                 Spacer()
 
-                // Hover Favorite Button
                 Button {
                     toggleFavorite(tool.name)
                 } label: {

@@ -1,9 +1,5 @@
-// Accessories, services, characteristics and their metadata
-// (object-model.md §5–§7), the accessory delegate and the browser.
-
 import Foundation
 
-/// object-model.md §5; every method is optional.
 public protocol HMAccessoryDelegate: AnyObject {
     func accessoryDidUpdateName(_ accessory: HMAccessory)
     func accessory(_ accessory: HMAccessory, didUpdateNameFor service: HMService)
@@ -28,7 +24,6 @@ public extension HMAccessoryDelegate {
     func accessory(_ accessory: HMAccessory, didUpdateFirmwareVersion firmwareVersion: String) {}
 }
 
-/// `categoryType` (type-identifiers.md §3) and a description.
 open class HMAccessoryCategory: NSObject, @unchecked Sendable {
     public let categoryType: String
     public let localizedDescription: String
@@ -42,8 +37,6 @@ open class HMAccessoryCategory: NSObject, @unchecked Sendable {
     open override var hash: Int { categoryType.hashValue }
 }
 
-/// Base of accessory profiles (iOS 10). No profile kinds are produced in
-/// this round (cameras and network configuration are later rounds).
 open class HMAccessoryProfile: NSObject, @unchecked Sendable {
     public let uniqueIdentifier: UUID
     public let services: [HMService]
@@ -70,17 +63,12 @@ open class HMAccessory: NSObject, @unchecked Sendable {
     public private(set) var manufacturer: String?
     public private(set) var firmwareVersion: String?
     public private(set) var supportsIdentify = false
-    /// Matter node ID (none for HAP accessories).
     public private(set) var matterNodeID: UInt64?
-    /// On a bridge: the accessories it hosts; nil otherwise (iOS 13).
     public internal(set) var bridgedAccessories: [HMAccessory]?
-    /// Vendor additions (iOS 26.1): SwiftCode accessories are not vendor accessories.
     public var isVendorAccessory: Bool { false }
-    /// The HAP accessory instance ID.
     public var hapInstanceID: Int? { discoveredID == nil ? record.aid : nil }
 
     var record: SwiftCodeAccessoryRecord
-    /// For accessories reported by `HMAccessoryBrowser` (not in a home yet).
     var discoveredID: UUID?
 
     init(id: UUID) {
@@ -102,10 +90,8 @@ open class HMAccessory: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMAccessory)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
 
-    /// The room the accessory is assigned to (the default room if none).
     public var room: HMRoom? { home?.room(record.roomID) }
 
-    /// On a bridge: the identifiers of the accessories it hosts (iOS 9).
     public var uniqueIdentifiersForBridgedAccessories: [UUID]? {
         record.bridgedAccessoryIDs.isEmpty ? nil : record.bridgedAccessoryIDs
     }
@@ -141,7 +127,6 @@ open class HMAccessory: NSObject, @unchecked Sendable {
         home.connection.simple(.renameAccessory(home: home.uniqueIdentifier, accessory: uniqueIdentifier, name: name), completion)
     }
 
-    /// Asks the accessory to identify itself (48 if it cannot).
     public func identify(completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         home.connection.simple(.identifyAccessory(home: home.uniqueIdentifier, accessory: uniqueIdentifier), completion)
@@ -162,7 +147,6 @@ open class HMService: NSObject, @unchecked Sendable {
     public private(set) var isUserInteractive = true
     public private(set) var isPrimaryService = false
     public internal(set) var linkedServices: [HMService]?
-    /// Matter endpoint (none for HAP services).
     public var matterEndpointID: Int? { nil }
 
     init(id: UUID) { uniqueIdentifier = id }
@@ -193,8 +177,6 @@ open class HMService: NSObject, @unchecked Sendable {
         home.connection.simple(.renameService(home: home.uniqueIdentifier, service: uniqueIdentifier, name: name), completion)
     }
 
-    /// The declared purpose of a generic service; must be nil or a known
-    /// service type (62 otherwise).
     public func updateAssociatedServiceType(_ serviceType: String?, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         home.connection.simple(.updateAssociatedServiceType(home: home.uniqueIdentifier, service: uniqueIdentifier,
@@ -207,7 +189,6 @@ open class HMService: NSObject, @unchecked Sendable {
     }
 }
 
-/// object-model.md §7.
 open class HMCharacteristicMetadata: NSObject, @unchecked Sendable {
     public let minimumValue: NSNumber?
     public let maximumValue: NSNumber?
@@ -241,17 +222,13 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
     public internal(set) weak var service: HMService?
     public private(set) var characteristicType = ""
     public private(set) var localizedDescription = ""
-    /// `HMCharacteristicProperty…` strings.
     public private(set) var properties: [String] = []
     public private(set) var metadata: HMCharacteristicMetadata?
     public private(set) var isNotificationEnabled = false
 
-    /// This client's last known value: nil until read, written or notified.
     var cachedValue: SwiftCodeHomeValue?
     var record: SwiftCodeCharacteristicRecord?
 
-    /// The cached value: booleans and numbers as `NSNumber`, strings as
-    /// `String`, TLV8 and data as `Data` (object-model.md §7).
     public var value: Any? { cachedValue?.apiValue }
 
     init(id: UUID) { uniqueIdentifier = id }
@@ -269,8 +246,6 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
 
     var home: HMHome? { service?.accessory?.home }
 
-    /// Reads from the accessory; `value` is updated before the completion
-    /// runs. Write-only: 6 without I/O.
     public func readValue(completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         guard properties.contains(HMCharacteristicPropertyReadable) else { fail(completion, .writeOnlyCharacteristic); return }
@@ -285,7 +260,6 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Validates against the metadata (5, 43–46 without I/O), then writes.
     public func writeValue(_ value: Any?, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         guard properties.contains(HMCharacteristicPropertyWritable) else { fail(completion, .readOnlyCharacteristic); return }
@@ -301,8 +275,6 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Subscribes this client to value changes, delivered through
-    /// `accessory(_:service:didUpdateValueFor:)`. Not supported: 7.
     public func enableNotification(_ enable: Bool, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         guard properties.contains(HMCharacteristicPropertySupportsEventNotification) else {
@@ -315,7 +287,6 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Opaque data sent with writes to characteristics that require it.
     public func updateAuthorizationData(_ data: Data?, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         home.connection.simple(.updateAuthorizationData(home: home.uniqueIdentifier, characteristic: uniqueIdentifier,
@@ -332,8 +303,6 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
     }
 }
 
-// MARK: - Browser (object-model.md §5)
-
 public protocol HMAccessoryBrowserDelegate: AnyObject {
     func accessoryBrowser(_ browser: HMAccessoryBrowser, didFindNewAccessory accessory: HMAccessory)
     func accessoryBrowser(_ browser: HMAccessoryBrowser, didRemoveNewAccessory accessory: HMAccessory)
@@ -344,7 +313,6 @@ public extension HMAccessoryBrowserDelegate {
     func accessoryBrowser(_ browser: HMAccessoryBrowser, didRemoveNewAccessory accessory: HMAccessory) {}
 }
 
-/// Reports unpaired accessories (published endpoints not in any home).
 open class HMAccessoryBrowser: NSObject, @unchecked Sendable {
     public weak var delegate: HMAccessoryBrowserDelegate?
     public private(set) var discoveredAccessories: [HMAccessory] = []

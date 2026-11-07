@@ -2,34 +2,6 @@ import Foundation
 import SwiftCodeDebug
 import SwiftCodeLanguage
 
-/// The Ext v2 language client — Legacy's
-/// `Backend/Extensions v2/LanguageServices/ExtV2LanguageClient.swift`,
-/// ported as a thin adapter over SwiftCode's own `LSPClient`
-/// (`SwiftCodeLanguage`), not a second JSON-RPC implementation.
-///
-/// Legacy owned its whole stack: stdio pipes, Content-Length
-/// framing, request/response matching, and the `initialize` /
-/// `didOpen` / `completion` / `hover` calls. `LSPClient` already
-/// does all of that over `DAPTransport` / `ProcessTransport`
-/// (`SwiftCodeDebug`), so this adapter only translates Legacy's API
-/// shape onto it: `ServerInfo`, `start` / `shutdown` / `restart`,
-/// document sync, and completion-as-labels / hover-as-text.
-///
-/// Deviations, recorded:
-/// * `didOpen` accepts Legacy's `languageId` for API compatibility,
-///   but `LSPClient` derives the language from the file extension,
-///   so the argument is ignored.
-/// * Bare command names resolve through `PATH` in-process (Legacy
-///   shelled out to `/usr/bin/which`); a missing executable fails
-///   honestly with `.executableNotFound` before any process starts.
-/// * Diagnostics are not drained here: `LSPClient.notifications`
-///   carries `publishDiagnostics`, and the IDE's `LanguageService`
-///   already consumes that stream. This client exposes the same
-///   stream through `notifications` for callers that want it.
-/// * `completion` returns labels only, as Legacy did — the full
-///   `CompletionItem`s stay available through `client` for callers
-///   that need detail or insert text.
-
 public actor ExtV2LanguageClient {
     public struct ServerInfo: Sendable, Equatable {
         public var command: String
@@ -52,18 +24,10 @@ public actor ExtV2LanguageClient {
     private var client: LSPClient?
     private var server: ServerInfo?
 
-    /// The underlying client, for callers that need more than
-    /// labels and hover text (full completion items, definitions,
-    /// diagnostics via `notifications`).
     public var underlyingClient: LSPClient? { client }
 
     public init() {}
 
-    /// Starts the server process and runs `initialize` against the
-    /// workspace root. Throws `.executableNotFound` when the
-    /// command cannot be resolved, and rethrows the client's
-    /// startup / initialize errors (a server that exits
-    /// immediately fails here, not on the first completion).
     public func start(server: ServerInfo, workspaceRoot: URL) async throws {
         await shutdown()
         let executable = try Self.resolveExecutable(server.command)
@@ -74,9 +38,6 @@ public actor ExtV2LanguageClient {
         self.server = server
     }
 
-    /// Shuts the server down (`shutdown` request, then closes the
-    /// transport) and forgets it. Safe to call when nothing is
-    /// running.
     public func shutdown() async {
         guard let client else { return }
         await client.shutdown()
@@ -85,18 +46,13 @@ public actor ExtV2LanguageClient {
         self.server = nil
     }
 
-    /// Stops the current server (if any) and starts the given one.
     public func restart(server: ServerInfo, workspaceRoot: URL) async throws {
         try await start(server: server, workspaceRoot: workspaceRoot)
     }
 
     public var isRunning: Bool { client != nil }
 
-    // MARK: - Document sync
-
     public func didOpen(uri: String, languageId: String, version: Int, text: String) throws {
-        // `languageId` is accepted for API compatibility; LSPClient
-        // derives it from the file extension.
         _ = languageId
         guard let url = URL(string: uri) else { throw ClientError.invalidURI(uri) }
         guard let client else { throw ClientError.notStarted }
@@ -115,28 +71,18 @@ public actor ExtV2LanguageClient {
         client.didClose(url)
     }
 
-    // MARK: - Language features
-
-    /// Completion labels at a position, as Legacy returned them.
     public func completion(uri: String, line: Int, character: Int) async throws -> [String] {
         guard let url = URL(string: uri) else { throw ClientError.invalidURI(uri) }
         guard let client else { throw ClientError.notStarted }
         return try await client.completion(url, at: Position(line: line, character: character)).map(\.label)
     }
 
-    /// Hover text at a position, or nil when there is none.
     public func hover(uri: String, line: Int, character: Int) async throws -> String? {
         guard let url = URL(string: uri) else { throw ClientError.invalidURI(uri) }
         guard let client else { throw ClientError.notStarted }
         return try await client.hover(url, at: Position(line: line, character: character))
     }
 
-    // MARK: - Executable resolution
-
-    /// Resolves a command to an executable path: a path containing
-    /// a slash is used as-is (and must be executable); a bare name
-    /// is looked up in `PATH`, in order. Throws
-    /// `.executableNotFound` either way.
     public static func resolveExecutable(_ command: String) throws -> String {
         let fileManager = FileManager.default
         if command.contains("/") {

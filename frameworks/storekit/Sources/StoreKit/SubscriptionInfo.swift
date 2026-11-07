@@ -1,50 +1,39 @@
-// `Product.SubscriptionInfo`, its status and renewal info (testing-session.md
-// §3.2, §5; formats.md §2.3).
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 import StoreKitSigning
 
 extension Product {
-    /// The subscription part of an auto-renewable product.
     public struct SubscriptionInfo: Hashable, Sendable {
         public let introductoryOffer: SubscriptionOffer?
         public let promotionalOffers: [SubscriptionOffer]
         public let winBackOffers: [SubscriptionOffer]
         public let subscriptionGroupID: String
         public let subscriptionPeriod: SubscriptionPeriod
-        /// The level in the group; 1 is the highest.
         public let groupLevel: Int
-        /// The group's display name in the session locale (falls back to the group name).
         public let groupDisplayName: String
 
-        /// Whether the customer may still get the introductory offer of this group.
         public var isEligibleForIntroOffer: Bool {
             get async { await SubscriptionInfo.isEligibleForIntroOffer(for: subscriptionGroupID) }
         }
 
-        /// True until the customer has had a subscription in the group; an unknown group answers true.
         public static func isEligibleForIntroOffer(for groupID: String) async -> Bool {
             SwiftCodeStoreKit.shared.store.isEligibleForIntroOffer(groupID: groupID)
         }
 
-        /// The statuses of this subscription's group.
         public var status: [Status] { get async throws { try await SubscriptionInfo.status(for: subscriptionGroupID) } }
 
-        /// One status per subscription of the group (a simulated status error answers an empty list).
         public static func status(for groupID: String) async throws -> [Status] {
             let rt = SwiftCodeStoreKit.shared
             return Status.make(rt.store.subscriptionStatuses(groupID: groupID), runtime: rt)
         }
 
-        /// The status of the subscription containing a transaction.
         public static func status(transactionID: UInt64) async throws -> Status? {
             let rt = SwiftCodeStoreKit.shared
             guard let s = rt.store.subscriptionStatus(forTransaction: transactionID) else { return nil }
             return Status.make([s], runtime: rt).first
         }
 
-        /// `Product.SubscriptionInfo.RenewalState` (raw values of testing-session.md §3.2).
         public struct RenewalState: RawRepresentable, Hashable, Sendable {
             public let rawValue: Int
             public init(rawValue: Int) { self.rawValue = rawValue }
@@ -66,7 +55,6 @@ extension Product {
             }
         }
 
-        /// One subscription's status.
         public struct Status: Hashable, Sendable {
             public let state: RenewalState
             public let transaction: VerificationResult<Transaction>
@@ -88,7 +76,6 @@ extension Product {
             }
         }
 
-        /// Signed renewal information (formats.md §2.3).
         public struct RenewalInfo: Hashable, Sendable, SwiftCodeSignedValue {
             let jws: String
             let payload: JSONValue
@@ -108,7 +95,6 @@ extension Product {
             public var originalTransactionID: UInt64 { string("originalTransactionId").flatMap(UInt64.init) ?? 0 }
             public var currentProductID: String { string("productId") ?? "" }
             public var willAutoRenew: Bool { int("autoRenewStatus") == 1 }
-            /// The product of the next period.
             public var autoRenewPreference: String? { string("autoRenewProductId") }
             public var expirationReason: ExpirationReason? { int("expirationIntent").map(ExpirationReason.init(rawValue:)) }
             public var isInBillingRetry: Bool { payload["isInBillingRetryPeriod"]?.boolValue ?? false }
@@ -121,7 +107,6 @@ extension Product {
             public var environmentStringRepresentation: String { string("environment") ?? "" }
             public var recentSubscriptionStartDate: Date { date("recentSubscriptionStartDate") ?? .distantPast }
             public var renewalDate: Date? { date("renewalDate") }
-            /// `renewalPrice` / 1000.
             public var renewalPrice: Decimal? { int("renewalPrice").map { Decimal($0) / 1000 } }
             public var currencyCode: String? { string("currency") }
             public var eligibleWinBackOfferIDs: [String] { payload["eligibleWinBackOfferIds"]?.arrayValue?.compactMap(\.stringValue) ?? [] }
@@ -134,7 +119,6 @@ extension Product {
             public static func == (a: RenewalInfo, b: RenewalInfo) -> Bool { a.jws == b.jws }
             public func hash(into h: inout Hasher) { h.combine(jws) }
 
-            /// `RenewalInfo.ExpirationReason` (raw values as the JWS `expirationIntent`).
             public struct ExpirationReason: RawRepresentable, Hashable, Sendable {
                 public let rawValue: Int
                 public init(rawValue: Int) { self.rawValue = rawValue }

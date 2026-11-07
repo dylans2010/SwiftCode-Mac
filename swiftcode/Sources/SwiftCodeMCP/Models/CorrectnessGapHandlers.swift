@@ -2,39 +2,8 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// Gap-closure handlers (Wave: correctness gaps).
-///
-/// The tool registrations and the previous handler bodies live in
-/// files owned by other slices (`SwiftCodeTools+ReviewDocs.swift`,
-/// `SwiftCodeTools+StaticAnalysis.swift`, `SwiftCodeTools+Search.swift`);
-/// those handlers delegate here (coordinator-owned patches), so the
-/// new behaviour lives in this one new file and no shared file is
-/// edited by this slice.
-///
-/// * `correctnessSafeUndo` — `safe_undo` finally restores prior
-///   state, from `SafeUndoJournal` (recorded by `commit()`; see the
-///   `SwiftCodeTools+Content.swift` patch). It pops the last recorded
-///   modification, asks approval, then restores the previous text —
-///   or removes the file when it did not exist before the change.
-/// * `correctnessSessionProgress` — `session_progress_report` reads
-///   real progress: the workspace's Agentic plans
-///   (`AgenticPlanningPlanStore`, written by `task_planner` /
-///   `checklist_plan` / `intel_plan_task`), plus the live session
-///   activity and the agent-notes save time. Legacy read
-///   `AgentPhaseCoordinator`; SwiftCode has no phase coordinator, so
-///   plans are the real session-progress state here.
-/// * `correctnessSwiftASTInspector` — `swift_ast_inspector` on the
-///   real swift-syntax parse (`SwiftASTInspection`), not the regex
-///   structural fallback.
-/// * `correctnessRenameSymbolProject` — `symbol_rename_project` on
-///   the token-aware rename (`SymbolRenameEngine`), not whole-word
-///   textual replacement.
 extension SwiftCodeMCPHost {
-    // MARK: - safe_undo
 
-    /// Restores the last modification recorded in the undo journal.
-    /// The entry is only consumed after approval succeeds: a refused
-    /// undo leaves the journal untouched for a later retry.
     func correctnessSafeUndo(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
@@ -67,16 +36,6 @@ extension SwiftCodeMCPHost {
         return .text("Undid \(restored.tool) on \(restored.relativePath): restored its previous content.")
     }
 
-    // MARK: - session_progress_report
-
-    /// Session progress from the workspace's real plan state. Legacy
-    /// counted `AgentPhaseCoordinator` phases; SwiftCode's equivalent
-    /// live state is the Agentic plan store (one plan per
-    /// `task_planner` goal, tasks updated by `checklist_plan` /
-    /// `intel_plan_task`). The output keys are Legacy's
-    /// (`phaseCount`, `completed`, `inProgress`, `failed`,
-    /// `pending`); a plan task is a phase here, and the summary says
-    /// so rather than pretending phases exist.
     func correctnessSessionProgress(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
@@ -127,13 +86,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    // MARK: - swift_ast_inspector
-
-    /// The real AST inspection: declarations from the swift-syntax
-    /// parse tree, with line numbers, nesting, inheritance and
-    /// function signatures. Path resolution and failure messages
-    /// are the existing handler's (strict resolver, "File not
-    /// found at path: …").
     func correctnessSwiftASTInspector(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let path = try fileReadingRequiredString(call, "path")
@@ -171,15 +123,6 @@ extension SwiftCodeMCPHost {
         return .text(lines.joined(separator: "\n"))
     }
 
-    // MARK: - symbol_rename_project
-
-    /// Token-aware project rename. Validation, scope resolution and
-    /// the per-file approval shape are the existing handler's; only
-    /// the replacement itself changes: identifier tokens from the
-    /// swift-syntax parse, never raw text, so strings, comments and
-    /// import paths are left alone and the skipped count is
-    /// reported. See `SymbolRenameEngine` for the honest limit
-    /// (syntactic, not semantic: shadowing is not resolved).
     func correctnessRenameSymbolProject(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
@@ -221,9 +164,6 @@ extension SwiftCodeMCPHost {
             totalSkipped += renamed.skipped
             guard renamed.replacements > 0 else { continue }
             let rel = relative(url.path, in: s)
-            // One commit() per changed file, in enumeration order; a
-            // refusal stops the rename and earlier files stay renamed
-            // (the Wave 2 multi-file shape, as in `code_multi_edit`).
             try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel,
                                        original: content, proposed: renamed.updated,
                                        summary: "Rename \(oldName) to \(newName) in \(rel)"),

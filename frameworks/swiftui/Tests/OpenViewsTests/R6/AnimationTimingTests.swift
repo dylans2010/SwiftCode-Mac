@@ -8,11 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 05-animation.md §1 and §4 on the headless host with a manual 60 Hz clock
-// (T-ANIM: frames, v@ samples, completion times; ±1 frame, ±0.01 unless the
-// conformance checklist (I-3, I-6) allows ±3 frames for values measured
-// while rendering on the loaded reference host).
-
 @MainActor
 @Suite("05 §1 the model: frames and model values")
 struct AnimationModelTests {
@@ -329,7 +324,6 @@ struct RetargetingTests {
         let n = run.samples.count
         withAnimation(.spring()) { run.control.value = 0 }
         run.graph.update()
-        // No jump at the change.
         #expect(run.samples.entries[n...].first?.value == 50)
         run.graph.settle()
         #expect(run.samples.matches(49.2, at: 0.5 + frame, tolerance: 1))
@@ -348,7 +342,6 @@ struct RetargetingTests {
         run.graph.update()
         run.graph.advance()
         let after = run.samples.last!
-        // Still moving up one frame later (the velocity carried over).
         #expect(before[1] > before[0])
         #expect(after > before[1])
     }

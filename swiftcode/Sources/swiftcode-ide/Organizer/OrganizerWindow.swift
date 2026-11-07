@@ -6,26 +6,13 @@ import SwiftCodeIDEShell
 import OVDBus
 #endif
 
-/// The Organizer window (Window ▸ Organizer, `specs/ide/organizer.md`,
-/// `reference-ui-3.md` §6), laid out as the macOS IDE's
-/// `OrganizerController`: a toolbar row with back/forward, the page title
-/// and the notifications bell; the sidebar with the app picker and the
-/// Products, Insights, Reports and Metrics pages; on Archives the list
-/// (Name, Creation Date, Version, Status, grouped under the application)
-/// and the selection's details with Distribute App…; on the other pages
-/// their empty state. The state is the core's `OrganizerState`
-/// (`OrganizerShellModel`), so both IDEs list and describe an archive alike.
 struct OrganizerWindowView: View {
     var model: OrganizerShellModel
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openURL) private var openURL
 
-    /// The macOS IDE's Organizer: 900 × 552 under its 52-point toolbar
-    /// (the sidebar's pages set the height).
     static let contentSize = CGSize(width: 900, height: 552)
     static let toolbarHeight: CGFloat = 52
-    /// The window: the toolbar row and the content, plus, on Linux, the
-    /// in-window menu bar.
     static var windowSize: CGSize {
         #if os(Linux)
         CGSize(width: contentSize.width, height: contentSize.height + toolbarHeight + ShellMetrics.menuBarHeight)
@@ -76,7 +63,6 @@ struct OrganizerWindowView: View {
     }
 }
 
-/// Sizes from the macOS IDE's Organizer (its frames in `OrganizerController`).
 enum OrganizerMetrics {
     static let sidebarWidth: CGFloat = 180
     static let detailsWidth: CGFloat = 250
@@ -85,8 +71,6 @@ enum OrganizerMetrics {
     static let headerHeight: CGFloat = 26
 }
 
-/// The Organizer's own colors (read from the macOS IDE's window): the
-/// source-list sidebar, the app picker's fill, the list's stripes.
 struct OrganizerColors {
     let c: ShellColors
     init(_ c: ShellColors) { self.c = c }
@@ -106,10 +90,6 @@ struct OrganizerColors {
     var button: Color { gray(235, 48) }
 }
 
-// MARK: Toolbar
-
-/// Back/forward, the page title, and the notifications bell with its
-/// "No Notifications" popover.
 struct OrganizerToolbar: View {
     var model: OrganizerShellModel
     @Environment(\.colorScheme) private var scheme
@@ -153,10 +133,6 @@ struct OrganizerToolbar: View {
     }
 }
 
-// MARK: Sidebar
-
-/// The app picker and the source list of pages under their section
-/// headings.
 struct OrganizerSidebarView: View {
     var model: OrganizerShellModel
     @Environment(\.colorScheme) private var scheme
@@ -167,7 +143,6 @@ struct OrganizerSidebarView: View {
         let s = model.state
         VStack(alignment: .leading, spacing: 8) {
             Menu {
-                // The chosen application carries the check mark, as a pop-up button's item.
                 ForEach(s.appPickerTitles, id: \.self) { app in
                     Toggle(app, isOn: Binding(get: { model.state.selectedApp == app }, set: { _ in model.chooseApp(app) }))
                 }
@@ -200,9 +175,6 @@ struct OrganizerSidebarView: View {
 
     @ViewBuilder
     func section(_ sec: OrganizerSidebar.Section, index: Int, _ c: ShellColors, _ oc: OrganizerColors, _ s: OrganizerState) -> some View {
-        // The macOS source list's spacing: a heading's text 17 points above
-        // its first page's, 39 below the last page of the section before
-        // (35 after Products, whose heading has a line under it).
         let first = index == 0
         VStack(alignment: .leading, spacing: 0) {
             Text(verbatim: sec.title)
@@ -233,11 +205,6 @@ struct OrganizerSidebarView: View {
     }
 }
 
-// MARK: Archive list
-
-/// The archives of the chosen application: the column headers, the
-/// application's heading row and one row per archive, newest first, with
-/// stripes; a row's menu has Show in Files.
 struct OrganizerArchiveList: View {
     var model: OrganizerShellModel
     @FocusState private var hasKeyboard: Bool
@@ -267,7 +234,6 @@ struct OrganizerArchiveList: View {
         .shellTarget("organizer list")
     }
 
-    /// The columns' widths: the core's, scaled to the list's width.
     static func widths(for width: CGFloat) -> [CGFloat] {
         let total = OrganizerState.columns.reduce(0) { $0 + $1.width }
         return OrganizerState.columns.map { CGFloat($0.width / total) * max(width, 200) }
@@ -326,8 +292,6 @@ struct OrganizerArchiveList: View {
             .accessibilityLabel(a.name)
             .shellTarget("organizer row \(i)")
         } else {
-            // The macOS table's group row: its title 16 points under the
-            // header, a line 12 under that, then the first row.
             VStack(spacing: 0) {
                 Text(verbatim: r.title).font(ShellFonts.smallBold).tracking(ShellFonts.smallTracking).foregroundStyle(c.secondaryLabel)
                     .lineLimit(1)
@@ -350,10 +314,6 @@ struct OrganizerArchiveList: View {
     }
 }
 
-// MARK: Details
-
-/// The selection's details (label over value) and Distribute App…, which
-/// stays disabled until distribution comes to the Linux IDE.
 struct OrganizerDetails: View {
     var model: OrganizerShellModel
     @Environment(\.colorScheme) private var scheme
@@ -391,17 +351,9 @@ struct OrganizerDetails: View {
     }
 }
 
-// MARK: Show in Files
-
-/// The desktop's file manager: shows an item selected in its folder
-/// (`org.freedesktop.FileManager1.ShowItems` on the session bus), else
-/// opens the folder that holds it.
 enum DesktopFiles {
     static let service = "org.freedesktop.FileManager1"
 
-    /// Asks the file manager over the session bus (which starts it when
-    /// needed); with no bus, or an error reply (no file manager offers the
-    /// interface), opens the folder instead.
     @MainActor
     static func reveal(_ url: URL, fallback: @escaping (URL) -> Void) {
         let folder = url.deletingLastPathComponent()

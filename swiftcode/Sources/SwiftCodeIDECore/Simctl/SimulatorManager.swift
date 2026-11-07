@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimulatorManager.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import Observation
 import os
@@ -12,11 +10,9 @@ import AppKit
 public final class SimulatorManager {
     public static let shared = SimulatorManager()
 
-    // Expose modern pipeline-driven state and diagnostics
     public private(set) var state: SimulatorDiscoveryState = .idle
     public private(set) var diagnostics: SimulatorDiagnosticsSnapshot = .initial
 
-    // Retain observed legacy and adjacent collections for backward compatibility with existing views
     public private(set) var devices: [SimulatorDevice] = []
     public private(set) var runtimes: [SimulatorRuntime] = []
     public private(set) var installedApps: [SimulatorApplication] = []
@@ -48,16 +44,13 @@ public final class SimulatorManager {
 
     public var configuration = SimulatorConfiguration()
 
-    // Concurrency control to prevent overlapping runs
     private var activeRefreshTask: Task<Void, Never>?
 
-    // Underlying legacy adjacent services
     private let simctlService = SimctlService()
     private let installationService = SimulatorInstallationService()
     private let loggingService = SimulatorLoggingService()
 
     private init() {
-        // Synchronously set to discovering initializing state to prevent visual flashes of undefined state
         self.state = .discovering(stage: .initializing)
         Task {
             await refreshAll()
@@ -69,7 +62,6 @@ public final class SimulatorManager {
     }
 
     public func refreshAll() async {
-        // Cancel any active refresh job to ensure single-flight execution
         activeRefreshTask?.cancel()
 
         let task = Task {
@@ -77,12 +69,10 @@ public final class SimulatorManager {
             Logger.discovery.info("[MANAGER] Kicking off unified discovery refresh...")
 
             do {
-                // Execute the 10-stage pipeline with progress publishing
                 let snapshot = try await SimulatorDiscoveryPipeline.shared.runPipeline { [weak self] stage in
                     guard let self = self else { return }
                     Task { @MainActor in
                         self.state = .discovering(stage: stage)
-                        // Progressively feed intermediate logs and diagnostics
                         self.updateDiagnostics(stage: stage, snapshot: nil, error: nil)
                     }
                 }
@@ -91,7 +81,6 @@ public final class SimulatorManager {
                     self.devices = snapshot.devices
                     self.runtimes = snapshot.runtimes
 
-                    // Maintain selected device and runtime defaults
                     if self.selectedDeviceID == nil, let firstBooted = snapshot.devices.first(where: { $0.state == .booted }) ?? snapshot.devices.first {
                         self.selectedDeviceID = firstBooted.udid
                     }
@@ -101,7 +90,6 @@ public final class SimulatorManager {
 
                     self.refreshInstalledApplications()
 
-                    // Classify final terminal state
                     if snapshot.runtimes.isEmpty {
                         self.state = .empty(reason: .noRuntimesInstalled)
                         self.log("No simulator runtimes discovered on this developer workstation.")
@@ -110,7 +98,6 @@ public final class SimulatorManager {
                         self.log("Discovery complete. Resolved \(snapshot.devices.count) devices and \(snapshot.runtimes.count) runtimes.")
                     }
 
-                    // Update final diagnostic snapshot
                     self.updateDiagnostics(stage: .complete, snapshot: snapshot, error: nil)
                 }
 
@@ -160,12 +147,9 @@ public final class SimulatorManager {
         }
     }
 
-    // Adjacent simulator control operations preserved with high-fidelity logging
-
     public func bootSelectedDevice() async {
         guard let udid = selectedDeviceID, let device = selectedDevice else { return }
 
-        // 1. Verify runtime exists
         let runtimeID = device.runtimeIdentifier
         let runtimeExists = runtimes.contains { $0.identifier == runtimeID }
         guard runtimeExists else {
@@ -178,12 +162,10 @@ public final class SimulatorManager {
         updateDeviceState(udid: udid, to: .booting)
 
         do {
-            // 2. Boot the simulator if necessary
             try await simctlService.bootDevice(udid: udid)
             updateDeviceState(udid: udid, to: .booted)
             log("Device booted successfully in simctl.")
 
-            // 3. Wait until boot completes
             log("Waiting for simulator boot completion...")
             let bootstatusSpec = CommandSpec(
                 executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
@@ -191,7 +173,6 @@ public final class SimulatorManager {
             )
             _ = try? await CommandExecutionEngine.shared.execute(bootstatusSpec)
 
-            // 4. Launch Apple's Simulator application if not running, open and bring to foreground
             updateDeviceState(udid: udid, to: .launchingSimulator)
             log("Launching Apple's native Simulator application...")
 
@@ -215,7 +196,6 @@ public final class SimulatorManager {
             }
             #endif
 
-            // 5. Bring to ready state
             updateDeviceState(udid: udid, to: .ready)
             log("Simulator is ready and frontmost.")
 
@@ -367,11 +347,6 @@ public final class SimulatorManager {
             return
         }
 
-        // Installed-app enumeration via simctl is not implemented yet.
-        // Legacy listed two invented apps here (a DemoApp and a SwiftUI
-        // Preview Host with hardcoded /Users/developer paths and made-up
-        // versions); that fiction is removed in this port rather than
-        // presented as real installed apps.
         _ = device
         self.installedApps = []
     }

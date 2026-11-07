@@ -2,10 +2,8 @@ import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
 
-/// Fixed descriptors (spec §5) and keyed pipeline descriptors (§7).
 @Suite struct DescriptorTests {
     @Test func textureDescriptorWords() throws {
-        // QuartzCore display buffer pattern (§5.4): low half 0x0552, BGRA8 1398×2034.
         let words = Build.textureWords(flags: 1, usage: 5, format: 80, width: 1398, height: 2034)
         #expect(words.count == 36)
         #expect(Build.u32(words, 1) & 0xFFFF == 0x0552)
@@ -15,7 +13,6 @@ import Testing
         #expect(d.width == 1398 && d.height == 2034 && d.depth == 1 && d.mipmapLevelCount == 1 && d.sampleCount == 1)
         #expect(d.usage == MetalTextureUsage.shaderRead | MetalTextureUsage.renderTarget)
         #expect(d.flags == 1 && d.allowGPUOptimizedContents && d.storageMode == .shared)
-        // The other word-1 patterns of §5.4: sampled-only surfaces, CAMetalLayer drawables, our probe's.
         for (low, flags, usage, optimized) in [(0x0142, 0, 1, true), (0x0062, 2, 0, true), (0x0542, 0, 5, true),
                                                (0x0242, 0, 2, true)] as [(UInt32, UInt8, UInt16, Bool)] {
             var rr = ByteReader(Build.textureWords(flags: UInt32(flags), gpuOptimized: optimized, usage: UInt32(usage), format: 80,
@@ -25,7 +22,6 @@ import Testing
             #expect(Build.u32(Build.textureWords(flags: UInt32(flags), usage: UInt32(usage), format: 80, width: 4, height: 4), 1)
                     & 0xFFFF == low)
         }
-        // Round trip, and a private 3D texture with mipmaps.
         var w = MetalByteWriter()
         MetalDescriptorCodec.encodeTexture(d, into: &w)
         #expect(w.bytes == words)
@@ -38,7 +34,6 @@ import Testing
     }
 
     @Test func samplerPackedWord() throws {
-        // The default sampler: 0x84000000, flags 0, lod 0 and FLT_MAX (§5.5).
         var w = MetalByteWriter()
         w.u32(0); w.u32(0x8400_0000); w.u32(0); w.f32(0); w.f32(.greatestFiniteMagnitude); w.u64(0)
         let d = try MetalDescriptorCodec.sampler(w.bytes)
@@ -73,9 +68,6 @@ import Testing
     }
 
     @Test func handBuiltRenderPipeline() throws {
-        // Payload laid out by hand from §7.1: four top-level fields (label,
-        // vertex 1, fragment 2, color array), the label after them, the
-        // array at a 4-aligned offset, its element after the offset table.
         var p = MetalByteWriter()
         p.u8(4)
         for (k, v) in [(0, 25), (1, 1), (2, 2), (8, 32)] as [(UInt8, UInt32)] { p.u8(k); p.u8(4); p.u32(v) }
@@ -90,12 +82,10 @@ import Testing
         #expect(d.label == "Over" && d.vertexFunction == MetalHandle(101) && d.fragmentFunction == MetalHandle(102))
         #expect(d.colorAttachments.count == 1)
         let c = try #require(d.colorAttachments.first)
-        // Premultiplied "over": source factors default One, destination OneMinusSourceAlpha (5).
         #expect(c.index == 0 && c.pixelFormat == 80 && c.blendingEnabled && c.sourceRGBBlendFactor == 1
                 && c.destinationRGBBlendFactor == 5 && c.sourceAlphaBlendFactor == 1 && c.destinationAlphaBlendFactor == 5
                 && c.rgbBlendOperation == 0 && c.writeMask == 0xF)
         #expect(d.vertexDescriptor == nil && d.rasterSampleCount == 1 && d.unknownKeys.isEmpty)
-        // The body of op 14: u32 0, u32 payload length, payload.
         var body = MetalByteWriter()
         body.u32(0); body.u32(UInt32(p.bytes.count)); body.append(p.bytes)
         #expect(try MetalPipelineCodec.payload(body.bytes) == p.bytes)
@@ -119,11 +109,9 @@ import Testing
     }
 
     @Test func keyOneIsVertexKeyTwoIsFragment() throws {
-        // §7.2 as corrected 2026-10-12: key 1 = vertex function, key 2 = fragment function.
         let functions: [UInt32: MetalHandle] = [5: MetalHandle(500), 9: MetalHandle(900)]
         let both = try MetalPipelineCodec.renderPipeline(MetalKeyedPayloadBuilder.object([(1, 5), (2, 9)])) { functions[$0] }
         #expect(both.vertexFunction == MetalHandle(500) && both.fragmentFunction == MetalHandle(900))
-        // A vertex-only pipeline (no fragment function) sends key 1 alone.
         let vertexOnly = try MetalPipelineCodec.renderPipeline(MetalKeyedPayloadBuilder.object([(1, 5)])) { functions[$0] }
         #expect(vertexOnly.vertexFunction == MetalHandle(500) && vertexOnly.fragmentFunction == nil)
     }
@@ -131,7 +119,6 @@ import Testing
     @Test func computePipelineAndMalformedPayloads() throws {
         #expect(try MetalPipelineCodec.computeFunctionRef(MetalKeyedPayloadBuilder.object([(0, 7)])) == 7)
         #expect(throws: MetalDecodeError.self) { try MetalPipelineCodec.computeFunctionRef([0]) }
-        // A field of unknown type, an offset beyond the payload, a truncated object.
         #expect(throws: MetalDecodeError.self) { try MetalPipelineCodec.renderPipeline([1, 1, 3, 0, 0, 0]) { _ in nil } }
         #expect(throws: MetalDecodeError.self) {
             try MetalPipelineCodec.renderPipeline(MetalKeyedPayloadBuilder.object([(8, 400)])) { _ in nil }
@@ -147,7 +134,6 @@ import Testing
     }
 
     @Test func replaceRegionUploadSize() {
-        // §5.3: a 194×237 upload of 185 892 bytes = 8 + 84 + (236 × 784 + 194 × 4).
         let pixels: Int = 236 * 784 + 194 * 4
         #expect(8 + 84 + pixels == 185_892)
         var w = MetalByteWriter()

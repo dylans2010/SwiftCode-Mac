@@ -1,26 +1,19 @@
 import Foundation
 import SwiftCodeWorkspace
 
-/// A Swift package folder opened directly (a `Package.swift` and no project
-/// or workspace), described and turned into a build description by the
-/// toolchain's open-source SwiftPM (`swift package describe`,
-/// `show-dependencies`, `dump-pif`). See `specs/xcodebuild/packages.md`.
 struct SwiftPackage {
     struct Product { var name: String; var isExecutable: Bool; var targets: [String] }
     struct Target { var name: String; var type: String; var dependencies: [String]; var path: String }
     struct Dependency { var name: String; var path: String; var isLocal: Bool; var version: String }
 
-    /// The folder as the reference tool prints it (`/private` prefix removed).
     var directory: String
     var name: String
     var products: [Product]
     var targets: [Target]
     var dependencies: [Dependency]
-    /// Where SwiftPM keeps its own state (outside the package folder).
     var scratch: String
     var swift: String
 
-    /// One scheme per product; with several products also `<name>-Package`.
     var schemeNames: [String] {
         var names = products.map(\.name)
         if products.count > 1 { names.append(name + "-Package") }
@@ -29,9 +22,6 @@ struct SwiftPackage {
 
     var packageSchemeName: String { name + "-Package" }
 
-    /// Test targets of a scheme: all of them for the package scheme and for
-    /// the primary product (the first executable product, else the first
-    /// product); none for other products.
     func testTargets(scheme: String) -> [String] {
         let tests = targets.filter { $0.type == "test" }.map(\.name)
         if scheme == packageSchemeName && products.count > 1 { return tests }
@@ -58,12 +48,8 @@ struct SwiftPackage {
         return r.output
     }
 
-    /// SwiftPM's state folder under the temporary folder, one per user: on a
-    /// machine several people share, `/tmp` is shared too, and a folder
-    /// another user made cannot be written.
     static func scratchFolder(userID: uid_t) -> String { "swiftcodebuild-spm-\(userID)" }
 
-    /// Reads the package in `dir`.
     static func load(directory dir: String, context ctx: XcodebuildContext) throws(XcodebuildFailure) -> SwiftPackage {
         let shown = PathText.withoutPrivatePrefix(URL(fileURLWithPath: dir).standardizedFileURL.path)
         let scratch = FileManager.default.temporaryDirectory.appendingPathComponent(scratchFolder(userID: getuid()) + "/" + DerivedDataName.hash(shown)).path
@@ -103,7 +89,6 @@ struct SwiftPackage {
         return p
     }
 
-    /// The `Resolve Package Graph` report: the package, then its dependencies.
     func printReport(_ console: Console) {
         console.out("Resolve Package Graph")
         console.out()
@@ -114,7 +99,6 @@ struct SwiftPackage {
         console.out()
     }
 
-    /// The build description from SwiftPM, written to a file.
     func pif(context ctx: XcodebuildContext) throws(XcodebuildFailure) -> (path: String, targets: [(guid: String, name: String, type: String)]) {
         let text = try swiftPM(["dump-pif"], context: ctx)
         let path = scratch + "/swiftcodebuild.pif.json"
@@ -129,8 +113,6 @@ struct SwiftPackage {
         return (path, targets)
     }
 
-    /// What `docbuild` builds for a scheme: the package targets of its
-    /// products (documentation is compiled per module).
     func documentationTargets(scheme: String, pifTargets: [(guid: String, name: String, type: String)]) -> [String] {
         let chosen = scheme == packageSchemeName && products.count > 1 ? products : products.filter { $0.name == scheme }
         var out: [String] = []
@@ -142,10 +124,6 @@ struct SwiftPackage {
         return out
     }
 
-    /// The scheme's library products as coverage reports them: the product
-    /// name and its package-framework name `<name>_<hash>_PackageProduct`,
-    /// the hash being the one in the PIF's `PACKAGE-TARGET:<name>-<hash>-dynamic`
-    /// target (products without such a target are left out).
     func coverageLibraries(scheme: String, pifTargets: [(guid: String, name: String, type: String)]) -> [(name: String, framework: String)] {
         let chosen = scheme == packageSchemeName && products.count > 1 ? products : products.filter { $0.name == scheme }
         return chosen.filter { !$0.isExecutable }.compactMap { p in
@@ -157,8 +135,6 @@ struct SwiftPackage {
         }
     }
 
-    /// Build-description targets of a scheme: the products' (and tests')
-    /// product targets, which depend on the package targets.
     func buildTargets(scheme: String, includeTests: Bool, pifTargets: [(guid: String, name: String, type: String)]) -> [String] {
         func target(_ n: String) -> String? { pifTargets.first { $0.guid == "PACKAGE-TARGET:" + n }?.guid }
         func product(_ n: String) -> String? { pifTargets.first { $0.name == n + "-product" && $0.guid.hasPrefix("PACKAGE-PRODUCT:") }?.guid }
@@ -173,9 +149,7 @@ struct SwiftPackage {
     }
 }
 
-/// Commands run in a package folder. See `specs/xcodebuild/packages.md`.
 enum PackageCommands {
-    /// The folder holds a package and nothing the other commands open.
     static func applies(_ inv: Invocation, cwd: String) -> Bool {
         guard inv.project == nil, inv.workspace == nil, FileManager.default.fileExists(atPath: cwd + "/Package.swift") else { return false }
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: cwd)) ?? []
@@ -207,7 +181,6 @@ enum PackageCommands {
             throw XcodebuildFailure("The workspace named \"\(pkg.name)\" does not contain a scheme named \"\(schemeName)\". The \"-list\" option can be used to find the names of the schemes in the workspace.", exitCode: ExitCode.dataError)
         }
         if inv.has("-showdestinations") {
-            // Packages build for every platform.
             let compatible = Destinations.packageListing(context: ctx)
             console.out()
             console.out()
@@ -239,10 +212,6 @@ enum PackageCommands {
         return try BuildActions.run(inv, plan: plan, context: ctx)
     }
 
-    /// What a package scheme's build or settings query uses: the scheme's
-    /// actions, `-configuration` (else Debug), the command-line settings,
-    /// `-xcconfig`, the package's DerivedData folder, the destination, and
-    /// code coverage for test actions unless `-enableCodeCoverage NO`.
     static func plan(_ inv: Invocation, scheme schemeName: String, sdk: SDKEntry?, container: Container,
                      runDestination: RunDestination?, context ctx: XcodebuildContext) -> Plan {
         let actions = inv.actions.isEmpty ? [BuildAction.build] : inv.actions
@@ -259,7 +228,6 @@ enum PackageCommands {
         var plan = Plan(container: container, scheme: scheme, actions: actions, targets: [], configuration: inv.configuration ?? "Debug",
                         overrides: overrides, xcconfig: inv.xcconfig.map { ($0, $0.hasPrefix("/") ? $0 : ctx.cwd + "/" + $0) },
                         arena: arena, runDestination: runDestination)
-        // Package test runs gather code coverage unless turned off.
         if actions.contains(where: { $0 == .test || $0 == .testWithoutBuilding || $0 == .buildForTesting }),
            inv.value("-enableCodeCoverage").map({ $0.uppercased() == "YES" }) ?? true {
             plan.coverage = true
@@ -269,8 +237,6 @@ enum PackageCommands {
         return plan
     }
 
-    /// The "first of multiple matching destinations" warning for a macOS
-    /// destination: My Mac in each architecture and variant it runs.
     static func printDestinationWarning(_ spec: String, context ctx: XcodebuildContext) {
         let (_, fields) = Destinations.parse(spec)
         guard (fields["platform"] ?? "macOS") == "macOS", fields["variant"] == nil else { return }

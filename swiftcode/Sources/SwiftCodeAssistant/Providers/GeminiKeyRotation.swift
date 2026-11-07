@@ -1,115 +1,5 @@
 import Foundation
 
-// MARK: - Gemini alternative-key rotation (Wave 16, Slice D)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised under
-// MIT, spec-first where it costs nothing):
-//   * `SwiftCode/Backend/Assist/AlternativeKeyManager.swift` —
-//     `AlternativeKeyState`, `AlternativeKeyMetadata`,
-//     `KeyImportResult`, import / removal / selection /
-//     rate-limit / failure-counting / rotation rules.
-//
-// Legacy kept raw keys in the Keychain (`com.swiftcode.gemini.
-// altkey.<uuid>`) and metadata in UserDefaults. SwiftCode keeps raw
-// keys in the `SecretStore` (`gemini.alt-key.<uuid>`, Keychain on
-// macOS, a 0600 file on Linux) and the metadata envelope in the
-// same store (`gemini.alt-keys.metadata`). The metadata holds only
-// masked values and SHA-256 hashes — never a raw key — and it is
-// the manager's index, because `SecretStore` has no enumeration:
-// if the metadata is deleted, any stored raw keys become
-// unreachable orphans (they stay in the store until the user
-// removes them by re-importing, which dedups by hash).
-//
-// Adaptations:
-//   * No `@Observable` / `@MainActor` singleton: this is an actor
-//     the host owns (`GeminiKeyRotationManager(store:)`). There is
-//     no `shared` — the host creates one per secret store, which
-//     is what makes the manager testable with `MemorySecretStore`.
-//   * No `os.Logger`: the manager is silent. Callers log the
-//     masked value when they rotate, as the router does.
-//   * No `reorderKeys(from:to:)` with `IndexSet` (AppKit type):
-//     `reorderKeys(_:)` takes the ordered ids instead.
-//   * SHA-256 uses SwiftCodeAssistant's own pure-Swift `SHA256`
-//     (`Crypto.swift`), so the manager builds on Linux without
-//     CryptoKit. The hash is the same SHA-256 Legacy computed
-//     with CryptoKit.
-
-// MARK: - Types
-
-/// The state of one alternative key (Legacy
-/// `AlternativeKeyState`, verbatim).
-public enum AlternativeKeyState: String, Codable, Sendable {
-    case ready = "Ready"
-    case active = "Active"
-    case rateLimited = "Rate Limited"
-    case invalid = "Invalid"
-    case failed = "Failed"
-    case disabled = "Disabled"
-}
-
-/// Metadata for one alternative key (Legacy
-/// `AlternativeKeyMetadata`, verbatim). `maskedValue` and
-/// `keyHash` are safe to show and store; the raw key is never
-/// in this struct.
-public struct AlternativeKeyMetadata: Identifiable, Codable, Sendable, Hashable {
-    public let id: UUID
-    public let maskedValue: String
-    public let keyHash: String
-    public var state: AlternativeKeyState
-    public var lastUsed: Date?
-    public var rateLimitedUntil: Date?
-    public var failureCount: Int
-    public var successCount: Int
-    public var orderIndex: Int
-    public var addedAt: Date
-
-    public init(
-        id: UUID = UUID(),
-        maskedValue: String,
-        keyHash: String,
-        state: AlternativeKeyState = .ready,
-        lastUsed: Date? = nil,
-        rateLimitedUntil: Date? = nil,
-        failureCount: Int = 0,
-        successCount: Int = 0,
-        orderIndex: Int = 0,
-        addedAt: Date = Date()
-    ) {
-        self.id = id
-        self.maskedValue = maskedValue
-        self.keyHash = keyHash
-        self.state = state
-        self.lastUsed = lastUsed
-        self.rateLimitedUntil = rateLimitedUntil
-        self.failureCount = failureCount
-        self.successCount = successCount
-        self.orderIndex = orderIndex
-        self.addedAt = addedAt
-    }
-
-    /// True while the key is inside its rate-limit cooldown
-    /// (Legacy `isCurrentlyRateLimited`, verbatim: a
-    /// `.rateLimited` state whose `until` has passed no longer
-    /// counts, even though the state still reads rate-limited
-    /// until the next successful use clears it).
-    public var isCurrentlyRateLimited: Bool {
-        if state == .rateLimited {
-            if let until = rateLimitedUntil, Date() < until {
-                return true
-            }
-        }
-        return false
-    }
-
-    public var isAvailableForUse: Bool {
-        if state == .invalid || state == .disabled { return false }
-        if isCurrentlyRateLimited { return false }
-        return true
-    }
-}
-
-/// The outcome of importing a block of pasted keys (Legacy
-/// `KeyImportResult`, verbatim).
 public struct KeyImportResult: Sendable, Equatable {
     public let totalDetected: Int
     public let newKeysAdded: Int
@@ -124,9 +14,6 @@ public struct KeyImportResult: Sendable, Equatable {
     }
 }
 
-/// The persisted envelope: the key list plus the active key id
-/// (Legacy persisted the same two values under two UserDefaults
-/// keys; SwiftCode stores one envelope in the secret store).
 public struct AlternativeKeyStoreData: Codable, Sendable, Equatable {
     public var keys: [AlternativeKeyMetadata]
     public var activeKeyId: UUID?
@@ -137,10 +24,6 @@ public struct AlternativeKeyStoreData: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Manager
-
-/// Secure storage and automatic rotation for alternative Gemini
-/// API keys (Legacy `AlternativeKeyManager`).
 public actor GeminiKeyRotationManager {
     private let store: SecretStore
     private let metadataAccount: String
@@ -155,11 +38,6 @@ public actor GeminiKeyRotationManager {
     public var keys: [AlternativeKeyMetadata] { data.keys }
     public var activeKeyId: UUID? { data.activeKeyId }
 
-    // MARK: - Key hashing & masking
-
-    /// The display form of a key: the `AIza` prefix (or first
-    /// four characters) + bullets + the last four characters.
-    /// Short keys show only bullets (Legacy `maskKey`, verbatim).
     public static func maskKey(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 8 else {
@@ -170,15 +48,11 @@ public actor GeminiKeyRotationManager {
         return "\(prefix)••••••••••••\(suffix)"
     }
 
-    /// The SHA-256 hex of a key (Legacy `hashKey`, verbatim —
-    /// same digest, computed with SwiftCode's pure-Swift SHA-256).
     public static func hashKey(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return SHA256.hash(Data(trimmed.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// A plausible Gemini key: 20–120 characters, no whitespace
-    /// (Legacy `isValidGeminiKey`, verbatim).
     public static func isValidGeminiKey(_ raw: String) -> Bool {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 20, trimmed.count <= 120 else { return false }
@@ -190,13 +64,6 @@ public actor GeminiKeyRotationManager {
         "\(SecretAccount.geminiAltKeyPrefix)\(id.uuidString)"
     }
 
-    // MARK: - Import & management
-
-    /// Imports keys pasted as text (comma / newline / `;`
-    /// separated, surrounding quotes stripped). Duplicates are
-    /// detected by hash, against both this batch and the stored
-    /// keys; a key whose raw value cannot be stored counts as
-    /// invalid (Legacy `importRawKeys`, verbatim).
     @discardableResult
     public func importKeys(_ text: String) -> KeyImportResult {
         let separators = CharacterSet(charactersIn: ",\n\r;")
@@ -273,9 +140,6 @@ public actor GeminiKeyRotationManager {
         save()
     }
 
-    /// Reorders the keys to the given id order (ids not listed
-    /// keep their relative order at the end). Legacy used
-    /// `IndexSet`; this host has no AppKit type to take.
     public func reorderKeys(_ orderedIDs: [UUID]) {
         var reordered: [AlternativeKeyMetadata] = []
         for id in orderedIDs {
@@ -297,11 +161,6 @@ public actor GeminiKeyRotationManager {
         }
     }
 
-    // MARK: - Key retrieval & rotation
-
-    /// The active key when it is usable, otherwise the next
-    /// available key. Marks the returned key `.active` and stamps
-    /// `lastUsed` (Legacy `getActiveOrNextKey`, verbatim).
     public func getActiveOrNextKey() -> (key: String, metadata: AlternativeKeyMetadata)? {
         if let activeId = data.activeKeyId, let idx = data.keys.firstIndex(where: { $0.id == activeId }) {
             let meta = data.keys[idx]
@@ -317,11 +176,6 @@ public actor GeminiKeyRotationManager {
         return selectNextAvailableKey()
     }
 
-    /// The next usable key: fewest failures first, then the
-    /// shortest circular distance from the active key's position
-    /// (Legacy `selectNextAvailableKey`, verbatim). The previous
-    /// active key returns to `.ready`. Returns nil when no key
-    /// is usable.
     public func selectNextAvailableKey(excludingId: UUID? = nil) -> (key: String, metadata: AlternativeKeyMetadata)? {
         let available = data.keys.filter { $0.isAvailableForUse && $0.id != excludingId }
         guard !available.isEmpty else { return nil }
@@ -356,9 +210,6 @@ public actor GeminiKeyRotationManager {
         return nil
     }
 
-    /// Marks a key rate-limited for `retryAfterSeconds`
-    /// (default 60s, minimum 2s) and counts a failure (Legacy
-    /// `markRateLimited`, verbatim).
     public func markRateLimited(id: UUID, retryAfterSeconds: TimeInterval? = nil) {
         guard let idx = data.keys.firstIndex(where: { $0.id == id }) else { return }
         let cooldown = max(2.0, retryAfterSeconds ?? 60.0)
@@ -368,9 +219,6 @@ public actor GeminiKeyRotationManager {
         save()
     }
 
-    /// Marks a key healthy after a successful use: clears a
-    /// rate-limit / failure state and counts a success (Legacy
-    /// `markHealthy`, verbatim).
     public func markHealthy(id: UUID) {
         guard let idx = data.keys.firstIndex(where: { $0.id == id }) else { return }
         if data.keys[idx].state == .rateLimited || data.keys[idx].state == .failed {
@@ -381,8 +229,6 @@ public actor GeminiKeyRotationManager {
         save()
     }
 
-    /// Marks a key failed; a permanent auth error marks it
-    /// `.invalid` instead (Legacy `markFailed`, verbatim).
     public func markFailed(id: UUID, isPermanentAuthError: Bool = false) {
         guard let idx = data.keys.firstIndex(where: { $0.id == id }) else { return }
         data.keys[idx].state = isPermanentAuthError ? .invalid : .failed
@@ -390,8 +236,6 @@ public actor GeminiKeyRotationManager {
         save()
     }
 
-    /// Rotates to the next available key right now, or nil when
-    /// no other key is usable (Legacy `rotateNow`, verbatim).
     @discardableResult
     public func rotateNow() -> AlternativeKeyMetadata? {
         guard let next = selectNextAvailableKey(excludingId: data.activeKeyId) else {
@@ -400,9 +244,6 @@ public actor GeminiKeyRotationManager {
         return next.metadata
     }
 
-    /// Clears rate-limit / failure states (`.disabled` and
-    /// `.invalid` are left alone) (Legacy `resetHealth`,
-    /// verbatim).
     public func resetHealth() {
         for i in data.keys.indices {
             if data.keys[i].state != .disabled && data.keys[i].state != .invalid {
@@ -412,8 +253,6 @@ public actor GeminiKeyRotationManager {
         }
         save()
     }
-
-    // MARK: - Persistence (metadata only)
 
     private func save() {
         try? store.writeJSON(data, for: metadataAccount)

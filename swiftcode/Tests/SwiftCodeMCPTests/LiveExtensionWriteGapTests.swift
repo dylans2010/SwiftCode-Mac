@@ -2,24 +2,9 @@ import Foundation
 import Testing
 @testable import SwiftCodeMCP
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter LiveExtensionWriteGapTests`.
-//
-// Gap-closure tests for live extension writes (specs/ide/
-// gap-closure-windows-artboards.md §4): the write-policy paths
-// around the grant check in `MCPServer.run`. The grant check itself
-// (ungranted tool refused before any approval UI, granted write
-// asked with the caller's identity, host calls unchanged) is
-// covered by `MCPCallerIdentityTests`; this file covers the policy
-// combinations around it — read-only refusal, allow without asking,
-// the check order, and `MCPChange.settingCaller`.
-
 @Suite struct LiveExtensionWriteGapTests {
     private static let extID = "com.example.extension"
 
-    /// A server with a read tool and a write tool, like
-    /// `MCPCallerIdentityTests.server`.
     static func server(policy: MCPWritePolicy) -> MCPServer {
         let s = MCPServer(name: "t", version: "1", instructions: "Use the tools.")
         s.tools = [
@@ -45,8 +30,6 @@ import Testing
 
     @Test("Read-only policy refuses an extension write")
     func readOnlyRefusesExtensionWrite() async {
-        // Read-only refuses before any approval UI could appear
-        // (there is no review closure to run under this policy).
         let s = Self.server(policy: .readOnly)
         let tool = s.tools.first(where: { $0.name == "write" })!
         let result = await s.run(tool, MCPToolCall(name: "write", arguments: [:], caller: Self.caller(allowed: ["write"])))
@@ -91,8 +74,6 @@ import Testing
     func argumentProblemPrecedesGrantCheck() async {
         let s = Self.server(policy: .allow)
         let tool = s.tools.first(where: { $0.name == "echo" })!
-        // Missing the required "text" argument, from a caller with
-        // no grants at all: the argument problem wins.
         let result = await s.run(tool, MCPToolCall(name: "echo", arguments: [:], caller: Self.caller(allowed: [])))
         #expect(result.isError)
         #expect(result.firstText.contains("echo"))

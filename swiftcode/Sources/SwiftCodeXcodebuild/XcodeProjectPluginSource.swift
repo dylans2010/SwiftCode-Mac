@@ -1,19 +1,3 @@
-/// The source of SwiftCode's `XcodeProjectPlugin` module, compiled next to the
-/// plug-ins SwiftCode runs for project targets (`ProjectPlugins`).
-///
-/// Plug-ins written for project targets import a module of that name (an
-/// interoperability identifier) and conform to `XcodeBuildToolPlugin`. The
-/// open-source `PackagePlugin` runtime decodes the host's
-/// `createXcodeProjectBuildToolCommands` message into an invocation record
-/// and calls the C entry point
-/// `call_XcodeProjectPlugin_build_command_creation_entry_point`, which this
-/// module provides. The record's type is not in the toolchain's public
-/// `PackagePlugin` interface, so the module reads the record by reflection
-/// (its stored properties, as the open-source runtime declares them), wraps
-/// it in the public types (as Apple's public documentation names them),
-/// calls the plug-in, and writes the commands as JSON to the file named by
-/// `SWIFTCODE_PLUGIN_COMMANDS`, which SwiftCode reads after the plug-in exits. See
-/// `specs/ide/build-pif.md` §Plug-ins.
 enum XcodeProjectPluginSource {
     static let text = #"""
     // SwiftCode's XcodeProjectPlugin module (generated; see SwiftCode's

@@ -1,14 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Legacy/LicencesAddView.swift
-//
-// Verbatim apart from this header. `LicenseCatalog` / `LicenseTemplate`
-// / `Project` / `ProjectSessionStore` / `AppError` are in
-// `SwiftCodeIDECore`; `GitService` (actor, with the exact
-// `isGitInstalled` / `stage` / `commit` / `push` API used here) is in
-// `SwiftCodeSDK`. The `@Environment(ProjectSessionStore.self)`
-// injection is kept as in Legacy — the presenter must inject the
-// store (W1 wiring; see DISPOSITIONS.md).
-
 import SwiftCodeIDECore
 import SwiftCodeSDK
 import SwiftUI
@@ -68,7 +57,6 @@ struct LicencesAddView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -85,7 +73,6 @@ struct LicencesAddView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Filter controls card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Filters & Selection")
@@ -119,7 +106,6 @@ struct LicencesAddView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // License Directory list card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -212,7 +198,6 @@ struct LicencesAddView: View {
         let repositoryURL = project.directoryURL
         let destination = repositoryURL.appendingPathComponent("LICENSE")
 
-        // 1. Write the complete license text into the LICENSE file, replacing any existing contents.
         do {
             try license.body.write(to: destination, atomically: true, encoding: .utf8)
             sessionStore.refreshFileTree(for: project)
@@ -222,20 +207,16 @@ struct LicencesAddView: View {
             return
         }
 
-        // 2. Perform Git automation (stage, commit, push)
         do {
             let git = GitService.shared
             guard await git.isGitInstalled() else {
                 throw AppError.gitError("Git executable is not available on this system.")
             }
 
-            // Stage only the LICENSE file
             try await git.stage(path: destination, repositoryURL: repositoryURL)
 
-            // Create a Git commit with the exact message: Added License with SwiftCode
             try await git.commit(message: "Added License with SwiftCode", repositoryURL: repositoryURL)
 
-            // Push the commit to the current branch's configured remote
             try await git.push(repositoryURL: repositoryURL)
 
             alertMessage = "Successfully created LICENSE file and pushed to remote branch!"
@@ -256,7 +237,6 @@ struct LicensePreviewDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Summary card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
@@ -283,7 +263,6 @@ struct LicensePreviewDetailView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Body card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("License Template Body", systemImage: "scroll")

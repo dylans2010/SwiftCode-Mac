@@ -5,14 +5,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Opt-in end-to-end debugging of an app on a real remote SwiftCode simulator
-/// (specs/simulator/debug-stub.md §8.2, specs/ide/debug.md §Remote): Run
-/// with a breakpoint set, the stop in the session (debug bar state, frames,
-/// variables), a step over, continue, Stop. Skipped unless the
-/// `RemoteRunEndToEndTests` variables are set, plus
-///   SWIFTCODE_E2E_DEBUG_FILE  the source file of the breakpoint (absolute, as the app's debug info names it)
-///   SWIFTCODE_E2E_DEBUG_LINE  its line
-///   SWIFTCODE_E2E_SIMD_ARGS   extra host-side swiftcode-simd options (optional)
 @Suite(.serialized, .heavyIntegration) @MainActor struct RemoteDebugEndToEndTests {
     @Test func stopsAtABreakpointOnARealRemoteSimulator() async throws {
         let env = ProcessInfo.processInfo.environment
@@ -27,7 +19,6 @@ import Testing
                                                simdPath: simd, deviceName: env["SWIFTCODE_E2E_DEVICE"] ?? "e2e")
         if let lean = env["SWIFTCODE_E2E_LEAN_BOOT"] { settings.leanBoot = lean == "1" }
         settings.warmBoot = env["SWIFTCODE_E2E_WARM_BOOT"] != "0"
-        // Extra host-side options (e.g. --debug-server-log).
         if let extra = env["SWIFTCODE_E2E_SIMD_ARGS"] { settings.additionalArguments = extra }
         let remote = RemoteSimulator(settings: settings)
         let app = URL(fileURLWithPath: appPath)
@@ -39,8 +30,6 @@ import Testing
         await session.runOnRemoteSimulator(app: app, remote: remote)
         let launched = await waitUntil(minutes * 60) { session.console.contains("launched \(bundle.bundleID)") || session.simulatorRun == nil }
         #expect(launched && session.simulatorRun != nil)
-        // The debugger attaches and the breakpoint stops the app.
-        // (The attach's own stop is continued by the session at once.)
         let stopped = await waitUntil(300) { session.stoppedThread != nil && session.frames.first?.line == line }
         print("---- remote console ----\n" + String(session.console.suffix(4000)))
         #expect(stopped)
@@ -49,7 +38,6 @@ import Testing
             _ = await waitUntil(remote.stopGrace) { session.simulatorRun == nil }
             return
         }
-        // The variables and the paused activity follow the frames.
         #expect(await waitUntil(60) { !session.isLoadingVariables && !session.variables.isEmpty })
         #expect(await waitUntil(30) { if case .paused = session.activity { true } else { false } })
         print("e2e debug: activity \(session.activity); frames: " + session.frames.prefix(4).map { "\($0.name) \($0.file ?? "-"):\($0.line)" }.joined(separator: " | "))
@@ -57,24 +45,18 @@ import Testing
         #expect(session.frames.first?.line == line)
         #expect(session.frames.first?.file?.hasSuffix((file as NSString).lastPathComponent) == true)
         #expect(!session.variables.isEmpty)
-        // Swift values are formatted (an Int as its digits), and a Swift
-        // expression evaluates in the frame (debug-stub.md §10.2).
         if let round = session.variables.first(where: { $0.name == "round" }) { #expect(Int(round.value) != nil) }
         let product = await session.evaluateInConsole("expression round * 2")
         print("e2e debug: expression round * 2 -> \(product ?? "nil")")
         #expect(product.map { !$0.contains("error") && $0.contains("Int") } == true)
-        // Step over: the next line of the same function.
         let before = session.frames.first?.line
         await session.step("over")
         #expect(await waitUntil(60) { session.stoppedThread != nil && session.frames.first?.line != before && !session.isLoadingVariables })
-        // `n` has its value now.
         print("e2e debug: variables after step: " + session.variables.map { "\($0.name)=\($0.value)" }.joined(separator: ", "))
         #expect(session.variables.contains { $0.name == "n" })
         print("e2e debug: after step over: " + (session.frames.first.map { "\($0.name):\($0.line)" } ?? "-"))
-        // Continue: the breakpoint stops it again on the next round.
         await session.continueOrPause()
         #expect(await waitUntil(60) { session.stoppedThread != nil && session.frames.first?.line == line })
-        // Stop: the debugger detaches, the launcher saves the device.
         session.stopSimulatorRun(remote: remote)
         #expect(await waitUntil(remote.stopGrace) { session.simulatorRun == nil })
         print("---- after Stop ----\n" + String(session.console.suffix(2000)))

@@ -1,6 +1,3 @@
-// C-JWT (plan.md §2): developer tokens (rest-api.md §2), signed with a
-// locally generated P-256 key, verified with swift-crypto and, when the
-// openssl tool is installed, independently with it.
 import Crypto
 import Foundation
 import Testing
@@ -155,7 +152,6 @@ struct JWTTests {
     }
 }
 
-/// A scripted HTTP transport that records requests.
 final class MockHTTPClient: WeatherHTTPClient, @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [URLRequest] = []

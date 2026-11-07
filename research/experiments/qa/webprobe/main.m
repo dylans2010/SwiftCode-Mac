@@ -1,6 +1,3 @@
-// webprobe: our own probe app, public API only. Loads a data: URL in a
-// WKWebView, logs the navigation result, then asks the system to open the
-// same data: URL (which app, if any, handles it).
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
 

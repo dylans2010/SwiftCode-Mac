@@ -1,19 +1,6 @@
-// STAGED PORT — SwiftCode-Legacy `Backend/Assist/TasksAIPlanner.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
-// Dependency of _AssistCriticalTaskOrchestrator (planner.generatePlan) and AssistExecutionEngine (updateStep/currentPlan). Ledger SUPERSEDED by SwiftCodeMCP/Tools/SwiftCodeTools+Planning.swift — MCP tool surface, non-importable, no generatePlan/fallbackPlan class API. Ported verbatim. PlanComplexity + AssistPlannerError are lifted verbatim from Legacy AssistPlanner.swift (same file's companions; the AssistPlanner class itself is NOT ported).
-// BLOCKED sub-deps (recorded in _notes/agent-frameworks-decisions.md): AssistModelManager (needs AppSettings/AssistModelOption/OfflineFallbackManager, none in destination) and AssistLLMService/AssistModelProvider (NOT in the sibling AssistModels.swift port — that batch deliberately skipped them: they need LLMProvider, APIKeyManager, AppSettings, LLMService, OpenCodeConfiguration, none of which exists in the destination; see _notes/agent-models-decisions.md).
-// ADAPTATION (destination convention; the only non-verbatim lines): Legacy is
-// ObservableObject/@Published (Combine), but Combine is unavailable on Linux and the
-// destination uses @Observable instead (see AssistFeedbackService staging note,
-// SkillIndex.swift). `import Combine` is replaced by `import Observation`, the class
-// is @Observable, and the two @Published vars are plain stored vars. Behaviour unchanged.
-// Remaining deps (staged in this tree by the parallel AssistModels port): AssistContext (logger), AssistExecutionPlan/AssistExecutionStep/AssistExecutionStatus/AssistToolResult; AssistAgenticPrompt (staged alongside here).
-
 import Foundation
 import Observation
 
-/// A high-trust task planning engine that decomposes user intent into executable steps.
 @Observable
 @MainActor
 public final class TasksAIPlanner {
@@ -24,7 +11,6 @@ public final class TasksAIPlanner {
 
     private init() {}
 
-    /// Generates a structured multi-step plan based on user intent.
     public func generatePlan(intent: String, context: AssistContext, complexity: PlanComplexity = .moderate) async throws -> AssistExecutionPlan {
         isPlanning = true
         defer { isPlanning = false }
@@ -160,7 +146,6 @@ public final class TasksAIPlanner {
         }
     }
 
-    /// Provides a basic fallback plan if the AI fails to generate one.
     public func fallbackPlan(intent: String) -> AssistExecutionPlan {
         var plan = AssistExecutionPlan(goal: intent)
         plan.steps = [
@@ -172,7 +157,6 @@ public final class TasksAIPlanner {
         return plan
     }
 
-    /// Updates the status of a specific step in the current plan.
     public func updateStep(id: UUID, status: AssistExecutionStatus, result: AssistToolResult? = nil) {
         guard var plan = currentPlan else { return }
         if let index = plan.steps.firstIndex(where: { $0.id == id }) {
@@ -233,7 +217,6 @@ public final class TasksAIPlanner {
             }
             return plan
         } catch {
-            // Last ditch attempt: if it's a simple list but not proper JSON, try to extract goal at least
             if response.contains("goal") {
                  return fallbackPlan(intent: "Refined Task: \(jsonStr.prefix(100))...")
             }
@@ -241,13 +224,6 @@ public final class TasksAIPlanner {
         }
     }
 }
-
-// MARK: - Planning support types (lifted verbatim from Legacy AssistPlanner.swift)
-//
-// TasksAIPlanner.swift references these two enums, which Legacy declares in
-// Backend/Assist/AssistPlanner.swift alongside the AssistPlanner class.
-// Only the enums are lifted here; the AssistPlanner class itself is NOT ported
-// (its plan(for:) is a thin wrapper over TasksAIPlanner.shared.generatePlan).
 
 enum AssistPlannerError: Error {
     case invalidResponse

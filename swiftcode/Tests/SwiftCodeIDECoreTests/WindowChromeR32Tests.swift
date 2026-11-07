@@ -5,9 +5,6 @@ import SwiftCodeProject
 @testable import SwiftCodeDebug
 @testable import SwiftCodeIDECore
 
-/// R32 (`specs/ide/reference-ui-5.md` §4, §5.2–§5.3, §6.1–§6.2, §7, §8):
-/// window chrome — toolbar, jump bars, debug bar, navigators' bottom bars,
-/// inspectors and the debug area's bars.
 @MainActor
 @Suite(.serialized) struct WindowChromeR32Tests {
     @Test func synchronizedFolderMembershipWritesExceptionSets() throws {
@@ -34,15 +31,12 @@ import SwiftCodeProject
         let app = "AA0000000000000000000004", other = "AA0000000000000000000005", group = "AA0000000000000000000003"
         #expect(p.targetMemberships(ofFile: file, projectDirectory: dir).map(\.isMember) == [true, false])
         #expect(p.targetMemberships(ofFile: file, projectDirectory: dir).map(\.isEditable) == [true, true])
-        // Removing writes an exception set for the target.
         let r1 = p.setMembership(ofFile: file, target: app, member: false, projectDirectory: dir)
         #expect(r1)
         let set = try #require(p[group]?.references("exceptions").first.flatMap { p[$0] })
         #expect(set.isa == "PBXFileSystemSynchronizedBuildFileExceptionSet" && set.string("target") == app)
         #expect(set.references("membershipExceptions") == ["Views/Main.swift"])
         #expect(p.targetMemberships(ofFile: file, projectDirectory: dir).map(\.isMember) == [false, false])
-        // A target without the folder takes the file through its own
-        // exception set, which lists the files it includes (IDE-SMALL).
         let r2 = p.setMembership(ofFile: file, target: other, member: true, projectDirectory: dir)
         #expect(r2)
         #expect(p.targetMemberships(ofFile: file, projectDirectory: dir).map(\.isMember) == [false, true])
@@ -51,7 +45,6 @@ import SwiftCodeProject
         let r4 = p.setMembership(ofFile: file, target: other, member: false, projectDirectory: dir)
         #expect(r4)
         #expect(p.objects(isa: "PBXFileSystemSynchronizedBuildFileExceptionSet").map { $0.string("target") } == [app])
-        // Adding back empties the set, which goes away.
         let r3 = p.setMembership(ofFile: file, target: app, member: true, projectDirectory: dir)
         #expect(r3)
         #expect(p[group]?.references("exceptions").isEmpty == true && p.objects(isa: "PBXFileSystemSynchronizedBuildFileExceptionSet").isEmpty)

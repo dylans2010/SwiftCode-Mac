@@ -3,13 +3,6 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeGoogleAuth
 
-// The service: session restore, sign-out, token accessors, the
-// callback exchange, scope checks, and client id/secret handling.
-// Stub transport + in-memory secret store + temp home throughout:
-// no live network, no real keychain, no real credentials. The
-// Antigravity and gcloud seams are neutralized by makeTestService,
-// so tests never touch the real keychain or CLI.
-
 @MainActor
 struct GoogleAccountAuthServiceTests {
 
@@ -60,7 +53,6 @@ struct GoogleAccountAuthServiceTests {
         #expect(store.readString(GoogleSecretAccount.expiresAt) == nil)
         #expect(store.readString(GoogleSecretAccount.scope) == nil)
         #expect(defaults.bool(forKey: GoogleDefaultsKey.explicitlySignedOut) == true)
-        // And the sign-out sticks: ambient ADC cannot resurrect it.
         #expect(await service.checkAmbientADC() == nil)
     }
 

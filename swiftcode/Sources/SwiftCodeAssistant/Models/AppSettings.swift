@@ -1,71 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Models/AppSettings.swift — the `AppSettings` singleton
-//   (Legacy main ab03f681). The five standalone model types from the same
-//   Legacy file (SavedRepository, DashboardLayout, DashboardSortOrder,
-//   FileNavigatorLayoutStyle, FileNavigatorAnimationStyle) are ported in
-//   `LegacyAppSettingsModels.swift` in this directory.
-//
-// Destination: SwiftCodeAssistant/Models/AppSettings.swift.
-//
-// Why the singleton is restored: the batch-2 staging deliberately did NOT
-// port it, on the grounds that the destination had "dissolved it into
-// `AssistantSettings` plus direct UserDefaults reads". That dissolution is
-// incomplete in main as it stands: `AssistFeedbackService` reads
-// `AppSettings.shared` in LIVE code (collectSettingsInfo,
-// collectApiEndpointTelemetry), and `ReverseManager`'s header says "When a
-// destination `AppSettings` lands, point the manager at it instead" —
-// while no `AppSettings` type exists anywhere in main, so those call
-// sites cannot compile. `AssistantSettings` covers the provider/endpoint
-// surface; it does not cover this class's dashboard, navigator, sound,
-// CoreML, Git, save-location or Assist-system properties, nor the
-// UserDefaults keys this class owns. This port restores the singleton so
-// its existing consumers compile and its keys have one authority again.
-//
-// Adaptations (behaviour preserved unless noted):
-// * ObservableObject / @Published / Combine -> @Observable (Observation):
-//   `@MainActor @Observable public final class AppSettings: Sendable`,
-//   the destination's convention for ported state singletons (see the
-//   batch-2 ToolbarSettings header). `@Published var` becomes a plain
-//   stored property; every `didSet` persistence hook is unchanged.
-//   `import SwiftUI` / `import Combine` are dropped (nothing in the
-//   class uses a SwiftUI type); `import Observation` is added.
-// * `SoundCatalog` lives in SwiftCodeUI, which this target cannot import
-//   (SwiftCodeUI depends on SwiftCodeAssistant, not the reverse). The
-//   five sound properties keep their UserDefaults keys and their
-//   stored-value-or-default behaviour; the stale-ID repair in `init`
-//   validates against `knownSoundIDs` below — a snapshot of the
-//   `SoundCatalog` custom IDs as of this port, plus the "none" ID and
-//   any `system_*` ID. If the catalog adds or removes sounds, update
-//   that set (or move the validation to the settings UI that owns the
-//   catalog). The five default IDs are the catalog's own values
-//   (`custom.chill.soft_bloom`, `custom.message.message`,
-//   `custom.success.complete`, `custom.error.attention`).
-// * `SCCloudDeviceFingerprint.ensureFingerprint()` does not exist in
-//   main (SCCloudModel.swift is unowned, assist-backend scope). The
-//   `swiftCodeCloudWithMetaSDK` hook provisions the fingerprint the
-//   destination way instead: `SCCloudProvider.provisionFingerprint()`
-//   + `SecretStore` persistence, the exact pattern
-//   `AssistantSettings` uses (`SecretAccount.scCloudFingerprint`).
-//   `SCCloudModelDiscovery.shared.refreshIfStale()` likewise has no
-//   destination equivalent (no shared cloud discovery in main); the
-//   refresh is dropped and the host's own discovery refresh
-//   (AssistMainView) remains the refresh path.
-// * `AssistModelDiscoveryService.shared` does not exist in main either
-//   (the service is an actor with no `shared`; the host creates one
-//   per secret store — yet AssistFeedbackService and AssistMainView
-//   already reference `.shared` in live code, a pre-existing gap
-//   outside this file). Two call sites are adapted, not re-broken:
-//   - `alternativeKeysEnabled`'s didSet no longer forces a discovery
-//     refresh; the host refreshes discovery on its own.
-//   - `validateCurrentSelectionsForEligibility` keeps the pure
-//     eligibility clearing (via `AssistModelEligibilityPolicy`, same
-//     target) but no longer re-picks the first eligible discovered
-//     model — with no discovery service to ask, an ineligible
-//     `selectedAssistModelID` is cleared and the owning host re-picks.
-// * Everything else — all keys, defaults, migrations (the "Cloud" ->
-//   "Provider" toolkit rename), the sound-ID repair, the saved-
-//   repositories persistence — is verbatim Legacy.
-
 import Foundation
 import Observation
 
@@ -74,9 +6,6 @@ import Observation
 public final class AppSettings: Sendable {
     public static let shared = AppSettings()
 
-    /// Snapshot of the `SoundCatalog` (SwiftCodeUI) custom sound IDs as of
-    /// this port, used to repair a stale stored sound ID in `init` (see
-    /// the file header — this target cannot import SwiftCodeUI).
     private static let knownSoundIDs: Set<String> = [
         "custom.chill.ambient_rise", "custom.chill.calm_bell",
         "custom.chill.cloud", "custom.chill.drift",
@@ -96,8 +25,6 @@ public final class AppSettings: Sendable {
         "custom.warning.caution",
     ]
 
-    /// True for a sound ID the destination catalog can still resolve:
-    /// the "none" ID, any `system_*` ID, or a known custom ID above.
     private static func isKnownSoundID(_ id: String) -> Bool {
         id == "none" || id.hasPrefix("system_") || knownSoundIDs.contains(id)
     }
@@ -105,12 +32,6 @@ public final class AppSettings: Sendable {
     public static let nativeAssistSystemID = "com.swiftcode.assist.native"
     public static let googleCloudAssistSystemID = "com.swiftcode.Assist.Google-Cloud"
     public static let metaAssistSystemID = "com.swiftcode.Assist.Meta"
-    /// Provider systems shown on the Assist System card. These are
-    /// settings-focus selections, not separate execution backends:
-    /// execution still routes by the selected model id through the
-    /// native path (only Meta/Google Cloud divert it), so adding
-    /// these ids changes no routing — it only decides which
-    /// provider's dedicated settings card is shown below.
     public static let openRouterAssistSystemID = "com.swiftcode.assist.openrouter"
     public static let openCodeAssistSystemID = "com.swiftcode.assist.opencode"
     public static let hermesAssistSystemID = "com.swiftcode.assist.hermes"
@@ -148,18 +69,11 @@ public final class AppSettings: Sendable {
         }
     }
 
-    /// True for the provider toolset, including the legacy "Cloud"
-    /// value stored before the rename to "Provider". The stored
-    /// string is migrated to "Provider" on load (see init).
     public var isProviderToolkit: Bool {
         assistToolkit.caseInsensitiveCompare("provider") == .orderedSame
             || assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame
     }
 
-    /// The toolset name for the Assist System currently picked in
-    /// Assist Settings. This is what the "Provider" toolkit option
-    /// means: the toolset belonging to that provider, not a
-    /// separate Cloud toolkit.
     public var activeProviderToolkitName: String {
         if isOpenRouterAssist {
             return "OpenRouter SDK"
@@ -180,11 +94,6 @@ public final class AppSettings: Sendable {
         activeProviderToolkitName
     }
 
-    /// "Automatically Switch Models" (Assist System card). When off,
-    /// Assist may never switch to another model on a turn failure:
-    /// it waits on (retries) the selected model and shows that wait
-    /// in the activity status instead of failing over. Default true,
-    /// preserving the existing failover behaviour for current users.
     public var assistAutomaticallySwitchModels: Bool {
         didSet {
             debouncedSave("assistAutomaticallySwitchModels", assistAutomaticallySwitchModels)
@@ -192,10 +101,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    /// "Use Provider Models" (Assist System card). When on, Assist
-    /// may only use models fetched from the selected provider
-    /// (OpenRouter / OpenCode / Hermes provider-model lists) and
-    /// never any user-provided (custom) model. Default false.
     public var assistUseProviderModels: Bool {
         didSet {
             debouncedSave("assistUseProviderModels", assistUseProviderModels)
@@ -220,7 +125,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    // MARK: - Other Models with Meta SDK & Rate-Limit Fallback
     public var otherModelsWithMetaSDK: Bool {
         didSet {
             debouncedSave("otherModelsWithMetaSDK", otherModelsWithMetaSDK)
@@ -233,14 +137,6 @@ public final class AppSettings: Sendable {
             debouncedSave("swiftCodeCloudWithMetaSDK", swiftCodeCloudWithMetaSDK)
             UserDefaults.standard.set(swiftCodeCloudWithMetaSDK, forKey: "assist.swiftCodeCloudWithMetaSDK")
             if swiftCodeCloudWithMetaSDK {
-                // Destination equivalent of Legacy's
-                // `SCCloudDeviceFingerprint.ensureFingerprint()` (no such
-                // type in main): provision + persist via the secret store,
-                // the exact pattern `AssistantSettings` uses. There is no
-                // destination equivalent of
-                // `SCCloudModelDiscovery.shared.refreshIfStale()` — no
-                // shared cloud discovery exists in main — so no refresh
-                // is forced here; the host refreshes discovery on its own.
                 #if canImport(Security)
                 let store: any SecretStore = KeychainSecretStore()
                 #else
@@ -275,7 +171,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    // MARK: - Use Meta Slash Commands
     public var useMetaSlashCommands: Bool {
         didSet {
             debouncedSave("useMetaSlashCommands", useMetaSlashCommands)
@@ -283,10 +178,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    // MARK: - Assist Reverse (native REA integration)
-    // reverseEnabled gates the whole subsystem. reverseBridgePath /
-    // reverseReaDir are optional overrides; empty means "auto-resolve"
-    // (bundle resource / Application Support, then settings).
     public var reverseEnabled: Bool {
         didSet {
             debouncedSave("reverseEnabled", reverseEnabled)
@@ -308,7 +199,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    // MARK: - Assist User Memory
     public var enableUserMemory: Bool {
         didSet {
             debouncedSave("enableUserMemory", enableUserMemory)
@@ -348,13 +238,6 @@ public final class AppSettings: Sendable {
         didSet {
             debouncedSave("alternativeKeysEnabled", alternativeKeysEnabled)
             UserDefaults.standard.set(alternativeKeysEnabled, forKey: "assist.alternativeKeysEnabled")
-            // M-4: toggling key rotation changes which credentials back the
-            // Google provider — Legacy dropped the discovery cache here so
-            // a removed key stops advertising its models immediately.
-            // There is no `AssistModelDiscoveryService.shared` in main
-            // (the service has no shared instance), so no refresh is
-            // forced from this singleton; the host that owns the
-            // discovery service refreshes it.
         }
     }
 
@@ -375,12 +258,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    /// SwiftCode Cloud Model toggle (Assist settings → "Use SwiftCode's Cloud Model").
-    /// When on, the cloud model appears in the model picker and is usable under
-    /// every routing strategy (SDK Default, Gemini Key Rotation, App Model Catalog)
-    /// with no API key or sign-in required. The per-device rate-limit identity
-    /// (device fingerprint) is generated at toggle-on time and lives in the
-    /// Keychain via SCCloudDeviceFingerprint — it is NEVER stored here or shown in UI.
     public var useSwiftCodeCloudModel: Bool {
         didSet {
             debouncedSave("useSwiftCodeCloudModel", useSwiftCodeCloudModel)
@@ -395,9 +272,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    /// Google Cloud project ID used as the quota project (x-goog-user-project)
-    /// for Google account (OAuth) authentication against the Gemini Developer
-    /// API. OAuth usage is attributed to — and billed to — this project.
     public var assistGoogleCloudProject: String {
         didSet {
             debouncedSave("assist_google_cloud_project", assistGoogleCloudProject)
@@ -405,11 +279,6 @@ public final class AppSettings: Sendable {
         }
     }
 
-    /// User-configured OAuth client ID override for Sign in with Google.
-    /// Empty means "use SwiftCode's built-in client". Read by
-    /// GoogleAccountAuthService alongside the GOOGLE_CLIENT_ID environment /
-    /// Info.plist overrides; this is the single user-editable storage for the
-    /// override so there is exactly one source of truth.
     public var assistGoogleOAuthClientIDOverride: String {
         didSet {
             debouncedSave("assist_google_oauth_client_id_override", assistGoogleOAuthClientIDOverride)
@@ -435,11 +304,6 @@ public final class AppSettings: Sendable {
     public var customModel: String {
         didSet { debouncedSave("customModel", customModel) }
     }
-    /// Explicit provider for the free-text custom model ID. The custom-model
-    /// record's providerID is resolved from this setting (or an exact
-    /// SDK-catalog match) — never inferred from the model name. Defaults to
-    /// Google so an authenticated Google session is never dropped for want of
-    /// a catalog entry. (C-2)
     public var customModelProviderID: String {
         didSet {
             debouncedSave("assist_custom_model_provider_id", customModelProviderID)
@@ -470,12 +334,10 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("fileHeaderCustomComment", fileHeaderCustomComment) }
     }
 
-    // MARK: - Theme
     public var selectedThemeID: String {
         didSet { debouncedSave("selectedThemeID", selectedThemeID) }
     }
 
-    // MARK: - Git / GitHub Configuration
     public var gitPath: String {
         didSet { debouncedSave("gitPath", gitPath) }
     }
@@ -492,7 +354,6 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("defaultGitHubRepo", defaultGitHubRepo) }
     }
 
-    // MARK: - Saved Repositories
     public var savedRepositories: [SavedRepository] = [] {
         didSet { persistSavedRepositories() }
     }
@@ -500,7 +361,6 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("startOnNewProject", startOnNewProject) }
     }
 
-    // MARK: - Extended Git Configuration
     public var sshKeyPath: String {
         didSet { debouncedSave("sshKeyPath", sshKeyPath) }
     }
@@ -520,7 +380,6 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("workflowMonitoringEnabled", workflowMonitoringEnabled) }
     }
 
-    // MARK: - Dashboard Customization
     public var dashboardLayout: DashboardLayout {
         didSet { debouncedSave("dashboardLayout", dashboardLayout.rawValue) }
     }
@@ -543,7 +402,6 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("showLastOpenedTime", showLastOpenedTime) }
     }
 
-    // MARK: - CoreML
     public var coreMLEnabled: Bool {
         didSet { debouncedSave("coreMLEnabled", coreMLEnabled) }
     }
@@ -557,7 +415,6 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("coreMLUsageLimit", coreMLUsageLimit) }
     }
 
-    // MARK: - File Navigator Customization
     public var fileNavigatorLayoutStyle: FileNavigatorLayoutStyle {
         didSet { debouncedSave("fileNavigatorLayoutStyle", fileNavigatorLayoutStyle.rawValue) }
     }
@@ -598,7 +455,6 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("hasCompletedOnboarding", hasCompletedOnboarding) }
     }
 
-    // MARK: - Save Location Customization
     public var saveProjectsOnCustomFolder: Bool {
         didSet { debouncedSave("saveProjectsOnCustomFolder", saveProjectsOnCustomFolder) }
     }
@@ -606,12 +462,10 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("customProjectsFolder", customProjectsFolder) }
     }
 
-    // MARK: - Bundle ID Customization
     public var defaultOrganization: String {
         didSet { debouncedSave("defaultOrganization", defaultOrganization) }
     }
 
-    // MARK: - Sounds Customization
     public var notificationSoundID: String {
         didSet { debouncedSave("notificationSoundID", notificationSoundID) }
     }
@@ -628,7 +482,6 @@ public final class AppSettings: Sendable {
         didSet { debouncedSave("completionSoundID", completionSoundID) }
     }
 
-    // MARK: - Settings Window Experience
     public var useNewSettingsWindow: Bool {
         didSet {
             debouncedSave("useNewSettingsWindow", useNewSettingsWindow)
@@ -636,8 +489,6 @@ public final class AppSettings: Sendable {
             NotificationCenter.default.post(name: NSNotification.Name("UseNewSettingsWindowDidChange"), object: useNewSettingsWindow)
         }
     }
-
-    // MARK: - Immediate Persistent Save
 
     private func debouncedSave(_ key: String, _ value: Any) {
         UserDefaults.standard.set(value, forKey: key)
@@ -648,19 +499,15 @@ public final class AppSettings: Sendable {
         UserDefaults.standard.synchronize()
     }
 
-    /// `true` when the user has chosen a custom OpenRouter model ID
     public var isUsingCustomModel: Bool {
         !customModel.isEmpty && selectedModel == customModel
     }
-
 
     private init() {
         assistSystemID = UserDefaults.standard.string(forKey: "assistSystemID") ?? Self.nativeAssistSystemID
         var initialToolkit = UserDefaults.standard.string(forKey: "assistToolkit")
             ?? UserDefaults.standard.string(forKey: "assist.assistToolkit")
             ?? Self.defaultAssistToolkit
-        // Rename migration: the old "Cloud" toolkit value means the
-        // provider toolset, now stored as "Provider".
         if initialToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
             initialToolkit = "Provider"
             UserDefaults.standard.set("Provider", forKey: "assist.assistToolkit")
@@ -776,7 +623,6 @@ public final class AppSettings: Sendable {
         defaultOrganization = UserDefaults.standard.string(forKey: "defaultOrganization") ?? "com.SwiftCode"
         useNewSettingsWindow = UserDefaults.standard.object(forKey: "useNewSettingsWindow") as? Bool ?? true
 
-        // Initialize sound preferences with graceful migration
         let rawNotif = UserDefaults.standard.string(forKey: "notificationSoundID") ?? "custom.chill.soft_bloom"
         notificationSoundID = (rawNotif == "none" || Self.isKnownSoundID(rawNotif)) ? rawNotif : "custom.chill.soft_bloom"
 
@@ -792,32 +638,23 @@ public final class AppSettings: Sendable {
         let rawComplete = UserDefaults.standard.string(forKey: "completionSoundID") ?? "custom.success.complete"
         completionSoundID = (rawComplete == "none" || Self.isKnownSoundID(rawComplete)) ? rawComplete : "custom.success.complete"
 
-        // Load saved repositories
         loadSavedRepositories()
 
-        // Validate eligibility on launch
         validateCurrentSelectionsForEligibility()
     }
 
     public func validateCurrentSelectionsForEligibility() {
         guard onlyUseFreeModels else { return }
 
-        // 1. Validate metaSelectedOtherModelID
         if !metaSelectedOtherModelID.isEmpty && !AssistModelEligibilityPolicy.isEligible(modelID: metaSelectedOtherModelID, onlyUseFreeModels: true) {
             metaSelectedOtherModelID = ""
             metaSelectedOtherModelProvider = ""
         }
 
-        // 2. Validate selectedAssistModelID. Legacy re-picked the first
-        // eligible discovered model here; there is no
-        // `AssistModelDiscoveryService.shared` in main to ask, so an
-        // ineligible selection is cleared and the owning host re-picks.
         if !selectedAssistModelID.isEmpty && !AssistModelEligibilityPolicy.isEligible(modelID: selectedAssistModelID, onlyUseFreeModels: true) {
             selectedAssistModelID = ""
         }
     }
-
-    // MARK: - Saved Repositories Persistence
 
     private static let savedReposKey = "savedRepositories"
 

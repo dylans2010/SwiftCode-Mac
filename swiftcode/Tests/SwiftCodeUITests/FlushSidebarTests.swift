@@ -5,10 +5,6 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// The plain sidebar item that macOS 26 uses instead of the system's
-/// floating sidebar (`FlushSidebar`, `specs/ide/metrics.md` §14.1), forced on
-/// whatever system runs the tests: the workspace window must measure as with
-/// the system's sidebar item.
 @MainActor
 @Suite(.serialized) struct FlushSidebarTests {
     func forced(_ body: () throws -> Void) rethrows {
@@ -28,9 +24,7 @@ import SwiftCodeProject
                 for m in r.measures where m.ok == false {
                     Issue.record("\(m.name) = \(m.value), spec \(m.op) \(m.spec ?? 0) (\(m.source))")
                 }
-                // The navigator covers its divider: the editor starts at its edge.
                 #expect(abs((r.frames["editor.area"]?.x ?? 0) - Double(WorkspaceWindowController.navigatorWidth)) <= 0.5)
-                // Hiding and showing the navigator keeps working.
                 wc.setLeftPane(codingAssistant: false)
                 #expect(wc.navigatorItem.isCollapsed)
                 wc.setLeftPane(codingAssistant: false)

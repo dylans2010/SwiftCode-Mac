@@ -1,9 +1,3 @@
-// The runtime wizard's state, shared by the macOS window and the Linux
-// shell's sheet: the step, the user's choices, the last round of checks,
-// what is running (a copy, an import, the setup script) with its output,
-// and the confirmation an action waits for. Views read it and call its
-// methods; it never runs an action the user did not confirm.
-
 import Foundation
 import Observation
 import SwiftCodeSubprocess
@@ -15,23 +9,16 @@ public final class RuntimeSetupSession {
     public private(set) var choices: RuntimeSetupChoices
     public private(set) var step: RuntimeSetupStep = .target
     public private(set) var report: RuntimeSetupReport?
-    /// The setup script's last report on the host (#70).
     public private(set) var hostSetup: HostSetupOutput?
     public private(set) var isChecking = false
-    /// A running action's name ("Copying iOS 27.0…"); nil when idle.
     public private(set) var running: String?
-    /// The status line under the steps.
     public private(set) var status: String?
-    /// The running (or last) action's output, and the step it belongs to.
     public private(set) var log = ""
     public private(set) var logStep: RuntimeSetupStep?
-    /// What waits for the user's yes.
     public private(set) var confirmation: RuntimeConfirmation?
     public private(set) var transfer: RuntimeTransfer?
     public private(set) var transferState: RuntimeTransferState = .idle
-    /// A file or folder the user picked in Add a Runtime.
     public private(set) var picked: PickedRuntime?
-    /// Get a Runtime: routes C and B (#55).
     public let downloads: RuntimeDownloadModel
 
     public struct PickedRuntime: Sendable, Equatable {
@@ -40,15 +27,11 @@ public final class RuntimeSetupSession {
         public var record: SimRuntimeRecord?
     }
 
-    /// Called after every change (the AppKit window redraws; SwiftUI observes).
     @ObservationIgnored public var onChange: (() -> Void)?
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored public var localRunner: any HeadsetCommandRunner
-    /// Runs commands on the host (tests answer for it).
-    /// Replaces the ssh runner for the host's checks (tests).
     @ObservationIgnored public var hostRunner: ((RuntimeHostSettings) -> any HeadsetCommandRunner)?
     @ObservationIgnored public var pairedHosts: @Sendable () -> [String]
-    /// Runtime roots already configured for the host (Settings ▸ Simulators).
     @ObservationIgnored public var configuredRoots: () -> [String]
     @ObservationIgnored public var folder: String
     @ObservationIgnored public var ssh: String
@@ -66,7 +49,6 @@ public final class RuntimeSetupSession {
         self.ssh = ssh
         self.rsync = rsync
         var c = RuntimeSetupChoices.load(defaults)
-        // A computer that cannot run the simulator uses a host.
         if !machine.canRunSimulatorHere { c.useHost = true }
         choices = c
         downloads = RuntimeDownloadModel(machine: machine, folder: folder, runner: localRunner)
@@ -79,15 +61,12 @@ public final class RuntimeSetupSession {
 
     func changed() { onChange?() }
 
-    // MARK: Steps
-
     public var steps: [RuntimeSetupStep] { RuntimeSetupStep.steps(for: choices.target) }
 
     public func show(_ s: RuntimeSetupStep) {
         guard steps.contains(s) else { return }
         step = s
         if s == .download {
-            // The first platform without a runtime; its checks.
             if let missing = SimPlatform.allCases.first(where: { choices.platforms.contains($0) && !(report?.readyPlatforms.contains($0) ?? false) }) {
                 downloads.setPlatform(missing, check: false)
             }
@@ -109,10 +88,8 @@ public final class RuntimeSetupSession {
     public var isLastStep: Bool { step == steps.last }
     public var isFirstStep: Bool { step == steps.first }
 
-    /// The checks of the step on screen.
     public var shownChecks: [RuntimeCheck] { step == .download ? downloads.checks : report?.checks(in: step) ?? [] }
 
-    /// The mark of a step in the list.
     public func state(of s: RuntimeSetupStep) -> SetupCheckState? {
         if s == .finish { return report.map { $0.readyPlatforms.isEmpty ? .missing : .ok } }
         if s == .download {
@@ -124,8 +101,6 @@ public final class RuntimeSetupSession {
         }
         return report?.state(of: s)
     }
-
-    // MARK: Choices
 
     public func setPlatform(_ p: SimPlatform, on: Bool) {
         if on { choices.platforms.insert(p) } else { choices.platforms.remove(p) }
@@ -156,9 +131,6 @@ public final class RuntimeSetupSession {
         recheck()
     }
 
-    // MARK: Checks
-
-    /// Runs every check again (never cached: removed runtimes can come back, §9).
     @discardableResult
     public func recheck() -> Task<Void, Never> {
         checkTask?.cancel()
@@ -190,16 +162,11 @@ public final class RuntimeSetupSession {
         return t
     }
 
-    /// The step to open on: the first with something to fix.
     public func openOnFirstProblem() {
         guard let r = report else { return }
         show(r.firstProblemStep(for: choices.target))
     }
 
-    // MARK: Picking a runtime file
-
-    /// The user picked a file or folder in Add a Runtime: SwiftCode looks at it
-    /// and offers the one way to add it (nothing runs yet).
     public func pick(path: String) {
         let kind = RuntimeBundleReader.kind(of: path)
         var p = PickedRuntime(path: path, kind: kind, record: nil)
@@ -214,7 +181,6 @@ public final class RuntimeSetupSession {
         changed()
     }
 
-    /// The action that adds the picked file where the simulator runs.
     public var pickedAction: RuntimeAction? {
         guard let p = picked else { return nil }
         switch p.kind {
@@ -229,8 +195,6 @@ public final class RuntimeSetupSession {
         }
     }
 
-    /// The runtimes here that can go to the host (or into SwiftCode's folder on Linux).
-    /// Only the chosen platforms' usable runtimes, less the builds the host has.
     public var copyableRuntimes: [SimRuntimeRecord] {
         let there = Set((report?.host ?? []).map { "\($0.platform)|\($0.version)|\($0.build)" })
         return (report?.local ?? []).filter {
@@ -238,9 +202,6 @@ public final class RuntimeSetupSession {
         }
     }
 
-    // MARK: Actions
-
-    /// Asks before an action: the confirmation shows the exact command.
     public func request(_ action: RuntimeAction) {
         confirmation = downloads.confirmation(for: action) ?? confirmationFor(action)
         changed()
@@ -287,7 +248,6 @@ public final class RuntimeSetupSession {
         return nil
     }
 
-    /// The user said yes.
     public func confirm() {
         guard let c = confirmation else { return }
         confirmation = nil
@@ -327,7 +287,6 @@ public final class RuntimeSetupSession {
         }
     }
 
-    /// Stops what is running (a copy stops resumably).
     public func stop() {
         stoppedByUser = true
         process?.terminate()
@@ -364,8 +323,6 @@ public final class RuntimeSetupSession {
         }
     }
 
-    // MARK: Copy to the host
-
     func transferFor(source: String, record: SimRuntimeRecord) -> RuntimeTransfer {
         let total = record.unpackedBytes ?? record.sizeBytes ?? record.platform.typicalUnpackedBytes
         return RuntimeTransfer(source: source, record: record, host: choices.host, totalBytes: total)
@@ -390,7 +347,6 @@ public final class RuntimeSetupSession {
                 Task { @MainActor in self?.log += chunk; self?.changed() }
             }
             self.process = p
-            // Progress: the .incoming folder's size, every second.
             let poll = Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -429,13 +385,9 @@ public final class RuntimeSetupSession {
         }
         changed()
         recheck()
-        // The service's configuration names the runtime: check the host again.
         if s == .finished, hostSetup != nil { runSetupReport() }
     }
 
-    // MARK: Run destinations (#69)
-
-    /// What the Ready step says about running on the host's devices.
     public var finishNotes: [String] {
         guard choices.useHost, !choices.host.destination.isEmpty else { return [] }
         let host = choices.host
@@ -453,9 +405,6 @@ public final class RuntimeSetupSession {
         return out
     }
 
-    /// A runtime copied to the host that Settings ▸ Simulators already names
-    /// becomes one of its runtime roots (its destinations follow); true when
-    /// it was added. Another host is left to the user (Settings ▸ Simulators).
     @discardableResult
     func registerRemoteRoot(_ root: String, record: SimRuntimeRecord, host: String) -> Bool {
         var s = RemoteSimulatorSettings.load(defaults)
@@ -467,7 +416,6 @@ public final class RuntimeSetupSession {
         return true
     }
 
-    /// The other way: a removed runtime is no longer a runtime root of that host.
     func unregisterRemoteRoot(_ root: String, host: String) {
         var s = RemoteSimulatorSettings.load(defaults)
         guard s.destination == host, s.otherRuntimeRoots.contains(root) else { return }
@@ -475,14 +423,11 @@ public final class RuntimeSetupSession {
         s.save(defaults)
     }
 
-    // MARK: Host setup (#70)
-
     public var setupInvocation: HostSetupInvocation {
         HostSetupInvocation(dataDirectory: choices.host.dataDirectory, configDirectory: choices.host.configDirectory, swiftcodeVersion: ProductIdentity.version,
                             tcpPort: choices.host.tcpPort, udpPort: choices.host.udpPort)
     }
 
-    /// Runs the script on the host in report mode (changes nothing).
     public func runSetupReport() { runSetup(mode: "report") }
 
     func runSetup(mode: String) {
@@ -496,8 +441,6 @@ public final class RuntimeSetupSession {
         }
     }
 
-    /// The root steps' command needs the script on the host: saves it there
-    /// (in `~/.cache/swiftcode`, the user's own folder), then shows the command.
     public func prepareRootSteps() {
         let host = choices.host
         runLocal([ssh] + RuntimeTransfer.sshOptions + [host.destination, setupInvocation.saveCommand], title: "Saving the setup script on \(host.hostName)…",
@@ -509,7 +452,6 @@ public final class RuntimeSetupSession {
 
     public var rootCommand: String { setupInvocation.rootCommand(destination: choices.host.destination) }
 
-    /// Writes the script to a file (Save Script…).
     public func saveScript(to url: URL) throws {
         try HostSetupScript.text.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
@@ -517,10 +459,6 @@ public final class RuntimeSetupSession {
         changed()
     }
 
-    // MARK: Link
-
-    /// The hosts paired over SwiftCode's link on this machine: the names of the
-    /// `host` peers in `trusted-peers.json` (`sim-link.md` §2).
     public nonisolated static func linkHosts(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
         let dir = environment["SWIFTCODE_SIM_LINK_HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? NSHomeDirectory() + "/.config/swiftcode/sim-link"
         guard let d = FileManager.default.contents(atPath: dir + "/trusted-peers.json"),
@@ -529,11 +467,6 @@ public final class RuntimeSetupSession {
     }
 }
 
-// MARK: - Processes
-
-/// One process with its output streamed (stdout and stderr together), an
-/// optional standard input, and Stop. Foundation's `Process`: the programs
-/// here (ssh, rsync, xcrun) leave nothing running behind them.
 final class SetupProcess: @unchecked Sendable {
     let argv: [String]
     let stdin: String?
@@ -543,7 +476,6 @@ final class SetupProcess: @unchecked Sendable {
     private var stopped = false
     private var collected = ""
 
-    /// Everything the process printed so far.
     var text: String { lock.withLock { collected } }
 
     private func take(_ d: Data) {
@@ -564,7 +496,6 @@ final class SetupProcess: @unchecked Sendable {
         if p.isRunning { p.terminate() }
     }
 
-    /// The exit status; 128 + the signal when a signal ended it.
     func run() async -> Int32 {
         await withCheckedContinuation { (k: CheckedContinuation<Int32, Never>) in
             let path = argv[0].hasPrefix("/") ? argv[0] : "/usr/bin/env"
@@ -603,7 +534,6 @@ final class SetupProcess: @unchecked Sendable {
     }
 }
 
-/// A short command's output (the copy's progress).
 enum SSHProbe {
     static func output(_ argv: [String]) async -> String {
         let p = SetupProcess(argv)

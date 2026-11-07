@@ -1,8 +1,5 @@
 import Foundation
 
-/// The GitHub API rate-limit state: the headers on every response
-/// (`X-RateLimit-Limit/Remaining/Reset`, `Retry-After`), and the `rate`
-/// object of `GET /rate_limit` (where `reset` is a Unix timestamp).
 public struct GitHubRateLimit: Sendable, Equatable, Decodable {
     public var limit: Int?
     public var remaining: Int?
@@ -18,7 +15,6 @@ public struct GitHubRateLimit: Sendable, Equatable, Decodable {
 
     public var isExhausted: Bool { remaining == 0 }
 
-    /// Reads the rate-limit headers off a response. Missing headers stay nil.
     public static func parse(from response: HTTPURLResponse) -> GitHubRateLimit {
         func intHeader(_ name: String) -> Int? {
             response.value(forHTTPHeaderField: name).flatMap(Int.init)
@@ -50,15 +46,12 @@ public struct GitHubRateLimit: Sendable, Equatable, Decodable {
     }
 }
 
-/// The authenticated user (`GET /user`).
 public struct GitHubUser: Sendable, Equatable, Decodable {
     public var login: String
     public var id: Int
     public var name: String?
     public var avatarUrl: String?
     public var htmlUrl: String?
-    // Profile fields (`GET /user` returns these; all optional so older
-    // payloads still decode). Added for the GitHub account view.
     public var bio: String?
     public var company: String?
     public var blog: String?
@@ -73,10 +66,7 @@ public struct GitHubUser: Sendable, Equatable, Decodable {
     public var updatedAt: Date?
 }
 
-/// A repository (`GET /repos/{owner}/{repo}`). `ownerLogin` is the nested
-/// `owner.login`; `isPrivate` is the JSON `private` key.
 public struct GitHubRepository: Sendable, Equatable, Decodable, Identifiable {
-    /// Stable identity: the `owner/name` full name.
     public var id: String { fullName }
     public var name: String
     public var fullName: String
@@ -91,8 +81,6 @@ public struct GitHubRepository: Sendable, Equatable, Decodable, Identifiable {
     public var createdAt: Date?
     public var updatedAt: Date?
     public var pushedAt: Date?
-    // Added for the public repository browser (topics, clone URLs) and
-    // the repository dashboard (size in KB, open issue count).
     public var topics: [String]?
     public var sshUrl: String?
     public var cloneUrl: String?
@@ -133,9 +121,6 @@ public struct GitHubRepository: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// An issue (`/repos/{owner}/{repo}/issues`). `labels` are the label names;
-/// `isPullRequest` is true when the `pull_request` key is present (issues
-/// and pull requests share the issues endpoint).
 public struct GitHubIssue: Sendable, Equatable, Decodable {
     public var number: Int
     public var title: String
@@ -176,8 +161,6 @@ public struct GitHubIssue: Sendable, Equatable, Decodable {
     }
 }
 
-/// A pull request (`/repos/{owner}/{repo}/pulls`). `headRef`/`headSha` are
-/// the nested `head.ref`/`head.sha`; `baseRef` is `base.ref`.
 public struct GitHubPullRequest: Sendable, Equatable, Decodable, Identifiable {
     public var id: Int
     public var number: Int
@@ -228,7 +211,6 @@ public struct GitHubPullRequest: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// One file changed by a pull request (`/pulls/{number}/files`).
 public struct GitHubPullRequestFile: Sendable, Equatable, Decodable {
     public var filename: String
     public var status: String
@@ -237,7 +219,6 @@ public struct GitHubPullRequestFile: Sendable, Equatable, Decodable {
     public var changes: Int
 }
 
-/// A pull-request review (`/pulls/{number}/reviews`).
 public struct GitHubReview: Sendable, Equatable, Decodable, Identifiable {
     public var id: Int
     public var userLogin: String
@@ -264,8 +245,6 @@ public struct GitHubReview: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// A branch (`/repos/{owner}/{repo}/branches`). `commitSha` is the nested
-/// `commit.sha`.
 public struct GitHubBranch: Sendable, Equatable, Decodable {
     public var name: String
     public var commitSha: String
@@ -286,21 +265,13 @@ public struct GitHubBranch: Sendable, Equatable, Decodable {
     }
 }
 
-/// A commit (`/repos/{owner}/{repo}/commits`). The message and author come
-/// from the nested `commit` object (`commit.message`,
-/// `commit.author.name`/`commit.author.date`).
 public struct GitHubCommit: Sendable, Equatable, Decodable, Identifiable {
-    /// Stable identity: the SHA (Legacy's `GitHubCommit.id`).
     public var id: String { sha }
     public var sha: String
     public var message: String
     public var authorName: String?
     public var authorDate: Date?
 
-    /// Legacy nested view (`commit.message`, `commit.author?.name/date`),
-    /// kept for call sites ported verbatim from Legacy's `GitHubCommit`
-    /// (`CommitHistoryView`). The flat `message` / `authorName` /
-    /// `authorDate` above are canonical.
     public var commit: CommitDetail {
         CommitDetail(
             message: message,
@@ -345,10 +316,6 @@ public struct GitHubCommit: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
-/// A single commit with its changed files (`GET /repos/{owner}/{repo}/commits/{sha}`),
-/// for the diff preview (Legacy's `GitHubCommitDetailResponse`, ported from
-/// Legacy `GitHubService.swift:1241`). All keys are single words, so plain
-/// `Decodable` suffices — no snake-case conversion needed.
 public struct GitHubCommitDetailResponse: Decodable, Sendable {
     public let sha: String
     public let files: [GitHubCommitFile]?
@@ -362,7 +329,6 @@ public struct GitHubCommitDetailResponse: Decodable, Sendable {
     }
 }
 
-/// One entry of a git tree (`/repos/{owner}/{repo}/git/trees/{ref}`).
 public struct GitHubTreeEntry: Sendable, Equatable, Decodable {
     public var path: String
     public var type: String
@@ -370,8 +336,6 @@ public struct GitHubTreeEntry: Sendable, Equatable, Decodable {
     public var size: Int?
 }
 
-/// A file's content (`/repos/{owner}/{repo}/contents/{path}`). `content`
-/// is base64 and may contain newlines; `getFileText` decodes it.
 public struct GitHubFileContent: Sendable, Equatable, Decodable {
     public var name: String
     public var path: String
@@ -381,15 +345,11 @@ public struct GitHubFileContent: Sendable, Equatable, Decodable {
     public var encoding: String
 }
 
-/// A search response (`/search/issues`, `/search/code`).
 public struct GitHubSearchResult<T: Decodable & Sendable>: Sendable, Decodable {
     public var totalCount: Int
     public var items: [T]
 }
 
-/// One workflow run (`/repos/{owner}/{repo}/actions/runs`). Ported
-/// from Legacy's `GitHubService.WorkflowRun`: `statusBadge` /
-/// `isRunning` are the same derived values Legacy's views used.
 public struct GitHubWorkflowRun: Sendable, Equatable, Decodable {
     public var id: Int
     public var name: String?
@@ -417,9 +377,6 @@ public struct GitHubWorkflowRun: Sendable, Equatable, Decodable {
     }
 }
 
-/// One workflow (`GET /repos/{owner}/{repo}/actions/workflows`).
-/// Ported from Legacy's `GitHubService.GitHubWorkflow` (the slice
-/// that listed runs but never listed the workflows themselves).
 public struct GitHubWorkflow: Sendable, Equatable, Decodable {
     public var id: Int
     public var name: String
@@ -430,14 +387,9 @@ public struct GitHubWorkflow: Sendable, Equatable, Decodable {
     public var htmlUrl: String
     public var badgeUrl: String
 
-    /// `true` when GitHub will run this workflow (`state == "active"`).
     public var isActive: Bool { state == "active" }
 }
 
-/// A repository's GitHub Pages configuration
-/// (`GET /repos/{owner}/{repo}/pages`). The `source` branch/path
-/// pair only applies to legacy (branch-based) builds; workflow
-/// builds report `buildType == "workflow"` and no source.
 public struct GitHubPagesInfo: Sendable, Equatable, Decodable {
     public var url: String
     public var status: String?
@@ -456,19 +408,14 @@ public struct GitHubPagesInfo: Sendable, Equatable, Decodable {
         case httpsEnforced = "httpsEnforced"
     }
 
-    /// `true` when Pages serves this site over HTTPS only.
     public var isLive: Bool { status == "built" }
 }
 
-/// The branch/path pair a legacy Pages site builds from.
 public struct GitHubPagesSource: Sendable, Equatable, Decodable {
     public var branch: String
     public var path: String
 }
 
-/// One Pages deployment (`GET /repos/{owner}/{repo}/pages/deployments`).
-/// `latestStatus` carries the most recent build state; a deployment
-/// that never built has no status.
 public struct GitHubPagesDeployment: Sendable, Equatable, Decodable {
     public var id: Int
     public var statusUrl: String?
@@ -479,7 +426,6 @@ public struct GitHubPagesDeployment: Sendable, Equatable, Decodable {
     public var description: String?
 }
 
-/// The latest build state of one Pages deployment.
 public struct GitHubPagesDeploymentStatus: Sendable, Equatable, Decodable {
     public var id: Int
     public var status: String
@@ -490,9 +436,6 @@ public struct GitHubPagesDeploymentStatus: Sendable, Equatable, Decodable {
     public var description: String?
 }
 
-/// One job of a workflow run
-/// (`/repos/{owner}/{repo}/actions/runs/{run_id}/jobs`). Ported
-/// from Legacy's `GitHubService.WorkflowJob`.
 public struct GitHubWorkflowJob: Sendable, Equatable, Decodable {
     public var id: Int
     public var runId: Int
@@ -508,8 +451,6 @@ public struct GitHubWorkflowJob: Sendable, Equatable, Decodable {
     }
 }
 
-/// One step of a workflow job. Ported from Legacy's
-/// `GitHubService.GitHubWorkflowStep`.
 public struct GitHubWorkflowStep: Sendable, Equatable, Decodable {
     public var name: String
     public var status: String
@@ -517,8 +458,6 @@ public struct GitHubWorkflowStep: Sendable, Equatable, Decodable {
     public var number: Int
 }
 
-/// One workflow artifact (`/actions/runs/{run_id}/artifacts`).
-/// Ported from Legacy's `GitHubService.GitHubArtifact`.
 public struct GitHubArtifact: Sendable, Equatable, Decodable {
     public var id: Int
     public var name: String
@@ -527,13 +466,6 @@ public struct GitHubArtifact: Sendable, Equatable, Decodable {
     public var expired: Bool
 }
 
-// `GitHubRelease` / `GitHubReleaseAsset` are declared once, in
-// GitHubReleases.swift (the Releases client's model). Legacy's
-// `GitHubService.GitHubRelease` embedded `assets`; that field is carried on
-// the single declaration there so both waves share one type.
-
-/// One code-search hit. `repositoryFullName` is the nested
-/// `repository.full_name`.
 public struct GitHubCodeItem: Sendable, Equatable, Decodable {
     public var repositoryFullName: String
     public var path: String

@@ -1,25 +1,8 @@
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/RepositoryExplorerView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The repository explorer's source browser: file search across the
-/// project tree plus an in-explorer file content view.
-///
-/// Legacy listed files from `ProjectSessionStore` and loaded content on
-/// tap. This port enumerates the project directory directly (skipping
-/// `.git` and other generated directories), filters by file name, and
-/// loads the selected file's text. The "Blame Viewer" button routes to
-/// `onShowBlame`, which the host wires to the editor's Authors (blame)
-/// column for that file.
-///
-/// Hook: host as the explorer's Source Browser section with the project
-/// root; `onShowBlame` should open the file in the editor with the blame
-/// column shown.
 @MainActor
 public struct RepositoryFileSearchView: View {
     public var projectRoot: URL
-    /// Open the blame view for this file.
     public var onShowBlame: (URL) -> Void
 
     @State private var fileSearchText = ""

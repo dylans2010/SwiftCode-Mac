@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct SymbolCatalogItem: Identifiable, Hashable {
@@ -60,7 +57,7 @@ public struct SFSymbolsReferenceView: View {
                             .textFieldStyle(.plain)
                     }
                     .padding(6)
-                    
+
                     .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
 
                     Picker("Category Filter", selection: $selectedCategory) {
@@ -112,6 +109,6 @@ public struct SFSymbolsReferenceView: View {
             }
             .listStyle(.inset)
         }
-        
+
     }
 }

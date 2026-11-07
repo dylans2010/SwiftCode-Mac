@@ -1,23 +1,15 @@
-// The port routines (`mach-ipc.md` §1.7) and right copyin (§2.4). Callers
-// hold the kernel lock. Results are `kern_return_t` values.
-
-/// Where a right is copied in from.
 enum CopyinSlot {
     case destination, reply, body, routine
 }
 
 enum CopyinFailure: Error {
-    /// No entry under the name.
     case noEntry
-    /// The entry lacks the right the disposition needs.
     case noRight
 }
 
-/// `mach_port_options_t` (32 bytes, `mach-ipc.md` §1.7).
 public struct MachPortOptions: Equatable, Sendable {
     public var flags: UInt32
     public var qlimit: UInt32
-    /// The first word of the 16-byte union (`service_port_name` for a connection port).
     public var unionWord: UInt64
 
     public init(flags: UInt32, qlimit: UInt32 = 0, unionWord: UInt64 = 0) {
@@ -36,19 +28,9 @@ public struct MachPortOptions: Equatable, Sendable {
 extension MachIPC {
     typealias T = MachPortType
 
-    // MARK: Copyin
-
-    /// Copies in (or with `apply: false`, only checks) `name` with
-    /// `disposition` from the space (§2.4). `reserved` is the number of send
-    /// user references an earlier slot of the same header takes from the same
-    /// entry. A dead send or send-once right yields `.dead` (the caller turns
-    /// it into a destination error). The checks never depend on `apply`, so a
-    /// successful check guarantees a successful apply.
     func copyin(_ name: UInt32, _ disposition: UInt32, slot: CopyinSlot, apply: Bool,
                 reserved: UInt32 = 0) -> Result<CarriedRight, CopyinFailure> {
         guard let i = self.slot(of: name) else { return .failure(.noEntry) }
-        // A dead send-once destination without a dead-name request: the send
-        // succeeds and the message is destroyed (§1.5).
         if slot == .destination, disposition == MachMsgType.moveSendOnce,
            entries[i].bits & T.sendOnce != 0, let p = entries[i].port, !p.active,
            !p.deadNameNotified.contains(dn(name)) {
@@ -58,10 +40,6 @@ extension MachIPC {
         convertIfDead(i)
         let e = entries[i]
         if let p = e.port, p.isSpecialReply, e.bits & T.portRights != 0 {
-            // xnu ipc_right_copyin_check_reply: a reply port takes either
-            // send-once disposition. MOVE_SEND_ONCE in the reply slot is how
-            // libdispatch resends a message that MACH_SEND_TIMED_OUT
-            // pseudo-received (its reply became a send-once name).
             let allowed = (disposition == MachMsgType.makeSendOnce || disposition == MachMsgType.moveSendOnce)
                 && (slot == .reply || slot == .destination)
             if !allowed { return .failure(.noRight) }
@@ -125,15 +103,12 @@ extension MachIPC {
         }
     }
 
-    /// Drops one dead-name reference (pegged counts stay).
     func dropDeadReference(_ i: Int) {
         if entries[i].urefs == MachPortName.urefsMax { return }
         entries[i].urefs -= 1
         if entries[i].urefs == 0 { freeName(i) }
     }
 
-    /// Copies `right` out under the caller-chosen `name` (insert_right).
-    /// Checks first; on failure the right is untouched and still the caller's.
     func copyout(_ right: CarriedRight, as name: UInt32, check: Bool) -> UInt32 {
         guard let p = right.port else { return MachKern.invalidCapability }
         let claimed: NameClaim
@@ -180,10 +155,6 @@ extension MachIPC {
         }
     }
 
-    // MARK: Lookups
-
-    /// The receive right under `name`: `KERN_INVALID_NAME` without an entry,
-    /// `KERN_INVALID_RIGHT` without a receive right.
     func receiveRight(_ name: UInt32) -> Result<(Int, IPCPort), KernError> {
         guard let i = lookup(name) else { return .failure(KernError(MachKern.invalidName)) }
         guard entries[i].bits & T.receive != 0, let p = entries[i].port else {
@@ -191,8 +162,6 @@ extension MachIPC {
         }
         return .success((i, p))
     }
-
-    // MARK: Allocation
 
     func portAllocate(right: UInt32) -> (kr: UInt32, name: UInt32) {
         switch right {
@@ -235,8 +204,6 @@ extension MachIPC {
         }
         return MachKern.success
     }
-
-    // MARK: Destroy, deallocate, mod_refs
 
     func portDestroy(_ name: UInt32) -> UInt32 {
         guard MachPortName.isValid(name) else { return MachKern.success }
@@ -385,8 +352,6 @@ extension MachIPC {
         return (MachKern.success, type)
     }
 
-    // MARK: insert_right / extract_right
-
     func portInsertRight(_ name: UInt32, poly: UInt32, polyPoly: UInt32) -> UInt32 {
         guard MachPortName.isValid(name), MachMsgType.isPortDisposition(polyPoly) else { return MachKern.invalidValue }
         guard MachPortName.isValid(poly) else { return MachKern.invalidCapability }
@@ -397,8 +362,6 @@ extension MachIPC {
         case let .success(r): checked = r
         }
         guard checked.port != nil, checked.port!.active else { return MachKern.invalidCapability }
-        // A receive right moved onto a name that it is leaving: the entry is
-        // re-created, so only check conflicts against other names.
         let check = copyout(checked, as: name, check: true)
         if check != MachKern.success, !(name == poly && polyPoly == MachMsgType.moveReceive) { return check }
         guard case let .success(right) = copyin(poly, polyPoly, slot: .routine, apply: true) else {
@@ -418,8 +381,6 @@ extension MachIPC {
         case let .success(r): return (MachKern.success, r, MachMsgType.received(msgtName))
         }
     }
-
-    // MARK: construct / destruct / guards / context
 
     func portConstruct(_ options: MachPortOptions, context: UInt64) -> (kr: UInt32, name: UInt32) {
         let f = options.flags
@@ -451,7 +412,6 @@ extension MachIPC {
             p.strict = f & MachPortConstruct.strict != 0
         }
         if f & MachPortConstruct.immovableReceive != 0 { p.immovable = true }
-        // Importance (scheduling-policy.md §2.3, §4.3).
         if f & MachPortConstruct.tempOwner != 0 {
             p.tempOwner = true
             kernel?.system.schedStats.tempOwnerPorts += 1
@@ -565,9 +525,6 @@ extension MachIPC {
         }
     }
 
-    // MARK: Attributes
-
-    /// The 10-word `mach_port_status_t`.
     func status(_ p: IPCPort) -> [UInt32] {
         let flags: UInt32 = (p.guarded ? 0x02 : 0) | (p.strict ? 0x04 : 0) | (p.immovable ? 0x40 : 0)
         return [p.sets.isEmpty ? 0 : 1, p.seqno, p.mscount, UInt32(p.qlimit), UInt32(p.messages.count),
@@ -575,11 +532,6 @@ extension MachIPC {
                 p.nsRequest != nil ? 1 : 0, flags]
     }
 
-    /// `mach_port_get_attributes`: the words of the result (their count is
-    /// the new `*count`). Flavors (xnu `mach_port_get_attributes`): 1
-    /// LIMITS_INFO, 2 RECEIVE_STATUS, 3 DNREQUESTS_SIZE, 7 INFO_EXT, 9
-    /// SERVICE_THROTTLED (no service ports: `KERN_INVALID_CAPABILITY`); any
-    /// other flavor (8 GUARD_INFO included) is `KERN_INVALID_ARGUMENT`.
     func portGetAttributes(_ name: UInt32, flavor: UInt32, count: UInt32) -> (kr: UInt32, words: [UInt32]) {
         let needed: UInt32
         switch flavor {
@@ -610,13 +562,6 @@ extension MachIPC {
         }
     }
 
-    /// `mach_port_set_attributes` (xnu order: count, value, name, right).
-    /// 1 LIMITS_INFO sets the queue limit; 3 DNREQUESTS_SIZE, 4 TEMPOWNER,
-    /// 5 IMPORTANCE_RECEIVER, and 6 DENAP_RECEIVER are accepted for a receive
-    /// right (they set the port's importance flags, scheduling-policy.md
-    /// §4.3; 4–6 refuse special reply ports); 9
-    /// SERVICE_THROTTLED needs a service port (`KERN_INVALID_CAPABILITY`);
-    /// any other flavor is `KERN_INVALID_ARGUMENT`.
     func portSetAttributes(_ name: UInt32, flavor: UInt32, info: [UInt32]) -> UInt32 {
         switch flavor {
         case 1, 3:
@@ -638,8 +583,6 @@ extension MachIPC {
             return MachKern.success
         case 4, 5, 6:
             if p.isKernelObject || p.isSpecialReply { return MachKern.invalidArgument }
-            // TEMPOWNER; IMPORTANCE_RECEIVER and DENAP_RECEIVER (scheduling-policy.md §4.3).
-            // TEMPOWNER also makes the port accept importance (xnu mach_port.c).
             if flavor == 4 {
                 if !p.tempOwner { kernel?.system.schedStats.tempOwnerPorts += 1 }
                 p.tempOwner = true
@@ -654,11 +597,6 @@ extension MachIPC {
         }
     }
 
-    // MARK: Notifications
-
-    /// `mach_port_request_notification` (§3.6). `notify` is the copied-in
-    /// send-once right (or NULL/DEAD as is). On failure the caller still owns
-    /// `notify`.
     func portRequestNotification(_ name: UInt32, id: Int32, sync: UInt32,
                                  notify: CarriedRight) -> (kr: UInt32, previous: CarriedRight) {
         guard MachPortName.isValid(name) else { return (MachKern.invalidArgument, .null) }
@@ -706,17 +644,8 @@ extension MachIPC {
             return (MachKern.success, previous)
 
         case MachNotify.sendPossible:
-            // xnu `ipc_right_request_alloc`: the request shares the entry's
-            // request slot with dead-name requests (the previous one is
-            // returned). With `sync` != 0 it fires at once for a send-once
-            // entry, a kernel object, or a queue that is not full, and is
-            // armed otherwise; with `sync` = 0 it is stored delayed (armed by
-            // a MACH_SEND_NOTIFY send that finds the queue full). It fires
-            // when a message is next received from the port; port death
-            // turns it into a dead-name notification.
             guard let i = lookup(name) else { return (MachKern.invalidName, .null) }
             if entries[i].bits & T.deadName != 0 {
-                // Immediate w.r.t. dead names: a dead-name notification and one more reference.
                 guard let so else { return (MachKern.success, .null) }
                 entries[i].urefs = pegAdd(entries[i].urefs, 1)
                 sendNotification(to: so, id: MachNotify.deadName, body: machNDRRecord + le32(name))
@@ -741,8 +670,6 @@ extension MachIPC {
             return (MachKern.invalidValue, .null)
         }
     }
-
-    // MARK: Port sets
 
     func portMoveMember(_ member: UInt32, after: UInt32) -> UInt32 {
         guard MachPortName.isValid(member), after != MachPortName.dead else { return MachKern.invalidRight }

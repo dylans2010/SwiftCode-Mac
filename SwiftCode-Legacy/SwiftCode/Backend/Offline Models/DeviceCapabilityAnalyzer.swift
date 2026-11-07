@@ -140,12 +140,9 @@ final class DeviceCapabilityAnalyzer: Sendable {
         return "low"
     }
 
-
-
     private func inferDeviceClass() -> String {
         return "Mac"
     }
-
 
     private func machineIdentifier() -> String {
         var systemInfo = utsname()

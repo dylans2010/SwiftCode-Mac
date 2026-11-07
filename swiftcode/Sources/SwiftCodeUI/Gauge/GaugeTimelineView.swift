@@ -2,10 +2,6 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeProfiler
 
-/// The profiler window's timeline (`specs/ide/profiler.md` §6): a ruler,
-/// then the CPU, Signposts, Hangs, Frames and GPU tracks. A drag selects a
-/// time range (it filters every view below); a click or double-click
-/// without dragging clears it.
 @MainActor
 public final class GaugeTimelineView: NSView {
     public let model: GaugeModel
@@ -14,7 +10,6 @@ public final class GaugeTimelineView: NSView {
     static let cpuHeight: CGFloat = 64
     static let rowHeight: CGFloat = 18
     static let maxSignpostRows = 6
-    /// Track titles longer than the header end in "…".
     static let truncatingTail: NSParagraphStyle = {
         let p = NSMutableParagraphStyle()
         p.lineBreakMode = .byTruncatingTail
@@ -33,20 +28,16 @@ public final class GaugeTimelineView: NSView {
 
     public override var isFlipped: Bool { true }
 
-    /// Signpost rows: the target's own names first (GaugeTimeline.signpostRows).
     var signpostNames: [String] {
         guard let t = model.trace else { return [] }
         return GaugeTimeline.signpostRows(t, limit: Self.maxSignpostRows)
     }
 
-    /// The document view of the timeline's scroll view: as wide as the
-    /// visible area (the time axis fits the width; only height scrolls).
     public override func resize(withOldSuperviewSize oldSize: NSSize) {
         super.resize(withOldSuperviewSize: oldSize)
         if let w = superview?.bounds.width, w > 0, frame.width != w { setFrameSize(NSSize(width: w, height: frame.height)) }
     }
 
-    /// Track rows: (title, y, height).
     var tracks: [(title: String, y: CGFloat, height: CGFloat)] {
         var y = Self.rulerHeight
         var out: [(String, CGFloat, CGFloat)] = [("CPU", y, Self.cpuHeight)]
@@ -95,7 +86,6 @@ public final class GaugeTimelineView: NSView {
         let plot = plotRect
         let labelFont = NSFont.systemFont(ofSize: 11)
         let smallFont = NSFont.systemFont(ofSize: 10)
-        // Track headers and separators.
         for (i, tr) in tracks.enumerated() {
             if i % 2 == 1 {
                 NSColor.alternatingContentBackgroundColors.last?.withAlphaComponent(0.6).setFill()
@@ -108,7 +98,6 @@ public final class GaugeTimelineView: NSView {
         NSColor.separatorColor.setFill()
         NSRect(x: Self.headerWidth - 1, y: 0, width: 1, height: bounds.height).fill()
 
-        // Ruler: a tick about every 80 points at a round number of milliseconds.
         let duration = Double(model.duration) / 1e6
         let steps: [Double] = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 60000]
         let step = steps.first { $0 / duration * Double(plot.width) >= 80 } ?? 60000
@@ -124,7 +113,6 @@ public final class GaugeTimelineView: NSView {
         }
 
         let rows = tracks
-        // CPU: samples per column, user and kernel; the selection's samples on top.
         let cpu = rows[0]
         let columns = max(1, Int(plot.width / 2))
         let counts = GaugeTimeline.cpuColumns(t, range: 0..<model.duration, columns: columns, threads: model.threads)
@@ -153,7 +141,6 @@ public final class GaugeTimelineView: NSView {
             }
         }
 
-        // Signposts: one row per name; intervals as capsules, events as diamonds.
         let names = signpostNames
         for (i, name) in names.enumerated() {
             let row = rows[1 + i]
@@ -184,7 +171,6 @@ public final class GaugeTimelineView: NSView {
             }
         }
         let after = 1 + max(1, names.count)
-        // Hangs.
         let hangRow = rows[after]
         for h in model.hangs {
             let r = NSRect(x: x(h.begin), y: hangRow.y + 3, width: max(2, x(h.end) - x(h.begin)), height: hangRow.height - 6)
@@ -196,14 +182,12 @@ public final class GaugeTimelineView: NSView {
                                    attributes: [.font: smallFont, .foregroundColor: NSColor.white]).draw(in: r.insetBy(dx: 4, dy: 0).offsetBy(dx: 0, dy: -1))
             }
         }
-        // Frames: a tick per present; long frames marked.
         let frameRow = rows[after + 1]
         let long = Set(GaugeTimeline.longFrames(t.presents).map(\.time))
         for p in t.presents {
             (long.contains(p) ? NSColor.systemRed : NSColor.systemGreen).withAlphaComponent(0.8).setFill()
             NSRect(x: x(p), y: frameRow.y + 4, width: 1, height: frameRow.height - 8).fill()
         }
-        // GPU: a bar per command buffer (submit to completion), height by GPU time.
         let gpuRow = rows[after + 2]
         let gpuPeak = max(1, t.gpu.map(\.gpuNs).max() ?? 1)
         for g in t.gpu {
@@ -212,7 +196,6 @@ public final class GaugeTimelineView: NSView {
             NSRect(x: x(g.submit), y: gpuRow.y + gpuRow.height - 3 - h, width: max(1, x(g.end) - x(g.submit)), height: h).fill()
         }
 
-        // The selected range.
         if let r = model.range {
             let x0 = x(r.lowerBound), x1 = x(r.upperBound)
             NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
@@ -226,8 +209,6 @@ public final class GaugeTimelineView: NSView {
         NSColor.separatorColor.setFill()
         NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
     }
-
-    // MARK: Range selection
 
     public override func mouseDown(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
@@ -249,7 +230,6 @@ public final class GaugeTimelineView: NSView {
         needsDisplay = true
     }
 
-    /// Selects a time range (tests and menus).
     public func select(_ range: Range<UInt64>?) {
         model.range = range
         needsDisplay = true

@@ -1,19 +1,7 @@
 import Foundation
 import SwiftUI
 
-// Branch graph, adapted from Legacy's
-// `SwiftCode/Views/Collaboration/BranchGraphView.swift` and
-// `CollaborationBranchGraphView.swift`. The destination has branch
-// history as a list (`SwiftCodeUI/SourceControl/BranchHistoryController.swift`,
-// `SwiftCodeIDECore/Model/GitHistory.swift`) but no graph rendering, so
-// this is a real one: it runs `git log --graph --oneline --all
-// --decorate` in the repository and renders the actual graph output,
-// with the branch list alongside. No graph is invented — when git
-// fails, the error is shown instead of a placeholder drawing.
-
-/// Renders the real `git log --graph` output for a repository.
 struct BranchGraphView: View {
-    /// The working directory of the git repository.
     var repositoryURL: URL
 
     @Environment(\.colorScheme) private var scheme
@@ -119,10 +107,6 @@ struct BranchGraphView: View {
     }
 }
 
-/// Runs git and returns its stdout, or a human-readable failure.
-/// `git` is resolved from the PATH so a developer's installed git is
-/// used rather than a hardcoded location that may not exist.
-/// A git invocation failure, carrying the user-facing message.
 struct BranchGraphError: Error, CustomStringConvertible, Sendable {
     let message: String
     var description: String { message }

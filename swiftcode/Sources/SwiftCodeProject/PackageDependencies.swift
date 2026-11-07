@@ -1,9 +1,6 @@
 import Foundation
 import SwiftCodePlist
 
-/// A remote package's version rule, as stored in the `requirement`
-/// dictionary of an `XCRemoteSwiftPackageReference`. See
-/// `specs/ide/package-dependencies.md`.
 public enum SwiftPackageRequirement: Equatable, Sendable {
     case upToNextMajor(from: String)
     case upToNextMinor(from: String)
@@ -12,7 +9,6 @@ public enum SwiftPackageRequirement: Equatable, Sendable {
     case branch(String)
     case revision(String)
 
-    /// The `kind` value written to the project file.
     public var kind: String {
         switch self {
         case .upToNextMajor: "upToNextMajorVersion"
@@ -24,7 +20,6 @@ public enum SwiftPackageRequirement: Equatable, Sendable {
         }
     }
 
-    /// The menu title of the rule in the Add Package sheet.
     public var ruleTitle: String {
         switch self {
         case .upToNextMajor: "Up to Next Major Version"
@@ -62,7 +57,6 @@ public enum SwiftPackageRequirement: Equatable, Sendable {
         }
     }
 
-    /// A short description for the Package Dependencies tab ("1.5.0 – Next Major").
     public var summary: String {
         switch self {
         case .upToNextMajor(let v): "\(v) – Next Major"
@@ -75,7 +69,6 @@ public enum SwiftPackageRequirement: Equatable, Sendable {
     }
 }
 
-/// One package reference of a project, remote or local.
 public struct SwiftPackageReference: Equatable, Sendable {
     public enum Location: Equatable, Sendable {
         case remote(url: String, requirement: SwiftPackageRequirement?)
@@ -84,8 +77,6 @@ public struct SwiftPackageReference: Equatable, Sendable {
     public var id: String
     public var location: Location
 
-    /// The name shown in the navigator: the last URL component without
-    /// `.git`, or the local folder's name.
     public var displayName: String {
         switch location {
         case .remote(let url, _): PBXProjWriter.repositoryName(url)
@@ -95,7 +86,6 @@ public struct SwiftPackageReference: Equatable, Sendable {
 }
 
 extension PBXProj {
-    /// The project's package references in `packageReferences` order.
     public var packageReferences: [SwiftPackageReference] {
         (project?.references("packageReferences") ?? []).compactMap { id in
             guard let o = self[id] else { return nil }
@@ -110,7 +100,6 @@ extension PBXProj {
         }
     }
 
-    /// Product dependencies (`XCSwiftPackageProductDependency`) of a target, in order.
     public func packageProducts(ofTarget id: String) -> [(id: String, name: String, package: String?)] {
         (self[id]?.references("packageProductDependencies") ?? []).compactMap { pid in
             guard let o = self[pid] else { return nil }
@@ -131,16 +120,12 @@ extension PBXProj {
         self[owner] = o
     }
 
-    /// Adds a language code to the project's `knownRegions` (kept in
-    /// order; no-op when present).
     public mutating func addKnownRegion(_ code: String) {
         guard var p = project, !p.references("knownRegions").contains(code) else { return }
         p["knownRegions"] = .array(p.references("knownRegions").map(PlistValue.string) + [.string(code)])
         self[rootObject] = p
     }
 
-    /// Adds an `XCRemoteSwiftPackageReference` to the project's
-    /// `packageReferences`. Returns its ID.
     @discardableResult
     public mutating func addRemotePackage(url: String, requirement: SwiftPackageRequirement) -> String {
         let id = makeObjectID()
@@ -153,8 +138,6 @@ extension PBXProj {
         return id
     }
 
-    /// Adds an `XCLocalSwiftPackageReference` (path relative to the
-    /// project directory). Returns its ID.
     @discardableResult
     public mutating func addLocalPackage(relativePath: String) -> String {
         let id = makeObjectID()
@@ -166,23 +149,16 @@ extension PBXProj {
         return id
     }
 
-    /// Changes a remote package's version rule.
     public mutating func setRequirement(_ r: SwiftPackageRequirement, ofPackage id: String) {
         guard var o = self[id], o.isa == "XCRemoteSwiftPackageReference" else { return }
         o["requirement"] = r.plist
         self[id] = o
     }
 
-    /// Links a package product into a target: an
-    /// `XCSwiftPackageProductDependency` in the target's
-    /// `packageProductDependencies`, and a `PBXBuildFile` with `productRef`
-    /// in its frameworks phase (created after the sources phase if missing).
-    /// Returns the product dependency's ID.
     @discardableResult
     public mutating func addPackageProduct(_ name: String, package: String, toTarget target: String) -> String {
         let id = makeObjectID()
         var attrs: [(String, PlistValue)] = [("isa", .string("XCSwiftPackageProductDependency"))]
-        // Written for local packages too (OPEN QUESTION in the spec).
         attrs.append(("package", .string(package)))
         attrs.append(("productName", .string(name)))
         self[id] = PBXObject(id: id, attributes: PlistDictionary(attrs))
@@ -211,8 +187,6 @@ extension PBXProj {
         return id
     }
 
-    /// Unlinks a product dependency: removes it from every target, and its
-    /// build files.
     public mutating func removePackageProduct(_ id: String) {
         for bf in objects.values where bf.isa == "PBXBuildFile" && bf.string("productRef") == id { removeBuildFile(bf.id) }
         for t in objects.values where t.references("packageProductDependencies").contains(id) {
@@ -221,7 +195,6 @@ extension PBXProj {
         self[id] = nil
     }
 
-    /// Removes a package reference and every product dependency on it.
     public mutating func removePackage(_ id: String) {
         for o in objects.values where o.isa == "XCSwiftPackageProductDependency" && o.string("package") == id {
             removePackageProduct(o.id)

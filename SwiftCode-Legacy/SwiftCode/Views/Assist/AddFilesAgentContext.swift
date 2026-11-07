@@ -32,7 +32,6 @@ public struct AddFilesAgentContext: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Elegant Native Header
             HStack(spacing: 12) {
                 Image(systemName: "paperclip.circle.fill")
                     .font(.title2)
@@ -68,11 +67,9 @@ public struct AddFilesAgentContext: View {
 
             Divider()
 
-            // Main Content Area
             ScrollView {
                 VStack(spacing: 16) {
                     if pendingFiles.isEmpty && attachedFiles.isEmpty {
-                        // Breathtaking Empty State Redesign
                         VStack(spacing: 16) {
                             ZStack {
                                 Circle()
@@ -117,17 +114,14 @@ public struct AddFilesAgentContext: View {
                             .padding(.bottom, 40)
                         }
                     } else {
-                        // High-Fidelity Desktop Card List
                         VStack(alignment: .leading, spacing: 12) {
                             Text("ATTACHED CONTEXT FILES (\(attachedFiles.count + pendingFiles.count))")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 4)
 
-                            // Existing attached files card
                             ForEach(attachedFiles) { file in
                                 HStack(spacing: 12) {
-                                    // Custom high-fidelity extension-aware icons
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 8)
                                             .fill(iconColor(for: file.extension).opacity(0.12))
@@ -149,7 +143,6 @@ public struct AddFilesAgentContext: View {
 
                                     Spacer()
 
-                                    // Interactive Status Chip
                                     HStack(spacing: 4) {
                                         Circle()
                                             .fill(Color.green)
@@ -186,7 +179,6 @@ public struct AddFilesAgentContext: View {
                                 .transition(.scale.combined(with: .opacity))
                             }
 
-                            // Processing / pending files card
                             ForEach(pendingFiles) { pending in
                                 HStack(spacing: 12) {
                                     ZStack {
@@ -226,7 +218,6 @@ public struct AddFilesAgentContext: View {
 
                                     Spacer()
 
-                                    // Dynamic Progress / Error Badges
                                     switch pending.status {
                                     case .queued:
                                         Text("Queued")
@@ -287,7 +278,6 @@ public struct AddFilesAgentContext: View {
 
             Divider()
 
-            // Footer Bar
             HStack(spacing: 12) {
                 if !pendingFiles.isEmpty || !attachedFiles.isEmpty {
                     Button {
@@ -333,7 +323,6 @@ public struct AddFilesAgentContext: View {
                 self.pendingFiles.append(contentsOf: newPending)
             }
 
-            // Process queue immediately
             Task {
                 await processPendingQueue()
             }
@@ -344,7 +333,6 @@ public struct AddFilesAgentContext: View {
         isProcessingFiles = true
         defer {
             isProcessingFiles = false
-            // Clean up completed from pending list so they are not double-displayed
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 pendingFiles.removeAll {
                     if case .completed = $0.status { return true }

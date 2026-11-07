@@ -11,7 +11,6 @@ struct CommandPaletteView: View {
     @State private var searchText = ""
     @State private var selectedCategory: CommandCategory = .all
 
-    // "Ask" AI feature states
     @State private var askQuestionText = ""
     @State private var aiResponseText = ""
     @State private var isAsking = false
@@ -33,7 +32,6 @@ struct CommandPaletteView: View {
     }
 
     enum CommandAction: String, CaseIterable, Identifiable {
-        // Files & Nav
         case createFile = "Create File"
         case createFolder = "Create Folder"
         case searchProject = "Global Code Search"
@@ -42,7 +40,6 @@ struct CommandPaletteView: View {
         case openSystemOutline = "System Outline / Symbols"
         case openMinimap = "Minimap Settings"
 
-        // Git
         case gitCommit = "Git Commit Changes"
         case gitPull = "Git Pull"
         case gitPush = "Git Push"
@@ -50,18 +47,15 @@ struct CommandPaletteView: View {
         case gitNewBranch = "Git Create New Branch"
         case openDiffViewer = "Diff Viewer"
 
-        // AI Tools
         case runAgent = "Run AI Agent"
         case aiCodeReview = "AI Code Review"
         case aiComplexity = "AI Complexity Analyzer"
 
-        // Build / Sign
         case runBuild = "Run Project Build"
         case openXcodeBuildSettings = "Xcode Build Settings"
         case openXcodeBuildLogs = "Xcode Build Logs"
         case appleSigning = "Apple Developer Account & Signing"
 
-        // Developer Tools (Newly Added)
         case devHTTPStatus = "HTTP Status Code Lookup"
         case devJSONFormatter = "JSON Formatter"
         case devBase64 = "Base64 Converter"
@@ -73,7 +67,6 @@ struct CommandPaletteView: View {
         case devMarkdownPreview = "Markdown Previewer"
         case devDeviceInfo = "Developer Device Info"
 
-        // Settings / Tools
         case openSettings = "Open App Settings"
         case openProjectSettings = "Project Settings"
         case installDependency = "Manage Dependencies"
@@ -176,7 +169,6 @@ struct CommandPaletteView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search & Filter Category Bar
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: selectedCategory == .ask ? "sparkles" : "terminal.fill")
@@ -223,8 +215,6 @@ struct CommandPaletteView: View {
             }
         }
     }
-
-    // MARK: - Ask AI Pane
 
     private var askAIPane: some View {
         VStack(spacing: 16) {
@@ -358,8 +348,6 @@ struct CommandPaletteView: View {
         }
         .scrollContentBackground(.hidden)
     }
-
-    // MARK: - AI Action
 
     private func performAskRequest() {
         guard !askQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }

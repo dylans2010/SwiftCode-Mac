@@ -1,16 +1,7 @@
-//
-//  AssistImageMutationTools.swift
-//  SwiftCode
-//
-//  Created on 2026-10-18.
-//
-
 import Foundation
 import AppKit
 import ImageIO
 import CoreGraphics
-
-// MARK: - Helper
 
 private func resolveWorkspaceImageMutationURL(_ raw: String, workspaceRoot: URL) -> URL? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -30,8 +21,6 @@ private func resolveWorkspaceImageMutationURL(_ raw: String, workspaceRoot: URL)
     }
     return candidate
 }
-
-// MARK: - Image Decode Base64 Tool
 
 public struct AssistImageDecodeBase64Tool: AssistTool {
     public let id = "image_decode_base64"
@@ -95,8 +84,6 @@ public struct AssistImageDecodeBase64Tool: AssistTool {
         }
     }
 }
-
-// MARK: - Image Convert Format Tool
 
 public struct AssistImageConvertFormatTool: AssistTool {
     public let id = "image_convert_format"
@@ -199,8 +186,6 @@ public struct AssistImageConvertFormatTool: AssistTool {
     }
 }
 
-// MARK: - Image Generate Thumbnail Tool
-
 public struct AssistImageGenerateThumbnailTool: AssistTool {
     public let id = "image_generate_thumbnail"
     public let name = "Generate Image Thumbnail"
@@ -289,8 +274,6 @@ public struct AssistImageGenerateThumbnailTool: AssistTool {
         }
     }
 }
-
-// MARK: - SVG to PNG Tool
 
 public struct AssistSvgToPngTool: AssistTool {
     public let id = "svg_to_png"

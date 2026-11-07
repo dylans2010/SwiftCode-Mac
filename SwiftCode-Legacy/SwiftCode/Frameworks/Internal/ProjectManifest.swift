@@ -1,9 +1,6 @@
 import Foundation
 
-/// A comprehensive manifest for the .scproj project format.
-/// This model contains extensive metadata fields covering every aspect of the project.
 public struct ProjectManifest: Codable, Sendable {
-    // MARK: - Core Identity
     public struct Identity: Codable, Sendable {
         public var id: UUID
         public var name: String
@@ -19,7 +16,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var identity: Identity
 
-    // MARK: - Bundle Information
     public struct BundleInfo: Codable, Sendable {
         public var bundleIdentifier: String
         public var bundleVersion: String
@@ -31,7 +27,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var bundle: BundleInfo
 
-    // MARK: - Application Information
     public struct AppInfo: Codable, Sendable {
         public var appName: String
         public var appIconName: String?
@@ -43,10 +38,9 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var app: AppInfo
 
-    // MARK: - Package Information
     public struct PackageInfo: Codable, Sendable {
         public var formatVersion: String
-        public var packageType: String // e.g., "application", "framework", "library"
+        public var packageType: String
         public var minSwiftVersion: String?
         public var toolsVersion: String?
         public var repositoryURL: String?
@@ -54,9 +48,8 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var package: PackageInfo
 
-    // MARK: - Build Information
     public struct BuildInfo: Codable, Sendable {
-        public var defaultConfiguration: String // e.g., "Debug", "Release"
+        public var defaultConfiguration: String
         public var configurations: [String]
         public var optimizationLevel: String?
         public var swiftCompilationMode: String?
@@ -66,9 +59,8 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var build: BuildInfo
 
-    // MARK: - Platform Information
     public struct PlatformInfo: Codable, Sendable {
-        public var targetPlatform: String // e.g., "macOS", "iOS"
+        public var targetPlatform: String
         public var deploymentTarget: String
         public var sdkVersion: String?
         public var architecture: [String]
@@ -76,7 +68,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var platform: PlatformInfo
 
-    // MARK: - Versioning & Migration
     public struct Versioning: Codable, Sendable {
         public var schemaVersion: Int
         public var migrationHistory: [MigrationEntry]
@@ -90,7 +81,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var versioning: Versioning
 
-    // MARK: - Statistics
     public struct Statistics: Codable, Sendable {
         public var fileCount: Int
         public var directoryCount: Int
@@ -103,7 +93,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var statistics: Statistics
 
-    // MARK: - Source Code Metadata
     public struct SourceMetadata: Codable, Sendable {
         public var mainEntryPath: String?
         public var sourceRoot: String
@@ -114,7 +103,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var sourceCode: SourceMetadata
 
-    // MARK: - Frameworks & Dependencies
     public struct DependencyInfo: Codable, Sendable {
         public var frameworks: [Framework]
         public var externalPackages: [ExternalPackage]
@@ -134,17 +122,15 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var dependencies: DependencyInfo
 
-    // MARK: - Resources & Assets
     public struct ResourceInfo: Codable, Sendable {
         public var assetCatalogs: [String]
-        public var localizedResources: [String: [String]] // Locale -> Paths
+        public var localizedResources: [String: [String]]
         public var fonts: [String]
         public var storyboards: [String]
         public var nibs: [String]
     }
     public var resources: ResourceInfo
 
-    // MARK: - Directory & File Structure
     public struct StructureInfo: Codable, Sendable {
         public var roots: [String]
         public var ignoredPaths: [String]
@@ -153,32 +139,29 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var structure: StructureInfo
 
-    // MARK: - Security & Integrity
     public struct SecurityInfo: Codable, Sendable {
         public var signingIdentity: String?
         public var provisioningProfile: String?
         public var entitlementsPath: String?
-        public var hashAlgorithm: String // e.g., "SHA-256"
+        public var hashAlgorithm: String
         public var manifestHash: String?
         public var packageIntegrityHash: String?
     }
     public var security: SecurityInfo
 
-    // MARK: - Diagnostics & Validation
     public struct ValidationInfo: Codable, Sendable {
         public var lastValidationDate: Date?
-        public var validationStatus: String // "Valid", "Warning", "Invalid"
+        public var validationStatus: String
         public var issues: [ValidationIssue]
 
         public struct ValidationIssue: Codable, Sendable {
-            public var severity: String // "Error", "Warning"
+            public var severity: String
             public var message: String
             public var filePath: String?
         }
     }
     public var validation: ValidationInfo
 
-    // MARK: - Features & Capabilities
     public struct FeatureFlags: Codable, Sendable {
         public var enabledFeatures: [String]
         public var capabilities: [String]
@@ -186,7 +169,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var features: FeatureFlags
 
-    // MARK: - Analytics & Performance
     public struct PerformanceMetrics: Codable, Sendable {
         public var lastBuildDuration: TimeInterval?
         public var averageBuildDuration: TimeInterval?
@@ -194,7 +176,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var performance: PerformanceMetrics
 
-    // MARK: - Plugin & Extension Metadata
     public struct ExtensionInfo: Codable, Sendable {
         public var activePlugins: [String]
         public var extensionPoints: [String]
@@ -202,7 +183,6 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var extensions: ExtensionInfo
 
-    // MARK: - Internal & Reserved
     public struct InternalMetadata: Codable, Sendable {
         public var creatorTool: String
         public var creatorVersion: String
@@ -211,8 +191,7 @@ public struct ProjectManifest: Codable, Sendable {
     }
     public var internalData: InternalMetadata
 
-    // MARK: - Evolution & Expansion
-    public var extra: [String: String] // For future expansion
+    public var extra: [String: String]
 
     public init(
         identity: Identity,

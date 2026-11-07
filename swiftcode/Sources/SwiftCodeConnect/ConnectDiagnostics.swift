@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectDiagnostics.swift
-// Adapted for SwiftCode: Session diagnostics + local IP. Verbatim.
-
 import Foundation
 import Network
 import Observation

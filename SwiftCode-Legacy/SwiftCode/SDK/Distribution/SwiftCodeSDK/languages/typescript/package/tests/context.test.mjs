@@ -1,13 +1,3 @@
-// Context contract tests for @swiftcode/sdk (Docs/Intro-to-SDK.md §19.1, §19.2).
-//
-// Loads the real compiled dist/index.js and builds the real context via
-// createContext over a scripted fake HostConnection. The fake host records
-// every IPC method+payload the context emits and answers from a script —
-// the tests assert the EXACT wire method and payload each context method
-// produces, denial propagation, build-event streaming, and the
-// single-dispatch regression for commands.execute (the double-dispatch fix).
-//
-// Run: `npm run build && npm test` (npm test = `node --test tests/`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -20,12 +10,6 @@ const { createContext, SDKError } = await import(distUrl);
 
 const EXTENSION = { id: "test.ext", name: "Test Extension", version: "1.0.0" };
 
-/**
- * Scripted fake host implementing the HostConnection shape. `handlers`
- * maps an IPC method to `(payload, requestId) => responsePayload`; a
- * handler may throw to script an `ok:false`-style rejection. All inbound
- * requests and outbound events are recorded for exact wire assertions.
- */
 function createFakeHost(handlers = {}) {
   const requests = [];
   const outboundEvents = [];
@@ -66,7 +50,6 @@ function createFakeHost(handlers = {}) {
     close() {
       closed = true;
     },
-    /** Scripts an inbound host→extension event frame. */
     emitHostEvent(name, payload, requestId = "evt-1") {
       const event = { name, payload, requestId };
       for (const listener of [...listeners]) listener(event);
@@ -154,7 +137,6 @@ describe("context wire contract", () => {
     assert.equal(typeof disposable.dispose, "function");
     const registered = lastRequest(host);
     assert.equal(registered.method, "commands.register");
-    // The execute function must NEVER cross the wire.
     assert.deepEqual(registered.payload, { id: "my-cmd", title: "My Command" });
 
     disposable.dispose();
@@ -162,7 +144,6 @@ describe("context wire contract", () => {
     assert.equal(unregistered.method, "commands.unregister");
     assert.deepEqual(unregistered.payload, { commandID: "my-cmd" });
 
-    // Idempotent: a second dispose sends nothing more.
     const before = host.requests.length;
     disposable.dispose();
     assert.equal(host.requests.length, before);
@@ -187,11 +168,8 @@ describe("context wire contract", () => {
   it("context exposes the entitled Assist variants only (task B2 boundary, replaces the §9 deny-by-default assertion)", () => {
     const host = createFakeHost();
     const { context } = createContext(host, EXTENSION);
-    // Part B opens Assist deliberately through two entitled variants.
     assert.equal(typeof context.assist.createSession, "function");
     assert.equal(typeof context.assistUI.openAssistView, "function");
-    // Variant isolation: the headless variant has no view-opening path,
-    // the UI variant has no headless session APIs.
     assert.equal(context.assist.openAssistView, undefined);
     assert.equal(context.assistUI.createSession, undefined);
   });
@@ -202,7 +180,6 @@ describe("build handle streaming", () => {
     const host = createFakeHost({ "build.run": () => ({ handleId: "h-1" }) });
     const { context } = createContext(host, EXTENSION);
 
-    // Start the run; events may arrive before the handle exists (stashed, then replayed).
     const handlePromise = context.build.run({ target: "Foo" });
     const runRequestId = host.requests[0].requestId;
     host.emitHostEvent("build.output", { handleId: "h-1", kind: "stdout", text: "line 1", timestamp: 1000 }, runRequestId);
@@ -240,8 +217,6 @@ describe("build handle streaming", () => {
       ],
     );
 
-    // wait() must resolve from the cached build.finished result — the fake
-    // host has no "build.wait" handler, so a second request would reject.
     const result = await handle.wait();
     assert.equal(result.status, "succeeded");
     assert.equal(result.correlationId, "corr-build");
@@ -269,21 +244,15 @@ describe("commands.execute dispatch regression", () => {
       },
     });
 
-    // 1. The host delivers a commands.execute event through the connection.
-    //    createContext must NOT self-dispatch it: dispatch is owned
-    //    exclusively by the runtime adapter via getCommandHandler.
     host.emitHostEvent("commands.execute", { commandID: "do-thing", payload: {} }, "evt-exec-1");
-    // Flush the event loop so any rogue synchronous/self dispatch would run.
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(invocations, 0, "createContext self-dispatched commands.execute (double-dispatch bug is back)");
 
-    // 2. The runtime adapter owns dispatch: exactly one invocation.
     const handler = getCommandHandler("do-thing");
     assert.equal(typeof handler, "function", "runtime adapter must resolve the handler via getCommandHandler");
     await handler({});
     assert.equal(invocations, 1, "one host commands.execute event must produce exactly one handler invocation");
 
-    // 3. After unregister, the handler is gone for the adapter too.
     context.subscriptions.disposeAll();
     assert.equal(getCommandHandler("do-thing"), undefined);
   });

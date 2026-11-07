@@ -2,8 +2,6 @@ import Foundation
 import HealthKit
 import WatchConnectivity
 
-/// Receives the watch's batches, observes when the session's samples reach the phone's
-/// HealthKit store, and forwards both to the receiver on the Mac.
 final class PhoneModel: NSObject, ObservableObject {
     @Published var watchState = "not activated"
     @Published var receiverState = "searching"
@@ -44,8 +42,6 @@ final class PhoneModel: NSObject, ObservableObject {
         }
     }
 
-    // MARK: watch batches
-
     private func handle(_ data: Data?, transport: String) {
         guard let data, let events = try? JSONDecoder().decode([ProbeEvent].self, from: data) else { return }
         DispatchQueue.main.async {
@@ -53,7 +49,7 @@ final class PhoneModel: NSObject, ObservableObject {
                 if e.kind == "session", e.note == "start", let epoch = e.startEpoch {
                     self.beginSession(id: e.session, start: Date(timeIntervalSince1970: epoch))
                 }
-                e.startEpoch = nil  // the absolute time never leaves the phone
+                e.startEpoch = nil
                 e.transport = transport
                 if let s = self.start, e.session == self.sessionID {
                     e.phoneReceivedOffset = Date().timeIntervalSince(s)
@@ -63,8 +59,6 @@ final class PhoneModel: NSObject, ObservableObject {
             }
         }
     }
-
-    // MARK: phone-side store observation (only samples that start inside the session)
 
     private func beginSession(id: String, start: Date) {
         queries.forEach { store.stop($0) }

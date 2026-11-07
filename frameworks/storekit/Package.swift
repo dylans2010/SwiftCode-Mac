@@ -1,19 +1,4 @@
 // swift-tools-version:6.0
-//
-// swiftcode-storekit: an open, Linux-buildable StoreKit Testing stack written from
-// specs/frameworks/storekit/ under the clean-room protocol of AGENTS.md.
-//
-// Modules (plan.md rounds):
-//   StoreKitConfiguration  R2  the `.storekit` file model (SwiftCode-named; an
-//                              IDE dependency, not an Apple API)
-//   StoreKitEngine         R7  the open local store (catalog, per-app store,
-//                              subscription scheduler, offers, Ask to Buy,
-//                              refunds, failures) with an injectable clock
-//   StoreKitSigning        R8  per-device P-256 identity, X.509, JWS builders
-//                              and verifier, product JSON, payloads, receipt
-//   StoreKit, StoreKitTest R9  the client APIs over the engine; they carry the
-//                              Apple framework module names (interop
-//                              identifiers) so `import StoreKit` source compiles
 import PackageDescription
 
 let package = Package(
@@ -27,7 +12,6 @@ let package = Package(
         .library(name: "StoreKitTest", targets: ["StoreKitTest"]),
     ],
     dependencies: [
-        // Apache-2.0. P-256 ECDSA, SHA-1/256/384 for JWS signing and the receipt.
         .package(url: "https://github.com/apple/swift-crypto.git", exact: "4.5.2")
     ],
     targets: [

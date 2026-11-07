@@ -1,36 +1,11 @@
-// Paragraph layout: line breaking, line limits, truncation, scaling.
-//
-// Rules (behaviour measured in specs/frameworks/swiftui/04-layout.md §3 and
-// golden-layout.md, in our own words):
-//
-// - Lines break at UAX #14 opportunities, greedily; whitespace at the end of
-//   a line hangs (it is not part of the line's width). A word that does not
-//   fit on a line of its own is broken between grapheme clusters, at least
-//   one cluster per line (`brokeInsideWord`).
-// - Explicit line breaks (LF, CR, CRLF, NEL, LS, PS, VT, FF) end a line.
-// - The number of lines is capped by `maxLines` and by `maxHeight` (as many
-//   lines as fit, at least one). When text remains, the last line holds the
-//   rest of its paragraph, truncated at grapheme clusters with an ellipsis
-//   at the tail, head or middle.
-// - `minimumScaleFactor` < 1 shrinks the whole text (sizes, tracking) by the
-//   largest factor ≥ the minimum that avoids truncation; `allowsTightening`
-//   first tries tighter tracking.
-//
-// Measurements are unrounded points; the caller rounds to its pixel grid
-// (`rounding` is used for the height cap so that it matches the caller's
-// rounded heights).
-
 public struct ParagraphStyle: Sendable {
     public enum Truncation: Hashable, Sendable { case head, middle, tail }
 
     public var maxLines: Int?
     public var truncation: Truncation
-    /// Extra space between lines (points).
     public var lineSpacing: Double
     public var minimumScaleFactor: Double
     public var allowsTightening: Bool
-    /// Paragraph direction; nil = from the first strong character, else
-    /// `fallbackDirection`.
     public var baseDirection: TextDirection?
     public var fallbackDirection: TextDirection
     public var ellipsis: Character
@@ -50,48 +25,33 @@ public struct ParagraphStyle: Sendable {
     }
 }
 
-/// The result of laying out a paragraph sequence.
 public struct TextLayout: Sendable {
     public struct Line: Sendable {
-        /// Clusters shown on the line (logical indices into `clusters`).
         public var range: Range<Int>
-        /// Visible width: trailing whitespace excluded, ellipsis included.
         public var width: Double
         public var ascent: Double
         public var descent: Double
         public var leading: Double
-        /// Top of the line and its baseline, from the top of the text.
         public var top: Double
         public var baseline: Double
         public enum Ellipsis: Hashable, Sendable { case none, before, after, inMiddle(at: Int) }
         public var ellipsis: Ellipsis
         public var ellipsisWidth: Double
-        /// Broken between clusters of a word (no break opportunity fitted).
         public var brokeInsideWord: Bool
-        /// Paragraph direction of the line.
         public var direction: TextDirection
-        /// Visual order of `range` (logical indices, left to right).
         public var visualOrder: [Int]
     }
 
     public var clusters: [ShapedCluster]
     public var lines: [Line]
-    /// Widest line.
     public var width: Double
-    /// Bottom of the last line (no trailing leading).
     public var height: Double
     public var isTruncated: Bool
     public var brokeInsideWord: Bool
-    /// Line breaking or truncation depended on estimated advances (a
-    /// `TableFace` without a measured width for the text): the lines, and so
-    /// every dimension, are approximate.
     public var breaksUseEstimates: Bool
-    /// The width of some line is an estimate.
     public var widthUsesEstimates: Bool
     public var usesEstimates: Bool { breaksUseEstimates || widthUsesEstimates }
-    /// The minimum-scale factor applied (1 = none).
     public var scale: Double
-    /// Lines the text would need without the line and height caps.
     public var naturalLineCount: Int
 
     public var firstBaseline: Double { lines.first?.baseline ?? 0 }
@@ -101,8 +61,6 @@ public struct TextLayout: Sendable {
 public enum Typesetter {
     static let epsilon = 1e-6
 
-    /// Lays out `runs` in lines no wider than `width` (nil: unlimited) and
-    /// no taller than `maxHeight` (nil: unlimited).
     public static func layout(_ runs: [AttributedRun], width: Double?, maxHeight: Double? = nil,
                               style: ParagraphStyle = ParagraphStyle(),
                               rounding: (Double) -> Double = { $0 }) -> TextLayout {
@@ -130,7 +88,6 @@ public enum Typesetter {
         return result
     }
 
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
     static func layoutOnce(_ runs0: [AttributedRun], width: Double?, maxHeight: Double?, style: ParagraphStyle,
                            scale: Double, tightening: Double, rounding: (Double) -> Double) -> TextLayout {
         let runs = runs0.map { r -> AttributedRun in
@@ -145,7 +102,6 @@ public enum Typesetter {
         var widthEstimates = false
         let limitWidth = width.map { max($0, 0) }
 
-        // Paragraphs: [start, end) including the break cluster that ends them.
         var paragraphs: [Range<Int>] = []
         var ps = 0
         for i in 1...max(n, 1) where i <= n && (opportunities[i] == .mandatory) {
@@ -158,7 +114,6 @@ public enum Typesetter {
         }
         if paragraphs.isEmpty { paragraphs = [0..<0] }
 
-        // Natural lines.
         struct Raw { var range: Range<Int>; var paragraph: Int; var inside: Bool }
         var raw: [Raw] = []
         for (pi, p) in paragraphs.enumerated() {
@@ -191,8 +146,6 @@ public enum Typesetter {
                     if i + 1 < p.upperBound && opportunities[i + 1] == .allowed { lastBreak = i + 1 }
                     i += 1
                 }
-                // A single cluster wider than the line is a break inside a word
-                // too when it is not followed by an opportunity.
                 if end - start == 1 && c.width(start..<end, strip: .trailing).width > w + epsilon
                     && end < p.upperBound && opportunities[end] != .allowed {
                     inside = true
@@ -203,7 +156,6 @@ public enum Typesetter {
         }
         let naturalCount = raw.count
 
-        // Line cap: maxLines and the height limit.
         var cap = style.maxLines.map { max($0, 1) } ?? Int.max
         if let h = maxHeight, h.isFinite {
             var k = 1
@@ -225,14 +177,12 @@ public enum Typesetter {
             var ellipsisWidth = 0.0
             var lineWidth: Double
             if li == shown - 1 && raw.count > shown {
-                // Truncate: the rest of this paragraph on one line.
                 truncated = true
                 let p = paragraphs[r.paragraph]
                 var contentEnd = p.upperBound
                 while contentEnd > range.lowerBound, c.isBreak(contentEnd - 1) { contentEnd -= 1 }
                 let t = c.truncate(range.lowerBound..<contentEnd, width: limitWidth, mode: style.truncation,
                                    ellipsis: style.ellipsis)
-                // At width 0 nothing fits whatever the advances: no estimate.
                 if limitWidth != 0 && c.anyEstimates(range.lowerBound..<contentEnd) { breakEstimates = true }
                 range = t.range
                 ellipsis = t.ellipsis
@@ -248,9 +198,6 @@ public enum Typesetter {
                                          brokeInsideWord: r.inside, direction: .leftToRight, visualOrder: []))
         }
 
-        // One word (no break opportunity) known to be wider than the line,
-        // shown on a single line: it is broken inside the word whatever the
-        // advances, so nothing here depends on estimates.
         if lines.count == 1, paragraphs.count == 1, let w = limitWidth, w > 0, let p = paragraphs.first, !p.isEmpty,
            !(p.lowerBound + 1..<p.upperBound).contains(where: { opportunities[$0] == .allowed }) {
             let full = c.width(p, strip: .trailing)
@@ -260,7 +207,6 @@ public enum Typesetter {
             }
         }
 
-        // Vertical metrics and positions.
         var y = 0.0
         for k in lines.indices {
             let m = c.metrics(raw[k].range)
@@ -276,7 +222,6 @@ public enum Typesetter {
         }
         let height = lines.last.map { $0.top + $0.ascent + $0.descent } ?? 0
 
-        // Bidi: paragraph direction and visual order per line.
         var bidiByParagraph: [Int: BidiParagraph] = [:]
         for k in lines.indices {
             let pi = raw[k].paragraph
@@ -295,7 +240,6 @@ public enum Typesetter {
     }
 }
 
-/// Widths and metrics over shaped clusters.
 struct Measure {
     let runs: [AttributedRun]
     let clusters: [ShapedCluster]
@@ -316,7 +260,6 @@ struct Measure {
         r.contains { runs[clusters[$0].run].style.face.advancesAreEstimates }
     }
 
-    /// Width of `range` (measured run widths where the face has them).
     func width(_ range: Range<Int>, strip: Strip) -> (width: Double, estimated: Bool) {
         var lo = range.lowerBound, hi = range.upperBound
         if strip == .trailing || strip == .both {
@@ -346,7 +289,6 @@ struct Measure {
         return (w, estimated)
     }
 
-    /// Sum of advances (no measured runs), for truncation searches.
     func advanceWidth(_ lo: Int, _ hi: Int) -> Double {
         guard lo < hi else { return 0 }
         var w = 0.0
@@ -417,8 +359,6 @@ struct Measure {
                 let tailStart = stripL(r.upperBound - q, r.upperBound)
                 let total = advanceWidth(r.lowerBound, headEnd) + e + advanceWidth(tailStart, r.upperBound)
                 if total <= w + Typesetter.epsilon || m == 0 {
-                    // The shown range spans head and tail; the ellipsis sits
-                    // at `headEnd` (clusters between are hidden by the caller).
                     return Truncated(range: r.lowerBound..<r.upperBound, ellipsis: .inMiddle(at: headEnd),
                                      ellipsisWidth: e, width: total)
                 }
@@ -428,8 +368,6 @@ struct Measure {
         }
     }
 
-    /// Ascent, descent and leading of the clusters' faces (the run style's
-    /// face for an empty range).
     func metrics(_ r: Range<Int>) -> LineMetrics {
         var best: LineMetrics?
         func merge(_ m: LineMetrics, offset: Double) {
@@ -459,7 +397,6 @@ struct Measure {
         return best!
     }
 
-    /// Height of lines stacked from the top (no trailing leading).
     func stackHeight(_ ranges: [Range<Int>], lineSpacing: Double) -> Double {
         var y = 0.0
         var last: LineMetrics?

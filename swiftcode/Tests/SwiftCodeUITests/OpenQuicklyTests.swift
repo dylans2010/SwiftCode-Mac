@@ -13,7 +13,7 @@ import Testing
         let wc = WorkspaceWindowController(session: session, loadDestinations: false, startLanguageService: false)
         wc.applyDefaultLayout()
         let oq = wc.openQuickly(nil)
-        await wc.workspaceCandidatesIdle()   // the index is read in the background
+        await wc.workspaceCandidatesIdle()
         oq.search("greet")
         #expect(oq.results.map(\.title).prefix(2) == ["greet", "Greeter"])
         #expect(oq.results.first?.kind == .symbol && oq.results.first?.line == 5)
@@ -24,7 +24,6 @@ import Testing
         window.contentView = oq.view
         oq.search("gr")
         _ = try WindowSnapshotTests().render(oq.view, to: "open-quickly.png")
-        // Return opens the selection at its line.
         oq.search("greet")
         oq.openSelected()
         #expect(wc.editor.fileURL?.lastPathComponent == "main.swift" && wc.editor.currentLine == 5)

@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeMachO
 
-/// Builds small Mach-O images byte by byte, following
-/// specs/formats/macho-and-dyld-cache.md, so the parser is tested without any
-/// Apple binary.
 private struct Builder {
     var bytes: [UInt8] = []
 
@@ -17,7 +14,6 @@ private struct Builder {
         bytes += b
     }
 
-    /// A load command with a trailing string, padded to 8 bytes.
     static func stringCommand(_ cmd: UInt32, fixed: [UInt32], string: String) -> [UInt8] {
         var b = Builder()
         let header = 8 + 4 + fixed.count * 4
@@ -25,7 +21,7 @@ private struct Builder {
         while (header + s.count) % 8 != 0 { s.append(0) }
         b.u32(cmd)
         b.u32(UInt32(header + s.count))
-        b.u32(UInt32(header))  // string offset
+        b.u32(UInt32(header))
         for f in fixed { b.u32(f) }
         b.bytes += s
         return b.bytes
@@ -90,8 +86,6 @@ private struct Builder {
         #expect(!image.isEncrypted)
     }
 
-    /// watchos.md W-3: platform 9 (watchOS simulator) runs wherever 7 does;
-    /// a device platform (watchOS 4) or an arm64e slice does not.
     @Test func runnableInSimulator() throws {
         func image(platform: UInt32?, subtype: UInt32 = 0, cpu: UInt32 = MachO.cpuTypeARM64) throws -> MachOImage {
             var build = Builder()
@@ -100,13 +94,11 @@ private struct Builder {
         }
         for platform: UInt32 in [7, 8, 9, 12] { #expect(try image(platform: platform).isRunnableInSimulator, "platform \(platform)") }
         #expect(try image(platform: nil).isRunnableInSimulator)
-        #expect(try image(platform: 9, subtype: 1).isRunnableInSimulator)  // V8
+        #expect(try image(platform: 9, subtype: 1).isRunnableInSimulator)
         for platform: UInt32 in [1, 2, 4, 11, 99] { #expect(try !image(platform: platform).isRunnableInSimulator, "platform \(platform)") }
-        // arm64e (2), with or without the capability bits, even for a simulator platform.
         for subtype: UInt32 in [2, 0x8000_0002, 0x8100_0002, 3] {
             #expect(try !image(platform: 9, subtype: subtype).isRunnableInSimulator, "subtype \(subtype)")
         }
-        // powerexperienced's slice: arm64e, platform 4.
         #expect(try !image(platform: 4, subtype: 0x8000_0002).isRunnableInSimulator)
         #expect(try !image(platform: 9, cpu: MachO.cpuTypeX86_64).isRunnableInSimulator)
         #expect(MachO.isPlainARM64(cpuSubtype: 0) && MachO.isPlainARM64(cpuSubtype: 1) && !MachO.isPlainARM64(cpuSubtype: 2))
@@ -147,8 +139,8 @@ private struct Builder {
     }
 
     @Test(arguments: [
-        [UInt8](repeating: 0, count: 64),                         // bad magic
-        Array(Builder.image(commands: []).prefix(20)),            // truncated header
+        [UInt8](repeating: 0, count: 64),
+        Array(Builder.image(commands: []).prefix(20)),
     ])
     func rejectsMalformed(_ bytes: [UInt8]) {
         #expect(throws: MachOError.self) { try MachOImage(ByteReader(Data(bytes))) }
@@ -156,7 +148,7 @@ private struct Builder {
 
     @Test func rejectsCommandOverrunningItsSize() {
         var bad = Builder.image(commands: [Builder.segment("__TEXT", vm: 0, size: 0x1000, prot: 5)])
-        bad[32 + 4] = 0xF0  // cmdsize larger than sizeofcmds
+        bad[32 + 4] = 0xF0
         #expect(throws: MachOError.self) { try MachOImage(ByteReader(Data(bad))) }
     }
 
@@ -168,9 +160,6 @@ private struct Builder {
     }
 }
 
-/// Runs against a real simulator runtime when one is available: the
-/// installed iOS 27.1 runtime on macOS, or `SWIFTCODE_SIM_RUNTIME_ROOT` (for
-/// example a copy on the Linux simulator host). Skipped otherwise.
 @Suite struct SimulatorRuntimeTests {
     static let root: String? = {
         if let env = ProcessInfo.processInfo.environment["SWIFTCODE_SIM_RUNTIME_ROOT"] { return env }
@@ -202,7 +191,6 @@ private struct Builder {
             #expect(macho.installName == name)
             #expect(macho.buildVersion?.platform == .iOSSimulator)
         }
-        // Every image header must lie inside some mapping.
         #expect(cache.images.allSatisfy { cache.locate($0.address) != nil })
     }
 }

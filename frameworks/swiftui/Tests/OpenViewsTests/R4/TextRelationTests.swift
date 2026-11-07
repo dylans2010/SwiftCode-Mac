@@ -9,13 +9,6 @@ import OVText
 @testable import SwiftUI
 #endif
 
-// T-LAYOUT-T (10-plan.md §3.2): the text-dependent golden cases checked as
-// *relations* with a real open font (the bundled Noto Sans), whose glyph
-// widths differ from the reference font's. The golden runner checks these
-// cases exactly where the spec's measurements allow and skips answers that
-// depend on how the probe's unknown `longText` wraps; here the same cases
-// run with a real 43-character, 9-word sentence of our own.
-
 private let sentence = "The quick brown fox jumps over the lazy dog"
 
 @MainActor
@@ -52,7 +45,6 @@ struct TextRelationTests {
             let l = notoMeasurer.layout(ResolvedText(sentence), width: w, height: nil)
             #expect(s.width <= w && s.width == ceilPx(l.lines.map(\.width).max()!))
             #expect(l.lines.count >= 2 && s.height == lines(l.lines.count))
-            // The proposed height does not matter while the lines fit.
             #expect(notoSize(Text(sentence), w, 1000) == s)
         }
     }
@@ -107,7 +99,7 @@ struct TextRelationTests {
         })
         let a = r.namedFrames["a"]!, b = r.namedFrames["b"]!
         #expect(Golden.close(b.width, notoSize(Text(sentence), 292, 500).width))
-        #expect(Golden.close(a.width, 300 - 8 - b.width))   // squeezed: answers its offer
+        #expect(Golden.close(a.width, 300 - 8 - b.width))
         #expect(Golden.close(r.size.width, 300) && a.height <= 500 && a.height > b.height)
     }
 

@@ -15,10 +15,8 @@ struct IssuesView: View {
     @State private var showCreateIssue = false
     @State private var selectedIssue: GitHubIssue?
 
-    // Selection states for bulk actions
     @State private var selectedIssueIDs: Set<Int> = []
 
-    // Creation states
     @State private var newTitle = ""
     @State private var newBody = ""
     @State private var selectedLabel = "bug"
@@ -63,7 +61,6 @@ struct IssuesView: View {
 
     private var mainContent: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack(spacing: 12) {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -133,7 +130,6 @@ struct IssuesView: View {
                                     selectedIssue = issue
                                 } label: {
                                     HStack(spacing: 16) {
-                                        // Checkbox for bulk actions
                                         Button {
                                             if selectedIssueIDs.contains(issue.id) {
                                                 selectedIssueIDs.remove(issue.id)
@@ -165,7 +161,6 @@ struct IssuesView: View {
                                                     .font(.caption2)
                                                     .foregroundStyle(.secondary)
 
-                                                // Metadata tags
                                                 Text("bug")
                                                     .font(.system(size: 8, weight: .bold))
                                                     .padding(.horizontal, 4)
@@ -201,7 +196,6 @@ struct IssuesView: View {
                             }
                         }
 
-                        // Bulk actions footer
                         if !selectedIssueIDs.isEmpty {
                             Section("Bulk Commands Panel") {
                                 HStack {
@@ -362,7 +356,7 @@ struct IssuesView: View {
                     "title": newTitle.trimmingCharacters(in: .whitespacesAndNewlines),
                     "body": newBody.trimmingCharacters(in: .whitespacesAndNewlines),
                     "labels": [selectedLabel],
-                    "milestone": 1 // Mock milestone index
+                    "milestone": 1
                 ]
                 request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 

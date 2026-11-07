@@ -1,8 +1,5 @@
 import Foundation
 
-/// Reads an `Assets.car` (`specs/formats/assets-car.md`): the CoreUI blocks,
-/// the facets, appearances and every rendition, decoding the payloads SwiftCode
-/// writes. Other kinds come back as raw records.
 public struct CARFile: Sendable {
     public struct FormatError: Error, CustomStringConvertible {
         public var message: String
@@ -71,8 +68,6 @@ public struct CARFile: Sendable {
     public var facets: [Facet]
     public var appearances: [(name: String, number: UInt16)]
     public var renditions: [Rendition]
-    /// Problems in the container that a strict reader would trip over (keys
-    /// missing from fixed-key leaves, unsorted entries, a count mismatch).
     public var structureIssues: [String]
     public var variables: [String]
 
@@ -143,7 +138,6 @@ public struct CARFile: Sendable {
         var previous: [UInt8]?
         for e in rendEntries {
             let values = stride(from: 0, to: e.key.count - 1, by: 2).map { e.key.u16le(at: $0) }
-            // Ascending by the stored bytes, the order the runtime searches.
             if let p = previous, !p.lexicographicallyPrecedes(e.key) { issues.append("RENDITIONS keys not ascending (as bytes) at \(values)") }
             previous = e.key
             var key: [CARAttribute: UInt16] = [:]
@@ -231,9 +225,7 @@ public struct CARFile: Sendable {
         }
     }
 
-    /// The facet (asset) name for a rendition's identifier.
     public func facetName(for r: Rendition) -> String? { facets.first { $0.identifier == r.identifier }?.name }
 
-    /// The appearance name for a number.
     public func appearanceName(_ n: UInt16) -> String? { appearances.first { $0.number == n }?.name }
 }

@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for AuthenticationServices
-
 public struct AuthenticationServicesAPIEntity_0000: Sendable, Codable {
     public let id: String = "authenticationservices.api.0"
     public var name: String = "AuthenticationServicesEntity_0"

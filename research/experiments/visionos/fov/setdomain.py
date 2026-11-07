@@ -1,6 +1,3 @@
-# setdomain.py <prefs dir> <domain> [key=val ...] | --restore <prefs dir> <backup dir>
-# Merge keys (int, float, true/false, s:string, j:<json>) into DEV/data/Library/Preferences/<domain>.plist,
-# backing the original up first (once) into $FOV_BACKUP; --restore puts every backed-up domain back.
 import plistlib, sys, os, json, shutil
 if sys.argv[1] == '--restore':
     pd, bd = sys.argv[2], sys.argv[3]

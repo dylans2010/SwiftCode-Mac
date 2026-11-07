@@ -3,7 +3,7 @@ import Foundation
 public struct NoteAttachment: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var name: String
-    public var type: String // "image", "pdf", "markdown", "text", "json", "yaml", "swift", "zip", "audio", "video"
+    public var type: String
     public var relativePath: String
     public var createdAt: Date
 
@@ -61,19 +61,18 @@ public struct ProjectNote: Identifiable, Codable, Hashable, Sendable {
     public var title: String
     public var content: String
     public var notebookId: UUID
-    public var category: String // "Architecture", "API", "Build", "Debugging", etc.
+    public var category: String
     public var tags: [String]
     public var isPinned: Bool
     public var isFavorite: Bool
     public var isArchived: Bool
     public var author: String
     public var wordCount: Int
-    public var readingTime: Int // in minutes
+    public var readingTime: Int
     public var characterCount: Int
     public var createdAt: Date
     public var updatedAt: Date
 
-    // Linking relationships
     public var linkedNoteIds: Set<UUID>
     public var linkedFiles: [String]
     public var linkedSymbols: [String]

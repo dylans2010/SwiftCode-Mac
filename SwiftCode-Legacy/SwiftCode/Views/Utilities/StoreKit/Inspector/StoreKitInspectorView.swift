@@ -4,12 +4,10 @@ struct StoreKitInspectorView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var simulationService = StoreKitSimulationService.shared
 
-    // Track selected product for property inspection
     @State private var selectedProductID: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 Image(systemName: "info.circle")
                     .foregroundColor(.accentColor)
@@ -56,7 +54,6 @@ struct StoreKitInspectorView: View {
                         .padding(.top, 40)
                         .padding(.horizontal, 16)
                     } else {
-                        // Product Selector Picker
                         VStack(alignment: .leading, spacing: 4) {
                             Text("SELECT ACTIVE SELECTION")
                                 .font(.system(size: 9, weight: .bold))
@@ -172,7 +169,6 @@ struct StoreKitInspectorView: View {
         )
 
         VStack(alignment: .leading, spacing: 14) {
-            // Section: Meta Identity
             VStack(alignment: .leading, spacing: 6) {
                 Text("PRODUCT IDENTITY")
                     .font(.system(size: 9, weight: .bold))
@@ -209,7 +205,6 @@ struct StoreKitInspectorView: View {
             }
             .padding(.horizontal, 12)
 
-            // Section: Pricing & Availability
             VStack(alignment: .leading, spacing: 6) {
                 Text("PRICING & PROMOTION")
                     .font(.system(size: 9, weight: .bold))
@@ -241,7 +236,6 @@ struct StoreKitInspectorView: View {
             }
             .padding(.horizontal, 12)
 
-            // Section: App Store Review Info
             VStack(alignment: .leading, spacing: 6) {
                 Text("APP STORE REVIEW METADATA")
                     .font(.system(size: 9, weight: .bold))

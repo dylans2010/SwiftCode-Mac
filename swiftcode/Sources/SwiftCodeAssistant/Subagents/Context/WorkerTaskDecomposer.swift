@@ -1,21 +1,6 @@
 import Foundation
 import os
 
-/// Decomposes complex coding tasks into isolated Worker assignments using Apple Foundation Models or parent Assist LLM fallback.
-/// Strictly decomposes only; never writes production code itself (F-DECOMP).
-///
-/// Adaptation note (Legacy `WorkerTaskDecomposer`): Legacy's two model
-/// paths called `FoundationModels.shared.generatePrivateResponse` and
-/// `LLMService.shared.generateResponse` (with the selected model from
-/// `AssistModelManager`) — none of those exist in this target. The
-/// Foundation Models path now goes through this target's real
-/// `FoundationModelsProvider` (same on-device model, same no-account
-/// semantics; it reports honestly unavailable where the framework is
-/// absent), and the parent-LLM path goes through the injected
-/// `WorkerTurnRunner` — the same `MetaAssistTurnExecutor` seam the engine
-/// uses — with an empty model ID meaning the runner's default model.
-/// Decomposition, validation, and the deterministic fallback are
-/// otherwise verbatim.
 @MainActor
 public final class WorkerTaskDecomposer: Sendable {
     public static let shared = WorkerTaskDecomposer()
@@ -27,7 +12,6 @@ public final class WorkerTaskDecomposer: Sendable {
         self.turnRunner = turnRunner
     }
 
-    /// Determines if a task is sufficiently large to warrant autonomous multi-Worker decomposition.
     public func shouldDecompose(objective: String) -> Bool {
         let isCapabilityEnabled = UserDefaults.standard.object(forKey: "assist.useSubagents") == nil ? true : UserDefaults.standard.bool(forKey: "assist.useSubagents")
         guard isCapabilityEnabled else { return false }
@@ -43,11 +27,9 @@ public final class WorkerTaskDecomposer: Sendable {
         ]
 
         let matchedCount = complexIndicators.filter { lower.contains($0) }.count
-        // Multi-domain scope indicator: task contains multiple domain verbs/nouns or is long (> 100 chars)
         return matchedCount >= 2 || trimmed.count > 120
     }
 
-    /// Decomposes an objective into non-overlapping Worker assignments.
     public func decompose(
         objective: String,
         repoSummary: String,
@@ -55,7 +37,6 @@ public final class WorkerTaskDecomposer: Sendable {
     ) async -> [WorkerAssignment] {
         logger.info("Decomposing objective: \(objective.prefix(80))...")
 
-        // 1. Try Apple Foundation Model if available on-device
         if let afmAssignments = await decomposeWithFoundationModels(
             objective: objective,
             repoSummary: repoSummary,
@@ -67,7 +48,6 @@ public final class WorkerTaskDecomposer: Sendable {
             }
         }
 
-        // 2. Fallback to Parent Assist LLM
         if let llmAssignments = await decomposeWithParentLLM(
             objective: objective,
             repoSummary: repoSummary,
@@ -79,11 +59,8 @@ public final class WorkerTaskDecomposer: Sendable {
             }
         }
 
-        // 3. Deterministic engineering breakdown fallback (never fabricates fake data, guarantees real partition)
         return synthesizeDeterministicBreakdown(for: objective)
     }
-
-    // MARK: - Foundation Model Path
 
     private func decomposeWithFoundationModels(
         objective: String,
@@ -113,8 +90,6 @@ public final class WorkerTaskDecomposer: Sendable {
         }
     }
 
-    // MARK: - Parent LLM Path
-
     private func decomposeWithParentLLM(
         objective: String,
         repoSummary: String,
@@ -135,8 +110,6 @@ public final class WorkerTaskDecomposer: Sendable {
             return nil
         }
     }
-
-    // MARK: - Prompt & Parsing
 
     private func buildDecompositionPrompt(objective: String, repoSummary: String) -> String {
         return """
@@ -196,8 +169,6 @@ public final class WorkerTaskDecomposer: Sendable {
 
         return results.isEmpty ? nil : results
     }
-
-    // MARK: - Validation & Deterministic Fallback
 
     public func validateAssignments(_ assignments: [WorkerAssignment]) -> Bool {
         guard !assignments.isEmpty else { return false }

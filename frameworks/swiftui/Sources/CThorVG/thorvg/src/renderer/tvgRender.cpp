@@ -1,31 +1,5 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgMath.h"
 #include "tvgRender.h"
-
-/************************************************************************/
-/* RenderSurface                                                        */
-/************************************************************************/
 
 RenderSurface::RenderSurface(const RenderSurface* rhs)
 {
@@ -58,16 +32,11 @@ void RenderSurface::setup(pixel_t* data, uint32_t stride, uint32_t w, uint32_t h
     this->premultiplied = (cs == ColorSpace::ABGR8888 || cs == ColorSpace::ARGB8888);
 }
 
-/************************************************************************/
-/* RenderMethod                                                         */
-/************************************************************************/
-
 uint32_t RenderMethod::ref()
 {
     ScopedLock lock(key);
     return (++refCnt);
 }
-
 
 uint32_t RenderMethod::unref()
 {
@@ -75,12 +44,10 @@ uint32_t RenderMethod::unref()
     return (--refCnt);
 }
 
-
 RenderRegion RenderMethod::viewport()
 {
     return vport;
 }
-
 
 bool RenderMethod::viewport(const RenderRegion& vp)
 {
@@ -88,15 +55,9 @@ bool RenderMethod::viewport(const RenderRegion& vp)
     return true;
 }
 
-
-/************************************************************************/
-/* RenderPath                                                           */
-/************************************************************************/
-
-// used as a temporary buffer
 RenderPath& RenderPath::scratch()
 {
-    static thread_local RenderPath dbuffers[3];  // tripple-buffering
+    static thread_local RenderPath dbuffers[3];
     static thread_local int idx = 0;
     if (++idx > 2) idx = 0;
     dbuffers[(idx)].clear();
@@ -126,26 +87,26 @@ void RenderPath::addCircle(float cx, float cy, float rx, float ry, bool cw)
     pts.grow(13);
     auto pts = this->pts.end();
 
-    pts[idx[0]] = {cx, cy - ry};  // moveTo
+    pts[idx[0]] = {cx, cy - ry};
     pts[idx[1]] = {cx + rxKappa, cy - ry};
     pts[idx[2]] = {cx + rx, cy - ryKappa};
-    pts[idx[3]] = {cx + rx, cy};  // cubicTo
+    pts[idx[3]] = {cx + rx, cy};
     pts[idx[4]] = {cx + rx, cy + ryKappa};
     pts[idx[5]] = {cx + rxKappa, cy + ry};
-    pts[idx[6]] = {cx, cy + ry};  // cubicTo
+    pts[idx[6]] = {cx, cy + ry};
     pts[idx[7]] = {cx - rxKappa, cy + ry};
     pts[idx[8]] = {cx - rx, cy + ryKappa};
-    pts[idx[9]] = {cx - rx, cy};  // cubicTo
+    pts[idx[9]] = {cx - rx, cy};
     pts[idx[10]] = {cx - rx, cy - ryKappa};
     pts[idx[11]] = {cx - rxKappa, cy - ry};
-    pts[idx[12]] = {cx, cy - ry};  // cubicTo
+    pts[idx[12]] = {cx, cy - ry};
 
     this->pts.count += 13;
 }
 
 void RenderPath::addRect(float x, float y, float w, float h, float rx, float ry, bool cw)
 {
-    if (tvg::zero(rx) && tvg::zero(ry)) {  // sharp rect
+    if (tvg::zero(rx) && tvg::zero(ry)) {
         cmds.grow(5);
         pts.grow(4);
 
@@ -168,7 +129,7 @@ void RenderPath::addRect(float x, float y, float w, float h, float rx, float ry,
 
         this->cmds.count += 5;
         this->pts.count += 4;
-    } else {  // round rect
+    } else {
         auto hsize = Point{w * 0.5f, h * 0.5f};
         rx = (rx > hsize.x) ? hsize.x : rx;
         ry = (ry > hsize.y) ? hsize.y : ry;
@@ -182,48 +143,48 @@ void RenderPath::addRect(float x, float y, float w, float h, float rx, float ry,
 
         cmds[0] = PathCommand::MoveTo;
         cmds[9] = PathCommand::Close;
-        pts[0] = {x + w, y + ry};  // move
+        pts[0] = {x + w, y + ry};
 
         if (cw) {
             cmds[1] = cmds[3] = cmds[5] = cmds[7] = PathCommand::LineTo;
             cmds[2] = cmds[4] = cmds[6] = cmds[8] = PathCommand::CubicTo;
 
-            pts[1] = {x + w, y + h - ry};  // line
+            pts[1] = {x + w, y + h - ry};
             pts[2] = {x + w, y + h - ry + hr.y};
             pts[3] = {x + w - rx + hr.x, y + h};
-            pts[4] = {x + w - rx, y + h};  // cubic
-            pts[5] = {x + rx, y + h};      // line
+            pts[4] = {x + w - rx, y + h};
+            pts[5] = {x + rx, y + h};
             pts[6] = {x + rx - hr.x, y + h};
             pts[7] = {x, y + h - ry + hr.y};
-            pts[8] = {x, y + h - ry};  // cubic
-            pts[9] = {x, y + ry};      // line
+            pts[8] = {x, y + h - ry};
+            pts[9] = {x, y + ry};
             pts[10] = {x, y + ry - hr.y};
             pts[11] = {x + rx - hr.x, y};
-            pts[12] = {x + rx, y};      // cubic
-            pts[13] = {x + w - rx, y};  // line
+            pts[12] = {x + rx, y};
+            pts[13] = {x + w - rx, y};
             pts[14] = {x + w - rx + hr.x, y};
             pts[15] = {x + w, y + ry - hr.y};
-            pts[16] = {x + w, y + ry};  // cubic
+            pts[16] = {x + w, y + ry};
         } else {
             cmds[1] = cmds[3] = cmds[5] = cmds[7] = PathCommand::CubicTo;
             cmds[2] = cmds[4] = cmds[6] = cmds[8] = PathCommand::LineTo;
 
             pts[1] = {x + w, y + ry - hr.y};
             pts[2] = {x + w - rx + hr.x, y};
-            pts[3] = {x + w - rx, y};  // cubic
-            pts[4] = {x + rx, y};      // line
+            pts[3] = {x + w - rx, y};
+            pts[4] = {x + rx, y};
             pts[5] = {x + rx - hr.x, y};
             pts[6] = {x, y + ry - hr.y};
-            pts[7] = {x, y + ry};      // cubic
-            pts[8] = {x, y + h - ry};  // line
+            pts[7] = {x, y + ry};
+            pts[8] = {x, y + h - ry};
             pts[9] = {x, y + h - ry + hr.y};
             pts[10] = {x + rx - hr.x, y + h};
-            pts[11] = {x + rx, y + h};      // cubic
-            pts[12] = {x + w - rx, y + h};  // line
+            pts[11] = {x + rx, y + h};
+            pts[12] = {x + w - rx, y + h};
             pts[13] = {x + w - rx + hr.x, y + h};
             pts[14] = {x + w, y + h - ry + hr.y};
-            pts[15] = {x + w, y + h - ry};  // cubic
-            pts[16] = {x + w, y + ry};      // line
+            pts[15] = {x + w, y + h - ry};
+            pts[16] = {x + w, y + ry};
         }
 
         this->cmds.count += 10;
@@ -250,7 +211,6 @@ bool RenderPath::bounds(const Matrix* m, BBox& box)
     while (cmd < cmds.end()) {
         switch (*cmd) {
             case PathCommand::MoveTo: {
-                //skip the invalid assignments
                 if (cmd + 1 < cmds.end()) {
                     auto next = *(cmd + 1);
                     if (next == PathCommand::LineTo || next == PathCommand::CubicTo) {
@@ -277,10 +237,6 @@ bool RenderPath::bounds(const Matrix* m, BBox& box)
     return true;
 }
 
-/************************************************************************/
-/* RenderRegion                                                         */
-/************************************************************************/
-
 void RenderRegion::intersect(const RenderRegion& rhs)
 {
     if (xMin < rhs.xMin) xMin = rhs.xMin;
@@ -288,7 +244,6 @@ void RenderRegion::intersect(const RenderRegion& rhs)
     if (xMax > rhs.xMax) xMax = rhs.xMax;
     if (yMax > rhs.yMax) yMax = rhs.yMax;
 
-    // Not intersected: collapse to zero-area region
     if (xMax < xMin) xMax = xMin;
     if (yMax < yMin) yMax = yMin;
 }
@@ -305,7 +260,6 @@ void RenderDirtyRegion::init(uint32_t w, uint32_t h)
     auto lx = int32_t(w % cnt);
     auto ly = int32_t(h % cnt);
 
-    //space partitioning
     for (int y = 0; y < cnt; ++y) {
         for (int x = 0; x < cnt; ++x) {
             auto& partition = partitions[y * cnt + x];
@@ -315,13 +269,11 @@ void RenderDirtyRegion::init(uint32_t w, uint32_t h)
             region.yMin = y * py;
             region.xMax = region.xMin + px;
             region.yMax = region.yMin + py;
-            //leftovers
             if (x == cnt - 1) region.xMax += lx;
             if (y == cnt - 1) region.yMax += ly;
         }
     }
 }
-
 
 bool RenderDirtyRegion::add(const RenderRegion& bbox)
 {
@@ -335,7 +287,6 @@ bool RenderDirtyRegion::add(const RenderRegion& bbox)
     }
     return true;
 }
-
 
 bool RenderDirtyRegion::add(const RenderRegion& prv, const RenderRegion& cur)
 {
@@ -355,7 +306,6 @@ bool RenderDirtyRegion::add(const RenderRegion& prv, const RenderRegion& cur)
     return true;
 }
 
-
 void RenderDirtyRegion::clear()
 {
     for (int idx = 0; idx < PARTITIONING; ++idx) {
@@ -364,49 +314,40 @@ void RenderDirtyRegion::clear()
     }
 }
 
-
 void RenderDirtyRegion::subdivide(Array<RenderRegion>& targets, uint32_t idx, RenderRegion& lhs, RenderRegion& rhs)
 {
     RenderRegion temp[3];
     uint32_t cnt = 0;
 
-    //subtract top
     if (rhs.yMin < lhs.yMin) {
         temp[cnt++] = {rhs.xMin, rhs.yMin, rhs.xMax, lhs.yMin};
         rhs.yMin = lhs.yMin;
     }
-    //subtract bottom
     if (rhs.yMax > lhs.yMax) {
         temp[cnt++] = {rhs.xMin, lhs.yMax, rhs.xMax, rhs.yMax};
         rhs.yMax = lhs.yMax;
     }
-    //subtract right
     if (rhs.xMax > lhs.xMax) {
         temp[cnt++] = {lhs.xMax, rhs.yMin, rhs.xMax, rhs.yMax};
     }
 
-    //Please reserve memory enough with targets.reserve()
     if (targets.count + cnt - 1 >= targets.reserved) {
         TVGERR("RENDERER", "reserved(%d), required(%d)", targets.reserved, targets.count + cnt - 1);
         return;
     }
 
-    /* Shift data. Considered using a list to avoid memory shifting,
-       but ultimately, the array outperformed the list due to better cache locality. */
     auto src = &targets[idx + 1];
-    auto dst = &targets[idx + cnt];   // <-- shift right by (cnt - 1)
-    auto nmove = targets.count - idx - 1;  // number of tail elements
+    auto dst = &targets[idx + cnt];
+    auto nmove = targets.count - idx - 1;
     memmove(dst, src, sizeof(RenderRegion) * nmove);
     memcpy(&targets[idx], temp, sizeof(RenderRegion) * cnt);
     targets.count += (cnt - 1);
 
-    //sorting by x coord again, only for the updated region
     while (dst < targets.end() && dst->xMin < rhs.xMax) ++dst;
     stable_sort(&targets[idx], dst, [](const RenderRegion& a, const RenderRegion& b) -> bool {
         return a.xMin < b.xMin;
     });
 }
-
 
 void RenderDirtyRegion::commit()
 {
@@ -417,20 +358,18 @@ void RenderDirtyRegion::commit()
         auto& targets = partitions[idx].list[current];
         if (targets.empty()) continue;
 
-        current = !current; //swapping buffers
+        current = !current;
         auto& output = partitions[idx].list[current];
 
-        targets.reserve(targets.count * 10);  //one intersection can be divided up to 3
+        targets.reserve(targets.count * 10);
         output.reserve(targets.count);
 
         partitions[idx].current = current;
 
-        //sorting by x coord. guarantee the stable performance: O(NlogN)
         stable_sort(targets.begin(), targets.end(), [](const RenderRegion& a, const RenderRegion& b) -> bool {
             return a.xMin < b.xMin;
         });
 
-        //Optimized using sweep-line algorithm: O(NlogN)
         for (uint32_t i = 0; i < targets.count; ++i) {
             auto& lhs = targets[i];
             if (lhs.invalid()) continue;
@@ -439,28 +378,24 @@ void RenderDirtyRegion::commit()
             for (uint32_t j = i + 1; j < targets.count; ++j) {
                 auto& rhs = targets[j];
                 if (rhs.invalid()) continue;
-                if (lhs.xMax < rhs.xMin) break;  // line sweeping
+                if (lhs.xMax < rhs.xMin) break;
 
-                //fully overlapped. drop lhs
                 if (rhs.contained(lhs)) {
                     merged = true;
                     break;
                 }
-                //fully overlapped. replace the lhs with rhs
                 if (lhs.contained(rhs)) {
                     rhs = {};
                     continue;
                 }
-                //just merge & expand on x axis
                 if (lhs.yMin == rhs.yMin && lhs.yMax == rhs.yMax) {
                     if (lhs.xMax >= rhs.xMin) {
                         lhs.xMax = rhs.xMax;
                         rhs = {};
-                        j = i;   //lhs dirty region has been damaged, try again.
+                        j = i;
                         continue;
                     }
                 }
-                //just merge & expand on y axis
                 if (lhs.xMin == rhs.xMin && lhs.xMax == rhs.xMax) {
                     if (lhs.yMin <= rhs.yMax && rhs.yMin <= lhs.yMax) {
                         rhs.yMin = std::min(lhs.yMin, rhs.yMin);
@@ -469,13 +404,12 @@ void RenderDirtyRegion::commit()
                         break;
                     }
                 }
-                //subdivide regions
                 if (lhs.intersected(rhs)) {
                     subdivide(targets, j, lhs, rhs);
-                    --j; //rhs dirty region has been damaged, try again.
+                    --j;
                 }
             }
-            if (!merged) output.push(lhs);  //this region is complete isolated
+            if (!merged) output.push(lhs);
             lhs = {};
         }
     }
@@ -483,12 +417,7 @@ void RenderDirtyRegion::commit()
 
 #endif
 
-/************************************************************************/
-/* RenderTrimPath                                                       */
-/************************************************************************/
-
 #define EPSILON 1e-4f
-
 
 static void _trimAt(const PathCommand* cmds, const Point* pts, Point& moveTo, float at1, float at2, bool start, RenderPath& out)
 {
@@ -538,7 +467,6 @@ static void _trimAt(const PathCommand* cmds, const Point* pts, Point& moveTo, fl
     }
 }
 
-
 static void _add(const PathCommand* cmds, const Point* pts, const Point& moveTo, bool& start, RenderPath& out)
 {
     switch (*cmds) {
@@ -583,7 +511,6 @@ static void _add(const PathCommand* cmds, const Point* pts, const Point& moveTo,
     }
 }
 
-
 static void _trimPath(const PathCommand* inCmds, uint32_t inCmdsCnt, const Point* inPts, TVG_UNUSED uint32_t inPtsCnt, float trimStart, float trimEnd, RenderPath& out, bool connect = false)
 {
     auto cmds = const_cast<PathCommand*>(inCmds);
@@ -626,24 +553,18 @@ static void _trimPath(const PathCommand* inCmds, uint32_t inCmdsCnt, const Point
     for (uint32_t i = 0; i < inCmdsCnt; ++i) {
         auto dLen = _length();
 
-        //very short segments are skipped since due to the finite precision of Bezier curve subdivision and length calculation (1e-2),
-        //trimming may produce very short segments that would effectively have zero length with higher computational accuracy.
         if (len <= trimStart) {
-            //cut the segment at the beginning and at the end
             if (len + dLen > trimEnd) {
                 _trimAt(cmds, pts, moveToTrimmed, trimStart - len, trimEnd - trimStart, start, out);
                 start = false;
-                //cut the segment at the beginning
             } else if (len + dLen > trimStart + EPSILON) {
                 _trimAt(cmds, pts, moveToTrimmed, trimStart - len, len + dLen - trimStart, start, out);
                 start = false;
             }
         } else if (len <= trimEnd - EPSILON) {
-            //cut the segment at the end
             if (len + dLen > trimEnd) {
                 _trimAt(cmds, pts, moveTo, 0.0f, trimEnd - len, start, out);
                 start = true;
-            //add the whole segment
             } else if (len + dLen > trimStart + EPSILON) _add(cmds, pts, moveTo, start, out);
         }
 
@@ -651,7 +572,6 @@ static void _trimPath(const PathCommand* inCmds, uint32_t inCmdsCnt, const Point
         _shift();
     }
 }
-
 
 static void _trim(const PathCommand* inCmds, uint32_t inCmdsCnt, const Point* inPts, uint32_t inPtsCnt, float begin, float end, bool connect, RenderPath& out)
 {
@@ -662,13 +582,11 @@ static void _trim(const PathCommand* inCmds, uint32_t inCmdsCnt, const Point* in
     if (begin >= end) {
         auto cnt = out.cmds.count;
         _trimPath(inCmds, inCmdsCnt, inPts, inPtsCnt, trimStart, totalLength, out);
-        //nothing to connect to when the first part is empty
         _trimPath(inCmds, inCmdsCnt, inPts, inPtsCnt, 0.0f, trimEnd, out, connect && out.cmds.count > cnt);
     } else {
         _trimPath(inCmds, inCmdsCnt, inPts, inPtsCnt, trimStart, trimEnd, out);
     }
 }
-
 
 static void _get(float& begin, float& end)
 {
@@ -685,7 +603,6 @@ static void _get(float& begin, float& end)
 
     if ((loop && begin < end) || (!loop && begin > end)) std::swap(begin, end);
 }
-
 
 bool RenderTrimPath::trim(const RenderPath& in, RenderPath& out) const
 {

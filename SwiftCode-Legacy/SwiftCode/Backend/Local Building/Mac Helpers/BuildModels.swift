@@ -4,7 +4,7 @@ public struct BuildRequest: Codable {
     public let projectName: String
     public let platform: String
     public let configuration: String
-    public let projectData: Data // Compressed project files
+    public let projectData: Data
 
     public init(projectName: String, platform: String = "iOS", configuration: String = "Release", projectData: Data) {
         self.projectName = projectName

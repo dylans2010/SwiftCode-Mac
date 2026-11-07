@@ -3,16 +3,8 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-// The workspace window's look, as the AppKit IDE draws it
-// (`docs/PARITY.md` §5.10): its colors in light and dark appearance (read
-// from that IDE's own windows: `LinuxParityProbeTests`), its fonts and the
-// glass shapes as flat capsules (the material is approximated; pixel
-// identity with the system's glass is a non-goal).
-
-/// The chrome's colors for an appearance.
 struct ShellColors {
     let dark: Bool
-    /// Text and icons on the accent selection band: white.
     var onAccent = false
 
     init(_ scheme: ColorScheme) { dark = scheme == .dark }
@@ -22,19 +14,12 @@ struct ShellColors {
         return Color(.sRGB, red: v, green: v, blue: v)
     }
 
-    /// The navigator and inspector areas (the sidebars' material).
     var sidebar: Color { gray(251, 28) }
-    /// The editor area and the toolbar band over it.
     var content: Color { gray(255, 30) }
-    /// Glass capsules' outlines.
     var capsuleStroke: Color { gray(225, 20) }
-    /// A toolbar segment that is on (Navigators, Canvas).
     var segmentPill: Color { gray(204, 70) }
-    /// The selected navigator's and inspector's pill.
     var selectorPill: Color { gray(226, 59) }
-    /// Lines in the editor area (jump bar, debug bar, minimap).
     var separator: Color { gray(229, 57) }
-    /// The navigator's and inspector's dividers.
     var sidebarDivider: Color { gray(227, 21) }
     var label: Color { onAccent ? .white : gray(23, 253) }
     var secondaryLabel: Color { onAccent ? .white : gray(128, 123) }
@@ -65,21 +50,12 @@ struct ShellColors {
     }
 }
 
-/// The fonts (`metrics.md`; the macOS system sizes).
 enum ShellFonts {
-    /// Outline rows: 13 points, regular (Inter's widths match the AppKit
-    /// outline's at this size; its text looks a little heavier there, from
-    /// font smoothing, but Inter Medium is wider and wraps rows the AppKit
-    /// outline keeps on one line).
     static let row = Font.system(size: 13)
     static let rowBold = Font.system(size: 13, weight: .semibold)
     static let small = Font.system(size: 11)
     static let smallBold = Font.system(size: 11, weight: .bold)
     static let mini = Font.system(size: 10)
-    /// Letter spacing for text of 11 points and less: the desktop UI font
-    /// the AppKit IDE uses spaces its small sizes wider than Inter does
-    /// (measured on the paired windows: 11-point labels 7 % wider); none
-    /// with Apple's SwiftUI, whose system font has it built in.
     #if os(Linux)
     static let smallTracking: CGFloat = 0.35
     #else
@@ -91,7 +67,6 @@ enum ShellFonts {
     static func editor(_ size: CGFloat) -> Font { .system(size: size, design: .monospaced) }
 }
 
-/// A flat stand-in for a glass capsule: the area's color with a hairline.
 struct GlassCapsule: View {
     var height = CGFloat(WorkspaceChrome.toolbarItemHeight)
     @Environment(\.colorScheme) private var scheme
@@ -104,8 +79,6 @@ struct GlassCapsule: View {
     }
 }
 
-/// A row of symbol buttons in one capsule (Run | Stop, Back | Forward, the
-/// editor modes), with a pill under the segments that are on.
 struct GlassSegments: View {
     struct Segment {
         var symbol: String
@@ -153,8 +126,6 @@ struct GlassSegments: View {
     }
 }
 
-/// A round glass button with one symbol (New Conversation, the inspector
-/// toggle, the navigator's "+").
 struct GlassCircleButton: View {
     var symbol: String
     var help: String
@@ -183,7 +154,6 @@ struct GlassCircleButton: View {
     }
 }
 
-/// A one-pixel line.
 struct Hairline: View {
     var color: Color
     var vertical = false
@@ -192,7 +162,6 @@ struct Hairline: View {
     }
 }
 
-/// A small pop-up's look: its title and the up/down chevrons on a fill.
 struct PopUpLook: View {
     var title: String
     var bold = false

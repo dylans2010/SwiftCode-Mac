@@ -1,19 +1,3 @@
-// swiftcode-simhost: the simulator host's own service (specs/simulator/sim-link.md).
-//
-//   swiftcode-simhost serve [--config FILE]     run the service (TCP control 47800, UDP media 47801 by default)
-//   swiftcode-simhost check [--config FILE]     check the configuration and the ports as serve would; boots nothing
-//   swiftcode-simhost pair [--config FILE]      open a 5-minute pairing window and print its one-time code
-//   swiftcode-simhost identity [--name N] [--address HOST:PORT]   print this host's pairing file (JSON)
-//   swiftcode-simhost trust <file.json>         trust a client from its pairing file (`swiftcode sim remote identity`)
-//   swiftcode-simhost peers                     list the trusted clients
-//   swiftcode-simhost untrust <name>            remove a trusted client
-//
-// Configuration: KEY=value lines in --config, else $SWIFTCODE_SIMHOST_CONFIG, else
-// ~/.config/swiftcode/simhost.env (the same keys as scripts/swiftcode-sim-serve's
-// sim-serve.env, plus SWIFTCODE_SIMHOST_LISTEN, SWIFTCODE_SIMHOST_MEDIA_PORT,
-// SWIFTCODE_SIMHOST_NAME, SWIFTCODE_SIM_LAUNCHER). The identity and trusted peers are
-// in $SWIFTCODE_SIM_LINK_HOME (default ~/.config/swiftcode/sim-link).
-
 import Foundation
 import SwiftCodeRelease
 import SwiftCodeSimLink
@@ -50,7 +34,6 @@ case "serve":
         service = try SimHostService(config: loadConfig(), store: store)
         try service.start()
     } catch { fail("\(error)") }
-    // SIGTERM / SIGINT: stop the devices (they are saved) and exit.
     signal(SIGTERM, SIG_IGN)
     signal(SIGINT, SIG_IGN)
     let sources = [SIGTERM, SIGINT].map { DispatchSource.makeSignalSource(signal: $0, queue: .global()) }
@@ -62,10 +45,8 @@ case "serve":
         }
         s.resume()
     }
-    // The sources must live as long as the service (Swift may release a local after its last use).
     withExtendedLifetime(sources) { while true { sleep(3600) } }
 case "check":
-    // The configuration as serve reads it, its files, and whether the ports are free.
     let text: String
     do { text = try String(contentsOfFile: configPath, encoding: .utf8) } catch { fail("\(configPath): cannot be read") }
     let config: SimHostConfig
@@ -109,7 +90,6 @@ default:
     fail("unknown command \(command)", 64)
 }
 
-/// Whether `serve` could bind a port (bound and closed again at once).
 enum PortProbe {
     static func bindError(host: String, port: Int, udp: Bool) -> String? {
         #if os(Linux)

@@ -3,12 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The property list editor (`specs/ide/plist-editor.md`): Key | Type |
-/// Value columns over the outline (Root first), the headers sort the view;
-/// a click selects a row and its cells become editable; the selected row
-/// has + and − beside its key; Alt+Up / Alt+Down (and the row's context
-/// menu) move it among its siblings. Up and Down move the selection, Right
-/// and Left open and close, Delete removes.
 struct PlistEditorView: View {
     var model: PlistEditorModel
     @FocusState private var hasKeyboard: Bool
@@ -47,7 +41,6 @@ struct PlistEditorView: View {
                 .focused($hasKeyboard)
                 .onKeyPress(keys: [.downArrow, .upArrow]) { press in
                     let d = press.key == .downArrow ? 1 : -1
-                    // Alt+Up / Alt+Down move the item among its siblings.
                     if press.modifiers.contains(.option) { model.moveSelected(by: d) } else { move(rows, d) }
                     return .handled
                 }
@@ -111,8 +104,6 @@ struct PlistEditorView: View {
     }
 }
 
-/// One row: disclosure and key, type pop-up, value. The selected row's key
-/// and value are fields; other rows show text.
 struct PlistRowView: View {
     var model: PlistEditorModel
     var row: PlistEditorModel.Row
@@ -174,7 +165,6 @@ struct PlistRowView: View {
             }
             Spacer(minLength: 2)
             if selected {
-                // Add an item here; remove this one (not the root).
                 rowButton("plus.circle", "Add Item", c) { model.addItem() }
                     .shellTarget("plist add")
                 if !row.path.isEmpty {

@@ -1,40 +1,3 @@
-// swiftcode-pairing-agent: SwiftCode's guest pairing agent
-// (specs/simulator/device-pairing.md §3.1, P-4; §8 for SwiftCode's decisions).
-//
-// A launchd daemon of the simulated device (swiftcode-simd writes its plist into
-// DEV/data/Library/LaunchDaemons; `user/<uid>` on iOS, `system` on watchOS).
-// It connects an AF_UNIX stream socket to /private/var/run/dev.swiftcode.pairing,
-// which the VMM answers itself (SwiftCodeSimFeatures/DevicePairing.swift,
-// PairingAgentChannel: the settings channel's frames), says hello, and
-// carries out the host's pairing requests in the guest with the runtime's
-// own interfaces, as the reference's host-supplied agent does (§3.1):
-//
-//   connect <peer>      the transport's connect for the peer:
-//                       IDSSimulatorLocalPairingTransportConnect(<peer>)
-//   disconnect <peer>   IDSSimulatorLocalPairingTransportDisconnect(<peer>)
-//   setActive <peer>    NanoRegistry's paired-device registry (§11.1, P-10): the
-//                       peer already the active device → no call; in the
-//                       registry → switchToSimulator:withQueue:withCompletion:;
-//                       absent → pairWithSimulator:withQueue:withCompletion:.
-//                       With peerRunning false (an activation while the peer
-//                       does not run, P-11) only the switch is made.
-//   unpair <peer>       unpairWithSimulator:withQueue:withCompletion:
-//   removeUnpaired      the registry's pairing IDs (getPairedDevices, each
-//                       device's NRDevicePropertyPairingID) minus the host's
-//                       list: unpairWithSimulator:… for each
-//   installApp, appState, openApp   diagnostics: an app installed and opened
-//                       directly on this device (§10; the watch app of a probe)
-//
-// The names are the interop names of the spec; they are reached by name at
-// run time (dlsym, the Objective-C runtime), and every one is checked before
-// use. The argument forms are not in the spec: the agent passes the peer as
-// an NSUUID (an NSString when that raises; §8.4 has what SwiftCode's runs
-// showed), and remembers a form whose call ended the process (its state
-// file) so that it is not tried again in this boot.
-//
-// Clean-room: written from the spec and public headers (dlfcn, the
-// Objective-C runtime, dispatch); no Apple binary was read.
-
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
@@ -63,8 +26,6 @@ static void logLine(NSString *fmt, ...) {
     fprintf(stderr, "swiftcode-pairing-agent[%d]: %s\n", getpid(), s.UTF8String);
     fflush(stderr);
 }
-
-// MARK: - Frames (4-byte big-endian length, XML plist with a dictionary root)
 
 static BOOL writeAll(int fd, const uint8_t *p, size_t n) {
     while (n > 0) {
@@ -101,14 +62,11 @@ static void sendMessage(NSDictionary *message) {
     [gWriteLock unlock];
 }
 
-// MARK: - State across restarts
-
 static void saveState(void) {
     if (!gStatePath) return;
     [gState writeToFile:gStatePath atomically:YES];
 }
 
-/// Marks a call as in progress (a crash leaves the mark for the next start).
 static void beginAttempt(NSString *key) {
     gState[@"attempt"] = key;
     saveState();
@@ -135,12 +93,9 @@ static void loadState(void) {
     saveState();
 }
 
-// MARK: - Finding the runtime's interfaces
-
 static NSArray<NSString *> *frameworkPaths(NSString *prefix) {
     NSMutableArray *out = [NSMutableArray array];
     [out addObject:[NSString stringWithFormat:@"/System/Library/PrivateFrameworks/%@.framework/%@", prefix, prefix]];
-    // Other frameworks of the family, by directory name, under the runtime root.
     NSString *root = NSProcessInfo.processInfo.environment[@"SIMULATOR_ROOT"] ?: @"";
     NSString *dir = [root stringByAppendingPathComponent:@"System/Library/PrivateFrameworks"];
     for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:NULL]
@@ -153,8 +108,6 @@ static NSArray<NSString *> *frameworkPaths(NSString *prefix) {
     return out;
 }
 
-/// A function of the runtime by name: already loaded, or in a framework of
-/// the family `familyPrefix` once loaded.
 static void *findFunction(NSString *name, NSString *familyPrefix) {
     void *p = dlsym(RTLD_DEFAULT, name.UTF8String);
     if (p) return p;
@@ -169,14 +122,11 @@ static void *findFunction(NSString *name, NSString *familyPrefix) {
     return NULL;
 }
 
-/// The peer's UDID in the form `kind` ("string": NSString, "uuid": NSUUID).
 static id peerArgument(NSString *peer, NSString *kind) {
     if ([kind isEqual:@"uuid"]) return [[NSUUID alloc] initWithUUIDString:peer];
     return peer.uppercaseString;
 }
 
-/// A short description of a value a call returned or a completion got: an
-/// integer, or an object's class and description when it is one.
 static NSString *describeWord(uintptr_t v) {
     if (v < 4096) return [NSString stringWithFormat:@"%lu", (unsigned long)v];
     BOOL tagged = (v >> 63) != 0;
@@ -195,18 +145,6 @@ static NSString *describeWord(uintptr_t v) {
 
 typedef uintptr_t (*Function4)(uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
-/// Calls `name(peer, completion, queue)` and waits up to 60 s for the
-/// completion; the peer as an NSUUID first, an NSString when that raises.
-///
-/// SwiftCode findings (device-pairing.md §8.4, the guest's own log under SwiftCode):
-/// called with the UDID string alone (the other argument registers 0), the
-/// connect returned at once and the process faulted in libdispatch on a NULL
-/// queue from a block the function had queued, and ids_simd dropped the
-/// request it forwarded because an NSString is not allowed in its place. The
-/// runtime's IDS log line for the call names its parameters: the simulator
-/// ID (an NSUUID), a completion block, then a dispatch queue. The
-/// completion's own parameters are not known; they are taken as words and
-/// described.
 static NSString *callPeerFunction(NSString *name, NSString *familyPrefix, NSString *peer, NSString *forced,
                                   NSString **detail) {
     void *f = findFunction(name, familyPrefix);
@@ -228,8 +166,6 @@ static NSString *callPeerFunction(NSString *name, NSString *familyPrefix, NSStri
         };
         id arg = peerArgument(peer, kind);
         NSDate *t0 = [NSDate date];
-        // The mark stays until the completion (or the wait's end): a fault in
-        // the function's own asynchronous work is charged to this call.
         beginAttempt(key);
         @try {
             ((Function4)f)((uintptr_t)(__bridge void *)arg, (uintptr_t)(__bridge void *)completion,
@@ -250,12 +186,8 @@ static NSString *callPeerFunction(NSString *name, NSString *familyPrefix, NSStri
     return [NSString stringWithFormat:@"%@ did not take the peer", name];
 }
 
-// MARK: - NanoRegistry's paired-device registry
-
 static NSString *const kPairSelector = @"pairWithSimulator:withQueue:withCompletion:";
 
-/// The registry object: an instance of the NanoRegistry class that answers
-/// the pairing selector (its shared instance when it has one).
 static id registry(NSString **error) {
     static id cached;
     if (cached) return cached;
@@ -289,11 +221,6 @@ static id registry(NSString **error) {
     return cached;
 }
 
-/// One of the registry's simulator calls (`selector` takes the peer, a
-/// queue and a completion block, §11.1). Waits up to `wait` seconds for the
-/// completion; a later completion is reported to the host as a log event.
-/// Returns nil on success, else the failure; `*completed` says whether the
-/// completion came in time.
 static NSString *registryCall(NSString *selectorName, NSString *peer, NSString *forced, double wait, NSString **detail,
                               BOOL *completed) {
     NSString *error = nil;
@@ -313,10 +240,6 @@ static NSString *registryCall(NSString *selectorName, NSString *peer, NSString *
         dispatch_semaphore_t done = dispatch_semaphore_create(0);
         __block NSString *outcome = nil;
         __block BOOL refused = NO;
-        // The completion's parameters are not in the spec: words, described.
-        // Under SwiftCode (device-pairing.md §10.5) the first word is 0 on success
-        // and an NSError when the registry refuses: such a completion fails
-        // the request.
         void (^completion)(uintptr_t, uintptr_t, uintptr_t) = ^(uintptr_t a, uintptr_t b, uintptr_t c) {
             outcome = [NSString stringWithFormat:@"completion(%@, %@, %@)", describeWord(a), describeWord(b), describeWord(c)];
             refused = [describeWord(a) hasPrefix:@"<NSError"];
@@ -354,17 +277,12 @@ static NSString *registryCall(NSString *selectorName, NSString *peer, NSString *
     return @"the registry did not take the peer";
 }
 
-/// A pairing ID value as an upper-case UUID string (NSUUID or NSString), or nil.
 static NSString *uuidText(id v) {
     if ([v isKindOfClass:NSUUID.class]) return [[(NSUUID *)v UUIDString] uppercaseString];
     if ([v isKindOfClass:NSString.class] && [[NSUUID alloc] initWithUUIDString:v]) return [(NSString *)v uppercaseString];
     return nil;
 }
 
-/// The value of NRDevicePropertyPairingID (the peer simulator's UDID, §11.1)
-/// on one registry device: the property key is the runtime's exported
-/// constant; the device is asked with -valueForProperty: (SwiftCode's choice of
-/// accessor, checked with respondsToSelector:), else key-value coding.
 static NSString *pairingID(id device) {
     static NSString *key;
     static dispatch_once_t once;
@@ -385,9 +303,6 @@ static NSString *pairingID(id device) {
     return uuidText(v);
 }
 
-/// Calls a registry getter that returns at once in the reference, on a queue
-/// of its own, so a registry that is not ready (a first boot) cannot hold
-/// the agent for long.
 static id registryGet(NSString *selectorName, double wait, NSString **error) {
     id r = registry(error);
     if (!r) return nil;
@@ -413,8 +328,6 @@ static id registryGet(NSString *selectorName, double wait, NSString **error) {
     return result;
 }
 
-/// The guest's pair list (§11.1): the pairing IDs of the registry's paired
-/// devices. Nil (and *error) when the registry cannot be read.
 static NSArray<NSString *> *guestPairedIDs(NSString **error) {
     id devices = registryGet(@"getPairedDevices", 30, error);
     if (*error) return nil;
@@ -436,8 +349,6 @@ static NSString *guestActiveID(void) {
 static NSString *const kSwitchSelector = @"switchToSimulator:withQueue:withCompletion:";
 static NSString *const kUnpairSelector = @"unpairWithSimulator:withQueue:withCompletion:";
 
-/// set-active (§11.1, P-10; P-11 for `peerRunning` false). `*switched` is
-/// YES when the switch call was made and succeeded.
 static NSString *setActive(NSString *peer, BOOL previouslyPaired, BOOL peerRunning, NSString *forced, NSString **detail,
                            BOOL *switched) {
     NSString *readError = nil;
@@ -449,7 +360,6 @@ static NSString *setActive(NSString *peer, BOOL previouslyPaired, BOOL peerRunni
                           : [NSString stringWithFormat:@"registry not read (%@)", readError];
     NSString *callDetail = nil, *error = nil;
     if (ids && [active isEqual:P]) {
-        // The reference's agent fails with POSIX 37 here and its host ignores it.
         *detail = [NSString stringWithFormat:@"%@; already the active device: no call", state];
         return nil;
     }
@@ -463,8 +373,6 @@ static NSString *setActive(NSString *peer, BOOL previouslyPaired, BOOL peerRunni
         return nil;
     } else {
         BOOL completed = NO;
-        // The completion comes when the property exchange is done (24–65 s
-        // in the reference): answered after 20 s at most (§8.4).
         error = registryCall(kPairSelector, peer, forced, 20, &callDetail, &completed);
     }
     *detail = [NSString stringWithFormat:@"%@; %@", state, callDetail ?: @""];
@@ -473,7 +381,6 @@ static NSString *setActive(NSString *peer, BOOL previouslyPaired, BOOL peerRunni
 
 static NSString *unpair(NSString *peer, NSString *forced, NSString **detail) {
     BOOL completed = NO;
-    // The reference's completion comes about 2 s after the call (§11.1).
     NSString *error = registryCall(kUnpairSelector, peer, forced, 30, detail, &completed);
     return error;
 }
@@ -502,17 +409,6 @@ static NSString *removeUnpaired(NSArray *hostPaired, NSString **detail) {
     *detail = [notes componentsJoinedByString:@"; "];
     return firstError;
 }
-
-// MARK: - Apps on this device (diagnostics: installing a watch app directly, P-9)
-//
-// The interfaces of specs/simulator/app-install-launch.md §4.1, §4.3, §4.4:
-// install with IXAppInstallCoordinator +installApplication:consumeSource:
-// options:completion: and MIInstallOptions -initWithLegacyOptionsDictionary:
-// {PackageType = Developer}; look up with LSApplicationProxy
-// +applicationProxyForIdentifier: (-isInstalled); open with
-// LSApplicationWorkspace -openApplicationWithBundleID:. SwiftCode's ylaunch is an
-// iOS simulator build, so a watch device installs and opens apps through
-// this agent (`pairing agent installApp path=…`, `openApp bundleID=…`).
 
 static Class classNamed(NSString *name, NSArray<NSString *> *families) {
     Class c = NSClassFromString(name);
@@ -565,9 +461,6 @@ static NSString *appState(NSString *bundleID, NSString **detail) {
     return nil;
 }
 
-/// FrontBoard's open-application service (§4.4: works without debug options
-/// for a caller with com.apple.frontboard.launchapplications, which the
-/// agent's entitlements carry). The completion gets a process handle and an error.
 static NSString *openWithFrontBoard(NSString *bundleID, NSString **detail) {
     Class serviceClass = classNamed(@"FBSOpenApplicationService", @[@"FrontBoardServices"]);
     Class optionsClass = classNamed(@"FBSOpenApplicationOptions", @[@"FrontBoardServices"]);
@@ -613,14 +506,11 @@ static NSString *openApp(NSString *bundleID, NSString **detail) {
             }
         }
     }
-    // The workspace refused (as on watchOS under SwiftCode, §10.4): FrontBoard.
     NSString *second = nil;
     NSString *error = openWithFrontBoard(bundleID, &second);
     *detail = [NSString stringWithFormat:@"%@; %@", first, second ?: error];
     return error ? *detail : nil;
 }
-
-// MARK: - Requests
 
 static NSDictionary *handle(NSDictionary *request) {
     NSString *op = request[@"op"];
@@ -649,13 +539,11 @@ static NSDictionary *handle(NSDictionary *request) {
         logLine(@"unpair from %@", peer);
         error = unpair(peer, forced, &detail);
     } else if ([op isEqual:@"pairs"]) {
-        // Diagnostics: the guest's pair list and its active device.
         NSString *e = nil;
         NSArray *ids = guestPairedIDs(&e);
         if (ids) detail = [NSString stringWithFormat:@"paired [%@], active %@", [ids componentsJoinedByString:@", "], guestActiveID() ?: @"none"];
         else error = e;
     } else if ([op isEqual:@"call"]) {
-        // Diagnostics: a peer function by name (`pairing agent call <function> <peer> [string|uuid]`).
         NSString *function = request[@"function"];
         if (![function hasPrefix:@"IDSSimulatorLocalPairing"] || !peer) {
             error = @"call: only IDSSimulatorLocalPairing… functions, with a peer";
@@ -681,8 +569,6 @@ static NSDictionary *handle(NSDictionary *request) {
     if (detail) reply[@"detail"] = detail;
     return reply;
 }
-
-// MARK: - The connection
 
 static int connectToHost(void) {
     for (size_t i = 0; i < sizeof kSocketPaths / sizeof kSocketPaths[0]; i++) {

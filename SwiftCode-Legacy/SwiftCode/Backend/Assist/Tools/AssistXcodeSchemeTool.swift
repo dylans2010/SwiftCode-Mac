@@ -58,7 +58,6 @@ public struct AssistXcodeSchemeTool: AssistTool {
                 return .failure("schemeName parameter is required for inspect_scheme")
             }
 
-            // Search for scheme file in workspace
             let fileManager = FileManager.default
             if let enumerator = fileManager.enumerator(at: context.workspaceRoot, includingPropertiesForKeys: nil) {
                 while let fileURL = enumerator.nextObject() as? URL {

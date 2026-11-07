@@ -1,25 +1,9 @@
 import Foundation
 
-/// Shared helpers for the ported Legacy planning tool family (Wave 4).
-///
-/// Behaviour source: Legacy's `ExecutionPlanTool` (repository inspection,
-/// plan building, Markdown rendering), `AssistGenerateTestsTool` (type /
-/// function extraction, XCTest stub template), `AssistExplainCodeTool`
-/// (static-analysis fallback), `ReportToUserTool`
-/// (`normalizeAndRenderMarkdown`), `AssistPlanTaskTool` /
-/// `AssistBreakdownTaskTool` (session-memory plan keys) — Dylan's own code,
-/// ported under MIT — plus `Resources/WriteExecutionPlan.md` for the plan
-/// document's section order.
-///
-/// Everything here is pure (no tool calls, no disk writes except the
-/// read-only inspection enumerations): the handlers in
-/// `SwiftCodeTools+Planning.swift` own sessions, paths, and approval.
 enum PlanningSupport {
-    // MARK: - Execution mode
 
 }
 
-/// Legacy's `ExecutionMode`, as the plan document labels it.
 enum PlanningExecutionMode: String {
     case plan = "Plan"
     case autopilot = "Autopilot"
@@ -29,13 +13,6 @@ enum PlanningExecutionMode: String {
     }
 }
 
-/// In-memory session plan store. Legacy keeps plans in the session's
-/// `AssistContext.memory` under the keys `plan:<planId>` and
-/// `plan_breakdown:<planId>`; SwiftCode's MCP host has no session memory store,
-/// so this process-wide store holds them instead. Plan IDs are UUIDs, so
-/// plans from different workspaces cannot collide. Plans do not survive a
-/// server restart, and there is no persistence — matching Legacy's
-/// session-scoped memory.
 final class PlanningPlanStore: @unchecked Sendable {
     static let shared = PlanningPlanStore()
     private let lock = NSLock()
@@ -47,7 +24,6 @@ final class PlanningPlanStore: @unchecked Sendable {
 }
 
 extension PlanningSupport {
-    // MARK: - Repository inspection (execution_plan)
 
     struct RepositoryStructure {
         var fileCount: Int
@@ -100,9 +76,6 @@ extension PlanningSupport {
         var completionCriteria: [String]
     }
 
-    /// Legacy `ExecutionPlanTool.inspectRepositoryStructure`: hidden files
-    /// skipped; `.git/`, `.build/` and `build/` prefixes skipped; at most
-    /// 30 directories kept, sorted; root files sorted.
     static func inspectRepositoryStructure(workspaceRoot: URL) -> RepositoryStructure {
         let fm = FileManager.default
         var fileCount = 0
@@ -127,7 +100,6 @@ extension PlanningSupport {
                                    directories: directories.sorted().prefix(30).map { $0 }, rootFiles: rootFiles.sorted())
     }
 
-    /// Legacy `ExecutionPlanTool.inspectBuildConfiguration`.
     static func inspectBuildConfiguration(workspaceRoot: URL) -> BuildConfiguration {
         let fm = FileManager.default
         let xcodeProj = fm.enumerator(at: workspaceRoot, includingPropertiesForKeys: nil)?
@@ -141,8 +113,6 @@ extension PlanningSupport {
             xcodeProjName: xcodeProj?.lastPathComponent)
     }
 
-    /// Legacy `ExecutionPlanTool.discoverInstructions`: the AGENTS.md
-    /// candidates, first 2,000 characters each.
     static func discoverInstructions(workspaceRoot: URL) -> [InstructionFile] {
         let fm = FileManager.default
         var results: [InstructionFile] = []
@@ -155,9 +125,6 @@ extension PlanningSupport {
         return results
     }
 
-    /// Legacy `ExecutionPlanTool.discoverSkills`: each entry's SKILL.md
-    /// under `.agents/skills`, `.skills`, `skills`; the summary is the
-    /// first `# ` heading, else the entry name.
     static func discoverSkills(workspaceRoot: URL) -> [SkillInfo] {
         let fm = FileManager.default
         var results: [SkillInfo] = []
@@ -176,8 +143,6 @@ extension PlanningSupport {
         return results
     }
 
-    /// Legacy `ExecutionPlanTool.extractKeywords`: words of at least 3
-    /// characters, minus the stop-word list, deduplicated and sorted.
     static func extractKeywords(from text: String) -> [String] {
         let words = text.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count >= 3 }
         let stopWords: Set<String> = ["the", "and", "for", "with", "this", "that", "from", "have", "will", "should",
@@ -187,9 +152,6 @@ extension PlanningSupport {
         return Array(Set(words.filter { !stopWords.contains($0) })).sorted()
     }
 
-    /// Legacy `ExecutionPlanTool.identifyRelevantFiles`: the caller's hints
-    /// plus every file whose name contains one of the objective's keywords
-    /// (case-insensitive); sorted, deduplicated.
     static func identifyRelevantFiles(objective: String, workspaceRoot: URL, hints: [String]) -> [String] {
         var relevant = Set(hints)
         let keywords = extractKeywords(from: objective.lowercased())
@@ -208,8 +170,6 @@ extension PlanningSupport {
         return Array(relevant).sorted()
     }
 
-    /// Legacy `ExecutionPlanTool.readRelevantFiles`: the first 10 relevant
-    /// files, first 3,000 characters each.
     static func readRelevantFiles(files: [String], workspaceRoot: URL) -> [String: String] {
         var contents: [String: String] = [:]
         for file in files.prefix(10) {
@@ -221,10 +181,6 @@ extension PlanningSupport {
         return contents
     }
 
-    /// Legacy `ExecutionPlanTool.buildExecutionPlan`: the fixed step ladder
-    /// (read → search when Swift exists → build when a project file exists
-    /// → test), the >200-line and no-relevant-files problems, the >5-file
-    /// risk, and the >8-file worker split.
     static func buildExecutionPlan(objective: String, mode: PlanningExecutionMode,
                                                fileTree: RepositoryStructure, buildConfig: BuildConfiguration,
                                                agentsInstructions: [InstructionFile], skills: [SkillInfo],
@@ -296,12 +252,6 @@ extension PlanningSupport {
                                  verificationRequirements: verificationReqs, completionCriteria: completionCriteria)
     }
 
-    /// Legacy `ExecutionPlanTool.renderPlanMarkdown`, verbatim section order
-    /// and wording. There is no "Plan Generation Instructions" section:
-    /// SwiftCode has no `WriteExecutionPlan.md` bundle resource, and Legacy
-    /// renders that section only when the instruction text is non-empty.
-    /// The "Repository Findings" line reports the relevant-file count, as
-    /// Legacy does (not the inspected total).
     static func renderPlanMarkdown(_ plan: ExecutionPlanData) -> String {
         var md = ""
         md += "# Execution Plan\n\n"
@@ -344,10 +294,6 @@ extension PlanningSupport {
         return md
     }
 
-    // MARK: - Source extraction (intel_generate_tests / intel_explain_code)
-
-    /// Legacy `AssistGenerateTestsTool`'s function-name regex:
-    /// `\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)`.
     static func extractFunctionNames(from source: String) -> [String] {
         guard let regex = try? NSRegularExpression(pattern: "\\bfunc\\s+([A-Za-z_][A-Za-z0-9_]*)", options: []) else { return [] }
         let range = NSRange(location: 0, length: source.utf16.count)
@@ -357,17 +303,11 @@ extension PlanningSupport {
         }
     }
 
-    /// One declared type: its kind (`class` / `struct` / `enum` / `actor`)
-    /// and its name, in declaration order.
     struct DeclaredType: Sendable, Equatable {
         var kind: String
         var name: String
     }
 
-    /// Legacy `AssistGenerateTestsTool.extractTypes`: one
-    /// `class` / `struct` / `enum` / `actor` declaration per line, with
-    /// optional access and `final` modifiers; the name is the last word of
-    /// the match, and a name containing `{` or `:` is skipped.
     static func extractDeclaredTypes(from content: String) -> [DeclaredType] {
         guard let regex = try? NSRegularExpression(
             pattern: "^(?:public |private |internal |fileprivate )?(?:final )?(class|struct|enum|actor)\\s+([A-Za-z0-9_]+)",
@@ -387,12 +327,10 @@ extension PlanningSupport {
         return types
     }
 
-    /// Type names only, in Legacy's order.
     static func extractTypes(from content: String) -> [String] {
         extractDeclaredTypes(from: content).map(\.name)
     }
 
-    /// Imported module names (`import Foo`, one per line, in order).
     static func extractImports(from content: String) -> [String] {
         var imports: [String] = []
         for line in content.components(separatedBy: .newlines) {
@@ -405,10 +343,6 @@ extension PlanningSupport {
         return imports
     }
 
-    /// The `@testable import` module for generated tests. Legacy hardcodes
-    /// `SwiftCode`; the port derives it from the source path:
-    /// `Sources/<Module>/…` wins, else the source file's parent directory
-    /// name, else `App`.
     static func moduleName(forSourcePath path: String) -> String {
         let components = path.components(separatedBy: "/").filter { !$0.isEmpty }
         if let idx = components.firstIndex(of: "Sources"), idx + 1 < components.count {
@@ -418,11 +352,6 @@ extension PlanningSupport {
         return "App"
     }
 
-    /// Legacy `AssistGenerateTestsTool`'s XCTest stub body, verbatim
-    /// except for the `@testable import` module (see `moduleName`). The
-    /// stubs are placeholders by design — Legacy generates them with
-    /// `TODO` comments, not real assertions — and the port keeps them
-    /// that way rather than inventing test logic.
     static func testStub(source: String, sourceName: String, path: String, module: String) -> String {
         let functionNames = extractFunctionNames(from: source)
         let types = extractTypes(from: source)
@@ -442,7 +371,6 @@ extension PlanningSupport {
                 // Put teardown code here. This method is called after the invocation of each test method in the class.
                 try super.tearDownWithError()
             }
-
 
         """
         if functionNames.isEmpty && types.isEmpty {
@@ -465,7 +393,6 @@ extension PlanningSupport {
                 // XCTAssertNotNil(instance, "\(typeName) should initialize")
             }
 
-
         """
             }
             for funcName in functionNames.prefix(10) {
@@ -476,7 +403,6 @@ extension PlanningSupport {
                 // let result = someInstance.\(funcName)()
                 // XCTAssertEqual(result, expectedValue, "\(funcName) should return expected value")
             }
-
 
         """
             }
@@ -493,11 +419,6 @@ extension PlanningSupport {
         return body
     }
 
-    // MARK: - Static explanation (intel_explain_code)
-
-    /// The honest static explanation: what the file observably contains
-    /// (line count, imports, declared types, functions), labelled as
-    /// static analysis. No LLM is consulted, and none is claimed.
     static func staticExplanation(of content: String, at path: String) -> String {
         let lines = content.components(separatedBy: .newlines)
         let imports = extractImports(from: content)
@@ -519,13 +440,6 @@ extension PlanningSupport {
         return out
     }
 
-    // MARK: - Markdown normalisation (report_to_user)
-
-    /// Legacy `ReportToUserTool.normalizeAndRenderMarkdown`, verbatim:
-    /// unwrap a ```json wrapper carrying a `summary`, un-escape \` \* \_
-    /// \#, strip the four trailing "want me to apply…" questions, and
-    /// rewrite leaked internal runtime names (`muse.workflow` /
-    /// `use_workers`) as plain "workers" wording.
     static func normalizeAndRenderMarkdown(_ input: String) -> String {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("```json") && text.hasSuffix("```") {

@@ -1,14 +1,5 @@
-// ExtensionsSearchView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Extensions v2/ExtensionsSearchView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Marketplace/search UI in the Extensions panel
-// (ExtensionSidebarRow resolved by H-E: ported to SwiftCodeExtensions/ExtensionSidebarRow.swift.)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeExtensions
-
-// MARK: - Registry search (Open VSX, real results only)
 
 public struct ExtensionsSearchView: View {
     @ObservedObject private var manager = ExtV2Manager.shared

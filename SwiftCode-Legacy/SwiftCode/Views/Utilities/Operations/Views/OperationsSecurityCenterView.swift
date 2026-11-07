@@ -7,7 +7,6 @@ struct OperationsSecurityCenterView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Security Center")
@@ -31,7 +30,6 @@ struct OperationsSecurityCenterView: View {
                 }
                 .padding(.bottom, 10)
 
-                // Signing certificates section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Developer Credentials")
@@ -67,7 +65,6 @@ struct OperationsSecurityCenterView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Audit findings
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Source Code Secrets Scan")

@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Tools/ProcessRunnerTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Verbatim (staged by F2 unowned-dependency triage; landed here). Fixes V2-adjacent breakage:
-// BuildDestinationResolver, PreviewManager and XcodeBuildManager all call ProcessRunnerTool.shared.run(...).
-
 import Foundation
 
 public actor ProcessRunnerTool {

@@ -1,21 +1,3 @@
-// Assist SDK variant tests for @swiftcode/sdk (task B2).
-//
-// Covers the two typed surfaces:
-//   - `assistSDK` (headless): sessions, streaming responses, tool access —
-//     every call routes through the dedicated entitled `assist.invoke` IPC
-//     route. NO view-opening path may exist here.
-//   - `assistSDK.UI`: exposes ONLY embedding of the host's Assist main
-//     view via `ui.openView({ viewId: ASSIST_VIEW_ID })` — no headless
-//     session/streaming APIs may exist here.
-//
-// Denial contract (specs/ide/sdk-platform.md): when the host answers with
-// the typed `ASSIST_DENIED` denial, the TS wrapper throws
-// `SDKAssistAccessError` carrying the VERBATIM user message. The TS layer
-// cannot know entitlement state itself and must NOT fabricate it: any
-// other host rejection propagates as the original SDKError untouched, and
-// no call throws an access error without the host's typed denial.
-//
-// Run: `npm run build && npm test` (npm test = `node --test "tests/*.test.mjs"`).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -33,8 +15,6 @@ const {
   SDKError,
 } = await import(distUrl);
 
-// The §13 user error, verbatim — do not reword. Duplicated here (not
-// imported) so the test independently pins the exact user-facing text.
 const VERBATIM_DENIAL =
   "This app is not allowed to use Assist because access has not yet been verified. Please check with the app developer for further information.";
 
@@ -78,7 +58,6 @@ function lastRequest(host) {
   return req;
 }
 
-/** Host that denies every Assist route with the typed ASSIST_DENIED denial. */
 function createDenyingHost() {
   const deny = () => {
     throw new SDKError("ASSIST_DENIED", VERBATIM_DENIAL, "corr-denied");
@@ -145,7 +124,6 @@ describe("assist variants: module shape isolation", () => {
     assert.equal(context.assist.openAssistView, undefined);
     assert.deepEqual(Object.keys(context.assistUI).sort(), ["openAssistView"]);
     assert.equal(context.assistUI.createSession, undefined);
-    // The general ui surface is untouched by the Assist variants.
     assert.equal(typeof context.ui.openView, "function");
   });
 });
@@ -216,10 +194,8 @@ describe("assist variants: wire contract", () => {
     const host = createFakeHost({
       "assist.invoke": (payload, requestId, h) => {
         assert.equal(payload.op, "message.stream");
-        // Chunks may arrive while the request is still in flight.
         h.emit("assist.stream", { delta: "Hel", done: false }, requestId);
         h.emit("assist.stream", { delta: "lo", done: true }, requestId);
-        // An unrelated event must be ignored.
         h.emit("assist.stream", { delta: "NOISE", done: true }, "other-request");
         return { accepted: true };
       },
@@ -259,7 +235,7 @@ describe("assist variants: denial mapping (verbatim §13 message)", () => {
     await assertAssistAccessError(assist.sendMessage("s-1", "hi"));
     await assertAssistAccessError(
       (async () => {
-        for await (const _ of assist.streamMessage("s-1", "hi")) { /* unreachable */ }
+        for await (const _ of assist.streamMessage("s-1", "hi")) {  }
       })(),
     );
     await assertAssistAccessError(assist.invokeTool("s-1", { tool: "t", arguments: {} }));

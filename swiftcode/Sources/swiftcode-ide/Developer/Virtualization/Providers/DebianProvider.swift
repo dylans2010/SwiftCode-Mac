@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Providers/DebianProvider.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public struct DebianProvider: OperatingSystemProvider {
@@ -19,7 +17,6 @@ public struct DebianProvider: OperatingSystemProvider {
 4. Launch the console window, select the standard graphical or text installer, and proceed with setup.
 """
 
-    // Expanded protocol metadata
     public let releaseNotes = "Debian 12 'Bookworm' includes Linux Kernel 6.1, native systemd updates, and robust cryptographic libraries. Features packages such as LLVM/Clang, GCC 12.2, and system libraries ideal for low-level backend integration."
     public let minimumRequirements = "CPU: 1 Core • Memory: 1 GB RAM • Storage: 10 GB free disk space."
     public let packageManagerGuide = "APT (Advanced Package Tool). Install packages using: `sudo apt-get update && sudo apt-get install <package>`. Unpack local archives using `dpkg -i <file.deb>`."
@@ -27,7 +24,6 @@ public struct DebianProvider: OperatingSystemProvider {
     public let securityAdvisories = "Review official security bulletins at: https://www.debian.org/security/. Patches are maintained strictly by the Debian Security Team."
     public let communityResources = "Debian User Forums: https://forums.debian.net/. Mailing lists: https://lists.debian.org/."
 
-    // Backward compatibility fields
     public let recommendedCores = 2
     public let recommendedMemoryMB = 4096
     public let recommendedStorageGB = 40

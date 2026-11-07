@@ -1,12 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Native macOS browser for Assist Markdown artifacts.
-///
-/// Lists every artifact in the native store (`.assist_temp/artifacts/`,
-/// plus workspace-root `agent_notes.md`) with human-readable display
-/// titles — never raw filenames as the primary title — and renders the
-/// selected artifact's Markdown.
 public struct AssistArtifactsView: View {
     @Bindable private var store = AssistArtifactStore.shared
 
@@ -16,8 +10,6 @@ public struct AssistArtifactsView: View {
     @State private var isLoadingDetail = false
     @State private var isConfirmingDelete = false
     @State private var viewMode: ArtifactViewMode = .rendered
-    /// The last artifact id logged to AssistUserActionLog, so refreshes
-    /// don't double-log the same open.
     @State private var lastLoggedArtifactID: UUID?
 
     public enum ArtifactViewMode: String, CaseIterable, Identifiable {
@@ -44,7 +36,6 @@ public struct AssistArtifactsView: View {
         return root.appendingPathComponent(record.relativePath)
     }
 
-    /// `agent_notes.md` is protected: the store refuses to delete it.
     private var canDeleteSelected: Bool {
         guard let record = selectedRecord else { return false }
         return record.filename != "agent_notes.md"
@@ -112,8 +103,6 @@ public struct AssistArtifactsView: View {
         }
     }
 
-    // MARK: - Sidebar
-
     private var sidebar: some View {
         Group {
             if store.records.isEmpty {
@@ -126,7 +115,6 @@ public struct AssistArtifactsView: View {
                 List(store.records, selection: $selection) { record in
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 6) {
-                            // Display title is primary; filename is never the title.
                             Text(record.title)
                                 .font(.headline)
                                 .lineLimit(1)
@@ -163,8 +151,6 @@ public struct AssistArtifactsView: View {
             }
         }
     }
-
-    // MARK: - Detail
 
     private var detail: some View {
         Group {
@@ -240,8 +226,6 @@ public struct AssistArtifactsView: View {
         }
     }
 
-    // MARK: - Loading
-
     private func refresh() {
         guard let root = workspaceRoot else { return }
         store.refresh(workspaceRoot: root)
@@ -260,7 +244,6 @@ public struct AssistArtifactsView: View {
               let record = store.records.first(where: { $0.id == id }),
               let root = workspaceRoot else { return }
         isLoadingDetail = true
-        // AssistArtifactStore is @MainActor; read synchronously on the main actor.
         Task { @MainActor in
             defer { isLoadingDetail = false }
             do {
@@ -275,8 +258,6 @@ public struct AssistArtifactsView: View {
             }
         }
     }
-
-    // MARK: - Toolbar actions
 
     private func copySelectedPath() {
         guard let url = selectedFileURL else { return }

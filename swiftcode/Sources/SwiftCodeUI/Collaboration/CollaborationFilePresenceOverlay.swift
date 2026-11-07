@@ -1,9 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationFilePresenceOverlay.swift
-// Adapted for SwiftCode: viewers come from the real
-// CollaborationManager.activeUsers (presence broadcast via
-// CollaborationManager.broadcastPresence). Behaviour unchanged.
-
 import SwiftUI
 import SwiftCodeCollaboration
 

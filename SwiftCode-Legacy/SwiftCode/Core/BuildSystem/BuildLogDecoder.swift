@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Decoded Log Entry
-
 struct DecodedLogEntry: Identifiable {
     let id = UUID()
     let lineNumber: Int
@@ -39,8 +37,6 @@ struct DecodedLogEntry: Identifiable {
     }
 }
 
-// MARK: - Decoded Build Log
-
 struct DecodedBuildLog {
     let entries: [DecodedLogEntry]
     let errorCount: Int
@@ -62,27 +58,11 @@ struct DecodedBuildLog {
     var hasFailures: Bool { errorCount > 0 }
 }
 
-// MARK: - Build Log Decoder
-
-/// Parses raw GitHub Actions log output into structured log entries.
-///
-/// Responsibilities:
-/// - Splitting log lines
-/// - Detecting warnings
-/// - Detecting errors
-/// - Detecting compile steps
-/// - Extracting timestamps
 final class BuildLogDecoder: Sendable {
     static let shared = BuildLogDecoder()
     private init() {}
 
-    // MARK: - Timestamp Pattern
-
-    /// Matches ISO-8601 style timestamps commonly found in GitHub Actions logs:
-    /// e.g. "2024-01-15T12:34:56.1234567Z" or "2024-01-15T12:34:56Z"
     private static let timestampPattern = #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?\s+"#
-
-    // MARK: - Error Patterns
 
     private static let errorPatterns: [String] = [
         "error:",
@@ -100,8 +80,6 @@ final class BuildLogDecoder: Sendable {
         "error: build failed"
     ]
 
-    // MARK: - Warning Patterns
-
     private static let warningPatterns: [String] = [
         "warning:",
         "Warning:",
@@ -110,8 +88,6 @@ final class BuildLogDecoder: Sendable {
         "deprecation warning",
         "deprecated"
     ]
-
-    // MARK: - Compile Step Patterns
 
     private static let compilePatterns: [String] = [
         "Compiling",
@@ -134,9 +110,6 @@ final class BuildLogDecoder: Sendable {
         "##[group]"
     ]
 
-    // MARK: - Decode
-
-    /// Parse raw log text into a structured `DecodedBuildLog`.
     func decode(_ rawLog: String) -> DecodedBuildLog {
         let lines = rawLog.components(separatedBy: .newlines)
         var entries: [DecodedLogEntry] = []
@@ -176,9 +149,6 @@ final class BuildLogDecoder: Sendable {
         )
     }
 
-    // MARK: - Summarize for AI
-
-    /// Creates a concise summary of decoded logs suitable for AI analysis.
     func summarizeForAI(_ decodedLog: DecodedBuildLog) -> String {
         var summary = "Build Log Summary:\n"
         summary += "- Total lines: \(decodedLog.entries.count)\n"
@@ -203,8 +173,6 @@ final class BuildLogDecoder: Sendable {
 
         return summary
     }
-
-    // MARK: - Private Helpers
 
     private func extractTimestamp(from line: String) -> String? {
         guard let range = line.range(of: Self.timestampPattern, options: .regularExpression) else {

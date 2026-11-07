@@ -4,10 +4,6 @@ import SwiftCodeDebug
 import SwiftCodeLanguage
 import SwiftCodeProject
 
-/// The non-visual state of one workspace window: the selected scheme and
-/// destination, the running build or debug session, issues, breakpoints and
-/// the console. Views observe it through `onChange`. See
-/// `specs/ide/workspace-window.md` §Activity and `specs/ide/debug.md`.
 @MainActor
 public final class WorkspaceSession {
     public enum Activity: Equatable {
@@ -21,63 +17,35 @@ public final class WorkspaceSession {
     public enum Change { case activity, issues, breakpoints, console, debugState, reports, tests, process }
 
     public var model: WorkspaceModel { didSet { issueTargetStore.targets = [:] } }
-    /// A change of either restarts the language server with the build
-    /// server's new context (WorkspaceSession+LanguageContext.swift).
     public var scheme: String? { didSet { if scheme != oldValue { buildContextChanged() } } }
     public var destination: Destination? { didSet { if destination?.specifier != oldValue?.specifier { buildContextChanged() } } }
-    /// The build engine chosen in Settings ▸ Locations ▸ Build System.
     public var engine: BuildEngine = BuildSystemPreference.current().makeEngine()
     public private(set) var activity: Activity = .idle
-    /// Issues of the last build.
     public internal(set) var issues: [Diagnostic] = []
-    /// Tests that failed in the last test run (the toolbar issue capsule).
     public internal(set) var failedTestCount = 0
-    /// The product of the current or last debug run ("Finished running <product>").
     public internal(set) var runningProduct: String?
-    /// The simulator the current or last run is on ("Running <product> on
-    /// <device>", `reference-ui-6.md` §3.3); nil for runs on the Mac.
     public internal(set) var runningDeviceName: String?
-    /// "Running <product>[ on <device>]" for the current run.
     var runningActivityTitle: String { DebugPresentation.runningTitle(runningProduct, on: runningDeviceName) }
-    /// Settings ▸ General ▸ Issues: show live issues.
     public var includeLiveIssues = true { didSet { notify(.issues) } }
-    /// Package resolution failures (shown with the build issues).
     public var packageIssues: [Diagnostic] = [] { didSet { notify(.issues) } }
-    /// Project-level checks (`reference-ui-5.md` §11.6, T8): warnings about
-    /// the project itself, such as signing without a development team.
-    /// They count in the toolbar capsule; see `refreshProjectIssues()`.
     public internal(set) var projectIssues: [Diagnostic] = []
-    /// The last test run (Test Again, Test Without Building Again).
     public internal(set) var lastTestRun: TestRun?
-    /// Product ▸ Test Plan: the chosen plan of the scheme (nil = its
-    /// default plan).
     public var activeTestPlan: String?
-    /// Stop (⌘.) during Run Repeatedly: no further iteration starts.
     var repetitionCancelled = false
-    /// The language service, once started.
     public internal(set) var language: LanguageService?
-    /// The build context the language server serves, and its restarts.
     let languageRestart = LanguageRestartState()
 
-    /// Project, package and build issues plus the language server's live
-    /// issues, one entry per diagnostic, messages capitalized
-    /// (`reference-ui-6.md` §5.2, N2); this is what the issue navigator,
-    /// the editor and the toolbar capsule show.
     public var displayedIssues: [Diagnostic] {
         let live = includeLiveIssues ? (language?.liveIssues ?? [:]).keys.sorted().flatMap { language!.liveIssues[$0]! } : []
         return IssueMerge.merge([projectIssues, packageIssues, issues], live: live, liveHiddenFiles: liveIssuesHiddenFiles)
     }
 
-    /// Files (canonical paths, `IssueMerge.canonicalPath`) whose live issues
-    /// are not shown: the build reported issues for them and they have not
-    /// been edited since (§5.2.2).
     public var liveIssuesHiddenFiles: Set<String> {
         Set(issues.compactMap { $0.location.map { IssueMerge.canonicalPath($0.file) } }).subtracting(issueEditState.editedSinceBuild)
     }
     final class IssueEditState { var editedSinceBuild = Set<String>() }
     let issueEditState = IssueEditState()
 
-    /// A file was edited: its live issues show again (§5.2.2).
     public func noteFileEdited(_ path: String) {
         let p = IssueMerge.canonicalPath(path)
         let wasHidden = liveIssuesHiddenFiles.contains(p)
@@ -87,9 +55,6 @@ public final class WorkspaceSession {
 
     func languageIssuesChanged() { notify(.issues) }
 
-    /// How the Issue navigator groups issues (§5.1, N1): by the project's
-    /// targets (every project of a workspace), or for a package by its
-    /// targets' folders under `Sources/` and `Tests/`.
     public var issueGrouping: IssueGrouping {
         let model = self.model
         if model.kind == .package {
@@ -120,7 +85,6 @@ public final class WorkspaceSession {
             return found
         }
     }
-    /// Targets per file for `issueGrouping`, dropped when the model changes.
     final class IssueTargetCache { var targets: [String: [String]] = [:] }
     let issueTargetStore = IssueTargetCache()
     public var breakpoints = BreakpointStore() {
@@ -130,10 +94,8 @@ public final class WorkspaceSession {
             Task { await syncBreakpoints() }
         }
     }
-    /// The workspace's breakpoint files, once attached (reference-ui-5.md §10.1).
     public private(set) var breakpointFile: BreakpointPersistence?
 
-    /// Loads the stored breakpoints and saves every later change of the set.
     public func attachBreakpointFile(user: String = NSUserName()) {
         let file = BreakpointPersistence(container: model.url, isPackage: model.kind == .package, user: user)
         breakpointFile = file
@@ -141,7 +103,6 @@ public final class WorkspaceSession {
     }
     public private(set) var console = ""
     public private(set) var buildLog: [String] = []
-    /// Arrival time of each `buildLog` line, from `buildLogStarted`.
     private var buildLogTimes: [TimeInterval] = []
     private var buildLogStarted = Date()
     func appendBuildLog(_ line: String) {
@@ -153,24 +114,14 @@ public final class WorkspaceSession {
         buildLogTimes = []
         buildLogStarted = Date()
     }
-    /// Tests found in the workspace's sources, and the last outcome of each.
     public private(set) var tests: [DiscoveredTest] = []
-    /// The test discovery running in the background, if any.
     public private(set) var testDiscovery: Task<Void, Never>?
     private var testDiscoveryGeneration = 0
     public internal(set) var testResults: [DiscoveredTest: TestOutcome.Status] = [:]
     public var testRunner = TestRunner()
-    /// The remote simulator of a SwiftCode simulator destination (the window
-    /// reads Settings ▸ Simulators), for tests run on it.
     public var remoteSimulatorForTests: (@MainActor (Destination) -> RemoteSimulator?)?
-    /// The chosen build system; swift-build runs project tests through
-    /// swiftcodebuild (TestRunnerSelection).
     public var buildSystemPreference: BuildSystemPreference = .current()
 
-    /// Re-reads the sources for tests (the Test navigator).
-    /// Finds the workspace's tests off the main thread (it reads every
-    /// source file), then publishes them (`.tests`). A later call replaces
-    /// a read still running.
     @discardableResult
     public func discoverTests() -> Task<Void, Never> {
         testDiscoveryGeneration += 1
@@ -186,27 +137,20 @@ public final class WorkspaceSession {
         return task
     }
 
-    /// Waits until the tests have been found (tests of SwiftCode).
     public func testsDiscovered() async {
         while let t = testDiscovery { await t.value }
     }
 
-    /// The tests a diamond at `file:line` runs: the test declared there, or
-    /// every test of the suite declared there.
     public func testsForDiamond(file: String, line: Int) -> [DiscoveredTest] {
         if let t = tests.first(where: { $0.file == file && $0.line == line }) { return [t] }
         return tests.filter { $0.file == file && $0.suiteLine == line }
     }
 
-    /// The filter form for the runner: `Suite/name` for packages;
-    /// `<Target>/Suite/name` for projects (xcodebuild `-only-testing:`),
-    /// the target being the one whose sources hold the test's file.
     public func runnerIdentifier(_ t: DiscoveredTest) -> String {
         guard model.kind != .package, let target = model.targetName(compiling: t.file) else { return t.identifier }
         return "\(target)/\(t.identifier)"
     }
 
-    /// The SDK a destination builds against ("macOS 27.2" for the Mac).
     static func sdkName(for destination: String) -> String {
         let lower = destination.lowercased()
         guard destination.isEmpty || lower.contains("mac") else { return "" }
@@ -214,7 +158,6 @@ public final class WorkspaceSession {
         return "macOS \(v.majorVersion).\(v.minorVersion)"
     }
 
-    /// Where a build or test ran, for its report.
     func reportContext(action: String, started: Date) -> ReportContext {
         var c = ReportContext()
         c.action = action
@@ -227,37 +170,26 @@ public final class WorkspaceSession {
         c.sdk = Self.sdkName(for: c.destination)
         c.duration = Date().timeIntervalSince(started)
         if action == "Test" {
-            // The plan that ran (Product ▸ Test Plan), else the autocreated one.
             c.plan = effectiveTestPlan
             c.testTargets = max(1, Set(tests.map { model.kind == .package ? URL(fileURLWithPath: $0.file).deletingLastPathComponent().lastPathComponent : (model.targetName(compiling: $0.file) ?? "") }).count)
         }
         return c
     }
 
-    /// Product ▸ Test (⌘U), or one test's diamond: runs tests and records
-    /// pass/fail per discovered test. `only` holds `Suite/name` identifiers.
-    /// `withoutBuilding`: Perform Action ▸ Test Without Building (⌃⌘U), the
-    /// tests an earlier Build For ▸ Testing built.
     @discardableResult
     public func runTests(only: [DiscoveredTest] = [], withoutBuilding: Bool = false) async -> [TestOutcome] {
         stop()
         lastTestRun = TestRun(tests: only, withoutBuilding: withoutBuilding)
-        // Re-read before each run so tests added since are found (testing.md §Discovery).
         discoverTests()
         await testsDiscovered()
         resetBuildLog()
         let testStarted = Date()
-        // reference-ui-6.md §3.4: "Test", the build texts, "Configuring
-        // Debugger Actions", then SwiftCode's "Testing <scheme>".
         let progress = TestActivityProgress(subject: scheme ?? model.displayName)
         testActivityProgress = progress
         setActivity(.building(progress.text))
         let request = model.buildRequest(scheme: scheme, destination: destination, action: withoutBuilding ? .testWithoutBuilding : .test)
-        // Code coverage when the scheme's test action gathers it: SwiftPM's
-        // own export for packages, swiftcodebuild's summary for projects.
         var runner = selectedTestRunner
         runner.coverage = gathersCoverage
-        // The SwiftCode simulator: swiftcodebuild runs the app's hosted tests there.
         if let d = destination, d.isSwiftCodeRemoteSimulator, let remote = remoteSimulatorForTests?(d) {
             runner.environment.merge(remote.testEnvironment) { _, new in new }
             runner.destinationOverride = RemoteSimulator.testDestination
@@ -269,12 +201,10 @@ public final class WorkspaceSession {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.appendBuildLog(line)
-                // Only while this run lasts: late lines must not replace
-                // the finished text.
                 if self.testActivityProgress === progress, let text = progress.feed(line) { self.setActivity(.building(text)) }
             }
         }
-        try? await Task.sleep(nanoseconds: 50_000_000) // let queued log lines land
+        try? await Task.sleep(nanoseconds: 50_000_000)
         let outcomes = TestFailureFiles.resolve(ran, tests: tests)
         if testActivityProgress === progress { testActivityProgress = nil }
         for t in (only.isEmpty ? tests : only) {
@@ -297,32 +227,22 @@ public final class WorkspaceSession {
         notify(.reports)
         failedTestCount = outcomes.filter { $0.status == .failed }.count
         notify(.issues)
-        // reference-ui-6.md §3.4: a run of selected tests (diamond, Test
-        // navigator, Test Again of such a run) ends in "Test Completed"
-        // (reference-ui-2.md §2: also when a test failed; the toolbar
-        // capsule shows the failures); a whole-scheme run in "Test
-        // Succeeded" or "Test Failed" (testing.md).
         setActivity(.finished(Self.testFinishedText(selected: !only.isEmpty, passed: ok)))
         return outcomes
     }
 
-    /// The activity text a test run ends with (§3.4).
     public static func testFinishedText(selected: Bool, passed: Bool) -> String {
         if selected { return RunActivityText.testCompleted }
         return passed ? RunActivityText.testSucceeded : RunActivityText.testFailed
     }
 
-    /// The test run in progress, whose output lines move its activity text.
     package var testActivityProgress: TestActivityProgress?
 
-    /// The selected scheme's test action gathers code coverage
-    /// (`codeCoverageEnabled="YES"`).
     public var gathersCoverage: Bool {
         guard let name = scheme, let s = model.loadSchemes().first(where: { $0.name == name }) else { return false }
         return s.document.child("TestAction")?["codeCoverageEnabled"] == "YES"
     }
 
-    /// The Coverage page's rows after a run with coverage.
     nonisolated static func coverage(request: BuildRequest, runner: TestRunner, summary: String) -> [CoverageItem] {
         if case .package(let dir) = request.container {
             return runner.packageCoverageJSON(packageDirectory: dir).map(CoverageModel.parseLLVMCovExport) ?? []
@@ -330,18 +250,14 @@ public final class WorkspaceSession {
         return FileManager.default.contents(atPath: summary).map(CoverageModel.parseSwiftCodebuildSummary) ?? []
     }
 
-    /// Finished builds, newest first (the Report navigator).
     public private(set) var reports: [BuildReport] = []
 
-    /// Adds a finished operation (e.g. a package resolution) to the reports.
     public func recordReport(_ r: BuildReport) {
         reports.insert(r, at: 0)
         pruneReports()
         notify(.reports)
     }
 
-    /// Settings ▸ General ▸ Local report history: older reports beyond it
-    /// are dropped.
     public var reportHistoryLimit = 20 {
         didSet { if reportHistoryLimit < reports.count { pruneReports(); notify(.reports) } }
     }
@@ -350,55 +266,32 @@ public final class WorkspaceSession {
         if reports.count > max(1, reportHistoryLimit) { reports.removeLast(reports.count - max(1, reportHistoryLimit)) }
     }
 
-    /// Settings ▸ General ▸ Stop build on first error: the build is
-    /// cancelled when its first error arrives, and reported as failed with
-    /// the issues that arrived until it stopped.
     public var stopOnFirstError = true
     private var stoppedOnFirstError = false
 
-    // Debugging
     public internal(set) var debugClient: DAPClient?
-    /// The app running on a simulator (Mac or the remote SwiftCode simulator).
     public internal(set) var simulatorRun: SimulatorRunState?
-    /// Console lines with their source (for the console filter).
     public private(set) var consoleEntries: [ConsoleEntry] = []
-    /// The adapter's description of the last stop (e.g. "watchpoint 1").
     public private(set) var lastStopDescription: String?
-    /// Commands typed into the console, oldest first (↑/↓ history).
     public private(set) var consoleHistory: [String] = []
-    /// Watch expressions ("Add Expression…") and their last values.
     public var watchExpressions: [String] = [] { didSet { Task { await refreshWatches() } } }
     public private(set) var watchValues: [Variable] = []
-    /// Watchpoints set from the variables view.
     public private(set) var watchpoints: [Watchpoint] = []
-    /// The variables view also lists register scopes (Settings / the
-    /// variables view's Registers toggle).
     public var showRegisters = false { didSet { if oldValue != showRegisters { Task { await loadVariables(frameID: selectedFrameID) } } } }
-    /// Debug ▸ Debug Workflow ▸ Always Show Disassembly.
     public var alwaysShowDisassembly = false { didSet { Task { await refreshDisassembly() } } }
-    /// The disassembly around the selected frame's PC, and the PC's index.
     public private(set) var disassembly: [Instruction] = []
     public private(set) var disassemblyPCIndex: Int?
-    /// Which container (scope or parent) each shown variable came from.
     public private(set) var variableContainers: [String: Int] = [:]
     public private(set) var stoppedThread: Int?
-    /// Continue To Current Line's breakpoint, removed at the next stop.
     public internal(set) var temporaryBreakpoint: (file: String, line: Int)?
-    // Debugger UI state (WorkspaceSession+DebugUI.swift).
-    /// "A" (argument) or "L" (local) per shown variable name.
     public internal(set) var variableBadges: [String: String] = [:]
-    /// True while a stop's variables are being fetched (the spinner).
     public internal(set) var isLoadingVariables = false
     var exitLinePrinted = false
     var killReported = false
-    /// Adapter breakpoint ids ("n.m") by "file:line", and hits per id.
     public internal(set) var breakpointIDs: [String: String] = [:]
     public internal(set) var breakpointHits: [String: Int] = [:]
-    /// The stop's editor annotation ("Thread 1: breakpoint 1.1 (1)").
     public internal(set) var stopAnnotation: (file: String, line: Int, text: String)?
-    /// Increments on each stop (the window selects the Debug navigator once per stop).
     public internal(set) var stopCount = 0
-    /// The last stop for which the window selected the Debug navigator.
     public var autoSelectedStop = 0
     public internal(set) var processGauges = ProcessGauges()
     var gaugeSampler: ProcessGaugeSampler?
@@ -406,9 +299,7 @@ public final class WorkspaceSession {
     public private(set) var frames: [StackFrame] = []
     public private(set) var variables: [Variable] = []
     public private(set) var threads: [DebugThread] = []
-    /// The frame the variables view shows (top frame when stopping).
     public private(set) var selectedFrameID: Int?
-    /// The file and line the debugger stopped at, for the editor highlight.
     public var currentLocation: (file: String, line: Int)? {
         let f = frames.first { $0.id == selectedFrameID } ?? frames.first
         return f.flatMap { f in f.file.map { ($0, f.line) } }
@@ -430,9 +321,6 @@ public final class WorkspaceSession {
         switch activity { case .building, .running, .paused: true; default: false }
     }
 
-    // MARK: Build
-
-    /// Build (⌘B), Clean (⇧⌘K), Test (⌘U), Analyze (⇧⌘B).
     @discardableResult
     public func build(_ action: BuildRequest.Action = .build) async -> BuildResult {
         let request = model.buildRequest(scheme: scheme, destination: destination, action: action)
@@ -440,12 +328,8 @@ public final class WorkspaceSession {
         return await performBuild(request, presentation: .init(action: action, subject: scheme ?? model.displayName), start: engine.start)
     }
 
-    /// The activity view's build texts (`reference-ui-6.md` §3.2); "•" is
-    /// U+2022 with one space on each side.
     public enum BuildActivityText {
         public static let accepted = "Build"
-        /// The texts of other actions when they are accepted (the action's
-        /// name, §3.2).
         public static func accepted(_ action: BuildRequest.Action) -> String {
             switch action {
             case .test, .testWithoutBuilding: "Test"
@@ -455,44 +339,27 @@ public final class WorkspaceSession {
         }
         public static let planning = "Building \u{2022} Planning deferred tasks"
         public static func progress(done: Int, total: Int) -> String { "Building \u{2022} \(done)/\(max(done, total))" }
-        /// Whether an activity text is a build's (a build has started).
         public static func isBuild(_ text: String) -> Bool {
             [accepted, "Test", "Analyze"].contains(text) || text.hasPrefix("Building ")
         }
     }
 
-    /// The activity view's run and test texts (`reference-ui-6.md` §3.3–
-    /// §3.4). A simulator run reads "Launching <product>" (also while the
-    /// simulator boots and the app is installed or uploaded), then, under
-    /// the debugger, "Configuring Debugger Actions", then "Running
-    /// <product> on <device>", and after it ends "Finished running
-    /// <product> on <device>". There are no step counters.
     public enum RunActivityText {
         public static func launching(_ product: String) -> String { "Launching \(product)" }
         public static let configuringDebugger = "Configuring Debugger Actions"
         public static func running(_ product: String, on device: String?) -> String { DebugPresentation.runningTitle(product, on: device) }
         public static func finished(_ product: String, on device: String?) -> String { DebugPresentation.finishedTitle(product, on: device) }
-        /// A test action when it is accepted (§3.2: the action's name).
         public static let testAccepted = "Test"
-        /// A passing run of selected tests (§3.4).
         public static let testCompleted = "Test Completed"
-        /// A whole-scheme run (`testing.md`).
         public static let testSucceeded = "Test Succeeded"
         public static let testFailed = "Test Failed"
     }
 
-    /// How a build-like operation shows in the activity view and the
-    /// Report navigator.
     struct BuildPresentation {
-        /// The activity text while it runs ("Building App").
         var running: String
-        /// The report's action ("Build", "Clean", "Test").
         var reportAction: String
-        /// The report title ("Build App").
         var title: String
-        /// The finished activity text per status.
         var succeeded: String, failed: String, cancelled: String
-        /// Whether the build log carries over the scheme's earlier steps.
         var carriesOver: Bool
 
         init(running: String, reportAction: String, title: String, succeeded: String, failed: String, cancelled: String, carriesOver: Bool) {
@@ -509,17 +376,12 @@ public final class WorkspaceSession {
             let verb = action == .clean ? "Cleaning" : (action == .test ? "Testing" : "Building")
             let noun = action == .clean ? "Clean" : (action == .test ? "Test" : "Build")
             let verbTitle = action == .clean ? "Clean" : (action == .test ? "Test" : "Build")
-            // A build shows the action's name when it is accepted
-            // (`reference-ui-6.md` §3.2), then its progress.
             let running = [.build, .test, .analyze].contains(action) ? BuildActivityText.accepted(action) : "\(verb) \(subject)"
             self.init(running: running, reportAction: verbTitle, title: "\(verbTitle) \(subject)",
                       succeeded: "\(noun) Succeeded", failed: "\(noun) Failed", cancelled: "Build Cancelled", carriesOver: action != .clean)
         }
     }
 
-    /// Runs one build operation: the activity view, issues (stop on the
-    /// first error), the build log and the report. It stops a running build
-    /// and, unless `keepsRunningApp` (single-file actions), the running app.
     @discardableResult
     func performBuild(_ request: BuildRequest, presentation p: BuildPresentation, keepsRunningApp: Bool = false,
                       start: (BuildRequest) -> BuildOperation) async -> BuildResult {
@@ -557,8 +419,6 @@ public final class WorkspaceSession {
         report.context = reportContext(action: p.reportAction, started: started)
         report.context.issues = issues
         report.context.logTimes = buildLogTimes
-        // The build log's All scope: steps of the scheme's earlier builds
-        // (since its last clean) that this build did not run again.
         if p.carriesOver, let prev = reports.first(where: { $0.schemeName == report.schemeName && ($0.kind == .build || $0.kind == .clean) }),
            prev.kind == .build {
             report.context.carriedOver = BuildLogModel.carriedOver(from: prev, into: report)
@@ -574,8 +434,6 @@ public final class WorkspaceSession {
         switch event {
         case .output(let line): appendBuildLog(line)
         case .activity(let text):
-            // The engine's step text shows only for engines that report no
-            // planning or task counts (single-file actions).
             if !buildProgressState.seen { setActivity(.building(text)) }
         case .planning:
             buildProgressState.seen = true
@@ -597,8 +455,6 @@ public final class WorkspaceSession {
     final class BuildProgressState { var seen = false }
     let buildProgressState = BuildProgressState()
 
-    /// The activity view's text for a long command the window runs itself
-    /// (Product ▸ Archive).
     public func noteToolActivity(_ a: Activity) { setActivity(a) }
 
     func setActivity(_ a: Activity) {
@@ -606,11 +462,6 @@ public final class WorkspaceSession {
         notify(.activity)
     }
 
-    // MARK: Run and debug
-
-    /// Run (⌘R): build, then launch `program` under lldb-dap. With
-    /// `building` false (Perform Action ▸ Run Without Building, ⌃⌘R) the
-    /// product of the last build is launched as it is.
     public func run(program: String?, adapter: DAPTransport? = nil, building: Bool = true) async {
         if building {
             let result = await build(.build)
@@ -627,18 +478,12 @@ public final class WorkspaceSession {
         await debug(program: program, adapter: adapter)
     }
 
-    /// What the scheme's Run action passes to the program
-    /// (`specs/ide/schemes.md` Run ▸ Arguments / Options): enabled
-    /// arguments, each split into words as a shell would; enabled
-    /// environment variables; the custom working directory, if any.
     public struct LaunchOptions: Equatable, Sendable {
         public var arguments: [String] = []
         public var environment: [String: String] = [:]
         public var workingDirectory: String?
     }
 
-    /// The launch options of the selected scheme (none for packages or
-    /// when the scheme file is not found).
     public var launchOptions: LaunchOptions {
         guard let name = scheme, let s = model.loadSchemes().first(where: { $0.name == name }) else { return LaunchOptions() }
         var o = LaunchOptions()
@@ -649,7 +494,6 @@ public final class WorkspaceSession {
         return o
     }
 
-    /// Starts a debug session for `program`. `adapter` defaults to lldb-dap.
     public func debug(program: String, adapter: DAPTransport? = nil) async {
         let transport: DAPTransport
         if let adapter { transport = adapter } else {
@@ -671,11 +515,6 @@ public final class WorkspaceSession {
             }
             try await client.initialize()
             var o = launchOptions
-            // An instrumented program writes default.profraw into its
-            // working directory unless told otherwise; a per-run UUID keeps
-            // the names unique. (A `%` in an environment value is passed
-            // through by lldb-dap unchanged; the earlier "no output, no exit
-            // event" symptom was a slow first launch under lldb, not `%`.)
             if o.environment["LLVM_PROFILE_FILE"] == nil {
                 o.environment["LLVM_PROFILE_FILE"] = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-run-\(UUID().uuidString).profraw").path
             }
@@ -687,13 +526,9 @@ public final class WorkspaceSession {
         }
     }
 
-    /// True while the debugger attaches to a simulator app, until the app
-    /// is resumed.
     var attachingSimulatorApp = false
-    /// The loopback forward to a simulator app's debug stub (StubDebugAttach.swift).
     var stubForward: StubForward?
 
-    /// The debugged process's ID, from lldb-dap's `process` event.
     public internal(set) var debuggedPID: Int?
 
     func handle(_ e: DAPEvent) async {
@@ -716,22 +551,15 @@ public final class WorkspaceSession {
                 temporaryBreakpoint = nil
                 await syncBreakpoints()
             }
-            // Breakpoint actions SwiftCode runs; "automatically continue" resumes.
             if await runBreakpointActions(e.body) { return }
             var thread = e.body["threadId"]?.int
             if thread == nil { thread = try? await client.threads().first?.id }
             stoppedThread = thread
             await refreshStopState()
             lastStopDescription = e.body["description"]?.string ?? e.body["text"]?.string
-            // lldb-dap reports watchpoint hits as reason "breakpoint" with
-            // a "watchpoint N" description.
             let reason = (lastStopDescription?.hasPrefix("watchpoint") == true ? lastStopDescription : nil) ?? e.body["reason"]?.string ?? "stopped"
             noteStop(e.body, threadID: thread, reason: reason)
-            // Ordinary stops read "Paused <product>"; others keep their
-            // reason ("Paused <product>: watchpoint N", "…: exception").
             let plain = ["breakpoint", "step", "pause", "entry", "goto", "function breakpoint"].contains(reason)
-            // The stop that attaching to a simulator app makes is part of
-            // "Configuring Debugger Actions" (§3.3); the app is resumed.
             if !attachingSimulatorApp {
                 setActivity(.paused(DebugPresentation.pausedTitle(runningProduct) + (plain ? "" : ": \(reason)")))
             }
@@ -739,7 +567,6 @@ public final class WorkspaceSession {
             clearStopState()
             setActivity(.running(runningActivityTitle))
         case "exited":
-            // Its own paragraph after the program's output (reference-ui-2.md §9).
             let lead = console.isEmpty || console.hasSuffix("\n\n") ? "" : (console.hasSuffix("\n") ? "\n" : "\n\n")
             appendConsole(lead + "Program ended with exit code: \(e.body["exitCode"]?.int ?? 0)\n")
             exitLinePrinted = true
@@ -762,26 +589,21 @@ public final class WorkspaceSession {
         await refreshDisassembly()
     }
 
-    /// Shows a frame's variables (a click in the Debug navigator).
     public func selectFrame(_ id: Int) async {
         guard frames.contains(where: { $0.id == id }) else { return }
         await loadVariables(frameID: id)
-        // Watch expressions and the disassembly follow the selected frame.
         await refreshWatches()
         await refreshDisassembly()
     }
 
     private func loadVariables(frameID: Int?) async {
         selectedFrameID = frameID
-        // A reload (new stop, frame, edit or console command) may change
-        // values, so expanded children are fetched again.
         childrenCache = [:]
         var vars: [Variable] = []
         variableContainers = [:]
         var badges: [String: String] = [:]
         let frameName = frames.first { $0.id == frameID }?.name
         if let client = debugClient, let frameID, let scopes = try? await client.scopes(frameID: frameID) {
-            // Registers stay out of the default view (an open question).
             for s in scopes where showRegisters || (!s.expensive && !s.name.localizedCaseInsensitiveContains("register")) {
                 let list = (try? await client.variables(reference: s.variablesReference)) ?? []
                 for v in list where variableContainers[v.name] == nil {
@@ -797,19 +619,14 @@ public final class WorkspaceSession {
         notify(.debugState)
     }
 
-    /// The children of an expandable variable (nonzero reference). Valid
-    /// only while stopped at the same place.
     public func children(of reference: Int) async -> [Variable] {
         guard reference != 0, let client = debugClient else { return [] }
-        // Fetched once per stop: references are valid until the program
-        // resumes (debug.md §Variables view).
         if let cached = childrenCache[reference] { return cached }
         let list = (try? await client.variables(reference: reference)) ?? []
         childrenCache[reference] = list
         return list
     }
 
-    /// Children already fetched in this stop, by `variablesReference`.
     private var childrenCache: [Int: [Variable]] = [:]
 
     func clearStopState() {
@@ -833,15 +650,8 @@ public final class WorkspaceSession {
         if isBusy { setActivity(.finished(DebugPresentation.finishedTitle(runningProduct, on: runningDeviceName))) }
     }
 
-    /// Files whose breakpoints were sent in this debug session; a file
-    /// whose last breakpoint goes away gets an empty set (it replaces the
-    /// file's set in the adapter).
     private var sentBreakpointFiles: Set<String> = []
-    /// DAP: breakpoints are configured after the adapter's `initialized`
-    /// event; changes before it wait for that event's full sync.
     var adapterInitialized = false
-    /// The breakpoint sync in progress; each sync runs after the previous
-    /// one, so the adapter's final sets are the latest ones.
     private var breakpointSync: Task<Void, Never>?
 
     func syncBreakpoints() async {
@@ -855,7 +665,6 @@ public final class WorkspaceSession {
         guard let client = debugClient else { sentBreakpointFiles = []; return }
         guard adapterInitialized else { return }
         var current = breakpoints.effectiveBreakpoints
-        // Continue To Current Line's temporary breakpoint (§10.2).
         if let t = temporaryBreakpoint, !(current[t.file] ?? []).contains(where: { $0.line == t.line && $0.column == nil }) {
             current[t.file, default: []].append(SourceBreakpoint(line: t.line))
         }
@@ -874,14 +683,12 @@ public final class WorkspaceSession {
 
     public func appendConsole(_ s: String) { appendConsole(s, kind: .debugger) }
 
-    /// Product ▸ Clear All Issues.
     public func clearIssues() {
         issues = []
         packageIssues = []
         notify(.issues)
     }
 
-    /// Debug ▸ Console ▸ Clear Console.
     public func clearConsole() {
         console = ""
         consoleEntries = []
@@ -894,11 +701,6 @@ public final class WorkspaceSession {
         notify(.console)
     }
 
-    // MARK: Console input, watches, watchpoints, disassembly, attach
-
-    /// Runs a console line while paused (`evaluate`, context `repl`): LLDB
-    /// commands (`po x`, `p x`, `expr …`, `bt`) and expressions. The line
-    /// is echoed after an `(lldb)` prompt; the result follows.
     @discardableResult
     public func evaluateInConsole(_ line: String) async -> String? {
         let text = line.trimmingCharacters(in: .whitespaces)
@@ -916,19 +718,16 @@ public final class WorkspaceSession {
             await loadVariables(frameID: selectedFrameID)
             return r.result
         } catch {
-            // "error: <adapter message>", without the request name.
             let message = (error as? DAPError)?.message ?? "\(error)"
             appendConsole(message.hasPrefix("error:") ? message + "\n" : "error: \(message)\n", kind: .debugger)
             return nil
         }
     }
 
-    /// The console text for a filter.
     public func consoleText(_ filter: ConsoleEntry.Filter, metadata: ConsoleMetadata = ConsoleMetadata()) -> String {
         Self.consoleText(consoleEntries.filter { filter.includes($0.kind) }, metadata: metadata)
     }
 
-    /// Entries with the checked metadata columns as a line prefix.
     nonisolated public static func consoleText(_ shown: [ConsoleEntry], metadata: ConsoleMetadata) -> String {
         guard metadata.enabled, metadata.type || metadata.timestamp || metadata.pidTID else { return shown.map(\.text).joined() }
         let f = DateFormatter()
@@ -957,11 +756,6 @@ public final class WorkspaceSession {
         notify(.debugState)
     }
 
-    /// Assigns a new value to a shown variable (`setVariable`). When the
-    /// adapter cannot (Swift 6.4's lldb-dap on Linux answers "Invalid
-    /// encoding." for Swift integers) and the variable's `expression` is
-    /// known, LLDB assigns it: `expression -- <expression> = <value>`.
-    /// A failure is printed in the console.
     @discardableResult
     public func setValue(_ value: String, of name: String, container: Int? = nil, expression: String? = nil) async -> String? {
         guard let client = debugClient, let ref = container ?? variableContainers[name] else { return nil }
@@ -983,22 +777,17 @@ public final class WorkspaceSession {
             }
         }
         await loadVariables(frameID: selectedFrameID)
-        // Watch expressions may read the new value.
         if !watchExpressions.isEmpty { await refreshWatches() }
         return r
     }
 
-    /// Print Description: `po <name>` in the console.
     @discardableResult
     public func printDescription(of name: String) async -> String? { await evaluateInConsole("po \(name)") }
 
-    /// Watch <variable>: a write watchpoint (`dataBreakpointInfo` +
-    /// `setDataBreakpoints` with every watchpoint).
     @discardableResult
     public func watch(_ name: String, container: Int? = nil, access: String = "write") async -> Watchpoint? {
         guard let client = debugClient, let ref = container ?? variableContainers[name],
               let info = try? await client.dataBreakpointInfo(reference: ref, name: name), let id = info.dataID else { return nil }
-        // The requested access when offered (`write`, `read`, `readWrite`).
         let access = info.accessTypes.isEmpty || info.accessTypes.contains(access) ? access : info.accessTypes[0]
         var list = watchpoints.filter { $0.dataID != id }
         list.append(Watchpoint(name: name, dataID: id, description: info.description, accessType: access, verified: false))
@@ -1015,8 +804,6 @@ public final class WorkspaceSession {
         notify(.breakpoints)
     }
 
-    /// Whether a frame's source file is on this computer (a frame without
-    /// one is shown as its disassembly).
     public static func hasLocalSource(_ f: StackFrame) -> Bool {
         f.file.map { FileManager.default.fileExists(atPath: $0) } ?? false
     }
@@ -1030,8 +817,6 @@ public final class WorkspaceSession {
             notify(.debugState)
             return
         }
-        // Before a function's first instruction lldb-dap pads the list with
-        // invalid entries (address "-1"); they are left out.
         let list = ((try? await client.disassemble(memoryReference: pc, instructionOffset: -8, count: 40)) ?? []).filter {
             UInt64($0.address.lowercased().replacingOccurrences(of: "0x", with: ""), radix: 16) != nil
         }
@@ -1045,8 +830,6 @@ public final class WorkspaceSession {
         return v(a) != nil && v(a) == v(b)
     }
 
-    /// Debug ▸ Attach to Process by PID or Name…: a pid (digits) or a
-    /// process name (lldb waits for it to launch when `waitFor`).
     public func attach(to target: String, waitFor: Bool = false, adapter: DAPTransport? = nil) async {
         let transport: DAPTransport
         if let adapter { transport = adapter } else {
@@ -1074,8 +857,6 @@ public final class WorkspaceSession {
         }
     }
 
-    /// Threads grouped by dispatch queue (threads without one under
-    /// "Threads"), in first-appearance order.
     public var threadsByQueue: [(queue: String, threads: [DebugThread])] {
         var out: [(String, [DebugThread])] = []
         for t in threads {
@@ -1084,8 +865,6 @@ public final class WorkspaceSession {
         }
         return out
     }
-
-    // MARK: Debug bar
 
     public func continueOrPause() async {
         guard let c = debugClient else { return }
@@ -1106,12 +885,9 @@ public final class WorkspaceSession {
         }
     }
 
-    /// Stop (⌘.): cancels the build or ends the debug session.
     public func stop() {
         currentBuild?.cancel()
         if let c = debugClient {
-            // The process is killed (SIGKILL, code 9), paused or running
-            // (reference-ui-6.md §7, D1).
             if !killReported {
                 killReported = true
                 appendConsole(DebugPresentation.killedLine + "\n", kind: .debugger)
@@ -1121,10 +897,8 @@ public final class WorkspaceSession {
     }
 }
 
-/// One piece of console output and where it came from.
 public struct ConsoleEntry: Equatable, Sendable {
     public enum Kind: Sendable { case debugger, target, input }
-    /// The console's filter pop-up.
     public enum Filter: String, CaseIterable, Sendable {
         case all = "All Output", debugger = "Debugger Output", target = "Target Output"
         package func includes(_ k: Kind) -> Bool {
@@ -1138,7 +912,6 @@ public struct ConsoleEntry: Equatable, Sendable {
     public var kind: Kind
     public var text: String
     public var date = Date()
-    /// The debugged process's ID (DAP `process` event), for PID:TID.
     public var pid: Int?
     public init(kind: Kind, text: String, date: Date = Date(), pid: Int? = nil) {
         self.kind = kind
@@ -1148,20 +921,11 @@ public struct ConsoleEntry: Equatable, Sendable {
     }
 }
 
-/// The console's metadata columns (reference-ui-2.md §9): a master switch
-/// (on) and per-column checkboxes (all off).
 public struct ConsoleMetadata: Equatable, Sendable {
     public static let columns = ["Type", "Timestamp", "Library", "PID:TID", "Subsystem", "Category"]
-    /// Columns SwiftCode's console has data for: Type, Timestamp and PID:TID.
-    /// PID:TID shows the process ID from lldb-dap's `process` event; DAP
-    /// output events carry no thread, so the TID part is left out. Library,
-    /// Subsystem and Category stay disabled: they come from unified-logging
-    /// (os_log) records, and SwiftCode's console source (lldb-dap `output`
-    /// events: plain text plus stdout/stderr/console category) has none.
     public static let supportedColumns: Set<Int> = [0, 1, 3]
     public var pidTID: Bool { get { checked.contains(3) } set { set(3, newValue) } }
     public var enabled = true
-    /// Indices into `columns` that are checked (none by default).
     public var checked: Set<Int> = []
     public init() {}
     public var type: Bool { get { checked.contains(0) } set { set(0, newValue) } }
@@ -1173,7 +937,6 @@ public struct ConsoleMetadata: Equatable, Sendable {
     }
 }
 
-/// A watchpoint (data breakpoint) on a variable.
 public struct Watchpoint: Equatable, Sendable {
     public var name: String
     public var dataID: String

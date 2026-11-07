@@ -1,7 +1,3 @@
-// ycl.h - internal declarations of SwiftCode's libSystem for macOS programs
-// (specs/macos/libsystem.md). Freestanding: no SDK headers. The C types and
-// the FILE layout are the public Darwin arm64 ABI (interoperability facts);
-// everything else is SwiftCode's own.
 #ifndef YCL_H
 #define YCL_H
 
@@ -18,7 +14,6 @@ typedef int pid_t;
 typedef uint16_t mode_t;
 typedef uint32_t os_unfair_lock;
 
-// --- errno values (public <sys/errno.h>) ---
 enum {
     YCL_EPERM = 1, YCL_ENOENT = 2, YCL_EINTR = 4, YCL_EIO = 5, YCL_EBADF = 9, YCL_ENOMEM = 12, YCL_EACCES = 13,
     YCL_EFAULT = 14, YCL_EBUSY = 16, YCL_EEXIST = 17, YCL_ENOTDIR = 20, YCL_EISDIR = 21, YCL_EINVAL = 22,
@@ -28,7 +23,6 @@ enum {
     YCL_ENOTSUP = 45,
 };
 
-// --- open flags and others (public <fcntl.h>, <sys/mman.h>, <unistd.h>) ---
 enum {
     YCL_O_RDONLY = 0, YCL_O_WRONLY = 1, YCL_O_RDWR = 2, YCL_O_APPEND = 0x8, YCL_O_CREAT = 0x200, YCL_O_TRUNC = 0x400,
     YCL_O_EXCL = 0x800, YCL_O_CLOEXEC = 0x1000000,
@@ -46,8 +40,6 @@ struct ycl_timeval {
     int tv_usec;
 };
 
-// --- the host libraries SwiftCode's libSystem re-exports (libsystem_kernel,
-//     libsystem_platform, libsystem_pthread) ---
 int *__error(void);
 #define ycl_errno (*__error())
 ssize_t read(int, void *, size_t);
@@ -109,7 +101,6 @@ int pthread_cond_init(pthread_cond_t *, const void *);
 int pthread_cond_destroy(pthread_cond_t *);
 int mach_wait_until(uint64_t deadline);
 
-// --- libSystem internals ---
 void *malloc(size_t);
 void *calloc(size_t, size_t);
 void *realloc(void *, size_t);
@@ -134,36 +125,32 @@ char *strchr(const char *, int);
 char ***_NSGetEnviron(void);
 size_t strlcpy(char *, const char *, size_t);
 int snprintf(char *, size_t, const char *, ...);
-uint64_t ycl_now_ns(void);  // monotonic nanoseconds
+uint64_t ycl_now_ns(void);
 
-// The formatting engine (format.c): calls `sink` for each run of output.
 typedef void (*ycl_sink)(void *context, const char *bytes, size_t count);
 int ycl_vformat(ycl_sink sink, void *context, const char *format, va_list args);
 
-// FILE: the public Darwin layout (152 bytes). SwiftCode keeps _r and _w at 0 so
-// the header's inline getc/putc macros always call __srget/__swbuf; the
-// remaining bytes are SwiftCode's own fields.
 typedef struct ycl_file {
-    unsigned char *_p;   // 0
-    int _r;              // 8
-    int _w;              // 12
-    short _flags;        // 16: __SEOF 0x20, __SERR 0x40 (read by feof/ferror macros)
-    short _file;         // 18: the descriptor (read by fileno macros)
-    unsigned char *buf;  // 24
-    uint32_t size;       // 32: buffer capacity
-    uint32_t len;        // 36: bytes in the buffer (write: pending; read: filled)
-    uint32_t pos;        // 40: read position
-    int mode;            // 44: _IOFBF 0, _IOLBF 1, _IONBF 2
-    int lastop;          // 48: 0 none, 1 read, 2 write
-    int ungot;           // 52: a pushed-back byte, or -1
-    os_unfair_lock lock; // 56
-    int flags2;          // 60: YCL_F_*
-    struct ycl_file *next; // 64: the open-file list
-    unsigned char small[2]; // 72
-    char pad[6];         // 74
-    void *owner;         // 80: the thread holding the (recursive) lock
-    uint32_t depth;      // 88: its lock count
-    char reserved[60];   // 92, to 152
+    unsigned char *_p;
+    int _r;
+    int _w;
+    short _flags;
+    short _file;
+    unsigned char *buf;
+    uint32_t size;
+    uint32_t len;
+    uint32_t pos;
+    int mode;
+    int lastop;
+    int ungot;
+    os_unfair_lock lock;
+    int flags2;
+    struct ycl_file *next;
+    unsigned char small[2];
+    char pad[6];
+    void *owner;
+    uint32_t depth;
+    char reserved[60];
 } FILE;
 enum { YCL_SEOF = 0x20, YCL_SERR = 0x40 };
 enum { YCL_F_READ = 1, YCL_F_WRITE = 2, YCL_F_APPEND = 4, YCL_F_STATIC = 8, YCL_F_OWNBUF = 16, YCL_F_USED = 32 };

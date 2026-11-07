@@ -2,37 +2,9 @@ import SwiftCodeIDECore
 import SwiftCodeSubprocess
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/GitCLIView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// An embedded git console for the repository: preset command cards, a
-/// custom-command executor, a theme picker, and a console output pane,
-/// plus an "Ask AI" natural-language box.
-///
-/// Adaptations for the destination:
-/// - Legacy ran commands through `ProcessRunnerTool` with `AppSettings.gitPath`.
-///   This port runs them through `Subprocess.run` with the git executable
-///   resolved by `GitRepository.resolvedGitPath()` (staged Group A addition),
-///   in the repository's root, off the main thread (Subprocess is
-///   main-thread-guarded in debug builds).
-/// - Legacy's `TerminalTheme` does not exist in the destination; a small
-///   local `GitCLITheme` (system / dark / light) is defined here.
-/// - Legacy's AI box called `OpenRouterService.streamChat` directly. There
-///   is no equivalent chat seam in `SwiftCodeAssistant`/`SwiftCodeUI`, so
-///   the AI box takes an injected `aiCommandGenerator` closure. The host
-///   wires it to Assist chat completion (prompt: "translate this request
-///   into a single git command for this repository, reply with the command
-///   only"); when nil, the Ask AI button is disabled with a help tip.
-/// - Legacy-only `.sourceControlEmbedded()` / `ModernGroupBoxStyle()` dropped.
-///
-/// Hook: present from the source-control navigator (an embedded-terminal
-/// section) with the navigator's repository and the Assist-wired closure.
 @MainActor
 public struct GitCLIView: View {
     public var repository: GitRepository
-    /// Translates a natural-language request into a git command line
-    /// (arguments only, e.g. `["log", "--oneline", "-10"]` as a single
-    /// string). Nil → the Ask AI box is disabled.
     public var aiCommandGenerator: ((String) async throws -> String)?
 
     @State private var customCommand = ""
@@ -46,7 +18,6 @@ public struct GitCLIView: View {
         self.aiCommandGenerator = aiCommandGenerator
     }
 
-    /// Preset command cards (name + arguments).
     public static let presets: [(name: String, arguments: [String])] = [
         ("Status", ["status", "--short", "--branch"]),
         ("Recent commits", ["log", "--oneline", "-20"]),
@@ -73,7 +44,6 @@ public struct GitCLIView: View {
                 .frame(width: 220)
             }
 
-            // Preset command cards
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Self.presets, id: \.name) { preset in
@@ -87,7 +57,6 @@ public struct GitCLIView: View {
                 }
             }
 
-            // Custom command
             HStack {
                 Text("git")
                     .font(.system(.body, design: .monospaced))
@@ -105,7 +74,6 @@ public struct GitCLIView: View {
                 .disabled(customCommand.trimmingCharacters(in: .whitespaces).isEmpty || isRunning)
             }
 
-            // Ask AI
             HStack {
                 TextField("Ask AI for a git command…", text: $aiQuery)
                     .textFieldStyle(.roundedBorder)
@@ -120,7 +88,6 @@ public struct GitCLIView: View {
                 .disabled(aiCommandGenerator == nil || aiQuery.trimmingCharacters(in: .whitespaces).isEmpty || isRunning)
             }
 
-            // Console output
             ScrollView {
                 Text(consoleOutput.isEmpty ? "Run a command to see its output here." : consoleOutput)
                     .font(.system(.callout, design: .monospaced))
@@ -194,7 +161,6 @@ public struct GitCLIView: View {
         consoleOutput += text
     }
 
-    /// Console colour scheme (Legacy's `TerminalTheme`, local to this view).
     public enum GitCLITheme: CaseIterable {
         case system
         case dark

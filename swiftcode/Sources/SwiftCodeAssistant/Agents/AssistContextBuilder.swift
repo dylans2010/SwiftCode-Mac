@@ -1,21 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AssistContextBuilder.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
-// Verbatim. BLOCKED references (left intact, owned by other scopes):
-// - ProjectSessionStore (Legacy `SwiftCode/Services/ProjectSessionStore.swift`, PARTIAL):
-//   RESOLVED by fix W-V2 — the builder no longer reads the store (SwiftCodeIDECore,
-//   unreachable from this target). It takes the project as `AssistProject` (see
-//   AssistProject.swift); the IDE shell sets it when a project opens, and until
-//   then the workspace root on disk is the project.
-// - AssistWorkingDirectoryStore / AssistFileSystem: audit COVERED-by-design — the
-//   destination superseded them with the MCP tools (WorkspaceSession.currentDirectory
-//   + dir_cd/dir_pwd in SwiftCodeMCP). The working-directory restore in buildContext
-//   (`as? AssistFileSystem` + AssistWorkingDirectoryStore) must be re-wired by the
-//   coordinator to WorkspaceSession.currentDirectory; it is kept verbatim here so
-//   the behaviour is not silently dropped.
-// Resolved in-destination: AssistContext + AssistContextEngine + ExecutionMode +
-// the component protocols all exist in SwiftCodeAssistant.
-// Wiring: AssistManager.buildContext() (same batch) and any session bootstrap.
-
 import Foundation
 
 @MainActor
@@ -26,9 +8,6 @@ public final class AssistContextBuilder {
     private let fileSystem: AssistFileSystemProtocol
     private let git: AssistGitManagerProtocol
 
-    /// The project this builder builds contexts for. Set by the host (the
-    /// IDE shell passes the active project here); nil until then, in which
-    /// case the workspace root on disk is the project (see buildContext).
     public var activeProject: AssistProject?
 
     public init(
@@ -62,8 +41,6 @@ public final class AssistContextBuilder {
         let workspaceRoot = activeProject?.directoryURL ?? AssistContextBuilder.resolvedWorkspaceRoot()
         let project = activeProject ?? AssistProject(workspaceRoot: workspaceRoot)
 
-        // Re-apply the session's stored working directory (see dir_cd) so a
-        // cd survives context rebuilds across messages in the same session.
         if let fs = fileSystem as? AssistFileSystem {
             let stored = AssistWorkingDirectoryStore.shared.currentDirectory(for: sessionId, workspaceRoot: workspaceRoot)
             if stored.path != workspaceRoot.path {

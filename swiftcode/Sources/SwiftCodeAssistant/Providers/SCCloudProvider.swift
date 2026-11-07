@@ -3,54 +3,17 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// SwiftCode's own hosted models ("SwiftCode Cloud") through an
-/// OpenAI-compatible HTTP API: `GET /v1/models` lists the models the
-/// server actually serves and `POST /v1/chat/completions` answers one
-/// prompt. See `specs/ide/assist-providers-sccloud.md`.
-///
-/// Legacy behaviour ported from `SCCloudModel.swift`:
-///   * the wire format is OpenAI-compatible (Legacy's configured format;
-///     its Ollama-native alternative is not used here);
-///   * authentication is a per-device fingerprint, not an API key: every
-///     request carries `X-SwiftCode-Device-Fingerprint: ssc_<sha256 hex>`,
-///     generated once when the cloud model is enabled and stored by the
-///     host (Legacy keeps it in the Keychain; see
-///     `provisionFingerprint()`). No `Authorization` header is ever sent.
-///   * fair use is 10 requests per rolling 24-hour window, enforced
-///     locally and (by the header) server-side; any completed HTTP
-///     round-trip counts, success or failure;
-///   * model names are canonicalized by stripping a trailing `:latest`
-///     tag, and discovery results are cached with a 1-hour TTL.
-///
-/// The endpoint is CONFIGURABLE and has NO default in this source: the
-/// Legacy default was an ephemeral tunnel that is dead, so an
-/// unconfigured provider reports itself honestly unavailable instead of
-/// pointing anywhere. The coordinator wires `settings.scCloudURL` (empty
-/// by default) and the provisioned fingerprint into this provider.
 public struct SCCloudProvider: AssistantProvider {
     public let kind = ProviderKind.scCloud
 
-    /// The server's base URL, without a trailing `/v1` (the provider
-    /// appends the paths itself). Empty means "not configured".
     public var baseURL: String
-    /// The device fingerprint (`ssc_…`), provisioned by the host and
-    /// stored in its secret store. Nil until the host provisions one.
     public var fingerprint: String?
 
-    /// Header carrying the device fingerprint on every cloud request.
     public static let fingerprintHeaderName = "X-SwiftCode-Device-Fingerprint"
-    /// Fair-use policy, as in Legacy: at most this many requests per
-    /// rolling 24-hour window.
     public static let dailyRequestLimit = 10
     public static let rateLimitWindow: TimeInterval = 24 * 60 * 60
-    /// How long a chat request may take. Generous on purpose: on a small
-    /// server a cold model load plus slow generation can take minutes.
     public static let requestTimeout: TimeInterval = 180
 
-    /// What `availability()` reports while no endpoint is configured.
-    /// It names exactly what Dylan must supply: a real SCCloud endpoint
-    /// URL. The device fingerprint is generated automatically, so no
-    /// credential has to be supplied by hand.
     public static let unconfiguredHint =
         "SwiftCode Cloud is not configured. Enter a real SCCloud endpoint URL in Settings ▸ Coding Assistant — " +
         "no default endpoint is shipped. The device identity used for fair-use metering is generated automatically."
@@ -66,10 +29,6 @@ public struct SCCloudProvider: AssistantProvider {
         self.limiter = limiter
     }
 
-    /// True once the base URL is a real URL with a host. HTTPS is
-    /// required, except for loopback hosts (`127.0.0.1` / `localhost`),
-    /// which exist only so tests and local development servers can use
-    /// plain HTTP.
     public var isConfigured: Bool {
         let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let url = URL(string: trimmed), let host = url.host, !host.isEmpty else { return false }
@@ -96,9 +55,6 @@ public struct SCCloudProvider: AssistantProvider {
         }
     }
 
-    /// The models the endpoint serves, from the cache when fresh (TTL:
-    /// 1 hour, see `SCCloudModelCache`), otherwise fetched live. A failed
-    /// fetch keeps the previous list when one exists.
     public func listModels() async throws -> [ModelInfo] {
         if let cached = cache.modelsIfFresh(for: baseURL) { return cached }
         guard isConfigured, let url = HTTP.url(baseURL, "v1/models") else {
@@ -114,8 +70,6 @@ public struct SCCloudProvider: AssistantProvider {
         do {
             response = try await HTTP.send(request, timeout: 30)
         } catch {
-            // A failed refresh never wipes the previous list: serve the
-            // last known models when there are any.
             if let cached = cache.modelsIfAny(for: baseURL) { return cached }
             if HTTP.isUnreachable(error) {
                 throw AssistantError.unreachable(service: "SwiftCode Cloud", url: baseURL,
@@ -173,8 +127,6 @@ public struct SCCloudProvider: AssistantProvider {
                 throw AssistantError.unreachable(service: "SwiftCode Cloud", url: provider.baseURL,
                                                  hint: "Check the network connection and that the SCCloud endpoint is running.")
             }
-            // Any completed HTTP round-trip counts against the daily quota,
-            // success or failure — the request reached the backend.
             provider.limiter.recordRequest()
 
             switch response.status {
@@ -190,10 +142,6 @@ public struct SCCloudProvider: AssistantProvider {
         }
     }
 
-    /// Resolves the exact server-side model name for a chat request:
-    /// an explicit model first (a Legacy-style `swiftcode-cloud:<name>`
-    /// internal ID is unwrapped to `<name>`), otherwise the first
-    /// discovered model. Never a hardcoded model name.
     func resolveModel(_ explicit: String?) async throws -> String {
         if let explicit, !explicit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return Self.endpointName(forInternalID: explicit) ?? explicit
@@ -205,11 +153,6 @@ public struct SCCloudProvider: AssistantProvider {
         return first.id
     }
 
-    // MARK: - Wire shapes
-
-    /// OpenAI-style model list: `{ "data": [ { "id": "…", "owned_by": "…" } ] }`.
-    /// IDs are canonicalized (`name:latest` → `name`), deduplicated, and
-    /// sorted by name. No model is ever named here.
     static func parseModels(_ body: Data) -> [ModelInfo] {
         guard let o = JSON.object(body), let list = o["data"] as? [[String: Any]] else { return [] }
         var seen = Set<String>()
@@ -221,45 +164,26 @@ public struct SCCloudProvider: AssistantProvider {
         }.sorted { $0.id < $1.id }
     }
 
-    /// A discovered model ID with a trailing `:latest` tag stripped, so
-    /// the name matches the server's documented call convention (bare
-    /// aliases); every other tag is kept verbatim.
     static func canonicalModelName(_ discoveredID: String) -> String {
         let trimmed = discoveredID.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasSuffix(":latest") { return String(trimmed.dropLast(":latest".count)) }
         return trimmed
     }
 
-    /// Legacy internal-ID scheme: `swiftcode-cloud:<name>` (and the bare
-    /// `swiftcode-cloud` legacy single-model ID, which resolves to nil —
-    /// it names no server-side model). Returns the endpoint name, or nil
-    /// when `id` is not a cloud internal ID.
     static func endpointName(forInternalID id: String) -> String? {
         guard id == internalIDPrefix || id.hasPrefix(internalIDPrefix + ":") else { return nil }
         guard id != internalIDPrefix else { return nil }
         return canonicalModelName(String(id.dropFirst(internalIDPrefix.count + 1)))
     }
 
-    /// Whether `id` is a SwiftCode Cloud internal ID: the bare legacy
-    /// `swiftcode-cloud` or a per-model `swiftcode-cloud:<name>`.
-    /// Legacy `SCCloudConfiguration.isCloudModelID` (Wave 15 router).
     static func isCloudModelID(_ id: String) -> Bool {
         id == internalIDPrefix || id.hasPrefix(internalIDPrefix + ":")
     }
 
-    /// The prefix of Legacy's internal cloud-model IDs.
     static let internalIDPrefix = "swiftcode-cloud"
 
-    /// Display name for a cloud model with no endpoint name
-    /// (Legacy `SCCloudConfiguration.displayName`).
     static let displayNameFallback = "SwiftCode Cloud Model"
 
-    /// The chat-completion reply text. Accepts, in order:
-    ///   1. OpenAI-style `choices[0].message.content`
-    ///   2. Ollama-style `message.content` (native `/api/chat`, non-streaming)
-    ///   3. Common single-string shapes (`response`, `output`, `text`,
-    ///      `content`, `result`, `answer`)
-    ///   4. A bare non-empty string body.
     static func parseResponse(_ data: Data) throws -> String {
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let choices = json["choices"] as? [[String: Any]],
@@ -289,9 +213,6 @@ public struct SCCloudProvider: AssistantProvider {
         throw AssistantError.malformed("The SwiftCode Cloud endpoint returned a response that could not be understood.")
     }
 
-    /// Maps a non-2xx HTTP response. A tunnel-error signature (HTTP 530,
-    /// or an HTML error body) is reported as temporarily unavailable
-    /// rather than as a generic HTTP error, as in Legacy.
     static func mapHTTPError(status: Int, body: Data) -> AssistantError {
         let (message, _) = HTTP.errorMessage(body)
         let raw = String(decoding: body.prefix(8000), as: UTF8.self)
@@ -305,29 +226,12 @@ public struct SCCloudProvider: AssistantProvider {
         return .http(status: status, message: preview.isEmpty ? "The SCCloud endpoint returned an error." : preview)
     }
 
-    /// Generates a device fingerprint: `ssc_` + hex(SHA-256(random
-    /// 32 bytes)). The host calls this once when the cloud model is
-    /// first enabled and stores the result in its secret store; the
-    /// value — never the material behind it — is what the backend sees.
-    /// (Legacy derived the same `ssc_` shape deterministically from
-    /// stable hardware identifiers via CryptoKit; this host has no
-    /// hardware-identity API in the portable target, so a stored random
-    /// identity is the equivalent that survives app restarts.)
     public static func provisionFingerprint() -> String {
         "ssc_" + SHA256.hash(SecureRandom.bytes(32)).map { String(format: "%02x", $0) }.joined()
     }
 }
 
-/// In-memory discovery cache: the last model list, how fresh it is, and
-/// which endpoint it came from. A list from another endpoint is evicted
-/// immediately, as in Legacy. TTL: 1 hour (`cacheTTL`).
-///
-/// Deliberate deviation from Legacy: this cache is in-memory only.
-/// Legacy also persisted the list to Application Support; a host restart
-/// here simply re-discovers (a failed refresh still keeps the previous
-/// in-session list).
 public final class SCCloudModelCache: @unchecked Sendable {
-    /// How long a fetched model list is considered fresh.
     public static let cacheTTL: TimeInterval = 60 * 60
 
     private let lock = NSLock()
@@ -337,8 +241,6 @@ public final class SCCloudModelCache: @unchecked Sendable {
 
     public init() {}
 
-    /// The cached list when it is for `endpoint` and younger than the
-    /// TTL; nil otherwise (stale, missing, or from another endpoint).
     func modelsIfFresh(for endpoint: String) -> [ModelInfo]? {
         lock.lock()
         defer { lock.unlock() }
@@ -347,8 +249,6 @@ public final class SCCloudModelCache: @unchecked Sendable {
         return models
     }
 
-    /// The best-known list regardless of age (for a failed refresh to
-    /// fall back to), or nil when there is none for this endpoint.
     func modelsIfAny(for endpoint: String) -> [ModelInfo]? {
         lock.lock()
         defer { lock.unlock() }
@@ -365,76 +265,3 @@ public final class SCCloudModelCache: @unchecked Sendable {
     }
 }
 
-/// Fair-use gate: at most `limit` requests per rolling `window`.
-/// Timestamps persist to UserDefaults (Legacy `LLMService` kept its
-/// SwiftCloud count in UserDefaults so the quota survived restarts;
-/// the same keys are used here), so the quota survives restarts. The
-/// backend enforces the same limit independently via the fingerprint
-/// header, so the cap itself is not bypassed either way. The daily
-/// bound stays 10 (backend-enforced), not Legacy's 15.
-public final class SCCloudRateLimiter: @unchecked Sendable {
-    public static let shared = SCCloudRateLimiter()
-
-    public struct Gate: Sendable {
-        public let allowed: Bool
-        public let remaining: Int
-        public let retryAfter: TimeInterval?
-    }
-
-    private static let timestampsKey = "sccloud.rateLimiter.timestamps"
-
-    private let lock = NSLock()
-    private var timestamps: [Date] = Self.loadTimestamps()
-    private let limit: Int
-    private let window: TimeInterval
-
-    public init(limit: Int = SCCloudProvider.dailyRequestLimit, window: TimeInterval = SCCloudProvider.rateLimitWindow) {
-        self.limit = limit
-        self.window = window
-    }
-
-    private static func loadTimestamps() -> [Date] {
-        guard let data = UserDefaults.standard.data(forKey: timestampsKey),
-              let dates = try? JSONDecoder().decode([Date].self, from: data) else { return [] }
-        return dates
-    }
-
-    private func persistTimestampsLocked() {
-        if let data = try? JSONEncoder().encode(timestamps) {
-            UserDefaults.standard.set(data, forKey: Self.timestampsKey)
-        }
-    }
-
-    /// Evaluates the gate WITHOUT consuming quota.
-    public func checkGate() -> Gate {
-        lock.lock()
-        defer { lock.unlock() }
-        let now = Date()
-        timestamps = timestamps.filter { now.timeIntervalSince($0) < window }
-        let remaining = max(0, limit - timestamps.count)
-        if timestamps.count >= limit, let oldest = timestamps.min() {
-            return Gate(allowed: false, remaining: 0, retryAfter: max(0, window - now.timeIntervalSince(oldest)))
-        }
-        return Gate(allowed: true, remaining: remaining, retryAfter: nil)
-    }
-
-    /// Records one completed request against the quota.
-    public func recordRequest() {
-        lock.lock()
-        defer { lock.unlock() }
-        timestamps.append(Date())
-        let cutoff = Date().addingTimeInterval(-window * 2)
-        timestamps = timestamps.filter { $0 > cutoff }
-        persistTimestampsLocked()
-    }
-
-    public var remainingToday: Int { checkGate().remaining }
-
-    public static func formatDuration(_ interval: TimeInterval) -> String {
-        let totalMinutes = max(1, Int((interval / 60).rounded(.up)))
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
-    }
-}

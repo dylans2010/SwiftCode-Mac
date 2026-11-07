@@ -1,25 +1,13 @@
-// Whom route B trusts (`runtime-downloads.md` §4.1): the asset service's TLS
-// chain and its signed answer both end at Apple's public root certificates.
-// SwiftCode does not carry those certificates: it fetches them from Apple's
-// certificate authority page (served over the public web PKI) for the user,
-// checks each against its published SHA-256 fingerprint, and keeps them in
-// its own folder. The answer is a JWS (ES256, `x5c` chain); its signature
-// and chain are checked with swift-crypto. Portable.
-
 import Crypto
 import Foundation
 
-/// A root certificate SwiftCode pins by fingerprint.
 public struct RuntimeTrustRoot: Sendable, Equatable {
     public var name: String
     public var url: URL
-    /// SHA-256 of the DER certificate, hex, as Apple publishes it.
     public var sha256: String
 
-    /// The root of the asset service's TLS certificate.
     public static let appleRoot = RuntimeTrustRoot(name: "AppleIncRootCertificate", url: URL(string: "https://www.apple.com/appleca/AppleIncRootCertificate.cer")!,
                                                    sha256: "b0b1730ecbc7ff4505142c49f1295e6eda6bcaed7e2c68c5be91b5a11001f024")
-    /// The root of the chain in the asset service's signed answer.
     public static let appleRootG3 = RuntimeTrustRoot(name: "AppleRootCA-G3", url: URL(string: "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer")!,
                                                      sha256: "63343abfb89a6a03ebb57e9b3f5fa7be7c4f5c756f3017b3a8c488c3653e9179")
 }
@@ -30,8 +18,6 @@ public struct RuntimeTrust: Sendable {
 
     var directory: String { folder + "/.trust" }
 
-    /// The root's DER bytes: the kept copy when its fingerprint still
-    /// matches, else fetched again and checked.
     public func certificate(_ root: RuntimeTrustRoot, transport: any RuntimeTransport) async throws -> [UInt8] {
         let path = directory + "/\(root.name).cer"
         if let d = FileManager.default.contents(atPath: path), Self.hex(SHA256.hash(data: d)) == root.sha256 { return Array(d) }
@@ -44,7 +30,6 @@ public struct RuntimeTrust: Sendable {
         return Array(r.body)
     }
 
-    /// The root as a PEM file for curl's `--cacert`.
     public func pemFile(_ root: RuntimeTrustRoot, transport: any RuntimeTransport) async throws -> String {
         let der = try await certificate(root, transport: transport)
         let path = directory + "/\(root.name).pem"
@@ -57,9 +42,6 @@ public struct RuntimeTrust: Sendable {
     static func hex<D: Sequence>(_ d: D) -> String where D.Element == UInt8 { d.map { String(format: "%02x", $0) }.joined() }
 }
 
-// MARK: - The signed answer
-
-/// A compact JWS whose header carries the signer's certificate chain.
 public struct RuntimeSignedDocument: Sendable {
     public var header: [String: Any] { (try? JSONSerialization.jsonObject(with: headerData) as? [String: Any]) ?? [:] }
     public let headerData: Data
@@ -84,9 +66,6 @@ public struct RuntimeSignedDocument: Sendable {
         return Data(base64Encoded: t)
     }
 
-    /// Checks the ES256 signature with the first certificate's key, each
-    /// certificate's signature by the next, the last by `root`, and the
-    /// dates. Returns the signer's subject common name.
     @discardableResult
     public func verify(root rootDER: [UInt8], at date: Date = Date()) throws -> String {
         guard header["alg"] as? String == "ES256" else { throw RuntimeDownloadError.untrusted("unexpected signature algorithm") }
@@ -107,13 +86,10 @@ public struct RuntimeSignedDocument: Sendable {
                 throw RuntimeDownloadError.untrusted("\(cert.commonName ?? "a certificate") is not signed by \(issuer.commonName ?? "its issuer")")
             }
         }
-        // A chain that already ends in the root itself: the root signed the last one above.
         return leaf.commonName ?? ""
     }
 }
 
-/// Just enough X.509 for the chain: the signed part, the algorithm, the
-/// ECDSA key (P-256 or P-384), the dates, the CA flag and the common name.
 public struct RuntimeCertificate: Sendable {
     public let tbs: [UInt8]
     public let signatureAlgorithm: String
@@ -178,7 +154,6 @@ public struct RuntimeCertificate: Sendable {
 
     public func isValid(at d: Date) -> Bool { notBefore <= d && d <= notAfter }
 
-    /// An ECDSA signature (DER, or the raw r‖s of a JWS) by this certificate's key.
     public func verifies(signature sig: [UInt8], over data: Data, hash: Hash) -> Bool {
         switch curve {
         case OID.p256:
@@ -196,7 +171,6 @@ public struct RuntimeCertificate: Sendable {
         }
     }
 
-    /// Whether `issuer`'s key made this certificate's signature.
     public func isSigned(by issuer: RuntimeCertificate) -> Bool {
         switch signatureAlgorithm {
         case OID.ecdsaSHA256: issuer.verifies(signature: signature, over: Data(tbs), hash: .sha256)
@@ -206,7 +180,6 @@ public struct RuntimeCertificate: Sendable {
     }
 }
 
-/// One DER element.
 struct DERItem {
     let tag: UInt8
     let content: [UInt8]
@@ -255,7 +228,6 @@ struct DERItem {
         return parts.map(String.init).joined(separator: ".")
     }
 
-    /// UTCTime (0x17) or GeneralizedTime (0x18).
     var date: Date? {
         let s = String(decoding: content, as: UTF8.self)
         let f = DateFormatter()

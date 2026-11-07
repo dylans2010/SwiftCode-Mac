@@ -1,16 +1,3 @@
-// The descriptor-table lock of a process (`specs/simulator/bsd-locking.md`
-// §3): a leaf mutex that guards one `DarwinFileSystem`'s descriptor table,
-// so that BSD descriptor traps can run without the kernel lock L0.
-//
-// It is a leaf: the thread that holds it takes no other lock (no kernel
-// lock, no address-space lock, no other table) and never waits for
-// anything else. Callbacks that the table makes (the close hook, the
-// release of a closed description) run after it is released.
-//
-// With `SWIFTCODE_LOCK_ORDER_CHECK=1` each thread counts the leaf locks it
-// holds (`LeafLockCheck`); the kernel's lock-order check stops the process
-// when a kernel lock is taken while a leaf lock is held.
-
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -19,9 +6,7 @@ import Glibc
 import Musl
 #endif
 
-/// Debug bookkeeping of leaf locks held by the calling thread.
 public enum LeafLockCheck {
-    /// `SWIFTCODE_LOCK_ORDER_CHECK=1` (tests set it through the kernel's switch).
     nonisolated(unsafe) public static var enabled = getenv("SWIFTCODE_LOCK_ORDER_CHECK").map { String(cString: $0) == "1" } ?? false
 
     private static let key: pthread_key_t = {
@@ -30,7 +15,6 @@ public enum LeafLockCheck {
         return key
     }()
 
-    /// Leaf locks the calling thread holds (0 unless `enabled`).
     public static var depth: Int {
         guard enabled else { return 0 }
         return Int(bitPattern: pthread_getspecific(key))
@@ -47,8 +31,6 @@ public enum LeafLockCheck {
     }
 }
 
-/// A recursive leaf mutex (the descriptor table's). Re-entrant so that a
-/// table operation may call another (dup2 → install).
 public final class DescriptorTableLock: @unchecked Sendable {
     private let mutex: UnsafeMutablePointer<pthread_mutex_t>
 

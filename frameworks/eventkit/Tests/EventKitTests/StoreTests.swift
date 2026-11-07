@@ -1,6 +1,3 @@
-// C-EK-STORE (plan.md §3.1; interface.md §2–§3, §5; errors.md §2;
-// simulator-baseline.md §2).
-
 import Foundation
 import Testing
 @testable import EventKit
@@ -159,7 +156,6 @@ struct EventStoreTests {
         #expect(other.calendarItem(withIdentifier: "unknown") == nil)
         #expect(other.calendarItems(withExternalIdentifier: parts[1]).count == 1)
 
-        // Saving again updates (no duplicate).
         e.title = "ids2"
         try s.save(e, span: .thisEvent)
         #expect(occurrences(other, "ids2").count == 1)
@@ -185,7 +181,6 @@ struct EventStoreTests {
         s.reset()
         #expect(fetched.eventIdentifier == nil)
         #expect(fetched.title == "keep")
-        // Fetched again after the reset, the object is valid.
         #expect(s.event(withIdentifier: id)?.eventIdentifier == id)
     }
 
@@ -208,7 +203,7 @@ struct EventStoreTests {
             #expect(localText(back.startDate, newYork) == r.2)
             #expect(localText(back.endDate, newYork) == r.3)
             #expect(back.isAllDay && back.timeZone == nil)
-            #expect(back.alarms == nil) // no default alarms
+            #expect(back.alarms == nil)
         }
     }
 
@@ -368,7 +363,6 @@ struct EventStoreTests {
         #expect(later.event(withIdentifier: e.eventIdentifier!)?.title == "persist")
         try later.remove(later.event(withIdentifier: e.eventIdentifier!)!, span: .thisEvent)
         #expect(t.another().event(withIdentifier: e.eventIdentifier!) == nil)
-        // Removing again succeeds.
         try t.store.remove(e, span: .thisEvent)
     }
 }

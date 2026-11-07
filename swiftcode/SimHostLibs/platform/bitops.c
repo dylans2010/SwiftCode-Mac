@@ -1,10 +1,3 @@
-/*
- * bitops.c - ffs/ffsl/ffsll and fls/flsl/flsll of SwiftCode's libsystem_platform.
- *
- * Clean-room SwiftCode code. ffs(3): the 1-based index of the least significant
- * set bit, 0 for 0. fls(3): the 1-based index of the most significant set
- * bit, 0 for 0.
- */
 #include "yc_base.h"
 
 YC_EXPORT int YC_FN(ffs)(int v) { return v ? __builtin_ctz((unsigned)v) + 1 : 0; }

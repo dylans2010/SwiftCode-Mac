@@ -49,7 +49,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    /// Runs `body` with the session's activity reported to `progress`.
     func reportingActivity<T>(_ progress: MCPProgress, _ body: () async -> T) async -> T {
         let previous = activityProgress
         activityProgress = progress.isRequested ? progress : nil

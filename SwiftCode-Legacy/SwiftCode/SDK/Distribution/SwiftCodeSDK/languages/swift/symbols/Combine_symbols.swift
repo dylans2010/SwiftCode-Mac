@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for Combine
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct CombineSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "combine.symbol.0"
     public var name: String = "CombineSymbolName_0"

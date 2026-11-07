@@ -1,35 +1,9 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #include "tvgSwCommon.h"
 #include "tvgFill.h"
 
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
-
 #define FIXPT_BITS 8
 #define FIXPT_SIZE (1<<FIXPT_BITS)
-#define MARGIN_MAX 40 // The maximum number of color table entries for the anti-aliasing (AA) margin at both ends.
+#define MARGIN_MAX 40
 
 static void _adjustAAMargin(uint32_t& iMargin, uint32_t count)
 {
@@ -44,18 +18,15 @@ static void _applyRepeatAA(SwFill* fill, const Fill::ColorStop* colors, uint32_t
 {
     if (cnt == 1) return;
 
-    // Calculate count that satisfies (i + 0.5) / SW_COLOR_TABLE < offset
     auto countBegin = static_cast<uint32_t>(max(0.0f, floor((colors + 1)->offset * SW_COLOR_TABLE - 0.5f) + 1.0f));
     auto countEnd = static_cast<uint32_t>(max(0.0f, floor((1.0f - (colors + cnt - 2)->offset) * SW_COLOR_TABLE - 0.5f) + 1.0f));
 
-    // estimate AA margine
     constexpr float marginScaleFactor = 800.0f;
     auto begin = tvg::zero(fill->extent) ? 0 : static_cast<uint32_t>(marginScaleFactor / fill->extent);
     _adjustAAMargin(begin, countBegin);
     auto end = begin;
     _adjustAAMargin(end, countEnd);
 
-    // apply AA
     if (begin == 0 || end == 0) return;
 
     auto unblend = [](uint32_t c) {
@@ -85,7 +56,6 @@ static void _applyRepeatAA(SwFill* fill, const Fill::ColorStop* colors, uint32_t
     }
 }
 
-// Generate the ctable entries over the [begin, end) range
 static void _genColorTable(SwFill* fill, const Fill::ColorStop* colors, uint32_t cnt, const SwSurface* surface, uint8_t opacity, uint32_t begin, uint32_t end)
 {
     auto pColors = colors;
@@ -154,7 +124,6 @@ static bool _updateColorTable(SwFill* fill, const Fill* fdata, const SwSurface* 
     return true;
 }
 
-// Update only the ctable corresponding to the margin based on the updated extent
 static bool _updateAAMargin(SwFill* fill, const Fill* fdata, const SwSurface* surface, uint8_t opacity)
 {
     const Fill::ColorStop* colors;
@@ -198,22 +167,8 @@ static inline uint32_t _pixel(const SwFill* fill, float pos)
     return fill->ctable[_clamp(fill, i)];
 }
 
-/************************************************************************/
-/* Radial Implementation                                                */
-/************************************************************************/
-
 #define RADIAL_A_THRESHOLD 0.0005f
 
-/*
- * quadratic equation with the following coefficients (rx and ry defined in the _calculateCoefficients()):
- * A = a  // fill->radial.a
- * B = 2 * (dr * fr + rx * dx + ry * dy)
- * C = fr^2 - rx^2 - ry^2
- * Derivatives are computed with respect to dx.
- * This procedure aims to optimize and eliminate the need to calculate all values from the beginning
- * for consecutive x values with a constant y. The Taylor series expansions are computed as long as
- * its terms are non-zero.
- */
 static void _calculateCoefficients(const SwFill* fill, uint32_t x, uint32_t y, float& b, float& deltaB, float& det, float& deltaDet, float& deltaDeltaDet)
 {
     auto radial = &fill->radial;
@@ -247,7 +202,6 @@ bool _prepareRadial(SwFill* fill, const RadialGradient* radial, const Matrix& pT
     fill->radial.fy = fy;
     fill->radial.a = fill->radial.dr * fill->radial.dr - fill->radial.dx * fill->radial.dx - fill->radial.dy * fill->radial.dy;
 
-    // relative epsilon
     auto precision = std::max(1e-5f, std::max(fill->radial.dr * fill->radial.dr, 1.0f) * 1e-4f);
 
     if (fill->radial.a < precision) fill->radial.a = precision;
@@ -265,8 +219,6 @@ bool _prepareRadial(SwFill* fill, const RadialGradient* radial, const Matrix& pT
     fill->radial.a22 = itransform.e22;
     fill->radial.a23 = itransform.e23;
 
-    // The transform maps the gradient circle to an ellipse. Take its semi-minor axis
-    // (the smaller singular value), where the table packs tightest and needs most margin.
     auto sx = transform.e11 * transform.e11 + transform.e21 * transform.e21;
     auto sy = transform.e12 * transform.e12 + transform.e22 * transform.e22;
     auto sxy = transform.e11 * transform.e12 + transform.e21 * transform.e22;
@@ -282,7 +234,6 @@ bool _prepareRadial(SwFill* fill, const RadialGradient* radial, const Matrix& pT
 
 static void _fillRadial(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwAlpha alpha, uint8_t csize, uint8_t opacity)
 {
-    //edge case
     if (fill->radial.a < RADIAL_A_THRESHOLD) {
         auto radial = &fill->radial;
         auto rx = (x + 0.5f) * radial->a11 + (y + 0.5f) * radial->a12 + radial->a13 - radial->fx;
@@ -455,10 +406,6 @@ static void _fillRadial(const SwSurface* surface, const SwFill* fill, uint32_t* 
     }
 }
 
-/************************************************************************/
-/* Conic Implementation                                                 */
-/************************************************************************/
-
 struct ConicAARange
 {
     float begin = 0.0f;
@@ -473,21 +420,19 @@ static ConicAARange _conicAARange(const SwFill* fill, float rx, float ry, uint32
 
     auto offset = Point{rx, ry};
 
-    // normal distance limits AA to the band around the infinite boundary line
     auto distance = dot(conic->normal, offset) * conic->invFwidth;
     auto distanceDx = conic->distanceDx;
     auto range = ConicAARange{0.0f, static_cast<float>(len)};
     if (tvg::zero(distanceDx)) {
         if (distance <= -0.5f || distance >= 0.5f) return {};
     } else {
-        auto first = (-0.5f - distance) / distanceDx;  // distance + first * distanceDx = -0.5
-        auto last = (0.5f - distance) / distanceDx;    // distance + last * distanceDx = 0.5
+        auto first = (-0.5f - distance) / distanceDx;
+        auto last = (0.5f - distance) / distanceDx;
         if (first > last) std::swap(first, last);
         range.begin = std::max(range.begin, floorf(first) + 1.0f);
         range.end = std::min(range.end, ceilf(last));
     }
 
-    // exclude the half of the AA band opposite the conic seam
     auto seam = Point{conic->normal.y, -conic->normal.x};
     auto seamProjection = dot(offset, seam);
     auto seamProjectionDx = conic->seamProjectionDx;
@@ -508,14 +453,13 @@ static ConicAARange _conicAARange(const SwFill* fill, float rx, float ry, uint32
 static uint32_t _conicPixel(const SwFill* fill, float rx, float ry, uint32_t i, const ConicAARange& range)
 {
     auto t = [](const SwFill* fill, float rx, float ry) {
-        // atan2 starts at 3 o'clock; offset rotates to the configured start angle.
         auto t = atan2f(ry, rx) * (0.5f / MATH_PI) + fill->conic.offset;
-        return t - floorf(t);  // wrap to [0..1)
+        return t - floorf(t);
     };
 
     if (i < range.begin || i >= range.end) return _pixel(fill, t(fill, rx, ry));
     auto distance = range.distance + (i - range.begin) * fill->conic.distanceDx;
-    return INTERPOLATE(fill->ctable[0], fill->ctable[SW_COLOR_TABLE - 1], static_cast<uint8_t>(255.0f * (distance + 0.5f)));  // distance is kept within (-0.5f, 0.5f) by _conicAARange()
+    return INTERPOLATE(fill->ctable[0], fill->ctable[SW_COLOR_TABLE - 1], static_cast<uint8_t>(255.0f * (distance + 0.5f)));
 }
 
 bool _prepareConic(SwFill* fill, const ConicGradient* conic, const Matrix& pTransform)
@@ -539,7 +483,6 @@ bool _prepareConic(SwFill* fill, const ConicGradient* conic, const Matrix& pTran
     fill->conic.a22 = itransform.e22;
     fill->conic.a23 = itransform.e23;
 
-    // prepare conic anti-aliasing variables
     auto radian = angle * (MATH_PI / 180.0f);
     auto seam = Point{cosf(radian), sinf(radian)};
     fill->conic.normal = {-seam.y, seam.x};
@@ -648,10 +591,6 @@ static void _fillConic(const SwSurface* surface, const SwFill* fill, uint32_t* d
     }
 }
 
-/************************************************************************/
-/* Linear Implementation                                                */
-/************************************************************************/
-
 static inline uint32_t _fixedPixel(const SwFill* fill, int32_t pos)
 {
     int32_t i = (pos + (FIXPT_SIZE / 2)) >> FIXPT_BITS;
@@ -689,8 +628,6 @@ bool _prepareLinear(SwFill* fill, const LinearGradient* linear, const Matrix& pT
     fill->linear.dx = dx * itransform.e11 + fill->linear.dy * itransform.e21;
     fill->linear.dy = dx * itransform.e12 + fill->linear.dy * itransform.e22;
 
-    // dx/dy is amount of change in screen space. The reciprocal of its magnitude is
-    // the pixel span of one full color table cycle.
     auto ext = 1.0f / sqrtf(fill->linear.dx * fill->linear.dx + fill->linear.dy * fill->linear.dy);
     if (!tvg::equal(ext, fill->extent)) {
         extentChanged = true;
@@ -702,7 +639,6 @@ bool _prepareLinear(SwFill* fill, const LinearGradient* linear, const Matrix& pT
 
 static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwAlpha alpha, uint8_t csize, uint8_t opacity)
 {
-    //Rotation
     float rx = x + 0.5f;
     float ry = y + 0.5f;
     float t = (fill->linear.dx * rx + fill->linear.dy * ry + fill->linear.offset) * (SW_COLOR_TABLE - 1);
@@ -721,7 +657,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
         auto vMin = -vMax;
         auto v = t + (inc * len);
 
-        //we can use fixed point math
         if (v < vMax && v > vMin) {
             auto t2 = static_cast<int32_t>(t * FIXPT_SIZE);
             auto inc2 = static_cast<int32_t>(inc * FIXPT_SIZE);
@@ -729,7 +664,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
                 *dst = opBlendNormal(_fixedPixel(fill, t2), *dst, alpha(cmp));
                 t2 += inc2;
             }
-        //we have to fallback to float math
         } else {
             uint32_t counter = 0;
             while (counter++ < len) {
@@ -752,7 +686,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
         auto vMin = -vMax;
         auto v = t + (inc * len);
 
-        //we can use fixed point math
         if (v < vMax && v > vMin) {
             auto t2 = static_cast<int32_t>(t * FIXPT_SIZE);
             auto inc2 = static_cast<int32_t>(inc * FIXPT_SIZE);
@@ -760,7 +693,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
                 *dst = opBlendNormal(_fixedPixel(fill, t2), *dst, MULTIPLY(alpha(cmp), opacity));
                 t2 += inc2;
             }
-        //we have to fallback to float math
         } else {
             uint32_t counter = 0;
             while (counter++ < len) {
@@ -775,7 +707,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
 
 static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, SwMask maskOp, uint8_t a)
 {
-    //Rotation
     float rx = x + 0.5f;
     float ry = y + 0.5f;
     float t = (fill->linear.dx * rx + fill->linear.dy * ry + fill->linear.offset) * (SW_COLOR_TABLE - 1);
@@ -793,7 +724,6 @@ static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x
     auto vMin = -vMax;
     auto v = t + (inc * len);
 
-    //we can use fixed point math
     if (v < vMax && v > vMin) {
         auto t2 = static_cast<int32_t>(t * FIXPT_SIZE);
         auto inc2 = static_cast<int32_t>(inc * FIXPT_SIZE);
@@ -802,7 +732,6 @@ static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x
             *dst = maskOp(src, *dst, ~src);
             t2 += inc2;
         }
-    //we have to fallback to float math
     } else {
         uint32_t counter = 0;
         while (counter++ < len) {
@@ -816,7 +745,6 @@ static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x
 
 static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwMask maskOp, uint8_t a)
 {
-    //Rotation
     float rx = x + 0.5f;
     float ry = y + 0.5f;
     float t = (fill->linear.dx * rx + fill->linear.dy * ry + fill->linear.offset) * (SW_COLOR_TABLE - 1);
@@ -836,7 +764,6 @@ static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x
     auto vMin = -vMax;
     auto v = t + (inc * len);
 
-    //we can use fixed point math
     if (v < vMax && v > vMin) {
         auto t2 = static_cast<int32_t>(t * FIXPT_SIZE);
         auto inc2 = static_cast<int32_t>(inc * FIXPT_SIZE);
@@ -846,7 +773,6 @@ static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x
             *dst = tmp + MULTIPLY(*dst, ~tmp);
             t2 += inc2;
         }
-    //we have to fallback to float math
     } else {
         uint32_t counter = 0;
         while (counter++ < len) {
@@ -862,7 +788,6 @@ static void _fillLinear(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x
 
 static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, uint8_t a)
 {
-    //Rotation
     float rx = x + 0.5f;
     float ry = y + 0.5f;
     float t = (fill->linear.dx * rx + fill->linear.dy * ry + fill->linear.offset) * (SW_COLOR_TABLE - 1);
@@ -880,7 +805,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
     auto vMin = -vMax;
     auto v = t + (inc * len);
 
-    //we can use fixed point math
     if (v < vMax && v > vMin) {
         auto t2 = static_cast<int32_t>(t * FIXPT_SIZE);
         auto inc2 = static_cast<int32_t>(inc * FIXPT_SIZE);
@@ -888,7 +812,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
             *dst = op(_fixedPixel(fill, t2), *dst, a);
             t2 += inc2;
         }
-    //we have to fallback to float math
     } else {
         uint32_t counter = 0;
         while (counter++ < len) {
@@ -901,7 +824,6 @@ static void _fillLinear(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t 
 
 static void _fillLinear(const SwSurface* surface, const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, SwBlender op2, uint8_t a)
 {
-    //Rotation
     float rx = x + 0.5f;
     float ry = y + 0.5f;
     float t = (fill->linear.dx * rx + fill->linear.dy * ry + fill->linear.offset) * (SW_COLOR_TABLE - 1);
@@ -929,7 +851,6 @@ static void _fillLinear(const SwSurface* surface, const SwFill* fill, uint32_t* 
     auto v = t + (inc * len);
 
     if (a == 255) {
-        //we can use fixed point math
         if (v < vMax && v > vMin) {
             auto t2 = static_cast<int32_t>(t * FIXPT_SIZE);
             auto inc2 = static_cast<int32_t>(inc * FIXPT_SIZE);
@@ -938,7 +859,6 @@ static void _fillLinear(const SwSurface* surface, const SwFill* fill, uint32_t* 
                 *dst = op2(surface, tmp, *dst);
                 t2 += inc2;
             }
-        //we have to fallback to float math
         } else {
             uint32_t counter = 0;
             while (counter++ < len) {
@@ -949,7 +869,6 @@ static void _fillLinear(const SwSurface* surface, const SwFill* fill, uint32_t* 
             }
         }
     } else {
-        //we can use fixed point math
         if (v < vMax && v > vMin) {
             auto t2 = static_cast<int32_t>(t * FIXPT_SIZE);
             auto inc2 = static_cast<int32_t>(inc * FIXPT_SIZE);
@@ -959,7 +878,6 @@ static void _fillLinear(const SwSurface* surface, const SwFill* fill, uint32_t* 
                 *dst = INTERPOLATE(tmp2, *dst, a);
                 t2 += inc2;
             }
-        //we have to fallback to float math
         } else {
             uint32_t counter = 0;
             while (counter++ < len) {
@@ -973,13 +891,9 @@ static void _fillLinear(const SwSurface* surface, const SwFill* fill, uint32_t* 
     }
 }
 
-/************************************************************************/
-/* External Interace Implementation                                     */
-/************************************************************************/
-
 bool fillPrepare(SwFill*& fill, const Fill* fdata, const Matrix& transform, SwSurface* surface, uint8_t opacity, bool ctable)
 {
-    if (!fdata) return true;  // a normal case
+    if (!fdata) return true;
 
     if (!fill) {
         fill = tvg::calloc<SwFill>(1, sizeof(SwFill));
@@ -988,7 +902,6 @@ bool fillPrepare(SwFill*& fill, const Fill* fdata, const Matrix& transform, SwSu
         fillReset(fill);
     }
 
-    // single color stop is treated as solid
     if (fdata->colorStops(nullptr) == 1) {
         fill->solid = true;
         return true;
@@ -1029,7 +942,6 @@ void fillReset(SwFill* fill)
     fill->solid = false;
 }
 
-// composite masking ver.
 void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, SwMask op, uint8_t a)
 {
     if (fill->type == Type::LinearGradient) _fillLinear(fill, dst, y, x, len, op, a);
@@ -1037,7 +949,6 @@ void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32
     if (fill->type == Type::ConicGradient) _fillConic(fill, dst, y, x, len, op, a);
 }
 
-// direct masking ver.
 void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwMask op, uint8_t a)
 {
     if (fill->type == Type::LinearGradient) _fillLinear(fill, dst, y, x, len, cmp, op, a);
@@ -1045,7 +956,6 @@ void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32
     if (fill->type == Type::ConicGradient) _fillConic(fill, dst, y, x, len, cmp, op, a);
 }
 
-// blending ver.
 void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, uint8_t a)
 {
     if (fill->type == Type::LinearGradient) _fillLinear(fill, dst, y, x, len, op, a);
@@ -1053,7 +963,6 @@ void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint3
     if (fill->type == Type::ConicGradient) _fillConic(fill, dst, y, x, len, op, a);
 }
 
-// matting ver.
 void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwAlpha alpha, uint8_t csize, uint8_t opacity)
 {
     if (fill->type == Type::LinearGradient) _fillLinear(fill, dst, y, x, len, cmp, alpha, csize, opacity);
@@ -1061,7 +970,6 @@ void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint3
     if (fill->type == Type::ConicGradient) _fillConic(fill, dst, y, x, len, cmp, alpha, csize, opacity);
 }
 
-// blending + BlendingMethod(op2) ver.
 void fillRaster(const SwSurface* surface, const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, SwBlender op2, uint8_t a)
 {
     if (fill->type == Type::LinearGradient) _fillLinear(surface, fill, dst, y, x, len, op, op2, a);

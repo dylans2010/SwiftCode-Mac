@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Settings/SettingsView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SettingsItem, SettingsCoordinator, SettingsWindowManager, DebugSettingsView, SettingsSplitViewController, SettingsSidebarViewController, SettingsSidebarNode, SettingsMainWrapper.
-
 import AppKit
 import SwiftUI
 
@@ -68,7 +65,6 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
     private var windowControllers: [SettingsWindowController] = []
 
     public func showSettings() {
-        // Support multiple settings windows
         let wc = SettingsWindowController()
         wc.window?.delegate = self
         if let window = wc.window {
@@ -113,7 +109,6 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         }
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow,
            let wc = windowControllers.first(where: { $0.window == window }) {
@@ -186,7 +181,6 @@ public final class SettingsSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Sidebar Panel (Pure AppKit View Controller)
         let sidebarVC = SettingsSidebarViewController(coordinator: coordinator)
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
         sidebarItem.minimumThickness = 240
@@ -195,7 +189,6 @@ public final class SettingsSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // 2. Main Preferences View (SwiftUI Wrapper wrapped in StylingBootstrap to inject AdaptiveLayoutEngine)
         let mainView = SettingsMainWrapper(coordinator: coordinator)
             .environmentObject(AppSettings.shared)
             .environment(ThemeViewModel())
@@ -290,8 +283,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         expandAllGroups()
     }
 
-    // MARK: - NSOutlineViewDataSource
-
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
             return nodes.count
@@ -316,8 +307,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         }
         return false
     }
-
-    // MARK: - NSOutlineViewDelegate
 
     public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
         if let node = item as? SettingsSidebarNode {
@@ -377,7 +366,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
             cell?.iconBackground.isTransparent = true
             cell?.iconView.contentTintColor = .systemOrange
 
-            // Right Click Context menu to toggle Favorites
             let menu = NSMenu()
             let favItem = NSMenuItem(title: coordinator.favorites.contains(node.id) ? "Remove from Favorites" : "Add to Favorites", action: #selector(toggleFavoriteAction(_:)), keyEquivalent: "")
             favItem.representedObject = node
@@ -432,7 +420,6 @@ struct SettingsMainWrapper: View {
         if let currentItem = settingsRegistryList.first(where: { $0.id == coordinator.selectedPaneId }) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Header
                     HStack(spacing: 14) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -453,7 +440,6 @@ struct SettingsMainWrapper: View {
 
                         Spacer()
 
-                        // Toggle Favorite Button
                         Button {
                             coordinator.toggleFavorite(id: currentItem.id)
                         } label: {
@@ -471,7 +457,6 @@ struct SettingsMainWrapper: View {
                     Divider()
                         .padding(.horizontal, 24)
 
-                    // Destination View Loader
                     destinationView(for: currentItem.id)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 40)

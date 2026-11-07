@@ -6,19 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Buttons and button styles (round R8; 06 §4: the action runs on touch-up
-// inside; golden-layout.md `button.*`: automatic, borderless and plain are
-// the label's size; bordered, prominent and glass add 12 × 7 points around
-// it, 20 × 15 at `.large`).
-//
-// A `Button` hands its label, role and action to the `PrimitiveButtonStyle`
-// in the environment (`buttonStyle(_:)`); a `ButtonStyle` is wrapped in the
-// standard press behaviour (pressed state, release inside, focus, Space and
-// Return). Look: SwiftCode's palette (ControlSupport.swift; 09 §4.2).
-
-// MARK: - Role
-
-/// The purpose of a button.
 public struct ButtonRole: Equatable, Sendable {
     let kind: Int
     public static let destructive = ButtonRole(kind: 1)
@@ -27,12 +14,7 @@ public struct ButtonRole: Equatable, Sendable {
     public static let confirm = ButtonRole(kind: 4)
 }
 
-// MARK: - Configurations
-
-/// What a `ButtonStyle` draws: the label, the role and whether the button is
-/// pressed.
 public struct ButtonStyleConfiguration {
-    /// The button's label.
     public struct Label: View {
         let content: AnyView
         public var body: AnyView { content }
@@ -43,7 +25,6 @@ public struct ButtonStyleConfiguration {
     public let isPressed: Bool
 }
 
-/// What a `PrimitiveButtonStyle` gets: the label, the role and the trigger.
 public struct PrimitiveButtonStyleConfiguration {
     public struct Label: View {
         let content: AnyView
@@ -54,14 +35,9 @@ public struct PrimitiveButtonStyleConfiguration {
     public let label: Label
     let action: @MainActor () -> Void
 
-    /// Runs the button's action.
     @MainActor public func trigger() { action() }
 }
 
-// MARK: - Style protocols
-
-/// A style that draws a button and lets the standard press behaviour drive
-/// it.
 @MainActor @preconcurrency
 public protocol ButtonStyle {
     associatedtype Body: View
@@ -69,7 +45,6 @@ public protocol ButtonStyle {
     typealias Configuration = ButtonStyleConfiguration
 }
 
-/// A style that draws a button and decides when it triggers.
 @MainActor @preconcurrency
 public protocol PrimitiveButtonStyle {
     associatedtype Body: View
@@ -77,7 +52,6 @@ public protocol PrimitiveButtonStyle {
     typealias Configuration = PrimitiveButtonStyleConfiguration
 }
 
-/// The button style in the environment.
 struct AnyPrimitiveButtonStyle {
     let make: @MainActor (PrimitiveButtonStyleConfiguration) -> AnyView
 }
@@ -98,12 +72,10 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Draws the buttons inside with `style`.
     public func buttonStyle<S: PrimitiveButtonStyle>(_ style: S) -> some View {
         environment(\._buttonStyle, AnyPrimitiveButtonStyle { AnyView(style.makeBody(configuration: $0)) })
     }
 
-    /// Draws the buttons inside with `style` and the standard press behaviour.
     public func buttonStyle<S: ButtonStyle>(_ style: S) -> some View {
         environment(\._buttonStyle, AnyPrimitiveButtonStyle { c in
             AnyView(ButtonBehavior(configuration: c, ring: AnyShape(RoundedRectangle(cornerRadius: 6))) {
@@ -112,15 +84,11 @@ extension View {
         })
     }
 
-    /// The shape of bordered buttons inside.
     public func buttonBorderShape(_ shape: ButtonBorderShape) -> some View {
         environment(\._buttonBorderShape, shape)
     }
 }
 
-// MARK: - Button
-
-/// A control that runs an action when pressed.
 public struct Button<Label: View>: View {
     let action: @MainActor () -> Void
     let label: Label
@@ -192,10 +160,6 @@ extension Button where Label == _TitleAndIconLabel {
     }
 }
 
-// MARK: - The standard press behaviour
-
-/// Pressed state on touch-down, the action on release inside, keyboard focus
-/// with Space and Return, and the focus ring.
 struct ButtonBehavior<Content: View>: View {
     let configuration: PrimitiveButtonStyleConfiguration
     let ring: AnyShape
@@ -226,10 +190,6 @@ struct ButtonBehavior<Content: View>: View {
     }
 }
 
-// MARK: - Built-in styles
-
-/// Padding of bordered buttons per control size (golden: regular 12 × 7,
-/// large 20 × 15; the other sizes are SwiftCode's).
 func borderedPadding(_ size: ControlSize) -> (h: CGFloat, v: CGFloat) {
     switch size {
     case .mini: return (7, 2)
@@ -240,7 +200,6 @@ func borderedPadding(_ size: ControlSize) -> (h: CGFloat, v: CGFloat) {
     }
 }
 
-/// The automatic style: borderless outside forms and menus.
 public struct DefaultButtonStyle: PrimitiveButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -260,8 +219,6 @@ struct DefaultButtonBody: View {
     }
 }
 
-/// The label in the tint colour (red for destructive buttons); dims while
-/// pressed.
 public struct BorderlessButtonStyle: PrimitiveButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -285,7 +242,6 @@ struct BorderlessLook: View {
     }
 }
 
-/// The label as it is (no tint); dims while pressed.
 public struct PlainButtonStyle: PrimitiveButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -303,7 +259,6 @@ struct PlainLook: View {
     }
 }
 
-/// A neutral fill behind the tinted label.
 public struct BorderedButtonStyle: PrimitiveButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -311,7 +266,6 @@ public struct BorderedButtonStyle: PrimitiveButtonStyle {
     }
 }
 
-/// The tint as the fill, a white label.
 public struct BorderedProminentButtonStyle: PrimitiveButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -319,8 +273,6 @@ public struct BorderedProminentButtonStyle: PrimitiveButtonStyle {
     }
 }
 
-/// An approximation of glass (09 §1: materials are approximated): a
-/// translucent fill with a light rim; `.glassProminent` is tinted.
 public struct GlassButtonStyle: PrimitiveButtonStyle {
     let prominent: Bool
     public init() { prominent = false }
@@ -409,9 +361,6 @@ extension PrimitiveButtonStyle where Self == GlassButtonStyle {
     public static var glassProminent: GlassButtonStyle { GlassButtonStyle(prominent: true) }
 }
 
-// MARK: - Border shape
-
-/// The shape of a bordered button.
 public struct ButtonBorderShape: Equatable, Sendable, Shape {
     enum Kind: Equatable, Sendable { case automatic, capsule, roundedRectangle(CGFloat?), circle }
     let kind: Kind
@@ -432,7 +381,6 @@ public struct ButtonBorderShape: Equatable, Sendable, Shape {
         }
     }
 
-    /// The automatic shape is a capsule (SwiftCode's choice for every size).
     func resolvedShape(controlSize: ControlSize) -> AnyShape {
         switch kind {
         case .automatic, .capsule: return AnyShape(Capsule())
@@ -442,7 +390,6 @@ public struct ButtonBorderShape: Equatable, Sendable, Shape {
     }
 }
 
-/// How a button repeats while held (accepted; buttons do not repeat yet).
 public struct ButtonRepeatBehavior: Hashable, Sendable {
     let kind: Int
     public static let automatic = ButtonRepeatBehavior(kind: 0)

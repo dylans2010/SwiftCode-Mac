@@ -3,18 +3,10 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The merge confirmation (`specs/ide/merge-sheet.md` §1.2), as the AppKit
-/// `MergeAlertView` draws it: 420 × 133 centred on the window, SwiftCode's icon
-/// 55 × 55 at (28.5, 22), the bold title and the message from x 106, then
-/// Cancel (58 × 20, Escape) and **Merge** (79 × 20, accent, the default:
-/// Return), 14.5 apart, Merge 20.5 from the right edge and both 18 above
-/// the bottom. Integrate ▸ Merge… adds a pop-up of the branches (30 taller).
 struct MergeAlertCard: View {
     var scm: SourceControlShellModel
     var alert: MergeAlertState
-    /// The alert has finished appearing: Merge is drawn accent.
     var isReady: Bool
-    /// Merge or Cancel was clicked: it fades out and takes no more keys.
     var isLeaving: Bool
     @Environment(\.colorScheme) private var scheme
 
@@ -33,7 +25,6 @@ struct MergeAlertCard: View {
                 .shadow(color: Color.black.opacity(scheme == .dark ? 0.5 : 0.25), radius: 14, x: 0, y: 6)
             SwiftCodeMark(size: CGFloat(M.alertIcon))
                 .offset(x: CGFloat(M.alertIconOrigin.x), y: CGFloat(M.alertIconOrigin.y))
-            // The title's first cap top 20 below the alert's top.
             Text(verbatim: alert.title)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color(mergeHex: p.label))

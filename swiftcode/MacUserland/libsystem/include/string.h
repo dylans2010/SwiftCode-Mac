@@ -1,4 +1,3 @@
-/* SwiftCode freestanding <string.h>: the functions libunwind uses. */
 #ifndef YCL_STRING_H
 #define YCL_STRING_H
 #include <stddef.h>

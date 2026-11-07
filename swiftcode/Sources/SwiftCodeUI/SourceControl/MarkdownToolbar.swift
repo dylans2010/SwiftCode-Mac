@@ -1,14 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Gists/Components/MarkdownToolbar.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
-// Self-contained markdown formatting toolbar (bold/italic/strikethrough/quote/link/
-// code/list + attach + mention). applyFormat appends at the end — that is Legacy
-// behaviour (selection-aware editing needs NSTextView access; preserved as-is).
-// Wiring: GistBrowserView's file editor (SwiftCodeUI/SourceControl) — place above
-// the editor, binding the file text; onAttachFile/onMention are host-owned.
-// (GistBrowserView's header claims this was already rebuilt; it was not — no
-// formatting controls exist in it.)
-
 import SwiftUI
 
 struct MarkdownToolbar: View {
@@ -50,7 +39,6 @@ struct MarkdownToolbar: View {
     }
 
     private func applyFormat(_ prefix: String, _ suffix: String) {
-        // Basic implementation, ideally it would handle selection if we had access to the underlying NSTextView
         text += prefix + suffix
     }
 }

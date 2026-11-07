@@ -25,7 +25,6 @@ struct RepositoriesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tab Picker
             Picker("Workspace Mode", selection: $activeTab) {
                 ForEach(RepoSubTab.allCases) { tab in
                     Text(tab.rawValue).tag(tab)
@@ -56,15 +55,12 @@ struct RepositoriesView: View {
         }
     }
 
-    // MARK: - Local Changes Tab
-
     private var localChangesPane: some View {
         VStack(spacing: 0) {
             if let status = gitViewModel.status {
                 HSplitView {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            // Stage / Unstage groups
                             let conflicts = status.files.filter { $0.status == .conflicted }
                             if !conflicts.isEmpty {
                                 fileGroupView(title: "Conflicts", files: conflicts, color: .red)
@@ -80,7 +76,6 @@ struct RepositoriesView: View {
                     }
                     .frame(minWidth: 400, maxWidth: .infinity)
 
-                    // Commit composer - flat native macOS panel
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Commit Changes", systemImage: "pencil.and.outline")
                             .font(.headline)
@@ -212,8 +207,6 @@ struct RepositoriesView: View {
         }
     }
 
-    // MARK: - Remote Repos Tab
-
     private var remoteReposPane: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -286,8 +279,6 @@ struct RepositoriesView: View {
             }
         }
     }
-
-    // MARK: - Actions Helper
 
     private func fetchRemoteRepos() {
         isFetching = true

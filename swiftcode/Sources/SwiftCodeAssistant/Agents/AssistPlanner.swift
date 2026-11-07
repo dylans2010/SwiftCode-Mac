@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/AssistPlanner.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: AssistPlanner.
-
 import Foundation
 
 @MainActor

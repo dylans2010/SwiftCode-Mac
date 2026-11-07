@@ -1,10 +1,4 @@
 #!/bin/bash
-# run.sh <run-name> <seconds> [extra ycode-simd args...]   (agent J, on the Thor)
-# Device: FRESH=1 -> a new device directory (first boot, seeding) with debug logging
-#   preferences for LaunchServices/MobileInstallation (LOGDEBUG=0 to skip);
-#   DEV=name -> 9-J/devs/<name> (created from PRISTINE if missing, kept);
-#   default -> a copy of PRISTINE (default 9-J/dev-pristine) in the run directory.
-# LOGPRED: predicate for a `log stream` one-shot (NOLOG=1: none). @DEV@ in args = device dir.
 : "${YCODE_DATA:?set YCODE_DATA to the data directory on the arm64 Linux machine}"
 W=$YCODE_DATA/work/9-J
 Y=${YTREE:-$W/ycode}

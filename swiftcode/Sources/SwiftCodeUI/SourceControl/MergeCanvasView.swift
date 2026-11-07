@@ -2,25 +2,15 @@ import AppKit
 import SwiftCodeIDECore
 import SwiftCodeSyntax
 
-/// The merge sheet's two panes and the gutter between them, in one
-/// scrolling view so corresponding lines share a y (`merge-sheet.md`
-/// §4–§6): line numbers ending at +27, code from +41 in the editor's font
-/// and syntax colours, full-width shading per row (through the gutter),
-/// changed-word fills, the selected change's red rules, and one capsule
-/// token per change in the 46-point gutter. x 0 is the left pane's edge.
 @MainActor
 public final class MergeCanvasView: NSView {
     weak var controller: MergeSheetController?
-    /// The rows and where each starts (y, from the top).
     public private(set) var rows: [MergeSheetRow] = []
     public private(set) var rowTops: [CGFloat] = []
     var leftRuns: [[(text: String, role: SyntaxTokenKind.Role?)]] = []
     var rightRuns: [[(text: String, role: SyntaxTokenKind.Role?)]] = []
-    /// The pane widths (the right one without the ruler).
     var leftWidth: CGFloat = 523
     var rightWidth: CGFloat = 523
-    /// The current line of each pane (1-based): its number is darker and
-    /// the line has the current-line highlight.
     public var currentLine = (left: 1, right: 1)
     let handEditor = NSTextView()
     let handEditorScroll = NSScrollView()
@@ -60,7 +50,6 @@ public final class MergeCanvasView: NSView {
     var totalWidth: CGFloat { rightX + rightWidth }
     var columns: Int { M.columnsOfText(paneWidth: Double(leftWidth)) }
 
-    /// Takes the controller's state: rows, highlighting, sizes.
     func reload(state: ConflictEditorState, fileName: String) {
         rows = state.sheetRows
         leftRuns = MergeSheetLayout.highlight(state.leftLines, fileName: fileName)
@@ -81,27 +70,22 @@ public final class MergeCanvasView: NSView {
         needsDisplay = true
     }
 
-    /// A row's frame (all three columns).
     public func rowRect(_ i: Int) -> NSRect {
         guard rows.indices.contains(i) else { return .zero }
         return NSRect(x: 0, y: rowTops[i], width: totalWidth, height: CGFloat(MergeSheetLayout.height(rows[i], columns: columns)))
     }
 
-    /// The rows of change `h`.
     func rows(ofHunk h: Int) -> Range<Int>? {
         guard let a = rows.firstIndex(where: { $0.hunk == h }), let b = rows.lastIndex(where: { $0.hunk == h }) else { return nil }
         return a..<(b + 1)
     }
 
-    /// The token of change `h` (canvas coordinates).
     public func tokenRect(forHunk h: Int) -> NSRect? {
         guard let r = rows(ofHunk: h) else { return nil }
         let top = rowTops[r.lowerBound]
         return NSRect(x: gutterX + CGFloat(M.tokenLeft), y: top + (CGFloat(M.lineHeight) - CGFloat(M.tokenHeight)) / 2,
                       width: CGFloat(M.tokenWidth), height: CGFloat(M.tokenHeight))
     }
-
-    // MARK: Drawing
 
     public override func draw(_ dirtyRect: NSRect) {
         let p = palette
@@ -119,7 +103,6 @@ public final class MergeCanvasView: NSView {
         for (i, row) in rows.enumerated() {
             let r = rowRect(i)
             guard r.intersects(dirtyRect) else { continue }
-            // Shading: full width, through the gutter (§6).
             if row.kind != .same {
                 let fill = NSColor(mergeHex: row.kind == .conflict ? p.conflictRow : p.cleanRow)
                 fill.setFill()
@@ -128,7 +111,6 @@ public final class MergeCanvasView: NSView {
                 NSColor(mergeHex: row.kind == .conflict ? p.gutterConflict : p.gutterClean).setFill()
                 NSRect(x: gutterX, y: r.minY, width: CGFloat(M.gutterWidth), height: r.height).fill()
             } else {
-                // The current-line highlight on every visual line of the line.
                 NSColor(mergeHex: p.currentLine).setFill()
                 if let l = row.left, l.number == currentLine.left {
                     let h = CGFloat(MergeSheetLayout.wrap(l.text, columns: cols).count) * lh
@@ -144,7 +126,6 @@ public final class MergeCanvasView: NSView {
             if let l = row.left { drawSide(l, runs: leftRuns, x: 0, top: r.minY, current: currentLine.left, cols: cols, p) }
             if let rr = row.right { drawSide(rr, runs: rightRuns, x: rightX, top: r.minY, current: currentLine.right, cols: cols, p) }
         }
-        // The selected change's rules, across both panes and the gutter.
         if let h = selected, let range = rows(ofHunk: h) {
             let decided = state?.token(forHunk: h)?.isDecided ?? false
             NSColor(mergeHex: decided ? p.decidedRule : p.selectedRule).setFill()
@@ -152,7 +133,6 @@ public final class MergeCanvasView: NSView {
             NSRect(x: 0, y: top, width: totalWidth, height: 1).fill()
             NSRect(x: 0, y: bottom - 1, width: totalWidth, height: 1).fill()
         }
-        // Tokens.
         if let state, let doc = state.document {
             for h in doc.hunks.indices {
                 guard let t = state.token(forHunk: h), let rect = tokenRect(forHunk: h), rect.intersects(dirtyRect) else { continue }
@@ -165,7 +145,6 @@ public final class MergeCanvasView: NSView {
                   cols: Int, _ p: MergeSheetPalette) {
         let lh = CGFloat(M.lineHeight), cw = CGFloat(M.cellWidth)
         let segs = MergeSheetLayout.wrap(side.text, columns: cols)
-        // Changed words: 16 tall, whole cells, never the spaces (§6).
         if !side.words.isEmpty {
             NSColor(mergeHex: p.conflictWord).setFill()
             for (k, seg) in segs.enumerated() {
@@ -177,12 +156,10 @@ public final class MergeCanvasView: NSView {
                 }
             }
         }
-        // The line number, right-aligned at +27.
         let numberColor = NSColor(mergeHex: side.number == current ? p.currentLineNumber : p.lineNumber)
         let n = NSAttributedString(string: String(side.number), attributes: [.font: Theme.gutterFont, .foregroundColor: numberColor])
         let ns = n.size()
         n.draw(at: NSPoint(x: x + CGFloat(M.lineNumberRight) - ns.width, y: top + ((lh - ns.height) / 2).rounded()))
-        // The text in the editor's colours.
         let font = Theme.font
         let line = runs.indices.contains(side.number - 1) ? runs[side.number - 1] : [(side.text, nil)]
         let full = NSMutableAttributedString()
@@ -193,7 +170,6 @@ public final class MergeCanvasView: NSView {
         let total = (full.string as NSString).length
         let characters = Array(full.string)
         for (k, seg) in segs.enumerated() {
-            // Cells are characters; convert to UTF-16 offsets.
             let start = String(characters[0..<min(seg.cells.lowerBound, characters.count)]).utf16.count
             let end = String(characters[0..<min(seg.cells.upperBound, characters.count)]).utf16.count
             guard start < end, end <= total else { continue }
@@ -213,11 +189,9 @@ public final class MergeCanvasView: NSView {
             rim.stroke()
         }
         let ink = NSColor(mergeHex: p.tokenInk)
-        // The glyph left of centre (ink about +14.5 to +28.5).
         let g = NSAttributedString(string: t.glyph, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .bold), .foregroundColor: ink])
         let gs = g.size()
         g.draw(at: NSPoint(x: rect.minX + 21.5 - gs.width / 2, y: rect.midY - gs.height / 2))
-        // The chevron, in a circle once a choice is in effect.
         let cx = rect.minX + 33.5, cy = rect.midY
         if t.isDecided {
             NSColor(mergeHex: t.isSelected ? p.selectedChevronCircle : p.chevronCircle).setFill()
@@ -235,8 +209,6 @@ public final class MergeCanvasView: NSView {
         chevron.stroke()
     }
 
-    // MARK: Hand editing (SwiftCode's choice: double-click a change's left lines)
-
     func layoutHandEditor() {
         guard let state = controller?.state, state.isEditing, let h = state.currentHunk, let r = rows(ofHunk: h) else {
             handEditorScroll.isHidden = true
@@ -247,8 +219,6 @@ public final class MergeCanvasView: NSView {
         handEditorScroll.frame = NSRect(x: CGFloat(M.codeX) - 4, y: top, width: leftWidth - CGFloat(M.codeX) - 4, height: height)
         handEditorScroll.isHidden = false
     }
-
-    // MARK: Events
 
     public override func mouseDown(with event: NSEvent) {
         let pt = convert(event.locationInWindow, from: nil)
@@ -271,8 +241,6 @@ public final class MergeCanvasView: NSView {
     }
 }
 
-/// The 17-point overview ruler at the right pane's end (§4.4): the whole
-/// file on the pane's height, a 10-wide mark per change.
 @MainActor
 public final class MergeRulerView: NSView {
     public var marks: [(position: Double, isConflict: Bool)] = [] { didSet { needsDisplay = true } }

@@ -1,20 +1,14 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// What the Source Control navigator shows (`reference-ui-4.md` §2): the
-/// Changes and Repositories trees, as outline items. Rows carry an
-/// `scmKey` ("change:<path>", "branch:<name>", "remoteBranch:<name>",
-/// "tag:<name>", "stash:<ref>", "repository") so selection can route.
 public enum SourceControlNavigatorModel {
     public enum Mode: Int, Sendable { case changes, repositories }
     public static let modeTitles = ["Changes", "Repositories"]
 
-    /// Header text: "<repository> <branch>" (the branch is secondary).
     public static func header(repository: String, branch: String?) -> (title: String, detail: String) {
         (repository, branch ?? "HEAD")
     }
 
-    /// Changes: the repository header and "Uncommitted Changes" with its count.
     public static func changesTree(repository: String, branch: String?, changes: [GitRepository.Change], root: URL,
                                    integration: GitRepository.IntegrationState = .none) -> [OutlineItem] {
         let rows = changes.map { c -> OutlineItem in
@@ -33,7 +27,6 @@ public enum SourceControlNavigatorModel {
         return [top]
     }
 
-    /// " (Merging “feature”)" and the like while an operation is stopped.
     static func integrationSuffix(_ state: GitRepository.IntegrationState) -> String {
         switch state {
         case .none: ""
@@ -45,8 +38,6 @@ public enum SourceControlNavigatorModel {
         }
     }
 
-    /// Repositories: Branches, Recents, Tags, Stashes, Remotes. A name
-    /// with `/` sits in a folder per prefix component.
     public static func repositoriesTree(repository: String, branch: String?, branches: [GitRepository.Ref], recents: [String],
                                         tags: [GitRepository.Ref], stashes: [String], remotes: [GitRepository.Remote],
                                         remoteBranches: [GitRepository.Ref]) -> [OutlineItem] {
@@ -71,13 +62,10 @@ public enum SourceControlNavigatorModel {
             i.scmKey = "remote:" + r.name
             return i
         }
-        // navigators.md round 3 §2: each group its own grey filled symbol,
-        // a disclosure triangle even when empty.
         let groups = [("Branches", branchRows), ("Recents", recentRows), ("Tags", tagRows), ("Stashes", stashRows), ("Remotes", remoteRows)]
             .map { g -> OutlineItem in
                 let i = OutlineItem(title: g.0, symbol: groupSymbols[g.0] ?? "folder.fill", tint: groupTint, children: g.1)
                 i.alwaysExpandable = true
-                // Context menus only (New Branch…, New Tag…, Add Remote…).
                 i.scmKey = "group:" + g.0
                 return i
             }
@@ -88,23 +76,15 @@ public enum SourceControlNavigatorModel {
         return [top]
     }
 
-    /// The Repositories view's group symbols (navigators.md round 3 §2: a
-    /// stacked drive, a clock in a filled circle, a tag in a filled square,
-    /// a tray, a globe), all grey.
     static let groupSymbols = RepositoriesViewStyle.groupSymbols
-    /// The repository row: a grey filled square.
     static let repositorySymbol = RepositoriesViewStyle.repositorySymbol
     static var groupTint: NSColor? { OutlineItem.color(.grey) }
 
-    /// Which Repositories rows are expanded at first: the repository and
-    /// Branches (with its folders); Recents, Tags, Stashes and Remotes stay
-    /// collapsed.
     public static func expandsInitially(_ item: OutlineItem) -> Bool {
         guard let key = item.scmKey else { return !item.children.isEmpty }
         return key == "repository" || (key.hasPrefix("group:") && !RepositoriesViewStyle.initiallyCollapsed.contains(key))
     }
 
-    /// Names split on `/` into folders ("feature/observe" → feature ▸ observe).
     static func foldered(_ names: [String], current: String?, prefixKey: String, symbol: String) -> [OutlineItem] {
         var leaves: [OutlineItem] = []
         var folders: [String: [String]] = [:]
@@ -117,8 +97,6 @@ public enum SourceControlNavigatorModel {
             } else {
                 let i = OutlineItem(title: n, symbol: symbol)
                 i.scmKey = prefixKey + n
-                // No "(current)": the repository row names the current
-                // branch (navigators.md round 3 §2).
                 leaves.append(i)
             }
         }

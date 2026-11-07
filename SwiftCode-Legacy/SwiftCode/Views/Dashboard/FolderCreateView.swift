@@ -8,7 +8,6 @@ struct FolderCreateView: View {
     @State private var selectedSymbol = "folder.fill"
     @State private var selectedColor = Color.blue
 
-    // Gradient Support
     @State private var useGradient = false
     @State private var gradientColor1 = Color.blue
     @State private var gradientColor2 = Color.purple

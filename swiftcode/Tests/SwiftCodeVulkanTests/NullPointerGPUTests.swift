@@ -1,11 +1,3 @@
-// The null guard on the GPU (visionos.md §10.13, metal-shaders.md §4.3):
-// Translator/tests/ir/interface-forms.sh leaves `np` translated, a kernel
-// that reads a pointer from in[0] and loads the u32 16 bytes past it. With
-// a null pointer the load must not touch memory (on the Thor a read of
-// unmapped memory stalls the GPU) and must yield 0; with a real address
-// it must read through it.
-//   SWIFTCODE_TEST_NULLPTR_SPV=WORK/np.spv SWIFTCODE_TEST_NULLPTR_JSON=WORK/np.json
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost

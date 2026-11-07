@@ -1,4 +1,3 @@
-// Gauge's Linux recording helpers (cswiftcodegauge.h). Original SwiftCode code.
 #if defined(__linux__)
 #define _GNU_SOURCE
 #endif
@@ -34,7 +33,6 @@ int ycg_spawn_held(const char *path, char *const argv[], char *const envp[], int
         return -1;
     }
     if (pid == 0) {
-        // Child: only async-signal-safe calls until exec.
         close(fds[1]);
         char c;
         ssize_t n;
@@ -104,7 +102,6 @@ int ycg_perf_open(ycg_perf *p, int tid, int cpu, uint64_t periodNs, int inheritO
     if (fd < 0) return -1;
     long page = sysconf(_SC_PAGESIZE);
     if (ringPages < 1) ringPages = 64;
-    // A power of two.
     int pages = 1;
     while (pages < ringPages) pages <<= 1;
     size_t size = (size_t)page * (size_t)(pages + 1);
@@ -132,13 +129,11 @@ size_t ycg_perf_read(ycg_perf *p, uint64_t *out, size_t capacity) {
     size_t n = 0;
     while (tail < head) {
         struct perf_event_header h;
-        // Records may wrap around the ring's end: copy byte by byte.
         uint8_t tmp[sizeof(h)];
         for (size_t i = 0; i < sizeof(h); i++) tmp[i] = data[(tail + i) % dataSize];
         memcpy(&h, tmp, sizeof(h));
         if (h.size < sizeof(h)) break;
         if (h.type == PERF_RECORD_SAMPLE) {
-            // ip, pid/tid, time, nr, ips[nr]
             uint64_t words[4];
             for (int w = 0; w < 4; w++) {
                 uint64_t v = 0;

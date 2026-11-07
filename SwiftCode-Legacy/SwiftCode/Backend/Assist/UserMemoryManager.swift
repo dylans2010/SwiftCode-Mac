@@ -1,11 +1,3 @@
-//
-//  UserMemoryManager.swift
-//  SwiftCode
-//
-//  Manages persistent user context and durable memory stored in `UserMemory.md`
-//  located in ~/Library/Application Support/SwiftCode/UserMemory.md.
-//
-
 import Foundation
 import Combine
 import os
@@ -56,8 +48,6 @@ public final class UserMemoryManager: ObservableObject {
     public func reload() {
         loadMemory()
     }
-
-    // MARK: - Core Storage Operations
 
     public func loadMemory() {
         let url = memoryFileURL
@@ -151,13 +141,10 @@ public final class UserMemoryManager: ObservableObject {
         }
     }
 
-    // MARK: - Markdown Serialization
-
     private func persistToDisk() -> Bool {
         var md = "# User Memory & Durable Context\n\n"
         md += "_Auto-maintained by SwiftCode Assist & User Settings._\n\n"
 
-        // Group by category
         let categories = Dictionary(grouping: entries, by: { $0.category })
         let sortedCategories = categories.keys.sorted()
 
@@ -198,7 +185,6 @@ public final class UserMemoryManager: ObservableObject {
             }
 
             guard trimmed.hasPrefix("- **") else { continue }
-            // Format: - **Key**: Value <!-- updated: date -->
             guard let keyEnd = trimmed.range(of: "**:") else { continue }
             let keyStart = trimmed.index(trimmed.startIndex, offsetBy: 4)
             let key = String(trimmed[keyStart..<keyEnd.lowerBound]).trimmingCharacters(in: .whitespaces)

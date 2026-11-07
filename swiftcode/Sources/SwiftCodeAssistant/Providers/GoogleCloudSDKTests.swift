@@ -1,28 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Assist Frameworks/Google Cloud SDK/GoogleCloudSDKTests.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Providers/GoogleCloudSDKTests.swift`) — moved from the test target by H-TEST so the production `AssistRuntimeTestSuite` aggregator can call it; the test-target copy is gone to avoid a duplicate type.
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - 12 runtime/bridge/process/session checks (testLiveBridgeProcessAndHandshake, testLiveSessionLifecycle, testRuntimePathResolution, etc.) skipped; no SwiftCode test type for them
-// ADAPTATIONS:
-//   - Moved into production by H-TEST (was a test-target file); the self-import was removed.
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AntigravitySDKModelFetcher — UNOWNED (no worklist) (`SwiftCode/Services/AntigravitySDKModelFetcher.swift`)
-//   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
-//   - AssistAvailableModel — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Models/AssistAvailableModel.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - AssistToolPayloadStreamFilter — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - GoogleCloudSDKConfiguration — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Assist Frameworks/Google Cloud SDK/GoogleCloudSDKConfiguration.swift`)
-// WIRING / REGISTRATION: Test target: adapt cases to swift-testing like SwiftCodeMCPTests/LegacyReverseGapTests.swift, or wire runAll() into the in-app harness (AssistRuntimeTestSuite, unowned).
-
-//
-//  GoogleCloudSDKTests.swift
-//  SwiftCode
-//
-//  Comprehensive test suite for the Google Cloud SDK / Antigravity integration.
-//
-
 import Foundation
 import os
 
@@ -34,7 +9,6 @@ public final class GoogleCloudSDKTests: Sendable {
 
     private init() {}
 
-    /// Executes all tests in the Google Cloud SDK suite.
     public func runAllTests() async -> [RuntimeTestCaseResult] {
         var results: [RuntimeTestCaseResult] = []
 
@@ -69,7 +43,6 @@ public final class GoogleCloudSDKTests: Sendable {
         return results
     }
 
-    // 1. Runtime Path Resolution
     public func testRuntimePathResolution() async -> RuntimeTestCaseResult {
         let start = Date()
         let sdkURL = GoogleCloudSDKProcess.resolveSDKDirectory()
@@ -83,7 +56,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 2. Configuration Discovery & Serialization
     public func testConfigurationDiscoveryAndSerialization() async -> RuntimeTestCaseResult {
         let start = Date()
         let config = GoogleCloudSDKConfiguration.resolveDefault()
@@ -135,10 +107,6 @@ public final class GoogleCloudSDKTests: Sendable {
             objective: "Fix Assist agent tool streaming latency and raw JSON output"
         )
 
-        // New contract (canonical System Assets): the mandatory baseline
-        // (Identity + Safeguards) is carried in full and never stripped;
-        // task-specific sections arrive per request via SystemIndex and are
-        // not duplicated here; repository guidance stays task-relevant.
         let passed = compact.contains("structured tools exposed by the active toolkit") &&
             compact.contains("Preserve tool event streaming and cancellation") &&
             compact.contains("SDK Tool Protocol Boundary") &&
@@ -189,7 +157,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 3. Error Descriptions
     public func testErrorDescriptions() async -> RuntimeTestCaseResult {
         let start = Date()
         let errors: [GoogleCloudSDKError] = [
@@ -217,7 +184,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 4. Message & Tool Models
     public func testMessageAndToolModels() async -> RuntimeTestCaseResult {
         let start = Date()
         let attachment = GoogleCloudSDKAttachment(name: "test.swift", path: "/tmp/test.swift")
@@ -238,7 +204,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 5. Live Bridge Process & Handshake
     public func testLiveBridgeProcessAndHandshake() async -> RuntimeTestCaseResult {
         let start = Date()
         let bridge = GoogleCloudSDKBridge()
@@ -266,7 +231,6 @@ public final class GoogleCloudSDKTests: Sendable {
         }
     }
 
-    // 6. Live Session Lifecycle
     public func testLiveSessionLifecycle() async -> RuntimeTestCaseResult {
         let start = Date()
         let bridge = GoogleCloudSDKBridge()
@@ -303,7 +267,6 @@ public final class GoogleCloudSDKTests: Sendable {
         }
     }
 
-    // 7. Event Streaming Subscription
     public func testEventStreamingSubscription() async -> RuntimeTestCaseResult {
         let start = Date()
         let bridge = GoogleCloudSDKBridge()
@@ -312,7 +275,6 @@ public final class GoogleCloudSDKTests: Sendable {
             try await bridge.start()
             let stream = await bridge.subscribeEvents()
 
-            // Verify stream is active
             let testTask = Task {
                 for await event in stream {
                     if case .runtimeReady = event {
@@ -322,7 +284,6 @@ public final class GoogleCloudSDKTests: Sendable {
                 return false
             }
 
-            // Status request to trigger activity
             _ = try await bridge.getStatus()
             try? await Task.sleep(nanoseconds: 200_000_000)
 
@@ -346,7 +307,6 @@ public final class GoogleCloudSDKTests: Sendable {
         }
     }
 
-    // 8. Security Credential Safety
     public func testSecurityCredentialSafety() async -> RuntimeTestCaseResult {
         let start = Date()
         let secretKey = "AIzaSyTestSecretKeyDoNotLog"
@@ -366,20 +326,17 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 9. Antigravity Account Authentication State & OAuth Resolution
     public func testAntigravityAccountAuthenticationStateAndOAuthResolution() async -> RuntimeTestCaseResult {
         let start = Date()
         let authService = GoogleAccountAuthService.shared
         let initialIsAuth = authService.isAuthenticated
 
-        // Test configuration resolution with OAuth token
         let config = GoogleCloudSDKConfiguration.resolveDefault()
         let dict = config.toDictionary()
 
         let hasOAuthToken = (dict["oauthToken"] as? String) != nil
         let hasApiKey = (dict["apiKey"] as? String) != nil
 
-        // If authenticated via OAuth, apiKey must be nil to enforce zero API key reliance
         let passed = (!initialIsAuth || (hasOAuthToken && !hasApiKey))
 
         return RuntimeTestCaseResult(
@@ -390,14 +347,12 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 10. Runtime Session Verification Probe
     public func testRuntimeSessionVerificationProbe() async -> RuntimeTestCaseResult {
         let start = Date()
         let authService = GoogleAccountAuthService.shared
 
-        // Perform probe with invalid test token and verify it fails gracefully without throwing
         let dummyVerified = await authService.verifyRuntimeSession(accessToken: "ya29.invalid_test_token_for_verification")
-        let passed = !dummyVerified // Should correctly reject invalid token
+        let passed = !dummyVerified
 
         return RuntimeTestCaseResult(
             testName: "Runtime Session Verification Probe",
@@ -407,9 +362,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 11. Google Auth Error Classification
-    // The reported production failure must classify as scope-insufficient with
-    // its diagnostics preserved - never as a generic "Authentication error".
     public func testGoogleAuthErrorClassification() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -423,7 +375,6 @@ public final class GoogleCloudSDKTests: Sendable {
         service:generativelanguage.googleapis.com] reason:ACCESS_TOKEN_SCOPE_INSUFFICIENT]]"
         """
 
-        // Legacy token (minted before the Developer API scope existed) -> fixable by re-auth.
         let legacyScopes = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/aicode openid"
         let legacy = GoogleAuthErrorClassification.classify(reportedError, storedScopes: legacyScopes)
         if case .scopeInsufficient(let stored) = legacy.kind {
@@ -436,8 +387,6 @@ public final class GoogleCloudSDKTests: Sendable {
         if legacy.service != "generativelanguage.googleapis.com" { failures.append("service not preserved") }
         if !(legacy.method?.contains("StreamGenerateContent") ?? false) { failures.append("method not preserved") }
 
-        // Current token (already has the Developer API scope) -> NOT fixable by
-        // re-auth; the caller must explain the restriction instead of looping.
         let currentScopes = legacyScopes + " https://www.googleapis.com/auth/generative-language.retriever"
         let current = GoogleAuthErrorClassification.classify(reportedError, storedScopes: currentScopes)
         if case .scopeInsufficient(let stored) = current.kind {
@@ -468,10 +417,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 12. OAuth Quota Project Header Serialization
-    // The x-goog-user-project header is the Developer API's documented OAuth
-    // contract; it must be present when a project is configured and absent
-    // (never fabricated) when it is not.
     public func testOAuthQuotaProjectHeaderSerialization() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -516,10 +461,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 13. Session Reuse Contract (C-3)
-    // A live bridge session bakes the bearer into its headers once; reusing a
-    // session across a token rotation or quota-project change 401s
-    // persistently. Reuse must require every credential-bearing field to match.
     public func testSessionReuseContractIncludesCredentials() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -567,24 +508,16 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 14. Custom Model Provider Resolution (C-2)
-    // The free-text custom model's provider must come from an explicit record
-    // (SDK catalog) or explicit setting — never inferred from the name — and
-    // a gemini-named custom model must resolve as the Google provider so a
-    // valid OAuth session keeps its token.
     public func testCustomModelProviderResolution() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
         let discovery = AssistModelDiscoveryService.shared
 
-        // The reported C-2 model lives in the bundled seed catalog as Google.
         let seedResolved = discovery.providerResolutionForCustomModel(id: "gemini-3.8-flash-medium")
         if seedResolved.providerID != "gemini" {
             failures.append("seed-catalog gemini id resolved to '\(seedResolved.providerID)' instead of 'gemini'")
         }
 
-        // Unknown id: explicit setting governs. Default is google, but N-2
-        // scopes the google default to gemini-named ids only.
         let previousProvider = AppSettings.shared.customModelProviderID
         defer { AppSettings.shared.customModelProviderID = previousProvider }
         AppSettings.shared.customModelProviderID = "google"
@@ -592,8 +525,6 @@ public final class GoogleCloudSDKTests: Sendable {
         if futureGemini.providerID != "gemini" {
             failures.append("unknown gemini-named custom id defaulted to '\(futureGemini.providerID)' instead of 'gemini' (C-2)")
         }
-        // N-2: a non-gemini free-text id must NOT route to Google — it keeps
-        // providerID "custom" and fails closed without an explicit endpoint.
         let llama = discovery.providerResolutionForCustomModel(id: "llama3")
         if llama.providerID != "custom" {
             failures.append("non-gemini custom id 'llama3' resolved to '\(llama.providerID)' instead of 'custom' (N-2)")
@@ -614,10 +545,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 15. No Silent API-Key Fallback in OAuth Mode
-    // In google_oauth mode, resolving an API key for the Google provider must
-    // return nil: the OAuth token travels in its own slot, and a silent
-    // fallback would send the wrong credential kind.
     public func testResolveAPIKeyNeverFallsBackInOAuthMode() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -650,12 +577,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 16. Chat Mode Google OAuth Satisfies Credential Check (N-1)
-    // A valid Google OAuth session must satisfy the Chat Mode credential
-    // check for the Google provider — the old API-key-only gate wrongly
-    // rejected OAuth-authenticated users holding no API key (same defect
-    // class as C-1). Tests the pure decision contract; the live token fetch
-    // stays at the call site.
     public func testChatModeGoogleOAuthSatisfiesCheck() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -685,13 +606,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 13. Developer API Scopes Are Client-Compatible
-    // The sign-in flow must request exactly the documented Developer API
-    // scopes. The Antigravity-IDE-internal scopes (cclog,
-    // experimentsandconfigs, aicode) are not requested: on a user-owned
-    // client they would only widen the consent screen, and Google's own
-    // clients reject the generative-language.* scopes outright
-    // ("Unregistered scope(s)", 403 restricted_client).
     public func testDeveloperAPIScopesAreClientCompatible() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -717,11 +631,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 14. Default OAuth Client ID Is SwiftCode's Own
-    // Sign-in must use SwiftCode's own OAuth client by default: Google
-    // rejects the Developer API scopes on clients SwiftCode does not own
-    // ("Unregistered scope(s)", 403 restricted_client). The ID is a public
-    // identifier (PKCE public client, no secret), so it ships in the clear.
     public func testDefaultOAuthClientIDIsConfigured() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -740,12 +649,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 15. Missing Client Secret Classification
-    // Production failure (2026-10-11): browser authorization succeeded but
-    // Google's token endpoint rejected the code exchange with 400
-    // invalid_request "client_secret is missing." — the app surfaced the raw
-    // provider text. It must classify as missingClientSecret (not a generic
-    // invalid credential), so the caller can give the specific remediation.
     public func testMissingClientSecretClassification() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -756,7 +659,6 @@ public final class GoogleCloudSDKTests: Sendable {
             failures.append("Google's missing-secret error did not classify as missingClientSecret (got \(classified.kind))")
         }
 
-        // A nearby but different credential failure must NOT take this branch.
         let invalidGrant = GoogleAuthErrorClassification.classify("invalid_grant: bad code", storedScopes: nil)
         if invalidGrant.kind == .missingClientSecret {
             failures.append("invalid_grant misclassified as missingClientSecret")
@@ -771,11 +673,6 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 16. Actionable Sign-In Error for Missing Secret
-    // The user-facing message for the missing-secret failure must name the
-    // actual failing component (Google's token exchange) and the specific
-    // remediation (enter the client secret in Settings; Keychain-stored).
-    // Unrelated failures must pass through with details preserved.
     public func testActionableSignInErrorForMissingSecret() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -807,18 +704,12 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 17. Client Secret Keychain Storage
-    // The secret must persist via Keychain (never UserDefaults, never the
-    // bundle). The test never destroys a user-configured secret: it only
-    // writes when none is present, and always cleans up afterwards.
     public func testClientSecretKeychainStorage() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
         let service = GoogleAccountAuthService.shared
 
         if service.hasKeychainClientSecret {
-            // A real secret is configured; do not touch it. Presence alone
-            // proves the Keychain path is live.
         } else {
             service.setClientSecret("test-secret-roundtrip")
             if !service.hasClientSecret { failures.append("secret not visible after set") }
@@ -836,12 +727,10 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 18. Canonical SDK Model Routing & Thinking Level
     public func testCanonicalSDKModelRoutingAndThinkingLevel() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
 
-        // Verify seed models include canonical Antigravity catalog models
         let seedIDs = AntigravitySDKModelFetcher.seedModels.map { $0.id }
         if !seedIDs.contains("gemini-3.8-flash-high") || !seedIDs.contains("gemini-3.8-flash-low") {
             failures.append("Seed models missing Antigravity catalog models (gemini-3.8-flash-high/low)")
@@ -850,7 +739,6 @@ public final class GoogleCloudSDKTests: Sendable {
             failures.append("Seed models missing canonical 'gemini-3.8-flash'")
         }
 
-        // Verify buildSDKConfiguration preserves canonical ID and attaches thinkingLevel
         let model = AssistAvailableModel(
             id: "gemini-3.8-flash",
             displayName: "Gemini 3.8 Flash (Low)",

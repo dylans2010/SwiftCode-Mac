@@ -3,8 +3,6 @@ import XCTest
 @testable import SwiftCodeUI
 import SwiftCodeBuild
 
-/// Toolbar destination title, the compact New Project picker layout, the
-/// new-file grid's sticky headers and the Organizer window toolbar.
 @MainActor
 final class ToolbarPickerOrganizerTests: XCTestCase {
     func testDestinationTitleIsDestinationName() throws {
@@ -23,14 +21,12 @@ final class ToolbarPickerOrganizerTests: XCTestCase {
 
     func testPickerRowsPackAtTop() throws {
         let p = NewProjectPickerController()
-        // Host it in a window taller than the rows need.
         let w = NSWindow(contentViewController: p)
         w.setContentSize(NSSize(width: 340, height: 600))
         p.view.layoutSubtreeIfNeeded()
         let rows = p.rowViews
         XCTAssertGreaterThan(rows.count, 1)
         let frames = rows.map { p.view.convert($0.bounds, from: $0) }
-        // Root is not flipped: each row sits just below the previous one.
         for (a, b) in zip(frames, frames.dropFirst()) {
             XCTAssertEqual(a.minY - b.maxY, NewProjectPickerController.rowSpacing, accuracy: 0.5)
         }
@@ -69,7 +65,6 @@ final class ToolbarPickerOrganizerTests: XCTestCase {
         XCTAssertTrue(views.contains { $0 === o.backButton })
         XCTAssertTrue(views.contains { $0 === o.forwardButton })
         XCTAssertTrue(views.contains { $0 === o.bellButton })
-        // swiftlint:disable:next redundant_nil_coalescing - flattens a double optional
         XCTAssertNil(o.backButton.superview.map { $0.isDescendant(of: o.view) ? $0 : nil } ?? nil)
     }
 }

@@ -4,8 +4,7 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Comprehensive Tutorials
+
     tut_dir = os.path.join(dest, "documentation", "tutorials")
     os.makedirs(tut_dir, exist_ok=True)
     tutorials = [
@@ -20,7 +19,7 @@ def main():
         ("09-enterprise-automation", "Deploying Headless Project Generation and Verification in Enterprise CI/CD"),
         ("10-troubleshooting-and-internals", "Deep Dive: SDK IPC Envelopes, Protocol Negotiation, and Runtime Lifecycle")
     ]
-    
+
     print("Populating tutorial documents...")
     for slug, title in tutorials:
         lines = [
@@ -47,7 +46,6 @@ def main():
         with open(os.path.join(tut_dir, f"{slug}.md"), "w") as f:
             f.write("\n".join(lines))
 
-    # 2. Comprehensive Compatibility Fixtures
     comp_dir = os.path.join(dest, "tests", "compatibility")
     for os_ver in ["macos14-sonoma", "macos15-sequoia", "macos16-future"]:
         os.makedirs(os.path.join(comp_dir, os_ver), exist_ok=True)
@@ -61,7 +59,6 @@ def main():
             with open(os.path.join(comp_dir, os_ver, f"fixture_{i:02d}.swift"), "w") as f:
                 f.write("\n".join(lines))
 
-    # 3. Complete Project Automation Examples
     ex_auto = os.path.join(dest, "examples", "project-automation")
     os.makedirs(ex_auto, exist_ok=True)
     for i in range(12):
@@ -74,7 +71,6 @@ def main():
         with open(os.path.join(ex_auto, f"pipeline_stage_{i:02d}.sh"), "w") as f:
             f.write("\n".join(lines))
 
-    # 4. Update components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

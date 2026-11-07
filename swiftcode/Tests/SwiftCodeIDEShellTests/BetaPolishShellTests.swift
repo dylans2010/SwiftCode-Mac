@@ -4,8 +4,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeIDEShell
 
-/// What a tester hits first in the Linux shell: Clone, About, Report a Bug,
-/// and a machine without the tools.
 @MainActor
 @Suite(.serialized) struct BetaPolishShellTests {
     func temp() throws -> URL {
@@ -14,7 +12,6 @@ import SwiftCodeBuild
         return d
     }
 
-    /// A repository with a Package.swift, and a model in `dir`.
     func repository(in dir: URL) throws -> URL {
         let repo = dir.appendingPathComponent("source/Widget")
         try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
@@ -53,7 +50,6 @@ import SwiftCodeBuild
         a.perform(.releaseNotes)
         #expect(opened.last == ProductIdentity.releasesURL)
         a.linkCouldNotOpen(ProductIdentity.bugReportURL())
-        // The fallback shows the address, without the long query.
         #expect(a.notice?.message.contains("issues/new") == true)
         #expect(a.notice?.message.contains("?") == false)
     }
@@ -128,12 +124,9 @@ import SwiftCodeBuild
         #expect(result?.issues.first?.message.contains("Swift toolchain") == true)
         let tool = MissingToolEngine(message: ShellToolchain.noBuildTool)
         #expect(tool.executablePath(for: BuildRequest(container: .project("/x.xcodeproj"), scheme: "x", action: .build)) == nil)
-        // `swift test` ends a failed build with this line; it repeats the failure.
         #expect(SwiftPMRun.isSummary(Diagnostic(severity: .error, message: "fatalError")))
     }
 
-    /// A project's build for the host says what it takes; other destinations
-    /// and Clean go to the build tool.
     @Test func projectsOnTheHostSayWhatTheyNeed() async {
         struct Stub: BuildEngine {
             var name: String { "stub" }
@@ -167,7 +160,6 @@ import SwiftCodeBuild
 
 }
 
-/// A throwaway defaults suite.
 final class TestShellDefaults {
     let name = "beta-shell-\(UUID().uuidString)"
     let defaults: UserDefaults

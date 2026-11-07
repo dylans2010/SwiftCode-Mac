@@ -2,7 +2,6 @@ import AppKit
 import StoreKitConfiguration
 import SwiftCodeIDECore
 
-/// One outline row: a section header, a product, or a subscription group.
 final class StoreKitOutlineNode: NSObject {
     enum Kind { case section(StoreKitEditorSection); case product(StoreKitProductLocation); case group(Int) }
     let kind: Kind
@@ -13,11 +12,6 @@ final class StoreKitOutlineNode: NSObject {
     }
 }
 
-/// The `.storekit` editor for the AppKit IDE: a section/product outline on
-/// the left and the selected product's or group's fields on the right.
-/// Every edit goes through `StoreKitEditorModel` and is written to the
-/// file at once, in the file's own format. The Linux IDE renders the same
-/// model with `StoreKitEditorView` (swiftcode-ide).
 @MainActor
 public final class StoreKitEditorController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSTextFieldDelegate {
     public let url: URL
@@ -38,7 +32,6 @@ public final class StoreKitEditorController: NSViewController, NSOutlineViewData
         super.init(nibName: nil, bundle: nil)
     }
 
-    /// An in-memory editor (tests).
     public init(model: StoreKitEditorModel, url: URL) {
         self.url = url
         self.model = model
@@ -47,8 +40,6 @@ public final class StoreKitEditorController: NSViewController, NSOutlineViewData
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: - View
 
     public override func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 900, height: 560))
@@ -134,12 +125,9 @@ public final class StoreKitEditorController: NSViewController, NSOutlineViewData
         refreshDetail()
     }
 
-    /// Writes the file in its canonical form.
     func commit() {
         do { try model.save() } catch { presentError(error) }
     }
-
-    // MARK: - Outline model
 
     private var sections: [StoreKitEditorSection] {
         [.products, .groups, .validation, .settings]
@@ -204,8 +192,6 @@ public final class StoreKitEditorController: NSViewController, NSOutlineViewData
         }
         refreshDetail()
     }
-
-    // MARK: - Detail editing
 
     private var selectedLocation: StoreKitProductLocation? {
         guard let id = model.selectedProductID else { return nil }
@@ -278,8 +264,6 @@ public final class StoreKitEditorController: NSViewController, NSOutlineViewData
         commit()
     }
 
-    // MARK: - Actions (also used by tests)
-
     @objc private func addProductClicked() { _ = addProduct() }
 
     @discardableResult
@@ -305,7 +289,6 @@ public final class StoreKitEditorController: NSViewController, NSOutlineViewData
 
     @objc private func saveClicked() { commit() }
 
-    /// The validation summary for the toolbar/status area.
     public var validationSummary: String {
         let issues = model.validationIssues()
         let errors = issues.filter { $0.severity == .error }.count

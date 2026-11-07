@@ -2,63 +2,9 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// The native XcodeGen-subset generator (gap closure, specs/ide/
-/// gap-closure-misc.md §1): `generate_xcodeproj` without xcodegen.
-///
-/// The handler used to shell out to xcodegen (installed via Homebrew
-/// when missing). This generator reads the same `project.yml` and
-/// builds the `.xcodeproj` from SwiftCode's own project model
-/// (`PBXProj`, the same builder `IOSAppTemplate.makeProject` uses),
-/// so the tool works with nothing installed. The generated files are
-/// committed through the normal write policy, one change per file
-/// (project.pbxproj, contents.xcworkspacedata, one .xcscheme per
-/// scheme), exactly like `create_new_app`.
-///
-/// The supported subset (the full list is in the spec):
-///   * top level: `name`, `options` (`bundleIdPrefix`,
-///     `deploymentTarget` as a string or per-platform map,
-///     `developmentLanguage`, `xcodeVersion`,
-///     `createIntermediateGroups`), `settings` (`base` + per-config
-///     maps), `targets`, `packages` (remote only), `schemes`,
-///     `configFiles` (top level and per target).
-///   * targets: `type`, `platform`, `sources` (files, directories
-///     expanded from disk, `folder` references, `excludes`),
-///     `settings`, `dependencies` (target / package / framework /
-///     sdk, `embed`, `link`), `info` (path or `properties` dict —
-///     the plist is generated), `entitlements`, `configFiles`,
-///     `preBuildScripts` / `postBuildScripts`, `scheme`
-///     (`testTargets`, `config`, `gatherCoverageData`),
-///     `transitivelyLinkDependencies`, per-target `deploymentTarget`.
-///   * schemes: `build` / `run` / `test` / `profile` / `analyze` /
-///     `archive` configs and test targets. No schemes key means one
-///     scheme per target.
-///
-/// Honest limits (fail, naming the part, instead of generating a
-/// project that silently differs from what xcodegen would make):
-///   * `carthage` dependencies, local packages (`path:`), legacy
-///     target types, and unknown target types / platforms.
-///   * an application target with no `bundleIdPrefix`.
-///   * a source path that does not exist on disk.
-///   * `fileGroups`, `settingPresets`, `attributes`, and other
-///     unknown keys are NOT errors: they are listed in
-///     `ignoredKeys` on the result (and in the summary), because
-///     ignoring them changes only organisation or metadata, never
-///     what builds. Anything whose ignoring would change the build
-///     is an error instead.
-
-// MARK: - Errors
-
-/// A failure of the native generator. Every case names the exact
-/// key, path, or line, and the handler turns it into an
-/// `MCPToolError` that suggests running xcodegen manually when the
-/// spec needs something this generator cannot make.
 public enum XcodeGenSpecError: Error, LocalizedError, Equatable, Sendable {
-    /// The YAML subset could not be parsed.
     case yaml(line: Int, message: String)
-    /// A key the generator cannot honour (ignoring it would change
-    /// what builds). `path` is the dotted key path.
     case unsupported(path: String, detail: String)
-    /// A required value is missing or malformed.
     case invalid(path: String, message: String)
 
     public var errorDescription: String? {
@@ -73,34 +19,22 @@ public enum XcodeGenSpecError: Error, LocalizedError, Equatable, Sendable {
     }
 }
 
-// MARK: - YAML subset
-
-/// One value of the YAML subset the generator reads: block maps and
-/// lists, inline `[a, b]` / `{k: v}`, quoted and plain scalars.
-/// Anchors, aliases, block scalars (`|`/`>`), and multi-document
-/// files are outside the subset and fail in the parser. `bool`
-/// exists so an unquoted `true` in build settings becomes `YES`
-/// while a quoted `"true"` stays the string `"true"`.
 public enum XcodeGenYAMLValue: Sendable {
     case string(String)
     case bool(Bool)
     case map([(String, XcodeGenYAMLValue)])
     case list([XcodeGenYAMLValue])
 
-    /// The map entries, or nil when this is not a map.
     public var map: [(String, XcodeGenYAMLValue)]? {
         if case .map(let entries) = self { return entries }
         return nil
     }
 
-    /// The list items, or nil when this is not a list.
     public var list: [XcodeGenYAMLValue]? {
         if case .list(let items) = self { return items }
         return nil
     }
 
-    /// The scalar as a string (`true`/`false` for bools), or nil
-    /// when this is a map or list.
     public var scalar: String? {
         switch self {
         case .string(let s): return s
@@ -109,15 +43,11 @@ public enum XcodeGenYAMLValue: Sendable {
         }
     }
 
-    /// The map's value for `key`, or nil.
     public subscript(key: String) -> XcodeGenYAMLValue? {
         map?.first { $0.0 == key }?.1
     }
 }
 
-/// The YAML subset parser: indentation-based block maps/lists plus
-/// inline flow collections and quoted scalars. Line numbers are
-/// carried so errors name the offending line.
 public enum XcodeGenYAMLParser {
     private struct Line {
         var number: Int
@@ -136,7 +66,6 @@ public enum XcodeGenYAMLParser {
                 guard ch == " " else { break }
                 indent += 1
             }
-            // A tab anywhere in the leading whitespace is an error.
             if raw.prefix(while: { $0 == " " || $0 == "\t" }).contains("\t") {
                 throw XcodeGenSpecError.yaml(line: index + 1, message: "tabs are not allowed for indentation")
             }
@@ -153,8 +82,6 @@ public enum XcodeGenYAMLParser {
         return value
     }
 
-    /// Strips a `#` comment: a `#` outside quotes, at the start of
-    /// the line or preceded by whitespace.
     private static func stripComment(_ line: String) -> String {
         var inSingle = false
         var inDouble = false
@@ -181,9 +108,6 @@ public enum XcodeGenYAMLParser {
         return try parseMap(lines, &i, indent)
     }
 
-    /// One `key: value` pair (and its nested block when the value
-    /// is empty). Consumes the pair's line; `i` ends on the next
-    /// unconsumed line.
     private static func parseMapPair(_ lines: [Line], _ i: inout Int, _ indent: Int) throws -> (String, XcodeGenYAMLValue) {
         let line = lines[i]
         guard let colon = firstColon(line.text) else {
@@ -234,8 +158,6 @@ public enum XcodeGenYAMLParser {
                 }
                 continue
             }
-            // `- key: value` — a map item: the first pair is inline,
-            // the rest of the map sits at indent + 2.
             if let colon = firstColon(rest), !rest.hasPrefix("\""), !rest.hasPrefix("'"), !rest.hasPrefix("[") {
                 var entries: [(String, XcodeGenYAMLValue)] = []
                 let key = String(rest[..<colon]).trimmingCharacters(in: .whitespaces)
@@ -261,11 +183,6 @@ public enum XcodeGenYAMLParser {
         return .list(items)
     }
 
-    /// The key-separator `:` of a mapping line: the first colon
-    /// followed by a space or the end of the line. A colon inside a
-    /// URL (`https://…`) or a bare `key:value` is not a separator —
-    /// that is the YAML rule, and it keeps a bare URL list item a
-    /// scalar instead of a one-entry map.
     private static func firstColon(_ text: String) -> String.Index? {
         var index = text.startIndex
         while index < text.endIndex {
@@ -280,8 +197,6 @@ public enum XcodeGenYAMLParser {
         return nil
     }
 
-    /// One scalar: an inline list, an inline map, a quoted string,
-    /// or a plain string (`true`/`false` unquoted become bools).
     private static func parseScalar(_ text: String, line: Int) throws -> XcodeGenYAMLValue {
         if text.hasPrefix("[") {
             guard text.hasSuffix("]") else {
@@ -355,8 +270,6 @@ public enum XcodeGenYAMLParser {
         return String(text.dropFirst().dropLast()).replacingOccurrences(of: "''", with: "'")
     }
 
-    /// Splits an inline collection on top-level commas (commas
-    /// inside quotes or nested collections do not split).
     private static func splitTopLevel(_ text: String, line: Int) throws -> [String] {
         var parts: [String] = []
         var depth = 0
@@ -383,22 +296,14 @@ public enum XcodeGenYAMLParser {
     }
 }
 
-// MARK: - Typed spec
-
-/// Build settings: a base map plus one map per configuration name.
-/// Values are pbxproj strings (`true`/`false` already became
-/// `YES`/`NO` when parsed).
 public struct XcodeGenSettings: Sendable {
     public var base: [(String, String)] = []
     public var configs: [String: [(String, String)]] = [:]
 
     public init() {}
 
-    /// The configuration names mentioned anywhere in the settings.
     public var configNames: Set<String> { Set(configs.keys) }
 
-    /// Base settings plus the named config's settings (the config
-    /// wins on a clash).
     public func merged(for config: String) -> [(String, String)] {
         var out = base
         for (key, value) in configs[config] ?? [] {
@@ -414,16 +319,12 @@ public struct XcodeGenSettings: Sendable {
 
 public struct XcodeGenOptions: Equatable, Sendable {
     public var bundleIdPrefix: String?
-    /// The deployment target: a single version for every platform,
-    /// or one version per platform (`iOS`/`macOS`/`watchOS`/`tvOS`/
-    /// `visionOS`).
     public var deploymentTarget: [String: String] = [:]
     public var developmentLanguage: String?
     public var xcodeVersion: String?
     public var createIntermediateGroups = false
 }
 
-/// One target's `type`, with the product it makes.
 public enum XcodeGenTargetType: Equatable, Sendable {
     case application
     case framework
@@ -457,7 +358,6 @@ public enum XcodeGenTargetType: Equatable, Sendable {
         }
     }
 
-    /// The `productType` written to the pbxproj.
     public var productType: String {
         switch self {
         case .application: "com.apple.product-type.application"
@@ -474,7 +374,6 @@ public enum XcodeGenTargetType: Equatable, Sendable {
         }
     }
 
-    /// The product file's extension ("" for a command-line tool).
     public var productExtension: String {
         switch self {
         case .application, .watchApp: "app"
@@ -488,7 +387,6 @@ public enum XcodeGenTargetType: Equatable, Sendable {
         }
     }
 
-    /// The product file reference's `explicitFileType`.
     public var productFileType: String {
         switch self {
         case .application, .watchApp: "wrapper.application"
@@ -510,8 +408,6 @@ public enum XcodeGenTargetType: Equatable, Sendable {
     }
 }
 
-/// One target's `platform`, with the SDK and build-setting keys
-/// the platform needs.
 public enum XcodeGenPlatform: Equatable, Sendable {
     case iOS
     case macOS
@@ -553,7 +449,6 @@ public enum XcodeGenPlatform: Equatable, Sendable {
         }
     }
 
-    /// The deployment target when the spec sets none.
     public var defaultDeploymentTarget: String {
         switch self {
         case .iOS: "18.0"
@@ -564,8 +459,6 @@ public enum XcodeGenPlatform: Equatable, Sendable {
         }
     }
 
-    /// The `TARGETED_DEVICE_FAMILY` / `SUPPORTED_PLATFORMS` pair,
-    /// when the platform has one.
     public var deviceSettings: [(String, String)] {
         switch self {
         case .iOS: [("TARGETED_DEVICE_FAMILY", "1,2"), ("SUPPORTED_PLATFORMS", "iphoneos iphonesimulator")]
@@ -577,8 +470,6 @@ public enum XcodeGenPlatform: Equatable, Sendable {
     }
 }
 
-/// One `sources` entry: a file, a directory (expanded from disk),
-/// or a folder reference.
 public struct XcodeGenSource: Equatable, Sendable {
     public var path: String
     public var group: String?
@@ -594,7 +485,6 @@ public struct XcodeGenScript: Equatable, Sendable {
     public var outputFiles: [String] = []
 }
 
-/// One `dependencies` entry.
 public enum XcodeGenDependency: Equatable, Sendable {
     case target(name: String, embed: Bool, link: Bool)
     case package(name: String, product: String?)
@@ -602,22 +492,18 @@ public enum XcodeGenDependency: Equatable, Sendable {
     case sdk(name: String)
 }
 
-/// One `packages` entry (remote only; a `path:` local package is
-/// an error — the generator cannot vendor it).
 public struct XcodeGenPackage: Equatable, Sendable {
     public var name: String
     public var url: String
     public var requirement: SwiftPackageRequirement
 }
 
-/// One target's `scheme` section.
 public struct XcodeGenTargetScheme: Equatable, Sendable {
     public var testTargets: [String] = []
     public var config: String?
     public var gatherCoverageData = false
 }
 
-/// One target of the spec.
 public struct XcodeGenTarget: Sendable {
     public var name: String
     public var type: XcodeGenTargetType
@@ -626,8 +512,6 @@ public struct XcodeGenTarget: Sendable {
     public var settings = XcodeGenSettings()
     public var dependencies: [XcodeGenDependency] = []
     public var infoPath: String?
-    /// The `info.properties` dict, as plist-ready values (string /
-    /// bool / number / list / dict). Nil when `info` is a path.
     public var infoProperties: [(String, XcodeGenYAMLValue)]?
     public var entitlementsPath: String?
     public var configFiles: [String: String] = [:]
@@ -638,11 +522,8 @@ public struct XcodeGenTarget: Sendable {
     public var transitivelyLinkDependencies = false
 }
 
-/// One `schemes` entry.
 public struct XcodeGenScheme: Sendable {
     public var name: String
-    /// Build targets: name → the build-for flags XcodeGen writes.
-    /// `all` means every flag on.
     public var buildTargets: [(name: String, flags: Set<String>)] = []
     public var runConfig: String?
     public var testConfig: String?
@@ -653,10 +534,6 @@ public struct XcodeGenScheme: Sendable {
     public var gatherCoverageData = false
 }
 
-/// The whole spec, parsed and validated. `ignoredKeys` are the
-/// dotted paths of keys the generator read and deliberately did
-/// not act on (organisation or metadata only — never anything
-/// that changes what builds).
 public struct XcodeGenSpec: Sendable {
     public var name: String
     public var options = XcodeGenOptions()
@@ -667,8 +544,6 @@ public struct XcodeGenSpec: Sendable {
     public var configFiles: [String: String] = [:]
     public var ignoredKeys: [String] = []
 
-    /// Every configuration name mentioned anywhere (settings,
-    /// config files, schemes). Debug + Release when none is.
     public var configNames: [String] {
         var names = Set<String>()
         names.formUnion(settings.configNames)
@@ -683,7 +558,6 @@ public struct XcodeGenSpec: Sendable {
             }
         }
         if names.isEmpty { return ["Debug", "Release"] }
-        // Debug first, Release second, the rest alphabetical.
         var ordered: [String] = []
         for preferred in ["Debug", "Release"] where names.contains(preferred) {
             ordered.append(preferred)
@@ -693,11 +567,7 @@ public struct XcodeGenSpec: Sendable {
     }
 }
 
-// MARK: - Spec parsing
-
 extension XcodeGenSpec {
-    /// Parses the spec text. Throws `XcodeGenSpecError` naming the
-    /// exact key or line.
     public static func parse(_ text: String) throws -> XcodeGenSpec {
         let yaml = try XcodeGenYAMLParser.parse(text)
         guard let top = yaml.map else {
@@ -724,9 +594,6 @@ extension XcodeGenSpec {
             case "configFiles":
                 spec.configFiles = try parseConfigFiles(value, path: "configFiles")
             default:
-                // Unknown top-level keys change only organisation or
-                // metadata (fileGroups, settingPresets, attributes,
-                // aggregateTargets, …) — record and continue.
                 spec.ignoredKeys.append(key)
             }
         }
@@ -736,8 +603,6 @@ extension XcodeGenSpec {
         guard !spec.targets.isEmpty else {
             throw XcodeGenSpecError.invalid(path: "targets", message: "the spec has no targets")
         }
-        // Cross-references: every named target, package, and test
-        // target must exist.
         let targetNames = Set(spec.targets.map(\.name))
         let packageNames = Set(spec.packages.map(\.name))
         for target in spec.targets {
@@ -813,9 +678,6 @@ extension XcodeGenSpec {
         return options
     }
 
-    /// A build-settings map: scalar values become pbxproj strings
-    /// (bools → YES/NO); lists become space-joined strings; nested
-    /// maps are an error.
     private static func parseSettingsMap(_ value: XcodeGenYAMLValue, path: String) throws -> [(String, String)] {
         guard let entries = value.map else {
             throw XcodeGenSpecError.invalid(path: path, message: "expected a mapping of build settings")
@@ -857,9 +719,6 @@ extension XcodeGenSpec {
                     settings.configs[configName] = try parseSettingsMap(configValue, path: "\(path).configs.\(configName)")
                 }
             default:
-                // A bare `settings:` map is a base map in XcodeGen
-                // (the `base:` wrapper is optional); treat any other
-                // key as a base setting.
                 switch v {
                 case .string(let s): settings.base.append((key, s))
                 case .bool(let b): settings.base.append((key, b ? "YES" : "NO"))
@@ -1305,10 +1164,6 @@ extension XcodeGenSpec {
         return schemes
     }
 
-    /// The `config` of a scheme action: either a bare config name
-    /// or a mapping with a `config` key. Other action keys
-    /// (arguments, environment variables, …) change what a run
-    /// does, not what builds; they are recorded as ignored.
     private static func parseSchemeConfig(_ value: XcodeGenYAMLValue, path: String, ignored: inout [String]) throws -> String? {
         if let name = value.scalar { return name }
         guard let entries = value.map else {
@@ -1326,8 +1181,6 @@ extension XcodeGenSpec {
         return config
     }
 
-    /// A scheme's build targets: a list of names, or a mapping of
-    /// name to a list of build-for flags (`all` = every flag).
     private static func parseSchemeBuildTargets(_ value: XcodeGenYAMLValue, path: String) throws -> [(name: String, flags: Set<String>)] {
         if let list = value.list {
             return try list.map { item in
@@ -1351,15 +1204,8 @@ extension XcodeGenSpec {
     }
 }
 
-// MARK: - Generated project
-
-/// What the generator produced: the files to commit (relative to
-/// the spec's directory), the keys it deliberately ignored, and the
-/// warnings about judgement calls it made.
 public struct XcodeGenGeneratedProject: Sendable {
     public var projectName: String
-    /// `(relativePath, content)` in commit order: project.pbxproj,
-    /// then contents.xcworkspacedata, then the .xcscheme files.
     public var files: [(relativePath: String, content: String)]
     public var ignoredKeys: [String]
     public var warnings: [String]
@@ -1367,9 +1213,6 @@ public struct XcodeGenGeneratedProject: Sendable {
     public var schemeNames: [String]
 }
 
-/// Builds `.xcodeproj` files from an XcodeGen `project.yml` without
-/// xcodegen. Throws `XcodeGenSpecError` naming the exact key, path,
-/// or line when the spec needs something outside the subset.
 public enum XcodeGenNativeGenerator {
     public static func generate(specText: String, specDirectory: URL) throws -> XcodeGenGeneratedProject {
         let spec = try XcodeGenSpec.parse(specText)
@@ -1378,27 +1221,17 @@ public enum XcodeGenNativeGenerator {
     }
 }
 
-// MARK: - Project builder
-
-/// Builds a `PBXProj` from a parsed spec, following the object
-/// layout `IOSAppTemplate.makeProject` uses (one helper per object
-/// kind, the project ID reserved up front so target-dependency
-/// proxies can point at it).
 private final class XcodeGenProjectBuilder {
     let spec: XcodeGenSpec
     let specDirectory: URL
     var project: PBXProj
     var warnings: [String] = []
 
-    /// Workspace-relative path → file-reference ID (one reference
-    /// per file, shared by every target that uses it).
     private var refCache: [String: String] = [:]
-    /// Localised base name → variant-group ID.
     private var variantGroups: [String: String] = [:]
     private var projectID = ""
     private var targetIDs: [String: String] = [:]
     private var productIDs: [String: String] = [:]
-    /// Package name → XCRemoteSwiftPackageReference ID.
     private var packageReferenceIDsByName: [String: String] = [:]
     private var targetPhases: [String: [String: String]] = [:]
     private var embedPhases: [String: String] = [:]
@@ -1407,11 +1240,8 @@ private final class XcodeGenProjectBuilder {
     init(spec: XcodeGenSpec, specDirectory: URL) throws {
         self.spec = spec
         self.specDirectory = specDirectory
-        // The empty project makeProject starts from.
         self.project = try PBXProj(parsing: "// !$*UTF8*$!\n{ archiveVersion = 1; classes = {}; objectVersion = 77; objects = {}; rootObject = 000000000000000000000000; }\n")
     }
-
-    // MARK: Object helpers (the makeProject shapes)
 
     private func obj(_ attrs: [(String, PlistValue)]) -> String {
         let id = project.makeObjectID()
@@ -1486,11 +1316,9 @@ private final class XcodeGenProjectBuilder {
         return obj(attrs)
     }
 
-    // MARK: Build
-
     func build() throws -> XcodeGenGeneratedProject {
         try validateFilesExist()
-        let projectID = project.makeObjectID() // reserved: proxies point at it
+        let projectID = project.makeObjectID()
         self.projectID = projectID
         var targetIDsInOrder: [String] = []
         var productIDsInOrder: [String] = []
@@ -1516,16 +1344,11 @@ private final class XcodeGenProjectBuilder {
             targetGroups.append(built.groupID)
         }
 
-        // Target dependencies link after every target exists (a
-        // target may depend on one listed after it).
         for target in spec.targets {
             try linkDependencies(of: target)
         }
 
         let productsGroup = group(nil, productIDsInOrder, name: "Products")
-        // Top-level config files live in the main group so they
-        // appear in the navigator (their references are shared with
-        // the project-level build configurations).
         let topLevelConfigRefs = spec.configFiles.values.map { fileReference(for: $0) }
         let mainGroup = group(nil, targetGroups + topLevelConfigRefs + [productsGroup])
         let projectList = list(spec.configNames.map { configName in
@@ -1555,8 +1378,6 @@ private final class XcodeGenProjectBuilder {
             let xml = try schemeXML(scheme)
             files.append((relativePath: "\(bundle)/xcshareddata/xcschemes/\(scheme.name).xcscheme", content: xml))
         }
-        // Generated Info.plists (from `info.properties`) are files
-        // too, written before the project that references them.
         for (path, content) in generatedInfoPlists.sorted(by: { $0.0 < $1.0 }) {
             files.insert((relativePath: path, content: content), at: 0)
         }
@@ -1566,7 +1387,6 @@ private final class XcodeGenProjectBuilder {
             targetNames: spec.targets.map(\.name), schemeNames: schemes.map(\.name))
     }
 
-    /// Info.plists generated from `info.properties`, by path.
     private var generatedInfoPlists: [String: String] = [:]
 
     private var knownRegions: [String] {
@@ -1587,9 +1407,6 @@ private final class XcodeGenProjectBuilder {
         return settings
     }
 
-    /// The config file for `configName` (top-level or per-target),
-    /// as a file reference, or nil. The reference is created once
-    /// per path and shared (the caller puts it in a group).
     private func configFileReference(for configName: String, topLevel: Bool, target: XcodeGenTarget? = nil) -> String? {
         let path: String?
         if topLevel {
@@ -1600,8 +1417,6 @@ private final class XcodeGenProjectBuilder {
         guard let path else { return nil }
         return fileReference(for: path)
     }
-
-    // MARK: Validation
 
     private func validateFilesExist() throws {
         let fm = FileManager.default
@@ -1635,21 +1450,15 @@ private final class XcodeGenProjectBuilder {
         }
     }
 
-    /// A spec path resolved against the spec's directory (absolute
-    /// paths pass through).
     private func url(for path: String) -> URL {
         if path.hasPrefix("/") { return URL(fileURLWithPath: path) }
         return specDirectory.appendingPathComponent(path)
     }
 
-    /// A spec path as the pbxproj sees it: workspace-relative when
-    /// under the spec directory, absolute otherwise.
     private func relativePath(for path: String) -> String {
         if path.hasPrefix("/") { return path }
         return path
     }
-
-    // MARK: Targets
 
     private struct BuiltTarget {
         var targetID: String
@@ -1663,7 +1472,6 @@ private final class XcodeGenProjectBuilder {
         let productPath = ext.isEmpty ? productName : "\(productName).\(ext)"
         let productID = product(productPath, target.type.productFileType)
 
-        // Sources: expand directories, classify, build the phases.
         var sourceBuildFiles: [String] = []
         var headerBuildFiles: [String] = []
         var resourceBuildFiles: [String] = []
@@ -1696,7 +1504,6 @@ private final class XcodeGenProjectBuilder {
         }
         if hasSwift { hasSwiftSources = true }
 
-        // Info.plist: a referenced file, or a generated one.
         var infoPlistFile: String?
         if let infoPath = target.infoPath {
             infoPlistFile = infoPath
@@ -1717,8 +1524,6 @@ private final class XcodeGenProjectBuilder {
 
         let targetGroup = group(nil, groupChildren, name: target.name)
 
-        // Phases: pre-build scripts, sources, headers, frameworks,
-        // resources, embed, post-build scripts.
         var phaseIDs: [String] = []
         for script in target.preBuildScripts { phaseIDs.append(scriptPhase(script)) }
         phaseIDs.append(phase("PBXSourcesBuildPhase", sourceBuildFiles))
@@ -1792,8 +1597,6 @@ private final class XcodeGenProjectBuilder {
         return settings
     }
 
-    // MARK: Sources
-
     private struct ExpandedFile {
         var refID: String
         var `extension`: String
@@ -1813,15 +1616,6 @@ private final class XcodeGenProjectBuilder {
         "mp3", "wav", "caf", "aiff", "mov", "mp4", "ttf", "otf", "data", "txt", "md", "html", "xml",
     ]
 
-    /// Expands one `sources` entry. A file becomes one reference in
-    /// the target group; a directory becomes a group (nested groups
-    /// when `createIntermediateGroups` is on, one flat group per
-    /// top-level directory otherwise) holding one reference per file;
-    /// a folder reference becomes one reference to the directory
-    /// itself. Localised files (`.lproj/…`) share one variant group
-    /// per base name, in the directory that holds their `.lproj`
-    /// folders. Every reference's path is relative to the group
-    /// that holds it — that is what makes the paths resolve.
     private func expandSource(_ source: XcodeGenSource, target: XcodeGenTarget) throws -> ExpandedSource {
         let sourceURL = url(for: source.path)
         var isDirectory: ObjCBool = false
@@ -1832,8 +1626,6 @@ private final class XcodeGenProjectBuilder {
             let refID = fileReference(for: source.path, isFolder: source.folderReference, resolvedPath: sourceURL.standardizedFileURL.path)
             return ExpandedSource(files: [ExpandedFile(refID: refID, extension: (source.path as NSString).pathExtension.lowercased(), isFolderReference: source.folderReference)], groupID: nil)
         }
-        // Directory: enumerate, skipping hidden files, build
-        // outputs, and the source's excludes.
         let fm = FileManager.default
         var files: [URL] = []
         if let enumerator = fm.enumerator(at: sourceURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
@@ -1851,10 +1643,6 @@ private final class XcodeGenProjectBuilder {
         }
         files.sort { $0.path < $1.path }
         let basePath = sourceURL.standardizedFileURL.path
-        // Bucket each file by the directory group that will hold it
-        // ("" = the source group itself) and its ref path inside
-        // that group. With createIntermediateGroups off, a nested
-        // directory collapses to its top-level component.
         var buckets: [String: [ExpandedFile]] = [:]
         var bucketOrder: [String] = []
         func bucket(_ dir: String, _ file: ExpandedFile) {
@@ -1870,8 +1658,6 @@ private final class XcodeGenProjectBuilder {
             let parts = relative.split(separator: "/").map(String.init)
             if parts.count >= 2, parts[parts.count - 2].hasSuffix(".lproj"),
                ["storyboard", "xib", "strings", "stringsdict"].contains(ext) {
-                // A localised file: the variant group lives in the
-                // directory holding the `.lproj` folders.
                 let parentDir = parts.dropLast(2).joined(separator: "/")
                 let groupDir = groupDir(for: parentDir)
                 let baseName = parts.last!
@@ -1880,7 +1666,7 @@ private final class XcodeGenProjectBuilder {
                 let refID = fileReference(for: refPath, type: PBXProj.fileType(forPath: baseName), resolvedPath: url.standardizedFileURL.path)
                 if let variantID = variantGroups[key] {
                     appendChild(variantID, child: refID)
-                    continue // already counted under this variant group
+                    continue
                 }
                 let variantID = obj([
                     ("isa", "PBXVariantGroup"), ("children", strings([refID])),
@@ -1905,8 +1691,6 @@ private final class XcodeGenProjectBuilder {
             }
             bucket(groupDir, ExpandedFile(refID: refID, extension: ext))
         }
-        // Build the directory groups (nested when
-        // createIntermediateGroups is on) and the source group.
         var children: [String] = []
         var allFiles: [ExpandedFile] = []
         for dir in bucketOrder {
@@ -1925,19 +1709,12 @@ private final class XcodeGenProjectBuilder {
         return ExpandedSource(files: allFiles, groupID: groupID)
     }
 
-    /// The bucket a file's directory maps to: the full directory
-    /// when `createIntermediateGroups` is on, its top-level
-    /// component otherwise ("" for the source directory itself).
     private func groupDir(for dir: String) -> String {
         if dir.isEmpty { return "" }
         if spec.options.createIntermediateGroups { return dir }
         return String(dir.split(separator: "/").first!)
     }
 
-    /// A directory group for `dir` (relative to the source group):
-    /// nested groups when `createIntermediateGroups` is on (each
-    /// level's path is its own component), one flat group
-    /// otherwise (its path is the whole directory).
     private func buildDirectoryGroup(dir: String, files: [ExpandedFile]) -> String {
         let parts = dir.split(separator: "/").map(String.init)
         if !spec.options.createIntermediateGroups || parts.count == 1 {
@@ -1968,11 +1745,7 @@ private final class XcodeGenProjectBuilder {
         return false
     }
 
-    /// A tiny glob matcher: `*` spans one path component, `**`
-    /// spans any characters, `?` spans one character.
     private func globMatch(pattern: String, string: String) -> Bool {
-        // Fast path: an exact suffix match (the common `excludes`
-        // form is a plain path).
         if pattern == string || string.hasSuffix("/" + pattern) { return true }
         var regex = "^"
         var index = pattern.startIndex
@@ -1999,16 +1772,7 @@ private final class XcodeGenProjectBuilder {
         return (try? NSRegularExpression(pattern: regex).firstMatch(in: string, range: NSRange(string.startIndex..., in: string))) != nil
     }
 
-    /// The shared file reference for a ref path (created once
-    /// per ref path, reused by every target). The ref path is
-    /// relative to the group that holds the reference, so the same
-    /// file in two groups gets two references — a warning is
-    /// recorded the first time that happens.
     private func fileReference(for path: String, isFolder: Bool = false, type: String? = nil, resolvedPath: String? = nil) -> String {
-        // The cache key is the resolved file plus its ref path: the
-        // same file in two groups needs two references (each path is
-        // relative to its group), while the same file with the same
-        // ref path shares one reference across targets.
         let key = (resolvedPath ?? "") + "|" + path + (isFolder ? ":folder" : "")
         if let cached = refCache[key] { return cached }
         if let resolvedPath {
@@ -2024,12 +1788,8 @@ private final class XcodeGenProjectBuilder {
         return id
     }
 
-    /// Resolved file path → first ref path that referenced it.
     private var resolvedPaths: [String: String] = [:]
 
-    // MARK: Dependencies
-
-    /// Links one target's dependencies after every target exists.
     private func linkDependencies(of target: XcodeGenTarget) throws {
         guard let targetID = targetIDs[target.name],
               let frameworksPhase = targetPhases[target.name]?["PBXFrameworksBuildPhase"] else { return }
@@ -2078,8 +1838,6 @@ private final class XcodeGenProjectBuilder {
                 appendToPhase(frameworksPhase, buildFile(refID))
             }
         }
-        // Transitive linking: with `transitivelyLinkDependencies`,
-        // link the direct dependencies' own target dependencies too.
         if target.transitivelyLinkDependencies {
             var visited = Set(directTargetDeps)
             var queue = directTargetDeps
@@ -2108,8 +1866,6 @@ private final class XcodeGenProjectBuilder {
                 ("runOnlyForDeploymentPostprocessing", "0"),
             ])
             embedPhases[targetID] = phaseID
-            // Insert after the frameworks phase in the target's
-            // build phases.
             guard var targetObject = project[targetID] else { return }
             var phases = targetObject.references("buildPhases")
             if let frameworksIndex = phases.firstIndex(where: { project[$0]?.isa == "PBXFrameworksBuildPhase" }) {
@@ -2138,7 +1894,6 @@ private final class XcodeGenProjectBuilder {
         if FileManager.default.fileExists(atPath: url.path) {
             return fileReference(for: path)
         }
-        // A bare "Name.framework" is a system framework.
         if !(path as NSString).pathExtension.isEmpty, !path.contains("/") {
             return ref(path, PBXProj.fileType(forPath: path), sourceTree: "SDKROOT")
         }
@@ -2165,12 +1920,6 @@ private final class XcodeGenProjectBuilder {
         project[ownerID] = owner
     }
 
-    // MARK: Schemes
-
-    /// The schemes to generate: the spec's `schemes`, or one scheme
-    /// per target when the spec names none (XcodeGen's default).
-    /// A default scheme builds its target and tests the test
-    /// targets that depend on it.
     private func schemesToGenerate() -> [XcodeGenScheme] {
         if !spec.schemes.isEmpty { return spec.schemes }
         return spec.targets.map { target in
@@ -2197,10 +1946,6 @@ private final class XcodeGenProjectBuilder {
         }
     }
 
-    /// One `.xcscheme` file. The format is Xcode's own (a public
-    /// file format): BuildAction / TestAction / LaunchAction /
-    /// ProfileAction / AnalyzeAction / ArchiveAction, each with a
-    /// `BuildableReference` to the target's pbxproj ID.
     private func schemeXML(_ scheme: XcodeGenScheme) throws -> String {
         let lastUpgradeVersion = lastUpgradeVersion()
         func buildable(for targetName: String) throws -> (id: String, name: String, product: String) {
@@ -2228,7 +1973,6 @@ private final class XcodeGenProjectBuilder {
             func flag(_ name: String) -> String {
                 (all || flags.contains(name)) ? "YES" : "NO"
             }
-            // Test bundles never run, profile, or archive.
             let isTest = spec.targets.first(where: { $0.name == b.name })?.type.isTestBundle ?? false
             let running = isTest ? "NO" : flag("running")
             let profiling = isTest ? "NO" : flag("profiling")
@@ -2279,7 +2023,6 @@ private final class XcodeGenProjectBuilder {
               </Testables>
            </TestAction>
         """
-        // The runnable is the first built application target.
         let runnableName = scheme.buildTargets
             .map(\.name)
             .first { name in spec.targets.first(where: { $0.name == name })?.type.isApplication ?? false }
@@ -2298,8 +2041,6 @@ private final class XcodeGenProjectBuilder {
               </MacroExpansion>
         """
         } else if let first = scheme.buildTargets.first, let b = try? buildable(for: first.name) {
-            // A framework-only scheme has no runnable; Xcode writes
-            // a MacroExpansion to the first build target instead.
             runnableXML = ""
             macroExpansion = """
               <MacroExpansion>
@@ -2359,8 +2100,6 @@ private final class XcodeGenProjectBuilder {
         """
     }
 
-    /// The scheme `LastUpgradeVersion`, from `options.xcodeVersion`
-    /// ("16.2" → "1620"; "16.0" → "1600"), or the default.
     private func lastUpgradeVersion() -> String {
         guard let version = spec.options.xcodeVersion else { return "1600" }
         let digits = version.filter { $0.isNumber }
@@ -2376,9 +2115,6 @@ private final class XcodeGenProjectBuilder {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
-    // MARK: Info.plist generation
-
-    /// The Info.plist XML for an `info.properties` dict.
     private func infoPlistXML(_ properties: [(String, XcodeGenYAMLValue)]) -> String {
         var out = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -2420,7 +2156,6 @@ private final class XcodeGenProjectBuilder {
 }
 
 private extension XcodeGenPlatform {
-    /// The platform name as the spec writes it (`iOS`, `macOS`, …).
     var platformName: String {
         switch self {
         case .iOS: "iOS"

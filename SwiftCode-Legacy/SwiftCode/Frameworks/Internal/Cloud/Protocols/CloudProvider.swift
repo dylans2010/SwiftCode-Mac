@@ -1,6 +1,5 @@
 import Foundation
 
-/// Primary abstract seam governing all cloud-backed capabilities.
 public protocol CloudProvider: Sendable {
     var authentication: AuthenticationProvider { get }
     var sync: SyncProvider { get }
@@ -8,7 +7,6 @@ public protocol CloudProvider: Sendable {
     var database: CloudDatabase { get }
 }
 
-/// Abstract seam governing auth workflows, credentials, and guest migrations.
 public protocol AuthenticationProvider: Sendable {
     func getActiveSession() async throws -> CloudSession?
     func login(email: String, password: SecureString) async throws -> CloudSession
@@ -19,7 +17,6 @@ public protocol AuthenticationProvider: Sendable {
     func sessionStateChanges() -> AsyncStream<CloudSession?>
 }
 
-/// Abstract seam managing the raw database interactions for schemas.
 public protocol CloudDatabase: Sendable {
     func query(_ table: String, filter: String?) async throws -> [[String: String]]
     func insert(_ table: String, values: [String: String]) async throws
@@ -27,7 +24,6 @@ public protocol CloudDatabase: Sendable {
     func delete(_ table: String, filter: String) async throws
 }
 
-/// Abstract seam governing realtime subscriptions and continuous delta synchronizations.
 public protocol SyncProvider: Sendable {
     func pullDeltas(since: Date, tableName: String) async throws -> [SyncPayload]
     func pushDeltas(_ deltas: [SyncPayload]) async throws
@@ -35,7 +31,6 @@ public protocol SyncProvider: Sendable {
     func unsubscribeFromChanges(tableName: String) async throws
 }
 
-/// Abstract seam governing file object uploads, downloads, and remote asset listings.
 public protocol StorageProvider: Sendable {
     func upload(bucket: String, path: String, data: Data, contentType: String) async throws -> String
     func download(bucket: String, path: String) async throws -> Data
@@ -43,7 +38,6 @@ public protocol StorageProvider: Sendable {
     func listObjects(bucket: String, prefix: String?) async throws -> [String]
 }
 
-/// Helper representing secure strings to hide sensitive tokens from memory leak inspect audits.
 public struct SecureString: Codable, Sendable, Equatable, ExpressibleByStringLiteral {
     private let rawValue: String
 

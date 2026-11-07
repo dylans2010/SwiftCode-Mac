@@ -1,26 +1,20 @@
 import Foundation
 
-// MARK: - Consent (test hook / developer default; the real consent UI is round R6)
-
-/// How far back a read grant reaches (`authorization.md` §5).
 public enum SwiftCodeHistoricalRange: Sendable {
     case allRecordedData
     case past30Days
 }
 
-/// What the store asks the user: the types never presented to this client before.
 public struct SwiftCodeConsentRequest: Sendable {
     public let client: SwiftCodeHealthClient
     public let shareTypes: [HKSampleType]
     public let readTypes: [HKObjectType]
 }
 
-/// The user's answer: the identifiers turned on in each section.
 public struct SwiftCodeConsentAnswer: Sendable {
     public var share: Set<String>
     public var read: Set<String>
     public var historicalRange: SwiftCodeHistoricalRange
-    /// When the user answered (defaults to now); the historical bound is computed from it.
     public var date: Date?
 
     public init(share: Set<String>, read: Set<String>, historicalRange: SwiftCodeHistoricalRange = .allRecordedData,
@@ -31,20 +25,15 @@ public struct SwiftCodeConsentAnswer: Sendable {
         self.date = date
     }
 
-    /// "Select All" then "Allow".
     public static func allowAll(_ request: SwiftCodeConsentRequest, historicalRange: SwiftCodeHistoricalRange = .allRecordedData,
                                 date: Date? = nil) -> SwiftCodeConsentAnswer {
         SwiftCodeConsentAnswer(share: Set(request.shareTypes.map(\.identifier)), read: Set(request.readTypes.map(\.identifier)),
                            historicalRange: historicalRange, date: date)
     }
-    /// "Don't Allow": every type presented and denied.
     public static let denyAll = SwiftCodeConsentAnswer(share: [], read: [])
 }
 
-/// Answers authorization requests. Return nil to cancel (code 7).
 public typealias SwiftCodeConsentResponder = @Sendable (SwiftCodeConsentRequest) -> SwiftCodeConsentAnswer?
-
-// MARK: - Change sets
 
 struct ChangeSet: Sendable {
     var added: [ObjectRecord] = []
@@ -56,8 +45,8 @@ struct ChangeSet: Sendable {
 }
 
 struct AuthRow: Sendable {
-    var shareStatus: Int = 0   // 0 not presented, 1 denied, 2 authorized
-    var readStatus: Int = 0    // 0 not presented, 1 denied, 2 granted
+    var shareStatus: Int = 0
+    var readStatus: Int = 0
     var earliest: Double?
     var decidedAt: Double = 0
     var determined: Bool { shareStatus != 0 || readStatus != 0 }
@@ -69,16 +58,9 @@ enum SortKey: Sendable {
 
 struct StatisticsInput: Sendable {
     var records: [ObjectRecord]
-    /// Bundle identifiers, highest priority first.
     var priority: [String]
 }
 
-// MARK: - The engine
-
-/// SwiftCode's HealthKit store engine (`design.md` §3–§6): one SQLite database, the
-/// authorization store, the change journal and the query/statistics back end.
-/// Today it runs in-process; every entry point takes value-type records and a
-/// client identity so that a later round can put it behind a socket/XPC daemon.
 public final class SwiftCodeHealthDaemon: @unchecked Sendable {
     let queue = DispatchQueue(label: "dev.swiftcode.healthkit.daemon")
     private var db: SQLiteDatabase
@@ -92,7 +74,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         let onChange: (ChangeSet) -> Void
     }
 
-    /// Opens (creating if needed) the store at `databaseURL`; nil keeps it in memory.
     public init(databaseURL: URL?) throws {
         self.databaseURL = databaseURL
         if let url = databaseURL {
@@ -107,7 +88,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// The process-wide store: `SWIFTCODE_HEALTHKIT_STORE`, else a per-user data directory.
     public static let shared: SwiftCodeHealthDaemon = {
         let env = ProcessInfo.processInfo.environment
         let url: URL
@@ -129,12 +109,10 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
 
     public func close() { queue.sync { db.close() } }
 
-    /// Replace the consent answerer (default: allow everything, all recorded data).
     public func setConsentResponder(_ responder: @escaping SwiftCodeConsentResponder) {
         queue.sync { self.responder = responder }
     }
 
-    /// Explicit source order for a type, highest priority first (the Health app's Data Sources list).
     public func setSourcePriority(_ bundleIdentifiers: [String], for type: HKObjectType) {
         queue.sync {
             try? db.transaction {
@@ -147,8 +125,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// Developer tool: set a characteristic (`interface.md` §6). Values are the enum raw values;
-    /// `dateOfBirth` takes "yyyy-mm-dd".
     public func setCharacteristic(_ type: HKCharacteristicTypeIdentifier, value: String?) {
         queue.sync {
             if let value {
@@ -159,8 +135,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    // MARK: change journal
-
     func register(_ id: UUID, client: String, onChange: @escaping (ChangeSet) -> Void) {
         live[id] = LiveRegistration(client: client, onChange: onChange)
     }
@@ -170,8 +144,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         guard !change.isEmpty else { return }
         for (_, reg) in live { reg.onChange(change) }
     }
-
-    // MARK: sources
 
     private func sourceID(_ s: SourceRecord) throws -> Int64 {
         if let id = try db.scalar("SELECT id FROM sources WHERE bundle_id = ?", [.text(s.bundleIdentifier)]) {
@@ -212,8 +184,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
     }
 
     func currentAnchor() -> Int64 { (try? db.scalar("SELECT value FROM anchor_seq WHERE id = 1")) ?? 0 }
-
-    // MARK: authorization store
 
     func authRows(_ client: String) -> [String: AuthRow] {
         var out: [String: AuthRow] = [:]
@@ -280,8 +250,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         return pending ? 1 : 2
     }
 
-    /// Gate for reads: never-presented types answer code 5.
-    /// Correlation types cannot be requested; their member types carry the authorization.
     static func authorizationTypes(_ type: String) -> [String] {
         switch type {
         case HKCorrelationTypeIdentifier.bloodPressure.rawValue:
@@ -293,7 +261,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// Gate for reads: never-presented types answer code 5.
     private func readGate(_ client: String, _ types: [String]) -> HKError? {
         let rows = authRows(client)
         for t in types {
@@ -303,7 +270,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         return nil
     }
 
-    /// Gate for writes: never presented at all → 5; presented without share permission → 4.
     private func shareGate(_ client: String, _ type: String) -> HKError? {
         let row = authRow(client, type)
         switch row.shareStatus {
@@ -313,7 +279,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// May `client` see record `r`? (`queries.md` §6.6, §7; `authorization.md` §3, §5)
     private func readable(_ r: (type: String, source: String, start: Double), client: String,
                           rows: [String: AuthRow], forStatistics: Bool) -> Bool {
         let own = r.source == client
@@ -323,8 +288,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         if let e = earliest, r.start < e, forStatistics || !own { return false }
         return true
     }
-
-    // MARK: loading
 
     private static let selectColumns = """
         SELECT o.anchor, o.uuid, o.kind, o.type, o.start, o."end", s.bundle_id, s.name, r.version, r.product_type,
@@ -360,7 +323,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
             out.append(r)
         }
         guard !out.isEmpty else { return out }
-        // metadata
         var byAnchor: [Int64: Int] = [:]
         for (i, r) in out.enumerated() { byAnchor[r.anchor] = i }
         for chunk in stride(from: 0, to: out.count, by: 500) {
@@ -381,7 +343,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
                 out[i].metadata![row.text(1)!] = v
             }
         }
-        // correlation members
         for i in out.indices where out[i].kind == .correlation {
             out[i].members = try load(where: "o.anchor IN (SELECT child FROM associations WHERE parent = ? AND kind = 1)",
                                       [.int(out[i].anchor)])
@@ -401,10 +362,7 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         return try load(where: clause, args)
     }
 
-    // MARK: saving
-
     func save(_ objects: [ObjectRecord], client: SwiftCodeHealthClient) -> HKError? {
-        // authorization: every concrete type written (correlation members instead of the correlation)
         var types = Set<String>()
         for o in objects {
             if o.kind == .correlation { for m in o.members ?? [] { types.insert(m.type) } } else { types.insert(o.type) }
@@ -435,23 +393,21 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
     @discardableResult
     private func insert(_ input: ObjectRecord, sourceID sid: Int64, revisionID rid: Int64, client: SwiftCodeHealthClient,
                         change: inout ChangeSet) throws -> Int64? {
-        if let a = try exists(input.uuid) { return a >= 0 ? a : nil }   // resave: no-op
+        if let a = try exists(input.uuid) { return a >= 0 ? a : nil }
         var o = input
         o.revision = client.revisionRecord
-        // sync identifiers (`queries.md` §9)
         if let syncID = o.syncIdentifier {
             let version = o.syncVersion ?? 0
             var existing: (anchor: Int64, version: Double)?
             try db.query("SELECT anchor, version FROM sync_ids WHERE source_id = ? AND type = ? AND sync_id = ?",
                          [.int(sid), .text(o.type), .text(syncID)]) { row in existing = (row.int(0), row.double(1)) }
             if let existing {
-                guard version > existing.version else { return nil }        // lower or equal: ignored
+                guard version > existing.version else { return nil }
                 if let old = try load(where: "o.anchor = ?", [.int(existing.anchor)]).first {
                     change.deleted.append(try tombstone(old, sourceID: sid))
                 }
             }
         }
-        // correlation members first, so they carry lower anchors
         var memberAnchors: [Int64] = []
         if o.kind == .correlation {
             var stored: [ObjectRecord] = []
@@ -522,7 +478,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         return TombstoneRecord(anchor: anchor, uuid: r.uuid, type: r.type, sourceBundle: r.sourceBundle, metadata: r.metadata)
     }
 
-    /// Associate saved samples with a workout (`addSamples(_:to:)`).
     func associate(_ samples: [ObjectRecord], workout: UUID, client: SwiftCodeHealthClient) -> HKError? {
         if let e = save(samples, client: client) { return e }
         do {
@@ -544,13 +499,10 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         return nil
     }
 
-    // MARK: deleting (`queries.md` §8)
-
     func delete(_ uuids: [UUID], client: String) -> HKError? {
         do {
             var targets: [ObjectRecord] = []
             for u in uuids {
-                // not found, already deleted, never saved, or another source's object: code 3
                 guard let r = try load(where: "o.uuid = ?", [.text(u.uuidString)]).first, r.sourceBundle == client else {
                     return .deletionNotFound
                 }
@@ -594,8 +546,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    // MARK: queries
-
     func samples(types: [String], node: PredicateNode?, limit: Int, sort: [(SortKey, Bool)],
                  client: String) -> Result<[ObjectRecord], HKError> {
         if let e = readGate(client, types) { return .failure(e) }
@@ -632,7 +582,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         var anchor: Int64
     }
 
-    /// Objects and tombstones after `anchor`, in anchor order; the limit counts both (`queries.md` §4).
     func anchored(types: [String], node: PredicateNode?, after anchor: Int64, limit: Int,
                   client: String) -> Result<AnchoredResult, HKError> {
         if let e = readGate(client, types) { return .failure(e) }
@@ -707,7 +656,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// Records for statistics: the historical bound applies to every source (`queries.md` §6.6).
     func statisticsInput(type: String, node: PredicateNode?, client: String) -> Result<StatisticsInput, HKError> {
         if let e = readGate(client, [type]) { return .failure(e) }
         do {
@@ -722,7 +670,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// Explicit order first, then the most recently authorized apps (`design.md` §6).
     func sourcePriority(_ type: String) throws -> [String] {
         var out: [String] = []
         try db.query("SELECT bundle_id FROM source_priority WHERE type = ? ORDER BY rank", [.text(type)]) { out.append($0.text(0)!) }
@@ -732,8 +679,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
         return out
     }
-
-    // MARK: characteristics, preferences, background delivery
 
     func characteristic(_ type: String, client: String) -> Result<String?, HKError> {
         if let e = readGate(client, [type]) { return .failure(e) }
@@ -764,7 +709,6 @@ public final class SwiftCodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// Diagnostic counts (`count` phase of the probe: P1).
     public func objectCounts() -> [String: Int] {
         queue.sync {
             var out: [String: Int] = [:]

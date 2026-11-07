@@ -27,7 +27,6 @@ private func freshRepo(_ name: String) throws -> URL {
     return dir
 }
 
-/// Depth checks for specs/ide/source-control.md.
 @MainActor
 @Suite(.serialized) struct SourceControlDepthTests {
     @Test func navigatorRemoteBranchesAndRefreshAfterSave() async throws {
@@ -45,19 +44,18 @@ private func freshRepo(_ name: String) throws -> URL {
         let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: dir)),
                                            loadDestinations: false, startLanguageService: false)
         wc.applyDefaultLayout()
-        await wc.sourceControl.idle()   // git is read in the background
+        await wc.sourceControl.idle()
         wc.sourceControl.setMode(.repositories)
         let root = try #require(wc.navigator.rows(1).first)
         #expect(root.title == "scm-depth-nav")
         #expect(root.children[4].title == "Remotes")
         #expect(root.children[4].children.first?.children.map(\.title) == ["dev", "main"])
 
-        // Badges refresh after Save.
         let main = dir.appendingPathComponent("Sources/App/main.swift")
         wc.open(path: main.path, line: nil)
         func badge(_ items: [OutlineItem]) -> String?? {
             for i in items {
-                if i.title == "main" { return .some(i.badge) }  // extensions hidden by default
+                if i.title == "main" { return .some(i.badge) }
                 if let b = badge(i.children) { return b }
             }
             return nil

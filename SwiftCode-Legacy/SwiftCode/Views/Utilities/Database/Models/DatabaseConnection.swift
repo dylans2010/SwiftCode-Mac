@@ -5,16 +5,13 @@ public struct DatabaseConnection: Identifiable, Codable, Hashable {
     public var name: String
     public var provider: DatabaseProvider
 
-    // SQLite connection configuration
     public var sqliteFilePath: String?
 
-    // Network-based connection configuration (Postgres, MySQL, MariaDB, Supabase)
     public var host: String?
     public var port: Int?
     public var databaseName: String?
     public var username: String?
 
-    // Supabase specific options
     public var supabaseURL: String?
     public var supabaseAnonKey: String?
     public var supabaseServiceKey: String?

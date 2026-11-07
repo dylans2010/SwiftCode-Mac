@@ -1,21 +1,12 @@
-// A minimal PNG writer (public PNG specification, RFC 2083; zlib RFC 1950
-// and deflate RFC 1951 "stored" blocks): 8-bit RGBA, filter 0, no
-// compression. No external libraries, so it runs wherever swiftcode-simd does.
-
-/// Encodes RGBA pixels as an uncompressed PNG file: screenshots, camera
-/// snapshots, and the display tiles' fallback when zlib is missing.
 public enum PNG {
-    /// An RGBA image (`rgba.count == width * height * 4`) as PNG bytes.
     public static func encode(width: Int, height: Int, rgba: [UInt8]) -> [UInt8] {
         precondition(width > 0 && height > 0 && rgba.count == width * height * 4)
-        // Raw scanlines: filter byte 0, then the row.
         var raw: [UInt8] = []
         raw.reserveCapacity((width * 4 + 1) * height)
         for y in 0..<height {
             raw.append(0)
             raw += rgba[(y * width * 4)..<((y + 1) * width * 4)]
         }
-        // zlib: header 0x78 0x01, stored blocks of at most 65 535 bytes, Adler-32.
         var z: [UInt8] = [0x78, 0x01]
         var at = 0
         repeat {
@@ -34,7 +25,6 @@ public enum PNG {
         return out
     }
 
-    /// Converts BGRA rows (`bytesPerRow` apart) to packed RGBA.
     public static func rgba(fromBGRA bytes: [UInt8], width: Int, height: Int, bytesPerRow: Int) -> [UInt8] {
         var out = [UInt8](repeating: 0, count: width * height * 4)
         for y in 0..<height {
@@ -51,9 +41,6 @@ public enum PNG {
         return out
     }
 
-    /// The sRGB chunk (rendering intent 0, perceptual): the guest draws in
-    /// sRGB, and the reference's screenshots carry this chunk and no ICC
-    /// profile (uikit-feel.md §8.1).
     public static var srgbChunk: [UInt8] { chunk("sRGB", [0]) }
 
     static func be32(_ v: UInt32) -> [UInt8] { [UInt8(v >> 24), UInt8(v >> 16 & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v & 0xFF)] }

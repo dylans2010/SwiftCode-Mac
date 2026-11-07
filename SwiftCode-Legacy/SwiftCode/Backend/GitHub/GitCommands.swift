@@ -1,6 +1,5 @@
 import Foundation
 
-
 final class GitCommands: @unchecked Sendable {
     static let shared = GitCommands()
     private init() {}
@@ -18,7 +17,6 @@ final class GitCommands: @unchecked Sendable {
         )
     }
 
-
     func pushFile(path: String, content: String, commitMessage: String, project: Project) async throws {
         guard let repoURL = project.githubRepo, !repoURL.isEmpty else {
             throw GitCommandsError.missingRemote
@@ -34,7 +32,6 @@ final class GitCommands: @unchecked Sendable {
             sha: existingSHA
         )
     }
-
 
     func pull(project: Project, branch: String = "main") async throws {
         guard let repoURL = project.githubRepo, !repoURL.isEmpty else {
@@ -66,7 +63,6 @@ final class GitCommands: @unchecked Sendable {
         return try await GitHubAPIBackend.shared.listBranches(owner: owner, repo: repo)
     }
 
-
     func recentCommits(for project: Project, branch: String = "main", count: Int = 20) async throws -> [GitHubCommit] {
         guard let repoURL = project.githubRepo, !repoURL.isEmpty else {
             throw GitCommandsError.missingRemote
@@ -80,7 +76,6 @@ final class GitCommands: @unchecked Sendable {
         )
     }
 }
-
 
 enum GitCommandsError: LocalizedError {
     case missingRemote

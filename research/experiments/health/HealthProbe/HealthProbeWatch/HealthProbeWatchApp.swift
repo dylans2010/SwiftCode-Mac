@@ -3,7 +3,6 @@ import SwiftUI
 import WatchKit
 
 final class WatchAppDelegate: NSObject, WKApplicationDelegate {
-    /// Called when the phone starts the probe through HKHealthStore.startWatchApp(with:).
     func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
         DispatchQueue.main.async { WorkoutManager.shared.start(configuration: workoutConfiguration) }
     }

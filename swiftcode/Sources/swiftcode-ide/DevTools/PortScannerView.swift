@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(Network)
 import SwiftUI
 import Network
@@ -28,7 +25,6 @@ struct PortScannerView: View {
                 }
             }
             .padding()
-            
 
             Button(isScanning ? "Scanning..." : "Start Scan") { scan() }
                 .buttonStyle(.borderedProminent)
@@ -85,7 +81,6 @@ struct PortScannerView: View {
                 completion(false)
                 connection.cancel()
             case .waiting(_):
-                // In a real scan we might timeout
                 break
             default:
                 break
@@ -94,7 +89,6 @@ struct PortScannerView: View {
 
         connection.start(queue: .global())
 
-        // Timeout after 2 seconds
         DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
             if connection.state != .ready {
                 connection.cancel()

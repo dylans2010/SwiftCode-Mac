@@ -1,9 +1,3 @@
-// C-FILE (plan.md §4): parse and re-write our configuration files, every key
-// of configuration-file.md, unknown keys kept, byte-exact round trips.
-//
-// The fixtures are our own data (the catalog of plan.md §3.1) written in the
-// text form of configuration-file.md §1 by an independent generator; no
-// Apple-produced file is used.
 import Foundation
 import Testing
 @testable import StoreKitConfiguration
@@ -23,7 +17,6 @@ struct RoundTripTests {
         let data = try fixtureData(name)
         let doc = try ConfigurationDocument(data: data)
         #expect(doc.data() == data)
-        // And through a second cycle.
         #expect(try ConfigurationDocument(data: doc.data()).data() == data)
     }
 
@@ -34,7 +27,6 @@ struct RoundTripTests {
         #expect(copy.appName == "StoreProbe")
         copy.appName = nil
         #expect(copy == catalog)
-        // Written back, the copy takes the canonical (sorted) form.
         #expect(copy.data() == (try fixtureData("Catalog.storekit")))
     }
 
@@ -72,7 +64,6 @@ struct RoundTripTests {
         #expect(text == "\"q\\\"b\\\\s\\/n\\nt\\tc\\u0001é😀\"")
         #expect(try JSONParser.parse(text) == .string(s))
         #expect(JSONWriter(escapeSlashes: false).string(.string("a/b")) == "\"a/b\"")
-        // \u escapes and surrogate pairs are read.
         #expect(try JSONParser.parse("\"\\u00e9\\ud83d\\ude00\"") == .string("é😀"))
     }
 
@@ -201,7 +192,6 @@ struct UnknownKeyTests {
         #expect(c.extra["_lastSynchronizedDate"] == .number(JSONNumber(literal: "781234567.25")))
         #expect(c.extra["futureTopLevel"]?["nested"]?.arrayValue?.first == .number(JSONNumber(literal: "1.50")))
         #expect(c.products![0].extra["futureProductKey"] != nil)
-        // A known key with an unexpected type stays verbatim in `extra`.
         #expect(c.products![1].displayPrice == nil)
         #expect(c.products![1].extra["displayPrice"] == .number(JSONNumber(literal: "4.99")))
         #expect(c.subscriptionGroups![0].subscriptions![1].extra["introductoryOffer"] == .null)
@@ -218,7 +208,6 @@ struct UnknownKeyTests {
         let edited = doc.data()
         let text = String(decoding: edited, as: UTF8.self)
         #expect(text.contains("\"displayName\" : \"101 Probe Coins\""))
-        // Exactly one line differs.
         let a = String(decoding: original, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false)
         let b = text.split(separator: "\n", omittingEmptySubsequences: false)
         #expect(a.count == b.count)

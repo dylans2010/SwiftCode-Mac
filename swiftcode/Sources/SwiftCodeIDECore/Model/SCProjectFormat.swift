@@ -2,35 +2,6 @@ import Foundation
 import Observation
 import Crypto
 
-/// The `.scproj` package managers (Legacy
-/// `SwiftCode/Frameworks/Internal/*ProjManager.swift`,
-/// `ProjectCoordinator.swift`, `ProjectValidator.swift`,
-/// `ProjectIntegrityManager.swift`, `ProjectHashManager.swift`, Dylan's own
-/// code, ported under MIT). One directory package = `manifest.json` +
-/// `metadata.json` + `project.json` + `project.xml` + `project.plist` +
-/// `version.json` + `integrity.json` + `Sources/` + `Assets/` + `Resources/`.
-///
-/// Honest limits, stated plainly:
-/// - ZIP archives are supported through the system tools, not
-///   ZIPFoundation (which is not a dependency of this target):
-///   `SCProjectArchive` zips with `/usr/bin/ditto -c -k` on macOS
-///   (`zip` elsewhere) and unzips with `ditto -x -k` (`unzip`
-///   elsewhere). `SCProjectCoordinator.exportProjectArchive` /
-///   `importProjectArchive`, `getManifest(for:)`, and
-///   `SCProjectValidator.validate(packageURL:)` all accept a
-///   single-file archive URL exactly as Legacy's
-///   `ProjectCoordinator` / `ProjectValidator` did (unpack to a temp
-///   directory first). Directory packages work fully, unchanged.
-/// - Hashing uses swift-crypto (`Crypto`) instead of Legacy's CryptoKit,
-///   so this code builds on Linux too; the digests are the same SHA-256 /
-///   SHA-512 values.
-/// - `SCProjectXMLManager` writes the plist-XML encoding Legacy wrote
-///   (its comment admitted it was a plist encoding, not a hand-written XML
-///   schema); decoding accepts the same.
-
-// MARK: - Errors
-
-/// Package errors (Legacy `ProjectErrorManager.ProjectError`).
 public enum SCProjectError: LocalizedError, Sendable {
     case manifestMissing
     case corruptedPackage(String)
@@ -38,12 +9,8 @@ public enum SCProjectError: LocalizedError, Sendable {
     case versionIncompatible(Int, Int)
     case securityFailure(String)
     case ioError(Error)
-    /// The project folder could not be found (Legacy
-    /// `ProjectOpenError.pathNotFound`).
     case pathNotFound
-    /// Loading took too long (Legacy `ProjectOpenError.timeout`).
     case timeout
-    /// Loading was cancelled (Legacy `ProjectOpenError.cancelled`).
     case cancelled
 
     public var errorDescription: String? {
@@ -60,19 +27,12 @@ public enum SCProjectError: LocalizedError, Sendable {
         }
     }
 
-    /// Logs a package error (Legacy `ProjectErrorManager.logError`).
     public static func logError(_ error: Error) {
         print("[SCProject] Error: \(error.localizedDescription)")
     }
 }
 
-/// ZIP archive support for `.scproj` packages (Legacy
-/// `ProjectCoordinator` / `ProjectValidator` used ZIPFoundation's
-/// `FileManager.zipItem` / `unzipItem`; this target has no ZIP
-/// dependency, so the same operations go through the system tools).
 public enum SCProjectArchive {
-    /// Zips the directory at `sourceURL` into a single archive file
-    /// at `destinationURL` (overwriting it when present).
     public static func zipItem(at sourceURL: URL, to destinationURL: URL) throws {
         let fm = FileManager.default
         try? fm.removeItem(at: destinationURL)
@@ -83,8 +43,6 @@ public enum SCProjectArchive {
         #endif
     }
 
-    /// Unpacks the archive at `sourceURL` into the directory at
-    /// `destinationURL` (created when missing).
     public static func unzipItem(at sourceURL: URL, to destinationURL: URL) throws {
         try FileManager.default.createDirectory(at: destinationURL, withIntermediateDirectories: true)
         #if os(macOS)
@@ -112,9 +70,6 @@ public enum SCProjectArchive {
     }
 }
 
-// MARK: - File / JSON / plist / XML codecs
-
-/// Plain file operations inside a package (Legacy `ProjectFileManager`).
 public final class SCProjectFileManager: Sendable {
     public static let shared = SCProjectFileManager()
     private init() {}
@@ -156,8 +111,6 @@ public final class SCProjectFileManager: Sendable {
     }
 }
 
-/// JSON codec for package files (Legacy `ProjectJSONManager`): pretty
-/// printed, sorted keys, ISO-8601 dates.
 public final class SCProjectJSONManager: Sendable {
     public static let shared = SCProjectJSONManager()
     private init() {}
@@ -188,7 +141,6 @@ public final class SCProjectJSONManager: Sendable {
     }
 }
 
-/// Binary-plist codec (Legacy `ProjectPlistManager`).
 public final class SCProjectPlistManager: Sendable {
     public static let shared = SCProjectPlistManager()
     private init() {}
@@ -208,8 +160,6 @@ public final class SCProjectPlistManager: Sendable {
     }
 }
 
-/// XML codec (Legacy `ProjectXMLManager`): the plist-XML encoding, with a
-/// real `XMLParser` validity check.
 public final class SCProjectXMLManager: Sendable {
     public static let shared = SCProjectXMLManager()
     private init() {}
@@ -229,10 +179,6 @@ public final class SCProjectXMLManager: Sendable {
     }
 }
 
-// MARK: - Hashing / versioning
-
-/// SHA-256 / SHA-512 hashing (Legacy `ProjectHashManager`, CryptoKit
-/// replaced by swift-crypto so this builds on Linux).
 public final class SCProjectHashManager: Sendable {
     public static let shared = SCProjectHashManager()
     private init() {}
@@ -254,8 +200,6 @@ public final class SCProjectHashManager: Sendable {
     }
 }
 
-/// Schema versioning (Legacy `ProjectVersionManager`). Current schema is 1;
-/// migration appends a history entry per step, as Legacy did.
 public final class SCProjectVersionManager: Sendable {
     public static let shared = SCProjectVersionManager()
     private init() {}
@@ -285,9 +229,6 @@ public final class SCProjectVersionManager: Sendable {
     }
 }
 
-// MARK: - Package structure
-
-/// Package directory layout (Legacy `ProjectPackageManager`).
 public final class SCProjectPackageManager: Sendable {
     public static let shared = SCProjectPackageManager()
     private init() {}
@@ -341,7 +282,6 @@ public final class SCProjectPackageManager: Sendable {
     }
 }
 
-/// Required resources inside a package (Legacy `ProjectResourceManager`).
 public final class SCProjectResourceManager: Sendable {
     public static let shared = SCProjectResourceManager()
     private init() {}
@@ -362,9 +302,6 @@ public final class SCProjectResourceManager: Sendable {
     }
 }
 
-// MARK: - Integrity / validation
-
-/// Manifest + package hash verification (Legacy `ProjectIntegrityManager`).
 public final class SCProjectIntegrityManager: Sendable {
     public static let shared = SCProjectIntegrityManager()
     private init() {}
@@ -401,16 +338,11 @@ public final class SCProjectIntegrityManager: Sendable {
         return combinedHash.isEmpty ? "" : SCProjectHashManager.shared.hash(data: combinedHash.data(using: .utf8)!)
     }
 
-    /// Legacy's corruption check only ever verified that `manifest.json`
-    /// exists; the name is kept, the behaviour is kept.
     public func detectCorruption(at packageURL: URL) -> Bool {
         FileManager.default.fileExists(atPath: packageURL.appendingPathComponent("manifest.json").path)
     }
 }
 
-/// Full package validation (Legacy `ProjectValidator`). A
-/// single-file URL is a zipped archive: it is unpacked to a temp
-/// directory and validated there, exactly as Legacy did.
 public final class SCProjectValidator: Sendable {
     public static let shared = SCProjectValidator()
     private init() {}
@@ -446,12 +378,6 @@ public final class SCProjectValidator: Sendable {
     }
 }
 
-// MARK: - Manifest construction
-
-/// Builds and validates manifests (Legacy `ManifestProjManager` +
-/// `ProjectMetadataManager`). Legacy read the author from
-/// `AppSettings.shared.fileHeaderAuthor`; this port takes the author as a
-/// parameter so the portable model has no settings dependency.
 public final class SCProjectManifestManager: Sendable {
     public static let shared = SCProjectManifestManager()
     private init() {}
@@ -542,7 +468,6 @@ public final class SCProjectManifestManager: Sendable {
         var commentLines = 0
         var assetCount = 0
         var resourceCount = 0
-        // Count directories and files from the tree.
         func walk(_ nodes: [SCProjectFileNode]) {
             for node in nodes {
                 if node.isDirectory {
@@ -585,9 +510,6 @@ public final class SCProjectManifestManager: Sendable {
     }
 }
 
-// MARK: - Serialization
-
-/// Writes a project into a directory package (Legacy `ProjectSerializer`).
 public final class SCProjectSerializer: Sendable {
     public static let shared = SCProjectSerializer()
     private init() {}
@@ -621,7 +543,6 @@ public final class SCProjectSerializer: Sendable {
 
     private func copyFiles(from project: SCProject, to packageURL: URL) throws {
         if project.files.isEmpty {
-            // No tree recorded: copy the project's own bucket directories wholesale.
             for bucket in ["Sources", "Assets", "Resources"] {
                 let source = project.directoryURL.appendingPathComponent(bucket)
                 if FileManager.default.fileExists(atPath: source.path) {
@@ -680,10 +601,6 @@ public final class SCProjectSerializer: Sendable {
     }
 }
 
-/// Reads a directory package back into a project (Legacy
-/// `ProjectDeserializer`). The file tree is rebuilt by scanning the
-/// package's `Sources`/`Assets`/`Resources` buckets, because Legacy's
-/// `project.json` records an empty `files` array.
 public final class SCProjectDeserializer: Sendable {
     public static let shared = SCProjectDeserializer()
     private init() {}
@@ -739,12 +656,6 @@ public final class SCProjectDeserializer: Sendable {
     }
 }
 
-// MARK: - Coordination / progress managers
-
-/// Import/export orchestration (Legacy `ProjectCoordinator`).
-/// Directory packages are exported/imported in place; the `*Archive`
-/// variants produce and consume single-file ZIP archives, exactly as
-/// Legacy's `exportProject` / `importProject` did.
 public final class SCProjectCoordinator: Sendable {
     public static let shared = SCProjectCoordinator()
     private init() {}
@@ -786,9 +697,6 @@ public final class SCProjectCoordinator: Sendable {
         return project
     }
 
-    /// Exports `project` as a single-file ZIP archive at
-    /// `destinationURL` (Legacy `ProjectCoordinator.exportProject`:
-    /// serialize into a temp folder, then zip it).
     public func exportProjectArchive(_ project: SCProject, to destinationURL: URL) async throws {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -800,10 +708,6 @@ public final class SCProjectCoordinator: Sendable {
         try SCProjectArchive.zipItem(at: packageTempDir, to: destinationURL)
     }
 
-    /// Imports a single-file ZIP archive (or a directory package,
-    /// which takes the existing `importProject` path) into
-    /// `projectsRoot` (Legacy `ProjectCoordinator.importProject`:
-    /// unpack to a temp folder first, then import from there).
     public func importProjectArchive(from packageURL: URL, into projectsRoot: URL) async throws -> SCProject {
         var isDir: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: packageURL.path, isDirectory: &isDir)
@@ -836,7 +740,6 @@ public final class SCProjectCoordinator: Sendable {
     }
 }
 
-/// Export progress state (Legacy `ExportProjManager`).
 @Observable
 @MainActor
 public final class SCProjectExportManager {
@@ -863,7 +766,6 @@ public final class SCProjectExportManager {
     }
 }
 
-/// Import progress state (Legacy `ImportProjManager`).
 @Observable
 @MainActor
 public final class SCProjectImportManager {

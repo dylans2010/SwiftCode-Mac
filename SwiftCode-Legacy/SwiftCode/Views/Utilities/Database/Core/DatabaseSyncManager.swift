@@ -13,7 +13,6 @@ public final class DatabaseSyncManager: ObservableObject {
         syncInProgress = true
         defer { syncInProgress = false }
 
-        // Fetch source tables
         let sourceTables: [DatabaseTable]
         if source.provider == .sqlite {
             guard let filePath = source.sqliteFilePath else { return }
@@ -24,7 +23,6 @@ public final class DatabaseSyncManager: ObservableObject {
             sourceTables = []
         }
 
-        // Migrate to destination
         for table in sourceTables {
             try await DatabaseSchemaManager.shared.createTable(connection: destination, table: table)
         }

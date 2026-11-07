@@ -38,7 +38,6 @@ struct WorkflowEditorView: View {
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
-                // Snippet search and category selector
                 VStack(spacing: 8) {
                     TextField("Search Snippets", text: $snippetSearch)
                         .textFieldStyle(.roundedBorder)
@@ -58,7 +57,6 @@ struct WorkflowEditorView: View {
             .frame(minWidth: 240)
         } detail: {
             HSplitView {
-                // Left editor block
                 VStack(spacing: 0) {
                     editorToolbar
 
@@ -92,7 +90,6 @@ struct WorkflowEditorView: View {
                 }
                 .frame(minWidth: 350)
 
-                // Right Live Visualizer Pane
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         Label("Workflow Map (Live)", systemImage: "flowchart")
@@ -123,7 +120,6 @@ struct WorkflowEditorView: View {
                             VStack(alignment: .leading, spacing: 20) {
                                 ForEach(parsedJobs) { job in
                                     VStack(alignment: .leading, spacing: 0) {
-                                        // Job node header
                                         HStack {
                                             Image(systemName: "gearshape.2.fill")
                                                 .foregroundStyle(.orange)
@@ -140,7 +136,6 @@ struct WorkflowEditorView: View {
                                         .padding()
                                         .background(Color.orange.opacity(0.15))
 
-                                        // Steps flow list
                                         VStack(alignment: .leading, spacing: 12) {
                                             if job.steps.isEmpty {
                                                 Text("No steps declared")
@@ -271,8 +266,6 @@ struct WorkflowEditorView: View {
         }
     }
 
-    // MARK: - YAML & Workflow Parsing
-
     private func parseWorkflow(_ text: String) {
         var jobsList: [WorkflowJob] = []
 
@@ -285,17 +278,14 @@ struct WorkflowEditorView: View {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
 
-            // Detect section headers
             if line.hasPrefix("jobs:") {
                 inJobsSection = true
                 continue
             } else if inJobsSection && !line.hasPrefix(" ") && line.contains(":") {
-                // Exited jobs section if we find a root level key other than jobs
                 inJobsSection = false
             }
 
             if inJobsSection {
-                // If a line is indented by exactly 2 spaces and ends with ':', it defines a Job name
                 let spacesCount = line.prefix(while: { $0 == " " }).count
                 if spacesCount == 2 && line.contains(":") {
                     if let previousJobName = currentJobName {
@@ -304,7 +294,6 @@ struct WorkflowEditorView: View {
                     currentJobName = line.replacingOccurrences(of: ":", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
                     currentSteps.removeAll()
                 } else if spacesCount > 2 && trimmed.hasPrefix("-") {
-                    // Step element detected. Parse step name
                     if trimmed.contains("name:") {
                         if let nameRange = trimmed.range(of: "name:") {
                             let stepName = trimmed[nameRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -377,7 +366,6 @@ struct WorkflowEditorView: View {
     }
 }
 
-// Custom shape to draw step connector line
 struct LineConnector: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()

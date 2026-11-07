@@ -1,13 +1,5 @@
 import Foundation
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowModels.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The visual workflow-creator models: a developer workflow (a named set
-/// of steps plus an optional CLI-only custom-commands canvas), one step
-/// (with async terminal-execution properties), and a history entry.
-/// Used by `WorkflowsCreateView`'s workflow concept; the YAML creator
-/// itself builds the file directly from its form state.
 public struct DeveloperWorkflow: Identifiable, Codable, Sendable {
     public var id = UUID()
     public var name: String
@@ -16,8 +8,8 @@ public struct DeveloperWorkflow: Identifiable, Codable, Sendable {
     public var category: String
     public var isFavorite: Bool = false
     public var steps: [WorkflowStep] = []
-    public var customCommands: String = "" // CLI Canvas custom commands content
-    public var useCLIOnly: Bool = false   // Toggle to bypass guided builder steps
+    public var customCommands: String = ""
+    public var useCLIOnly: Bool = false
 
     public init(name: String, description: String, icon: String, category: String, steps: [WorkflowStep] = []) {
         self.name = name
@@ -34,12 +26,11 @@ public struct WorkflowStep: Identifiable, Codable, Sendable {
     public var description: String
     public var icon: String
     public var category: String
-    public var estimatedDuration: Double // in seconds
+    public var estimatedDuration: Double
     public var inputs: [String: String] = [:]
     public var isOptional: Bool = false
     public var retryCount: Int = 0
 
-    // Asynchronous terminal background execution properties
     public var command: String = ""
     public var workingDirectory: String = ""
     public var environmentVariables: String = ""

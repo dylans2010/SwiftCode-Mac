@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimctlDiscoveryClient.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 import os
 
@@ -18,7 +16,6 @@ public actor SimctlDiscoveryClient {
     public func fetchDiscoveryData() async throws -> SimctlDiscoveryResult {
         Logger.discovery.info("[DISCOVERY-CLIENT] Fetching simulator metadata from simctl concurrently...")
 
-        // Construct command specs
         let runtimesSpec = CommandSpec(
             executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
             arguments: ["simctl", "list", "runtimes", "--json"]
@@ -36,20 +33,16 @@ public actor SimctlDiscoveryClient {
             arguments: ["simctl", "list", "pairs", "--json"]
         )
 
-        // Execute concurrently using structured async let bindings
         async let runtimesRecord = CommandExecutionEngine.shared.execute(runtimesSpec)
         async let devicesRecord = CommandExecutionEngine.shared.execute(devicesSpec)
         async let deviceTypesRecord = CommandExecutionEngine.shared.execute(deviceTypesSpec)
         async let pairsRecord = CommandExecutionEngine.shared.execute(pairsSpec)
 
-        // Await each of them, decoding with high fault-tolerance
         let decodedRuntimes = await decodeRuntimes(from: runtimesRecord)
         let decodedDevices = await decodeDevices(from: devicesRecord)
         let decodedDeviceTypes = await decodeDeviceTypes(from: deviceTypesRecord)
         let decodedPairs = await decodePairs(from: pairsRecord)
 
-        // Gating conditions: Runtimes and devices are absolutely required for a successful basic loaded state.
-        // If runtimes and devices are both completely missing or failed, throw a general error.
         if decodedRuntimes.isEmpty && decodedDevices.isEmpty {
             Logger.discovery.error("[DISCOVERY-CLIENT] Critical failure: Both runtimes and devices list are empty or failed to parse.")
             throw NSError(

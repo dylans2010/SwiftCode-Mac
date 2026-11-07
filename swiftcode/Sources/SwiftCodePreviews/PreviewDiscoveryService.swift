@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Core/Preview/PreviewDiscoveryService.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Verbatim. Defines SwiftViewDetector + PreviewBlockParser, used by BuildToolbarView and PreviewManager.
-
 import Foundation
 import os
 
@@ -11,22 +8,6 @@ public struct ParsedPreview: Sendable, Codable, Hashable {
     public init(title: String, body: String) {
         self.title = title
         self.body = body
-    }
-}
-
-/// Structured Preview target model representing a parsed `#Preview` declaration.
-public struct PreviewTarget: Sendable, Codable, Hashable, Identifiable {
-    public var id: String { title }
-    public let title: String
-    public let rootView: String
-    public let device: String?
-    public let traits: String?
-
-    public init(title: String, rootView: String, device: String?, traits: String?) {
-        self.title = title
-        self.rootView = rootView
-        self.device = device
-        self.traits = traits
     }
 }
 
@@ -200,11 +181,9 @@ public actor PreviewDiscoveryService {
     public func discoverPreviewTargets(inSourceCode sourceCode: String, filename: String? = nil) async -> [String] {
         logger.info("[BEGIN] Scanning source code for SwiftUI Previews with deterministic precedence")
 
-        // 1. Modern #Preview macro
         let parsed = PreviewBlockParser.parsePreviews(in: sourceCode)
         let modernPreviews = parsed.map { $0.title }
 
-        // 2. Legacy PreviewProvider protocol
         var legacyPreviews: [String] = []
         if let regexLegacy = try? NSRegularExpression(pattern: #"struct\s+(\w+)\s*:\s*PreviewProvider"#, options: []) {
             let nsStr = sourceCode as NSString
@@ -216,7 +195,6 @@ public actor PreviewDiscoveryService {
             }
         }
 
-        // 3. Bare View conforming types
         var bareViews: [String] = []
         let pattern = #"struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:[^\{]*\s+)?View\b"#
         if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
@@ -246,8 +224,6 @@ public actor PreviewDiscoveryService {
         return result
     }
 }
-
-// MARK: - Swift View Detector Helper
 
 public struct SwiftViewDetector {
     public static func detectViews(in sourceCode: String) -> [String] {
@@ -296,7 +272,6 @@ public struct SwiftViewDetector {
         }
 
         let previewBlock = """
-
 
 #Preview {
     \(primaryView)()

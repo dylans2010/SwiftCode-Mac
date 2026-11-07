@@ -4,11 +4,10 @@ struct DatabaseSchemaGenerator: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
     @State private var tables: [DatabaseTable] = []
     @State private var selectedTable = ""
-    @State private var modelType = "SwiftData" // SwiftData, Codable, Repository, JSONSchema
+    @State private var modelType = "SwiftData"
     @State private var generatedCode = ""
     @State private var copied = false
 
-    // Custom configurations
     @State private var customClassName = ""
     @State private var targetNamespace = "AppModel"
     @State private var logMessage = ""
@@ -159,7 +158,6 @@ struct DatabaseSchemaGenerator: View {
             code += "}"
             generatedCode = code
         } else if modelType == "Repository" {
-            // Repository class
             var code = "import Foundation\n\n// Target Module: \(targetNamespace)\n\npublic final class \(structName)Repository {\n"
             code += "    private let databasePath: String\n\n"
             code += "    public init(databasePath: String) {\n"
@@ -187,7 +185,6 @@ struct DatabaseSchemaGenerator: View {
             code += "    }\n}"
             generatedCode = code
         } else {
-            // JSON Schema Definition
             var code = "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n"
             code += "  \"title\": \"\(structName)\",\n"
             code += "  \"type\": \"object\",\n"

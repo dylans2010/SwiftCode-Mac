@@ -1,6 +1,3 @@
-// dlfcn.c - <dlfcn.h> and the _dyld_* image queries for SwiftCode's libSystem
-// (specs/macos/libsystem.md §8). Each call goes through the table SwiftCode's
-// dyld installed in `swiftcode_dyld_api` (specs/macos/dyld.md §7.2).
 #include "ycl.h"
 #include "yc_dyld_api.h"
 
@@ -48,6 +45,4 @@ YCL_EXPORT void _dyld_register_func_for_add_image(void (*callback)(const void *,
     if (swiftcode_dyld_api) swiftcode_dyld_api->add_image_callback(callback);
 }
 
-// SwiftCode's dyld never unloads an image (dyld.md §9), so remove-image
-// callbacks are accepted and never called.
 YCL_EXPORT void _dyld_register_func_for_remove_image(void (*callback)(const void *, intptr_t)) { (void)callback; }

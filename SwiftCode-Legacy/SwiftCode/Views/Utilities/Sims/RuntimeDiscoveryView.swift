@@ -125,7 +125,6 @@ struct RuntimeDiscoveryView: View {
         if runtimes.isEmpty {
             errorMessage = "No valid .simruntime bundles found in standard locations:\n• /Library/Developer/CoreSimulator/Profiles/Runtimes/\n• ~/Library/Developer/CoreSimulator/Profiles/Runtimes/"
         } else {
-            // Automatically select the first discovered if none is currently selected
             if selectedRuntimeIdentifier.isEmpty, let first = runtimes.first {
                 selectedRuntimeIdentifier = first.identifier
             }

@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Infinite zoomable and pannable layout canvas supporting multiple device frames, grids, snapping, and smart alignment guides.
-/// Optimized for maximum productivity, smooth panning, and gestures.
 public struct VisualUICanvasView: View {
     @Bindable var document: VisualUIDocument
     @Bindable var settings: VisualUISettings
@@ -17,13 +15,11 @@ public struct VisualUICanvasView: View {
     public var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Infinite Grid Overlay Background
                 if settings.showGrid {
                     InfiniteCanvasGrid(gridSize: settings.gridSize)
                         .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                 }
 
-                // Keyboard Shortcuts Bridge
                 Group {
                     Button(action: { adjustZoom(by: 0.25) }) { Text("") }
                         .keyboardShortcut("+", modifiers: .command)
@@ -49,7 +45,6 @@ public struct VisualUICanvasView: View {
                 .opacity(0)
                 .frame(width: 0, height: 0)
 
-                // Multiple Artboards Container
                 ScrollView([.horizontal, .vertical], showsIndicators: true) {
                     HStack(spacing: 64) {
                         ForEach(document.scene.artboards) { artboard in
@@ -63,7 +58,6 @@ public struct VisualUICanvasView: View {
                             .transition(.slide)
                         }
 
-                        // Add Artboard Button
                         Button {
                             showingAddArtboardSheet = true
                         } label: {
@@ -121,12 +115,10 @@ public struct VisualUICanvasView: View {
                         }
                 )
 
-                // Smart Snapping & Guides Overlay
                 if settings.smartGuidesEnabled, !document.scene.selectedNodeIDs.isEmpty {
                     SmartGuidesOverlay(document: document, settings: settings)
                 }
 
-                // Floating HUD Zoom/Pan Dashboard
                 VStack {
                     Spacer()
                     HStack {
@@ -244,7 +236,6 @@ public struct VisualUICanvasView: View {
     }
 }
 
-/// Infinite grid that repeats vertical and horizontal lines based on gridSize settings.
 public struct InfiniteCanvasGrid: Shape {
     public var gridSize: Double
 
@@ -254,7 +245,6 @@ public struct InfiniteCanvasGrid: Shape {
         while y < rect.height {
             var x = 0.0
             while x < rect.width {
-                // Draw a tiny dot at (x, y)
                 path.addEllipse(in: CGRect(x: x - 1, y: y - 1, width: 2, height: 2))
                 x += gridSize
             }
@@ -264,7 +254,6 @@ public struct InfiniteCanvasGrid: Shape {
     }
 }
 
-/// Interactive rendering container for a single device canvas.
 public struct ArtboardView: View {
     let artboard: VisualUIArtboard
     @Bindable var document: VisualUIDocument
@@ -291,7 +280,6 @@ public struct ArtboardView: View {
         let isActive = document.scene.activeArtboardID == artboard.id
 
         VStack(alignment: .leading, spacing: 12) {
-            // Header panel for renaming/deleting artboards
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
@@ -346,7 +334,6 @@ public struct ArtboardView: View {
                     .padding(.vertical, 4)
                     .background(Color.secondary.opacity(0.1), in: Capsule())
 
-                // Open in Simulator button
                 Button {
                     NotificationCenter.default.post(
                         name: NSNotification.Name("com.swiftcode.openArtboardSimulator"),
@@ -373,7 +360,6 @@ public struct ArtboardView: View {
             }
             .padding(.horizontal, 4)
 
-            // Render output inside the simulated device frame
             VStack {
                 if artboard.name == "Default" {
                     if let hostedView = PreviewManager.shared.hostedView {
@@ -390,7 +376,6 @@ public struct ArtboardView: View {
                         .frame(width: size.width, height: size.height)
                         .background(settings.isDarkMode ? Color.black : Color.white)
                     } else {
-                        // Display real compiler diagnostics in place of preview!
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Label("Compilation Failed", systemImage: "xmark.octagon.fill")
@@ -487,7 +472,6 @@ public struct ArtboardView: View {
     }
 }
 
-/// Fine-grained layout guide displaying dimensions, snaps, and spatial constraints for selection.
 public struct SmartGuidesOverlay: View {
     @Bindable var document: VisualUIDocument
     @Bindable var settings: VisualUISettings
@@ -497,7 +481,6 @@ public struct SmartGuidesOverlay: View {
            let node = document.scene.findNode(byID: selectedID) {
             GeometryReader { geo in
                 ZStack {
-                    // Floating dimension metric card
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Image(systemName: "pencil.and.outline")
@@ -537,15 +520,12 @@ public struct SmartGuidesOverlay: View {
     }
 }
 
-
-// MARK: - Redesigned Simulator Artboard View
-
 struct SimulatorArtboardView: View {
     let artboardID: UUID
     let size: CGSize
     let settings: VisualUISettings
 
-    @State private var selectedLogsTab = 0 // 0: Runtime Logs, 1: Build Logs, 2: Diagnostics, 3: Session Info
+    @State private var selectedLogsTab = 0
 
     private var session: RuntimeSession {
         PreviewManager.shared.getOrCreateRuntimeSession(for: artboardID)
@@ -553,7 +533,6 @@ struct SimulatorArtboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Simulator Controls Header (integrated into device frame header)
             VStack(spacing: 4) {
                 HStack(spacing: 8) {
                     Button(action: {
@@ -581,7 +560,6 @@ struct SimulatorArtboardView: View {
 
                     Spacer()
 
-                    // Mini Status Indicator & Timer
                     HStack(spacing: 6) {
                         Circle()
                             .fill(session.isRunning ? Color.green : (session.isExecuting ? Color.orange : Color.secondary))
@@ -608,7 +586,6 @@ struct SimulatorArtboardView: View {
 
                 Divider()
 
-                // Tabs selector inside the simulator artboard
                 Picker("", selection: $selectedLogsTab) {
                     Text("Runtime Logs").tag(0)
                     Text("Build Output").tag(1)
@@ -624,18 +601,14 @@ struct SimulatorArtboardView: View {
 
             Divider()
 
-            // Screen View
             ZStack {
                 Color.black
 
                 if selectedLogsTab == 0 {
-                    // Runtime Logs Tab
                     logsScrollView(logs: session.logs, placeholder: "No runtime logs. Press 'Rebuild' or 'Compile Project on Artboard' to launch.")
                 } else if selectedLogsTab == 1 {
-                    // Build Logs Tab
                     logsScrollView(logs: XcodeBuildAPI.shared.currentLogs, placeholder: "No build logs available.")
                 } else if selectedLogsTab == 2 {
-                    // Diagnostics Tab
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             if !session.diagnostics.isEmpty {
@@ -693,7 +666,6 @@ struct SimulatorArtboardView: View {
                                 }
 
                                 Button(action: {
-                                    // Quick Navigation Back to Editor
                                     NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.focusEditor"), object: nil)
                                 }) {
                                     Label("Return to Source Editor", systemImage: "arrow.left.circle")
@@ -713,7 +685,6 @@ struct SimulatorArtboardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
-                    // Session Info Tab
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Active Isolated Session")

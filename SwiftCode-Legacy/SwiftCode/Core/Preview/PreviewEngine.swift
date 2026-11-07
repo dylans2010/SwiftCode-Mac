@@ -1,7 +1,6 @@
 import Foundation
 import os
 
-/// Thread-safe, highly optimized rendering engine that acts as a long-running preview service
 public actor PreviewEngine {
     private let discoveryService = PreviewDiscoveryService()
     private let buildService = PreviewBuildService()
@@ -9,16 +8,14 @@ public actor PreviewEngine {
     private let communicationService = PreviewCommunicationService()
     private let logger = Logger(subsystem: "com.swiftcode.preview", category: "PreviewEngine")
 
-    // Optimization & Caching Layers
     private var activeSessions: [String: PreviewSession] = [:]
-    private var renderedViewCache: [String: Data] = [:] // Cached rendered hierarchies by target view name
-    private var lastCompiledSourceHashes: [String: Int] = [:] // Source path -> Hash of last code compiled
+    private var renderedViewCache: [String: Data] = [:]
+    private var lastCompiledSourceHashes: [String: Int] = [:]
     private var persistentHostPID: Int32?
     private var isHostActive = false
 
     public init() {}
 
-    /// Runs or updates a preview session using advanced persistent-session and view caching strategies.
     public func runPreviewSession(
         sourceFilePath: String,
         sourceCode: String,
@@ -31,8 +28,6 @@ public actor PreviewEngine {
         let currentHash = sourceCode.hashValue
         let isIncremental = lastCompiledSourceHashes[sourceFilePath] == currentHash
 
-        // 1. Maintain a persistent preview session instead of recreating previews after every edit.
-        // If we already have an active session for this file, reuse its metadata.
         if isIncremental, let existingSession = activeSessions.values.first(where: { $0.sourceFilePath == sourceFilePath && $0.targetViewName == targetView }) {
             logHandler("Reusing persistent preview session.")
             logger.info("Reusing persistent preview session \(existingSession.sessionID). Only re-rendered views that changed.")
@@ -43,7 +38,6 @@ public actor PreviewEngine {
         let previews = await discoveryService.discoverPreviews(inSourceCode: sourceCode)
         let actualTarget = previews.first(where: { $0 == targetView }) ?? previews.first ?? targetView
 
-        // 2. Incremental SwiftUI changes detection & Cache reuse
         if isIncremental {
             logHandler("Incremental change detected. Reusing compiled artifacts...")
         } else {
@@ -51,7 +45,6 @@ public actor PreviewEngine {
             lastCompiledSourceHashes[sourceFilePath] = currentHash
         }
 
-        // 3. Reuses preview environments & hosts between refreshes.
         if !isHostActive || persistentHostPID == nil {
             logHandler("Launching SwiftUI rendering viewport...")
             do {
@@ -65,7 +58,6 @@ public actor PreviewEngine {
             } catch {
                 logger.error("[FAILED] Graceful recovery: Preview viewport failed to launch. Initializing backup viewport.")
                 logHandler("Graceful Recovery: Attempting fallback rendering pipeline...")
-                // Graceful recovery when rendering fails
                 self.isHostActive = false
                 self.persistentHostPID = nil
             }
@@ -91,7 +83,6 @@ public actor PreviewEngine {
         return session
     }
 
-    /// Determines the correct rendering pipeline based on active Visual Framework
     public func determineRenderingPipeline(for framework: VisualUIFramework) -> String {
         switch framework {
         case .swiftUI: return "SwiftUI Core Pipeline"
@@ -114,7 +105,6 @@ public actor PreviewEngine {
         self.persistentHostPID = nil
     }
 
-    /// Clear cache manually
     public func invalidateCache() {
         renderedViewCache.removeAll()
         lastCompiledSourceHashes.removeAll()

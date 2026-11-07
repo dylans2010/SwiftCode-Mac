@@ -1,16 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Documentation & GitHub tools test suite
-//
-//  Follows the AssistRuntimeTestSuite / SystemIndexTestSuite pattern:
-//  runAllTests() returns [RuntimeTestCaseResult] for aggregation.
-//
-//  Unit tests are deterministic and network-free (fixtures + pure-logic
-//  hooks exposed by the tools). Live integration tests hit the real Apple
-//  DocC endpoint and the real GitHub API, but are gated behind
-//  SWIFTCODE_LIVE_NETWORK_TESTS=1 so ordinary runs never depend on network.
-
 @MainActor
 public final class AssistDocsGitHubToolsTestSuite: Sendable {
     public static let shared = AssistDocsGitHubToolsTestSuite()
@@ -48,8 +38,6 @@ public final class AssistDocsGitHubToolsTestSuite: Sendable {
     private func liveTestsEnabled() -> Bool {
         ProcessInfo.processInfo.environment["SWIFTCODE_LIVE_NETWORK_TESTS"] == "1"
     }
-
-    // MARK: - fetch_documentation
 
     func testFetchDocumentationRegistered() -> RuntimeTestCaseResult {
         let start = Date()
@@ -178,8 +166,6 @@ public final class AssistDocsGitHubToolsTestSuite: Sendable {
                       start: start)
     }
 
-    // MARK: - github_repo
-
     func testGitHubRepoRegistered() -> RuntimeTestCaseResult {
         let start = Date()
         let registry = AssistToolRegistry()
@@ -295,8 +281,6 @@ public final class AssistDocsGitHubToolsTestSuite: Sendable {
                       start: start)
     }
 
-    // MARK: - System Asset
-
     func testSystemAssetDiscovered() async -> RuntimeTestCaseResult {
         let start = Date()
         let fm = FileManager.default
@@ -307,7 +291,6 @@ public final class AssistDocsGitHubToolsTestSuite: Sendable {
                 try? fm.removeItem(at: tempDir)
                 Task { await SystemIndexService.shared.setCustomAssetsDirectory(nil) }
             }
-            // Source the asset from the app bundle (preferred) or the dev tree.
             let assetName = "DocumentationWithGitHub.md"
             var sourceURL: URL? = nil
             if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent("System Assets/\(assetName)"),
@@ -341,7 +324,6 @@ public final class AssistDocsGitHubToolsTestSuite: Sendable {
                 return result(testName: "DocumentationWithGitHub.md: indexed", passed: false,
                               message: "Asset text missing tool references", start: start)
             }
-            // Retrieval: a relevant query should surface this asset's sections.
             let query = InstructionQueryContext(
                 userText: "inspect this github repository and check the apple documentation for the api",
                 taskCategory: .toolUse,
@@ -360,8 +342,6 @@ public final class AssistDocsGitHubToolsTestSuite: Sendable {
                           message: "threw: \(error.localizedDescription)", start: start)
         }
     }
-
-    // MARK: - Live integration (gated)
 
     func testLiveAppleDocs() async -> RuntimeTestCaseResult {
         let start = Date()

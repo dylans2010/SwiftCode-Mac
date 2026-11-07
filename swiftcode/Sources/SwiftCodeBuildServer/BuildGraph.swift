@@ -2,7 +2,6 @@ import Foundation
 import SwiftCodeProject
 import SwiftCodeXcodebuild
 
-/// A source language as sourcekit-lsp names it (LSP language identifiers).
 public enum SourceLanguage: String, Sendable, CaseIterable {
     case swift
     case c
@@ -10,8 +9,6 @@ public enum SourceLanguage: String, Sendable, CaseIterable {
     case cpp
     case objectiveCpp = "objective-cpp"
 
-    /// The language of a compiled source file, by extension (nil for
-    /// headers and files that are not compiled).
     public init?(path: String) {
         switch (path as NSString).pathExtension.lowercased() {
         case "swift": self = .swift
@@ -25,7 +22,6 @@ public enum SourceLanguage: String, Sendable, CaseIterable {
 
     public var isClangFamily: Bool { self != .swift }
 
-    /// clang's `-x` value.
     public var clangInputType: String {
         switch self {
         case .swift: "swift"
@@ -41,14 +37,10 @@ public enum SourceLanguage: String, Sendable, CaseIterable {
     }
 }
 
-/// The targets of a project or workspace as the build server reports them:
-/// each native target with its compiled sources, headers and target
-/// dependencies. See `specs/ide/language.md` §Build server.
 public struct BuildGraph: @unchecked Sendable {
     public struct SourceFile: Hashable, Sendable {
         public var path: String
         public var language: SourceLanguage
-        /// Per-file compiler flags (`COMPILER_FLAGS` of the build file).
         public var flags: String?
     }
 
@@ -59,21 +51,14 @@ public struct BuildGraph: @unchecked Sendable {
     }
 
     public struct Target: @unchecked Sendable {
-        /// The build target identifier (a URI).
         public var id: String
         public var name: String
-        /// The `PBXNativeTarget` object identifier.
         public var objectID: String
-        /// Index of the target's project in `BuildGraph.container.projects`.
         public var projectIndex: Int
-        /// The target's `productType`.
         public var productType: String
         public var sources: [SourceFile]
         public var headers: [Header]
-        /// Identifiers of the targets this one depends on, explicit and
-        /// implicit (a linked or embedded product of another target).
         public var dependencies: [String]
-        /// Swift package products the target uses (`packageProductDependencies`).
         public var packageProducts: [String]
 
         public var isTest: Bool { productType.hasPrefix("com.apple.product-type.bundle.") && productType.contains("test") }
@@ -82,8 +67,6 @@ public struct BuildGraph: @unchecked Sendable {
         public var isLibrary: Bool { productType.hasPrefix("com.apple.product-type.library") || isFramework }
         public var hasSwift: Bool { sources.contains { $0.language == .swift } }
         public var hasClangSources: Bool { sources.contains { $0.language.isClangFamily } }
-        /// Languages of the target's sources (headers count as the C family
-        /// of its sources, or Objective-C).
         public var languages: [SourceLanguage] {
             var set = Set(sources.map(\.language))
             if !headers.isEmpty && !set.contains(where: \.isClangFamily) { set.insert(.objectiveC) }
@@ -96,7 +79,6 @@ public struct BuildGraph: @unchecked Sendable {
 
     public func target(id: String) -> Target? { targets.first { $0.id == id } }
 
-    /// The targets whose sources (or headers) include `path`.
     public func targets(containing path: String) -> [Target] {
         let p = URL(fileURLWithPath: path).standardizedFileURL.path
         return targets.filter { t in t.sources.contains { $0.path == p } || t.headers.contains { $0.path == p } }
@@ -104,8 +86,6 @@ public struct BuildGraph: @unchecked Sendable {
 
     public func project(of t: Target) -> LoadedProject { container.projects[t.projectIndex] }
 
-    /// The target's dependencies, transitively, dependencies first (the
-    /// target itself is not included).
     public func transitiveDependencies(of t: Target) -> [Target] {
         var out: [Target] = []
         var seen: Set<String> = [t.id]
@@ -118,7 +98,6 @@ public struct BuildGraph: @unchecked Sendable {
         return out
     }
 
-    /// The identifier of a target: `swiftcode-target:<project path>/<object id>?name=<target name>`.
     public static func targetID(projectPath: String, objectID: String, name: String) -> String {
         var c = URLComponents()
         c.scheme = "swiftcode-target"
@@ -127,12 +106,8 @@ public struct BuildGraph: @unchecked Sendable {
         return c.url?.absoluteString ?? "swiftcode-target:\(objectID)"
     }
 
-    // MARK: Loading
-
     public static func load(_ container: Container) -> BuildGraph {
         var targets: [Target] = []
-        // Product file names of every native target, for implicit
-        // dependencies through linked or embedded products.
         var byProductName: [String: String] = [:]
         var byObject: [String: String] = [:]
         for p in container.projects {
@@ -153,9 +128,6 @@ public struct BuildGraph: @unchecked Sendable {
         return BuildGraph(container: container, targets: targets)
     }
 
-    /// Files whose change can change the graph or the settings: project
-    /// files, workspace contents, xcconfig files and the folders of
-    /// synchronized groups.
     public func watchedPaths() -> [String] {
         var out: [String] = []
         if container.kind == .workspace { out.append(container.url.appendingPathComponent("contents.xcworkspacedata").path) }
@@ -177,7 +149,6 @@ public struct BuildGraph: @unchecked Sendable {
     }
 }
 
-/// Reads one project's native targets.
 struct TargetLoader {
     var project: LoadedProject
     var container: Container
@@ -230,8 +201,6 @@ struct TargetLoader {
             }
         }
 
-        // Synchronized folders: the members the build gets
-        // (`PBXProj.synchronizedMembers`, shared with the PIF generator).
         for (folder, members) in proj.synchronizedMembers(ofTarget: t.id, projectDirectory: projectDirectory, parents: parents) {
             for m in members where m.entry.kind == .file {
                 let full = folder.directory + "/" + m.entry.path
@@ -244,8 +213,6 @@ struct TargetLoader {
                 default: break
                 }
             }
-            // Headers of a target without a Headers phase are in no phase,
-            // but the index still needs their folders (project headers).
             for item in folder.items where item.kind == .file && SourceLanguage.isHeader(item.path)
                 && !members.contains(where: { $0.entry.path == item.path && $0.phase == .headers })
                 && proj.isSynchronizedMember(key: item.membershipKey, folder: folder.groupID, target: t.id) {
@@ -269,9 +236,6 @@ struct TargetLoader {
             dependencies: deps, packageProducts: proj.packageProducts(ofTarget: t.id).map(\.name))
     }
 
-    /// The target that produces a linked or embedded file: its product
-    /// reference, a reference proxy to another project's target, or a
-    /// product of the same file name.
     func productTarget(_ ref: String, _ fileRef: PBXObject) -> String? {
         if fileRef.isa == "PBXReferenceProxy", let remote = fileRef.string("remoteRef") { return proxyTarget(remote) }
         let selfPath = project.url.standardizedFileURL.path
@@ -280,8 +244,6 @@ struct TargetLoader {
         return byProductName[(name as NSString).lastPathComponent]
     }
 
-    /// The target a `PBXContainerItemProxy` names, in this project or in the
-    /// project its container portal references.
     func proxyTarget(_ proxyID: String) -> String? {
         guard let proxy = proj[proxyID], let remote = proxy.string("remoteGlobalIDString") else { return nil }
         let portal = proxy.string("containerPortal") ?? ""
@@ -292,8 +254,6 @@ struct TargetLoader {
         return byObject[URL(fileURLWithPath: other).standardizedFileURL.path + "#" + remote]
     }
 
-    /// A synchronized folder and its sub-folders, `.lproj` folders
-    /// included (their listings change when files are added or removed).
     static func directories(of folder: SynchronizedFolder) -> [String] {
         guard folder.exists else { return [folder.directory] }
         var out = [folder.directory]
@@ -316,8 +276,6 @@ struct TargetLoader {
         return out
     }
 
-    /// Walks a folder for recursive search paths (`dir/**`): hidden names
-    /// and the contents of package-like folders left out.
     static func walk(_ dir: String, relative: String, depth: Int = 0, _ visit: (String, Bool) -> Void) {
         guard depth < 32 else { return }
         let fm = FileManager.default

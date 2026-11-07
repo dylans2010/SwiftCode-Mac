@@ -3,17 +3,9 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// `specs/ide/liquid-glass.md` as `liquid-glass-swiftcode.md` implements it:
-/// the toolbar's glass shapes, the floating bars, the debug bar and the
-/// Welcome window's geometry (macOS 26 and later; earlier systems keep
-/// the earlier look and skip these checks).
 @MainActor
 @Suite(.serialized) struct LiquidGlassTests {
 
-    /// §2.2: segment widths for the 78 / 75 / 125-point capsules; the
-    /// scheme and issue items are their own capsules, the activity view
-    /// has none; a fixed space splits New Conversation from the scheme;
-    /// Run | Stop ends the navigator's section.
     @Test func toolbarItemsAreGlassShapes() throws {
         guard #available(macOS 26, *) else { return }
         let r32 = WindowChromeR32Tests()
@@ -31,13 +23,9 @@ import Testing
         let conv = try #require(ids.firstIndex(of: "newConversation")), scheme = try #require(ids.firstIndex(of: "scheme"))
         #expect(ids[conv + 1] == NSToolbarItem.Identifier.space.rawValue && conv + 2 == scheme)
         #expect(ids.firstIndex(of: "run")! + 1 == ids.firstIndex(of: NSToolbarItem.Identifier.sidebarTrackingSeparator.rawValue)!)
-        // No issues: the capsule's item is hidden, not an overflow.
         #expect(items["issues"]?.isHidden == true && !wc.overflowedToolbarItems.contains("issues"))
     }
 
-    /// §2.3, §3.1: the selector bar, the "+" circle and the filter
-    /// capsule; the outline runs under the bars with no header shown and
-    /// is clipped below the Find header.
     @Test func navigatorBarsFloatOverTheOutline() throws {
         guard #available(macOS 26, *) else { return }
         let nav = NavigatorInspectorR45Tests().laidOutNavigator()
@@ -49,22 +37,15 @@ import Testing
         let plus = nav.plusGlass.frame, field = nav.filterGlass.frame
         #expect(plus.size == NavigatorAreaController.plusSize && abs(plus.minX - 6) <= 0.5, "\(plus)")
         #expect(field.height == 30 && abs(field.minY - 7) <= 0.5 && abs(field.minX - plus.maxX - NavigatorAreaController.plusToFilter) <= 0.5 && field.width == 242 && abs(nav.view.bounds.maxX - field.maxX - 6) <= 0.5, "\(field)")
-        // Under the bars: the outline's scroll view runs from the selector
-        // capsule's top (nothing shows above it) to the area's bottom.
         let scroll = nav.scrollView
         let inRoot = scroll.convert(scroll.bounds, to: nav.view)
         #expect(abs(inRoot.maxY - sel.maxY) <= 0.5 && abs(inRoot.minY - field.minY) <= 0.5, "\(inRoot)")
-        // The scroll bar's track: 3 below the selector, 11 above the filter capsule.
         #expect(abs(scroll.scrollerInsets.top - sel.height - 3) <= 0.5 && abs(scroll.scrollerInsets.bottom - field.height - 11) <= 0.5,
                 "\(scroll.scrollerInsets)")
-        // The first row sits 7 below the selector capsule.
         let row0 = nav.outlineView.convert(nav.outlineView.rect(ofRow: 0), to: nav.view)
         #expect(nav.outlineView.numberOfRows == 0 || abs(sel.minY - row0.maxY - NavigatorAreaController.firstRowGap) <= 0.5, "\(row0) \(sel)")
         #expect(scroll.contentInsets.top > 0 && scroll.contentInsets.bottom >= nav.filterGlass.frame.height)
         #expect(!nav.scrollClipView.clipsToBounds)
-        // The Find navigator's header: clipped below it, the scroll view
-        // filling the clip and its inset putting the first row 4 points
-        // below the clip's top (metrics.md §2).
         nav.select(3)
         nav.view.layoutSubtreeIfNeeded()
         #expect(nav.scrollClipView.clipsToBounds && abs(scroll.frame.maxY - nav.scrollClipView.bounds.maxY) <= 0.5)
@@ -74,8 +55,6 @@ import Testing
         #expect(!nav.scrollClipView.clipsToBounds)
     }
 
-    /// §2.4, §2.5, §2.1, §2.6: the inspector's tab bar, its divider, the
-    /// Coding Assistant header and the 36-point debug bar over the editor.
     @Test func inspectorBarDividerAndDebugBar() throws {
         guard #available(macOS 26, *) else { return }
         let r32 = WindowChromeR32Tests()
@@ -91,7 +70,6 @@ import Testing
         #expect(wc.editorArea.view.additionalSafeAreaInsets.bottom == 36)
     }
 
-    /// §2.10: the recent box, rows and close circle.
     @Test func welcomeGeometry() throws {
         guard #available(macOS 26, *) else { return }
         let td = TestDefaults("glass-welcome")
@@ -103,14 +81,13 @@ import Testing
         let box = w.recentsBox.frame
         #expect(box.minX == 60 && box.width == 360 && h - box.maxY == 295 && box.height == 277, "\(box)")
         #expect(w.recentsBox.layer?.cornerRadius == 12 && w.recentsBox.layer?.borderWidth == 0 || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
-        #expect(w.table.rowHeight == 47 && w.table.intercellSpacing.height == 0)   // metrics.md §13.4: a 47-point pitch
+        #expect(w.table.rowHeight == 47 && w.table.intercellSpacing.height == 0)
         #expect(w.tableView(w.table, rowViewForRow: 0) is RecentRowView)
         #expect([w.openButton, w.cloneButton].allSatisfy { $0.bezelStyle == .push && $0.borderShape == .capsule })
     }
 }
 
 extension InspectorAreaController {
-    /// The inspector runs the window's full height (no inset; §2.1).
     func inspectorItemFlushHeight(in wc: WorkspaceWindowController) -> Bool {
         guard let window = wc.window, let content = window.contentView else { return false }
         let r = view.convert(view.bounds, to: content)
@@ -118,12 +95,8 @@ extension InspectorAreaController {
     }
 }
 
-/// metrics.md §15: the navigator's "+" circle holds a "+" alone, centred;
-/// the filter capsule's options glyph (lines in a circle and a chevron)
-/// starts 7.5 in, and the filter text keeps 28 at its leading end.
 @MainActor
 @Suite(.serialized) struct NavigatorBottomBarGlyphTests {
-    /// The ink's x range in `view` (alpha over 0.1), in points, or nil.
     static func inkRange(_ view: NSView) -> ClosedRange<CGFloat>? {
         guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
         view.cacheDisplay(in: view.bounds, to: rep)
@@ -149,7 +122,6 @@ extension InspectorAreaController {
         let ink = try #require(Self.inkRange(button))
         let circle = nav.plusGlass.convert(nav.plusGlass.bounds, to: button)
         let left = ink.lowerBound - circle.minX, right = circle.maxX - ink.upperBound
-        // A "+" alone: about 10.5 wide, with even gaps (the reference's are 9 and 9.5).
         #expect(ink.upperBound - ink.lowerBound <= 12.5, "\(ink)")
         #expect(abs(left - right) <= 1, "left \(left), right \(right)")
     }

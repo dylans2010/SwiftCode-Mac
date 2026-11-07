@@ -33,9 +33,6 @@ struct AssistantTheme {
 }
 
 struct AssistantGlassCardModifier: ViewModifier {
-    // Previously a hand-rolled glass stack (gradient fill + ultraThinMaterial
-    // + white stroke + shadow). The shared LiquidGlass HUD style is the same
-    // dark translucent card, so delegate to it instead of duplicating it.
     func body(content: Content) -> some View {
         content
             .liquidGlass(style: .hud, cornerRadius: 24)

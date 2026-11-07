@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKSession.swift
-//  SwiftCode
-//
-//  Native representation of an active Antigravity SDK session.
-//
-
 import Foundation
 import os
 
@@ -23,7 +16,6 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
         self.conversationId = conversationId
     }
 
-    /// Subscribes to events specifically for this session.
     public func subscribeEvents() async -> AsyncStream<GoogleCloudSDKEvent> {
         let stream = await bridge.subscribeEvents()
         let targetId = self.id
@@ -52,12 +44,10 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
                             continuation.yield(event)
                         }
                     case .toolFailed(_, _, _):
-                        // Forward tool failure
                         continuation.yield(event)
                     case .toolProgress:
                         continuation.yield(event)
                     case .runtimeReady, .runtimeStopped, .error:
-                        // Global runtime events
                         continuation.yield(event)
                     }
                 }
@@ -70,17 +60,14 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
         }
     }
 
-    /// Sends a conversational prompt to the agent and initiates execution.
     public func sendMessage(_ content: String, attachments: [GoogleCloudSDKAttachment] = []) async throws {
         _ = try await bridge.sendMessage(sessionId: self.id, content: content, attachments: attachments)
     }
 
-    /// Cancels in-progress generation or tool execution.
     public func cancel() async throws {
         _ = try await bridge.cancelMessage(sessionId: self.id)
     }
 
-    /// Closes the session and frees memory in the bridge.
     public func close() async throws {
         _ = try await bridge.closeSession(sessionId: self.id)
     }

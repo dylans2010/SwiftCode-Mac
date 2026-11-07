@@ -1,6 +1,3 @@
-// C-EK-REC: golden expansions R1–R15 (recurrence.md §5.1), through the
-// store (save, then fetch from a second store instance), reader in New York.
-
 import Foundation
 import Testing
 @testable import EventKit
@@ -19,8 +16,6 @@ struct ExpansionGoldenTests {
                          setPositions: setPos.map(n), end: end)
     }
 
-    /// Saves an event with the rules and returns the UTC starts of its
-    /// occurrences read through a fresh store.
     func expand(start: Date, minutes: Double = 60, zone: TimeZone? = newYork, allDay: Bool = false,
                 rules: [EKRecurrenceRule], from: Date = date("2026-01-01"), to: Date = date("2029-12-31")) throws -> [String] {
         let t = TestStore()
@@ -100,9 +95,6 @@ struct ExpansionGoldenTests {
                         "2026-10-29 15:00", "2026-11-10 16:00"])
     }
 
-    /// The reference returned only the first occurrence (§5 item 7). The spec
-    /// tells SwiftCode to implement RFC 5545 until C-REC-Q1 is settled, so this
-    /// test checks the RFC result: Monday of ISO week 20 each year.
     @Test("R9 yearly BYWEEKNO=20;BYDAY=MO count 3 (RFC behavior; quirk is C-REC-Q1)")
     func r9() throws {
         let got = try expand(start: ny("2027-05-17 09:00"),
@@ -220,7 +212,7 @@ struct ExpanderUnitTests {
             let c = Civil.civil(d)
             #expect(Civil.dayNumber(c.year, c.month, c.day) == d)
         }
-        #expect(Civil.weekday(Civil.dayNumber(2026, 10, 26)) == 2) // Monday
+        #expect(Civil.weekday(Civil.dayNumber(2026, 10, 26)) == 2)
     }
 
     @Test("DST: wall-clock gap moves forward, overlap takes the earlier instant")

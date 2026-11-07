@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import HealthKit
 
-/// C-QUERY: predicates and their boundary rules, sorting, limits (`queries.md` §2–§3),
-/// correlation and source queries, own-data visibility (§7), historical range (§6.6).
 @Suite("C-QUERY queries.md §2–§3")
 struct QueryTests {
     @Test("§2.1 date interval predicate: golden counts on the step samples")
@@ -23,7 +21,6 @@ struct QueryTests {
             let n = try await g.a.count(T.steps, HKQuery.predicateForSamples(withStart: s, end: e, options: o))
             #expect(n == expected, "window \(String(describing: s))–\(String(describing: e)) options \(o.rawValue)")
         }
-        // an instant at 09:00 is not in [08:00, 09:00] but is in [07:59, 09:01]
         let nine = HKCompound.and([HKQuery.predicateForSamples(withStart: T.at(0, 8), end: T.at(0, 9)),
                                    HKQuery.predicateForQuantitySamples(with: .equalTo, quantity: HKQuantity(unit: T.bpm, doubleValue: 90))])
         #expect(try await g.a.count(T.heartRate, nine) == 0)
@@ -55,7 +52,6 @@ struct QueryTests {
         #expect(try await a.count(HKObjectType.workoutType(), HKQuery.predicateForWorkouts(with: .walking)) == 0)
         #expect(try await a.count(T.steps, HKQuery.predicateForObject(with: g.energySample.uuid)) == 0)
         #expect(try await a.count(T.energy, HKQuery.predicateForObject(with: g.energySample.uuid)) == 1)
-        // metadata values come back with their classes
         let s3 = try #require(try await a.samples(T.steps, HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID)).first)
         #expect(s3.metadata?[HKMetadataKeyExternalUUID] as? String == "swiftcode-s3")
         #expect(s3.metadata?["SwiftCodeNumber"] as? Int == 42)
@@ -103,10 +99,9 @@ struct QueryTests {
         #expect(latest.map { ($0 as! HKQuantitySample).quantity.doubleValue(for: .count()) } == [2000, 600])
         let ordered = try await g.a.samples(T.steps, sort: [byStart])
         #expect(ordered.map(\.startDate) == ordered.map(\.startDate).sorted())
-        #expect(try await g.a.samples(T.steps, sort: [byQuantity]).count == 8)   // accepted, returns all
+        #expect(try await g.a.samples(T.steps, sort: [byQuantity]).count == 8)
         #expect(try await g.a.samples(T.steps, limit: HKObjectQueryNoLimit).count == 8)
         #expect(try await g.a.samples(T.steps, limit: 3).count == 3)
-        // unsorted results come back in start-date order
         let plain = try await g.a.samples(T.steps)
         #expect(plain.map(\.startDate) == plain.map(\.startDate).sorted())
     }
@@ -162,27 +157,23 @@ struct QueryTests {
             return box.current
         }
         #expect(await sources(b, T.steps) == ["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"])
-        #expect(await sources(g.a, T.steps) == ["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"])   // A reads steps too
+        #expect(await sources(g.a, T.steps) == ["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"])
         #expect(await sources(b, T.sleep) == ["dev.swiftcode.healthprobe"])
-        // B's heart-rate read is off: A's samples are invisible, B's own are visible
         #expect(try await b.count(T.heartRate) == 0)
         try await b.save(T.qs(T.heartRate, 61, T.bpm, T.at(0, 11)))
         #expect(try await b.count(T.heartRate) == 1)
-        // B reads A's steps (read granted)
         #expect(try await b.count(T.steps, HKQuery.predicateForObjects(from: T.clientA.source)) == 8)
     }
 
     @Test("§6.6 historical range: sample queries still return the app's own older samples")
     func historicalRangeSamples() async throws {
         let g = try await Golden.make()
-        // A granted "past 30 days" at 2026-10-19 23:55:40Z; the 1811 and D0−60 samples are its own
         #expect(try await g.a.count(T.steps, HKQuery.predicateForSamples(withStart: nil, end: T.at(-30))) == 2)
         let dates = try await g.a.earliestAuthorizedSampleDate(for: [T.steps])
         #expect(dates[T.steps] == T.grantA.addingTimeInterval(-30 * 86400))
     }
 }
 
-/// Compound predicate shorthand for the tests.
 enum HKCompound {
     static func and(_ p: [NSPredicate]) -> NSPredicate { NSCompoundPredicate(andPredicateWithSubpredicates: p) }
 }

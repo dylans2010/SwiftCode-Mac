@@ -2,8 +2,6 @@ import Foundation
 import os
 import SwiftCodeBuild
 
-// MARK: - Assist v3 Verification Pipeline
-
 public struct VerificationOutcome: Sendable {
     public let kind: VerificationKind
     public let isSuccess: Bool
@@ -61,7 +59,6 @@ public final class AssistVerificationPipeline: Sendable {
 
     private init() {}
 
-    /// Discovers active Xcode DEVELOPER_DIR to ensure command reliability.
     public func resolveDeveloperDir() -> String {
         let candidates = [
             "/Applications/Xcode.app/Contents/Developer",
@@ -75,7 +72,6 @@ public final class AssistVerificationPipeline: Sendable {
         return "/Applications/Xcode.app/Contents/Developer"
     }
 
-    /// Verifies individual Swift file syntax using swiftc typecheck pass.
     public func verifySyntax(filePath: String, context: AssistContext) async -> VerificationOutcome {
         let startTime = Date()
         let fullPath = context.workspaceRoot.appendingPathComponent(filePath).path
@@ -120,9 +116,6 @@ public final class AssistVerificationPipeline: Sendable {
         #endif
     }
 
-    /// Verifies full project compilation using xcodebuild targeting macOS.
-    /// Always targets the user's project resolved from the workspace root —
-    /// never this app's own bundle.
     public func verifyCompilation(context: AssistContext, scheme explicitScheme: String? = nil) async -> VerificationOutcome {
         let startTime = Date()
         let developerDir = resolveDeveloperDir()
@@ -174,9 +167,6 @@ public final class AssistVerificationPipeline: Sendable {
         }
     }
 
-    /// Runs tests when a test scheme is available.
-    /// Always targets the user's project resolved from the workspace root —
-    /// never this app's own bundle.
     public func verifyTests(context: AssistContext, scheme explicitScheme: String? = nil, testPlan: String? = nil) async -> VerificationOutcome {
         let startTime = Date()
         let developerDir = resolveDeveloperDir()
@@ -266,8 +256,6 @@ public final class AssistVerificationPipeline: Sendable {
         }
     }
 
-    /// Audits Git diff for forbidden placeholders, verifies expected files exist with real
-    /// content, and flags changes to files outside the declared task scope.
     public func verifyDiffCompleteness(context: AssistContext, expectedFiles: [String]) async -> VerificationOutcome {
         let startTime = Date()
         var issues: [String] = []
@@ -339,7 +327,6 @@ public final class AssistVerificationPipeline: Sendable {
         }
     }
 
-    /// Evaluates the 7 mandatory completion criteria against reality.
     @discardableResult
     public func evaluateCompletionContract(
         task: inout AgentTask,
@@ -407,9 +394,6 @@ public final class AssistVerificationPipeline: Sendable {
         return task.completionCriteria.allSatisfy { $0.isMet }
     }
 
-    /// Evaluates the 7 mandatory completion criteria against reality asynchronously, executing real
-    /// build, test, diff, and per-file syntax checks. Completion is only reported when objective
-    /// evidence supports it — never on model claims alone.
     public func evaluateCompletionContract(
         task: inout AgentTask,
         context: AssistContext
@@ -430,7 +414,6 @@ public final class AssistVerificationPipeline: Sendable {
 
         let testOutcome = await verifyTests(context: context)
 
-        // xcodebuild test compiles before testing, so a passing test run implies a successful build.
         let buildOutcome: VerificationOutcome
         if testOutcome.isSuccess {
             buildOutcome = VerificationOutcome(

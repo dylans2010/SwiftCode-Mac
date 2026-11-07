@@ -1,11 +1,3 @@
-// `swiftcode-simd --device DEV --ui|--accessibility|--location|--audio|--overrides|--settings …`
-// (specs/simulator/simulator-features.md "SwiftCode implementation" §I.4): one
-// settings command for the device. A running device gets it through its
-// control socket (FoldControl.swift; SimSettings.swift answers); a stopped
-// device gets the persistent settings written into its files for the next
-// boot (OfflineSettings). Prints the answer; exit 0 for "ok", 1 for an
-// error, 64 for bad usage, 69 for a command that needs a running device.
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -41,7 +33,6 @@ func runSettingsClient(_ arguments: [String]) -> Never {
         i += 1
     }
     guard let dev else { die(help, status: 64) }
-    // A file named on this host: an absolute path for the device's process.
     if words.count == 3, words[0] == "location", words[1] == "file" || words[1] == "run",
        words[2].hasSuffix(".gpx") || words[2].hasSuffix(".json") || words[1] == "file", !words[2].hasPrefix("/") {
         words[2] = FileManager.default.currentDirectoryPath + "/" + words[2]
@@ -75,7 +66,6 @@ func runSettingsClient(_ arguments: [String]) -> Never {
         }
         text = OfflineSettings.handle(words, dev: absolutePath(dev), runtimeRoot: runtimeRoot.map(absolutePath))
     }
-    // Getters print the bare value (simctl's output: light, dark, enabled, …).
     if text.hasPrefix("ok ") { print(String(text.dropFirst(3))) } else { print(text) }
     exit(text.hasPrefix("ok") ? 0 : 1)
 }

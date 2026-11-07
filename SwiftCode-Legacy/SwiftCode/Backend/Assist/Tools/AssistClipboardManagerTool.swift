@@ -1,8 +1,3 @@
-//
-//  AssistClipboardManagerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 import AppKit
 

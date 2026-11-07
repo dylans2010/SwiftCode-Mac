@@ -21,7 +21,6 @@ public struct AssistPbxprojLintTool: AssistTool {
             return .failure("No .pbxproj found in the workspace.")
         }
         let projectDir = pbxproj.deletingLastPathComponent().deletingLastPathComponent()
-        // File refs: id -> path (only entries with an explicit path).
         var fileRefPaths: [String: String] = [:]
         let refPattern = try? NSRegularExpression(pattern: #"([0-9A-F]{24}) /\* (.+?) \*/ = \{isa = PBXFileReference;[^}]*?path = ([^;]+);"#, options: [.dotMatchesLineSeparators])
         if let p = refPattern {
@@ -36,7 +35,6 @@ public struct AssistPbxprojLintTool: AssistTool {
         for (id, path) in fileRefPaths {
             if seenPaths.contains(path) { duplicates.append("\(path) (ref \(id))") }
             seenPaths.insert(path)
-            // Only check plain relative paths (skip absolute SDK paths).
             if !path.hasPrefix("/") {
                 let candidate = projectDir.appendingPathComponent(path).standardized
                 if !FileManager.default.fileExists(atPath: candidate.path) {
@@ -45,7 +43,6 @@ public struct AssistPbxprojLintTool: AssistTool {
             }
             if missing.count > 200 { break }
         }
-        // Build files referencing unknown fileRefs.
         let bfPattern = try? NSRegularExpression(pattern: #"fileRef = ([0-9A-F]{24}) /\* (.+?) \*/;"#)
         var dangling: [String] = []
         if let p = bfPattern {

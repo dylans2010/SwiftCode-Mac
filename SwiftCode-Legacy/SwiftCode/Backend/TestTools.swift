@@ -91,7 +91,6 @@ public final class TestToolsManager: ObservableObject {
         do {
             try process.run()
 
-            // Run on a cooperative detached task to wait without blocking
             try await Task.detached { [process] in
                 process.waitUntilExit()
             }.value
@@ -145,8 +144,7 @@ public final class TestToolsManager: ObservableObject {
             self.duration = Date().timeIntervalSince(start)
         }
 
-        // Simulate some test results for this extension in a safe structured way
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        try? await Task.sleep(nanoseconds: 500_000_000)
 
         let sampleTests = [
             TestResult(name: "\(extensionID)InitializationTest", status: .success, executionTime: 0.15, category: .unit),

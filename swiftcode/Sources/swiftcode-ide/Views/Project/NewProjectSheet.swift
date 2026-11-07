@@ -3,11 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// File ▸ New ▸ Project… on Linux (`templates.md` § SwiftCode implementation):
-/// the core's flow as a sheet — platform tabs, a filter, the sectioned
-/// grid with pinned section headers and the template's summary; the
-/// options form; then the save step (Save As, Where with the toolkit's
-/// folder dialog, Create Git repository, Add to, Group).
 struct NewProjectSheet: View {
     @Bindable var model: NewProjectShellModel
     var app: ShellAppModel
@@ -58,8 +53,6 @@ struct NewProjectSheet: View {
         }
     }
 
-    // MARK: Template step
-
     func templateStep(_ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Picker("", selection: Binding(get: { model.flow.platform }, set: { model.setPlatform($0) })) {
@@ -73,7 +66,6 @@ struct NewProjectSheet: View {
                         Text(verbatim: section.title).font(.system(size: 11, weight: .bold)).foregroundStyle(c.secondaryLabel)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 4)
-                        // Six to a row; a catalog tab has a few dozen at most.
                         ForEach(Array(stride(from: 0, to: section.entries.count, by: 6)), id: \.self) { start in
                             HStack(spacing: 4) {
                                 ForEach(section.entries[start..<min(start + 6, section.entries.count)], id: \.templateID) { tile($0, c) }
@@ -103,8 +95,6 @@ struct NewProjectSheet: View {
         .onTapGesture { model.select(e.templateID) }
         .shellTarget("template \(e.title)")
     }
-
-    // MARK: Options step
 
     func optionsStep(_ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -151,8 +141,6 @@ struct NewProjectSheet: View {
                 .foregroundStyle(model.flow.form.isBundleIdentifierPlaceholder ? c.tertiaryLabel : c.secondaryLabel)
         }
     }
-
-    // MARK: Save step
 
     func saveStep(_ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 10) {

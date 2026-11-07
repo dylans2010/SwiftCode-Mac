@@ -1,7 +1,6 @@
 import AppKit
 
 extension SourceTextView {
-    /// Draws the stop annotation as a green label at the line's right end.
     func drawStopAnnotation(_ text: String, in r: NSRect) {
         let s = NSAttributedString(string: "  \(text)  ", attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.white])
         let size = s.size()

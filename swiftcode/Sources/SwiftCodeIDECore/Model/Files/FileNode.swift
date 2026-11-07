@@ -1,28 +1,12 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Models/FileNode.swift (Legacy main ab03f681)
-//
-// Destination: SwiftCodeIDECore/Model/FileNode.swift.
-//
-// Verbatim apart from this header. Notes:
-// * Distinct from `SCProjectFileNode` (`SCProjectManifest.swift`, same
-//   module): that is the renamed, struct-based `.scproj` package node
-//   without SwiftUI; this is Legacy's `@Observable` class node with the
-//   `icon` / `iconColor` SwiftUI helpers, which the live call sites
-//   (`ProjectSessionStore`, `WorkspaceViewModel`, the navigator) use.
-// * `import SwiftUI` is kept: several files in this target already
-//   import SwiftUI (e.g. `Assistant/AgentViewModel.swift`,
-//   `Model/NewProject/LegacyProjectTemplates.swift`).
-
 import Foundation
 import Observation
 import SwiftUI
 
-// Represents a file or folder in the project navigator
 @Observable
 public class FileNode: Identifiable, Codable, @unchecked Sendable {
     public var id: UUID
     public var name: String
-    public var path: String // relative path from project root
+    public var path: String
     public var isDirectory: Bool
     public var children: [FileNode]
     public var isExpanded: Bool

@@ -1,17 +1,11 @@
 import Foundation
 import SwiftCodeIcon
 
-/// SwiftCode's asset catalog compiler (`specs/formats/icon-compile.md` §3, §7;
-/// `assets-car.md` §9 tier 1): `.xcassets` folders and `.icon` packages in,
-/// `Assets.car`, the loose iOS icon PNGs or the macOS `.icns`, and the
-/// partial `Info.plist` out.
 public struct AssetCompiler {
     public struct Options: Sendable {
         public var inputs: [URL] = []
         public var outputDirectory: URL
-        /// `--platform` (`iphonesimulator`, `macosx`, …).
         public var platformName = "iphoneos"
-        /// `--target-device` values (`iphone`, `ipad`, `mac`, `watch`, `tv`, `vision`).
         public var targetDevices: [String] = []
         public var appIcon: String?
         public var alternateAppIcons: [String] = []
@@ -20,17 +14,13 @@ public struct AssetCompiler {
         public var partialInfoPlist: URL?
         public var dependencyInfo: URL?
         public var compression: CARCompression = .lzfse
-        /// Pre-flattened `.icon` bitmaps (see `IconBitmapSource`): a folder
-        /// of PNGs, or a folder of such folders named like the icons.
         public var iconImages: URL?
-        /// `--standalone-icon-behavior`: `default`, `all` or `none`.
         public var standaloneIconBehavior = "default"
 
         public init(outputDirectory: URL) { self.outputDirectory = outputDirectory }
 
         public var platform: CARPlatform? { CARPlatform(platformName: platformName) }
 
-        /// Device families: the targeted ones, else the platform's own.
         var families: [String] {
             if !targetDevices.isEmpty { return targetDevices }
             switch platform {
@@ -63,7 +53,6 @@ public struct AssetCompiler {
         public var succeeded: Bool { errors.isEmpty }
     }
 
-    /// A property-list value that is Sendable.
     struct PlistBox: @unchecked Sendable {
         var value: Any
     }
@@ -114,7 +103,6 @@ public struct AssetCompiler {
             return result
         }
 
-        // Image and colour sets.
         var assetNames = Set<String>()
         for c in catalogs {
             for s in c.imageSets {
@@ -127,7 +115,6 @@ public struct AssetCompiler {
             }
         }
 
-        // App icons.
         var infoPlist: [String: Any] = [:]
         let wanted = [options.appIcon].compactMap { $0 } + options.alternateAppIcons
         let iconPlatform: IconPlatform? = switch platform {
@@ -153,8 +140,6 @@ public struct AssetCompiler {
                 }
                 let src = IconBitmapSource(package: pkg, folder: folder)
                 if folder == nil { diag(.note, pkg.url, "drawn with SwiftCode's placeholder render (background and PNG layers); pass flattened images for the final look") }
-                // The files go into their own Result: `diag` appends to `result`,
-                // which an inout access of `result` would overlap (exclusivity).
                 var written = Result()
                 addIcon(name: name, primary: primary, platform: platform, iconPlatform: ip, writer: &writer, diag: diag, result: &written) { a, px in
                     try src.bitmap(ip, a, pixels: px)
@@ -182,7 +167,6 @@ public struct AssetCompiler {
             infoPlist["NSAccentColorName"] = accent
         }
 
-        // Write.
         if !writer.renditions.isEmpty {
             let car = options.outputDirectory.appendingPathComponent("Assets.car")
             do {
@@ -209,8 +193,6 @@ public struct AssetCompiler {
         }
         return result
     }
-
-    // MARK: Image sets
 
     func addImageSet(_ s: CatalogInput.ImageSet, platform: CARPlatform, to w: inout CARWriter, diag: (Diagnostic.Kind, URL?, String) -> Void) {
         if let t = s.templateIntent, t != "automatic" {
@@ -239,7 +221,6 @@ public struct AssetCompiler {
         }
     }
 
-    /// Whether an image of `idiom` belongs in a car for `platform`.
     static func idiomApplies(_ idiom: CARIdiom, _ platform: CARPlatform) -> Bool {
         switch platform {
         case .iOS: [.universal, .phone, .pad, .car, .marketing].contains(idiom)
@@ -250,14 +231,11 @@ public struct AssetCompiler {
         }
     }
 
-    // MARK: Colour sets
-
     func addColorSet(_ s: CatalogInput.ColorSet, platform: CARPlatform, to w: inout CARWriter, diag: (Diagnostic.Kind, URL?, String) -> Void) {
         var seen = Set<[CARAttribute: UInt16]>()
         for e in s.entries {
             guard !e.highContrast else { continue }
             guard let idiom = CARIdiom(catalogName: e.idiom), Self.idiomApplies(idiom, platform) else { continue }
-            // Colours have scale 1 (`assets-car.md` §4.1); lookups miss them with 0.
             var a: [CARAttribute: UInt16] = [.scale: 1]
             if platform != .macOS { a[.idiom] = idiom.rawValue }
             if let ap = e.appearance { a[.appearance] = platform.appearanceNumber(ap == "dark" ? .dark : .light) }
@@ -266,10 +244,6 @@ public struct AssetCompiler {
         }
     }
 
-    // MARK: App icons
-
-    /// The flattened tier of an `.icon` (§4 MultiSized Image + Icon Image,
-    /// sizes of §5) and the loose files of §3.
     func addIcon(name: String, primary: Bool, platform: CARPlatform, iconPlatform: IconPlatform, writer w: inout CARWriter,
                  diag: (Diagnostic.Kind, URL?, String) -> Void, result: inout Result,
                  image: (IconAppearance, Int) throws -> Bitmap) {
@@ -314,8 +288,6 @@ public struct AssetCompiler {
 
     func opaque(_ b: Bitmap) -> Bitmap { b.isOpaque ? b : b.flattened(onto: (1, 1, 1)) }
 
-    /// iOS writes phone and pad renditions for the targeted families (both
-    /// when none is named).
     func iosIdioms() -> [CARIdiom] {
         let f = options.families
         var out: [CARIdiom] = []
@@ -324,7 +296,6 @@ public struct AssetCompiler {
         return out
     }
 
-    /// `AppIcon60x60@2x.png` (120 px) and `AppIcon76x76@2x~ipad.png` (152 px).
     func writeLooseIOSPNGs(name: String, master: Bitmap, result: inout Result) throws {
         for (file, px) in [("\(name)60x60@2x.png", 120), ("\(name)76x76@2x~ipad.png", 152)] {
             let u = options.outputDirectory.appendingPathComponent(file)
@@ -340,8 +311,6 @@ public struct AssetCompiler {
         result.outputs.append(u)
     }
 
-    /// An `.appiconset`: one MultiSized Image per idiom listing its sizes,
-    /// one Icon Image per idiom, size, scale and appearance (§6).
     func addIconSet(_ set: CatalogInput.AppIconSet, primary: Bool, platform: CARPlatform, writer w: inout CARWriter,
                     diag: (Diagnostic.Kind, URL?, String) -> Void, result: inout Result) {
         struct Image { var idiom: CARIdiom; var size: Double; var scale: Int; var appearance: CARAppearance; var bitmap: Bitmap; var file: URL }
@@ -372,7 +341,6 @@ public struct AssetCompiler {
             diag(.warning, set.url, "the app icon set \(set.name) has no images")
             return
         }
-        // A single-size universal iOS icon becomes phone and pad (§6).
         var expanded: [Image] = []
         for i in images {
             if platform == .iOS, i.idiom == .universal {
@@ -418,7 +386,6 @@ public struct AssetCompiler {
         }
     }
 
-    /// The partial `Info.plist` of §3.
     func iconPlist(compiled: [String], platform: CARPlatform) -> [String: Any] {
         guard let primary = options.appIcon, compiled.contains(primary) else {
             return [:]
@@ -451,9 +418,6 @@ public struct AssetCompiler {
     }
 }
 
-/// The ld-style dependency file swift-build reads (`--export-dependency-info`):
-/// a version record, then input (0x10) and output (0x40) records, each an
-/// opcode byte and a NUL-terminated string.
 public enum DependencyInfo {
     public static func data(inputs: [URL], outputs: [URL], version: String = "swiftcode-assets") -> Data {
         var b: [UInt8] = [0x00] + Array(version.utf8) + [0]

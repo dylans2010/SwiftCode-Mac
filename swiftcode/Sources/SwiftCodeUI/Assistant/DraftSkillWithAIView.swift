@@ -1,20 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Settings/Skills/DraftSkillWithAIView.swift
-//
-// Adapted for SwiftCode (same seam as `DocumentationAIScanView`):
-// Legacy streamed through `OpenRouterService.shared.streamChat`
-// (missing; OpenRouter is one provider among many in production).
-// The view now takes an injected `AssistantProvider` and streams
-// `provider.send(ChatRequest(model:instructions:messages:))`,
-// collecting `.text` events; the model still comes from
-// `AppSettings.shared.selectedAssistModelID`. `AppSettings` is
-// `@Observable`, so Legacy's `@EnvironmentObject settings` is gone
-// (read `AppSettings.shared` directly). The type and init are public
-// because the call site (`AssistSettingsView`, swiftcode-ide) is in
-// another module — W1 must pass the provider there (see
-// DISPOSITIONS.md). `AIMessage` / `AgentSkillManager` /
-// `SkillsParser` / `SkillsRuntime` are in `SwiftCodeAssistant`.
-
 import SwiftCodeAssistant
 import SwiftUI
 
@@ -34,9 +17,8 @@ public struct DraftSkillWithAIView: View {
     @State private var errorMessage: String?
     @State private var showChangesPopover = false
     @State private var modificationRequest = ""
-    @State private var activeTab = 0 // 0: Prompt, 1: Preview/Markdown
+    @State private var activeTab = 0
 
-    // Track AI conversation message history so changes can be made with context
     @State private var conversationHistory: [AIMessage] = []
 
     private let systemPrompt = """
@@ -220,7 +202,6 @@ public struct DraftSkillWithAIView: View {
         }
     }
 
-    // Call service to draft custom skill with optimized system prompt
     private func generateDraft() async {
         isDrafting = true
         errorMessage = nil
@@ -244,7 +225,6 @@ public struct DraftSkillWithAIView: View {
                 }
             }
 
-            // Save state context for future modifications
             conversationHistory = messages + [AIMessage(role: .assistant, content: currentDraft)]
             activeTab = 1
         } catch {
@@ -253,7 +233,6 @@ public struct DraftSkillWithAIView: View {
         isDrafting = false
     }
 
-    // Iterate on draft keeping track of context state
     private func iterateDraft() async {
         isDrafting = true
         errorMessage = nil
@@ -276,7 +255,6 @@ public struct DraftSkillWithAIView: View {
                 }
             }
 
-            // Update conversation history
             conversationHistory = newMessages + [AIMessage(role: .assistant, content: currentDraft)]
             modificationRequest = ""
             activeTab = 1

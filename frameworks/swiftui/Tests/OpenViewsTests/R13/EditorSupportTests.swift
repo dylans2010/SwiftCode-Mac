@@ -11,12 +11,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R13, what EditorKit (docs/PARITY.md §5.9, milestone L2) needs from
-// the toolkit: the bundled monospace font, `onKeyPress`, scroll geometry,
-// and a drawing surface for text runs (`Canvas` with resolved text) fast
-// enough for a 10 000-line file. `OV_BENCH=1` runs the scrolling benchmark
-// (prints milliseconds per frame).
-
 @MainActor
 final class KeyLog {
     var entries: [String] = []
@@ -77,9 +71,6 @@ struct FieldHost: View {
     }
 }
 
-/// A 10 000-line editor surface: a tall scroll content, and a viewport-sized
-/// `Canvas` that draws only the visible lines as text runs at the scroll
-/// offset (what EditorKit's layer does; PARITY §5.9 item 2).
 struct EditorSurfaceDemo: View {
     let lines: [String]
     static let lineHeight: CGFloat = 16
@@ -118,7 +109,6 @@ struct EditorSurfaceDemo: View {
     }
 }
 
-/// Swift-like lines (a mix of lengths).
 func sampleSource(lines n: Int) -> [String] {
     let templates = [
         "import Foundation",
@@ -140,13 +130,11 @@ func sampleSource(lines n: Int) -> [String] {
 @MainActor
 @Suite("R13 editor support (L2)")
 struct EditorSupportTests {
-    // 8
     @Test func theBundledMonospaceFontIsUsedForTheMonospacedDesign() {
         let face = FontCatalog.bundled.face(for: FontRequest(design: .monospaced))
         #expect(face?.familyName == "Noto Sans Mono")
         let bold = FontCatalog.bundled.face(for: FontRequest(design: .monospaced, traits: FontTraits(weight: 700)))
         #expect(bold?.familyName == "Noto Sans Mono")
-        // Every character advances the same distance.
         let m = TypesetTextMeasurer.shared
         func width(_ s: String, _ t: Text) -> CGFloat {
             m.measure(t.resolve(in: EnvironmentValues()), proposal: .unspecified).size.width
@@ -157,13 +145,11 @@ struct EditorSupportTests {
         let c = width("iiiiiiii", Text(verbatim: "iiiiiiii").monospaced())
         let d = width("MMMMMMMM", Text(verbatim: "MMMMMMMM").monospaced())
         #expect(abs(c - d) < 0.01)
-        // The proportional UI font differs.
         let e = width("iiiiiiii", Text(verbatim: "iiiiiiii"))
         let f = width("MMMMMMMM", Text(verbatim: "MMMMMMMM"))
         #expect(f - e > 10)
     }
 
-    // 9: onKeyPress
     @Test func keyPressHandlersGetTheFocusedViewsKeys() {
         let log = KeyLog()
         let h = CommandsHarness(menuBar: false) { KeyPressProbe(log: log) }
@@ -171,7 +157,7 @@ struct EditorSupportTests {
         h.key(.upArrow, at: 1.0)
         h.key(.character("s"), .control, at: 1.1)
         h.key(.character("s"), .shift, at: 1.2)
-        h.key(.downArrow, at: 1.3)                 // no handler: ignored
+        h.key(.downArrow, at: 1.3)
         h.backend.post(.key(KeyEvent(window: h.windowID, key: .character("x"), isDown: false, timestamp: 1.4)), at: 1.4)
         h.run(until: 1.5)
         #expect(log.entries == ["up", "s cmd s", "s - S", "release x"])
@@ -201,7 +187,6 @@ struct EditorSupportTests {
         #expect(log.entries.isEmpty)
     }
 
-    // 9: scroll geometry and the text surface
     @Test func theEditorSurfaceFollowsTheScrollGeometryAndDrawsOnlyVisibleLines() {
         var drawn: [Range<Int>] = []
         let lines = sampleSource(lines: 10_000)
@@ -213,7 +198,6 @@ struct EditorSupportTests {
         h.backend.post(.scroll(ScrollEvent(window: h.windowID, location: CGPoint(x: 300, y: 200),
                                            delta: CGSize(width: 0, height: -1600), timestamp: 1.1)), at: 1.1)
         h.run(until: 1.3)
-        // 1600 points down: from line 100, 31 lines.
         #expect(drawn.last.map { $0.lowerBound == 100 && $0.count <= 31 } == true)
         let w = h.window
         #expect(w.presentedFrames > 1)
@@ -236,7 +220,6 @@ struct EditorSupportTests {
         plain.cachesGlyphRuns = false
         let reference = plain.render(frame, size: px)
         let cached = SoftwareRasterizer()
-        // First sight: shapes; second: images drawn; then reused.
         let shapes = cached.render(frame, size: px)
         #expect(cached.runImageStats.firstSeen > 20 && cached.runImageStats.drawn == 0)
         #expect(shapes == reference)
@@ -251,14 +234,11 @@ struct EditorSupportTests {
             worst = max(worst, d)
             if d > 2 { differing += 1 }
         }
-        // The same coverage: identical but for a few edge pixels (rounding of
-        // the composite).
         #expect(worst <= 8, "max channel difference \(worst)")
         #expect(differing * 10_000 <= reference.rgba.count, "\(differing) values differ by more than 2")
     }
 
     @Test func scrollingATenThousandLineSurfaceIsFastEnough() {
-        // A short run always; the long one with OV_BENCH=1.
         let bench = ProcessInfo.processInfo.environment["OV_BENCH"] == "1"
         let lines = sampleSource(lines: 10_000)
         let h = Harness(size: CGSize(width: 1400, height: 900), presenter: true) { EditorSurfaceDemo(lines: lines) }

@@ -1,26 +1,5 @@
 import Foundation
 
-/// Dedicated native entry point for macOS system diagnostics and one
-/// narrowly-scoped, authorized user-level configuration operation.
-///
-/// Finite operation set, selected by the required `operation` parameter.
-/// Read-only diagnostics (`system_info`, `dev_environment`, `process_list`,
-/// `network_interfaces`, `listening_sockets`, `connectivity`, `disk_info`,
-/// `system_log`, `service_status`, `config_read`) gather real state through
-/// Darwin/Foundation APIs and fixed-argv subprocesses — never a shell.
-///
-/// The single mutation, `user_defaults_write`, exercises the full
-/// validate -> authorize -> explain -> perform -> capture -> verify flow:
-/// the domain/key/value are validated, the model must pass
-/// `confirm: true`, the write goes through fixed-argv `/usr/bin/defaults`,
-/// and the new value is read back with `defaults read` and compared before
-/// the tool reports success. A read-back mismatch is reported as failure.
-///
-/// Nothing here runs as root, touches SIP/TCC, or accepts arbitrary
-/// commands. Anything requiring privileges (TCC-gated log access, other
-/// users' sockets, admin-only daemons) is reported honestly with
-/// `permissionDenied`/`unsupportedOperation` — escalation is never
-/// attempted.
 public struct AssistSystemTool: AssistTool {
     public let id = "use_system"
     public let name = "System Diagnostics"
@@ -68,17 +47,12 @@ public struct AssistSystemTool: AssistTool {
         )
     }
 
-    // MARK: - Limits
-
-    /// Hard cap for subprocess stdout captured into the result; the canonical
-    /// truncation marker is appended whenever it is exceeded.
     private static let outputCap = 8_000
     private static let devEnvironmentTimeout: TimeInterval = 60
     private static let quickTimeout: TimeInterval = 15
     private static let logTimeout: TimeInterval = 45
     private static let defaultsTimeout: TimeInterval = 10
 
-    /// sysctl names the model may read, with the expected value kind.
     private enum SysctlKind { case string, int32, uint64 }
     private static let sysctlAllowlist: [String: SysctlKind] = [
         "kern.ostype": .string,
@@ -97,12 +71,7 @@ public struct AssistSystemTool: AssistTool {
         "machdep.cpu.brand_string": .string
     ]
 
-    /// Domains that are never writable through this tool: the global domain
-    /// affects every app, and anything outside the user domain (paths, the
-    /// system /Library) is out of scope.
     private static let blockedDomains: Set<String> = ["NSGlobalDomain"]
-
-    // MARK: - Execute
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let operation = input["operation"] as? String, !operation.isEmpty else {
@@ -152,15 +121,8 @@ public struct AssistSystemTool: AssistTool {
         }
     }
 
-    // MARK: - Helpers
-
-    /// Caps tool output at `outputCap` characters with the canonical
-    /// truncation marker; returns the (possibly capped) text and whether it
-    /// was capped.
     private func cappedOutput(_ output: String) -> (String, Bool) {
         guard output.count > Self.outputCap else { return (output, false) }
-        // output: truncated head; canonical marker appended so the model
-        // never mistakes a cut payload for a complete one.
         let head = String(output.prefix(Self.outputCap))
         return (head + "\n…[truncated: output exceeded \(Self.outputCap) characters]", true)
     }
@@ -189,8 +151,6 @@ public struct AssistSystemTool: AssistTool {
         return String(cString: bytes)
     }
 
-    /// Runs a fixed system binary via the sanctioned argv runner. Never a
-    /// shell: arguments are passed as argv elements only.
     private func runFixed(_ path: String, _ args: [String], timeout: TimeInterval, context: AssistContext) async -> AssistArgvRunner.Result? {
         let start = Date()
         do {
@@ -217,8 +177,6 @@ public struct AssistSystemTool: AssistTool {
         text.localizedCaseInsensitiveContains("not permitted") ||
         text.localizedCaseInsensitiveContains("operation not permitted")
     }
-
-    // MARK: - Diagnostics
 
     private func opSystemInfo() -> AssistToolResult {
         let info = ProcessInfo.processInfo
@@ -252,8 +210,6 @@ public struct AssistSystemTool: AssistTool {
 
     private func opDevEnvironment(context: AssistContext) async -> AssistToolResult {
         var sections: [String] = []
-        // Each probe is a fixed binary + fixed argv; a missing tool is
-        // reported, not fabricated.
         let probes: [(label: String, path: String, args: [String])] = [
             ("xcodebuild", "/usr/bin/xcodebuild", ["-version"]),
             ("swift", "/usr/bin/swift", ["--version"]),
@@ -353,8 +309,6 @@ public struct AssistSystemTool: AssistTool {
         }
         if result.exitCode != 0 {
             if permissionDeniedIn(result.output) {
-                // lsof cannot inspect other users' sockets without privileges;
-                // we report that honestly instead of attempting escalation.
                 return .failure("lsof was denied access to socket information (requires privileges this tool will not request). Output so far: \(result.output.trimmingCharacters(in: .whitespacesAndNewlines))", code: .permissionDenied)
             }
             if result.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -380,8 +334,6 @@ public struct AssistSystemTool: AssistTool {
         }
         let timeout = clampedDouble(params["timeoutSeconds"], default: 5, min: 1, max: 30)
         let start = Date()
-        // Blocking POSIX connect/select runs off the main actor; execute()
-        // is @MainActor and must never stall the UI thread.
         let reachable = await Task.detached(priority: .utility) {
             Self.tcpConnect(host: host, port: port, timeoutSeconds: timeout)
         }.value
@@ -456,8 +408,6 @@ public struct AssistSystemTool: AssistTool {
     }
 
     private func opServiceStatus(context: AssistContext) async -> AssistToolResult {
-        // Read-only listing of the user's launchd domain. No load/unload —
-        // that would change system state and is out of scope.
         guard let result = await runFixed("/bin/launchctl", ["list"], timeout: Self.quickTimeout, context: context) else {
             return .failure("Failed to launch /bin/launchctl", code: .executionFailed)
         }
@@ -472,7 +422,6 @@ public struct AssistSystemTool: AssistTool {
         }
         let (content, wasTruncated) = cappedOutput(result.output.trimmingCharacters(in: .whitespacesAndNewlines))
         let rows = content.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        // First row is the header; the rest are services.
         let serviceCount = max(0, rows.count - 1)
         return .success(content, data: [
             "operation": "service_status",
@@ -500,8 +449,6 @@ public struct AssistSystemTool: AssistTool {
         ])
     }
 
-    // MARK: - Mutation: user_defaults_write
-
     private func opUserDefaultsWrite(target: String?, params: [String: Any], context: AssistContext) async -> AssistToolResult {
         let domain = (params["domain"] as? String) ?? target
         guard let domain = domain, !domain.isEmpty else {
@@ -525,7 +472,6 @@ public struct AssistSystemTool: AssistTool {
         guard let rawValue = params["value"] else {
             return .failure("Missing required parameters.value (string, number, or boolean)", code: .missingArgument)
         }
-        // defaults write needs a typed flag; only scalar JSON types allowed.
         let writeArgs: [String]
         let expectedReadback: String
         if let b = rawValue as? Bool {
@@ -535,7 +481,6 @@ public struct AssistSystemTool: AssistTool {
             writeArgs = [s]
             expectedReadback = s
         } else if let n = rawValue as? NSNumber {
-            // NSNumber covers Int/Double from JSON; Bool was handled above.
             if n.doubleValue == n.doubleValue.rounded(), abs(n.doubleValue) < 9_000_000_000_000_000 {
                 writeArgs = ["-int", "\(n.intValue)"]
                 expectedReadback = "\(n.intValue)"
@@ -547,12 +492,9 @@ public struct AssistSystemTool: AssistTool {
             return .failure("parameters.value must be a string, number, or boolean (objects, arrays, and null are rejected)", code: .invalidInput)
         }
 
-        // Capture the previous value so the report can show before/after.
         let before = await defaultsRead(domain: domain, key: key, context: context)
         let previousDisplay = before ?? "<not set>"
 
-        // Perform the write (user domain only; defaults never touches
-        // /Library or SIP-protected locations from here).
         guard let writeResult = await runFixed("/usr/bin/defaults", ["write", domain, key] + writeArgs, timeout: Self.defaultsTimeout, context: context) else {
             return .failure("Failed to launch /usr/bin/defaults", code: .executionFailed)
         }
@@ -563,7 +505,6 @@ public struct AssistSystemTool: AssistTool {
             return .failure("defaults write failed (exit \(writeResult.exitCode)): \(writeResult.output.trimmingCharacters(in: .whitespacesAndNewlines))", code: .executionFailed)
         }
 
-        // Verify by reading back; a mismatch means the write did not take.
         guard let readback = await defaultsRead(domain: domain, key: key, context: context) else {
             return .failure("defaults write reported success but the value could not be read back (before: \(previousDisplay))", code: .executionFailed)
         }
@@ -585,8 +526,6 @@ public struct AssistSystemTool: AssistTool {
         ])
     }
 
-    /// Reads one key from a user-domain defaults domain. Returns nil when the
-    /// key (or domain) does not exist or the read fails.
     private func defaultsRead(domain: String, key: String, context: AssistContext) async -> String? {
         guard let result = await runFixed("/usr/bin/defaults", ["read", domain, key], timeout: Self.defaultsTimeout, context: context),
               !result.timedOut, result.exitCode == 0 else {
@@ -594,8 +533,6 @@ public struct AssistSystemTool: AssistTool {
         }
         return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
-    // MARK: - Native Darwin helpers
 
     private func readSysctl(_ name: String, kind: SysctlKind) -> String? {
         var size = 0
@@ -618,8 +555,6 @@ public struct AssistSystemTool: AssistTool {
         }
     }
 
-    /// Bounded TCP connect using POSIX sockets: non-blocking connect +
-    /// poll() with the requested timeout. No unbounded waits.
     nonisolated private static func tcpConnect(host: String, port: Int, timeoutSeconds: TimeInterval) -> Bool {
         var hints = addrinfo()
         hints.ai_socktype = Int32(SOCK_STREAM)

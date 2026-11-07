@@ -1,12 +1,6 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/LocalModelManager.swift
-// Adapted for SwiftCode: Local model inventory (CoreML/GGUF/ONNX by extension) in ~/Documents/Models. AppSettings replaced by UserDefaults keys; ObservableObject -> @Observable.
-
 import Foundation
 import Observation
 import Observation
-
-// MARK: - Local Model Info
 
 struct LocalModelInfo: Identifiable {
     let id: String
@@ -40,17 +34,11 @@ struct LocalModelInfo: Identifiable {
     }
 }
 
-// MARK: - Local Model Manager
-
 @MainActor
 @Observable
 final class LocalModelManager {
     static let shared = LocalModelManager()
 
-    /// NOTE (honest): like Legacy, "loading" a model only records a
-    /// preference (selected model id + enabled flag). No model is actually
-    /// executed by this manager; the runtime that consumes the preference
-    /// does the loading.
     private static let selectedModelKey = "com.swiftcode.localModel.selectedModel"
     private static let enabledKey = "com.swiftcode.localModel.enabled"
     private let defaults = UserDefaults.standard
@@ -69,15 +57,11 @@ final class LocalModelManager {
         Task { await scanModels() }
     }
 
-    // MARK: - Directory
-
     private func ensureModelsDirectory() {
         try? FileManager.default.createDirectory(
             at: modelsDirectory, withIntermediateDirectories: true
         )
     }
-
-    // MARK: - Scan
 
     func scanModels() async {
         isScanning = true
@@ -119,14 +103,8 @@ final class LocalModelManager {
         models = found.sorted { $0.name < $1.name }
     }
 
-    // MARK: - Load / Unload
-
     func loadModel(_ model: LocalModelInfo) {
-        // On iOS, CoreML models are loaded on-demand via MLModel API.
-        // This sets the active model preference for AISuggestionEngine.
         loadedModelId = model.id
-        // Legacy wrote these into AppSettings; SwiftCode keeps them in
-        // UserDefaults under the same logical keys.
         defaults.set(model.fileName, forKey: Self.selectedModelKey)
         defaults.set(true, forKey: Self.enabledKey)
         refreshLoadedState()
@@ -144,15 +122,11 @@ final class LocalModelManager {
         }
     }
 
-    // MARK: - Delete
-
     func deleteModel(_ model: LocalModelInfo) throws {
         try FileManager.default.removeItem(at: model.url)
         models.removeAll { $0.id == model.id }
         if loadedModelId == model.id { unloadCurrentModel() }
     }
-
-    // MARK: - Import
 
     func importModel(from sourceURL: URL) throws {
         let destination = modelsDirectory.appendingPathComponent(sourceURL.lastPathComponent)

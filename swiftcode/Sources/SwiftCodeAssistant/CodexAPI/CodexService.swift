@@ -1,7 +1,5 @@
 import Foundation
 
-/// One Codex completion (ported from Legacy's `LLMResponse`, local to
-/// this client so it does not depend on another slice's Core types).
 public struct CodexLLMResponse: Sendable {
     public struct TokenUsage: Sendable {
         public let promptTokens: Int
@@ -28,14 +26,6 @@ public struct CodexLLMResponse: Sendable {
     }
 }
 
-/// The OpenAI Responses API client for Codex (ported from Legacy's
-/// `CodexService`).
-///
-/// This is the API-key transport, distinct from SwiftCode's existing Codex
-/// CLI provider (`ProviderKind.codex` in `SwiftCodeAssistant`): that one shells
-/// out to the `codex` CLI, this one talks to `api.openai.com` with a
-/// Bearer key. No key is ever embedded here — the caller supplies it.
-/// Retries up to 3 attempts with 500ms backoff steps; 60s timeout.
 public final class CodexService: Sendable {
     private let session: URLSession
     private let requestBuilder = CodexRequestBuilder()
@@ -73,7 +63,6 @@ public final class CodexService: Sendable {
         throw lastError ?? CodexAPIError.unknown("Codex request failed.")
     }
 
-    /// Sends a one-word probe to check whether `apiKey` works with `model`.
     public func validateAPIKey(_ apiKey: String, model: String) async -> Bool {
         let validationSession = CodexSession(messages: [])
         do {

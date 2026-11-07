@@ -169,9 +169,7 @@ final class RPCTests: XCTestCase {
     func testDisallowedMethodIsRejected() {
         let request = RPCRequest(id: "host-1", method: "activate")
         let data = try! ExtensionRPC.encodeRequest(request)
-        // "activate" is a SwiftCode->host method; from the host it is disallowed.
         XCTAssertThrowsError(try ExtensionRPC.decodeRequest(from: Data(data.dropLast()), fromHost: true))
-        // And a host method is disallowed in the SwiftCode direction.
         let hostRequest = RPCRequest(id: "x", method: "host.log")
         let hostData = try! ExtensionRPC.encodeRequest(hostRequest)
         XCTAssertThrowsError(try ExtensionRPC.decodeRequest(from: Data(hostData.dropLast()), fromHost: false))

@@ -1,8 +1,3 @@
-/// A property-list value in the OpenStep (NeXTSTEP) data model.
-///
-/// OpenStep plists have no number, boolean, or date types: every scalar is a
-/// string. Dictionaries keep their insertion order so that documents can be
-/// edited without reshuffling keys.
 public enum PlistValue: Equatable, Hashable, Sendable {
     case string(String)
     case array([PlistValue])
@@ -39,7 +34,6 @@ extension PlistValue: ExpressibleByDictionaryLiteral {
     }
 }
 
-/// An insertion-ordered string-keyed dictionary.
 public struct PlistDictionary: Equatable, Hashable, Sendable, Sequence {
     public private(set) var keys: [String] = []
     private var storage: [String: PlistValue] = [:]
@@ -83,8 +77,6 @@ public struct PlistDictionary: Equatable, Hashable, Sendable, Sequence {
 }
 
 extension PlistValue {
-    /// The same value with every dictionary's keys sorted. Two values with
-    /// equal canonical forms differ only in key order.
     public var canonicalized: PlistValue {
         switch self {
         case .string, .data: self
@@ -95,8 +87,6 @@ extension PlistValue {
 }
 
 extension PlistDictionary {
-    /// The same dictionary with its keys sorted, recursively. Two
-    /// dictionaries with equal canonical forms differ only in key order.
     public var canonicalized: PlistDictionary {
         PlistDictionary(keys.sorted().map { ($0, self[$0]!.canonicalized) })
     }

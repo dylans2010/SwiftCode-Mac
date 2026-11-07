@@ -3,8 +3,6 @@ import Testing
 @testable import SwiftCodeDarwinKernel
 @testable import SwiftCodeHostServices
 
-/// The minimal host SCDynamicStore (scdynamicstore-host.md §4), driven over
-/// Mach by a second host task acting as the configd client.
 @Suite(.serialized) struct SCDynamicStoreHostServiceTests {
     static let ndr: [UInt8] = [0, 0, 0, 1, 0, 0, 0, 0]
 
@@ -41,7 +39,6 @@ import Testing
         let e = try env()
         defer { e.service.stop() }
         let name = Array("SimulatorSupport(host)".utf8), options = Array("<dict/>".utf8)
-        // configopen on the service port: a session port and status 0.
         let open = try call(e, to: e.server, id: 20000, descriptors: [.ool(data: name), .ool(data: options)],
                             body: Self.ndr + le(Int32(name.count)) + le(Int32(options.count)))
         #expect(open.id == 20100 && open.size == 52)
@@ -49,22 +46,18 @@ import Testing
             Issue.record("no session port")
             return
         }
-        #expect(type == 17)  // PORT_SEND
+        #expect(type == 17)
         #expect(Array(open.body.prefix(8)) == Self.ndr && i32(open.body, 8) == 0)
-        // notifyset: RetCode 0, status 0.
         let set = try call(e, to: session, id: 20025, descriptors: [.ool(data: [1]), .ool(data: [2])],
                            body: Self.ndr + le(1) + le(1))
         #expect(set.id == 20125 && i32(set.body, 8) == 0 && i32(set.body, 12) == 0)
-        // notifyviaport with a send right: accepted.
         let notify = try e.client.makePort()
         let via = try call(e, to: session, id: 20021, descriptors: [.port(name: notify, disposition: MachMsgType.makeSend)],
                            body: Self.ndr + le(0))
         #expect(via.id == 20121 && i32(via.body, 12) == 0)
-        // configget_m: no key (1004), an empty out-of-line array.
         let get = try call(e, to: session, id: 20016, descriptors: [.ool(data: [1]), .ool(data: [2])],
                            body: Self.ndr + le(1) + le(1))
         #expect(get.id == 20116 && get.descriptors.count == 1 && i32(get.body, 8) == 0 && i32(get.body, 12) == 1004)
-        // notifychanges: OK with a (binary plist) empty array.
         let changes = try call(e, to: session, id: 20020, body: Self.ndr)
         #expect(changes.id == 20120 && i32(changes.body, 12) == 0)
         if case let .ool(data, _, _)? = changes.descriptors.first {
@@ -72,11 +65,9 @@ import Testing
         } else {
             Issue.record("no change list")
         }
-        // A session routine on the service port: no session (2001).
         let wrong = try call(e, to: e.server, id: 20025, descriptors: [.ool(data: [1]), .ool(data: [2])],
                              body: Self.ndr + le(1) + le(1))
         #expect(i32(wrong.body, 12) == 2001)
-        // An unknown id: MIG_BAD_ID.
         let bad = try call(e, to: session, id: 20099, body: Self.ndr)
         #expect(bad.id == 20199 && i32(bad.body, 8) == -303)
     }
@@ -93,9 +84,6 @@ import Testing
         return session
     }
 
-    /// The network keys (scdynamicstore-host.md §7): copy multiple by
-    /// pattern, a single value, a key list; and a session that ends does not
-    /// stop the service.
     @Test func networkStateKeys() throws {
         SCDynamicStoreHostService.storeOverride = [
             "State:/Network/Global/IPv4": ["PrimaryInterface": "en0", "Router": "10.0.0.1"],
@@ -120,14 +108,12 @@ import Testing
         let v4 = try PropertyListSerialization.propertyList(from: dict["State:/Network/Global/IPv4"]!, options: [], format: nil)
             as? [String: String]
         #expect(v4?["PrimaryInterface"]?.string == "en0")
-        // configget of one key, and of a missing one.
         let key = plist("State:/Network/Global/Proxies")
         let one = try call(e, to: session, id: 20010, descriptors: [.ool(data: key)], body: Self.ndr + le(Int32(key.count)))
         #expect(one.id == 20110 && i32(one.body, 16) == 0 && i32(one.body, 8) > 0)
         let missing = plist("State:/Network/Global/IPv6")
         let none = try call(e, to: session, id: 20010, descriptors: [.ool(data: missing)], body: Self.ndr + le(Int32(missing.count)))
         #expect(i32(none.body, 16) == 1004)
-        // configlist with a pattern.
         let pattern = plist("State:/Network/Global/.*")
         let list = try call(e, to: session, id: 20008, descriptors: [.ool(data: pattern)], body: Self.ndr + le(Int32(pattern.count)) + le(1))
         if case let .ool(data, _, _)? = list.descriptors.first {
@@ -136,7 +122,6 @@ import Testing
         } else {
             Issue.record("no key list")
         }
-        // The session ends (its last send right goes); a new one opens.
         try e.client.deallocate(session)
         Thread.sleep(forTimeInterval: 0.5)
         let again = try openSession(e)

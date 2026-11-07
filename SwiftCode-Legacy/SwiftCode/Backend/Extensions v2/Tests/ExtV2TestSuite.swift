@@ -1,16 +1,5 @@
 import Foundation
 
-// MARK: - Extensions v2 in-app test suite
-//
-// Follows the repo's AssistRuntimeTestSuite convention: tests run
-// inside the app and return RuntimeTestCaseResult values, instead of
-// XCTest (which the app target does not link). Every case here is
-// offline and deterministic — no registry, no host process, no Node.
-// The suite is runnable from Extensions > Diagnostics ("Run
-// self-tests"). Registry download, package extraction, and host
-// activation are integration paths verified on Dylan's Mac (see
-// Docs/Extensions-v2.md checklist); they are not faked here.
-
 @MainActor
 public final class ExtV2TestSuite: Sendable {
     public static let shared = ExtV2TestSuite()
@@ -272,8 +261,6 @@ public final class ExtV2TestSuite: Sendable {
             return RuntimeTestCaseResult(testName: name, passed: false, message: error.localizedDescription, duration: Date().timeIntervalSince(start))
         }
     }
-
-    // MARK: Fixtures
 
     private static func manifest() throws -> ExtV2VSCodeManifest {
         try ExtV2ManifestParser.parse(data: manifestData())

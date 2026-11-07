@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: MetalKit
-
 public struct MetalKitInterface_0000: Sendable, Codable {
     public let id: String = "metalkit.api.0"
     public var title: String = "MetalKit Symbol 0"

@@ -3,15 +3,11 @@ import SwiftCodeDeviceUI
 import SwiftCodeIDECore
 import SwiftCodeSubprocess
 
-/// A preview device running the preview host, with its display stream and
-/// the host's reports. One per preview device, shared by every workspace
-/// window (`RemotePreviewSessions`). See `specs/ide/previews.md`.
 @MainActor
 public final class RemotePreviewSession {
     public enum Phase: Equatable {
         case stopped
         case uploading
-        /// Booting or restoring the device, installing and launching the host.
         case starting(String)
         case running
         case failed(String)
@@ -22,14 +18,11 @@ public final class RemotePreviewSession {
     public private(set) var phase: Phase = .stopped
     public private(set) var link: RemoteDisplayLink?
     public private(set) var host = PreviewHostState(running: false)
-    /// The last plan the host reported ready, and the plan in flight.
     public private(set) var readyGeneration = 0
     public private(set) var generation = 0
     public private(set) var lastPlan: PreviewPlan?
-    /// Times of the start (seconds from `start` to the host's `started`).
     public private(set) var startSeconds: Double?
     public var onChange: (() -> Void)?
-    /// The launcher's lines (diagnostics; the canvas does not show them).
     public var onLine: ((String) -> Void)?
     private var process: StreamingProcess?
     private var reports: StreamingProcess?
@@ -37,7 +30,6 @@ public final class RemotePreviewSession {
     private var waiters: [Int: CheckedContinuation<SwiftCodePreviews.PreviewHost.Report, Never>] = [:]
     private var startWaiters: [CheckedContinuation<Bool, Never>] = []
     private let controlPath: String
-    /// The deployment target of the host (the runtime's version).
     public let deploymentTarget: String
 
     public init(remote: RemoteSimulator, platform: PreviewPlatform) {
@@ -49,8 +41,6 @@ public final class RemotePreviewSession {
 
     static func majorMinor(_ v: String) -> String { v.split(separator: ".").prefix(2).joined(separator: ".") }
 
-    /// ssh options: keys only, and one shared connection for every call
-    /// (uploads cost one round trip instead of a new login).
     var sshOptions: [String] {
         ["-o", "BatchMode=yes", "-o", "ControlMaster=auto", "-o", "ControlPath=\(controlPath)", "-o", "ControlPersist=600",
          "-o", "ServerAliveInterval=15"]
@@ -60,8 +50,6 @@ public final class RemotePreviewSession {
 
     public var isRunning: Bool { phase == .running }
 
-    /// Uploads the host, starts the device and waits (up to `timeout`) for the
-    /// host's `started` report. Returns false when it did not start.
     @discardableResult
     public func start(hostApp: URL, timeout: TimeInterval = 900) async -> Bool {
         switch phase {
@@ -84,7 +72,6 @@ public final class RemotePreviewSession {
         guard upload.0 == 0 else { return fail("Could not copy the preview host to the simulator host: \(upload.1)") }
         phase = .starting("Starting the preview device")
         onChange?()
-        // The host's reports first, so `started` is not missed.
         let rep = StreamingProcess(executable: r.settings.ssh, arguments: ssh(r.previewReportCommand))
         reports = rep
         try? rep.start(onLine: { [weak self] line in self?.report(line) }, onExit: { _ in })
@@ -164,17 +151,13 @@ public final class RemotePreviewSession {
         onChange?()
     }
 
-    /// Timings of one delivery, in seconds.
     public struct Delivery: Equatable, Sendable {
         public var generation: Int
         public var upload: Double
-        /// From the upload's end to the host's `ready`.
         public var load: Double
         public var hostMilliseconds: Int
     }
 
-    /// Sends a plan (with a new payload, or the loaded one) and waits for
-    /// the host to show it.
     public func deliver(payload: URL?, regions: [PreviewRegion], timeout: TimeInterval = 60) async throws(PreviewFailure) -> Delivery {
         guard phase == .running else { throw .host("The preview device is not running") }
         generation += 1
@@ -216,7 +199,6 @@ public final class RemotePreviewSession {
         }
     }
 
-    /// Stops the device (the launcher saves it for the next start).
     public func stop() async {
         guard process != nil else { return }
         if let pid = remotePID {
@@ -227,15 +209,12 @@ public final class RemotePreviewSession {
         }
     }
 
-    /// SwiftCode quits: SIGINT to the launcher without waiting (it saves the device).
     func stopForQuit() {
         if let pid = remotePID { _ = remote.runLocal(remote.settings.ssh, ssh("kill -INT \(pid)")) } else { process?.signal(SIGINT) }
         reports?.signal(SIGTERM)
     }
 }
 
-/// The running preview devices, keyed by device directory; they run until
-/// SwiftCode quits (then they are saved, as a run's device is at Stop).
 @MainActor
 public final class RemotePreviewSessions {
     public static let shared = RemotePreviewSessions()

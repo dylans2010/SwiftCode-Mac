@@ -1,10 +1,5 @@
 import Foundation
 
-// SwiftCodeSigning: code signing for SwiftCode's builds (specs/ide/signing.md).
-// It depends on Foundation only, because the `swiftcode-swb` helper
-// (swiftcode/Tools/swiftcode-swb) compiles the same sources through a symbolic link.
-
-/// One value of an entitlements or provisioning-profile property list.
 public indirect enum EntitlementValue: Equatable, Sendable {
     case string(String)
     case bool(Bool)
@@ -15,13 +10,10 @@ public indirect enum EntitlementValue: Equatable, Sendable {
     case array([EntitlementValue])
     case dictionary([String: EntitlementValue])
 
-    /// A value from a Foundation property-list object (`PropertyListSerialization`).
     public init?(propertyList value: Any) {
         switch value {
         case let s as String: self = .string(s)
         case let n as NSNumber:
-            // Booleans and numbers both arrive as NSNumber; the encoding
-            // type tells them apart ("c" or "B" for booleans).
             let type = String(cString: n.objCType)
             if type == "c" || type == "B" { self = .bool(n.boolValue) }
             else if type == "d" || type == "f" { self = .real(n.doubleValue) }
@@ -46,7 +38,6 @@ public indirect enum EntitlementValue: Equatable, Sendable {
         }
     }
 
-    /// The Foundation property-list object.
     public var propertyList: Any {
         switch self {
         case .string(let s): s
@@ -66,7 +57,6 @@ public indirect enum EntitlementValue: Equatable, Sendable {
     public var dictionaryValue: [String: EntitlementValue]? { if case .dictionary(let d) = self { d } else { nil } }
     public var dateValue: Date? { if case .date(let d) = self { d } else { nil } }
     public var dataValue: Data? { if case .data(let d) = self { d } else { nil } }
-    /// The strings of a string or an array of strings.
     public var strings: [String] {
         switch self {
         case .string(let s): [s]
@@ -76,7 +66,6 @@ public indirect enum EntitlementValue: Equatable, Sendable {
     }
 }
 
-/// An entitlements dictionary.
 public typealias Entitlements = [String: EntitlementValue]
 
 public enum PropertyListError: Error, Equatable, CustomStringConvertible {
@@ -92,7 +81,6 @@ public enum PropertyListError: Error, Equatable, CustomStringConvertible {
 }
 
 public extension Dictionary where Key == String, Value == EntitlementValue {
-    /// A dictionary from property-list data (XML or binary).
     static func fromPropertyList(_ data: Data) throws -> Entitlements {
         let object: Any
         do { object = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) } catch {
@@ -102,12 +90,10 @@ public extension Dictionary where Key == String, Value == EntitlementValue {
         return d
     }
 
-    /// The dictionary as an XML property list (keys sorted, as Foundation writes them).
     func xmlPropertyList() throws -> Data {
         try PropertyListSerialization.data(fromPropertyList: mapValues(\.propertyList), format: .xml, options: 0)
     }
 
-    /// `self` with `other`'s keys added, `other` winning on conflicts.
     func overlaid(with other: Entitlements) -> Entitlements {
         merging(other) { _, new in new }
     }

@@ -3,13 +3,8 @@ import SwiftCodeBuild
 import SwiftCodeDebug
 import SwiftCodeSubprocess
 
-/// `xcrun simctl` for running apps on Mac simulators. Never opens the
-/// Simulator app: devices are booted headless. See `specs/ide/run.md`.
 public struct Simctl: Sendable {
-    /// Runs `xcrun simctl <args>` and returns (status, stdout+stderr).
     public var run: @Sendable ([String]) -> (Int32, String)
-    /// The program and leading arguments of the streamed `launch` (tests
-    /// put a stand-in here).
     public var launchCommand = ["/usr/bin/xcrun", "simctl"]
 
     public init(run: @escaping @Sendable ([String]) -> (Int32, String) = Simctl.xcrun) { self.run = run }
@@ -19,8 +14,6 @@ public struct Simctl: Sendable {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         p.arguments = ["simctl"] + args
-        // Output goes to a file, not a pipe: processes simctl starts may
-        // keep a pipe open long after simctl itself has exited.
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-simctl-\(UUID().uuidString).txt")
         FileManager.default.createFile(atPath: file.path, contents: nil)
         defer { try? FileManager.default.removeItem(at: file) }
@@ -44,33 +37,25 @@ public struct Simctl: Sendable {
         return out
     }
 
-    /// Boots the device (if needed) and waits until it has finished booting.
     public func boot(_ udid: String) throws { try checked(["bootstatus", udid, "-b"]) }
     public func install(_ udid: String, app: URL) throws { try checked(["install", udid, app.path]) }
     public func terminate(_ udid: String, bundleID: String) { _ = run(["terminate", udid, bundleID]) }
     public func shutdown(_ udid: String) { _ = run(["shutdown", udid]) }
 
-    /// The launch: app stdout/stderr redirected to files (which SwiftCode
-    /// follows), any running copy replaced; simctl returns at once and
-    /// prints `<bundle id>: <pid>`.
     public static func launchArguments(udid: String, bundleID: String, waitForDebugger: Bool, arguments: [String] = []) -> [String] {
         ["launch", "--console", "--terminate-running-process"] + (waitForDebugger ? ["--wait-for-debugger"] : []) + [udid, bundleID] + arguments
     }
 
-    /// `"<bundle id>: <pid>"`, the first line `simctl launch` prints.
     public static func launchedPID(_ line: String, bundleID: String) -> Int? {
         guard line.hasPrefix(bundleID + ":") else { return nil }
         return Int(line.dropFirst(bundleID.count + 1).trimmingCharacters(in: .whitespaces))
     }
 }
 
-/// An application bundle's identity (Info.plist).
 public struct AppBundle: Equatable, Sendable {
     public var url: URL
     public var bundleID: String
     public var executable: String
-    /// The executable inside the bundle (flat iOS layout or macOS
-    /// `Contents/MacOS`).
     public var executableURL: URL {
         let flat = url.appendingPathComponent(executable)
         return FileManager.default.fileExists(atPath: flat.path) ? flat : url.appendingPathComponent("Contents/MacOS/\(executable)")
@@ -87,16 +72,6 @@ public struct AppBundle: Equatable, Sendable {
     }
 }
 
-/// A long-running child process whose output lines are delivered on the
-/// main actor, in order, and then its exit status.
-///
-/// The exit is reported once the output has been read to its end (or
-/// `outputGrace` after the process ended, when a child that inherited the
-/// pipe keeps it open; swift-corelibs-foundation itself reports the end of
-/// a process only once its pipe has closed): the process can end while its
-/// last lines are still in the pipe, and callers release the run's state in
-/// `onExit`, so lines read after it were lost (a remote launcher's last
-/// line, under load).
 package final class StreamingProcess: @unchecked Sendable {
     let process = Process()
     private let pipe = Pipe()
@@ -106,10 +81,7 @@ package final class StreamingProcess: @unchecked Sendable {
     private var reachedEnd = false
     private var reported = false
     private var events: AsyncStream<Event>.Continuation?
-    /// After the process ended, how long its output may take to reach the
-    /// end of the pipe before the exit is reported anyway.
     package var outputGrace: TimeInterval = 1
-    /// Tests: a pause before each read (the late reader of a loaded machine).
     package var readDelayForTesting: TimeInterval = 0
 
     private enum Event: Sendable {
@@ -125,11 +97,7 @@ package final class StreamingProcess: @unchecked Sendable {
         process.standardError = pipe
     }
 
-    /// Starts; `onLine` gets each line (without the newline), then `onExit`
-    /// the status. Lines that arrive after a reported exit (a child kept the
-    /// pipe open past `outputGrace`) still reach `onLine`, after it.
     package func start(onLine: @escaping @MainActor (String) -> Void, onExit: @escaping @MainActor (Int32) -> Void) throws {
-        // One consumer on the main actor keeps lines and the exit in order.
         let (stream, continuation) = AsyncStream<Event>.makeStream()
         lock.lock()
         events = continuation
@@ -149,10 +117,6 @@ package final class StreamingProcess: @unchecked Sendable {
             continuation.finish()
             throw error
         }
-        // One reader thread, reads in order until the end of the output (a
-        // readability handler may run its calls concurrently with
-        // swift-corelibs-foundation). It holds the object until then, so no
-        // output is dropped for want of an owner.
         let delay = readDelayForTesting
         let reader = pipe.fileHandleForReading
         let thread = Thread {
@@ -196,8 +160,6 @@ package final class StreamingProcess: @unchecked Sendable {
         if done { c?.finish() } else if ended { report() }
     }
 
-    /// The rest of the output (a last line without a newline), then the
-    /// exit; once.
     private func report() {
         lock.lock()
         guard !reported, let status = exitStatus else { lock.unlock(); return }
@@ -228,24 +190,18 @@ package final class StreamingProcess: @unchecked Sendable {
     package func signal(_ s: Int32) { if process.isRunning { kill(process.processIdentifier, s) } }
 }
 
-/// What is running on a simulator (Mac or remote).
 @MainActor
 public final class SimulatorRunState {
     public enum Target: Equatable, Sendable { case mac(udid: String), remote(destination: String) }
     public let target: Target
     public let app: AppBundle
     public internal(set) var pid: Int?
-    /// The remote shell's pid (remote runs), for Stop.
     public internal(set) var remotePID: Int?
     public internal(set) var exitStatus: Int32?
-    /// Stop was asked for (remote runs: the launcher is saving the device).
     public internal(set) var stopRequested = false
-    /// The IDE closed the connection itself after the stop had finished.
     public internal(set) var closedByIDE = false
-    /// The remote simulator this run uses (its settings at the start).
     package var remote: RemoteSimulator?
     var process: StreamingProcess?
-    /// The ssh forward of the debug stub (remote runs under the debugger).
     var debugForward: Process?
 
     package init(target: Target, app: AppBundle) {
@@ -255,15 +211,10 @@ public final class SimulatorRunState {
 }
 
 extension WorkspaceSession {
-    /// Runs an app on a Mac simulator: boot (headless), install, launch with
-    /// its output in the console; with `debug`, launch waiting for the
-    /// debugger and attach lldb-dap to the app's process.
     public func runOnSimulator(app appURL: URL, udid: String, debug: Bool, simctl: Simctl = Simctl(), adapter: DAPTransport? = nil) async {
         guard let app = AppBundle(url: appURL) else { appendConsole("SwiftCode: \(appURL.lastPathComponent) is not an application bundle.\n"); return }
         let state = SimulatorRunState(target: .mac(udid: udid), app: app)
         simulatorRun = state
-        // reference-ui-6.md §3.3: "Launching <product>" while the simulator
-        // boots, the app installs and launches; no separate boot text.
         let device = destination.flatMap { $0.identifier == udid ? $0.name : nil } ?? "Simulator"
         runningProduct = app.executable
         runningDeviceName = device
@@ -279,11 +230,6 @@ extension WorkspaceSession {
             setActivity(.finished("Run failed"))
             return
         }
-        // simctl stays attached with the app's output (`--console`); the
-        // app's pid comes from the host process list (simulator apps are
-        // host processes).
-        // Scheme arguments follow the bundle id; environment variables reach
-        // the app through simctl's SIMCTL_CHILD_ prefix.
         let o = launchOptions
         var env: [String: String]?
         if !o.environment.isEmpty {
@@ -312,26 +258,20 @@ extension WorkspaceSession {
             return
         }
         let marker = "/\(appURL.lastPathComponent)/\(app.executable)"
-        // A cold or contended simulator can take far longer than a few
-        // seconds to start the app, so poll until the run ends (2 min cap).
         for _ in 0..<1200 where state.pid == nil && simulatorRun === state && state.exitStatus == nil {
             if let pid = await Task.detached(operation: { Self.newestProcess(matching: marker) }).value { state.pid = pid; break }
             try? await Task.sleep(for: .milliseconds(100))
         }
-        // The app is up (or never reported a pid): under the debugger,
-        // "Configuring Debugger Actions" until it is attached and resumed.
         guard simulatorRun === state, state.exitStatus == nil else { return }
         if debug, let pid = state.pid {
             setActivity(.running(RunActivityText.configuringDebugger))
             await attachToSimulatorApp(pid: pid, executable: app.executableURL.path, adapter: adapter)
         }
-        // A breakpoint may already have stopped the app.
         guard simulatorRun === state, state.exitStatus == nil else { return }
         if case .paused = activity { return }
         setActivity(.running(RunActivityText.running(app.executable, on: device)))
     }
 
-    /// The newest host process whose command line contains `marker` (`pgrep -n -f`).
     nonisolated static func newestProcess(matching marker: String) -> Int? {
         MainThreadGuard.blockingCall("pgrep -f")
         let p = Process()
@@ -345,8 +285,6 @@ extension WorkspaceSession {
         return Int(String(decoding: d, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    /// Attaches lldb-dap to a simulator app by pid (lldb picks the
-    /// simulator platform from the executable).
     func attachToSimulatorApp(pid: Int, executable: String, adapter: DAPTransport?) async {
         let transport: DAPTransport
         if let adapter { transport = adapter } else {
@@ -364,8 +302,6 @@ extension WorkspaceSession {
             attachingSimulatorApp = true
             defer { attachingSimulatorApp = false }
             try await client.attach(pid: pid, program: executable, waitFor: false, threadFormat: DebugThread.format)
-            // Attaching stops the app (it was waiting for the debugger):
-            // resume it once so it runs to the breakpoints.
             for _ in 0..<100 where stoppedThread == nil { try? await Task.sleep(for: .milliseconds(100)) }
             attachingSimulatorApp = false
             if stoppedThread != nil { await continueOrPause() }
@@ -374,15 +310,10 @@ extension WorkspaceSession {
         }
     }
 
-    /// Stop for simulator runs: terminate the app (Mac) or signal the
-    /// remote process; also ends the debug session.
     public func stopSimulatorRun(simctl: Simctl = Simctl(), remote: RemoteSimulator? = nil) {
         guard let run = simulatorRun else { return }
         switch run.target {
         case .mac(let udid):
-            // Off the main actor and after the debugger lets go: `simctl
-            // terminate` waits for the app to exit, which a process stopped
-            // under the debugger never does.
             let client = debugClient, bundleID = run.app.bundleID, process = run.process
             Task.detached {
                 if let client { try? await client.disconnect(terminate: true); client.close() }
@@ -393,23 +324,11 @@ extension WorkspaceSession {
         case .remote:
             stopRemoteRun(run, remote: run.remote ?? remote)
         }
-        // A remote run's debugger detaches: the launcher ends the app at its
-        // save (debug-stub.md §8).
         if let c = debugClient { Task { try? await c.disconnect(terminate: false); c.close() } }
     }
 
-    /// Stop for the remote simulator (`run.md` §Remote, `snapshot.md`
-    /// §12.2): SIGINT to the launcher's pid through ssh, the signal it
-    /// turns into the save at the stop (swiftcode-simd ends the app, saves the
-    /// device and exits). The connection stays open meanwhile, so the
-    /// launcher's report reaches the console; it is closed once the
-    /// launcher reports the save, when the signal could not be delivered,
-    /// after `stopGrace`, or at a second Stop. Stop before the remote pid
-    /// is known sends the signal when it arrives; Stop during the upload
-    /// ends the run before it launches.
     func stopRemoteRun(_ run: SimulatorRunState, remote: RemoteSimulator?) {
         if run.stopRequested {
-            // A second Stop: do not wait for the save any longer.
             run.process?.signal(SIGINT)
             return
         }
@@ -420,8 +339,6 @@ extension WorkspaceSession {
         if let pid = run.remotePID { sendRemoteStop(run, pid: pid, remote: remote) }
     }
 
-    /// Delivers the stop signal off the main actor; closes the connection
-    /// when that fails, or after the grace time.
     func sendRemoteStop(_ run: SimulatorRunState, pid: Int, remote: RemoteSimulator) {
         let process = run.process
         Task { [weak self] in

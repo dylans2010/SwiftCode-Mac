@@ -1,15 +1,5 @@
 import Foundation
 
-// MARK: - SDKAuditLog
-//
-// Ported from Legacy `SwiftCode/SDK/Assist/Audit/SDKAuditLog.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Append-only audit trail for security-relevant SDK host events. The log
-// is a JSON-lines file; `record()` never throws (a logging failure is
-// reported through the OS log, never back to the caller). Detail strings
-// MUST NEVER contain secrets — identifiers only.
-
 public enum SDKAuditEventType: String, Sendable, Codable {
     case permissionRequested
     case permissionGranted
@@ -63,11 +53,6 @@ public struct SDKAuditEvent: Sendable, Codable, Equatable {
     }
 }
 
-/// Append-only JSON-lines audit log at
-/// `~/Library/Application Support/SwiftCode/SDKAudit.jsonl`
-/// (Linux: `~/.config/swiftcode/sdk-audit.jsonl`). Directory 0700, file 0600,
-/// re-enforced on every write. A single `FileHandle` is kept seeked to
-/// the end for appends.
 public actor SDKAuditLog {
     public static let shared = SDKAuditLog()
 
@@ -86,9 +71,6 @@ public actor SDKAuditLog {
 
     private init() {}
 
-    /// Records an event. Never throws: failures are reported through the
-    /// OS log and the event is dropped, never propagated to the caller.
-    /// `detail` must contain identifiers only — never secrets.
     public func record(
         _ type: SDKAuditEventType,
         extensionID: String? = nil,
@@ -119,8 +101,6 @@ public actor SDKAuditLog {
         }
     }
 
-    /// The most recent `limit` events, oldest first. Undecodable lines
-    /// are skipped and reported through the OS log as a tamper signal.
     public func recentEvents(limit: Int) -> [SDKAuditEvent] {
         guard let data = try? Data(contentsOf: logURL) else { return [] }
         let decoder = JSONDecoder()

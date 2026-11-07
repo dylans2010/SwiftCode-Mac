@@ -1,8 +1,6 @@
 import Codegen
 import SwiftUI
 
-/// Uses code a build-tool plug-in generated in a package (`Codegen.message`)
-/// and in this app target itself (`AppMessages`, from AppMessages.codegen).
 @main
 struct PluginApp: App {
     static let report = "SWIFTCODE-PKG-SAMPLE plugin: \(Codegen.message); \(AppMessages.title)"

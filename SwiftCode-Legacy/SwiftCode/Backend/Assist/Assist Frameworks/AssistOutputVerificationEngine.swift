@@ -1,6 +1,5 @@
 import Foundation
 
-/// Verifies that generated outputs are complete and correct
 @MainActor
 public final class AssistOutputVerificationEngine {
     private let context: AssistContext
@@ -15,26 +14,22 @@ public final class AssistOutputVerificationEngine {
         self.context = context
     }
 
-    /// Verifies the completeness of execution outputs against disk reality and the compiler.
     public func verify(plan: AssistExecutionPlan) async -> VerificationResult {
         await context.logger.info("Verifying output completeness for: \(plan.goal)", toolId: "OutputVerification")
 
         var issues: [String] = []
         var suggestions: [String] = []
 
-        // Check 1: All steps have results
         for step in plan.steps where step.result == nil {
             issues.append("Step '\(step.description)' has no result")
             suggestions.append("Ensure step was executed")
         }
 
-        // Check 2: No stuck running steps
         for step in plan.steps where step.status == .running {
             issues.append("Step '\(step.description)' is still marked as running")
             suggestions.append("Complete or fail stuck steps before finishing")
         }
 
-        // Check 3: Completed steps must not report failure
         for step in plan.steps where step.status == .completed {
             if let result = step.result, !result.success {
                 issues.append("Step '\(step.description)' completed but reports failure: \(result.error ?? "unknown error")")
@@ -42,7 +37,6 @@ public final class AssistOutputVerificationEngine {
             }
         }
 
-        // Check 4: File operations produced real files with real content
         for step in plan.steps where ["file_write", "createFile", "generateFile"].contains(step.toolId) {
             if let path = step.input["path"], step.status == .completed {
                 if !context.fileSystem.exists(at: path) {
@@ -67,14 +61,12 @@ public final class AssistOutputVerificationEngine {
             }
         }
 
-        // Check 5: No failed steps
         let failedSteps = plan.steps.filter { $0.status == .failed }
         if !failedSteps.isEmpty {
             issues.append("\(failedSteps.count) step(s) failed")
             suggestions.append("Review and retry failed steps")
         }
 
-        // Check 6: Independent compilation verification
         let buildOutcome = await AssistVerificationPipeline.shared.verifyCompilation(context: context)
         if !buildOutcome.isSuccess {
             issues.append("Independent build verification failed: \(buildOutcome.error ?? "compilation errors")")

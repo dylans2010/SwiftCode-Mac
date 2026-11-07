@@ -1,32 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Settings/GeneralSettingsView.swift (lines 1–280 only)
-//   (Legacy main ab03f681) — `APIKeyProvider`, `APIKeyEntry`, `APIKeyManager`.
-//   The rest of that 3,494-line view file is NOT staged here (view scope,
-//   owned by the views worklist); only the key-manager types it declares.
-//
-// Destination: SwiftCodeAssistant/Providers/APIKeyManager.swift.
-//
-// Adaptations (behaviour preserved unless noted):
-// * `APIKeyProvider` / `APIKeyEntry` / `APIKeyManager` were internal in
-//   Legacy; made `public` — live main code calls them across modules
-//   (`AssistSettingsView` reads/stores OpenRouter/OpenAI/Anthropic/Gemini
-//   keys; `AssistModelProvider.storedAPIKey()` in this same batch calls
-//   `retrieveKey`).
-// * `import SwiftUI` NOT carried over: Legacy's `APIKeyProvider.tintColor`
-//   (a `Color`) has no callers in production and SwiftCodeAssistant must
-//   stay SwiftUI-free / Linux-buildable. If settings UI needs per-provider
-//   tints later, the mapping belongs in SwiftCodeUI, not here.
-//   `import Observation` added: `APIKeyManager` is `@Observable`.
-// * `import StoreKit` dropped: nothing in the extracted types uses it.
-// * Dependencies, all present: `KeychainService` (staged in this same
-//   batch), `DeploymentKeychainManager` (staged in this same batch),
-//   `AppSettings.shared.httpsAuthToken` (on main,
-//   `SwiftCodeAssistant/Models/AppSettings.swift:507`).
-
 import Foundation
 import Observation
-
-// MARK: - API Key Models
 
 public enum APIKeyProvider: String, Codable, CaseIterable {
     case openRouter = "OpenRouter"
@@ -67,8 +40,6 @@ public struct APIKeyEntry: Identifiable, Codable {
         self.provider = provider
     }
 }
-
-// MARK: - API Key Manager
 
 @Observable
 @MainActor
@@ -118,10 +89,7 @@ public final class APIKeyManager {
         KeychainService.shared.get(forKey: entry.keychainKey)
     }
 
-    // MARK: - Keychain Methods
-
     public func storeKey(service: APIKeyProvider, key: String) {
-        // Find existing entry or create new
         if let idx = keys.firstIndex(where: { $0.provider == service }) {
             update(keys[idx], keyValue: key)
         } else {

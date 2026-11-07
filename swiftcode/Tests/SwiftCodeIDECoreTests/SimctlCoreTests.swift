@@ -1,8 +1,3 @@
-// Simctl core tests — adapted Core slice (SwiftCode-Legacy SwiftCode/Core/Simulator).
-// Covers the JSON decode path for `simctl list -j`, the simulator state
-// predicate, orphaned-device detection on snapshots, and the preview
-// sandbox policy. Static only in this environment; run with `swift test`
-// on a machine with a Swift toolchain. See bulk/core-dispositions.tsv.
 import Foundation
 import Testing
 import SwiftCodeIDECore
@@ -104,4 +99,16 @@ import SwiftCodePreviews
         #expect(policy.blockedPaths.contains("/System"))
         #expect(policy.blockedPaths.contains("/private"))
     }
+
+    @Test func simulatorRebootCommandConstruction() {
+        let cmd = SimulatorCommand.reboot(udid: "A1B2C3D4-5678-90AB-CDEF-1234567890AB")
+        #expect(cmd.arguments == ["simctl", "reboot", "A1B2C3D4-5678-90AB-CDEF-1234567890AB"])
+        #expect(cmd.executable == "/usr/bin/xcrun")
+    }
+
+    @Test func simulatorNotifyPostCommandConstruction() {
+        let cmd = SimulatorCommand.notifyPost(udid: "A1B2C3D4-5678-90AB-CDEF-1234567890AB", notification: "com.apple.UIKit.SimulatorPreferences.ShakeDevice")
+        #expect(cmd.arguments == ["simctl", "notify_post", "A1B2C3D4-5678-90AB-CDEF-1234567890AB", "com.apple.UIKit.SimulatorPreferences.ShakeDevice"])
+    }
 }
+

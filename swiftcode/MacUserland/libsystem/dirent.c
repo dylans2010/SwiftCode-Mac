@@ -1,10 +1,3 @@
-// dirent.c - directory streams for SwiftCode's libSystem
-// (specs/macos/libsystem.md §12). Clean-room SwiftCode code from POSIX
-// opendir(3)/readdir(3) and the public Darwin layouts of DIR and struct
-// dirent (<dirent.h>, <sys/dirent.h>: 64-bit inode numbers, d_reclen,
-// d_namlen, d_type, 1024-byte d_name). Entries come from the kernel's
-// getdirentries64 (libsystem_kernel's __getdirentries64), which returns
-// records in that same layout.
 #include "ycl.h"
 
 struct ycl_dirent {
@@ -17,13 +10,13 @@ struct ycl_dirent {
 };
 
 typedef struct {
-    int fd;              // __dd_fd (the SDK's dirfd macro reads it)
-    size_t loc;          // offset of the next record in buf
-    size_t size;         // bytes in buf
+    int fd;
+    size_t loc;
+    size_t size;
     char *buf;
-    int len;             // buf capacity
-    long seek;           // the kernel's position cookie after this buffer
-    long padding;        // entries returned so far (telldir)
+    int len;
+    long seek;
+    long padding;
     int flags;
     pthread_mutex_t lock;
     void *td;
@@ -48,7 +41,7 @@ YCL_EXPORT DIR *fdopendir(int fd) {
     d->buf = buf;
     d->len = DIR_BUFFER;
     pthread_mutex_init(&d->lock, 0);
-    fcntl(fd, 2 /* F_SETFD */, 1 /* FD_CLOEXEC */);
+    fcntl(fd, 2 , 1 );
     return d;
 }
 
@@ -72,7 +65,6 @@ YCL_EXPORT int closedir(DIR *d) {
     return r;
 }
 
-// The next record, or 0 at the end (errno unchanged) or on error.
 static struct ycl_dirent *next_locked(DIR *d) {
     for (;;) {
         if (d->loc >= d->size) {
@@ -85,11 +77,11 @@ static struct ycl_dirent *next_locked(DIR *d) {
         }
         struct ycl_dirent *e = (struct ycl_dirent *)(d->buf + d->loc);
         if (e->d_reclen == 0 || d->loc + e->d_reclen > d->size) {
-            d->size = 0;  // a malformed buffer: read more
+            d->size = 0;
             continue;
         }
         d->loc += e->d_reclen;
-        if (e->d_ino == 0) continue;  // a deleted entry
+        if (e->d_ino == 0) continue;
         return e;
     }
 }
@@ -125,10 +117,6 @@ YCL_EXPORT void rewinddir(DIR *d) {
     pthread_mutex_unlock(&d->lock);
 }
 
-// A position is the number of entries returned since the stream was
-// opened or rewound (kept in the padding word); seekdir re-reads from the
-// start and skips that many, which is exact for a directory that does not
-// change meanwhile.
 YCL_EXPORT long telldir(DIR *d) {
     pthread_mutex_lock(&d->lock);
     long r = d->padding;

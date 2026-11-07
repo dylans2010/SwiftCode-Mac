@@ -1,14 +1,11 @@
 import Foundation
 
-/// The xcodebuild command-line grammar. See `specs/xcodebuild/cli.md` §1.
 public struct OptionSpec: Sendable {
     public enum Arity: Sendable { case flag, value }
     public var name: String
     public var arity: Arity
     public var repeatable: Bool
-    /// Argument placeholder for `-help` (empty for flags).
     public var placeholder: String
-    /// SwiftCode's own one-line description for `-help`.
     public var summary: String
 }
 
@@ -19,7 +16,6 @@ public enum BuildAction: String, CaseIterable, Sendable {
     case testWithoutBuilding = "test-without-building"
     case docbuild, installsrc, install, clean
 
-    /// The banner word: `** <WORD> SUCCEEDED **`.
     public var bannerWord: String {
         switch self {
         case .build: "BUILD"
@@ -36,22 +32,14 @@ public enum BuildAction: String, CaseIterable, Sendable {
     }
 }
 
-/// The parsed command line.
 public struct Invocation: Sendable {
-    /// The arguments as given (without the tool name).
     public var arguments: [String]
     public var actions: [BuildAction] = []
     public var flags: Set<String> = []
-    /// Value options in order of appearance.
     public var values: [(name: String, value: String)] = []
-    /// `NAME=value` overrides in order of appearance (empty names dropped).
     public var overrides: [(name: String, value: String)] = []
-    /// `-userdefault=value` user defaults in order of appearance.
     public var userDefaults: [(name: String, value: String)] = []
-    /// `-sdk` given without a value (allowed with `-version`).
     public var sdkWithoutValue = false
-    /// Trailing info items for `-version` (words after `-version` that are
-    /// not actions).
     public var infoItems: [String] = []
 
     public init(arguments: [String]) { self.arguments = arguments }
@@ -74,14 +62,10 @@ public struct Invocation: Sendable {
     public var quiet: Bool { has("-quiet") || has("-json") }
 }
 
-/// A failure that ends the run with an xcodebuild-style message.
 public struct XcodebuildFailure: Error, Equatable, Sendable {
-    /// Message lines, each printed as `xcodebuild: error: <line>`.
     public var messages: [String]
     public var exitCode: Int32
-    /// Followed by a blank line and the option help.
     public var withUsage = false
-    /// Followed by one blank line.
     public var trailingBlank = false
 
     public init(_ message: String, exitCode: Int32, withUsage: Bool = false, trailingBlank: Bool = false) {
@@ -97,7 +81,6 @@ public struct XcodebuildFailure: Error, Equatable, Sendable {
     }
 }
 
-/// `sysexits.h` codes used by xcodebuild.
 public enum ExitCode {
     public static let ok: Int32 = 0
     public static let usage: Int32 = 64
@@ -113,7 +96,6 @@ public enum ArgumentParser {
         OptionSpec(name: n, arity: .value, repeatable: repeatable, placeholder: p, summary: s)
     }
 
-    /// Every option, in `-help` order.
     public static let options: [OptionSpec] = [
         flag("-usage", "print the usage lines"),
         flag("-help", "print the usage lines and every option"),
@@ -247,7 +229,6 @@ public enum ArgumentParser {
 
     static let byName: [String: OptionSpec] = Dictionary(uniqueKeysWithValues: options.map { ($0.name, $0) })
 
-    /// Options whose attached form `-name:VALUE` is accepted.
     static let attachedValueOptions: Set<String> = ["-only-testing", "-skip-testing"]
 
     public static func parse(_ args: [String]) throws(XcodebuildFailure) -> Invocation {
@@ -269,7 +250,6 @@ public enum ArgumentParser {
                     name = String(a[..<colon])
                     inline = String(a[a.index(after: colon)...])
                 }
-                // `-userdefault=value`: a user default for this run.
                 if byName[name] == nil, inline == nil, let eq = a.firstIndex(of: "=") {
                     let key = String(a[a.index(after: a.startIndex)..<eq])
                     if !key.isEmpty { inv.userDefaults.append((key, String(a[a.index(after: eq)...]))) }
@@ -285,7 +265,6 @@ public enum ArgumentParser {
                     let v: String
                     if let inline { v = inline }
                     else if i < args.count {
-                        // `-sdk` may stand alone with `-version` (`-version -sdk`).
                         if name == "-sdk", args[i].hasPrefix("-") {
                             inv.sdkWithoutValue = true
                             continue
@@ -309,8 +288,6 @@ public enum ArgumentParser {
             } else if let action = BuildAction(rawValue: a) {
                 inv.actions.append(action)
             } else {
-                // An info item for `-version`; otherwise an unknown action
-                // (reported once the container is open).
                 inv.infoItems.append(a)
             }
         }

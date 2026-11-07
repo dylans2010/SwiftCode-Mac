@@ -1,21 +1,3 @@
-// A Vision Pro's input in the macOS viewer and the IDE's device canvas
-// (specs/simulator/visionos.md §5.1, §5.5.7 item 4; SwiftCode's choices in
-// "SwiftCode implementation" there). Active when the server's hello says
-// `spatial`; the shared SpatialInteraction (SwiftCodeDisplayStream) makes the
-// stage-frame values:
-//
-//   pointer moves               the gaze (a selection-only message)
-//   click / drag                right-hand pinch at the gaze, the hand moves with the pointer
-//   shift + drag                the pinched hand moves forward (up) or back (down)
-//   option + drag               both hands pinch: spread = magnify, turn = rotate
-//   control + drag              mouse-look (turns the camera)
-//   scroll / two-finger swipe   camera left/right and up/down
-//   trackpad pinch              camera forward/back
-//   option + scroll             the Digital Crown
-//   option + W A S D, arrows    camera forward/left/back/right, option + E/Q up/down,
-//                               option + R the start pose (Reset Camera)
-//   keys                        the keyboard, as on iOS (text fields)
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDisplayStream
@@ -25,7 +7,6 @@ extension DeviceView {
 
     private func spatialPoint(_ event: NSEvent) -> CGPoint { devicePoint(convert(event.locationInWindow, from: nil)) }
 
-    /// After a camera move: the pose, then the gaze again (it is in the stage frame).
     func spatialCameraMoved(_ pose: SpatialPose) {
         input?.sendPose(pose)
         if !spatial.isPinching { input?.sendSelection(spatial.gazeSelection, label: nil) }
@@ -73,7 +54,6 @@ extension DeviceView {
         return true
     }
 
-    /// Metres of camera motion per point of precise scrolling (a wheel's line is 10 points).
     static let spatialScrollMetres = 0.004
 
     func spatialScroll(_ event: NSEvent) -> Bool {
@@ -95,7 +75,6 @@ extension DeviceView {
 
     func spatialMagnify(_ event: NSEvent) -> Bool {
         guard spatialOn else { return false }
-        // Pinch out moves forward: 1 m per unit of magnification.
         spatialCameraMoved(spatial.step(forward: Double(event.magnification) / SpatialInteraction.keyStep))
         return true
     }
@@ -103,7 +82,7 @@ extension DeviceView {
     func spatialKeyDown(_ event: NSEvent) -> Bool {
         guard spatialOn, event.modifierFlags.contains(.option), !event.modifierFlags.contains(.command),
               let usage = KeyMap.usage[event.keyCode] else { return false }
-        if usage == 0x15 {  // R: Reset Camera
+        if usage == 0x15 {
             spatialCameraMoved(spatial.resetCamera())
             return true
         }
@@ -112,15 +91,11 @@ extension DeviceView {
         return true
     }
 
-    /// The desktop's camera again (after the headset had the device,
-    /// device-hub.md §I.12): the guest's camera is where the wearer's head
-    /// was; the desktop sends its own pose, as it was before the switch.
     public func restoreSpatialCamera() {
         guard spatialOn else { return }
         spatialCameraMoved(spatial.camera.pose)
     }
 
-    /// Controls ▸ Reset Camera.
     public func resetSpatialCamera() {
         guard spatialOn else { return }
         spatialCameraMoved(spatial.resetCamera())

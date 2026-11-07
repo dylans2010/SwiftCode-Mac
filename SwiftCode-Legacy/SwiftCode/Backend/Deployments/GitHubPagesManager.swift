@@ -126,7 +126,6 @@ final class GitHubPagesManager: @unchecked Sendable {
     private func ensurePagesWorkflow(project: Project, owner: String, repo: String, token: String?, logHandler: @escaping (String) -> Void) async throws {
         let path = ".github/workflows/pages.yml"
 
-        // Check if workflow already exists using GitHubService (API based)
         let existingSHA = try? await GitHubService.shared.getFileSHA(owner: owner, repo: repo, path: path, branch: "main")
         if existingSHA != nil {
             return
@@ -171,7 +170,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 """
-        // Push file using GitHubService (API based)
         try await GitHubService.shared.pushFile(
             owner: owner,
             repo: repo,
@@ -218,7 +216,7 @@ jobs:
     private func pollDeploymentStatus(owner: String, repo: String, token: String?, logHandler: @escaping (String) -> Void) async throws -> String {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/pages/deployments")
 
-        for _ in 1...60 { // Poll for 10 minutes (10s intervals)
+        for _ in 1...60 {
             var request = URLRequest(url: url)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             if let token = token {
@@ -240,8 +238,6 @@ jobs:
         return "timed_out"
     }
 }
-
-// MARK: - GitHub Pages Models
 
 struct GitHubPagesInfo: Codable {
     let url: String

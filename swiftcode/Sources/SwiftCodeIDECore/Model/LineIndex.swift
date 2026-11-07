@@ -1,7 +1,5 @@
 import Foundation
 
-/// UTF-16 offsets of line starts, for mapping between offsets and 1-based
-/// line numbers.
 public struct LineIndex: Equatable, Sendable {
     public private(set) var starts: [Int] = [0]
     public private(set) var length = 0
@@ -15,9 +13,6 @@ public struct LineIndex: Equatable, Sendable {
         length = offset
     }
 
-    /// Updates the index for an edit: `range` (in the old text) was
-    /// replaced by `replacement`. Only the line starts inside the edit are
-    /// recomputed; later ones shift.
     public mutating func applyEdit(range: NSRange, replacement: String) {
         func firstStart(after o: Int) -> Int {
             var lo = 0, hi = starts.count
@@ -39,7 +34,6 @@ public struct LineIndex: Equatable, Sendable {
 
     public var lineCount: Int { starts.count }
 
-    /// The 1-based line that contains `offset`.
     public func line(at offset: Int) -> Int {
         var lo = 0, hi = starts.count - 1
         while lo < hi {
@@ -49,7 +43,6 @@ public struct LineIndex: Equatable, Sendable {
         return lo + 1
     }
 
-    /// The UTF-16 range of a 1-based line, without its newline.
     public func range(ofLine line: Int) -> NSRange? {
         guard line >= 1, line <= starts.count else { return nil }
         let start = starts[line - 1]

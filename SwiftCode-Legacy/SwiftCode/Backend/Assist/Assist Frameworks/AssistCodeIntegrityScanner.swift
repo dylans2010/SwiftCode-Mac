@@ -1,6 +1,5 @@
 import Foundation
 
-/// Scans generated code for integrity issues and potential problems
 @MainActor
 public final class AssistCodeIntegrityScanner {
     private let context: AssistContext
@@ -16,7 +15,6 @@ public final class AssistCodeIntegrityScanner {
         self.context = context
     }
 
-    /// Scans Swift code for integrity issues, including a real swiftc -parse pass.
     public func scanCode(at path: String) async -> IntegrityReport {
         await context.logger.info("Scanning code integrity: \(path)", toolId: "IntegrityScanner")
 
@@ -33,47 +31,39 @@ public final class AssistCodeIntegrityScanner {
         var structuralIssues: [String] = []
         var bestPracticeViolations: [String] = []
 
-        // Check for basic Swift syntax patterns
         if content.contains("import") == false && path.hasSuffix(".swift") {
             bestPracticeViolations.append("Missing import statements")
         }
 
-        // Check for unbalanced braces
         let openBraces = content.filter { $0 == "{" }.count
         let closeBraces = content.filter { $0 == "}" }.count
         if openBraces != closeBraces {
             syntaxErrors.append("Unbalanced braces: \(openBraces) open, \(closeBraces) close")
         }
 
-        // Check for unbalanced parentheses
         let openParens = content.filter { $0 == "(" }.count
         let closeParens = content.filter { $0 == ")" }.count
         if openParens != closeParens {
             syntaxErrors.append("Unbalanced parentheses: \(openParens) open, \(closeParens) close")
         }
 
-        // Check for incomplete implementations
         if content.contains("fatalError()") || content.contains("preconditionFailure()") {
             structuralIssues.append("Contains unimplemented code (fatalError/preconditionFailure)")
         }
 
-        // Check for TODO/FIXME markers
         if content.contains("TODO") || content.contains("FIXME") {
             structuralIssues.append("Contains TODO/FIXME markers indicating incomplete work")
         }
 
-        // Check for unresolved merge conflict markers
         if assistHasConflictMarkers(content) {
             syntaxErrors.append("Contains unresolved merge conflict markers")
         }
 
-        // Check for empty bodies
         let emptyFunctionPattern = "(func|init)\\s+\\w+[^{]*\\{\\s*\\}"
         if content.range(of: emptyFunctionPattern, options: .regularExpression) != nil {
             structuralIssues.append("Contains empty function implementations")
         }
 
-        // Real compiler-based syntax verification
         #if os(macOS)
         if path.hasSuffix(".swift") {
             let syntaxOutcome = await AssistVerificationPipeline.shared.verifySyntax(filePath: path, context: context)
@@ -93,7 +83,6 @@ public final class AssistCodeIntegrityScanner {
         )
     }
 
-    /// Scans all files modified in a plan
     public func scanPlan(plan: AssistExecutionPlan) async -> [String: IntegrityReport] {
         var reports: [String: IntegrityReport] = [:]
 

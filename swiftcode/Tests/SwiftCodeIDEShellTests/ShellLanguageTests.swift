@@ -7,8 +7,6 @@ import SwiftCodeIDECore
 import SwiftCodeLanguage
 @testable import SwiftCodeIDEShell
 
-/// A language server in memory for the shell: answers each request with
-/// `handler` and records every message.
 final class ShellFakeServer: DAPTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var receiving: (@Sendable (Data?) -> Void)?
@@ -43,9 +41,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
     }
 }
 
-/// Quick Help, Jump to Definition, rename, references and the Report
-/// navigator in the shell (`specs/ide/language.md`, `refactoring.md`,
-/// `navigators.md` §Report navigator), against a scripted server.
 @MainActor
 @Suite struct ShellLanguageTests {
     nonisolated static func range(_ l1: Int, _ c1: Int, _ l2: Int, _ c2: Int) -> JSON {
@@ -54,7 +49,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
 
     nonisolated static func uri(_ path: String) -> JSON { .string(URL(fileURLWithPath: path).absoluteString) }
 
-    /// A model of the temporary package with the scripted server running.
     func model(_ pkg: TempPackage, _ handler: @escaping @Sendable (String, JSON) -> JSON?) async throws -> (WorkspaceShellModel, ShellFakeServer) {
         let m = try WorkspaceShellModel(url: pkg.url, engine: ScriptedEngine(lines: ["[1/2] Compiling Demo main.swift", "[2/2] Linking Demo"], issues: []))
         m.recovery = EditorRecovery(directory: pkg.url.path + "/.recovery-test")
@@ -63,7 +57,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         return (m, server)
     }
 
-    /// main.swift: `print(Greeting(name: "x").text)`; the caret on "Greeting".
     func openMain(_ m: WorkspaceShellModel, _ pkg: TempPackage) throws -> EditorBuffer {
         m.open(pkg.path("Sources/Demo/main.swift"))
         let b = try #require(m.editor?.buffer)
@@ -76,7 +69,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         defer { pkg.remove() }
         let greeting = pkg.path("Sources/DemoCore/Greeting.swift")
         let (m, server) = try await model(pkg) { method, _ in
-            // A point, as sourcekit-lsp gives definitions: the name there is selected.
             method == "textDocument/definition" ? [["uri": Self.uri(greeting), "range": Self.range(0, 14, 0, 14)]] : nil
         }
         _ = try openMain(m, pkg)
@@ -85,7 +77,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         #expect(m.document?.name == "Greeting.swift" && m.canGoBack)
         let b = try #require(m.editor?.buffer)
         #expect(b.selectedText == "Greeting")
-        // The server had the editor's text before the request.
         #expect(server.methods.contains("textDocument/didChange"))
         m.goBack()
         #expect(m.document?.name == "main.swift")
@@ -101,7 +92,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         m.updateCaretSymbol()
         #expect(m.languageFeatures.documentSymbols.map(\.name) == ["Greeting"])
         #expect(m.languageFeatures.caretSymbol?.name == "text")
-        // Its menu: choosing a declaration goes to its line.
         m.openSymbol(try #require(m.languageFeatures.documentSymbols.first))
         #expect(b.caretLine == 0 && m.languageFeatures.caretSymbol?.name == "Greeting")
         m.closeCurrentDocument()
@@ -136,10 +126,8 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         let doc = try #require(await m.showQuickHelp())
         #expect(doc.title == "Greeting" && doc.declaration == "public struct Greeting" && doc.file == greeting)
         let p = try #require(m.languageFeatures.popover)
-        // The popover hangs under the symbol's start.
         #expect(p.offset == b.document.lineStart(1) + 6 && p.path == m.document?.path)
         #expect(m.languageFeatures.inspectorHelp == doc)
-        // Moving the caret closes it; ⌥⌘3 shows the inspector's tab.
         m.caretMoved()
         #expect(m.languageFeatures.popover == nil)
         m.isInspectorShown = false
@@ -169,7 +157,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         let r = try #require(m.languageFeatures.rename)
         #expect(r.oldName == "Greeting" && r.range == NSRange(location: b.document.lineStart(1) + 6, length: 8))
         #expect(m.languageFeatures.highlights == [r.range])
-        // The same name, or an empty one: nothing to do.
         #expect(await m.commitRename(to: "Greeting") == nil && m.languageFeatures.rename == nil)
         #expect(await m.beginRename())
         let edit = try #require(await m.commitRename(to: "Welcome"))
@@ -203,13 +190,11 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         #expect(p.files.map(\.name) == ["main.swift", "Greeting.swift"])
         #expect(p.files[1].lines.first?.after == "public struct Welcome {")
         #expect(p.files[0].lines.first?.after == "print(Welcome(name: \"x\").text)")
-        // Nothing changes until Rename.
         let unchanged = try String(contentsOfFile: greeting, encoding: .utf8)
         #expect(!b.isDirty && unchanged == oldGreeting)
         let changed = m.applyRenamePreview()
         #expect(Set(changed) == [main, greeting])
         #expect(b.text.contains("print(Welcome(") && m.editedPaths == [main])
-        // The file that is not open was rewritten on disk; its old text is kept.
         let rewritten = try String(contentsOfFile: greeting, encoding: .utf8)
         #expect(rewritten.hasPrefix("public struct Welcome {"))
         #expect(m.languageFeatures.diskBackups[greeting] == oldGreeting)
@@ -230,7 +215,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
             ]
             case "textDocument/prepareCallHierarchy": [["name": "Greeting.init(name:)", "kind": 9, "uri": Self.uri(greeting),
                                                         "range": Self.range(0, 0, 4, 1), "selectionRange": Self.range(0, 14, 0, 22)]]
-            // main has no callers of its own.
             case "callHierarchy/incomingCalls": params["item"]?["name"]?.string == "main" ? [] : [["from": caller, "fromRanges": [Self.range(1, 6, 1, 14)]]]
             default: nil
             }
@@ -238,32 +222,24 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         _ = try openMain(m, pkg)
         #expect(await m.findSelectedSymbolInWorkspace() == 2)
         #expect(m.navigator == .find && m.findText == "Greeting" && m.findCountText == "Greeting — 2 references")
-        // Files in path order ("Sources/Demo/" before "Sources/DemoCore/").
         #expect(m.findRows.map(\.name) == ["main.swift", "Greeting.swift"])
         #expect(m.findRows[0].matches.first.map { $0.before + $0.match + $0.after } == "print(Greeting(name: \"x\").text)")
         #expect(m.findRows[0].matches.first?.match == "Greeting")
-        // A row opens its place.
         m.findSelection = m.findRows[1].matches[0].id
         #expect(m.document?.name == "Greeting.swift")
         _ = try openMain(m, pkg)
         #expect(await m.findCallHierarchy() == 1)
-        // The tree under "Callers of Greeting": the initializer, then main.
         #expect(m.findCountText == "Callers of Greeting" && m.findRows.isEmpty)
         #expect(m.callHierarchy.rows.map(\.name) == ["Greeting.init(name:)", "main"])
         #expect(m.callHierarchy.rows.map(\.detail) == ["Greeting.swift:1", "main.swift:2"])
-        // A row opens the function's declaration.
         m.callHierarchy.selection = m.callHierarchy.rows[1].id
         #expect(m.document?.name == "main.swift" && m.editor?.buffer.caretLine == 1)
-        // A search of its own replaces the title and the tree.
         m.findText = "Hello"
         m.runFind()
         await m.waitForFind()
         #expect(m.findResultsTitle == nil && m.findCountText != "Callers of Greeting" && m.callHierarchy.tree == nil)
     }
 
-    /// `refactoring.md` §Find: two levels of callers, as the macOS IDE's
-    /// tree; a function already on the path is not followed again, and a
-    /// third level is not asked for.
     @Test func callHierarchyIsTwoLevelsDeep() async throws {
         let pkg = try TempPackage()
         defer { pkg.remove() }
@@ -282,7 +258,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
                 case "greet": return [["from": item("printAll", main, 1), "fromRanges": [Self.range(1, 6, 1, 11), Self.range(1, 20, 1, 25)]],
                                       ["from": item("greetAll", greeting, 3), "fromRanges": [Self.range(3, 8, 3, 13)]]]
                 case "printAll": return [["from": item("run", main, 0), "fromRanges": [Self.range(0, 2, 0, 10)]]]
-                // greetAll calls itself: not followed again.
                 case "greetAll": return [["from": item("greetAll", greeting, 3), "fromRanges": [Self.range(4, 2, 4, 10)]]]
                 default: return [["from": item("deeper", main, 5), "fromRanges": [Self.range(5, 0, 5, 3)]]]
                 }
@@ -295,9 +270,7 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         #expect(rows.map(\.name) == ["greet", "printAll", "run", "greetAll", "greetAll"])
         #expect(rows.map(\.level) == [0, 1, 2, 1, 2])
         #expect(rows[1].detail == "main.swift:2  (2 calls)")
-        // The callers of the second level's functions are never asked for.
         #expect(asked.names.sorted() == ["greet", "greetAll", "printAll"])
-        // Collapsing a caller hides its callers.
         m.callHierarchy.setExpanded(rows[1].id, false)
         #expect(m.callHierarchy.rows.map(\.name) == ["greet", "printAll", "greetAll", "greetAll"])
     }
@@ -317,8 +290,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
     }
 }
 
-/// The Symbol navigator (⌘3): files and their declarations, the filter,
-/// the server's workspace symbols, opening a declaration.
 @MainActor
 @Suite struct SymbolNavigatorTests {
     @Test func filesWithTheirDeclarationsAndTheFilter() async throws {
@@ -332,24 +303,19 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
         m.refreshSymbolNavigator()
         while m.symbols.isScanning { await Task.yield() }
         let s = m.symbols
-        // Navigator order: Sources/Demo, Sources/DemoCore, then Tests.
         #expect(s.rows.map { String(repeating: " ", count: $0.level) + $0.title }
                 == ["Helper.swift", " Helper", "  assist", "  level", " greetLater", "Greeting.swift", " Greeting", "  name", "  text", "GreetingTests.swift", " greets"])
         #expect(s.rows[1].kind == .struct && s.rows[2].kind == .function && s.rows[3].kind == .property && s.rows[0].kind == nil)
-        // A collapsed file hides its declarations.
         s.setExpanded(s.rows[0].id, false)
         #expect(s.rows.map(\.title) == ["Helper.swift", "Greeting.swift", "Greeting", "name", "text", "GreetingTests.swift", "greets"])
         s.setExpanded(s.rows[0].id, true)
-        // The filter keeps matches and the types around them.
         s.filterText = "gre"
         #expect(s.rows.map(\.title) == ["Helper.swift", "greetLater", "Greeting.swift", "Greeting", "GreetingTests.swift", "greets"])
         s.filterText = "assist"
         #expect(s.rows.map(\.title) == ["Helper.swift", "Helper", "assist"])
-        // Opening a declaration goes to its line.
         let row = try #require(s.rows.last)
         m.openSymbolRow(row)
         #expect(m.document?.name == "Helper.swift" && m.editor?.buffer.caretLine == 1 && s.selection == row.id)
-        // An edited buffer is read as edited.
         m.editor?.buffer.setCaret(0)
         m.editor?.buffer.insertText("enum Mode {}\n")
         s.filterText = ""
@@ -380,7 +346,6 @@ final class ShellFakeServer: DAPTransport, @unchecked Sendable {
     }
 }
 
-/// Names a scripted server was asked about, from its thread.
 final class LockedNames: @unchecked Sendable {
     private let lock = NSLock()
     private var list: [String] = []

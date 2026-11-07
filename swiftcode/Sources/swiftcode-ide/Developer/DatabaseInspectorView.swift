@@ -1,9 +1,3 @@
-// DatabaseInspectorView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Developer/DatabaseInspectorView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Projects section unwired in staging (ProjectSessionStore and Legacy Project model do not exist in the destination); No landed equivalent in main: the Wave 17 SQLite Explorer browses arbitrary SQLite files, not the app's internal Projects/Folders/Settings store
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 

@@ -6,7 +6,7 @@ import os.log
 @MainActor
 final class AESEncryptionDevToolViewModel {
     var plainText: String = ""
-    var keyString: String = "My32ByteSecretKeyForEncryption!!" // 32 bytes
+    var keyString: String = "My32ByteSecretKeyForEncryption!!"
     var cipherText: String = ""
     var decryptedText: String = ""
     var errorMessage: String?
@@ -81,7 +81,6 @@ struct AESEncryptionDevToolView: View {
 
                 Divider()
 
-                // Encryption Part
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Plaintext Input")
                         .font(.headline)
@@ -96,7 +95,6 @@ struct AESEncryptionDevToolView: View {
                     .buttonStyle(.borderedProminent)
                 }
 
-                // Decryption Part
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Ciphertext (Base64 combined format)")
                         .font(.headline)

@@ -1,10 +1,3 @@
-// StoreKitWorkspaceManager.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Managers/StoreKitWorkspaceManager.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: recents (addRecent / loadRecents / saveRecents)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): StoreKitConfig.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import Observation
 import AppKit
@@ -22,7 +15,6 @@ public final class StoreKitWorkspaceSession: Identifiable {
     public var activeURL: URL? = nil
     public var selectedSection: String = "Dashboard"
 
-    // Undo/Redo Stacks
     public var undoStack: [StoreKitConfig] = []
     public var redoStack: [StoreKitConfig] = []
 

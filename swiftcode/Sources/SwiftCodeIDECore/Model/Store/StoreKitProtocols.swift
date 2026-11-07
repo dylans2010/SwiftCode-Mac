@@ -1,10 +1,4 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Protocols/StoreKitProtocols.swift` (SwiftCode-Mac migration, P-UTIL).
-// Thin manager/service singletons delegating to StoreKitWorkspaceManager (same module).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import Foundation
-
-// MARK: - Manager Architectures
 
 @MainActor
 public final class StoreKitDocumentManager {
@@ -92,9 +86,6 @@ public final class StoreKitSearchManager {
     public static let shared = StoreKitSearchManager()
     private init() {}
 }
-
-
-// MARK: - Services Architectures
 
 public final class StoreKitParserService: Sendable {
     public static let shared = StoreKitParserService()

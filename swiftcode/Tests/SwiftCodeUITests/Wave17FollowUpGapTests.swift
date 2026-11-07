@@ -6,24 +6,8 @@ import SwiftCodeExtensions
 @testable import SwiftCodeMCP
 @testable import SwiftCodeUI
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter Wave17FollowUpGapTests`.
-//
-// Gap-closure follow-up tests (specs/ide/
-// gap-closure-windows-artboards.md §7, §9, §11, §12): the deploy
-// service and CI service with stubbed HTTP, the VM registry and host
-// probe, the sandboxed command runner, the extension-change review
-// presenter, and the Artboards window's document operations. No live
-// network, no real deploy, no guest VM: the deploy tests assert the
-// honest-failure paths (missing token, no git repository), the
-// registry tests create and delete their own record, and the
-// artboard tests clean up the document file they save.
-
 @Suite("Wave 17 follow-up gap tests")
 struct Wave17FollowUpGapTests {
-
-    // MARK: - Deployment service
 
     @Suite("Deployment service", .serialized)
     struct DeploymentServiceTests {
@@ -58,8 +42,6 @@ struct Wave17FollowUpGapTests {
             }
         }
     }
-
-    // MARK: - GitHub Actions service
 
     @Suite("GitHub Actions service", .serialized)
     struct GitHubActionsServiceTests {
@@ -104,8 +86,6 @@ struct Wave17FollowUpGapTests {
         }
     }
 
-    // MARK: - Virtual machines
-
     @Suite("Virtual machine registry")
     struct VirtualMachineRegistryTests {
         @Test("An unknown id has no record")
@@ -122,7 +102,6 @@ struct Wave17FollowUpGapTests {
             #expect(registry.record(id: record.id)?.name == "Wave17GapTest VM")
             #expect(registry.record(id: record.id)?.status == "Stopped")
 
-            // A fresh instance loads the same record from disk.
             let reloaded = VirtualMachineRegistry()
             #expect(reloaded.record(id: record.id)?.name == "Wave17GapTest VM")
 
@@ -145,13 +124,9 @@ struct Wave17FollowUpGapTests {
         func probeReportsHost() {
             let probe = VirtualMachineHostProbe.probe()
             #if os(macOS)
-            // macOS has no KVM: the probe says so instead of
-            // claiming a VM can run.
             #expect(probe.hypervisorAvailable == false)
             #expect(probe.error?.contains("KVM") == true)
             #else
-            // Either KVM works (a VM was really allocated) or the
-            // probe says why it cannot.
             if probe.hypervisorAvailable {
                 #expect(probe.vcpusAllocated == 1)
                 #expect(probe.ramBytesAllocated == 256 << 20)
@@ -161,8 +136,6 @@ struct Wave17FollowUpGapTests {
             #endif
         }
     }
-
-    // MARK: - Sandboxed command runner
 
     @Suite("Sandboxed command runner")
     struct SandboxedCommandRunnerTests {
@@ -231,8 +204,6 @@ struct Wave17FollowUpGapTests {
         }
     }
 
-    // MARK: - Extension change review presenter
-
     @Suite("Extension change review presenter")
     @MainActor
     struct ExtensionChangeReviewPresenterTests {
@@ -265,8 +236,6 @@ struct Wave17FollowUpGapTests {
             #expect(ExtensionChangeReviewPresenter.excerpt(of: edit).contains("Proposed:"))
         }
     }
-
-    // MARK: - Artboards window
 
     @Suite("Artboards window")
     @MainActor
@@ -321,7 +290,6 @@ struct Wave17FollowUpGapTests {
             #expect(controller.activeArtboard?.rootNode.children.count == 2)
             controller.deleteComponent(id: copy!.id)
             #expect(controller.activeArtboard?.rootNode.children.count == 1)
-            // The root node cannot be deleted.
             controller.deleteComponent(id: controller.activeArtboard!.rootNode.id)
             #expect(controller.activeArtboard?.rootNode.children.count == 1)
         }
@@ -355,8 +323,6 @@ struct Wave17FollowUpGapTests {
             #expect(controller.previewImage == nil)
         }
     }
-
-    // MARK: - Extension permission approval center
 
     @Suite("Extension permission approval center")
     @MainActor
@@ -441,8 +407,6 @@ struct Wave17FollowUpGapTests {
             #expect(await task.value == false)
         }
     }
-
-    // MARK: - Extensions v2 language client
 
     @Suite("Extensions v2 language client")
     struct ExtV2LanguageClientTests {

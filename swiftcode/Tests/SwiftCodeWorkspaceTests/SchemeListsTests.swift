@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeWorkspace
 
-/// The scheme editor's Build targets and Test plans tables (reference-ui-5.md §11.3, P11).
 @Suite struct SchemeListsTests {
     func fixture() throws -> (text: String, scheme: Scheme) {
         let url = try #require(Bundle.module.url(forResource: "Fixtures/App.xcodeproj/xcshareddata/xcschemes/App", withExtension: "xcscheme"))
@@ -32,12 +31,10 @@ import Testing
         """))
         let back = try Scheme(parsing: written, name: "App")
         #expect(back.serialized() == written)
-        // Adding twice is a no-op; removing restores the bytes.
         s.addBuildEntry(Self.tests, actions: Set(Scheme.Action.allCases))
         #expect(s.buildEntries.count == 2)
         s.removeBuildEntry(blueprintIdentifier: Self.tests.blueprintIdentifier)
         #expect(s.serialized() == text)
-        // The last entry removes the container element.
         s.removeBuildEntry(blueprintIdentifier: "0E0000000000000000000001")
         #expect(s.buildEntries.isEmpty && !s.serialized().contains("BuildActionEntries"))
     }
@@ -60,7 +57,6 @@ import Testing
                  </TestPlanReference>
               </TestPlans>
         """))
-        // After Testables.
         #expect(written.range(of: "</Testables>")!.lowerBound < written.range(of: "<TestPlans>")!.lowerBound)
         s.setDefaultTestPlan(reference: "container:Smoke.xctestplan")
         #expect(s.testPlans.map(\.isDefault) == [false, true])

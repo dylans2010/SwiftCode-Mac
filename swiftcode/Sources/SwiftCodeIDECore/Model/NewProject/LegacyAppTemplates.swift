@@ -1,39 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Persistence/Templates/MacOSAppTemplate.swift
-//   SwiftCode/Backend/Persistence/Templates/iOSAppTemplate.swift
-//   SwiftCode/Backend/Persistence/Templates/SwiftDataAppTemplate.swift
-//   (Legacy main ab03f681)
-//
-// Destination: SwiftCodeIDECore/Model/NewProject/LegacyAppTemplates.swift.
-// Verbatim apart from this header. Each struct is one Legacy template
-// file, conforming to `ProjectScaffoldTemplate` (LegacyProjectTemplates.swift
-// in this directory), with the exact starter files Legacy shipped.
-//
-// Why these three live here instead of in the generator: the destination
-// project generator (`ProjectGenerator`, ProjectGenerator+Apps.swift)
-// covers the scaffold KIND — a SwiftUI app, optionally with SwiftData
-// storage — but it emits a generic starter (a `TApp` + a minimal
-// `ContentView`). It does NOT emit the starter content these three
-// templates define:
-//   * MacOSAppTemplate — NavigationSplitView app with `AppState`
-//     (@Observable), `SidebarView` and `DetailView`.
-//   * iOSAppTemplate — TabView app with `HomeView` (list) and
-//     `SettingsView` (form).
-//   * SwiftDataAppTemplate — app with an explicit `sharedModelContainer`
-//     (`ModelConfiguration`, in-memory only false), `Item` model, and a
-//     `ContentView` with add / delete / EditButton.
-// The other 28 Legacy content templates live in LegacyProjectTemplates.swift;
-// these three were left out of that file on the grounds that "the generator
-// already covers" them. The kind is covered; the content above is not, so
-// the templates are restored here with their Legacy names, descriptions,
-// icons and files intact.
-//
-// Wiring hook (landing): expose the three templates wherever
-// `ProjectScaffoldTemplateEngine.shared.createProject(at:template:)` is
-// offered (the same surface that lists the LegacyProjectTemplates.swift
-// templates), so "macOS App", "iOS App" and "SwiftData App" produce this
-// starter content instead of the generic generator output.
-
 import Foundation
 
 public struct MacOSAppTemplate: ProjectScaffoldTemplate {

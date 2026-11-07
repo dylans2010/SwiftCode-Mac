@@ -2,11 +2,7 @@ import AppKit
 import SwiftCodeDebug
 import SwiftCodeIDECore
 
-/// The Debug and Breakpoint navigators' bottom-bar toggles, the process
-/// row update and the breakpoint enabled marker
-/// (specs/ide/reference-ui-4.md §5.3, §6).
 extension NavigatorAreaController {
-    /// Updates the process row and gauges without refetching threads.
     public func setDebugProcess(_ p: DebugProcessInfo?) {
         guard p != debugProcess else { return }
         debugProcess = p
@@ -14,22 +10,17 @@ extension NavigatorAreaController {
         setDebugState(threads: s.0, stoppedThread: s.1, frames: s.2)
     }
 
-    /// Debug navigator ▸ filter options: View Process by Queue (tag 0),
-    /// Show Gauges (tag 1).
     @objc func debugViewOptionChosen(_ item: NSMenuItem) {
         if item.tag == 0 { showThreadsByQueue.toggle() } else { showsGauges.toggle() }
         refreshDebugTree()
         rebuildFilterOptionsMenu()
     }
 
-    /// Rebuilds the Debug navigator from the last state.
     func refreshDebugTree() {
         let s = lastDebugState
         setDebugState(threads: s.0, stoppedThread: s.1, frames: s.2)
     }
 
-    /// The enabled marker at a breakpoint row's right end (a tag, filled
-    /// when enabled).
     func addEnabledMarker(_ on: Bool, to cell: NSView) {
         let m = NSImageView(image: NSImage(systemSymbolName: on ? "tag.fill" : "tag", accessibilityDescription: on ? "Enabled" : "Disabled")!)
         m.contentTintColor = on ? Theme.breakpointColor : .tertiaryLabelColor
@@ -44,7 +35,6 @@ extension NavigatorAreaController {
 }
 
 extension NavigatorAreaController {
-    /// The Energy Impact gauge's bar, left of the value (D3).
     func addLevelBar(_ level: Double, to cell: NSView) {
         let bar = NSLevelIndicator()
         bar.levelIndicatorStyle = .continuousCapacity
@@ -62,7 +52,6 @@ extension NavigatorAreaController {
         ])
     }
 
-    /// The process row's buttons, right-aligned (D3).
     func addRowButtons(_ list: [(symbol: String, toolTip: String, action: String)], to cell: NSView) {
         let stack = NSStackView()
         stack.spacing = 2
@@ -82,14 +71,11 @@ extension NavigatorAreaController {
         ])
     }
 
-    /// The Debug navigator's thread (or queue) rows, without the process
-    /// row and gauges.
     public var debugThreadRows: [OutlineItem] {
         let r = rows(6)
         guard debugProcess != nil, let root = r.first else { return r }
         return root.children.filter { $0.badge == nil }
     }
 
-    /// The Breakpoint navigator's groups under the project root.
     public var breakpointGroups: [OutlineItem] { rows(7).first?.children ?? [] }
 }

@@ -3,42 +3,25 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The layer over the whole workspace window, toolbar bands included, that
-/// holds the merge confirmation and the merge sheet
-/// (`specs/ide/merge-sheet.md` §1.2, §2, §10), as the AppKit
-/// `MergeOverlayView` does: the veil that darkens the window over 255 ms
-/// (ease-out), the alert centred on it (fading out over 90 ms on Merge),
-/// and the sheet under the toolbar, fading in over 90 ms while it slides
-/// down 32 points over 200 ms (with Reduce Motion it fades only; closing
-/// reverses it). While anything is up it takes every click.
 struct MergeOverlayLayer: View {
     var scm: SourceControlShellModel
     var app: ShellAppModel
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The layer is up (it stays up while things fade out).
     @State private var isActive = false
-    /// The veil's share of its full darkness.
     @State private var veil = 0.0
-    /// The alert drawn (kept while it fades out).
     @State private var alert: MergeAlertState?
     @State private var alertOpacity = 1.0
-    /// Merge turns accent once the alert is up (§1.2).
     @State private var alertReady = false
-    /// The sheet drawn (kept while it goes away).
     @State private var sheet: ConflictEditorShellModel?
     @State private var sheetOpacity = 0.0
     @State private var sheetOffset = 0.0
     @State private var sheetClosing = false
 
-    /// Stretches every duration (drivers photograph frames of the
-    /// transitions with it; 1 otherwise).
     @MainActor static var timeScale = 1.0
 
     func d(_ seconds: Double) -> Double { seconds * Self.timeScale }
 
-    /// Whether the model wants anything shown: the alert, a merge it
-    /// started that is still running, or the sheet.
     var isWanted: Bool { scm.mergeAlert != nil || scm.isMerging || scm.conflictEditor != nil }
 
     var body: some View {
@@ -82,7 +65,6 @@ struct MergeOverlayLayer: View {
         .onChange(of: scm.conflictEditor.map { ObjectIdentifier($0) }) { _, _ in sync() }
     }
 
-    /// Brings what is drawn in line with the model, animating the change.
     func sync() {
         if isWanted, !isActive {
             isActive = true
@@ -103,7 +85,6 @@ struct MergeOverlayLayer: View {
                 after(d(MergeSheetMotion.veilIn)) { if scm.mergeAlert != nil { alertReady = true } }
             }
         } else if alert != nil, alertOpacity == 1 {
-            // Clicking Merge (or Cancel): the alert fades out over 90 ms.
             withAnimation(.linear(duration: d(MergeSheetMotion.alertOut))) { alertOpacity = 0 }
             after(d(MergeSheetMotion.alertOut)) { if scm.mergeAlert == nil { alert = nil } }
         }
@@ -116,13 +97,9 @@ struct MergeOverlayLayer: View {
             sheet = e
             sheetClosing = false
             guard appearing else { return }
-            // Fade in over 90 ms while sliding down 32 points over 200 ms
-            // (§10); with Reduce Motion it fades only.
             sheetOpacity = 0
             sheetOffset = reduceMotion ? 0 : -MergeSheetMotion.slideDistance
             after(0.016) {
-                // Still the sheet coming in (several model changes may
-                // arrive in one update; any of them may start this).
                 guard sheet != nil, !sheetClosing, sheetOpacity == 0 else { return }
                 withAnimation(.linear(duration: d(MergeSheetMotion.sheetFade))) { sheetOpacity = 1 }
                 if !reduceMotion {
@@ -130,13 +107,10 @@ struct MergeOverlayLayer: View {
                 }
             }
         } else if sheet != nil, !sheetClosing {
-            // Closing reverses the appearance (SwiftCode's choice, open question
-            // 3): the slide back up, the fade in its last 90 ms.
             sheetClosing = true
             let slide = reduceMotion ? 0 : d(MergeSheetMotion.sheetOutSlide)
             withAnimation(.linear(duration: d(MergeSheetMotion.sheetOutFade)).delay(max(0, slide - d(MergeSheetMotion.sheetOutFade)))) { sheetOpacity = 0 }
             if !reduceMotion {
-                // The reverse of the appearance's curve.
                 withAnimation(.timingCurve(1 - c.x2, 1 - c.y2, 1 - c.x1, 1 - c.y1, duration: slide)) {
                     sheetOffset = -MergeSheetMotion.slideDistance
                 }
@@ -151,7 +125,6 @@ struct MergeOverlayLayer: View {
     }
 
     func syncVeil() {
-        // The veil: ease-out over 255 ms (§1.2), in and out.
         let curve = Animation.timingCurve(0.215, 0.61, 0.355, 1, duration: d(MergeSheetMotion.veilIn))
         if isWanted {
             if veil < 1 { after(0.016) { if isWanted, veil < 1 { withAnimation(curve) { veil = 1 } } } }
@@ -178,16 +151,12 @@ struct MergeOverlayLayer: View {
 }
 
 extension Color {
-    /// An sRGB colour from a hex value (0xRRGGBB) of `MergeSheetPalette`.
     init(mergeHex hex: UInt32, opacity: Double = 1) {
         let c = MergeSheetPalette.components(hex)
         self.init(.sRGB, red: c.r, green: c.g, blue: c.b, opacity: opacity)
     }
 }
 
-/// The alert's and the sheet's push buttons (§1.2, §9): a rounded fill and
-/// the centred label; the default one accent with white text, a disabled
-/// one grey.
 struct MergeButtonLabel: View {
     var title: String
     var isDefault: Bool

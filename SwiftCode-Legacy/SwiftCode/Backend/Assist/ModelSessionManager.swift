@@ -21,7 +21,6 @@ public final class ModelSessionManager {
     public var activeModelID: String = ""
 
     private init() {
-        // SAFETY: Fallback value provided in case AppSettings is empty.
         self.activeModelID = "openai/gpt-4o-mini"
         self.state = .ready
     }
@@ -39,22 +38,16 @@ public final class ModelSessionManager {
             message: "Initiating switch from \(self.activeModelID) to \(cleanModelID)"
         )
 
-        // 1. TRANSITION-TEARDOWN
         self.state = .tearingDown
         logger.log("[switchModel] Tearing down current session for model \(self.activeModelID)")
 
-        // Invalidate URLSession on LLMService
         LLMService.shared.recreateSession(for: cleanModelID)
 
-        // Force clear any old session/provider-specific cached objects
-        try? await Task.sleep(nanoseconds: 100_000_000) // Small yield for cleanup
+        try? await Task.sleep(nanoseconds: 100_000_000)
 
-        // 2. TRANSITION-SETUP
         self.state = .settingUp
         logger.log("[switchModel] Setting up new session for model \(cleanModelID)")
 
-        // 3. CONFIRMATION
-        // We verify the active model is updated successfully
         try? await Task.sleep(nanoseconds: 100_000_000)
 
         logger.log("[switchModel] Resolved provider verified. Session confirmed active for \(cleanModelID).")

@@ -1,12 +1,5 @@
-// Preparing a simulator host (#70): how the wizard runs the setup script
-// (`HostSetupScript`) over ssh, reads its `SWIFTCODE-` lines into the
-// checklist, and decides the KVM SVE kernel check from the probe's facts
-// (`docs/postmortem-kvm-sve.md`). SwiftCode never handles a password: steps that
-// need root run in the user's own terminal through `sudo`.
-
 import Foundation
 
-/// What a run of the script reported.
 public struct HostSetupOutput: Sendable, Equatable {
     public struct Step: Sendable, Equatable, Identifiable {
         public var id: String
@@ -16,10 +9,8 @@ public struct HostSetupOutput: Sendable, Equatable {
 
     public var mode = ""
     public var facts: [String: String] = [:]
-    /// Root steps first, then the user's (the script prints them in that order).
     public var steps: [Step] = []
     public var checks: [RuntimeCheck] = []
-    /// `RAN <id> ok|failed` of an apply or root run.
     public var ran: [String: Bool] = [:]
     public var sve: [String: String]?
     public var passed: Bool?
@@ -29,10 +20,8 @@ public struct HostSetupOutput: Sendable, Equatable {
 
     public var rootSteps: [Step] { steps.filter(\.needsRoot) }
     public var userSteps: [Step] { steps.filter { !$0.needsRoot } }
-    /// Nothing left to do: a second run only reports.
     public var isSettled: Bool { steps.isEmpty }
 
-    /// Parses the script's standard output (other lines are ignored).
     public static func parse(_ text: String) -> HostSetupOutput {
         var o = HostSetupOutput()
         for raw in text.split(whereSeparator: \.isNewline) {
@@ -64,7 +53,6 @@ public struct HostSetupOutput: Sendable, Equatable {
             default: break
             }
         }
-        // Root steps first, whatever order the lines came in.
         o.steps = o.rootSteps + o.userSteps
         return o
     }
@@ -74,7 +62,6 @@ public struct HostSetupOutput: Sendable, Equatable {
         return (String(s[..<sp]), String(s[s.index(after: sp)...]))
     }
 
-    /// `a=1 b=two` (values without spaces).
     static func keyValues(_ s: String) -> [String: String] {
         var out: [String: String] = [:]
         for w in s.split(separator: " ") {
@@ -102,9 +89,6 @@ public struct HostSetupOutput: Sendable, Equatable {
         }
     }
 
-    /// The checklist rows: the script's checks with their fixes (a root step
-    /// is a command for the user's terminal; a user step is Apply), then
-    /// the kernel check decided from the probe's facts.
     public func checklist(destination: String, invocation: HostSetupInvocation) -> [RuntimeCheck] {
         var out = checks.map { c -> RuntimeCheck in
             var c = c
@@ -126,17 +110,13 @@ public struct HostSetupOutput: Sendable, Equatable {
     }
 }
 
-/// How the script is run on the host.
 public struct HostSetupInvocation: Sendable, Equatable {
     public var dataDirectory: String
-    /// Empty: the default (`~/.config/swiftcode`).
     public var configDirectory = ""
     public var swiftVersion = "6.4"
     public var probeSeconds = 3
-    /// Where the script is saved on the host for the root step (sudo needs a file).
     public var remotePath = "~/.cache/swiftcode/swiftcode-host-setup"
 
-    /// The SwiftCode release the host's service comes from (this machine's version).
     public var swiftcodeVersion = ""
     public var tcpPort = 47800
     public var udpPort = 47801
@@ -160,28 +140,21 @@ public struct HostSetupInvocation: Sendable, Equatable {
         return a
     }
 
-    /// Runs the script from standard input (nothing is left on the host).
     public func streamedCommand(mode: String) -> String {
         "bash -s -- " + arguments(mode: mode).map(\.shellQuoted).joined(separator: " ")
     }
 
-    /// Saves the script on the host (from standard input) for the root step.
     public var saveCommand: String {
         "mkdir -p ~/.cache/swiftcode && cat > \(remotePath) && chmod 0700 \(remotePath)"
     }
 
-    /// What the user runs in their own terminal for the root steps: ssh with
-    /// a terminal, then sudo, which asks them for their password itself.
     public func rootCommand(destination: String) -> String {
         "ssh -t \(destination.shellQuoted) " + ("sudo bash \(remotePath) " + arguments(mode: "root").map(\.shellQuoted).joined(separator: " ")).shellQuoted
     }
 }
 
-/// The kernel check for the KVM arm64 SVE bug (`docs/postmortem-kvm-sve.md`).
 public enum KVMSVEProbe {
     public static let postmortem = "https://github.com/dylans2010/SwiftCode-Mac/blob/main/docs/postmortem-kvm-sve.md"
-    /// Runs needed before "no loss" counts as a pass (an unpatched kernel
-    /// loses predicates in about 0.7% of runs at much smaller windows).
     public static let minimumRuns: UInt64 = 100_000
 
     public struct Facts: Sendable, Equatable {
@@ -203,7 +176,6 @@ public enum KVMSVEProbe {
             self.error = error
         }
 
-        /// From the script's `SWIFTCODE-SVE` key=value line.
         public init(_ kv: [String: String]) {
             self.init(architecture: kv["arch"] ?? "", hasSVE: kv["sve"] == "yes", kvm: kv["kvm"] ?? "", kernel: kv["kernel"] ?? "",
                       runs: kv["runs"].flatMap { UInt64($0) }, lost: kv["lost"].flatMap { UInt64($0) }, error: kv["error"])
@@ -211,17 +183,12 @@ public enum KVMSVEProbe {
     }
 
     public enum Verdict: Sendable, Equatable {
-        /// Not arm64, or no SVE: the bug cannot happen.
         case notApplicable(String)
-        /// Predicates survived every run: the kernel has the fix (or is not affected).
         case fixed(runs: UInt64)
-        /// Predicates were lost: the kernel lacks the fix.
         case affected(lost: UInt64, runs: UInt64)
-        /// The probe could not run or ran too little.
         case unknown(String)
     }
 
-    /// The decision, from the facts alone.
     public static func verdict(_ f: Facts) -> Verdict {
         if !["aarch64", "arm64"].contains(f.architecture) {
             return .notApplicable("This host is \(f.architecture.isEmpty ? "not arm64" : f.architecture); the bug is in KVM on arm64 with SVE.")

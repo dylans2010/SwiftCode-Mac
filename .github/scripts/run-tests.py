@@ -30,13 +30,11 @@ import xml.etree.ElementTree as ET
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FLAKY_LIST = os.path.join(REPO, ".github", "ci", "known-flaky.txt")
 
-
 def host_platforms():
     """The platform names a known-flaky line can use on this machine."""
     if sys.platform == "darwin":
         return {"*", "macos"}
     return {"*", "linux", "linux-" + platform.machine()}
-
 
 def load_flaky(path=FLAKY_LIST):
     """Returns the tests listed for this machine."""
@@ -47,7 +45,6 @@ def load_flaky(path=FLAKY_LIST):
             if len(parts) == 2 and parts[0] in host_platforms():
                 names.add(parts[1])
     return names
-
 
 def is_flaky(test_id, flaky):
     """test_id is Module.Suite.test (no parentheses). A list entry matches a
@@ -60,7 +57,6 @@ def is_flaky(test_id, flaky):
                 return True
     return False
 
-
 def read_xunit(paths):
     """Returns (failed, skipped): failed maps test id to its rerun filter, skipped holds (test, reason)."""
     failed, skipped = {}, []
@@ -68,7 +64,7 @@ def read_xunit(paths):
         try:
             root = ET.parse(path).getroot()
         except ET.ParseError:
-            continue  # A run that died while writing: no list, so it counts as a crash.
+            continue
         for case in root.iter("testcase"):
             suite, name = case.get("classname", ""), case.get("name", "")
             test_id = (suite + "." + name).split("(")[0]
@@ -80,7 +76,6 @@ def read_xunit(paths):
                 skipped.append((test_id, reason or f"opt-in test with no stated reason: {test_id}"))
     return failed, skipped
 
-
 def xctest_failures(log_text):
     """XCTest failures from the console log (its xUnit file exists only with --parallel)."""
     failed = {}
@@ -89,7 +84,6 @@ def xctest_failures(log_text):
         failed[suite + "." + name] = re.escape(suite + "/" + name)
     return failed
 
-
 def summary(lines):
     """Prints lines and appends them to the job summary when there is one."""
     print("\n".join(lines))
@@ -97,7 +91,6 @@ def summary(lines):
     if target:
         with open(target, "a", encoding="utf-8") as out:
             out.write("\n".join(lines) + "\n\n")
-
 
 def descendants(root):
     """The process ids below root, from `ps` (parents before children)."""
@@ -114,7 +107,6 @@ def descendants(root):
             queue.append(child)
     return found
 
-
 def report_hang(root, log):
     """Writes what each process of a silent run is doing: its command line and,
     on macOS, a few seconds of `sample` (all threads' stacks)."""
@@ -130,7 +122,6 @@ def report_hang(root, log):
             sampled = subprocess.run(["sample", str(pid), "3", "-mayDie"], capture_output=True, text=True, timeout=60)
             emit(sampled.stdout + sampled.stderr)
 
-
 def run(command, cwd, log_path, silence_limit=0):
     """Runs a command, streaming its output to the console and a log. Returns (status, text, hung).
 
@@ -144,7 +135,7 @@ def run(command, cwd, log_path, silence_limit=0):
     def read():
         for line in process.stdout:
             lines.put(line)
-        lines.put(None)  # End of output.
+        lines.put(None)
 
     threading.Thread(target=read, daemon=True).start()
     chunks, hung = [], False
@@ -177,7 +168,6 @@ def run(command, cwd, log_path, silence_limit=0):
             log.write(line)
             chunks.append(line)
     return process.wait(), b"".join(chunks).decode("utf-8", "replace"), hung
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -235,7 +225,6 @@ def main():
                 + [f"- `{test}`" for test in real] + skip_lines)
         return 1
 
-    # Only listed tests failed: each one must pass on its own.
     results = []
     still_failing = []
     for test, pattern in sorted(failed.items()):
@@ -253,7 +242,6 @@ def main():
     summary([title, "Passed, apart from known-flaky tests that failed in the full run and passed alone:"]
             + results + skip_lines)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

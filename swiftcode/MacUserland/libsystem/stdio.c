@@ -1,7 +1,3 @@
-// stdio.c - buffered streams of SwiftCode's libSystem (specs/macos/libsystem.md
-// §4). Clean-room SwiftCode code from the C standard and POSIX descriptions.
-// FILE keeps the public Darwin layout for the fields the SDK's inline
-// macros read (see ycl.h).
 #include "ycl.h"
 
 enum { BUFSIZE = 4096 };
@@ -16,8 +12,6 @@ YCL_EXPORT FILE *__stderrp = &__sF[2];
 static os_unfair_lock list_lock;
 static FILE *open_files;
 
-// The stream lock is recursive, as flockfile(3) requires: a thread that
-// holds it (flockfile) can still call the stream functions, which lock too.
 pthread_t pthread_self(void);
 static void lock_file(FILE *f) {
     void *self = pthread_self();
@@ -48,7 +42,7 @@ static void unlock_file(FILE *f) {
 
 static int is_terminal(int fd) {
     char termios[72];
-    return ioctl(fd, 0x40487413ul /* TIOCGETA */, termios) == 0;
+    return ioctl(fd, 0x40487413ul , termios) == 0;
 }
 
 static void setup(FILE *f, int fd, int flags) {
@@ -108,7 +102,6 @@ static int flush_locked(FILE *f) {
         f->len = 0;
         if (write_all(f, f->buf, n)) return EOF;
     } else if (f->lastop == 1) {
-        // Drop read-ahead: move the descriptor back to the logical position.
         off_t back = (off_t)(f->len - f->pos) + (f->ungot >= 0 ? 1 : 0);
         if (back) lseek(f->_file, -back, YCL_SEEK_CUR);
         f->len = f->pos = 0;
@@ -154,7 +147,6 @@ static int fill_locked(FILE *f) {
     if (f->lastop == 2) flush_locked(f);
     f->lastop = 1;
     ensure_buffer(f);
-    // Reading a line-buffered or unbuffered stream flushes stdout first.
     if (f == &__sF[0] && __sF[1].lastop == 2 && f != &__sF[1]) {
         lock_file(&__sF[1]);
         flush_locked(&__sF[1]);
@@ -193,8 +185,6 @@ static int getc_locked(FILE *f) {
     return f->buf[f->pos++];
 }
 
-// --- the slow paths of the SDK's inline macros ---
-
 YCL_EXPORT int __srget(FILE *f) {
     f->_r = 0;
     return getc_locked(f);
@@ -205,8 +195,6 @@ YCL_EXPORT int __swbuf(int c, FILE *f) {
     unsigned char b = (unsigned char)c;
     return write_locked(f, &b, 1) == 1 ? b : EOF;
 }
-
-// --- public functions ---
 
 YCL_EXPORT int fflush(FILE *f) {
     if (!f) {
@@ -491,8 +479,6 @@ YCL_EXPORT void rewind(FILE *f) {
     clearerr(f);
 }
 
-// --- formatted output ---
-
 static void file_sink(void *context, const char *bytes, size_t n) { write_locked(context, (const unsigned char *)bytes, n); }
 
 YCL_EXPORT int vfprintf(FILE *f, const char *fmt, va_list args) {
@@ -624,7 +610,6 @@ YCL_EXPORT void perror(const char *s) {
 
 YCL_EXPORT int remove(const char *path) { return unlink(path); }
 
-// Fortified variants (the SDK's _FORTIFY_SOURCE forms).
 YCL_EXPORT int __sprintf_chk(char *s, int flags, size_t size, const char *fmt, ...) {
     (void)flags;
     va_list a;

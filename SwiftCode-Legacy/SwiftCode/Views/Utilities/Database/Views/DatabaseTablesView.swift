@@ -7,15 +7,13 @@ struct DatabaseTablesView: View {
     @State private var isLoading = false
     @State private var showingCreateForm = false
 
-    // Switch between Spreadsheet and Triggers/Views Manager
-    @State private var selectedMode = 0 // 0 = Data Spreadsheet, 1 = Trigger & View Manager
+    @State private var selectedMode = 0
 
-    // Triggers and Views states
     @State private var dbTriggers: [[String: String]] = []
     @State private var dbViews: [[String: String]] = []
     @State private var selectedTrigger: [String: String]?
     @State private var selectedView: [String: String]?
-    @State private var newObjectType = "View" // View, Trigger
+    @State private var newObjectType = "View"
     @State private var newObjectName = "v_users_active"
     @State private var newObjectSQL = "CREATE VIEW v_users_active AS\nSELECT * FROM users WHERE status = 'active';"
     @State private var showCreateObjectSheet = false
@@ -23,7 +21,6 @@ struct DatabaseTablesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Table selector bar
             HStack(spacing: 16) {
                 Text("Tables & Views")
                     .font(.headline)
@@ -59,9 +56,7 @@ struct DatabaseTablesView: View {
             Divider()
 
             if selectedMode == 0 {
-                // Spreadsheet mode
                 HStack(spacing: 0) {
-                    // Table Names Sidebar List
                     VStack(spacing: 0) {
                         if isLoading {
                             ProgressView()
@@ -88,7 +83,6 @@ struct DatabaseTablesView: View {
 
                     Divider()
 
-                    // Record Spreadsheet Viewer
                     if let table = selectedTable {
                         DatabaseRecordViewer(table: table)
                     } else {
@@ -96,7 +90,6 @@ struct DatabaseTablesView: View {
                     }
                 }
             } else {
-                // Trigger & View Manager
                 triggerAndViewManagerPane()
             }
         }
@@ -171,11 +164,9 @@ struct DatabaseTablesView: View {
         }
     }
 
-    // MARK: - Trigger & View Manager UI Pane
     @ViewBuilder
     private func triggerAndViewManagerPane() -> some View {
         HSplitView {
-            // Left list of triggers & views
             VStack(alignment: .leading, spacing: 0) {
                 Text("SQL VIEWS")
                     .font(.caption2.bold())
@@ -244,7 +235,6 @@ struct DatabaseTablesView: View {
 
             Divider()
 
-            // Detail / Code viewer
             VStack(spacing: 0) {
                 if let view = selectedView {
                     VStack(alignment: .leading, spacing: 14) {

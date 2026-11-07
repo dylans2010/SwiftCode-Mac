@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Complexity Analyzer View
-
 struct ComplexityAnalyzerView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
 
@@ -101,8 +99,6 @@ struct ComplexityAnalyzerView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Summary Banner
-
     private var summaryBanner: some View {
         HStack(spacing: 20) {
             summaryCell(label: "Files", value: "\(fileResults.count)", color: .cyan)
@@ -133,8 +129,6 @@ struct ComplexityAnalyzerView: View {
         return .green
     }
 
-    // MARK: - Sort Bar
-
     private var sortBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -157,8 +151,6 @@ struct ComplexityAnalyzerView: View {
         }
     }
 
-    // MARK: - Results List
-
     private var resultsList: some View {
         ScrollView {
             LazyVStack(spacing: 8) {
@@ -173,7 +165,6 @@ struct ComplexityAnalyzerView: View {
 
     private func fileRow(_ result: FileComplexityResult) -> some View {
         HStack(spacing: 12) {
-            // Complexity gauge
             ZStack {
                 Circle()
                     .stroke(complexityColor(result).opacity(0.25), lineWidth: 4)
@@ -221,8 +212,6 @@ struct ComplexityAnalyzerView: View {
             .foregroundStyle(color)
     }
 
-    // MARK: - Empty / Analyzing
-
     private var emptyView: some View {
         VStack(spacing: 20) {
             Image(systemName: "chart.xyaxis.line")
@@ -254,8 +243,6 @@ struct ComplexityAnalyzerView: View {
             Text("Scanning for complexity metrics").font(.caption).foregroundStyle(.secondary)
         }
     }
-
-    // MARK: - File Detail Sheet
 
     private func fileDetailSheet(_ result: FileComplexityResult) -> some View {
         NavigationStack {
@@ -305,8 +292,6 @@ struct ComplexityAnalyzerView: View {
         .font(.callout)
     }
 
-    // MARK: - Analysis Logic
-
     private func analyzeProject() async {
         guard let project = sessionStore.activeProject else { return }
         isAnalyzing = true
@@ -341,8 +326,6 @@ struct ComplexityAnalyzerView: View {
         }
         return result
     }
-
-    // MARK: - Color Helpers
 
     private func complexityColor(_ result: FileComplexityResult) -> Color {
         switch result.complexityLabel {

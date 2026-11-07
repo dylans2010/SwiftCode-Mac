@@ -1,13 +1,4 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/AdvancedTools/Views/MainToolsView.swift
-//
-// Verbatim apart from this header. Self-contained: `ToolsSidebarSelection`,
-// `ToolGridCard`, `LayoutCustomizerView` and `HiddenToolsView` are all
-// defined in this file; the tool catalogue is string data in-file.
-
 import SwiftUI
-
-// MARK: - Sidebar Selection
 
 private enum ToolsSidebarSelection: Hashable {
     case all
@@ -19,12 +10,10 @@ public struct MainToolsView: View {
     @State private var searchQuery = ""
     @State private var selectedSection: ToolsSidebarSelection = .all
 
-    // User Customization States
     @State private var hiddenTools: Set<String> = []
     @State private var hiddenCategories: Set<String> = []
     @State private var categoryOrder: [String] = []
 
-    // Sheet Presentation States
     @State private var showingCustomizer = false
     @State private var showingHiddenToolsSheet = false
 
@@ -126,8 +115,6 @@ public struct MainToolsView: View {
         .frame(minWidth: 560, minHeight: 620)
     }
 
-    // MARK: - Tab Bar
-
     @ViewBuilder
     private var tabBar: some View {
         Picker("", selection: $selectedSection) {
@@ -145,8 +132,6 @@ public struct MainToolsView: View {
         .padding(.top, 12)
         .padding(.bottom, 10)
     }
-
-    // MARK: - Content
 
     @ViewBuilder
     private var content: some View {
@@ -241,8 +226,6 @@ public struct MainToolsView: View {
         }
     }
 
-    // MARK: - User Settings Manager
-
     private func loadSettings() {
         let defaults = UserDefaults.standard
         if let ht = defaults.stringArray(forKey: "com.swiftcode.assist.hiddenTools") {
@@ -269,8 +252,6 @@ public struct MainToolsView: View {
         defaults.set(categoryOrder, forKey: "com.swiftcode.assist.toolsCategoryOrder")
     }
 }
-
-// MARK: - Tool Grid Card
 
 private struct ToolGridCard: View {
     let tool: WorkspaceHubTool
@@ -336,8 +317,6 @@ private struct ToolGridCard: View {
         .help(tool.description)
     }
 }
-
-// MARK: - Layout Customizer View
 
 struct LayoutCustomizerView: View {
     let allAvailableTools: [WorkspaceHubTool]
@@ -417,8 +396,6 @@ struct LayoutCustomizerView: View {
         .frame(width: 520, height: 640)
     }
 }
-
-// MARK: - Hidden Tools View
 
 struct HiddenToolsView: View {
     let allAvailableTools: [WorkspaceHubTool]

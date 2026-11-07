@@ -1,4 +1,3 @@
-// HealthSim app shell (original Ycode code). The probe logic is in core.m.
 import SwiftUI
 
 #if PHONE

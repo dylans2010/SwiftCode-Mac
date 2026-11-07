@@ -1,6 +1,5 @@
 import Foundation
 
-/// `HKStatisticsOptions` (raw values in `identifiers.md`).
 public struct HKStatisticsOptions: OptionSet, Hashable, Sendable {
     public let rawValue: UInt
     public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -15,7 +14,6 @@ public struct HKStatisticsOptions: OptionSet, Hashable, Sendable {
     public static let duration = HKStatisticsOptions(rawValue: 64)
 }
 
-/// Values of one statistics object, in the reference unit of the type's dimension.
 struct StatValues: Codable, Hashable, Sendable {
     var sum: Double?
     var average: Double?
@@ -31,7 +29,7 @@ struct StatisticsResult: Codable, Hashable, Sendable {
     var type: String
     var start: Double
     var end: Double
-    var unit: String                  // display unit for returned quantities
+    var unit: String
     var options: UInt
     var merged: StatValues
     var perSource: [String: StatValues]
@@ -39,13 +37,9 @@ struct StatisticsResult: Codable, Hashable, Sendable {
     var hasData: Bool
 }
 
-/// The statistics engine (`queries.md` §6, `design.md` §6.3). Pure functions over
-/// records; used by statistics queries, collections and (later) workout builders.
 enum StatisticsEngine {
-    /// Weight pad of temporally weighted averages (`queries.md` §6.3; fit to all measured cases).
     static let temporalWeightPad: Double = 45
 
-    /// Raise for options the aggregation style does not support (`queries.md` §6.1).
     static func validate(_ options: HKStatisticsOptions, for type: HKQuantityType) throws(HKRaise) {
         let cumulativeOnly: HKStatisticsOptions = [.cumulativeSum]
         let discreteOnly: HKStatisticsOptions = [.discreteAverage, .discreteMin, .discreteMax]
@@ -62,11 +56,6 @@ enum StatisticsEngine {
         }
     }
 
-    // MARK: merging (`queries.md` §6.4)
-
-    /// Keep, source by source in priority order, the samples that do not intersect
-    /// the intervals already kept from higher-priority sources. Samples of the same
-    /// source never de-duplicate each other; a dropped sample is dropped whole.
     static func deduplicate(_ records: [ObjectRecord], priority: [String]) -> [ObjectRecord] {
         let bySource = Dictionary(grouping: records, by: \.sourceBundle)
         var order = priority.filter { bySource[$0] != nil }
@@ -87,7 +76,6 @@ enum StatisticsEngine {
         return a0 < b1 && b0 < a1
     }
 
-    /// Length of the union of intervals.
     static func unionLength(_ intervals: [(Double, Double)]) -> Double {
         let sorted = intervals.sorted { $0.0 < $1.0 }
         var total = 0.0
@@ -102,9 +90,6 @@ enum StatisticsEngine {
         return total
     }
 
-    // MARK: one statistics object
-
-    /// One contribution: the record and the share of its value that counts (1 = whole).
     struct Part {
         var record: ObjectRecord
         var fraction: Double
@@ -112,7 +97,6 @@ enum StatisticsEngine {
         var end: Double
     }
 
-    /// Contributions of `records` to the window; nil window = whole samples.
     static func parts(_ records: [ObjectRecord], window: (Double, Double)?) -> [Part] {
         guard let (w0, w1) = window else {
             return records.map { Part(record: $0, fraction: 1, start: $0.start, end: $0.end) }
@@ -162,16 +146,10 @@ enum StatisticsEngine {
         return v
     }
 
-    /// The sample with the latest end date (ties: later start, then later anchor).
     static func mostRecent(_ records: [ObjectRecord]) -> ObjectRecord? {
         records.max { ($0.end, $0.start, $0.anchor) < ($1.end, $1.start, $1.anchor) }
     }
 
-    /// Compute one statistics object.
-    /// - Parameters:
-    ///   - all: every matching, readable sample.
-    ///   - merged: the de-duplicated set (cumulative types) used for the merged values.
-    ///   - window: a collection bucket (prorated) or nil for a statistics query (whole samples).
     static func compute(type: HKQuantityType, all: [ObjectRecord], merged: [ObjectRecord],
                         options: HKStatisticsOptions, window: (Double, Double)?) -> StatisticsResult {
         let style = type.aggregationStyle

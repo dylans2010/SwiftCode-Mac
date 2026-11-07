@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Extension Demo View
-
 struct ExtensionDemoView: View {
     let ext: ExtensionManifest
     @Environment(\.dismiss) private var dismiss

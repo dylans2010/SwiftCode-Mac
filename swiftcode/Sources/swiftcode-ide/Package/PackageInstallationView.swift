@@ -1,10 +1,3 @@
-// PackageInstallationView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/PackageInstallationView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: update/downgrade; uninstall from the detail flow; repair manifest integrity; verify dependency tree; logging/process-monitor panel
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DependencyPlatformManager.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftUI
 
@@ -22,7 +15,6 @@ struct PackageInstallationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
             HStack {
                 Button {
                     dismiss()
@@ -99,7 +91,7 @@ struct PackageInstallationView: View {
     }
 
     private func runUpdate() {
-        runInstall() // Re-install updates version configuration in Package.swift
+        runInstall()
     }
 
     private func runRepair() {
@@ -136,7 +128,6 @@ struct PackageInstallationView: View {
     }
 }
 
-// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
 private struct SettingsAndActionsPanel: View {
     let package: PackageMetadata
     var platformManager: DependencyPlatformManager
@@ -216,7 +207,6 @@ private struct SettingsAndActionsPanel: View {
 
             Divider()
 
-            // Maintenance Actions
             VStack(alignment: .leading, spacing: 10) {
                 Text("Maintenance & Repair")
                     .font(.headline)
@@ -299,4 +289,3 @@ private struct LoggingAndProcessMonitorPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-

@@ -6,13 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Toggle and toggle styles (round R8). 06 §4: a tap on the switch flips the
-// bound value; programmatic changes animate the switch. Golden `toggle`:
-// label + 8 + a 61 × 28 switch, filling a proposed width;
-// `toggle.labelsHidden`: 61 × 28. The checkbox style (a desktop style; the
-// name follows the public API) puts an 18 × 18 box before the label.
-
-/// A control that switches between on and off.
 public struct Toggle<Label: View>: View {
     let isOn: Binding<Bool>
     let label: Label
@@ -36,7 +29,6 @@ public struct Toggle<Label: View>: View {
                 SwitchToggleStyle().makeBody(configuration: c)
             }
         }
-        // R10 (08 §2): a toggle is a button with the toggle trait, value 1/0.
         .accessibilityControl(inMenu ? .menuItem : .toggle, traits: [.isButton, .isToggle],
                               value: { binding.wrappedValue ? "1" : "0" },
                               actions: ["default": { binding.wrappedValue.toggle() }])
@@ -60,7 +52,6 @@ extension Toggle where Label == _TitleAndIconLabel {
     }
 }
 
-/// What a toggle style draws.
 public struct ToggleStyleConfiguration {
     public struct Label: View {
         let content: AnyView
@@ -104,7 +95,6 @@ extension View {
     }
 }
 
-/// The default: a switch.
 public struct DefaultToggleStyle: ToggleStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -112,19 +102,16 @@ public struct DefaultToggleStyle: ToggleStyle {
     }
 }
 
-/// A sliding switch at the trailing edge (61 × 28).
 public struct SwitchToggleStyle: ToggleStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View { SwitchToggleBody(configuration: configuration) }
 }
 
-/// A check box before the label (18 × 18).
 public struct CheckboxToggleStyle: ToggleStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View { CheckboxToggleBody(configuration: configuration) }
 }
 
-/// A button that shows its state (prominent while on).
 public struct ButtonToggleStyle: ToggleStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -151,9 +138,6 @@ extension ToggleStyle where Self == ButtonToggleStyle {
     public static var button: ButtonToggleStyle { ButtonToggleStyle() }
 }
 
-// MARK: - Switch
-
-/// Switch geometry (golden: 61 × 28); the thumb is SwiftCode's.
 enum SwitchMetrics {
     static let size = CGSize(width: 61, height: 28)
     static let thumb = CGSize(width: 35, height: 24)
@@ -200,8 +184,6 @@ struct SwitchToggleBody: View {
         .opacity(isEnabled ? 1 : 0.45)
     }
 }
-
-// MARK: - Checkbox
 
 struct CheckmarkShape: Shape {
     nonisolated func path(in r: CGRect) -> Path {

@@ -2,42 +2,13 @@ import Crypto
 import Foundation
 import SwiftCodeIDECore
 
-/// Shared helpers for the ported Legacy file-reading tool family (Wave 1).
-///
-/// Behaviour source: Legacy `AssistFileSystem` / `AssistArtifactStore` /
-/// `AssistArtifactNaming` (Dylan's own code, ported under MIT) as specified
-/// in `specs/ide/assist-file-tools.md`. The rules that matter:
-///
-/// * Paths resolve against the session working directory (`dir_cd` /
-///   `dir_pwd`, stored on `SwiftCodeMCPHost.currentDirectory`), defaulting to
-///   the workspace root. A leading `/` is workspace-root-relative (the
-///   Legacy convention), `~` expands to the user's home, and `..` that
-///   escapes the workspace root is an error, never a silent clamp.
-/// * Symlinks are judged by where they resolve: `isInside` compares real
-///   paths, so a symlink pointing outside the workspace is refused.
-/// * Artifacts live in `<workspace>/.assist_temp/artifacts/<name>.md` with
-///   a JSON sidecar (`.artifacts_index.json`) for id/description/kind;
-///   `agent_notes.md` at the workspace root is surfaced as an artifact
-///   and can never be deleted through `delete_artifact`.
-/// * Hashes use swift-crypto (`Crypto`), which is portable (macOS and
-///   Linux), instead of Legacy's CryptoKit / `shasum` / `md5` CLIs.
 extension SwiftCodeMCPHost {
-    /// The directory plain relative paths resolve against: the session
-    /// working directory when `dir_cd` set one, else the workspace root.
     func fileReadingDirectory(in s: WorkspaceSession) -> URL {
         let root = Self.folder(of: s.model)
         guard let dir = currentDirectory?.standardizedFileURL, Self.isInside(dir, root) else { return root }
         return dir
     }
 
-    /// Resolves a tool path the way Legacy's file tools do: `~` expands,
-    /// a leading `/` is workspace-root-relative, anything else is relative
-    /// to the session working directory. Refuses paths outside the
-    /// workspace (including via `..` or a symlink). One SwiftCode tolerance
-    /// is kept: an absolute path that really is inside the workspace is
-    /// used as-is (so existing callers passing absolute paths keep
-    /// working); otherwise a leading `/` falls back to the Legacy
-    /// workspace-root-relative reading.
     func resolveFileReadingPath(_ path: String, in s: WorkspaceSession) throws -> URL {
         let root = Self.folder(of: s.model)
         let url: URL
@@ -58,18 +29,13 @@ extension SwiftCodeMCPHost {
         return url
     }
 
-    /// The artifact store: `<workspace>/.assist_temp/artifacts`.
     func artifactDirectory(in s: WorkspaceSession) -> URL {
         Self.folder(of: s.model).appendingPathComponent(".assist_temp/artifacts", isDirectory: true)
     }
 
-    /// Where `file_backup` writes timestamped copies:
-    /// `<workspace>/.assist_temp/backups`.
     func backupDirectory(in s: WorkspaceSession) -> URL {
         Self.folder(of: s.model).appendingPathComponent(".assist_temp/backups", isDirectory: true)
     }
-
-    // MARK: Artifact index sidecar
 
     func artifactIndexURL(in s: WorkspaceSession) -> URL {
         artifactDirectory(in: s).appendingPathComponent(".artifacts_index.json")
@@ -88,11 +54,6 @@ extension SwiftCodeMCPHost {
         try? data.write(to: artifactIndexURL(in: s), options: .atomic)
     }
 
-    // MARK: Artifact discovery
-
-    /// The artifacts on disk: the `.assist_temp/artifacts` files plus
-    /// `agent_notes.md` at the workspace root, newest first. Mirrors
-    /// Legacy `AssistArtifactStore.refresh`.
     func listFileReadingArtifacts(in s: WorkspaceSession) -> [FileReadingArtifact] {
         let root = Self.folder(of: s.model)
         let fm = FileManager.default
@@ -130,10 +91,6 @@ extension SwiftCodeMCPHost {
         return found
     }
 
-    /// Reads one artifact by name (case-insensitive match on the file
-    /// name, as in Legacy). Content is capped at 60,000 characters with
-    /// Legacy's truncation marker; `agent_notes.md` reads from the
-    /// workspace root.
     func readFileReadingArtifact(named name: String, in s: WorkspaceSession) throws -> (record: FileReadingArtifact, content: String, truncated: Bool) {
         guard let filename = FileReadingArtifactNaming.normalize(name) else {
             throw MCPToolError("Invalid artifact name '\(name)'. Use snake_case with a .md extension (e.g. repository_analysis.md).")
@@ -152,10 +109,6 @@ extension SwiftCodeMCPHost {
         return (record, content, false)
     }
 
-    // MARK: Small shared helpers
-
-    /// A file's first meaningful line (heading markers stripped, at most
-    /// 140 characters), for artifact descriptions. Mirrors Legacy.
     nonisolated static func firstMeaningfulLine(of url: URL) -> String? {
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         for line in content.components(separatedBy: .newlines) {
@@ -167,12 +120,10 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// `true` when the data looks binary (a NUL byte in the first 8 KB).
     nonisolated static func isBinary(_ data: Data) -> Bool {
         data.prefix(8_192).contains(0)
     }
 
-    /// `123` → `"123 B"`, `2048` → `"2.0 KB"`, `3_500_000` → `"3.3 MB"`.
     nonisolated static func humanSize(_ bytes: Int) -> String {
         if bytes < 1_024 { return "\(bytes) B" }
         let units = ["KB", "MB", "GB", "TB"]
@@ -182,20 +133,15 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// One artifact in the store, as `list_artifacts` / `read_artifact` show it.
 struct FileReadingArtifact: Sendable {
     var filename: String
     var title: String
     var description: String
-    /// `"artifact"`, `"execution_plan"` or `"agent_notes"` (plus `"image"` /
-    /// `"screen_recording"` for media files found on disk).
     var kind: String
     var relativePath: String
     var modifiedAt: Date
 }
 
-/// One entry of the `.artifacts_index.json` sidecar: the metadata that
-/// cannot be derived from the artifact file alone.
 struct FileReadingArtifactIndexEntry: Codable, Sendable {
     var id: UUID
     var description: String
@@ -204,10 +150,6 @@ struct FileReadingArtifactIndexEntry: Codable, Sendable {
     var sourceMessageID: UUID?
 }
 
-/// Artifact file naming. Mirrors Legacy `AssistArtifactNaming` (behaviour
-/// only): trim, lowercase, spaces/hyphens → underscores, enforce the
-/// `.md` extension and the `^[a-z0-9_]+\.md$` shape; `nil` for unsafe or
-/// empty names. `agent_notes.md` is the protected notes file.
 enum FileReadingArtifactNaming {
     static let protectedFilename = "agent_notes.md"
 
@@ -227,7 +169,6 @@ enum FileReadingArtifactNaming {
         return stem + ".md"
     }
 
-    /// `agent_notes.md` → `Agent Notes`; the stored filename is untouched.
     static func displayTitle(for filename: String) -> String {
         var stem = filename
         for ext in [".md", ".markdown", ".png", ".mov", ".mp4", ".jpg", ".jpeg"] where stem.lowercased().hasSuffix(ext) {
@@ -242,9 +183,6 @@ enum FileReadingArtifactNaming {
         return title.isEmpty ? filename : title
     }
 
-    /// Strict kind inference: an execution plan only when the stem
-    /// contains `_plan`, starts with `plan_` or ends with `_plan` (a bare
-    /// `plan` substring, e.g. `airplane_notes.md`, does not count).
     static func inferredKind(for filename: String) -> String {
         var stem = filename.lowercased()
         if stem.hasSuffix(".md") { stem = String(stem.dropLast(3)) }
@@ -253,15 +191,11 @@ enum FileReadingArtifactNaming {
     }
 }
 
-/// The hash algorithms Legacy's `file_hash_verify` /
-/// `file_checksum_verifier` accept, computed with swift-crypto (portable)
-/// instead of Legacy's CryptoKit / `shasum` / `md5` CLIs.
 enum FileHashAlgorithm: String, CaseIterable, Sendable {
     case sha256
     case sha1
     case md5
 
-    /// The expected hex length of a hash value (for input validation).
     var hexLength: Int {
         switch self {
         case .sha256: 64
@@ -278,8 +212,6 @@ enum FileHashAlgorithm: String, CaseIterable, Sendable {
         }
     }
 
-    /// Hashes a file in 1 MB chunks (files can be large; never load one
-    /// whole into memory for this).
     func hashFile(at url: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }

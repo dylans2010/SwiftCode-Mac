@@ -1,9 +1,5 @@
 import SwiftUI
 
-// MARK: - Discovery models (parsed from the real project on disk)
-
-/// A Swift package dependency with its pinned version resolved from
-/// Package.resolved when one exists on disk.
 private struct DiscoveredPackage: Identifiable, Hashable {
     let id = UUID()
     var name: String
@@ -13,7 +9,6 @@ private struct DiscoveredPackage: Identifiable, Hashable {
     var source: String
 }
 
-/// A PBXShellScriptBuildPhase parsed from project.pbxproj.
 private struct DiscoveredRunScript: Identifiable, Hashable {
     let id: String
     var name: String
@@ -29,25 +24,21 @@ struct ProjectSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var scanner = InspectorProjectScanner.shared
 
-    // MARK: - Identity
     @State private var projectName = ""
     @State private var organizationName = ""
     @State private var bundleIdentifier = ""
     @State private var projectDescription = ""
     @State private var githubRepo = ""
 
-    // MARK: - Versioning
     @State private var marketingVersion = "1.0.0"
     @State private var buildNumber = "1"
     @State private var autoIncrementBuild = false
 
-    // MARK: - Team / platform / toolchain
     @State private var developmentTeam = ""
     @State private var deploymentPlatform = "macOS"
     @State private var deploymentVersion = "15.0"
     @State private var swiftLanguageVersion = "6.0"
 
-    // MARK: - Persisted build-metadata state
     @State private var xcodeSettings: [String: String] = [:]
     @State private var targetBundleIDOverrides: [String: String] = [:]
     @State private var infoPlistPath = ""
@@ -56,14 +47,12 @@ struct ProjectSettingsView: View {
     @State private var codeSignIdentity = ""
     @State private var provisioningProfileSpecifier = ""
 
-    // MARK: - Build configurations (persisted overrides)
     @State private var configurations: [String] = []
     @State private var configsCustomized = false
     @State private var newConfigName = ""
     @State private var renamingConfig: String?
     @State private var renameText = ""
 
-    // MARK: - Discovered project info (real, from disk)
     @State private var resolvedPackages: [DiscoveredPackage] = []
     @State private var runScripts: [DiscoveredRunScript] = []
     @State private var testPlans: [String] = []
@@ -82,8 +71,6 @@ struct ProjectSettingsView: View {
     private let swiftVersions = ["5.0", "5.9", "5.10", "6.0", "6.1", "6.2"]
     private let optimizationLevels = ["-Onone", "-O", "-Osize"]
     private let concurrencyModes = ["minimal", "targeted", "complete"]
-
-    // MARK: - Body
 
     var body: some View {
         NavigationStack {
@@ -125,8 +112,6 @@ struct ProjectSettingsView: View {
             }
         }
     }
-
-    // MARK: - Sections
 
     private var identitySection: some View {
         Section {
@@ -549,8 +534,6 @@ struct ProjectSettingsView: View {
         .liquidGlass(style: .subtle, cornerRadius: 8)
     }
 
-    // MARK: - Build setting row builders
-
     private var swiftCompilerSettings: [BuildSettingRow] {
         [
             .picker(key: "SWIFT_OPTIMIZATION_LEVEL", title: "Optimization Level", icon: "gauge", options: optimizationLevels, fallback: "-Onone"),
@@ -634,8 +617,6 @@ struct ProjectSettingsView: View {
             }
         }
     }
-
-    // MARK: - Schemes / packages / files
 
     private var schemesSection: some View {
         Section {
@@ -832,8 +813,6 @@ struct ProjectSettingsView: View {
         }
     }
 
-    // MARK: - Statistics & storage
-
     private func statisticsSection(_ project: Project) -> some View {
         Section {
             LabeledContent {
@@ -880,8 +859,6 @@ struct ProjectSettingsView: View {
         }
     }
 
-    // MARK: - Computed helpers
-
     private var nameFieldLocked: Bool {
         guard let project = sessionStore.activeProject else { return true }
         return project.customDirectoryPath == nil && project.name.hasPrefix("/")
@@ -915,8 +892,6 @@ struct ProjectSettingsView: View {
         if let value = detectedSetting("IPHONEOS_DEPLOYMENT_TARGET") { return "iOS \(value)" }
         return nil
     }
-
-    // MARK: - Setting bindings (persisted overrides over detected values)
 
     private func detectedSetting(_ key: String) -> String? {
         for target in scanner.xcodeTargets {
@@ -986,8 +961,6 @@ struct ProjectSettingsView: View {
         )
     }
 
-    // MARK: - Validation
-
     private func isValidBundleID(_ value: String) -> Bool {
         value.range(of: "^[A-Za-z][A-Za-z0-9_-]*(\\.[A-Za-z][A-Za-z0-9_-]*)+$", options: .regularExpression) != nil
     }
@@ -1010,8 +983,6 @@ struct ProjectSettingsView: View {
         let name = cleaned(projectName, lowercase: false)
         return "com.\(org.isEmpty ? "swiftcode" : org).\(name.isEmpty ? "app" : name)"
     }
-
-    // MARK: - Build configuration editing
 
     private func ensureConfigurationsCustomized() {
         if !configsCustomized {
@@ -1068,8 +1039,6 @@ struct ProjectSettingsView: View {
             showError = true
         }
     }
-
-    // MARK: - Load / save
 
     private func loadSettings() {
         guard let project = sessionStore.activeProject else { return }
@@ -1129,8 +1098,6 @@ struct ProjectSettingsView: View {
             return
         }
 
-        // Rename. Default-root projects move their folder so the name keeps
-        // resolving; custom-directory projects rename metadata only.
         if trimmedName != project.name {
             if project.customDirectoryPath != nil {
                 sessionStore.updateProjectName(trimmedName, for: project)
@@ -1185,8 +1152,6 @@ struct ProjectSettingsView: View {
     private func openProjectInFiles(_ project: Project) {
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.directoryURL.path)
     }
-
-    // MARK: - Project discovery (real data from disk)
 
     private func refreshProjectDiscovery() async {
         guard let project = sessionStore.activeProject else { return }
@@ -1464,8 +1429,6 @@ struct ProjectSettingsView: View {
         let object: V1Object?
     }
 }
-
-// MARK: - Build setting row descriptor
 
 private struct BuildSettingRow: Identifiable {
     enum Kind {

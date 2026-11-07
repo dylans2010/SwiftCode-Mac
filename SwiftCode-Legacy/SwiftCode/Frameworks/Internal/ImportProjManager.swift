@@ -18,7 +18,6 @@ public final class ImportProjManager {
 
         defer { isImporting = false }
 
-        // Start accessing security scoped resource if needed
         let isAccessing = url.startAccessingSecurityScopedResource()
         defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
 

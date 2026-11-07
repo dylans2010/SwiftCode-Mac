@@ -1,15 +1,8 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The source editor's text commands behind the Editor menu, the change
-/// gutter and the Edit menu's symbol items (`specs/ide/reference-ui-5.md`
-/// §2.7, §6.3, §6.4). The text work is in `TextCommands`; this applies it
-/// to the text view as one undo step each.
 extension SourceEditorController {
-    // MARK: Applying edits
 
-    /// Applies a change as one undoable edit and selects its selection.
-    /// Returns false when there is nothing to change.
     @discardableResult
     public func apply(_ change: TextChange?, actionName: String) -> Bool {
         _ = view
@@ -30,8 +23,6 @@ extension SourceEditorController {
         return true
     }
 
-    /// Replaces the whole text with `new`, editing only the part that
-    /// differs (so the caret and undo stay local).
     @discardableResult
     func replaceText(with new: String, actionName: String) -> Bool {
         let old = textView.string as NSString
@@ -50,18 +41,14 @@ extension SourceEditorController {
 
     var selection: NSRange { textView.selectedRange() }
 
-    // MARK: Structure (§6.4)
-
     public var canMoveLineUp: Bool { fileURL != nil && TextCommands.canMoveLines(in: textView.string, selection: selection, up: true) }
     public var canMoveLineDown: Bool { fileURL != nil && TextCommands.canMoveLines(in: textView.string, selection: selection, up: false) }
 
-    /// Move Line Up / Down (⌥⌘[ / ⌥⌘]).
     @discardableResult
     public func moveLines(up: Bool) -> Bool {
         apply(TextCommands.moveLines(in: textView.string, selection: selection, up: up), actionName: up ? "Move Line Up" : "Move Line Down")
     }
 
-    /// Shift Left / Right (⌘[ / ⌘]).
     @discardableResult
     public func shiftLines(right: Bool) -> Bool {
         let p = Preferences.shared
@@ -69,7 +56,6 @@ extension SourceEditorController {
                      actionName: right ? "Shift Right" : "Shift Left")
     }
 
-    /// Re-Indent (⌃I).
     @discardableResult
     public func reindentLines() -> Bool {
         let p = Preferences.shared
@@ -77,34 +63,25 @@ extension SourceEditorController {
                                            document: language == .plain ? nil : syntaxDocument), actionName: "Re-Indent")
     }
 
-    /// Add Documentation (⌥⌘/).
     @discardableResult
     public func addDocumentation() -> Bool {
         guard language == .swift || language.isCFamily else { return false }
         return apply(TextCommands.addDocumentation(in: textView.string, caretLine: currentLine), actionName: "Add Documentation")
     }
 
-    /// Format to Multiple Lines (⌃M).
     @discardableResult
     public func formatToMultipleLines() -> Bool {
         apply(TextCommands.formatToMultipleLines(in: textView.string, caret: selection.location, language: language, unit: Preferences.shared.indentUnit),
               actionName: "Format to Multiple Lines")
     }
 
-    /// Reformat To Width (⌃⌥I), at the "Reformat code at column" setting.
     @discardableResult
     public func reformatToWidth() -> Bool {
         apply(TextCommands.reformatToWidth(in: textView.string, selection: selection, column: Preferences.shared.pageGuideColumn), actionName: "Reformat To Width")
     }
 
-    /// Format Selection / Format File are for Swift files only (§6.4).
     public var canFormatWithSwiftFormat: Bool { fileURL?.pathExtension == "swift" && textView.isEditable }
 
-    /// Format Selection / Format File (⌃⌥⇧I / ⌃⇧I): runs `swift-format` off
-    /// the main thread and applies its output if the text has not changed
-    /// meanwhile. Returns whether the text changed. `tool` nil (the
-    /// default) looks the tool up, also off the main thread; `.some(nil)`
-    /// means it is missing.
     @discardableResult
     public func formatWithSwiftFormat(selectionOnly: Bool, tool: URL?? = nil) async -> Result<Bool, SwiftFormatTool.Failure> {
         guard canFormatWithSwiftFormat, let url = fileURL else { return .success(false) }
@@ -126,15 +103,11 @@ extension SourceEditorController {
         }
     }
 
-    // MARK: Code Folding (§6.4)
-
-    /// Fold / Unfold Methods & Functions (⌥⇧⌘← / →).
     public func foldMethodsAndFunctions(_ fold: Bool) {
         let starts = Set(FoldRegions.functionRegions(in: textView.string, language: language).map(\.startLine))
         setFolded(starts, fold)
     }
 
-    /// Fold / Unfold Comment Blocks (⌃⇧⌘← / →).
     public func foldCommentBlocks(_ fold: Bool) { setFolded(Set(commentRegions.map(\.startLine)), fold) }
 
     func setFolded(_ starts: Set<Int>, _ fold: Bool) {
@@ -142,12 +115,8 @@ extension SourceEditorController {
         applyFolds()
     }
 
-    // MARK: Selection (§6.4)
-
-    /// The selections: several while multiple selections are active.
     public var selectionRanges: [NSRange] { textView.multipleRanges.isEmpty ? [selection] : textView.multipleRanges }
 
-    /// Sets one or more selections (several: typing edits at each).
     public func setSelections(_ ranges: [NSRange]) {
         _ = view
         if ranges.count <= 1 { clearMultipleSelection(); if let r = ranges.first { textView.setSelectedRange(r) }; return }
@@ -156,10 +125,8 @@ extension SourceEditorController {
 
     func clearMultipleSelection() { textView.multipleRanges = [] }
 
-    /// Types at every selection (tests; the keyboard goes through insertText).
     public func insertAtSelections(_ s: String) { textView.insertText(s, replacementRange: NSRange(location: NSNotFound, length: 0)) }
 
-    /// Split Selection By Lines.
     @discardableResult
     public func splitSelectionByLines() -> Bool {
         let parts = TextCommands.splitByLines(in: textView.string, selection: selection)
@@ -168,7 +135,6 @@ extension SourceEditorController {
         return true
     }
 
-    /// Balance Delimiters.
     @discardableResult
     public func balanceDelimiters() -> Bool {
         guard let r = TextCommands.balance(in: textView.string, selection: selection, language: language) else { return false }
@@ -177,8 +143,6 @@ extension SourceEditorController {
         return true
     }
 
-    /// Select Column Up / Down (⌃⇧↑ / ⌃⇧↓): an insertion point on the line
-    /// above the topmost (below the bottommost) one, at the same column.
     @discardableResult
     public func addColumnSelection(up: Bool) -> Bool {
         let current = selectionRanges
@@ -189,9 +153,6 @@ extension SourceEditorController {
         return true
     }
 
-    /// Select All Symbols / Edit All in Scope (⌃⌘E): every occurrence of
-    /// the symbol at the caret as selections. `highlights` are the
-    /// language server's document highlights when it gave any.
     @discardableResult
     public func selectAllOccurrences(highlights: [NSRange]? = nil) -> Bool {
         let found = highlights.flatMap { $0.isEmpty ? nil : $0 }
@@ -204,32 +165,21 @@ extension SourceEditorController {
         return true
     }
 
-    // MARK: Syntax Coloring
-
-    /// The language the file's type gives.
     public var fileLanguage: SourceTokenizer.Language { fileURL.map { .init(fileName: $0.lastPathComponent) } ?? .plain }
-    /// The language the text is colored as.
     public var coloringLanguage: SourceTokenizer.Language { language }
 
-    /// Editor ▸ Syntax Coloring ▸ <item>: nil = Default for File Type.
     public func setSyntaxColoring(_ l: SourceTokenizer.Language?) {
         _ = view
         syntaxOverride = l
         language = l ?? fileLanguage
         symbolCache.symbols = nil
-        applyPreferences()   // recolors the whole text
+        applyPreferences()
         reindexDeferred()
     }
 
-    // MARK: Change gutter (§6.3)
-
-    /// The change regions shown in the gutter.
     public var sourceChanges: [SourceChangeRegion] { gutter.changeRegions }
     public var showsChangeColumn: Bool { gutter.showsChangeColumn }
 
-    /// Re-reads the index and HEAD versions (in the background), then
-    /// recomputes the change bars. Open and save call it; the window calls
-    /// it after a source-control change.
     public func refreshSourceChanges() {
         changeRefresh?.invalidate()
         changeRefresh = nil
@@ -241,7 +191,6 @@ extension SourceEditorController {
             gutter.changeRegions = []
             return
         }
-        // Another file's bars go at once; this file's stay until the read.
         if changeBaselineCache?.url != url {
             changeBaselineCache = nil
             gutter.changeRegions = []
@@ -258,8 +207,6 @@ extension SourceEditorController {
         }
     }
 
-    /// Recomputes the change bars against the baselines already read (no
-    /// git call): after an edit.
     func recomputeSourceChanges() {
         changeRefresh?.invalidate()
         changeRefresh = nil
@@ -274,17 +221,13 @@ extension SourceEditorController {
         if isDirty { refreshBlame() }
     }
 
-    /// Waits for the baseline read (tests).
     public func sourceChangesIdle() async {
         while let t = changeBaselineLoading { await t.value }
     }
 
-    /// After an edit: refresh after a pause (§6.3.4).
     func scheduleSourceChangesRefresh() {
         guard changeBaselines != nil, fileURL != nil else { return }
         changeRefresh?.invalidate()
-        // A run-loop timer (common modes), so it also fires while a menu or
-        // a drag is tracking.
         let t = Timer(timeInterval: Self.changeRefreshDelay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.recomputeSourceChanges() }
         }
@@ -292,8 +235,6 @@ extension SourceEditorController {
         changeRefresh = t
     }
 
-    /// Navigate ▸ Jump to Next / Previous Change (⌃\ / ⌃|): the start of
-    /// the next or previous region, wrapping.
     @discardableResult
     public func jumpToChange(forward: Bool) -> Bool {
         if changeRefresh != nil { recomputeSourceChanges() }
@@ -302,18 +243,12 @@ extension SourceEditorController {
         return true
     }
 
-    // MARK: Edit menu items (§6.4)
-
-    /// Edit ▸ Copy File and Line (⌃⌥⌘C): "<file name>:<line>".
     public var fileAndLine: String? { fileURL.map { "\($0.lastPathComponent):\(currentLine)" } }
 
-    /// Edit ▸ Copy Symbol Name / Copy Qualified Symbol Name.
     public func symbolName(qualified: Bool) -> String? {
         TextCommands.symbolName(in: textView.string, at: selection.location, language: language, qualified: qualified)
     }
 
-    /// Edit ▸ Duplicate (⌘D): the selection, or the caret's line, again
-    /// right after it; the copy is selected (the caret moves to it).
     @discardableResult
     public func duplicateSelection() -> Bool {
         let ns = textView.string as NSString

@@ -1,38 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Deployments/GitHubPagesManager.swift
-//   (Legacy main ab03f681) — verbatim except the adaptations below.
-//
-// Adaptations (production APIs differ from Legacy):
-//   * Token: Legacy read it via `DeploymentKeychainManager.shared
-//     .retrieveKey(service: .github)`. That type is internal to
-//     SwiftCodeAssistant and invisible from SwiftCodeUI, so the token
-//     now comes from production's canonical secret store —
-//     `defaultSecretStore().readString(SecretAccount.githubToken)` —
-//     the same account `GitHubService` and `DeploymentService` use.
-//   * `prepareGitHubRepository` called Legacy's
-//     `GitHubService.pushProject(project, owner:repo:commitMessage:branch:)`.
-//     That shape does not exist in production: `GitHubService.pushProject`
-//     takes collected `files: [(path, data)]`. Files are collected from the
-//     project's `FileNode` tree exactly as `DeploymentTargets`
-//     (`SwiftCodeUI/Deploy/DeploymentTargets.swift`, S-FLAGS rewire) does —
-//     text files only; files that cannot be read as UTF-8 are skipped.
-//   * The `GitHubPagesInfo` / `GitHubPagesDeploymentsResponse` /
-//     `GitHubPagesDeployment` models declared at the bottom of the Legacy
-//     file are NOT re-declared here: they already exist in this same
-//     module (`SwiftCodeUI/Deploy/DeploymentService.swift`) with Legacy's
-//     shapes (`GitHubPagesInfo` url/status/htmlUrl; `GitHubPagesDeployment`
-//     id/status — this file only reads `.status`; `GitHubPagesDeploymentsResponse`
-//     deployments array), and unqualified references resolve to those.
-//     (A second, fuller `GitHubPagesInfo`/`GitHubPagesDeployment` pair also
-//     exists in SwiftCodeGitHub; same-module declarations win, so the
-//     SwiftCodeUI shapes are the ones this file uses.)
-//
-// Legacy behaviour kept verbatim: the one real API deploy flow in Legacy —
-// enable Pages (build_type: workflow), ensure the Actions workflow file,
-// poll deployments up to 60 × 10s. `detectFramework` is Legacy's
-// simplified version (Next.js / Vite / Static), not `DeploymentTargets`'
-// richer one.
-
 import Foundation
 import SwiftCodeAssistant
 import SwiftCodeGitHub
@@ -119,9 +84,6 @@ final class GitHubPagesManager: @unchecked Sendable {
         return true
     }
 
-    /// Collects the project's files as `(path, data)` pairs for the Git
-    /// Data API push — same walk as `DeploymentTargets.collectProjectFiles`
-    /// (text files only; files that cannot be read as UTF-8 are skipped).
     private func collectProjectFiles(from nodes: [FileNode], projectDir: URL) -> [(path: String, data: Data)] {
         var collected: [(path: String, data: Data)] = []
         for node in nodes {
@@ -183,7 +145,6 @@ final class GitHubPagesManager: @unchecked Sendable {
     private func ensurePagesWorkflow(project: Project, owner: String, repo: String, token: String?, logHandler: @escaping (String) -> Void) async throws {
         let path = ".github/workflows/pages.yml"
 
-        // Check if workflow already exists using GitHubService (API based)
         let existingSHA = try? await GitHubService.shared.getFileSHA(owner: owner, repo: repo, path: path, branch: "main")
         if existingSHA != nil {
             return
@@ -228,7 +189,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 """
-        // Push file using GitHubService (API based)
         try await GitHubService.shared.pushFile(
             owner: owner,
             repo: repo,
@@ -275,7 +235,7 @@ jobs:
     private func pollDeploymentStatus(owner: String, repo: String, token: String?, logHandler: @escaping (String) -> Void) async throws -> String {
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/pages/deployments")
 
-        for _ in 1...60 { // Poll for 10 minutes (10s intervals)
+        for _ in 1...60 {
             var request = URLRequest(url: url)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             if let token = token {

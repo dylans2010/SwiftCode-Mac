@@ -11,7 +11,6 @@ public class ProjectTreeViewModel {
     public var isLoading = false
     public var selectedNodeID: String?
 
-    // Performance optimizations: Caching, load tracking, expansion tracking
     public var expandedNodeIDs: Set<String> = []
     public var cachedChildren: [String: [ProjectNode]] = [:]
     public var loadingNodeIDs: Set<String> = []
@@ -53,7 +52,7 @@ public class ProjectTreeViewModel {
         if !bypassDebounce {
             refreshTask?.cancel()
             refreshTask = Task {
-                try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
+                try? await Task.sleep(nanoseconds: 300_000_000)
                 if Task.isCancelled { return }
                 await performRefresh()
             }
@@ -69,7 +68,6 @@ public class ProjectTreeViewModel {
         isLoading = true
         loadError = nil
 
-        // Clear cache for fresh read on manual refresh
         cachedChildren.removeAll()
 
         let startTime = CFAbsoluteTimeGetCurrent()
@@ -92,14 +90,12 @@ public class ProjectTreeViewModel {
 
         let path = node.url.path
         if expandedNodeIDs.contains(path) {
-            // Collapse: remove from expanded list and cancel loads
             expandedNodeIDs.remove(path)
             if let loadTask = activeLoads[path] {
                 loadTask.cancel()
                 activeLoads.removeValue(forKey: path)
             }
         } else {
-            // Expand: add to expanded list
             expandedNodeIDs.insert(path)
         }
 
@@ -109,8 +105,6 @@ public class ProjectTreeViewModel {
             loadingNodeIDs.remove(path)
         }
     }
-
-    // MARK: - Internal Tree Helpers
 
     private func fetchChildren(at url: URL) async throws -> [ProjectNode] {
         let path = url.path

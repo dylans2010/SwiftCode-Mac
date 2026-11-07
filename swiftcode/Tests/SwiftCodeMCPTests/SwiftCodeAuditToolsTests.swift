@@ -2,16 +2,8 @@ import Foundation
 import Testing
 @testable import SwiftCodeMCP
 
-/// The ported Legacy security / privacy / platform audit tools (Wave 6,
-/// slice C), each driven through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAuditToolsTests {
-    /// Opens a copy of Greeter and installs the audit tools on the
-    /// server. (Wiring `auditTools` into `installTools()` is the
-    /// coordinator's integration step; the tests install them directly
-    /// so the tools still run through `MCPServer.run`'s write-policy
-    /// gate.)
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -21,8 +13,6 @@ import Testing
         return host
     }
 
-    /// Writes `content` to `rel` inside the sample workspace, creating
-    /// parent directories.
     func write(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = sample.url.appendingPathComponent(rel)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -35,14 +25,11 @@ import Testing
         try data.write(to: url)
     }
 
-    /// Serializes a dictionary as an XML plist at `rel`.
     func writePlist(_ sample: TempSample, _ rel: String, _ dict: [String: Any]) throws {
         let data = try PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0)
         try writeData(sample, rel, data)
     }
 
-    /// A minimal 64-bit Mach-O header (32 bytes, no load commands):
-    /// magic `0xFEEDFACF`, arm64, file type executable.
     static func minimalMachO() -> Data {
         var bytes: [UInt8] = []
         func u32(_ v: UInt32) { bytes += [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)] }
@@ -50,8 +37,6 @@ import Testing
         return Data(bytes)
     }
 
-    /// A minimal arm64 Mach-O executable with one `LC_LOAD_DYLIB`
-    /// (`/usr/lib/libSystem.B.dylib`, current/compat version 1.0).
     static func machOWithDylib() -> Data {
         var bytes: [UInt8] = []
         func u32(_ v: UInt32) { bytes += [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)] }
@@ -88,8 +73,6 @@ import Testing
         #expect(try required("permissions_audit") == [])
         #expect(try required("dependency_licenses") == [])
         #expect(try required("image_asset_size_report") == [])
-        // Catalogue §1.3 risk table: safeRead → read-only, safeMutation
-        // → writes. Only privacy_manifest_auditor writes in this family.
         let manifest = try listing("privacy_manifest_auditor")
         #expect(manifest["annotations"]?["readOnlyHint"] == false && manifest["annotations"]?["idempotentHint"] == true)
         let scanner = try listing("security_audit_scanner")
@@ -174,7 +157,6 @@ import Testing
         #expect(!audit.isToolError)
         #expect(audit.firstText.contains("PrivacyInfo.xcprivacy Present**: ❌ No (Action recommended)"))
         #expect(audit.firstText.contains("UserDefaults Usage**: 1 file(s)"))
-        // Generate is a write: refused while the server is read-only.
         let refused = try await host.server.callTool("privacy_manifest_auditor", ["action": .string("generate")])
         #expect(refused.isToolError && refused.firstText.contains("read-only"))
         #expect(!FileManager.default.fileExists(atPath: sample.path("PrivacyInfo.xcprivacy")))
@@ -472,9 +454,6 @@ import Testing
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // The AWS example key from the public documentation (not a real secret),
-        // assembled from parts so the literal never appears in tracked source
-        // (scan-public flags the AKIA pattern).
         let awsExampleKey = "AKIA" + "IOSFODNN7EXAMPLE"
         try write(sample, "Audit/Secrets.swift", """
             import Foundation

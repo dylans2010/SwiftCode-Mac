@@ -1,9 +1,6 @@
 import SwiftUI
 import Foundation
 
-// MARK: - AI Suggestion Engine
-// Sends surrounding code context to OpenRouter and returns ghost-text completions.
-
 @MainActor
 final class AISuggestionEngine: ObservableObject {
     static let shared = AISuggestionEngine()
@@ -12,11 +9,9 @@ final class AISuggestionEngine: ObservableObject {
     @Published var isLoading: Bool = false
 
     private var pendingTask: Task<Void, Never>?
-    private let debounceNanos: UInt64 = 600_000_000 // 600ms
+    private let debounceNanos: UInt64 = 600_000_000
 
     private init() {}
-
-    // MARK: - Request Completion
 
     func requestCompletion(
         prefix: String,
@@ -66,8 +61,6 @@ final class AISuggestionEngine: ObservableObject {
         return accepted
     }
 
-    // MARK: - Helpers
-
     private func buildPrompt(prefix: String, suffix: String, fileName: String) -> String {
         """
         Complete the following Swift code in \(fileName). \
@@ -98,7 +91,6 @@ final class AISuggestionEngine: ObservableObject {
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .newlines)
 
-        // Remove any repetition of the prefix tail
         if let lastLine = prefix.components(separatedBy: "\n").last?.trimmingCharacters(in: .whitespaces),
            !lastLine.isEmpty,
            result.hasPrefix(lastLine) {

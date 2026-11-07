@@ -1,17 +1,3 @@
-// rrmpeek (our own code, OBS-VISION-RRM 2026-11-01, dirty room): does any guest process use Metal rasterization
-// rate maps, and what decides it? Inserted into a boot with SIMCTL_CHILD_DYLD_INSERT_LIBRARIES (every job).
-// In every process (or only those named in RP_PROCS, comma list of program names) it logs, to $RP_DIR/rp.<prog>.<pid>
-// (the file is opened on the first line, so processes that never touch these calls leave no file):
-//  - MTLSimDevice supportsRasterizationRateMapWithLayerCount: (answer, layer count, the image of the caller),
-//    newRasterizationRateMapWithDescriptor: (screen size, layers, zone counts, result), and the device's
-//    maxRasterizationRateLayerCount / supportsVariableRateRasterization when it defines them;
-//  - setRasterizationRateMap: on the render pass descriptor class (non-nil maps, caller image);
-//  - every instance method whose name mentions foveation, VRR or rasterization rate in classes of the compositor,
-//    RealityKit, CoreComposite, SpatialConnect and Metal-driver images (and the main executable), when its signature is a one-word getter or a
-//    one-word setter: the value read or set (first calls per method, then every 1000th).
-// RP_EARLY_SCAN=<comma list of programs>: also scan in the constructor (before main). RP_SEEN_ALL=1: see g_seenAll.
-// The device is hooked when MTLSimDriver is loaded (add-image callback), with polling as a fallback.
-// Diagnostic only, never a host input: RP_FORCE_RRM=1 makes supportsRasterizationRateMapWithLayerCount: answer YES.
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <objc/runtime.h>
@@ -41,7 +27,6 @@ static const char *imgOf(const void *addr) {
 }
 #define CALLER imgOf(__builtin_return_address(0))
 
-// ------------------------------------------------------------ device
 static IMP o_srrm, o_new, o_max, o_svr;
 static int g_srrmN;
 static BOOL h_srrm(id self, SEL c, NSUInteger n) {
@@ -84,13 +69,12 @@ static BOOL hookDefined(Class c, SEL s, IMP imp, IMP *orig) {
     if (!m) { rp("%s does not define %s (inherited: %s)", class_getName(c), sel_getName(s), class_getInstanceMethod(c, s) ? "yes" : "no"); return NO; }
     *orig = method_setImplementation(m, imp); rp("hooked %s %s (impl in %s)", class_getName(c), sel_getName(s), imgOf((const void *)*orig)); return YES;
 }
-static void hookAny(Class c, SEL s, IMP imp, IMP *orig) {   // defined here or inherited: hook the method found
+static void hookAny(Class c, SEL s, IMP imp, IMP *orig) {
     Method m = class_getInstanceMethod(c, s);
     if (!m) { rp("no %s on %s", sel_getName(s), class_getName(c)); return; }
     *orig = method_setImplementation(m, imp); rp("hooked %s %s (impl in %s)", class_getName(c), sel_getName(s), imgOf((const void *)*orig));
 }
 
-// ------------------------------------------------------------ generic foveation/VRR methods
 typedef struct { Class cls; SEL sel; IMP orig; char kind; char t; int count; } entry_t;
 static entry_t g_e[768]; static int g_ne;
 static entry_t *find(id self, SEL s) {
@@ -124,12 +108,12 @@ static int wantedImage(const char *img) {
     if (!img) return 0;
     const char *keys[] = {"wakeboard", "Compositor", "CoreRE", "RealityKit", "RealitySimulation", "RealityFoundation", "MTLSimDriver", "BackBoard", "backboardd", "RealitySystemSupport", "CoreComposite", "SpatialConnect", NULL};
     for (int i = 0; keys[i]; i++) if (strstr(img, keys[i])) return 1;
-    const char *base = strrchr(img, '/'); return base && !strcmp(base + 1, getprogname());   // the main executable
+    const char *base = strrchr(img, '/'); return base && !strcmp(base + 1, getprogname());
 }
-static int g_seenAll;   // RP_SEEN_ALL=1: in the 30 s scan also list (without hooking) matching methods of every other image
+static int g_seenAll;
 
 static int hooked(Class c, SEL s) { for (int i = 0; i < g_ne; i++) if (g_e[i].cls == c && g_e[i].sel == s) return 1; return 0; }
-static int superDefines(Class c, SEL s) {   // only the top-most definer is hooked (avoids recursion through super calls)
+static int superDefines(Class c, SEL s) {
     for (Class k = class_getSuperclass(c); k; k = class_getSuperclass(k)) {
         unsigned n = 0; Method *ms = class_copyMethodList(k, &n); int has = 0;
         for (unsigned i = 0; i < n; i++) if (method_getName(ms[i]) == s) { has = 1; break; }
@@ -185,9 +169,9 @@ static void hookDevice(const char *how) {
     SEL mx = sel_registerName("maxRasterizationRateLayerCount"), sv = sel_registerName("supportsVariableRateRasterization");
     if (class_getInstanceMethod(d, mx)) hookAny(d, mx, (IMP)h_max, &o_max);
     if (class_getInstanceMethod(d, sv)) hookAny(d, sv, (IMP)h_svr, &o_svr);
-    g_later = 1;   // render-pass hook and scan run on our thread, not inside the image-load callback
+    g_later = 1;
 }
-static void addImage(const struct mach_header *mh, intptr_t slide) {   // hook as soon as the Metal driver is loaded
+static void addImage(const struct mach_header *mh, intptr_t slide) {
     (void)slide; Dl_info i;
     if (!g_dev && dladdr(mh, &i) && i.dli_fname && strstr(i.dli_fname, "MTLSimDriver")) hookDevice("at image load");
 }
@@ -214,7 +198,7 @@ __attribute__((constructor)) static void rp_init(void) {
     if (only && *only) { char buf[1024]; snprintf(buf, sizeof buf, ",%s,", only); char k[256]; snprintf(k, sizeof k, ",%s,", me); if (!strstr(buf, k)) return; }
     const char *d = getenv("RP_DIR"); if (!d || !*d) return;
     snprintf(g_dir, sizeof g_dir, "%s", d); g_t0 = wall(); g_force = getenv("RP_FORCE_RRM") != NULL;
-    const char *early = getenv("RP_EARLY_SCAN");   // comma list of programs scanned already in the constructor
+    const char *early = getenv("RP_EARLY_SCAN");
     if (early && *early) { char buf[1024]; snprintf(buf, sizeof buf, ",%s,", early); char k[256]; snprintf(k, sizeof k, ",%s,", me); if (strstr(buf, k)) scan("in constructor"); }
     g_seenAll = getenv("RP_SEEN_ALL") != NULL;
     _dyld_register_func_for_add_image(addImage);

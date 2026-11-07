@@ -13,16 +13,12 @@ public final class WorktreeManager {
     public var isRefreshing = false
     public var lastError: String? = nil
 
-    // Live execution log stream for the UI
     public var liveCommandLogs = ""
     public var activeProcess: Process? = nil
 
     private init() {}
 
-    // MARK: - API / Command Exporter
-
     private var gitExecutableURL: URL {
-        // Fallback to common paths if preference not found
         if let customPath = UserDefaults.standard.string(forKey: "git_executable_path"), !customPath.isEmpty {
             return URL(fileURLWithPath: customPath)
         }
@@ -34,8 +30,6 @@ public final class WorktreeManager {
         return URL(fileURLWithPath: "/usr/bin/git")
     }
 
-    // MARK: - Query State
-
     public func refresh(repositoryURL: URL) async {
         isRefreshing = true
         lastError = nil
@@ -44,12 +38,10 @@ public final class WorktreeManager {
             let listOutput = try await executeGit(args: ["worktree", "list", "--porcelain"], workingDirectory: repositoryURL)
             let parsedWorktrees = try await parsePorcelainWorktrees(listOutput, repositoryURL: repositoryURL)
 
-            // Enrich with detailed repository details & user options
             var enriched: [GitWorktree] = []
             for var wt in parsedWorktrees {
                 let wtURL = URL(fileURLWithPath: wt.path)
 
-                // Get Commit Details
                 if let logOut = try? await executeGit(args: ["log", "-1", "--pretty=format:%s|%an|%at"], workingDirectory: wtURL) {
                     let parts = logOut.components(separatedBy: "|")
                     if parts.count >= 3 {
@@ -61,14 +53,12 @@ public final class WorktreeManager {
                     }
                 }
 
-                // Get Remote Upstream Tracking Branch
                 if let branchName = wt.branch {
                     if let remoteOut = try? await executeGit(args: ["rev-parse", "--abbrev-ref", "\(branchName)@{upstream}"], workingDirectory: wtURL) {
                         wt.remoteBranch = remoteOut.trimmingCharacters(in: .whitespacesAndNewlines)
                     }
                 }
 
-                // Get Dirty Counts & File Status
                 if let statusOut = try? await executeGit(args: ["status", "--porcelain"], workingDirectory: wtURL) {
                     let lines = statusOut.components(separatedBy: .newlines).filter { !$0.isEmpty }
                     wt.modifiedCount = lines.filter { $0.hasPrefix(" M") || $0.hasPrefix("M ") }.count
@@ -77,7 +67,6 @@ public final class WorktreeManager {
                     wt.isDirty = !lines.isEmpty
                 }
 
-                // Get Ahead / Behind Counts
                 if let abOut = try? await executeGit(args: ["rev-list", "--left-right", "--count", "HEAD...@{u}"], workingDirectory: wtURL) {
                     let parts = abOut.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\t")
                     if parts.count == 2, let ahead = Int(parts[0]), let behind = Int(parts[1]) {
@@ -86,7 +75,6 @@ public final class WorktreeManager {
                     }
                 }
 
-                // Get Persistent preferences
                 wt.isFavorite = UserDefaults.standard.bool(forKey: "wt_fav_\(wt.path)")
                 wt.isPinned = UserDefaults.standard.bool(forKey: "wt_pin_\(wt.path)")
                 if let interval = UserDefaults.standard.object(forKey: "wt_opened_\(wt.path)") as? Double {
@@ -106,8 +94,6 @@ public final class WorktreeManager {
 
         isRefreshing = false
     }
-
-    // MARK: - Lifecycle Management
 
     public func createWorktree(at path: String, branch: String, fromExisting: Bool, isNewBranch: Bool, repositoryURL: URL) async throws {
         appendLogStream("Initializing Worktree creation request...\nPath: \(path)\nBranch: \(branch)\n")
@@ -132,12 +118,10 @@ public final class WorktreeManager {
     public func duplicateWorktree(sourcePath: String, destinationPath: String, repositoryURL: URL) async throws {
         appendLogStream("Duplicating Worktree structure from \(sourcePath) to \(destinationPath)\n")
 
-        // Find existing worktree branch
         guard let wt = worktrees.first(where: { $0.path == sourcePath }), let branch = wt.branch else {
             throw AppError.gitError("Cannot duplicate a detached HEAD or missing worktree.")
         }
 
-        // Generate a duplicate branch name or same branch
         let dupBranchName = "\(branch)-copy-\(Int(Date().timeIntervalSince1970) % 10000)"
         try await createWorktree(at: destinationPath, branch: dupBranchName, fromExisting: true, isNewBranch: true, repositoryURL: repositoryURL)
     }
@@ -162,7 +146,6 @@ public final class WorktreeManager {
         _ = try await executeGitStreaming(args: args, workingDirectory: repositoryURL)
         appendLogStream("✓ Worktree removed.\n")
 
-        // Clean persistent keys
         UserDefaults.standard.removeObject(forKey: "wt_fav_\(worktreePath)")
         UserDefaults.standard.removeObject(forKey: "wt_pin_\(worktreePath)")
         UserDefaults.standard.removeObject(forKey: "wt_opened_\(worktreePath)")
@@ -198,8 +181,6 @@ public final class WorktreeManager {
         await refresh(repositoryURL: repositoryURL)
     }
 
-    // MARK: - Synchronous Execution Helpers
-
     private func executeGit(args: [String], workingDirectory: URL) async throws -> String {
         let runner = ProcessRunnerTool.shared
         let result = try await runner.run(
@@ -212,8 +193,6 @@ public final class WorktreeManager {
         }
         return result.stdout
     }
-
-    // MARK: - Streaming / Cancellable Execution Helpers
 
     public func cancelActiveProcess() {
         if let proc = activeProcess, proc.isRunning {
@@ -263,8 +242,6 @@ public final class WorktreeManager {
         liveCommandLogs += str
     }
 
-    // MARK: - Porcelain Output Parser
-
     private func parsePorcelainWorktrees(_ porcelain: String, repositoryURL: URL) async throws -> [GitWorktree] {
         var parsed: [GitWorktree] = []
         let lines = porcelain.components(separatedBy: .newlines)
@@ -291,7 +268,6 @@ public final class WorktreeManager {
                     parsed.append(wt)
                 }
 
-                // Reset state
                 currentPath = line.replacingOccurrences(of: "worktree ", with: "").trimmingCharacters(in: .whitespaces)
                 currentSHA = ""
                 currentBranch = ""
@@ -307,7 +283,6 @@ public final class WorktreeManager {
             }
         }
 
-        // Append last
         if !currentPath.isEmpty {
             let cleanedBranch = currentBranch.hasPrefix("refs/heads/") ? String(currentBranch.dropFirst("refs/heads/".count)) : (currentBranch.isEmpty ? nil : currentBranch)
             let wt = GitWorktree(
@@ -323,8 +298,6 @@ public final class WorktreeManager {
 
         return parsed
     }
-
-    // MARK: - Options Actions
 
     public func toggleFavorite(for worktree: GitWorktree) {
         let key = "wt_fav_\(worktree.path)"

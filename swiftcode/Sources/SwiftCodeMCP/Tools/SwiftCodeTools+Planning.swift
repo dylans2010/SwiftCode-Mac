@@ -2,109 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy planning / workflow / agent-control tool family (Wave 4).
-///
-/// Behaviour source: Legacy's `ExecutionPlanTool`,
-/// `AssistPlanTaskTool`, `AssistBreakdownTaskTool`,
-/// `AssistAutoFixErrorsTool`, `AssistExplainCodeTool`,
-/// `AssistGenerateTestsTool`, `PlanAskUserTool` and `ReportToUserTool`
-/// (Dylan's own code, ported under MIT), plus
-/// `Functions/System Assets/ExecutionPlans.md` (plan-mode / execution-plan
-/// behaviour) and `Resources/WriteExecutionPlan.md` (the plan-generation
-/// instruction the `execution_plan` tool loads; in SwiftCode there is no such
-/// bundle resource, so the plan carries no "Plan Generation Instructions"
-/// section — Legacy renders that section only when the instruction text
-/// is non-empty).
-///
-/// Conventions, following Waves 1–3:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter Wave 1 adds to every tool. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   Legacy's registry aliases (`plan_askuser` / `plan_ask_user` /
-///   `ask_user` → `plan-AskUser`, `task_complete` / `task_completion`
-///   → `report_to_user`) live in `MCPServer.toolAliases`, which this
-///   wave does not touch — the coordinator owns that table.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers and booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced.
-/// * Path resolution uses the session-aware `resolveFileReadingPath`
-///   (plain relative paths resolve against the `dir_cd` working
-///   directory; `..` that stays inside the workspace is allowed; no
-///   path may escape the workspace), the same resolver the file
-///   tools use. `execution_plan`'s own repository inspection is
-///   deliberately separate: it enumerates the workspace root directly
-///   (never the session working directory), as Legacy does.
-/// * Approval gating: the two writing handlers (`execution_plan`,
-///   which writes `agent_notes.md`, and `intel_generate_tests`,
-///   which writes the generated test file) gate BEFORE touching disk,
-///   through `commit()` — the Wave 1 helper — exactly like the Wave 2
-///   file-writing tools. `MCPServer.run` already refuses `writes: true`
-///   tools when the server is read-only; the approval call is still
-///   required. There is no Autopilot bypass anywhere in this file.
-/// * Plans are produced, never executed: no tool in this family runs a
-///   plan, invokes another tool, or spawns workers. Execution stays
-///   with the caller, through the normal approval gate.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `intel_autofix` is wired to the configured Assist LLM provider
-///   (gap-closure wiring, through `LLMToolCompletionService` — see
-///   `SwiftCodeTools+AgenticCode.swift` for the shared service) and to the
-///   existing `lint_project` diagnostics (`terminalTaskLintProject` in
-///   `SwiftCodeTools+Terminal.swift`: Legacy's `collectSwiftFindings`).
-///   With no lint issues it reports success without calling the LLM;
-///   otherwise each file with findings is rewritten by the LLM (Legacy's
-///   prompt shape) and written through `commit()`. With no provider
-///   usable it fails honestly naming the provider; no file is changed.
-///   Findings carry basenames only, so two Swift files sharing a
-///   basename resolve to the first match.
-/// * `intel_explain_code` is implemented as honest static analysis,
-///   not as an LLM call: Legacy tries an OpenAI LLM first and falls
-///   back to a one-line static summary when the LLM fails. SwiftCode's MCP
-///   host has no LLM provider wired for this tool, so the port always
-///   takes the static path — and says so in the result ("Static
-///   analysis for …"). The explanation is grounded in the file itself
-///   (line count, imports, declared types, functions); nothing is
-///   invented and no LLM output is claimed.
-/// * `plan-AskUser` never blocks. Legacy presents a native macOS
-///   question UI and suspends execution for up to 300 seconds waiting
-///   for the user's answer, and is available only in Plan mode. SwiftCode's
-///   MCP host is non-interactive and has no Plan/Autopilot execution
-///   mode, so the port returns the question as a structured handoff
-///   payload (`questionId`, `question`, `status: "pending"`, the
-///   choices with their `assistRecommended` flags) and returns
-///   immediately. The caller must present the question to the user and
-///   feed the answer back; the tool itself never waits and never hangs.
-///   The Legacy Plan-mode-only restriction cannot be enforced here
-///   (there is no mode to check) and is therefore not a failure case.
-/// * `execution_plan` accepts the documented mode values `"plan"` and
-///   `"autopilot"` case-insensitively. Legacy's schema documents those
-///   lowercase values but its `ExecutionMode(rawValue:)` init only
-///   matches the capitalised `"Plan"` / `"Autopilot"`, so a literal
-///   `"plan"` silently became Autopilot. The port honours the documented
-///   values; the mode only labels the plan document and never changes
-///   any gating.
-/// * `intel_generate_tests` derives the `@testable import` module from
-///   the source path (`Sources/<Module>/…`, else the source file's
-///   parent directory name, else `App`). Legacy hardcodes
-///   `@testable import SwiftCode`. The generated stub body is otherwise
-///   Legacy's verbatim template.
-/// * `intel_plan_task` / `intel_breakdown_task` store plans in an
-///   in-memory, process-wide store (`PlanningPlanStore`, see
-///   `SwiftCodeTools+PlanningSupport.swift`). Legacy stores them in the
-///   session's `AssistContext.memory`; SwiftCode's MCP host has no session
-///   memory store. Plan IDs are UUIDs, so plans from different
-///   workspaces cannot collide; plans do not survive a server restart.
-/// * `report_to_user` has no `AssistManager` to broadcast to: Legacy
-///   posts the rendered report as the assistant's last message. In
-///   SwiftCode the tool result text IS the report; there is no side effect.
-/// * `execution_plan` writes `agent_notes.md` through `commit()`, so a
-///   rejected or read-only call fails instead of writing. Legacy writes
-///   the file directly and still returns success when the write fails.
-///   The SwiftCode behaviour is the correct one under the approval model:
-///   a write the reviewer refused must not land on disk.
 extension SwiftCodeMCPHost {
     var planningTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -213,7 +110,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Execution plan
 
     func generateExecutionPlan(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -256,8 +152,6 @@ extension SwiftCodeMCPHost {
                             "mode": .string(mode.rawValue)], summary: summary)
     }
 
-    // MARK: - High-level plan and breakdown
-
     func planTask(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let task = call.arguments["task"]?.string else {
             throw MCPToolError("Missing required parameter: task")
@@ -295,8 +189,6 @@ extension SwiftCodeMCPHost {
         return .structured(["breakdown": .string(granular)], summary: "Task breakdown completed for plan \(planId)")
     }
 
-    // MARK: - Intel tools
-
     func autoFixErrors(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = call.arguments["path"]?.string ?? "."
@@ -305,7 +197,6 @@ extension SwiftCodeMCPHost {
         guard lintOutput.contains("issue(s)") else {
             return .text("No lint issues to fix in \(raw)")
         }
-        // Candidate Swift files, for resolving the lint output's basenames.
         let candidates: [URL]
         var isDir: ObjCBool = false
         if FileManager.default.fileExists(atPath: target.path, isDirectory: &isDir), !isDir.boolValue {
@@ -313,7 +204,6 @@ extension SwiftCodeMCPHost {
         } else {
             candidates = SearchWorkspace.swiftFiles(under: target)
         }
-        // Findings grouped per file by basename (`Name.swift:line message`).
         var issuesByFile: [String: [String]] = [:]
         var order: [String] = []
         for line in lintOutput.components(separatedBy: .newlines).dropFirst() {
@@ -376,10 +266,6 @@ extension SwiftCodeMCPHost {
         } catch {
             throw MCPToolError("Failed to explain \(path): \(error.localizedDescription)")
         }
-        // Legacy explained code with the model. Try the LLM first;
-        // when no provider is usable, fall back to the static
-        // explanation and say so — a static outline is not a model
-        // explanation, and must not be presented as one.
         let systemPrompt = "Explain the code below in detail: what it does, how its parts fit together, and anything surprising or risky. Be concrete and cite the code."
         do {
             let completion = try await llmToolComplete(systemPrompt: systemPrompt, userText: content, toolName: "intel_explain_code",
@@ -420,8 +306,6 @@ extension SwiftCodeMCPHost {
                            summary: "Tests generated for \(path) with \(testCount) test methods")
     }
 
-    // MARK: - User question handoff
-
     func askUser(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let question = call.arguments["question"]?.string,
               !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -439,9 +323,6 @@ extension SwiftCodeMCPHost {
                 }
             }
         }
-        // Legacy's `ask_user` form: `input_type` + `options` instead of
-        // `choices`. `text` means a free-form question (userSpecification
-        // is implied); `selection` takes its choices from `options`.
         if let inputType = call.arguments["input_type"]?.string?.lowercased() {
             switch inputType {
             case "text":
@@ -458,11 +339,6 @@ extension SwiftCodeMCPHost {
         }
         let questionUUID = UUID()
         let questionId = questionUUID.uuidString
-        // Register the question so the answer flow exists: the IDE's
-        // question UI calls `PendingQuestionStore.submitAnswer` with
-        // this id, and an agent turn can suspend on `awaitAnswer`
-        // until then. The tool itself still returns immediately with
-        // status pending and never blocks.
         let inputType: AgentPendingQuestion.InputType = userSpec && choices.isEmpty
             ? .text
             : .selection(options: choices.map { $0.choice })
@@ -481,8 +357,6 @@ extension SwiftCodeMCPHost {
                             "status": .string("pending"), "allowsMultipleAnswers": .bool(allowsMultiple),
                             "userSpecification": .bool(userSpec), "choices": .array(choicesJSON)], summary: summary)
     }
-
-    // MARK: - Completion report
 
     func reportToUser(_ call: MCPToolCall) async throws -> MCPToolResult {
         let rawSummary = call.arguments["summary"]?.string
@@ -505,7 +379,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// One choice of a `plan-AskUser` question, as presented to the user.
 struct PlanningQuestionChoice: Sendable {
     var choice: String
     var assistRecommended: Bool

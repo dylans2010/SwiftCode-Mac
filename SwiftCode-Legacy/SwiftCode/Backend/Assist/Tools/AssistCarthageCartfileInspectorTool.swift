@@ -1,8 +1,3 @@
-//
-//  AssistCarthageCartfileInspectorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistCarthageCartfileInspectorTool: AssistTool {

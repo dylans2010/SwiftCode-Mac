@@ -1,8 +1,3 @@
-// Guest probe for host passthrough networking (specs/simulator/networking-swiftcode.md §8).
-// Usage: p_net [host-port [public-host]]
-//   host-port    a TCP port on 127.0.0.1 where a host-side HTTP server listens (0: skip)
-//   public-host  a public name for the name-lookup and HTTP checks (default example.com)
-// Prints one "ok <check>" or "FAIL <check>: <reason>" line per check and a summary.
 #include <arpa/inet.h>
 #include <dns_sd.h>
 #include <errno.h>
@@ -58,7 +53,6 @@ static int set_nonblock(int fd, int on) {
     return fcntl(fd, F_SETFL, on ? (fl | O_NONBLOCK) : (fl & ~O_NONBLOCK));
 }
 
-// Reads until EOF or `cap` bytes; returns the count.
 static ssize_t read_all(int fd, char *buf, size_t cap) {
     size_t got = 0;
     while (got < cap) {
@@ -70,7 +64,6 @@ static ssize_t read_all(int fd, char *buf, size_t cap) {
     return (ssize_t)got;
 }
 
-// HTTP/1.0 GET over a connected socket; returns the status code or -1.
 static int http_get(int fd, const char *host, const char *path, size_t *body_bytes) {
     char req[512];
     int n = snprintf(req, sizeof req, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: swiftcode-p_net\r\nConnection: close\r\n\r\n", path, host);
@@ -85,8 +78,6 @@ static int http_get(int fd, const char *host, const char *path, size_t *body_byt
     if (body_bytes) *body_bytes = body ? (size_t)(got - (body + 4 - resp)) : 0;
     return status;
 }
-
-// --- checks -------------------------------------------------------------
 
 static void check_options(void) {
     int s = socket(AF_INET, SOCK_STREAM, 0);
@@ -113,10 +104,9 @@ static void check_options(void) {
           getsockopt(s, SOL_SOCKET, SO_RCVBUF, &v, &len) == 0 && v == 65536, "SO_RCVBUF", "errno %d v %d", errno, v);
     v = -1; len = sizeof v;
     CHECK(getsockopt(s, SOL_SOCKET, SO_TYPE, &v, &len) == 0 && v == SOCK_STREAM, "SO_TYPE", "errno %d v %d", errno, v);
-    // A Darwin-only option is accepted and read back.
     int tc = 0x1;
     v = 0; len = sizeof v;
-    CHECK(setsockopt(s, SOL_SOCKET, 0x1086 /* SO_TRAFFIC_CLASS */, &tc, sizeof tc) == 0 &&
+    CHECK(setsockopt(s, SOL_SOCKET, 0x1086 , &tc, sizeof tc) == 0 &&
           getsockopt(s, SOL_SOCKET, 0x1086, &v, &len) == 0 && v == 1, "Darwin-only option kept", "errno %d v %d", errno, v);
     struct sockaddr_in sin;
     len = sizeof sin;
@@ -132,7 +122,6 @@ static void check_options(void) {
     CHECK(socket(AF_INET, SOCK_STREAM, IPPROTO_UDP) < 0 && errno == EPROTONOSUPPORT, "stream+UDP EPROTONOSUPPORT", "errno %d", errno);
 }
 
-// A listener in the guest, a client in the guest: accept, data both ways, EOF.
 static void check_loopback_tcp(int family) {
     const char *what = family == AF_INET ? "TCP loopback IPv4" : "TCP loopback IPv6";
     int l = socket(family, SOCK_STREAM, 0);
@@ -174,7 +163,6 @@ static void check_loopback_tcp(int family) {
     shutdown(a, SHUT_WR);
     ssize_t eof = recv(c, buf, sizeof buf, 0);
     CHECK(eof == 0 && nread == 3 && plen == slen, what, "eof %zd FIONREAD %d peerlen %u", eof, nread, plen);
-    // SIGPIPE suppressed by SO_NOSIGPIPE: write after the peer closed.
     int one = 1;
     setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
     close(a);
@@ -189,7 +177,6 @@ static void check_loopback_tcp(int family) {
     close(l);
 }
 
-// Non-blocking connect + kevent EVFILT_WRITE, then EVFILT_READ, select and poll.
 static void check_nonblocking(void) {
     int l = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in sin = {.sin_len = sizeof sin, .sin_family = AF_INET, .sin_addr.s_addr = htonl(INADDR_LOOPBACK)};
@@ -235,7 +222,6 @@ static void check_nonblocking(void) {
     CHECK(n2 == 1 && (out.flags & EV_EOF), "EVFILT_READ EOF", "n %d flags 0x%x", n2, out.flags);
     (void)t0;
 
-    // select and poll on a fresh pair.
     int c2 = socket(AF_INET, SOCK_STREAM, 0);
     connect(c2, (struct sockaddr *)&sin, sizeof sin);
     int a2 = accept(l, NULL, NULL);
@@ -294,7 +280,6 @@ static void check_udp(void) {
     CHECK(s == sizeof msg && r == sizeof msg && memcmp(buf, msg, sizeof msg) == 0 && from.sin_family == AF_INET &&
           from.sin_len == sizeof from && dst, "UDP sendto/recvmsg + IP_RECVDSTADDR", "sent %zd got %zd family %d dst %d", s, r,
           from.sin_family, dst);
-    // Truncation.
     sendto(b, "0123456789", 10, 0, (struct sockaddr *)&sa, sizeof sa);
     iov.iov_len = 4;
     m.msg_controllen = 0;
@@ -302,14 +287,12 @@ static void check_udp(void) {
     m.msg_namelen = sizeof from;
     r = recvmsg(a, &m, 0);
     CHECK(r == 4 && (m.msg_flags & MSG_TRUNC), "UDP MSG_TRUNC", "got %zd flags 0x%x", r, m.msg_flags);
-    // Connected UDP.
     connect(b, (struct sockaddr *)&sa, sizeof sa);
     CHECK(send(b, "c", 1, 0) == 1 && recv(a, buf, sizeof buf, 0) == 1, "connected UDP", "errno %d", errno);
     close(a);
     close(b);
 }
 
-// A DNS query over UDP to a public resolver (numeric address, no lookup).
 static void check_public_udp(void) {
     int s = socket(AF_INET, SOCK_DGRAM, 0);
     struct sockaddr_in sa = {.sin_len = sizeof sa, .sin_family = AF_INET, .sin_port = htons(53)};
@@ -322,7 +305,6 @@ static void check_public_udp(void) {
     ssize_t n = recv(s, r, sizeof r, 0);
     CHECK(n > 12 && r[0] == 0x12 && r[1] == 0x34 && (r[2] & 0x80), "UDP to a public resolver", "n %zd errno %d", n, errno);
     close(s);
-    // Connected UDP with send/recv and the message variants (as QUIC does).
     s = socket(AF_INET, SOCK_DGRAM, 0);
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     int c = connect(s, (struct sockaddr *)&sa, sizeof sa);
@@ -381,7 +363,6 @@ static void check_getaddrinfo(const char *host) {
         if (again) freeaddrinfo(again);
     }
     if (r != 0) return;
-    // HTTP GET to the first address that connects.
     int got = 0;
     for (struct addrinfo *a = res; a && !got; a = a->ai_next) {
         int s = socket(a->ai_family, SOCK_STREAM, 0);
@@ -446,7 +427,6 @@ static void check_dnssd(const char *host) {
     e = DNSServiceQueryRecord(&ref, 0, 0, host, kDNSServiceType_A, kDNSServiceClass_IN, query_cb, NULL);
     if (e != 0) { bad("DNSServiceQueryRecord A", "error %d", e); return; }
     CHECK(run_dnssd(ref) && dnssd_answers > 0, "DNSServiceQueryRecord A", "done %d answers %d", dnssd_done, dnssd_answers);
-    // A shared connection (subordinate requests, error socket passed with SCM_RIGHTS).
     DNSServiceRef shared, sub;
     dnssd_answers = dnssd_done = 0;
     e = DNSServiceCreateConnection(&shared);

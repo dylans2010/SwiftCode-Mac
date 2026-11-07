@@ -1,8 +1,3 @@
-// Security (Keychain) wire-contract tests for @swiftcode/sdk.
-// Tests the exact IPC method + payload for every Security API call, the
-// client-side validation (IDs, https-only URLs, no credentials in URLs, no
-// client-supplied Authorization header), and that malformed host responses
-// are rejected with IPC_MALFORMED instead of trusted.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -86,7 +81,6 @@ describe("security wire contract", () => {
       label: "GitHub token",
       prompt: "Enter the token.",
     });
-    // Metadata only: the response must not smuggle the secret back.
     assert.ok(!("secret" in result) && !("value" in result));
   });
 
@@ -274,8 +268,6 @@ describe("standalone security helpers", () => {
     const { context } = createContext(host, EXTENSION);
     assert.equal(await context.security.hasValue("api-keys", "t"), false);
     assert.equal(lastRequest(host).method, "security.hasValue");
-    // createContext installs the connection, so the standalone helpers
-    // resolve against it too.
     assert.equal(await securityHasValue("api-keys", "t"), false);
   });
 });

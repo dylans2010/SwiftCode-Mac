@@ -2,9 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
 
-/// Segments and records of a submission (spec §8), built from the layouts.
 @Suite(.serialized) struct CommandDecoderTests {
-    /// Refs map to handles 1000 × kind index + ref; ref 99 is unknown.
     static func resolve(_ kind: MetalRefKind, _ ref: UInt32) -> MetalHandle? {
         guard ref != 99 else { return nil }
         let k = UInt64(MetalRefKind.allCases.firstIndex(of: kind)!)
@@ -19,9 +17,6 @@ import Testing
         return (cb, ops)
     }
 
-    /// Decoding a pass grows linearly with its records: the open pass's
-    /// command list is appended to in place (it used to be copied at every
-    /// append, quadratic in the commands of a pass; stage8-contract.md §15).
     @Test func longPassDecodesInLinearTime() {
         func segment(draws: Int) -> [[UInt8]] {
             var records = [Build.record(26) { $0.append(Build.renderPass(colors: [(0, 3, 2, 1, [0, 0, 0, 1])], width: 64, height: 64)) }]
@@ -43,11 +38,9 @@ import Testing
         guard case .render(let p)? = cb.passes.first else { Issue.record("no render pass"); return }
         #expect(p.commands.count == 3 * 6400)
         let ratio = seconds(large, rounds: 3) / seconds(small, rounds: 30)
-        // 16 times the records: linear is about 16, quadratic about 256.
         #expect(ratio < 64, "decode time ratio \(ratio) for 16 times the records")
     }
 
-    /// The render records backboardd uses (§10): 26, 3, 6, 7, 110, 111, 112, 114, 116, 117, 125, 126, 130.
     func backboarddRecords() -> [[UInt8]] {
         [
             Build.record(26) { $0.append(Build.renderPass(colors: [(0, 3, 2, 1, [0.25, 0.5, 0.75, 1])], width: 1398, height: 2034)) },
@@ -66,14 +59,6 @@ import Testing
         ]
     }
 
-    /// The long instanced draw forms (ops 2, 4, 8; layouts from agent H's
-    /// capture of our own mtlvary program, metal-sim-protocol.md §8.3) and the
-    /// anomaly report for implausible draws.
-    /// Range forms (visionos.md §10.11): op 114 with count 2 (wakeboardd's
-    /// compositor), op 112 with count 2, op 125 with two (ref, offset)
-    /// pairs (the layout of VISIONOS-OBS4's probe: slots 5 and 6 with
-    /// offsets 16 and 32 gave 5, 2, a, 16, b, 32), and op 131 (one viewport
-    /// after a count).
     @Test func rangeBindingsAndViewportArrays() {
         let records = [
             Build.record(26) { $0.append(Build.renderPass(colors: [(0, 3, 2, 1, [0, 0, 0, 1])], width: 64, height: 64)) },
@@ -96,29 +81,23 @@ import Testing
         ])
     }
 
-    /// The records of visionOS backboardd's frames (visionos.md §10.12.1):
-    /// fence update and wait (24, 25) with `MTLRenderStages`, the visibility
-    /// mode (132: offset, then mode), and the further render records the
-    /// probes found (22, 27, 103, 105, 106, 118, 120, 121, 134). Deferred
-    /// store actions (102 action then index, 105, 120) land in the pass's
-    /// descriptor too.
     @Test func fenceVisibilityAndDeferredStoreRecords() throws {
         let pass = Build.renderPass(colors: [(0, 3, 2, 4, [0, 0, 0, 0]), (1, 8, 1, 1, [0, 0, 0, 1])], width: 64, height: 64)
         let records: [[UInt8]] = [
             Build.record(26) { $0.append(pass) },
-            Build.record(25) { $0.u32(4); $0.u32(2) },  // backboardd: 04 00 00 00 02 00 00 00
+            Build.record(25) { $0.u32(4); $0.u32(2) },
             Build.record(132) { $0.u64(0); $0.u64(0) },
             Build.record(22) { $0.u32(2); $0.u16(2); $0.u16(1); $0.u32(3); $0.u32(8) },
             Build.record(27) { w in w.u32(2); w.u16(3); w.u32(5); w.u32(6); w.u16(0) },
             Build.record(134) { $0.u32(1); $0.u32(7) },
             Build.record(118) { w in w.u32(2); w.u32(0); for v in [1, 2, 30, 40, 0, 0, 8, 8] as [UInt64] { w.u64(v) } },
-            Build.record(102) { $0.u32(2); $0.u32(0) },  // MultisampleResolve on attachment 0
+            Build.record(102) { $0.u32(2); $0.u32(0) },
             Build.record(103) { $0.u64(1); $0.u32(0) },
             Build.record(105) { $0.u64(0) },
             Build.record(106) { $0.u64(0) },
             Build.record(120) { $0.u64(0) },
             Build.record(121) { $0.u64(0) },
-            Build.record(102) { $0.u32(0); $0.u32(5) },  // an index the pass does not have: no change
+            Build.record(102) { $0.u32(0); $0.u32(5) },
             Build.record(24) { $0.u32(4); $0.u32(2) },
         ]
         let (cb, unknown) = decode([Build.segment(kind: 0, records)])
@@ -146,8 +125,6 @@ import Testing
         #expect(d.depth == nil && d.stencil == nil)
     }
 
-    /// Compute fence records (212, 213), 134, and the range forms of 203
-    /// ((ref, offset) pairs), 204 and 206.
     @Test func computeFencesAndRangeBindings() {
         let records: [[UInt8]] = [
             Build.record(213) { $0.u32(9) },
@@ -180,7 +157,6 @@ import Testing
             Build.record(2) { $0.u64(0); $0.u64(4); $0.u64(0x12345); $0.u32(3) },
             Build.record(4) { $0.u64(0x12345); $0.u64(4); $0.u64(2); $0.u64(0x23456); $0.u32(4) },
             Build.record(8) { $0.u16(3); $0.u16(0); $0.u32(6); $0.u64(4); $0.u64(0x10); $0.u64(0x12345) },
-            // RenderBox's form: u16 instance count 0x19, base vertex 0x200.
             Build.record(9) { $0.u16(1); $0.u16(0); $0.u32(6); $0.u16(0x40); $0.u16(0); $0.u32(0x0200_0019) },
             Build.record(28) { $0.u16(4); $0.u16(0); $0.u32(6); $0.u64(0); $0.u64(4); $0.u64(3); $0.u64(0x10000); $0.u64(0) },
             Build.record(29) { $0.u16(4); $0.u16(0); $0.u32(6); $0.u16(0); $0.u16(4); $0.u16(3); $0.u16(0xFFFE); $0.u32(0) },
@@ -209,12 +185,6 @@ import Testing
         #expect(reports.count == 1 && reports[0].contains("op 0"))
     }
 
-    /// visionos.md §9 Q24, §10.20: op 29's base instance is the low half of
-    /// its last word. visionOS backboardd's depth-only draws carry stale
-    /// bytes in the high half (0x3FF00000 read as one u32), which made
-    /// base instances of a billion: the back end skipped those draws (parts
-    /// of the room missing) or, below its limit, read far past the
-    /// per-instance data.
     @Test func shortIndexedDrawBaseInstanceIsSixteenBits() throws {
         let records = [
             Build.record(29) { $0.u16(3); $0.u16(0); $0.u32(6); $0.u16(0); $0.u16(36); $0.u16(6); $0.u16(0); $0.u32(0x3FF0_0000) },
@@ -351,7 +321,6 @@ import Testing
             Build.record(204) { $0.u32(0); $0.u32(1); $0.u32(1) },
             Build.record(205) { $0.u32(1); $0.u32(1); $0.u32(1); $0.f32(0); $0.f32(2) },
             Build.record(211) { $0.u64(1024); $0.u32(0) },
-            // Size, then origin (OBS4's probe: origin x 2035, size 1, 1, 1 gave 1, 1, 1, 2035, 0, 0).
             Build.record(209) { w in for v in [1, 1, 1, 2035, 0, 0] as [UInt64] { w.u64(v) } },
             Build.record(200) { w in for v in [4, 2, 1, 16, 16, 1] as [UInt64] { w.u64(v) } },
             Build.record(202) { w in for v in [100, 1, 1, 32, 1, 1] as [UInt64] { w.u64(v) } },
@@ -426,14 +395,14 @@ import Testing
         let segments = [
             Build.segment(kind: 0, [
                 Build.record(1) { $0.u32(3); $0.u16(0); $0.u16(3) },
-                Build.record(999) { $0.u32(42) },  // unknown op
-                Build.record(110) { $0.u32(0); $0.u32(2); $0.u32(1); $0.u32(2); $0.u64(0) },  // count 2: layout open
-                Build.record(116) { $0.u32(99) },  // unknown ref
-                Build.record(117) { $0.u32(1) },  // truncated body
+                Build.record(999) { $0.u32(42) },
+                Build.record(110) { $0.u32(0); $0.u32(2); $0.u32(1); $0.u32(2); $0.u64(0) },
+                Build.record(116) { $0.u32(99) },
+                Build.record(117) { $0.u32(1) },
             ]),
-            Build.segment(kind: 9, [Build.record(5000)]),  // unknown encoder kind
-            [0, 1],  // segment too short
-            {  // a record whose length runs past `used`
+            Build.segment(kind: 9, [Build.record(5000)]),
+            [0, 1],
+            {
                 var s = Build.segment(kind: 1, [Build.record(208) { $0.u32(1) }])
                 s[12] = 200
                 return s
@@ -452,8 +421,6 @@ import Testing
     }
 
     @Test func manyDrawsAcrossTwoSegments() {
-        // §8.1: a render encoder of thousands of short draws fills a 64 KiB
-        // segment and continues; no record straddles segments.
         let begin = Build.record(26) { $0.append(Build.renderPass(colors: [(0, 3, 2, 1, [0, 0, 0, 1])], width: 8, height: 8)) }
         var first = [begin], second: [[UInt8]] = []
         var used = 8 + begin.count

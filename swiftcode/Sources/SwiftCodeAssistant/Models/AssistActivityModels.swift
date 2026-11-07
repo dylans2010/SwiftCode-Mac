@@ -1,18 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Assist/Models/AssistActivityModels.swift
-//   (Legacy main ab03f681) — verbatim, no adaptations.
-//   Staged by migration subagent F2 (unowned-dependency triage) — NOT yet
-//   landed in the repo.
-//
-// Destination: SwiftCodeAssistant/Models/AssistActivityModels.swift.
-//
-// Referenced by live main code: `AssistMessage.activityGroup`
-// (`SwiftCodeAssistant/Models/AssistModels.swift`) and the staged
-// `AssistAgentSession` / `AssistMainView` activity rendering.
-
 import Foundation
 
-/// Activity status for execution items inside the Assist Activity disclosure panel.
 public enum ActivityStatus: String, Codable, Sendable {
     case pending = "Pending"
     case running = "Running"
@@ -35,7 +22,6 @@ public enum ActivityStatus: String, Codable, Sendable {
     }
 }
 
-/// Structured operation state model for tracking explicit lifecycle transitions.
 public enum AssistOperationState: Codable, Sendable, Equatable {
     case pending
     case running
@@ -56,7 +42,6 @@ public enum AssistOperationState: Codable, Sendable, Equatable {
     }
 }
 
-/// Tool activity item representing logical tool execution inside Activity disclosure.
 public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public let id: UUID
     public let toolId: String
@@ -74,9 +59,6 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public var operationId: String?
     public var progressMessage: String?
     public var isMuseSDKTool: Bool
-    /// Redacted, path-collapsed summary of the raw tool arguments captured at
-    /// invocation time. Values whose keys look credential-shaped are replaced
-    /// with `<redacted>`; the user's home directory is collapsed to `~`.
     public var argumentsSummary: [String: String]?
 
     public init(
@@ -117,10 +99,6 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.argumentsSummary = argumentsSummary
     }
 
-    /// Builds a privacy-safe summary of raw tool arguments for telemetry.
-    /// Values for keys containing `token`, `secret`, `password`, `key`, or
-    /// `auth` (case-insensitive) are replaced with `<redacted>`; occurrences
-    /// of the user's home directory in remaining values collapse to `~`.
     public static func sanitizedArgumentsSummary(from arguments: [String: Any]) -> [String: String]? {
         guard !arguments.isEmpty else { return nil }
         let homePath = FileManager.default.homeDirectoryForCurrentUser.path
@@ -142,11 +120,10 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     }
 }
 
-/// File modification item with Myers diff line statistics and hunks.
 public struct FileActivityItem: Codable, Identifiable, Sendable {
     public let id: UUID
     public let filePath: String
-    public let operation: String // "Created", "Modified", "Deleted", "Renamed", "Moved"
+    public let operation: String
     public var addedLines: Int
     public var deletedLines: Int
     public var diffSummary: String?
@@ -186,7 +163,6 @@ public struct FileActivityItem: Codable, Identifiable, Sendable {
     }
 }
 
-/// Terminal activity item for raw or structured terminal execution inside Activity.
 public struct TerminalActivityItem: Codable, Identifiable, Sendable {
     public let id: UUID
     public let command: String
@@ -218,7 +194,6 @@ public struct TerminalActivityItem: Codable, Identifiable, Sendable {
     }
 }
 
-/// Build activity item detailing xcodebuild or compilation status.
 public struct BuildActivityItem: Codable, Identifiable, Sendable {
     public let id: UUID
     public let scheme: String?
@@ -253,7 +228,6 @@ public struct BuildActivityItem: Codable, Identifiable, Sendable {
     }
 }
 
-/// Test execution activity item inside Activity panel.
 public struct TestActivityItem: Codable, Identifiable, Sendable {
     public let id: UUID
     public let suiteName: String
@@ -291,7 +265,6 @@ public struct TestActivityItem: Codable, Identifiable, Sendable {
     }
 }
 
-/// Subagent / Worker execution activity item inside Activity disclosure.
 public struct WorkerActivityItem: Codable, Identifiable, Sendable {
     public let id: UUID
     public let workerId: String
@@ -333,10 +306,9 @@ public struct WorkerActivityItem: Codable, Identifiable, Sendable {
     }
 }
 
-/// Recoverable or unrecoverable error & recovery strategy activity item.
 public struct RecoveryActivityItem: Codable, Identifiable, Sendable {
     public let id: UUID
-    public let domain: String // "Tool", "Model", "Build", "Test", "Worker", "File", "Context"
+    public let domain: String
     public let failureReason: String
     public let strategy: String
     public var attemptNumber: Int
@@ -365,7 +337,6 @@ public struct RecoveryActivityItem: Codable, Identifiable, Sendable {
     }
 }
 
-/// Verification check activity item inside Activity disclosure.
 public struct VerificationActivityItem: Codable, Identifiable, Sendable {
     public let id: UUID
     public let checkName: String
@@ -388,7 +359,6 @@ public struct VerificationActivityItem: Codable, Identifiable, Sendable {
     }
 }
 
-/// Aggregated technical activity group associated with an Assist conversational message.
 public struct AssistActivityGroup: Codable, Identifiable, Sendable {
     public let id: UUID
     public var tools: [ToolActivityItem]
@@ -425,7 +395,6 @@ public struct AssistActivityGroup: Codable, Identifiable, Sendable {
         self.isExecuting = isExecuting
     }
 
-    /// Whether there is any non-empty activity content to show.
     public var hasContent: Bool {
         return !tools.isEmpty ||
                !files.isEmpty ||
@@ -437,12 +406,10 @@ public struct AssistActivityGroup: Codable, Identifiable, Sendable {
                !verifications.isEmpty
     }
 
-    /// Total count of primary technical actions performed.
     public var totalActionsCount: Int {
         return tools.count + terminalCommands.count + builds.count + tests.count + verifications.count
     }
 
-    /// Compact summary string formatted according to section 9 of spec.
     public var collapsedSummary: String {
         if !recoveries.isEmpty {
             let resolvedCount = recoveries.filter { $0.isResolved }.count

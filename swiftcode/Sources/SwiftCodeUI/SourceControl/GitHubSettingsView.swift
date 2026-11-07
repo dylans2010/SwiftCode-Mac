@@ -1,62 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/GitHubSettingsView.swift
-//
-// All UI, state, and actions are verbatim except the adaptations below.
-// `Project` / `ProjectSessionStore` are in `SwiftCodeIDECore`;
-// `AppSettings` / `KeychainService` / `APIKeyManager` are in `SwiftCodeAssistant`;
-// `GitHubRepository` / `GitHubClient` / `GitHubRemoteListsClient` are in
-// `SwiftCodeGitHub`; `ProcessRunnerTool` is in `SwiftCodeSubprocess`.
-// Live call site: `MenuBarManager.NoLinkedRepositoryCard` constructs
-// `GitHubSettingsView(project: ProjectSessionStore.shared.activeProject)`;
-// this file keeps the memberwise `init(project:)` so that call site resolves.
-//
-// ADAPTATIONS (each forced by a Legacy API that does not exist in production):
-//   1. `GitHubRepoSummary` -> `GitHubRepository` (String id = full name;
-//      same `fullName`, `Identifiable`). Same adaptation as `NSCloneView`.
-//   2. `GitHubService.shared.listUserRepositories()` does not exist on
-//      `GitHubService` (it lives on `GitHubRemoteListsClient`); the repo
-//      list now comes from
-//      `GitHubRemoteListsClient(tokenProvider: { token }).listUserRepositories()`
-//      — same adaptation as `NSCloneView` / `GitHubRemoteBrowserView`.
-//   3. `GitHubService.shared.createRepository(name:description:isPrivate:)`
-//      likewise does not exist on `GitHubService`; creation now goes
-//      through `GitHubRemoteListsClient.createRepository` (same endpoint,
-//      `description: String?`).
-//   4. `RepositoryContext` does not exist in production (audit-A
-//      COVERED-BY-REDESIGN; `DiscussionsView` dangles on the same type).
-//      `SetRepoInProject` re-derives its contract from production
-//      primitives instead of inventing a replacement type:
-//        - `connectedRepository`: `Project.githubRepo` of the active
-//          project, normalised to `owner/repo` (same stripping as
-//          `GitHubImporter.parseRepoURL`).
-//        - `isAuthenticated`: saved GitHub token non-empty.
-//        - `cachedMetadata` / `isLoadingMetadata`: local `@State` holding
-//          a `GitHubRepository?`; fetched via
-//          `GitHubClient.getRepository(owner:repo:)` (`GET /repos/{owner}/{repo}`),
-//          which carries the same `cloneUrl` / `defaultBranch` /
-//          `isPrivate` fields the panel reads (`cloneUrl` is `String?`
-//          here, so the panel renders `meta.cloneUrl ?? ""`).
-//        - `connectRepository` / `disconnectRepository`:
-//          `ProjectSessionStore.updateProjectSettings(description:githubRepo:for:)`
-//          — the same call Legacy's `RepositoryContext` made underneath.
-//        - `triggerSync()` dropped: it only bumped `RepositoryContext`'s
-//          sync counter and no production observer exists (also dropped
-//          from `saveToken()`).
-//      If `RepositoryContext` is ported later, this view can be re-wired
-//      to it; the UI and action flow are unchanged.
-//   5. `stopSourceControl()`: the repo disconnect now clears `githubRepo`
-//      via `updateProjectSettings` for the view's `project`;
-//      `SourceControlSidebarState.shared.selection = .onboarding` removed —
-//      that type does not exist in production (Legacy `SourceControlView.swift`,
-//      not ported). The credential wipe and `hasCompletedOnboarding = false`
-//      reset are preserved.
-//   6. The "Advanced Configuration..." `NavigationLink` to `GitHubConfigView`
-//      removed: that type lives in the `swiftcode-ide` executable target
-//      (`GeneralSettingsView.swift`) and is unreachable from `SwiftCodeUI`,
-//      and `.environmentObject(AppSettings.shared)` would not compile
-//      anyway — production `AppSettings` is `@Observable`, not
-//      `ObservableObject`.
-
 import SwiftUI
 import AppKit
 import os.log
@@ -83,7 +24,6 @@ struct GitHubSettingsView: View {
                         .font(.title2.bold())
                         .foregroundStyle(.primary)
 
-                    // Project Repository Association Component
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Project Repository Association", systemImage: "link.badge.plus")
@@ -102,7 +42,6 @@ struct GitHubSettingsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Credentials Settings Section
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Personal Access Token (PAT)", systemImage: "key.fill")
@@ -154,7 +93,6 @@ struct GitHubSettingsView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Stop Source Control Section
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Stop Source Control", systemImage: "xmark.octagon.fill")
@@ -207,7 +145,6 @@ struct GitHubSettingsView: View {
         alert.alertStyle = .critical
 
         if alert.runModal() == .alertFirstButtonReturn {
-            // Permanently remove all source control data
             AppSettings.shared.gitPath = ""
             AppSettings.shared.httpsAuthToken = ""
             AppSettings.shared.gitUserName = ""
@@ -223,35 +160,26 @@ struct GitHubSettingsView: View {
     }
 }
 
-// ====================================================================
-// SET REPO IN PROJECT - COMPREHENSIVE PRODUCTION IMPLEMENTATION
-// ====================================================================
 @MainActor
 struct SetRepoInProject: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
 
-    // Association Mode Segmented state
-    @State private var connectionTab = 0 // 0 = Connect Existing, 1 = Create New
+    @State private var connectionTab = 0
 
-    // Remote connection states
-    @State private var repoNameInput = "" // owner/repo
+    @State private var repoNameInput = ""
     @State private var userRepos: [GitHubRepository] = []
     @State private var isLoadingUserRepos = false
     @State private var selectedUserRepo = ""
 
-    // Creation states
     @State private var newRepoName = ""
     @State private var newRepoDescription = ""
     @State private var newRepoIsPrivate = false
     @State private var isCreatingRepo = false
 
-    // Action execution states
     @State private var isPerformingAction = false
     @State private var statusMessage: String? = nil
     @State private var errorMessage: String? = nil
 
-    // Repository metadata (was `RepositoryContext.cachedMetadata` /
-    // `isLoadingMetadata`; held locally now — see header adaptation 4).
     @State private var cachedMetadata: GitHubRepository? = nil
     @State private var isLoadingMetadata = false
 
@@ -259,8 +187,6 @@ struct SetRepoInProject: View {
         sessionStore.activeProject
     }
 
-    /// The active project's linked repository as `owner/repo`, derived from
-    /// `Project.githubRepo` (was `RepositoryContext.connectedRepository`).
     private var connectedRepository: String? {
         guard let repoStr = currentProject?.githubRepo else { return nil }
         let trimmed = repoStr.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -284,7 +210,6 @@ struct SetRepoInProject: View {
         return (String(parts[0]), String(parts[1]))
     }
 
-    /// Was `RepositoryContext.isAuthenticated`.
     private var isAuthenticated: Bool {
         guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken) else { return false }
         return !token.isEmpty
@@ -300,7 +225,6 @@ struct SetRepoInProject: View {
         VStack(alignment: .leading, spacing: 16) {
             if let proj = currentProject {
                 VStack(alignment: .leading, spacing: 14) {
-                    // Git Initialization Status
                     HStack {
                         Image(systemName: isGitInitialized ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                             .foregroundStyle(isGitInitialized ? .green : .orange)
@@ -322,10 +246,8 @@ struct SetRepoInProject: View {
                     .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
                     if let connected = connectedRepository, !connected.isEmpty {
-                        // Display Metadata and connection details
                         connectedRepoPanel(connected)
                     } else {
-                        // Not connected options: Connect Existing or Create New
                         noConnectionPanel
                     }
                 }
@@ -335,7 +257,6 @@ struct SetRepoInProject: View {
                     .font(.subheadline)
             }
 
-            // Messages feedback
             if let msg = statusMessage {
                 HStack {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
@@ -365,8 +286,6 @@ struct SetRepoInProject: View {
             }
         }
     }
-
-    // MARK: - Subviews
 
     @ViewBuilder
     private func connectedRepoPanel(_ repoName: String) -> some View {
@@ -456,7 +375,6 @@ struct SetRepoInProject: View {
             .padding(.bottom, 4)
 
             if connectionTab == 0 {
-                // Connect Existing
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Select or enter a repository to link with this project.")
                         .font(.caption)
@@ -491,7 +409,6 @@ struct SetRepoInProject: View {
                 .padding()
                 .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
             } else {
-                // Create New
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Configure and provision a new GitHub repository for this project.")
                         .font(.caption)
@@ -520,8 +437,6 @@ struct SetRepoInProject: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Actions
-
     private func fetchUserRepositories() {
         guard isAuthenticated else { return }
         isLoadingUserRepos = true
@@ -530,7 +445,6 @@ struct SetRepoInProject: View {
                 let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
                 userRepos = try await GitHubRemoteListsClient(tokenProvider: { token }).listUserRepositories()
             } catch {
-                // Silently ignore or log
             }
             isLoadingUserRepos = false
         }
@@ -656,7 +570,6 @@ struct SetRepoInProject: View {
         let gitBinary = URL(fileURLWithPath: AppSettings.shared.gitPath.isEmpty ? "/usr/bin/git" : AppSettings.shared.gitPath)
         let dirURL = proj.directoryURL
 
-        // Initialize Git if needed
         if !isGitInitialized {
             _ = try? await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["init"], workingDirectory: dirURL)
         }
@@ -690,7 +603,6 @@ struct SetRepoInProject: View {
                 _ = try? await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["add", "."], workingDirectory: dirURL)
                 _ = try? await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["commit", "-m", "Sync current workspace changes via SwiftCode"], workingDirectory: dirURL)
 
-                // Push to default branch
                 let branchResult = try await ProcessRunnerTool.shared.run(executableURL: gitBinary, arguments: ["rev-parse", "--abbrev-ref", "HEAD"], workingDirectory: dirURL)
                 let activeBranch = branchResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 let targetBranch = activeBranch.isEmpty ? "main" : activeBranch

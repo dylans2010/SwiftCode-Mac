@@ -3,44 +3,6 @@ import SwiftUI
 import SwiftCodeCloud
 import SwiftCodeIDECore
 
-/// SQL console: editor, EXPLAIN, AI explain, history, saved queries.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseQueryEditor.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - SQLite execution goes through `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`), not Legacy's `DatabaseManager`.
-///   `run(sql:)` returns the real result grid (or the affected-row
-///   message for statements with no result set), and errors surface
-///   verbatim in the error panel.
-/// - Supabase goes through the destination's value type
-///   (`SupabaseService()` — no `.shared` on the destination
-///   service). Its `executeSQL` fails honestly: PostgREST exposes
-///   no SQL-execution endpoint and Legacy configured no RPC for
-///   one, so a Supabase run reports that failure instead of
-///   Legacy's success.
-/// - PostgreSQL / MySQL / MariaDB have no driver in this package:
-///   a run on one now reports that honestly instead of Legacy's
-///   silent no-op.
-/// - History and saved queries use the destination's
-///   `DatabaseHistoryService` (SwiftCodeIDECore), whose API
-///   matches Legacy's except for the item type name: Legacy's
-///   `QueryHistoryItem` is `DatabaseQueryHistoryItem` here, and
-///   runs are recorded with `record(sql:executionTimeMs:
-///   rowsAffected:status:errorMessage:)` rather than by building
-///   the item by hand.
-/// - "AI Optimize" used Legacy's `DatabaseAIService`, which does
-///   not exist in the destination. It now uses the destination's
-///   `DatabaseAIAssistant` (SwiftCodeIDECore), built on the open
-///   explorer's shared connection, and only while the active
-///   connection is SQLite. The assistant's LLM path is the one
-///   the SQLite Explorer sections panel already uses; a failure
-///   there is reported in the AI panel, never invented.
-/// - Legacy's `liquidGlass` header is gone (SwiftCodeUI has no
-///   such modifier); the header is a plain row on a subtle
-///   background.
 @MainActor
 struct DatabaseQueryEditor: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
@@ -52,27 +14,21 @@ struct DatabaseQueryEditor: View {
     @State private var isExecuting = false
     @State private var explainOutput = ""
 
-    // AI co-pilot states
     @State private var aiInput = ""
     @State private var aiResponse = ""
     @State private var isGeneratingAI = false
 
-    // Tabs / Panel selectors
-    @State private var selectedEditorTab = 0 // 0 = Editor, 1 = History, 2 = Saved & Favorites
+    @State private var selectedEditorTab = 0
 
-    // Save Query Dialog states
     @State private var saveTitle = ""
     @State private var saveCategory = "General"
     @State private var saveTags = "Utility"
     @State private var showSaveSheet = false
 
-    // Bumped after a run / save so the history and saved panes
-    // re-read the service (it is not an ObservableObject).
     @State private var historyVersion = 0
 
     var body: some View {
         VStack(spacing: 0) {
-            // Upper Editor Navigation / Tab switcher
             HStack {
                 Picker("", selection: $selectedEditorTab) {
                     Text("SQL Console").tag(0)
@@ -98,9 +54,7 @@ struct DatabaseQueryEditor: View {
             Divider()
 
             if selectedEditorTab == 0 {
-                // Main Console Editor View
                 VStack(spacing: 0) {
-                    // Editor Toolbar
                     HStack {
                         Button(action: runQuery) {
                             Label("Run SQL", systemImage: "play.fill")
@@ -126,7 +80,6 @@ struct DatabaseQueryEditor: View {
 
                     Divider()
 
-                    // SQL Text Editor & AI Panel Split
                     HStack(spacing: 0) {
                         VStack(spacing: 0) {
                             TextEditor(text: $query)
@@ -137,7 +90,6 @@ struct DatabaseQueryEditor: View {
 
                             Divider()
 
-                            // Stats / Errors Panel
                             if !errorMessage.isEmpty {
                                 Text(errorMessage)
                                     .foregroundColor(.red)
@@ -156,11 +108,9 @@ struct DatabaseQueryEditor: View {
 
                             Divider()
 
-                            // Results spreadsheet Viewer
                             if !queryResult.isEmpty {
                                 ScrollView([.horizontal, .vertical]) {
                                     LazyVStack(alignment: .leading, spacing: 0) {
-                                        // Header row
                                         HStack(spacing: 0) {
                                             ForEach(columns, id: \.self) { col in
                                                 Text(col)
@@ -172,7 +122,6 @@ struct DatabaseQueryEditor: View {
                                             }
                                         }
 
-                                        // Records rows
                                         ForEach(0..<queryResult.count, id: \.self) { rowIdx in
                                             let row = queryResult[rowIdx]
                                             HStack(spacing: 0) {
@@ -200,7 +149,6 @@ struct DatabaseQueryEditor: View {
                             }
                         }
 
-                        // AI Co-pilot Suggestions Sidebar panel
                         if !aiResponse.isEmpty || isGeneratingAI {
                             Divider()
 
@@ -237,10 +185,8 @@ struct DatabaseQueryEditor: View {
                     }
                 }
             } else if selectedEditorTab == 1 {
-                // SQL Query History view
                 queryHistoryPane()
             } else {
-                // Saved & Bookmarked Queries
                 savedQueriesPane()
             }
         }
@@ -276,7 +222,6 @@ struct DatabaseQueryEditor: View {
         }
     }
 
-    // MARK: - Query History Pane
     @ViewBuilder
     private func queryHistoryPane() -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -364,7 +309,6 @@ struct DatabaseQueryEditor: View {
         }
     }
 
-    // MARK: - Saved Queries Pane
     @ViewBuilder
     private func savedQueriesPane() -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -453,7 +397,6 @@ struct DatabaseQueryEditor: View {
         }
     }
 
-    // MARK: - Handlers & Actions
     private func runQuery() {
         guard let conn = connManager.activeConnection else { return }
         isExecuting = true

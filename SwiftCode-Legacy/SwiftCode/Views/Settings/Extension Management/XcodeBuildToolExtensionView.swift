@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Xcode Build Tool Extension View
 struct XcodeBuildToolExtensionView: View {
     @State private var isEnabled = true
     @State private var scheme = ""

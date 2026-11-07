@@ -3,9 +3,6 @@ import Testing
 import SwiftCodeDeviceModel
 @testable import SwiftCodeIDECore
 
-/// FOLD (`specs/simulator/foldable.md` §8.3 E1–E3): the fold controls of
-/// SwiftCode's remote iPhone Duo in Devices and Simulators, the control command
-/// the IDE sends through ssh, and the reply it reads. No network.
 @MainActor
 @Suite(.serialized) struct FoldControlsTests {
     func settings() -> RemoteSimulatorSettings {

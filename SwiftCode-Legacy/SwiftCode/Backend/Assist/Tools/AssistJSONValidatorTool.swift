@@ -1,8 +1,3 @@
-//
-//  AssistJSONValidatorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistJSONValidatorTool: AssistTool {

@@ -6,15 +6,10 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// General sections per platform, the Project Document inspector writes,
-/// the Info type sections and User-Defined grouping (reference-ui-3.md §1).
-/// Projects are written only in temporary directories.
 @MainActor
 @Suite struct ProjectEditorPlatformTests {
     func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
 
-    /// A project in a temp directory; `settings` replaces the target's
-    /// platform settings, `info` is written as App/Info.plist.
     func project(settings: String? = nil, info: String? = nil) throws -> (ProjectEditorModel, URL) {
         let base = try ProjectEditorFixture().model()
         var text = ProjectEditorFixture.pbxproj
@@ -76,14 +71,12 @@ import SwiftCodeProject
         s = try #require(ProjectDocumentInspector.section(for: url))
         #expect(s.compatibility == "Xcode 16.0" && s.minimizeProjectReferences)
 
-        // The controls write too.
         var controls: [String: NSView] = [:]
         _ = ProjectDocumentInspector.rows(for: url, controls: &controls)
         let popUp = try #require(controls["Compatibility"] as? NSPopUpButton)
         popUp.selectItem(withTitle: "Xcode 15.3")
         _ = popUp.target?.perform(popUp.action, with: popUp)
         #expect(try PBXProj(contentsOf: url).project?.string("compatibilityVersion") == "Xcode 15.3")
-        // Untouched keys survive.
         #expect(try PBXProj(contentsOf: url).project?["attributes"]?.dictionary?["ORGANIZATIONNAME"]?.string == "Acme")
     }
 

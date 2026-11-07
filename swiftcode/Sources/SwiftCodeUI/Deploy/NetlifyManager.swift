@@ -1,23 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Deployments/NetlifyManager.swift
-//   (Legacy main ab03f681) — verbatim except the adaptations below.
-//
-// Adaptations (production APIs differ from Legacy):
-//   * `prepareGitHubRepository` called Legacy's
-//     `GitHubService.pushProject(project, owner:repo:commitMessage:branch:)`.
-//     That shape does not exist in production: `GitHubService.pushProject`
-//     takes collected `files: [(path, data)]`. Files are collected from the
-//     project's `FileNode` tree exactly as `DeploymentTargets`
-//     (`SwiftCodeUI/Deploy/DeploymentTargets.swift`, S-FLAGS rewire) does —
-//     text files only; files that cannot be read as UTF-8 are skipped.
-//   * The `token` parameter is unused in the body, as in Legacy: the push
-//     goes through `GitHubService`, whose token is configured at startup
-//     (`GitHubService.shared.configure(tokenProvider:)`).
-//
-// Legacy behaviour kept verbatim: Netlify deploy is NOT a provider API
-// upload — the manager only pushes the project to GitHub and returns a
-// dashboard URL; Netlify's GitHub integration does the build.
-
 import Foundation
 import SwiftCodeGitHub
 import SwiftCodeIDECore
@@ -39,7 +19,6 @@ final class NetlifyManager: @unchecked Sendable {
 
             logHandler("Preparing repository and pushing changes...")
 
-            // Re-implementing the core logic here for independence
             let repoPrepared = try await prepareGitHubRepository(project: project, logHandler: logHandler)
 
             guard repoPrepared else {
@@ -79,9 +58,6 @@ final class NetlifyManager: @unchecked Sendable {
         return true
     }
 
-    /// Collects the project's files as `(path, data)` pairs for the Git
-    /// Data API push — same walk as `DeploymentTargets.collectProjectFiles`
-    /// (text files only; files that cannot be read as UTF-8 are skipped).
     private func collectProjectFiles(from nodes: [FileNode], projectDir: URL) -> [(path: String, data: Data)] {
         var collected: [(path: String, data: Data)] = []
         for node in nodes {

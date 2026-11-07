@@ -5,21 +5,9 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Responsiveness probes (opt-in: `SWIFTCODE_PERF=1`). They print timings;
-/// they assert nothing about them. A background thread pings the main
-/// queue every millisecond and records how long each ping waited, so the
-/// numbers are main-thread blocking as a user would feel it.
-///
-/// 1. Launch to first window interactive: main menu, workspace model,
-///    window, display, until the main queue answers within 5 ms.
-/// 2. The same window on a git repository of a few thousand files with
-///    local changes (status letters, Source Control navigator).
-/// 3. Opening every menu of the menu bar (validation of all items) while
-///    a build of that workspace runs.
 @MainActor
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_PERF"] == "1"), .serialized)
 struct PerfProbeTests {
-    /// Main-queue latency meter.
     final class Meter: @unchecked Sendable {
         private let lock = NSLock()
         private var running = true
@@ -55,8 +43,6 @@ struct PerfProbeTests {
         p.waitUntilExit()
     }
 
-    /// A package with `count` sources in a git repository; 20 modified and
-    /// 20 untracked files.
     static func repo(count: Int) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-perf-\(count)")
         let marker = dir.appendingPathComponent(".perf-ready")
@@ -84,7 +70,6 @@ struct PerfProbeTests {
         return dir
     }
 
-    /// Waits until the main queue answers within 5 ms (queued work done).
     static func settle(timeout: Double = 30) async {
         let end = Date().addingTimeInterval(timeout)
         var quiet = 0
@@ -103,7 +88,6 @@ struct PerfProbeTests {
 
     func openWindow(_ dir: URL) async throws -> (WorkspaceWindowController, [String: Double]) {
         _ = NSApplication.shared
-        // SWIFTCODE_MAIN_THREAD_WATCHDOG=<ms> also logs each stall with its stack.
         MainThreadWatchdog.startIfRequested()
         let meter = Meter()
         let t0 = Date()
@@ -154,7 +138,6 @@ struct PerfProbeTests {
                 }
                 validate(menu)
                 perMenu.append(Date().timeIntervalSince(t) * 1000)
-                // The user's next click: let the run loop turn.
                 await Task.yield()
             }
         }

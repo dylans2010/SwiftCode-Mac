@@ -2,10 +2,6 @@ import Foundation
 import SwiftCodeProject
 import SwiftCodePlist
 
-/// Generates a Project Interchange Format (PIF) description of a pbxproj
-/// project for swift-build. The PIF is a JSON array of top-level objects
-/// (`workspace`, `project`, `target`), each `{signature, type, contents}`.
-/// See `specs/ide/build-pif.md`.
 public struct PIFGenerator {
     public enum GenerationError: Error, CustomStringConvertible {
         case noMainGroup
@@ -26,51 +22,37 @@ public struct PIFGenerator {
         self.xcodeprojURL = xcodeprojURL.standardizedFileURL
     }
 
-    /// Product types this generator emits targets for (the simplest cases).
     public static let supportedProductTypes: Set<String> = [
         "com.apple.product-type.tool", "com.apple.product-type.library.static",
         "com.apple.product-type.application", "com.apple.product-type.framework",
         "com.apple.product-type.library.dynamic",
     ]
 
-    /// GUIDs are the pbxproj object IDs, prefixed so that objects of
-    /// different projects in one workspace stay unique.
     func guid(_ id: String) -> String { "\(proj.rootObject)-\(id)" }
 
     var projectDirectory: URL { proj.projectDirectory(xcodeprojURL: xcodeprojURL) }
 
-    /// File references that are some target's product.
     var productReferences: Set<String> { Set(proj.targets.compactMap { $0.string("productReference") }) }
-
-    // MARK: Objects
 
     public func workspaceSignature() -> String { "WORKSPACE@\(xcodeprojURL.path)" }
     public func projectSignature() -> String { "PROJECT@\(guid(proj.rootObject))" }
     public func targetSignature(_ id: String) -> String { "TARGET@\(guid(id))" }
 
-    /// The whole PIF: workspace, project and its supported targets.
     public func pif() throws -> JSONValue {
         .array([.object(["signature": .string(workspaceSignature()), "type": "workspace", "contents": workspaceContents()])]
                + (try projectObjects()))
     }
 
-    /// Targets the PIF describes: supported native targets.
     var pifTargets: [PBXObject] {
         proj.targets.filter { Self.supportedProductTypes.contains($0.string("productType") ?? "") && $0.isa == "PBXNativeTarget" }
     }
 
-    /// The project object and its target objects (no workspace).
     public func projectObjects() throws -> [JSONValue] {
         let targets = pifTargets
         guard !targets.isEmpty else { throw GenerationError.unsupported("no application, framework, library or command-line tool target") }
-        // Every target must be supported: a dependency on a skipped one
-        // could not be resolved.
         if let other = proj.targets.first(where: { t in !targets.contains { $0.id == t.id } }) {
             throw GenerationError.unsupported("target \(other.string("name") ?? other.id) (\(other.string("productType") ?? other.isa))")
         }
-        // Synchronized folders are expanded only by SwiftCodeXcodebuild's
-        // `XcodePIF`; describing such a target here would build it with no
-        // files and report success.
         if !proj.objects(isa: "PBXFileSystemSynchronizedRootGroup").isEmpty {
             let users = proj.targets.filter { !$0.references("fileSystemSynchronizedGroups").isEmpty }.compactMap { $0.string("name") }
             throw GenerationError.unsupported("synchronized folders" + (users.isEmpty ? "" : " (target \(users.joined(separator: ", ")))")
@@ -85,7 +67,6 @@ public struct PIFGenerator {
         return objects
     }
 
-    /// One PIF for several projects (an `.xcworkspace`).
     public static func workspacePIF(projects: [(PBXProj, URL)], workspaceURL: URL) throws -> JSONValue {
         let generators = projects.map { PIFGenerator(proj: $0.0, xcodeprojURL: $0.1) }
         var objects: [JSONValue] = [.object([
@@ -101,12 +82,10 @@ public struct PIFGenerator {
         return .array(objects)
     }
 
-    /// The target that produces a file reference, if it is a product.
     func producingTarget(of fileRef: String) -> PBXObject? {
         proj.targets.first { $0.string("productReference") == fileRef }
     }
 
-    /// `dstSubfolderSpec` of a copy-files phase → PIF destination subfolder.
     static func destinationSubfolder(spec: String?) -> String? {
         switch spec {
         case "0": "<absolute>"
@@ -151,14 +130,10 @@ public struct PIFGenerator {
         ])
     }
 
-    /// A group or file reference, recursively. Paths and source trees are
-    /// passed through; the root group is anchored at the project directory.
     func reference(_ id: String, isRoot: Bool = true) -> JSONValue {
         guard let obj = proj[id] else { return .null }
         var out: [String: JSONValue] = ["guid": .string(guid(id))]
         if isRoot {
-            // The root group is relative to `projectDirectory` and is
-            // named after the project.
             out["sourceTree"] = "<group>"
             out["path"] = ""
             out["name"] = .string(xcodeprojURL.deletingPathExtension().lastPathComponent)
@@ -176,13 +151,11 @@ public struct PIFGenerator {
                 return r == .null ? nil : r
             })
         case "PBXFileReference":
-            // Product references belong to their target in PIF, not to the
-            // group tree.
             if productReferences.contains(id) { return .null }
             out["type"] = "file"
             out["fileType"] = .string(obj.string("lastKnownFileType") ?? obj.string("explicitFileType") ?? "file")
         default:
-            return .null // synchronized folders are rejected in `projectObjects()`
+            return .null
         }
         return .object(out)
     }
@@ -218,7 +191,6 @@ public struct PIFGenerator {
             let files: [JSONValue] = phase.references("files").compactMap { bf in
                 guard let buildFile = proj[bf], let ref = buildFile.string("fileRef") else { return nil }
                 var out: [String: JSONValue] = ["guid": .string(guid(bf))]
-                // A product of another target is referenced through that target.
                 if let producer = producingTarget(of: ref) {
                     out["targetReference"] = .string(guid(producer.id))
                 } else {
@@ -255,7 +227,6 @@ public struct PIFGenerator {
             "buildPhases": .array(phases),
             "buildRules": [],
             "dependencies": .array(t.references("dependencies").compactMap { dep in
-                // In-project dependencies name their target directly.
                 guard let target = proj[dep]?.string("target") else { return nil }
                 return .object(["guid": .string(guid(target))])
             }),
@@ -264,8 +235,6 @@ public struct PIFGenerator {
     }
 }
 
-/// A minimal JSON value for writing PIF (SwiftCodeBuild has no JSON type of
-/// its own; this one keeps key order stable by sorting).
 public indirect enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, ExpressibleByArrayLiteral {
     case null
     case bool(Bool)

@@ -6,7 +6,6 @@ struct GitHistoryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Commit Logs History", systemImage: "clock.arrow.circlepath")
                     .font(.headline)
@@ -15,7 +14,6 @@ struct GitHistoryView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

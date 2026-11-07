@@ -1,19 +1,5 @@
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/GitHubDiscoveryView.swift`
-/// (the `DependencyGitHubDiscoveryView` search-parameters sidebar)
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// Search filters for GitHub package discovery: topic, owner / org,
-/// license, language, minimum stars, archived handling, and verified-only.
-///
-/// Query composition mirrors Legacy's `triggerSearch`: the keyword plus
-/// `topic:` / `user:` / `org:` / `archived:` qualifiers are composed into
-/// one query string. License, language, and minimum stars are NOT put in
-/// the string — `PackageDiscoveryStore.executeGitHubSearch(query:language:
-/// license:minStars:)` already appends the `language:`, `license:`, and
-/// `stars:>=` qualifiers itself. Verified-only is a client-side filter on
-/// the returned results (there is no GitHub search qualifier for it).
 public struct PackageDiscoveryFilters: Equatable {
     public var topic = ""
     public var ownerOrOrg = ""
@@ -47,7 +33,6 @@ public struct PackageDiscoveryFilters: Equatable {
 
     public init() {}
 
-    /// The composed GitHub search query for `keyword` plus the filters.
     public func composedQuery(keyword: String) -> String {
         var parts: [String] = []
         let trimmedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -65,7 +50,6 @@ public struct PackageDiscoveryFilters: Equatable {
     }
 }
 
-/// The search-parameters sidebar panel for package discovery.
 public struct PackageDiscoveryFiltersView: View {
     @Binding public var filters: PackageDiscoveryFilters
 

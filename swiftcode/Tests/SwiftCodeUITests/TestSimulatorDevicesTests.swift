@@ -1,9 +1,6 @@
 import Foundation
 import Testing
 
-/// The test-device cleanup removes only devices this process made with the
-/// `swiftcode-test-` prefix (`TestSimulatorDevices`). A fake simctl: no real
-/// simulator is listed, shut down or deleted here.
 @Suite struct TestSimulatorDevicesTests {
     final class FakeSimctl: @unchecked Sendable {
         let lock = NSLock()
@@ -29,13 +26,10 @@ import Testing
         let ownName = TestSimulatorDevices.newName()
         #expect(ownName.hasPrefix("swiftcode-test-ide-\(getpid())-"))
 
-        // The rule itself.
         #expect(TestSimulatorDevices.mayRemove(name: ownName, udid: mine, created: [mine]))
         #expect(!TestSimulatorDevices.mayRemove(name: "iPhone 17 Pro", udid: foreignNamed, created: [foreignNamed]))
         #expect(!TestSimulatorDevices.mayRemove(name: "swiftcode-test-L-ladder1", udid: otherAgent, created: []))
 
-        // remove(): a device without the prefix is refused even when its UDID
-        // was recorded; a swiftcode-test- device this process did not make too.
         let fake = FakeSimctl([(ownName, mine), ("iPhone 17 Pro", foreignNamed), ("swiftcode-test-L-ladder1", otherAgent)])
         TestSimulatorDevices.record(foreignNamed)
         defer { TestSimulatorDevices.forget(foreignNamed) }
@@ -53,10 +47,10 @@ import Testing
         let uuid = "11111111-2222-3333-4444-555555555555"
         let devices: [(name: String, udid: String)] = [
             ("swiftcode-test-ide-\(dead)-\(uuid)", "U-dead"),
-            ("swiftcode-test-ide-\(live)-\(uuid)", "U-live"),          // a parallel run in another checkout
-            ("swiftcode-test-ide-\(own)-\(uuid)", "U-own"),            // this run: removed by its own defer
-            ("swiftcode-test-L-ladder2", "U-tools"),                   // the boot tools' devices
-            ("swiftcode-test-\(UUID().uuidString)", "U-old-style"),    // no pid: not provably ours
+            ("swiftcode-test-ide-\(live)-\(uuid)", "U-live"),
+            ("swiftcode-test-ide-\(own)-\(uuid)", "U-own"),
+            ("swiftcode-test-L-ladder2", "U-tools"),
+            ("swiftcode-test-\(UUID().uuidString)", "U-old-style"),
             ("iPhone 17 Pro", "U-user"),
         ]
         #expect(TestSimulatorDevices.staleCandidates(devices, ownPID: own, isAlive: { $0 == live || $0 == own }) == ["U-dead"])

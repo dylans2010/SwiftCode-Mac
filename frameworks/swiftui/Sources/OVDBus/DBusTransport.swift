@@ -7,19 +7,10 @@ import Musl
 import Darwin
 #endif
 
-// Addresses, the Unix socket transport and authentication (D-Bus
-// Specification 0.43, "Server Addresses", "Unix Domain Sockets",
-// "Authentication Protocol"). Only what a client of a local bus needs:
-// `unix:path=…` and `unix:abstract=…` (Linux), the credentials nul byte,
-// SASL EXTERNAL with the decimal Unix user ID hex-encoded, then BEGIN.
-
-/// One entry of an address list (`transport:key=value,…`).
 public struct DBusAddress: Equatable, Sendable {
     public var transport: String
     public var parameters: [String: String]
 
-    /// Parses `a;b;c`, unescaping `%xx` values. Throws on malformed
-    /// entries (no colon, a key without `=`, a bad escape).
     public static func parse(_ text: String) throws -> [DBusAddress] {
         try text.split(separator: ";").map { entry in
             guard let colon = entry.firstIndex(of: ":") else { throw DBusError.noAddress("no transport in \"\(entry)\"") }
@@ -33,7 +24,6 @@ public struct DBusAddress: Equatable, Sendable {
         }
     }
 
-    /// Value unescaping: `%` and two hex digits stand for a byte.
     public static func unescape(_ s: Substring) throws -> String {
         var out: [UInt8] = []
         var it = Array(s.utf8)[...]
@@ -51,7 +41,6 @@ public struct DBusAddress: Equatable, Sendable {
         return String(decoding: out, as: UTF8.self)
     }
 
-    /// Value escaping: bytes outside `[-0-9A-Za-z_/.\*]` become `%xx`.
     public static func escape(_ s: String) -> String {
         var out = ""
         for b in s.utf8 {
@@ -63,16 +52,12 @@ public struct DBusAddress: Equatable, Sendable {
     }
 }
 
-/// The SASL lines of the client side.
 public enum DBusAuth {
-    /// `AUTH EXTERNAL <hex of the decimal uid>\r\n` (spec figure 1:
-    /// uid 1000 → `31303030`).
     public static func externalCommand(uid: UInt32) -> String {
         let id = String(uid).utf8.map { String(format: "%02x", $0) }.joined()
         return "AUTH EXTERNAL \(id)\r\n"
     }
 
-    /// The server GUID of an `OK <guid>` line, or nil for any other line.
     public static func guid(fromReply line: String) -> String? {
         let t = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard t.hasPrefix("OK ") else { return nil }
@@ -80,7 +65,6 @@ public enum DBusAuth {
     }
 }
 
-/// A connected, authenticated stream socket.
 public final class DBusSocket: @unchecked Sendable {
     public private(set) var fd: Int32
     public private(set) var serverGUID = ""
@@ -96,8 +80,6 @@ public final class DBusSocket: @unchecked Sendable {
         }
     }
 
-    /// Connects to the first entry of `address` that works and
-    /// authenticates.
     public static func connect(address: String, timeout: Double = 5) throws -> DBusSocket {
         var reasons: [String] = []
         for a in try DBusAddress.parse(address) {
@@ -142,7 +124,6 @@ public final class DBusSocket: @unchecked Sendable {
             for (i, b) in bytes.enumerated() { raw[i] = b }
         }
         let pathOffset = MemoryLayout<sockaddr_un>.offset(of: \sockaddr_un.sun_path) ?? 2
-        // Abstract names are exactly their bytes; paths get their nul.
         let length = pathOffset + bytes.count + (abstract ? 0 : 1)
         #if canImport(Darwin)
         addr.sun_len = UInt8(length)
@@ -156,10 +137,7 @@ public final class DBusSocket: @unchecked Sendable {
         return s
     }
 
-    // MARK: Authentication
-
     func authenticate(timeout: Double) throws {
-        // The credentials-passing nul byte, then EXTERNAL.
         try write([0] + Array(DBusAuth.externalCommand(uid: UInt32(getuid())).utf8))
         let line = try readLine(timeout: timeout)
         guard let guid = DBusAuth.guid(fromReply: line) else {
@@ -169,8 +147,6 @@ public final class DBusSocket: @unchecked Sendable {
         try write(Array("BEGIN\r\n".utf8))
     }
 
-    /// Reads one `\r\n`-terminated line byte by byte (nothing after it is
-    /// consumed: the server sends no message before BEGIN anyway).
     private func readLine(timeout: Double) throws -> String {
         var line: [UInt8] = []
         let deadline = Date().addingTimeInterval(timeout)
@@ -186,9 +162,6 @@ public final class DBusSocket: @unchecked Sendable {
         return String(decoding: line, as: UTF8.self)
     }
 
-    // MARK: I/O
-
-    /// Writes all of `bytes` (blocking).
     public func write(_ bytes: [UInt8]) throws {
         guard fd >= 0 else { throw DBusError.disconnected }
         var sent = 0
@@ -212,9 +185,6 @@ public final class DBusSocket: @unchecked Sendable {
         }
     }
 
-    /// Reads what is available (blocking until at least one byte or EOF);
-    /// an empty result means the peer closed the connection, nil that
-    /// nothing was there.
     public func readAvailable(max: Int = 65_536) throws -> [UInt8]? {
         guard fd >= 0 else { throw DBusError.disconnected }
         var buffer = [UInt8](repeating: 0, count: max)
@@ -229,8 +199,6 @@ public final class DBusSocket: @unchecked Sendable {
         }
     }
 
-    /// Waits until the socket is readable (or closed) for up to `timeout`
-    /// seconds.
     public func waitReadable(timeout: Double) -> Bool { poll(events: Int16(POLLIN), timeout: timeout) }
 
     func waitWritable(timeout: Double) -> Bool { poll(events: Int16(POLLOUT), timeout: timeout) }
@@ -247,7 +215,6 @@ public final class DBusSocket: @unchecked Sendable {
     }
 }
 
-// The C functions under names that do not clash with our methods.
 private func systemClose(_ fd: Int32) -> Int32 { close(fd) }
 private func systemRead(_ fd: Int32, _ p: UnsafeMutableRawPointer, _ n: Int) -> Int { read(fd, p, n) }
 private func systemConnect(_ fd: Int32, _ a: UnsafePointer<sockaddr>, _ l: socklen_t) -> Int32 { connect(fd, a, l) }

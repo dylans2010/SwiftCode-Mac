@@ -1,5 +1,3 @@
-// EKReminder (reminders.md §1).
-
 import Foundation
 
 public class EKReminder: EKCalendarItem {
@@ -23,7 +21,6 @@ public class EKReminder: EKCalendarItem {
         set { reminder.due = newValue }
     }
 
-    /// Setting YES stamps `completionDate` with the current time; NO clears it.
     public var isCompleted: Bool {
         get { reminder.completed }
         set {
@@ -32,7 +29,6 @@ public class EKReminder: EKCalendarItem {
         }
     }
 
-    /// Setting nil marks the reminder incomplete; a date marks it completed.
     public var completionDate: Date? {
         get { reminder.completionDate }
         set {
@@ -41,8 +37,6 @@ public class EKReminder: EKCalendarItem {
         }
     }
 
-    /// 0 none, 1…4 high, 5 medium, 6…9 low. Out-of-range values are kept
-    /// here and rejected at save (code 26).
     public var priority: Int {
         get { reminder.priority }
         set { reminder.priority = newValue }

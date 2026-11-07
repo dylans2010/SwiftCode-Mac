@@ -3,32 +3,22 @@ import SwiftCodePlist
 import SwiftCodeProject
 import SwiftCodeSettings
 
-/// Project-editor content that follows `specs/ide/reference-ui-3.md` §1:
-/// section orders, captions, tables and menus, computed from the project.
 extension ProjectEditorModel {
-    // MARK: General
 
-    /// The General tab's collapsible sections, in display order.
     public static let generalSectionTitles = [
         "Supported Destinations", "Minimum Deployments", "Identity", "Deployment Info",
         "App Icons and Launch Screen", "Frameworks, Libraries, and Embedded Content",
         "Development Assets", "Supported Intents",
     ]
 
-    /// iPhone/iPad devices the target supports: the Deployment Info
-    /// orientation rows. Status bar and scene rows appear only with one.
     public func deploymentInfoDevices(target: String, configuration: String) -> [String] {
         supportedDestinations(target: target, configuration: configuration).map(\.name).filter { $0 == "iPhone" || $0 == "iPad" }
     }
 
-    /// Whether the target has an iOS destination (launch screen, intents).
     public func hasIOSDestination(target: String, configuration: String) -> Bool {
         supportedDestinations(target: target, configuration: configuration).contains { $0.sdk == "iOS" }
     }
 
-    /// General sections for this target's platforms, in display order.
-    /// Deployment Info holds only iPhone/iPad rows, so a target without
-    /// them (for example macOS only) does not show it.
     public func generalSections(target: String, configuration: String) -> [String] {
         let devices = deploymentInfoDevices(target: target, configuration: configuration)
         return Self.generalSectionTitles.filter { $0 != "Deployment Info" || !devices.isEmpty }
@@ -45,7 +35,6 @@ extension ProjectEditorModel {
         public var sdk: String
     }
 
-    /// Supported Destinations rows, SwiftCode's reading of the platform settings.
     public func supportedDestinations(target: String, configuration: String) -> [Destination] {
         guard let s = resolve(target: target, configuration: configuration)?.settings else { return [] }
         return Self.destinations(
@@ -75,7 +64,6 @@ extension ProjectEditorModel {
         return out
     }
 
-    /// Minimum Deployments rows: (SDK, deployment-target setting, value).
     public func minimumDeployments(target: String, configuration: String) -> [(sdk: String, setting: String, value: String)] {
         guard let s = resolve(target: target, configuration: configuration)?.settings else { return [] }
         let map = ["iOS": "IPHONEOS_DEPLOYMENT_TARGET", "macOS": "MACOSX_DEPLOYMENT_TARGET", "visionOS": "XROS_DEPLOYMENT_TARGET",
@@ -84,8 +72,6 @@ extension ProjectEditorModel {
         for d in supportedDestinations(target: target, configuration: configuration) where !seen.contains(d.sdk) { seen.append(d.sdk) }
         return seen.compactMap { sdk in map[sdk].map { (sdk, $0, s[$0]) } }
     }
-
-    // MARK: Signing
 
     public static let signingScopes = ["All", "Debug", "Release"]
     public static let automaticSigningCaption = "Xcode will create and update profiles, app IDs, and certificates."
@@ -96,11 +82,9 @@ extension ProjectEditorModel {
         public var platform: String
         public var provisioningProfile: String
         public var certificate: String
-        /// Status lines; a warning pair when no team is set.
         public var status: [String]
     }
 
-    /// One box per platform the target supports.
     public func signingBoxes(target: String, configuration: String) -> [SigningBox] {
         guard let s = resolve(target: target, configuration: configuration)?.settings else { return [] }
         let auto = s["CODE_SIGN_STYLE"] != "Manual"
@@ -121,24 +105,18 @@ extension ProjectEditorModel {
          "Select a development team in the Signing & Capabilities editor."]
     }
 
-    /// The capability library's footer error, when no team is set.
     public func capabilityLibraryError(target: String, configuration: String) -> [String]? {
         resolve(target: target, configuration: configuration)?.settings["DEVELOPMENT_TEAM"].isEmpty ?? true
             ? ["Error Loading Capabilities", "No development team is set. Select a team in the Signing & Capabilities editor."] : nil
     }
 
-    /// The library list: alphabetical, filtered by name.
     public static func capabilityLibrary(filter: String = "") -> [Capability] {
         let q = filter.lowercased()
         return Capability.allCases.filter { q.isEmpty || $0.rawValue.lowercased().contains(q) }.sorted { $0.rawValue < $1.rawValue }
     }
 
-    // MARK: Resource Tags
-
     public static let resourceTagScopes = ["All", "Prefetched"]
     public static let resourceTagsEmptyText = "Click the \u{201C}+\u{201D} button above to add a resource tag."
-
-    // MARK: Info
 
     public static let readableInfoKeys = [
         "CFBundleName": "Bundle name", "CFBundleIdentifier": "Bundle identifier",
@@ -166,12 +144,10 @@ extension ProjectEditorModel {
 
     public static func readableKey(_ key: String) -> String { readableInfoKeys[key] ?? key }
 
-    /// "Custom iOS Target Properties" etc.
     public func infoSectionTitle(target: String, configuration: String) -> String {
         "Custom \(supportedDestinations(target: target, configuration: configuration).first?.sdk ?? "macOS") Target Properties"
     }
 
-    /// The collapsed sections below the table, with their counts.
     public func infoTypeSections(target: String, configuration: String) -> [String] {
         let dict = infoDictionary(target: target, configuration: configuration)
         return [("Document Types", "CFBundleDocumentTypes"), ("Exported Type Identifiers", "UTExportedTypeDeclarations"),
@@ -188,14 +164,10 @@ extension ProjectEditorModel {
         return d
     }
 
-    /// Info rows with readable key names (the table's display form).
     public func readableInfoRows(target: String, configuration: String) -> [InfoRow] {
         infoItems(target: target, configuration: configuration).map { InfoRow(key: $0.key, type: $0.type, value: $0.value) }
     }
 
-    /// A row of the Info table: the raw and readable key, the type, the
-    /// value as shown, and a container's children (reference-ui-5.md
-    /// §11.1.5, P5).
     public struct InfoItem: Equatable, Sendable {
         public var rawKey: String
         public var key: String
@@ -205,9 +177,6 @@ extension ProjectEditorModel {
         public var isContainer: Bool { type == "Array" || type == "Dictionary" }
     }
 
-    /// Keys a generated Info.plist always holds, with the build setting
-    /// each value comes from (the build system's Info.plist generation,
-    /// public build-setting reference). `LSRequiresIPhoneOS` is iOS only.
     static let generatedInfoKeys: [(key: String, value: PropertyListItem)] = [
         ("CFBundleName", .string("$(PRODUCT_NAME)")), ("CFBundleIdentifier", .string("$(PRODUCT_BUNDLE_IDENTIFIER)")),
         ("CFBundleInfoDictionaryVersion", .string("6.0")), ("CFBundleShortVersionString", .string("$(MARKETING_VERSION)")),
@@ -216,23 +185,18 @@ extension ProjectEditorModel {
         ("CFBundleDevelopmentRegion", .string("$(DEVELOPMENT_LANGUAGE)")),
     ]
 
-    /// The order the reference shows a generated iOS app's keys in
-    /// (reference-ui-3.md §1.7); other keys follow in their own order.
     static let infoKeyOrder = [
         "CFBundleName", "CFBundleIdentifier", "CFBundleInfoDictionaryVersion", "CFBundleShortVersionString", "CFBundleVersion",
         "CFBundleExecutable", "LSRequiresIPhoneOS", "UIApplicationSceneManifest", "UISupportedInterfaceOrientations",
         "UISupportedInterfaceOrientations~iphone", "UISupportedInterfaceOrientations~ipad", "CFBundlePackageType", "UILaunchScreen", "CFBundleDevelopmentRegion", "UIApplicationSupportsIndirectInputEvents",
     ]
 
-    /// Info.plist keys whose `INFOPLIST_KEY_*` value is a Boolean.
     static let booleanInfoKeys: Set<String> = [
         "LSRequiresIPhoneOS", "UIApplicationSupportsIndirectInputEvents", "UIStatusBarHidden", "UIRequiresFullScreen",
         "UIApplicationSupportsMultipleScenes", "ITSAppUsesNonExemptEncryption", "LSUIElement", "UIFileSharingEnabled",
         "LSSupportsOpeningDocumentsInPlace", "UISupportsDocumentBrowser", "NSSupportsSuddenTermination", "NSSupportsAutomaticTermination",
     ]
 
-    /// The Info.plist key and value an `INFOPLIST_KEY_*` setting produces;
-    /// nil for a setting that produces none (a `_Generation` set to NO).
     static func generatedInfoEntry(setting name: String, definition: String) -> PropertyListEntry? {
         var key = String(name.dropFirst("INFOPLIST_KEY_".count))
         if key.hasSuffix("_Generation") {
@@ -254,10 +218,6 @@ extension ProjectEditorModel {
         return .init(key: key, value: .string(definition))
     }
 
-    /// The Info table: for a generated Info.plist the generated keys (values
-    /// from build settings shown as `$(…)`), the `INFOPLIST_KEY_*` settings
-    /// (their definitions, unexpanded) and the file's keys; else the file's
-    /// keys in file order. Keys have their readable names.
     public func infoItems(target: String, configuration: String) -> [InfoItem] {
         guard let r = resolve(target: target, configuration: configuration) else { return [] }
         var entries: [PropertyListEntry] = []
@@ -291,16 +251,12 @@ extension ProjectEditorModel {
         return InfoItem(rawKey: key, key: readableKey(key), type: v.typeName, value: v.summary, children: children)
     }
 
-    /// A setting's own text at the most specific level that assigns it
-    /// (target, its xcconfig, project, its xcconfig), unexpanded.
     func definition(_ name: String, in s: BuildSettings) -> String? {
         for level in ["target", "target-xcconfig", "project", "project-xcconfig"] {
             if let t = s.assignedText(name, inLevel: level) { return t }
         }
         return nil
     }
-
-    // MARK: Build settings
 
     public static let basicSections: [(section: String, settings: [(name: String, title: String)])] = [
         ("Deployment", [("INSTALL_PATH", "Installation Directory"), ("STRIP_INSTALLED_PRODUCT", "Strip Linked Product"),
@@ -330,8 +286,6 @@ extension ProjectEditorModel {
         }
     }
 
-    /// Basic view sections; User-Defined lists customized settings with no
-    /// known title, by raw name.
     public func basicSettingSections(target: String?, configuration: String) -> [SettingSection] {
         var out = Self.basicSections.map { SettingSection(title: $0.section, names: $0.settings.map(\.name)) }
         guard let s = resolve(target: target, configuration: configuration)?.settings else { return out }
@@ -342,8 +296,6 @@ extension ProjectEditorModel {
         return out
     }
 
-    /// Settings that belong to a named section in the full view (not
-    /// User-Defined).
     static let knownSettingNames: Set<String> = Set(basicSettings).union([
         "ASSETCATALOG_COMPILER_APPICON_NAME", "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME", "IPHONEOS_DEPLOYMENT_TARGET",
         "ENABLE_PREVIEWS", "SWIFT_EMIT_LOC_STRINGS", "INFOPLIST_KEY_CFBundleDisplayName", "ALWAYS_SEARCH_USER_PATHS",
@@ -356,13 +308,11 @@ extension ProjectEditorModel {
         "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD", "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD", "DEAD_CODE_STRIPPING",
     ])
 
-    /// Whether a setting is drawn bold: defined at the shown level.
     public func isDefinedAtShownLevel(_ name: String, target: String?, configuration: String) -> Bool {
         guard let s = resolve(target: target, configuration: configuration)?.settings else { return false }
         return s.isAssigned(name, inLevels: target == nil ? ["project", "project-xcconfig"] : ["target", "target-xcconfig"])
     }
 
-    /// Levels view column titles: Setting | Resolved | target | project | platform default.
     public func levelsColumnTitles(target: String?) -> [String] {
         ["Setting", "Resolved"] + (target.map { [$0] } ?? []) + [projectName, Self.platformDefaultTitle(proj: proj, target: target, model: self)]
     }
@@ -380,15 +330,11 @@ extension ProjectEditorModel {
 
     public static let multipleValues = "<Multiple values>"
 
-    /// Per-configuration values; the collapsed row shows `<Multiple values>`
-    /// when they differ, and expands to one row per configuration.
     public func valuesByConfiguration(_ name: String, target: String?) -> (collapsed: String, perConfiguration: [(String, String)]?) {
         let pairs = configurations(of: target).names.map { ($0, resolve(target: target, configuration: $0)?.settings[name] ?? "") }
         guard Set(pairs.map(\.1)).count > 1 else { return (pairs.first?.1 ?? "", nil) }
         return (Self.multipleValues, pairs)
     }
-
-    // MARK: Build phases
 
     public static func phaseTitle(_ name: String, count: Int) -> String {
         "\(name) (\(count) item\(count == 1 ? "" : "s"))"
@@ -397,8 +343,6 @@ extension ProjectEditorModel {
     static let sourceExtensions: Set<String> = ["swift", "m", "mm", "c", "cc", "cpp", "cxx", "metal", "s", "intentdefinition"]
     static let ignoredExtensions: Set<String> = ["h", "hpp", "plist", "entitlements", "xcconfig", "md"]
 
-    /// Files of the target's synchronized folders, as "<file> …in <folder>",
-    /// split into the Compile Sources and Copy Bundle Resources phases.
     public func synchronizedPhaseItems(target name: String) -> (sources: [String], resources: [String]) {
         guard let t = target(named: name) else { return ([], []) }
         let dir = proj.projectDirectory(xcodeprojURL: xcodeprojURL)
@@ -412,7 +356,6 @@ extension ProjectEditorModel {
             var files: [(String, String)] = []
             for case let u as URL in e {
                 let ext = u.pathExtension.lowercased()
-                // Bundles (asset catalogs, storyboards) are one resource.
                 if ["xcassets", "xcstrings", "storyboard", "xib", "bundle", "lproj", "xcdatamodeld", "rcproject"].contains(ext) {
                     files.append((u.lastPathComponent, ext)); e.skipDescendants(); continue
                 }
@@ -432,13 +375,9 @@ extension ProjectEditorModel {
         public var title: String
         public var isa: String
         public var enabled: Bool
-        /// A separator follows this item.
         public var separatorAfter: Bool
     }
 
-    /// The Build Phases "+" menu. Kinds that exist once per target are
-    /// disabled when present; Headers applies only to library/framework
-    /// targets; Carbon resources never apply to modern targets.
     public func addPhaseMenu(target name: String) -> [PhaseMenuItem] {
         let t = target(named: name)
         let present = Set((t.map { proj.buildPhases(ofTarget: $0.id) } ?? []).map(\.isa))
@@ -455,13 +394,9 @@ extension ProjectEditorModel {
         ]
     }
 
-    /// Phases that have a trash button (all but Target Dependencies and
-    /// Run Build Tool Plug-ins).
     public static func phaseIsRemovable(_ title: String) -> Bool {
         !["Target Dependencies", "Run Build Tool Plug-ins"].contains(title)
     }
-
-    // MARK: Build rules
 
     public static let buildRuleScopes = ["All", "Custom"]
 
@@ -471,13 +406,9 @@ extension ProjectEditorModel {
         public var using: String
     }
 
-    /// Build Rules sections, sorted by rule name.
     public func ruleSections(target name: String) -> [RuleSection] { ruleSectionIDs(target: name).map(\.section) }
 
-    // MARK: Project ▸ Info
-
     public struct ProjectInfo: Equatable, Sendable {
-        /// (configuration name, base configuration file name or nil).
         public var configurations: [String]
         public var baseFiles: [String?]
         public var commandLineConfiguration: String?
@@ -512,39 +443,26 @@ extension ProjectEditorModel {
             usesBaseInternationalization: regions.contains("Base"))
     }
 
-    // MARK: Package Dependencies
-
     public static let packagesEmptyText = "Add packages here"
     public static func packagesHeader(count: Int) -> String { "Packages (\(count) item\(count == 1 ? "" : "s"))" }
 
-    // MARK: Project file inspector
-
-    /// Compatibility pop-up titles with the objectVersion each writes,
-    /// newest first (specs/formats/pbxproj.md, Project format). "Xcode 16.0" records
-    /// `preferredProjectObjectVersion`; older ones record
-    /// `compatibilityVersion` (specs/formats/pbxproj.md).
     public static let compatibilityVersions: [(title: String, objectVersion: Int)] = [
         ("Xcode 16.0", 77), ("Xcode 15.3", 63), ("Xcode 15.0", 60), ("Xcode 14.0", 56), ("Xcode 13.0", 55),
         ("Xcode 12.0", 54), ("Xcode 11.4", 53), ("Xcode 11.0", 52), ("Xcode 10.0", 51), ("Xcode 9.3", 50),
         ("Xcode 8.0", 48), ("Xcode 6.3", 47), ("Xcode 3.2", 46), ("Xcode 3.1", 45),
     ]
 
-    /// Compatibility pop-up title for an objectVersion.
     public static func compatibility(objectVersion: String) -> String {
         let v = Int(objectVersion) ?? 0
         return compatibilityVersions.first { $0.objectVersion <= v }?.title ?? "Xcode 3.1"
     }
 
-    /// The project's compatibility: its `compatibilityVersion`, else its
-    /// `preferredProjectObjectVersion`, else its objectVersion.
     public var compatibility: String {
         if let c = proj.project?.string("compatibilityVersion"), Self.compatibilityVersions.contains(where: { $0.title == c }) { return c }
         if let p = proj.project?.string("preferredProjectObjectVersion") { return Self.compatibility(objectVersion: p) }
         return Self.compatibility(objectVersion: proj.objectVersion)
     }
 
-    /// Chooses a Compatibility title: sets objectVersion and the matching
-    /// PBXProject attribute.
     public mutating func setCompatibility(_ title: String) {
         guard let entry = Self.compatibilityVersions.first(where: { $0.title == title }), var p = proj.project else { return }
         proj.objectVersion = String(entry.objectVersion)
@@ -558,8 +476,6 @@ extension ProjectEditorModel {
         proj[p.id] = p
     }
 
-    /// "Minimize Project References": `minimizedProjectReferenceProxies = 1`,
-    /// or the key removed.
     public mutating func setMinimizeProjectReferences(_ on: Bool) {
         guard var p = proj.project else { return }
         p["minimizedProjectReferenceProxies"] = on ? .string("1") : nil

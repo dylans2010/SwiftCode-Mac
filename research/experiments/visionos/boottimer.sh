@@ -1,8 +1,4 @@
 #!/bin/sh
-# Boot a simulator and report: simctl boot return, bootstatus terminal, and the
-# first screenshot whose PNG is larger than THRESH bytes (the rendered room;
-# the boot card is ~0.2 MB at 3840x2160, the room 6-7 MB).
-# Usage: boottimer.sh <udid> <outdir> [THRESH]
 U=$1; OUT=$2; TH=${3:-2000000}
 now() { python3 -I -c 'import time;print(time.time())'; }
 t0=$(now)

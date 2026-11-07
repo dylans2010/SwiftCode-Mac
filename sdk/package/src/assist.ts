@@ -1,47 +1,3 @@
-/**
- * Headless Assist SDK variant: `assistSDK` (specs/ide/sdk-platform.md, task B2).
- *
- * The full Assist API surface EXCEPT UI — sessions, streaming responses,
- * tool access per the approved scope. The developer renders everything
- * themselves. There is intentionally NO view-opening path in this module:
- * it never imports or calls `ui.openView` (or anything from
- * `assistUI.ts`); presenting UI belongs to `assistSDK.UI`.
- *
- * WIRE CONTRACT — DEPENDENCY ON THE SIBLING TASK:
- * Every public function routes through the IPC connection to the
- * dedicated entitled route `assist.invoke`, with an `op` discriminator in
- * the payload:
- *
- *   assist.invoke  {"op":"session.create","systemPrompt?","model?"}
- *                  → {"sessionId","createdAt"}
- *   assist.invoke  {"op":"session.list"} → {"sessions":[{"sessionId","createdAt"}]}
- *   assist.invoke  {"op":"message.send","sessionId","message"} → {"reply"}
- *   assist.invoke  {"op":"message.stream","sessionId","message"} → {"accepted":true}
- *   assist.invoke  {"op":"tool.invoke","sessionId","tool","arguments"} → {"tool","result"}
- *   assist.invoke  {"op":"session.close","sessionId"} → null
- *
- * The sibling task implements the `assist.invoke` route in
- * `SDKIPCDispatcher` and carves the entitled path out of
- * `SDKAssistGate.check` (which currently deny-lists the `assist`
- * substring); until that lands, the host answers with the typed
- * `ASSIST_DENIED` denial and every call below throws
- * {@link SDKAssistAccessError}. Nothing here is a stub: calls genuinely
- * go to the host, and host rejections surface as real errors.
- *
- * Streaming: `message.stream` resolves once the host accepts the stream
- * (or rejects with the typed denial). Response chunks arrive as
- * `assist.stream` host events correlated by the request's `requestId`,
- * each with payload `{"delta","done"}`; a final `done: true` chunk ends
- * the stream. A chunk carrying `"error"` fails the iterator with the
- * host's typed error.
- *
- * ENTITLEMENT HONESTY: the TS layer cannot know entitlement state itself
- * and never fabricates it. Only the host's typed `ASSIST_DENIED` denial
- * is translated into {@link SDKAssistAccessError} (carrying the verbatim
- * §13 user message). Every other rejection — including `PERMISSION_DENIED`
- * from unrelated checks — propagates as the original SDKError untouched.
- */
-
 import { randomUUID } from "node:crypto";
 import { SDKError, type HostConnection } from "./ipc.js";
 import {
@@ -54,9 +10,7 @@ import {
   type AssistToolResult,
 } from "./types.js";
 
-/** The dedicated entitled IPC route for the headless Assist variant. */
 const ASSIST_INVOKE_METHOD = "assist.invoke";
-/** Host→extension event carrying stream chunks for `message.stream`. */
 const ASSIST_STREAM_EVENT = "assist.stream";
 
 function validateSessionId(sessionId: unknown): string {
@@ -73,11 +27,6 @@ function validateMessage(message: unknown): string {
   return message;
 }
 
-/**
- * Translates ONLY the host's typed Assist denial into the user-facing
- * error. Everything else rethrows unchanged — the TS layer never decides
- * entitlement on its own.
- */
 function mapAssistDenial(error: unknown): never {
   if (error instanceof SDKError && error.code === "ASSIST_DENIED") {
     throw new SDKAssistAccessError(error.correlationId);
@@ -96,31 +45,15 @@ function assertSessionInfo(payload: unknown): AssistSessionInfo {
   return { sessionId: record["sessionId"], createdAt: record["createdAt"] };
 }
 
-/**
- * Builds the real headless Assist API over an IPC connection. Every call
- * below performs a genuine `assist.invoke` round-trip; nothing is
- * simulated. In extension code prefer `context.assist` (wired by
- * `createContext` in `context.ts`).
- */
 export function createAssistAPI(connection: HostConnection): AssistAPI {
   async function invoke<T>(op: string, payload: Record<string, unknown>, requestId?: string): Promise<T> {
     try {
-      // CALL SITE — `assist.invoke` is the dedicated entitled route the
-      // sibling task implements in SDKIPCDispatcher + SDKAssistGate (the
-      // gate currently deny-lists the `assist` substring; the sibling
-      // carves out the entitled path). Until that lands, the host answers
-      // with the typed ASSIST_DENIED denial, mapped below.
       return await connection.request<T>(ASSIST_INVOKE_METHOD, { op, ...payload }, requestId);
     } catch (error) {
       mapAssistDenial(error);
     }
   }
 
-  /**
-   * Streams one message's response. The `message.stream` request is
-   * awaited FIRST so a host denial surfaces as SDKAssistAccessError
-   * before any chunk is yielded; chunks arriving meanwhile are queued.
-   */
   async function* streamChunks(sessionId: string, message: string): AsyncGenerator<AssistStreamChunk> {
     const requestId = randomUUID();
     const queue: AssistStreamChunk[] = [];
@@ -220,8 +153,6 @@ export function createAssistAPI(connection: HostConnection): AssistAPI {
     },
 
     streamMessage(sessionId: string, message: string): AsyncIterable<AssistStreamChunk> {
-      // Validated eagerly (synchronously at call time), not deferred to
-      // first iterator pull.
       const sid = validateSessionId(sessionId);
       const text = validateMessage(message);
       const generator = streamChunks(sid, text);
@@ -260,7 +191,6 @@ export function createAssistAPI(connection: HostConnection): AssistAPI {
 
     async closeSession(sessionId: string): Promise<void> {
       const sid = validateSessionId(sessionId);
-      // The host answers with a null payload on success.
       await invoke<unknown>("session.close", { sessionId: sid });
     },
   };

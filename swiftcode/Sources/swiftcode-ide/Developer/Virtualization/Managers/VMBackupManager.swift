@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/Managers/VMBackupManager.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 
 public final class VMBackupManager: Sendable {
@@ -19,9 +17,8 @@ public final class VMBackupManager: Sendable {
         let decoder = JSONDecoder()
         var importedVM = try decoder.decode(VirtualMachine.self, from: data)
 
-        // Ensure imported VM gets added cleanly with a new unique identity if needed, or keeping it
         let cleanVM = VirtualMachine(
-            id: UUID(), // new unique id to avoid collisions
+            id: UUID(),
             name: "\(importedVM.name) (Imported)",
             osType: importedVM.osType,
             version: importedVM.version,

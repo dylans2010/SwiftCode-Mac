@@ -3,7 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// `executable_cdhash=` / `executable_boothash=` (`darwin-process-start.md` §1.4).
 @Suite struct ProcessCodeSignatureTests {
     @Test func digests() {
         func hex(_ b: [UInt8]) -> String { CodeSignature.hexString(b) }
@@ -14,8 +13,6 @@ import SwiftCodeDarwinABI
         #expect(hex(SHA1Digest.hash(Array("abc".utf8))) == "a9993e364706816aba3e25717850c26c9cd0d89d")
     }
 
-    /// A thin arm64 MH_EXECUTE with LC_CODE_SIGNATURE → a SuperBlob holding
-    /// a SHA-1 CodeDirectory (slot 0) and a SHA-256 one (slot 0x1000).
     static func signedImage() -> (file: [UInt8], sha256CD: [UInt8]) {
         func be(_ v: UInt32) -> [UInt8] { [UInt8(v >> 24), UInt8(v >> 16 & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v & 0xFF)] }
         func cd(hashType: UInt8, fill: UInt8) -> [UInt8] {
@@ -42,12 +39,11 @@ import SwiftCodeDarwinABI
         try Data(bytes).write(to: URL(fileURLWithPath: path))
         defer { try? FileManager.default.removeItem(atPath: path) }
         let hash = try #require(CodeSignature.cdHash(ofExecutableAt: path))
-        #expect(hash == Array(SHA256Digest.hash(cd).prefix(20)))  // the SHA-256 CodeDirectory wins
+        #expect(hash == Array(SHA256Digest.hash(cd).prefix(20)))
         let strings = CodeSignature.appleStrings(hostPath: path, bootSalt: 7, bootSessionUUID: "00000000-0000-0000-0000-000000000000")
         #expect(strings.count == 2)
         #expect(strings[0] == "executable_cdhash=" + CodeSignature.hexString(hash))
         #expect(strings[1].hasPrefix("executable_boothash=") && strings[1].count == "executable_boothash=".count + 40)
-        // An unsigned image gets neither string.
         let plain = NSTemporaryDirectory() + "swiftcode-cdhash-\(UUID().uuidString)"
         try Data(ProcEnv.machO()).write(to: URL(fileURLWithPath: plain))
         defer { try? FileManager.default.removeItem(atPath: plain) }

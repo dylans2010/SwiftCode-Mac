@@ -1,8 +1,5 @@
 import Foundation
 
-// MARK: - Capability Sections
-
-/// Capability sections shown as filter categories and UI groups.
 public enum EntitlementCapabilitySection: String, CaseIterable, Identifiable {
     case all = "All"
     case sandbox = "Sandbox"
@@ -45,26 +42,16 @@ public enum EntitlementCapabilitySection: String, CaseIterable, Identifiable {
     }
 }
 
-/// What kind of payload a capability carries beyond its on/off switch.
 public enum CapabilityPayloadKind {
-    /// Pure boolean toggle — enabling sets the key, disabling removes it.
     case none
-    /// An array of string identifiers the user can add/remove.
     case idList(placeholder: String)
-    /// An array of strings restricted to a fixed set of real values.
     case fixedValueList(allowed: [String])
-    /// A string picked from a fixed set of options.
     case choice(options: [String])
-    /// A free-form string value.
     case stringValue(placeholder: String)
-    /// An array of strings built from a service prefix plus a host (Associated Domains).
     case prefixedList(prefixes: [String], placeholder: String)
-    /// iCloud composite: container identifiers + key-value store identifier + NSUbiquitousContainers.
     case iCloudComposite
 }
 
-/// One toggleable capability. Enabling it writes the real entitlement key;
-/// disabling it removes the key from the entitlements file.
 public struct CapabilityDefinition: Identifiable {
     public var id: String { rawKey }
     public let rawKey: String
@@ -74,9 +61,7 @@ public struct CapabilityDefinition: Identifiable {
     public let section: EntitlementCapabilitySection
     public let payload: CapabilityPayloadKind
     public let defaultValue: Any
-    /// Composite capabilities control more than one entitlement key (e.g. iCloud).
     public let compositeKeys: [String]
-    /// True when Apple only grants the entitlement through a special request.
     public let requiresSpecialApproval: Bool
 
     public init(
@@ -109,7 +94,6 @@ public enum CapabilityCatalog {
     public static let ubiquitousContainersKey = "NSUbiquitousContainers"
 
     nonisolated(unsafe) public static let definitions: [CapabilityDefinition] = [
-        // MARK: App Sandbox
         CapabilityDefinition(
             rawKey: "com.apple.security.app-sandbox",
             name: "App Sandbox",
@@ -273,7 +257,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: Hardened Runtime
         CapabilityDefinition(
             rawKey: "com.apple.security.cs.allow-jit",
             name: "Allow JIT Code Generation",
@@ -320,7 +303,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: iCloud & Push
         CapabilityDefinition(
             rawKey: iCloudContainersKey,
             name: "iCloud",
@@ -350,7 +332,6 @@ public enum CapabilityCatalog {
             defaultValue: "development"
         ),
 
-        // MARK: Sharing
         CapabilityDefinition(
             rawKey: "com.apple.security.application-groups",
             name: "App Groups",
@@ -370,7 +351,6 @@ public enum CapabilityCatalog {
             defaultValue: [String]()
         ),
 
-        // MARK: Personal Information
         CapabilityDefinition(
             rawKey: "com.apple.security.personal-information.photos-library",
             name: "Photos Library",
@@ -408,7 +388,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: Apple Services
         CapabilityDefinition(
             rawKey: "com.apple.developer.applesignin",
             name: "Sign in with Apple",
@@ -517,7 +496,6 @@ public enum CapabilityCatalog {
             defaultValue: "development"
         ),
 
-        // MARK: System & Driver Extensions (special Apple approval required)
         CapabilityDefinition(
             rawKey: "com.apple.developer.driverkit",
             name: "DriverKit",
@@ -565,7 +543,6 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
 
-        // MARK: Notifications & Communication
         CapabilityDefinition(
             rawKey: "com.apple.developer.usernotifications.critical-alerts",
             name: "Critical Alerts",
@@ -595,7 +572,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: Networking & Hardware
         CapabilityDefinition(
             rawKey: "com.apple.developer.networking.wifi-info",
             name: "Access Wi-Fi Information",
@@ -633,7 +609,6 @@ public enum CapabilityCatalog {
             defaultValue: ["NDEF"]
         ),
 
-        // MARK: Modern Frameworks & System
         CapabilityDefinition(
             rawKey: "com.apple.developer.weatherkit",
             name: "WeatherKit",
@@ -719,7 +694,6 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
 
-        // MARK: Additional Sandbox Security
         CapabilityDefinition(
             rawKey: "com.apple.security.automation.apple-events",
             name: "Apple Events Automation",
@@ -748,7 +722,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: - Advanced App Sandbox
         CapabilityDefinition(
             rawKey: "com.apple.security.files.bookmarks.app-scope",
             name: "Security-Scoped Bookmarks (App-Scope)",
@@ -787,7 +760,6 @@ public enum CapabilityCatalog {
             defaultValue: [String]()
         ),
 
-        // MARK: - Advanced Hardened Runtime
         CapabilityDefinition(
             rawKey: "com.apple.security.cs.disable-executable-page-protection",
             name: "Disable Executable Page Protection",
@@ -807,7 +779,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: - Advanced iCloud & Push
         CapabilityDefinition(
             rawKey: "com.apple.developer.icloud-container-development-container-identifiers",
             name: "iCloud Development Containers",
@@ -827,7 +798,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: - Advanced Sharing
         CapabilityDefinition(
             rawKey: "keychain-cloud-circle",
             name: "iCloud Keychain Synchronization",
@@ -847,7 +817,6 @@ public enum CapabilityCatalog {
             defaultValue: [String]()
         ),
 
-        // MARK: - Advanced Personal Information
         CapabilityDefinition(
             rawKey: "com.apple.security.personal-information.reminders",
             name: "Reminders Access",
@@ -897,7 +866,6 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
 
-        // MARK: - Modern Apple Services & Hardware
         CapabilityDefinition(
             rawKey: "com.apple.developer.carkey",
             name: "CarKey Digital Keys",
@@ -1039,7 +1007,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: - DriverKit & System Extensions
         CapabilityDefinition(
             rawKey: "com.apple.developer.driverkit.transport.usb",
             name: "DriverKit USB Transport",
@@ -1111,7 +1078,6 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
 
-        // MARK: - Virtualization & Hypervisor
         CapabilityDefinition(
             rawKey: "com.apple.developer.virtualization",
             name: "Virtualization Framework",
@@ -1131,7 +1097,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: - Proximity & Contactless Payments
         CapabilityDefinition(
             rawKey: "com.apple.developer.proximity-reader.payment.acceptance",
             name: "Tap to Pay on iPhone",
@@ -1163,7 +1128,6 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
 
-        // MARK: - Accessories, Hardware & Vision
         CapabilityDefinition(
             rawKey: "com.apple.developer.dock-accessory",
             name: "DockKit Accessory Tracking",
@@ -1202,7 +1166,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: - Streaming, Fonts & Media Analysis
         CapabilityDefinition(
             rawKey: "com.apple.developer.coremedia.hls.low-latency",
             name: "Low-Latency HLS",
@@ -1231,7 +1194,6 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: - System Extensions & Credential Providers
         CapabilityDefinition(
             rawKey: "com.apple.developer.system-extension.install",
             name: "System Extension Installation",
@@ -1271,7 +1233,6 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
 
-        // MARK: - HealthKit & SensorKit Telemetry
         CapabilityDefinition(
             rawKey: "com.apple.developer.healthkit.recalibrate-estimates",
             name: "HealthKit Recalibrate Estimates",
@@ -1313,7 +1274,6 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
 
-        // MARK: - App Sandbox Hardware & Preferences
         CapabilityDefinition(
             rawKey: "com.apple.security.device.usb",
             name: "Sandbox USB Device Access",
@@ -1361,7 +1321,6 @@ public enum CapabilityCatalog {
         ),
     ]
 
-    /// All raw entitlement keys managed by capability toggles, including composite keys.
     public static var allRawKeys: [String] {
         var keys = definitions.map(\.rawKey)
         keys.append(contentsOf: definitions.flatMap(\.compositeKeys))

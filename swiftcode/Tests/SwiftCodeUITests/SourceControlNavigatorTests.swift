@@ -11,9 +11,6 @@ private func git(_ dir: URL, _ args: String...) throws -> String {
     try GitRepository.run("/usr/bin/git", ["-C", dir.path, "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"] + args)
 }
 
-/// A repository with a local identity (so the commit editor reads it from
-/// git's configuration), two commits, a branch with `/`, a tag, one
-/// modified file and one untracked file.
 private func sampleRepo(_ name: String) throws -> URL {
     let dir = swiftcodeDir.appendingPathComponent(".build-ide/\(name)")
     try? FileManager.default.removeItem(at: dir)
@@ -46,8 +43,6 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
     return nil
 }
 
-/// reference-ui-4.md §1–§3: Source Control navigator, commit editor,
-/// branch history, inspector sections and the Integrate menu.
 @MainActor
 @Suite(.serialized) struct SourceControlNavigatorTests {
     @Test func historyModel() throws {
@@ -73,7 +68,6 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         #expect(commitRows[0].1 == log[0].hash && commitRows[3].1 == "Commit unverified")
         #expect(commitRows[6].1 == "M  Sources/App/main.swift")
 
-        // Changes and diffs.
         let changes = try repo.changes()
         #expect(changes.map { URL(fileURLWithPath: $0.path).lastPathComponent } == ["New.swift", "main.swift"])
         #expect(changes.allSatisfy { $0.isUnstaged && !$0.isStaged })
@@ -114,7 +108,6 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         #expect(groups.map(\.title) == ["Branches", "Recents", "Tags", "Stashes", "Remotes"])
         #expect(groups[0].children.map(\.title) == ["feature", "main"])
         #expect(groups[0].children[0].children.map(\.title) == ["observe", "x"])
-        // No "(current)" (navigators.md round 3 §2); the repository row names the branch.
         #expect(groups[0].children[0].children[0].detail == nil && groups[0].children[0].children[0].scmKey == "branch:feature/observe")
         #expect(repos[0].detail == "feature/observe")
         #expect(groups[3].children.first?.title == "On main: parked" && groups[3].children.first?.scmKey == "stash:stash@{0}")
@@ -128,7 +121,7 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         let repo = try #require(GitRepository(containing: dir))
         let c = CommitEditorController(repository: repo)
         c.loadView()
-        await c.idle()   // changes and diffs are read in the background
+        await c.idle()
         #expect(c.authorLabel.stringValue.contains("Ada Tester") && c.authorLabel.stringValue.contains("ada@swiftcode.invalid"))
         #expect(c.amendLabel.stringValue.hasPrefix("Amend \"") && c.amendLabel.stringValue.count == "Amend \"1234567\"".count)
         #expect(c.placeholderLabel.stringValue == "Commit message (required)" && !c.placeholderLabel.isHidden)
@@ -145,7 +138,6 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         await c.idle()
         #expect(c.cards.count == 2 && !c.stageAllButton.isEnabled)
         c.setScope(.all)
-        // Discard a tracked, staged file: back to HEAD in index and working copy.
         c.discard(dir.appendingPathComponent("Sources/App/main.swift").path)
         await c.idle()
         #expect(c.cards.map(\.titleLabel.stringValue) == ["New.swift"])
@@ -165,7 +157,6 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         await c.idle()
         #expect(hash.count == 40 && c.cards.isEmpty)
         #expect(try git(dir, "log", "--format=%s", "-1").trimmingCharacters(in: .newlines) == "Ten")
-        // Amend rewrites HEAD.
         try "let z = 0\n".write(to: dir.appendingPathComponent("Sources/App/Z.swift"), atomically: true, encoding: .utf8)
         c.reload()
         c.amendSwitch.state = .on
@@ -185,7 +176,7 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         var selected: [GitRepository.Commit?] = []
         h.onSelectCommit = { selected.append($0) }
         h.loadView()
-        await h.idle()   // the log is read in the background
+        await h.idle()
         #expect(h.shown.count == 2 && h.table.numberOfRows == 2)
         let row = h.rowTexts(0)
         #expect(row.author == "Ada Tester" && row.subject == "Add d" && row.hash.count == 7 && row.day == "Today")
@@ -208,7 +199,6 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
             guard case let (_, items)? = CommandTable.menus.first(where: { $0.0 == "Integrate" }) else { return [] }
             return items.compactMap { if case let .command(c) = $0 { c.title } else { nil } }
         }()
-        // reference-ui-5.md §2.11: the generic (no-workspace) titles.
         #expect(titles == ["Commit…", "Push…", "Pull…", "Fetch Changes", "Refresh File Status",
                            "Stage All Changes", "Stage Selected Files", "Unstage All Changes", "Unstage Selected Files",
                            "Mark as Resolved", "Add", "Cherry-Pick…", "Merge…", "Stash Changes…", "Resolve Conflicts…", "Continue", "Abort",
@@ -240,9 +230,7 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: dir)),
                                            loadDestinations: false, startLanguageService: false, openFirstFile: false)
         wc.applyDefaultLayout()
-        await wc.sourceControl.idle()   // git is read in the background
-        // §1: project navigator letters.
-        // Extensions are hidden by default (reference-ui-5.md §5.1).
+        await wc.sourceControl.idle()
         #expect(find(wc.navigator.rows(0), "main")?.badge == "M" && find(wc.navigator.rows(0), "New")?.badge == "?")
         wc.navigator.select(1)
         #expect(!wc.navigator.sourceControlMode.isHidden && wc.navigator.sourceControlMode.label(forSegment: 1) == "Repositories")
@@ -253,7 +241,6 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         let unstage = NSMenuItem(title: "Unstage All Changes", action: Selector(("scmUnstageAll:")), keyEquivalent: "")
         #expect(!wc.validateMenuItem(unstage))
 
-        // Selecting a change opens the commit editor over the editor area.
         let key = try #require(group.children.first?.scmKey)
         wc.sourceControl.handleRow(key)
         await wc.sourceControl.idle()
@@ -262,12 +249,10 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         wc.window?.contentView?.layoutSubtreeIfNeeded()
         Self.shoot(wc.window!.contentView!.superview!, "scm-changes-window.png")
 
-        // Stage All through the menu action updates enablement.
         wc.scmStageAll(nil)
         await wc.sourceControl.idle()
         #expect(wc.validateMenuItem(unstage) && !wc.validateMenuItem(menu))
 
-        // Repositories ▸ branch: history and the inspector's Branch section.
         wc.sourceControl.setMode(.repositories)
         #expect(find(wc.navigator.rows(1), "feature")?.children.first?.title == "observe")
         wc.sourceControl.handleRow("branch:main")
@@ -284,12 +269,10 @@ private func find(_ items: [OutlineItem], _ title: String) -> OutlineItem? {
         wc.window?.contentView?.layoutSubtreeIfNeeded()
         Self.shoot(wc.window!.contentView!.superview!, "scm-history-window.png")
 
-        // Opening a file hides the overlay and the inspector tab.
         wc.openFromNavigator(path: dir.appendingPathComponent("Package.swift").path, line: nil)
         #expect(wc.sourceControl.editorOverlay == nil && wc.inspector.tabNames.count == CommandTable.inspectors.count)
     }
 
-    /// Off-screen renders for review (scratch output; failures ignored).
     static func shoot(_ view: NSView, _ name: String) {
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/shots")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

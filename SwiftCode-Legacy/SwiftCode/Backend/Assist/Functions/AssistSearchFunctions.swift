@@ -11,12 +11,10 @@ public struct AssistSearchFunctions {
             let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
             guard resourceValues?.isRegularFile == true else { continue }
 
-            // Safety: Skip files larger than 1MB to prevent memory issues
             if let fileSize = resourceValues?.fileSize, fileSize > 1_000_000 {
                 continue
             }
 
-            // Safety: Skip binary files (naive check based on extension)
             let binaryExtensions = ["png", "jpg", "jpeg", "gif", "pdf", "zip", "exe", "dylib", "a"]
             if binaryExtensions.contains(fileURL.pathExtension.lowercased()) {
                 continue

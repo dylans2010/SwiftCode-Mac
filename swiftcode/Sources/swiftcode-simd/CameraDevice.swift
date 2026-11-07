@@ -1,23 +1,3 @@
-// swiftcode-simd --device: the device's camera (specs/simulator/camera.md "SwiftCode
-// implementation"). Off by default (parity: the reference simulator has no
-// camera, §7.1). `--camera on|off|synthetic|/dev/videoN|v4l2:<id>` turns it
-// on or off for this boot and later ones (DEV/swiftcode-camera.plist);
-// `--camera-position back|front|external` says where it appears. When it is
-// on:
-//
-// - the capture layer (SimGuestAgents/camera, libSwiftCodeCamera.dylib) is staged
-//   into DEV and the kernel inserts it into app processes
-//   (DarwinSystem.imageEnvironment; CameraAppInjection);
-// - the device answers MobileGestalt like one with a camera (its
-//   capabilities plist);
-// - the endpoint `dev.swiftcode.camera` (CameraGuestService) is registered
-//   into the guest and streams the host camera.
-//
-// `swiftcode-simd --device DEV --privacy grant|revoke|reset camera|microphone
-// <bundle id>` writes the TCC row (camera.md §6.2): through the running
-// device's control socket (which then ends the app, as tccd does when an
-// app's access changes), else straight into the stopped device's database.
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -27,16 +7,12 @@ import SwiftCodeHostServices
 final class DeviceCamera: @unchecked Sendable {
     let optIn: CameraOptIn
     let layout: DeviceLayout
-    /// The capture layer's guest path in DEV, when it was found and staged.
     private(set) var libraryGuestPath: String?
     private(set) var service: CameraGuestService?
 
     static let libraryName = "libSwiftCodeCamera.dylib"
     var stagedLibraryPath: String { layout.dev + "/swiftcode-camera/" + Self.libraryName }
 
-    /// Reads (and with `--camera`, first writes) the device's setting, stages
-    /// the capture layer and writes the capabilities. Called after
-    /// `DeviceLayout.prepare`.
     init(options: Options, layout: DeviceLayout) {
         self.layout = layout
         var setting = CameraOptIn.load(dev: layout.dev)
@@ -56,7 +32,6 @@ final class DeviceCamera: @unchecked Sendable {
             do { try setting.save(dev: layout.dev) } catch { stderrLine("swiftcode-simd: warning: cannot save the camera setting: \(error)") }
         }
         optIn = setting
-        // The capabilities answers follow the switch (prepare wrote the device type's own).
         let isPad = layout.deviceType.family == .pad
         if optIn.isOn {
             let caps = optIn.applyCapabilities(DeviceCapabilities.plist(for: layout.deviceType), isPad: isPad)
@@ -86,7 +61,6 @@ final class DeviceCamera: @unchecked Sendable {
         if let explicit = options.cameraLibrary { candidates.append(absolutePath(explicit)) }
         if let tools = layout.guestTools { candidates.append(tools + "/" + libraryName) }
         if let shim = options.shimPath {
-            // <swiftcode>/SimShim/out/shim.bin → <swiftcode>/SimGuestAgents/out
             let swiftcode = (((absolutePath(shim) as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent as NSString)
                 .deletingLastPathComponent
             candidates.append(swiftcode + "/SimGuestAgents/out/" + libraryName)
@@ -94,7 +68,6 @@ final class DeviceCamera: @unchecked Sendable {
         return candidates.first { FileManager.default.fileExists(atPath: $0) }
     }
 
-    /// The kernel puts the capture layer into app processes.
     func install(on system: DarwinSystem) {
         guard optIn.isOn, let library = libraryGuestPath else { return }
         system.imageEnvironment = { executable, envp in
@@ -103,8 +76,6 @@ final class DeviceCamera: @unchecked Sendable {
         }
     }
 
-    /// Starts the endpoint (last of the host services, so the other services'
-    /// port names do not move) and queues its registration.
     func start(host: MachHostTask, surfaces: IOSurfaceHostService?, session: DeviceSession) {
         guard optIn.isOn, let selection = optIn.selection else { return }
         guard let surfaces else {
@@ -137,8 +108,6 @@ final class DeviceCamera: @unchecked Sendable {
             + "\(s.framesReleased) released")
     }
 
-    /// Control commands of a running device: `camera` (the state) and
-    /// `privacy grant|revoke|reset camera|microphone <bundle id>`.
     func handle(_ words: [String], session: DeviceSession?) -> String? {
         switch words.first {
         case "camera":
@@ -152,7 +121,6 @@ final class DeviceCamera: @unchecked Sendable {
             } catch {
                 return "error: \(error)"
             }
-            // As tccd does when an app's access changes (camera.md §6.2): the app ends.
             let ended = session?.killApp(words[3]) ?? "no session"
             return "ok \(action.rawValue) \(words[2]) \(words[3]); app: \(ended)"
         default:
@@ -161,10 +129,7 @@ final class DeviceCamera: @unchecked Sendable {
     }
 }
 
-/// The device's camera of this run, for the control socket.
 nonisolated(unsafe) var deviceCameraControl: (([String]) -> String?)?
-
-// MARK: - `--privacy`
 
 func isPrivacyClient(_ arguments: [String]) -> Bool { arguments.contains("--privacy") }
 
@@ -175,7 +140,6 @@ func runPrivacyClient(_ arguments: [String]) -> Never {
     let dev = absolutePath(arguments[d + 1])
     let words = ["privacy"] + arguments[(p + 1)...(p + 3)]
     guard CameraPrivacy.Action(rawValue: words[1]) != nil, CameraPrivacy.services[words[2]] != nil else { die(help, status: 64) }
-    // A running device: through its control socket.
     let path = DeviceLayout.controlSocketPath(dev: dev)
     let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
     if fd >= 0, withUnixAddress(path, { connect(fd, $0, $1) }) == 0 {
@@ -194,7 +158,6 @@ func runPrivacyClient(_ arguments: [String]) -> Never {
         exit(text.hasPrefix("ok") ? 0 : 1)
     }
     if fd >= 0 { close(fd) }
-    // A stopped device: the database directly (read at its next boot).
     do {
         try CameraPrivacy.apply(CameraPrivacy.Action(rawValue: words[1])!, service: words[2], bundleID: words[3], dev: dev)
         print("ok \(words[1]) \(words[2]) \(words[3]) (the device is not running; its next boot reads it)")

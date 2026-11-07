@@ -8,7 +8,6 @@ public struct CollaborationDashboardView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header Statistics
                 HStack(spacing: 16) {
                     StatCard(title: "Branch", value: manager.branches.currentBranch.name, icon: "arrow.triangle.branch", color: .blue)
                     StatCard(title: "Reviewers", value: "\(manager.permissions.memberRoles.count)", icon: "person.3.fill", color: .purple)
@@ -21,7 +20,6 @@ public struct CollaborationDashboardView: View {
                 }
                 .padding(.horizontal)
 
-                // Recent Activity
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Recent Activity")
                         .font(.headline)
@@ -38,7 +36,6 @@ public struct CollaborationDashboardView: View {
                     .padding(.horizontal)
                 }
 
-                // Collaborators
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Team Presence")
                         .font(.headline)

@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Settings Routing Manager
-
 @MainActor
 public final class SettingsRoutingManager: NSObject, NSWindowDelegate {
     public static let shared = SettingsRoutingManager()
@@ -38,7 +36,6 @@ public final class SettingsRoutingManager: NSObject, NSWindowDelegate {
         let isLegacyOpen = SettingsWindowManager.shared.isSettingsOpen
         let isNativeOpen = NativeSettingsWindowController.shared.isWindowOpen
 
-        // Only transition if the user toggled the preference and the active window does not match the chosen experience
         if useNew {
             if isLegacyOpen && !isNativeOpen {
                 SettingsWindowManager.shared.closeSettings()
@@ -52,8 +49,6 @@ public final class SettingsRoutingManager: NSObject, NSWindowDelegate {
         }
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
-        // Handle window close if SettingsRoutingManager is attached as a delegate
     }
 }

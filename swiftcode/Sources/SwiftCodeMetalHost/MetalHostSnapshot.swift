@@ -1,32 +1,17 @@
-// Snapshot and replay of the Metal host service (specs/simulator/snapshot.md
-// §8 option 2). The service keeps, per object, how it was made (a recipe:
-// the request's message type, op and record bytes, and the handles it named);
-// a snapshot records the service's tables, the recipes, and the contents of
-// the textures and buffers that live in GPU memory only; a restore re-creates
-// every object on a fresh back end under its old handle, in creation order,
-// and writes the contents back. Guest refs, handles, GPU addresses the
-// service chose, and the client processes' connections are kept as they were,
-// so the restored clients (the render server, SpringBoard) keep running.
-
 import Foundation
 import SwiftCodeDarwinKernel
 import SwiftCodeXPC
 
-/// How one object was made (the parts of its creation request that the
-/// replay needs). `mt` is the message type, `op` the record op.
 struct MetalRecipe {
     var mt: UInt8
     var op: UInt32 = 0
     var body: [UInt8] = []
     var length = 0
     var options: UInt64 = 0
-    /// mt 1: the `sharedMem` memory entry; mt 13: the IOSurface port (host-task names).
     var right: UInt32 = 0
     var rightSize: UInt64 = 0
     var plane = 0
-    /// Objects this one was made from (a view's parent, a pipeline's functions).
     var deps: [MetalHandle] = []
-    /// op 14: function refs → handles at creation.
     var refMap: [(UInt32, MetalHandle)] = []
 
     init(mt: UInt8, op: UInt32 = 0, body: [UInt8] = [], deps: [MetalHandle] = []) {
@@ -72,16 +57,11 @@ struct MetalRecipe {
     }
 }
 
-/// What a replay did (logged by the VMM).
 public struct MetalReplayReport: Sendable {
     public var processes = 0, objects = 0, ghosts = 0, failures = 0
     public var textureBytes = 0, bufferBytes = 0, contentsSkipped = 0
     public var addressesChanged = 0, samplerIDsChanged = 0
-    /// Heap slots: textures and samplers whose slot the back end kept from
-    /// the snapshot, and those that got another one.
     public var slotsKept = 0, textureIDsChanged = 0
-    /// Argument-encoder members written again from their objects, and how
-    /// many of them now hold a different value.
     public var argumentMembers = 0, argumentMembersChanged = 0
     public var lines: [String] = []
 }
@@ -90,29 +70,20 @@ extension MetalHostCore {
     enum SnapTag {
         static let nextProcess: UInt16 = 1, nextHandle: UInt16 = 2, nextGPUAddress: UInt16 = 3
         static let connections: UInt16 = 4, processes: UInt16 = 5
-        // connection
         static let port: UInt16 = 10, client: UInt16 = 11, type: UInt16 = 12, hasType: UInt16 = 13, process: UInt16 = 14
-        // process
         static let id: UInt16 = 20, guestPID: UInt16 = 21, eventPort: UInt16 = 22, procConnections: UInt16 = 23
         static let tables: UInt16 = 24, objects: UInt16 = 25, ghosts: UInt16 = 26
-        // table
         static let kind: UInt16 = 30, refs: UInt16 = 31, handles: UInt16 = 32, next: UInt16 = 33, free: UInt16 = 34
-        // object
         static let handle: UInt16 = 40, ref: UInt16 = 41, rights: UInt16 = 42, heap: UInt16 = 43, heapBytes: UInt16 = 44
         static let heapSize: UInt16 = 45, heapUsed: UInt16 = 46, gpuAddress: UInt16 = 47, eventValue: UInt16 = 48
         static let recipe: UInt16 = 49, contents: UInt16 = 50, contentKind: UInt16 = 51, addressQueried: UInt16 = 52
         static let backendAddress: UInt16 = 53, heapSlot: UInt16 = 54, heapSlots: UInt16 = 55
-        // an argument encoder's argument buffer and offset (its last kind-0 set call)
         static let argumentTarget: UInt16 = 56, argumentTargetOffset: UInt16 = 57
-        // argument members (global list 6)
         static let argumentMembers: UInt16 = 6
         static let memberTarget: UInt16 = 60, memberAt: UInt16 = 61, memberKind: UInt16 = 62
         static let memberObject: UInt16 = 63, memberOffset: UInt16 = 64, memberValue: UInt16 = 65
     }
 
-    // MARK: Recipes and dependencies
-
-    /// Counts `h`'s recipe dependencies (after `add`).
     func noteDependencies(_ h: MetalHandle, _ p: Process) {
         lock.withLock {
             guard let deps = p.objects[h]?.recipe?.deps else { return }
@@ -120,8 +91,6 @@ extension MetalHostCore {
         }
     }
 
-    /// The object was released (lock held): keep its recipe while other
-    /// recipes name it, and drop its own dependencies.
     func retire(_ h: MetalHandle, _ o: Object, _ p: Process) {
         if (p.dependents[h] ?? 0) > 0, let r = o.recipe {
             p.ghosts[h] = (o.kind, r)
@@ -140,29 +109,18 @@ extension MetalHostCore {
         }
     }
 
-    /// Snapshots: idle means no request in progress (the transport checks
-    /// its own) and no command buffer without its completion event.
     var snapshotBusyReason: String? {
         guard lock.try() else { return "metal core busy" }
         defer { lock.unlock() }
-        // Exported shared events name host ports a restore cannot bring back.
         if !exportedEvents.isEmpty { return "\(exportedEvents.count) shared-event handles exported" }
-        // Opened shared-texture handles name another object's GPU image.
         let opened = processes.values.reduce(0) { n, p in n + p.objects.values.filter(\.openedHandle).count }
         if opened > 0 { return "\(opened) shared-texture handles opened" }
         return inFlight > 0 ? "\(inFlight) Metal command buffers in flight" : nil
     }
 
-    // MARK: Capture
-
-    /// The service's state with the contents of GPU-only textures and
-    /// buffers; nil when not idle (the snapshot tries again). Kernel lock
-    /// held: only try-locks of the core's own lock; the back end's reads
-    /// need neither lock.
     func trySnapshotState(log: (String) -> Void) -> SnapshotFields? {
         guard lock.try() else { return nil }
         guard inFlight == 0, exportedEvents.isEmpty else { lock.unlock(); return nil }
-        // Copies of the tables (the back end is read without the lock).
         typealias T = SnapTag
         var g = SnapshotFields()
         g.u64(T.nextProcess, nextProcess)
@@ -240,7 +198,6 @@ extension MetalHostCore {
         }
         lock.unlock()
 
-        // Contents (the device is idle: no request runs, nothing in flight).
         backend.snapshotSettle()
         var contents: [MetalHandle: (kind: UInt64, bytes: [UInt8])] = [:]
         var addresses: [MetalHandle: UInt64] = [:]
@@ -253,7 +210,6 @@ extension MetalHostCore {
             switch (recipe.mt, recipe.op) {
             case (1, _), (12, 24):
                 if let a = backend.gpuAddress(ofBuffer: h) { addresses[h] = a }
-                // Buffers over guest memory are in the memory snapshot already.
                 if recipe.mt == 1, recipe.right != 0, memory?.region(forMemoryEntry: recipe.right) != nil { continue }
                 if let b = backend.bufferContents(h) {
                     contents[h] = (1, b)
@@ -270,7 +226,7 @@ extension MetalHostCore {
                     skipped += 1
                 }
             default:
-                break  // views share their parent's memory; IOSurface textures live in the surface
+                break
             }
         }
         typealias U = SnapTag
@@ -297,8 +253,6 @@ extension MetalHostCore {
         return g
     }
 
-    /// Every level and slice of a texture, packed (nil when its format has
-    /// no plain byte size, or it is multisampled or a depth/stencil target).
     private func readTexture(_ h: MetalHandle, _ desc: MetalTextureDescriptor) -> [UInt8]? {
         guard desc.sampleCount <= 1, let bpp = MetalPixelFormat.bytesPerPixel(desc.pixelFormat) else { return nil }
         let slices = max(desc.arrayLength, 1)
@@ -324,11 +278,6 @@ extension MetalHostCore {
         return out
     }
 
-    // MARK: Restore
-
-    /// Rebuilds the tables and replays every object on the (fresh) back end,
-    /// before any client runs. `rightsValid`: whether a host-task name still
-    /// denotes a right (the restored host task).
     func restoreState(_ g: SnapshotFieldReader) -> MetalReplayReport {
         typealias T = SnapTag
         var report = MetalReplayReport()
@@ -338,10 +287,7 @@ extension MetalHostCore {
             conns[c.u32(T.port)] = Connection(clientPort: c.u32(T.client), type: c.bool(T.hasType) ? c.u64(T.type) : nil,
                                               process: c.has(T.process) ? c.u64(T.process) : nil)
         }
-        // (handle, process, kind, recipe, object record or nil for a ghost)
         var replay: [(MetalHandle, Process, MetalRefKind, MetalRecipe, SnapshotFieldReader?)] = []
-        // Heap slots of the live textures and samplers: the back end keeps
-        // them, so shader-visible IDs the guest holds stay valid.
         var textureSlots: [MetalHandle: (index: UInt32, count: UInt32)] = [:]
         var samplerSlots: [MetalHandle: UInt32] = [:]
         for pr in g.list(T.processes) {
@@ -370,10 +316,6 @@ extension MetalHostCore {
                 object.eventValue = o.u64(T.eventValue)
                 object.addressQueried = o.bool(T.addressQueried)
                 object.recipe = o.nested(T.recipe).map(MetalRecipe.init)
-                // Layouts and encoders keep the op-16 description in their
-                // recipe (metal-sim-protocol.md §4.3): their member tables
-                // come back from it; an older snapshot without it falls back
-                // to the 8 × index rule.
                 if kind == .argumentLayout || kind == .argumentEncoder, let body = object.recipe?.body, !body.isEmpty {
                     object.argumentLayout = try? MetalArgumentLayout.parse(recordBody: body)
                 }
@@ -409,7 +351,6 @@ extension MetalHostCore {
 
         backend.reserveHeapSlots(textures: textureSlots, samplers: samplerSlots)
 
-        // Creation order: dependencies always have lower handles.
         replay.sort { $0.0 < $1.0 }
         for (h, p, kind, recipe, record) in replay {
             do {
@@ -446,18 +387,12 @@ extension MetalHostCore {
                 }
             }
         }
-        // The kept recipes are not live objects; slots reserved for objects
-        // that were not made again go back.
         for (_, p) in restored { for h in p.ghosts.keys { backend.release(h) } }
         backend.reserveHeapSlots(textures: [:], samplers: [:])
         restoreArgumentMembers(g.list(T.argumentMembers), restored, &report)
         return report
     }
 
-    /// Writes every recorded argument-encoder member again from its object
-    /// (its texture's or sampler's ID, its buffer's GPU address on the new
-    /// back end), so argument buffers in guest memory name the restored
-    /// objects (visionos.md §10.21).
     private func restoreArgumentMembers(_ list: [SnapshotFieldReader], _ restored: [MetalProcessID: Process],
                                         _ report: inout MetalReplayReport) {
         typealias T = SnapTag
@@ -486,7 +421,6 @@ extension MetalHostCore {
     private func textureDescriptor(_ recipe: MetalRecipe) throws -> MetalTextureDescriptor {
         var r = ByteReader(recipe.body)
         if recipe.mt == 12 { _ = try r.u32(); _ = try r.u32() }
-        // Op 21 (heap texture): words 1–8 unless the body is the 56-byte form (MetalHostCore).
         var desc = try MetalDescriptorCodec.texture(&r, leadingWord: !(recipe.mt == 12 && recipe.op == 21 && recipe.body.count < 56))
         if recipe.mt == 12, recipe.op == 21 { desc.resourceOptions = (desc.resourceOptions & ~0xF0) | 0x20 }
         return desc
@@ -515,7 +449,6 @@ extension MetalHostCore {
         return true
     }
 
-    /// Makes `h` again on the back end from its recipe.
     private func recreate(_ h: MetalHandle, _ kind: MetalRefKind, _ recipe: MetalRecipe, _ p: Process) throws {
         guard Self.isBackendObject(kind) else { return }
         switch (recipe.mt, recipe.op) {
@@ -541,8 +474,6 @@ extension MetalHostCore {
             let backing = surfaces?.backing(forSurfacePort: recipe.right, plane: recipe.plane)
             try backend.createTexture(h, desc, iosurface: backing)
         case (19, 42):
-            // A shared texture: GPU memory of the host's own; its surface
-            // (restored by the IOSurface service) keeps the creation properties.
             var r = ByteReader(recipe.body)
             let desc = try MetalDescriptorCodec.texture(&r, leadingWord: recipe.body.count >= 36)
             try backend.createTexture(h, desc, iosurface: nil)
@@ -590,6 +521,5 @@ extension MetalHostCore {
         }
     }
 
-    /// The connection ports of the restored processes (the transport serves them).
     var connectionPorts: [UInt32] { lock.withLock { Array(connections.keys) } }
 }

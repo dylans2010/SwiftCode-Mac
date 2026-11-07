@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The commit sheet (Integrate ▸ Commit…, ⌥⌘C): changed files with a
-/// checkbox each, a message field, and Commit. See
-/// `specs/ide/source-control.md`.
 @MainActor
 public final class CommitController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     public struct Row: Equatable { public var path: String; public var status: GitRepository.FileStatus; public var selected: Bool }
@@ -12,7 +9,6 @@ public final class CommitController: NSViewController, NSTableViewDataSource, NS
     public private(set) var rows: [Row]
     public let messageView = NSTextView()
     private let table = NSTableView()
-    /// The diff of the selected file (unified, colored).
     public let diffView = NSTextView()
     public var onCommitted: ((String) -> Void)?
     public private(set) var lastError: String?
@@ -91,12 +87,9 @@ public final class CommitController: NSViewController, NSTableViewDataSource, NS
         }
     }
 
-    /// The diff read in progress, if any.
     public private(set) var diffLoading: Task<Void, Never>?
     private var diffGeneration = 0
 
-    /// Shows the selected file's changes against HEAD (git diff runs in
-    /// the background; a later selection replaces an earlier one).
     public func showDiff(for row: Int) {
         guard rows.indices.contains(row) else { return }
         let repo = repository, path = rows[row].path
@@ -110,7 +103,6 @@ public final class CommitController: NSViewController, NSTableViewDataSource, NS
         }
     }
 
-    /// Waits for the diff (tests).
     public func diffIdle() async {
         while let t = diffLoading { await t.value }
     }
@@ -131,20 +123,16 @@ public final class CommitController: NSViewController, NSTableViewDataSource, NS
         if table.selectedRow >= 0 { showDiff(for: table.selectedRow) }
     }
 
-    /// A path as the file list shows it: relative to the repository.
     public func relativePath(_ path: String) -> String {
         path.hasPrefix(repository.root.path + "/") ? String(path.dropFirst(repository.root.path.count + 1)) : path
     }
 
-    /// Selects or deselects a file (the checkbox).
     public func setSelected(_ selected: Bool, path: String) {
         guard let i = rows.firstIndex(where: { $0.path == path }) else { return }
         rows[i].selected = selected
         if isViewLoaded { table.reloadData() }
     }
 
-    /// Commits the selected files with the message. Returns the commit hash.
-    /// git commit runs in the background (hooks may take a while).
     @discardableResult
     public func commit() async -> String? {
         let files = rows.filter(\.selected).map(\.path)

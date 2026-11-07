@@ -1,27 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/CollaborationMainView.swift
-// Adapted for SwiftCode:
-// - The chat manager is an INJECTED dependency, not constructed here:
-//   CollaborationChatManager declares no public init (its default init is
-//   internal to SwiftCodeCollaboration), so no SwiftCodeUI code can create
-//   one today. The IDE shell must pass one in; the backend gap is a missing
-//   one-line `public init() {}` on CollaborationChatManager (cf.
-//   PullRequestManager's public init). Until that lands, the shell cannot
-//   instantiate the chat manager, but these staged files contain no
-//   uncompilable construct.
-// - Legacy's notification-bell button had an empty action; it now presents
-//   the real CollaborationNotificationCenterView as a sheet.
-// - Sync quick action calls the real CollaborationManager.syncCurrentBranch.
-// - Feedback toasts read the real BranchWorkspaceManager
-//   lastSuccessMessage / lastErrorMessage via the `collaborationFeedback`
-//   modifier (CollaborationFeedbackView.swift).
-// - Legacy's hardcoded dark gradient becomes system-adaptive.
-// - Tab content references the sibling collaboration views
-//   (BranchWorkspaceView, CommitManagerView, CollaborationPullRequestView,
-//   CollaborationCodeReviewView, PushPullManagerView, ConflictResolverView):
-//   they are staged by the sibling wave, not yet in the destination, so this
-//   file compiles once those staged files land alongside it.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration
@@ -121,7 +97,6 @@ public struct CollaborationMainView: View {
 
             HStack(spacing: 16) {
                 Button {
-                    // Quick Action: Sync
                     Task { await manager.syncCurrentBranch(actorID: currentUserID) }
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -129,7 +104,6 @@ public struct CollaborationMainView: View {
                 }
 
                 Button {
-                    // Quick Action: Notifications
                     showingNotifications = true
                 } label: {
                     Image(systemName: "bell.fill")

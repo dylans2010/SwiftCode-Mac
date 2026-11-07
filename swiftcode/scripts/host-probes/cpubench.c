@@ -1,6 +1,3 @@
-// cpubench: single-thread CPU speed of a host on loader-like work (string
-// compares and sorting, hashing, a 1 MiB pointer chase, branches); ms per
-// part (boot-profile.md §10). Build: cc -O2 -o cpubench cpubench.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

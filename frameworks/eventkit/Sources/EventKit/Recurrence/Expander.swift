@@ -1,17 +1,8 @@
-// SwiftCode's RFC 5545 RRULE expander (written from the RFC, recurrence.md §5).
-//
-// The engine works on wall-clock values (LocalDateTime) and converts to
-// instants only to test UNTIL and for the caller's window. Every rule is
-// expanded period by period (day, week, month or year, stepped by INTERVAL);
-// inside a period the BY parts expand or limit the candidate days as RFC 5545
-// §3.3.10 tabulates, BYSETPOS selects from the sorted set, and the series
-// start always counts as the first occurrence.
-
 import Foundation
 
 struct WeekdayNum: Hashable {
-    var weekday: Int   // 1 = Sunday … 7 = Saturday
-    var ordinal: Int   // 0 = every; ±n = n-th from start / end of the period
+    var weekday: Int
+    var ordinal: Int
 }
 
 struct RuleSpec: Hashable {
@@ -25,7 +16,7 @@ struct RuleSpec: Hashable {
     var byWeekNo: [Int] = []
     var byYearDay: [Int] = []
     var bySetPos: [Int] = []
-    var weekStart: Int = 2 // Monday
+    var weekStart: Int = 2
 
     var hasByParts: Bool {
         !(byDay.isEmpty && byMonthDay.isEmpty && byMonth.isEmpty && byWeekNo.isEmpty
@@ -34,12 +25,9 @@ struct RuleSpec: Hashable {
 }
 
 enum Expander {
-    /// Occurrence start times of one rule, ascending, starting with `start`,
-    /// honouring COUNT and UNTIL, and stopping after `limit`.
-    /// `zone` converts wall-clock values to instants for the UNTIL test.
     static func expand(_ rule: RuleSpec, start: LocalDateTime, zone: TimeZone,
                        through limit: LocalDateTime) -> [LocalDateTime] {
-        if let until = rule.until, start.date(in: zone) > until { return [] } // §5 item 5
+        if let until = rule.until, start.date(in: zone) > until { return [] }
         var out: [LocalDateTime] = [start]
         if let c = rule.count, c <= 1 { return out }
         if start > limit { return out }
@@ -66,7 +54,6 @@ enum Expander {
         return out
     }
 
-    /// Union of several rules (§5 item 6), duplicates removed, ascending.
     static func expand(_ rules: [RuleSpec], start: LocalDateTime, zone: TimeZone,
                        through limit: LocalDateTime) -> [LocalDateTime] {
         if rules.count == 1 { return expand(rules[0], start: start, zone: zone, through: limit) }
@@ -75,10 +62,6 @@ enum Expander {
         return all.sorted()
     }
 
-    // MARK: - Periods
-
-    /// The candidate days (day numbers, unsorted, unique) of period `index`
-    /// (already multiplied by INTERVAL), plus the first day of the period.
     private static func candidates(_ r: RuleSpec, start: LocalDateTime, period index: Int) -> (Int, [Int])? {
         switch r.frequency {
         case .daily:
@@ -112,9 +95,6 @@ enum Expander {
         }
     }
 
-    /// Days of month (y, m) for a monthly rule, or for one month of a yearly
-    /// rule with BYMONTH. BYMONTHDAY expands; BYDAY expands (ordinals count
-    /// within the month) or limits when BYMONTHDAY is present.
     private static func monthDays(_ r: RuleSpec, _ y: Int, _ m: Int, defaultDay: Int) -> [Int] {
         let first = Civil.dayNumber(y, m, 1)
         let len = Civil.daysInMonth(y, m)
@@ -166,8 +146,6 @@ enum Expander {
                 days += monthDays(r, y, m, defaultDay: start.day)
             }
         } else if !r.byMonthDay.isEmpty {
-            // EventKit reads a yearly rule whose only day part is BYMONTHDAY
-            // in the month of the series start (recurrence.md §4 item 2).
             days = monthDays(r, y, start.month, defaultDay: start.day)
         } else if !r.byDay.isEmpty {
             days = expandWeekdays(r.byDay, from: first, length: len)
@@ -179,11 +157,6 @@ enum Expander {
         return unique(days)
     }
 
-    // MARK: - Helpers
-
-    /// Starts (day numbers) of the weeks of year `y` numbered per RFC 5545:
-    /// week 1 is the first week (starting on `wkst`) with at least four days
-    /// in the year, i.e. the week that contains January 4.
     static func weekStarts(_ y: Int, wkst: Int) -> [Int] {
         func week1(_ year: Int) -> Int {
             let jan4 = Civil.dayNumber(year, 1, 4)

@@ -6,9 +6,6 @@ import SwiftCodeBuild
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// A recording in-memory adapter: stops after `configurationDone` and
-/// after every `continue`, `next` and `stepIn`; offers a test-failure
-/// exception filter.
 private final class MenuAdapter: DAPTransport, @unchecked Sendable {
     var receiving: (@Sendable (Data?) -> Void)?
     var decoder = DAPFraming.Decoder()
@@ -80,8 +77,6 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         NSMenuItem(title: title, action: NSSelectorFromString(action), keyEquivalent: "")
     }
 
-    /// Every Debug menu command the table lists as available is one the
-    /// window performs.
     @Test func availableDebugCommandsAreImplemented() throws {
         let (_, wc, _) = try workspace()
         func walk(_ items: [MenuItemSpec]) -> [MenuCommand] {
@@ -105,14 +100,13 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         for c in commands where c.isAvailable && mine.contains(c.title) {
             #expect(wc.responds(to: NSSelectorFromString(c.action)), "\(c.title) → \(c.action)")
         }
-        // The unsupported ones stay listed and disabled.
         #expect(!commands.first { $0.title == "Step Over and Follow Program Counter" }!.isAvailable)
         #expect(!commands.first { $0.title == "View Memory" }!.isAvailable)
     }
 
     @Test func breakpointCommandsAtTheCaret() throws {
         let (session, wc, src) = try workspace()
-        wc.editor.textView.setSelectedRange(NSRange(location: 14, length: 0))  // line 2, column 5
+        wc.editor.textView.setSelectedRange(NSRange(location: 14, length: 0))
         #expect(wc.debugCaret?.line == 2 && wc.debugCaret?.column == 5)
         #expect(!wc.validateMenuItem(item("toggleBreakpointsEnabledAtCurrentLine:")))
         #expect(!wc.validateMenuItem(item("deleteColumnBreakpointsAtCurrentLine:")))
@@ -137,11 +131,8 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         #expect(!wc.validateMenuItem(item("createSwiftErrorBreakpoint:")))
         wc.createExceptionBreakpoint(nil)
         #expect(session.breakpoints.exceptionFilters == ["swift_throw", "objc_throw", "cpp_throw"])
-        // No adapter offering a test-failure filter: disabled.
         #expect(!wc.validateMenuItem(item("createTestFailureBreakpoint:")))
 
-        // Delete All asks first; the window is off screen here, so the
-        // command leaves everything in place.
         #expect(wc.validateMenuItem(item("deleteAllBreakpoints:")))
         let alert = wc.deleteAllBreakpointsAlert()
         #expect(alert.messageText == "Are you sure you want to delete all breakpoints?")
@@ -162,9 +153,7 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         #expect(session.breakpoints.exceptionFilters == ["test_failure"])
         #expect(await waitUntil(30) { adapter.all("setExceptionBreakpoints").last?["arguments"]?["filters"] == ["test_failure"] })
 
-        // Continue To Current Line: a temporary breakpoint at the caret's
-        // line, then continue; the next stop removes it.
-        wc.editor.textView.setSelectedRange(NSRange(location: 20, length: 0))  // line 3
+        wc.editor.textView.setSelectedRange(NSRange(location: 20, length: 0))
         #expect(wc.validateMenuItem(item("continueToCurrentLine:")))
         let before = adapter.all("setBreakpoints").count
         await session.continueToLine(file: src, line: 3)
@@ -175,7 +164,6 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         #expect(await waitUntil(30) { session.stoppedThread == 1 && session.temporaryBreakpoint == nil })
         #expect(await waitUntil(30) { adapter.all("setBreakpoints").last?["arguments"]?["breakpoints"] == [] })
 
-        // Step … Thread: singleThread; Step … Instruction: granularity.
         await session.step("over", instruction: false, singleThread: true)
         #expect(adapter.all("next").last?["arguments"]?["singleThread"] == true)
         #expect(adapter.all("next").last?["arguments"]?["granularity"] == nil)
@@ -197,7 +185,6 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         let sync = item("toggleSynchronizeInsertionPoint:")
         #expect(wc.validateMenuItem(sync) && sync.state == .off)
 
-        // With navigation off, a stop in another file leaves the editor alone.
         let other = URL(fileURLWithPath: src).deletingLastPathComponent().appendingPathComponent("other.swift").path
         try "let z = 0\n".write(toFile: other, atomically: true, encoding: .utf8)
         wc.open(path: other, line: 1)
@@ -206,14 +193,11 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         #expect(await waitUntil(30) { session.stoppedThread == 1 && !session.variables.isEmpty })
         #expect(wc.editor.fileURL?.path == other)
 
-        // On again, and the stop's file open with the caret elsewhere: the
-        // editor scrolls to the line without moving the caret.
         wc.toggleNavigateToSourceOnPause(nil)
         wc.open(path: src, line: 1)
         await session.step("over", instruction: false, singleThread: false)
         #expect(await waitUntil(30) { session.stoppedThread == 1 && session.stopCount >= 2 && wc.editor.gutter.marks.currentLine == 4 })
         #expect(wc.editor.currentLine == 1)
-        // Synchronize Insertion Point: the caret follows the program counter.
         wc.toggleSynchronizeInsertionPoint(nil)
         await session.step("over", instruction: false, singleThread: false)
         #expect(await waitUntil(30) { session.stopCount >= 3 && wc.editor.currentLine == 4 })
@@ -231,14 +215,13 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         #expect(rows.map(\.text) == ["first line", "second part", "", "main.swift:3: Fatal error: boom", "", "Program ended with exit code: 1"])
         #expect(rows[1].entry.text == "first line\nsecond ")
 
-        // The caret's row; Copy Row … with and without metadata.
         wc.debugArea.placeConsoleCaret(line: 1)
         #expect(wc.debugArea.selectedConsoleRow == 1)
         wc.copyConsoleRowWithoutMetadata(nil)
         #expect(NSPasteboard.general.string(forType: .string) == "second part")
         var m = ConsoleMetadata()
         m.type = true
-        wc.debugArea.setMetadata(m)  // re-renders the console: put the caret back
+        wc.debugArea.setMetadata(m)
         wc.debugArea.placeConsoleCaret(line: 1)
         wc.copyConsoleRowWithVisibleMetadata(nil)
         #expect(NSPasteboard.general.string(forType: .string) == "[Target] second part")
@@ -247,7 +230,6 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         #expect(all.contains("[Target] second part") && all.range(of: #"^\d\d:\d\d:\d\d\.\d{3} "#, options: .regularExpression) != nil)
         wc.debugArea.setMetadata(ConsoleMetadata())
 
-        // Jump To Source: only for a row naming a location.
         #expect(!wc.validateMenuItem(item("jumpToConsoleSource:")))
         wc.open(path: URL(fileURLWithPath: src).deletingLastPathComponent().appendingPathComponent("../../Package.swift").standardizedFileURL.path, line: 1)
         wc.debugArea.placeConsoleCaret(line: 3)
@@ -255,7 +237,6 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         wc.jumpToConsoleSource(nil)
         #expect(wc.editor.fileURL?.path == src && wc.editor.currentLine == 3)
 
-        // With the bar's text filter, the shown line maps to its row.
         wc.debugArea.consoleSearch.stringValue = "Fatal"
         wc.reloadConsole(nil)
         wc.debugArea.placeConsoleCaret(line: 0)
@@ -263,7 +244,6 @@ private final class MenuAdapter: DAPTransport, @unchecked Sendable {
         wc.debugArea.consoleSearch.stringValue = ""
         wc.reloadConsole(nil)
 
-        // Select Last Output: the last paragraph.
         #expect(wc.validateMenuItem(item("selectLastConsoleOutput:")))
         wc.selectLastConsoleOutput(nil)
         #expect(wc.debugArea.consoleSelection == "Program ended with exit code: 1")

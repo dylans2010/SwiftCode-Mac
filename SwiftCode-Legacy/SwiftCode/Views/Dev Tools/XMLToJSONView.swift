@@ -25,7 +25,6 @@ struct XMLToJSONView: View {
     }
 
     func convert() {
-        // Simplified XML to JSON logic for demonstration
         var dict: [String: Any] = [:]
         let lines = xmlInput.components(separatedBy: .newlines)
 

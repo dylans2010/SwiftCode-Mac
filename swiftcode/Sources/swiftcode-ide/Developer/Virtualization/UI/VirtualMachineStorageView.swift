@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineStorageView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -61,7 +59,6 @@ public struct VirtualMachineStorageView: View {
 
                         Divider()
 
-                        // Resize volume section
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Resize Primary Storage Drive:")
                                 .fontWeight(.medium)
@@ -75,7 +72,6 @@ public struct VirtualMachineStorageView: View {
                                     .frame(width: 70, alignment: .trailing)
                             }
 
-                            // Dynamic Warning message
                             HStack(spacing: 6) {
                                 Image(systemName: "exclamationmark.triangle")
                                     .foregroundStyle(.orange)

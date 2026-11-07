@@ -1,8 +1,3 @@
-//
-//  AssistTestCoverageReporterTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistTestCoverageReporterTool: AssistTool {
@@ -33,7 +28,6 @@ public struct AssistTestCoverageReporterTool: AssistTool {
         if let explicit = input["reportPath"] as? String, !explicit.isEmpty {
             coverageURL = URL(fileURLWithPath: explicit)
         } else {
-            // Find most recent .xccovreport or .xccovarchive
             if let enumerator = FileManager.default.enumerator(at: derivedData, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) {
                 var candidates: [(url: URL, date: Date)] = []
                 while let item = enumerator.nextObject() as? URL {

@@ -3,44 +3,13 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy SPM / dependency / docs tools (Wave 7, slice C),
-/// each driven black-box through the server's real write-policy path
-/// against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistSwiftPackageTool`,
-/// `AssistPackageManifestReadTool`,
-/// `AssistPackageManifestValidateTool`,
-/// `AssistPackageDependencyAddTool`,
-/// `AssistPackageDependencyAuditTool`,
-/// `AssistPackageDependencyUpdateTool`,
-/// `AssistSPMDependencyTreeTool`,
-/// `AssistCarthageCartfileInspectorTool`,
-/// `AssistPodfileInspectorTool`, `AssistDoccBuildTool`,
-/// `AssistDocsGenerateTool`, `AssistDocsIndexBuildTool` and
-/// `AssistChangeLogTool` (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never
-/// on internals. Messages quoted verbatim are Legacy's. Message
-/// assertions use `firstText`, never an exact `resultText ==`
-/// (structured results emit two text blocks). Tests that run a real
-/// toolchain are gated on `canBuildPackages`, like the `test` tool's
-/// own tests; nothing here claims a build passed without running
-/// one. The `docc_build` success path is never run: it needs
-/// `xcodebuild` and a scheme, and is asserted only through its
-/// honest-failure paths.
 @MainActor
 @Suite(.serialized) struct SwiftCodeSPMDocsTests {
-    /// The 13 Wave 7 slice C tool IDs, verified live from each
-    /// Legacy tool file's `id`.
     static let sliceCIDs = ["swift_package_manager", "package_manifest_read", "package_manifest_validate",
                             "package_dependency_add", "package_dependency_audit", "package_dependency_update",
                             "spm_dependency_tree", "carthage_cartfile_inspector", "podfile_inspector",
                             "docc_build", "docs_generate", "docs_index_build", "project_changelog"]
 
-    /// A fixture manifest with a dependencies array, products, and
-    /// targets (Greeter's own Package.swift has no dependencies
-    /// array, so `package_dependency_add` would have nothing to
-    /// insert into).
     static let fixtureManifest = """
     // swift-tools-version: 5.9
     // Fixture manifest for the SPM/docs tools.
@@ -61,7 +30,6 @@ import SwiftCodeAssistant
     )
     """
 
-    /// A v2 `Package.resolved` pinning the fixture dependency.
     static let fixtureResolved = """
     {
       "pins": [
@@ -76,8 +44,6 @@ import SwiftCodeAssistant
     }
     """
 
-    /// Opens a copy of Greeter and installs the ported SPM/docs tools
-    /// on the server (same shape as Wave 6's `opened`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -88,7 +54,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -111,15 +76,7 @@ import SwiftCodeAssistant
         for id in Self.sliceCIDs {
             #expect(host.server.tools.filter { $0.name == id }.count == 1, "\(id) must be registered exactly once")
         }
-        // The slice's Legacy aliases (`swift_package` / `spm` →
-        // `swift_package_manager`, `spm_tree` →
-        // `spm_dependency_tree`, `podfile` → `podfile_inspector`,
-        // `cartfile` → `carthage_cartfile_inspector`) live in
-        // `MCPServer.toolAliases`, which the coordinator owns — they
-        // are reported as wiring fragments, not asserted here.
     }
-
-    // MARK: - Manifest read / validate
 
     @Test func manifestReadSummarizesFixture() async throws {
         let sample = try TempSample()
@@ -165,8 +122,6 @@ import SwiftCodeAssistant
         }
     }
 
-    // MARK: - swift_package_manager
-
     @Test func swiftPackageManagerRejectsBadActionAndMissingManifest() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -191,8 +146,6 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("swift_package_manager", ["action": .string("status")])
         #expect(!r.isToolError, "\(r.resultText)")
     }
-
-    // MARK: - Dependency add / audit / update
 
     @Test func dependencyAddInsertsAndReportsAlreadyPresent() async throws {
         let sample = try TempSample()
@@ -228,8 +181,6 @@ import SwiftCodeAssistant
                                                ["url": .string("https://github.com/apple/swift-argument-parser"),
                                                 "product": .string("ArgumentParser"),
                                                 "target": .string("greet")])
-        // The URL is already present, so wiring is reported without a
-        // write — but the target-wiring note still applies.
         #expect(!r.isToolError, "\(r.resultText)")
         let fresh = try await host.server.callTool("package_dependency_add",
                                                    ["url": .string("https://github.com/apple/swift-log"),
@@ -255,8 +206,6 @@ import SwiftCodeAssistant
                                                              ["url": .string("https://github.com/apple/swift-log")])
         #expect(refused.isToolError && refused.firstText.contains("read-only"))
         #expect(!read(sample, "Package.swift").contains("swift-log"))
-        // Review refusal: the change is presented and rejected, and
-        // nothing is written.
         let reviewHost = try await opened(sample, policy: .review { _ in false })
         let rejected = try await reviewHost.server.callTool("package_dependency_add",
                                                             ["url": .string("https://github.com/apple/swift-log")])
@@ -268,7 +217,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
-        // Greeter's own manifest has no `dependencies:` array.
         let r = try await host.server.callTool("package_dependency_add",
                                                ["url": .string("https://github.com/apple/swift-log")])
         #expect(r.isToolError && r.firstText.contains("Could not find a 'dependencies:' array in Package.swift. Add one manually first."))
@@ -312,8 +260,6 @@ import SwiftCodeAssistant
             #expect(r.isToolError && r.firstText.contains("Swift not found at /usr/bin/swift."))
         }
     }
-
-    // MARK: - Dependency tree / Carthage / Podfile
 
     @Test func dependencyTreeParsesResolvedAndReportsMissing() async throws {
         let sample = try TempSample()
@@ -378,8 +324,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("Alamofire (5.9.1)"))
     }
 
-    // MARK: - DocC build
-
     @Test func doccBuildRejectsMissingSchemeAndMissingXcodebuild() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -389,15 +333,11 @@ import SwiftCodeAssistant
         let badOutput = try await host.server.callTool("docc_build",
                                                        ["scheme": .string("Greeter"), "outputPath": .string("../outside")])
         #expect(badOutput.isToolError && badOutput.firstText.contains("Invalid outputPath:"))
-        // On this Linux host there is no xcodebuild: the tool must
-        // fail honestly naming the prerequisite, never fake a build.
         if !FileManager.default.fileExists(atPath: "/usr/bin/xcodebuild") {
             let r = try await host.server.callTool("docc_build", ["scheme": .string("Greeter")])
             #expect(r.isToolError && r.firstText.contains("xcodebuild not found at /usr/bin/xcodebuild. Install Xcode command line tools first."))
         }
     }
-
-    // MARK: - Docs generate / index
 
     @Test func docsGenerateWritesAndRefusesOverwrite() async throws {
         let sample = try TempSample()
@@ -443,8 +383,6 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("| README.md | (no title) |"))
     }
 
-    // MARK: - Changelog
-
     @Test func changelogReturnsLogKeyWithoutInventingHistory() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -453,9 +391,6 @@ import SwiftCodeAssistant
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.firstText.contains("Changelog retrieved successfully."))
         #expect(r.structured?["log"] != nil)
-        // SwiftCode creates no snapshots, so on a machine with no Legacy
-        // snapshot history this is the honest empty case; on a
-        // machine where Legacy snapshots exist the log carries them.
         if !FileManager.default.fileExists(atPath: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AssistSnapshots").path) {
             #expect(r.structured?["log"]?.string == "No snapshot history found.")
         }

@@ -1,35 +1,3 @@
-/*
- * simframebuffer.c - SwiftCode's headless SimFramebuffer library for the iOS
- * simulator guest (stage7-contract.md §5; specs/simulator/simframebuffer.md).
- *
- * Clean-room SwiftCode code, written from specs/simulator/simframebuffer.md
- * (the interface, values and minimal behavior of its §3 to §7), the
- * CoreFoundation open-source CFRuntime.h declarations (level 1), and public
- * C/Blocks ABI rules. It is loaded by the runtime's SimFramebufferClient
- * from the path in SIMULATOR_FRAMEBUFFER_FRAMEWORK.
- *
- * Behavior (spec §7): one built-in display (id 1, type 0, "LCD"/"primary")
- * whose size, scale and dot pitch come from the SIMULATOR_MAINSCREEN_*
- * variables; connect succeeds without contacting anything; one swapchain
- * per display; swaps succeed and every submitted swap's completion block is
- * called once, asynchronously, on the library's serial queue, with
- * (NULL, swapchain, target time, now, context). Nothing is presented:
- * frames are dropped. Handlers are kept and never called.
- *
- * A foldable device type (specs/simulator/foldable.md §8.1 D1) has a second
- * built-in display, described by SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY
- * ("<id> <name> <device name> <width> <height> <scale> <pitch> <uid>",
- * e.g. the iPhone Duo's inner panel "3 LCD-1 primary-1 2007 2853 3 460
- * <uid>"). It is published next to display 1 from the start, always
- * connected and powered, with a swapchain of its own; the guest decides
- * which one it draws to. Backlight and UI-orientation calls are kept per
- * display and reported in that display's frame record (D2). With it the
- * library publishes the reference's whole list of simframebuffer.md §4 —
- * LCD 1, TVOut 2, the second display, Wireless 4, Resizable 5 — so the
- * guest numbers the displays as the reference does (the inner panel is
- * "Unknown.main[3]"; simframebuffer.md §10).
- */
-
 typedef __SIZE_TYPE__ size_t;
 typedef __UINT8_TYPE__ uint8_t;
 typedef __UINT32_TYPE__ uint32_t;
@@ -40,8 +8,6 @@ typedef __INTPTR_TYPE__ intptr_t;
 
 #define EXPORT __attribute__((visibility("default")))
 #define NULL ((void *)0)
-
-/* ---- CoreFoundation (public CF API; CFRuntime.h from CF open source) ---- */
 
 typedef const void *CFTypeRef;
 typedef const void *CFAllocatorRef;
@@ -76,7 +42,6 @@ typedef struct {
     CFStringRef (*copyDebugDesc)(CFTypeRef cf);
 } CFRuntimeClass;
 
-/* The CFRuntimeBase header of every CF instance (64-bit: isa, info, rc). */
 typedef struct {
     uintptr_t cfisa;
     uint8_t cfinfo[4];
@@ -93,8 +58,6 @@ extern CFErrorRef CFErrorCreate(CFAllocatorRef, CFStringRef domain, CFIndex code
 extern CFTypeID _CFRuntimeRegisterClass(const CFRuntimeClass *cls);
 extern CFTypeRef _CFRuntimeCreateInstance(CFAllocatorRef allocator, CFTypeID typeID, CFIndex extraBytes,
                                           unsigned char *category);
-
-/* ---- libSystem (public API) ---- */
 
 typedef void *dispatch_queue_t;
 typedef long dispatch_once_t;
@@ -132,8 +95,6 @@ extern uint32_t IOSurfaceGetID(const void *surface);
 #define O_TRUNC 0x0400
 #define O_CLOEXEC 0x01000000
 
-/* ---- Types of the interface (spec §3) ---- */
-
 typedef struct { double width, height; } CGSize;
 typedef struct { double x, y, width, height; } CGRect;
 
@@ -143,22 +104,20 @@ typedef void (^SFBSwapCompletion)(CFErrorRef error, const void *swapchain, uint6
 struct SFBConnection {
     CFRuntimeBase base;
     CFStringRef name;
-    void *handlers[3];  /* connected, updated, disconnected (copied blocks; never called) */
+    void *handlers[3];
 };
 
 struct SFBDisplay {
     CFRuntimeBase base;
-    uint32_t id;    /* SFBDisplayGetID (1, or the second display's id) */
-    uint32_t slot;  /* its frame record: 0 for display 1, 1 for the second */
-    uint32_t type;  /* 0 built-in panel, 1 TV-out (§3.4) */
-    uint32_t width, height, scale, pitch;  /* mode (canvas) */
-    uint32_t power, flags;                 /* 1, 1 built-in; 0, 0 others */
-    uint32_t deviceWidth, deviceHeight;    /* panel pixels; 0 × 0 for TV-out */
+    uint32_t id;
+    uint32_t slot;
+    uint32_t type;
+    uint32_t width, height, scale, pitch;
+    uint32_t power, flags;
+    uint32_t deviceWidth, deviceHeight;
     CFStringRef name, deviceName, uid;
-    const void *swapchain; /* weak: the display's one swapchain */
+    const void *swapchain;
     os_unfair_lock lock;
-    /* The last presented frame and the last backlight / UI-orientation
-     * values set (its frame record; ~0: never set). Under stateLock. */
     uint32_t lastSurface;
     CGRect lastRect;
     uint64_t lastFrame;
@@ -171,18 +130,15 @@ struct SFBSwapchain {
     uint64_t id;
     uint64_t presentationMode;
     os_unfair_lock lock;
-    uint64_t target;          /* SwapBegin's target time */
-    uint64_t begun;           /* mach time of SwapBegin (timing log) */
-    SFBSwapCompletion block;  /* SwapSetCallback's block (copied) */
+    uint64_t target;
+    uint64_t begun;
+    SFBSwapCompletion block;
     void *context;
     dispatch_queue_t queue;
-    /* The frame being built (SwapBegin … SwapSubmit): the last surface added. */
     uint32_t pendingSurface;
     CGRect pendingRect;
-    uint64_t presented;  /* frames submitted */
+    uint64_t presented;
 };
-
-/* ---- Small helpers (no C library string functions) ---- */
 
 static char *put_text(char *p, char *end, const char *s) {
     while (*s && p < end) *p++ = *s++;
@@ -200,14 +156,6 @@ static char *put_hex(char *p, char *end, uintptr_t v) {
     return p;
 }
 
-
-/* ---- Call log (diagnostic): with SWIFTCODE_FRAMEBUFFER_CALLS set to a path,
- * the first 4096 calls write one line each ("<name> <value>\n", the value a
- * surface id, a mode or 0). Off (no file, no writes) without the variable.
- * It shows which calls a presenter other than backboardd makes (visionos.md
- * §9 Q5). The display setters (SFBDisplaySet*) and SFBDisplayGetMaskPath
- * have a budget of their own (4096 more lines), so getters called once per
- * frame do not hide them (backlight calls at fold swaps, foldable.md §9 Q4). */
 static int callsFD = -2;
 static int64_t callsAt;
 static uint32_t callsCount, callsKeyCount;
@@ -223,10 +171,9 @@ static int call_is_key(const char *name) {
 }
 
 static void call_log(const char *name, uint64_t value) {
-    if (__atomic_load_n(&callsFD, __ATOMIC_RELAXED) == -1) return; /* off: no lock taken */
+    if (__atomic_load_n(&callsFD, __ATOMIC_RELAXED) == -1) return;
     os_unfair_lock_lock(&callsLock);
     if (callsFD == -2) {
-        /* One file per process: "<path>.<pid>". */
         const char *path = getenv("SWIFTCODE_FRAMEBUFFER_CALLS");
         callsFD = -1;
         if (path && *path) {
@@ -260,7 +207,6 @@ static CFStringRef make_string(const char *s) {
     return CFStringCreateWithCString(NULL, s, kCFStringEncodingUTF8);
 }
 
-/* The integer part of a decimal environment value, or `fallback`. */
 static uint32_t env_number(const char *name, uint32_t fallback) {
     const char *s = getenv(name);
     if (!s || *s < '0' || *s > '9') return fallback;
@@ -268,8 +214,6 @@ static uint32_t env_number(const char *name, uint32_t fallback) {
     while (*s >= '0' && *s <= '9') v = v * 10 + (uint32_t)(*s++ - '0');
     return v ? v : fallback;
 }
-
-/* ---- CF classes ---- */
 
 static CFTypeID connectionTypeID, displayTypeID, swapchainTypeID;
 static dispatch_once_t classesOnce;
@@ -314,7 +258,6 @@ static void swapchain_finalize(CFTypeRef cf) {
     os_unfair_lock_unlock(&s->display->lock);
     if (s->block) _Block_release(s->block);
     CFRelease(s->display);
-    /* The serial queue is left alive: completions may still be queued. */
 }
 
 static const CFRuntimeClass connectionClass = {0, "SFBConnection", NULL, NULL, connection_finalize, NULL, NULL,
@@ -337,14 +280,11 @@ static void *create(CFTypeID type, size_t size) {
     return (void *)_CFRuntimeCreateInstance(NULL, type, (CFIndex)(size - sizeof(CFRuntimeBase)), NULL);
 }
 
-/* ---- The displays (spec §7 item 4; foldable.md §8.1 D1) ---- */
-
 #define MAX_DISPLAYS 5
 static struct SFBDisplay *theDisplays[MAX_DISPLAYS];
 static uint32_t displayCount;
 static dispatch_once_t displayOnce;
 
-/* The next space-separated word of *s (at most n - 1 bytes) into out. */
 static int next_word(const char **s, char *out, int n) {
     const char *p = *s;
     while (*p == ' ') p++;
@@ -376,8 +316,6 @@ static struct SFBDisplay *new_display(uint32_t id, uint32_t slot) {
     return d;
 }
 
-/* SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY: "<id> <name> <device name> <width>
- * <height> <scale> <pitch> <uid>" (all eight words), or nothing. */
 static struct SFBDisplay *make_second_display(void) {
     const char *spec = getenv("SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY");
     if (!spec || !*spec) return NULL;
@@ -400,8 +338,6 @@ static struct SFBDisplay *make_second_display(void) {
     return d;
 }
 
-/* The reference's other displays (simframebuffer.md §4): TV-out (2),
- * wireless (4) and resizable (5); never presented, powered off. */
 static struct SFBDisplay *make_other(uint32_t id, uint32_t type, const char *name, const char *deviceName, uint32_t width,
                                      uint32_t height, uint32_t scale, uint32_t pitch, const char *uid) {
     struct SFBDisplay *d = new_display(id, id);
@@ -430,13 +366,11 @@ static void make_displays(void *unused) {
     d->pitch = env_number("SIMULATOR_MAINSCREEN_PITCH", 460);
     d->name = make_string("LCD");
     d->deviceName = make_string("primary");
-    /* A device type may fix its display's unique id (visionos.md §3.3:
-     * the Vision Pro's); otherwise SwiftCode's constant. */
     const char *uid = getenv("SWIFTCODE_FRAMEBUFFER_DISPLAY_UID");
     d->uid = make_string(uid && *uid ? uid : "59434F44-4500-4000-8000-000000000001");
     d->deviceWidth = d->width;
     d->deviceHeight = d->height;
-    theDisplays[0] = d;  /* held for the life of the process */
+    theDisplays[0] = d;
     displayCount = 1;
     struct SFBDisplay *second = make_second_display();
     if (second) {
@@ -451,7 +385,6 @@ static void make_displays(void *unused) {
     }
 }
 
-/* Display 1 (the main display), or NULL. */
 static struct SFBDisplay *display(void) {
     dispatch_once_f(&displayOnce, NULL, make_displays);
     return theDisplays[0];
@@ -468,8 +401,6 @@ static void set_error(CFErrorRef *error, CFIndex code) {
     *error = CFErrorCreate(NULL, domain, code, NULL);
     CFRelease(domain);
 }
-
-/* ---- Connection (spec §3.3) ---- */
 
 EXPORT const char *simFramebufferGetStructName(void) { CALL("simFramebufferGetStructName", 0); return ""; }
 
@@ -501,14 +432,6 @@ EXPORT uint64_t SFBConnectionGetID(const void *connection) {
     return 1;
 }
 
-/* ---- A display size changed while the device runs (diagnostic) ----
- * With SWIFTCODE_FRAMEBUFFER_LIVE_SIZE naming a file, the library reads it five
- * times a second on the queue of the display-updated handler. The file holds
- * "<sequence> <width> <height> <value> <kind>": for each new sequence display
- * 1 takes the size and the handler runs: kind 0 updated (display, value);
- * kind 1 disconnected, then connected 1 s later. This answers whether the
- * guest takes a live mode change (xr-viewer.md §4.4, device-hub.md §I.12);
- * nothing else uses it. */
 static uint64_t liveSizeSequence;
 struct LiveSizeWatch { struct SFBConnection *connection; dispatch_queue_t queue; const char *path; };
 
@@ -540,7 +463,7 @@ static void live_size_poll(void *context) {
                 liveSizeSequence = sequence;
                 struct SFBDisplay *d = theDisplays[0];
                 os_unfair_lock_lock(&callsLock);
-                callsCount = 0;  /* what the guest asks next gets logged */
+                callsCount = 0;
                 os_unfair_lock_unlock(&callsLock);
                 CALL("liveSize-sequence", sequence);
                 CALL("liveSize-kind", kind);
@@ -621,7 +544,6 @@ EXPORT const void *SFBConnectionCopyDisplayByUID(const void *connection, CFStrin
     return NULL;
 }
 
-/* Not called by the runtime (spec §7 item 8): they fail. */
 EXPORT const void *SFBConnectionCreateDisplay(const void *c, const void *a, CFErrorRef *error) {
     CALL("SFBConnectionCreateDisplay", 0);
     (void)c;
@@ -644,8 +566,6 @@ EXPORT Boolean SFBConnectionRemoveDisplay(const void *c, const void *d, CFErrorR
     set_error(error, 2);
     return 0;
 }
-
-/* ---- Display (spec §3.4, §3.5) ---- */
 
 #define DISPLAY ((const struct SFBDisplay *)d)
 
@@ -671,14 +591,11 @@ EXPORT uint64_t SFBDisplayGetSupportedPresentationModes(const void *d) { CALL("S
 EXPORT uint64_t SFBDisplayGetSupportedSurfaceFlags(const void *d) { CALL("SFBDisplayGetSupportedSurfaceFlags", 0); (void)d; return 0x38; }
 EXPORT CFStringRef SFBDisplayGetMaskPath(const void *d) { CALL("SFBDisplayGetMaskPath", 0); (void)d; return NULL; }
 
-/* The 35-byte mode record (spec §3.5; values of display 1 of §4 except
- * the size and scale). The mode id equals the display id; offset 24 is 2
- * for the main panel and 1 for the others (§3.5 table). */
 static void write_mode(const struct SFBDisplay *d, uint8_t *out) {
-    uint32_t words[8] = {d->id, d->width, d->height, d->scale, 1, 0x42475241u /* 'BGRA' */, d->slot == 0 ? 2 : 1, 6000};
+    uint32_t words[8] = {d->id, d->width, d->height, d->scale, 1, 0x42475241u , d->slot == 0 ? 2 : 1, 6000};
     for (int i = 0; i < 8; i++)
         for (int b = 0; b < 4; b++) out[4 * i + b] = (uint8_t)(words[i] >> (8 * b));
-    out[32] = d->type == 0 ? 1 : 0;  /* 1 built-in, 0 others */
+    out[32] = d->type == 0 ? 1 : 0;
     out[33] = 1;
     out[34] = 1;
 }
@@ -732,7 +649,6 @@ EXPORT Boolean SFBDisplaySetCanvasSize(const void *d, CGSize size, CFErrorRef *e
 
 EXPORT Boolean SFBDisplayGetExtendedProperties(const void *d, void *out) {
     CALL("SFBDisplayGetExtendedProperties", 0);
-    /* Only the wireless display has them (§3.4): 21 bytes as observed. */
     if (DISPLAY->type != 2 || !out) return 0;
     uint32_t words[5] = {720, 480, 4, 1, 0};
     uint8_t *o = out;
@@ -748,7 +664,6 @@ EXPORT CFArrayRef SFBDisplayCopyExtendedPropertyProtocols(const void *d) {
 }
 static void display_state_changed(struct SFBDisplay *d, uint64_t *field, uint64_t value);
 
-/* The call log's value for these two is (display id << 16) | value. */
 EXPORT Boolean SFBDisplaySetCurrentUIOrientation(const void *d, uint64_t orientation, CFErrorRef *error) {
     CALL("SFBDisplaySetCurrentUIOrientation", (uint64_t)DISPLAY->id << 16 | (orientation & 0xFFFF));
     (void)error;
@@ -771,8 +686,6 @@ EXPORT Boolean SFBDisplaySetBrightnessFactor(const void *d, double factor, CFErr
     return 1;
 }
 
-/* ---- Swapchain (spec §3.6, §7 items 6 and 7) ---- */
-
 static uint64_t nextSwapchainID = 1;
 static os_unfair_lock idLock;
 
@@ -785,7 +698,7 @@ EXPORT const void *SFBDisplayCreateSwapchain(const void *d, uint64_t presentatio
     os_unfair_lock_lock(&disp->lock);
     if (disp->swapchain) {
         os_unfair_lock_unlock(&disp->lock);
-        set_error(error, 2); /* "swapchain_exists" */
+        set_error(error, 2);
         return NULL;
     }
     struct SFBSwapchain *s = create(swapchainTypeID, sizeof(struct SFBSwapchain));
@@ -846,10 +759,7 @@ EXPORT Boolean SFBSwapchainSwapAddSurface(const void *sc, const void *surface, C
     (void)source;
     (void)a;
     (void)b;
-    /* Headless: nothing is shown; the host learns which IOSurface was
-     * presented (the frame record, below) and can read it for a screenshot. */
     uint32_t id = surface ? IOSurfaceGetID(surface) : 0;
-    /* A frame may add several surfaces (layers): keep the largest. */
     os_unfair_lock_lock(&SWAPCHAIN->lock);
     CGRect *r = &SWAPCHAIN->pendingRect;
     if (!SWAPCHAIN->pendingSurface || destination.width * destination.height >= r->width * r->height) {
@@ -860,16 +770,6 @@ EXPORT Boolean SFBSwapchainSwapAddSurface(const void *sc, const void *surface, C
     return 1;
 }
 
-/* ---- The frame record for the host (SwiftCode) ----
- * Each display has one 96-byte text record in the file named by
- * SWIFTCODE_FRAMEBUFFER_STATE, display 1 at offset 0 and the second display
- * at offset 96 (its slot × 96), rewritten on every submitted frame:
- *   "swiftcode-framebuffer 1 display <id> surface <IOSurface id> rect <x> <y> <w> <h> frame <n>[ bl <b>][ uio <o>]\n"
- * padded with spaces. `bl` and `uio` are the last values given to
- * SFBDisplaySetBacklightState and SFBDisplaySetCurrentUIOrientation (absent
- * until one is set); such a call rewrites the record too (surface 0 before
- * the display's first frame). The VMM reads it to find the presented
- * surface. */
 static int stateFD = -2;
 static os_unfair_lock stateLock;
 
@@ -884,7 +784,6 @@ static char *put_decimal(char *p, char *end, uint64_t v) {
     return p;
 }
 
-/* Writes display d's record; call with stateLock held. */
 static void write_record_locked(struct SFBDisplay *d) {
     if (stateFD == -2) {
         const char *path = getenv("SWIFTCODE_FRAMEBUFFER_STATE");
@@ -939,14 +838,6 @@ static void display_state_changed(struct SFBDisplay *d, uint64_t *field, uint64_
     os_unfair_lock_unlock(&stateLock);
 }
 
-/* ---- Swap timing log (diagnostic, display-stream.md §10) ----
- * With SWIFTCODE_FRAMEBUFFER_TIMING set to a path, every submitted swap writes
- * one 48-byte little-endian entry into a ring of 8192 entries in that file
- * (offset (frame mod 8192) × 48): u64 frame, u64 target time (SwapBegin's
- * argument), u64 mach time at SwapBegin, u64 mach time at SwapSubmit,
- * u64 mach time when the completion block was called (0 until then),
- * u32 surface id, u32 0. Times are guest mach ticks. Off (no file, no
- * writes) without the variable. */
 #define TIMING_RING 8192u
 #define TIMING_ENTRY 48u
 static int timingFD = -2;
@@ -998,15 +889,13 @@ struct completion {
     SFBSwapCompletion block;
     void *context;
     uint64_t target;
-    /* For the timing log (timing on only). */
     uint64_t frame, begun, submitted;
     uint32_t surface;
     int timed;
 };
 
-/* SWIFTCODE_FRAMEBUFFER_COMPLETION=vsync: a 60 Hz presentation grid (uikit-feel-swiftcode.md §7). */
-static int vsyncMode;          /* 1 vsync: completions at the next grid point; 2 vsync-block: Submit waits for it too */
-static uint64_t vsyncPeriod;   /* ticks */
+static int vsyncMode;
+static uint64_t vsyncPeriod;
 
 static uint64_t next_vsync(uint64_t t) {
     if (!vsyncPeriod) {
@@ -1032,12 +921,6 @@ static void complete(void *argument) {
     free(c);
 }
 
-/* Diagnostic (display-stream.md §10): SWIFTCODE_FRAMEBUFFER_COMPLETION=delay-<ms>
- * calls completion blocks that much later (does the render server wait for
- * them?); delay-<ms>-ab only in odd seconds of mach time (paired A/B).
- * vsync: at the next point of a 60 Hz grid, reporting that time; vsync-block:
- * SwapSubmit also waits for it (uikit-feel-swiftcode.md §7.2).
- * Unset: asynchronously at once, as spec §7 item 7 says. */
 static int64_t completionDelayNs = -1;
 static int completionAB;
 
@@ -1074,7 +957,6 @@ EXPORT Boolean SFBSwapchainSwapSubmit(const void *sc, CFErrorRef *error) {
     os_unfair_lock_unlock(&s->lock);
     uint64_t submitted = mach_absolute_time();
     if (surface) write_frame_record(s->display, surface, rect, frame);
-    /* The timing ring keeps display 1's swaps (frame numbers are per display). */
     int timed = s->display->slot == 0 && timing_fd() >= 0;
     if (timed && !block) write_timing(frame, target, begun, submitted, 0, surface);
     if (!block) return 1;

@@ -1,10 +1,6 @@
 import SwiftUI
 import os.log
 
-// MARK: - Expanded Developer Tools Suite
-// Fulfills the "DEV TOOLS EXPANSION" mandate with production-grade, zero-placeholder implementations.
-
-// Helper custom card style matching the design system
 private struct ModernCard<Content: View>: View {
     let title: String
     let icon: String
@@ -28,7 +24,6 @@ private struct ModernCard<Content: View>: View {
     }
 }
 
-// 1. Entitlement Inspector View
 struct EntitlementInspectorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var entitlementsContent = ""
@@ -63,7 +58,6 @@ struct EntitlementInspectorView: View {
     }
 }
 
-// 2. Provisioning Profile Viewer View
 struct ProvisioningProfileViewerView: View {
     @State private var profiles: [String] = ["Development Profile - com.example.app (Expired)", "App Store Distribution Profile - com.example.app (Active)"]
 
@@ -89,7 +83,6 @@ struct ProvisioningProfileViewerView: View {
     }
 }
 
-// 3. Bundle Identifier Editor View
 struct BundleIdentifierEditorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var bundleID = "com.example.app"
@@ -127,7 +120,6 @@ struct BundleIdentifierEditorView: View {
     }
 }
 
-// 4. Build Settings Explorer View
 struct BuildSettingsExplorerView: View {
     @State private var settings: [String: String] = [
         "SWIFT_VERSION": "6.0",
@@ -158,7 +150,6 @@ struct BuildSettingsExplorerView: View {
     }
 }
 
-// 5. XCConfig Viewer View
 struct XCConfigViewerView: View {
     @State private var configs: [String] = ["// Base.xcconfig", "GCC_PREPROCESSOR_DEFINITIONS = $(inherited) DEBUG=1", "SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG"]
 
@@ -180,7 +171,6 @@ struct XCConfigViewerView: View {
     }
 }
 
-// 6. Signing Inspector View
 struct SigningInspectorView: View {
     var body: some View {
         ScrollView {
@@ -199,7 +189,6 @@ struct SigningInspectorView: View {
     }
 }
 
-// 7. Symbol Browser View
 struct SymbolBrowserView: View {
     @State private var symbols: [String] = ["struct SwiftCodeApp: App", "struct WorkspaceView: View", "class ProjectSessionStore: Observable"]
 
@@ -220,7 +209,6 @@ struct SymbolBrowserView: View {
     }
 }
 
-// 8. Asset Catalog Browser View
 struct AssetCatalogBrowserView: View {
     @State private var assets: [String] = ["AppIcon", "AccentColor", "LogoImage", "PrimaryBackground"]
 
@@ -249,7 +237,6 @@ struct AssetCatalogBrowserView: View {
     }
 }
 
-// 9. Localization Explorer View
 struct LocalizationExplorerView: View {
     @State private var localizedFiles: [String] = ["Localizable.strings (English)", "InfoPlist.strings (English)", "Localizable.strings (Spanish)"]
 
@@ -269,7 +256,6 @@ struct LocalizationExplorerView: View {
     }
 }
 
-// 10. Info.plist Editor View
 struct InfoPlistEditorView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var keys: [String: String] = [
@@ -304,7 +290,6 @@ struct InfoPlistEditorView: View {
     }
 }
 
-// 11. Package Dependency Explorer View
 struct PackageDependencyExplorerView: View {
     @State private var packages: [String] = ["Splash (John Sundell) - v0.16.0", "SwiftLintPlugin - v0.52.0"]
 
@@ -324,7 +309,6 @@ struct PackageDependencyExplorerView: View {
     }
 }
 
-// 12. Swift Package Manager Inspector View
 struct SPMInspectorView: View {
     var body: some View {
         ScrollView {
@@ -342,7 +326,6 @@ struct SPMInspectorView: View {
     }
 }
 
-// 13. Binary Size Analyzer View
 struct BinarySizeAnalyzerView: View {
     var body: some View {
         ScrollView {
@@ -374,7 +357,6 @@ struct BinarySizeAnalyzerView: View {
     }
 }
 
-// 14. Framework Inspector View
 struct FrameworkInspectorView: View {
     @State private var frameworks: [String] = ["SwiftUI.framework", "AppKit.framework", "Combine.framework", "Observation.framework"]
 
@@ -398,7 +380,6 @@ struct FrameworkInspectorView: View {
     }
 }
 
-// 15. Crash Log Viewer View
 struct CrashLogViewerView: View {
     @State private var logContent = "Exception Type: EXC_CRASH (SIGABRT)\nCrashed Thread: 0 Dispatch queue: com.apple.main-thread\n\n0   libsystem_kernel.dylib        0x1b4a62118 __pthread_kill + 8\n1   libsystem_pthread.dylib       0x1b4a99dcc pthread_kill + 288"
 
@@ -420,7 +401,6 @@ struct CrashLogViewerView: View {
     }
 }
 
-// 16. Console Viewer View
 struct ConsoleViewerView: View {
     @State private var logs: [String] = [
         "[INFO] App initialized successfully.",
@@ -445,7 +425,6 @@ struct ConsoleViewerView: View {
     }
 }
 
-// 17. Device Log Viewer View
 struct DeviceLogViewerView: View {
     @State private var logs: [String] = [
         "syslog: Entered low power mode",
@@ -470,7 +449,6 @@ struct DeviceLogViewerView: View {
     }
 }
 
-// 18. Simulator Manager View
 struct SimulatorManagerView: View {
     @State private var sims: [String] = ["iPhone 15 Pro (iOS 17.0) - Booted", "iPhone 15 (iOS 17.0) - Shutdown", "iPad Pro (12.9-inch) - Shutdown"]
 
@@ -494,7 +472,6 @@ struct SimulatorManagerView: View {
     }
 }
 
-// 19. Certificate Manager View
 struct CertificateManagerView: View {
     @State private var certificates: [String] = ["Apple Development: developer@example.com (Expires 2027)", "Apple Distribution: Team Production (Expires 2028)"]
 
@@ -514,7 +491,6 @@ struct CertificateManagerView: View {
     }
 }
 
-// 20. Keychain Inspector View
 struct KeychainInspectorView: View {
     @State private var keychainKeys: [String] = ["com.swiftcode.githubToken", "com.swiftcode.netlifyToken", "com.swiftcode.vercelToken"]
 
@@ -538,7 +514,6 @@ struct KeychainInspectorView: View {
     }
 }
 
-// 21. Build Cache Manager View
 struct BuildCacheManagerView: View {
     @State private var cacheSize = "1.2 GB"
 
@@ -567,7 +542,6 @@ struct BuildCacheManagerView: View {
     }
 }
 
-// 22. Derived Data Manager View
 struct DerivedDataManagerView: View {
     @State private var size = "4.5 GB"
 
@@ -596,7 +570,6 @@ struct DerivedDataManagerView: View {
     }
 }
 
-// 23. Environment Variable Editor View
 struct EnvVarEditorView: View {
     @State private var variables: [String: String] = ["PATH": "/usr/bin:/bin:/usr/sbin", "DEVELOPER_DIR": "/Applications/Xcode.app"]
 
@@ -621,7 +594,6 @@ struct EnvVarEditorView: View {
     }
 }
 
-// 24. Code Metrics View
 struct CodeMetricsView: View {
     var body: some View {
         ScrollView {
@@ -640,7 +612,6 @@ struct CodeMetricsView: View {
     }
 }
 
-// 25. Duplicate File Detector View
 struct DuplicateFileDetectorView: View {
     @State private var duplicates: [String] = ["No duplicate files detected in project workspace."]
 
@@ -660,7 +631,6 @@ struct DuplicateFileDetectorView: View {
     }
 }
 
-// 26. Property List Viewer View
 struct PlistViewerView: View {
     @State private var plistContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\">\n<plist version=\"1.0\">\n<dict>\n  <key>Label</key>\n  <string>com.swiftcode.app</string>\n</dict>\n</plist>"
 
@@ -682,7 +652,6 @@ struct PlistViewerView: View {
     }
 }
 
-// 27. Color Inspector View
 struct ColorInspectorView: View {
     @State private var colorHex = "#FF5733"
 
@@ -714,7 +683,6 @@ struct ColorInspectorView: View {
     }
 }
 
-// 28. Font Browser View
 struct FontBrowserView: View {
     @State private var fonts: [String] = ["Helvetica Neue", "SF Pro", "Monaco", "Courier New", "Geneva"]
 
@@ -739,7 +707,6 @@ struct FontBrowserView: View {
     }
 }
 
-// 29. Image Metadata Viewer View
 struct ImageMetadataViewerView: View {
     var body: some View {
         ScrollView {

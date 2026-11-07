@@ -1,8 +1,3 @@
-//
-//  AssistPrivacyManifestAuditorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistPrivacyManifestAuditorTool: AssistTool {
@@ -76,7 +71,6 @@ public struct AssistPrivacyManifestAuditorTool: AssistTool {
             }
         }
 
-        // Action: audit
         var userDefaultsUsage = 0
         var fileTimestampUsage = 0
         var diskSpaceUsage = 0

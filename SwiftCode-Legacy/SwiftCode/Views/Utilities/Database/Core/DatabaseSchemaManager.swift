@@ -18,7 +18,6 @@ public final class DatabaseSchemaManager {
         case .supabase:
             _ = try await SupabaseService.shared.executeSQL(connection: connection, sql: sql)
         default:
-            // Other cloud or remote databases execution
             break
         }
     }

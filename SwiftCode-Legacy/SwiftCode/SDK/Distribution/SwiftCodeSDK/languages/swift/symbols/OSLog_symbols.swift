@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for OSLog
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct OSLogSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "oslog.symbol.0"
     public var name: String = "OSLogSymbolName_0"

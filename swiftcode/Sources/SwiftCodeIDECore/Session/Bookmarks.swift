@@ -1,14 +1,9 @@
 import Foundation
 
-/// A bookmark: a file, or a line in it, with a label. See
-/// `specs/ide/navigators.md` §Bookmarks.
 public struct Bookmark: Codable, Equatable, Sendable {
     public var file: String
-    /// 1-based; nil for a file bookmark.
     public var line: Int?
     public var label: String
-    /// Marked done from the bookmark's context menu; saved as `done: true`
-    /// and left out otherwise (reference-ui-5.md §5.2, Incomplete Items).
     public var done: Bool?
     public init(file: String, line: Int?, label: String, done: Bool? = nil) {
         self.file = file
@@ -18,9 +13,6 @@ public struct Bookmark: Codable, Equatable, Sendable {
     }
 }
 
-/// The workspace's bookmarks, saved per user next to the workspace:
-/// `<container>/xcuserdata/<user>.xcuserdatad/swiftcode-bookmarks.json`
-/// (packages: `.swiftpm/xcode/xcuserdata/…`).
 @MainActor
 public final class BookmarkStore {
     public private(set) var all: [Bookmark] = []
@@ -43,7 +35,6 @@ public final class BookmarkStore {
         onChange?()
     }
 
-    /// Adds a bookmark (a second bookmark on the same line or file replaces the first).
     public func add(_ b: Bookmark) {
         all.removeAll { $0.file == b.file && $0.line == b.line }
         all.append(b)
@@ -51,7 +42,6 @@ public final class BookmarkStore {
         save()
     }
 
-    /// Marks a bookmark done (or not done).
     public func setDone(_ b: Bookmark, _ done: Bool) {
         guard let i = all.firstIndex(where: { $0.file == b.file && $0.line == b.line }) else { return }
         all[i].done = done ? true : nil
@@ -63,9 +53,6 @@ public final class BookmarkStore {
         save()
     }
 
-    /// The next (or previous) line bookmark after `line` in `file`, wrapping
-    /// within the file; with `workspace`, continuing into the other files
-    /// in path order.
     public func next(from file: String, line: Int, backward: Bool, workspace: Bool) -> Bookmark? {
         let lines = all.filter { $0.line != nil }
         let ordered = workspace ? lines : lines.filter { $0.file == file }

@@ -2,17 +2,9 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// Builds, cleans and tests a Swift package with the toolchain's own
-/// SwiftPM (`swift build`, `swift package clean`, `swift test`), for hosts
-/// where `swiftcodebuild` cannot build packages: on Linux it has no host
-/// destination and needs the `swiftcode-swb` helper (docs/PARITY.md §5.8).
-/// Compiler diagnostics become issues and the build log fills as with the
-/// core's engines (`SwiftPMRun`).
 public struct PackageBuildEngine: BuildEngine {
     public var name: String { "swiftpm" }
-    /// The `swift` driver and any leading arguments. Tests replace it.
     public var swift: [String]
-    /// Where the default driver is looked for (`PATH`).
     public var environment: [String: String]
 
     public init(swift: [String] = ["/usr/bin/env", "swift"], environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -20,8 +12,6 @@ public struct PackageBuildEngine: BuildEngine {
         self.environment = environment
     }
 
-    /// The SwiftPM arguments for a request (without the driver); nil for a
-    /// project or workspace.
     public static func arguments(for r: BuildRequest) -> [String]? {
         guard case .package(let dir) = r.container else { return nil }
         let release = r.configuration?.lowercased() == "release" ? ["-c", "release"] : []
@@ -33,9 +23,6 @@ public struct PackageBuildEngine: BuildEngine {
         }
     }
 
-    /// The activity text for a SwiftPM progress line: "[3/9] Compiling
-    /// Greeter main.swift" → "Compiling main.swift"; linking and planning
-    /// lines likewise.
     public static func activity(for line: String) -> String? {
         var rest = Substring(line)
         if rest.hasPrefix("["), let close = rest.firstIndex(of: "]") {
@@ -62,9 +49,6 @@ public struct PackageBuildEngine: BuildEngine {
         return SwiftPMRun.start(swift + args, currentDirectory: request.container.path)
     }
 
-    /// The executable product Run launches: the product named like the
-    /// scheme, else the first executable product, in SwiftPM's binary
-    /// folder (`swift build --show-bin-path`).
     public func executablePath(for request: BuildRequest) -> String? {
         guard case .package(let dir) = request.container else { return nil }
         let release = request.configuration?.lowercased() == "release" ? ["-c", "release"] : []
@@ -76,8 +60,6 @@ public struct PackageBuildEngine: BuildEngine {
         return (bin as NSString).appendingPathComponent(name)
     }
 
-    /// The executable products' names in `swift package describe --type
-    /// json` output, in manifest order.
     public static func executableProducts(describeJSON data: Data) -> [String]? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let products = root["products"] as? [[String: Any]] else { return nil }
@@ -87,7 +69,6 @@ public struct PackageBuildEngine: BuildEngine {
         }
     }
 
-    /// Runs a command and returns its standard output (nil when it fails).
     static func run(_ args: [String]) -> String? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: args[0])
@@ -102,7 +83,6 @@ public struct PackageBuildEngine: BuildEngine {
         return p.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
     }
 
-    /// A build that fails at once with one log line and one issue.
     static func failed(issue message: String) -> BuildOperation {
         let (stream, continuation) = AsyncStream<BuildEvent>.makeStream()
         continuation.yield(.output(message))
@@ -112,7 +92,6 @@ public struct PackageBuildEngine: BuildEngine {
         return BuildOperation(events: stream, cancel: {})
     }
 
-    /// A build that fails at once with one log line.
     static func failed(_ message: String) -> BuildOperation {
         let (stream, continuation) = AsyncStream<BuildEvent>.makeStream()
         continuation.yield(.output(message))
@@ -122,13 +101,6 @@ public struct PackageBuildEngine: BuildEngine {
     }
 }
 
-/// Runs one SwiftPM command and reports its lines, progress, activity and
-/// issues as build events, like the core's `ProcessBuild`, with two
-/// differences SwiftPM's output needs: terminal colour sequences are
-/// removed (the compiler colours its diagnostics even into a pipe), and the
-/// summary errors that only repeat a failure ("Build failed", "<Step> …
-/// failed with a nonzero exit code") are issues only when nothing else
-/// failed.
 enum SwiftPMRun {
     static func start(_ args: [String], currentDirectory: String) -> BuildOperation {
         let process = Process()
@@ -206,25 +178,18 @@ enum SwiftPMRun {
         }
     }
 
-    /// Exit status 127 with no error of its own: the tool did not run. The
-    /// shell says "command not found", and in the Flatpak the host-tool
-    /// wrapper says why (no Swift on the host, no way to reach the host,
-    /// `packaging/flatpak/host-tool.sh`). Its lines become the build's error.
     static func toolMissing(status: Int32, log: [String], issues: [Diagnostic]) -> Diagnostic? {
         guard status == 127, !issues.contains(where: { $0.severity == .error }) else { return nil }
         let text = log.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
         return Diagnostic(severity: .error, message: text.isEmpty ? ShellToolchain.noSwift : text, location: nil)
     }
 
-    /// A location-less error that only says a step or the build failed.
     static func isSummary(_ d: Diagnostic) -> Bool {
         guard d.severity == .error, d.location == nil else { return false }
-        // ("error: fatalError" is how `swift test` ends after a failed build.)
         return d.message == "Build failed" || d.message.lowercased() == "fatalerror" || d.message.hasSuffix("failed with a nonzero exit code")
             || d.message.contains("failed with a nonzero exit code. Command line:")
     }
 
-    /// The line without ANSI escape sequences (CSI … final byte).
     static func stripANSI(_ s: String) -> String {
         guard s.contains("\u{1B}") else { return s }
         var out = ""
@@ -246,7 +211,6 @@ enum SwiftPMRun {
     }
 }
 
-/// What the Linux shell needs from the machine, and what it says without it.
 public enum ShellToolchain {
     public static let noSwift = "SwiftCode could not find a Swift toolchain. Install Swift 6 or later (swift.org/install), make sure `swift` is on your PATH, then build again."
     public static let noBuildTool = "SwiftCode could not find its build tool, swiftcodebuild. It ships with SwiftCode; if you built SwiftCode from source, build the swiftcodebuild product too."
@@ -254,7 +218,6 @@ public enum ShellToolchain {
     public static let noAppleSDK = "This project is for Apple platforms, and My Computer cannot build it here: that takes the platform's SDK, which SwiftCode does not include. "
         + "Swift packages build and run on this computer. Building for a SwiftCode simulator host is experimental and needs your own SDK; see the README."
 
-    /// The program's path on `PATH`.
     public static func locate(_ tool: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         for dir in (environment["PATH"] ?? "").split(separator: ":") where FileManager.default.isExecutableFile(atPath: "\(dir)/\(tool)") {
             return "\(dir)/\(tool)"
@@ -263,9 +226,6 @@ public enum ShellToolchain {
     }
 }
 
-/// Projects and workspaces on Linux: the host is no destination for them
-/// (their targets are Apple platforms), so a build for it says what it takes
-/// instead of the build tool's "no such destination".
 struct LinuxProjectEngine: BuildEngine {
     var inner: BuildEngine
     var name: String { inner.name }
@@ -278,7 +238,6 @@ struct LinuxProjectEngine: BuildEngine {
     }
 }
 
-/// An engine for a tool that is not there: every build fails, saying so.
 struct MissingToolEngine: BuildEngine {
     var name: String { "missing" }
     var message: String
@@ -286,11 +245,7 @@ struct MissingToolEngine: BuildEngine {
     func executablePath(for request: BuildRequest) -> String? { nil }
 }
 
-/// The build engine and destinations the shell uses on this host.
 public enum ShellBuildSetup {
-    /// The host as a run destination. On Linux: "My Computer"
-    /// (`platform=Linux`, a SwiftCode-own specifier SwiftPM does not need); on
-    /// macOS the core's My Mac.
     public static var hostDestination: Destination {
         #if os(Linux)
         Destination(name: "My Computer", specifier: "platform=Linux", platform: "Linux", kind: .mac)
@@ -299,7 +254,6 @@ public enum ShellBuildSetup {
         #endif
     }
 
-    /// The destination pop-up's groups on this host.
     public static func destinationGroups(for model: WorkspaceModel) -> [DestinationGroup] {
         #if os(Linux)
         [DestinationGroup(title: "My Computer", destinations: [hostDestination])]
@@ -308,10 +262,6 @@ public enum ShellBuildSetup {
         #endif
     }
 
-    /// On Linux: SwiftPM for packages and `swiftcodebuild` (found as the core's
-    /// test runner finds it) for projects and workspaces;
-    /// `SWIFTCODE_IDE_ENGINE=swiftcodebuild` sends packages to `swiftcodebuild` too. On
-    /// macOS: the engine chosen in Settings, as in the AppKit shell.
     public static func engine(environment: [String: String] = ProcessInfo.processInfo.environment) -> BuildEngine {
         #if os(Linux)
         let swiftcodebuild: BuildEngine = TestRunnerSelection.locateSwiftCodebuild(environment: environment).map { LinuxProjectEngine(inner: XcodebuildEngine(command: [$0])) }

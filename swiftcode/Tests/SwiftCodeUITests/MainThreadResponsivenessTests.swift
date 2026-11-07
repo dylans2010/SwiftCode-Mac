@@ -5,11 +5,6 @@ import Testing
 import SwiftCodeSubprocess
 @testable import SwiftCodeUI
 
-/// The main thread never waits for git or other tools in the paths a user
-/// hits all the time: opening a workspace window, opening menus (menu
-/// validation), refreshing source-control status, opening and editing a
-/// file. Debug builds record every blocking call made on the main thread
-/// (`MainThreadGuard`); these tests fail on any.
 @MainActor
 @Suite struct MainThreadResponsivenessTests {
     static func git(_ dir: URL, _ args: String...) throws {
@@ -17,7 +12,6 @@ import SwiftCodeSubprocess
         guard r.status == 0 else { throw GitRepository.GitError(description: r.stderrText) }
     }
 
-    /// A package in a git repository with a remote, a branch, local changes.
     func repository(_ name: String) throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-mainthread-\(name)-\(UUID().uuidString)")
         let sources = dir.appendingPathComponent("Sources/App")
@@ -49,7 +43,6 @@ import SwiftCodeSubprocess
         defer { try? FileManager.default.removeItem(at: dir) }
         let menu = MainMenu.make()
         var opened: WorkspaceWindowController?
-        // A new window: git status and the rest are read in the background.
         var v = try MainThreadGuard.violations {
             let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: dir)), loadDestinations: false,
                                                startLanguageService: false, openFirstFile: false)
@@ -59,13 +52,9 @@ import SwiftCodeSubprocess
         }
         let wc = try #require(opened)
         await wc.sourceControl.idle()
-        // The state the menus read came from that background read.
         let stageAll = NSMenuItem(title: "Stage All Changes", action: Selector(("scmStageAll:")), keyEquivalent: "")
         #expect(wc.validateMenuItem(stageAll) && wc.sourceControl.hasRemote)
         let main = dir.appendingPathComponent("Sources/App/main.swift")
-        // Menus with a repository known, Refresh File Status, opening and
-        // editing a file, the change bars, the branch menu, Integrate
-        // commands, the History inspector, both navigator modes.
         v += MainThreadGuard.violations {
             for item in menu.items { if let s = item.submenu { validateAll(s, in: wc) } }
             wc.refreshFileStatus(nil)
@@ -87,15 +76,10 @@ import SwiftCodeSubprocess
         #expect(wc.inspector.historyRows.map(\.subject) == ["Initial"])
     }
 
-    /// The debug-build watchdog reports a main-thread stall, and captures
-    /// the main thread's stack while it is blocked. (Other suites may block
-    /// the main thread for long stretches during a full run, so the stack
-    /// is checked by sampling during this test's own block.)
     @Test func watchdogReportsAStallWithTheMainThreadsStack() async throws {
         let w = MainThreadWatchdog(thresholdMilliseconds: 50) { _ in }
         w.start()
         defer { w.stop() }
-        // Let the watchdog's thread start pinging before the block.
         try await Task.sleep(nanoseconds: 100_000_000)
         let stack = Self.blockMainThreadAndSample(w)
         #expect(stack.contains { $0.contains("sleep") || $0.contains("semwait") }, "\(stack)")
@@ -105,8 +89,6 @@ import SwiftCodeSubprocess
         #expect(stall.description.hasPrefix("SwiftCode main-thread watchdog: main thread blocked for "))
     }
 
-    /// Blocks the main thread for 300 ms; another thread samples its stack
-    /// 100 ms in.
     static func blockMainThreadAndSample(_ w: MainThreadWatchdog) -> [String] {
         final class Box: @unchecked Sendable { var stack: [String] = [] }
         let box = Box()
@@ -116,18 +98,15 @@ import SwiftCodeSubprocess
             box.stack = w.sampleMainThread()
             sampled.signal()
         }
-        usleep(300_000)   // the main thread is blocked
+        usleep(300_000)
         sampled.wait()
         return box.stack
     }
 
-    /// `SWIFTCODE_MAIN_THREAD_WATCHDOG=<ms> swift test` watches the rest of the
-    /// test run and logs its main-thread stalls (diagnosis; off by default).
     @Test func watchdogForTheTestRunWhenRequested() {
         MainThreadWatchdog.startIfRequested()
     }
 
-    /// The watchdog starts only when asked for.
     @Test func watchdogStartsOnlyWhenRequested() {
         #expect(MainThreadWatchdog.startIfRequested(environment: [:]) == nil)
         #expect(MainThreadWatchdog.startIfRequested(environment: ["SWIFTCODE_MAIN_THREAD_WATCHDOG": "off"]) == nil)

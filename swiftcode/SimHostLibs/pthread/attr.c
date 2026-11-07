@@ -1,21 +1,4 @@
-/*
- * attr.c - thread attributes (pthread_attr_*) of SwiftCode's libsystem_pthread.
- *
- * Clean-room SwiftCode code, from POSIX pthread_attr_init(3) and friends, the
- * Darwin pthread_attr_set_qos_class_np(3) documentation, and the default
- * values in host-library-init.md section 5.3 (512 KiB stacks, one guard
- * page, QoS default).
- *
- * Layout of pthread_attr_t (64 bytes; SwiftCode's own after the signature):
- *   +8 stack size, +16 stack address (top), +24 guard size,
- *   +32 scheduling priority, +36 QoS (pthread_priority_t, low 32 bits),
- *   +40 detach state, +41 inherit, +42 policy, +43 flags, +44 cpu percent,
- *   +48 cpu refill ms, +56 work interval.
- */
 #include "yc_pthread.h"
-
-/* struct yc_attr and the YC_ATTR_* flags are in yc_pthread.h (create.c
- * reads them too). */
 
 struct yc_sched_param {
     int sched_priority;
@@ -154,7 +137,6 @@ YC_EXPORT int YC_FN(pthread_attr_getstacksize)(const struct yc_attr *a, yc_size_
     return 0;
 }
 
-/* Darwin keeps the stack *top*: stacks grow down. */
 YC_EXPORT int YC_FN(pthread_attr_setstackaddr)(struct yc_attr *a, void *addr)
 {
     CHECK(a);

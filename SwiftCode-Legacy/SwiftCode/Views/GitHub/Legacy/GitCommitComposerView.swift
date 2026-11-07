@@ -31,7 +31,6 @@ struct GitCommitComposerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
             HStack {
                 Label("Commit Composer", systemImage: "pencil.and.outline")
                     .font(.headline)
@@ -58,9 +57,7 @@ struct GitCommitComposerView: View {
                 }
             }
 
-            // Composer fields
             VStack(spacing: 10) {
-                // Conventional Commit Type
                 HStack {
                     Text("Type")
                         .font(.caption.bold())
@@ -75,7 +72,6 @@ struct GitCommitComposerView: View {
                     .pickerStyle(.menu)
                 }
 
-                // Scope & Title
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Scope")
@@ -95,7 +91,6 @@ struct GitCommitComposerView: View {
                     }
                 }
 
-                // Detailed Body
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Detailed Description (Body)")
                         .font(.caption.bold())
@@ -111,7 +106,6 @@ struct GitCommitComposerView: View {
                         )
                 }
 
-                // Co-Author & Advanced Options
                 DisclosureGroup("Advanced & Options", isExpanded: $showAdvanced) {
                     VStack(alignment: .leading, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -136,11 +130,9 @@ struct GitCommitComposerView: View {
                 }
                 .font(.caption)
 
-                // Action Commit Button
                 Button(action: {
                     message = assembleMessage()
                     onCommit()
-                    // Clear fields after successful commit triggers
                     title = ""
                     bodyText = ""
                 }) {
@@ -233,7 +225,6 @@ struct GitCommitComposerView: View {
 
                 let response = try await LLMService.shared.generateExternalResponse(prompt: prompt, useContext: false)
 
-                // Sanitize and decode JSON
                 let cleanResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
                     .replacingOccurrences(of: "```json", with: "")
                     .replacingOccurrences(of: "```", with: "")
@@ -246,7 +237,6 @@ struct GitCommitComposerView: View {
                     if let ti = json["title"] { title = ti }
                     if let b = json["body"] { bodyText = b }
                 } else {
-                    // Fallback to plain parsing
                     commitType = "chore"
                     scope = ""
                     title = "update codebase"

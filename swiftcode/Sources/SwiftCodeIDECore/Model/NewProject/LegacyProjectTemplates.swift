@@ -1,21 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Persistence/Templates/ (29 template files, consolidated)
-// Adapted for SwiftCode: 29 Legacy template files consolidated: the ProjectScaffoldTemplate engine + 28 content templates (sample apps + MenuBarApp + SystemExtension). The 15 scaffold-kind templates SwiftCode's own generator already covers are NOT here (see dispositions TSV).
-
-// The project templates Legacy shipped as sample apps, consolidated into
-// one file. Each struct is one Legacy template file (named below),
-// conforming to `ProjectScaffoldTemplate` from ProjectTemplateEngine.
-// The scaffold-kind templates (app / package / library / game / menu bar
-// handled by SwiftCode's own generator, Safari/macro/system-extension kinds
-// SwiftCode already covers) are NOT here — see the dispositions TSV; only
-// the content templates with real sample-app bodies are ported.
-// The `.foregroundStyle(.orange)` inside the Introduction template is
-// generated sample-app code, not SwiftCode UI — kept as-is.
-
 import Foundation
 
-// MARK: - ProjectTemplateEngine.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/ProjectTemplateEngine.swift.
 public actor ProjectScaffoldTemplateEngine {
     public static let shared = ProjectScaffoldTemplateEngine()
 
@@ -23,9 +7,6 @@ public actor ProjectScaffoldTemplateEngine {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         for file in template.files {
             let fileURL = url.appendingPathComponent(file.path)
-            // Templates may nest files in subdirectories (e.g.
-            // "Features/EditorTips.swift"); create the parent first.
-            // (Legacy's engine omitted this and failed on nested paths.)
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
             try file.content.write(to: fileURL, atomically: true, encoding: .utf8)
@@ -45,8 +26,6 @@ public struct TemplateFile: Sendable {
     public let content: String
 }
 
-// MARK: - AnalyticsDashboardViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/AnalyticsDashboardViewTemplate.swift.
 public struct AnalyticsDashboardViewTemplate: ProjectScaffoldTemplate {
     public let name = "Analytics Dashboard"
     public let description = "A detailed business analytics console with activity logs, filters, and charts."
@@ -57,8 +36,6 @@ public struct AnalyticsDashboardViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - AudioPlayerViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/AudioPlayerViewTemplate.swift.
 public struct AudioPlayerViewTemplate: ProjectScaffoldTemplate {
     public let name = "Audio Player"
     public let description = "A slick music and podcast deck with play/pause controls, seek timelines, and album artwork."
@@ -69,8 +46,6 @@ public struct AudioPlayerViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - BudgetTrackerViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/BudgetTrackerViewTemplate.swift.
 public struct BudgetTrackerViewTemplate: ProjectScaffoldTemplate {
     public let name = "Budget Tracker"
     public let description = "A cashbook manager plotting monthly transactions, balance logs, and saving goals."
@@ -81,8 +56,6 @@ public struct BudgetTrackerViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - CalculatorViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/CalculatorViewTemplate.swift.
 public struct CalculatorViewTemplate: ProjectScaffoldTemplate {
     public let name = "Calculator View"
     public let description = "A simple mathematical utility grid with number inputs and operators."
@@ -93,8 +66,6 @@ public struct CalculatorViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - CalendarViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/CalendarViewTemplate.swift.
 public struct CalendarViewTemplate: ProjectScaffoldTemplate {
     public let name = "Calendar View"
     public let description = "A calendar grid showing dates, monthly views, events timeline, and planner slots."
@@ -105,8 +76,6 @@ public struct CalendarViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - ChatViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/ChatViewTemplate.swift.
 public struct ChatViewTemplate: ProjectScaffoldTemplate {
     public let name = "Chat View"
     public let description = "An interactive messaging UI with conversational message bubbles, dynamic input bar, and auto-scroll."
@@ -117,8 +86,6 @@ public struct ChatViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - DashboardViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/DashboardViewTemplate.swift.
 public struct DashboardViewTemplate: ProjectScaffoldTemplate {
     public let name = "Dashboard View"
     public let description = "A high-density dashboard with stat cards, metrics charts, and recent activity feeds."
@@ -129,8 +96,6 @@ public struct DashboardViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - DrawingViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/DrawingViewTemplate.swift.
 public struct DrawingViewTemplate: ProjectScaffoldTemplate {
     public let name = "Drawing View"
     public let description = "A canvas template with drawing pencils, brush sliders, and a full color palette palette selection."
@@ -141,8 +106,6 @@ public struct DrawingViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - ECommerceViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/ECommerceViewTemplate.swift.
 public struct ECommerceViewTemplate: ProjectScaffoldTemplate {
     public let name = "E-Commerce View"
     public let description = "A product listing and showcase catalog with product detail cards and shopping cart actions."
@@ -153,8 +116,6 @@ public struct ECommerceViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - FileBrowserViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/FileBrowserViewTemplate.swift.
 public struct FileBrowserViewTemplate: ProjectScaffoldTemplate {
     public let name = "File Browser"
     public let description = "A Finder-like storage directory navigator displaying file lists and path history links."
@@ -165,8 +126,6 @@ public struct FileBrowserViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - FitnessTrackerViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/FitnessTrackerViewTemplate.swift.
 public struct FitnessTrackerViewTemplate: ProjectScaffoldTemplate {
     public let name = "Fitness Tracker"
     public let description = "A sports monitoring suite tracking workout metrics, step counters, and visual activity rings."
@@ -177,8 +136,6 @@ public struct FitnessTrackerViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - IntroductionTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/IntroductionTemplate.swift.
 public struct IntroductionTemplate: ProjectScaffoldTemplate {
     public let name = "Introduction to SwiftCode"
     public let description = "A guided tour of SwiftCode's features and capabilities."
@@ -351,8 +308,6 @@ struct EditorTips: View {
     ]
 }
 
-// MARK: - LoginViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/LoginViewTemplate.swift.
 public struct LoginViewTemplate: ProjectScaffoldTemplate {
     public let name = "Login View"
     public let description = "A polished user authentication template with email/password fields, validation, and social login options."
@@ -363,8 +318,6 @@ public struct LoginViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - MapViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/MapViewTemplate.swift.
 public struct MapViewTemplate: ProjectScaffoldTemplate {
     public let name = "Map View"
     public let description = "A MapKit template highlighting locations, custom pin selectors, and route search forms."
@@ -375,8 +328,6 @@ public struct MapViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - MarkdownEditorViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/MarkdownEditorViewTemplate.swift.
 public struct MarkdownEditorViewTemplate: ProjectScaffoldTemplate {
     public let name = "Markdown Editor"
     public let description = "A markdown document space with side-by-side editing text fields and live rendering html templates."
@@ -387,8 +338,6 @@ public struct MarkdownEditorViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - NewsReaderViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/NewsReaderViewTemplate.swift.
 public struct NewsReaderViewTemplate: ProjectScaffoldTemplate {
     public let name = "News Reader"
     public let description = "A stylized publication magazine featuring article rows, bookmark selectors, and fluid readers."
@@ -399,8 +348,6 @@ public struct NewsReaderViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - NotesViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/NotesViewTemplate.swift.
 public struct NotesViewTemplate: ProjectScaffoldTemplate {
     public let name = "Notes View"
     public let description = "A modern notes app workspace with category lists, title search, and full rich-text note editor views."
@@ -411,8 +358,6 @@ public struct NotesViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - OnboardingViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/OnboardingViewTemplate.swift.
 public struct OnboardingViewTemplate: ProjectScaffoldTemplate {
     public let name = "Onboarding View"
     public let description = "A multi-page step-through splash tutorial sequence with sliding transitions and CTA landing button."
@@ -423,8 +368,6 @@ public struct OnboardingViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - PhotoGalleryViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/PhotoGalleryViewTemplate.swift.
 public struct PhotoGalleryViewTemplate: ProjectScaffoldTemplate {
     public let name = "Photo Gallery"
     public let description = "A full-window photo collection showcase with interactive album list selectors."
@@ -435,8 +378,6 @@ public struct PhotoGalleryViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - ProfileViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/ProfileViewTemplate.swift.
 public struct ProfileViewTemplate: ProjectScaffoldTemplate {
     public let name = "Profile View"
     public let description = "A premium user dashboard with user bio, avatar editor, preferences tabs, and stats indicators."
@@ -447,8 +388,6 @@ public struct ProfileViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - QuizViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/QuizViewTemplate.swift.
 public struct QuizViewTemplate: ProjectScaffoldTemplate {
     public let name = "Quiz App"
     public let description = "A learning quiz card space displaying question cards, selectable choices, and final score decks."
@@ -459,8 +398,6 @@ public struct QuizViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - RecipeViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/RecipeViewTemplate.swift.
 public struct RecipeViewTemplate: ProjectScaffoldTemplate {
     public let name = "Recipe App"
     public let description = "A kitchen assistant listing culinary instructions, cooking times, and step-by-step guidance."
@@ -471,8 +408,6 @@ public struct RecipeViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - SettingsViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/SettingsViewTemplate.swift.
 public struct SettingsViewTemplate: ProjectScaffoldTemplate {
     public let name = "Settings View"
     public let description = "A standard macOS-style multi-pane preferences interface with toggles, sliders, and picker controls."
@@ -483,8 +418,6 @@ public struct SettingsViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - TaskBoardViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/TaskBoardViewTemplate.swift.
 public struct TaskBoardViewTemplate: ProjectScaffoldTemplate {
     public let name = "Task Board"
     public let description = "A Kanban timeline manager with lanes, drag handles, and priority chips."
@@ -495,8 +428,6 @@ public struct TaskBoardViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - TodoViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/TodoViewTemplate.swift.
 public struct TodoViewTemplate: ProjectScaffoldTemplate {
     public let name = "Todo View"
     public let description = "A checklist with category categorization, smart completion states, and progress bar trackers."
@@ -507,8 +438,6 @@ public struct TodoViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - WeatherViewTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/WeatherViewTemplate.swift.
 public struct WeatherViewTemplate: ProjectScaffoldTemplate {
     public let name = "Weather View"
     public let description = "A detailed dashboard displaying current conditions, hourly forecasts, and 10-day trends."
@@ -519,8 +448,6 @@ public struct WeatherViewTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - MenuBarAppTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/MenuBarAppTemplate.swift.
 public struct MenuBarAppTemplate: ProjectScaffoldTemplate {
     public let name = "Menu Bar App"
     public let description = "A macOS application that resides primarily in the menu bar."
@@ -530,8 +457,6 @@ public struct MenuBarAppTemplate: ProjectScaffoldTemplate {
     ]
 }
 
-// MARK: - SystemExtensionTemplate.swift
-// From Legacy SwiftCode/Backend/Persistence/Templates/SystemExtensionTemplate.swift.
 public struct SystemExtensionTemplate: ProjectScaffoldTemplate {
     public let name = "System Extension"
     public let description = "A template for creating a macOS system extension (e.g., Network Extension)."
@@ -540,3 +465,159 @@ public struct SystemExtensionTemplate: ProjectScaffoldTemplate {
         TemplateFile(path: "main.swift", content: "import Foundation\nimport SystemExtensions\n\nclass ExtensionDelegate: NSObject, OSSystemExtensionRequestDelegate {\n    func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {}\n    func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {}\n}")
     ]
 }
+
+
+public struct CommandLineToolTemplate: ProjectScaffoldTemplate {
+    public let name = "Command Line Tool"
+    public let description = "A template for a command-line utility."
+    public let icon = "terminal"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "main.swift", content: "import Foundation\n\nprint(\"Hello, World!\")")
+    ]
+    public init() {}
+}
+
+public struct DocumentAppTemplate: ProjectScaffoldTemplate {
+    public let name = "Document App"
+    public let description = "A document-based app for macOS."
+    public let icon = "doc.text"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "Document.swift", content: "import SwiftUI\nimport UniformTypeIdentifiers\n\nstruct MyDocument: FileDocument {\n    var text: String\n    init(text: String = \"\") { self.text = text }\n    static var readableContentTypes: [UTType] { [.plainText] }\n    init(configuration: ReadConfiguration) throws {\n        guard let data = configuration.file.contents,\n              let string = String(data: data, encoding: .utf8)\n        else { throw CocoaError(.fileReadCorruptFile) }\n        text = string\n    }\n    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {\n        Data(text.utf8).makeFileWrapper()\n    }\n}"),
+        TemplateFile(path: "ContentView.swift", content: "import SwiftUI\n\nstruct ContentView: View {\n    @Binding var document: MyDocument\n    var body: some View {\n        TextEditor(text: $document.text)\n    }\n}"),
+        TemplateFile(path: "App.swift", content: "import SwiftUI\n\n@main\nstruct DocumentApp: App {\n    var body: some Scene {\n        DocumentGroup(newDocument: MyDocument()) { file in\n            ContentView(document: file.$document)\n        }\n    }\n}")
+    ]
+    public init() {}
+}
+
+public struct FrameworkTemplate: ProjectScaffoldTemplate {
+    public let name = "Framework"
+    public let description = "A template for a shared framework."
+    public let icon = "briefcase"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "MyFramework.swift", content: "import Foundation\n\npublic class MyFramework {\n    public init() {}\n}")
+    ]
+    public init() {}
+}
+
+public struct GameMetalTemplate: ProjectScaffoldTemplate {
+    public let name = "Metal Game"
+    public let description = "A high-performance game template using the Metal framework."
+    public let icon = "cpu"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "Renderer.swift", content: "import Metal\nimport MetalKit\n\nclass Renderer: NSObject, MTKViewDelegate {\n    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}\n    func draw(in view: MTKView) {\n        guard let renderPassDescriptor = view.currentRenderPassDescriptor else { return }\n    }\n}"),
+        TemplateFile(path: "GameViewController.swift", content: "import AppKit\nimport MetalKit\n\nclass GameViewController: NSViewController {\n    var renderer: Renderer!\n    override func viewDidLoad() {\n        super.viewDidLoad()\n        let mtkView = view as! MTKView\n        mtkView.device = MTLCreateSystemDefaultDevice()\n        renderer = Renderer()\n        mtkView.delegate = renderer\n    }\n}")
+    ]
+    public init() {}
+}
+
+public struct GameSpriteKitTemplate: ProjectScaffoldTemplate {
+    public let name = "SpriteKit Game"
+    public let description = "A 2D game template using the SpriteKit framework."
+    public let icon = "gamecontroller"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "GameScene.swift", content: "import SpriteKit\n\nclass GameScene: SKScene {\n    override func didMove(to view: SKView) {\n        let label = SKLabelNode(text: \"Hello SpriteKit!\")\n        addChild(label)\n    }\n}"),
+        TemplateFile(path: "AppDelegate.swift", content: "import AppKit\nimport SpriteKit\n\n@main\nclass AppDelegate: NSObject, NSApplicationDelegate {\n    func applicationDidFinishLaunching(_ notification: Notification) {}\n}")
+    ]
+    public init() {}
+}
+
+public struct MultiplatformAppTemplate: ProjectScaffoldTemplate {
+    public let name = "Multiplatform App"
+    public let description = "A SwiftUI app that runs on macOS, iOS, and visionOS."
+    public let icon = "square.on.square"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "Shared/ContentView.swift", content: "import SwiftUI\n\nstruct ContentView: View {\n    var body: some View {\n        Text(\"Multiplatform App\")\n    }\n}"),
+        TemplateFile(path: "Shared/App.swift", content: "import SwiftUI\n\n@main\nstruct MultiApp: App {\n    var body: some Scene {\n        WindowGroup {\n            ContentView()\n        }\n    }\n}")
+    ]
+    public init() {}
+}
+
+public struct SafariExtensionTemplate: ProjectScaffoldTemplate {
+    public let name = "Safari Extension"
+    public let description = "A template for a Safari web extension."
+    public let icon = "safari"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "manifest.json", content: "{\n    \"manifest_version\": 3,\n    \"name\": \"My Extension\",\n    \"version\": \"1.0\"\n}"),
+        TemplateFile(path: "background.js", content: "console.log(\"Background script running\");")
+    ]
+    public init() {}
+}
+
+public struct StaticLibraryTemplate: ProjectScaffoldTemplate {
+    public let name = "Static Library"
+    public let description = "A template for a static library (.a)."
+    public let icon = "building.columns"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "Library.swift", content: "import Foundation\n\npublic class MyStaticLibrary {\n    public init() {}\n}")
+    ]
+    public init() {}
+}
+
+public struct SwiftMacroTemplate: ProjectScaffoldTemplate {
+    public let name = "Swift Macro"
+    public let description = "A template for creating a Swift Macro library."
+    public let icon = "wand.and.stars"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "MyMacro.swift", content: "import Foundation\n\npublic struct MyMacro {\n    public init() {}\n}")
+    ]
+    public init() {}
+}
+
+public struct SwiftPackageTemplate: ProjectScaffoldTemplate {
+    public let name = "Swift Package"
+    public let description = "A template for a Swift package, suitable for libraries and tools."
+    public let icon = "shippingbox"
+    public let files: [TemplateFile] = [
+        TemplateFile(path: "Package.swift", content: "// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: \"MyPackage\",\n    targets: [\n        .target(name: \"MyPackage\"),\n    ]\n)"),
+        TemplateFile(path: "Sources/MyPackage/MyPackage.swift", content: "public struct MyPackage {\n    public init() {}\n}")
+    ]
+    public init() {}
+}
+
+extension ProjectTemplateCatalog {
+    public static let scaffoldTemplates: [any ProjectScaffoldTemplate] = [
+        AnalyticsDashboardViewTemplate(),
+        AudioPlayerViewTemplate(),
+        BudgetTrackerViewTemplate(),
+        CalculatorViewTemplate(),
+        CalendarViewTemplate(),
+        ChatViewTemplate(),
+        DashboardViewTemplate(),
+        DrawingViewTemplate(),
+        ECommerceViewTemplate(),
+        FileBrowserViewTemplate(),
+        FitnessTrackerViewTemplate(),
+        IntroductionTemplate(),
+        LoginViewTemplate(),
+        MapViewTemplate(),
+        MarkdownEditorViewTemplate(),
+        NewsReaderViewTemplate(),
+        NotesViewTemplate(),
+        OnboardingViewTemplate(),
+        PhotoGalleryViewTemplate(),
+        ProfileViewTemplate(),
+        QuizViewTemplate(),
+        RecipeViewTemplate(),
+        SettingsViewTemplate(),
+        TaskBoardViewTemplate(),
+        TodoViewTemplate(),
+        WeatherViewTemplate(),
+        MenuBarAppTemplate(),
+        SystemExtensionTemplate(),
+        CommandLineToolTemplate(),
+        DocumentAppTemplate(),
+        FrameworkTemplate(),
+        GameMetalTemplate(),
+        GameSpriteKitTemplate(),
+        MultiplatformAppTemplate(),
+        SafariExtensionTemplate(),
+        StaticLibraryTemplate(),
+        SwiftMacroTemplate(),
+        SwiftPackageTemplate()
+    ]
+
+    public static func scaffoldTemplate(named name: String) -> (any ProjectScaffoldTemplate)? {
+        scaffoldTemplates.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+}
+

@@ -1,14 +1,5 @@
 import Foundation
 
-// MARK: - Extension-host process manager
-//
-// One Node process per VS Code extension. The process is disposable:
-// a crash marks the extension `.crashed` and fails pending requests,
-// and after `maxConsecutiveHostCrashes` consecutive crashes the host is
-// left stopped until the user explicitly retries — no restart loops.
-// All state here is @MainActor-isolated; the reading Task hops back to
-// the MainActor for every line it handles.
-
 @MainActor
 public final class ExtV2HostManager {
     private struct RunningHost {
@@ -20,8 +11,6 @@ public final class ExtV2HostManager {
 
     public var storage: ExtV2Storage
     public var permissions: ExtV2PermissionManager
-    /// Set by the manager: how host-initiated requests (file reads,
-    /// diagnostics, provider registration) are served.
     public var hostRequestHandler: ((String, ExtV2RPCRequest) async throws -> ExtV2JSONValue)?
 
     private var hosts: [String: RunningHost] = [:]
@@ -42,8 +31,6 @@ public final class ExtV2HostManager {
         hosts[extensionId]?.contribution
     }
 
-    // MARK: Node discovery
-
     public func nodeExecutable(settings: ExtV2Storage.Settings) -> URL? {
         if let configured = settings.nodeExecutablePath, !configured.isEmpty,
            FileManager.default.isExecutableFile(atPath: configured) {
@@ -57,11 +44,6 @@ public final class ExtV2HostManager {
         return nil
     }
 
-    // MARK: Activation
-
-    /// Activates an installed VS Code extension, returning its real
-    /// contributions. Throws when Node is missing, the entry point is
-    /// missing, activation times out, or the host reports an error.
     public func activate(
         installed: ExtV2InstalledExtension,
         workspaceRoot: URL?,
@@ -150,7 +132,6 @@ public final class ExtV2HostManager {
         )
     }
 
-    /// Finds the running host that owns a command id, if any.
     public func ownerOfCommand(_ command: String) -> String? {
         hosts.first { $0.value.contribution.commands.contains { $0.command == command } }?.key
     }
@@ -168,8 +149,6 @@ public final class ExtV2HostManager {
         guard let host = hosts[extensionId] else { return }
         hosts.removeValue(forKey: extensionId)
         if host.process.isRunning {
-            // Best effort: ask, then terminate. Never wait on the UI thread
-            // for a host that has already misbehaved.
             if let data = try? ExtV2RPC.encodeRequest(ExtV2RPCRequest(id: "shutdown", method: "shutdown")) {
                 try? host.stdin.fileHandleForWriting.write(contentsOf: data)
             }
@@ -180,8 +159,6 @@ public final class ExtV2HostManager {
         }
         pending = pending.filter { !$0.key.hasPrefix(extensionId + ":") }
     }
-
-    // MARK: RPC plumbing
 
     private func request(
         extensionId: String, method: String, params: ExtV2JSONValue?, timeout: TimeInterval
@@ -225,8 +202,6 @@ public final class ExtV2HostManager {
                     await self?.handleLine(extensionId: extensionId, line: line)
                 }
             } catch {
-                // A read error ends the stream the same way EOF does:
-                // the host is gone, so its exit handling still runs.
             }
             await self?.handleHostExit(extensionId: extensionId)
         }
@@ -234,7 +209,6 @@ public final class ExtV2HostManager {
 
     private func handleLine(extensionId: String, line: String) async {
         guard let data = line.data(using: .utf8) else { return }
-        // A response to one of our requests.
         if let response = try? JSONDecoder().decode(ExtV2RPCResponse.self, from: data),
            let continuation = pending.removeValue(forKey: response.id) {
             if let error = response.error {
@@ -244,7 +218,6 @@ public final class ExtV2HostManager {
             }
             return
         }
-        // A host-initiated request.
         do {
             let request = try ExtV2RPC.decodeRequest(from: data, fromHost: true)
             do {

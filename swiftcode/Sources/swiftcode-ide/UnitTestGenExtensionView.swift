@@ -1,12 +1,5 @@
-// UnitTestGenExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/UnitTestGenExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: generator settings panel (enable, generate mocks, framework XCTest/Swift Testing picker, coverage target %)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - Unit Test Generator Extension View
 struct UnitTestGenExtensionView: View {
     @State private var isEnabled = true
     @State private var testFramework = "xctest"

@@ -1,7 +1,3 @@
-// The headless preview-render package (PreviewRenderHost): what it writes
-// for a file and a chosen #Preview. Building and running it needs the open
-// SwiftUI port and a toolchain, which `swiftcode preview --render` does.
-
 import Foundation
 import Testing
 @testable import SwiftCodePreviews

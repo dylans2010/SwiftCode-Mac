@@ -22,16 +22,11 @@ struct SwiftCodeApp: App {
         AgentSystemInitializer.shared.initialize()
         StylingBootstrap.initialize()
         LicenseCatalog.prewarm()
-        // SwiftCode SDK host bootstrap (one-time, idempotent): registers the
-        // built-in view openers on the main actor before any extension can
-        // call `ui.openView`. Failures are logged, not thrown, by the bootstrap.
         Task { await SDKBootstrap.bootstrapIfNeeded() }
     }
 
     @State private var sessionStore = ProjectSessionStore.shared
-    /// A Finder-opened `.scproj` package awaiting the trust decision.
     @State private var pendingScprojURL: URL?
-    /// Error from a Finder open or a trust-alert delete, if any.
     @State private var finderOpenError: String?
     @StateObject private var settings = AppSettings.shared
     @StateObject private var codingManager = CodingManager.shared
@@ -173,10 +168,6 @@ struct SwiftCodeApp: App {
             .environmentObject(codeSuggestionsML)
             .environmentObject(gistService)
             .onOpenURL { url in
-                // Finder-opened files arrive here (the app declares
-                // .scproj as Owner and .xcodeproj/.xcworkspace as
-                // Alternate Viewer in Info.plist). URL schemes keep
-                // their existing handlers below.
                 if url.isFileURL {
                     handleFinderOpenedFile(url)
                     return
@@ -218,10 +209,6 @@ struct SwiftCodeApp: App {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { url in
-                // project.json carries no author identity, so the
-                // alert names the package and its location instead of
-                // inventing an author. Deletion is permanent, by the
-                // user's explicit choice at this alert.
                 Text("“\(url.lastPathComponent)” at \(url.deletingLastPathComponent().path) was not created by this copy of SwiftCode. SwiftCode projects can run code and tools when opened. Open it only if you trust where it came from — otherwise SwiftCode will permanently delete it from disk.")
             }
             .alert("Couldn't Open File", isPresented: Binding(
@@ -233,15 +220,12 @@ struct SwiftCodeApp: App {
                 Text(message)
             }
             .task {
-                // Ensure the persistent Projects and Models directories exist at launch
                 codingManager.ensureProjectsDirectory()
                 codingManager.ensureModelsDirectory()
                 NotificationManager.shared.requestAuthorizationIfNeeded()
                 await OfflineModelDownloader.shared.resumePendingDownloadIfNeeded()
                 await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
 
-                // Initialize the System Index at launch so all AI models (Antigravity, Meta Muse, Cloud, Chat)
-                // have instant access to canonical training and system assets from startup.
                 await SystemIndexService.shared.ensureReady()
 
                 if CommandLine.arguments.contains("--open-last-project"), let firstProject = sessionStore.projects.first {
@@ -255,13 +239,9 @@ struct SwiftCodeApp: App {
         }
     }
 
-    // MARK: - Finder-opened files
-
     private func handleFinderOpenedFile(_ url: URL) {
         switch url.pathExtension.lowercased() {
         case "scproj":
-            // Already trusted once? Open straight away; otherwise
-            // the trust alert decides (open, or delete from disk).
             if ProjectSessionStore.ScprojTrustStore.isTrusted(url) {
                 Task {
                     do {
@@ -275,9 +255,6 @@ struct SwiftCodeApp: App {
                 pendingScprojURL = url
             }
         case "xcodeproj", "xcworkspace":
-            // Same path as Open File or Folder in the welcome view:
-            // importProject takes the containing directory for a
-            // project/workspace bundle, then the project opens.
             Task {
                 do {
                     let project = try await sessionStore.importProject(from: url)
@@ -291,10 +268,6 @@ struct SwiftCodeApp: App {
         }
     }
 
-    /// Deletes an untrusted `.scproj` package from disk, exactly as
-    /// the trust alert promises. Also drops it from recents and
-    /// forgets any trust grant, so a later copy at the same path is
-    /// prompted again instead of opening silently.
     private func deleteUntrustedScproj(_ url: URL) {
         if let existing = sessionStore.projects.first(where: {
             $0.directoryURL.standardizedFileURL.path == url.standardizedFileURL.path
@@ -339,7 +312,6 @@ private struct WorkspaceHostView: View {
         window.backgroundColor = nil
         window.showsResizeIndicator = true
         window.isMovableByWindowBackground = false
-        // Titlebar is hidden (see below): the project name lives in the editor jump bar, not a title strip.
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none

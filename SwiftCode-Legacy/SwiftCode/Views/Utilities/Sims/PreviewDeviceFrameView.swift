@@ -14,15 +14,14 @@ struct PreviewDeviceFrameView<Content: View>: View {
             HStack {
                 Spacer()
 
-                // Outer Bezel / Frame - Simple and sleek native decorative boundary
                 VStack(spacing: 0) {
                     content()
                         .frame(width: deviceSize.width, height: deviceSize.height)
                         .background(isDarkMode ? Color.black : Color.white)
                         .colorScheme(isDarkMode ? .dark : .light)
                 }
-                .padding(8) // bezel thickness
-                .background(Color(white: 0.12)) // Sleek space-gray anodized hardware finish
+                .padding(8)
+                .background(Color(white: 0.12))
                 .cornerRadius(bezelCornerRadius)
                 .overlay(
                     SpecularBorder(cornerRadius: bezelCornerRadius, lineWidth: 1)

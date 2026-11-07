@@ -8,10 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 03-architecture.md §2 (identity and lifetime) and checklist K-2/K-3: a
-// child with `@State var token` (a fresh number from its initial-value
-// expression) that logs onAppear/onDisappear with its token.
-
 @MainActor
 final class TokenSource {
     private(set) var made = 0
@@ -115,8 +111,6 @@ struct IdentityLifetimeTests {
         #expect(source.made == 1)
         flags.tick.value += 1
         g.update()
-        // The parent ran and created a new child value (a new initial token
-        // was computed and discarded); the child itself did not re-run.
         #expect(log.take() == ["parent.body"])
         #expect(source.made == 2)
     }
@@ -185,13 +179,9 @@ struct IdentityLifetimeTests {
         let g = graph(.forEach)
         flags.items.value = [1, 2, 4, 3]
         g.update()
-        // The content closure ran for every element (tokens 4–7 were
-        // computed); only item 4 is a new identity and keeps its token.
         #expect(log.take() == ["parent.body", "item4.body token=6", "item4.onAppear token=6"])
     }
 }
-
-// MARK: - Appearance order (K-2)
 
 struct AppearOrderProbe: View {
     let log: Log
@@ -284,8 +274,6 @@ struct AppearanceOrderTests {
     }
 }
 
-// MARK: - Type-erased identity
-
 struct AnyViewProbe: View {
     let log: Log
     let source: TokenSource
@@ -294,7 +282,6 @@ struct AnyViewProbe: View {
     var body: some View {
         let _ = { kind.binding = $k }()
         if k < 2 {
-            // Same wrapped type for k = 0 and 1: same identity.
             AnyView(TokenChild("erased", log: log, source: source, tick: k))
         } else {
             AnyView(TokenChild("erased", log: log, source: source, tick: k).padding())
@@ -315,7 +302,6 @@ struct AnyViewIdentityTests {
         kind.value = 1
         g.update()
         #expect(log.take() == ["erased.body token=1"])
-        // k = 2 switches the `if` branch as well; the erased type differs too.
         kind.value = 2
         g.update()
         #expect(log.take() == ["erased.body token=3", "erased.onAppear token=3", "erased.onDisappear token=1"])

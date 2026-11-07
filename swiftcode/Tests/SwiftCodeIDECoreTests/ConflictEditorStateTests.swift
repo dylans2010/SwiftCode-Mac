@@ -2,11 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// The conflict editor's shared state (`ConflictEditorState`), which the
-/// AppKit and Linux conflict editors both draw (`specs/ide/comparison.md`,
-/// "Conflict editor").
 struct ConflictEditorStateTests {
-    /// Two conflicts with a one-sided change between them.
     func twoConflicts() -> MergeDocument {
         MergeDocument(base: "a\nb\nc\nd\ne\nf\ng\nh\n", ours: "a\nB1\nc\nd\ne\nf\nG1\nh\n", theirs: "a\nB2\nc\nd\nE2\nf\nG2\nh\n",
                       oursLabel: "main", theirsLabel: "feature")
@@ -31,17 +27,17 @@ struct ConflictEditorStateTests {
         var s = ConflictEditorState()
         s.currentFile = "/r/A.swift"
         s.load(twoConflicts())
-        s.chooseSegment(0)               // Left
+        s.chooseSegment(0)
         #expect(s.currentHunk == 2 && s.hunkLabel == "Change 3 of 3 (conflict)" && s.statusText == "1 conflict unresolved")
-        s.chooseSegment(1)               // Right; nothing undecided is left
+        s.chooseSegment(1)
         #expect(s.currentHunk == 2 && s.selectedSegment == 1 && s.statusText == "Resolved" && s.canMarkResolved)
         #expect(s.document?.result == "a\nB1\nc\nd\nE2\nf\nG2\nh\n")
         s.previousHunk()
         #expect(s.currentHunk == 1 && s.hunkLabel == "Change 2 of 3" && s.selectedSegment == 1)
         s.nextHunk()
         s.nextHunk()
-        #expect(s.currentHunk == 0)      // wraps
-        s.chooseSegment(2)               // Left + Right
+        #expect(s.currentHunk == 0)
+        s.chooseSegment(2)
         #expect(s.document?.result == "a\nB1\nB2\nc\nd\nE2\nf\nG2\nh\n")
         s.choose(.unresolved)
         #expect(s.statusText == "1 conflict unresolved" && !s.canMarkResolved && s.currentHunk == 0)
@@ -56,19 +52,15 @@ struct ConflictEditorStateTests {
         s.setEditedText("hand\nwritten")
         #expect(s.isEditing && s.currentHunk == 0 && s.document?.result.hasPrefix("a\nhand\nwritten\nc\n") == true)
         #expect(s.editedText == "hand\nwritten\n")
-        // Another hunk leaves the editor; coming back opens it again.
         s.nextHunk()
         #expect(!s.isEditing && s.editedText == "")
         s.previousHunk()
         #expect(s.isEditing && s.editedText == "hand\nwritten\n")
-        // A side's choice ends hand editing and moves on to the undecided one.
         s.chooseSegment(1)
         #expect(!s.isEditing && s.currentHunk == 2 && s.selectedSegment == nil)
-        // Edit on a decided hunk starts from its lines.
         s.selectHunk(0)
         s.beginEditing()
         #expect(s.editedText == "B2\n")
-        // Not editing: typing is ignored.
         s.chooseSegment(0)
         s.setEditedText("ignored")
         #expect(s.document?.result.contains("ignored") == false)
@@ -84,7 +76,6 @@ struct ConflictEditorStateTests {
         s.setPair(.baseRight)
         #expect(s.comparison.new == "a\nB2\nc\nd\nE2\nf\nG2\nh\n")
         #expect(s.comparisonRow(in: s.comparisonRows) == 1)
-        // Two files without an ancestor: always left and right, no Base.
         var two = ConflictEditorState(source: .files(hasAncestor: false))
         two.load(MergeDocument(chunks: ThreeWayMerge.compare(left: ["x", "y"], right: ["x", "Y"])))
         two.setPair(.baseRight)
@@ -98,7 +89,6 @@ struct ConflictEditorStateTests {
         #expect(s.update(integration: .merging(branch: "feature"), conflicted: ["/r/A.swift", "/r/B.swift"]) == .keep)
         s.currentFile = "/r/A.swift"
         #expect(s.showsIntegrationButtons && !s.canContinue && s.continueTitle == "Continue Merge" && s.abortTitle == "Abort Merge")
-        // A.swift was resolved elsewhere: show B.swift.
         #expect(s.update(integration: .merging(branch: "feature"), conflicted: ["/r/B.swift"]) == .show("/r/B.swift"))
         s.currentFile = "/r/B.swift"
         #expect(s.update(integration: .merging(branch: "feature"), conflicted: ["/r/B.swift"]) == .keep)

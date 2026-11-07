@@ -6,23 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Context menus (round R11; public API: `contextMenu(menuItems:)`,
-// `contextMenu(menuItems:preview:)`, `contextMenu(forSelectionType:menu:
-// primaryAction:)`).
-//
-// Design (SwiftCode's): a `contextMenu` modifier registers its items with the
-// window. A secondary click (mouse button 3) — or a touch held 0.5 s without
-// moving more than 10 points — opens the items of the innermost view under
-// the pointer that has a context menu, as an R8 pop-up menu at the pointer;
-// the press in progress is cancelled (its buttons do not fire). Shift+F10
-// opens the context menu of the focused view at its top-leading corner. A
-// list's `contextMenu(forSelectionType:)` gives each row a menu of the
-// selection when the row is selected, else of the row alone (the selection
-// is not changed); an empty set is passed for the empty area of the list.
-// Menus whose content is empty are not opened. The preview of
-// `contextMenu(menuItems:preview:)` is not shown on the desktop.
-
-/// The context menus of one window.
 @MainActor
 package final class ContextMenuCenter {
     final class Registration {
@@ -35,9 +18,7 @@ package final class ContextMenuCenter {
     }
 
     private var registrations: [ObjectIdentifier: Registration] = [:]
-    /// The long press in progress: pointer, start point and time.
     var pendingPress: (pointer: Int, start: CGPoint, deadline: TimeInterval)?
-    /// Context menus opened (tests and tools).
     package private(set) var openedCount = 0
 
     package init() {}
@@ -48,8 +29,6 @@ package final class ContextMenuCenter {
 
     func unregister(_ node: ViewNode) { registrations[ObjectIdentifier(node)] = nil }
 
-    /// The items of the innermost view with a context menu on `chain` (root
-    /// first).
     func items(on chain: [ViewNode]) -> AnyView? {
         for n in chain.reversed() {
             if let r = registrations[ObjectIdentifier(n)], r.node === n, !n.isInSuspendedSubtree, let v = r.items() {
@@ -83,18 +62,15 @@ struct ContextMenuModifier: PrimitiveModifier {
 }
 
 extension View {
-    /// Items shown in a menu on a secondary click or a long press.
     public func contextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
         let items = AnyView(menuItems())
         return modifier(ContextMenuModifier(items: { items }))
     }
 
-    /// The same; the preview is not shown on the desktop.
     public func contextMenu<M: View, P: View>(@ViewBuilder menuItems: () -> M, @ViewBuilder preview: () -> P) -> some View {
         contextMenu(menuItems: menuItems)
     }
 
-    /// A context menu for the selected rows of a list (applied to the list).
     public func contextMenu<I: Hashable, M: View>(forSelectionType itemType: I.Type = I.self,
                                                   @ViewBuilder menu: @escaping (Set<I>) -> M,
                                                   primaryAction: ((Set<I>) -> Void)? = nil) -> some View {
@@ -107,7 +83,6 @@ extension View {
     }
 }
 
-/// A list's selection context menu (rows read it from the environment).
 struct ListContextMenu {
     let make: @MainActor ([AnyHashable]) -> AnyView
 }
@@ -122,15 +97,12 @@ extension EnvironmentValues {
 }
 
 extension WindowHost {
-    /// Opens the context menu under `point` (window points); true if one
-    /// opened.
     @discardableResult
     package func openContextMenu(at point: CGPoint) -> Bool {
         if graph.needsUpdate { update() }
         let chain = gestures.hitPath(at: point)
         guard let items = services.contextMenus.items(on: chain), let popups = services.popups else { return false }
         gestures.cancel()
-        // Anchored at the point: near the window's bottom it opens upward.
         guard popups.presentPopup(content: items, origin: point, anchor: CGRect(origin: point, size: .zero), minWidth: 160, chrome: .menu,
                                   fallbackKeys: nil, onDismiss: {}) != nil else {
             return false
@@ -139,7 +111,6 @@ extension WindowHost {
         return true
     }
 
-    /// Shift+F10: the context menu of the focused view.
     func openContextMenuForFocus() -> Bool {
         guard let focused = services.focus.focusedNode else { return false }
         var chain: [ViewNode] = []
@@ -156,7 +127,6 @@ extension WindowHost {
         return true
     }
 
-    /// Long-press tracking for touches (0.5 s, 10 points).
     func trackContextPress(_ p: PointerEvent) {
         let center = services.contextMenus
         guard !center.isEmpty else { return }

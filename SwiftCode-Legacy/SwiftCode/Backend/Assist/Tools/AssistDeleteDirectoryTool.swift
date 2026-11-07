@@ -27,9 +27,6 @@ public struct AssistDeleteDirectoryTool: AssistTool {
         }
 
         do {
-            // Route through the filesystem layer so traversal / symlink /
-            // containment checks apply. The workspace root itself is refused.
-            // Missing directories are a failure, not a silent success.
             guard context.fileSystem.exists(at: path) else {
                 return .failure("No directory at \(path) — nothing to delete.")
             }

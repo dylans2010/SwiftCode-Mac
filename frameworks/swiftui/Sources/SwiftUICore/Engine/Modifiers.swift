@@ -1,18 +1,10 @@
 import Foundation
 
-// Layout modifiers (04-layout.md §5). Each wraps one child (index 0) unless
-// noted; spacing, priority, layout values and explicit guides pass through.
-
-/// The origin that aligns a child with dimensions `d` inside a container of
-/// `size` on `alignment` (the container's default guide values against the
-/// child's guide values, explicit ones included).
 package func alignedOrigin(_ d: ViewDimensions, in size: CGSize, alignment: Alignment) -> CGPoint {
     CGPoint(x: alignment.horizontal.key.defaultValue(for: size) - d[key: alignment.horizontal.key],
             y: alignment.vertical.key.defaultValue(for: size) - d[key: alignment.vertical.key])
 }
 
-/// A modifier that places its single child at the origin with the node's own
-/// proposal (size = the child's answer unless overridden).
 package protocol PassthroughModifier: NodeBehavior {}
 
 extension PassthroughModifier {
@@ -27,8 +19,6 @@ extension PassthroughModifier {
     }
 }
 
-/// `frame(width:height:alignment:)`: answers the given dimensions (the
-/// child's for omitted ones), proposes them to the child and aligns it.
 package struct FixedFrameBehavior: NodeBehavior {
     package var width: CGFloat?
     package var height: CGFloat?
@@ -59,17 +49,6 @@ package struct FixedFrameBehavior: NodeBehavior {
     }
 }
 
-/// `frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`.
-///
-/// Child proposal per dimension: a given proposal clamped to [min, max]; an
-/// unspecified one replaced by the ideal value when there is one.
-/// Answer per dimension (04 §5 and golden `frame.*`, `hstack.flex`):
-/// - min and max both given: the proposal clamped to them (unspecified → the
-///   child's answer clamped);
-/// - only min: max(min, min(child, proposal));
-/// - only max: min(max, max(child, proposal));
-/// - neither: the child's answer;
-/// where an unspecified proposal counts as the child's answer.
 package struct FlexibleFrameBehavior: NodeBehavior {
     package var minWidth, idealWidth, maxWidth, minHeight, idealHeight, maxHeight: CGFloat?
     package var alignment: Alignment
@@ -98,8 +77,6 @@ package struct FlexibleFrameBehavior: NodeBehavior {
     }
 
     private static func resolve(proposal: CGFloat?, ideal: CGFloat?, child: () -> CGFloat, min lo: CGFloat?, max hi: CGFloat?) -> CGFloat {
-        // An ideal size answers an unspecified proposal (the frame's own
-        // ideal, whatever its content needs at that size).
         if proposal == nil, let ideal { return clamp(ideal, lo, hi) }
         switch (lo, hi) {
         case (let lo?, let hi?):
@@ -136,15 +113,11 @@ package struct FlexibleFrameBehavior: NodeBehavior {
     }
 }
 
-/// `padding`: proposes the proposal minus the insets (not below 0), answers
-/// the child plus the insets; negative insets shrink the answer and shift the
-/// child outward. Padded edges get the default spacing preferences.
 package struct PaddingBehavior: NodeBehavior {
     package var insets: EdgeInsets
 
     package init(_ insets: EdgeInsets) { self.insets = insets }
 
-    /// iOS default padding amount (04 §5).
     package static let defaultAmount: CGFloat = 16
 
     package var traitChild: Int? { 0 }
@@ -175,8 +148,6 @@ package struct PaddingBehavior: NodeBehavior {
     }
 }
 
-/// `fixedSize(horizontal:vertical:)`: unspecified proposal in the fixed
-/// dimensions, so the child takes its ideal size there.
 package struct FixedSizeBehavior: PassthroughModifier {
     package var horizontal: Bool
     package var vertical: Bool
@@ -200,10 +171,6 @@ package struct FixedSizeBehavior: PassthroughModifier {
     }
 }
 
-/// `aspectRatio(_:contentMode:)`: proposes the largest (fit) or smallest
-/// (fill) rectangle of the ratio inside/around the proposal; one unspecified
-/// dimension is derived from the other; both unspecified pass through. A nil
-/// ratio uses the child's ideal aspect.
 package struct AspectRatioBehavior: PassthroughModifier {
     package var ratio: CGFloat?
     package var contentMode: ContentMode
@@ -241,8 +208,6 @@ package struct AspectRatioBehavior: PassthroughModifier {
     }
 }
 
-/// `offset(x:y:)`: no layout effect; moves the rendering (and the frames
-/// geometry readers report). Horizontal offsets follow the layout direction.
 package struct OffsetBehavior: PassthroughModifier {
     package var x: CGFloat
     package var y: CGFloat
@@ -255,8 +220,6 @@ package struct OffsetBehavior: PassthroughModifier {
     package func childTransform(size: CGSize) -> AffineTransform2D? { .translation(x, y) }
 }
 
-/// An offset by a fraction of the node's own size (move, slide and push
-/// transitions, R6).
 package struct SizeRelativeOffsetBehavior: PassthroughModifier {
     package var fraction: CGSize
     package init(_ fraction: CGSize) { self.fraction = fraction }
@@ -265,14 +228,11 @@ package struct SizeRelativeOffsetBehavior: PassthroughModifier {
     }
 }
 
-/// `opacity(_:)`: no layout effect; the value is applied when rendering.
 package struct OpacityBehavior: PassthroughModifier {
     package var opacity: Double
     package init(_ opacity: Double) { self.opacity = opacity }
 }
 
-/// `scaleEffect(_:anchor:)`: no layout effect; scales the rendering about
-/// `anchor`.
 package struct ScaleEffectBehavior: PassthroughModifier {
     package var x: CGFloat
     package var y: CGFloat
@@ -289,8 +249,6 @@ package struct ScaleEffectBehavior: PassthroughModifier {
     }
 }
 
-/// `rotationEffect(_:anchor:)`: no layout effect; rotates the rendering about
-/// `anchor` (reported frames are the rotated bounding box).
 package struct RotationEffectBehavior: PassthroughModifier {
     package var angle: Angle
     package var anchor: UnitPoint
@@ -305,8 +263,6 @@ package struct RotationEffectBehavior: PassthroughModifier {
     }
 }
 
-/// `position(x:y:)`: takes the whole proposal (the child's answer for an
-/// unspecified dimension) and centres the child on the point.
 package struct PositionBehavior: NodeBehavior {
     package var x: CGFloat
     package var y: CGFloat
@@ -330,9 +286,6 @@ package struct PositionBehavior: NodeBehavior {
     }
 }
 
-/// `overlay` / `background`: children [base, secondary]. Answers the base's
-/// size; the secondary is proposed exactly that size and aligned to the base
-/// on `alignment`, using the base's guides (explicit ones included).
 package struct SecondaryLayerBehavior: NodeBehavior {
     package var alignment: Alignment
     package var isBackground: Bool
@@ -359,19 +312,16 @@ package struct SecondaryLayerBehavior: NodeBehavior {
     }
 }
 
-/// `clipped()`: no layout effect (clipping is a rendering matter).
 package struct ClipBehavior: PassthroughModifier {
     package init() {}
 }
 
-/// `layoutPriority(_:)`.
 package struct LayoutPriorityBehavior: PassthroughModifier {
     package var priority: Double
     package init(_ priority: Double) { self.priority = priority }
     package func layoutPriority(node: LayoutNode) -> Double { priority }
 }
 
-/// `layoutValue(key:value:)`.
 package struct LayoutValueBehavior: PassthroughModifier {
     package var key: ObjectIdentifier
     package var value: Any
@@ -386,8 +336,6 @@ package struct LayoutValueBehavior: PassthroughModifier {
     }
 }
 
-/// `alignmentGuide(_:computeValue:)`: overrides one explicit guide with a
-/// function of the child's dimensions.
 package struct AlignmentGuideBehavior: PassthroughModifier {
     package var key: AlignmentKey
     package var compute: (ViewDimensions) -> CGFloat
@@ -404,9 +352,6 @@ package struct AlignmentGuideBehavior: PassthroughModifier {
     }
 }
 
-/// `ignoresSafeArea(_:edges:)`: when the view's frame touches the safe-area
-/// boundary on one of `edges`, its content is extended into that inset
-/// (04 §7). Only the container safe area is modelled in R3 (no keyboard).
 package struct IgnoresSafeAreaBehavior: PassthroughModifier, SafeAreaExpandingBehavior {
     package var edges: Edge.Set
 

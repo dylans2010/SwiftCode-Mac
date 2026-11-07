@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-# swiftcode-gpu-phases: the GPU budget of a visionOS session per marked phase (specs/simulator/frame-profile.md section 10).
-# Run it with `python3 -I`.
-#
-# usage: swiftcode-gpu-phases <dir>   (<dir>/marks.txt: "name ns" lines on CLOCK_MONOTONIC; <dir>/metal.trace: SWIFTCODE_METAL_TRACE
-#        with SWIFTCODE_METAL_TRACE_SEGMENTS=1)
-# Client 1 is the presenter, client 2 the render server (the Metal client order of a visionOS boot). Prints presents and
-# render-server pictures per second with interval percentiles, GPU busy (union of begin..end), GPU ms per present by pass
-# (size, sample count, load action), and the host stages' p50/p90.
 import sys, collections
 run = sys.argv[1]
 marks = [l.split() for l in open(run + "/marks.txt")]
@@ -44,7 +36,6 @@ for (name, lo), (_, hi) in zip(marks, marks[1:]):
             for s in p[20].split(","):
                 if "=" not in s: continue
                 lab, v = s.rsplit("=", 1); v = int(v)
-                # a pass's kind: R size, samples, load op letters
                 parts = lab.split("/")
                 key = (p[0], parts[0] + ("/" + parts[-1] if parts[0].startswith("R") else "") if lab[0] == "R" else lab[0] if lab[0] in "BC" else lab)
                 agg[key][0] += (v - prev) / 1e6; agg[key][1] += 1

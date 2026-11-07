@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/BranchWorkspaceManager.swift
-// Adapted for SwiftCode: Legacy's Project replaced by CollaborationProject (id/name/directoryURL).
-
 import Foundation
 
 public struct BranchWorkspaceFile: Identifiable, Codable, Equatable {
@@ -229,7 +225,6 @@ public final class BranchWorkspaceManager: ObservableObject {
         workspaces[branchID] = workspace
         commitManager.replaceWorkingChanges([], stagedChanges: [:], for: branchID)
 
-        // If we reset the main branch, we should potentially update the project on disk
         if workspace.branchName == "main", let project = project {
             syncMainToDisk(workspace: workspace, project: project)
         }
@@ -310,12 +305,9 @@ public final class BranchWorkspaceManager: ObservableObject {
                 if let old = oldLine { diff += "-\(old)\n" }
                 if let new = newLine { diff += "+\(new)\n" }
             } else if let line = oldLine {
-                // Show context lines only if they are near a change?
-                // For simplicity, just show the line as is
                 diff += " \(line)\n"
             }
 
-            // Limit diff size to avoid massive strings
             if diff.count > 10000 {
                 diff += "... diff truncated ..."
                 break
@@ -355,7 +347,6 @@ public final class BranchWorkspaceManager: ObservableObject {
 
         let snapshot = lastCommittedSnapshot(for: branch.id)
         if snapshot.files.isEmpty && branch.name == "main" {
-            // Initial seeding from project disk
             let realFiles = scanProjectFiles()
             workspace.files = realFiles
         } else {

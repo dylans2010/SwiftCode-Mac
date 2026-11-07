@@ -1,86 +1,5 @@
-// Ported from Legacy `SwiftCode/Backend/Assist/OpenRouterSDKProvider.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except for the key-resolution adaptation noted inline.
-// BLOCKED references:
-// - SDKBridgeLaunching / SDKBridgeSession / FoundationProcessBridgeLauncher: staged in
-//   this same batch (OpenCodeSDKProvider.swift). BufferWrapper / SDKProvider: staged
-//   in this same batch (SDKRuntimeManager.swift).
-// Resolved in-destination: SDKToolEvent/Source/State (same batch); the OpenRouter key
-// now resolves via defaultSecretStore() (see inline note).
-// Wiring: AssistSDKSessionRunner (same batch) constructs one per OpenRouter run;
-// bridge script source: Legacy `Backend/Assist/SDKHosts/openrouter-bridge.mjs`.
-
 import Foundation
 
-// MARK: - OpenRouter SDK provider (Swift facade over openrouter-bridge.mjs)
-//
-// This file NEVER executes tools and NEVER speaks OpenRouter HTTP itself.
-// The previous OpenAI-compatible HTTP client (OpenRouterClient.swift) is
-// superseded as the agent-execution transport by the real Agent SDK,
-// which Swift cannot import: the SDK is TypeScript
-// (@openrouter/agent@0.11.0). Swift therefore launches the Node bridge
-// (SDKHosts/openrouter-bridge.mjs) and talks the shared NDJSON run
-// protocol over its stdin/stdout. The bridge owns the SDK's multi-turn
-// loop, stop conditions, and streaming; Swift owns the run lifecycle
-// and, through the parent integration, the native tool registry that
-// executes SwiftCode tool_call lines.
-//
-// INSTALL LAYOUT (Workstream D seam — read before changing paths):
-// The bridge is a runtime resource, not an Xcode target member. The
-// runtime manager installs it under Application Support at
-//   <Application Support>/SwiftCode/SDKRuntime/openrouter/bridge/openrouter-bridge.mjs
-// with the pinned packages at
-//   <Application Support>/SwiftCode/SDKRuntime/openrouter/node_modules/@openrouter/agent
-// (SDKRuntimeManager.bridgeDirectory / runtimeDirectory). Node resolves
-// '@openrouter/agent' by walking up from the bridge file and via the
-// NODE_PATH the manager sets, so the bridge MUST live inside that
-// directory; copying the .mjs alone somewhere else breaks SDK
-// resolution. The repo copy at
-// SwiftCode/Backend/Assist/SDKHosts/openrouter-bridge.mjs is the source
-// the manager copies from. This provider takes `scriptPath` as an init
-// parameter so the parent integration can pass the manager's installed
-// path; it never guesses a bundle location.
-//
-// LAUNCHER SEAM (single call, shared with Workstream A):
-// This provider launches through `SDKBridgeLaunching.launchBridge(
-// provider:scriptPath:arguments:)` (defined in OpenCodeSDKProvider.swift)
-// with the default `FoundationProcessBridgeLauncher`. That launcher
-// passes a controlled environment (PATH/HOME/TMPDIR) and NO key, so the
-// API key travels in the run request's non-logged `apiKey` field —
-// never argv, never logged, never echoed by the bridge. When the parent
-// wires SDKRuntimeManager instead, the manager injects
-// OPENROUTER_API_KEY into the bridge environment for the openRouter
-// provider, and the bridge prefers the environment over the run field,
-// so no bridge change is needed for that switch.
-//
-// READINESS vs AUTHENTICATION (do not conflate them):
-// The bridge prints `ready` once the SDK imports resolve. That proves
-// the SDK is installed and loadable; it does NOT prove the key is
-// valid, because @openrouter/agent 0.11.0 has no cost-free key check.
-// The first run's 401 is mapped by the bridge to an actionable invalid
-// key error. Settings' connection test remains
-// OpenRouterAssistProvider's /models check; this provider is execution.
-//
-// TOOL EVENTS — no synthetic duplicates:
-// Unlike Workstream A's bridge, this bridge emits the FULL tool
-// lifecycle (requested/running/completed/failed) for every call,
-// including bridged SwiftCode calls. This provider therefore forwards
-// bridge `tool_event` lines verbatim to `onToolEvent` and emits NO
-// synthetic events for `tool_call` lines — the store merges by
-// toolCallId, and a synthetic row would double-report the same call.
-// Routing key is the event's `source` (SDKToolSource), never the name:
-// in a combined run, `openrouter_`-prefixed host tools still carry
-// source `.openrouter`, and SwiftCode tools carry `.swiftcode`.
-//
-// TOOL SOURCE (run-level) vs EVENT SOURCE (per-call):
-// `OpenRouterSDKToolSource` has a `.combined` case, but Workstream C's
-// `SDKToolSource` deliberately does not: a combined run produces events
-// from two ecosystems, each tagged with its own source. `opencode` is
-// NOT a valid OpenRouter tool source and is rejected before launch
-// (the bridge rejects it too, as defense in depth).
-
-/// Tool source selected for an OpenRouter SDK run. `opencode` is NOT a
-/// valid OpenRouter tool source and has no case here by design.
 public enum OpenRouterSDKToolSource: String, Sendable {
     case swiftcode
     case openrouter
@@ -99,9 +18,6 @@ public struct OpenRouterSDKHistoryItem: Sendable {
 public struct OpenRouterSDKToolDefinition: Sendable {
     public let name: String
     public let description: String
-    /// Raw JSON string of the parameters schema (a JSON object). Decoded
-    /// here before launch; a malformed schema fails the run loudly
-    /// instead of reaching the bridge as text.
     public let parametersJSON: String
     public init(name: String, description: String, parametersJSON: String) {
         self.name = name
@@ -110,12 +26,6 @@ public struct OpenRouterSDKToolDefinition: Sendable {
     }
 }
 
-/// Run bounds. Defaults match the bridge defaults: at most 25 model
-/// steps, a $2.00 maxCost STOP CONDITION (not a spending ceiling: the
-/// SDK stops the loop after the step reaching it, then — with
-/// allowFinalResponse — makes one final turn, so spend can exceed
-/// $2.00), 120s per tool call, 90s per model request, and a final
-/// text turn after a stop condition fires.
 public struct OpenRouterSDKRunConfig: Sendable {
     public let maxSteps: Int
     public let maxCost: Double
@@ -138,8 +48,6 @@ public struct OpenRouterSDKRunConfig: Sendable {
 }
 
 public struct OpenRouterSDKRunRequest: Sendable {
-    /// Exact OpenRouter model id (provider/model). Validated before
-    /// launch; never guessed or rewritten.
     public let model: String
     public let systemPrompt: String
     public let userText: String
@@ -147,7 +55,6 @@ public struct OpenRouterSDKRunRequest: Sendable {
     public let tools: [OpenRouterSDKToolDefinition]
     public let toolSource: OpenRouterSDKToolSource
     public let config: OpenRouterSDKRunConfig
-    /// Session id carried in every tool event. Defaults to a fresh UUID.
     public let requestId: String
 
     public init(
@@ -200,11 +107,6 @@ public enum OpenRouterSDKProviderError: LocalizedError, Sendable {
     }
 }
 
-// MARK: - Provider
-
-/// Swift facade for OpenRouter Agent SDK runs. One provider instance
-/// serves one run at a time; `cancel()` aborts the active run and
-/// terminates the bridge. Sequential runs on one instance are fine.
 public actor OpenRouterSDKProvider {
     private let launcher: SDKBridgeLaunching
     private let scriptPath: String
@@ -221,16 +123,6 @@ public actor OpenRouterSDKProvider {
         self.scriptPath = scriptPath
     }
 
-    /// Runs one request, streaming model text deltas. Tool activity is
-    /// reported through `onToolEvent` (bridge tool_event lines, verbatim
-    /// — see the header note on synthetic duplicates); SwiftCode-native
-    /// tool_call lines are executed by `executeTool` (supplied by the
-    /// parent integration, which routes through the native registry)
-    /// and the result is fed back to the bridge. This provider itself
-    /// executes nothing: if no executor is supplied, tool calls fail
-    /// closed with an explicit error result instead of hanging or being
-    /// faked. This provider never falls back to OpenRouterClient HTTP
-    /// execution; the only OpenRouterClient use is key resolution.
     public func run(
         _ request: OpenRouterSDKRunRequest,
         onToolEvent: @escaping @Sendable (SDKToolEvent) -> Void,
@@ -250,9 +142,6 @@ public actor OpenRouterSDKProvider {
     public func cancel() {
         cancelled = true
         if let session {
-            // Ask the bridge to abort the SDK run first (AbortSignal +
-            // ModelResult.cancel()), then terminate the process; the
-            // bridge exits cleanly on cancellation.
             session.writeLine(#"{"type":"cancel"}"#)
             Task {
                 try? await Task.sleep(nanoseconds: 500_000_000)
@@ -261,8 +150,6 @@ public actor OpenRouterSDKProvider {
         }
         lineContinuation?.finish()
     }
-
-    // MARK: - Execution
 
     private func execute(
         _ request: OpenRouterSDKRunRequest,
@@ -293,8 +180,6 @@ public actor OpenRouterSDKProvider {
             throw OpenRouterSDKProviderError.invalidRunRequest("No user text was supplied for this run.")
         }
 
-        // Tool schemas are decoded here; a malformed schema fails loudly
-        // before any process is launched.
         var toolsPayload: [[String: Any]] = []
         for tool in request.tools {
             guard let data = tool.parametersJSON.data(using: .utf8),
@@ -307,16 +192,7 @@ public actor OpenRouterSDKProvider {
             toolsPayload.append(["name": tool.name, "description": tool.description, "parameters": schema])
         }
 
-        // Key resolution only — credential retrieval, not execution.
-        // The key is sent in the run payload's non-logged field (the
-        // default launcher passes no key environment); the bridge never
-        // logs or echoes it, and prefers a key environment when the
-        // runtime manager provides one.
-        // Destination adaptation: Legacy `OpenRouterClient.resolveOpenRouterAPIKey()`
-        // (APIKeyManager -> KeychainService) has no destination equivalent; the key
-        // lives in the assistant's SecretStore account `openrouter.api-key`
-        // (KeychainSecretStore on macOS — the same login keychain).
-        let apiKey = defaultSecretStore().readString(SecretAccount.openRouterKey)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? 
+        let apiKey = defaultSecretStore().readString(SecretAccount.openRouterKey)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !apiKey.isEmpty else {
             throw OpenRouterSDKProviderError.missingAPIKey
         }
@@ -330,7 +206,6 @@ public actor OpenRouterSDKProvider {
         self.session = bridge
         cancelled = false
 
-        // Stream stdout lines into an AsyncStream via readabilityHandler.
         let (lineStream, lineContinuation) = AsyncStream<String>.makeStream()
         self.lineContinuation = lineContinuation
         let buffer = BufferWrapper()
@@ -348,16 +223,8 @@ public actor OpenRouterSDKProvider {
         bridge.process.terminationHandler = { [weak self] _ in
             Task { await self?.handleTermination() }
         }
-        // Keep the iterator alive for the run loop below. It is a
-        // single-consumer local: no other task touches it, so the
-        // actor-isolation region check (which flags every `await` on a
-        // local mutable iterator as a send) is opted out of here.
         nonisolated(unsafe) var iterator = lineStream.makeAsyncIterator()
 
-        // Readiness: the bridge prints {"type":"ready"} only after the
-        // SDK imports resolve. Anything else first (an error line, EOF,
-        // or 30 seconds of silence) is a failed connection — never a
-        // successful one. Ready does NOT mean authenticated (see header).
         let ready = try await waitForReady(stream: lineStream, bridge: bridge)
         guard ready else {
             let tail = bridge.stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -369,9 +236,6 @@ public actor OpenRouterSDKProvider {
             )
         }
 
-        // Send the run request. The payload travels over stdin, never
-        // argv, so no prompt, argument, or key appears in a process
-        // listing. The bridge strips the key from every error it emits.
         let runPayload: [String: Any] = [
             "type": "run",
             "requestId": request.requestId,
@@ -398,7 +262,6 @@ public actor OpenRouterSDKProvider {
         }
         bridge.writeLine(runLine)
 
-        // Consume bridge lines until done/error/process exit.
         while let line = await iterator.next() {
             guard let data = line.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -416,13 +279,6 @@ public actor OpenRouterSDKProvider {
                     onToolEvent(event)
                 }
             case "tool_call":
-                // SwiftCode-native tool: execute through the parent's
-                // executor (native registry), never here. The result —
-                // or an explicit failure — goes back to the bridge so
-                // the model continues with real data, not a guess. No
-                // synthetic tool event is emitted here: the bridge
-                // already emitted requested/running for this call id,
-                // and emits completed/failed once the result lands.
                 let callId = json["id"] as? String ?? ""
                 let name = json["name"] as? String ?? ""
                 let argsString = jsonString(from: json["arguments"]) ?? "{}"
@@ -443,9 +299,6 @@ public actor OpenRouterSDKProvider {
                     bridge.writeLine(resultLine)
                 }
             case "done":
-                // Text deltas already streamed the answer; done only
-                // signals completion. Do not re-yield finalText (that
-                // would duplicate output).
                 cleanup(bridge: bridge)
                 continuation.finish()
                 return
@@ -483,20 +336,12 @@ public actor OpenRouterSDKProvider {
         bridge.standardError?.fileHandleForReading.readabilityHandler = nil
         lineContinuation?.finish()
         lineContinuation = nil
-        // The bridge exits on stdin EOF; close our write end so it can
-        // shut down. Never kill an external process: the bridge is the
-        // only process this provider owns.
         try? bridge.standardInput.fileHandleForWriting.close()
         if session === bridge {
             session = nil
         }
     }
 
-    /// Waits for the bridge's ready line, with a 30-second timeout and
-    /// early failure on an error line or EOF. Returns false on timeout.
-    /// Ready lines are consumed from the stream's shared storage, and
-    /// the run loop below ignores any stray "ready" line anyway, so
-    /// either consumption outcome is safe.
     private func waitForReady(stream: AsyncStream<String>, bridge: SDKBridgeSession) async throws -> Bool {
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {
@@ -521,17 +366,10 @@ public actor OpenRouterSDKProvider {
                             json["message"] as? String ?? "OpenRouter bridge failed before ready.")
                     }
                 }
-                // EOF before ready: the bridge died; report as timeout
-                // rather than hanging the caller.
                 return false
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: 30_000_000_000)
-                // Terminate, don't just return: AsyncStream next() is
-                // not cancellation-aware, so returning alone would
-                // leave the group waiting on the suspended consumer.
-                // The bridge's termination handler finishes the line
-                // continuation, unblocking it.
                 bridge.terminate()
                 return false
             }
@@ -541,13 +379,6 @@ public actor OpenRouterSDKProvider {
         }
     }
 
-    /// Decodes a bridge tool_event object into the shared contract.
-    /// Unlike Workstream A's bridge (which sends arguments/result as
-    /// strings), this bridge sends them as JSON values, so values are
-    /// rendered to compact JSON strings here; a plain string value
-    /// passes through unchanged. Timestamps are ISO 8601 with or
-    /// without fractional seconds; an empty or unparseable timestamp
-    /// is never invented.
     private func decodeToolEvent(_ json: [String: Any]) -> SDKToolEvent? {
         guard let provider = json["provider"] as? String,
               let sessionId = json["sessionId"] as? String,
@@ -590,9 +421,6 @@ public actor OpenRouterSDKProvider {
         )
     }
 
-    /// Renders a decoded JSON value as a compact JSON string. A String
-    /// value passes through unchanged (it is already the display form);
-    /// NSNull and missing values become nil.
     private func jsonString(from value: Any?) -> String? {
         guard let value else { return nil }
         if let string = value as? String { return string }
@@ -605,9 +433,6 @@ public actor OpenRouterSDKProvider {
         return string
     }
 
-    /// Parses JSON text back into a value for a tool_result line.
-    /// Returns nil when the text is not valid JSON (the caller then
-    /// sends the raw string instead).
     private func jsonValue(from text: String) -> Any? {
         guard let data = text.data(using: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: data)

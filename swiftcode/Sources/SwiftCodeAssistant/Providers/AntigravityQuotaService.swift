@@ -1,19 +1,3 @@
-// Moved from SwiftCodeGoogleAuth by R-GOOGLE-MOVE (W-V2 decision 1, 2026-11-06):
-// SwiftCodeAssistant cannot depend on SwiftCodeGoogleAuth, so the types AssistManager
-// needs live here. Self-contained: no SwiftCodeGoogleAuth dependencies. AntigravityPlanTier moves with it.
-
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/AntigravityQuotaService.swift
-// Adapted for SwiftCode: Plan tiers + 5h/weekly usage windows + the local IDE-sidecar quota probe. SwiftUI/Combine removed (@Observable + hex colour strings instead); the sidecar probe is labelled honestly in-code (it probes a local sidecar, not the Antigravity SDK).
-
-//
-//  AntigravityQuotaService.swift
-//  SwiftCode
-//
-//  Service managing and exposing Antigravity account limits (5-hour rate limit and Weekly quota allowance)
-//  and subscription plan tiers (Plus, Pro, Ultra) for users authenticated via Google / Antigravity OAuth.
-//
-
 import Foundation
 import Observation
 import os
@@ -45,8 +29,6 @@ public enum AntigravityPlanTier: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// Gradient colours as hex strings (Legacy returned SwiftUI Colors;
-    /// SwiftCodeGoogleAuth has no SwiftUI — the settings UI maps these to colour).
     public var gradientHexColors: [String] {
         switch self {
         case .plus:
@@ -80,18 +62,15 @@ public enum AntigravityPlanTier: String, CaseIterable, Codable, Sendable {
 public final class AntigravityQuotaService {
     public static let shared = AntigravityQuotaService()
 
-    // MARK: - Constants
-    private let fiveHourWindowDuration: TimeInterval = 5 * 3600 // 5 hours in seconds
-    private let weeklyWindowDuration: TimeInterval = 7 * 24 * 3600 // 7 days in seconds
+    private let fiveHourWindowDuration: TimeInterval = 5 * 3600
+    private let weeklyWindowDuration: TimeInterval = 7 * 24 * 3600
 
-    // Storage Keys
     private static let keyPlanTier = "com.swiftcode.antigravity.quota.plan_tier"
     private static let key5hUsed = "com.swiftcode.antigravity.quota.5h_used"
     private static let key5hStart = "com.swiftcode.antigravity.quota.5h_start"
     private static let keyWeeklyUsed = "com.swiftcode.antigravity.quota.weekly_used"
     private static let keyWeeklyStart = "com.swiftcode.antigravity.quota.weekly_start"
 
-    // MARK: - Real Google Quota Properties
     public private(set) var isUsingRealQuota: Bool = false
     public private(set) var realFiveHourRemainingPercentage: Double = 100.0
     public private(set) var realWeeklyRemainingPercentage: Double = 100.0
@@ -102,18 +81,11 @@ public final class AntigravityQuotaService {
     public private(set) var isRefreshingQuota: Bool = false
     public private(set) var lastSuccessfulRefresh: Date? = nil
     public private(set) var lastRefreshError: String? = nil
-    /// Honest data-source label. The live quota probe queries the local IDE
-    /// sidecar's quota endpoint — it is NOT the Antigravity SDK and NOT the
-    /// signed-in Google account. Displayed in the UI so measured, estimated,
-    /// and unavailable data are never confused.
     public private(set) var quotaDataSourceDescription: String =
         "Local IDE sidecar probe — not the Antigravity SDK"
-    /// The Antigravity SDK does not expose account usage or entitlements to
-    /// clients; represent that as unavailable instead of inventing values.
     public private(set) var antigravityAccountUsageStatus: String =
         "Unavailable — the Antigravity SDK does not expose account usage or entitlements to this client."
 
-    // MARK: - Published Properties
     public private(set) var planTier: AntigravityPlanTier = .pro
     public private(set) var fiveHourLimit: Int = 100
     public private(set) var fiveHourUsed: Int = 0
@@ -125,7 +97,6 @@ public final class AntigravityQuotaService {
 
     public private(set) var lastUpdated: Date = Date()
 
-    // MARK: - Computed Properties
     public var planDisplayName: String {
         planTier.displayName
     }
@@ -216,8 +187,6 @@ public final class AntigravityQuotaService {
         "\(Int(round(weeklyRemainingPercentage)))%"
     }
 
-    /// Dynamic Gauge Color: 100%-60% is Green, 59%-21% is Yellow, 20%-0% is Red.
-    /// Returned as a hex string (Legacy returned a SwiftUI Color).
     public nonisolated static func gaugeColorHex(forPercentage percentage: Double) -> String {
         let rounded = Int(round(percentage))
         if rounded >= 60 {
@@ -281,39 +250,31 @@ public final class AntigravityQuotaService {
         return formatter.string(from: target)
     }
 
-    // MARK: - Initialization
     private init() {
         loadPersistedState()
         rollWindowsIfNeeded()
         refreshRealGoogleQuota()
     }
 
-    // MARK: - Periodic Refresh Lifecycle
-
     private var periodicRefreshTask: Task<Void, Never>?
 
-    /// Starts the automatic 10-minute refresh lifecycle. Safe to call from
-    /// onAppear or any redraw path: any previous task is cancelled first, so
-    /// overlapping refresh tasks can never accumulate.
     public func startPeriodicRefresh() {
         stopPeriodicRefresh()
         refreshRealGoogleQuota()
         periodicRefreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 600_000_000_000) // 10 minutes
+                try? await Task.sleep(nanoseconds: 600_000_000_000)
                 guard !Task.isCancelled else { return }
                 self?.refreshRealGoogleQuota()
             }
         }
     }
 
-    /// Stops the automatic refresh lifecycle (call from onDisappear).
     public func stopPeriodicRefresh() {
         periodicRefreshTask?.cancel()
         periodicRefreshTask = nil
     }
 
-    // MARK: - Plan Tier Management
     public func setPlanTier(_ tier: AntigravityPlanTier) {
         self.planTier = tier
         self.fiveHourLimit = tier.fiveHourLimit
@@ -323,12 +284,10 @@ public final class AntigravityQuotaService {
         logger.info("[AntigravityQuotaService] Switched plan tier to \(tier.rawValue) (5h: \(self.fiveHourLimit), Weekly: \(self.weeklyLimit))")
     }
 
-    // MARK: - State Management
     private func loadPersistedState() {
         let now = Date()
         let defaults = UserDefaults.standard
 
-        // Plan tier
         if let savedTierRaw = defaults.string(forKey: Self.keyPlanTier),
            let savedTier = AntigravityPlanTier(rawValue: savedTierRaw) {
             self.planTier = savedTier
@@ -338,7 +297,6 @@ public final class AntigravityQuotaService {
         self.fiveHourLimit = self.planTier.fiveHourLimit
         self.weeklyLimit = self.planTier.weeklyLimit
 
-        // 5-hour window
         let saved5hStart = defaults.double(forKey: Self.key5hStart)
         if saved5hStart > 0 {
             let startDate = Date(timeIntervalSince1970: saved5hStart)
@@ -352,13 +310,12 @@ public final class AntigravityQuotaService {
                 defaults.set(0, forKey: Self.key5hUsed)
             }
         } else {
-            self.fiveHourUsed = 6 // Seed realistic active session usage
+            self.fiveHourUsed = 6
             self.fiveHourResetDate = now.addingTimeInterval(fourHoursAndChange())
             defaults.set(now.timeIntervalSince1970, forKey: Self.key5hStart)
             defaults.set(self.fiveHourUsed, forKey: Self.key5hUsed)
         }
 
-        // Weekly window
         let savedWeeklyStart = defaults.double(forKey: Self.keyWeeklyStart)
         if savedWeeklyStart > 0 {
             let startDate = Date(timeIntervalSince1970: savedWeeklyStart)
@@ -372,7 +329,7 @@ public final class AntigravityQuotaService {
                 defaults.set(0, forKey: Self.keyWeeklyUsed)
             }
         } else {
-            self.weeklyUsed = 48 // Seed realistic active session usage
+            self.weeklyUsed = 48
             self.weeklyResetDate = nextWeeklyResetDate(from: now)
             defaults.set(now.timeIntervalSince1970, forKey: Self.keyWeeklyStart)
             defaults.set(self.weeklyUsed, forKey: Self.keyWeeklyUsed)
@@ -388,7 +345,7 @@ public final class AntigravityQuotaService {
     private func nextWeeklyResetDate(from date: Date) -> Date {
         let calendar = Calendar.current
         var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        components.weekday = 2 // Monday
+        components.weekday = 2
         components.hour = 0
         components.minute = 0
         components.second = 0
@@ -423,7 +380,6 @@ public final class AntigravityQuotaService {
         }
     }
 
-    // MARK: - Record Usage
     public func recordRequest() {
         rollWindowsIfNeeded()
 
@@ -485,7 +441,6 @@ public final class AntigravityQuotaService {
         defaults.set(now.timeIntervalSince1970, forKey: Self.keyWeeklyStart)
     }
 
-    // MARK: - Real Google Quota RPC Query
     public func refreshRealGoogleQuota() {
         guard !isRefreshingQuota else { return }
         isRefreshingQuota = true
@@ -495,8 +450,6 @@ public final class AntigravityQuotaService {
             let data = await Self.fetchQuotaDataInBackground()
             if let data = data {
                 if parseRealQuotaJSON(data) {
-                    // Preserve the last successful snapshot: parse failures
-                    // leave previously retrieved values untouched.
                     self.lastSuccessfulRefresh = Date()
                 } else {
                     self.lastRefreshError = "The quota probe responded, but the payload could not be parsed."
@@ -544,9 +497,6 @@ public final class AntigravityQuotaService {
         }.value
     }
 
-    /// Parses the sidecar quota payload. Returns true when at least one quota
-    /// group was recognized; on false the caller keeps the last successful
-    /// snapshot and records a retrieval error.
     private func parseRealQuotaJSON(_ data: Data) -> Bool {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let response = obj["response"] as? [String: Any],

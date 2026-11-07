@@ -25,8 +25,6 @@ public struct AssistExternalResourceGateway: AssistTool {
         guard let urlString = input["url"] as? String, let url = URL(string: urlString) else {
             return .failure("Missing or invalid url")
         }
-        // Scheme allow-list: only HTTPS. file:// would read local files
-        // (SSRF / local-file read) behind what used to be a safeRead label.
         guard url.scheme?.lowercased() == "https", url.host != nil else {
             return .failure("Only HTTPS URLs with a host are allowed (got '\(urlString)').")
         }
@@ -40,8 +38,6 @@ public struct AssistExternalResourceGateway: AssistTool {
             return .failure("Fetch failed: \(error.localizedDescription)")
         }
         guard let http = response as? HTTPURLResponse else { return .failure("Invalid HTTP response") }
-        // Non-2xx is a failure even with a JSON body: a 404/500 payload is
-        // not the requested resource.
         guard (200...299).contains(http.statusCode) else {
             return .failure("HTTP \(http.statusCode) from \(urlString).")
         }

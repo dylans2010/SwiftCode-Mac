@@ -1,40 +1,20 @@
-// SwiftCode's own symbol set for `Image(systemName:)` (09-open-design.md §3.6).
-// Apple's SF Symbols may not be shipped or copied, so these are original,
-// deliberately plain drawings made for SwiftCode: geometric outlines on a 24 × 24
-// grid (stroke width 2, round caps and joins; `.fill` variants filled). The
-// names are the common system names, used as interop identifiers so that
-// existing code finds a picture. Licence: the repository's (MIT), no
-// third-party artwork.
-//
-// Each symbol also has a box: its size in points at the body text size
-// (17 pt), from which layout derives every other size. Where the spec
-// measured the reference's box (07 §3, golden-layout.md) that size is used
-// so that layout matches; elsewhere the box is the default 20.67 × 20.67.
-
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
 
-/// One symbol: drawing operations on the 24 × 24 grid and layout metrics.
 public struct SymbolArtwork: Sendable {
     public enum Operation: Sendable {
         case fill(RenderPath, evenOdd: Bool)
         case stroke(RenderPath, width: Double)
-        /// Cuts a stroke (or, with no width, an area) out of everything
-        /// drawn by the other operations.
         case knockout(RenderPath, width: Double?)
     }
 
     public let name: String
     public let operations: [Operation]
-    /// Size in points at 17 pt, image scale medium.
     public let bodySize: CGSize
-    /// Distance from the bottom up to the text baseline at 17 pt.
     public let bodyBaselineOffset: Double
 
-    /// The drawing fitted into `rect` (uniformly scaled, centred), as
-    /// display-list contents painted with `paint`.
     public func contents(in rect: CGRect, paint: RenderPaint) -> [DisplayItem.Content] {
         let scale = min(rect.width / 24, rect.height / 24)
         let t = RenderTransform(a: scale, b: 0, c: 0, d: scale, tx: rect.midX - 12 * scale, ty: rect.midY - 12 * scale)
@@ -54,8 +34,6 @@ public struct SymbolArtwork: Sendable {
         return [.group(DisplayGroup(clips: cuts, children: kids))]
     }
 
-    /// A visible stand-in for names the set lacks: a rounded square with a
-    /// question mark.
     public static func placeholder(name: String) -> SymbolArtwork {
         var q = RenderPath()
         q.move(to: P(9.5, 9.5))
@@ -73,7 +51,6 @@ public struct SymbolArtwork: Sendable {
 
 private func P(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x, y: y) }
 
-/// Path helpers on the 24 × 24 grid.
 enum Shapes {
     static func circle(_ cx: Double, _ cy: Double, _ r: Double) -> RenderPath {
         let k = 0.552_284_75 * r
@@ -118,7 +95,6 @@ enum Shapes {
 
     static func join(_ paths: [RenderPath]) -> RenderPath { RenderPath(paths.flatMap(\.elements)) }
 
-    /// A five-pointed star centred at (12, 12.4).
     static func star() -> RenderPath {
         var pts: [(Double, Double)] = []
         for i in 0..<10 {
@@ -153,34 +129,23 @@ enum Shapes {
         return poly(pts, closed: true)
     }
 
-    /// A claw hammer (R13, for bezel sizes): drawn upright — the head
-    /// across the top (the striking face on the left, the claw curving down
-    /// on the right), the handle tapering down — then turned 45° so that the
-    /// handle points to the lower left. One closed outline.
     static func hammer() -> RenderPath {
         var p = RenderPath()
-        // Striking face (a block a little taller than the head).
         p.move(to: P(3.2, 2.2))
         p.line(to: P(7.6, 2.2))
         p.line(to: P(7.6, 3.4))
-        // Top of the head to the claw.
         p.line(to: P(14.6, 3.4))
-        // The claw: a curved prong down to a point.
         p.cubic(to: P(20.8, 9.6), control1: P(18.2, 3.4), control2: P(20.6, 5.8))
         p.cubic(to: P(16.4, 6.6), control1: P(19.4, 7.6), control2: P(17.8, 6.6))
-        // Under the head to the handle's neck.
         p.line(to: P(13.4, 6.6))
-        // The handle, tapering, with a rounded end.
         p.line(to: P(13.0, 20.4))
         p.cubic(to: P(10.6, 20.4), control1: P(13.0, 21.8), control2: P(10.6, 21.8))
         p.line(to: P(10.2, 6.6))
-        // Under the head back to the face.
         p.line(to: P(7.6, 6.6))
         p.line(to: P(7.6, 7.8))
         p.line(to: P(3.2, 7.8))
         p.close()
         let c = cos(Double.pi / 4), s = sin(Double.pi / 4), k = 0.84
-        // Scale about the drawing's centre (12, 12), turn 45° clockwise.
         let t = RenderTransform(a: k * c, b: k * s, c: -k * s, d: k * c,
                                 tx: 12 - k * (c * 12 - s * 12), ty: 12 - k * (s * 12 + c * 12))
         return p.applying(t)
@@ -197,7 +162,6 @@ enum Shapes {
     }
 }
 
-/// A gear outline with `teeth` teeth between radii `inner` and `outer`.
 private func gearPath(cx: Double, cy: Double, outer: Double, inner: Double, teeth: Int) -> RenderPath {
     var pts: [(Double, Double)] = []
     let n = teeth * 4
@@ -224,7 +188,6 @@ extension SymbolArtwork {
     private static func s(_ p: RenderPath, _ w: Double = 2) -> Operation { .stroke(p, width: w) }
     private static func f(_ p: RenderPath, eo: Bool = false) -> Operation { .fill(p, evenOdd: eo) }
 
-    /// The set, by name.
     public static let all: [String: SymbolArtwork] = {
         typealias S = Shapes
         let c = S.circle(12, 12, 9)
@@ -380,17 +343,13 @@ extension SymbolArtwork {
             make("circle.fill", [f(S.circle(12, 12, 10))]),
             make("square", [s(S.roundedRect(3.5, 3.5, 17, 17, 2.5))]),
             make("square.fill", [f(S.roundedRect(3, 3, 18, 18, 3))]),
-            // R13 (names the Linux IDE shell uses; SwiftCode's own drawings).
-            // Code: two angle brackets with a slash between them.
             make("chevron.left.forwardslash.chevron.right", 72 * third, 54 * third,
                  [s(S.join([S.poly([(7, 7), (2.5, 12), (7, 17)]), S.poly([(17, 7), (21.5, 12), (17, 17)]),
                             S.poly([(13.5, 5), (10.5, 19)])]))]),
-            // A folder with a small gear on its lower right corner.
             make("folder.badge.gearshape", 72 * third, 60 * third,
                  [s(S.poly([(2.5, 6.5), (2.5, 18.5), (12.5, 18.5)])),
                   s(S.poly([(2.5, 6), (9, 6), (11, 8.5), (20.5, 8.5), (20.5, 12)])),
                   f(S.join([gearPath(cx: 18, cy: 18, outer: 5.2, inner: 4, teeth: 6), S.circle(18, 18, 1.7)]), eo: true)]),
-            // Three stacked layers seen at an angle.
             make("square.stack.3d.up", 60 * third, 66 * third,
                  [s(S.poly([(12, 3), (21, 7.5), (12, 12), (3, 7.5)], closed: true)),
                   s(S.poly([(3, 12), (12, 16.5), (21, 12)])),
@@ -399,38 +358,28 @@ extension SymbolArtwork {
                  [f(S.poly([(12, 3), (21, 7.5), (12, 12), (3, 7.5)], closed: true)),
                   s(S.poly([(3, 12), (12, 16.5), (21, 12)])),
                   s(S.poly([(3, 16.5), (12, 21), (21, 16.5)]))]),
-            // The window outline with the divider on the right.
             make("sidebar.right", [s(S.roundedRect(3, 4.5, 18, 15, 2.5)), s(S.poly([(15, 4.5), (15, 19.5)]))]),
             make("sidebar.leading", [s(S.roundedRect(3, 4.5, 18, 15, 2.5)), s(S.poly([(9, 4.5), (9, 19.5)]))]),
             make("sidebar.trailing", [s(S.roundedRect(3, 4.5, 18, 15, 2.5)), s(S.poly([(15, 4.5), (15, 19.5)]))]),
-            // Two gears: a large one at the upper left and a small one at
-            // the lower right.
             make("gearshape.2", 70 * third, 66 * third,
                  [f(S.join([gearPath(cx: 9.5, cy: 9.5, outer: 8, inner: 6.2, teeth: 8), S.circle(9.5, 9.5, 2.6)]), eo: true),
                   f(S.join([gearPath(cx: 17.5, cy: 17.5, outer: 5, inner: 3.9, teeth: 6), S.circle(17.5, 17.5, 1.6)]), eo: true)]),
             make("gearshape.2.fill", 70 * third, 66 * third,
                  [f(S.join([gearPath(cx: 9.5, cy: 9.5, outer: 8, inner: 6.2, teeth: 8), S.circle(9.5, 9.5, 2.6)]), eo: true),
                   f(S.join([gearPath(cx: 17.5, cy: 17.5, outer: 5, inner: 3.9, teeth: 6), S.circle(17.5, 17.5, 1.6)]), eo: true)]),
-            // A rounded frame with three bulleted lines.
             make("list.bullet.rectangle", 70 * third, 56 * third,
                  [s(S.roundedRect(2.5, 4, 19, 16, 2.5), 1.75),
                   f(S.join([S.circle(7, 8.5, 1.1), S.circle(7, 12, 1.1), S.circle(7, 15.5, 1.1)])),
                   s(S.join([S.poly([(10, 8.5), (18, 8.5)]), S.poly([(10, 12), (18, 12)]), S.poly([(10, 15.5), (18, 15.5)])]), 1.5)]),
             make("list.bullet", [f(S.join([S.circle(5, 7, 1.4), S.circle(5, 12, 1.4), S.circle(5, 17, 1.4)])),
                                  s(S.join([S.poly([(9, 7), (20, 7)]), S.poly([(9, 12), (20, 12)]), S.poly([(9, 17), (20, 17)])]))]),
-            // A table: a frame with a header row and a column divider.
             make("tablecells", [s(S.roundedRect(3, 4.5, 18, 15, 2), 1.75),
                                 s(S.join([S.poly([(3, 9.5), (21, 9.5)]), S.poly([(3, 14.5), (21, 14.5)]), S.poly([(12, 4.5), (12, 19.5)])]), 1.5)]),
-            // LINUX-UI-PARITY (the workspace window's toolbar, selector
-            // bars, jump bar, debug bar and inspector; SwiftCode's own drawings).
-            // A speech bubble: a rounded frame with a tail at the lower left.
             make("text.bubble", [s(bubble), s(S.join([S.poly([(8, 9), (16, 9)]), S.poly([(8, 12.5), (13.5, 12.5)])]), 1.5)]),
             make("plus.bubble", [s(bubble), s(S.join([S.poly([(12, 7), (12, 14.5)]), S.poly([(8.25, 10.75), (15.75, 10.75)])]), 1.75)]),
-            // A rectangle in front of another, a plus in the front one.
             make("plus.rectangle.on.rectangle", 72 * third, 60 * third,
                  [s(S.poly([(7, 6.5), (7, 3.5), (21, 3.5), (21, 14.5), (18, 14.5)]), 1.75), s(S.roundedRect(3, 8, 14.5, 12, 2), 1.75),
                   s(S.join([S.poly([(10.25, 11), (10.25, 17)]), S.poly([(7.25, 14), (13.25, 14)])]), 1.5)]),
-            // A window with its right half filled (the canvas).
             make("rectangle.righthalf.inset.filled", 70 * third, 56 * third,
                  [s(S.roundedRect(2.5, 4.5, 19, 15, 2.5), 1.75), f(S.roundedRect(12.5, 7, 6.5, 10, 1))]),
             make("rectangle.split.2x1", 70 * third, 56 * third,
@@ -439,31 +388,24 @@ extension SymbolArtwork {
                  [s(S.roundedRect(2.5, 4.5, 19, 15, 2.5), 1.75), f(S.roundedRect(5, 13.5, 14, 3.5, 1))]),
             make("rectangle.on.rectangle", [s(S.poly([(7, 6.5), (7, 3.5), (21, 3.5), (21, 14.5), (18, 14.5)]), 1.75),
                                             s(S.roundedRect(3, 8, 14.5, 12, 2), 1.75)]),
-            // Two arrows: right on top, left below.
             make("arrow.left.arrow.right", [s(S.join([S.poly([(4, 8), (20, 8)]), S.poly([(16, 4), (20, 8), (16, 12)]),
                                                       S.poly([(20, 16), (4, 16)]), S.poly([(8, 12), (4, 16), (8, 20)])]), 1.75)]),
-            // A stem with a branch curving off to the upper right.
             make("arrow.triangle.branch", [s(S.join([S.poly([(8, 21), (8, 4)]), S.poly([(5, 7), (8, 4), (11, 7)]), branch,
                                                      S.poly([(13.5, 6.5), (16.5, 3.5), (19.5, 6.5)])]), 1.75)]),
             make("bookmark", [s(bookmark, 1.75)]),
             make("bookmark.fill", [f(bookmark)]),
-            // A diamond with a check mark.
             make("checkmark.diamond", [s(S.poly([(12, 2.5), (21.5, 12), (12, 21.5), (2.5, 12)], closed: true), 1.75),
                                        s(S.poly([(8.5, 12), (11, 14.5), (15.5, 9.5)]), 1.75)]),
-            // A dial: a circle, dots on its upper arc and a needle.
             make("gauge.with.dots.needle.33percent", [s(c, 1.75), s(S.poly([(12, 13), (8, 9)]), 1.75), f(S.circle(12, 13, 1.6)),
                                                       f(S.join([S.circle(6.5, 13, 0.9), S.circle(8, 8, 0.9), S.circle(12, 6, 0.9),
                                                                 S.circle(16, 8, 0.9), S.circle(17.5, 13, 0.9)]))]),
-            // A luggage tag with its hole.
             make("tag", [s(tag, 1.75), f(S.circle(7.5, 7.5, 1.4))]),
             make("tag.fill", [f(S.join([tag, S.circle(7.5, 7.5, 1.4)]), eo: true)]),
             make("clock", [s(c, 1.75), s(S.poly([(12, 7), (12, 12), (15.5, 14)]), 1.75)]),
-            // A box seen from above a corner.
             make("shippingbox", [s(S.poly([(12, 3), (20.5, 7.5), (20.5, 16.5), (12, 21), (3.5, 16.5), (3.5, 7.5)], closed: true), 1.75),
                                  s(S.join([S.poly([(3.5, 7.5), (12, 12), (20.5, 7.5)]), S.poly([(12, 12), (12, 21)]),
                                            S.poly([(7.75, 5.25), (16.25, 9.75)])]), 1.5)]),
             make("shippingbox.fill", [f(S.poly([(12, 3), (20.5, 7.5), (20.5, 16.5), (12, 21), (3.5, 16.5), (3.5, 7.5)], closed: true))]),
-            // A monitor on a stand.
             make("desktopcomputer", 70 * third, 60 * third,
                  [f(S.join([S.roundedRect(2, 3.5, 20, 13, 1.5), S.rect(10.5, 16, 3, 3), S.roundedRect(7, 19, 10, 1.8, 0.9)]))]),
             make("square.grid.2x2", [s(S.join([S.roundedRect(3.5, 3.5, 7, 7, 1.5), S.roundedRect(13.5, 3.5, 7, 7, 1.5),
@@ -480,7 +422,6 @@ extension SymbolArtwork {
                               s({ var q = RenderPath(); q.move(to: CGPoint(x: 15, y: 9)); q.cubic(to: CGPoint(x: 15, y: 15), control1: CGPoint(x: 12, y: 6), control2: CGPoint(x: 7, y: 9)); q.cubic(to: CGPoint(x: 15, y: 15), control1: CGPoint(x: 7, y: 15), control2: CGPoint(x: 12, y: 18)); return q }(), 1.75)]),
             make("text.magnifyingglass", [s(S.join([S.poly([(3, 6), (15, 6)]), S.poly([(3, 10), (9, 10)]), S.poly([(3, 14), (7, 14)])]), 1.5),
                                           s(S.join([S.circle(15, 14, 4.5), S.poly([(18.3, 17.3), (21.5, 20.5)])]), 1.75)]),
-            // A rounded square drawn as dashes (an app with no icon).
             make("app.dashed", [s(S.join([S.poly([(8, 3.5), (10.5, 3.5)]), S.poly([(13.5, 3.5), (16, 3.5)]), S.poly([(8, 20.5), (10.5, 20.5)]),
                                           S.poly([(13.5, 20.5), (16, 20.5)]), S.poly([(3.5, 8), (3.5, 10.5)]), S.poly([(3.5, 13.5), (3.5, 16)]),
                                           S.poly([(20.5, 8), (20.5, 10.5)]), S.poly([(20.5, 13.5), (20.5, 16)])]), 1.75),
@@ -493,10 +434,6 @@ extension SymbolArtwork {
             make("checklist", [s(S.join([S.poly([(3, 6.5), (5, 8.5), (8.5, 4.5)]), S.poly([(3, 15.5), (5, 17.5), (8.5, 13.5)]),
                                          S.poly([(11.5, 7), (21, 7)]), S.poly([(11.5, 16), (21, 16)])]), 1.75)]),
             make("hammer.circle", [s(c, 1.75), f(S.hammer().applying(RenderTransform(a: 0.55, b: 0, c: 0, d: 0.55, tx: 5.4, ty: 5.4)))]),
-            // SwiftCode's editors (asset and String Catalogs, the Attributes
-            // inspector): a picture (frame, hill, sun), a picture on a
-            // second frame, a closed book with a character (the sliders are
-            // the debugger's set below).
             make("photo", [s(S.roundedRect(3, 5, 18, 14, 2.5), 1.75), s(S.poly([(4, 17.5), (9.5, 11.5), (13, 15), (15.5, 12.5), (20, 17)]), 1.5),
                            f(S.circle(15.5, 9, 1.6))]),
             make("photo.on.rectangle", [s(S.poly([(6, 3.5), (19, 3.5), (21, 3.5), (21, 15)]), 1.5), s(S.roundedRect(3, 7, 15, 13, 2.5), 1.75),
@@ -509,14 +446,10 @@ extension SymbolArtwork {
         return d
     }()
 
-    /// The IDE's debug bar and debug area (B2-DEBUG): Step Over, Step Into,
-    /// Step Out, and the variables-view half of the debug area. Plain
-    /// outlines on the same grid.
     private static let debuggerSymbols: [SymbolArtwork] = {
         typealias S = Shapes
         let w = 1.75
         func lines(_ l: [[(Double, Double)]]) -> RenderPath { S.join(l.map { S.poly($0) }) }
-        // An arc over a point, landing to its right.
         var over = RenderPath()
         over.move(to: CGPoint(x: 4, y: 15))
         over.cubic(to: CGPoint(x: 17, y: 12), control1: CGPoint(x: 4, y: 5), control2: CGPoint(x: 17, y: 4))
@@ -524,10 +457,8 @@ extension SymbolArtwork {
             make("arrow.turn.down.right", [s(over, w), s(lines([[(13.5, 9), (17, 12.5), (20.5, 9)]]), w), f(S.circle(4, 19.5, 1.6))]),
             make("arrow.down.to.line", [s(lines([[(12, 3), (12, 15)], [(7.5, 10.5), (12, 15), (16.5, 10.5)], [(5, 20), (19, 20)]]), w)]),
             make("arrow.up.to.line", [s(lines([[(12, 21), (12, 9)], [(7.5, 13.5), (12, 9), (16.5, 13.5)], [(5, 4), (19, 4)]]), w)]),
-            // A window with its left half filled (the variables view).
             make("rectangle.lefthalf.inset.filled", 70 * third, 56 * third,
                  [s(S.roundedRect(2.5, 4.5, 19, 15, 2.5), w), f(S.roundedRect(5, 7, 6.5, 10, 1))]),
-            // The Debug and Breakpoint navigators' bottom-bar toggles.
             make("arrow.down.right.and.arrow.up.left", [s(lines([[(4, 4), (10, 10)], [(5.5, 10), (10, 10), (10, 5.5)],
                                                                 [(20, 20), (14, 14)], [(18.5, 14), (14, 14), (14, 18.5)]]), w)]),
             make("star.circle", [s(S.circle(12, 12, 9), w), s(S.star().applying(RenderTransform(a: 0.5, b: 0, c: 0, d: 0.5, tx: 6, ty: 5.7)), 1.5)]),
@@ -537,8 +468,6 @@ extension SymbolArtwork {
         ]
     }()
 
-    /// What the IDE's New Project templates show (BETA-POLISH): plain
-    /// outlines on the same grid.
     private static let projectTemplateSymbols: [SymbolArtwork] = {
         typealias S = Shapes
         let w = 1.75

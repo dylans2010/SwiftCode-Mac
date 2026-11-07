@@ -1,40 +1,14 @@
 import Foundation
 
-// MARK: - SDKPackageValidator
-//
-// Package-integrity validation for an extension directory (spec §7.2).
-// Runs AFTER `SDKManifestValidator`: it checks the on-disk package against
-// the already-validated manifest — entrypoint existence, path traversal,
-// symlink containment, invalid names, unexpected executables, `.env` files,
-// `node_modules`, and resource bounds.
-//
-// The manifest validator is pure; this validator performs the file walk.
-// Thread-safe: static functions and value types only, no shared mutable state.
-
 public enum SDKPackageValidator {
 
-    // MARK: - Limits
-
-    /// Maximum enumerated entries (files, directories, symlinks) per package.
     private static let maxWalkedEntries = 10_000
-    /// Maximum total size of regular files per package.
     private static let maxTotalBytes: UInt64 = 100 * 1024 * 1024
-    /// Maximum file-name length in bytes (matches common filesystem limits).
     private static let maxFileNameBytes = 255
-    /// Cap on symlink indirections while resolving a single path.
     private static let maxSymlinkDepth = 40
 
-    /// The v1 runtime is node loading a JS entrypoint — no executables of any
-    /// kind are allowed inside a package.
     private static let executableExtensions: Set<String> = ["sh", "bin", "exe", "dylib", "so"]
 
-    // MARK: - Entry point
-
-    /// Validates the package at `root` against `manifest`.
-    /// - Parameters:
-    ///   - root: Package directory URL (must be a file URL).
-    ///   - manifest: An already-validated `SDKManifest`.
-    /// - Throws: `SDKError` on every rejection path.
     public static func validatePackage(at root: URL, manifest: SDKManifest) throws {
         let fileManager = FileManager.default
 
@@ -56,7 +30,6 @@ public enum SDKPackageValidator {
             )
         }
 
-        // The manifest file must be present at the package root.
         let manifestURL = try resolveContainedPath(relative: "swiftcode.json", under: resolvedRoot)
         var manifestIsDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: manifestURL.path, isDirectory: &manifestIsDirectory),
@@ -68,9 +41,6 @@ public enum SDKPackageValidator {
             )
         }
 
-        // The entrypoint must resolve to a real file inside the package.
-        // (Lexical checks already ran in the manifest validator; here symlinks
-        // are resolved for real and containment is enforced.)
         let entryURL = try resolveContainedPath(relative: manifest.runtime.entrypoint, under: resolvedRoot)
         var entryIsDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: entryURL.path, isDirectory: &entryIsDirectory),
@@ -85,11 +55,6 @@ public enum SDKPackageValidator {
         try walkPackage(root: resolvedRoot)
     }
 
-    // MARK: - Contained path resolution
-
-    /// Resolves a manifest-relative path against `root`, resolving symlinks
-    /// component by component so an escaping link is caught before use.
-    /// - Throws: `SDKError` with `.pathTraversal` on any escape.
     private static func resolveContainedPath(relative: String, under root: URL) throws -> URL {
         var current = root
         for rawComponent in relative.split(separator: "/") {
@@ -157,8 +122,6 @@ public enum SDKPackageValidator {
         }
     }
 
-    // MARK: - Package walk
-
     private static func walkPackage(root: URL) throws {
         let fileManager = FileManager.default
         let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey]
@@ -169,7 +132,7 @@ public enum SDKPackageValidator {
             options: [],
             errorHandler: { _, error in
                 ioError = error
-                return false // stop the walk rather than silently skipping
+                return false
             }
         ) else {
             throw SDKError(
@@ -196,7 +159,6 @@ public enum SDKPackageValidator {
             let values = try? url.resourceValues(forKeys: Set(keys))
             let name = url.lastPathComponent
 
-            // Invalid file names: null bytes or over-long names.
             if name.contains("\0") || name.utf8.count > maxFileNameBytes {
                 throw SDKError(
                     code: .pathTraversal,
@@ -205,14 +167,11 @@ public enum SDKPackageValidator {
                 )
             }
 
-            // ".." segments must never appear in a walked path.
             let relativePath = relativePath(of: url, to: rootPath)
             if relativePath.split(separator: "/").contains("..") {
                 throw traversal("The package contains a path that escapes the package root.")
             }
 
-            // Symlinks: validate the target stays inside the root, then do
-            // NOT descend (avoids loops and escape-via-directory-link).
             if values?.isSymbolicLink == true {
                 try validateWalkedSymlink(at: url, rootPath: rootPath)
                 enumerator.skipDescendants()
@@ -220,7 +179,6 @@ public enum SDKPackageValidator {
             }
 
             if values?.isDirectory == true {
-                // v1 package format: no node_modules, even nested.
                 if name == "node_modules" {
                     throw SDKError(
                         code: .packageIntegrityFailure,
@@ -244,7 +202,6 @@ public enum SDKPackageValidator {
                 }
             }
 
-            // Secrets must never ship inside a package.
             if name == ".env" || name.hasPrefix(".env.") {
                 throw SDKError(
                     code: .packageIntegrityFailure,
@@ -253,7 +210,6 @@ public enum SDKPackageValidator {
                 )
             }
 
-            // The v1 runtime is node loading a JS entrypoint: no executables.
             if executableExtensions.contains(url.pathExtension.lowercased()) {
                 throw SDKError(
                     code: .packageIntegrityFailure,

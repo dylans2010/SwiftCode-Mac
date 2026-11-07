@@ -1,6 +1,3 @@
-// CPU feature publication at VMM start (specs/simulator/cpu-features.md
-// §4.1): read the guest-visible ID registers once, derive the feature set,
-// and install the profile every image's sysctl table and commpage use.
 #if os(Linux) && arch(arm64)
 import CKVM
 import Foundation
@@ -8,10 +5,6 @@ import Glibc
 import SwiftCodeDarwinKernel
 
 enum CPUFeatureSetup {
-    /// Reads the registers of a scratch vCPU (initialized like every SwiftCode
-    /// vCPU: preferred target, PSCI 0.2), CTR_EL0 and DCZID_EL0 at EL0, runs
-    /// the FPCR probe, and installs the profile. Call once, before the first
-    /// VM is built. Logs one line.
     static func install() {
         let mode = GuestCPUProfile.Mode.fromEnvironment()
         let wanted = IDRegister.vcpuRead
@@ -25,8 +18,6 @@ enum CPUFeatureSetup {
         let caches = CacheGeometry.read(cpuDirectory: "/sys/devices/system/cpu/cpu0")
         let hostHz = ckvm_host_cntfrq()
         guard rc == 0 else {
-            // No registers: publish nothing (the minimal set), keep the
-            // other corrected values.
             var p = GuestCPUProfile.minimal
             p.caches = caches
             p.timebaseFrequency = GuestTimebase.frequency(hostFrequency: hostHz)

@@ -17,7 +17,6 @@ struct ModelLinkInstallGuideView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Header Card
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Hugging Face repositories host open-source AI models that can run locally when a compatible file is available.")
                             .font(.callout)
@@ -27,7 +26,6 @@ struct ModelLinkInstallGuideView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .liquidGlass(style: .subtle, cornerRadius: 12)
 
-                    // How to find a model
                     VStack(alignment: .leading, spacing: 12) {
                         Label("How to find a model", systemImage: "sparkles")
                             .font(.headline)
@@ -62,7 +60,6 @@ struct ModelLinkInstallGuideView: View {
                             .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                     )
 
-                    // Input Form Card
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Paste HuggingFace Link", systemImage: "link")
                             .font(.headline)

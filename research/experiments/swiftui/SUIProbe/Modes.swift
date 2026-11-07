@@ -1,12 +1,10 @@
-// SUIProbe modes: lifecycle, navigation, lists, controls, keyboard, modals.
 import SwiftUI
 import UIKit
 
-/// Logs a view's global frame (and safe area) under `key` whenever it changes.
 struct GlobalFrame: ViewModifier {
     let key: String
     var asTarget = false
-    var fx: CGFloat = 0.5      // target point: fraction of width plus dx points
+    var fx: CGFloat = 0.5
     var dx: CGFloat = 0
     func pt(_ r: CGRect) -> CGRect { CGRect(x: r.minX + r.width * fx + dx, y: r.midY, width: 0, height: 0) }
     func body(content: Content) -> some View {
@@ -29,8 +27,6 @@ extension View {
     }
 }
 
-// MARK: lifecycle
-
 struct LifecycleProbe: View {
     @Environment(\.scenePhase) var phase
     var body: some View {
@@ -44,8 +40,6 @@ struct LifecycleProbe: View {
             }
     }
 }
-
-// MARK: navigation stack
 
 struct NavPage: View {
     let n: Int
@@ -76,13 +70,10 @@ struct NavProbe: View {
             let steps: [(Double, [Int])] = [(1.5, [1]), (3.0, [1, 2]), (4.5, [1, 2, 3]), (6.0, [1, 2]), (7.5, []), (9.0, [4, 5])]
             for (t, p) in steps { after(t) { logt("nav.set", p); path = p } }
             after(10.5) { logt("nav.set", "[] (pop all)"); path = [] }
-            // 12.0: the driver taps row 0 (value 10); 14.0: it swipes back from the left edge.
             after(17.0) { finish() }
         }
     }
 }
-
-// MARK: split view (compact width on iPhone)
 
 struct SplitProbe: View {
     @State var selection: Int?
@@ -113,8 +104,6 @@ struct SplitProbe: View {
     }
 }
 
-// MARK: tabs
-
 struct TabsProbe: View {
     @State var sel = 0
     var body: some View {
@@ -134,8 +123,6 @@ struct TabsProbe: View {
         }
     }
 }
-
-// MARK: list and scrolling
 
 @Observable final class AppearCounter {
     var appeared = Set<Int>()
@@ -213,8 +200,6 @@ struct ListProbe: View {
     }
 
     func schedule() {
-        // One stage per launch (-stage 0 list, 1 lazy stack, 2 eager stack).
-        // The driver flings at t≈4 (drag up); report at 9.
         after(9.0) {
             report(stage == 0 ? "list.afterFling" : stage == 1 ? "lazy.afterFling" : "eager.afterFling")
             Rec.flush(prefix: "scroll.")
@@ -222,8 +207,6 @@ struct ListProbe: View {
         }
     }
 }
-
-// MARK: controls
 
 struct ControlsProbe: View {
     @State var on = false
@@ -260,13 +243,10 @@ struct ControlsProbe: View {
             logt("ctl.pickerDefaultStyleHint", "see screenshot")
             after(1.0) { logt("ctl.programmatic", "toggle on"); on = true }
             after(1.5) { on = false }
-            // the driver taps toggle (t≈3), button (t≈4), slider right end (t≈5), stepper plus (t≈6)
             after(14.0) { finish() }
         }
     }
 }
-
-// MARK: keyboard and text input
 
 @MainActor func observeKeyboard() {
     let names: [(String, Notification.Name)] = [
@@ -314,15 +294,12 @@ struct KeyboardProbe: View {
             let modes = UITextInputMode.activeInputModes.map { $0.primaryLanguage ?? "nil" }
             log("kb.activeInputModes", modes.joined(separator: ","))
             after(1.0) { logt("kb.set", "focus=1"); focus = 1 }
-            // driver: keys h, i at t≈3, Return at t≈4.5
             after(7.0) { logt("kb.set", "focus=2"); focus = 2 }
             after(9.0) { logt("kb.set", "focus=nil"); focus = nil }
             after(11.0) { finish() }
         }
     }
 }
-
-// MARK: modals
 
 func topPresented() -> String {
     guard let ws = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return "-" }

@@ -3,14 +3,10 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// getattrlistbulk record forms (visionos.md §10.15.2, §10.15.3):
-/// ATTR_CMN_ERROR and its word only with FSOPT_PACK_INVAL_ATTRS, and the
-/// depth-first listing Foundation runs over a tree of directories.
 @Suite struct AttributeListBulkTests {
     static let returned: UInt32 = 0x8000_0000, error: UInt32 = 0x2000_0000
     static let name: UInt32 = 0x1, objType: UInt32 = 0x8
     static let packInvalid: UInt64 = 0x8, cmnExtended: UInt64 = 0x20
-    /// The request of RealityEnvironment's listing (§10.15.2 step 3).
     static let deepCommon: UInt32 = 0xF01F_9E0D
     static let oDirectory: UInt64 = 0x100000, oCloexec: UInt64 = 0x1000000
 
@@ -58,7 +54,6 @@ import SwiftCodeDarwinABI
         env.put(k, alist, at: alistAt)
     }
 
-    /// One call; the records it returned (nil: an error, with `errno` set).
     func bulk(_ fd: UInt64, size: Int, options: UInt64) -> [Record]? {
         let n = env.bsd(k, 461, [fd, alistAt, bufferAt, UInt64(size), options])
         guard n >= 0 else { return nil }
@@ -72,8 +67,6 @@ import SwiftCodeDarwinABI
         return out
     }
 
-    /// Without FSOPT_PACK_INVAL_ATTRS a requested ATTR_CMN_ERROR is neither
-    /// returned nor packed: the name reference follows the attribute set.
     @Test func errorOmittedWithoutPackInvalid() throws {
         let base = try make(["a"], dirs: ["d"])
         request(common: Self.returned | Self.error | Self.name | Self.objType)
@@ -87,8 +80,6 @@ import SwiftCodeDarwinABI
         }
     }
 
-    /// With FSOPT_PACK_INVAL_ATTRS the returned set is the requested set,
-    /// ATTR_CMN_ERROR included, and a zero error word precedes the name.
     @Test func errorPackedWithPackInvalid() throws {
         let base = try make(["a"], dirs: ["d"])
         request(common: Self.returned | Self.error | Self.name | Self.objType)
@@ -103,7 +94,6 @@ import SwiftCodeDarwinABI
         }
     }
 
-    /// Not requested: no bit and no word, with or without the option.
     @Test func errorNotRequested() throws {
         let base = try make(["a"])
         request(common: Self.returned | Self.name | Self.objType)
@@ -115,11 +105,6 @@ import SwiftCodeDarwinABI
         }
     }
 
-    /// RealityEnvironment's whole request (common 0xf01f9e0d, dir 0x5,
-    /// file 0x1, extended 0x240, FSOPT_ATTR_CMN_EXTENDED): returned common
-    /// 0xd01f9e0d, the group of the object's kind, the name reference
-    /// right after the set. With FSOPT_PACK_INVAL_ATTRS the error word
-    /// shifts everything by 4.
     @Test func mixedRequest() throws {
         let base = try make(["Info.plist"], dirs: ["AssetData"])
         request(common: Self.deepCommon, dir: 0x5, file: 0x1, fork: 0x240)
@@ -133,11 +118,11 @@ import SwiftCodeDarwinABI
             #expect(r.set(2) == (isDir ? 0x5 : 0))
             #expect(r.set(3) == (isDir ? 0 : 0x1))
             #expect(r.set(4) == 0x240)
-            #expect(r.u32(40) == (isDir ? 2 : 1))                 // OBJTYPE after NAME and FSID
+            #expect(r.u32(40) == (isDir ? 2 : 1))
             if isDir {
-                #expect(r.u32(152) == 1 && r.u32(156) == 0)       // LINKCOUNT, MOUNTSTATUS
+                #expect(r.u32(152) == 1 && r.u32(156) == 0)
             } else {
-                #expect(r.u32(152) == 1)                          // file LINKCOUNT
+                #expect(r.u32(152) == 1)
             }
         }
         let packed = try #require(bulk(open(base), size: 18_600, options: Self.cmnExtended | Self.packInvalid))
@@ -152,11 +137,6 @@ import SwiftCodeDarwinABI
         }
     }
 
-    /// The depth-first listing of §10.15.2 step 4: each directory record is
-    /// followed, before the next record, by opening that directory by full
-    /// path and listing it to the end, so up to four listings are open at
-    /// once. With a one-record buffer the parent's listing resumes after
-    /// each child.
     @Test(arguments: [18_600, 200])
     func depthFirstListing(size: Int) throws {
         let rooms = ["LivingRoomDay", "Office"]

@@ -6,10 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-5.md §1–§2 behavior: titles in context (§1.3), conditional
-/// items and separators (§1.5), the system's items (§1.6), menus filled
-/// from state, the jump-bar keyboard menus (§2.4, §6.1.3), Quick Actions
-/// (§2.4 item 5) and the commands added with the menu bar.
 @MainActor
 @Suite(.serialized) struct MenuBarBehaviorTests {
     func withWindow(_ body: @MainActor (WorkspaceWindowController, URL) throws -> Void) throws {
@@ -42,8 +38,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         m.items.filter { !$0.isHidden && !$0.isAlternate }.map { $0.isSeparatorItem ? "—" : $0.title }
     }
 
-    /// §1.5 and §2.6: the source-editor items of Navigate show only with a
-    /// source editor focused, and their separators collapse.
     @Test func conditionalNavigateItems() throws {
         try withWindow { wc, src in
             let bar = MainMenu.make()
@@ -59,17 +53,14 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                             "Jump to Line in \u{201C}Demo.swift\u{201D}…", "—", "Jump to Next Placeholder", "Jump to Previous Placeholder",
                                             "—", "Jump to Next Change", "Jump to Previous Change"])
             #expect(v.contains("Jump to Line in \u{201C}Demo.swift\u{201D}…") && v.last == "Jump to Previous Change")
-            // The file's titles reach the other menus too.
             let product = try #require(bar.item(withTitle: "Product")?.submenu?.item(withTitle: "Perform Action")?.submenu)
             MenuBarDelegate.shared.update(product, controller: wc)
             #expect(product.items.contains { $0.title == "Compile \u{201C}Demo.swift\u{201D}" })
             let find = try #require(bar.item(withTitle: "Find")?.submenu)
             MenuBarDelegate.shared.update(find, controller: wc)
             #expect(find.items.first?.title == "Find in Package")
-            // Back to no workspace: generic titles again.
             MenuBarDelegate.shared.update(find, controller: nil)
             #expect(find.items.first?.title == "Find in Workspace")
-            // ⇧⌘W is hidden while ⌘W reads Close Window (one tab), with its alternate.
             let file = try #require(bar.item(withTitle: "File")?.submenu)
             MenuBarDelegate.shared.update(file, controller: wc)
             let closeWindow = try #require(file.items.first { $0.action == #selector(NSWindow.performClose(_:)) })
@@ -82,7 +73,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    /// §1.6: the system's items that collide with the table go; others stay.
     @Test func systemItemsGiveWay() throws {
         _ = NSApplication.shared
         let bar = MainMenu.make()
@@ -104,7 +94,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     }
 
     @Test func menusFilledFromState() throws {
-        // SwiftCode ▸ Open Developer Tool: the tools found, in the reference order.
         let dev = URL(fileURLWithPath: "/Dev")
         let found = DeveloperTools.tools(inDeveloperDirectory: dev) { ["/Dev/Applications/FileMerge.app", "/Dev/Applications/Instruments.app"].contains($0) }
         #expect(found.map(\.name) == ["Instruments", "FileMerge"])
@@ -113,16 +102,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let tools = try #require(bar.item(withTitle: "SwiftCode")?.submenu?.item(withTitle: "Open Developer Tool")?.submenu)
         DynamicMenus.fillDeveloperTools(tools, tools: found)
         DynamicMenus.fillDeveloperTools(tools, tools: found)
-        // SwiftCode's own Device Hub follows the tools found (device-hub.md "SwiftCode implementation").
-        // SwiftCode's own Compare Files… follows Device Hub (comparison.md "SwiftCode implementation").
         #expect(visible(tools) == ["Instruments", "FileMerge", "Device Hub", "Compare Files…", "—", "More Developer Tools…"])
         #expect(tools.items.first?.target === AppCommands.shared)
-        // View ▸ Inspectors follows the focused editor's tabs.
         let insp = try #require(bar.item(withTitle: "View")?.submenu?.item(withTitle: "Inspectors")?.submenu)
         DynamicMenus.fillInspectors(insp, names: ["File", "History", "Quick Help", "Identity", "Attributes"])
         #expect(visible(insp) == ["File", "History", "Quick Help", "Identity", "Attributes", "—", "Show Inspector"])
         #expect(insp.items[4].keyEquivalent == "5" && insp.items[4].keyEquivalentModifierMask == [.command, .option] && insp.items[4].tag == 4)
-        // Product ▸ Scheme: one row per scheme, the active one checked.
         let scheme = try #require(bar.item(withTitle: "Product")?.submenu?.item(withTitle: "Scheme")?.submenu)
         DynamicMenus.fillSchemes(scheme, names: ["App", "AppTests"], active: "AppTests", target: nil)
         #expect(visible(scheme).suffix(3) == ["—", "App", "AppTests"])
@@ -136,26 +121,21 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(wc.jumpBarEntries(.previousHistory).isEmpty)
             wc.open(path: more, line: nil)
             wc.open(path: demo, line: nil)
-            // ⌃1: recent files, then counterparts.
             let related = wc.jumpBarEntries(.relatedItems)
             #expect(related.map(\.title) == ["Recent Files", "More.swift", "Counterparts", "DemoTests.swift"])
             #expect(related[0].isLabel && related[3].path == tests)
-            // ⌃2 / ⌃3: history.
             #expect(wc.jumpBarEntries(.previousHistory).map(\.path) == [more])
             wc.goBack(nil)
             #expect(wc.jumpBarEntries(.nextHistory).map(\.path) == [demo] && wc.jumpBarEntries(.nextFilesHistory).map(\.path) == [demo])
             wc.goForward(nil)
-            // ⌃5: the group's files; ⌃4: the top level.
             #expect(Set(wc.jumpBarEntries(.groupFiles).map(\.title)) == ["Demo.swift", "DemoTests.swift", "More.swift"])
             #expect(!wc.jumpBarEntries(.topLevelItems).isEmpty)
-            // ⌃6: the document's symbols, members indented.
             let items = wc.jumpBarEntries(.documentItems)
             #expect(items.map(\.title).prefix(2) == ["Greeter", "  greet"] && items.first?.line == 1)
             let menu = wc.popUpJumpBarMenu(.documentItems)
             #expect(menu.items.first?.title == "Greeter")
             wc.jumpBarEntryChosen(menu.items[1])
             #expect(wc.editor.currentLine == 2)
-            // The menu commands are enabled while their menu has entries.
             let i = NSMenuItem(title: "", action: #selector(WorkspaceWindowController.showDocumentItemsMenu(_:)), keyEquivalent: "")
             #expect(wc.validateMenuItem(i))
         }
@@ -165,20 +145,16 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try withWindow { wc, src in
             let demo = src.appendingPathComponent("Demo.swift").path
             wc.open(path: demo, line: nil)
-            // Counterparts: Demo.swift ↔ DemoTests.swift.
             wc.jumpToNextCounterpart(nil)
             #expect(wc.editor.fileURL?.lastPathComponent == "DemoTests.swift")
             wc.jumpToPreviousCounterpart(nil)
             #expect(wc.editor.fileURL?.lastPathComponent == "Demo.swift")
-            // Placeholders: ⌃/ selects the next one.
             wc.editor.textView.setSelectedRange(NSRange(location: 0, length: 0))
             wc.jumpToNextPlaceholder(nil)
             let sel = wc.editor.textView.selectedRange()
             #expect((wc.editor.textView.string as NSString).substring(with: sel) == "<#name#>")
-            // §2.0: Show Code Actions moves to the source editor's context menu.
             let ctx = wc.editor.textView(wc.editor.textView, menu: NSMenu(), for: NSEvent(), at: 0)
             #expect(ctx?.items.first?.title == "Show Code Actions" && ctx?.items.first?.action == NSSelectorFromString("showCodeActions:"))
-            // Edit ▸ Delete (⌘⌫): the selection, else to the start of the line.
             let tv = wc.editor.textView
             tv.setSelectedRange(NSRange(location: 6, length: 0))
             let del = NSMenuItem(title: "Delete", action: #selector(NSText.delete(_:)), keyEquivalent: "")
@@ -186,7 +162,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             tv.delete(nil)
             #expect(tv.string.hasPrefix(" Greeter {"))
             tv.undoManager?.undo()
-            // Close Other Tabs keeps the selected tab.
             wc.newTab(nil)
             wc.open(path: src.appendingPathComponent("More.swift").path, line: nil)
             #expect(wc.editorArea.tabs.count == 2)
@@ -195,12 +170,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.closeOtherTabs(nil)
             #expect(wc.editorArea.tabs.count == 1 && wc.editor.fileURL?.lastPathComponent == "More.swift")
             #expect(!wc.validateMenuItem(other))
-            // The menu-bar titles come from the context.
             let item = CommandMenuItem(title: "", action: #selector(WorkspaceWindowController.closeWorkspace(_:)), keyEquivalent: "")
             item.spec = CommandTable.command(action: "closeWorkspace:")
             _ = wc.validateMenuItem(item)
             #expect(item.title == "Close Package")
-            // Find ▸ Select All Find Matches selects every match.
             wc.editor.setFind("let")
             wc.editor.performFind(tag: 9)
             #expect(wc.editor.textView.selectedRanges.count == 1)
@@ -208,7 +181,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.editor.setFind("e")
             wc.editor.performFind(tag: 9)
             #expect(wc.editor.textView.selectedRanges.count > 3)
-            // Product ▸ Scheme rows select the scheme.
             if let first = wc.session.model.schemeNames.first {
                 wc.selectSchemeRow(0)
                 #expect(wc.session.scheme == first)
@@ -222,7 +194,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let bar = MainMenu.make()
             let all = QuickActions.collect(from: bar, controller: wc)
             #expect(all.contains { $0.title == "Build" && $0.path == "Product" && $0.shortcut == "⌘B" })
-            // Disabled and hidden commands are not listed, nor the palette itself.
             #expect(!all.contains { $0.title == "SwiftCode Extensions…" || $0.title == "Show Quick Actions…" })
             #expect(!all.contains { $0.title == "Load Symbols…" })
             let f = QuickActions.filter(all, "clean build")
@@ -234,7 +205,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    /// File ▸ Open… works unbundled (no Info.plist document types).
     @Test func openIsEnabledUnbundled() {
         _ = NSApplication.shared
         let dc = NSDocumentController.shared as? SwiftCodeDocumentController ?? SwiftCodeDocumentController()

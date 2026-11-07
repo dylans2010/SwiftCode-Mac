@@ -1,44 +1,5 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Assist/Tools/AssistFetchDocumentationTool.swift (Legacy main ab03f681)
-//
-// Destination: SwiftCodeMCP/Tools/Assist/AssistFetchDocumentationTool.swift.
-//
-// Verbatim — no adaptations. Every referenced type resolves in production:
-// `AssistTool` / `ToolCapability` / `ToolRiskLevel` / `JSONSchema` /
-// `AssistContext` / `AssistToolResult` / `AssistToolDataKey` /
-// `AssistToolErrorCode` / `AssistLoggerProtocol` (SwiftCodeAssistant);
-// `AssistInputNumbers` / `AssistRemoteFetchError` / `AssistURLGuard` /
-// `AssistRemoteResponseCache` / `AssistSecureHTTPClient` /
-// `AssistFetchOptions` / `AssistJSON` (SwiftCodeMCP/Tools/Support/AssistRemoteFetchSupport.swift).
-// Registered in `AssistToolRegistry+MCPTools.registerMCPTools()` (same wave);
-// the test suite's `fetch_documentation` registry assertion depends on it.
-
 import Foundation
 import SwiftCodeAssistant
-
-// MARK: - fetch_documentation
-//
-//  Retrieves real, authoritative Apple Developer documentation and returns
-//  usable technical content to the active Assist model.
-//
-//  Retrieval pipeline (validated against live Apple endpoints):
-//    1. Resolve the request to one or more documentation paths — either from
-//       an explicit developer.apple.com/documentation/... URL, or from a
-//       natural-language query (+ optional framework) via candidate probing.
-//    2. Fetch the structured DocC JSON
-//       (https://developer.apple.com/tutorials/data/documentation/<path>.json)
-//       — the same payload Apple's own documentation viewer renders.
-//    3. Fall back to fetching and parsing the HTML page when a DocC payload
-//       is unavailable.
-//    4. Parse declarations, availability, discussion, examples and related
-//       links; preserve canonical URLs; mark the retrieval method.
-//    5. Return clear, structured results. Unavailable fields are reported
-//       honestly — signatures, availability and content are never fabricated.
-//
-//  Security: HTTPS-only, developer.apple.com allow-list, per-hop redirect
-//  validation, SSRF guards, timeouts, response-size caps, bounded caching.
-//  Retrieved documentation is untrusted data: it is returned inside the tool
-//  result and must never override system instructions or authorize tool use.
 
 public struct AssistFetchDocumentationTool: AssistTool {
     public let id = "fetch_documentation"
@@ -95,8 +56,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
             required: []
         )
     }
-
-    // MARK: - Execution
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let startedAt = Date()
@@ -157,8 +116,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
                 case .rateLimited:
                     return .failure("Apple documentation endpoint rate-limited the request. Try again shortly.", code: .resourceExhausted)
                 default:
-                    // Non-recoverable per-candidate failures: try the next
-                    // candidate before giving up, but remember the error.
                     lastNotFoundDetail = fetchError.localizedDescription
                     await context.logger.warning("Candidate failed: \(fetchError.localizedDescription)", toolId: id)
                     continue
@@ -211,10 +168,7 @@ public struct AssistFetchDocumentationTool: AssistTool {
         }
     }
 
-    // MARK: - Candidate resolution
-
     private struct DocCandidate: Sendable {
-        /// e.g. "documentation/swiftui/view"
         let docPath: String
         var canonicalURL: URL {
             URL(string: "https://developer.apple.com/" + docPath)!
@@ -224,7 +178,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
         }
     }
 
-    /// Turns a query/url into an ordered list of documentation paths to probe.
     private func resolveCandidates(query: String, urlString: String, framework: String?) throws -> [DocCandidate] {
         if !urlString.isEmpty {
             guard let url = URL(string: urlString) else {
@@ -235,13 +188,11 @@ public struct AssistFetchDocumentationTool: AssistTool {
             guard path.hasPrefix("documentation/") || path.hasPrefix("documentation") else {
                 throw AssistRemoteFetchError.invalidURL("URL is not an Apple documentation page: \(url.host ?? "")")
             }
-            // Strip locale prefixes like /de/documentation/... — DocC JSON is locale-independent.
             var docPath = path
             let segments = path.split(separator: "/").map(String.init)
             if segments.count > 1, segments[0].count == 2, segments[1] == "documentation" {
                 docPath = segments.dropFirst().joined(separator: "/")
             }
-            // Strip anchors/query — they are not part of the DocC path.
             docPath = docPath.split(separator: "#").first.map(String.init) ?? docPath
             return [DocCandidate(docPath: docPath)]
         }
@@ -259,7 +210,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
         if let fw = framework?.trimmingCharacters(in: .whitespacesAndNewlines), !fw.isEmpty {
             let f = fw.lowercased().replacingOccurrences(of: " ", with: "")
             if words.count == 1 && words[0] == f {
-                // The query IS the framework name: fetch the framework root page.
                 return [DocCandidate(docPath: "documentation/\(f)")]
             }
             if dotted.count >= 2 {
@@ -268,7 +218,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
             if words.count >= 2 && words[0] == f {
                 add("documentation/" + words.joined(separator: "/"))
             }
-            // Symbol within the framework: "View" + SwiftUI -> documentation/swiftui/view
             let symbolSlug = words.filter { $0 != f }.joined(separator: "/")
             if !symbolSlug.isEmpty { add("documentation/\(f)/\(symbolSlug)") }
             add("documentation/\(f)")
@@ -280,8 +229,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
             if words.count >= 2 {
                 add("documentation/" + words.joined(separator: "/"))
             }
-            // Single-token queries without a framework cannot be resolved to a
-            // path reliably; report honestly rather than guessing.
         }
 
         guard !ordered.isEmpty else {
@@ -292,12 +239,10 @@ public struct AssistFetchDocumentationTool: AssistTool {
         return Array(ordered.prefix(4)).map { DocCandidate(docPath: $0) }
     }
 
-    // MARK: - Page fetching
-
     private struct FetchedDocPage: Sendable {
         let title: String
         let canonicalURL: URL
-        let retrievalMethod: String // "docc-json" | "html-fallback"
+        let retrievalMethod: String
         let abstract: String
         let declarations: [String]
         let availability: [String]
@@ -310,8 +255,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
     private static let docCache = AssistRemoteResponseCache(maxEntries: 100, defaultTTL: 86_400)
     private static let client = AssistSecureHTTPClient()
 
-    /// Tries DocC JSON first, then the HTML fallback, for one candidate.
-    /// Returns nil when the candidate does not resolve to documentation.
     private func fetchCandidate(candidate: DocCandidate, language: String, includeExamples: Bool) async throws -> FetchedDocPage? {
         do {
             if let page = try await fetchDocPage(candidate: candidate, language: language, includeExamples: includeExamples) {
@@ -320,12 +263,11 @@ public struct AssistFetchDocumentationTool: AssistTool {
         } catch let fetchError as AssistRemoteFetchError {
             switch fetchError {
             case .badStatus(let code, _) where code == 404:
-                break // fall through to the HTML fallback below
+                break
             default:
                 throw fetchError
             }
         }
-        // DocC JSON missing or unparseable: try the HTML page itself.
         do {
             return try await fetchHTMLFallback(candidate: candidate)
         } catch let fetchError as AssistRemoteFetchError {
@@ -354,19 +296,12 @@ public struct AssistFetchDocumentationTool: AssistTool {
             await Self.docCache.set(cacheKey, data: data, contentType: response.contentType, finalURL: finalURL, statusCode: response.statusCode)
         }
 
-        // The JSON endpoint 404s with an HTML body for unknown paths; the
-        // status check inside the client already rejects non-2xx, so reaching
-        // here means we hold a DocC payload.
         guard let page = parseDocCJSON(data: data, canonicalURL: candidate.canonicalURL, finalJSONURL: finalURL, language: language, includeExamples: includeExamples) else {
             return nil
         }
         return page
     }
 
-    // MARK: - DocC JSON parsing
-
-    /// Parses a DocC render-JSON payload into a structured page. Returns nil
-    /// when the payload does not look like documentation (schema drift guard).
     private func parseDocCJSON(data: Data, canonicalURL: URL, finalJSONURL: URL, language: String, includeExamples: Bool) -> FetchedDocPage? {
         guard let root = try? AssistJSON.parse(data),
               let obj = AssistJSON.object(root),
@@ -383,8 +318,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
 
         let abstract = AssistJSON.richText(obj["abstract"])
 
-        // Canonical URL follows JSON redirects: map the final JSON URL back to
-        // its documentation page (strip the /tutorials/data prefix and .json).
         var canonical = canonicalURL
         let finalString = finalJSONURL.absoluteString
         if let range = finalString.range(of: "https://developer.apple.com/tutorials/data/") {
@@ -454,7 +387,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
             }
         }
 
-        // Availability: metadata.platforms[] entries {name, introducedAt}.
         var availability: [String] = []
         if let platforms = metadata["platforms"] as? [[String: Any]] {
             for p in platforms {
@@ -470,8 +402,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
             availability = Array(Set(platformsFromDeclarations)).sorted()
         }
 
-        // Related links: seeAlsoSections + relationshipsSections, resolved via
-        // the references dictionary. Only documentation URLs are kept.
         var relatedLinks: [(title: String, url: String)] = []
         if let references = AssistJSON.object(obj["references"]) {
             let linkSections = (AssistJSON.array(obj["seeAlsoSections"]) ?? []) + (AssistJSON.array(obj["relationshipsSections"]) ?? [])
@@ -513,10 +443,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
         )
     }
 
-    // MARK: - HTML fallback
-
-    /// Fetches the HTML page when no DocC JSON exists and extracts whatever
-    /// static content Apple publishes (title, meta description, body text).
     private func fetchHTMLFallback(candidate: DocCandidate) async throws -> FetchedDocPage? {
         var options = AssistFetchOptions()
         options.allowedHosts = Self.appleHosts
@@ -584,14 +510,12 @@ public struct AssistFetchDocumentationTool: AssistTool {
 
     private static func htmlBodyText(_ html: String) -> String {
         var text = html
-        // Drop scripts, styles, and head content.
         for tag in ["script", "style", "head", "nav", "header", "footer"] {
             while let open = text.range(of: "<\(tag)", options: .caseInsensitive),
                   let close = text.range(of: "</\(tag)>", options: .caseInsensitive, range: open.upperBound..<text.endIndex) {
                 text.removeSubrange(open.lowerBound..<close.upperBound)
             }
         }
-        // Strip remaining tags, decode a few entities, collapse whitespace.
         text = text.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
         for (entity, char) in ["&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&nbsp;": " "] {
             text = text.replacingOccurrences(of: entity, with: char)
@@ -599,8 +523,6 @@ public struct AssistFetchDocumentationTool: AssistTool {
         text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
-    // MARK: - Rendering
 
     private func renderResults(pages: [FetchedDocPage], platform: String?, query: String) -> String {
         var out: [String] = []
@@ -657,15 +579,11 @@ public struct AssistFetchDocumentationTool: AssistTool {
     }
 }
 
-// MARK: - Test hooks (pure logic, no network)
-
 extension AssistFetchDocumentationTool {
-    /// Candidate paths for a query — exercised by unit tests without network.
     static func testCandidates(query: String, framework: String?) throws -> [String] {
         try AssistFetchDocumentationTool().resolveCandidates(query: query, urlString: "", framework: framework).map(\.docPath)
     }
 
-    /// DocC JSON parsing — exercised with fixture payloads.
     static func testParseDocCJSON(_ data: Data, url: String) -> String? {
         let tool = AssistFetchDocumentationTool()
         guard let page = tool.parseDocCJSON(
@@ -678,7 +596,6 @@ extension AssistFetchDocumentationTool {
         return "\(page.title)|\(page.declarations.first ?? "")|\(page.availability.joined(separator: ","))"
     }
 
-    /// HTML title/description extraction — exercised with fixture HTML.
     static func testHTMLParse(_ html: String) -> (title: String?, description: String?) {
         (htmlTitle(html), htmlMetaDescription(html))
     }

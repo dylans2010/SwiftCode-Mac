@@ -2,22 +2,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeAssistant
 
-// MARK: - Local AI Co-Pilot tab (Wave 19 slice A)
-//
-// The Documentation Browser's AI tab. Legacy's version
-// (`executeLocalAIDocumentationPrompt` / `generateOfflineInsight`)
-// slept 150 ms and then reformatted the symbol's own fields while
-// claiming "100% On-Device Mode" and "Fully compliant with Swift 6
-// Concurrency isolation standards" — canned text presented as
-// analysis. That is NOT ported. This tab sends the symbol and the
-// prompt to the real `LLMToolCompletionService` (the same host
-// dispatch the MCP tools use — Settings' provider + model, the
-// secret store, any test provider override) and fails honestly
-// when no provider is usable, naming the provider and the reason.
-//
-// The 8 prompt presets are Legacy's, verbatim.
-// Spec: `specs/ide/wave19-docs.md` §6.
-
 struct DocumentationAIAssistantView: View {
     var symbol: DocSymbol?
 
@@ -107,11 +91,6 @@ struct DocumentationAIAssistantView: View {
         .padding()
     }
 
-    /// The LLM service for this tab: the host's Assist dispatch
-    /// (`CodingAssistantServices` — Settings' provider + model, the
-    /// secret store, and any test provider override), never a
-    /// parallel client. Mirrors the MCP accessor in
-    /// `SwiftCodeTools+AgenticCode.llmToolService()`.
     private func llmService() -> LLMToolCompletionService {
         let services = CodingAssistantServices.shared
         var overrides: [ProviderKind: AssistantProvider] = [:]
@@ -156,9 +135,6 @@ struct DocumentationAIAssistantView: View {
                 }
             } catch {
                 await MainActor.run {
-                    // Honest failure: the error names the provider
-                    // and the reason (no key, no endpoint, not
-                    // installed, …). Nothing canned is substituted.
                     errorMessage = error.localizedDescription
                     isProcessing = false
                 }

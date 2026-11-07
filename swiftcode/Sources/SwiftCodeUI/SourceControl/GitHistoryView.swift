@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/Legacy/GitHistoryView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Adaptation: Destination GitCommit fields: author -> authorName, id -> shortHash; not Identifiable: ForEach uses id: \.hash.
 import SwiftUI
 import SwiftCodeSDK
 
@@ -10,7 +7,6 @@ struct GitHistoryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Commit Logs History", systemImage: "clock.arrow.circlepath")
                     .font(.headline)
@@ -19,7 +15,6 @@ struct GitHistoryView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

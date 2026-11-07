@@ -43,9 +43,7 @@ public struct AssistMarkdownLinkCheckTool: AssistTool {
             for m in matches {
                 guard let r = Range(m.range(at: 2), in: text) else { continue }
                 var dest = String(text[r])
-                // Skip anchors-only, absolute URLs, and mailto:.
                 if dest.hasPrefix("#") || dest.contains("://") || dest.hasPrefix("mailto:") { continue }
-                // Strip anchor.
                 if let hash = dest.firstIndex(of: "#") { dest = String(dest[..<hash]) }
                 if dest.isEmpty { continue }
                 checked += 1

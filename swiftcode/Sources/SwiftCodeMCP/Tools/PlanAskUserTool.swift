@@ -1,17 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/PlanAskUserTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/Tools/PlanAskUserTool.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Native macOS question UI presentation (PlanQuestionManager/PlanUserAskView)
-//   - Blocking wait for the user's answer (up to 300 s) and returning the answer as the tool result
-//   - Plan-mode-only restriction (Legacy blocks the tool outside Plan mode); the destination has no execution-mode gate
-// ADAPTATIONS:
-//   - Combine -> Observation (destination convention, cf. TasksAIPlanner.swift): `: ObservableObject` removed, class marked @Observable, @Published vars are plain stored vars, `import Observation` added. @MainActor NOT added — wiring to decide.
-// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
-// WIRING / REGISTRATION: MCP catalogue SwiftCodeTools+Planning.swift (askUser): the legacy tool presents PlanUserAskView directly — wiring must keep presentation in swiftcode-ide (handoff payload) instead of calling the view from SwiftCodeMCP (swiftcode-ide is not an MCP dependency).
-
 import Foundation
 import SwiftCodeAssistant
 import Observation
@@ -300,7 +286,6 @@ public final class PlanQuestionManager {
             return
         }
         questionHistory = questions
-        // Mark any lingering pending questions as expired since continuations cannot survive app launch
         for idx in questionHistory.indices where questionHistory[idx].status == .pending {
             questionHistory[idx].status = .expired
         }

@@ -1,16 +1,8 @@
 import Foundation
 
-/// What Settings ▸ Editing ▸ Display draws from the text alone
-/// (`specs/ide/reference-ui-5.md` §9.3): MARK separators, the condition
-/// after `#endif`, inactive `#if` branches, comment delimiters and the
-/// code structure headers. Lines are 1-based.
 public enum EditorDisplayModel {
     static func lines(_ text: String) -> [Substring] { text.split(separator: "\n", omittingEmptySubsequences: false) }
 
-    // MARK: MARK separators
-
-    /// Lines that start (after indentation) with `// MARK: -`; a separator
-    /// is drawn above each.
     public static func markSeparatorLines(in text: String) -> [Int] {
         var out: [Int] = []
         for (i, l) in lines(text).enumerated() {
@@ -20,21 +12,15 @@ public enum EditorDisplayModel {
         return out
     }
 
-    // MARK: Conditional compilation
-
-    /// One `#if … #endif` block: its directive lines and conditions.
     public struct Conditional: Equatable, Sendable {
         public struct Branch: Equatable, Sendable {
-            /// The directive's line (`#if`, `#elseif`/`#elif`, `#else`).
             public var line: Int
-            /// The condition (nil for `#else`).
             public var condition: String?
         }
         public var branches: [Branch]
         public var endifLine: Int
     }
 
-    /// The directive on a line: its keyword and the rest.
     static func directive(_ line: Substring) -> (keyword: String, rest: String)? {
         var t = line.drop { $0 == " " || $0 == "\t" }
         guard t.first == "#" else { return nil }
@@ -42,13 +28,11 @@ public enum EditorDisplayModel {
         let keyword = String(t.prefix { $0.isLetter })
         guard ["if", "ifdef", "ifndef", "elseif", "elif", "else", "endif"].contains(keyword) else { return nil }
         var rest = String(t.dropFirst(keyword.count))
-        // Trailing comments are not part of the condition.
         if let r = rest.range(of: "//") { rest = String(rest[..<r.lowerBound]) }
         if let r = rest.range(of: "/*") { rest = String(rest[..<r.lowerBound]) }
         return (keyword, rest.trimmingCharacters(in: .whitespaces))
     }
 
-    /// Every `#if` block (nested ones too), in order of their `#endif`.
     public static func conditionals(in text: String) -> [Conditional] {
         var open: [[Conditional.Branch]] = []
         var out: [Conditional] = []
@@ -66,18 +50,12 @@ public enum EditorDisplayModel {
         return out
     }
 
-    /// Condition on #endif lines: each `#endif` line and the condition of
-    /// its `#if`.
     public static func endifConditions(in text: String) -> [Int: String] {
         var out: [Int: String] = [:]
         for c in conditionals(in: text) { if let cond = c.branches.first?.condition, !cond.isEmpty { out[c.endifLine] = cond } }
         return out
     }
 
-    /// Dim inactive code: the lines of branches that are known not to be
-    /// compiled. `defined` lists the active compilation conditions when
-    /// known (nil: identifiers are unknown, so only literal conditions
-    /// such as `false` or `0` decide).
     public static func inactiveLines(in text: String, defined: Set<String>? = nil) -> [ClosedRange<Int>] {
         var out: [ClosedRange<Int>] = []
         for c in conditionals(in: text) {
@@ -94,18 +72,12 @@ public enum EditorDisplayModel {
         return out.sorted { $0.lowerBound < $1.lowerBound }
     }
 
-    /// Evaluates a condition: `true`/`false`, `0`/`1` and other integers,
-    /// identifiers (true when in `defined`; unknown when `defined` is
-    /// nil), `defined(X)`, `!`, `&&`, `||` and parentheses. Anything else
-    /// (`os(…)`, `canImport(…)`, comparisons) is unknown (nil).
     public static func evaluate(_ condition: String, defined: Set<String>?) -> Bool? {
         var p = ConditionParser(Array(condition), defined: defined)
         guard let v = p.parseOr(), p.atEnd else { return nil }
         return v.value
     }
 
-    /// A three-valued result: the parser keeps going on unknowns so
-    /// `false && os(iOS)` is still false.
     struct Value { var value: Bool? }
 
     struct ConditionParser {
@@ -152,7 +124,6 @@ public enum EditorDisplayModel {
             if let n = Int(word) { return Value(value: n != 0) }
             if word == "true" { return Value(value: true) }
             if word == "false" { return Value(value: false) }
-            // A call: defined(X), or a platform condition (unknown).
             if eat("(") {
                 let argStart = i
                 var depth = 1
@@ -169,10 +140,6 @@ public enum EditorDisplayModel {
         }
     }
 
-    // MARK: Comment delimiters
-
-    /// The delimiters of comment tokens: `///`, `/**`, `*/` of
-    /// documentation comments, and `//`, `/*`, `*/` of other comments.
     public static func commentDelimiters(_ tokens: [SourceTokenizer.Token], in text: NSString) -> (doc: [NSRange], plain: [NSRange]) {
         var doc: [NSRange] = [], plain: [NSRange] = []
         for t in tokens where t.kind == .comment || t.kind == .docComment {
@@ -190,15 +157,9 @@ public enum EditorDisplayModel {
         return (doc, plain)
     }
 
-    // MARK: Code structure headers
-
-    // swiftlint:disable:next force_try - a constant pattern
     static let declarationPattern = try! NSRegularExpression(
         pattern: #"\b(class|struct|enum|extension|protocol|actor|func|init|deinit|subscript|var|@interface|@implementation|@protocol)\b"#)
 
-    /// The sticky headers when `topLine` is the first visible line: the
-    /// start lines of the declarations enclosing it (outermost first, at
-    /// most `limit`, the innermost kept). `lineText` gives a line's text.
     public static func structureHeaderLines(_ regions: [FoldRegion], topLine: Int, limit: Int = 3, lineText: (Int) -> String) -> [Int] {
         let enclosing = regions.filter { $0.startLine < topLine && $0.endLine >= topLine }
             .filter { r in

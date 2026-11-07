@@ -1,21 +1,7 @@
 import Foundation
 
-/// Binary property lists (`bplist00`) read and written with the file's
-/// dictionary key order (`specs/ide/plist-editor.md`, reference-ui-5.md
-/// §11.2). The format is the public one of Core Foundation's open-source
-/// binary plist code: a header, the objects, an offset table and a
-/// 32-byte trailer.
-///
-/// The writer lays objects out as Foundation's writer does, so a list
-/// Foundation wrote reads and writes back byte for byte: depth-first
-/// (a dictionary, then its keys, then its values; an array, then its
-/// items), strings, numbers, dates and data shared by value, and every
-/// Boolean occurrence emitted while references point at the first one of
-/// that value.
 enum BinaryPropertyList {
     static let magic = Array("bplist00".utf8)
-
-    // MARK: Reading
 
     static func read(_ data: Data) throws -> PropertyListItem {
         let b = [UInt8](data)
@@ -106,19 +92,14 @@ enum BinaryPropertyList {
         return try object(top)
     }
 
-    // MARK: Writing
-
-    /// A value shared by the writer (strings, numbers, dates, data).
     private enum Shared: Hashable {
         case string(String), integer(Int), real(UInt64), date(UInt64), data(Data)
     }
 
     static func write(_ root: PropertyListItem) -> Data {
-        // Flatten: the object list and each occurrence's reference.
         var objects: [PropertyListItem] = []
         var shared: [Shared: Int] = [:]
         var firstBool: [Bool: Int] = [:]
-        // References of each container's children, by object index.
         var children: [Int: [Int]] = [:]
 
         func flatten(_ v: PropertyListItem) -> Int {
@@ -136,7 +117,6 @@ enum BinaryPropertyList {
             if let key { shared[key] = ref }
             switch v {
             case .bool(let x):
-                // Every occurrence is emitted; references go to the first.
                 if let first = firstBool[x] { return first }
                 firstBool[x] = ref
             case .array(let a):

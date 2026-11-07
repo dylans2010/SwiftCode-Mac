@@ -1,31 +1,3 @@
-// areplay: replays one captured dispatch of an `astc`-family kernel (hang
-// capture of VulkanHangReport.swift, stage8-contract.md §15.2) through
-// CVulkan with the captured bytes, and reports whether it finishes.
-// usage: areplay K.spv CONST.bin IN.bin IN_OFF TAB.bin TAB_OFF PAR.bin PAR_OFF ZERO.bin ZERO_OFF
-//                GRIDX GRIDY TEXW TEXH [ISO [GUARD [SLACKMASK [REPEAT]]]]
-//   K.spv: the capture's kernel SPIR-V; CONST.bin: its reflection's constant
-//   data (base64 decoded); the four buffers bound as the hang report lists
-//   them (b0 input, b1 partition tables, b2 parameters, b3 zero partition
-//   tables) with their binding offsets; the grid of the dispatch; the size
-//   of the written texture (RGBA8, one level).
-//   ISO 1: one thread per workgroup (lane-isolated, as the back end runs
-//   `astc`); 0: 32 x 16 workgroups.
-//   GUARD 0: exact-size buffers in host-visible device memory;
-//         1: each buffer 64 KiB into a larger zeroed allocation;
-//         2: each buffer imported from host pages with its last byte at the
-//            end of the import (a read past it reaches unmapped memory).
-//   SLACKMASK (with GUARD 2): bit i gives buffer i (and bit 4 the constant
-//   data) GUARD 1 instead, to find the buffer read out of bounds.
-//   REPEAT: dispatches in the command buffer (default 1).
-// Environment: POLLUTE=<pollute.spv> runs that kernel (pollute.comp) over
-// POLLUTE_GROUPS (default 4096) workgroups of 64 before each dispatch, so
-// that the private memory the kernel finds holds what an earlier kernel left
-// there (POLLUTE_PATTERN: 0 pseudo-random, otherwise that word), as in a
-// boot where other kernels ran before; without it a fresh context's private
-// memory is zero.
-// Exit 0 when the dispatch finished within 8 s, 1 when it did not.
-// Build (from swiftcode/, on a host with Vulkan; stage8-contract.md §15):
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o X scripts/gpu-probes/X.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +13,6 @@ static void *slurp(const char *p, size_t *n) {
 }
 static double now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec / 1e9; }
 
-// Loads `path` and returns the device address of byte `off` of it, placed per `guard`.
 static uint64_t place(yvk_context *ctx, const char *path, size_t off, int guard, const char *name) {
     size_t n; uint8_t *d = slurp(path, &n);
     yvk_buffer b; char err[256];

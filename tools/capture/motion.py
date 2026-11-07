@@ -54,9 +54,6 @@ NAMED_CURVES = {
 }
 DEFAULTS = {"threshold": 2.5, "min_fraction": 0.00005, "gap": 0.12, "analysis_width": 1024}
 
-
-# ---------------------------------------------------------------- decoding
-
 def probe(video):
     """Width, height and every frame's presentation time (seconds)."""
     out = subprocess.run(
@@ -68,7 +65,6 @@ def probe(video):
     times = [float(f["best_effort_timestamp_time"]) for f in info["frames"]
              if f.get("best_effort_timestamp_time") not in (None, "N/A")]
     return stream["width"], stream["height"], times
-
 
 def decode(video, width, height, scale_width=None):
     """Yield frames as uint8 arrays (H, W, 3), one per encoded frame."""
@@ -89,10 +85,9 @@ def decode(video, width, height, scale_width=None):
                 break
             yield np.frombuffer(buf, np.uint8).reshape(h, w, 3)
     finally:
-        proc.kill()   # the caller may stop early
+        proc.kill()
         proc.stdout.close()
         proc.wait()
-
 
 def load(video, start=None, end=None, roi=None, analysis_width=DEFAULTS["analysis_width"]):
     """Frames (float32) and times inside [start, end], cropped to roi (video px)."""
@@ -111,15 +106,11 @@ def load(video, start=None, end=None, roi=None, analysis_width=DEFAULTS["analysi
         kept.append(t)
     return np.array(kept), frames, factor, (width, height)
 
-
-# ---------------------------------------------------------------- measuring
-
 def bbox(mask):
     ys, xs = np.nonzero(mask)
     if len(xs) == 0:
         return None
     return [int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1)]
-
 
 def per_frame(frames, threshold):
     diff, fraction, boxes = [0.0], [0.0], [None]
@@ -130,7 +121,6 @@ def per_frame(frames, threshold):
         fraction.append(float(mask.mean()))
         boxes.append(bbox(mask))
     return diff, fraction, boxes
-
 
 def segments(times, fraction, diff, min_fraction, gap):
     active = [i for i, f in enumerate(fraction) if f > min_fraction]
@@ -153,7 +143,6 @@ def segments(times, fraction, diff, min_fraction, gap):
                     "longest_gap_ms": float(intervals.max() * 1000) if len(intervals) else 0.0})
     return out
 
-
 def union_box(boxes):
     boxes = [b for b in boxes if b]
     if not boxes:
@@ -161,7 +150,6 @@ def union_box(boxes):
     x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
     x1 = max(b[0] + b[2] for b in boxes); y1 = max(b[1] + b[3] for b in boxes)
     return [x0, y0, x1 - x0, y1 - y0]
-
 
 def progress(frames, first, last, box):
     x, y, w, h = box
@@ -173,7 +161,6 @@ def progress(frames, first, last, box):
         return [0.0] * (last - first + 1)
     return [float((frames[i][y:y + h, x:x + w] - base).ravel() @ direction / norm) for i in range(first, last + 1)]
 
-
 def rigid(crops, travel):
     """True when the last frame is the first one moved by the measured travel:
     a slide or scroll, not a fade or a reflow."""
@@ -181,13 +168,12 @@ def rigid(crops, travel):
     dx, dy = (int(round(v)) for v in travel[-1])
     h, w = first.shape[:2]
     if abs(dx) >= w // 2 or abs(dy) >= h // 2:
-        return True   # moved more than half the box: no overlap left to compare
+        return True
     a = first[max(0, -dy):h - max(0, dy), max(0, -dx):w - max(0, dx)]
     b = last[max(0, dy):h - max(0, -dy), max(0, dx):w - max(0, -dx)]
     moved = float(np.abs(b - a).mean())
     still = float(np.abs(last - first).mean())
     return moved < 0.5 * still
-
 
 def phase_shift(a, b):
     """Shift (dx, dy) that moves a onto b, by phase correlation, sub-pixel."""
@@ -208,20 +194,16 @@ def phase_shift(a, b):
         return v - n if v > n / 2 else v
     return refine(c[py, px], px, c.shape[1], 1), refine(c[py, px], py, c.shape[0], 0)
 
-
-# ---------------------------------------------------------------- easing fits
-
 def bezier_y(u, x1, y1, x2, y2):
     """y of the cubic Bezier (0,0)-(x1,y1)-(x2,y2)-(1,1) at x = u."""
     u = np.clip(np.asarray(u, dtype=float), 0, 1)
     lo, hi = np.zeros_like(u), np.ones_like(u)
-    for _ in range(40):   # bisection: x(s) is monotonic for x1, x2 in [0, 1]
+    for _ in range(40):
         s = (lo + hi) / 2
         x = 3 * (1 - s) ** 2 * s * x1 + 3 * (1 - s) * s ** 2 * x2 + s ** 3
         lo = np.where(x < u, s, lo); hi = np.where(x < u, hi, s)
     s = (lo + hi) / 2
     return 3 * (1 - s) ** 2 * s * y1 + 3 * (1 - s) * s ** 2 * y2 + s ** 3
-
 
 def spring_progress(t, response, damping):
     """Step response of a unit spring: SwiftUI-style response (s) and damping fraction."""
@@ -231,7 +213,6 @@ def spring_progress(t, response, damping):
         wd = omega * math.sqrt(1 - damping ** 2)
         return 1 - np.exp(-damping * omega * t) * (np.cos(wd * t) + damping * omega / wd * np.sin(wd * t))
     return 1 - np.exp(-omega * t) * (1 + omega * t)
-
 
 def nelder_mead(f, x0, step=0.1, iterations=400):
     n = len(x0)
@@ -256,10 +237,8 @@ def nelder_mead(f, x0, step=0.1, iterations=400):
     best = int(np.argmin(values))
     return simplex[best], values[best]
 
-
 def rmse(a, b):
     return float(np.sqrt(np.mean((np.asarray(a) - np.asarray(b)) ** 2)))
-
 
 def fit_easing(u, p, seconds):
     u = np.asarray(u); p = np.asarray(p)
@@ -296,9 +275,6 @@ def fit_easing(u, p, seconds):
         "named_rmse": {k: round(v, 4) for k, v in sorted(named.items(), key=lambda kv: kv[1])},
         "overshoot": round(float(max(0.0, p.max() - 1.0)), 4),
     }
-
-
-# ---------------------------------------------------------------- analysis
 
 def analyze(video, start=None, end=None, roi=None, threshold=DEFAULTS["threshold"],
             min_fraction=DEFAULTS["min_fraction"], gap=DEFAULTS["gap"],
@@ -339,7 +315,6 @@ def analyze(video, start=None, end=None, roi=None, threshold=DEFAULTS["threshold
     if len(u) >= 3:
         primary["easing"] = fit_easing(u, p_seg, seconds)
     if box and box[2] >= 8 and box[3] >= 8:
-        # Frame-to-frame shifts stay small, so phase correlation does not wrap; their sum is the travel.
         x, y, w, h = box
         crops = [frames[i][y:y + h, x:x + w] for i in range(max(0, first - 1), last + 1)]
         dx = dy = 0.0
@@ -363,22 +338,17 @@ def analyze(video, start=None, end=None, roi=None, threshold=DEFAULTS["threshold
     result["primary"] = primary
     return result
 
-
-# ---------------------------------------------------------------- plotting
-
 SURFACE = (252, 252, 251)
 INK = (11, 11, 11)
 INK_2 = (82, 81, 78)
 GRID = (226, 225, 221)
 SERIES = [(42, 120, 214), (235, 104, 52), (27, 175, 122), (237, 161, 0)]
 
-
 def font(size):
     try:
         return ImageFont.load_default(size=size)
     except TypeError:
         return ImageFont.load_default()
-
 
 class Panel:
     def __init__(self, draw, box, x_range, y_range, title, y_label):
@@ -427,10 +397,8 @@ class Panel:
         _, top, _, bottom = self.box
         self.d.rectangle([self.px(a), top, self.px(b), bottom], fill=colour)
 
-
 def tint(colour, amount=0.85):
     return tuple(int(c + (s - c) * amount) for c, s in zip(colour, SURFACE))
-
 
 def plot(results, path, labels=None, align="start"):
     """One or more analyze() results, overlaid. align="start": each series'
@@ -448,7 +416,6 @@ def plot(results, path, labels=None, align="start"):
     x0 = min(spans + [0.0]) if spans else 0.0
     x1 = max(spans + ends + [x0 + 0.1])
     x0 = max(x0, -0.15) if align == "start" else x0
-    # legend
     lx = 70
     for i, (r, label) in enumerate(zip(results, labels)):
         prim = r.get("primary")
@@ -507,7 +474,6 @@ def plot(results, path, labels=None, align="start"):
     img.save(path)
     return path
 
-
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("video")
@@ -538,7 +504,6 @@ def main(argv=None):
     prim = r.get("primary")
     print(f"{a.video}: " + (f"change {prim['start_s']:.3f}-{prim['end_s']:.3f} s, {prim['duration_ms']:.0f} ms"
                             if prim else "no change found"), file=sys.stderr)
-
 
 if __name__ == "__main__":
     main()

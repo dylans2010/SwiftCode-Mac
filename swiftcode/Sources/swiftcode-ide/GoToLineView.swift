@@ -1,19 +1,9 @@
 import Foundation
 import SwiftUI
 
-// Go to line, adapted from Legacy's `SwiftCode/Views/Editor/GoToLineView.swift`.
-// The destination editor has no go-to-line sheet, so this is a small
-// real one: a sheet that validates the entered line against the file's
-// line count and reports the chosen line back through `onJump`. It
-// owns no editor state itself — the host wires `onJump` to its editor.
-
-/// A sheet that jumps the editor to a line number.
 struct GoToLineSheet: View {
-    /// The total number of lines in the file (1-based maximum).
     var lineCount: Int
-    /// Called with the validated 1-based line number when the user jumps.
     var onJump: (Int) -> Void
-    /// Called when the sheet is dismissed without jumping.
     var onCancel: () -> Void
 
     @State private var text = ""

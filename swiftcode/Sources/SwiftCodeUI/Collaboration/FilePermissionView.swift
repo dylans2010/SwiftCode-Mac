@@ -1,12 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/FilePermissionView.swift
-// Adapted for SwiftCode: lock/unlock call the real
-// CollaborationManager.lockFile / unlockFile; the lock list reads the real
-// manager.fileLocks; roles read the real PermissionsManager.memberRoles.
-// Legacy's `.liquidGlass` has no destination equivalent — the field uses a
-// plain bordered style instead. Legacy's default path was a stale
-// Legacy-repo path; the field now starts empty with a prompt.
-
 import SwiftUI
 import SwiftCodeCollaboration
 

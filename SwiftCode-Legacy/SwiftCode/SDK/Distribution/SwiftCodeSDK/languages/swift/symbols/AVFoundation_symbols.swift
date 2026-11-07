@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for AVFoundation
-
 public struct AVFoundationAPIEntity_0000: Sendable, Codable {
     public let id: String = "avfoundation.api.0"
     public var name: String = "AVFoundationEntity_0"

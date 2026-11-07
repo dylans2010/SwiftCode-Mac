@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Native macOS desktop inspector for viewing and verifying the autonomous agent execution plan and phase timeline.
 public struct AgentNotesInspectorView: View {
     @Bindable private var notesManager = AgentNotesManager.shared
     @Bindable private var phaseCoordinator = AgentPhaseCoordinator.shared
@@ -29,8 +28,6 @@ public struct AgentNotesInspectorView: View {
         .frame(minWidth: 550, minHeight: 450)
         .background(.background)
     }
-
-    // MARK: - Header Bar
 
     private var headerBar: some View {
         HStack(spacing: 12) {
@@ -77,8 +74,6 @@ public struct AgentNotesInspectorView: View {
         .background(.thinMaterial)
     }
 
-    // MARK: - Content Body
-
     @ViewBuilder
     private var contentBody: some View {
         switch selectedTab {
@@ -90,8 +85,6 @@ public struct AgentNotesInspectorView: View {
             phaseMatrixView
         }
     }
-
-    // MARK: - Formatted Notes View
 
     private var formattedNotesView: some View {
         ScrollView {
@@ -130,8 +123,6 @@ public struct AgentNotesInspectorView: View {
             .padding(16)
         }
     }
-
-    // MARK: - Raw Markdown View
 
     private var rawMarkdownView: some View {
         VStack(spacing: 0) {
@@ -174,8 +165,6 @@ public struct AgentNotesInspectorView: View {
         let matched = lines.filter { $0.localizedCaseInsensitiveContains(searchText) }
         return matched.joined(separator: "\n")
     }
-
-    // MARK: - 350-Phase Matrix View
 
     private var phaseMatrixView: some View {
         VStack(spacing: 0) {
@@ -261,12 +250,6 @@ public struct AgentNotesInspectorView: View {
                 .font(.caption)
         }
     }
-
-    // MARK: - Footer Bar
-
-    // Footer removed — file path and artifact details are internal-only.
-
-    // MARK: - Section Parser
 
     private struct ParsedSection {
         let title: String

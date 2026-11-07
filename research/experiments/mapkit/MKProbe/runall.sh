@@ -1,8 +1,4 @@
 #!/bin/sh
-# Run the whole MKProbe suite on one booted ycode-test-mapkit* simulator.
-# Usage: runall.sh <udid> <build-dir> <out-dir> [mode ...]
-# SHOTDISP=LCD is needed on the iPhone Duo (27.1): the default display is the
-# folded inner one and screenshots of it are black.
 DEV=$1; BUILD=$2; OUT=$3; shift 3
 HERE=$(cd "$(dirname "$0")" && pwd)
 MODES=${*:-"math map config gesture annot annot:cluster user search dir geo look snap open:openInMaps open:directions open:url open:https sui sui:imagery suicam offline offline:geodstopped"}

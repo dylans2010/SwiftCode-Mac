@@ -1,16 +1,5 @@
-/// Formats a `printf`-style string whose arguments come from an arm64 Darwin
-/// `va_list`. On Darwin arm64, `va_list` is a plain pointer: every variadic
-/// argument (integers, pointers, chars, doubles) occupies one 8-byte stack
-/// slot, read in order from that pointer.
-///
-/// Supported conversions: `%s %d %i %u %x %X %o %p %c %%`, with the length
-/// modifiers `hh h l ll q j z t L`, the flags `- + space # 0`, and a width and
-/// precision (digits or `*`). Any other conversion is printed verbatim and
-/// consumes one slot.
 public struct VLogFormatter {
-    /// Reads 8-byte slot `index` (0-based) of the `va_list`.
     public var slot: (Int) throws -> UInt64
-    /// Reads a NUL-terminated string at a guest address.
     public var string: (UInt64) throws -> String
 
     public init(slot: @escaping (Int) throws -> UInt64, string: @escaping (UInt64) throws -> String) {
@@ -18,7 +7,6 @@ public struct VLogFormatter {
         self.string = string
     }
 
-    /// Formats `format`. Unreadable arguments render as `<fault>`.
     public func format(_ format: String) -> String {
         let f = Array(format.utf8)
         var out: [UInt8] = []
@@ -69,7 +57,6 @@ public struct VLogFormatter {
                     while i < f.count, f[i] >= 0x30, f[i] <= 0x39 { precision = precision! * 10 + Int(f[i] - 0x30); i += 1 }
                 }
             }
-            // Length modifier: bits of the argument (64 for l/ll/q/j/z/t/L).
             var bits = 32
             lengths: while i < f.count {
                 switch f[i] {
@@ -129,7 +116,6 @@ public struct VLogFormatter {
                 }
                 if let p = precision, body.utf8.count > p { body = String(decoding: Array(body.utf8.prefix(p)), as: UTF8.self) }
             default:
-                // Unsupported conversion: print the specification verbatim.
                 _ = take()
                 out += f[start..<i]
                 continue

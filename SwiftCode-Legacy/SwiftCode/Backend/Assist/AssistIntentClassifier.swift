@@ -1,13 +1,3 @@
-//
-//  AssistIntentClassifier.swift
-//  SwiftCode
-//
-//  Authoritative intent classification and tool routing engine for SwiftCode Assist.
-//  Identifies primary user intent from ordinary natural language, extracts target applications
-//  and resources, determines task complexity budgets, prevents unintended tool execution
-//  for informational queries, and provides dependency-aware routing.
-//
-
 import Foundation
 
 public enum GitAction: String, Sendable, Codable {
@@ -56,7 +46,6 @@ public enum UserIntent: Sendable, Equatable {
     case complexEngineering(goal: String)
     case conversational(text: String)
 
-    // Natural-Language Tool Intelligence intents
     case screenshot(targetApp: String?, isRegion: Bool, purpose: String?)
     case screenRecording(targetApp: String?, duration: Double?, purpose: String?)
     case appInteraction(targetApp: String?, action: String?, targetElement: String?, purpose: String?)
@@ -65,10 +54,10 @@ public enum UserIntent: Sendable, Equatable {
 }
 
 public enum TaskExecutionProfile: String, Sendable, Codable {
-    case simple      // 1 direct native call, no repo exploration, no execution_plan
-    case moderate    // Targeted edit/inspection, minimal exploration
-    case complex     // Multi-operation, dependency graph, workers if needed
-    case heavy       // Project rewrite / scratch build, multi-milestone
+    case simple
+    case moderate
+    case complex
+    case heavy
 }
 
 public struct ExplicitToolRequest: @unchecked Sendable, Equatable {
@@ -97,12 +86,10 @@ public final class AssistIntentClassifier: Sendable {
 
     private init() {}
 
-    /// Classifies user text into structured intent, profile, and routing recommendations.
     public func classify(prompt: String, activeFile: String? = nil) -> IntentClassificationResult {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = trimmed.lowercased()
 
-        // 1. Check for informational requests FIRST to avoid unintended tool execution
         if let topic = checkInformationalRequest(lower, original: trimmed) {
             return IntentClassificationResult(
                 primaryIntent: .informational(topic: topic),
@@ -115,10 +102,8 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 2. Check for explicit tool priority requests
         let explicit = detectExplicitTool(lower: lower, original: trimmed, activeFile: activeFile)
 
-        // 3. Explicit `@Reverse` invocation: deterministic route to the native Reverse subsystem
         if let reverse = ReverseCommandParser.parse(message: trimmed) {
             var input: [String: Any] = [
                 "targetPath": reverse.targetPath ?? "",
@@ -142,7 +127,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 4. High-confidence Git Operations
         if isGitStatusRequest(lower) {
             return IntentClassificationResult(
                 primaryIntent: .git(action: .status, details: [:]),
@@ -193,7 +177,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 5. Multi-step workflows (e.g. "Open Finder, navigate to Downloads, and take a screenshot")
         if let multiSteps = detectMultiStepWorkflows(lower: lower, original: trimmed) {
             let firstPrereqToolId = multiSteps.first?.suggestedToolId
             let firstInput = multiSteps.first?.suggestedInput
@@ -208,7 +191,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 6. High-confidence Screen Recording Operations
         if isScreenRecordingRequest(lower) {
             let targetApp = extractTargetApplication(from: trimmed)
             let duration = extractRecordingDuration(from: lower) ?? 10.0
@@ -228,7 +210,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 7. High-confidence Screenshot / Visual Capture Operations
         if isScreenshotRequest(lower) {
             let isRegion = lower.contains("selected part") || lower.contains("region") || lower.contains("part of my screen") || lower.contains("crop")
             let targetApp = extractTargetApplication(from: trimmed)
@@ -252,7 +233,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 8. Application Interaction Operations (e.g. "Open Finder", "Navigate to Downloads")
         if isAppInteractionRequest(lower) {
             let targetApp = extractTargetApplication(from: trimmed) ?? "Finder"
             let action = lower.contains("click") ? "click" : "activate"
@@ -271,7 +251,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 9. High-confidence Build Operations
         if isBuildRequest(lower) {
             let scheme = extractScheme(from: trimmed)
             let config = lower.contains("release") ? "Release" : "Debug"
@@ -289,7 +268,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 10. High-confidence Test Operations
         if isTestRequest(lower) {
             return IntentClassificationResult(
                 primaryIntent: .test(target: nil),
@@ -302,7 +280,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 11. High-confidence Finder File Operations
         if isFinderOpenRequest(lower) {
             let path = extractPath(from: trimmed) ?? activeFile ?? "."
             return IntentClassificationResult(
@@ -329,7 +306,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 12. High-confidence Symbol Search
         if isSymbolSearchRequest(lower) {
             let sym = extractSymbolName(from: trimmed)
             return IntentClassificationResult(
@@ -343,7 +319,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 13. Explicit Worker Delegation Request
         if lower.contains("use_workers") || lower.contains("delegate to workers") || lower.contains("parallel workers") {
             return IntentClassificationResult(
                 primaryIntent: .workerDelegation(tasks: []),
@@ -356,7 +331,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 14. Conversational greetings
         if isPureGreeting(lower) {
             return IntentClassificationResult(
                 primaryIntent: .conversational(text: trimmed),
@@ -369,7 +343,6 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 15. Complex multi-phase engineering tasks
         let isHeavy = lower.contains("rewrite") || lower.contains("from scratch") || lower.contains("create an app") || lower.contains("refactor the whole")
         let profile: TaskExecutionProfile = isHeavy ? .heavy : .complex
 
@@ -384,10 +357,7 @@ public final class AssistIntentClassifier: Sendable {
         )
     }
 
-    // MARK: - Informational Query Detection
-
     private func checkInformationalRequest(_ lower: String, original: String) -> String? {
-        // Exclude direct imperative commands
         let imperativeCommands = [
             "open finder for me", "open xcode for me", "take a screenshot now",
             "record now", "run build now", "commit now", "please do it",
@@ -397,7 +367,6 @@ public final class AssistIntentClassifier: Sendable {
             return nil
         }
 
-        // Specific informational patterns
         if lower.hasPrefix("what is a screenshot") || lower.hasPrefix("what is screenshot") || lower == "what is a screenshot?" {
             return "screenshot concept"
         }
@@ -417,15 +386,12 @@ public final class AssistIntentClassifier: Sendable {
             return "opening Finder guide"
         }
         if lower.hasPrefix("how do i ") || lower.hasPrefix("how can i ") || lower.hasPrefix("what is ") || lower.hasPrefix("what does ") || lower.hasPrefix("explain ") {
-            // General informational inquiry unless followed by an explicit imperative action
             if !lower.contains("take a screenshot") && !lower.contains("open ") && !lower.contains("record ") {
                 return original
             }
         }
         return nil
     }
-
-    // MARK: - Multi-Step Workflow Detection
 
     private struct StepPlan {
         let intent: UserIntent
@@ -437,7 +403,6 @@ public final class AssistIntentClassifier: Sendable {
     private func detectMultiStepWorkflows(lower: String, original: String) -> [StepPlan]? {
         var steps: [StepPlan] = []
 
-        // Pattern: "Open Finder, navigate to Downloads, and take a screenshot"
         if lower.contains("open finder") && lower.contains("screenshot") {
             steps.append(StepPlan(
                 intent: .appInteraction(targetApp: "Finder", action: "activate", targetElement: nil, purpose: "Activate Finder"),
@@ -455,7 +420,6 @@ public final class AssistIntentClassifier: Sendable {
             return steps
         }
 
-        // Pattern: "Open Xcode, reproduce the issue, record the result, and summarize what happened"
         if lower.contains("xcode") && (lower.contains("record") || lower.contains("video")) && (lower.contains("reproduce") || lower.contains("issue") || lower.contains("open")) {
             steps.append(StepPlan(
                 intent: .appInteraction(targetApp: "Xcode", action: "activate", targetElement: nil, purpose: "Activate Xcode"),
@@ -473,7 +437,6 @@ public final class AssistIntentClassifier: Sendable {
             return steps
         }
 
-        // Pattern: "Inspect the current application, change the requested setting, and verify that it changed"
         if lower.contains("inspect") && (lower.contains("setting") || lower.contains("change")) && lower.contains("verify") {
             let targetApp = extractTargetApplication(from: original) ?? "System Settings"
             steps.append(StepPlan(
@@ -491,7 +454,6 @@ public final class AssistIntentClassifier: Sendable {
             return steps
         }
 
-        // Pattern: "Find the relevant file, open it in the appropriate application, and capture the resulting interface"
         if (lower.contains("find") || lower.contains("search")) && lower.contains("file") && (lower.contains("capture") || lower.contains("screenshot")) {
             steps.append(StepPlan(
                 intent: .codeSearch(type: .text, query: extractQuery(from: original) ?? "file"),
@@ -508,7 +470,6 @@ public final class AssistIntentClassifier: Sendable {
             return steps
         }
 
-        // Pattern: "Open Finder and tell me what you see" / "Check whether the file is visible in Finder"
         if lower.contains("finder") && (lower.contains("what you see") || lower.contains("whether the file is visible") || lower.contains("tell me what you see")) {
             steps.append(StepPlan(
                 intent: .appInteraction(targetApp: "Finder", action: "activate", targetElement: nil, purpose: "Open Finder"),
@@ -528,8 +489,6 @@ public final class AssistIntentClassifier: Sendable {
         return nil
     }
 
-    // MARK: - Natural-Language Screen Recording Detection
-
     private func isScreenRecordingRequest(_ lower: String) -> Bool {
         return lower.contains("take_screenrecord") ||
                lower.contains("screen record") ||
@@ -542,8 +501,6 @@ public final class AssistIntentClassifier: Sendable {
                lower.contains("record the application window") ||
                (lower.contains("record") && (lower.contains("seconds") || lower.contains("video") || lower.contains("window")))
     }
-
-    // MARK: - Natural-Language Screenshot Detection
 
     private func isScreenshotRequest(_ lower: String) -> Bool {
         return lower.contains("take a screenshot") ||
@@ -563,8 +520,6 @@ public final class AssistIntentClassifier: Sendable {
                lower.contains("capture screen")
     }
 
-    // MARK: - Natural-Language App Interaction Detection
-
     private func isAppInteractionRequest(_ lower: String) -> Bool {
         return lower == "open finder" ||
                lower == "open finder." ||
@@ -579,8 +534,6 @@ public final class AssistIntentClassifier: Sendable {
                lower.hasPrefix("open xcode") ||
                lower.hasPrefix("open system settings")
     }
-
-    // MARK: - Explicit Tool Request Detection
 
     private func detectExplicitTool(lower: String, original: String, activeFile: String?) -> ExplicitToolRequest? {
         if lower.contains("run_command") || lower.contains("execute_terminal_command") || lower.contains("use_terminal") {
@@ -625,8 +578,6 @@ public final class AssistIntentClassifier: Sendable {
         }
         return nil
     }
-
-    // MARK: - Extraction Helpers
 
     private func extractTargetApplication(from text: String) -> String? {
         let lower = text.lowercased()

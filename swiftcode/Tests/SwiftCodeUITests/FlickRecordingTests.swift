@@ -8,11 +8,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 private let recordDir = ProcessInfo.processInfo.environment["SWIFTCODE_FLICK_RECORD_DIR"]
 private let wincapPath = ProcessInfo.processInfo.environment["SWIFTCODE_WINCAP"]
 
-/// Row 40 measured on screen: a 1400 × 880 workspace window showing a long
-/// file, a momentum flick toward the top delivered as scroll events, and
-/// the window recorded with `tools/capture/wincap` for
-/// `tools/capture/motion.py`. Opt-in: set `SWIFTCODE_FLICK_RECORD_DIR` (the
-/// output folder) and `SWIFTCODE_WINCAP` (the wincap binary).
 @MainActor
 @Suite(.serialized, .enabled(if: recordDir != nil && wincapPath != nil)) struct FlickRecordingTests {
     @Test(arguments: [false, true]) func recordFlick(bounce: Bool) throws {
@@ -23,8 +18,6 @@ private let wincapPath = ProcessInfo.processInfo.environment["SWIFTCODE_WINCAP"]
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try "// swift-tools-version:5.9\nimport PackageDescription\nlet package = Package(name: \"GlassScroll\")\n"
             .write(to: dir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
-        // Lines of different lengths, so no stretch of the file repeats
-        // (the measurement matches rows between frames).
         var long = "import Foundation\n\n"
         for i in 0..<160 {
             let words = (0..<(1 + (i * 7) % 11)).map { "w\((i * 31 + $0 * 17) % 97)" }.joined(separator: " ")
@@ -55,9 +48,6 @@ private let wincapPath = ProcessInfo.processInfo.environment["SWIFTCODE_WINCAP"]
         rec.standardOutput = FileHandle.nullDevice
         try rec.run()
         pump(1)
-        // editor-area.md §D.4's input: 8 gesture events of 40 points over
-        // 60 ms, then 173 momentum events (1544 points over 1.43 s) decaying
-        // with a 0.33 s time constant.
         let location = NSPoint(x: 700, y: 400)
         func send(_ d: Double, phase: Int64, momentum: Int64) {
             let cg = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: Int32(d.rounded()), wheel2: 0, wheel3: 0)!

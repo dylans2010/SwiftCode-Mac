@@ -13,10 +13,9 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import metallib_dump  # noqa: E402
+import metallib_dump
 
 PTR = re.compile(r'(%[\w."$:]+|i\d+|float|half|double|<\d+ x \w+>|\[[^\]]*\]|\{[^}]*\}|ptr) addrspace\((\d+)\)')
-
 
 def main():
     root, scratch = sys.argv[1], sys.argv[2]
@@ -47,7 +46,6 @@ def main():
     out = {a: {"types": dict(c.most_common(15)), "files": sorted(files[a])[:12],
                "file_count": len(files[a])} for a, c in acc.items()}
     print(json.dumps(out, indent=1))
-
 
 if __name__ == "__main__":
     main()

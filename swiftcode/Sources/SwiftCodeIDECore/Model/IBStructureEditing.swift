@@ -3,18 +3,13 @@ import CoreGraphics
 #endif
 import Foundation
 
-/// Deleting, moving and constraining objects, byte-minimally. See
-/// `specs/ide/interface-builder.md` §Structure edits and §Constraints.
 extension IBDocument {
-    /// The `constraint` element with an ID.
     public func constraintNode(_ id: String) -> XMLSourceNode? {
         var hit: XMLSourceNode?
         documentNode.walk { if hit == nil, $0.name == "constraint", $0["id"] == id { hit = $0 } }
         return hit
     }
 
-    /// The byte range of whole lines covering a node (from its line's
-    /// indentation through the newline after it).
     func lineRange(of n: XMLSourceNode) -> Range<Int> {
         var start = n.range.lowerBound
         while start > 0, source[start - 1] == 0x20 || source[start - 1] == 0x09 { start -= 1 }
@@ -23,8 +18,6 @@ extension IBDocument {
         return start..<end
     }
 
-    /// Removals for a set of nodes; a container (`subviews`, `constraints`,
-    /// `connections`) left empty is removed whole.
     func removals(_ nodes: [XMLSourceNode]) -> [XMLEdit] {
         var doomed = nodes
         var changed = true
@@ -40,7 +33,6 @@ extension IBDocument {
                 }
             }
         }
-        // Drop nodes inside other doomed nodes.
         let top = doomed.filter { n in
             var p = n.parent
             while let q = p { if doomed.contains(where: { $0 === q }) { return false }; p = q.parent }
@@ -49,8 +41,6 @@ extension IBDocument {
         return top.map { XMLEdit(lineRange(of: $0), "") }
     }
 
-    /// Deletes objects, their constraints (anywhere) and connections that
-    /// point at them.
     public func deleting(_ ids: [String]) throws -> IBDocument {
         var gone = Set<String>()
         for id in ids { byID[id]?.walk { gone.insert($0.id) } }
@@ -69,30 +59,24 @@ extension IBDocument {
         return try edited(removals(nodes))
     }
 
-    /// Deletes constraints by ID.
     public func deletingConstraints(_ ids: [String]) throws -> IBDocument {
         try edited(removals(ids.compactMap(constraintNode)))
     }
 
-    /// Sets a constraint's `constant` (0 removes the attribute).
     public func settingConstant(_ value: CGFloat, ofConstraint id: String) throws -> IBDocument {
         guard let n = constraintNode(id) else { return self }
         let text = value == 0 ? nil : (value == value.rounded() ? String(Int(value)) : Self.number(value))
         return try edited([XMLEdit.setAttribute("constant", text, on: n, in: source)])
     }
 
-    /// Moves a view into another view (last subview), keeping its place on
-    /// the canvas; constraints that mention it are removed.
     public func moving(_ id: String, into newParent: String) throws -> IBDocument {
         guard let o = byID[id], let target = byID[newParent], target.isView, o.parent?.id != newParent,
               let rootFrame = frameInRoot(o), let targetRoot = frameInRoot(target), rootView(of: o) === rootView(of: target) else { return self }
-        // Not into itself or a descendant.
         var p: Object? = target
         while let q = p { if q.id == id { return self }; p = q.parent }
         let range = lineRange(of: o.node)
         let oldIndent = XMLEdit.indentation(of: o.node, in: source)
         let lines = String(decoding: source[range], as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false).dropLast()
-        // Remove constraints first (they name the view), then the element.
         var constraintNodes: [XMLSourceNode] = []
         documentNode.walk { n in if n.name == "constraint", n["firstItem"] == id || n["secondItem"] == id { constraintNodes.append(n) } }
         let removed = try edited(removals([o.node] + constraintNodes))
@@ -118,19 +102,13 @@ extension IBDocument {
         }.joined()
         let text = prefix + body + suffix
         let inserted = try removed.edited([XMLEdit(insertAt..<insertAt, text)])
-        // Same place on the canvas, in the new parent's coordinates.
         var local = CGRect(x: rootFrame.minX - targetRoot.minX, y: rootFrame.minY - targetRoot.minY, width: rootFrame.width, height: rootFrame.height)
         if !isFlippedRuntime, let tf = target.frame { local.origin.y = tf.height - local.maxY }
         return try inserted.settingFrame(local, of: id)
     }
 
-    // MARK: Constraints
-
     public enum Edge: String, CaseIterable, Sendable { case top, leading, bottom, trailing }
 
-    /// The nearest object on one side of a view: a sibling whose span
-    /// overlaps and that lies wholly on that side (closest first), else the
-    /// superview. Returns its ID and the spacing (root coordinates).
     public func nearestNeighbor(of id: String, edge: Edge) -> (id: String, spacing: CGFloat)? {
         guard let o = byID[id], let parent = o.parent, parent.isView, let r = frameInRoot(o), let pr = frameInRoot(parent) else { return nil }
         var best: (String, CGFloat)?
@@ -154,7 +132,6 @@ extension IBDocument {
         }
     }
 
-    /// What the Add New Constraints popover asks for.
     public struct NewConstraints: Equatable, Sendable {
         public var spacing: [Edge: CGFloat] = [:]
         public var width: CGFloat?
@@ -170,10 +147,6 @@ extension IBDocument {
         }
     }
 
-    /// Adds constraints for a view. Spacing and centering constraints go in
-    /// the superview's `constraints`, width/height in the view's own; the
-    /// view gets `translatesAutoresizingMaskIntoConstraints="NO"`. Returns
-    /// the new document and the new constraint IDs.
     public func addingConstraints(_ spec: NewConstraints, to id: String) throws -> (IBDocument, [String]) {
         guard let o = byID[id], let parent = o.parent, parent.isView else { return (self, []) }
         var g = SystemRandomNumberGenerator()
@@ -210,8 +183,6 @@ extension IBDocument {
         return (try edited(edits), ids)
     }
 
-    /// Appends constraint lines to an object's `constraints` element, or
-    /// adds one after its `subviews` (else after its frame).
     func constraintInsertion(_ lines: [String], into o: Object) -> XMLEdit? {
         guard !lines.isEmpty else { return nil }
         if let cs = o.node.child("constraints"), let end = cs.endTag {

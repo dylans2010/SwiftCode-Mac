@@ -1,24 +1,10 @@
-// The in-process home store (plan.md R3 "in-memory daemon stub"): owns the
-// truth for homes and everything in them, authorization answers, published
-// accessory endpoints and per-session notification subscriptions. It runs on
-// one serial queue; every entry point takes a session, so R4 can move it
-// behind IPC unchanged. Optional persistence: a JSON snapshot file.
-
 import Foundation
 
-/// Settings of a `SwiftCodeLocalHomeStore`.
 public struct SwiftCodeLocalHomeStoreConfiguration: Sendable {
-    /// JSON snapshot written after every change (nil: memory only).
     public var persistenceURL: URL?
-    /// Parity mode for Apple's simulator without an Apple Account:
-    /// `addHome` fails with 2040 before any name check (simulator-baseline.md §5, T-O4).
     public var simulateNoAccount: Bool
-    /// The hub state homes report. The store plays the home hub, so the
-    /// default is `.connected` (open-design.md §2 "Scheduler").
     public var hubState: HMHomeHubState
-    /// Name of the local home owner (`currentUser`).
     public var ownerName: String
-    /// Answers the permission prompt (simulator-baseline.md §3). Default: allow.
     public var consent: @Sendable (SwiftCodeHomeClient) -> Bool
 
     public init(persistenceURL: URL? = nil, simulateNoAccount: Bool = false, hubState: HMHomeHubState = .connected,
@@ -32,8 +18,6 @@ public struct SwiftCodeLocalHomeStoreConfiguration: Sendable {
 }
 
 public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccessoryEndpointDelegate, @unchecked Sendable {
-    /// The store behind `HMHomeManager()`: in memory, or the JSON file named by
-    /// `SWIFTCODE_HOMEKIT_STORE`.
     public static let shared: SwiftCodeLocalHomeStore = {
         let path = ProcessInfo.processInfo.environment["SWIFTCODE_HOMEKIT_STORE"]
         return SwiftCodeLocalHomeStore(configuration: .init(persistenceURL: path.map { URL(fileURLWithPath: $0) }))
@@ -41,7 +25,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
 
     struct Persisted: Codable {
         var homes: [SwiftCodeHomeRecord] = []
-        /// Recorded prompt answers by bundle identifier.
         var answers: [String: Bool] = [:]
     }
 
@@ -64,18 +47,14 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
     var state = Persisted()
     var sessions: [UUID: Session] = [:]
     var sessionOrder: [UUID] = []
-    /// Published endpoints by endpoint ID.
     var endpoints: [String: SwiftCodeAccessoryEndpoint] = [:]
-    /// Published, unpaired endpoints (what browsers see), by endpoint ID.
     var discovered: [String: SwiftCodeDiscoveredAccessoryRecord] = [:]
-    /// Opaque authorization data per characteristic (not persisted).
     var authorizationData: [UUID: Data] = [:]
 
     public init(configuration: SwiftCodeLocalHomeStoreConfiguration = .init()) {
         self.configuration = configuration
         if let url = configuration.persistenceURL, let data = try? Data(contentsOf: url),
            var loaded = try? JSONDecoder().decode(Persisted.self, from: data) {
-            // Nothing is reachable until its endpoint is published again.
             for h in loaded.homes.indices {
                 for a in loaded.homes[h].accessories.indices { loaded.homes[h].accessories[a].isReachable = false }
                 for t in loaded.homes[h].actionSets.indices { loaded.homes[h].actionSets[t].isExecuting = false }
@@ -84,15 +63,10 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         }
     }
 
-    // MARK: - SwiftCode API (tests, tools)
-
-    /// Makes an accessory server available: browsers see it until it is
-    /// added to a home; if it is already paired, its accessories become reachable.
     public func publish(_ endpoint: SwiftCodeAccessoryEndpoint) {
         queue.async { self._publish(endpoint) }
     }
 
-    /// Withdraws an accessory server: browsers lose it, paired accessories become unreachable.
     public func unpublish(endpointID: String) {
         queue.async {
             self.endpoints[endpointID] = nil
@@ -103,18 +77,13 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         }
     }
 
-    /// Runs `body` on the store queue after all work queued so far (tests).
     public func sync<T>(_ body: () -> T) -> T { queue.sync(execute: body) }
 
-    /// Current records (tests, tools).
     public var homeRecords: [SwiftCodeHomeRecord] { queue.sync { state.homes } }
 
-    /// Forgets the recorded prompt answer of a bundle (`simctl privacy reset` analogue).
     public func resetAuthorization(bundleIdentifier: String) {
         queue.sync { state.answers[bundleIdentifier] = nil; save() }
     }
-
-    // MARK: - SwiftCodeHomeStore
 
     public func connect(client: SwiftCodeHomeClient, events: @escaping @Sendable (SwiftCodeHomeEvent) -> Void) -> SwiftCodeHomeSession {
         queue.sync {
@@ -125,14 +94,12 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
             var status: HMHomeManagerAuthorizationStatus = []
             if let answer = state.answers[client.bundleIdentifier] {
                 if !entitled {
-                    // The daemon refuses the connection; the app reads 0 (HK-B08).
                     session.dropped = true
                 } else {
                     status = answer ? [.determined, .authorized] : [.determined]
                     if answer { queue.async { self.sendInitialHomes(session) } }
                 }
             } else {
-                // Prompt: the answer arrives after `connect` returns (HK-B01–B03, B07).
                 queue.async {
                     guard self.sessions[session.id] != nil else { return }
                     let answer = self.configuration.consent(client)
@@ -173,8 +140,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         }
     }
 
-    // MARK: - Sessions and events
-
     func isAuthorized(_ s: Session) -> Bool {
         !s.dropped && state.answers[s.client.bundleIdentifier] == true
     }
@@ -204,8 +169,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: url, options: .atomic)
     }
-
-    // MARK: - Request dispatch
 
     typealias Reply = @Sendable (Result<SwiftCodeHomeResponse, SwiftCodeHomeStoreError>) -> Void
 
@@ -407,8 +370,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         }
     }
 
-    // MARK: - Mutation helper
-
     func checkedName(_ name: String) throws -> String {
         switch SwiftCodeNameRules.validate(name) {
         case .success(let n): return n
@@ -416,8 +377,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         }
     }
 
-    /// Runs `body` on a copy of home `id`; on success stores it, broadcasts the
-    /// change (originator tagged) and replies.
     func mutateReturning(_ id: UUID, _ session: Session, _ reply: Reply,
                          _ body: (inout SwiftCodeHomeRecord) throws -> (SwiftCodeHomeChange, SwiftCodeHomeResponse)) {
         guard let i = state.homes.firstIndex(where: { $0.id == id }) else {
@@ -444,7 +403,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         }
     }
 
-    /// Applies a store-internal change (no originator: every session gets the delegate callback).
     func update(_ id: UUID, change: SwiftCodeHomeChange, _ body: (inout SwiftCodeHomeRecord) -> Void) {
         guard let i = state.homes.firstIndex(where: { $0.id == id }) else { return }
         body(&state.homes[i])
@@ -452,9 +410,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
         broadcast(.homeUpdated(state.homes[i], change: change, origin: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))))
     }
 
-    // MARK: - Homes
-
-    /// SwiftCode's names for the four built-in scenes (own wording).
     static let builtinActionSets: [(String, String)] = [
         (HMActionSetTypeWakeUp, "Wake Up"),
         (HMActionSetTypeSleep, "Bedtime"),
@@ -463,7 +418,6 @@ public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccesso
     ]
 
     func addHome(_ name: String, _ session: Session, _ reply: Reply) {
-        // No account: refused before any name check (simulator-baseline.md §5).
         if configuration.simulateNoAccount { reply(.failure(.noAccount)); return }
         let n: String
         do { n = try checkedName(name) } catch let e as HMError {

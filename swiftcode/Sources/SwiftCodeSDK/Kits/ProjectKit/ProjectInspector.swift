@@ -7,7 +7,6 @@ public final class ProjectInspector: Sendable {
         let ws = Workspace(path: path)
         let root = ws.root.normalizedPath
 
-        // Check for swiftcode.json (Extension)
         if ws.fileAccess.exists(at: "swiftcode.json") {
             let jsonString = try ws.fileAccess.readString(at: "swiftcode.json")
             guard let data = jsonString.data(using: .utf8),
@@ -32,7 +31,6 @@ public final class ProjectInspector: Sendable {
             )
         }
 
-        // Check for Package.swift (Swift Package)
         if ws.fileAccess.exists(at: "Package.swift") {
             let pkgString = try ws.fileAccess.readString(at: "Package.swift")
             let name = extractPackageName(from: pkgString) ?? ws.root.fileName
@@ -48,7 +46,6 @@ public final class ProjectInspector: Sendable {
             )
         }
 
-        // Check for .xcodeproj
         let files = try ws.fileAccess.listFiles(recursively: false)
         if let xcodeproj = files.first(where: { $0.fileName.hasSuffix(".xcodeproj") }) {
             let name = String(xcodeproj.fileName.dropLast(".xcodeproj".count))

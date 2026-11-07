@@ -1,11 +1,5 @@
-// Characteristic metadata and value validation (object-model.md §7,
-// plan.md T-O2): format, minimum, maximum, step, maximum length and valid
-// values are checked before any accessory I/O and produce errors 43–46.
-
 import Foundation
 
-/// Metadata of one characteristic in wire form (the fields of
-/// `HMCharacteristicMetadata`, object-model.md §7).
 public struct SwiftCodeCharacteristicMetadata: Codable, Hashable, Sendable {
     public var format: String?
     public var units: String?
@@ -30,16 +24,9 @@ public struct SwiftCodeCharacteristicMetadata: Codable, Hashable, Sendable {
     }
 }
 
-/// The validation rules. SwiftCode's reading of the spec where it is silent
-/// (README "Spec questions"): the format check comes first (43), then the
-/// minimum (44), maximum (45) and string length (46); a value off the step grid
-/// or outside `validValues` is 43; a missing value is 43; strings without a
-/// `maxLength` are limited to HAP's default of 64 characters.
 public enum SwiftCodeValueValidation {
-    /// HAP's default maximum string length.
     public static let defaultMaxLength = 64
 
-    /// Inclusive bounds implied by an integer format.
     public static func formatBounds(_ format: String) -> (min: Double, max: Double)? {
         switch format {
         case HMCharacteristicMetadataFormatUInt8: return (0, 255)
@@ -51,8 +38,6 @@ public enum SwiftCodeValueValidation {
         }
     }
 
-    /// Converts an API value to the wire form for `metadata`, or the error an
-    /// app gets from `writeValue` (no I/O happens on failure).
     public static func validate(_ value: Any?, metadata: SwiftCodeCharacteristicMetadata?) -> Result<SwiftCodeHomeValue, HMError> {
         guard let value else { return .failure(HMError(.invalidValueType)) }
         let format = metadata?.format
@@ -106,7 +91,6 @@ public enum SwiftCodeValueValidation {
             guard value is [String: Any], let v = SwiftCodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
             converted = v
         default:
-            // No or unknown format: accept any representable value.
             guard let v = SwiftCodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
             converted = v
         }

@@ -1,7 +1,5 @@
 import Foundation
 
-/// SHA-256 (FIPS 180-4), for PKCE's S256 code challenge. Written here so
-/// the module builds on Linux without CryptoKit.
 public enum SHA256 {
     private static let k: [UInt32] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -14,6 +12,7 @@ public enum SHA256 {
         0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
     ]
 
+    public static func hash(data: Data) -> Data { hash(data) }
     public static func hash(_ data: Data) -> Data {
         var h: [UInt32] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
         var msg = [UInt8](data)
@@ -53,7 +52,6 @@ public enum SHA256 {
 }
 
 public enum Base64URL {
-    /// Base64url without padding (RFC 4648 §5, as JWT and PKCE use it).
     public static func encode(_ data: Data) -> String {
         data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
@@ -67,17 +65,14 @@ public enum Base64URL {
 }
 
 public enum SecureRandom {
-    /// `count` bytes from the system's cryptographic generator.
     public static func bytes(_ count: Int) -> Data {
         var g = SystemRandomNumberGenerator()
         return Data((0..<count).map { _ in UInt8.random(in: 0...255, using: &g) })
     }
 
-    /// A URL-safe random token of `bytes` bytes of entropy.
     public static func token(_ bytes: Int = 32) -> String { Base64URL.encode(self.bytes(bytes)) }
 }
 
-/// PKCE (RFC 7636): a verifier and its S256 challenge.
 public struct PKCE: Sendable, Equatable {
     public var verifier: String
     public var challenge: String

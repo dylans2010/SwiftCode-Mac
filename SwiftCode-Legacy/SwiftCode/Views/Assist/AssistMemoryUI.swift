@@ -1,11 +1,3 @@
-//
-//  AssistMemoryUI.swift
-//  SwiftCode
-//
-//  Visual card rendered in Assist when memory is automatically or explicitly saved.
-//  Informs the user of what knowledge was stored in UserMemory.md.
-//
-
 import SwiftUI
 
 public struct AssistMemoryUI: View {

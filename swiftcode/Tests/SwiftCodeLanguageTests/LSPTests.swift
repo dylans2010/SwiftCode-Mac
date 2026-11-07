@@ -3,7 +3,6 @@ import Testing
 import SwiftCodeDebug
 @testable import SwiftCodeLanguage
 
-/// An in-memory server that answers each request with `handler`.
 final class FakeServer: DAPTransport, @unchecked Sendable {
     var receiving: (@Sendable (Data?) -> Void)?
     var decoder = DAPFraming.Decoder()
@@ -59,7 +58,6 @@ final class FakeServer: DAPTransport, @unchecked Sendable {
         #expect(defs.first?.url.path == "/p/a.swift" && defs.first?.start == Position(line: 1, character: 7))
         await #expect(throws: LSPClient.ResponseError.self) { try await client.request("unknown/method") }
 
-        // A server request is answered; a notification is delivered.
         server.push(["jsonrpc": "2.0", "id": 99, "method": "workspace/configuration", "params": ["items": [[:], [:]]]])
         #expect(server.received.last?["id"]?.int == 99 && server.received.last?["result"]?.array?.count == 2)
         server.push(["jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": [
@@ -74,7 +72,6 @@ final class FakeServer: DAPTransport, @unchecked Sendable {
     }
 }
 
-/// Talks to the real sourcekit-lsp about a small package (headless).
 @Suite(.serialized, .timeLimit(.minutes(3))) struct SourceKitLSPEndToEndTests {
     static let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appendingPathComponent(".build-ide/lsp-e2e")
@@ -93,10 +90,6 @@ final class FakeServer: DAPTransport, @unchecked Sendable {
 
     @Test func diagnosticsCompletionDefinition() async throws {
         guard let server = SourceKitLSP.locate() else { return }
-        // A fresh package each run: sourcekit-lsp keeps its index build
-        // (with an implicit module cache) in the package's `.build`, and a
-        // stale cache from an earlier run can stop the standard library
-        // from loading, so the semantic diagnostics never come.
         try? FileManager.default.removeItem(at: Self.dir)
         let src = Self.dir.appendingPathComponent("Sources/E2E")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
@@ -110,7 +103,6 @@ final class FakeServer: DAPTransport, @unchecked Sendable {
         try await client.initialize(root: Self.dir)
         client.didOpen(file, text: Self.source)
 
-        // Diagnostics arrive as notifications; wait for the semantic error.
         var it = client.notifications.makeAsyncIterator()
         var found: [LSPDiagnostic] = []
         while let n = await it.next() {
@@ -121,16 +113,13 @@ final class FakeServer: DAPTransport, @unchecked Sendable {
         let missing = try #require(found.first { $0.message.contains("missing") })
         #expect(missing.severity == 1 && missing.start.line == 7)
 
-        // Completion after `g.` on line 7 (0-based 6).
         let items = try await client.completion(file, at: Position(line: 6, character: 8))
         #expect(items.contains { $0.label.hasPrefix("greet(times:") })
         #expect(items.contains { $0.label == "name" })
 
-        // Definition of `Greeter` at its use on line 6 (0-based 5).
         let defs = try await client.definition(file, at: Position(line: 5, character: 10))
         #expect(defs.first?.start.line == 0)
 
-        // Document highlights of `Greeter`: its declaration and its use.
         let highlights = try await client.documentHighlights(file, at: Position(line: 5, character: 10))
         #expect(Set(highlights.map(\.start.line)) == [0, 5])
         await client.shutdown()

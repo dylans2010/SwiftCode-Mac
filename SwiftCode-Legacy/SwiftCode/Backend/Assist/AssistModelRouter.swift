@@ -1,10 +1,3 @@
-//
-//  AssistModelRouter.swift
-//  SwiftCode
-//
-//  Intelligent, fault-tolerant model routing and automatic failover engine for Assist and Antigravity.
-//
-
 import Foundation
 import os
 
@@ -42,12 +35,10 @@ public final class AssistModelRouter: Sendable {
     public var currentRuntimeModel: AssistAvailableModel?
     public var lastFailoverEvent: ModelFailoverEvent?
     public var failoverHistory: [ModelFailoverEvent] = []
-    public var quarantinedModels: [String: Date] = [:] // modelId -> unquarantineDate
+    public var quarantinedModels: [String: Date] = [:]
     public var failedAttemptsCount: [String: Int] = [:]
 
     private init() {}
-
-    // MARK: - Model Selection & Ranking
 
     public func resolveCapabilities(for modelId: String) -> ModelCapabilities {
         return AgentModelAdapter.shared.specification(for: modelId).capabilities
@@ -55,16 +46,9 @@ public final class AssistModelRouter: Sendable {
 
     public func resolveDefaultModel() async -> AssistAvailableModel {
         let preferredID = AppSettings.shared.selectedAssistModelID
-        // SwiftCode Cloud Model short-circuit: never subject to provider discovery.
-        // Matches the legacy "swiftcode-cloud" ID and every per-model
-        // "swiftcode-cloud:<name>" ID — the server hosts many models.
         if AppSettings.shared.useSwiftCodeCloudModel && SCCloudConfiguration.isCloudModelID(preferredID) {
             return createSyntheticCloudModel(forCloudModelID: preferredID)
         }
-        // Model discovery is an optional metadata refresh, not a prerequisite
-        // for dispatching a request. The selected model's provider and
-        // capabilities are already known locally, so never hold a normal
-        // Assist turn behind slow/unreachable provider model-list endpoints.
         let all = AssistModelDiscoveryService.shared.discoveredModels
         if let match = all.first(where: { $0.id == preferredID || $0.modelIdentifier == preferredID }) {
             return match
@@ -155,7 +139,6 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
-    // MARK: - SDK Default Model Identifiers (Dynamically Fetched from Antigravity SDK)
     public static var sdkDefaultModelIDs: [String] {
         let list = AntigravitySDKModelFetcher.shared.allModelIDs
         if !list.isEmpty {
@@ -173,10 +156,6 @@ public final class AssistModelRouter: Sendable {
         let strategy = AppSettings.shared.assistModelRoutingStrategy
         let selectedId = AppSettings.shared.selectedAssistModelID
 
-        // SwiftCode Cloud Model: usable under EVERY routing strategy (SDK Default,
-        // Gemini Key Rotation, App Model Catalog) whenever the toggle is on. It
-        // bypasses provider credentials entirely — SCCloudModelClient owns
-        // identity (device fingerprint) and fair-use metering.
         if AppSettings.shared.useSwiftCodeCloudModel && SCCloudConfiguration.isCloudModelID(selectedId) {
             let cloudModel = createSyntheticCloudModel(forCloudModelID: selectedId)
             self.currentRuntimeModel = cloudModel
@@ -188,19 +167,6 @@ public final class AssistModelRouter: Sendable {
 
         switch strategy {
         case "default", "rotation":
-            // Antigravity SDK Default / Gemini Key Rotation: ONLY use models
-            // listed in the SDK, NOTHING ELSE. ("rotation" additionally rotates
-            // API keys; the model-selection contract is identical.)
-            //
-            // Hot-path fast path: the SDK's own model registry (fetched live
-            // from the Antigravity SDK at startup, in-memory afterwards) is
-            // the authoritative source for SDK models. When it confirms the
-            // effective model, resolve it directly instead of running the
-            // full multi-provider network discovery (getEligibleCandidates)
-            // on every request — that discovery exists to populate the model
-            // picker UI, not to re-validate an already-confirmed SDK model,
-            // and its cold-cache cost is the dominant "Preparing request…"
-            // delay.
             let validIds = Self.sdkDefaultModelIDs.filter {
                 createSyntheticSDKModel(modelID: $0).isConfigured
             }
@@ -216,9 +182,6 @@ public final class AssistModelRouter: Sendable {
             if AntigravitySDKModelFetcher.shared.getModel(byID: effectiveModelID) != nil {
                 targetModel = createSyntheticSDKModel(modelID: effectiveModelID)
             } else {
-                // Registry does not know this model (stale selection or SDK
-                // fetch not completed): fall back to the full discovery path
-                // so a live candidate can still be found.
                 let candidates = await getEligibleCandidates()
                 if let match = candidates.first(where: { $0.id == effectiveModelID || $0.modelIdentifier == effectiveModelID }) {
                     targetModel = match
@@ -232,7 +195,6 @@ public final class AssistModelRouter: Sendable {
             }
 
         case "app_models":
-            // App Model Catalog: try ALL the models that will be on the Available Models card.
             let discovery = AssistModelDiscoveryService.shared
             let cachedCandidates = eligibleCandidates(from: discovery.discoveredModels)
             if let match = cachedCandidates.first(where: { $0.id == selectedId || $0.modelIdentifier == selectedId }) {
@@ -276,15 +238,12 @@ public final class AssistModelRouter: Sendable {
 
         var baseModels: [AssistAvailableModel]
         if strategy == "default" || strategy == "rotation" {
-            // STRICT SDK ONLY: Restrict exclusively to models listed in the SDK
             let filtered = allModels.filter { model in
                 Self.sdkDefaultModelIDs.contains(model.modelIdentifier) || Self.sdkDefaultModelIDs.contains(model.id)
             }
             if filtered.isEmpty {
-                // Ensure default SDK models are always present even before provider sync completes
                 baseModels = Self.sdkDefaultModelIDs.map { createSyntheticSDKModel(modelID: $0) }
             } else {
-                // Ensure all filtered SDK default models are marked as configured and agentic
                 baseModels = filtered.map { model in
                     if model.isConfigured && model.supportsAgenticUse && model.supportsToolCalling {
                         return model
@@ -314,19 +273,14 @@ public final class AssistModelRouter: Sendable {
                 }
             }
         } else {
-            // App Model Catalog: try ALL models from the Available Models card
             baseModels = allModels
         }
 
-        // Filter: must support agentic use and tool calling, must be configured, must not be quarantined
         let eligible = baseModels.filter { model in
             guard model.supportsAgenticUse && model.supportsToolCalling else { return false }
-            // "Use Provider Models" is on: failover/selection may never
-            // pick a user-provided (custom) model, even as a fallback.
             if AppSettings.shared.assistUseProviderModels, Self.isUserProvidedModel(model) { return false }
             guard model.isConfigured, hasCredentials(forModelID: model.modelIdentifier, provider: model.providerID) else { return false }
 
-            // Check quarantine
             if let unquarantine = quarantinedModels[model.id], Date() < unquarantine {
                 return false
             }
@@ -339,9 +293,6 @@ public final class AssistModelRouter: Sendable {
 
         var ranked = rankModels(eligible)
         if AppSettings.shared.useSwiftCodeCloudModel {
-            // The cloud models are eligible under every strategy. They are direct
-            // (non-agentic) chat models, so they join after the agentic filter above
-            // rather than being forced through it — one entry per discovered model.
             ranked.removeAll { SCCloudConfiguration.isCloudModelID($0.id) }
             let discovered = SCCloudModelDiscovery.shared.models
             if discovered.isEmpty {
@@ -355,14 +306,6 @@ public final class AssistModelRouter: Sendable {
         return ranked
     }
 
-    /// Synthetic model record for the SwiftCode Cloud Model. Returned whenever the
-    /// "Use SwiftCode's Cloud Model" toggle is on and this model is selected —
-    /// under any routing strategy. Execution bypasses the Antigravity SDK session
-    /// (see AssistManager.sendSwiftCodeCloudMessage); the providerID here only
-    /// needs to avoid the Gemini/Google credential gate.
-    ///
-    /// `cloudModelID` is the internal ID: the legacy "swiftcode-cloud" or a
-    /// per-model "swiftcode-cloud:<name>".
     public func createSyntheticCloudModel(forCloudModelID cloudModelID: String) -> AssistAvailableModel {
         let remaining = SCCloudRateLimiter.shared.remainingToday
         let endpointName = SCCloudConfiguration.endpointName(forInternalID: cloudModelID)
@@ -394,7 +337,6 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
-    /// Backwards-compatible entry point: legacy single-model ID.
     public func createSyntheticCloudModel() -> AssistAvailableModel {
         createSyntheticCloudModel(forCloudModelID: SCCloudConfiguration.modelIDPrefix)
     }
@@ -472,36 +414,29 @@ public final class AssistModelRouter: Sendable {
         let preferredID = preferredIdentifier ?? AppSettings.shared.selectedAssistModelID
 
         return models.sorted { lhs, rhs in
-            // 1. User preferred model always gets top priority if available
             let lhsIsPref = (lhs.id == preferredID || lhs.modelIdentifier == preferredID)
             let rhsIsPref = (rhs.id == preferredID || rhs.modelIdentifier == preferredID)
             if lhsIsPref != rhsIsPref {
                 return lhsIsPref
             }
 
-            // 2. Failure penalty: models with fewer failures rank higher
             let lhsFailures = failedAttemptsCount[lhs.id] ?? 0
             let rhsFailures = failedAttemptsCount[rhs.id] ?? 0
             if lhsFailures != rhsFailures {
                 return lhsFailures < rhsFailures
             }
 
-            // 3. Provider priority & model priority
             if lhs.priority != rhs.priority {
                 return lhs.priority < rhs.priority
             }
 
-            // 4. Subagent capability
             if lhs.supportsSubagents != rhs.supportsSubagents {
                 return lhs.supportsSubagents
             }
 
-            // 5. Context window
             return lhs.contextWindow > rhs.contextWindow
         }
     }
-
-    // MARK: - Failure Classification & Quarantine
 
     public func isQuotaOrRateLimit(errorText: String) -> Bool {
         let desc = errorText.lowercased()
@@ -547,7 +482,7 @@ public final class AssistModelRouter: Sendable {
     }
 
     public func markRateLimited(modelID: String, retryAfter: TimeInterval? = nil) {
-        let duration = retryAfter ?? 60.0 // Default 60s quarantine for 429
+        let duration = retryAfter ?? 60.0
         let until = Date().addingTimeInterval(duration)
         quarantinedModels[modelID] = until
         logger.warning("[ModelRouter] Quarantined model '\(modelID)' until \(until) due to rate limit/quota.")
@@ -558,7 +493,6 @@ public final class AssistModelRouter: Sendable {
     }
 
     public func markAuthenticationFailed(modelID: String) {
-        // Quarantine for 10 minutes until user updates credentials
         quarantinedModels[modelID] = Date().addingTimeInterval(600.0)
         logger.error("[ModelRouter] Authentication failed for model '\(modelID)'. Quarantined.")
     }
@@ -646,17 +580,11 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
-    /// A user-provided model: a Custom Model Setup (source .custom),
-    /// excluding SwiftCode Cloud models, which are also recorded as
-    /// .custom synthetics but are provider-hosted, not user-provided.
     public static func isUserProvidedModel(_ model: AssistAvailableModel) -> Bool {
         model.source == .custom && !SCCloudConfiguration.isCloudModelID(model.id)
             && !SCCloudConfiguration.isCloudModelID(model.modelIdentifier)
     }
 
-    /// Whether the selected model id is a user-provided custom model
-    /// (not a provider model, not a cloud model). Used as the
-    /// send-time gate when "Use Provider Models" is on.
     public static func isUserProvidedSelectedModelID(_ selectedID: String, discovered: AssistAvailableModel?) -> Bool {
         if let discovered {
             return isUserProvidedModel(discovered)
@@ -666,13 +594,8 @@ public final class AssistModelRouter: Sendable {
         if SCCloudConfiguration.isCloudModelID(trimmed) { return false }
         if HermesModelID.isHermesModelID(trimmed) { return false }
         if OpenCodeModelID.isOpenCodeModelID(trimmed) { return false }
-        // A bare custom-model id stored in AppSettings.customModel is
-        // user-provided by definition; provider ids arrive as
-        // provider/model (OpenRouter) or via a discovered record.
         return trimmed == AppSettings.shared.customModel && !AppSettings.shared.customModel.isEmpty
     }
-
-    // MARK: - Failover & Task State Continuity
 
     public func handleTurnFailure(
         failedModel: AssistAvailableModel,
@@ -683,7 +606,6 @@ public final class AssistModelRouter: Sendable {
     ) async -> (nextModel: AssistAvailableModel, continuationPrompt: String, nextConfig: GoogleCloudSDKConfiguration)? {
         let failureClass = classify(error: error)
 
-        // Record failure
         switch failureClass {
         case .rateLimited, .quotaExhausted:
             markRateLimited(modelID: failedModel.id)
@@ -695,7 +617,6 @@ public final class AssistModelRouter: Sendable {
             markModelUnavailable(modelID: failedModel.id, reason: error.localizedDescription)
         }
 
-        // If on Gemini Key Rotation and hit rate limit, rotate key first
         if AppSettings.shared.alternativeKeysEnabled && (failureClass == .rateLimited || failureClass == .quotaExhausted) {
             if let activeId = AlternativeKeyManager.shared.activeKeyId {
                 AlternativeKeyManager.shared.markRateLimited(id: activeId, retryAfterSeconds: 60)
@@ -708,11 +629,6 @@ public final class AssistModelRouter: Sendable {
             }
         }
 
-        // "Automatically Switch Models" is off: never switch, not
-        // even to the next ranked model. Key rotation above already
-        // handled the same-model case; returning nil here means the
-        // caller must wait on / retry the selected model and show
-        // that wait, never silently substitute another model.
         if !AppSettings.shared.assistAutomaticallySwitchModels {
             logger.warning("[ModelRouter] Automatic model switching is off: will not switch away from '\(failedModel.displayName)' after failure.")
             return nil
@@ -722,7 +638,6 @@ public final class AssistModelRouter: Sendable {
         excluding.insert(failedModel.id)
         excluding.insert(failedModel.modelIdentifier)
 
-        // If quota exhausted or auth failed, also exclude all other models from this exact same provider
         if failureClass == .quotaExhausted || failureClass == .authenticationFailed {
             let all = await AssistModelDiscoveryService.shared.discoverAllModels()
             for m in all where m.providerID == failedModel.providerID {
@@ -751,7 +666,6 @@ public final class AssistModelRouter: Sendable {
 
         logger.warning("[ModelRouter] Failover initiated from '\(failedModel.displayName)' to '\(nextModel.displayName)': Reason: \(reasonString) (\(failureClass.rawValue))")
 
-        // Build continuous task handoff prompt
         var handoff = "CONTINUATION DIRECTIVE:\n"
         handoff += "The previous model (\(failedModel.displayName)) encountered a \(failureClass.rawValue) and failed.\n"
         if executedToolsCount > 0 {
@@ -765,8 +679,6 @@ public final class AssistModelRouter: Sendable {
         let nextConfig = buildSDKConfiguration(for: nextModel, objective: objective)
         return (nextModel, handoff, nextConfig)
     }
-
-    // MARK: - SDK Configuration Builder
 
     public func buildSDKConfiguration(for model: AssistAvailableModel, objective: String = "") -> GoogleCloudSDKConfiguration {
         var baseConfig = GoogleCloudSDKConfiguration.resolveDefault(objective: objective)
@@ -790,12 +702,10 @@ public final class AssistModelRouter: Sendable {
             && (isGoogleProvider || isAntigravityCatalog || !hasDirectProviderKey || googleAuthMode == "google_oauth")
 
         if isOAuthAuthenticated {
-            // Strictly rely ONLY on Antigravity allowance / OAuth session. NO API keys.
             apiKey = nil
             oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
             executionMode = "antigravity"
         } else if isGoogleProvider && AppSettings.shared.alternativeKeysEnabled {
-            // Gemini Key Rotation: rotate through keys strictly with no OAuth
             apiKey = AlternativeKeyManager.shared.getActiveOrNextKey()?.key
                 ?? KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
                 ?? APIKeyManager.shared.retrieveKey(service: .google)
@@ -841,10 +751,6 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
-    /// Checks whether credentials exist for a specific model ID and provider.
-    /// In Google-authenticated Antigravity mode (`google_oauth`), all models in
-    /// the Antigravity SDK catalog (including `claude-sonnet-4-6` and
-    /// `claude-opus-4-6-thinking`) are authorized by the Antigravity session.
     public func hasCredentials(forModelID modelID: String, provider: String) -> Bool {
         if hasCredentials(for: provider) {
             return true
@@ -858,8 +764,6 @@ public final class AssistModelRouter: Sendable {
         return false
     }
 
-    /// Catalog membership is metadata, not authorization for non-Antigravity
-    /// direct provider requests.
     public func hasCredentials(for provider: String) -> Bool {
         let p = provider.lowercased()
         if p == "google" || p == "gemini" || p == "antigravity" {
@@ -878,12 +782,6 @@ public final class AssistModelRouter: Sendable {
         return !(resolveAPIKey(for: p) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Resolves an API key for the given provider. This returns *only* API keys.
-    /// In Google account ("google_oauth") mode it returns nil: the OAuth
-    /// access token travels in the configuration's dedicated oauthToken slot,
-    /// never in the apiKey slot. Returning a Bearer token as an "API key"
-    /// sends the wrong credential kind to the endpoint and produces
-    /// 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT-style failures.
     public func resolveAPIKey(for provider: String) -> String? {
         let p = provider.lowercased()
         if p == "gemini" || p == "google" {

@@ -1,38 +1,20 @@
 #!/bin/sh
-# Build WKProbe for the iOS simulator with the installed Xcode, in variants
-# that differ only in Info.plist and entitlements (all ad-hoc signed, no team):
-#   WKProbe.app       location usage string, no entitlements      dev.ycode.wkprobe
-#   WKProbeEnt.app    location usage string + com.apple.developer.weatherkit=true
-#                                                                  dev.ycode.wkprobe.ent
-#                     (entitlement in the __entitlements section only, as Xcode does)
-#   WKProbeEntSig.app same, plus the entitlement in the ad-hoc signature
-#                                                                  dev.ycode.wkprobe.entsig
-#   WKProbeNoLoc.app  no location usage string, no entitlements   dev.ycode.wkprobe.noloc
-#   WKProbeOwner.app  only when OWNER_BUNDLE_ID is set: that bundle ID (one the
-#                     owner registered with WeatherKit enabled) + the entitlement
-#                     section; for the entitled reference run (spec R0b)
-# Usage: [OWNER_BUNDLE_ID=...] build.sh OUTDIR   (OUTDIR must be on the Mac, not on the drive)
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}
 mkdir -p "$OUT"
 SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
-
 cat > "$OUT/ent.plist" <<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>com.apple.developer.weatherkit</key><true/></dict></plist>
 XML
-
 xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios27.0-simulator -sdk "$SDK" \
   -swift-version 5 -parse-as-library -Onone -g "$SRC/main.swift" -o "$OUT/WKProbe.bin"
-# Simulator builds carry entitlements in a __TEXT,__entitlements section (what
-# Xcode does for simulator targets) as well as in the ad-hoc signature.
 xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios27.0-simulator -sdk "$SDK" \
   -swift-version 5 -parse-as-library -Onone -g "$SRC/main.swift" -o "$OUT/WKProbeEnt.bin" \
   -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker "$OUT/ent.plist"
-
-plist() { # name bundle-id extra-xml
+plist() {
   cat <<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -54,8 +36,7 @@ $3
 </dict></plist>
 XML
 }
-
-mk() { # app-name bundle-id binary extra-xml [entitlements]
+mk() {
   rm -rf "$OUT/$1.app"; mkdir -p "$OUT/$1.app"
   cp "$OUT/$3" "$OUT/$1.app/WKProbe"
   plist "$1" "$2" "$4" > "$OUT/$1.app/Info.plist"
@@ -67,8 +48,6 @@ mk() { # app-name bundle-id binary extra-xml [entitlements]
 }
 LOC='<key>NSLocationWhenInUseUsageDescription</key><string>WKProbe location test</string>'
 mk WKProbe dev.ycode.wkprobe WKProbe.bin "$LOC"
-# Entitlements only in the __entitlements section: an ad-hoc signature that
-# carries this restricted entitlement is refused at launch (observed).
 mk WKProbeEnt dev.ycode.wkprobe.ent WKProbeEnt.bin "$LOC"
 mk WKProbeEntSig dev.ycode.wkprobe.entsig WKProbeEnt.bin "$LOC" "$OUT/ent.plist"
 mk WKProbeNoLoc dev.ycode.wkprobe.noloc WKProbe.bin ""

@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// The Codex API-key client (ported from Legacy's Backend/Codex) against a
-// stub transport. No live network, no real key anywhere — the "keys" here
-// are placeholders like "user-key".
-
-/// A URLProtocol stub: the handler answers every request from canned
-/// data. No live network.
 final class CodexStubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?
 
@@ -69,7 +63,6 @@ struct CodexAPIClientTests {
         let body = try #require(request.httpBody)
         let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
         let input = try #require(json["input"] as? [[String: Any]])
-        // system + last 10 messages + new prompt = 12 items
         #expect(input.count == 12)
         let texts = input.compactMap { ($0["content"] as? [[String: Any]])?.first?["text"] as? String }
         #expect(texts.contains("message 2"))

@@ -1,48 +1,23 @@
 import Foundation
 import os.log
 
-// MARK: - SDKManagedExtension
-//
-// The Studio/UI-facing snapshot of one discovered extension: identity and
-// version from the validated manifest, host-managed enablement, the live
-// lifecycle state, and the last actionable diagnostic. Data only — all
-// mutation goes through `SDKExtensionManager`.
-
 public struct SDKManagedExtension: Sendable {
     public let id: String
     public let name: String
     public let version: String
-    /// Absolute path of the installed package directory.
     public let installPath: String
-    /// SHA-256 hex digest of the installed tree at discovery time.
     public let packageDigest: String
-    /// The validated manifest (nil when validation failed).
     public let manifest: SDKManifest?
-    /// Host-managed enabled flag (user toggle). Disabled extensions are
-    /// never launched.
     public let enabled: Bool
-    /// Current lifecycle state (`.discovered` for never-launched packages).
     public let lifecycleState: SDKRuntimeState
-    /// Crashes recorded this process lifetime (drives the retry bound).
     public let crashCount: Int
-    /// True when the manager quarantined the extension: it stays stopped
-    /// until the user re-enables or reinstalls it.
     public let quarantined: Bool
-    /// Actionable diagnostic for stopped/invalid extensions; nil when the
-    /// extension is healthy or running.
     public let diagnostic: String?
 
-    /// Commands declared in the manifest's `contributes` section. Invoking
-    /// one routes through the TS runtime (`commands.execute` host event),
-    /// never native injection.
     public var declaredCommands: [SDKManifestCommandContribution] {
         manifest?.contributes?.commands ?? []
     }
 }
-
-// MARK: - SDKExtensionLaunchSummary
-//
-// Result of `startAll()` (called from `SDKBootstrap` at app launch).
 
 public struct SDKExtensionLaunchSummary: Sendable {
     public let started: [String]
@@ -50,49 +25,10 @@ public struct SDKExtensionLaunchSummary: Sendable {
     public let failed: [(id: String, reason: String)]
 }
 
-// MARK: - SDKExtensionManager
-//
-// The host-side extension/app supervisor (Docs/Intro-to-SDK.md §6): the
-// single service that starts and supervises ALL installed extensions/apps.
-//
-// This is THE driver that `SDKRuntimeSession` was written for (see that
-// file's header): it discovers packages in the controlled extensions
-// directory, validates each manifest with `SDKManifestValidator`, spawns
-// one out-of-process node runtime per enabled extension via
-// `SDKNodeLauncher`, pipes IPC through `SDKIPCTransport` /
-// `SDKIPCDispatcher`, and walks every session through the strict lifecycle
-// state machine.
-//
-// Layout of the controlled directory (`~/.swiftcode/extensions`):
-//   <root>/<extension-id>/swiftcode.json   — the validated manifest
-//   <root>/<extension-id>/...              — the installed package tree
-//   <root>/.host-state.json                — host-managed per-extension
-//                                          state (enabled flag, recorded
-//                                          digest, quarantine). Extension
-//                                          code must never write here.
-//
-// Crash policy (spec §10.5): an unexpected runtime exit is recorded with
-// `markCrashed(exitCode:)`; while the manager-side crash count stays below
-// `SDKRuntimeSession.maxCrashRestarts` the extension is relaunched with
-// exponential backoff (2s, 4s, 8s); afterwards it is QUARANTINED —
-// stopped, diagnosed to the user, contributions removed — and never
-// relaunched until the user intervenes. An infinite crash/restart loop is
-// structurally impossible: the bound is enforced by the manager's own
-// per-extension counter, which survives session replacement (a relaunch
-// always uses a NEW `SDKRuntimeSession` per the lifecycle rules).
-//
-// An actor, so all runtime bookkeeping is serialized and race-free under
-// Swift 6 strict concurrency.
-
 public actor SDKExtensionManager {
-
-    // MARK: - Shared instance
 
     public static let shared = SDKExtensionManager()
 
-    // MARK: - Layout
-
-    /// The controlled extensions directory. Created on demand.
     public nonisolated static var extensionsRoot: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".swiftcode/extensions", isDirectory: true)
@@ -101,14 +37,9 @@ public actor SDKExtensionManager {
     private static let manifestFileName = "swiftcode.json"
     private static let stateFileName = ".host-state.json"
 
-    /// Activation budget: the runtime adapter must emit `extension.ready`
-    /// within this window after spawn, or the session times out.
     private static let activationTimeoutNanoseconds: UInt64 = 30_000_000_000
-    /// Budget for one command invocation round-trip.
     private static let commandTimeoutNanoseconds: UInt64 = 60_000_000_000
-    /// Bounded stop budget per extension on disable/uninstall.
     private static let stopTimeoutNanoseconds: UInt64 = 10_000_000_000
-    /// Backoff cap for crash restarts (2s, 4s, 8s, … capped here).
     private static let maxRestartBackoffSeconds: UInt64 = 30
 
     private static let log = Logger(
@@ -118,15 +49,8 @@ public actor SDKExtensionManager {
 
     private init() {}
 
-    // MARK: - Persistent host state
-
-    /// Host-managed per-extension state, persisted at
-    /// `<root>/.host-state.json`. Extensions never write here.
     private struct HostExtensionState: Codable, Sendable {
         var enabled: Bool = true
-        /// Digest recorded at the last clean scan; a mismatch means the
-        /// package changed on disk (tamper or manual edit) and forces
-        /// quarantine + grant revocation per spec §8.7.
         var recordedDigest: String?
         var quarantined: Bool = false
         var quarantineReason: String?
@@ -169,9 +93,6 @@ public actor SDKExtensionManager {
         savePersistedState()
     }
 
-    // MARK: - Live runtime bookkeeping
-
-    /// Everything the manager owns for one launched extension.
     private struct RuntimeHandle {
         var session: SDKRuntimeSession
         var launched: SDKLaunchedRuntime
@@ -181,22 +102,12 @@ public actor SDKExtensionManager {
         var terminationTask: Task<Void, Never>
     }
 
-    /// extensionID -> live runtime. A missing entry means "not running".
     private var handles: [String: RuntimeHandle] = [:]
-    /// Manager-side crash counts (survive session replacement — this is
-    /// what bounds restarts).
     private var crashCounts: [String: Int] = [:]
-    /// Last actionable diagnostic per extension, for the UI.
     private var diagnostics: [String: String] = [:]
-    /// Pending `commands.execute` invocations, keyed by invocation ID.
     private var pendingInvocations: [String: (extensionID: String, continuation: CheckedContinuation<SDKJSONValue, Error>)] = [:]
-    /// Pending activation handshakes, keyed by extension ID.
     private var activationWaiters: [String: CheckedContinuation<Void, Error>] = [:]
 
-    // MARK: - Discovery
-
-    /// One discovered package directory: the validated manifest (or the
-    /// validation error) plus identity fields.
     private struct DiscoveredPackage {
         let id: String
         let installPath: URL
@@ -230,10 +141,6 @@ public actor SDKExtensionManager {
         }
     }
 
-    /// Reads every `<root>/<id>/` directory, validates each `swiftcode.json`
-    /// with `SDKManifestValidator`, and returns the packages sorted by id.
-    /// Invalid packages are RETURNED (with `validationError` set) — never
-    /// silently dropped — so the UI can show actionable diagnostics.
     private func discover() async throws -> [DiscoveredPackage] {
         try ensureExtensionsRoot()
         let root = Self.extensionsRoot
@@ -253,7 +160,6 @@ public actor SDKExtensionManager {
 
         var found: [DiscoveredPackage] = []
         for idName in idNames.sorted() {
-            // The host state file is metadata, not a package.
             guard idName != Self.stateFileName, !idName.hasPrefix(".") else { continue }
             let idDir = root.appendingPathComponent(idName, isDirectory: true)
             var isDirectory: ObjCBool = false
@@ -264,9 +170,6 @@ public actor SDKExtensionManager {
         return found
     }
 
-    /// Reads and validates one package directory. Never throws: failures are
-    /// captured in `DiscoveredPackage.validationError` with an actionable
-    /// message, so one broken package can never abort the whole scan.
     private func readPackage(idName: String, at idDir: URL) async -> DiscoveredPackage {
         let manifestURL = idDir.appendingPathComponent(Self.manifestFileName)
         guard let data = try? Data(contentsOf: manifestURL) else {
@@ -315,10 +218,6 @@ public actor SDKExtensionManager {
         }
     }
 
-    // MARK: - Snapshot (UI)
-
-    /// Discovers all packages and merges live runtime state. Used by Studio.
-    /// Never throws: discovery failures surface as a single diagnostic row.
     public func snapshot() async -> [SDKManagedExtension] {
         let packages: [DiscoveredPackage]
         do {
@@ -376,13 +275,6 @@ public actor SDKExtensionManager {
         return text
     }
 
-    // MARK: - Startup (SDKBootstrap entry point)
-
-    /// Starts every enabled, valid extension. Called once from
-    /// `SDKBootstrap.bootstrapIfNeeded()`. Never throws: per-extension
-    /// failures are logged, diagnosed to the user, and recorded in the
-    /// returned summary — one broken extension can never prevent the rest
-    /// from starting.
     public func startAll() async -> SDKExtensionLaunchSummary {
         var started: [String] = []
         var skipped: [(id: String, reason: String)] = []
@@ -435,10 +327,6 @@ public actor SDKExtensionManager {
         return SDKExtensionLaunchSummary(started: started, skipped: skipped, failed: failed)
     }
 
-    // MARK: - Launch
-
-    /// Launches one discovered extension by ID. Throws a typed `SDKError`
-    /// on every failure path — never a fake "started".
     public func launch(extensionID: String) async throws {
         guard handles[extensionID] == nil else {
             throw SDKError(
@@ -484,7 +372,6 @@ public actor SDKExtensionManager {
         try await launchValidated(package: package)
     }
 
-    /// Launch path for an already-discovered, already-validated package.
     private func launchValidated(package: DiscoveredPackage) async throws {
         let id = package.id
         guard let manifest = package.manifest else {
@@ -495,9 +382,6 @@ public actor SDKExtensionManager {
             )
         }
 
-        // Tamper check (spec §8.7): a digest change since the last clean
-        // scan revokes grants and quarantines the package — the install
-        // record is not trusted over the bytes on disk.
         if let digest = package.digest {
             var hostState = state(for: id)
             if let recorded = hostState.recordedDigest, recorded != digest {
@@ -506,7 +390,6 @@ public actor SDKExtensionManager {
                     try await SDKGrantStore.shared.revokeAll(for: id)
                     revocationNote = "Its capability grants were revoked as a precaution."
                 } catch {
-                    // Never claim a revocation that did not happen.
                     revocationNote = "Revoking its capability grants FAILED (\(String(describing: error))); treat all of its grants as untrusted until it is reinstalled."
                 }
                 hostState.quarantined = true
@@ -548,14 +431,9 @@ public actor SDKExtensionManager {
         )
         let session = SDKRuntimeSession(info: info)
         try await session.transition(to: .validated)
-        // v1 has no launch-time consent gate beyond the user's enabled
-        // toggle and the per-capability approval UI: the extension runs
-        // with no granted capabilities until the user approves each one.
         try await session.transition(to: .awaitingPermission)
         try await session.transition(to: .ready)
 
-        // Teardown hook: the owner (this manager) disposes extension-owned
-        // resources — contributed commands first, per spec §10.5.
         await session.setOnDeactivate { [extensionID = id] in
             await SDKCommandRegistry.shared.unregisterAll(extensionID: extensionID)
         }
@@ -592,9 +470,6 @@ public actor SDKExtensionManager {
         let dispatcher = SDKIPCDispatcher(
             session: info,
             send: { [transport] data in
-                // The dispatcher contract is non-throwing: a broken pipe
-                // means the runtime is dying; the termination watcher owns
-                // restart accounting, but the failure is still logged.
                 do {
                     try await transport.sendMessage(data)
                 } catch {
@@ -609,8 +484,6 @@ public actor SDKExtensionManager {
             }
         )
 
-        // Register the handle BEFORE starting the pumps so the event and
-        // termination handlers can find it.
         handles[id] = RuntimeHandle(
             session: session,
             launched: launched,
@@ -627,9 +500,6 @@ public actor SDKExtensionManager {
             await self?.handleTermination(extensionID: id, exitCode: status)
         }
 
-        // Activation handshake: the adapter emits `extension.ready` after
-        // `activate()` succeeds, or `extension.activationFailed` (then it
-        // exits). Bounded by the activation budget.
         do {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 activationWaiters[id] = continuation
@@ -646,24 +516,11 @@ public actor SDKExtensionManager {
                 }
             }
         } catch {
-            // Activation failed or timed out: tear down everything we
-            // started, so no half-launched runtime lingers.
             await teardownHandle(id: id, terminateProcess: true)
             throw error
         }
     }
 
-    /// Resolves the node runtime adapter (`adapter.js`) the host spawns per
-    /// extension. Resolution order:
-    ///   1. `SWIFTCODE_SDK_ADAPTER_PATH` — explicit override (tilde
-    ///      expanded); must name an existing file.
-    ///   2. `adapter.js` bundled in the app resources (the future
-    ///      packaging step — see SDKStudioExtensionsView's CLI notes for
-    ///      the same reachability reasoning).
-    ///
-    /// When neither resolves, launching fails with a typed
-    /// `.runtimeUnavailable` error carrying actionable guidance — never a
-    /// silent skip or a fake launch.
     private func resolveAdapterURL() throws -> URL {
         let fileManager = FileManager.default
         if let override = ProcessInfo.processInfo.environment["SWIFTCODE_SDK_ADAPTER_PATH"],
@@ -715,8 +572,6 @@ public actor SDKExtensionManager {
         )
     }
 
-    // MARK: - Activation handshake
-
     private func completeActivation(_ id: String, result: Result<Void, Error>) {
         guard let waiter = activationWaiters.removeValue(forKey: id) else { return }
         switch result {
@@ -729,13 +584,6 @@ public actor SDKExtensionManager {
         completeActivation(id, result: .failure(error))
     }
 
-    // MARK: - IPC pump
-
-    /// Reads frames from one runtime's stdout for the life of the process:
-    /// extension→host requests are dispatched (responses written back),
-    /// host→extension events (`extension.ready`, `commands.executeResult`,
-    /// …) are handled. Any framing/transport failure ends the loop — the
-    /// termination watcher owns crash accounting and restarts.
     private func pumpIO(extensionID id: String) async {
         guard let handle = handles[id] else { return }
         let transport = handle.transport
@@ -750,14 +598,11 @@ public actor SDKExtensionManager {
                     do {
                         try await transport.sendMessage(response)
                     } catch {
-                        return // broken pipe — termination watcher takes over
+                        return
                     }
                 case .event:
                     await handleRuntimeEvent(frame, extensionID: id)
                 case .response:
-                    // The host never issues requests to the runtime; an
-                    // inbound response frame is a protocol violation.
-                    // Logged, never fatal.
                     await SDKDeveloperLogger.shared.log(
                         SDKError(
                             code: .ipcMalformed,
@@ -770,12 +615,10 @@ public actor SDKExtensionManager {
             } catch {
                 return
             }
-            // Re-fetch the handle each lap: teardown replaces `handles[id]`.
             guard handles[id] != nil, !Task.isCancelled else { return }
         }
     }
 
-    /// Handles one host→extension event frame from a runtime.
     private func handleRuntimeEvent(_ frame: Data, extensionID id: String) async {
         let envelope: SDKEventEnvelope<SDKJSONValue>
         do {
@@ -810,7 +653,6 @@ public actor SDKExtensionManager {
         case "commands.executeResult":
             completeCommandResult(envelope, extensionID: id)
         default:
-            // Forward-compatible: unknown events are logged, never fatal.
             Self.log.debug("SDKExtensionManager: ignoring unknown runtime event '\(envelope.event, privacy: .public)' from \(id, privacy: .public)")
         }
     }
@@ -861,22 +703,8 @@ public actor SDKExtensionManager {
         await SDKUserLogger.shared.log(error)
         await SDKDeveloperLogger.shared.log(error, context: ["extensionID": id])
         completeActivation(id, result: .failure(error))
-        // The adapter exits on its own after reporting activation failure;
-        // the termination watcher will observe the exit.
     }
 
-    // MARK: - Command invocation (context.commands path)
-
-    /// Invokes one of the extension's contributed commands. The call goes
-    /// through the TS runtime — a `commands.execute` host event dispatched
-    /// to the handler the extension registered via `context.commands` —
-    /// never native injection. The extension's `commands.executeResult`
-    /// event completes the call, bounded by the command timeout.
-    ///
-    /// - Throws: `.serviceUnavailable` when the extension is not active,
-    ///   `.invalidArgument` for an unknown command ID, `.ipcTimeout` when
-    ///   the runtime does not answer in time, or the extension's own error
-    ///   projected as a typed `SDKError`.
     public func invokeCommand(extensionID id: String, commandID: String) async throws -> SDKJSONValue {
         guard let handle = handles[id] else {
             throw SDKError(
@@ -892,8 +720,6 @@ public actor SDKExtensionManager {
                 suggestion: "Wait for the extension to finish starting, then try again."
             )
         }
-        // Only declared or runtime-registered commands may be invoked —
-        // the host never invents a command ID for the extension.
         let declared = (try? await discover().first(where: { $0.id == id })?.manifest?.contributes?.commands.map(\.id)) ?? []
         let registered = await SDKCommandRegistry.shared.commands(for: id).map(\.id)
         let known = Set(declared).union(registered)
@@ -921,7 +747,6 @@ public actor SDKExtensionManager {
                     ]),
                     requestId: invocationID
                 )
-                // Arm the timeout only after the event is on the wire.
                 Task { [weak self] in
                     try? await Task.sleep(nanoseconds: Self.commandTimeoutNanoseconds)
                     await self?.failInvocation(
@@ -937,9 +762,6 @@ public actor SDKExtensionManager {
         }
     }
 
-    /// Completes a pending `commands.execute` invocation from the runtime's
-    /// `commands.executeResult` event. Exactly-once: the waiter is removed
-    /// before resuming, so a late duplicate (or the timeout) is a no-op.
     private func completeCommandResult(
         _ envelope: SDKEventEnvelope<SDKJSONValue>,
         extensionID id: String
@@ -983,35 +805,23 @@ public actor SDKExtensionManager {
         pending.continuation.resume(throwing: error)
     }
 
-    // MARK: - Termination / crash handling
-
-    /// Observes one runtime's exit. Expected exits (intentional stop /
-    /// uninstall removed the handle first) are ignored. Unexpected exits
-    /// are crash-accounted: bounded restarts with exponential backoff, then
-    /// quarantine — never an infinite crash/restart loop.
     private func handleTermination(extensionID id: String, exitCode: Int32) async {
-        guard let handle = handles[id] else { return } // intentional stop
+        guard let handle = handles[id] else { return }
         let sessionState = await handle.session.state
         switch sessionState {
         case .stopping, .stopped:
-            // Graceful stop completed; finish the teardown.
             await teardownHandle(id: id, terminateProcess: false)
             return
         default:
-            break // unexpected — crash path below
+            break
         }
 
         await handle.session.markCrashed(exitCode: exitCode)
         let total = (crashCounts[id] ?? 0) + 1
         crashCounts[id] = total
 
-        // The old IO pump is done: its transport is closed below, so its
-        // next read fails and it exits. Cancel it explicitly as well so a
-        // relaunch never shares a pump with a dead runtime.
         handle.ioTask.cancel()
 
-        // Clean up contributions immediately: a dead extension leaves no
-        // stale commands behind (spec §10.5).
         await SDKCommandRegistry.shared.unregisterAll(extensionID: id)
         await handle.transport.close()
 
@@ -1026,16 +836,12 @@ public actor SDKExtensionManager {
             diagnostics: ["extensionID": id, "exitCode": "\(exitCode)", "history": history]
         )
         await SDKDeveloperLogger.shared.log(crashError, context: ["extensionID": id])
-        // markCrashed already audit-recorded `.runtimeTerminated`.
 
-        // Remove the dead handle before any restart so the new launch
-        // starts from a clean slate (and so a concurrent intentional stop
-        // cannot race the restart).
         handles.removeValue(forKey: id)
 
         if total < SDKRuntimeSession.maxCrashRestarts {
             let delaySeconds = min(
-                UInt64(1) << UInt64(total), // 2, 4, 8, …
+                UInt64(1) << UInt64(total),
                 Self.maxRestartBackoffSeconds
             )
             Self.log.debug("SDKExtensionManager: '\(id, privacy: .public)' crashed; retrying in \(delaySeconds, privacy: .public)s")
@@ -1044,8 +850,6 @@ public actor SDKExtensionManager {
                 correlationId: crashError.correlationId
             )
             try? await Task.sleep(nanoseconds: delaySeconds * 1_000_000_000)
-            // The user may have disabled or uninstalled it during the
-            // backoff — re-check before relaunching.
             let hostState = state(for: id)
             guard hostState.enabled, !hostState.quarantined else { return }
             do {
@@ -1070,9 +874,6 @@ public actor SDKExtensionManager {
         }
     }
 
-    /// Quarantines an extension: it stays stopped until the user re-enables
-    /// it (which clears the quarantine) or reinstalls it. Contributions are
-    /// removed and the quarantine is persisted across launches.
     private func quarantine(id: String, reason: String) async {
         var hostState = state(for: id)
         hostState.quarantined = true
@@ -1092,9 +893,6 @@ public actor SDKExtensionManager {
         Self.log.error("SDKExtensionManager: quarantined '\(id, privacy: .public)': \(reason, privacy: .public)")
     }
 
-    /// Clears a quarantine (user action via re-enable). The crash budget is
-    /// reset too: the user inspected the problem and asked for another
-    /// chance, so the extension gets a fresh retry budget.
     private func clearQuarantine(id: String) {
         var hostState = state(for: id)
         guard hostState.quarantined else { return }
@@ -1105,19 +903,10 @@ public actor SDKExtensionManager {
         crashCounts.removeValue(forKey: id)
     }
 
-    // MARK: - Stop / teardown
-
-    /// Tears down one runtime: cancels the pumps, runs the session's
-    /// ordered deactivation (commands disposed via the `onDeactivate`
-    /// hook), terminates the process, and removes the handle. Bounded:
-    /// deactivation is raced against the stop budget.
     private func teardownHandle(id: String, terminateProcess: Bool) async {
         guard let handle = handles.removeValue(forKey: id) else { return }
         handle.ioTask.cancel()
         handle.terminationTask.cancel()
-        // Fail any waiters tied to THIS runtime so callers never hang.
-        // (Other extensions' invocations are untouched.) Keys are collected
-        // first: removing during iteration would trap.
         let doomedInvocations = pendingInvocations
             .filter { $0.value.extensionID == id }
             .map(\.key)
@@ -1144,7 +933,6 @@ public actor SDKExtensionManager {
             group.addTask {
                 try? await Task.sleep(nanoseconds: Self.stopTimeoutNanoseconds)
             }
-            // First finished wins; the group is cancelled on exit.
             _ = try? await group.next()
             group.cancelAll()
         }
@@ -1154,23 +942,16 @@ public actor SDKExtensionManager {
         await handle.transport.close()
     }
 
-    /// Gracefully stops one extension if it is running.
     public func stop(extensionID id: String) async {
         await teardownHandle(id: id, terminateProcess: true)
     }
 
-    /// Gracefully stops every running extension. Bounded per extension.
     public func stopAll() async {
         for id in Array(handles.keys) {
             await teardownHandle(id: id, terminateProcess: true)
         }
     }
 
-    // MARK: - Enable / disable
-
-    /// Flips the enabled flag. Disabling stops a running extension;
-    /// enabling launches it and clears any quarantine. Throws a typed
-    /// `SDKError` when enabling fails to launch.
     public func setEnabled(_ enabled: Bool, extensionID id: String) async throws {
         var hostState = state(for: id)
         hostState.enabled = enabled
@@ -1195,20 +976,6 @@ public actor SDKExtensionManager {
         }
     }
 
-    // MARK: - Uninstall
-
-    /// Fully uninstalls an extension:
-    ///   1. stops the runtime (bounded),
-    ///   2. removes contributed commands,
-    ///   3. revokes every capability grant (spec §8.7 — grants die with the
-    ///      extension),
-    ///   3b. revokes the app's Assist entitlement bindings and closes its
-    ///      open Assist sessions (Docs/Intro-to-SDK.md §14),
-    ///   4. wipes the extension's Security namespace values,
-    ///   5. deletes the installed package directory from disk,
-    ///   6. drops host state.
-    /// Audit-recorded. Throws `.uninstallFailed` with an actionable message
-    /// on any failure — nothing is faked as removed.
     public func uninstall(extensionID id: String) async throws {
         let packages = try? await discover()
         let installPath = packages?.first(where: { $0.id == id })?.installPath
@@ -1227,14 +994,6 @@ public actor SDKExtensionManager {
             )
         }
 
-        // Docs/Intro-to-SDK.md §14: uninstalling the app removes its
-        // Assist entitlement bindings. Each revocation goes through
-        // `SDKAPIKeyStore.revokeEntitlement` (immediate at the
-        // authorization boundary, in-flight Assist sessions closed,
-        // audit-recorded); the app's own open Assist sessions are closed
-        // too. A failure here must not leave the extension installed with
-        // dead bindings half-removed: `revokeEntitlementsForExtension`
-        // never throws, so the uninstall continues.
         let revokedEntitlements = await SDKAssistApplicationStore.shared.revokeEntitlementsForExtension(id)
         let closedAssistSessions = await SDKAssistService.shared.closeSessions(forExtensionID: id)
 
@@ -1281,12 +1040,6 @@ public actor SDKExtensionManager {
         Self.log.debug("SDKExtensionManager: uninstalled '\(id, privacy: .public)'")
     }
 }
-
-// MARK: - SDKRuntimeSession onDeactivate setter
-//
-// `onDeactivate` is actor-isolated on `SDKRuntimeSession`; the manager (a
-// different actor) needs a way to install it. This tiny extension is the
-// sanctioned path.
 
 private extension SDKRuntimeSession {
     func setOnDeactivate(_ hook: (@Sendable () async -> Void)?) {

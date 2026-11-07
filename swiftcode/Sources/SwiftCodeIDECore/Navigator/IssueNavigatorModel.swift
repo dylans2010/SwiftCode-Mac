@@ -1,18 +1,13 @@
 import Foundation
 import SwiftCodeBuild
 
-/// The issue navigator's data model (specs/ide/reference-ui-2.md §1, §2):
-/// stale-issue tracking across builds, the filter tokens, and grouping.
 public struct IssueNavigatorModel: Equatable {
-    /// An issue as shown: fresh from the latest build, or stale (kept
-    /// from an earlier build that the latest build did not reproduce).
     public struct Entry: Equatable, Hashable {
         public var diagnostic: Diagnostic
         public var isStale: Bool
         public init(_ diagnostic: Diagnostic, stale: Bool = false) { self.diagnostic = diagnostic; isStale = stale }
     }
 
-    /// Filter tokens from the "Add Filter" section; they join the text filter.
     public enum Token: Hashable {
         case kind(String)
         case notDeprecation
@@ -24,7 +19,6 @@ public struct IssueNavigatorModel: Equatable {
         }
     }
 
-    /// The filter-options menu sections, in order.
     public static let menuSections: [(String, [String])] = [
         ("Additional Filtering", ["Deprecation"]),
         ("Add Filter", [Token.kind("Build").title, Token.notDeprecation.title]),
@@ -35,28 +29,17 @@ public struct IssueNavigatorModel: Equatable {
     private var lastBuild: [Diagnostic] = []
     public var tokens: [Token] = []
     public var recentTokens: [Token] = []
-    /// "Additional Filtering › Deprecation": only deprecation issues.
     public var deprecationOnly = false
     public var errorsOnly = false
 
     public init() {}
 
-    /// A build is running: the previous build's issues stay listed, as
-    /// stale, until it finishes (reference-ui-5.md §5.3.2).
     public private(set) var isBuilding = false
 
     public mutating func startBuild() { isBuilding = true }
 
-    /// Records a finished build's issues (reference-ui-5.md §5.3.2, N10).
-    /// An earlier issue this build did not report is removed, unless its
-    /// file is one the build did not compile: that one stays, stale, until
-    /// a build compiles the file. `compiledFiles` holds the file names the
-    /// build compiled; nil when unknown (every file counts as compiled).
-    /// A clean (`full`) clears all stale issues.
     public mutating func finishBuild(_ current: [Diagnostic], full: Bool, compiledFiles: Set<String>? = nil) {
         isBuilding = false
-        // The same issue reported again (§5.2.1: compared by IssueMerge.key)
-        // is not stale.
         let now = Set(current.map(IssueMerge.key))
         if full { stale = [] } else {
             var next: [Diagnostic] = []
@@ -70,9 +53,6 @@ public struct IssueNavigatorModel: Equatable {
         lastBuild = current
     }
 
-    /// The file names a build log shows as compiled (SwiftPM `Compiling`
-    /// and xcodebuild `CompileSwift`/`CompileC` steps); nil when the log
-    /// has no compile steps SwiftCode recognizes.
     public static func compiledFiles(inLog log: [String], isPackage: Bool) -> Set<String>? {
         let sources: Set<String> = ["swift", "c", "m", "mm", "cpp", "cc", "cxx", "s"]
         var out = Set<String>()
@@ -82,7 +62,6 @@ public struct IssueNavigatorModel: Equatable {
             sawTask = true
             let s = line.trimmingCharacters(in: .whitespaces)
             if let r = s.range(of: " (in target '") {
-                // xcodebuild: the source files among the command's arguments.
                 let words = s[..<r.lowerBound].split(separator: " ")
                 guard let cmd = words.first, ["CompileSwift", "SwiftCompile", "CompileC"].contains(String(cmd)) else { continue }
                 for w in words.dropFirst() {
@@ -108,7 +87,6 @@ public struct IssueNavigatorModel: Equatable {
         return m.contains("deprecated") || m.contains("deprecation")
     }
 
-    /// Fresh issues followed by stale ones, notes left out, filters applied.
     public func entries(fresh: [Diagnostic], text: String = "", keepFile: (String) -> Bool = { _ in true }) -> [Entry] {
         var shown = Set(fresh.map(IssueMerge.key))
         var shownStale: [Diagnostic] = []
@@ -128,7 +106,6 @@ public struct IssueNavigatorModel: Equatable {
         }
     }
 
-    /// Toolbar capsule counts (§2.1): they include stale issues.
     public func capsuleCounts(fresh: [Diagnostic]) -> (errors: Int, warnings: Int) {
         var shown = Set(fresh.map(IssueMerge.key))
         var all = fresh
@@ -137,20 +114,12 @@ public struct IssueNavigatorModel: Equatable {
     }
 }
 
-// MARK: One row per diagnostic (reference-ui-6.md §5.2, N2)
-
-/// Merges the issue sets the IDE knows about (project checks, package
-/// resolution, the build, the language service) into one list with one
-/// entry per diagnostic, and capitalizes messages.
 public enum IssueMerge {
-    /// The message with its first letter capitalized (§5.2.3); the rest is
-    /// left as it is.
     public static func capitalized(_ message: String) -> String {
         guard let first = message.first, first.isLowercase else { return message }
         return first.uppercased() + message.dropFirst()
     }
 
-    /// The diagnostic with a capitalized message (notes too).
     public static func capitalized(_ d: Diagnostic) -> Diagnostic {
         var d = d
         d.message = capitalized(d.message)
@@ -158,18 +127,12 @@ public enum IssueMerge {
         return d
     }
 
-    /// One spelling per file: the standardized path, with the `/private`
-    /// prefix of the system's symlinked folders dropped (the build and the
-    /// language server may each name a temporary file differently).
     public static func canonicalPath(_ path: String) -> String {
         var p = URL(fileURLWithPath: path).standardizedFileURL.path
         for dir in ["/private/var/", "/private/tmp/", "/private/etc/"] where p.hasPrefix(dir) { p.removeFirst("/private".count) }
         return p
     }
 
-    /// What makes two diagnostics the same issue (§5.2.1): file, line,
-    /// severity and message, the message's first character compared
-    /// without case. Columns, notes and fix-its do not count.
     public struct Key: Hashable {
         public var file: String?
         public var line: Int?
@@ -181,11 +144,6 @@ public enum IssueMerge {
         Key(file: d.location.map { canonicalPath($0.file) }, line: d.location?.line, severity: d.severity, message: capitalized(d.message))
     }
 
-    /// `sources` in order (each capitalized, duplicates dropped), then the
-    /// live issues that no source already has. Live issues of the files in
-    /// `liveHiddenFiles` (canonical paths) are left out: the build's
-    /// issues stand for those files until they are edited (§5.2.2). A
-    /// kept build issue without fix-its takes the live copy's.
     public static func merge(_ sources: [[Diagnostic]], live: [Diagnostic], liveHiddenFiles: Set<String> = []) -> [Diagnostic] {
         var out: [Diagnostic] = []
         var index: [Key: Int] = [:]
@@ -209,11 +167,6 @@ public enum IssueMerge {
     }
 }
 
-// MARK: Grouping by project, target and file (reference-ui-6.md §5.1, N1)
-
-/// What the Issue navigator needs to group issues by target: the project
-/// row's name, the targets in project order, and the targets that build a
-/// file (empty when no target does or it is not known).
 public struct IssueGrouping {
     public var projectName: String
     public var targetOrder: [String]
@@ -226,35 +179,25 @@ public struct IssueGrouping {
 }
 
 extension IssueNavigatorModel {
-    /// A file row: one per file under a parent (§5.2.4), fresh and stale
-    /// issues together, by line.
     public struct FileRow: Equatable {
         public var file: String
         public var title: String
         public var entries: [Entry]
     }
 
-    /// A top-level row: the project (its issues without a file, and the
-    /// files no target builds) or one target.
     public struct GroupRow: Equatable {
         public enum Kind: Equatable { case project, target }
         public var kind: Kind
         public var title: String
-        /// Issues directly under the row (the project's file-less issues).
         public var entries: [Entry]
         public var files: [FileRow]
-        /// The number after the title ("1 issue").
         public var count: Int { entries.count + files.reduce(0) { $0 + $1.entries.count } }
         public var countText: String { "\(count) issue\(count == 1 ? "" : "s")" }
     }
 
-    /// The Issue navigator's tree (§5.1): the project row when it has
-    /// issues of its own, then one row per target with issues, in target
-    /// order (targets the order does not name come after, by name). A file
-    /// built by two targets is listed under each.
     public static func tree(_ entries: [Entry], grouping: IssueGrouping) -> [GroupRow] {
         var projectEntries: [Entry] = []
-        var byGroup: [String?: [String: [Entry]]] = [:]   // nil = the project row
+        var byGroup: [String?: [String: [Entry]]] = [:]
         var targetsCache: [String: [String]] = [:]
         for e in entries {
             guard let file = e.diagnostic.location?.file, !file.isEmpty else { projectEntries.append(e); continue }

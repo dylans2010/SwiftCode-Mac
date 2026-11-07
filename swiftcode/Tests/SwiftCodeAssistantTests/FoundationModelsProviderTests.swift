@@ -2,22 +2,10 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Apple Foundation Models provider tests.
-///
-/// This environment has no FoundationModels framework (Linux), so these
-/// tests assert the honest-unavailable path: no canned reply, no claimed
-/// model, no credential concept. Anything that touches the real framework
-/// lives behind `#if canImport(FoundationModels)` and only runs where the
-/// framework exists — on a Mac with Apple Intelligence. No Swift toolchain
-/// exists in this environment, so these tests have had static checks only;
-/// `swift test` on a Mac is still pending.
 @Suite struct FoundationModelsProviderTests {
     @Test func kindAndSingleModelMatchLegacysDefaultEntry() {
         let p = FoundationModelsProvider()
         #expect(p.kind == .foundationModels)
-        // Legacy's default selection (AppleFoundationModel.afm3Core):
-        // one model, not a list — the framework exposes a single system
-        // model and there is no /models endpoint to discover more.
         #expect(FoundationModelsProvider.modelID == "AFM 3 Core")
         #expect(FoundationModelsProvider.modelDisplayName == "Apple AFM 3 Core (On-Device)")
     }
@@ -88,16 +76,10 @@ import Testing
         #expect(FoundationModelsProvider.delta("Hello world", after: "Hello") == " world")
         #expect(FoundationModelsProvider.delta("Hello", after: "Hello") == nil)
         #expect(FoundationModelsProvider.delta("", after: "") == nil)
-        // A snapshot that revises earlier text is returned whole rather
-        // than silently dropped.
         #expect(FoundationModelsProvider.delta("Hi there", after: "Hello") == "Hi there")
     }
 
 #if canImport(FoundationModels)
-    /// Only runs where the framework exists (a Mac with the macOS 26
-    /// SDK). It does not require Apple Intelligence to be enabled: it
-    /// accepts either ready-with-the-single-model or an honestly
-    /// unavailable state with a message naming the cause.
     @Test func availabilityOnFrameworkPlatformsIsReadyOrHonest() async {
         let a = await FoundationModelsProvider().availability()
         switch a {

@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Characteristic wrappers (`interface.md` §6)
-
 public final class HKBiologicalSexObject: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     public let biologicalSex: HKBiologicalSex
     init(_ v: HKBiologicalSex) { biologicalSex = v; super.init() }
@@ -45,22 +43,15 @@ public final class HKActivityMoveModeObject: NSObject, NSSecureCoding, NSCopying
     public func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
-// MARK: - The health store
-
-/// Access point for all health data (`interface.md` §1). All asynchronous members
-/// complete on a private serial queue, never the caller's.
 public final class HKHealthStore: NSObject, @unchecked Sendable {
     let daemon: SwiftCodeHealthDaemon
-    /// SwiftCode extension: the identity this store acts as (the app's source).
     public let swiftcodeClient: SwiftCodeHealthClient
     let callbackQueue = DispatchQueue(label: "dev.swiftcode.healthkit.store")
 
-    /// The process-wide store, acting as this process's own client.
     public override convenience init() {
         self.init(swiftcodeDaemon: .shared, client: .processDefault)
     }
 
-    /// SwiftCode extension: a store bound to a given engine and client identity (tests, tools).
     public init(swiftcodeDaemon daemon: SwiftCodeHealthDaemon, client: SwiftCodeHealthClient) {
         self.daemon = daemon
         self.swiftcodeClient = client
@@ -69,7 +60,6 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
 
     private var client: String { swiftcodeClient.bundleIdentifier }
 
-    /// Run `body` on the engine, then hand its result to `completion` on the store's queue.
     private func call<T: Sendable>(_ body: @escaping @Sendable (SwiftCodeHealthDaemon) -> T,
                                    _ completion: @escaping @Sendable (T) -> Void) {
         let daemon = self.daemon, cq = callbackQueue
@@ -79,14 +69,9 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         }
     }
 
-    // MARK: availability
-
     public class func isHealthDataAvailable() -> Bool { true }
     public func supportsHealthRecords() -> Bool { false }
-    /// Year 1, no limit (`simulator-baseline.md` §2).
     public func earliestPermittedSampleDate() -> Date { Date(timeIntervalSinceReferenceDate: -63_113_904_000) }
-
-    // MARK: authorization (minimal; the full model is round R6)
 
     public func authorizationStatus(for type: HKObjectType) -> HKAuthorizationStatus {
         let row = daemon.queue.sync { daemon.authRow(client, type.identifier) }
@@ -129,7 +114,6 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Earliest sample date each type may be read from (`authorization.md` §5).
     public func getEarliestAuthorizedSampleDate(for types: Set<HKSampleType>,
                                                 completion: @escaping @Sendable ([HKSampleType: Date], (any Error)?) -> Void) {
         let ids = types.map(\.identifier), c = client
@@ -141,13 +125,10 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         }
     }
 
-    // MARK: saving and deleting
-
     public func save(_ object: HKObject, withCompletion completion: @escaping @Sendable (Bool, (any Error)?) -> Void) {
         save([object], withCompletion: completion)
     }
 
-    /// Atomic: one call is one change set.
     public func save(_ objects: [HKObject], withCompletion completion: @escaping @Sendable (Bool, (any Error)?) -> Void) {
         let recs = objects.map(\.record), c = swiftcodeClient
         call({ $0.save(recs, client: c) }) { e in completion(e == nil, e) }
@@ -173,7 +154,6 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Associate samples with a saved workout (saves them first).
     @available(*, deprecated, message: "Use HKWorkoutBuilder")
     public func add(_ samples: [HKSample], to workout: HKWorkout,
                     completion: @escaping @Sendable (Bool, (any Error)?) -> Void) {
@@ -186,16 +166,12 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         call({ $0.associate(recs, workout: w, client: c) }) { e in completion(e == nil, e) }
     }
 
-    // MARK: queries
-
     public func execute(_ query: HKQuery) {
         hkCheck { () throws(HKRaise) in try query.markExecuted(self) }
         query.run(on: self)
     }
 
     public func stop(_ query: HKQuery) { query.stopRunning(self) }
-
-    // MARK: characteristics (synchronous; `interface.md` §6)
 
     private func characteristic(_ id: HKCharacteristicTypeIdentifier) throws -> String? {
         let c = client
@@ -222,7 +198,6 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         HKActivityMoveModeObject(try characteristic(.activityMoveMode).flatMap(Int.init)
             .flatMap(HKActivityMoveMode.init) ?? .activeEnergy)
     }
-    /// Date of birth as calendar components (empty when not set).
     public func dateOfBirthComponents() throws -> DateComponents {
         guard let s = try characteristic(.dateOfBirth) else { return DateComponents() }
         let p = s.split(separator: "-").compactMap { Int($0) }
@@ -234,8 +209,6 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         guard let d = try dateOfBirthComponents().date else { throw HKError(.errorNoData) }
         return d
     }
-
-    // MARK: background delivery (registry only; launch on change is round R8)
 
     public func enableBackgroundDelivery(for type: HKObjectType, frequency: HKUpdateFrequency,
                                          withCompletion completion: @escaping @Sendable (Bool, (any Error)?) -> Void) {
@@ -251,8 +224,6 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
         let c = client
         call({ $0.setBackgroundDelivery(nil, frequency: nil, client: c) }) { completion(true, nil) }
     }
-
-    // MARK: preferred units (`units.md` §7; en_US only, regions are round R8)
 
     public func preferredUnits(for quantityTypes: Set<HKQuantityType>,
                                completion: @escaping @Sendable ([HKQuantityType: HKUnit], (any Error)?) -> Void) {
@@ -300,8 +271,6 @@ enum PreferredUnits {
         }
     }
 }
-
-// MARK: - Swift concurrency variants (`interface.md` §9)
 
 extension HKHealthStore {
     public func requestAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>) async throws {
@@ -367,6 +336,5 @@ extension HKHealthStore {
 }
 
 extension HKCategoryValueSleepAnalysis {
-    /// The asleep stages (unspecified, core, deep, REM).
     public static var allAsleepValues: Set<HKCategoryValueSleepAnalysis> { HKCategoryValueSleepAnalysisAsleepValues() }
 }

@@ -2,16 +2,10 @@ import Foundation
 import Testing
 @testable import SwiftCodePlist
 
-/// Binary property lists keep the file's key order and write back byte for
-/// byte (reference-ui-5.md §11.2, P8; specs/ide/plist-editor.md).
 @Suite struct BinaryPropertyListTests {
     static func bytes(_ hex: String) -> Data { Data(hex.split(separator: " ").map { UInt8($0, radix: 16)! }) }
     static func hex(_ d: Data) -> String { d.map { String(format: "%02x", $0) }.joined(separator: " ") }
 
-    /// Lists written by Foundation's binary writer (captured on macOS), so
-    /// the check runs on every platform: a dictionary in hash order with a
-    /// shared string and two `true` values, an array of integers of every
-    /// width with repeated values, and long, non-ASCII, data and date items.
     static let goldens = [
         "62 70 6c 69 73 74 30 30 d6 01 02 03 04 05 06 07 08 09 07 0b 0b 51 62 51 63 51 64 51 61 51 65 51 66 09 10 01 23 3f f0 00 00 00 00 00 00 09 51 78 08 15 17 19 1b 1d 1f 21 22 24 2d 2e 00 00 00 00 00 00 01 01 00 00 00 00 00 00 00 0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 30",
         "62 70 6c 69 73 74 30 30 a9 01 01 03 04 04 05 06 07 08 09 09 08 10 01 13 ff ff ff ff ff ff ff ff 11 01 2c 12 00 01 11 70 13 00 00 00 01 2a 05 f2 00 08 12 13 14 15 17 20 23 28 00 00 00 00 00 00 01 01 00 00 00 00 00 00 00 09 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 31",
@@ -24,7 +18,6 @@ import Testing
             #expect(doc.format == .binary)
             #expect(Self.hex(try doc.data()) == g)
         }
-        // The file's key order, not sorted.
         guard case .dictionary(let d) = try PropertyListDocument(data: Self.bytes(Self.goldens[0])).root else { Issue.record("not a dict"); return }
         #expect(d.map(\.key) == ["b", "c", "d", "a", "e", "f"])
         #expect(d.map(\.value) == [.bool(true), .integer(1), .real(1), .bool(true), .string("x"), .string("x")])
@@ -49,7 +42,6 @@ import Testing
         let again = try PropertyListDocument(data: try back.data())
         guard case .dictionary(let e) = again.root else { Issue.record("not a dict"); return }
         #expect(e.map(\.key) == ["Zebra", "Apple", "Mid"] && e[0].value == .string("zz"))
-        // Foundation reads what SwiftCode writes.
         let ns = try PropertyListSerialization.propertyList(from: try again.data(), options: [], format: nil) as? NSDictionary
         #expect(ns?["Apple"] as? Int == -4 && ns?["Zebra"] as? String == "zz")
         doc.format = .xml
@@ -57,7 +49,6 @@ import Testing
     }
 
     @Test func largeListsUseWiderReferencesAndOffsets() throws {
-        // 300 distinct strings: 2-byte object references and offsets.
         let items = (0..<300).map { PropertyListItem.string("item \($0) " + String(repeating: "x", count: 20)) }
         let doc = PropertyListDocument(root: .array(items), format: .binary)
         let data = try doc.data()
@@ -70,12 +61,11 @@ import Testing
     @Test func malformedListsThrow() {
         #expect(throws: PropertyListDocument.ParseError.self) { try PropertyListDocument(data: Data("bplist00".utf8)) }
         var bad = [UInt8](Self.bytes(Self.goldens[1]))
-        bad[bad.count - 1] = 0xFF // offset table beyond the trailer
+        bad[bad.count - 1] = 0xFF
         #expect(throws: PropertyListDocument.ParseError.self) { try PropertyListDocument(data: Data(bad)) }
     }
 
     #if canImport(Darwin)
-    /// On macOS, lists Foundation writes now round-trip byte for byte.
     @Test func foundationWrittenListsRoundTrip() throws {
         let samples: [Any] = [
             ["CFBundleName": "Demo & <Co>", "Count": 3, "Ratio": 1.5, "Enabled": true, "Off": false,

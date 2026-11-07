@@ -1,29 +1,9 @@
-// `health import` files (health-simulation.md §8.3 H-9): JSON and CSV
-// sample files, read and checked on the host before anything reaches the
-// guest agent.
-//
-// JSON: {"version": 1, "device": "watch"|"phone" (optional),
-//        "samples": [{"type", "start", "end"?, "value", "unit"?, "metadata"?}],
-//        "workouts": [{"activity", "start", "end", "indoor"?, "energy_kcal"?, "distance_m"?,
-//                      "samples"?: […], "route"?: [[lat, lon, time], …], "metadata"?}]}
-// CSV:  a header naming the columns type,start,end,value,unit (any order;
-//       end and unit may be absent or empty), one sample per line; '#'
-//       starts a comment line; fields may be double-quoted.
-// Times: ISO 8601 (2026-10-30T07:00:00Z, with an offset, with fractional
-// seconds, or a date alone), the export form "2026-10-30 07:00:00 -0400",
-// seconds since 1970, or relative to now: "now", "-8h", "-30m", "+90s", "-2d".
-// Types: identifiers, short names (HeartRate) or aliases (spo2, sleep).
-// Category values: integers or the enumeration case names (identifiers.md).
-// Units: HealthKit unit strings (units.md §2). Real health exports are not
-// read (no export parser); every example SwiftCode ships is synthetic.
-
 import Foundation
 
 public struct HealthImportFile: Sendable, Equatable {
     public var device: String?
     public var samples: [HealthSample] = []
     public var workouts: [HealthWorkout] = []
-    /// Samples of read-only types (refused for import; accepted by `seed`).
     public var readOnly: [HealthSample] = []
 
     public var sampleCount: Int { samples.count + workouts.reduce(0) { $0 + $1.samples.count } }
@@ -50,8 +30,6 @@ public enum HealthImport {
         }
     }
 
-    /// Reads and checks a file. `seeding` accepts read-only types (they go
-    /// to `readOnly`); otherwise each one is an error that names HEALTH-3.
     public static func read(_ data: Data, format: Format, now: Date = Date(), seeding: Bool = false) throws -> HealthImportFile {
         var errors: [HealthValidationError] = []
         var file = HealthImportFile()
@@ -94,8 +72,6 @@ public enum HealthImport {
         return try read(data, format: f, now: now, seeding: seeding)
     }
 
-    // MARK: Times
-
     nonisolated(unsafe) static let isoFormatters: [ISO8601DateFormatter] = {
         let a = ISO8601DateFormatter()
         let b = ISO8601DateFormatter()
@@ -117,7 +93,6 @@ public enum HealthImport {
         return f
     }()
 
-    /// A time of the forms in the header comment.
     public static func time(_ any: Any, now: Date) -> Date? {
         if let n = any as? NSNumber, !(any is Bool) { return Date(timeIntervalSince1970: n.doubleValue) }
         guard let text = (any as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
@@ -127,11 +102,9 @@ public enum HealthImport {
         for f in isoFormatters.prefix(2) { if let d = f.date(from: text) { return d } }
         if let d = exportFormatter.date(from: text) { return d }
         if let d = localFormatter.date(from: text) { return d }
-        // A date alone (2026-10-30): its UTC midnight.
         return text.count == 10 ? isoFormatters[2].date(from: text) : nil
     }
 
-    /// "-8h", "+30m", "90s", "-2d" → seconds (a sign is required, or a unit suffix after digits).
     public static func relative(_ text: String) -> TimeInterval? {
         var t = Substring(text)
         var sign = 1.0
@@ -139,7 +112,6 @@ public enum HealthImport {
         return duration(String(t)).map { $0 * sign }
     }
 
-    /// "5s", "10m", "1.5h", "2d", "300" (seconds) → seconds.
     public static func duration(_ text: String) -> TimeInterval? {
         let units: [Character: Double] = ["s": 1, "m": 60, "h": 3600, "d": 86400]
         guard let last = text.last else { return nil }
@@ -148,8 +120,6 @@ public enum HealthImport {
         if let n = Double(text), n >= 0 { return n }
         return nil
     }
-
-    // MARK: JSON
 
     struct ParsedJSON {
         var device: String?
@@ -255,7 +225,6 @@ public enum HealthImport {
                 w.samples.append(s)
             }
         }
-        // Totals as one sample each over the workout (when the file gives no samples of that type).
         if let kcal = (d["energy_kcal"] as? NSNumber)?.doubleValue, !w.samples.contains(where: { $0.type == "HKQuantityTypeIdentifierActiveEnergyBurned" }) {
             w.samples.append(HealthSample(type: "HKQuantityTypeIdentifierActiveEnergyBurned", start: start, end: end, value: kcal, unit: "kcal"))
         }
@@ -279,8 +248,6 @@ public enum HealthImport {
         }
         return w
     }
-
-    // MARK: CSV
 
     static func fields(_ line: Substring) -> [String] {
         var out: [String] = []

@@ -27,8 +27,6 @@ public struct AssistDeleteFileTool: AssistTool {
         }
 
         do {
-            // Missing files are a failure, not a silent success: the caller
-            // must be able to distinguish "deleted" from "was never there".
             guard context.fileSystem.exists(at: path) else {
                 return .failure("No file at \(path) — nothing to delete.", code: .notFound)
             }

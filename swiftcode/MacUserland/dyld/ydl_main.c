@@ -1,15 +1,3 @@
-// ydl_main.c - SwiftCode's dynamic linker for macOS processes
-// (specs/macos/dyld.md). The kernel maps the main executable and this
-// image, builds the Darwin argument block and starts at __ydl_start; this
-// code loads the dependent dylibs, applies their fixups, runs their
-// initializers (libSystem's first), calls main and then libSystem's exit.
-//
-// Clean-room SwiftCode code. It is written from the Mach-O format facts in
-// specs/macos/dyld.md §2 (public <mach-o/*.h> definitions) and the process
-// contract of specs/simulator/darwin-process-start.md; it contains no
-// Apple code. It links no library: every system call is a raw trap
-// (ydl_syscall, ydl_start.S), and it has no data pointers to rebase, so the
-// kernel may map it at any address (the build checks this).
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -41,15 +29,15 @@ enum { ST_MAPPED, ST_FIXED, ST_INITIALIZING, ST_INITIALIZED };
 struct image {
     uint8_t *mh;
     uint64_t slide;
-    uint64_t preferred;          // unslid address of the Mach-O header
-    const char *path;            // the path it was loaded from
-    const char *install_name;    // LC_ID_DYLIB, or NULL
-    uint64_t start, end;         // loaded range
+    uint64_t preferred;
+    const char *path;
+    const char *install_name;
+    uint64_t start, end;
     uint32_t nsegs;
     uint64_t seg_addr[MAX_SEGS], seg_size[MAX_SEGS];
     uint32_t seg_flags[MAX_SEGS];
     int32_t seg_initprot[MAX_SEGS];
-    const uint8_t *linkedit;     // file offset 0 of __LINKEDIT's data, as loaded
+    const uint8_t *linkedit;
     uint32_t exports_off, exports_size, chained_off, chained_size;
     struct yc_dyld_info_command info;
     int has_info;
@@ -57,7 +45,7 @@ struct image {
     uint32_t ndeps;
     const char *dep_name[MAX_DEPS];
     uint8_t dep_kind[MAX_DEPS];
-    int16_t dep[MAX_DEPS];       // image index, or -1 (a missing weak dylib)
+    int16_t dep[MAX_DEPS];
     uint32_t ninits;
     uint64_t init_addr[MAX_INIT_SECTIONS], init_size[MAX_INIT_SECTIONS];
     uint8_t init_offsets[MAX_INIT_SECTIONS];
@@ -80,9 +68,9 @@ static struct image images[MAX_IMAGES];
 static uint32_t nimages;
 static int main_index = -1, libsystem_index = -1;
 static int print_libraries;
-static int print_segments;  // DYLD_PRINT_SEGMENTS: each image's load address
+static int print_segments;
 static const char *library_path;
-static const char *executable_path;  // set at start (no data pointers to rebase)
+static const char *executable_path;
 static int NXArgc;
 static char **NXArgv, **environ_storage, **apple_strings;
 static const char *progname;
@@ -93,8 +81,6 @@ static int error_pending;
 static void (*add_callbacks[MAX_CALLBACKS])(const void *, intptr_t);
 static uint32_t ncallbacks;
 static volatile int big_lock;
-
-// --- small libc ----------------------------------------------------------------
 
 void *memcpy(void *dst, const void *src, size_t n);
 void *memset(void *dst, int c, size_t n);
@@ -135,7 +121,6 @@ static void *ydl_alloc(size_t size) {
     return r;
 }
 
-// A message buffer: the fatal and dlerror paths build text without printf.
 struct text {
     char *buf;
     size_t cap, len;
@@ -166,7 +151,6 @@ static void say(const char *a, const char *b, const char *c) {
     sys_write(2, buf, t.len);
 }
 
-// "dyld[pid]: <path> at 0x<header address>" (DYLD_PRINT_SEGMENTS).
 static void say_address(const char *path, const void *address) {
     char hex[19] = "0x";
     uint64_t v = (uint64_t)(uintptr_t)address;
@@ -182,7 +166,6 @@ __attribute__((noreturn)) static void fatal(const char *a, const char *b, const 
     put(&t, b);
     put(&t, c);
     say(buf, "", "");
-    // As the system dyld does: the process ends with a dyld termination reason.
     ydl_syscall(SYS_abort_with_payload, OS_REASON_DYLD, 1, 0, 0, (long)buf, 0);
     ydl_syscall(SYS_exit, 134, 0, 0, 0, 0, 0);
     for (;;) {
@@ -231,11 +214,8 @@ static size_t dirname_length(const char *path) {
     return found ? (slash == 0 ? 1 : slash) : 0;
 }
 
-// --- images ----------------------------------------------------------------------
-
 static uint8_t *image_data(const struct image *im, uint32_t off) { return (uint8_t *)im->linkedit + off; }
 
-// Parses the load commands of an image already mapped at `mh`.
 static const char *parse_image(struct image *im) {
     const struct yc_mach_header_64 *h = (const void *)im->mh;
     const uint8_t *lc = im->mh + sizeof *h, *end = lc + h->sizeofcmds;
@@ -255,7 +235,7 @@ static const char *parse_image(struct image *im) {
                 have_text = 1;
             }
             uint32_t k = im->nsegs++;
-            im->seg_addr[k] = s->vmaddr;  // unslid until the slide is known
+            im->seg_addr[k] = s->vmaddr;
             im->seg_size[k] = s->vmsize;
             im->seg_flags[k] = s->flags;
             im->seg_initprot[k] = s->initprot;
@@ -340,7 +320,7 @@ static const char *parse_image(struct image *im) {
     im->slide = (uint64_t)(uintptr_t)im->mh - im->preferred;
     for (uint32_t k = 0; k < im->nsegs; k++) {
         im->seg_addr[k] += im->slide;
-        if (im->seg_size[k] == 0 || (im->seg_initprot[k] == 0 && im->seg_addr[k] - im->slide == 0)) continue;  // __PAGEZERO
+        if (im->seg_size[k] == 0 || (im->seg_initprot[k] == 0 && im->seg_addr[k] - im->slide == 0)) continue;
         if (im->seg_addr[k] < im->start) im->start = im->seg_addr[k];
         if (im->seg_addr[k] + im->seg_size[k] > im->end) im->end = im->seg_addr[k] + im->seg_size[k];
     }
@@ -369,8 +349,6 @@ static int read_fully(int fd, void *buf, size_t n, uint64_t off) {
 
 static uint32_t be32(const uint8_t *p) { return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3]; }
 
-// Maps the Mach-O at `path` (opened as `fd`) and returns its image index,
-// or -1 with the error set.
 static int map_image(int fd, const char *path) {
     uint8_t probe[4096];
     long got = ydl_syscall(SYS_pread, fd, (long)probe, sizeof probe, 0, 0, 0);
@@ -416,7 +394,6 @@ static int map_image(int fd, const char *path) {
         set_error("cannot read the load commands of ", path, "");
         return -1;
     }
-    // The span of the segments (not __PAGEZERO), in unslid addresses.
     uint64_t low = ~(uint64_t)0, high = 0, header_vm = 0;
     const uint8_t *lc = cmds + sizeof h;
     for (uint32_t i = 0; i < h.ncmds; i++) {
@@ -455,9 +432,6 @@ static int map_image(int fd, const char *path) {
                 uint64_t filespan = (s->filesize + GUEST_PAGE - 1) & ~(uint64_t)(GUEST_PAGE - 1);
                 uint64_t vmspan = (s->vmsize + GUEST_PAGE - 1) & ~(uint64_t)(GUEST_PAGE - 1);
                 if (s->filesize) {
-                    // A zero-fill tail in the last file page needs that page
-                    // writable for a moment (zero-fill sections follow the
-                    // file bytes; the page holds whatever the file has next).
                     int tail = s->vmsize > s->filesize && filespan > s->filesize;
                     int prot = s->initprot | (tail ? YC_VM_PROT_WRITE : 0);
                     long r = ydl_syscall(SYS_mmap, (long)at, (long)filespan, prot, MAP_PRIVATE | MAP_FIXED, fd,
@@ -504,8 +478,6 @@ static int try_open(const char *path) {
     return fd < 0 ? -1 : (int)fd;
 }
 
-// Opens `name` as loaded by image `loader` (install-name expansion,
-// DYLD_LIBRARY_PATH). Sets *resolved to the path that opened.
 static int open_dependency(const char *name, int loader, const char **resolved) {
     if (library_path) {
         const char *leaf = name + dirname_length(name);
@@ -564,8 +536,6 @@ static int open_dependency(const char *name, int loader, const char **resolved) 
     return try_open(name);
 }
 
-// Loads the dependencies of image `index` (not recursively; the caller
-// walks the image list). Returns 0, or -1 with the error set.
 static int load_dependencies(int index) {
     for (uint32_t d = 0; d < images[index].ndeps; d++) {
         const char *name = images[index].dep_name[d];
@@ -598,8 +568,6 @@ static int load_dependencies(int index) {
     }
     return 0;
 }
-
-// --- symbols ----------------------------------------------------------------------
 
 static int find_export(int index, const char *name, uint64_t *address, int depth) {
     if (index < 0 || depth > 32) return 0;
@@ -636,7 +604,6 @@ static int flat_lookup(const char *name, uint64_t *address) {
     return 0;
 }
 
-// Resolves one bind of image `index`. Returns 0, or -1 with the error set.
 static int resolve(int index, int32_t ordinal, const char *name, int weak, uint64_t *address) {
     struct image *im = &images[index];
     int found = 0, target = -1;
@@ -692,7 +659,6 @@ static int classic_bind(void *context, const struct ydl_classic_bind *b) {
 static int fix_image(int index) {
     struct image *im = &images[index];
     const char *why = 0;
-    // Make every writable-at-runtime segment writable while fixing it up.
     for (uint32_t k = 0; k < im->nsegs; k++)
         if ((im->seg_flags[k] & YC_SG_READ_ONLY) && im->seg_size[k])
             ydl_syscall(SYS_mprotect, (long)im->seg_addr[k], (long)((im->seg_size[k] + GUEST_PAGE - 1) & ~(uint64_t)(GUEST_PAGE - 1)),
@@ -737,7 +703,6 @@ static int fix_image(int index) {
             if (!error_pending) set_error(why, " in ", im->path);
             return -1;
         }
-        // Lazy pointers are bound now (no stub binder runs).
         if (im->info.lazy_bind_size &&
             ydl_bind_walk(image_data(im, im->info.lazy_bind_off), im->info.lazy_bind_size, im->seg_addr, im->seg_size,
                           im->nsegs, 1, classic_bind, &bc, &why) < 0) {
@@ -752,8 +717,6 @@ static int fix_image(int index) {
     im->state = ST_FIXED;
     return 0;
 }
-
-// --- initializers -----------------------------------------------------------------
 
 typedef void (*initializer_fn)(int, char **, char **, char **, const struct program_vars *);
 
@@ -777,8 +740,6 @@ static void run_initializers(int index) {
     }
     im->state = ST_INITIALIZED;
 }
-
-// --- the API for libSystem -----------------------------------------------------------
 
 static uint32_t api_image_count(void) { return nimages; }
 static const void *api_image_header(uint32_t i) { return i < nimages ? images[i].mh : 0; }
@@ -815,7 +776,7 @@ static void *api_dlopen(const char *path, int mode) {
     for (uint32_t i = first; index >= 0 && i < nimages; i++)
         if (fix_image((int)i)) index = -1;
     if (index < 0) {
-        nimages = first;  // the mappings stay (no unloading), the records go
+        nimages = first;
         unlock();
         return 0;
     }
@@ -836,8 +797,8 @@ static void *api_dlsym(void *handle, const char *symbol) {
     uint64_t address = 0;
     int found;
     intptr_t h = (intptr_t)handle;
-    if (h == -2 || h == -1 || h == -3) found = flat_lookup(name, &address);   // RTLD_DEFAULT, RTLD_NEXT, RTLD_SELF
-    else if (h == -5) found = find_export(main_index, name, &address, 0);   // RTLD_MAIN_ONLY
+    if (h == -2 || h == -1 || h == -3) found = flat_lookup(name, &address);
+    else if (h == -5) found = find_export(main_index, name, &address, 0);
     else {
         int index = handle_index(handle);
         if (index < 0) {
@@ -876,7 +837,7 @@ static int api_dladdr(const void *address, struct yc_dl_info *info) {
             uint64_t best = 0;
             for (uint32_t s = 0; s < im->nsyms; s++, sym += 16) {
                 uint8_t type = sym[4];
-                if ((type & 0xE0) || (type & 0x0E) != 0x0E) continue;  // not a stab; defined in a section
+                if ((type & 0xE0) || (type & 0x0E) != 0x0E) continue;
                 uint64_t value;
                 uint32_t strx;
                 memcpy(&value, sym + 8, 8);
@@ -898,8 +859,6 @@ static void api_add_image_callback(void (*callback)(const void *, intptr_t)) {
     if (ncallbacks < MAX_CALLBACKS) add_callbacks[ncallbacks++] = callback;
     for (uint32_t i = 0; i < nimages; i++) callback(images[i].mh, (intptr_t)images[i].slide);
 }
-
-// --- start -------------------------------------------------------------------------
 
 void ydl_main(uint64_t *sp) {
     uint8_t *main_mh = (uint8_t *)(uintptr_t)sp[0];

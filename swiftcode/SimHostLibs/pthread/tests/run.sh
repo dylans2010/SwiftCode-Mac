@@ -1,11 +1,7 @@
 #!/bin/sh
-# Builds and runs the host unit tests of SwiftCode's libsystem_pthread sources
-# (see test_main.c). Works on Linux and macOS hosts:
-#   sh pthread/tests/run.sh        (from swiftcode/SimHostLibs)
-# HOST_CC overrides the compiler (default cc). Output: out/host-tests-pthread/.
 set -eu
-here=$(cd "$(dirname "$0")/.." && pwd)   # SimHostLibs/pthread
-root=$(cd "$here/.." && pwd)             # SimHostLibs
+here=$(cd "$(dirname "$0")/.." && pwd)
+root=$(cd "$here/.." && pwd)
 HOST_CC=${HOST_CC:-cc}
 t="$root/out/host-tests-pthread"
 rm -rf "$t"
@@ -18,6 +14,5 @@ for src in "$here"/*.c; do
     objs="$objs $o"
 done
 "$HOST_CC" -O1 -Wall -pthread -c -o "$t/test_main.o" "$here/tests/test_main.c"
-# shellcheck disable=SC2086
 "$HOST_CC" -pthread -o "$t/pthread_tests" "$t/test_main.o" $objs
 "$t/pthread_tests"

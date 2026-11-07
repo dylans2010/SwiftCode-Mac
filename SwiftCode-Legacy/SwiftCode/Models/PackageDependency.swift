@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Package Dependency
-
 public struct PackageDependency: Identifiable, Codable, Sendable {
     public var id = UUID()
     public var name: String

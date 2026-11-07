@@ -1,7 +1,3 @@
-// C-API (plan.md §4): the probe's phases through the StoreKit 2, StoreKitTest
-// and StoreKit 1 APIs over the open store (simulator-baseline.md §8 rows E1–K1,
-// with dates relative and a simulated clock). The probe app itself lives in
-// the dirty room; these tests are our own equivalent of its phases.
 import Foundation
 import Testing
 import StoreKit
@@ -26,7 +22,6 @@ let start = Date(timeIntervalSince1970: 1_792_411_200)
 let vendor = UUID(uuidString: "6A1D3C2E-0F00-4B6B-9C1D-5E0D7C4C9A11")!
 let configurationURL = Bundle.module.resourceURL!.appendingPathComponent("Fixtures/SwiftCodeProbe.storekit")
 
-/// A fresh runtime on a manual clock; StoreKit 1 callbacks on a private queue.
 @discardableResult
 func freshRuntime(bundleID: String = "dev.swiftcode.skprobe") throws -> (ManualClock, SwiftCodeStoreKit) {
     let clock = ManualClock(start)
@@ -62,7 +57,6 @@ func collect(_ s: Transaction.Transactions) async -> [Transaction] {
     return out
 }
 
-/// Reads `n` updates (or gives up after a while).
 func updates(_ n: Int, from stream: Transaction.Transactions) async -> [VerificationResult<Transaction>] {
     await withTaskGroup(of: [VerificationResult<Transaction>].self) { group in
         group.addTask {
@@ -176,7 +170,6 @@ struct APITests {
         #expect(await collect(Transaction.unfinished).map(\.id) == [4, 3, 2])
         #expect(await Transaction.latest(for: ID.coins)?.unsafePayloadValue.id == 4)
         #expect(await Transaction.currentEntitlement(for: ID.pro)?.unsafePayloadValue.id == 2)
-        // U2: ES256, kid, one certificate, verifies; deviceVerification per formats.md §2.2.
         let result = try #require(await Transaction.latest(for: ID.pro))
         let d = try JWSVerifier().verify(result.jwsRepresentation)
         #expect(d.header["kid"]?.stringValue == "Apple_Xcode_Key" && d.certificates.count == 1)
@@ -186,7 +179,6 @@ struct APITests {
         #expect(t.deviceVerification.base64EncodedString()
             == DeviceVerification.value(nonce: t.deviceVerificationNonce, vendorID: AppStore.deviceVerificationID!))
         #expect(result.deviceVerificationNonce == t.deviceVerificationNonce && result.signedDate == start)
-        // U3: the app transaction; no StoreKit 1 receipt after StoreKit 2 purchases.
         let app = try await AppTransaction.shared
         guard case .verified(let a) = app else { Issue.record("unverified"); return }
         #expect(a.bundleID == "dev.swiftcode.skprobe" && a.appVersion == "12" && a.originalAppVersion == "12")
@@ -216,17 +208,14 @@ struct APITests {
         guard case .verified(let info) = status.renewalInfo else { Issue.record("unverified renewal info"); return }
         #expect(info.willAutoRenew && info.renewalPrice == Decimal(string: "3.99") && info.currentProductID == ID.monthly)
         #expect(info.originalTransactionID == first.id && info.environment == .xcode)
-        // S2: crossgrade returns the current transaction and changes the preference.
         let yearly = try #require(try await Product.products(for: [ID.yearly]).first)
         let current = try verified(try await yearly.purchase())
         #expect(current.productID == ID.monthly)
         #expect(try await Product.SubscriptionInfo.status(for: ID.plus).first?.renewalInfo.unsafePayloadValue.autoRenewPreference == ID.yearly)
-        // S3: auto-renew off → expired, reason autoRenewDisabled.
         try s.disableAutoRenewForTransaction(identifier: UInt(first.id))
         clock.advance(by: 15)
         let expired = try #require(try await Product.SubscriptionInfo.status(for: ID.plus).first)
         #expect(expired.state == .expired && expired.renewalInfo.unsafePayloadValue.expirationReason == .autoRenewDisabled)
-        // S4: force renewal and expire on the weekly subscription.
         let weekly = try #require(try await Product.products(for: [ID.weekly]).first)
         _ = try verified(try await weekly.purchase())
         try s.forceRenewalOfSubscription(productIdentifier: ID.weekly)
@@ -320,7 +309,6 @@ struct APITests {
         await #expect(throws: StoreKitError.self) { try await AppStore.sync() }
         await s.setSimulatedError(nil, forAPI: .appStoreSync)
         try await AppStore.sync()
-        // §8 interrupted purchase: an error, but a failed transaction with an issue is visible; resolve fixes it.
         s.interruptedPurchasesEnabled = true
         await #expect(throws: StoreKitError.self) { try await p[ID.season]!.purchase() }
         let issue = try #require(s.allTransactions().last)
@@ -394,7 +382,6 @@ struct APITests {
         await observer.waitForRestore()
         #expect(observer.restored.map(\.payment.productIdentifier) == [ID.pro, ID.monthly])
         #expect(observer.restored.allSatisfy { $0.transactionState == .restored && $0.original != nil })
-        // The receipt (formats.md §3).
         let receipt = try #require(rt.receipt)
         let decoded = try DecodedReceipt(data: receipt, expectedCertificate: rt.receiptIdentity.certificate)
         #expect(decoded.values(17).count >= 2)

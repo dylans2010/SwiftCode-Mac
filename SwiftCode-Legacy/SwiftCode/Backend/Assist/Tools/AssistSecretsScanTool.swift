@@ -62,7 +62,6 @@ public struct AssistSecretsScanTool: AssistTool {
                 for entry in compiled {
                     let range = NSRange(line.startIndex..<line.endIndex, in: line)
                     if entry.regex.firstMatch(in: line, options: [], range: range) != nil {
-                        // NEVER include the matched value or the line content.
                         let finding = "\(relative):\(index + 1):\(entry.label)"
                         if !seen.contains(finding) {
                             seen.insert(finding)

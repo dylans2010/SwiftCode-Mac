@@ -1,38 +1,5 @@
 import Foundation
 
-// MARK: - Meta slash commands (Wave 16, Slice B)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised
-// under MIT):
-//   * `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MetaSlashCommandManager.swift`
-//     — the built-in `/` command catalog, `muse skills list`
-//     capture, search, and the execution dispatcher.
-//
-// What is deliberately different from Legacy:
-//   * No `ObservableObject` / `@Published` / Combine / SwiftUI:
-//     this is a plain `Sendable` struct. The host owns one and
-//     replaces it when a capture merges new skills in.
-//   * `executeCommand` does NOT touch `AppSettings`,
-//     `AssistManager`, or `MetaAccountAuthService`. It returns
-//     the text to send plus a `MetaSlashCommandEffect` the host
-//     applies (set the reasoning effort / model in settings,
-//     clear the session, start the Meta login flow, or insert the
-//     command text into the input). Legacy's side effects are
-//     therefore preserved as data, not re-implemented against
-//     singletons that do not exist in SwiftCode.
-//   * The terminal capture runs `muse skills list` through a
-//     plain `Process` with Legacy's 15-second timeout (Legacy's
-//     own `runProcess` accepted a timeout but never enforced it;
-//     here it is enforced by terminating the child). The TSV
-//     parsing is the pure `parseSkillsList(_:)` function, so
-//     tests feed sample output without launching anything.
-//   * Faithful quirk kept: the built-in `/model` choices list
-//     `muse-swift-2.0`, which is not in the fallback model
-//     catalog (`MetaAssistProvider.fallbackModels`). Legacy
-//     shipped the same mismatch; the choice is the user's to
-//     make and the bridge reports an unknown model honestly.
-
-/// One argument a slash command takes (Legacy `MetaCommandArgument`).
 public enum MetaCommandArgument: Identifiable, Hashable, Sendable {
     case options(name: String, choices: [String], defaultValue: String?)
     case text(name: String, placeholder: String, isOptional: Bool)
@@ -52,14 +19,12 @@ public enum MetaCommandArgument: Identifiable, Hashable, Sendable {
     }
 }
 
-/// One Meta slash command (Legacy `MetaSlashCommand`).
 public struct MetaSlashCommand: Identifiable, Hashable, Sendable {
     public let id: String
     public let name: String
     public let title: String
     public let description: String
     public let syntax: String
-    /// SF Symbol name (Legacy's `icon`).
     public let icon: String
     public let category: String
     public let arguments: [MetaCommandArgument]
@@ -90,26 +55,15 @@ public struct MetaSlashCommand: Identifiable, Hashable, Sendable {
     }
 }
 
-/// What the host must do for a slash command (Legacy's
-/// `executeCommand` side effects, as data).
 public enum MetaSlashCommandEffect: Sendable, Equatable {
-    /// Set the Meta reasoning effort (Legacy: `AppSettings.shared.metaReasoningEffort`).
     case setReasoningEffort(String)
-    /// Switch the Meta model (Legacy: `AppSettings.shared.metaAssistModelID`).
     case setModel(String)
-    /// Clear the Assist session (Legacy: `AssistManager.shared.clearChat()`).
     case clearSession
-    /// Start the Meta authentication flow (Legacy: `MetaAccountAuthService.shared.startAuthFlow()`).
     case startLogin
-    /// Put this text into the input (or send it): the command has
-    /// no host-side effect.
     case insertText(String)
 }
 
-/// Discovers, caches, parses, and manages Meta slash commands
-/// (Legacy `MetaSlashCommandManager`, minus the singletons).
 public struct MetaSlashCommandManager: Sendable {
-    /// Capture timeout for `muse skills list` (Legacy: 15 seconds).
     public static let skillsListTimeout: TimeInterval = 15
 
     public private(set) var commands: [MetaSlashCommand]
@@ -119,8 +73,6 @@ public struct MetaSlashCommandManager: Sendable {
     public init(commands: [MetaSlashCommand] = Self.builtInCommands) {
         self.commands = commands
     }
-
-    // MARK: - Built-in commands (Legacy `loadBuiltInCommands`, verbatim)
 
     public static let builtInCommands: [MetaSlashCommand] = [
         MetaSlashCommand(id: "effort", name: "/effort", title: "Effort Level",
@@ -311,15 +263,6 @@ public struct MetaSlashCommandManager: Sendable {
                          icon: "arrow.backward.circle", category: "System"),
     ]
 
-    // MARK: - Dynamic terminal command capture
-
-    /// Parses `muse skills list` TSV output into terminal-skill
-    /// commands (Legacy `captureCommandsFromTerminal`, pure half).
-    /// A line needs at least a name and one more tab field; `#`
-    /// lines and blank names are skipped; the description comes
-    /// from the fifth field, else the fourth, else
-    /// `"Execute <name> skill"`. The title is the skill name with
-    /// `-`/`_` as spaces, capitalized.
     public static func parseSkillsList(_ stdout: String) -> [MetaSlashCommand] {
         var skills: [MetaSlashCommand] = []
         for line in stdout.components(separatedBy: .newlines) {
@@ -359,10 +302,6 @@ public struct MetaSlashCommandManager: Sendable {
         return skills
     }
 
-    /// Merges freshly captured terminal skills into the catalog:
-    /// previously captured skills are replaced, built-ins kept.
-    /// Returns true when anything was merged (Legacy set
-    /// `lastCapturedAt` only then).
     public mutating func mergeCapturedSkills(_ skills: [MetaSlashCommand]) -> Bool {
         guard !skills.isEmpty else { return false }
         var merged = commands.filter { !$0.isTerminalSkill }
@@ -372,11 +311,6 @@ public struct MetaSlashCommandManager: Sendable {
         return true
     }
 
-    /// Captures skills live from the `muse` binary (`muse skills
-    /// list`) and merges them. A missing binary, a non-zero exit,
-    /// or a timeout leaves the built-ins untouched, exactly as
-    /// Legacy silently fell back to them. The runner is injectable
-    /// so tests can feed canned output without a binary.
     public mutating func captureCommandsFromTerminal(
         executable: URL?,
         timeoutSeconds: TimeInterval = Self.skillsListTimeout,
@@ -394,14 +328,12 @@ public struct MetaSlashCommandManager: Sendable {
                 stdout = try await Self.runSkillsList(executable: executable, timeoutSeconds: timeoutSeconds)
             }
         } catch {
-            return // Silently fall back to built-in commands.
+            return
         }
         guard !stdout.isEmpty else { return }
         _ = mergeCapturedSkills(Self.parseSkillsList(stdout))
     }
 
-    /// Runs `muse skills list` and returns its stdout. Times out
-    /// after `timeoutSeconds` by terminating the child.
     static func runSkillsList(executable: URL, timeoutSeconds: TimeInterval) async throws -> String {
         try await withThrowingTaskGroup(of: String.self) { group in
             group.addTask {
@@ -434,11 +366,6 @@ public struct MetaSlashCommandManager: Sendable {
         }
     }
 
-    // MARK: - Search & filtering
-
-    /// Filters the catalog by name, title, description, or
-    /// category (Legacy `searchCommands`). A leading `/` on the
-    /// query is ignored; an empty query returns everything.
     public func searchCommands(query: String) -> [MetaSlashCommand] {
         let trimmed = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return commands }
@@ -452,12 +379,6 @@ public struct MetaSlashCommandManager: Sendable {
         }
     }
 
-    // MARK: - Execution dispatcher
-
-    /// Executes a slash command with its UI-provided argument
-    /// (Legacy `executeCommand`). Returns the text to show/send
-    /// and the host-side effect, if any. Legacy's wording is kept
-    /// verbatim for the four effect commands.
     public func executeCommand(_ command: MetaSlashCommand, argument: String?) -> (text: String, effect: MetaSlashCommandEffect?) {
         let argString = (argument ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -478,24 +399,12 @@ public struct MetaSlashCommandManager: Sendable {
             break
         }
 
-        // Default: the full command string, to place in the input
-        // or send as-is.
         if argString.isEmpty {
             return (command.name, .insertText(command.name))
         }
         return ("\(command.name) \(argString)", .insertText("\(command.name) \(argString)"))
     }
 }
-
-// MARK: - Slash-command palette state (gap closure)
-//
-// The `/` popup's state (specs/ide/gap-closure-windows-
-// artboards.md §1): the filtered list over the manager's
-// existing `searchCommands`, the selection with wraparound, and
-// the commit. The popup (`SlashCommandPopupController`) rebuilds
-// this from the model's live catalog on every refresh, so a
-// terminal-skill capture landing mid-typing joins the list.
-// Pure value type: no AppKit, fully testable.
 
 public struct SlashCommandPaletteState: Sendable {
     public var manager: MetaSlashCommandManager
@@ -508,53 +417,39 @@ public struct SlashCommandPaletteState: Sendable {
         self.selectedIndex = manager.searchCommands(query: query).isEmpty ? nil : 0
     }
 
-    /// The commands matching the query, in catalog order.
     public var filtered: [MetaSlashCommand] { manager.searchCommands(query: query) }
 
-    /// The selected command, or nil when the list is empty.
     public var selected: MetaSlashCommand? {
         guard let selectedIndex, filtered.indices.contains(selectedIndex) else { return nil }
         return filtered[selectedIndex]
     }
 
-    /// Re-filters for a new query, keeping the selection when it
-    /// is still in range (else the first row, or none when empty).
     public mutating func update(query: String) {
         self.query = query
         let count = filtered.count
         if count == 0 {
             selectedIndex = nil
         } else if let selectedIndex, selectedIndex < count {
-            // Keep the selection.
         } else {
             selectedIndex = 0
         }
     }
 
-    /// Moves the selection up, wrapping to the last row.
     public mutating func moveUp() {
         guard let selectedIndex, !filtered.isEmpty else { return }
         self.selectedIndex = (selectedIndex - 1 + filtered.count) % filtered.count
     }
 
-    /// Moves the selection down, wrapping to the first row.
     public mutating func moveDown() {
         guard let selectedIndex, !filtered.isEmpty else { return }
         self.selectedIndex = (selectedIndex + 1) % filtered.count
     }
 
-    /// The full command text for the selection (Legacy's
-    /// `selectMetaCommand` commit), or nil when nothing is
-    /// selected.
     public func commitText(argument: String?) -> String? {
         guard let selected else { return nil }
         return manager.executeCommand(selected, argument: argument).text
     }
 
-    /// Whether the commit should be sent immediately: only when
-    /// the selected command has a host-side effect
-    /// (`/effort`, `/model`, `/clear`, `/login`). Anything else
-    /// is left in the input for editing (Legacy's behaviour).
     public func shouldSendImmediately(argument: String?) -> Bool {
         guard let selected else { return false }
         switch manager.executeCommand(selected, argument: argument).effect {

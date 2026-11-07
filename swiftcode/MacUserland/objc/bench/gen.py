@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-# gen.py - generates the class-heavy parts of the Objective-C benchmark
-# (specs/macos/objc-runtime.md §12) into <out dir>:
-#   bench_gen.m   1000 classes R<i> (5 instance + 1 class method each) for
-#                 realization; 50 classes U<i> with 200 methods m<j> for
-#                 uncached sends; tables of their class objects
-#   cats<t>.m     1000 categories (4 methods each) on the R<i>, built as a
-#                 bundle; five of them (t = 0-4) for five trials. Each
-#                 bundle's control is a copy with the sections renamed so
-#                 that no runtime reads them (same mapping and binding work)
-#
-# Usage: python3 -I gen.py <out dir>
 import os
 import sys
 

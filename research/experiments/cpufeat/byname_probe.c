@@ -1,6 +1,3 @@
-// byname_probe: sysctlbyname() for names given on the command line (Ycode
-// research). Same build as cpufeat_probe.c. Shows whether the simulator's
-// libsystem answers a name differently from the kernel OID walk.
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>

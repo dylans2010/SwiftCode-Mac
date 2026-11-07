@@ -1,16 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/AgentUseMCP.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Agent/AgentUseMCP.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - tool-call row UI (RUNNING/COMPLETED/FAILED status, duration, arguments payload, details toggle)
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - MCPExecutionMetadata — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/UseMCP.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
 import SwiftUI
 import SwiftCodeAssistant
 
@@ -26,7 +13,6 @@ public struct AgentUseMCP: View {
     public var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                // Header row
                 HStack(alignment: .center, spacing: 8) {
                     Image(systemName: "network.badge.shield.half.filled")
                         .font(.headline)
@@ -58,7 +44,6 @@ public struct AgentUseMCP: View {
 
                     Spacer()
 
-                    // Pulse/Execution Status
                     if metadata.isExecuting {
                         HStack(spacing: 5) {
                             ProgressView()
@@ -99,7 +84,6 @@ public struct AgentUseMCP: View {
 
                 Divider()
 
-                // Info Grid: Duration, Timestamp
                 HStack(spacing: 20) {
                     Label {
                         Text(metadata.timestamp.formatted(date: .omitted, time: .shortened))
@@ -119,7 +103,6 @@ public struct AgentUseMCP: View {
                 }
                 .foregroundColor(.secondary)
 
-                // Arguments / Request Summary
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ARGUMENTS PAYLOAD")
                         .font(.system(size: 9, weight: .bold))
@@ -134,7 +117,6 @@ public struct AgentUseMCP: View {
                         .textSelection(.enabled)
                 }
 
-                // Output / Response Summary
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(metadata.success ? "MCP EXECUTION RESULT" : "EXECUTION OUTPUT / ERRORS")

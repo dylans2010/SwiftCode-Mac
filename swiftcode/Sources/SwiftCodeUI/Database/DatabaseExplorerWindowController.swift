@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/DatabaseExplorerWindowController.swift` (SwiftCode-Mac migration, P-UTIL).
-// Window's split view (DatabaseExplorerSplitViewController) was already ported to this module.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import AppKit
 import SwiftUI
 

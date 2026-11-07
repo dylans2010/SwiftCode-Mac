@@ -5,7 +5,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// A catalog written by hand in the documented layout.
 let sampleCatalog = """
 {
   "sourceLanguage" : "en",

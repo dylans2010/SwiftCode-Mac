@@ -1,18 +1,11 @@
 import Foundation
 
-/// One console row: a line of the console's text and the output entry it
-/// starts in (for its metadata). See `specs/ide/reference-ui-5.md` §2.10
-/// (Debug ▸ Console) and §10.2.
 public struct ConsoleRow: Equatable, Sendable {
     public var text: String
     public var entry: ConsoleEntry
 }
 
 public enum ConsoleRows {
-    /// The rows of the entries' text: one per line, in order. A line that
-    /// spans several entries (output without a line break, then more)
-    /// belongs to the entry it starts in. "\r\n" (a pseudo-terminal's line
-    /// end, one `Character`) ends a line as "\n" does.
     public static func rows(_ entries: [ConsoleEntry]) -> [ConsoleRow] {
         var out: [ConsoleRow] = []
         var line = ""
@@ -33,15 +26,12 @@ public enum ConsoleRows {
         return out
     }
 
-    /// Every column the console has data for (Copy Row with All Metadata).
     public static var allMetadata: ConsoleMetadata {
         var m = ConsoleMetadata()
         for i in ConsoleMetadata.supportedColumns { m.set(i, true) }
         return m
     }
 
-    /// A row as copied: with `metadata`'s columns as its prefix, or bare
-    /// (Copy Row without Metadata passes nil).
     public static func copyText(_ row: ConsoleRow, metadata: ConsoleMetadata?) -> String {
         guard let metadata else { return row.text }
         var e = row.entry
@@ -49,8 +39,6 @@ public enum ConsoleRows {
         return WorkspaceSession.consoleText([e], metadata: metadata)
     }
 
-    /// A source location named in a row: `path:line` (with an optional
-    /// `:column`), or "file <path>, line <n>". Nil when there is none.
     public static func sourceLocation(in text: String) -> (path: String, line: Int)? {
         let patterns = [
             #"((?:~|/)?(?:[\w.+\-]+/)*[\w.+\-]+\.[A-Za-z][\w]*):(\d+)"#,
@@ -66,8 +54,6 @@ public enum ConsoleRows {
         return nil
     }
 
-    /// Resolves a row's path: an existing absolute path, else the
-    /// workspace file whose path ends with it (the shortest such path).
     public static func resolve(_ path: String, files: [String]) -> String? {
         let expanded = (path as NSString).expandingTildeInPath
         if expanded.hasPrefix("/"), FileManager.default.fileExists(atPath: expanded) { return expanded }
@@ -78,8 +64,6 @@ public enum ConsoleRows {
         return files.filter { $0.hasSuffix(name) }.min { $0.count < $1.count }
     }
 
-    /// The range of the text's last paragraph (lines between blank lines),
-    /// without its line breaks; nil for empty text.
     public static func lastParagraph(in text: String) -> NSRange? {
         let ns = text as NSString
         var end = ns.length

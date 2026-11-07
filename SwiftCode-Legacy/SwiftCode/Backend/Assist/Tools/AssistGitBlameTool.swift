@@ -1,8 +1,3 @@
-//
-//  AssistGitBlameTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistGitBlameTool: AssistTool {
@@ -63,7 +58,6 @@ public struct AssistGitBlameTool: AssistTool {
                 return .failure("git blame failed: \(raw.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
 
-            // Also run normal formatted blame for readable snippet
             let formatProc = Process()
             formatProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
             var fArgs = ["blame", "-s"]

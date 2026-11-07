@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Coordinators/PersonalDocumentationCoordinator.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: WorkspaceState.
-
 import AppKit
 import Foundation
 import Observation

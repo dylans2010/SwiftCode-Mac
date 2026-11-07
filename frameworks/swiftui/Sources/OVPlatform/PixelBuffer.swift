@@ -1,11 +1,8 @@
 import Foundation
 
-/// An 8-bit RGBA image (non-premultiplied, rows top to bottom): the frame a
-/// software renderer hands to a window and what a readback returns.
 public struct PixelBuffer: Sendable, Equatable {
     public let width: Int
     public let height: Int
-    /// `width × height × 4` bytes, R G B A.
     public var bytes: [UInt8]
 
     public init(width: Int, height: Int, fill: RGBA8 = RGBA8(r: 0, g: 0, b: 0, a: 255)) {
@@ -36,8 +33,6 @@ public struct PixelBuffer: Sendable, Equatable {
         }
     }
 
-    /// Fills a pixel rectangle (clipped), blending with source-over when the
-    /// colour is translucent.
     public mutating func fillRect(x: Int, y: Int, width w: Int, height h: Int, _ c: RGBA8) {
         let x0 = max(0, x), y0 = max(0, y)
         let x1 = min(width, x + w), y1 = min(height, y + h)
@@ -61,8 +56,6 @@ public struct PixelBuffer: Sendable, Equatable {
         }
     }
 
-    /// Fills the pixels whose centres lie inside an ellipse inscribed in a
-    /// pixel rectangle.
     public mutating func fillEllipse(x: Double, y: Double, width w: Double, height h: Double, _ c: RGBA8) {
         guard w > 0, h > 0 else { return }
         let cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2
@@ -77,8 +70,6 @@ public struct PixelBuffer: Sendable, Equatable {
         }
     }
 
-    /// PNG encoding (8-bit RGBA, stored deflate blocks: no compression, but
-    /// valid for every reader; written from the PNG and zlib specifications).
     public func pngData() -> Data {
         var raw = [UInt8]()
         raw.reserveCapacity(height * (width * 4 + 1))
@@ -101,7 +92,6 @@ public struct PixelBuffer: Sendable, Equatable {
     }
 }
 
-/// One 8-bit RGBA colour.
 public struct RGBA8: Sendable, Hashable {
     public var r: UInt8, g: UInt8, b: UInt8, a: UInt8
     public init(r: UInt8, g: UInt8, b: UInt8, a: UInt8 = 255) {
@@ -111,7 +101,6 @@ public struct RGBA8: Sendable, Hashable {
         self.a = a
     }
 
-    /// From components in 0…1 (sRGB).
     public init(red: Double, green: Double, blue: Double, opacity: Double = 1) {
         func q(_ v: Double) -> UInt8 { UInt8(max(0, min(255, (v * 255).rounded()))) }
         self.init(r: q(red), g: q(green), b: q(blue), a: q(opacity))
@@ -143,7 +132,6 @@ private enum PNG {
         out.append(contentsOf: be32(crc32(t + data)))
     }
 
-    /// A zlib stream of stored (uncompressed) deflate blocks.
     static func zlibStored(_ data: [UInt8]) -> [UInt8] {
         var out: [UInt8] = [0x78, 0x01]
         var i = 0

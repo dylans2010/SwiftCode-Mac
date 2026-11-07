@@ -1,9 +1,3 @@
-// InstalledOfflineModelsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/InstalledOfflineModelsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: per-model token count and install date; Run Diagnostics (test model with a prompt)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftUI
 

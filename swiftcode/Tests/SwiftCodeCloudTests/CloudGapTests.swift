@@ -3,15 +3,8 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeCloud
 
-// Gap-closure tests: multipart Storage upload, the Supabase
-// PostgREST client, AppConfig remainder, BackupEngine, and the
-// OAuth-callback resume the app shell relies on. Stub transport
-// and fixtures only — no live network, no real credentials.
-
 @MainActor
 struct CloudGapTests {
-
-    // MARK: - Multipart upload
 
     @Test("multipart body carries the fileId field, the file part, and the raw bytes")
     func multipartBodyShape() {
@@ -59,8 +52,6 @@ struct CloudGapTests {
         #expect(id == "created-id")
     }
 
-    // MARK: - OAuth callback resume
-
     @Test("beginOAuth resumes when the app shell delivers the callback URL")
     func beginOAuthResumesOnCallback() async throws {
         let auth = CloudAuthManager(client: AppwriteAccountClient(session: stubSession()), store: MemorySecretStore())
@@ -72,7 +63,7 @@ struct CloudGapTests {
         try await Task.sleep(nanoseconds: 50_000_000)
         #expect(opened.value?.scheme == "https")
         let delivered = auth.handleOAuthCallback(URL(string: "appwrite-callback-6a670d0b0022e5f964b4://")!)
-        #expect(delivered == nil) // resumed the pending wait; nothing left to return
+        #expect(delivered == nil)
         let user = try await task.value
         #expect(user.email == "dylan@example.com")
         #expect(auth.isAuthenticated == true)
@@ -104,8 +95,6 @@ struct CloudGapTests {
         #expect(verification == .verification(userId: "u2", secret: "s2"))
         #expect(auth.handleOAuthCallback(URL(string: "https://example.com/")!) == nil)
     }
-
-    // MARK: - SupabaseService
 
     private func supabaseConnection() -> DatabaseConnection {
         DatabaseConnection(
@@ -227,8 +216,6 @@ struct CloudGapTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
     }
 
-    // MARK: - AppConfig
-
     @Test("AppConfig defaults are Legacy's public URLs and empty keys when unconfigured")
     func appConfigDefaults() {
         let config = AppConfig()
@@ -269,8 +256,6 @@ struct CloudGapTests {
         #expect(config.runDiagnostics()["configuredSupabaseAnonKey"] == "MISSING")
         #expect(config.runDiagnostics()["configuredOpenRouterAPIKey"] == "MISSING")
     }
-
-    // MARK: - BackupEngine
 
     private func makeTempAppSupport() -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -340,7 +325,6 @@ struct CloudGapTests {
         try Data("a".utf8).write(to: backupsDir.appendingPathComponent("old.zip"))
         try Data("b".utf8).write(to: backupsDir.appendingPathComponent("notes.txt"))
         try Data("c".utf8).write(to: backupsDir.appendingPathComponent("new.zip"))
-        // Force distinct creation dates via the manifest ordering on disk.
         engine.loadLocalBackups()
         #expect(engine.backups.map(\.filename).sorted() == ["new.zip", "old.zip"])
         #expect(engine.backups.allSatisfy { !$0.isCloudStored })
@@ -367,7 +351,6 @@ struct CloudGapTests {
         #expect(engine.lastArchiveSHA256?.count == 64)
         #expect(engine.backups.count == 1)
         #expect(engine.backups[0].filename.hasSuffix(".zip"))
-        // The archive written by the stub is what got hashed.
         let expected = SHA256Digest.hash(Data("stub-zip-bytes".utf8)).map { String(format: "%02x", $0) }.joined()
         #expect(engine.lastArchiveSHA256 == expected)
     }
@@ -490,8 +473,6 @@ struct CloudGapTests {
     }
 }
 
-/// A recording `StorageProvider` for backup tests: files live in
-/// memory, uploads/downloads/deletes are recorded.
 final class RecordingStorageProvider: StorageProvider, @unchecked Sendable {
     private let lock = NSLock()
     private var _files: [String: Data] = [:]
@@ -546,9 +527,6 @@ final class RecordingStorageProvider: StorageProvider, @unchecked Sendable {
     }
 }
 
-
-/// A `@unchecked Sendable` holder for a URL captured by a `@Sendable`
-/// callback in tests.
 final class URLBox: @unchecked Sendable {
     var value: URL?
 }

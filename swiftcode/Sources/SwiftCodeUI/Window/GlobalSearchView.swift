@@ -1,28 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/GlobalSearchView.swift`
-// (Dylan's own code; direct port authorised under MIT). Destination:
-// SwiftCodeUI/Window/ — next to its consumer `NSPersonalDocumentationView`.
-//
-// Destination adaptations (the Legacy file cannot land verbatim):
-// - `SearchManager.SearchResult` does not exist in production. The search
-//   entry point is `PersonalDocStore.search(query:) -> [PersonalDocSearchResult]`
-//   (`SwiftCodeIDEShell/PersonalDocumentationModel.swift:640`); the result
-//   shape is the same (`document` + `snippet`, `document.id/.title/
-//   .moduleKind`), so the view uses `[PersonalDocSearchResult]`.
-// - Legacy called `coordinator.search.search(query:)`; the production
-//   coordinator exposes the store as `coordinator.store`, so the call is
-//   `coordinator.store.search(query:)`.
-// - `result.document.moduleKind` is `PersonalDocModuleKind` (not the
-//   Legacy `ModuleKind`); it has `.icon` and `.rawValue`, and `.accentColor`
-//   was added alongside this port (same Legacy logic).
-// - `NativeSearchField` and the `.liquidGlass` modifier already exist in
-//   production; `coordinator.selectedModuleKind` / `selectedDocumentID`
-//   exist on the production coordinator.
-// - NOTE: `PersonalDocumentationCoordinator` lives in SwiftCodeIDEShell,
-//   which SwiftCodeUI does not depend on in Package.swift yet — same gap
-//   already flagged on `NSPersonalDocumentationView.swift` (G-DEPS owns
-//   config). This file does not add the import; the dependency must land
-//   in Package.swift first.
-
 import SwiftUI
 
 struct GlobalSearchView: View {
@@ -82,8 +57,6 @@ struct GlobalSearchView: View {
     }
 
     private func performSearch() {
-        // Production `PersonalDocStore.search(query:)` does not throw
-        // (Legacy's did), so no `try?` here.
         results = coordinator.store.search(query: query)
     }
 }

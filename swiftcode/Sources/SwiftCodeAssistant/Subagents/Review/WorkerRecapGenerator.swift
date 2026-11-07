@@ -1,19 +1,10 @@
 import Foundation
 
-// Ported from Legacy:
-//   SwiftCode/Backend/Assist/Subagents/Review/WorkerRecapGenerator.swift
-// Direct port of Legacy behaviour (Dylan's own code, authorised for porting
-// under MIT). Depends on types ported in parallel into SwiftCodeAssistant:
-// WorkerEvent, WorkerEventType (Models). Declares no model types itself.
-
-/// Generates concise, truthful recaps directly from live Worker runtime events (M-RECAP).
-/// Enforces INV-11: No fabricated or static narrative summaries.
 public struct WorkerRecapGenerator: Sendable {
     public static let shared = WorkerRecapGenerator()
 
     public init() {}
 
-    /// Synthesizes bullet points summarizing a Worker's actual accomplishments from its event log.
     public func generateRecap(from events: [WorkerEvent]) -> [String] {
         var bullets: [String] = []
 

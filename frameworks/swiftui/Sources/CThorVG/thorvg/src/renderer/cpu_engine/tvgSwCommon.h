@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_SW_COMMON_H_
 #define _TVG_SW_COMMON_H_
 
@@ -84,7 +62,6 @@ struct SwPoint
 
     bool tiny() const
     {
-        //2 is epsilon...
         if (abs(x) < 2 && abs(y) < 2) return true;
         else return false;
     }
@@ -102,16 +79,8 @@ struct SwSize
 
 struct SwOutline
 {
-    /**
-     * A shape refers to the renderer's path as is.
-     * trim, dash, stroke and image build theirs in the per-thread pool path (SwMpool::paths).
-     */
     const RenderPath* path;
 
-    /**
-     * path->pts transformed into fixed-point form by utilExport().
-     * rle walks path->cmds and reads the coordinates from here.
-     */
     Array<SwPoint> out;
 
     FillRule fillRule;
@@ -211,7 +180,7 @@ struct SwFill
     FillSpread spread;
     Type type;
 
-    bool solid = false; //solid color fill with the last color from colorStops
+    bool solid = false;
     bool translucent;
 };
 
@@ -219,8 +188,8 @@ struct SwStrokeBorder
 {
     Array<Point> pts;
     uint8_t* tags = nullptr;
-    int32_t start = 0;        //index of current sub-path start point
-    bool movable = false;      //true: for ends of lineto borders
+    int32_t start = 0;
+    bool movable = false;
 
     ~SwStrokeBorder()
     {
@@ -267,8 +236,8 @@ struct SwShape
     SwFill* fill = nullptr;
     SwRle* rle = nullptr;
     SwRle* strokeRle = nullptr;
-    RenderRegion bbox;        //Keep it boundary without stroke region. Using for optimal filling.
-    bool fastTrack = false;   //Fast Track: axis-aligned rectangle without any clips?
+    RenderRegion bbox;
+    bool fastTrack = false;
 };
 
 struct SwImage
@@ -276,40 +245,40 @@ struct SwImage
     SwOutline*   outline = nullptr;
     SwRle*   rle = nullptr;
     union {
-        pixel_t*  data;      //system based data pointer
-        uint32_t* buf32;     //for explicit 32bits channels
-        uint8_t*  buf8;      //for explicit 8bits grayscale
+        pixel_t*  data;
+        uint32_t* buf32;
+        uint8_t*  buf8;
     };
     uint32_t     w, h, stride;
-    int32_t      ox = 0;         //offset x
-    int32_t      oy = 0;         //offset y
+    int32_t      ox = 0;
+    int32_t      oy = 0;
     float        scale;
 
     uint8_t      channelSize;
     FilterMethod filter;
-    bool direct = false;  // draw image directly (with offset)
-    bool scaled = false;  // draw uniform scaled image
-    bool alphaIgnored = false;  // If true, the alpha channel can be ignored.
+    bool direct = false;
+    bool scaled = false;
+    bool alphaIgnored = false;
 };
 
-typedef uint8_t (*SwMask)(uint8_t s, uint8_t d, uint8_t a);                       // src, dst, alpha
-typedef uint32_t (*SwBlender)(const SwSurface* surface, uint32_t s, uint32_t d);  // src, dst
-typedef uint32_t (*SwBlenderA)(uint32_t s, uint32_t d, uint8_t a);                // src, dst, alpha
-typedef uint32_t (*SwJoin)(uint8_t r, uint8_t g, uint8_t b, uint8_t a);           // color channel join
-typedef uint8_t (*SwAlpha)(uint8_t*);                                             // blending alpha
+typedef uint8_t (*SwMask)(uint8_t s, uint8_t d, uint8_t a);
+typedef uint32_t (*SwBlender)(const SwSurface* surface, uint32_t s, uint32_t d);
+typedef uint32_t (*SwBlenderA)(uint32_t s, uint32_t d, uint8_t a);
+typedef uint32_t (*SwJoin)(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+typedef uint8_t (*SwAlpha)(uint8_t*);
 
 struct SwSurface : RenderSurface
 {
     SwJoin  join;
-    SwAlpha alphas[4];                    // Alpha:0, InvAlpha:1, Luma:2, InvLuma:3
-    SwBlender blender = nullptr;          //blender (optional)
-    SwCompositor* compositor = nullptr;   //compositor (optional)
+    SwAlpha alphas[4];
+    SwBlender blender = nullptr;
+    SwCompositor* compositor = nullptr;
     BlendMethod blendMethod = BlendMethod::Normal;
 
     SwAlpha alpha(MaskMethod method)
     {
-        auto idx = (int)(method) - 1;       //-1 for None
-        return alphas[idx > 3 ? 0 : idx];   //CompositeMethod has only four Matting methods.
+        auto idx = (int)(method) - 1;
+        return alphas[idx > 3 ? 0 : idx];
     }
 
     uint8_t luma(const uint32_t& c) const
@@ -331,8 +300,8 @@ struct SwSurface : RenderSurface
 
 struct SwCompositor : RenderCompositor
 {
-    SwSurface* recoverSfc;                  //Recover surface when composition is started
-    SwCompositor* recoverCmp;               //Recover compositor when composition is done
+    SwSurface* recoverSfc;
+    SwCompositor* recoverCmp;
     SwImage image;
     RenderRegion bbox;
     bool valid;
@@ -514,11 +483,11 @@ void imageFree(SwImage& image);
 bool fillPrepare(SwFill*& fill, const Fill* fdata, const Matrix& transform, SwSurface* surface, uint8_t opacity, bool ctable);
 const Fill::ColorStop* fillFetchSolid(const SwFill* fill, const Fill* fdata);
 void fillReset(SwFill* fill);
-void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, SwMask maskOp, uint8_t opacity);                                      // composite masking ver.
-void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwMask maskOp, uint8_t opacity);                        // direct masking ver.
-void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, uint8_t a);                                           // blending ver.
-void fillRaster(const SwSurface* surface, const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, SwBlender op2, uint8_t a);  // blending + BlendingMethod(op2) ver.
-void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwAlpha alpha, uint8_t csize, uint8_t opacity);        // matting ver.
+void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, SwMask maskOp, uint8_t opacity);
+void fillRaster(const SwFill* fill, uint8_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwMask maskOp, uint8_t opacity);
+void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, uint8_t a);
+void fillRaster(const SwSurface* surface, const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, SwBlenderA op, SwBlender op2, uint8_t a);
+void fillRaster(const SwFill* fill, uint32_t* dst, uint32_t y, uint32_t x, uint32_t len, uint8_t* cmp, SwAlpha alpha, uint8_t csize, uint8_t opacity);
 
 SwRle* rleRender(SwRle* rle, const SwOutline* outline, const RenderRegion& bbox, SwMpool* mpool, unsigned tid, bool antiAlias);
 SwRle* rleRender(const RenderRegion* bbox);
@@ -582,4 +551,4 @@ uint32_t blendSaturation(const SwSurface* surface, uint32_t s, uint32_t d);
 uint32_t blendColor(const SwSurface* surface, uint32_t s, uint32_t d);
 uint32_t blendLuminosity(const SwSurface* surface, uint32_t s, uint32_t d);
 
-#endif /* _TVG_SW_COMMON_H_ */
+#endif

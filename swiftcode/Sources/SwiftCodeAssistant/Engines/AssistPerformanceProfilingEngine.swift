@@ -1,10 +1,5 @@
-// Ported from SwiftCode-Legacy (Dylan's own code; direct port authorised under MIT):
-// SwiftCode/Backend/Assist/Assist Frameworks/AssistPerformanceProfilingEngine.swift @ d51a8f0d.
-// Staged for SwiftCodeAssistant; not yet wired in. Depends on AssistContext,
-// (now staged in AssistModels.swift by the parallel port; see _notes/agent-models-decisions.md).
 import Foundation
 
-/// Profiles performance of autonomous execution
 @MainActor
 public final class AssistPerformanceProfilingEngine {
     private let context: AssistContext
@@ -31,14 +26,11 @@ public final class AssistPerformanceProfilingEngine {
         self.context = context
     }
 
-    /// Starts profiling an operation
     public func startProfiling(operationType: String, metadata: [String: String] = [:]) -> String {
         let id = UUID().uuidString
-        // Store start time in metadata
         return id
     }
 
-    /// Records a completed operation
     public func recordOperation(
         type: String,
         startTime: Date,
@@ -57,7 +49,6 @@ public final class AssistPerformanceProfilingEngine {
         )
         profiles.append(profile)
 
-        // Log slow operations
         if duration > 5.0 {
             Task {
                 await context.logger.warning("Slow operation: \(type) took \(String(format: "%.2f", duration))s", toolId: "PerformanceProfiling")
@@ -65,17 +56,14 @@ public final class AssistPerformanceProfilingEngine {
         }
     }
 
-    /// Generates performance summary
     public func generateSummary() -> PerformanceSummary {
         let totalOperations = profiles.count
         let averageDuration = profiles.isEmpty ? 0 : profiles.map { $0.duration }.reduce(0, +) / Double(totalOperations)
         let successCount = profiles.filter { $0.success }.count
         let successRate = totalOperations > 0 ? Double(successCount) / Double(totalOperations) : 0
 
-        // Find slowest operations
         let slowest = profiles.sorted { $0.duration > $1.duration }.prefix(5)
 
-        // Identify bottlenecks (operations that consistently take long)
         var operationDurations: [String: [TimeInterval]] = [:]
         for profile in profiles {
             if operationDurations[profile.operationType] == nil {
@@ -101,7 +89,6 @@ public final class AssistPerformanceProfilingEngine {
         )
     }
 
-    /// Logs performance summary
     public func logSummary() async {
         let summary = generateSummary()
         await context.logger.info("""

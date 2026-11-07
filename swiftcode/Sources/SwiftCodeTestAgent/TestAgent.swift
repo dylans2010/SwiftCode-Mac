@@ -1,19 +1,3 @@
-// SwiftCode's hosted-test agent (`libSwiftCodeTestAgent.dylib`): runs a test
-// bundle inside the app named by the test bundle's `TEST_HOST`. swiftcodebuild
-// starts the host with `DYLD_INSERT_LIBRARIES` naming this library and the
-// `SWIFTCODE_TEST_*` variables below; once the app has finished launching the
-// agent loads the bundle, runs its XCTest tests through XCTest's public
-// classes and its Swift Testing tests through the testing library's ABI
-// entry point (`swt_abiv0_getEntryPoint`, open-source swift-testing,
-// `Documentation/ABI/JSON.md`), reports on standard error, and exits.
-//
-// The agent links neither XCTest nor Testing: both arrive with the bundle.
-// Their classes and entry points are looked up at run time, so one agent
-// serves bundles that use either library or both.
-//
-// Protocol (specs/ide/testing.md, "SwiftCode implementation"): every report is
-// one line `##swiftcode-test## <JSON object>` on standard error, written with
-// one write(2). The libraries' own console lines are left as they are.
 #if canImport(Darwin)
 import Darwin
 import Foundation
@@ -28,7 +12,6 @@ public func swiftcodeTestAgentStart() {
 final class TestAgent: @unchecked Sendable {
     static let shared = TestAgent()
 
-    /// The line prefix of every report.
     static let prefix = "##swiftcode-test## "
 
     private var started = false
@@ -41,11 +24,8 @@ final class TestAgent: @unchecked Sendable {
     private var failed = false
     private var counts: [String: Int] = ["passed": 0, "failed": 0, "skipped": 0]
     private var observer: AnyObject?
-    /// The launch notifications' observers (kept for the run).
     private var launchObservers: [NSObjectProtocol] = []
 
-    /// One bundle of the plan: where it is, its module, its selection
-    /// (`Class`, `Class/method`, `Suite`, `Suite/function()`; empty = all).
     struct BundleRun {
         var path: String
         var module: String
@@ -59,11 +39,6 @@ final class TestAgent: @unchecked Sendable {
         var count: Int
     }
 
-    // MARK: Start
-
-    /// Reads `SWIFTCODE_TEST_PLAN` (JSON: `session`, `bundles` [{`path`,
-    /// `module`, `only`, `skip`}], `repetition` {`mode`, `count`},
-    /// `launchTimeout` seconds). Without it the agent does nothing.
     func start() {
         let env = ProcessInfo.processInfo.environment
         guard let text = env["SWIFTCODE_TEST_PLAN"], let plan = Self.object(text) else { return }
@@ -75,7 +50,6 @@ final class TestAgent: @unchecked Sendable {
         if let r = plan["repetition"] as? [String: Any], let mode = (r["mode"] as? String).flatMap(Repetition.Mode.init(rawValue:)) {
             repetition = Repetition(mode: mode, count: max(1, r["count"] as? Int ?? 1))
         }
-        // Processes the app starts do not get the agent.
         unsetenv("DYLD_INSERT_LIBRARIES")
         unsetenv("SWIFTCODE_TEST_PLAN")
         report(["kind": "agentLoaded", "pid": Int(getpid()), "host": CommandLine.arguments.first ?? ""])
@@ -83,18 +57,13 @@ final class TestAgent: @unchecked Sendable {
         for name in ["NSApplicationDidFinishLaunchingNotification", "UIApplicationDidFinishLaunchingNotification"] {
             guard let value = Self.exportedString(name) else { continue }
             launchObservers.append(center.addObserver(forName: Notification.Name(value), object: nil, queue: .main) { [weak self] _ in
-                // After the app delegate's own handler: run on the next turn.
                 DispatchQueue.main.async { self?.begin(reason: "launched") }
             })
         }
-        // A host that never posts a launch notification (a tool, a
-        // headless app) runs the tests after a while anyway.
         let wait = plan["launchTimeout"] as? Double ?? 30
         DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in self?.begin(reason: "timeout") }
     }
 
-    /// The value of an exported `NSString *` constant (AppKit's or UIKit's
-    /// launch notification name), when the framework is loaded.
     static func exportedString(_ symbol: String) -> String? {
         guard let p = dlsym(UnsafeMutableRawPointer(bitPattern: -2), symbol) else { return nil }
         let ref = p.assumingMemoryBound(to: Unmanaged<NSString>?.self).pointee
@@ -104,8 +73,6 @@ final class TestAgent: @unchecked Sendable {
     static func object(_ json: String) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any]
     }
-
-    // MARK: Reports
 
     func report(_ fields: [String: Any]) {
         var all = fields
@@ -131,8 +98,6 @@ final class TestAgent: @unchecked Sendable {
         counts[status, default: 0] += 1
     }
 
-    // MARK: Run
-
     private func begin(reason: String) {
         guard !started else { return }
         started = true
@@ -140,8 +105,6 @@ final class TestAgent: @unchecked Sendable {
         runNext(0, loadFailed: false)
     }
 
-    /// Runs bundle `index` (XCTest on the main thread, then Swift Testing
-    /// in a task), then the next; exits after the last.
     private func runNext(_ index: Int, loadFailed: Bool) {
         guard index < bundles.count else { return finish(loadFailed ? 70 : failed ? 1 : 0) }
         current = bundles[index]
@@ -152,9 +115,6 @@ final class TestAgent: @unchecked Sendable {
         }
         if current.module.isEmpty { current.module = bundle.executableURL?.lastPathComponent ?? "" }
         let xctests = runXCTest(bundle)
-        // Swift Testing runs when the bundle has test content (its
-        // `__DATA_CONST,__swift5_tests` section, where the testing library
-        // looks) or no XCTest tests at all.
         guard xctests == 0 || Self.hasSwiftTestContent(bundle), let entry = swiftTestingEntryPoint(bundle) else {
             report(["kind": "bundleFinished", "path": current.path, "loaded": true])
             return runNext(index + 1, loadFailed: loadFailed)
@@ -171,8 +131,6 @@ final class TestAgent: @unchecked Sendable {
         }
     }
 
-    /// The bundle: an absolute path, `@executable_path/…`, or a name in the
-    /// app's PlugIns folder.
     func bundlePath() -> String {
         let spec = current.path
         if spec.hasPrefix("/") { return spec }
@@ -197,8 +155,6 @@ final class TestAgent: @unchecked Sendable {
         return bundle
     }
 
-    // MARK: XCTest
-
     typealias Send0 = @convention(c) (AnyObject, Selector) -> Unmanaged<AnyObject>?
     typealias Send1 = @convention(c) (AnyObject, Selector, AnyObject) -> Unmanaged<AnyObject>?
     typealias SendVoid = @convention(c) (AnyObject, Selector) -> Void
@@ -222,7 +178,6 @@ final class TestAgent: @unchecked Sendable {
         if let arg { unsafeBitCast(m, to: SendVoid1.self)(target, sel, arg) } else { unsafeBitCast(m, to: SendVoid.self)(target, sel) }
     }
 
-    /// `-[Module.Class method]` → (`Module.Class`, `method`).
     static func split(testName: String) -> (cls: String, method: String)? {
         guard testName.hasPrefix("-["), testName.hasSuffix("]") else { return nil }
         let inner = testName.dropFirst(2).dropLast()
@@ -230,13 +185,10 @@ final class TestAgent: @unchecked Sendable {
         return (String(inner[..<space]), String(inner[inner.index(after: space)...]))
     }
 
-    /// The class without its module (`Module.Class` → `Class`).
     static func bareClass(_ cls: String) -> String {
         cls.split(separator: ".", maxSplits: 1).count == 2 ? String(cls.split(separator: ".", maxSplits: 1)[1]) : cls
     }
 
-    /// Whether an XCTest method is selected: `only` (empty: all) and `skip`
-    /// hold `Class`, `Class/method` or `Class/method()`.
     func selects(cls: String, method: String) -> Bool {
         let c = Self.bareClass(cls)
         let ids = [c, c + "/" + method, c + "/" + method + "()"]
@@ -244,7 +196,6 @@ final class TestAgent: @unchecked Sendable {
         return only.isEmpty || only.contains(where: { ids.contains($0) })
     }
 
-    /// Every test case of a suite tree.
     static func testCases(_ test: AnyObject) -> [AnyObject] {
         if let suiteClass: AnyClass = NSClassFromString("XCTestSuite"), (test as? NSObject)?.isKind(of: suiteClass) == true,
            let tests = (test as? NSObject)?.value(forKey: "tests") as? [AnyObject] {
@@ -253,7 +204,6 @@ final class TestAgent: @unchecked Sendable {
         return [test]
     }
 
-    /// Runs the bundle's selected XCTest tests; returns how many the bundle has.
     @discardableResult
     func runXCTest(_ bundle: Bundle) -> Int {
         guard let suiteClass: AnyClass = NSClassFromString("XCTestSuite"),
@@ -286,15 +236,12 @@ final class TestAgent: @unchecked Sendable {
             case .untilFailure: if !roundFailures.isEmpty { pending = [] }
             case .retryOnFailure: pending = pending.filter { roundFailures.contains(Self.name($0) ?? "") }
             }
-            // New instances for the next round (an instance runs once).
             if round < repetition.count { pending = pending.compactMap(Self.freshCase) }
         }
-        // Retrying: a test that passed on a later try has passed.
         if repetition.mode == .retryOnFailure ? !lastFailures.isEmpty : anyFailure { failed = true }
         return total
     }
 
-    /// Whether the bundle's image has Swift Testing test content.
     static func hasSwiftTestContent(_ bundle: Bundle) -> Bool {
         guard let exe = bundle.executableURL?.resolvingSymlinksInPath().path else { return false }
         for i in 0..<_dyld_image_count() {
@@ -311,8 +258,6 @@ final class TestAgent: @unchecked Sendable {
 
     var roundFailures: Set<String> = []
 
-    /// A new instance of a test case for the same method
-    /// (`+[XCTestCase testCaseWithSelector:]`).
     static func freshCase(_ tc: AnyObject) -> AnyObject? {
         guard let parts = name(tc).flatMap(split(testName:)), let cls = object_getClass(tc) else { return tc }
         let sendSel = NSSelectorFromString("testCaseWithSelector:")
@@ -321,8 +266,6 @@ final class TestAgent: @unchecked Sendable {
         return unsafeBitCast(m, to: F.self)(cls, sendSel, NSSelectorFromString(parts.method))?.takeUnretainedValue() ?? tc
     }
 
-    /// An `XCTestObservation` observer (the protocol is added at run time;
-    /// XCTest is not linked).
     func installObserver() {
         guard observer == nil, let centerClass: AnyClass = NSClassFromString("XCTestObservationCenter"),
               let center = Self.call(centerClass, "sharedTestObservationCenter") else { return }
@@ -331,8 +274,6 @@ final class TestAgent: @unchecked Sendable {
         observer = o
         Self.callVoid(center, "addTestObserver:", o)
     }
-
-    // MARK: Swift Testing
 
     typealias EntryPoint = @convention(thin) @Sendable (
         _ configurationJSON: UnsafeRawBufferPointer?,
@@ -348,15 +289,11 @@ final class TestAgent: @unchecked Sendable {
         return unsafeBitCast(unsafeBitCast(symbol, to: Getter.self)(), to: EntryPoint.self)
     }
 
-    /// The entry point's configuration (its documented command-line
-    /// arguments as JSON): selection as ID patterns, repetitions.
     func swiftTestingConfiguration(module: String) -> [String: Any] {
         func pattern(_ id: String) -> String {
-            // `Suite/function()` or `Suite`, matched from the module on.
             "^" + NSRegularExpression.escapedPattern(for: module + "." + id) + "(/|$)"
         }
         var c: [String: Any] = ["eventStreamVersion": 0]
-        // This bundle's tests only (others loaded earlier are in the process too).
         let swiftOnly = only.filter { !$0.isEmpty }
         c["filter"] = swiftOnly.isEmpty ? ["^" + NSRegularExpression.escapedPattern(for: module + ".")] : swiftOnly.map(pattern)
         if !skip.isEmpty { c["skip"] = skip.map(pattern) }
@@ -384,7 +321,6 @@ final class TestAgent: @unchecked Sendable {
     }
 }
 
-/// Reports XCTest's progress (`XCTestObservation`'s methods).
 final class XCTestReporter: NSObject {
     let agent: TestAgent
     init(agent: TestAgent) { self.agent = agent }
@@ -425,16 +361,13 @@ final class XCTestReporter: NSObject {
     }
 }
 
-/// Turns the testing library's event records into the agent's reports.
 final class SwiftTestingTracker: @unchecked Sendable {
     let agent: TestAgent
     private let lock = NSLock()
-    /// Test ID → (suite path, name, is suite).
     private var tests: [String: (suite: String, name: String, isSuite: Bool)] = [:]
     private var issues: Set<String> = []
     init(agent: TestAgent) { self.agent = agent }
 
-    /// `Module.Outer.Inner/name()/File.swift:1:2` → (`Outer/Inner`, `name()`).
     static func names(id: String, name: String, isSuite: Bool) -> (suite: String, name: String) {
         var parts = id.split(separator: "/").map(String.init)
         if let last = parts.last, last.contains(".swift:") { parts.removeLast() }
@@ -470,7 +403,6 @@ final class SwiftTestingTracker: @unchecked Sendable {
             if let n = payload["iteration"] as? Int { r["iteration"] = n }
         case "issueRecorded":
             let issue = payload["issue"] as? [String: Any]
-            // Known issues (`withKnownIssue`) and warnings do not fail the test.
             let known = issue?["isKnown"]
             guard issue?["isFailure"] as? Bool ?? true, (known as? Bool) != true, !(known is String) else { return }
             issues.insert(id)

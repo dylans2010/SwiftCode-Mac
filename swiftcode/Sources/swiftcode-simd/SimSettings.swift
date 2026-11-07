@@ -1,30 +1,10 @@
-// The device's settings features (specs/simulator/simulator-features.md,
-// "SwiftCode implementation"): the host end of SwiftCode's settings channel, the
-// control-socket commands, and the device files the host writes itself.
-//
-// Mechanism: SwiftCode's guest settings agent (SimGuestAgents/settings, a
-// launchd daemon of the device whose plist swiftcode-simd writes at every cold
-// boot) connects to the guest path /private/var/run/dev.swiftcode.settings,
-// which the VMM serves (HostStreamSockets.serve). SimSettingsController
-// sends it the plans of SwiftCodeSimFeatures (preference writes through
-// cfprefsd, setter notifications, location requests) and reads settings
-// back. Audio settings are host files (written here) plus a notification
-// the agent posts; Environment Overrides are a per-app file plus a
-// notification. With no device running, `swiftcode-simd --device DEV --ui …`
-// writes the persistent settings into the device's preference files for
-// its next boot and queues them for the agent (DeviceSettingsFiles).
-
 import Foundation
 import SwiftCodeDarwinABI
 import SwiftCodeDarwinKernel
 import SwiftCodeSimFeatures
 
-// MARK: - The device's files
-
-/// The settings files of a device directory.
 struct DeviceSettingsFiles {
     let dev: String
-    /// DEV/data as the guest sees it.
     let guestData: String
 
     init(dev: String, guestData: String? = nil) {
@@ -40,7 +20,6 @@ struct DeviceSettingsFiles {
     var overridesGuestDirectory: String { guestData + "/Library/SwiftCode/EnvironmentOverrides" }
     var scenarioPath: String { data + "/tmp/swiftcode-location-scenario.plist" }
     var scenarioGuestPath: String { guestData + "/tmp/swiftcode-location-scenario.plist" }
-    /// Commands written while the device was stopped, for the agent to apply.
     var pendingPath: String { dev + "/swiftcode-pending-settings.txt" }
 
     static func readPlist(_ path: String) -> [String: Any]? {
@@ -49,27 +28,19 @@ struct DeviceSettingsFiles {
         }
     }
 
-    /// The guest path of a host path in DEV/data (nil: not in the guest's data tree).
     func guestPath(_ hostPath: String) -> String? {
         guard hostPath.hasPrefix(data + "/") else { return nil }
         return guestData + hostPath.dropFirst(data.count)
     }
 
-    /// Written to a temporary file and renamed (audio-host.md §12), through
-    /// the host-write hook (`HostDataWrites`): a running guest's kqueue
-    /// vnode watches fire and its file-event service sees the change
-    /// (`threads-and-events.md` §3.10).
     func writePlist(_ plist: [String: Any], to path: String, format: PropertyListSerialization.PropertyListFormat = .xml) throws {
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: format, options: 0)
         try HostDataWrites.replace(hostPath: path, guestPath: guestPath(path) ?? path, data: [UInt8](data))
     }
 
-    /// Removes a file of the data tree through the host-write hook.
     func remove(_ path: String) {
         HostDataWrites.remove(hostPath: path, guestPath: guestPath(path) ?? path)
     }
-
-    // Preferences (only while the device is stopped: cfprefsd owns them while it runs).
 
     func read(_ r: PreferenceRead) -> PrefValue? {
         Self.readPlist(preferencesPath(r.domain))?[r.key].flatMap(PrefValue.init(plistObject:))
@@ -81,7 +52,6 @@ struct DeviceSettingsFiles {
         return out
     }
 
-    /// Writes a plan's keys into the preference files (binary, as cfprefsd keeps them).
     func writeOffline(_ writes: [PreferenceWrite]) throws {
         var byDomain: [String: [PreferenceWrite]] = [:]
         for w in writes { byDomain[w.domain, default: []].append(w) }
@@ -93,8 +63,6 @@ struct DeviceSettingsFiles {
         }
     }
 
-    // Audio (§4.11–4.13).
-
     func audio() -> SimAudioSettings {
         SimAudio.settings(hostFile: Self.readPlist(audioHostPath), settingsFile: Self.readPlist(audioSettingsPath))
     }
@@ -103,8 +71,6 @@ struct DeviceSettingsFiles {
         try writePlist(SimAudio.hostFile(s), to: audioHostPath)
         try writePlist(SimAudio.settingsFile(s), to: audioSettingsPath)
     }
-
-    // Environment overrides.
 
     func overridesPath(_ bundleID: String) -> String { overridesDirectory + "/\(bundleID).plist" }
 
@@ -120,8 +86,6 @@ struct DeviceSettingsFiles {
         }
     }
 
-    // The pending queue.
-
     func appendPending(_ line: String) throws {
         let old = (try? String(contentsOfFile: pendingPath, encoding: .utf8)) ?? ""
         try (old + line + "\n").write(toFile: pendingPath, atomically: true, encoding: .utf8)
@@ -133,10 +97,6 @@ struct DeviceSettingsFiles {
         return text.split(whereSeparator: \.isNewline).map(String.init).filter { !$0.isEmpty }
     }
 
-    /// Cold boot (§5): colour filters do not persist. The guest empties its
-    /// media-accessibility domain itself; **SwiftCode decision**: the host also
-    /// turns the grayscale key of the accessibility domain off, which would
-    /// otherwise outlive the filter.
     func resetNonPersistentAtColdBoot() {
         let path = preferencesPath(SimPrefs.accessibility)
         guard var plist = Self.readPlist(path), (plist[SimPrefs.grayscale] as? NSNumber)?.intValue == 1 else { return }
@@ -144,7 +104,6 @@ struct DeviceSettingsFiles {
         try? writePlist(plist, to: path, format: .binary)
     }
 
-    /// The runtime's scenario names (file names in its scenario directory).
     static func scenarios(runtimeRoot: String) -> [String] {
         let dir = runtimeRoot + SimLocation.scenarioDirectory
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
@@ -155,9 +114,6 @@ struct DeviceSettingsFiles {
     }
 }
 
-// MARK: - The channel's host end
-
-/// The agent's end of the channel (HostChannelConnection in a run, a stand-in in tests).
 protocol SettingsAgentLink: AnyObject {
     @discardableResult func send(_ bytes: [UInt8]) -> Bool
     func close()
@@ -169,9 +125,7 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
     let files: DeviceSettingsFiles
     let runtimeRoot: String
     let log: (String) -> Void
-    /// Applies an audio change to the host audio service (volume, mute).
     var onAudio: ((SimAudioSettings) -> Void)?
-    /// How long a command waits for the agent to connect (after a boot) and to answer.
     var connectTimeout: TimeInterval = Double(ProcessInfo.processInfo.environment["SWIFTCODE_SETTINGS_AGENT_WAIT_S"] ?? "") ?? 60
     var replyTimeout: TimeInterval = 15
 
@@ -181,12 +135,9 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
     private var buffer: [UInt8] = []
     private var nextID = 1
     private var waiting: [Int: (semaphore: DispatchSemaphore, reply: [String: Any]?)] = [:]
-    /// The agent's pid (hello).
     private(set) var agentPID: Int?
-    /// Guest notifications the agent reported (the watched names of §7.1).
     private(set) var events: [String] = []
     private(set) var changeCount = 0
-    /// `SWIFTCODE_DEBUG_SETTINGS=1`: logs every guest notification the agent reports.
     static let debug = ProcessInfo.processInfo.environment["SWIFTCODE_DEBUG_SETTINGS"] == "1"
 
     init(files: DeviceSettingsFiles, runtimeRoot: String, log: @escaping (String) -> Void) {
@@ -196,8 +147,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
     }
 
     var isConnected: Bool { lock.withLock { link != nil } }
-
-    // HostChannelServer
 
     func channelOpened(_ connection: HostChannelConnection) { opened(connection, pid: connection.pid) }
     func channel(_ connection: HostChannelConnection, received bytes: [UInt8]) { received(bytes, from: connection) }
@@ -210,7 +159,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
             buffer = []
             return o
         }
-        // One agent: a newer connection replaces an older one.
         if let old, old !== l { old.close() }
         log("settings: the agent connected (pid \(pid))")
     }
@@ -276,8 +224,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
         s?.signal()
     }
 
-    /// After the hello: watch the guest's notifications, then apply what was
-    /// queued while the device was stopped.
     private func agentReady() {
         _ = request(SettingsChannel.watch(SimNotifications.watched))
         if case .success(let state) = readState(), let plan = SimFeatureMapping.bootPlan(state) {
@@ -291,7 +237,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
         }
     }
 
-    /// Waits for an agent that has said hello.
     private func waitForAgent() -> SettingsAgentLink? {
         let deadline = Date().addingTimeInterval(connectTimeout)
         connected.lock()
@@ -302,7 +247,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
         }
     }
 
-    /// One request and its reply (or an error text).
     func request(_ message: [String: Any], timeout: TimeInterval? = nil) -> Result<[String: Any], SettingsError> {
         guard let l = waitForAgent() else { return .failure(.noAgent) }
         let s = DispatchSemaphore(value: 0)
@@ -338,8 +282,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
         }
     }
 
-    // MARK: Commands
-
     func readState() -> Result<SimSettingsState, SettingsError> {
         request(SettingsChannel.read(SimFeatureMapping.stateReads)).map { SimSettingsState(values: SettingsChannel.values(of: $0)) }
     }
@@ -352,10 +294,7 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
         return r
     }
 
-    /// A control-socket command → its answer ("ok …" or "error: …").
     func handle(_ words: [String], pending: Bool = false) -> String {
-        // Diagnostics: `settings write <domain> <key> int:N|real:X|bool:B|string:S|remove`,
-        // `settings notify <name>…`, `settings events` (the last guest notifications).
         if words.count >= 2, words[0] == "settings", let d = debugCommand(Array(words.dropFirst())) { return d }
         let command: SimSettingsCommand
         do { command = try SimSettingsCommand.parse(words) } catch { return "error: \(error)" }
@@ -479,7 +418,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
         }
     }
 
-    /// Audio: the host files, the audio service, then the agent's notification.
     func audio(_ command: SimSettingsCommand) -> Result<String, SettingsError> {
         var s = files.audio()
         var notification: String?
@@ -499,7 +437,6 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
         do { try files.writeAudio(s) } catch { return .failure(.other("cannot write the audio settings: \(error)")) }
         onAudio?(s)
         let summary = "volume \(s.volume), output \(s.output.argument), input \(s.input.argument)"
-        // The files hold the setting even when no agent runs; the notification needs one.
         guard let n = notification else { return .success(summary) }
         return request(SettingsChannel.notify([n])).map { _ in summary }
     }
@@ -517,11 +454,7 @@ final class SimSettingsController: HostChannelServer, @unchecked Sendable {
     }
 }
 
-// MARK: - A stopped device (`swiftcode-simd --device DEV --ui …` with no run)
-
 enum OfflineSettings {
-    /// The answer for a command when the device is not running: persistent
-    /// settings go into its files (and the queue), getters read the files.
     static func handle(_ words: [String], dev: String, runtimeRoot: String?) -> String {
         let files = DeviceSettingsFiles(dev: dev)
         let command: SimSettingsCommand
@@ -562,7 +495,6 @@ enum OfflineSettings {
             if req != .show { do { try files.writeOverrides(o, for: id) } catch { return "error: \(error)" } }
             return "ok " + (o.isEmpty ? "\(id): no overrides" : "\(id): " + o.words.joined(separator: " "))
         case .volume, .stepVolume, .output, .input, .getVolume, .getOutput, .getInput, .audioDevices:
-            // The files are the setting; the controller's audio path without an agent.
             let c = SimSettingsController(files: files, runtimeRoot: runtimeRoot ?? "/", log: { _ in })
             c.connectTimeout = 0
             switch c.audio(command) {

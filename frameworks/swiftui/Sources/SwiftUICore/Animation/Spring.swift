@@ -1,33 +1,17 @@
 import Foundation
 
-/// A damped spring (05-animation.md §3): a mass m on a spring of stiffness k
-/// with damping c, moving towards a target. Values follow the closed-form
-/// solution of m·x″ + c·x′ + k·(x − target) = 0.
-///
-/// Parameter relations (05 §3): response = 2π·√(m/k); dampingRatio =
-/// c / (2·√(k·m)); duration = response; bounce = 1 − dampingRatio when
-/// bounce ≥ 0, and dampingRatio = 1 / (1 + bounce) when bounce < 0. For the
-/// over-damped case the reference reports stiffness = (2π/response)²·(2ζ² − 1)
-/// and damping = 4πζ/response (bounce −0.3: 486.6319 and 35.9039); this
-/// implementation reproduces those reported parameters and keeps the stated
-/// response and damping ratio.
 public struct Spring: Hashable, Sendable {
     public private(set) var mass: Double
     public private(set) var stiffness: Double
     public private(set) var damping: Double
-    // Perceptual parameters as given (they are not always recoverable from
-    // m, k, c; see the over-damped note above).
     private var storedResponse: Double
     private var storedDampingRatio: Double
 
-    /// A spring with a perceptual `duration` and `bounce` (−1…1).
     public init(duration: TimeInterval = 0.5, bounce: Double = 0) {
         let ratio = bounce >= 0 ? 1 - bounce : 1 / (1 + bounce)
         self.init(response: duration, dampingRatio: ratio)
     }
 
-    /// A spring with a `response` (the period of the undamped spring) and a
-    /// `dampingRatio` (1 = critically damped).
     public init(response: Double, dampingRatio: Double) {
         let omega = 2 * Double.pi / response
         mass = 1
@@ -37,8 +21,6 @@ public struct Spring: Hashable, Sendable {
         storedDampingRatio = dampingRatio
     }
 
-    /// A spring from its physical parameters. Without `allowOverDamping`, the
-    /// damping ratio is limited to 1.
     public init(mass: Double = 1, stiffness: Double, damping: Double, allowOverDamping: Bool = false) {
         self.mass = mass
         self.stiffness = stiffness
@@ -48,10 +30,7 @@ public struct Spring: Hashable, Sendable {
         storedDampingRatio = self.damping / critical
     }
 
-    /// A spring that settles (to within `epsilon`) in about
-    /// `settlingDuration` seconds.
     public init(settlingDuration: TimeInterval, dampingRatio: Double, epsilon: Double = 0.001) {
-        // Search the response that gives this settling time.
         var lo = 1e-4, hi = 100.0
         for _ in 0..<80 {
             let mid = (lo + hi) / 2
@@ -66,9 +45,6 @@ public struct Spring: Hashable, Sendable {
     public var duration: TimeInterval { storedResponse }
     public var bounce: Double { storedDampingRatio <= 1 ? 1 - storedDampingRatio : 1 / storedDampingRatio - 1 }
 
-    /// Time until the motion from 0 to 1 stays within 0.001 of the target.
-    /// Note: this is our definition; the reference's values (05 §3 table)
-    /// follow a rule that is still open (see the package README).
     public var settlingDuration: TimeInterval {
         settlingDuration(target: 1.0, initialVelocity: 0.0, epsilon: 0.001)
     }
@@ -87,13 +63,6 @@ public struct Spring: Hashable, Sendable {
         Spring(duration: duration, bounce: 0.3 + extraBounce)
     }
 
-    // MARK: Motion (scalar core)
-
-    /// Displacement from the target and velocity at `t` for initial
-    /// displacement `x0` and velocity `v0`.
-    /// Motion follows the perceptual parameters (ω0 = 2π/response, ζ =
-    /// dampingRatio), which equal the physical ones except for the reported
-    /// over-damped stiffness.
     private func state(x0: Double, v0: Double, t: Double) -> (x: Double, v: Double) {
         let w0 = 2 * Double.pi / storedResponse
         let z = storedDampingRatio
@@ -118,10 +87,6 @@ public struct Spring: Hashable, Sendable {
         }
     }
 
-    // MARK: Motion (public, any VectorArithmetic)
-
-    /// The value at `time` of a motion that starts at zero with
-    /// `initialVelocity` and springs towards `target`.
     public func value<V: VectorArithmetic>(target: V, initialVelocity: V = .zero, time: TimeInterval) -> V {
         value(fromValue: V.zero, toValue: target, initialVelocity: initialVelocity, time: time)
     }
@@ -131,7 +96,6 @@ public struct Spring: Hashable, Sendable {
     }
 
     public func value<V: VectorArithmetic>(fromValue: V, toValue: V, initialVelocity: V, time: TimeInterval) -> V {
-        // Decompose into a unit displacement and a unit velocity response.
         let disp = fromValue - toValue
         let fromDisp = state(x0: 1, v0: 0, t: time).x
         let fromVel = state(x0: 0, v0: 1, t: time).x
@@ -144,7 +108,6 @@ public struct Spring: Hashable, Sendable {
             + initialVelocity.scaled(by: state(x0: 0, v0: 1, t: time).v)
     }
 
-    /// The spring force on a value at `position` moving at `velocity`.
     public func force<V: VectorArithmetic>(target: V, position: V, velocity: V) -> V {
         force(fromValue: V.zero, toValue: target, position: position, velocity: velocity)
     }
@@ -153,7 +116,6 @@ public struct Spring: Hashable, Sendable {
         (toValue - position).scaled(by: stiffness) - velocity.scaled(by: damping)
     }
 
-    /// Advances `value` and `velocity` by `deltaTime` towards `target`.
     public func update<V: VectorArithmetic>(value: inout V, velocity: inout V, target: V, deltaTime: TimeInterval) {
         let newValue = self.value(fromValue: value, toValue: target, initialVelocity: velocity, time: deltaTime)
         let newVelocity = self.velocity(fromValue: value, toValue: target, initialVelocity: velocity, time: deltaTime)
@@ -165,8 +127,6 @@ public struct Spring: Hashable, Sendable {
         settlingDuration(fromValue: V.zero, toValue: target, initialVelocity: initialVelocity, epsilon: epsilon)
     }
 
-    /// The last time the distance to the target exceeds `epsilon` (relative
-    /// to the initial distance), found by sampling at 1 ms.
     public func settlingDuration<V: VectorArithmetic>(fromValue: V, toValue: V, initialVelocity: V,
                                                       epsilon: Double) -> TimeInterval {
         let scale = max((toValue - fromValue).magnitudeSquared.squareRoot(), 1e-12)

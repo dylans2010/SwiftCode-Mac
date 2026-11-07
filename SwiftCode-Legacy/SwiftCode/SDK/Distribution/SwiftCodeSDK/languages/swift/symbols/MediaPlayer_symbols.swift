@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for MediaPlayer
-
 public struct MediaPlayerAPIEntity_0000: Sendable, Codable {
     public let id: String = "mediaplayer.api.0"
     public var name: String = "MediaPlayerEntity_0"

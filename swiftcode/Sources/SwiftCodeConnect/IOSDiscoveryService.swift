@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/IOSDiscoveryService.swift
-// Adapted for SwiftCode: Bonjour discovery of iOS devices. Verbatim.
-
 import Foundation
 import Network
 import Observation
@@ -97,7 +93,6 @@ public final class IOSDiscoveryService: NSObject, @unchecked Sendable {
                 break
             }
 
-            // Prefer port from TXT record if advertised explicitly
             if let portStr = txtDict["port"], let parsedPort = UInt16(portStr) {
                 port = parsedPort
             }

@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Dashboard view for all Assist Workers associated with the active task.
-/// Supports status, progress, scope, result, errors, dependencies, cancellation, and reassignment.
 @MainActor
 public struct WorkersMainView: View {
     private var runtimeState = WorkerRuntimeState.shared
@@ -67,8 +65,6 @@ public struct WorkersMainView: View {
         }
     }
 
-    // MARK: - Header
-
     private var headerBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "person.3.sequence.fill")
@@ -97,8 +93,6 @@ public struct WorkersMainView: View {
         .padding(.vertical, 12)
     }
 
-    // MARK: - Metrics
-
     private var metricsBar: some View {
         HStack(spacing: 16) {
             Spacer()
@@ -121,8 +115,6 @@ public struct WorkersMainView: View {
         }
     }
 
-    // MARK: - Filter
-
     private var filterBar: some View {
         HStack {
             Spacer()
@@ -137,8 +129,6 @@ public struct WorkersMainView: View {
         }
     }
 
-    // MARK: - Empty State
-
     private var emptyState: some View {
         VStack(spacing: 8) {
             Image(systemName: "tray")
@@ -151,8 +141,6 @@ public struct WorkersMainView: View {
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 48)
     }
-
-    // MARK: - Worker Row
 
     @ViewBuilder
     private func workerRow(_ worker: Worker) -> some View {
@@ -321,8 +309,6 @@ public struct WorkersMainView: View {
         }
     }
 
-    // MARK: - Filtering
-
     private var filteredWorkers: [Worker] {
         switch filterMode {
         case .all:
@@ -337,8 +323,6 @@ public struct WorkersMainView: View {
             }
         }
     }
-
-    // MARK: - Helpers
 
     private func statusColor(for status: WorkerStatus) -> Color {
         switch status {

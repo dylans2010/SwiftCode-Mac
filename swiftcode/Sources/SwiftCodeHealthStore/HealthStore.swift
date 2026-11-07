@@ -1,23 +1,3 @@
-// Edits of a shut-down device's HealthKit store (specs/simulator/
-// health-simulation.md §6.2–§6.5, §8.2 H-5/H-6, "SwiftCode implementation").
-//
-// The store is DEV/data/Library/Health/; healthd owns its files while the
-// device runs, so SwiftCode opens them only while the device is shut down (at a
-// cold boot's preparation, before any guest process starts, or from the
-// command line when no swiftcode-simd runs the device). Every edit first copies
-// the store's files (with their WAL files) into DEV/swiftcode-health-backups/.
-//
-// Grants use only the `authorization` table's documented columns (§6.2,
-// §6.4) and only rows healthd made itself when the app (or SwiftCode's agent)
-// asked for access: an app's request writes its rows at once (status 100,
-// the `request` value of what it asked), and SwiftCode then answers them as a
-// person tapping Allow would:
-//   asked to share and read (request 203)  → status 101 (share and read allowed)
-//   asked to read only (request 202)       → status 103 (read allowed; read-only types)
-//   revoke                                 → status 104 (both denied)
-// Rows of types never asked for are left alone, so the app's own request
-// flow stays what decides which types it has.
-
 import CSQLite
 import Foundation
 import SwiftCodeSimFeatures
@@ -36,13 +16,11 @@ public enum HealthStoreError: Error, CustomStringConvertible, Equatable {
     }
 }
 
-/// Authorization encoding (health-simulation.md §6.4).
 public enum HealthAuthorizationCode {
     public static let notDetermined = 100, sharingAuthorized = 101, readDenied = 102, sharingDenied = 103, bothDenied = 104
     public static let neverPresented = [0, 200], readPresented = 202, sharePresented = 203
 }
 
-/// A small SQLite connection.
 public final class SQLiteDatabase {
     private var db: OpaquePointer?
     public let path: String
@@ -77,7 +55,6 @@ public final class SQLiteDatabase {
         }
     }
 
-    /// Runs one statement with bound values; returns its rows.
     @discardableResult
     public func query(_ sql: String, _ args: [Value] = []) throws -> [[Value]] {
         var stmt: OpaquePointer?
@@ -122,12 +99,6 @@ public final class SQLiteDatabase {
     public var changes: Int { Int(sqlite3_changes(db)) }
     public var lastInsertRowID: Int64 { sqlite3_last_insert_rowid(db) }
 
-    /// Runs one statement with bound values; returns its column names
-    /// and rows. `query` cannot serve a database browser: a `SELECT`
-    /// result is meaningless without its column names, and arbitrary
-    /// SQL has no table to take them from. (Wave 17, Slice C: the
-    /// SQLite Explorer's SQL editor runs through here; table browsing
-    /// takes its names from `PRAGMA table_info` instead.)
     public func queryWithColumns(_ sql: String, _ args: [Value] = []) throws -> (columns: [String], rows: [[Value]]) {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -185,7 +156,6 @@ public final class SQLiteDatabase {
     }
 }
 
-/// A device's health store (DEV/data/Library/Health).
 public struct HealthStore {
     public let directory: String
     public var unprotectedPath: String { directory + "/healthdb.sqlite" }
@@ -196,13 +166,8 @@ public struct HealthStore {
 
     public var exists: Bool { FileManager.default.fileExists(atPath: unprotectedPath) }
 
-    /// Seconds since 2001-01-01 (the store's dates, §6.2).
     public static func storeTime(_ d: Date) -> Double { d.timeIntervalSinceReferenceDate }
 
-    // MARK: Backups
-
-    /// Copies the store's database files (with their WAL and shared-memory
-    /// files) into `<backups>/<stamp>-<reason>/`, keeping the newest `keep`.
     @discardableResult
     public func backup(into backups: String, reason: String, keep: Int = 5, now: Date = Date()) throws -> String {
         let fm = FileManager.default
@@ -222,8 +187,6 @@ public struct HealthStore {
         return target
     }
 
-    // MARK: Authorization
-
     public struct AuthorizationRow: Equatable, Sendable {
         public let sourceID: Int
         public let objectType: Int
@@ -240,7 +203,6 @@ public struct HealthStore {
         SELECT s.ROWID FROM sources s JOIN logical_sources l ON s.logical_source_id = l.ROWID WHERE l.bundle_id = ?
         """
 
-    /// The `sources` rows of a bundle id (an app may have several: its own and ones that came by sync).
     public func sourceIDs(bundleID: String) throws -> [Int] {
         try open().query(Self.sourcesOf, [.text(bundleID)]).compactMap { $0.first?.int }
     }
@@ -252,11 +214,8 @@ public struct HealthStore {
     }
 
     public struct GrantResult: Equatable, Sendable, CustomStringConvertible {
-        /// Rows of the bundle id (all its sources).
         public var rows = 0
-        /// Rows now share-and-read (101), read-only (103) or denied (104).
         public var shared = 0, readOnly = 0, denied = 0
-        /// Rows that changed.
         public var changed = 0
 
         public var description: String {
@@ -265,7 +224,6 @@ public struct HealthStore {
         }
     }
 
-    /// Answers the bundle's own requests: 203 → 101, 202 → 103 (H-6).
     @discardableResult
     public func grant(bundleID: String, now: Date = Date()) throws -> GrantResult {
         let db = try open()
@@ -286,7 +244,6 @@ public struct HealthStore {
         }
     }
 
-    /// Every row of the bundle → 104 (both denied).
     @discardableResult
     public func revoke(bundleID: String, now: Date = Date()) throws -> GrantResult {
         let db = try open()

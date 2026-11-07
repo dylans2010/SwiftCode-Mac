@@ -1,12 +1,5 @@
 import Foundation
 
-/// Persisted settings for the editor's Authors (blame) column.
-///
-/// The settings view (`GitBlameExtensionView` in SwiftCodeUI) binds to the
-/// same UserDefaults keys; `GitBlame.annotation` reads the date format and
-/// the gutter reads `showInlineBlame` as its initial value, so the settings
-/// actually take effect instead of living in un-persisted `@State` (as the
-/// Legacy settings view did).
 public enum GitBlameSettings {
     public static let showInlineBlameKey = "swiftcode.blame.showInline"
     public static let dateFormatKey = "swiftcode.blame.dateFormat"
@@ -26,13 +19,11 @@ public enum GitBlameSettings {
         }
     }
 
-    /// Whether new editors open with the Authors column shown.
     public static var showInlineBlame: Bool {
         get { UserDefaults.standard.bool(forKey: showInlineBlameKey) }
         set { UserDefaults.standard.set(newValue, forKey: showInlineBlameKey) }
     }
 
-    /// How blame annotations render the commit date (default `.relative`).
     public static var dateFormat: DateFormat {
         get {
             guard let raw = UserDefaults.standard.string(forKey: dateFormatKey),
@@ -42,11 +33,6 @@ public enum GitBlameSettings {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: dateFormatKey) }
     }
 
-    /// Whether blame annotations show the author's avatar. The gutter
-    /// renders it as a deterministic initials circle derived from the
-    /// commit's author name (`GutterView.avatarImage(for:)`, cached per
-    /// author); there is no photo source to fetch, so no network or
-    /// Gravatar lookup is involved.
     public static var showAuthorAvatar: Bool {
         get { UserDefaults.standard.bool(forKey: showAuthorAvatarKey) }
         set { UserDefaults.standard.set(newValue, forKey: showAuthorAvatarKey) }

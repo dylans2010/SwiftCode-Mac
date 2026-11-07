@@ -1,12 +1,8 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIAssetsPanel.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Panel managing Design Tokens, Color Palettes, Typography managers, SF Symbols collections, and Gradients.
 public struct VisualUIAssetsPanel: View {
     @Bindable var document: VisualUIDocument
 
-    // Predefined color presets
     private let colorTokens = [
         ("Classic Blue", "#007AFF"),
         ("Apple Green", "#34C759"),
@@ -17,7 +13,6 @@ public struct VisualUIAssetsPanel: View {
         ("Clean White", "#FFFFFF")
     ]
 
-    // Predefined typography presets
     private let typographyTokens = [
         ("Large Title", "System Bold 34"),
         ("Title 1", "System Semibold 28"),
@@ -39,7 +34,6 @@ public struct VisualUIAssetsPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Color Palettes section
                     GroupBox("Color Palette Manager") {
                         VStack(spacing: 8) {
                             ForEach(colorTokens, id: \.0) { token in
@@ -65,7 +59,6 @@ public struct VisualUIAssetsPanel: View {
                     }
                     .groupBoxStyle(.liquidGlass)
 
-                    // Typography section
                     GroupBox("Typography Presets") {
                         VStack(alignment: .leading, spacing: 10) {
                             ForEach(typographyTokens, id: \.0) { token in

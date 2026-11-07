@@ -2,15 +2,10 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// One row of the call hierarchy in the Linux Find navigator: a function,
-/// indented by its level (0: the function at the caret, 1: its callers, 2:
-/// their callers), with its file and line as detail.
 public struct CallHierarchyRow: Identifiable, Equatable, Sendable {
     public var id: String
     public var level: Int
     public var name: String
-    /// "main.swift:3", and how many calls it makes to its parent when more
-    /// than one.
     public var detail: String
     public var path: String
     public var line: Int
@@ -18,14 +13,9 @@ public struct CallHierarchyRow: Identifiable, Equatable, Sendable {
     public var isExpanded: Bool
 }
 
-/// Find ▸ Find Call Hierarchy in the Linux Find navigator
-/// (`refactoring.md` §Find): `CallerTree` two levels deep, as a tree under
-/// "Callers of <name>". A row opens the function's declaration, as the
-/// macOS IDE's tree does.
 @MainActor
 @Observable
 public final class CallHierarchyModel {
-    /// The tree shown (nil: the navigator shows search results).
     public private(set) var tree: CallerTree?
     public var collapsed: Set<String> = []
     public var selection: String? {
@@ -45,7 +35,6 @@ public final class CallHierarchyModel {
         if on { collapsed.remove(id) } else { collapsed.insert(id) }
     }
 
-    /// The visible rows, depth first.
     public var rows: [CallHierarchyRow] { tree.map { Self.rows($0, collapsed: collapsed) } ?? [] }
 
     public static func rows(_ root: CallerTree, collapsed: Set<String>) -> [CallHierarchyRow] {

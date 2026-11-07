@@ -1,7 +1,5 @@
 import AppKit
 
-/// A template sheet: a list of choices, fields, Cancel and Create. Used for
-/// New File and New Project. See `specs/ide/templates.md`.
 @MainActor
 public final class TemplateSheetController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     public let titles: [String]
@@ -10,7 +8,6 @@ public final class TemplateSheetController: NSViewController, NSTableViewDataSou
     private let table = NSTableView()
     private let heading: String
     private let initialValues: [String]
-    /// (selected template index, field values) → error text or nil.
     public var onCreate: ((Int, [String]) -> String?)?
     public let errorLabel = NSTextField(labelWithString: "")
 
@@ -47,7 +44,6 @@ public final class TemplateSheetController: NSViewController, NSTableViewDataSou
             fields.append(f)
             return [l, f]
         })
-        // A grid without rows has no columns (and would raise).
         if grid.numberOfColumns > 0 { grid.column(at: 0).xPlacement = .trailing }
         grid.rowSpacing = 8
         errorLabel.textColor = .systemRed
@@ -85,7 +81,6 @@ public final class TemplateSheetController: NSViewController, NSTableViewDataSou
         table.selectRowIndexes([index], byExtendingSelection: false)
     }
 
-    /// Runs Create; returns whether it succeeded.
     @discardableResult
     @objc public func createClicked() -> Bool {
         _ = view

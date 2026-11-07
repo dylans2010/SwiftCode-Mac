@@ -1,9 +1,6 @@
 import Foundation
 
 extension Preferences {
-    /// The Find navigator's custom scopes (Custom Scopes…), for every
-    /// workspace. See `specs/ide/navigators.md` §Find navigator, "SwiftCode
-    /// implementation".
     public var findCustomScopes: [CustomFindScope] {
         get {
             guard let d = defaults.data(forKey: "SwiftCode.findCustomScopes"),

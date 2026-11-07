@@ -133,8 +133,6 @@ struct DeploymentLogsView: View {
     }
 }
 
-// MARK: - Analysis Result View
-
 struct AnalysisResultView: View {
     let analysis: String
     @Environment(\.dismiss) private var dismiss

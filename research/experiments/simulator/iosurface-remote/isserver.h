@@ -1,20 +1,3 @@
-/*
- * isserver.h: a minimal com.apple.IOSurface.Remote server written from the
- * R5 captures (original Ycode code). It speaks the wire format described in
- * specs/simulator/iosurface-remote.md with raw Mach messages: the connection
- * hand-shake, "!CPX" request/reply dictionaries, OSSerialize-binary property
- * blobs, shared memory as memory-entry send rights, and per-surface ports.
- * It is a test double used to check which parts of the protocol clients need;
- * it is not Ycode's implementation.
- *
- * Switches (environment):
- *   YC_SRV_MAGIC=cpx      reply with "?cpx" instead of "!CPX"
- *   YC_SRV_NOSTATE=1      omit SurfaceState from every reply except create/lookup
- *   YC_SRV_NOLIMITS=1     omit Limits from the Method 0 reply
- *   YC_SRV_LOG=<file>     log one line per request
- *   YC_SRV_REFUSE=a,b     answer these Method numbers with ErrorCode kIOReturnUnsupported only
- * Call srv_start() once; srv_port() returns a send right to the service port.
- */
 #ifndef ISSERVER_H
 #define ISSERVER_H
 #include <CoreFoundation/CoreFoundation.h>
@@ -30,16 +13,14 @@
 #define SRV_ERR_NOTFOUND 0xffffffffe00002f0ull
 #define SRV_ERR_UNSUPPORTED 0xffffffffe00002c7ull
 
-/* ------------------------------------------------------------ surfaces */
-
 typedef struct srv_surface {
     uint32_t id, width, height, bpr, bpe, ew, eh, fmt, cache, planes, seed, casting, counter;
     uint64_t alloc, mapsize;
     int purge, use, refs, locks;
     vm_address_t mem;
     mach_port_t entry, port;
-    CFMutableDictionaryRef values;    /* IOSurfaceSetValue values, plus CreationProperties */
-    CFMutableDictionaryRef attach;    /* bulk attachments (Method 20/21) */
+    CFMutableDictionaryRef values;
+    CFMutableDictionaryRef attach;
     CFArrayRef planeinfo;
     struct srv_surface *next;
 } srv_surface;
@@ -92,8 +73,6 @@ static void srv_free_if_unused(srv_surface *s)
     free(s);
 }
 
-/* ------------------------------------------- OSSerialize binary (level 1) */
-
 typedef struct { const uint8_t *p; size_t n, q; CFTypeRef objs[1024]; int nobj; } osr;
 
 static uint32_t srv_rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
@@ -140,7 +119,7 @@ static CFTypeRef os_read(osr *r, int *last)
     }
     case 0x08000000: case 0x09000000: {
         size_t l = len;
-        if (ty == 0x08000000 && l) l--; /* symbol length includes the NUL */
+        if (ty == 0x08000000 && l) l--;
         o = CFStringCreateWithBytes(NULL, r->p + r->q, (CFIndex)l, kCFStringEncodingUTF8, false);
         r->q += srv_al4(len);
         break;
@@ -148,7 +127,7 @@ static CFTypeRef os_read(osr *r, int *last)
     case 0x0a000000: o = CFDataCreate(NULL, r->p + r->q, len); r->q += srv_al4(len); break;
     case 0x0b000000: o = CFRetain(len ? kCFBooleanTrue : kCFBooleanFalse); break;
     case 0x0c000000:
-        if (slot >= 0) r->nobj--; /* references are not added to the table */
+        if (slot >= 0) r->nobj--;
         return len < (uint32_t)r->nobj && r->objs[len] ? CFRetain(r->objs[len]) : NULL;
     default: return NULL;
     }
@@ -215,12 +194,8 @@ static void os_write(wb *w, CFTypeRef o, int last, int as_symbol)
     }
 }
 
-/* ------------------------------------------------------- XPC payload I/O */
-
 typedef struct { const uint8_t *p; size_t n; } xin;
 
-/* Find a top-level key; returns offset of its value object or 0. Counts the
- * port-bearing objects before it (descriptor index) in *portidx. */
 static size_t x_skip(const uint8_t *p, size_t n, size_t off, int *ports)
 {
     if (off + 4 > n) return n;
@@ -249,7 +224,6 @@ static size_t x_skip(const uint8_t *p, size_t n, size_t off, int *ports)
 }
 static size_t x_find(xin *x, const char *key, int *portidx)
 {
-    /* magic, version, dictionary tag, byte length, count, entries */
     if (x->n < 20) return 0;
     uint32_t cnt = srv_rd32(x->p + 16);
     size_t q = 20;
@@ -277,7 +251,7 @@ static void xo_begin(xout *o)
 {
     memset(o, 0, sizeof *o);
     const char *m = getenv("YC_SRV_MAGIC");
-    wb_32(&o->w, m && !strcmp(m, "cpx") ? 0x7870633fu : 0x58504321u); /* "?cpx" or "!CPX" */
+    wb_32(&o->w, m && !strcmp(m, "cpx") ? 0x7870633fu : 0x58504321u);
     wb_32(&o->w, 5);
     wb_32(&o->w, 0xf000);
     o->lenoff = o->w.n;
@@ -560,7 +534,7 @@ static void srv_request(srv_conn *c, mach_msg_header_t *h)
             }
             break;
         default:
-            if (method >= 1000) { /* refused on purpose: ErrorCode only */
+            if (method >= 1000) {
                 xo_u64(&o, "ErrorCode", SRV_ERR_UNSUPPORTED);
                 goto send;
             }
@@ -574,7 +548,6 @@ static void srv_request(srv_conn *c, mach_msg_header_t *h)
 send:
     if (MACH_PORT_VALID(reply)) srv_send_reply(reply, &o);
     else free(o.w.b);
-    /* Received rights that we do not keep. */
     for (int i = 0; i < np; i++) if (MACH_PORT_VALID(ports[i])) mach_port_deallocate(mach_task_self(), ports[i]);
     if (h->msgh_voucher_port) mach_port_deallocate(mach_task_self(), h->msgh_voucher_port);
 }
@@ -630,7 +603,6 @@ static void *srv_thread(void *arg)
 static mach_port_t srv_start_on(mach_port_t service);
 static mach_port_t srv_start(void) { return srv_start_on(MACH_PORT_NULL); }
 
-/* Start serving; with a receive right from bootstrap_check_in, serve on it. */
 static mach_port_t srv_start_on(mach_port_t service)
 {
     if (g_srv_service) return g_srv_service;

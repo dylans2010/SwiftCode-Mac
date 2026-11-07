@@ -1,13 +1,3 @@
-/*
- * hidmon: Ycode research probe (original Ycode code, no Apple code).
- * Runs inside a simulator device (simctl spawn). Uses the HID event system
- * client API (names from Apple's IOHIDFamily open source, APSL) to
- *   services          list every HID service and a fixed set of properties
- *   monitor <secs>    print every HID event the event system routes, as the
- *                     CF description of the event, for <secs> seconds
- *   kbstate           print GraphicsServices' hardware-keyboard state
- * Declarations below are our own prototypes for exported C functions.
- */
 #import <Foundation/Foundation.h>
 #include <dlfcn.h>
 #include <mach/mach_time.h>

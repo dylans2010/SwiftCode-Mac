@@ -1,10 +1,3 @@
-// WCProbe: Ycode research probe (original Ycode code, no Apple code).
-// One source, built twice: for the iOS simulator (-D PHONE) and for the
-// watchOS simulator (-D WATCH). Both sides activate WCSession, log the
-// session state, and exchange messages so that pairing behaviour and the
-// transport's latency can be observed from the unified log:
-//   log show --predicate 'eventMessage BEGINSWITH "WCPROBE"'
-// Every line: WCPROBE side=<phone|watch> ev=<event> key=value ...
 import SwiftUI
 import WatchConnectivity
 import os
@@ -81,7 +74,6 @@ final class Probe: NSObject, WCSessionDelegate {
             plog("sendError", ["seq": s, "error": "\(error)"])
         })
         if s % 5 == 0 {
-            // A larger payload, to see whether size changes the latency.
             let blob = Data(repeating: 0x5A, count: 64 * 1024)
             let tb = now()
             WCSession.default.sendMessageData(blob, replyHandler: { r in

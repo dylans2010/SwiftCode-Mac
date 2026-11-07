@@ -1,47 +1,7 @@
 import Foundation
 
-// MARK: - CI build YAML generation and validation (bulk migration, Backend-Assist slice)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised under MIT):
-//   * `SwiftCode/Backend/Assist/Functions/AssistCIFunctions.swift` —
-//     the `BuildYMLConfig` model, `generateBuildYML` (string and
-//     file forms), `validateCIPipelines`, and their private helpers.
-//
-// The generated workflow is Legacy's verbatim: a GitHub Actions job
-// that checks out, optionally caches DerivedData, optionally lints,
-// archives with `xcodebuild`, optionally tests, and uploads the
-// archive / IPA / build logs as artifacts. The validation is
-// Legacy's heuristic line scan (a `name:` key, at least one step,
-// at least one `run:`/`script:` command) — it is not a YAML parser,
-// and it does not claim to be one.
-//
-// Adaptations for the destination:
-//   * Names are `CI`-prefixed (`CIBuildYAMLConfig`,
-//     `CIBuildConfiguration`, `CIPipelineValidationResult`, …).
-//     Legacy's nested `BuildConfiguration` collides with the
-//     `BuildConfiguration` struct already in
-//     `SwiftCodeTools+PlanningSupport.swift`, so the rename is required,
-//     not cosmetic.
-//   * Legacy wrote `build.yml` under `SwiftCode/Backend/CI Building`
-//     or `Backend/CI Building` — Legacy-internal directories that do
-//     not exist in this repo. The destination writes it where CI
-//     workflows actually live: `<workspace>/.github/workflows/`.
-//     `validateCIPipelines` reads that same directory.
-//   * Everything else — the YAML template, the trigger matrix, the
-//     sanitizers, the timeout clamp (5…180 minutes), the
-//     `CODE_SIGNING_ALLOWED=NO` archive invocation — is Legacy's
-//     behaviour preserved as-is, including `sanitizeYAMLValue`
-//     replacing `:` with `-` in values.
-
-/// Generates and validates GitHub Actions CI workflows for Xcode
-/// projects: a build/archive/test job emitted as `build.yml`, plus a
-/// heuristic check over the workflows already present.
 public enum CIBuildYAML {
 
-    /// The inputs to a generated `build.yml`. All values are
-    /// sanitized before they reach the YAML (see `sanitizeYAMLValue`
-    /// / `sanitizePathComponent`); `timeoutMinutes` is clamped to
-    /// 5…180 by the initializer.
     public struct CIBuildYAMLConfig: Codable, Equatable {
         public enum CIBuildConfiguration: String, Codable, CaseIterable {
             case debug = "Debug"
@@ -163,9 +123,6 @@ public enum CIBuildYAML {
         }
     }
 
-    /// The outcome of `validateCIPipelines`: how many workflow files
-    /// were found, how many passed the heuristic check, and the
-    /// per-file reasons for the ones that did not.
     public struct CIPipelineValidationResult {
         public let pipelinesFound: Int
         public let valid: Int
@@ -180,9 +137,6 @@ public enum CIBuildYAML {
         let scriptCount: Int
     }
 
-    /// Generates `build.yml` from `config` and writes it to
-    /// `<workspaceRoot>/.github/workflows/build.yml`, creating the
-    /// directory when needed. Returns the file URL.
     @discardableResult
     public static func generateBuildYAML(config: CIBuildYAMLConfig, workspaceRoot: URL) throws -> URL {
         let ciDirectory = resolveCIDirectory(workspaceRoot: workspaceRoot)
@@ -193,8 +147,6 @@ public enum CIBuildYAML {
         return fileURL
     }
 
-    /// Generates the `build.yml` workflow text for `config` without
-    /// writing anything.
     public static func generateBuildYAML(config: CIBuildYAMLConfig) -> String {
         let safeProject = sanitizeYAMLValue(config.projectName)
         let safeScheme = sanitizeYAMLValue(config.scheme)
@@ -378,13 +330,6 @@ on:
         }
     }
 
-    /// Validates every `.yml` / `.yaml` file in
-    /// `<workspaceRoot>/.github/workflows/` with the heuristic line
-    /// scan: a file is valid when it has a non-empty `name:` key, at
-    /// least one step, and at least one `run:`/`script:` command.
-    /// Throws when the workflows directory does not exist or cannot
-    /// be read (Legacy behaviour: a missing CI directory is an error,
-    /// not an empty result).
     public static func validateCIPipelines(workspaceRoot: URL) throws -> CIPipelineValidationResult {
         let ciDirectory = resolveCIDirectory(workspaceRoot: workspaceRoot)
         let yamlFiles = try FileManager.default.contentsOfDirectory(at: ciDirectory, includingPropertiesForKeys: nil)
@@ -431,10 +376,6 @@ on:
         )
     }
 
-    /// The workflows directory. Adapted from Legacy: Legacy resolved
-    /// `SwiftCode/Backend/CI Building` / `Backend/CI Building`
-    /// (Legacy-internal directories); the destination uses the
-    /// standard GitHub Actions location.
     static func resolveCIDirectory(workspaceRoot: URL) -> URL {
         workspaceRoot.appendingPathComponent(".github/workflows", isDirectory: true)
     }

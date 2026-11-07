@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/ShareSheet.swift` (SwiftCode-Mac migration, P-UTIL).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import SwiftUI
 import AppKit
 

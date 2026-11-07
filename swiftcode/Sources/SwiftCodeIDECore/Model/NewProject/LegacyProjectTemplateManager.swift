@@ -1,18 +1,8 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/ProjectTemplateManager.swift
-// Adapted for SwiftCode: Renamed LegacyProjectTemplate/LegacyProjectTemplateManager: SwiftCode already has a public ProjectTemplate enum (Templates.swift). applyTemplate now writes into a directory URL with FileManager instead of ProjectSessionStore on a Legacy Project. The 17 templates (swiftUIApp, swiftPackage, cliTool, gameApp, metalApp, imessageApp, watchApp, widgetKitExtension, visionOSApp, serverAPI, bluetoothUtility, staticWebsite, reactApp, htmlCssWebsite, javascriptApp, emptyProject, unitTestTarget) are verbatim; the .foregroundStyle(.orange) inside generated sample code is kept as-is.
-
 import Foundation
 import Observation
 
-// MARK: - Project Template
-
 public struct LegacyProjectTemplate: Identifiable, Sendable {
     public let id: String
-    // Public: `ProjectTemplateView` (swiftcode-ide target) reads these
-    // through the manager's public `templates`; they were internal when
-    // Legacy was a single-module app (same rationale as
-    // ProjectSessionStore's deliberately-raised access).
     public var name: String
     public var description: String
     public var icon: String
@@ -22,11 +12,9 @@ public struct LegacyProjectTemplate: Identifiable, Sendable {
 
     public struct LegacyTemplateFile: Sendable {
         public var relativePath: String
-        var content: @Sendable (String) -> String // takes project name, returns content
+        var content: @Sendable (String) -> String
     }
 }
-
-// MARK: - Project Template Manager
 
 @MainActor
 @Observable
@@ -37,14 +25,6 @@ public final class LegacyProjectTemplateManager {
 
     private init() {}
 
-    // MARK: - Apply Template
-
-    /// Writes a template into `directoryURL`, creating subdirectories as
-    /// needed. Legacy applied a template to a `Project` through
-    /// `ProjectSessionStore.createFile/createFolder` (and the
-    /// `"__DIRECTORY__"` sentinel); SwiftCode writes straight to the directory
-    /// with FileManager, so the NewProject flow can call this before any
-    /// workspace exists.
     public func applyTemplate(_ template: LegacyProjectTemplate, projectName: String, to directoryURL: URL) throws {
         for file in template.files {
             let content = file.content(projectName)
@@ -57,8 +37,6 @@ public final class LegacyProjectTemplateManager {
             }
         }
     }
-
-    // MARK: - Template Definitions
 
     private static func buildTemplates() -> [LegacyProjectTemplate] {
         [
@@ -81,8 +59,6 @@ public final class LegacyProjectTemplateManager {
             unitTestTarget
         ]
     }
-
-    // MARK: - SwiftUI App
 
     private static var swiftUIApp: LegacyProjectTemplate {
         LegacyProjectTemplate(
@@ -305,8 +281,6 @@ let package = Package(
         )
     }
 
-    // MARK: - Game App (SpriteKit)
-
     private static var gameApp: LegacyProjectTemplate {
         LegacyProjectTemplate(
             id: "game_app",
@@ -392,8 +366,6 @@ let package = Package(
         )
     }
 
-    // MARK: - Metal App
-
     private static var metalApp: LegacyProjectTemplate {
         LegacyProjectTemplate(
             id: "metal_app",
@@ -470,8 +442,6 @@ let package = Package(
         )
     }
 
-    // MARK: - iMessage App
-
     private static var imessageApp: LegacyProjectTemplate {
         LegacyProjectTemplate(
             id: "imessage_app",
@@ -517,9 +487,6 @@ let package = Package(
         )
     }
 
-
-    // MARK: - watchOS App
-
     private static var watchApp: LegacyProjectTemplate {
         LegacyProjectTemplate(
             id: "watch_app",
@@ -547,8 +514,6 @@ struct \(safeName)WatchApp: App {
             tags: ["watchOS", "SwiftUI", "App"]
         )
     }
-
-    // MARK: - WidgetKit Extension
 
     private static var widgetKitExtension: LegacyProjectTemplate {
         LegacyProjectTemplate(
@@ -581,8 +546,6 @@ struct SampleWidgetEntryView: View {
         )
     }
 
-    // MARK: - visionOS App
-
     private static var visionOSApp: LegacyProjectTemplate {
         LegacyProjectTemplate(
             id: "visionos_app",
@@ -610,8 +573,6 @@ struct \(safeName)VisionApp: App {
             tags: ["visionOS", "SwiftUI", "Spatial"]
         )
     }
-
-    // MARK: - Server API
 
     private static var serverAPI: LegacyProjectTemplate {
         LegacyProjectTemplate(
@@ -642,8 +603,6 @@ struct ServerMain {
             tags: ["Server", "API", "Backend"]
         )
     }
-
-    // MARK: - Bluetooth Utility
 
     private static var bluetoothUtility: LegacyProjectTemplate {
         LegacyProjectTemplate(
@@ -677,8 +636,6 @@ final class BluetoothManager: NSObject, CBCentralManagerDelegate {
             tags: ["CoreBluetooth", "Utility", "iOS"]
         )
     }
-
-    // MARK: - Web Templates
 
     private static var staticWebsite: LegacyProjectTemplate {
         LegacyProjectTemplate(
@@ -758,8 +715,6 @@ final class BluetoothManager: NSObject, CBCentralManagerDelegate {
             tags: ["Web", "JS"]
         )
     }
-
-    // MARK: - Unit Test Target
 
     private static var unitTestTarget: LegacyProjectTemplate {
         LegacyProjectTemplate(

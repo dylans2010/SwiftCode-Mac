@@ -27,7 +27,6 @@ public struct AssistSymbolSearchTool: AssistTool {
         }
 
         let escaped = NSRegularExpression.escapedPattern(for: symbol)
-        // Improved Swift declaration regex patterns
         let patterns = [
             "\\b(class|struct|enum|protocol|actor|typealias|extension)\\s+\(escaped)\\b",
             "\\bfunc\\s+\(escaped)\\s*[\\(<]",

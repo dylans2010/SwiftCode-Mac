@@ -7,14 +7,8 @@ import SwiftCodeSyntax
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// The council's round-1 checklist (`specs/ide/fidelity-council.md` rows
-/// 2–9, 11, 12, 19, 20, 22–24, 27, 28): open routing, the navigator's
-/// order and geometry, the editor's metrics, the minimap rule, the
-/// inspector slide and the File inspector.
 @MainActor
 @Suite(.serialized) struct FidelityCouncilTests {
-    /// A project with one synchronized root folder, like the council's
-    /// GlassScroll: Models/ (two files), ContentView, Long, Stripes.png.
     func project(_ name: String, editorConfig: String? = nil) throws -> URL {
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/fc-\(name)")
         try? FileManager.default.removeItem(at: dir)
@@ -46,8 +40,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         return wc
     }
 
-    // MARK: Row 2 / #71: open routing
-
     @Test func openRequestsRouteToTheirWorkspace() throws {
         let dir = try project("route")
         let wc = try window(dir)
@@ -55,11 +47,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let src = dir.appendingPathComponent("GlassScroll")
         #expect(root.containsForOpening(src.appendingPathComponent("Long.swift")))
         #expect(root.containsForOpening(src.appendingPathComponent("Stripes.png")))
-        // A file added to the synchronized folder since it was listed.
         #expect(root.containsForOpening(src.appendingPathComponent("Models/New.swift")))
         #expect(!root.containsForOpening(dir.deletingLastPathComponent().appendingPathComponent("elsewhere.swift")))
         #expect(SwiftCodeDocumentController.workspaceWindow(containing: src.appendingPathComponent("Long.swift"), among: [wc]) === wc)
-        // The same file named two ways is one request.
         #expect(OpenRequestKey.path(src.appendingPathComponent("Models/../Long.swift")) == OpenRequestKey.path(src.appendingPathComponent("Long.swift")))
     }
 
@@ -72,7 +62,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wc.editor.jumpBarTitles.contains("Long"))
         let stripes = dir.appendingPathComponent("GlassScroll/Stripes.png").path
         wc.open(path: stripes, line: nil)
-        // Image: the viewer, the row, the jump bar and the image's inspector, in one pass.
         #expect(wc.imageViewer?.url.path == stripes)
         #expect(wc.navigator.selectedPath.map { OpenRequestKey.path(URL(fileURLWithPath: $0)) } == OpenRequestKey.path(URL(fileURLWithPath: stripes)))
         #expect(wc.editor.jumpBarTitles.contains("Stripes"))
@@ -80,21 +69,16 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(!wc.inspector.sectionTitles.contains("Text Settings"))
     }
 
-    // MARK: Row 3: image viewer
-
     @Test func imageFitsAndCentres() {
         let box = NSRect(x: 20, y: 20, width: 810, height: 678)
         let r = ImageViewerLayout.fittedRect(imageSize: NSSize(width: 800, height: 1800), in: box)
         #expect(abs(r.height - 678) < 0.01 && abs(r.midX - box.midX) < 0.01 && abs(r.minY - 20) < 0.01)
-        // Small images are not scaled up.
         let small = ImageViewerLayout.fittedRect(imageSize: NSSize(width: 40, height: 30), in: box)
         #expect(small.size == NSSize(width: 40, height: 30) && abs(small.midY - box.midY) < 0.01)
         #expect(ImageViewerLayout.topMargin == 20 && ImageViewerLayout.bottomMargin == 60 && ImageViewerLayout.buttonHeight == 20)
         #expect(ImageViewerController.handles(URL(fileURLWithPath: "/a/Stripes.png")))
         #expect(!ImageViewerController.handles(URL(fileURLWithPath: "/a/Long.swift")))
     }
-
-    // MARK: Rows 11, 19, 20: navigator
 
     @Test func synchronizedFoldersListFoldersFirst() throws {
         let dir = try project("order")
@@ -109,8 +93,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(WorkspaceChrome.iconTint(kind: .container, name: "GlassScroll") == .blue)
     }
 
-    // MARK: Rows 4, 21, 27: editor metrics
-
     @Test func editorTextMetrics() throws {
         #expect(EditorMetrics.lineHeight(fontSize: 13) == 18)
         #expect(EditorMetrics.advance(fontAdvance: 7.8) == 8)
@@ -124,20 +106,17 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         e.view.layoutSubtreeIfNeeded()
         #expect(abs(Theme.advance - 8) < 0.01)
         #expect(Theme.lineHeight == 18)
-        // The code column at the editor's edge + 51; numbers end at + 38.
         let codeX = e.textView.convert(NSPoint(x: e.textView.textContainerOrigin.x, y: 0), to: e.view).x
         #expect(abs(codeX - 51) < 0.5)
         #expect(e.gutter.lineNumberEnd == 38)
         #expect(e.textView.textContainerOrigin.y == 7)
     }
 
-    // MARK: Row 8: minimap
-
     @Test func minimapWidthRule() {
         #expect(EditorMetrics.minimapWidth(editorWidth: 850) == 127)
-        #expect(EditorMetrics.minimapWidth(editorWidth: 962) == 135)   // ceiling raised by editor-area.md E.6
+        #expect(EditorMetrics.minimapWidth(editorWidth: 962) == 135)
         #expect(EditorMetrics.minimapWidth(editorWidth: 480) == 72)
-        #expect(MinimapView.width(forEditorWidth: 850) == 128)   // with its 1-point separator
+        #expect(MinimapView.width(forEditorWidth: 850) == 128)
         #expect(EditorMetrics.minimapOffset(contentHeight: 900, viewHeight: 700, fraction: 0.5) == 100)
         #expect(EditorMetrics.minimapOffset(contentHeight: 300, viewHeight: 700, fraction: 0.5) == 0)
         let storage = NSAttributedString(string: "let a = 1\n\tlet b\n", attributes: [.foregroundColor: NSColor.black])
@@ -157,12 +136,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(e.minimapWidthValue == MinimapView.width(forEditorWidth: e.view.bounds.width))
     }
 
-    // MARK: Row 9: inspector slide
-
     @Test func inspectorSlideParameters() {
         #expect(abs(EditorMetrics.inspectorSlideDuration - 0.215) <= 0.011)
         #expect(EditorMetrics.inspectorSlideProgress(0) == 0 && EditorMetrics.inspectorSlideProgress(1) == 1)
-        // Slow start, settles over the last 15 %.
         #expect(EditorMetrics.inspectorSlideProgress(0.2) < 0.2)
         #expect(EditorMetrics.inspectorSlideProgress(0.85) > 0.9)
         var last = 0.0
@@ -171,18 +147,14 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(p >= last - 1e-9)
             last = p
         }
-        // The measured points, exactly.
         for (ms, progress) in EditorMetrics.inspectorSlideTable {
             #expect(abs(EditorMetrics.inspectorSlideProgress(ms / (EditorMetrics.inspectorSlideDuration * 1000)) - progress) < 1e-9)
         }
-        // The Bézier fit stays near the table.
         for i in 0...10 {
             let t = Double(i) / 10
             #expect(abs(EditorMetrics.inspectorSlideBezierProgress(t) - EditorMetrics.inspectorSlideProgress(t)) < 0.13)
         }
     }
-
-    // MARK: Rows 22–24, 28: File inspector
 
     @Test func editorConfigIndentationDisablesTextSettings() throws {
         let dir = try project("editorconfig", editorConfig: "root = true\n\n[*]\nindent_style = space\nindent_size = 4\ncharset = utf-8\n")
@@ -215,11 +187,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(InspectorStyle.breakable("a/b-c") == "a/\u{200B}b-\u{200B}c")
     }
 
-    // MARK: Row 5: the text shows under the bars' veil and is not covered
-
-    /// The text draws in the editor (nothing opaque over it: views do not
-    /// clip to their bounds, so a fill must stay inside its own view), and
-    /// the scroll view runs up under the jump bar and the toolbar.
     @Test func editorTextIsVisibleAndRunsUnderTheBars() throws {
         let dir = try project("visible")
         let wc = try window(dir)
@@ -231,18 +198,14 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(e.scrollView.contentInsets.top == e.view.safeAreaInsets.top + JumpBar.height)
         guard let rep = e.view.bitmapImageRepForCachingDisplay(in: e.view.bounds) else { return }
         e.view.cacheDisplay(in: e.view.bounds, to: rep)
-        // Dark pixels in the text column, below the bars.
         var dark = 0
         let top = Int(e.scrollView.contentInsets.top * rep.size.height / max(1, e.view.bounds.height)) + 10
         for x in stride(from: 60, to: min(500, rep.pixelsWide), by: 2) {
             for y in stride(from: top, to: rep.pixelsHigh - 60, by: 2) where (rep.colorAt(x: x, y: y)?.brightnessComponent ?? 1) < 0.6 { dark += 1 }
         }
         #expect(dark > 200)
-        // The bars' veil: a black glyph pixel changes by at most about 8 levels.
         #expect((1 - EditorVeil.fill.alphaComponent) * 230 <= 8.5)
     }
-
-    // MARK: Row 10: the default light theme
 
     func withPreferences(_ body: (Preferences) throws -> Void) rethrows {
         let t = TestDefaults("fc")
@@ -269,11 +232,8 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(hex(Theme.color(for: .typeName)) == "#9D31CF")
             #expect(hex(Theme.textColor) == "#322529")
             #expect(hex(Theme.lineNumberColor) == "#B8B3B4")
-            // The dark appearance keeps the system colours.
             #expect(hex(Theme.color(for: .keyword), dark: true) == hex(NSColor.systemPink, dark: true))
-            // The same colour each time (attributes compare equal).
             #expect(Theme.color(for: .keyword) === Theme.color(for: .keyword))
-            // Declaration names.
             let storage = NSTextStorage(string: "struct Section00 {\n    let value00: Int = 0\n}\n")
             let doc = SyntaxDocument(text: storage.string, language: .swift)
             Theme.apply(doc, to: storage)
@@ -285,19 +245,16 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    // MARK: Selection by any route opens the file; the inspector scrolls
-
     @Test func selectingARowWithoutAClickOpensItsFile() throws {
         let dir = try project("axselect")
         let wc = try window(dir)
         let o = wc.navigator.outlineView
         let before = wc.editor.fileURL
         wc.navigator.selectProjectRows { $0.path?.hasSuffix("Long.swift") == true }
-        // The window's own selection (selectProjectRows) opens nothing.
         #expect(wc.editor.fileURL == before, "opened \(wc.editor.fileURL?.path ?? "nothing")")
         let row = (0..<o.numberOfRows).first { (o.item(atRow: $0) as? OutlineItem)?.path?.hasSuffix("ContentView.swift") == true }
         let r = try #require(row)
-        o.selectRowIndexes([r], byExtendingSelection: false)   // as the keyboard or AXSelectedRows does
+        o.selectRowIndexes([r], byExtendingSelection: false)
         #expect(wc.editor.fileURL?.lastPathComponent == "ContentView.swift")
     }
 

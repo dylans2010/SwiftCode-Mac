@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodePaywall
 
-/// The developer bypass flag round-trips through an isolated
-/// UserDefaults suite (the `SwiftCodeCompletionTests` pattern), under
-/// Legacy's exact key.
 struct PaywallBypassTests {
 
     @Test("The bypass flag uses Legacy's UserDefaults key")

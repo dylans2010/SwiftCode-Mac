@@ -1,17 +1,9 @@
-/// Reads the USDA text format into a `Layer`.
-///
-/// The grammar follows OpenUSD's documented text format: a `#usda 1.0`
-/// header, optional layer metadata in parentheses, then prim specs with
-/// metadata, properties, children and variant sets. Splines and array edits
-/// (USDA 1.1/1.2 additions) are reported as unsupported.
 public enum USDAReader {
     public static func read(_ text: String, identifier: String = "anonymous.usda") throws -> Layer {
         var parser = USDAParser(text: text, identifier: identifier)
         return try parser.parseLayer()
     }
 
-    /// Parses a metadata value in USDA syntax (`"component"`, `true`, `0.01`,
-    /// `{ string a = "b" }`), typed by the field's known type.
     public static func parseMetadataValue(_ text: String, field: String) throws -> Value {
         var parser = USDAParser(text: text, identifier: "value")
         let value = try parser.parseMetadataValue(field: field)
@@ -20,8 +12,6 @@ public enum USDAReader {
         return value
     }
 
-    /// Parses one value in USDA syntax for a declared type
-    /// (`(1, 2, 3)` as `float3`, `[1, 2]` as `int[]`, `None`).
     public static func parseValue(_ text: String, type: TypeName) throws -> Value {
         var parser = USDAParser(text: text, identifier: "value")
         if parser.s.consumeKeyword("None") { return .valueBlock }
@@ -32,7 +22,6 @@ public enum USDAReader {
     }
 }
 
-/// Untyped metadata values, typed once the field is known.
 indirect enum SyntaxValue {
     case number(String)
     case identifier(String)
@@ -56,10 +45,7 @@ struct USDAParser {
 
     static let listOpKeywords: Set<String> = ["add", "delete", "prepend", "append", "reorder"]
 
-    // MARK: Layer
-
     mutating func parseLayer() throws -> Layer {
-        // Header: '#usda <version>' on the first line.
         guard s.peek() == 0x23 else { throw s.error("missing '#usda' header") }
         let start = s.pos
         s.skipToEndOfLine()
@@ -105,7 +91,6 @@ struct USDAParser {
         }
     }
 
-    /// True if the next non-trivia character is '='.
     mutating func nextIsAssignment() -> Bool {
         s.next() == 0x3D
     }
@@ -123,7 +108,6 @@ struct USDAParser {
         layer.subLayerOffsets = offsets
     }
 
-    /// Parses `offset = n; scale = n; customData = {…}` up to ')'.
     mutating func parseOffsetParameters() throws -> (LayerOffset, [String: Value]) {
         var offset = LayerOffset()
         var customData: [String: Value] = [:]
@@ -139,8 +123,6 @@ struct USDAParser {
         }
         return (offset, customData)
     }
-
-    // MARK: Prims
 
     mutating func parsePrim(parent: Path) throws {
         guard let keyword = s.identifier(), let specifier = USDAParser.specifier(keyword) else {
@@ -211,7 +193,6 @@ struct USDAParser {
         }
     }
 
-    /// `op` is "" for an explicit list, else add/delete/prepend/append/reorder.
     mutating func applyListOpMetadata(op: String, field name: String, at path: Path) throws {
         switch name {
         case "references":
@@ -248,7 +229,6 @@ struct USDAParser {
             USDAParser.assign(&listOp, op: op, items: items)
             layer.setField(FieldKey.variantSetNames, .stringListOp(listOp), at: path)
         default:
-            // A generic list-op metadata field (apiSchemas, clipSets…).
             let raw = try parseSyntaxValue()
             let strings: [String]
             switch raw {
@@ -361,12 +341,10 @@ struct USDAParser {
         return try parseNameList()
     }
 
-    // MARK: Prim contents
-
     mutating func parsePrimContents(at path: Path) throws {
         while true {
             guard let b = s.next() else { throw s.error("unterminated prim") }
-            if b == 0x7D { return } // '}'
+            if b == 0x7D { return }
             let saved = s.pos
             guard let word = s.identifier() else { throw s.error("expected a property, prim or variantSet") }
             switch word {
@@ -405,8 +383,6 @@ struct USDAParser {
         }
     }
 
-    // MARK: Properties
-
     mutating func parseProperty(owner: Path) throws {
         var listOp = ""
         if let w = s.peekIdentifier(), USDAParser.listOpKeywords.contains(w) {
@@ -436,7 +412,6 @@ struct USDAParser {
             try parseRelationship(owner: owner, custom: custom, varying: varying, listOp: listOp)
             return
         }
-        // Attribute: type name, optional [], property name.
         var typeText = try s.expectName("attribute type")
         if s.consume("[") {
             try s.expect("]")
@@ -450,7 +425,6 @@ struct USDAParser {
             throw s.error("attribute '\(name)' already has type '\(existing)', cannot change to '\(typeText)'")
         }
         spec[FieldKey.typeName] = .token(typeText)
-        // Required fields of every attribute spec (as the binary format stores them).
         if spec[FieldKey.variability] == nil || variability == .uniform { spec[FieldKey.variability] = .variability(variability) }
         if spec[FieldKey.custom] == nil || custom { spec[FieldKey.custom] = .bool(custom) }
         if layer.hasSpec(at: path) { layer.setSpec(spec, at: path) } else { layer.insertSpec(spec, at: path) }
@@ -503,7 +477,7 @@ struct USDAParser {
             layer.setField(FieldKey.defaultValue, .path(try s.pathRef()), at: path)
             return
         }
-        if s.next() == 0x5B { // '[' target spec (legacy syntax)
+        if s.next() == 0x5B {
             throw s.error("relationship target specs are not supported")
         }
         if s.consume("=") {
@@ -546,8 +520,6 @@ struct USDAParser {
         }
     }
 
-    // MARK: Typed values
-
     mutating func parseTimeSamples(type: TypeName) throws -> [TimeSample] {
         try s.expect("{")
         var samples: [TimeSample] = []
@@ -562,7 +534,6 @@ struct USDAParser {
         return samples
     }
 
-    /// Parses a value of a declared type directly into component storage.
     mutating func parseTypedValue(_ type: TypeName) throws -> Value {
         let vt = type.valueType
         if type.isArray {
@@ -628,8 +599,6 @@ struct USDAParser {
         return t
     }
 
-    // MARK: Untyped values (metadata)
-
     mutating func parseSyntaxValue() throws -> SyntaxValue {
         guard let b = s.next() else { throw s.error("expected a value") }
         switch b {
@@ -660,7 +629,6 @@ struct USDAParser {
         }
     }
 
-    /// `{ type name = value … }` with nested `dictionary name = { … }`.
     mutating func parseDictionary() throws -> [String: Value] {
         try s.expect("{")
         var dict: [String: Value] = [:]
@@ -743,7 +711,6 @@ struct USDAParser {
         throw s.error("unexpected value type for metadata")
     }
 
-    /// Unregistered metadata: the value type follows the literal.
     static func infer(_ raw: SyntaxValue, scanner s: USDAScanner) throws -> Value {
         switch raw {
         case .string(let v): return .string(v)
@@ -780,7 +747,6 @@ struct USDAParser {
     }
 }
 
-/// Collects parsed components for one value type.
 struct ComponentAccumulator {
     let type: ValueType
     var bools: [Bool] = []

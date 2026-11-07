@@ -4,7 +4,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeIDECore
 
-/// The first line where two texts differ (test messages).
 func firstDifference(_ a: String, _ b: String) -> String {
     let x = a.components(separatedBy: "\n"), y = b.components(separatedBy: "\n")
     for i in 0..<max(x.count, y.count) where (i < x.count ? x[i] : nil) != (i < y.count ? y[i] : nil) {
@@ -13,7 +12,6 @@ func firstDifference(_ a: String, _ b: String) -> String {
     return "same"
 }
 
-/// reference-ui-5.md §11.1 (R35): the project editor's remaining gaps.
 @MainActor
 @Suite struct ProjectEditorR35Tests {
     static let pbxproj = """
@@ -62,8 +60,6 @@ func firstDifference(_ a: String, _ b: String) -> String {
         return ProjectEditorModel(proj: try PBXProj(parsing: Self.pbxproj), xcodeprojURL: proj)
     }
 
-    // MARK: P5
-
     @Test func infoShowsGeneratedKeysReadablyWithDefinitions() throws {
         let m = try Self.model()
         let items = m.infoItems(target: "App", configuration: "Debug")
@@ -73,7 +69,6 @@ func firstDifference(_ a: String, _ b: String) -> String {
         #expect(keys.contains("Bundle display name") && keys.contains("Launch Screen") && keys.contains("Supported interface orientations (iPhone)"))
         #expect(!keys.contains { $0.contains("INFOPLIST_KEY") || $0.hasSuffix("_Generation") })
         func item(_ raw: String) -> ProjectEditorModel.InfoItem? { items.first { $0.rawKey == raw } }
-        // Values from build settings stay as $(…).
         #expect(item("CFBundleIdentifier")?.value == "$(PRODUCT_BUNDLE_IDENTIFIER)")
         #expect(item("CFBundleDisplayName")?.value == "$(PRODUCT_NAME) Pro")
         #expect(item("UIApplicationSupportsIndirectInputEvents")?.type == "Boolean")
@@ -98,7 +93,6 @@ func firstDifference(_ a: String, _ b: String) -> String {
         #expect(m.identityRowInInfo(version, target: "App", configuration: "Debug"))
     }
 
-    /// Build rules belong to native targets only.
     @Test func noBuildRulesOnAggregateTargets() throws {
         var m = try Self.model()
         var t = try #require(m.target(named: "AppTests"))
@@ -108,8 +102,6 @@ func firstDifference(_ a: String, _ b: String) -> String {
         #expect(m.proj[t.id]?.references("buildRules") == [])
     }
 
-    /// A UI Testing Bundle's class is named after the target, as the file
-    /// is (templates.md: `NUITests/NUITests.swift`), not `<Name>UITests`.
     @Test func uiTestingBundleClassIsNamedAfterTheTarget() throws {
         let m = try Self.model()
         let (_, files) = try TargetTemplateCatalog.make(template: "UI Testing Bundle", platform: "iOS", name: "AppUITests",
@@ -120,8 +112,6 @@ func firstDifference(_ a: String, _ b: String) -> String {
         #expect(!source.contains("UITestsUITests"))
     }
 
-    /// An older project (object version 46): the new target's sources go in
-    /// a group with its file in Compile Sources.
     @Test func addTargetToOlderProject() throws {
         var m = try Self.model()
         m.proj.objectVersion = "46"
@@ -136,8 +126,6 @@ func firstDifference(_ a: String, _ b: String) -> String {
     }
 }
 
-/// Over the local corpus (see README; the manifest of `PBXProjCorpusTests`):
-/// project-editor edits that are undone restore every project byte for byte.
 @Suite struct ProjectEditorR35CorpusTests {
     static let entries: [String] = {
         let manifest = ProcessInfo.processInfo.environment["SWIFTCODE_PBXPROJ_CORPUS"].map { URL(fileURLWithPath: $0) }
@@ -147,12 +135,10 @@ func firstDifference(_ a: String, _ b: String) -> String {
         return text.split(separator: "\n").map(String.init).filter { $0.count > 2 }
     }()
 
-    /// The checked-in fixture always runs.
     @Test func undoneEditsRestoreFixtureBytes() throws {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("SwiftCodeProjectTests/Fixtures/Hello.xcodeproj")
         try undoneEditsRestoreBytes("= " + fixture.path)
-        // And the fixture's text itself is what the writer produces.
         let (file, name) = PBXProj.locate(fixture.path)
         let text = try String(contentsOf: file, encoding: .utf8)
         #expect(try PBXProj(parsing: text).serialized(projectName: name) == text)

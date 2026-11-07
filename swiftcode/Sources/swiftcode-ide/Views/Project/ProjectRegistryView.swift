@@ -1,9 +1,3 @@
-// ProjectRegistryView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/ProjectRegistryView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: ProjectDetailView; open/duplicate/delete/reveal-in-Finder actions
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftUI
 
@@ -16,9 +10,7 @@ struct ProjectRegistryView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Main List of Projects
             VStack(alignment: .leading, spacing: 0) {
-                // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Project Registry")
@@ -99,7 +91,6 @@ struct ProjectRegistryView: View {
             }
             .frame(maxWidth: .infinity)
 
-            // Split Details Inspector (embedded inline ProjectDetailView)
             if let selected = selectedEntry {
                 Divider()
                 ProjectDetailView(entry: selected) {

@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// The start-up object seed (`boot-profile.md` §7) and the CPU-time calls
-/// (getrusage 117, thread_selfusage 482).
 @Suite struct StartObjectsTests {
     private let s = Env.scratch
 
@@ -16,9 +14,8 @@ import SwiftCodeDarwinABI
         var st = stat()
         _ = lstat(path, &st)
         try env.space.write(va: s, bytes: Array(leBytes(0x0100_0042).prefix(4)) + [UInt8](repeating: 0, count: 4))
-        // The volume's walk is used up: without the seed the id is unknown.
         _ = env.kernel.system.objectPaths.mayWalk(0x0100_0042)
-        #expect(env.svc(427, [s + 0x100, 1024, s, UInt64(st.st_ino)]).1.x[0] == 2)  // ENOENT
+        #expect(env.svc(427, [s + 0x100, 1024, s, UInt64(st.st_ino)]).1.x[0] == 2)
         let fs = DarwinFileSystem(prefixes: [.init(guestPath: env.root, hostPath: env.root, writable: false, device: 0x0100_0042)],
                                   console: { _, _ in })
         #expect(env.kernel.system.prewarmObjectPaths(fileSystem: fs) == 1)
@@ -40,7 +37,7 @@ import SwiftCodeDarwinABI
         let (_, children) = env.svc(117, [UInt64(bitPattern: -1), s])
         let zeroed = try env.space.read(va: s, count: 144)
         #expect(!children.carry && zeroed.allSatisfy { $0 == 0 })
-        #expect(env.svc(117, [5, s]).1.carry)  // EINVAL
+        #expect(env.svc(117, [5, s]).1.carry)
     }
 
     @Test func threadSelfusageCountsTheCallingThread() throws {
@@ -50,8 +47,6 @@ import SwiftCodeDarwinABI
         while Date() < end { spin &+= 1 }
         let (_, r) = env.svc(482)
         #expect(!r.carry)
-        // At least 10 ms of this thread's CPU, in 24 MHz ticks, and no
-        // more than the thread's total.
         #expect(r.x[0] >= 240_000, "\(r.x[0]) \(spin)")
         #expect(r.x[0] <= DarwinKernel.hostThreadCPUNanoseconds() * 24 / 1000 + 1)
     }

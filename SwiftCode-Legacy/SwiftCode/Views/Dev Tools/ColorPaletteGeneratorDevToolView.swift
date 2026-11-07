@@ -11,7 +11,6 @@ final class ColorPaletteGeneratorViewModel {
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "ColorPaletteGenerator")
 
     func generate() {
-        // Generates simple harmonious variations based on base color
         switch harmonyRule {
         case "Monochromatic":
             generatedPalette = [baseHex, "#60A5FA", "#93C5FD", "#BFDBFE", "#DBEAFE"]

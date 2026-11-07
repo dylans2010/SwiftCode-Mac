@@ -1,12 +1,5 @@
-// XcodeBuildToolExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/XcodeBuildToolExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: tool settings panel (stream build logs, show build timings, scheme/configuration pickers as extension settings)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - Xcode Build Tool Extension View
 struct XcodeBuildToolExtensionView: View {
     @State private var isEnabled = true
     @State private var scheme = ""

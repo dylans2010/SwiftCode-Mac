@@ -70,8 +70,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    // MARK: Previews
-
     func renderPreview(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let url = try resolve(try call.require("path"), in: s)
@@ -91,8 +89,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError(f.description + (f.log.isEmpty ? "" : "\n" + String(f.log.suffix(4000))))
         }
     }
-
-    // MARK: String Catalogs
 
     func catalogPaths(_ s: WorkspaceSession) -> [String] { workspaceFiles(s).filter { $0.hasSuffix(".xcstrings") } }
 
@@ -159,21 +155,10 @@ extension SwiftCodeMCPHost {
                             "progress": .int(c.progress(language: lang))], summary: "Set \(lang) for \"\(key)\".")
     }
 
-    // MARK: Writes
-
-    /// Asks the write policy, then writes the file (unless the review
-    /// already put the same text on disk) and tells the session.
     func commit(_ change: MCPChange, call: MCPToolCall, session s: WorkspaceSession) async throws {
         guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
         let url = URL(fileURLWithPath: change.path)
         if (try? String(contentsOf: url, encoding: .utf8)) != change.proposed {
-            // Gap closure (safe_undo): record the previous content
-            // before writing, so the last modification can really be
-            // reverted. The original is read from disk here, not
-            // taken from `change.original`: several callers pass
-            // `original: nil` for files that may already exist, and
-            // recording that would make undo delete a pre-existing
-            // file. Only actual writes are recorded (no-ops are not).
             let previous = text(of: url)
             SafeUndoJournal.shared.record(workspaceRoot: Self.folder(of: s.model), relativePath: change.relativePath,
                                           original: previous,
@@ -198,13 +183,6 @@ extension SwiftCodeMCPHost {
         let rel = relative(url.path, in: s)
         try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original, proposed: content,
                                    summary: original == nil ? "Create \(rel)" : "Replace \(rel)"), call: call, session: s)
-        // Legacy's line count: `components(separatedBy: .newlines)` — a
-        // trailing newline counts as one more line ("Hello\nWorld\n"
-        // is 3 lines), unlike `split(separator:)`. Messages are
-        // Legacy's `AssistWriteFileTool` forms; `is_new` is Legacy's
-        // data key (kept alongside SwiftCode's `created`/`lineCount`).
-        // The `diff` key is Legacy's unified (Myers) diff, rendered
-        // by `MyersDiff` (gap closure).
         let lines = content.components(separatedBy: .newlines).count
         let created = original == nil
         let diff = FileWritingSupport.unifiedDiff(old: original, new: content, file: rel)
@@ -236,8 +214,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// The resources: the workspace's files (`file://` URIs), the last build
-/// log and the issue list.
 struct SwiftCodeResources: MCPResourceSource {
     weak var host: SwiftCodeMCPHost?
 

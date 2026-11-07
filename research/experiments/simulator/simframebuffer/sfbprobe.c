@@ -1,14 +1,3 @@
-/*
- * sfbprobe: Ycode research probe (original Ycode code, no Apple code).
- * Runs inside a booted iOS simulator (xcrun simctl spawn). Opens the
- * simulator framebuffer client library with dlopen, calls the functions it
- * exports BY NAME with controlled arguments, and prints what comes back:
- * x0/x1/d0-d3 after each call and which bytes of our marker-filled buffers
- * (0xAA) the call wrote. Risky getters run in a forked child with a timeout.
- *
- * Usage: sfbprobe [library path] [phase...]
- *   phases: info conn displays swap all (default all)
- */
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOSurface/IOSurfaceRef.h>
 #include <objc/runtime.h>
@@ -28,8 +17,6 @@
 extern void raw_call(void *fn, const uint64_t x[9], const double d[8], uint64_t out[2], double outd[4]);
 
 static void *g_lib;
-
-/* ------------------------------------------------------------ describing */
 
 static int readable(uint64_t a, void *buf, size_t n)
 {
@@ -91,8 +78,6 @@ static void desc(uint64_t v)
     }
 }
 
-/* ------------------------------------------------------------ calling */
-
 struct res { uint64_t x0, x1; double d[4]; };
 
 static void *fn(const char *name)
@@ -145,7 +130,6 @@ static void show_bufs(void)
     }
 }
 
-/* Run one call in a forked child (timeout 3 s), print result and buffer writes. */
 static void battery(const char *name, uint64_t a0, int mode, uint64_t idx)
 {
     fflush(stdout);
@@ -170,8 +154,6 @@ static void battery(const char *name, uint64_t a0, int mode, uint64_t idx)
     waitpid(p, &st, 0);
     if (!WIFEXITED(st)) printf("  %s: child died (signal %d)\n", name, WIFSIGNALED(st) ? WTERMSIG(st) : -1);
 }
-
-/* ------------------------------------------------------------ handlers */
 
 static void install_handlers(uint64_t conn, dispatch_queue_t q)
 {
@@ -227,7 +209,6 @@ int main(int argc, char **argv)
     printf("== info\n");
     struct res pn = callx("simFramebufferServerPortName", 0, 0, 0, 0, 0, 0, NULL);
     show("simFramebufferServerPortName()", pn);
-    /* The result is a C string returned to us; print it (bounded). */
     if (pn.x0) printf("  as string: \"%.*s\"\n", 200, (const char *)pn.x0);
     show("_SFBGetServerPort() before", callx("_SFBGetServerPort", 0, 0, 0, 0, 0, 0, NULL));
     show("SFBConnectionGetTypeID()", callx("SFBConnectionGetTypeID", 0, 0, 0, 0, 0, 0, NULL));
@@ -287,7 +268,7 @@ int main(int argc, char **argv)
     printf("swapchain on display index %ld\n", (long)di);
     uint64_t d0 = (uint64_t)CFArrayGetValueAtIndex(displays, di);
     double sizes[8] = { 0 };
-    const char *dims = getenv("SFBPROBE_SC_SIZE"); /* "W,H" passed in d0/d1 */
+    const char *dims = getenv("SFBPROBE_SC_SIZE");
     if (dims) sscanf(dims, "%lf,%lf", &sizes[0], &sizes[1]);
     uint64_t count = getenv("SFBPROBE_SC_COUNT") ? strtoull(getenv("SFBPROBE_SC_COUNT"), 0, 0) : 2;
     CFDictionaryRef opts = NULL;
@@ -324,7 +305,6 @@ int main(int argc, char **argv)
         r = callx("SFBSwapchainSwapBegin", sc, now, (uint64_t)&err, 0, 0, 0, NULL);
         printf("frame %d (begin time 0x%llx) ", f, (unsigned long long)now);
         show("SFBSwapchainSwapBegin(sc, now, &err)", r);
-        /* Two CGRects (source, destination) travel in d0-d3 and d4-d7. */
         double rect[8] = { 0, 0, W, H, 0, 0, W, H };
         if (getenv("SFBPROBE_DST")) sscanf(getenv("SFBPROBE_DST"), "%lf,%lf,%lf,%lf", &rect[4], &rect[5], &rect[6], &rect[7]);
         r = callx("SFBSwapchainSwapAddSurface", sc, (uint64_t)surf, 0, 0, 0, 0, rect);

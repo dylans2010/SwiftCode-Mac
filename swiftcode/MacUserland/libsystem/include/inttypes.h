@@ -1,4 +1,3 @@
-/* SwiftCode freestanding <inttypes.h>: the format macros libunwind uses (LP64). */
 #ifndef YCL_INTTYPES_H
 #define YCL_INTTYPES_H
 #include <stdint.h>

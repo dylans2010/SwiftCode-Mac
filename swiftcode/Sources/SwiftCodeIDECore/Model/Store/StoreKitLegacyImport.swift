@@ -1,43 +1,14 @@
 import Foundation
 import StoreKitConfiguration
 
-/// Imports a configuration written by Legacy's own StoreKit editor
-/// (`StoreKitParser`/`StoreKitEncoder` over `StoreKitConfig`).
-///
-/// Legacy's schema is NOT the real `.storekit` format, so these files do
-/// not parse as `StoreConfiguration` directly:
-/// - prices are JSON numbers (`0.99`), the format wants decimal strings
-///   (`"0.99"`);
-/// - settings keys have no underscore prefix (`storefront`, `timeRate`)
-///   and `_timeRate` is a word (`"Monthly"`, `"Weekly"`, `"none"`) rather
-///   than an integer time rate;
-/// - `version` is `[4, 0]`, the format wants `{"major": 4, "minor": 0}`;
-/// - auto-renewable subscriptions use type `"AutoRenewableSubscription"`,
-///   the format wants `"RecurringSubscription"`, and they carry no
-///   internal ID, group number or `subscriptionGroupID` matching a group
-///   ID (Legacy linked subscriptions to groups by group *name*).
-/// - offers are plural arrays (`introductoryOffers`,
-///   `promotionalOffers`, `winBackOffers`, `offerCodes`); the format has
-///   one `introductoryOffer` object, `adHocOffers` and `codeOffers`.
-/// - `SKOfferCode` carries an `expirationDate`, which has no format
-///   equivalent.
-///
-/// The import converts what has an equivalent and reports everything it
-/// drops or has to invent, so no file is silently rewritten. Imported
-/// products get fresh numeric internal IDs (Legacy files have none) and
-/// validation will flag anything still incomplete.
-
 public struct StoreKitLegacyImportReport: Sendable {
-    /// Human-readable notes, in file order: dropped fields, invented IDs.
     public var notes: [String]
-    /// Whether anything was dropped.
     public var droppedAnything: Bool { !notes.isEmpty }
 
     public init(notes: [String] = []) { self.notes = notes }
 }
 
 public enum StoreKitLegacyImport {
-    // MARK: Legacy schema (decoding only)
 
     struct LegacyLocalization: Decodable {
         var locale: String
@@ -109,15 +80,11 @@ public enum StoreKitLegacyImport {
         var version: [Int]?
     }
 
-    // MARK: Import
-
-    /// Converts Legacy-schema JSON data to a real configuration.
     public static func importConfiguration(data: Data) throws -> (StoreConfiguration, StoreKitLegacyImportReport) {
         let legacy = try JSONDecoder().decode(LegacyConfig.self, from: data)
         return importConfiguration(legacy)
     }
 
-    /// Converts a decoded Legacy-schema configuration.
     static func importConfiguration(_ legacy: LegacyConfig) -> (StoreConfiguration, StoreKitLegacyImportReport) {
         var notes: [String] = []
         var nextID = 1
@@ -134,7 +101,6 @@ public enum StoreKitLegacyImport {
 
         func paymentMode(_ raw: String?) -> PaymentMode? {
             guard let raw else { return nil }
-            // Legacy's default trial mode; the format's `free` covers it.
             if raw == "freeTrial" { return .free }
             return PaymentMode(rawValue: raw)
         }
@@ -173,13 +139,7 @@ public enum StoreKitLegacyImport {
                 return Offer(internalID: freshID(), referenceName: o.code,
                              paymentMode: .payAsYouGo, subscriptionPeriod: "P1M", numberOfPeriods: 1,
                              displayPrice: "0.00", eligibility: eligibility)
-                // Legacy offer codes carry no price; the format requires
-                // one for a pay-as-you-go offer, so the import uses 0.00.
             }
-            // Legacy win-back offers have no structured equivalent in the
-            // format (the field exists but is unspecified); keep them as
-            // JSON only when they round-trip as plain values — they do
-            // not, so they are reported and dropped.
             if let winBack = product.winBackOffers, !winBack.isEmpty {
                 notes.append("Product '\(product.productID)': \(winBack.count) win-back offer(s) were dropped; Legacy's win-back shape has no .storekit equivalent.")
             }
@@ -207,11 +167,6 @@ public enum StoreKitLegacyImport {
         }
 
         var groups: [SubscriptionGroup] = []
-        // Legacy linked subscriptions to groups by group *name*; the
-        // format links by group *id*, so groups get fresh numeric ids and
-        // their subscriptions are re-pointed at them. Legacy's group ids
-        // are UUIDs, which the format does not accept (group ids are
-        // digit strings), so they are replaced too.
         for g in legacy.subscriptionGroups ?? [] {
             let id = freshID()
             if let gid = g.id, !gid.allSatisfy({ $0.isNumber }) {
@@ -225,9 +180,6 @@ public enum StoreKitLegacyImport {
                                             localizations: localizations(g.localizations),
                                             subscriptions: subscriptions))
         }
-        // A subscription whose group name matches no group keeps its
-        // Legacy group name as `subscriptionGroupID`; validation flags the
-        // mismatch so the user can fix it.
         let products = (legacy.products ?? []).map { convertProduct($0) }
         let nonRenewing = (legacy.nonRenewingSubscriptions ?? []).map { convertProduct($0) }
 
@@ -238,13 +190,9 @@ public enum StoreKitLegacyImport {
             mapped.renewalBillingIssuesEnabled = s.billingRetryEnabled
             mapped.failTransactionsEnabled = s.failTransactionsEnabled
             if let error = s.storeKitError {
-                // The format's `_storeKitErrors` is an array of unspecified
-                // objects; a single Legacy error string has no equivalent.
                 notes.append("Settings: the Legacy storeKitError '\(error)' has no .storekit equivalent and was dropped.")
             }
             if let rate = s.timeRate, rate != "none" {
-                // Legacy's "Monthly"/"Weekly" words do not map to a time
-                // rate integer; leave the rate unset.
                 notes.append("Settings: the Legacy time rate '\(rate)' has no .storekit equivalent and was dropped; the time rate is unset.")
             }
             settings = mapped
@@ -255,8 +203,6 @@ public enum StoreKitLegacyImport {
             version = Version(major: v.first, minor: v.count > 1 ? v[1] : nil)
         }
 
-        // Legacy's per-product `index`, `availability` and `images` have
-        // no .storekit equivalent.
         notes.append("Import note: Legacy ordering (index), availability and product images have no .storekit equivalent and were not carried over.")
         notes.append("Import note: every product and offer was given a fresh numeric internal ID; Legacy files carry none.")
 

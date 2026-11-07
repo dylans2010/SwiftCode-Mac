@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Settings Item Definition
-
 struct SettingsItem: Identifiable, Hashable {
     let id: String
     let title: String
@@ -21,8 +19,6 @@ struct SettingsItem: Identifiable, Hashable {
         lhs.id == rhs.id
     }
 }
-
-// MARK: - Settings Coordinator
 
 @Observable
 @MainActor
@@ -63,15 +59,12 @@ public final class SettingsCoordinator {
     }
 }
 
-// MARK: - Native Settings Window Manager
-
 @MainActor
 public final class SettingsWindowManager: NSObject, NSWindowDelegate {
     public static let shared = SettingsWindowManager()
     private var windowControllers: [SettingsWindowController] = []
 
     public func showSettings() {
-        // Support multiple settings windows
         let wc = SettingsWindowController()
         wc.window?.delegate = self
         if let window = wc.window {
@@ -116,7 +109,6 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         }
     }
 
-    // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow,
            let wc = windowControllers.first(where: { $0.window == window }) {
@@ -124,8 +116,6 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         }
     }
 }
-
-// MARK: - SwiftUI SettingsView Fallback
 
 @MainActor
 public struct DebugSettingsView: View {
@@ -137,8 +127,6 @@ public struct DebugSettingsView: View {
         SettingsMainWrapper(coordinator: coordinator)
     }
 }
-
-// MARK: - Native Settings Window Controller
 
 @MainActor
 public final class SettingsWindowController: NSWindowController {
@@ -286,8 +274,6 @@ extension SettingsWindowController {
     }
 }
 
-// MARK: - Native Settings Split View Controller
-
 public final class SettingsSplitViewController: NSSplitViewController {
     public let coordinator: SettingsCoordinator
 
@@ -341,7 +327,6 @@ public final class SettingsSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Sidebar Panel (Pure AppKit View Controller)
         let sidebarVC = SettingsSidebarViewController(coordinator: coordinator)
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
         sidebarItem.minimumThickness = 240
@@ -350,7 +335,6 @@ public final class SettingsSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // 2. Main Preferences View (SwiftUI Wrapper wrapped in StylingBootstrap to inject AdaptiveLayoutEngine)
         let mainView = SettingsMainWrapper(coordinator: coordinator)
             .environmentObject(AppSettings.shared)
             .environment(ThemeViewModel())
@@ -364,8 +348,6 @@ public final class SettingsSplitViewController: NSSplitViewController {
         addSplitViewItem(mainItem)
     }
 }
-
-// MARK: - Native Settings Sidebar View Controller
 
 public final class SettingsSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     public let coordinator: SettingsCoordinator
@@ -447,8 +429,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         expandAllGroups()
     }
 
-    // MARK: - NSOutlineViewDataSource
-
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
             return nodes.count
@@ -473,8 +453,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         }
         return false
     }
-
-    // MARK: - NSOutlineViewDelegate
 
     public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
         if let node = item as? SettingsSidebarNode {
@@ -534,7 +512,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
             cell?.iconBackground.isTransparent = true
             cell?.iconView.contentTintColor = .systemOrange
 
-            // Right Click Context menu to toggle Favorites
             let menu = NSMenu()
             let favItem = NSMenuItem(title: coordinator.favorites.contains(node.id) ? "Remove from Favorites" : "Add to Favorites", action: #selector(toggleFavoriteAction(_:)), keyEquivalent: "")
             favItem.representedObject = node
@@ -562,9 +539,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         }
     }
 }
-
-
-// MARK: - AppKit Settings Sidebar Node & Cell View
 
 public final class SettingsSidebarNode: NSObject {
     public let id: String
@@ -633,8 +607,6 @@ final class SettingsSidebarCellView: NSTableCellView {
         ])
     }
 }
-
-// MARK: - Central Settings Registry list
 
 private let settingsRegistryList: [SettingsItem] = [
     SettingsItem(
@@ -760,7 +732,6 @@ func buildSettingsSidebarNodes(coordinator: SettingsCoordinator) -> [SettingsSid
                item.category.localizedCaseInsensitiveContains(coordinator.searchText)
     }
 
-    // 1. Favorites Group (if non-empty and not searching)
     if !coordinator.favorites.isEmpty && coordinator.searchText.isEmpty {
         let favGroup = SettingsSidebarNode(title: "FAVORITES", isGroup: true)
         favGroup.children = coordinator.favorites.compactMap { favId in
@@ -771,7 +742,6 @@ func buildSettingsSidebarNodes(coordinator: SettingsCoordinator) -> [SettingsSid
         nodes.append(favGroup)
     }
 
-    // 2. Recents Group (if non-empty and not searching)
     if !coordinator.recents.isEmpty && coordinator.searchText.isEmpty {
         let recentGroup = SettingsSidebarNode(title: "RECENTS", isGroup: true)
         recentGroup.children = coordinator.recents.compactMap { rId in
@@ -782,7 +752,6 @@ func buildSettingsSidebarNodes(coordinator: SettingsCoordinator) -> [SettingsSid
         nodes.append(recentGroup)
     }
 
-    // 3. Category Categorized Groups
     let categories = ["System", "A.I. & Tools", "Extension & Updates", "About"]
     for category in categories {
         let itemsInCategory = filteredRegistry.filter { $0.category == category }
@@ -800,8 +769,6 @@ func buildSettingsSidebarNodes(coordinator: SettingsCoordinator) -> [SettingsSid
     return nodes
 }
 
-// MARK: - Settings Main View Wrapper (SwiftUI)
-
 struct SettingsMainWrapper: View {
     let coordinator: SettingsCoordinator
     @EnvironmentObject private var settings: AppSettings
@@ -811,7 +778,6 @@ struct SettingsMainWrapper: View {
         if let currentItem = settingsRegistryList.first(where: { $0.id == coordinator.selectedPaneId }) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Header
                     HStack(spacing: 14) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -832,7 +798,6 @@ struct SettingsMainWrapper: View {
 
                         Spacer()
 
-                        // Toggle Favorite Button
                         Button {
                             coordinator.toggleFavorite(id: currentItem.id)
                         } label: {
@@ -850,7 +815,6 @@ struct SettingsMainWrapper: View {
                     Divider()
                         .padding(.horizontal, 24)
 
-                    // Destination View Loader
                     destinationView(for: currentItem.id)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 40)

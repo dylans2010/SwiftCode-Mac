@@ -1,16 +1,9 @@
 import AppKit
 
-/// A borderless floating panel on the system's glass material (macOS 26
-/// and later), for transient pickers such as Open Quickly
-/// (`specs/ide/liquid-glass-swiftcode.md` §7). It becomes key so its search
-/// field takes typing, and it closes when it stops being key (a click
-/// elsewhere, another window). Reduce Transparency and Increase Contrast
-/// are the material's own.
 @available(macOS 26, *)
 @MainActor
 final class GlassPanel: NSPanel {
     let controller: NSViewController
-    /// Called once when the panel closes.
     var onClose: (() -> Void)?
     private var closing = false
 
@@ -46,7 +39,6 @@ final class GlassPanel: NSPanel {
         onClose?()
     }
 
-    /// Shows the panel centered over `window`'s upper part, above it.
     func show(over window: NSWindow) {
         let f = window.frame
         setFrameOrigin(NSPoint(x: (f.midX - frame.width / 2).rounded(),

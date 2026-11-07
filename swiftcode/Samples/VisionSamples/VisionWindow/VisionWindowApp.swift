@@ -1,6 +1,3 @@
-// SwiftCode's visionOS sample 1 (visionos.md §10.21): a SwiftUI window with a
-// button, a counter and a toggle. Logs through os.Logger, subsystem
-// org.swiftcode.samples, so a guest log stream shows what happened.
 import os
 import SwiftUI
 

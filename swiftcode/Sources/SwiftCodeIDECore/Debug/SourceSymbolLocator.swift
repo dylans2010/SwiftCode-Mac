@@ -1,8 +1,5 @@
 import Foundation
 
-/// Finds the function enclosing a line by scanning the source text
-/// (a cheap heuristic: Swift `func`/`init`/`subscript` and C-style
-/// definitions; "method" when inside a type).
 @MainActor
 public enum SourceSymbolLocator {
     private static var cache: [String: (Date, [Substring])] = [:]
@@ -21,9 +18,6 @@ public enum SourceSymbolLocator {
     public static func symbol(in lines: [Substring], line: Int) -> (name: String, method: Bool)? {
         guard line >= 1, line <= lines.count else { return nil }
         var i = line - 1
-        // The least indentation of a "}" above the line: a declaration as
-        // far out as it was closed before the line (top-level code after
-        // functions belongs to none of them).
         var closedAt = Int.max
         while i >= 0 {
             let l = lines[i]
@@ -52,7 +46,6 @@ public enum SourceSymbolLocator {
         return nil
     }
 
-    /// `func name(a: T, _ b: U)` → "name(a:_:)".
     static func swiftFunction(_ l: Substring) -> String? {
         guard let r = l.range(of: #"\b(func\s+[^\s(<]+|init[?!]?|subscript)\s*(<[^>]*>)?\s*\("#, options: .regularExpression) else { return nil }
         var head = l[r].replacingOccurrences(of: "func", with: "").trimmingCharacters(in: .whitespaces)
@@ -69,7 +62,6 @@ public enum SourceSymbolLocator {
         return head + "(" + labels.joined() + ")"
     }
 
-    /// `int add(int a, int b) {` → "add".
     static func cFunction(_ l: Substring) -> String? {
         let t = l.trimmingCharacters(in: .whitespaces)
         guard !t.hasPrefix("#"), !t.hasPrefix("//"), !l.hasPrefix(" "), !l.hasPrefix("\t"),

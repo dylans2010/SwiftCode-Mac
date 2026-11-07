@@ -1,25 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-/// The two developer debug views, ported from Legacy's
-/// `PaywallDebugView` (`SwiftCode/Views/Developer/PaywallDebug/`)
-/// and `StoreKitDebugView`
-/// (`SwiftCode/Views/Developer/StoreKitDebug/`) and rebuilt in
-/// SwiftCode's native style: standard `Form` sections, no `liquidGlass`.
-///
-/// Behaviour preserved: grant/revoke Pro, force-show the paywall,
-/// and the four StoreKit simulations. What the simulations do is
-/// labelled honestly here — Legacy's buttons called
-/// `EntitlementManager.updateProStatus(isPro:)`, which only flipped
-/// the in-memory flag; they never created a StoreKit transaction,
-/// and neither do these. They set the store's debug override, which
-/// the next real entitlement refresh overwrites. The views show
-/// where the current Pro state comes from (`ProAccessSource`) so a
-/// forced grant is never mistaken for a real purchase.
-///
-/// Both views snapshot the store into `@State` (the store is not an
-/// `ObservableObject`, so it cannot be observed directly) and
-/// re-sync after every action.
 public struct PaywallDebugView: View {
     private let store: PaywallStore
     @State private var showPaywall = false

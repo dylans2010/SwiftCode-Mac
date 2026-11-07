@@ -1,18 +1,3 @@
-// Guest probe: Mach thread and task suspension through public API only
-// (specs/simulator/threads-and-events.md §1.6).
-//   p_tsus            the checks below
-//   p_tsus child      (internal) prints a counter every 10 ms until killed
-//
-// Checks: a spinning thread stops before thread_suspend returns and stays
-// stopped (its counter does not move for 100 ms); thread_get_state gives its
-// registers (SP inside its stack); resume restarts it; counted suspends;
-// resume at count 0 fails; a thread that suspends itself waits for another
-// thread's resume; a thread blocked in semaphore_wait counts as suspended
-// and does not return to user code while suspended even when signalled;
-// thread_info reports the stop; thread_set_state redirects a suspended
-// thread; task_suspend/task_resume of a child (which sends its task port
-// to its bootstrap port, ours), and a child spawned with
-// POSIX_SPAWN_START_SUSPENDED that runs after SIGCONT resumes its task.
 #include <errno.h>
 #include <fcntl.h>
 #include <mach-o/dyld.h>
@@ -48,8 +33,6 @@ static uint64_t now_us(void) {
     return (uint64_t)t.tv_sec * 1000000u + (uint64_t)t.tv_nsec / 1000u;
 }
 
-// MARK: spinning thread
-
 static _Atomic uint64_t spin_counter;
 static _Atomic int spin_stop;
 static _Atomic int redirected;
@@ -61,8 +44,6 @@ __attribute__((noinline)) static void spin_loop(void) {
         atomic_fetch_add_explicit(&spin_counter, 1, memory_order_relaxed);
 }
 
-// Where thread_set_state sends the spinning thread: it marks the flag and
-// spins on until told to stop, then ends the thread.
 __attribute__((noinline)) static void redirect_target(void) {
     atomic_store(&redirected, 1);
     while (!atomic_load_explicit(&spin_stop, memory_order_relaxed))
@@ -132,7 +113,6 @@ static void spinning_checks(void) {
     check(moves(500), "its counter moves again");
     check(thread_resume(spin_port) == KERN_FAILURE, "thread_resume at count 0: KERN_FAILURE");
 
-    // Many short suspensions in a row (a collector's pattern).
     int bad = 0;
     uint64_t total = 0;
     for (int i = 0; i < 2000; i++) {
@@ -148,12 +128,10 @@ static void spinning_checks(void) {
     printf("  2000 suspend/get_state/resume rounds: mean suspend %llu us\n", (unsigned long long)(total / 2000));
     check(bad == 0, "2000 suspend/get_state/resume rounds, each stopped");
 
-    // thread_set_state: send it to redirect_target.
     check(thread_suspend(spin_port) == KERN_SUCCESS, "suspend before thread_set_state");
     n = ARM_THREAD_STATE64_COUNT;
     kr = thread_get_state(spin_port, ARM_THREAD_STATE64, (thread_state_t)&st, &n);
     arm_thread_state64_set_pc_fptr(st, redirect_target);
-    // A 16-byte aligned SP below the current one.
     arm_thread_state64_set_sp(st, (arm_thread_state64_get_sp(st) - 256) & ~15ull);
     kr = thread_set_state(spin_port, ARM_THREAD_STATE64, (thread_state_t)&st, ARM_THREAD_STATE64_COUNT);
     check(kr == KERN_SUCCESS, "thread_set_state(ARM_THREAD_STATE64)");
@@ -168,8 +146,6 @@ static void spinning_checks(void) {
     atomic_store(&spin_stop, 1);
     pthread_join(t, NULL);
 }
-
-// MARK: self-suspension
 
 static _Atomic int self_after;
 static mach_port_t self_port;
@@ -198,8 +174,6 @@ static void self_checks(void) {
     pthread_join(t, NULL);
     check(atomic_load(&self_after) == 1, "its thread_suspend returned KERN_SUCCESS");
 }
-
-// MARK: a thread blocked in the kernel
 
 static semaphore_t blocked_sem;
 static _Atomic int blocked_after;
@@ -240,9 +214,6 @@ static void blocked_checks(void) {
     semaphore_destroy(mach_task_self(), blocked_sem);
 }
 
-// MARK: task suspension of a child
-
-// Reads what is available on `fd` without waiting; returns the byte count.
 static long drain(int fd) {
     char buf[4096];
     long total = 0;
@@ -253,9 +224,6 @@ static long drain(int fd) {
     }
 }
 
-// Spawns `self child` with stdout on a pipe (*out_fd, non-blocking). With
-// `port`, the child's bootstrap port is a send right to it: the child sends
-// its task port there first.
 static pid_t spawn_child(const char *self, int start_suspended, mach_port_t port, int *out_fd) {
     int p[2];
     pipe(p);
@@ -288,7 +256,6 @@ typedef struct {
     mach_msg_trailer_t trailer;
 } task_msg_rcv_t;
 
-// The child: its task port to its bootstrap port, then a counter on stdout.
 static void child_main(void) {
     mach_port_t bp = MACH_PORT_NULL;
     task_get_bootstrap_port(mach_task_self(), &bp);
@@ -350,7 +317,6 @@ static void task_checks(const char *self) {
     waitpid(pid, &status, 0);
     close(fd);
 
-    // POSIX_SPAWN_START_SUSPENDED: nothing until SIGCONT resumes its task.
     pid = spawn_child(self, 1, MACH_PORT_NULL, &fd);
     check(pid > 0, "spawn a child with POSIX_SPAWN_START_SUSPENDED");
     if (pid <= 0) return;
@@ -374,7 +340,6 @@ int main(int argc, char **argv) {
     spinning_checks();
     self_checks();
     blocked_checks();
-    // The executable's guest path (argv[0] is the path the launcher gave).
     char self[1024];
     uint32_t size = sizeof self;
     task_checks(_NSGetExecutablePath(self, &size) == 0 ? self : argv[0]);

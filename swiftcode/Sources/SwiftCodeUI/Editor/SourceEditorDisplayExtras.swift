@@ -1,29 +1,20 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Editing ▸ Display rows drawn by the source editor
-/// (`specs/ide/reference-ui-5.md` §9.3): MARK separators, the condition
-/// after `#endif`, dimmed inactive code, faded comment delimiters, the code
-/// structure headers and the editor overscroll; and General ▸ Issue
-/// presentation (inline or minimized).
 @MainActor
 final class EditorDisplayState {
     var markLines: [Int] = []
     var endifConditions: [Int: String] = [:]
     var inactive: [ClosedRange<Int>] = []
-    /// Overscroll as a fraction of the visible height.
     var overscroll: CGFloat = 0
-    /// The height last set and the overscroll it holds.
     var lastHeight: CGFloat = -1
     var lastExtra: CGFloat = 0
-    /// Issue presentation ▸ Show Minimized: an icon only.
     var minimizedIssues = false
     var scrollObserver: NSObjectProtocol?
     var pending: DispatchWorkItem?
 }
 
 extension SourceTextView {
-    /// `MARK` separators and #endif conditions, behind the text.
     func drawDisplayExtras(in rect: NSRect) {
         let d = displayState
         if !d.markLines.isEmpty {
@@ -46,11 +37,6 @@ extension SourceTextView {
         }
     }
 
-    /// The height the view needs with the overscroll added: the blank
-    /// space after the last line, once the text is taller than the view.
-    /// The text view proposes the height its text needs; a proposal equal
-    /// to the height set last (a resize that keeps the height) already
-    /// holds the overscroll, which is taken out first.
     func heightWithOverscroll(_ proposed: CGFloat) -> CGFloat {
         let d = displayState
         let base = proposed == d.lastHeight ? proposed - d.lastExtra : proposed
@@ -65,7 +51,6 @@ extension SourceTextView {
 extension SourceEditorController {
     var displayState: EditorDisplayState { textView.displayState }
 
-    /// Applies the Display and Issue presentation settings.
     func applyDisplayPreferences() {
         let p = Preferences.shared
         let d = displayState
@@ -88,8 +73,6 @@ extension SourceEditorController {
         updateDisplayExtras()
     }
 
-    /// Recomputes the text-derived extras (after opening, editing or a
-    /// settings change). Large files catch up after a short pause.
     func updateDisplayExtras() {
         let d = displayState
         d.pending?.cancel()
@@ -117,8 +100,6 @@ extension SourceEditorController {
         textView.needsDisplay = true
     }
 
-    /// Dimmed inactive branches and faded delimiters, as rendering colors
-    /// over the syntax colors (the text storage is left alone).
     func applyRenderingColors(code: Bool) {
         guard let tlm = textView.textLayoutManager, let tcm = tlm.textContentManager, let storage = textView.textStorage else { return }
         tlm.removeRenderingAttribute(.foregroundColor, for: tlm.documentRange)
@@ -146,9 +127,6 @@ extension SourceEditorController {
         }
     }
 
-    /// Shows or hides the sticky scope header for the first visible line
-    /// (`editor-area.md` §C.3): its rows sit under the jump bar, each with
-    /// its line number and syntax colours.
     func updateStructureHeader() {
         let header = stickyHeader
         func hide() {
@@ -167,7 +145,6 @@ extension SourceEditorController {
         let ns = textView.string as NSString
         func text(_ l: Int) -> String { textView.lineIndex.range(ofLine: l).map { ns.substring(with: $0) } ?? "" }
         var lines = EditorDisplayModel.structureHeaderLines(foldRegions, topLine: line(at: top), lineText: text)
-        // The header covers the first lines: look below it once.
         if !lines.isEmpty {
             let covered = CGFloat(EditorMetrics.stickyHeaderHeight(rows: lines.count, lineHeight: Double(lineHeight)))
             lines = EditorDisplayModel.structureHeaderLines(foldRegions, topLine: line(at: top + covered), lineText: text)
@@ -189,19 +166,13 @@ extension SourceEditorController {
         if stickyHeaderHeight.constant != header.totalHeight { stickyHeaderHeight.constant = header.totalHeight }
     }
 
-    /// The code structure header lines shown (tests).
     public var structureHeaderLines: [String] { stickyHeader.isHidden ? [] : stickyHeader.rows.map(\.text.string) }
-    /// The sticky header's line numbers and height (tests).
     public var structureHeaderLineNumbers: [Int] { stickyHeader.isHidden ? [] : stickyHeader.rows.map(\.line) }
     public var structureHeaderHeight: CGFloat { stickyHeader.isHidden ? 0 : stickyHeader.totalHeight }
-    /// Lines with a MARK separator, `#endif` conditions and inactive
-    /// ranges, as drawn (tests).
     public var markSeparatorLines: [Int] { displayState.markLines }
     public var endifConditions: [Int: String] { displayState.endifConditions }
     public var inactiveLineRanges: [ClosedRange<Int>] { displayState.inactive }
     public var showsMinimizedIssues: Bool { displayState.minimizedIssues }
-    /// The rendering color drawn at a character, if one overrides the
-    /// syntax color (tests).
     public func renderingColor(at offset: Int) -> NSColor? {
         guard let tlm = textView.textLayoutManager, let tcm = tlm.textContentManager,
               let loc = tcm.location(tcm.documentRange.location, offsetBy: offset) else { return nil }
@@ -213,8 +184,6 @@ extension SourceEditorController {
         return found
     }
 
-    /// Convert existing files on save: line endings become LF (the file is
-    /// always written as UTF-8). One undo group.
     func convertLineEndings() {
         let s = textView.string
         guard s.contains("\r") else { return }

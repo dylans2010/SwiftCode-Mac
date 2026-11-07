@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for Foundation
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct FoundationSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "foundation.symbol.0"
     public var name: String = "FoundationSymbolName_0"

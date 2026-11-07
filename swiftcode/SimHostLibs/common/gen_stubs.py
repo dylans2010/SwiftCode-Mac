@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-# gen_stubs.py - generates the "unimplemented" layer of one SwiftCode host library.
-#
-# Clean-room SwiftCode code (contract: specs/simulator/host-libraries.md section 4).
-#
-# For every row of the library's surface table that no hand-written or
-# fallback object already defines, it emits:
-#   - a function stub that executes the SwiftCode-private trap
-#     (svc #0x80, x16 = 0x7963_0F00, x0 = the function's C name) and then
-#     fails in the conventional way for its category, or
-#   - a data variable of the required size and initial value.
-#
-# Usage:
-#   python3 -I gen_stubs.py --lib kernel --data-dir SPECS/simulator/data \
-#       --common DIR --defined FILE --out FILE.S --manifest FILE.tsv
-#
-# --defined lists Mach-O names (one per line) that already exist; they get
-# no stub. The manifest records the convention chosen for every generated
-# stub (name, kind, category, convention).
 
 import argparse
 import json
@@ -56,11 +38,9 @@ PTHREAD_DEFAULTS = {
     "other": "void",
 }
 
-
 def die(msg):
     sys.stderr.write("gen_stubs.py: error: %s\n" % msg)
     sys.exit(1)
-
 
 def read_table(path, lib, ncols):
     """Rows of a whitespace table filtered to `lib`; '#' starts a comment."""
@@ -76,14 +56,11 @@ def read_table(path, lib, ncols):
                 rows.append((lineno, parts[1:]))
     return rows
 
-
 def c_name(macho_name):
     return macho_name[1:] if macho_name.startswith("_") else macho_name
 
-
 def strip_variant(name):
     return name.split("$", 1)[0]
-
 
 def default_convention(lib, row, bsd, mach):
     cat = row["category"]
@@ -92,7 +69,7 @@ def default_convention(lib, row, bsd, mach):
         if cat == "bsd-syscall":
             info = bsd.get(strip_variant(name))
             if info is not None and info.get("returns") == "void":
-                return "noreturn"  # exit, abort_with_payload
+                return "noreturn"
             return "errno"
         if cat == "mach-trap":
             info = mach.get(name)
@@ -111,7 +88,6 @@ def default_convention(lib, row, bsd, mach):
         return PTHREAD_DEFAULTS.get(cat, "errret")
     die("unknown library %s" % lib)
 
-
 def asm_string(text):
     out = []
     for ch in text.encode("utf-8"):
@@ -122,7 +98,6 @@ def asm_string(text):
         else:
             out.append("\\%03o" % ch)
     return '"' + "".join(out) + '"'
-
 
 def parse_init(spec, size, name):
     data = bytearray(size)
@@ -143,7 +118,6 @@ def parse_init(spec, size, name):
         die("init of %s is %d bytes, more than its size %d" % (name, len(raw), size))
     data[: len(raw)] = raw
     return data
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -233,7 +207,7 @@ def main():
     out.append("// Unimplemented-function stubs (host-libraries.md section 4).\n\n")
     out.append("    .section __TEXT,__text,regular,pure_instructions\n")
     tails = {
-        "errno": "    b ___swiftcode_stub_enosys\n",  # sets errno = ENOSYS, returns -1
+        "errno": "    b ___swiftcode_stub_enosys\n",
         "kern": "    mov w0, #%d\n    ret\n" % KERN_NOT_SUPPORTED,
         "zero": "    mov x0, #0\n    ret\n",
         "void": "    ret\n",
@@ -256,7 +230,6 @@ def main():
     if data_text:
         out.append("\n    .section __DATA,__data\n")
         out.extend(data_text)
-    # No .subsections_via_symbols: the stubs share tails through local labels.
 
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("".join(out))
@@ -264,7 +237,6 @@ def main():
         f.write("# name\tkind\tcategory\tconvention\n")
         for m in manifest:
             f.write("\t".join(m) + "\n")
-
 
 if __name__ == "__main__":
     main()

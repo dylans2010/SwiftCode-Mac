@@ -1,31 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineDetailView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// Cleanup C29 (2026-11-06): `dispatchToolInstall(name:)` used to sleep 120 ms × 10,
-// animate a progress bar to 100%, append the tool to the VM's
-// `installedPackagesList`, persist it and log "Successfully compiled/installed
-// <name> inside developer environment." — while no command ever ran in the guest.
-// That fake install is deleted. Real source: run the real package-manager install
-// inside the VM via a guest agent/channel and mark installed only on exit code 0.
-// No such channel exists in this codebase for these VMs (no SSH credentials, no
-// guest-agent command API — the VZ serial port is configured but nothing sends
-// commands through it), so Install now fails honestly: nothing is marked installed,
-// nothing is persisted, and the catalog shows why. When a guest command channel
-// lands, implement the install there and restore progress reporting from its real
-// output; do not re-add a timed progress animation.
-//
-// Cleanup D5 (2026-11-06): the software-catalog health panel asserted
-// "PACKAGE HEALTH INDEX GOOD" and "2 updates available", and each catalog
-// tool carried a hardcoded version ("v2.43.0", "v25.0.3", …) with a health
-// status derived only from membership in the VM's recorded
-// `installedPackagesList` (Git "Update Available", Python "Version
-// Conflict" — invented). None of that is measured: there is still no guest
-// query channel (C29), so no installed version, health score, or update
-// count can be known from the host. The panel now reports "Unknown" health
-// and "Unknown" pending updates; catalog tools show only whether the VM's
-// recorded list contains them ("Installed" / "Not Installed") with health
-// "Unknown" when present (unmeasurable) and "Missing" when absent. The
-// installed-packages count is the recorded list's count, not a measurement.
 import SwiftUI
 import SwiftCodeUI
 
@@ -34,17 +6,13 @@ public struct VirtualMachineDetailView: View {
 
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var selectedTab: DetailCategory = .consoleShell
-    @State private var consoleSubTab: String = "Terminal" // Default to Terminal
+    @State private var consoleSubTab: String = "Terminal"
     @State private var assistantQuery = ""
     @State private var assistantResponse = ""
 
-    // Multiple Terminals States
     @State private var terminalSessions: [String] = ["Shell Connection 1"]
     @State private var activeTerminalIndex: Int = 0
 
-    // Software Catalog installation state (C29): installs are unavailable —
-    // there is no guest command channel — so this only ever holds an honest
-    // failure message, never fake progress.
     @State private var installationError: String? = nil
 
     public enum DetailCategory: String, CaseIterable, Identifiable {
@@ -93,7 +61,6 @@ public struct VirtualMachineDetailView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let vm = activeVM {
-                // Header Bar (Apple HIG Style)
                 HStack(spacing: 16) {
                     Button {
                         stateStore.selectedVMID = nil
@@ -127,7 +94,6 @@ public struct VirtualMachineDetailView: View {
 
                     Spacer()
 
-                    // VM Controls
                     HStack(spacing: 10) {
                         if vm.status == .stopped || vm.status == .error {
                             Button {
@@ -166,12 +132,10 @@ public struct VirtualMachineDetailView: View {
 
                 Divider()
 
-                // INTEGRATED ONBOARDING FIRST RUN EXPERIENCE
                 if vm.isFirstRun {
                     firstRunExperienceCard(vm: vm)
                 }
 
-                // Integrated Natural Language Assistant Row
                 GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 10) {
@@ -210,7 +174,6 @@ public struct VirtualMachineDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
 
-                // High-level segmented category pickers
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailCategory.allCases) { cat in
                         Label(cat.rawValue, systemImage: cat.icon)
@@ -223,7 +186,6 @@ public struct VirtualMachineDetailView: View {
 
                 Divider()
 
-                // Tab Content Workspace
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         switch selectedTab {
@@ -285,7 +247,6 @@ public struct VirtualMachineDetailView: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // FIRST RUN EXPERIENCE ONBOARDING CARD
     @ViewBuilder
     private func firstRunExperienceCard(vm: VirtualMachine) -> some View {
         GroupBox(label:
@@ -355,7 +316,6 @@ public struct VirtualMachineDetailView: View {
         stateStore.addLog("Onboarding guide completed successfully.", type: .success)
     }
 
-    // MULTIPLE TERMINALS VIEWS
     @ViewBuilder
     private func multipleTerminalsView(vm: VirtualMachine) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -403,7 +363,6 @@ public struct VirtualMachineDetailView: View {
                 .help("Spawn an additional terminal console")
             }
 
-            // Real Terminal Shell Panel
             VirtualMachineTerminalView(vmID: vmID)
                 .frame(minHeight: 300)
                 .overlay(
@@ -426,11 +385,9 @@ public struct VirtualMachineDetailView: View {
         stateStore.addLog("Closed interactive shell console Terminal.", type: .warning)
     }
 
-    // SOFTWARE CATALOG & HEALTH VIEW
     @ViewBuilder
     private func softwareCatalogView(vm: VirtualMachine) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Health Overview Panel
             GroupBox(label: Text("Sandbox Software Health Diagnosis").font(.headline).foregroundStyle(.blue)) {
                 HStack(spacing: 24) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -503,7 +460,6 @@ public struct VirtualMachineDetailView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
 
-            // Catalog Grid
             Text("Development Tools Catalog")
                 .font(.headline)
                 .foregroundStyle(.secondary)
@@ -521,10 +477,6 @@ public struct VirtualMachineDetailView: View {
         var id: String { name }
         let name: String
         let isInstalled: Bool
-        // "Unknown" (in the VM's recorded installed list, but no health
-        // measurement exists — there is no guest query channel) or
-        // "Missing" (absent from the recorded list). No version is stored:
-        // installed versions cannot be read from the host.
         let healthStatus: String
 
         var iconColor: Color {
@@ -544,12 +496,6 @@ public struct VirtualMachineDetailView: View {
     }
 
     private func getCatalogTools(vm: VirtualMachine) -> [CatalogTool] {
-        // D5: no hardcoded versions and no invented health. A tool is
-        // "Installed" only in the sense that the VM's recorded
-        // installed-packages list contains it; its health is "Unknown"
-        // because nothing can query the guest, and a tool absent from the
-        // list is "Missing". The catalog names are just the tools the VM
-        // may carry — not measured data.
         func tool(_ name: String, _ packages: String...) -> CatalogTool {
             let installed = packages.contains { vm.installedPackagesList.contains($0) }
             return CatalogTool(name: name, isInstalled: installed, healthStatus: installed ? "Unknown" : "Missing")
@@ -569,16 +515,11 @@ public struct VirtualMachineDetailView: View {
     }
 
     private func dispatchToolInstall(name: String) {
-        // C29: there is no guest command channel (no SSH, no guest-agent API),
-        // so no install can run. Fail honestly: do not mark the tool installed,
-        // do not persist anything, do not log success. The package manager the
-        // guest would use is shown so the user can install it manually.
         let manager = activeVM?.osType == "Alpine" ? "apk" : (activeVM?.osType == "Fedora" ? "dnf" : "apt")
         installationError = "Cannot install '\(name)': SwiftCode has no command channel into this guest yet (no SSH or guest agent), so no package-manager command was run and '\(name)' was not installed. Install it inside the guest manually with the \(manager) package manager."
         stateStore.addLog("Install of '\(name)' refused: no guest command channel; nothing was installed.", type: .error)
     }
 
-    // DOCUMENTATION CENTER VIEW
     @ViewBuilder
     private func documentationCenterView(vm: VirtualMachine) -> some View {
         GroupBox(label:

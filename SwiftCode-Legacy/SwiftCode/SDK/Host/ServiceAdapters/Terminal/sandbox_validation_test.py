@@ -39,17 +39,14 @@ import unittest
 SWIFT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "SDKSandboxedTerminal.swift")
 
-
 def read_swift() -> str:
     with open(SWIFT_FILE, "r", encoding="utf-8") as f:
         return f.read()
-
 
 def extract_string_constant(src: str, name: str) -> str:
     m = re.search(r'static let ' + re.escape(name) + r'[^=]*=\s*"([^"]+)"', src)
     assert m, f"Swift constant {name} not found"
     return m.group(1)
-
 
 def extract_int_constant(src: str, name: str) -> int:
     m = re.search(r'static let ' + re.escape(name) + r'[^=]*=\s*([0-9_]+(?:\s*\*\s*[0-9_]+)?)', src)
@@ -60,12 +57,10 @@ def extract_int_constant(src: str, name: str) -> int:
         value *= int(part.strip())
     return value
 
-
 def extract_double_constant(src: str, name: str) -> float:
     m = re.search(r'static let ' + re.escape(name) + r'[^=]*=\s*([0-9.]+)', src)
     assert m, f"Swift constant {name} not found"
     return float(m.group(1))
-
 
 def extract_string_array(src: str, name: str):
     m = re.search(r'static let ' + re.escape(name) + r'[^=]*=\s*\[(.*?)\]',
@@ -73,36 +68,23 @@ def extract_string_array(src: str, name: str):
     assert m, f"Swift constant {name} not found"
     return re.findall(r'"([^"]+)"', m.group(1))
 
-
-# --- Faithful ports of the Swift logic -------------------------------------
-
 def is_bare_name(command: str, pattern: str) -> bool:
-    # Swift: command.range(of: pattern, options: .regularExpression) != nil
     return re.search(pattern, command) is not None
 
-
 def classify_command(command: str, pattern: str) -> str:
-    # Returns "bare" | "absolute" | "reject", mirroring resolveExecutable's
-    # dispatch (allow-list membership itself is host data, tested below).
     if command.startswith("/"):
         return "absolute"
     if is_bare_name(command, pattern):
         return "bare"
     return "reject"
 
-
 def path_inside_directory(path: str, directory: str) -> bool:
-    # Swift isPath(_:insideDirectory:): standardized paths, trailing-slash
-    # prefix so "/usr/bin2/x" never matches "/usr/bin".
     dir_path = os.path.normpath(directory)
     prefix = dir_path if dir_path.endswith("/") else dir_path + "/"
     norm = os.path.normpath(path)
     return norm == dir_path or norm.startswith(prefix)
 
-
 def resolve_working_directory(requested: str | None, scope_root: str):
-    # Mirrors resolveWorkingDirectory: relative anchors at scope root,
-    # standardize, then require equal-to-or-inside scope.
     scope = os.path.normpath(scope_root)
     if requested is None:
         candidate = scope
@@ -116,9 +98,7 @@ def resolve_working_directory(requested: str | None, scope_root: str):
         raise PermissionError("outside scope")
     return resolved
 
-
 def capture_bounded(chunks: list[bytes], limit: int):
-    # Mirrors captureBounded: keep <= limit bytes, count everything.
     kept = bytearray()
     total = 0
     for chunk in chunks:
@@ -127,18 +107,14 @@ def capture_bounded(chunks: list[bytes], limit: int):
             kept += chunk[:limit - len(kept)]
     return bytes(kept), total, total > limit
 
-
 def clamp_timeout(requested: float | None, default: float,
                   minimum: float, maximum: float) -> float:
-    # Mirrors the request/timeout handling in run(...).
     import math
     t = requested if (requested is not None and math.isfinite(requested)
                      and requested > 0) else default
     return min(max(t, minimum), maximum)
 
-
 def sanitized_environment(home: str) -> dict:
-    # Mirrors sanitizedEnvironment: fixed dict, nothing inherited.
     return {
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
         "LANG": "en_US.UTF-8",
@@ -146,7 +122,6 @@ def sanitized_environment(home: str) -> dict:
         "HOME": home,
         "TMPDIR": "/tmp/",
     }
-
 
 def validate_args(args: list, max_count: int, max_bytes: int) -> list:
     if len(args) > max_count:
@@ -159,7 +134,6 @@ def validate_args(args: list, max_count: int, max_bytes: int) -> list:
         if len(arg.encode("utf-8")) > max_bytes:
             raise ValueError("too big")
     return args
-
 
 class CouplingTest(unittest.TestCase):
     """The port must match the Swift source exactly."""
@@ -179,27 +153,20 @@ class CouplingTest(unittest.TestCase):
             ["/usr/bin", "/bin", "/usr/local/bin", "/opt/homebrew/bin",
              "/usr/sbin", "/sbin"],
             extract_string_array(src, "approvedExecutableDirectories"))
-        # No shell anywhere in the launch path.
         self.assertNotIn('"/bin/sh"', src)
         self.assertNotIn('"/bin/bash"', src)
         self.assertNotIn('"/bin/zsh"', src)
-        # Timeout escalation is real SIGKILL, not theater.
         self.assertIn("SIGKILL", src)
         self.assertRegex(src, r'\bkill\(.*SIGKILL\)')
         self.assertIn("process.terminate()", src)
-        # Broker authorization happens on every call, first.
         self.assertIn("SDKCapabilityBroker.authorize(.terminalSandbox, for: caller)", src)
-        # Environment is fixed, not inherited.
         self.assertNotIn("ProcessInfo.processInfo.environment", src)
 
     def test_no_terminal_view_wrapping(self):
         src = read_swift()
-        # Strip // comments: the file documents WHY it does not use the
-        # terminal views; only actual code references count.
         code = re.sub(r'//.*', '', src)
         self.assertNotIn("TerminalView", code)
         self.assertNotIn("TerminalManager", code)
-
 
 class CommandClassificationTest(unittest.TestCase):
     PATTERN = "^[A-Za-z0-9._-]{1,64}$"
@@ -219,7 +186,6 @@ class CommandClassificationTest(unittest.TestCase):
                     "x" * 65, "git!"]:
             self.assertEqual("reject", classify_command(bad, self.PATTERN), bad)
 
-
 class ContainmentTest(unittest.TestCase):
     def test_prefix_semantics(self):
         self.assertTrue(path_inside_directory("/usr/bin/git", "/usr/bin"))
@@ -230,13 +196,10 @@ class ContainmentTest(unittest.TestCase):
 
     def test_working_directory_confinement(self):
         scope = "/Users/dylan/Projects/MyApp"
-        # Default and equal-to-root are fine.
         self.assertEqual(os.path.normpath(scope),
                          resolve_working_directory(None, scope))
-        # Relative anchors at scope root.
         self.assertEqual(os.path.normpath(scope + "/sub/dir"),
                          resolve_working_directory("sub/dir", scope))
-        # ".." that stays inside is fine; ".." escaping is rejected.
         self.assertEqual(os.path.normpath(scope + "/sub"),
                          resolve_working_directory("sub/../sub", scope))
         with self.assertRaises(PermissionError):
@@ -247,7 +210,6 @@ class ContainmentTest(unittest.TestCase):
             resolve_working_directory("/Users/dylan/Projects/MyApp2", scope)
         with self.assertRaises(ValueError):
             resolve_working_directory("", scope)
-
 
 class CaptureTest(unittest.TestCase):
     def test_no_truncation(self):
@@ -269,7 +231,6 @@ class CaptureTest(unittest.TestCase):
         self.assertFalse(truncated)
         self.assertEqual(256, total)
 
-
 class TimeoutTest(unittest.TestCase):
     def test_clamping(self):
         self.assertEqual(30.0, clamp_timeout(None, 30, 1, 55))
@@ -281,18 +242,14 @@ class TimeoutTest(unittest.TestCase):
         self.assertEqual(55.0, clamp_timeout(600, 30, 1, 55))
         self.assertEqual(10.0, clamp_timeout(10, 30, 1, 55))
 
-
 class EnvironmentTest(unittest.TestCase):
     def test_fixed_keys_nothing_inherited(self):
         env = sanitized_environment("/scope/root")
         self.assertEqual({"PATH", "LANG", "LC_ALL", "HOME", "TMPDIR"},
                          set(env.keys()))
         self.assertEqual("/scope/root", env["HOME"])
-        # A hostile ambient variable can never leak in: the function takes
-        # no ambient input at all.
         import inspect
         self.assertEqual(["home"], list(inspect.signature(sanitized_environment).parameters))
-
 
 class ArgsTest(unittest.TestCase):
     def test_valid(self):
@@ -307,7 +264,6 @@ class ArgsTest(unittest.TestCase):
             validate_args(["a\0b"], 256, 8192)
         with self.assertRaises(ValueError):
             validate_args([42], 256, 8192)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

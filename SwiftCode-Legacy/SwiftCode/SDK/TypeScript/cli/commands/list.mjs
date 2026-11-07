@@ -1,21 +1,3 @@
-/**
- * list.mjs — list installed SwiftCode extensions (spec §3.1).
- *
- * Usage:
- *   swiftcode list [--json]
- *
- * Scans the controlled extensions directory the way
- * SDKExtensionRegistry.scan() does: an entry is recognized only when BOTH
- * swiftcode.json (re-read + re-validated with the canonical
- * `validateExtension`, fail closed) and .sdk-install.json exist and their
- * id/version match the directory layout. Malformed entries are skipped
- * with a stderr warning instead of aborting the scan.
- *
- * Human output is a table: id / version / enabled / digest (12-char short
- * form of the recorded packageDigest). --json returns the full records as
- * a JSON array with the exact Swift field names.
- */
-
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { UsageError } from "../errors.mjs";
@@ -34,7 +16,7 @@ async function scanInstalls(root, warn) {
   try {
     idNames = await readdir(root);
   } catch (error) {
-    if (error && error.code === "ENOENT") return found; // nothing installed yet
+    if (error && error.code === "ENOENT") return found;
     throw error;
   }
   for (const idName of idNames.sort()) {
@@ -59,7 +41,6 @@ async function scanInstalls(root, warn) {
 }
 
 async function readInstall(idName, versionName, dir, warn) {
-  // 1. Host metadata record; identity must match the layout.
   let record;
   try {
     record = await readRecord(dir);
@@ -76,9 +57,6 @@ async function readInstall(idName, versionName, dir, warn) {
     return null;
   }
 
-  // 2. Manifest: re-read AND re-validate with the canonical validator.
-  //    A tampered swiftcode.json fails closed — the record alone is never
-  //    trusted.
   let result;
   try {
     result = await validateExtension(dir);

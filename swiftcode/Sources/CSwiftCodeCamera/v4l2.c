@@ -1,7 +1,3 @@
-/* V4L2 access for the host camera layer (camera-host.md §2), written from
- * the public Linux media API documentation (Documentation/userspace-api/
- * media/v4l). Every ioctl is retried on EINTR. Off Linux every call
- * returns -ENOSYS. */
 #include "CSwiftCodeCamera.h"
 
 #include <errno.h>

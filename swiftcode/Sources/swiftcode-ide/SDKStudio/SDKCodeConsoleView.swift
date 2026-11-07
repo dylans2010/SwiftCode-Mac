@@ -1,12 +1,6 @@
-// Ported from Legacy `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeConsoleView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SDKCodeConsoleRow, SDKCodeConsoleStreamBadge.
-
 import AppKit
 import SwiftUI
 
-/// One console entry: subtle timestamp, stream-colored prefix pill, and
-/// the (already 4 KiB-bounded) text. Text selection is enabled per row so
-/// users can copy arbitrary spans, not just whole rows.
 private struct SDKCodeConsoleRow: View {
     let entry: SDKConsoleEntry
 
@@ -27,7 +21,6 @@ private struct SDKCodeConsoleRow: View {
     }
 }
 
-/// Stream-colored prefix pill: OUT (secondary), ERR (red), SYS (blue).
 private struct SDKCodeConsoleStreamBadge: View {
     let stream: SDKConsoleStream
 

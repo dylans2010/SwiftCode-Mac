@@ -1,14 +1,3 @@
-// fts.c - file hierarchy traversal (fts(3)) for SwiftCode's libSystem
-// (specs/macos/libsystem.md §12). Clean-room SwiftCode code from the fts(3)
-// manual's description of the interface; FTS and FTSENT are the public
-// <fts_compat.h> layouts (the ones programs built for releases before
-// macOS 28 use).
-//
-// SwiftCode's traversal never changes the working directory (as if FTS_NOCHDIR
-// were always given): fts_accpath is the full path. Each entry owns its
-// path string and sits in a private node that also holds its child list.
-// A directory's children are read when it is first left in preorder and
-// freed when it is returned in postorder.
 #include "ycl.h"
 
 struct ycl_ftsent {
@@ -65,7 +54,7 @@ static uint16_t mode_of(const void *st) { return *(const uint16_t *)((const char
 
 struct node {
     struct ycl_ftsent *children;
-    struct ycl_ftsent e;  // last: fts_name grows past the end
+    struct ycl_ftsent e;
 };
 
 static struct ycl_ftsent **children_of(struct ycl_ftsent *e) {
@@ -119,10 +108,8 @@ static void free_list(struct ycl_ftsent *e) {
     }
 }
 
-// Classifies `e` with stat information (follow: use stat, not lstat).
 static void classify(FTS *fts, struct ycl_ftsent *e, int follow, int dtype) {
     if (!e->fts_statp) {
-        // FTS_NOSTAT: the directory entry's type only.
         if (dtype == DT_DIR_) e->fts_info = I_D;
         else if ((fts->fts_options & NOSTAT_TYPE) && dtype == DT_REG_) e->fts_info = I_F;
         else if ((fts->fts_options & NOSTAT_TYPE) && dtype == DT_LNK_) e->fts_info = I_SL;
@@ -167,11 +154,10 @@ static int compare_entries(const void *a, const void *b, FTS *fts) {
     return fts->fts_compar((const struct ycl_ftsent **)a, (const struct ycl_ftsent **)b);
 }
 
-static FTS *sort_fts;  // the FTS whose comparison qsort is calling (under sort_lock)
+static FTS *sort_fts;
 static os_unfair_lock sort_lock;
 static int sort_trampoline(const void *a, const void *b) { return compare_entries(a, b, sort_fts); }
 
-// Sorts a linked list with the FTS comparison; returns the new head.
 static struct ycl_ftsent *sort_list(FTS *fts, struct ycl_ftsent *head) {
     if (!fts->fts_compar || !head || !head->fts_link) return head;
     size_t n = 0;
@@ -191,8 +177,6 @@ static struct ycl_ftsent *sort_list(FTS *fts, struct ycl_ftsent *head) {
     return head;
 }
 
-// The children of directory `dir`, classified and sorted; 0 if empty or
-// unreadable (then dir becomes FTS_DNR with fts_errno set).
 static struct ycl_ftsent *read_children(FTS *fts, struct ycl_ftsent *dir) {
     void *d = opendir(dir->fts_accpath);
     if (!d) {
@@ -247,8 +231,8 @@ YCL_EXPORT FTS *fts_open(char *const *paths, int options,
         tail = &e->fts_link;
     }
     head = sort_list(fts, head);
-    *children_of(root_parent) = head;  // the roots, for fts_read and fts_close
-    fts->fts_child = root_parent;       // SwiftCode: the root parent owns every entry
+    *children_of(root_parent) = head;
+    fts->fts_child = root_parent;
     fts->fts_cur = 0;
     if (head) fts->fts_dev = head->fts_dev;
     return fts;
@@ -273,7 +257,6 @@ YCL_EXPORT struct ycl_ftsent *fts_read(FTS *fts) {
         classify(fts, cur, 1, 0);
         if (cur->fts_info == I_D) return cur;
     }
-    // Descend into a preorder directory.
     if (cur->fts_info == I_D && instr != S_SKIP &&
         !((fts->fts_options & XDEV) && cur->fts_level > 0 && cur->fts_dev != fts->fts_dev)) {
         struct ycl_ftsent **list = children_of(cur);
@@ -282,11 +265,10 @@ YCL_EXPORT struct ycl_ftsent *fts_read(FTS *fts) {
             fts->fts_cur = *list;
             return *list;
         }
-        if (cur->fts_info == I_DNR) return cur;  // unreadable: reported instead of the postorder visit
+        if (cur->fts_info == I_DNR) return cur;
         cur->fts_info = I_DP;
         return cur;
     }
-    // Move to the next sibling, or up to the parent's postorder visit.
     for (;;) {
         if (cur->fts_link) {
             fts->fts_cur = cur->fts_link;
@@ -296,7 +278,7 @@ YCL_EXPORT struct ycl_ftsent *fts_read(FTS *fts) {
         if (!parent || parent->fts_level < 0) {
             fts->fts_cur = cur;
             ycl_errno = 0;
-            return 0;  // the traversal is over
+            return 0;
         }
         if (parent->fts_info == I_D) {
             free_list(*children_of(parent));
@@ -319,8 +301,6 @@ YCL_EXPORT int fts_set(FTS *fts, struct ycl_ftsent *e, int instr) {
     return 0;
 }
 
-// The children of the current directory as a list the caller may read until
-// the next fts call; SwiftCode reads them afresh and frees them on the next call.
 YCL_EXPORT struct ycl_ftsent *fts_children(FTS *fts, int options) {
     (void)options;
     struct ycl_ftsent *cur = fts->fts_cur;

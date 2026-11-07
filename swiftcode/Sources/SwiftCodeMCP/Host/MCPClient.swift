@@ -1,21 +1,8 @@
-// MCPClient.swift
-//
-// Ported from Legacy `SwiftCode/Frameworks/Internal/MCP/MCPClient.swift` (SwiftCode-Mac migration, R-MCPSERVER, 2026-11-06; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeMCP. Body is Legacy verbatim apart from the adaptations below.
-// Adaptations:
-//   - `MCPServer` -> `MCPServerConfig`, `MCPTool` -> `MCPRemoteTool` (same collisions as MCPModels.swift).
-//   - Legacy's `JSONRPCID` / `JSONRPCError` renamed `MCPJSONRPCID` / `MCPJSONRPCError`: SwiftCodeAssistant/Models/JSONRPC.swift already defines both with incompatible shapes (`.int`/`.string`, no `.null`, not Codable; `data: AnyJSON?`). `JSONRPCRequest` / `JSONRPCResponse` / `JSONRPCNotification` had no collision and keep their names.
-//   - `JSONValue` qualified as `SwiftCodeAssistant.JSONValue` (see MCPModels.swift).
-//   - `import SwiftCodeAssistant` added for `KeychainService` / `JSONValue`.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-
 import Foundation
 import os
 import SwiftCodeAssistant
 
 private let logger = Logger(subsystem: "com.swiftcode.mcp", category: "MCPClient")
-
-// MARK: - JSON-RPC Messaging Structs
 
 public enum MCPJSONRPCID: Codable, Sendable, Hashable {
     case integer(Int)
@@ -114,8 +101,6 @@ public struct MCPJSONRPCError: Codable, Sendable, Error {
     public let data: SwiftCodeAssistant.JSONValue?
 }
 
-// MARK: - Server-Sent Events (SSE) Parser
-
 public enum SSEParser {
     public struct ParsedEvent: Sendable {
         public var eventType: String = "message"
@@ -131,13 +116,11 @@ public enum SSEParser {
         }
     }
 
-    /// Parses an SSE payload (as raw Data) into a list of individual SSE events according to the W3C EventSource standard.
     public static func parseEvents(from data: Data) -> [ParsedEvent] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
         return parseEvents(from: text)
     }
 
-    /// Parses an SSE payload (as String) into a list of individual SSE events according to the W3C EventSource standard.
     public static func parseEvents(from text: String) -> [ParsedEvent] {
         var events: [ParsedEvent] = []
         var currentEvent = ParsedEvent()
@@ -198,7 +181,6 @@ public enum SSEParser {
         return events
     }
 
-    /// Extracts and decodes all JSONRPCResponse objects found in an SSE payload.
     public static func extractJSONRPCResponses(from data: Data) -> [JSONRPCResponse] {
         let events = parseEvents(from: data)
         var responses: [JSONRPCResponse] = []
@@ -220,7 +202,6 @@ public enum SSEParser {
         return responses
     }
 
-    /// Extracts and decodes all JSONRPCNotification objects found in an SSE payload.
     public static func extractNotifications(from data: Data) -> [JSONRPCNotification] {
         let events = parseEvents(from: data)
         var notifications: [JSONRPCNotification] = []
@@ -239,24 +220,15 @@ public enum SSEParser {
     }
 }
 
-// MARK: - Transport Session Protocol
-
 public protocol MCPTransportSession: Sendable {
-    /// Connects the transport and starts receiving incoming messages.
-    /// - Parameter messageHandler: A closure called when a JSON-RPC message/response is received from the server.
     func connect(messageHandler: @escaping @Sendable (JSONRPCResponse) -> Void) async throws
 
-    /// Sends a JSON-RPC request and returns the response.
     func send(request: JSONRPCRequest) async throws -> JSONRPCResponse
 
-    /// Sends a JSON-RPC notification.
     func send(notification: JSONRPCNotification) async throws
 
-    /// Gracefully closes and tears down transport resources.
     func disconnect()
 }
-
-// MARK: - Stdio Transport Implementation
 
 public final class StdioTransportSession: MCPTransportSession, @unchecked Sendable {
     private let server: MCPServerConfig
@@ -314,7 +286,6 @@ public final class StdioTransportSession: MCPTransportSession, @unchecked Sendab
         activeProcess.withLock { $0 = process }
         writePipe.withLock { $0 = inPipe }
 
-        // Read error pipe to log warnings
         let errorHandle = errPipe.fileHandleForReading
         let serverName = server.displayName
         Task.detached {
@@ -323,11 +294,9 @@ public final class StdioTransportSession: MCPTransportSession, @unchecked Sendab
                     logger.warning("[Server Stderr '\(serverName)']: \(line)")
                 }
             } catch {
-                // Ignore pipe close errors
             }
         }
 
-        // Handle stdout asynchronously line-by-line
         let outputHandle = outPipe.fileHandleForReading
         let task = Task.detached { [weak self] in
             guard let self = self else { return }
@@ -425,8 +394,6 @@ public final class StdioTransportSession: MCPTransportSession, @unchecked Sendab
     }
 }
 
-// MARK: - HTTP JSON Transport Implementation
-
 public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sendable {
     private let server: MCPServerConfig
     private let logEvent: @Sendable (MCPLogSeverity, String) -> Void
@@ -491,19 +458,16 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
             throw MCPError.authenticationFailed("Server returned HTTP \(httpResponse.statusCode). Response: \(responseBody)")
         }
 
-        // Handle SSE Response (Streamable HTTP / Server-Sent Events)
         if isSSE {
             logEvent(.info, "[\(timestamp)] Processing Server-Sent Events (SSE) response stream...")
             let responses = SSEParser.extractJSONRPCResponses(from: data)
 
-            // Forward any notifications in the stream to the message handler
             let notifications = SSEParser.extractNotifications(from: data)
             let handler = messageHandler.withLock { $0 }
             for notif in notifications {
                 handler?(JSONRPCResponse(jsonrpc: notif.jsonrpc, id: nil, result: notif.params, error: nil))
             }
 
-            // Find matching response by request ID
             if let matched = responses.first(where: {
                 if let reqID = request.id, let respID = $0.id {
                     return reqID == respID || reqID.integerValue == respID.integerValue
@@ -519,7 +483,6 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
                 return first
             }
 
-            // Fallback: Try decoding the raw body directly as JSON
             if let fallback = try? JSONDecoder().decode(JSONRPCResponse.self, from: data) {
                 logEvent(.info, "[\(timestamp)] Successfully parsed JSON response from payload.")
                 return fallback
@@ -530,12 +493,10 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
             throw MCPError.decodingFailed("Server returned text/event-stream but could not parse a valid JSON-RPC response. Raw payload: \(preview)")
         }
 
-        // Handle Standard JSON Response
         if isJSON {
             do {
                 return try JSONDecoder().decode(JSONRPCResponse.self, from: data)
             } catch {
-                // If direct JSON decoding failed, check if the payload had SSE formatting
                 let sseResponses = SSEParser.extractJSONRPCResponses(from: data)
                 if let match = sseResponses.first {
                     logEvent(.info, "[\(timestamp)] Successfully recovered JSON-RPC response via SSE fallback parser.")
@@ -547,7 +508,6 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
             }
         }
 
-        // Handle Other / Ambiguous Content Types (e.g. text/plain)
         if let direct = try? JSONDecoder().decode(JSONRPCResponse.self, from: data) {
             return direct
         }
@@ -621,8 +581,6 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
         }
     }
 }
-
-// MARK: - HTTP SSE Transport Implementation
 
 public struct SSEEvent {
     public var eventType: String = "message"
@@ -1008,8 +966,6 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
     }
 }
 
-// MARK: - MCP Client Connection Class
-
 public final class MCPClient: Sendable {
     public let server: MCPServerConfig
     private let requestIDCounter = OSAllocatedUnfairLock<Int>(initialState: 1)
@@ -1033,8 +989,6 @@ public final class MCPClient: Sendable {
             return next
         }
     }
-
-    // MARK: - Handshake and Capabilities Negotiation
 
     public func connect() async throws -> MCPServerMetadata {
         logger.log("Connecting to MCP Server '\(self.server.displayName)' via \(self.server.transport.rawValue)...")
@@ -1110,8 +1064,6 @@ public final class MCPClient: Sendable {
         logEvent(severity: .info, message: "Received unsolicited JSON-RPC message: \(message.jsonrpc ?? "")")
     }
 
-    // MARK: - Auto Detection
-
     private enum DetectedTransport {
         case json
         case sse
@@ -1143,7 +1095,6 @@ public final class MCPClient: Sendable {
                 let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
                 logEvent(severity: .info, message: "Remote probe response status: \(httpResponse.statusCode), Content-Type: \(contentType)")
 
-                // Only consider it an open SSE stream if status is 200 AND content-type is text/event-stream
                 if httpResponse.statusCode == 200 && contentType.contains("text/event-stream") {
                     logEvent(severity: .info, message: "Transport probe detected active Server-Sent Events (SSE) stream.")
                     return .sse
@@ -1189,8 +1140,6 @@ public final class MCPClient: Sendable {
             break
         }
     }
-
-    // MARK: - Transport Execution Core
 
     private func performHandshake() async throws -> MCPServerMetadata {
         logEvent(severity: .info, message: "Performing protocol handshake negotiation...")
@@ -1314,8 +1263,6 @@ public final class MCPClient: Sendable {
             throw MCPError.decodingFailed("Failed to decode tool execution output: \(error.localizedDescription)")
         }
     }
-
-    // MARK: - RPC Primitives
 
     private func sendRPCRequest(method: String, params: SwiftCodeAssistant.JSONValue?) async throws -> JSONRPCResponse {
         let reqID = getNextRequestID()

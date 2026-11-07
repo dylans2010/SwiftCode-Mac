@@ -6,7 +6,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// reference-ui-5.md §11.1 (R35): the project editor's remaining gaps.
 @MainActor
 @Suite struct ProjectEditorR35Tests {
     static let pbxproj = """
@@ -64,8 +63,6 @@ import SwiftCodeProject
 
     func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
 
-    // MARK: P1
-
     @Test func buildSettingsOpensOnBasic() throws {
         let pe = try Self.controller()
         pe.select(tab: .buildSettings)
@@ -74,16 +71,12 @@ import SwiftCodeProject
         #expect(seg?.selectedSegment == 0)
     }
 
-    // MARK: P4
-
     @Test func buildPhasesPluginRowAndNoConfigurationPopUp() throws {
         let pe = try Self.controller()
         let titles = pe.model.phaseSections(target: "App").map(\.title)
         #expect(Array(titles.prefix(3)) == ["Target Dependencies", "Run Build Tool Plug-ins", "Compile Sources"])
         #expect(pe.model.phaseSections(target: "App")[1].items.map(\.name) == ["LintPlugin"])
-        // A plug-in dependency is not a target dependency.
         #expect(pe.model.phaseSections(target: "App")[0].items.isEmpty)
-        // Present even when empty.
         #expect(pe.model.phaseSections(target: "AppTests").map(\.title).prefix(2) == ["Target Dependencies", "Run Build Tool Plug-ins"])
         pe.select(tab: .buildPhases)
         #expect(pe.configPopUp.isHidden)
@@ -108,9 +101,6 @@ import SwiftCodeProject
         #expect(pe.tables["Custom iOS Target Properties"]?.rows.count == before)
     }
 
-    // MARK: P3
-
-    /// The written project parses and round-trips through the writer.
     func reparsed(_ proj: PBXProj) throws -> PBXProj {
         let text = PBXProjWriter.write(proj, projectName: "App")
         let back = try PBXProj(parsing: text)
@@ -139,15 +129,12 @@ import SwiftCodeProject
         pe.tabFilters = [:]
         pe.removeResourceTag("Intro")
         #expect(pe.model.resourceTags == ["Level1", "Outro"])
-        // Prefetched groups the tags.
         pe.model.setSetting("ON_DEMAND_RESOURCES_INITIAL_INSTALL_TAGS", "Level1", target: "App")
         pe.setResourceTagScope("Prefetched")
         #expect(pe.tables["Initial Install Tags"]?.texts == [["Level1"]])
         #expect(pe.tables["Download Only On Demand"]?.texts == [["Outro"]])
-        // Removing a tag also drops it from the on-demand settings.
         pe.removeResourceTag("Level1")
         #expect(pe.model.resolve(target: "App", configuration: "Debug")?.settings["ON_DEMAND_RESOURCES_INITIAL_INSTALL_TAGS"] == "")
-        // No tags: the empty text.
         pe.removeResourceTag("Outro")
         pe.setResourceTagScope("All")
         #expect(all(pe.content).contains { ($0 as? NSTextField)?.stringValue == ProjectEditorModel.resourceTagsEmptyText })
@@ -190,24 +177,21 @@ import SwiftCodeProject
         #expect(configs.plusButton?.isEnabled == true && configs.minusButton?.isEnabled == true)
         pe.toggleConfiguration("Debug")
         #expect(pe.tables["Configurations"]?.texts.map { $0[0].trimmingCharacters(in: .whitespaces) }.prefix(4) == ["\u{25BE} Debug", "App", "App", "AppTests"])
-        // Command-line configuration and parallelize.
         let popup = try #require(all(pe.content).compactMap { $0 as? NSPopUpButton }.first { $0.identifier?.rawValue == "commandLineConfiguration" })
         #expect(popup.titleOfSelectedItem == "Release")
         pe.setCommandLineConfiguration("Debug")
         #expect(written.flatMap { $0[$0.project?.string("buildConfigurationList") ?? ""]?.string("defaultConfigurationName") } == "Debug")
         pe.setParallelizeCommandLine(false)
         #expect(written?.project?["attributes"]?.dictionary?["BuildIndependentTargetsInParallel"]?.string == "0")
-        // Duplicate and remove a configuration across project and targets.
         let new = try #require(pe.duplicateConfiguration("Release"))
         #expect(new == "Release copy")
         #expect(pe.model.configurations(of: nil).names == ["Debug", "Release", "Release copy"])
         #expect(pe.model.configurations(of: "App").names == ["Debug", "Release", "Release copy"])
-        #expect(pe.model.configurations(of: "AppTests").names == ["Debug"]) // no Release to copy
+        #expect(pe.model.configurations(of: "AppTests").names == ["Debug"])
         let w2 = try #require(written)
         _ = try reparsed(w2)
         pe.removeConfiguration("Release copy")
         #expect(pe.model.configurations(of: "App").names == ["Debug", "Release"])
-        // Localizations.
         let locs = try #require(pe.tables["Localizations"])
         #expect(locs.columns == ["Localization", "Default", "Resources"])
         #expect(locs.texts == [["English (Development Language)", "Default", "0 Files Localized"], ["German", "", "0 Files Localized"]])
@@ -215,7 +199,7 @@ import SwiftCodeProject
         #expect(pe.model.localizationRows.map(\.code) == ["en", "de", "fr"])
         pe.setDevelopmentRegion("de")
         #expect(written?.project?.string("developmentRegion") == "de")
-        pe.removeLocalization("de") // the development language stays
+        pe.removeLocalization("de")
         #expect(pe.model.localizationRows.map(\.code) == ["en", "de", "fr"])
         pe.removeLocalization("fr")
         pe.setUsesBaseInternationalization(false)
@@ -238,8 +222,6 @@ import SwiftCodeProject
         #expect(added)
     }
 
-    // MARK: P6
-
     @Test func supportedDestinationsAddAndRemove() throws {
         let pe = try Self.controller()
         var written: PBXProj?
@@ -261,9 +243,8 @@ import SwiftCodeProject
         pe.removeDestination("iPad")
         #expect(setting("SUPPORTED_PLATFORMS") == "xros xrsimulator" && setting("TARGETED_DEVICE_FAMILY") == "7")
         #expect(setting("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD") == "NO" && names() == ["Apple Vision"])
-        pe.removeDestination("Apple Vision") // the last one stays
+        pe.removeDestination("Apple Vision")
         #expect(names() == ["Apple Vision"])
-        // Written at target level in every configuration.
         let w = try #require(written)
         let tl = try #require(w["TL"])
         for c in w.buildConfigurations(listID: tl.id) {
@@ -287,11 +268,9 @@ import SwiftCodeProject
         var written: PBXProj?
         pe.onChange = { written = $0 }
         func button(_ id: String) -> NSButton? { all(pe.content).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == id } }
-        // Generated Info has the bundle id and version keys: "→".
         #expect(button("reveal:PRODUCT_BUNDLE_IDENTIFIER") != nil && button("reveal:MARKETING_VERSION") != nil)
         #expect(button("reveal:INFOPLIST_KEY_CFBundleDisplayName") != nil)
         #expect(button("add:INFOPLIST_KEY_LSApplicationCategoryType") != nil)
-        // "+" adds the key to Info.
         let category = try #require(ProjectEditorModel.identityRows.first { $0.title == "App Category" })
         pe.addIdentityKeyToInfo(category)
         #expect(written != nil)
@@ -299,14 +278,11 @@ import SwiftCodeProject
         #expect(button("reveal:INFOPLIST_KEY_LSApplicationCategoryType") != nil)
         let popup = all(pe.content).compactMap { $0 as? NSPopUpButton }.first { $0.identifier?.rawValue == "INFOPLIST_KEY_LSApplicationCategoryType" }
         #expect(popup?.titleOfSelectedItem == "Business")
-        // "→" reveals the setting in Build Settings.
         pe.revealSetting("INFOPLIST_KEY_LSApplicationCategoryType")
         #expect(pe.tab == .buildSettings && pe.filter == .all && pe.search == "INFOPLIST_KEY_LSApplicationCategoryType")
         let row = pe.settingsTable.selectedRow
         #expect(row >= 0 && pe.settingsLines[row] == .setting("INFOPLIST_KEY_LSApplicationCategoryType"))
     }
-
-    // MARK: P2
 
     @Test func targetListFooterCollapseAndFilter() throws {
         let pe = try Self.controller()
@@ -315,10 +291,10 @@ import SwiftCodeProject
         #expect(all(pe.view).contains { ($0 as? NSSearchField)?.placeholderString == "Filter" && $0.superview === pe.sidebarFooter })
         #expect(pe.removeTargetButton.isEnabled)
         pe.select(target: nil, tab: .info)
-        #expect(!pe.removeTargetButton.isEnabled) // the project can't be deleted
+        #expect(!pe.removeTargetButton.isEnabled)
         pe.setSidebarFilter("tests")
         #expect(pe.sidebarRows.filter { $0.target != nil }.map(\.title) == ["AppTests"])
-        #expect(pe.sidebarRows.map(\.title).prefix(3) == ["PROJECT", "App", "TARGETS"]) // the project row stays
+        #expect(pe.sidebarRows.map(\.title).prefix(3) == ["PROJECT", "App", "TARGETS"])
         pe.setSidebarFilter("")
         #expect(pe.sidebarRows.filter { $0.target != nil }.map(\.title) == ["App", "AppTests"])
         pe.setSidebarCollapsed(true)
@@ -341,7 +317,7 @@ import SwiftCodeProject
         #expect(sheet.hostPopUp.titleOfSelectedItem == "App")
         sheet.productNameField.stringValue = "App"
         sheet.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
-        sheet.nextClicked() // duplicate name
+        sheet.nextClicked()
         #expect(sheet.errorLabel.stringValue.contains("already exists"))
         sheet.productNameField.stringValue = "LogicTests"
         sheet.nextClicked()
@@ -352,12 +328,10 @@ import SwiftCodeProject
         let settings = w.buildConfigurations(listID: t.string("buildConfigurationList")).first?["buildSettings"]?.dictionary
         #expect(settings?["TEST_HOST"]?.string == "$(BUILT_PRODUCTS_DIR)/App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App")
         #expect(settings?["BUNDLE_LOADER"]?.string == "$(TEST_HOST)")
-        // A synchronized folder with a starter test file on disk.
         let dir = pe.model.proj.projectDirectory(xcodeprojURL: pe.model.xcodeprojURL)
         let file = dir.appendingPathComponent("LogicTests/LogicTests.swift")
         #expect((try? String(contentsOf: file, encoding: .utf8))?.contains("@Test func example()") == true)
         #expect(t.references("fileSystemSynchronizedGroups").count == 1)
-        // The written project round-trips.
         _ = try reparsed(w)
     }
 
@@ -374,13 +348,11 @@ import SwiftCodeProject
         pe.deleteTarget("App")
         let w = try #require(written)
         #expect(w.targets.compactMap { $0.string("name") } == ["AppTests"])
-        // The plug-in dependency and its product dependency went with App.
         #expect(w["D1"] == nil && w["PR1"] == nil && w["AP"] == nil)
         _ = try reparsed(w)
     }
 }
 
-/// The first line where two texts differ (test messages).
 func firstDifference(_ a: String, _ b: String) -> String {
     let x = a.components(separatedBy: "\n"), y = b.components(separatedBy: "\n")
     for i in 0..<max(x.count, y.count) where (i < x.count ? x[i] : nil) != (i < y.count ? y[i] : nil) {

@@ -1,10 +1,8 @@
-// MKProbe: geometry, projection, camera math and defaults (no network needed).
 import UIKit
 import MapKit
 import CoreLocation
 
 @MainActor func runMath(_ vc: ProbeVC) {
-    // --- MKMapPoint projection
     P("world rect=\(mr(MKMapRect.world)) size=(\(f(MKMapSize.world.width, 3)),\(f(MKMapSize.world.height, 3))) null=\(mr(MKMapRect.null)) nullIsNull=\(MKMapRect.null.isNull) worldIsEmpty=\(MKMapRect.world.isEmpty)")
     let pts: [(String, Double, Double)] = [
         ("origin", 0, 0), ("applepark", 37.3349, -122.0090), ("london", 51.5074, -0.1278),
@@ -31,7 +29,6 @@ import CoreLocation
     P("distance sf-tokyo metersBetweenMapPoints=\(f(MKMapPoint(sf).distance(to: MKMapPoint(tokyo)), 3)) clDistance=\(f(CLLocation(latitude: sf.latitude, longitude: sf.longitude).distance(from: CLLocation(latitude: tokyo.latitude, longitude: tokyo.longitude)), 3))")
     P("distance equator 1deg lon metersBetween=\(f(MKMapPoint(CLLocationCoordinate2D(latitude: 0, longitude: 0)).distance(to: MKMapPoint(CLLocationCoordinate2D(latitude: 0, longitude: 1))), 4)) 1deg lat=\(f(MKMapPoint(CLLocationCoordinate2D(latitude: 0, longitude: 0)).distance(to: MKMapPoint(CLLocationCoordinate2D(latitude: 1, longitude: 0))), 4))")
 
-    // --- tables for fitting the scale and distance functions
     var tbl: [String] = []
     for la in stride(from: 0.0, through: 86.0, by: 2.0) { tbl.append("\(la):\(f(MKMetersPerMapPointAtLatitude(la), 12))") }
     for la in [84.0, 84.5, 84.9, 84.99, 85.01, 85.5, 88.0, 89.9, 89.99, -37.3349, -60.0] { tbl.append("\(la):\(f(MKMetersPerMapPointAtLatitude(la), 12))") }
@@ -47,7 +44,6 @@ import CoreLocation
         dist((0, 0), (45, 45)), dist((80, 0), (80, 1)), dist((10, 10), (20, 30)),
     ].joined(separator: " "))
 
-    // --- regions
     for (la, lo, m1, m2) in [(0.0, 0.0, 1000.0, 1000.0), (37.3349, -122.0090, 1000.0, 1000.0), (60.0, 0.0, 1000.0, 1000.0), (37.3349, -122.0090, 100000.0, 50000.0), (0.0, 0.0, 40_000_000.0, 40_000_000.0), (89.0, 0.0, 1000.0, 1000.0)] {
         let r = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: la, longitude: lo), latitudinalMeters: m1, longitudinalMeters: m2)
         P("region fromMeters center=(\(la),\(lo)) m=(\(m1),\(m2)) -> \(rg(r))")
@@ -56,7 +52,6 @@ import CoreLocation
         P("region fromMapRect \(mr(r)) -> \(rg(MKCoordinateRegion(r)))")
     }
 
-    // --- MKMapRect algebra
     let r1 = MKMapRect(x: 0, y: 0, width: 100, height: 100), r2 = MKMapRect(x: 50, y: 50, width: 100, height: 100)
     P("rect union=\(mr(r1.union(r2))) intersection=\(mr(r1.intersection(r2))) inset10=\(mr(r1.insetBy(dx: 10, dy: 10))) offset=\(mr(r1.offsetBy(dx: 5, dy: -5))) intersects=\(r1.intersects(r2)) contains(50,50)=\(r1.contains(MKMapPoint(x: 50, y: 50))) contains(100,100)=\(r1.contains(MKMapPoint(x: 100, y: 100))) containsRect=\(r1.contains(MKMapRect(x: 10, y: 10, width: 10, height: 10)))")
     P("rect disjoint intersection=\(mr(r1.intersection(MKMapRect(x: 500, y: 500, width: 1, height: 1)))) isNull=\(r1.intersection(MKMapRect(x: 500, y: 500, width: 1, height: 1)).isNull) unionNull=\(mr(r1.union(.null))) empty0=\(MKMapRect(x: 1, y: 1, width: 0, height: 5).isEmpty)")
@@ -64,7 +59,6 @@ import CoreLocation
     P("rect spans180 a=\(span.spans180thMeridian) world=\(MKMapRect.world.spans180thMeridian) remainder=\(mr(span.remainder)) remainderOfWorld=\(mr(MKMapRect.world.remainder))")
     P("rect minmax r2 minX=\(r2.minX) midX=\(r2.midX) maxX=\(r2.maxX) minY=\(r2.minY) midY=\(r2.midY) maxY=\(r2.maxY)")
 
-    // --- overlays
     var line = [applePark, stanford, sfDowntown]
     let pl = MKPolyline(coordinates: &line, count: line.count)
     P("polyline pointCount=\(pl.pointCount) bounding=\(mr(pl.boundingMapRect)) coordinate=\(c(pl.coordinate)) points0=\(mp(pl.points()[0])) location(at:1)=\(f(pl.location(atPointIndex: 1)))")
@@ -99,7 +93,6 @@ import CoreLocation
     to.isGeometryFlipped = true
     P("tileoverlay flipped url(z=3,x=1,y=2,scale=1)=\(to.url(forTilePath: MKTileOverlayPath(x: 1, y: 2, z: 3, contentScaleFactor: 1)).absoluteString)")
 
-    // --- cameras (not attached to a view)
     let c0 = MKMapCamera()
     P("camera init default \(cam(c0))")
     for (dist, pitch, heading) in [(1000.0, 0.0, 0.0), (1000.0, 45.0, 90.0), (1000.0, 60.0, -30.0), (1000.0, 89.0, 400.0)] {
@@ -130,7 +123,6 @@ import CoreLocation
     let bnd2 = MKMapView.CameraBoundary(mapRect: MKMapRect(origin: MKMapPoint(applePark), size: MKMapSize(width: 5000, height: 5000)))
     P("cameraBoundary mapRect -> region=\(rg(bnd2!.region)) mapRect=\(mr(bnd2!.mapRect))")
 
-    // --- distance formatter
     for loc in ["en_US", "en_GB", "de_DE", "fr_FR", "ja_JP"] {
         let fm = MKDistanceFormatter(); fm.locale = Locale(identifier: loc)
         P("distfmt \(loc) default units=\(fm.units.rawValue) style=\(fm.unitStyle.rawValue) " + [0, 10, 99, 100, 160, 805, 1000, 1609.344, 15000, 123456].map { "\($0)=\"\(fm.string(fromDistance: $0))\"" }.joined(separator: " "))
@@ -147,14 +139,12 @@ import CoreLocation
         P("distfmt parse \"\(s)\" -> \(f(fm.distance(from: s), 4))")
     }
 
-    // --- MKMapView defaults (not yet on screen, then on screen)
     let off = MKMapView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
     P("mapview offscreen defaults mapType=\(off.mapType.rawValue) zoom=\(off.isZoomEnabled) scroll=\(off.isScrollEnabled) pitch=\(off.isPitchEnabled) rotate=\(off.isRotateEnabled) compass=\(off.showsCompass) scale=\(off.showsScale) traffic=\(off.showsTraffic) buildings=\(off.showsBuildings) userLoc=\(off.showsUserLocation) tracking=\(off.userTrackingMode.rawValue) poiFilter=\(String(describing: off.pointOfInterestFilter)) selectable=\(off.selectableMapFeatures.rawValue) config=\(type(of: off.preferredConfiguration)) elevation=\(off.preferredConfiguration.elevationStyle.rawValue) region=\(rg(off.region)) cam=\(cam(off.camera)) zoomRange=(\(off.cameraZoomRange.minCenterCoordinateDistance),\(off.cameraZoomRange.maxCenterCoordinateDistance)) boundary=\(String(describing: off.cameraBoundary)) pitchButton=\(off.pitchButtonVisibility.rawValue)")
     if let sc = off.preferredConfiguration as? MKStandardMapConfiguration {
         P("mapview standardConfig emphasis=\(sc.emphasisStyle.rawValue) showsTraffic=\(sc.showsTraffic) poiFilter=\(String(describing: sc.pointOfInterestFilter))")
     }
 
-    // --- viewport geometry vs view size (views placed away from the safe-area edges)
     for (w, h) in [(200.0, 200.0), (200.0, 400.0), (300.0, 150.0), (100.0, 300.0), (300.0, 300.0)] {
         let v = MKMapView(frame: CGRect(x: 20, y: 60, width: w, height: h))
         vc.view.addSubview(v)

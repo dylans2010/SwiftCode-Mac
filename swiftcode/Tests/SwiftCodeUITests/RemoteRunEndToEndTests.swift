@@ -5,18 +5,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Opt-in end-to-end run on a real remote SwiftCode simulator (specs/ide/run.md
-/// §Remote SwiftCode simulator). Skipped unless these are set:
-///   SWIFTCODE_E2E_REMOTE   ssh destination (user@host; key-based login only)
-///   SWIFTCODE_E2E_DATA     remote data directory (apps/, devices/<device>)
-///   SWIFTCODE_E2E_RUNTIME  remote simulator runtime root
-///   SWIFTCODE_E2E_SIMD     remote swiftcode-simd (or a wrapper that adds host-side options)
-///   SWIFTCODE_E2E_APP      local iOS-simulator .app to upload
-///   SWIFTCODE_E2E_DEVICE   remote device name (default "e2e")
-///   SWIFTCODE_E2E_MINUTES  how long to wait for the launch (default 30)
-///   SWIFTCODE_E2E_LEAN_BOOT  1: Lean boot, 0: off (default: the setting's default, a full boot)
-///   SWIFTCODE_E2E_WARM_BOOT  0: always boot cold (default: warm boot, run.md §Warm boot)
-/// Nothing here is machine-specific; the values come only from the environment.
 @Suite(.serialized, .heavyIntegration) @MainActor struct RemoteRunEndToEndTests {
     @Test func runsAnAppOnARealRemoteSimulator() async throws {
         let env = ProcessInfo.processInfo.environment
@@ -39,8 +27,6 @@ import Testing
         let started = Date()
         await session.runOnRemoteSimulator(app: app, remote: remote)
         #expect(await waitUntil(60) { session.simulatorRun?.remotePID != nil })
-        // Times seen from the Mac (run start = before the upload): the home
-        // screen (the launcher's "home screen at" line) and the launch.
         var homeAt: Double?
         let launched = await waitUntil(minutes * 60) {
             if homeAt == nil, session.console.contains("swiftcode-sim: home screen at") { homeAt = Date().timeIntervalSince(started) }
@@ -49,18 +35,13 @@ import Testing
         let launchedAt = Date().timeIntervalSince(started)
         print(String(format: "e2e timing: home screen %@ s, app launched %.1f s after Run (warm boot %@)",
                      homeAt.map { String(format: "%.1f", $0) } ?? "-", launchedAt, settings.warmBoot ? "on" : "off"))
-        // The full console is printed so a failure can be diagnosed from the test log.
         print("---- remote console ----\n" + String(session.console.suffix(6000)))
         #expect(launched && session.console.contains("launched \(bundle.bundleID)"))
-        // Stop (run.md §Remote step 4, §Warm boot item 5): SIGINT to the
-        // launcher, which saves the device (warm boot) and reports it; the
-        // IDE then closes the connection. The run is still going here.
         #expect(session.simulatorRun != nil)
         guard session.simulatorRun != nil else { return }
         let stoppedAt = Date()
         session.stopSimulatorRun(remote: remote)
         #expect(session.activity == .running(RemoteSimulator.stoppingStatus(app: bundle.executable, saves: settings.warmBoot)))
-        // Within the launcher's own stop timeout (120 s), before the IDE's grace time.
         #expect(await waitUntil(remote.stopGrace - 10) { session.simulatorRun == nil })
         print(String(format: "e2e timing: run ended %.1f s after Stop", Date().timeIntervalSince(stoppedAt)))
         print("---- after Stop ----\n" + String(session.console.suffix(2000)))
@@ -68,7 +49,6 @@ import Testing
             #expect(session.consoleText(.debugger).contains("swiftcode-sim: warm boot: the device was saved; the next run continues from it"))
             #expect(!session.console.contains("the device was not saved"))
         }
-        // It ended through the stop, not by a failure or the IDE's fallbacks.
         #expect(session.console.contains("SwiftCode Simulator stopped") || session.console.contains("SwiftCode Simulator ended with status"))
         #expect(!session.console.contains("the stop signal did not reach"))
         #expect(!session.console.contains("after Stop; closing the connection"))

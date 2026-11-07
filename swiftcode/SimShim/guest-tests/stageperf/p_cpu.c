@@ -1,15 +1,3 @@
-/* SwiftCode performance probe: how fast does guest code run? Original SwiftCode code.
- * The same source builds for the host (cc -O2 -DHOST_BUILD p_cpu.c) so the
- * two can be compared (specs/simulator/boot-profile.md §5).
- *   1. alu:   a dependent integer loop (xorshift), ns per iteration;
- *   2. chase: a random pointer chase over BYTES bytes, one hop per 16 KiB
- *      page (TLB and cache misses), ns per hop;
- *   3. lines: the same over 1,280 cache lines spread over 1,280 pages (a
- *      loader-like working set: one header per library), ns per hop;
- *   4. headers (guest only): walk the load commands of every loaded image's
- *      Mach-O header, as a loader comparing install names does, ns per
- *      header walk.
- * Prints one line: "cpu alu=.. chase=.. lines=.. headers=.. images=..". */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,7 +24,6 @@ static uint64_t next(void)
     return rng;
 }
 
-/* A random cyclic permutation of n slots, each `stride` bytes apart. */
 static void **make_chain(size_t n, size_t stride, char **base)
 {
     char *mem = malloc(n * stride + 64);
@@ -60,7 +47,7 @@ static double chase(size_t n, size_t stride, size_t hops)
 {
     char *base;
     void **p = make_chain(n, stride, &base);
-    for (size_t i = 0; i < n; i++) p = (void **)*p;  /* warm up */
+    for (size_t i = 0; i < n; i++) p = (void **)*p;
     double t0 = now_ns();
     for (size_t i = 0; i < hops; i++) p = (void **)*p;
     double t = (now_ns() - t0) / (double)hops;
@@ -71,7 +58,6 @@ static double chase(size_t n, size_t stride, size_t hops)
 
 int main(void)
 {
-    /* 1. alu */
     const long iters = 200000000;
     double t0 = now_ns();
     uint64_t x = 1;
@@ -79,15 +65,12 @@ int main(void)
     double alu = (now_ns() - t0) / (double)iters;
     if (x == 0) printf("x");
 
-    /* 2. chase over 256 MiB, one hop per 16 KiB page */
     double pages = chase(16384, 16384, 20000000);
-    /* 3. 1,280 lines on 1,280 pages (a header per library) */
     double lines = chase(1280, 16384 + 64, 20000000);
 
     double headers = 0;
     unsigned images = 0;
 #ifndef HOST_BUILD
-    /* 4. load-command walks over every loaded image */
     images = _dyld_image_count();
     const long rounds = 2000;
     uint64_t sum = 0;

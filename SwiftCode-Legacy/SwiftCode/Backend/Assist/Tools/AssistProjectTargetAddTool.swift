@@ -48,7 +48,6 @@ public struct AssistProjectTargetAddTool: AssistTool {
         if content.contains("/* \(rawName) */ = {") && content.contains("isa = PBXNativeTarget") {
             return .failure("Target '\(rawName)' already exists in project.pbxproj.")
         }
-        // Verify all insertion anchors exist BEFORE writing anything.
         guard content.contains("/* Begin PBXNativeTarget section */") else {
             return .failure("project.pbxproj is missing the Begin PBXNativeTarget section anchor. No changes were made.")
         }
@@ -59,7 +58,6 @@ public struct AssistProjectTargetAddTool: AssistTool {
             return .failure("project.pbxproj is missing the Begin XCBuildConfiguration section anchor. No changes were made.")
         }
 
-        // Create the target source directory and a real Swift file.
         let targetDir = context.workspaceRoot.appendingPathComponent(rawName)
         if FileManager.default.fileExists(atPath: targetDir.path) {
             return .failure("Directory '\(rawName)' already exists in the workspace. No changes were made.")
@@ -72,7 +70,6 @@ public struct AssistProjectTargetAddTool: AssistTool {
             return .failure("Failed to create target source files: \(error.localizedDescription)")
         }
 
-        // Generate collision-free pbxproj IDs.
         let targetID = uniqueID(notIn: content)
         let configListID = uniqueID(notIn: content)
         let debugID = uniqueID(notIn: content)

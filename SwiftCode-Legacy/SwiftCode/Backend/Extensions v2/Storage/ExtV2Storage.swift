@@ -1,15 +1,5 @@
 import Foundation
 
-// MARK: - Persistent state, kept separate from SwiftCode's core resources
-//
-// Layout under ~/Library/Application Support/SwiftCode/ExtensionsV2/:
-//   installed.json      — installed records (the manager's source of truth)
-//   grants.json         — permission grants, keyed by extension id
-//   settings.json       — registry URL, auto-update, Node path
-//   diagnostics.jsonl   — append-only diagnostic entries
-//   staging/            — in-progress installs, never a final location
-//   extensions/<id>/    — one extracted package per installed extension
-//   backups/<id>.backup — previous version kept until an update commits
 public struct ExtV2Storage: Sendable {
     public struct Settings: Codable, Sendable {
         public var registryBaseURL: String
@@ -55,8 +45,6 @@ public struct ExtV2Storage: Sendable {
         }
     }
 
-    /// Atomic write: temp file in the same directory, then replace. A crash
-    /// mid-write leaves the previous file intact, never a half-written one.
     public func writeAtomically<T: Encodable>(_ value: T, to url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let data = try JSONEncoder().encode(value)
@@ -102,13 +90,10 @@ public struct ExtV2Storage: Sendable {
             try handle.seekToEnd()
             try handle.write(contentsOf: Data((line + "\n").utf8))
         } catch {
-            // Diagnostics must never break the operation they describe.
             print("[ExtV2Storage] Could not append diagnostics: \(error)")
         }
     }
 
-    /// Removes stale staging directories left by interrupted installs.
-    /// Safe to run at launch: staging is never a live install location.
     public func cleanStaleStaging() {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: stagingDirectory, includingPropertiesForKeys: nil) else { return }

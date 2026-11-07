@@ -1,7 +1,3 @@
-// Ported from Legacy `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeFileNavigatorView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SDKFileTreeRow, SDKCodeEntryKind, SDKFileNavigatorAlert, SDKFileNavigatorError, SDKFileTreeModel.
-// Combine/@Published converted to @Observable.
-
 import AppKit
 import Foundation
 import SwiftUI
@@ -102,8 +98,6 @@ private final class SDKFileTreeModel {
         return rows
     }
 
-    // MARK: - Loading
-
     private func loadChildrenIfNeeded(forID id: String) {
         guard let root, let node = find(id: id, in: root), node.needsLoading else { return }
         loadChildren(of: node)
@@ -154,8 +148,6 @@ private final class SDKFileTreeModel {
         files.sort(by: byName)
         return directories + files
     }
-
-    // MARK: - Tree surgery
 
     private func updateNode(id: String, transform: (SDKCodeFileNode) -> SDKCodeFileNode) {
         guard let root else { return }

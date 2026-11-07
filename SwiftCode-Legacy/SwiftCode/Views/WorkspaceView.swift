@@ -8,7 +8,7 @@ struct WorkspaceTool: Identifiable, Codable, Hashable {
     let iconName: String
     let colorHex: String
     let category: String
-    let destination: String // RawValue of ToolbarActionManager.SheetDestination
+    let destination: String
 }
 
 struct WorkspaceView: View {
@@ -16,54 +16,39 @@ struct WorkspaceView: View {
     @Environment(ThemeViewModel.self) var themeVM
     @Environment(ProjectSessionStore.self) private var sessionStore
 
-    // Collapsible Agent Inspector
     @State private var showAgentInspector = false
     @State private var showFileNavigator = true
     @AppStorage("com.swiftcode.workspace.agentInspectorWidth") private var agentInspectorWidth = 320.0
     @State private var dragStartWidth: CGFloat? = nil
 
-    // Collapsible Artboard Simulator Panel
     @State private var showArtboardSimulator = false
     @AppStorage("com.swiftcode.workspace.artboardSimulatorWidth") private var artboardSimulatorWidth = 360.0
     @State private var dragStartWidthSimulator: CGFloat? = nil
 
-    // Collapsible App Details Sidebar Panel
     @State private var showAppDetailsSidebar = false
 
-    // Legacy full-pane special-editor chrome hiding, driven by
-    // .specialEditorActive. No current editor posts it (swiftcode.json
-    // and .xcstrings are both in-pane now), so this stashes nothing
-    // in practice; it is kept only so an older posting view could
-    // not leave the workspace chrome hidden.
     @State private var specialEditorActive = false
     @State private var stashedChrome: (fileNavigator: Bool, artboard: Bool, agent: Bool, appDetails: Bool, infoProj: Bool)?
-    // Collapsible SwiftCode Project Archive Info Sidebar
     @State private var showInfoProjSidebar = false
     @AppStorage("com.swiftcode.workspace.appDetailsSidebarWidth") private var appDetailsSidebarWidth = 320.0
     @State private var dragStartWidthAppDetails: CGFloat? = nil
 
-    // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
-    // Extensions sidebar, toggled from the code-editor toolbar next to
-    // the Assist button. Renders as a column beside the editor, like Assist.
     @State private var showExtensionsSidebar = false
     @AppStorage("com.swiftcode.workspace.extensionsSidebarWidth") private var extensionsSidebarWidth = 720.0
     @State private var dragStartWidthExtensions: CGFloat? = nil
 
-    // Coding Tools Modal State
     @State private var showCodingToolsModal = false
     @State private var codingToolsAction: CodingToolsUI.CodingAction = .refactor
     @State private var codingToolsCode = ""
     @State private var codingToolsRange: NSRange? = nil
     @State private var codingToolsFilePath = ""
 
-    // Workflow Editor States
     @State private var workflowContent = ""
     @State private var workflowFileName = "main.yml"
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkspaceView")
 
-    // App Details States
     @State private var appName = ""
     @State private var bundleIdentifier = ""
     @State private var marketingVersion = "1.0"
@@ -93,12 +78,10 @@ struct WorkspaceView: View {
                     Divider()
                 }
 
-                // Center Code Editor View
                 EditorView(viewModel: viewModel.editor)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if showArtboardSimulator {
-                    // Resizing drag handle for Simulator
                     Rectangle()
                         .fill(Color.secondary.opacity(0.2))
                         .frame(width: 4)
@@ -135,7 +118,6 @@ struct WorkspaceView: View {
                 }
 
                 if showAgentInspector {
-                    // Custom drag handle divider
                     Rectangle()
                         .fill(Color.secondary.opacity(0.2))
                         .frame(width: 4)
@@ -168,7 +150,6 @@ struct WorkspaceView: View {
                 }
 
                 if showExtensionsSidebar {
-                    // Custom drag handle divider
                     Rectangle()
                         .fill(Color.secondary.opacity(0.2))
                         .frame(width: 4)
@@ -201,7 +182,6 @@ struct WorkspaceView: View {
                 }
 
                 if showAppDetailsSidebar {
-                    // Custom drag handle divider
                     Rectangle()
                         .fill(Color.secondary.opacity(0.2))
                         .frame(width: 4)
@@ -234,7 +214,6 @@ struct WorkspaceView: View {
                 }
 
                 if showInfoProjSidebar, let project = sessionStore.activeProject {
-                    // Custom drag handle divider
                     Rectangle()
                         .fill(Color.secondary.opacity(0.2))
                         .frame(width: 4)
@@ -270,8 +249,6 @@ struct WorkspaceView: View {
         )
         .environment(viewModel)
         .toolbar(id: "com.swiftcode.workspaceToolbar") {
-            // No toolbar at all while a full-pane special editor is
-            // active (swiftcode.json).
             if !specialEditorActive {
                 ToolbarItem(id: "navigationGroup", placement: .navigation) {
                     HStack(spacing: 6) {
@@ -428,7 +405,6 @@ struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: .specialEditorActive)) { notification in
             let active = notification.userInfo?["active"] as? Bool ?? false
             if active, !specialEditorActive, stashedChrome == nil {
-                // Stash exactly what was visible, then hide everything.
                 stashedChrome = (showFileNavigator, showArtboardSimulator, showAgentInspector, showAppDetailsSidebar, showInfoProjSidebar)
                 withAnimation(.spring()) {
                     showFileNavigator = false
@@ -523,8 +499,6 @@ struct WorkspaceView: View {
         .foregroundStyle(Color(hex: themeVM.currentTheme.foreground))
         .navigationBarBackButtonHidden(true)
     }
-
-    // MARK: - Sheet Switching
 
     @ViewBuilder
     private func sheetView(for destination: ToolbarActionManager.SheetDestination) -> some View {
@@ -654,7 +628,6 @@ struct WorkspaceView: View {
                 case .ciBuild: CIBuildView(project: project)
                 case .licensesAdd: LicencesAddView(project: project)
 
-                // Relocated Sidebar & Inspector cases
                 case .fileNavigator: FileNavigatorSidebarView(viewModel: viewModel.projectTree)
                 case .debugSessions: DebugSessionsSidebarView(viewModel: viewModel.debug)
                 case .bookmarksSidebar: BookmarksSidebarView()
@@ -762,7 +735,6 @@ struct WorkspaceView: View {
             }
         }
 
-        // Default template
         workflowContent = """
 name: CI
 

@@ -6,7 +6,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-4.md §14 (toolbar right group, editor options) and §16 (assistant modes).
 @MainActor
 @Suite(.serialized) struct ReferenceUI4ToolbarAssistantTests {
     @Test func toolbarRightGroupAndOptionsMenu() throws {
@@ -19,7 +18,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             .write(to: dir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
         let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: dir)), loadDestinations: false, startLanguageService: false)
         let ids = wc.toolbarDefaultItemIdentifiers(NSToolbar()).map(\.rawValue)
-        // reference-ui-6.md §2.1: no Account item; short labels, long tooltips.
         #expect(!ids.contains("account"))
         let start = try #require(ids.firstIndex(of: "addEditor"))
         #expect(Array(ids[start..<(start + 3)]) == EditorOptionsMenu.rightGroup)
@@ -29,7 +27,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             "Layout", "|", "Inline Comparison", "Side By Side Comparison", "|", "Minimap", "Authors", "Code Coverage", "|",
             "Invisibles", "Scope Guides", "Wrap Lines", "|", "Choose Workspace Theme…"])
         #expect(wc.toolbar(NSToolbar(), itemForItemIdentifier: .init("addEditor"), willBeInsertedIntoToolbar: false)?.toolTip == "Add Editor Tabs or Editor Panes")
-        // §14.3: no Devices and Simulators in the Window menu.
         let window = try #require(CommandTable.menus.first { $0.0 == "Window" }?.1)
         #expect(!window.contains { if case .command(let c) = $0 { c.title == "Devices and Simulators" } else { false } })
     }
@@ -50,7 +47,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         wc.open(path: src.appendingPathComponent("Model.swift").path, line: nil)
         wc.toggleAssistant(nil)
         let a = try #require(wc.editorArea.tab.assistant)
-        #expect(a.disabledAssistantModes.contains("Callers"))   // no language service
+        #expect(a.disabledAssistantModes.contains("Callers"))
         wc.setAssistantModeTitle("Extensions")
         #expect(a.fileURL?.lastPathComponent == "Model+More.swift")
         #expect(wc.assistantModeTitle == "Extensions")

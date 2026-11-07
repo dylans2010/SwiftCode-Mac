@@ -1,23 +1,3 @@
-/*
- * mig.c - Mach routines of libsystem_kernel that are MIG RPCs with no trap:
- * mach_port_get_refs, mach_port_set_mscount, mach_port_set_attributes and
- * mach_port_extract_right (to the task port), and host_get_special_port.
- *
- * Clean-room SwiftCode code. Facts used:
- *  - mach-ipc.md section 5 (MIG wire conventions: request/reply IDs, the
- *    request header, NDR_record, mig_reply_error_t, the client's reply
- *    checks and reply-port handling) and section 1.7 (the mach_port
- *    routine table, the attribute flavors, MIG subsystem mach_port = 3200,
- *    set_attributes = 3218). SwiftCode's VMM serves the mach_port subsystem on
- *    task ports (MachIPCKernelServer), so no private routine is needed.
- *  - Apple's open-source xnu (osfmk/kern/host.c, host_get_special_port and
- *    host_get_special_port_from_user; osfmk/mach/host_special_ports.h):
- *    the routine needs the host-privileged port and answers
- *    KERN_INVALID_ARGUMENT for the plain host port that an unprivileged
- *    task's mach_host_self() returns, and for an id outside
- *    HOST_MIN_SPECIAL_PORT (0, itself refused) .. HOST_MAX_SPECIAL_PORT.
- *    SwiftCode's guest processes never hold the privileged host port.
- */
 #include "yc_kernel.h"
 
 struct yc_mig_header {
@@ -48,10 +28,8 @@ void mach_msg_destroy(void *msg);
 #define YC_MIG_ARRAY_TOO_LARGE (-307)
 #define YC_MIG_SERVER_DIED (-308)
 
-/* NDR_record_t for arm64: int_rep 1 (little-endian), everything else 0. */
 static const yc_u8 yc_ndr[8] = {0, 0, 0, 0, 1, 0, 0, 0};
 
-/* mig_reply_error_t, plus room for the largest receive trailer. */
 struct yc_mig_reply {
     struct yc_mig_header h;
     yc_u8 ndr[8];
@@ -59,11 +37,6 @@ struct yc_mig_reply {
     yc_u8 trailer[68];
 };
 
-/* One simple-reply RPC: `msg` holds the request (its header is filled
- * here) and has room for `rcv_size` bytes of reply (a mig_reply_error_t
- * and a trailer). Sends `send_size` bytes to `server` with the thread's
- * MIG reply port and returns the reply's RetCode, or the mach_msg / MIG
- * client error (mach-ipc.md section 5.1). */
 static int mig_simple_rpc(void *msg, yc_u32 send_size, yc_u32 rcv_size, yc_port_t server, int id)
 {
     struct yc_mig_header *h = msg;
@@ -94,9 +67,6 @@ static int mig_simple_rpc(void *msg, yc_u32 send_size, yc_u32 rcv_size, yc_port_
     return r->ret_code;
 }
 
-/* One RPC whose success reply carries one 32-bit out argument after the
- * RetCode (40 bytes); a failure is a mig_reply_error_t (36 bytes) with a
- * non-zero RetCode (mach-ipc.md section 5.1). */
 static int mig_out32_rpc(void *msg, yc_u32 send_size, yc_u32 rcv_size, yc_port_t server, int id, yc_u32 *out)
 {
     struct yc_mig_header *h = msg;
@@ -133,13 +103,6 @@ static int mig_out32_rpc(void *msg, yc_u32 send_size, yc_u32 rcv_size, yc_port_t
     return YC_KERN_SUCCESS;
 }
 
-/* kern_return_t mach_port_get_refs(ipc_space_t task, mach_port_name_t name,
- *     mach_port_right_t right, mach_port_urefs_t *refs)
- * MIG 3207 on the task port (xnu osfmk/mach/mach_port.defs; level 1):
- * request NDR, name, right (40 bytes); reply RetCode and refs (40 bytes).
- * The VMM's task-port server answers it (MachIPCKernelServer). WebKit's
- * JavaScriptCore checks a send right's count with it at start and stops
- * the process when the call fails (app-launch.md section 3.1). */
 #define YC_MACH_PORT_GET_REFS_ID 3207
 
 YC_EXPORT int mach_port_get_refs(yc_port_t task, yc_port_t name, yc_u32 right, yc_u32 *refs)
@@ -164,16 +127,11 @@ YC_EXPORT int mach_port_get_refs(yc_port_t task, yc_port_t name, yc_u32 right, y
     return kr;
 }
 
-/* The MIG-routine name of the same call. */
 YC_EXPORT int _kernelrpc_mach_port_get_refs(yc_port_t task, yc_port_t name, yc_u32 right, yc_u32 *refs)
 {
     return mach_port_get_refs(task, name, right, refs);
 }
 
-/* kern_return_t mach_port_set_mscount(ipc_space_t task, mach_port_name_t name,
- *     mach_port_mscount_t mscount)
- * MIG 3210 on the task port: request NDR, name, mscount (40 bytes); a
- * simple reply. Served by the VMM's task-port server. */
 #define YC_MACH_PORT_SET_MSCOUNT_ID 3210
 
 YC_EXPORT int mach_port_set_mscount(yc_port_t task, yc_port_t name, yc_u32 mscount)
@@ -194,20 +152,11 @@ YC_EXPORT int mach_port_set_mscount(yc_port_t task, yc_port_t name, yc_u32 mscou
     return mig_simple_rpc(&m, 40, (yc_u32)sizeof m, task, YC_MACH_PORT_SET_MSCOUNT_ID);
 }
 
-/* The MIG-routine name of the same call. */
 YC_EXPORT int _kernelrpc_mach_port_set_mscount(yc_port_t task, yc_port_t name, yc_u32 mscount)
 {
     return mach_port_set_mscount(task, name, mscount);
 }
 
-/* kern_return_t mach_port_set_attributes(ipc_space_t task,
- *     mach_port_name_t name, mach_port_flavor_t flavor,
- *     mach_port_info_t port_info, mach_msg_type_number_t port_infoCnt)
- * MIG 3218 on the task port: NDR, name, flavor, count, then `count`
- * 32-bit words (at most 17). The kernel answers per mach-ipc.md 1.7
- * (LIMITS_INFO sets the queue limit; DNREQUESTS_SIZE, TEMPOWNER,
- * IMPORTANCE_RECEIVER and DENAP_RECEIVER are accepted for a receive
- * right; anything else fails). */
 #define YC_MACH_PORT_SET_ATTRIBUTES_ID 3218
 #define YC_MACH_PORT_INFO_MAX 17u
 
@@ -237,20 +186,12 @@ YC_EXPORT int mach_port_set_attributes(yc_port_t task, yc_port_t name, int flavo
     return mig_simple_rpc(&m, 44 + 4 * count, (yc_u32)sizeof m, task, YC_MACH_PORT_SET_ATTRIBUTES_ID);
 }
 
-/* The MIG-routine name of the same call. */
 YC_EXPORT int _kernelrpc_mach_port_set_attributes(yc_port_t task, yc_port_t name, int flavor, const int *info,
                                                   yc_u32 count)
 {
     return mach_port_set_attributes(task, name, flavor, info, count);
 }
 
-/* kern_return_t host_get_special_port(host_priv_t host_priv, int node,
- *     int which, mach_port_t *port)
- * Guest processes hold only the plain host port, which xnu does not accept
- * as host_priv_t: the result is KERN_INVALID_ARGUMENT and *port is not
- * written. (libdispatch's host_get_host_port() probe, which is this
- * routine with HOST_PORT, uses that result to learn that mach_host_self()
- * is the unprivileged host port.) */
 YC_EXPORT int host_get_special_port(yc_port_t host_priv, int node, int which, yc_port_t *port)
 {
     (void)host_priv;
@@ -260,41 +201,21 @@ YC_EXPORT int host_get_special_port(yc_port_t host_priv, int node, int which, yc
     return YC_KERN_INVALID_ARGUMENT;
 }
 
-/* kern_return_t host_set_atm_diagnostic_flag(host_t host, uint32_t diagnostic_flag)
- * xnu (osfmk/kern/host.c): KERN_INVALID_ARGUMENT for a null host, else
- * KERN_NO_ACCESS without the private entitlement, which no simulator
- * process has (logd calls it at start and continues). */
 YC_EXPORT int host_set_atm_diagnostic_flag(yc_port_t host, yc_u32 diagnostic_flag)
 {
     (void)diagnostic_flag;
-    return host == 0 ? YC_KERN_INVALID_ARGUMENT : 8 /* KERN_NO_ACCESS */;
+    return host == 0 ? YC_KERN_INVALID_ARGUMENT : 8 ;
 }
 
-/* kern_return_t host_request_notification(host_t host, host_flavor_t notify_type,
- *     mach_port_t notify_port)
- * xnu (osfmk/kern/host_notify.c): KERN_INVALID_ARGUMENT for a null host or a
- * type above HOST_NOTIFY_TYPE_MAX (1: CALENDAR_CHANGE 0, CALENDAR_SET 1),
- * KERN_INVALID_CAPABILITY for a null or dead port. SwiftCode's calendar is
- * never set, so a registration is accepted and never fires (libdispatch
- * registers its notify port at start). */
 YC_EXPORT int host_request_notification(yc_port_t host, int notify_type, yc_port_t notify_port)
 {
     if (host == 0 || notify_type < 0 || notify_type > 1)
         return YC_KERN_INVALID_ARGUMENT;
     if (notify_port == 0 || notify_port == 0xFFFFFFFFu)
-        return 20; /* KERN_INVALID_CAPABILITY */
+        return 20;
     return 0;
 }
 
-/* kern_return_t mach_port_extract_right(ipc_space_t task,
- *     mach_port_name_t name, mach_msg_type_name_t msgt_name,
- *     mach_port_poly_t *poly, mach_msg_type_name_t *polyPoly)
- * MIG 3215 on the task port (xnu osfmk/mach/mach_port.defs; level 1):
- * request NDR, name, msgt_name (40 bytes). Success is a complex reply with
- * one port descriptor (40 bytes): the right, received into the caller's
- * space, and its received type (PORT_RECEIVE, PORT_SEND, PORT_SEND_ONCE).
- * Failure is a mig_reply_error_t (36 bytes). The VMM's task-port server
- * (MachIPCKernelServer) copies the right in from the target task's space. */
 #define YC_MACH_PORT_EXTRACT_RIGHT_ID 3215
 
 YC_EXPORT int mach_port_extract_right(yc_port_t task, yc_port_t name, yc_u32 msgt_name, yc_port_t *poly,
@@ -358,7 +279,6 @@ YC_EXPORT int mach_port_extract_right(yc_port_t task, yc_port_t name, yc_u32 msg
     return YC_KERN_SUCCESS;
 }
 
-/* The MIG-routine name of the same call. */
 YC_EXPORT int _kernelrpc_mach_port_extract_right(yc_port_t task, yc_port_t name, yc_u32 msgt_name, yc_port_t *poly,
                                                  yc_u32 *poly_poly)
 {

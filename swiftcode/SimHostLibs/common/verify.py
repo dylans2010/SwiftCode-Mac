@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-# verify.py - self-check of one SwiftCode host library (host-libraries.md
-# sections 2-4). Fails (exit 1) on any mismatch.
-#
-# Clean-room SwiftCode code. Three independent views of the output are checked:
-#   1. SwiftCode's own Mach-O reader:     swiftcode macho <dylib>
-#   2. this script's header parser:   load commands, segments, flags
-#   3. LLVM's tools:                  llvm-nm (exports, kinds, data spans)
-#                                     llvm-objdump --macho --private-headers
-#
-# Usage: python3 -I verify.py --lib NAME --dylib PATH --data-dir DIR
-#            --common DIR --swiftcode PATH --nm PATH --objdump PATH
 
 import argparse
 import json
@@ -58,19 +47,15 @@ SG_READ_ONLY = 0x10
 
 errors = []
 
-
 def fail(msg):
     errors.append(msg)
-
 
 def version(v):
     return "%d.%d.%d" % (v >> 16, (v >> 8) & 0xFF, v & 0xFF)
 
-
 def cstr(data, off):
     end = data.index(b"\0", off)
     return data[off:end].decode("utf-8")
-
 
 def parse_macho(path):
     with open(path, "rb") as f:
@@ -140,7 +125,6 @@ def parse_macho(path):
         fail("load commands overrun sizeofcmds")
     info["cmds_end"] = 32 + sizeofcmds
     return info
-
 
 def check_layout(lib, info):
     want = INSTALL % lib
@@ -213,13 +197,11 @@ def check_layout(lib, info):
         if s["name"] == "__DATA_CONST" and not s["flags"] & SG_READ_ONLY:
             fail("__DATA_CONST lacks SG_READ_ONLY")
 
-
 def run(cmd):
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if p.returncode != 0:
         fail("%s failed: %s" % (" ".join(cmd), p.stderr.strip()))
     return p.stdout
-
 
 def check_swiftcode_macho(lib, swiftcode, dylib):
     out = run([swiftcode, "macho", dylib])
@@ -249,7 +231,6 @@ def check_swiftcode_macho(lib, swiftcode, dylib):
             fail("swiftcode macho: segment %s protection %s" % (name, prot))
     return out
 
-
 def check_objdump(objdump, dylib):
     out = run([objdump, "--macho", "--private-headers", dylib])
     m = re.search(r"MH_MAGIC_64\s+(\S+)\s+(\S+)\s+\S+\s+(\S+)", out)
@@ -259,7 +240,6 @@ def check_objdump(objdump, dylib):
         fail("llvm-objdump shows LC_CODE_SIGNATURE")
     if not re.search(r"platform iossimulator\s+sdk 27\.1\s+minos 27\.0", out):
         fail("llvm-objdump: LC_BUILD_VERSION is not iossimulator / sdk 27.1 / minos 27.0")
-
 
 def read_table(path, lib):
     rows = {}
@@ -271,7 +251,6 @@ def read_table(path, lib):
             if parts[0] == lib:
                 rows[parts[1]] = parts[2:]
     return rows
-
 
 def check_symbols(lib, args, info):
     with open(os.path.join(args.data_dir, "host-lib-surface-%s.json" % lib), encoding="utf-8") as f:
@@ -303,8 +282,6 @@ def check_symbols(lib, args, info):
         if r["kind"] != "data" and kind != "T":
             fail("%s is a function in the surface table but exported as %s" % (name, kind))
 
-    # Data spans: distance to the next symbol (local or external) in the same
-    # section, or to the section end.
     addrs = sorted({int(l.split()[0], 16) for l in run([args.nm, "-n", "--defined-only", args.dylib]).splitlines()
                     if l.split() and re.match(r"^[0-9a-f]+$", l.split()[0])})
     for name, r in rows.items():
@@ -330,7 +307,6 @@ def check_symbols(lib, args, info):
                  undefined=len(undefined))
     return stats
 
-
 def main():
     ap = argparse.ArgumentParser()
     for a in ("--lib", "--dylib", "--data-dir", "--common", "--swiftcode", "--nm", "--objdump"):
@@ -350,7 +326,6 @@ def main():
     print("verify libsystem_%s: ok  %d bytes  exports %d/%d table rows (surface %d)  extra %d  imports %d  deps %s  %s"
           % (args.lib, info["size"], stats["exported"], stats["table"], stats["surface"], stats["extras"],
              stats["undefined"], ",".join(p.rsplit("/", 1)[-1] for _, p in info["dylibs"]) or "none", segs))
-
 
 if __name__ == "__main__":
     main()

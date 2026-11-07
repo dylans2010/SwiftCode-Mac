@@ -1,19 +1,10 @@
-//
-//  AssistComposerPopup.swift
-//  SwiftCode
-//
-//  Interactive popup and selection chips for @ (Resources: Conversations, Code context,
-//  Rules, Terminal, MCP, Files) and / (Meta Slash Commands, Skills) in the Assist composer.
-//  Styled with transparency effects, ultra-thin materials, and low color saturation.
-//
-
 import SwiftUI
 import AppKit
 
 public enum ComposerTriggerMode: Equatable {
-    case resource(query: String) // @
-    case skill(query: String)    // /
-    case metaCommand(query: String) // / with Meta Code
+    case resource(query: String)
+    case skill(query: String)
+    case metaCommand(query: String)
 }
 
 public struct ComposerResourceItem: Identifiable, Hashable {
@@ -46,8 +37,6 @@ public struct ComposerResourceItem: Identifiable, Hashable {
         }
     }
 }
-
-// MARK: - Chips Bar View
 
 public struct AssistComposerChipsBar: View {
     @Binding public var selectedSkills: [SkillDescriptor]
@@ -82,7 +71,6 @@ public struct AssistComposerChipsBar: View {
         if !isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    // Skills chips
                     ForEach(selectedSkills, id: \.id) { skill in
                         chipView(
                             title: skill.name,
@@ -93,7 +81,6 @@ public struct AssistComposerChipsBar: View {
                         }
                     }
 
-                    // MCP / Resource chips
                     ForEach(selectedMCPServers, id: \.self) { server in
                         chipView(
                             title: server,
@@ -104,7 +91,6 @@ public struct AssistComposerChipsBar: View {
                         }
                     }
 
-                    // Attached Files chips
                     ForEach(selectedFiles, id: \.id) { file in
                         chipView(
                             title: file.filename,
@@ -166,8 +152,6 @@ public struct AssistComposerChipsBar: View {
         )
     }
 }
-
-// MARK: - Interactive Composer Popup View
 
 public struct AssistComposerPopupView: View {
     public let mode: ComposerTriggerMode
@@ -234,7 +218,6 @@ public struct AssistComposerPopupView: View {
 
         var list: [ComposerResourceItem] = []
 
-        // 1. Past Conversations (@conversations)
         let convos = AssistConversationHistory.shared.listConversations()
         for c in convos {
             if trimmed.isEmpty || c.title.lowercased().contains(trimmed) || "conversation".contains(trimmed) || "history".contains(trimmed) {
@@ -249,7 +232,6 @@ public struct AssistComposerPopupView: View {
             }
         }
 
-        // 2. Code Context (@code)
         let codeMatches = ["code", "context", "active", "file", "selection"]
         if trimmed.isEmpty || codeMatches.contains(where: { $0.contains(trimmed) || trimmed.contains($0) }) {
             list.append(ComposerResourceItem(
@@ -270,7 +252,6 @@ public struct AssistComposerPopupView: View {
             ))
         }
 
-        // 3. Agent Task Rules (@rules)
         let standardRules = [
             ("Strict Concurrency Rule", "Enforce Swift 6 Sendable and actor isolation boundaries", "rules-concurrency"),
             ("Clean Architecture Rule", "Enforce clean separation of concerns and MVVM / services", "rules-arch"),
@@ -290,7 +271,6 @@ public struct AssistComposerPopupView: View {
             }
         }
 
-        // 4. Terminal Context (@terminal)
         if trimmed.isEmpty || "terminal".contains(trimmed) || "console".contains(trimmed) || "shell".contains(trimmed) {
             list.append(ComposerResourceItem(
                 id: "term-recent-output",
@@ -302,8 +282,6 @@ public struct AssistComposerPopupView: View {
             ))
         }
 
-        // 4b. Reverse command (@Reverse) — native static analysis.
-        // Shown for an empty query or any query matching "reverse".
         if trimmed.isEmpty || "reverse".contains(trimmed) || trimmed.contains("reverse") {
             list.append(ComposerResourceItem(
                 id: "reverse-command",
@@ -315,7 +293,6 @@ public struct AssistComposerPopupView: View {
             ))
         }
 
-        // 5. MCP servers
         for s in mcpServers {
             let serverName = s.displayName
             if trimmed.isEmpty || serverName.lowercased().contains(trimmed) || "mcp".contains(trimmed) {
@@ -331,7 +308,6 @@ public struct AssistComposerPopupView: View {
             }
         }
 
-        // 6. Project files
         for url in projectFiles {
             let name = url.lastPathComponent
             if trimmed.isEmpty || name.lowercased().contains(trimmed) || url.path.lowercased().contains(trimmed) || "file".contains(trimmed) {
@@ -351,7 +327,6 @@ public struct AssistComposerPopupView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Basic, translucent header bar with minimal color
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     ZStack {
@@ -396,7 +371,6 @@ public struct AssistComposerPopupView: View {
             .padding(.vertical, 8)
             .background(.ultraThinMaterial)
 
-            // Category filter pills for Meta commands (subtle neutral design)
             if isMetaCommandMode {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 5) {
@@ -431,7 +405,6 @@ public struct AssistComposerPopupView: View {
             Divider()
                 .opacity(0.3)
 
-            // Scrollable list of commands/skills/resources
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 3) {
@@ -790,7 +763,6 @@ public struct AssistComposerPopupView: View {
     private func loadResources() {
         self.mcpServers = MCPServerManager.shared.servers
 
-        // Discover project files if active project exists
         if let dir = ProjectSessionStore.shared.activeProject?.directoryURL {
             Task.detached(priority: .utility) {
                 let fm = FileManager.default

@@ -1,10 +1,6 @@
 import Foundation
 import SwiftCodeProfiler
 
-/// The state of a profiler window (`specs/ide/profiler.md` §6): the trace,
-/// the time range and thread filter, the call-tree options, the view shown
-/// and the selected node. Views read the derived values; every change calls
-/// `onChange`.
 @MainActor
 public final class GaugeModel {
     public enum Content: Int, CaseIterable, Sendable {
@@ -18,7 +14,6 @@ public final class GaugeModel {
         }
     }
 
-    /// Recording (no trace yet), or showing one.
     public enum Phase: Equatable, Sendable {
         case recording(target: String, since: Date)
         case loaded
@@ -34,13 +29,11 @@ public final class GaugeModel {
     public var allStates = false { didSet { recompute() } }
     public var content: Content = .callTree { didSet { changed() } }
     public var searchText = "" { didSet { changed() } }
-    /// The selected node's key path (from the root's child).
     public var selectedPath: [CallTreeNode.Key]? { didSet { selectionChanged() } }
 
     public private(set) var tree: CallTree?
     public private(set) var flame: FlameGraph?
     public private(set) var hangs: [GaugeTrace.Hang] = []
-    /// Stack ids whose frames include the selected function (CPU track highlight).
     public private(set) var selectedStacks: Set<Int> = []
 
     public var onChange: (() -> Void)?
@@ -92,7 +85,6 @@ public final class GaugeModel {
         changed()
     }
 
-    /// The node at a key path in the current tree.
     public func node(at path: [CallTreeNode.Key]) -> CallTreeNode? {
         var n = tree?.root
         for k in path { n = n?.children.first { $0.key == k } }
@@ -101,13 +93,11 @@ public final class GaugeModel {
 
     public var selectedNode: CallTreeNode? { selectedPath.flatMap(node(at:)) }
 
-    /// The selected function's per-line samples (Source).
     public var annotation: SourceAnnotation? {
         guard let t = trace, let f = selectedNode?.function else { return nil }
         return SourceAnnotation(trace: t, function: f, filter: filter)
     }
 
-    /// Samples per thread in the range (thread filter menu).
     public var threadChoices: [(id: UInt64, title: String, samples: Int)] {
         guard let t = trace else { return [] }
         var counts: [UInt64: Int] = [:]
@@ -115,7 +105,6 @@ public final class GaugeModel {
         return t.threads.map { ($0.id, t.threadTitle($0.id), counts[$0.id] ?? 0) }.sorted { $0.samples > $1.samples }
     }
 
-    /// "Charge to Callers" for the selected node's function or image.
     public func chargeSelectedToCallers(wholeImage: Bool) {
         guard let f = selectedNode?.function else { return }
         if wholeImage { options.chargedImages.insert(f.image) } else { options.chargedFunctions.insert(f) }
@@ -126,10 +115,8 @@ public final class GaugeModel {
         options.chargedFunctions = []
     }
 
-    /// The whole recording, in ns.
     public var duration: UInt64 { max(1, trace?.recording.durationNs ?? 1) }
 
-    /// One line describing the selection (inspector, status).
     public var selectionSummary: String {
         guard let tree, let n = selectedNode else { return "" }
         let pct = tree.sampleCount > 0 ? 100 * Double(n.total) / Double(tree.sampleCount) : 0
@@ -137,15 +124,12 @@ public final class GaugeModel {
     }
 }
 
-/// Gauge's settings (user defaults only).
 public enum GaugeSettings {
-    /// Samples per second per thread (`SwiftCode.gauge.sampleRate`, 10…10000; default 1000).
     public static var sampleRate: Int {
         let v = UserDefaults.standard.integer(forKey: "SwiftCode.gauge.sampleRate")
         return v == 0 ? 1000 : max(10, min(10_000, v))
     }
 
-    /// Paths of Gauge traces among launch arguments (opened in a profiler window).
     public static func tracePaths(_ paths: [String]) -> (traces: [String], others: [String]) {
         (paths.filter { $0.hasSuffix(".gaugetrace") }, paths.filter { !$0.hasSuffix(".gaugetrace") })
     }

@@ -12,11 +12,9 @@ public actor SimulatorDiscoveryPipeline {
         let startTime = Date()
         Logger.discovery.info("[PIPELINE] Beginning 10-stage discovery pipeline...")
 
-        // Stage 1: Initializing
         onStageChange(.initializing)
         try await checkCancellation()
 
-        // Stage 2: Detecting Developer Directory
         onStageChange(.detectingDeveloperDirectory)
         let envProbe = await DeveloperEnvironmentProbe.shared.runProbe()
         try await checkCancellation()
@@ -28,14 +26,12 @@ public actor SimulatorDiscoveryPipeline {
             )
         }
 
-        // Stage 3: Verifying Xcode
         onStageChange(.verifyingXcode)
         try await checkCancellation()
         if envProbe.isCLTOnly {
             Logger.discovery.warning("[PIPELINE] Active toolchain is Command Line Tools only. This is degraded but not fatal.")
         }
 
-        // Stage 4: Verifying xcrun
         onStageChange(.verifyingXcrun)
         try await checkCancellation()
         if envProbe.xcrunVersion == nil {
@@ -45,10 +41,8 @@ public actor SimulatorDiscoveryPipeline {
             )
         }
 
-        // Stage 5: Verifying simctl
         onStageChange(.verifyingSimctl)
         try await checkCancellation()
-        // We will execute a simple version check to make sure simctl is operational
         let simctlCheckSpec = CommandSpec(
             executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
             arguments: ["simctl", "help"]
@@ -61,12 +55,8 @@ public actor SimulatorDiscoveryPipeline {
             )
         }
 
-        // Parallel fetch stages:
-        // Stage 6: Discovering runtimes
         onStageChange(.discoveringRuntimes)
-        // Stage 7: Discovering devices
         onStageChange(.discoveringDevices)
-        // Stage 8: Discovering device types
         onStageChange(.discoveringDeviceTypes)
 
         let discoveryDataResult: SimctlDiscoveryResult
@@ -80,12 +70,10 @@ public actor SimulatorDiscoveryPipeline {
         }
         try await checkCancellation()
 
-        // Stage 9: Merging and publishing
         onStageChange(.mergingAndPublishing)
         let resolvedSnapshot = try mergeAndResolve(discoveryDataResult, startTime: startTime)
         try await checkCancellation()
 
-        // Stage 10: Complete
         onStageChange(.complete)
         Logger.discovery.info("[PIPELINE] 10-stage discovery pipeline completed successfully in \(Date().timeIntervalSince(startTime))s")
 
@@ -100,7 +88,6 @@ public actor SimulatorDiscoveryPipeline {
     }
 
     private func mergeAndResolve(_ result: SimctlDiscoveryResult, startTime: Date) throws -> SimulatorSnapshot {
-        // 1. Process runtimes
         var domainRuntimes: [SimulatorRuntime] = []
         for r in result.runtimes {
             let platform = r.platform ?? parsePlatform(fromName: r.name, identifier: r.identifier)
@@ -113,12 +100,10 @@ public actor SimulatorDiscoveryPipeline {
             ))
         }
 
-        // Sort runtimes newest first (descending version)
         domainRuntimes.sort { r1, r2 in
             r1.version.compare(r2.version, options: .numeric) == .orderedDescending
         }
 
-        // 2. Process devices
         var domainDevices: [SimulatorDevice] = []
         var bootedDeviceIDs = Set<String>()
 
@@ -143,8 +128,6 @@ public actor SimulatorDiscoveryPipeline {
                     bootedDeviceIDs.insert(d.udid)
                 }
 
-                // Resolve architecture from device/runtime context
-                // Fallback architecture default to arm64
                 let architecture = "arm64"
 
                 domainDevices.append(SimulatorDevice(
@@ -186,6 +169,6 @@ public actor SimulatorDiscoveryPipeline {
         } else if lowerName.contains("macos") || lowerId.contains("macos") {
             return "macOS"
         }
-        return "iOS" // default fallback
+        return "iOS"
     }
 }

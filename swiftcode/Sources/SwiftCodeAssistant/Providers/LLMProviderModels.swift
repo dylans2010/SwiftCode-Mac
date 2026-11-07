@@ -1,19 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Features/AI/LLMService.swift (lines 1–109 only)
-//   (Legacy main ab03f681) — the four small self-contained types at the top
-//   of the file: `LLMProvider`, `AIRoutingMode`, `LLMError`, `LLMResponse`.
-//   The `LLMService` class itself (lines 110–1413) is NOT staged here: it
-//   is 1,303 lines with unowned dependencies — see
-//   staging-wire/unowned/DISPOSITIONS.md (`LLMService` row).
-//
-// Destination: SwiftCodeAssistant/Providers/LLMProviderModels.swift.
-//
-// No adaptations except `public` access (Legacy's `LLMResponse` was
-// already public; the enums were public). `LLMProvider.keychainKey`
-// reads `KeychainService.openRouterAPIKey` / `codexUserAPIKey` —
-// `KeychainService` is staged in this same batch
-// (`SwiftCodeAssistant/Models/KeychainService.swift`).
-
 import Foundation
 import os
 
@@ -55,8 +39,8 @@ public enum LLMProvider: String, CaseIterable, Codable {
         case .google: return URL(string: "https://generativelanguage.googleapis.com/v1beta/openai")!
         case .mistral: return URL(string: "https://api.mistral.ai/v1")!
         case .qwen: return URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1")!
-        case .offline: return URL(string: "http://localhost")! // Not used for offline
-        case .codex: return URL(string: "http://localhost:3003/v1")! // Node bridge port
+        case .offline: return URL(string: "http://localhost")!
+        case .codex: return URL(string: "http://localhost:3003/v1")!
         }
     }
 }

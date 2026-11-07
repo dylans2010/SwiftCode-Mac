@@ -1,7 +1,6 @@
 import Algorithms
 import SwiftUI
 
-/// Links a remote package (swift-algorithms, Apache-2.0) resolved by SwiftCode.
 @main
 struct RemotePackageApp: App {
     static let report = "SWIFTCODE-PKG-SAMPLE remote: " + [1, 2, 3, 4, 5, 6].chunks(ofCount: 2).map { "\(Array($0))" }.joined(separator: " ")

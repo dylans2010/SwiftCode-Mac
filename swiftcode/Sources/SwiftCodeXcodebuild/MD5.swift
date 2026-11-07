@@ -1,7 +1,5 @@
 import Foundation
 
-/// MD5 (RFC 1321). Used only to derive identifiers the way the reference
-/// tool does (PIF GUIDs, the DerivedData folder hash); not for security.
 enum MD5 {
     private static let s: [UInt32] = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
                                       5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,

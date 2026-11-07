@@ -1,8 +1,6 @@
 import OVRender
 import Testing
 
-// The IDE's New Project templates must not fall back to the question-mark
-// stand-in (`SymbolArtwork.placeholder`): this is their list.
 @Suite struct TemplateSymbolTests {
     static let names = [
         "app.badge", "archivebox", "building.columns", "camera.viewfinder", "cpu", "cpu.fill", "cube", "cube.transparent", "doc", "doc.richtext", "eye",

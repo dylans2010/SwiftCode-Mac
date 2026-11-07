@@ -1,42 +1,22 @@
 import AppKit
 
-/// The File inspector's control look (`specs/ide/metrics.md` §12.4):
-/// filled fields and pop-ups with no border, a bordered Target Membership
-/// box, path values that break after "/" and "-".
 @MainActor
 enum InspectorStyle {
-    /// From a key's ink to its value.
     static let keyToValue: CGFloat = 5
-    /// A section rule keeps this far from the controls on each side.
     static let ruleGap: CGFloat = 6
     static let headingRowHeight: CGFloat = 20
     static let membershipTableHeight: CGFloat = 110
     static let membershipFooterHeight: CGFloat = 19
-    /// Multi-line values: a 14-point line pitch.
     static let pathLineHeight: CGFloat = 14
 
-    /// From the file name's line to the path's first line (with the
-    /// rows' own room): 18 apart (`metrics.md` §13.3).
     static let fileNameToPath: CGFloat = 4
 
-    // Council round 3 (`metrics.md` §16.2, checklist row 79): the File
-    // inspector's top rows against the reference.
-
-    /// "Identity and Type" sits this much higher; Name stays.
     static let firstHeadingRaise: CGFloat = 3.5
-    /// From Type's ink to Location's: 28 (the rule right under Type's row,
-    /// then 5).
     static let afterTypeRule: CGFloat = 5
-    /// Between Location's row and the file name's.
     static let afterLocation: CGFloat = 1
-    /// Between Full Path's rule and the tags section's rule.
     static let pathRuleToTagsRule: CGFloat = 2
-    /// The tags field's box runs this much deeper than the field.
     static let tagsBoxExtra: CGFloat = 12.5
 
-    /// A target's icon in Target Membership: a rounded square in the
-    /// accent colour (`metrics.md` §16.2: the target's app icon left of
-    /// its name). SwiftCode's own drawing.
     static func targetIcon(side: CGFloat = 16) -> NSImage {
         NSImage(size: NSSize(width: side, height: side), flipped: false) { r in
             let box = r.insetBy(dx: 0.5, dy: 0.5)
@@ -51,7 +31,6 @@ enum InspectorStyle {
         }
     }
 
-    /// Section headings: bold, #858587 (`metrics.md` §13.3).
     static var headingColor: NSColor {
         NSColor(name: nil) { a in
             a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .secondaryLabelColor
@@ -59,25 +38,19 @@ enum InspectorStyle {
         }
     }
 
-    /// `s` in `font`, its letters drawn closer when it is wider than
-    /// `width` (at most 0.8 points per letter), right-aligned.
     static func fitted(_ s: String, font: NSFont, width: CGFloat) -> NSAttributedString {
         let para = NSMutableParagraphStyle()
         para.alignment = .right
         para.lineBreakMode = .byClipping
         var attrs: [NSAttributedString.Key: Any] = [.font: font, .paragraphStyle: para, .foregroundColor: NSColor.labelColor]
         let w = (s as NSString).size(withAttributes: attrs).width
-        // The label's own inset (2 points each side) is part of the column.
         let room = width - 4
         if w > room, s.count > 1 { attrs[.kern] = max(-0.8, (room - w) / CGFloat(s.count - 1)) }
         return NSAttributedString(string: s, attributes: attrs)
     }
 
-    /// #A6A6A7 on the inspector's background.
     static var tableBorder: NSColor { NSColor.labelColor.withAlphaComponent(0.35) }
 
-    /// A filled control: #E5E5E6 behind a text field, #E1E1E2 behind a
-    /// pop-up (light), corners about 6, no border.
     static func fill(_ c: NSControl) {
         let popUp = c is NSPopUpButton
         if let f = c as? NSTextField {
@@ -109,15 +82,12 @@ enum InspectorStyle {
     static var fieldFill: NSColor { NSColor.labelColor.withAlphaComponent(0.10) }
     static var popUpFill: NSColor { NSColor.labelColor.withAlphaComponent(0.115) }
 
-    /// Greys the first item's title ("No Explicit Encoding").
     static func dimFirstTitle(_ p: NSPopUpButton) {
         guard let first = p.itemArray.first, first.title.hasPrefix("No Explicit") else { return }
         first.attributedTitle = NSAttributedString(string: first.title, attributes: [.font: p.font ?? .systemFont(ofSize: 11),
                                                                                     .foregroundColor: NSColor.secondaryLabelColor])
     }
 
-    /// A path value: breaks after "/" and after "-", each line filled
-    /// first, on a 14-point pitch.
     static func pathLabel(_ value: String) -> NSTextField {
         let l = NSTextField(wrappingLabelWithString: "")
         let para = NSMutableParagraphStyle()
@@ -130,8 +100,6 @@ enum InspectorStyle {
         return l
     }
 
-    /// The value with a zero-width break opportunity after every "/" and
-    /// "-" (copying the label's text still gives the plain value).
     static func breakable(_ s: String) -> String {
         var out = ""
         for ch in s {
@@ -142,8 +110,6 @@ enum InspectorStyle {
     }
 }
 
-/// A text field cell whose text sits 6 points in and is centred
-/// vertically (the filled Name field).
 final class InsetTextFieldCell: NSTextFieldCell {
     private func inset(_ r: NSRect) -> NSRect {
         let h = cellSize(forBounds: r).height
@@ -158,7 +124,6 @@ final class InsetTextFieldCell: NSTextFieldCell {
     }
 }
 
-/// A fixed-height row holding one view at the content's leading edge.
 final class InspectorRowBox: NSView {
     let inner: NSView
     init(_ inner: NSView, height: CGFloat, inset: CGFloat = 0) {
@@ -177,6 +142,5 @@ final class InspectorRowBox: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The heading's text (tests read headings through it).
     var stringValue: String { (inner as? NSTextField)?.stringValue ?? "" }
 }

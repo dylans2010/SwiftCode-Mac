@@ -5,16 +5,10 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// A probe of SwiftCode's own windows for the spacing audit
-/// (`specs/ide/metrics.md`): with `SWIFTCODE_UI_PROBE_DIR` set it writes a
-/// frame dump of every view (window points, origin at the top left) and a
-/// window snapshot per state there. It never runs without the variable.
 @MainActor
 @Suite(.serialized) struct UISpacingProbeTests {
     nonisolated static let probeDir = ProcessInfo.processInfo.environment["SWIFTCODE_UI_PROBE_DIR"]
 
-    /// A package "Demo" (as the reference was observed with): two sources
-    /// and a test target.
     static func demoPackage() throws -> URL {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-ui-probe-\(UUID().uuidString)").resolvingSymlinksInPath()
         let dir = base.appendingPathComponent("Demo")
@@ -63,7 +57,6 @@ import SwiftCodeProject
         wc.navigator.select(0)
         win.close()
 
-        // The Welcome window.
         let td = TestDefaults("ui-probe-welcome")
         defer { td.remove() }
         let recents = RecentProjects(defaults: td.defaults)
@@ -74,7 +67,6 @@ import SwiftCodeProject
         try Self.write(window: ww, name: "welcome", to: out)
         ww.close()
 
-        // Settings: General and Editing.
         let settings = SettingsWindowController(prefs: Preferences(defaults: td.defaults), components: [])
         let sw = try #require(settings.window)
         sw.contentView?.layoutSubtreeIfNeeded()
@@ -84,7 +76,6 @@ import SwiftCodeProject
         try Self.write(window: sw, name: "settings-editing", to: out)
         sw.close()
 
-        // Device Hub with one shut-down simulator row (no simctl).
         let row = DeviceRow(name: "Phone (SwiftCode)", identifier: "probe-1", platform: "iOS", osVersion: "27.1", state: "Shutdown",
                             model: "SwiftCode Simulator", isAvailable: true, isSwiftCodeRemote: true, isFoldable: false)
         let hub = DevicesController(devices: [], simulators: [row])
@@ -110,9 +101,6 @@ import SwiftCodeProject
         shot(win, out.appendingPathComponent("\(name)-shot.png"))
     }
 
-    /// `screencapture -l` of the window (SwiftCode's own window, ordered behind
-    /// every other window so it never covers anything): the system draws
-    /// the glass, which `cacheDisplay` leaves out.
     static func shot(_ win: NSWindow, _ url: URL) {
         let wasVisible = win.isVisible
         if !wasVisible { win.orderBack(nil) }
@@ -126,7 +114,6 @@ import SwiftCodeProject
         if !wasVisible { win.orderOut(nil) }
     }
 
-    /// One line per view: depth, class, frame (x, y from the top left, w, h).
     static func dump(_ v: NSView, in frame: NSView, depth: Int, into lines: inout [String]) {
         let r = v.convert(v.bounds, to: nil)
         let top = frame.bounds.height - r.maxY

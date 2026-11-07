@@ -8,39 +8,20 @@ import Glibc
 import Darwin
 #endif
 
-/// Where the assistant keeps secrets (API keys, OAuth tokens). Values never
-/// go to user defaults, logs or the workspace (coding-assistant.md §6).
-///
-/// Gap closure (Legacy `KeychainService`): `accounts` enumeration plus
-/// `contains(key:)` and `clearAllCredentials()` on the protocol, so the
-/// Legacy helpers exist against the real keychain / 0600-file stores.
 public protocol SecretStore: Sendable {
     func read(_ account: String) throws -> Data?
     func write(_ data: Data, for account: String) throws
     func delete(_ account: String) throws
-    /// Every account held, for `clearAllCredentials()` (Legacy
-    /// `KeychainService.clearAllCredentials()`). Stores that cannot
-    /// enumerate return [] and clear only the known accounts.
     var accounts: [String] { get }
 }
 
 extension SecretStore {
-    /// No enumeration: the store holds nothing this process can list.
     public var accounts: [String] { [] }
 
-    /// Whether a secret is stored for `key` (Legacy
-    /// `KeychainService.contains(key:)`).
     public func contains(key: String) -> Bool {
         (try? read(key)) != nil
     }
 
-    /// Deletes every stored credential (Legacy
-    /// `KeychainService.clearAllCredentials()`), from the store
-    /// itself. Legacy also cleared an insecure file fallback cache
-    /// (`secure_credentials_cache.json` in Application Support) and
-    /// base64 UserDefaults entries; that cache is deliberately not
-    /// replicated — the keychain / 0600-file store is the only copy,
-    /// so clearing it clears everything.
     public func clearAllCredentials() {
         for account in accounts { try? delete(account) }
     }
@@ -59,61 +40,24 @@ extension SecretStore {
     }
 }
 
-/// The accounts (item names) the assistant uses.
 public enum SecretAccount {
     public static let openAIKey = "openai.api-key"
     public static let openAITokens = "openai.chatgpt-tokens"
-    /// The issued client registration and host ID, kept after sign-out.
     public static let openAIRegistration = "openai.chatgpt-registration"
     public static let llamaCppKey = "llamacpp.api-key"
-    /// OpenRouter's API key (Wave 9: Legacy OpenRouter).
     public static let openRouterKey = "openrouter.api-key"
     public static let netlifyToken = "netlify.api-key"
     public static let vercelToken = "vercel.api-key"
-    /// Composio's API key (gap-closure: `use_composio` reads it from
-    /// SecretStore first, then `COMPOSIO_API_KEY`, then
-    /// `~/.composio/user_data.json`).
     public static let composioKey = "composio.api-key"
-    /// GitHub's personal access token (Wave 10: Legacy GitHubAuth /
-    /// GitCredentialProvider kept the PAT in the keychain).
     public static let githubToken = "github.api-key"
-    /// The SCCloud device fingerprint (`ssc_…`), generated once and
-    /// stored (Wave 9: Legacy SCCloud has no API key — auth is this
-    /// per-device fingerprint, never an `Authorization` header).
     public static let scCloudFingerprint = "sccloud.device-fingerprint"
-    /// The Appwrite session secret: the value of the
-    /// `a_session_<project>` cookie the Account API sets when a session
-    /// is created (Wave 12: Legacy kept the session in the Appwrite
-    /// SDK's cookie jar; the REST client persists the secret here
-    /// instead, and sends it back as a `Cookie` header).
     public static let appwriteSessionSecret = "appwrite.session-secret"
-    /// The signed-in Appwrite user id, kept so callers can identify the
-    /// account without a network round-trip.
     public static let appwriteUserID = "appwrite.user-id"
-    /// The primary Gemini API key (Wave 16: Legacy
-    /// `LLMProvider.google.keychainKey` / `APIKeyManager` Google key,
-    /// used by `AssistModelDiscoveryService` for the direct Gemini
-    /// list endpoint).
     public static let geminiKey = "gemini.api-key"
-    /// The primary Anthropic API key (Wave 16: Legacy Anthropic key,
-    /// used by `AssistModelDiscoveryService`).
     public static let anthropicKey = "anthropic.api-key"
-    /// The primary Mistral API key (Wave 16: Legacy Mistral key,
-    /// used by `AssistModelDiscoveryService`).
     public static let mistralKey = "mistral.api-key"
-    /// The primary Qwen (DashScope) API key (Wave 16: Legacy Qwen
-    /// key, used by `AssistModelDiscoveryService`).
     public static let qwenKey = "qwen.api-key"
-    /// One alternative Gemini key per account, suffixed with the
-    /// key's UUID (Wave 16: Legacy `AlternativeKeyManager`
-    /// `com.swiftcode.gemini.altkey.<uuid>`).
     public static let geminiAltKeyPrefix = "gemini.alt-key."
-    /// The alternative-keys metadata envelope (masked values,
-    /// SHA-256 hashes, states, counts — never raw keys) for
-    /// `GeminiKeyRotationManager` (Wave 16: Legacy kept the same
-    /// metadata in UserDefaults; SwiftCode keeps it in the secret
-    /// store because `SecretStore` has no enumeration and the
-    /// metadata is the manager's index).
     public static let geminiAltKeysMetadata = "gemini.alt-keys.metadata"
 }
 
@@ -128,7 +72,6 @@ public enum SecretStoreError: Error, Equatable, LocalizedError {
     }
 }
 
-/// The platform's store: the login keychain on macOS, a 0600 file on Linux.
 public func defaultSecretStore() -> SecretStore {
     #if canImport(Security)
     KeychainSecretStore()
@@ -137,7 +80,6 @@ public func defaultSecretStore() -> SecretStore {
     #endif
 }
 
-/// Secrets in memory only (tests, or when nothing may be stored).
 public final class MemorySecretStore: SecretStore, @unchecked Sendable {
     private let lock = NSLock()
     private var items: [String: Data] = [:]
@@ -149,8 +91,6 @@ public final class MemorySecretStore: SecretStore, @unchecked Sendable {
 }
 
 #if canImport(Security)
-/// Generic-password items in the user's keychain, one per account, under
-/// one service name.
 public struct KeychainSecretStore: SecretStore {
     public var service: String
     public static let defaultService = "SwiftCode Coding Assistant"
@@ -205,9 +145,6 @@ public struct KeychainSecretStore: SecretStore {
 }
 #endif
 
-/// One file per account in a directory only the user can read (0700, files
-/// 0600), written atomically. Used where there is no keychain (Linux):
-/// `$XDG_CONFIG_HOME/swiftcode/secrets` or `~/.config/swiftcode/secrets`.
 public struct FileSecretStore: SecretStore {
     public var directory: URL
 
@@ -238,7 +175,6 @@ public struct FileSecretStore: SecretStore {
         chmod(directory.path, 0o700)
         let url = fileURL(account)
         let tmp = directory.appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString)")
-        // Create with 0600 before any byte is written, then rename over.
         let fd = open(tmp.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard fd >= 0 else { throw SecretStoreError.file("Cannot create \(tmp.path): \(String(cString: strerror(errno)))") }
         let h = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
@@ -256,8 +192,6 @@ public struct FileSecretStore: SecretStore {
         if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
     }
 
-    /// File names are the safe-mapped account names (the mapping is
-    /// idempotent, so deleting by a listed name removes its file).
     public var accounts: [String] {
         (try? FileManager.default.contentsOfDirectory(atPath: directory.path))?.sorted() ?? []
     }

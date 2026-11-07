@@ -7,22 +7,8 @@ import SwiftCodeLanguage
 import Testing
 @testable import SwiftCodeIDECore
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter MiscGapTests`.
-//
-// Gap-closure misc tests (specs/ide/gap-closure-misc.md §2, §3, §5,
-// §6): the StoreKit simulation session on an in-memory store with a
-// `ManualClock` (purchase, Ask to Buy, refund, expiration, renewal
-// by time travel, reset, offline, network failure, no configuration),
-// the CSV parser's edge cases, the SQLite value model on an
-// in-memory database plus the backup manager's temp-file round-trip,
-// and the LSP client against a process that exits immediately.
-
 @Suite("Misc gap tests — StoreKit, CSV, SQLite, LSP")
 struct MiscGapTests {
-
-    // MARK: - StoreKit simulation
 
     @Suite("StoreKit simulation session")
     struct StoreKitSimulationTests {
@@ -34,9 +20,6 @@ struct MiscGapTests {
             referenceName: "Pro Monthly", internalID: "2", displayPrice: "4.99",
             subscriptionGroupID: "1", recurringSubscriptionPeriod: "P1M")
 
-        /// A configuration shaped like the `Basic.storekit` fixture:
-        /// consumables in top-level `products`, subscriptions only
-        /// inside their group.
         private static func testConfiguration() -> StoreConfiguration {
             StoreConfiguration(
                 identifier: "test",
@@ -156,7 +139,6 @@ struct MiscGapTests {
             session.installConfiguration(Self.testConfiguration())
             session.executePurchase(product: Self.monthly)
             #expect(session.transactions.count == 1)
-            // 40 days past a monthly period: the scheduler renews.
             clock.advance(by: 40 * 24 * 60 * 60)
             session.advanceSimulation()
             #expect(session.transactions.contains { $0.subscriptionCycleState == "Renewal" })
@@ -183,8 +165,6 @@ struct MiscGapTests {
             #expect(session.availableProfiles.contains { $0.name == "JWS Cryptographic Failure" && $0.failJWSVerification })
         }
     }
-
-    // MARK: - CSV parser
 
     @Suite("CSV parser edge cases")
     struct CSVParserTests {
@@ -234,8 +214,6 @@ struct MiscGapTests {
             }
         }
     }
-
-    // MARK: - SQLite value model and backups
 
     @Suite("SQLite value model and backups")
     struct SQLiteModelTests {
@@ -307,8 +285,6 @@ struct MiscGapTests {
             #expect(manager.listBackups().count == 1)
         }
     }
-
-    // MARK: - LSP client
 
     @Suite("LSP client")
     struct LSPClientTests {

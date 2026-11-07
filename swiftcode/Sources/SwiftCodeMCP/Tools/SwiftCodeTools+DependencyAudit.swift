@@ -5,45 +5,16 @@ import FoundationNetworking
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// Real vulnerability auditing for `dependency_audit` against the
-/// public OSV API (https://api.osv.dev, no key required).
-///
-/// Legacy's `DependencyAudit` invented its result
-/// ("No vulnerabilities found…") without checking anything. This
-/// port queries OSV instead: one `POST /v1/querybatch` query per
-/// pinned SwiftPM package (`{"package": {"name": "<repository URL>",
-/// "ecosystem": "SwiftURL"}, "version": "<pinned version>"}`), then
-/// `GET /v1/vulns/<id>` for each advisory found (capped at 50).
-/// See `specs/ide/gap-closure-failing-tools.md` §8.
-///
-/// A "no advisories" result is reported exactly as that — never as
-/// a guarantee that the dependencies are safe — because OSV can
-/// only match advisories whose affected package URL matches the
-/// repository URL in `Package.resolved`, and advisory coverage
-/// varies by ecosystem.
 extension SwiftCodeMCPHost {
-    /// One pinned dependency from `Package.resolved` (schema v1,
-    /// v2, and v3), with the repository URL OSV matches on.
     struct DependencyAuditPackage: Sendable, Equatable {
         var name: String
         var repositoryURL: String
         var version: String?
-        /// Why this pin cannot be audited (branch/revision-only,
-        /// local path, …). Nil when auditable.
         var skipReason: String?
     }
 
-    /// Test seam: replaces the OSV HTTP round trip in tests.
-    /// Receives the request body (the querybatch JSON) and returns
-    /// the response body. Nil in production.
     nonisolated(unsafe) static var dependencyAuditTestFetcher: (@Sendable (Data) async throws -> Data)?
 
-    /// The pinned packages in a `Package.resolved` file (v1: `object.pins[]`
-    /// with `package` / `repositoryURL` / `state.version` /
-    /// `state.revision`; v2/v3: `pins[]` with `identity` / `location`
-    /// / `state.version` / `state.branch` / `state.revision`).
-    /// Unversioned pins (branch or revision only, local paths) are
-    /// returned with `skipReason` instead of a version.
     nonisolated static func dependencyAuditPackages(from data: Data) throws -> [DependencyAuditPackage] {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MCPToolError("Package.resolved is not a JSON object")
@@ -78,7 +49,6 @@ extension SwiftCodeMCPHost {
         return out
     }
 
-    /// One OSV querybatch request body for the auditable packages.
     nonisolated static func dependencyAuditQueryBody(_ packages: [DependencyAuditPackage]) -> Data {
         let queries: [[String: Any]] = packages.compactMap { pkg in
             guard let version = pkg.version else { return nil }
@@ -87,10 +57,6 @@ extension SwiftCodeMCPHost {
         return (try? JSONSerialization.data(withJSONObject: ["queries": queries])) ?? Data()
     }
 
-    /// One OSV advisory, as reported to the user: id, summary,
-    /// CVSS severity when the advisory carries one, the affected
-    /// version ranges, the fixed version (last `fixed` event), and
-    /// the first reference URL.
     struct DependencyAuditVulnerability: Sendable {
         var id: String
         var packageName: String
@@ -107,8 +73,6 @@ extension SwiftCodeMCPHost {
             "reference": reference.map(AnyJSON.string) ?? .null]) }
     }
 
-    /// Extracts the advisory summaries from a querybatch response
-    /// body (`results[i].vulns[]` with `id` + `summary`).
     nonisolated static func dependencyAuditParseBatch(_ data: Data, packages: [DependencyAuditPackage]) -> [(package: DependencyAuditPackage, id: String, summary: String)] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let results = root["results"] as? [[String: Any]] else { return [] }
@@ -123,8 +87,6 @@ extension SwiftCodeMCPHost {
         return out
     }
 
-    /// Fills in one advisory's detail from a `GET /v1/vulns/<id>`
-    /// response body.
     nonisolated static func dependencyAuditParseDetail(_ data: Data, package: DependencyAuditPackage, id: String, summary: String) -> DependencyAuditVulnerability {
         let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         var severity: String?
@@ -157,9 +119,6 @@ extension SwiftCodeMCPHost {
                                             fixedVersion: fixed, reference: reference)
     }
 
-    /// The OSV querybatch round trip (or the test seam). Throws
-    /// `MCPToolError` with the transport failure, never a
-    /// fabricated audit result.
     private func dependencyAuditQueryBatch(_ body: Data) async throws -> Data {
         if let fetcher = Self.dependencyAuditTestFetcher { return try await fetcher(body) }
         var request = URLRequest(url: URL(string: "https://api.osv.dev/v1/querybatch")!)
@@ -184,10 +143,6 @@ extension SwiftCodeMCPHost {
         return response.body
     }
 
-    /// `dependency_audit`: a real OSV audit of the pinned SwiftPM
-    /// packages in `Package.resolved`. No advisories is reported as
-    /// "no advisories reported by OSV", with the coverage caveat —
-    /// never as a guarantee of safety.
     func dependencyAudit(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let rawProjectPath = call.string("projectPath"), !rawProjectPath.isEmpty else {

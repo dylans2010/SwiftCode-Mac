@@ -1,9 +1,3 @@
-/*
- * CVulkan.c: run-time loaded Vulkan for SwiftCode's Metal host back end
- * (stage8-contract.md §5.2, owner VK). Written from the Vulkan
- * specification and our own R8 harness (research/experiments/simulator/
- * metal-shaders/vk). See CVulkan.h.
- */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
@@ -37,10 +31,6 @@ static int fail(char *err, size_t errlen, const char *fmt, ...) {
     return -1;
 }
 
-/* ------------------------------------------------------------------ */
-/* Loader                                                              */
-/* ------------------------------------------------------------------ */
-
 static void *g_lib;
 
 int yvk_load(char *err, size_t errlen) {
@@ -69,10 +59,6 @@ int yvk_load(char *err, size_t errlen) {
     if (!g_vk.vkCreateInstance) return fail(err, errlen, "the Vulkan loader has no vkCreateInstance");
     return 0;
 }
-
-/* ------------------------------------------------------------------ */
-/* Device                                                              */
-/* ------------------------------------------------------------------ */
 
 static int has_extension(const VkExtensionProperties *list, uint32_t count, const char *name) {
     for (uint32_t i = 0; i < count; i++)
@@ -112,10 +98,6 @@ int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *
         ici.enabledLayerCount = 1;
         ici.ppEnabledLayerNames = layers;
     }
-    /* A second context made while another one is in use (opts->second)
-       writes no function into g_vk, which other threads are using: it
-       loads into a copy and fails unless every function is the one g_vk
-       already has (true when one driver serves both), so g_vk serves it. */
     yvk_dispatch secondTable = g_vk;
     yvk_dispatch *D = opts->second ? &secondTable : &g_vk;
     VkResult r = g_vk.vkCreateInstance(&ici, NULL, &ctx->instance);
@@ -154,7 +136,6 @@ int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *
     g_vk.vkGetPhysicalDeviceProperties(ctx->physical, &ctx->properties);
     g_vk.vkGetPhysicalDeviceMemoryProperties(ctx->physical, &ctx->memory);
 
-    /* Queue family with graphics and compute. */
     uint32_t nq = 0;
     g_vk.vkGetPhysicalDeviceQueueFamilyProperties(ctx->physical, &nq, NULL);
     VkQueueFamilyProperties qp[32];
@@ -167,7 +148,6 @@ int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *
     }
     if (ctx->queueFamily == UINT32_MAX) { yvk_context_destroy(ctx); return fail(err, errlen, "no graphics+compute queue"); }
 
-    /* Extensions. */
     uint32_t next = 0;
     g_vk.vkEnumerateDeviceExtensionProperties(ctx->physical, NULL, &next, NULL);
     VkExtensionProperties *exts = calloc(next ? next : 1, sizeof *exts);
@@ -200,7 +180,6 @@ int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *
 #undef WANT
     free(exts);
 
-    /* Query features. */
     YVKDynamicRenderingLocalReadFeatures lr = {YVK_STRUCTURE_TYPE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES};
     VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT gpl = {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT};
@@ -310,15 +289,11 @@ int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *
     else if (!F->shaderInt64) missing = "shaderInt64";
     if (missing) { yvk_context_destroy(ctx); return fail(err, errlen, "Vulkan device lacks %s", missing); }
 
-    /* Enable everything the device has, except robustness (performance;
-       Metal does not promise bounds checks) and features that change
-       allocation behaviour. */
     f2.features.robustBufferAccess = VK_FALSE;
     f12.bufferDeviceAddressMultiDevice = VK_FALSE;
     f13.robustImageAccess = VK_FALSE;
     f13.pipelineCreationCacheControl = f13.pipelineCreationCacheControl;
 
-    /* Properties: host pointer alignment, subgroup size, descriptor limits. */
     VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT gplp = {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_PROPERTIES_EXT};
     VkPhysicalDeviceExternalMemoryHostPropertiesEXT hostp = {
@@ -357,8 +332,6 @@ int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *
     }
     if (!F->extendedDynamicState3PolygonMode) D->vkCmdSetPolygonModeEXT = NULL;
     if (!F->extendedDynamicState3DepthClamp) D->vkCmdSetDepthClampEnableEXT = NULL;
-    /* The "2" query needs VK_KHR_synchronization2 enabled as an extension on
-       some drivers (the Thor's resolves only the first); either serves. */
     if (!F->diagnosticCheckpoints || !D->vkCmdSetCheckpointNV ||
         (!D->vkGetQueueCheckpointData2NV && !D->vkGetQueueCheckpointDataNV)) {
         F->diagnosticCheckpoints = 0;
@@ -374,12 +347,9 @@ int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *
     for (uint32_t i = 0; i < wantQueues; i++) g_vk.vkGetDeviceQueue(ctx->device, ctx->queueFamily, i, &ctx->queues[i]);
     ctx->queue = ctx->queues[0];
 
-    /* Bindless heap. */
     const VkPhysicalDeviceLimits *L = &ctx->properties.limits;
     uint32_t wantImages = opts->maxSampledImages ? opts->maxSampledImages : 65536;
     uint32_t wantSamplers = opts->maxSamplers ? opts->maxSamplers : 4096;
-    /* As many storage slots as sampled ones: every texture's heap index has
-       an entry in both arrays (a kernel may write any texture). */
     uint32_t wantStorage = opts->maxStorageImages ? opts->maxStorageImages : 65536;
     ctx->heapSampledImages = min_u32(wantImages, min_u32(p12.maxDescriptorSetUpdateAfterBindSampledImages,
                                                          p12.maxPerStageDescriptorUpdateAfterBindSampledImages));
@@ -453,7 +423,6 @@ int yvk_pipeline_cache_create(yvk_context *ctx, const void *data, size_t size) {
     }
     VkPipelineCacheCreateInfo ci = {VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO, NULL, 0, data ? size : 0, data};
     if (g_vk.vkCreatePipelineCache(ctx->device, &ci, NULL, &ctx->pipelineCache) == VK_SUCCESS) return 0;
-    /* Unusable data: start empty. */
     ci.initialDataSize = 0;
     ci.pInitialData = NULL;
     return g_vk.vkCreatePipelineCache(ctx->device, &ci, NULL, &ctx->pipelineCache) == VK_SUCCESS ? 0 : -1;
@@ -475,10 +444,6 @@ VkFormatFeatureFlags yvk_format_buffer_features(const yvk_context *ctx, VkFormat
     g_vk.vkGetPhysicalDeviceFormatProperties(ctx->physical, format, &fp);
     return fp.bufferFeatures;
 }
-
-/* ------------------------------------------------------------------ */
-/* Memory                                                              */
-/* ------------------------------------------------------------------ */
 
 static int32_t find_memory(const yvk_context *ctx, uint32_t bits, VkMemoryPropertyFlags want) {
     for (uint32_t i = 0; i < ctx->memory.memoryTypeCount; i++)
@@ -515,8 +480,6 @@ static int buffer_create(yvk_context *ctx, VkDeviceSize size, yvk_memory_kind ki
             return fail(err, errlen, "host import of %p (+%llu) is not %llu-aligned", hostPointer,
                         (unsigned long long)size, (unsigned long long)ctx->hostPointerAlignment);
     }
-    /* Capture replay: the buffer's own opaque address is left to the
-       device (0); the memory's is what places the buffer. */
     VkBufferOpaqueCaptureAddressCreateInfo bcap = {VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO,
                                                    kind == YVK_MEMORY_IMPORT_HOST ? &ext : NULL, 0};
     VkBufferCreateInfo bi = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -610,10 +573,6 @@ void yvk_buffer_destroy(yvk_context *ctx, yvk_buffer *b) {
     memset(b, 0, sizeof *b);
 }
 
-/* ------------------------------------------------------------------ */
-/* Images                                                              */
-/* ------------------------------------------------------------------ */
-
 int yvk_image_create(yvk_context *ctx, const yvk_image_info *info, yvk_image *out, char *err, size_t errlen) {
     memset(out, 0, sizeof *out);
     VkImageCreateInfo ii = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, NULL, info->flags, info->type, info->format,
@@ -687,10 +646,6 @@ void yvk_heap_write_sampler(yvk_context *ctx, uint32_t index, VkSampler sampler)
     if (index < ctx->heapSamplers) heap_write(ctx, 2, index, VK_DESCRIPTOR_TYPE_SAMPLER, VK_NULL_HANDLE, sampler);
 }
 
-/* ------------------------------------------------------------------ */
-/* Samplers                                                            */
-/* ------------------------------------------------------------------ */
-
 VkSampler yvk_sampler_create(yvk_context *ctx, const yvk_sampler_info *s, char *err, size_t errlen) {
     VkSamplerCreateInfo si = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, NULL, 0, s->magFilter, s->minFilter,
                               s->mipmapMode, s->addressU, s->addressV, s->addressW, s->mipLodBias,
@@ -705,10 +660,6 @@ VkSampler yvk_sampler_create(yvk_context *ctx, const yvk_sampler_info *s, char *
     }
     return sampler;
 }
-
-/* ------------------------------------------------------------------ */
-/* Pipelines                                                           */
-/* ------------------------------------------------------------------ */
 
 typedef struct stage_storage {
     VkSpecializationMapEntry entries[64];
@@ -748,7 +699,6 @@ VkPipeline yvk_compute_pipeline_create(yvk_context *ctx, const yvk_shader_stage 
     return p;
 }
 
-/* The dynamic state every graphics pipeline (and library part) declares. */
 static uint32_t dynamic_states(const yvk_context *ctx, VkDynamicState *dyn) {
     uint32_t ndyn = 0;
     dyn[ndyn++] = VK_DYNAMIC_STATE_VIEWPORT;
@@ -841,11 +791,6 @@ VkPipeline yvk_graphics_pipeline_create(yvk_context *ctx, const yvk_graphics_inf
     return p;
 }
 
-
-/* ------------------------------------------------------------------ */
-/* Graphics pipeline libraries                                         */
-/* ------------------------------------------------------------------ */
-
 typedef struct library_state {
     VkGraphicsPipelineLibraryCreateInfoEXT kind;
     VkPipelineRenderingCreateInfo rendering;
@@ -931,8 +876,6 @@ VkPipeline yvk_library_fragment_shader(yvk_context *ctx, const yvk_shader_stage 
     library_begin(ctx, &L, VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT);
     VkPipelineShaderStageCreateInfo stage;
     stage_storage st;
-    /* No fragment shader (code NULL): a part with no stage, for depth- and
-       stencil-only pipelines. */
     int hasStage = fragment && fragment->code;
     if (hasStage && make_stage(ctx, fragment, VK_SHADER_STAGE_FRAGMENT_BIT, &stage, &st, err, errlen) != 0) return VK_NULL_HANDLE;
     VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
@@ -980,10 +923,6 @@ VkPipeline yvk_library_link(yvk_context *ctx, const VkPipeline *libraries, uint3
     }
     return p;
 }
-
-/* ------------------------------------------------------------------ */
-/* Commands                                                            */
-/* ------------------------------------------------------------------ */
 
 VkCommandBuffer yvk_command_buffer_begin(yvk_context *ctx, char *err, size_t errlen) {
     VkCommandBufferAllocateInfo ai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, ctx->commandPool,
@@ -1086,9 +1025,6 @@ VkResult yvk_submit_on(yvk_context *ctx, uint32_t queue, VkCommandBuffer cb, VkS
     return g_vk.vkQueueSubmit2(ctx->queues[queue], 1, &si, VK_NULL_HANDLE);
 }
 
-/* The user's window-system session, if any: the Wayland compositor named by
-   $WAYLAND_DISPLAY (or wayland-0) in $XDG_RUNTIME_DIR, else the X server of
-   $DISPLAY. Each library is opened at run time; nothing is linked. */
 typedef void *(*yvk_wl_connect_fn)(const char *);
 typedef void (*yvk_wl_disconnect_fn)(void *);
 typedef void *(*yvk_xcb_connect_fn)(const char *, int *);
@@ -1124,12 +1060,11 @@ int yvk_presents_to_session(const char *deviceName) {
         if (connect && failed && setup && roots) {
             int screen = 0;
             xcb = connect(NULL, &screen);
-            if (xcb && failed(xcb)) xcb = NULL; /* the failed connection is freed with the process */
+            if (xcb && failed(xcb)) xcb = NULL;
             if (xcb) {
                 yvk_xcb_screen_iterator it = roots(setup(xcb));
                 void (*next)(yvk_xcb_screen_iterator *) = (void (*)(yvk_xcb_screen_iterator *))dlsym(xcbLib, "xcb_screen_next");
                 for (int k = 0; k < screen && it.rem > 0 && next; k++) next(&it);
-                /* xcb_screen_t: root_visual is the u32 at byte 32 (the X11 protocol's SCREEN). */
                 if (it.data) memcpy(&visual, (char *)it.data + 32, 4);
             }
         }
@@ -1185,7 +1120,6 @@ int yvk_presents_to_session(const char *deviceName) {
     return result;
 }
 
-/* An empty compute kernel (GLSL: layout(local_size_x = 1) in; void main() {}). */
 static const uint32_t kickKernel[] = {
     0x07230203, 0x00010600, 0x0008000b, 0x0000000a, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
     0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
@@ -1221,7 +1155,6 @@ VkResult yvk_kick(yvk_context *ctx, uint64_t timeoutNs) {
         if (tl) g_vk.vkDestroySemaphore(ctx->device, tl, NULL);
         g_vk.vkDestroyPipeline(ctx->device, pipe, NULL);
     }
-    /* On a timeout the objects are left to the context's destruction. */
     return r;
 }
 
@@ -1248,7 +1181,6 @@ uint32_t yvk_queue_checkpoints_on(yvk_context *ctx, uint32_t queue, uint64_t *ma
         uint32_t k = 0;
         for (uint32_t i = 0; i < n && k < max; i++, k++) {
             markers[k] = (uint64_t)(uintptr_t)d[i].pCheckpointMarker;
-            /* VkPipelineStageFlagBits: top (0x1) and bottom (0x2000) of pipe map to the 2 values. */
             stages[k] = d[i].stage == VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT
                       : d[i].stage == VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT ? VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT
                       : (uint64_t)d[i].stage;
@@ -1301,9 +1233,6 @@ VkResult yvk_timeline_signal(yvk_context *ctx, VkSemaphore semaphore, uint64_t v
     VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, semaphore, value};
     return g_vk.vkSignalSemaphore(ctx->device, &si);
 }
-
-/* ------------------------------------------------------------------ */
-/* Helper processes                                                    */
 
 extern char **environ;
 
@@ -1361,7 +1290,6 @@ int yvk_write_all(int fd, const void *bytes, size_t length) {
         length -= (size_t)n;
     }
     if (result == EPIPE && !sigismember(&old, SIGPIPE)) {
-        /* Consume the SIGPIPE this thread raised before unblocking. */
 #if defined(__linux__)
         struct timespec zero = {0, 0};
         while (sigtimedwait(&block, NULL, &zero) == SIGPIPE) {}

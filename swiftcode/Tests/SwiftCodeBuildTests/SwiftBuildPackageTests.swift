@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeBuild
 
-/// A package with an executable product, a library product, and a local
-/// package dependency.
 func writePackages(at root: URL) throws -> URL {
     let fm = FileManager.default
     try? fm.removeItem(at: root)

@@ -6,7 +6,6 @@ struct GitDiffView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("File Change Diff Viewer", systemImage: "doc.text.magnifyingglass")
                     .font(.headline)
@@ -15,7 +14,6 @@ struct GitDiffView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

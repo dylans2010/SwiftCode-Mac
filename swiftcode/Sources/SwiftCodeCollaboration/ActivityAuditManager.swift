@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/ActivityAuditManager.swift
-// Adapted for SwiftCode: Collaboration activity audit log. Verbatim.
-
 import Foundation
 
 public struct ActivityEntry: Identifiable, Codable, Equatable {

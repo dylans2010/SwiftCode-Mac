@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIExportView.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Export view displaying the active user-authored code side-by-side with quick integration buttons, clipboard copying, and PNG/PDF canvas exporter.
 public struct VisualUIExportView: View {
     @Environment(\.dismiss) private var dismiss
     let document: VisualUIDocument
@@ -14,7 +11,6 @@ public struct VisualUIExportView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Tab view framework chooser
                 Picker("Target Framework", selection: $activeTab) {
                     ForEach(VisualUIFramework.allCases) { framework in
                         Text(framework.rawValue).tag(framework)
@@ -28,7 +24,6 @@ public struct VisualUIExportView: View {
 
                 Divider()
 
-                // Rendered output code display
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(generatedCode)
@@ -43,9 +38,7 @@ public struct VisualUIExportView: View {
 
                 Divider()
 
-                // Bottom actions bar
                 HStack(spacing: 16) {
-                    // Export to Clipboard
                     Button {
                         copyToClipboard()
                     } label: {
@@ -54,7 +47,6 @@ public struct VisualUIExportView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
 
-                    // Export to PDF/PNG Preview simulation
                     Button {
                         exportPreview(asFormat: "PNG")
                     } label: {

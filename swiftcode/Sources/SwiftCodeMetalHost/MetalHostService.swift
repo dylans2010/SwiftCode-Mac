@@ -1,28 +1,8 @@
-// The Mach side of the Metal host service (metal-sim-protocol.md §1–§2,
-// iosurface-remote.md §2): served by the VMM's host task.
-//
-// - Every name (`serviceNames`) may point at the one `servicePort`.
-// - A client opens a connection with the hand-shake 0x77303074: descriptor
-//   0 is the connection port (a receive right the service keeps and
-//   serves), descriptor 1 a send right of the client. On the connection of
-//   type 0 that right is where completion events go (§2.1).
-// - Requests are 0x10000000 messages with one `!CPX` dictionary; those
-//   with a reply port get a 0x20000000 `!CPX` reply. Types 6 and 14 are
-//   one-way.
-// - Each connection is served in order on its own queue; the three
-//   connections of a process run concurrently (pipeline creation on
-//   connection 2 may be slow, submissions on connection 0 must not wait).
-// - A connection ends when its port loses its senders; a process ends with
-//   its last connection, and its objects are released.
-
 import Foundation
 import SwiftCodeDarwinKernel
 import SwiftCodeXPC
 
 public final class MetalHostService: @unchecked Sendable {
-    /// `com.apple.metal.simulator` and the per-client names the macOS host
-    /// registers (spec §1.1, launchd-sim.md §6.3). Registering only the
-    /// first is enough: every process falls back to it.
     public static let serviceNames = [
         "com.apple.metal.simulator",
         "com.apple.metal.simulator.SpringBoard",
@@ -38,7 +18,6 @@ public final class MetalHostService: @unchecked Sendable {
     static let eventID: Int32 = 0x1000_0000
 
     public let host: MachHostTask
-    /// A receive right of the host task with a send right under the same name.
     public let servicePort: UInt32
     public let backend: MetalBackend
     let core: MetalHostCore
@@ -48,12 +27,9 @@ public final class MetalHostService: @unchecked Sendable {
     private var queues: [UInt32: DispatchQueue] = [:]
     private var stopping = false
     private var thread: Thread?
-    /// Signalled when `run()` returns.
     private let finished = DispatchSemaphore(value: 0)
     private var shutDown = false
 
-    /// `memory` resolves memory-entry rights (buffers' shared memory, data
-    /// sent by memory entry); `surfaces` resolves IOSurface ports.
     public init(host: MachHostTask, backend: MetalBackend, memory: MetalGuestMemoryResolver?, surfaces: IOSurfaceResolver?,
                 registryID: UInt64 = 0x1_0000_0059, log: @escaping (String) -> Void) throws {
         self.host = host
@@ -68,34 +44,16 @@ public final class MetalHostService: @unchecked Sendable {
 
     public var statistics: MetalHostStatistics { core.statistics }
 
-    /// The clock of the command buffers' GPU start and end times in
-    /// completion events, in seconds; the default is the host's uptime. Set
-    /// it before any client connects: the guest compares these times with
-    /// its own media time (frame pacing), so a VMM whose guest clock is not
-    /// the host's gives the guest's mach time in seconds here.
     public func setEventClock(_ clock: @escaping () -> Double) { core.eventClock = clock }
 
-    /// The guest pids of the processes with a Metal connection: their GPU
-    /// objects cannot be saved, so a snapshot restore restarts them
-    /// (snapshot.md §8 option 1).
     public func clientPIDs() -> [Int32] { core.clientPIDs() }
 
-    /// The guest pid of a client process (nil once it ended or before its
-    /// first message): names the client in GPU hang messages.
     public func guestPID(of process: MetalProcessID) -> Int32? { core.guestPID(of: process) }
 
-    // MARK: Snapshot (snapshot.md §8 option 2)
-
-    /// Why a snapshot must wait (a command buffer without its completion
-    /// event), or nil. Kernel lock held.
     public var snapshotBusyReason: String? { core.snapshotBusyReason }
 
-    /// The service's state with GPU-only contents, or nil when busy. Kernel
-    /// lock held, every service idle (no message in hand).
     public func trySnapshotState() -> SnapshotFields? { core.trySnapshotState(log: log) }
 
-    /// After a restore, before any client runs: the tables come back and
-    /// every object is made again on this (fresh) back end.
     public func restoreState(_ r: SnapshotFieldReader) -> MetalReplayReport {
         let report = core.restoreState(r)
         let ports = core.connectionPorts
@@ -116,13 +74,6 @@ public final class MetalHostService: @unchecked Sendable {
 
     public func stop() { lock.withLock { stopping = true } }
 
-    /// The ordered end before the host exits (`stage8-contract.md` §12):
-    /// stop receiving and wait for the receive thread; let every
-    /// connection's queue finish the request it is running (at most
-    /// `drainTimeout` seconds in all); then shut the backend down, which
-    /// waits for the GPU and stops its threads. Idempotent. Returns false
-    /// when a connection queue was still busy at the timeout (the backend
-    /// is shut down anyway).
     @discardableResult
     public func shutdown(drainTimeout: Double = 10) -> Bool {
         let (first, started) = lock.withLock { () -> (Bool, Bool) in
@@ -142,11 +93,8 @@ public final class MetalHostService: @unchecked Sendable {
         return drained
     }
 
-    /// Diagnostics: `SWIFTCODE_METAL_STATS=<seconds>` logs a summary of every
-    /// client process and of the backend at that interval.
     static let statsInterval: Double = ProcessInfo.processInfo.environment["SWIFTCODE_METAL_STATS"].flatMap(Double.init) ?? 0
 
-    /// The diagnostic summary lines (`SWIFTCODE_METAL_STATS`).
     public func summaryLines() -> [String] {
         let s = core.statistics
         var lines = ["metal: summary: \(s.processes) processes, \(s.liveObjects) objects, \(s.submissions) submissions, "
@@ -159,10 +107,8 @@ public final class MetalHostService: @unchecked Sendable {
         return lines
     }
 
-    /// True while the receive thread runs (tests).
     var receiving: Bool { lock.withLock { _receiving } }
     private var _receiving = false
-    /// A diagnostic summary is being written (`SWIFTCODE_METAL_STATS`).
     private var summaryRunning = false
 
     private func run() {
@@ -175,12 +121,6 @@ public final class MetalHostService: @unchecked Sendable {
         while !lock.withLock({ stopping }) {
             if ProcessInfo.processInfo.systemUptime >= nextSummary {
                 nextSummary += Self.statsInterval
-                // On a thread of its own: the shared-content read-back
-                // (`SWIFTCODE_METAL_SHARED_CONTENT`) waits for the GPU, and a
-                // GPU that hangs would otherwise stop this receive loop and
-                // with it every Metal client (VISIONOS-R4b, boot r1). One
-                // summary at a time; a period whose predecessor is still
-                // running is skipped.
                 if lock.withLock({ () -> Bool in
                     if summaryRunning { return false }
                     summaryRunning = true
@@ -205,11 +145,6 @@ public final class MetalHostService: @unchecked Sendable {
         }
     }
 
-    // MARK: Messages
-
-    /// Every message ends with `host.finishedMessage()` (a snapshot waits
-    /// until none is in hand, snapshot.md §3.1); the queued ones when their
-    /// queue has served them.
     func dispatch(_ m: MachHostReceivedMessage) {
         if m.localPort == servicePort {
             if m.id == Self.handshakeID { connect(m) } else { host.discard(m) }
@@ -260,11 +195,6 @@ public final class MetalHostService: @unchecked Sendable {
         if let client, MachPortName.isValid(client) { try? host.deallocate(client) }
     }
 
-    /// Diagnostics (`SWIFTCODE_METAL_TRACE=<file>`): `<file>.ops` gets one line
-    /// per request: connection, message type, device-op record (12) or -1,
-    /// whether a reply was sent, and the host monotonic ns when the receive
-    /// thread got it, when its connection queue started it, and when it was
-    /// done (reply sent). Format: stage8-contract.md §14.
     static let opTrace: OpTraceFile? = ProcessInfo.processInfo.environment["SWIFTCODE_METAL_TRACE"]
         .flatMap { $0.isEmpty ? nil : OpTraceFile(path: $0 + ".ops") }
 
@@ -298,7 +228,6 @@ public final class MetalHostService: @unchecked Sendable {
         if let reply = outcome.reply, MachPortName.isValid(m.replyPort) {
             do {
                 let encoded = try XPCWire.encode(.dictionary(reply), magic: XPCWire.sim2hostMagic)
-                // Rights in the reply (an exported event's port, messageType 17).
                 let descriptors: [MachHostDescriptor] = encoded.descriptors.compactMap {
                     if case let .port(name, disposition) = $0 { return .port(name: name, disposition: disposition) }
                     return nil
@@ -312,7 +241,6 @@ public final class MetalHostService: @unchecked Sendable {
         if let t = Self.opTrace {
             t.write("\(m.localPort) \(traceType) \(traceOp) \(replied ? 1 : 0) \(receivedAt) \(startedAt) \(DispatchTime.now().uptimeNanoseconds)\n")
         }
-        // Drop every right the message brought except those the core keeps.
         var keep = outcome.retained
         var names: [UInt32] = []
         if !replied, MachPortName.isValid(m.replyPort) { names.append(m.replyPort) }
@@ -340,7 +268,6 @@ extension MetalHostService: MetalHostTransport {
         }
         let message = MachHostOutgoingMessage(remotePort: port, remoteDisposition: MachMsgType.copySend, id: Self.eventID,
                                               body: encoded.body)
-        // The client drains its event port; wait for room, but not forever.
         for _ in 0..<50 {
             do {
                 try host.send(message, timeout: 100_000_000)
@@ -356,16 +283,10 @@ extension MetalHostService: MetalHostTransport {
         return false
     }
 
-    /// A port for an exported shared event (messageType 17): a receive
-    /// right of the host task that nobody receives on; replies carry
-    /// MAKE_SEND rights to it, and messageType 18 brings one back.
     func makeEventPort() -> UInt32? { try? host.makePort(sendRight: false, qlimit: 1) }
 
     func destroyEventPort(_ name: UInt32) { try? host.destroyPort(name) }
 
-    /// Drops one reference of a right named in the host task. A send right
-    /// to one of the host's own ports (an IOSurface port) drops only that
-    /// send reference.
     func dropRight(_ name: UInt32) {
         guard MachPortName.isValid(name), let (type, _) = host.rights(of: name) else { return }
         if type & MachPortType.receive != 0 {
@@ -376,7 +297,6 @@ extension MetalHostService: MetalHostTransport {
     }
 }
 
-/// An append-only diagnostics file written from several threads.
 final class OpTraceFile: @unchecked Sendable {
     private let file: FileHandle
     private let lock = NSLock()

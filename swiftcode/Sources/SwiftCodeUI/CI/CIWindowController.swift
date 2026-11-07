@@ -4,17 +4,6 @@ import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 
-// MARK: - CI dashboard window (gap closure)
-//
-// The `ci.VisualWF` window (specs/ide/gap-closure-windows-
-// artboards.md §6): the GitHub Actions dashboard — runs, jobs +
-// steps, job logs, re-run. The local-automation workflow engine
-// (Legacy's `WorkflowManager`) is a separate subsystem and is NOT
-// this window. Runs are always real GitHub data; an empty repo
-// shows an empty state, never fake runs.
-
-/// The CI dashboard's window manager: one shared window per
-/// workspace folder, raised when already open.
 @MainActor
 public final class CIWindowManager: NSObject {
     public static let shared = CIWindowManager()
@@ -63,13 +52,7 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
     private let repoField = NSTextField()
     private let refreshButton = NSButton(title: "Refresh", target: nil, action: nil)
     private let rerunButton = NSButton(title: "Re-run", target: nil, action: nil)
-    /// Wiring (wiring-views): opens the visual workflow creator
-    /// (`WorkflowsCreateView`, same target) as a sheet.
     private let createButton = NSButton(title: "Create Visual Workflow", target: nil, action: nil)
-    /// Wiring (wiring-views): opens the workflow editor
-    /// (`WorkflowEditorView`, same target) for the workspace's
-    /// `.github/workflows/workflow.yml` as a sheet. Enabled only while
-    /// that file exists (see `updateEditButton()`).
     private let editButton = NSButton(title: "Edit Workflow", target: nil, action: nil)
     private let statusLabel = NSTextField(labelWithString: "")
     private let runsTable = NSTableView()
@@ -104,9 +87,6 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The repository the dashboard shows: the workspace's git
-    /// remote when it parses as `owner/repo`, else the last one
-    /// the user typed (persisted in UserDefaults).
     func loadRepository() {
         if let remote = GitPushClient.live(store: service.store).remoteURL(workspaceFolder),
            let parsed = GitHubRepoReference.parseRemoteURL(remote) {
@@ -213,14 +193,8 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
         stack.addArrangedSubview(logsScroll)
     }
 
-    // MARK: - Loading
-
     @objc private func refreshClicked() { refresh() }
 
-    /// Wiring (wiring-views): the "Create Visual Workflow" action —
-    /// `WorkflowsCreateView` (the missing half of `ActionsView`) as a
-    /// sheet, saving into the workspace folder's
-    /// `.github/workflows/` when the user saves.
     @objc private func createVisualWorkflowClicked() {
         guard let window else { return }
         let sheet = NSWindow(
@@ -233,30 +207,17 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
         sheet.contentViewController = NSHostingController(
             rootView: WorkflowsCreateView(projectRoot: workspaceFolder)
         )
-        // Creating the workflow makes "Edit Workflow" meaningful.
         window.beginSheet(sheet) { [weak self] _ in self?.updateEditButton() }
     }
 
-    /// The workflow file the CI window edits: the same
-    /// `.github/workflows/workflow.yml` `WorkflowsCreateView` saves.
     private var workflowFileURL: URL {
         workspaceFolder.appendingPathComponent(".github/workflows/workflow.yml")
     }
 
-    /// "Edit Workflow" is only meaningful while the workflow file exists;
-    /// re-evaluated whenever the file may have appeared (window build, and
-    /// after the Create sheet closes).
     private func updateEditButton() {
         editButton.isEnabled = FileManager.default.fileExists(atPath: workflowFileURL.path)
     }
 
-    /// Wiring (wiring-views): the "Edit Workflow" action —
-    /// `WorkflowEditorView` for the workspace's
-    /// `.github/workflows/workflow.yml`, as a sheet. The button is enabled
-    /// only while that file exists (see `updateEditButton()`), so a click
-    /// always has content to edit; the editor's "Save" writes the file
-    /// back and closes the sheet. A failed write leaves the sheet open so
-    /// the user can retry Save or close without losing edits.
     @objc private func editWorkflowClicked() {
         guard let window else { return }
         guard let content = try? String(contentsOf: workflowFileURL, encoding: .utf8) else {
@@ -278,9 +239,6 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
                     try newContent.write(to: self.workflowFileURL, atomically: true, encoding: .utf8)
                     window.endSheet(sheet)
                 } catch {
-                    // Write failed (permissions, disk): leave the sheet
-                    // open so the user can retry Save or close without
-                    // losing edits.
                 }
             }
         )
@@ -400,8 +358,6 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
         }
     }
 
-    // MARK: - NSTableViewDataSource / Delegate
-
     public func numberOfRows(in tableView: NSTableView) -> Int { runs.count }
 
     public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -438,9 +394,6 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
     }
 }
 
-/// Holds the edited workflow text for a `WorkflowEditorView` sheet's
-/// `@Binding` (wiring-views; AppKit has no `@State` to bind to). The
-/// sheet's hosting controller keeps it alive for the sheet's lifetime.
 private final class WorkflowEditorContent: ObservableObject {
     @Published var text: String
     init(_ text: String) { self.text = text }

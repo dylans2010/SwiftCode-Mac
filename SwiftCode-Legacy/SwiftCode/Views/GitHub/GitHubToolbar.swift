@@ -6,7 +6,6 @@ struct GitHubToolbar: View {
     let isProjectConnected: Bool
     let isPerformingAction: Bool
 
-    // Callbacks
     var onRefresh: () -> Void
     var onClone: () -> Void
     var onPull: (() -> Void)? = nil
@@ -21,7 +20,6 @@ struct GitHubToolbar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Contextual Actions
             Group {
                 Button {
                     onRefresh()
@@ -78,7 +76,6 @@ struct GitHubToolbar: View {
 
             Spacer()
 
-            // Selection-specific contextual creation buttons
             Group {
                 if currentSelection == .branches {
                     Button {

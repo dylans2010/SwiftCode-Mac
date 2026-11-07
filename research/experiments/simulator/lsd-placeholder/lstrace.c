@@ -1,9 +1,3 @@
-// lstrace: our own interposer (Ycode stage 9, agent J). Logs, through os_log
-// (subsystem dev.ycode.lstrace), the file calls a process makes on paths that
-// contain $LSTRACE_FILTER, and every call on descriptors it opened for them:
-// open/openat/stat/lstat/access/getattrlist/getxattr/read/pread/lseek/mmap/
-// fcntl/fstat/close/fgetattrlist. Used in the simulator's lsd (DYLD_INSERT_LIBRARIES
-// through launchctl setenv) to see what LaunchServices reads during seeding.
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -81,7 +75,6 @@ static void *my_mmap(void *a, size_t n, int prot, int fl, int fd, off_t o) { voi
 INTERPOSE(my_mmap, mmap)
 static int my_fcntl(int fd, int cmd, ...) { va_list ap; va_start(ap, cmd); void *arg = va_arg(ap, void *); va_end(ap); int r = fcntl(fd, cmd, arg); if (isTracked(fd)) say("fcntl %d cmd %d -> %d", fd, cmd, r); return r; }
 INTERPOSE(my_fcntl, fcntl)
-// LSTRACE_HIDE: colon-separated exact paths that getattrlist reports as ENOENT (experiment).
 static int hidden(const char *p) {
     const char *h = getenv("LSTRACE_HIDE"); if (!h || !p) return 0;
     size_t n = strlen(p);
@@ -89,7 +82,6 @@ static int hidden(const char *p) {
         if (m == n && !strncmp(q, p, n)) return 1; if (!e) break; q = e + 1; }
     return 0;
 }
-// LSTRACE_CAPSCLEAR=<mask>: clear these VOL_CAP_FMT bits in ATTR_VOL_CAPABILITIES replies (experiment).
 static void capsClear(struct attrlist *a, unsigned char *b) {
     const char *cc = getenv("LSTRACE_CAPSCLEAR"); if (!cc || !(a->volattr & ATTR_VOL_CAPABILITIES)) return;
     static const unsigned char csz[32] = {8,4,8,4,4,8,8,8,4,16,16,16,16,16,32,4,4,4,4,4,4,4,8,16,16,8,8,8,16,0,4,20};
@@ -120,7 +112,6 @@ static int my_getattrlist(const char *p, void *al, void *b, size_t n, unsigned i
     }
     const char *pq = getenv("LSTRACE_PATCHPARENT");
     if (r == 0 && pq && !strcmp(pq, p) && (a0->commonattr & 0x84000000) == 0x84000000) {
-        // PARENTID: after RETURNED_ATTRS..FILEID in bit order; locate it for the two request shapes LS uses.
         unsigned off = 0;
         if (a0->commonattr == 0xd61f9e0d) off = 0x8c;
         if (off) { uint64_t id = 0x7777777; memcpy((unsigned char *)b + off, &id, 8); say("getattrlist %s PARENTPATCHED", p); }

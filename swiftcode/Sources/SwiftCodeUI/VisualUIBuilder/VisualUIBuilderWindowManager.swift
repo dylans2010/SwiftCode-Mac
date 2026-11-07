@@ -1,11 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderWindowManager.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
-// Adaptation: Legacy's manager held a VisualUIBuilderWindowController, which Audit A
-// marks COVERED-BY-REDESIGN by ArtboardWindowController — but that controller hosts the
-// gap-closure Artboards model, not this workspace's VisualUIBuilderSplitViewController,
-// so it cannot open this window. The window construction + toolbar from Legacy's
-// VisualUIBuilderWindowController (same folder, 91 lines) is folded in here verbatim
-// instead, so showWindow()/closeWindow() keep their Legacy behaviour and public API.
 import AppKit
 import SwiftUI
 
@@ -58,8 +50,6 @@ public final class VisualUIBuilderWindowManager: NSObject, NSWindowDelegate, NST
         window = nil
         splitViewController = nil
     }
-
-    // MARK: - NSToolbarDelegate (from Legacy VisualUIBuilderWindowController)
 
     public func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)

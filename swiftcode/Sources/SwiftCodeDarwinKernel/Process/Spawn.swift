@@ -1,17 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// posix_spawn (BSD 244), execve (59), and __mac_execve (380): stage 4b,
-// `specs/simulator/processes.md` §1 and `stage4b-contract.md` §4 items 3–4.
-// Owner: agent P.
-//
-// Ordinary spawn makes a new process (new pid, new kernel, new VM through the
-// launcher). SETEXEC and execve make a new kernel for the same pid; once the
-// launcher has started the new image, the old one ends with
-// `Outcome.imageReplaced`. A failure before that point leaves the caller (and
-// the process table) unchanged.
-
-/// The kernel-read part of `struct _posix_spawnattr` (`processes.md` §1.4).
 struct SpawnAttributes: Equatable {
     var flags: UInt16 = 0
     var sigdefault: UInt32 = 0
@@ -21,7 +10,6 @@ struct SpawnAttributes: Equatable {
     var subcpuprefs: [UInt32] = [UInt32.max, UInt32.max, UInt32.max, UInt32.max]
     var pcontrol: UInt32 = 0
     var apptype: UInt32 = 0
-    /// `psa_qos_clamp` and `psa_darwin_role` (`processes.md` §1.6).
     var qosClamp: UInt64 = 0
     var darwinRole: UInt32 = 0
 
@@ -43,7 +31,6 @@ struct SpawnAttributes: Equatable {
     }
 }
 
-/// `psa_flags` bits (`processes.md` §1.5).
 enum SpawnFlag {
     static let resetIDs: UInt16 = 0x0001
     static let setPGroup: UInt16 = 0x0002
@@ -57,7 +44,6 @@ enum SpawnFlag {
     static let cloexecDefault: UInt16 = 0x4000
 }
 
-/// One 1040-byte file action (`processes.md` §1.7).
 struct SpawnFileAction: Equatable {
     enum Kind: Int32 {
         case open = 0, close = 1, dup2 = 2, inherit = 3, fileportDup2 = 4, chdir = 5, fchdir = 6
@@ -103,7 +89,6 @@ struct SpawnFileAction: Equatable {
     }
 }
 
-/// Everything one spawn or exec needs, parsed and validated.
 struct SpawnRequest {
     var path: String
     var argv: [String]
@@ -115,13 +100,10 @@ struct SpawnRequest {
 }
 
 extension DarwinKernel {
-    /// `NCARGS`: the limit on path + argv + envp (with pointer slots).
     static let argumentSpaceLimit = 1 << 20
     static let E2BIG: Int32 = 7
     static let ENOEXEC: Int32 = 8
     static let EBADARCH: Int32 = 86
-
-    // MARK: posix_spawn (244)
 
     func posixSpawn(_ me: DarwinProcess, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         let path = try readPath(a[1], mem)
@@ -163,8 +145,6 @@ extension DarwinKernel {
                 }
                 request.portActions = try SpawnPortAction.parseBlock(b)
             }
-            // MAC extensions (3), coalitions (4), the subsystem root (7, needs
-            // an entitlement), and the conclave id (8) are accepted and ignored.
             let persona = pair(5)
             if persona.size != 0 {
                 guard persona.size == 88 else { throw Failure(errno: Errno.ERANGE) }
@@ -177,7 +157,6 @@ extension DarwinKernel {
                 guard DarwinFileSystem.guestUID == 0 else { throw Failure(errno: Errno.EPERM) }
             }
         }
-        // The driver process type needs an entitlement (`processes.md` §1.6).
         if request.attributes.apptype & 0xF00 == 0x700 { throw Failure(errno: Errno.EPERM) }
         var budget = Self.argumentSpaceLimit - (path.utf8.count + 1)
         request.argv = try readStringArray(a[3], budget: &budget, mem)
@@ -192,8 +171,6 @@ extension DarwinKernel {
         return .value(0)
     }
 
-    // MARK: execve (59) / __mac_execve (380)
-
     func execve(_ me: DarwinProcess, _ n: Int, _ a: [UInt64], _ call: inout CallText, _ mem: any KernelGuestMemory) throws -> BSDResult {
         let path = try readPath(a[0], mem)
         call.set("\(n == ProcBSD.execve ? "execve" : "__mac_execve")(\"\(path)\", argv=\(hx(a[1])), envp=\(hx(a[2])))")
@@ -204,8 +181,6 @@ extension DarwinKernel {
         return try execImage(me, request, &call)
     }
 
-    /// Reads a NULL-terminated array of string pointers (NULL array = empty),
-    /// charging each string and pointer slot to `budget` (E2BIG when spent).
     func readStringArray(_ va: UInt64, budget: inout Int, _ mem: any KernelGuestMemory) throws -> [String] {
         guard va != 0 else { return [] }
         var out: [String] = []
@@ -224,10 +199,6 @@ extension DarwinKernel {
         return out
     }
 
-    // MARK: Building an image
-
-    /// Applies spawn file actions to `fs` in order (`processes.md` §1.7);
-    /// returns the descriptors CLOEXEC_DEFAULT keeps. The first failure fails.
     func applyFileActions(_ actions: [SpawnFileAction], to fs: DarwinFileSystem) throws -> Set<Int32> {
         var marked = Set<Int32>()
         for action in actions {
@@ -273,12 +244,6 @@ extension DarwinKernel {
         return marked
     }
 
-    /// Checks that `hostPath` is an image this machine can run
-    /// (`stage4b-contract.md` §2 item 8): a 64-bit arm64 `MH_EXECUTE`
-    /// Mach-O (thin, or the arm64 slice of a fat file; not arm64e) for a
-    /// simulator platform, honoring the architecture preferences (`processes.md` §1.6).
-    /// ENOEXEC for anything that is not Mach-O, EBADARCH for the wrong
-    /// architecture or platform.
     static func checkExecutable(hostPath: String, attributes: SpawnAttributes) throws {
         guard let handle = FileHandle(forReadingAtPath: hostPath) else { throw Failure(errno: Errno.ENOENT) }
         defer { try? handle.close() }
@@ -320,7 +285,6 @@ extension DarwinKernel {
                     }
                 }
             }
-            // Plain arm64 before arm64e (which is refused below).
             if chosen == nil { chosen = (slices.first { $0.cpu == arm64 && $0.sub & 0x00FF_FFFF <= 1 } ?? slices.first { $0.cpu == arm64 })?.offset }
             guard let chosen else { throw Failure(errno: Self.EBADARCH) }
             sliceOffset = chosen
@@ -328,14 +292,10 @@ extension DarwinKernel {
         let header = sliceOffset == 0 ? head : read(sliceOffset, 4096)
         guard header.count >= 32 else { throw Failure(errno: Self.ENOEXEC) }
         let magic = header.readLE(UInt32.self, at: 0)
-        if magic == 0xFEED_FACE { throw Failure(errno: Self.EBADARCH) }  // 32-bit Mach-O
+        if magic == 0xFEED_FACE { throw Failure(errno: Self.EBADARCH) }
         guard magic == 0xFEED_FACF else { throw Failure(errno: Self.ENOEXEC) }
         let cpu = header.readLE(UInt32.self, at: 4), sub = header.readLE(UInt32.self, at: 8)
         guard cpu == arm64 else { throw Failure(errno: Self.EBADARCH) }
-        // arm64e (subtype 2) and its variants need pointer authentication,
-        // which the guest CPU does not have (cpu-features.md); the
-        // reference refuses watchOS's arm64e device binary with "Bad CPU
-        // type" too (watchos.md §2.4, W-3). ALL (0) and V8 (1) run.
         guard sub & 0x00FF_FFFF <= 1 else { throw Failure(errno: Self.EBADARCH) }
         if sliceOffset == 0, attributes.binprefs[0] != 0 {
             var accepted = false
@@ -348,8 +308,7 @@ extension DarwinKernel {
             }
             guard accepted else { throw Failure(errno: Self.EBADARCH) }
         }
-        guard header.readLE(UInt32.self, at: 12) == 2 else { throw Failure(errno: Self.ENOEXEC) }  // MH_EXECUTE
-        // LC_BUILD_VERSION: a simulator platform (iOS 7, tvOS 8, watchOS 9, visionOS 12).
+        guard header.readLE(UInt32.self, at: 12) == 2 else { throw Failure(errno: Self.ENOEXEC) }
         let ncmds = Int(header.readLE(UInt32.self, at: 16)), sizeofcmds = Int(header.readLE(UInt32.self, at: 20))
         let commands = 32 + sizeofcmds <= header.count ? header : read(sliceOffset, 32 + min(sizeofcmds, 1 << 20))
         var at = 32
@@ -369,9 +328,6 @@ extension DarwinKernel {
         pref == UInt32.max || pref & 0x00FF_FFFF == sub & 0x00FF_FFFF
     }
 
-    /// Copies what a new image inherits from this one (`processes.md`
-    /// §1.11): limits, umask, the sysctl table, signal actions after the
-    /// exec reset, the calling thread's mask, then SETSIGDEF/SETSIGMASK.
     func inheritProcessState(into k: DarwinKernel, attributes: SpawnAttributes, isExec: Bool) {
         k.sysctl = sysctl
         k.entropy = entropy
@@ -382,8 +338,6 @@ extension DarwinKernel {
         k.mainStackTop = mainStackTop
         k.extended.rlimits = extended.rlimits
         k.extended.umask = extended.umask
-        // Caught signals revert to the default (a default "ignore" becomes
-        // ignored, except SIGCONT); ignored ones stay ignored.
         var actions: [Int32: ExtendedBSDState.SignalAction] = [:]
         for (sig, action) in extended.signalActions {
             if action.handler == 1 {
@@ -416,9 +370,6 @@ extension DarwinKernel {
         return image
     }
 
-    /// Steps 2–7 shared by spawn and exec: the descriptor table, the
-    /// executable, the new kernel with its inherited ports. Nothing in the
-    /// process table changes. On failure everything made is released.
     private func buildImage(_ request: SpawnRequest, pid newPID: Int32, isExec: Bool)
         throws -> (kernel: DarwinKernel, guestPath: String, hostPath: String) {
         let fs = fileSystem.makeChildCopy(newProcess: !isExec)
@@ -445,29 +396,19 @@ extension DarwinKernel {
                 throw error
             }
         }
-        // Image activation: close-on-exec (and CLOEXEC_DEFAULT) closing.
         fs.closeOnExecDescriptors(keepOnly: request.attributes.flags & SpawnFlag.cloexecDefault != 0 ? marked : nil)
         return (k, guestPath, hostPath)
     }
 
-    /// A kernel that never ran: release its ports and descriptors.
     func discardUnlaunchedImage() {
         termination = .imageReplaced
         withPorts { (machIPC as? MachIPC)?.terminateTask() }
         fileSystem.closeAll()
     }
 
-    /// On by default; `SWIFTCODE_SPAWN_UNLOCKED_BUILD=0` builds new images with
-    /// the kernel lock held, as before (`bsd-locking.md` §7).
     nonisolated(unsafe) public static var unlockedImageBuild =
         getenv("SWIFTCODE_SPAWN_UNLOCKED_BUILD").map { String(cString: $0) != "0" } ?? true
 
-    /// Builds the new image's VM (`ProcessLauncher.prepare`) with the
-    /// kernel lock released (`bsd-locking.md` §7): `kernel` is not yet
-    /// visible to any other thread. nil when the launcher has no two-step
-    /// form, the switch is off, or the caller cannot give the lock up.
-    /// When this image ended meanwhile the prepared image is discarded and
-    /// the call fails with EINTR. Kernel lock held on entry and return.
     private func prepareUnlocked(_ launcher: any ProcessLauncher, _ request: ProcessImageRequest,
                                  kernel: DarwinKernel) throws -> (any PreparedImage)? {
         guard Self.unlockedImageBuild, lock.isHeldByCurrentThread else { return nil }
@@ -479,7 +420,6 @@ extension DarwinKernel {
         return prepared
     }
 
-    /// Ordinary spawn (`processes.md` §1.10): returns the child's pid.
     func spawnChild(_ me: DarwinProcess, _ request: SpawnRequest) throws -> Int32 {
         guard let launcher = system.launcher else {
             trace("note: posix_spawn: no process launcher; ENOSYS")
@@ -487,7 +427,6 @@ extension DarwinKernel {
         }
         let childPID = try system.allocatePID()
         let (child, guestPath, hostPath) = try buildImage(request, pid: childPID, isExec: false)
-        // The image's VM, loaded executables and stack, built without L0.
         var prepared: (any PreparedImage)?
         do {
             prepared = try prepareUnlocked(launcher, makeRequest(request, guestPath: guestPath, hostPath: hostPath), kernel: child)
@@ -515,12 +454,8 @@ extension DarwinKernel {
             system.reap(record)
             child.discardUnlaunchedImage()
         }
-        // Scheduling policy (`scheduling-policy.md` §4.1, §4.2): the type,
-        // clamp and role, the watch ports, and the start hold.
         child.applySpawnPolicy(request.attributes, record: record, isExec: false)
         var boostSenders: [Int32] = []
-        // Messages already queued on the watch ports: a client sent to the
-        // job and is waiting for it (an on-demand start, §4.2).
         var queuedAtSpawn = 0
         if let ipc = child.machIPC as? MachIPC { withPorts {
             queuedAtSpawn = ipc.pendingWatchPorts.reduce(0) { $0 + ($1.active ? $1.messages.count : 0) }
@@ -535,12 +470,9 @@ extension DarwinKernel {
         let suspended = request.attributes.flags & SpawnFlag.startSuspended != 0
         let holdable = SchedPolicy.holdEnabled && !suspended && record.importanceBoosts == 0
             && (record.typeCode == ProcessTypeCode.daemonAdaptive || record.typeCode == ProcessTypeCode.daemonBackground)
-        // An on-demand start is not held, with or without importance on the
-        // client's message (scheduling-policy.md §4.2, "demand").
         let demand = holdable && SchedPolicy.holdSkipsDemand && queuedAtSpawn > 0
         let hold = holdable && !demand
         do {
-            // Step 9 (as the child itself): SETPGROUP, then SETSID.
             if request.attributes.flags & SpawnFlag.setPGroup != 0 {
                 try setpgid(caller: record, pid: 0, pgid: request.attributes.pgroup)
             }
@@ -548,7 +480,7 @@ extension DarwinKernel {
             var image = makeRequest(request, guestPath: guestPath, hostPath: hostPath)
             if hold { image.startSuspended = true }
             if let p = prepared {
-                prepared = nil  // activate disposes of it on failure
+                prepared = nil
                 record.image = try launcher.activate(p, startSuspended: image.startSuspended)
             } else {
                 record.image = try launcher.launch(image, kernel: child)
@@ -578,14 +510,11 @@ extension DarwinKernel {
             record.state = .stopped
             record.kernel?.startedSuspended()
         }
-        // Step 12: NOTE_FORK to the parent's watchers.
         system.postProcessEvent(me, NoteProc.fork)
         trace("note: spawned pid \(childPID) \(guestPath)")
         return childPID
     }
 
-    /// SETEXEC spawn and execve (`processes.md` §1.3, §1.11, §4.7): the
-    /// process continues as a new image under the same pid.
     func execImage(_ me: DarwinProcess, _ request: SpawnRequest, _ call: inout CallText) throws -> BSDResult {
         guard let launcher = system.launcher else {
             trace("note: exec: no process launcher; ENOSYS")
@@ -596,9 +525,6 @@ extension DarwinKernel {
         let image: any LaunchedImage
         do {
             let imageRequest = makeRequest(request, guestPath: guestPath, hostPath: hostPath)
-            // The VM is built without L0 (the new image is not visible yet);
-            // EINTR when this image ended meanwhile (another thread's exec,
-            // exit or a fatal signal).
             if let prepared = try prepareUnlocked(launcher, imageRequest, kernel: next) {
                 image = try launcher.activate(prepared, startSuspended: imageRequest.startSuspended)
             } else {
@@ -608,7 +534,6 @@ extension DarwinKernel {
             next.discardUnlaunchedImage()
             throw error
         }
-        // Step 8: the commit point. From here on a failure kills the process.
         me.kernel = next
         me.image = image
         me.pidVersion = next.pidVersion
@@ -623,9 +548,6 @@ extension DarwinKernel {
             me.state = .stopped
             next.startedSuspended()
         }
-        // The old image ends quietly: its other threads stop, its port
-        // space dies (§4.6), its descriptor table goes (the new one shares
-        // the descriptions it kept).
         endImage(.imageReplaced)
         tearDownKEvents()
         withPorts { (machIPC as? MachIPC)?.terminateTask() }

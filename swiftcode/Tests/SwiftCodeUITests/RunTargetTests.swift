@@ -23,13 +23,11 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
 
 @MainActor
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(15))) struct RunTargetTests {
-    // MARK: Remote SwiftCode simulator (a local stand-in for ssh; no network)
 
     @Test func remoteSimulatorCommandsStreamingAndStop() async throws {
         _ = NSApplication.shared
         let root = swiftcodeDir.appendingPathComponent(".build-ide/remote")
         try? FileManager.default.removeItem(at: root)
-        // ssh stand-in: drops options and the destination, runs the command here.
         let fakeSSH = root.appendingPathComponent("bin/fake-ssh")
         try writeExecutable("""
         #!/bin/sh
@@ -44,7 +42,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         shift
         exec /bin/sh -c "$*"
         """, fakeSSH)
-        // swiftcode-simd stand-in: echoes its arguments, "launches", waits for a signal.
         let fakeSimd = root.appendingPathComponent("bin/swiftcode-simd")
         try writeExecutable("""
         #!/bin/sh
@@ -67,14 +64,11 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         try writeInfoPlist(app, id: "dev.swiftcode.remote", exe: "Remote")
         try "binary".write(to: app.appendingPathComponent("Remote"), atomically: true, encoding: .utf8)
 
-        // Command construction.
         let cmd = remote.runCommand(app: app, bundleID: "dev.swiftcode.remote")
-        // Warm boot is on and Lean boot off by default: a full boot, no lean variables.
         let full = settings
         #expect(!full.leanBoot)
         #expect(cmd.hasPrefix("echo SWIFTCODE-REMOTE-PID $$; exec env SWIFTCODE_WARM_BOOT=1 '\(fakeSimd.path)'"))
         #expect(!cmd.contains("SWIFTCODE_LEAN_BOOT"))
-        // Lean boot on (a development option): the lean variables.
         var lean = settings
         lean.leanBoot = true
         #expect(RemoteSimulator(settings: lean).runCommand(app: app, bundleID: "dev.swiftcode.remote")
@@ -83,22 +77,18 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         keep.keepServices = "com.a.one, com.b.two"
         #expect(RemoteSimulator(settings: keep).runCommand(app: app, bundleID: "dev.swiftcode.remote")
             .contains("exec env SWIFTCODE_WARM_BOOT=1 SWIFTCODE_LEAN_BOOT=daemons SWIFTCODE_LEAN_BOOT_KEEP='com.a.one,com.b.two' '\(fakeSimd.path)'"))
-        // Keep services alone does not turn Lean boot on.
         var keepOnly = settings
         keepOnly.keepServices = "com.a.one"
         #expect(!RemoteSimulator(settings: keepOnly).runCommand(app: app, bundleID: "dev.swiftcode.remote").contains("SWIFTCODE_LEAN_BOOT"))
         #expect(RemoteSimulator(settings: full).runCommand(app: app, bundleID: "dev.swiftcode.remote") == "echo SWIFTCODE-REMOTE-PID $$; exec env SWIFTCODE_WARM_BOOT=1 '\(fakeSimd.path)' --device '\(data.path)/devices/dev1' --runtime-root '/rr/iOS 27.1' --install-app '\(data.path)/apps/Remote.app' --launch 'dev.swiftcode.remote' --environment-overrides '--display-server' 'unix:\(data.path)/display/dev1.sock'")
-        // Device Hub's live screen: every run serves its display on a socket per device.
         #expect(remote.displaySocketPath == "\(data.path)/display/dev1.sock")
         #expect(remote.mkdirCommand(app) == "mkdir -p '\(data.path)/apps' '\(data.path)/display' '\(data.path)/profiles'")
-        // Warm boot off: every run boots cold.
         var cold = full
         cold.warmBoot = false
         #expect(RemoteSimulator(settings: cold).runCommand(app: app, bundleID: "dev.swiftcode.remote").hasPrefix("echo SWIFTCODE-REMOTE-PID $$; exec env SWIFTCODE_WARM_BOOT=0 '\(fakeSimd.path)' --device"))
         #expect(remote.sshArguments("x") == ["-o", "BatchMode=yes", "tester@fakehost", "x"])
         #expect(remote.rsyncArguments(app) == ["-az", "--delete", "-e", "\(fakeSSH.path) -o BatchMode=yes", app.path + "/", "tester@fakehost:\(data.path)/apps/Remote.app/"])
         #expect(RemoteSimulator.quote("it's") == "'it'\\''s'")
-        // Additional arguments: shell-like words, each quoted, after the generated options.
         var extra = settings
         extra.additionalArguments = "--timeout-ms 600000 --host-libs '/a b' --shim=\"x y\""
         #expect(RemoteSimulator.words(extra.additionalArguments) == ["--timeout-ms", "600000", "--host-libs", "/a b", "--shim=x y"])
@@ -110,7 +100,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         }
         #expect(ph == .running)
 
-        // Run: upload, launch, streamed output, pid, then Stop (SIGINT through ssh).
         let session = WorkspaceSession(model: try WorkspaceModel(url: try WindowSnapshotTests().samplePackage()))
         await session.runOnRemoteSimulator(app: app, remote: remote)
         #expect(FileManager.default.fileExists(atPath: data.appendingPathComponent("apps/Remote.app/Info.plist").path))
@@ -130,7 +119,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         #expect(log.contains("tester@fakehost kill -INT \(pid)"))
         #expect(!log.contains("password"))
 
-        // Not configured: a clear message, nothing run.
         let s2 = WorkspaceSession(model: try WorkspaceModel(url: try WindowSnapshotTests().samplePackage()))
         await s2.runOnRemoteSimulator(app: app, remote: RemoteSimulator(settings: RemoteSimulatorSettings()))
         #expect(s2.console.contains("Settings ▸ Simulators"))
@@ -145,11 +133,9 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         #expect(!pane.settings.isConfigured)
         pane.update { $0.destination = "u@h"; $0.dataDirectory = "/d"; $0.runtimeRoot = "/r"; $0.simdPath = "/s" }
         #expect(RemoteSimulatorSettings.load(t.defaults).isConfigured && RemoteSimulatorSettings.load(t.defaults).deviceName == "swiftcode-device")
-        // Warm boot: on by default, kept in the user defaults.
         #expect(RemoteSimulatorSettings.load(t.defaults).warmBoot)
         pane.update { $0.warmBoot = false }
         #expect(!RemoteSimulatorSettings.load(t.defaults).warmBoot)
-        // Lean boot: off by default (a full boot); a user can turn it on and off again.
         #expect(!RemoteSimulatorSettings.load(t.defaults).leanBoot)
         pane.update { $0.leanBoot = true }
         #expect(RemoteSimulatorSettings.load(t.defaults).leanBoot)
@@ -157,7 +143,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         #expect(!RemoteSimulatorSettings.load(t.defaults).leanBoot)
         #expect(WorkspaceWindowController.simulatorAppPath(fromExecutablePath: "/p/.swiftcode-build/Products/Debug/App.app/Contents/MacOS/App")
                 == "/p/.swiftcode-build/Products/Debug-iphonesimulator/App.app")
-        // A flat (iOS) bundle's executable, already in the simulator folder.
         #expect(WorkspaceWindowController.simulatorAppPath(fromExecutablePath: "/d/Build/Products/Release-iphonesimulator/App.app/App")
                 == "/d/Build/Products/Release-iphonesimulator/App.app")
         #expect(Simctl.launchArguments(udid: "U", bundleID: "b.id", waitForDebugger: true)
@@ -165,19 +150,12 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         #expect(Simctl.launchedPID("b.id: 4242", bundleID: "b.id") == 4242)
     }
 
-    // MARK: Mac simulator (a throwaway device of our own)
-
     struct ThrowawayDevice {
         let udid: String
         let runtimeVersion: String
-        /// Shuts down and deletes the device (run even when the test fails);
-        /// only a device this process made (`TestSimulatorDevices`).
         func remove() { TestSimulatorDevices.remove(udid: udid) }
     }
 
-    /// Creates `swiftcode-test-ide-<pid>-<uuid>` from an installed iOS runtime
-    /// and one of its iPhone device types, and records its UDID. Nil when
-    /// none is installed.
     func createDevice() -> ThrowawayDevice? {
         TestSimulatorDevices.sweepStale()
         let (s, out) = Simctl.xcrun(["list", "-j", "runtimes"])
@@ -222,9 +200,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         return (app, src.path)
     }
 
-    /// Boots a throwaway `swiftcode-test-ide-*` device in the Mac's own simulator,
-    /// so it is opt-in (`SWIFTCODE_MAC_SIMULATOR_TESTS=1`): clean-room agents run
-    /// the suite and must not run the reference simulator (AGENTS.md rule 3).
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SWIFTCODE_MAC_SIMULATOR_TESTS"] == "1"))
     func runAndDebugOnThrowawayMacSimulator() async throws {
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
@@ -241,7 +216,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
             .write(to: dir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
         let session = WorkspaceSession(model: try WorkspaceModel(url: dir))
 
-        // Run: boot (headless), install, launch, output in the console, Stop.
         await session.runOnSimulator(app: app, udid: device.udid, debug: false)
         #expect(await waitUntil(240) { session.consoleText(.target).contains("hello from the simulator") && session.console.contains("tick 2") },
                 "console: \(session.console.suffix(800))")
@@ -249,7 +223,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
         session.stopSimulatorRun()
         #expect(await waitUntil(60) { session.simulatorRun == nil }, "still running")
 
-        // Debug: launch waiting for the debugger, attach, stop at the breakpoint in tick().
         if InterprocessLock.developerModeDisabled() { print("skipping debug part: Developer Mode disabled"); return }
         session.breakpoints.click(file: source, line: 6)
         await session.runOnSimulator(app: app, udid: device.udid, debug: true)
@@ -263,7 +236,6 @@ func writeInfoPlist(_ app: URL, id: String, exe: String) throws {
 }
 
 extension Simctl {
-    /// Runs any program and returns its output (test helper).
     static func run(_ argv: [String]) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: argv[0])

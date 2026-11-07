@@ -7,21 +7,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_ASSISTANT=<prefix>: the Coding Assistant end to end (issue #18)
-// on a Swift package with Sources/DemoCore/Greeting.swift and
-// Sources/Demo/main.swift (TempPackage's layout). The walk starts a
-// stand-in model server on 127.0.0.1 in this process (the OpenAI-compatible
-// API llama-server serves, streaming a fixed answer that proposes a change
-// to each file), points Settings ▸ Coding Assistant's llama.cpp at it, then
-// with the pointer and keyboard: Ctrl+0, a question with a selection,
-// streaming, the two proposals as diffs, Accept on one and Reject on the
-// other, File ▸ Save All, the files on disk checked; a second answer's
-// Review… sheet; the model menu; Settings ▸ Coding Assistant with a
-// stand-in key saved. Writes <prefix>-assistant-<state>.png (window 1 for
-// Settings) and prints "check <what>: ok|FAILED".
-//
-// Run it with XDG_CONFIG_HOME and XDG_DATA_HOME pointing at a scratch
-// folder: it changes the assistant's settings and saves a stand-in key.
 extension ShellDriver {
     #if os(Linux)
     static let assistantGreeting = "public struct Greeting {\n\tpublic var name: String\n    // Greets warmly.\n    public var text: String { \"Hello there, \\(name)!\" }\n"
@@ -42,9 +27,6 @@ extension ShellDriver {
     ```
     """
 
-    /// The stand-in server: `/v1/models`, `/props`, and the answer as
-    /// server-sent events, a few characters every 25 ms. Records the
-    /// Authorization header of the chats.
     final class StandInAuth: @unchecked Sendable {
         private let lock = NSLock()
         private var values: [String] = []
@@ -102,19 +84,16 @@ extension ShellDriver {
         let greetingBefore = disk(greetingPath), mainBefore = disk(mainPath)
         if let p = w.assistantPath(greetingPath) { w.open(p) }
         await pause(0.5)
-        // Select the greeting's two lines (3 and 4).
         if let b = w.editor?.buffer {
             b.setSelection(.init(anchor: b.document.lineStart(2), head: b.document.lineStart(4)))
         }
 
-        // Ctrl+0: View ▸ Navigators ▸ Show Coding Assistant.
         OpenViewsAutomation.press(.character("0"), modifiers: [.control])
         for _ in 0..<40 where a.core?.availability.isEmpty ?? true { await pause(0.1) }
         await shot("pane")
         check("Ctrl+0 shows the pane", w.isAssistantPaneShown)
         check("the stand-in is ready", a.status == nil && a.sourceLabel == "llama.cpp · standin-coder")
 
-        // Ask, with the pointer in the field and Return.
         await click("assistant message")
         OpenViewsAutomation.type("Make the greeting warmer")
         await pause(0.3)
@@ -130,14 +109,12 @@ extension ShellDriver {
         check("the answer arrived whole", answer.text == assistantReply && answer.error == nil)
         check("two proposals", proposals.map(\.path) == [greetingPath, mainPath])
         await shot("proposals")
-        // Scroll the transcript to the second proposal's buttons.
         if let t = frame("assistant transcript") {
             OpenViewsAutomation.scroll(at: CGPoint(x: t.midX, y: t.midY), delta: CGSize(width: 0, height: -20))
             await pause(0.4)
         }
         check("nothing written before review", disk(greetingPath) == greetingBefore && disk(mainPath) == mainBefore && w.editedPaths.isEmpty)
 
-        // Accept the first change and reject the second, with the pointer.
         await click("assistant accept Greeting.swift 0 1")
         await pause(0.4)
         if let t = frame("assistant transcript") {
@@ -151,7 +128,6 @@ extension ShellDriver {
         check("accepted one, rejected the other", decided == [0: .accepted, 1: .rejected])
         check("the accepted change is in the editor, unsaved", w.editor?.buffer.text == assistantGreeting && w.editedPaths.count == 1)
         check("disk untouched before saving", disk(greetingPath) == greetingBefore && disk(mainPath) == mainBefore)
-        // File ▸ Save All (Ctrl+Alt+S).
         await clickText("File", inPopup: false)
         await clickText("Save All", inPopup: true)
         await pause(0.5)
@@ -160,7 +136,6 @@ extension ShellDriver {
         check("on disk: the rejected file unchanged", disk(mainPath) == mainBefore)
         await shot("saved")
 
-        // A second answer: Review… shows the change side by side.
         a.draft = "And once more"
         a.send()
         for _ in 0..<200 where a.isResponding || a.selected?.messages.last?.isComplete != true { await pause(0.1) }
@@ -184,8 +159,6 @@ extension ShellDriver {
         check("Reject in the review leaves the file", disk(mainPath) == mainBefore && w.assistantCurrentText(w.assistantPath(mainPath) ?? "") == mainBefore)
         await shot("after-review")
 
-        // The model pull-down and the New Conversation menu (menus are
-        // their own surfaces: their items are listed, not photographed).
         for (target, name) in [("assistant model", "model menu"), ("assistant new conversation menu", "providers menu")] {
             await click(target)
             await pause(0.5)
@@ -196,7 +169,6 @@ extension ShellDriver {
             await pause(0.3)
         }
 
-        // The toolbar's New Conversation prompt: type and Return.
         let before = a.core?.library.conversations.count ?? 0
         await click("tb new conversation")
         await pause(0.6)
@@ -211,8 +183,6 @@ extension ShellDriver {
         check("the prompt started a conversation", (a.core?.library.conversations.count ?? 0) == before + 1 && a.selected?.title == "Explain Greeting")
         await shot("prompt-conversation")
 
-        // Settings ▸ Coding Assistant, and a stand-in key saved to the
-        // secret store (never shown, never in the user defaults).
         OpenViewsAutomation.press(.character(","), modifiers: [.control])
         for _ in 0..<20 where OpenViewsAutomation.windowCount < 2 { await pause(0.2) }
         if OpenViewsAutomation.windowCount >= 2 {
@@ -234,7 +204,6 @@ extension ShellDriver {
             }
             let defaults = UserDefaults.standard.dictionaryRepresentation().values.map { "\($0)" }.joined()
             check("the key is not in the user defaults", !defaults.contains("standin-local-key"))
-            // The next request sends it.
             a.draft = "Is the key sent?"
             a.send()
             for _ in 0..<200 where a.isResponding { await pause(0.1) }

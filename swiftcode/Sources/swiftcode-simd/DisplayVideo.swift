@@ -1,10 +1,3 @@
-// Video frames for the display stream (display-stream.md §14): the damage
-// the mirror found is copied into NVENC's input picture (which keeps the
-// rest of the previous frame), and the whole picture is encoded as one
-// access unit. Hardware encoding through CSwiftCodeVideo (the NVIDIA driver's
-// NVENC, opened at run time); the server offers a codec only where its
-// runtime capability check passes.
-
 #if os(Linux) && arch(arm64)
 import CSwiftCodeVideo
 import Foundation
@@ -14,12 +7,10 @@ final class VideoFrameEncoder {
     let width: Int, height: Int, bitrate: Int
     private let encoder: OpaquePointer
 
-    /// The default bit rate (kbit/s): SWIFTCODE_DISPLAY_VIDEO_KBPS, else 20 Mbit/s.
     static var defaultBitrate: Int { Int(ProcessInfo.processInfo.environment["SWIFTCODE_DISPLAY_VIDEO_KBPS"] ?? "") ?? 20_000 }
 
     static let available: Bool = yvid_enc_available() != 0
 
-    /// What this host's NVENC can encode for the stream, best first (§14).
     static let offered: [DisplayEncoding] = {
         guard available else { return [] }
         var out: [DisplayEncoding] = []
@@ -32,7 +23,6 @@ final class VideoFrameEncoder {
         return out
     }()
 
-    /// The capabilities, for the server's log: codecs, 4:4:4, 10-bit, sizes (AV1 too: measured, not offered).
     static var capabilityLine: String {
         var parts: [String] = []
         for (name, codec) in [("h264", YVID_H264), ("hevc", YVID_HEVC), ("av1", YVID_AV1)] {
@@ -44,7 +34,6 @@ final class VideoFrameEncoder {
         return parts.joined(separator: "; ")
     }
 
-    /// `qp` > 0: constant QP; else `constantBitrate`: CBR, VBV of one picture at `fps`; else VBR (§14).
     init?(encoding: DisplayEncoding, width: Int, height: Int, fps: Int, bitrateKbps: Int, qp: Int = 0, constantBitrate: Bool = false, log: (String) -> Void) {
         var err = [CChar](repeating: 0, count: 160)
         let codec = encoding == .h264 ? Int32(YVID_H264) : Int32(YVID_HEVC)
@@ -60,7 +49,6 @@ final class VideoFrameEncoder {
 
     deinit { yvid_enc_close(encoder) }
 
-    /// Encodes the mirror's picture after `rects` changed; one tile, or nil on a failure.
     func encode(mirror: DisplayMirror, rects: [PixelRect], keyframe: Bool) -> (tile: DisplayTile, idr: Bool)? {
         var quads: [Int32] = []
         quads.reserveCapacity(rects.count * 4)

@@ -1,20 +1,10 @@
-// The host service's devices (sim-link.md §6.3): each is a directory under
-// `<home>/devices/<name>` with a sidecar `<name>.json` (its device type and
-// runtime), run by the host-side launcher (scripts/swiftcode-sim.sh, the IDE's
-// `swiftcode-sim`) with a display socket `<home>/run/<name>.sock`, warm boot,
-// and boot slots, as scripts/swiftcode-sim-serve runs one. A run with an app
-// installs and launches it at boot (the launcher's --install-app/--launch;
-// a running device is stopped, i.e. saved, first).
-
 import Foundation
 
 public struct SimHostConfig: Sendable, Equatable {
     public var home: String
     public var tree: String
     public var launcher: String
-    /// Runtime roots by device type ("" for the default).
     public var runtimes: [String: String]
-    /// Pristine devices by device type ("" for the default).
     public var pristines: [String: String]
     public var locks: String?
     public var slots: Int
@@ -26,7 +16,6 @@ public struct SimHostConfig: Sendable, Equatable {
     public var mediaPort: Int
     public var name: String
 
-    /// From `KEY=value` lines (a sim-serve.env style file) over the environment.
     public static func load(text: String, environment: [String: String]) throws -> SimHostConfig {
         var v: [String: String] = [:]
         for raw in text.split(separator: "\n") {
@@ -60,7 +49,6 @@ public struct SimHostConfig: Sendable, Equatable {
                              name: v["SWIFTCODE_SIMHOST_NAME"] ?? ProcessInfo.processInfo.hostName)
     }
 
-    /// "IPHONE_18_PRO" → "iphone-18-pro".
     public static func typeID(suffix: String) -> String { suffix.lowercased().replacingOccurrences(of: "_", with: "-") }
 
     public static func splitHostPort(_ s: String, defaultPort: Int) -> (String, Int) {
@@ -70,10 +58,6 @@ public struct SimHostConfig: Sendable, Equatable {
 
     public func runtime(for type: String) -> String { runtimes[type] ?? runtimes[""]! }
 
-    /// What would stop `serve` from running a device (`swiftcode-simhost check`,
-    /// the host setup's self-test; it boots nothing): the home is a writable
-    /// folder, the tree has swiftcode-simd and the EL1 shim, the launcher is
-    /// executable, each runtime root has launchd_sim. Empty: ready.
     public func problems(fileManager fm: FileManager = .default) -> [String] {
         var out: [String] = []
         var dir: ObjCBool = false
@@ -85,8 +69,6 @@ public struct SimHostConfig: Sendable, Equatable {
         if !fm.isExecutableFile(atPath: simd) { out.append("SWIFTCODE_SIM_TREE \(tree) has no .build/release/swiftcode-simd") }
         if !fm.fileExists(atPath: tree + "/SimShim/out/shim.bin") { out.append("SWIFTCODE_SIM_TREE \(tree) has no SimShim/out/shim.bin") }
         if !fm.isExecutableFile(atPath: launcher) { out.append("the launcher \(launcher) is missing or not executable (SWIFTCODE_SIM_LAUNCHER)") }
-        // Programs that exist but cannot start here (a release built for
-        // another system's libraries): the device would boot to a black screen.
         for exe in [simd, translator] where fm.isExecutableFile(atPath: exe) {
             if let why = Self.loaderProblem(exe) { out.append("\(exe) cannot start on this system: \(why)") }
         }
@@ -95,12 +77,8 @@ public struct SimHostConfig: Sendable, Equatable {
         }
         return out
     }
-    /// The folder with the guest tools a run needs to install and launch an
-    /// app (`ylaunch`): SWIFTCODE_SIM_GUEST_TOOLS, else swiftcode-simd's default
-    /// next to the shim.
     public var guestToolsDirectory: String { guestTools ?? tree + "/SimShim/out/guest-tests/stage7" }
 
-    /// Why this host can boot devices but not run apps (no `ylaunch`), or nil.
     public func appRunProblem(fileManager fm: FileManager = .default) -> String? {
         guard !fm.fileExists(atPath: guestToolsDirectory + "/ylaunch") else { return nil }
         return "this host's simulator tree has no guest tools (\(guestToolsDirectory)/ylaunch), so it can boot devices but not install or launch apps. "
@@ -112,19 +90,14 @@ public struct SimHostConfig: Sendable, Equatable {
     public var appsDirectory: String { home + "/apps" }
     public func socketPath(_ device: String) -> String { runDirectory + "/" + device + ".sock" }
     public func logPath(_ device: String) -> String { runDirectory + "/" + device + ".log" }
-    /// The debug stub's socket of a run with `debug` (debug-stub.md §3).
     public func debugSocketPath(_ device: String) -> String { runDirectory + "/" + device + ".debug.sock" }
     public var simd: String { tree + "/.build/release/swiftcode-simd" }
 
-    /// The shader translator the launcher passes: a source tree's
-    /// Translator/build, else next to swiftcode-simd (a release).
     public var translator: String {
         let built = tree + "/Translator/build/swiftcode-airc"
         return FileManager.default.isExecutableFile(atPath: built) ? built : tree + "/.build/release/swiftcode-airc"
     }
 
-    /// The dynamic loader's complaint when `exe` cannot start (missing
-    /// libraries, a newer C library), else nil. Runs it with --version.
     public static func loaderProblem(_ exe: String) -> String? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: exe)
@@ -132,7 +105,7 @@ public struct SimHostConfig: Sendable, Equatable {
         let err = Pipe()
         p.standardError = err
         p.standardOutput = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return nil }   // not a program the loader complains about
+        guard (try? p.run()) != nil else { return nil }
         let deadline = Date().addingTimeInterval(5)
         while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
         if p.isRunning {
@@ -144,7 +117,6 @@ public struct SimHostConfig: Sendable, Equatable {
         return line.map { String($0.trimmingCharacters(in: .whitespaces).prefix(240)) }
     }
 
-    /// The launcher's environment and arguments for a run (`swiftcode-sim-serve start`'s).
     public func launch(device: String, type: String, app: String?, bundleID: String?, cold: Bool,
                        debug: Bool = false) -> (env: [String: String], args: [String]) {
         var env = ["SWIFTCODE_SIM_TREE": tree, "SWIFTCODE_SIM_DATA": home, "SWIFTCODE_SIM_SLOTS": String(slots),
@@ -156,15 +128,12 @@ public struct SimHostConfig: Sendable, Equatable {
         if type != "iphone-duo" && !type.isEmpty { args += ["--device-type", type] }
         if let app, let bundleID {
             args += ["--install-app", app, "--launch", bundleID, "--environment-overrides"]
-            // An app option (outside the warm-boot fingerprint), as the
-            // Mac's remote run passes it.
             if debug { args += ["--debug-server", "unix:" + debugSocketPath(device)] }
         }
         return (env, args)
     }
 }
 
-/// A name a client may use for a device or app (one path component, no dots first).
 public func isSafeName(_ s: String) -> Bool {
     !s.isEmpty && s.count <= 64 && !s.hasPrefix(".") && s.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }
 }
@@ -221,9 +190,6 @@ public final class SimHostDevices: @unchecked Sendable {
         }
     }
 
-    /// Makes a device from the pristine copy of its type. Without one (a
-    /// host just set up) the device starts empty and its first boot sets it
-    /// up, as `swiftcode-sim-serve` does: that boot takes minutes, later ones not.
     public func create(_ name: String, type: String) throws {
         guard isSafeName(name) else { throw LinkError.refused("bad device name") }
         let dir = config.devicesDirectory + "/" + name
@@ -245,19 +211,17 @@ public final class SimHostDevices: @unchecked Sendable {
         log("simhost: created \(name) (\(type)) from \(pristine)")
     }
 
-    /// Boots a device (with an app: installs and launches it).
     public func start(_ name: String, app: String? = nil, bundleID: String? = nil, cold: Bool = false, debug: Bool = false) throws {
         guard isSafeName(name), FileManager.default.fileExists(atPath: config.devicesDirectory + "/" + name) else {
             throw LinkError.refused("no device \(name)")
         }
         if lock.withLock({ running[name] != nil }) {
-            guard app != nil else { return }  // already running
+            guard app != nil else { return }
             stop(name)
         }
         let type = sidecar(name)?.deviceType ?? "iphone-duo"
         let (env, args) = config.launch(device: name, type: type, app: app.map { config.appsDirectory + "/" + $0 }, bundleID: bundleID, cold: cold,
                                         debug: debug)
-        // A stale socket of an earlier run would look like a live stub.
         if debug { unlink(config.debugSocketPath(name)) }
         try FileManager.default.createDirectory(atPath: config.runDirectory, withIntermediateDirectories: true)
         let logPath = config.logPath(name)
@@ -265,7 +229,6 @@ public final class SimHostDevices: @unchecked Sendable {
         FileManager.default.createFile(atPath: logPath, contents: nil)
         var environment = ProcessInfo.processInfo.environment
         for (k, v) in env { environment[k] = v }
-        // Its own session (POSIX_SPAWN_SETSID), so a last-resort kill of the group reaches swiftcode-simd too.
         let pid = try Spawn.run(config.launcher, args, environment: environment, output: logPath, newSession: true)
         lock.withLock { running[name] = (pid, app, Date()) }
         let t = Thread { [weak self] in
@@ -282,7 +245,6 @@ public final class SimHostDevices: @unchecked Sendable {
         log("simhost: started \(name) (pid \(pid))" + (app.map { " with \($0)" } ?? ""))
     }
 
-    /// Stops a device (the launcher saves it), waiting up to 150 s.
     public func stop(_ name: String) {
         guard let pid = lock.withLock({ () -> pid_t? in
             guard let r = running[name] else { return nil }
@@ -308,7 +270,6 @@ public final class SimHostDevices: @unchecked Sendable {
     }
 }
 
-/// posix_spawn with an output file and, optionally, a new session.
 enum Spawn {
     static func run(_ exe: String, _ args: [String], environment: [String: String], output: String, newSession: Bool) throws -> pid_t {
         #if os(Linux)
@@ -325,7 +286,6 @@ enum Spawn {
         posix_spawn_file_actions_adddup2(&fa, 1, 2)
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
-        // No blocked or ignored signals in the child: the launcher saves the device on SIGTERM.
         var none = sigset_t()
         sigemptyset(&none)
         posix_spawnattr_setsigmask(&attr, &none)
@@ -335,7 +295,7 @@ enum Spawn {
         posix_spawnattr_setsigdefault(&attr, &defaults)
         var flags = Int16(POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF)
         #if os(Linux)
-        if newSession { flags |= Int16(0x80) }  // POSIX_SPAWN_SETSID (glibc 2.26)
+        if newSession { flags |= Int16(0x80) }
         #endif
         posix_spawnattr_setflags(&attr, flags)
         let argv = ([exe] + args).map { strdup($0) } + [nil]

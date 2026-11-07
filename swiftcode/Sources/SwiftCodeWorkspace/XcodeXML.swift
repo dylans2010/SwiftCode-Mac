@@ -1,11 +1,7 @@
-/// A minimal XML element tree that keeps attribute order, for the XML
-/// documents Xcode writes (`.xcscheme`, `contents.xcworkspacedata`).
-/// See `specs/formats/xcode-xml.md`.
 public struct XMLNode: Equatable, Sendable {
     public var name: String
     public var attributes: [(name: String, value: String)]
     public var children: [XMLNode]
-    /// Character data, if any; whitespace-only text is dropped.
     public var text: String?
 
     public init(_ name: String, attributes: [(String, String)] = [], children: [XMLNode] = [], text: String? = nil) {
@@ -29,7 +25,6 @@ public struct XMLNode: Equatable, Sendable {
     public func child(_ name: String) -> XMLNode? { children.first { $0.name == name } }
     public func children(_ name: String) -> [XMLNode] { children.filter { $0.name == name } }
 
-    /// All descendants (depth-first, pre-order) with the given name.
     public func descendants(_ name: String) -> [XMLNode] {
         var out: [XMLNode] = []
         for c in children {
@@ -46,21 +41,13 @@ public struct XMLNode: Equatable, Sendable {
     }
 }
 
-// MARK: - Reading
-
 public struct XMLReadError: Error, CustomStringConvertible, Equatable {
     public var message: String
     public var offset: Int
     public var description: String { "XML error at byte \(offset): \(message)" }
 }
 
-/// Reads and writes Xcode's XML documents in Xcode's layout: 3-space
-/// indent, one attribute per line, explicit end tags. See
-/// `specs/formats/xcode-xml.md` (Serialization layout).
 public enum XcodeXML {
-    /// Parses a document and returns its root element. Handles the XML
-    /// declaration, comments, CDATA, and the predefined/numeric entities.
-    /// DTDs and namespaces are not interpreted.
     public static func parse(_ text: String) throws(XMLReadError) -> XMLNode {
         var r = Reader(Array(text.utf8))
         return try r.document()
@@ -81,7 +68,6 @@ public enum XcodeXML {
             return root
         }
 
-        /// Skips whitespace, comments, processing instructions, and doctype.
         mutating func misc() throws(XMLReadError) {
             while true {
                 skipSpace()
@@ -93,7 +79,7 @@ public enum XcodeXML {
         }
 
         mutating func element() throws(XMLReadError) -> XMLNode {
-            i += 1  // <
+            i += 1
             let name = try nameToken()
             var node = XMLNode(name)
             while true {
@@ -209,10 +195,6 @@ public enum XcodeXML {
         func fail(_ m: String) -> XMLReadError { XMLReadError(message: m, offset: i) }
     }
 
-    // MARK: - Writing
-
-    /// Serializes in Xcode's layout: 3-space indentation, one attribute per
-    /// line as `name = "value"`, and an explicit end tag for every element.
     public static func write(_ root: XMLNode) -> String {
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         write(root, depth: 0, into: &out)
@@ -232,8 +214,6 @@ public enum XcodeXML {
         out += pad + "</" + node.name + ">\n"
     }
 
-    /// Attribute-value escaping. Line breaks and tabs become character
-    /// references so that multi-line values (scripts) survive.
     public static func escape(_ s: String) -> String {
         var out = ""
         for ch in s.unicodeScalars {

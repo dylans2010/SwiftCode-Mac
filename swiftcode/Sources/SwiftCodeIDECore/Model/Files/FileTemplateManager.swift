@@ -1,17 +1,12 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/FileTemplateManager.swift
-// Adapted for SwiftCode: FileTemplate model + DirectoryWatcher + TemplateLoader + manager. SwiftUI removed: colour stays a string name (colorName) for the UI to map at the edge, per the SwiftCode way. NOTE: the .txt template resources are not in this repo yet — the loader returns an empty list with an error message until they land.
-
 import Foundation
 import Observation
 
-/// Strongly-typed file template model loaded dynamically from the filesystem.
 public struct FileTemplate: Identifiable, Sendable, Hashable {
     public let id: String
     public let name: String
     public let extensionName: String
     public let icon: String
-    public let colorName: String // Keep Color representation platform agnostic / serializable
+    public let colorName: String
     public let resourceName: String
     public let resourceExtension: String
     public let isFolder: Bool
@@ -55,7 +50,6 @@ public struct FileTemplate: Identifiable, Sendable, Hashable {
     }
 }
 
-/// Directory watcher utilizing DispatchSourceFileSystemObject for real-time filesystem change observation.
 public final class DirectoryWatcher: Sendable {
     private let fileDescriptor: Int32
     private let source: DispatchSourceFileSystemObject?
@@ -89,7 +83,6 @@ public final class DirectoryWatcher: Sendable {
     }
 }
 
-/// Loader handles robust resolution and metadata discovery for bundled & user file templates.
 public final class TemplateLoader: Sendable {
     public init() {}
 
@@ -116,7 +109,6 @@ public final class TemplateLoader: Sendable {
         let fm = FileManager.default
         var result: [FileTemplate] = []
 
-        // Try Bundle resources first
         var foundInBundle = false
         let knownTemplateFiles = [
             "SwiftActor.swift", "CFile.c", "AppKit.swift", "Entitlements.entitlements",
@@ -152,15 +144,14 @@ public final class TemplateLoader: Sendable {
             return result.sorted { $0.name < $1.name }
         }
 
-        // Fallback to disk directory scanning
         if fm.fileExists(atPath: directoryURL.path) {
             let contents = try fm.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
             for url in contents {
                 let lastComponent = url.lastPathComponent
                 guard lastComponent.hasSuffix(".txt") else { continue }
 
-                let baseName = url.deletingPathExtension().lastPathComponent // "CFile.c"
-                let pathExtension = URL(fileURLWithPath: baseName).pathExtension // "c"
+                let baseName = url.deletingPathExtension().lastPathComponent
+                let pathExtension = URL(fileURLWithPath: baseName).pathExtension
                 let cleanID = baseName.lowercased().replacingOccurrences(of: ".", with: "_")
 
                 let (name, icon, colorName, category) = getTemplateAttributes(filename: baseName, ext: pathExtension)
@@ -233,7 +224,6 @@ public final class TemplateLoader: Sendable {
     }
 }
 
-/// Dynamic manager coordinating discovered templates, status, and active directory watchers.
 @Observable
 @MainActor
 public final class FileTemplateManager {
@@ -250,7 +240,6 @@ public final class FileTemplateManager {
         startWatching()
     }
 
-    /// Automatically sets up a watcher on the resolved templates directory.
     public func startWatching() {
         guard let templatesDir = TemplateLoader.resolveTemplatesDirectory() else {
             errorMessage = "Failed to locate 'File Templates' resource directory."
@@ -267,7 +256,6 @@ public final class FileTemplateManager {
         reloadTemplates()
     }
 
-    /// Dynamically loads templates and handles error boundaries safely.
     public func reloadTemplates() {
         isLoading = true
         errorMessage = nil
@@ -282,7 +270,6 @@ public final class FileTemplateManager {
         do {
             let loaded = try loader.loadTemplates(from: templatesDir)
 
-            // Inject built-in virtual templates (Simple File, Clean Folder)
             let cleanFolder = FileTemplate(
                 id: "clean_folder",
                 name: "Clean Folder",

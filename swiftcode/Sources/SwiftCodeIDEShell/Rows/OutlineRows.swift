@@ -2,42 +2,26 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// One visible row of a navigator outline, flattened: the shell draws the
-/// rows itself so their metrics are the AppKit outline's
-/// (`WorkspaceChrome`: 22-point rows, 12 points of indentation per level,
-/// the disclosure triangle, a 16-point icon and the label 4 after it).
 public struct OutlineRow: Identifiable, Equatable, Sendable {
     public enum Tint: Equatable, Sendable { case accent, secondary, error, warning, success }
 
     public var id: String
     public var level: Int
     public var title: String
-    /// Grey text after the title ("1 issue"), or under it (an issue's
-    /// location).
     public var detail: String?
     public var symbol: String
     public var tint: Tint
     public var isBold = false
-    /// Containers: a disclosure triangle.
     public var isExpandable = false
     public var isExpanded = false
-    /// A Find match: the title split around the matched text.
     public var match: (before: String, match: String, after: String)?
-    /// Lines the title may wrap onto (issues and matches: 2).
     public var lineLimit = 1
     public var isDimmed = false
-    /// What selecting the row opens (files, matches, issues).
     public var opens = false
-    /// A file with unsaved changes.
     public var isEdited = false
-    /// A source-control status letter in a box at the row's right end
-    /// ("M", "A", "?"; `specs/ide/source-control.md`).
     public var badge: String?
-    /// Secondary text at the row's right end (a count).
     public var trailing: String?
-    /// `detail` in secondary text (a branch after a repository's name).
     public var detailIsSecondary = false
-    /// A symbol at the row's right end (a test's result diamond).
     public var trailingSymbol: String?
     public var trailingTint: Tint = .secondary
 
@@ -52,10 +36,6 @@ public struct OutlineRow: Identifiable, Equatable, Sendable {
 }
 
 public enum OutlineRows {
-    /// The Project navigator: the tree with `expanded` open; file names
-    /// without their extension when `hideExtensions` (Settings ▸ General ▸
-    /// File Extensions, as the AppKit navigator shows them).
-    /// `badges`: source-control letters by file path.
     public static func project(_ root: NavigatorItem, expanded: Set<String>, hideExtensions: Bool, edited: Set<String> = [],
                                badges: [String: String] = [:]) -> [OutlineRow] {
         var out: [OutlineRow] = []
@@ -73,7 +53,6 @@ public enum OutlineRows {
         return out
     }
 
-    /// The Find navigator's results: "name (N)" per file, each match under it.
     public static func find(_ files: [FindFileRow], collapsed: Set<String>) -> [OutlineRow] {
         var out: [OutlineRow] = []
         for f in files {
@@ -89,14 +68,11 @@ public enum OutlineRows {
         return out
     }
 
-    /// The Issue navigator: the project and targets ("Greeter  1 issue"),
-    /// their files, then the issues.
     public static func issues(_ groups: [IssueGroupRow], collapsed: Set<String>) -> [OutlineRow] {
         var out: [OutlineRow] = []
         func issue(_ r: IssueRow, _ level: Int) -> OutlineRow {
             OutlineRow(id: r.id, level: level, title: r.message, detail: nil, symbol: r.symbolName,
                        tint: r.severity == .error ? .error : (r.severity == .warning ? .warning : .secondary),
-                       // An issue with no file is the whole message: nothing to open and read it in.
                        lineLimit: r.file == nil ? 8 : 2, isDimmed: r.isStale, opens: true)
         }
         for g in groups {

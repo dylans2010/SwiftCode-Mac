@@ -1,16 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/RealtimeMetricsDashboardView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
-//
-// CLEANUP (2026-11-06, C23): Legacy's six tiles were hardcoded —
-// "Active Users 1,240", "Request Rate 45/s", "Error Rate 0.2%",
-// "Avg Latency 142ms", "Storage Used 1.4 GB", "Memory Peak 512 MB".
-// There is no backend behind this IDE for active users, request rate,
-// error rate or latency, so those server metrics are deleted, not
-// re-seeded. What remains is local-only and live, refreshed every 2 s:
-// host CPU load and this process's resident memory and thread count
-// (DevToolsSystemMetrics, real Mach readings) and disk used on the home
-// volume (real FileManager filesystem attributes). A reading that is
-// unavailable shows "—" instead of an invented number.
 import SwiftUI
 import SwiftCodeUI
 
@@ -56,8 +43,6 @@ struct RealtimeMetricsDashboardView: View {
         diskUsedBytes = Self.volumeUsedBytes()
     }
 
-    /// Used bytes on the volume containing the user's home directory,
-    /// from live filesystem attributes. Nil when unreadable.
     private static func volumeUsedBytes() -> Int64? {
         guard let attributes = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
               let size = (attributes[.systemSize] as? NSNumber)?.int64Value,

@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// Snapshot restore from a copied device directory (snapshot.md §2.7): the
-/// guest keeps seeing the inode numbers recorded at the snapshot.
 @Suite(.serialized) struct InodeMapTests {
     @Test func statReportsTheRecordedInode() throws {
         let tree = try TempTree()
@@ -22,7 +20,6 @@ import Testing
         let fd = try fs.open(tree.host("dev/a.db"), flags: DarwinOpen.O_RDONLY, mode: 0)
         #expect(try fs.fstat(fd).ino == 4242)
         try fs.close(fd)
-        // Other files are untouched; an identity entry is not stored.
         #expect(try fs.stat(tree.host("dev/b"), followSymlinks: false).ino == b.ino)
         DarwinInodeMap.install([(UInt64(host.st_dev), UInt64(host.st_ino), UInt64(host.st_ino))])
         #expect(DarwinInodeMap.count == 0)

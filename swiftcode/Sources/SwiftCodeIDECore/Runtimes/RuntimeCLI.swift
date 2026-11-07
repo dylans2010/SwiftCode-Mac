@@ -1,8 +1,3 @@
-// `swiftcode sim runtimes …` (#68–#70): the runtime wizard's checklist from a
-// terminal, the same rows as the macOS window and the Linux shell, and the
-// host setup script to read or save. It only looks; nothing is installed,
-// copied or removed from here.
-
 import Foundation
 
 public enum RuntimeCLI {
@@ -57,7 +52,6 @@ public enum RuntimeCLI {
         }
     }
 
-    /// The report as text: the runtimes, then each check with its state, reason and fix.
     public static func lines(_ r: RuntimeSetupReport) -> [String] {
         var out: [String] = []
         for (title, list) in [("Runtimes here", r.local), ("Runtimes on the host", r.host)] where !list.isEmpty {

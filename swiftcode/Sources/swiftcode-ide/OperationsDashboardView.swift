@@ -1,13 +1,6 @@
 import SwiftUI
 import SwiftCodeIDEShell
 
-/// Workspace Operations hub — Legacy's `OperationsDashboardView` +
-/// `OperationsSidebarView` + the 16 panel views, rebuilt in SwiftCode style.
-///
-/// The hub is a `NavigationSplitView` over `OperationsCoordinator`. Panels
-/// that need a workspace take `workspaceURL` (nil = workspace-independent
-/// panels only); every number shown is read from a real store or measured
-/// live — an empty store shows an empty state, never invented rows.
 public struct OperationsDashboardView: View {
     @State private var coordinator = OperationsCoordinator.shared
     public var workspaceURL: URL?
@@ -187,9 +180,6 @@ public struct OperationsDashboardView: View {
         }
     }
 
-    /// Dependency URLs declared in the workspace's Package.swift, read
-    /// textually (the package model in `SwiftCodeIDECore` covers .xcodeproj
-    /// references; this panel covers the SwiftPM manifest).
     private func packageSwiftDependencies() -> [String] {
         guard let url = workspaceURL else { return [] }
         let manifest = url.appendingPathComponent("Package.swift")
@@ -409,10 +399,6 @@ public struct OperationsDashboardView: View {
         }
     }
 }
-
-
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/OperationsDashboardView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: CapsuleProgressSegment.
 
 private struct CapsuleProgressSegment: View {
     let label: String

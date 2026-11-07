@@ -1,7 +1,3 @@
-// The client side of the simulator link (sim-link.md §6): pairing, control
-// requests, uploads, and the display transport the viewer reads (TCP for
-// control messages; frames by UDP when the host offers the media channel).
-
 import Crypto
 import Foundation
 import SwiftCodeDisplayStream
@@ -35,7 +31,6 @@ public final class LinkClient: @unchecked Sendable {
         self.clientName = clientName
     }
 
-    /// Pairs with a host using its one-time code; trusts it as `name`.
     @discardableResult
     public func pair(host: String, port: Int, code: String, name: String, mediaPort: Int? = nil) throws -> TrustedPeer {
         let (ch, welcome) = try SecureChannel.connect(host: host, port: port, identity: identity, check: .pairing(code: code),
@@ -56,8 +51,6 @@ public final class LinkClient: @unchecked Sendable {
         return h
     }
 
-    // MARK: Control
-
     public final class Control: @unchecked Sendable {
         public let channel: SecureChannel
         public let welcome: LinkWelcome
@@ -70,7 +63,6 @@ public final class LinkClient: @unchecked Sendable {
             return resp
         }
 
-        /// Uploads an app directory as `<apps>/<name>`; returns the host's answer.
         public func upload(_ app: URL, as name: String? = nil, progress: ((Int, Int) -> Void)? = nil) throws -> LinkResponse {
             let bytes = try DirectoryArchive.bytes(of: app)
             try channel.sendJSON(LinkRequest(op: "upload", app: name ?? app.lastPathComponent, size: bytes.count))
@@ -96,9 +88,6 @@ public final class LinkClient: @unchecked Sendable {
         return Control(channel: ch, welcome: w)
     }
 
-    // MARK: Display
-
-    /// A display transport to a device (DisplayStreamClient's `connect`).
     public func display(_ h: LinkHost, device: String, media: Bool) throws -> LinkDisplayTransport {
         let (ch, w) = try SecureChannel.connect(host: h.host, port: h.controlPort, identity: identity, check: .pinned(h.publicKey),
                                                hello: LinkHello(purpose: "display", device: device, client: clientName, media: media))
@@ -106,9 +95,6 @@ public final class LinkClient: @unchecked Sendable {
     }
 }
 
-/// The display stream over the link: TCP for everything the host does not
-/// send by UDP; frames reassembled from media packets, merged in arrival
-/// order. A lost frame asks the host for a keyframe at once.
 public final class LinkDisplayTransport: DisplayTransport, @unchecked Sendable {
     public let channel: SecureChannel
     public let mediaSession: UInt32?
@@ -118,13 +104,9 @@ public final class LinkDisplayTransport: DisplayTransport, @unchecked Sendable {
     private var queue: [[UInt8]] = []
     private var queued = 0
     private var ended = false
-    /// The TCP reader waits past this many bytes, so that a slow reader slows the
-    /// socket and its sender instead of a queue here growing without end
-    /// (display-stream.md §4.2: run 8's 11 s).
     public static let queueLimit = 16 << 20
     private var send: MediaCrypto?
     private var receiveCrypto: MediaCrypto?
-    /// Statistics: media packets, messages, losses.
     public private(set) var mediaPackets = 0, mediaMessages = 0, mediaLost = 0, rejected = 0
 
     init(channel: SecureChannel, welcome: LinkWelcome, host: String, mediaPort: Int) throws {

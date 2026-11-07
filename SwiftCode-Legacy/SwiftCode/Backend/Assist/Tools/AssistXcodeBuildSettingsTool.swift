@@ -1,8 +1,3 @@
-//
-//  AssistXcodeBuildSettingsTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistXcodeBuildSettingsTool: AssistTool {
@@ -68,7 +63,6 @@ public struct AssistXcodeBuildSettingsTool: AssistTool {
                 }
             }
 
-            // Summary of primary settings
             let keySettings = [
                 "TARGET_NAME",
                 "PRODUCT_NAME",

@@ -1,15 +1,6 @@
 import SwiftUI
 import WebKit
 
-// MARK: - ExtensionRunView: hosts an extension's real contributions
-//
-// This view resolves an extension by its stable id, activates it
-// through the manager, and renders only the contribution types the
-// host actually implements: commands, tree items, status bar, output,
-// and (restricted) webviews. It never embeds VS Code itself.
-// On disappear it deactivates, so switching extensions cannot leak
-// a host process or a provider registration.
-
 public struct ExtensionRunView: View {
     public let extensionId: String
     @StateObject private var viewModel: ExtV2RunViewModel
@@ -141,15 +132,6 @@ public struct ExtensionRunView: View {
     }
 }
 
-// MARK: - Restricted webview bridge
-//
-// The webview gets no native services and no file access. Its only
-// channel is `window.webkit.messageHandlers.swiftcode.postMessage`,
-// and the handler accepts only "ready" and "log" messages — anything
-// else is logged as a rejected message and dropped. No origin policy
-// can be bypassed from inside the webview because there is no other
-// bridge to bypass to.
-
 public struct ExtV2RestrictedWebView: NSViewRepresentable {
     public let html: String
     public let extensionId: String
@@ -161,8 +143,6 @@ public struct ExtV2RestrictedWebView: NSViewRepresentable {
     public func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.userContentController.add(context.coordinator, name: "swiftcode")
-        // JavaScript can open no windows and reach no native API beyond
-        // the single validated message handler above.
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.loadHTMLString(html, baseURL: nil)
@@ -170,8 +150,6 @@ public struct ExtV2RestrictedWebView: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: WKWebView, context: Context) {
-        // Content is set once at creation; extensions re-activate to
-        // change it, so there is no stale-content path to maintain.
     }
 
     public final class Coordinator: NSObject, WKScriptMessageHandler {
@@ -182,8 +160,6 @@ public struct ExtV2RestrictedWebView: NSViewRepresentable {
         }
 
         public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            // Only two message shapes are accepted; everything else is
-            // dropped and logged, never dispatched to native code.
             if let text = message.body as? String {
                 ExtV2DiagnosticsService.shared.info("Webview message: \(text)", extensionId: extensionId)
                 return

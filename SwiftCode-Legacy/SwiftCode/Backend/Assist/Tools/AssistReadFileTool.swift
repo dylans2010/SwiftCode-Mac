@@ -46,15 +46,11 @@ public struct AssistReadFileTool: AssistTool {
 
         do {
             let content = try context.fileSystem.readFile(at: path)
-            // Split preserving empty lines; a trailing newline does not create a phantom line.
             var lines = content.components(separatedBy: .newlines)
             if lines.last == "" { lines.removeLast() }
             let totalLines = lines.count
             let resolvedPath = (try? context.fileSystem.resolve(path).path) ?? path
 
-            // Parse optional lines {start,end}; accept Int / integral Double / numeric String.
-            // Also accept a JSON-stringified range ("{\"start\":240,\"end\":280}") since
-            // some dispatch paths stringify nested arguments.
             var start = 1
             var end = totalLines
             var linesArg = input["lines"] as? [String: Any]
@@ -91,7 +87,6 @@ public struct AssistReadFileTool: AssistTool {
             }
             let clampedEnd = min(end, totalLines)
             let slice = lines[(start - 1)...(clampedEnd - 1)]
-            // Number every returned line so the model can cite exact lines.
             let numbered = slice.enumerated()
                 .map { "\(start + $0.offset): \($0.element)" }
                 .joined(separator: "\n")

@@ -1,18 +1,3 @@
-/* SwiftCode snapshot probe (specs/simulator/snapshot.md §9): state that must
- * survive a snapshot taken while the program sleeps, and a restore in a new
- * host process. Original SwiftCode code.
- *
- *   p_snap          one process: four threads (a Mach receiver, a pipe
- *                   reader, a condition-variable waiter, an FP spinner),
- *                   three queued messages (inline, OOL + port right), a pipe,
- *                   a semaphore, an 8 MiB heap pattern.
- *   p_snap multi    two processes: the child gets the parent's port as its
- *                   bootstrap port and serves requests on its own port;
- *                   replies queue up in the parent across the snapshot.
- *
- * Before its long sleep the program creates /tmp/swiftcode-snap-ready (the
- * VMM's SWIFTCODE_SNAPSHOT_WHEN_FILE trigger) and prints "snap: ready".
- * Prints "snap ok ..." / "snap2 ok ..." and exits 0 when everything checks. */
 #include <errno.h>
 #include <fcntl.h>
 #include <mach/mach.h>
@@ -126,8 +111,6 @@ static void sleep_and_check(uint64_t t0)
     fflush(stdout);
 }
 
-/* ---- one process ---- */
-
 static mach_port_t P, Q;
 static int pipefd[2];
 static semaphore_t S;
@@ -181,8 +164,6 @@ static void *thread_c(void *arg)
     return NULL;
 }
 
-/* A sender that blocks on a full queue (qlimit 1): its second message
- * waits in the kernel across the snapshot. */
 static mach_port_t F;
 static void *thread_e(void *arg)
 {
@@ -209,7 +190,6 @@ static void *thread_d(void *arg)
 
 static int single(void)
 {
-    /* Heap pattern. */
     size_t heap_words = (8u << 20) / 8;
     uint64_t *heap = malloc(heap_words * 8);
     if (!heap) fail("malloc", 0);
@@ -224,7 +204,6 @@ static int single(void)
     if (pipe(pipefd) != 0) fail("pipe", errno);
     if (semaphore_create(mach_task_self(), &S, SYNC_POLICY_FIFO, 0)) fail("semaphore_create", 0);
 
-    /* Three messages queued on Q, received only after the sleep. */
     send_value(Q, 11, MACH_PORT_NULL, 0);
     static char payload[40000];
     for (size_t i = 0; i < sizeof payload; i++) payload[i] = (char)(i * 7 + 3);
@@ -261,8 +240,6 @@ static int single(void)
     pthread_create(&d, NULL, thread_d, NULL);
     usleep(300000);
 
-    /* Shared memory: a memory entry for 32 KiB of our memory, mapped a
-     * second time; the two views must still share pages after a restore. */
     vm_address_t shared_a = 0;
     if (vm_allocate(mach_task_self(), &shared_a, 0x8000, VM_FLAGS_ANYWHERE)) fail("vm_allocate", 0);
     volatile uint32_t *va_a = (volatile uint32_t *)shared_a;
@@ -316,7 +293,6 @@ static int single(void)
     pthread_join(a, NULL);
     pthread_join(b, NULL);
 
-    /* The queued messages. */
     if (receive_value(Q, NULL, 5000) != 11) fail("queued message 1", 0);
     complex_rcv_t r;
     memset(&r, 0, sizeof r);
@@ -329,7 +305,6 @@ static int single(void)
     mach_port_type_t type = 0;
     kr = mach_port_type(mach_task_self(), r.m.port.name, &type);
     if (kr || !(type & MACH_PORT_TYPE_SEND)) fail("port right in the message", kr);
-    /* The right is a send right to P: a message through it arrives on P. */
     send_value(r.m.port.name, 44, MACH_PORT_NULL, 0);
     if (receive_value(P, NULL, 5000) != 44) fail("send through the carried right", 0);
     if (receive_value(Q, NULL, 5000) != 33) fail("queued message 3", 0);
@@ -341,8 +316,6 @@ static int single(void)
     printf("snap ok sum=%d queued=3 heap=ok fp=ok shared=ok spins=%llu\n", b_sum, (unsigned long long)spin_count);
     return 0;
 }
-
-/* ---- two processes ---- */
 
 static int child(void)
 {
@@ -369,7 +342,7 @@ static int multi(const char *self)
     if (receive_value(p, &reply, 20000) != -1) fail("hello", 0);
     send_value(reply, 1, MACH_PORT_NULL, 0);
     send_value(reply, 2, MACH_PORT_NULL, 0);
-    usleep(300000); /* the child answers both: two replies wait on p */
+    usleep(300000);
 
     uint64_t t0;
     mark_ready(&t0);

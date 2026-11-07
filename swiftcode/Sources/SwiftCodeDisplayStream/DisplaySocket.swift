@@ -1,6 +1,3 @@
-// Blocking stream sockets for the display stream (display-stream.md §1):
-// a Unix-domain socket path or a TCP host and port.
-
 import Foundation
 #if canImport(Glibc)
 import Glibc
@@ -14,7 +11,6 @@ public enum DisplayAddress: Sendable, Equatable, CustomStringConvertible {
     case unix(String)
     case tcp(host: String, port: UInt16)
 
-    /// "unix:/path", "/path" (or "./path"), "host:port", or "port" (127.0.0.1).
     public init?(_ text: String) {
         if text.hasPrefix("unix:") {
             let path = String(text.dropFirst(5))
@@ -46,16 +42,12 @@ public struct DisplaySocketError: Error, CustomStringConvertible {
     public init(message: String) { description = message }
 }
 
-/// A byte stream to a display server or viewer: a socket, or SwiftCode's own
-/// secure link (SwiftCodeSimLink, sim-link.md).
 public protocol DisplayTransport: AnyObject, Sendable {
     func send(_ bytes: [UInt8]) throws
-    /// The next bytes, nil at the end.
     func receive(max: Int) -> [UInt8]?
     func close()
 }
 
-/// A connected stream socket (blocking).
 public final class DisplayConnection: DisplayTransport, @unchecked Sendable {
     public let fd: Int32
     private let sendLock = NSLock()
@@ -72,7 +64,6 @@ public final class DisplayConnection: DisplayTransport, @unchecked Sendable {
 
     deinit { close() }
 
-    /// Writes all bytes (from any thread; whole messages never interleave).
     public func send(_ bytes: [UInt8]) throws {
         try sendLock.withLock {
             var at = 0
@@ -95,7 +86,6 @@ public final class DisplayConnection: DisplayTransport, @unchecked Sendable {
 
     public func send(_ message: DisplayMessage) throws { try send(message.encoded()) }
 
-    /// Reads up to `max` bytes; nil at the end of the stream or on an error.
     public func receive(max: Int = 256 << 10) -> [UInt8]? {
         var buf = [UInt8](repeating: 0, count: max)
         while true {
@@ -106,7 +96,6 @@ public final class DisplayConnection: DisplayTransport, @unchecked Sendable {
         }
     }
 
-    /// Shuts the socket down (a blocked receive returns) and closes it once.
     public func close() {
         closeLock.withLock {
             guard !closed else { return }
@@ -120,9 +109,6 @@ public final class DisplayConnection: DisplayTransport, @unchecked Sendable {
         }
     }
 
-    /// How long a TCP connect may take before the host counts as offline
-    /// (a powered-off host on another subnet would otherwise hold the
-    /// caller for the kernel's minutes-long SYN retries).
     public static let tcpConnectTimeout: Int32 = 5000
 
     public static func connect(to address: DisplayAddress) throws -> DisplayConnection {
@@ -160,7 +146,6 @@ public final class DisplayConnection: DisplayTransport, @unchecked Sendable {
             while let ai = cursor {
                 let fd = socket(ai.pointee.ai_family, ai.pointee.ai_socktype, ai.pointee.ai_protocol)
                 if fd >= 0 {
-                    // Non-blocking, bounded by tcpConnectTimeout, then blocking again.
                     let flags = fcntl(fd, F_GETFL)
                     _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
                     #if canImport(Glibc)
@@ -191,13 +176,10 @@ public final class DisplayConnection: DisplayTransport, @unchecked Sendable {
     }
 }
 
-/// A listening socket.
 public final class DisplayListener: @unchecked Sendable {
     public let fd: Int32
     public let address: DisplayAddress
 
-    /// Binds and listens. A Unix socket path that exists is replaced only
-    /// when it is a socket nobody accepts on.
     public init(address: DisplayAddress) throws {
         self.address = address
         switch address {
@@ -242,7 +224,6 @@ public final class DisplayListener: @unchecked Sendable {
         guard listen(fd, 4) == 0 else { let e = DisplaySocketError("listen"); _ = closeFD(fd); throw e }
     }
 
-    /// Waits for the next client; nil when the listener was closed.
     public func accept() -> DisplayConnection? {
         while true {
             #if canImport(Glibc)

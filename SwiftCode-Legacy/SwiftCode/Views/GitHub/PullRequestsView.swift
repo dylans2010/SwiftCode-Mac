@@ -14,7 +14,6 @@ struct PullRequestsView: View {
     @State private var showCreatePR = false
     @State private var selectedPR: GitHubPullRequest? = nil
 
-    // Filter states
     @State private var prFilterMode: PullRequestFilter = .open
 
     enum PullRequestFilter: String, CaseIterable, Identifiable {
@@ -77,7 +76,6 @@ struct PullRequestsView: View {
 
     private var mainContent: some View {
         VStack(spacing: 0) {
-            // Header actions row
             HStack(spacing: 12) {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -166,7 +164,6 @@ struct PullRequestsView: View {
                                 Spacer()
 
                                 HStack(spacing: 8) {
-                                    // Build Check status label
                                     Label("Passing", systemImage: "checkmark.circle.fill")
                                         .font(.system(size: 8, weight: .bold))
                                         .foregroundStyle(.green)
@@ -196,7 +193,6 @@ struct PullRequestsView: View {
     private var processedPRs: [GitHubPullRequest] {
         var list = pullRequests
 
-        // Filter Mode
         switch prFilterMode {
         case .open:
             list = list.filter { $0.state.lowercased() == "open" }
@@ -207,10 +203,9 @@ struct PullRequestsView: View {
         case .merged:
             list = list.filter { $0.state.lowercased() == "closed" && ($0.body?.contains("merge") ?? true) }
         case .assigned:
-            list = list.filter { $0.state.lowercased() == "open" } // reviews assigned list
+            list = list.filter { $0.state.lowercased() == "open" }
         }
 
-        // Search text
         if !searchPattern.isEmpty {
             list = list.filter {
                 $0.title.localizedCaseInsensitiveContains(searchPattern) ||

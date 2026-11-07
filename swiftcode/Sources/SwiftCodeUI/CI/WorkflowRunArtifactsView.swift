@@ -1,26 +1,6 @@
 import SwiftCodeGitHub
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/WorkflowRunsView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The missing slice of the workflow-run detail: the run-specs header and
-/// the artifacts browser. The destination CI window (`CIWindowController`,
-/// AppKit) already covers runs, jobs, logs, and re-run; it has no artifacts
-/// section, and no run-specs header.
-///
-/// - `WorkflowRunSpecsHeaderView`: run name, status summary, branch, and
-///   Re-run / Done actions. Re-run uses the real
-///   `GitHubClient.rerunWorkflow`; Done dismisses.
-/// - `WorkflowRunArtifactsView`: lists the run's artifacts via
-///   `GitHubClient.listWorkflowArtifacts` (name, size, expired state) and
-///   downloads the chosen one via `GitHubClient.downloadArtifact`,
-///   saving `<name>.zip` into Downloads with success/failure feedback
-///   (the Legacy pattern).
-///
-/// Hook: host both in the CI window's run-detail area via
-/// NSHostingController (the window is AppKit; these views are SwiftUI),
-/// passing the window's `GitHubClient` and the selected run's identity.
 @MainActor
 public struct WorkflowRunSpecsHeaderView: View {
     public var run: SwiftCodeGitHub.GitHubWorkflowRun

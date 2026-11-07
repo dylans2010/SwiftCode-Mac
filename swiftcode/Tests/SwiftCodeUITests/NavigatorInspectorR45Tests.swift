@@ -7,17 +7,14 @@ import SwiftCodeDebug
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// reference-ui-6.md R45: navigator, inspector and debug-area polish.
 @MainActor
 @Suite(.serialized) struct NavigatorInspectorR45Tests {
-    /// Windows hosting the inspectors under test (kept for the test's life).
     @MainActor static var hosts: [NSWindow] = []
     @MainActor var inspectorWindows: [NSWindow] {
         get { Self.hosts }
         nonmutating set { Self.hosts = newValue }
     }
 
-    /// A navigator laid out at 280 × 600 with a small project tree.
     func laidOutNavigator() -> NavigatorAreaController {
         _ = NSApplication.shared
         let nav = NavigatorAreaController()
@@ -34,8 +31,6 @@ import SwiftCodeProject
         return nav
     }
 
-    // MARK: N3 — row metrics
-
     @Test func rowsAre22PointsAndStartSevenBelowTheSelector() {
         let nav = laidOutNavigator()
         let o = nav.outlineView
@@ -44,14 +39,10 @@ import SwiftCodeProject
         let r1 = o.convert(o.rect(ofRow: 1), to: nav.view)
         #expect(r0.height == 22 && r1.height == 22)
         #expect(abs(r0.minY - r1.minY) == 22, "rows touch: no spacing between them")
-        // Unflipped: the first row's top is its maxY.
         let gap = nav.selectorView.frame.minY - r0.maxY
         #expect(abs(gap - 7) <= 0.5, "first row \(gap) points below the selector")
-        // The navigator size setting keeps the size style it names.
         #expect(nav.rowSizeStyle == NavigatorAreaController.rowSizeStyle)
     }
-
-    // MARK: N4 — package tree
 
     @Test func packageOpensWithSourcesAndTestsExpanded() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("r45-pkg-\(UUID().uuidString)/Pkg")
@@ -66,7 +57,6 @@ import SwiftCodeProject
         let root = NavigatorTree.package(at: dir)
         let keys = NavigatorTree.initiallyExpanded(root)
         #expect(keys == [root.expansionKey, dir.appendingPathComponent("Sources").path, dir.appendingPathComponent("Tests").path])
-        // In the navigator: Sources and Tests open, their children closed.
         let nav = laidOutNavigator()
         nav.setProjectTree(root)
         let o = nav.outlineView
@@ -74,15 +64,12 @@ import SwiftCodeProject
         #expect(rows.map { ($0.title as NSString).deletingPathExtension } == ["Pkg", "Package", "Sources", "Pkg", "Tool", "Tests", "PkgTests", "README"])
         let expanded = rows.filter { o.isItemExpanded($0) }.map(\.title)
         #expect(expanded == ["Pkg", "Sources", "Tests"])
-        // A project keeps its first group expanded.
         let proj = NavigatorNode(name: "App", kind: .container, path: "/tmp/App.xcodeproj", children: [
             NavigatorNode(name: "Sources", kind: .group, path: "/tmp/S", objectID: "G1", children: []),
             NavigatorNode(name: "Tests", kind: .group, path: "/tmp/T", objectID: "G2", children: []),
         ])
         #expect(NavigatorTree.initiallyExpanded(proj) == ["/tmp/App.xcodeproj", "G1"])
     }
-
-    // MARK: N5 — Test navigator rows
 
     @Test func testNavigatorRootCountsAndResultGlyphs() throws {
         let text = """
@@ -102,33 +89,26 @@ import SwiftCodeProject
         nav.select(5)
         nav.setTests(found, results: [:])
         let root = try #require(nav.rows(5).first)
-        // The root is the package, not the plan; the plan stays in the pop-up.
         #expect(root.title == "AuditPkg" && root.detail == "3 Tests" && root.symbol == "shippingbox")
         #expect(nav.testPlanPopUp.titleOfSelectedItem == "AuditPkg (Autocreated)")
         let target = try #require(root.children.first)
         #expect(target.detail == "3 Tests")
         let suite = try #require(target.children.first { $0.title == "ModelTests" })
         #expect(suite.detail == "2 Tests")
-        // No result yet: no glyph on any row.
         func all(_ i: OutlineItem) -> [OutlineItem] { [i] + i.children.flatMap(all) }
         #expect(all(root).allSatisfy { $0.trailingSymbol == nil })
-        // One passed: it and its parents show passed; the rest nothing.
         nav.setTests(found, results: [found[0]: .passed])
         let r2 = try #require(nav.rows(5).first)
         let s2 = try #require(r2.children.first?.children.first { $0.title == "ModelTests" })
         #expect(r2.trailingSymbol == "checkmark.diamond.fill" && s2.trailingSymbol == "checkmark.diamond.fill")
         #expect(s2.children.map { $0.trailingSymbol ?? "" } == ["checkmark.diamond.fill", ""])
-        // A failure anywhere below makes the parent failed.
         nav.setTests(found, results: [found[0]: .passed, found[2]: .failed])
         #expect(nav.rows(5).first?.trailingSymbol == "xmark.diamond.fill")
         #expect(NavigatorAreaController.testCountText(1) == "1 Test")
         #expect(NavigatorAreaController.aggregateTestStatus([nil, .skipped]) == .skipped)
-        // The header pop-up: bordered, 194 wide.
         nav.view.layoutSubtreeIfNeeded()
         #expect(nav.testPlanPopUp.isBordered && nav.testPlanPopUp.frame.width == 194)
     }
-
-    // MARK: N6 — Find navigator header
 
     @Test func findHeaderIsAPathWithoutArrowsAndThePlaceholderIsTheKind() {
         let nav = laidOutNavigator()
@@ -147,10 +127,6 @@ import SwiftCodeProject
         #expect(nav.findField.placeholderString == "Text")
     }
 
-    // MARK: N7, N8 — filter fields and selector titles
-
-    // Holds on every supported system: macOS 27.2 here, and 27.0, 26.6 and
-    // 15.6 with the layout probe (`specs/ide/metrics.md` §14.1).
     @Test func filterOptionsAndTogglesSitInsideTheField() throws {
         let nav = laidOutNavigator()
         for i in 0..<9 {
@@ -161,7 +137,6 @@ import SwiftCodeProject
             let f = field.frame
             let options = nav.filterOptions.alignmentRect(forFrame: nav.filterOptions.frame)
             #expect(f.contains(options), "navigator \(i): options \(options) inside \(f)")
-            // Horizontally the frame, which the glyph fills (metrics.md §15).
             let optionsFrame = nav.filterOptions.frame
             let fieldAlign = field.alignmentRect(forFrame: f)
             #expect(abs(optionsFrame.minX - fieldAlign.minX - NavigatorFilterField.optionsLeading) <= 0.5, "navigator \(i): at the leading end")
@@ -190,12 +165,9 @@ import SwiftCodeProject
         }
     }
 
-    // MARK: I1–I3 — inspectors
-
     func inspector(_ info: FileInspectorInfo) -> InspectorAreaController {
         _ = NSApplication.shared
         let i = InspectorAreaController()
-        // In a window, as in the workspace (its area is sized by its container).
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 260, height: 700), styleMask: [.borderless], backing: .buffered, defer: false)
         w.contentViewController = i
         w.setContentSize(NSSize(width: 260, height: 700))
@@ -210,7 +182,6 @@ import SwiftCodeProject
         let file = URL(fileURLWithPath: "/tmp/r45/App/Model.swift")
         let targets = [TargetMembership(targetID: "T1", name: "App", isMember: true, isEditable: true),
                        TargetMembership(targetID: "T2", name: "AppTests", isMember: false, isEditable: true)]
-        // A file reference (not in a synchronized folder).
         let i = inspector(FileInspectorInfo(memberships: targets))
         i.show(file: file)
         i.select(0)
@@ -219,7 +190,6 @@ import SwiftCodeProject
         let location = try #require(i.fileControls["Location"] as? NSPopUpButton)
         let choose = try #require(i.fileControls["Choose Location"] as? NSButton)
         #expect(location.isEnabled && choose.isEnabled && !choose.isHidden)
-        // The membership table: bordered, the rows and the three buttons inside.
         let table = try #require(i.fileControls["Target Membership Table"])
         #expect((table.layer?.borderWidth ?? 0) > 0)
         let inside = descendants(table)
@@ -232,25 +202,21 @@ import SwiftCodeProject
         #expect(pencil.toolTip == "Edit target membership options" && !pencil.isEnabled)
         let labels = inside.compactMap { ($0 as? NSTextField)?.stringValue }
         #expect(labels.contains("App") && labels.contains("Default") && !labels.contains("AppTests"))
-        // The buttons sit on the table's bottom edge.
         i.view.layoutSubtreeIfNeeded()
         let bottom = add.convert(add.bounds, to: table)
         #expect(table.isFlipped ? table.bounds.maxY - bottom.maxY < 8 : bottom.minY < 8, "\(bottom) in \(table.bounds)")
-        // "+" stays enabled when every target has the file; its menu says so.
         let all = inspector(FileInspectorInfo(memberships: targets.map { var t = $0; t.isMember = true; return t }))
         all.show(file: file)
         all.select(0)
         #expect((all.fileControls["Add Target"] as? NSButton)?.isEnabled == true)
         #expect(all.addMembershipMenu().items.map(\.title) == ["No Other Targets"])
 
-        // In a synchronized folder: the location is a disabled pop-up, no folder button.
         let synced = inspector(FileInspectorInfo(memberships: targets, inSynchronizedFolder: true))
         synced.show(file: file)
         synced.select(0)
         #expect((synced.fileControls["Location"] as? NSPopUpButton)?.isEnabled == false)
         #expect((synced.fileControls["Choose Location"] as? NSButton)?.isHidden == true)
 
-        // A package's file: Identity and Type and Text Settings only.
         let pkg = inspector(FileInspectorInfo(memberships: [targets[0]], isPackageFile: true))
         pkg.show(file: file)
         pkg.select(0)
@@ -301,7 +267,7 @@ import SwiftCodeProject
         i.historyProvider = { _ in [commit] }
         i.show(file: file)
         i.select(1)
-        await i.historyIdle()   // read in the background
+        await i.historyIdle()
         #expect(i.historyRows.map(\.hash) == ["0123456"])
         let row = try #require(i.historyRowViews.first)
         let left = row.left.arrangedSubviews.compactMap { $0 as? NSTextField }
@@ -313,7 +279,6 @@ import SwiftCodeProject
         let l = row.left.convert(row.left.bounds, to: i.view), r = row.right.convert(row.right.bounds, to: i.view)
         #expect(l.maxX <= r.minX && r.maxX > i.view.bounds.width - 24)
 
-        // Quick Help with nothing at the caret: centered, then a rule.
         i.showQuickHelp(nil)
         i.select(2)
         i.view.layoutSubtreeIfNeeded()
@@ -326,29 +291,23 @@ import SwiftCodeProject
         #expect(i.sectionRuleCount == 1)
     }
 
-    // MARK: D1 — debug area
-
     @Test func consoleHasNoKindPopUpAndAnInputLineOnlyWhileDebugging() {
         _ = NSApplication.shared
         let d = DebugAreaController()
         _ = d.view
         #expect(!d.consoleBarTitles.contains("Filter options"))
         #expect(d.consoleBarStack?.arrangedSubviews.contains { $0 is NSPopUpButton } == false)
-        // Idle: a plain transcript; the command line comes with a session.
         #expect(!d.isConsoleInputShown)
         d.setDebugging(true)
         #expect(d.isConsoleInputShown)
         d.setDebugging(false)
         #expect(!d.isConsoleInputShown)
-        // The output toggles still filter the console.
         d.debuggerOutputToggle.state = .off
         d.debuggerOutputToggle.sendAction(d.debuggerOutputToggle.action, to: d.debuggerOutputToggle.target)
         #expect(d.consoleFilter == .target)
         #expect(DebugPresentation.sessionEndedLine(code: 9, reason: "killed") == "Debug session ended with code 9: killed")
         #expect(DebugPresentation.killedLine == "Debug session ended with code 9: killed")
     }
-
-    // MARK: W5, W6 — Welcome window
 
     @Test func welcomeGeometry() throws {
         _ = NSApplication.shared
@@ -367,21 +326,17 @@ import SwiftCodeProject
         content.layoutSubtreeIfNeeded()
         #expect(win.frame.size == NSSize(width: 480, height: 632))
         let h = content.bounds.height
-        // No traffic lights; a round 36 × 36 close button at (20, 20).
         for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             #expect(win.standardWindowButton(b)?.isHidden ?? true)
         }
         let close = w.closeButton.frame
         #expect(close.size == NSSize(width: 36, height: 36) && close.minX == 20 && h - close.maxY == 20, "\(close)")
-        // Round: a circular glass button with the Liquid Glass design
-        // (liquid-glass-swiftcode.md §4), a drawn circle before it.
         if #available(macOS 26, *) {
             #expect(w.closeButton.bezelStyle == .glass && w.closeButton.borderShape == .circle && w.closeButton.isBordered)
         } else {
             #expect(w.closeButton.layer?.cornerRadius == 18)
         }
         #expect(w.closeButton.accessibilityTitle() == "Close")
-        // The buttons row: 107, 107, 130 wide, 36 tall, 8 apart, centered, top at 242.
         let frames = [w.openButton, w.cloneButton, w.newProjectButton].map { b in
             b.alignmentRect(forFrame: b.convert(b.bounds, to: content))
         }
@@ -390,12 +345,10 @@ import SwiftCodeProject
         #expect((frames[1].minX - frames[0].maxX).rounded() == 8 && (frames[2].minX - frames[1].maxX).rounded() == 8)
         #expect(abs((frames[0].minX + frames[2].maxX) / 2 - content.bounds.midX) <= 0.5)
         #expect(frames.allSatisfy { abs(h - $0.maxY - 242) <= 0.5 }, "\(frames.map { h - $0.maxY })")
-        // The recent list: a rounded inset box, no heading, no fixed scroller.
         #expect((w.recentsBox.layer?.cornerRadius ?? 0) > 0)
         #expect(w.recentsScroll.autohidesScrollers && w.recentsScroll.scrollerStyle == .overlay)
         let labels = content.subviews.compactMap { ($0 as? NSTextField)?.stringValue }
         #expect(!labels.contains("Recent Projects") && w.table.accessibilityLabel() == "Recent Projects")
-        // A package row has the package glyph.
         let cell = try #require(w.tableView(w.table, viewFor: nil, row: 0) as? NSTableCellView)
         #expect(cell.imageView?.image?.accessibilityDescription == "Package")
         #expect(WelcomeWindowController.isPackage(pkg) && !WelcomeWindowController.isPackage(dir.appendingPathComponent("A.xcodeproj")))
@@ -411,7 +364,6 @@ import SwiftCodeProject
         w.untitledProjectsLocation = base
         var opened: [UntitledAppProject.Created] = []
         w.openUntitled = { c, done in opened.append(c); done(true) }
-        // App: no sheet; the project is made and opened at once.
         let app = try #require(w.newProjectButton.menu?.items.first { $0.title == "App" })
         #expect(w.newProjectChosen(app) == nil)
         let created = try #require(opened.first)
@@ -424,11 +376,9 @@ import SwiftCodeProject
         let view = try String(contentsOf: root.appendingPathComponent("MyApp/ContentView.swift"), encoding: .utf8)
         #expect(view.contains("struct ContentView: View") && view.contains("#Preview"))
         #expect(try String(contentsOf: created.entryFile, encoding: .utf8).contains("@main"))
-        // A second App goes next to it.
         _ = w.createUntitledApp()
         #expect(opened.last?.project.path == base.appendingPathComponent("Untitled Project 2/MyApp.xcodeproj").path)
 
-        // The project: one app target in a synchronized folder, multiplatform settings.
         let proj = try PBXProj(contentsOf: created.project.appendingPathComponent("project.pbxproj"))
         #expect(proj.targets.map { $0.string("name") } == ["MyApp"])
         let folder = try #require(proj.objects.values.first { $0.isa == "PBXFileSystemSynchronizedRootGroup" })
@@ -440,23 +390,18 @@ import SwiftCodeProject
         for k in ["IPHONEOS_DEPLOYMENT_TARGET", "MACOSX_DEPLOYMENT_TARGET", "XROS_DEPLOYMENT_TARGET"] { #expect(settings[k]?.string == "27.0", "\(k)") }
         #expect(settings["PRODUCT_BUNDLE_IDENTIFIER"]?.string == "com.example.MyApp" && settings["DEVELOPMENT_TEAM"] == nil)
 
-        // The window: MyApp.swift in the editor, the inspector hidden.
         let wc = try WindowChromeR32Tests().window(created.project)
         #expect(wc.session.scheme == "MyApp")
         wc.showUntitledProject(entryFile: created.entryFile)
         #expect(wc.editor.fileURL?.standardizedFileURL.path == created.entryFile.standardizedFileURL.path)
         #expect(wc.inspectorItem.isCollapsed)
         if wc.session.model.destinations.contains(where: { $0.kind == .mac }) { #expect(wc.session.destination?.kind == .mac) }
-        // The navigator lists the synchronized folder's files.
         let tree = wc.navigator.rows(0).first
         #expect(tree?.children.first?.title == "MyApp")
-        // The other rows keep the sheet.
         let tool = try #require(w.newProjectButton.menu?.items.first { $0.title == "Command Line Tool" })
         let sheet = w.newProjectChosen(tool)
         #expect(sheet != nil)
     }
-
-    // MARK: T10 — no notices slot
 
     @Test func toolbarHasNoNoticesPlaceholder() throws {
         let dir = try WindowChromeR32Tests().package("r45-t10")
@@ -464,9 +409,6 @@ import SwiftCodeProject
         let wc = try WindowChromeR32Tests().window(dir)
         let ids = wc.toolbarDefaultItemIdentifiers(NSToolbar())
         let items = ids.filter { !WorkspaceWindowController.toolbarSpacers.contains($0) }.map(\.rawValue)
-        // §2.1 items 1–7 and 9–11 (item 9's two pull-downs are two toolbar
-        // items); item 8 (the notices button) is left out; the Extensions
-        // button sits beside the editor modes (Wave 11).
         #expect(items.count == 12, "\(items)")
         #expect(!items.contains { $0.localizedCaseInsensitiveContains("notice") || $0.localizedCaseInsensitiveContains("cloud") })
         #expect(wc.toolbarAllowedItemIdentifiers(NSToolbar()).filter { !WorkspaceWindowController.toolbarSpacers.contains($0) }.count == 12)

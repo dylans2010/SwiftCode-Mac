@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Simulator/SimulatorRuntime.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 
 public struct SimulatorRuntime: Identifiable, Hashable, Codable, Sendable {
@@ -7,7 +5,7 @@ public struct SimulatorRuntime: Identifiable, Hashable, Codable, Sendable {
     public let identifier: String
     public let name: String
     public let version: String
-    public let platform: String // iOS, watchOS, tvOS, visionOS, macOS
+    public let platform: String
     public let isAvailable: Bool
     public let path: String?
 

@@ -3,24 +3,6 @@ import SwiftBuild
 import SwiftCodeRelease
 import SwiftCodeSigning
 
-// swiftcode-swb: SwiftCode's bridge to swift-build's build service (open source,
-// used as a library). See specs/xcodebuild/show-build-settings.md §3 and
-// specs/xcodebuild/build-actions.md §3.
-//
-//   swiftcode-swb settings <request.json>
-//     { "pif": path, "parameters": <SWBBuildParameters>,
-//       "levels": [ {"target": guid} | {"project": guid} | {} ] }
-//     → stdout: { "settings": [ {NAME: value} per level ], "diagnostics": [...] }
-//
-//   swiftcode-swb build <request.json>
-//     { "pif": path, "parameters": <SWBBuildParameters>, "targets": [guid],
-//       "containerPath": path, "parallel": bool, "implicitDependencies": bool,
-//       "hideShellScriptEnvironment": bool, "continueAfterErrors": bool,
-//       "command": "build" | "cleanBuildFolder", "locationStyle": "regular" | "legacy",
-//       "targetNames": [name] (instead of "targets"), "debuggable": bool }
-//     → stdout: one swift-build message (SwiftBuildMessage JSON) per line.
-//       Exit status 0 when the build succeeded, 1 when it failed.
-
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("swiftcode-swb: \(message)\n".utf8))
     exit(2)
@@ -36,22 +18,15 @@ struct BuildRequestFile: Decodable {
     var pif: String
     var parameters: SWBBuildParameters
     var targets: [String]?
-    /// Targets by name (the first target of each name), as `swbuild --target` takes them.
     var targetNames: [String]?
     var containerPath: String?
     var parallel: Bool?
     var implicitDependencies: Bool?
     var hideShellScriptEnvironment: Bool?
     var continueAfterErrors: Bool?
-    /// "build" (default) or "cleanBuildFolder".
     var command: String?
-    /// "regular" (DerivedData) or "legacy" (per-project build directory).
     var locationStyle: String?
-    /// The scheme command ("launch", "test", "profile", "archive"); archive
-    /// turns on its validations (swift-build's SWBSchemeCommand).
     var schemeCommand: String?
-    /// Add `com.apple.security.get-task-allow` to ad hoc signatures
-    /// (default true; false for archives, which are not debuggable).
     var debuggable: Bool?
 }
 
@@ -61,7 +36,6 @@ func decode<T: Decodable>(_ type: T.Type, _ path: String) -> T {
     }
 }
 
-/// Opens a session with the PIF loaded and host system/user info set.
 func withSession<R>(pif: String, _ body: (SWBBuildServiceSession, [String]) async throws -> R) async -> R {
     let service: SWBBuildService
     do { service = try await SWBBuildService() } catch { fail("cannot start the build service: \(error)") }
@@ -86,7 +60,6 @@ func withSession<R>(pif: String, _ body: (SWBBuildServiceSession, [String]) asyn
         fail(message)
     }
     do {
-        // The workspace must be loaded before system and user info are set.
         try await session.loadWorkspace(containerPath: pif)
         _ = try await session.workspaceInfo()
         try await session.setSystemInfo(.default())
@@ -101,10 +74,6 @@ func withSession<R>(pif: String, _ body: (SWBBuildServiceSession, [String]) asyn
     }
 }
 
-/// On macOS swift-build finds Xcode's developer folder itself. Elsewhere its
-/// own search for the Swift toolchain fails for swiftly's proxy and the
-/// Flatpak's wrapper, so the helper names the toolchain (SwiftCodeRelease's
-/// `SwiftToolchain`; specs/xcodebuild/show-build-settings.md §3).
 func hostSwiftToolchain() -> String? {
     #if os(macOS)
     nil
@@ -135,15 +104,9 @@ func settings(_ path: String) async {
     }
 }
 
-/// Answers swift-build's provisioning questions with SwiftCodeSigning
-/// (specs/ide/signing.md): Sign to Run Locally, or an identity from the
-/// user's keychain with an installed provisioning profile. The keychain
-/// and the profile folders are read only when a target asks for an
-/// identity, and only once per build.
 final class SigningDelegate: SWBPlanningOperationDelegate, Sendable {
     let debuggable: Bool
     let environment: SigningEnvironment
-    /// Target names by GUID, for messages.
     let targetNames: [String: String]
 
     init(debuggable: Bool = true, targetNames: [String: String] = [:]) {
@@ -155,7 +118,6 @@ final class SigningDelegate: SWBPlanningOperationDelegate, Sendable {
         environment = SigningEnvironment(identities: { identities.value }, profiles: { profiles.value })
     }
 
-    /// A value computed on first use.
     final class Cache<T: Sendable>: @unchecked Sendable {
         let lock = NSLock()
         let make: @Sendable () -> T

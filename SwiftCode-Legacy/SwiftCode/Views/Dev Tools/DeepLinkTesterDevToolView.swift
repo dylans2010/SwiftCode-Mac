@@ -15,7 +15,6 @@ final class DeepLinkTesterViewModel {
             return
         }
 
-        // Simulates deep link URL route dispatching inside active window
         let timestamp = ISO8601DateFormatter().string(from: Date())
         logs.insert("[\(timestamp)] Dispatched: \(url.absoluteString)", at: 0)
         logger.info("Successfully dispatched deep link simulation: \(self.rawURL)")

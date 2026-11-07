@@ -1,29 +1,10 @@
 #!/bin/bash
-# swiftcode-ios-build-linux: builds an iOS Simulator app (arm64) on an x86-64 or
-# arm64 Linux machine with SwiftCode's swift-build engine, for a run on a SwiftCode
-# simulator host (specs/simulator/sim-link.md §9; the recipe is RES-STRINGS',
-# specs/ide/string-catalog.md §C.7).
-#
-# usage: swiftcode-ios-build-linux <project.xcodeproj> <scheme> <derived data dir> [NAME=value ...]
-#
-# Needs, from the environment (never committed: machine paths, the user's SDK):
-#   SWIFTCODE_USER_SDK   a developer folder holding the user's own copy of
-#                    Platforms/iPhoneSimulator.platform and
-#                    Toolchains/XcodeDefault.xctoolchain (usr/lib/swift, usr/lib/clang)
-#   SWIFTCODE_SWB        a built swiftcode-swb (swiftcode/Tools/swiftcode-swb; default: bin/swiftcode-swb of a release or the Flatpak)
-#   SWIFTCODE            the swiftcode command (default: bin/swiftcode of a release or the Flatpak, else the
-#                    debug build next to this script's package)
-#   SWIFTCODE_LD64       an upstream ld64.lld (swift.org's lld refuses Apple platforms;
-#                    default: the newest /usr/lib/llvm-*/bin/ld64.lld)
-#   SWIFTCODE_SWIFT_BIN  the Swift toolchain's real bin folder (default: swiftly's newest toolchain)
-# The app is <derived data>/Products/Debug-iphonesimulator/<product>.app.
 set -eu
 [ $# -ge 3 ] || { sed -n '2,20p' "$0"; exit 64; }
 project=$1; scheme=$2; dd=$3; shift 3
 here=$(cd "$(dirname "$0")" && pwd); pkg=$(cd "$here/.." && pwd)
 [ -n "${SWIFTCODE_USER_SDK:-}" ] || { echo "No iOS SDK: set SWIFTCODE_USER_SDK to a folder with your own copy of Xcode's Platforms/iPhoneSimulator.platform and Toolchains/XcodeDefault.xctoolchain (see the header of $0)" >&2; exit 2; }
 [ -d "$SWIFTCODE_USER_SDK/Platforms/iPhoneSimulator.platform" ] || { echo "SWIFTCODE_USER_SDK ($SWIFTCODE_USER_SDK) has no Platforms/iPhoneSimulator.platform" >&2; exit 2; }
-# A release (bin/ next to scripts/) or the Flatpak (/app/bin) carries swiftcode and swiftcode-swb.
 [ -n "${SWIFTCODE_SWB:-}" ] || { [ -x "$pkg/bin/swiftcode-swb" ] && SWIFTCODE_SWB=$pkg/bin/swiftcode-swb; }
 : "${SWIFTCODE_SWB:?set SWIFTCODE_SWB to a built swiftcode-swb (see the header)}"
 if [ -z "${SWIFTCODE:-}" ]; then
@@ -43,11 +24,6 @@ build() {
     "OTHER_LDFLAGS=-fuse-ld=lld --ld-path=$LD64 $RT" \
     DONT_RUN_SWIFT_STDLIB_TOOL=YES LM_SKIP_METADATA_EXTRACTION=YES "$@"
 }
-# DEVELOPER_DIR alone registers the SDK's platforms with the swift-build
-# SwiftCode ships (naming them again in XCODE_EXTRA_PLATFORM_FOLDERS makes it
-# refuse: "platform … already registered"). Older swift-builds load no
-# platforms from DEVELOPER_DIR for a Swift toolchain: when the build can't
-# find the SDK or its platform, it runs again with the folders named.
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
 build "$@" 2>&1 | tee "$log"

@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKError.swift
-//  SwiftCode
-//
-//  Production-ready error types for Google Cloud SDK and Antigravity bridge.
-//
-
 import Foundation
 
 public enum GoogleCloudSDKError: LocalizedError, Sendable {

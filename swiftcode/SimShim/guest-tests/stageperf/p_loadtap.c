@@ -1,11 +1,3 @@
-/* SwiftCode performance probe, built as a dylib (libp_loadtap.dylib): inserted
- * into a real program with DYLD_INSERT_LIBRARIES, its initializer runs
- * after the loader has loaded and bound the program's whole closure and
- * before the program's own code. It prints one line to stderr and ends the
- * process, so the program itself never runs:
- *   "loadtap images=N since_start_s=S cpu_s=C thread_cpu_s=T"
- * With P_LOADTAP_LIST=1 it also prints every image path.
- * Original SwiftCode code (specs/simulator/boot-profile.md §6). */
 #include <mach-o/dyld.h>
 #include <stdio.h>
 #include <stdlib.h>

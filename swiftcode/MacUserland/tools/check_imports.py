@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-# check_imports.py - list the imports of Mach-O images that a macOS userland
-# root cannot satisfy (specs/macos/libsystem.md §12). SwiftCode's dyld binds
-# every import at load time (dyld.md §5), so one missing non-weak symbol
-# stops a program; this finds all of them at once, before a run.
-#
-#   check_imports.py ROOT IMAGE...    print "image: library: symbol" for each
-#                                     import that ROOT does not export;
-#                                     exit 1 if any non-weak one is missing
-#
-# Exports come from `llvm-nm -gU -j` (NM overrides) of the library named by
-# the import's two-level ordinal, following LC_REEXPORT_DYLIB. @rpath names
-# are looked up in ROOT/usr/lib/swift and the directories of the images.
-# Clean-room SwiftCode code from the public <mach-o/loader.h> facts.
 
 import os
 import struct
@@ -28,7 +15,6 @@ DEPENDENCY_COMMANDS = (LC_LOAD_DYLIB, LC_LOAD_WEAK_DYLIB, LC_REEXPORT_DYLIB, LC_
 
 NM = os.environ.get("NM", "llvm-nm")
 
-
 def load_commands(path):
     data = open(path, "rb").read()
     magic, _, _, _, ncmds, _ = struct.unpack_from("<6I", data, 0)
@@ -40,16 +26,13 @@ def load_commands(path):
         yield cmd, data[at:at + size]
         at += size
 
-
 def dylib_name(command):
     offset = struct.unpack_from("<I", command, 8)[0]
     return command[offset:].split(b"\0", 1)[0].decode()
 
-
 def dependencies(path):
     """(kind, install name) of each dependency, in ordinal order."""
     return [(cmd, dylib_name(body)) for cmd, body in load_commands(path) if cmd in DEPENDENCY_COMMANDS]
-
 
 def short_name(install_name):
     """The library name llvm-nm prints in "(from X)"."""
@@ -59,10 +42,8 @@ def short_name(install_name):
     for suffix in (".dylib",):
         if leaf.endswith(suffix):
             leaf = leaf[: -len(suffix)]
-    # libFoo.A / libFoo.1 / libFoo.B -> libFoo
     head, dot, tail = leaf.partition(".")
     return head if dot and len(tail) <= 2 else leaf
-
 
 class Root:
     def __init__(self, root, extra_dirs):
@@ -96,7 +77,6 @@ class Root:
         self.cache[install_name] = names
         return names
 
-
 def undefined(path):
     """(symbol, short library name or None, weak) for each import."""
     out = subprocess.run([NM, "-m", "-u", path], capture_output=True, text=True, check=True).stdout
@@ -112,7 +92,6 @@ def undefined(path):
             line = line[: line.rindex("(from ")].strip()
         result.append((line.split()[-1], library, weak))
     return result
-
 
 def main(argv):
     if len(argv) < 3:
@@ -140,7 +119,6 @@ def main(argv):
                 missing_strong += 1
     print(f"check_imports: {missing_strong} unresolved non-weak import(s)", file=sys.stderr)
     return 1 if missing_strong else 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

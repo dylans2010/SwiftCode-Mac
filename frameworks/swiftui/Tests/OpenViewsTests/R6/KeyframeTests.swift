@@ -8,12 +8,8 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 05-animation.md §6 (T-KEYFRAME, tolerance 0.01) and the keyframe rules.
-
 @Suite("05 §6 keyframes (T-KEYFRAME)")
 struct KeyframeTests {
-    /// The measured timeline: Linear(100, 1), Spring(0, 1), Cubic(50, 0.5),
-    /// Move(10), Cubic(20, 0.5) from 0.
     static func measuredTimeline() -> KeyframeTimeline<Double> {
         KeyframeTimeline(initialValue: 0.0) {
             LinearKeyframe(100.0, duration: 1)
@@ -69,7 +65,6 @@ struct KeyframeTests {
             CubicKeyframe(10.0, duration: 1)
             CubicKeyframe(30.0, duration: 1)
         }
-        // Slope at t = 1 is (30 − 0) / 2 = 15 from both sides.
         let h = 1e-6
         let left = (t.value(time: 1) - t.value(time: 1 - h)) / h
         let right = (t.value(time: 1 + h) - t.value(time: 1)) / h

@@ -1,16 +1,5 @@
 import SwiftUI
 
-/// In-pane editor for `Localizable.xcstrings`, rendered like the
-/// Entitlements editor: the editor tabs, jump bar, and workspace
-/// chrome stay put, and the visual/raw switcher offers the raw JSON
-/// text editor as Raw. The user never sees raw JSON in Visual mode:
-/// header, AI assistant, filters, then the strings themselves.
-///
-/// Editing here writes this file directly (it *is* the file's
-/// editor). The "Localize App" AI flow is stricter: it may only
-/// change files through the localization tools — see
-/// `LocalizingAppService` — while the model only supplies
-/// translation text and never touches a file.
 public struct LocalizingAppNewView: View {
     public let fileURL: URL
 
@@ -41,8 +30,6 @@ public struct LocalizingAppNewView: View {
     public init(fileURL: URL) {
         self.fileURL = fileURL
     }
-
-    // MARK: - Derived catalog state
 
     private var sourceLanguage: String {
         root?["sourceLanguage"] as? String ?? "en"
@@ -114,8 +101,6 @@ public struct LocalizingAppNewView: View {
         return (total, translated, total - translated)
     }
 
-    // MARK: - Body
-
     public var body: some View {
         Group {
             if let loadError {
@@ -154,12 +139,8 @@ public struct LocalizingAppNewView: View {
         }
     }
 
-    // MARK: - Header (in-view, not a toolbar)
-
     private var header: some View {
         let count = counts()
-        // Slim header: the editor jump bar above already names the
-        // file, so this row carries only the counts and actions.
         return HStack(spacing: 12) {
             Text("\(count.total) strings · \(count.translated) translated in \(displayLanguage) · \(count.untranslated) untranslated · Source: \(sourceLanguage)")
                 .font(.system(size: 11))
@@ -180,8 +161,6 @@ public struct LocalizingAppNewView: View {
         .padding(.vertical, 12)
         .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
     }
-
-    // MARK: - AI assistant
 
     private var aiAssistantSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -247,8 +226,6 @@ public struct LocalizingAppNewView: View {
             }
         }
     }
-
-    // MARK: - Filters + strings
 
     private var filtersSection: some View {
         HStack(spacing: 12) {
@@ -353,13 +330,9 @@ public struct LocalizingAppNewView: View {
             .clipShape(Capsule())
     }
 
-    // MARK: - Editing the catalog document
-
     private func setValue(_ value: String, for key: String, language: String) {
         guard var strings = root?["strings"] as? [String: Any],
               var entry = strings[key] as? [String: Any] else { return }
-        // A key without a localizations dictionary yet used to
-        // swallow the edit silently; create the dictionary instead.
         var localizations = entry["localizations"] as? [String: Any] ?? [:]
         var loc = (localizations[language] as? [String: Any]) ?? [:]
         let newState = value.isEmpty ? "new" : "translated"
@@ -392,8 +365,6 @@ public struct LocalizingAppNewView: View {
         newSourceValue = ""
     }
 
-    // MARK: - AI run
-
     private func runLocalizeApp() async {
         let languages = Array(selectedLanguages).sorted()
         guard !languages.isEmpty else { return }
@@ -419,8 +390,6 @@ public struct LocalizingAppNewView: View {
         }
         localizeProgress = ""
     }
-
-    // MARK: - Load / save
 
     private func load() {
         loadError = nil

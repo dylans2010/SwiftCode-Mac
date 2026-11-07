@@ -1,6 +1,3 @@
-// fsnprobe: our own probe (Ycode stage 9, agent J): LaunchServices' file node
-// (class FSNode, found by name at run time) for each path, and the answers of
-// its no-argument BOOL getters and simple value getters. Mac vs Ycode.
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <objc/message.h>

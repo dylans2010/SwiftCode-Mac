@@ -1,30 +1,8 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/ChooseModelForAgent.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/ChooseModelForAgent.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - searchable model-chooser sheet
-// ADAPTATIONS:
-//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
-//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
-//   - AppleFoundationModel — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-//   - AssistModelFilter — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistModels.swift`)
-//   - DynamicModelOption — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistModels.swift`)
-//   - FoundationModels — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-//   - ModelCategory — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistModels.swift`)
-//   - OpenRouterService — UNOWNED (no worklist) (`SwiftCode/Services/OpenRouterService.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land. Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
-
 import SwiftUI
 import os
 import SwiftCodeAssistant
 
 private let logger = Logger(subsystem: "com.swiftcode.ChooseModelForAgent", category: "ChooseModelForAgent")
-
 
 @MainActor
 public struct ChooseModelForAgent: View {
@@ -49,7 +27,6 @@ public struct ChooseModelForAgent: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Choose Model", systemImage: "cpu")
                     .font(.headline)
@@ -72,7 +49,6 @@ public struct ChooseModelForAgent: View {
 
             Divider()
 
-            // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -94,7 +70,6 @@ public struct ChooseModelForAgent: View {
 
             Divider()
 
-            // Models List
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     let categories = DynamicModelOption.ModelCategory.allCases
@@ -139,7 +114,6 @@ public struct ChooseModelForAgent: View {
         var modelsList: [DynamicModelOption] = []
         let filter = AssistModelFilter.shared
 
-        // 1. Apple Foundation Models
         if filter.isEnabled(AppleFoundationModel.afm3Core.rawValue) {
             modelsList.append(DynamicModelOption(
                 modelID: AppleFoundationModel.afm3Core.rawValue,
@@ -161,7 +135,6 @@ public struct ChooseModelForAgent: View {
             ))
         }
 
-        // 2. HuggingFace Local Models
         let localModels = OfflineModelManager.shared.installedModels
         for m in localModels {
             if filter.isEnabled(m.modelName) {
@@ -176,7 +149,6 @@ public struct ChooseModelForAgent: View {
             }
         }
 
-        // 3. Custom endpoint/link models
         if !settings.customModel.isEmpty && filter.isEnabled(settings.customModel) {
             modelsList.append(DynamicModelOption(
                 modelID: settings.customModel,
@@ -188,11 +160,8 @@ public struct ChooseModelForAgent: View {
             ))
         }
 
-        // 4. OpenRouter Cloud Models are added from the live fetch below.
-
         self.dynamicModels = modelsList
 
-        // Fetch live OpenRouter models asynchronously
         isFetching = true
         Task {
             do {

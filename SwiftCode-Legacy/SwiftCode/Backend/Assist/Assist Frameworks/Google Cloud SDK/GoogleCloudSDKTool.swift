@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKTool.swift
-//  SwiftCode
-//
-//  Native representation of Antigravity SDK tool calls, inputs, and results.
-//
-
 import Foundation
 
 public struct GoogleCloudSDKToolExecutionRequest: @unchecked Sendable {

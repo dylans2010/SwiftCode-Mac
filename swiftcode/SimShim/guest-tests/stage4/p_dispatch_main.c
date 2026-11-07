@@ -1,4 +1,3 @@
-/* SwiftCode stage-4 probe: the main queue, a timer source, dispatch_main. Original SwiftCode code. */
 #include <dispatch/dispatch.h>
 #include <stdio.h>
 #include <stdlib.h>

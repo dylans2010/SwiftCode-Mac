@@ -3,102 +3,10 @@ import Foundation
 import FoundationNetworking
 #endif
 
-// MARK: - Search-web support (gap-closure wave, family 3: SEARCH TOOLS)
-//
-// The four Agentic search tools (`web_search`,
-// `documentation_search`, `api_reference_search`, `package_search`)
-// shipped in Wave 8 as honest failures: Legacy's `WebSearch` called
-// an unofficial DuckDuckGo proxy (`ddg-api.herokuapp.com`) that is
-// not a supported search backend, and the other three returned
-// canned strings without searching anything. This file wires each
-// tool to a real, keyless, public endpoint — verified live from this
-// environment on 2026-11-06 (see `specs/ide/gap-closure-search.md`
-// for the full evidence table) — and fails honestly where no such
-// endpoint exists.
-//
-// Behaviour source: Legacy
-// `SwiftCode/Tools/Agentic/WebSearch.swift`,
-// `DocumentationSearch.swift`, `APIReferenceSearch.swift`,
-// `PackageSearch.swift` (Dylan's own code, ported under MIT).
-// Legacy's IDs, descriptions, and required parameters are kept
-// verbatim; each tool gains optional parameters only
-// (`framework`/`limit`), the Wave 10 `repository` precedent.
-//
-// Endpoints (all keyless, all verified live 2026-11-06):
-//
-// * `web_search` — DuckDuckGo Instant Answer API
-//   (`api.duckduckgo.com/?q=…&format=json`): a documented public
-//   API, no key. It answers topics with a summary (abstract,
-//   related topics, instant-answer results); it is NOT a full
-//   ranked web search. DuckDuckGo's `html`/`lite` result pages are
-//   bot-gated in this environment (HTTP 202 + a "complete the
-//   challenge" page) and are deliberately NOT scraped: the
-//   challenge must not be solved, and scraping a bot-gated page
-//   would violate its terms. When the Instant Answer API has
-//   nothing for a query, the tool fails honestly and names the
-//   keyed providers that would answer it (Brave Search API, Bing
-//   Web Search API, Google Custom Search) instead of inventing
-//   results.
-// * `documentation_search` / `api_reference_search` — Apple's
-//   published DocC render JSON (`developer.apple.com/tutorials/
-//   data/<path>.json`), the same path `fetch_documentation` uses
-//   (`EnginesDocs` / `EnginesHTTP` in
-//   `SwiftCodeTools+EnginesSupport.swift`). Apple publishes no public
-//   full-text documentation search API: the developer site's
-//   search runs on an undocumented internal host whose guessed
-//   paths 404, so it is not used. Search here is candidate
-//   resolution (`EnginesDocs.resolveCandidates`) plus a title
-//   search over a framework root page's `references` index, with
-//   each candidate fetched as DocC JSON and ranked by title /
-//   abstract match. `api_reference_search` keeps only pages whose
-//   DocC `kind` is `symbol`.
-// * `package_search` — the Swift Package Index search page
-//   (`swiftpackageindex.com/search?query=…`, server-rendered HTML,
-//   parsed, never invented) with the GitHub public repository
-//   search API (`api.github.com/search/repositories`, keyless
-//   JSON) as fallback. SPI's JSON API (`/api/search`) answers
-//   401 without authentication, so it is not used; the search
-//   page is the reachable keyless surface of the index. GitHub
-//   matches are repositories, not index-verified packages, and
-//   are labelled as such.
-//
-// Conventions, following Waves 5/8:
-//
-// * HTTPS only, fixed hosts, 30 s timeouts, response caps
-//   (1 MB web/SPI, 2 MB DocC/GitHub) instead of unbounded
-//   buffering. Redirects stay on the endpoint's own host
-//   (`EnginesHTTP`'s guard).
-// * No result is ever invented. A backend that returns nothing
-//   usable produces an honest failure (web/docs) or an empty
-//   result with count 0 (package search: the index genuinely
-//   has no match), never a canned string.
-// * Pure parsing lives here so tests can drive it from canned
-//   HTTP fixtures without a server; the network fetch goes
-//   through `SearchHTTP.fetch`, which honours the test seam
-//   (`SearchWebTestTransport.session`). No test performs a live
-//   fetch and no test reads a real credential.
-// * The DocC search deliberately does NOT use
-//   `fetchDocumentationCandidate` (`SwiftCodeTools+Engines.swift`):
-//   that helper has no transport seam, so tests could not stub
-//   it. The candidate fetch here is the same DocC-JSON shape
-//   (same URL, same cap, same parser) with the seam threaded
-//   through, and no `EnginesDocCache` entry (search results are
-//   not re-fetched per page the way `fetch_documentation` is).
-
-// MARK: - Transport seam (tests only)
-
-/// The URLSession the search fetchers use when set; nil in
-/// production (the fetchers then build their own ephemeral session
-/// with the redirect guard, exactly like `EnginesHTTP.fetch`).
-/// Tests install a `URLProtocol`-backed session here
-/// (`SearchToolsGapTests`) and reset it in `defer`, the
-/// `gitHubTestSession` shape from Wave 10.
 enum SearchWebTestTransport {
     nonisolated(unsafe) static var session: URLSession?
 }
 
-/// The search fetchers' HTTP layer: `EnginesHTTP.fetch` with the
-/// test seam threaded through.
 enum SearchHTTP {
     static let userAgent = "SwiftCode-MCP/1.0"
 
@@ -107,7 +15,6 @@ enum SearchHTTP {
                                     session: SearchWebTestTransport.session)
     }
 
-    /// A GET with a timeout and a User-Agent, ready to fetch.
     static func get(_ url: URL, accept: String? = nil) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -118,19 +25,13 @@ enum SearchHTTP {
     }
 }
 
-// MARK: - Shared text helpers
-
 enum SearchText {
-    /// Query terms: lowercased words, punctuation stripped.
     static func terms(of query: String) -> [String] {
         query.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
     }
 
-    /// Decodes the HTML entities a search page can put in a name or
-    /// summary (`&amp;`, `&hellip;`, `&#39;`, `&#x27;`, …). Unknown
-    /// entities are left as-is rather than dropped.
     static func decodeEntities(_ text: String) -> String {
         var out = text
         for (entity, char) in ["&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'",
@@ -139,7 +40,6 @@ enum SearchText {
                                "&ndash;": "–", "&mdash;": "—"] {
             out = out.replacingOccurrences(of: entity, with: char)
         }
-        // Numeric entities: &#NNN; and &#xHH;.
         for (pattern, radix) in [("&#(\\d+);", 10), ("&#x([0-9a-fA-F]+);", 16)] {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
             let ns = out as NSString
@@ -151,10 +51,6 @@ enum SearchText {
                       match.range(at: 1).location != NSNotFound else { continue }
                 let digits = ns.substring(with: match.range(at: 1))
                 let value = Int(digits, radix: radix) ?? 0
-                // `UnicodeScalar` has no `Int` initializer: convert
-                // only in range (digits are unsigned, so `value` is
-                // never negative; anything past U+10FFFF is not a
-                // scalar and decodes to nothing).
                 let scalar = (value <= 0x10FFFF ? UnicodeScalar(UInt32(value)) : nil).map { String($0) } ?? ""
                 result += ns.substring(with: NSRange(location: cursor, length: whole.location - cursor))
                 result += scalar
@@ -167,16 +63,11 @@ enum SearchText {
     }
 }
 
-// MARK: - web_search: DuckDuckGo Instant Answer API
-
-/// One instant-answer result: the DuckDuckGo Instant Answer API's
-/// `Results` / `RelatedTopics` entries, flattened.
 struct SearchWebResult: Sendable {
     var text: String
     var url: String
 }
 
-/// The parsed DuckDuckGo Instant Answer payload.
 struct SearchWebAnswer: Sendable {
     var abstract: String
     var abstractURL: String
@@ -190,7 +81,6 @@ enum SearchWebDDG {
     static let allowedHosts: Set<String> = [host]
     static let maxBytes = 1_000_000
 
-    /// `https://api.duckduckgo.com/?q=…&format=json&no_html=1&skip_disambig=1`.
     static func searchURL(query: String) -> URL? {
         var components = URLComponents()
         components.scheme = "https"
@@ -205,10 +95,6 @@ enum SearchWebDDG {
         return components.url
     }
 
-    /// Parses the Instant Answer JSON: the abstract, the direct
-    /// answer, `Results`, and `RelatedTopics` (whose groups nest
-    /// their topics under `Topics`). Entries without a URL are
-    /// dropped; duplicates are removed, first occurrence wins.
     static func parse(data: Data) -> SearchWebAnswer? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         let abstract = (root["AbstractText"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -240,9 +126,6 @@ enum SearchWebDDG {
                                answer: answer, results: results)
     }
 
-    /// Fetches the Instant Answer payload for `query`. Throws
-    /// `EnginesHTTPError.rateLimited` on 429 so the handler can say
-    /// so; any other non-2xx is `badStatus`.
     static func search(query: String) async throws -> SearchWebAnswer {
         guard let url = searchURL(query: query) else {
             throw EnginesHTTPError.invalidURL("Could not build a DuckDuckGo Instant Answer URL for query '\(query)'.")
@@ -260,43 +143,25 @@ enum SearchWebDDG {
     }
 }
 
-// MARK: - documentation_search / api_reference_search: DocC JSON search
-
-/// One documentation search hit: a fetched DocC page, ranked.
 struct SearchDocsHit: Sendable {
     var title: String
     var url: String
     var abstract: String
     var availability: String
-    /// The DocC `kind` of the page (`symbol`, `article`, …).
     var kind: String
-    /// Rank score; higher is a better title/abstract match.
     var score: Int
 }
 
 enum SearchDocs {
     static let maxBytes = 2_000_000
 
-    /// DocC `kind` values that are API references. DocC marks every
-    /// API symbol page `symbol` (types, methods, properties,
-    /// operators, macros alike); articles are `article`, overviews
-    /// `overview`, sample code `sampleCode`.
     static let symbolKinds: Set<String> = ["symbol"]
 
-    /// The DocC `kind` of a render-JSON payload (`symbol`,
-    /// `article`, …), or nil when the payload has none.
     static func doccKind(data: Data) -> String? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return root["kind"] as? String
     }
 
-    /// Fetches one candidate's DocC JSON and parses it into a page.
-    /// Returns nil when the JSON 404s or does not parse as DocC
-    /// (the candidate simply does not resolve); 429 fails fast;
-    /// other statuses are recorded by the caller via the thrown
-    /// error. The DocC-JSON shape (URL, cap, parser) is
-    /// `fetch_documentation`'s, with the test seam threaded through
-    /// and no response cache.
     static func fetchPage(candidate: EnginesDocs.Candidate) async throws -> (page: EnginesDocs.Page, kind: String)? {
         let fetched = try await SearchHTTP.fetch(
             SearchHTTP.get(candidate.doccJSONURL, accept: "application/json"),
@@ -314,11 +179,6 @@ enum SearchDocs {
         return (page, doccKind(data: fetched.data) ?? "")
     }
 
-    /// The framework root page's `references` entries whose title
-    /// matches the query terms, as extra candidates. The root JSON
-    /// is a curated index (SwiftUI's lists 73 references, only 7
-    /// of them symbols), so this supplements candidate resolution
-    /// rather than replacing it. Returns at most 6 candidates.
     static func referenceCandidates(framework: String, terms: [String], data: Data) -> [EnginesDocs.Candidate] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let references = root["references"] as? [String: Any] else { return [] }
@@ -342,12 +202,6 @@ enum SearchDocs {
         return found
     }
 
-    /// Scores a fetched page against the query terms: an exact
-    /// title match wins, then all terms in the title, then any
-    /// term in the title, plus one when all terms appear in the
-    /// abstract. Every fetched candidate is kept (a path-resolved
-    /// candidate is relevant even at score 0); the score only
-    /// orders the results.
     static func score(title: String, abstract: String, query: String, terms: [String]) -> Int {
         let titleLower = title.lowercased()
         let abstractLower = abstract.lowercased()
@@ -365,16 +219,6 @@ enum SearchDocs {
         return score
     }
 
-    /// Searches Apple's published DocC data for `query`. Resolves
-    /// candidates from the query (+ optional framework), adds
-    /// title matches from the framework root's `references` index
-    /// when a framework is given, fetches each candidate's DocC
-    /// JSON, and ranks the pages. When `symbolOnly` is true
-    /// (`api_reference_search`) only `symbol`-kind pages are kept.
-    /// Throws `EnginesHTTPError.invalidURL` when no candidate can
-    /// be resolved at all (single-token query, no framework), and
-    /// returns an empty array when candidates resolve but none
-    /// fetches as a page.
     static func search(query: String, framework: String?, symbolOnly: Bool) async throws -> [SearchDocsHit] {
         let candidates = try EnginesDocs.resolveCandidates(query: query, urlString: "", framework: framework)
         var ordered = candidates
@@ -391,13 +235,7 @@ enum SearchDocs {
                     }
                 }
             }
-            // A framework-root fetch failure is not fatal: the
-            // resolved candidates below still run.
         }
-        // The framework root page itself is the index, not a
-        // result: do not fetch it as a hit when other candidates
-        // exist. (When the query IS the framework name it is the
-        // only candidate, and it stays.)
         if let framework, !framework.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, ordered.count > 1 {
             let rootPath = "documentation/\(framework.lowercased().replacingOccurrences(of: " ", with: ""))"
             ordered.removeAll { $0.docPath == rootPath }
@@ -432,16 +270,12 @@ enum SearchDocs {
     }
 }
 
-// MARK: - package_search: Swift Package Index + GitHub search
-
-/// One package search hit, from either backend.
 struct SearchPackageHit: Sendable {
     var name: String
     var identifier: String
     var summary: String
     var stars: Int?
     var activity: String
-    /// The package's page on the backend that returned it.
     var url: String
 }
 
@@ -452,7 +286,6 @@ enum SearchPackages {
     static let gitHubAllowedHosts: Set<String> = [gitHubHost]
     static let maxBytes = 1_000_000
 
-    /// `https://swiftpackageindex.com/search?query=…`.
     static func spiSearchURL(query: String) -> URL? {
         var components = URLComponents()
         components.scheme = "https"
@@ -462,8 +295,6 @@ enum SearchPackages {
         return components.url
     }
 
-    /// `https://api.github.com/search/repositories?q=<query>
-    /// language:swift&sort=stars&order=desc&per_page=<limit>`.
     static func gitHubSearchURL(query: String, limit: Int) -> URL? {
         var components = URLComponents()
         components.scheme = "https"
@@ -478,14 +309,6 @@ enum SearchPackages {
         return components.url
     }
 
-    /// Parses the Swift Package Index search page: the
-    /// `<ul id="package-list">` entries. Each entry is
-    /// `<li><a href="/owner/repo"><h4>name</h4><p>summary</p>`
-    /// plus a `<ul class="metadata">` with the `owner/repo`
-    /// identifier, the activity line, and the star count. Returns
-    /// an empty array when the list is absent or unparseable (the
-    /// caller falls back to GitHub rather than guessing whether
-    /// that means "no matches" or "markup drift").
     static func parseSPIHTML(_ html: String) -> [SearchPackageHit] {
         guard let listRange = html.range(of: "<ul id=\"package-list\">") else { return [] }
         let section = String(html[listRange.upperBound...])
@@ -508,8 +331,6 @@ enum SearchPackages {
             let href = String(section[hrefRange])
             let name = SearchText.decodeEntities(String(section[nameRange]).trimmingCharacters(in: .whitespacesAndNewlines))
             let summary = SearchText.decodeEntities(String(section[summaryRange]).trimmingCharacters(in: .whitespacesAndNewlines))
-            // The entry's metadata runs until the next entry header
-            // (or the end of the list section).
             let spanStart = header.range.location + header.range.length
             let spanEnd = index + 1 < headers.count ? headers[index + 1].range.location : nsSection.length
             guard spanEnd > spanStart else { continue }
@@ -535,10 +356,6 @@ enum SearchPackages {
         return hits
     }
 
-    /// Parses the GitHub repository search JSON: `items[]` with
-    /// `full_name`, `description`, `stargazers_count`,
-    /// `html_url`. Returns nil when the payload is not a search
-    /// result at all.
     static func parseGitHubJSON(_ data: Data) -> [SearchPackageHit]? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let items = root["items"] as? [[String: Any]] else { return nil }
@@ -556,9 +373,6 @@ enum SearchPackages {
         }
     }
 
-    /// Fetches the Swift Package Index search page and parses it.
-    /// Returns nil on any non-2xx status (the caller falls back to
-    /// GitHub); throws only on transport failure.
     static func searchSPI(query: String) async throws -> [SearchPackageHit]? {
         guard let url = spiSearchURL(query: query) else { return nil }
         let fetched = try await SearchHTTP.fetch(SearchHTTP.get(url, accept: "text/html"),
@@ -568,11 +382,6 @@ enum SearchPackages {
         return parseSPIHTML(html)
     }
 
-    /// Fetches the GitHub public repository search for Swift
-    /// repositories matching `query`. Unauthenticated search is
-    /// rate-limited (10 requests/minute); a 403 whose body says
-    /// "rate limit" and a 429 both surface as
-    /// `EnginesHTTPError.rateLimited`.
     static func searchGitHub(query: String, limit: Int) async throws -> [SearchPackageHit] {
         guard let url = gitHubSearchURL(query: query, limit: limit) else {
             throw EnginesHTTPError.invalidURL("Could not build a GitHub search URL for query '\(query)'.")
@@ -595,12 +404,6 @@ enum SearchPackages {
         return hits
     }
 
-    /// Searches for packages: the Swift Package Index first, the
-    /// GitHub public repository search when the index page fails
-    /// or yields no parseable entries. The returned source names
-    /// the backend that answered (`swift-package-index` or
-    /// `github-search`). An empty array means the backends that
-    /// answered found no match — never an invented result.
     static func search(query: String, limit: Int) async throws -> (hits: [SearchPackageHit], source: String) {
         var spiNote = "returned no usable results"
         do {
@@ -608,8 +411,6 @@ enum SearchPackages {
                 return (Array(spiHits.prefix(limit)), "swift-package-index")
             }
         } catch {
-            // SPI transport failure: fall through to GitHub rather
-            // than failing on the first backend, but remember why.
             spiNote = "fetch failed (\(error))"
         }
         do {

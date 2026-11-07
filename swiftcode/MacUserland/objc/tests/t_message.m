@@ -1,8 +1,3 @@
-// t_message.m - messaging conformance (specs/macos/objc-runtime.md §4, §5).
-// SwiftCode's own test program: classes, super, class methods, +load,
-// +initialize, categories, resolveInstanceMethod:, many and floating-point
-// arguments through the slow path, struct returns, nil receivers,
-// swizzling, runtime-added methods. Prints one line per check.
 #include <objc/NSObject.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -60,8 +55,8 @@ static int order = 0;
 - (const char *)extra { return "extra"; }
 @end
 
-typedef struct { double x, y, z, w; } Vec4;   // returned in registers (HFA)
-typedef struct { long a, b, c, d, e; } Big;   // returned through x8
+typedef struct { double x, y, z, w; } Vec4;
+typedef struct { long a, b, c, d, e; } Big;
 
 @interface Shapes : NSObject
 - (Vec4)vec:(double)s;
@@ -108,7 +103,7 @@ int main(void) {
     printf("extra %s\n", [ss extra]);
     printf("scale %.2f\n", [s scale:1.5 by:2.0f]);
     printf("sum %ld\n", [s sum:1 :2 :3 :4 :5 :6 :7 :8 :9 :10]);
-    for (int i = 0; i < 3; i++)   // cached path after the first
+    for (int i = 0; i < 3; i++)
         printf("cached twice %d\n", [s twice]);
 
     Shapes *sh = [Shapes new];

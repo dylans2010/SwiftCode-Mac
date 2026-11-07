@@ -2,18 +2,6 @@ import Foundation
 import SwiftUI
 import SwiftCodeIDECore
 
-/// Advanced Tools views (Legacy `SwiftCode/Features/AdvancedTools/Views/`,
-/// Dylan's own code, ported under MIT), rebuilt in SwiftCode style: default
-/// accent, no Legacy orange, no liquid-glass modifiers. Every view takes
-/// its inputs explicitly (a workspace root URL and/or a file URL) instead
-/// of reading Legacy's `ProjectSessionStore`, which does not exist here.
-/// The host wires these views to the open workspace; see the wiring list.
-/// Tree-sitter is omitted from the refactoring view (no tree-sitter in the
-/// destination) and Graphviz is never auto-installed (Legacy installed it
-/// via Homebrew without asking; this port reports it missing with a remedy).
-
-// MARK: - Shared screen/card/pill (Legacy AdvancedToolsSharedDesignSystem)
-
 struct AdvancedToolScreen<Content: View>: View {
     let title: String
     @ViewBuilder var content: () -> Content
@@ -67,8 +55,6 @@ struct MetricPill: View {
     }
 }
 
-// MARK: - Subprocess helper
-
 enum AdvancedToolRunner {
     static func path(for name: String) -> String? {
         let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/local/bin")
@@ -80,7 +66,6 @@ enum AdvancedToolRunner {
         return nil
     }
 
-    /// Runs a tool synchronously; call from a detached task, never the main actor.
     static func run(_ path: String, args: [String]) -> (status: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
@@ -98,8 +83,6 @@ enum AdvancedToolRunner {
         return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 }
-
-// MARK: - Code intelligence
 
 struct CodeIntelligenceView: View {
     var fileContent: String
@@ -141,8 +124,6 @@ struct CodeIntelligenceView: View {
     }
 }
 
-// MARK: - Symbol index
-
 struct SymbolIndexView: View {
     var rootURL: URL?
     @State private var query = ""
@@ -175,8 +156,6 @@ struct SymbolIndexView: View {
         }
     }
 }
-
-// MARK: - Code metrics
 
 struct CodeMetricsDashboardView: View {
     var rootURL: URL?
@@ -264,8 +243,6 @@ struct CodeMetricsDashboardView: View {
     }
 }
 
-// MARK: - Code refactoring
-
 struct CodeRefactoringView: View {
     var fileURL: URL?
     var onContentChanged: ((String) -> Void)? = nil
@@ -351,8 +328,6 @@ struct CodeRefactoringView: View {
     }
 }
 
-// MARK: - Crash log analyzer
-
 private struct CrashAnalysis {
     let failingFunction: String
     let likelyCause: String
@@ -382,8 +357,6 @@ struct CrashLogAnalyzerView: View {
         }
     }
 }
-
-// MARK: - Error diagnostics
 
 private struct DiagnosticLogEntry: Identifiable {
     let id = UUID()
@@ -443,8 +416,6 @@ struct ErrorDiagnosticsView: View {
         }
     }
 }
-
-// MARK: - Dependency graph
 
 struct ProjectDependencyGraphView: View {
     var rootURL: URL?

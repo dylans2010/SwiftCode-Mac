@@ -4,8 +4,6 @@ import SwiftCodePlist
 import SwiftCodeProject
 
 extension ProjectEditorController {
-    /// One type section's body: a Key | Type | Value table with one
-    /// disclosure row per entry; an expanded entry lists its keys.
     func infoTypeSection(title: String, key: String, target t: String) -> NSView {
         let entries = model.infoTypeEntries(key, target: t, configuration: configuration)
         var rows: [[NSView]] = []
@@ -36,14 +34,12 @@ extension ProjectEditorController {
         return body
     }
 
-    /// Expands or collapses one entry row of a type section.
     public func toggleInfoEntry(_ key: String, index: Int) {
         let id = "\(key)#\(index)"
         if expandedInfoEntries.contains(id) { expandedInfoEntries.remove(id) } else { expandedInfoEntries.insert(id) }
         showTab()
     }
 
-    /// "+": adds an entry to a type section.
     public func addInfoTypeEntry(_ key: String) {
         guard let t = selectedTarget else { return }
         try? model.addInfoTypeEntry(key, target: t, configuration: configuration)
@@ -51,7 +47,6 @@ extension ProjectEditorController {
         showTab()
     }
 
-    /// "−": removes an entry (the selected one, else the last).
     public func removeInfoTypeEntry(_ key: String, at index: Int? = nil) {
         guard let t = selectedTarget else { return }
         let n = model.infoTypeEntries(key, target: t, configuration: configuration).count

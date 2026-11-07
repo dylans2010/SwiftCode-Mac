@@ -1,10 +1,5 @@
 import Foundation
 
-// MARK: - SDKManifestDiagnostic
-//
-// Structured diagnostic item produced by `SDKManifestValidator.validateWithDiagnostics`
-// for the Studio Visual Manifest Editor and the Studio Compiler Diagnostics panel.
-
 public struct SDKManifestDiagnostic: Identifiable, Equatable, Hashable, Sendable {
     public enum Severity: String, Codable, Sendable {
         case error
@@ -36,25 +31,12 @@ public struct SDKManifestDiagnostic: Identifiable, Equatable, Hashable, Sendable
     }
 }
 
-// MARK: - SDKManifestValidator
-//
-// Strict manifest validation for `swiftcode.json` (spec §7.2, §7.3).
-// `validate(data:)` performs pure validation on manifest bytes.
-// `validateWithDiagnostics(data:projectRoot:grantedCapabilities:)` collects
-// all syntactic, semantic, project-structure, and authorization diagnostics
-// for the Studio Visual Manifest Editor and Compiler Pipeline.
-
 public enum SDKManifestValidator {
 
-    // MARK: - Limits
-
-    /// Manifests larger than this are rejected before parsing.
     private static let maxManifestBytes = 64 * 1024
     private static let supportedManifestVersion = 1
     private static let supportedProtocolVersion = 1
     private static let requiredSDKName = "@swiftcode/sdk"
-    /// Host SDK version this validator checks compatibility against
-    /// (additive release 1.2.0: compatible with 1.0.0, 1.1.0, and 1.2.0).
     private static let hostSDKVersion = (major: 1, minor: 2, patch: 0)
 
     private static let maxIDLength = 128
@@ -67,18 +49,12 @@ public enum SDKManifestValidator {
     private static let maxCapabilities = 32
     private static let maxCommands = 64
 
-    /// The canonical capability registry (`SDKCapabilityRegistry.all` + sub-scopes in `ScopesIDLists.all`).
-    /// Unknown IDs are rejected — never silently reinterpreted as a known capability (spec §7.3).
     public static var supportedCapabilities: Set<String> {
         var ids = Set(SDKCapabilityRegistry.all.map(\.id.rawValue))
         ids.formUnion(ScopesIDLists.all.map(\.id))
         return ids
     }
 
-    // MARK: - Entry point
-
-    /// Validates manifest bytes and returns the decoded manifest.
-    /// - Throws: `SDKError` on every rejection path.
     public static func validate(data: Data) throws -> SDKManifest {
         guard data.count <= maxManifestBytes else {
             throw SDKError(
@@ -88,7 +64,6 @@ public enum SDKManifestValidator {
             )
         }
 
-        // 1. Malformed JSON.
         let topLevel: Any
         do {
             topLevel = try JSONSerialization.jsonObject(with: data, options: [])
@@ -108,8 +83,6 @@ public enum SDKManifestValidator {
             )
         }
 
-        // 2. Manifest version: absent/untyped → schema failure; present but
-        //    unsupported → dedicated unsupported-version error.
         guard let rawVersion = object["manifestVersion"] else {
             throw SDKError(
                 code: .schemaValidationFailed,
@@ -132,7 +105,6 @@ public enum SDKManifestValidator {
             )
         }
 
-        // 3. Typed decode: absent required fields / wrong JSON types → schema failure.
         let manifest: SDKManifest
         do {
             manifest = try JSONDecoder().decode(SDKManifest.self, from: data)
@@ -145,22 +117,15 @@ public enum SDKManifestValidator {
             )
         }
 
-        // 4. Semantic field rules.
         try validateIdentity(manifest)
         try validateRuntime(manifest.runtime)
         try validateSDKRef(manifest.sdk)
         try validateCapabilities(manifest.capabilities)
         try validateContributions(manifest.contributes)
 
-        // `assist` is descriptive metadata only (spec §9.1, ADR §9): accepted
-        // as decoded. Denial is enforced at the broker, never here.
         return manifest
     }
 
-    // MARK: - Multi-Diagnostic Validation for Studio Editor & Compiler
-
-    /// Collects all syntactic, semantic, project-level, and authorization diagnostics
-    /// for a manifest without stopping at the first error.
     public static func validateWithDiagnostics(
         data: Data,
         projectRoot: URL? = nil,
@@ -252,7 +217,6 @@ public enum SDKManifestValidator {
             return diagnostics
         }
 
-        // Identity checks
         let id = manifest.id.trimmingCharacters(in: .whitespacesAndNewlines)
         if id.isEmpty {
             diagnostics.append(SDKManifestDiagnostic(
@@ -304,7 +268,6 @@ public enum SDKManifestValidator {
             ))
         }
 
-        // Runtime checks
         if manifest.runtime.language != "typescript" {
             diagnostics.append(SDKManifestDiagnostic(
                 severity: .error,
@@ -358,7 +321,6 @@ public enum SDKManifestValidator {
             ))
         }
 
-        // SDK ref checks
         if manifest.sdk.name != requiredSDKName {
             diagnostics.append(SDKManifestDiagnostic(
                 severity: .error,
@@ -387,7 +349,6 @@ public enum SDKManifestValidator {
             ))
         }
 
-        // Capability checks
         var seenCaps = Set<String>()
         let validCaps = supportedCapabilities
         for (idx, cap) in manifest.capabilities.enumerated() {
@@ -451,7 +412,6 @@ public enum SDKManifestValidator {
             ))
         }
 
-        // Command checks
         if let cmds = manifest.contributes?.commands {
             var seenCmds = Set<String>()
             for (idx, cmd) in cmds.enumerated() {
@@ -500,8 +460,6 @@ public enum SDKManifestValidator {
 
         return diagnostics
     }
-
-    // MARK: - Identity
 
     private static func validateIdentity(_ manifest: SDKManifest) throws {
         let id = manifest.id.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -558,8 +516,6 @@ public enum SDKManifestValidator {
         }
     }
 
-    // MARK: - Runtime
-
     private static func validateRuntime(_ runtime: SDKManifestRuntime) throws {
         guard runtime.language == "typescript" else {
             throw invalid("Unsupported runtime language \"\(runtime.language)\".",
@@ -575,8 +531,6 @@ public enum SDKManifestValidator {
             throw invalid("The runtime \"entrypoint\" exceeds 512 characters.",
                           suggestion: "Use a shorter relative path for the entrypoint.")
         }
-        // Lexical traversal checks only (no I/O here — the package validator
-        // re-checks with real symlink resolution).
         guard !entrypoint.hasPrefix("/") else {
             throw SDKError(
                 code: .pathTraversal,
@@ -612,8 +566,6 @@ public enum SDKManifestValidator {
         }
     }
 
-    // MARK: - SDK reference
-
     private static func validateSDKRef(_ sdk: SDKManifestSDKRef) throws {
         guard sdk.name == requiredSDKName else {
             throw SDKError(
@@ -637,8 +589,6 @@ public enum SDKManifestValidator {
             )
         }
     }
-
-    // MARK: - Capabilities
 
     private static func validateCapabilities(_ capabilities: [SDKManifestCapability]) throws {
         guard capabilities.count <= maxCapabilities else {
@@ -675,8 +625,6 @@ public enum SDKManifestValidator {
         }
     }
 
-    // MARK: - Contributions
-
     private static func validateContributions(_ contributions: SDKManifestContributions?) throws {
         guard let contributions else { return }
         guard contributions.commands.count <= maxCommands else {
@@ -708,11 +656,6 @@ public enum SDKManifestValidator {
         }
     }
 
-    // MARK: - Semver range compatibility
-
-    /// A range is compatible when it admits the host SDK 1.x release line (1.0.0 .. 1.2.0).
-    /// Supported forms: exact `1.0.0` / `1.1.0` / `1.2.0`, `^1.0.0` / `^1.1.0` / `^1.2.0`,
-    /// `~1.0.0` / `~1.1.0` / `~1.2.0`, or `>=1.x.0 <2.0.0`.
     public static func isSDKRangeCompatible(_ range: String) -> Bool {
         let trimmed = range.trimmingCharacters(in: .whitespacesAndNewlines)
         let host = (major: hostSDKVersion.major, minor: hostSDKVersion.minor, patch: hostSDKVersion.patch)
@@ -765,8 +708,6 @@ public enum SDKManifestValidator {
         return 0
     }
 
-    // MARK: - Line Lookup Helpers
-
     private static func findLine(ofKey key: String, in rawText: String) -> Int? {
         let needle = "\"\(key)\""
         let lines = rawText.components(separatedBy: .newlines)
@@ -796,8 +737,6 @@ public enum SDKManifestValidator {
         }
         return 1
     }
-
-    // MARK: - Helpers
 
     private static func invalid(_ message: String, suggestion: String) -> SDKError {
         SDKError(code: .manifestInvalid, message: message, suggestion: suggestion)

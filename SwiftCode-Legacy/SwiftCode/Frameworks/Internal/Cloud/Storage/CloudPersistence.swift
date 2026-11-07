@@ -11,7 +11,6 @@ public final class CloudPersistence: Sendable {
     private var cacheFileURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let root = paths[0].appendingPathComponent("SwiftCode/CloudCache", isDirectory: true)
-        // Ensure directories are created securely
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root.appendingPathComponent("cloud_cache.json")
     }

@@ -45,7 +45,6 @@ struct StoreKitSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Native-Styled Title Bar Block
             HStack(spacing: 10) {
                 Image(systemName: "receipt")
                     .font(.system(size: 18, weight: .bold))
@@ -60,7 +59,6 @@ struct StoreKitSidebarView: View {
                 }
                 Spacer()
 
-                // Recent Files Picker
                 Menu {
                     Button("Create New Configuration") {
                         session.loadDefaultWorkspace()
@@ -90,9 +88,7 @@ struct StoreKitSidebarView: View {
 
             Divider()
 
-            // Main Sidebar List
             List {
-                // Pin/Favorites Section (if there are active favorites)
                 if !simulationService.favoriteProducts.isEmpty {
                     Section(header: Text("FAVORITES")
                         .font(.system(size: 10, weight: .bold))
@@ -151,7 +147,6 @@ struct StoreKitSidebarView: View {
 
             Spacer()
 
-            // Sub-Count notification badges for warnings or items
             if item.targetSection == "Validation" {
                 let issuesCount = StoreKitValidationService.shared.validate(config: session.activeConfig).count
                 if issuesCount > 0 {
@@ -185,8 +180,6 @@ struct StoreKitSidebarView: View {
         }
     }
 }
-
-// Sidebar structural helpers
 
 struct StoreKitSidebarSection: Identifiable {
     var id = UUID()

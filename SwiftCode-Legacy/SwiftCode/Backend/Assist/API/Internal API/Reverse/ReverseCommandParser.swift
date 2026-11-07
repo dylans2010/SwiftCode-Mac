@@ -1,37 +1,11 @@
-//  ReverseCommandParser.swift
-//  SwiftCode
-//
-//  Parses `@Reverse` invocations in the Assist composer.
-//
-//  Recognition rule (exact):
-//  - The trimmed message must START with `@Reverse` (case-insensitive),
-//    and the token must be followed by end-of-text or whitespace.
-//    `@ReverseXYZ`, `@Reverse!`, or prose such as
-//    "I read about @Reverse yesterday" do NOT invoke Reverse.
-//  - Everything after the command token is the task. The first
-//    absolute-path token in the remainder is the target; `op=` /
-//    `operation=` selects the operation; a bare `objdump <op>` selects
-//    `inspect_with_objdump` with the fixed objdump sub-operation.
-//  - `@Reverse` with no task parses successfully with an empty task and
-//    no target; the adapter then returns an actionable error telling
-//    the user to supply a target path. A recognized command is never
-//    silently ignored, and an unrecognized mention never executes.
-//
-//  There is no pre-existing generic `@` command parser in the app to
-//  extend (the composer popup is a resource/skill picker, not a command
-//  parser), so this is a standalone, pure parser with unit coverage.
-
 import Foundation
 
 public enum ReverseCommandParser {
     public static let commandToken = "@Reverse"
 
-    /// Parses a full composer message. Returns nil when the message is
-    /// not an intentional `@Reverse` invocation.
     public static func parse(message: String) -> ReverseInvocation? {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        // Must start with @Reverse (case-insensitive) followed by end or whitespace.
         let prefix = String(trimmed.prefix(commandToken.count))
         guard prefix.lowercased() == commandToken.lowercased() else { return nil }
         let after = trimmed.dropFirst(commandToken.count)
@@ -63,7 +37,6 @@ public enum ReverseCommandParser {
                 continue
             }
             if lower == "objdump" {
-                // Bare `objdump <op>` selects the objdump operation.
                 if index + 1 < tokens.count,
                    let sub = ReverseObjdumpOperation(rawValue: tokens[index + 1].lowercased()) {
                     operation = .inspectWithObjdump
@@ -88,8 +61,6 @@ public enum ReverseCommandParser {
         if operation == .inspectWithObjdump && objdumpOperation == nil {
             objdumpOperation = .fileHeaders
         }
-        // `op=inspect_with_objdump` without a sub-operation defaults to file_headers.
-        // The task preserves the user's words minus the consumed tokens.
         return ReverseInvocation(
             task: taskTokens.joined(separator: " "),
             targetPath: targetPath,
@@ -100,8 +71,6 @@ public enum ReverseCommandParser {
         )
     }
 
-    /// Whether the message is an intentional invocation (used by the
-    /// composer popup / classifier without full parsing).
     public static func isIntentionalInvocation(message: String) -> Bool {
         parse(message: message) != nil
     }
@@ -115,40 +84,17 @@ public enum ReverseCommandParser {
         return nil
     }
 
-    /// Extracts an absolute path from one token, stripping trailing
-    /// punctuation. Returns nil for non-absolute tokens.
     public static func extractAbsolutePath(from token: String) -> String? {
         var cleaned = token.trimmingCharacters(in: CharacterSet(charactersIn: "\"'`,.;:)]}"))
-        // Strip a leading quote/bracket the trailing-trim missed.
         while let first = cleaned.first, "\"'(`[{<".contains(first) {
             cleaned.removeFirst()
         }
         guard cleaned.hasPrefix("/") else { return nil }
-        // Reject tokens that are only punctuation or a bare "/".
         guard cleaned.count > 1 else { return nil }
         return cleaned
     }
 }
 
-// MARK: - Target / scope validation
-
-/// Pure target validation shared by the adapter and the tests.
-///
-/// Scope rule (documented, enforced inside `execute` regardless of
-/// Autopilot — Reverse never consults the Autopilot bypass):
-/// - Target must be an existing absolute path; `..` segments, `~`,
-///   and empty paths are rejected.
-/// - The symlink-resolved path must NOT be under a blocked system
-///   directory: /System, /sbin, /usr, /bin, /etc, /var, /Library,
-///   /private, /dev, or any dot-directory (e.g. ~/.ssh, ~/.gnupg).
-/// - The resolved path must be inside ONE of: the workspace root, or
-///   the user's ~/Downloads, ~/Desktop, ~/Documents. Everything else
-///   (including other home subdirectories) is rejected with an
-///   actionable message. This keeps analysis scoped to files the user
-///   explicitly placed in analysis locations or in the open project.
-/// - Task text is screened for REA-disclaimer refusals: circumventing
-///   DRM / license checks / anti-cheat, game cheats, or bypassing
-///   authentication. Matches reject with an actionable error.
 public enum ReverseTargetValidator {
     private static let blockedPrefixes: [String] = [
         "/System", "/sbin", "/usr", "/bin", "/etc", "/var", "/Library", "/private", "/dev",
@@ -191,7 +137,6 @@ public enum ReverseTargetValidator {
                 remediation: "Analyze a copy in your project, Downloads, Desktop, or Documents instead."
             ))
         }
-        // Dot-directories under home (e.g. ~/.ssh) are never in scope.
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         if resolvedPath.hasPrefix(home + "/.") {
             return .failure(.invalidInput(
@@ -231,8 +176,6 @@ public enum ReverseTargetValidator {
         return .success(resolvedPath)
     }
 
-    /// Screens task text against the REA disclaimer refusal boundary.
-    /// Returns an error when the task asks for a refused use, else nil.
     public static func refusalError(forTask task: String) -> ReverseError? {
         let lower = task.lowercased()
         for pattern in refusalPatterns where lower.contains(pattern) {

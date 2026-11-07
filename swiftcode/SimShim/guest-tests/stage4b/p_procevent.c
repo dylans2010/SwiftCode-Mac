@@ -1,9 +1,3 @@
-/* SwiftCode stage-4b probe: EVFILT_PROC NOTE_EXIT|NOTE_EXITSTATUS with SIGCHLD
- * ignored (processes.md sections 2.4 and 2.8). The child waits on an
- * inherited pipe until the parent has attached the knote, then exits 7.
- * The event carries data 7 << 8; with SIGCHLD ignored there is no zombie,
- * so waitpid fails with ECHILD. Original SwiftCode code.
- * Prints: procevent ok status=0x700 */
 #include <signal.h>
 #include <sys/event.h>
 
@@ -30,7 +24,6 @@ int main(int argc, char **argv)
     if (pipe(fds) != 0)
         probe_fail("pipe: %s", strerror(errno));
 
-    /* The child keeps only the read end. */
     posix_spawn_file_actions_t fa;
     if (posix_spawn_file_actions_init(&fa) != 0 || posix_spawn_file_actions_addclose(&fa, fds[1]) != 0)
         probe_fail("file actions");
@@ -52,7 +45,6 @@ int main(int argc, char **argv)
     if (kevent(kq, &ev, 1, NULL, 0, NULL) != 0)
         probe_fail("kevent(EV_ADD EVFILT_PROC %d): %s", (int)pid, strerror(errno));
 
-    /* Release the child. */
     if (write(fds[1], "x", 1) != 1)
         probe_fail("write to the child: %s", strerror(errno));
     close(fds[1]);
@@ -75,7 +67,6 @@ int main(int argc, char **argv)
     if (out.data != (7 << 8))
         probe_fail("event data %#lx, expected 0x700", (long)out.data);
 
-    /* SIGCHLD ignored: reaped at once, nothing to wait for. */
     int st = 0;
     pid_t r = waitpid(pid, &st, WNOHANG);
     if (r != -1 || errno != ECHILD)

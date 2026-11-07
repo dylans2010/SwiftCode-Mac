@@ -2,10 +2,6 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// The Linux shell's New Project sheet state over the core's
-/// `NewProjectFlowModel` (`templates.md` § SwiftCode implementation): the
-/// template step, the options step, and the save step drawn in the sheet
-/// (Save As, Where, Create Git repository, Add to, Group).
 @MainActor
 @Observable
 public final class NewProjectShellModel {
@@ -13,19 +9,13 @@ public final class NewProjectShellModel {
 
     public private(set) var flow: NewProjectFlowModel
     public private(set) var step = Step.template
-    /// Save As: the folder's name.
     public var saveAs = ""
-    /// Where: the folder the project folder is made in.
     public var location: String
     public var createGitRepository: Bool
-    /// The open container offered in Add to (the open workspace), if any.
     public let openContainer: URL?
     public var addToOpenContainer = false
-    /// The chosen Group (`NewProjectGroupChoice.key`).
     public var group: String?
-    /// Why the last Create failed.
     public private(set) var error: String?
-    /// The folder dialog for Where is up.
     public var isFolderDialogShown = false
 
     @ObservationIgnored let defaults: UserDefaults
@@ -69,7 +59,6 @@ public final class NewProjectShellModel {
     }
     public var nextTitle: String { step == .save ? "Create" : "Next" }
 
-    /// The Group pop-up's entries (empty while Add to is "Don't add…").
     public var groups: [NewProjectGroupChoice] {
         guard addToOpenContainer, let c = openContainer else { return [] }
         return NewProjectCreator.groups(in: c)
@@ -100,8 +89,6 @@ public final class NewProjectShellModel {
         }
     }
 
-    /// Create: writes the project; returns what to open (nil on failure,
-    /// with `error` set).
     @discardableResult
     public func create() -> NewProjectCreator.Created? {
         guard step == .save, let d = flow.selected else { return nil }
@@ -125,8 +112,6 @@ public final class NewProjectShellModel {
 }
 
 extension ShellAppModel {
-    /// File ▸ New ▸ Project… (and the Welcome screen's New Project rows):
-    /// row 0 makes the untitled app at once; the others show the sheet.
     public func showNewProject(row: Int? = nil) {
         if row == 0 {
             do {
@@ -141,8 +126,6 @@ extension ShellAppModel {
         newProject = NewProjectShellModel(defaults: newProjectDefaults, row: row, openContainer: workspace?.session.model.url)
     }
 
-    /// Create in the sheet; on success the sheet closes and the result opens
-    /// (a project added to the open workspace stays in that window).
     @discardableResult
     public func createNewProject() -> NewProjectCreator.Created? {
         guard let m = newProject, let c = m.create() else { return nil }

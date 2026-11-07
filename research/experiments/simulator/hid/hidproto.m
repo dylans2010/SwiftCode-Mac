@@ -1,19 +1,3 @@
-/*
- * hidproto: Ycode research prototype (original Ycode code, no Apple code).
- * A replacement for the bundle named by SIMULATOR_HID_SYSTEM_MANAGER, written
- * from specs/simulator/hid-input.md to check that spec on the Mac's reference
- * simulator. backboardd loads it; it publishes three virtual HID services
- * (touch screen, hardware buttons, keyboard) in backboardd's event system and
- * injects events when told to through a Darwin notification:
- *   notify name "com.ycode.hidproto.cmd", state (64 bits) =
- *     cmd << 56 | a << 28 | b      (a, b: 28-bit fields)
- *   cmd 1 tap at (a/10000, b/10000)      cmd 2 key usage a (page 7)
- *   cmd 3 consumer button usage a        cmd 4 vertical drag from (a/10000)
- *   to (b/10000) at x = 0.5, with the bottom-edge swipe bits when a > 9900
- *   cmd 5 tap with displayUUID unset test (same as 1)
- * Function declarations are our own prototypes for exported C functions whose
- * names and roles are documented in Apple's IOHIDFamily/IOKitUser open source.
- */
 #import <Foundation/Foundation.h>
 #include <notify.h>
 #include <mach/mach_time.h>
@@ -49,7 +33,7 @@ extern IOHIDEventRef IOHIDEventCreateKeyboardEvent(CFAllocatorRef, uint64_t, uin
 extern void IOHIDEventAppendEvent(IOHIDEventRef, IOHIDEventRef, uint32_t);
 extern void IOHIDEventSetIntegerValue(IOHIDEventRef, uint32_t field, long value);
 
-#define FIELD_DIGITIZER_IS_DISPLAY_INTEGRATED 0xB0019 /* digitizer base (11 << 16) + 25 */
+#define FIELD_DIGITIZER_IS_DISPLAY_INTEGRATED 0xB0019
 
 @protocol SimulatorClientHIDSystemManager
 - (instancetype)initUsingHIDService:(IOHIDEventSystemRef)system error:(NSError **)error;
@@ -92,7 +76,7 @@ static void v_setEventCallback(void *t, void *r, IOHIDServiceEventCallback cb, v
 static void v_schedule(void *t, void *r, dispatch_queue_t q) {}
 static void v_unschedule(void *t, void *r, dispatch_queue_t q) {}
 static IOHIDEventRef v_copyEvent(void *t, void *r, uint32_t type, IOHIDEventRef m, uint32_t o) { return NULL; }
-static int v_setOutputEvent(void *t, void *r, IOHIDEventRef e) { return (int)0xe00002c7; /* unsupported */ }
+static int v_setOutputEvent(void *t, void *r, IOHIDEventRef e) { return (int)0xe00002c7;  }
 static const VirtualCallbacks callbacks = { v_open, v_close, v_copyProperty, v_setProperty, v_setEventCallback,
                                             v_schedule, v_unschedule, v_copyEvent, v_setOutputEvent };
 
@@ -126,11 +110,10 @@ static const VirtualCallbacks callbacks = { v_open, v_close, v_copyProperty, v_s
 
 - (void)touchX:(double)x y:(double)y phase:(int)phase edge:(uint32_t)edge identity:(uint32_t)ident
 {
-    /* phase 0 down, 1 move, 2 up */
     uint64_t ts = mach_absolute_time();
     uint32_t mask = (phase == 1 ? 0x4 : 0x3) | edge;
     boolean_t in = phase != 2;
-    IOHIDEventRef parent = IOHIDEventCreateDigitizerEvent(kCFAllocatorDefault, ts, 3 /* hand */, 0, 0, mask, 0,
+    IOHIDEventRef parent = IOHIDEventCreateDigitizerEvent(kCFAllocatorDefault, ts, 3 , 0, 0, mask, 0,
                                                           x, y, 0, 0, 0, in, in, 0);
     IOHIDEventSetIntegerValue(parent, FIELD_DIGITIZER_IS_DISPLAY_INTEGRATED, 1);
     IOHIDEventRef finger = IOHIDEventCreateDigitizerFingerEvent(kCFAllocatorDefault, ts, 1, ident, mask,
@@ -190,9 +173,6 @@ static const VirtualCallbacks callbacks = { v_open, v_close, v_copyProperty, v_s
         @"DeviceUsagePairs": @[@{ @"DeviceUsagePage": @11, @"DeviceUsage": @1 }], @"Built-In": @YES, @"Authenticated": @YES }];
     _keyboard = [self add:0x5943000000000002ULL props:@{ @"Product": @"Ycode Keyboard", @"PrimaryUsagePage": @1, @"PrimaryUsage": @6,
         @"DeviceUsagePairs": @[@{ @"DeviceUsagePage": @1, @"DeviceUsage": @6 }] }];
-    /* The touch service names its display by the display's unique id (the
-     * QuartzCore display list, i.e. the framebuffer library's display UID),
-     * which exists only once the window server has the displays: wait for it. */
     __block int tries = 0;
     __block void (^poll)(void);
     poll = ^{

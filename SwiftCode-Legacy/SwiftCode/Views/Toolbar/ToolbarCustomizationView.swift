@@ -9,7 +9,6 @@ struct ToolbarCustomizationView: View {
     var body: some View {
         NavigationStack {
             List {
-                // Native macOS NSToolbar Palette Quick Trigger
                 Section {
                     Button {
                         dismiss()
@@ -40,7 +39,6 @@ struct ToolbarCustomizationView: View {
                     Text("Native Customizer")
                 }
 
-                // Extensions quick access
                 Section {
                     Button {
                         showExtensions = true
@@ -67,7 +65,6 @@ struct ToolbarCustomizationView: View {
                 } header: {
                     Text("Extensions")
                 }
-
 
                 Section("Display") {
                     Toggle("Show Tool Name", isOn: $toolbarSettings.showToolNames)

@@ -1,28 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// PF_ROUTE sockets (`specs/simulator/networking-swiftcode.md` §3.3): the routing
-// socket a process opens to ask the kernel which route (and interface) a
-// destination takes. Network.framework does this for every path it
-// evaluates (`socket(PF_ROUTE, SOCK_RAW, PF_ROUTE)`, an RTM_GET message,
-// then a read of the answer); without it every path is unsatisfied ("No
-// network route").
-//
-// A write of an RTM_GET (or RTM_GET_SILENT, RTM_GET_EXT) message looks the
-// destination up in the guest's routing table (`NetworkInterfaces.routes`,
-// longest prefix) and queues the answer for reading on the same socket (as
-// SO_USELOOPBACK, on by default, does): an RTM_GET message (also for
-// RTM_GET_SILENT, networking.md §3.6) with the request's sequence, the
-// writer's pid, the route's flags (plus RTF_DONE), its interface index, the
-// MTU, no error, and the
-// route's destination, gateway (an address, or the interface's link
-// address) and mask, plus the interface's link address and its address of
-// the destination's family when the request named RTA_IFP or RTA_IFA. No
-// route: the write fails with ESRCH and the message comes back with that
-// errno. Messages that change the table fail with EPERM (the guest is not
-// privileged). Nothing else is ever sent on the socket (no interface or
-// address change messages).
-
 final class RouteSocket: KernelDescriptorObject {
     let lock: KernelLock
     let signals = ObjectSignals()
@@ -32,7 +10,6 @@ final class RouteSocket: KernelDescriptorObject {
     var shutRead = false
     var shutWrite = false
     var options: [Int32: [UInt8]] = [:]
-    /// Statistics.
     nonisolated(unsafe) static var lookups = 0
 
     static let rtmVersion: UInt8 = 5
@@ -70,11 +47,9 @@ final class RouteSocket: KernelDescriptorObject {
         return queue.removeFirst()
     }
 
-    /// A message written by the guest (pid `pid`). Returns the errno for
-    /// the writer (0 = accepted).
     func write(_ m: [UInt8], pid: Int32) -> Int32 {
         guard m.count >= Self.headerSize, Int(m.readLE(UInt16.self, at: 0)) <= m.count else { return DarwinErrnoCode.EINVAL }
-        guard m[2] == Self.rtmVersion else { return 43 }  // EPROTONOSUPPORT
+        guard m[2] == Self.rtmVersion else { return 43 }
         let type = m[3]
         guard type == Self.rtmGet || type == Self.rtmGetSilent || type == Self.rtmGetExt else { return DarwinErrnoCode.EPERM }
         let (reply, error) = Self.answer(m, pid: pid)
@@ -85,7 +60,6 @@ final class RouteSocket: KernelDescriptorObject {
         return error
     }
 
-    /// The sockaddrs of a message, by RTA bit.
     static func addresses(_ m: [UInt8], addrs: Int32, from offset: Int) -> [Int32: [UInt8]] {
         var out: [Int32: [UInt8]] = [:]
         var off = offset
@@ -99,7 +73,6 @@ final class RouteSocket: KernelDescriptorObject {
         return out
     }
 
-    /// The answer to an RTM_GET and its errno.
     static func answer(_ m: [UInt8], pid: Int32) -> ([UInt8], Int32) {
         lookups += 1
         var header = Array(m.prefix(headerSize))
@@ -128,7 +101,6 @@ final class RouteSocket: KernelDescriptorObject {
         let link = NetworkInterfaces.sockaddrDL(index: route.index, name: interface?.name ?? "", type: interface?.type ?? 0,
                                                 address: interface?.linkAddress ?? [])
         var out: [Int32: [UInt8]] = [rtaDst: sa(route.destination), rtaGateway: route.gateway.map(sa) ?? link]
-        // A zero mask (a default route) is an empty sockaddr, as xnu stores it.
         if let mask = route.netmask { out[rtaNetmask] = mask.allSatisfy { $0 == 0 } ? [0, 0, 0, 0] : sa(mask) }
         if addrs & (rtaIFP | rtaIFA) != 0 {
             out[rtaIFP] = link
@@ -145,20 +117,18 @@ final class RouteSocket: KernelDescriptorObject {
             body += s
             while body.count % 4 != 0 { body.append(0) }
         }
-        // The answer to RTM_GET and RTM_GET_SILENT is an RTM_GET message.
         if header[3] == rtmGetSilent { header[3] = rtmGet }
         header.putLE(UInt16(route.index), at: 4)
         header.putLE(route.flags | rtfDone, at: 8)
         header.putLE(replyAddrs, at: 12)
         header.putLE(Int32(0), at: 24)
-        header.putLE(interface?.mtu ?? 1500, at: 36 + 4)  // rmx_mtu
+        header.putLE(interface?.mtu ?? 1500, at: 36 + 4)
         let reply = header + body
         var r = reply
         r.putLE(UInt16(reply.count), at: 0)
         return (r, 0)
     }
 
-    /// The longest-prefix route of the guest's table for `target`.
     static func bestRoute(family: Int32, to target: [UInt8]) -> NetworkInterfaces.Route? {
         var best: (NetworkInterfaces.Route, Int)?
         for (f, r) in NetworkInterfaces.routes(family: family) where f == family {
@@ -174,7 +144,6 @@ final class RouteSocket: KernelDescriptorObject {
 }
 
 extension DarwinKernel {
-    /// Socket calls on a PF_ROUTE socket.
     func routeSocketCall(_ n: Int, _ a: [UInt64], _ s: RouteSocket, _ file: DarwinOpenFile, _ call: inout CallText,
                          _ mem: any KernelGuestMemory) throws -> BSDResult {
         func int(_ i: Int) -> Int32 { Int32(truncatingIfNeeded: a[i]) }

@@ -7,26 +7,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Commands (round R11, docs/PARITY.md §5.4; public API names: `Commands`,
-// `CommandsBuilder`, `CommandMenu`, `CommandGroup`, `CommandGroupPlacement`,
-// `EmptyCommands`, `SidebarCommands`, `ToolbarCommands`,
-// `TextEditingCommands`, `TextFormattingCommands`, `InspectorCommands`, the
-// scene modifiers `commands(content:)`, `commandsRemoved()`,
-// `commandsReplaced(content:)`).
-//
-// Design (SwiftCode's): the commands of every scene are merged into one menu
-// model for the application (as on desktop systems with one menu bar). Each
-// window evaluates the merged commands inside its own view graph, below an
-// unlaid-out host: a custom `Commands` type is a graph node like a view (its
-// `@FocusedValue`, `@State`, `@Environment` and observed models work, and its
-// body runs again when they change), and the item views of menus and groups
-// are built there too, so the keyboard shortcuts of their buttons register
-// with the window (at a lower priority than the shortcuts of the window's
-// own views). The menu bar (MenuBar.swift) reads the contributions in tree
-// order and shows each menu's items in a pop-up when it opens.
-
-/// A set of menu commands: `CommandMenu`, `CommandGroup`, or a type whose
-/// `body` lists others.
 @MainActor @preconcurrency
 public protocol Commands {
     associatedtype Body: Commands
@@ -39,7 +19,6 @@ extension Commands where Body == Never {
     public var body: Never { fatalError("\(Self.self) is primitive commands") }
 }
 
-/// Builds commands from the statements of a `commands` block.
 @MainActor @resultBuilder
 public struct CommandsBuilder {
     public static func buildExpression<Content: Commands>(_ content: Content) -> Content { content }
@@ -50,7 +29,6 @@ public struct CommandsBuilder {
         repeat items.append(each content)
         return _TupleCommands(items: items)
     }
-    /// (An existential: the branch that is not taken gives no type; R13.)
     public static func buildOptional(_ content: (any Commands)?) -> _TupleCommands {
         _TupleCommands(items: content.map { [$0] } ?? [])
     }
@@ -61,70 +39,52 @@ public struct CommandsBuilder {
     }
 }
 
-/// No commands.
 public struct EmptyCommands: Commands {
     public init() {}
     public typealias Body = Never
 }
 
-/// Several commands of one builder block.
 public struct _TupleCommands: Commands {
     let items: [any Commands]
     public typealias Body = Never
 }
 
-// MARK: - Placements
-
-/// A standard group of menu items, used to place, replace or extend it.
 public struct CommandGroupPlacement: Sendable, Hashable {
     let id: String
     init(_ id: String) { self.id = id }
 
-    // App menu.
     public static let appInfo = CommandGroupPlacement("appInfo")
     public static let appSettings = CommandGroupPlacement("appSettings")
     public static let systemServices = CommandGroupPlacement("systemServices")
     public static let appVisibility = CommandGroupPlacement("appVisibility")
     public static let appTermination = CommandGroupPlacement("appTermination")
-    // File menu.
     public static let newItem = CommandGroupPlacement("newItem")
     public static let saveItem = CommandGroupPlacement("saveItem")
     public static let importExport = CommandGroupPlacement("importExport")
     public static let printItem = CommandGroupPlacement("printItem")
-    // Edit menu.
     public static let undoRedo = CommandGroupPlacement("undoRedo")
     public static let pasteboard = CommandGroupPlacement("pasteboard")
     public static let textEditing = CommandGroupPlacement("textEditing")
     public static let textFormatting = CommandGroupPlacement("textFormatting")
-    // View menu.
     public static let toolbar = CommandGroupPlacement("toolbar")
     public static let sidebar = CommandGroupPlacement("sidebar")
-    // Window menu.
     public static let windowSize = CommandGroupPlacement("windowSize")
     public static let windowArrangement = CommandGroupPlacement("windowArrangement")
     public static let windowList = CommandGroupPlacement("windowList")
     public static let singleWindowList = CommandGroupPlacement("singleWindowList")
-    // Help menu.
     public static let help = CommandGroupPlacement("help")
 }
 
-// MARK: - Primitive commands
-
-/// What one primitive command value adds to the menus.
 package enum CommandContribution {
     package enum Position: Sendable { case before, after, replacing }
     case menu(title: String, content: AnyView)
     case group(placement: CommandGroupPlacement, position: Position, content: AnyView)
-    /// A standard command set (sidebar, toolbar, text editing, …).
     case standard(String)
-    /// `commandsRemoved()`: the scene's default commands are not shown.
     case removeDefaults
 }
 
 @MainActor
 package protocol PrimitiveCommands: Commands {
-    /// The contribution and the item views (built, unlaid out, so their
-    /// shortcuts register).
     func _contribution() -> CommandContribution?
     func _children() -> [(AnyHashable, any Commands)]
 }
@@ -142,7 +102,6 @@ extension _TupleCommands: PrimitiveCommands {
     }
 }
 
-/// A menu of its own in the menu bar (after View, before Window).
 public struct CommandMenu<Content: View>: Commands, PrimitiveCommands {
     let title: String
     let content: Content
@@ -168,7 +127,6 @@ public struct CommandMenu<Content: View>: Commands, PrimitiveCommands {
     package func _contribution() -> CommandContribution? { .menu(title: title, content: AnyView(content)) }
 }
 
-/// Items placed before or after a standard group, or replacing it.
 public struct CommandGroup<Content: View>: Commands, PrimitiveCommands {
     let placement: CommandGroupPlacement
     let position: CommandContribution.Position
@@ -199,44 +157,36 @@ public struct CommandGroup<Content: View>: Commands, PrimitiveCommands {
     }
 }
 
-/// Show Sidebar / Hide Sidebar in the View menu.
 public struct SidebarCommands: Commands, PrimitiveCommands {
     public init() {}
     public typealias Body = Never
     package func _contribution() -> CommandContribution? { .standard("sidebar") }
 }
 
-/// Show Toolbar / Hide Toolbar in the View menu (present by default when a
-/// window has a toolbar).
 public struct ToolbarCommands: Commands, PrimitiveCommands {
     public init() {}
     public typealias Body = Never
     package func _contribution() -> CommandContribution? { .standard("toolbar") }
 }
 
-/// Find items for text views (accepted; the Edit menu's standard items are
-/// always present).
 public struct TextEditingCommands: Commands, PrimitiveCommands {
     public init() {}
     public typealias Body = Never
     package func _contribution() -> CommandContribution? { .standard("textEditing") }
 }
 
-/// A Format menu (accepted; rich text is not implemented).
 public struct TextFormattingCommands: Commands, PrimitiveCommands {
     public init() {}
     public typealias Body = Never
     package func _contribution() -> CommandContribution? { .standard("textFormatting") }
 }
 
-/// Show Inspector / Hide Inspector (accepted).
 public struct InspectorCommands: Commands, PrimitiveCommands {
     public init() {}
     public typealias Body = Never
     package func _contribution() -> CommandContribution? { .standard("inspector") }
 }
 
-/// Accepted for source compatibility.
 public struct ImportFromDevicesCommands: Commands, PrimitiveCommands {
     public init() {}
     public typealias Body = Never
@@ -247,23 +197,16 @@ struct RemoveDefaultCommands: Commands, PrimitiveCommands {
     func _contribution() -> CommandContribution? { .removeDefaults }
 }
 
-// MARK: - Scene modifiers
-
 extension Scene {
-    /// Adds commands (menus, menu items with keyboard shortcuts) to the
-    /// application's menu bar.
     public func commands<Content: Commands>(@CommandsBuilder content: () -> Content) -> _ModifiedScene<Self> {
         let c = content()
         return _ModifiedScene(content: self) { $0.commands.append(c) }
     }
 
-    /// Leaves out the default commands of this scene type (the standard
-    /// menus keep their titles; their default items go).
     public func commandsRemoved() -> _ModifiedScene<Self> {
         _ModifiedScene(content: self) { $0.commands.append(RemoveDefaultCommands()) }
     }
 
-    /// Replaces the default commands with `content`.
     public func commandsReplaced<Content: Commands>(@CommandsBuilder content: () -> Content) -> _ModifiedScene<Self> {
         let c = content()
         return _ModifiedScene(content: self) {
@@ -273,13 +216,9 @@ extension Scene {
     }
 }
 
-// MARK: - Evaluation in the window graph
-
-/// The contributions of the commands evaluated in one window.
 @MainActor
 @Observable
 package final class CommandsModel {
-    /// Bumped when a contribution changes (the menu bar depends on it).
     package private(set) var revision = 0
     @ObservationIgnored private var contributions: [ObjectIdentifier: (node: WeakNode, value: CommandContribution)] = [:]
     @ObservationIgnored weak var root: ViewNode?
@@ -292,7 +231,6 @@ package final class CommandsModel {
         revision += 1
     }
 
-    /// The contributions in tree order.
     package var ordered: [CommandContribution] {
         guard let root else { return [] }
         var out: [CommandContribution] = []
@@ -306,16 +244,12 @@ package final class CommandsModel {
 private enum InCommandHostKey: EnvironmentKey { static let defaultValue = false }
 
 extension EnvironmentValues {
-    /// True for the item views of commands built in the window's (unlaid
-    /// out) commands host: their shortcuts register as menu commands, and
-    /// the standard Edit items draw nothing there.
     package var _inCommandHost: Bool {
         get { self[InCommandHostKey.self] }
         set { self[InCommandHostKey.self] = newValue }
     }
 }
 
-/// One commands value as a graph node.
 struct CommandsNodeView<C: Commands>: View, PrimitiveView {
     let commands: C
     let model: CommandsModel
@@ -369,7 +303,6 @@ func makeCommandsNode(_ c: any Commands, _ model: CommandsModel) -> any View {
     return open(c)
 }
 
-/// The unlaid-out root of a window's commands.
 struct CommandsHostView: View, PrimitiveView {
     let commands: [any Commands]
     let model: CommandsModel

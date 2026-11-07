@@ -2,18 +2,10 @@ import Foundation
 import Testing
 import OVText
 
-// The fallback for a scalar the requested face lacks prefers a face whose
-// glyphs OpenViews can draw. CFF outlines are not read (Outlines.swift), so
-// a CFF-flavoured face that sorts first (Noto Sans CJK before Droid Sans
-// Fallback on a Linux system) left composed CJK text invisible (issue 23).
-// The CFF face here is the bundled Noto Sans with its `glyf` table renamed:
-// it maps every character but has no outlines to draw.
-
 private let bundledNoto = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     .appendingPathComponent("Sources/OVText/Resources/Fonts/NotoSans-Regular.ttf")
 
-/// The font with the `glyf` entry of its table directory renamed `CFF `.
 private func withoutTrueTypeOutlines(_ data: Data) -> Data {
     var bytes = [UInt8](data)
     let tables = Int(bytes[4]) << 8 | Int(bytes[5])
@@ -26,7 +18,6 @@ private func withoutTrueTypeOutlines(_ data: Data) -> Data {
     return Data(bytes)
 }
 
-/// A folder with the given fonts, by file name.
 private func fontFolder(_ files: [String: Data]) throws -> URL {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ov-fallback-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

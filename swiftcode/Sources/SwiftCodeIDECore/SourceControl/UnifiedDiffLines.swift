@@ -1,6 +1,5 @@
 import Foundation
 
-/// Lines of a unified diff with their old and new line numbers.
 public enum UnifiedDiffLines {
     public enum Kind: Equatable, Sendable { case context, added, removed, hunk }
     public struct Line: Equatable, Sendable {
@@ -15,7 +14,6 @@ public enum UnifiedDiffLines {
         var old = 0, new = 0
         for raw in text.components(separatedBy: "\n") {
             if raw.hasPrefix("@@") {
-                // @@ -a,b +c,d @@
                 let parts = raw.split(separator: " ")
                 if parts.count >= 3 {
                     old = Int(parts[1].dropFirst().split(separator: ",").first ?? "") ?? 0

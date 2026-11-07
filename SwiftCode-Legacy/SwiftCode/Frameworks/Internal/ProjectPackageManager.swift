@@ -27,7 +27,6 @@ public final class ProjectPackageManager: Sendable {
             return false
         }
 
-        // At minimum, it must be a directory. Specific file checks are in ProjectValidator.
         return true
     }
 
@@ -49,7 +48,6 @@ public final class ProjectPackageManager: Sendable {
             }
         }
 
-        // Remove empty directories in Sources, Assets, Resources
         let subs = ["Sources", "Assets", "Resources", "Frameworks"]
         for sub in subs {
             let subURL = url.appendingPathComponent(sub)
@@ -68,9 +66,7 @@ public final class ProjectPackageManager: Sendable {
             removeEmptyDirectories(at: item)
         }
 
-        // Re-check if empty after cleaning children
         if let remaining = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil), remaining.isEmpty {
-            // Don't delete the root structural directories themselves, only their empty subdirectories
             if !["Sources", "Assets", "Resources", "Frameworks", "Settings"].contains(url.lastPathComponent) {
                 try? fm.removeItem(at: url)
             }

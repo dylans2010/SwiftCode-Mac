@@ -1,18 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistPermissionsManager.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Agents/AssistPermissionsManager.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - allowPath / blockPath mutable allow/block lists
-//   - isAutopilotActive() and autopilot mode flag
-//   - requiresApproval / isApproved state
-//   - authorizeOperation as a standalone gate
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistToolRouter — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 
 public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissionsManagerProtocol {
@@ -36,7 +21,6 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
         blockedPaths.insert("/dev")
         blockedPaths.insert("/tmp")
 
-        // Ensure the isolated scripts directory exists
         try? FileManager.default.createDirectory(atPath: Self.isolatedScriptsDirectory, withIntermediateDirectories: true)
     }
 
@@ -49,12 +33,10 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
         lock.lock()
         defer { lock.unlock() }
 
-        // Always allow the isolated scripts directory
         if path.hasPrefix(Self.isolatedScriptsDirectory) {
             return true
         }
 
-        // In Autopilot mode, bypass sandbox path restrictions outside of critical OS system kernels
         if isAutopilotActive() {
             if path.contains("..") { return false }
             if path.hasPrefix("/System/") || path.hasPrefix("/sbin/") { return false }
@@ -72,7 +54,6 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
     }
 
     public func authorizeOperation(_ operation: String) -> Bool {
-        // When Assist is on Autopilot, BYPASS the permissions COMPLETELY at a system level (SwiftCode, not macOS)
         if isAutopilotActive() {
             return true
         }

@@ -1,9 +1,5 @@
 import Foundation
 
-/// `swiftcode profile` (specs/ide/profiler.md §7): record Linux processes or a
-/// SwiftCode simulator app, and read Gauge traces as text, call trees, flame
-/// graphs and source annotations. `out` gets the command's output, `err`
-/// its messages.
 public enum GaugeCLI {
     public static func run(_ args: [String], out: @escaping (String) -> Void = { print($0, terminator: "") },
                            err: @escaping (String) -> Void = { FileHandle.standardError.write(Data($0.utf8)) }) -> Int32 {
@@ -47,7 +43,6 @@ func profileCommand(_ args: [String], out: (String) -> Void, err: (String) -> Vo
     }
 }
 
-/// Options shared by the reading subcommands.
 struct ProfileReadOptions {
     var filter = SampleFilter()
     var tree = CallTreeOptions()
@@ -103,7 +98,6 @@ func parseProfileReadOptions(_ args: [String]) throws -> ProfileReadOptions {
     return o
 }
 
-/// Images or functions named by --charge.
 func resolveCharges(_ names: [String], in t: GaugeTrace, into o: inout CallTreeOptions) {
     for name in names {
         if let img = t.images.first(where: { $0.name == name }) { o.chargedImages.insert(img.id); continue }
@@ -196,7 +190,6 @@ func profileRecord(_ args: [String], err: (String) -> Void) throws -> Int32 {
     }
     guard let output else { throw ProfileFailure(description: "record needs -o <out.gaugetrace>") }
     if let simd {
-        // The simulator back end: swiftcode-simd with --profile (it writes the trace).
         let p = Process()
         p.executableURL = URL(fileURLWithPath: simd)
         p.arguments = rest + ["--profile", output, "--profile-rate", String(options.rate)]

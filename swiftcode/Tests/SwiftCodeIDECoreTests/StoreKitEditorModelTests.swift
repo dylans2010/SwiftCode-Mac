@@ -28,7 +28,6 @@ struct StoreKitEditorModelTests {
         #expect(model.isValid)
         #expect(model.healthScore == 100)
 
-        // Edit: rename a product, add a consumable, add a group subscription.
         let coins = model.allProducts.first { $0.product.productID == "com.example.coins100" }!
         var edited = coins.product
         edited.referenceName = "200 Coins"
@@ -154,7 +153,6 @@ struct StoreKitEditorModelTests {
         var product = try #require(model.product(at: loc))
         product.localizations = [Localization(locale: "en_US", displayName: "", description: "x")]
         model.setProduct(product, at: loc)
-        // One warning (a localization with no display name) -> 100 - 8 = 92.
         #expect(model.healthScore == 92)
     }
 
@@ -219,9 +217,6 @@ struct StoreKitEditorModelTests {
         #expect(report.droppedAnything)
         #expect(report.notes.contains { $0.contains("expiration date") })
         #expect(report.notes.contains { $0.contains("time rate") })
-        // The remaining problems are Legacy's non-hex identifier (an
-        // error) and its grace period without renewal billing issues (a
-        // warning the framework raises).
         let issues = config.validate()
         #expect(issues.count == 2)
         #expect(issues.contains { $0.rule == "identifier.format" })
@@ -278,8 +273,6 @@ struct StoreKitEditorModelTests {
         let model = try StoreKitEditorModel(url: fixtures.appendingPathComponent("Basic.storekit"), simulationCacheDirectory: tempDir())
         #expect(model.nextInternalID() == "15")
     }
-
-    // MARK: - Simulation
 
     @Test("Buying a consumable records a transaction and an entitlement")
     func simulationPurchase() throws {

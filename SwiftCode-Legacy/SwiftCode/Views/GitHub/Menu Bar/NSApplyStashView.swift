@@ -11,7 +11,7 @@ public struct NSApplyStashView: View {
     public struct StashedChange: Identifiable {
         public let id = UUID()
         public let path: String
-        public let status: String // "M", "A", "D", etc.
+        public let status: String
     }
 
     public var body: some View {
@@ -26,7 +26,6 @@ public struct NSApplyStashView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    // Stashed changes list section
                     Text("Files in latest stash:")
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)
@@ -132,8 +131,6 @@ public struct NSApplyStashView: View {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 guard !trimmed.isEmpty else { continue }
 
-                // Name-status output can be delimited by spaces or tab, e.g.:
-                // M\tpath/to/file or M path/to/file
                 let parts = trimmed.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: true)
                 if parts.count >= 2 {
                     let status = String(parts[0])

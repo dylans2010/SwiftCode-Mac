@@ -1,10 +1,3 @@
-//
-//  GoogleCloudSDKMessage.swift
-//  SwiftCode
-//
-//  Message and attachment domain models for Antigravity sessions.
-//
-
 import Foundation
 
 public enum GoogleCloudSDKRole: String, Codable, Sendable {

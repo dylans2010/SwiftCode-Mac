@@ -1,16 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Assist provider tests (OpenCode + OpenRouter)
-//
-// Follows the AssistRuntimeTestSuite convention: in-app
-// RuntimeTestCaseResult cases, wired into AssistRuntimeTestSuite.
-// Every case here is offline and deterministic — no server, no API key,
-// no network. Live behaviour (a real OpenCode server, a real OpenRouter
-// key) is verified by the Settings connection/model checks, not by
-// these cases, and is listed as unverified in
-// Docs/Assist-OpenCode-OpenRouter-Providers.md.
-
 @MainActor
 public final class AssistProviderTests: Sendable {
     public static let shared = AssistProviderTests()
@@ -34,7 +24,6 @@ public final class AssistProviderTests: Sendable {
         RuntimeTestCaseResult(testName: name, passed: passed, message: message, duration: Date().timeIntervalSince(start))
     }
 
-    // 1. `opencode:` ids parse; bare OpenRouter ids never do.
     public func testOpenCodeModelIDParsing() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -45,7 +34,6 @@ public final class AssistProviderTests: Sendable {
             passed = false
             message = "Failed to parse opencode:anthropic/claude-sonnet-4-5."
         }
-        // Nested slashes belong to the model id, not to a third segment.
         let nested = OpenCodeModelID.parse("opencode:openrouter/moonshotai/kimi-k2")
         if nested?.providerID != "openrouter" || nested?.modelID != "moonshotai/kimi-k2" {
             passed = false
@@ -66,7 +54,6 @@ public final class AssistProviderTests: Sendable {
         return result("Assist Providers: OpenCode model id parsing", start, passed, message)
     }
 
-    // 2. An OpenCode Claude model must not be reported as Anthropic.
     public func testOpenCodeSpecificationIsNotMisrouted() async -> RuntimeTestCaseResult {
         let start = Date()
         let spec = AgentModelAdapter.shared.specification(for: "opencode:anthropic/claude-sonnet-4-5")
@@ -81,7 +68,6 @@ public final class AssistProviderTests: Sendable {
         )
     }
 
-    // 3. Catalog parsing across shapes, with dedupe/sort, no fabrication.
     public func testOpenCodeProviderCatalogParsing() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -114,7 +100,6 @@ public final class AssistProviderTests: Sendable {
         return result("Assist Providers: OpenCode catalog parsing", start, passed, message)
     }
 
-    // 4. SSE frames: text deltas, tool detection, idle, session scoping.
     public func testOpenCodeEventParsing() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -134,14 +119,12 @@ public final class AssistProviderTests: Sendable {
 
         let tool = OpenCodeEvent.parse(line: #"data: {"type":"message.part.delta","properties":{"sessionID":"s1","part":{"type":"tool","tool":"read"}}}"#)
         if case .parsed(_, let kind) = tool, case .tool = kind {
-            // Expected: the client fails a run closed on this kind.
         } else {
             passed = false; message = "Tool part was not classified as a tool event (fail-closed gate would miss it)."
         }
 
         let idle = OpenCodeEvent.parse(line: #"data: {"type":"session.idle","properties":{"sessionID":"s1"}}"#)
         if case .parsed(_, let kind) = idle, case .idle = kind {
-            // Expected.
         } else {
             passed = false; message = "session.idle was not classified as idle."
         }
@@ -152,7 +135,6 @@ public final class AssistProviderTests: Sendable {
         return result("Assist Providers: OpenCode event parsing", start, passed, message)
     }
 
-    // 5. Configuration persists and restores; originals are restored.
     public func testOpenCodeConfigurationRoundTrip() async -> RuntimeTestCaseResult {
         let start = Date()
         let original = OpenCodeConfiguration.load()
@@ -177,7 +159,6 @@ public final class AssistProviderTests: Sendable {
         )
     }
 
-    // 6. OpenCode has no stored key, and the legacy LLM path fails closed.
     public func testOpenCodeProviderHasNoStoredKeyAndFailsClosed() async -> RuntimeTestCaseResult {
         let start = Date()
         let provider = AssistModelProvider.openCode
@@ -200,7 +181,6 @@ public final class AssistProviderTests: Sendable {
         return result("Assist Providers: OpenCode key isolation + fail-closed routing", start, passed, message)
     }
 
-    // 7. The existing `assist.selectedProvider` key round-trips OpenCode.
     public func testPersistedProviderRoundTrip() async -> RuntimeTestCaseResult {
         let start = Date()
         let original = AssistProviderSelection.persistedProvider
@@ -218,8 +198,6 @@ public final class AssistProviderTests: Sendable {
         )
     }
 
-    // 8. OpenRouter validation rejects a non-OpenRouter id before any
-    // network or credential use — fully offline.
     public func testOpenRouterValidationRejectsNonSlashIDOffline() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = false

@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineMonitorView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -27,9 +25,7 @@ public struct VirtualMachineMonitorView: View {
                 .foregroundStyle(.secondary)
 
             if let vm = activeVM, vm.status == .running {
-                // Monitor Grid layout
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    // CPU allocation Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -54,7 +50,6 @@ public struct VirtualMachineMonitorView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // RAM allocation Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -79,7 +74,6 @@ public struct VirtualMachineMonitorView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // IP Address Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -105,7 +99,6 @@ public struct VirtualMachineMonitorView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Disk Drive Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -131,7 +124,6 @@ public struct VirtualMachineMonitorView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Active Session duration HUD
                 GroupBox {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -160,7 +152,6 @@ public struct VirtualMachineMonitorView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Guest Agent offline state panel
                 GroupBox {
                     VStack(alignment: .center, spacing: 12) {
                         Image(systemName: "waveform.path.ecg.off")

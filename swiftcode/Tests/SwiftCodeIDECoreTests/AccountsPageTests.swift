@@ -2,9 +2,6 @@ import Foundation
 import Testing
 import SwiftCodeIDECore
 
-/// Settings ▸ Accounts (`specs/ide/settings.md` §Accounts), the part both
-/// IDEs share: the texts, the empty list, the App Store Connect key seam
-/// and where the page sits in the pane order. Runs on macOS and Linux.
 @Suite struct AccountsPageTests {
     @Test func explanationSaysSwiftCodeNeverHandlesPasswords() {
         for keychain in [true, false] {
@@ -32,8 +29,6 @@ import SwiftCodeIDECore
         #expect(AccountsPage.rows(from: NoAppStoreConnectKeys()).isEmpty)
     }
 
-    /// The seam for #43: a store with a key gives one row naming its key ID;
-    /// the key file is only a path.
     @Test func keyStoreSeam() throws {
         struct OneKey: AppStoreConnectKeyStore {
             func keys() -> [AppStoreConnectAPIKey] {
@@ -50,7 +45,6 @@ import SwiftCodeIDECore
     @Test func paneOrder() {
         #expect(SettingsPaneOrder.all.count == 13)
         #expect(Array(SettingsPaneOrder.all.prefix(4)) == ["General", "Appearance", "Accounts", "Coding Assistant"])
-        // The reference's twelve in its order, then Simulators (SwiftCode's own, macOS only).
         #expect(SettingsPaneOrder.all.last == "Simulators")
         #expect(SettingsPaneOrder.linux == ["General", "Appearance", "Accounts", "Coding Assistant", "Behaviors", "Navigation",
                                             "Notifications", "Editing", "Shortcuts", "Source Control", "Components", "Locations"])

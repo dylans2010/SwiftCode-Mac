@@ -31,8 +31,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         _ = try WindowSnapshotTests().render(c.view, to: "settings-locations.png")
     }
 
-    /// Without swbuild: the pop-up shows the default (swift-build), the note
-    /// says builds fall back, and the effective engine is xcodebuild.
     @Test func defaultWithoutSwbuildIsConsistent() throws {
         _ = NSApplication.shared
         let t = TestDefaults("settings")
@@ -47,19 +45,13 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         window.appearance = NSAppearance(named: .aqua)
         window.contentView = c.view
         _ = try WindowSnapshotTests().render(c.view, to: "settings-locations-no-swbuild.png")
-        // With swbuild found, the same choice builds with swift-build.
         let found = SettingsController(defaults: d, locateSwiftBuild: { "/opt/swbuild" })
         _ = found.view
         #expect(found.noteLabel.stringValue == "swbuild: /opt/swbuild" && found.effectiveEngineName == "swift-build")
-        // Choosing xcodebuild updates the note.
         c.choose(.xcodebuild)
         #expect(c.noteLabel.stringValue == "Builds use xcodebuild." && c.effectiveEngineName == "xcodebuild")
     }
 
-    // The limit includes waiting for the shared debugger lock, which other
-    // heavy suites hold for minutes when the full suite runs.
-    /// Run (⌘R) with swift-build: build the tool project, find the product
-    /// through the engine, and run it under lldb-dap to exit.
     @Test(.timeLimit(.minutes(15))) func runWithSwiftBuild() async throws {
         _ = NSApplication.shared
         let probe = swiftcodeDir.appendingPathComponent("Tools/swiftcode-swb/.build/debug/swbuild").path
@@ -67,7 +59,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
               LLDBDAP.locate() != nil else { return }
         let lock = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { lock.unlock() }
-        // The tool project from the build tests, written fresh here.
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/run-swiftbuild")
         try? FileManager.default.removeItem(at: dir)
         try FileManager.default.createDirectory(at: dir.appendingPathComponent("Tool"), withIntermediateDirectories: true)
@@ -83,10 +74,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let exe = try #require(session.engine.executablePath(for: request))
         #expect(exe.hasSuffix(".swiftcode-build/Products/Debug/Tool"))
         await session.run(program: exe)
-        // The first launch of a freshly built binary under lldb can stall
-        // for minutes on a loaded machine (observed: 80-120 s between the
-        // `process` event and the first module/output events), so the
-        // budget is generous; a passing run takes seconds.
         let exited = await waitUntil(480) { session.console.contains("exit code: 0") }
         #expect(exited, "console: \(session.console.suffix(2000)) build: \(session.reports.first.map { "\($0.succeeded) " + $0.log.suffix(30).joined(separator: "\n") } ?? "none")")
         #expect(session.reports.first?.succeeded == true)

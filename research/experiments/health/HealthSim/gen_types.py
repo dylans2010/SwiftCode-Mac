@@ -1,5 +1,3 @@
-# Generate types.inc (identifier constant names, units, aggregation) from the
-# public SDK header HKTypeIdentifiers.h comments. Names and unit strings only.
 import re, sys
 src = open(sys.argv[1]).read()
 out = []

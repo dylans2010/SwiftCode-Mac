@@ -1,25 +1,5 @@
 import Foundation
 
-// MARK: - Xcode source-editor compatibility adapter
-//
-// Models Apple's XcodeKit types (XCSourceEditorExtension,
-// XCSourceEditorCommand, XCSourceEditorCommandInvocation,
-// XCSourceTextBuffer, XCSourceTextRange, XCSourceTextPosition) as
-// SwiftCode-native value types, so reusable source-editor command
-// logic written against XcodeKit's *shape* can run here without
-// XcodeKit itself — and without claiming that Xcode-managed extension
-// binaries can execute inside SwiftCode. They cannot: XcodeKit
-// extensions are packaged, signed, and activated by Xcode. The four
-// categories are kept distinct in the UI and docs:
-//   1. SwiftCode-native plugins (this SDK / VS Code host)
-//   2. Reusable source-editor command logic (this adapter)
-//   3. XcodeKit extension binaries (run under Xcode only)
-//   4. External developer tools (documented interfaces, e.g. SourceKit-LSP)
-//
-// Positions are 0-based (line, column), following XcodeKit convention.
-// Columns count Swift Characters (grapheme clusters), so an emoji is
-// one column, not two UTF-16 units — verified by tests.
-
 public struct ExtV2SourcePosition: Codable, Hashable, Sendable, Comparable {
     public let line: Int
     public let column: Int
@@ -37,9 +17,6 @@ public struct ExtV2SourceRange: Codable, Hashable, Sendable {
     public var isEmpty: Bool { start == end }
 }
 
-/// A mutable text buffer mirroring XCSourceTextBuffer: lines plus the
-/// current selections. `completeBuffer` is the joined text; edits go
-/// through `applyEdits`, which validates ranges before touching text.
 public final class ExtV2SourceTextBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var _lines: [String]
@@ -74,10 +51,6 @@ public final class ExtV2SourceTextBuffer: @unchecked Sendable {
         public init(range: ExtV2SourceRange, newText: String) { self.range = range; self.newText = newText }
     }
 
-    /// Applies edits atomically: all ranges are validated first, then
-    /// applied in reverse order. Any failure leaves the buffer untouched.
-    /// Overlapping ranges, out-of-bounds lines/columns, and reversed
-    /// ranges are errors, not best-effort edits.
     public func applyEdits(_ edits: [Edit]) throws {
         lock.lock(); defer { lock.unlock() }
         var lines = _lines
@@ -116,11 +89,6 @@ public final class ExtV2SourceTextBuffer: @unchecked Sendable {
     }
 }
 
-/// Invocation handed to a command: the buffer, plus a cancellation
-/// check. Cancellation is cooperative and checked by the command via
-/// `Task.checkCancellation()` — a command that ignores cancellation
-/// still finishes, it just cannot be force-stopped mid-edit, and its
-/// edits are still validated before they land.
 public struct ExtV2SourceEditorInvocation: Sendable {
     public let buffer: ExtV2SourceTextBuffer
     public let commandIdentifier: String
@@ -138,16 +106,9 @@ public struct ExtV2SourceEditorInvocation: Sendable {
 public protocol ExtV2SourceEditorCommand: Sendable {
     var identifier: String { get }
     var title: String { get }
-    /// Performs the command. Returning means success; throwing means
-    /// the command failed and the buffer is unchanged for *that*
-    /// command's edits (edits are applied through the buffer, which
-    /// validates before committing each batch).
     func perform(invocation: ExtV2SourceEditorInvocation) async throws
 }
 
-/// Registry for reusable command logic. Commands are looked up by
-/// identifier — the same stable-key discipline as the rest of the
-/// platform — and executed against a caller-supplied buffer.
 public final class ExtV2XcodeCommandRegistry: @unchecked Sendable {
     public static let shared = ExtV2XcodeCommandRegistry()
     private let lock = NSLock()
@@ -178,8 +139,6 @@ public final class ExtV2XcodeCommandRegistry: @unchecked Sendable {
     }
 }
 
-/// Example reusable command (also the test fixture): sorts the lines
-/// covered by the first selection, leaving everything else untouched.
 public struct ExtV2SortLinesCommand: ExtV2SourceEditorCommand {
     public let identifier = "com.swiftcode.xcode.sortLines"
     public let title = "Sort Lines"

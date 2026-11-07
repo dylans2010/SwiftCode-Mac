@@ -1,10 +1,3 @@
-// DeviceConnectToolbar.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/DeviceConnectKit/Views/Toolbar/DeviceConnectToolbar.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: stop in-progress deployment action
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Toolbar/DeviceConnectToolbar.swift (derived from Legacy).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeDeviceModel
 import SwiftCodeXcodebuild
 import SwiftUI
@@ -19,7 +12,6 @@ public struct DeviceConnectToolbar: View {
 
     public var body: some View {
         HStack(spacing: 12) {
-            // Selected Device Pill Indicator
             HStack(spacing: 6) {
                 Image(systemName: "iphone")
                     .foregroundStyle(.blue)
@@ -52,7 +44,6 @@ public struct DeviceConnectToolbar: View {
             Divider()
                 .frame(height: 20)
 
-            // Build / Run / Stop controls
             Button(action: {
                 triggerDeploymentRun()
             }) {
@@ -93,7 +84,6 @@ public struct DeviceConnectToolbar: View {
     private func triggerDeploymentRun() {
         guard let selected = deviceManager.selectedDevice else { return }
 
-        // Dynamically resolve everything from XcodeBuildAPI
         let api = XcodeBuildAPI.shared
         let activeProj = api.determineActiveProject() ?? ProjectSessionStore.shared.activeProject.map { XcodeProject(url: $0.directoryURL.appendingPathComponent("\($0.name).xcodeproj"), name: $0.name, schemes: []) }
         let projectName = api.determineProductName()

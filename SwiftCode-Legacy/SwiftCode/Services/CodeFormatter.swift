@@ -15,8 +15,6 @@ final class CodeFormatter: Sendable {
         }
     }
 
-    // MARK: - Swift Formatting
-
     private func formatSwift(_ source: String) -> String {
         var lines = source.components(separatedBy: "\n")
 
@@ -39,8 +37,6 @@ final class CodeFormatter: Sendable {
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - JSON Formatting
-
     private func formatJSON(_ source: String) -> String {
         guard let data = source.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data),
@@ -51,16 +47,12 @@ final class CodeFormatter: Sendable {
         return result
     }
 
-    // MARK: - Generic Formatting
-
     private func formatGeneric(_ source: String) -> String {
         var lines = source.components(separatedBy: "\n")
         lines = lines.map { normalizeWhitespace($0) }
         lines = normalizeBlankLines(lines)
         return lines.joined(separator: "\n")
     }
-
-    // MARK: - Whitespace Normalization
 
     private func normalizeWhitespace(_ line: String) -> String {
         let trailing = line.replacingOccurrences(
@@ -111,8 +103,6 @@ final class CodeFormatter: Sendable {
         return result
     }
 
-    // MARK: - Swift Re-indentation
-
     private func reindentSwift(_ lines: [String]) -> [String] {
         let indentUnit = "    "
         var indentLevel = 0
@@ -161,8 +151,6 @@ final class CodeFormatter: Sendable {
         lines
     }
 
-    // MARK: - Operator Spacing
-
     private func formatOperatorSpacing(_ lines: [String]) -> [String] {
         lines.map { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -185,8 +173,6 @@ final class CodeFormatter: Sendable {
         }
     }
 
-    // MARK: - Colon Spacing
-
     private func formatColonSpacing(_ lines: [String]) -> [String] {
         lines.map { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -196,8 +182,6 @@ final class CodeFormatter: Sendable {
             return line
         }
     }
-
-    // MARK: - Comma Spacing
 
     private func formatCommaSpacing(_ lines: [String]) -> [String] {
         lines.map { line in
@@ -218,8 +202,6 @@ final class CodeFormatter: Sendable {
             return result
         }
     }
-
-    // MARK: - Import Organization
 
     private func normalizeImports(_ lines: [String]) -> [String] {
         var importLines: [String] = []

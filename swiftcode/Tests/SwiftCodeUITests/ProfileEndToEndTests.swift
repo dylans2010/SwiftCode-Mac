@@ -6,26 +6,7 @@ import Testing
 import SwiftCodeProfiler
 @testable import SwiftCodeUI
 
-/// Opt-in end-to-end check of Product ▸ Profile (specs/ide/profiler.md §5,
-/// §10): the IDE builds GaugeDemo with the Profile configuration, runs it on
-/// a remote SwiftCode simulator under Gauge, stops it after a while, copies the
-/// trace back, symbolicates it with the build's dSYM and shows it in the
-/// profiler window. Set SWIFTCODE_E2E_PROFILE=1 and:
-///   SWIFTCODE_E2E_REMOTE    ssh destination (user@host; key-based login only)
-///   SWIFTCODE_E2E_DATA      remote data directory (apps/, devices/, profiles/)
-///   SWIFTCODE_E2E_RUNTIME   remote simulator runtime root (its version picks the device types)
-///   SWIFTCODE_E2E_SIMD      remote launcher (swiftcode-sim) or swiftcode-simd
-///   SWIFTCODE_E2E_DEVICE    device name (default "gauge"; the iPhone 18 Pro row's directory is <name>-iphone-18-pro-<version>)
-///   SWIFTCODE_E2E_TYPE      device type id (default iphone-18-pro)
-///   SWIFTCODE_E2E_SECONDS   how long the app runs after its launch (default 15)
-///   SWIFTCODE_E2E_MINUTES   how long to wait for the launch (default 30)
-///   SWIFTCODE_E2E_WARM_BOOT 0: boot cold (default: warm boot)
-///   SWIFTCODE_E2E_PNG       where to write a PNG of the profiler window
-///   SWIFTCODE_E2E_ENGINE    build engine (xcodebuild or swift-build; default xcodebuild)
-///   SWIFTCODE_E2E_CONSOLE   a file that mirrors the run's console while the test waits
-/// Nothing here is machine-specific; the values come only from the environment.
 @Suite(.serialized, .heavyIntegration) @MainActor struct ProfileEndToEndTests {
-    /// Progress goes to stderr (unbuffered) so a long run can be followed.
     func log(_ text: String) { FileHandle.standardError.write(Data((text + "\n").utf8)) }
 
     @Test func profilesGaugeDemoOnARemoteSimulator() async throws {
@@ -62,8 +43,6 @@ import SwiftCodeProfiler
         let gauge = try #require(wc.profileScheme(building: true))
         let minutes = Double(env["SWIFTCODE_E2E_MINUTES"] ?? "30") ?? 30
         log("e2e profile: Profile started (build, upload, launch)")
-        // SWIFTCODE_E2E_CONSOLE: a file that mirrors the console while waiting
-        // (the test runner's output is shown only at the end).
         let mirror = env["SWIFTCODE_E2E_CONSOLE"].map { URL(fileURLWithPath: $0) }
         var mirrored = 0
         func mirrorConsole() {
@@ -80,7 +59,6 @@ import SwiftCodeProfiler
         #expect(launched && session.console.contains("launched dev.swiftcode.GaugeDemo"))
         let seconds = Double(env["SWIFTCODE_E2E_SECONDS"] ?? "15") ?? 15
         _ = await waitUntil(seconds) { session.simulatorRun == nil }
-        // Stop from the profiler window (the run's Stop).
         gauge.recordButton.performClick(nil)
         let loaded = await waitUntil(300) {
             mirrorConsole()
@@ -92,13 +70,11 @@ import SwiftCodeProfiler
         #expect(loaded && gauge.model.phase == .loaded)
         let trace = try #require(gauge.model.trace)
         log(GaugeReport.summary(trace, top: 12))
-        // The deliberate work is the hot path, by name (dSYM symbols), with lines.
         let top = CallTree.topFunctions(trace: trace).prefix(5).map(\.name)
         #expect(top.contains("sieve_primes") || top.contains("multiply_matrices"))
         let crunch = trace.signposts.filter { $0.name == "Crunch" }
         #expect(!crunch.isEmpty)
         #expect(trace.signposts.contains { $0.name == "Sieve" } && trace.signposts.contains { $0.name == "Matrix" })
-        // Select the hot function and show its source.
         if let node = gauge.model.tree?.root.find("sieve_primes") {
             gauge.model.selectedPath = node.path
             #expect(gauge.model.annotation?.file?.hasSuffix("Work.c") == true)

@@ -49,7 +49,6 @@ public struct AssistTakeScreenshotTool: AssistTool {
         let displayID = displayIDRaw.map { CGDirectDisplayID($0) }
         let purpose = input["purpose"] as? String
 
-        // Verify permission preflight
         guard AssistScreenCaptureEngine.shared.checkAuthorization(promptIfDenied: true) else {
             return AssistToolResult.failure(
                 "Screen Recording permission has not been granted. Please grant Screen Recording permission to SwiftCode in macOS System Settings > Privacy & Security > Screen Recording, then retry.",
@@ -91,7 +90,6 @@ public struct AssistTakeScreenshotTool: AssistTool {
             )
         }
 
-        // Generate artifact name with unique identifier to prevent collisions
         let timestamp = Int(Date().timeIntervalSince1970)
         let uniqueName = "screenshot_\(timestamp)_\(UUID().uuidString.prefix(8)).png"
         let description = purpose ?? "Screen capture (\(captureResult.captureMode)) at \(captureResult.width)x\(captureResult.height)"
@@ -106,7 +104,6 @@ public struct AssistTakeScreenshotTool: AssistTool {
                 workspaceRoot: context.workspaceRoot
             )
 
-            // Also maintain a well-known image.png copy in artifacts directory for backward compatibility
             _ = try? AssistArtifactStore.shared.createBinaryArtifact(
                 name: "image.png",
                 data: captureResult.pngData,

@@ -1,9 +1,6 @@
 import XCTest
 @testable import SwiftCodeSDK
 
-/// `SDKInstaller.inspect` classifications. Pure file-system reads —
-/// no network, no subprocess. The install path is exercised only
-/// through its `.ok` short-circuit (no npm spawn).
 final class SDKInstallerTests: XCTestCase {
     private func makePrefix() -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -67,8 +64,6 @@ final class SDKInstallerTests: XCTestCase {
         try writePackage(at: prefix)
         var options = SDKInstaller.InstallOptions()
         options.prefix = prefix
-        // The reachability probe must never run on the short-circuit
-        // path — a probe that fails the test proves it.
         options.reachabilityProbe = { _ in
             XCTFail("Reachability probe must not run when already installed")
             return false
@@ -91,12 +86,6 @@ final class SDKInstallerTests: XCTestCase {
         XCTAssertFalse(result.usedFallback)
     }
 
-    /// Wave 16, Slice D — the bundled fallback stays absent: no
-    /// tarball ships in this repo. The status names the exact
-    /// reason and what Dylan must supply, so the UI can show it
-    /// instead of a bare failure. If a tarball is ever bundled,
-    /// this test fails loudly and must be updated to assert
-    /// `.present`.
     func testBundledFallbackIsAbsentWithReason() {
         let status = SDKInstaller.bundledFallbackStatus()
         switch status {

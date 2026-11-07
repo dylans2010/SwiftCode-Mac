@@ -1,8 +1,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Canonical Agent Model Abstraction
-
 public struct AgentModelResponse: Codable, Sendable {
     public let content: String
     public let toolCalls: [AgentToolCall]
@@ -58,8 +56,6 @@ public struct AgentModelContextBudget: Sendable {
     }
 }
 
-// MARK: - AI Models & Providers
-
 public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
     case openAI = "ChatGPT"
     case anthropic = "Claude"
@@ -83,11 +79,6 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// The stored-key provider for this Assist provider, or nil when the
-    /// provider holds no SwiftCode-managed API key. OpenCode is nil: its
-    /// model credentials live in OpenCode's own configuration and the
-    /// server is local, so there is no key for SwiftCode to retrieve —
-    /// returning another provider's key here would mix credentials.
     var apiKeyProvider: APIKeyProvider? {
         switch self {
         case .openAI: return .openai
@@ -102,28 +93,12 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// Stored key for this provider, or nil for OpenCode (no
-    /// SwiftCode-managed key exists for it) and for Hermes (its
-    /// credentials live in Hermes' own ~/.hermes/.env, never in
-    /// SwiftCode's Keychain). Single call site for the legacy
-    /// final-report paths so they cannot accidentally pick up
-    /// another provider's credential.
     @MainActor
     public func storedAPIKey() async -> String? {
         guard let keyProvider = apiKeyProvider else { return nil }
         return await APIKeyManager.shared.retrieveKey(service: keyProvider)
     }
 
-    /// LLMService routing for providers that go through LLMService.
-    /// OpenCode does NOT go through LLMService (AgentModelAdapter routes
-    /// `opencode:` models to OpenCodeClient before LLMService is reached),
-    /// so this mapping is never consulted for it — and
-    /// AssistLLMService.generateResponse fails closed for .openCode
-    /// rather than silently sending an OpenCode model to OpenRouter.
-    /// Hermes likewise never goes through LLMService (it runs through
-    /// HermesProvider's CLI process); the mapping value below is
-    /// unreachable for it because generateResponse fails closed for
-    /// .hermes first.
     var llmProvider: LLMProvider {
         switch self {
         case .openAI: return .openai
@@ -143,11 +118,11 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         case .anthropic: return URL(string: "https://api.anthropic.com/v1/messages")
         case .gemini: return URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent")
         case .mistral: return URL(string: "https://api.mistral.ai/v1/chat/completions")
-        case .meta: return URL(string: "https://api.meta.ai/v1/chat/completions") // Example
+        case .meta: return URL(string: "https://api.meta.ai/v1/chat/completions")
         case .kimi: return URL(string: "https://api.moonshot.cn/v1/chat/completions")
         case .openRouter: return URL(string: "https://openrouter.ai/api/v1/chat/completions")
         case .openCode: return OpenCodeConfiguration.load().serverURL
-        case .hermes: return nil // No SwiftCode HTTP endpoint: Hermes runs through its CLI process (HermesProvider).
+        case .hermes: return nil
         case .codex: return URL(string: "http://localhost:3003/v1/chat/completions")
         }
     }
@@ -168,10 +143,6 @@ public struct AssistAIResponse: Sendable {
 public struct AssistLLMService {
     @MainActor
     public static func generateResponse(prompt: String, provider: AssistModelProvider, apiKey: String?, modelOverride: String? = nil) async -> AssistAIResponse {
-        // Fail closed for OpenCode: it must run through AgentModelAdapter
-        // -> OpenCodeClient, never through LLMService. Without this guard
-        // the llmProvider mapping above would silently route an OpenCode
-        // model to OpenRouter with an OpenRouter credential.
         if provider == .openCode {
             return AssistAIResponse(
                 content: "",
@@ -179,10 +150,6 @@ public struct AssistLLMService {
                 error: "OpenCode models run through OpenCodeClient (see AgentModelAdapter), not LLMService. Select the model in Assist Settings and retry."
             )
         }
-        // Fail closed for Hermes, for the same reason: it runs through
-        // HermesProvider's CLI process, never through LLMService, and
-        // routing it here would silently send a Hermes model to
-        // OpenRouter with an OpenRouter credential.
         if provider == .hermes {
             return AssistAIResponse(
                 content: "",
@@ -191,8 +158,6 @@ public struct AssistLLMService {
             )
         }
         do {
-            // Standardize on the central LLMService which handles all model routing and logic.
-            // We pass the prompt and let LLMService handle the details.
             let activeModelID = modelOverride ?? AppSettings.shared.selectedAssistModelID
             let providerOverride = provider.llmProvider
 
@@ -209,9 +174,6 @@ public struct AssistLLMService {
     }
 }
 
-// MARK: - Assist Context & State
-
-/// Shared context provided to tools during execution.
 public struct AssistContext: Sendable {
     public let sessionId: UUID
     public let project: Project?
@@ -222,7 +184,6 @@ public struct AssistContext: Sendable {
     public let git: AssistGitManagerProtocol
     public let permissions: AssistPermissionsManagerProtocol
 
-    // Safety & Mode settings
     public let safetyLevel: AssistSafetyLevel
     public let isAutonomous: Bool
     public let sessionExecutionMode: ExecutionMode
@@ -254,14 +215,12 @@ public struct AssistContext: Sendable {
     }
 }
 
-/// Safety levels for autonomous execution.
 public enum AssistSafetyLevel: String, Codable, CaseIterable, Sendable {
     case conservative = "Conservative"
     case balanced = "Balanced"
     case aggressive = "Aggressive"
 }
 
-/// Result returned by an Assist tool execution.
 public struct AssistToolResult: Codable, Sendable {
     public let success: Bool
     public let output: String
@@ -276,9 +235,6 @@ public struct AssistToolResult: Codable, Sendable {
     public let suggestedNextActions: [String]
     public let beforeContent: String?
     public let afterContent: String?
-    /// Structured tool error classification supplied by the Area 1 error-code
-    /// taxonomy (`AssistToolErrorCode`, same module). Nil when the tool did
-    /// not report a classified error. Synthesized Codable handles it.
     public var toolErrorCode: AssistToolErrorCode? = nil
 
     public init(
@@ -352,7 +308,6 @@ public struct AssistToolResult: Codable, Sendable {
     }
 }
 
-// Standard data payload keys
 public enum AssistToolDataKey {
     public static let content = "content"
     public static let explanation = "explanation"
@@ -375,9 +330,6 @@ public enum AssistToolDataKey {
     public static let fullyAvailable = "fullyAvailable"
 }
 
-// MARK: - Planning & Execution Models
-
-/// A structured plan generated by the AssistPlanner.
 public struct AssistExecutionPlan: Codable, Identifiable, Sendable {
     public let id: UUID
     public let goal: String
@@ -392,11 +344,10 @@ public struct AssistExecutionPlan: Codable, Identifiable, Sendable {
     }
 }
 
-/// A single step within an execution plan.
 public struct AssistExecutionStep: Codable, Identifiable, Sendable {
     public let id: UUID
     public let toolId: String
-    public let input: [String: String] // Simple key-value for storage/serialization
+    public let input: [String: String]
     public let description: String
     public var status: AssistExecutionStatus
     public var result: AssistToolResult?
@@ -417,8 +368,6 @@ public enum AssistExecutionStatus: String, Codable, Sendable {
     case failed
     case skipped
 }
-
-// MARK: - Context Engine Types
 
 public enum ContextPriority: Int, Codable, Sendable, Comparable {
     case p0 = 0
@@ -555,9 +504,6 @@ public struct ContextRecoveryResult: Sendable {
     }
 }
 
-// MARK: - Legacy / UI Compatibility Models
-
-/// Maintained for UI compatibility
 public enum AssistStatus: String, Codable {
     case pending
     case inProgress
@@ -565,8 +511,6 @@ public enum AssistStatus: String, Codable {
     case failed
     case rejected
 }
-
-// MARK: - Composio Execution Metadata for Timeline Rendering
 
 public struct ComposioExecutionMetadata: Codable, Sendable, Identifiable {
     public let id: UUID
@@ -616,28 +560,13 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     public var activityGroup: AssistActivityGroup?
     public var thinkingContent: String?
     public var thinkingDuration: TimeInterval?
-    /// When set, this message is a warning/error notice: rendered yellow/red,
-    /// tappable to expand, never sent to a model as conversation context.
     public var noticeLevel: AssistNoticeLevel?
-    /// Raw server-side error backing a notice. Pulled straight from the model
-    /// API (endpoint, status code, response body) — never hardcoded text.
     public var serverError: ServerErrorDetail?
-    /// Provider identifier responsible for minting this message (e.g. MetaAssistProvider.providerID).
     public var providerID: String?
-    /// Structured task envelope submitted with the message (contains executed slash commands, resources, skills, and rules).
     public var envelope: AssistTaskEnvelope?
-    /// Actual model ID that minted this assistant turn. Resolved at turn
-    /// finish from the request path (chat / Meta / Google SDK) and the
-    /// router failover history — never the settings-selected model when a
-    /// failover occurred. Nil for user/system messages.
     public var modelId: String?
-    /// Token accounting reported for this assistant turn, when the provider
-    /// surface exposes it (e.g. the Google Cloud SDK usage event).
     public var tokenUsage: AssistTokenUsage?
-    /// When this message is a regeneration, the ID of the assistant message
-    /// it replaces. Nil for first attempts.
     public var retryOfMessageID: UUID?
-    /// How many times this response has been regenerated (0 = first attempt).
     public var regenerationCount: Int = 0
 
     public init(
@@ -679,7 +608,6 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     }
 }
 
-/// Token accounting for a single assistant turn.
 public struct AssistTokenUsage: Codable, Sendable {
     public var promptTokens: Int
     public var completionTokens: Int
@@ -692,15 +620,11 @@ public struct AssistTokenUsage: Codable, Sendable {
     }
 }
 
-/// Severity of a notice message. Warnings render yellow, errors red.
 public enum AssistNoticeLevel: String, Codable, Sendable {
     case warning
     case error
 }
 
-/// Raw error detail from a model API call. Every field comes straight from
-/// the actual HTTP exchange — endpoint, status code, response body — so the
-/// Server Error dialog shows what the server really said.
 public struct ServerErrorDetail: Codable, Sendable, Hashable {
     public let endpoint: String
     public let statusCode: Int?
@@ -727,8 +651,6 @@ public enum AssistCapabilityKind: String, Codable {
     case connection
 }
 
-// MARK: - Core Protocols for Components
-
 public protocol AssistMemoryGraphProtocol: Sendable {
     func store(key: String, value: String)
     func retrieve(key: String) -> String?
@@ -754,10 +676,7 @@ public protocol AssistFileSystemProtocol: Sendable {
     func listDirectory(at path: String) throws -> [String]
     func createDirectory(at path: String) throws
     func resolve(_ path: String) throws -> URL
-    /// Session working directory for relative-path resolution (see `dir_cd`).
     var currentDirectory: URL { get }
-    /// Change the session working directory. Throws unless the target exists,
-    /// is a directory, and is inside the workspace root. Returns the new directory.
     func setCurrentDirectory(_ path: String) throws -> URL
 }
 
@@ -771,9 +690,6 @@ public protocol AssistPermissionsManagerProtocol: Sendable {
     func isPathAllowed(_ path: String) -> Bool
     func authorizeOperation(_ operation: String) -> Bool
 }
-
-
-// MARK: - Legacy Typealiases
 
 public typealias AssistPlan = AssistExecutionPlan
 public typealias AssistStep = AssistExecutionStep
@@ -805,8 +721,6 @@ public extension AssistExecutionStep {
     var actions: [AssistAction] { [] }
 }
 
-// MARK: - Dynamic Model Options
-
 public struct DynamicModelOption: Identifiable, Hashable, Sendable {
     public var id: String { modelID }
     public let modelID: String
@@ -832,8 +746,6 @@ public struct DynamicModelOption: Identifiable, Hashable, Sendable {
         self.category = category
     }
 }
-
-// MARK: - Assist Model Filter
 
 @MainActor
 public final class AssistModelFilter {
@@ -865,8 +777,6 @@ public final class AssistModelFilter {
         disabledModelIDs = current
     }
 }
-
-// MARK: - Assist v4 Continuous Multi-Goal Autonomous Takeover Models
 
 public enum GoalStatus: String, Codable, Sendable {
     case pending = "Pending"
@@ -945,13 +855,11 @@ public struct AssistGoal: Identifiable, Codable, Sendable {
     }
 }
 
-/// Evaluates candidates against runaway autonomous expansion safeguards.
 public struct AssistGoalSafeguards: Sendable {
     public static let maxDepth = 5
     public static let maxTotalExpandedGoals = 8
     public static let maxConsecutiveFailures = 2
 
-    /// Validates candidate goals against all safety constraints.
     public static func validateCandidate(
         candidateTitle: String,
         candidateObjective: String,
@@ -960,31 +868,26 @@ public struct AssistGoalSafeguards: Sendable {
         depth: Int,
         consecutiveFailures: Int
     ) -> (isValid: Bool, rejectionReason: String?) {
-        // 1. Circuit breaker on repeated failures
         if consecutiveFailures >= maxConsecutiveFailures {
             return (false, "Safeguard Triggered: Repeated verification failure circuit breaker active (\(consecutiveFailures) consecutive failures).")
         }
 
-        // 2. Goal Explosion: Generation Depth
         if depth > maxDepth {
             return (false, "Safeguard Triggered: Goal tree depth (\(depth)) exceeds maximum allowed depth (\(maxDepth)).")
         }
 
-        // 3. Goal Explosion: Total Count
         if existingGoals.count >= maxTotalExpandedGoals {
             return (false, "Safeguard Triggered: Total expanded goal limit (\(maxTotalExpandedGoals)) reached.")
         }
 
         let normalizedCandidate = candidateTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        // 4. Duplicate / Circular Goal Detection
         for existing in existingGoals {
             let normalizedExisting = existing.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if normalizedCandidate == normalizedExisting {
                 return (false, "Safeguard Triggered: Duplicate goal detected ('\(candidateTitle)').")
             }
 
-            // Word overlap / token similarity
             let candTokens = Set(normalizedCandidate.split(separator: " "))
             let existTokens = Set(normalizedExisting.split(separator: " "))
             let intersection = candTokens.intersection(existTokens)
@@ -993,11 +896,9 @@ public struct AssistGoalSafeguards: Sendable {
             }
         }
 
-        // 5. Unrelated Work Safeguard (Grounding check)
         let rootTokens = Set(rootGoal.lowercased().split(separator: " ").filter { $0.count > 3 })
         let candTokens = Set(candidateObjective.lowercased().split(separator: " ").filter { $0.count > 3 })
 
-        // Check if candidate shares domain context or common engineering actions
         let commonEngineeringVerbs = ["test", "verify", "lint", "doc", "document", "error", "guard", "robust", "refactor", "benchmark", "spec", "clean"]
         let hasEngineeringLink = candidateObjective.lowercased().split(separator: " ").contains { commonEngineeringVerbs.contains(String($0)) }
         let hasRootDomainOverlap = !rootTokens.intersection(candTokens).isEmpty
@@ -1035,15 +936,11 @@ public struct MultiGoalSessionSummary: Codable, Sendable {
     }
 }
 
-// MARK: - Queued Assist Message
-
 public struct QueuedAssistMessage: Identifiable, Sendable, Codable, Equatable {
     public let id: UUID
     public var content: String
     public var attachments: [AgentFileContext]
     public let timestamp: Date
-    /// The composer's task envelope (explicit skills, MCP servers, files).
-    /// Preserved so queued messages don't silently lose their selections.
     public var envelope: AssistTaskEnvelope?
 
     public init(
@@ -1060,8 +957,6 @@ public struct QueuedAssistMessage: Identifiable, Sendable, Codable, Equatable {
         self.envelope = envelope
     }
 }
-
-// MARK: - Assist Model Eligibility Policy
 
 public enum AssistModelEligibilityError: LocalizedError, Equatable {
     case ineligibleModel(modelID: String, provider: String?)
@@ -1081,9 +976,6 @@ public enum AssistModelEligibilityError: LocalizedError, Equatable {
 
 public struct AssistModelEligibilityPolicy {
 
-    /// Evaluates whether a given model ID is eligible under the free-only rule.
-    /// A model is eligible in free-only mode ONLY when its actual model ID contains the literal substring "free" (case-insensitive).
-    /// Display names, marketing titles, or price tags alone NEVER override this rule.
     public static func isEligible(modelID: String, onlyUseFreeModels: Bool) -> Bool {
         guard onlyUseFreeModels else { return true }
         let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1091,8 +983,6 @@ public struct AssistModelEligibilityPolicy {
         return trimmed.localizedCaseInsensitiveContains("free")
     }
 
-    /// Validates model eligibility at runtime before execution.
-    /// Throws `AssistModelEligibilityError.ineligibleModel` if `onlyUseFreeModels` is enabled and the model ID does not contain "free".
     public static func validateExecutionEligibility(modelID: String, provider: String? = nil, onlyUseFreeModels: Bool) throws {
         guard onlyUseFreeModels else { return }
         if !isEligible(modelID: modelID, onlyUseFreeModels: true) {
@@ -1100,23 +990,18 @@ public struct AssistModelEligibilityPolicy {
         }
     }
 
-    /// Filters an array of model identifiers according to the eligibility policy.
     public static func filterEligibleModelIDs(_ modelIDs: [String], onlyUseFreeModels: Bool) -> [String] {
         guard onlyUseFreeModels else { return modelIDs }
         return modelIDs.filter { isEligible(modelID: $0, onlyUseFreeModels: true) }
     }
 
-    /// Filters an arbitrary collection of models by extracting their model identifier.
     public static func filterEligible<T>(_ models: [T], onlyUseFreeModels: Bool, idKeyPath: KeyPath<T, String>) -> [T] {
         guard onlyUseFreeModels else { return models }
         return models.filter { isEligible(modelID: $0[keyPath: idKeyPath], onlyUseFreeModels: true) }
     }
 
-    /// Filters models using a closure to extract the model ID.
     public static func filterEligible<T>(_ models: [T], onlyUseFreeModels: Bool, idExtractor: (T) -> String) -> [T] {
         guard onlyUseFreeModels else { return models }
         return models.filter { isEligible(modelID: idExtractor($0), onlyUseFreeModels: true) }
     }
 }
-
-

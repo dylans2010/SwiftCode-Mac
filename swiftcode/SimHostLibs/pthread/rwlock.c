@@ -1,22 +1,3 @@
-/*
- * rwlock.c - read-write locks and their attributes of SwiftCode's
- * libsystem_pthread.
- *
- * Clean-room SwiftCode code, from POSIX pthread_rwlock_rdlock(3) and friends
- * and the static-initializer signature in host-library-init.md section 5.3.
- *
- * Design: one 32-bit state word. Bit 31 = held for writing, bit 30 =
- * there may be sleepers, bits 0-29 = the number of readers. Sleepers wait
- * in the kernel while the word is unchanged; whoever releases the lock
- * with the sleeper bit set wakes them all, and they compete again.
- *
- * Deadlock detection that POSIX allows: a write lock by the holder of the
- * write lock, or a read lock by the writer, returns EDEADLK. Every other
- * contended lock sleeps in the kernel.
- *
- * Layout of pthread_rwlock_t (200 bytes; SwiftCode's own after the
- * signature): +0 sig, +8 state, +12 pshared, +16 writer (pthread_t).
- */
 #include "yc_pthread.h"
 
 #define RW_WRITER 0x80000000u
@@ -44,8 +25,6 @@ static yc_bool rw_valid(const struct yc_rwlock *l)
     long s = YC_LOAD_ACQ(&l->sig);
     return s == YC_SIG_RWLOCK || s == YC_SIG_RWLOCK_INIT;
 }
-
-/* ---- attributes --------------------------------------------------------- */
 
 YC_EXPORT int YC_FN(pthread_rwlockattr_init)(struct yc_rwlockattr *a)
 {
@@ -80,8 +59,6 @@ YC_EXPORT int YC_FN(pthread_rwlockattr_setpshared)(struct yc_rwlockattr *a, int 
     return 0;
 }
 
-/* ---- locks -------------------------------------------------------------- */
-
 YC_EXPORT int YC_FN(pthread_rwlock_init)(struct yc_rwlock *l, const struct yc_rwlockattr *a)
 {
     if (l == YC_NULL || (a != YC_NULL && a->sig != YC_SIG_RWLOCKATTR))
@@ -103,12 +80,11 @@ YC_EXPORT int YC_FN(pthread_rwlock_destroy)(struct yc_rwlock *l)
     return 0;
 }
 
-/* Marks the sleeper bit and sleeps while the state stays `s`. */
 static void rw_sleep(struct yc_rwlock *l, yc_u32 s)
 {
     if (!(s & RW_WAITERS)) {
         if (!__atomic_compare_exchange_n(&l->state, &s, s | RW_WAITERS, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED))
-            return; /* changed: re-check */
+            return;
         s |= RW_WAITERS;
     }
     __yc_wait32(&l->state, s, 0);
@@ -197,7 +173,7 @@ YC_EXPORT int YC_FN(pthread_rwlock_unlock)(struct yc_rwlock *l)
             return YC_EPERM;
         yc_u32 n = s - 1;
         if ((n & RW_READERS) == 0)
-            n = 0; /* the last reader also clears the sleeper bit */
+            n = 0;
         if (__atomic_compare_exchange_n(&l->state, &s, n, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED)) {
             if (n == 0 && (s & RW_WAITERS))
                 __yc_wake32(&l->state, 1);

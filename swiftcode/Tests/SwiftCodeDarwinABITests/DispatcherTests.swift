@@ -1,7 +1,6 @@
 import Testing
 @testable import SwiftCodeDarwinABI
 
-/// Guest memory as one flat range of bytes at `base`.
 private struct FakeMemory: GuestMemoryAccess {
     var base: UInt64
     var bytes: [UInt8]
@@ -31,7 +30,6 @@ private func dispatcher(_ c: Capture, clock: @escaping () -> UInt64 = MachTimeba
                          machAbsoluteTime: clock)
 }
 
-/// An SVC frame with `x16` = `number` and the given arguments.
 private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFrame {
     var x = [UInt64](repeating: 0xCAFE, count: 31)
     for (i, a) in args.enumerated() { x[i] = a }
@@ -88,15 +86,12 @@ private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFr
     @Test func writeEdgeCases() {
         let c = Capture()
         var d = dispatcher(c)
-        // Zero length: success, nothing read.
         var f = svc(4, 1, 0xDEAD_0000, 0)
         #expect(d.handle(&f, memory: memory) == .resume)
         #expect(f.x[0] == 0 && !f.carry)
-        // Unreadable buffer: EFAULT.
         f = svc(4, 1, 0xDEAD_0000, 4)
         #expect(d.handle(&f, memory: memory) == .resume)
         #expect(f.x[0] == 14 && f.carry)
-        // Absurd length: EINVAL.
         f = svc(4, 1, 0x1_0000_4000, 1 << 40)
         #expect(d.handle(&f, memory: memory) == .resume)
         #expect(f.x[0] == 22 && f.carry)
@@ -139,7 +134,6 @@ private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFr
         #expect(d.handle(&b, memory: memory) == .resume)
         #expect(a.x[0] != 0)
         #expect(b.x[0] >= a.x[0])
-        // No carry semantics: the flag is left as it was.
         #expect(a.carry)
         #expect(!b.carry)
         var cont = svc(-4)
@@ -164,7 +158,6 @@ private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFr
         #expect(MachTimebase.ticks(fromNanoseconds: 124) == 2)
         #expect(MachTimebase.nanoseconds(fromTicks: 24_000_000) == 1_000_000_000)
         #expect(MachTimebase.nanoseconds(fromTicks: 3) == 125)
-        // No overflow near the top of the range.
         #expect(MachTimebase.ticks(fromNanoseconds: UInt64.max) == UInt64.max / 125 * 3 + (UInt64.max % 125) * 3 / 125)
         let t0 = MachTimebase.now()
         let t1 = MachTimebase.now()
@@ -186,7 +179,6 @@ private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFr
     @Test func trapNumberClassification() {
         #expect(DarwinTrapNumber(x16: 20) == .bsd(20))
         #expect(DarwinTrapNumber(x16: UInt64(bitPattern: -3)) == .mach(-3))
-        // Only the low 32 bits count.
         #expect(DarwinTrapNumber(x16: 0xFFFF_FFFD) == .mach(-3))
         #expect(DarwinTrapNumber(x16: 0x1_0000_0014) == .bsd(20))
         #expect(DarwinTrapNumber(x16: 0x8000_0000) == .platform)
@@ -195,7 +187,6 @@ private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFr
         var f = svc(0x8000_0000)
         _ = d.handle(&f, memory: memory)
         #expect(f.x[0] == 1)
-        // x16 = 0xFFFF_FFFD with garbage in the high half is still mach_absolute_time.
         f = svc(Int64(bitPattern: 0xABCD_0000_FFFF_FFFD))
         _ = d.handle(&f, memory: memory)
         #expect(f.x[0] > 1)
@@ -231,8 +222,6 @@ private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFr
         #expect(m.hasPrefix("synchronous exception at EL1: EC=0x3c (BRK (AArch64))"))
     }
 
-    /// Runs the §7 self-test sequence against the dispatcher, with the guest
-    /// memory reached through real page tables.
     @Test func selfTestSequence() throws {
         var tables = PageTableBuilder()
         for r in VMLayout.el1Regions { try tables.mapIdentity(r) }
@@ -262,7 +251,6 @@ private func svc(_ number: Int64, _ args: UInt64..., spsr: UInt64 = 0) -> TrapFr
         f = svc(4, 1, VMLayout.selfTestDataVA, UInt64(data.count))
         #expect(d.handle(&f, memory: mem) == .resume && f.x[0] == UInt64(data.count) && !f.carry)
         #expect(c.out == "hello from EL0 (Darwin ABI on KVM)\n")
-        // EL1-only memory is not a valid user buffer.
         f = svc(4, 1, VMLayout.bootInfoGPA, 8)
         #expect(d.handle(&f, memory: mem) == .resume && f.x[0] == 14 && f.carry)
         f = svc(1, 0)

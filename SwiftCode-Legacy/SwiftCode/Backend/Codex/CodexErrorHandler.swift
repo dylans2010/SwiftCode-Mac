@@ -29,4 +29,3 @@ enum CodexErrorHandler {
         return error.localizedDescription
     }
 }
-

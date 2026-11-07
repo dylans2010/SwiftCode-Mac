@@ -1,13 +1,3 @@
-// swiftcode-simd: the two speed switches of specs/simulator/fast-traps.md and
-// specs/simulator/vm-shim-protocol.md §5.1. Both are on by default ("0"
-// turns one off).
-//
-// - SWIFTCODE_HVC_DOORBELL: the shim rings the VMM with a forwarded HVC
-//   (KVM_EXIT_HYPERCALL) instead of the MMIO store.
-// - SWIFTCODE_FAST_TRAPS: every VM gets the system's counter offset VM-wide
-//   (KVM_ARM_SET_COUNTER_OFFSET), and the commpage tells the host library to
-//   answer mach time, the wall clock and the credential calls at EL0.
-
 #if os(Linux) && arch(arm64)
 import CKVM
 import Foundation
@@ -17,26 +7,15 @@ import SwiftCodeDarwinKernel
 import SwiftCodeHypervisor
 
 enum FastTraps {
-    /// On unless the variable is "0" (both switches default on since
-    /// 2026-10-17, fast-traps.md §8).
     private static func flag(_ name: String) -> Bool {
         getenv(name).map { String(cString: $0) != "0" } ?? true
     }
 
-    /// `SWIFTCODE_HVC_DOORBELL` (vm-shim-protocol.md §5.1; 0 = MMIO doorbell).
     static let hvcDoorbell = flag("SWIFTCODE_HVC_DOORBELL")
-    /// `SWIFTCODE_FAST_TRAPS` (fast-traps.md; 0 = every call traps).
     static let enabled = flag("SWIFTCODE_FAST_TRAPS")
-    /// `SWIFTCODE_LOCAL_CALLS` (fast-traps.md §5a, with `SWIFTCODE_FAST_TRAPS`;
-    /// 0 = madvise and issetugid always trap).
     static let localCalls = flag("SWIFTCODE_LOCAL_CALLS")
-    /// `SWIFTCODE_SYSCTL_CACHE` (fast-traps.md §5a, with `SWIFTCODE_FAST_TRAPS`;
-    /// 0 = every sysctl traps).
     static let sysctlCache = flag("SWIFTCODE_SYSCTL_CACHE")
 
-    /// The doorbell address for a new VM's boot info: 0 (the HVC form) when
-    /// the switch is on and the host installs the SMCCC filter, otherwise the
-    /// MMIO doorbell. Call before any vCPU of `vm` runs.
     static func doorbellAddress(for vm: VirtualMachine, log: (String) -> Void) -> UInt64 {
         guard hvcDoorbell else { return VMLayout.doorbellGPA }
         do {
@@ -51,10 +30,6 @@ enum FastTraps {
         }
     }
 
-    /// Writes the fast-path parts of a new image's commpage (§2, §4, §5):
-    /// the flag byte, the first wall-clock snapshot and the credential
-    /// block, and returns the kernel's snapshot publisher (nil when the
-    /// in-place clock is off).
     static func configureCommpage(space: GuestAddressSpace, vm: VirtualMachine, directClock: Bool,
                                   counter: @escaping () -> UInt64, frequency: UInt64,
                                   clockScale: GuestTimebase.ClockScale,
@@ -73,7 +48,6 @@ enum FastTraps {
         }
         var publisher: ((UInt64, Int64, Int64) -> Void)?
         if directClock {
-            // §3.2: the scale before the flag that tells the library to use it.
             page.storeBytes(of: clockScale.multiplier.littleEndian, toByteOffset: CommpageBuilder.Offset.clockMultiplier,
                             as: UInt64.self)
             page.storeBytes(of: clockScale.shift.littleEndian, toByteOffset: CommpageBuilder.Offset.clockShift, as: UInt64.self)

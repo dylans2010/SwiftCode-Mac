@@ -4,9 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// The IDE's side of debugging on the SwiftCode simulator
-/// (specs/simulator/debug-stub.md §8.2): the run command, the forward, the
-/// lldb settings, and when the session attaches.
 @Suite struct RemoteDebugTests {
     let remote = RemoteSimulator(settings: RemoteSimulatorSettings(destination: "tester@sim-host", dataDirectory: "/data/swiftcode",
                                                                    runtimeRoot: "/rr", simdPath: "/bin/swiftcode-sim", deviceName: "dev1"))

@@ -1,10 +1,5 @@
-// CNContact and CNMutableContact (interface.md §2): immutable snapshots that
-// carry the set of fetched keys; reading or setting an unfetched property
-// raises CNPropertyNotFetchedException (errors.md §3).
-
 import Foundation
 
-/// Every property of a contact (internal storage).
 struct ContactData: Equatable {
     var contactType: CNContactType = .person
     var namePrefix = ""
@@ -35,7 +30,6 @@ struct ContactData: Equatable {
     var nonGregorianBirthday: DateComponents?
     var dates: [CNLabeledValue<NSDateComponents>] = []
 
-    /// The value of one key, as the Objective-C property would return it.
     func value(forKey key: String) -> Any? {
         switch key {
         case CNContactTypeKey: return contactType.rawValue
@@ -71,7 +65,6 @@ struct ContactData: Equatable {
         }
     }
 
-    /// A copy holding only `keys` (other properties empty).
     func restricted(to keys: Set<String>) -> ContactData {
         var d = ContactData()
         func keep(_ key: String, _ body: (inout ContactData) -> Void) { if keys.contains(key) { body(&d) } }
@@ -94,7 +87,6 @@ struct ContactData: Equatable {
         keep(CNContactImageDataKey) { $0.imageData = imageData }
         keep(CNContactThumbnailImageDataKey) { $0.thumbnailImageData = thumbnailImageData }
         if keys.contains(CNContactImageDataAvailableKey) && !keys.contains(CNContactImageDataKey) {
-            // Availability without the bytes: keep a marker so imageDataAvailable answers.
             d.imageData = imageData == nil ? nil : Data()
         }
         keep(CNContactPhoneNumbersKey) { $0.phoneNumbers = phoneNumbers }
@@ -111,13 +103,10 @@ struct ContactData: Equatable {
     }
 }
 
-/// Process-wide settings that are not tied to a store.
 public enum SwiftCodeContactsEnvironment {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var _notes = false
 
-    /// Whether the process has the `com.apple.developer.contacts.notes`
-    /// entitlement (authorization.md §1). Default: no.
     public static var notesEntitlement: Bool {
         get {
             if let o = notesOverride { return o }
@@ -127,15 +116,12 @@ public enum SwiftCodeContactsEnvironment {
         set { lock.lock(); _notes = newValue; lock.unlock() }
     }
 
-    /// A task-local override of `notesEntitlement` (for tests).
     @TaskLocal public static var notesOverride: Bool?
 }
 
 func newPersonIdentifier() -> String { UUID().uuidString + ":ABPerson" }
 func newGroupIdentifier() -> String { UUID().uuidString + ":ABGroup" }
 
-/// Keys available on a contact created by the app: everything, except the
-/// note without the notes entitlement (interface.md §2.2).
 func keysForNewContact() -> Set<String> {
     SwiftCodeContactsEnvironment.notesEntitlement ? allContactKeys : allContactKeys.subtracting([CNContactNoteKey])
 }
@@ -153,12 +139,9 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
         self.available = a
     }
 
-    /// An empty contact with a new `<UUID>:ABPerson` identifier.
     public override convenience init() {
         self.init(identifier: newPersonIdentifier(), data: ContactData(), available: keysForNewContact())
     }
-
-    // MARK: Key availability
 
     public func isKeyAvailable(_ key: String) -> Bool { available.contains(key) }
 
@@ -172,14 +155,11 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
         return empty
     }
 
-    /// Raises when any of `keys` is missing; returns whether all are there.
     func require(_ keys: Set<String>) -> Bool {
         if keys.isSubset(of: available) { return true }
         CNException.notFetched().raise()
         return false
     }
-
-    // MARK: Properties
 
     public var contactType: CNContactType { read(CNContactTypeKey, data.contactType, .person) }
     public var namePrefix: String { read(CNContactNamePrefixKey, data.namePrefix, "") }
@@ -213,21 +193,15 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
     public var nonGregorianBirthday: DateComponents? { read(CNContactNonGregorianBirthdayKey, data.nonGregorianBirthday, nil) }
     public var dates: [CNLabeledValue<NSDateComponents>] { read(CNContactDatesKey, data.dates, []) }
 
-    /// The identifier's UUID part (`Identifiable`, iOS 17).
     public var id: UUID {
         let head = identifier.split(separator: ":").first.map(String.init) ?? identifier
         return UUID(uuidString: head) ?? UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
     }
 
-    // MARK: Class members
-
-    /// The English field name of a key (interface.md §2.4); empty for keys
-    /// without a name (identifier, thumbnail, image availability).
     public class func localizedString(forKey key: String) -> String {
         Localization.contactKey(key)
     }
 
-    /// A comparator for contacts by name (interface.md §4.3, design.md §5).
     public class func comparator(forNameSortOrder sortOrder: CNContactSortOrder) -> Comparator {
         return { a, b in
             guard let x = a as? CNContact, let y = b as? CNContact else { return .orderedSame }
@@ -239,11 +213,7 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
         CNAggregateKeyDescriptor(kind: "Comparator keys", keys: comparatorKeys)
     }
 
-    /// SwiftCode treats every contact as its own unified contact; the answer is
-    /// NO even for the contact's own identifier (interface.md §4.4).
     public func isUnifiedWithContact(withIdentifier contactIdentifier: String) -> Bool { false }
-
-    // MARK: Copying and equality
 
     public func copy(with zone: NSZone? = nil) -> Any {
         if type(of: self) == CNContact.self { return self }
@@ -274,9 +244,6 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
     public var shortDebugDescription: String { "<\(type(of: self)): \(identifier)>" }
     public override var debugDescription: String { description }
 
-    // MARK: Key-value access
-
-    /// The value of a property by key; raises when the key was not fetched.
     func swiftcodeValue(forKey key: String) -> Any? {
         if key == CNContactIdentifierKey { return identifier }
         guard available.contains(key) else {
@@ -293,10 +260,7 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
     #endif
 }
 
-// MARK: - CNMutableContact
-
 public final class CNMutableContact: CNContact, @unchecked Sendable {
-    /// Keys set since the contact was created or fetched (what an update writes).
     var changedKeys: Set<String> = []
 
     override init(identifier: String, data: ContactData, available: Set<String>) {
@@ -406,11 +370,6 @@ public final class CNMutableContact: CNContact, @unchecked Sendable {
         CNContact(identifier: identifier, data: data, available: available)
     }
 
-    // MARK: Key-value setting (the only way to put a wrongly typed value in)
-
-    /// Sets a property by key. A multi-valued property only takes labeled
-    /// values of its class; anything else raises
-    /// `CNPropertyInvalidTypeException` (interface.md §2.4, errors.md §3).
     func swiftcodeSetValue(_ value: Any?, forKey key: String) {
         func labeled<V>(_ type: V.Type, _ expected: String) -> [CNLabeledValue<V>]? {
             guard let items = value as? [Any] else {
@@ -488,13 +447,10 @@ public final class CNMutableContact: CNContact, @unchecked Sendable {
     #endif
 }
 
-/// The stored thumbnail (interface.md §2.5). SwiftCode does not decode images;
-/// the thumbnail is the image data itself (deviation, see README).
 enum Thumbnail {
     static func make(_ image: Data) -> Data { image }
 }
 
-/// Type-erased access to a labeled value's value.
 protocol AnyLabeledValue {
     var anyValue: Any { get }
     var labeledIdentifier: String { get }

@@ -17,12 +17,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let a = try #require(wc.editorArea.tab.assistant)
         #expect(a.assistantModeTitles == AssistantModeCatalog.titles)
         #expect(!a.disabledAssistantModes.contains("Includes") && a.disabledAssistantModes.contains("Disassembly"))
-        #expect(a.fileURL == nil) // no counterpart for d.c
+        #expect(a.fileURL == nil)
         wc.setAssistantMode(.includes)
         #expect(a.fileURL?.lastPathComponent == "c.h" && a.counterpartTitles == ["c.h"])
         wc.setAssistantMode(.manual)
         wc.open(path: src.appendingPathComponent("A.swift").path, line: nil)
-        #expect(a.fileURL?.lastPathComponent == "c.h") // manual: unchanged
+        #expect(a.fileURL?.lastPathComponent == "c.h")
         wc.setAssistantMode(.counterparts)
         #expect(a.fileURL?.lastPathComponent == "ATests.swift")
     }
@@ -55,8 +55,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         wc.goForward(nil)
         #expect(first.fileURL?.path == b)
 
-        // ⌘T: a new tab showing the Start Page (Settings ▸ Navigation ▸ New
-        // Editor Tabs Open With, reference-ui-5.md §9.2); ⇧⌘[ / ⇧⌘] switch.
         wc.newTab(nil)
         #expect(wc.editorArea.tabs.count == 2 && wc.editor !== first && wc.editor.fileURL == nil && wc.editor.emptyView != nil)
         wc.open(path: a, line: nil)
@@ -68,7 +66,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         wc.closeTab(nil)
         #expect(wc.editorArea.tabs.count == 1 && wc.editor === first)
 
-        // ⌃⌘T split side by side; each split has its own history.
         wc.splitEditor(nil)
         let right = wc.editor
         #expect(wc.editorArea.tab.editors.count == 2 && wc.editorArea.tab.sideBySide && right.fileURL?.path == b)

@@ -1,4 +1,3 @@
-/* SwiftCode freestanding <dlfcn.h>: Dl_info and dladdr (public layout). */
 #ifndef YCL_DLFCN_H
 #define YCL_DLFCN_H
 #ifdef __cplusplus

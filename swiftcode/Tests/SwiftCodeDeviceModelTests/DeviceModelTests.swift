@@ -1,8 +1,3 @@
-// The device windows' model (specs/ide/device-hub.md, "SwiftCode
-// implementation"): frame geometry, zoom math, compact window layout, the
-// hub's sidebar (sections, filter, search, sort), canvas states, commands
-// and their key equivalents, capture file names.
-
 import Foundation
 import Testing
 @testable import SwiftCodeDeviceModel
@@ -11,12 +6,10 @@ import Testing
     @Test func aPhoneFrameIsConcentricWithItsScreen() {
         let g = DeviceFrameGeometry(spec: .iPhone18Pro)
         let b = DeviceFrameGeometry.band(.phone), m = DeviceFrameGeometry.protrusion
-        // 1206 × 2622 @3 = 402 × 874 points.
         #expect(g.screen == CGRect(x: m + b, y: m + b, width: 402, height: 874))
         #expect(g.body == CGRect(x: m, y: m, width: 402 + 2 * b, height: 874 + 2 * b))
         #expect(g.size == CGSize(width: 402 + 2 * b + 2 * m, height: 874 + 2 * b + 2 * m))
         #expect(g.screenRadii == CornerRadii(all: 62) && g.bodyRadii == CornerRadii(all: 62 + b))
-        // Action and volume on the left edge, the side button on the right.
         #expect(g.buttons.map(\.kind) == [.action, .volumeUp, .volumeDown, .side])
         for btn in g.buttons where btn.kind != .side { #expect(btn.rect.minX < g.body.minX && btn.rect.maxX > g.body.minX) }
         let side = g.buttons.last!.rect
@@ -38,13 +31,9 @@ import Testing
         let left = DeviceFrameGeometry(spec: .iPhone18Pro, clockwiseQuarterTurns: DeviceOrientation.landscapeLeft.clockwiseQuarterTurns)
         #expect(left.size == CGSize(width: up.size.height, height: up.size.width))
         #expect(left.screen.width == up.screen.height && left.screen.height == up.screen.width)
-        // Landscape left: the top of the device is on the left, so the
-        // buttons of the left edge are on the bottom edge.
         let vol = left.buttons.first { $0.kind == .volumeUp }!.rect
         #expect(vol.maxY > left.body.maxY && vol.width > vol.height)
-        // Four quarter turns come back.
         #expect(DeviceFrameGeometry(spec: .iPhone18Pro, clockwiseQuarterTurns: 4) == up)
-        // Right then left = none.
         let right = DeviceFrameGeometry(spec: .iPhone18Pro, clockwiseQuarterTurns: 1)
         #expect(right.buttons.first { $0.kind == .volumeUp }!.rect.minY < right.body.minY)
     }
@@ -53,21 +42,18 @@ import Testing
         let r = CornerRadii(topLeft: 1, topRight: 2, bottomRight: 3, bottomLeft: 4)
         #expect(r.turned(1) == CornerRadii(topLeft: 4, topRight: 1, bottomRight: 2, bottomLeft: 3))
         #expect(r.turned(4) == r && r.turned(-1) == r.turned(3))
-        // The Duo's cover has small corners on its hinge side.
         let cover = DeviceFrameGeometry(spec: .iPhoneDuo)
         #expect(cover.screenRadii.topLeft == 8 && cover.screenRadii.topRight == 59)
     }
 
     @Test func theDuoOpenIsWideAndPartiallyOpenShowsTheHinge() {
         let open = DeviceFrameGeometry(spec: .iPhoneDuo, panelIndex: 1, posture: .openFlat)
-        // The inner panel 2007 × 2853 @3 is held turned: 951 × 669 points.
         #expect(open.screen.size == CGSize(width: 951, height: 669))
         #expect(open.hinge == nil && open.screenRadii == CornerRadii(all: 55))
         let half = DeviceFrameGeometry(spec: .iPhoneDuo, panelIndex: 1, posture: .halfOpen)
         let h = try! #require(half.hinge)
         #expect(h.from.x == half.body.midX && h.from.y == half.body.minY && h.to.y == half.body.maxY)
         #expect(half.shadedArea?.width == half.screen.width / 2)
-        // Closed: the cover, portrait.
         let closed = DeviceFrameGeometry(spec: .iPhoneDuo, panelIndex: 0, posture: .closed)
         #expect(closed.screen.size == CGSize(width: 466, height: 678))
     }
@@ -106,8 +92,6 @@ import Testing
     }
 
     @Test func physicalSizeFollowsThePixelDensities() {
-        // 3 pixels a point at 460 per inch: one point is 3/460 inch; on a
-        // display of 110 points per inch that is 0.717 points.
         let s = DeviceZoom.physical(panel: DeviceFrameSpec.iPhone18Pro.panels[0], displayPointsPerInch: 110)
         #expect(abs(s - 3.0 / 460 * 110) < 1e-9)
         #expect(DeviceZoom.displayPointsPerInch(pointWidth: 1512, millimetresWide: 345.4) != nil)
@@ -126,7 +110,6 @@ import Testing
         let c = CompactWindowLayout.constrainedContentSize(device: device, proposed: CGSize(width: 400, height: 9999))
         let scale = (400 - 2 * CompactWindowLayout.sideMargin) / 432
         #expect(c.width == 400 && c.height == (904 * scale + CompactWindowLayout.chromeHeight()).rounded())
-        // Never narrower than the minimum.
         let narrow = CompactWindowLayout.constrainedContentSize(device: device, proposed: CGSize(width: 10, height: 10))
         #expect(Double(narrow.width) == CompactWindowLayout.minimumWidth, "\(narrow)")
         let r = CompactWindowLayout.deviceRect(device: device, contentWidth: 400)
@@ -138,7 +121,6 @@ import Testing
         let before = CompactWindowLayout.contentSize(device: portrait, scale: 0.5)
         let after = CompactWindowLayout.rotatedContentSize(oldDevice: portrait, newDevice: landscape, contentWidth: Double(before.width))
         #expect(after.width > after.height && after.width == (904 * 0.5 + 2 * CompactWindowLayout.sideMargin).rounded())
-        // A default iPhone window is tall (the reference's was 296 × 620; SwiftCode's is wider for its toolbar).
         let s = CompactWindowLayout.defaultScale(device: portrait)
         let size = CompactWindowLayout.contentSize(device: portrait, scale: s)
         #expect(size.width == CompactWindowLayout.minimumWidth && size.height > 550 && size.height < 800)
@@ -203,7 +185,6 @@ import Testing
         #expect(DeviceCommand.bound(to: "h", modifiers: [.command, .shift]) == .home)
         #expect(DeviceCommand.bound(to: DeviceKeyModifiers.leftArrow, modifiers: [.command]) == .rotateLeft)
         #expect(DeviceCommand.bound(to: "=", modifiers: [.command]) == .zoomIn)
-        // No two commands share a key equivalent.
         let keys = DeviceCommand.allCases.compactMap { c in c.keyEquivalent.map { "\($0.key)|\($0.modifiers.rawValue)" } }
         #expect(Set(keys).count == keys.count)
     }

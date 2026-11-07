@@ -1,23 +1,6 @@
 import Foundation
 import Observation
 
-/// The Codex API-key client facade (ported from Legacy's `CodexManager`).
-///
-/// Keys come from the secret store, never from the code: the user's own
-/// key (`codex.user-api-key`) is tried first, then the app-owned key
-/// (`codex.app-api-key`). Legacy read the same two keys from its
-/// `KeychainService`; the accounts here are the `SecretStore` equivalents
-/// (there is no `SecretAccount` constant for Codex — these account strings
-/// are owned by this file). No key is embedded anywhere.
-///
-/// Usage modes: with a user key the mode is unlimited; with the app-owned
-/// key it is restricted to 200 requests and 200,000 tokens per session.
-/// The default model is `gpt-5-codex` (UserDefaults `codex.model`
-/// overrides it).
-///
-/// `streamResponse` replays the already-received `lastResponse` one
-/// character at a time as a typewriter effect — Legacy's behaviour, kept
-/// honestly labelled: it is not a live stream from the API.
 @Observable
 @MainActor
 public final class CodexManager {
@@ -110,8 +93,6 @@ public final class CodexManager {
         }
     }
 
-    /// Replays `lastResponse` as a typewriter effect (see the class doc:
-    /// this is not a live API stream).
     public func streamResponse(handler: @escaping (String) -> Void) {
         activeTask?.cancel()
         let text = activeSession.lastResponse

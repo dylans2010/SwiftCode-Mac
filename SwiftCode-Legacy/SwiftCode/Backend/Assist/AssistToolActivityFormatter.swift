@@ -1,11 +1,3 @@
-//
-//  AssistToolActivityFormatter.swift
-//  SwiftCode
-//
-//  Transforms raw tool invocations and parameters into concise, human-readable
-//  activity representations with context (e.g. "Reading App.swift", "Building project").
-//
-
 import Foundation
 
 public struct ToolFormattedActivity: Sendable {
@@ -28,11 +20,9 @@ public struct ToolFormattedActivity: Sendable {
 }
 
 public enum AssistToolActivityFormatter {
-    /// Formats a tool invocation into concise human-readable activity strings.
     public static func format(toolId: String, arguments: [String: Any]) -> ToolFormattedActivity {
         let normalizedId = toolId.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 1. File reading tools
         if ["file_read", "read_file", "view_file", "read_file_content", "file_view", "read"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
@@ -50,7 +40,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 2. File creation & writing tools
         if ["file_write", "write_file", "write_to_file", "file_create", "create_file", "code_generate", "generate_file", "write"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 let actionVerb = normalizedId.contains("create") || normalizedId.contains("generate") ? "Creating" : "Writing"
@@ -70,7 +59,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 3. File appending
         if ["file_append", "append_file"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
@@ -88,7 +76,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 4. File editing & replacing
         if ["code_replace", "replace_in_file", "replace_file_content", "multi_replace_file_content", "code_multi_edit", "code_insert", "insert_code_block", "code_refactor", "refactor", "code_format", "format_code", "patch_application_engine", "code_mutation_engine", "patch", "edit_file"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
@@ -106,7 +93,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 5. File deletion
         if ["file_delete", "delete_file"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
@@ -124,7 +110,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 6. File rename & move
         if ["file_rename", "rename_file", "file_move", "move_file"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
@@ -142,7 +127,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 7. File copy
         if ["file_copy", "copy_file"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
@@ -160,7 +144,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 8. Directory reading & tree view
         if ["dir_read", "read_directory", "list_dir", "list_directory", "tree_view"].contains(normalizedId) {
             if let dir = extractDirectoryName(from: arguments) {
                 return ToolFormattedActivity(
@@ -178,7 +161,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 9. Directory creation
         if ["dir_create", "create_directory"].contains(normalizedId) {
             if let dir = extractDirectoryName(from: arguments) {
                 return ToolFormattedActivity(
@@ -196,7 +178,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 10. Searching code & files
         if ["search_text", "grep_search", "search_code", "search_files", "search_regex", "regex_search", "search_symbol", "symbol_search"].contains(normalizedId) {
             if let query = extractSearchQuery(from: arguments) {
                 return ToolFormattedActivity(
@@ -214,7 +195,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 11. Build project
         if ["project_build", "build_project", "build", "xcodebuild"].contains(normalizedId) {
             let target = arguments["target"] as? String ?? arguments["scheme"] as? String
             let targetSuffix = target.map { " (\($0))" } ?? ""
@@ -226,7 +206,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 12. Run tests
         if ["run_tests", "test_runner", "test", "tests"].contains(normalizedId) {
             let target = arguments["testTarget"] as? String ?? arguments["suite"] as? String
             let targetSuffix = target.map { " (\($0))" } ?? ""
@@ -238,7 +217,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 13. Terminal commands (Task runner)
         if ["use_terminal", "task_runner", "run_command", "bash", "sh", "shell", "usershell"].contains(normalizedId) {
             let rawCmd = arguments["command"] as? String ?? arguments["CommandLine"] as? String ?? arguments["cmd"] as? String ?? ""
             let safeLabel = sanitizeCommand(rawCmd)
@@ -250,7 +228,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 14. Workers / Subagents
         if ["use_workers", "start_subagent"].contains(normalizedId) {
             let workerName = arguments["name"] as? String ?? arguments["task"] as? String ?? arguments["TaskName"] as? String ?? arguments["workerName"] as? String
             if let name = workerName, !name.isEmpty {
@@ -269,7 +246,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 15. Execution Plan
         if ["execution_plan", "intel_plan_task", "intel_breakdown_task"].contains(normalizedId) {
             let objective = arguments["objective"] as? String ?? arguments["title"] as? String
             if let obj = objective, !obj.isEmpty {
@@ -289,7 +265,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 16. Autonomous Code Review
         if ["code_review", "autonomous_review_engine"].contains(normalizedId) {
             return ToolFormattedActivity(
                 runningLabel: "Autonomous code review in progress...",
@@ -299,7 +274,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 17. Automated repair / compiler diagnostics
         if ["safe_validate_changes", "intel_autofix", "automated_repair_engine", "compiler_diagnostics_engine"].contains(normalizedId) {
             return ToolFormattedActivity(
                 runningLabel: "Analyzing compiler diagnostics & repairing...",
@@ -309,7 +283,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 18. Create New App wizard
         if ["create_new_app"].contains(normalizedId) {
             let appName = arguments["appName"] as? String ?? "application"
             return ToolFormattedActivity(
@@ -320,7 +293,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 19. Dependency graph / resolution
         if ["dependency_graph", "dependency_resolution_engine"].contains(normalizedId) {
             return ToolFormattedActivity(
                 runningLabel: "Resolving dependencies...",
@@ -330,7 +302,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 20. Log capture / Diagnostics
         if ["env_capture_logs", "runtime_diagnostics_engine"].contains(normalizedId) {
             return ToolFormattedActivity(
                 runningLabel: "Capturing runtime diagnostics...",
@@ -340,7 +311,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 21. MCP / Composio
         if ["use_mcp"].contains(normalizedId) {
             let server = arguments["serverName"] as? String ?? arguments["server"] as? String ?? ""
             let tool = arguments["toolName"] as? String ?? ""
@@ -362,7 +332,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 22. Skills search
         if ["search_skills", "skill_search"].contains(normalizedId) {
             let query = arguments["query"] as? String ?? ""
             let desc = !query.isEmpty ? "\"\(query)\"" : "skills"
@@ -374,7 +343,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 23. Reverse analysis
         if ["reverse_analyze", "reverse"].contains(normalizedId) {
             let target = extractFilename(from: arguments) ?? "artifact"
             return ToolFormattedActivity(
@@ -385,7 +353,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 24. Screen capture
         if ["take_screenshot", "capture_screen", "screenshot"].contains(normalizedId) {
             let mode = arguments["capture_mode"] as? String ?? "screen"
             let label = mode == "region" ? "selected region" : "screen"
@@ -397,7 +364,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 25. Screen recording
         if ["take_screenrecord", "screenrecord", "record_screen"].contains(normalizedId) {
             let app = arguments["app_identifier"] as? String ?? "app"
             return ToolFormattedActivity(
@@ -408,7 +374,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // 26. App interaction
         if ["use_app", "app_interact"].contains(normalizedId) {
             let app = arguments["app_identifier"] as? String ?? "application"
             let action = arguments["action"] as? String ?? "interact"
@@ -420,7 +385,6 @@ public enum AssistToolActivityFormatter {
             )
         }
 
-        // Fallback: Humanize snake_case or camelCase identifier
         let humanized = humanizeIdentifier(toolId)
         return ToolFormattedActivity(
             runningLabel: "Running \(humanized)...",
@@ -430,7 +394,6 @@ public enum AssistToolActivityFormatter {
         )
     }
 
-    /// Extracts the file path from arguments dictionary.
     public static func extractFilePath(arguments: [String: Any]) -> String? {
         let candidateKeys = [
             "path", "filePath", "file", "targetPath", "destinationPath",
@@ -444,14 +407,12 @@ public enum AssistToolActivityFormatter {
         return nil
     }
 
-    /// Extracts a user-facing filename or short relative path from arguments.
     public static func extractFilename(from arguments: [String: Any]) -> String? {
         guard let fullPath = extractFilePath(arguments: arguments) else { return nil }
         let url = URL(fileURLWithPath: fullPath)
         let last = url.lastPathComponent
         guard !last.isEmpty else { return nil }
 
-        // If last component is generic, prefix with parent directory
         let parent = url.deletingLastPathComponent().lastPathComponent
         if ["main.swift", "app.swift", "index.ts", "main.py", "contentview.swift"].contains(last.lowercased()) && !parent.isEmpty && parent != "/" && parent != "." {
             return "\(parent)/\(last)"
@@ -459,7 +420,6 @@ public enum AssistToolActivityFormatter {
         return last
     }
 
-    /// Extracts directory name from arguments.
     public static func extractDirectoryName(from arguments: [String: Any]) -> String? {
         let candidateKeys = ["path", "directory", "dir", "DirectoryPath", "SearchPath"]
         for key in candidateKeys {
@@ -472,7 +432,6 @@ public enum AssistToolActivityFormatter {
         return nil
     }
 
-    /// Extracts a search query or pattern from arguments.
     public static func extractSearchQuery(from arguments: [String: Any]) -> String? {
         let candidateKeys = ["query", "pattern", "searchTerm", "text", "Query"]
         for key in candidateKeys {
@@ -487,7 +446,6 @@ public enum AssistToolActivityFormatter {
         return nil
     }
 
-    /// Determines the file operation name ("Created", "Modified", "Deleted") for a given tool.
     public static func determineFileOperation(toolId: String) -> String? {
         let lower = toolId.lowercased()
         if lower.contains("create") || lower.contains("generate") {
@@ -505,13 +463,10 @@ public enum AssistToolActivityFormatter {
         return nil
     }
 
-    /// Sanitizes shell commands to never expose tokens, passwords, keys, or credentials,
-    /// returning a clean human-readable summary.
     public static func sanitizeCommand(_ rawCommand: String) -> String {
         let trimmed = rawCommand.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
 
-        // Match well-known command patterns
         let lower = trimmed.lowercased()
         if lower.starts(with: "xcodebuild") || lower.contains("swift build") {
             return "build"
@@ -549,7 +504,6 @@ public enum AssistToolActivityFormatter {
             return "killall"
         }
 
-        // Generic sanitization: strip tokens / secrets
         var safe = trimmed
         let secretPatterns = [
             "Bearer\\s+[A-Za-z0-9_\\-\\.]+",
@@ -562,7 +516,6 @@ public enum AssistToolActivityFormatter {
             }
         }
 
-        // Return first 3-4 words or up to 35 chars
         let words = safe.split(separator: " ")
         if words.count > 4 {
             let truncated = words.prefix(4).joined(separator: " ")
@@ -574,7 +527,6 @@ public enum AssistToolActivityFormatter {
         return safe
     }
 
-    /// Converts snake_case or camelCase identifiers into Title Case.
     private static func humanizeIdentifier(_ id: String) -> String {
         let spaced = id
             .replacingOccurrences(of: "_", with: " ")

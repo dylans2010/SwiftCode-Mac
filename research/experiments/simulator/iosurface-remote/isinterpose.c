@@ -1,24 +1,3 @@
-/*
- * isinterpose: in-process man-in-the-middle for com.apple.IOSurface.Remote
- * (original Ycode code, R5). Inserted with DYLD_INSERT_LIBRARIES into the jobs
- * of a throwaway simulator boot (simctl boot with SIMCTL_CHILD_ variables).
- *
- * It interposes xpc_connection_create_mach_service. For the target name it
- * looks the service up itself (bootstrap_look_up), makes a proxy port served
- * by the recording relay of isproxy.h, and returns a connection to the proxy
- * (xpc_endpoint_create_mach_port_4sim + xpc_connection_create_from_endpoint,
- * both exported libxpc names). Every other call is passed through unchanged.
- * It also logs calls of xpc_connection_enable_sim2host_4sim.
- *
- * Env: YC_IS_DIR=<dir>   log to <dir>/<process>-<pid>.log (required)
- *      YC_IS_ONLY=a,b    only these process names (default: all)
- *      YC_IS_NAME        target name (default com.apple.IOSurface.Remote)
- *      YC_IS_MAPTEST=1   see isproxy.h
- *      YC_IS_DENY=a,b    names that fail in every process (bootstrap_look_up 1102; XPC
- *                        connections go to a name that does not exist), as R4 did
- *      YC_IS_REDIRECT=n  relay to the service published as <n> (our isserve test
- *                        server) when that name can be looked up; otherwise to the real one
- */
 #include "isproxy.h"
 #include <xpc/xpc.h>
 #include <dispatch/dispatch.h>
@@ -77,7 +56,6 @@ static int denied(const char *name)
     while (*list) {
         const char *e = strchr(list, ',');
         size_t l = e ? (size_t)(e - list) : strlen(list);
-        /* An entry ending in '*' matches a prefix. */
         if (l && list[l - 1] == '*' ? !strncmp(list, name, l - 1) : (l == n && !strncmp(list, name, n))) return 1;
         if (!e) break;
         list = e + 1;

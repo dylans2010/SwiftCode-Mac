@@ -9,14 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// T-GEST (10-plan.md §3.2): synthetic touch streams on the headless host
-// against 06-app-and-components.md §7 — taps on touch-up, double tap
-// (120 ms) firing only the double-tap action, long press 0.5 s with the
-// pressing sequence, drag (minimum distance 10, velocity, predicted end =
-// translation + 0.25 × velocity), simultaneous tap + drag; plus the
-// arbitration rules of GestureRuntime.swift, hit testing and hover.
-
-/// A 100 × 100 target centred at (100, 100): spans 50…150.
 private let target = CGPoint(x: 100, y: 100)
 
 @MainActor
@@ -33,7 +25,6 @@ struct GestureTests {
         h.pointer(.up, target, at: 1.08)
         h.run(until: 1.08)
         #expect(log.entries == ["tap"])
-        // Outside the view: nothing.
         h.tap(CGPoint(x: 300, y: 300), at: 2.0)
         #expect(log.entries == ["tap"])
     }
@@ -58,12 +49,10 @@ struct GestureTests {
                 .onTapGesture { log.add("single") }
                 .position(target)
         }
-        // Two taps 120 ms apart (06 §7).
         h.tap(target, at: 1.0, duration: 0.04)
         h.tap(target, at: 1.12, duration: 0.04)
         h.run(until: 2.0)
         #expect(log.entries == ["double"])
-        // One tap: the single-tap action, once the double tap gave up.
         log.clear()
         h.tap(target, at: 3.0, duration: 0.04)
         h.run(until: 3.2)
@@ -90,7 +79,6 @@ struct GestureTests {
         h.pointer(.up, target, at: 1.8)
         h.run(until: 1.8)
         #expect(log.entries == ["pressing true", "action", "pressing false"])
-        // Released early: no action.
         log.clear()
         h.pointer(.down, target, at: 3.0)
         h.pointer(.up, target, at: 3.2)
@@ -108,10 +96,8 @@ struct GestureTests {
                     .onEnded { ended.append($0) })
                 .position(target)
         }
-        // 20 steps of (6, 0) at 60 Hz: 360 pt/s.
         let start = CGPoint(x: 70, y: 100)
         h.drag(from: start, delta: CGSize(width: 6, height: 0), steps: 20, at: 1.0)
-        // First onChanged once the translation reached 10 (third step: 12).
         #expect(changes.first?.translation.width == 12)
         #expect(changes.count == 19)
         #expect(changes.first?.startLocation == CGPoint(x: 20, y: 50))
@@ -146,7 +132,6 @@ struct GestureTests {
         h.drag(from: CGPoint(x: 60, y: 100), delta: CGSize(width: 5, height: 0), steps: 10, at: 1.0)
         h.run(until: 1.5)
         #expect(log.entries == ["drag ended"])
-        // A plain tap still taps (the drag fails without movement).
         log.clear()
         h.tap(target, at: 2.0)
         #expect(log.entries == ["tap"])
@@ -179,7 +164,6 @@ struct GestureTests {
         let h = Harness { StateDragView { seen.append($0) } }
         h.drag(from: CGPoint(x: 60, y: 100), delta: CGSize(width: 5, height: 0), steps: 6, at: 1.0)
         h.run(until: 1.2)
-        // Values written while dragging, then the reset to 0 at the end.
         #expect(seen.contains { $0 >= 20 })
         #expect(seen.last == 0)
     }
@@ -260,7 +244,6 @@ struct GestureTests {
                     .onTapGesture { log.add("shaped") }
             }
         }
-        // The window is 400 × 400; the two 40-pt rows are centred.
         let gapTop = CGPoint(x: 200, y: 180), gapBottom = CGPoint(x: 200, y: 220)
         h.tap(gapTop, at: 1.0)
         h.tap(gapBottom, at: 2.0)
@@ -275,7 +258,6 @@ struct GestureTests {
         }
         h.tap(target, at: 1.0)
         #expect(log.entries == ["action"])
-        // Dragged away before release: no action.
         h.pointer(.down, target, at: 2.0)
         h.pointer(.moved, CGPoint(x: 300, y: 300), at: 2.05)
         h.pointer(.up, CGPoint(x: 300, y: 300), at: 2.1)
@@ -316,7 +298,6 @@ struct GestureTests {
         h.hover(CGPoint(x: 70, y: 70), at: 1.2)
         h.hover(CGPoint(x: 300, y: 300), at: 1.3)
         h.run(until: 1.4)
-        // The outer modifier (continuous) is nearer the root, so it hears first.
         #expect(log.entries == ["at 10,20", "enter", "at 20,20", "ended", "exit"])
     }
 
@@ -337,7 +318,6 @@ struct GestureTests {
     }
 }
 
-/// A view whose `@GestureState` follows a drag's horizontal translation.
 struct StateDragView: View {
     let report: (CGFloat) -> Void
     @GestureState private var offset: CGFloat = 0

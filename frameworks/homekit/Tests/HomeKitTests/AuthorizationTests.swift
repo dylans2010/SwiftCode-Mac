@@ -1,7 +1,3 @@
-// T-O3 / T-O4: authorization states and callbacks, usage string and
-// entitlement requirements, the no-account mode (simulator-baseline.md §2–§5,
-// checklist HK-B01–B08).
-
 import Foundation
 import Testing
 @testable import HomeKit
@@ -31,7 +27,6 @@ struct AuthorizationTests {
         #expect(m.authorizationStatus == [.determined, .authorized])
         #expect(prompts.value == 1)
 
-        // Later launches: 5 right after init, homes callback, no prompt.
         let r2 = Recorder()
         let m2 = HMHomeManager(swiftcodeStore: store, client: client())
         m2.delegate = r2

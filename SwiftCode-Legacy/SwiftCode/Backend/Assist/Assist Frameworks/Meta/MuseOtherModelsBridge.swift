@@ -1,13 +1,3 @@
-//
-//  MuseOtherModelsBridge.swift
-//  SwiftCode
-//
-//  Bridge enabling the Meta Muse SDK / "Assist with Meta" to use third-party API models
-//  (from saved API Providers: OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Qwen)
-//  and Custom Model Setups (from CustomEndpointManager), with automatic rate-limit failover.
-//  Preserves 100% of the native Muse SDK MSP protocol while redirecting model requests.
-//
-
 import Foundation
 import Network
 import Combine
@@ -15,7 +5,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.MetaAssist", category: "MuseOtherModelsBridge")
 
-// MARK: - Thread-safe Streaming State Holder
 private final class GenerationState: @unchecked Sendable {
     private let lock = NSLock()
     private var _fullGeneratedText = ""
@@ -53,7 +42,6 @@ private final class GenerationState: @unchecked Sendable {
 
         _fullGeneratedText += token
 
-        // Handle `<think>` tags emitted by reasoning models (DeepSeek-R1, QwQ, etc.)
         if token.contains("<think>") {
             _isInThinkingBlock = true
             let cleaned = token.replacingOccurrences(of: "<think>", with: "")
@@ -97,14 +85,10 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
 
     private init() {}
 
-    // MARK: - Model Resolution
-
-    /// Discovers all candidate other models available for use with the Meta SDK.
     public func availableOtherModels(onlyUseFree: Bool? = nil) -> [AssistAvailableModel] {
         let effectiveOnlyUseFree = onlyUseFree ?? AppSettings.shared.onlyUseFreeModels
         let discovered = AssistModelDiscoveryService.shared.discoveredModels
 
-        // Filter out native Meta models so we only return other models
         var models = discovered.filter { model in
             model.providerID != MetaAssistProvider.providerID &&
             !model.modelIdentifier.hasPrefix("muse-") &&
@@ -112,7 +96,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             !model.isCurrentlyRateLimited
         }
 
-        // Include any custom endpoint models that might not have been indexed yet
         for endpoint in CustomEndpointManager.shared.endpoints {
             for modelID in endpoint.models {
                 if !models.contains(where: { $0.modelIdentifier == modelID }) {
@@ -133,7 +116,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             }
         }
 
-        // Include SwiftCode Cloud Models
         let cloudModels = SCCloudModelDiscovery.shared.models
         if !cloudModels.isEmpty {
             for cloud in cloudModels {
@@ -172,12 +154,10 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             }
         }
 
-        // Apply strict free-model filter if requested
         if effectiveOnlyUseFree {
             models = AssistModelEligibilityPolicy.filterEligible(models, onlyUseFreeModels: true, idKeyPath: \.modelIdentifier)
         }
 
-        // Provide standard fallbacks if list is still empty
         if models.isEmpty {
             if effectiveOnlyUseFree {
                 models.append(AssistAvailableModel(id: "openrouter/free", displayName: "OpenRouter Free", providerID: "openrouter", providerName: "OpenRouter", modelIdentifier: "openrouter/free", source: .openRouter, isAvailable: true, supportsToolCalling: true, supportsAgenticUse: true))
@@ -193,12 +173,10 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         return models
     }
 
-    /// Resolves the active model to power the Muse SDK bridge.
     public func resolveActiveModel() -> (modelID: String, displayName: String, provider: String) {
         let settings = AppSettings.shared
         let onlyFree = settings.onlyUseFreeModels
 
-        // 1. User explicitly selected a model for the Meta bridge
         if !settings.metaSelectedOtherModelID.isEmpty {
             let modelID = settings.metaSelectedOtherModelID
             if SCCloudConfiguration.isCloudModelID(modelID) {
@@ -219,7 +197,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             }
         }
 
-        // 2. Custom Model Setup from CustomEndpointManager
         if let firstEndpoint = CustomEndpointManager.shared.endpoints.first {
             let eligibleEndpointModels = AssistModelEligibilityPolicy.filterEligibleModelIDs(firstEndpoint.models, onlyUseFreeModels: onlyFree)
             if let firstModel = eligibleEndpointModels.first {
@@ -227,7 +204,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             }
         }
 
-        // 3. User's overall selected assist model (if not a meta model)
         let generalModel = settings.selectedAssistModelID
         if !generalModel.isEmpty && !generalModel.hasPrefix("muse-") {
             if SCCloudConfiguration.isCloudModelID(generalModel) {
@@ -244,19 +220,14 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             }
         }
 
-        // 4. First agent-compatible model from discovered providers
         let available = availableOtherModels(onlyUseFree: onlyFree)
         if let best = available.first(where: { $0.supportsAgenticUse && $0.supportsToolCalling }) ?? available.first {
             return (best.modelIdentifier, best.displayName, best.providerName)
         }
 
-        // 5. Default reliable fallback
         return onlyFree ? ("openrouter/free", "OpenRouter Free", "OpenRouter") : ("gpt-4o", "OpenAI GPT-4o", "OpenAI")
     }
 
-    // MARK: - Turn Execution
-
-    /// Executes an Assist turn using the user's chosen third-party/custom model under the Muse SDK architecture.
     public func executeTurn(
         prompt: String,
         history: [AssistMessage] = [],
@@ -274,7 +245,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             SCCloudDeviceFingerprint.ensureFingerprint()
         }
 
-        // Enforce execution-time free model eligibility check
         if onlyFree && !SCCloudConfiguration.isCloudModelID(resolved.modelID) {
             try AssistModelEligibilityPolicy.validateExecutionEligibility(
                 modelID: resolved.modelID,
@@ -285,7 +255,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
 
         logger.info("MuseOtherModelsBridge executing turn with model: \(resolved.modelID) (Provider: \(resolved.provider))")
 
-        // 1. Prepare Canonical Assist & SystemIndex Instructions
         await SystemIndexService.shared.ensureReady()
         let baselinePrompt = SystemIndexService.shared.baselinePrompt()
         let instructionQuery = InstructionQueryContext(
@@ -298,7 +267,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
         let retrievedInstructions = instructionRetrieval.formattedForPrompt()
 
-        // 2. Build SwiftCode Native Tool Specifications
         let systemTools = AssistManager.shared.registry.allTools
         let toolSpecs = systemTools.map { tool in
             var spec = "- \(tool.id): \(tool.description)"
@@ -387,14 +355,12 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             messages.append(AIMessage(role: .user, content: prompt))
         }
 
-        // 3. Simulated Thinking Tier Header (if thinking effort configured)
         let effort = AppSettings.shared.metaReasoningEffort.isEmpty ? "high" : AppSettings.shared.metaReasoningEffort
         if effort != "none" {
             let initialThought = "Analyzing task and dependencies with \(resolved.displayName) (Effort: \(effort))...\n"
             onThinkingDelta?(initialThought)
         }
 
-        // 4. Stream response from LLMService with multi-turn tool continuation loop
         var conversationMessages = messages
         let currentTask = Task {
             var turnIndex = 0
@@ -414,14 +380,11 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
                     }
                 )
 
-                // 5. Inspect and execute any tool calls embedded in the generation
                 let toolExecutions = await self.parseAndExecuteToolCalls(in: state.fullGeneratedText, workspaceRoot: workspaceRoot)
                 guard !toolExecutions.isEmpty else {
-                    // No further tool calls: the model produced its final response.
                     break
                 }
 
-                // Append assistant response and tool feedback to conversation for continuation
                 conversationMessages.append(AIMessage(role: .assistant, content: state.fullGeneratedText))
                 let feedback = toolExecutions.map { "Tool \($0.toolName) result:\n\($0.output)" }.joined(separator: "\n\n")
                 conversationMessages.append(AIMessage(
@@ -440,7 +403,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         public let output: String
     }
 
-    /// Parses tool calls in the output (e.g. ```tool_call blocks) and triggers SwiftCode's native execution.
     @discardableResult
     private func parseAndExecuteToolCalls(in text: String, workspaceRoot: String) async -> [ToolExecutionSummary] {
         guard text.contains("```tool_call") || text.contains("<tool_call>") else { return [] }
@@ -465,7 +427,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
 
             AssistManager.shared.reportToolStarted(callId: callId, toolName: toolName, arguments: args)
 
-            // Execute the system tool if registered
             if let tool = AssistManager.shared.registry.getTool(toolName) {
                 do {
                     let projectURL = URL(fileURLWithPath: workspaceRoot)
@@ -478,8 +439,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
                     )
                     let context = builder.buildContext(sessionId: UUID())
                     let result = try await tool.execute(input: args, context: context)
-                    // Canonical model-facing payload (sections, caps, range
-                    // metadata, error taxonomy) instead of output-only text.
                     let outputText = AssistToolResultFormatter.modelFacingPayload(toolId: toolName, result: result)
                     AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: outputText, arguments: args)
                     results.append(ToolExecutionSummary(toolName: toolName, output: outputText))
@@ -497,16 +456,12 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         return results
     }
 
-    /// Cancels active turn execution.
     public func cancelTurn() async {
         stateHolder.cancel()
         activeTask?.cancel()
         activeTask = nil
     }
 
-    // MARK: - Local Loopback Proxy Server Management
-
-    /// Starts the local HTTP translation proxy for `--base-url` interception if requested.
     public func ensureLocalProxyServerStarted() async throws -> URL {
         if let existing = proxyServer, existing.isRunning {
             return existing.serverURL
@@ -522,8 +477,6 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         proxyServer = nil
     }
 }
-
-// MARK: - Muse Local Proxy Translation Server
 
 public final class MuseLocalProxyServer: @unchecked Sendable {
     private var listener: NWListener?
@@ -617,7 +570,6 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
             let active = MuseOtherModelsBridge.shared.resolveActiveModel()
 
             if path.hasPrefix("/muse-code/models") || path == "/models" || path == "/v1/models" {
-                // Serve dynamic catalog containing user's other models
                 let catalog: [String: Any] = [
                     "object": "list",
                     "data": [
@@ -657,7 +609,6 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
                     connection.cancel()
                 }))
             } else if path.hasPrefix("/responses") || path.hasPrefix("/v1/responses") || path.hasPrefix("/chat/completions") {
-                // Stream SSE completions for `/responses`
                 let headers = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
                 connection.send(content: Data(headers.utf8), completion: .contentProcessed({ _ in }))
 

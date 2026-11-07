@@ -1,20 +1,6 @@
-/*
- * thread.c - thread identity, stacks, names, cancellation, exit, signals,
- * and scheduling functions of SwiftCode's libsystem_pthread.
- *
- * Clean-room SwiftCode code, from the public pthread(3) man pages, POSIX
- * threads, the Darwin _np function documentation, and
- * host-library-init.md sections 3 and 5.
- *
- * Thread creation, exit, join and detach are in create.c; the per-thread
- * queries here accept any thread on the library's thread list (the main
- * thread, pthread_create threads, and workqueue threads).
- */
 #include "yc_pthread.h"
 
 typedef yc_pthread_t pthread_t;
-
-/* ---- identity ----------------------------------------------------------- */
 
 YC_EXPORT pthread_t YC_FN(pthread_self)(void)
 {
@@ -66,8 +52,6 @@ YC_EXPORT int YC_FN(pthread_threadid_np)(pthread_t t, yc_u64 *out)
             id = 1;
         YC_STORE(&t->thread_id, id);
     }
-    /* A new thread records its ID first thing; wait for that (a thread
-     * created suspended has none until it is resumed). */
     while (id == 0) {
         if (YC_LOAD(&t->flags) & YC_TF_SUSPENDED)
             return YC_ESRCH;
@@ -122,8 +106,6 @@ YC_EXPORT int YC_FN(pthread_cpu_number_np)(yc_size_t *cpu)
     return 0;
 }
 
-/* ---- stacks ------------------------------------------------------------- */
-
 YC_EXPORT void *YC_FN(pthread_get_stackaddr_np)(pthread_t t)
 {
     if (!__yc_thread_valid(t))
@@ -159,8 +141,6 @@ YC_EXPORT yc_uintptr_t YC_FN(pthread_stack_frame_decode_np)(yc_uintptr_t frame, 
     return fp[0];
 }
 
-/* ---- names -------------------------------------------------------------- */
-
 YC_EXPORT int YC_FN(pthread_setname_np)(const char *name)
 {
     yc_pthread_t self = __yc_self();
@@ -185,8 +165,6 @@ YC_EXPORT int YC_FN(pthread_getname_np)(pthread_t t, char *buf, yc_size_t len)
     buf[i] = 0;
     return 0;
 }
-
-/* ---- cancellation ------------------------------------------------------- */
 
 static void act_on_cancel(yc_pthread_t self)
 {
@@ -235,9 +213,6 @@ YC_EXPORT int YC_FN(pthread_cancel)(pthread_t t)
     return 0;
 }
 
-/* Called from libsystem_kernel's cerror (through libSystem's table) after
- * a failed system call: an interrupted cancellation point acts on a
- * pending cancellation. */
 YC_EXPORT void YC_FN(_pthread_exit_if_canceled)(int error)
 {
     if ((error & 0xff) != YC_EINTR)
@@ -257,10 +232,6 @@ YC_EXPORT int YC_FN(pthread_self_is_exiting_np)(void)
     return (__yc_self()->flags & YC_TF_EXITING) != 0;
 }
 
-/* ---- exit, join, detach: create.c ---------------------------------------- */
-
-/* ---- signals ------------------------------------------------------------ */
-
 static int errno_value(void)
 {
     int e = *YC_KFN(__error)();
@@ -279,8 +250,6 @@ YC_EXPORT int YC_FN(pthread_kill)(pthread_t t, int sig)
     return 0;
 }
 
-/* Stage 3a has one thread, so the process mask is the thread's mask
- * (sigprocmask, which libsystem_platform also relies on). */
 YC_EXPORT int YC_FN(pthread_sigmask)(int how, const yc_u32 *set, yc_u32 *oset)
 {
     if (YC_KFN(sigprocmask)(how, set, oset) == -1)
@@ -313,8 +282,6 @@ YC_EXPORT int yc_sigwait_nocancel(const yc_u32 *set, int *sig)
     return do_sigwait(set, sig);
 }
 
-/* ---- scheduling --------------------------------------------------------- */
-
 struct yc_sched_param {
     int sched_priority;
     char opaque[4];
@@ -325,7 +292,6 @@ static yc_bool valid_policy(int policy)
     return policy == YC_SCHED_OTHER || policy == YC_SCHED_RR || policy == YC_SCHED_FIFO;
 }
 
-/* A real yield: swtch_pri (Mach trap -59) gives up the CPU. */
 YC_EXPORT int YC_FN(sched_yield)(void)
 {
     YC_CPU_YIELD();
@@ -407,7 +373,6 @@ YC_EXPORT int YC_FN(pthread_setconcurrency)(int level)
     return 0;
 }
 
-/* Number of active CPUs from the commpage (ACTIVE_CPUS, RW page 0x034). */
 static int active_cpus(void)
 {
 #if defined(YC_HOST_TEST)
@@ -434,8 +399,6 @@ YC_EXPORT int YC_FN(pthread_time_constraint_max_parallelism)(unsigned long flags
     return active_cpus();
 }
 
-/* ---- per-thread working directory (kernel calls) ------------------------ */
-
 YC_EXPORT int YC_FN(pthread_chdir_np)(const char *path)
 {
     return YC_KFN(__pthread_chdir)(path);
@@ -445,8 +408,6 @@ YC_EXPORT int YC_FN(pthread_fchdir_np)(int fd)
 {
     return YC_KFN(__pthread_fchdir)(fd);
 }
-
-/* ---- introspection and miscellaneous SPI -------------------------------- */
 
 YC_EXPORT void *YC_FN(pthread_introspection_hook_install)(void *hook)
 {
@@ -498,11 +459,9 @@ YC_EXPORT void YC_FN(_pthread_mutex_enable_legacy_mode)(void)
 {
 }
 
-/* ---- dependencies (one-shot value hand-off to a waiting thread) --------- */
-
 struct yc_dependency {
-    yc_u32 owner;  /* the owner's thread port */
-    yc_u32 state;  /* 0 pending, 1 fulfilled */
+    yc_u32 owner;
+    yc_u32 state;
     void *value;
 };
 
@@ -524,6 +483,6 @@ YC_EXPORT void YC_FN(pthread_dependency_fulfill_np)(struct yc_dependency *d, voi
 YC_EXPORT void *YC_FN(pthread_dependency_wait_np)(struct yc_dependency *d)
 {
     while (YC_LOAD_ACQ(&d->state) == 0)
-        __yc_wait32(&d->state, 0, 0); /* blocks in the kernel */
+        __yc_wait32(&d->state, 0, 0);
     return d->value;
 }

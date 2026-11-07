@@ -1,26 +1,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - SDKStudioAPIKeysView
-//
-// Studio → Settings → Developer API Keys (spec §8.2.1).
-//
-// Lists the host's developer API keys (metadata only — secrets are never
-// stored, so they are never listed), generates new keys through
-// `SDKAPIKeyStore.createKey`, and revokes keys through
-// `SDKAPIKeyStore.revoke(id:)` with a confirmation step. Revoked keys stay
-// listed as revoked: the list is an audit trail.
-//
-// SECURITY CONTRACT (mirrors `SDKAPIKeyStore`):
-// - The one-time secret is displayed EXACTLY ONCE in the generation sheet.
-//   It is never logged, never persisted, never embedded in an error, and is
-//   cleared from memory (`secret = nil`) when the user presses Done or the
-//   sheet is otherwise dismissed.
-// - Only key prefixes are shown (`sc_dev_live…` / `sc_dev_test…`), never a
-//   secret or any part of one.
-// - SwiftUI + Foundation only: no AppKit import. The Copy button writes via
-//   `/usr/bin/pbcopy` through `Foundation.Process`.
-
 public struct SDKStudioAPIKeysView: View {
     public init() {}
 
@@ -78,8 +58,6 @@ public struct SDKStudioAPIKeysView: View {
             }
         }
     }
-
-    // MARK: - List
 
     private var keyList: some View {
         List(keys, id: \.id) { key in
@@ -175,8 +153,6 @@ public struct SDKStudioAPIKeysView: View {
             .background(.quaternary, in: Capsule())
     }
 
-    /// Granted Assist entitlements (`com.SwiftCode.developer-AI-*`) — only
-    /// ever added through the Assist access approval flow.
     private func entitlementChip(_ text: String) -> some View {
         Text(text)
             .font(.caption.monospaced())
@@ -185,8 +161,6 @@ public struct SDKStudioAPIKeysView: View {
             .background(Color.purple.opacity(0.15), in: Capsule())
             .foregroundStyle(.purple)
     }
-
-    // MARK: - Empty state
 
     private var emptyState: some View {
         ContentUnavailableView {
@@ -198,8 +172,6 @@ public struct SDKStudioAPIKeysView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    // MARK: - Errors
 
     private func errorBanner(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
@@ -223,8 +195,6 @@ public struct SDKStudioAPIKeysView: View {
         .padding(.top, 8)
     }
 
-    // MARK: - Store access
-
     @MainActor
     private func loadKeys() async {
         keys = await SDKAPIKeyStore.shared.list()
@@ -241,9 +211,6 @@ public struct SDKStudioAPIKeysView: View {
         }
     }
 
-    /// Renders the user-safe `SDKError` message (plus suggestion) inline.
-    /// Per the store's contract, no error from the key system ever carries
-    /// secret material, so this is safe to display verbatim.
     @MainActor
     private func presentError(_ error: Error) {
         if let sdkError = error as? SDKError {
@@ -255,19 +222,11 @@ public struct SDKStudioAPIKeysView: View {
         }
     }
 
-    // MARK: - RevokeTarget
-
     private struct RevokeTarget: Identifiable {
         let id: UUID
         let label: String
     }
 
-    // MARK: - GenerateKeySheet
-
-    /// Key generation sheet. Two phases: the form, then — after a successful
-    /// `createKey` — the one-time secret reveal. The secret `String` is held
-    /// only in `@State` and is set to `nil` on Done or on any dismissal, so
-    /// it cannot outlive the sheet.
     private struct GenerateKeySheet: View {
         var onCreated: () -> Void
 
@@ -300,13 +259,10 @@ public struct SDKStudioAPIKeysView: View {
             .liquidGlass(style: .sheet, cornerRadius: 12)
             .interactiveDismissDisabled(secret != nil)
             .onDisappear {
-                // Belt-and-braces: the one-time secret must not survive the sheet.
                 secret = nil
                 didCopy = false
             }
         }
-
-        // MARK: Form
 
         private var canGenerate: Bool {
             !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -400,8 +356,6 @@ public struct SDKStudioAPIKeysView: View {
             isCreating = true
             defer { isCreating = false }
             do {
-                // The secret is returned exactly once; it is never logged,
-                // persisted, or embedded in an error by the store.
                 let result = try await SDKAPIKeyStore.shared.createKey(
                     label: trimmed,
                     scopes: selectedScopes,
@@ -413,8 +367,6 @@ public struct SDKStudioAPIKeysView: View {
                 presentError(error)
             }
         }
-
-        // MARK: One-time secret reveal
 
         private func revealView(secret: String) -> some View {
             VStack(alignment: .leading, spacing: 16) {
@@ -454,8 +406,6 @@ public struct SDKStudioAPIKeysView: View {
                     .disabled(didCopy)
                     Spacer()
                     Button("Done") {
-                        // This was the secret's one and only display: clear it
-                        // from memory before dismissing.
                         self.secret = nil
                         didCopy = false
                         dismiss()
@@ -465,8 +415,6 @@ public struct SDKStudioAPIKeysView: View {
             }
         }
 
-        /// Foundation-only clipboard write (no AppKit import): pipes the
-        /// secret to `/usr/bin/pbcopy`. The secret is never logged.
         private func copySecretToClipboard(_ value: String) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/pbcopy", isDirectory: false)

@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/Services/DatabaseHistoryService.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: QueryHistoryItem, SavedQueryItem.
-
 import Foundation
 
 public struct QueryHistoryItem: Identifiable, Codable, Hashable {
@@ -9,7 +6,7 @@ public struct QueryHistoryItem: Identifiable, Codable, Hashable {
     public var timestamp: Date
     public var executionTimeMs: Double
     public var rowsAffected: Int
-    public var status: String // "SUCCESS" or "ERROR"
+    public var status: String
     public var errorMessage: String?
 
     public init(id: UUID = UUID(), sql: String, timestamp: Date = Date(), executionTimeMs: Double, rowsAffected: Int, status: String, errorMessage: String? = nil) {

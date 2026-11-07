@@ -41,11 +41,9 @@ import Testing
         #expect(WorkspaceSearch.search("greet", inText: text, options: .init(ignoreCase: false)).map(\.line) == [1, 2])
         #expect(WorkspaceSearch.search("greet", inText: text, options: .init(wholeWord: true)).map(\.line) == [1, 3])
         #expect(WorkspaceSearch.search("greet", inText: text, options: .init(wholeWord: true, ignoreCase: false)).map(\.line) == [1])
-        // Text mode escapes metacharacters; regex mode does not.
         #expect(WorkspaceSearch.search("a.b", inText: text).count == 1)
         #expect(WorkspaceSearch.search("a.b", inText: text, options: .init(regularExpression: true)).count == 2)
         #expect(WorkspaceSearch.search("gree(t|ting)\\(", inText: text, options: .init(regularExpression: true)).map(\.line) == [2, 3])
-        // An invalid expression finds nothing instead of failing.
         #expect(WorkspaceSearch.search("(", inText: text, options: .init(regularExpression: true)).isEmpty)
         #expect(WorkspaceSearch.search("^", inText: text, options: .init(regularExpression: true)).isEmpty)
     }

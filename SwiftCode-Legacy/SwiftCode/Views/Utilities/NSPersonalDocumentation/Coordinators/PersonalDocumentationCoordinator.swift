@@ -20,10 +20,8 @@ public final class WorkspaceState {
 @Observable
 @MainActor
 public final class PersonalDocumentationCoordinator {
-    // AppKit Sidebar Properties
     public var outlineView: NSOutlineView? = nil
 
-    // Isolated Workspace States
     public var workspaceStates: [ModuleKind: WorkspaceState] = [:]
 
     public func state(for kind: ModuleKind) -> WorkspaceState {
@@ -38,7 +36,6 @@ public final class PersonalDocumentationCoordinator {
     public let projectID: UUID
     public let projectURL: URL
 
-    // Core Managers
     public let storage: StorageManager
     public let documents: DocumentManager
     public let dashboard: DashboardManager
@@ -59,14 +56,12 @@ public final class PersonalDocumentationCoordinator {
     public let importer: ImportManager
     public let templates: TemplateManager
 
-    // Ecosystem Extensions
     public let whiteboards: WhiteboardManager
     public let snippets: SnippetManager
     public let snapshots: SnapshotManager
     public let timeline: EcosystemTimelineManager
     public let intelligence: IntelligenceManager
 
-    // Navigation state
     public var selectedModuleKind: ModuleKind? = .dashboard {
         didSet {
             NotificationCenter.default.post(name: NSNotification.Name("PersonalDocSelectionChanged"), object: nil)
@@ -105,7 +100,6 @@ public final class PersonalDocumentationCoordinator {
         self.projectID = projectID
         self.projectURL = projectURL
 
-        // Initialize Core Managers
         let storageManager = try StorageManager(projectURL: projectURL)
         self.storage = storageManager
 
@@ -130,14 +124,12 @@ public final class PersonalDocumentationCoordinator {
         self.importer = ImportManager()
         self.templates = TemplateManager(storage: storageManager, projectID: projectID)
 
-        // Initialize Ecosystem Extensions
         self.whiteboards = WhiteboardManager(storage: storageManager, projectID: projectID)
         self.snippets = SnippetManager(storage: storageManager, projectID: projectID)
         self.snapshots = SnapshotManager(storage: storageManager, projectID: projectID)
         self.timeline = EcosystemTimelineManager(storage: storageManager, projectID: projectID)
         self.intelligence = IntelligenceManager(projectID: projectID)
 
-        // Initialize AppKit Sidebar elements
         self.nodes = buildSidebarNodes()
 
         try? self.templates.seedDefaultTemplates()

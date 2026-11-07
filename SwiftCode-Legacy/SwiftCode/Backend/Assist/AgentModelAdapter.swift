@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Assist v3 Canonical Model Abstraction & Capabilities
-
 public struct ModelCapabilities: OptionSet, Sendable, Codable {
     public let rawValue: Int
 
@@ -64,8 +62,6 @@ public struct ModelSpecification: Identifiable, Sendable, Codable {
     }
 }
 
-// MARK: - Canonical Model Adapter
-
 @MainActor
 public final class AgentModelAdapter: Sendable {
     public static let shared = AgentModelAdapter()
@@ -73,14 +69,7 @@ public final class AgentModelAdapter: Sendable {
 
     private init() {}
 
-    /// Canonical registry of known model specifications & capabilities
     public func specification(for modelId: String) -> ModelSpecification {
-        // OpenCode first: a stored `opencode:anthropic/claude-…` id would
-        // otherwise match the `claude`/`anthropic` branches below and be
-        // misreported (and misrouted) as a direct Anthropic model.
-        // Context is a conservative 128k default: the underlying OpenCode
-        // model's true limit varies, and specification() is synchronous
-        // so it cannot consult the server's catalog here.
         if let openCode = OpenCodeModelID.parse(modelId) {
             return ModelSpecification(
                 id: modelId,
@@ -206,29 +195,24 @@ public final class AgentModelAdapter: Sendable {
         return contextBudget(for: modelId).fitsContext(estimatedTokens: estimatedTokenCount(for: text, modelId: modelId))
     }
 
-    /// Normalizes outgoing prompt structure based on model capabilities
     public func normalizePrompt(systemPrompt: String, userInstructions: String, for modelId: String) -> String {
         let spec = specification(for: modelId)
 
         if spec.capabilities.contains(.systemInstructions) {
             return "\(systemPrompt)\n\n# TASK EXECUTION INSTRUCTIONS\n\(userInstructions)"
         } else {
-            // Merge system prompt into user instruction block for models without native system support
             return "SYSTEM DIRECTIVES:\n\(systemPrompt)\n\nUSER REQUEST:\n\(userInstructions)"
         }
     }
 
-    /// Robust JSON extraction and recovery algorithm that repairs malformed outputs, strips fences, and locates boundaries.
     public func extractJSON(from response: String) -> [String: Any]? {
         let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 1. Direct JSON attempt
         if let data = trimmed.data(using: .utf8),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             return json
         }
 
-        // 2. Fenced Markdown block extraction (```json ... ``` or ``` ...)
         let patterns = ["```json", "```JSON", "```"]
         for pattern in patterns {
             if let startRange = trimmed.range(of: pattern) {
@@ -243,7 +227,6 @@ public final class AgentModelAdapter: Sendable {
             }
         }
 
-        // 3. Regex boundary scanner ({ ... })
         if let firstBrace = trimmed.firstIndex(of: "{"),
            let lastBrace = trimmed.lastIndex(of: "}"),
            firstBrace < lastBrace {
@@ -253,7 +236,6 @@ public final class AgentModelAdapter: Sendable {
                 return json
             }
 
-            // 4. Recovery: Sanitize trailing commas and missing quotes
             let sanitized = sanitizeJSONString(block)
             if let data = sanitized.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -264,16 +246,13 @@ public final class AgentModelAdapter: Sendable {
         return nil
     }
 
-    /// Sanitizes trailing commas and common syntax mistakes produced by LLMs.
     private func sanitizeJSONString(_ raw: String) -> String {
         var cleaned = raw
-        // Remove trailing commas before closing braces/brackets
         cleaned = cleaned.replacingOccurrences(of: ",\\s*}", with: "}", options: .regularExpression)
         cleaned = cleaned.replacingOccurrences(of: ",\\s*]", with: "]", options: .regularExpression)
         return cleaned
     }
 
-    /// Dispatches prompt with exponential backoff and rate limit recovery.
     public func queryModel(
         prompt: String,
         modelId: String,
@@ -330,22 +309,7 @@ public final class AgentModelAdapter: Sendable {
         throw lastError ?? NSError(domain: "AgentModelAdapter", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed after \(maxRetries) attempts."])
     }
 
-    /// Streams each model delta to the Assist execution loop instead of waiting for a
-    /// complete response. The agent response is still validated as one complete JSON
-    /// object before any tool is allowed to execute.
     public func streamQueryModel(prompt: String, modelId: String, attachments: [AIMessageAttachment]? = nil, systemPrompt: String = "", directory: String? = nil) async throws -> AsyncThrowingStream<String, Error> {
-        // OpenCode seam. The caller (AssistAgentSession) passes SwiftCode's
-        // real system prompt and the workspace root; OpenCodeClient sends
-        // the system prompt in the prompt's `system` field and the turn
-        // prompt as a text part, names the `swiftcode` agent, and streams
-        // back text deltas. What comes back is parsed by the session
-        // exactly like any other provider's output: a JSON tool request is
-        // validated against the registry, permission-checked, executed by
-        // SwiftCode's tools, and its result is fed back on the next turn.
-        // OpenCode never executes tools on SwiftCode's behalf (its client
-        // fails a run closed if a tool part appears on the stream).
-        // `systemPrompt`/`directory` are intentionally ignored for other
-        // providers, preserving their existing behaviour byte for byte.
         if let openCode = OpenCodeModelID.parse(modelId) {
             return try await OpenCodeClient.shared.streamPrompt(
                 prompt: prompt,
@@ -373,9 +337,6 @@ public final class AgentModelAdapter: Sendable {
         }
     }
 
-    /// Extracts a complete JSON string value from an in-progress JSON response. This is
-    /// used to reveal the selected tool as soon as its identifier is fully streamed,
-    /// without attempting to execute incomplete arguments.
     public func extractStreamedStringValue(named key: String, from partialJSON: String) -> String? {
         let keyToken = "\"\(key)\""
         guard let keyRange = partialJSON.range(of: keyToken) else { return nil }
@@ -411,8 +372,6 @@ public final class AgentModelAdapter: Sendable {
         return nil
     }
 }
-
-// MARK: - Assist v4 Offline Model Fallback Provider
 
 public enum ModelFailureClassification: String, Codable, Sendable {
     case networkInterruption = "Network Interruption"
@@ -718,4 +677,3 @@ public final class OfflineFallbackManager: Sendable {
         )
     }
 }
-

@@ -3,7 +3,6 @@ import SwiftUI
 import AppKit
 #endif
 
-
 extension Color {
     init(hex: String) {
         let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

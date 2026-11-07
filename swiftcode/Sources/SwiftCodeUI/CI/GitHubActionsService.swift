@@ -2,28 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 
-/// The CI dashboard's service (gap closure, specs/ide/
-/// gap-closure-windows-artboards.md §6): the MINIMAL real
-/// GitHub Actions client — list runs, list jobs, fetch a job's
-/// logs, list workflows, re-run a run.
-///
-/// Legacy had two different things called "CI": the local-automation
-/// `WorkflowDashboardView` (Apple-Shortcuts-style local shell
-/// pipelines via `WorkflowManager` — not ported; SwiftCode has no
-/// workflow engine) and the real GitHub Actions surface
-/// (`WorkflowRunsView`: jobs + steps, console logs, artifacts,
-/// re-run via `POST /repos/{o}/{r}/actions/runs/{id}/rerun`).
-/// This service is the second one. It talks to api.github.com
-/// directly through an injectable `URLSession` (stubbed in tests,
-/// never live) with the stored GitHub token (`SecretAccount.
-/// githubToken`) as the Bearer token; without a token, public repos
-/// still read at GitHub's unauthenticated rate limit (the same rule
-/// as `GitHubClient`), and re-run fails honestly with a missing
-/// token. The dashboard shows an empty state — never fake runs —
-/// when the repo has none.
-///
-/// The `SwiftCodeGitHub` endpoints for this live in the §5.3 patch
-/// description of the spec; this adapter is used until it lands.
 public struct GitHubActionsService: Sendable {
     public var session: URLSession
     public var store: SecretStore
@@ -59,7 +37,6 @@ public struct GitHubActionsService: Sendable {
         return try decoder.decode(type, from: data)
     }
 
-    /// `GET /repos/{o}/{r}/actions/runs?per_page=30`.
     public func listRuns(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubWorkflowRun] {
         let (data, response) = try await session.data(for: request(path: "repos/\(owner)/\(repo)/actions/runs?per_page=\(perPage)"))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -68,7 +45,6 @@ public struct GitHubActionsService: Sendable {
         return try decode(GitHubWorkflowRunsResponse.self, from: data).workflowRuns
     }
 
-    /// `GET /repos/{o}/{r}/actions/runs/{id}/jobs`.
     public func listJobs(owner: String, repo: String, runID: Int) async throws -> [GitHubWorkflowJob] {
         let (data, response) = try await session.data(for: request(path: "repos/\(owner)/\(repo)/actions/runs/\(runID)/jobs"))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -77,8 +53,6 @@ public struct GitHubActionsService: Sendable {
         return try decode(GitHubWorkflowJobsResponse.self, from: data).jobs
     }
 
-    /// `GET /repos/{o}/{r}/actions/jobs/{id}/logs`. GitHub answers
-    /// with a redirect to the log archive; `URLSession` follows it.
     public func jobLogs(owner: String, repo: String, jobID: Int) async throws -> String {
         let (data, response) = try await session.data(for: request(path: "repos/\(owner)/\(repo)/actions/jobs/\(jobID)/logs"))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -87,7 +61,6 @@ public struct GitHubActionsService: Sendable {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// `GET /repos/{o}/{r}/actions/workflows`.
     public func listWorkflows(owner: String, repo: String) async throws -> [GitHubWorkflow] {
         let (data, response) = try await session.data(for: request(path: "repos/\(owner)/\(repo)/actions/workflows"))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -96,9 +69,6 @@ public struct GitHubActionsService: Sendable {
         return try decode(GitHubWorkflowsResponse.self, from: data).workflows
     }
 
-    /// `POST /repos/{o}/{r}/actions/runs/{id}/rerun`. Needs a
-    /// token (a re-run writes); without one this throws honestly
-    /// instead of attempting an unauthenticated write.
     public func rerun(owner: String, repo: String, runID: Int) async throws {
         guard let token, !token.isEmpty else {
             throw GitHubActionsError.missingToken
@@ -124,8 +94,6 @@ public enum GitHubActionsError: Error, LocalizedError, Equatable {
     }
 }
 
-/// One workflow run (GitHub REST shape; `convertFromSnakeCase`
-/// decoding — `workflow_runs` in the list response).
 public struct GitHubWorkflowRun: Codable, Sendable, Equatable, Identifiable {
     public var id: Int
     public var name: String?
@@ -156,7 +124,6 @@ struct GitHubWorkflowRunsResponse: Codable {
     var workflowRuns: [GitHubWorkflowRun]
 }
 
-/// One job in a run, with its steps (Legacy `WorkflowJob`).
 public struct GitHubWorkflowJob: Codable, Sendable, Equatable, Identifiable {
     public var id: Int
     public var name: String?
@@ -174,7 +141,6 @@ public struct GitHubWorkflowJob: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
-/// One step in a job (Legacy `WorkflowJob.steps`).
 public struct GitHubWorkflowStep: Codable, Sendable, Equatable {
     public var name: String?
     public var status: String?
@@ -193,7 +159,6 @@ struct GitHubWorkflowJobsResponse: Codable {
     var jobs: [GitHubWorkflowJob]
 }
 
-/// One workflow definition.
 public struct GitHubWorkflow: Codable, Sendable, Equatable, Identifiable {
     public var id: Int
     public var name: String?

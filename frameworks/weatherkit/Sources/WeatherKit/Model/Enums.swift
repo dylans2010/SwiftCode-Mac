@@ -1,11 +1,5 @@
-// WeatherKit enumerations: api.md §3.8, display strings behavior.md §6.
-//
-// String-backed enums use the case name as raw value (codable.md §1) and
-// are CaseIterable and CustomStringConvertible. The English labels are the
-// observed output values of behavior.md §6; the tables are SwiftCode's own.
 import Foundation
 
-/// The weather condition of a period.
 public enum WeatherCondition: String, CaseIterable, Codable, Hashable, Sendable, CustomStringConvertible {
     case blizzard
     case blowingDust
@@ -42,8 +36,6 @@ public enum WeatherCondition: String, CaseIterable, Codable, Hashable, Sendable,
     case windy
     case wintryMix
 
-    /// Title-case label (behavior.md §6): the case name in words, with the
-    /// listed exceptions.
     public var description: String {
         switch self {
         case .blowingDust: return "Dust"
@@ -56,11 +48,9 @@ public enum WeatherCondition: String, CaseIterable, Codable, Hashable, Sendable,
         }
     }
 
-    /// The description in lower case (behavior.md §6).
     public var accessibilityDescription: String { description.lowercased() }
 }
 
-/// The kind of precipitation.
 public enum Precipitation: String, CaseIterable, Codable, Hashable, Sendable, CustomStringConvertible {
     case none
     case hail
@@ -69,8 +59,6 @@ public enum Precipitation: String, CaseIterable, Codable, Hashable, Sendable, Cu
     case sleet
     case snow
 
-    /// Lower-case label; `mixed` reads "wintry mix", `none` is empty
-    /// (behavior.md §6).
     public var description: String {
         switch self {
         case .none: return ""
@@ -79,11 +67,9 @@ public enum Precipitation: String, CaseIterable, Codable, Hashable, Sendable, Cu
         }
     }
 
-    /// Same as `description` (the spec gives one label set).
     public var accessibilityDescription: String { description }
 }
 
-/// Direction of the pressure change.
 public enum PressureTrend: String, CaseIterable, Codable, Hashable, Sendable, CustomStringConvertible {
     case rising
     case falling
@@ -97,11 +83,9 @@ public enum PressureTrend: String, CaseIterable, Codable, Hashable, Sendable, Cu
         }
     }
 
-    /// Same as `description` (the spec gives one label set).
     public var accessibilityDescription: String { description }
 }
 
-/// Severity of a weather alert.
 public enum WeatherSeverity: String, CaseIterable, Codable, Hashable, Sendable, CustomStringConvertible {
     case minor
     case moderate
@@ -109,14 +93,11 @@ public enum WeatherSeverity: String, CaseIterable, Codable, Hashable, Sendable, 
     case extreme
     case unknown
 
-    /// The case name (behavior.md §6).
     public var description: String { rawValue }
 
-    /// Same as `description`.
     public var accessibilityDescription: String { description }
 }
 
-/// Phase of the moon.
 public enum MoonPhase: String, CaseIterable, Codable, Hashable, Sendable, CustomStringConvertible {
     case new
     case waxingCrescent
@@ -140,17 +121,13 @@ public enum MoonPhase: String, CaseIterable, Codable, Hashable, Sendable, Custom
         }
     }
 
-    /// Same as `description`.
     public var accessibilityDescription: String { description }
 
-    /// `moonphase.` followed by the description's words in lower case,
-    /// separated by dots (behavior.md §6).
     public var symbolName: String {
         "moonphase." + description.lowercased().split(separator: " ").joined(separator: ".")
     }
 }
 
-/// Splits lowerCamelCase case names into words.
 enum CaseName {
     static func words(_ name: String) -> [String] {
         var result: [String] = []

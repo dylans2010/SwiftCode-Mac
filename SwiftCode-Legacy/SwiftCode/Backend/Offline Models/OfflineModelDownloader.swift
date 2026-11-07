@@ -140,8 +140,6 @@ final class OfflineModelDownloader: ObservableObject {
         NotificationManager.shared.sendOfflineModelDownloadedNotification(modelName: model.modelName)
     }
 
-
-
     func resumePendingDownloadIfNeeded() async {
         guard !isDownloading else { return }
         guard let model = pendingBackgroundModel ?? persistedPendingDownload() else { return }
@@ -188,8 +186,6 @@ final class OfflineModelDownloader: ObservableObject {
         return "Full error: \(nsError)"
     }
 
-
-
     private func persistPendingDownload(_ model: OfflineModelMetadata) {
         guard let data = try? JSONEncoder().encode(model) else { return }
         UserDefaults.standard.set(data, forKey: pendingModelKey)
@@ -209,7 +205,6 @@ final class OfflineModelDownloader: ObservableObject {
 
         return model
     }
-
 
     private func ensureWritableDirectory(_ directoryURL: URL) throws {
         do {

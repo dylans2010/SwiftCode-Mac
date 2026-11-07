@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftCodeSubprocess
 
 public enum PreviewSessionState: String, Codable, Sendable {
     case init_state = "INIT"
@@ -13,14 +14,13 @@ public enum PreviewSessionState: String, Codable, Sendable {
     case failedNoPrior = "FAILED_NO_PRIOR"
 }
 
-/// Structured diagnostic model capturing compilation/validation failures.
 public struct PreviewDiagnosticModel: Sendable, Codable, Identifiable, Hashable {
     public var id: UUID { UUID() }
     public let stage: String
     public let subsystem: String
     public let file: String?
     public let line: Int?
-    public let severity: String // "error", "warning"
+    public let severity: String
     public let description: String
     public let suggestedFix: String?
     public let rawCompilerOutput: String
@@ -46,9 +46,6 @@ public struct PreviewDiagnosticModel: Sendable, Codable, Identifiable, Hashable 
     }
 }
 
-/// Structured Preview target model representing a parsed `#Preview`
-/// declaration (Legacy
-/// `SwiftCode/Core/Preview/PreviewDiscoveryService.swift`).
 public struct PreviewTarget: Sendable, Codable, Hashable, Identifiable {
     public var id: String { title }
     public let title: String
@@ -70,11 +67,10 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
     public let sourceFilePath: String
     public let targetViewName: String
     public var lastCompiledAt: Date
-    public var status: String // Compiling, Ready, Failed, Idle
+    public var status: String
     public var state: PreviewSessionState
-    public var activeNodeHashes: [String: Int] // Node ID -> properties hash for incremental change detection
+    public var activeNodeHashes: [String: Int]
 
-    // Centralized Build Pipeline Session details
     public var activeProject: String = "None"
     public var activeScheme: String = "None"
     public var buildConfig: String = "Debug"
@@ -102,33 +98,11 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
         self.activeNodeHashes = activeNodeHashes
     }
 
-    /// Determines if a specific layout node or property has actually changed
     public func hasNodeChanged(id: String, hash: Int) -> Bool {
         return activeNodeHashes[id] != hash
     }
 }
 
-// MARK: - Isolated High-Fidelity Runtime Session
-
-/// A per-artboard live runtime session (Legacy
-/// `SwiftCode/Core/Preview/PreviewSession.swift`'s `RuntimeSession`,
-/// Dylan's own code, ported under MIT).
-///
-/// Legacy's `startBuildPipeline` drove the whole app through
-/// `XcodeBuildAPI` (discover project, determine scheme/SDK/
-/// destination, `xcodebuild` the app bundle). `XcodeBuildAPI` now
-/// lives in `SwiftCodeXcodebuild` (ported from the dropped batch-2
-/// commit by the Audit F fix), so the pipeline here is the
-/// destination's equivalent: scan the project,
-/// resolve the preview entry, generate the preview payload, and
-/// compile it with `PreviewCompiler` into a dylib, cached in
-/// `PreviewCache` and timed by `PreviewPerformanceMonitor`. The
-/// full-app `xcodebuild` pipeline (scheme/SDK/destination
-/// resolution, app-bundle attach) is still not wired to
-/// `XcodeBuildAPI` here — the PreviewCompiler pipeline above is the
-/// destination's equivalent by design. Legacy's fake telemetry line
-/// (`Double.random` CPU/memory "Telemetry Check") is deliberately
-/// dropped: it was invented data, not a measurement.
 @Observable
 @MainActor
 public final class RuntimeSession: Identifiable, Sendable {
@@ -156,14 +130,6 @@ public final class RuntimeSession: Identifiable, Sendable {
         self.artboardID = artboardID
     }
 
-    /// Runs the preview build pipeline for `sourceFile` in
-    /// `projectDirectory`: scan, resolve the entry, generate the
-    /// payload, compile it. `targetViewName` selects the previewed
-    /// view; without it the entry resolver falls back to the
-    /// `@main` App entry, then the first `View` type.
-    /// `deploymentTarget` is the macOS SDK version the compiler
-    /// targets (`xcrun --sdk macosx --show-sdk-version`, falling
-    /// back to `"15.0"` when xcrun is unavailable).
     public func startBuildPipeline(projectDirectory: URL, sourceFile: URL, targetViewName: String? = nil, deploymentTarget: String? = nil) async {
         isExecuting = true
         status = "Validating Project..."
@@ -179,7 +145,6 @@ public final class RuntimeSession: Identifiable, Sendable {
         let buildStarted = Date()
 
         do {
-            // 1. PROJECT SCAN & ENTRY RESOLUTION
             status = "Resolving Entry..."
             logs.append("[PIPELINE] Scanning project and resolving the preview entry...")
             let structure = try await PreviewProjectScanner().scan(projectDirectory: projectDirectory)
@@ -191,7 +156,6 @@ public final class RuntimeSession: Identifiable, Sendable {
             logs.append("  - Root View: \(entry.rootViewType)")
             logs.append("  - Scene: \(entry.sceneType)")
 
-            // 2. PAYLOAD GENERATION
             status = "Generating Payload..."
             let sourceText = (try? String(contentsOf: sourceFile, encoding: .utf8)) ?? ""
             let previewed = PreviewedFile(url: sourceFile, previews: PreviewDiscovery.previews(in: sourceText))
@@ -199,7 +163,6 @@ public final class RuntimeSession: Identifiable, Sendable {
             let sources = try PreviewPayloadGenerator.generate(
                 moduleFiles: structure.swiftFiles, previewed: [previewed], platform: .macOS, into: payloadDir)
 
-            // 3. COMPILE
             status = "Compiling Project..."
             logs.append("[PIPELINE] Compiling the preview payload...")
             let output = payloadDir.appendingPathComponent("Preview.dylib")
@@ -222,7 +185,6 @@ public final class RuntimeSession: Identifiable, Sendable {
             PreviewPerformanceMonitor.shared.recordRenderTime(Date().timeIntervalSince(buildStarted))
             stopBuildTimer()
 
-            // 4. ATTACH
             status = "Launching Runtime..."
             logs.append("[PIPELINE] Build Succeeded!")
             logs.append("[PIPELINE] Compiled preview module: \(output.lastPathComponent)")
@@ -276,6 +238,12 @@ public final class RuntimeSession: Identifiable, Sendable {
                 severity: "error", description: message,
                 suggestedFix: "Ensure the preview toolchain is installed.",
                 rawCompilerOutput: message)]
+        case .unsupported(let message):
+            return [PreviewDiagnosticModel(
+                stage: "Compiler", subsystem: "PreviewCompiler", file: nil, line: nil,
+                severity: "error", description: message,
+                suggestedFix: "Preview is unsupported for this target.",
+                rawCompilerOutput: message)]
         }
     }
 
@@ -293,9 +261,6 @@ public final class RuntimeSession: Identifiable, Sendable {
         }
     }
 
-    /// The installed macOS SDK version (`xcrun --sdk macosx
-    /// --show-sdk-version`), or `"15.0"` when xcrun is unavailable
-    /// (same rule as `PreviewRenderer.macSDKVersion`).
     private static func macSDKVersion() -> String {
         let version = (try? Subprocess.run("/usr/bin/xcrun", ["--sdk", "macosx", "--show-sdk-version"]))?.stdoutText
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

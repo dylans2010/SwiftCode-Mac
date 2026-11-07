@@ -6,29 +6,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// Organizer automation (OpenViews only), started from ShellDriver:
-//
-//   SWIFTCODE_IDE_ORGANIZER=<p>  open Window ▸ Organizer with the pointer, then in
-//                           the Light and then the Dark appearance: select
-//                           the newest archive that has an application and
-//                           check the list's columns and cells and the
-//                           details against the archive's Info.plist
-//                           (`Organizer.entry`), open the row's menu and
-//                           choose Show in Files, check Distribute App… is
-//                           disabled, visit Overview (its empty state),
-//                           Back and Forward, the bell's popover and the app
-//                           picker. Photographs <p>-[dark-]organizer-*.png
-//                           (the menu: <p>-organizer-menu.png). Prints one
-//                           "organizer: …" line per check and
-//                           "organizer: ok" or "organizer: FAILED …".
-//                           Show in Files only prints the path unless
-//                           SWIFTCODE_IDE_ORGANIZER_REVEAL=1 is set too.
-//
-// The archives are read where swiftcodebuild writes them,
-// `$HOME/Library/Developer/Xcode/Archives`; run it with HOME (and
-// XDG_CONFIG_HOME, since it sets the appearance) pointing at a scratch
-// folder that holds them.
-
 #if os(Linux)
 @MainActor
 enum OrganizerDriver {
@@ -60,7 +37,6 @@ enum OrganizerDriver {
         say("organizer: \(archives.count) archives in \(model.archivesDirectory.path)")
         check(!archives.isEmpty, "archives found")
 
-        // Window ▸ Organizer, with the pointer.
         await ShellDriver.clickText("Window", inPopup: false)
         let item = OpenViewsAutomation.texts().first { $0.inPopup && $0.text == "Organizer" }
         check(item != nil, "Window menu lists Organizer")
@@ -76,8 +52,6 @@ enum OrganizerDriver {
         }
         await ShellDriver.pause(0.8)
         if let s = OpenViewsAutomation.windowSize(1) { say("organizer: window \(s.points.width)x\(s.points.height) pt") }
-        // Show in Files is recorded, not handed to the shared desktop's file
-        // manager, unless SWIFTCODE_IDE_ORGANIZER_REVEAL=1 asks for it.
         if ShellDriver.env["SWIFTCODE_IDE_ORGANIZER_REVEAL"] == nil { model.revealInFiles = { say("organizer: reveal \($0.path)") } }
 
         let prefs = Preferences.shared
@@ -89,7 +63,6 @@ enum OrganizerDriver {
             await click("organizer page Products Archives")
             check(model.state.page == "Archives", "\(p) Archives shown")
 
-            // The newest archive with an application: its row and details.
             if let e = expected {
                 if e.appName != model.state.selectedApp { model.chooseApp(e.appName) }
                 await ShellDriver.pause(0.3)
@@ -113,7 +86,6 @@ enum OrganizerDriver {
                 check(!model.canDistribute, "\(p) Distribute App… disabled")
                 await shot(prefix, "\(p)-archives")
 
-                // The row's menu: Show in Files.
                 if let row = model.state.selectedRow {
                     await click("organizer row \(row)", button: 3)
                     let menu = OpenViewsAutomation.texts(1).filter(\.inPopup).map(\.text)
@@ -127,7 +99,6 @@ enum OrganizerDriver {
                 }
             }
 
-            // Overview: the empty state; Back and Forward.
             await click("organizer page Insights Overview")
             let empty = model.state.emptyState
             let texts = OpenViewsAutomation.texts(1).map(\.text)
@@ -141,7 +112,6 @@ enum OrganizerDriver {
             await shot(prefix, "\(p)-hitches")
             await click("organizer page Products Archives")
 
-            // The bell: "No Notifications".
             await click("organizer bell")
             check(OpenViewsAutomation.texts(1).contains { $0.text == OrganizerState.noNotificationsText }, "\(p) bell shows \(OrganizerState.noNotificationsText)")
             await shot(prefix, "\(p)-notifications")
@@ -149,7 +119,6 @@ enum OrganizerDriver {
             await ShellDriver.pause(0.4)
             if model.state.notificationsShown { model.hideNotifications() }
 
-            // The app picker: one item per application.
             await click("organizer app picker")
             let items = OpenViewsAutomation.texts(1).filter(\.inPopup).map(\.text)
             check(model.state.appPickerTitles.allSatisfy(items.contains), "\(p) app picker lists \(model.state.appPickerTitles)")

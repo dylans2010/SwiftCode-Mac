@@ -1,22 +1,6 @@
 import Foundation
 
-/// Converts a `.strings`/`.stringsdict` table (one file of each per
-/// language) into a String Catalog: Edit ▸ Convert ▸ To String Catalogs…
-/// and `swiftcode strings convert`. See `specs/ide/string-catalog.md`, "SwiftCode
-/// implementation":
-///
-/// - every key becomes an entry with `extractionState` `migrated`, its
-///   comment from the source language's file (else the first one with a
-///   comment);
-/// - a `.strings` value becomes a `stringUnit` in state `translated`;
-/// - a `.stringsdict` entry whose format is one plural variable becomes
-///   `variations.plural`; a format with variables in text becomes a
-///   `stringUnit` with `substitutions` (`argNum`, `formatSpecifier`, plural
-///   cases with the variable's own specifier written `%arg`); a device rule
-///   becomes `variations.device`;
-/// - a key in both files of a language takes the `.stringsdict` form.
 public enum StringCatalogConverter {
-    /// One language's files of a table.
     public struct LanguageTable: Sendable {
         public var language: String
         public var strings: [StringsFile.Entry]
@@ -27,7 +11,6 @@ public enum StringCatalogConverter {
             self.stringsdict = stringsdict
         }
 
-        /// Reads `<dir>/<language>.lproj/<table>.strings` and `.stringsdict`.
         public static func read(language: String, strings: String?, stringsdict: String?) throws -> LanguageTable {
             var t = LanguageTable(language: language)
             if let p = strings { t.strings = try StringsFile.parse(Data(contentsOf: URL(fileURLWithPath: p))) }
@@ -43,8 +26,6 @@ public enum StringCatalogConverter {
         public var description: String { "warning: \(message) (\(language): \(key))" }
     }
 
-    /// The catalog for the tables. Keys, languages and every other member
-    /// are in code-unit order, the order catalogs are written in.
     public static func catalog(sourceLanguage: String, tables: [LanguageTable]) -> (StringCatalog, [Warning]) {
         var catalog = StringCatalog(sourceLanguage: sourceLanguage)
         var warnings: [Warning] = []
@@ -73,14 +54,12 @@ public enum StringCatalogConverter {
         return (catalog, warnings)
     }
 
-    /// genstrings writes "No comment provided by engineer." for a nil comment.
     static func isPlaceholderComment(_ c: String) -> Bool { c == "No comment provided by engineer." }
 
     static func unit(_ value: String) -> OrderedJSON {
         .object([("state", .string("translated")), ("value", .string(value))])
     }
 
-    /// One language's localization of a `.stringsdict` entry.
     static func localization(_ value: StringsDictValue, warn: (String) -> Void) -> OrderedJSON? {
         if let s = value.string { return .object([("stringUnit", unit(s))]) }
         if let device = value["NSStringDeviceSpecificRuleType"] {
@@ -96,7 +75,6 @@ public enum StringCatalogConverter {
         }
         let specs = FormatSpecifier.parse(format)
         let variables = specs.filter { $0.variable != nil }
-        // The whole format is one variable: the cases are the variations.
         if variables.count == 1, specs.count == 1, specs[0].text == format, let name = variables[0].variable,
            let rule = value[name], rule["NSStringFormatSpecTypeKey"]?.string == "NSStringPluralRuleType" {
             return .object([("variations", .object([("plural", pluralCases(rule, argText: nil))]))])
@@ -124,8 +102,6 @@ public enum StringCatalogConverter {
         return loc
     }
 
-    /// A plural rule's cases as catalog variations; with `argText`, the
-    /// variable's own specifier (`%<type>` or `%<arg>$<type>`) becomes `%arg`.
     static func pluralCases(_ rule: StringsDictValue, argText: (type: String, arg: Int)?) -> OrderedJSON {
         var cases = OrderedJSON.object([])
         for (category, v) in rule.pairs where StringCatalogCompiler.pluralCategories.contains(category) {
@@ -137,7 +113,6 @@ public enum StringCatalogConverter {
             }
             cases[category] = .object([("stringUnit", unit(s))])
         }
-        // Catalog members (categories included) are in code-unit order.
         return cases
     }
 }

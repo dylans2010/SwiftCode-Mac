@@ -1,7 +1,5 @@
 import Foundation
 
-/// An 8-bit RGBA bitmap with straight (not premultiplied) alpha, rows top
-/// to bottom.
 public struct Bitmap: Equatable, Sendable {
     public var width: Int
     public var height: Int
@@ -14,7 +12,6 @@ public struct Bitmap: Equatable, Sendable {
         self.rgba = rgba
     }
 
-    /// A bitmap filled with one colour (components 0–1).
     public init(width: Int, height: Int, fill: (r: Double, g: Double, b: Double, a: Double)) {
         self.width = width
         self.height = height
@@ -27,8 +24,6 @@ public struct Bitmap: Equatable, Sendable {
 
     public var isOpaque: Bool { stride(from: 3, to: rgba.count, by: 4).allSatisfy { rgba[$0] == 255 } }
 
-    /// Pixel bytes as `Assets.car` stores them: B, G, R, A with
-    /// premultiplied alpha (`assets-car.md` §7.3).
     public var premultipliedBGRA: [UInt8] {
         var out = [UInt8](repeating: 0, count: rgba.count)
         rgba.withUnsafeBufferPointer { s in
@@ -51,7 +46,6 @@ public struct Bitmap: Equatable, Sendable {
         return out
     }
 
-    /// The inverse of `premultipliedBGRA`.
     public init(width: Int, height: Int, premultipliedBGRA b: [UInt8]) {
         var out = [UInt8](repeating: 0, count: b.count)
         var i = 0
@@ -70,8 +64,6 @@ public struct Bitmap: Equatable, Sendable {
         self.init(width: width, height: height, rgba: out)
     }
 
-    /// Resampled to `w` × `h`: an area average when shrinking, bilinear when
-    /// growing, in premultiplied space so transparent edges stay clean.
     public func resized(width w: Int, height h: Int) -> Bitmap {
         if w == width && h == height { return self }
         var out = [UInt8](repeating: 0, count: w * h * 4)
@@ -116,8 +108,6 @@ public struct Bitmap: Equatable, Sendable {
         return Bitmap(width: w, height: h, rgba: out)
     }
 
-    /// The bitmap drawn over an opaque colour (the loose iOS PNGs and the
-    /// flattened iOS icons are opaque, `icon-compile.md` §3, §5).
     public func flattened(onto bg: (r: Double, g: Double, b: Double)) -> Bitmap {
         var out = rgba
         let bgc = [bg.r, bg.g, bg.b].map { min(max($0, 0), 1) * 255 }
@@ -130,7 +120,6 @@ public struct Bitmap: Equatable, Sendable {
     }
 }
 
-/// PNG reading and writing (ISO/IEC 15948, the W3C PNG specification).
 public enum PNG {
     public struct DecodeError: Error, CustomStringConvertible {
         public var message: String
@@ -141,9 +130,6 @@ public enum PNG {
 
     public static func isPNG(_ data: Data) -> Bool { data.prefix(8).elementsEqual(signature) }
 
-    /// Decodes every standard colour type and bit depth, palette
-    /// transparency, and Adam7 interlacing. Apple's "CgBI" variant (BGR,
-    /// premultiplied, raw DEFLATE) is decoded too.
     public static func decode(_ data: Data) throws -> Bitmap {
         let b = [UInt8](data)
         guard b.starts(with: signature) else { throw DecodeError(message: "not a PNG file") }
@@ -187,7 +173,7 @@ public enum PNG {
         guard [1, 2, 4, 8, 16].contains(depth) else { throw DecodeError(message: "bit depth \(depth)") }
         let raw: [UInt8]
         if cgbi { raw = try Inflate.inflate(idat, from: 0) } else { raw = try Zlib.decompress(idat) }
-        let bpp = max(1, channels * depth / 8)   // bytes per complete pixel, for filtering
+        let bpp = max(1, channels * depth / 8)
         var out = [UInt8](repeating: 0, count: width * height * 4)
         var pos = 0
 
@@ -265,14 +251,11 @@ public enum PNG {
             try pass(0, 0, 1, 1)
         }
         if cgbi {
-            // CgBI pixels are B, G, R, A, premultiplied.
             return Bitmap(width: width, height: height, premultipliedBGRA: out)
         }
         return Bitmap(width: width, height: height, rgba: out)
     }
 
-    /// An ordinary PNG: RGBA (or RGB when opaque and `dropAlpha`), 8-bit,
-    /// filter "up" on every row, with an sRGB chunk.
     public static func encode(_ bmp: Bitmap, dropAlpha: Bool = false) -> Data {
         let rgb = dropAlpha && bmp.isOpaque
         let ch = rgb ? 3 : 4

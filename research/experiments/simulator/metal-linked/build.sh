@@ -1,5 +1,4 @@
 #!/bin/sh
-# Builds p_metal_linked and its metallib for the iOS simulator (macOS only). Output: $OUT (default ./out).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/out}"

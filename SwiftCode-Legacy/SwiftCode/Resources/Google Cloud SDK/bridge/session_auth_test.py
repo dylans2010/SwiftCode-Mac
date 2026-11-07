@@ -12,7 +12,6 @@ from google.antigravity import types
 from google.antigravity.connections.local.local_connection import build_models_proto
 from google.antigravity.server.agent_runner import AgentRunner as ModuleRunner
 
-
 class CapturingAgent:
     def __init__(self, config):
         self.config = config
@@ -20,7 +19,6 @@ class CapturingAgent:
 
     async def __aenter__(self):
         return self
-
 
 class DummyAdapterServer:
     def __init__(self, port: int = 54321):
@@ -34,7 +32,6 @@ class DummyAdapterServer:
             "base_url": base_url,
             "headers": headers or {},
         }
-
 
 class SessionAuthTests(unittest.IsolatedAsyncioTestCase):
     async def test_account_config_has_bearer_and_no_api_key_on_wire(self):
@@ -147,7 +144,6 @@ class SessionAuthTests(unittest.IsolatedAsyncioTestCase):
             })
             config = bridge.sessions["cli-oauth"].agent.config
             self.assertIsNone(config.api_key)
-            # Only 1 TEXT model + 1 default IMAGE model (no duplicate shorthand TEXT model)
             text_models = [m for m in config.models if types.ModelType.TEXT in m.types]
             self.assertEqual(len(text_models), 1)
             for m_proto in build_models_proto(config.models):
@@ -157,8 +153,6 @@ class SessionAuthTests(unittest.IsolatedAsyncioTestCase):
                     "Bearer ya29.cli-process-token",
                 )
 
-            # Verify LocalConnectionStrategy.__aenter__ feeds localharness subprocess
-            # the internal sentinel while keeping wire model protos key-free.
             strategy = config.create_strategy(tool_runner=None, hook_runner=None)
             output_cfg = localharness_pb2.OutputConfig(port=57329, api_key="ws-handshake")
             raw_out = output_cfg.SerializeToString()
@@ -185,7 +179,6 @@ class SessionAuthTests(unittest.IsolatedAsyncioTestCase):
                 in_cfg.ParseFromString(written[4:])
                 self.assertEqual(in_cfg.env["GEMINI_API_KEY"], "oauth-header-only")
                 await strategy._connection.disconnect()
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

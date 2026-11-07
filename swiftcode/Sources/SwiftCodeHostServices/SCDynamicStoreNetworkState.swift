@@ -1,25 +1,9 @@
-// The network state the host SCDynamicStore publishes
-// (`specs/simulator/scdynamicstore-host.md` §7, `networking-swiftcode.md` §5).
-//
-// On the Mac, configd_sim's SimulatorSupport plug-in copies the host's
-// network keys (the global, service and interface entities) into the
-// simulator's own store, and the guest's networking libraries read them
-// there: which interface is primary, its addresses and router, the DNS
-// servers, the proxy settings. SwiftCode's host store answers with the guest's
-// interface model (`GuestNetwork`, the host's primary interface shown as
-// en0). Key and property names are SystemConfiguration's public schema
-// (`SCSchemaDefinitions.h`, `SCDynamicStoreKey.h`).
-
 import Foundation
 import SwiftCodeDarwinKernel
 
 enum SCDynamicStoreNetworkState {
-    /// The one network service SwiftCode's store describes (a fixed id: the
-    /// store has no Setup: entries to give it another).
     static let serviceID = "59C1CF50-4D8F-4C53-9C7E-79434F444531"
 
-    /// Every key of the store and its value (property lists). Empty with
-    /// `SWIFTCODE_NO_NETWORK=1`.
     static func current() -> [String: Any] {
         guard GuestNetwork.enabled else { return [:] }
         let interfaces = GuestNetwork.interfaces
@@ -67,7 +51,6 @@ enum SCDynamicStoreNetworkState {
             }
         }
         if !dnsServers.isEmpty { store["State:/Network/Global/DNS"] = ["ServerAddresses": dnsServers] }
-        // The configured service (networking.md §3.3, §7 item 7).
         if let primary = interfaces.first(where: { !$0.isLoopback && !$0.ipv4.isEmpty }) {
             store["Setup:/Network/Global/IPv4"] = ["ServiceOrder": [serviceID]]
             store["Setup:/Network/Service/\(serviceID)"] = ["UserDefinedName": "Ethernet"]
@@ -81,15 +64,11 @@ enum SCDynamicStoreNetworkState {
         store["State:/Network/MulticastDNS"] = ["local", "254.169.in-addr.arpa", "8.e.f.ip6.arpa", "9.e.f.ip6.arpa",
                                                 "a.e.f.ip6.arpa", "b.e.f.ip6.arpa"]
         store["State:/Network/PrivateDNS"] = [String]()
-        // No proxies (CFNetwork reads this entity for its proxy settings).
         store["State:/Network/Global/Proxies"] = ["ExceptionsList": ["*.local", "169.254/16"], "FTPPassive": 1,
                                                   "HTTPEnable": 0, "HTTPSEnable": 0]
         return store
     }
 
-    /// The keys of `store` matching any of `patterns` (SCDynamicStore
-    /// regular expressions, matched against the whole key) or equal to one
-    /// of `keys`.
     static func select(_ store: [String: Any], keys: [String], patterns: [String]) -> [String] {
         var out = Set(keys.filter { store[$0] != nil })
         for p in patterns {
@@ -99,7 +78,6 @@ enum SCDynamicStoreNetworkState {
         return out.sorted()
     }
 
-    /// A property list in the store's wire form (`_SCSerialize`: binary).
     static func serialize(_ v: Any) -> [UInt8]? {
         guard let d = try? PropertyListSerialization.data(fromPropertyList: v, format: .binary, options: 0) else { return nil }
         return [UInt8](d)

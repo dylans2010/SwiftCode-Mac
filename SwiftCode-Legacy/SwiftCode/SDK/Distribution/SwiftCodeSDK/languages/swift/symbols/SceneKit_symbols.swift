@@ -1,5 +1,3 @@
-// Swift API Interface Definitions: SceneKit
-
 public struct SceneKitInterface_0000: Sendable, Codable {
     public let id: String = "scenekit.api.0"
     public var title: String = "SceneKit Symbol 0"

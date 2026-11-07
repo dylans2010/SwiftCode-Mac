@@ -3,37 +3,12 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy asset-catalog / localization tools (Wave 7,
-/// slice E), each driven black-box through the server's real
-/// write-policy path against a copy of `Samples/AgentSamples/Greeter`.
-///
-/// Behaviour source: Legacy `AssistAssetCatalogListTool`,
-/// `AssistAssetCatalogTool`, `AssistAssetImageAddTool`,
-/// `AssistLocalizationAuditTool`, `AssistLocalizationTool`,
-/// `AssistLocalizeAppTool`, `AssistStringCatalogMigratorTool`,
-/// `AssistStringsFileValidateTool` and `AssistStringsLocalizationTool`
-/// (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + on-disk state), never
-/// on internals. Messages quoted verbatim are Legacy's. Message
-/// assertions use `firstText`, never an exact `resultText ==`
-/// (structured results emit two text blocks).
-///
-/// Note: the Greeter sample ships its own
-/// `Strings/Localizable.xcstrings` (keys "Hello" with a `de`
-/// translation, and "world" with no localizations). Tests that need
-/// a clean localization state delete it from the temp copy first;
-/// tests that exercise the catalog use it as-is.
 @MainActor
 @Suite(.serialized) struct SwiftCodeAssetsLocalizationTests {
-    /// The 9 Wave 7 slice E tool IDs, verified live from each
-    /// Legacy tool file's `id`.
     static let sliceEIDs = ["asset_catalog_list", "asset_catalog_manager", "asset_image_add",
                             "localization_audit", "localization_manager", "localize_app",
                             "string_catalog_migrator", "strings_file_validate", "strings_localization"]
 
-    /// Opens a copy of Greeter and installs the ported slice E tools
-    /// on the server (same shape as Wave 6's `opened`).
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
@@ -44,7 +19,6 @@ import SwiftCodeAssistant
         return host
     }
 
-    /// Writes a fixture file directly (not through a tool under test).
     func writeFixture(_ sample: TempSample, _ rel: String, _ content: String) throws {
         let url = URL(fileURLWithPath: sample.path(rel))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -67,15 +41,7 @@ import SwiftCodeAssistant
         for id in Self.sliceEIDs {
             #expect(host.server.tools.filter { $0.name == id }.count == 1, "\(id) must be registered exactly once")
         }
-        // The slice's three Legacy aliases (`asset_catalog` →
-        // `asset_catalog_manager`, `localization` →
-        // `localization_manager`, `string_catalog` →
-        // `string_catalog_migrator`) live in
-        // `MCPServer.toolAliases`, which the coordinator owns — they
-        // are reported as a wiring fragment instead of asserted here.
     }
-
-    // MARK: - Write policy
 
     @Test func writesAreRefusedWhenReadOnly() async throws {
         let sample = try TempSample()
@@ -85,8 +51,6 @@ import SwiftCodeAssistant
                                                      ["action": .string("create_catalog"), "catalogPath": .string("Assets.xcassets")])
         #expect(catalog.isToolError && catalog.firstText.contains("read-only"))
         #expect(!exists(sample, "Assets.xcassets"))
-        // A read-only action of a writes:true tool is refused too:
-        // the flag is static per tool.
         let inspect = try await host.server.callTool("asset_catalog_manager",
                                                      ["action": .string("list"), "catalogPath": .string("Assets.xcassets")])
         #expect(inspect.isToolError && inspect.firstText.contains("read-only"))
@@ -107,13 +71,10 @@ import SwiftCodeAssistant
         #expect(!exists(sample, "Assets.xcassets"))
     }
 
-    // MARK: - asset_catalog_list
-
     @Test func assetCatalogListFindsCatalogs() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // The bare Greeter sample has no .xcassets catalog.
         let none = try await host.server.callTool("asset_catalog_list")
         #expect(!none.isToolError, "\(none.resultText)")
         #expect(none.structured?["catalogCount"]?.int == 0 && none.structured?["totalSets"]?.int == 0)
@@ -141,8 +102,6 @@ import SwiftCodeAssistant
         let outside = try await host.server.callTool("asset_catalog_list", ["path": .string("../outside")])
         #expect(outside.isToolError && outside.firstText.contains("Invalid path '../outside': must be inside the workspace and must not contain '..'."))
     }
-
-    // MARK: - asset_catalog_manager
 
     @Test func assetCatalogManagerCreatesAndInspects() async throws {
         let sample = try TempSample()
@@ -196,8 +155,6 @@ import SwiftCodeAssistant
         #expect(noArgs.isToolError)
     }
 
-    // MARK: - asset_image_add
-
     @Test func assetImageAddCopiesImage() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -232,7 +189,6 @@ import SwiftCodeAssistant
                                                         ["catalog": .string("Assets"), "imageName": .string("Other"),
                                                          "sourcePath": .string("logo.png")])
         #expect(badCatalog.isToolError && badCatalog.firstText.contains("Invalid catalog 'Assets': must end with .xcassets."))
-        // A source without an extension is copied as image.png.
         try writeFixture(sample, "icon", "ICONDATA")
         let noExt = try await host.server.callTool("asset_image_add",
                                                    ["catalog": .string("Assets.xcassets"), "imageName": .string("Icon"),
@@ -244,13 +200,9 @@ import SwiftCodeAssistant
         #expect(noArgs.isToolError)
     }
 
-    // MARK: - localization_audit
-
     @Test func localizationAuditReportsMissingAndUnused() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
-        // Remove the sample's own catalog so the counts are the
-        // fixtures' alone.
         removeFixture(sample, "Strings/Localizable.xcstrings")
         let host = try await opened(sample)
         try writeFixture(sample, "en.lproj/Localizable.strings", "\"hello\" = \"Hello\";\n\"goodbye\" = \"Goodbye\";\n")
@@ -274,10 +226,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // The Greeter sample's own catalog: keys "Hello" (de: Hallo)
-        // and "world" (no localizations). Both quoted forms appear in
-        // the sample's Swift sources ("Hello" in Greeter.swift,
-        // "world" in main.swift), so nothing is unused.
         let r = try await host.server.callTool("localization_audit")
         #expect(!r.isToolError, "\(r.resultText)")
         #expect(r.structured?["localeCount"]?.int == 1 && r.structured?["totalKeys"]?.int == 2)
@@ -297,8 +245,6 @@ import SwiftCodeAssistant
         #expect(r.structured?["localeCount"]?.int == 0 && r.structured?["totalKeys"]?.int == 0)
         #expect(r.firstText.contains("No Localizable.strings or Localizable.xcstrings files found."))
     }
-
-    // MARK: - localization_manager
 
     @Test func localizationManagerListsReadsAddsValidates() async throws {
         let sample = try TempSample()
@@ -336,7 +282,6 @@ import SwiftCodeAssistant
         #expect(!updated.isToolError, "\(updated.resultText)")
         #expect(updated.firstText.contains("Successfully updated translation for 'welcome_message' in Localizable.strings."))
         #expect(sample.read("en.lproj/Localizable.strings").contains("\"welcome_message\" = \"Welcome!\";"))
-        // Bad .strings: a line without its terminating semicolon.
         try writeFixture(sample, "Bad.strings", "\"a\" = \"A\";\n\"b\" = \"B\";\n\"c\" = \"C\"\n")
         let bad = try await host.server.callTool("localization_manager",
                                                  ["action": .string("validate"), "filePath": .string("Bad.strings")])
@@ -356,12 +301,10 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
-        // The sample's own catalog: "Hello" has a de translation, no en unit.
         let missingEn = try await host.server.callTool("localization_manager",
                                                        ["action": .string("read_key"), "filePath": .string("Strings/Localizable.xcstrings"),
                                                         "key": .string("Hello")])
         #expect(missingEn.isToolError && missingEn.firstText.contains("Key 'Hello' not found for locale 'en' in Localizable.xcstrings."))
-        // The locale comes from the catalog's own `.lproj` folder.
         try writeFixture(sample, "de.lproj/Localizable.xcstrings", sample.read("Strings/Localizable.xcstrings"))
         let foundDe = try await host.server.callTool("localization_manager",
                                                      ["action": .string("read_key"), "filePath": .string("de.lproj/Localizable.xcstrings"),
@@ -383,7 +326,6 @@ import SwiftCodeAssistant
                                                    ["action": .string("list_languages"), "filePath": .string("Strings/Localizable.xcstrings")])
         #expect(!langs.isToolError, "\(langs.resultText)")
         #expect(langs.structured?["languages"]?.string == "de, en" && langs.structured?["count"]?.int == 2)
-        // .stringsdict: read works, add_translation is honestly refused.
         try writeFixture(sample, "Dict.stringsdict", """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -423,14 +365,11 @@ import SwiftCodeAssistant
         #expect(dictAdd.isToolError && dictAdd.firstText.contains("add_translation is not supported for .stringsdict files"))
     }
 
-    // MARK: - strings_localization
-
     @Test func stringsLocalizationGetSetDelete() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
         try writeFixture(sample, "en.lproj/Localizable.strings", "\"greeting\" = \"Hello\";\n")
-        // Discovery: en.lproj/Localizable.strings is the first candidate.
         let get = try await host.server.callTool("strings_localization", ["key": .string("greeting")])
         #expect(!get.isToolError, "\(get.resultText)")
         #expect(get.structured?["value"]?.string == "Hello" && get.structured?["file"]?.string == "Localizable.strings")
@@ -469,7 +408,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
-        // Discovery falls through to the sample's own catalog.
         let get = try await host.server.callTool("strings_localization",
                                                  ["key": .string("Hello"), "locale": .string("de")])
         #expect(!get.isToolError, "\(get.resultText)")
@@ -486,18 +424,14 @@ import SwiftCodeAssistant
                                                      ["action": .string("delete"), "key": .string("world"), "locale": .string("de")])
         #expect(!deleted.isToolError, "\(deleted.resultText)")
         #expect(deleted.firstText.contains("Deleted key 'world' (de) from Localizable.xcstrings."))
-        // The key had no other locale, so the delete removed it entirely.
         #expect(!sample.read("Strings/Localizable.xcstrings").contains("\"world\""))
         let gone = try await host.server.callTool("strings_localization",
                                                   ["key": .string("world"), "locale": .string("de")])
         #expect(gone.isToolError && gone.firstText.contains("Key 'world' not found for locale 'de' in Localizable.xcstrings."))
-        // No localization file at all: the discovery error.
         removeFixture(sample, "Strings/Localizable.xcstrings")
         let noFile = try await host.server.callTool("strings_localization", ["key": .string("x"), "locale": .string("fr")])
         #expect(noFile.isToolError && noFile.firstText.contains("No Localizable.strings or Localizable.xcstrings found for locale 'fr'."))
     }
-
-    // MARK: - string_catalog_migrator
 
     @Test func stringCatalogMigratorConverts() async throws {
         let sample = try TempSample()
@@ -513,7 +447,6 @@ import SwiftCodeAssistant
         #expect(migrated.contains("\"sourceLanguage\" : \"en\""))
         #expect(migrated.contains("\"manual\""))
         #expect(migrated.contains("Goodbye"))
-        // The duplicate key keeps its last value.
         #expect(migrated.contains("Hi"))
         #expect(!migrated.contains("\"value\" : \"Hello\""))
         let missing = try await host.server.callTool("string_catalog_migrator",
@@ -523,8 +456,6 @@ import SwiftCodeAssistant
         let noArgs = try await host.server.callTool("string_catalog_migrator", ["sourceStringsPath": .string("Old.strings")])
         #expect(noArgs.isToolError)
     }
-
-    // MARK: - strings_file_validate
 
     @Test func stringsFileValidateCounts() async throws {
         let sample = try TempSample()
@@ -557,8 +488,6 @@ import SwiftCodeAssistant
         let noArgs = try await host.server.callTool("strings_file_validate")
         #expect(noArgs.isToolError)
     }
-
-    // MARK: - localize_app
 
     @Test func localizeAppLocalizesAndReportsStatus() async throws {
         let sample = try TempSample()
@@ -597,7 +526,6 @@ import SwiftCodeAssistant
         #expect(catalog.contains("welcome_message") && catalog.contains("Bienvenido"))
         #expect(catalog.contains("goodbye_message"))
         #expect(catalog.contains("\"state\" : \"new\""))
-        // A second localize into an RTL language reports rtl.
         let rtl = try await host.server.callTool("localize_app", ["languages": .array([.string("ar")])])
         #expect(!rtl.isToolError, "\(rtl.resultText)")
         #expect(rtl.structured?["layoutDirection"]?.string == "rtl")
@@ -617,7 +545,6 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
-        // The bare Greeter sources wrap no user-facing text.
         let r = try await host.server.callTool("localize_app", ["languages": .array([.string("es")])])
         #expect(r.isToolError && r.firstText.contains("No localizable strings found in Swift sources under"))
         #expect(r.firstText.contains("Wrap user-facing text in NSLocalizedString(_:comment:) or String(localized:) first."))

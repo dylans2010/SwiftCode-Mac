@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeXcodebuild
 
-/// `-showBuildSettings` for Apple-platform projects on a host without their
-/// SDKs (Linux): swift-build still evaluates the settings, and swiftcodebuild
-/// says which ones it could not know. `specs/xcodebuild/show-build-settings.md` §5.1.
 @Suite struct UnavailableSDKWarningTests {
     @Test func oneWarningPerSDKThatStayedAName() {
         let all: [[String: String]] = [
@@ -42,9 +39,6 @@ import Testing
     }
 }
 
-/// End to end through the helper (skipped without one): a macOS and an iOS
-/// project. On macOS the SDKs resolve; on Linux the settings print anyway,
-/// with the warning, in the same format.
 @Suite(.serialized, .timeLimit(.minutes(5))) struct ShowSettingsOnThisHostTests {
     func run(_ args: [String], cwd: String, helper: String) -> (out: String, err: String, code: Int32) {
         let capture = CapturingConsole()
@@ -55,7 +49,6 @@ import Testing
         return (capture.stdout, capture.stderr, code)
     }
 
-    /// The fixture project, for macOS as written or switched to iOS.
     func project(sdk: String) throws -> String {
         let proj = try writeMultiProject()
         if sdk != "macosx" {
@@ -79,7 +72,6 @@ import Testing
         #expect(list.first?["target"] as? String == "App")
         #expect(list.first?["action"] as? String == "build")
         let s = try #require(list.first?["buildSettings"] as? [String: String])
-        // Linux leaves out the settings of the SDK and the platform.
         #if os(macOS)
         #expect(s.count > 400, "\(s.count)")
         #else
@@ -93,7 +85,6 @@ import Testing
         #expect(text.code == 0, "\(text.err)")
         #expect(text.out.contains("Build settings for action build and target Lib:\n"))
         #if os(macOS)
-        // The warning is Linux's; on a Mac the SDK resolves (iOS when its platform is installed).
         if sdk == "macosx" {
             #expect(s["SDKROOT"]?.hasPrefix("/") == true)
             #expect(!(s["SDK_NAME"] ?? "").isEmpty)

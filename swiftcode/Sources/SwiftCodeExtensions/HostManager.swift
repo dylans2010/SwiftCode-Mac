@@ -6,17 +6,6 @@ import Darwin
 #endif
 import SwiftCodeSubprocess
 
-// MARK: - Embedded host script (spec §4.4)
-
-/// The Node host script is a **resource**, not Swift code. It ships as
-/// `Resources/extension-host.js` in this target and is written (and
-/// refreshed when it changes) to `<root>/host/extension-host.js`.
-///
-/// Deviation from the spec's §10.5 signature shape: `source` is loaded
-/// from the bundled resource at run time rather than held as a
-/// compile-time string literal — the text is identical either way, and
-/// this keeps the script editable as a `.js` file. `ensureHostScript`
-/// throws if the bundled resource cannot be found.
 public enum HostScript {
     public static var source: String {
         guard let url = Bundle.module.url(forResource: "extension-host", withExtension: "js"),
@@ -45,23 +34,6 @@ public enum HostScript {
     }
 }
 
-// MARK: - Host session (one Node process per extension)
-
-/// One live Node host process. Owns the `Process`, the stdin pipe, the
-/// stdout line reader, and the pending-request continuations.
-///
-/// Deviation (recorded): the host runner does NOT use
-/// `StreamingSubprocess.lines`. That API writes a fixed `input` blob
-/// to stdin and then closes it, streams stdout only, and offers no
-/// stdin handle, no per-request timeout, and no way to terminate a
-/// misbehaving host — it cannot serve bidirectional NDJSON
-/// request/response traffic. The session below uses Foundation
-/// `Process` + `Pipe` directly, following the precedent of
-/// `SwiftCodeLanguage.LSPClient` (the other interactive-stdio client in
-/// SwiftCode), with the same behaviour Legacy's raw `Process` + `Pipe` +
-/// `bytes.lines` pattern specifies: stdin/stdout as NDJSON pipes,
-/// stderr to the null device, environment minus `SWIFTCODE_`/`HERMES_`
-/// keys.
 final class HostSession: @unchecked Sendable {
     let extensionId: String
     private let process: Process
@@ -124,8 +96,6 @@ final class HostSession: @unchecked Sendable {
         writeQuietly(data, to: stdinHandle)
     }
 
-    /// Best-effort shutdown request, then terminate; never waits on
-    /// the caller for a misbehaving host.
     func shutdown() {
         Task {
             let request = RPCRequest(id: "shutdown", method: "shutdown")
@@ -176,7 +146,6 @@ final class HostSession: @unchecked Sendable {
         guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return }
         if let id = object["id"] as? String,
            object["result"] != nil || object["error"] != nil {
-            // A response to one of our requests.
             lock.lock()
             let continuation = pending.removeValue(forKey: id)
             lock.unlock()
@@ -194,7 +163,6 @@ final class HostSession: @unchecked Sendable {
             }
             return
         }
-        // A host-initiated request.
         guard let request = try? ExtensionRPC.decodeRequest(from: line, fromHost: true) else { return }
         Task { [weak self] in
             guard let self else { return }
@@ -215,8 +183,6 @@ final class HostSession: @unchecked Sendable {
         switch value {
         case is NSNull: return .null
         case let number as NSNumber:
-            // NSNumber bridges to Bool for ANY number, so the boolean
-            // check must be a CFBoolean identity test, not a cast.
             if CFGetTypeID(number) == CFBooleanGetTypeID() { return .bool(number.boolValue) }
             if number.doubleValue.truncatingRemainder(dividingBy: 1) == 0,
                let int = Int(exactly: number.int64Value) { return .int(int) }
@@ -250,8 +216,6 @@ final class HostSession: @unchecked Sendable {
     }
 }
 
-// MARK: - Host manager (spec §4)
-
 @MainActor
 public final class ExtensionHostManager {
     public var storage: ExtensionStorage
@@ -269,11 +233,6 @@ public final class ExtensionHostManager {
         self.permissions = permissions
     }
 
-    /// Node discovery (spec §4.2): settings path first, then the three
-    /// well-known paths, then `PATH` lookup; the SDK launcher's
-    /// `SWIFTCODE_NODE_PATH` override is honoured first. Nil when no
-    /// Node is found — activation then throws the hard-requirement
-    /// error. Node.js 20 or later is required.
     public func nodeExecutable(settings: ExtensionSettings) -> URL? {
         let fileManager = FileManager.default
         if let override = ProcessInfo.processInfo.environment["SWIFTCODE_NODE_PATH"],
@@ -313,30 +272,16 @@ public final class ExtensionHostManager {
         commandOwners[command]
     }
 
-    /// Quarantined extensions (id → reason): an extension whose
-    /// host crashed `maxConsecutiveHostCrashes` times in a row stays
-    /// stopped until the user re-enables it (Legacy
-    /// `SDKExtensionManager` quarantine). Legacy persisted the
-    /// quarantine across launches in `.host-state.json`; this target
-    /// has no such store, so a quarantine lasts for the process
-    /// lifetime — the same scope as the crash counter it derives from.
     private(set) var quarantined: [String: String] = [:]
 
-    /// Whether `extensionId` is quarantined (isolated after repeated
-    /// host crashes).
     public func isQuarantined(_ extensionId: String) -> Bool {
         quarantined[extensionId] != nil
     }
 
-    /// Why `extensionId` was quarantined, if it was.
     public func quarantineReason(for extensionId: String) -> String? {
         quarantined[extensionId]
     }
 
-    /// Clears a quarantine (user action via re-enable). The crash
-    /// budget is reset too: the user inspected the problem and asked
-    /// for another chance, so the extension gets a fresh retry budget
-    /// (Legacy `SDKExtensionManager.clearQuarantine`).
     public func clearQuarantine(for extensionId: String) {
         guard quarantined.removeValue(forKey: extensionId) != nil else { return }
         consecutiveCrashes.removeValue(forKey: extensionId)
@@ -346,7 +291,7 @@ public final class ExtensionHostManager {
                          settings: ExtensionSettings) async throws -> ExtensionContribution {
         let id = installed.id
         if let existing = contributions[id], isRunning(extensionId: id) {
-            return existing // A second activate() returns the existing contribution.
+            return existing
         }
         if let reason = quarantined[id] {
             throw SwiftCodeExtensionError.host("Extension '\(id)' is quarantined: \(reason) Re-enable it to try again.")
@@ -375,9 +320,6 @@ public final class ExtensionHostManager {
         }
         let session = try HostSession(extensionId: id, nodeURL: nodeURL, hostScriptURL: scriptURL,
                                       entryURL: entryURL, environment: environment)
-        // The handler is captured at activation time: the manager sets
-        // it before any activation, and the session calls it from a
-        // nonisolated task.
         let hostHandler = self.hostRequestHandler
         session.onHostRequest = { request in
             guard let hostHandler else { return .null }
@@ -401,7 +343,7 @@ public final class ExtensionHostManager {
             let contribution = Self.contribution(from: result)
             contributions[id] = contribution
             for command in contribution.commands { commandOwners[command.command] = id }
-            consecutiveCrashes[id] = 0 // A successful activation resets the counter.
+            consecutiveCrashes[id] = 0
             return contribution
         } catch {
             sessions.removeValue(forKey: id)
@@ -431,9 +373,6 @@ public final class ExtensionHostManager {
         for id in Array(sessions.keys) { deactivate(extensionId: id) }
     }
 
-    /// Resets the crash counter so the user can retry manually after
-    /// the stop-after-3 refusal (spec §4.3: the retry is a manual user
-    /// action; no UI affordance for it was found in Legacy — U-6).
     public func resetCrashCounter(for extensionId: String) {
         consecutiveCrashes[extensionId] = 0
     }
@@ -447,20 +386,11 @@ public final class ExtensionHostManager {
         DiagnosticsService.shared.error(
             "Extension host for '\(extensionId)' exited unexpectedly (status \(status)).",
             extensionId: extensionId)
-        // A host that crashed `maxConsecutiveHostCrashes` times in a
-        // row is quarantined: it stays stopped until the user
-        // re-enables it (Legacy `SDKExtensionManager`, which also
-        // quarantined on a package-digest change on disk — that
-        // trigger has no destination equivalent, since no digest is
-        // recorded here; see the disposition).
         if (consecutiveCrashes[extensionId] ?? 0) >= ResourceLimits.maxConsecutiveHostCrashes {
             quarantine(extensionId: extensionId, reason: "It crashed \(consecutiveCrashes[extensionId] ?? 0) times in a row and was quarantined to protect stability. Last exit code: \(status).")
         }
     }
 
-    /// Quarantines an extension: it stays stopped until the user
-    /// re-enables it (which clears the quarantine) or reinstalls
-    /// it. Contributions are removed.
     private func quarantine(extensionId: String, reason: String) {
         quarantined[extensionId] = reason
         DiagnosticsService.shared.error("Extension '\(extensionId)' was quarantined: \(reason)", extensionId: extensionId)
@@ -482,10 +412,6 @@ public final class ExtensionHostManager {
         }
     }
 
-    /// The activate result carries the host's collected contribution
-    /// (commands/views/tree items/status bar/output lines). Missing
-    /// fields default to empty — a host that returns nothing still
-    /// counts as activated.
     static func contribution(from result: JSONValue) -> ExtensionContribution {
         guard let object = result.objectValue else { return .empty }
         func commands(_ value: JSONValue?) -> [ExtensionContributionCommand] {

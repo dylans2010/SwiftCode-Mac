@@ -25,7 +25,6 @@ struct MarkdownFileView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Markdown Specific Format Toolbar
             formatToolbar
                 .padding(.horizontal)
                 .padding(.vertical, 8)
@@ -33,7 +32,6 @@ struct MarkdownFileView: View {
 
             Divider()
 
-            // View modes content area
             HSplitView {
                 if viewMode == .edit || viewMode == .split {
                     TextEditor(text: $markdownText)
@@ -96,7 +94,6 @@ struct MarkdownFileView: View {
     private var formatToolbar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                // Inline Style Group
                 Group {
                     Button { insertText("**", suffix: "**") } label: { Image(systemName: "bold") }.help("Bold")
                     Button { insertText("_", suffix: "_") } label: { Image(systemName: "italic") }.help("Italic")
@@ -106,7 +103,6 @@ struct MarkdownFileView: View {
 
                 Divider().frame(height: 16)
 
-                // Block Style Group
                 Group {
                     Button { insertText("```swift\n", suffix: "\n```") } label: { Label("Code Block", systemImage: "curlybraces") }.help("Code Block")
                     Button { insertText("# ", suffix: "") } label: { Text("H1").bold() }.help("Heading 1")
@@ -117,7 +113,6 @@ struct MarkdownFileView: View {
 
                 Divider().frame(height: 16)
 
-                // Lists Group
                 Group {
                     Button { insertText("- ", suffix: "") } label: { Image(systemName: "list.bullet") }.help("Unordered List")
                     Button { insertText("1. ", suffix: "") } label: { Image(systemName: "list.number") }.help("Ordered List")
@@ -126,7 +121,6 @@ struct MarkdownFileView: View {
 
                 Divider().frame(height: 16)
 
-                // Links & Media
                 Group {
                     Button { insertText("[", suffix: "](https://)") } label: { Image(systemName: "link") }.help("Link")
                     Button { insertText("![", suffix: "](image.png)") } label: { Image(systemName: "photo") }.help("Image")
@@ -137,16 +131,10 @@ struct MarkdownFileView: View {
         }
     }
 
-    // MARK: - Format Action Helpers
-
     private func insertText(_ prefix: String, suffix: String) {
-        // Appends prefix/suffix around formatting boundaries.
-        // On Mac standard text insertion, appending is a safe fallback when selections are decoupled.
         markdownText.append("\(prefix)text\(suffix)")
         isDirty = true
     }
-
-    // MARK: - Table Builder Sheet
 
     private var tableBuilderSheet: some View {
         VStack(spacing: 16) {
@@ -174,18 +162,15 @@ struct MarkdownFileView: View {
 
     private func generateTable() {
         var tableStr = "\n"
-        // Headers
         tableStr += "|"
         for i in 1...tableCols {
             tableStr += " Column \(i) |"
         }
         tableStr += "\n|"
-        // Separators
         for _ in 1...tableCols {
             tableStr += "---|"
         }
         tableStr += "\n"
-        // Rows
         for r in 1...tableRows {
             tableStr += "|"
             for c in 1...tableCols {
@@ -196,8 +181,6 @@ struct MarkdownFileView: View {
         markdownText.append(tableStr)
         isDirty = true
     }
-
-    // MARK: - Content IO
 
     private func loadContent() {
         do {

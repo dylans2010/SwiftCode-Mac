@@ -1,31 +1,6 @@
 import SwiftUI
 import SwiftCodeCloud
 
-/// The saved-connections list: test, activate, and delete.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseConnectionsView.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - SQLite execution goes through `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`), not Legacy's `DatabaseManager`. The
-///   test opens the file and runs `SELECT 1`; when the file does
-///   not exist yet it is created first (an empty file is a valid
-///   empty SQLite database) and the result says so, exactly as
-///   Legacy's "(Created DB file)" did.
-/// - Supabase goes through the destination's value type
-///   (`SupabaseService()` — no `.shared` on the destination
-///   service), which performs a real `GET {url}/rest/v1/`.
-/// - Legacy reported "Connection details validated." for
-///   PostgreSQL / MySQL / MariaDB without testing anything. This
-///   port says so honestly: there is no wire driver for those
-///   providers in this package, so nothing is tested and the
-///   details are only recorded.
-/// - Added a "Make Active" button: Legacy had no way to activate
-///   a connection from this list (only the sidebar picker did).
-/// - Legacy's `liquidGlass` group-box style is gone (SwiftCodeUI
-///   has no such modifier); the default group-box style is used.
 @MainActor
 struct DatabaseConnectionsView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager

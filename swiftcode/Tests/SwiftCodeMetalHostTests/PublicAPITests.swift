@@ -1,9 +1,7 @@
 import Foundation
 import Testing
-import SwiftCodeMetalHost  // not @testable: everything here must be public API
+import SwiftCodeMetalHost
 
-/// A backend's tests build the command model by hand; this checks that
-/// they can, with public initializers only.
 @Suite struct PublicAPITests {
     @Test func commandModelBuildsWithPublicInitializers() {
         let target = MetalHandle(7)
@@ -27,7 +25,6 @@ import SwiftCodeMetalHost  // not @testable: everything here must be public API
         #expect(header.used == 8 && !header.continuesPrevious)
         #expect(MetalHostStatistics().submissions == 0)
 
-        // NullBackend runs it and reports completion.
         let backend = NullBackend()
         let done = Box()
         backend.submit(cb, scheduled: {}, completed: { status in done.set(status) })

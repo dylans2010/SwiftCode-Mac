@@ -1,17 +1,4 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Backend/Extensions v2/VSCodeCompatibility/ExtV2VSCodeAPI.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// (Resolved by H-E: ExtV2DiagnosticsService lives in ExtV2Diagnostics.swift; ExtV2TextRange in ExtV2EditorBridge.swift.)
 import Foundation
-
-// MARK: - VS Code API surface, Swift side
-//
-// This file owns three things and nothing else:
-//  1. The contribution model a host activation returns (commands, views,
-//     tree items, status bar, output) — the only UI a host may produce.
-//  2. Provider registries (completion, hover, definition, formatting,
-//     diagnostics) that the editor bridges consult.
-//  3. The explicit list of what is NOT implemented, so the UI never
-//     renders a contribution type with no backing implementation.
 
 public struct ExtV2ContributionCommand: Codable, Hashable, Sendable {
     public let command: String
@@ -36,8 +23,6 @@ public struct ExtV2Contribution: Codable, Sendable {
     public let treeItems: [ExtV2TreeItem]
     public let statusBarText: String?
     public let outputLines: [String]
-    /// HTML for a supported webview contribution, if any. Rendered only
-    /// through the restricted WKWebView bridge in ExtensionRunView.
     public let webviewHTML: String?
 
     public init(
@@ -56,9 +41,6 @@ public struct ExtV2Contribution: Codable, Sendable {
     public static let empty = ExtV2Contribution()
 }
 
-/// A diagnostic published by an extension, rendered in the editor's
-/// diagnostics surfaces through the same model the app already uses for
-/// its own diagnostics (message + range + severity, no host objects).
 public struct ExtV2Diagnostic: Codable, Hashable, Sendable {
     public let relativePath: String
     public let range: ExtV2TextRange
@@ -67,10 +49,6 @@ public struct ExtV2Diagnostic: Codable, Hashable, Sendable {
     public let source: String
 }
 
-/// Provider registries. A host registers providers by sending IPC
-/// notifications; the Swift side stores plain data + the owning
-/// extension id, and the editor consults these before its own providers.
-/// No host code runs inside the editor process.
 @MainActor
 public final class ExtV2ProviderRegistry: ObservableObject {
     public static let shared = ExtV2ProviderRegistry()
@@ -102,8 +80,6 @@ public final class ExtV2ProviderRegistry: ObservableObject {
     }
 }
 
-/// APIs the host shim deliberately does not implement. The host script
-/// throws a descriptive error for these instead of returning success.
 public enum ExtV2UnsupportedVSCodeAPIs {
     public static let all: [String] = [
         "vscode.debug", "vscode.notebooks", "vscode.tests",

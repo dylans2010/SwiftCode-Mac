@@ -3,25 +3,6 @@ import SwiftUI
 import SwiftCodeCloud
 import UniformTypeIdentifiers
 
-/// Creates a saved `DatabaseConnection` through
-/// `DatabaseConnectionManager`.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseConnectionWizard.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - Legacy's `liquidGlass` header is gone (SwiftCodeUI has no
-///   such modifier); the header is a plain row on a subtle
-///   background.
-/// - The wizard now also collects the two optional Supabase
-///   credentials Legacy's `DatabaseConnection` already carried but
-///   the wizard never asked for (service key and JWT secret, as
-///   secure fields, never given a default).
-/// - `SupabaseService` is the destination's value type
-///   (`SupabaseService()` — no `.shared`); this wizard only
-///   records the connection, it does not test it (the connections
-///   list tests it).
 @MainActor
 struct DatabaseConnectionWizard: View {
     @Environment(\.dismiss) private var dismiss
@@ -35,7 +16,6 @@ struct DatabaseConnectionWizard: View {
     @State private var databaseName = ""
     @State private var username = ""
 
-    // Supabase
     @State private var supabaseURL = ""
     @State private var supabaseAnonKey = ""
     @State private var supabaseServiceKey = ""

@@ -1,21 +1,6 @@
 import AppKit
 import Foundation
 
-// MARK: - Coding dictionary window
-//
-// Wave 17, Slice C: the `dictionary.open` window, built whole. The
-// window manager mirrors Legacy's `CodingDictionaryWindowManager`
-// (idempotent `showWindow()` raising the existing window); the
-// content is SwiftCode's own AppKit UI over `CodingDictionaryService`.
-// The left pane is the persisted query history (pin / delete /
-// clear); the right pane renders the generated entry as structured
-// text. Nothing here invents term data: with no configured
-// text-completion provider the Define action fails with the
-// service's honest error, shown in the status line.
-
-/// Renders one generated dictionary entry as structured attributed
-/// text (headings, body, monospaced code). Pure function, so tests
-/// can assert every field of an entry reaches the page.
 public enum CodingDictionaryEntryText {
     public static func attributedString(for result: CodingDictionaryResult) -> NSAttributedString {
         let out = NSMutableAttributedString()
@@ -146,9 +131,6 @@ public enum CodingDictionaryEntryText {
     }
 }
 
-/// The Coding Dictionary's window manager: one shared window,
-/// raised when already open (Legacy's `CodingDictionaryWindowManager`
-/// pattern). The `SDKViewHost` surface action calls `showWindow()`.
 @MainActor
 public final class CodingDictionaryWindowManager: NSObject {
     public static let shared = CodingDictionaryWindowManager()
@@ -183,8 +165,6 @@ extension CodingDictionaryWindowManager: NSWindowDelegate {
 public final class CodingDictionaryWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     public static let size = NSSize(width: 960, height: 640)
 
-    /// Injectable so tests can drive the window with a stubbed
-    /// service; the app uses the live service.
     public let service: CodingDictionaryService
 
     private let searchField = NSSearchField()
@@ -220,8 +200,6 @@ public final class CodingDictionaryWindowController: NSWindowController, NSTable
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: - Layout
 
     private func build() {
         guard let content = window?.contentView else { return }
@@ -313,13 +291,10 @@ public final class CodingDictionaryWindowController: NSWindowController, NSTable
         detailTextView.string = "The Coding Dictionary explains Swift, Apple frameworks, tools, and programming concepts.\n\nEnter a term above — for example “TaskGroup”, “@MainActor”, or “git rebase” — and the dictionary generates a structured entry: definition, syntax, parameters, examples, common mistakes, and best practices.\n\nPast queries are kept in the history on the left. Select one to define it again."
     }
 
-    // MARK: - Actions
-
     @objc func defineClicked() {
         define(query: searchField.stringValue)
     }
 
-    /// Defines `query`, cancelling any lookup already in flight.
     public func define(query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -384,8 +359,6 @@ public final class CodingDictionaryWindowController: NSWindowController, NSTable
         deleteButton.isEnabled = hasSelection
         clearButton.isEnabled = !service.history.isEmpty
     }
-
-    // MARK: - History table
 
     public func numberOfRows(in tableView: NSTableView) -> Int {
         service.history.count

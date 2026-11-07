@@ -12,7 +12,6 @@ public struct CollaborationChatView: View {
             Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Channel Picker
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ChannelTab(title: "#general", isSelected: selectedChannel == "general") {
@@ -28,7 +27,6 @@ public struct CollaborationChatView: View {
                     .padding()
                 }
 
-                // Chat Messages
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 16) {
@@ -41,7 +39,6 @@ public struct CollaborationChatView: View {
                     }
                 }
 
-                // Input Area
                 HStack(spacing: 12) {
                     TextField("Message #\(selectedChannel)...", text: $inputText)
                         .padding(10)

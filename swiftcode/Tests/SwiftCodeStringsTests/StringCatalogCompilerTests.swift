@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeStrings
 
-/// A catalog with every compiled form, written by hand in the documented layout.
 let compileCatalog = #"""
 {
   "sourceLanguage" : "en",
@@ -114,7 +113,6 @@ func tempDir(_ name: String) throws -> URL {
         #expect(s.map(\.position) == [1, 2, nil, nil, nil, nil, nil, nil])
         #expect(s.map(\.valueType) == ["@", "", "lld", "f", "", "d", "hhu", "@"])
         #expect(s[1].variable == "apples" && !s[4].takesArgument)
-        // Offsets are UTF-16 offsets (a non-BMP character is two units).
         #expect(FormatSpecifier.parse("😀%d")[0].offset == 2)
     }
 }
@@ -130,18 +128,14 @@ func tempDir(_ name: String) throws -> URL {
         let r = try compiled()
         #expect(r.diagnostics.isEmpty)
         #expect(r.tables.map(\.language) == ["en", "de", "fr", "ja"])
-        // The source language has every key: its own value, else the key.
         let en = table(r, "en")
         #expect(en.strings.map(\.key) == ["%lld items", "Escapes", "Hello", "Logo"])
         #expect(en.strings.allSatisfy { $0.key == $0.value })
         #expect(en.stringsdict.map(\.0) == ["Apples", "Photos", "Tap"])
-        // Other languages: their units; `new` units only when forced;
-        // keys marked don't translate never.
         #expect(table(r, "de").strings.map(\.key) == ["Escapes", "Hello"])
         #expect(table(r, "fr").strings.isEmpty)
         #expect(table(r, "ja").strings == [StringsFile.Entry(key: "Hello", value: "こんにちは")])
         #expect(table(try compiled(.init(forceBuildAllStrings: true)), "fr").strings.map(\.value) == ["Bonjour"])
-        // -l restricts the languages.
         #expect(try compiled(.init(languages: ["de"])).tables.map(\.language) == ["de"])
     }
 
@@ -155,14 +149,12 @@ func tempDir(_ name: String) throws -> URL {
                              ("one", .string("%lld Element")), ("other", .string("%lld Elemente"))])),
         ]))
         let en = Dictionary(table(r, "en").stringsdict, uniquingKeysWith: { a, _ in a })
-        // The substitution's argument is 2, so the variable and its cases are positional.
         #expect(en["Apples"] == .dict([
             ("NSStringLocalizedFormatKey", .string("%1$@ has %2$#@apples@")),
             ("apples", .dict([("NSStringFormatSpecTypeKey", .string("NSStringPluralRuleType")), ("NSStringFormatValueTypeKey", .string("lld")),
                               ("one", .string("%2$lld apple")), ("other", .string("%2$lld apples"))])),
         ]))
         #expect(en["Tap"] == .dict([("NSStringDeviceSpecificRuleType", .dict([("mac", .string("Click")), ("other", .string("Tap"))]))]))
-        // Device, then plural: each device case is a format dictionary.
         let photos = en["Photos"]?["NSStringDeviceSpecificRuleType"]
         #expect(photos?.pairs.map(\.0) == ["iphone", "other"])
         #expect(photos?["iphone"]?["NSStringLocalizedFormatKey"]?.string == "%#@count@")
@@ -188,10 +180,8 @@ func tempDir(_ name: String) throws -> URL {
             "en.lproj/Localizable.strings", "en.lproj/Localizable.stringsdict", "de.lproj/Localizable.strings",
             "de.lproj/Localizable.stringsdict", "ja.lproj/Localizable.strings",
         ])
-        // The written files read back: escapes, controls and non-BMP characters survive.
         let de = try StringsFile.parse(Data(contentsOf: dir.appendingPathComponent("de.lproj/Localizable.strings")))
         #expect(de.first { $0.key == "Escapes" }?.value == "Tab\tquote \" backslash \\ newline\n bell \u{07} emoji 😀 𝄞")
-        // The stringsdict is a valid property list.
         let plist = try PropertyListSerialization.propertyList(from: Data(contentsOf: dir.appendingPathComponent("en.lproj/Localizable.stringsdict")),
                                                                format: nil) as? [String: Any]
         #expect(Set(plist.map { Array($0.keys) } ?? []) == ["Apples", "Photos", "Tap"])
@@ -229,7 +219,6 @@ func tempDir(_ name: String) throws -> URL {
 }
 
 #if os(macOS)
-/// The compiled tables as Foundation reads them (public API only).
 @Suite struct CompiledTablesRuntimeTests {
     @Test func foundationFormatsTheCompiledTables() throws {
         let dir = try tempDir("bundle")

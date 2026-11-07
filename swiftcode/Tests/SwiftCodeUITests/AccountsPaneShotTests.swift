@@ -4,13 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Screenshots of the macOS IDE's Settings ▸ Accounts for comparison with
-/// the Linux IDE's (`swiftcode-ide`, `SWIFTCODE_IDE_ACCOUNTS`). With
-/// `SWIFTCODE_ACCOUNTS_SHOTS` set to a folder it writes, per appearance,
-/// `mac-<appearance>-accounts.png` (the Settings window on Accounts) and
-/// `mac-<appearance>-accounts-sheet.png` (the sheet + shows), drawn with
-/// `cacheDisplay`, so no window is put on screen. It never runs without
-/// the variable.
 @MainActor
 @Suite(.serialized) struct AccountsPaneShotTests {
     nonisolated static let outDir = ProcessInfo.processInfo.environment["SWIFTCODE_ACCOUNTS_SHOTS"]

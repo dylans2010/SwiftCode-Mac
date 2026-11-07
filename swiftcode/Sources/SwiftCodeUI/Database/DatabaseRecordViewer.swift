@@ -3,47 +3,11 @@ import SwiftUI
 import os.log
 import SwiftCodeCloud
 
-/// One undoable SQL statement, with the statement that reverses it.
-///
-/// Legacy kept a single stack of SQL strings and re-ran the undone
-/// statement as its "redo" — which for an insert-undo re-ran the
-/// `DELETE`, a no-op, instead of re-inserting the row. The pair
-/// makes undo and redo both real: undo runs `undoSQL`, redo runs
-/// `redoSQL`, and each move hands the pair to the other stack.
 private struct RecordViewerUndoEntry {
     let undoSQL: String
     let redoSQL: String
 }
 
-/// The spreadsheet for one table: search, add, delete, edit, undo,
-/// redo — all executed for real against the active SQLite
-/// connection through `SQLiteExplorerModel`.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseRecordViewer.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - SQLite execution goes through `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`), not Legacy's `DatabaseManager`.
-///   Identifiers are quoted and values are escaped through
-///   `DatabaseViewSQLite.sqlLiteral`; Legacy interpolated both raw.
-/// - Undo/redo is fixed as described on `RecordViewerUndoEntry`:
-///   an insert's undo deletes the inserted row and its redo
-///   re-inserts it; a delete's undo re-inserts the row and its
-///   redo deletes it again.
-/// - Legacy declared `activeEditorRow` / `activeEditorCol` but
-///   never used them, and nothing ever presented
-///   `DatabaseRecordEditor`. Double-clicking a row now opens the
-///   editor, and saving runs a real `UPDATE` against the row's
-///   primary key.
-/// - The view is SQLite-only, as Legacy's writes were: it loads
-///   nothing and writes nothing while the active connection is
-///   not SQLite. Remote providers have no row driver in this
-///   package, and the view does not pretend otherwise.
-/// - Legacy's `liquidGlass` header is gone (SwiftCodeUI has no
-///   such modifier); the header is a plain row on a subtle
-///   background.
 @MainActor
 struct DatabaseRecordViewer: View {
     let table: DatabaseTable
@@ -54,7 +18,6 @@ struct DatabaseRecordViewer: View {
     @State private var searchQuery = ""
     @State private var editingRow: DatabaseRecordViewerEditingRow?
 
-    // Undo / Redo Stacks
     @State private var undoStack: [RecordViewerUndoEntry] = []
     @State private var redoStack: [RecordViewerUndoEntry] = []
     @State private var feedbackMsg = ""
@@ -70,7 +33,6 @@ struct DatabaseRecordViewer: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter / Action bar
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -79,7 +41,6 @@ struct DatabaseRecordViewer: View {
 
                 Spacer()
 
-                // Undo/Redo Buttons
                 Button(action: executeUndo) {
                     Label("Undo", systemImage: "arrow.uturn.backward")
                 }
@@ -126,7 +87,6 @@ struct DatabaseRecordViewer: View {
             } else {
                 ScrollView([.horizontal, .vertical]) {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        // Header row
                         HStack(spacing: 0) {
                             ForEach(table.columns) { col in
                                 HStack(spacing: 4) {
@@ -144,7 +104,6 @@ struct DatabaseRecordViewer: View {
                                 .border(Color.secondary.opacity(0.2), width: 0.5)
                             }
 
-                            // Actions column
                             Text("Actions")
                                 .font(.system(size: 11, weight: .bold))
                                 .padding(8)
@@ -153,7 +112,6 @@ struct DatabaseRecordViewer: View {
                                 .border(Color.secondary.opacity(0.2), width: 0.5)
                         }
 
-                        // Body Rows
                         ForEach(0..<filteredRows.count, id: \.self) { rowIdx in
                             let row = filteredRows[rowIdx]
                             HStack(spacing: 0) {
@@ -166,7 +124,6 @@ struct DatabaseRecordViewer: View {
                                         .background(Color(NSColor.controlBackgroundColor))
                                 }
 
-                                // Delete row action
                                 Button(action: { deleteRow(row) }) {
                                     Image(systemName: "trash")
                                         .foregroundColor(.red)
@@ -220,8 +177,6 @@ struct DatabaseRecordViewer: View {
     private func addRow() {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite else { return }
 
-        // Dynamically inspect column properties to generate a safe INSERT statement
-        // Omit auto-increment columns (usually primary keys)
         let colsList = table.columns.filter { !$0.isPrimaryKey || !$0.isAutoIncrement }
 
         let colNames = colsList.map { SQLiteExplorerModel.quoted($0.name) }.joined(separator: ", ")
@@ -252,7 +207,6 @@ struct DatabaseRecordViewer: View {
                 let explorer = try DatabaseViewSQLite.explorer(for: conn)
                 _ = try explorer.run(sql: insertSql)
 
-                // Fetch the rowid or primary key of the last inserted row to prepare the undo statement
                 let lastRowIdRows = try DatabaseViewSQLite.runDictionaries(explorer, sql: "SELECT last_insert_rowid() AS last_id;")
                 if let lastId = lastRowIdRows.first?["last_id"] {
                     let undoSql: String
@@ -263,7 +217,7 @@ struct DatabaseRecordViewer: View {
                     }
 
                     undoStack.append(RecordViewerUndoEntry(undoSQL: undoSql, redoSQL: insertSql))
-                    redoStack.removeAll() // Clear redo stack on new action
+                    redoStack.removeAll()
                     feedbackMsg = "Inserted new row successfully. Undo action recorded."
                 }
 
@@ -278,7 +232,6 @@ struct DatabaseRecordViewer: View {
     private func deleteRow(_ row: [String: String]) {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite else { return }
 
-        // We need a primary key column or unique identifier to perform a safe delete
         guard let pkCol = table.columns.first(where: { $0.isPrimaryKey }),
               let pkVal = row[pkCol.name] else {
             feedbackMsg = "Cannot delete row: Table has no Primary Key defined."
@@ -287,7 +240,6 @@ struct DatabaseRecordViewer: View {
 
         let deleteSql = "DELETE FROM \(SQLiteExplorerModel.quoted(table.name)) WHERE \(SQLiteExplorerModel.quoted(pkCol.name)) = \(DatabaseViewSQLite.sqlLiteral(pkVal));"
 
-        // Build the reverse INSERT to support UNDO!
         let colsList = table.columns.map { SQLiteExplorerModel.quoted($0.name) }.joined(separator: ", ")
         let valsList = table.columns.map { col -> String in
             DatabaseViewSQLite.sqlLiteral(row[col.name])
@@ -310,9 +262,6 @@ struct DatabaseRecordViewer: View {
         }
     }
 
-    /// Runs the real `UPDATE` for a row edited in
-    /// `DatabaseRecordEditor`. Only non-primary-key columns are
-    /// set; the row is located by its primary key.
     private func saveEditedRow(original: [String: String], newRow: [String: String]) {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite else { return }
         guard let pkCol = table.columns.first(where: { $0.isPrimaryKey }),
@@ -384,8 +333,6 @@ struct DatabaseRecordViewer: View {
     }
 }
 
-/// Identifiable wrapper so the row editor can be presented as a
-/// sheet over the row being edited.
 private struct DatabaseRecordViewerEditingRow: Identifiable {
     let id = UUID()
     let values: [String: String]

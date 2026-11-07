@@ -5,7 +5,6 @@ struct OperationsWorkspaceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Main Panel Routing
             switch coord.selectedPanel {
             case .dashboard:
                 OperationsDashboardView()

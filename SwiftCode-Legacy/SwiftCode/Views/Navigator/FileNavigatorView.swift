@@ -23,7 +23,6 @@ struct FileNavigatorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Files")
                     .font(.caption)
@@ -58,7 +57,6 @@ struct FileNavigatorView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            // Search
             HStack {
                 Image(systemName: "magnifyingglass")
                     .font(.caption)
@@ -80,7 +78,6 @@ struct FileNavigatorView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 4)
 
-            // File Tree
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 1) {
                     ForEach(filteredFiles) { node in
@@ -140,8 +137,6 @@ struct FileNavigatorView: View {
         }
     }
 
-    // MARK: - Actions
-
     private func handleTap(node: FileNode) {
         guard !node.isDirectory else {
             withAnimation(expandAnimation) {
@@ -195,8 +190,6 @@ struct FileNavigatorView: View {
         }
     }
 
-    // MARK: - Filter
-
     private func filterNodes(_ nodes: [FileNode], query: String) -> [FileNode] {
         nodes.compactMap { node -> FileNode? in
             if node.isDirectory {
@@ -210,8 +203,6 @@ struct FileNavigatorView: View {
         }
     }
 }
-
-// MARK: - File Node Row
 
 struct FileNodeRowView: View {
     var node: FileNode
@@ -244,10 +235,8 @@ struct FileNodeRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                // Indent
                 Spacer().frame(width: CGFloat(depth) * 16)
 
-                // Expand chevron for directories
                 if node.isDirectory {
                     Image(systemName: node.isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
@@ -257,19 +246,16 @@ struct FileNodeRowView: View {
                     Spacer().frame(width: 12)
                 }
 
-                // Icon
                 Image(systemName: iconName)
                     .font(.caption)
                     .foregroundStyle(iconTint)
                     .frame(width: 16)
 
-                // Name
                 Text(node.name)
                     .font(.caption)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                // Modified indicator
                 if !node.isDirectory && sessionStore.modifiedFilePaths.contains(node.path) {
                     Circle()
                         .fill(.orange)
@@ -289,7 +275,6 @@ struct FileNodeRowView: View {
             .onTapGesture { onTap(node) }
             .contextMenu { nodeContextMenu }
 
-            // Children
             if node.isDirectory && node.isExpanded {
                 ForEach(node.children) { child in
                     FileNodeRowView(

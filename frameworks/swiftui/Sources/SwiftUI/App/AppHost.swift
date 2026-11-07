@@ -6,33 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// The application host (round R7): runs an `App` on a platform back end.
-//
-// Launch, in the order the reference showed (06 §1):
-//   App.init → adaptor delegate didFinishLaunching (application in the
-//   background) → App.body (scenePhase .background) → the first scene's
-//   window is connected → App and scene phase .inactive (App.body again;
-//   willEnterForeground) → the window's root view body, onAppear, task →
-//   phase .active, App first, then the views (didBecomeActive) → first frame.
-//
-// Phases on the Linux desktop (our mapping): the application and its windows
-// share one phase. While a window is shown the phase is active; when every
-// window is minimised or hidden it goes through inactive to background;
-// restoring one goes through inactive to active. Losing keyboard focus does not change the phase (as on
-// desktop systems).
-// `openURL` events go to the `onOpenURL` handlers without a confirmation
-// (the reference's "Open in …?" prompt is SpringBoard's; `openURL(_:
-// confirming: true)` reproduces its inactive → URL → active order). Closing
-// the last window quits; quitting goes through inactive and background and
-// then calls the delegates' willTerminate.
-//
-// Frames: each window's graph is driven by the run loop's display link; the
-// window's root environment carries the scene phase, display scale, the
-// window services (focus, shortcuts, text input, clipboard) and the window
-// actions.
-
-/// The animation clock of a host: the display link's frame time inside a
-/// frame, the back end's clock otherwise.
 @MainActor
 package final class HostClock: AnimationTimeSource {
     unowned let backend: any PlatformBackend
@@ -41,9 +14,6 @@ package final class HostClock: AnimationTimeSource {
     package var now: TimeInterval { frameTime ?? backend.now }
 }
 
-/// Evaluates `App.body` as the body of a graph node, so the app's `@State`,
-/// `@Environment(\.scenePhase)` and other dynamic properties work as in a
-/// view; hands each evaluation's scenes to the host.
 struct AppRootView<A: App>: View, PrimitiveView {
     let app: A
     let host: AppHost
@@ -71,23 +41,14 @@ extension AppRootView: GraphInputComparable {
     nonisolated func _isGraphInputEqual(to other: Any) -> Bool { true }
 }
 
-/// The root of a window's graph: the scene's content, with the window's
-/// chrome (menu bar, toolbar; R11), its commands host, presentations and
-/// pop-up overlays.
 struct WindowRootView: View, PrimitiveView {
     let content: any View
-    /// Pop-ups shown inside the window (when the window system refused a
-    /// pop-up window; Popups.swift).
     var overlays: OverlayPopupLayer?
     typealias Body = Never
 
-    /// Sheets, covers, alerts and dialogs (R9, Presentation.swift).
     var presentations: PresentationCenter?
-    /// The chrome of a main window (R11); nil for pop-ups.
     var chrome: WindowChromeConfiguration?
-    /// The app's commands, evaluated in this window (R11).
     var commands: [any Commands] = []
-    /// The window's tooltip (R13).
     var tooltips: TooltipCenter?
 
     func _makeChildren(node: ViewNode, old: WindowRootView?, transaction: Transaction) {
@@ -132,7 +93,6 @@ struct WindowRootView: View, PrimitiveView {
     }
 }
 
-/// The menu bar and the window toolbar (they lower to nothing when hidden).
 struct WindowTopChrome: View {
     let configuration: WindowChromeConfiguration
     @Environment(\._windowServices) private var services
@@ -146,7 +106,6 @@ struct WindowTopChrome: View {
     }
 }
 
-/// The bottom bar (`ToolbarItemPlacement.bottomBar` outside navigation).
 struct WindowBottomChrome: View {
     @Environment(\._windowServices) private var services
     var body: some View {
@@ -156,7 +115,6 @@ struct WindowBottomChrome: View {
     }
 }
 
-/// One window of the application: its graph, input routing and frames.
 @MainActor
 package final class WindowHost {
     package let platform: any PlatformWindow
@@ -166,33 +124,23 @@ package final class WindowHost {
     package let sceneIndex: Int
     package let sceneID: String?
     package private(set) var phase: ScenePhase = .background
-    /// Minimised or hidden by the window system.
     package var isMinimized = false
     package var presenter: (any FramePresenter)?
-    /// Frames presented so far.
     package private(set) var presentedFrames = 0
     private var needsDisplay = true
     private var pressedPointers: Set<Int> = []
     private var baseEnvironment: EnvironmentValues
     private var content: any View
-    // Pop-ups (R8, Popups.swift).
     package internal(set) var isPopup = false
     package internal(set) weak var popupOwner: WindowHost?
-    /// Where the pop-up was placed (points of its owner; R11 screenshots).
     package internal(set) var popupOrigin = CGPoint.zero
     var popupHandle: PopupHandle?
     var popupOnDismiss: (() -> Void)?
     package internal(set) var overlayPopups: [OverlayPopup] = [] { didSet { refreshRoot() } }
-    /// Menu bar and toolbar (R11); nil for pop-ups.
     var chrome: WindowChromeConfiguration? { didSet { refreshRoot() } }
-    /// The app's commands evaluated in this window (R11).
     var commands: [any Commands] = []
-    /// The window's focused values (R11).
     package let focusedValues: FocusedValuesCenter
-    /// The scene storage of the window (R10).
     package let sceneStorage: SceneStorageStore
-    /// The color scheme applied for `preferredColorScheme(_:)` (nil: the
-    /// desktop's, `baseEnvironment`'s).
     package private(set) var preferredColorScheme: ColorScheme?
 
     init(platform: any PlatformWindow, sceneIndex: Int, sceneID: String?, content: any View,
@@ -238,13 +186,8 @@ package final class WindowHost {
         }
     }
 
-    /// The caret rectangle last given to the input method (the candidate
-    /// window opens below it), nil while no text field has focus.
     package private(set) var textInputArea: CGRect?
 
-    /// Keeps the input method's area at the focused text's caret: typing,
-    /// clicking, arrow keys and scrolling move the caret without a focus
-    /// change, and the candidate window must follow it (issue 23).
     func syncTextInputArea() {
         guard let client = services.focus.focusedClient, platform.isTextInputActive else { return }
         let r = client.caretRect
@@ -281,11 +224,8 @@ package final class WindowHost {
         }
     }
 
-    /// Applies new desktop settings to the window's environment (R10); a
-    /// scheme a view asked for stays.
     func applySettings(_ apply: @escaping (inout EnvironmentValues) -> Void) {
         apply(&baseEnvironment)
-        // A pop-up keeps the scheme its main window asked for.
         var main: WindowHost = self
         while main.isPopup, let o = main.popupOwner { main = o }
         let preferred = main.preferredColorScheme
@@ -295,8 +235,6 @@ package final class WindowHost {
         }
     }
 
-    /// Applies a changed `preferredColorScheme(_:)` request to the whole
-    /// window; true if the environment changed.
     @discardableResult
     func applyPreferredColorScheme() -> Bool {
         let wanted = requestedColorScheme
@@ -314,7 +252,6 @@ package final class WindowHost {
         graph.updateEnvironment { $0.scenePhase = p }
     }
 
-    /// Runs pending updates (bodies, layout) and applies focus changes.
     package func update() {
         graph.update()
         if applyPreferredColorScheme() { graph.update() }
@@ -338,9 +275,6 @@ package final class WindowHost {
             if let began { OpenViewsAutomation.frameDurations?.append(Double(DispatchTime.now().uptimeNanoseconds - began) / 1e9) }
         }
         let passes = graph.passCount
-        // An animation frame changes presented values without a pass (render
-        // effects, layout geometry): it must be presented too (QA B1). The
-        // frame in which the last animation ends is presented as well.
         let animating = graph.isAnimating
         graph.renderFrame()
         if applyPreferredColorScheme() { graph.update() }
@@ -362,8 +296,6 @@ package final class WindowHost {
         presenter?.invalidate()
     }
 
-    // MARK: Input
-
     private func sample(_ p: PointerEvent) -> PointerSample {
         let phase: PointerSample.Phase
         switch p.phase {
@@ -377,7 +309,6 @@ package final class WindowHost {
     }
 
     func handlePointer(_ p: PointerEvent) {
-        // R11: a secondary click opens a context menu.
         if p.kind == .mouse && p.button == 3 && p.phase == .down {
             services.pointerModifiers = p.modifiers
             gestures.pointer(sample(PointerEvent(window: p.window, phase: .moved, location: p.location, button: 0,
@@ -385,8 +316,6 @@ package final class WindowHost {
             openContextMenu(at: p.location)
             return
         }
-        // Only the primary button (and touches) drive gestures; other
-        // buttons still move the hover.
         if p.kind == .mouse && p.button > 1 && p.phase != .moved {
             if pressedPointers.isEmpty {
                 gestures.pointer(sample(PointerEvent(window: p.window, phase: .moved, location: p.location, button: 0,
@@ -398,7 +327,6 @@ package final class WindowHost {
         services.pointerModifiers = p.modifiers
         services.lastEventTime = p.timestamp
         if p.phase == .down { services.tooltips.dismiss() }
-        // Layout must be current before hit testing a press.
         if p.phase == .down && graph.needsUpdate { update() }
         switch p.phase {
         case .down: pressedPointers.insert(p.pointer)
@@ -408,21 +336,14 @@ package final class WindowHost {
         gestures.pointer(sample(p), isPressed: !pressedPointers.isEmpty)
     }
 
-    /// Keys of a pop-up window: Escape (and Left in a submenu) closes it,
-    /// Up and Down move between items.
     var onPopupKey: ((KeyEvent) -> Bool)?
-    /// Keys of a pop-up that its items did not use (the menu bar's Left and
-    /// Right, R11).
     var onPopupFallbackKey: ((KeyEvent) -> Bool)?
 
-    /// The text event that follows a key press an `onKeyPress` handler
-    /// used is dropped (R13).
     private var suppressNextText = false
 
     func handleKey(_ k: KeyEvent) {
         services.lastEventTime = k.timestamp
         if k.isDown { suppressNextText = false }
-        // R13: `onKeyPress` handlers around the focused view come first.
         if KeyPressDispatch.deliver(k, focused: services.focus.focusedNode) {
             if k.isDown, case .character = k.key, !k.modifiers.contains(.control), !k.modifiers.contains(.command) {
                 suppressNextText = true
@@ -437,13 +358,10 @@ package final class WindowHost {
         if let h = onPopupKey, h(k) { return }
         if let handler = services.focus.focusedKeyHandler, handler(k) { return }
         if let h = onPopupFallbackKey, h(k) { return }
-        // R11: F10 opens the menu bar, Shift+F10 the focused view's context
-        // menu.
         if k.key == .function(10) {
             if k.modifiers.contains(.shift) {
                 if openContextMenuForFocus() { return }
             } else if let bar = services.menuBar, !k.modifiers.contains(.control), !k.modifiers.contains(.command) {
-                // (Alt is ignored: some X keymaps deliver F10 with it.)
                 bar.openFirst()
                 return
             }
@@ -473,8 +391,6 @@ package final class WindowHost {
         gestures.scroll(delta: s.delta, at: s.location)
     }
 
-    /// Safe-area insets of the window's content (none on desktop windows;
-    /// tests set the reference phone's).
     package var safeAreaInsets = EdgeInsets() {
         didSet { resized(to: platform.size) }
     }
@@ -494,7 +410,6 @@ package final class WindowHost {
     func exposed() { needsDisplay = true }
     func pointerLeft() { gestures.pointerLeft() }
 
-    /// Delivers a URL to the window's `onOpenURL` handlers; false if none.
     func deliver(_ url: URL) -> Bool {
         let handlers = services.urlHandlers
         for h in handlers { h.action(url) }
@@ -502,7 +417,6 @@ package final class WindowHost {
     }
 }
 
-/// Runs an `App`.
 @MainActor
 package final class AppHost: RunLoopClient {
     package let backend: any PlatformBackend
@@ -512,43 +426,23 @@ package final class AppHost: RunLoopClient {
     package private(set) var windows: [WindowHost] = []
     package private(set) var scenes: [SceneDescription] = []
     package private(set) var appPhase: ScenePhase = .background
-    /// Tracing of host events (tests, samples).
     package var log: ((String) -> Void)?
-    /// Default window size when a scene sets none.
     package var defaultWindowSize = CGSize(width: 800, height: 600)
-    /// Desktop text input (no auto-capitalisation) — true on window-system
-    /// back ends, false on the headless one (which mirrors the reference).
     package var desktopTextInput: Bool
-    /// Makes each window's frame presenter (nil: frames are not drawn).
     package var makePresenter: (any PlatformWindow) -> (any FramePresenter)? = { CompositorPresenter(window: $0) }
-    /// Whether windows are created for Vulkan: `OV_RENDERER=vulkan`,
-    /// `software`, or `auto` (the default: Vulkan when a Vulkan compositor
-    /// can present to the window, else the software compositor).
     package var renderer = ProcessInfo.processInfo.environment["OV_RENDERER"]?.lowercased() ?? "auto"
     package private(set) var isFinished = false
-    /// Main windows show a menu bar (R11): on window-system back ends by
-    /// default, not on the headless one (whose windows keep the reference
-    /// phone's geometry); `OV_MENU_BAR=0|1` overrides. Set before `launch()`.
     package var showsMenuBar: Bool
-    /// The application's name (menu titles): `OV_APP_NAME`, the bundle name,
-    /// else the process name. Read when first used (after the `App` value is
-    /// made), so an app's initializer can set `OV_APP_NAME` for itself.
     package lazy var appName: String = {
         let env = ProcessInfo.processInfo.environment
         if let n = env["OV_APP_NAME"], !n.isEmpty { return n }
         if let n = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String, !n.isEmpty { return n }
         return ProcessInfo.processInfo.processName
     }()
-    /// Ends with a user quit (R10: scene storage is discarded then).
     package private(set) var quitByUser = false
-    /// Scene storage archives (R10, SceneStorage.swift).
     package var sceneArchive: SceneStorageArchive?
-    /// The window that has keyboard focus, as the window system last said.
     package private(set) var activeWindowID: PlatformWindowID?
-    /// True once the window system reported a focus change.
     package private(set) var windowFocusKnown = false
-    /// The AT-SPI export (R10; ATSPIBridge.swift), when an accessibility
-    /// bus exists.
     package var accessibilityExport: AccessibilityExport?
 
     private var delegates: [any AppDelegateAdaptorProtocol] = []
@@ -573,12 +467,7 @@ package final class AppHost: RunLoopClient {
         }
     }
 
-    /// `App.main()`: the default back end, URLs from the command line, run
-    /// until quit.
-    /// The host `App.main()` created (samples and tools find it here).
     package private(set) static weak var current: AppHost?
-    /// The host launched last (tests launch hosts without `App.main()`);
-    /// `OpenViewsClipboard` uses it when there is no `current`.
     package private(set) static weak var lastLaunched: AppHost?
 
     package static func runMain<A: App>(_ type: A.Type) {
@@ -604,8 +493,6 @@ package final class AppHost: RunLoopClient {
         backend.shutdown()
     }
 
-    // MARK: Launch and phases
-
     private func environment(for sceneIndex: Int?) -> EnvironmentValues {
         var env = EnvironmentValues()
         env.scenePhase = appPhase
@@ -626,7 +513,6 @@ package final class AppHost: RunLoopClient {
         for d in delegates { d._deliver(event) }
     }
 
-    /// Creates the app and connects its first scene (06 §1 order).
     package func launch() {
         guard !launched, let makeRoot else { return }
         launched = true
@@ -638,7 +524,6 @@ package final class AppHost: RunLoopClient {
         let graph = ViewGraph(rootView: root, environment: environment(for: nil))
         appGraph = graph
         graph.update()
-        // The first scene that is not a Settings scene opens at launch.
         if let first = scenes.indices.first(where: { scenes[$0].kind != .settings }) { openWindow(sceneIndex: first) }
         setAppPhase(.inactive)
         setAppPhase(.active)
@@ -647,8 +532,6 @@ package final class AppHost: RunLoopClient {
         for u in urls { openURL(u) }
     }
 
-    /// Moves the application (and every window that is not in the
-    /// background on its own) to `phase`, App first.
     package func setAppPhase(_ phase: ScenePhase) {
         guard phase != appPhase else { return }
         let old = appPhase
@@ -658,23 +541,18 @@ package final class AppHost: RunLoopClient {
         log?("App scenePhase \(phase)")
         appGraph?.updateEnvironment { $0.scenePhase = phase }
         appGraph?.update()
-        // 06 §1: App.body, the App's phase, willEnterForeground, then the
-        // scene's views.
         if old == .background { deliver(.willEnterForeground) }
         for w in windows {
             w.setPhase(phase)
             w.update()
         }
         if phase == .background {
-            // R10: scene storage is archived when the app goes to the
-            // background (09-open-design.md §4).
             for w in windows where !w.isPopup { sceneArchive?.save(w.sceneStorage) }
             deliver(.didEnterBackground)
         }
         if phase == .active { deliver(.didBecomeActive) }
     }
 
-    /// Receives the scenes of an App.body evaluation.
     func receive(_ new: [SceneDescription]) {
         scenes = new
         let commands = allCommands
@@ -682,7 +560,6 @@ package final class AppHost: RunLoopClient {
             w.setContent(scenes[w.sceneIndex].content(), environment: windowEnvironment(w.sceneIndex, window: w),
                          commands: commands)
         }
-        // Scene-level onChange(of:).
         for (i, s) in scenes.enumerated() {
             for (j, o) in s.changeObservers.enumerated() {
                 let key = "\(i).\(j)"
@@ -708,10 +585,8 @@ package final class AppHost: RunLoopClient {
         return env
     }
 
-    /// The commands of every scene (R11: one menu bar for the application).
     package var allCommands: [any Commands] { scenes.flatMap(\.commands) }
 
-    /// The standard menu items' actions for the window in `box`.
     private func commandActions(_ box: WeakWindowBox) -> AppCommandActions {
         let a = AppCommandActions()
         a.appName = appName
@@ -738,9 +613,6 @@ package final class AppHost: RunLoopClient {
         return a
     }
 
-    // MARK: Windows
-
-    /// Opens a window for the scene with `id` (nil: the first window group).
     package func openWindow(id: String?) {
         let index = id.flatMap { i in scenes.firstIndex { $0.id == i } } ?? scenes.firstIndex { $0.kind == .windowGroup }
         guard let index else { return }
@@ -750,8 +622,6 @@ package final class AppHost: RunLoopClient {
         windows.last?.update()
     }
 
-    /// Opens a window of a scene; with `activate` from a menu item (the new
-    /// window joins the app's phase).
     @discardableResult
     package func openWindow(sceneIndex: Int, activate: Bool) -> WindowHost? {
         let scene = scenes[sceneIndex]
@@ -777,7 +647,6 @@ package final class AppHost: RunLoopClient {
         env._appCommands = actions
         var size = scene.defaultSize ?? defaultWindowSize
         if isSettings && scene.defaultSize == nil {
-            // Settings windows take their content's ideal size (SwiftCode's rule).
             size = idealSize(of: scene.content(), environment: env, minimum: CGSize(width: 360, height: 200))
         }
         var config = WindowConfiguration(title: isSettings && scene.title.isEmpty ? "Settings" : scene.title, size: size,
@@ -787,8 +656,6 @@ package final class AppHost: RunLoopClient {
             return nil
         }
         log?("scene connect \(scene.id ?? "#\(sceneIndex)")")
-        // R11: main windows get the menu bar; the settings window does not
-        // (its commands are the app's, reachable from the main windows).
         let chrome = WindowChromeConfiguration(menuBar: showsMenuBar && !isSettings, commands: CommandsModel(), actions: actions)
         let storageKey = "\(scene.id ?? "#\(sceneIndex)").\(windows.filter { $0.sceneIndex == sceneIndex && !$0.isPopup }.count)"
         let storage = sceneArchive?.restore(key: storageKey) ?? SceneStorageStore()
@@ -804,7 +671,6 @@ package final class AppHost: RunLoopClient {
         return w
     }
 
-    /// The ideal size of a scene's content (Settings windows).
     private func idealSize(of content: any View, environment env: EnvironmentValues, minimum: CGSize) -> CGSize {
         var e = env
         e._windowServices = nil
@@ -818,21 +684,17 @@ package final class AppHost: RunLoopClient {
         return CGSize(width: min(ok(s.width, minimum.width), 1200), height: min(ok(s.height, minimum.height), 900))
     }
 
-    /// Opens (or raises) the Settings window (R11).
     package func openSettings() {
         guard let i = scenes.firstIndex(where: { $0.kind == .settings }) else { return }
         openWindow(sceneIndex: i, activate: true)
     }
 
-    /// Quit from a menu or a shortcut: a user quit.
     package func quit() {
         if ApplicationTermination.shouldTerminate?() == false { return }
         quitByUser = true
         terminate()
     }
 
-    /// A platform window and its presenter: a Vulkan window when the renderer
-    /// allows it and a Vulkan compositor works for it, else a software one.
     private func makeWindow(_ config: inout WindowConfiguration)
         -> (any PlatformWindow, (any FramePresenter)?)? {
         if renderer != "software" && !(backend is HeadlessBackend) {
@@ -866,7 +728,6 @@ package final class AppHost: RunLoopClient {
         log?("window close \(w.sceneID ?? "#\(w.sceneIndex)")")
         for p in windows where p.isPopup && p.popupOwner === w { closePopup(p) }
         w.setPhase(.background)
-        // R10: closing a window is the user's choice: its scene storage goes.
         sceneArchive?.discard(key: w.sceneStorage.archiveKey)
         w.teardown()
         w.platform.close()
@@ -878,18 +739,12 @@ package final class AppHost: RunLoopClient {
         }
     }
 
-    /// Removes a pop-up window from the host (Popups.swift closes it).
     func removeWindow(_ w: WindowHost) { windows.removeAll { $0 === w } }
 
     func addWindow(_ w: WindowHost) { windows.append(w) }
 
     package func window(for id: PlatformWindowID) -> WindowHost? { windows.first { $0.platform.id == id } }
 
-    // MARK: URLs and quitting
-
-    /// Hands a URL to the `onOpenURL` handlers (the key window's first).
-    /// With `confirming`, the app goes inactive around the delivery, as with
-    /// the reference's confirmation prompt (06 §1).
     package func openURL(_ url: URL, confirming: Bool = false) {
         log?("openURL \(url.absoluteString)")
         let wasActive = appPhase == .active
@@ -902,27 +757,20 @@ package final class AppHost: RunLoopClient {
         if confirming && wasActive { setAppPhase(.active) }
     }
 
-    /// Quits: inactive, background, willTerminate; the run loop then stops.
     package func terminate() {
         guard !isFinished else { return }
         if appPhase == .active { setAppPhase(.inactive) }
         if appPhase == .inactive { setAppPhase(.background) }
-        // R10 (06 §8): a user's quit discards the scene storage, as the
-        // reference did after a user-initiated termination.
         if quitByUser { sceneArchive?.discardAll() }
         deliver(.willTerminate)
         isFinished = true
         runLoop.stop()
     }
 
-    // MARK: Running
-
     package func run() { runLoop.run(self) }
 
-    /// Runs until back-end time `deadline` (headless tests).
     package func run(until deadline: TimeInterval) { runLoop.run(self, until: deadline) }
 
-    /// Runs for `seconds` of back-end time.
     package func run(for seconds: TimeInterval) { run(until: backend.now + seconds) }
 
     package func handle(_ event: PlatformEvent) {
@@ -933,7 +781,6 @@ package final class AppHost: RunLoopClient {
         case .scroll(let s): window(for: s.window)?.handleScroll(s)
         case .key(let k):
             if k.isDown { log?("key \(k.key) \(k.modifiers.rawValue) window \(k.window)") }
-            // Keys go to the innermost pop-up open over the window.
             guard var target = window(for: k.window) else { return }
             while let p = windows.last(where: { $0.isPopup && $0.popupOwner === target }) { target = p }
             target.handleKey(k)
@@ -941,7 +788,6 @@ package final class AppHost: RunLoopClient {
         case .textEditing(let e): window(for: e.window)?.handleEditing(e)
         case .openURL(let u): openURL(u)
         case .quit:
-            // The platform's quit (SDL: SIGINT, SIGTERM) is not asked about.
             quitByUser = true
             terminate()
         case .settingsChanged: applySettings()
@@ -968,7 +814,6 @@ package final class AppHost: RunLoopClient {
         case .scaleChanged(let s): w.scaleChanged(s)
         case .exposed: w.exposed()
         case .closeRequested:
-            // The last window takes the app with it (closeWindow).
             if windows.filter({ !$0.isPopup }).count == 1, ApplicationTermination.shouldTerminate?() == false { return }
             closeWindow(w)
         case .pointerLeft: w.pointerLeft()
@@ -976,7 +821,6 @@ package final class AppHost: RunLoopClient {
             w.isMinimized = true
             for p in windows where p.isPopup && p.popupOwner === w { closePopup(p) }
             if windows.filter({ !$0.isPopup }).allSatisfy(\.isMinimized) {
-                // As when the reference switched away: active → inactive → background.
                 if appPhase == .active { setAppPhase(.inactive) }
                 setAppPhase(.background)
             }
@@ -992,7 +836,6 @@ package final class AppHost: RunLoopClient {
         case .focusGained:
             windowFocusKnown = true
             activeWindowID = w.platform.id
-            // No frame follows a change of the active window by itself.
             accessibilityExport?.afterFrame()
         case .focusLost:
             windowFocusKnown = true
@@ -1001,7 +844,6 @@ package final class AppHost: RunLoopClient {
         }
     }
 
-    /// New desktop settings (R10): every graph's environment follows.
     package func applySettings() {
         let settings = backend.settings
         log?("settings changed")
@@ -1012,9 +854,6 @@ package final class AppHost: RunLoopClient {
 
     package var nextTimerDeadline: TimeInterval? { windows.compactMap(\.timerDeadline).min() }
 
-    /// R10: `UserDefaults` writes made outside the wrappers (swift-corelibs-
-    /// foundation posts no change notification) are noticed after each wake
-    /// of the run loop, before the frame.
     package func afterWait() { AppStorageCenter.shared.refreshIfObserved() }
 
     package func fireTimers(now: TimeInterval) {

@@ -9,12 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 03-architecture.md §1 (ViewBuilder result types, modifiers, custom
-// modifiers), §3 (`@Binding`, `@StateObject`), §2 (`@Namespace`), and the
-// geometry part of §5.
-
-// MARK: - ViewBuilder
-
 @MainActor
 @Suite("03 §1 ViewBuilder forms")
 struct ViewBuilderTests {
@@ -69,8 +63,6 @@ struct ViewBuilderTests {
         #expect(kinds(AnyView(Text("x"))) == ["TextLeaf"])
     }
 }
-
-// MARK: - Bindings
 
 struct BindingChild: View {
     let log: Log
@@ -191,13 +183,10 @@ struct BindingTests {
     }
 }
 
-// MARK: - Custom modifiers
-
 struct Bordered: ViewModifier {
     let log: Log
     @State var width: CGFloat = 4
     func body(content: Content) -> some View {
-        // swiftlint:disable:next redundant_discardable_let - a side effect inside a view builder
         let _ = log("modifier body")
         content.padding(width)
     }
@@ -246,8 +235,6 @@ struct CustomModifierTests {
         #expect(node.children[0].behavior is FixedFrameBehavior)
     }
 }
-
-// MARK: - StateObject, Namespace, geometry
 
 final class Counter: ObservableObject {
     @Published var n = 0
@@ -300,7 +287,6 @@ struct GeometryProbe: View {
     let log: Log
     var body: some View {
         GeometryReader { proxy in
-            // swiftlint:disable:next redundant_discardable_let - a side effect inside a view builder
             let _ = log("size \(Int(proxy.size.width))x\(Int(proxy.size.height))")
             Color.red
         }

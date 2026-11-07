@@ -4,7 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// reference-ui-4.md §13 leftovers (reference-ui-5.md §11.6, P14).
 @MainActor
 @Suite struct InterfaceBuilderR35Tests {
     func controller() throws -> InterfaceBuilderController {
@@ -13,7 +12,6 @@ import Testing
 
     func labels(_ sections: [IBInspectorSection], _ title: String) -> [String] { sections.first { $0.title == title }?.rows.map(\.label) ?? [] }
 
-    /// The values of a numbers row.
     func numbers(_ s: IBInspectorSection, _ key: String) -> [String] {
         for case .numbers(let k, let fields) in s.rows where k == key { return fields.map(\.value) }
         return []
@@ -30,7 +28,6 @@ import Testing
         let c = try controller()
         c.select(id: "lbl")
         let a = c.inspectorSections(.attributes)
-        // interface-builder.md §Per kind ▸ Label: the row labels on the left.
         #expect(a.first { $0.title == "Label" }?.rows.map(\.key) == ["Text", "", "Color", "Font", "Dynamic Type", "Alignment", "Lines", "Behavior", "",
                                                                      "Tooltip", "Baseline", "Line Break", "Strategy", "Autoshrink", "", "Sizing Rule",
                                                                      "Highlighted", "Shadow", "Shadow Offset"])
@@ -41,7 +38,6 @@ import Testing
         let view = labels(a, "View")
         for l in ["Content Mode", "Semantic", "Tag", "Alpha", "Background", "Tint", "Stretching"] { #expect(view.contains(l), "\(l)") }
         #expect(numbers(try #require(a.first { $0.title == "View" }), "Stretching") == ["0", "0", "1", "1"])
-        // Tooltip and Sizing Rule write attributes.
         c.setAttribute("toolTip", "Greeting", of: "lbl")
         c.setAttribute("sizingRule", "oversize", of: "lbl")
         #expect(c.document.byID["lbl"]?.attribute("toolTip") == "Greeting" && c.document.byID["lbl"]?.attribute("sizingRule") == "oversize")
@@ -78,7 +74,6 @@ import Testing
     @Test func extendEdgesToggles() throws {
         let c = try controller()
         c.select(id: "vc")
-        // Extend Edges is a group of the View Controller section.
         let vc = try #require(c.inspectorSections(.attributes).first { $0.title == "View Controller" })
         let edges = vc.rows.filter { if case .edgeToggle = $0 { return true } else { return false } }
         #expect(edges == [.edgeToggle(label: "Under Top Bars", target: "vc", edge: "top", isOn: true),
@@ -89,7 +84,6 @@ import Testing
         #expect(c.document.extendedEdge(c.document.byID["vc"]!, "top") == false && c.document.extendedEdge(c.document.byID["vc"]!, "bottom"))
         c.setExtendedEdge("top", true, of: "vc")
         #expect(c.document.extendedEdge(c.document.byID["vc"]!, "top"))
-        // The file still parses after each edit.
         #expect((try? IBDocument(data: Data(c.document.source))) != nil)
         let rows = try #require(c.inspectorSections(.attributes).first { $0.title == "View Controller" }).rows
         let i = try #require(rows.firstIndex { $0.label == "Use Preferred Explicit Size" })

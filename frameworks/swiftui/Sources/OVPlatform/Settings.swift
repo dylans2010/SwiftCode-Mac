@@ -6,41 +6,6 @@ import Glibc
 import Darwin
 #endif
 
-// Desktop settings that feed the environment (round R10; 08 §1: colour
-// scheme, contrast, Dynamic Type, accessibility flags, locale).
-//
-// Sources, strongest first (SwiftCode's design, documented in the package
-// README "Environment, persistence and accessibility design (R10)"):
-//
-//  1. Environment variables, fixed for the process: OV_COLOR_SCHEME
-//     (light|dark), OV_CONTRAST (normal|high), OV_REDUCE_MOTION,
-//     OV_REDUCE_TRANSPARENCY, OV_DIFFERENTIATE_WITHOUT_COLOR, OV_INVERT_COLORS,
-//     OV_BOLD_TEXT, OV_BUTTON_SHAPES (1|0), OV_CONTENT_SIZE (a Dynamic Type
-//     size name: xSmall … xxxLarge, accessibility1 … accessibility5),
-//     OV_TEXT_SCALE (a factor), OV_LOCALE (en_US, ar_SA, …).
-//  2. A settings file, watched for changes: $OV_SETTINGS_FILE, else
-//     $XDG_CONFIG_HOME/openviews/settings.conf (~/.config/…): lines
-//     `key = value` with the keys color-scheme, contrast, reduce-motion,
-//     reduce-transparency, differentiate-without-color, invert-colors,
-//     bold-text, button-shapes, content-size, text-scale, locale; `#`
-//     starts a comment.
-//  3. The desktop: the freedesktop settings portal (org.freedesktop.portal.
-//     Settings over the session bus: org.freedesktop.appearance color-scheme
-//     and contrast, org.gnome.desktop.interface text-scaling-factor and
-//     enable-animations, org.gnome.desktop.a11y.interface high-contrast),
-//     read and monitored with the `gdbus` tool when it exists
-//     (OV_SETTINGS_PORTAL=0 turns it off); SDL's system theme (it follows the
-//     same portal) for the colour scheme; LC_ALL, LC_MESSAGES or LANG for the
-//     locale; the process's time zone.
-//  4. The reference defaults of 08 §1 (light, standard contrast, large,
-//     every accessibility flag off, en_US).
-//
-// Text scale → Dynamic Type size (SwiftCode's mapping): < 0.85 xSmall, < 0.9
-// small, < 0.95 medium, < 1.1 large, < 1.2 xLarge, < 1.3 xxLarge, < 1.45
-// xxxLarge, < 1.6 accessibility1, < 1.8 accessibility2, < 2.0
-// accessibility3, < 2.3 accessibility4, else accessibility5.
-
-/// The settings a host turns into environment values.
 public struct PlatformSettings: Sendable, Equatable {
     public var darkAppearance = false
     public var increasedContrast = false
@@ -50,26 +15,21 @@ public struct PlatformSettings: Sendable, Equatable {
     public var invertColors = false
     public var boldText = false
     public var showButtonShapes = false
-    /// Index into the Dynamic Type sizes, smallest (0, xSmall) to largest
-    /// (11, accessibility5); 3 is large.
     public var contentSizeIndex = 3
     public var localeIdentifier = "en_US"
     public var timeZoneIdentifier: String?
 
     public init() {}
 
-    /// The names of the Dynamic Type sizes, in index order.
     public static let contentSizeNames = ["xSmall", "small", "medium", "large", "xLarge", "xxLarge", "xxxLarge",
                                           "accessibility1", "accessibility2", "accessibility3", "accessibility4",
                                           "accessibility5"]
 
-    /// The Dynamic Type index for a desktop text-scale factor.
     public static func contentSizeIndex(forTextScale s: Double) -> Int {
         let limits = [0.85, 0.9, 0.95, 1.1, 1.2, 1.3, 1.45, 1.6, 1.8, 2.0, 2.3]
         return limits.firstIndex { s < $0 } ?? 11
     }
 
-    /// Applies one `key = value` setting (file keys); false if unknown.
     @discardableResult
     public mutating func apply(key: String, value raw: String) -> Bool {
         let v = raw.trimmingCharacters(in: .whitespaces).lowercased()
@@ -98,7 +58,6 @@ public struct PlatformSettings: Sendable, Equatable {
         return true
     }
 
-    /// The settings of a settings file's text.
     public mutating func apply(fileText: String) {
         for line in fileText.split(whereSeparator: \.isNewline) {
             let l = line.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
@@ -109,7 +68,6 @@ public struct PlatformSettings: Sendable, Equatable {
         }
     }
 
-    /// The environment-variable overrides (source 1).
     public mutating func apply(environment env: [String: String]) {
         let map: [(String, String)] = [
             ("OV_COLOR_SCHEME", "color-scheme"), ("OV_CONTRAST", "contrast"), ("OV_REDUCE_MOTION", "reduce-motion"),
@@ -121,8 +79,6 @@ public struct PlatformSettings: Sendable, Equatable {
         for (name, key) in map { if let v = env[name], !v.isEmpty { apply(key: key, value: v) } }
     }
 
-    /// The POSIX locale variables as a locale identifier ("fr_FR.UTF-8" →
-    /// "fr_FR"); nil for C/POSIX or unset.
     public static func localeIdentifier(fromPOSIX env: [String: String]) -> String? {
         for name in ["LC_ALL", "LC_MESSAGES", "LANG"] {
             guard let v = env[name], !v.isEmpty else { continue }
@@ -134,7 +90,6 @@ public struct PlatformSettings: Sendable, Equatable {
     }
 }
 
-/// The settings file's path.
 public enum PlatformSettingsFile {
     public static func path(environment env: [String: String] = ProcessInfo.processInfo.environment) -> String {
         if let p = env["OV_SETTINGS_FILE"], !p.isEmpty { return p }
@@ -144,11 +99,6 @@ public enum PlatformSettingsFile {
     }
 }
 
-// MARK: - Watching a file
-
-/// Calls `onChange` (on the main queue) when a file is created, written,
-/// replaced or removed: inotify on its directory on Linux, a vnode source on
-/// the directory elsewhere. Nothing polls.
 @MainActor
 public final class SettingsFileWatcher {
     public let path: String
@@ -216,19 +166,14 @@ public final class SettingsFileWatcher {
     }
 }
 
-// MARK: - The desktop's settings
-
-/// Reads the settings from every source and reports changes.
 @MainActor
 public final class DesktopSettingsReader {
     public private(set) var current: PlatformSettings
-    /// Where the values came from (diagnostics: "file", "portal", "sdl", …).
     public private(set) var sources: [String] = []
     private let env: [String: String]
     private var watcher: SettingsFileWatcher?
     private var portal: PortalSettings?
     private var portalValues: [String: String] = [:]
-    /// The system theme from SDL (nil: unknown).
     public var systemDark: Bool? { didSet { if oldValue != systemDark { recompute() } } }
     public var onChange: (@MainActor (PlatformSettings) -> Void)?
 
@@ -276,7 +221,6 @@ public final class DesktopSettingsReader {
         if !portalValues.isEmpty {
             used.append("portal")
             if let v = portalValues["org.freedesktop.appearance color-scheme"] {
-                // 0 no preference, 1 prefer dark, 2 prefer light.
                 if v == "1" { s.darkAppearance = true } else if v == "2" { s.darkAppearance = false }
             }
             if portalValues["org.freedesktop.appearance contrast"] == "1" { s.increasedContrast = true }
@@ -308,16 +252,9 @@ public final class DesktopSettingsReader {
     }
 }
 
-/// The running `gdbus monitor`'s process id, for the exit handler. `exit()`
-/// runs no deinitializers, and the child would otherwise outlive the app
-/// until the portal next signals: inside a Flatpak it keeps the sandbox, and
-/// so the app's instance, running after the window has closed.
 nonisolated(unsafe) private var portalMonitorPID: pid_t = 0
 nonisolated(unsafe) private var portalMonitorExitHandlerInstalled = false
 
-/// The freedesktop settings portal through the `gdbus` tool: one `ReadAll`
-/// at start, then `gdbus monitor` for `SettingChanged` signals (a child
-/// process whose output is read on the main queue).
 @MainActor
 package final class PortalSettings {
     static let namespaces = ["org.freedesktop.appearance", "org.gnome.desktop.interface", "org.gnome.desktop.a11y.interface"]
@@ -353,7 +290,6 @@ package final class PortalSettings {
         return p.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
     }
 
-    /// The portal's values of `keys` ("namespace key" → value text).
     func readAll() -> [String: String] {
         let list = "[" + Self.namespaces.map { "'\($0)'" }.joined(separator: ", ") + "]"
         guard let text = run(["call", "--session", "--dest", "org.freedesktop.portal.Desktop",
@@ -362,7 +298,6 @@ package final class PortalSettings {
         return Self.parseReadAll(text)
     }
 
-    /// Parses gdbus's text form of `a{sa{sv}}`: ({'ns': {'key': <value>, …}, …},).
     package static func parseReadAll(_ text: String) -> [String: String] {
         var out: [String: String] = [:]
         var namespace: String?
@@ -389,13 +324,11 @@ package final class PortalSettings {
         return out.filter { keys.contains($0.key) }
     }
 
-    /// "uint32 1" → "1", "1.25" → "1.25", "true" → "true".
     static func normalise(_ v: String) -> String {
         let parts = v.trimmingCharacters(in: CharacterSet(charactersIn: "<> ")).split(separator: " ")
         return String(parts.last ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "'<>"))
     }
 
-    /// Parses one `gdbus monitor` line with a SettingChanged signal.
     package static func parseSignal(_ line: String) -> (String, String)? {
         guard line.contains("SettingChanged"), let open = line.firstIndex(of: "(") else { return nil }
         let words = line[open...].split(separator: "'").enumerated().filter { $0.offset % 2 == 1 }.map { String($0.element) }

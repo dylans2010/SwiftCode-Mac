@@ -3,12 +3,6 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// A live client for the public Hugging Face Hub API (Legacy
-/// `HuggingFaceAPI`, Dylan's own code, ported under MIT). Lists MLX
-/// models by download count and fetches one repository's file list; the
-/// result is `OfflineModelMetadata`, consumed by `OfflineModelDownloader`.
-/// List results are cached in UserDefaults for one hour, exactly as Legacy
-/// cached them; a single-repository fetch is never cached.
 public final class HuggingFaceAPI: @unchecked Sendable {
     public static let shared = HuggingFaceAPI()
     private init() {}

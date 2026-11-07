@@ -6,7 +6,6 @@ struct SimulatorRuntimeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("SDK Runtimes", systemImage: "square.stack.3d.down.right")
                     .font(.headline)
@@ -15,7 +14,6 @@ struct SimulatorRuntimeView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Backend/Dictionary/DictionaryManager.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: DictionaryErrorState, DictionaryManager.
-
 import Foundation
 import SwiftUI
 import os
@@ -42,8 +39,6 @@ public final class DictionaryManager: Sendable {
         loadHistory()
     }
 
-    // MARK: - History Operations
-
     public func loadHistory() {
         logger.log("Loading search history from UserDefaults.")
         if let data = UserDefaults.standard.data(forKey: historyDefaultsKey),
@@ -69,7 +64,6 @@ public final class DictionaryManager: Sendable {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        // Remove duplicate queries from history to keep it clean
         history.removeAll { $0.query.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }
 
         let newItem = DictionaryHistoryItem(query: trimmed)
@@ -80,7 +74,6 @@ public final class DictionaryManager: Sendable {
     public func togglePin(id: UUID) {
         if let index = history.firstIndex(where: { $0.id == id }) {
             history[index].isPinned.toggle()
-            // Keep pinned items sorted or structured if desired, or just preserve current list
             saveHistory()
         }
     }
@@ -95,8 +88,6 @@ public final class DictionaryManager: Sendable {
         saveHistory()
     }
 
-    // MARK: - Search Execution
-
     public func cancelSearch() {
         if activeTask != nil {
             logger.log("Cancelling active search task.")
@@ -110,20 +101,17 @@ public final class DictionaryManager: Sendable {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        // Prevent duplicate concurrent requests for the exact same query
         if isLoading && lastQuery == trimmed {
             logger.log("Ignoring duplicate request for '\(trimmed)'")
             return
         }
 
-        // Cancel existing active tasks
         cancelSearch()
 
         isLoading = true
         errorState = nil
         lastQuery = trimmed
 
-        // Automatically add to history
         addToHistory(query: trimmed)
 
         activeTask = Task {
@@ -191,11 +179,10 @@ public final class DictionaryManager: Sendable {
             let fullPrompt = "User Query: \(trimmed)"
 
             do {
-                // Combine system prompt with instructions for a comprehensive context
                 let promptToSend = "\(systemPrompt)\n\n\(fullPrompt)"
 
                 var responseText = ""
-                let usePreferredModel = true // Flag to toggle AFM 3 Core trial
+                let usePreferredModel = true
 
                 if usePreferredModel {
                     logger.log("Attempting dictionary search with preferred model 'AFM 3 Core'")
@@ -232,7 +219,6 @@ public final class DictionaryManager: Sendable {
                     return
                 }
 
-                // Parse using robust brace block scanner
                 guard let extractedJSON = self.extractJSON(from: cleanedResponse) else {
                     logger.error("Could not find valid JSON block boundaries in response.")
                     self.errorState = .invalidJSON(rawText: cleanedResponse)

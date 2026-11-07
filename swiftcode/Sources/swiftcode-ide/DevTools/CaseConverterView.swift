@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct CaseConverterView: View {
@@ -17,7 +14,6 @@ struct CaseConverterView: View {
                     .onChange(of: input) { convert() }
             }
             .padding([.top, .horizontal])
-            
 
             List(results, id: \.0) { name, value in
                 HStack {

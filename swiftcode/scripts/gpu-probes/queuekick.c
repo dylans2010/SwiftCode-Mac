@@ -1,14 +1,3 @@
-// queuekick: does work on a second queue of the same device run while the
-// first queue holds a submission that never ends (metal-sim-protocol.md
-// §8.8)? Queue 0 runs loop.comp (groups × 32 threads, each spinning until
-// the host writes a word); after 1 s the probe submits oob.comp (one
-// thread: dst = src + 1) on queue Q (0 = behind the hang, 1 = a second
-// queue) N times and times each. With `idle` it then waits the device idle
-// (the watchdog's way to end the hang). Finally it releases the loop.
-// Q = 2: the work goes to a second device (another GPU context) made before
-// the hang, waited for up to 10 s each.
-// usage: queuekick oob.spv loop.spv groups Q N [idle]
-// Build as hangkick.c.
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,9 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The commit editor in the editor area (`reference-ui-4.md` §2.3):
-/// author header, Amend switch, Commit, the message, the scope bar with
-/// Stage All, and one collapsible diff card per changed file.
 @MainActor
 public final class CommitEditorController: NSViewController, NSTextViewDelegate {
     public static let scopeTitles = ["All Changes", "Unstaged", "Staged"]
@@ -24,14 +21,10 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
     private let cardStack = NSStackView()
     public private(set) var cards: [DiffCardView] = []
     public private(set) var lastError: String?
-    /// After a commit, stage or discard: refresh the navigators.
     public var onChanged: (() -> Void)?
-    /// The path to show first (selected in the navigator).
     public var focusPath: String?
-    /// The background read of the changes and diffs, while it runs.
     public private(set) var loading: Task<Void, Never>?
     private var loadGeneration = 0
-    /// A commit, stage or discard running in the background.
     public private(set) var working: Task<Void, Never>?
     private var hasRemote = false
 
@@ -59,7 +52,7 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
         amendSwitch.controlSize = .small
         amendSwitch.target = self
         amendSwitch.action = #selector(amendChanged)
-        amendSwitch.isEnabled = false   // until HEAD is read (reload)
+        amendSwitch.isEnabled = false
         commitButton.bezelStyle = .push
         commitButton.target = self
         commitButton.action = #selector(commitClicked)
@@ -149,7 +142,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
         String(name.split(separator: " ").prefix(2).compactMap(\.first)).uppercased()
     }
 
-    /// What `reload()` reads from git, off the main thread.
     struct Loaded: Sendable {
         var changes: [GitRepository.Change]
         var diffs: [String: String]
@@ -158,9 +150,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
         var hasRemote: Bool
     }
 
-    /// Re-reads the changes in the background, then rebuilds the cards for
-    /// the current scope (and the author header and Amend label). A later
-    /// reload replaces one still reading.
     public func reload() {
         let repo = repository, scope = diffScope
         loadGeneration += 1
@@ -212,7 +201,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
         updateCommitEnabled()
     }
 
-    /// Waits for the background read and any command (tests).
     public func idle() async {
         while true {
             if let t = working { await t.value; continue }
@@ -221,7 +209,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
         }
     }
 
-    /// Runs a git command in the background, then reloads and reports.
     private func run(_ body: @escaping @Sendable (GitRepository) throws -> Void) {
         let repo = repository, previous = working
         working = Task { [weak self] in
@@ -237,8 +224,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
         }
     }
 
-    /// Commit applies once the message is non-empty (and, unless amending,
-    /// there is something to commit).
     public var canCommit: Bool {
         !messageView.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (amendSwitch.state == .on || !changes.isEmpty)
     }
@@ -252,7 +237,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
     public func textDidChange(_ notification: Notification) { updateCommitEnabled() }
 
     @objc private func amendChanged() {
-        // Amending starts from HEAD's message when the field is empty.
         guard amendSwitch.state == .on, messageView.string.isEmpty else { updateCommitEnabled(); return }
         let repo = repository
         Task { [weak self] in
@@ -275,9 +259,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
 
     public func discard(_ path: String) { run { try $0.discard(path) } }
 
-    /// Commits: with nothing staged, every change is staged first (what the
-    /// cards show); otherwise only the staged changes. Git runs in the
-    /// background. Returns the hash.
     @discardableResult
     public func commit() async -> String? {
         guard canCommit else { return nil }
@@ -317,7 +298,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
     }
 
     @objc private func commitAndPush() {
-        // swiftlint:disable:next unhandled_throwing_task - run(_:) handles the push error
         Task {
             guard await commit() != nil else { return }
             run { try $0.push() }
@@ -325,8 +305,6 @@ public final class CommitEditorController: NSViewController, NSTextViewDelegate 
     }
 }
 
-/// One file's card: disclosure, icon and name, discard, status letter,
-/// and the diff with line numbers and change bars.
 @MainActor
 public final class DiffCardView: NSView {
     public let change: GitRepository.Change
@@ -344,7 +322,6 @@ public final class DiffCardView: NSView {
         self.change = change
         lines = UnifiedDiffLines.parse(diff)
         let rel = SourceControlNavigatorModel.relative(change.path, root: root)
-        // A workspace inside a project reads "<project> / project.xcworkspace".
         let comps = rel.split(separator: "/")
         let title: String
         if let i = comps.firstIndex(where: { $0.hasSuffix(".xcodeproj") }), i + 1 < comps.count, comps[i + 1] == "project.xcworkspace" {
@@ -412,7 +389,6 @@ public final class DiffCardView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Diff text: old and new line numbers, a bar for added/removed lines.
     static func render(_ lines: [UnifiedDiffLines.Line]) -> NSAttributedString {
         let out = NSMutableAttributedString()
         let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)

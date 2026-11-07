@@ -8,7 +8,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
 @MainActor
 @Suite(.serialized) struct EditorPerformanceTests {
-    /// 10,000 lines of Swift with comments, strings and a block comment.
     static func bigSource() -> String {
         var lines: [String] = ["import Foundation", "/* A block comment", "   over two lines */"]
         var i = 0
@@ -52,16 +51,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(e.textView.lineIndex == LineIndex(e.text))
         print("TYPING-LATENCY 10k lines: full re-highlight \(String(format: "%.1f", before)) ms/keystroke, incremental \(String(format: "%.1f", after)) ms/keystroke")
         #expect(after < before / 3)
-        // Incremental coloring equals a full pass.
         let incremental = colors(e)
         SourceEditorController.incrementalEditing = false
         e.textView.insertText("", replacementRange: NSRange(location: 0, length: 0))
         e.applyPreferences()
         SourceEditorController.incrementalEditing = true
         #expect(incremental == colors(e))
-        // Closing a block comment early stays incremental (the document
-        // re-lexes until the lexer state matches again) and still equals a
-        // full pass.
         let c = (e.textView.string as NSString).range(of: "over two lines").location
         e.textView.setSelectedRange(NSRange(location: c, length: 0))
         e.textView.insertText("*/", replacementRange: e.textView.selectedRange())
@@ -74,10 +69,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         e.textView.undoManager?.removeAllActions()
     }
 
-    /// specs/ide/source-editor.md, "SwiftCode implementation", Performance: a
-    /// 20,000-line Swift file. Full highlight (lexical, then swift-syntax's
-    /// parse), the incremental highlight per keystroke, and keystroke to
-    /// repaint (typed through the typing rules, then drawn).
     @Test func typingOn20kLines() throws {
         _ = NSApplication.shared
         let dir = swiftcodeDir.appendingPathComponent(".build-ide/perf")
@@ -92,7 +83,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try e.open(file)
         let openMs = Date().timeIntervalSince(t0) * 1000
         t0 = Date()
-        e.refineHighlighting()   // the parse the editor runs right after opening
+        e.refineHighlighting()
         let parseMs = Date().timeIntervalSince(t0) * 1000
         let tv = e.textView
         let at = (tv.string as NSString).range(of: "var name = \"item 2000\"").location
@@ -108,8 +99,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             total += Date().timeIntervalSince(k0)
         }
         #expect(e.lastHighlightWasIncremental)
-        // The highlighter alone, on a copy of the text: the lexical pass,
-        // then the parser pass, per keystroke.
         let doc = SyntaxDocument(text: tv.string, language: .swift)
         var lexical = 0.0, parser = 0.0
         for _ in 0..<30 {

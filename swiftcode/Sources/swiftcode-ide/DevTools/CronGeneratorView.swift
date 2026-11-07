@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct CronGeneratorView: View {
@@ -21,7 +18,7 @@ struct CronGeneratorView: View {
                 TextField("Day of Week (0-6)", text: $dayOfWeek)
             }
             .padding()
-            
+
             .onChange(of: minute) { update() }
             .onChange(of: hour) { update() }
             .onChange(of: dayOfMonth) { update() }

@@ -4,11 +4,10 @@ import json
 
 def main():
     dest = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Distribution/SwiftCodeSDK"
-    
-    # 1. Additional Comprehensive Engineering Guides
+
     guides_dir = os.path.join(dest, "documentation", "guides")
     os.makedirs(guides_dir, exist_ok=True)
-    
+
     extra_guides = [
         ("macos-virtualization-and-container-guide", "macOS Virtualization Framework & Isolated Guest Container Execution"),
         ("swiftpm-binary-targets-and-frameworks", "Swift Package Manager Binary Targets, XCFrameworks, and Artifact Bundles"),
@@ -28,7 +27,6 @@ def main():
                 f.write("    public init() {}\n")
                 f.write("}\n```\n\n")
 
-    # 2. Compatibility & Platform Matrix Configuration
     conf_dir = os.path.join(dest, "resources", "configuration")
     os.makedirs(conf_dir, exist_ok=True)
     matrix = {
@@ -50,7 +48,6 @@ def main():
     with open(os.path.join(conf_dir, "distribution-matrix.json"), "w") as f:
         json.dump(matrix, f, indent=2)
 
-    # 3. Update components.json
     manifest_file = os.path.join(dest, "manifests", "components.json")
     components = []
     for root, _, files in os.walk(dest):

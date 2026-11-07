@@ -3,15 +3,6 @@ import SwiftCodeIDECore
 import SwiftCodePreviews
 import SwiftCodeSimLink
 
-/// UIKit view and view-controller previews in the Linux IDE (issue #84;
-/// `specs/ide/previews.md` §Linux, "UIKit previews"): they need UIKit, so
-/// they run in SwiftCode's iOS simulator on a paired simulator host. Each update
-/// compiles the module and the previews into a payload for the simulator
-/// (with the user's SDK copy, `PreviewIOSToolchain`), puts it with the plan
-/// in a preview host app (`PreviewHost.bundledPlanSource`), uploads that over
-/// SwiftCode's link, launches it on the host's preview device, and takes one
-/// picture of the device's screen with the headless viewer. The canvas cuts
-/// each tile's region out of that picture.
 public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Sendable {
     private let queue = DispatchQueue(label: "swiftcode.previews.simulator")
     private let lock = NSLock()
@@ -19,12 +10,9 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
     private var generation = 0
     private var hostExecutable: (version: String, url: URL)?
 
-    /// The paired host (`swiftcode sim remote pair`) the previews run on.
     public let hostName: String
     public let workDirectory: URL
-    /// The SDK copy, or why there is none.
     public let toolchain: Result<PreviewIOSToolchain, PreviewFailure>
-    /// How long the device may take to show the app (a first boot takes minutes).
     public var startTimeout: TimeInterval = 900
 
     public init(hostName: String, workDirectory: URL, toolchain: Result<PreviewIOSToolchain, PreviewFailure>) {
@@ -33,14 +21,10 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         self.toolchain = toolchain
     }
 
-    /// The paired simulator hosts' names (`$SWIFTCODE_SIM_LINK_HOME`'s trusted hosts).
     public static func pairedHosts(store: LinkStore = LinkStore()) -> [String] {
         store.peers().filter { $0.role == "host" }.map(\.name)
     }
 
-    /// The engine for a workspace when a simulator host is paired
-    /// (`SWIFTCODE_PREVIEW_SIM_HOST` picks one of several), else nil: the
-    /// canvas then says that UIKit previews need one.
     public static func standard(workspace: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> PreviewCanvasEngine? {
         let hosts = pairedHosts()
         guard let name = environment["SWIFTCODE_PREVIEW_SIM_HOST"].flatMap({ hosts.contains($0) ? $0 : nil }) ?? hosts.first else { return nil }
@@ -50,11 +34,8 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
                                       toolchain: PreviewIOSToolchain.locate(environment: environment))
     }
 
-    /// The preview device for a device type on the host ("swiftcode-previews-iphone-18-pro").
     public static func previewDevice(typeID: String) -> String { "swiftcode-previews-" + typeID }
 
-    /// The tiles' regions on the device's screen (`PreviewScreenLayout`):
-    /// a fitting preview gets the screen and lays itself out at its size.
     public static func regions(_ tiles: [PreviewCanvasTileRequest], screen: CGSize) -> [PreviewRegion] {
         let t = tiles.map { t in
             PreviewTile(preview: t.preview, variant: t.variant, size: t.size == .zero ? screen : t.size, fits: t.size == .zero)
@@ -62,9 +43,6 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         return PreviewScreenLayout.regions(t, screen: screen)
     }
 
-    /// The headless viewer's script: past the boot logo, the home screen
-    /// gives way to the app (the launcher opens it once the home screen has
-    /// settled), then the app's first steady picture.
     public static func shotScript(png: String, timeout: TimeInterval) -> String {
         """
         wait-live \(Int(timeout))
@@ -100,7 +78,6 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         let t0 = Date()
         let fm = FileManager.default
         let cache = workDirectory.appendingPathComponent("ModuleCache")
-        // The host's executable, once per SDK and host source.
         let version = "\(tc.sdkVersion)-v\(SwiftCodePreviews.PreviewHost.sourceVersion)"
         if hostExecutable?.version != version {
             progress("Building the preview host")
@@ -114,7 +91,6 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
             hostExecutable = (version, exe)
         }
         guard let hostExe = hostExecutable?.url else { return .failure(.host("no preview host")) }
-        // The payload.
         progress("Compiling the preview")
         let file = request.file.standardizedFileURL
         let module = request.locator.module(for: file)
@@ -133,7 +109,6 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         guard compiled.status == 0, fm.fileExists(atPath: payload.path) else {
             return .failure(.compile(PreviewCompiler.issues(from: compiled.output, lineMaps: sources.lineMaps)))
         }
-        // The app: the host, its Info.plist and icon, the payload and the plan.
         let regions = Self.regions(request.tiles, screen: request.screen)
         do {
             try fm.copyItem(at: hostExe, to: app.appendingPathComponent(SwiftCodePreviews.PreviewHost.executableName))
@@ -143,7 +118,6 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
             try PreviewPlan(generation: generation, payload: "payload.dylib", regions: regions).json().write(to: previewsDir.appendingPathComponent("plan.json"))
         } catch { return .failure(.host("Could not make the preview app: \(error)")) }
         let t1 = Date()
-        // Upload, launch on the preview device, one picture.
         progress("Launching the preview on \(hostName)")
         let device = Self.previewDevice(typeID: request.deviceTypeID)
         do {
@@ -160,7 +134,6 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
             guard up.ok else { return .failure(.host("Uploading the preview failed: \(up.error ?? "")")) }
             let r = try c.request(LinkRequest(op: "run", device: device, app: app.lastPathComponent, bundleID: SwiftCodePreviews.PreviewHost.bundleIdentifier))
             guard r.ok else { return .failure(.host("The simulator host did not launch the preview: \(r.error ?? "")")) }
-            // Until its display is up; a device that ends says why (its log's last lines).
             progress("Booting the preview device")
             let deadline = Date().addingTimeInterval(startTimeout)
             var state = "booting"
@@ -198,6 +171,5 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
 }
 
 extension PreviewChild {
-    /// The toolchain's `swiftc` (on the PATH).
     static func runSwiftc(_ arguments: [String]) -> (status: Int32, output: String) { run(["swiftc"] + arguments, timeout: 600) }
 }

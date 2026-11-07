@@ -4,9 +4,6 @@ import Testing
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// The toolkit-free Settings logic both IDEs share (`SettingsSupport.swift`,
-/// `specs/ide/settings.md`): shortcut notation and parsing, conflicts per
-/// host, behavior actions, user-theme edits.
 @MainActor
 @Suite(.serialized) struct SettingsSupportTests {
     func prefs(_ name: String) -> (Preferences, TestDefaults) {
@@ -27,7 +24,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(ShortcutNotation.mac.text(key: "k", modifiers: [.command, .shift]) == "⇧⌘K")
     }
 
-    /// A parsed shortcut in menu notation ("" for none, nil if unreadable).
     func parsed(_ text: String) -> String? { KeyBindings.parse(text).map { ShortcutNotation.mac.text(key: $0.key, modifiers: $0.modifiers) } }
 
     @Test func parsesBothNotations() {
@@ -47,14 +43,12 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let (p, t) = prefs("settings-conflicts")
         defer { t.remove() }
         let build = KeyBindings.entries(p).first { $0.title == "Build" }!
-        // ⌘B is Build, and on Linux ⌃B is the same keystroke (Ctrl+B).
         let other = KeyBindings.entries(p).first { $0.id != build.id && $0.command.key.isEmpty }!
         #expect(KeyBindings.conflicts(key: "b", modifiers: [.control], excluding: other.id, in: .mac, p).map(\.id).contains(build.id) == false)
         let refused = KeyBindings.set(other.id, key: "b", modifiers: [.control], in: .linux, p)
         #expect(refused.map(\.id).contains(build.id))
         #expect(p.keyBindingOverrides[other.id] == nil)
         #expect(KeyBindings.conflictMessage(refused).contains("Build (Product)"))
-        // A free keystroke is saved, and an empty one removes the shortcut.
         #expect(KeyBindings.set(other.id, key: "y", modifiers: [.command, .option, .shift], in: .linux, p).isEmpty)
         #expect(KeyBindings.effective(other.command, p).key == "y")
         #expect(KeyBindings.set(build.id, key: "", modifiers: [], in: .linux, p).isEmpty)

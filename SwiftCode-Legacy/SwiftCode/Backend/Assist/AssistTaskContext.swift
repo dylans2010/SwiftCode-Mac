@@ -1,14 +1,5 @@
-//
-//  AssistTaskContext.swift
-//  SwiftCode
-//
-//  Structured task envelope encapsulating user message, explicit skills, MCP selections,
-//  slash command directives, and file context.
-//
-
 import Foundation
 
-/// Structured execution state submitted from the Assist composer to the execution runtime.
 public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
     public let id: UUID
     public let userMessage: String
@@ -21,8 +12,6 @@ public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
     public var executedResources: [String]?
     public var taskRule: String?
     public var metadata: [String: String]?
-    /// Structured `@Reverse` invocation parsed from the composer text
-    /// (see ReverseCommandParser). Nil for ordinary messages.
     public var reverseInvocation: ReverseInvocation?
 
     public init(

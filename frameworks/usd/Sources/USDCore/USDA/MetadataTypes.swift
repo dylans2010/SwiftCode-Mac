@@ -1,6 +1,3 @@
-/// The value types of metadata fields as USDA writes them (`kind = "x"` is a
-/// token, `active = true` a bool). These are interop facts of the Sdf schema
-/// and the UsdGeom/UsdPhysics/UsdShade plug-in metadata of OpenUSD.
 enum MetadataType {
     case token, string, bool, double, int, dictionary, tokenArray, stringArray, asset, tokenListOp, stringListOp, tokenVector
 

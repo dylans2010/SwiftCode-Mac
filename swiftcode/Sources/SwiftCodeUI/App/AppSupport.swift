@@ -1,13 +1,9 @@
 import AppKit
 import SwiftCodeAssistant
 import SwiftCodeCloud
-import SwiftCodeGoogleAuth
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// One open workspace. SwiftCode opens `.xcodeproj`, `.xcworkspace` and package
-/// folders; saving writes edited sources and changed projects (through the
-/// byte-exact pbxproj writer).
 @MainActor
 public final class WorkspaceDocument: NSDocument {
     nonisolated(unsafe) public private(set) var model: WorkspaceModel?
@@ -21,8 +17,6 @@ public final class WorkspaceDocument: NSDocument {
 
     public override func makeWindowControllers() {
         guard let model else { return }
-        // Also recorded by the document controller; noted here as well so
-        // the list never depends on the bundle's document types.
         RecentProjects.shared.note(model.url)
         let wc = WorkspaceWindowController(session: WorkspaceSession(model: model))
         addWindowController(wc)
@@ -31,19 +25,13 @@ public final class WorkspaceDocument: NSDocument {
         DeviceHubLaunch.openIfAsked(wc)
     }
 
-    /// Saving goes through the window controller (editor files + projects),
-    /// not NSDocument's file wrapper.
     public override func save(_ sender: Any?) {
         (windowControllers.first as? WorkspaceWindowController)?.saveDocument(sender)
     }
 }
 
-/// Opens any supported container as a `WorkspaceDocument`, so the app does
-/// not depend on Info.plist document types when run unbundled.
 @MainActor
 public final class SwiftCodeDocumentController: NSDocumentController {
-    /// Projects, workspaces and packages open as workspaces; any other file
-    /// as a single file (reference-ui-6.md §1.2.2, W3).
     public override func typeForContents(of url: URL) throws -> String {
         Self.isWorkspaceContainer(url) ? WorkspaceDocument.typeName : SourceFileDocument.typeName
     }
@@ -52,35 +40,24 @@ public final class SwiftCodeDocumentController: NSDocumentController {
     }
     public override var defaultType: String? { WorkspaceDocument.typeName }
 
-    /// A project, a workspace, a `Package.swift` or a folder (a package
-    /// folder; another folder still fails as a workspace).
     public static func isWorkspaceContainer(_ url: URL) -> Bool {
         if ["xcodeproj", "xcworkspace"].contains(url.pathExtension) || url.lastPathComponent == "Package.swift" { return true }
         var isDir: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
     }
 
-    /// The open workspace window whose workspace contains `file`, the
-    /// frontmost first (`windows` in front-to-back order).
     public static func workspaceWindow(containing file: URL, among windows: [WorkspaceWindowController]) -> WorkspaceWindowController? {
         windows.first { $0.session.model.root.containsForOpening(file) }
     }
 
-    /// The open workspace windows, frontmost first.
     var workspaceWindows: [WorkspaceWindowController] {
         let byOrder = NSApp.orderedWindows.compactMap { $0.windowController as? WorkspaceWindowController }
         let all = documents.flatMap(\.windowControllers).compactMap { $0 as? WorkspaceWindowController }
         return byOrder + all.filter { wc in !byOrder.contains { $0 === wc } }
     }
 
-    /// Every open request (Finder, `open`, the Open panel, recents, launch
-    /// arguments). A file that an open workspace contains opens in that
-    /// workspace's focused editor; other files get a window of their own
-    /// (§1.2.2). Requests made while launching hold back the Welcome
-    /// window (§1.2.1, W2).
     public override func openDocument(withContentsOf url: URL, display displayDocument: Bool,
                                       completionHandler: @escaping (NSDocument?, Bool, (any Error)?) -> Void) {
-        // A result bundle opens as a test report of the front workspace window.
         if url.pathExtension == "xcresult", let wc = workspaceWindows.first {
             if displayDocument { wc.showWindow(nil) }
             wc.openResultBundle(url)
@@ -89,14 +66,10 @@ public final class SwiftCodeDocumentController: NSDocumentController {
         }
         if !Self.isWorkspaceContainer(url), let wc = Self.workspaceWindow(containing: url, among: workspaceWindows) {
             if displayDocument { wc.showWindow(nil) }
-            wc.handleOpenRequest(url)   // editor-area.md E.4
+            wc.handleOpenRequest(url)
             completionHandler(wc.document as? NSDocument, true, nil)
             return
         }
-        // A file asked for while a workspace is still opening (`open -a
-        // SwiftCode Project.xcodeproj File.swift`, or a file right after the
-        // launch's project) waits for it, then opens in its window if the
-        // workspace holds it (#71).
         if !Self.isWorkspaceContainer(url), !pendingOpens.isEmpty {
             deferredFileOpens.append((url, displayDocument, completionHandler))
             return
@@ -106,10 +79,6 @@ public final class SwiftCodeDocumentController: NSDocumentController {
         }
     }
 
-    /// State restoration reopens a workspace through here. It joins an
-    /// open of the same workspace already under way (the launch's
-    /// open-document request), so the workspace gets one window, and it
-    /// holds the Welcome window back like any other open (#71).
     public override func reopenDocument(for urlOrNil: URL?, withContentsOf contentsURL: URL, display displayDocument: Bool,
                                         completionHandler: @escaping (NSDocument?, Bool, (any Error)?) -> Void) {
         openOnce(urlOrNil ?? contentsURL, display: displayDocument, completionHandler: completionHandler) { done in
@@ -117,14 +86,12 @@ public final class SwiftCodeDocumentController: NSDocumentController {
         }
     }
 
-    /// Files whose open waits for a workspace being opened.
     private var deferredFileOpens: [(URL, Bool, (NSDocument?, Bool, (any Error)?) -> Void)] = []
 
     private func openDeferredFiles() {
         guard pendingOpens.isEmpty, !deferredFileOpens.isEmpty else { return }
         let files = deferredFileOpens
         deferredFileOpens = []
-        // After the new window is set up (its document's window controller).
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 for (url, display, done) in files { self.openDocument(withContentsOf: url, display: display, completionHandler: done) }
@@ -132,13 +99,8 @@ public final class SwiftCodeDocumentController: NSDocumentController {
         }
     }
 
-    /// Opens currently under way, by workspace path: the callers waiting
-    /// for each.
     private var pendingOpens: [String: [(NSDocument?, Bool, (any Error)?) -> Void]] = [:]
 
-    /// Runs `open` unless the same file is open or being opened: then the
-    /// open window comes forward, or the request waits for the open under
-    /// way and gets its document.
     private func openOnce(_ url: URL, display: Bool, completionHandler: @escaping (NSDocument?, Bool, (any Error)?) -> Void,
                           open: (@escaping (NSDocument?, Bool, (any Error)?) -> Void) -> Void) {
         let key = OpenRequestKey.path(url)
@@ -163,13 +125,9 @@ public final class SwiftCodeDocumentController: NSDocumentController {
         }
     }
 
-    /// Launch-time bookkeeping for the Welcome window (§1.2.1).
     public static var launchGate = WelcomeLaunchGate()
-    /// Shows the Welcome window (set by the app delegate).
     public static var showWelcome: (() -> Void)?
 
-    /// File ▸ Open… (⌘O) is always available: unbundled (no Info.plist
-    /// document types) AppKit would otherwise disable it.
     public override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         item.action == #selector(openDocument(_:)) ? true : super.validateUserInterfaceItem(item)
     }
@@ -181,17 +139,8 @@ public final class SwiftCodeDocumentController: NSDocumentController {
         return super.runModalOpenPanel(openPanel, forTypes: nil)
     }
 
-    /// File ▸ Open Recent is SwiftCode's own (`RecentProjectsMenuDelegate`).
-    /// A bundle that declares document types gets a second, AppKit-made
-    /// "Open Recent" after Open… unless the document controller allows no
-    /// recent documents; 0 is AppKit's documented way to say so
-    /// (`reference-ui-6.md` §8 item 1, M1).
-    /// Nonisolated: AppKit reads it on a background queue when it notes a
-    /// recent document (a main-actor getter traps there).
     public nonisolated override var maximumRecentDocumentCount: Int { 0 }
 
-    /// Every opened workspace is also recorded for File ▸ Open Recent and
-    /// the Welcome window (`reference-ui-5.md` §3.2).
     public override func noteNewRecentDocumentURL(_ url: URL) {
         RecentProjects.shared.note(url)
         super.noteNewRecentDocumentURL(url)
@@ -203,32 +152,22 @@ public final class SwiftCodeDocumentController: NSDocumentController {
     }
 }
 
-/// A menu-bar item built from a `CommandTable` command; `spec` keeps the
-/// generic title and condition for `MenuBarDelegate`.
 @MainActor
 public final class CommandMenuItem: NSMenuItem {
     public var spec: MenuCommand?
 }
 
-/// A menu built from `CommandTable`; `path` names it ("View ▸ Inspectors").
 @MainActor
 public final class CommandMenu: NSMenu {
     public var path = ""
-    /// For the Editor menu: the editor kind its items are for (§2.7, §2.8).
     public var editorKind: EditorKind = .source
 }
 
-/// Builds the menu bar from `CommandTable` (`specs/ide/reference-ui-5.md`
-/// §1–§2): alternates (§1.2), section labels (§1.4), conditional items
-/// (§1.5, hidden until `MenuBarDelegate` shows them) and no copies of the
-/// system's items (§1.6).
 @MainActor
 public enum MainMenu {
-    /// Menus whose contents AppKit or another delegate manages.
     static let foreignMenus: Set<String> = ["SwiftCode ▸ Services", "File ▸ Open Recent", "Editor ▸ Refactor"]
 
     public static func make() -> NSMenu {
-        // §1.6: no second full-screen item from AppKit (the View menu has ⌃⌘F).
         UserDefaults.standard.register(defaults: ["NSFullScreenMenuItemEverywhere": false])
         let bar = NSMenu()
         for (title, items) in CommandTable.menus {
@@ -260,7 +199,6 @@ public enum MainMenu {
                 if t == "Open Recent" { i.submenu?.delegate = RecentProjectsMenuDelegate.shared }
                 m.addItem(i)
             case .command(let original):
-                // Settings ▸ Key Bindings can change the shortcut.
                 let c = KeyBindings.effective(original)
                 m.addItem(MainMenu.item(for: c, base: c.isAlternate ? base : nil))
                 if !c.isAlternate { base = c }
@@ -269,8 +207,6 @@ public enum MainMenu {
         return m
     }
 
-    /// One command's item. An alternate whose key is spelled shifted
-    /// ("⌥⌘<" under "⌥⌘,") uses its base's key plus ⇧, so AppKit pairs them.
     static func item(for c: MenuCommand, base: MenuCommand?) -> CommandMenuItem {
         var key = c.key, mods = c.modifiers
         if let base, !key.isEmpty, key != base.key, Key.shiftedBase[key] == base.key {
@@ -287,7 +223,6 @@ public enum MainMenu {
         return i
     }
 
-    /// Disabled items that show a check mark (`EditorMenu.checkedDisabled`).
     static func markCheckedDisabled(in menu: NSMenu, kind: EditorKind) {
         let titles = EditorMenu.checkedDisabled[kind] ?? []
         guard !titles.isEmpty else { return }
@@ -297,8 +232,6 @@ public enum MainMenu {
         }
     }
 
-    /// Puts back a shortcut the system changed (§1.6: AppKit rebinds the
-    /// ⌃⌘F full-screen item to fn-F).
     static func restoreShortcut(_ i: CommandMenuItem) {
         guard let c = i.spec, !c.isAlternate, !c.key.isEmpty else { return }
         let mask = modifierFlags(c.modifiers, key: c.key)
@@ -314,12 +247,9 @@ public enum MainMenu {
         if m.contains(.shift) { mask.insert(.shift) }
         if m.contains(.option) { mask.insert(.option) }
         if m.contains(.control) { mask.insert(.control) }
-        // Function keys carry no implicit modifier (an empty mask; AppKit
-        // takes .function only on its own items).
         return mask
     }
 
-    /// An item's shortcut in canonical notation ("" for none).
     static func canonicalShortcut(_ i: NSMenuItem) -> String {
         guard !i.keyEquivalent.isEmpty else { return "" }
         let f = i.keyEquivalentModifierMask
@@ -331,18 +261,11 @@ public enum MainMenu {
         return Shortcut.canonical(key: i.keyEquivalent, modifiers: m)
     }
 
-    /// Every shortcut in the table (§1.6: the system's items give way).
     static let tableShortcuts: Set<String> = Set(CommandTable.allCommands.map(\.canonicalShortcut).filter { !$0.isEmpty })
-    /// System items that repeat one of the table's commands under another
-    /// action (the table has its own window-tab and full-screen items).
     static let systemDuplicateActions: Set<String> = [
         "toggleFullScreen:", "toggleTabBar:", "toggleTabOverview:", "selectNextTab:", "selectPreviousTab:",
     ]
 
-    /// Removes items the system added to a table menu whose shortcut is
-    /// one of the table's, or which repeat one of its commands
-    /// (reference-ui-5.md §1.6: "Close All ⌥⇧⌘W", the fn-F full-screen
-    /// item, AppKit's window-tab items).
     static func removeSystemConflicts(in menu: NSMenu) {
         for i in menu.items.reversed() where !(i is CommandMenuItem) && !i.isSeparatorItem && !i.isSectionHeader && i.submenu == nil {
             let action = i.action.map(NSStringFromSelector) ?? ""
@@ -350,10 +273,6 @@ public enum MainMenu {
         }
     }
 
-    /// Removes an "Open Recent" submenu the system added to the File menu
-    /// (`reference-ui-6.md` §8 item 1, M1): the table's is a `CommandMenu`.
-    /// `SwiftCodeDocumentController.maximumRecentDocumentCount` keeps AppKit
-    /// from adding one; this catches one that shows up anyway.
     static func removeSystemRecentMenus(in menu: NSMenu) {
         let clear = NSSelectorFromString("clearRecentDocuments:")
         for i in menu.items.reversed() where !(i is CommandMenuItem) {
@@ -362,25 +281,18 @@ public enum MainMenu {
         }
     }
 
-    /// Whether an item is the system's "Send <app> Feedback to Apple"
-    /// item, which AppKit puts at the top of the Help menu when the menu
-    /// is first read or shown.
     static func isSystemFeedbackItem(_ i: NSMenuItem) -> Bool {
         guard !(i is CommandMenuItem), !i.isSeparatorItem else { return false }
         let action = i.action.map(NSStringFromSelector) ?? ""
         return action.localizedCaseInsensitiveContains("feedback") || (i.title.hasPrefix("Send ") && i.title.hasSuffix(" Feedback to Apple"))
     }
 
-    /// Removes the system feedback item and the separator AppKit puts
-    /// under it (`reference-ui-6.md` §8 item 2, M2). The table's Help
-    /// menu starts with Developer Documentation, never a separator.
     static func removeSystemFeedbackItem(in menu: NSMenu) {
         guard menu.items.contains(where: isSystemFeedbackItem) else { return }
         for i in menu.items.reversed() where isSystemFeedbackItem(i) { menu.removeItem(i) }
         while let first = menu.items.first, first.isSeparatorItem, !(first is CommandMenuItem) { menu.removeItem(first) }
     }
 
-    /// Shows only the separators that still divide visible items (§1.5).
     static func collapseSeparators(in menu: NSMenu) {
         let items = menu.items
         let shown = MenuConditions.visibleSeparators(isSeparator: items.map(\.isSeparatorItem),
@@ -389,8 +301,6 @@ public enum MainMenu {
     }
 }
 
-/// Fills Editor ▸ Refactor with the code actions last fetched at the caret
-/// of the key workspace window (after Rename…), and starts a new fetch.
 @MainActor
 final class RefactorMenuDelegate: NSObject, NSMenuDelegate {
     static let shared = RefactorMenuDelegate()
@@ -404,7 +314,6 @@ final class RefactorMenuDelegate: NSObject, NSMenuDelegate {
     }
 
     static func fill(_ menu: NSMenu, with actions: [CodeAction], target: AnyObject) {
-        // Actions already behind a fixed Refactor item (RefactorCatalog) are not repeated.
         let refactors = RefactorCatalog.unmatched(actions).map { ($0, actions[$0]) }
         guard !refactors.isEmpty else { return }
         let sep = NSMenuItem.separator()
@@ -420,8 +329,6 @@ final class RefactorMenuDelegate: NSObject, NSMenuDelegate {
     }
 }
 
-/// Fills File ▸ Open Recent from `RecentProjects` (`reference-ui-5.md`
-/// §3.2): the entries newest first, then a separator and Clear Menu.
 @MainActor
 final class RecentProjectsMenuDelegate: NSObject, NSMenuDelegate {
     static let shared = RecentProjectsMenuDelegate()
@@ -445,35 +352,24 @@ final class RecentProjectsMenuDelegate: NSObject, NSMenuDelegate {
 }
 
 public extension Notification.Name {
-    /// Posted when the app is opened with a standalone Appwrite
-    /// password-recovery link (`appwrite-callback-<project>://
-    /// reset-password?userId=…&secret=…`) and no OAuth sign-in is
-    /// waiting for it. `userInfo` carries `userId` and `secret`
-    /// (both `String`); the receiver completes the reset once the
-    /// user supplies a new password.
     static let appwriteRecoveryLinkReceived = Notification.Name("AppwriteRecoveryLinkReceived")
 }
 
-/// App delegate: installs the menu bar, opens the workspaces given at
-/// launch, and otherwise shows the Welcome window.
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
-    /// The Welcome window, once shown.
     public private(set) var welcome: WelcomeWindowController?
 
     public override init() {
-        _ = SwiftCodeDocumentController() // the first instance becomes shared
+        _ = SwiftCodeDocumentController()
         super.init()
     }
 
     public func applicationWillFinishLaunching(_ n: Notification) {
         LayoutProbe.prepareIfRequested()
         MainThreadWatchdog.startIfRequested()
-        // Outside its bundle the app has no .icns (make-app.sh adds it).
         if Bundle.main.object(forInfoDictionaryKey: "CFBundleIconFile") == nil { NSApp.applicationIconImage = ProductIcon.image }
         DeveloperTools.prefetch()
         NSApp.mainMenu = MainMenu.make()
-        // swiftlint:disable:next discarded_notification_center_observer - lives as long as the app
         NotificationCenter.default.addObserver(forName: Preferences.didChange, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
                 NSApp.mainMenu = MainMenu.make()
@@ -484,20 +380,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
     }
 
     public func applicationDidFinishLaunching(_ n: Notification) {
-        // SWIFTCODE_LAYOUT_PROBE: measure the chrome, write the report, quit.
         if LayoutProbe.startIfRequested() { return }
-        // Route the build layer's outcome hook to the alert-sound player.
         AlertSoundPlayer.installBuildSoundHook()
-        // Install the SDK host seams (view host, Assist backend
-        // attachment; Wave 16 Slice C). Idempotent; no-ops on repeat.
         Task { await SwiftCodeSDKInstaller.installIfNeeded() }
-        // Install the password-reset sheet: Appwrite recovery links
-        // post `.appwriteRecoveryLinkReceived`, and this controller
-        // asks for the new password (gap closure).
         PasswordResetWindowController.installIfNeeded()
         SwiftCodeDocumentController.showWelcome = { [weak self] in self?.showWelcomeWindow(nil) }
         if case .open(let all) = LaunchAction.decide(arguments: Array(CommandLine.arguments.dropFirst()), openDocumentCount: 0) {
-            // Gauge traces open in a profiler window (specs/ide/profiler.md §6).
             let (traces, paths) = GaugeSettings.tracePaths(all)
             for t in traces {
                 do { try GaugeWindowController.show(traceAt: URL(fileURLWithPath: t)) } catch { NSApp.presentError(error) }
@@ -508,27 +396,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
                 }
             }
         }
-        // After restored windows (if any) have reopened. A document being
-        // opened at launch (Finder, `open`, arguments) holds the Welcome
-        // window back; it shows only if, in the end, nothing is open
-        // (reference-ui-6.md §1.2.1, W2).
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 if SwiftCodeDocumentController.launchGate.launchCheck(openDocuments: NSDocumentController.shared.documents.count) {
                     self.showWelcomeWindow(nil)
                 }
                 RuntimeSetupWindowController.offerAtFirstLaunch()
-                // Wiring (wiring-views): first-run Git/GitHub setup
-                // (`SCSetupOnboard`): shown when git is not installed or
-                // no GitHub token is stored, alongside the Welcome
-                // window; closing it without finishing re-offers it on
-                // the next launch.
                 SCSetupOnboardWindowController.offerIfNeeded()
             }
         }
     }
 
-    /// Window ▸ Welcome to SwiftCode (⇧⌘1).
     @discardableResult
     @objc public func showWelcomeWindow(_ sender: Any?) -> WelcomeWindowController {
         let w = welcome ?? WelcomeWindowController()
@@ -537,41 +415,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
         return w
     }
 
-    /// Clicking the Dock icon with no window open shows the Welcome window.
     public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { showWelcomeWindow(nil) }
         return true
     }
 
-    /// A URL the system routed to this app on one of its registered
-    /// custom schemes (`packaging/macos/Info.plist.in`,
-    /// `CFBundleURLTypes`): Appwrite OAuth / recovery / verification
-    /// callbacks on `appwrite-callback-<project>://`, GitHub OAuth
-    /// callbacks on `swiftcode://oauth/callback`, and Google OAuth
-    /// callbacks on `swiftcode://`. Each URL is offered to the
-    /// Appwrite manager first, then to GitHub OAuth, then to the
-    /// Google service; the first handler that claims it wins.
-    /// GitHub MUST come before Google: Google's handler claims any
-    /// `swiftcode://` URL (GoogleOAuthConfiguration.callbackScheme),
-    /// so offering Google first would swallow the GitHub callback
-    /// and the code exchange would never run. Without the Info.plist
-    /// registration the system never delivers these URLs and the
-    /// OAuth flows keep timing out instead of completing — the
-    /// handlers alone are not enough.
     public func application(_ sender: NSApplication, open urls: [URL]) {
         for url in urls { Self.handleOpenedURL(url) }
     }
 
-    /// Routes one opened URL to the OAuth handlers. Returns true
-    /// when a handler claimed it. A standalone verification link
-    /// (no OAuth sign-in waiting for it) is completed right here
-    /// — that is the whole point of the emailed link — while a
-    /// standalone recovery link is announced on
-    /// `.appwriteRecoveryLinkReceived` with `userId` / `secret` in
-    /// `userInfo`: completing a reset needs a new password from the
-    /// user, and `PasswordResetWindowController` (installed at
-    /// launch) asks for it (see
-    /// `specs/ide/gap-closure-cloud-github.md` §1).
     @discardableResult
     public static func handleOpenedURL(_ url: URL) -> Bool {
         if let callback = CloudAuthManager.shared.handleOAuthCallback(url) {
@@ -589,22 +441,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
             }
             return true
         }
-        // `handleOAuthCallback` also returns nil when it resumed a
-        // pending OAuth wait — the URL was still Appwrite's, so it
-        // was consumed even though nothing is left to do with it.
         if url.scheme == CloudAuthManager.shared.client.configuration.callbackScheme {
             return true
         }
-        // GitHub before Google: GitHubOAuth.handleOpenURL only claims
-        // its own `swiftcode://oauth/callback` redirect, while
-        // Google's handler claims every `swiftcode://` URL.
         if GitHubOAuth.shared.handleOpenURL(url) {
             return true
         }
         return GoogleAccountAuthService.shared.handleOpenURL(url)
     }
 
-    /// File ▸ Open Recent ▸ <entry>. The Welcome window stays open.
     @objc public func openRecentProject(_ sender: Any?) {
         guard let url = (sender as? NSMenuItem)?.representedObject as? URL else { return }
         NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
@@ -612,7 +457,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
         }
     }
 
-    /// File ▸ Open Recent ▸ Clear Menu: empties the menu and the Welcome list.
     @objc public func clearRecentProjects(_ sender: Any?) {
         RecentProjects.shared.clear()
         NSDocumentController.shared.clearRecentDocuments(nil)
@@ -623,7 +467,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
         return true
     }
 
-    /// SwiftCode ▸ Settings… (Command-,).
     @objc public func showSettings(_ sender: Any?) {
         SettingsWindowController.shared.showWindow(sender)
     }

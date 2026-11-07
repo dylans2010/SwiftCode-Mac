@@ -3,52 +3,31 @@ import Observation
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// The app's state: the Welcome screen or one open workspace (L1 opens one
-/// workspace per window and one window). A container comes from the
-/// command line (`swiftcode-ide <path>`), the Welcome screen's recent list, or
-/// File ▸ Open…, which asks for a path in a sheet: OpenViews has no file
-/// dialog yet (its R13 brings the desktop portal's), and the macOS build
-/// uses the same sheet so both shells behave alike.
 @MainActor
 @Observable
 public final class ShellAppModel {
     public private(set) var workspace: WorkspaceShellModel?
-    /// The Open dialog is up (File ▸ Open…).
     public var isOpenSheetShown = false
     public var openPath = ""
-    /// Why the last open failed.
     public private(set) var openError: String?
     public private(set) var recent: [URL] = []
-    /// The New Project sheet, while it is up.
     public var newProject: NewProjectShellModel?
-    /// The Clone sheet, while it is up.
     public var clone: CloneShellModel?
-    /// The About sheet is up.
     public var isAboutShown = false
-    /// The simulator runtime wizard, while it is up (Window ▸ Downloads, first launch).
     public var runtimeSetup: RuntimeSetupSession?
     @ObservationIgnored public var runtimeDefaults: UserDefaults = .standard
-    /// An alert to show.
     public var notice: ShellNotice?
-    /// Hands a URL to the desktop (the views install the toolkit's opener).
     @ObservationIgnored public var openExternally: (URL) -> Void = { _ in }
-    /// The Organizer window's model (Window ▸ Organizer; ShellAppModel+Organizer.swift).
     @ObservationIgnored public let organizer = OrganizerShellModel()
-    /// Opens a window scene by id (the views install the toolkit's action).
     @ObservationIgnored public var openWindow: (String) -> Void = { _ in }
-    /// Where New Project remembers its choices (tests pass their own).
     @ObservationIgnored public var newProjectDefaults: UserDefaults = .standard
 
-    /// What waits for an answer about unsaved changes.
     public enum PendingClose: Equatable, Sendable {
         case closeWorkspace, quit
         case open(String)
     }
-    /// The prompt for unsaved changes is up, for this.
     public private(set) var pendingClose: PendingClose?
-    /// Workspaces start sourcekit-lsp for live issues (the app sets it).
     @ObservationIgnored public var startsLanguageService = false
-    /// Ends the app after the prompt (the view layer's; tests record it).
     @ObservationIgnored public var terminateApp: () -> Void = {}
 
     @ObservationIgnored let recentProjects: RecentProjects
@@ -60,10 +39,6 @@ public final class ShellAppModel {
         recent = recentProjects.urls
     }
 
-    /// The container path given on the command line: the first argument
-    /// that is not an option. A user-defaults pair (`-Key value`, a capital
-    /// after the dash) is skipped whole. Relative paths resolve against the
-    /// working directory.
     public static func launchPath(_ arguments: [String] = CommandLine.arguments,
                                   workingDirectory: String = FileManager.default.currentDirectoryPath) -> String? {
         var i = 1
@@ -79,7 +54,6 @@ public final class ShellAppModel {
         return nil
     }
 
-    /// Opens a container. Returns whether it opened; else `openError` says why.
     @discardableResult
     public func open(path: String) -> Bool {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -109,8 +83,6 @@ public final class ShellAppModel {
         }
     }
 
-    /// File ▸ Close Project / Workspace / Package: back to Welcome, after
-    /// asking about unsaved changes.
     public func closeWorkspace() {
         guard workspace?.hasUnsavedChanges != true else {
             pendingClose = .closeWorkspace
@@ -127,19 +99,14 @@ public final class ShellAppModel {
         recent = recentProjects.urls
     }
 
-    /// The app is asked to quit: true if it may; false after raising the
-    /// prompt about unsaved changes.
     public func shouldQuit() -> Bool {
         guard workspace?.hasUnsavedChanges == true else { return true }
         pendingClose = .quit
         return false
     }
 
-    /// What the prompt about unsaved changes offers.
     public enum CloseAnswer: Sendable { case saveAll, discard, cancel }
 
-    /// The prompt's answer. Save All that needs the user (a change on disk,
-    /// an error) keeps everything open and shows why.
     public func answerClose(_ answer: CloseAnswer) {
         guard let pending = pendingClose else { return }
         pendingClose = nil
@@ -164,7 +131,6 @@ public final class ShellAppModel {
         isOpenSheetShown = true
     }
 
-    /// The error was shown.
     public func clearOpenError() { openError = nil }
 
     public func isEnabled(_ c: ShellCommand) -> Bool {
@@ -193,9 +159,7 @@ public final class ShellAppModel {
         }
     }
 
-    /// The command's title in the current context.
     public func title(_ c: ShellCommand) -> String { c.title(in: workspace?.menuContext) }
 
-    /// A toggle's check mark (nil: the command is not a toggle).
     public func isChecked(_ c: ShellCommand) -> Bool? { workspace.flatMap { $0.debug.isChecked(c) ?? $0.isPreviewCommandChecked(c) } }
 }

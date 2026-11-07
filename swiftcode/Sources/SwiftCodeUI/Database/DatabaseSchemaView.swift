@@ -2,36 +2,6 @@ import AppKit
 import SwiftUI
 import SwiftCodeCloud
 
-/// Interactive ER diagram + constraint designer.
-///
-/// Ported from Legacy's
-/// `Views/Utilities/Database/Views/DatabaseSchemaView.swift`.
-///
-/// Changes over Legacy, all recorded here:
-///
-/// - Tables come from `SQLiteExplorerModel` (via
-///   `DatabaseViewSQLite`) for SQLite, and from
-///   `SupabaseService().fetchTables` for Supabase (the
-///   destination's value type — no `.shared`). Other providers
-///   have no schema driver in this package, so the canvas stays
-///   empty and a status line says so instead of failing silently.
-/// - Constraint DDL is executed for real against SQLite through
-///   `SQLiteExplorerModel.run`, one statement at a time (the
-///   model runs only the first statement in a string, so the
-///   foreign-key rebuild transaction is split on `;` first, as
-///   Legacy split it for its own driver). Identifiers are quoted;
-///   Legacy interpolated them raw. The foreign-key rebuild, the
-///   unique index, and the check validation keep Legacy's exact
-///   semantics; the generated DDL is shown in full before it runs.
-/// - Fixed Legacy's drag bug: its `onChanged` added the gesture's
-///   total translation to the card's current offset on every
-///   event, so cards accelerated away from the pointer. The drag
-///   now records the card's offset when the gesture starts and
-///   applies the translation to that base.
-/// - Legacy's zero-argument `.onChange` closures are the
-///   two-argument form (the destination SDK's `onChange`).
-/// - Legacy's `liquidGlass` group-box style is gone (SwiftCodeUI
-///   has no such modifier); the default group-box style is used.
 @MainActor
 struct DatabaseSchemaView: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
@@ -41,12 +11,10 @@ struct DatabaseSchemaView: View {
     @State private var scale: CGFloat = 1.0
     @State private var loadErrorMessage = ""
 
-    // Segmented tab selector
-    @State private var selectedTab = 0 // 0 = ER Diagram Workspace, 1 = Constraint Designer
+    @State private var selectedTab = 0
 
-    // Constraint states
     @State private var selectedConstraintTable = ""
-    @State private var constraintType = "Foreign Key" // Foreign Key, Unique, Check
+    @State private var constraintType = "Foreign Key"
     @State private var sourceColumn = ""
     @State private var targetTable = ""
     @State private var targetColumn = ""
@@ -57,7 +25,6 @@ struct DatabaseSchemaView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Upper Selection Bar
             HStack(spacing: 16) {
                 Picker("", selection: $selectedTab) {
                     Text("Interactive ER Diagram").tag(0)
@@ -97,7 +64,6 @@ struct DatabaseSchemaView: View {
             Divider()
 
             if selectedTab == 0 {
-                // Interactive ER Diagram Canvas with simplified lightweight background grid
                 ZStack {
                     Color(NSColor.controlBackgroundColor)
                         .opacity(0.3)
@@ -105,7 +71,6 @@ struct DatabaseSchemaView: View {
 
                     ScrollView([.horizontal, .vertical]) {
                         ZStack {
-                            // Lines showing Foreign Key Relationships
                             ForEach(tables) { table in
                                 ForEach(table.relationships) { rel in
                                     DatabaseSchemaRelationLineView(
@@ -115,7 +80,6 @@ struct DatabaseSchemaView: View {
                                 }
                             }
 
-                            // Tables boxes
                             ForEach(tables) { table in
                                 DatabaseSchemaTableCard(table: table)
                                     .offset(tableOffsets[table.name] ?? .zero)
@@ -142,7 +106,6 @@ struct DatabaseSchemaView: View {
                     }
                 }
             } else {
-                // Constraint & Foreign Key Designer Pane
                 constraintDesignerPane()
             }
         }
@@ -156,7 +119,6 @@ struct DatabaseSchemaView: View {
         }
     }
 
-    // MARK: - Constraint Designer Pane View
     @ViewBuilder
     private func constraintDesignerPane() -> some View {
         ScrollView {
@@ -300,7 +262,6 @@ struct DatabaseSchemaView: View {
         }
     }
 
-    // MARK: - Handlers & Loading
     private func loadTables() {
         guard let conn = connManager.activeConnection else { return }
         Task { @MainActor in
@@ -318,7 +279,6 @@ struct DatabaseSchemaView: View {
                     return
                 }
 
-                // Lay tables out in a grid
                 var x: CGFloat = 50
                 var y: CGFloat = 50
                 for table in tables {
@@ -357,7 +317,6 @@ struct DatabaseSchemaView: View {
             ddl += "BEGIN TRANSACTION;\n"
             ddl += "ALTER TABLE \(SQLiteExplorerModel.quoted(selectedConstraintTable)) RENAME TO \(SQLiteExplorerModel.quoted("_\(selectedConstraintTable)_old"));\n"
 
-            // Re-create new table with foreign key constraint mapping
             if let currentTableObj = tables.first(where: { $0.name == selectedConstraintTable }) {
                 var colsDDL: [String] = []
                 for col in currentTableObj.columns {
@@ -379,7 +338,6 @@ struct DatabaseSchemaView: View {
         } else if constraintType == "Unique" {
             ddl = "CREATE UNIQUE INDEX \(SQLiteExplorerModel.quoted("idx_uniq_\(selectedConstraintTable)_\(sourceColumn)")) ON \(SQLiteExplorerModel.quoted(selectedConstraintTable)) (\(SQLiteExplorerModel.quoted(sourceColumn)));"
         } else {
-            // Check constraint
             ddl = "-- SQLite Check constraints must be defined at CREATE TABLE.\n"
             ddl += "-- Schema validation rules:\n"
             ddl += "SELECT case when NOT (\(checkExpression)) then raise(fail, 'Check Constraint Violated!') else 'Passed' end FROM \(SQLiteExplorerModel.quoted(selectedConstraintTable));\n"
@@ -387,7 +345,6 @@ struct DatabaseSchemaView: View {
 
         constraintLogs = ddl
 
-        // Execute DDL statements
         Task { @MainActor in
             do {
                 let explorer = try DatabaseViewSQLite.explorer(for: conn)
@@ -395,11 +352,9 @@ struct DatabaseSchemaView: View {
                     _ = try explorer.run(sql: ddl)
                     alertMessage = "Unique constraint index generated successfully!"
                 } else if constraintType == "Check" {
-                    // Try to execute check on active dataset
                     _ = try explorer.run(sql: "SELECT * FROM \(SQLiteExplorerModel.quoted(selectedConstraintTable)) LIMIT 10;")
                     alertMessage = "Check Constraint validation code generated. Rebuild database schemas during next migration deployment."
                 } else {
-                    // Execute full transaction, one statement at a time
                     let statements = ddl.components(separatedBy: ";").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     for stmt in statements {
                         _ = try explorer.run(sql: stmt + ";")
@@ -417,12 +372,6 @@ struct DatabaseSchemaView: View {
     }
 }
 
-// MARK: - Relation Line View
-
-/// A curved connector between two table cards on the ER canvas.
-/// Prefixed with the owning view's name: Legacy's file-level
-/// `RelationLineView` would collide with any other view that
-/// defines the same helper name.
 struct DatabaseSchemaRelationLineView: View {
     let sourceOffset: CGSize
     let targetOffset: CGSize
@@ -433,7 +382,6 @@ struct DatabaseSchemaRelationLineView: View {
             let endPoint = CGPoint(x: targetOffset.width + 120, y: targetOffset.height + 80)
             path.move(to: startPoint)
 
-            // Curved cubic bezier line
             let control1 = CGPoint(x: startPoint.x + 100, y: startPoint.y)
             let control2 = CGPoint(x: endPoint.x - 100, y: endPoint.y)
             path.addCurve(to: endPoint, control1: control1, control2: control2)
@@ -442,18 +390,11 @@ struct DatabaseSchemaRelationLineView: View {
     }
 }
 
-// MARK: - Schema Table Card
-
-/// One table on the ER canvas: header plus its columns, with
-/// primary-key and foreign-key markers. Prefixed with the owning
-/// view's name for the same reason as
-/// `DatabaseSchemaRelationLineView`.
 struct DatabaseSchemaTableCard: View {
     let table: DatabaseTable
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Image(systemName: "tablecells.fill")
                     .foregroundColor(.white)
@@ -465,7 +406,6 @@ struct DatabaseSchemaTableCard: View {
             .frame(width: 240, alignment: .leading)
             .background(Color.blue)
 
-            // Columns
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(table.columns) { col in
                     HStack {

@@ -3,12 +3,7 @@ import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// The Editor menu of each editor kind (`specs/ide/reference-ui-5.md`
-/// §2.7, §2.8), the change gutter's navigation (§6.3) and the editing
-/// commands behind them (§6.4). The source commands act on the focused
-/// editor; the text work is in `SourceEditorController+Commands.swift`.
 extension WorkspaceWindowController {
-    /// Which Editor menu the focused editor gets.
     public var focusedEditorKind: EditorKind {
         guard let aux = editor.auxiliary else { return .source }
         if let p = plistEditor, p.isViewLoaded, aux === p.view { return .propertyList }
@@ -17,15 +12,12 @@ extension WorkspaceWindowController {
         return .other
     }
 
-    /// A source file is shown in the focused editor.
     var hasSourceFile: Bool { editor.fileURL != nil && editor.auxiliary == nil }
     var hasEditableSource: Bool { hasSourceFile && editor.textView.isEditable }
 
-    /// Wires the change gutter of an editor (`wire(_:)` calls this).
     func wireChangeGutter(_ e: SourceEditorController) {
         e.changeBaselines = { [weak self] url in
             guard let self, Preferences.shared.sourceControlEnabled, let repo = self.repository, repo.relative(url.path) != nil else { return nil }
-            // git show, twice: off the main thread.
             return await Task.detached { () -> (index: String?, head: String?)? in
                 let index = repo.contents(of: url.path, at: nil), head = repo.headContents(of: url.path)
                 return index == nil && head == nil ? nil : (index, head)
@@ -45,36 +37,26 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// A change bar's click: Code Review, inline, on that region (§6.3.6).
     func showChangeInCodeReview(line: Int, in e: SourceEditorController) {
         if let i = editorArea.tab.editors.firstIndex(where: { $0 === e }) { editorArea.tab.focused = i }
         if editor.comparisonStyle != .inline || !editor.isShowingInlineComparison {
             if editor.isShowingComparison || editor.isShowingInlineComparison { endCodeReview() }
-            endEditorModes(except: .codeReview)   // reference-ui-5.md §4.2 (canvas mode off too)
+            endEditorModes(except: .codeReview)
             editor.comparisonStyle = .inline
             guard startCodeReview() else { return }
         }
         editor.selectReviewChange(containing: line)
     }
 
-    // MARK: Layout ▸ (§2.7 item 4; reference-ui-6.md §8 item 5, M5)
-
-    /// Editor ▸ Layout ▸ Automatic / Canvas on Right / Canvas on Bottom:
-    /// where the canvas goes.
     @objc public func setCanvasLayout(_ sender: Any?) {
         let tag = (sender as? NSMenuItem)?.tag ?? (sender as? Int) ?? 0
         editorArea.canvasLayout = tag == 1 ? .beside : (tag == 2 ? .below : nil)
     }
 
-    // MARK: Issues
-
-    /// Editor ▸ Show / Hide All Issues (⌃⌘L).
     @objc public func toggleInlineIssues(_ sender: Any?) {
         let show = !editor.showsInlineIssues
         for e in editorArea.allEditors { e.showsInlineIssues = show }
     }
-
-    // MARK: Structure
 
     @objc public func reindent(_ sender: Any?) { editor.reindentLines() }
     @objc public func shiftLeft(_ sender: Any?) { editor.shiftLines(right: false) }
@@ -85,7 +67,6 @@ extension WorkspaceWindowController {
     @objc public func moveLineDown(_ sender: Any?) { editor.moveLines(up: false) }
     @objc public func addDocumentation(_ sender: Any?) { if !editor.addDocumentation() { NSSound.beep() } }
 
-    /// Format Selection / Format File (⌃⌥⇧I / ⌃⇧I) with `swift-format`.
     @objc public func formatSelection(_ sender: Any?) { runSwiftFormat(selectionOnly: true) }
     @objc public func formatFile(_ sender: Any?) { runSwiftFormat(selectionOnly: false) }
 
@@ -101,23 +82,16 @@ extension WorkspaceWindowController {
         }
     }
 
-    // MARK: Code Folding
-
     @objc public func foldMethodsAndFunctions(_ sender: Any?) { editor.foldMethodsAndFunctions(true) }
     @objc public func unfoldMethodsAndFunctions(_ sender: Any?) { editor.foldMethodsAndFunctions(false) }
     @objc public func foldCommentBlocks(_ sender: Any?) { editor.foldCommentBlocks(true) }
     @objc public func unfoldCommentBlocks(_ sender: Any?) { editor.foldCommentBlocks(false) }
-
-    // MARK: Selection
 
     @objc public func splitSelectionByLines(_ sender: Any?) { if !editor.splitSelectionByLines() { NSSound.beep() } }
     @objc public func balanceDelimiters(_ sender: Any?) { if !editor.balanceDelimiters() { NSSound.beep() } }
     @objc public func selectColumnUp(_ sender: Any?) { if !editor.addColumnSelection(up: true) { NSSound.beep() } }
     @objc public func selectColumnDown(_ sender: Any?) { if !editor.addColumnSelection(up: false) { NSSound.beep() } }
 
-    /// Editor ▸ Selection ▸ Select All Symbols and Editor ▸ Edit All in
-    /// Scope (⌃⌘E): the occurrences as selections, from the language
-    /// server's document highlights when it has them.
     @objc public func selectAllSymbols(_ sender: Any?) { selectAllOccurrences() }
     @objc public func editAllInScope(_ sender: Any?) { selectAllOccurrences() }
 
@@ -144,19 +118,12 @@ extension WorkspaceWindowController {
         }
     }
 
-    // MARK: Syntax Coloring
-
-    /// Editor ▸ Syntax Coloring ▸ <item> (tag: `EditorMenu.defaultSyntaxTag`
-    /// or a language's index).
     @objc public func setSyntaxColoring(_ sender: Any?) {
         let tag = (sender as? NSMenuItem)?.tag ?? (sender as? Int) ?? EditorMenu.defaultSyntaxTag
         let all = SourceTokenizer.Language.allCases
         editor.setSyntaxColoring(all.indices.contains(tag) ? all[tag] : nil)
     }
 
-    // MARK: Font Size (§6.4)
-
-    /// The source editor's font size now (the setting, else the theme's).
     public var sourceFontSize: Double { Preferences.shared.sourceFontSize ?? Preferences.shared.theme.fontSize }
 
     @objc public func increaseFontSize(_ sender: Any?) { stepFontSize(+1) }
@@ -169,16 +136,10 @@ extension WorkspaceWindowController {
         Preferences.shared.sourceFontSize = new == Preferences.shared.theme.fontSize ? nil : new
     }
 
-    // MARK: Changes (§2.6, §6.3)
-
     @objc public func jumpToNextChange(_ sender: Any?) { if !editor.jumpToChange(forward: true) { NSSound.beep() } }
     @objc public func jumpToPreviousChange(_ sender: Any?) { if !editor.jumpToChange(forward: false) { NSSound.beep() } }
-    /// "Local or Upstream": no upstream comparison is known, so the same
-    /// as the local command (§2.6).
     @objc public func jumpToNextLocalOrUpstreamChange(_ sender: Any?) { jumpToNextChange(sender) }
     @objc public func jumpToPreviousLocalOrUpstreamChange(_ sender: Any?) { jumpToPreviousChange(sender) }
-
-    // MARK: Edit menu (§6.4)
 
     @objc public func copyFileAndLine(_ sender: Any?) { copyToPasteboard(editor.fileAndLine) }
     @objc public func copySymbolName(_ sender: Any?) { copyToPasteboard(editor.symbolName(qualified: false)) }
@@ -191,16 +152,12 @@ extension WorkspaceWindowController {
         NSPasteboard.general.setString(s, forType: .string)
     }
 
-    // MARK: Property list (§2.8)
-
     @objc public func addPlistItem(_ sender: Any?) { plistEditor?.addItem() }
     @objc public func setPlistValueType(_ sender: Any?) {
         let tag = (sender as? NSMenuItem)?.tag ?? (sender as? Int) ?? -1
         guard PlistTree.types.indices.contains(tag), plistEditor?.setTypeOfSelection(PlistTree.types[tag]) == true else { NSSound.beep(); return }
     }
     @objc public func toggleRawKeysAndValues(_ sender: Any?) { plistEditor?.showsRawKeys.toggle() }
-
-    // MARK: Interface Builder (§2.8)
 
     @objc public func updateCanvasFrames(_ sender: Any?) { interfaceEditor?.updateFramesClicked(sender) }
     @objc public func toggleDocumentOutline(_ sender: Any?) { interfaceEditor?.toggleOutline(sender) }
@@ -212,9 +169,6 @@ extension WorkspaceWindowController {
     @objc public func zoomCanvasIn(_ sender: Any?) { interfaceEditor?.zoomIn(sender) }
     @objc public func zoomCanvasOut(_ sender: Any?) { interfaceEditor?.zoomOut(sender) }
 
-    // MARK: Asset catalog (§2.8)
-
-    /// Editor ▸ Add New Asset ▸ <item> (tag: `AssetCatalogEditorController.creatable`).
     @objc public func addNewAsset(_ sender: Any?) {
         guard let a = assetEditor else { return }
         let tag = (sender as? NSMenuItem)?.tag ?? (sender as? Int) ?? 0
@@ -233,16 +187,13 @@ extension WorkspaceWindowController {
         NSWorkspace.shared.open(set.url)
     }
 
-    // MARK: Validation
-
-    /// Enablement and marks of the commands in this file; nil = not ours.
     func validateEditorCommandItem(_ item: NSMenuItem) -> Bool? {
         guard let action = item.action else { return nil }
         switch action {
         case #selector(setCanvasLayout(_:)):
             let current = editorArea.canvasLayout
             item.state = (item.tag == 0 && current == nil) || (item.tag == 1 && current == .beside) || (item.tag == 2 && current == .below) ? .on : .off
-            return canvasAuto.modeOn   // M5: while canvas mode is on, previews or not
+            return canvasAuto.modeOn
         case #selector(toggleInlineIssues(_:)): return hasSourceFile
         case #selector(reindent(_:)), #selector(shiftLeft(_:)), #selector(shiftRight(_:)), #selector(reformatToWidth(_:)),
              #selector(formatToMultipleLines(_:)), #selector(addDocumentation(_:)), #selector(duplicateSelection(_:)):

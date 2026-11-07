@@ -1,16 +1,3 @@
-// CrownProbe: our own black-box probe for the Digital Crown on the visionOS simulator (Ycode,
-// dirty-room observation; see research/notes/obs-vision-crown-2026-11-01.md).
-//
-// Logs (stdout and os_log subsystem dev.ycode.crownprobe, prefix "CP:") what an app sees of
-// the crown: onImmersionChange (amount) in progressive, full and mixed immersive spaces,
-// onWorldRecenter (phases) in the window and the space, scene phases, and the ARKit
-// DeviceAnchor every 0.5 s (recentering moves the world origin on a device).
-// The immersive content is an unlit inside-out sphere of radius 20 m (magenta) with a
-// red cube at (0, 1.5, -2), so the progressive portal's size is visible in screenshots.
-//
-// Launch arguments: -prog (progressive, system range), -progR (progressive 0.2...0.8,
-// initial 0.5), -full, -mixed open that space at launch.
-
 import ARKit
 import QuartzCore
 import RealityKit

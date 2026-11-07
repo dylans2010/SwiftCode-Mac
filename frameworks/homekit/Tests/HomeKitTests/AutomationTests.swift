@@ -1,6 +1,3 @@
-// Action sets, triggers and events (object-model.md §8–§9;
-// simulator-baseline.md §7; plan.md T-O5, HK-A07–A09, A25–A26, HK-B13).
-
 import Foundation
 import Testing
 @testable import HomeKit
@@ -92,7 +89,6 @@ struct ActionSetTests {
 @Suite("Triggers (object-model.md §9, HK-A08–A09)")
 @MainActor
 struct TriggerTests {
-    /// The next whole minute at least `minutes` ahead.
     func futureMinute(_ minutes: Double = 10) -> Date {
         let t = Date().addingTimeInterval(minutes * 60).timeIntervalSinceReferenceDate
         return Date(timeIntervalSinceReferenceDate: (t / 60).rounded(.up) * 60)
@@ -193,7 +189,6 @@ struct TriggerTests {
             #expect(trigger.executeOnce)
             #expect(trigger.events.map(\.uniqueIdentifier) == events.map(\.uniqueIdentifier), "event objects kept")
 
-            // Another client sees the same trigger with equivalent events.
             let other = await loadedManager(store)
             let mirror = try #require(other.homes.first?.triggers.first as? HMEventTrigger)
             #expect(mirror.uniqueIdentifier == trigger.uniqueIdentifier)

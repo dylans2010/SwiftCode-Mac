@@ -12,14 +12,13 @@ public enum PreviewSessionState: String, Codable, Sendable {
     case failedNoPrior = "FAILED_NO_PRIOR"
 }
 
-/// Structured diagnostic model capturing compilation/validation failures.
 public struct PreviewDiagnosticModel: Sendable, Codable, Identifiable, Hashable {
     public var id: UUID { UUID() }
     public let stage: String
     public let subsystem: String
     public let file: String?
     public let line: Int?
-    public let severity: String // "error", "warning"
+    public let severity: String
     public let description: String
     public let suggestedFix: String?
     public let rawCompilerOutput: String
@@ -51,11 +50,10 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
     public let sourceFilePath: String
     public let targetViewName: String
     public var lastCompiledAt: Date
-    public var status: String // Compiling, Ready, Failed, Idle
+    public var status: String
     public var state: PreviewSessionState
-    public var activeNodeHashes: [String: Int] // Node ID -> properties hash for incremental change detection
+    public var activeNodeHashes: [String: Int]
 
-    // Centralized Build Pipeline Session details
     public var activeProject: String = "None"
     public var activeScheme: String = "None"
     public var buildConfig: String = "Debug"
@@ -83,13 +81,10 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
         self.activeNodeHashes = activeNodeHashes
     }
 
-    /// Determines if a specific layout node or property has actually changed
     public func hasNodeChanged(id: String, hash: Int) -> Bool {
         return activeNodeHashes[id] != hash
     }
 }
-
-// MARK: - Isolated High-Fidelity Runtime Session
 
 @Observable
 @MainActor
@@ -112,9 +107,6 @@ public final class RuntimeSession: Identifiable, Sendable {
 
     private var durationTimer: Timer?
     private var runtimeTimer: Timer?
-    /// Telemetry sampling is single-shot per compile session: the "Telemetry Check"
-    /// log line is emitted exactly once after launch, then suppressed so the
-    /// runtime can continue launching (or surface real errors) without log spam.
     private var didEmitTelemetrySample = false
 
     public init(artboardID: UUID) {
@@ -135,7 +127,6 @@ public final class RuntimeSession: Identifiable, Sendable {
         startBuildTimer()
 
         do {
-            // 1. PROJECT VALIDATION & RESOLUTION
             status = "Resolving Scheme & SDK..."
             logs.append("[PIPELINE] Determining active scheme, product name and target SDK...")
             try await Task.sleep(nanoseconds: 300_000_000)
@@ -158,12 +149,10 @@ public final class RuntimeSession: Identifiable, Sendable {
             logs.append("  - SDK: \(sdk)")
             logs.append("  - Destination: \(destination)")
 
-            // 2. DEPENDENCY RESOLUTION
             status = "Resolving Dependencies..."
             logs.append("[PIPELINE] Auditing and resolving Swift Package dependencies...")
             try await Task.sleep(nanoseconds: 200_000_000)
 
-            // 3. EXECUTE XCODEBUILD
             status = "Compiling Project..."
             logs.append("[PIPELINE] Executing 'xcodebuild' compilation payload...")
 
@@ -175,7 +164,6 @@ public final class RuntimeSession: Identifiable, Sendable {
                 status = "Compilation Failed"
                 isExecuting = false
 
-                // Process diagnostics
                 var diags: [PreviewDiagnosticModel] = []
                 for diag in buildResult.diagnostics {
                     diags.append(PreviewDiagnosticModel(
@@ -207,7 +195,6 @@ public final class RuntimeSession: Identifiable, Sendable {
                 return
             }
 
-            // 4. ATTACH PREVIEW ENGINE TO SUCCESSFUL BUILD RUNTIME
             status = "Attaching Preview Engine..."
             logs.append("[PIPELINE] Build Succeeded!")
             logs.append("[PIPELINE] Dynamic target executable package: \(buildResult.appBundleURL?.lastPathComponent ?? "app.app")")
@@ -279,9 +266,6 @@ public final class RuntimeSession: Identifiable, Sendable {
             guard let self = self else { return }
             Task { @MainActor in
                 self.elapsedRuntime += 1.0
-                // Single-shot telemetry: emit the check exactly once per compile
-                // session, then keep the timer running for elapsed-time tracking
-                // while the app continues launching.
                 if !self.didEmitTelemetrySample {
                     self.didEmitTelemetrySample = true
                     self.logs.append("[RUNTIME] Telemetry Check: CPU usage \(Double.random(in: 1.5...6.2).roundedTo(1))%, memory usage \(Double.random(in: 45.0...48.2).roundedTo(1)) MB.")

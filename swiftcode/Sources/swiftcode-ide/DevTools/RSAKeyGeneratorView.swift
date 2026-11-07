@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 #if canImport(Security)
 import SwiftUI
 import Security
@@ -20,7 +17,6 @@ struct RSAKeyGeneratorView: View {
             }
             .pickerStyle(.segmented)
             .padding()
-            
 
             Button(isGenerating ? "Generating..." : "Generate Key Pair") { generate() }
                 .buttonStyle(.borderedProminent)

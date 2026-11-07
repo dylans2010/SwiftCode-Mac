@@ -4,7 +4,6 @@ import Testing
 
 @MainActor
 @Suite(.serialized) struct EditorMenuGoldenTests {
-    /// Dynamic titles (§1.3) of the source Editor menu.
     @Test func editorTitlesInContext() {
         var ctx = MenuContext()
         ctx.fileName = "Model.swift"

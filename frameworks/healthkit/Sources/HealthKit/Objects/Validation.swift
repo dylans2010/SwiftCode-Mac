@@ -1,10 +1,6 @@
 import Foundation
 
-/// Object validation (`errors.md` §3, `interface.md` §3–§4). All failures throw
-/// the exception HealthKit raises; constructors turn them into a trap.
 enum Validation {
-    /// Value class required by HealthKit-defined metadata keys. The spec measured
-    /// only the external-UUID key; the rest follows the public documentation (level 1).
     static let keyClasses: [String: String] = {
         var m: [String: String] = [:]
         for k in [HKMetadataKeyExternalUUID, HKMetadataKeyTimeZone, HKMetadataKeyDeviceSerialNumber,

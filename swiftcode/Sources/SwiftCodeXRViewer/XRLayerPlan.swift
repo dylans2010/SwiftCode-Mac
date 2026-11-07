@@ -1,14 +1,7 @@
-// Which picture each eye shows (specs/simulator/xr-viewer.md §3, §4): the
-// mono picture and the two eye pictures live in their own swapchains, so a
-// change of mode never shows one eye's picture in the other eye or at
-// another picture's pose. Pure logic: tested without a headset.
-
 import Foundation
 import SwiftCodeDisplayStream
 
 struct XRLayerPlan: Equatable {
-    /// Swapchain slots (CSwiftCodeOpenXR.h): the eyes 0 and 1, mono 10; the
-    /// insets 4 and 5, mono's 11.
     static let monoSlot = 10, monoInsetSlot = 11
 
     struct Shown: Equatable {
@@ -28,10 +21,6 @@ struct XRLayerPlan: Equatable {
         }
     }
 
-    /// The slot each view shows its picture from (nil: nothing yet), and
-    /// the picture (view, sequence, pose, fov) behind it. The newest kind
-    /// wins: a mono picture newer than both eyes' is shown to both; else
-    /// each eye shows its own picture, or the mono one until it has one.
     func layout() -> [(slot: Int, view: XRView, shown: Shown)]? {
         let eyeSeq = max(eyes[0]?.sequence ?? 0, eyes[1]?.sequence ?? 0)
         if let m = mono, m.sequence > eyeSeq {

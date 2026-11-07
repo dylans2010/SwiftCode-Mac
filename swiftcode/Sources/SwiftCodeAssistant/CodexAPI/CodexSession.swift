@@ -1,11 +1,5 @@
 import Foundation
 
-/// One message in a Codex session (ported from Legacy's `CodexSession`).
-///
-/// Legacy stored `AIMessage` (a Core type owned by another slice); this
-/// local struct carries the same two fields the Responses API needs — the
-/// role string (`"user"` / `"assistant"`) and the text — so the Codex
-/// client does not depend on another slice's message type.
 public struct CodexMessage: Codable, Sendable, Equatable {
     public let role: String
     public let content: String
@@ -24,7 +18,6 @@ public struct CodexMessage: Codable, Sendable, Equatable {
     }
 }
 
-/// One Codex conversation (ported from Legacy's `CodexSession`).
 public struct CodexSession: Identifiable, Codable, Sendable {
     public let id: UUID
     public let createdAt: Date
@@ -48,13 +41,11 @@ public struct CodexSession: Identifiable, Codable, Sendable {
     }
 }
 
-/// Which key funds Codex usage: the user's own API key, or the app-owned key.
 public enum CodexUsageMode: String, Codable, Sendable {
     case unlimitedUserControlled
     case restrictedAppControlled
 }
 
-/// What kind of work a prompt is (drives the system prompt's task line).
 public enum CodexTaskType: String, Codable, CaseIterable, Sendable {
     case codeGeneration = "Code Generation"
     case debugging = "Debugging"
@@ -73,7 +64,6 @@ public enum CodexManagerError: LocalizedError {
     }
 }
 
-/// The OpenAI Responses API envelope (`POST /v1/responses`).
 public struct CodexResponseEnvelope: Decodable {
     public let model: String
     public let output: [CodexOutputItem]
@@ -118,7 +108,6 @@ public struct CodexUsage: Decodable {
     }
 }
 
-/// One streamed event from the Responses API.
 public struct CodexStreamEvent: Decodable {
     public let type: String
     public let delta: String?
@@ -129,7 +118,6 @@ public struct CodexStreamEvent: Decodable {
     }
 }
 
-/// The error envelope the Responses API returns on failure.
 public struct CodexErrorEnvelope: Decodable {
     public struct ErrorBody: Decodable {
         public let message: String

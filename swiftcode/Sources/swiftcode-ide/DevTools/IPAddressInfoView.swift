@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct IPAddressInfoView: View {
@@ -18,7 +15,6 @@ struct IPAddressInfoView: View {
                     .disabled(ipAddress.isEmpty || isLoading)
             }
             .padding([.top, .horizontal])
-            
 
             if isLoading {
                 ProgressView()

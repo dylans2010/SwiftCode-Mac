@@ -1,11 +1,5 @@
-/// Writes a `Layer` as USDA text in the layout OpenUSD uses: four-space
-/// indentation, metadata in parentheses sorted by field name, properties,
-/// then child prims separated by blank lines, then variant sets.
 public enum USDAWriter {
     public struct Options: Sendable {
-        /// Sort properties and variants by name as OpenUSD's writer does.
-        /// Off by default: the authored order is kept so text round trips
-        /// are exact.
         public var sortPropertiesAndVariants: Bool
 
         public init(sortPropertiesAndVariants: Bool = false) {
@@ -19,15 +13,12 @@ public enum USDAWriter {
         return w.out
     }
 
-    /// Text form of one value (used by tools that print attribute values).
     public static func string(for value: Value) -> String {
         var w = Writer(layer: Layer(), options: Options())
         w.writeValue(value, indent: 0)
         return w.out
     }
 
-    /// USDA quoting of a string: double quotes, single quotes when the text
-    /// contains `"` only, triple quotes when it contains a newline.
     public static func quote(_ text: String) -> String {
         let hasNewline = text.contains("\n")
         let hasDouble = text.contains("\"")
@@ -60,7 +51,6 @@ public enum USDAWriter {
         return out + quote
     }
 
-    /// `@path@`, or `@@@path@@@` when the path contains `@`.
     public static func assetText(_ path: String) -> String {
         guard path.contains("@") else { return "@" + path + "@" }
         return "@@@" + path.replacingOccurrences(of: "@@@", with: "\\@@@") + "@@@"
@@ -94,8 +84,6 @@ extension Substring {
     }
 }
 
-/// OpenUSD's "dictionary" ordering for field and property names: compare
-/// case-insensitively with digit runs compared by value; ties break on case.
 public func dictionaryLessThan(_ a: String, _ b: String) -> Bool {
     let x = Array(a.unicodeScalars)
     let y = Array(b.unicodeScalars)
@@ -145,8 +133,6 @@ private struct Writer {
     }
 
     func pad(_ indent: Int) -> String { String(repeating: "    ", count: indent) }
-
-    // MARK: Layer
 
     static let layerSkip: Set<String> = [FieldKey.primChildren, FieldKey.primOrder, FieldKey.comment]
 
@@ -204,8 +190,6 @@ private struct Writer {
         return "(" + parts.joined(separator: "; ") + ")"
     }
 
-    // MARK: Prims
-
     static let primSkip: Set<String> = FieldKey.childrenFields.union([
         FieldKey.specifier, FieldKey.typeName, FieldKey.primOrder, FieldKey.propertyOrder, FieldKey.comment,
     ])
@@ -223,7 +207,6 @@ private struct Writer {
         line(indent, "}")
     }
 
-    /// Writes ` (\n … \n)` after a prim or variant header when there is metadata.
     mutating func writePrimMetadata(_ spec: Spec, indent: Int) {
         let keys = spec.fields.keys.filter { !Writer.primSkip.contains($0) }.sorted(by: dictionaryLessThan)
         let comment = spec[FieldKey.comment]?.stringValue
@@ -298,8 +281,6 @@ private struct Writer {
             line(indent + 1, "}")
         }
     }
-
-    // MARK: Properties
 
     static let attributeSkip: Set<String> = FieldKey.childrenFields.union([
         FieldKey.typeName, FieldKey.defaultValue, FieldKey.timeSamples, FieldKey.connectionPaths, FieldKey.variability,
@@ -437,9 +418,6 @@ private struct Writer {
         }
     }
 
-    // MARK: Fields and values
-
-    /// A `key = value` metadata line (list ops become one line per list).
     mutating func writeField(_ key: String, _ value: Value, indent: Int) {
         switch value {
         case .tokenListOp, .stringListOp, .pathListOp, .referenceListOp, .payloadListOp, .integerListOp:
@@ -557,8 +535,6 @@ private struct Writer {
         }
     }
 
-    /// Writes an attribute value using its declared type (roles do not
-    /// change the text form).
     mutating func writeAttributeValue(_ value: Value, type: TypeName?, indent: Int) {
         writeValue(value, indent: indent)
     }
@@ -616,7 +592,6 @@ private struct Writer {
         }
     }
 
-    /// Text of element `index` of a scalar or array value.
     static func elementText(_ t: ValueType, _ c: Components, _ index: Int) -> String {
         let width = t.componentCount
         let base = index * width

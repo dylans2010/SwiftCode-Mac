@@ -1,34 +1,23 @@
 import Foundation
 
-// Vector arithmetic and animatable data (api-inventory.md, "Animation,
-// transactions and transitions"). Behaviour: a vector space over Double
-// (addition, scaling, squared magnitude), used by animations to interpolate.
-
-/// A type that can be added, subtracted and scaled, so that values can be
-/// interpolated.
 public protocol VectorArithmetic: AdditiveArithmetic {
-    /// Multiplies every component by `rhs`.
     mutating func scale(by rhs: Double)
-    /// The dot product of the value with itself.
     var magnitudeSquared: Double { get }
 }
 
 extension VectorArithmetic {
-    /// A copy multiplied by `rhs`.
     public func scaled(by rhs: Double) -> Self {
         var copy = self
         copy.scale(by: rhs)
         return copy
     }
 
-    /// Moves the value towards `other` by `amount` (0 = self, 1 = other).
     public mutating func interpolate(towards other: Self, amount: Double) {
         var delta = other - self
         delta.scale(by: amount)
         self += delta
     }
 
-    /// The value moved towards `other` by `amount`.
     public func interpolated(towards other: Self, amount: Double) -> Self {
         var copy = self
         copy.interpolate(towards: other, amount: amount)
@@ -51,7 +40,6 @@ extension CGFloat: VectorArithmetic {
     public var magnitudeSquared: Double { Double(self * self) }
 }
 
-/// Animatable data with no components.
 public struct EmptyAnimatableData: VectorArithmetic, Sendable {
     public init() {}
     public static var zero: EmptyAnimatableData { .init() }
@@ -64,7 +52,6 @@ public struct EmptyAnimatableData: VectorArithmetic, Sendable {
     public static func == (a: EmptyAnimatableData, b: EmptyAnimatableData) -> Bool { true }
 }
 
-/// Two animatable values treated as one vector.
 public struct AnimatablePair<First: VectorArithmetic, Second: VectorArithmetic>: VectorArithmetic {
     public var first: First
     public var second: Second
@@ -101,7 +88,6 @@ public struct AnimatablePair<First: VectorArithmetic, Second: VectorArithmetic>:
 
 extension AnimatablePair: Sendable where First: Sendable, Second: Sendable {}
 
-/// A type whose value can be interpolated through `animatableData`.
 public protocol Animatable {
     associatedtype AnimatableData: VectorArithmetic = EmptyAnimatableData
     var animatableData: AnimatableData { get set }
@@ -110,7 +96,6 @@ public protocol Animatable {
 extension Animatable where AnimatableData == EmptyAnimatableData {
     public var animatableData: EmptyAnimatableData {
         get { EmptyAnimatableData() }
-        // swiftlint:disable:next unused_setter_value - the API shape has a setter that does nothing here
         set {}
     }
 }
@@ -122,7 +107,6 @@ extension Animatable where Self: VectorArithmetic {
     }
 }
 
-// Geometry types animate component-wise.
 extension CGPoint: Animatable {
     public var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { .init(x, y) }
@@ -147,8 +131,6 @@ extension CGRect: Animatable {
     }
 }
 
-// Scalars animate as themselves (keyframe tracks and animatable views over
-// plain numbers).
 extension Double: Animatable {}
 extension Float: Animatable {}
 extension CGFloat: Animatable {}

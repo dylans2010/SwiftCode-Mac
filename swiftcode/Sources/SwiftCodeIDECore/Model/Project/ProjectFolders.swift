@@ -1,22 +1,6 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/FolderManager.swift
-// Adapted for SwiftCode: FolderManager + ProjectFolder (Legacy defined ProjectFolder in Models/ProjectFolder.swift; declared here verbatim so the file is self-contained). ObservableObject -> @Observable; projects(in:allProjects:) is generic over any Identifiable project with a UUID id, so it no longer depends on Legacy's Project model.
-
 import Foundation
 import Observation
 
-/// A user-created folder grouping projects in the library. Shape matches
-/// Legacy's `Models/ProjectFolder.swift` exactly, so folders persisted by
-/// Legacy still decode.
-///
-/// COORDINATOR NOTE — same name, different type: `SwiftCodeIDEShell` also
-/// defines a public `ProjectFolder` (`ProjectDashboardModel.swift`) with a
-/// different shape (id/name/projectPaths/createdAt, stored in
-/// `SwiftCode/ProjectDashboard/folders.json`). Swift prefers the current
-/// module's own declaration, so this does not break the build, but the two
-/// must not be confused: this one is Legacy's library-folder model
-/// (UserDefaults `com.swiftcode.projectFolders`); that one is the dashboard
-/// folder model. If the coordinator wants a single type, rename one of them.
 public struct ProjectFolder: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var folderId: UUID
     public var folderName: String
@@ -47,8 +31,6 @@ public struct ProjectFolder: Identifiable, Codable, Equatable, Hashable, Sendabl
     }
 }
 
-/// Organises library projects into user-created folders, persisted in
-/// UserDefaults under `com.swiftcode.projectFolders`.
 @Observable
 @MainActor
 public final class FolderManager: Sendable {
@@ -94,9 +76,6 @@ public final class FolderManager: Sendable {
         }
     }
 
-    /// The projects in `folder`, from any list of identifiable projects
-    /// (Legacy took `[Project]`; SwiftCode's library items are not Legacy
-    /// projects, so the filter is generic over the id only).
     public func projects<P: Identifiable>(in folder: ProjectFolder, allProjects: [P]) -> [P] where P.ID == UUID {
         allProjects.filter { folder.projectIdentifiers.contains($0.id) }
     }

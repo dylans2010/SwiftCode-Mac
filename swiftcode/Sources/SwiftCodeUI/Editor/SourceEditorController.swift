@@ -4,15 +4,8 @@ import SwiftCodeCompletion
 import SwiftCodeIDECore
 import SwiftCodeLanguage
 
-/// A text view that paints issue annotations and the current-line tint
-/// behind the text.
 @MainActor
 final class SourceTextView: NSTextView {
-    /// After a live resize (a window resize, the inspector's slide) the
-    /// text view scrolls its insertion point into view, ignoring the
-    /// scroll view's content insets: with the caret on line 1 that put
-    /// the first lines under the jump bar. The text keeps its place
-    /// instead (council round 2).
     override func viewDidEndLiveResize() {
         guard let scroll = enclosingScrollView else { return super.viewDidEndLiveResize() }
         let clip = scroll.contentView
@@ -25,34 +18,23 @@ final class SourceTextView: NSTextView {
     }
 
     var issues: [Int: [Diagnostic]] = [:] { didSet { needsDisplay = true } }
-    /// The text changed since the issues were set: annotations draw grey.
     var issuesStale = false { didSet { if oldValue != issuesStale { needsDisplay = true } } }
-    /// Editor ▸ Hide All Issues turns the inline annotations off.
     var showsIssues = true { didSet { needsDisplay = true } }
-    /// Inline Code Review marks by line (reference-ui-4.md §15).
     var reviewMarks: [Int: LineDiff.Row.Kind] = [:] { didSet { needsDisplay = true } }
-    /// Find matches to tint, and the current one (drawn stronger).
     var findMatches: [NSRange] = [] { didSet { needsDisplay = true } }
-    /// Lines whose region is folded: they get a "⋯" token at their end.
     var foldedStartLines: Set<Int> = [] { didSet { needsDisplay = true } }
     var currentFindMatch: NSRange? { didSet { needsDisplay = true } }
-    /// Editing ▸ Display extras and issue presentation (SourceEditorDisplayExtras.swift).
     let displayState = EditorDisplayState()
-    /// The predictive completion drawn after the caret, on a view above the
-    /// text's layout fragments (SourceEditorController+Prediction.swift).
     var ghostText: GhostText? { didSet { if oldValue != ghostText { updateGhostOverlay() } } }
     let ghostOverlay = GhostTextOverlay()
 
-    /// Editor ▸ Show Predictive Completion (⌃⌥Space).
     @objc func showPredictiveCompletion(_ sender: Any?) { owner?.showPredictiveCompletion(sender) }
 
-    /// Holding Option expands the suggestion.
     override func flagsChanged(with event: NSEvent) {
         owner?.predictionFlagsChanged(event)
         super.flagsChanged(with: event)
     }
 
-    /// Editor overscroll: blank space after the last line.
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(NSSize(width: newSize.width, height: heightWithOverscroll(newSize.height)))
     }
@@ -63,9 +45,6 @@ final class SourceTextView: NSTextView {
         }
     }
 
-    /// Edit ▸ Delete (⌘⌫, reference-ui-5.md §2.3) deletes the selection;
-    /// with none, it deletes to the start of the line, as ⌘⌫ does in text
-    /// (the menu item would otherwise take the keystroke).
     override func delete(_ sender: Any?) {
         if selectedRange().length == 0 { deleteToBeginningOfLine(sender) } else { super.delete(sender) }
     }
@@ -74,8 +53,6 @@ final class SourceTextView: NSTextView {
         item.action == #selector(delete(_:)) ? isEditable : super.validateMenuItem(item)
     }
 
-    /// Rectangles covering a character range (one per line fragment), in
-    /// view coordinates, from TextKit 2 text segments.
     func segmentRects(_ range: NSRange) -> [NSRect] {
         guard let tlm = textLayoutManager, let tcm = tlm.textContentManager,
               let start = tcm.location(tcm.documentRange.location, offsetBy: range.location),
@@ -90,10 +67,7 @@ final class SourceTextView: NSTextView {
         return rects
     }
     var highlightedLine: Int? { didSet { needsDisplay = true } }
-    /// The debugger's stop annotation on the highlighted line.
     var stopAnnotation: String? { didSet { needsDisplay = true } }
-    /// The insertion point's line: a subtle full-width background
-    /// (reference-ui.md §3).
     var caretLine: Int? {
         didSet {
             guard oldValue != caretLine else { return }
@@ -105,8 +79,6 @@ final class SourceTextView: NSTextView {
     var lineIndex = LineIndex("")
     weak var owner: SourceEditorController?
 
-    /// Settings ▸ Navigation ▸ Click on Code: ⌥-click shows Quick Help;
-    /// ⌘-click and ⌃⌘-click jump to the definition (by default).
     override func mouseDown(with event: NSEvent) {
         if let action = Preferences.shared.codeClick(for: event.modifierFlags) {
             let p = convert(event.locationInWindow, from: nil)
@@ -114,35 +86,25 @@ final class SourceTextView: NSTextView {
             if action == .quickHelp { owner?.quickHelp(atOffset: offset) } else { owner?.jumpToDefinition(atOffset: offset) }
             return
         }
-        // A click on an issue annotation that has a fix-it offers it
-        // (reference-ui-6.md §4.3.2; the gutter has no lightbulb).
         let p = convert(event.locationInWindow, from: nil)
         if let line = owner?.annotationLine(at: p), let menu = owner?.fixItMenu(line: line) {
             menu.popUp(positioning: nil, at: p, in: self)
             return
         }
         super.mouseDown(with: event)
-        // A click inside a placeholder selects the whole token.
         let s = selectedRange()
         if s.length == 0, let t = Placeholders.token(containing: s.location, in: string) { setSelectedRange(t) }
     }
 
     override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
         super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
-        // Any other selection change returns to one selection.
         if !keepsMultipleRanges && !multipleRanges.isEmpty { multipleRanges = [] }
-        needsDisplay = true // the selected token is drawn stronger
+        needsDisplay = true
     }
 
-    /// Several selections or insertion points at once (Select Column Up /
-    /// Down, Split Selection By Lines, Select All Symbols, Edit All in
-    /// Scope; reference-ui-5.md §6.4), in text order. Empty = the ordinary
-    /// single selection. Typing and deleting edit at each; Escape, a click
-    /// or moving the caret returns to one.
     var multipleRanges: [NSRange] = [] { didSet { needsDisplay = true } }
     private var keepsMultipleRanges = false
 
-    /// Sets several ranges; the native selection is `primary` (else the last).
     func setMultipleRanges(_ ranges: [NSRange], primary: NSRange? = nil) {
         var sorted: [NSRange] = []
         for r in ranges.sorted(by: { ($0.location, $0.length) < ($1.location, $1.length) }) where sorted.last.map({ NSMaxRange($0) <= r.location && $0 != r }) ?? true {
@@ -155,9 +117,6 @@ final class SourceTextView: NSTextView {
         multipleRanges = sorted.count > 1 ? sorted : []
     }
 
-    /// Replaces each of the ranges `edit` returns (one per selection, in
-    /// order) as one undo step; the selections become insertion points
-    /// after the inserted text.
     func editEachSelection(_ edit: (NSRange) -> (NSRange, String)?) {
         let edits = multipleRanges.compactMap(edit)
         guard !edits.isEmpty else { return }
@@ -180,10 +139,6 @@ final class SourceTextView: NSTextView {
         multipleRanges = carets.count > 1 ? carets : []
     }
 
-    /// Typed text: at each of several insertion points, or through the
-    /// typing rules (bracket and quote pairing, re-indenting;
-    /// SourceEditorController+Typing.swift). An explicit replacement range
-    /// (input methods, the rules' own edits) inserts as it is.
     override func insertText(_ string: Any, replacementRange: NSRange) {
         let s = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
         if multipleRanges.count > 1, replacementRange.location == NSNotFound {
@@ -196,7 +151,6 @@ final class SourceTextView: NSTextView {
         if typed { owner?.didTypeCharacter(s) }
     }
 
-    /// Return indents by the code's structure.
     override func insertNewline(_ sender: Any?) {
         if owner?.typeNewline() == true { return }
         super.insertNewline(sender)
@@ -211,15 +165,11 @@ final class SourceTextView: NSTextView {
         editEachSelection { r in r.length > 0 ? (r, "") : (r.location > 0 ? (NSRange(location: r.location - 1, length: 1), "") : nil) }
     }
 
-    /// Escape returns to one selection. Otherwise it goes up the responder
-    /// chain: NSTextView itself has no `cancelOperation:`, and calling
-    /// super raised "unrecognized selector" (Escape with nothing to cancel).
     override func cancelOperation(_ sender: Any?) {
         if !multipleRanges.isEmpty { multipleRanges = []; return }
         _ = nextResponder?.tryToPerform(#selector(cancelOperation(_:)), with: sender)
     }
 
-    /// The other selections: tinted ranges and thin insertion points.
     func drawMultipleRanges(in rect: NSRect) {
         let primary = selectedRange()
         for r in multipleRanges where r != primary {
@@ -239,7 +189,6 @@ final class SourceTextView: NSTextView {
         return ok
     }
 
-    /// Records each edit (range and old text) for incremental highlighting.
     override func shouldChangeText(in range: NSRange, replacementString: String?) -> Bool {
         let ok = super.shouldChangeText(in: range, replacementString: replacementString)
         if ok {
@@ -257,15 +206,11 @@ final class SourceTextView: NSTextView {
         super.keyDown(with: event)
     }
 
-    /// Show Completions (Control-Space) asks the language server.
     override func complete(_ sender: Any?) { owner?.requestCompletion() }
 
-    /// The insertion-point rectangle for a UTF-16 offset, in view
-    /// coordinates, from TextKit 2 line-fragment geometry.
     func caretRect(at offset: Int) -> NSRect? {
         guard let tlm = textLayoutManager, let tcm = tlm.textContentManager,
               let loc = tcm.location(tcm.documentRange.location, offsetBy: offset) else { return nil }
-        // After an edit, fragments past it hold estimated frames until laid out.
         tlm.ensureLayout(for: NSTextRange(location: tcm.documentRange.location, end: loc) ?? tlm.documentRange)
         guard let frag = tlm.textLayoutFragment(for: loc) else { return nil }
         let fragStart = tcm.offset(from: tcm.documentRange.location, to: frag.rangeInElement.location)
@@ -295,11 +240,8 @@ final class SourceTextView: NSTextView {
         return f
     }
 
-    /// Settings ▸ Text Editing ▸ Page guide at column (nil = off).
     var pageGuideColumn: Int? { didSet { needsDisplay = true } }
 
-    /// Tab and Shift-Tab follow Settings ▸ Editing ▸ Indentation ▸ Tab key
-    /// (`TypingRules.tab`); without a file, Tab inserts one indentation step.
     override func insertTab(_ sender: Any?) {
         if owner?.typeTab(backward: false) == true { return }
         insertText(Preferences.shared.indentUnit, replacementRange: selectedRange())
@@ -312,7 +254,7 @@ final class SourceTextView: NSTextView {
 
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
-        drawEditorGuides(in: rect)   // scope guides and invisibles (SourceEditorController+Guides.swift)
+        drawEditorGuides(in: rect)
         if let col = pageGuideColumn {
             let w = ("0" as NSString).size(withAttributes: [.font: Theme.font]).width
             let x = textContainerOrigin.x + (textContainer?.lineFragmentPadding ?? 0) + w * CGFloat(col)
@@ -346,8 +288,6 @@ final class SourceTextView: NSTextView {
             }
         }
         if let l = caretLine, l != highlightedLine, var r = lineRect(l), r.intersects(rect) {
-            // The band ends at the text container's edge, with rounded
-            // corners there; it continues in the gutter (editor-area.md §C.2).
             Theme.currentLineBandColor.setFill()
             r.size.width = owner?.textContainerEnd ?? r.width
             r.size.height = Theme.lineHeight
@@ -369,22 +309,14 @@ final class SourceTextView: NSTextView {
     }
 }
 
-/// The path above the editor: Related Items, then workspace › groups ›
-/// file › symbol, and the issue controls at the right end. The assistant's
-/// bar starts with a close button and the mode pop-up. No history buttons:
-/// history is in the toolbar (`specs/ide/reference-ui-5.md` §6.1).
 @MainActor
 final class JumpBar: NSView {
-    /// `liquid-glass.md` §2.6: the band runs y 52–83 under the toolbar (31
-    /// points), then the separator line; it was 25 + 1.
     static let bandHeight = CGFloat(WorkspaceChrome.jumpBarBandHeight)
     static let separatorHeight = CGFloat(EditorMetrics.jumpBarSeparator)
     static let height: CGFloat = bandHeight + separatorHeight
     let stack = NSStackView()
-    /// The right end: Show Previous Issue, the Issues pull-down, Show Next Issue.
     let issueStack = NSStackView()
     var onToggleMinimap: (() -> Void)?
-    /// Split panes: focus and the close button (JumpBar+Panes.swift).
     let paneState = JumpBarPaneState()
 
     override init(frame: NSRect) {
@@ -397,8 +329,6 @@ final class JumpBar: NSView {
         }
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            // The path's ink centres on the band's centre less 0.5
-            // (metrics.md §16.1, row 78: it sat 2.75 lower).
             stack.centerYAnchor.constraint(equalTo: centerYAnchor, constant: Self.pathRaise),
             {
                 let c = stack.trailingAnchor.constraint(lessThanOrEqualTo: issueStack.leadingAnchor, constant: -6)
@@ -415,13 +345,7 @@ final class JumpBar: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The band is the editor's background, nearly opaque, so the text
-    /// scrolling beneath shows as a faint veil; then a 2-point separator
-    /// (`metrics.md` §12.3, `liquid-glass.md` §7.3).
     override func draw(_ dirtyRect: NSRect) {
-        // Over the band backdrop, which draws the content beneath at the
-        // jump bar's 8.5 % with its shape (liquid-glass.md §9.1), the band
-        // adds nothing; with a theme's own background, the nearly opaque veil.
         let band = NSRect(x: 0, y: Self.separatorHeight, width: bounds.width, height: bounds.height - Self.separatorHeight)
         if !EditorBlurVeil.applies {
             EditorVeil.fill.setFill()
@@ -430,28 +354,21 @@ final class JumpBar: NSView {
         EditorVeil.drawSeparator(NSRect(x: 0, y: 0, width: bounds.width, height: Self.separatorHeight))
     }
 
-    /// The Related Items button was clicked (the window opens the ⌃1 menu).
     var onRelatedItems: (() -> Void)?
-    /// The assistant pane's close button ("Close this Editor Pane").
     var onClose: (() -> Void)?
     var showsCloseButton = false { didSet { if oldValue != showsCloseButton { setPath(lastComponents) } } }
     private(set) var closeButton: NSButton?
     private(set) var relatedItemsButton: NSButton?
-    /// The Counterparts menu: (title, path) pairs, and what picking one does.
     var counterparts: [(String, String)] = []
     var onPickCounterpart: ((String) -> Void)?
     private(set) var counterpartsMenu: NSPopUpButton?
-    /// The assistant's mode pop-up: titles, the selected one, and the action.
     var modes: [String] = []
-    /// Modes listed but disabled (no data for the file).
     var disabledModes: Set<String> = []
     var selectedMode = ""
     var onPickMode: ((String) -> Void)?
     private(set) var modeMenu: NSPopUpButton?
-    /// The title of the related-files pull-down (the mode's name).
     var relatedTitle = "Counterparts"
     private(set) var lastComponents: [(String, String)] = []
-    /// The symbol component after the path ("No Selection" outside a declaration).
     var symbolTitle: String? { didSet { if oldValue != symbolTitle { setPath(lastComponents) } } }
 
     func setCounterparts(_ list: [(String, String)]) {
@@ -464,7 +381,7 @@ final class JumpBar: NSView {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         closeButton = nil
         relatedItemsButton = nil
-        if showsPaneCloseButton, !showsCloseButton { addPaneCloseButton() }   // JumpBar+Panes.swift
+        if showsPaneCloseButton, !showsCloseButton { addPaneCloseButton() }
         if showsCloseButton {
             let b = iconButton("xmark", "Close this Editor Pane")
             b.target = self
@@ -496,8 +413,6 @@ final class JumpBar: NSView {
             modeMenu = pop
             stack.addArrangedSubview(pop)
         }
-        // The primary editor lists its counterparts under Related Items;
-        // the assistant shows them in a pull-down named after its mode.
         if !counterparts.isEmpty && !modes.isEmpty {
             let pop = NSPopUpButton(frame: .zero, pullsDown: true)
             pop.addItem(withTitle: relatedTitle)
@@ -521,7 +436,6 @@ final class JumpBar: NSView {
                 iv.contentTintColor = pathIconTint(symbol: symbol, title: title)
                 stack.addArrangedSubview(iv)
             }
-            // The middle components give way first (E.2 item 4).
             stack.addArrangedSubview(pathLabel(title, middle: i > 0 && i < components.count - 1))
         }
         if let symbolTitle, !components.isEmpty {
@@ -541,8 +455,6 @@ final class JumpBar: NSView {
     @objc private func relatedItemsClicked() { onRelatedItems?() }
     @objc func closeClicked() { onClose?() }
 
-    /// The titles of the controls in order, left to right (tests): tooltips
-    /// of buttons, titles of pop-ups and labels.
     var componentTitles: [String] {
         (stack.arrangedSubviews + issueStack.arrangedSubviews).compactMap { v -> String? in
             switch v {
@@ -556,18 +468,12 @@ final class JumpBar: NSView {
         }
     }
 
-    // MARK: Issues (§6.1.2)
-
-    /// One issue of the file: its message, line and whether it is an error.
     struct IssueEntry: Equatable { var message: String; var line: Int; var isError: Bool }
-    /// The file's issues; nil hides the three controls (the workspace has
-    /// no issues).
     private(set) var issues: [IssueEntry]?
     var onPreviousIssue: (() -> Void)?
     var onNextIssue: (() -> Void)?
     var onPickIssue: ((Int) -> Void)?
     private(set) var issuesMenu: NSPopUpButton?
-    /// The severity glyph the Issues menu shows (error if any, else warning).
     private(set) var issueGlyph: String?
 
     func setIssues(_ list: [IssueEntry]?) {
@@ -576,8 +482,6 @@ final class JumpBar: NSView {
         issueStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         issuesMenu = nil
         guard let list else { return }
-        // Three glyph-only controls: ‹, the severity glyph menu, ›
-        // (reference-ui-6.md §4.1.2, E2).
         let prev = iconButton("chevron.left", "Show Previous Issue")
         prev.target = self
         prev.action = #selector(previousIssueClicked)
@@ -629,8 +533,6 @@ final class JumpBar: NSView {
     }
 }
 
-/// The source editor: jump bar, gutter, text and minimap. See
-/// `specs/ide/source-editor.md`.
 @MainActor
 public final class SourceEditorController: NSViewController, NSTextViewDelegate, NSTextContentManagerDelegate {
     public private(set) var fileURL: URL?
@@ -639,16 +541,10 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     private var prefsObserver: NSObjectProtocol?
     private var scrollerStyleObserver: NSObjectProtocol?
     private var showsMinimapCache = false
-    /// The files this editor showed (Go Back / Go Forward).
     public var history = NavigationHistory()
-    /// Called when the editor's text view becomes first responder.
     public var onActivate: (() -> Void)?
-    /// Jump bar: the Related Items button (⌃1's menu), the assistant's
-    /// close button, and the issue controls at the right end
-    /// (reference-ui-5.md §6.1).
     public var onRelatedItems: (() -> Void)? { didSet { jumpBar.onRelatedItems = onRelatedItems } }
     public var onClosePane: (() -> Void)? { didSet { jumpBar.onClose = onClosePane } }
-    /// The assistant's bar: a close button in place of Related Items.
     public var showsCloseButton: Bool {
         get { jumpBar.showsCloseButton }
         set { jumpBar.showsCloseButton = newValue }
@@ -656,34 +552,26 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     public var onPreviousIssue: (() -> Void)? { didSet { jumpBar.onPreviousIssue = onPreviousIssue } }
     public var onNextIssue: (() -> Void)? { didSet { jumpBar.onNextIssue = onNextIssue } }
     public var onPickIssue: ((Int) -> Void)? { didSet { jumpBar.onPickIssue = onPickIssue } }
-    /// The jump bar's items left to right (tests).
     public var jumpBarTitles: [String] { jumpBar.componentTitles }
-    /// The Issues pull-down's entries ("message" per issue; tests).
     public var jumpBarIssueTitles: [String]? { jumpBar.issuesMenu.map { $0.itemArray.dropFirst().map(\.title) } }
-    /// The Issues menu's glyph and its visible title ("" — glyph only; tests).
     public var jumpBarIssueGlyph: (symbol: String, title: String)? {
         jumpBar.issuesMenu.map { (jumpBar.issueGlyph ?? "", $0.itemArray.first?.title ?? "") }
     }
-    /// The issue arrows' glyphs (tests).
     public var jumpBarIssueArrowSymbols: [String] {
         jumpBar.issueStack.arrangedSubviews.compactMap { v in
             guard let b = v as? NSButton, !(b is NSPopUpButton) else { return nil }
             return b.identifier?.rawValue
         }
     }
-    /// Shows the file's issues at the jump bar's right end; nil hides them.
     public func setJumpBarIssues(_ list: [(message: String, line: Int, isError: Bool)]?) {
         jumpBar.setIssues(list?.map { JumpBar.IssueEntry(message: $0.message, line: $0.line, isError: $0.isError) })
     }
-    /// The jump bar's Counterparts menu (title, path); empty hides it.
     public func setCounterparts(_ list: [(String, String)], onPick: @escaping (String) -> Void) {
         jumpBar.onPickCounterpart = onPick
         jumpBar.setCounterparts(list)
     }
     public var counterpartTitles: [String] { jumpBar.counterparts.map(\.0) }
 
-    /// Shows the assistant mode pop-up in this editor's jump bar (empty
-    /// titles remove it); the related-files pull-down takes the mode's name.
     public func setAssistantModes(_ titles: [String], selected: String, disabled: Set<String> = [], onPick: @escaping (String) -> Void) {
         jumpBar.disabledModes = disabled
         jumpBar.modes = titles
@@ -698,22 +586,14 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     public var onBreakpointRemove: ((String, Int) -> Void)?
     public var onBreakpointEdit: ((String, Int) -> Void)?
     public var onRunTest: ((String, Int) -> Void)?
-    /// ⌥-click: (file, position, anchor rect in the text view).
     public var onQuickHelp: ((URL, Position, NSRect) -> Void)?
-    /// ⌘-click: (file, position).
     public var onJumpToDefinition: ((URL, Position) -> Void)?
-    /// The insertion point moved (Quick Help inspector follows it).
     public var onSelectionChange: ((URL, Position) -> Void)?
     public private(set) var isDirty = false
-    /// Language-service hooks (set by the window).
     public var onDocumentOpened: ((URL, String) -> Void)?
-    /// The editor stopped showing a file (it opened another one).
     public var onDocumentClosed: ((URL) -> Void)?
     public var onDocumentChanged: ((URL, String) -> Void)?
     public var completionProvider: ((URL, Position) async -> [CompletionItem])?
-    /// Predictive completion (SourceEditorController+Prediction.swift): its
-    /// state, the status for the window's activity view, the other open
-    /// files (related snippets) and the path the model sees.
     let predictionState = PredictionState()
     public var onPredictionStatus: ((PredictionSession.Status) -> Void)?
     public var predictionOtherFiles: (() -> [(path: String, text: String)])?
@@ -723,34 +603,26 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     public var completions: CompletionModel { completionPopup.model }
 
     let jumpBar = JumpBar()
-    /// Code Review mode state (CodeReviewViews.swift).
     let review = CodeReviewState()
-    /// The empty-editor view, when shown (EmptyEditorView.swift).
     let emptyHolder = EmptyStateHolder()
-    /// The editor stopped showing a document (the window shows Recent Files).
     public var onBecameEmpty: (() -> Void)?
-    /// The text under the bars moved or changed (the window's bottom bar redraws).
     public var onContentMovedUnderBars: (() -> Void)?
     final class SymbolCache {
         var symbols: [SymbolScanner.Symbol]?
         var highlightTimer: Timer?
-        /// The identifier whose instances are highlighted (selected-symbol highlighting).
         var highlighted: String?
     }
     let symbolCache = SymbolCache()
     let findBar = FindBarView()
-    /// The comparison (code review) view, over the text when shown.
     public let comparison = ComparisonView()
     public var isShowingComparison: Bool { !comparison.isHidden }
     private var findBarHeight: NSLayoutConstraint!
     public private(set) var find = EditorFind()
-    /// Brace regions of the current text, and the folded ones (by start line).
     public private(set) var foldRegions: [FoldRegion] = []
     public internal(set) var foldedStarts: Set<Int> = []
-    /// Lines currently hidden by folds.
     public private(set) var hiddenLines: Set<Int> = []
     public var isShowingFindBar: Bool { findBarHeight.constant > 0 }
-    let scrollView: NSScrollView = EditorScrollView()   // the top bounce (editor-area.md §D.4), 1:1 line wheels (§D.3)
+    let scrollView: NSScrollView = EditorScrollView()
     let textView: SourceTextView
     let gutter: GutterView
     let minimap = MinimapView()
@@ -760,35 +632,18 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     let stickyHeader = ScopeHeaderView()
     var stickyHeaderTrailing: NSLayoutConstraint!
     var stickyHeaderHeight: NSLayoutConstraint!
-    /// The coloring language: the file's, or Editor ▸ Syntax Coloring's choice.
     var language = SourceTokenizer.Language.plain
-    /// The language the text is colored as (Display extras).
     var displayLanguage: SourceTokenizer.Language { language }
-    /// Editor ▸ Syntax Coloring: nil = Default for File Type (per file).
     public internal(set) var syntaxOverride: SourceTokenizer.Language?
-    /// Multi-line comments and `//` runs (Fold Comment Blocks).
     public internal(set) var commentRegions: [FoldRegion] = []
-    /// The file's staged (index) and committed (HEAD) contents for the
-    /// change gutter; nil when the file is not in a git working copy
-    /// (`reference-ui-5.md` §6.3).
-    /// Reads the file's index and HEAD versions (nil: not in git). Called
-    /// off the main thread's critical path: the editor awaits it and keeps
-    /// the result until the next explicit refresh (open, save, a
-    /// source-control change), so typing never waits for git.
     public var changeBaselines: ((URL) async -> (index: String?, head: String?)?)?
     var changeRefresh: Timer?
-    /// The baselines of `fileURL` last read (`.some(nil)`: not in git).
     var changeBaselineCache: (url: URL, base: (index: String?, head: String?)?)?
-    /// The baseline read in progress, if any.
     public internal(set) var changeBaselineLoading: Task<Void, Never>?
     var changeBaselineGeneration = 0
-    /// Editor ▸ Authors: reads the blame of a file (the editor's text when
-    /// given); nil when the file is not in git. Set by the window.
     public var blameLoader: ((URL, String?) async -> [GitBlame.Commit]?)?
-    /// The blame read in progress, if any.
     public internal(set) var blameLoading: Task<Void, Never>?
     var blameGeneration = 0
-    /// The change gutter refreshes this long after the last edit (§6.3.4).
     public static var changeRefreshDelay: TimeInterval = 0.5
 
     public override init(nibName: NSNib.Name?, bundle: Bundle?) {
@@ -811,8 +666,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
         textView.font = Theme.font
-        // editor-area.md §C.1: the code column at the editor's edge + 51
-        // (the gutter is 51 wide) and the first line 7 below the content top.
         textView.textContainerInset = NSSize(width: 0, height: EditorMetrics.firstLineInset)
         textView.textContainer?.lineFragmentPadding = 0
         textView.delegate = self
@@ -825,21 +678,13 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         textView.backgroundColor = .textBackgroundColor
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
-        // The system's scroller style, not a forced one (metrics.md §12.2),
-        // as it will settle, from the first layout (editor-area.md E.7).
         scrollView.scrollerStyle = EditorScrollerStyle.initial
         EditorScrollerStyle.follow(scrollView)
         scrollView.drawsBackground = true
-        // The text runs under the toolbar band, the jump bar and the
-        // bottom bar; the insets keep it clear of them at rest
-        // (liquid-glass-swiftcode.md §12 item 4).
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.verticalRulerView = gutter
         scrollView.hasVerticalRuler = true
         scrollView.rulersVisible = true
-        // The gutter (a ruler) draws past its frame unless clipped: a
-        // gutter-wide cell showed above it, in the jump bar's row
-        // (reference-ui-6.md §1.3.3).
         scrollView.clipsToBounds = true
         gutter.clipsToBounds = true
         gutter.onClick = { [weak self] l in self?.fileURL.map { self?.onBreakpointClick?($0.path, l) } }
@@ -849,7 +694,7 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         gutter.onEdit = { [weak self] l in self?.fileURL.map { self?.onBreakpointEdit?($0.path, l) } }
         gutter.onRunTest = { [weak self] l in self?.fileURL.map { self?.onRunTest?($0.path, l) } }
         textView.textLayoutManager?.textContentManager?.delegate = self
-        textView.textLayoutManager?.delegate = self   // over-long words (+LineBreaks.swift)
+        textView.textLayoutManager?.delegate = self
 
         findBar.onChange = { [weak self] in self?.findChanged() }
         findBar.onStep = { [weak self] f in self?.findStep(forward: f) }
@@ -858,15 +703,11 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         findBar.clipsToBounds = true
         comparison.isHidden = true
         findBar.wantsLayer = true
-        // Order, back to front: the text, the minimap, the sticky header,
-        // the band behind the toolbar, the jump bar and find bar.
         for v in [scrollView, minimap, stickyHeader, bandBackdrop, jumpBar, findBar, comparison] as [NSView] {
             v.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(v)
         }
         stickyHeader.isHidden = true
-        // The bars show the text and the minimap beneath them, blurred
-        // with their shape (liquid-glass.md §9.1, row 68).
         bandBackdrop.sources = { [weak self] in self.map { [$0.scrollView, $0.minimap] } ?? [] }
         minimap.onScrollTo = { [weak self] y in self?.scrollMinimapTarget(y) }
         minimap.scrollTarget = scrollView
@@ -876,8 +717,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         stickyHeaderTrailing = stickyHeader.trailingAnchor.constraint(equalTo: root.trailingAnchor)
         stickyHeaderHeight = stickyHeader.heightAnchor.constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
-            // The jump bar sits under the toolbar (the safe area's top);
-            // the band behind the toolbar runs from the editor's top to it.
             jumpBar.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
             jumpBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             jumpBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
@@ -911,7 +750,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         prefsObserver = NotificationCenter.default.addObserver(forName: Preferences.didChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.applyPreferences() }
         }
-        // Follow the system's scroller style when it changes (metrics.md §12.2).
         scrollerStyleObserver = NotificationCenter.default.addObserver(forName: NSScroller.preferredScrollerStyleDidChangeNotification,
                                                                       object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -921,22 +759,16 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         }
         applyPreferences()
         setUpPrediction()
-        // No document yet: Related Items and "No Selection" over an empty
-        // editor (reference-ui-6.md §1.3.1, W4).
         jumpBar.setPath(pathComponents)
         if fileURL == nil && auxiliary == nil && textView.string.isEmpty { showsNoDocument = true }
     }
 
-    /// The editor shows no document: no gutter and no editable text, only
-    /// the editor's background under the jump bar (reference-ui-6.md §1.3).
     public internal(set) var showsNoDocument: Bool {
         get { noDocument.value }
         set {
             noDocument.value = newValue
             scrollView.rulersVisible = !newValue
             if newValue { textView.isEditable = false }
-            // Pure white: no minimap, its separator or shade, and no scroll
-            // lane until a document is open (editor-area.md E.5, row 74).
             minimap.isHidden = newValue || auxiliary != nil || !comparison.isHidden
             scrollView.hasVerticalScroller = !newValue
             if isViewLoaded { view.needsLayout = true }
@@ -944,9 +776,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     }
     let noDocument = NoDocumentFlag()
 
-    /// The minimap keeps its share of the editor's width (§C.5), the text
-    /// keeps clear of the bars, and the text container ends before the
-    /// minimap.
     public override func viewDidLayout() {
         super.viewDidLayout()
         bandBackdrop.jumpBarTop = view.safeAreaInsets.top
@@ -957,16 +786,9 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         updateEditorInsets()
     }
 
-    /// The minimap's width (tests).
     public var minimapWidthValue: CGFloat { minimapWidth.constant }
 
-    // MARK: Other editors in this area
-
-    /// A view shown instead of the text (project editor, property-list
-    /// editor). The jump bar stays.
     public private(set) var auxiliary: NSView?
-    /// The file the auxiliary editor shows, when it shows one (the window
-    /// title names it, reference-ui-6.md §1.1).
     public private(set) var auxiliaryFile: URL?
 
     public func showAuxiliary(_ v: NSView, path: [(String, String)], file: URL? = nil) {
@@ -998,9 +820,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         minimap.isHidden = showsNoDocument
     }
 
-    // MARK: Comparison
-
-    /// Shows HEAD (`old`) beside the editor's current text.
     public func showComparison(old: String, oldTitle: String) {
         _ = view
         comparison.show(old: old, new: textView.string, oldTitle: oldTitle,
@@ -1018,12 +837,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         minimap.isHidden = showsNoDocument
     }
 
-    // MARK: Find bar
-
-    /// performFindPanelAction tags: 1 Find, 2 Next, 3 Previous, 7 Use
-    /// Selection for Find, 12 Find and Replace; the Find menu's Replace (5),
-    /// Replace All (4), Replace and Find Next (6), Select All Find Matches
-    /// (9) and Select Find Matches in Selection (10).
     @discardableResult
     public func performFind(tag: Int) -> Bool {
         switch tag {
@@ -1040,8 +853,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         return true
     }
 
-    /// Selects every find match (or those inside the selection), one
-    /// selection range each.
     public func selectFindMatches(inSelectionOnly: Bool) {
         if find.matches.isEmpty { findChanged() }
         let sel = textView.selectedRange()
@@ -1065,7 +876,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         view.window?.makeFirstResponder(textView)
     }
 
-    /// Sets the query and options as typing in the bar would.
     public func setFind(_ query: String, replacement: String = "", options: WorkspaceSearch.Options = .init()) {
         _ = view
         findBar.queryField.stringValue = query
@@ -1100,7 +910,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         }
     }
 
-    /// ⌘E: the selection becomes the query.
     public func useSelectionForFind() {
         let sel = textView.selectedRange()
         guard sel.length > 0 else { return }
@@ -1133,9 +942,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         findBar.countLabel.stringValue = "Replaced \(count)"
     }
 
-    // MARK: Settings
-
-    /// Applies the current settings and theme (called on every change).
     public func applyPreferences() {
         bandBackdrop.themeChanged()
         jumpBar.needsDisplay = true
@@ -1153,19 +959,13 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         let para = NSMutableParagraphStyle()
         para.defaultTabInterval = tab
         para.tabStops = []
-        // editor-area.md §C.1: an 18-point pitch at 13 points, the same for
-        // wrapped continuation lines.
         para.minimumLineHeight = Theme.lineHeight
         para.maximumLineHeight = Theme.lineHeight
-        // Wrapped lines continue past their own indentation (Editing ▸
-        // Display ▸ Indent wrapped lines): set per paragraph as it is laid
-        // out (SourceEditorController+Layout.swift).
         wrapSnapshot = WrapSnapshot(wraps: p.wrapLines && p.wrappedLineIndent > 0, advance: Theme.advance, tabWidth: p.tabWidth)
         if let ts = textView.textStorage, ts.length > 0 {
             ts.addAttribute(.paragraphStyle, value: para.copy(), range: NSRange(location: 0, length: ts.length))
         }
         textView.defaultParagraphStyle = para
-        // Wrapping: the container follows the view width, or grows freely.
         textView.isHorizontallyResizable = !p.wrapLines
         textView.textContainer?.widthTracksTextView = p.wrapLines
         if !p.wrapLines {
@@ -1187,13 +987,9 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         gutter.needsDisplay = true
     }
 
-    /// Removes spaces and tabs at line ends (not on the caret's line while
-    /// typing there would lose them: the whole text is trimmed on save).
     public func trimTrailingWhitespace() {
         let ns = textView.string as NSString
         guard let re = try? NSRegularExpression(pattern: "[ \\t]+$", options: .anchorsMatchLines) else { return }
-        // Whitespace-only lines are trimmed only with Settings ▸ Editing ▸
-        // "Trim whitespace-only lines" (default off).
         let trimBlank = Preferences.shared.trimWhitespaceOnlyLines
         let matches = re.matches(in: textView.string, range: NSRange(location: 0, length: ns.length)).filter { m in
             trimBlank || ns.lineRange(for: NSRange(location: m.range.location, length: 0)).location != m.range.location
@@ -1207,14 +1003,9 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         textView.undoManager?.endUndoGrouping()
     }
 
-    /// The page-guide column shown, if any (tests).
     public var pageGuideColumn: Int? { textView.pageGuideColumn }
     public var wrapsLines: Bool { textView.textContainer?.widthTracksTextView ?? true }
 
-    // MARK: Refactoring support
-
-    /// Applies LSP text edits to the open text as one undoable change
-    /// (last edit first, so earlier positions stay valid).
     public func applyTextEdits(_ edits: [TextEdit]) {
         _ = view
         let index = textView.lineIndex
@@ -1235,8 +1026,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         textView.undoManager?.setActionName("Refactor")
     }
 
-    /// Highlights whole-word occurrences of `name` (nil clears), as the
-    /// rename field's live feedback.
     public func highlightOccurrences(of name: String?) {
         _ = view
         guard let name, !name.isEmpty else { textView.findMatches = []; textView.currentFindMatch = nil; return }
@@ -1246,11 +1035,8 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         textView.currentFindMatch = nil
     }
 
-    /// The occurrences highlighted for a rename.
     public var highlightedOccurrences: [NSRange] { textView.findMatches }
 
-    /// The rename field: a small text field over the symbol; Return
-    /// commits, Escape cancels.
     func showRenameField(name: String, at range: NSRange, onCommit: @escaping (String) -> Void) {
         let rect = textView.segmentRects(range).first ?? .zero
         let field = RenameField(string: name)
@@ -1267,11 +1053,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         field.currentEditor()?.selectAll(nil)
     }
 
-    // MARK: Content
-
-    /// Inserts text at the selection (a Library item), as one undoable
-    /// edit, then selects its first `<#placeholder#>` if it has one.
-    /// Returns false when no editable file is shown.
     @discardableResult
     public func insertLibraryText(_ text: String) -> Bool {
         _ = view
@@ -1307,16 +1088,12 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         updateDisplayExtras()
         refreshSourceChanges()
         onDocumentOpened?(url, text)
-        // A newly opened file starts at line 1, column 1 (reference-ui-6.md
-        // §4.2.2); an open that names a line moves the caret afterwards.
         textView.setSelectedRange(NSRange(location: 0, length: 0))
         textView.scrollRangeToVisible(NSRange(location: 0, length: 0))
         textViewDidChangeSelection(Notification(name: NSTextView.didChangeSelectionNotification, object: textView))
         contentMovedUnderBars()
     }
 
-    /// Shows read-only text that is not a file (a build log).
-    /// Stops showing the file: an empty editor, "No Selection".
     public func closeFile() {
         _ = view
         dismissPrediction()
@@ -1362,31 +1139,21 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         onSave?(url)
     }
 
-    /// Called after the file is written (the preview canvas refreshes).
     public var onSave: ((URL) -> Void)?
 
     public var text: String { textView.string }
 
-    // MARK: Incremental editing
-
-    /// Re-color only the edited lines (and recompute folds/minimap lazily
-    /// on large files) instead of the whole file per keystroke.
     public static var incrementalEditing = true
-    /// Files with more lines than this get folds and the minimap updated
-    /// after a short pause instead of on every keystroke.
     public static var lazyThreshold = 3_000
     private var pendingEdit: (range: NSRange, newLength: Int, oldText: String)?
     private var deferredIndex: DispatchWorkItem?
-    /// How the last change was colored (tests): true = only the edited lines.
     public internal(set) var lastHighlightWasIncremental = false
-    /// The syntax document and typing state (SourceEditorController+Typing.swift).
     let syntax = EditorSyntaxState()
 
     func noteEdit(range: NSRange, replacement: String) {
         if !textView.issues.isEmpty { textView.issuesStale = true; gutter.marks.issuesStale = true }
         let ns = textView.string as NSString
         let old = NSMaxRange(range) <= ns.length ? ns.substring(with: range) : ""
-        // Several edits before one change notification: fall back to a full pass.
         pendingEdit = pendingEdit == nil ? (range, (replacement as NSString).length, old) : (NSRange(location: 0, length: 0), -1, "")
     }
 
@@ -1409,18 +1176,14 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
                 m.filter(ns.substring(with: NSRange(location: start, length: caret - start)))
                 showCompletions(m)
             }
-        } else if caret > 0, ns.character(at: caret - 1) == 46 /* . */, language == .swift {
+        } else if caret > 0, ns.character(at: caret - 1) == 46 , language == .swift {
             requestCompletion()
         }
         predictionTextDidChange()
     }
 
-    // MARK: Completion
-
-    /// The LSP position of the insertion point.
     public var caretPosition: Position { textView.lineIndex.position(at: textView.selectedRange().location) }
 
-    /// Asks the provider for completions at the insertion point and shows them.
     public func requestCompletion() {
         guard let url = fileURL, let provider = completionProvider else { return }
         let caret = textView.selectedRange().location
@@ -1438,26 +1201,21 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     }
 
     public func showCompletions(_ m: CompletionModel) {
-        dismissPrediction() // the pop-up and the ghost text never show together
+        dismissPrediction()
         completionPopup.model = m
         guard !m.visible.isEmpty else { return hideCompletions() }
-        // Below the start of the word; the label column lines up with it.
         let anchor = textView.caretRect(at: m.wordStart) ?? NSRect(x: 40, y: 20, width: 0, height: 16)
         let labelInset: CGFloat = 8 + ("M  " as NSString).size(withAttributes: [.font: Theme.boldFont]).width
         let height = CompletionPopupView.height(rows: m.visible.count, hasDoc: completionPopup.hasDoc)
         let inText = NSRect(x: max(0, anchor.minX - labelInset), y: anchor.maxY + 2, width: 380, height: height)
-        // Hosted above the scroll view (not inside the text view) so it is
-        // never clipped by, or drawn into, the text layout.
         completionPopup.frame = view.convert(inText, from: textView)
         if completionPopup.superview == nil { view.addSubview(completionPopup, positioned: .above, relativeTo: nil) }
     }
 
     public func hideCompletions() { completionPopup.removeFromSuperview() }
 
-    /// The popup's frame in text-view coordinates.
     public var completionFrameInText: NSRect { textView.convert(completionPopup.frame, from: view) }
 
-    /// Replaces the partial word with the selected completion.
     public func acceptCompletion() {
         guard let item = completionPopup.model.current else { return hideCompletions() }
         let caret = textView.selectedRange().location
@@ -1474,10 +1232,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         }
     }
 
-    // MARK: Placeholders
-
-    /// Tab / Shift-Tab select the next / previous placeholder; Return on a
-    /// selected placeholder replaces it with its text.
     func handlePlaceholderKey(_ e: NSEvent) -> Bool {
         let flags = e.modifierFlags.intersection([.shift, .command, .option, .control])
         switch e.keyCode {
@@ -1487,7 +1241,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         }
     }
 
-    /// Selects the next (or previous) placeholder; false when there is none.
     @discardableResult
     public func selectPlaceholder(backward: Bool = false) -> Bool {
         guard let r = Placeholders.next(from: textView.selectedRange(), in: textView.string, backward: backward) else { return false }
@@ -1496,7 +1249,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         return true
     }
 
-    /// Replaces the selected placeholder with its own text.
     @discardableResult
     public func acceptSelectedPlaceholder() -> Bool {
         let sel = textView.selectedRange()
@@ -1509,22 +1261,19 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         return true
     }
 
-    /// After inserting `length` characters at `location`, selects the first
-    /// placeholder among them.
     func selectFirstPlaceholder(inInserted inserted: NSRange) {
         if let p = Placeholders.ranges(in: textView.string).first(where: { NSIntersectionRange($0, inserted).length == $0.length }) {
             textView.setSelectedRange(p)
         }
     }
 
-    /// Up, Down, Return, Tab and Escape drive the popup while it shows.
     func handleCompletionKey(_ e: NSEvent) -> Bool {
         guard isShowingCompletions else { return false }
         switch e.keyCode {
         case 125, 126:
             var m = completionPopup.model
             m.move(e.keyCode == 125 ? 1 : -1)
-            showCompletions(m) // the documentation line may appear or go
+            showCompletions(m)
         case 36, 76, 48: acceptCompletion()
         case 53: hideCompletions()
         default: return false
@@ -1544,36 +1293,26 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         onJumpToDefinition?(url, textView.lineIndex.position(at: offset))
     }
 
-    /// The jump bar's symbol component (tests).
     public var jumpBarSymbol: String? { jumpBar.symbolTitle }
 
-    /// The document's declarations, for View ▸ Editor ▸ Show Document Items (⌃6).
     var documentSymbols: [SymbolScanner.Symbol] {
         guard fileURL != nil, language.isCode else { return [] }
         if symbolCache.symbols == nil { symbolCache.symbols = SymbolScanner.symbols(in: textView.string, language: language) }
         return symbolCache.symbols ?? []
     }
 
-    /// The innermost declaration at or before the caret's line.
     func updateSymbolComponent() {
         guard fileURL != nil, language.isCode else { jumpBar.symbolTitle = nil; return }
-        // Large files: while typing, the symbol component waits for the
-        // pause that updates folds (re-scanning symbols per keystroke cost
-        // most of a keystroke on a 10,000-line file).
         if symbolCache.symbols == nil, deferredIndex != nil { return }
         if symbolCache.symbols == nil { symbolCache.symbols = SymbolScanner.symbols(in: textView.string, language: language) }
         let best = DocumentSymbols.enclosing(symbolCache.symbols ?? [], line: currentLine, text: textView.string as NSString, index: textView.lineIndex)
         jumpBar.symbolTitle = best?.name ?? "No Selection"
     }
 
-    /// The line of a declaration's closing brace (its own line when it has
-    /// no body). Braces in strings and comments are not skipped
-    /// (an approximation for the jump bar).
     func endLine(of s: SymbolScanner.Symbol) -> Int {
         DocumentSymbols.endLine(of: s, text: textView.string as NSString, index: textView.lineIndex)
     }
 
-    /// The identifier at the caret (nil inside whitespace or punctuation).
     public var identifierAtCaret: String? {
         let ns = textView.string as NSString
         let sel = textView.selectedRange()
@@ -1588,11 +1327,8 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         return w.first?.isNumber == true ? nil : w
     }
 
-    /// The identifier whose instances are highlighted (tests).
     public var highlightedSymbol: String? { symbolCache.highlighted }
 
-    /// Editing ▸ Display ▸ Highlight instances of selected symbol, after
-    /// the highlighting delay; skipped while the find bar shows matches.
     func scheduleSymbolHighlight() {
         symbolCache.highlightTimer?.invalidate()
         let p = Preferences.shared
@@ -1611,10 +1347,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     }
 
     public func textViewDidChangeSelection(_ notification: Notification) {
-        // Setting the text posts this before the line index is rebuilt; a
-        // stale index turns the offset into the column (reference-ui-6.md
-        // §4.2.1, E3).
-        // (Typing keeps its incremental index: `pendingEdit` is set then.)
         if pendingEdit == nil, textView.lineIndex.length != (textView.string as NSString).length {
             let idx = LineIndex(textView.string)
             textView.lineIndex = idx
@@ -1631,16 +1363,12 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         onSelectionChange?(url, caretPosition)
     }
 
-    /// Places the insertion point at an LSP position.
     public func reveal(position p: Position) {
         let offset = textView.lineIndex.offset(of: p)
         textView.setSelectedRange(NSRange(location: offset, length: 0))
         textView.scrollRangeToVisible(NSRange(location: offset, length: 0))
     }
 
-    // MARK: Code folding
-
-    /// Hides folded lines: TextKit 2 skips paragraphs this returns false for.
     public nonisolated func textContentManager(_ textContentManager: NSTextContentManager,
                                                shouldEnumerate textElement: NSTextElement,
                                                options: NSTextContentManager.EnumerationOptions) -> Bool {
@@ -1650,14 +1378,9 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         return !snap.hidden.contains(snap.index.line(at: offset))
     }
 
-    /// What the (nonisolated) TextKit delegate reads: hidden lines and the
-    /// line index they refer to. Written only on the main actor.
     nonisolated(unsafe) private var foldSnapshot = (hidden: Set<Int>(), index: LineIndex(""))
-    /// What the paragraph delegate reads for wrapped-line indentation
-    /// (SourceEditorController+Layout.swift).
     nonisolated(unsafe) var wrapSnapshot = WrapSnapshot()
 
-    /// Brace and comment regions together.
     public var allFoldRegions: [FoldRegion] { foldRegions + commentRegions }
 
     func applyFolds() {
@@ -1674,38 +1397,31 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         gutter.needsDisplay = true
     }
 
-    /// The ribbon click: folds or unfolds the region starting at (else
-    /// containing) `line`.
     public func toggleFold(at line: Int) {
         guard let r = allFoldRegions.first(where: { $0.startLine == line }) ?? FoldRegions.innermost(foldRegions, containing: line) else { return }
         if foldedStarts.contains(r.startLine) { foldedStarts.remove(r.startLine) } else { foldedStarts.insert(r.startLine) }
         applyFolds()
     }
 
-    /// ⌥⌘←: folds the innermost open region (or comment block) around the insertion point.
     @objc public func fold(_ sender: Any?) {
         let line = currentLine
-        // A comment block around the caret first, else the innermost brace region.
         let comment = commentRegions.first { $0.contains(line: line) && !foldedStarts.contains($0.startLine) }
         guard let r = comment ?? foldRegions.filter({ $0.contains(line: line) && !foldedStarts.contains($0.startLine) }).max(by: { $0.depth < $1.depth }) else { return }
         foldedStarts.insert(r.startLine)
         applyFolds()
     }
 
-    /// ⌥⌘→: unfolds the folds that start on, or contain, the insertion line.
     @objc public func unfold(_ sender: Any?) {
         let line = currentLine
         foldedStarts = foldedStarts.filter { s in !(allFoldRegions.first { $0.startLine == s }?.contains(line: line) ?? false) }
         applyFolds()
     }
 
-    /// ⌥⇧⌘←: folds every region.
     @objc public func foldAll(_ sender: Any?) {
         foldedStarts = Set(foldRegions.map(\.startLine))
         applyFolds()
     }
 
-    /// ⌥⇧⌘→: unfolds everything.
     @objc public func unfoldAll(_ sender: Any?) {
         foldedStarts = []
         applyFolds()
@@ -1724,7 +1440,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         }
         textView.lineIndex = idx
         gutter.lineIndex = idx
-        // Large files: folds and the minimap catch up after a short pause.
         if Self.incrementalEditing && idx.starts.count > Self.lazyThreshold && pendingEdit != nil {
             deferredIndex?.cancel()
             let work = DispatchWorkItem { [weak self] in self?.reindexDeferred() }
@@ -1735,11 +1450,8 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         reindexDeferred()
     }
 
-    /// Folds and minimap (the expensive part of re-indexing).
     func reindexDeferred() {
         deferredIndex = nil
-        // The minimap is computed only while it is shown.
-        // Keep folds whose regions still exist (matched by start line).
         foldRegions = FoldRegions.regions(in: textView.string, language: language)
         commentRegions = FoldRegions.commentRegions(in: textView.string, language: language)
         foldedStarts = foldedStarts.filter { s in allFoldRegions.contains { $0.startLine == s } }
@@ -1749,17 +1461,13 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         updateScopeGuides()
     }
 
-    // MARK: Marks
-
     public func setBreakpoints(_ lines: [Int: Bool], active: Bool, customized: Set<Int> = []) {
         gutter.marks.breakpoints = lines
         gutter.marks.customized = customized
         gutter.marks.breakpointsActive = active
     }
 
-    /// The annotations are grey: the file was edited after they were set.
     public var issuesAreStale: Bool { textView.issuesStale }
-    /// Editor ▸ Show Issues / Hide All Issues.
     public var showsInlineIssues: Bool {
         get { textView.showsIssues }
         set { textView.showsIssues = newValue }
@@ -1769,8 +1477,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         let path = fileURL?.standardizedFileURL.path
         let mine = issues.filter { $0.location.map { URL(fileURLWithPath: $0.file).standardizedFileURL.path } == path }
         let grouped = Dictionary(grouping: mine, by: { $0.location!.line })
-        // The same issues again (a breakpoint refresh) keep their stale state;
-        // new ones from a build or the language server replace it.
         if grouped != textView.issues {
             textView.issues = grouped
             textView.issuesStale = false
@@ -1780,8 +1486,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         gutter.marks.fixable = Set(textView.issues.filter { $0.value.contains { !$0.fixIts.isEmpty } }.keys)
     }
 
-    /// The line whose issue annotation is at `p` (text-view coordinates):
-    /// right of the line's code, where the annotation is drawn.
     public func annotationLine(at p: NSPoint) -> Int? {
         guard textView.showsIssues else { return nil }
         let line = textView.lineIndex.line(at: textView.characterIndexForInsertion(at: p))
@@ -1792,8 +1496,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         return p.x >= textEnd + 16 ? line : nil
     }
 
-    /// The menu a click on a line's annotation opens when its issues carry
-    /// fix-its: the message, then "Fix" (applies them); nil otherwise.
     public func fixItMenu(line: Int) -> NSMenu? {
         guard let list = textView.issues[line], list.contains(where: { !$0.fixIts.isEmpty }),
               let first = InlineIssueLayout.primary(list.filter { !$0.fixIts.isEmpty }) else { return nil }
@@ -1811,22 +1513,16 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
 
     @objc func fixItChosen(_ item: NSMenuItem) { gutter.onFixIt?(item.tag) }
 
-    /// Test diamonds for the open file.
     public func setTests(_ marks: [Int: GutterView.TestStatusMark]) { gutter.marks.tests = marks }
 
-    /// Editor ▸ Code Coverage: execution counts by line for the ribbon.
     public func setCoverage(_ counts: [Int: Int], shown: Bool) {
         gutter.marks.coverage = counts
         gutter.showsCoverage = shown
     }
 
-    /// "Thread 1: breakpoint 1.1 (1)" at the right of the current line.
     public func setStopAnnotation(_ text: String?) { textView.stopAnnotation = text }
     public var stopAnnotationText: String? { textView.stopAnnotation }
 
-    /// Marks the program counter's line. The editor scrolls to a new line;
-    /// the caret stays (Debug ▸ Debug Workflow ▸ Synchronize Insertion
-    /// Point to Program Counter moves it, reference-ui-5.md §2.10).
     public func setCurrentLine(_ line: Int?) {
         let changed = textView.highlightedLine != line
         textView.highlightedLine = line
@@ -1834,7 +1530,6 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         if let line, changed, let r = textView.lineIndex.range(ofLine: line) { textView.scrollRangeToVisible(r) }
     }
 
-    /// The 1-based line of the insertion point.
     public var currentLine: Int { textView.lineIndex.line(at: textView.selectedRange().location) }
 
     public func reveal(line: Int) {
@@ -1843,13 +1538,11 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         textView.scrollRangeToVisible(r)
     }
 
-    // MARK: Editor options
-
     public var showsMinimap: Bool {
         get { minimapWidth.constant > 0 }
         set {
             _ = view
-            minimapWidth.constant = newValue ? MinimapView.width(forEditorWidth: view.bounds.width) : 0  // editor-area.md §C.5
+            minimapWidth.constant = newValue ? MinimapView.width(forEditorWidth: view.bounds.width) : 0
             if newValue != showsMinimapCache {
                 showsMinimapCache = newValue
                 updateEditorInsets()
@@ -1863,14 +1556,11 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
         set { gutter.showsLineNumbers = newValue }
     }
 
-    /// Editor ▸ Minimap (⌃⇧⌘M): a user setting for every editor (reference-ui-5.md §9.3).
     @objc public func toggleMinimap(_ sender: Any?) { Preferences.shared.showMinimap.toggle() }
     @objc public func toggleLineNumbers(_ sender: Any?) { showsLineNumbers.toggle() }
 
-    // ⌘/ (Comment Selection) is in SourceEditorController+Typing.swift.
 }
 
-/// The in-editor rename field.
 final class RenameField: NSTextField, NSTextFieldDelegate {
     var onCommit: ((String?) -> Void)?
     var onChange: ((String) -> Void)?
@@ -1887,10 +1577,6 @@ final class RenameField: NSTextField, NSTextFieldDelegate {
 }
 
 extension SourceEditorController {
-    /// The source editor's context menu starts with Show Code Actions
-    /// (reference-ui-5.md §2.0: the command keeps no shortcut and moves
-    /// here; Editor ▸ Show Coding Tools ▸ Show Coding Tools… ⌥⌘0 also
-    /// shows the actions at the caret).
     public func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
         guard fileURL != nil, !menu.items.contains(where: { $0.action == Self.showCodeActionsAction }) else { return menu }
         menu.insertItem(NSMenuItem(title: "Show Code Actions", action: Self.showCodeActionsAction, keyEquivalent: ""), at: 0)
@@ -1901,5 +1587,4 @@ extension SourceEditorController {
     static let showCodeActionsAction = NSSelectorFromString("showCodeActions:")
 }
 
-/// Whether the editor shows no document (an extension-friendly box).
 @MainActor final class NoDocumentFlag { var value = false }

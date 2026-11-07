@@ -6,7 +6,6 @@ import SwiftCodeWorkspace
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// Build requests an engine was asked for.
 final class RecordedRequests: @unchecked Sendable {
     private let lock = NSLock()
     private var list: [BuildRequest] = []
@@ -14,7 +13,6 @@ final class RecordedRequests: @unchecked Sendable {
     func append(_ r: BuildRequest) { lock.lock(); list.append(r); lock.unlock() }
 }
 
-/// An engine that records each request and succeeds.
 struct RecordingEngine: BuildEngine {
     let box: RecordedRequests
     var name: String { "recording" }
@@ -28,8 +26,6 @@ struct RecordingEngine: BuildEngine {
     }
 }
 
-/// A hand-written macOS command-line tool project: main.swift uses a type
-/// from Greeter.swift; one shared scheme with two test plans.
 func writeToolProject(at dir: URL) throws -> URL {
     let fm = FileManager.default
     try? fm.removeItem(at: dir)
@@ -116,8 +112,6 @@ func writeToolProject(at dir: URL) throws -> URL {
     return dir.appendingPathComponent("Tool.xcodeproj")
 }
 
-/// A shell script standing in for `swift`: records its arguments, then
-/// prints `output`.
 func fakeTool(at url: URL, record: URL, output: String) throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "#!/bin/sh\necho \"$@\" >> '\(record.path)'\ncat <<'EOF'\n\(output)\nEOF\n".write(to: url, atomically: true, encoding: .utf8)
@@ -129,9 +123,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         swiftcodeDir.appendingPathComponent(".build-ide/r36/\(name)-\(UUID().uuidString)")
     }
 
-    /// Build For ▸ Running / Profiling build the scheme with the Run and
-    /// Profile actions' configurations; Build For ▸ Testing builds the
-    /// tests with the test tool.
     @Test func buildForPurposes() async throws {
         let dir = scratch("build-for")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -145,7 +136,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.activity == .finished("Build Succeeded"))
         #expect(session.reports.first?.title == "Build Tool")
 
-        // Testing: the test tool's build-for-testing, its issues shown.
         let record = dir.appendingPathComponent("args.txt"), tool = dir.appendingPathComponent("xcodebuild.sh")
         try fakeTool(at: tool, record: record, output: "\(dir.path)/Tool/main.swift:1:1: warning: careful\n** TEST BUILD SUCCEEDED **")
         session.testRunner.xcodebuild = ["/bin/sh", tool.path]
@@ -156,8 +146,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(session.issues.map(\.message) == ["careful"])
     }
 
-    /// The file's module context for a project: the target's module name,
-    /// its Swift files, its settings.
     @Test func fileContextFromTheProject() throws {
         let dir = scratch("ctx")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -170,7 +158,6 @@ func fakeTool(at url: URL, record: URL, output: String) throws {
         #expect(ctx.swiftVersion == "5.0" && ctx.defines == ["DEBUG"])
         #expect(ctx.targetTriple == "\(SwiftBuildEngine.hostArchitecture)-apple-macosx15.0")
         #if os(macOS)
-        // The SDK comes from `xcrun`, which exists only on macOS.
         #expect(ctx.sdkPath?.contains("MacOSX") == true)
         #endif
     }

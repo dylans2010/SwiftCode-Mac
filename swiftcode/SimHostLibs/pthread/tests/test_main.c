@@ -1,24 +1,3 @@
-/*
- * Host-side unit tests for SwiftCode's libsystem_pthread sources.
- *
- * Clean-room SwiftCode code. The pthread C sources are compiled for the host
- * with -DYC_HOST_TEST: every exported function becomes yc_test_<name>,
- * every libsystem_kernel function it calls becomes yc_testk_<name>, and
- * the TSD base comes from yc_testk_tsd_base(). This file supplies a fake
- * VMM-built main-thread block per host thread (host-libraries.md section
- * 8.3) and fake kernel calls, then checks the library's behavior. The
- * tests that run before the __pthread_init test check that the library
- * works without it (section 8.2). Run with tests/run.sh.
- *
- * Stage 4a: the fake kernel also creates threads (bsdthread_create starts
- * a host thread at the library's _pthread_start with the spec's argument
- * registers), terminates them (frees what it is asked to, performs the
- * join-gate store and wake), implements compare-and-wait for real, and
- * plays the workqueue (requests start host threads at _pthread_wqthread
- * with the spec's memory layout, upcall flags, event list and workloop ID;
- * the *_RETURN operations rerun or retire the worker). The library code is
- * the real code; only the kernel side is simulated.
- */
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <sched.h>
@@ -49,7 +28,6 @@ static int checks, failures;
         }                                                                        \
     } while (0)
 
-/* ---- opaque client types (sizes from host-library-init.md 5.3) -------- */
 typedef struct { long sig; char opaque[56]; } ymutex_t;
 typedef struct { long sig; char opaque[8]; } ymutexattr_t;
 typedef struct { long sig; char opaque[40]; } ycond_t;
@@ -67,7 +45,6 @@ struct ysp { int sched_priority; char opaque[4]; };
 #define YONCE_INIT { 0x30B1BCBA, { 0 } }
 #define YRWLOCK_INIT { 0x2DA8B3B4, { 0 } }
 
-/* ---- declarations of the code under test ------------------------------ */
 typedef void *ypthread_t;
 ypthread_t T(pthread_self)(void);
 ypthread_t T(_pthread_self)(void);
@@ -199,7 +176,6 @@ void *T(pthread_dependency_wait_np)(struct ydep *);
 extern int T(__is_threaded);
 extern const uint16_t T(pthread_layout_offsets)[4];
 
-/* ---- the fake VMM-built thread block ---------------------------------- */
 #define TSD_OFF 224
 #define BLOCK_SIZE 8192
 static uint32_t next_port = 0x203;
@@ -230,16 +206,8 @@ uintptr_t *yc_testk_tsd_base(void)
 
 static uintptr_t *tsd(void) { return yc_testk_tsd_base(); }
 
-/* ---- fake kernel ------------------------------------------------------- */
 int *yc_testk___error(void) { yc_testk_tsd_base(); return (int *)(my_block + 172); }
 
-/* A real (host) implementation of the compare-and-wait contract
- * (threads-and-events.md 4.1): the compare and the sleep are atomic with
- * respect to wakes, because both run under one host mutex and every wake
- * advances a generation counter. Timed waits are capped at 20 ms, so a test
- * never waits for a far deadline; an untimed wait returns spuriously after
- * 5 s at most (allowed by the contract), so a lost wake shows up as a slow
- * test, not a hang. */
 static pthread_mutex_t ul_mx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ul_cv = PTHREAD_COND_INITIALIZER;
 static unsigned long ul_gen;
@@ -346,13 +314,6 @@ void yc_testk__exit(int status) { exit_status = status; longjmp(exit_jb, 1); }
 void yc_testk_thread_start(void) { abort(); }
 void yc_testk_start_wqthread(void) { abort(); }
 
-/* ---- fake kernel: threads (threads-and-events.md 1.1-1.2) -------------- *
- * __bsdthread_create starts a host thread that enters the library's
- * _pthread_start with the spec's register values (x0-x5) and the TSD base
- * at pthread + 224; __bsdthread_terminate frees what it is asked to free,
- * performs the join-gate store and wake, and ends the host thread. The
- * host thread runs on its host stack, not on the stack the library
- * allocated (the library's stack bounds are checked instead). */
 void T(_pthread_start)(void *self, uint32_t port, void *(*fn)(void *), void *arg, void *stack, uint32_t flags)
     __attribute__((noreturn));
 void T(_pthread_wqthread)(void *self, uint32_t port, void *bottom, void *list, uint32_t flags, int nevents)
@@ -362,7 +323,7 @@ static long mapped_bytes, mprotect_none_calls;
 void *yc_testk_mmap(void *addr, size_t len, int prot, int flags, int fd, int64_t off)
 {
     (void)addr; (void)fd; (void)off;
-    if (flags != (0x0002 | 0x1000) || prot != 3) /* Darwin MAP_PRIVATE|MAP_ANON, RW */
+    if (flags != (0x0002 | 0x1000) || prot != 3)
         return (void *)-1;
     void *p = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (p == MAP_FAILED)
@@ -394,7 +355,7 @@ static void *fake_thread_main(void *p)
 {
     struct fake_start s = *(struct fake_start *)p;
     free(p);
-    my_block = (unsigned char *)s.pthread; /* TPIDRRO_EL0 = pthread + 224 */
+    my_block = (unsigned char *)s.pthread;
     T(_pthread_start)(s.pthread, s.port, s.fn, s.arg, s.stack, s.flags);
 }
 
@@ -416,8 +377,8 @@ void *yc_testk___bsdthread_create(void *fn, void *arg, void *stack, void *pthrea
     }
     struct fake_start s = { pthread, __atomic_fetch_add(&next_kport, 0x100, __ATOMIC_RELAXED),
                             (void *(*)(void *))fn, arg, stack, 0 };
-    s.flags = (flags | 0x10000000u) & ~0x20000000u; /* TSD_BASE_SET added, SUSPENDED cleared */
-    ((uint64_t *)((char *)pthread + TSD_OFF))[3] = s.port; /* slot 3, before the thread runs */
+    s.flags = (flags | 0x10000000u) & ~0x20000000u;
+    ((uint64_t *)((char *)pthread + TSD_OFF))[3] = s.port;
     last_create = s;
     last_create.flags = flags;
     __atomic_fetch_add(&creates, 1, __ATOMIC_RELAXED);
@@ -430,7 +391,6 @@ void *yc_testk___bsdthread_create(void *fn, void *arg, void *stack, void *pthrea
     return pthread;
 }
 
-/* thread_resume for the thread created suspended. */
 static void fake_resume_suspended(void)
 {
     if (suspended_pending) {
@@ -439,13 +399,12 @@ static void fake_resume_suspended(void)
     }
 }
 
-/* The workqueue thread running on this host thread, if any. */
 struct fake_worker {
-    unsigned char *base; /* B: the kernel's 560 KiB region */
-    void *self;          /* B + 540 KiB */
-    void *bottom;        /* B + 16 KiB */
+    unsigned char *base;
+    void *self;
+    void *bottom;
     uint32_t port, qos;
-    int reruns;          /* plain REUSE runs to give before retiring */
+    int reruns;
 };
 static __thread struct fake_worker *cur_worker;
 static long wq_retired, wq_bad_region;
@@ -456,7 +415,6 @@ int yc_testk___bsdthread_terminate(void *stackaddr, size_t freesize, uint32_t po
     (void)port;
     struct fake_worker *w = cur_worker;
     if (w != NULL) {
-        /* A worker gives back exactly the kernel's region (section 2.6). */
         if (stackaddr != w->base || freesize != 560 * 1024 || gate != 0)
             __atomic_fetch_add(&wq_bad_region, 1, __ATOMIC_RELAXED);
         munmap(w->base, 560 * 1024);
@@ -472,7 +430,6 @@ int yc_testk___bsdthread_terminate(void *stackaddr, size_t freesize, uint32_t po
     }
     my_block = NULL;
     if (gate != 0 && (gate | 3) != gate) {
-        /* The join gate: store port & ~3, then wake every waiter. */
         __atomic_fetch_add(&terminates_gate, 1, __ATOMIC_RELAXED);
         __atomic_store_n((uint32_t *)gate, port & ~3u, __ATOMIC_SEQ_CST);
         yc_testk___ulock_wake(0x02 | 0x100 | 0x400 | 0x01000000, (void *)gate, 0);
@@ -480,20 +437,17 @@ int yc_testk___bsdthread_terminate(void *stackaddr, size_t freesize, uint32_t po
     pthread_exit(NULL);
 }
 
-/* ---- fake kernel: the workqueue (threads-and-events.md 2.3-2.7) -------- */
 static unsigned char setup_record[24];
 static int setup_calls, setup_size, workq_open_calls;
 static int reqthreads_calls, reqthreads_count, reqthreads_pp, reqthreads2_calls;
 static int last_return_op, last_return_n;
 static void *last_return_item;
-static uint64_t last_return_ident; /* the first change's ident (the region is gone later) */
+static uint64_t last_return_ident;
 static int mgr_prio;
 static long ctl_cmd, ctl_flags;
 
 static void *fake_worker_main(void *p);
 
-/* Starts a worker the way the kernel does: a fresh 560 KiB region, self at
- * B + 540 KiB, the event list at self - 1152, the workloop ID at list - 8. */
 static void fake_spawn_worker(uint32_t flags, uint32_t qos, const void *events, int nevents, uint64_t wlid,
                               int reruns)
 {
@@ -517,7 +471,7 @@ static void fake_spawn_worker(uint32_t flags, uint32_t qos, const void *events, 
         memcpy(list - 8, &wlid, 8);
     struct { struct fake_worker *w; uint32_t flags; int n; void *list; } *a = malloc(sizeof *a);
     a->w = w;
-    a->flags = flags | 0x00040000u | 0x00200000u | 0x4000u | qos; /* NEWSPI, TSD_BASE_SET, PRIO_QOS */
+    a->flags = flags | 0x00040000u | 0x00200000u | 0x4000u | qos;
     a->n = nevents;
     a->list = (flags & 0x00080000u) ? list : NULL;
     pthread_t h;
@@ -531,12 +485,10 @@ static void *fake_worker_main(void *p)
     memcpy(&a, p, sizeof a);
     free(p);
     cur_worker = a.w;
-    my_block = a.w->self; /* TPIDRRO_EL0 = self + 224 */
+    my_block = a.w->self;
     T(_pthread_wqthread)(a.w->self, a.w->port, a.w->bottom, a.list, a.flags, a.n);
 }
 
-/* *_RETURN: run the thread again (REUSE) as a plain worker, or retire it
- * with x5 = -1 (section 2.7). Never returns, like the kernel. */
 static __attribute__((noreturn)) void fake_worker_next(void)
 {
     struct fake_worker *w = cur_worker;
@@ -575,7 +527,7 @@ int yc_testk___workq_kernreturn(int op, void *item, int arg2, int arg3)
     }
     case 0x030:
         reqthreads2_calls++;
-        *yc_testk___error() = 45; /* ENOTSUP: no cooperative pool (stage 4a) */
+        *yc_testk___error() = 45;
         return -1;
     case 0x004: case 0x040: case 0x100:
         last_return_op = op;
@@ -618,7 +570,6 @@ static void wait_until(volatile long *counter, long value)
         usleep(500);
 }
 
-/* Runs fn in a child process and reports whether it crashed. */
 static int crashes(void (*fn)(void))
 {
     fflush(stdout);
@@ -635,8 +586,6 @@ static int crashes(void (*fn)(void))
     return WIFSIGNALED(st);
 }
 
-/* ---- tests: before __pthread_init ------------------------------------- */
-
 static void test_identity_before_init(void)
 {
     unsigned char *b = (unsigned char *)tsd() - TSD_OFF;
@@ -649,7 +598,7 @@ static void test_identity_before_init(void)
     uint64_t tid = 0;
     CHECK(T(pthread_threadid_np)(NULL, &tid) == 0 && tid == 1);
     CHECK(T(pthread_threadid_np)(b, &tid) == 0 && tid == 1);
-    CHECK(T(pthread_threadid_np)(b + 64, &tid) == 3 /* ESRCH */);
+    CHECK(T(pthread_threadid_np)(b + 64, &tid) == 3 );
     CHECK(T(pthread_threadid_np)(NULL, NULL) == 22);
     CHECK(T(pthread_mach_thread_np)(b) == 0x203);
     CHECK(T(pthread_from_mach_thread_np)(0x203) == b);
@@ -660,14 +609,14 @@ static void test_identity_before_init(void)
     CHECK(T(pthread_current_stack_contains_np)(&local, sizeof local) == 1);
     CHECK(T(pthread_current_stack_contains_np)((void *)16, 4) == 0);
     CHECK(T(pthread_current_stack_contains_np)((void *)~(uintptr_t)0, 4) < 0);
-    CHECK(T(qos_class_self)() == 0x15); /* QOS_CLASS_DEFAULT before init */
+    CHECK(T(qos_class_self)() == 0x15);
     CHECK(T(pthread_is_threaded_np)() == 0);
 }
 
 static int unlocked_later;
 static void *unlock_later(void *m)
 {
-    my_block = make_block(); /* this host thread is another guest thread */
+    my_block = make_block();
     usleep(20000);
     __atomic_store_n(&unlocked_later, 1, __ATOMIC_RELEASE);
     if (T(pthread_mutex_unlock)((ymutex_t *)m) != 0)
@@ -678,14 +627,14 @@ static void *unlock_later(void *m)
 static void test_mutex_static(void)
 {
     ymutex_t m = YMUTEX_INIT;
-    CHECK(T(pthread_mutex_unlock)(&m) == 1 /* EPERM */);
+    CHECK(T(pthread_mutex_unlock)(&m) == 1 );
     CHECK(T(pthread_mutex_lock)(&m) == 0);
-    CHECK(T(pthread_mutex_trylock)(&m) == 16 /* EBUSY */);
+    CHECK(T(pthread_mutex_trylock)(&m) == 16 );
     CHECK(T(pthread_mutex_destroy)(&m) == 16);
     CHECK(T(pthread_mutex_unlock)(&m) == 0);
     CHECK(T(pthread_mutex_trylock)(&m) == 0);
     CHECK(T(pthread_mutex_unlock)(&m) == 0);
-    CHECK(m.sig == 0x32AAABA7); /* never rewritten */
+    CHECK(m.sig == 0x32AAABA7);
     CHECK(T(pthread_mutex_destroy)(&m) == 0);
     CHECK(T(pthread_mutex_lock)(&m) == 22);
 
@@ -705,22 +654,19 @@ static void test_mutex_static(void)
     CHECK(T(pthread_mutex_unlock)(&r) == 0);
     CHECK(T(pthread_mutex_unlock)(&r) == 1);
 
-    /* A normal mutex held by this thread and unlocked by another is
-     * released (Darwin); error-checking and recursive ones are not. */
     ymutex_t h = YMUTEX_INIT, he = YMUTEX_ERRCHK_INIT;
     CHECK(T(pthread_mutex_lock)(&h) == 0);
     CHECK(T(pthread_mutex_lock)(&he) == 0);
     unsigned char *mine = my_block;
-    my_block = make_block(); /* another thread */
+    my_block = make_block();
     CHECK(T(pthread_mutex_unlock)(&h) == 0);
-    CHECK(T(pthread_mutex_unlock)(&h) == 1); /* not held: EPERM */
+    CHECK(T(pthread_mutex_unlock)(&h) == 1);
     CHECK(T(pthread_mutex_unlock)(&he) == 1);
     my_block = mine;
-    CHECK(T(pthread_mutex_lock)(&h) == 0); /* free again: no EDEADLK */
+    CHECK(T(pthread_mutex_lock)(&h) == 0);
     CHECK(T(pthread_mutex_unlock)(&h) == 0);
     CHECK(T(pthread_mutex_unlock)(&he) == 0);
 
-    /* Relocking a normal mutex waits until another thread unlocks it. */
     CHECK(T(pthread_mutex_lock)(&h) == 0);
     pthread_t other;
     CHECK(pthread_create(&other, NULL, unlock_later, &h) == 0);
@@ -760,7 +706,7 @@ static void test_mutex_attr(void)
     CHECK(T(pthread_mutex_init)(&m, &a) == 0);
     CHECK(m.sig == 0x4D555458);
     CHECK(T(pthread_mutex_lock)(&m) == 0);
-    CHECK(T(pthread_mutex_lock)(&m) == 0); /* recursive */
+    CHECK(T(pthread_mutex_lock)(&m) == 0);
     CHECK(T(pthread_mutex_unlock)(&m) == 0);
     CHECK(T(pthread_mutex_unlock)(&m) == 0);
     CHECK(T(pthread_mutex_getprioceiling)(&m, &v) == 0 && v == 40);
@@ -774,8 +720,6 @@ static void test_mutex_attr(void)
     CHECK(T(pthread_mutex_lock)(&m) == 0 && T(pthread_mutex_trylock)(&m) == 16);
     CHECK(T(pthread_mutex_unlock)(&m) == 0);
 }
-
-/* ---- tests: __pthread_init -------------------------------------------- */
 
 static int exit_fn_status = -1;
 static void fake_libc_exit(int status) { exit_fn_status = status; longjmp(exit_jb, 2); }
@@ -813,11 +757,10 @@ static void test_init(void)
     CHECK(tsd()[7] == 0x1234abcd5678);
     CHECK(tsd()[8] == 0 && tsd()[9] == 0);
     CHECK(*(long *)b == (long)((uintptr_t)b ^ 0x1234abcd5678));
-    CHECK(*(uint64_t *)(b + 216) == 1); /* the VMM's ID is kept */
-    CHECK(b[49] & 1); /* joinable */
-    CHECK(*(uint16_t *)(b + 166) == 3); /* cancel enabled + deferred */
+    CHECK(*(uint64_t *)(b + 216) == 1);
+    CHECK(b[49] & 1);
+    CHECK(*(uint16_t *)(b + 166) == 3);
 
-    /* The registration record (host-library-init.md section 6.1). */
     CHECK(reg_calls == 1);
     CHECK(reg_args[0] == (long)yc_testk_thread_start && reg_args[1] == (long)yc_testk_start_wqthread);
     CHECK(reg_args[2] == 16384 && reg_args[4] == 56 && reg_args[5] == 160);
@@ -834,20 +777,16 @@ static void test_init(void)
     CHECK(T(qos_class_self)() == 0x15);
     CHECK(T(pthread_mach_thread_np)(b) == 0x303);
 
-    /* A second call refreshes but does not register again. */
     const char *apple2[] = { NULL };
     CHECK(T(__pthread_init)(&f, envp, apple2, NULL) == 0);
     CHECK(reg_calls == 1);
     CHECK(tsd()[3] == 0x303 && tsd()[7] == 0x1234abcd5678);
     CHECK(*(uintptr_t *)(b + 176) == 0x16fe00000);
     T(__pthread_late_init)(envp, apple, NULL);
-    /* NULL and old tables are accepted. */
     struct ypfuncs v1 = { 1, fake_libc_exit, NULL, NULL };
     CHECK(T(__pthread_init)(NULL, NULL, NULL, NULL) == 0);
     CHECK(T(__pthread_init)(&v1, NULL, NULL, NULL) == 0);
 }
-
-/* ---- tests: TSD -------------------------------------------------------- */
 
 static int dtor_calls;
 static void *dtor_last;
@@ -862,10 +801,10 @@ static void test_tsd(void)
     CHECK(T(pthread_setspecific)(k1, (void *)0x1111) == 0);
     CHECK(tsd()[256] == 0x1111);
     CHECK(T(pthread_getspecific)(k1) == (void *)0x1111);
-    CHECK(T(pthread_setspecific)(300, (void *)1) == 22); /* not created */
+    CHECK(T(pthread_setspecific)(300, (void *)1) == 22);
     CHECK(T(pthread_setspecific)(768, (void *)1) == 22);
     CHECK(T(pthread_setspecific)(5, (void *)1) == 22);
-    CHECK(T(pthread_getspecific)(3) == (void *)0x303); /* no range check */
+    CHECK(T(pthread_getspecific)(3) == (void *)0x303);
     CHECK(T(pthread_key_init_np)(9, NULL) == 22);
     CHECK(T(pthread_key_init_np)(256, NULL) == 22);
     CHECK(T(pthread_key_init_np)(20, dtor) == 0);
@@ -887,8 +826,6 @@ static void test_tsd(void)
     (void)dtor_last;
 }
 
-/* ---- tests: once ------------------------------------------------------- */
-
 static int once_count;
 static void once_routine(void) { __atomic_fetch_add(&once_count, 1, __ATOMIC_RELAXED); }
 static yonce_t shared_once = YONCE_INIT;
@@ -904,7 +841,6 @@ static void test_once(void)
     CHECK(T(pthread_once)(&o, once_routine) == 0);
     CHECK(T(pthread_once)(&o, once_routine) == 0);
     CHECK(once_count == 1);
-    /* The signature is ignored: zero-filled and odd signatures run once. */
     yonce_t zero = { 0, { 0 } }, odd = { 0x1234, { 0 } };
     once_count = 0;
     CHECK(T(pthread_once)(&zero, once_routine) == 0 && T(pthread_once)(&zero, once_routine) == 0);
@@ -917,8 +853,6 @@ static void test_once(void)
     CHECK(once_count == 1);
     CHECK(crashes(rec_once_child));
 }
-
-/* ---- tests: condition variables --------------------------------------- */
 
 static ycond_t pc_cond = YCOND_INIT;
 static ymutex_t pc_mutex = YMUTEX_INIT;
@@ -963,9 +897,9 @@ static void test_cond(void)
     CHECK(T(pthread_cond_timedwait)(&c, &m, &future) == 60);
     struct yts bad = { 0, 2000000000 };
     CHECK(T(pthread_cond_timedwait)(&c, &m, &bad) == 22);
-    CHECK(T(pthread_mutex_unlock)(&m) == 0); /* still held after the waits */
+    CHECK(T(pthread_mutex_unlock)(&m) == 0);
     CHECK(T(pthread_mutex_unlock)(&m) == 1);
-    CHECK(T(pthread_cond_timedwait_relative_np)(&c, &m, &rel) == 1); /* not held: EPERM */
+    CHECK(T(pthread_cond_timedwait_relative_np)(&c, &m, &rel) == 1);
 
     ycondattr_t ca;
     int v;
@@ -979,7 +913,6 @@ static void test_cond(void)
     CHECK(T(pthread_cond_signal)(&c2) == 22);
     CHECK(T(pthread_condattr_destroy)(&ca) == 0);
 
-    /* With threads: a producer/consumer pair. */
     T(__is_threaded) = 1;
     pthread_t p, q;
     pthread_create(&q, NULL, consumer, NULL);
@@ -989,8 +922,6 @@ static void test_cond(void)
     CHECK(pc_consumed == 2000 && pc_items == 0);
     T(__is_threaded) = 0;
 }
-
-/* ---- tests: rwlocks ---------------------------------------------------- */
 
 static yrwlock_t stress_rw = YRWLOCK_INIT;
 static long rw_value, rw_bad;
@@ -1049,8 +980,6 @@ static void test_rwlock(void)
     T(__is_threaded) = 0;
 }
 
-/* ---- tests: mutex under contention ------------------------------------ */
-
 static ymutex_t stress_m = YMUTEX_INIT;
 static long stress_counter;
 static void *mutex_thread(void *arg)
@@ -1072,8 +1001,6 @@ static void test_mutex_threads(void)
     for (int i = 0; i < 4; i++) pthread_join(th[i], NULL);
     CHECK(stress_counter == 400000);
 }
-
-/* ---- tests: attributes ------------------------------------------------- */
 
 static void test_attr(void)
 {
@@ -1110,8 +1037,6 @@ static void test_attr(void)
     CHECK(T(pthread_attr_setdetachstate)(&a, 1) == 22);
 }
 
-/* ---- tests: QoS -------------------------------------------------------- */
-
 static void test_qos(void)
 {
     int rp;
@@ -1132,11 +1057,9 @@ static void test_qos(void)
     CHECK(T(_pthread_set_properties_self)(1, 0x8FF, 0) == 0 && T(qos_class_self)() == 0x15);
     CHECK(T(qos_class_main)() == 0x15);
     char cfg[16] = { 0 };
-    CHECK(T(pthread_workqueue_setup)(cfg, sizeof cfg) == 22); /* version 0 */
+    CHECK(T(pthread_workqueue_setup)(cfg, sizeof cfg) == 22);
     CHECK(T(pthread_workqueue_setup)(NULL, 0) == 22);
 }
-
-/* ---- tests: thread functions, exit, cleanup ---------------------------- */
 
 struct ycleanup { void (*routine)(void *); void *arg; struct ycleanup *next; };
 static int cleanup_order[4], cleanup_n;
@@ -1201,7 +1124,6 @@ static void test_misc(void)
     CHECK(T(pthread_layout_offsets)[0] == 1 && T(pthread_layout_offsets)[1] == 224 &&
           T(pthread_layout_offsets)[2] == 0 && T(pthread_layout_offsets)[3] == 8);
 
-    /* atfork order: prepare in reverse, parent/child in order. */
     CHECK(T(pthread_atfork)(af_p1, af_c1, af_c1) == 0);
     CHECK(T(pthread_atfork)(af_p2, af_c2, af_c2) == 0);
     T(_pthread_atfork_prepare_handlers)();
@@ -1211,8 +1133,6 @@ static void test_misc(void)
     T(_pthread_atfork_child_handlers)();
     CHECK(atfork_n == 2 && atfork_log[0] == 11 && atfork_log[1] == 12);
 
-    /* pthread_exit: cleanup handlers (innermost first), TSD destructors,
-     * then libc's exit(0) from the _libpthread_functions table. */
     struct ycleanup c1 = { cleanup_fn, (void *)1, NULL };
     struct ycleanup c2 = { cleanup_fn, (void *)2, &c1 };
     *(void **)(b + 8) = &c2;
@@ -1226,9 +1146,8 @@ static void test_misc(void)
     CHECK(*(void **)(b + 8) == NULL);
     CHECK(dtor_calls == 1 && dtor_last == (void *)0x9999 && tsd()[256] == 0);
 
-    /* Cancellation of self acts at the next cancellation point. */
     exit_fn_status = -1;
-    *(uint16_t *)(b + 78) &= (uint16_t)~2; /* clear "exiting" for the test */
+    *(uint16_t *)(b + 78) &= (uint16_t)~2;
     CHECK(T(pthread_cancel)(b) == 0);
     if (setjmp(exit_jb) == 0) {
         T(pthread_testcancel)();
@@ -1236,8 +1155,6 @@ static void test_misc(void)
     }
     CHECK(exit_fn_status == 0);
 }
-
-/* ---- tests: threads (create, start, exit, join, detach) ---------------- */
 
 int T(pthread_create)(ypthread_t *, const yattr_t *, void *(*)(void *), void *);
 int T(pthread_create_suspended_np)(ypthread_t *, const yattr_t *, void *(*)(void *), void *);
@@ -1279,7 +1196,7 @@ static void *exit_thread(void *arg)
 {
     (void)arg;
     struct ycleanup c = { t_cleanup, NULL, NULL };
-    *(void **)((char *)T(pthread_self)() + 8) = &c; /* pthread_cleanup_push, inline */
+    *(void **)((char *)T(pthread_self)() + 8) = &c;
     T(pthread_setspecific)(t_key, (void *)0x77);
     T(pthread_exit)((void *)0x6262);
 }
@@ -1303,7 +1220,7 @@ static void *stress_thread(void *arg)
     (void)arg;
     T(pthread_mutex_lock)(&st_m);
     while (!st_ready)
-        T(pthread_cond_wait)(&st_c, &st_m); /* blocks in the (fake) kernel */
+        T(pthread_cond_wait)(&st_c, &st_m);
     T(pthread_mutex_unlock)(&st_m);
     for (int i = 0; i < 2000; i++) {
         T(pthread_mutex_lock)(&st_m);
@@ -1327,8 +1244,6 @@ static void test_threads(void)
     ypthread_t me = T(pthread_self)();
     CHECK(T(pthread_is_threaded_np)() == 0);
 
-    /* 1. Basic create/join: the kernel call, the thread's identity, the
-     *    return value, and the memory being given back. */
     struct tinfo ti;
     memset(&ti, 0, sizeof ti);
     ypthread_t t = NULL;
@@ -1338,7 +1253,7 @@ static void test_threads(void)
     CHECK(T(pthread_is_threaded_np)() == 1);
     CHECK(last_create.pthread == t && last_create.stack == t && last_create.fn == probe_thread &&
           last_create.arg == &ti);
-    CHECK(last_create.flags == (0x01000000u | 0x08000000u | 0x8FFu)); /* CUSTOM | QOSCLASS | default QoS */
+    CHECK(last_create.flags == (0x01000000u | 0x08000000u | 0x8FFu));
     CHECK(mapped_bytes == base_mapped + 16384 + 0x80000 + 16384);
     CHECK(mprotect_none_calls >= 1);
     void *ret = NULL;
@@ -1348,18 +1263,14 @@ static void test_threads(void)
     CHECK(ti.qos == 0x15);
     CHECK(ti.stackaddr == t && ti.stacksize == 0x80000);
     CHECK(mapped_bytes == base_mapped);
-    CHECK(T(pthread_join)(t, NULL) == 3); /* reaped: ESRCH */
+    CHECK(T(pthread_join)(t, NULL) == 3);
 
-    /* 2. pthread_exit inside a thread: cleanup handlers and TSD destructors
-     *    run on that thread, and the joiner gets the value. */
     CHECK(T(pthread_key_create)(&t_key, t_dtor) == 0);
     CHECK(T(pthread_create)(&t, NULL, exit_thread, NULL) == 0);
     CHECK(T(pthread_join)(t, &ret) == 0 && ret == (void *)0x6262);
     CHECK(t_cleanups == 1 && t_dtors == 1);
-    CHECK(T(pthread_getspecific)(t_key) == NULL); /* the main thread's slot is its own */
+    CHECK(T(pthread_getspecific)(t_key) == NULL);
 
-    /* 3. Join waits on the gate: the thread is still running when join
-     *    starts; the gate store comes from the kernel's terminate. */
     long g0 = terminates_gate;
     release_flag = 0;
     CHECK(T(pthread_create)(&t, NULL, wait_release_thread, (void *)7) == 0);
@@ -1368,30 +1279,26 @@ static void test_threads(void)
     pthread_create(&h1, NULL, join_racer, &j1);
     usleep(20000);
     pthread_create(&h2, NULL, join_racer, &j2);
-    pthread_join(h2, NULL); /* the second joiner fails at once */
+    pthread_join(h2, NULL);
     CHECK(j2.r == 22);
     __atomic_store_n(&release_flag, 1, __ATOMIC_RELEASE);
     pthread_join(h1, NULL);
     CHECK(j1.r == 0 && terminates_gate == g0 + 1);
     CHECK(mapped_bytes == base_mapped);
 
-    /* 4. Detached by attribute: the thread frees itself through the kernel
-     *    (stack + guard + pthread_t), with no gate. */
     yattr_t a;
     T(pthread_attr_init)(&a);
     T(pthread_attr_setdetachstate)(&a, 2);
     long f0 = terminates_freeing;
     release_flag = 0;
     CHECK(T(pthread_create)(&t, &a, wait_release_thread, NULL) == 0);
-    CHECK(T(pthread_join)(t, NULL) == 22);   /* detached: EINVAL */
+    CHECK(T(pthread_join)(t, NULL) == 22);
     CHECK(T(pthread_detach)(t) == 22);
     __atomic_store_n(&release_flag, 1, __ATOMIC_RELEASE);
     wait_until(&terminates_freeing, f0 + 1);
     CHECK(terminates_freeing == f0 + 1 && mapped_bytes == base_mapped);
-    CHECK(T(pthread_join)(t, NULL) == 3);    /* gone from the list */
+    CHECK(T(pthread_join)(t, NULL) == 3);
 
-    /* 5. pthread_detach of a running thread, then of an exited (zombie)
-     *    thread: both end with the memory given back. */
     release_flag = 0;
     CHECK(T(pthread_create)(&t, NULL, wait_release_thread, NULL) == 0);
     CHECK(T(pthread_detach)(t) == 0);
@@ -1402,12 +1309,10 @@ static void test_threads(void)
     g0 = terminates_gate;
     CHECK(T(pthread_create)(&t, NULL, quick_thread, NULL) == 0);
     wait_until(&terminates_gate, g0 + 1);
-    CHECK(T(pthread_detach)(t) == 0);        /* zombie: reaped here */
+    CHECK(T(pthread_detach)(t) == 0);
     CHECK(mapped_bytes == base_mapped);
     CHECK(T(pthread_detach)(t) == 3);
 
-    /* 6. A caller-supplied stack: only the pthread_t page is mapped, the
-     *    kernel gets the stack top, and join leaves the stack alone. */
     size_t ssz = 64 * 1024;
     unsigned char *stk = aligned_alloc(16384, ssz);
     memset(&ti, 0, sizeof ti);
@@ -1419,7 +1324,6 @@ static void test_threads(void)
     CHECK(ti.stackaddr == stk + ssz && ti.stacksize == ssz && mapped_bytes == base_mapped);
     free(stk);
 
-    /* 7. QoS and scheduling attributes reach the kernel flags. */
     T(pthread_attr_init)(&a);
     CHECK(T(pthread_attr_set_qos_class_np)(&a, 0x19, -2) == 0);
     memset(&ti, 0, sizeof ti);
@@ -1433,18 +1337,16 @@ static void test_threads(void)
     CHECK(last_create.flags == (0x01000000u | 0x02000000u | (2u << 16) | 40u));
     CHECK(T(pthread_join)(t, NULL) == 0);
 
-    /* 8. Suspended creation: nothing runs until the thread is resumed. */
     memset(&ti, 0, sizeof ti);
     CHECK(T(pthread_create_suspended_np)(&t, NULL, probe_thread, &ti) == 0);
     CHECK((last_create.flags & 0x20000000u) && suspended_pending);
     uint64_t tid;
-    CHECK(T(pthread_threadid_np)(t, &tid) == 3); /* no ID before it runs */
+    CHECK(T(pthread_threadid_np)(t, &tid) == 3);
     usleep(5000);
     CHECK(ti.self == NULL);
     fake_resume_suspended();
     CHECK(T(pthread_join)(t, &ret) == 0 && ti.self == t && ret == (void *)0x5151);
 
-    /* 9. The other creation entry points, and the error cases. */
     CHECK(T(pthread_create_from_mach_thread)(&t, NULL, quick_thread, (void *)3) == 0);
     CHECK(T(pthread_join)(t, &ret) == 0 && ret == (void *)3);
     CHECK(T(pthread_create_with_workgroup_np)(&t, (void *)0x1234, NULL, quick_thread, (void *)4) == 0);
@@ -1454,8 +1356,6 @@ static void test_threads(void)
     CHECK(T(pthread_create)(&t, &bad, quick_thread, NULL) == 22);
     CHECK(T(pthread_join)(me, NULL) == 11);
 
-    /* 10. Many threads at once: a condition-variable start barrier, then
-     *     mutex contention, all joined; nothing leaks. */
     enum { N = 24 };
     ypthread_t ts[N];
     st_ready = 0;
@@ -1474,8 +1374,6 @@ static void test_threads(void)
     CHECK(T(pthread_from_mach_thread_np)(last_create.port) == NULL);
 }
 
-/* The last thread to exit ends the process with status 0; a main thread
- * that calls pthread_exit does not, while another thread lives. */
 static void last_exit_child_exit(int status) { _exit(40 + status); }
 static void *last_exit_worker(void *arg) { (void)arg; usleep(30000); return NULL; }
 static void last_exit_child(void)
@@ -1485,7 +1383,7 @@ static void last_exit_child(void)
     ypthread_t t;
     if (T(pthread_create)(&t, NULL, last_exit_worker, NULL) != 0)
         _exit(1);
-    T(pthread_exit)(NULL); /* the main thread leaves first */
+    T(pthread_exit)(NULL);
 }
 
 static void test_last_thread_exit(void)
@@ -1501,8 +1399,6 @@ static void test_last_thread_exit(void)
     waitpid(pid, &st, 0);
     CHECK(WIFEXITED(st) && WEXITSTATUS(st) == 40);
 }
-
-/* ---- tests: the workqueue ---------------------------------------------- */
 
 int T(_pthread_workqueue_addthreads)(int, uint64_t);
 int T(_pthread_workqueue_add_cooperativethreads)(int, uint64_t);
@@ -1522,7 +1418,7 @@ static void wq_cb(uint64_t pp)
     unsigned char *self = (unsigned char *)T(pthread_self)();
     int ok = tsd()[0] == (uintptr_t)self && tsd()[4] == pp && T(pthread_main_np)() == 0 &&
              tsd()[3] != 0 && (tsd()[3] & 3) == 3 && T(pthread_is_threaded_np)() == 1 &&
-             T(pthread_get_stacksize_np)(self) == (512 + 12) * 1024 && /* bottom .. self */
+             T(pthread_get_stacksize_np)(self) == (512 + 12) * 1024 &&
              T(pthread_detach)(self) == 22 && T(_pthread_workqueue_should_narrow)(0x8FF) == 0;
     if (!ok)
         __atomic_fetch_add(&wq_bad, 1, __ATOMIC_RELAXED);
@@ -1537,17 +1433,14 @@ static void kev_cb(void **events, int *nevents)
     struct ykev *ev = *events;
     long i = __atomic_fetch_add(&kev_calls, 1, __ATOMIC_RELAXED);
     if (i == 0) {
-        /* The QoS bucket upcall: three events at self - 1152. */
         int ok = (unsigned char *)ev == self - 1152 && *nevents == 3 && ev[0].ident == 11 &&
                  ev[2].ident == 13 && tsd()[4] == (0x80000000ul | 0x01000000ul | 0x8FFul);
-        /* Unbinding goes to the kernel and clears NEEDS_UNBIND. */
         T(_pthread_set_properties_self)(0x10, tsd()[4], 0);
         ok = ok && ctl_cmd == 0x100 && ctl_flags == 0x10 && !(tsd()[4] & 0x01000000ul);
         if (!ok) __atomic_fetch_add(&kev_bad, 1, __ATOMIC_RELAXED);
-        *events = ev + 1; /* hand back a rewritten change list */
+        *events = ev + 1;
         *nevents = 1;
     } else {
-        /* The manager upcall. */
         if (tsd()[4] != 0x02000000ul || *nevents != 0)
             __atomic_fetch_add(&kev_bad, 1, __ATOMIC_RELAXED);
     }
@@ -1565,9 +1458,6 @@ static void wl_cb(uint64_t *id, void **events, int *nevents)
     __atomic_fetch_add(&wl_calls, 1, __ATOMIC_RELAXED);
 }
 
-/* The exact byte layout (threads-and-events.md addendum): flags @0,
- * version @4, kevent_cb @8, workloop_cb @16, workq_cb @24,
- * serialno_offs @32, label_offs @40; 48 bytes. */
 struct ywqconfig { uint32_t flags, version; void *kevent_cb, *workloop_cb, *workq_cb;
                    uint64_t serialno_offs, label_offs; };
 _Static_assert(sizeof(struct ywqconfig) == 48, "pthread_workqueue_config is 48 bytes");
@@ -1578,25 +1468,24 @@ _Static_assert(offsetof(struct ywqconfig, version) == 4 && offsetof(struct ywqco
 
 static void test_workqueue(void)
 {
-    CHECK(T(_pthread_workqueue_addthreads)(1, 0x8FF) == 1); /* EPERM before setup */
-    /* Built byte by byte, so the test pins the layout, not a C struct. */
+    CHECK(T(_pthread_workqueue_addthreads)(1, 0x8FF) == 1);
     unsigned char raw[48];
     memset(raw, 0, sizeof raw);
     uint32_t w32 = 2;
-    memcpy(raw + 4, &w32, 4);                      /* version @4; flags @0 = 0 */
+    memcpy(raw + 4, &w32, 4);
     void *fp = (void *)kev_cb;  memcpy(raw + 8, &fp, 8);
     fp = (void *)wl_cb;         memcpy(raw + 16, &fp, 8);
     fp = (void *)wq_cb;         memcpy(raw + 24, &fp, 8);
     uint64_t w64 = 0x30;        memcpy(raw + 32, &w64, 8);
     w64 = 0x48;                 memcpy(raw + 40, &w64, 8);
-    CHECK(T(pthread_workqueue_setup)(raw, 40) == 22);  /* too short for version 2 */
+    CHECK(T(pthread_workqueue_setup)(raw, 40) == 22);
     w32 = 3; memcpy(raw + 4, &w32, 4);
-    CHECK(T(pthread_workqueue_setup)(raw, sizeof raw) == 22); /* version 3 */
+    CHECK(T(pthread_workqueue_setup)(raw, sizeof raw) == 22);
     w32 = 0; memcpy(raw + 4, &w32, 4);
-    CHECK(T(pthread_workqueue_setup)(raw, sizeof raw) == 22); /* version 0 */
+    CHECK(T(pthread_workqueue_setup)(raw, sizeof raw) == 22);
     w32 = 2; memcpy(raw + 4, &w32, 4);
     w32 = 1; memcpy(raw, &w32, 4);
-    CHECK(T(pthread_workqueue_setup)(raw, sizeof raw) == 45); /* flags 1: ENOTSUP */
+    CHECK(T(pthread_workqueue_setup)(raw, sizeof raw) == 45);
     w32 = 0; memcpy(raw, &w32, 4);
     CHECK(T(pthread_workqueue_setup)(raw, sizeof raw) == 0);
     struct ywqconfig cfg;
@@ -1608,15 +1497,13 @@ static void test_workqueue(void)
     memcpy(&u64, setup_record + 8, 8); CHECK(u64 == 0x30);
     memcpy(&u64, setup_record + 16, 8); CHECK(u64 == 0x48);
     CHECK(workq_open_calls == 1 && T(pthread_is_threaded_np)() == 1);
-    CHECK(T(pthread_workqueue_setup)(&cfg, sizeof cfg) == 0);     /* same callbacks */
+    CHECK(T(pthread_workqueue_setup)(&cfg, sizeof cfg) == 0);
     struct ywqconfig other = cfg;
     other.workq_cb = (void *)kev_cb;
-    CHECK(T(pthread_workqueue_setup)(&other, sizeof other) == 16); /* EBUSY */
+    CHECK(T(pthread_workqueue_setup)(&other, sizeof other) == 16);
     CHECK(T(_pthread_workqueue_init_with_workloop)((void *)wq_cb, (void *)kev_cb, (void *)wl_cb, 0, 0) == 0);
     CHECK(setup_calls == 1);
 
-    /* Plain requests: the ROOTQUEUE bit is not passed to the kernel; each
-     * worker builds its pthread_t in place and gets workq_cb(pp). */
     long r0 = wq_retired;
     CHECK(T(_pthread_workqueue_addthreads)(2, 0x20000000ul | 0x80000000ul | 0x10FFul) == 0);
     CHECK(reqthreads_count == 2 && (uint32_t)reqthreads_pp == 0x800010FFu);
@@ -1625,13 +1512,11 @@ static void test_workqueue(void)
     CHECK(wq_pp_seen[0] == 0x800010FFul && wq_pp_seen[1] == 0x800010FFul);
     CHECK(last_return_op == 0x004);
 
-    /* REUSE: the same worker runs three plain items, then retires. */
     r0 = wq_retired;
     fake_spawn_worker(0, 3, NULL, 0, 0, 2);
     wait_until(&wq_retired, r0 + 1);
     CHECK(wq_calls == 5 && wq_bad == 0 && wq_pp_seen[4] == 0x4FFul);
 
-    /* A kevent upcall: the callback rewrites the list it hands back. */
     struct ykev evs[3];
     memset(evs, 0, sizeof evs);
     evs[0].ident = 11; evs[1].ident = 12; evs[2].ident = 13;
@@ -1641,37 +1526,31 @@ static void test_workqueue(void)
     CHECK(kev_calls == 1 && kev_bad == 0 && last_return_op == 0x040 && last_return_n == 1);
     CHECK(last_return_item != NULL && last_return_ident == 12);
 
-    /* The event manager (QoS 8): pp is EVENT_MANAGER alone. */
     r0 = wq_retired;
     fake_spawn_worker(0x00080000u | 0x00100000u, 8, NULL, 0, 0, 0);
     wait_until(&wq_retired, r0 + 1);
     CHECK(kev_calls == 2 && kev_bad == 0);
 
-    /* A workloop upcall: the ID comes from the list - 8. */
     r0 = wq_retired;
     fake_spawn_worker(0x00080000u | 0x00400000u, 5, evs, 2, 0xABCD00ull, 0);
     wait_until(&wq_retired, r0 + 1);
     CHECK(wl_calls == 1 && wl_bad == 0 && last_return_op == 0x100 && last_return_n == 0);
 
-    /* Cooperative requests without a cooperative pool: a constrained
-     * request whose worker is marked cooperative. */
     r0 = wq_retired;
     long w0 = wq_calls;
     CHECK(T(_pthread_workqueue_add_cooperativethreads)(1, 0x4FF) == 0);
     CHECK(reqthreads2_calls == 1 && (uint32_t)reqthreads_pp == 0x4FFu);
     wait_until(&wq_retired, r0 + 1);
     CHECK(wq_calls == w0 + 1 && wq_pp_seen[5] == (0x08000000ul | 0x4FFul));
-    /* The refusal is remembered: the next request skips REQTHREADS2. */
     r0 = wq_retired;
     CHECK(T(_pthread_workqueue_add_cooperativethreads)(1, 0x4FF) == 0);
     CHECK(reqthreads2_calls == 1 && (uint32_t)reqthreads_pp == 0x4FFu);
     wait_until(&wq_retired, r0 + 1);
     CHECK(wq_calls == w0 + 2 && wq_pp_seen[6] == (0x08000000ul | 0x4FFul));
 
-    CHECK(T(_pthread_workqueue_should_narrow)(0x8FF) == 0); /* not a workqueue thread */
+    CHECK(T(_pthread_workqueue_should_narrow)(0x8FF) == 0);
     CHECK(T(_pthread_workqueue_set_event_manager_priority)(0x20FF) == 0 && mgr_prio == 0x20FF);
 
-    /* Workloops with scheduling parameters (kqueue_workloop_ctl). */
     yattr_t a;
     T(pthread_attr_init)(&a);
     struct ysp sp = { 47, { 0 } };

@@ -9,17 +9,14 @@ public struct RepositoryExplorerView: View {
     let gitViewModel: GitViewModel
     let project: Project
 
-    // Session and Project state
     @State private var projectsStore = ProjectSessionStore.shared
 
-    // Sidebar navigation & selection
     @State private var selectedProjectID: UUID?
     @State private var selectedSection: ExplorerSection = .overview
     @State private var projectSearchText = ""
     @State private var sortBy: SortOption = .recent
     @State private var filterBy: FilterOption = .all
 
-    // Collections & Persistent Metadata (using UserDefaults for persistence)
     @State private var favorites: Set<String> = []
     @State private var pinned: Set<String> = []
     @State private var archived: Set<String> = []
@@ -29,7 +26,6 @@ public struct RepositoryExplorerView: View {
         "Archived": []
     ]
 
-    // Local sheets/dialogs states
     @State private var showCloneSheet = false
     @State private var showInitSheet = false
     @State private var showRenameSheet = false
@@ -39,13 +35,11 @@ public struct RepositoryExplorerView: View {
     @State private var cloneDestText = ""
     @State private var initRepoName = ""
 
-    // Details View states
     @State private var fileSearchText = ""
     @State private var selectedFile: URL?
     @State private var fileContent = ""
     @State private var fileList: [URL] = []
 
-    // Analytics state
     @State private var analyticsPeriod = "Last 30 Days"
     @State private var isGeneratingAIInsights = false
     @State private var aiInsightsReport = ""
@@ -90,11 +84,9 @@ public struct RepositoryExplorerView: View {
         var id: String { rawValue }
     }
 
-    // Computed property for filtering and sorting of project list
     private var processedProjects: [Project] {
         var list = projectsStore.projects
 
-        // Filter
         switch filterBy {
         case .all:
             list = list.filter { !archived.contains($0.name) }
@@ -110,7 +102,6 @@ public struct RepositoryExplorerView: View {
             list = list.filter { $0.githubRepo != nil }
         }
 
-        // Search
         if !projectSearchText.isEmpty {
             list = list.filter {
                 $0.name.localizedCaseInsensitiveContains(projectSearchText) ||
@@ -118,7 +109,6 @@ public struct RepositoryExplorerView: View {
             }
         }
 
-        // Sort
         switch sortBy {
         case .recent:
             list.sort { $0.lastOpened > $1.lastOpened }
@@ -128,7 +118,6 @@ public struct RepositoryExplorerView: View {
             list.sort { $0.fileCount > $1.fileCount }
         }
 
-        // Bubble pinned to top
         list.sort { a, b in
             let aPinned = pinned.contains(a.name)
             let bPinned = pinned.contains(b.name)
@@ -142,12 +131,10 @@ public struct RepositoryExplorerView: View {
 
     public var body: some View {
         HSplitView {
-            // Sidebar Panel: Repository Collections List
             sidebarPanel
                 .frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
                 .layoutPriority(1)
 
-            // Main Detail Panel
             mainWorkspaceDetailPanel
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(2)
@@ -169,11 +156,8 @@ public struct RepositoryExplorerView: View {
         }
     }
 
-    // MARK: - Sidebar view
-
     private var sidebarPanel: some View {
         VStack(spacing: 0) {
-            // Header Operations row
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Repository Browser")
@@ -194,7 +178,6 @@ public struct RepositoryExplorerView: View {
                     .frame(width: 30)
                 }
 
-                // Search & Filter
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -211,7 +194,6 @@ public struct RepositoryExplorerView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(6)
 
-                // Sort & Filters
                 HStack {
                     Picker("Filter", selection: $filterBy) {
                         ForEach(FilterOption.allCases) { opt in
@@ -235,12 +217,10 @@ public struct RepositoryExplorerView: View {
 
             Divider()
 
-            // Repositories List
             List(selection: $selectedProjectID) {
                 Section("Active Workspace Collections") {
                     ForEach(processedProjects) { proj in
                         HStack(spacing: 8) {
-                            // Left Status Node
                             VStack(spacing: 2) {
                                 Image(systemName: proj.githubRepo != nil ? "cloud.fill" : "laptopcomputer")
                                     .foregroundStyle(proj.githubRepo != nil ? Color.blue : Color.secondary)
@@ -282,7 +262,6 @@ public struct RepositoryExplorerView: View {
 
                             Spacer()
 
-                            // Right Action badge context
                             if archived.contains(proj.name) {
                                 Text("Archived")
                                     .font(.system(size: 8, weight: .bold))
@@ -322,14 +301,11 @@ public struct RepositoryExplorerView: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    // MARK: - Main details panel
-
     @ViewBuilder
     private var mainWorkspaceDetailPanel: some View {
         if let activeProjID = selectedProjectID,
            let activeProj = projectsStore.projects.first(where: { $0.id == activeProjID }) {
             VStack(spacing: 0) {
-                // Header Bar
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
@@ -349,7 +325,6 @@ public struct RepositoryExplorerView: View {
 
                     Spacer()
 
-                    // Quick Section Switcher
                     Picker("Workspace Panel", selection: $selectedSection) {
                         ForEach(ExplorerSection.allCases) { section in
                             Label(section.rawValue, systemImage: section.icon).tag(section)
@@ -363,7 +338,6 @@ public struct RepositoryExplorerView: View {
 
                 Divider()
 
-                // Content View Switcher
                 switch selectedSection {
                 case .overview:
                     projectOverviewSubView(for: activeProj)
@@ -383,8 +357,6 @@ public struct RepositoryExplorerView: View {
             .background(Color(NSColor.controlBackgroundColor))
         }
     }
-
-    // MARK: - Subviews: Overview
 
     @ViewBuilder
     private func projectOverviewSubView(for proj: Project) -> some View {
@@ -487,12 +459,9 @@ public struct RepositoryExplorerView: View {
         }
     }
 
-    // MARK: - Subviews: Source browser
-
     @ViewBuilder
     private func projectSourceBrowserSubView(for proj: Project) -> some View {
         HSplitView {
-            // Files Tree
             VStack(spacing: 0) {
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -536,7 +505,6 @@ public struct RepositoryExplorerView: View {
             }
             .frame(minWidth: 180, idealWidth: 220, maxWidth: 300)
 
-            // Preview pane
             VStack(spacing: 0) {
                 if let url = selectedFile {
                     HStack {
@@ -544,7 +512,6 @@ public struct RepositoryExplorerView: View {
                             .font(.headline)
                         Spacer()
                         Button("Blame Viewer") {
-                            // Seamless integration hook
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -573,8 +540,6 @@ public struct RepositoryExplorerView: View {
         }
     }
 
-    // MARK: - Subviews: Analytics & Insights (Repository Insights)
-
     @ViewBuilder
     private func projectAnalyticsSubView(for proj: Project) -> some View {
         ScrollView {
@@ -592,7 +557,6 @@ public struct RepositoryExplorerView: View {
 
                 Divider()
 
-                // High-fidelity performance metrics grid
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Key Repository Metrices")
                         .font(.headline)
@@ -612,7 +576,6 @@ public struct RepositoryExplorerView: View {
 
                 Divider()
 
-                // AI Insight engine integration
                 VStack(alignment: .leading, spacing: 10) {
                     Text("AI Repo Insight Summaries")
                         .font(.headline)
@@ -678,8 +641,6 @@ public struct RepositoryExplorerView: View {
         .background(Color(NSColor.windowBackgroundColor).opacity(0.4))
         .cornerRadius(6)
     }
-
-    // MARK: - Helper Sheets
 
     private var cloneSheetView: some View {
         VStack(spacing: 20) {
@@ -823,8 +784,6 @@ public struct RepositoryExplorerView: View {
         .frame(width: 400)
     }
 
-    // MARK: - Actions Operations Executions
-
     private func executeClone() {
         showCloneSheet = false
         guard let remote = URL(string: cloneURLText) else { return }
@@ -896,8 +855,6 @@ public struct RepositoryExplorerView: View {
         }
     }
 
-    // MARK: - Metadata Metadata Pointers
-
     private func toggleFavorite(_ name: String) {
         if favorites.contains(name) {
             favorites.remove(name)
@@ -936,8 +893,6 @@ public struct RepositoryExplorerView: View {
         pinned = Set(UserDefaults.standard.stringArray(forKey: "com.swiftcode.explorer.pinned") ?? [])
         archived = Set(UserDefaults.standard.stringArray(forKey: "com.swiftcode.explorer.archived") ?? [])
     }
-
-    // MARK: - Source Browser Code
 
     private func loadSourceFiles() {
         guard let activeProjID = selectedProjectID,
@@ -984,8 +939,6 @@ public struct RepositoryExplorerView: View {
         }
     }
 
-    // MARK: - AI Analytics Summary Generator
-
     private func generateAIAnalytics() {
         isGeneratingAIInsights = true
         aiInsightsReport = ""
@@ -1025,8 +978,6 @@ public struct RepositoryExplorerView: View {
         }
     }
 }
-
-// MARK: - Section Header Component
 
 struct SectionHeader: View {
     let title: String

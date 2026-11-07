@@ -1,7 +1,5 @@
 import Foundation
 
-/// [CRITICAL SYSTEM FILE] - HIGH RISK
-/// Validates the outputs of an autonomous execution iteration to ensure requirements are met.
 @MainActor
 public final class _AssistCriticalValidationEngine: Sendable {
     private let context: AssistContext
@@ -10,18 +8,15 @@ public final class _AssistCriticalValidationEngine: Sendable {
         self.context = context
     }
 
-    /// Validates the outcome of a completed plan.
     public func validate(plan: AssistExecutionPlan) async throws -> ValidationResult {
         await context.logger.info("Validating plan results for: \(plan.goal)", toolId: "ValidationEngine")
 
-        // 1. Check for step failures
         let failedSteps = plan.steps.filter { $0.status == .failed }
         if !failedSteps.isEmpty {
             let feedback = failedSteps.map { "\($0.toolId): \($0.result?.error ?? "Unknown error")" }.joined(separator: "; ")
             return .failure("One or more steps failed: \(feedback)")
         }
 
-        // 2. Perform AI-based verification of the final state
         let providerRawValue = UserDefaults.standard.string(forKey: "assist.selectedProvider") ?? AssistModelProvider.openAI.rawValue
         let provider = AssistModelProvider(rawValue: providerRawValue) ?? .openAI
         let apiKey = await provider.storedAPIKey()
@@ -45,7 +40,6 @@ public final class _AssistCriticalValidationEngine: Sendable {
         if response.success {
             return parseValidation(from: response.content)
         } else {
-            // If AI validation fails (e.g. network error), we check if all steps were 'completed'
             let allCompleted = plan.steps.allSatisfy { $0.status == .completed }
             return allCompleted ? .success : .failure("Execution finished but some steps did not complete successfully.")
         }
@@ -77,7 +71,7 @@ public final class _AssistCriticalValidationEngine: Sendable {
             return result
         }
 
-        return .success // Default to success if JSON remains absolutely unparseable
+        return .success
     }
 }
 

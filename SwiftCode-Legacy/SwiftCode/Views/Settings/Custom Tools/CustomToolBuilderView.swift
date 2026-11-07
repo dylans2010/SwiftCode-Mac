@@ -4,24 +4,19 @@ struct CustomToolBuilderView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var registry = CustomToolRegistry.shared
 
-    // Basic info
     @State private var toolName = ""
     @State private var toolDescription = ""
 
-    // HTTP configuration
     @State private var httpMethod: HTTPMethod = .post
     @State private var endpoint = ""
     @State private var headers: [HeaderEntry] = []
     @State private var bodyTemplate = ""
 
-    // Parameters
     @State private var parameters: [CustomToolParameter] = []
 
-    // Response
     @State private var expectedOutput = ""
     @State private var responseParsingHint = ""
 
-    // UI state
     @State private var activeTab: Tab = .info
     @State private var showHeaderEntry = false
     @State private var newHeaderKey = ""
@@ -59,7 +54,6 @@ struct CustomToolBuilderView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Tab bar
                 Picker("Tab", selection: $activeTab) {
                     ForEach(Tab.allCases, id: \.self) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -68,7 +62,6 @@ struct CustomToolBuilderView: View {
                 .pickerStyle(.segmented)
                 .padding()
 
-                // Content
                 ScrollView {
                     VStack(spacing: 16) {
                         switch activeTab {
@@ -106,8 +99,6 @@ struct CustomToolBuilderView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Info Tab
-
     private var infoTab: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
@@ -119,11 +110,8 @@ struct CustomToolBuilderView: View {
         }
     }
 
-    // MARK: - HTTP Tab
-
     private var httpTab: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Method + Endpoint
             Group {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("HTTP Method")
@@ -141,7 +129,6 @@ struct CustomToolBuilderView: View {
             .padding()
             .liquidGlass(style: .standard, cornerRadius: 12)
 
-            // Headers
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Headers").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
@@ -171,7 +158,6 @@ struct CustomToolBuilderView: View {
             .padding()
             .liquidGlass(style: .standard, cornerRadius: 12)
 
-            // Body Template
             VStack(alignment: .leading, spacing: 8) {
                 Text("Request Body Template (JSON)")
                     .font(.caption).foregroundStyle(.secondary)
@@ -188,8 +174,6 @@ struct CustomToolBuilderView: View {
             .liquidGlass(style: .standard, cornerRadius: 12)
         }
     }
-
-    // MARK: - Params Tab
 
     private var paramsTab: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -220,8 +204,6 @@ struct CustomToolBuilderView: View {
         .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
-    // MARK: - Response Tab
-
     private var responseTab: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
@@ -232,8 +214,6 @@ struct CustomToolBuilderView: View {
             .liquidGlass(style: .standard, cornerRadius: 12)
         }
     }
-
-    // MARK: - Header Entry Sheet
 
     private var headerEntrySheet: some View {
         NavigationStack {
@@ -262,8 +242,6 @@ struct CustomToolBuilderView: View {
         .presentationDetents([.medium])
         .preferredColorScheme(.dark)
     }
-
-    // MARK: - Helpers
 
     private func labeledField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -315,8 +293,6 @@ struct CustomToolBuilderView: View {
         dismiss()
     }
 }
-
-// MARK: - Parameter Editor Row
 
 struct ParameterEditorRow: View {
     @Binding var param: CustomToolParameter

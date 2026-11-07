@@ -5,17 +5,8 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Label, Link and LabeledContent (round R8). Golden `label`: the icon, the
-// standard 8-point gap, the title, aligned on their first text baselines
-// (63 × 20.99 for "Title" with `star`; 30 × 20.67 at 0 × 0). Golden `link`:
-// the title's size, in the tint colour.
-
-// MARK: - Label
-
-/// The title-and-symbol label `Button(_:systemImage:action:)` uses.
 public typealias _TitleAndIconLabel = Label<Text, Image>
 
-/// A title with an icon.
 public struct Label<Title: View, Icon: View>: View {
     let title: Title
     let icon: Icon
@@ -27,8 +18,6 @@ public struct Label<Title: View, Icon: View>: View {
     }
 
     public var body: some View {
-        // R10: a label is read by its title (the icon is not an element).
-        // R13: an icon shown alone is read by the title.
         let c = LabelStyleConfiguration(title: .init(content: AnyView(title)),
                                         icon: .init(content: AnyView(icon.accessibilityHidden(true))),
                                         accessibilityTitle: (title as? Text)?.plainString, visibleIcon: AnyView(icon))
@@ -60,7 +49,6 @@ extension Label where Title == Text, Icon == Image {
     }
 }
 
-/// What a label style draws.
 public struct LabelStyleConfiguration {
     public struct Title: View {
         let content: AnyView
@@ -74,9 +62,7 @@ public struct LabelStyleConfiguration {
 
     public var title: Title
     public var icon: Icon
-    /// The title as text (for an icon shown without it).
     package var accessibilityTitle: String?
-    /// The icon, not hidden from accessibility.
     package var visibleIcon: AnyView?
 }
 
@@ -106,7 +92,6 @@ extension View {
     }
 }
 
-/// Icon then title, on the first text baseline.
 public struct DefaultLabelStyle: LabelStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -156,9 +141,6 @@ extension LabelStyle where Self == IconOnlyLabelStyle {
     public static var iconOnly: IconOnlyLabelStyle { IconOnlyLabelStyle() }
 }
 
-// MARK: - Link
-
-/// A control that opens a URL (through the environment's `openURL`).
 public struct Link<Label: View>: View {
     let destination: URL
     let label: Label
@@ -187,9 +169,6 @@ extension Link where Label == Text {
     }
 }
 
-// MARK: - LabeledContent
-
-/// A label beside a value or a control.
 public struct LabeledContent<Label: View, Content: View>: View {
     let label: Label
     let content: Content
@@ -210,7 +189,6 @@ public struct LabeledContent<Label: View, Content: View>: View {
         } else if let style {
             style.make(c)
         } else if let columnWidth {
-            // A `.columns` form row: the label in the labels' column.
             ControlRowLayout(columnWidth: columnWidth) {
                 c.label.multilineTextAlignment(.trailing)
                 c.content
@@ -284,8 +262,6 @@ extension View {
     }
 }
 
-/// The label at the leading edge, the content (secondary colour) at the
-/// trailing edge.
 public struct AutomaticLabeledContentStyle: LabeledContentStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {

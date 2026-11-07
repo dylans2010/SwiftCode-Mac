@@ -1,24 +1,12 @@
-// Simulator runtimes as the runtime wizard sees them
-// (`specs/simulator/runtime-onboarding.md` §7, §8, §11.3): one row model for
-// a runtime registered with this Mac's CoreSimulator, a runtime SwiftCode copied
-// into its own data folder (this machine or a simulator host), and a runtime
-// file the user picked. Everything here only reads: the listings come from
-// `simctl runtime list -j` and `simctl list runtimes -j` (run by the
-// checker), and a bundle or RuntimeRoot is recognised by its property lists.
-// Portable (macOS and Linux).
-
 import Foundation
 
-/// A simulator platform (§1): its names in the listings and on screen.
 public enum SimPlatform: String, Sendable, CaseIterable, Codable, Comparable {
     case iOS, watchOS, tvOS, visionOS
 
     public var title: String { rawValue }
 
-    /// The token in runtime identifiers and image lists (`xrOS` for visionOS).
     public var runtimeToken: String { self == .visionOS ? "xrOS" : rawValue }
 
-    /// `com.apple.platform.<name>` of the simulator platform.
     public var platformIdentifier: String {
         switch self {
         case .iOS: "com.apple.platform.iphonesimulator"
@@ -28,12 +16,8 @@ public enum SimPlatform: String, Sendable, CaseIterable, Codable, Comparable {
         }
     }
 
-    /// The name `xcodebuild -downloadPlatform` takes (§1), for the note that
-    /// tells the user how to get one with their own Xcode.
     public var downloadName: String { rawValue }
 
-    /// Typical sizes (§4.5): the disk image and the unpacked RuntimeRoot, in
-    /// bytes, for free-space checks before SwiftCode knows the real size.
     public var typicalImageBytes: Int64 {
         switch self {
         case .iOS: 8 << 30
@@ -47,9 +31,6 @@ public enum SimPlatform: String, Sendable, CaseIterable, Codable, Comparable {
         allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)!
     }
 
-    /// From any of its spellings: `iOS`, `xrOS`, `visionOS`, a platform
-    /// identifier, a runtime identifier, or a `SystemVersion.plist`
-    /// `ProductName` ("iPhone OS", "Watch OS", "xrOS", "Apple TVOS").
     public init?(name: String) {
         let n = name.lowercased()
         if n.contains("xr") || n.contains("vision") { self = .visionOS }
@@ -60,11 +41,8 @@ public enum SimPlatform: String, Sendable, CaseIterable, Codable, Comparable {
     }
 }
 
-/// Where a runtime is.
 public enum RuntimeLocation: Sendable, Equatable, Hashable, Codable {
-    /// Registered with this Mac's CoreSimulator, or in SwiftCode's folder on this machine.
     case thisMachine
-    /// On a simulator host (its ssh destination or link name).
     case host(String)
 
     public var title: String {
@@ -75,40 +53,26 @@ public enum RuntimeLocation: Sendable, Equatable, Hashable, Codable {
     }
 }
 
-/// Who manages a runtime, which decides whether SwiftCode may remove it.
 public enum RuntimeOwner: Sendable, Equatable, Hashable, Codable {
-    /// Registered with the Mac's CoreSimulator (by Xcode or another tool):
-    /// listed read-only; it is managed in the IDE that installed it.
     case coreSimulator
-    /// Copied or installed by SwiftCode into its own data folder (this folder).
     case swiftcode(folder: String)
-    /// A runtime root on a host that SwiftCode did not copy (named in the host's
-    /// configuration or in Settings ▸ Simulators): listed, never removed.
     case external
 }
 
-/// One runtime (§11.3's row model).
 public struct SimRuntimeRecord: Sendable, Equatable, Hashable, Identifiable, Codable {
     public var platform: SimPlatform
     public var version: String
     public var build: String
-    /// `com.apple.CoreSimulator.SimRuntime.<token>-<major>-<minor>`, when known.
     public var identifier: String?
-    /// The disk image's size (CoreSimulator), else the copied RuntimeRoot's.
     public var sizeBytes: Int64?
-    /// The RuntimeRoot's size on disk, when known (what a copy moves).
     public var unpackedBytes: Int64?
-    /// `Ready`, `Unusable`, … (§7.1.1); SwiftCode's copies are `Ready` when complete.
     public var state: String
     public var architectures: [String]
     public var lastUsed: String?
     public var location: RuntimeLocation
     public var owner: RuntimeOwner
-    /// The simulated file system (`…/Contents/Resources/RuntimeRoot`).
     public var runtimeRoot: String?
-    /// CoreSimulator's disk-image UUID (never used to delete: §Decisions).
     public var imageUUID: String?
-    /// `simctl list runtimes` says it is available (nil: not listed there).
     public var isAvailable: Bool?
     public var availabilityError: String?
 
@@ -133,26 +97,19 @@ public struct SimRuntimeRecord: Sendable, Equatable, Hashable, Identifiable, Cod
         self.availabilityError = availabilityError
     }
 
-    /// Version and build are the key (§1: the identifier is not unique).
     public var id: String { "\(location.title)|\(platform.rawValue)|\(version)|\(build)" }
 
-    /// "iOS 27.0 (24A434)".
     public var title: String { "\(platform.title) \(version) (\(build))" }
 
-    /// Usable for a device: `Ready`, and not marked unavailable.
     public var isUsable: Bool { state == "Ready" && isAvailable != false }
 
-    /// SwiftCode may remove only what it copied or installed itself.
     public var isRemovable: Bool {
         if case .swiftcode = owner { return true }
         return false
     }
 
-    /// The folder name SwiftCode gives its copy: `<token>-<version>-<build>`,
-    /// the shape the run destinations read platform and version from.
     public var folderName: String { RuntimeFolders.name(platform: platform, version: version, build: build) }
 
-    /// The size text of the row: "7.3 GB", with the unpacked size when it differs.
     public var sizeText: String {
         switch (sizeBytes, unpackedBytes) {
         case let (s?, u?) where s != u: "\(RuntimeSize.format(s)) (\(RuntimeSize.format(u)) unpacked)"
@@ -162,7 +119,6 @@ public struct SimRuntimeRecord: Sendable, Equatable, Hashable, Identifiable, Cod
         }
     }
 
-    /// Compares dotted versions numerically ("27.10" > "27.9").
     public static func compareVersions(_ a: String, _ b: String) -> ComparisonResult {
         let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
         for i in 0..<max(x.count, y.count) {
@@ -173,8 +129,6 @@ public struct SimRuntimeRecord: Sendable, Equatable, Hashable, Identifiable, Cod
     }
 }
 
-/// Sizes as the reference's command line prints them (§4.5): binary units,
-/// one decimal; written "GB"/"MB" on screen (the convention is binary).
 public enum RuntimeSize {
     public static func format(_ bytes: Int64) -> String {
         let units = ["bytes", "KB", "MB", "GB", "TB"]
@@ -188,26 +142,17 @@ public enum RuntimeSize {
         return String(format: "%.1f %@", v, units[i])
     }
 
-    /// One line explaining the convention, shown once in the wizard.
     public static let convention = "Sizes use binary units (1 GB = 1,024 MB), as simctl prints them."
 }
 
-/// Where SwiftCode keeps the runtimes it copies.
 public enum RuntimeFolders {
-    /// The marker in each of SwiftCode's runtime folders: what it is, and that SwiftCode made it.
     public static let marker = "swiftcode-runtime.json"
-    /// The suffix of a copy in progress (a resumable transfer).
     public static let incomingSuffix = ".incoming"
 
-    /// `<token>-<version>-<build>`.
     public static func name(platform: SimPlatform, version: String, build: String) -> String {
         "\(platform.runtimeToken)-\(version)-\(build)"
     }
 
-    /// This machine's folder: `$SWIFTCODE_RUNTIMES_DIR`, else
-    /// `$SWIFTCODE_DATA/runtimes` (`runtime-downloads.md` §6.2), else
-    /// `~/Library/Developer/SwiftCode/Runtimes` (macOS) or
-    /// `$XDG_DATA_HOME/swiftcode/runtimes` (`~/.local/share/swiftcode/runtimes`).
     public static func local(environment: [String: String] = ProcessInfo.processInfo.environment,
                              home: String = NSHomeDirectory()) -> String {
         if let d = environment["SWIFTCODE_RUNTIMES_DIR"], !d.isEmpty { return d }
@@ -220,11 +165,8 @@ public enum RuntimeFolders {
         #endif
     }
 
-    /// A simulator host's folder: `<data directory>/runtimes`.
     public static func host(dataDirectory: String) -> String { dataDirectory + "/runtimes" }
 
-    /// Whether `path` is one runtime folder directly inside `folder` (the
-    /// only shape Remove deletes; nothing above it, nothing outside it).
     public static func isRuntimeFolder(_ path: String, inside folder: String) -> Bool {
         let f = folder.hasSuffix("/") ? String(folder.dropLast()) : folder
         guard !f.isEmpty, path.hasPrefix(f + "/") else { return false }
@@ -233,22 +175,16 @@ public enum RuntimeFolders {
     }
 }
 
-/// What the marker file says (JSON).
 public struct RuntimeMarker: Codable, Sendable, Equatable {
     public var platform: String
     public var version: String
     public var build: String
     public var identifier: String?
-    /// Where it was copied from ("CoreSimulator on <Mac>", a file name).
     public var source: String
     public var copiedAt: String
     public var sizeBytes: Int64?
-    /// How it came (`runtime-downloads.md` §6.2 step 6): "download" (route B),
-    /// "import" (route A); nil for a copy of a runtime the user had.
     public var route: String?
     public var architectures: [String]?
-    /// The index entry it was chosen from, the host it came from, and the
-    /// SHA-256 that was checked (route B).
     public var indexIdentifier: String?
     public var downloadHost: String?
     public var sha256: String?
@@ -275,14 +211,7 @@ public struct RuntimeMarker: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - CoreSimulator's listings (§7.1, §7.6)
-
 public enum SimctlRuntimeListing {
-    /// `simctl runtime list -j` (images, keyed by UUID) joined to `simctl
-    /// list runtimes -j` (availability, RuntimeRoot) on identifier and build
-    /// (§8.1). Images missing from the second listing keep `isAvailable`
-    /// nil; runtimes that are not images (bundled, legacy) are added from
-    /// the second listing. Sorted by platform, then newest version first.
     public static func parse(images: Data, runtimes: Data?) -> [SimRuntimeRecord] {
         var out: [SimRuntimeRecord] = []
         let listed = runtimes.map(parseRuntimes) ?? []
@@ -313,13 +242,11 @@ public enum SimctlRuntimeListing {
         return sorted(out)
     }
 
-    /// `simctl list runtimes -j`'s `runtimes[]`.
     public static func parseRuntimes(_ data: Data) -> [SimRuntimeRecord] {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = obj["runtimes"] as? [[String: Any]] else { return [] }
         return list.compactMap { v in
             guard let p = (v["platform"] as? String).flatMap({ SimPlatform(name: $0) }), let version = v["version"] as? String else { return nil }
-            // lastUsage: per architecture; 0001-01-01 means never (§7.6).
             let used = (v["lastUsage"] as? [String: String])?.values.filter { !$0.hasPrefix("0001-") }.max()
             return SimRuntimeRecord(platform: p, version: version, build: v["buildversion"] as? String ?? "", identifier: v["identifier"] as? String,
                                     state: "Ready", architectures: v["supportedArchitectures"] as? [String] ?? [], lastUsed: used,
@@ -348,16 +275,9 @@ public enum SimctlRuntimeListing {
     }
 }
 
-// MARK: - Bundles and RuntimeRoots (§8.3)
-
-/// What a file or folder the user picked is.
 public enum RuntimeFileKind: Sendable, Equatable {
-    /// A runtime disk image (`.dmg`): on a Mac it is handed to `simctl
-    /// runtime add` or `xcodebuild -importPlatform` (SwiftCode does not open it).
     case diskImage
-    /// A `.simruntime` bundle.
     case bundle
-    /// A bare RuntimeRoot, or a folder whose `RuntimeRoot` is one.
     case runtimeRoot
     case unknown
 }
@@ -365,7 +285,6 @@ public enum RuntimeFileKind: Sendable, Equatable {
 public enum RuntimeBundleReader {
     public static let systemVersionPath = "System/Library/CoreServices/SystemVersion.plist"
 
-    /// Classifies a path by looking at it (no file is changed).
     public static func kind(of path: String, fileManager fm: FileManager = .default) -> RuntimeFileKind {
         if path.lowercased().hasSuffix(".dmg") { return .diskImage }
         var dir: ObjCBool = false
@@ -375,7 +294,6 @@ public enum RuntimeBundleReader {
         return .unknown
     }
 
-    /// The RuntimeRoot inside a bundle, a folder holding one, or the root itself.
     public static func runtimeRoot(of path: String, fileManager fm: FileManager = .default) -> String? {
         for candidate in [path + "/Contents/Resources/RuntimeRoot", path + "/RuntimeRoot", path]
         where fm.fileExists(atPath: candidate + "/" + systemVersionPath) {
@@ -384,15 +302,10 @@ public enum RuntimeBundleReader {
         return nil
     }
 
-    /// Reads a bundle or RuntimeRoot: platform, version and build from
-    /// `SystemVersion.plist`, the identifier from the bundle's `Info.plist`
-    /// (or the folder's SwiftCode marker), the size from the files on disk when
-    /// `measure` is set. Nil when it is not a runtime.
     public static func read(_ path: String, location: RuntimeLocation = .thisMachine, owner: RuntimeOwner? = nil, measure: Bool = false,
                             fileManager fm: FileManager = .default) -> SimRuntimeRecord? {
         guard let root = runtimeRoot(of: path, fileManager: fm),
               let sv = fm.contents(atPath: root + "/" + systemVersionPath) else { return nil }
-        // A bundle's plists, or the copies SwiftCode keeps beside a RuntimeRoot (§6.2 step 5).
         let info = fm.contents(atPath: path + "/Contents/Info.plist") ?? fm.contents(atPath: path + "/runtime-Info.plist")
         let profile = fm.contents(atPath: path + "/Contents/Resources/profile.plist") ?? fm.contents(atPath: path + "/profile.plist")
         guard var r = record(systemVersion: sv, info: info, profile: profile, location: location, owner: owner ?? .coreSimulator) else { return nil }
@@ -406,7 +319,6 @@ public enum RuntimeBundleReader {
         return r
     }
 
-    /// A record from the property lists' bytes (a host's files arrive this way).
     public static func record(systemVersion: Data, info: Data? = nil, profile: Data? = nil, location: RuntimeLocation, owner: RuntimeOwner) -> SimRuntimeRecord? {
         guard let sv = plist(systemVersion), let name = sv["ProductName"] as? String, let version = sv["ProductVersion"] as? String else { return nil }
         let infoP = info.flatMap(plist)
@@ -422,7 +334,6 @@ public enum RuntimeBundleReader {
         try? PropertyListSerialization.propertyList(from: d, format: nil) as? [String: Any]
     }
 
-    /// Bytes of regular files under a folder (symbolic links not followed).
     public static func directorySize(_ path: String, fileManager fm: FileManager = .default) -> Int64 {
         guard let e = fm.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey], options: []) else { return 0 }
         var total: Int64 = 0
@@ -433,9 +344,6 @@ public enum RuntimeBundleReader {
         return total
     }
 
-    /// SwiftCode's runtimes in a folder on this machine: each subfolder with a
-    /// marker and a RuntimeRoot (a `.incoming` one is a copy in progress
-    /// and is not listed).
     public static func swiftcodeRuntimes(in folder: String, fileManager fm: FileManager = .default) -> [SimRuntimeRecord] {
         let names = ((try? fm.contentsOfDirectory(atPath: folder)) ?? []).sorted()
         return SimctlRuntimeListing.sorted(names.compactMap { n in

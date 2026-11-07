@@ -1,8 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Open Quickly (⇧⌘O): a search field over a list of matching files and
-/// symbols; Return opens the selected one. See `specs/ide/open-quickly.md`.
 @MainActor
 public final class OpenQuicklyController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public let field = NSSearchField()
@@ -10,8 +8,6 @@ public final class OpenQuicklyController: NSViewController, NSTableViewDataSourc
     private var candidates: [FuzzyMatch.Candidate]
     public private(set) var results: [FuzzyMatch.Candidate] = []
     public var onOpen: ((FuzzyMatch.Candidate) -> Void)?
-    /// Closes the panel when the controller is not presented as a sheet
-    /// (the glass panel of `liquid-glass-swiftcode.md` §7).
     public var onClose: (() -> Void)?
 
     public init(candidates: [FuzzyMatch.Candidate]) {
@@ -41,7 +37,6 @@ public final class OpenQuicklyController: NSViewController, NSTableViewDataSourc
         scroll.documentView = table
         scroll.hasVerticalScroller = true
         if #available(macOS 26, *) {
-            // The list sits on the panel's glass (liquid-glass-swiftcode.md §7).
             scroll.drawsBackground = false
             table.backgroundColor = .clear
             table.style = .inset
@@ -62,8 +57,6 @@ public final class OpenQuicklyController: NSViewController, NSTableViewDataSourc
         view = root
     }
 
-    /// Runs a query as typing would.
-    /// New candidates (a fresh workspace index): the search runs again.
     public func update(candidates: [FuzzyMatch.Candidate]) {
         self.candidates = candidates
         if isViewLoaded { search(field.stringValue) }
@@ -80,7 +73,6 @@ public final class OpenQuicklyController: NSViewController, NSTableViewDataSourc
     @objc private func searchChanged() { search(field.stringValue) }
     public func controlTextDidChange(_ obj: Notification) { search(field.stringValue) }
 
-    /// Up/Down move the selection; Return opens; Escape closes.
     public func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
         switch sel {
         case #selector(NSResponder.moveDown(_:)), #selector(NSResponder.moveUp(_:)):

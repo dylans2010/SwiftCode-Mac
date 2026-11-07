@@ -3,42 +3,25 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// OpenAI's documented sign-in for open-source and locally hosted apps:
-/// "Sign in with ChatGPT" with ChatGPT plan usage (developers.openai.com,
-/// /siwc/token-sharing-open-source). Authorization Code + PKCE (S256) in the
-/// system browser, a loopback redirect on 127.0.0.1, dynamic client
-/// registration (`client_id=dynamic_agent_client` on the first sign-in;
-/// OpenAI issues SwiftCode a client ID bound to the user), no client secret.
-/// SwiftCode never uses another application's client ID.
 public struct OpenAIAuthConfiguration: Sendable, Equatable {
     public var issuer = "https://auth.openai.com"
     public var authorizeURL = "https://auth.openai.com/api/accounts/authorize"
     public var tokenURL = "https://auth.openai.com/api/accounts/oauth/token"
-    /// OpenID discovery: `jwks_uri` and `revocation_endpoint`.
     public var discoveryURL = "https://auth.openai.com/.well-known/openid-configuration"
-    /// The `resource` parameter: the API the tokens are for.
     public var resource = "https://api.openai.com/v1"
-    /// `agent_name_hint`: the same on every installation.
     public var agentName = "SwiftCode"
     public var scopes = ["openid", "profile", "email", "offline_access", "resource.invoke", Self.planScope]
     public var callbackPath = "/auth/callback"
 
-    /// The client ID that asks OpenAI to register a new client.
     public static let registrationClientID = "dynamic_agent_client"
-    /// The scope that allows inference on the user's ChatGPT plan.
     public static let planScope = "chatgpt.tokens.use.direct"
 
     public init() {}
 }
 
-/// The client registration for this host: kept after sign-out, so a later
-/// sign-in reuses the issued client ID.
 public struct OpenAIRegistration: Codable, Sendable, Equatable {
-    /// `ext_agent_host_id`: an opaque UUID URN made once per host.
     public var hostID: String
-    /// The client ID OpenAI issued at the first sign-in.
     public var clientID: String?
-    /// The verified `sub` and the email of the account it belongs to.
     public var subject: String?
     public var email: String?
 
@@ -47,7 +30,6 @@ public struct OpenAIRegistration: Codable, Sendable, Equatable {
     }
 }
 
-/// The tokens of a signed-in account (stored in the secret store only).
 public struct OpenAITokens: Codable, Sendable, Equatable {
     public var clientID: String
     public var subject: String
@@ -60,22 +42,18 @@ public struct OpenAITokens: Codable, Sendable, Equatable {
     public var scopes: [String]
     public var savedAt: Date
 
-    /// The grant allows inference on the user's plan.
     public var hasPlanUsage: Bool { scopes.contains(OpenAIAuthConfiguration.planScope) }
 }
 
-/// Checks an ID token's signature (RS256 against the issuer's JWKS).
 public protocol IDTokenSignatureVerifier: Sendable {
     func verify(_ jwt: String, discoveryURL: URL) async throws
 }
 
-/// The pieces of one authorization attempt.
 public struct AuthorizationAttempt: Sendable, Equatable {
     public var state: String
     public var nonce: String
     public var pkce: PKCE
     public var redirectURI: String
-    /// The client ID sent: the issued one, or `dynamic_agent_client`.
     public var clientID: String
     public var isRegistration: Bool { clientID == OpenAIAuthConfiguration.registrationClientID }
 
@@ -99,13 +77,8 @@ public actor OpenAIAccount {
     let openURL: @Sendable (URL) -> Bool
     let verifier: IDTokenSignatureVerifier?
     private var refreshing: Task<OpenAITokens, Error>?
-    /// How long a sign-in waits for the browser.
     public var signInTimeout: TimeInterval = 300
 
-    /// `openURL` opens the authorization page in the system browser and
-    /// returns false when it cannot. `verifier` checks ID-token signatures
-    /// (nil: the ID token is accepted on the strength of the TLS connection
-    /// it came over, OpenID Connect Core §3.1.3.7 step 6).
     public init(configuration: OpenAIAuthConfiguration = .init(), store: SecretStore, verifier: IDTokenSignatureVerifier? = nil,
                 openURL: @escaping @Sendable (URL) -> Bool) {
         self.configuration = configuration
@@ -124,9 +97,6 @@ public actor OpenAIAccount {
         return .signedIn(email: t.email, planUsage: t.hasPlanUsage)
     }
 
-    // MARK: Authorization
-
-    /// The authorization URL for `attempt` (sign-in guide §1).
     public static func authorizationURL(_ c: OpenAIAuthConfiguration, attempt a: AuthorizationAttempt, registration r: OpenAIRegistration,
                                         idTokenHint: String? = nil) -> URL? {
         var items: [URLQueryItem] = [.init(name: "client_id", value: a.clientID)]
@@ -147,13 +117,10 @@ public actor OpenAIAccount {
             .init(name: "code_challenge", value: a.pkce.challenge),
         ]
         guard var u = URLComponents(string: c.authorizeURL) else { return nil }
-        // Encode every value strictly (spaces as %20, '+', ':', '/' escaped).
         u.percentEncodedQuery = items.map { "\(HTTP.formEscape($0.name))=\(HTTP.formEscape($0.value ?? ""))" }.joined(separator: "&")
         return u.url
     }
 
-    /// The callback's result, checked against the attempt (sign-in guide
-    /// §2). Returns the code and the client ID to exchange it with.
     public static func validateCallback(_ query: [String: String], attempt a: AuthorizationAttempt) throws -> (code: String, clientID: String) {
         guard query["state"] == a.state else { throw AssistantError.signIn("The sign-in response did not match this request. Try again.") }
         if let e = query["error"] {
@@ -174,8 +141,6 @@ public actor OpenAIAccount {
         return (code, a.clientID)
     }
 
-    /// Signs in through the browser and stores the tokens. Starts the
-    /// loopback listener before opening the browser.
     @discardableResult
     public func signIn() async throws -> OpenAITokens {
         var reg = registration ?? .newHost()
@@ -225,8 +190,6 @@ public actor OpenAIAccount {
             + "<body style=\"font-family: -apple-system, sans-serif; margin: 3em\"><p>\(message)</p></body></html>"
     }
 
-    // MARK: Tokens
-
     struct TokenResponse {
         var accessToken: String
         var refreshToken: String?
@@ -238,7 +201,6 @@ public actor OpenAIAccount {
 
     enum TokenEndpointError: Error { case oauth(String, String?), status(Int) }
 
-    /// POSTs to the token endpoint and parses the response (token reference).
     func exchange(_ fields: [(String, String)]) async throws -> TokenResponse {
         guard let url = URL(string: configuration.tokenURL) else { throw AssistantError.signIn("The token address is not valid.") }
         let r: HTTP.Response
@@ -258,9 +220,6 @@ public actor OpenAIAccount {
                              scopes: ((o["scope"] as? String) ?? "").split(separator: " ").map(String.init))
     }
 
-    /// A current access token, refreshed when it expires within two
-    /// minutes (or when `forceRefresh`). Refreshes are serialized, so the
-    /// rotating refresh token is never used twice.
     public func accessToken(forceRefresh: Bool = false) async throws -> String {
         guard let t = tokens else { throw AssistantError.notSignedIn(hint: Self.signInHint) }
         if !forceRefresh && t.expiresAt.timeIntervalSinceNow > 120 { return t.accessToken }
@@ -303,9 +262,6 @@ public actor OpenAIAccount {
         return n
     }
 
-    /// Revokes the refresh token at the issuer's `revocation_endpoint`, then
-    /// forgets the tokens (the registration and host ID stay). Returns
-    /// whether the revocation was confirmed.
     @discardableResult
     public func signOut() async -> Bool {
         guard let t = tokens else { return true }
@@ -330,7 +286,6 @@ public actor OpenAIAccount {
     }
 }
 
-/// Holds the one callback a sign-in waits for.
 final class CallbackBox: @unchecked Sendable {
     private let lock = NSLock()
     private var value: [String: String]?
@@ -373,15 +328,12 @@ final class CallbackBox: @unchecked Sendable {
     }
 }
 
-/// ID-token claim checks (OpenID Connect Core §3.1.3.7; the sign-in guide
-/// §4: issuer, audience = the issued client ID, expiry, nonce, subject).
 public enum IDToken {
     public struct Claims: Sendable, Equatable {
         public var subject: String
         public var email: String?
     }
 
-    /// The decoded header and payload of a compact JWT.
     public static func decode(_ jwt: String) -> (header: [String: Any], payload: [String: Any], signingInput: String, signature: Data)? {
         let parts = jwt.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
         guard parts.count == 3, let h = Base64URL.decode(parts[0]), let p = Base64URL.decode(parts[1]), let s = Base64URL.decode(parts[2]),

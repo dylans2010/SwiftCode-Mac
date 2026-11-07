@@ -1,10 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/Collaboration/ActivityLogView.swift
-// Adapted for SwiftCode: reads the real CollaborationManager activity log
-// and notifications. Legacy's `.liquidGlass` has no destination equivalent
-// (specs/ide/liquid-glass-swiftcode.md) — cards use the system thin material
-// instead. Legacy's iOS `swipeActions` become a macOS context menu.
-
 import SwiftUI
 import SwiftCodeCollaboration
 
@@ -81,10 +74,6 @@ struct ActivityLogView: View {
 }
 
 private extension CollaborationActivity.Kind {
-    // CollaborationActivity.Kind is not CaseIterable in the destination;
-    // this is the filter list. It adds `.chat` to Legacy's list because
-    // chat messages are now logged to the activity timeline as well
-    // (CollaborationChatView sends to both the chat store and addActivity).
     static var allCases: [CollaborationActivity.Kind] {
         [.branch, .commit, .review, .pullRequest, .sync, .invite, .permissions, .conflict, .fileLock, .chat]
     }

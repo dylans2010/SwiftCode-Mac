@@ -1,22 +1,7 @@
-// The Linux device window's chrome (specs/ide/device-hub.md §4.4, §11.1,
-// §11.2; council round 3 checklist rows 65 and 67), without a toolkit so it
-// is tested everywhere: the floating control capsules at the bottom of the
-// window (DeviceControlsLayout, shared with the macOS canvas), the controls'
-// state and help, the More Actions circle and its menu (the commands that
-// had push buttons before: Lock, the volume, the sound, the scale, bezels,
-// the frame rate, Refresh Display), the light and dark palettes, and where
-// a tooltip goes. The SDL window draws it.
-//
-// SwiftCode decisions: the device window on Linux has no toolbar, so More
-// Actions is a glass circle at the canvas's top right (as the compact
-// window's capsule sits at the top right); Record is shown disabled with
-// "Record Screen is not in this beta" (the Linux viewer cannot record yet).
-
 import Foundation
 import SwiftCodeDeviceModel
 import SwiftCodeDisplayStream
 
-/// An RGBA colour, 0…1.
 public struct ViewerColor: Equatable, Sendable {
     public var r, g, b, a: Float
     public init(_ hex: UInt32, alpha: Float = 1) {
@@ -31,9 +16,6 @@ public struct ViewerColor: Equatable, Sendable {
     }
 }
 
-/// Light or dark: `--appearance`, then OpenViews' sources (OV_COLOR_SCHEME,
-/// its settings file's `color-scheme`), then the desktop's (SDL's system
-/// theme, which follows the freedesktop portal), else light.
 public enum ViewerAppearance: String, Sendable, CaseIterable {
     case light, dark
 
@@ -60,7 +42,6 @@ public enum ViewerAppearance: String, Sendable, CaseIterable {
         return .light
     }
 
-    /// OpenViews' settings file: $OV_SETTINGS_FILE, else $XDG_CONFIG_HOME (~/.config)/openviews/settings.conf.
     public static func settingsFilePath(environment env: [String: String]) -> String {
         if let f = env["OV_SETTINGS_FILE"], !f.isEmpty { return f }
         let config = env["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? (NSHomeDirectory() + "/.config")
@@ -68,10 +49,6 @@ public enum ViewerAppearance: String, Sendable, CaseIterable {
     }
 }
 
-/// The window's colours (§11.1 for the light glass: fill #FAFAFA–#FDFCFC,
-/// rim #EBEBEB at the top and #E7E7E7 at the bottom, black glyphs, the
-/// divider #E9E9E9, the current pose #007AFF on #BFDDFE, the other poses
-/// filled #BEBEBE; dark: SwiftCode's equivalents).
 public struct ViewerPalette: Equatable, Sendable {
     public var canvas: ViewerColor
     public var glassTop: ViewerColor, glassBottom: ViewerColor
@@ -103,18 +80,14 @@ public struct ViewerPalette: Equatable, Sendable {
     public static func of(_ a: ViewerAppearance) -> ViewerPalette { a == .dark ? .dark : .light }
 }
 
-/// One control in the capsules.
 public struct ViewerControl: Equatable, Sendable {
     public var command: DeviceCommand
-    /// Its hit area (window units).
     public var rect: ViewerRect
     public var enabled: Bool
-    /// The current pose (drawn in the accent colour).
     public var highlighted: Bool
     public var help: String
 }
 
-/// An item of the More Actions menu.
 public struct ViewerMenuItem: Equatable, Sendable {
     public enum Action: Equatable, Sendable {
         case command(DeviceCommand)
@@ -133,7 +106,6 @@ public struct ViewerMenuItem: Equatable, Sendable {
 }
 
 public enum DeviceWindowChrome {
-    /// The More Actions circle: 30 across, 8 from the top and right edges.
     public static let moreSize: Double = 30
     public static let moreInset: Double = 8
     public static let menuWidth: Double = 236
@@ -141,7 +113,6 @@ public enum DeviceWindowChrome {
     public static let separatorHeight: Double = 9
     public static let tooltipDelay: Double = 0.6
 
-    /// The help text of a control (tooltips).
     public static func help(_ c: DeviceCommand, recordingAvailable: Bool = false) -> String {
         switch c {
         case .home: "Home"
@@ -160,14 +131,12 @@ public enum DeviceWindowChrome {
         ViewerRect(x: windowWidth - moreInset - moreSize, y: moreInset, width: moreSize, height: moreSize)
     }
 
-    /// The menu's rectangle (under the circle, right-aligned with it).
     public static func menuRect(items: [ViewerMenuItem], windowWidth: Double) -> ViewerRect {
         let h = items.reduce(8.0) { $0 + ($1.isSeparator ? separatorHeight : menuRowHeight) }
         let m = moreButton(windowWidth: windowWidth)
         return ViewerRect(x: max(4, m.x + m.width - menuWidth), y: m.y + m.height + 6, width: menuWidth, height: h)
     }
 
-    /// The item under a window point (nil: none or a separator).
     public static func menuItem(at x: Double, _ y: Double, items: [ViewerMenuItem], windowWidth: Double) -> Int? {
         let r = menuRect(items: items, windowWidth: windowWidth)
         guard r.contains(x, y) else { return nil }
@@ -180,7 +149,6 @@ public enum DeviceWindowChrome {
         return nil
     }
 
-    /// Where a tooltip for `rect` goes: above it, centred, inside the window.
     public static func tooltipRect(for rect: ViewerRect, text: String, windowWidth: Double, charWidth: Double = 8) -> ViewerRect {
         let w = Double(text.count) * charWidth + 16, h = 22.0
         let x = min(max(4, rect.x + rect.width / 2 - w / 2), max(4, windowWidth - 4 - w))
@@ -189,35 +157,28 @@ public enum DeviceWindowChrome {
 }
 
 extension RemoteDeviceSession {
-    /// What the capsules hold for this device (a Vision Pro by its hello).
     public var controlDevice: DeviceControlsLayout.Device {
         DeviceControlsLayout.Device(spec: spec, foldable: spec.isFoldable || hello?.foldable == true,
                                     spatial: isSpatial || spec.family == .vision)
     }
 
-    /// The controls by capsule, left to right.
     public var controlGroups: [[DeviceCommand]] { DeviceControlsLayout.groups(controlDevice) }
 
-    /// The capsules' rectangles in the window.
     public var controlCapsules: [ViewerRect] {
         DeviceControlsLayout.capsuleRects(controlGroups, canvasWidth: windowWidth, canvasHeight: windowHeight).map(ViewerRect.init)
     }
 
-    /// The dividers' x positions in the window (Rotate │ the poses).
     public var controlDividers: [Double] {
         zip(controlGroups, controlCapsules).compactMap { g, r in DeviceControlsLayout.dividerCentre(of: g).map { r.x + $0 } }
     }
 
-    /// The pose the hinge is at (a foldable).
     public var posture: DevicePosture? {
         guard controlDevice.foldable else { return nil }
         return panel.flatMap { DevicePosture(rawValue: $0.posture) } ?? .closed
     }
 
-    /// The display shows the device and takes input.
     public var isLive: Bool { phase == "live" }
 
-    /// Each control with its state (Record disabled: not in this beta).
     public var controls: [ViewerControl] {
         DeviceControlsLayout.controlRects(controlGroups, canvasWidth: windowWidth, canvasHeight: windowHeight).map { c, r in
             let enabled: Bool = switch c {
@@ -235,16 +196,13 @@ extension RemoteDeviceSession {
         }
     }
 
-    /// The control under a window point.
     public func control(at x: Double, _ y: Double) -> ViewerControl? { controls.first { $0.rect.contains(x, y) } }
 
-    /// Moves the hinge to `angle` (the pose buttons; foldable.md §8.3).
     public func fold(to angle: Int) {
         guard controlDevice.foldable else { return }
         client.send(.fold(angle: UInt16(min(180, max(0, angle))), instant: false))
     }
 
-    /// The More Actions menu (SwiftCode decision, see the file's comment).
     public func moreItems(muted: Bool?, statusLine: Bool) -> [ViewerMenuItem] {
         var out: [ViewerMenuItem] = [ViewerMenuItem(title: "Lock", shortcut: "Ctrl+L", action: .command(.lock), enabled: isLive)]
         if spec.hasVolumeButtons {

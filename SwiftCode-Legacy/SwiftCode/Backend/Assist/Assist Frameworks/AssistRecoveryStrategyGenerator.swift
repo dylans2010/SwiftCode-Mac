@@ -1,6 +1,5 @@
 import Foundation
 
-/// Generates recovery strategies for failed operations
 @MainActor
 public final class AssistRecoveryStrategyGenerator {
     private let context: AssistContext
@@ -8,7 +7,7 @@ public final class AssistRecoveryStrategyGenerator {
     public struct RecoveryStrategy {
         let approach: RecoveryApproach
         let steps: [String]
-        let estimatedSuccess: Double // 0.0 to 1.0
+        let estimatedSuccess: Double
     }
 
     public enum RecoveryApproach {
@@ -23,14 +22,12 @@ public final class AssistRecoveryStrategyGenerator {
         self.context = context
     }
 
-    /// Generates a recovery strategy based on root cause analysis
     public func generateStrategy(
         rootCause: AssistFailureRootCauseAnalyzer.RootCauseAnalysis,
         failedStep: AssistExecutionStep
     ) async -> RecoveryStrategy {
         await context.logger.info("Generating recovery strategy for: \(rootCause.primaryCause)", toolId: "RecoveryStrategy")
 
-        // Select strategy based on root cause
         switch rootCause.primaryCause {
         case let cause where cause.contains("Missing file"):
             return RecoveryStrategy(

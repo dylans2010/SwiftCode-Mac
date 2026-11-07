@@ -1,26 +1,3 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/AssistInfoView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/Views/Assist/AssistInfoView.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - slash/@ command banner on user messages with skills, rules and referenced resources
-//   - expandable details
-// ADAPTATIONS:
-//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistTaskEnvelope — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistTaskContext.swift`)
-// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
-
-//
-//  AssistInfoView.swift
-//  SwiftCode
-//
-//  Compact, translucent information banner displayed at the top of a user chat message
-//  when a slash (/) or at (@) command was executed. Displays what the user did along with
-//  skills, rules, referenced resources, and task feedback.
-//
-
 import SwiftUI
 import SwiftCodeAssistant
 
@@ -35,7 +12,6 @@ public struct AssistInfoView: View {
         self.messageText = messageText
     }
 
-    /// Derives the executed command or at-resource from envelope or text inspection.
     private var detectedCommand: (type: String, name: String, argument: String)? {
         if let env = envelope, let slash = env.slashCommand, !slash.isEmpty {
             return ("Slash Command", slash.hasPrefix("/") ? slash : "/\(slash)", env.commandArgument ?? "")
@@ -64,7 +40,6 @@ public struct AssistInfoView: View {
     public var body: some View {
         if let cmd = detectedCommand {
             VStack(alignment: .leading, spacing: 6) {
-                // Header Banner Row
                 HStack(spacing: 7) {
                     Image(systemName: cmd.name.hasPrefix("/") ? "terminal" : "at")
                         .font(.system(size: 10, weight: .semibold))
@@ -83,7 +58,6 @@ public struct AssistInfoView: View {
 
                     Spacer()
 
-                    // Expand / Collapse Details Button
                     Button {
                         withAnimation(.easeInOut(duration: 0.16)) {
                             isExpanded.toggle()
@@ -103,7 +77,6 @@ public struct AssistInfoView: View {
                     .buttonStyle(.plain)
                 }
 
-                // Expanded Info Breakdown (Skills, Rules, Resources, Feedback)
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 5) {
                         Divider()

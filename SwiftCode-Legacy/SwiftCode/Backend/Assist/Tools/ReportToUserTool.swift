@@ -1,12 +1,3 @@
-//
-//  ReportToUserTool.swift
-//  SwiftCode
-//
-//  Production Assist tool invoked upon task completion to report verified outcomes to the user.
-//  Responsible for stripping broken markdown artifacts, normalizing presentation, and rendering
-//  clean, executive-level summaries without leaking raw tool tokens or JSON schemas.
-//
-
 import Foundation
 import os
 
@@ -70,10 +61,8 @@ public struct ReportToUserTool: AssistTool {
         let files = (input["filesModified"] as? [String]) ?? []
         let verification = (input["verification"] as? String) ?? ""
 
-        // Process markdown: strip unrendered glitches, tool JSON noise, and normalize prose
         let renderedSummary = Self.normalizeAndRenderMarkdown(rawSummary)
 
-        // Broadcast to AssistManager to update final response view if needed
         var finalContent = renderedSummary
         if !files.isEmpty && !finalContent.contains(files.first ?? "") {
             finalContent += "\n\n**Modified Files:**\n" + files.map { "- `\($0)`" }.joined(separator: "\n")
@@ -82,7 +71,6 @@ public struct ReportToUserTool: AssistTool {
             finalContent += "\n\n**Verification:**\n\(verification)"
         }
 
-        // Post completion to AssistManager
         AssistManager.shared.updateLastAssistantMessageContent(finalContent)
 
         return .success(
@@ -95,11 +83,9 @@ public struct ReportToUserTool: AssistTool {
         )
     }
 
-    /// Normalizes and cleans raw markdown syntax, stripping broken escapes, raw schemas, or ASCII tables.
     public static func normalizeAndRenderMarkdown(_ input: String) -> String {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Strip raw JSON tool wrappers if mistakenly dumped
         if text.hasPrefix("```json") && text.hasSuffix("```") {
             let inner = text.dropFirst(7).dropLast(3).trimmingCharacters(in: .whitespacesAndNewlines)
             if let data = inner.data(using: .utf8),
@@ -109,13 +95,11 @@ public struct ReportToUserTool: AssistTool {
             }
         }
 
-        // Remove escaped markdown tags like \`\`\` or \_
         text = text.replacingOccurrences(of: "\\`", with: "`")
         text = text.replacingOccurrences(of: "\\*", with: "*")
         text = text.replacingOccurrences(of: "\\_", with: "_")
         text = text.replacingOccurrences(of: "\\#", with: "#")
 
-        // Clean redundant trailing question patterns (e.g. "Want me to apply the fixes via a new batch?")
         let annoyingQuestions = [
             "Want me to apply the fixes via a new use_workers batch?",
             "Want me to apply the fixes?",
@@ -126,7 +110,6 @@ public struct ReportToUserTool: AssistTool {
             text = text.replacingOccurrences(of: q, with: "")
         }
 
-        // Strip internal runtime leaks
         text = text.replacingOccurrences(of: "Via muse.workflow (the use_workers equivalent in this runtime)", with: "Via parallel Assist workers")
         text = text.replacingOccurrences(of: "muse.workflow", with: "workers")
         text = text.replacingOccurrences(of: "use_workers", with: "parallel workers")

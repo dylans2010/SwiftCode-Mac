@@ -1,10 +1,6 @@
-// Reminders: save rules, asynchronous fetch with cancel, the three
-// predicates, recurring completion (reminders.md).
-
 import Foundation
 
 extension EKEventStore {
-    // MARK: Predicates
 
     public func predicateForReminders(in calendars: [EKCalendar]?) -> NSPredicate {
         EKReminderPredicate(kind: .all, calendarIDs: calendars?.map(\.calendarIdentifier))
@@ -20,11 +16,6 @@ extension EKEventStore {
         EKReminderPredicate(kind: .completed(start: startDate, end: endDate), calendarIDs: calendars?.map(\.calendarIdentifier))
     }
 
-    // MARK: Fetch
-
-    /// Starts an asynchronous fetch; the completion runs on a private queue
-    /// with an array (empty without access). Returns an identifier for
-    /// `cancelFetchRequest(_:)`; a cancelled fetch never completes.
     @discardableResult
     public func fetchReminders(matching predicate: NSPredicate,
                                completion: @escaping ([EKReminder]?) -> Void) -> Any {
@@ -49,8 +40,6 @@ extension EKEventStore {
         (fetchIdentifier as? EKReminderFetchRequest)?.cancel()
     }
 
-    /// The instant of a reminder's due date. A date-only due date is read as
-    /// midnight UTC (reminders.md §4, inference flagged as C-REM-Q1).
     func dueInstant(_ c: DateComponents, reminderZone: TimeZone?) -> Date? {
         guard let y = c.year, let m = c.month, let d = c.day else { return nil }
         if c.hour == nil {
@@ -97,8 +86,6 @@ extension EKEventStore {
         return r
     }
 
-    // MARK: Save and remove
-
     public func save(_ reminder: EKReminder, commit: Bool) throws {
         lock.lock(); defer { lock.unlock() }
         guard reminder.store === self else { throw EKError(.objectBelongsToDifferentStore) }
@@ -117,8 +104,6 @@ extension EKEventStore {
         var tz = reminder.common.timeZone ?? fields.due?.timeZone
         fields.due = normalized(fields.due)
         if fields.start == nil, let due = fields.due {
-            // The start defaults to the due components, with zero time fields
-            // added for a date-only due date (reminders.md §3).
             var s = due
             if s.hour == nil { s.hour = 0; s.minute = 0; s.second = 0 }
             fields.start = s
@@ -128,8 +113,6 @@ extension EKEventStore {
         if fields.due == nil && fields.start == nil { tz = reminder.common.timeZone }
         var rules = reminder.ruleObjects.map(\.spec)
 
-        // Completing a recurring reminder (reminders.md §5): a completed copy
-        // without rules records this occurrence; the reminder moves on.
         var completedCopy: ItemRow?
         if fields.completed, !rules.isEmpty, let due = fields.due,
            let next = nextOccurrence(due: due, rules: rules, zone: tz) {
@@ -173,14 +156,12 @@ extension EKEventStore {
         lock.lock(); defer { lock.unlock() }
         guard reminder.store === self else { throw EKError(.objectBelongsToDifferentStore) }
         guard remindersFull, let db else { throw EKError(.noCalendar) }
-        guard reminder.persisted, db.item(reminder.itemID) != nil else { return } // removed already: success
+        guard reminder.persisted, db.item(reminder.itemID) != nil else { return }
         try write(mask: EKEntityMask.reminder.rawValue, commit: commit) {
             try db.deleteItemRow(reminder.itemID)
             return [reminder.itemID]
         }
     }
-
-    // MARK: Helpers
 
     private func row(for r: EKReminder, fields: ReminderFields, tz: TimeZone?, rules: [RuleSpec], id: String) -> ItemRow {
         var row = ItemRow(id: id, kind: 1, calendarID: r.calendarObject!.calendarIdentifier)
@@ -200,7 +181,6 @@ extension EKEventStore {
         return row
     }
 
-    /// Components as stored: the Gregorian calendar added.
     private func normalized(_ c: DateComponents?) -> DateComponents? {
         guard let c else { return nil }
         return ComponentsText.decode(ComponentsText.encode(c))

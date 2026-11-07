@@ -1,24 +1,3 @@
-// vkrun.c: Ycode R8 Vulkan test harness (ours, stage 8a research).
-//
-// Runs one compute shader (SPIR-V) with the "R8 PoC compute ABI":
-//   push constants, offset 0:  uint64 buffer_address[4]  (Metal buffer slots 0..3)
-//   push constants, offset 32: uint32 grid_size[3] (--grid G, default N;
-//   ceil(G / X) threadgroups are dispatched)
-//   specialization constants 0, 1, 2: threadgroup size x, y, z
-// Slot 0 = a[i] = i, slot 1 = b[i] = 2i + 0.5, slot 2 = out (zeroed),
-// slot 3 = uint32 count = N. Checks out[i] == a[i] + b[i].
-//
-// --host-import allocates every buffer with aligned_alloc in this process
-// and imports it with VK_EXT_external_memory_host, so the GPU works
-// directly on host memory (the model for guest-shared memory).
-// --memfd does the same with MAP_SHARED mappings of a memfd (the way a VMM
-// maps guest RAM).
-// --features prints the device features and limits the translation plan
-// relies on.
-//
-// Build: cc -O2 -o vkrun vkrun.c -lvulkan
-// Usage: vkrun [--features] [--host-import | --memfd] [--n N] [--grid G] [--local X]
-//              [--entry NAME] SHADER.spv
 #define _GNU_SOURCE 1
 #include <vulkan/vulkan.h>
 #include <stdio.h>
@@ -29,8 +8,6 @@
 #include <unistd.h>
 
 #ifndef VK_KHR_dynamic_rendering_local_read
-// Older headers (1.3.275 on the Thor) lack this extension; the layout is
-// that of the Vulkan registry (structure type 1000232000).
 typedef struct VkPhysicalDeviceDynamicRenderingLocalReadFeaturesKHR {
     VkStructureType sType; void *pNext; VkBool32 dynamicRenderingLocalRead;
 } VkPhysicalDeviceDynamicRenderingLocalReadFeaturesKHR;
@@ -79,8 +56,6 @@ static Buf make_buf(VkDeviceSize size) {
         VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, NULL};
     if (host_import) {
         if (use_memfd) {
-            // Guest RAM in a VMM is a shared mapping of a memory file; test
-            // that such a mapping imports too.
             int fd = memfd_create("vkrun-guest-ram", 0);
             if (fd < 0 || ftruncate(fd, (off_t)size) != 0) { perror("memfd"); exit(1); }
             b.ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

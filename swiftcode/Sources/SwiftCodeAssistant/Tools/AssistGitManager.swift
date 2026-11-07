@@ -1,27 +1,9 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistGitManager.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Tools/AssistGitManager.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - standalone add(path:) operation
-//   - add()'s exclusion of app_summary.md / *.artifact.md files (commit stages everything via add -A)
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AssistContextBuilder — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistContextBuilder.swift`)
-//   - GitService — other agent (collab-sourcecontrol) (`SwiftCode/Backend/Git/GitService.swift`)
-//   - Project — UNOWNED (no worklist) (`SwiftCode/Models/Project.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 
 public final class AssistGitManager: Sendable, AssistGitManagerProtocol {
     private let workspaceURL: URL
 
     public init(project: AssistProject?, workspaceRoot: URL? = nil) {
-        // V2 fix: was `Project?` (SwiftCodeIDECore, unreachable from this
-        // target); only `directoryURL` was ever read. AssistProject is a
-        // plain Sendable value, so no MainActor isolation is needed here.
         if let workspaceRoot = workspaceRoot {
             self.workspaceURL = workspaceRoot
         } else if let proj = project {
@@ -84,7 +66,6 @@ public final class AssistGitManager: Sendable, AssistGitManagerProtocol {
     }
 
     public func add(path: String) throws {
-        // Exclude internal user-facing artifact files from Git staging
         if path.contains("app_summary.md") || path.hasSuffix(".artifact.md") {
             return
         }

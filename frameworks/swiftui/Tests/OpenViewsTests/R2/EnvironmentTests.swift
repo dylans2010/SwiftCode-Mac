@@ -9,10 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Environment propagation: 03 §3 (per-key dependencies), §6 (inner
-// environment modifiers override outer ones), §7; 08 §1 (defaults);
-// `@Environment(Type.self)` for `@Observable` objects; `@EnvironmentObject`.
-
 struct ReadsScheme: View {
     let log: Log
     @Environment(\.colorScheme) var scheme
@@ -153,7 +149,6 @@ struct EnvironmentTests {
         g.updateEnvironment { $0.layoutDirection = .rightToLeft }
         g.update()
         #expect(log.take() == ["direction rightToLeft"])
-        // A new environment with equal values re-runs nothing.
         g.updateEnvironment { $0.colorScheme = .dark }
         g.update()
         #expect(log.take() == [])
@@ -209,7 +204,6 @@ struct EnvironmentTests {
         settings.name = "b"
         g.update()
         #expect(log.take() == ["settings b"])
-        // Supplying another object re-runs the reader.
         let other = Settings()
         other.name = "other"
         g.setRootView(VStack {

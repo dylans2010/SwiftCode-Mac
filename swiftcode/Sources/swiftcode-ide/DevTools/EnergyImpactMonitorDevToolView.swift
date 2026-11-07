@@ -1,15 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/EnergyImpactMonitorDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-//
-// CLEANUP (2026-11-06, A1): the ported file invented its numbers —
-// a random-number call for an "energy impact score", an invented
-// "0 / sec" wakeup rate and an invented "60 FPS" GPU rate. macOS exposes no
-// public per-app energy-impact score API, so no score is shown at all.
-// Replaced with the real signals the system does expose: ProcessInfo
-// thermalState, this process's accumulated CPU time from Mach task_info,
-// resident memory and thread count (via DevToolsSystemMetrics). On
-// platforms without Mach, each row honestly reports unavailable instead of
-// inventing a value.
 import SwiftUI
 import os.log
 import SwiftCodeUI
@@ -48,8 +36,6 @@ final class EnergyImpactMonitorViewModel {
         #endif
     }
 
-    /// This process's accumulated user + system CPU time, from Mach
-    /// task_info (same pattern as MemoryInspectorView / AssistResourceUsageMonitor).
     #if os(macOS)
     private static func processCPUTotalSeconds() -> Double? {
         var info = mach_task_basic_info()
@@ -114,7 +100,6 @@ struct EnergyImpactMonitorDevToolView: View {
         }
     }
 
-    /// Unavailable is not a bad thermal state, so it gets no warning color.
     private var thermalStateColor: Color {
         switch viewModel.thermalStateDescription {
         case "Nominal": .green

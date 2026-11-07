@@ -1,19 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/PushPullManagerView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The push/pull manager: branch sync with progress, Sync Across Peers,
-// live conflict detection and routing, and the Active Transfers list.
-// The underlying `git_pull` / `git_push` tools and the workspace shell's
-// source-control actions exist in the destination, but this sync UI —
-// including the `PushManager.activePushes` progress rows and the
-// conflict routing into `ConflictResolverView` — was absent.
-// `CollaborationMainView` instantiates this view for its `.sync` tab.
-//
-// Adaptations for SwiftCode: Legacy's hardcoded dark paint / white text
-// become system-adaptive, and `.liquidGlass` (no destination
-// equivalent) becomes the system thin material, as in the sibling
-// Collaboration views.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

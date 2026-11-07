@@ -1,24 +1,4 @@
 #!/usr/bin/env node
-/**
- * SwiftCode SDK node runtime adapter
- * (Docs/Intro-to-SDK.md §10 runtime responsibilities, §12.4 entry point).
- *
- * This is what the Swift host's `SDKNodeLauncher` spawns:
- *
- *   node dist/adapter.js --entrypoint <path> [--manifest <swiftcode.json>]
- *                         [--id <id>] [--version <v>] [--name <n>]
- *
- * It loads the extension's declared entry point, builds a real SDK context
- * over the stdio NDJSON channel (`createStdioConnection` + `createContext`
- * from `@swiftcode/sdk`), activates the extension, and then dispatches
- * `commands.execute` host events to the extension's registered command
- * handlers, reporting `commands.executeResult` events back to the host.
- *
- * Lifecycle (§10.5): activation failure triggers best-effort deactivation
- * and cleanup, then exit(1). `shutdown`, stdin EOF/close, and SIGTERM all
- * share one bounded deactivate path that disposes context subscriptions,
- * closes the connection, and exits 0 — the process never hangs.
- */
 
 import { randomUUID } from "crypto";
 import { readFile } from "fs/promises";
@@ -33,9 +13,7 @@ import {
   type SwiftCodeExtension,
 } from "@swiftcode/sdk";
 
-/** Bounded budget for the extension's `deactivate()` during teardown. */
 const DEACTIVATE_TIMEOUT_MS = 5_000;
-/** Bounded budget for flushing stdout before a fatal exit. */
 const FLUSH_TIMEOUT_MS = 1_000;
 
 interface AdapterOptions {
@@ -57,7 +35,6 @@ function usage(): string {
   ].join("\n");
 }
 
-/** Parses argv. Exits 1 with usage on any malformed invocation — never hangs. */
 function parseArgs(argv: string[]): AdapterOptions {
   const options: AdapterOptions = { entrypoint: "" };
   for (let i = 0; i < argv.length; i++) {
@@ -95,12 +72,10 @@ function parseArgs(argv: string[]): AdapterOptions {
   return options;
 }
 
-/** Writes a diagnostic to stderr (stdout is the IPC channel). */
 function diagnose(message: string): void {
   process.stderr.write(`[swiftcode-runtime-adapter] ${message}\n`);
 }
 
-/** Fatal configuration error: stderr + exit(1), never a silent hang. */
 function fail(message: string): never {
   diagnose(message);
   process.exit(1);
@@ -112,7 +87,6 @@ interface ManifestShape {
   version?: unknown;
 }
 
-/** Loads swiftcode.json. Any failure is fatal: an invalid package never activates (§10.5). */
 async function loadManifest(path: string): Promise<ManifestShape> {
   let raw: string;
   try {
@@ -135,12 +109,6 @@ async function loadManifest(path: string): Promise<ManifestShape> {
   }
 }
 
-/**
- * Dynamically imports the entry point and validates the entry-point
- * contract (§12.4): the default export must be `{ id, activate, deactivate }`
- * with function-valued activate/deactivate. A contract violation is an
- * activation contract failure — stderr + exit(1), never a silent hang.
- */
 async function loadExtensionModule(entrypoint: string): Promise<SwiftCodeExtension> {
   const absolute = resolve(entrypoint);
   let module: unknown;
@@ -180,7 +148,6 @@ function asNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-/** Identity precedence: CLI overrides > manifest > module default export. */
 function resolveIdentity(
   options: AdapterOptions,
   manifest: ManifestShape | undefined,
@@ -192,11 +159,6 @@ function resolveIdentity(
   return { id, name, version };
 }
 
-/**
- * Flushes everything written to stdout so far. The callback of a trailing
- * empty write fires only after earlier chunks are flushed; the whole thing
- * is bounded so a broken pipe can never hang a fatal exit path.
- */
 function flushStdout(): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
@@ -220,7 +182,6 @@ function flushStdout(): Promise<void> {
   });
 }
 
-/** Runs a promise with a wall-clock budget; rejects with `SDKError` TIMEOUT on expiry. */
 function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<T>((_, reject) => {
@@ -264,11 +225,6 @@ async function main(): Promise<void> {
   const connection = createStdioConnection();
   const { context, getCommandHandler } = createContext(connection, extensionInfo);
 
-  // --- Shared teardown path (§10.5) ---------------------------------------
-  // Used by `shutdown`, stdin EOF/close, and SIGTERM. Best-effort
-  // deactivate with a 5 s budget, then dispose subscriptions, close the
-  // connection, and exit. Guarded so it runs exactly once: the process
-  // never hangs and never tears down twice.
   let teardownStarted = false;
   let teardownPromise: Promise<void> | undefined;
 
@@ -294,7 +250,6 @@ async function main(): Promise<void> {
       try {
         context.subscriptions.dispose();
       } catch {
-        // Best effort: one bad disposable must not block process exit.
       }
       unsubscribeEvents();
       connection.close();
@@ -304,7 +259,6 @@ async function main(): Promise<void> {
     process.exit(exitCode);
   }
 
-  /** Fatal, unrecoverable failure: best-effort `extension.error` event, stderr, exit(1). */
   async function fatal(message: string, cause?: unknown): Promise<never> {
     if (!teardownStarted) {
       try {
@@ -314,7 +268,6 @@ async function main(): Promise<void> {
           detail: cause instanceof Error ? cause.stack ?? cause.message : String(cause ?? ""),
         });
       } catch {
-        // Best effort only.
       }
     }
     diagnose(`fatal: ${message}`);
@@ -322,7 +275,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // --- Host event dispatch ---------------------------------------------------
   async function handleExecute(rawPayload: unknown): Promise<void> {
     const payload =
       typeof rawPayload === "object" && rawPayload !== null
@@ -373,7 +325,6 @@ async function main(): Promise<void> {
     }
   });
 
-  // --- Crash reporting (§10.3): report crashes and unhandled errors ---------
   process.on("uncaughtException", (error: unknown) => {
     void fatal("uncaught exception", error);
   });
@@ -381,7 +332,6 @@ async function main(): Promise<void> {
     void fatal("unhandled promise rejection", reason);
   });
 
-  // --- Host-driven termination signals --------------------------------------
   process.on("SIGTERM", () => {
     void teardown(0, "SIGTERM");
   });
@@ -391,11 +341,9 @@ async function main(): Promise<void> {
   process.stdin.on("end", onStdioEnd);
   process.stdin.on("close", onStdioEnd);
 
-  // --- Activation ------------------------------------------------------------
   try {
     await extension.activate(context);
   } catch (error) {
-    // §10.5: activation failure triggers best-effort deactivation and cleanup.
     const message = error instanceof Error ? error.message : String(error);
     try {
       connection.sendEvent("extension.activationFailed", {
@@ -403,7 +351,6 @@ async function main(): Promise<void> {
         message,
       });
     } catch {
-      // Best effort only.
     }
     diagnose(`activation failed: ${message}`);
     await teardown(1, "activation failure");

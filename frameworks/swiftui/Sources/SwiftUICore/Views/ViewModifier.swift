@@ -1,13 +1,5 @@
 import Foundation
 
-// Modifiers wrap a view (03 §1, §6): `content.padding()` is a
-// `ModifiedContent` of the content and a padding modifier. A modifier applies
-// to everything before it in the chain; the last modifier is the outermost
-// wrapper. Custom `ViewModifier`s have a `body(content:)` evaluated like a
-// view's body (with their own state and dependencies); `content` is a
-// placeholder for the modified view.
-
-/// A modifier that produces a new view from a view.
 @MainActor @preconcurrency
 public protocol ViewModifier {
     associatedtype Body: View
@@ -20,11 +12,9 @@ extension ViewModifier where Body == Never {
 }
 
 extension ViewModifier {
-    /// The modifier followed by `modifier`.
     public func concat<T>(_ modifier: T) -> ModifiedContent<Self, T> { ModifiedContent(content: self, modifier: modifier) }
 }
 
-/// A view (or modifier) with a modifier applied.
 public struct ModifiedContent<Content, Modifier> {
     public var content: Content
     public var modifier: Modifier
@@ -48,11 +38,9 @@ extension ModifiedContent: ViewModifier where Content: ViewModifier, Modifier: V
 }
 
 extension View {
-    /// Applies a modifier to the view.
     public func modifier<T>(_ modifier: T) -> ModifiedContent<Self, T> { ModifiedContent(content: self, modifier: modifier) }
 }
 
-/// The modifier that changes nothing.
 public struct EmptyModifier: ViewModifier, Sendable {
     public static let identity = EmptyModifier()
     public init() {}
@@ -61,7 +49,6 @@ public struct EmptyModifier: ViewModifier, Sendable {
 
 extension EmptyModifier: PrimitiveModifier {}
 
-/// Stands for the modified view inside a `ViewModifier`'s body.
 public struct _ViewModifier_Content<Modifier: ViewModifier>: View {
     nonisolated(unsafe) package weak var source: ViewNode?
     package init(source: ViewNode?) { self.source = source }
@@ -86,31 +73,17 @@ extension _ViewModifier_Content: PrimitiveView {
     }
 }
 
-// MARK: - Primitive modifiers
-
-/// A modifier the runtime interprets directly. Every hook has a default that
-/// leaves the content alone.
 @MainActor
 package protocol PrimitiveModifier: ViewModifier where Body == Never {
-    /// True if the modifier changes the environment of its content.
     var _writesEnvironment: Bool { get }
     func _environment(_ env: EnvironmentValues) -> EnvironmentValues
-    /// The transaction passed to the content (`old` is nil on insertion).
     func _transaction(_ transaction: Transaction, old: Self?, node: ViewNode) -> Transaction
-    /// Lifecycle: insertion (before the content is created, so in pre-order),
-    /// a new value for an existing node (before the content is updated), and
-    /// removal.
     func _inserted(node: ViewNode)
     func _updated(old: Self, node: ViewNode)
     func _removed(node: ViewNode)
-    /// Animation (R6): a new value arrived in `transaction` (the transaction
-    /// that reached the modifier; `old` is nil on insertion).
     func _animate(old: Self?, node: ViewNode, transaction: Transaction)
-    /// A second child view (background, overlay, …).
     func _secondary(node: ViewNode) -> (any View)?
-    /// Rebuild the secondary view when the node is invalidated.
     var _rebuildsWhenDirty: Bool { get }
-    /// Layout: transforms each of the content's layout nodes.
     func _lower(_ content: [LayoutNode], secondary: () -> [LayoutNode], node: ViewNode) -> [LayoutNode]
     func _preferences(_ content: PreferenceValues, secondary: PreferenceValues?, node: ViewNode) -> PreferenceValues
 }
@@ -178,8 +151,6 @@ extension ModifiedContent: PrimitiveView where Content: View, Modifier: ViewModi
         return callPreferences(pm, content: content, secondary: secondary, node: node)
     }
 
-    // MARK: Primitive modifiers
-
     private func primitiveUpdate<M: PrimitiveModifier>(_ m: M, node: ViewNode, oldModifier: Modifier?,
                                                        transaction: Transaction) {
         let old = oldModifier as? M
@@ -227,8 +198,6 @@ extension ModifiedContent: PrimitiveView where Content: View, Modifier: ViewModi
         m._preferences(content, secondary: secondary, node: node)
     }
 
-    // MARK: Custom modifiers
-
     private func customUpdate(node: ViewNode, oldModifier: Modifier?, transaction: Transaction) {
         node.modifierContent = content
         let inputsChanged = oldModifier.map { !GraphComparison.fieldsEqual($0, modifier) } ?? true
@@ -239,11 +208,6 @@ extension ModifiedContent: PrimitiveView where Content: View, Modifier: ViewModi
         if !ran { node.pushContentToPlaceholders(transaction: transaction) }
     }
 
-    // MARK: Animatable custom modifiers (R6)
-
-    /// For an `Animatable` custom modifier: the modifier with its presented
-    /// animatable data (the body is evaluated with it, once per frame while
-    /// it animates; 05 §1).
     private func presentedModifier(node: ViewNode, isNewValue: Bool, transaction: Transaction) -> Modifier? {
         guard let a = modifier as? any Animatable else { return nil }
         let content = self.content, modifier = self.modifier

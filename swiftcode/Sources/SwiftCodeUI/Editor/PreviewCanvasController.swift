@@ -2,12 +2,6 @@ import AppKit
 import SwiftCodeDeviceUI
 import SwiftCodeIDECore
 
-/// The preview canvas (reference-ui-4.md §10): a header with one tab per
-/// preview (spinner while building, then an eye), the body (the "Canvas
-/// paused" capsule until the first build, then the selected preview in a
-/// device frame, every preview as cards in Grid mode, or an error card),
-/// and a bottom bar (four mode buttons, the zoom pop-up, zoom to fit,
-/// device settings, canvas settings). See `specs/ide/previews.md` §Canvas.
 @MainActor
 public final class PreviewCanvasController: NSViewController {
     public enum State: Equatable {
@@ -15,10 +9,7 @@ public final class PreviewCanvasController: NSViewController {
         case building
         case rendered([PreviewRenderer.Rendered])
         case failed(String)
-        /// Tiles of a preview device's live picture (`previews.md` §Canvas).
         case live([PreviewLiveTile])
-        /// UIKit or iOS previews with no SwiftCode simulator set up: what to set
-        /// up, not an error (issue #84).
         case needsSimulator(String)
     }
 
@@ -28,45 +19,25 @@ public final class PreviewCanvasController: NSViewController {
     public private(set) var selectedIndex = 0
     public private(set) var layout: Layout = .single
     public private(set) var colorScheme: PreviewRenderer.ColorScheme = .light
-    /// Until resumed, the canvas shows the paused capsule and does not build.
     public private(set) var isPaused = true
-    /// Live (the default) or Selectable; Variants and Grid are toggles.
     public private(set) var mode: PreviewCanvasMode = .live
     public private(set) var showsVariants = false
-    /// Zoom factor; nil fits the preview in the canvas.
     public private(set) var zoom: CGFloat?
     public static let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1, 1.5, 2]
-    /// Refresh (the window rebuilds and renders); also called on resume.
     public var onRefresh: (() -> Void)?
-    /// The live tiles' layout inputs changed (selection, grid, variants,
-    /// settings, device): the window writes a new plan (no compile).
     public var onLayoutChange: (() -> Void)?
-    /// A banner's issue was clicked: the window opens its file at its line.
     public var onIssue: ((PreviewIssue) -> Void)?
-    /// Selectable mode: a click on a tile reveals that preview's source.
     public var onRevealPreview: ((Int) -> Void)?
-    /// The needs-a-simulator card's button: Settings ▸ Simulators.
     public var onOpenSimulatorSettings: (() -> Void)? = { SettingsWindowController.shared.show(pane: "Simulators") }
-    /// The needs-a-simulator card's button (tests).
     public internal(set) var simulatorSettingsButton: NSButton?
-    /// Pin (the header's pin button): the window keeps this preview shown
-    /// while other files are focused, or unpins it.
     public var onPin: (() -> Void)?
-    /// The live picture the tiles show, and its input.
     public private(set) var liveSession: DeviceLiveSession?
-    /// The device's screen in points (the tiles' regions are in it).
     public var liveScreen = CGSize(width: 402, height: 874)
-    /// An update is in flight: tabs show a spinner, the last picture stays.
     public private(set) var isUpdating = false
-    /// The last update's failure, shown as a banner over the last picture.
     public private(set) var banner: (title: String, issues: [PreviewIssue], message: String?)?
-    /// The Variants button's choice (live canvases).
     public private(set) var variantKind: PreviewVariantKind?
-    /// The pinned preview's title, shown in the header (nil: none).
     public var pinnedTitle: String? { didSet { if isViewLoaded { show() } } }
-    /// Tile views of the live canvas (tests).
     public internal(set) var liveTileViews: [NSView] = []
-    /// The banner shown (tests).
     var bannerView: PreviewBannerView?
     let pinButton = NSButton(image: NSImage(systemSymbolName: "pin", accessibilityDescription: "Pin") ?? NSImage(), target: nil, action: nil)
     let tabStrip = NSStackView()
@@ -82,22 +53,16 @@ public final class PreviewCanvasController: NSViewController {
     let zoomPopUp = NSPopUpButton(frame: .zero, pullsDown: false)
     let fitButton = NSButton(image: NSImage(systemSymbolName: "camera", accessibilityDescription: "Capture") ?? NSImage(), target: nil, action: nil)
     let deviceButton = NSButton(image: NSImage(systemSymbolName: "rectangle.portrait", accessibilityDescription: "Device") ?? NSImage(), target: nil, action: nil)
-    /// The device menu's content and choice; the bottom-left pop-up shows
-    /// the choice ("Automatic – <device>", reference-ui-6.md §4.4).
     public var devices = PreviewDeviceMenuModel() { didSet { if isViewLoaded { updateDevicePopUp() } } }
     let devicePopUp = NSPopUpButton(frame: .zero, pullsDown: true)
-    /// Canvas settings switches.
     public private(set) var settings = PreviewCanvasSettings()
     let settingsButton = NSButton(image: NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Canvas Settings") ?? NSImage(), target: nil, action: nil)
     lazy var pausedCapsule = PreviewPausedCapsule(target: self, action: #selector(resumeClicked))
     let statusLabel = NSTextField(labelWithString: "")
     let body = NSView()
     public private(set) var names: [String] = []
-    /// Header titles: `#Preview("name")`, else the view type.
     public var tabTitles: [String] = [] { didSet { if isViewLoaded { show() } } }
-    /// Card views in the grid (tests read their titles).
     public internal(set) var cardTitles: [String] = []
-    /// Header tabs as shown: title and badge (tests).
     public private(set) var headerTabs: [(title: String, badge: String)] = []
 
     public override func loadView() {
@@ -168,7 +133,6 @@ public final class PreviewCanvasController: NSViewController {
 
     private var lastBodySize = CGSize.zero
 
-    /// A live canvas at Fit re-fits its tiles when the canvas is resized.
     public override func viewDidLayout() {
         super.viewDidLayout()
         guard case .live = state, zoom == nil else { return }
@@ -179,7 +143,6 @@ public final class PreviewCanvasController: NSViewController {
         }
     }
 
-    /// The preview names of the file (shown before rendering).
     public func setNames(_ list: [String]) {
         names = list
         if tabTitles.count != list.count { tabTitles = list }
@@ -198,7 +161,6 @@ public final class PreviewCanvasController: NSViewController {
         if isViewLoaded { show() }
     }
 
-    /// Leaves the paused state and asks for the first build.
     public func resume() {
         guard isPaused else { return }
         isPaused = false
@@ -206,7 +168,6 @@ public final class PreviewCanvasController: NSViewController {
         onRefresh?()
     }
 
-    /// Selects a preview; in the grid this zooms into it (single layout).
     public func select(_ i: Int, zoom: Bool = false) {
         selectedIndex = i
         if zoom { layout = .single }
@@ -223,10 +184,6 @@ public final class PreviewCanvasController: NSViewController {
         if isViewLoaded { show() }
     }
 
-    /// Mode buttons: Live and Selectable are exclusive; Variants (light
-    /// and dark side by side) and Grid toggle. On a live canvas, Variants
-    /// cycles off → color scheme → orientation → dynamic type → off when
-    /// clicked without its menu (`setVariants` picks one directly).
     public func setMode(_ m: PreviewCanvasMode) {
         switch m {
         case .live, .selectable: mode = m
@@ -245,7 +202,6 @@ public final class PreviewCanvasController: NSViewController {
         if isViewLoaded { show() }
     }
 
-    /// Variants of the selected preview on a live canvas (nil: off).
     public func setVariants(_ kind: PreviewVariantKind?) {
         variantKind = kind
         showsVariants = kind != nil
@@ -254,10 +210,8 @@ public final class PreviewCanvasController: NSViewController {
         onLayoutChange?()
     }
 
-    /// The canvas shows a preview device (not rendered images).
     public var isLiveCanvas: Bool { liveSession != nil }
 
-    /// Connects the canvas to a preview device's picture (nil: images).
     public func attach(_ session: DeviceLiveSession?) {
         if liveSession === session { return }
         liveSession?.removeObserver(self)
@@ -266,13 +220,11 @@ public final class PreviewCanvasController: NSViewController {
         if isViewLoaded { show() }
     }
 
-    /// An update started (true) or ended; the last picture stays meanwhile.
     public func setUpdating(_ on: Bool) {
         isUpdating = on
         if isViewLoaded { reloadTabs(); statusLabel.stringValue = on ? "Updating…" : statusLabel.stringValue == "Updating…" ? "" : statusLabel.stringValue }
     }
 
-    /// Shows a banner over the last picture (nil removes it).
     public func setBanner(title: String, issues: [PreviewIssue] = [], message: String? = nil) {
         banner = (title, issues, message)
         if isViewLoaded { show() }
@@ -291,10 +243,8 @@ public final class PreviewCanvasController: NSViewController {
         if isViewLoaded { show() }
     }
 
-    /// The zoom pop-up's title ("Fit" or "<n>%").
     public var zoomTitle: String { zoom.map { "\(Int(($0 * 100).rounded()))%" } ?? "Fit" }
 
-    /// The rendered previews for the current color scheme.
     public var shown: [PreviewRenderer.Rendered] {
         guard case .rendered(let all) = state else { return [] }
         let match = all.filter { $0.scheme == colorScheme }
@@ -311,8 +261,6 @@ public final class PreviewCanvasController: NSViewController {
     @objc private func refreshClicked() { onRefresh?() }
     @objc private func cardClicked(_ g: NSClickGestureRecognizer) { if let v = g.view as? PreviewCard { select(v.index, zoom: true) } }
 
-    /// A live tile was clicked: it becomes the selected preview; in
-    /// Selectable mode its source is revealed too.
     func tileClicked(_ preview: Int) {
         if selectedIndex != preview {
             selectedIndex = preview
@@ -327,7 +275,6 @@ public final class PreviewCanvasController: NSViewController {
     }
     @objc public func zoomToFit(_ sender: Any?) { setZoom(nil) }
 
-    /// The device menu (§17 item 3).
     func deviceMenu() -> NSMenu {
         let m = NSMenu()
         for r in devices.rows {
@@ -353,8 +300,6 @@ public final class PreviewCanvasController: NSViewController {
         onLayoutChange?()
     }
 
-    /// The bottom-left device pop-up's title: the chosen device, else
-    /// "Automatic – <device>".
     public var devicePopUpTitle: String { devicePopUp.itemArray.first?.title ?? "" }
 
     func updateDevicePopUp() {
@@ -363,7 +308,6 @@ public final class PreviewCanvasController: NSViewController {
         devicePopUp.menu = menu
     }
 
-    /// Canvas settings (§17 item 4): a popover of switches, all off.
     public func setSetting(_ name: String, _ on: Bool) {
         if on { settings.on.insert(name) } else { settings.on.remove(name) }
         if name == "Color Scheme" { setColorScheme(on ? .dark : .light) } else if isViewLoaded { show() }
@@ -389,19 +333,14 @@ public final class PreviewCanvasController: NSViewController {
 
     @objc private func switchFlipped(_ s: NSSwitch) { if let n = s.identifier?.rawValue { setSetting(n, s.state == .on) } }
 
-    /// The base variant of live tiles from the canvas settings (Color
-    /// Scheme → dark, Orientation → landscape left, Dynamic Type → the
-    /// chosen size, `accessibility1` by default).
     public var baseVariant: PreviewVariant {
         PreviewVariant(colorScheme: settings.on.contains("Color Scheme") ? "dark" : nil,
                        dynamicType: settings.on.contains("Dynamic Type") ? dynamicTypeSize : nil,
                        orientation: settings.on.contains("Orientation") ? .landscapeLeft : nil)
     }
 
-    /// The size the Dynamic Type switch applies.
     public var dynamicTypeSize = "accessibility1"
 
-    /// Capture: copies the shown preview image to the pasteboard.
     @discardableResult
     @objc public func capture(_ sender: Any?) -> Bool {
         if case .live(let tiles) = state, let image = liveSession?.image, !tiles.isEmpty {
@@ -427,7 +366,6 @@ public final class PreviewCanvasController: NSViewController {
         pop.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
-    /// The status line (for tests).
     public var statusText: String { statusLabel.stringValue }
 
     func show() {
@@ -499,10 +437,8 @@ public final class PreviewCanvasController: NSViewController {
         ])
     }
 
-    /// The device frames shown (tests).
     public internal(set) var framedCount = 0
 
-    /// A rendered preview at the zoom (or fitting) inside a device frame.
     private func framed(_ r: PreviewRenderer.Rendered) -> NSView {
         let image = NSImage(contentsOf: r.png) ?? NSImage()
         if let z = zoom { image.size = NSSize(width: image.size.width * z, height: image.size.height * z) }
@@ -515,7 +451,6 @@ public final class PreviewCanvasController: NSViewController {
         return PreviewDeviceFrameView(content: iv)
     }
 
-    /// Header tabs: one per preview, spinner while building, eye when rendered.
     func reloadTabs() {
         tabStrip.arrangedSubviews.forEach { $0.removeFromSuperview() }
         headerTabs = []
@@ -541,11 +476,9 @@ public final class PreviewCanvasController: NSViewController {
         }
     }
 
-    /// One card: name above the image; a selected card has an accent ring.
     private func card(_ r: PreviewRenderer.Rendered, index: Int, large: Bool) -> NSView {
         let image = NSImage(contentsOf: r.png) ?? NSImage()
         if !large {
-            // Thumbnails fit in 180 points.
             let scale = min(1, 180 / max(image.size.width, image.size.height, 1))
             image.size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
         }
@@ -570,7 +503,6 @@ public final class PreviewCanvasController: NSViewController {
         return stack
     }
 
-    /// Cards in rows of two, in a scroll view.
     private func grid(_ list: [PreviewRenderer.Rendered]) -> NSView {
         let rows = NSStackView()
         rows.orientation = .vertical
@@ -600,7 +532,6 @@ public final class PreviewCanvasController: NSViewController {
         return scroll
     }
 
-    /// The status pill sits at the top centre of the canvas (§4.4).
     private func topCentered(_ v: NSView) -> NSView {
         let box = NSView()
         v.translatesAutoresizingMaskIntoConstraints = false
@@ -624,8 +555,6 @@ public final class PreviewCanvasController: NSViewController {
         return box
     }
 
-    /// UIKit previews without a simulator: an iPhone, what is needed and
-    /// a button to Settings ▸ Simulators (no red: nothing failed).
     private func needsSimulatorCard(_ message: String) -> NSView {
         let icon = NSImageView(image: NSImage(systemSymbolName: "rectangle.portrait", accessibilityDescription: "Simulator") ?? NSImage())
         icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 28, weight: .light)
@@ -653,7 +582,6 @@ public final class PreviewCanvasController: NSViewController {
 
     @objc private func openSimulatorSettings() { onOpenSimulatorSettings?() }
 
-    /// The error card: a red-edged box with the first diagnostic.
     private func errorCard(_ message: String) -> NSView {
         let title = NSTextField(labelWithString: "Preview build failed")
         title.font = .boldSystemFont(ofSize: 12)
@@ -680,23 +608,13 @@ final class PreviewCard: NSStackView {
     var index = 0
 }
 
-/// Canvas mode (`reference-ui-6.md` §4.4, E7 / E10). It is on in every new
-/// editor (window); while it is on, the canvas area is drawn for a file
-/// that declares previews and left out for one that does not (the Canvas
-/// segment and Editor ▸ Canvas still show the mode as on). Turning it off,
-/// or turning on Assistant or Code Review, is remembered until the user
-/// turns it on again.
 @MainActor final class CanvasAutoState {
     var modeOn = true
 }
 
 extension WorkspaceWindowController {
-    /// Canvas mode is on (Editor ▸ Canvas checked, the Canvas segment
-    /// selected), whether or not a canvas is drawn.
     public var isCanvasModeOn: Bool { canvasAuto.modeOn }
 
-    /// Turns canvas mode on (the other editor modes off) or off. On, the
-    /// canvas is drawn if the focused file has previews.
     public func setCanvasMode(_ on: Bool) {
         defer { updateToolbarState() }
         guard on else {
@@ -704,15 +622,11 @@ extension WorkspaceWindowController {
             setCanvasShown(false)
             return
         }
-        endEditorModes(except: .canvas)   // reference-ui-5.md §4.2
+        endEditorModes(except: .canvas)
         canvasAuto.modeOn = true
         updateCanvasForOpenedFile()
     }
 
-    /// After the focused editor opened a file (or canvas mode came on):
-    /// in canvas mode, draws the canvas for a file with previews and
-    /// removes it for one without; otherwise lists the file's previews in
-    /// the shown canvas.
     func updateCanvasForOpenedFile() {
         guard editor !== editorArea.tab.assistant else { return }
         let has = editor.fileURL.map { CanvasAutoShow.hasPreviews(fileName: $0.lastPathComponent, text: editor.text) } ?? false
@@ -724,7 +638,5 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// A canvas is drawn; in canvas mode it comes and goes with the
-    /// focused file's previews (tests).
     public var canvasShownAutomatically: Bool { canvas != nil && canvasAuto.modeOn }
 }

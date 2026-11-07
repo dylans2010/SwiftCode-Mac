@@ -1,7 +1,5 @@
 import Foundation
 
-/// Maintains the autonomous multi-goal graph across a takeover session.
-/// Tracks root → current → completed → pending → rejected goal relationships.
 @MainActor
 public final class AssistGoalGraph {
     public private(set) var rootGoal: String = ""
@@ -52,8 +50,6 @@ public final class AssistGoalGraph {
     }
 }
 
-/// Session-wide coordination state shared between the expansion, continuation,
-/// drift, and stability engines so safety limits observe the whole takeover loop.
 @MainActor
 public final class AssistTakeoverSessionState {
     public static let shared = AssistTakeoverSessionState()
@@ -72,7 +68,6 @@ public final class AssistTakeoverSessionState {
     }
 }
 
-/// Determines whether to continue autonomous execution and generates next tasks
 @MainActor
 public final class AssistTaskContinuationEngine {
     private let context: AssistContext
@@ -82,7 +77,6 @@ public final class AssistTaskContinuationEngine {
         self.context = context
     }
 
-    /// Decides if autonomous execution should continue
     public func shouldContinue(currentGoal: String, completedPlan: AssistExecutionPlan) async -> Bool {
         let takeoverEnabled = UserDefaults.standard.bool(forKey: "assist.takeoverEnabled")
         guard takeoverEnabled else { return false }
@@ -121,7 +115,6 @@ public final class AssistTaskContinuationEngine {
         return true
     }
 
-    /// Generates the next task to execute, validating each candidate against the goal graph
     public func generateNextTask(previousGoal: String, completedPlan: AssistExecutionPlan, expandedGoals: [String]) async -> String? {
         let session = AssistTakeoverSessionState.shared
         let rootGoal = session.goalGraph.rootGoal.isEmpty ? previousGoal : session.goalGraph.rootGoal
@@ -152,7 +145,6 @@ public final class AssistTaskContinuationEngine {
         return nil
     }
 
-    /// Resets the continuation state
     public func reset() {
         completedTaskCount = 0
         AssistTakeoverSessionState.shared.reset()

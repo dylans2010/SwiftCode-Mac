@@ -6,7 +6,6 @@ import SwiftCodeDebug
     @Test func theFlatpakRunsTheHostsAdapterThroughItsWrapper() {
         let env = ["FLATPAK_ID": "io.github.MarcoDotIO.Ycode", "PATH": "/nonexistent"]
         #expect(LLDBDAP.locate(environment: env, toolDirectory: "/app/libexec/swiftcode-host") == "/app/libexec/swiftcode-host/lldb-dap")
-        // An explicit adapter still wins.
         #expect(LLDBDAP.locate(environment: env.merging(["SWIFTCODE_LLDB_DAP": "/opt/lldb-dap"]) { $1 }, toolDirectory: "/x") == "/opt/lldb-dap")
     }
 

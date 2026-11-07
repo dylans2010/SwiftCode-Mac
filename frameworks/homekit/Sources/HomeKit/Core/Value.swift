@@ -1,9 +1,5 @@
-// Characteristic values: the Codable wire form and the API form
-// (object-model.md §7 "Value representation in the API").
-
 import Foundation
 
-/// A characteristic value as stored and sent across the store boundary.
 public enum SwiftCodeHomeValue: Codable, Hashable, Sendable {
     case bool(Bool)
     case int(Int64)
@@ -14,8 +10,6 @@ public enum SwiftCodeHomeValue: Codable, Hashable, Sendable {
     case array([SwiftCodeHomeValue])
     case dictionary([String: SwiftCodeHomeValue])
 
-    /// The value as the API shows it: booleans and numbers as `NSNumber`,
-    /// strings as `String`, TLV8 and data as `Data`.
     public var apiValue: Any {
         switch self {
         case .bool(let b): return NSNumber(value: b)
@@ -29,7 +23,6 @@ public enum SwiftCodeHomeValue: Codable, Hashable, Sendable {
         }
     }
 
-    /// Numeric view (bools as 0/1), nil for non-numbers.
     public var doubleValue: Double? {
         switch self {
         case .bool(let b): return b ? 1 : 0
@@ -40,8 +33,6 @@ public enum SwiftCodeHomeValue: Codable, Hashable, Sendable {
         }
     }
 
-    /// A loose conversion from an API value without a format: used for values
-    /// the app hands over where no metadata applies (event trigger values).
     public init?(any value: Any?) {
         guard let value else { return nil }
         switch value {
@@ -68,8 +59,6 @@ public enum SwiftCodeHomeValue: Codable, Hashable, Sendable {
         }
     }
 
-    /// A Swift numeric or NSNumber as Double (exact for the integer types the
-    /// formats use); nil for anything else. Swift `Bool` is not a number here.
     static func number(_ value: Any) -> Double? {
         switch value {
         case let v as Int where type(of: value) == Int.self: return Double(v)
@@ -89,7 +78,6 @@ public enum SwiftCodeHomeValue: Codable, Hashable, Sendable {
         }
     }
 
-    /// Exact integer view of a Swift integer or NSNumber, to keep 64-bit values exact.
     static func integer(_ value: Any) -> (signed: Int64?, unsigned: UInt64?)? {
         switch value {
         case let v as Int where type(of: value) == Int.self: return (Int64(v), v >= 0 ? UInt64(v) : nil)

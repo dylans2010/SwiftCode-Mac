@@ -39,11 +39,6 @@ struct HashGeneratorView: View {
     func generateHashes() {
         let data = Data(inputText.utf8)
 
-        // Note: MD5 and SHA-1 are not in CryptoKit for security reasons,
-        // but often used for checksums. For this tool, we'll use SHA256/512 from CryptoKit.
-        // MD5/SHA1 would usually need a different library or manual implementation in pure Swift.
-        // To keep it simple and native, we'll focus on what CryptoKit provides or use placeholders.
-
         sha256Hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         sha512Hash = SHA512.hash(data: data).map { String(format: "%02x", $0) }.joined()
         sha1Hash = Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined()

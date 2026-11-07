@@ -3,8 +3,6 @@ import Testing
 import SwiftCodeProfiler
 @testable import SwiftCodeIDECore
 
-/// Gauge's window (specs/ide/profiler.md §6) on a synthetic trace, and the
-/// remote profile commands (§5). No network, no simulator.
 @MainActor
 @Suite(.serialized) struct GaugeWindowTests {
     @Test func remoteProfileCommands() {

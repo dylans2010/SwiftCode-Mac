@@ -1,10 +1,3 @@
-//
-//  AssistAvailableModel.swift
-//  SwiftCode
-//
-//  Universal internal model-provider abstraction for Assist and Antigravity.
-//
-
 import Foundation
 
 public enum ModelSource: String, Codable, Sendable, CaseIterable {
@@ -30,7 +23,6 @@ public enum ModelSource: String, Codable, Sendable, CaseIterable {
         }
     }
 }
-
 
 public enum AssistModelStatus: String, Codable, Sendable {
     case available = "Available"

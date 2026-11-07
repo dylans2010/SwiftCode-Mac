@@ -1,13 +1,11 @@
 import USDCore
 
-/// A composed prim on a stage.
 public struct Prim {
     public let stage: Stage
     public let path: Path
 
     public var name: String { path.name }
 
-    /// The strongest authored type name ("" for typeless prims).
     public var typeName: String {
         for o in stage.opinions(path) {
             if let t = o.spec.fields[FieldKey.typeName]?.stringValue, !t.isEmpty { return t }
@@ -15,7 +13,6 @@ public struct Prim {
         return ""
     }
 
-    /// The strongest defining specifier (`def` or `class`), else `over`.
     public var specifier: Specifier {
         for o in stage.opinions(path) {
             if case .specifier(let s)? = o.spec.fields[FieldKey.specifier], s != .over { return s }
@@ -23,7 +20,6 @@ public struct Prim {
         return .over
     }
 
-    /// True when the prim and all its ancestors have a defining specifier.
     public var isDefined: Bool {
         guard !path.isRoot else { return true }
         return specifier != .over && Prim(stage: stage, path: path.parent).isDefined
@@ -34,7 +30,6 @@ public struct Prim {
 
     public func metadata(_ key: String) -> Value? { stage.resolvedField(key, at: path) }
 
-    /// Applied API schemas (the composed `apiSchemas` list op).
     public var appliedSchemas: [String] {
         var items: [String] = []
         for o in stage.opinions(path).reversed() {
@@ -59,7 +54,6 @@ public struct Prim {
 
     public var attributes: [Attribute] { propertyNames.compactMap(attribute) }
 
-    /// Variant sets with their variants and the current selection.
     public var variantSets: [(name: String, variants: [String], selection: String?)] {
         guard let index = stage.primIndex(path) else { return [] }
         var names: [String] = []
@@ -82,15 +76,12 @@ public struct Prim {
         }
     }
 
-    /// The sites that contribute opinions to this prim (the root site
-    /// always), strongest first (for tools).
     public var arcs: [(arc: ArcType, layer: String, path: Path)] {
         stage.primIndex(path)?.strengthOrdered.filter { $0.arc == .root || $0.stack.hasSpec(at: $0.path) }
             .map { ($0.arc, $0.stack.identifier, $0.path) } ?? []
     }
 }
 
-/// A composed attribute or relationship.
 public struct Attribute {
     public let stage: Stage
     public let path: Path
@@ -116,9 +107,6 @@ public struct Attribute {
 
     public func metadata(_ key: String) -> Value? { stage.resolvedField(key, at: path) }
 
-    /// The value at the default time (time samples ignored), or at `time`
-    /// (stage time codes) where the strongest opinion with samples or a
-    /// default wins. Blocked values return nil.
     public func value(at time: Double? = nil) -> Value? {
         for o in opinions {
             if let time, case .timeSamples(let samples)? = o.spec.fields[FieldKey.timeSamples], !samples.isEmpty {
@@ -132,8 +120,6 @@ public struct Attribute {
         return nil
     }
 
-    /// Authored time samples of the strongest opinion that has any, mapped
-    /// to stage times.
     public var timeSamples: [TimeSample] {
         for o in opinions {
             if case .timeSamples(let samples)? = o.spec.fields[FieldKey.timeSamples] {
@@ -143,7 +129,6 @@ public struct Attribute {
         return []
     }
 
-    /// Composed connections or relationship targets, in stage namespace.
     public var targets: [Path] {
         let field = isRelationship ? FieldKey.targetPaths : FieldKey.connectionPaths
         var items: [Path] = []
@@ -159,7 +144,6 @@ public struct Attribute {
         return items
     }
 
-    /// Linear interpolation for floating-point values, held otherwise.
     static func sample(_ samples: [TimeSample], at t: Double) -> Value? {
         guard let first = samples.first else { return nil }
         if t <= first.time { return first.value == .valueBlock ? nil : first.value }
@@ -192,9 +176,6 @@ extension Stage {
         FieldKey.typeName,
     ]).union(FieldKey.childrenFields)
 
-    /// One layer holding the composed result: every prim with its resolved
-    /// specifier, type, metadata, attribute values, time samples (in stage
-    /// time) and targets. Composition arcs are baked in and dropped.
     public func flatten() -> Layer {
         var out = Layer(identifier: rootLayer.identifier)
         for (key, value) in rootLayer.pseudoRoot.fields where ![FieldKey.subLayers, FieldKey.subLayerOffsets, FieldKey.primChildren].contains(key) {

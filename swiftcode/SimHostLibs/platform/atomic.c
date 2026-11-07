@@ -1,17 +1,3 @@
-/*
- * atomic.c - the OSAtomic* family, OSMemoryBarrier and the OSAtomic queues
- * of SwiftCode's libsystem_platform.
- *
- * Clean-room SwiftCode code. Behavior from the public OSAtomic(3) man pages:
- * - arithmetic and logical operations return the NEW value, except the
- *   *Orig variants, which return the original value;
- * - the *Barrier variants are full memory barriers, the others are atomic
- *   but impose no ordering;
- * - OSAtomicTestAndSet/Clear(n, addr) operate on bit (0x80 >> (n & 7)) of
- *   byte (addr + (n >> 3)) and return the bit's original value;
- * - OSAtomicEnqueue/Dequeue are a LIFO with the link at a given offset in
- *   each element; OSAtomicFifoEnqueue/Dequeue are a FIFO.
- */
 #include "yc_platform.h"
 
 #define RLX __ATOMIC_RELAXED
@@ -93,10 +79,6 @@ YC_EXPORT void YC_FN(OSMemoryBarrier)(void)
     __atomic_thread_fence(SEQ);
 }
 
-/* ---- LIFO queue: OSQueueHead { void *head; long generation; } ---------
- * Lock-free with a 128-bit compare-and-swap of (head, generation); the
- * generation count defeats ABA. */
-
 typedef struct {
     void *head;
     long generation;
@@ -133,8 +115,6 @@ static void snapshot(yc_queue_head *q, void **head, long *gen)
 {
     yc_u64 lo, hi;
     yc_u32 status;
-    /* A single-copy-atomic 128-bit read: ldaxp, then stlxp the same value
-     * back to make sure the pair was read atomically. */
     do {
         __asm__ volatile("ldaxp %0, %1, [%2]" : "=&r"(lo), "=&r"(hi) : "r"(q) : "memory");
         __asm__ volatile("stlxp %w0, %1, %2, [%3]" : "=&r"(status) : "r"(lo), "r"(hi), "r"(q) : "memory");
@@ -165,7 +145,6 @@ YC_EXPORT void *YC_FN(OSAtomicDequeue)(yc_queue_head *q, yc_size_t offset)
     return head;
 }
 #else
-/* Host-test fallback for non-arm64 hosts: a global lock. */
 static yc_i32 queue_lock;
 
 YC_EXPORT void YC_FN(OSAtomicEnqueue)(yc_queue_head *q, void *elem, yc_size_t offset)
@@ -189,9 +168,6 @@ YC_EXPORT void *YC_FN(OSAtomicDequeue)(yc_queue_head *q, yc_size_t offset)
     return head;
 }
 #endif
-
-/* ---- FIFO queue: OSFifoQueueHead { void *head; void *tail; int lock; } -
- * SwiftCode uses the third word as a lock word for the futex lock. */
 
 typedef struct {
     void *head;

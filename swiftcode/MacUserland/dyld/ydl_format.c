@@ -1,7 +1,3 @@
-// ydl_format.c - export tries, chained fixups and classic rebase/bind
-// opcodes (specs/macos/dyld.md §2, §4). Clean-room SwiftCode code written from
-// the public Mach-O format headers' definitions; host-testable (no system
-// calls, no global state).
 #include "ydl_format.h"
 
 int ydl_strcmp(const char *a, const char *b) {
@@ -113,7 +109,7 @@ int ydl_trie_find(const uint8_t *trie, size_t size, const char *name, struct ydl
                 c++;
             }
             if (c >= end || c == edge) return -1;
-            c++;  // the edge's NUL
+            c++;
             uint64_t child = ydl_uleb(&c, end, &bad);
             if (bad) return -1;
             if (same) {
@@ -127,8 +123,6 @@ int ydl_trie_find(const uint8_t *trie, size_t size, const char *name, struct ydl
     }
     return -1;
 }
-
-// --- chained fixups ---------------------------------------------------------
 
 int64_t ydl_chained_import_count(const uint8_t *blob, size_t size) {
     if (size < 28) return -1;
@@ -246,8 +240,6 @@ int64_t ydl_chained_apply(const uint8_t *blob, size_t size, uint8_t *load_addres
     }
     return applied;
 }
-
-// --- classic opcodes ---------------------------------------------------------
 
 static uint64_t *slot(const uint64_t *addresses, const uint64_t *sizes, uint32_t n, uint32_t seg, uint64_t offset) {
     if (seg >= n || offset + 8 > sizes[seg] || offset + 8 < offset) return 0;

@@ -1,25 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/BuildToolbarView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
-// Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
-// BLOCKED references (left intact, owned by other scopes or unaudited):
-// RESOLVED by fix W-V2 (and A4 for the toolbar model):
-// - ToolbarManager / ToolbarTool (A4, SwiftCodeUI/Window/ToolbarItem.swift);
-//   the @ObservedObject uses below are fixed to @State / plain refs because
-//   ToolbarManager is @Observable, not ObservableObject.
-// - XcodeBuildAPI: exists in SwiftCodeXcodebuild (all methods this view calls).
-// - SwiftViewDetector: landed in SwiftCodePreviews (PreviewDiscoveryService).
-// - PreviewManager / FullAppRunManager / BuildViewModel: landed by W-V2 in
-//   SwiftCodeUI (VisualUIBuilder/PreviewManager.swift, Window/FullAppRunManager.swift,
-//   Window/BuildViewModel.swift).
-// - DocumentCoordinator / ProjectSessionStore: in SwiftCodeIDECore, imported below.
-// - EditorViewModel (SwiftCodeEditorKit), SourceFileDocument, SwiftCodeToolbarDelegate:
-//   all exist in production.
-// STILL OPEN (not this file): SwiftCodeToolbarDelegate.presentCustomizationPalette()
-//   has no handler anywhere (pre-existing; the audit notes it).
-// Wiring: WorkspaceWindowController+ToolbarBand is the destination toolbar — this
-// view is its SwiftUI pinned-tools strip (Tools Hub / App Details / scheme picker /
-// Swift Files menu / Actions menu / pinned tools / Build & Stop).
-
 import SwiftUI
 import AppKit
 import SwiftCodeBuild
@@ -34,7 +12,6 @@ struct BuildToolbarView: View {
     @State var viewModel: BuildViewModel
     let projectURL: URL
     @Bindable var editorViewModel: EditorViewModel
-    // V2 fix W-V2: ToolbarManager is @Observable, not ObservableObject.
     @State private var toolbarManager = ToolbarManager.shared
 
     private var buildManager: XcodeBuildManager {
@@ -106,10 +83,6 @@ struct BuildToolbarView: View {
                         if let docURL = editorViewModel.activeDocument?.fileURL {
                             await editorViewModel.saveActiveDocument()
                             NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
-                            // Saved just above, so disk content is the editor text here.
-                            // (W-V2: SourceFileDocument has no `content`/`url` members in
-                            // production — the document-model reconciliation is
-                            // coordinator-owned; fileURL + disk read is the equivalent.)
                             let content = (try? String(contentsOf: docURL, encoding: .utf8)) ?? ""
                             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(content, filename: docURL.path)
                             await PreviewManager.shared.startFreshLivePreviewSession(sourcePath: docURL.path, sourceCode: preparedCode)
@@ -127,7 +100,6 @@ struct BuildToolbarView: View {
                             if let targetArt = artboard {
                                 visDoc.scene.activeArtboardID = targetArt.id
                                 let session = PreviewManager.shared.getOrCreateRuntimeSession(for: targetArt.id)
-                                // W-V2: startBuildPipeline requires projectDirectory + sourceFile.
                                 if let docURL = editorViewModel.activeDocument?.fileURL {
                                     await session.startBuildPipeline(projectDirectory: docURL.deletingLastPathComponent(), sourceFile: docURL, targetViewName: targetArt.name)
                                 }
@@ -298,30 +270,23 @@ struct BuildToolbarView: View {
                 .help("View SwiftCode Project Archive metadata")
             }
 
-            // W-V2: SourceFileDocument has no `content`/`url` in production; the disk
-            // read below can be stale when edits are unsaved — it only gates this button.
             if let docURL = editorViewModel.activeDocument?.fileURL, docURL.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: (try? String(contentsOf: docURL, encoding: .utf8)) ?? "") {
                 Button {
                     Task {
-                        // 1. Save current editor contents immediately
                         await editorViewModel.saveActiveDocument()
 
-                        // 2. Launch Visual UI Builder immediately
                         NotificationCenter.default.post(
                             name: .toolbarToolActivated,
                             object: nil,
                             userInfo: ["toolID": "visual_ui_builder"]
                         )
 
-                        // 3. Focus the Default Artboard
                         if let visDoc = DocumentCoordinator.shared.visualUIDocument {
                             if let defaultArtboard = visDoc.scene.artboards.first(where: { $0.name == "Default" }) {
                                 visDoc.scene.activeArtboardID = defaultArtboard.id
                             }
                         }
 
-                        // 4. Start a brand-new preview session (saved just above, so
-                        // disk content is the editor text here — see the W-V2 note above).
                         let content = (try? String(contentsOf: docURL, encoding: .utf8)) ?? ""
                         let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(content, filename: docURL.path)
                         await PreviewManager.shared.startFreshLivePreviewSession(
@@ -337,7 +302,6 @@ struct BuildToolbarView: View {
                 .help("Launch Live Viewport for the active Swift document")
             }
 
-            // ESSENTIAL ACTIONS: Scheme selector
             if !buildManager.discoveredSchemes.isEmpty {
                 Picker("Scheme", selection: $buildManager.selectedScheme) {
                     ForEach(buildManager.discoveredSchemes, id: \.self) { scheme in
@@ -354,7 +318,6 @@ struct BuildToolbarView: View {
             openSwiftFilesMenu
             swiftActionsMenu
 
-            // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
             HStack(spacing: 8) {
                 ForEach(toolbarManager.enabledTools) { tool in
                     ToolbarToolView(tool: tool, toolbarManager: toolbarManager, buildManager: buildManager)
@@ -365,17 +328,14 @@ struct BuildToolbarView: View {
             Divider()
                 .frame(height: 16)
 
-            // ESSENTIAL ACTIONS: Build & Stop Buttons
             HStack(spacing: 8) {
                 Button(action: {
                     Task {
-                        // Automatically open XcodeBuildLogView
                         NotificationCenter.default.post(
                             name: .toolbarToolActivated,
                             object: nil,
                             userInfo: ["toolID": "xcode_build_logs"]
                         )
-                        // Trigger build in background
                         await buildManager.runBuild(projectURL: projectURL)
                     }
                 }) {
@@ -426,12 +386,9 @@ struct BuildToolbarView: View {
     }
 }
 
-// MARK: - Toolbar Tool View
-
 @MainActor
 struct ToolbarToolView: View {
     let tool: ToolbarTool
-    // V2 fix W-V2: @Observable types are held as plain refs when passed in.
     var toolbarManager: ToolbarManager
     @Bindable var buildManager: XcodeBuildManager
 
@@ -501,8 +458,6 @@ struct ToolbarToolView: View {
     }
 }
 
-// MARK: - Pinned Tool Drop Delegate
-
 struct PinnedToolDropDelegate: DropDelegate {
     let tool: ToolbarTool
     let manager: ToolbarManager
@@ -535,4 +490,3 @@ struct PinnedToolDropDelegate: DropDelegate {
         }
     }
 }
-

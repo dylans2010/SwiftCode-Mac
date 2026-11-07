@@ -5,9 +5,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// An in-memory DAP adapter (protocol shapes per the DAP specification),
-/// so the debugger-depth flows are checked even where no process can be
-/// launched under a real debugger.
 final class ScriptedAdapter: DAPTransport, @unchecked Sendable {
     var receiving: (@Sendable (Data?) -> Void)?
     var decoder = DAPFraming.Decoder()
@@ -27,7 +24,6 @@ final class ScriptedAdapter: DAPTransport, @unchecked Sendable {
     private let lock = NSRecursiveLock()
 
     func send(_ data: Data) {
-        // Requests arrive from several tasks at once.
         lock.lock()
         defer { lock.unlock() }
         for raw in decoder.append(data) {
@@ -96,7 +92,6 @@ final class ScriptedAdapter: DAPTransport, @unchecked Sendable {
         let attach = try #require(adapter.requests.first { $0["command"]?.string == "attach" })
         #expect(attach["arguments"]?["pid"]?.int == 4242 && attach["arguments"]?["threadFormat"]?.string == DebugThread.format)
 
-        // Console: evaluate in the repl context, echoed after the prompt.
         wc.debugArea.consoleField.stringValue = "p 6 * 7"
         await wc.debugArea.submitConsoleLine()
         let eval = try #require(adapter.requests.last { $0["command"]?.string == "evaluate" })
@@ -106,7 +101,6 @@ final class ScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(wc.debugArea.consoleFilter == .target)
         wc.debugArea.setFilter(.all)
 
-        // setVariable, watch expressions, print description.
         #expect(await session.setValue("7", of: "a") == "7")
         let setVar = try #require(adapter.requests.last { $0["command"]?.string == "setVariable" })
         #expect(setVar["arguments"]?["variablesReference"]?.int == 5 && setVar["arguments"]?["name"]?.string == "a")
@@ -116,15 +110,11 @@ final class ScriptedAdapter: DAPTransport, @unchecked Sendable {
         _ = await session.printDescription(of: "s")
         #expect(session.consoleHistory.last == "po s")
 
-        // Threads by queue.
         #expect(session.threadsByQueue.map(\.queue) == ["com.apple.main-thread", "com.example.work"])
         wc.toggleThreadsByQueue(nil)
         #expect(wc.navigator.debugThreadRows.map(\.title) == ["com.apple.main-thread", "com.example.work"])
 
-        // Disassembly and instruction stepping.
         wc.toggleAlwaysShowDisassembly(nil)
-        // (A frame whose source is not on this computer has its disassembly
-        // already; the editor shows it once the toggle is on.)
         #expect(await waitUntil(60) { session.disassemblyPCIndex == 8 && wc.editor.text.contains("0x1000  add w0, w0, w1") })
         #expect(wc.editor.gutter.marks.currentLine == 9)
         await session.step("over")
@@ -133,7 +123,6 @@ final class ScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(await waitUntil(60) { session.disassemblyPCIndex.map { session.disassembly[$0].address } == "0x1004" })
         wc.toggleAlwaysShowDisassembly(nil)
 
-        // Watchpoint: dataBreakpointInfo + setDataBreakpoints, navigator row, stop.
         let w = await session.watch("s")
         #expect(w?.verified == true && w?.accessType == "write")
         let set = try #require(adapter.requests.last { $0["command"]?.string == "setDataBreakpoints" })
@@ -145,9 +134,6 @@ final class ScriptedAdapter: DAPTransport, @unchecked Sendable {
         #expect(await waitUntil(60) { session.debugClient == nil })
     }
 
-    /// Regression (runWithSwiftBuild): the launch request carries a unique
-    /// LLVM_PROFILE_FILE outside the product directory, alongside the
-    /// scheme's own variables, and the program's cwd defaults to its folder.
     @Test func launchRequestEnvironment() async throws {
         _ = NSApplication.shared
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-dapenv-\(UUID().uuidString)")

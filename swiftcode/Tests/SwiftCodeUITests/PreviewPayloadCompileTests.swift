@@ -4,10 +4,6 @@ import Testing
 import SwiftCodeSubprocess
 @testable import SwiftCodeUI
 
-/// The simulator path's payloads and hosts compile with the installed SDKs
-/// (specs/ide/previews.md §Live previews): SwiftUI content, a view
-/// controller body, a view body, `@Previewable` state and a provider, for
-/// iOS and visionOS. Skipped for an SDK that is not installed. No device.
 @Suite(.serialized, .heavyIntegration, .previewHostCheck, .timeLimit(.minutes(10))) struct PreviewPayloadCompileTests {
     static let source = """
     import SwiftUI
@@ -68,12 +64,10 @@ import SwiftCodeSubprocess
         let t0 = Date()
         try await Task.detached { try compiler.compilePayload(sources, output: out) }.value
         print(String(format: "payload compile (%@): %.2f s", platform.rawValue, Date().timeIntervalSince(t0)))
-        // The two entry points are exported.
         let nm = try Subprocess.run("/usr/bin/xcrun", ["nm", "-gU", out.path]).stdoutText
         #expect(nm.contains("_swiftcode_preview_make") && nm.contains("_swiftcode_preview_count"))
         let app = try await Task.detached { try PreviewHost.build(platform: platform, deploymentTarget: target, workDirectory: work) }.value
         #expect(FileManager.default.isExecutableFile(atPath: app.appendingPathComponent(PreviewHost.executableName).path))
-        // An error in a preview body maps to the #Preview's line.
         let broken = Self.source.replacingOccurrences(of: "Card(title: \"two\")", with: "Card(title: missing)")
         try broken.write(to: file, atomically: true, encoding: .utf8)
         let s2 = try PreviewPayloadGenerator.generate(moduleFiles: [file], previewed: [PreviewedFile(url: file, previews: PreviewDiscovery.previews(in: broken))],

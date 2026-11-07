@@ -1,12 +1,7 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Find menu's in-file items beyond the find bar's own
-/// (`specs/ide/reference-ui-5.md` §2.5): Find and Select Next / Previous,
-/// Replace and Find Previous, Use Selection for Replace, Select Next /
-/// Previous Occurrence; and selecting a workspace search match.
 extension SourceEditorController {
-    /// Selects a match of the workspace search (clamped to the text).
     public func selectFindMatch(_ range: NSRange) {
         _ = view
         let len = (textView.string as NSString).length
@@ -15,13 +10,9 @@ extension SourceEditorController {
         textView.scrollRangeToVisible(r)
     }
 
-    // MARK: Find menu
-
     @objc public func findAndSelectNext(_ sender: Any?) { findAndSelect(forward: true) }
     @objc public func findAndSelectPrevious(_ sender: Any?) { findAndSelect(forward: false) }
 
-    /// Find and Select Next / Previous: the next find-bar match after the
-    /// selection (before it, going back), wrapping, added to the selection.
     public func findAndSelect(forward: Bool) {
         if find.matches.isEmpty { findChanged() }
         addToSelection(find.matches, forward: forward)
@@ -30,9 +21,6 @@ extension SourceEditorController {
     @objc public func selectNextOccurrence(_ sender: Any?) { selectOccurrence(forward: true) }
     @objc public func selectPreviousOccurrence(_ sender: Any?) { selectOccurrence(forward: false) }
 
-    /// Select Next / Previous Occurrence: the next occurrence of the
-    /// selected text (exact case), added to the selection. With only an
-    /// insertion point, the word around it is selected first.
     public func selectOccurrence(forward: Bool) {
         _ = view
         let ns = textView.string as NSString
@@ -78,8 +66,6 @@ extension SourceEditorController {
         findStep(forward: false)
     }
 
-    /// Use Selection for Replace (⇧⌘E): the selection becomes the
-    /// replacement text.
     @objc public func useSelectionForReplace(_ sender: Any?) {
         _ = view
         let sel = textView.selectedRange()
@@ -87,7 +73,6 @@ extension SourceEditorController {
         findBar.replaceField.stringValue = (textView.string as NSString).substring(with: sel)
     }
 
-    /// The find bar's replacement text (tests).
     public var findBarReplacement: String { findBar.replaceField.stringValue }
 
     static func wordRange(in ns: NSString, at offset: Int) -> NSRange {

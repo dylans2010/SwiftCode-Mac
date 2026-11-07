@@ -16,7 +16,6 @@ import Testing
         "When": Date(timeIntervalSince1970: 1_700_000_000),
     ]
 
-    /// XML written by Foundation reads and writes back byte for byte.
     @Test func foundationXMLRoundTrips() throws {
         let data = try PropertyListSerialization.data(fromPropertyList: sample, format: .xml, options: 0)
         let doc = try PropertyListDocument(data: data)

@@ -2,12 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeIcon
 
-/// ICON-READER (specs/formats/icon-format.md, README-icon.md): the model,
-/// the reader's errors, the writer's layout, specializations and frames.
-/// Every document here is our own, written in the test.
 struct IconDocumentTests {
-    /// A document in Icon Composer's layout that uses every key of §3, with
-    /// specializations, every fill form, and keys SwiftCode does not know.
     static let everyKey = """
     {
       "color-space-for-untagged-svg-colors" : "display-p3",
@@ -243,7 +238,6 @@ struct IconDocumentTests {
     @Test func everyKeyRoundTripsByteForByte() throws {
         let d = try doc(Self.everyKey)
         #expect(d.json.formatted() == Self.everyKey)
-        // Reading what was written gives the same model.
         #expect(try IconDocument(data: d.data()) == d)
     }
 
@@ -318,14 +312,11 @@ struct IconDocumentTests {
         let c = try IconColor(parsing: "extended-srgb:0.00000,0.53333,1.00000,1.00000")
         #expect(c.space == .extendedSRGB && c.components == [0, 0.53333, 1, 1])
         #expect(c.description == "extended-srgb:0.00000,0.53333,1.00000,1.00000")
-        // Hand-written text is kept as it was while the components are unchanged.
         #expect(try IconColor(parsing: "srgb:1,0,0,1").description == "srgb:1,0,0,1")
         var changed = try IconColor(parsing: "gray:0.5,1")
         changed.components[0] = 0.25
         #expect(changed.description == "gray:0.25000,1.00000")
     }
-
-    // MARK: Errors (README-icon.md ICON-READER)
 
     @Test(arguments: [
         (#"{"fill":"x"}"#, "missing: groups"),
@@ -354,8 +345,6 @@ struct IconDocumentTests {
         }
     }
 
-    // MARK: Specializations (§5)
-
     @Test func renditionsUseTheirAppearancesEntries() throws {
         let d = try doc(#"""
         {"groups":[{"layers":[],"opacity":0.9,"opacity-specializations":[
@@ -364,7 +353,6 @@ struct IconDocumentTests {
         let o = d.groups[0].opacity
         let table: [(IconRendition, Double)] = [(.default, 0.2), (.dark, 0.3), (.tintedLight, 0.4), (.tintedDark, 0.4), (.clearLight, 0.4), (.clearDark, 0.4)]
         for (r, v) in table { #expect(o.resolve(r.appearance, .iOS) == v, "\(r)") }
-        // With specializations present, the plain key is not used.
         #expect(d.resolved(IconAppearance.dark, .iOS).groups[0].opacity == 0.3)
     }
 
@@ -391,8 +379,6 @@ struct IconDocumentTests {
         #expect(d.resolved(IconAppearance.light, .watchOS).groups[0].opacity == 1)
     }
 
-    // MARK: Defaults (§3)
-
     @Test func defaultsApplyWhenKeysAreAbsent() throws {
         let r = try doc(#"{"groups":[{"layers":[{"image-name":"a.svg"}]}]}"#).resolved(.light, .iOS)
         let g = r.groups[0], l = g.layers[0]
@@ -414,7 +400,6 @@ struct IconDocumentTests {
         #expect(plain.background(.dark, .iOS) == .systemDark)
         let solid = try doc(#"{"groups":[],"fill":{"solid":"srgb:1,0,0,1"}}"#)
         #expect(solid.background(.light, .iOS) == .solid(.srgb(1, 0, 0)))
-        // The compiled output gives a plain fill the system dark gradient in dark.
         #expect(solid.background(.dark, .iOS) == .systemDark)
         let dark = try doc(#"{"groups":[],"fill-specializations":[{"value":"automatic"},{"appearance":"dark","value":{"solid":"srgb:0,0,1,1"}}]}"#)
         #expect(dark.background(.dark, .iOS) == .solid(.srgb(0, 0, 1)))
@@ -440,13 +425,10 @@ struct IconDocumentTests {
         #expect(d.value(for: "groups[3].opacity", appearance: .light, platform: .iOS) == nil)
     }
 
-    // MARK: Frames (§4.4)
-
     @Test func layerFramesFollowTheSpecExample() {
         let f = IconGeometry.layerFrame(natural: IconSize(width: 400, height: 400), layer: .identity,
                                         group: IconPosition(scale: 2, translation: IconPoint(x: 50, y: -30)), canvas: 1024)
         #expect(f == IconRect(x: 162, y: 82, width: 800, height: 800))
-        // Positive y moves down; the layer's own position comes first.
         let g = IconGeometry.layerFrame(natural: IconSize(width: 100, height: 50), layer: IconPosition(scale: 2, translation: IconPoint(x: 0, y: 10)),
                                         group: .identity, canvas: 1024)
         #expect(g == IconRect(x: 412, y: 472, width: 200, height: 100))
@@ -465,7 +447,6 @@ struct IconDocumentTests {
     }
 }
 
-/// The package on disk: reading, writing, frames from real files, validation.
 struct IconPackageTests {
     func tempDir() throws -> URL {
         let u = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-icon-\(UUID().uuidString)")

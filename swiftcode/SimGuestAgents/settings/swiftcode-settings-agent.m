@@ -1,28 +1,3 @@
-// swiftcode-settings-agent: SwiftCode's guest settings agent
-// (specs/simulator/simulator-features.md §6 item 1, "SwiftCode implementation").
-//
-// A launchd daemon of the simulated device (swiftcode-simd writes its plist into
-// DEV/data/Library/LaunchDaemons). It connects an AF_UNIX stream socket to
-// /private/var/run/dev.swiftcode.settings, which the VMM answers itself (the
-// host channel; SwiftCodeSimFeatures/SettingsChannel.swift has the frames and
-// requests), and applies what the host asks with the runtime's own public
-// interfaces:
-//   - preferences through CFPreferences (so cfprefsd sees them; never the
-//     files behind its back), then Darwin notifications with notify_post;
-//   - location simulation through CoreLocation's simulation manager
-//     (CLSimulationManager, reached by name at run time; every selector is
-//     checked before use), which talks to locationd's
-//     com.apple.locationd.simulation service. The entitlement of that name is
-//     linked into __TEXT,__entitlements (the simulator reads entitlements
-//     from that section).
-// It reports the notifications the host watches as events. When the
-// connection ends (the device was restored from a snapshot, swiftcode-simd
-// stopped) it connects again.
-//
-// Clean-room: written from the spec, the public CoreFoundation, notify and
-// CoreLocation headers, and selector names published by open-source
-// location tools; no Apple binary was read.
-
 #import <Foundation/Foundation.h>
 #import <CoreLocation/CoreLocation.h>
 #import <objc/message.h>
@@ -32,7 +7,6 @@
 #import <unistd.h>
 #import <errno.h>
 #import <mach/mach.h>
-// <servers/bootstrap.h> (macOS SDK; libSystem exports these on iOS too).
 extern mach_port_t bootstrap_port;
 extern kern_return_t bootstrap_look_up(mach_port_t bp, const char *service_name, mach_port_t *sp);
 
@@ -54,8 +28,6 @@ static void logLine(NSString *fmt, ...) {
     fprintf(stderr, "swiftcode-settings-agent[%d]: %s\n", getpid(), s.UTF8String);
     fflush(stderr);
 }
-
-// MARK: - Frames
 
 static BOOL writeAll(int fd, const uint8_t *p, size_t n) {
     while (n > 0) {
@@ -95,8 +67,6 @@ static BOOL readAll(int fd, uint8_t *p, size_t n) {
     }
     return YES;
 }
-
-// MARK: - Preferences and notifications
 
 static void synchronize(NSSet<NSString *> *domains) {
     for (NSString *d in domains) {
@@ -145,9 +115,6 @@ static BOOL voiceOverRunning(void) {
     return NO;
 }
 
-/// Starts an on-demand launchd job by a message to one of its Mach
-/// services: an empty message (id 0, no reply port) that the job's server
-/// ignores; launchd starts the job to receive it.
 static NSString *startService(NSString *name) {
     mach_port_t port = MACH_PORT_NULL;
     kern_return_t kr = bootstrap_look_up(bootstrap_port, name.UTF8String, &port);
@@ -163,8 +130,6 @@ static NSString *startService(NSString *name) {
     logLine(@"started %@ (send %d)", name, kr);
     return kr == KERN_SUCCESS ? nil : [NSString stringWithFormat:@"cannot message %@ (%d)", name, kr];
 }
-
-// MARK: - Location (CLSimulationManager)
 
 static id simulationManager(NSString **error) {
     if (gSimulation) return gSimulation;
@@ -213,7 +178,6 @@ static double number(NSDictionary *d, NSString *key, double fallback) {
     return [v respondsToSelector:@selector(doubleValue)] ? [v doubleValue] : fallback;
 }
 
-/// A scenario file (spec §4.10): { Locations: [keyed-archived CLLocation], Options: { LocationRepeatBehavior, LocationDeliveryBehavior } }.
 static NSString *writeScenario(NSDictionary *step) {
     NSString *path = step[@"path"];
     NSArray *points = step[@"points"];
@@ -233,9 +197,6 @@ static NSString *writeScenario(NSDictionary *step) {
         NSError *error = nil;
         NSData *d = [NSKeyedArchiver archivedDataWithRootObject:l requiringSecureCoding:YES error:&error];
         if (!d) return [NSString stringWithFormat:@"cannot archive a location: %@", error.localizedDescription];
-        // The location's type key must be 1 for locationd to play the fix
-        // (found on SwiftCode: with the 0 a new CLLocation archives, the
-        // scenario delivers nothing and clients get error 0).
         NSMutableDictionary *archive = [NSPropertyListSerialization propertyListWithData:d options:NSPropertyListMutableContainers
                                                                                   format:NULL error:&error];
         for (id o in archive[@"$objects"]) {
@@ -299,8 +260,6 @@ static NSString *runLocation(NSArray *steps) {
     return nil;
 }
 
-// MARK: - Requests
-
 static void watch(NSArray *names) {
     for (NSString *n in names) {
         if (![n isKindOfClass:NSString.class] || gWatchTokens[n]) continue;
@@ -347,7 +306,6 @@ static NSDictionary *handle(NSDictionary *request) {
         }
         reply[@"values"] = values;
     } else if ([op isEqual:@"notify"]) {
-        // Optional states: { name: uint64 } set with notify_set_state before the post.
         NSDictionary *states = request[@"states"];
         for (NSString *name in states) {
             int token = 0;
@@ -373,8 +331,6 @@ static NSDictionary *handle(NSDictionary *request) {
     return reply;
 }
 
-// MARK: - The connection
-
 static int connectToHost(void) {
     for (size_t i = 0; i < sizeof kSocketPaths / sizeof kSocketPaths[0]; i++) {
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -399,7 +355,6 @@ static void serve(void) {
     for (;;) {
         int fd = connectToHost();
         if (fd < 0) {
-            // No host end (an older swiftcode-simd, or none yet): try again, slower over time.
             if (failures++ % 30 == 0) logLine(@"no host channel (errno %d); retrying", errno);
             sleep(failures < 30 ? 2 : 20);
             continue;

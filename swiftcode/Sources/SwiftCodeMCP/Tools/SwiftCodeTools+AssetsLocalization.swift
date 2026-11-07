@@ -2,112 +2,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy asset-catalog / localization tool family (Wave 7,
-/// slice E).
-///
-/// Behaviour source: Legacy's `AssistAssetCatalogListTool`,
-/// `AssistAssetCatalogTool`, `AssistAssetImageAddTool`,
-/// `AssistLocalizationAuditTool`, `AssistLocalizationTool`,
-/// `AssistLocalizeAppTool`, `AssistStringCatalogMigratorTool`,
-/// `AssistStringsFileValidateTool` and `AssistStringsLocalizationTool`
-/// (Dylan's own code, ported under MIT). The behaviour contract is
-/// `~/SwiftCode-Migration-Workspace/scratch/wave7-slice-e-spec.md`.
-///
-/// Conventions, following Waves 1–6:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases are NOT supported: SwiftCode's argument
-///   validation rejects unknown arguments before the handler runs.
-///   The three tool-name aliases in this slice (`asset_catalog` →
-///   `asset_catalog_manager`, `localization` →
-///   `localization_manager`, `string_catalog` →
-///   `string_catalog_migrator`, from Legacy's `AssistToolRegistry`
-///   alias table) live in `MCPServer.toolAliases`, which the
-///   coordinator owns — they are not added here.
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers, booleans) the way SwiftCode's other tools do — Legacy's
-///   string-only map is not reproduced. Tools whose Legacy result
-///   carries no data, or whose data keys vary by action / file type
-///   (`asset_catalog_manager`, `localization_manager`,
-///   `localize_app`, `string_catalog_migrator`,
-///   `strings_localization`), return a plain text result instead.
-/// * Paths never escape the workspace. Legacy's tools use three
-///   different path rules; the unchecked one (append to the
-///   workspace root, so `..` escapes) is NOT ported. Paths go
-///   through either the slice's strict resolver
-///   (`assetsStrictResolve` — Legacy's `AssistWorkspacePaths.resolve`
-///   rule: any `..` as text is refused, absolute paths must be
-///   inside the workspace) or the session resolver
-///   (`resolveFileReadingPath`). A `..` that stays inside the
-///   workspace is refused here, unlike Wave 6's session-resolver
-///   tools, because these tools' Legacy messages say `..` is
-///   forbidden and the message must stay honest.
-/// * `.xcstrings` goes through SwiftCode's own `StringCatalog` seam
-///   (`SwiftCodeStrings`, re-exported by `SwiftCodeIDECore`): parsing,
-///   `sourceLanguage`, `keys`, `setTranslation`, `addKey`, and
-///   `data()` for writing. Where Legacy needs a shape
-///   `StringCatalog` has no setter for (a `"new"`-state placeholder
-///   unit, deleting one locale of a key), the handler edits the
-///   catalog's public `json` (`OrderedJSON`) directly — the seam's
-///   own model, not a parallel one. `.strings` files use Legacy's
-///   line-based scan/edit: `StringsFile.parse` throws on the first
-///   malformed line, which would change Legacy's per-line error
-///   behaviour, so the line scan is the faithful port.
-/// * Asset catalogs use plain `FileManager` directory work, the way
-///   Legacy does: these tools only enumerate `.xcassets` directories
-///   and write `Contents.json` text. `SwiftCodeAssetCatalog` is a CAR
-///   compiler whose directory loader is not visible to `SwiftCodeMCP`
-///   (no target dependency, and `Package.swift` is out of this
-///   slice's scope), and nothing here needs a compiled CAR.
-/// * Approval gating: the six writing tools
-///   (`asset_catalog_manager`, `asset_image_add`,
-///   `localization_manager`, `localize_app`,
-///   `string_catalog_migrator`, `strings_localization`) are
-///   `writes: true` with `safeMutation` annotations. Text writes go
-///   through `commit()`; the byte copy in `asset_image_add` is its
-///   own `MCPChange` + `approve()` before `copyItem`. The `writes`
-///   flag is static per tool, so `asset_catalog_manager`'s
-///   `inspect`/`list`, `localization_manager`'s `list_languages` /
-///   `read_key` / `validate`, and `localize_app`'s `status` are
-///   refused in `readOnly` mode even though they write nothing —
-///   exactly as the approval model specifies for dry-run tools.
-///   There is no Autopilot bypass.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * Every path is confined to the workspace (§1 of the spec).
-/// * `asset_catalog_manager`'s `create_colorset` keeps Legacy's
-///   hardcoded colour components verbatim: the hex arguments are
-///   honoured only in the success message, as in Legacy.
-/// * `asset_catalog_manager` rejects an `assetName` containing `/`,
-///   `\`, or `..`; Legacy did not check it.
-/// * `localization_manager`'s `.xcstrings` `add_translation` on a
-///   new file writes the seam's canonical empty catalog
-///   (`sourceLanguage` + `version`); Legacy's new file had neither.
-/// * `string_catalog_migrator` writes through `commit()`, which
-///   creates parent directories; Legacy's raw write failed when
-///   the parent was missing.
-/// * `localize_app` `set_development_region` ignores a catalog-write
-///   failure (including a review refusal of the catalog change)
-///   after the plist is committed, as Legacy ignores its
-///   catalog-write failure.
-/// * Structured data uses typed values (ints, bools) where Legacy's
-///   map held strings only; keys are unchanged.
-/// * Legacy's `suggestedNextActions: ["localization_audit"]` on
-///   `localize_app` is dropped (SwiftCode's `MCPToolResult` has no such
-///   field); the "Next: call localization_audit …" line in the
-///   summary keeps the pointer.
-/// * Legacy's `LiveDiffStreamer`, `XcodeProjWriter.addFileReference`
-///   and `ProjectSessionStore.recordAssistFileMutation` side channels
-///   are not ported: no unreviewed side writes, and new files are
-///   not auto-registered in any project file.
-///
-/// Honest refusals inside the slice are Legacy's own, preserved
-/// verbatim: `localization_manager` `add_translation` on a
-/// `.stringsdict` file (plural/format-rule dictionaries cannot take
-/// a plain string), and `localize_app` `localize` when no
-/// localizable keys are discovered.
 extension SwiftCodeMCPHost {
     var assetsLocalizationTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -204,7 +98,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - asset_catalog_list
 
     func assetsListCatalogs(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -256,10 +149,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    /// A catalog's sets: immediate children ending in `.imageset`,
-    /// `.colorset`, `.appiconset`, `.dataset`, or `.symbolset`,
-    /// sorted by name. (Wider than the manager's inspect filter —
-    /// Legacy's two tools genuinely differ; see the spec §3/§4.)
     nonisolated static func assetsListSets(in catalog: URL) -> [String] {
         guard let contents = try? FileManager.default.contentsOfDirectory(at: catalog, includingPropertiesForKeys: nil) else { return [] }
         var sets: [String] = []
@@ -272,8 +161,6 @@ extension SwiftCodeMCPHost {
         }
         return sets.sorted()
     }
-
-    // MARK: - asset_catalog_manager
 
     func assetsManageCatalog(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -313,9 +200,6 @@ extension SwiftCodeMCPHost {
             let darkHex = (call.arguments["darkColorHex"]?.string) ?? lightHex
             let setURL = catalogURL.appendingPathComponent("\(assetName).colorset")
             let contentsURL = setURL.appendingPathComponent("Contents.json")
-            // Legacy's file text verbatim — including its quirk: the
-            // components below are hardcoded and the hex arguments
-            // appear only in the success message (see the spec §4).
             let contentsJSON = """
             {
               "colors" : [
@@ -384,7 +268,7 @@ extension SwiftCodeMCPHost {
                                        original: text(of: contentsURL), proposed: contentsJSON,
                                        summary: "Create image set \(assetName).imageset in \(catalogPath)"), call: call, session: s)
             return .text("Created Image Set '\(assetName)' in \(catalogPath) with universal 1x/2x/3x slots.")
-        default: // inspect, list
+        default:
             guard FileManager.default.fileExists(atPath: catalogURL.path) else {
                 throw MCPToolError("Asset catalog does not exist at path: \(catalogPath)")
             }
@@ -398,17 +282,11 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Confinement for a set name: Legacy did not check it, and a
-    /// `..` name would escape the catalog. The character set is
-    /// otherwise Legacy's (no charset check on this tool, unlike
-    /// `asset_image_add`).
     nonisolated static func assetsCheckAssetName(_ name: String) throws {
         guard !name.contains("/") && !name.contains("\\") && !name.contains("..") && name != "." && name != ".." else {
             throw MCPToolError("Invalid assetName: must be a bare name without slashes or '..'.")
         }
     }
-
-    // MARK: - asset_image_add
 
     func assetsAddImage(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -464,9 +342,6 @@ extension SwiftCodeMCPHost {
         """
         let contentsURL = imageSetURL.appendingPathComponent("Contents.json")
         let destImageURL = imageSetURL.appendingPathComponent(fileName)
-        // Contents.json first (commit creates the imageset directory),
-        // then the image copy as its own approved change — Legacy's
-        // order, and the approval model's non-text shape (§6.2).
         try await commit(MCPChange(tool: call.name, path: contentsURL.path, relativePath: relative(contentsURL.path, in: s),
                                    original: text(of: contentsURL), proposed: contentsJSON,
                                    summary: "Add image set \(imageName).imageset to \(catalog)"), call: call, session: s)
@@ -495,7 +370,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - localization_audit
 
     func assetsAuditLocalization(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -560,10 +434,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    /// Legacy's unused-key scan, verbatim: the first 2000 Swift files,
-    /// skipping files over 300,000 characters, stopping once the
-    /// concatenated text exceeds 5,000,000 characters; a key is unused
-    /// when its quoted form does not appear in that text.
     nonisolated static func assetsFindUnusedKeys(allKeys: Set<String>, swiftFiles: [URL]) -> [String] {
         var swiftText = ""
         for file in swiftFiles.prefix(2000) {
@@ -580,8 +450,6 @@ extension SwiftCodeMCPHost {
         }
         return unused
     }
-
-    // MARK: - localization_manager
 
     func assetsManageLocalization(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -604,7 +472,6 @@ extension SwiftCodeMCPHost {
         if lowered == "validate" {
             return try assetsValidateLocalizationFile(fileURL: fileURL, ext: ext)
         }
-        // read_key / add_translation
         switch ext {
         case "xcstrings":
             return try await assetsManageXCStrings(fileURL: fileURL, action: lowered, call: call, s: s)
@@ -627,7 +494,6 @@ extension SwiftCodeMCPHost {
         } else if let own = Self.assetsLocaleFor(url: fileURL) {
             languages.insert(own)
         }
-        // Sibling locale files (en.lproj, es.lproj, …) in the workspace.
         if let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
             for case let url as URL in enumerator {
                 let last = url.lastPathComponent
@@ -665,7 +531,7 @@ extension SwiftCodeMCPHost {
                 throw MCPToolError("Validation failed: \(fileURL.lastPathComponent) is not a valid property list.")
             }
             return .text("Validation passed for \(fileURL.lastPathComponent). Valid property list.")
-        default: // strings
+        default:
             guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
                 throw MCPToolError("Cannot read \(fileURL.lastPathComponent)")
             }
@@ -725,7 +591,6 @@ extension SwiftCodeMCPHost {
             }
             return .text("Successfully \(replaced ? "updated" : "added") translation for '\(key)' in \(fileURL.lastPathComponent).")
         }
-        // read_key
         guard let key = call.arguments["key"]?.string, !key.isEmpty else {
             throw MCPToolError("key parameter is required for read_key")
         }
@@ -758,9 +623,6 @@ extension SwiftCodeMCPHost {
             }
             return .text("Found localization entry for '\(key)': \(entry)")
         }
-        // add_translation on a .stringsdict requires a plural/format-rule
-        // dictionary, not a plain string; silently writing a plain string
-        // would corrupt the format rules.
         throw MCPToolError("add_translation is not supported for .stringsdict files: entries are plural/format-rule dictionaries, not plain strings. Use the .xcstrings String Catalog (or a .strings file) for plain string translations.")
     }
 
@@ -786,7 +648,6 @@ extension SwiftCodeMCPHost {
             return .structured(["key": .string(key), "value": .string(found), "locale": .string(locale), "file": .string(fileURL.lastPathComponent)],
                                summary: "Key '\(key)' (\(locale)) = \"\(found)\" in \(fileURL.lastPathComponent).")
         }
-        // add_translation
         guard let key = call.arguments["key"]?.string, !key.isEmpty,
               let value = call.arguments["translation"]?.string else {
             throw MCPToolError("key and translation parameters are required for add_translation")
@@ -802,7 +663,6 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - localize_app
 
     func assetsLocalizeApp(_ call: MCPToolCall) async throws -> MCPToolResult {
         let action = (call.arguments["action"]?.string ?? "localize").lowercased()
@@ -850,8 +710,6 @@ extension SwiftCodeMCPHost {
         if let data = try? Data(contentsOf: catalogURL), let parsed = try? StringCatalog(data: data) {
             catalog = parsed
         } else {
-            // Missing or invalid existing catalog starts from an empty
-            // one (Legacy's `readCatalog ?? [:]`).
             catalog = StringCatalog(sourceLanguage: developmentRegion)
         }
         let merge = Self.assetsMergeCatalog(&catalog, sourceLanguage: developmentRegion, keys: discovered.keys, languages: languages, translations: translations)
@@ -963,9 +821,6 @@ extension SwiftCodeMCPHost {
            var catalog = try? StringCatalog(data: data) {
             catalog.json["sourceLanguage"] = .string(region)
             let catalogText = String(decoding: catalog.data(), as: UTF8.self)
-            // Legacy ignores a catalog write failure here; a review
-            // refusal of the catalog change is ignored the same way —
-            // the plist change stands either way.
             do {
                 try await commit(MCPChange(tool: call.name, path: catalogURL.path, relativePath: relative(catalogURL.path, in: s),
                                            original: text(of: catalogURL), proposed: catalogText,
@@ -973,14 +828,11 @@ extension SwiftCodeMCPHost {
                                  call: call, session: s)
                 note = " Also set the String Catalog source language to \(region)."
             } catch {
-                // Deliberately ignored, as in Legacy.
             }
         }
         return .structured(["path": .string(relative(plistURL.path, in: s)), "sourceLanguage": .string(region)],
                            summary: "Set CFBundleDevelopmentRegion to '\(region)' (was: \(before)).\(note)")
     }
-
-    // MARK: - localize_app validation / discovery / merge
 
     nonisolated static func assetsValidatedLanguages(_ value: [AnyJSON]?) throws -> [String] {
         guard let raw = value, !raw.isEmpty else {
@@ -1027,9 +879,6 @@ extension SwiftCodeMCPHost {
         return result
     }
 
-    /// Legacy's key discovery, verbatim: `NSLocalizedString("key" …)`
-    /// with an optional `tableName:` (a non-`Localizable`, non-empty
-    /// table is skipped and counted), and `String(localized: "key" …)`.
     nonisolated static func assetsDiscoverLocalizableKeys(in targetDir: URL) -> (keys: Set<String>, skippedTableKeys: Int, filesScanned: Int) {
         var keys = Set<String>()
         var skippedTableKeys = 0
@@ -1084,11 +933,6 @@ extension SwiftCodeMCPHost {
             .replacingOccurrences(of: "\\t", with: "\t")
     }
 
-    /// Legacy's catalog merge, through the `StringCatalog` seam: the
-    /// source language always carries the key itself as the source
-    /// text; target languages get a supplied translation
-    /// (`translated`) or a `"new"`-state placeholder unit with an
-    /// empty value. Added/updated counts follow Legacy exactly.
     nonisolated static func assetsMergeCatalog(_ catalog: inout StringCatalog, sourceLanguage: String, keys: Set<String>, languages: [String], translations: [String: [String: String]]) -> (added: Int, updated: Int, totalKeys: Int) {
         catalog.json["sourceLanguage"] = .string(sourceLanguage)
         catalog.json["version"] = .string("1.0")
@@ -1106,9 +950,6 @@ extension SwiftCodeMCPHost {
                     if existing != nil { updated += 1 } else { added += 1 }
                     catalog.setTranslation(translation, key: key, language: language)
                 } else if assetsCatalogUnit(catalog, key: key, language: language) == nil {
-                    // A "new" placeholder unit has no `StringCatalog`
-                    // setter, so it is built on the seam's own JSON
-                    // model directly.
                     var strings = catalog.json["strings"] ?? .object([])
                     var entry = strings[key] ?? .object([])
                     var locs = entry["localizations"] ?? .object([])
@@ -1142,8 +983,6 @@ extension SwiftCodeMCPHost {
         return "Info.plist keys \(candidates.joined(separator: ", ")) are best localized with InfoPlist.strings tables (see LocalizingApps.md), not the Localizable catalog."
     }
 
-    // MARK: - string_catalog_migrator
-
     func assetsMigrateStringCatalog(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let srcPath = call.arguments["sourceStringsPath"]?.string else {
@@ -1159,7 +998,6 @@ extension SwiftCodeMCPHost {
         guard let content = try? String(contentsOf: srcURL, encoding: .utf8) else {
             throw MCPToolError("Unable to read .strings content at \(srcPath)")
         }
-        // Legacy's regex, verbatim: escaped characters are kept raw.
         let regex = try? NSRegularExpression(pattern: #""([^"\\]*(?:\\.[^"\\]*)*)"\s*=\s*"([^"\\]*(?:\\.[^"\\]*)*)";"#)
         var catalog = StringCatalog(sourceLanguage: "en")
         let nsContent = content as NSString
@@ -1179,8 +1017,6 @@ extension SwiftCodeMCPHost {
                          call: call, session: s)
         return .text("Successfully migrated \(catalog.keys.count) localization keys from `\(srcPath)` to String Catalog `\(dstPath)`.")
     }
-
-    // MARK: - strings_file_validate
 
     func assetsValidateStringsFile(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
@@ -1229,8 +1065,6 @@ extension SwiftCodeMCPHost {
                             "passed": .bool(ok)],
                            summary: lines.joined(separator: "\n"))
     }
-
-    // MARK: - strings_localization
 
     func assetsStringsLocalization(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -1315,7 +1149,6 @@ extension SwiftCodeMCPHost {
             return .structured(["key": .string(key), "value": .string(value), "file": .string(fileURL.lastPathComponent)],
                                summary: "Set key '\(key)' in \(fileURL.lastPathComponent).")
         }
-        // delete
         guard let foundIndex = foundIndex else {
             throw MCPToolError("Key '\(key)' not found in \(fileURL.lastPathComponent).")
         }
@@ -1352,7 +1185,6 @@ extension SwiftCodeMCPHost {
             return .structured(["key": .string(key), "value": .string(value), "locale": .string(locale), "file": .string(fileURL.lastPathComponent)],
                                summary: "Set key '\(key)' (\(locale)) in \(fileURL.lastPathComponent).")
         }
-        // delete
         guard var strings = catalog.json["strings"],
               var entry = strings[key],
               var localizations = entry["localizations"],
@@ -1376,11 +1208,6 @@ extension SwiftCodeMCPHost {
                            summary: "Deleted key '\(key)' (\(locale)) from \(fileURL.lastPathComponent).")
     }
 
-    /// Legacy's file discovery, in order: `<locale>.lproj/Localizable.strings`,
-    /// `Localizable.xcstrings` (workspace root),
-    /// `en.lproj/Localizable.strings`, `Localizable.strings` (workspace
-    /// root), then the first `Localizable.strings` / `Localizable.xcstrings`
-    /// found by enumerating the workspace.
     nonisolated static func assetsFindLocalizationFile(locale: String, root: URL) -> URL? {
         let candidates = [
             "\(locale).lproj/Localizable.strings",
@@ -1405,12 +1232,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Shared helpers
 
-    /// Legacy's `resolvePath` / `AssistWorkspacePaths.resolve` rule:
-    /// trim; reject empty and any `..` as text; an absolute path must
-    /// equal the workspace root or sit under it; a relative path is
-    /// appended to the root and must stay under it.
     nonisolated static func assetsStrictResolve(_ raw: String, root: URL) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("..") else { return nil }
@@ -1425,7 +1247,6 @@ extension SwiftCodeMCPHost {
         return candidate
     }
 
-    /// The `.lproj` parent directory's language code, or nil.
     nonisolated static func assetsLocaleFor(url: URL) -> String? {
         let parent = url.deletingLastPathComponent().lastPathComponent
         if parent.hasSuffix(".lproj") {
@@ -1434,8 +1255,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Legacy's `.strings` line parser: skip blank / `//` / `/*` lines,
-    /// split on the first `=`, strip a trailing `;`, unquote both sides.
     nonisolated static func assetsParseStringsLine(_ line: String) -> (key: String, value: String)? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty || trimmed.hasPrefix("//") || trimmed.hasPrefix("/*") { return nil }
@@ -1457,12 +1276,10 @@ extension SwiftCodeMCPHost {
         return inner.replacingOccurrences(of: "\\\"", with: "\"").replacingOccurrences(of: "\\\\", with: "\\")
     }
 
-    /// Legacy's `.strings` escaper: `\` → `\\`, `"` → `\"`, newline → `\n`.
     nonisolated static func assetsEscape(_ text: String) -> String {
         text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\\n")
     }
 
-    /// Legacy's `localization_audit` key scan of a `.strings` file.
     nonisolated static func assetsParseStringsKeys(at url: URL) -> Set<String> {
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         var keys: Set<String> = []
@@ -1482,9 +1299,6 @@ extension SwiftCodeMCPHost {
         return keys
     }
 
-    /// Legacy's `localization_audit` xcstrings scan, through the
-    /// `StringCatalog` seam: a key counts for a locale only when that
-    /// key's entry has a `localizations` entry for the locale.
     nonisolated static func assetsXCStringsKeys(at url: URL) -> [String: Set<String>] {
         guard let data = try? Data(contentsOf: url),
               let catalog = try? StringCatalog(data: data) else { return [:] }
@@ -1497,18 +1311,12 @@ extension SwiftCodeMCPHost {
         return result
     }
 
-    /// The `stringUnit` of one key/locale of a `StringCatalog`, or nil
-    /// when there is no such unit. Legacy's read requires only the
-    /// `value`; a unit without a `state` still counts.
     nonisolated static func assetsCatalogUnit(_ catalog: StringCatalog, key: String, language: String) -> (state: String?, value: String)? {
         guard let unit = catalog.json["strings"]?[key]?["localizations"]?[language]?["stringUnit"],
               let value = unit["value"]?.stringValue else { return nil }
         return (unit["state"]?.stringValue, value)
     }
 
-    /// Legacy's `findInfoPlist`: the first `Info.plist` in the
-    /// workspace (sorted by path), skipping `build`, `DerivedData`
-    /// and `.build` paths.
     nonisolated static func assetsFindInfoPlist(in workspaceRoot: URL) -> URL? {
         guard let enumerator = FileManager.default.enumerator(at: workspaceRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
         var candidates: [URL] = []
@@ -1521,9 +1329,6 @@ extension SwiftCodeMCPHost {
         return candidates.sorted { $0.path < $1.path }.first
     }
 
-    /// Legacy's `findCatalog`: the first file of the given name in the
-    /// target directory (sorted by path), skipping `build` and
-    /// `DerivedData` paths.
     nonisolated static func assetsFindCatalog(named name: String, in targetDir: URL) -> URL? {
         guard let enumerator = FileManager.default.enumerator(at: targetDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
         var candidates: [URL] = []

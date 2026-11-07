@@ -1,10 +1,3 @@
-/*
- * thread_id.c - the lock-owner identity used by the unfair locks
- * (guest build only; the host tests provide their own).
- *
- * Clean-room SwiftCode code. See yc_platform.h. TPIDRRO_EL0 = &tsd[0]
- * (host-libraries.md section 8.1), or 0 before a TSD base exists.
- */
 #include "yc_platform.h"
 
 YC_HIDDEN yc_u32 __yc_lock_owner_id(void)

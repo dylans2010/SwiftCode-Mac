@@ -1,16 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/CacheInspectorView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-//
-// CLEANUP (2026-11-06, A1): the ported file listed four invented rows
-// ("Syntax Highlighting Map", 2.4 MB, etc.) and its Clear/Purge buttons only
-// removed rows from the in-memory array — nothing on disk was ever touched.
-// Replaced with real data: FileManager enumerates the real cache directories
-// (every subdirectory of ~/Library/Caches and of Xcode's DerivedData), sizes
-// are real recursive totals from URL resource values (.fileSizeKey), and
-// Clear / Purge All really delete the directory with FileManager.removeItem,
-// then re-scan. ~/Library/Application Support is deliberately NOT listed:
-// it holds user data, not caches. Where a directory cannot be read or
-// deleted, the error is shown instead of a made-up size.
 import SwiftUI
 import SwiftCodeUI
 
@@ -84,7 +71,6 @@ struct CacheInspectorView: View {
         isScanning = false
     }
 
-    /// Removes one real cache directory from disk, then drops its row.
     private func clear(_ item: CacheItem) {
         do {
             try FileManager.default.removeItem(at: item.url)
@@ -94,7 +80,6 @@ struct CacheInspectorView: View {
         }
     }
 
-    /// Removes every listed cache directory from disk, then re-scans.
     private func purgeAll() {
         var failures: [String] = []
         for item in items {
@@ -112,9 +97,6 @@ struct CacheInspectorView: View {
         Task { await refresh() }
     }
 
-    /// Real cache locations: each subdirectory of ~/Library/Caches and of
-    /// Xcode's DerivedData, with its real recursive size. Unreadable
-    /// directories are skipped; a missing location contributes nothing.
     private static func scanCacheDirectories() -> [CacheItem] {
         let fileManager = FileManager.default
         var found: [CacheItem] = []
@@ -151,7 +133,6 @@ struct CacheInspectorView: View {
         }
     }
 
-    /// Real recursive total of regular-file sizes under `url`.
     private static func directorySize(at url: URL) -> Int64 {
         var total: Int64 = 0
         guard let enumerator = FileManager.default.enumerator(
@@ -171,9 +152,7 @@ struct CacheInspectorView: View {
 struct CacheItem: Identifiable {
     let id = UUID()
     let name: String
-    /// Human-readable form of the real on-disk size (`sizeBytes`).
     let size: String
     let sizeBytes: Int64
-    /// The real directory this row represents; Clear deletes it.
     let url: URL
 }

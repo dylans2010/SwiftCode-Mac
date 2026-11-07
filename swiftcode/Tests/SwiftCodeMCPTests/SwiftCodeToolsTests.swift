@@ -4,8 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 @testable import SwiftCodeMCP
 
-/// Each SwiftCode tool against `Samples/AgentSamples/Greeter` (a copy) and the
-/// project in `Samples/PackageSamples`.
 @MainActor
 @Suite(.serialized) struct SwiftCodeToolsTests {
     func opened(_ sample: TempSample, policy: MCPWritePolicy = .readOnly) async throws -> SwiftCodeMCPHost {
@@ -22,7 +20,6 @@ import SwiftCodeIDECore
         let host = SwiftCodeMCPHost()
         let none = try await host.server.callTool("workspace_describe")
         #expect(none.isToolError && none.resultText.contains("workspace_open"))
-        // Package.swift opens its folder.
         let open = try await host.server.callTool("workspace_open", ["path": .string(sample.path("Package.swift"))])
         let d = try #require(open.structured)
         #expect(d["name"] == "Greeter" && d["kind"] == "package" && d["schemes"] == ["Greeter"])
@@ -132,7 +129,6 @@ import SwiftCodeIDECore
         let created = try await reviewed.server.callTool("file_write", ["path": "Sources/Greeter/New.swift", "content": "let x = 1\n"])
         #expect(created.structured?["created"]?.bool == true && sample.read("Sources/Greeter/New.swift") == "let x = 1\n")
         #expect(reviews.changes.last?.original == nil)
-        // Ambiguous and missing edits are explained, not applied.
         let ambiguous = try await reviewed.server.callTool("file_edit", ["path": "Sources/Greeter/Greeter.swift", "oldText": "salutation", "newText": "s"])
         #expect(ambiguous.isToolError && ambiguous.resultText.contains("occurs"))
         let missing = try await reviewed.server.callTool("file_edit", ["path": "Sources/Greeter/Greeter.swift", "oldText": "nowhere", "newText": "s"])
@@ -159,7 +155,6 @@ import SwiftCodeIDECore
         #expect(sample.read("Strings/Localizable.xcstrings").contains("\"Welt\""))
         let unknown = try await host.server.callTool("strings_set", ["key": "nope", "language": "de", "value": "x"])
         #expect(unknown.isToolError)
-        // A new language column.
         let fr = try await host.server.callTool("strings_list", ["language": "fr", "missingOnly": true])
         #expect(fr.structured?["strings"]?.array?.count == 2)
     }
@@ -183,7 +178,6 @@ import SwiftCodeIDECore
         }
     }
 
-    /// A stand-in `ssh` that records its command and prints a PNG.
     static func standInSSH(_ dir: URL) throws -> URL {
         let url = dir.appendingPathComponent("ssh")
         try """

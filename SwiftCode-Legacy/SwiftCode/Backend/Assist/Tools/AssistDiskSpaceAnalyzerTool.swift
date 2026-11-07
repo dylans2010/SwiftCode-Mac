@@ -1,8 +1,3 @@
-//
-//  AssistDiskSpaceAnalyzerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistDiskSpaceAnalyzerTool: AssistTool {
@@ -56,7 +51,6 @@ public struct AssistDiskSpaceAnalyzerTool: AssistTool {
         let derivedData = URL(fileURLWithPath: ("~/Library/Developer/Xcode/DerivedData" as NSString).expandingTildeInPath)
         let derivedDataSize = directorySize(url: derivedData)
 
-        // Subdirectories size in workspace
         var subDirReports: [(name: String, sizeStr: String, size: Int64)] = []
         if let subitems = try? FileManager.default.contentsOfDirectory(at: targetDir, includingPropertiesForKeys: [.isDirectoryKey]) {
             for sub in subitems {

@@ -1,8 +1,3 @@
-// ctype.c - character classes for the C locale and the rune-locale table
-// the SDK's inline <ctype.h> functions read (specs/macos/libsystem.md §12).
-// Clean-room SwiftCode code. `_RuneLocale` and the `_CTYPE_*` masks are the
-// public <runetype.h> and <_ctype.h> layouts (interoperability facts);
-// classification follows the C standard's "C" locale.
 #include "ycl.h"
 
 enum {
@@ -97,9 +92,6 @@ YCL_EXPORT int digittoint(int c) {
     return 0;
 }
 
-// Wide-character classes: the C locale classifies only ASCII; other code
-// points are letters if they are not ASCII (enough for identifiers and
-// whitespace splitting), print and graph.
 static int wide_class(int c, uint32_t mask) {
     if (c >= 0 && c < 128) return !!(_DefaultRuneLocale.runetype[c] & mask);
     if (c < 0xA0 || c > 0x10FFFF) return 0;

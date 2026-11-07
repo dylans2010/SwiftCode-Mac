@@ -7,8 +7,6 @@ import SwiftCodeLanguage
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// A language server in memory: answers requests with `handler`, records
-/// every message, and closes on `exit`.
 final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var receiving: (@Sendable (Data?) -> Void)?
@@ -47,8 +45,6 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
     }
 }
 
-/// Edits, the rename preview and references as Find results
-/// (`specs/ide/refactoring.md`), shared by both IDEs.
 @Suite struct LanguageNavigationTests {
     func edit(_ l1: Int, _ c1: Int, _ l2: Int, _ c2: Int, _ text: String) -> TextEdit {
         TextEdit(start: Position(line: l1, character: c1), end: Position(line: l2, character: c2), newText: text)
@@ -58,7 +54,6 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
         let text = "let a = greet(1)\nlet b = greet(2)\n"
         let out = TextEditApplication.apply([edit(0, 8, 0, 13, "welcome"), edit(1, 8, 1, 13, "welcome")], to: text)
         #expect(out == "let a = welcome(1)\nlet b = welcome(2)\n")
-        // A column past the line's end stops at it; UTF-16 columns.
         #expect(TextEditApplication.apply([edit(0, 3, 0, 99, "!")], to: "abcdef\nx") == "abc!\nx")
         #expect(TextEditApplication.apply([edit(0, 2, 0, 3, "B")], to: "\u{E9} a") == "\u{E9} B")
         let ranges = TextEditApplication.ranges([edit(1, 0, 1, 3, "var")], in: text)
@@ -76,7 +71,6 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
                                      .init(line: 2, before: "let x = greet()", after: "let x = welcome()")])
         #expect(p.files[1].lines == [.init(line: 1, before: "greet()", after: "welcome()")])
         #expect(p.summary == "Rename 3 occurrences in 2 files" && p.editCount == 3)
-        // A file that cannot be read is listed with its count only.
         let q = RenamePreview(edit: e, oldName: "greet", newName: "welcome") { _ in nil }
         #expect(q.files.allSatisfy(\.lines.isEmpty) && q.files.map(\.editCount) == [2, 1])
     }
@@ -88,9 +82,7 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
             Location(url: b, start: Position(line: 1, character: 4), end: Position(line: 1, character: 9)),
             Location(url: a, start: Position(line: 1, character: 9), end: Position(line: 1, character: 14)),
             Location(url: b, start: Position(line: 0, character: 4), end: Position(line: 0, character: 9)),
-            // The same place twice (declaration and definition): once.
             Location(url: b, start: Position(line: 0, character: 4), end: Position(line: 0, character: 9)),
-            // A point location: the identifier there.
             Location(url: a, start: Position(line: 1, character: 9), end: Position(line: 1, character: 9)),
         ]
         let results = SymbolResults.fileResults(locs) { texts[$0] }
@@ -117,8 +109,6 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
         #expect(DocumentSymbols.flattened(symbols).map { "\($0.depth)\(DocumentSymbols.badge($0.symbol.kind))\($0.symbol.name)" } == ["0SA", "1Vx", "1Ff", "0Fg"])
     }
 
-    /// SwiftPM 6.4 (swift-build) prints progress lines, "[19 / 23]
-    /// Greeter-product", not "Compiling" lines: one step per target.
     @Test func swiftBuildProgressLinesBecomeOneStepPerTarget() {
         var r = BuildReport(title: "Build Greeter", date: Date(), succeeded: true, log: [
             "Building for debugging...", "[Planning deferred tasks]", "[19 / 23] Greeter-product",
@@ -131,15 +121,12 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
         #expect(s.map(\.target) == ["Greeter-product", "Greeter", "GreeterCore"])
         #expect(s[0].steps.map(\.title) == ["Linking Greeter"] && s[0].steps[0].children[0].title == "Link Greeter")
         #expect(s[0].steps[0].children[0].transcript.count == 3)
-        // The warning is not the link step's: it goes to the scheme's Issues.
         #expect(s[1].steps.map(\.title) == ["Issues"] && s[1].steps[0].warningCount == 1)
         #expect(s[2].steps.map(\.title) == ["Building GreeterCore"])
         #expect(!BuildLogModel.isProgressLine("[3/7] Compiling Demo a.swift") && BuildLogModel.isProgressLine("[3 / 7] Demo"))
     }
 }
 
-/// The language server follows the scheme and the destination
-/// (`specs/ide/language.md` §Build server, "Context changes").
 @MainActor
 @Suite(.serialized) struct LanguageContextTests {
     let mac = Destination(name: "My Mac", specifier: "platform=macOS,arch=arm64", platform: "macOS", kind: .mac)
@@ -172,7 +159,6 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
         service.open(main, text: "print(1)\n")
         service.change(main, text: "print(2)\n")
 
-        // The same destination again: nothing to do.
         s.destination = mac
         await s.languageContextSettled()
         #expect(s.languageRestartCount == 0 && s.language === service)
@@ -186,13 +172,11 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
         let reopened = second.received.first { $0["method"]?.string == "textDocument/didOpen" }
         #expect(reopened?["params"]?["textDocument"]?["text"]?.string == "print(2)\n")
         #expect(s.languageServedContext == LanguageBuildContext(scheme: "Tool", destination: phone.specifier))
-        // The window's edit handler carries over.
         let new = try #require(s.language)
         #expect(new !== service)
         new.onApplyEdit?(WorkspaceEdit(changes: [:]))
         #expect(applied.count == 1)
 
-        // A scheme change too; a burst of changes restarts once.
         s.scheme = "Other"
         s.destination = mac
         s.scheme = "Tool"
@@ -216,8 +200,6 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
         await pkg.languageContextSettled()
         #expect(pkg.languageRestartCount == 0)
 
-        // A project whose server came from a transport without a factory
-        // (no build server to follow): left alone.
         let (s, pdir) = try session("no-factory")
         defer { try? FileManager.default.removeItem(at: pdir) }
         await s.startLanguageService(transport: ScriptedLanguageServer())
@@ -227,8 +209,6 @@ final class ScriptedLanguageServer: DAPTransport, @unchecked Sendable {
         #expect(s.languageRestartCount == 0)
     }
 
-    /// The build server's command line names the new destination: the
-    /// connection file sourcekit-lsp starts it from.
     @Test func theConnectionFileNamesTheNewContext() throws {
         let folder = swiftcodeDir.appendingPathComponent(".build-ide/lang-context/bsp-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }

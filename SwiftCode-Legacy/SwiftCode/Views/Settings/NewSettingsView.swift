@@ -1,5 +1,4 @@
 import SwiftUI
-// MARK: - SettingsView (macOS AppKit native bridging shorthand fallback wrapper)
 
 public struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -15,7 +14,6 @@ public struct SettingsView: View {
             }
     }
 
-    // Keep the original body as a reference/important component, but never shown on UI
     @ViewBuilder
     private var originalBody: some View {
         VStack(spacing: 16) {

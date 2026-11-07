@@ -8,10 +8,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// 05-animation.md §5 (transitions; checklist I-7) and the built-in
-// transitions, observed through the presented layers (frame and opacity of
-// a probed view).
-
 @MainActor
 private final class TransitionHarness {
     let log = Log()

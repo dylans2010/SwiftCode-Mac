@@ -5,14 +5,12 @@ struct DashboardView: View {
     @State private var snapshot: DashboardManager.DashboardSnapshot? = nil
     @State private var isLoading = false
 
-    // Dashboard customization & Widget arrangement states
     @State private var activeWidgets: [String] = ["totalDocs", "tasks", "analyticsChart", "recentDocs", "recentWhiteboards", "recentSnippets", "aiAssistant"]
     @State private var showSettings = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header with Customization Button
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Personal Documentation Ecosystem Dashboard")
@@ -54,7 +52,6 @@ struct DashboardView: View {
                     ProgressView()
                         .padding()
                 } else {
-                    // Customizable Widget Layout Flow - Desktop Adaptive Grid
                     let columns = [GridItem(.adaptive(minimum: 280, maximum: 500), spacing: 20)]
                     LazyVGrid(columns: columns, spacing: 20) {
                         ForEach(activeWidgets, id: \.self) { widgetKey in

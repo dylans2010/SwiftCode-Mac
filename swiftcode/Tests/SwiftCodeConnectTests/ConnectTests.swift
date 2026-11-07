@@ -1,8 +1,3 @@
-// Tests for the SwiftCode Connect port (Legacy -> SwiftCodeConnect).
-// Static only: not executed here (no Swift toolchain in this environment).
-// No network is involved: the envelope round-trip and the /usr/bin/git
-// helper run entirely on the local machine.
-
 import Foundation
 import Testing
 @testable import SwiftCodeConnect
@@ -74,7 +69,6 @@ struct ConnectTests {
         let branches = try ConnectLocalGit.branches(at: root)
         #expect(branches == ["main"])
 
-        // A dirty file shows up as modified.
         try "hello world".write(to: root.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
         let dirty = try ConnectLocalGit.status(at: root)
         #expect(!dirty.isClean)

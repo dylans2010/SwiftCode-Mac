@@ -6,35 +6,6 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Persistence wrappers (round R10; 06 §8, suite T-PERSIST; public API:
-// `AppStorage`, `SceneStorage`, `defaultAppStorage(_:)`).
-//
-// `@AppStorage(key)` reads and writes a value of `UserDefaults` (the
-// standard defaults, `store:`, or the store of `defaultAppStorage`; on Linux
-// swift-corelibs-foundation's implementation). The value lives in the
-// defaults, not in the view: every reader of the key re-renders when it
-// changes, also when the change is made through `UserDefaults` directly
-// (06 §8: an external `set(_:forKey:)` updated the property and fired
-// `onChange`). SwiftCode's mechanism: readers register per store and key; a write
-// through a wrapper invalidates the readers at once; other writes are seen
-// through `UserDefaults.didChangeNotification`, after which each reader
-// compares the stored object with the one it last read.
-//
-// `@SceneStorage(key)` keeps a value per scene (window): views of the same
-// window with the same key share it, it survives the view's removal and
-// re-insertion (navigation, tabs), and each window of a group has its own.
-// SwiftCode's rules (09-open-design.md §4): the scene's values are archived when
-// the app goes to the background and when it is terminated by the system,
-// discarded when the user closes the window or quits (06 §8: values were
-// not restored after a user quit), and restored at launch for the first
-// windows of each scene when an archive exists — that is, after the process
-// ended without a user quit (open question 5 of `10-plan.md`). Archives are
-// property lists in $XDG_STATE_HOME/openviews/<app>/scenes/ (or
-// ~/.local/state/…); the headless host keeps scene storage in memory only.
-
-// MARK: - Values
-
-/// How a stored value maps to a property-list object.
 struct StorageCodec<Value> {
     let encode: (Value) -> Any?
     let decode: (Any) -> Value?
@@ -57,9 +28,6 @@ func storageEqual(_ a: Any?, _ b: Any?) -> Bool {
     }
 }
 
-// MARK: - AppStorage
-
-/// Readers of `UserDefaults` keys (one per wrapper identity).
 @MainActor
 final class AppStorageCenter {
     static let shared = AppStorageCenter()
@@ -79,14 +47,11 @@ final class AppStorageCenter {
 
     func add(_ l: AppStorageLocationBase) { locations[ObjectIdentifier(l)] = WeakAppStorageLocation(l) }
 
-    /// `refreshAll` when any reader exists (called by the host after each
-    /// wake of its run loop).
     func refreshIfObserved() {
         guard !locations.isEmpty else { return }
         refreshAll()
     }
 
-    /// Readers compare the stored objects with the ones they read.
     func refreshAll() {
         for (id, w) in locations {
             guard let l = w.location else { locations[id] = nil; continue }
@@ -94,7 +59,6 @@ final class AppStorageCenter {
         }
     }
 
-    /// A write through a wrapper: the other readers of the key follow.
     func changed(store: UserDefaults, key: String, except: AppStorageLocationBase?, transaction: Transaction) {
         for (id, w) in locations {
             guard let l = w.location else { locations[id] = nil; continue }
@@ -109,7 +73,6 @@ final class WeakAppStorageLocation {
 }
 
 class AppStorageLocationBase: @unchecked Sendable {
-    /// The readers' dependency.
     let dependency = DependencySource()
     let key: String
     let store: UserDefaults
@@ -174,8 +137,6 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// The `UserDefaults` that `@AppStorage` wrappers inside use when they
-    /// name no store.
     public func defaultAppStorage(_ store: UserDefaults) -> some View {
         environment(\._defaultAppStorage, store)
     }
@@ -187,7 +148,6 @@ extension Scene {
     }
 }
 
-/// A value of `UserDefaults` that views read and write like state.
 @propertyWrapper
 public struct AppStorage<Value>: DynamicProperty {
     let key: String
@@ -257,7 +217,6 @@ extension AppStorage: GraphInputComparable {
     }
 }
 
-// Initialisers for the value types the defaults hold.
 extension AppStorage {
     public init(wrappedValue: Value, _ key: String, store: UserDefaults? = nil) where Value == Bool {
         self.init(key: key, defaultValue: wrappedValue, store: store, codec: .plain(Bool.self))
@@ -316,9 +275,6 @@ extension AppStorage {
     }
 }
 
-// MARK: - SceneStorage
-
-/// One window's scene storage.
 @MainActor
 package final class SceneStorageStore {
     final class Entry: @unchecked Sendable {
@@ -327,7 +283,6 @@ package final class SceneStorageStore {
     }
 
     private var entries: [String: Entry] = [:]
-    /// The archive's name for this window ("<scene>.<n>").
     package var archiveKey = ""
 
     package init(values: [String: Any] = [:]) {
@@ -345,7 +300,6 @@ package final class SceneStorageStore {
         return e
     }
 
-    /// The stored values (plist objects).
     package var values: [String: Any] { entries.compactMapValues(\.value) }
 
     package func value(forKey key: String) -> Any? { entries[key]?.value }
@@ -362,14 +316,12 @@ extension EnvironmentValues {
     }
 }
 
-/// Archives of scene storage on disk (window-system hosts).
 @MainActor
 package final class SceneStorageArchive {
     package let directory: URL
 
     package init(directory: URL) { self.directory = directory }
 
-    /// $XDG_STATE_HOME/openviews/<process>/scenes (else ~/.local/state/…).
     package static func forCurrentProcess() -> SceneStorageArchive {
         let env = ProcessInfo.processInfo.environment
         let base = env["XDG_STATE_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
@@ -409,7 +361,6 @@ final class SceneStorageHandle<Value>: @unchecked Sendable {
     var entry: SceneStorageStore.Entry?
 }
 
-/// A value kept per scene (window).
 @propertyWrapper
 public struct SceneStorage<Value>: DynamicProperty {
     let key: String

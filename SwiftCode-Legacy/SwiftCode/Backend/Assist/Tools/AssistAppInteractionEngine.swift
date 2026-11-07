@@ -6,8 +6,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistAppInteraction")
 
-// MARK: - Geometry & Normalization Types
-
 public struct AccessibleRect: Sendable, Codable, Equatable {
     public let x: Double
     public let y: Double
@@ -91,7 +89,6 @@ public struct AccessibleUIElementDescriptor: Sendable, Codable, Identifiable {
         self.timestamp = timestamp
     }
 
-    /// Primary display description for humans and AI models
     public var displayDescription: String {
         var parts: [String] = ["[\(role)]"]
         let effectiveTitle = !title.isEmpty ? title : label
@@ -138,8 +135,6 @@ public struct DiscoveredAppInfo: Sendable, Codable, Identifiable {
     public let pid: Int32?
 }
 
-// MARK: - Capability Reporting
-
 public enum CapabilitySupportStatus: String, Sendable, Codable {
     case supported
     case partiallySupported = "partially_supported"
@@ -178,8 +173,6 @@ public struct AppCapabilityReport: Sendable, Codable {
         self.menuNavigationStatus = menuNavigationStatus
     }
 }
-
-// MARK: - Structured Error Taxonomy
 
 public enum AppInteractionError: Error, LocalizedError, Sendable {
     case applicationNotFound(String)
@@ -236,7 +229,6 @@ public enum AppInteractionError: Error, LocalizedError, Sendable {
         }
     }
 
-    /// Maps to standard Assist tool error code
     public var assistErrorCode: AssistToolErrorCode {
         switch self {
         case .applicationNotFound, .windowNotFound, .targetNotFound:
@@ -262,7 +254,6 @@ public enum AppInteractionError: Error, LocalizedError, Sendable {
         }
     }
 
-    /// Actionable sentence telling the model how to recover
     public var recoveryHint: String {
         switch self {
         case .accessibilityPermissionDenied:
@@ -300,8 +291,6 @@ public enum AppInteractionError: Error, LocalizedError, Sendable {
         }
     }
 }
-
-// MARK: - Application Session Management
 
 public final class AppSession: @unchecked Sendable {
     public let sessionId: String
@@ -461,15 +450,11 @@ public final class AssistAppSessionManager: @unchecked Sendable {
     }
 }
 
-// MARK: - Central Application Interaction Engine
-
 @MainActor
 public final class AssistAppInteractionEngine: Sendable {
     public static let shared = AssistAppInteractionEngine()
 
     private init() {}
-
-    // MARK: - Permissions Preflight
 
     public func checkAccessibilityAuthorization(promptIfDenied: Bool = false) -> Bool {
         let promptKey = "AXTrustedCheckOptionPrompt" as CFString
@@ -481,13 +466,10 @@ public final class AssistAppInteractionEngine: Sendable {
         return AssistScreenCaptureEngine.shared.checkAuthorization(promptIfDenied: promptIfDenied)
     }
 
-    // MARK: - Application Discovery & Resolution
-
     public func listApplications(filter: String? = nil) -> [DiscoveredAppInfo] {
         var results: [DiscoveredAppInfo] = []
         var seenBundleIDs: Set<String> = []
 
-        // Running applications first
         let running = NSWorkspace.shared.runningApplications
         for app in running {
             guard let name = app.localizedName, !name.isEmpty else { continue }
@@ -509,7 +491,6 @@ public final class AssistAppInteractionEngine: Sendable {
             ))
         }
 
-        // Search standard application paths
         let appDirs = [
             "/Applications",
             "/System/Applications",
@@ -559,13 +540,11 @@ public final class AssistAppInteractionEngine: Sendable {
             throw AppInteractionError.applicationNotFound("Empty application identifier.")
         }
 
-        // 1. Check session manager
         if let session = AssistAppSessionManager.shared.getSession(byIdentifier: trimmed),
            let running = session.runningApp, !running.isTerminated {
             return running
         }
 
-        // 2. Check running applications by PID, bundle identifier, or name
         let runningApps = NSWorkspace.shared.runningApplications
         if let pid = Int32(trimmed), let running = runningApps.first(where: { $0.processIdentifier == pid }) {
             return running
@@ -582,12 +561,10 @@ public final class AssistAppInteractionEngine: Sendable {
             throw AppInteractionError.applicationNotFound("Application '\(trimmed)' is not running.")
         }
 
-        // 3. Locate application URL via LaunchServices
         var targetURL: URL?
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: trimmed) {
             targetURL = url
         } else {
-            // Search standard folders
             let candidates = listApplications(filter: trimmed)
             if let matched = candidates.first(where: {
                 $0.bundleIdentifier.caseInsensitiveCompare(trimmed) == .orderedSame ||
@@ -611,7 +588,6 @@ public final class AssistAppInteractionEngine: Sendable {
 
         do {
             let launchedApp = try await NSWorkspace.shared.openApplication(at: appURL, configuration: config)
-            // Bounded wait for launch completion (up to 4.0 seconds)
             for _ in 0..<40 {
                 if launchedApp.isFinishedLaunching { break }
                 try? await Task.sleep(nanoseconds: 100_000_000)
@@ -628,8 +604,6 @@ public final class AssistAppInteractionEngine: Sendable {
         try? await Task.sleep(nanoseconds: 150_000_000)
         return app
     }
-
-    // MARK: - Window Management
 
     public func listWindows(for app: NSRunningApplication) -> [AppWindowInfo] {
         var results: [AppWindowInfo] = []
@@ -694,8 +668,6 @@ public final class AssistAppInteractionEngine: Sendable {
         return windowsList[idx]
     }
 
-    // MARK: - UI Inspection & Accessibility Hierarchy
-
     public func inspectUI(
         app: NSRunningApplication,
         maxElements: Int = 100,
@@ -720,7 +692,7 @@ public final class AssistAppInteractionEngine: Sendable {
            let idx = listWindows(for: app).firstIndex(where: { $0.id == wid }), idx < windows.count {
             targetWindows = [windows[idx]]
         } else {
-            targetWindows = [windows[0]] // active / main window first
+            targetWindows = [windows[0]]
         }
 
         for window in targetWindows {
@@ -772,7 +744,6 @@ public final class AssistAppInteractionEngine: Sendable {
             actions = actList
         }
 
-        // Actionable roles filter
         let actionableRoles: Set<String> = [
             "AXButton", "AXTextField", "AXTextArea", "AXPopUpButton", "AXMenuButton",
             "AXCheckBox", "AXRadioButton", "AXTab", "AXSlider", "AXMenuItem",
@@ -826,8 +797,6 @@ public final class AssistAppInteractionEngine: Sendable {
         }
     }
 
-    // MARK: - Target Resolution
-
     public func resolveElement(
         app: NSRunningApplication,
         target: String,
@@ -836,12 +805,10 @@ public final class AssistAppInteractionEngine: Sendable {
         let activeSession = session ?? AssistAppSessionManager.shared.getOrCreateSession(for: app)
         let query = target.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 1. Direct session-local element ID lookup (e.g. "elem_4")
         if let ref = activeSession.getElementReference(for: query) {
             return (ref, activeSession.getElementDescriptor(for: query))
         }
 
-        // 2. Search cached descriptors in session
         let descriptors = Array(activeSession.elementDescriptors.values)
         if let match = descriptors.first(where: {
             $0.identifier.caseInsensitiveCompare(query) == .orderedSame ||
@@ -851,7 +818,6 @@ public final class AssistAppInteractionEngine: Sendable {
             return (ref, match)
         }
 
-        // 3. Substring matching in cached descriptors
         let substringMatches = descriptors.filter {
             $0.title.localizedCaseInsensitiveContains(query) ||
             $0.label.localizedCaseInsensitiveContains(query) ||
@@ -864,7 +830,6 @@ public final class AssistAppInteractionEngine: Sendable {
             throw AppInteractionError.targetAmbiguous("Target '\(query)' matches multiple controls: \(candidates). Specify the exact element ID (e.g. '\(substringMatches[0].id)').")
         }
 
-        // 4. Live recursive search in active window
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         var windowsRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef) == .success,
@@ -907,8 +872,6 @@ public final class AssistAppInteractionEngine: Sendable {
         }
         return nil
     }
-
-    // MARK: - Semantic Actions
 
     public func performSemanticAction(
         app: NSRunningApplication,
@@ -972,8 +935,6 @@ public final class AssistAppInteractionEngine: Sendable {
         return (true, isVerified, stateChange)
     }
 
-    // MARK: - Native Menu Navigation
-
     public func selectMenuItem(app: NSRunningApplication, menuPath: String) throws -> Bool {
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         var menuBarRef: CFTypeRef?
@@ -1016,8 +977,6 @@ public final class AssistAppInteractionEngine: Sendable {
         return false
     }
 
-    // MARK: - Pointer Interaction & Synthetic Events
-
     public func click(
         app: NSRunningApplication,
         target: String? = nil,
@@ -1043,19 +1002,16 @@ public final class AssistAppInteractionEngine: Sendable {
             throw AppInteractionError.targetNotFound("Action requires either 'target' UI element or 'coordinates'.")
         }
 
-        // Post synthetic mouse click
         let mouseTypeDown: CGEventType = (button.lowercased() == "right") ? .rightMouseDown : .leftMouseDown
         let mouseTypeUp: CGEventType = (button.lowercased() == "right") ? .rightMouseUp : .leftMouseUp
         let mouseButton: CGMouseButton = (button.lowercased() == "right") ? .right : .left
 
-        // Move first
         guard let moveEvent = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: targetPoint, mouseButton: .left) else {
             throw AppInteractionError.inputDeliveryFailed("Failed to create mouse move event.")
         }
         moveEvent.post(tap: .cghidEventTap)
         try? await Task.sleep(nanoseconds: 20_000_000)
 
-        // Mouse Down & Up
         guard let downEvent = CGEvent(mouseEventSource: nil, mouseType: mouseTypeDown, mouseCursorPosition: targetPoint, mouseButton: mouseButton),
               let upEvent = CGEvent(mouseEventSource: nil, mouseType: mouseTypeUp, mouseCursorPosition: targetPoint, mouseButton: mouseButton) else {
             throw AppInteractionError.inputDeliveryFailed("Failed to create mouse click events.")
@@ -1130,30 +1086,24 @@ public final class AssistAppInteractionEngine: Sendable {
         return true
     }
 
-    // MARK: - Keyboard Input & Shortcuts
-
     public func typeText(
         app: NSRunningApplication,
         target: String? = nil,
         text: String,
         useClipboard: Bool = false
     ) async throws -> Bool {
-        // Activate target control if specified
         if let target = target, !target.isEmpty {
             _ = try? await performSemanticAction(app: app, target: target, actionName: "focus")
         }
 
         if useClipboard && text.count > 100 {
-            // Safe clipboard-assisted input
             let pasteboard = NSPasteboard.general
             let priorContent = pasteboard.string(forType: .string)
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
 
-            // Trigger Cmd+V
             try await pressShortcut(app: app, shortcut: "Cmd+V")
 
-            // Wait briefly and restore prior clipboard
             try? await Task.sleep(nanoseconds: 100_000_000)
             if let prior = priorContent {
                 pasteboard.clearContents()
@@ -1162,7 +1112,6 @@ public final class AssistAppInteractionEngine: Sendable {
             return true
         }
 
-        // Direct synthetic Unicode text injection
         let utf16 = Array(text.utf16)
         for char in utf16 {
             guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
@@ -1205,7 +1154,6 @@ public final class AssistAppInteractionEngine: Sendable {
     }
 
     public func pressShortcut(app: NSRunningApplication, shortcut: String) async throws -> Bool {
-        // e.g. "Cmd+S", "Command+Shift+P", "Ctrl+C"
         let parts = shortcut.components(separatedBy: "+").map { $0.trimmingCharacters(in: .whitespaces) }
         guard let keyPart = parts.last else {
             throw AppInteractionError.actionUnsupported("Empty keyboard shortcut.")
@@ -1213,8 +1161,6 @@ public final class AssistAppInteractionEngine: Sendable {
         let modifierParts = Array(parts.dropLast())
         return try await pressKey(app: app, keyName: keyPart, modifiers: modifierParts)
     }
-
-    // MARK: - State-Based Waiting & Verification
 
     public func waitForElement(
         app: NSRunningApplication,
@@ -1256,8 +1202,6 @@ public final class AssistAppInteractionEngine: Sendable {
         throw AppInteractionError.operationTimeout("Window matching '\(windowTitle)' did not appear within \(timeoutSeconds)s.")
     }
 
-    // MARK: - Visual Perception Integration
-
     public func captureAppScreenshot(
         app: NSRunningApplication,
         windowId: String? = nil,
@@ -1280,7 +1224,6 @@ public final class AssistAppInteractionEngine: Sendable {
         var resultRect = AccessibleRect(x: 0, y: 0, width: Double(captureResult.width), height: Double(captureResult.height))
 
         if let win = targetWindow, win.frame.width > 2 && win.frame.height > 2 {
-            // Crop to window bounds
             let mainDisplayID = CGMainDisplayID()
             let dispBounds = CGDisplayBounds(mainDisplayID)
             let scale = CGFloat(captureResult.width) / dispBounds.width
@@ -1317,8 +1260,6 @@ public final class AssistAppInteractionEngine: Sendable {
 
         return (artifact.relativePath, b64, resultRect)
     }
-
-    // MARK: - Helper Methods
 
     private func convertToScreenCoordinates(point: CGPoint, space: String, app: NSRunningApplication) -> CGPoint {
         switch space.lowercased() {

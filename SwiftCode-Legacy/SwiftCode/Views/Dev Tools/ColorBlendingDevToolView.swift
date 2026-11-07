@@ -9,7 +9,6 @@ final class ColorBlendingViewModel {
     var blendRatio: Double = 0.5
 
     var blendedColor: Color {
-        // Blend algorithm
         #if canImport(AppKit)
         let ns1 = NSColor(firstColor).usingColorSpace(.sRGB) ?? .black
         let ns2 = NSColor(secondColor).usingColorSpace(.sRGB) ?? .black

@@ -5,16 +5,11 @@ import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeSyntax
 
-/// The editor area (`metrics.md` §4): the jump bar (a 31-point band and
-/// its separator), the find bar when shown, a banner when the file changed on
-/// disk, the source editor (`SourceEditorView`) and the minimap, then the
-/// debug bar.
 struct EditorArea: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        // The commit editor or a history replaces the source editor.
         if model.sourceControl.pane != nil {
             SourceControlPaneView(model: model)
         } else if model.testing.shownReport != nil {
@@ -47,13 +42,12 @@ struct EditorArea: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if let editor = model.editor {
                         let controller = SourceEditorController.of(editor)
-                        PreviewEditorSplit(canvas: model.previewCanvas) {   // PreviewCanvasView.swift
+                        PreviewEditorSplit(canvas: model.previewCanvas) {
                             GeometryReader { geo in
                                 HStack(spacing: 0) {
                                     SourceEditorView(controller: controller, model: model, palette: palette, preferences: prefs)
                                         .id(editor.path)
                                     Hairline(color: c.separator, vertical: true)
-                                    // 15 % of the pane within 59…135 (editor-area.md E.6, row 77).
                                     Minimap(controller: controller, colors: c, width: Minimap.width(forPane: geo.size.width))
                                 }
                             }
@@ -61,9 +55,6 @@ struct EditorArea: View {
                         }
                     }
                 } else {
-                    // Nothing open: the editor's background alone, no
-                    // minimap, separator or scroll lane (editor-area.md E.5,
-                    // row 74; "No Selection" is the jump bar's).
                     Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
                         .shellTarget("no selection")
                 }
@@ -71,16 +62,13 @@ struct EditorArea: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(palette.background.color)
             .overlay { LanguageNotice(model: model) }
-            .overlay { DebugEditorOverlay(model: model) }   // DebugEditors.swift
+            .overlay { DebugEditorOverlay(model: model) }
             DebugBar(model: model)
         }
         .shellTarget("editor")
     }
 }
 
-/// The path of the open file (`reference-ui-6.md` §4.1): Related Items,
-/// then workspace › groups › file (names as the navigator shows them), then
-/// the symbol ("No Selection" outside a declaration); 11 points.
 struct JumpBar: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -99,20 +87,17 @@ struct JumpBar: View {
                     }
                 }
                 if let path = model.document?.path, model.editedPaths.contains(path) {
-                    // The unsaved changes' mark.
                     Circle().fill(c.secondaryLabel).frame(width: 6, height: 6)
                         .help("Unsaved changes")
                         .shellTarget("edited mark")
                 }
                 chevron(c)
-                // The declaration at the insertion point; its menu lists the file's (LanguageViews.swift).
                 DocumentItemsMenu(model: model)
             } else {
                 Text("No Selection").font(ShellFonts.small).tracking(ShellFonts.smallTracking).foregroundStyle(c.secondaryLabel)
             }
             Spacer(minLength: 0)
             if let path = model.document?.path, StructuredEditor.hasSourceView(path) { OpenAsSwitch(model: model) }
-            // The issue stepper (reference-ui-5.md §6.1) once there are issues.
             if model.issueCounts.errors + model.issueCounts.warnings > 0 {
                 HStack(spacing: 8) {
                     Button { model.perform(.previousIssue) } label: {
@@ -129,8 +114,6 @@ struct JumpBar: View {
         }
         .padding(.horizontal, 6)
         .frame(height: CGFloat(WorkspaceChrome.jumpBarBandHeight))
-        // The toolbar's edge: the band's first line (the AppKit window's
-        // scroll-edge line under the toolbar).
         .overlay(alignment: .top) { Hairline(color: c.separator) }
         .shellTarget("jump bar")
     }
@@ -140,9 +123,6 @@ struct JumpBar: View {
     }
 }
 
-/// The debug bar under the editor (`liquid-glass.md` §2.6): 36 points with
-/// its separator; the breakpoints toggle at the left, the cursor position
-/// and the debug-area toggle at the right.
 struct DebugBar: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -184,17 +164,11 @@ struct DebugBar: View {
     }
 }
 
-/// The minimap (`reference-ui-5.md` §6.5): the file in miniature, each
-/// line a bar from its first to its last ink; a band marks what the editor
-/// shows, and dragging moves it. A file taller than the column scrolls with
-/// the editor.
 struct Minimap: View {
     let controller: SourceEditorController
     let colors: ShellColors
     var width: CGFloat = 112
 
-    /// The column's width for an editor pane `pane` points wide
-    /// (`EditorMetrics.minimapWidth`, as the macOS editor).
     static func width(forPane pane: CGFloat) -> CGFloat { CGFloat(EditorMetrics.minimapWidth(editorWidth: Double(pane))) }
 
     static let pitch: CGFloat = 1.6
@@ -207,7 +181,6 @@ struct Minimap: View {
         #endif
         GeometryReader { geo in
             Canvas { ctx, size in
-                // Read when drawing: the editor's redraws draw this too.
                 let top = c.top, viewport = c.viewport, content = c.contentHeight
                 let doc = c.buffer.document
                 let u = doc.units
@@ -228,7 +201,6 @@ struct Minimap: View {
                     }
                     y += Self.pitch
                 }
-                // What the editor shows.
                 if content > viewport.height {
                     let lh = c.lineHeight
                     let bandTop = 4 + (top / lh - CGFloat(first)) * Self.pitch
@@ -239,7 +211,6 @@ struct Minimap: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local).onChanged { v in
-                // The line under the pointer goes to the middle of the editor.
                 let (first, _) = window(height: geo.size.height, top: c.top)
                 let line = CGFloat(first) + (v.location.y - 4) / Self.pitch
                 c.scroll(x: c.left, y: line * c.lineHeight - c.viewport.height / 2)
@@ -250,7 +221,6 @@ struct Minimap: View {
         .shellTarget("minimap")
     }
 
-    /// The first line the column shows, and how many fit.
     private func window(height: CGFloat, top: CGFloat) -> (first: Int, count: Int) {
         let c = controller
         let count = Int(max(0, height - 8) / Self.pitch) + 1
@@ -261,8 +231,6 @@ struct Minimap: View {
     }
 }
 
-/// "Line: 12  Col: 8" in the debug bar, drawn from the editor's state when the
-/// editor redraws (no view update per keystroke).
 struct CaretPositionLabel: View {
     let controller: SourceEditorController
     let color: Color

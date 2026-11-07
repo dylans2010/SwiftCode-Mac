@@ -3,7 +3,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDisplayStream
 
-/// The display stream protocol (specs/simulator/display-stream.md §2–§5).
 struct DisplayStreamTests {
     static let hello = DisplayServerHello(deviceName: "SwiftCode", model: "iPhone19,4", pixelWidth: 1398, pixelHeight: 2034, scale: 3,
                                           encodings: ["jpeg", "zlib"], touch: true, keyboard: false, buttons: ["home", "lock"],
@@ -53,11 +52,9 @@ struct DisplayStreamTests {
     @Test func parserSplitsAndSkipsUnknown() throws {
         var stream: [UInt8] = []
         for m in Self.samples { stream += m.encoded() }
-        // An unknown type in the middle is skipped.
         stream.insert(contentsOf: [3, 0, 0, 0, 0x7E, 1, 2], at: Self.samples[0].encoded().count)
         var parser = DisplayMessageParser()
         var out: [DisplayMessage] = []
-        // One byte at a time.
         for b in stream {
             parser.append([b])
             while let m = try parser.next() { out.append(m) }
@@ -92,9 +89,7 @@ struct DisplayStreamTests {
         let path = NSTemporaryDirectory() + "swiftcode-ds-\(getpid()).sock"
         let listener = try DisplayListener(address: .unix(path))
         defer { listener.close() }
-        // A second listener on a live socket is refused.
         #expect(throws: DisplaySocketError.self) { _ = try DisplayListener(address: .unix(path)) }
-        // The refused listener's probe connection is accepted first.
         let accepted = Thread {
             for _ in 0..<2 {
                 guard let c = listener.accept() else { break }
@@ -122,14 +117,13 @@ struct DisplayStreamTests {
         var out = [UInt8](repeating: 0, count: cap)
         let r = out.withUnsafeMutableBufferPointer { swiftcodec_zlib_compress(input, input.count, 6, $0.baseAddress, &cap) }
         #expect(r == 0 && cap < 200 && out[0] == 0x78)
-        // 3x3 → 2x2 at factor 2: edge cells average what they cover.
         var src = [UInt8](repeating: 0, count: 3 * 3 * 4)
         for i in 0..<9 { src[i * 4] = UInt8(i * 10) }
         var dst = [UInt8](repeating: 0, count: 2 * 2 * 4)
         swiftcodec_downscale_bgra(src, 12, 3, 3, 2, &dst, 8)
-        #expect(dst[0] == 20) // (0 + 10 + 30 + 40) / 4
-        #expect(dst[4] == 35) // (20 + 50) / 2
-        #expect(dst[8] == 65) // (60 + 70) / 2
+        #expect(dst[0] == 20)
+        #expect(dst[4] == 35)
+        #expect(dst[8] == 65)
         #expect(dst[12] == 80)
     }
 
@@ -146,8 +140,6 @@ struct DisplayStreamTests {
     }
 }
 
-/// FOLD: the display state and fold messages, and the touch mapping of a
-/// turned panel (display-stream.md §3.4, §5.4).
 struct DisplayStreamFoldTests {
     func roundTrip(_ m: DisplayMessage) throws -> DisplayMessage? {
         var p = DisplayMessageParser()
@@ -162,12 +154,10 @@ struct DisplayStreamFoldTests {
         #expect(try roundTrip(.fold(angle: 90, instant: false)) == .fold(angle: 90, instant: false))
         #expect(try roundTrip(.fold(angle: 180, instant: true)) == .fold(angle: 180, instant: true))
         #expect(DisplayMessage.fold(angle: 1, instant: false).encoded() == [4, 0, 0, 0, 0x89, 1, 0, 0])
-        // Device commands and their answers (simulator-features.md "SwiftCode implementation").
         #expect(try roundTrip(.command(token: 7, text: "ui appearance dark")) == .command(token: 7, text: "ui appearance dark"))
         #expect(try roundTrip(.commandReply(token: 7, text: "ok\nline")) == .commandReply(token: 7, text: "ok\nline"))
         #expect(DisplayMessage.command(token: 1, text: "a").encoded() == [6, 0, 0, 0, 0x90, 1, 0, 0, 0, 0x61])
         #expect(DisplayMessage.commandReply(token: 2, text: "").encoded() == [5, 0, 0, 0, 0x10, 2, 0, 0, 0])
-        // An old hello (no foldable keys) still decodes.
         let old = #"{"buttons":[],"deviceName":"SwiftCode","encodings":["jpeg"],"keyboard":true,"model":"iPhone19,4","orientation":"portrait","pixelHeight":2034,"pixelWidth":1398,"pointHeight":678,"pointWidth":466,"protocol":"swiftcode-display/1","rotation":false,"scale":3,"touch":true}"#
         let h = try JSONDecoder().decode(DisplayServerHello.self, from: Data(old.utf8))
         #expect(h.foldable == nil && h.displays == nil)
@@ -177,7 +167,6 @@ struct DisplayStreamFoldTests {
         var st = DisplayPanelState(display: "LCD-1", pixelWidth: 2007, pixelHeight: 2853, scale: 3, rotation: 90, hingeAngle: 180,
                                    targetAngle: nil, posture: "openFlat", orientation: "portrait")
         #expect(st.shownPointSize.width == 951 && st.shownPointSize.height == 669)
-        // Turned 90° clockwise: the shown top-left corner is the panel's bottom-left.
         #expect(st.nativePoint(shownX: 0, shownY: 0) == (0, 951))
         #expect(st.nativePoint(shownX: 951, shownY: 669) == (669, 0))
         st.rotation = 270

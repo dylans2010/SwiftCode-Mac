@@ -1,11 +1,11 @@
 import Foundation
 import Observation
 
-/// One header sent with requests to a custom endpoint.
 public struct CustomEndpointHeader: Identifiable, Codable, Equatable, Sendable {
     public var id = UUID()
     public var name: String
     public var value: String
+    public var key: String { get { name } set { name = newValue } }
 
     public init(id: UUID = UUID(), name: String, value: String) {
         self.id = id
@@ -14,19 +14,11 @@ public struct CustomEndpointHeader: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-/// A user-configured OpenAI-compatible endpoint (Legacy
-/// `SavedCustomEndpoint` / `CustomEndpointManager`).
-///
-/// Security change, stated plainly: Legacy stored the endpoint's API key
-/// in the same plaintext JSON as the endpoint itself (UserDefaults, a
-/// `~/.swiftcode` file, Application Support, and a Keychain backup of the
-/// same JSON). This port never stores a key in the endpoint record: keys
-/// live only in the `SecretStore` (Keychain on macOS, 0600 files on
-/// Linux), keyed per endpoint id, and are never encoded with the record.
 public struct SavedCustomEndpoint: Identifiable, Codable, Equatable, Sendable {
     public var id = UUID()
     public var name: String
     public var endpoint: String
+    public var apiKey: String = ""
     public var headers: [CustomEndpointHeader] = []
     public var models: [String] = []
     public var showInPopup: Bool = true
@@ -49,11 +41,6 @@ public struct SavedCustomEndpoint: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-/// Owns the saved custom endpoints (Legacy `CustomEndpointManager`).
-/// Endpoints persist as JSON in Application Support/SwiftCode; API keys persist
-/// only in the `SecretStore`. The `endpoints` setter no longer triggers a
-/// model-discovery refresh (Legacy did, via `AssistModelDiscoveryService`);
-/// callers refresh discovery explicitly after editing endpoints.
 @Observable
 @MainActor
 public final class CustomEndpointManager {
@@ -78,8 +65,6 @@ public final class CustomEndpointManager {
             .appendingPathComponent("custom-endpoints.json")
     }
 
-    /// The reduced shape the Muse other-models bridge reads (Legacy
-    /// `CustomEndpointManager` endpoint, reduced to what resolution reads).
     public var museEndpoints: [MuseCustomEndpoint] {
         endpoints.map { MuseCustomEndpoint(name: $0.name, models: $0.models, isLocal: $0.isLocal) }
     }

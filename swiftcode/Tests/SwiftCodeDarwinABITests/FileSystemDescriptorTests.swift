@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeDarwinABI
 
-// Stage 4b descriptor tables (`specs/simulator/stage4b-contract.md` §3.5):
-// shared open file descriptions, dup/dup2, child copies, exec and exit
-// closing, cwd, exec path lookup, socket files.
-
-/// An object that counts `lastReferenceClosed` calls.
 private final class CountingObject: DarwinDescriptorObject {
     var closes = 0
     let confined: Bool
@@ -50,7 +45,6 @@ private final class DescriptorFixture {
         #expect(try f.fs.read(fd, count: 3) == Array("012".utf8))
         #expect(try f.fs.read(d, count: 3) == Array("345".utf8))
         #expect(try f.fs.openFile(for: fd) === (try f.fs.openFile(for: d)))
-        // dup clears close-on-exec; F_DUPFD_CLOEXEC sets it; minimum respected.
         try f.fs.setCloseOnExec(fd, true)
         #expect(try !f.fs.closeOnExec(d))
         let high = try f.fs.dup(fd, minimum: 40, closeOnExec: true)
@@ -58,7 +52,6 @@ private final class DescriptorFixture {
         #expect(try f.fs.closeOnExec(high))
         #expect(errnoOf { _ = try f.fs.dup(fd, minimum: 256) } == DarwinErrnoCode.EINVAL)
         #expect(errnoOf { _ = try f.fs.dup(77) } == DarwinErrnoCode.EBADF)
-        // Closing one keeps the other.
         try f.fs.close(fd)
         #expect(try f.fs.read(d, count: 2) == Array("67".utf8))
     }
@@ -68,10 +61,10 @@ private final class DescriptorFixture {
         try f.fs.dup2(2, 9)
         _ = try f.fs.write(9, Array("err".utf8))
         #expect(f.output[2] == Array("err".utf8))
-        try f.fs.dup2(1, 2)  // 2 now writes to the stdout stream
+        try f.fs.dup2(1, 2)
         _ = try f.fs.write(2, Array("x".utf8))
         #expect(f.output[1] == Array("x".utf8))
-        try f.fs.dup2(9, 9)  // same fd: only checks it is open
+        try f.fs.dup2(9, 9)
         #expect(errnoOf { try f.fs.dup2(50, 51) } == DarwinErrnoCode.EBADF)
         #expect(errnoOf { try f.fs.dup2(1, 256) } == DarwinErrnoCode.EBADF)
         #expect(errnoOf { try f.fs.dup2(1, -1) } == DarwinErrnoCode.EBADF)
@@ -87,8 +80,8 @@ private final class DescriptorFixture {
         let child = f.fs.makeChildCopy()
         try f.fs.close(fd)
         try f.fs.close(d)
-        #expect(o.closes == 0)  // the child still holds it
-        var held: DarwinOpenFile? = try child.openFile(for: d)  // e.g. a fileport
+        #expect(o.closes == 0)
+        var held: DarwinOpenFile? = try child.openFile(for: d)
         child.closeAll()
         #expect(o.closes == 0)
         let n = try f.fs.install(held!, closeOnExec: true)
@@ -108,7 +101,7 @@ private final class DescriptorFixture {
         let child = f.fs.makeChildCopy()
         #expect(child.cwd == "/R/dir")
         #expect(child.maxDescriptors == 100)
-        #expect(child.openDescriptors == [0, 1, 2, a, b])  // the confined kqueue stays behind
+        #expect(child.openDescriptors == [0, 1, 2, a, b])
         #expect(try child.closeOnExec(a) == true)
         _ = kq
         child.closeOnExecDescriptors()
@@ -128,7 +121,7 @@ private final class DescriptorFixture {
         #expect(try f.fs.install(file, closeOnExec: false, at: 7) == 7)
         #expect(try f.fs.install(file, closeOnExec: false) == 3)
         try f.fs.setStatusFlags(7, DarwinOpen.O_NONBLOCK | DarwinOpen.O_WRONLY)
-        #expect(try f.fs.statusFlags(3) == DarwinOpen.O_RDWR | DarwinOpen.O_NONBLOCK)  // shared, mode kept
+        #expect(try f.fs.statusFlags(3) == DarwinOpen.O_RDWR | DarwinOpen.O_NONBLOCK)
         #expect(try f.fs.fstat(3).fileType == DarwinStat.S_IFIFO)
         #expect(errnoOf { _ = try f.fs.path(for: 3) } == DarwinErrnoCode.EBADF)
         #expect(errnoOf { _ = try f.fs.file(for: 3) } == DarwinErrnoCode.ENODEV)
@@ -183,12 +176,10 @@ private final class DescriptorFixture {
         #expect(o === s)
         #expect(errnoOf { _ = try f.fs.socketTarget("/R/data.bin") } == DarwinErrnoCode.ENOTSOCK)
         #expect(errnoOf { _ = try f.fs.socketTarget("/tmp/none") } == DarwinErrnoCode.ENOENT)
-        // A child sees the same socket files.
         let child = f.fs.makeChildCopy()
         #expect(child.socketNames(inDirectory: "/tmp").map(\.name) == ["sock"])
         try child.unlink("/tmp/sock")
         #expect(errnoOf { _ = try f.fs.stat("/tmp/sock", followSymlinks: false) } == DarwinErrnoCode.ENOENT)
-        // unlink of host files: writable prefixes only; directories EPERM.
         let fd = try f.fs.open("/tmp/x", flags: DarwinOpen.O_WRONLY | DarwinOpen.O_CREAT, mode: 0o644)
         try f.fs.close(fd)
         try f.fs.unlink("/tmp/x")

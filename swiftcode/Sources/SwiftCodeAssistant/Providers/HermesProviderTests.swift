@@ -1,16 +1,5 @@
 import Foundation
 
-// MARK: - Hermes provider tests
-//
-// Follows the AssistRuntimeTestSuite convention: in-app
-// RuntimeTestCaseResult cases, wired into AssistRuntimeTestSuite.
-// Every case here is offline and deterministic — no Hermes binary,
-// no API key, no network, no process launch. Live behaviour (a real
-// `hermes` install, a real model run, real tool events) is verified
-// by the Settings installation check and is listed as unverified
-// in Docs/Assist-Hermes-Provider.md until it runs on a Mac with
-// Hermes installed and authenticated.
-
 @MainActor
 public final class HermesProviderTests: Sendable {
     public static let shared = HermesProviderTests()
@@ -36,8 +25,6 @@ public final class HermesProviderTests: Sendable {
         RuntimeTestCaseResult(testName: name, passed: passed, message: message, duration: Date().timeIntervalSince(start))
     }
 
-    // 1. Hermes ids parse only with the hermes: prefix; bare
-    // provider/model ids and other providers' ids are never claimed.
     public func testModelIDParsing() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -62,8 +49,6 @@ public final class HermesProviderTests: Sendable {
         return result("Hermes: model id parsing", start, passed, message)
     }
 
-    // 2. Provider/model split: provider is the part before the first
-    // colon, model is the rest (which itself contains "/").
     public func testModelProviderSplit() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -81,9 +66,6 @@ public final class HermesProviderTests: Sendable {
         return result("Hermes: provider/model split", start, passed, message)
     }
 
-    // 3. Routing guards: Hermes ids select the Hermes provider and
-    // are never claimed by the SDK path (which would otherwise take
-    // any "/" id via the OpenRouter persisted-provider fallback).
     public func testProviderSelectionAndSDKGuard() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -103,8 +85,6 @@ public final class HermesProviderTests: Sendable {
         return result("Hermes: provider selection + SDK guard", start, passed, message)
     }
 
-    // 4. Configuration persists independently and restores, without
-    // touching the selected model or provider keys.
     public func testConfigurationRoundTrip() async -> RuntimeTestCaseResult {
         let start = Date()
         let original = HermesConfiguration.load()
@@ -128,9 +108,6 @@ public final class HermesProviderTests: Sendable {
         )
     }
 
-    // 5. Argument construction: the exact documented invocation, in
-    // order, with provider/model/toolsets/max-turns — and never
-    // --yolo, --api-key, or the prompt itself in argv.
     public func testArgumentConstruction() async -> RuntimeTestCaseResult {
         let start = Date()
         var config = HermesConfiguration()
@@ -160,7 +137,6 @@ public final class HermesProviderTests: Sendable {
         )
     }
 
-    // 6. Bare-model ids pass --model only: no provider is invented.
     public func testArgumentConstructionBareModel() async -> RuntimeTestCaseResult {
         let start = Date()
         let request = HermesRunRequest(
@@ -182,8 +158,6 @@ public final class HermesProviderTests: Sendable {
         )
     }
 
-    // 7. Stream-json parsing: every documented event type, including
-    // a tool_result that pairs with its tool_use and an error result.
     public func testStreamEventParsing() async -> RuntimeTestCaseResult {
         let start = Date()
         var passed = true
@@ -216,8 +190,6 @@ public final class HermesProviderTests: Sendable {
         return result("Hermes: stream-json parsing", start, passed, message)
     }
 
-    // 8. Malformed input never crashes parsing and never invents
-    // data: blank lines, broken JSON, and unknown types are ignored.
     public func testStreamEventParsingMalformed() async -> RuntimeTestCaseResult {
         let start = Date()
         let cases = ["", "   ", "not json", #"{"type":"text"}"#, #"{"type":"mystery","x":1}"#, #"{"type":"tool_use","input":{}}"#]
@@ -229,8 +201,6 @@ public final class HermesProviderTests: Sendable {
         )
     }
 
-    // 9. Prompt delivery: system prompt first, task second, separated;
-    // empty sides degrade to the non-empty side alone.
     public func testPromptBuilder() async -> RuntimeTestCaseResult {
         let start = Date()
         let built = HermesPromptBuilder.build(systemPrompt: "Be helpful.", objective: "Summarize README.md")
@@ -244,11 +214,6 @@ public final class HermesProviderTests: Sendable {
         )
     }
 
-    // 10. Executable resolution: a configured path wins only when
-    // executable; otherwise the first executable in the search dirs
-    // wins; nothing found means nil (never a guessed path). Uses a
-    // real temp directory with a dummy executable so the search is
-    // exercised, not just the nil paths.
     public func testExecutableResolution() async -> RuntimeTestCaseResult {
         let start = Date()
         let fileManager = FileManager.default

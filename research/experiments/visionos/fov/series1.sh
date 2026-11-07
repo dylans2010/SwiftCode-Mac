@@ -1,6 +1,4 @@
 #!/bin/bash
-# series1.sh: the camera-smoothing series of OBS-VISION-FOV (step sizes, translation, pose timestamps, send rates).
-# env as step.sh. Each run ends at identity.
 F=$(cd "$(dirname "$0")" && pwd); G() { python3 -I $F/posegen.py "$@"; }
 run(){ n=$1; shift; $F/step.sh $n "$*"; }
 for r in "$@"; do case $r in

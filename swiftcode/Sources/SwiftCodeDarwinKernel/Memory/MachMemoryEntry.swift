@@ -1,29 +1,13 @@
-// Mach memory entries (named entries): `mach_make_memory_entry_64` and
-// `mach_vm_map` with a memory object, as SwiftCode-private routines
-// (host-libraries.md §10, n = 10 and 11). Semantics from xnu
-// osfmk/vm/vm_memory_entry.c, osfmk/vm/vm_map.c (`vm_map_enter_mem_object`)
-// and osfmk/mach/memory_object_types.h (level 1).
-//
-// A memory entry names part of a `SharedMemoryObject`. Making one for a range
-// of the caller's memory turns that range into shared memory (its contents
-// move into a new object, which then backs the range); mapping the entry
-// anywhere, in any process, maps the same host pages. libxpc's shared-memory
-// objects (`launchctl print` hands launchd_sim one) work this way.
-
 import SwiftCodeDarwinABI
 
-/// What a memory-entry port stands for.
 struct MachMemoryEntry {
     let object: SharedMemoryObject
-    /// Offset of the entry in `object` (16 KiB aligned) and its size (a 16 KiB multiple).
     let offset: UInt64
     let size: UInt64
-    /// The most a mapping of the entry may allow.
     let protection: VMProtection
 }
 
 extension MachIPC {
-    /// `MAP_MEM_*` permission flags (memory_object_types.h).
     enum MapMem {
         static let only: UInt32 = 0x01_0000
         static let namedCreate: UInt32 = 0x02_0000
@@ -31,7 +15,6 @@ extension MachIPC {
         static let vmCopy: UInt32 = 0x20_0000
         static let vmShare: UInt32 = 0x40_0000
     }
-    /// `VM_PROT_IS_MASK`: "use as a mask", not a requirement.
     static let vmProtIsMask: UInt32 = 0x40
     static let vmFlagsAnywhere: UInt32 = 0x1
     static let vmFlagsOverwrite: UInt32 = 0x4000
@@ -41,14 +24,11 @@ extension MachIPC {
     private static func truncPage(_ v: UInt64) -> UInt64 { v & ~(page - 1) }
     private static func roundPage(_ v: UInt64) -> UInt64? { v > UInt64.max - (page - 1) ? nil : (v + page - 1) & ~(page - 1) }
 
-    /// The memory entry `name` sends to (lock held).
     func memoryEntry(named name: UInt32) -> MachMemoryEntry? {
         guard let (p, object) = kernelObject(named: name), case .memoryEntry = object, p.active else { return nil }
         return p.memoryEntry
     }
 
-    /// `mach_make_memory_entry_64(task, &size, offset, permission, &handle, parent)`.
-    /// Returns the kern_return_t and a trace note. Lock held.
     func makeMemoryEntry(_ a: [UInt64], memory: any GuestVirtualMemory) -> (UInt32, String) {
         let task = UInt32(truncatingIfNeeded: a[0])
         guard isTaskSelf(task) else {
@@ -66,11 +46,8 @@ extension MachIPC {
             parent = p
         }
         if permission & MapMem.only != 0 {
-            // Only a caching change of the parent: nothing to do here.
             return parent == nil ? (MachKern.invalidArgument, "") : (MachKern.success, " [MAP_MEM_ONLY]")
         }
-        // The object is host memory and this task's address space: made with
-        // the port lock released (`mach-ipc-locking.md` §4.2).
         let made: Result<(MachMemoryEntry, String), KernError2> = lock.withoutFineLock {
             let entry: MachMemoryEntry
             let start = Self.truncPage(offset)
@@ -91,7 +68,6 @@ extension MachIPC {
                 how = "copy of \(hx(start))-\(hx(end))"
             } else if permission & MapMem.vmShare != 0 || parent == nil {
                 guard end > start else { return .failure(KernError2(MachKern.invalidArgument, "")) }
-                // Every page must allow what the entry asks for.
                 var cursor = start
                 for r in memory.regions(overlapping: start..<end) {
                     guard r.va <= cursor else { return .failure(KernError2(MachKern.invalidArgument, "")) }
@@ -122,7 +98,6 @@ extension MachIPC {
         guard let (p, name) = makeKernelObjectName(.memoryEntry(serial: nextSerial())) else { return (MachKern.noSpace, "") }
         p.memoryEntry = entry
         own(p)
-        // xnu writes back the page-rounded size (the data size with MAP_MEM_USE_DATA_ADDR).
         let outSize = permission & MapMem.useDataAddr != 0 ? requestedSize : entry.size
         guard (try? memory.write(va: a[1], bytes: le64(outSize))) != nil,
               (try? memory.write(va: a[4], bytes: le32(name))) != nil else {
@@ -133,8 +108,6 @@ extension MachIPC {
             + "prot \(entry.protection) -> \(hx(name))]")
     }
 
-    /// `mach_vm_map(task, &addr, size, mask, flags, object, offset, copy, cur, max, inherit)`
-    /// with a memory object (`vm_map_enter_mem_object`). Lock held.
     func vmMapObject(_ a: [UInt64], memory: any GuestVirtualMemory) -> (UInt32, String) {
         let task = UInt32(truncatingIfNeeded: a[0])
         guard isTaskSelf(task) else {
@@ -150,8 +123,6 @@ extension MachIPC {
         let curBits = block.readLE(UInt32.self, at: 24), maxBits = block.readLE(UInt32.self, at: 32)
         let flags = UInt32(truncatingIfNeeded: a[4])
         guard let entry = memoryEntry(named: objectName) else { return (Self.kernInvalidObject, "") }
-        // The rest is this task's address space: done with the port lock
-        // released (`mach-ipc-locking.md` §4.2).
         return lock.withoutFineLock { () -> (UInt32, String) in
             var cur = VMProtection(rawValue: curBits & 7), max = VMProtection(rawValue: maxBits & 7)
             if curBits & Self.vmProtIsMask != 0 { cur.formIntersection(entry.protection) }
@@ -164,9 +135,6 @@ extension MachIPC {
                 return (MachKern.invalidArgument, "")
             }
             let alignment = (a[3] | (Self.page - 1)) &+ 1
-            // Placement (as the anonymous mach_vm_map trap): anywhere with an
-            // optional alignment mask, or fixed (KERN_NO_SPACE over a mapping
-            // unless VM_FLAGS_OVERWRITE).
             var at: UInt64?
             var hint: UInt64?
             if flags & Self.vmFlagsAnywhere != 0 {
@@ -206,7 +174,6 @@ extension MachIPC {
     }
 }
 
-/// A routine's failure: its `kern_return_t` and trace note.
 struct KernError2: Error {
     var code: UInt32
     var note: String
@@ -216,17 +183,7 @@ struct KernError2: Error {
     }
 }
 
-// MARK: - mach_vm_remap and task_threads (private routines n = 12, 13)
-
 extension MachIPC {
-    /// `mach_vm_remap(target, &addr, size, mask, flags, &block)`, block = u64
-    /// {src_task, src_address, copy, &cur, &max, inherit, is_new}
-    /// (xnu vm_user.c `mach_vm_remap_external` / `mach_vm_remap_new_external`,
-    /// level 1): maps the source range again, sharing its pages (copy FALSE)
-    /// or a copy (copy TRUE); the old call returns the source's current and
-    /// maximum protections, `_new` takes them in (and returns them). Only the
-    /// caller's own task is supported (libobjc remaps its trampoline pages).
-    /// Lock held.
     func vmRemap(_ a: [UInt64], memory: any GuestVirtualMemory) -> (UInt32, String) {
         let task = UInt32(truncatingIfNeeded: a[0])
         guard isTaskSelf(task) else { return (MachKern.invalidArgument, " [only the caller's task]") }
@@ -240,8 +197,6 @@ extension MachIPC {
         let curPointer = block.readLE(UInt64.self, at: 24), maxPointer = block.readLE(UInt64.self, at: 32)
         let isNew = block.readLE(UInt32.self, at: 48) != 0
         guard isTaskSelf(srcTask) else { return (MachKern.invalidArgument, " [only the caller's task as source]") }
-        // The rest is this task's address space: done with the port lock
-        // released (`mach-ipc-locking.md` §4.2).
         return lock.withoutFineLock { () -> (UInt32, String) in
             let page = VMLayout.pageSize
             let flags = UInt32(truncatingIfNeeded: a[4])
@@ -249,7 +204,6 @@ extension MachIPC {
             let start = srcAddress & ~(page - 1)
             let end = (srcAddress + a[2] + page - 1) & ~(page - 1)
             let size = end - start
-            // The source: fully mapped; its protection is the lowest of its pages'.
             var cursor = start
             var protection: VMProtection = .all
             for r in memory.regions(overlapping: start..<end) {
@@ -259,7 +213,6 @@ extension MachIPC {
             }
             guard cursor >= end else { return (MachKern.invalidAddress, "") }
             if isNew {
-                // _new: the requested protections must be allowed by the source.
                 guard let cur = try? memory.read(va: curPointer, count: 4).readLE(UInt32.self, at: 0) else {
                     return (MachKern.invalidAddress, "")
                 }
@@ -267,7 +220,6 @@ extension MachIPC {
                 guard protection.isSuperset(of: wanted) || copy else { return (MachKern.protectionFailure, "") }
                 if !copy { protection = wanted }
             }
-            // Placement as mach_vm_map: anywhere (with an alignment mask) or fixed.
             let alignment = (a[3] | (page - 1)) &+ 1
             var at: UInt64?, hint: UInt64?
             if flags & Self.vmFlagsAnywhere != 0 {
@@ -295,7 +247,6 @@ extension MachIPC {
                     try memory.write(va: va, bytes: bytes)
                     if protection != .readWrite { try memory.protect(va: va, size: size, protection: protection) }
                 } else {
-                    // Readable source pages are needed to move them into an object.
                     let (object, offset) = try memory.share(va: start, size: size)
                     va = try memory.mapShared(object, offset: offset, at: at, size: size, protection: protection, hint: hint)
                 }
@@ -314,9 +265,6 @@ extension MachIPC {
 }
 
 extension DarwinKernel {
-    /// `task_threads(task, &list, &count)`: a new array (vm_allocate'd in the
-    /// caller) of send rights to every thread of the caller's own task, in
-    /// creation order (xnu task.c `task_threads_internal`, level 1). Lock held.
     func taskThreads(_ a: [UInt64], memory: any GuestVirtualMemory) -> (UInt32, String) {
         guard let ipc = machIPC as? MachIPC else { return (MachKern.failure, "") }
         guard ipc.isTaskSelf(UInt32(truncatingIfNeeded: a[0])) else { return (MachKern.invalidArgument, " [only the caller's task]") }

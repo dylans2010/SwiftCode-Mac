@@ -3,7 +3,6 @@ import Testing
 @testable import SwiftCodeXPC
 
 @Suite struct XPCPipeTests {
-    // MARK: Replies accepted by real clients (§7)
 
     @Test func errorReplyIs64Bytes() throws {
         let m = XPCPipeReply.error(XPCBootstrapError.unknownService)
@@ -31,7 +30,6 @@ import Testing
         #expect(m.descriptors == [.port(name: 0x1607, disposition: XPCDisposition.moveReceive)])
         #expect(m.messageSize == 72)
         #expect(Array(m.body.suffix(4)) == le32(0x15000))
-        // The client's view: the descriptor arrives as a receive right (type 16).
         let d = try XPCPipeMessage(id: m.id, descriptors: [.port(name: 0x2303, disposition: 16)], body: m.body)
             .decodeDictionary()
         #expect(d["port"] == .receiveRight(XPCPort(name: 0x2303, disposition: 16)))
@@ -53,11 +51,8 @@ import Testing
             "rec_execcnt": .uint64(1), "req_pid": .uint64(100), "error": .int64(XPCBootstrapError.unknownService),
         ])
         #expect(!lookUpMiss.isComplex)
-        // A NUL in a caller's key cannot be encoded; the builder falls back to an error reply.
         #expect(try XPCPipeReply.sendRight(1, key: "a\0").decodeDictionary() == ["error": .int64(22)])
     }
-
-    // MARK: Requests (§2.1, §4)
 
     @Test func routineAndOneWayIDs() throws {
         let body = try XPCWire.encodePayload(["name": "x"])
@@ -89,14 +84,12 @@ import Testing
     }
 
     @Test func registerRequestCarriesItsPort() throws {
-        // 204: handle 0, flags 0, name, type 7, port (0xD000) with one descriptor.
         let sent = try XPCPipeMessage.request(routine: 204, [
             "handle": .uint64(0), "flags": .uint64(0), "name": "com.example.svc", "type": .uint64(7),
             "port": .send(0x40, disposition: XPCDisposition.copySend),
         ])
         #expect(sent.id == 0x4000_00CC)
         #expect(sent.isComplex)
-        // As received: the receiver's name, received type 17.
         let r = try XPCPipeRequest(id: sent.id, body: sent.body, descriptors: [.port(name: 0x1103, disposition: 17)],
                                    hasReplyPort: true)
         #expect(r.knownRoutine == .register)

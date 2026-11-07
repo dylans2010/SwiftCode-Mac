@@ -97,7 +97,6 @@ public struct AssistUseAppTool: AssistTool {
         }
         let action = rawAction.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        // Handle list_applications early (does not require a running app_identifier)
         if action == "list_applications" {
             let filter = (input["target"] as? String) ?? (input["app_identifier"] as? String)
             let apps = AssistAppInteractionEngine.shared.listApplications(filter: filter)
@@ -135,7 +134,6 @@ public struct AssistUseAppTool: AssistTool {
         let confirm = (input["confirm"] as? Bool) ?? false
         let timeoutSeconds = min(max((input["timeout"] as? Double) ?? 5.0, 1.0), 60.0)
 
-        // Preflight accessibility permission
         let hasAccessibility = AssistAppInteractionEngine.shared.checkAccessibilityAuthorization(promptIfDenied: true)
         if !hasAccessibility && action != "launch" && action != "activate" {
             return AssistToolResult.failure(
@@ -145,7 +143,6 @@ public struct AssistUseAppTool: AssistTool {
             )
         }
 
-        // Consequential action safeguard
         if action == "close_application" && !confirm {
             return AssistToolResult.failure(
                 "Closing application '\(appIdentifier)' is a consequential action that will terminate running processes and unsaved user state. Pass 'confirm: true' to authorize.",
@@ -153,7 +150,6 @@ public struct AssistUseAppTool: AssistTool {
             )
         }
 
-        // Resolve or launch application
         let runningApp: NSRunningApplication
         do {
             runningApp = try await AssistAppInteractionEngine.shared.resolveOrLaunchApp(

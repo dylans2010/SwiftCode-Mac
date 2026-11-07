@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineNetworkView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -77,7 +75,7 @@ public struct VirtualMachineNetworkView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(" ") // Align with text fields
+                                Text(" ")
                                     .font(.caption)
                                 Button("Add Rule") {
                                     addRule(vm.id)
@@ -153,7 +151,6 @@ public struct VirtualMachineNetworkView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Networking Inline Help Info
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.blue)

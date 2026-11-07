@@ -1,19 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - SDKStudioWindowManager
-//
-// Singleton window manager for SwiftCode Studio (spec §13.3). Mirrors the
-// established project pattern (`VisualUIBuilderWindowManager`,
-// `DatabaseExplorerWindowManager`, `StoreKitWindowManager`): a shared
-// instance owns one window at a time, `windowWillClose` clears the
-// reference so a subsequent open creates a fresh window.
-//
-// The window hosts `SDKStudioView` through `NSHostingController`.
-// Callers should use `openStudio(section:)` to deep-link into a section;
-// the remembered section is published via `currentSection` for toolbar or
-// menu integration by the app layer.
-
 @MainActor
 public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowDelegate {
     public static let shared = SDKStudioWindowManager()
@@ -21,7 +8,6 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
     private static let lastSectionKey = "com.swiftcode.sdk.studio.lastSection"
     private static let studioIsOpenKey = "com.swiftcode.sdk.studio.isOpen"
 
-    /// The section the Studio last opened on; restored on a bare `openStudio()`.
     @Published public private(set) var currentSection: SDKStudioSection = .projects
 
     private var studioWindow: NSWindow?
@@ -40,20 +26,16 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
         super.init()
     }
 
-    /// Updates the remembered section and immediately flushes changes to UserDefaults.
     public func updateSection(_ section: SDKStudioSection) {
         currentSection = section
         UserDefaults.standard.set(section.rawValue, forKey: Self.lastSectionKey)
         UserDefaults.standard.synchronize()
     }
 
-    /// Opens Studio on the last-visited section (or Projects on first launch).
     public func openStudio() {
         openStudio(section: currentSection)
     }
 
-    /// Opens Studio, focusing the given section. If Studio is already open,
-    /// its content is re-hosted on the new section and the window is raised.
     public func openStudio(section: SDKStudioSection) {
         updateSection(section)
         UserDefaults.standard.set(true, forKey: Self.studioIsOpenKey)
@@ -81,8 +63,6 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
         window.collectionBehavior = [.fullScreenPrimary, .managed]
         window.center()
 
-        // A window-level toolbar lets NavigationSplitView render its native
-        // sidebar toggle; no Studio-specific items are defined here.
         let toolbar = NSToolbar(identifier: "SwiftCodeStudioToolbar")
         toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
@@ -97,15 +77,12 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Closes Studio if it is open.
     public func closeStudio() {
         studioWindow?.close()
         studioWindow = nil
         UserDefaults.standard.set(false, forKey: Self.studioIsOpenKey)
         UserDefaults.standard.synchronize()
     }
-
-    // MARK: - NSWindowDelegate
 
     public func windowWillClose(_ notification: Notification) {
         if (notification.object as? NSWindow) === studioWindow {

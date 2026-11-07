@@ -3,7 +3,6 @@ import Testing
 @testable import SwiftCodeBuildServer
 import SwiftCodeXcodebuild
 
-/// Scratch output for these tests (git-ignored `.build-ide`).
 let scratch = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     .deletingLastPathComponent().appendingPathComponent(".build-ide/bsp")
 
@@ -29,24 +28,20 @@ func freshScratch(_ name: String) throws -> URL {
         #expect(kit.isFramework && kit.isLibrary && !kit.isTest)
         #expect(kit.languages == [.swift, .objectiveC])
 
-        // App: explicit dependency on Kit; mixed sources.
         #expect(app.dependencies == [kit.id])
         #expect(Set(app.sources.map(\.language)) == [.swift, .objectiveC])
         #expect(app.isApplication)
 
-        // AppTests: sources from its synchronized folder; depends on App.
         #expect(tests.sources.map { ($0.path as NSString).lastPathComponent } == ["AppTests.swift"])
         #expect(tests.dependencies == [app.id])
         #expect(tests.isTest)
         #expect(graph.transitiveDependencies(of: tests).map(\.name) == ["Kit", "App"])
 
-        // Lookup by file, identifiers are URIs.
         let main = dir.appendingPathComponent("Sample-iOS/App/AppMain.swift").path
         #expect(graph.targets(containing: main).map(\.name) == ["App"])
         #expect(URL(string: app.id)?.scheme == "swiftcode-target")
         #expect(app.id.contains("name=App"))
 
-        // The project file and the synchronized folder are watched.
         let watched = graph.watchedPaths()
         #expect(watched.contains { $0.hasSuffix("Sample.xcodeproj/project.pbxproj") })
         #expect(watched.contains { $0.hasSuffix("Sample-iOS/AppTests") })
@@ -55,7 +50,6 @@ func freshScratch(_ name: String) throws -> URL {
     @Test func implicitDependencyThroughLinkedProduct() throws {
         let dir = try freshScratch("graph-implicit")
         let proj = try SampleProject.write(.portable, in: dir)
-        // Drop App's explicit dependency: linking Kit.framework still makes one.
         let pbx = proj.appendingPathComponent("project.pbxproj")
         var text = try String(contentsOf: pbx, encoding: .utf8)
         text = text.replacingOccurrences(of: "dependencies = (E00000000000000000000011);", with: "dependencies = ();")

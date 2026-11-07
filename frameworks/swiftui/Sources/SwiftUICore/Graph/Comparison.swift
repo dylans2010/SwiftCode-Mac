@@ -1,25 +1,12 @@
 import Foundation
 
-// Input comparison (03-architecture.md §4.2 rules 1–2; 09-open-design.md
-// §3.2): when a parent re-creates a child's value, the child's body runs only
-// if one of its stored inputs differs. Inputs are compared field by field:
-// plain values by value, class references by identity, closures never equal.
-// A view type's own `==` is *not* consulted for its fields' combination (the
-// measured `.equatable()` case of 03 §4.1); `EquatableView` decides when it is.
-
-/// A stored property kind that knows how it compares as a view input
-/// (property wrappers whose value lives in the graph, bindings, …).
 package protocol GraphInputComparable {
     func _isGraphInputEqual(to other: Any) -> Bool
 }
 
 package enum GraphComparison {
-    /// Maximum nesting followed when comparing structurally.
     static let maxDepth = 12
 
-    /// Field-by-field comparison of two view (or modifier) values of the same
-    /// type. The value's own `Equatable` conformance is not used at this
-    /// level; each field is compared with `valuesEqual`.
     package static func fieldsEqual(_ a: Any, _ b: Any) -> Bool {
         guard ObjectIdentifier(type(of: a)) == ObjectIdentifier(type(of: b)) else { return false }
         if let g = a as? any GraphInputComparable { return g._isGraphInputEqual(to: b) }
@@ -28,9 +15,6 @@ package enum GraphComparison {
         return childrenEqual(ma, mb, depth: 0)
     }
 
-    /// Comparison of two arbitrary values: graph-aware wrappers first, then
-    /// closures (never equal), class instances (identity), `Equatable`
-    /// values (`==`), and finally a structural comparison of stored fields.
     package static func valuesEqual(_ a: Any, _ b: Any) -> Bool { valuesEqual(a, b, depth: 0) }
 
     private static func valuesEqual(_ a: Any, _ b: Any, depth: Int) -> Bool {

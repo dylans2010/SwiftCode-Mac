@@ -13,7 +13,6 @@ public struct BackupsView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Section 1: Creation Panel Control
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -46,7 +45,6 @@ public struct BackupsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Status banner if present
                 if let message = statusMessage {
                     HStack {
                         Image(systemName: statusColor == .green ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -64,7 +62,6 @@ public struct BackupsView: View {
                     .transition(.opacity)
                 }
 
-                // Section 2: Browse Snapshots Lists Table
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {

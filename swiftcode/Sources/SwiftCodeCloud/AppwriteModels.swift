@@ -1,9 +1,5 @@
 import Foundation
 
-/// One JSON value, for Appwrite user preferences (`prefs`), whose
-/// values are arbitrary JSON. Legacy only ever stored strings there
-/// (`swiftcode_id`), but the wire type is unrestricted, so decoding
-/// keeps every value instead of dropping non-strings.
 public enum AppwriteJSONValue: Codable, Sendable, Equatable {
     case string(String)
     case number(Double)
@@ -44,24 +40,12 @@ public enum AppwriteJSONValue: Codable, Sendable, Equatable {
         }
     }
 
-    /// The value as a string, when it is one. Legacy reads
-    /// `prefs["swiftcode_id"]` as a string; anything else is not a
-    /// SwiftCode id.
     public var stringValue: String? {
         if case .string(let value) = self { return value }
         return nil
     }
 }
 
-/// An Appwrite account user, as returned by `GET /account` and
-/// `POST /account`. Only the fields the IDE uses are modelled; the
-/// server returns more (phone, labels, targets, `accessedAt`), which
-/// decoding ignores.
-///
-/// Appwrite dates arrive as ISO 8601 strings with fractional seconds
-/// (`2026-01-15T10:30:00.000+00:00`), which `JSONDecoder`'s
-/// `.iso8601` strategy does not accept on every platform, so decoding
-/// goes through `AppwriteDecoder`.
 public struct AppwriteUser: Codable, Sendable, Equatable {
     public var id: String
     public var createdAt: Date
@@ -71,8 +55,6 @@ public struct AppwriteUser: Codable, Sendable, Equatable {
     public var emailVerification: Bool
     public var phoneVerification: Bool
     public var status: Bool
-    /// Arbitrary per-user preferences. Legacy stores the stable
-    /// SwiftCode id here under the key `swiftcode_id`.
     public var prefs: [String: AppwriteJSONValue]
 
     public init(
@@ -123,11 +105,6 @@ public struct AppwriteUser: Codable, Sendable, Equatable {
     }
 }
 
-/// An Appwrite session, as returned by
-/// `POST /account/sessions/email`. The session *secret* is not in
-/// this body — Appwrite delivers it as the `Set-Cookie` header
-/// (`a_session_<project>`); the client captures that header and
-/// persists the secret in the secret store.
 public struct AppwriteSession: Codable, Sendable, Equatable {
     public var id: String
     public var userID: String
@@ -158,8 +135,6 @@ public struct AppwriteSession: Codable, Sendable, Equatable {
     }
 }
 
-/// One file in an Appwrite Storage bucket, as returned by
-/// `GET /storage/buckets/{bucketId}/files`.
 public struct AppwriteFile: Codable, Sendable, Equatable {
     public var id: String
     public var bucketID: String
@@ -184,16 +159,12 @@ public struct AppwriteFile: Codable, Sendable, Equatable {
     }
 }
 
-/// The JSON envelope Appwrite returns for a failed request:
-/// `{"message": ..., "code": ..., "type": ..., "version": ...}`.
 public struct AppwriteErrorBody: Codable, Sendable, Equatable {
     public var message: String
     public var code: Int?
     public var type: String?
 }
 
-/// A `JSONDecoder` that understands Appwrite's date strings, with and
-/// without fractional seconds.
 public enum AppwriteDecoder {
     public static func decoder() -> JSONDecoder {
         let decoder = JSONDecoder()
@@ -207,9 +178,6 @@ public enum AppwriteDecoder {
         return decoder
     }
 
-    /// Parses an Appwrite ISO 8601 date, accepting fractional seconds
-    /// (`2026-01-15T10:30:00.000+00:00`) and plain seconds
-    /// (`2026-01-15T10:30:00Z`).
     public static func date(from text: String) -> Date? {
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

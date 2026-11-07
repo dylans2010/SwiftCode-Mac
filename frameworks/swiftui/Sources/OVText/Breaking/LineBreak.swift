@@ -1,26 +1,8 @@
-// Line break opportunities: our implementation of the Unicode Line Breaking
-// Algorithm (Unicode Standard Annex #14), operating on grapheme clusters
-// (Swift `Character`s, UAX #29), which already keep combining marks, ZWJ
-// sequences, emoji modifiers and regional-indicator pairs together (LB8a,
-// LB9, LB10, LB30a, LB30b).
-//
-// Coverage: the pair rules LB4–LB31 except the Brahmic rule LB28a and the
-// East-Asian-width refinement of LB30; the full numeric regular expression
-// of LB25 is approximated by its pair form. Line break classes come from a
-// table of the characters the annex lists explicitly, with the remainder
-// derived from the general category (letters → AL, decimal digits → NU,
-// opening/closing/quotation punctuation → OP/CL/QU, marks → CM) and block
-// ranges (CJK and kana → ID, Hangul syllables → H2/H3, Hebrew letters →
-// HL). Complex-context (SA) scripts are treated as AL: there is no
-// dictionary-based word breaking.
-
-/// UAX #14 line break classes (the subset this implementation resolves to).
 public enum LineBreakClass: Hashable, Sendable {
     case BK, CR, LF, NL, SP, ZW, ZWJ, CM, WJ, GL
     case BA, BB, B2, HY, CB, CL, CP, EX, IN, NS, OP, QU, IS, NU, PO, PR, SY
     case AL, HL, ID, EB, EM, RI, H2, H3, JL, JV, JT
 
-    /// The class of a scalar.
     public init(_ s: Unicode.Scalar) {
         self = LineBreakClass.classify(s)
     }
@@ -30,7 +12,6 @@ public enum LineBreakClass: Hashable, Sendable {
         0x30A1, 0x30A3, 0x30A5, 0x30A7, 0x30A9, 0x30C3, 0x30E3, 0x30E5, 0x30E7, 0x30EE, 0x30F5, 0x30F6, 0x30FC,
     ]
 
-    // swiftlint:disable:next cyclomatic_complexity
     private static func classify(_ s: Unicode.Scalar) -> LineBreakClass {
         let v = s.value
         switch v {
@@ -108,7 +89,6 @@ public enum LineBreakClass: Hashable, Sendable {
     }
 }
 
-/// What may happen between two clusters.
 public enum LineBreakOpportunity: Hashable, Sendable {
     case prohibited
     case allowed
@@ -116,8 +96,6 @@ public enum LineBreakOpportunity: Hashable, Sendable {
 }
 
 public enum LineBreaker {
-    /// The class of a grapheme cluster (its first scalar; a cluster that
-    /// starts with a combining mark or ZWJ is AL, LB10).
     public static func lineBreakClass(of c: Character) -> LineBreakClass {
         guard let first = c.unicodeScalars.first else { return .AL }
         if c == "\r\n" { return .CR }
@@ -125,89 +103,62 @@ public enum LineBreaker {
         return cls == .CM || cls == .ZWJ ? .AL : cls
     }
 
-    /// Opportunities *before* each cluster: element `i` describes the
-    /// boundary between clusters `i − 1` and `i`; element 0 is `.prohibited`
-    /// and element `count` (the end of text) is `.mandatory` (LB2, LB3).
     public static func opportunities(_ clusters: [Character]) -> [LineBreakOpportunity] {
         opportunities(classes: clusters.map(lineBreakClass(of:)))
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     public static func opportunities(classes cls: [LineBreakClass]) -> [LineBreakOpportunity] {
         let n = cls.count
         var out = [LineBreakOpportunity](repeating: .prohibited, count: n + 1)
         guard n > 0 else { out[0] = .mandatory; return out }
         out[n] = .mandatory
-        var lastNonSpace: LineBreakClass?  // before the current run of spaces
+        var lastNonSpace: LineBreakClass?
         if cls[0] != .SP { lastNonSpace = cls[0] }
         for i in 1..<n {
             let a = cls[i - 1], b = cls[i]
-            // The class before any spaces that end at i − 1.
             let beforeSpaces = a == .SP ? lastNonSpace : a
             defer { if b != .SP { lastNonSpace = b } }
             func set(_ o: LineBreakOpportunity) { out[i] = o }
-            // LB4, LB5: hard breaks.
             if a == .BK || a == .LF || a == .NL { set(.mandatory); continue }
             if a == .CR { set(b == .LF ? .prohibited : .mandatory); continue }
-            // LB6.
             if b == .BK || b == .CR || b == .LF || b == .NL { set(.prohibited); continue }
-            // LB7.
             if b == .SP || b == .ZW { set(.prohibited); continue }
-            // LB8: ZW SP* ÷.
             if beforeSpaces == .ZW { set(.allowed); continue }
-            // LB8a.
             if a == .ZWJ { set(.prohibited); continue }
-            // LB11.
             if a == .WJ || b == .WJ { set(.prohibited); continue }
-            // LB12, LB12a.
             if a == .GL { set(.prohibited); continue }
             if b == .GL && a != .SP && a != .BA && a != .HY { set(.prohibited); continue }
-            // LB13.
             if b == .CL || b == .CP || b == .EX || b == .IS || b == .SY { set(.prohibited); continue }
-            // LB14: OP SP* ×.
             if beforeSpaces == .OP { set(.prohibited); continue }
-            // LB15: QU SP* × OP.
             if beforeSpaces == .QU && b == .OP { set(.prohibited); continue }
-            // LB16: (CL | CP) SP* × NS.
             if (beforeSpaces == .CL || beforeSpaces == .CP) && b == .NS { set(.prohibited); continue }
-            // LB17: B2 SP* × B2.
             if beforeSpaces == .B2 && b == .B2 { set(.prohibited); continue }
-            // LB18: SP ÷.
             if a == .SP { set(.allowed); continue }
-            // LB19.
             if a == .QU || b == .QU { set(.prohibited); continue }
-            // LB20.
             if a == .CB || b == .CB { set(.allowed); continue }
-            // LB21, LB21a, LB21b.
             if b == .BA || b == .HY || b == .NS || a == .BB { set(.prohibited); continue }
             if i >= 2 && cls[i - 2] == .HL && (a == .HY || a == .BA) { set(.prohibited); continue }
             if a == .SY && b == .HL { set(.prohibited); continue }
-            // LB22.
             if b == .IN { set(.prohibited); continue }
             let letter: Set<LineBreakClass> = [.AL, .HL]
             let ideo: Set<LineBreakClass> = [.ID, .EB, .EM]
             let hangul: Set<LineBreakClass> = [.JL, .JV, .JT, .H2, .H3]
-            // LB23, LB23a, LB24.
             if letter.contains(a) && b == .NU || a == .NU && letter.contains(b) { set(.prohibited); continue }
             if a == .PR && ideo.contains(b) || ideo.contains(a) && b == .PO { set(.prohibited); continue }
             if (a == .PR || a == .PO) && letter.contains(b) || letter.contains(a) && (b == .PR || b == .PO) {
                 set(.prohibited); continue
             }
-            // LB25 (pair form).
             if [.CL, .CP, .NU].contains(a) && (b == .PO || b == .PR) { set(.prohibited); continue }
             if (a == .PO || a == .PR) && (b == .OP || b == .NU) { set(.prohibited); continue }
             if [.HY, .IS, .NU, .SY].contains(a) && b == .NU { set(.prohibited); continue }
-            // LB26, LB27.
             if a == .JL && [.JL, .JV, .H2, .H3].contains(b) { set(.prohibited); continue }
             if (a == .JV || a == .H2) && (b == .JV || b == .JT) { set(.prohibited); continue }
             if (a == .JT || a == .H3) && b == .JT { set(.prohibited); continue }
             if hangul.contains(a) && b == .PO || a == .PR && hangul.contains(b) { set(.prohibited); continue }
-            // LB28, LB29, LB30.
             if letter.contains(a) && letter.contains(b) { set(.prohibited); continue }
             if a == .IS && letter.contains(b) { set(.prohibited); continue }
             if (letter.contains(a) || a == .NU) && b == .OP { set(.prohibited); continue }
             if a == .CP && (letter.contains(b) || b == .NU) { set(.prohibited); continue }
-            // LB30a/b are inside clusters; LB31.
             if a == .EB && b == .EM { set(.prohibited); continue }
             set(.allowed)
         }

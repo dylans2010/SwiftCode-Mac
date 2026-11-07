@@ -1,13 +1,4 @@
-//
-//  AssistArchiveTools.swift
-//  SwiftCode
-//
-//  Created on 2026-10-18.
-//
-
 import Foundation
-
-// MARK: - Helper
 
 private func resolveWorkspaceArchiveURL(_ raw: String, workspaceRoot: URL) -> URL? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -27,8 +18,6 @@ private func resolveWorkspaceArchiveURL(_ raw: String, workspaceRoot: URL) -> UR
     }
     return candidate
 }
-
-// MARK: - Zip File Tool
 
 public struct AssistZipFileTool: AssistTool {
     public let id = "zip_file"
@@ -106,8 +95,6 @@ public struct AssistZipFileTool: AssistTool {
     }
 }
 
-// MARK: - Unzip File Tool
-
 public struct AssistUnzipFileTool: AssistTool {
     public let id = "unzip_file"
     public let name = "Unzip Archive"
@@ -181,8 +168,6 @@ public struct AssistUnzipFileTool: AssistTool {
         }
     }
 }
-
-// MARK: - Tar Archive Create Tool
 
 public struct AssistTarArchiveCreateTool: AssistTool {
     public let id = "tar_archive_create"
@@ -270,8 +255,6 @@ public struct AssistTarArchiveCreateTool: AssistTool {
     }
 }
 
-// MARK: - Tar Archive Extract Tool
-
 public struct AssistTarArchiveExtractTool: AssistTool {
     public let id = "tar_archive_extract"
     public let name = "Extract Tar Archive"
@@ -345,8 +328,6 @@ public struct AssistTarArchiveExtractTool: AssistTool {
         }
     }
 }
-
-// MARK: - Gzip Compress Tool
 
 public struct AssistGzipCompressTool: AssistTool {
     public let id = "gzip_compress_file"
@@ -424,8 +405,6 @@ public struct AssistGzipCompressTool: AssistTool {
         }
     }
 }
-
-// MARK: - Gzip Decompress Tool
 
 public struct AssistGzipDecompressTool: AssistTool {
     public let id = "gzip_decompress_file"

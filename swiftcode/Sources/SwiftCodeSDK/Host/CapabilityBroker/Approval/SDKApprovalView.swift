@@ -3,26 +3,11 @@ import Foundation
 import SwiftUI
 import SwiftCodeExtensions
 
-// MARK: - SDKApprovalRequest
-//
-// Ported from Legacy `SwiftCode/SDK/Host/CapabilityBroker/Approval/SDKApprovalView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// A capability approval request for one extension, handed to the host's
-// approval UI before any privileged capability is activated (spec §8.3).
-// The broker builds this from the validated manifest; the view performs
-// no navigation and no persistence — the broker wires the
-// onApprove/onDeny callbacks to the grant store and activation path.
-
 public struct SDKApprovalRequest: Sendable {
     public let extensionID: String
     public let extensionName: String
     public let extensionVersion: String
-    /// SHA-256 package digest of the install being approved. Displayed
-    /// truncated; the broker matches the full value before activating.
     public let packageDigest: String
-    /// Only capabilities the extension actually requested. Spec §8.3
-    /// forbids prompting for capabilities that were not requested.
     public let requestedCapabilities: [SDKCapabilityInfo]
 
     public init(
@@ -40,23 +25,11 @@ public struct SDKApprovalRequest: Sendable {
     }
 }
 
-// MARK: - SDKApprovalView
-
-/// Capability approval sheet for a SwiftCode extension.
-///
-/// Shows the extension identity and one row per requested capability with
-/// plain-language effects. The user may approve a SUBSET: toggles default
-/// ON only for low-risk capabilities and OFF for everything else; there is
-/// no "allow everything" default. Restricted or otherwise ungrantable
-/// capabilities cannot be toggled on and are labeled "Not available in
-/// this release". The broker stores only the explicitly approved set
-/// (spec §8.3.6) and returns a typed permission error on denial.
 public struct SDKApprovalView: View {
     private let request: SDKApprovalRequest
     private let onApprove: (Set<SDKCapabilityID>) -> Void
     private let onDeny: () -> Void
 
-    /// Currently selected (approved) capability IDs.
     @State private var selected: Set<SDKCapabilityID>
 
     public init(
@@ -67,9 +40,6 @@ public struct SDKApprovalView: View {
         self.request = request
         self.onApprove = onApprove
         self.onDeny = onDeny
-        // Toggles default ON only for low-risk capabilities that are
-        // grantable in this release. Medium/high are conservative-off;
-        // restricted/grantableInCurrentRelease == false can never be on.
         _selected = State(initialValue: Set(
             request.requestedCapabilities
                 .filter { $0.risk == .low && $0.grantableInCurrentRelease && $0.risk != .restricted }
@@ -130,8 +100,6 @@ public struct SDKApprovalView: View {
         .frame(minWidth: 480, maxWidth: 560)
     }
 
-    // MARK: - Header
-
     private var headerView: some View {
         VStack(spacing: 6) {
             Image(systemName: "puzzlepiece.extension")
@@ -158,10 +126,6 @@ public struct SDKApprovalView: View {
         }
     }
 
-    // MARK: - Honest notes
-
-    /// Spec §8.3.4: state plainly that build.execute may run a
-    /// potentially expensive build and that the host manages execution.
     private var buildExecuteNote: some View {
         Label {
             Text("Note: “Build” may run a potentially expensive build on your machine. Execution is managed by SwiftCode — the extension cannot run arbitrary build steps outside the approved scope.")
@@ -192,15 +156,6 @@ public struct SDKApprovalView: View {
     }
 }
 
-// MARK: - SDKCapabilityRow
-
-/// One capability row: toggle, title, plain-language description,
-/// grants/does-not-grant lines, and a risk badge.
-///
-/// The toggle is disabled for capabilities that are not grantable in this
-/// release (restricted or `grantableInCurrentRelease == false`, e.g.
-/// `assist.invoke` per ADR §9); such rows show "Not available in this
-/// release" and can never contribute to the approved set.
 public struct SDKCapabilityRow: View {
     private let info: SDKCapabilityInfo
     private let isSelected: Bool
@@ -258,8 +213,6 @@ public struct SDKCapabilityRow: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Legacy used the app's `liquidGlass` modifier; SwiftCodeSDK has no
-        // such modifier, so the row uses a plain background fill.
         #if os(macOS)
         .background(Color(nsColor: .controlBackgroundColor))
         #else
@@ -304,8 +257,6 @@ public struct SDKCapabilityRow: View {
             .cornerRadius(4)
     }
 }
-
-// MARK: - Risk presentation helpers
 
 extension SDKCapabilityRisk {
     var displayName: String {

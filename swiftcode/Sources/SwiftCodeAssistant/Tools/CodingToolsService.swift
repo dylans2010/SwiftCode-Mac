@@ -1,27 +1,6 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/CodingToolsService.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/Tools/CodingToolsService.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - writeDocumentation
-//   - generateSwiftUIPreview
-//   - executeCustomInstruction
-//   - addToAssistContext
-//   - CodingToolsService itself (canonical codingToolsSystemPrompt, Foundation-Models-first dispatch)
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AgentModelAdapter — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AgentModelAdapter.swift`)
-//   - AssistConversationMemory — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistConversationMemory.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - FoundationModels — UNOWNED (no worklist) (`SwiftCode/Services/FoundationModels.swift`)
-// WIRING / REGISTRATION: None (library type) — consumed by Assist session/agent code and, for tool-adjacent types, by SwiftCodeMCP.
-
 import Foundation
 import os
 
-/// Canonical Coding Tools service providing contextual editor operations (Refactor, Explain, Document, Preview, Custom).
-/// Fully reuses the existing Assist models, system instructions, error recovery, and conversation memory.
 @MainActor
 public final class CodingToolsService: Sendable {
     public static let shared = CodingToolsService()
@@ -30,7 +9,6 @@ public final class CodingToolsService: Sendable {
 
     private init() {}
 
-    /// Canonical system prompt strictly adhered to every time CodingTools generates code.
     public static let codingToolsSystemPrompt: String = """
     You are an expert Swift and Apple platforms software engineer integrated into SwiftCode IDE.
     Your task is to analyze, refactor, explain, document, and generate production-grade Swift and SwiftUI code.
@@ -44,12 +22,10 @@ public final class CodingToolsService: Sendable {
     6. Modern APIs: Prefer modern Swift and SwiftUI patterns: @Observable, #Preview, async/await, structured concurrency, and native System Foundation frameworks.
     """
 
-    /// The active model configured in Assist.
     public var activeModelID: String {
         return AssistModelManager.shared.selectedModelID
     }
 
-    /// Dispatches prompt using on-device Apple Foundation Models with strict system prompt, with graceful fallback to AgentModelAdapter.
     private func queryWithFoundationModel(
         prompt: String,
         systemPrompt: String = CodingToolsService.codingToolsSystemPrompt,
@@ -81,8 +57,6 @@ public final class CodingToolsService: Sendable {
         let response = try await AgentModelAdapter.shared.queryModel(prompt: promptWithSystemPrompt, modelId: activeModelID)
         return stripCodeFences ? cleanCodeBlock(response) : response
     }
-
-    // MARK: - Action A: Refactor Code
 
     public func refactorCode(
         code: String,
@@ -122,8 +96,6 @@ public final class CodingToolsService: Sendable {
         return try await queryWithFoundationModel(prompt: prompt, stripCodeFences: true)
     }
 
-    // MARK: - Action B: Add to Assist Context
-
     public func addToAssistContext(
         code: String,
         fullFileContent: String? = nil,
@@ -141,7 +113,6 @@ public final class CodingToolsService: Sendable {
         if let full = fullFileContent, full != code, !full.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             snippet += """
 
-
             [Full File Context for '\(filePath)']:
             ```\(language)
             \(full)
@@ -156,8 +127,6 @@ public final class CodingToolsService: Sendable {
         )
         AssistManager.shared.messages.append(message)
     }
-
-    // MARK: - Action C: Explain Code
 
     public func explainCode(
         code: String,
@@ -200,8 +169,6 @@ public final class CodingToolsService: Sendable {
         return try await queryWithFoundationModel(prompt: prompt, stripCodeFences: false)
     }
 
-    // MARK: - Action D: Write Documentation
-
     public func writeDocumentation(
         code: String,
         fullFileContent: String? = nil,
@@ -243,8 +210,6 @@ public final class CodingToolsService: Sendable {
         return try await queryWithFoundationModel(prompt: prompt, stripCodeFences: true)
     }
 
-    // MARK: - Action E: Generate SwiftUI Preview
-
     public func generateSwiftUIPreview(
         code: String,
         fullFileContent: String? = nil,
@@ -283,8 +248,6 @@ public final class CodingToolsService: Sendable {
 
         return try await queryWithFoundationModel(prompt: prompt, stripCodeFences: true)
     }
-
-    // MARK: - Action F: Custom Instruction
 
     public func executeCustomInstruction(
         instruction: String,
@@ -332,12 +295,9 @@ public final class CodingToolsService: Sendable {
         return try await queryWithFoundationModel(prompt: prompt, stripCodeFences: looksLikeCodeChange)
     }
 
-    // MARK: - Helpers
-
     private func cleanCodeBlock(_ text: String) -> String {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("```") {
-            // Drop initial ```swift or ```
             if let firstNewline = trimmed.firstIndex(of: "\n") {
                 trimmed = String(trimmed[trimmed.index(after: firstNewline)...])
             }

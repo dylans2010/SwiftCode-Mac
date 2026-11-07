@@ -1,39 +1,24 @@
 import Foundation
 
-/// What the build system knows about one target when it asks how to sign
-/// it (swift-build's provisioning source data, open source).
 public struct SigningRequest: Equatable, Sendable {
     public enum Style: Sendable { case automatic, manual }
     public enum ProfileSupport: Sendable { case unsupported, optional, required }
 
     public var targetName: String
-    /// `CODE_SIGN_IDENTITY` (swift-build sends `-` for every simulator build).
     public var identity: String
     public var style: Style
-    /// `DEVELOPMENT_TEAM`, nil when empty.
     public var team: String?
     public var bundleIdentifier: String
-    /// `PROVISIONING_PROFILE_SPECIFIER`: a profile name or UUID, optionally `<team>/` first.
     public var profileSpecifier: String
-    /// `PROVISIONING_PROFILE`: a profile UUID.
     public var profileUUID: String
     public var profileSupport: ProfileSupport
-    /// Entitlements the product type adds (swift-build's product-type specs).
     public var productTypeEntitlements: Entitlements
-    /// The `CODE_SIGN_ENTITLEMENTS` file (and `CODE_SIGN_ENTITLEMENTS_CONTENTS`),
-    /// with build settings already expanded by swift-build except
-    /// `$(AppIdentifierPrefix)`, which it fills in from the answer.
     public var projectEntitlements: Entitlements?
-    /// SDK canonical name and variant.
     public var sdk: String
     public var sdkVariant: String?
-    /// Whether the product takes entitlements (swift-build: an executable,
-    /// `MACH_O_TYPE` `mh_execute`). Libraries and test bundles take none.
     public var supportsEntitlements: Bool
-    /// The product type (`com.apple.product-type.…`), empty when unknown.
     public var productType: String
     public var signingRequiresTeam: Bool
-    /// Local development builds are debuggable; archives are not.
     public var debuggable: Bool
 
     public init(targetName: String, identity: String, style: Style = .automatic, team: String? = nil, bundleIdentifier: String,
@@ -61,28 +46,17 @@ public struct SigningRequest: Equatable, Sendable {
 
     public var platform: SigningPlatform { SigningPlatform(sdk: sdk, variant: sdkVariant) }
 
-    /// Product types swift-build signs only with entitlements
-    /// (`ENTITLEMENTS_REQUIRED`): UI test bundles, which run in a runner
-    /// app (open-source swift-build, `XCTestBundleProductTypeSpec`).
     public static let entitlementsRequiredProductTypes: Set<String> = ["com.apple.product-type.bundle.ui-testing"]
 
-    /// Whether entitlements are composed for the product: executables, and
-    /// the product types that require them although they are bundles.
     public var takesEntitlements: Bool { supportsEntitlements || Self.entitlementsRequiredProductTypes.contains(productType) }
 }
 
-/// The answer: what to sign with and which entitlements go where.
 public struct SigningResolution: Equatable, Sendable {
-    /// `-` for ad hoc, a SHA-1 hash for an identity, nil for no signing.
     public var identityHash: String?
     public var identityName: String?
     public var profile: ProvisioningProfile?
-    /// Entitlements signed into the code signature.
     public var signedEntitlements: Entitlements = [:]
-    /// Entitlements linked into the executable's `__TEXT,__entitlements`
-    /// section (simulator builds).
     public var simulatedEntitlements: Entitlements = [:]
-    /// The values of `$(AppIdentifierPrefix)` and `$(TeamIdentifierPrefix)`.
     public var appIdentifierPrefix: String?
     public var teamIdentifierPrefix: String?
     public var errors: [String] = []
@@ -100,8 +74,6 @@ public struct SigningResolution: Equatable, Sendable {
     }
 }
 
-/// Identities and profiles to choose from. Loaded on first use, so ad hoc
-/// builds never touch the keychain.
 public struct SigningEnvironment: Sendable {
     public var identities: @Sendable () -> [SigningIdentity]
     public var profiles: @Sendable () -> [ProvisioningProfile]
@@ -113,28 +85,22 @@ public struct SigningEnvironment: Sendable {
         self.now = now
     }
 
-    /// The user's keychain and installed profiles (read-only).
     public static func user(environment: [String: String] = ProcessInfo.processInfo.environment) -> SigningEnvironment {
         let dirs = ProfileStore.directories(environment: environment)
         return SigningEnvironment(identities: { Keychain.identities() }, profiles: { ProfileStore.load(directories: dirs) })
     }
 }
 
-/// Chooses the identity and profile for a target and composes its
-/// entitlements. See specs/ide/signing.md §2–§4.
 public enum ProvisioningResolver {
     public static let adHocName = "Sign to Run Locally"
 
     public static func resolve(_ r: SigningRequest, environment env: SigningEnvironment) -> SigningResolution {
-        // No identity: the product is not signed.
         if r.identity.isEmpty { return SigningResolution() }
         let platform = r.platform
         let teamPrefix = r.team.map { $0 + "." }
         if r.identity == "-" || platform.isSimulator {
             return adHoc(r, platform: platform, teamPrefix: teamPrefix)
         }
-        // A team is needed to sign with an identity, except on the Mac,
-        // where automatic signing without one signs to run locally.
         guard let team = r.team else {
             if platform.isMac && r.style == .automatic && !r.signingRequiresTeam {
                 return adHoc(r, platform: platform, teamPrefix: nil)
@@ -147,17 +113,10 @@ public enum ProvisioningResolver {
         return withIdentity(r, team: team, platform: platform, environment: env)
     }
 
-    /// The project's entitlements over the product type's.
     static func base(_ r: SigningRequest) -> Entitlements {
         r.productTypeEntitlements.overlaid(with: r.projectEntitlements ?? [:])
     }
 
-    /// Sign to Run Locally. On the Mac and devices the project's
-    /// entitlements go into the ad hoc signature, with the debugging
-    /// entitlement for debuggable builds. Simulator builds keep the
-    /// signature to the debugging entitlement and link the rest, with the
-    /// application identifier and keychain group SwiftCode derives, into the
-    /// executable's entitlements section.
     static func adHoc(_ r: SigningRequest, platform: SigningPlatform, teamPrefix: String?) -> SigningResolution {
         var out = SigningResolution(identityHash: "-", identityName: adHocName)
         out.appIdentifierPrefix = teamPrefix
@@ -185,7 +144,6 @@ public enum ProvisioningResolver {
         return out
     }
 
-    /// The profile a manual specifier names, if any.
     static func named(_ r: SigningRequest, in profiles: [ProvisioningProfile]) -> (profile: ProvisioningProfile?, specifier: String?) {
         if !r.profileUUID.isEmpty { return (profiles.first { $0.uuid.caseInsensitiveCompare(r.profileUUID) == .orderedSame }, r.profileUUID) }
         guard !r.profileSpecifier.isEmpty else { return (nil, nil) }
@@ -201,7 +159,6 @@ public enum ProvisioningResolver {
         return (match, r.profileSpecifier)
     }
 
-    /// Why a profile cannot sign the request, or nil when it can.
     static func problem(with p: ProvisioningProfile, _ r: SigningRequest, team: String?, platform: SigningPlatform,
                         identities: [SigningIdentity], now: Date) -> String? {
         if p.isExpired(at: now) {
@@ -221,7 +178,6 @@ public enum ProvisioningResolver {
             return "Provisioning profile \"\(p.name)\" doesn't include a signing certificate \"\(r.identity)\" from the keychain."
         }
         if r.debuggable && platform.isMac == false && p.kind != .development {
-            // A device build that is debugged needs a development profile.
             return "Provisioning profile \"\(p.name)\" is a \(p.kind.rawValue) profile; debugging needs a development profile."
         }
         for m in EntitlementPolicy.mismatches(base(r), profile: p, platform: platform) {
@@ -233,8 +189,6 @@ public enum ProvisioningResolver {
         return nil
     }
 
-    /// Ranks usable profiles: an explicit app ID before a wildcard, the
-    /// kind that fits the build, then the latest expiry.
     static func better(_ a: ProvisioningProfile, _ b: ProvisioningProfile, debuggable: Bool) -> Bool {
         if a.isWildcard != b.isWildcard { return !a.isWildcard }
         let want: ProvisioningProfile.Kind = debuggable ? .development : .distribution
@@ -253,8 +207,6 @@ public enum ProvisioningResolver {
         let base = base(r)
         let restricted = r.takesEntitlements ? EntitlementPolicy.restrictedKeys(base, on: platform) : []
         let specified = !r.profileSpecifier.isEmpty || !r.profileUUID.isEmpty
-        // Automatic signing uses a matching profile when there is one; it
-        // needs one for restricted entitlements and where profiles are required.
         let needsProfile = r.profileSupport == .required || !restricted.isEmpty
         var profile: ProvisioningProfile?
         if r.profileSupport != .unsupported && (specified || r.style == .automatic || needsProfile) {
@@ -278,7 +230,6 @@ public enum ProvisioningResolver {
                 }
             }
         }
-        // The identity: one the profile lists, else the latest-expiring.
         let identity = profile.flatMap { p in candidates.first { p.certificateHashes.contains($0.hash) } } ?? candidates[0]
         var out = SigningResolution(identityHash: identity.hash, identityName: identity.name)
         out.profile = profile
@@ -290,17 +241,13 @@ public enum ProvisioningResolver {
         if let profile {
             signed[platform.applicationIdentifierKey] = .string((prefix ?? "") + r.bundleIdentifier)
             if let t = team ?? profile.teamIdentifiers.first { signed["com.apple.developer.team-identifier"] = .string(t) }
-            // The debugging entitlement: unrestricted on the Mac; on devices
-            // only as a development profile allows it.
             if r.debuggable && (platform.isMac || profile.entitlements[platform.getTaskAllowKey]?.boolValue == true) {
                 signed[platform.getTaskAllowKey] = .bool(true)
             }
-            // Devices: the app's own keychain group, as the profile allows it.
             if !platform.isMac && base["keychain-access-groups"] == nil, let allowed = profile.entitlements["keychain-access-groups"] {
                 let own = EntitlementValue.array([.string((prefix ?? "") + r.bundleIdentifier)])
                 if EntitlementPolicy.allows(allowed, own) { signed["keychain-access-groups"] = own }
             }
-            // The project cannot replace the identifiers derived from the profile.
             signed = base.overlaid(with: signed)
         } else {
             signed = base

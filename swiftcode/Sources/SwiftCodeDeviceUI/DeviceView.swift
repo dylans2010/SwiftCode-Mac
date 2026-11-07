@@ -1,22 +1,3 @@
-// The device screen: shows the stream image at the device's aspect ratio
-// and turns mouse, trackpad, and keyboard input into touches, keys, and
-// gestures (display-stream.md §5, §7).
-//
-//   click / drag            one finger
-//   option + drag           two fingers mirrored about the screen center (pinch, rotate)
-//   option + shift + drag   two fingers moving together (two-finger pan)
-//   scroll wheel / trackpad one-finger drag that follows the scroll; on a
-//                           watch the Digital Crown's rotation instead
-//                           (watchos.md §5.1, §12: scrolling down = positive)
-//   keys (without command)  hardware keyboard usages
-//   keys with command       also sent while Capture Keyboard is on
-//                           (device-hub.md §4.6); holding Escape for a
-//                           second ends the capture
-//
-// A Vision Pro (the server's hello says `spatial`): gaze, hands and camera
-// instead of touches (DeviceView+Spatial.swift; visionos.md "SwiftCode
-// implementation").
-
 #if os(macOS)
 import AppKit
 import QuartzCore
@@ -26,13 +7,9 @@ import SwiftCodeDisplayStream
 public protocol DeviceInputHandler: AnyObject {
     func sendTouch(_ contacts: [TouchContact], label: String?)
     func sendKey(usage: UInt16, down: Bool, label: String?)
-    /// A watch's Digital Crown turned by `delta` (signed; watchos.md §5.1).
     func rotateCrown(by delta: Double)
-    /// Whether scrolling turns the crown (a watch) instead of dragging a finger.
     var scrollsTurnTheCrown: Bool { get }
-    /// visionOS: the server takes pose, selection and dial messages (its hello's `spatial`).
     var isSpatial: Bool { get }
-    /// visionOS: a gaze-and-hands selection, a camera pose, a Digital Crown turn (stage frame).
     func sendSelection(_ selection: SpatialSelection, label: String?)
     func sendPose(_ pose: SpatialPose)
     func turnDial(by delta: Double)
@@ -49,22 +26,16 @@ public extension DeviceInputHandler {
 
 public final class DeviceView: NSView {
     public weak var input: DeviceInputHandler?
-    /// The device's size in points (touch coordinates).
     public var pointSize = CGSize(width: 466, height: 678) {
         didSet { spatial.width = pointSize.width; spatial.height = pointSize.height }
     }
     private let indicator = CAShapeLayer()
-    /// visionOS: the camera and the hands (DeviceView+Spatial.swift).
     public var spatial = SpatialInteraction()
-    /// visionOS: the pointer at the start of a mouse-look drag (Control-drag).
     var spatialLook: CGPoint?
 
-    /// Capture Keyboard (device-hub.md §4.6): command shortcuts go to the
-    /// device too. Holding Escape for `escapeHold` seconds ends it.
     public var capturesKeyboard = false {
         didSet { if !capturesKeyboard { escapeTimer?.invalidate(); escapeTimer = nil } }
     }
-    /// Called when holding Escape ended the capture.
     public var onCaptureCancelled: (() -> Void)?
     public static let escapeHold: TimeInterval = 1
     private var escapeTimer: Timer?
@@ -79,11 +50,6 @@ public final class DeviceView: NSView {
         }
     }
 
-    /// One image pixel per display pixel: the picture is shown as it is,
-    /// with no filter (uikit-feel-swiftcode.md §8.4); at any other size it is
-    /// filtered. Trilinear filtering makes Core Animation build mipmaps of
-    /// every new frame (an 11 MB image at full resolution); it is used only
-    /// when the image is shrunk by more than half, where bilinear would alias.
     private func updateFilter() {
         guard let image, bounds.width > 0 else { return }
         let backing = window?.backingScaleFactor ?? 2
@@ -93,8 +59,6 @@ public final class DeviceView: NSView {
         layer?.minificationFilter = exact ? .nearest : shrink > 2 ? .trilinear : .linear
     }
 
-    /// Whether an image of `image` pixels fills a view of `view` points
-    /// with one image pixel per display pixel.
     public static func showsPixelsOneToOne(image: CGSize, view: CGSize, backing: CGFloat) -> Bool {
         abs(image.width - view.width * backing) < 0.01 && abs(image.height - view.height * backing) < 0.01
     }
@@ -136,9 +100,6 @@ public final class DeviceView: NSView {
         updateFilter()
     }
 
-    // MARK: Coordinates
-
-    /// A view point → device points (clamped to the screen).
     public func devicePoint(_ p: CGPoint) -> CGPoint {
         guard bounds.width > 0, bounds.height > 0 else { return .zero }
         let x = min(max(p.x, 0), bounds.width) / bounds.width * pointSize.width
@@ -146,14 +107,11 @@ public final class DeviceView: NSView {
         return CGPoint(x: x, y: y)
     }
 
-    /// A device point → a view point.
     public func viewPoint(device p: CGPoint) -> CGPoint {
         CGPoint(x: p.x / pointSize.width * bounds.width, y: p.y / pointSize.height * bounds.height)
     }
 
     private var center: CGPoint { CGPoint(x: bounds.midX, y: bounds.midY) }
-
-    // MARK: Touch from the mouse
 
     private enum Gesture {
         case one
@@ -252,7 +210,6 @@ public final class DeviceView: NSView {
         super.magnify(with: event)
     }
 
-    /// Ends whatever touch is down (the window lost focus).
     public func cancelInput() {
         spatialCancel()
         if let g = gesture {
@@ -264,7 +221,6 @@ public final class DeviceView: NSView {
         showIndicator([], pressed: false)
     }
 
-    /// Releases every key and modifier held down in the guest.
     private func releaseKeys() {
         for code in pressedModifiers {
             if let u = KeyMap.usage[code] { input?.sendKey(usage: u, down: false, label: nil) }
@@ -274,21 +230,14 @@ public final class DeviceView: NSView {
         pressedKeys.removeAll()
     }
 
-    // MARK: Scrolling → a one-finger drag
-
     private var scrollFinger: CGPoint?
     private var scrollIdle: Timer?
 
-    /// The crown's delta per point of precise (trackpad) scrolling; a wheel's
-    /// line counts 10 points. User-adjustable with the defaults key
-    /// `SwiftCodeCrownScrollFactor` (SwiftCode decision, watchos.md §12).
     public static var crownFactor: Double {
         let v = UserDefaults.standard.double(forKey: "SwiftCodeCrownScrollFactor")
         return v > 0 ? v : 2
     }
 
-    /// The crown's delta for one scroll event: content moving up (scrolling
-    /// down a list, two fingers up on a natural-scrolling trackpad) is positive.
     public static func crownDelta(scrollingDeltaY: CGFloat, precise: Bool, factor: Double = crownFactor) -> Double {
         -Double(scrollingDeltaY) * (precise ? 1 : 10) * factor
     }
@@ -296,13 +245,11 @@ public final class DeviceView: NSView {
     public override func scrollWheel(with event: NSEvent) {
         if spatialScroll(event) { return }
         if let input, input.scrollsTurnTheCrown {
-            // The guest makes its own acceleration from the crown's deltas.
             guard event.momentumPhase.isEmpty, event.scrollingDeltaY != 0 else { return }
             input.rotateCrown(by: Self.crownDelta(scrollingDeltaY: event.scrollingDeltaY, precise: event.hasPreciseScrollingDeltas))
             return
         }
         if !event.momentumPhase.isEmpty {
-            // The guest makes its own momentum from the drag's speed.
             endScroll()
             return
         }
@@ -342,8 +289,6 @@ public final class DeviceView: NSView {
         input?.sendTouch(contacts([p], phase: .ended), label: nil)
     }
 
-    // MARK: Keyboard
-
     private var pressedModifiers = Set<UInt16>()
     private var pressedKeys = Set<UInt16>()
 
@@ -351,7 +296,6 @@ public final class DeviceView: NSView {
         if spatialKeyDown(event) { return }
         if event.modifierFlags.contains(.command) && !capturesKeyboard { super.keyDown(with: event); return }
         if capturesKeyboard, event.keyCode == 0x35, !event.isARepeat {
-            // Escape: sent as usual; held, it ends the capture.
             escapeTimer?.invalidate()
             escapeTimer = Timer.scheduledTimer(withTimeInterval: Self.escapeHold, repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated { self?.escapeHeld() }
@@ -362,7 +306,6 @@ public final class DeviceView: NSView {
         input?.sendKey(usage: u, down: true, label: "key")
     }
 
-    /// While capturing, command shortcuts are the device's (not the menus').
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard capturesKeyboard, window?.firstResponder === self, event.type == .keyDown else { return super.performKeyEquivalent(with: event) }
         keyDown(with: event)
@@ -389,12 +332,10 @@ public final class DeviceView: NSView {
         let code = event.keyCode
         guard let u = KeyMap.usage[code] else { return }
         if u == 0x39 {
-            // Caps lock reports its state, not the key: press and release.
             input?.sendKey(usage: u, down: true, label: nil)
             input?.sendKey(usage: u, down: false, label: nil)
             return
         }
-        // Command stays with the Mac (menus) unless the keyboard is captured.
         if (u == 0xE3 || u == 0xE7) && !capturesKeyboard { return }
         if pressedModifiers.contains(code) {
             pressedModifiers.remove(code)

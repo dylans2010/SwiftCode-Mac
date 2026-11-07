@@ -26,9 +26,6 @@ public struct ExecutionPlanTool: AssistTool {
     }
 
     public var capability: ToolCapability { .planning }
-    // The tool writes agent_notes.md into the workspace, so it is a
-    // mutation, not a read — previously it declared isReadOnly=true while
-    // writing a file, which misled phase gates and read-only checks.
     public var riskLevel: ToolRiskLevel { .safeMutation }
     public var isReadOnly: Bool { false }
     public var isMutating: Bool { true }
@@ -104,8 +101,6 @@ public struct ExecutionPlanTool: AssistTool {
             "mode": mode.rawValue
         ])
     }
-
-    // MARK: - Repository Inspection
 
     private struct RepositoryStructure {
         let fileCount: Int
@@ -267,8 +262,6 @@ public struct ExecutionPlanTool: AssistTool {
         }
         return contents
     }
-
-    // MARK: - Plan Building
 
     private struct ExecutionPlanData {
         let objective: String

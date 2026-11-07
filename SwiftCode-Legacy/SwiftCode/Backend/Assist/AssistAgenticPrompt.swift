@@ -1,6 +1,5 @@
 import Foundation
 
-/// Defines the core persona and operational rules for the Assist Autonomous Engineering Agent.
 public struct AssistAgenticPrompt {
     public static let systemPrompt = """
     # PERSONA

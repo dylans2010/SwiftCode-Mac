@@ -2,51 +2,20 @@ import AppKit
 import Foundation
 import SwiftUI
 
-// MARK: - SDKStudioExtensionsView
-//
-// Extension lifecycle console (spec Docs/Intro-to-SDK.md §13.3): the Studio
-// surface for testing, enabling, disabling, updating, packaging, and
-// uninstalling locally installed extensions.
-//
-// Sibling-view contract (owned by parallel work — referenced here by their
-// exact names and inits, never redefined):
-//   - SDKManifestInspectorView(extensionID: String)
-//   - SDKGrantManagerView(extensionID: String)
-//
-// This view is hosted inside the Studio shell's NavigationStack; it does
-// not create its own navigation container.
-//
-// Real work only: every control calls a real API. Scan/enable/uninstall go
-// through SDKExtensionRegistry; uninstall additionally revokes every
-// capability grant via SDKGrantStore so no grant survives its extension
-// (spec §8.7). Package/install/update/validate shell out to the real
-// SwiftCode CLI through a child node process. Errors are shown inline and
-// are never swallowed.
-//
-// CLI resolution uses the explicit com.swiftcode.sdk.cliPath developer
-// override when set; otherwise it uses the app-bundled toolkit. Missing
-// Node or CLI is reported with manual commands, never fake success.
-
 @MainActor
 public struct SDKStudioExtensionsView: View {
 
-    // MARK: - Nested types
-
-    /// Which directory-picking flow is waiting on the NSOpenPanel result.
     private enum DirectoryAction {
         case packageInstall
         case update(ext: SDKInstalledExtension)
     }
 
-    /// What the user asked to do when the CLI turned out to be unreachable,
-    /// so the manual-command sheet can render the exact commands.
     private enum ManualOp {
         case packageInstall(sourceDir: URL)
         case update(ext: SDKInstalledExtension, sourceDir: URL)
         case validate(ext: SDKInstalledExtension)
     }
 
-    /// The completed result of one CLI child-process invocation.
     private struct CLIProcessResult: Sendable {
         let exitCode: Int32
         let stdout: String
@@ -83,18 +52,10 @@ public struct SDKStudioExtensionsView: View {
         let command: String
     }
 
-    // MARK: - Constants
-
-    /// UserDefaults key holding the full path to `swiftcode.mjs`. See the
-    /// CLI REACHABILITY DECISION note at the top of this file.
     private static let cliPathDefaultsKey = "com.swiftcode.sdk.cliPath"
-
-    // MARK: - State
 
     @State private var extensions: [SDKInstalledExtension] = []
     @State private var selection: String?
-    // Starts true so the first paint doesn't flash the "no extensions"
-    // empty state before the initial scan completes.
     @State private var isLoading = true
     @State private var isBusy = false
     @State private var errorMessage: String?
@@ -106,14 +67,10 @@ public struct SDKStudioExtensionsView: View {
 
     public init() {}
 
-    // MARK: - Derived
-
     private var selectedExtension: SDKInstalledExtension? {
         guard let selection else { return nil }
         return extensions.first { $0.id == selection }
     }
-
-    // MARK: - Body
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -146,8 +103,6 @@ public struct SDKStudioExtensionsView: View {
             manualCommandSheet(request)
         }
     }
-
-    // MARK: - List
 
     private var extensionList: some View {
         List(extensions, id: \.id, selection: $selection) { ext in
@@ -220,8 +175,6 @@ public struct SDKStudioExtensionsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Toolbar
-
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
@@ -246,8 +199,6 @@ public struct SDKStudioExtensionsView: View {
             .help("Package an extension project directory and install it.")
         }
     }
-
-    // MARK: - Banners and sheets
 
     private func errorBanner(message: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
@@ -308,8 +259,6 @@ public struct SDKStudioExtensionsView: View {
         .liquidGlass(style: .sheet, cornerRadius: 12)
     }
 
-    // MARK: - Scan / enable / uninstall (registry + grant store)
-
     private func refresh() async {
         isLoading = true
         defer { isLoading = false }
@@ -332,7 +281,6 @@ public struct SDKStudioExtensionsView: View {
                 await refresh()
             } catch {
                 showError(error)
-                // Restore the toggle to the stored value on failure.
                 await refresh()
             }
         }
@@ -342,13 +290,10 @@ public struct SDKStudioExtensionsView: View {
         Task {
             clearMessages()
             do {
-                // The runtime coordinator deactivates the extension
-                // separately; the registry owns only the install record.
                 try await SDKExtensionRegistry.shared.removeInstallRecord(
                     extensionID: ext.id,
                     version: ext.version
                 )
-                // Grants must die with the extension (spec §8.7).
                 try await SDKGrantStore.shared.revokeAll(for: ext.id)
                 selection = nil
                 statusMessage = "Uninstalled “\(ext.name)” and revoked its capability grants."
@@ -358,8 +303,6 @@ public struct SDKStudioExtensionsView: View {
             }
         }
     }
-
-    // MARK: - Directory picking (NSOpenPanel)
 
     private func beginPackageInstall() {
         pendingDirectoryAction = .packageInstall
@@ -380,7 +323,6 @@ public struct SDKStudioExtensionsView: View {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
         panel.begin { [weak panel] response in
-            // AppKit invokes the begin(completionHandler:) handler on the main thread.
             let url = response == .OK ? panel?.url : nil
             MainActor.assumeIsolated { self.directoryPicked(url) }
         }
@@ -397,8 +339,6 @@ public struct SDKStudioExtensionsView: View {
             runUpdate(ext, sourceDir: url)
         }
     }
-
-    // MARK: - CLI-backed flows (package / install / update / validate)
 
     private func runPackageInstall(sourceDir: URL) {
         Task {
@@ -488,10 +428,6 @@ public struct SDKStudioExtensionsView: View {
         }
     }
 
-    // MARK: - CLI plumbing
-
-    /// Resolves node + CLI, or presents the honest manual-command sheet and
-    /// returns nil. Never throws: every failure is surfaced in the UI.
     private func cliPrerequisites(for op: ManualOp) -> (nodeURL: URL, cliURL: URL)? {
         let nodeURL: URL
         do {
@@ -522,10 +458,6 @@ public struct SDKStudioExtensionsView: View {
         SDKInstaller.resolveCLIURL()
     }
 
-    /// Runs `node <cli> <arguments>` as a child process off the main actor
-    /// and returns its exit code plus captured output. CLI stdout/stderr
-    /// here are bounded summaries (never streaming logs), so they are read
-    /// after the process exits.
     private func runCLI(nodeURL: URL, cliURL: URL, arguments: [String]) async throws -> CLIProcessResult {
         try await Task.detached(priority: .utility) {
             let process = Process()
@@ -565,7 +497,6 @@ public struct SDKStudioExtensionsView: View {
         guard result.exitCode == 0 else {
             throw CLIFailure(message: cliFailureMessage(result, command: command))
         }
-        // Even at exit 0, honor an explicit ok:false envelope.
         if let data = result.stdout.data(using: .utf8),
            let envelope = try? JSONDecoder().decode(CLIEnvelope<CLIEmpty>.self, from: data),
            !envelope.ok {
@@ -584,8 +515,6 @@ public struct SDKStudioExtensionsView: View {
         if !stderr.isEmpty { return stderr }
         return "swiftcode \(command) exited with code \(result.exitCode) and produced no output."
     }
-
-    // MARK: - Manual-command fallback
 
     private func showManualCommand(for op: ManualOp, reason: String) {
         statusMessage = nil
@@ -629,8 +558,6 @@ public struct SDKStudioExtensionsView: View {
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
     }
-
-    // MARK: - Messaging helpers
 
     private func clearMessages() {
         errorMessage = nil

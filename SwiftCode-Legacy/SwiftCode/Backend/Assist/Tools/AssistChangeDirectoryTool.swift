@@ -1,15 +1,5 @@
 import Foundation
 
-/// Native `cd` equivalent. Changes the session working directory used by
-/// subsequent filesystem operations and by `use_terminal` (when it omits
-/// `workingDirectory`). Implemented through the session working-directory
-/// store + `AssistFileSystem.currentDirectory` — NOT a shell `cd`, which
-/// would die with its one-shot shell process and never persist.
-///
-/// Semantics: `path` resolves against the current directory (`.` = no-op,
-/// `..` = parent). The target must exist, be a directory, and stay inside
-/// the workspace root. `..` past the root is an error, not a silent clamp.
-/// On failure the working directory is left unchanged.
 public struct AssistChangeDirectoryTool: AssistTool {
     public let id = "dir_cd"
     public let name = "Change Directory"
@@ -38,10 +28,7 @@ public struct AssistChangeDirectoryTool: AssistTool {
         do {
             let previous = context.fileSystem.currentDirectory
             let target = try context.fileSystem.setCurrentDirectory(path)
-            // Persist for subsequent messages in this session; the context
-            // builder re-applies it when the context is rebuilt.
             AssistWorkingDirectoryStore.shared.setCurrentDirectory(target, for: context.sessionId)
-            // Listing for orientation, like a shell that prints the new cwd.
             let contents = (try? context.fileSystem.listDirectory(at: "."))?.sorted() ?? []
             return .success("Working directory changed to \(target.path)", data: [
                 "path": target.path,
@@ -55,7 +42,6 @@ public struct AssistChangeDirectoryTool: AssistTool {
     }
 }
 
-/// Native `pwd` equivalent. Reports the session working directory.
 public struct AssistPrintWorkingDirectoryTool: AssistTool {
     public let id = "dir_pwd"
     public let name = "Print Working Directory"

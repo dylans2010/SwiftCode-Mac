@@ -1,8 +1,3 @@
-//
-//  AssistUnusedImportsDetectorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistUnusedImportsDetectorTool: AssistTool {
@@ -58,7 +53,6 @@ public struct AssistUnusedImportsDetectorTool: AssistTool {
             return .success("No framework imports found in `\(path)`.")
         }
 
-        // Framework symbol map for common Apple frameworks
         let frameworkSymbols: [String: [String]] = [
             "Combine": ["AnyCancellable", "PassthroughSubject", "CurrentValueSubject", "Publisher", "sink", "store", "eraseToAnyPublisher"],
             "SwiftUI": ["View", "body", "some View", "Text", "VStack", "HStack", "State", "Binding", "Environment", "Color"],
@@ -72,17 +66,14 @@ public struct AssistUnusedImportsDetectorTool: AssistTool {
 
         var unusedCandidates: [String] = []
 
-        // Remove the import lines to search the body
         let bodyContent = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("import ") }.joined(separator: "\n")
 
         for item in importedModules {
             let mod = item.module
-            // If the module name itself is explicitly referenced
             if bodyContent.contains(mod + ".") {
                 continue
             }
 
-            // If we have known symbols for this framework, check if any appear
             if let symbols = frameworkSymbols[mod] {
                 let foundSymbol = symbols.contains { bodyContent.contains($0) }
                 if !foundSymbol {

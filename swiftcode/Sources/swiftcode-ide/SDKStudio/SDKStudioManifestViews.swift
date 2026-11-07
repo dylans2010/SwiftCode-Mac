@@ -3,12 +3,6 @@ import SwiftUI
 import SwiftCodeExtensions
 import SwiftCodeSDKStudio
 
-// MARK: - Manifest capability categories
-//
-// Legacy: `SDKManifestEditorView.swift` / `SDKManifestInspectorView.swift`
-// filter the 35 canonical capabilities into All / Enabled Only / Project /
-// Source Control / Build / UI & Views / Security & AI.
-
 enum SDKManifestCapabilityCategory: String, CaseIterable {
     case all = "All"
     case enabledOnly = "Enabled Only"
@@ -48,18 +42,6 @@ func sdkManifestRiskColor(_ riskLevel: String) -> Color {
     default: return .red
     }
 }
-
-// MARK: - Manifest editor
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKManifestEditorView.swift` (visual
-// + raw editing of `swiftcode.json`, capability toggles with reasons,
-// contributed commands, diagnostics, malformed-JSON fallback) and the
-// editor half of `SDKManifestInspectorView.swift`. Edits go through
-// SwiftCode's `SwiftCodeManifest` (unknown top-level keys preserved in
-// `unknownFields`, so visual editing never destroys them) and validation
-// is SwiftCode's strict `SwiftCodeManifestValidator`. "Pre-authorize" writes
-// grants through the Studio grant seam (`SDKStudioGrantStore`), backed
-// by the real `PermissionManager` by default.
 
 @MainActor
 struct SDKManifestEditorView: View {
@@ -327,8 +309,6 @@ struct SDKManifestEditorView: View {
         }
     }
 
-    // MARK: - Model helpers
-
     private func binding(_ keyPath: WritableKeyPath<SwiftCodeManifest, String>) -> Binding<String> {
         Binding(
             get: { manifest?[keyPath: keyPath] ?? "" },
@@ -396,10 +376,6 @@ struct SDKManifestEditorView: View {
     }
 
     private func preauthorize(manifest: SwiftCodeManifest) {
-        // Pre-authorization grants through the real `PermissionManager`
-        // (grants.json). The `SDKStudioGrantStore` seam is read/revoke;
-        // granting is `PermissionManager.grant`, so this uses it directly
-        // rather than inventing a second grant path.
         let permissions = defaultPermissions()
         let extensionID = manifest.id
         for cap in manifest.capabilities {
@@ -413,9 +389,6 @@ struct SDKManifestEditorView: View {
     }
 
     private func defaultPermissions() -> PermissionManager {
-        // The Studio Extensions view owns the shared ExtensionManager;
-        // the manifest editor uses a PermissionManager over the default
-        // ExtensionStorage so pre-authorization lands in grants.json.
         PermissionManager()
     }
 
@@ -475,7 +448,6 @@ struct SDKManifestEditorView: View {
         let data: Data
         if showingRaw {
             data = Data(rawText.utf8)
-            // Re-parse so the visual model stays in sync after a raw save.
             if let decoded = try? JSONDecoder().decode(SwiftCodeManifest.self, from: data) {
                 manifest = decoded
             }
@@ -501,13 +473,6 @@ struct SDKManifestEditorView: View {
         }
     }
 }
-
-// MARK: - Manifest inspector
-//
-// Legacy: `SwiftCode/SDK/Studio/Views/SDKManifestInspectorView.swift` —
-// the read-first view of a manifest: identity, runtime, SDK, capabilities
-// with risk/policy badges, contributed commands, diagnostics, and a raw
-// JSON tab, with an edit mode that hands off to the visual editor.
 
 @MainActor
 struct SDKManifestInspectorView: View {
@@ -548,7 +513,7 @@ struct SDKManifestInspectorView: View {
                         SDKStudioGroupBox("Raw JSON") {
                             Text(rawJSONText)
                                 .font(.caption.monospaced())
-                                
+
                         }
                     }
                     .padding()

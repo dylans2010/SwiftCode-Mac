@@ -1,29 +1,17 @@
-// Reading the runtime disk image (`runtime-downloads.md` §5.2, §6.2 step 4):
-// a UDIF image (lzfse blocks) with one APFS partition. SwiftCode decision: an
-// MIT-compatible reader, or a GPL/LGPL tool run as a separate program and
-// never linked. On Linux that is 7-Zip (`7zz`/`7z`, LGPL-2.1), which reads
-// UDIF and APFS; on macOS the system's `hdiutil` attaches the image
-// read-only and unattached from Finder. Either way the result is a folder
-// holding the volume's files. Portable.
-
 import Foundation
 
 public protocol RuntimeImageReader: Sendable {
     var title: String { get }
-    /// Puts the image's volume at a folder under `work` and hands it to
-    /// `body`; cleans up after (the copy, or the attachment).
     func withVolume<T: Sendable>(_ dmg: String, work: String, cancel: RuntimeCancellation, log: @escaping @Sendable (String) -> Void,
                                  _ body: @Sendable (String) async throws -> T) async throws -> T
 }
 
-/// 7-Zip as a separate program (Linux).
 public struct SevenZipImageReader: RuntimeImageReader {
     public var tool: String
     public init(tool: String) { self.tool = tool }
 
     public var title: String { "7-Zip (\((tool as NSString).lastPathComponent), LGPL-2.1), run as a separate program" }
 
-    /// `$SWIFTCODE_7Z`, else `7zz` or `7z` on the PATH.
     public static func find(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         if let t = environment["SWIFTCODE_7Z"], !t.isEmpty { return t }
         for name in ["7zz", "7z"] {
@@ -50,7 +38,6 @@ public struct SevenZipImageReader: RuntimeImageReader {
         return p.text
     }
 
-    /// The items of `7z l -slt`: path and size.
     static func items(_ listing: String) -> [(path: String, size: Int64)] {
         var out: [(String, Int64)] = []
         var path: String?
@@ -64,8 +51,6 @@ public struct SevenZipImageReader: RuntimeImageReader {
         return out
     }
 
-    /// A listing of partition images (a few top-level items, one of them
-    /// APFS) names the APFS one; a listing of files gives nil.
     static func partitionItem(_ items: [(path: String, size: Int64)]) -> String? {
         guard items.count <= 8, !items.contains(where: { $0.path.contains("/") }) else { return nil }
         return items.first { $0.path.lowercased().contains("apfs") }?.path
@@ -78,9 +63,6 @@ public struct SevenZipImageReader: RuntimeImageReader {
         try? fm.removeItem(atPath: parts)
         try? fm.removeItem(atPath: volume)
         defer { try? fm.removeItem(atPath: parts) }
-        // 7-Zip opens the UDIF image and, inside it, the APFS volume, so its
-        // listing is usually the volume's files: extract them directly. When
-        // it lists partition images instead, take the APFS one, then its files.
         let listing = try await run(["l", "-slt", "-ba", dmg], cancel: cancel, log: log)
         let items = Self.items(listing)
         if let item = Self.partitionItem(items) {
@@ -91,14 +73,12 @@ public struct SevenZipImageReader: RuntimeImageReader {
             try? fm.removeItem(atPath: raw)
         } else {
             log("7-Zip: reading the volume's \(items.count) items")
-            // -snld: symbolic links stay links, even ones that point outside.
             _ = try await run(["x", "-y", "-bd", "-snld", "-o" + volume, dmg], cancel: cancel, log: log)
         }
         return try await body(volume)
     }
 }
 
-/// `hdiutil attach -readonly` (macOS).
 public struct HdiutilImageReader: RuntimeImageReader {
     public var hdiutil = "/usr/bin/hdiutil"
     public init() {}

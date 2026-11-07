@@ -1,9 +1,6 @@
 import XCTest
 @testable import SwiftCodeSDK
 
-/// HMAC round-trips and key lifecycle. All keys here are TEST-ONLY
-/// (fixed test device key, in-memory store). No live network, no real
-/// credentials.
 final class SDKAPIKeyTests: XCTestCase {
     private func makeStore() -> SDKAPIKeyStore {
         SDKAPIKeyStore(store: SDKMemorySecretStore())
@@ -36,11 +33,8 @@ final class SDKAPIKeyTests: XCTestCase {
 
     func testVerifyRejectsUnknownKey() async throws {
         let store = makeStore()
-        // A well-formed secret for a key that was never stored.
         let phantom = SDKAPIKey(keyPrefix: SDKAPIKeyCodec.testPrefix, label: "Phantom", scopes: [.appsCreate])
         let secret = SDKAPIKeyCodec.generateSecret(for: phantom, deviceKey: TestKeys.deviceKey)
-        // The store's device key differs from the test key, so the
-        // signature fails — still `.apiKeyInvalid`, never a leak.
         await XCTAssertThrowsErrorAsync(try await store.verify(secret: secret)) { error in
             XCTAssertEqual((error as? SDKError)?.code, .apiKeyInvalid)
         }
@@ -60,8 +54,6 @@ final class SDKAPIKeyTests: XCTestCase {
     func testExpiredKeyFailsVerification() async throws {
         let store = SDKMemorySecretStore()
         let keyStore = SDKAPIKeyStore(store: store)
-        // Persist an already-expired key record directly, with a secret
-        // generated from the store's own device key.
         let deviceKey = try await keyStore.getOrCreateDeviceKey()
         let expired = SDKAPIKey(
             keyPrefix: SDKAPIKeyCodec.testPrefix, label: "Expired",
@@ -121,8 +113,6 @@ final class SDKAPIKeyTests: XCTestCase {
         XCTAssertNil(SDKAPIKeyCodec.extractPresentedKeyID(from: "not-a-key"))
     }
 }
-
-// MARK: - Async XCTAssertThrowsError helper
 
 extension XCTestCase {
     func XCTAssertThrowsErrorAsync<T>(

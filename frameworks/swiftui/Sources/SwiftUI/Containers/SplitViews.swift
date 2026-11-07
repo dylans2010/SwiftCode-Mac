@@ -7,45 +7,14 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Split views (round R9 and PARITY §5.4 R12): `HSplitView`, `VSplitView`
-// (the macOS names, for the IDE) and `NavigationSplitView` (06 §2.2).
-//
-// Panes (SwiftCode's rules; the reference measured only the collapsed iPhone
-// case): panes sit side by side (or one above the other) with 1-point
-// dividers; each divider can be dragged within an 8-point band. A pane's
-// limits are its answers to a zero and an infinite proposal along the axis
-// (`frame(minWidth:maxWidth:)` sets them); its first length is its ideal
-// length when it has a finite maximum, the panes without one share the
-// rest. A drag moves one divider: the panes on both sides change within
-// their limits. When the container grows or shrinks, the last flexible pane
-// takes the difference.
-//
-// NavigationSplitView: below 600 points of width it collapses into a
-// navigation stack (06 §2.2: on the compact iPhone the sidebar shows first;
-// a selection in a sidebar list pushes the next column, clearing it pops
-// back). Otherwise its columns are panes: sidebar 180–400 (240 at first),
-// content 200–500 (280), the detail the rest (at least 300);
-// `navigationSplitViewColumnWidth` overrides them; each column is the root of
-// a navigation stack of its own; `columnVisibility` hides the sidebar
-// (`.detailOnly`) or the sidebar and content (`.detailOnly` with three
-// columns shows only the detail; `.doubleColumn` hides the sidebar of three);
-// a sidebar button in the first shown column's bar toggles it.
-
-// MARK: - Panes
-
-/// Lengths and limits of a row of panes.
 final class SplitPanesState: @unchecked Sendable {
     var axis: Axis = .horizontal
-    /// Pane lengths along the axis (after the last layout).
     var lengths: [CGFloat] = []
     var limits: [(min: CGFloat, max: CGFloat, ideal: CGFloat)] = []
     var total: CGFloat = 0
-    /// Lengths the user chose (nil: automatic).
     var chosen: [CGFloat?] = []
     var dragStart: [CGFloat]?
-    /// Fixed limits per pane (navigation split columns); nil: measured.
     var fixedLimits: [(min: CGFloat, ideal: CGFloat, max: CGFloat)?] = []
-    /// Panes that are kept (suspended) but not shown.
     var hidden: Set<Int> = []
 
     func dividerThickness(_ k: Int) -> CGFloat {
@@ -60,7 +29,6 @@ final class SplitPanesState: @unchecked Sendable {
     static let dividerThickness: CGFloat = 1
     static let dividerBand: CGFloat = 8
 
-    /// Resolves lengths for `total` from the limits and the chosen lengths.
     func resolve(total t: CGFloat) -> [CGFloat] {
         let n = limits.count
         guard n > 0 else { return [] }
@@ -86,8 +54,6 @@ final class SplitPanesState: @unchecked Sendable {
         guard !flexible.isEmpty else { return out }
         let share = max(0, avail - used) / CGFloat(flexible.count)
         for i in flexible { out[i] = max(share, limits[i].min) }
-        // Too long: take the excess from the last panes first (down to their
-        // minimum).
         var excess = out.reduce(0, +) - avail
         var i = n - 1
         while excess > 0.001 && i >= 0 {
@@ -109,8 +75,6 @@ final class SplitPanesState: @unchecked Sendable {
         b = min(max(b, limits[k + 1].min), limits[k + 1].max)
         a = start[k] + start[k + 1] - b
         if chosen.count != lengths.count { chosen = Array(repeating: nil, count: lengths.count) }
-        // Every pane keeps its current length from now on, except the last
-        // flexible one, which absorbs container changes.
         for i in lengths.indices { chosen[i] = start[i] }
         chosen[k] = a
         chosen[k + 1] = b
@@ -122,7 +86,6 @@ final class SplitPanesState: @unchecked Sendable {
     }
 }
 
-/// Places panes and dividers: children alternate pane, divider, pane, ….
 struct SplitPanesBehavior: NodeBehavior {
     let state: SplitPanesState
 
@@ -181,7 +144,6 @@ struct SplitPanesBehavior: NodeBehavior {
     }
 }
 
-/// A divider between panes: a hairline with an 8-point drag band.
 struct SplitDivider: View {
     let axis: Axis
     let index: Int
@@ -204,7 +166,6 @@ struct SplitDivider: View {
     }
 }
 
-/// Panes from enumerated views (package; split views build on it).
 struct SplitPanes: View, PrimitiveView {
     let axis: Axis
     let panes: [(AnyHashable, any View)]
@@ -232,7 +193,6 @@ struct SplitPanes: View, PrimitiveView {
         }
         if s.chosen.count != panes.count { s.chosen = Array(repeating: nil, count: panes.count) }
         node.reconcileChildren(items, transaction: transaction)
-        // Hidden panes keep their state (suspended, 06 §2.1's rule).
         for (i, c) in node.children.enumerated() {
             c.setSuspended(i % 2 == 0 ? hidden.contains(i / 2) : s.dividerThickness(i / 2) == 0)
         }
@@ -265,33 +225,24 @@ func enumeratedViews(_ content: any View) -> [(AnyHashable, any View)] {
     }
 }
 
-// MARK: - HSplitView / VSplitView
-
-/// Views side by side with draggable dividers (the macOS container, for
-/// desktop hosts).
 public struct HSplitView<Content: View>: View {
     let content: Content
     public init(@ViewBuilder content: () -> Content) { self.content = content() }
     public var body: some View { SplitPanesHost(axis: .horizontal, content: content) }
 }
 
-/// Views one above the other with draggable dividers.
 public struct VSplitView<Content: View>: View {
     let content: Content
     public init(@ViewBuilder content: () -> Content) { self.content = content() }
     public var body: some View { SplitPanesHost(axis: .vertical, content: content) }
 }
 
-/// Enumerates its content into panes (so state reads in it are its own).
 struct SplitPanesHost<Content: View>: View {
     let axis: Axis
     let content: Content
     var body: some View { SplitPanes(axis: axis, panes: enumeratedViews(content)) }
 }
 
-// MARK: - NavigationSplitView
-
-/// Which columns of a split view are shown.
 public struct NavigationSplitViewVisibility: Equatable, Codable, Sendable {
     let kind: Int
     public static let automatic = NavigationSplitViewVisibility(kind: 0)
@@ -300,7 +251,6 @@ public struct NavigationSplitViewVisibility: Equatable, Codable, Sendable {
     public static let detailOnly = NavigationSplitViewVisibility(kind: 3)
 }
 
-/// A column of a split view.
 public struct NavigationSplitViewColumn: Hashable, Sendable {
     let kind: Int
     public static let sidebar = NavigationSplitViewColumn(kind: 0)
@@ -308,7 +258,6 @@ public struct NavigationSplitViewColumn: Hashable, Sendable {
     public static let detail = NavigationSplitViewColumn(kind: 2)
 }
 
-/// How a split view arranges its columns (accepted; one look).
 @MainActor @preconcurrency
 public protocol NavigationSplitViewStyle {}
 
@@ -328,17 +277,14 @@ extension NavigationSplitViewStyle where Self == ProminentDetailNavigationSplitV
     public static var prominentDetail: ProminentDetailNavigationSplitViewStyle { ProminentDetailNavigationSplitViewStyle() }
 }
 
-/// Column options registered by the views in a column.
 @MainActor
 final class SplitColumnContext {
     var width: (min: CGFloat?, ideal: CGFloat, max: CGFloat?)?
     weak var owner: ViewNode?
 }
 
-/// The collapsed split view's link with the lists in its columns.
 @MainActor
 final class CollapsedSplitContext {
-    /// Column index of each list's column → whether it has a selection.
     var show: (Int, Bool) -> Void = { _, _ in }
     var clearSelections: [Int: () -> Void] = [:]
 }
@@ -397,7 +343,6 @@ enum SplitMetrics {
     static let detailMin: CGFloat = 300
 }
 
-/// A sidebar (and content) column beside a detail column (06 §2.2).
 public struct NavigationSplitView<Sidebar: View, Content: View, Detail: View>: View {
     let sidebar: Sidebar
     let content: Content?
@@ -445,16 +390,13 @@ extension NavigationSplitView where Content == EmptyView {
     }
 }
 
-/// The split view's state: its mode and columns.
 @MainActor
 final class SplitViewState: GeometryObserving {
     var collapsed: Bool?
     var internalVisibility = NavigationSplitViewVisibility.automatic
-    /// Columns pushed in the collapsed stack (1: content or detail, …).
     var collapsedPath: [Int] = []
     let columns = [SplitColumnContext(), SplitColumnContext(), SplitColumnContext()]
     let collapsedContext = CollapsedSplitContext()
-    /// The View menu's sidebar toggle (R11).
     let sidebarController = SidebarController()
     weak var node: ViewNode?
 
@@ -493,7 +435,6 @@ extension NavigationSplitView: PrimitiveView {
         s.node = node
         for c in s.columns { c.owner = node }
         if s.collapsed == nil {
-            // Before the first layout: the window's width.
             if case .window(let size, let insets)? = node.graph.layout?.mode {
                 s.collapsed = size.width - insets.horizontal < SplitMetrics.collapseWidth
             } else {
@@ -520,8 +461,6 @@ extension NavigationSplitView: PrimitiveView {
         weak var ws = s
         ctx.show = { [weak node] column, has in
             guard let s = ws else { return }
-            // A selection in column `column` shows the next column; clearing
-            // it goes back to that column.
             var p = s.collapsedPath
             if has {
                 if !p.contains(column + 1), column + 1 < n { p = Array(p.prefix(column)) + [column + 1] }
@@ -574,7 +513,6 @@ extension NavigationSplitView: PrimitiveView {
             let hidden = vis == .detailOnly || (n == 3 && vis == .doubleColumn)
             self.setVisibility(s, hidden ? .all : .detailOnly)
         }
-        // View > Show/Hide Sidebar (R11).
         s.sidebarController.toggleAction = toggle
         if let services = node.environment._windowServices {
             if s.sidebarController.isVisible != shown.contains(0) { s.sidebarController.isVisible = shown.contains(0) }
@@ -620,7 +558,6 @@ extension NavigationSplitView: PrimitiveView {
     }
 }
 
-/// Takes the proposed size (split views fill their container).
 struct SplitHostBehavior: NodeBehavior {
     func sizeThatFits(_ p: ProposedViewSize, node: LayoutNode) -> CGSize {
         let s = node.children.first?.sizeThatFits(p) ?? .zero
@@ -633,10 +570,6 @@ struct SplitHostBehavior: NodeBehavior {
     }
 }
 
-/// The sidebar toggle in the first shown column's bar.
-/// (R13: it holds the split view's controller, not a new closure each
-/// time, so that an unchanged toggle does not register its toolbar again:
-/// that re-registration re-evaluated the column's bar in a loop.)
 struct SidebarToggleToolbar: ViewModifier {
     let show: Bool
     let controller: SidebarController

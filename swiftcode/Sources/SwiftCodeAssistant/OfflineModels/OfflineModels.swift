@@ -3,11 +3,6 @@ import Foundation
 import Darwin
 #endif
 
-/// Errors for the offline-model subsystem (Legacy
-/// `SwiftCode/Backend/Offline Models/`, Dylan's own code, ported under MIT).
-/// The MLX-backed cases are gone with the MLX runtime: model inference itself
-/// is honestly unavailable in this target (see `OfflineModelManager.swift`),
-/// so this enum covers discovery, download, storage and conversion only.
 public enum OfflineModelError: LocalizedError, Sendable {
     case invalidHuggingFaceURL
     case noCompatibleModelFiles
@@ -16,8 +11,6 @@ public enum OfflineModelError: LocalizedError, Sendable {
     case cannotCreateDirectory(path: String, underlyingError: Error)
     case noWritePermission(path: String)
     case failedToMoveDownloadedFile(from: String, to: String, underlyingError: Error)
-    /// No converter binary exists in the destination: a GGUF/safetensors
-    /// model cannot be turned into an MLX model here.
     case conversionUnavailable(reason: String)
 
     public var errorDescription: String? {
@@ -44,7 +37,6 @@ public enum OfflineModelError: LocalizedError, Sendable {
     }
 }
 
-/// One downloadable file of an offline model (Legacy `OfflineModelFile`).
 public struct OfflineModelFile: Identifiable, Codable, Hashable, Sendable {
     public var id: String { fileName }
     public let fileName: String
@@ -66,9 +58,6 @@ public struct OfflineModelFile: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-/// Metadata for one offline model, as listed by Hugging Face (Legacy
-/// `OfflineModelMetadata`). `preferredDownloadFile` ranks MLX first, then
-/// GGUF (quantized before full precision), safetensors, then bin.
 public struct OfflineModelMetadata: Identifiable, Codable, Sendable {
     public var id: String { modelName }
     public let modelName: String
@@ -119,8 +108,6 @@ public struct OfflineModelMetadata: Identifiable, Codable, Sendable {
     }
 }
 
-/// How capable this machine is at running a local model (Legacy
-/// `DeviceTier` / `DeviceCapabilities` / `DeviceCapabilityAnalyzer`).
 public enum DeviceTier: String, Sendable {
     case low = "LOW TIER"
     case medium = "MEDIUM TIER"
@@ -146,12 +133,6 @@ public struct RecommendedOfflineModel: Identifiable, Sendable {
     public let suggestedLink: String
 }
 
-/// Measures this machine and recommends downloadable models for its tier
-/// (Legacy `DeviceCapabilityAnalyzer`). All readings are live
-/// (`ProcessInfo`, filesystem free space, machine identifier); the tier
-/// thresholds are Legacy's own. Recommendations are named Hugging Face
-/// repositories with their real links — the models themselves are fetched
-/// live by `HuggingFaceAPI`, never bundled.
 public final class DeviceCapabilityAnalyzer: Sendable {
     public static let shared = DeviceCapabilityAnalyzer()
     private init() {}
@@ -258,7 +239,6 @@ public final class DeviceCapabilityAnalyzer: Sendable {
             identifier.append(Character(UnicodeScalar(UInt8(value))))
         }
 #else
-        // Linux: the CPU model from /proc/cpuinfo, else the host name.
         if let cpuinfo = try? String(contentsOfFile: "/proc/cpuinfo", encoding: .utf8) {
             for line in cpuinfo.split(separator: "\n") {
                 if line.hasPrefix("model name") {

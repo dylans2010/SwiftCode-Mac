@@ -1,13 +1,10 @@
 import Foundation
 
-/// A Gauge trace: one recording of a target (`specs/ide/profiler.md` §4.1).
-/// Times are nanoseconds since the recording began.
 public struct GaugeTrace: Sendable, Equatable {
     public static let format = "swiftcode-gauge-trace"
     public static let version = 1
 
     public struct Recording: Sendable, Equatable {
-        /// `swiftcode-simulator`, `linux` or `macos`.
         public var target: String
         public var recorder: String
         public var host: String
@@ -17,7 +14,6 @@ public struct GaugeTrace: Sendable, Equatable {
         public var durationNs: UInt64
         public var sampleIntervalNs: UInt64
         public var hangThresholdNs: UInt64
-        /// `guest-counter` or `monotonic`.
         public var clock: String
         public var notes: [String]
 
@@ -56,7 +52,6 @@ public struct GaugeTrace: Sendable, Equatable {
         public var pid: Int
         public var name: String
         public var isMain: Bool
-        /// `main`, `pthread`, `workqueue` or `thread`.
         public var kind: String
         public init(id: UInt64, pid: Int, name: String = "", isMain: Bool = false, kind: String = "thread") {
             self.id = id
@@ -70,11 +65,9 @@ public struct GaugeTrace: Sendable, Equatable {
     public enum ImageKind: String, Sendable, CaseIterable {
         case app, system, runtime, swiftcode, kernel, unknown
 
-        /// Hidden by "Hide System Libraries".
         public var isSystem: Bool { self != .app && self != .unknown }
     }
 
-    /// A function: offsets from the image's base, `end` exclusive.
     public struct Symbol: Sendable, Equatable {
         public var start: UInt64
         public var end: UInt64
@@ -105,11 +98,8 @@ public struct GaugeTrace: Sendable, Equatable {
         public var kind: ImageKind
         public var base: UInt64
         public var size: UInt64
-        /// Sorted by start.
         public var symbols: [Symbol]
         public var files: [String]
-        /// Sorted by offset: the line of each frame offset (exact entries,
-        /// written by symbolication for the offsets the trace uses).
         public var lines: [LineEntry]
 
         public init(id: Int, name: String, path: String = "", uuid: String? = nil, kind: ImageKind = .unknown,
@@ -126,7 +116,6 @@ public struct GaugeTrace: Sendable, Equatable {
             self.lines = lines
         }
 
-        /// The symbol with `start ≤ offset < end`.
         public func symbolIndex(at offset: UInt64) -> Int? {
             var low = 0, high = symbols.count
             while low < high {
@@ -139,8 +128,6 @@ public struct GaugeTrace: Sendable, Equatable {
 
         public func symbol(at offset: UInt64) -> Symbol? { symbolIndex(at: offset).map { symbols[$0] } }
 
-        /// The line entry for exactly this offset, else the nearest one at a
-        /// lower offset inside the same symbol.
         public func line(at offset: UInt64) -> (file: String, line: Int)? {
             var low = 0, high = lines.count
             while low < high {
@@ -155,8 +142,6 @@ public struct GaugeTrace: Sendable, Equatable {
         }
     }
 
-    /// An address: an image and an offset from its base; image −1 holds an
-    /// absolute address.
     public struct Frame: Sendable, Hashable {
         public var image: Int
         public var offset: UInt64
@@ -166,7 +151,6 @@ public struct GaugeTrace: Sendable, Equatable {
         }
     }
 
-    /// A call chain: `prefix` (−1: none) plus one more (inner) frame.
     public struct Stack: Sendable, Hashable {
         public var prefix: Int
         public var frame: Int
@@ -181,7 +165,6 @@ public struct GaugeTrace: Sendable, Equatable {
         public var isCPU: Bool { self == .user || self == .kernel }
     }
 
-    /// Columnar samples (§4.1).
     public struct Samples: Sendable, Equatable {
         public var time: [UInt64] = []
         public var thread: [UInt64] = []
@@ -208,7 +191,6 @@ public struct GaugeTrace: Sendable, Equatable {
         public var end: UInt64?
         public var kind: Kind
         public var message: String
-        /// `open` (no end before the recording ended), `unmatched` (an end without a begin).
         public var flags: [String]
 
         public init(name: String, subsystem: String = "", category: String = "", id: UInt64 = 0, thread: UInt64 = 0,
@@ -269,19 +251,15 @@ public struct GaugeTrace: Sendable, Equatable {
 
     public init(recording: Recording) { self.recording = recording }
 
-    // MARK: Lookups
-
     public func image(_ id: Int) -> Image? { images.indices.contains(id) && images[id].id == id ? images[id] : images.first { $0.id == id } }
 
     public func thread(_ id: UInt64) -> Thread? { threads.first { $0.id == id } }
 
-    /// The main thread of the target process (the first thread marked main).
     public var mainThread: Thread? {
         let targets = Set(processes.filter(\.isTarget).map(\.pid))
         return threads.first { $0.isMain && (targets.isEmpty || targets.contains($0.pid)) } ?? threads.first { $0.isMain }
     }
 
-    /// Frame ids of a stack, outermost first.
     public func frameIDs(ofStack stack: Int) -> [Int] {
         var out: [Int] = []
         var s = stack
@@ -294,8 +272,6 @@ public struct GaugeTrace: Sendable, Equatable {
         return out.reversed()
     }
 
-    /// A display name for a thread: its name, else "Main Thread" or
-    /// "Thread <id>", with the process name when the trace has several.
     public func threadTitle(_ id: UInt64) -> String {
         guard let t = thread(id) else { return "Thread \(id)" }
         var title = t.name.isEmpty ? (t.isMain ? "Main Thread" : "Thread \(t.id)") : t.name
@@ -305,7 +281,6 @@ public struct GaugeTrace: Sendable, Equatable {
     }
 }
 
-/// Builds a trace: interns frames and stacks.
 public struct GaugeTraceBuilder: Sendable {
     public private(set) var trace: GaugeTrace
     private var frameIndex: [GaugeTrace.Frame: Int] = [:]
@@ -321,7 +296,6 @@ public struct GaugeTraceBuilder: Sendable {
         return i
     }
 
-    /// The stack id of a chain of frame ids, outermost first (−1: empty).
     public mutating func stackID(frameIDs: [Int]) -> Int {
         var s = -1
         for f in frameIDs {
@@ -335,7 +309,6 @@ public struct GaugeTraceBuilder: Sendable {
         return s
     }
 
-    /// The stack id of frames given outermost first.
     public mutating func stackID(frames: [GaugeTrace.Frame]) -> Int {
         stackID(frameIDs: frames.map { frameID($0) })
     }
@@ -349,7 +322,6 @@ public struct GaugeTraceBuilder: Sendable {
         trace.samples.append(time: time, thread: thread, stack: s, state: state)
     }
 
-    /// Adds an image and returns its id.
     @discardableResult
     public mutating func addImage(_ image: GaugeTrace.Image) -> Int {
         var i = image
@@ -362,9 +334,6 @@ public struct GaugeTraceBuilder: Sendable {
 
     public mutating func update(_ body: (inout GaugeTrace) -> Void) { body(&trace) }
 
-    /// Rewrites absolute frames (image −1) through `resolve`; frames it
-    /// cannot place stay absolute. Distinct frames stay distinct as long as
-    /// `resolve` maps distinct addresses to distinct (image, offset) pairs.
     public mutating func resolveAbsoluteFrames(_ resolve: (UInt64) -> GaugeTrace.Frame?) {
         for i in trace.frames.indices where trace.frames[i].image < 0 {
             if let f = resolve(trace.frames[i].offset) { trace.frames[i] = f }

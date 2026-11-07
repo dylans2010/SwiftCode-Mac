@@ -1,10 +1,3 @@
-// DeviceConnectEnvironmentView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/DeviceConnectKit/Views/Environment/DeviceConnectEnvironmentView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: Configuration Parameters section
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Environment/DeviceConnectEnvironmentView.swift (derived from Legacy).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeDeviceModel
 import SwiftCodeIDECore
 import SwiftUI
@@ -16,7 +9,6 @@ public struct DeviceConnectEnvironmentView: View {
 
     public var body: some View {
         VStack(spacing: 24) {
-            // Checklist GroupBox
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
@@ -49,7 +41,6 @@ public struct DeviceConnectEnvironmentView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Detailed environment parameters
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
@@ -71,7 +62,6 @@ public struct DeviceConnectEnvironmentView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Diagnostics output
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {

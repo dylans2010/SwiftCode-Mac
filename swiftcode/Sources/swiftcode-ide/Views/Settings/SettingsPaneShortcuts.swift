@@ -3,14 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Settings ▸ Shortcuts (key bindings): every menu command with its
-/// shortcut and menu, filtered by a search field. Selecting a command
-/// edits its shortcut: a shortcut another command has is refused, naming
-/// that command; an empty one removes it; Default restores it. Customized
-/// rows are bold. Overrides are `Preferences.keyBindingOverrides`, shared
-/// with the macOS IDE; the menu bar takes them at once (`ShellMenus`).
-/// Shortcuts are written as the host's menus show them (on Linux
-/// "Ctrl+Shift+K"; `ShortcutNotation`).
 struct ShortcutsSettingsPane: View {
     @State private var query = ""
     @State private var selected: String?
@@ -29,14 +21,12 @@ struct ShortcutsSettingsPane: View {
     static let example = "⇧⌘K"
     #endif
 
-    /// A row: its key in the list (a command can be in two menus).
     struct Row: Identifiable {
         var entry: KeyBindings.Entry
         var id: String { entry.menu + "/" + entry.id }
         var shortcut: String { ShortcutNotation.host.text(entry.command) }
     }
 
-    /// The rows whose title, menu or shortcut contain the query.
     static func rows(_ query: String) -> [Row] {
         let q = query.lowercased().trimmingCharacters(in: .whitespaces)
         return KeyBindings.entries().map(Row.init).filter {
@@ -76,7 +66,6 @@ struct ShortcutsSettingsPane: View {
                 }
                 .shellTarget("settings shortcuts list")
             }
-            // A card (settings.md R3.3).
             .background { RoundedRectangle(cornerRadius: SettingsLayout.cardRadius, style: .continuous).fill(SettingsPalette(scheme).card) }
             .clipShape(RoundedRectangle(cornerRadius: SettingsLayout.cardRadius, style: .continuous))
             editor(current, c)
@@ -119,7 +108,6 @@ struct ShortcutsSettingsPane: View {
         .shellTarget("settings shortcut \(r.entry.title)")
     }
 
-    /// The selected command's shortcut field and buttons.
     @ViewBuilder func editor(_ current: Row?, _ c: ShellColors) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if let r = current {
@@ -178,14 +166,12 @@ struct ShortcutsSettingsPane: View {
         refused = false
     }
 
-    /// Saves the field's shortcut for the command, or says why not.
     func apply(_ r: Row) {
         guard let (key, modifiers) = KeyBindings.parse(text) else {
             message = "\u{201C}\(text)\u{201D} is not a shortcut. Type modifiers and one key, such as \(Self.example)."
             refused = true
             return
         }
-        // Function and arrow keys (private-use characters) may stand alone.
         let special = key.unicodeScalars.first.map { (0xF700...0xF8FF).contains($0.value) } ?? false
         if !key.isEmpty && modifiers.isEmpty && !special {
             message = "A shortcut needs a modifier key (\(Self.example))."

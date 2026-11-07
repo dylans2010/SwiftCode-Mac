@@ -1,15 +1,3 @@
-// `swiftcode-xr-viewer` (specs/simulator/xr-viewer.md): a visionOS device of a
-// simulator host, viewed in an OpenXR headset. The stream client and the
-// link are the remote viewer's (display-stream.md, sim-link.md); the
-// headset's tracking becomes visionOS input through `XRInputMapper`; the
-// guest's pictures go to the headset as one projection layer, each eye's
-// image with the pose and field of view the guest rendered it for, so the
-// runtime's reprojection corrects the head motion since.
-//
-// Modes: live (OpenXR), `--replay <script>` (the OpenXR-free stand-in: a
-// recorded or written tracking script drives the same mapping and stream),
-// `--probe` (phase 1: what the runtime and headset offer).
-
 import CSwiftCodeCodec
 import Foundation
 import SwiftCodeDisplayStream
@@ -19,31 +7,20 @@ public struct XRViewerOptions: Sendable {
     public var connect: String?
     public var linkDevice: String?
     public var linkHost: String?
-    /// Frames by UDP on the link (`--media udp`). TCP by default: a video keyframe is
-    /// hundreds of datagrams, and one lost costs a whole new keyframe (xr-viewer.md §7).
     public var media = false
     public var stereo = false
-    /// "synth" (the default with re-projection), "adaptive", "alternate" or "mono" (xr-viewer.md §4, xr-depth.md §6).
     public var stereoMode = "synth"
     public var latch: Int?
     public var settleMs: Int?
     public var pointer = XRInputMapper.Pointer.auto
     public var palmOrientation = false
-    /// The wearer's hands drawn over the picture (§5.1): "rendered" or "off".
     public var hands = "rendered"
-    /// The thumbstick turns the immersion (§5); `--no-immersion` turns it
-    /// off (it hung SwiftCode's GPU translation before GPU-SIRI's fix, §9.2).
     public var immersion = true
-    /// Foveated streaming (§4.5): the full-resolution inset's share of each side (0: off).
     public var foveaFraction = 0.0
-    /// Eye pictures turned outwards (degrees, §4.6).
     public var eyeYaw = 0.0
     private var downscaleGiven = false
     private var stereoGiven = false
-    /// The stream's encoding (display-stream.md §14): nil is auto, the best
-    /// both ends have; a name is the first wish, what comes after it the fallback.
     public var encoding: String?
-    /// Video: constant QP (the default), or by bit rate with `--video-bitrate` (§14).
     public var videoQP = 20
     public var videoBitrate: Int?
     public var videoFPS = 30
@@ -52,12 +29,8 @@ public struct XRViewerOptions: Sendable {
     public var fps = 120
     public var seconds: Double?
     public var replay: String?
-    /// The headset's session with a script's tracking instead of the
-    /// headset's (the whole display path without a wearer, §9).
     public var drive: String?
-    /// The tracking as a script (`--record-tracking`).
     public var recordTracking: String?
-    /// What the left eye sees, as an MP4 (`--record`, §7.1), and whether the gaze cursor is drawn into it.
     public var recordVideo: String?
     public var recordCursor = false
     public var recordFPS = 30
@@ -65,66 +38,37 @@ public struct XRViewerOptions: Sendable {
     public var probe = false
     public var probeSession = false
     public var measure: String?
-    /// Per received frame: its tag and a grey thumbnail of its view's canvas
-    /// (tests of the latch depth, xr-viewer.md §6).
     public var dump: String?
     public var verbose = false
-    /// Switching's control file (§7.2, XRControl).
     public var stateFile: String?
-    /// Depth re-projection (xr-depth.md §7): nil = on when the server sends depth.
     public var reproject: Bool?
-    /// The depth's downscale against the picture (2, 4, 8).
     public var depthDownscale = 4
-    /// Depth texels per grid cell of the re-projection mesh.
     public var depthGridStep = 1
-    /// The world cache's face size (0: none).
     public var cacheFaceSize = 2048
-    /// The cache takes every picture (`--cache-all`), not only those of a settled pose.
     public var cacheAll = false
-    /// How long the head must have held a picture's pose before the cache takes it (ms).
     public var settleWindowMs = 300
-    /// …and the head must have held still from this long before the picture arrived (ms).
     public var holdMs = 800
-    /// Replay with --reproject on: a PNG of the right eye every 2 s into this folder.
     public var reprojectShots: String?
-    /// Replay with --reproject on: the offscreen eye size (the Quest Pro's recommended 2700 × 2970 for timing).
     public var offscreenSize = (1350, 1485)
-    /// The environment's turn about +Y (degrees) when the server does not know it, and its exposure.
     public var environmentYaw: Double?
     public var environmentGain: Double?
-    /// Ask the server for the room's environment (`--environment off`: no backdrop).
     public var environment = true
-    /// The camera sweep over the whole sphere at the start and after a recentre (xr-depth.md §5.5).
     public var sweep = true
-    /// A sweep stop's longest wait for its picture (ms).
     public var sweepStopMs = 2500
-    /// The gaze path (`XRGazeSettings`, xr-viewer.md §13) and the pinch.
     public var gaze = XRGazeSettings()
     public var pinchOnCentimetres = 2.0, pinchOffCentimetres = 3.5, pinchSlopMillimetres = 12.0
     public var handHoldMs = 200
-    /// An extended index finger is a direct touch (`allowDirect`).
     public var poke = true
-    /// A reticle at the point the viewer sends (`--gaze-dot`), and the bias targets (`--gaze-calibrate`).
     public var gazeDot = false, gazeCalibrate = false
-    /// The gaze at the frame's predicted display time (the default) or at the present (`--gaze-time now`).
     public var gazeAtPresent = false
-    /// The camera holds within this much of the head (xr-depth.md §5.5).
     public var holdBandDegrees = 3.0, holdBandCentimetres = 2.0
-    /// A picture goes on top this long after the camera came to rest, before it is final (ms, 0: only once final).
     public var freshTopMs = 350
-    /// …and while the camera moves slower than this (degrees per second; the same in dm/s; 0: only at rest).
     public var freshTopSpeed = 20.0
-    /// Replay: per picture, its tag's yaw and a row of it (how far the tag is from what the picture shows, offline).
     public var tagProbe: String?
-    /// At most this many frames unacknowledged (display-stream.md §4.2; 0: no window).
     public var frameWindow = 3
-    /// `--upload bgrx`: the picture through a BGRX copy on one thread, the path of run 8 (comparison).
     public var uploadViaBGRX = false
-    /// Diagnostic: the stream's thread sleeps this long after each picture (a consumer slower than the guest, §13.2).
     public var slowConsumerMs = 0
-    /// Replay: per dwell of a written script, where the guest's picture changed against where the ray points.
     public var hoverProbe: String?
-    /// `--stereo synth`: both eyes made from one view by re-projection.
     public var synthStereo: Bool { stereoMode == "synth" }
 
     public init() {}
@@ -308,28 +252,22 @@ public struct XRViewerOptions: Sendable {
             i += 1
         }
         if !o.probe && o.connect == nil && o.linkDevice == nil { return .exit(64, "--connect or --link is needed\n" + usage) }
-        // Without re-projection there is nothing to make both eyes from one view: adaptive.
         if o.reproject == false && !o.stereoGiven { o.stereoMode = "adaptive"; o.stereo = true }
-        // Foveated: the whole picture at half resolution unless asked otherwise.
         if o.foveaFraction > 0 && !o.downscaleGiven { o.downscale = 2 }
         return .run(o)
     }
 
-    /// The encodings to ask for (display-stream.md §14). The foveated inset is
-    /// JPEG over a tile picture (§4.5), so `--foveate` starts there unless told otherwise.
     public func encodingPlan(problem: (String) -> String?) -> (wishes: [String], usable: [String], missing: [(name: String, why: String)]) {
         let wishes = DisplayCodecChoice.wishes(first: encoding ?? (foveaFraction > 0 ? "jpeg" : nil))
         let (usable, missing) = DisplayCodecChoice.decodable(wishes: wishes, problem: problem)
         return (wishes, usable, missing)
     }
 
-    /// Why this host cannot decode an encoding (nil: it can).
     static func decodeProblem(_ name: String) -> String? {
         guard let e = DisplayEncoding(name: name) else { return "unknown encoding" }
         return StreamCanvas.decodeProblem(e)
     }
 
-    /// The client hello this viewer sends.
     public var hello: DisplayClientHello { hello(problem: Self.decodeProblem) }
 
     public func hello(problem: (String) -> String?) -> DisplayClientHello {
@@ -344,7 +282,6 @@ public struct XRViewerOptions: Sendable {
         } else {
             h.videoQP = videoQP
         }
-        // Synthesised stereo asks the guest for the head every picture (mono).
         h.xr = XRClientRequest(stereo: synthStereo ? "mono" : stereoMode, latch: latch, settleMs: settleMs)
         if reproject != false {
             h.xr?.depthDownscale = depthDownscale
@@ -357,7 +294,6 @@ public struct XRViewerOptions: Sendable {
     }
 }
 
-/// The newest decoded picture of each view, as the stream delivers them.
 final class XRPictureBoard: @unchecked Sendable {
     struct Entry { var sequence: UInt64; var guestFrame: UInt64 = 0; var tag: XRFrameView?; var receivedAt: UInt64; var decodedAt: UInt64 }
     private let lock = NSLock()
@@ -366,12 +302,7 @@ final class XRPictureBoard: @unchecked Sendable {
     func get(_ view: XRView) -> Entry? { lock.withLock { latest[view] } }
 }
 
-/// The stages of one shown picture (xr-viewer.md §6), viewer ns.
 struct XRLatencySample {
-    /// Viewer ns: the tag's pose left the viewer (0 untagged); the server's
-    /// stages (display-stream.md §12.1, mapped to this clock; 0 unknown):
-    /// the frame record seen, capture start, encode end, send end; then
-    /// here: received, decoded, uploaded, the predicted display time.
     var poseSent: UInt64 = 0
     var recordSeen: UInt64 = 0, captureStart: UInt64 = 0, encodeEnd: UInt64 = 0, sendEnd: UInt64 = 0
     var received: UInt64 = 0, decoded: UInt64 = 0, uploaded: UInt64 = 0, display: UInt64 = 0
@@ -381,7 +312,6 @@ public final class XRViewer: @unchecked Sendable {
     let options: XRViewerOptions
     let client: DisplayStreamClient
     let board = XRPictureBoard()
-    /// Foveated streaming: the newest decoded inset per view (alpha-feathered BGRA).
     struct DecodedInset { var inset: XRInset; var pixels: [UInt8]; var serial: Int }
     private var insets: [XRView: DecodedInset] = [:]
     private var insetSerial = 0
@@ -392,8 +322,6 @@ public final class XRViewer: @unchecked Sendable {
     private var hello: DisplayServerHello?
     private var poseSentAt: [UInt32: UInt64] = [:]
     private var latencies: [XRLatencySample] = []
-    /// The stream's own stages per frame (headset or not): frames waiting
-    /// for their timing message, and the joined stages.
     private var pendingFrames: [UInt64: (UInt64, UInt64)] = [:]
     private var streamStages: [XRLatencySample] = []
     private var counts = (frames: 0, tags: 0, left: 0, right: 0, mono: 0)
@@ -401,13 +329,11 @@ public final class XRViewer: @unchecked Sendable {
     let log: (String) -> Void
     private let dumpFile: FileHandle?
 
-    /// The depth re-projection (XRDepthView.swift), once the session exists.
     var depthView: XRDepthView? {
         get { lock.withLock { depthViewStorage } }
         set { lock.withLock { depthViewStorage = newValue } }
     }
     private var depthViewStorage: XRDepthView?
-    /// The server sends depth (its hello's `xrDepth`).
     var serverDepth: Bool { lock.withLock { hello?.xrDepth == true } }
 
     public init(options: XRViewerOptions, connect: @escaping @Sendable () throws -> DisplayTransport, log: @escaping (String) -> Void) {
@@ -491,8 +417,6 @@ public final class XRViewer: @unchecked Sendable {
         }
     }
 
-    /// A soft edge: alpha ramps from 0 to 255 over the outer 8 % of the
-    /// inset (the half-resolution picture shows through at its border).
     static func feather(_ px: inout [UInt8], width w: Int, height h: Int) {
         let band = max(4, min(w, h) * 8 / 100)
         px.withUnsafeMutableBufferPointer { p in
@@ -507,8 +431,6 @@ public final class XRViewer: @unchecked Sendable {
         }
     }
 
-    /// Foveated streaming: where the eyes look in the guest's view, to the
-    /// server only (at most 90 times a second, when it moved).
     func sendFovea(u: Double, v: Double) {
         guard options.foveaFraction > 0, xrServer else { return }
         let now = viewerNanoseconds()
@@ -521,19 +443,15 @@ public final class XRViewer: @unchecked Sendable {
     var xrServer: Bool { lock.withLock { serverXR } }
     var guestSize: (Int, Int) { lock.withLock { hello.map { ($0.pixelWidth, $0.pixelHeight) } ?? (3840, 2160) } }
 
-    // MARK: Sending input
-
     private var lastSelection: (time: UInt64, pinch: (Bool, Bool))?
     private var lastImmersionSend: UInt64 = 0
     private var lastPing: UInt64 = 0
     private var pendingImmersion: Double?
     private var crownRelease: UInt64?
 
-    /// One mapped sample → messages (latest-wins state on the server).
     func send(_ out: XRInputOutput) {
         let now = viewerNanoseconds()
         guard spatial else { return }
-        // The clock against the server's (stage times), kept fresh once a second.
         if now &- lastPing >= 1_000_000_000 { client.ping(); lastPing = now }
         if xrServer {
             let seq = client.sendInput { .views(sequence: $0, views: XRViews(sequence: $0, stereo: out.views.stereo, head: out.views.head,
@@ -542,7 +460,6 @@ public final class XRViewer: @unchecked Sendable {
         } else {
             client.sendInput { .pose(sequence: $0, pose: out.views.head) }
         }
-        // Selections: about 60 per second, pinch changes at once.
         let pinch = (out.selection.left?.pinching ?? false, out.selection.right?.pinching ?? false)
         if lastSelection == nil || lastSelection!.pinch != pinch || now &- lastSelection!.time >= 16_000_000 {
             client.sendInput { .selection(sequence: $0, selection: out.selection) }
@@ -550,7 +467,6 @@ public final class XRViewer: @unchecked Sendable {
         }
         if let down = out.crown { client.sendInput { .button(sequence: $0, button: .home, down: down) } }
         if out.recentred {
-            // The guest recentres on a held crown (≥ 0.5 s, visionos.md §5.5.9).
             client.sendInput { .button(sequence: $0, button: .home, down: true) }
             crownRelease = now + 700_000_000
         }
@@ -568,14 +484,10 @@ public final class XRViewer: @unchecked Sendable {
 
     func poseSent(_ seq: UInt32) -> UInt64? { lock.withLock { poseSentAt[seq] } }
 
-    // MARK: Gaps (xr-viewer.md §13.1)
-
     private var gapRecorder = XRGapRecorder()
     private var gapLines = 0
-    /// Pictures that came with the camera at rest and no pinch: bursts of them (a hover's highlight or an animation).
     private var contentBursts = 0, lastPictureAt: UInt64 = 0, cameraMovedAt: UInt64 = 0, firstTick: UInt64 = 0
 
-    /// One headset frame (or a replay's sample).
     func tick(tracked: Bool, head: SpatialPose?, waited: UInt64, work: UInt64, cameraMoved: Bool, pinchChanged: Bool, saccade: Bool, hidden: Bool) {
         let now = viewerNanoseconds()
         lock.withLock {
@@ -586,7 +498,6 @@ public final class XRViewer: @unchecked Sendable {
         }
     }
 
-    /// A new picture reached the eyes.
     func pictureShown(_ entry: XRPictureBoard.Entry, _ s: XRLatencySample) {
         let gap = lock.withLock { () -> XRGapRecorder.Gap? in
             if s.uploaded &- lastPictureAt > 150_000_000, s.uploaded &- cameraMovedAt > 300_000_000 { contentBursts += 1 }
@@ -599,7 +510,6 @@ public final class XRViewer: @unchecked Sendable {
         if let gap, gap.cause != .idle { log("swiftcode-xr-viewer: " + gap.description) }
     }
 
-    /// The gaps and the content bursts of the session.
     var gapSummary: String {
         lock.withLock {
             let seconds = firstTick > 0 ? max(0.001, Double(viewerNanoseconds() - firstTick) / 1e9) : 0.001
@@ -609,12 +519,9 @@ public final class XRViewer: @unchecked Sendable {
 
     func addLatency(_ l: XRLatencySample) { lock.withLock { latencies.append(l); if latencies.count > 100_000 { latencies.removeFirst(50_000) } } }
 
-    // MARK: Summary
-
     func summary() -> String {
         let (c, lat, st) = lock.withLock { (counts, latencies, streamStages) }
         var s = "frames \(c.frames) (left \(c.left), right \(c.right), mono \(c.mono); tagged \(c.tags))"
-        // What the stream carried since the first picture: its rate and its bytes per second.
         let stats = client.statistics
         let (firstAt, lastAt) = lock.withLock { (firstFrameAt, lastFrameAt) }
         if c.frames > 1, lastAt > firstAt {
@@ -663,14 +570,11 @@ public final class XRViewer: @unchecked Sendable {
     }
 }
 
-/// The viewer's monotonic clock (ns).
 func viewerNanoseconds() -> UInt64 {
     var t = timespec()
     clock_gettime(CLOCK_MONOTONIC, &t)
     return UInt64(t.tv_sec) * 1_000_000_000 + UInt64(t.tv_nsec)
 }
-
-// MARK: - The modes
 
 public enum XRViewerMain {
     static func say(_ s: String) { FileHandle.standardError.write(Data((s + "\n").utf8)) }
@@ -692,7 +596,6 @@ public enum XRViewerMain {
         return status
     }
 
-    /// Phase 1: what the runtime offers (and, with --session, a short session).
     static func probe(_ o: XRViewerOptions) -> Int32 {
         let (ok, why) = XRSession.available()
         guard ok else { say("swiftcode-xr-viewer: \(why)"); return 69 }
@@ -722,14 +625,11 @@ public enum XRViewerMain {
         }
     }
 
-    /// The OpenXR-free stand-in: a script drives the mapping and the stream.
     static func replay(_ viewer: XRViewer, script path: String) -> Int32 {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { say("swiftcode-xr-viewer: cannot read \(path)"); return 66 }
         let samples: [XRTrackingSample]
         do { samples = try XRSampleScript.decode(text) } catch { say("swiftcode-xr-viewer: \(path): \(error)"); return 65 }
         guard let first = samples.first else { say("swiftcode-xr-viewer: \(path) is empty"); return 65 }
-        // Re-projection without a headset: offscreen eyes (the GPU time, the
-        // disocclusion, and PNGs of the right eye with --reproject-shots).
         if viewer.options.reproject == true {
             do {
                 let dv = try XRDepthView(session: nil, options: viewer.options, log: say)
@@ -748,7 +648,6 @@ public enum XRViewerMain {
             let v = XRVideoRecorder(path: path, fps: viewer.options.recordFPS, bitrateKbps: viewer.options.recordKbps, log: say)
             if v.start() { video = v }
         }
-        // Without re-projection: the plain path, as a headset's frames run it.
         let plain = viewer.options.reproject == false ? XRPlainPath() : nil
         let sink = plain != nil ? XROffscreenSink() : nil
         let hoverProbe = viewer.options.hoverProbe.map { XRHoverProbe(path: $0) }
@@ -786,7 +685,6 @@ public enum XRViewerMain {
                 if let p = XRInset.point(gaze: d, fov: .guest(width: w, height: h)) { viewer.sendFovea(u: p.u, v: p.v) }
             }
             if let dv = viewer.depthView, let anchor = mapper.anchor {
-                // The Quest Pro's fields of view (xr-viewer.md §2).
                 let d = Double.pi / 180
                 dv.offscreen(viewer, s, fovs: [XRFieldOfView(left: -54 * d, right: 40 * d, up: 48 * d, down: -48 * d),
                                                XRFieldOfView(left: -40 * d, right: 54 * d, up: 48 * d, down: -48 * d)], anchor: anchor)
@@ -802,7 +700,6 @@ public enum XRViewerMain {
                         saccade: mapper.saccadeNow, hidden: viewer.depthView?.pictureHidden ?? false)
             lastPinching = pinching
             previousEnd = viewerNanoseconds()
-            // Recording without a headset: the newest left (or mono) picture at its tag's pose.
             if let video, let anchor = mapper.anchor {
                 let l = viewer.board.get(.left), m = viewer.board.get(.mono)
                 let (view, entry) = (l?.sequence ?? 0) > (m?.sequence ?? 0) ? (XRView.left, l) : (XRView.mono, m)
@@ -828,7 +725,6 @@ public enum XRViewerMain {
         return 0
     }
 
-    /// The headset.
     static func live(_ viewer: XRViewer) -> Int32 {
         let o = viewer.options
         let (ok, why) = XRSession.available()
@@ -908,7 +804,6 @@ public enum XRViewerMain {
             xrFrames += 1
             if frame.gazeSampleAge != 0 {
                 if gazeAges.count < 200_000 { gazeAges.append(Double(frame.gazeSampleAge) / 1e6) }
-                // Samples this old: the headset's tracking is not arriving (the runtime's link, xr-viewer.md §13.1).
                 if stale.note(age: frame.gazeSampleAge, at: loopStart) { say("swiftcode-xr-viewer: \(stale.lastDescription)") }
             }
             if frame.sample != nil { tracked += 1 }
@@ -918,7 +813,6 @@ public enum XRViewerMain {
             }
             if o.verbose || viewerNanoseconds() >= nextReport {
                 nextReport = viewerNanoseconds() + 5_000_000_000
-                // Off the headset's loop: the summary sorts every sample so far, which grew to tens of ms.
                 let (f, tr) = (xrFrames, tracked)
                 DispatchQueue.global(qos: .utility).async { say("swiftcode-xr-viewer: \(f) headset frames, \(tr) tracked (head and views); " + viewer.summary()) }
             }
@@ -948,7 +842,6 @@ public enum XRViewerMain {
                             saccade: mapper.saccadeNow, hidden: viewer.depthView?.pictureHidden ?? false)
                 lastPinching = pinching
                 if o.foveaFraction > 0 {
-                    // The gaze (else the head's forward) in head space → the guest's view.
                     let d = mapper.lastGaze.map { s.head.rotation.conjugate.rotate($0.forward) } ?? SpatialVector(0, 0, -1)
                     let (w, h) = viewer.guestSize
                     if let p = XRInset.point(gaze: d, fov: .guest(width: w, height: h)) { viewer.sendFovea(u: p.u, v: p.v) }
@@ -960,8 +853,6 @@ public enum XRViewerMain {
                     }
                 }
                 if o.hands != "off" {
-                    // One layer per hand: its discs drawn into a 256² image on the CPU
-                    // and uploaded every frame into slot 2 (left) or 3 (right).
                     let pinchState = [out.selection.left?.pinching ?? false, out.selection.right?.pinching ?? false]
                     for h in 0..<2 {
                         guard h < s.hands.count, let j = s.hands[h],
@@ -972,8 +863,6 @@ public enum XRViewerMain {
                     }
                 }
             }
-            // Depth re-projection: both eyes drawn every frame at their current
-            // poses into the rendered swapchains (xr-depth.md §5).
             if let dv = viewer.depthView, o.reproject == true || viewer.serverDepth, let anchor = mapper.anchor,
                let r = dv.frame(viewer, frame, anchor: anchor) {
                 previousWork = viewerNanoseconds() - loopStart
@@ -997,7 +886,6 @@ public enum XRViewerMain {
                 let signature = images.map(String.init).joined(separator: ",")
                 if signature != lastLayout { layoutChanges += 1; lastLayout = signature }
             }
-            // Foveated: each view's inset for the picture it shows (a newer gaze on the same picture too).
             var insetImages: [Int]?, insetFovs: [XRFieldOfView]?
             if o.foveaFraction > 0, images[0] >= 0, images[1] >= 0 {
                 var ok = true
@@ -1057,7 +945,6 @@ public enum XRViewerMain {
 }
 
 extension XRInputMapper {
-    /// A mapper with the viewer's options.
     init(options o: XRViewerOptions) {
         self.init(pointer: o.pointer, stereo: o.stereo)
         palmOrientation = o.palmOrientation
@@ -1070,11 +957,6 @@ extension XRInputMapper {
     }
 }
 
-/// `--hover-probe`: a written script's gaze (never a wearer's: replay only) rests
-/// on a place at a time. Where the guest's picture changed during the dwell, and how
-/// long after the ray arrived it first did, against where the ray points in the
-/// picture: one line per dwell. It says whether what the guest highlights is what
-/// the ray points at, and how late.
 final class XRHoverProbe {
     private let file: FileHandle?
     private var lastRay: SpatialVector?
@@ -1152,9 +1034,6 @@ final class XRFlag: @unchecked Sendable {
     var isSet: Bool { lock.withLock { value } }
 }
 
-/// The GPU's utilisation during a session (nvidia-smi once a second, when
-/// it exists): the runtime composites on the same GPU, so a saturated GPU
-/// shows up here before it shows in the headset (§9.2).
 final class XRGPUSampler: @unchecked Sendable {
     private let lock = NSLock()
     private var samples: [Int] = []

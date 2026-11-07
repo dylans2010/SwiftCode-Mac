@@ -7,9 +7,6 @@ import { createCloudModelCommand } from "./commands/cloud-model.js";
 import { createSecurityVaultCommand } from "./commands/security-vault.js";
 import { createOpenDocsCommand } from "./commands/open-docs.js";
 
-/**
- * Live command registrations owned by this activation.
- */
 const registrations: Array<{ dispose(): void }> = [];
 
 export async function activate(context: SwiftCodeContext): Promise<void> {

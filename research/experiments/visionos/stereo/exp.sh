@@ -1,7 +1,4 @@
 #!/bin/bash
-# exp.sh <run-name> [key=intval ...]: shut down the test device, set wakeboardd defaults (ints) in its preference file,
-# boot with stereopeek, then record wakeboardctl status, StereoProbe output, a screenshot. Keys set are removed afterwards
-# only by the next exp (each run starts from the plist with only hmd.preferred-languages).
 S=${STEREO_WORK:?set STEREO_WORK to a scratch folder holding udid (the test device), runs/ and tools/}
 B=${STEREO_BUILD:?set STEREO_BUILD to the folder with stereopeek.dylib}
 U=$(cat $S/udid); N=$1; shift; O=$S/runs/$N; mkdir -p $O

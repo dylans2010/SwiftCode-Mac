@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct PasswordGeneratorView: View {
@@ -31,7 +28,6 @@ struct PasswordGeneratorView: View {
                 .buttonStyle(.plain)
             }
             .padding([.top, .horizontal])
-            
 
             VStack(spacing: 12) {
                 Stepper("Length: \(length)", value: $length, in: 8...64)

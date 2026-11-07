@@ -14,7 +14,6 @@ public final class StoreKitSimulationService {
     public private(set) var activeLogs: [String] = []
     public private(set) var activityEvents: [SKActivityEvent] = []
 
-    // Reusable Simulator Scenario Profiles
     public private(set) var availableProfiles: [SKSimulatorProfile] = [
         SKSimulatorProfile(name: "SaaS Premium Subscriber", desc: "Simulates an active, fully-paid Auto-Renewable SaaS subscriber in USA.", isOffline: false, isAskToBuy: false),
         SKSimulatorProfile(name: "Child Sandbox Account", desc: "Simulates 'Ask to Buy' workflow requiring parent verification.", isOffline: false, isAskToBuy: true),
@@ -24,17 +23,14 @@ public final class StoreKitSimulationService {
 
     public var selectedProfileID: String = ""
 
-    // Simulator Settings
     public var isOfflineMode: Bool = false
     public var isAskToBuyEnabled: Bool = false
     public var shouldSimulateNetworkFailure: Bool = false
     public var shouldFailVerification: Bool = false
 
-    // Favorites Pinning Lists
     public var favoriteProducts: Set<String> = []
     public var favoriteGroups: Set<String> = []
 
-    // Custom Saved Smart Filters
     public var customFilters: [SKSmartFilter] = [
         SKSmartFilter(name: "Premium Offers Only", minPrice: 9.99, maxPrice: nil, productType: "AutoRenewableSubscription")
     ]

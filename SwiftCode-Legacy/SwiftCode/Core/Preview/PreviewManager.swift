@@ -7,7 +7,6 @@ import os
 public final class PreviewManager {
     public static let shared = PreviewManager()
 
-    // Reactive State Isolation
     public var activeSession: PreviewSession?
     public var secondarySessions: [String: PreviewSession] = [:]
     public var state = PreviewState()
@@ -17,7 +16,6 @@ public final class PreviewManager {
     public var isCompiling = false
     public var hostedView: NSView?
 
-    // Isolated Artboard Runtime Sessions
     public var runtimeSessions: [UUID: RuntimeSession] = [:]
 
     public func getOrCreateRuntimeSession(for artboardID: UUID) -> RuntimeSession {
@@ -29,7 +27,6 @@ public final class PreviewManager {
         return session
     }
 
-    // Sequence tracking for newest-request-wins concurrency safety
     private var currentSessionRequestID: UUID?
 
     private let runtime = PreviewRuntime.shared
@@ -39,9 +36,7 @@ public final class PreviewManager {
 
     private init() {}
 
-    /// Validates the build pipeline constraints strictly. Throws a detailed error on any validation failure.
     public func validatePreviewBuildPipeline() async throws {
-        // 1. Workspace / Project Resolver validation
         let metadata: ResolvedProjectMetadata
         do {
             metadata = try ProjectResolver.shared.resolveActiveProject()
@@ -49,43 +44,36 @@ public final class PreviewManager {
             throw NSError(domain: "PreviewBuild", code: 401, userInfo: [NSLocalizedDescriptionKey: "No active workspace or project resolved."])
         }
 
-        // 2. Project
         guard let _ = XcodeBuildAPI.shared.determineActiveProject() else {
             throw NSError(domain: "PreviewBuild", code: 402, userInfo: [NSLocalizedDescriptionKey: "Active target project not found."])
         }
 
-        // 3. Scheme
         guard let _ = XcodeBuildAPI.shared.determineActiveScheme() else {
             throw NSError(domain: "PreviewBuild", code: 403, userInfo: [NSLocalizedDescriptionKey: "No active scheme selected for the target project."])
         }
 
-        // 4. Bundle Identifier
         let bundleID = XcodeBuildAPI.shared.determineBundleIdentifier()
         if bundleID.isEmpty {
             throw NSError(domain: "PreviewBuild", code: 404, userInfo: [NSLocalizedDescriptionKey: "Bundle identifier is invalid or empty."])
         }
 
-        // 5. Swift Version Check (checks swiftc executable)
         let fm = FileManager.default
         let hasSwiftc = fm.fileExists(atPath: "/usr/bin/swiftc") || fm.fileExists(atPath: "/usr/bin/swift")
         if !hasSwiftc {
             throw NSError(domain: "PreviewBuild", code: 405, userInfo: [NSLocalizedDescriptionKey: "Swift compiler tools (swiftc) are missing in the current system."])
         }
 
-        // 6. SDK Environment validation
         let validation = await XcodeBuildAPI.shared.validateBuildEnvironment()
         if !validation.isValid {
             throw NSError(domain: "PreviewBuild", code: 406, userInfo: [NSLocalizedDescriptionKey: validation.errorDescription ?? "Build environment SDK validation failed."])
         }
 
-        // 7. Dependencies check
         if metadata.isSwiftPackage {
             guard let packageURL = metadata.packageSwiftURL, fm.fileExists(atPath: packageURL.path) else {
                 throw NSError(domain: "PreviewBuild", code: 407, userInfo: [NSLocalizedDescriptionKey: "Package.swift is missing in active package dependencies."])
             }
         }
 
-        // 8. Generated Project (Generate if workspace or xcodeproj doesn't exist)
         if !XcodeBuildAPI.shared.hasWorkspaceOrXcodeproj() {
             let projectName = metadata.projectName
             let schemeName = XcodeBuildAPI.shared.determineActiveScheme()?.name ?? projectName
@@ -100,7 +88,6 @@ public final class PreviewManager {
         }
     }
 
-    /// Automatically sets up a fresh live preview session by validating and building via XcodeBuildAPI.
     public func startFreshLivePreviewSession(
         sourcePath: String,
         sourceCode: String,
@@ -113,13 +100,11 @@ public final class PreviewManager {
         buildLogs = ["Preview Session Started"]
         PreviewDiagnostics.shared.clearLogs()
 
-        // 1. Clear previous runtime state, caches, and logs
         await stopActiveSession()
         await PreviewCache.shared.clearAll()
         DocumentCoordinator.shared.compiledArtboardViews.removeAll()
         DocumentCoordinator.shared.compiledArtboardErrors.removeAll()
 
-        // 2. Resolve Active metadata
         var activeProjName = "None"
         var activeSchemeName = "None"
         var buildConfigStr = "Debug"
@@ -133,11 +118,9 @@ public final class PreviewManager {
             buildConfigStr = XcodeBuildAPI.shared.determineActiveBuildConfiguration().rawValue
         } catch {}
 
-        // Discover modern #Preview targets
         let parsedTargets = PreviewBlockParser.parsePreviewTargets(in: sourceCode)
         let resolvedTarget = targetViewName ?? parsedTargets.first?.title ?? "ContentView"
 
-        // 3. Create a brand-new session
         var session = PreviewSession(
             sessionID: UUID().uuidString,
             sourceFilePath: sourcePath,
@@ -163,10 +146,8 @@ public final class PreviewManager {
 
         guard self.currentSessionRequestID == requestID else { return }
 
-        // Synchronize parsed previews with artboards automatically
         synchronizeArtboardsForPreviews(sourcePath: sourcePath, sourceCode: sourceCode)
 
-        // 4. Validation Pipeline
         do {
             session.state = .compiling
             session.status = "Validating..."
@@ -178,7 +159,6 @@ public final class PreviewManager {
 
             guard self.currentSessionRequestID == requestID else { return }
 
-            // 5. Build Project via XcodeBuildAPI if a real project is present
             if isXcodeProj {
                 session.status = "Building via XcodeBuildAPI..."
                 self.activeSession = session
@@ -191,7 +171,6 @@ public final class PreviewManager {
                 guard self.currentSessionRequestID == requestID else { return }
 
                 if buildResult.status != .succeeded {
-                    // Extract structured diagnostics from compiler failures
                     var diagList: [PreviewDiagnosticModel] = []
                     for diag in buildResult.diagnostics {
                         diagList.append(PreviewDiagnosticModel(
@@ -218,7 +197,6 @@ public final class PreviewManager {
                     return
                 }
 
-                // Compile succeeded
                 PreviewDiagnostics.shared.addLog(category: "compile", message: "Build Finished Successfully.")
                 session.compiledProduct = buildResult.appBundleURL
                 self.activeSession = session
@@ -226,7 +204,6 @@ public final class PreviewManager {
 
             guard self.currentSessionRequestID == requestID else { return }
 
-            // 6. Instantiating Preview & Rendering
             session.state = .rendering
             session.status = "Rendering..."
             self.activeSession = session
@@ -337,7 +314,6 @@ public final class PreviewManager {
     }
 
     public func stopAndRestartSession() async {
-        // 1. Immediately terminate all compiler, build, and helper tasks
         XcodeBuildAPI.shared.cancelBuild()
         FullAppRunManager.shared.stopApplication()
         runtime.stopRuntime()
@@ -357,18 +333,15 @@ public final class PreviewManager {
         } catch {}
         #endif
 
-        // 2. Destroy active Preview Session and clear logs
         self.activeSession = nil
         self.hostedView = nil
         self.secondarySessions.removeAll()
         self.buildLogs.removeAll()
 
-        // 3. Invalidate caches
         await PreviewCache.shared.clearAll()
         DocumentCoordinator.shared.compiledArtboardViews.removeAll()
         DocumentCoordinator.shared.compiledArtboardErrors.removeAll()
 
-        // 4. Restart rendering from the beginning with a completely brand-new session
         if let doc = DocumentCoordinator.shared.activeDocument {
             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(doc.content, filename: doc.url.path)
             await startFreshLivePreviewSession(sourcePath: doc.url.path, sourceCode: preparedCode)

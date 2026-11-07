@@ -1,31 +1,3 @@
-/*
- * Copyright (c) 2021 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
-/*
- * Originally dual-licensed by Richard Geldreich <richgel99@gmail.com> between 1994-2020.
- * Public Domain or Apache License 2.0.
- * ThorVG uses it under the Public Domain terms.
- */
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -33,17 +5,12 @@
 #include "tvgCommon.h"
 #include "tvgJpgd.h"
 
-/************************************************************************/
-/* Internal Class Implementation                                        */
-/************************************************************************/
-
 #define JPGD_MAX(a,b) (((a)>(b)) ? (a) : (b))
 #define JPGD_MIN(a,b) (((a)<(b)) ? (a) : (b))
 
 typedef int16_t jpgd_quant_t;
 typedef int16_t jpgd_block_t;
 
-// Success/failure error codes.
 enum jpgd_status
 {
     JPGD_SUCCESS = 0, JPGD_FAILED = -1, JPGD_DONE = 1,
@@ -63,28 +30,14 @@ enum
     JPGD_MAX_COMPONENTS = 4, JPGD_MAX_COMPS_IN_SCAN = 4, JPGD_MAX_BLOCKS_PER_ROW = 8192, JPGD_MAX_HEIGHT = 16384, JPGD_MAX_WIDTH = 16384
 };
 
-// Input stream interface.
-// Derive from this class to read input data from sources other than files or memory. Set m_eof_flag to true when no more data is available.
-// The decoder is rather greedy: it will keep on calling this method until its internal input buffer is full, or until the EOF flag is set.
-// It the input stream contains data after the JPEG stream's EOI (end of image) marker it will probably be pulled into the internal buffer.
-// Call the get_total_bytes_read() method to determine the actual size of the JPEG stream after successful decoding.
 struct jpeg_decoder_stream
 {
     jpeg_decoder_stream() { }
     virtual ~jpeg_decoder_stream() { }
 
-    // The read() method is called when the internal input buffer is empty.
-    // Parameters:
-    // pBuf - input buffer
-    // max_bytes_to_read - maximum bytes that can be written to pBuf
-    // pEOF_flag - set this to true if at end of stream (no more bytes remaining)
-    // Returns -1 on error, otherwise return the number of bytes actually written to the buffer (which may be 0).
-    // Notes: This method will be called in a loop until you set *pEOF_flag to true or the internal buffer is full.
     virtual int read(uint8_t *pBuf, int max_bytes_to_read, bool *pEOF_flag) = 0;
 };
 
-
-// stdio FILE stream class.
 class jpeg_decoder_file_stream : public jpeg_decoder_stream
 {
     jpeg_decoder_file_stream(const jpeg_decoder_file_stream &);
@@ -102,8 +55,6 @@ public:
     virtual int read(uint8_t *pBuf, int max_bytes_to_read, bool *pEOF_flag);
   };
 
-
-// Memory stream class.
 class jpeg_decoder_mem_stream : public jpeg_decoder_stream
 {
     const uint8_t *m_pSrc_data;
@@ -118,24 +69,13 @@ public:
     virtual int read(uint8_t *pBuf, int max_bytes_to_read, bool *pEOF_flag);
 };
 
-
 class jpeg_decoder
 {
 public:
-    // Call get_error_code() after constructing to determine if the stream is valid or not. You may call the get_width(), get_height(), etc.
-    // methods after the constructor is called. You may then either destruct the object, or begin decoding the image by calling begin_decoding(), then decode() on each scanline.
     jpeg_decoder(jpeg_decoder_stream *pStream);
     ~jpeg_decoder();
 
-    // Call this method after constructing the object to begin decompression.
-    // If JPGD_SUCCESS is returned you may then call decode() on each scanline.
     int begin_decoding();
-    // Returns the next scan line.
-    // For grayscale images, pScan_line will point to a buffer containing 8-bit pixels (get_bytes_per_pixel() will return 1).
-    // Otherwise, it will always point to a buffer containing 32-bit RGBA pixels (A will always be 255, and get_bytes_per_pixel() will return 4).
-    // Returns JPGD_SUCCESS if a scan line has been returned.
-    // Returns JPGD_DONE if all scan lines have been returned.
-    // Returns JPGD_FAILED if an error occurred. Call get_error_code() for a more info.
     int decode(const void** pScan_line);
     inline jpgd_status get_error_code() const { return m_error_code; }
     inline int get_width() const { return m_image_x_size; }
@@ -143,7 +83,6 @@ public:
     inline int get_num_components() const { return m_comps_in_frame; }
     inline int get_bytes_per_pixel() const { return m_dest_bytes_per_pixel; }
     inline int get_bytes_per_scan_line() const { return m_image_x_size * get_bytes_per_pixel(); }
-    // Returns the total number of bytes actually consumed by the decoder (which should equal the actual size of the JPEG file).
     inline int get_total_bytes_read() const { return m_total_bytes_read; }
 
 private:
@@ -183,36 +122,36 @@ private:
     jpeg_decoder_stream *m_pStream;
     int m_progressive_flag;
     uint8_t m_huff_ac[JPGD_MAX_HUFF_TABLES];
-    uint8_t* m_huff_num[JPGD_MAX_HUFF_TABLES];      // pointer to number of Huffman codes per bit size
-    uint8_t* m_huff_val[JPGD_MAX_HUFF_TABLES];      // pointer to Huffman codes per bit size
-    jpgd_quant_t* m_quant[JPGD_MAX_QUANT_TABLES]; // pointer to quantization tables
-    int m_scan_type;                              // Gray, Yh1v1, Yh1v2, Yh2v1, Yh2v2 (CMYK111, CMYK4114 no longer supported)
-    int m_comps_in_frame;                         // # of components in frame
-    int m_comp_h_samp[JPGD_MAX_COMPONENTS];       // component's horizontal sampling factor
-    int m_comp_v_samp[JPGD_MAX_COMPONENTS];       // component's vertical sampling factor
-    int m_comp_quant[JPGD_MAX_COMPONENTS];        // component's quantization table selector
-    int m_comp_ident[JPGD_MAX_COMPONENTS];        // component's ID
+    uint8_t* m_huff_num[JPGD_MAX_HUFF_TABLES];
+    uint8_t* m_huff_val[JPGD_MAX_HUFF_TABLES];
+    jpgd_quant_t* m_quant[JPGD_MAX_QUANT_TABLES];
+    int m_scan_type;
+    int m_comps_in_frame;
+    int m_comp_h_samp[JPGD_MAX_COMPONENTS];
+    int m_comp_v_samp[JPGD_MAX_COMPONENTS];
+    int m_comp_quant[JPGD_MAX_COMPONENTS];
+    int m_comp_ident[JPGD_MAX_COMPONENTS];
     int m_comp_h_blocks[JPGD_MAX_COMPONENTS];
     int m_comp_v_blocks[JPGD_MAX_COMPONENTS];
-    int m_comps_in_scan;                          // # of components in scan
-    int m_comp_list[JPGD_MAX_COMPS_IN_SCAN];      // components in this scan
-    int m_comp_dc_tab[JPGD_MAX_COMPONENTS];       // component's DC Huffman coding table selector
-    int m_comp_ac_tab[JPGD_MAX_COMPONENTS];       // component's AC Huffman coding table selector
-    int m_spectral_start;                         // spectral selection start
-    int m_spectral_end;                           // spectral selection end
-    int m_successive_low;                         // successive approximation low
-    int m_successive_high;                        // successive approximation high
-    int m_max_mcu_x_size;                         // MCU's max. X size in pixels
-    int m_max_mcu_y_size;                         // MCU's max. Y size in pixels
+    int m_comps_in_scan;
+    int m_comp_list[JPGD_MAX_COMPS_IN_SCAN];
+    int m_comp_dc_tab[JPGD_MAX_COMPONENTS];
+    int m_comp_ac_tab[JPGD_MAX_COMPONENTS];
+    int m_spectral_start;
+    int m_spectral_end;
+    int m_successive_low;
+    int m_successive_high;
+    int m_max_mcu_x_size;
+    int m_max_mcu_y_size;
     int m_blocks_per_mcu;
     int m_max_blocks_per_row;
     int m_mcus_per_row, m_mcus_per_col;
     int m_mcu_org[JPGD_MAX_BLOCKS_PER_MCU];
-    int m_total_lines_left;                       // total # lines left in image
-    int m_mcu_lines_left;                         // total # lines left in this MCU
+    int m_total_lines_left;
+    int m_mcu_lines_left;
     int m_real_dest_bytes_per_scan_line;
-    int m_dest_bytes_per_scan_line;               // rounded up
-    int m_dest_bytes_per_pixel;                   // 4 (RGB) or 1 (Y)
+    int m_dest_bytes_per_scan_line;
+    int m_dest_bytes_per_pixel;
     huff_tables* m_pHuff_tabs[JPGD_MAX_HUFF_TABLES];
     coeff_buf* m_dc_coeffs[JPGD_MAX_COMPONENTS];
     coeff_buf* m_ac_coeffs[JPGD_MAX_COMPONENTS];
@@ -307,8 +246,6 @@ private:
     static bool decode_block_ac_refine(jpeg_decoder *pD, int component_id, int block_x, int block_y);
 };
 
-
-// DCT coefficients are stored in this sequence.
 static int g_ZAG[64] = {  0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63 };
 
 enum JPEG_MARKER
@@ -330,27 +267,24 @@ enum JPEG_SUBSAMPLING { JPGD_GRAYSCALE = 0, JPGD_YH1V1, JPGD_YH2V1, JPGD_YH1V2, 
 #define MULTIPLY(var, cnst)  ((var) * (cnst))
 #define CLAMP(i) ((static_cast<uint32_t>(i) > 255) ? (((~i) >> 31) & 0xFF) : (i))
 
-#define FIX_0_298631336  ((int32_t)2446)        /* FIX(0.298631336) */
-#define FIX_0_390180644  ((int32_t)3196)        /* FIX(0.390180644) */
-#define FIX_0_541196100  ((int32_t)4433)        /* FIX(0.541196100) */
-#define FIX_0_765366865  ((int32_t)6270)        /* FIX(0.765366865) */
-#define FIX_0_899976223  ((int32_t)7373)        /* FIX(0.899976223) */
-#define FIX_1_175875602  ((int32_t)9633)        /* FIX(1.175875602) */
-#define FIX_1_501321110  ((int32_t)12299)       /* FIX(1.501321110) */
-#define FIX_1_847759065  ((int32_t)15137)       /* FIX(1.847759065) */
-#define FIX_1_961570560  ((int32_t)16069)       /* FIX(1.961570560) */
-#define FIX_2_053119869  ((int32_t)16819)       /* FIX(2.053119869) */
-#define FIX_2_562915447  ((int32_t)20995)       /* FIX(2.562915447) */
-#define FIX_3_072711026  ((int32_t)25172)       /* FIX(3.072711026) */
+#define FIX_0_298631336  ((int32_t)2446)
+#define FIX_0_390180644  ((int32_t)3196)
+#define FIX_0_541196100  ((int32_t)4433)
+#define FIX_0_765366865  ((int32_t)6270)
+#define FIX_0_899976223  ((int32_t)7373)
+#define FIX_1_175875602  ((int32_t)9633)
+#define FIX_1_501321110  ((int32_t)12299)
+#define FIX_1_847759065  ((int32_t)15137)
+#define FIX_1_961570560  ((int32_t)16069)
+#define FIX_2_053119869  ((int32_t)16819)
+#define FIX_2_562915447  ((int32_t)20995)
+#define FIX_3_072711026  ((int32_t)25172)
 
-
-// Compiler creates a fast path 1D IDCT for X non-zero columns
 template <int NONZERO_COLS>
 struct Row
 {
     static void idct(int* pTemp, const jpgd_block_t* pSrc)
     {
-        // ACCESS_COL() will be optimized at compile time to either an array access, or 0.
         #define ACCESS_COL(x) (((x) < NONZERO_COLS) ? (int)pSrc[x] : 0)
 
         const int z2 = ACCESS_COL(2), z3 = ACCESS_COL(6);
@@ -389,7 +323,6 @@ struct Row
     }
 };
 
-
 template <>
 struct Row<0>
 {
@@ -400,7 +333,6 @@ struct Row<0>
 #endif
     }
 };
-
 
 template <>
 struct Row<1>
@@ -420,14 +352,11 @@ struct Row<1>
     }
 };
 
-
-// Compiler creates a fast path 1D IDCT for X non-zero rows
 template <int NONZERO_ROWS>
 struct Col
 {
     static void idct(uint8_t* pDst_ptr, const int* pTemp)
     {
-        // ACCESS_ROW() will be optimized at compile time to either an array access, or 0.
         #define ACCESS_ROW(x) (((x) < NONZERO_ROWS) ? pTemp[x * 8] : 0)
 
         const int z2 = ACCESS_ROW(2);
@@ -483,7 +412,6 @@ struct Col
     }
 };
 
-
 template <>
 struct Col<1>
 {
@@ -502,7 +430,6 @@ struct Col<1>
     }
 };
 
-
 static const uint8_t s_idct_row_table[] = {
     1,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0, 2,1,0,0,0,0,0,0, 2,1,1,0,0,0,0,0, 2,2,1,0,0,0,0,0, 3,2,1,0,0,0,0,0, 4,2,1,0,0,0,0,0, 4,3,1,0,0,0,0,0,
     4,3,2,0,0,0,0,0, 4,3,2,1,0,0,0,0, 4,3,2,1,1,0,0,0, 4,3,2,2,1,0,0,0, 4,3,3,2,1,0,0,0, 4,4,3,2,1,0,0,0, 5,4,3,2,1,0,0,0, 6,4,3,2,1,0,0,0,
@@ -514,9 +441,7 @@ static const uint8_t s_idct_row_table[] = {
     8,8,8,8,8,7,6,4, 8,8,8,8,8,7,6,5, 8,8,8,8,8,7,6,6, 8,8,8,8,8,7,7,6, 8,8,8,8,8,8,7,6, 8,8,8,8,8,8,8,6, 8,8,8,8,8,8,8,7, 8,8,8,8,8,8,8,8,
 };
 
-
 static const uint8_t s_idct_col_table[] = { 1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
-
 
 void idct(const jpgd_block_t* pSrc_ptr, uint8_t* pDst_ptr, int block_max_zag)
 {
@@ -573,17 +498,11 @@ void idct(const jpgd_block_t* pSrc_ptr, uint8_t* pDst_ptr, int block_max_zag)
     }
 }
 
-
-// Retrieve one character from the input stream.
 inline uint32_t jpeg_decoder::get_char()
 {
-    // Any bytes remaining in buffer?
     if (!m_in_buf_left) {
-        // Try to get more bytes.
         if (!prep_in_buffer()) return 0xFF;
-        // Still nothing to get?
         if (!m_in_buf_left) {
-            // Pad the end of the stream with 0xFF 0xD9 (EOI marker)
             int t = m_tem_flag;
             m_tem_flag ^= 1;
             if (t) return 0xD9;
@@ -595,8 +514,6 @@ inline uint32_t jpeg_decoder::get_char()
     return c;
 }
 
-
-// Same as previous method, except can indicate if the character is a pad character or not.
 inline uint32_t jpeg_decoder::get_char(bool *pPadding_flag)
 {
     if (!m_in_buf_left) {
@@ -619,16 +536,12 @@ inline uint32_t jpeg_decoder::get_char(bool *pPadding_flag)
     return c;
 }
 
-
-// Inserts a previously retrieved character back into the input buffer.
 inline void jpeg_decoder::stuff_char(uint8_t q)
 {
     *(--m_pIn_buf_ofs) = q;
     m_in_buf_left++;
 }
 
-
-// Retrieves one character from the input stream, but does not read past markers. Will continue to return 0xFF when a marker is encountered.
 inline uint8_t jpeg_decoder::get_octet()
 {
     bool padding_flag;
@@ -652,8 +565,6 @@ inline uint8_t jpeg_decoder::get_octet()
     return static_cast<uint8_t>(c);
 }
 
-
-// Retrieves a variable number of bits from the input stream. Does not recognize markers.
 inline uint32_t jpeg_decoder::get_bits(int num_bits)
 {
     if (!num_bits) return 0;
@@ -673,8 +584,6 @@ inline uint32_t jpeg_decoder::get_bits(int num_bits)
     return i;
 }
 
-
-// Retrieves a variable number of bits from the input stream. Markers will not be read into the input bit buffer. Instead, an infinite number of all 1's will be returned when a marker is encountered.
 inline uint32_t jpeg_decoder::get_bits_no_markers(int num_bits)
 {
     if (!num_bits)return 0;
@@ -699,15 +608,11 @@ inline uint32_t jpeg_decoder::get_bits_no_markers(int num_bits)
     return i;
 }
 
-
-// Decodes a Huffman encoded symbol.
 inline int jpeg_decoder::huff_decode(huff_tables *pH)
 {
     int symbol;
 
-    // Check first 8-bits: do we have a complete symbol?
     if ((symbol = pH->look_up[m_bit_buf >> 24]) < 0) {
-        // Decode more bits, use a tree traversal to find symbol.
         int ofs = 23;
         do {
             symbol = pH->tree[-(int)(symbol + ((m_bit_buf >> ofs) & 1))];
@@ -719,15 +624,11 @@ inline int jpeg_decoder::huff_decode(huff_tables *pH)
   return symbol;
 }
 
-
-// Decodes a Huffman encoded symbol.
 inline int jpeg_decoder::huff_decode(huff_tables *pH, int& extra_bits)
 {
     int symbol;
 
-    // Check first 8-bits: do we have a complete symbol?
     if ((symbol = pH->look_up2[m_bit_buf >> 24]) < 0) {
-        // Use a tree traversal to find symbol.
         int ofs = 23;
         do {
             symbol = pH->tree[-(int)(symbol + ((m_bit_buf >> ofs) & 1))];
@@ -755,24 +656,17 @@ inline int jpeg_decoder::huff_decode(huff_tables *pH, int& extra_bits)
     return symbol;
 }
 
-
-// Tables and macro used to fully decode the DPCM differences.
 static const int s_extend_test[16] = { 0, 0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x4000 };
 static const unsigned int s_extend_offset[16] = { 0, ((~0u)<<1) + 1, ((~0u)<<2) + 1, ((~0u)<<3) + 1, ((~0u)<<4) + 1, ((~0u)<<5) + 1, ((~0u)<<6) + 1, ((~0u)<<7) + 1, ((~0u)<<8) + 1, ((~0u)<<9) + 1, ((~0u)<<10) + 1, ((~0u)<<11) + 1, ((~0u)<<12) + 1, ((~0u)<<13) + 1, ((~0u)<<14) + 1, ((~0u)<<15) + 1 };
 
-// The logical AND's in this macro are to shut up static code analysis (aren't really necessary - couldn't find another way to do this)
 #define JPGD_HUFF_EXTEND(x, s) (((x) < s_extend_test[s & 15]) ? ((x) + s_extend_offset[s & 15]) : (x))
 
-
-// Clamps a value between 0-255.
 inline uint8_t jpeg_decoder::clamp(int i)
 {
     if (static_cast<uint32_t>(i) > 255) i = (((~i) >> 31) & 0xFF);
     return static_cast<uint8_t>(i);
 }
 
-
-// Unconditionally frees all allocated m_blocks.
 void jpeg_decoder::free_all_blocks()
 {
     delete(m_pStream);
@@ -786,10 +680,9 @@ void jpeg_decoder::free_all_blocks()
     m_pMem_blocks = nullptr;
 }
 
-
 bool jpeg_decoder::stop_decoding(jpgd_status status)
 {
-#if 0 //for debugging
+#if 0
     m_error_code = status;
 #else
     m_error_code = JPGD_FAILED;
@@ -798,10 +691,8 @@ bool jpeg_decoder::stop_decoding(jpgd_status status)
     return false;
 }
 
-
 void *jpeg_decoder::alloc(size_t nSize, bool zero)
 {
-    //align the coeff_buf with the current platform architecture
     constexpr auto cbSize = alignof(coeff_buf);
     nSize = (nSize + cbSize - 1) & ~(cbSize - 1);
 
@@ -825,7 +716,6 @@ void *jpeg_decoder::alloc(size_t nSize, bool zero)
     return rv;
 }
 
-
 void jpeg_decoder::word_clear(void *p, uint16_t c, uint32_t n)
 {
     uint8_t *pD = (uint8_t*)p;
@@ -836,10 +726,6 @@ void jpeg_decoder::word_clear(void *p, uint16_t c, uint32_t n)
     }
 }
 
-
-// Refill the input buffer.
-// This method will sit in a loop until (A) the buffer is full or (B)
-// the stream's read() method reports and end of file condition.
 bool jpeg_decoder::prep_in_buffer()
 {
     m_in_buf_left = 0;
@@ -854,14 +740,10 @@ bool jpeg_decoder::prep_in_buffer()
 
     m_total_bytes_read += m_in_buf_left;
 
-    // Pad the end of the block with M_EOI (prevents the decompressor from going off the rails if the stream is invalid).
-    // (This dates way back to when this decompressor was written in C/asm, and the all-asm Huffman decoder did some fancy things to increase perf.)
     word_clear(m_pIn_buf_ofs + m_in_buf_left, 0xD9FF, 64);
     return true;
 }
 
-
-// Read a Huffman code table.
 bool jpeg_decoder::read_dht_marker()
 {
     int i, index, count;
@@ -906,8 +788,6 @@ bool jpeg_decoder::read_dht_marker()
     return true;
 }
 
-
-// Read a quantization table.
 bool jpeg_decoder::read_dqt_marker()
 {
     int n, i, prec;
@@ -925,7 +805,6 @@ bool jpeg_decoder::read_dqt_marker()
 
         if (!m_quant[n]) m_quant[n] = (jpgd_quant_t *)alloc(64 * sizeof(jpgd_quant_t));
 
-        // read quantization entries, in zag order
         for (i = 0; i < 64; i++) {
             temp = get_bits(8);
             if (prec) temp = (temp << 8) + get_bits(8);
@@ -939,14 +818,12 @@ bool jpeg_decoder::read_dqt_marker()
     return true;
 }
 
-
-// Read the start of frame (SOF) marker.
 bool jpeg_decoder::read_sof_marker()
 {
     int i;
     uint32_t num_left = get_bits(16);
 
-    if (get_bits(8) != 8) return stop_decoding(JPGD_BAD_PRECISION);   /* precision: sorry, only 8-bit precision is supported right now */
+    if (get_bits(8) != 8) return stop_decoding(JPGD_BAD_PRECISION);
 
     m_image_y_size = get_bits(16);
     if ((m_image_y_size < 1) || (m_image_y_size > JPGD_MAX_HEIGHT)) return stop_decoding(JPGD_BAD_HEIGHT);
@@ -968,8 +845,6 @@ bool jpeg_decoder::read_sof_marker()
     return true;
 }
 
-
-// Used to skip unrecognized markers.
 bool jpeg_decoder::skip_variable_marker()
 {
     uint32_t num_left = get_bits(16);
@@ -983,8 +858,6 @@ bool jpeg_decoder::skip_variable_marker()
     return true;
 }
 
-
-// Read a define restart interval (DRI) marker.
 bool jpeg_decoder::read_dri_marker()
 {
     if (get_bits(16) != 4) return stop_decoding(JPGD_BAD_DRI_LENGTH);
@@ -992,8 +865,6 @@ bool jpeg_decoder::read_dri_marker()
     return true;
 }
 
-
-// Read a start of scan (SOS) marker.
 bool jpeg_decoder::read_sos_marker()
 {
     int i, ci, c, cc;
@@ -1034,15 +905,13 @@ bool jpeg_decoder::read_sos_marker()
     }
     num_left -= 3;
 
-    while (num_left) {    /* read past whatever is num_left */
+    while (num_left) {
         get_bits(8);
         num_left--;
     }
     return true;
 }
 
-
-// Finds the next marker.
 int jpeg_decoder::next_marker()
 {
     uint32_t c;
@@ -1060,9 +929,6 @@ int jpeg_decoder::next_marker()
     return c;
 }
 
-
-// Process markers. Returns when an SOFx, SOI, EOI, or SOS marker is
-// encountered.
 int jpeg_decoder::process_markers()
 {
     int c;
@@ -1077,7 +943,6 @@ int jpeg_decoder::process_markers()
             case M_SOF5:
             case M_SOF6:
             case M_SOF7:
-      //      case M_JPG:
             case M_SOF9:
             case M_SOF10:
             case M_SOF11:
@@ -1091,7 +956,6 @@ int jpeg_decoder::process_markers()
                 if (read_dht_marker()) break;
                 else return M_EOI;
             }
-            // No arithmetic support - dumb patents!
             case M_DAC: {
                 stop_decoding(JPGD_NO_ARITHMETIC_SUPPORT);
                 return M_EOI;
@@ -1104,9 +968,8 @@ int jpeg_decoder::process_markers()
                 if (read_dri_marker()) break;
                 else return M_EOI;
             }
-            //case M_APP0:  /* no need to read the JFIF marker */
             case M_JPG:
-            case M_RST0:    /* no parameters */
+            case M_RST0:
             case M_RST1:
             case M_RST2:
             case M_RST3:
@@ -1118,7 +981,7 @@ int jpeg_decoder::process_markers()
                 stop_decoding(JPGD_UNEXPECTED_MARKER);
                 return M_EOI;
             }
-            default: {   /* must be DNL, DHP, EXP, APPn, JPGn, COM, or RESn or APP0 */
+            default: {
                 if (skip_variable_marker()) break;
                 else return M_EOI;
             }
@@ -1126,19 +989,14 @@ int jpeg_decoder::process_markers()
     }
 }
 
-
-// Finds the start of image (SOI) marker.
-// This code is rather defensive: it only checks the first 512 bytes to avoid
-// false positives.
 bool jpeg_decoder::locate_soi_marker()
 {
     uint32_t lastchar = get_bits(8);
     uint32_t thischar = get_bits(8);
 
-    /* ok if it's a normal JPEG file without a special header */
     if ((lastchar == 0xFF) && (thischar == M_SOI)) return true;
 
-    uint32_t bytesleft = 4096; //512;
+    uint32_t bytesleft = 4096;
 
     while (true) {
         if (--bytesleft == 0) return stop_decoding(JPGD_NOT_JPEG);
@@ -1148,18 +1006,15 @@ bool jpeg_decoder::locate_soi_marker()
 
         if (lastchar == 0xFF) {
           if (thischar == M_SOI) break;
-          else if (thischar == M_EOI) return stop_decoding(JPGD_NOT_JPEG); // get_bits will keep returning M_EOI if we read past the end
+          else if (thischar == M_EOI) return stop_decoding(JPGD_NOT_JPEG);
         }
     }
 
-    // Check the next character after marker: if it's not 0xFF, it can't be the start of the next marker, so the file is bad.
     thischar = (m_bit_buf >> 24) & 0xFF;
     if (thischar != 0xFF) return stop_decoding(JPGD_NOT_JPEG);
     return true;
 }
 
-
-// Find a start of frame (SOF) marker.
 bool jpeg_decoder::locate_sof_marker()
 {
     if (!locate_soi_marker()) return false;
@@ -1168,8 +1023,8 @@ bool jpeg_decoder::locate_sof_marker()
             m_progressive_flag = true;
             return read_sof_marker();
         }
-        case M_SOF0:  /* baseline DCT */
-        case M_SOF1: { /* extended sequential DCT */
+        case M_SOF0:
+        case M_SOF1: {
             return read_sof_marker();
         }
         case M_SOF9: return stop_decoding(JPGD_NO_ARITHMETIC_SUPPORT);
@@ -1178,8 +1033,6 @@ bool jpeg_decoder::locate_sof_marker()
     return true;
 }
 
-
-// Find a start of scan (SOS) marker.
 bool jpeg_decoder::locate_sos_marker()
 {
     auto c = process_markers();
@@ -1188,8 +1041,6 @@ bool jpeg_decoder::locate_sos_marker()
     return read_sos_marker();
 }
 
-
-// Reset everything to default/uninitialized state.
 void jpeg_decoder::init(jpeg_decoder_stream *pStream)
 {
     m_pMem_blocks = nullptr;
@@ -1277,10 +1128,8 @@ void jpeg_decoder::init(jpeg_decoder_stream *pStream)
     m_pScan_line_0 = nullptr;
     m_pScan_line_1 = nullptr;
 
-    // Ready the input buffer.
     prep_in_buffer();
 
-    // Prime the bit buffer.
     m_bits_left = 16;
     m_bit_buf = 0;
 
@@ -1296,8 +1145,6 @@ void jpeg_decoder::init(jpeg_decoder_stream *pStream)
 #define ONE_HALF  ((int) 1 << (SCALEBITS-1))
 #define FIX(x)    ((int) ((x) * (1L<<SCALEBITS) + 0.5f))
 
-
-// Create a few tables that allow us to quickly convert YCbCr to RGB.
 void jpeg_decoder::create_look_ups()
 {
   for (int i = 0; i <= 255; i++) {
@@ -1309,9 +1156,6 @@ void jpeg_decoder::create_look_ups()
   }
 }
 
-
-// This method throws back into the stream any bytes that where read
-// into the bit buffer during initial marker scanning.
 void jpeg_decoder::fix_in_buffer()
 {
     if (m_bits_left == 16) stuff_char( (uint8_t)(m_bit_buf & 0xFF));
@@ -1325,7 +1169,6 @@ void jpeg_decoder::fix_in_buffer()
     get_bits_no_markers(16);
 }
 
-
 void jpeg_decoder::transform_mcu(int mcu_row)
 {
     jpgd_block_t* pSrc_ptr = m_pMCU_coefficients;
@@ -1338,9 +1181,6 @@ void jpeg_decoder::transform_mcu(int mcu_row)
     }
 }
 
-
-// Loads and dequantizes the next row of (already decoded) coefficients.
-// Progressive images only.
 void jpeg_decoder::load_next_row()
 {
     int i;
@@ -1399,19 +1239,11 @@ void jpeg_decoder::load_next_row()
     }
 }
 
-
-// Restart interval processing.
 bool jpeg_decoder::process_restart()
 {
     int i;
     int c = 0;
 
-    // Align to a byte boundary
-    // FIXME: Is this really necessary? get_bits_no_markers() never reads in markers!
-    //get_bits_no_markers(m_bits_left & 7);
-
-    // Let's scan a little bit to find the marker, but not _too_ far.
-    // 1536 is a "fudge factor" that determines how much to scan.
     for (i = 1536; i > 0; i--) {
         if (get_char() == 0xFF) break;
     }
@@ -1422,17 +1254,14 @@ bool jpeg_decoder::process_restart()
     }
     if (i == 0) return stop_decoding(JPGD_BAD_RESTART_MARKER);
 
-    // Is it the expected marker? If not, something bad happened.
     if (c != (m_next_restart_num + M_RST0)) return stop_decoding(JPGD_BAD_RESTART_MARKER);
 
-    // Reset each component's DC prediction values.
     memset(&m_last_dc_val, 0, m_comps_in_frame * sizeof(uint32_t));
 
     m_eob_run = 0;
     m_restarts_left = m_restart_interval;
     m_next_restart_num = (m_next_restart_num + 1) & 7;
 
-    // Get the bit buffer going again...
     m_bits_left = 16;
     get_bits_no_markers(16);
     get_bits_no_markers(16);
@@ -1440,14 +1269,12 @@ bool jpeg_decoder::process_restart()
     return true;
 }
 
-
 static inline int dequantize_ac(int c, int q)
 {
     c *= q;
     return c;
 }
 
-// Decodes and dequantizes the next row of coefficients.
 bool jpeg_decoder::decode_next_row()
 {
     for (int mcu_row = 0; mcu_row < m_mcus_per_row; mcu_row++) {
@@ -1489,7 +1316,7 @@ bool jpeg_decoder::decode_next_row()
                         k += r;
                     }
                     s = JPGD_HUFF_EXTEND(extra_bits, s);
-                    p[g_ZAG[k]] = static_cast<jpgd_block_t>(dequantize_ac(s, q[k])); //s * q[k];
+                    p[g_ZAG[k]] = static_cast<jpgd_block_t>(dequantize_ac(s, q[k]));
                 } else {
                     if (r == 15) {
                         if ((k + 16) > 64) return stop_decoding(JPGD_DECODE_ERROR);
@@ -1500,7 +1327,7 @@ bool jpeg_decoder::decode_next_row()
                                 p[g_ZAG[kt++]] = 0;
                             }
                         }
-                        k += 16 - 1; // - 1 because the loop counter is k
+                        k += 16 - 1;
                     } else  break;
                 }
             }
@@ -1518,8 +1345,6 @@ bool jpeg_decoder::decode_next_row()
     return true;
 }
 
-
-// YCbCr H1V1 (1x1:1:1, 3 m_blocks per MCU) to RGB
 void jpeg_decoder::H1V1Convert()
 {
     int row = m_max_mcu_y_size - m_mcu_lines_left;
@@ -1542,8 +1367,6 @@ void jpeg_decoder::H1V1Convert()
     }
 }
 
-
-// YCbCr H2V1 (2x1:1:1, 4 m_blocks per MCU) to RGB
 void jpeg_decoder::H2V1Convert()
 {
     int row = m_max_mcu_y_size - m_mcu_lines_left;
@@ -1582,8 +1405,6 @@ void jpeg_decoder::H2V1Convert()
     }
 }
 
-
-// YCbCr H2V1 (1x2:1:1, 4 m_blocks per MCU) to RGB
 void jpeg_decoder::H1V2Convert()
 {
     int row = m_max_mcu_y_size - m_mcu_lines_left;
@@ -1626,8 +1447,6 @@ void jpeg_decoder::H1V2Convert()
     }
 }
 
-
-// YCbCr H2V2 (2x2:1:1, 6 m_blocks per MCU) to RGB
 void jpeg_decoder::H2V2Convert()
 {
     int row = m_max_mcu_y_size - m_mcu_lines_left;
@@ -1687,8 +1506,6 @@ void jpeg_decoder::H2V2Convert()
     }
 }
 
-
-// Y (1 block per MCU) to 8-bit grayscale
 void jpeg_decoder::gray_convert()
 {
     int row = m_max_mcu_y_size - m_mcu_lines_left;
@@ -1703,25 +1520,18 @@ void jpeg_decoder::gray_convert()
     }
 }
 
-
-// Find end of image (EOI) marker, so we can return to the user the exact size of the input stream.
 void jpeg_decoder::find_eoi()
 {
     if (!m_progressive_flag) {
-        // Attempt to read the EOI marker.
-        //get_bits_no_markers(m_bits_left & 7);
 
-        // Prime the bit buffer
         m_bits_left = 16;
         get_bits(16);
         get_bits(16);
 
-        // The next marker _should_ be EOI
         process_markers();
     }
     m_total_bytes_read -= m_in_buf_left;
 }
-
 
 int jpeg_decoder::decode(const void** pScan_line)
 {
@@ -1730,7 +1540,6 @@ int jpeg_decoder::decode(const void** pScan_line)
     if (m_mcu_lines_left == 0) {
         if (m_progressive_flag) load_next_row();
         else if (!decode_next_row()) return JPGD_FAILED;
-        // Find the EOI marker if that was the last row.
         if (m_total_lines_left <= m_max_mcu_y_size) find_eoi();
         m_mcu_lines_left = m_max_mcu_y_size;
     }
@@ -1774,8 +1583,6 @@ int jpeg_decoder::decode(const void** pScan_line)
     return JPGD_SUCCESS;
 }
 
-
-// Creates the tables needed for efficient Huffman decoding.
 void jpeg_decoder::make_huff_table(int index, huff_tables *pH)
 {
     int p, i, l, si;
@@ -1875,8 +1682,6 @@ void jpeg_decoder::make_huff_table(int index, huff_tables *pH)
     }
 }
 
-
-// Verifies the quantization tables needed for this scan are available.
 bool jpeg_decoder::check_quant_tables()
 {
     for (int i = 0; i < m_comps_in_scan; i++) {
@@ -1885,8 +1690,6 @@ bool jpeg_decoder::check_quant_tables()
     return true;
 }
 
-
-// Verifies that all the Huffman tables needed for this scan are available.
 bool jpeg_decoder::check_huff_tables()
 {
     for (int i = 0; i < m_comps_in_scan; i++) {
@@ -1903,9 +1706,6 @@ bool jpeg_decoder::check_huff_tables()
     return true;
 }
 
-
-// Determines the component order inside each MCU.
-// Also calcs how many MCU's are on each row, etc.
 void jpeg_decoder::calc_mcu_block_order()
 {
     int component_num, component_id;
@@ -1948,8 +1748,6 @@ void jpeg_decoder::calc_mcu_block_order()
     }
 }
 
-
-// Starts a new scan.
 int jpeg_decoder::init_scan()
 {
     if (!locate_sos_marker()) return false;
@@ -1970,9 +1768,6 @@ int jpeg_decoder::init_scan()
     return true;
 }
 
-
-// Starts a frame. Determines if the number of components or sampling factors
-// are supported.
 bool jpeg_decoder::init_frame()
 {
     int i;
@@ -2014,14 +1809,12 @@ bool jpeg_decoder::init_frame()
     m_max_mcus_per_row = (m_image_x_size + (m_max_mcu_x_size - 1)) / m_max_mcu_x_size;
     m_max_mcus_per_col = (m_image_y_size + (m_max_mcu_y_size - 1)) / m_max_mcu_y_size;
 
-    // These values are for the *destination* pixels: after conversion.
     if (m_scan_type == JPGD_GRAYSCALE) m_dest_bytes_per_pixel = 1;
     else m_dest_bytes_per_pixel = 4;
 
     m_dest_bytes_per_scan_line = ((m_image_x_size + 15) & 0xFFF0) * m_dest_bytes_per_pixel;
     m_real_dest_bytes_per_scan_line = (m_image_x_size * m_dest_bytes_per_pixel);
 
-    // Initialize two scan line buffers.
     m_pScan_line_0 = (uint8_t *)alloc(m_dest_bytes_per_scan_line, true);
     if ((m_scan_type == JPGD_YH1V2) || (m_scan_type == JPGD_YH2V2)) {
         m_pScan_line_1 = (uint8_t *)alloc(m_dest_bytes_per_scan_line, true);
@@ -2029,10 +1822,8 @@ bool jpeg_decoder::init_frame()
 
     m_max_blocks_per_row = m_max_mcus_per_row * m_max_blocks_per_mcu;
 
-    // Should never happen
     if (m_max_blocks_per_row > JPGD_MAX_BLOCKS_PER_ROW) return stop_decoding(JPGD_ASSERTION_ERROR);
 
-    // Allocate the coefficient buffer, enough for one MCU
     m_pMCU_coefficients = (jpgd_block_t*)alloc(m_max_blocks_per_mcu * 64 * sizeof(jpgd_block_t));
 
     for (i = 0; i < m_max_blocks_per_mcu; i++) {
@@ -2052,11 +1843,6 @@ bool jpeg_decoder::init_frame()
     return true;
 }
 
-
-// The coeff_buf series of methods originally stored the coefficients
-// into a "virtual" file which was located in EMS, XMS, or a disk file. A cache
-// was used to make this process more efficient. Now, we can store the entire
-// thing in RAM.
 jpeg_decoder::coeff_buf* jpeg_decoder::coeff_buf_open(int block_num_x, int block_num_y, int block_len_x, int block_len_y)
 {
     coeff_buf* cb = (coeff_buf*)alloc(sizeof(coeff_buf));
@@ -2069,15 +1855,11 @@ jpeg_decoder::coeff_buf* jpeg_decoder::coeff_buf_open(int block_num_x, int block
     return cb;
 }
 
-
 inline jpgd_block_t *jpeg_decoder::coeff_buf_getp(coeff_buf *cb, int block_x, int block_y)
 {
     return (jpgd_block_t *)(cb->pData + block_x * cb->block_size + block_y * (cb->block_size * cb->block_num_x));
 }
 
-
-// The following methods decode the various types of m_blocks encountered
-// in progressively encoded images.
 bool jpeg_decoder::decode_block_dc_first(jpeg_decoder *pD, int component_id, int block_x, int block_y)
 {
     int s, r;
@@ -2093,7 +1875,6 @@ bool jpeg_decoder::decode_block_dc_first(jpeg_decoder *pD, int component_id, int
     return true;
 }
 
-
 bool jpeg_decoder::decode_block_dc_refine(jpeg_decoder *pD, int component_id, int block_x, int block_y)
 {
     if (pD->get_bits_no_markers(1)) {
@@ -2102,7 +1883,6 @@ bool jpeg_decoder::decode_block_dc_refine(jpeg_decoder *pD, int component_id, in
     }
     return true;
 }
-
 
 bool jpeg_decoder::decode_block_ac_first(jpeg_decoder *pD, int component_id, int block_x, int block_y)
 {
@@ -2136,7 +1916,6 @@ bool jpeg_decoder::decode_block_ac_first(jpeg_decoder *pD, int component_id, int
     }
     return true;
 }
-
 
 bool jpeg_decoder::decode_block_ac_refine(jpeg_decoder *pD, int component_id, int block_x, int block_y)
 {
@@ -2188,7 +1967,7 @@ bool jpeg_decoder::decode_block_ac_refine(jpeg_decoder *pD, int component_id, in
 
     if (pD->m_eob_run > 0) {
         for ( ; k <= pD->m_spectral_end; k++) {
-            jpgd_block_t *this_coef = p + g_ZAG[k & 63]; // logical AND to shut up static code analysis
+            jpgd_block_t *this_coef = p + g_ZAG[k & 63];
 
             if (*this_coef != 0) {
                 if (pD->get_bits_no_markers(1)) {
@@ -2204,8 +1983,6 @@ bool jpeg_decoder::decode_block_ac_refine(jpeg_decoder *pD, int component_id, in
     return true;
 }
 
-
-// Decode a scan in a progressively encoded image.
 bool jpeg_decoder::decode_scan(pDecode_block_func decode_block_func)
 {
     int mcu_row, mcu_col, mcu_block;
@@ -2254,15 +2031,12 @@ bool jpeg_decoder::decode_scan(pDecode_block_func decode_block_func)
     return true;
 }
 
-
-// Decode a progressively encoded image.
 bool jpeg_decoder::init_progressive()
 {
     int i;
 
     if (m_comps_in_frame == 4) return stop_decoding(JPGD_UNSUPPORTED_COLORSPACE);
 
-    // Allocate the coefficient buffers.
     for (i = 0; i < m_comps_in_frame; i++) {
         m_dc_coeffs[i] = coeff_buf_open(m_max_mcus_per_row * m_comp_h_samp[i], m_max_mcus_per_col * m_comp_v_samp[i], 1, 1);
         m_ac_coeffs[i] = coeff_buf_open(m_max_mcus_per_row * m_comp_h_samp[i], m_max_mcus_per_col * m_comp_v_samp[i], 8, 8);
@@ -2281,7 +2055,7 @@ bool jpeg_decoder::init_progressive()
 
         if (dc_only_scan) {
             if (m_spectral_end) return stop_decoding(JPGD_BAD_SOS_SPECTRAL);
-        } else if (m_comps_in_scan != 1) return stop_decoding(JPGD_BAD_SOS_SPECTRAL);  // AC scans can only contain one component
+        } else if (m_comps_in_scan != 1) return stop_decoding(JPGD_BAD_SOS_SPECTRAL);
 
         if ((refinement_scan) && (m_successive_low != m_successive_high - 1)) return stop_decoding(JPGD_BAD_SOS_SUCCESSIVE);
 
@@ -2309,13 +2083,11 @@ bool jpeg_decoder::init_progressive()
     return true;
 }
 
-
 bool jpeg_decoder::init_sequential()
 {
     if (!init_scan()) return stop_decoding(JPGD_UNEXPECTED_MARKER);
     return true;
 }
-
 
 bool jpeg_decoder::decode_start()
 {
@@ -2324,19 +2096,16 @@ bool jpeg_decoder::decode_start()
     return init_sequential();
 }
 
-
 void jpeg_decoder::decode_init(jpeg_decoder_stream *pStream)
 {
     init(pStream);
     locate_sof_marker();
 }
 
-
 jpeg_decoder::jpeg_decoder(jpeg_decoder_stream *pStream)
 {
     decode_init(pStream);
 }
-
 
 int jpeg_decoder::begin_decoding()
 {
@@ -2348,12 +2117,10 @@ int jpeg_decoder::begin_decoding()
     return JPGD_SUCCESS;
 }
 
-
 jpeg_decoder::~jpeg_decoder()
 {
     free_all_blocks();
 }
-
 
 void jpeg_decoder_file_stream::close()
 {
@@ -2365,12 +2132,10 @@ void jpeg_decoder_file_stream::close()
     m_error_flag = false;
 }
 
-
 jpeg_decoder_file_stream::~jpeg_decoder_file_stream()
 {
     close();
 }
-
 
 bool jpeg_decoder_file_stream::open(const char *Pfilename)
 {
@@ -2387,7 +2152,6 @@ bool jpeg_decoder_file_stream::open(const char *Pfilename)
 #endif
     return m_pFile != nullptr;
 }
-
 
 int jpeg_decoder_file_stream::read(uint8_t *pBuf, int max_bytes_to_read, bool *pEOF_flag)
 {
@@ -2412,7 +2176,6 @@ int jpeg_decoder_file_stream::read(uint8_t *pBuf, int max_bytes_to_read, bool *p
     return bytes_read;
 }
 
-
 bool jpeg_decoder_mem_stream::open(const uint8_t *pSrc_data, uint32_t size)
 {
     close();
@@ -2421,7 +2184,6 @@ bool jpeg_decoder_mem_stream::open(const uint8_t *pSrc_data, uint32_t size)
     m_size = size;
     return true;
 }
-
 
 int jpeg_decoder_mem_stream::read(uint8_t *pBuf, int max_bytes_to_read, bool *pEOF_flag)
 {
@@ -2439,12 +2201,6 @@ int jpeg_decoder_mem_stream::read(uint8_t *pBuf, int max_bytes_to_read, bool *pE
     return max_bytes_to_read;
 }
 
-
-/************************************************************************/
-/* External Class Implementation                                        */
-/************************************************************************/
-
-
 jpeg_decoder* jpgdHeader(const char* data, int size, int* width, int* height)
 {
     auto decoder = new jpeg_decoder(new jpeg_decoder_mem_stream((const uint8_t*)data, size));
@@ -2458,7 +2214,6 @@ jpeg_decoder* jpgdHeader(const char* data, int size, int* width, int* height)
 
     return decoder;
 }
-
 
 jpeg_decoder* jpgdHeader(const char* filename, int* width, int* height)
 {
@@ -2480,7 +2235,6 @@ jpeg_decoder* jpgdHeader(const char* filename, int* width, int* height)
     return decoder;
 }
 
-
 void jpgdDelete(jpeg_decoder* decoder)
 {
     delete(decoder);
@@ -2490,10 +2244,9 @@ unsigned char* jpgdDecompress(jpeg_decoder* decoder)
 {
     if (!decoder || decoder->begin_decoding() != JPGD_SUCCESS) return nullptr;
 
-    auto channel = 4; //OPTIMIZE: jpg is 3 channel format, not really need 4 channel components.
+    auto channel = 4;
     auto width = decoder->get_width();
     auto height = decoder->get_height();
-    //auto actual_comps = decoder->get_num_components();
     const auto stride = width * channel;
     auto ret = tvg::malloc<uint8_t>(stride * height);
     auto dst = ret;

@@ -1,23 +1,12 @@
 import Foundation
 
-// The D-Bus type system (D-Bus Specification 0.43, "Type System" and
-// "Valid Signatures"; freedesktop.org). Written from the specification;
-// no D-Bus library code is used (see the package README, "AT-SPI export").
-//
-// A signature is a string of type codes. `DBusType` is one complete type;
-// `DBusValue` is a typed value that knows its own signature, so writing a
-// value needs no separate signature (an empty array keeps its element type).
-
-/// One complete D-Bus type.
 public indirect enum DBusType: Hashable, Sendable, CustomStringConvertible {
     case byte, boolean, int16, uint16, int32, uint32, int64, uint64, double
     case string, objectPath, signature, unixFD, variant
     case array(DBusType)
     case structure([DBusType])
-    /// Only valid as the element type of an array (`a{…}`).
     case dictEntry(DBusType, DBusType)
 
-    /// The type's signature (`"a{sv}"`, `"(so)"`, …).
     public var signature: String {
         switch self {
         case .byte: return "y"
@@ -42,7 +31,6 @@ public indirect enum DBusType: Hashable, Sendable, CustomStringConvertible {
 
     public var description: String { signature }
 
-    /// Alignment on the wire ("Summary of D-Bus marshalling").
     public var alignment: Int {
         switch self {
         case .byte, .signature, .variant: return 1
@@ -52,7 +40,6 @@ public indirect enum DBusType: Hashable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// True for the basic (non-container) types; dictionary keys must be one.
     public var isBasic: Bool {
         switch self {
         case .array, .structure, .dictEntry, .variant: return false
@@ -60,10 +47,6 @@ public indirect enum DBusType: Hashable, Sendable, CustomStringConvertible {
         }
     }
 
-    /// Parses a signature into its complete types. Throws for invalid
-    /// signatures (unknown codes, unbalanced parentheses, dict entries
-    /// outside arrays or with a container key, empty structs, more than 255
-    /// bytes, more than 32 nested arrays or structs).
     public static func parse(_ signature: String) throws -> [DBusType] {
         let bytes = Array(signature.utf8)
         guard bytes.count <= 255 else { throw DBusError.invalidSignature(signature, "longer than 255 bytes") }
@@ -73,7 +56,6 @@ public indirect enum DBusType: Hashable, Sendable, CustomStringConvertible {
         return out
     }
 
-    /// Parses a signature that must hold exactly one complete type.
     public static func parseSingle(_ signature: String) throws -> DBusType {
         let t = try parse(signature)
         guard t.count == 1 else { throw DBusError.invalidSignature(signature, "not a single complete type") }
@@ -135,7 +117,6 @@ private struct SignatureParser {
     }
 }
 
-/// A typed D-Bus value.
 public indirect enum DBusValue: Hashable, Sendable, CustomStringConvertible {
     case byte(UInt8)
     case boolean(Bool)
@@ -149,7 +130,6 @@ public indirect enum DBusValue: Hashable, Sendable, CustomStringConvertible {
     case string(String)
     case objectPath(String)
     case signature(String)
-    /// An index into the message's file-descriptor array.
     case unixFD(UInt32)
     case array(DBusType, [DBusValue])
     case structure([DBusValue])
@@ -202,25 +182,17 @@ public indirect enum DBusValue: Hashable, Sendable, CustomStringConvertible {
         }
     }
 
-    // MARK: Constructors
-
-    /// An `a{kv}` dictionary.
     public static func dictionary(key: DBusType, value: DBusType, _ entries: [(DBusValue, DBusValue)]) -> DBusValue {
         .array(.dictEntry(key, value), entries.map { .dictEntry($0.0, $0.1) })
     }
 
-    /// An `a{ss}` dictionary in key order.
     public static func stringDictionary(_ d: [String: String]) -> DBusValue {
         dictionary(key: .string, value: .string, d.keys.sorted().map { (.string($0), .string(d[$0] ?? "")) })
     }
 
-    /// An empty `a{sv}`.
     public static var emptyProperties: DBusValue { .array(.dictEntry(.string, .variant), []) }
 
-    /// An `as`.
     public static func strings(_ s: [String]) -> DBusValue { .array(.string, s.map { .string($0) }) }
-
-    // MARK: Accessors
 
     public var stringValue: String? {
         switch self {
@@ -231,7 +203,6 @@ public indirect enum DBusValue: Hashable, Sendable, CustomStringConvertible {
 
     public var boolValue: Bool? { if case .boolean(let b) = self { return b } else { return nil } }
 
-    /// Integers of any width (and a boolean) as Int.
     public var intValue: Int? {
         switch self {
         case .byte(let v): return Int(v)
@@ -253,14 +224,12 @@ public indirect enum DBusValue: Hashable, Sendable, CustomStringConvertible {
 
     public var arrayValue: [DBusValue]? { if case .array(_, let a) = self { return a } else { return nil } }
     public var structValue: [DBusValue]? { if case .structure(let f) = self { return f } else { return nil } }
-    /// The content of a variant (unwrapping nested variants).
     public var variantValue: DBusValue? {
         guard case .variant(var v) = self else { return nil }
         while case .variant(let inner) = v { v = inner }
         return v
     }
 
-    /// An `a{sv}` or `a{ss}` as a Swift dictionary.
     public var dictionaryValue: [String: DBusValue]? {
         guard case .array(.dictEntry, let entries) = self else { return nil }
         var d: [String: DBusValue] = [:]
@@ -272,7 +241,6 @@ public indirect enum DBusValue: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Errors of the D-Bus client.
 public enum DBusError: Error, Equatable, CustomStringConvertible {
     case invalidSignature(String, String)
     case invalidValue(String)
@@ -282,7 +250,6 @@ public enum DBusError: Error, Equatable, CustomStringConvertible {
     case noAddress(String)
     case timeout(String)
     case disconnected
-    /// An error reply: the error name and its message.
     case remote(name: String, message: String)
 
     public var description: String {
@@ -300,10 +267,7 @@ public enum DBusError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-// MARK: - Name validation ("Valid Names", "Valid Object Paths")
-
 public enum DBusNames {
-    /// `/`, or `/` followed by elements of `[A-Za-z0-9_]` separated by `/`.
     public static func isValidObjectPath(_ p: String) -> Bool {
         let b = Array(p.utf8)
         guard b.first == UInt8(ascii: "/") else { return false }
@@ -322,8 +286,6 @@ public enum DBusNames {
         return true
     }
 
-    /// Two or more elements of `[A-Za-z_][A-Za-z0-9_]*` separated by `.`, at
-    /// most 255 bytes.
     public static func isValidInterfaceName(_ n: String) -> Bool {
         let elements = n.split(separator: ".", omittingEmptySubsequences: false)
         guard n.utf8.count <= 255, elements.count >= 2 else { return false }
@@ -333,13 +295,11 @@ public enum DBusNames {
         }
     }
 
-    /// `[A-Za-z_][A-Za-z0-9_]*`, 1 to 255 bytes.
     public static func isValidMemberName(_ n: String) -> Bool {
         guard let f = n.utf8.first, n.utf8.count <= 255, !(f >= UInt8(ascii: "0") && f <= UInt8(ascii: "9")) else { return false }
         return n.utf8.allSatisfy(isElementByte)
     }
 
-    /// Unique (`:1.42`) or well-known (`org.a11y.Bus`) bus names.
     public static func isValidBusName(_ n: String) -> Bool {
         guard n.utf8.count <= 255 else { return false }
         let unique = n.hasPrefix(":")

@@ -1,30 +1,15 @@
 import Foundation
 
-// `LocalizedStringKey` and string-table lookup (08 §3; plan suite T-L10N).
-//
-// A key keeps the format form used in strings tables (`%@` for strings and
-// texts, `%lld` for integers, `%lf` for floating-point values; a literal `%`
-// is `%%`) and the interpolated arguments. Lookup happens when the text is
-// laid out, in the environment's locale: the table (`Localizable` by
-// default) of the bundle (main by default) for the locale's language,
-// read from `<language>.lproj/<table>.strings` (string catalogs must be
-// compiled to `.strings`; plural rules are not supported). Integer and floating-point
-// arguments are formatted for the locale (digits and separators, e.g.
-// Arabic-Indic digits for `ar`), strings are inserted as they are.
-
-/// A string key for localized text, with interpolations.
 public struct LocalizedStringKey: Equatable, Sendable, ExpressibleByStringInterpolation {
     package enum Argument: Equatable, Sendable {
         case string(String)
         case integer(Int64)
         case floatingPoint(Double)
         case text(Text)
-        /// A value with an explicit printf-style specifier (`\(x, specifier: "%.1f")`).
         case specifiedFloat(Double, String)
         case specifiedInteger(Int64, String)
     }
 
-    /// The key as written in a strings table.
     package var key: String
     package var arguments: [Argument]
 
@@ -40,7 +25,6 @@ public struct LocalizedStringKey: Equatable, Sendable, ExpressibleByStringInterp
         arguments = stringInterpolation.arguments
     }
 
-    /// The text with interpolations substituted, unlocalized.
     package var resolved: String {
         LocalizedStringKey.format(key, arguments, locale: nil)
     }
@@ -75,8 +59,6 @@ public struct LocalizedStringKey: Equatable, Sendable, ExpressibleByStringInterp
             arguments.append(.text(text))
         }
 
-        /// A number with a printf-style specifier (the key holds the
-        /// specifier, as in a strings table).
         public mutating func appendInterpolation<T: BinaryFloatingPoint>(_ value: T, specifier: String) {
             key += specifier
             arguments.append(.specifiedFloat(Double(value), specifier))
@@ -93,9 +75,6 @@ public struct LocalizedStringKey: Equatable, Sendable, ExpressibleByStringInterp
         }
     }
 
-    /// Substitutes `arguments` into `format` (`%@`, `%d`/`%ld`/`%lld`,
-    /// `%f`/`%lf`, positional `%1$@` forms, `%%`). Numbers are formatted for
-    /// `locale` (nil: plain ASCII digits, no grouping).
     package static func format(_ format: String, _ arguments: [Argument], locale: Locale?) -> String {
         var out = ""
         var next = 0
@@ -106,14 +85,11 @@ public struct LocalizedStringKey: Equatable, Sendable, ExpressibleByStringInterp
             var j = format.index(after: i)
             guard j < format.endIndex else { out.append("%"); break }
             if format[j] == "%" { out.append("%"); i = format.index(after: j); continue }
-            // Optional position "n$".
             var digits = ""
             var k = j
             while k < format.endIndex, format[k].isASCII, format[k].isNumber { digits.append(format[k]); k = format.index(after: k) }
             var index = next
             if k < format.endIndex, format[k] == "$", let n = Int(digits) { index = n - 1; j = format.index(after: k) }
-            // Flags, width and precision (used by specified arguments), length
-            // modifiers, then the conversion.
             while j < format.endIndex, "-+ #0123456789.*'".contains(format[j]) { j = format.index(after: j) }
             while j < format.endIndex, "lhqzjt".contains(format[j]) { j = format.index(after: j) }
             guard j < format.endIndex else { break }
@@ -145,9 +121,7 @@ public struct LocalizedStringKey: Equatable, Sendable, ExpressibleByStringInterp
     }
 }
 
-/// String-table lookup for `Text`.
 package enum TextLocalization {
-    /// The string a segment shows in `environment`.
     package static func string(for content: Text.Content, in environment: EnvironmentValues) -> String {
         switch content {
         case .verbatim(let s):
@@ -163,7 +137,6 @@ package enum TextLocalization {
     private struct TableKey: Hashable { let path: String }
     private static let tables = TableCache()
 
-    /// The localized format for `key`, or nil when no table has it.
     package static func lookup(_ key: String, table: String, bundle: Bundle, locale: Locale) -> String? {
         for language in candidateLanguages(locale) {
             let dir = bundle.bundleURL.appendingPathComponent("\(language).lproj")
@@ -173,7 +146,6 @@ package enum TextLocalization {
         return nil
     }
 
-    /// "pt-BR" → ["pt-BR", "pt_BR", "pt", "Base"].
     static func candidateLanguages(_ locale: Locale) -> [String] {
         let id = locale.identifier
         var out: [String] = []
@@ -202,8 +174,6 @@ package enum TextLocalization {
     }
 }
 
-/// `.strings` files: `"key" = "value";` pairs with C-style comments and
-/// escapes (UTF-8 or UTF-16 with BOM), or a property list dictionary.
 package enum StringsFile {
     package static func parse(_ data: Data) -> [String: String]? {
         if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String],

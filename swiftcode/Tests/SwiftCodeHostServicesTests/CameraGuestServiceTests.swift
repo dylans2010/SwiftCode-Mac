@@ -4,11 +4,6 @@ import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 @testable import SwiftCodeHostServices
 
-/// The guest-facing camera endpoint `dev.swiftcode.camera` (camera.md "SwiftCode
-/// implementation"), driven by second host tasks acting as guest processes
-/// of SwiftCode's capture layer, with the synthetic camera: the device list,
-/// streams, frame flow control, time conversion, one process at a time, a
-/// client's end; and the opt-in, the app rule and the privacy rows.
 @Suite(.serialized) struct CameraGuestServiceTests {
     typealias P = CameraGuestProtocol
 
@@ -22,7 +17,6 @@ import SwiftCodeDarwinABI
             service = try CameraGuestService(host: system.hostTask, surfaces: surfaces, selection: "synthetic",
                                              presentation: CameraGuestPresentation(placement: placement), log: { _ in })
             service.ringSize = ring
-            // A guest clock 1000 s ahead of the host's, at 24 MHz.
             service.setGuestClock { (MachTimebase.hostMonotonicNanoseconds() / 1000 * 24 + 24_000_000_000, 24_000_000) }
             service.start()
         }
@@ -69,7 +63,6 @@ import SwiftCodeDarwinABI
                                                    body: P.body([stream, slot] + P.split(sequence))))
         }
 
-        /// The next message on the frame port (nil on time-out).
         func next(_ seconds: Double = 3) -> MachHostReceivedMessage? {
             try? guest.receive(on: frames, timeout: UInt64(seconds * 1e9))
         }
@@ -104,8 +97,6 @@ import SwiftCodeDarwinABI
         return condition()
     }
 
-    // MARK: Devices
-
     @Test func deviceListShowsOneCamera() throws {
         let rig = try Rig()
         let c = try rig.client(pid: 501)
@@ -139,7 +130,6 @@ import SwiftCodeDarwinABI
         func size(_ w: Int, _ h: Int, _ fps: [Double]) -> CameraFrameSize {
             CameraFrameSize(width: w, height: h, intervals: fps.map { CameraFrameInterval(fps: $0) })
         }
-        // The C615's shape (camera-host.md §2.4): YUYV slow at large sizes, MJPEG 30 everywhere.
         let d = CameraDevice(id: "v4l2:x", kind: .v4l2, name: "Cam", path: "/dev/video0", driver: "uvcvideo", busInfo: "x", formats: [
             CameraFormatDescription(format: .yuyv, name: "YUYV", sizes: [size(640, 480, [30, 5]), size(1280, 720, [10, 5]), size(1920, 1080, [5])]),
             CameraFormatDescription(format: .mjpeg, name: "MJPG", sizes: [size(640, 480, [30, 5]), size(1280, 720, [30, 5]),
@@ -150,8 +140,6 @@ import SwiftCodeDarwinABI
         #expect(list.map { "\($0.width)x\($0.height)" } == ["640x480", "1280x720", "1920x1080"])
         #expect(list.allSatisfy { $0.maxFPS == 30 && $0.minFPS == 5 })
     }
-
-    // MARK: Streams
 
     @Test func streamDeliversFramesOnTheGuestClock() throws {
         let rig = try Rig()
@@ -165,7 +153,6 @@ import SwiftCodeDarwinABI
             #expect(f.stream == r[1] && f.width == 640 && f.height == 480 && f.format == CameraPixelFormat.bgra.rawValue)
             #expect(f.flags & P.flagSynthetic != 0)
             #expect(rig.surfaces.surface(id: f.surface)?.pixelFormat == CameraPixelFormat.bgra.rawValue)
-            // Guest ticks: about 1000 s ahead of host time at 24 MHz; 1/30 s apart.
             let hostNs = MachTimebase.hostMonotonicNanoseconds()
             let nowTicks = hostNs / 1000 * 24 + 24_000_000_000
             #expect(f.pts <= nowTicks && nowTicks - f.pts < 24_000_000)
@@ -192,7 +179,6 @@ import SwiftCodeDarwinABI
         for _ in 0..<3 { if let f = c.nextFrame() { held.append(f) } }
         #expect(held.count == 3)
         #expect(Set(held.map(\.surface)).count == 3)
-        // Every surface is held: nothing more arrives.
         #expect(c.nextFrame(0.4) == nil)
         #expect(rig.service.heldFrames == 3)
         try c.release(held[0].stream, slot: held[0].slot, sequence: held[0].sequence)
@@ -210,7 +196,6 @@ import SwiftCodeDarwinABI
         try a.release(fa.stream, slot: fa.slot, sequence: fa.sequence)
         let rb = try b.start(width: 1280, height: 720)
         #expect(rb[0] == P.Status.ok && rb[1] != ra[1] && rb[2] == 1280)
-        // A hears that it was interrupted, then nothing.
         var events: [UInt32] = []
         while let m = a.next(0.5) {
             if m.id == P.base + P.ToClient.event { events.append(P.word(m.body, 1)) }
@@ -220,7 +205,6 @@ import SwiftCodeDarwinABI
         #expect(fb.stream == rb[1] && fb.width == 1280)
         try b.release(fb.stream, slot: fb.slot, sequence: fb.sequence)
         #expect(rig.service.activeStreamID == rb[1])
-        // B stops: A gets the camera back.
         #expect(try b.stop(rb[1]) == P.Status.ok)
         var resumed = false, frame: Frame?
         while let m = a.next(), frame == nil {
@@ -239,7 +223,6 @@ import SwiftCodeDarwinABI
         #expect(r[0] == P.Status.ok)
         _ = try #require(c.nextFrame())
         #expect(rig.service.isStreaming)
-        // The process ends: its frame port goes.
         try c.guest.destroyPort(c.frames)
         #expect(waitFor(3) { !rig.service.isStreaming && rig.service.activeStreamID == nil })
     }
@@ -247,35 +230,27 @@ import SwiftCodeDarwinABI
     @Test func badStartsAreRefused() throws {
         let rig = try Rig()
         let c = try rig.client(pid: 801)
-        // Device 1 does not exist; 'yuvs' is not an output format.
         var m = try c.call(P.Request.start, [1, 640, 480, 30000, CameraPixelFormat.biPlanar420Video.rawValue, 0],
                            descriptors: [.port(name: c.frames, disposition: MachMsgType.makeSend)])
         #expect(P.word(m.body, 0) == P.Status.badRequest)
         m = try c.call(P.Request.start, [0, 640, 480, 30000, 0x7975_7673, 0],
                        descriptors: [.port(name: c.frames, disposition: MachMsgType.makeSend)])
         #expect(P.word(m.body, 0) == P.Status.badRequest)
-        // No frame port.
         m = try c.call(P.Request.start, [0, 640, 480, 30000, CameraPixelFormat.biPlanar420Video.rawValue, 0])
         #expect(P.word(m.body, 0) == P.Status.badRequest)
         #expect(!rig.service.isStreaming)
     }
-
-    // MARK: Time
 
     @Test func hostTimesBecomeGuestTicks() {
         let t = CameraGuestTime(hostNanoseconds: 5_000_000_000, guestTicks: 1_000_000, frequency: 24_000_000)
         #expect(t.ticks(atHostNanoseconds: 5_000_000_000) == 1_000_000)
         #expect(t.ticks(atHostNanoseconds: 5_001_000_000) == 1_024_000)
         #expect(t.ticks(atHostNanoseconds: 4_999_000_000) == 976_000)
-        // Before the guest's clock began: 0, not a wrap.
         #expect(t.ticks(atHostNanoseconds: 1_000_000_000) == 0)
         #expect(t.ticks(forNanoseconds: 33_333_333) == 799_999)
-        // A 1 GHz guest timebase and a long uptime do not overflow.
         let g = CameraGuestTime(hostNanoseconds: 1 << 50, guestTicks: 1 << 52, frequency: 1_000_000_000)
         #expect(g.ticks(atHostNanoseconds: (1 << 50) + 7) == (1 << 52) + 7)
     }
-
-    // MARK: Opt-in
 
     @Test func optInParsesPersistsAndDefaultsOff() throws {
         #expect(CameraOptIn.mode("on") == .on && CameraOptIn.mode("off") == .off && CameraOptIn.mode("synthetic") == .synthetic)
@@ -319,14 +294,11 @@ import SwiftCodeDarwinABI
         #expect(CameraAppInjection.environment(["HOME=/x"], library: lib).contains("DYLD_INSERT_LIBRARIES=" + lib))
     }
 
-    // MARK: Privacy
-
     @Test func privacyRowsFollowTheActions() throws {
         let dev = NSTemporaryDirectory() + "camg-tcc-\(getpid())"
         try FileManager.default.createDirectory(atPath: dev + "/data/Library/TCC", withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: dev) }
         #expect(throws: CameraPrivacy.Failure.self) { try CameraPrivacy.apply(.grant, service: "camera", bundleID: "a.b", dev: dev) }
-        // A table with the columns of camera.md §6.2 (SwiftCode's test schema).
         let db = try CameraPrivacy.SQLite(path: CameraPrivacy.databasePath(dev: dev), create: true)
         try db.exec("CREATE TABLE access (service TEXT NOT NULL, client TEXT NOT NULL, client_type INTEGER NOT NULL, "
             + "auth_value INTEGER NOT NULL, auth_reason INTEGER NOT NULL, auth_version INTEGER NOT NULL, "

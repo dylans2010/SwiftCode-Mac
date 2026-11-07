@@ -1,9 +1,3 @@
-// SimulatorSettingsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorSettingsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: simulator settings UI: default orientation, hardware-keyboard sync, FPS counter, runtime architecture profile, console buffer limit
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
@@ -14,7 +8,6 @@ struct SimulatorSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Subsystem Settings", systemImage: "slider.horizontal.3")
                     .font(.headline)
@@ -23,7 +16,6 @@ struct SimulatorSettingsView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

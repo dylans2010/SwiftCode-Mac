@@ -1,24 +1,15 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Interface Builder editor: Document Outline and a zoomable canvas.
-/// Its inspectors (Identity, Attributes, Size, Connections) are shown by
-/// the window's inspector area. Edits splice only the touched XML and are
-/// written at once; undo/redo restore earlier bytes. See
-/// `specs/ide/interface-builder.md`.
 @MainActor
 public final class InterfaceBuilderController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     public typealias InspectorTab = IBInspectorTab
 
-    /// The document, selection, undo and edits, shared with the Linux IDE.
     public let session: IBEditorSession
     public var url: URL { session.url }
     public var document: IBDocument { session.document }
     public var selected: IBDocument.Object? { session.selected }
-    /// Called when the selection or the document changes (the window
-    /// refreshes its inspectors).
     public var onChange: (() -> Void)?
-    /// Whether edits are written to `url` (off for documents not from a file).
     public var writesFile: Bool {
         get { session.writesFile }
         set { session.writesFile = newValue }
@@ -26,9 +17,7 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
     let outline = IBOutlineView()
     let canvas: IBCanvasView
     let canvasScroll = NSScrollView()
-    /// The canvas overview at the canvas's top right.
     lazy var overview = IBCanvasOverviewView(canvas: canvas, scroll: canvasScroll)
-    /// Chrome (InterfaceBuilderChrome.swift): bottom bar, jump bar, filter.
     let bar = IBCanvasBar()
     let jumpBar = NSTextField(labelWithString: "")
     let filterField = NSSearchField()
@@ -58,7 +47,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         outline.dataSource = self
         outline.delegate = self
         outline.rowSizeStyle = .small
-        // About 20-point rows, 16 points of indent per level (§Reference outline details).
         outline.rowHeight = 20
         outline.indentationPerLevel = 16
         outline.registerForDraggedTypes([Self.rowType])
@@ -76,7 +64,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         canvasScroll.backgroundColor = .underPageBackgroundColor
         NotificationCenter.default.addObserver(self, selector: #selector(magnificationChanged), name: NSScrollView.didEndLiveMagnifyNotification, object: canvasScroll)
         layoutChrome(root: root, outlineScroll: outlineScroll)
-        // Common properties only so far: say so where the editor is met.
         let experimental = NSTextField(labelWithString: ExperimentalNotice.label)
         experimental.font = .systemFont(ofSize: 11)
         experimental.textColor = .secondaryLabelColor
@@ -98,8 +85,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         select(session.selected)
     }
 
-    // MARK: Zoom
-
     public var zoom: CGFloat { canvasScroll.magnification }
 
     public func setZoom(_ z: CGFloat) {
@@ -111,7 +96,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
     @objc public func zoomIn(_ sender: Any? = nil) { setZoom(zoom * 1.25) }
     @objc public func zoomOut(_ sender: Any? = nil) { setZoom(zoom / 1.25) }
 
-    /// Fits every scene in the visible canvas area.
     @objc public func zoomToFit(_ sender: Any? = nil) {
         _ = view
         let content = canvas.layout.fitBounds.insetBy(dx: -20, dy: -20)
@@ -121,16 +105,11 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         canvasScroll.contentView.scroll(to: content.origin)
     }
 
-    // MARK: Outline
-
-    /// An outline row for NSOutlineView (reference items), built from the
-    /// session's `IBOutlineRow`.
     final class Row: NSObject {
         let object: IBDocument.Object?
         let constraint: IBDocument.Constraint?
         let children: [Row]
         let title: String
-        /// Kind badge after a subview named by content ("Label").
         let badge: String?
         init(_ r: IBOutlineRow, in d: IBDocument) {
             object = r.objectID.flatMap { d.byID[$0] }
@@ -149,7 +128,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
 
     var rows: [Row] = []
 
-    /// The outline's Filter (bottom of the column).
     public var outlineFilter: String {
         get { session.outlineFilter }
         set { session.outlineFilter = newValue; reloadOutline() }
@@ -162,16 +140,12 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         outline.expandItem(nil, expandChildren: true)
     }
 
-    /// Outline titles, depth-first with indentation (for tests).
     public var outlineTitles: [String] { session.outlineTitles() }
 
-    /// Outline badges by title, depth-first (for tests): "title [badge]".
     public var outlineTitlesWithBadges: [String] { session.outlineTitles(badges: true) }
 
-    /// The jump bar's path down to the selection.
     public var jumpBarPath: [String] { session.jumpBarPath }
 
-    /// The selected constraint (outline row), if any.
     public var selectedConstraint: String? { session.selectedConstraint }
 
     public func selectConstraint(_ id: String) {
@@ -207,7 +181,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
     public func outlineView(_ o: NSOutlineView, viewFor c: NSTableColumn?, item: Any) -> NSView? {
         guard let r = item as? Row else { return nil }
         let cell = NSTableCellView()
-        // SwiftCode's own outline icons (`interface-builder.md` §Outline icons).
         let icon: IBIcon = r.constraint != nil || r.title == "Constraints" ? .constraint
             : r.object.map { IBIcon.of(object: $0, in: document) } ?? .entryPoint
         let image = NSImageView(image: IBIconDrawing.image(icon, size: 16))
@@ -243,8 +216,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         select(o)
     }
 
-    // MARK: Outline drag: re-parenting
-
     static let rowType = NSPasteboard.PasteboardType("io.swiftcode.ib-outline-row")
 
     public func outlineView(_ o: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
@@ -265,16 +236,11 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         return move(id, into: target.id)
     }
 
-    // MARK: Editing
-
-    /// Replaces the document with an edited one: records undo, writes the
-    /// file, reloads, and keeps the selection.
     func commit(_ next: IBDocument) {
         guard session.commit(next) else { return }
         refresh()
     }
 
-    /// Shows the session's document and selection after a change.
     func refresh() {
         canvas.layout = session.layout
         overview.needsDisplay = true
@@ -301,25 +267,20 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         if session.apply(f) { refresh() }
     }
 
-    /// Sets the selected (or given) object's stored frame.
     public func setFrame(_ f: CGRect, of id: String? = nil) {
         guard let id = id ?? selected?.id else { return }
         apply { try $0.settingFrame(f, of: id) }
     }
 
-    /// Sets a frame given in canvas root coordinates (move/resize).
     public func setRootFrame(_ r: CGRect, of id: String) {
         guard let f = document.storedFrame(forRootFrame: r, of: id) else { return }
         setFrame(f, of: id)
     }
 
-    /// ⌫: deletes the selected constraint, else the selected object (not a
-    /// scene's root view or a top-level object).
     public func deleteSelection() {
         if session.deleteSelection() { refresh() }
     }
 
-    /// Moves a view into another view (Document Outline drag).
     @discardableResult
     public func move(_ id: String, into parent: String) -> Bool {
         guard session.move(id, into: parent) else { return false }
@@ -329,7 +290,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
 
     public func setConstant(_ v: CGFloat, ofConstraint id: String) { apply { try $0.settingConstant(v, ofConstraint: id) } }
 
-    /// Adds constraints to the selected view. Returns the new IDs.
     @discardableResult
     public func addConstraints(_ spec: IBDocument.NewConstraints) -> [String] {
         let ids = session.addConstraints(spec)
@@ -337,7 +297,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         return ids
     }
 
-    /// Editor ▸ Add New Constraints…: the popover for the selected view.
     @discardableResult
     @objc public func showAddConstraints(_ sender: Any? = nil) -> AddConstraintsController? {
         guard let o = selected, o.parent?.isView == true else { NSSound.beep(); return nil }
@@ -355,8 +314,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
     public func setEnabled(_ b: Bool) { if let id = selected?.id { apply { try $0.settingEnabled(b, of: id) } } }
     public func setAlignment(_ s: String) { if let id = selected?.id { apply { try $0.settingAlignment(s, of: id) } } }
 
-    /// Inserts a Library object into the view under a canvas point (or the
-    /// selected view), centered on the point. Returns the new ID.
     @discardableResult
     public func insert(_ kind: IBDocument.NewObject, atCanvasPoint p: CGPoint? = nil) -> String? {
         guard p != nil || selected?.isView == true || kind.placement != .subview, let id = session.insert(kind, atCanvasPoint: p) else { return nil }
@@ -364,9 +321,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         return id
     }
 
-    // MARK: Inspectors (shown by the window's inspector area)
-
-    /// Rows for an inspector: (label, value); an empty value is a heading.
     public func inspectorRows(_ t: InspectorTab) -> [(String, String)] {
         guard let o = selected else { return [("No Selection", "")] }
         switch t {
@@ -422,9 +376,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
 
     public static let alignments = IBControlState.alignments
 
-    /// The view the window's inspector area shows for a tab. Size has X/Y/
-    /// Width/Height fields; Attributes starts with Title, Placeholder,
-    /// Alignment, Enabled and Hidden controls, then every attribute.
     public func inspectorView(_ t: InspectorTab) -> NSView {
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -451,7 +402,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
             f.widthAnchor.constraint(equalToConstant: 130).isActive = true
             return f
         }
-        // §13 sections first; Identity and Connections are only sections.
         let sections = inspectorSections(t)
         if t == .identity || t == .connections || (t == .size && selected?.frame == nil) {
             addSections(sections, to: stack)
@@ -459,7 +409,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
         }
         if t == .attributes {
             addSections(sections, to: stack)
-            // iOS documents: the reference's sections are the whole inspector.
             if document.isFlippedRuntime { return stack }
         }
         if let o = selected, t == .size, let f = o.frame {
@@ -470,7 +419,6 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
             for (l, v) in inspectorRows(.size).drop(while: { $0.0 != "Autoresizing" && $0.0 != "Constraints" }) where !l.isEmpty {
                 if v.isEmpty { stack.addArrangedSubview(label(l, bold: true)) } else { row(l, NSTextField(wrappingLabelWithString: v)) }
             }
-            // Each constraint: its text, and an editable constant.
             for c in document.constraints(involving: o.id) {
                 let t = NSTextField(wrappingLabelWithString: c.text(document.name))
                 t.font = .systemFont(ofSize: 10)
@@ -538,26 +486,18 @@ public final class InterfaceBuilderController: NSViewController, NSOutlineViewDa
 
 final class IBInspectorField: NSTextField {}
 
-/// The canvas: scenes at their canvas locations (window scenes with a
-/// title bar from `contentRect`), each root view as a white box with its
-/// subviews as labeled rectangles, segue arrows between scenes and an
-/// entry-point arrow. Selection handles move and resize views.
 @MainActor
 final class IBCanvasView: NSView {
-    /// Where scenes, views, segues and handles go (shared with the Linux IDE).
     var layout: IBCanvasLayout { didSet { resize(); needsDisplay = true } }
     var document: IBDocument { layout.document }
     weak var controller: InterfaceBuilderController?
     var selectedID: String? { didSet { needsDisplay = true } }
     var selectedConstraint: String? { didSet { needsDisplay = true } }
-    /// Bottom bar state: orientation and device (drawing only).
     var landscape = false { didSet { needsDisplay = true } }
     var deviceName = "" { didSet { needsDisplay = true } }
-    /// Height of a scene's title bar, drawn above its frame.
     static let sceneBarHeight = IBCanvasLayout.sceneBarHeight
     typealias Placement = IBCanvasLayout.Placement
     var placements: [Placement] { layout.placements }
-    /// The union of all scene boxes.
     var contentBounds: CGRect { layout.contentBounds }
     override var isFlipped: Bool { true }
     static let margin = IBCanvasLayout.margin
@@ -579,7 +519,6 @@ final class IBCanvasView: NSView {
 
     func placement(of o: IBDocument.Object) -> Placement? { layout.placement(of: o) }
     func rect(of o: IBDocument.Object) -> CGRect? { layout.rect(of: o) }
-    /// The scene box (content plus title bar) of a scene object.
     func sceneBox(_ scene: IBDocument.Object) -> CGRect? { layout.sceneBox(scene) }
     func scene(containing id: String) -> IBDocument.Object? { layout.scene(containing: id) }
 
@@ -645,8 +584,6 @@ final class IBCanvasView: NSView {
         }
     }
 
-    /// Segue arrows: from the source scene's right edge to the destination
-    /// scene's left edge.
     var segueLines: [(from: CGPoint, to: CGPoint, kind: String)] { layout.segueLines }
 
     func drawSegues() {
@@ -667,11 +604,8 @@ final class IBCanvasView: NSView {
         }
     }
 
-    /// The entry-point arrow into the initial controller's scene.
     var entryPoint: (from: CGPoint, to: CGPoint)? { layout.entryPoint }
 
-    /// A scene's title bar: a rounded strip with the controller's icon
-    /// and title, above its frame.
     func drawSceneBar(_ title: String, above full: CGRect) {
         let bar = CGRect(x: full.minX, y: full.minY - Self.sceneBarHeight - layout.sceneBarGap, width: full.width, height: Self.sceneBarHeight)
         sceneBars.append((title, bar))
@@ -686,8 +620,6 @@ final class IBCanvasView: NSView {
         t.draw(at: NSPoint(x: bar.minX + 24, y: bar.minY + 5))
     }
 
-    /// The scene's objects as icons in its title bar while the scene or
-    /// one of them is selected (reference-ui-4.md §13 item 6).
     func drawSceneBarIcons(_ p: Placement) {
         for icon in layout.sceneBarIcons(p, selected: selectedID) {
             guard let image = NSImage(systemSymbolName: icon.symbol, accessibilityDescription: nil)?
@@ -699,11 +631,8 @@ final class IBCanvasView: NSView {
         }
     }
 
-    /// Scene bars as last drawn (tests).
     private(set) var sceneBars: [(title: String, rect: CGRect)] = []
 
-    /// A device-shaped bezel (SwiftCode's own rounded rectangle) around a
-    /// scene's root view in iOS documents.
     func drawDeviceFrame(around box: CGRect) {
         let outer = box.insetBy(dx: -12, dy: -12)
         let path = NSBezierPath(roundedRect: outer, xRadius: 36, yRadius: 36)
@@ -712,8 +641,6 @@ final class IBCanvasView: NSView {
         path.fill()
     }
 
-    /// Dashed guides for the selected view's constraints (or the selected
-    /// constraint): from the view's edge to the other item's edge.
     func drawConstraintGuides() {
         guard let id = selectedID, let o = document.byID[id] else { return }
         for c in constraintGuides(for: o) {
@@ -750,23 +677,17 @@ final class IBCanvasView: NSView {
         head.fill()
     }
 
-    // MARK: Handles and dragging
-
     typealias Handle = IBCanvasLayout.Handle
 
     func handles(_ r: CGRect) -> [(handle: Handle, rect: CGRect)] { IBCanvasLayout.handles(r) }
 
-    /// The deepest view under a canvas point.
     func view(at p: CGPoint) -> IBDocument.Object? { layout.view(at: p) }
 
-    /// A resized or moved rectangle (whole points).
     static func dragged(_ r: CGRect, handle: Handle?, by d: CGSize) -> CGRect { IBCanvasLayout.dragged(r, handle: handle, by: d) }
 
     private var drag: IBCanvasDrag?
     private(set) var dragPreview: CGRect?
 
-    /// Starts a drag at a canvas point: a handle of the selected view
-    /// resizes it, the body of a view selects and moves it.
     func beginDrag(at p: CGPoint) {
         let (hit, d) = IBCanvasDrag.begin(at: p, selected: selectedID, in: layout)
         if let hit, hit.id != selectedID || d?.handle == nil { controller?.select(hit) }
@@ -791,7 +712,6 @@ final class IBCanvasView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
-    /// ⌘+ / ⌘− / ⌘0 zoom; ⌘Z / ⇧⌘Z undo and redo document edits.
     override func keyDown(with e: NSEvent) {
         let flags = e.modifierFlags.intersection([.command, .shift, .option, .control])
         switch (flags, e.charactersIgnoringModifiers ?? "") {
@@ -812,8 +732,6 @@ final class IBCanvasView: NSView {
     @objc func undo(_ sender: Any?) { controller?.undo() }
     @objc func redo(_ sender: Any?) { controller?.redo() }
 
-    // MARK: Dropping Library objects
-
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         sender.draggingPasteboard.string(forType: Self.objectType) != nil ? .copy : []
     }
@@ -824,7 +742,6 @@ final class IBCanvasView: NSView {
     }
 }
 
-/// The Document Outline: ⌫ deletes the selection.
 final class IBOutlineView: NSOutlineView {
     var onDelete: (() -> Void)?
     override func keyDown(with e: NSEvent) {
@@ -832,9 +749,6 @@ final class IBOutlineView: NSOutlineView {
     }
 }
 
-/// Add New Constraints: spacing to the nearest neighbor on each side,
-/// width, height, and centering in the container. See
-/// `specs/ide/interface-builder.md` §Constraints.
 @MainActor
 public final class AddConstraintsController: NSViewController {
     public let viewID: String
@@ -891,7 +805,6 @@ public final class AddConstraintsController: NSViewController {
         view = stack
     }
 
-    /// What the checked boxes and fields describe.
     public var spec: IBDocument.NewConstraints {
         _ = view
         var s = IBDocument.NewConstraints()

@@ -1,9 +1,3 @@
-// DatabaseAIService.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Database/Services/DatabaseAIService.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: generateDatabaseArchitecture (LLM database-architecture generation)
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import os.log
 

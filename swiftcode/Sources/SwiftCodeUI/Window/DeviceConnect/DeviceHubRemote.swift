@@ -4,10 +4,6 @@ import SwiftCodeDeviceUI
 import SwiftCodeDisplayStream
 import SwiftCodeIDECore
 
-/// One device's live display in the IDE: the ssh forward and the session
-/// that the hub's canvas and the device's compact window show. The forward
-/// is started again when it ends while the link is open; the session
-/// reconnects by itself (`display-stream.md` §7).
 @MainActor
 public final class RemoteDisplayLink {
     public let session: DeviceLiveSession
@@ -17,7 +13,6 @@ public final class RemoteDisplayLink {
     private var watchdog: Timer?
     private static var counter = 0
 
-    /// A link to `remote`'s display socket through ssh.
     public init(remote: RemoteSimulator, name: String, os: String) {
         Self.counter += 1
         localSocket = (NSTemporaryDirectory() as NSString).appendingPathComponent("swiftcode-hub-\(getpid())-\(Self.counter).sock")
@@ -33,7 +28,6 @@ public final class RemoteDisplayLink {
         }
     }
 
-    /// A link to a display socket the caller provides (tests, a local server).
     public init(address: DisplayAddress, spec: DeviceFrameSpec, name: String, os: String) {
         localSocket = ""
         remote = nil
@@ -65,14 +59,6 @@ public final class RemoteDisplayLink {
     }
 }
 
-/// Launch options (the argument domain) for verification runs, so the hub
-/// can be shown and captured without driving the menus:
-/// `-SwiftCodeOpenDeviceHub YES` opens Device Hub once the first workspace
-/// window shows; `-SwiftCodeDeviceHubSelect <name>` selects that row;
-/// `-SwiftCodeDeviceHubSearch <text>` types into the sidebar's search field;
-/// `-SwiftCodeDeviceHubStart YES` starts it; `-SwiftCodeDeviceHubTab
-/// settings|reports|info` picks the inspector tab;
-/// `-SwiftCodeDeviceHubCompact YES` opens its compact window once it runs.
 @MainActor
 enum DeviceHubLaunch {
     private static var done = false

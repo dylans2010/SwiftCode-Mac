@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Extension details: real metadata, real state, real actions
-
 public struct ExtensionDetailsView: View {
     @ObservedObject private var manager = ExtV2Manager.shared
     @StateObject private var viewModel: ExtV2DetailsViewModel
@@ -13,8 +11,6 @@ public struct ExtensionDetailsView: View {
     }
 
     private var installed: ExtV2InstalledExtension {
-        // Re-read from the manager so the sheet never shows stale state
-        // after an install/enable/uninstall elsewhere.
         manager.installed.first { $0.id == viewModel.installed.id } ?? viewModel.installed
     }
 

@@ -1,9 +1,6 @@
 import Foundation
 import Security
 
-/// Fast, secure local credentials cache service.
-/// Eliminates modal Keychain password dialogs on app rebuilds while persisting
-/// user credentials securely across sessions with full clear/delete capability.
 public final class KeychainService: @unchecked Sendable {
   public static let shared = KeychainService()
 
@@ -31,7 +28,6 @@ public final class KeychainService: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
 
-    // 1. Load from Application Support cache file if present
     if let fileURL = cacheFileURL,
        let data = try? Data(contentsOf: fileURL),
        let dict = try? JSONDecoder().decode([String: String].self, from: data) {
@@ -40,7 +36,6 @@ public final class KeychainService: @unchecked Sendable {
       }
     }
 
-    // 2. Load and migrate any legacy UserDefaults entries
     let allDefaults = UserDefaults.standard.dictionaryRepresentation()
     for (k, v) in allDefaults where k.hasPrefix(fallbackPrefix) {
       let rawKey = String(k.dropFirst(fallbackPrefix.count))
@@ -67,13 +62,11 @@ public final class KeychainService: @unchecked Sendable {
 
     memoryFallback[key] = value
 
-    // Save to UserDefaults
     if let data = value.data(using: .utf8) {
       let base64 = data.base64EncodedString()
       UserDefaults.standard.set(base64, forKey: fallbackPrefix + key)
     }
 
-    // Save to cache file
     persistToFileLocked()
     return true
   }
@@ -107,7 +100,6 @@ public final class KeychainService: @unchecked Sendable {
     return true
   }
 
-  /// Deletes all saved credentials from memory, cache file, and UserDefaults.
   public func clearAllCredentials() {
     lock.lock()
     defer { lock.unlock() }

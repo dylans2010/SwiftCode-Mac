@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/ProjectInspector/InspectorProjectScanner.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: CacheEntry.
-
 import Foundation
 import Observation
 import SwiftUI

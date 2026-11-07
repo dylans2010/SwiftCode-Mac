@@ -3,55 +3,15 @@ import Testing
 import SwiftCodeAssistant
 @testable import SwiftCodeMCP
 
-/// The ported Legacy Artboards + Simulator tools (Wave 5), each driven
-/// black-box through the server's real write-policy path. Artboards are
-/// in-memory on the host, so no workspace is needed for most tests;
-/// `artboard_run_app` needs one only to fail the way the `run` tool does
-/// without it.
-///
-/// Behaviour source: Legacy `AssistArtboardCompileTool`,
-/// `AssistArtboardCreateTool`, `AssistArtboardDeleteTool`,
-/// `AssistArtboardGetTool`, `AssistArtboardListTool`,
-/// `AssistArtboardRunAppTool`, `AssistArtboardUpdateTool`,
-/// `AssistFixArtboardsTool`, `AssistDeviceListTool`,
-/// `AssistSimulatorBootTool`, `AssistSimulatorControllerTool` and
-/// `AssistSimulatorListTool` (Dylan's own code, ported under MIT).
-///
-/// Assertions are on the tool RESULT (message + structured data), never
-/// on internals. Messages quoted verbatim are Legacy's. Structured
-/// results are asserted with `firstText`, never exact `resultText ==`:
-/// `.structured(_:summary:)` emits two text blocks (summary + JSON
-/// mirror).
-///
-/// Platform notes: this machine has no Swift toolchain and the tests run
-/// on Linux here, so the Apple-simulator tools (`device_list`,
-/// `simulator_controller`, the aligned `simulator_boot` UDID path)
-/// assert their exact "xcrun not found" failure on Linux, and
-/// `artboard_compile`'s render path asserts the renderer's failure, not
-/// a PNG. Their real macOS behaviour — `devicectl`/`simctl` listings,
-/// booting, and headless preview rendering — stays pending on Dylan's
-/// Mac (see the Wave 5 report).
 @MainActor
 @Suite(.serialized) struct SwiftCodeArtboardsSimulatorTests {
-    /// The 8 Wave 5 Artboards tool IDs, verified live from the Legacy
-    /// registry (`AssistToolRegistry.registerAllTools` + each tool's `id`).
     static let artboardIDs = ["artboard_compile", "artboard_create", "artboard_delete", "artboard_get",
                               "artboard_list", "artboard_run_app", "artboard_update", "fix_artboards"]
-    /// The 2 Wave 5 Simulator tools registered new in this wave.
-    /// `simulator_boot` and `simulator_list` are NOT here: they already
-    /// live in `runTools` and were aligned in place (§3 of the spec).
     static let simulatorIDs = ["device_list", "simulator_controller"]
 
-    /// Installs the ported artboard + simulator tools on the server
-    /// (same shape as Wave 4's `opened`; the coordinator wires
-    /// `artboardTools` + `simulatorTools` into `installTools()`).
-    /// Defaults to `.allow`: most tools in this wave are `writes: true`,
-    /// so the read-only policy refuses them before they run.
     func opened(policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
         host.server.writePolicy = policy
-        // Filter-first (Wave 2 shape): `installTools()` may already
-        // wire these arrays, so a plain `+=` would register them twice.
         let ported = Set(host.artboardTools.map(\.name) + host.simulatorTools.map(\.name))
         host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.artboardTools + host.simulatorTools
         return host
@@ -63,7 +23,6 @@ import SwiftCodeAssistant
         #expect(artboards.map(\.name) == Self.artboardIDs)
         let sims = host.simulatorTools
         #expect(sims.map(\.name) == Self.simulatorIDs)
-        // The aligned tools are registered exactly once, in runTools.
         #expect(host.server.tools.filter { $0.name == "simulator_boot" }.count == 1)
         #expect(host.server.tools.filter { $0.name == "simulator_list" }.count == 1)
         let expectedTitles: [String: String] = [
@@ -90,7 +49,6 @@ import SwiftCodeAssistant
             "device_list": ["device_count", "devices", "source"],
             "simulator_controller": ["action", "device", "output"],
         ]
-        // Legacy risk → annotations (catalogue §1.3).
         let readOnlyIDs: Set<String> = ["artboard_get", "artboard_list", "device_list"]
         for tool in artboards + sims {
             #expect(tool.title == expectedTitles[tool.name])
@@ -113,8 +71,6 @@ import SwiftCodeAssistant
         let host = SwiftCodeMCPHost()
         let boot = try #require(host.server.tools.first { $0.name == "simulator_boot" })
         let list = try #require(host.server.tools.first { $0.name == "simulator_list" })
-        // The alignment adds Legacy's parameters / output key without
-        // removing SwiftCode's.
         let bootProps = boot.inputSchema["properties"]?.object?.keys.sorted() ?? []
         #expect(bootProps == ["action", "simulator", "udid"], "simulator_boot inputs: \(bootProps)")
         #expect(boot.inputSchema["required"]?.array?.compactMap(\.string) ?? [] == [])
@@ -259,8 +215,6 @@ import SwiftCodeAssistant
 
     @Test func artboardCompileFailsWithoutAPreview() async throws {
         let host = try await opened()
-        // No #Preview: the renderer fails before it needs a toolchain,
-        // so this is deterministic on Linux and macOS alike.
         let source = "import SwiftUI\n\nstruct NoPreview: View {\n    var body: some View { Text(\"Hi\") }\n}\n"
         _ = try await host.server.callTool("artboard_create", ["name": .string("NoPreview"), "sourceCode": .string(source)])
         let r = try await host.server.callTool("artboard_compile")
@@ -274,11 +228,6 @@ import SwiftCodeAssistant
 
     @Test func fixArtboardsRepairsSource() async throws {
         let host = try await opened()
-        // Missing both `import SwiftUI` and `#Preview`: pass 3 must
-        // inject both. Pass 4 then re-renders, which fails here (no
-        // Swift toolchain); on a Mac with a toolchain it may succeed,
-        // so only the repair itself and the recompile attempt are
-        // asserted, not the render outcome.
         let source = "struct Bare: View {\n    var body: some View { Text(\"Hi\") }\n}\n"
         _ = try await host.server.callTool("artboard_create", ["name": .string("Bare"), "sourceCode": .string(source)])
         let r = try await host.server.callTool("fix_artboards")
@@ -316,7 +265,6 @@ import SwiftCodeAssistant
         #expect(created.isToolError && created.firstText.contains("read-only"))
         let controlled = try await host.server.callTool("simulator_controller", ["action": .string("boot")])
         #expect(controlled.isToolError && controlled.firstText.contains("read-only"))
-        // Reads still answer under the read-only policy.
         let list = try await host.server.callTool("artboard_list")
         #expect(!list.isToolError)
     }
@@ -330,8 +278,6 @@ import SwiftCodeAssistant
         #expect(r.structured?["appleSimulators"] != nil)
         #expect(r.firstText.contains("No SwiftCode Simulator host is set up."))
 #if os(macOS)
-        // On macOS the Apple section may list real simulators; the
-        // SwiftCode keys above are the portable assertions.
 #else
         #expect(r.structured?["appleSimulators"]?.array == [])
         #expect(r.firstText.contains("Apple simulators: unavailable (xcrun not found"))
@@ -340,14 +286,9 @@ import SwiftCodeAssistant
 
     @Test func alignedSimulatorBootValidatesBeforeBooting() async throws {
         let host = SwiftCodeMCPHost()
-        // `simulator_boot` is `writes: true`, and the server defaults
-        // to the read-only policy, which would refuse it before the
-        // handler runs.
         host.server.writePolicy = .allow
-        // No-arg boot still takes the SwiftCode path (no host here).
         let noArg = try await host.server.callTool("simulator_boot")
         #expect(noArg.isToolError && noArg.firstText.contains("no SwiftCode Simulator host"))
-        // Legacy validation, verbatim, before any subprocess runs.
         let badUdid = try await host.server.callTool("simulator_boot", ["udid": .string("not-a-uuid")])
         #expect(badUdid.isToolError && badUdid.firstText.contains("Invalid udid: 'not-a-uuid' is not a valid UUID."))
         let badAction = try await host.server.callTool("simulator_boot", [
@@ -356,8 +297,6 @@ import SwiftCodeAssistant
         #expect(badAction.isToolError && badAction.firstText.contains("Invalid action: 'explode'. Expected boot or shutdown."))
         let actionOnly = try await host.server.callTool("simulator_boot", ["action": .string("shutdown")])
         #expect(actionOnly.isToolError && actionOnly.firstText.contains("Pass a udid to boot or shut down an Apple simulator"))
-        // A well-formed UDID on a machine without xcrun fails at the
-        // tooling check; on macOS it fails because the UDID is unknown.
         let udid = try await host.server.callTool("simulator_boot", [
             "udid": .string("00000000-0000-0000-0000-000000000000"),
         ])
@@ -372,8 +311,6 @@ import SwiftCodeAssistant
         let host = try await opened()
         let r = try await host.server.callTool("device_list")
 #if os(macOS)
-        // Real behaviour (devicectl / xctrace) stays pending on Dylan's
-        // Mac: either a listing or one of Legacy's clear failures.
         _ = r
         #expect(r.structured?["device_count"] != nil || r.isToolError)
 #else
@@ -400,9 +337,6 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("simulator_controller", ["action": .string("boot"), "device": .string("booted")])
         #expect(r.isToolError)
 #if os(macOS)
-        // On macOS this runs `simctl boot booted` for real; the outcome
-        // depends on the machine's simulators, so only the error shape
-        // is portable — a missing `booted` device fails via simctl.
 #else
         #expect(r.firstText.contains("xcrun not found at /usr/bin/xcrun"))
 #endif

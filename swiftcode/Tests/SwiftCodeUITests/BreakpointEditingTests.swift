@@ -50,8 +50,6 @@ int main(void) {
         w.appearance = NSAppearance(named: .aqua)
         w.contentView = ed.view
         _ = try WindowSnapshotTests().render(ed.view, to: "breakpoint-editor.png")
-        // The capture is opaque (no transparent background that viewers
-        // show as black) and the "Condition" label is drawn in a dark color.
         let rep = try #require(NSBitmapImageRep(data: try Data(contentsOf: swiftcodeDir.appendingPathComponent(".build-ide/snapshots/breakpoint-editor.png"))))
         let corner = try #require(rep.colorAt(x: 2, y: 2)?.usingColorSpace(.sRGB))
         #expect(corner.alphaComponent == 1 && corner.brightnessComponent > 0.8, "background \(corner)")
@@ -77,7 +75,6 @@ int main(void) {
         wc.addSymbolicBreakpoint(name: "greet(times:)")
         #expect(session.breakpoints.exceptionFilters == ["objc_throw", "cpp_throw", "swift_throw"])
         wc.navigator.select(7)
-        // Root "<project>  n Breakpoint(s)" (reference-ui-4.md §6.1).
         let root = try #require(wc.navigator.rows(7).first)
         #expect(root.title.hasSuffix("Breakpoints"))
         let rows = root.children
@@ -86,8 +83,6 @@ int main(void) {
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "breakpoint-navigator.png")
     }
 
-    /// Conditional, logging (auto-continue) and symbolic breakpoints against
-    /// the real lldb-dap.
     @Test func conditionsLogPointsAndSymbolicBreakpoints() async throws {
         guard LLDBDAP.locate() != nil else { return }
         let lock = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
@@ -107,8 +102,6 @@ int main(void) {
         try cc.run()
         cc.waitUntilExit()
 
-        // A launch that cannot start (e.g. waiting for a debugging
-        // authorization nobody can answer) is an environment problem: skip.
         guard InterprocessLock.canLaunchUnderDebugger(exe) else {
             print("skipping: cannot launch under the debugger (\(InterprocessLock.lastProblem ?? "launch failed"))")
             return
@@ -123,8 +116,6 @@ int main(void) {
         session.breakpoints.exceptionFilters = ["cpp_throw"]
 
         await session.debug(program: exe)
-        // Variables load after the stop event; wait for the stop's own values
-        // and for the log lines, which arrive as separate output events.
         #expect(await waitUntil(60) { session.stoppedThread != nil && session.variables.first { $0.name == "a" }?.value == "3" })
         #expect(await waitUntil(30) { session.console.contains("loop i=0") && session.console.contains("loop i=3") })
         #expect(session.debugClient?.exceptionFilters.isEmpty == false)

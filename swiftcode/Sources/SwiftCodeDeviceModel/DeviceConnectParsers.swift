@@ -1,8 +1,5 @@
 import Foundation
 
-/// The DeviceConnectKit parsing/formatting helpers, ported from
-/// Legacy (`SwiftCode/Views/Build/DeviceConnectKit/Helpers/`).
-/// Pure string/JSON work, no processes, no UI.
 public struct BuildParser {
     public struct ParsedIssue: Sendable {
         public let filePath: String?
@@ -89,9 +86,6 @@ public struct DeviceParser {
                 model: item.model ?? "Generic",
                 productType: item.modelUTI ?? "com.apple.device",
                 platform: item.platform ?? "iOS",
-                // `xcrun xcdevice list` reports neither a build
-                // version nor an architecture: these are defaults,
-                // not device-reported values.
                 osVersion: item.operatingSystemVersion ?? "1.0",
                 buildVersion: "Release",
                 architecture: "arm64",

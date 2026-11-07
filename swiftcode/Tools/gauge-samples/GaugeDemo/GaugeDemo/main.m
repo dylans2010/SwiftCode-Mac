@@ -1,8 +1,3 @@
-// GaugeDemo: a small UIKit app for Gauge's end-to-end check
-// (specs/ide/profiler.md §10). Every 1.5 s the main thread runs one round
-// of deliberate work (Work.c: Crunch > Sieve, Matrix, with signposts), which
-// also makes a hang; a background queue does a little work of its own.
-// Original SwiftCode sample code.
 #import <UIKit/UIKit.h>
 #include <stdio.h>
 #include "Work.h"

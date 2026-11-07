@@ -1,19 +1,3 @@
-/*
- * once.c - _os_once, __os_once_reset and _os_alloc_once of SwiftCode's
- * libsystem_platform.
- *
- * Clean-room SwiftCode code. Interface facts (from the public os_once
- * conventions that clients inline): the predicate is a long that starts at
- * 0 and holds ~0 once the function has run; clients test for ~0 inline and
- * call _os_once only otherwise. _os_alloc_once's slot is { long once;
- * void *ptr; }; it allocates zeroed memory once, stores the pointer, runs
- * the initializer on it, and returns the pointer (the 1600-byte
- * _os_alloc_once_table in libsystem_kernel is 100 such slots;
- * host-library-init.md sections 7.1-7.2).
- *
- * Predicate states: 0 not started, 1 running, 3 running with waiters,
- * ~0 done. Waiters sleep on the low 32 bits with UL_COMPARE_AND_WAIT.
- */
 #include "yc_platform.h"
 
 #define ONCE_DONE (~0l)
@@ -55,12 +39,6 @@ YC_EXPORT void YC_FN(__os_once_reset)(long *pred)
     __atomic_store_n(pred, 0, __ATOMIC_RELEASE);
 }
 
-/*
- * Private bump heap (host-library-init.md section 7.1): sizes are rounded
- * up to 16 bytes and carved from zero-filled 2-page (32 KiB) blocks; a
- * request larger than a block gets its own mapping. The memory is never
- * freed (os_alloc_once data lives for the whole process).
- */
 #define HEAP_BLOCK (2 * YC_PAGE_SIZE)
 static yc_u32 heap_lock;
 static char *heap_next;
@@ -70,7 +48,7 @@ static void *map_zeroed(yc_size_t len)
 {
     void *mem = YC_KFN(mmap)(YC_NULL, len, YC_PROT_READ | YC_PROT_WRITE, YC_MAP_PRIVATE | YC_MAP_ANON, -1, 0);
     if (mem == YC_MAP_FAILED || mem == YC_NULL)
-        YC_CRASH(); /* out of memory in a process-lifetime allocation */
+        YC_CRASH();
     return mem;
 }
 

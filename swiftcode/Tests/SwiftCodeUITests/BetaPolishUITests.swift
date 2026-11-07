@@ -5,9 +5,6 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// What the public beta asks of the AppKit IDE: nothing enabled that does
-/// nothing, the app's own icon and About window, Report a Bug, and unfinished
-/// features labelled where they are met.
 @MainActor
 @Suite(.serialized) struct BetaPolishUITests {
     func window() throws -> WorkspaceWindowController {
@@ -32,7 +29,6 @@ import SwiftCodeProject
                                 #selector(WorkspaceWindowController.jumpToLine(_:)), #selector(WorkspaceWindowController.hideFindBar(_:)),
                                 #selector(WorkspaceWindowController.duplicateEditorTab(_:)), #selector(WorkspaceWindowController.openWithExternalEditor(_:)),
                                 #selector(WorkspaceWindowController.openInNewTab(_:)),
-                                // A package has no archive; no file, no review.
                                 #selector(WorkspaceWindowController.archiveProduct(_:)), #selector(WorkspaceWindowController.toggleComparison(_:))]
         for action in idle { #expect(!wc.validateMenuItem(item(action)), "\(action)") }
     }
@@ -85,11 +81,9 @@ import SwiftCodeProject
             NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
             ProductIcon.image.draw(in: NSRect(x: 0, y: 0, width: side, height: side))
             NSGraphicsContext.restoreGraphicsState()
-            // The corners are clear; the field is dark and opaque in the upper middle's edge.
             #expect(rep.colorAt(x: 0, y: 0)?.alphaComponent == 0)
             let field = try #require(rep.colorAt(x: side / 2, y: side * 15 / 100)?.usingColorSpace(.sRGB))
             #expect(field.alphaComponent > 0.9 && field.brightnessComponent < 0.5)
-            // The caret is coral, low in the middle.
             let caret = try #require(rep.colorAt(x: side / 2, y: side * 67 / 100)?.usingColorSpace(.sRGB))
             #expect(caret.redComponent > 0.7 && caret.blueComponent < 0.6)
         }

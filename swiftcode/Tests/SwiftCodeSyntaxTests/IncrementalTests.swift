@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeSyntax
 
-/// Incremental re-highlighting equals a full pass, and touches only what
-/// an edit affects.
 @Suite struct IncrementalTests {
     static let samples: [(SyntaxLanguage, String)] = [
         (.swift, "/// d\nstruct A {\n    let s = \"x\\(1)\" // c\n    /* b\n    */ var m = \"\"\"\n  m\n  \"\"\"\n}\n"),
@@ -19,7 +17,6 @@ import Testing
         (.xcconfig, "A = $(B) // c\n"),
     ]
 
-    /// A small deterministic generator (tests must not depend on a seed source).
     struct LCG { var s: UInt64; mutating func next(_ n: Int) -> Int { s = s &* 6364136223846793005 &+ 1442695040888963407; return Int((s >> 33) % UInt64(max(1, n))) } }
 
     @Test(arguments: [false, true]) func randomEditsMatchAFullPass(parser: Bool) {
@@ -56,7 +53,6 @@ import Testing
         let text = "a\nb\n/* old */\nc\nd\n"
         let d = SyntaxDocument(text: text, language: .c)
         d.replace(NSRange(location: 0, length: 0), with: "/*")
-        // Lines 0…2 change (2 now ends the comment); 3 starts as before.
         #expect(d.lastUpdate.linesLexed == 3)
         #expect(d.isInsideCommentOrString(3))
         d.replace(NSRange(location: 0, length: 2), with: "")

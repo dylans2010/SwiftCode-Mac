@@ -2,17 +2,6 @@ import Foundation
 import SwiftCodeSubprocess
 import os
 
-// MARK: - Worker execution context
-//
-// Legacy's `AssistContext` (AssistModels.swift) is a heavy struct carrying a
-// Project, memory graph, logger, file-system, git, and permissions protocols
-// — none of which exists in this target. The seven ported Subagents files
-// only ever read `context.workspaceRoot` (plus an identity for the run), so
-// they take this narrow context instead. If a fuller AssistContext is ever
-// ported, these call sites can switch to it; nothing here depends on the
-// Legacy protocols.
-
-/// The minimal context a Worker needs to execute: where the work happens.
 public struct WorkerExecutionContext: Sendable {
     public var sessionId: UUID
     public var workspaceRoot: URL
@@ -23,11 +12,6 @@ public struct WorkerExecutionContext: Sendable {
     }
 }
 
-// MARK: - Turn-execution seam
-
-/// One completed turn from a model back end: the model's reply text, the
-/// activity lines it reported while working, and the workspace files it
-/// created, modified, or deleted during the turn.
 public struct WorkerTurnOutput: Sendable {
     public var text: String
     public var activity: [String]
@@ -44,24 +28,8 @@ public struct WorkerTurnOutput: Sendable {
     }
 }
 
-/// The narrow seam between `WorkerEngine` and whatever actually runs a
-/// model turn. Legacy's engine queried `LLMService` for one JSON tool call
-/// at a time and dispatched tools itself through `AssistToolRegistry` —
-/// neither exists in this target. The destination's real turn executor is
-/// `MetaAssistTurnExecutor`, which runs a complete agentic turn (its own
-/// internal tool loop) against the `muse` host, so one `runTurn` call
-/// replaces one Legacy model query *and* the tool-dispatch step: the host
-/// performs the file work, and the engine observes the turn's text and the
-/// workspace diff afterwards. Callers that need a different back end
-/// (tests, a future provider) inject their own runner; the engine never
-/// fabricates a turn result.
 @MainActor
 public protocol WorkerTurnRunner: Sendable {
-    /// Runs one turn for `prompt` in `workspaceRoot` with `modelID`
-    /// (empty means the runner's default model) and returns the turn's
-    /// text plus the files it changed. Throws honestly on a missing
-    /// executable, missing credentials, timeout, or host failure —
-    /// the caller decides whether a fallback model retry is warranted.
     func runTurn(
         prompt: String,
         history: [String],
@@ -70,21 +38,6 @@ public protocol WorkerTurnRunner: Sendable {
     ) async throws -> WorkerTurnOutput
 }
 
-/// The default `WorkerTurnRunner`: one turn through
-/// `MetaAssistTurnExecutor` against the installed `muse` CLI.
-///
-/// - `attachment`: the agent-mode attachment; its `requestPermission`
-///   decides the host's approval requests. Nil means every approval is
-///   denied, so a worker turn without an attachment can read and answer
-///   but cannot change files — exactly `MetaAssistTurnExecutor`'s own
-///   rule, not a limitation invented here. The parent Assist supplies an
-///   attachment when the user has enabled agent mode.
-/// - `proxyBaseURL`: the other-models proxy URL, when the host started
-///   one; passed through as `--base-url`.
-/// - File changes are observed by diffing a workspace snapshot taken
-///   before and after the turn (the turn's `ChatEvent`s carry no file
-///   paths), skipping `.git`, `.build`, DerivedData, `.swiftpm`, and
-///   `node_modules`.
 @MainActor
 public struct MetaAssistTurnRunner: WorkerTurnRunner, Sendable {
     public var attachment: AgentAttachment?
@@ -154,7 +107,6 @@ public struct MetaAssistTurnRunner: WorkerTurnRunner, Sendable {
     }
 }
 
-/// Serialises turn events arriving on the executor's notification tasks.
 private final class WorkerTurnEventCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var _text = ""
@@ -181,10 +133,6 @@ private final class WorkerTurnEventCollector: @unchecked Sendable {
     }
 }
 
-/// A bounded snapshot of a workspace tree (path → modification time + size),
-/// used to observe what a turn changed. Directories that never hold worker
-/// output are skipped, and enumeration is capped so a very large workspace
-/// cannot stall the snapshot.
 private struct WorkerWorkspaceSnapshot {
     private static let skippedDirectoryNames: Set<String> = [
         ".git", ".build", ".swiftpm", "DerivedData", "node_modules", ".hg", ".svn",
@@ -220,7 +168,6 @@ private struct WorkerWorkspaceSnapshot {
         return WorkerWorkspaceSnapshot(files: files)
     }
 
-    /// Paths that appeared, changed, or disappeared between two snapshots.
     func changedPaths(comparedTo other: WorkerWorkspaceSnapshot) -> [(path: String, changeType: FileChangeType)] {
         var changes: [(path: String, changeType: FileChangeType)] = []
         for (path, after) in other.files {
@@ -236,16 +183,6 @@ private struct WorkerWorkspaceSnapshot {
         return changes.sorted { $0.path < $1.path }
     }
 }
-
-// MARK: - Build / test verification
-//
-// Legacy verified through `AssistVerificationPipeline` (xcodebuild with a
-// scheme resolved by `AssistXcodeProjectResolver`, via `ProcessRunnerTool`).
-// Neither exists here, so this verifier runs the same real checks with
-// `SwiftCodeSubprocess`: `swift build` / `swift test` for a Swift package,
-// `xcodebuild build` / `xcodebuild test` for an Xcode project (scheme read
-// from `xcodebuild -list -json`). A workspace with neither reports an
-// honest failure instead of a fabricated pass.
 
 private struct WorkerVerificationOutcome: Sendable {
     var isSuccess: Bool
@@ -302,8 +239,6 @@ private struct WorkerBuildVerifier: Sendable {
         )
     }
 
-    // MARK: - Project discovery
-
     private func locateXcodeProject() -> URL? {
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(
@@ -340,8 +275,6 @@ private struct WorkerBuildVerifier: Sendable {
         let schemes = container?["schemes"] as? [String]
         return schemes?.first
     }
-
-    // MARK: - Runners
 
     private func resolveDeveloperDir() -> String {
         for path in ["/Applications/Xcode.app/Contents/Developer", "/Applications/Xcode-beta.app/Contents/Developer"] {
@@ -398,9 +331,6 @@ private struct WorkerBuildVerifier: Sendable {
         }
     }
 
-    /// `Subprocess.run` is synchronous and must not run on the main thread,
-    /// so it executes on a detached task; the engine (and its callers) are
-    /// `@MainActor`.
     private func runProcess(
         executable: String,
         arguments: [String],
@@ -413,25 +343,6 @@ private struct WorkerBuildVerifier: Sendable {
     }
 }
 
-// MARK: - Engine
-
-/// Executes one Worker assignment: drives the turn runner, tracks the files
-/// the turn changed, and verifies the result with a real build/test run.
-///
-/// Adaptation note (Legacy `WorkerEngine`): Legacy ran a 10-iteration
-/// ReAct loop — one `LLMService` query per iteration, each reply parsed
-/// with `AgentModelAdapter.extractJSON` into a `{ toolId, input }` call
-/// dispatched through `AssistToolRegistry`, with results formatted by
-/// `AssistToolResultFormatter`. None of those four exist in this target.
-/// The destination's turn executor already runs a complete agentic turn
-/// (its own internal tool loop) against the `muse` host, so the engine
-/// runs one turn per worker through the injected `WorkerTurnRunner` and
-/// observes the outcome (reply text + workspace diff) instead of
-/// re-implementing a second tool loop on top of it. The parts Legacy
-/// owned outright are preserved: the starting → working → reviewing
-/// transitions, the cancellation checks, the model-fallback retry, the
-/// progress phases, file-change recording + ownership registration, and
-/// the build/test verification gate before the review handoff.
 @MainActor
 public final class WorkerEngine: Sendable {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkerEngine")

@@ -1,6 +1,4 @@
 #!/bin/sh
-# Build StereoProbe.app for the visionOS simulator with the installed Xcode.
-# Usage: build.sh OUTDIR   (OUTDIR on the Mac, outside the repository)
 set -eu
 SRC=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:?usage: build.sh OUTDIR}

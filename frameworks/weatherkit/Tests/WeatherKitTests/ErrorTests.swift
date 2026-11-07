@@ -1,5 +1,3 @@
-// C-ERRORS (plan.md §2): error mapping and cancellation (behavior.md §4–§5,
-// plan.md §3).
 import CoreLocation
 import Foundation
 import Testing
@@ -94,7 +92,6 @@ struct ErrorTests {
         #expect(ContinuousClock.now - started < .seconds(5))
         try await Task.sleep(for: .milliseconds(50))
         #expect(backend.cancelledCalls == 1)
-        // Nothing was cached; the next call fetches.
         backend.delay = nil
         _ = try await service.weather(for: fixtureLocation, including: .current)
         #expect(backend.requests.count == 2)

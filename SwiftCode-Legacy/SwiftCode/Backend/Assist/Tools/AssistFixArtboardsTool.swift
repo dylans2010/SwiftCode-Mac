@@ -32,7 +32,6 @@ public struct AssistFixArtboardsTool: AssistTool {
         let errorContext = input["errorContext"] as? String ?? ""
         var actionsTaken: [String] = []
 
-        // Pass 1: Simulator & Destination Audit
         let liveSims = await BuildDestinationResolver.shared.fetchAvailableSimulators()
         let bootedSim = liveSims.first(where: { $0.variant == "Booted" }) ?? liveSims.first(where: { $0.platform.contains("iOS") })
 
@@ -53,7 +52,6 @@ public struct AssistFixArtboardsTool: AssistTool {
             }
         }
 
-        // Pass 2: Clean DerivedData / Stale Build State
         if errorContext.localizedCaseInsensitiveContains("already in progress") ||
             errorContext.localizedCaseInsensitiveContains("exit code 70") ||
             errorContext.localizedCaseInsensitiveContains("exit code 65") ||
@@ -62,7 +60,6 @@ public struct AssistFixArtboardsTool: AssistTool {
             actionsTaken.append("Cleaned stale build artifacts and reset DerivedData build cache")
         }
 
-        // Pass 3: Audit Active Artboard Custom Source Code
         if let doc = DocumentCoordinator.shared.visualUIDocument,
            let activeID = doc.scene.activeArtboardID,
            let activeArtboard = doc.scene.artboards.first(where: { $0.id == activeID }) {
@@ -91,7 +88,6 @@ public struct AssistFixArtboardsTool: AssistTool {
             }
         }
 
-        // Pass 4: Verification Compile Pass
         if let activeDoc = DocumentCoordinator.shared.activeDocument {
             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
             await PreviewManager.shared.startFreshLivePreviewSession(

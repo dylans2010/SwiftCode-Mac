@@ -4,7 +4,7 @@ struct DatabaseAIPromptItem: Identifiable, Codable, Hashable {
     let id: UUID
     var title: String
     var prompt: String
-    var category: String // "Architect", "Generator", "Optimizer"
+    var category: String
     var isFavorite: Bool
     var isRecent: Bool
 }
@@ -23,10 +23,9 @@ struct DatabaseAIView: View {
     @State private var copiedText = false
     @State private var promptSearchText = ""
 
-    // Prompt Library & History States
     @State private var promptLibrary: [DatabaseAIPromptItem] = []
     @State private var taskHistory: [DatabaseAIHistoryItem] = []
-    @State private var currentOutputCategory = "Schema" // "Schema", "Model", "SQL"
+    @State private var currentOutputCategory = "Schema"
 
     var filteredPromptLibrary: [DatabaseAIPromptItem] {
         if promptSearchText.isEmpty { return promptLibrary }
@@ -38,14 +37,12 @@ struct DatabaseAIView: View {
 
     var body: some View {
         HSplitView {
-            // Left Workspace: Prompt Libraries, Search & History
             VStack(alignment: .leading, spacing: 14) {
                 Text("AI Prompt Library")
                     .font(.headline)
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
 
-                // Search Box
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
@@ -126,9 +123,7 @@ struct DatabaseAIView: View {
 
             Divider()
 
-            // Right Workspace: Interactive Studio
             VStack(spacing: 0) {
-                // Command Header Bar
                 HStack(spacing: 12) {
                     Image(systemName: "sparkles")
                         .foregroundColor(.purple)
@@ -152,7 +147,6 @@ struct DatabaseAIView: View {
 
                 Divider()
 
-                // Response Canvas
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         if isGenerating {
@@ -202,7 +196,6 @@ struct DatabaseAIView: View {
 
                 Divider()
 
-                // Prompt Input Box
                 HStack(spacing: 12) {
                     TextField("Enter custom prompt instructions for the database...", text: $prompt)
                         .textFieldStyle(.roundedBorder)
@@ -227,7 +220,6 @@ struct DatabaseAIView: View {
         }
     }
 
-    // MARK: - Row Builder
     @ViewBuilder
     private func promptLibraryRow(_ item: DatabaseAIPromptItem) -> some View {
         HStack {
@@ -261,7 +253,6 @@ struct DatabaseAIView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Handlers & State Persistence
     private func generateArchitecture() {
         isGenerating = true
         response = ""
@@ -279,7 +270,6 @@ Use perfect formatting, clean markdown, and code blocks for tables or SQL.
 
                 await MainActor.run {
                     response = out
-                    // Save history item
                     let histItem = DatabaseAIHistoryItem(id: UUID(), promptText: prompt, generatedOutput: out, timestamp: Date())
                     taskHistory.insert(histItem, at: 0)
                     saveHistory()

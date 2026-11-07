@@ -1,10 +1,3 @@
-// Guest probe: the data volume's capabilities and the host's file-event
-// service, through public API only (specs/simulator/file-system-features.md,
-// fsevents-host.md "SwiftCode implementation"): getattrlist volume capabilities,
-// document IDs and write generation counts, clonefile, renamex_np
-// RENAME_EXCL / RENAME_SWAP, and an FSEvents stream on a folder of the
-// guest that sees the probe's own file operations.
-//   p_fsevents <folder>     (the folder is made; it should be on the data volume)
 #include <CoreFoundation/CoreFoundation.h>
 #include <dispatch/dispatch.h>
 #include <errno.h>
@@ -17,8 +10,6 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
-// The public FSEvents API (FSEvents.h of the macOS SDK; the iOS SDK exports
-// these functions from CoreServices but ships no header).
 typedef UInt32 FSEventStreamCreateFlags;
 typedef UInt32 FSEventStreamEventFlags;
 typedef UInt64 FSEventStreamEventId;
@@ -105,7 +96,6 @@ static int readfile(const char *path, char *buf, size_t size) {
     return (int)n;
 }
 
-// Events received by the stream's callback.
 #define MAX_EVENTS 256
 static char eventPaths[MAX_EVENTS][256];
 static FSEventStreamEventFlags eventFlags[MAX_EVENTS];
@@ -149,7 +139,6 @@ int main(int argc, char **argv) {
     capabilities(dir);
     capabilities("/System/Library");
 
-    // Write generation counts and document IDs.
     snprintf(path, sizeof path, "%s/doc", dir);
     writefile(path, "one");
     struct ids_reply a = ids(path);
@@ -167,13 +156,11 @@ int main(int argc, char **argv) {
     writefile(other, "two");
     check(rename(other, path) == 0 && ids(path).doc == doc && doc != 0, "a safe save keeps the document id");
 
-    // clonefile.
     snprintf(other, sizeof other, "%s/clone", dir);
     unlink(other);
     check(clonefile(path, other, 0) == 0 && readfile(other, text, sizeof text) == 3 && strcmp(text, "two") == 0, "clonefile");
     check(clonefile(path, other, 0) == -1 && errno == EEXIST, "clonefile onto an existing name: EEXIST");
 
-    // renamex_np.
     check(renamex_np(path, other, RENAME_EXCL) == -1 && errno == EEXIST, "RENAME_EXCL onto an existing name: EEXIST");
     writefile(other, "three");
     check(renamex_np(path, other, RENAME_SWAP) == 0 && readfile(path, text, sizeof text) == 5, "RENAME_SWAP");
@@ -181,7 +168,6 @@ int main(int argc, char **argv) {
     unlink(other);
     check(renamex_np(path, other, RENAME_EXCL) == 0, "RENAME_EXCL onto a free name");
 
-    // The file-event service.
     CFUUIDRef uuid = FSEventsCopyUUIDForDevice(0);
     check(uuid == NULL, "no UUID for device 0");
     struct stat st;
@@ -217,13 +203,11 @@ int main(int argc, char **argv) {
     seen = eventCount;
     for (int i = 0; i < seen; i++) printf("event %llu 0x%08x %s\n", eventIDs[i], (unsigned)eventFlags[i], eventPaths[i]);
     char rpath[1024], rother[1024], rsub[1024];
-    // Event paths are as the stream registered its folder (realpath form).
     char real[1024];
     realpath(dir, real);
     snprintf(rpath, sizeof rpath, "%s/new.txt", real);
     snprintf(rother, sizeof rother, "%s/renamed.txt", real);
     snprintf(rsub, sizeof rsub, "%s/sub", real);
-    // (or as the probe passed it, if the client library maps them back)
     FSEventStreamEventFlags fNew = flagsFor(rpath) | flagsFor(path), fRenamed = flagsFor(rother) | flagsFor(other),
                             fSub = flagsFor(rsub) | flagsFor(sub);
     check((fNew & (kFSEventStreamEventFlagItemCreated | kFSEventStreamEventFlagItemModified | kFSEventStreamEventFlagItemIsFile |
@@ -240,7 +224,6 @@ int main(int argc, char **argv) {
     FSEventStreamInvalidate(stream);
     FSEventStreamRelease(stream);
 
-    // A stream since an earlier id: HistoryDone.
     eventCount = 0;
     stream = makeStream(dir, last > 0 ? last - 1 : 1, kFSEventStreamCreateFlagNone, q);
     check(FSEventStreamStart(stream), "FSEventStreamStart since an id");

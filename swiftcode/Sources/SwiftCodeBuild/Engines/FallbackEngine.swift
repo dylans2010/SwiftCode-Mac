@@ -1,8 +1,5 @@
 import Foundation
 
-/// Uses `primary` for requests it supports and `fallback` for the rest, so
-/// choosing swift-build never makes a project unbuildable. See
-/// `specs/ide/settings.md`.
 public struct FallbackEngine: BuildEngine {
     public let primary: BuildEngine
     public let fallback: BuildEngine

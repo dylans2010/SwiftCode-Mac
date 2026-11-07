@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for CoreAudio
-
 public struct CoreAudioAPIEntity_0000: Sendable, Codable {
     public let id: String = "coreaudio.api.0"
     public var name: String = "CoreAudioEntity_0"

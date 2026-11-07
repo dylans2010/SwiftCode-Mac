@@ -8,8 +8,6 @@ import SwiftCodeProject
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// reference-ui-5.md §11.3 (P10): template contents, the save step's Group
-/// and Targets, and Choose Template…'s empty workspace window.
 @MainActor
 @Suite struct NewItemR35Tests {
     func temp(_ tag: String) throws -> URL {
@@ -45,7 +43,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         let dir = try temp("save")
         defer { try? FileManager.default.removeItem(at: dir) }
         var (url, proj) = try helloProject(in: dir)
-        // A second target, so the check can be told apart.
         proj.addTarget(.init(name: "Other", productType: "com.apple.product-type.tool", productPath: "Other", productFileType: "compiled.mach-o.executable",
                              settings: [], phases: ["PBXSourcesBuildPhase"]))
         let main = dir.appendingPathComponent("Hello/main.swift")
@@ -63,10 +60,8 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         a.setTarget("Other", checked: true)
         a.setTarget("Hello", checked: false)
         #expect(a.checkedTargets == ["Other"] && a.targetBoxes.map(\.state) == [.off, .on])
-        // A file of no target: the first target is checked.
         let none = SaveStepAccessory(proj: proj, xcodeprojURL: url, selectedFile: nil, directory: dir)
         #expect(none.checkedTargets == ["Hello"] && none.selectedGroup == 0)
-        // Created files join the checked targets' phases.
         var p: PBXProj? = proj
         let made = try FileTemplateCatalog.create(TemplateEntry("C File", ext: "c"), name: "util", in: main.deletingLastPathComponent(),
                                                   project: &p, xcodeprojURL: url, targets: ["Other"])
@@ -77,7 +72,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(files.count == 1 && written.fileReference(ofBuildFile: files[0])?.string("path") == "util.c")
         let hello = try #require(written.targets.first { $0.string("name") == "Hello" })
         #expect(written.buildPhases(ofTarget: hello.id).first { $0.isa == "PBXSourcesBuildPhase" }?.references("files").count == 2)
-        // A resource goes to Copy Bundle Resources when the target has one.
         _ = try FileTemplateCatalog.create(TemplateEntry("Asset Catalog", ext: "xcassets"), name: "Media", in: main.deletingLastPathComponent(),
                                            project: &p, xcodeprojURL: url, targets: ["Hello"])
         #expect(FileManager.default.fileExists(atPath: main.deletingLastPathComponent().appendingPathComponent("Media.xcassets/Contents.json").path))
@@ -89,7 +83,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(wc.session.model.kind == .workspace && wc.session.model.isUntitled)
         #expect(wc.window?.title == "Untitled")
         #expect(wc.session.model.root.children.isEmpty && wc.session.model.projects.isEmpty)
-        // It is a full workspace window: navigator, editor and inspector areas.
         _ = wc.window?.contentView
         #expect(wc.navigator.isViewLoaded || wc.navigator.view.superview != nil)
         wc.close()

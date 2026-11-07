@@ -1,19 +1,9 @@
-// Mapping REST v1 objects to the model (rest-api.md §5–§6). Units: the REST
-// API is metric (°C, km/h, degrees, mbar, m, mm, mm/h), and so are the
-// model values built here (api.md §6).
-//
-// Fields the Swift model has but v1 does not document get SwiftCode values,
-// listed in the package README: zero amounts and extremes, cloud cover by
-// altitude zero, day parts synthesized from the day when absent, dew point
-// from temperature and humidity (Magnus formula) when absent.
 import Foundation
 
 struct RESTMapper {
     let requestDate: Date
     let language: String
     let baseURL: URL
-
-    // MARK: Products
 
     func result(for product: WeatherProduct, in response: REST.Weather) throws -> WeatherProductResult {
         switch product {
@@ -58,8 +48,6 @@ struct RESTMapper {
     private func missing(_ name: String) -> WeatherBackendError {
         .malformedResponse("response has no \(name)")
     }
-
-    // MARK: Values
 
     func metadata(_ metadata: REST.Metadata) -> WeatherMetadata {
         WeatherMetadata(
@@ -149,7 +137,6 @@ struct RESTMapper {
             daytimeForecast: daytime, overnightForecast: overnight, restOfDayForecast: nil)
     }
 
-    /// A day part from REST, or synthesized from the day when absent.
     func dayPart(_ p: REST.DayPartForecast?, day d: REST.DayWeatherConditions, daylight: Bool, start: Date, end: Date)
         -> DayPartForecast
     {
@@ -214,10 +201,6 @@ struct RESTMapper {
         }
     }
 
-    // MARK: Enumerations (rest-api.md §6)
-
-    /// `conditionCode` is the case name in UpperCamelCase. Unknown codes fall
-    /// back by keyword (SwiftCode choice).
     static func condition(_ code: String) -> WeatherCondition {
         guard let first = code.first else { return .cloudy }
         let lowerCamel = first.lowercased() + code.dropFirst()
@@ -230,7 +213,6 @@ struct RESTMapper {
         return .cloudy
     }
 
-    /// `clear` → `none`, unspecified `precipitation` → `rain`.
     static func precipitation(_ type: String) -> Precipitation {
         switch type {
         case "clear": return .none
@@ -239,7 +221,6 @@ struct RESTMapper {
         }
     }
 
-    /// `thirdQuarter` → `lastQuarter`.
     static func moonPhase(_ phase: String) -> MoonPhase {
         phase == "thirdQuarter" ? .lastQuarter : (MoonPhase(rawValue: phase) ?? .new)
     }
@@ -247,8 +228,6 @@ struct RESTMapper {
     static func pressureTrend(_ trend: String) -> PressureTrend {
         PressureTrend(rawValue: trend) ?? .steady
     }
-
-    // MARK: Units and derived values
 
     static func celsius(_ value: Double) -> Measurement<UnitTemperature> { Measurement(value: value, unit: .celsius) }
     static func kmh(_ value: Double) -> Measurement<UnitSpeed> { Measurement(value: value, unit: .kilometersPerHour) }
@@ -266,7 +245,6 @@ struct RESTMapper {
             speed: kmh(speed), gust: gust.map(kmh))
     }
 
-    /// SwiftCode's intensity bands (mm/h): 0 none, < 2.5 light, < 7.6 moderate, else heavy.
     static func intensity(_ millimetersPerHour: Double) -> PrecipitationIntensityValue {
         let category: String
         switch millimetersPerHour {
@@ -278,7 +256,6 @@ struct RESTMapper {
         return PrecipitationIntensityValue(category: category, value: millimetersPerHour)
     }
 
-    /// Dew point from temperature (°C) and relative humidity (0…1), Magnus formula.
     static func dewPoint(temperature: Double, humidity: Double) -> Double {
         let b = 17.625, c = 243.04
         let gamma = log(max(humidity, 0.01)) + b * temperature / (c + temperature)
@@ -298,7 +275,6 @@ struct RESTMapper {
                 minimumLiquidEquivalent: type == .snow ? mm(total) : zero))
     }
 
-    /// SwiftCode's English sentence for the next hour (the public `summary`).
     static func summarySentence(_ periods: [REST.ForecastPeriodSummary], from start: Date?) -> String {
         guard let first = periods.first else { return "" }
         let firstKind = precipitation(first.condition)
@@ -321,7 +297,6 @@ struct RESTMapper {
         kind == .none ? "No precipitation" : CaseName.capitalized(kind.description)
     }
 
-    /// SwiftCode's condition × daylight → SF Symbols name table (design.md §5).
     static func symbolName(_ condition: WeatherCondition, daylight: Bool) -> String {
         switch condition {
         case .clear, .hot: return daylight ? "sun.max" : "moon.stars"

@@ -1,5 +1,3 @@
-// Shared helpers. All data here is made up; no real calendars are read.
-
 import Foundation
 import Testing
 @testable import EventKit
@@ -8,7 +6,6 @@ let newYork = TimeZone(identifier: "America/New_York")!
 let tokyo = TimeZone(identifier: "Asia/Tokyo")!
 let berlin = TimeZone(identifier: "Europe/Berlin")!
 
-/// A store on a fresh database in its own temporary directory.
 final class TestStore {
     let dir: URL
     let url: URL
@@ -22,7 +19,6 @@ final class TestStore {
             databaseURL: url, timeZone: zone, eventAccess: events, reminderAccess: reminders))
     }
 
-    /// Another store instance on the same database.
     func another(zone: TimeZone = newYork, events: EKAuthorizationStatus = .fullAccess,
                  reminders: EKAuthorizationStatus = .fullAccess) -> EKEventStore {
         EKEventStore(swiftcodeConfiguration: SwiftCodeEventStoreConfiguration(
@@ -37,7 +33,6 @@ final class TestStore {
     }
 }
 
-/// `"2026-10-26 12:30"` (optionally with seconds) read in `zone`.
 func date(_ text: String, _ zone: TimeZone = .utc) -> Date {
     let p = text.split(whereSeparator: { " -:T".contains($0) }).compactMap { Int($0) }
     return LocalDateTime(year: p[0], month: p[1], day: p[2], hour: p.count > 3 ? p[3] : 0,
@@ -46,7 +41,6 @@ func date(_ text: String, _ zone: TimeZone = .utc) -> Date {
 
 func ny(_ text: String) -> Date { date(text, newYork) }
 
-/// `"MM-dd HH:mm"` style UTC rendering used to compare with golden tables.
 func utcText(_ d: Date) -> String {
     let l = LocalDateTime(date: d, zone: .utc)
     return String(format: "%04d-%02d-%02d %02d:%02d", l.year, l.month, l.day, l.hour, l.minute)
@@ -57,7 +51,6 @@ func localText(_ d: Date, _ zone: TimeZone) -> String {
     return String(format: "%04d-%02d-%02d %02d:%02d:%02d", l.year, l.month, l.day, l.hour, l.minute, l.second)
 }
 
-/// A new event in the default calendar.
 func makeEvent(_ store: EKEventStore, _ title: String, start: Date, minutes: Double = 60,
                zone: TimeZone? = newYork) -> EKEvent {
     let e = EKEvent(eventStore: store)
@@ -69,7 +62,6 @@ func makeEvent(_ store: EKEventStore, _ title: String, start: Date, minutes: Dou
     return e
 }
 
-/// Occurrences of the events titled `title`, sorted by start.
 func occurrences(_ store: EKEventStore, _ title: String, from: Date = date("2026-01-01"),
                  to: Date = date("2029-12-31")) -> [EKEvent] {
     let p = store.predicateForEvents(withStart: from, end: to, calendars: nil)
@@ -93,8 +85,6 @@ func expectCode(_ code: EKError.Code, _ body: () throws -> Void, sourceLocation:
 private let mainKey = DispatchSpecificKey<Bool>()
 private let mainKeyOnce: Void = { DispatchQueue.main.setSpecific(key: mainKey, value: true) }()
 
-/// Counts EKEventStoreChanged notifications for one store and checks that
-/// each arrives on the main queue.
 final class NotificationCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var _count = 0
@@ -120,8 +110,6 @@ final class NotificationCounter: @unchecked Sendable {
     var offMain: Int { lock.lock(); defer { lock.unlock() }; return _offMain }
     var lastInfo: [AnyHashable: Any]? { lock.lock(); defer { lock.unlock() }; return _lastInfo }
 
-    /// Lets queued main-queue deliveries run (and, with `wait`, the
-    /// cross-process poller fire).
     func settle(wait seconds: Double = 0) async {
         if seconds > 0 { try? await Task.sleep(nanoseconds: UInt64(seconds * 1e9)) }
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in

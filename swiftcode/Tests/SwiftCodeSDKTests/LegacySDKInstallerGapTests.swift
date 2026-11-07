@@ -1,46 +1,6 @@
 import XCTest
 @testable import SwiftCodeSDK
 
-// MARK: - Legacy SDK installer gap tests (Wave 18)
-//
-// Ported from Legacy `SwiftCode/SDK/Host/SDKInstallerTests.swift`
-// (Dylan's own code; direct port authorised under MIT), adapted to the
-// SwiftCode shape: `SDKInstaller.inspect` / `install(options:)` with an
-// injectable `npmExecutable`, so the npm half is exercised with a stub
-// shell script instead of a real npm.
-//
-// What is ported here — the Legacy install cases `SDKInstallerTests`
-// does NOT already cover:
-//   - inspect: corrupt when the version field is missing, and when
-//     the name field is missing (the entrypoint/wrong-package cases
-//     are already `testCorruptWhenEntriesMissing` /
-//     `testCorruptWhenWrongPackage`);
-//   - install succeeds with a stub npm that writes a valid package
-//     (success is reported only after `inspect` verifies it — the
-//     core of Legacy's `testInstallSuccess`);
-//   - install fails when the stub npm exits 0 but writes nothing
-//     (Legacy's `testInstallFailsWhenNpmSucceedsButVerificationFails`);
-//   - install fails honestly when the stub npm exits non-zero even
-//     though it wrote files, and the real error text survives in the
-//     log (Legacy's `testFailedNpmCannotReportSuccessEvenIfItWroteFiles`
-//     + `testInstallFailureReportsRealErrorText`);
-//   - install falls back to the bundled copy when GitHub is
-//     unreachable (Legacy's `testInstallFallsBackWhenGitHubUnreachable`).
-//
-// Deliberately NOT ported:
-//   - `testRealBundledTarballInstallsAndImports` and
-//     `testRealRemoteDownloadOrBundledFallbackImports`: no SDK tarball
-//     ships in this repo (`testBundledFallbackIsAbsentWithReason`
-//     pins that) and tests must not hit the network.
-//   - `testInstallIsIdempotentWhenAlreadyOK` and
-//     `testInstallFailsHonestlyWhenUnreachableAndNoFallback`: already
-//     `testInstallShortCircuitsWhenAlreadyOk` and
-//     `testInstallFailsHonestlyWithNoSource`.
-//
-// No Swift toolchain exists in this environment, so these tests have
-// NOT been compiled or run — statically verified only. On Dylan's Mac:
-// run with `swift test --filter LegacySDKInstallerGapTests`.
-
 final class LegacySDKInstallerGapTests: XCTestCase {
 
     private func makePrefix() -> URL {
@@ -74,10 +34,6 @@ final class LegacySDKInstallerGapTests: XCTestCase {
         }
     }
 
-    /// A stub npm: a shell script run as the npm binary. `install`
-    /// receives `install <source> --prefix <prefix> ...`, so the
-    /// prefix is `$4`. Writes `body` to `<dir>/<name>` and marks it
-    /// executable.
     private func writeFakeNPM(named name: String, in dir: URL, body: String) throws -> URL {
         let url = dir.appendingPathComponent(name)
         try body.write(to: url, atomically: true, encoding: .utf8)
@@ -131,8 +87,6 @@ final class LegacySDKInstallerGapTests: XCTestCase {
         return options
     }
 
-    // MARK: - Inspection
-
     func testInspectCorruptWhenVersionMissing() throws {
         let prefix = makePrefix()
         defer { try? FileManager.default.removeItem(at: prefix) }
@@ -157,13 +111,10 @@ final class LegacySDKInstallerGapTests: XCTestCase {
         XCTAssertTrue(reason.contains("@swiftcode/sdk"), reason)
     }
 
-    // MARK: - Install with a stub npm
-
     func testInstallSucceedsWithStubNpmAfterVerification() async throws {
         let prefix = makePrefix()
         defer { try? FileManager.default.removeItem(at: prefix) }
         let npm = try writeFakeNPM(named: "npm-success", in: prefix, body: successScript)
-        // A non-existent fallback must not trigger a retry path.
         let noFallback = prefix.appendingPathComponent("does-not-exist.tgz")
         let result = await SDKInstaller.install(
             options: options(prefix: prefix, npm: npm, reachable: true, fallback: noFallback))
@@ -195,13 +146,8 @@ final class LegacySDKInstallerGapTests: XCTestCase {
         XCTAssertFalse(result.success)
         XCTAssertFalse(result.usedFallback)
         XCTAssertTrue(result.message.contains("exited with code 1"), result.message)
-        // The real error text survives in the log, verbatim.
         XCTAssertTrue(result.log.joined(separator: "\n").contains("fake registry failure"),
                       result.log.joined(separator: "\n"))
-        // And the files the failed npm wrote do not turn the install
-        // into a success: the verification gate, not npm's exit code
-        // alone, decides — but here npm itself failed, so the install
-        // must fail even though a valid package is now on disk.
         XCTAssertEqual(SDKInstaller.inspect(prefix: prefix), .ok(version: "1.0.0"))
     }
 
@@ -209,9 +155,6 @@ final class LegacySDKInstallerGapTests: XCTestCase {
         let prefix = makePrefix()
         defer { try? FileManager.default.removeItem(at: prefix) }
         let npm = try writeFakeNPM(named: "npm-success", in: prefix, body: successScript)
-        // The fallback must exist on disk for the installer to use it;
-        // an empty directory stands in for the bundled copy here, and
-        // the stub npm does the (simulated) install from it.
         let fallbackDir = prefix.appendingPathComponent("bundled-fallback", isDirectory: true)
         try FileManager.default.createDirectory(at: fallbackDir, withIntermediateDirectories: true)
         let result = await SDKInstaller.install(

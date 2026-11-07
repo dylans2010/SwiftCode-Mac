@@ -1,6 +1,3 @@
-// C-CN-FORMAT formats.md §1 (CNContactFormatter, F1–F24) and §2
-// (CNPostalAddressFormatter, P1–P14).
-
 import Foundation
 import Testing
 @testable import Contacts
@@ -46,7 +43,6 @@ private func n(_ id: String, _ p: String = "", g: String = "", m: String = "", f
 let G = CNContactGivenNameKey, F = CNContactFamilyNameKey, M = CNContactMiddleNameKey
 let P = CNContactNamePrefixKey, S = CNContactNameSuffixKey, O = CNContactOrganizationNameKey
 
-/// formats.md §1.2, rows F1–F24 (made-up input).
 let nameCases: [NameCase] = [
     n("F1", g: "Avery", f: "Example", full: "Avery Example", runs: [G, F]),
     n("F2", "Dr.", g: "Avery", m: "Quinn", f: "Example", s: "Jr.", full: "Dr. Avery Quinn Example Jr.", runs: [P, G, M, F, S]),
@@ -132,8 +128,6 @@ struct ContactFormatterTests {
     }
 }
 
-// MARK: - Postal addresses
-
 struct PostalCase: CustomTestStringConvertible, Sendable {
     let id: String
     let code: String
@@ -155,7 +149,6 @@ private func p(_ id: String, _ code: String, street: String = "", subLocality: S
                postal: postal, country: country, expected: expected)
 }
 
-/// formats.md §2, rows P1–P14 (made-up addresses).
 let postalCases: [PostalCase] = [
     p("P1", "us", street: "123 Example Street\nApt 4", city: "Springfield", state: "IL", postal: "62701", country: "United States",
       "123 Example Street\nApt 4\nSpringfield IL 62701\nUnited States"),

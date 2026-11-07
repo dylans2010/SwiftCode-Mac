@@ -1,13 +1,6 @@
 import Foundation
 import OVRender
 
-// Shapes (round R5): the `Shape` protocol, the built-in shapes, fill and
-// stroke styles, and the views shapes become. A shape used as a view fills
-// itself with the foreground style; `fill`, `stroke` and `strokeBorder`
-// choose the style. Layout follows 04 §2 (shapes take the proposal, nil →
-// 10; `Circle` answers a square).
-
-/// How a path is filled.
 public struct FillStyle: Equatable, Sendable {
     public var isEOFilled: Bool
     public var isAntialiased: Bool
@@ -17,7 +10,6 @@ public struct FillStyle: Equatable, Sendable {
     }
 }
 
-/// How a path is stroked.
 public struct StrokeStyle: Equatable, Sendable {
     public var lineWidth: CGFloat
     public var lineCap: CGLineCap
@@ -55,27 +47,21 @@ extension StrokeStyle: Animatable {
 }
 
 #if !canImport(CoreGraphics)
-/// Line cap styles (CoreGraphics names).
 public enum CGLineCap: Int32, Sendable {
     case butt, round, square
 }
 
-/// Line join styles (CoreGraphics names).
 public enum CGLineJoin: Int32, Sendable {
     case miter, round, bevel
 }
 #endif
 
-/// What a shape is used for.
 public enum ShapeRole: Hashable, Sendable {
     case fill, stroke, separator
 }
 
-/// A 2-D shape: a path in a rectangle.
 public protocol Shape: Sendable, Animatable, View {
     nonisolated func path(in rect: CGRect) -> Path
-    /// The size the shape takes for a proposal (default: the proposal, nil
-    /// dimensions → 10).
     nonisolated func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize
     nonisolated static var role: ShapeRole { get }
 }
@@ -86,27 +72,19 @@ extension Shape {
 }
 
 extension Shape {
-    /// A shape used as a view fills itself with the foreground style.
     public var body: _ShapeView<Self, ForegroundStyle> { _ShapeView(shape: self, style: ForegroundStyle()) }
 }
 
-/// A shape that can be inset (and stroked inside its bounds).
 public protocol InsettableShape: Shape {
     associatedtype InsetShape: InsettableShape
     nonisolated func inset(by amount: CGFloat) -> InsetShape
 }
 
-/// How a shape view paints its shape.
 package enum ShapeDrawMode: Equatable, Sendable {
     case fill(FillStyle)
     case stroke(StrokeStyle)
 }
 
-/// A shape drawn with a style: the view `fill`, `stroke` and a bare shape
-/// produce.
-/// Views that draw only an outline: they take no hits (QA B2: a border or
-/// a stroked overlay blocked the taps of the views below it) unless a
-/// `contentShape` says otherwise.
 @MainActor package protocol StrokeOnlyDrawing {
     var _drawsOnlyStroke: Bool { get }
 }
@@ -146,8 +124,6 @@ extension _ShapeView: PrimitiveView {
     }
 }
 
-/// The drawing of a shape view: the path in the node's bounds, filled or
-/// stroked with the style resolved for those bounds.
 package func shapeDraw<S: Shape>(shape: S, style: any ShapeStyle, mode: ShapeDrawMode, environment: EnvironmentValues) -> NodeDraw {
     { rec, size in
         let rect = CGRect(origin: .zero, size: size)
@@ -160,7 +136,6 @@ package func shapeDraw<S: Shape>(shape: S, style: any ShapeStyle, mode: ShapeDra
     }
 }
 
-/// A shape view's layout: the shape's own `sizeThatFits`.
 package struct ShapeViewLeaf: NodeBehavior {
     let fits: (ProposedViewSize) -> CGSize
     nonisolated package func sizeThatFits(_ p: ProposedViewSize, node: LayoutNode) -> CGSize { fits(p) }
@@ -189,8 +164,6 @@ extension Shape {
 
     public func stroke(lineWidth: CGFloat = 1) -> _ShapeView<Self, ForegroundStyle> { stroke(style: StrokeStyle(lineWidth: lineWidth)) }
 
-    /// The part of the outline between fractions `from` and `to` of its
-    /// length.
     public func trim(from startFraction: CGFloat = 0, to endFraction: CGFloat = 1) -> some Shape {
         _TrimmedShape(shape: self, startFraction: startFraction, endFraction: endFraction)
     }
@@ -262,7 +235,6 @@ package struct _AnchoredShape<S: Shape>: Shape {
     nonisolated package func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize { shape.sizeThatFits(proposal) }
 }
 
-/// A shape with an affine transform applied to its path.
 public struct TransformedShape<Content: Shape>: Shape {
     public var shape: Content
     public var transform: CGAffineTransform
@@ -274,7 +246,6 @@ public struct TransformedShape<Content: Shape>: Shape {
     nonisolated public func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize { shape.sizeThatFits(proposal) }
 }
 
-/// A type-erased shape.
 public struct AnyShape: Shape {
     private let pathIn: @Sendable (CGRect) -> Path
     private let fits: @Sendable (ProposedViewSize) -> CGSize
@@ -290,9 +261,6 @@ extension Path: Shape {
     nonisolated public func path(in rect: CGRect) -> Path { self }
 }
 
-// MARK: - Built-in shapes
-
-/// A rectangle filling its bounds.
 public struct Rectangle: InsettableShape {
     package var insetAmount: CGFloat = 0
     public init() {}
@@ -304,7 +272,6 @@ public struct Rectangle: InsettableShape {
     }
 }
 
-/// A rectangle with rounded corners.
 public struct RoundedRectangle: InsettableShape {
     public var cornerSize: CGSize
     public var style: RoundedCornerStyle
@@ -332,7 +299,6 @@ public struct RoundedRectangle: InsettableShape {
     }
 }
 
-/// A rectangle with a radius per corner.
 public struct UnevenRoundedRectangle: InsettableShape {
     public var cornerRadii: RectangleCornerRadii
     public var style: RoundedCornerStyle
@@ -359,7 +325,6 @@ public struct UnevenRoundedRectangle: InsettableShape {
     }
 }
 
-/// A rounded rectangle whose corner radius is half its shorter side.
 public struct Capsule: InsettableShape {
     public var style: RoundedCornerStyle
     package var insetAmount: CGFloat = 0
@@ -367,7 +332,6 @@ public struct Capsule: InsettableShape {
     nonisolated public func path(in rect: CGRect) -> Path {
         let r = rect.insetBy(dx: insetAmount, dy: insetAmount)
         let radius = min(r.width, r.height) / 2
-        // A capsule's ends are semicircles in either corner style.
         return Path(roundedRect: r, cornerRadius: radius, style: .circular)
     }
     nonisolated public func inset(by amount: CGFloat) -> Capsule {
@@ -377,7 +341,6 @@ public struct Capsule: InsettableShape {
     }
 }
 
-/// An ellipse filling its bounds.
 public struct Ellipse: InsettableShape {
     package var insetAmount: CGFloat = 0
     public init() {}
@@ -389,7 +352,6 @@ public struct Ellipse: InsettableShape {
     }
 }
 
-/// A circle centred in its bounds, as large as the shorter side.
 public struct Circle: InsettableShape {
     package var insetAmount: CGFloat = 0
     public init() {}
@@ -398,8 +360,6 @@ public struct Circle: InsettableShape {
         guard d > 0 else { return Path() }
         return Path(ellipseIn: CGRect(x: rect.midX - d / 2, y: rect.midY - d / 2, width: d, height: d))
     }
-    /// A square of the smaller proposed dimension; one nil → the other; both
-    /// nil → 10 × 10 (04 §2; golden `circle`).
     nonisolated public func sizeThatFits(_ p: ProposedViewSize) -> CGSize {
         switch (p.width, p.height) {
         case (nil, nil): return CGSize(width: 10, height: 10)

@@ -1,14 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Set Up Headset… (`specs/ide/device-hub.md` §I.12): the onboarding as a
-/// paged assistant (`liquid-glass-swiftcode.md` §11). Page dots show every
-/// step's state and jump to it; each page has the step's glyph, title and
-/// summary, then its checks in a grouped box — each with its state, the
-/// reason, and its fix: a command to copy and run yourself, words, Install on
-/// Headset… or Connect. Back, Re-check and Continue (Finish on the last
-/// step) are in the footer. The first step also holds the choices (viewer
-/// host, viewer, connection).
 @MainActor
 public final class HeadsetSetupWindowController: NSWindowController, NSWindowDelegate, NSTextFieldDelegate {
     unowned let hub: DevicesController
@@ -16,10 +8,8 @@ public final class HeadsetSetupWindowController: NSWindowController, NSWindowDel
     var onClose: (() -> Void)?
     let assistant = SetupAssistant(footnote: ExperimentalNotice.headset, footnoteID: "headset-experimental",
                                    statusID: "headset-action-status", dotsID: "headset-steps-panel")
-    /// The step the page shows (a change moves the page).
     private var shownStep: HeadsetSetupStep?
     private var connectionPoll: Timer?
-    // The first step's choices.
     let hostField = NSTextField()
     let viewerField = NSTextField()
     let simulatorField = NSTextField()
@@ -29,14 +19,13 @@ public final class HeadsetSetupWindowController: NSWindowController, NSWindowDel
     init(hub: DevicesController) {
         self.hub = hub
         let w = SetupAssistant.makeWindow(title: "Set Up Headset")
-        w.isExcludedFromWindowsMenu = true  // a helper of the hub, as its sheets are
+        w.isExcludedFromWindowsMenu = true
         super.init(window: w)
         w.delegate = self
         build()
         if let r = hub.headset.report { step = r.isReady ? .connect : r.firstProblemStep }
         refresh()
         w.center()
-        // The live connection state while the window is open.
         connectionPoll = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.step == .connect, self.hub.headset.checkTask == nil, self.window?.isVisible == true else { return }
@@ -52,8 +41,6 @@ public final class HeadsetSetupWindowController: NSWindowController, NSWindowDel
         connectionPoll?.invalidate()
         onClose?()
     }
-
-    // MARK: Navigation (tests drive these)
 
     public func show(_ s: HeadsetSetupStep) {
         step = s
@@ -75,14 +62,10 @@ public final class HeadsetSetupWindowController: NSWindowController, NSWindowDel
         return t
     }
 
-    /// Continue / Finish (tests).
     var primaryButton: NSButton { assistant.continueButton }
     var backButton: NSButton { assistant.backButton }
 
-    /// The selected step's check rows (tests).
     public var shownChecks: [HeadsetCheck] { hub.headset.report?.checks(in: step) ?? [] }
-
-    // MARK: Views
 
     private func build() {
         guard let root = window?.contentView else { return }
@@ -133,7 +116,6 @@ public final class HeadsetSetupWindowController: NSWindowController, NSWindowDel
         }
     }
 
-    /// A step's state: ok when every check is, missing when one is.
     func state(of s: HeadsetSetupStep) -> HeadsetCheckState? {
         hub.headset.report.map { r in
             let cs = r.checks(in: s)
@@ -142,7 +124,6 @@ public final class HeadsetSetupWindowController: NSWindowController, NSWindowDel
         }
     }
 
-    /// Rebuilds the window from the hub's report.
     func refresh() {
         let report = hub.headset.report
         let checking = hub.headset.checkTask != nil

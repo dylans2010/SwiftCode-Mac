@@ -7,26 +7,18 @@ import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeSyntax
 
-/// Settings ▸ Appearance: System, Light or Dark; the editor theme with a
-/// live preview; the selected user theme's colors and font sizes;
-/// Duplicate, Delete, Import… and Export… (`specs/ide/settings.md`
-/// §Appearance). Built-in themes are read-only.
 struct AppearanceSettingsPane: View {
     @State private var importing = false
     @State private var exporting = false
     @State private var failure: String?
     @Environment(\.colorScheme) private var scheme
 
-    /// The color rows: a title and the theme entry it edits (token kinds by
-    /// raw name; "foreground", "background", "selection", "currentLine"
-    /// are the theme's own colors).
     static let colorRows: [(title: String, key: String)] = [
         ("Plain Text", "foreground"), ("Comments", "comment"), ("Documentation Comments", "docComment"), ("Strings", "string"),
         ("Numbers", "number"), ("Keywords", "keyword"), ("Preprocessor Statements", "preprocessor"), ("Attributes", "attribute"),
         ("Type Names", "typeName"), ("Background", "background"), ("Selection", "selection"), ("Current Line", "currentLine"),
     ]
 
-    /// The preview's code (SwiftCode's own sample).
     static let previewCode = """
     /// A greeting, said once.
     struct Greeter {
@@ -101,7 +93,6 @@ struct AppearanceSettingsPane: View {
         }
     }
 
-    /// Runs a theme operation, showing its failure under the form.
     func run<T>(_ f: () throws -> T) {
         do {
             _ = try f()
@@ -111,7 +102,6 @@ struct AppearanceSettingsPane: View {
         }
     }
 
-    /// The color a row's swatch shows: the theme's, else the palette's.
     static func shownColor(_ key: String, _ p: SourcePalette) -> ThemeColor {
         switch key {
         case "foreground": p.foreground
@@ -123,7 +113,6 @@ struct AppearanceSettingsPane: View {
     }
 }
 
-/// System / Light / Dark as three small window pictures.
 struct AppearanceChooser: View {
     @Environment(\.colorScheme) private var scheme
 
@@ -152,7 +141,6 @@ struct AppearanceChooser: View {
         }
     }
 
-    /// A window drawn light, dark or split (System).
     @ViewBuilder static func thumbnail(_ a: Preferences.Appearance) -> some View {
         let light = Color(.sRGB, red: 0.93, green: 0.93, blue: 0.94)
         let dark = Color(.sRGB, red: 0.18, green: 0.18, blue: 0.2)
@@ -170,7 +158,6 @@ struct AppearanceChooser: View {
     }
 }
 
-/// The sample code in a palette.
 struct ThemePreview: View {
     var palette: SourcePalette
     var fontSize: Double
@@ -179,8 +166,6 @@ struct ThemePreview: View {
         let size = CGFloat(min(fontSize, 16))
         let lineHeight = (size * 1.45).rounded()
         let lines = AppearanceSettingsPane.previewLines
-        // Drawn run by run at character columns (monospaced), as the
-        // editor draws: separate texts would lose their spaces.
         Canvas { ctx, _ in
             let font = ShellFonts.editor(size)
             let advance = ctx.resolve(Text(verbatim: "MMMMMMMMMM").font(font)).measure(in: CGSize(width: 10_000, height: 100)).width / 10
@@ -206,8 +191,6 @@ struct ThemePreview: View {
     }
 }
 
-/// One color of the selected theme: a swatch and its #RRGGBB text,
-/// editable for user themes (a valid value is saved as typed).
 struct ThemeColorRow: View {
     var title: String
     var key: String
@@ -276,7 +259,6 @@ struct ThemeColorRow: View {
     }
 }
 
-/// A `.swiftcodetheme` file for the file dialogs.
 struct ThemeDocument: FileDocument {
     static let themeType = UTType(filenameExtension: "swiftcodetheme", conformingTo: .json) ?? .json
     static var readableContentTypes: [UTType] { [themeType, .json] }

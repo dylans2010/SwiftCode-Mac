@@ -85,7 +85,6 @@ public final class SourceControlService: Sendable {
         for line in lines {
             if line.hasPrefix("## ") {
                 let header = String(line.dropFirst(3))
-                // parse branch info: e.g. "main...origin/main [ahead 1, behind 2]"
                 let parts = header.components(separatedBy: "...")
                 currentBranch = parts.first?.trimmingCharacters(in: .whitespaces) ?? "HEAD"
                 if parts.count > 1 {

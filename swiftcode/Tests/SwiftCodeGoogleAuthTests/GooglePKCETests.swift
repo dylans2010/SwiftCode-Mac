@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeGoogleAuth
 
-// PKCE (RFC 7636), the authorize URL, callback parsing, id-token
-// email extraction, and loopback URL parsing. No network, no
-// browser, no listener: every function under test is pure.
-
 struct GooglePKCETests {
 
     @Test("The RFC 7636 Appendix B vector: verifier dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk challenges to E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
@@ -30,7 +26,6 @@ struct GooglePKCETests {
 
     @Test("Base64url encoding strips padding and replaces + and /")
     func base64URLEncoding() {
-        // 0xfb 0xff 0xfe encodes to "+//+" in standard base64.
         #expect(GooglePKCE.base64URLEncode(Data([0xfb, 0xff, 0xfe])) == "-__-")
         #expect(GooglePKCE.base64URLEncode(Data("abc".utf8)) == "YWJj")
     }

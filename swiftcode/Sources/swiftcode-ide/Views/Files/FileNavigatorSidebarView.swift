@@ -1,15 +1,6 @@
-// FileNavigatorSidebarView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Sidebar/FileNavigatorSidebarView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: context-menu actions Open in Terminal, Open in New Tab/Window, Open in External Editor, Open in Xcode, Bookmark File, Add Reference to Project; git status decorations on rows
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, GitViewModel, OpenConfiguration, ProjectTreeViewModel, ViewModifier, VisualEffectView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 import AppKit
-
-// MARK: - FileSymbolsShow (Central symbol registry with AppSettings integration)
 
 @MainActor
 public struct FileSymbolsShow {
@@ -86,8 +77,6 @@ public struct FileSymbolsShow {
     }
 }
 
-// MARK: - Reusable Trackpad Double Click Interaction Modifier
-
 struct FileDoubleClickHandlerModifier: ViewModifier {
     let action: () -> Void
 
@@ -105,8 +94,6 @@ extension View {
     }
 }
 
-// MARK: - FileNavigatorSidebarView
-
 @MainActor
 struct FileNavigatorSidebarView: View {
     @Bindable var viewModel: ProjectTreeViewModel
@@ -120,11 +107,9 @@ struct FileNavigatorSidebarView: View {
     @State private var isCreatingFolder = false
     @State private var showingFileTemplates = false
 
-    // Inline Rename State
     @State private var renamingNodeID: String? = nil
     @State private var inlineRenameText = ""
 
-    // Legacy sheet structures maintained for robust backup
     @State private var showingRenameSheet = false
     @State private var selectedNodeForRename: ProjectNode?
     @State private var renameText = ""
@@ -156,7 +141,6 @@ struct FileNavigatorSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // macOS Native Search Header
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -181,7 +165,6 @@ struct FileNavigatorSidebarView: View {
             .padding(.vertical, 8)
             .background(.ultraThinMaterial)
 
-            // Dynamic Action Bar Header
             HStack(spacing: 12) {
                 Button(action: { showingFileTemplates = true }) {
                     Image(systemName: "plus")
@@ -220,7 +203,6 @@ struct FileNavigatorSidebarView: View {
                 Divider(), alignment: .bottom
             )
 
-            // Modern Navigation Sidebar List
             List(selection: $viewModel.selectedNodeID) {
                 if let error = viewModel.loadError {
                     Text(error)
@@ -229,18 +211,15 @@ struct FileNavigatorSidebarView: View {
                         .padding()
                 }
 
-                // Project Tree Section
                 if let rootNode = viewModel.rootNode {
                     Section(header: Text("PROJECT FILES")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)) {
                             if !searchText.isEmpty {
-                                // Search active: display flattened filtered matches
                                 ForEach(flattenedAndFilteredNodes(root: rootNode)) { node in
                                     fileRow(for: node, indent: 0)
                                 }
                             } else {
-                                // Normal tree disclosure view hierarchy
                                 ProjectTreeNodeView(
                                     node: rootNode,
                                     viewModel: viewModel,
@@ -312,7 +291,6 @@ struct FileNavigatorSidebarView: View {
                 appendToRecents(path: id)
             }
         }
-        // Delete Confirmation Dialog
         .confirmationDialog(
             "Delete \(selectedNodeForDelete?.url.lastPathComponent ?? "")?",
             isPresented: $showingDeleteConfirm,
@@ -331,7 +309,6 @@ struct FileNavigatorSidebarView: View {
         } message: {
             Text("This action cannot be undone. The file or folder will be removed permanently from disk.")
         }
-        // Double Click Workflow Popover
         .popover(isPresented: $showingWorkflowPopover, attachmentAnchor: .rect(.bounds)) {
             if let node = selectedNodeForWorkflow {
                 VStack(alignment: .leading, spacing: 8) {
@@ -472,8 +449,6 @@ struct FileNavigatorSidebarView: View {
         }
     }
 
-    // MARK: - Double-Click & Context Actions
-
     private func openTerminal(at url: URL) {
         let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
         let targetDir = isDir ? url : url.deletingLastPathComponent()
@@ -531,8 +506,6 @@ struct FileNavigatorSidebarView: View {
         }
     }
 
-    // MARK: - Helper Views & Operations
-
     @ViewBuilder
     private func fileRow(for node: ProjectNode, indent: CGFloat) -> some View {
         HStack(spacing: 8) {
@@ -558,7 +531,6 @@ struct FileNavigatorSidebarView: View {
 
             Spacer()
 
-            // Git Decoration Badges
             if let decoration = gitDecoration(for: node) {
                 Text(decoration.label)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
@@ -569,7 +541,6 @@ struct FileNavigatorSidebarView: View {
                     .cornerRadius(4)
             }
 
-            // Favorite Star indicator
             if favorites.contains(node.url.path) {
                 Image(systemName: "star.fill")
                     .font(.caption2)
@@ -663,7 +634,6 @@ struct FileNavigatorSidebarView: View {
 
     private func gitDecoration(for node: ProjectNode) -> (label: String, color: Color)? {
         guard let gitStatus = workspaceViewModel.git.status else { return nil }
-        // Find matching status record for this node's path
         if let match = gitStatus.files.first(where: { $0.path.path == node.url.path }) {
             switch match.status {
             case .modified:
@@ -814,8 +784,6 @@ struct FileNavigatorSidebarView: View {
     }
 }
 
-// MARK: - ProjectTreeNodeView
-
 struct ProjectTreeNodeView: View {
     let node: ProjectNode
     @Bindable var viewModel: ProjectTreeViewModel
@@ -909,7 +877,6 @@ struct ProjectTreeNodeView: View {
 
             Spacer()
 
-            // Git Badges
             if let decoration = gitDecoration() {
                 Text(decoration.label)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
@@ -920,7 +887,6 @@ struct ProjectTreeNodeView: View {
                     .cornerRadius(4)
             }
 
-            // Favorite Indicator
             if favorites.contains(node.url.path) {
                 Image(systemName: "star.fill")
                     .font(.caption2)

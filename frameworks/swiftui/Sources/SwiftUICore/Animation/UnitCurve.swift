@@ -1,12 +1,5 @@
 import Foundation
 
-/// A function from progress (0…1) to completion (0…1), used to time
-/// animations (05-animation.md §2).
-///
-/// Built-in curves are cubic Béziers from (0, 0) to (1, 1) with the control
-/// points of 05 §2 (easeIn (0.42, 0)–(1, 1), easeOut (0, 0)–(0.58, 1),
-/// easeInOut (0.42, 0)–(0.58, 1)), plus the circular curves
-/// 1 − √(1 − t²), √(1 − (1 − t)²) and their piecewise combination.
 public struct UnitCurve: Hashable, Sendable {
     fileprivate indirect enum Storage: Hashable, Sendable {
         case bezier(CGPoint, CGPoint)
@@ -20,8 +13,6 @@ public struct UnitCurve: Hashable, Sendable {
 
     fileprivate init(_ storage: Storage) { self.storage = storage }
 
-    /// A cubic Bézier curve from (0, 0) to (1, 1) with the given control
-    /// points (x coordinates are clamped to 0…1 so the curve is a function).
     public static func bezier(startControlPoint: UnitPoint, endControlPoint: UnitPoint) -> UnitCurve {
         UnitCurve(.bezier(CGPoint(x: min(max(startControlPoint.x, 0), 1), y: startControlPoint.y),
                           CGPoint(x: min(max(endControlPoint.x, 0), 1), y: endControlPoint.y)))
@@ -37,18 +28,14 @@ public struct UnitCurve: Hashable, Sendable {
     public static let circularEaseOut = UnitCurve(.circularOut)
     public static let circularEaseInOut = UnitCurve(.circularInOut)
 
-    /// The curve's value at `progress` (clamped to 0…1).
     public func value(at progress: Double) -> Double {
         storage.value(min(max(progress, 0), 1))
     }
 
-    /// The curve's slope at `progress` (infinite at the steep ends of the
-    /// circular curves).
     public func velocity(at progress: Double) -> Double {
         storage.velocity(min(max(progress, 0), 1))
     }
 
-    /// The inverse function (maps a value back to its progress).
     public var inverse: UnitCurve {
         switch storage {
         case .bezier(let a, let b):
@@ -73,7 +60,6 @@ private extension UnitCurve.Storage {
             return t < 0.5 ? 0.5 * UnitCurve.Storage.circularIn.value(2 * t)
                            : 0.5 + 0.5 * UnitCurve.Storage.circularOut.value(2 * t - 1)
         case .inverse(let s):
-            // Bisection on the monotonic base curve.
             var lo = 0.0, hi = 1.0
             for _ in 0..<60 {
                 let mid = (lo + hi) / 2
@@ -86,14 +72,11 @@ private extension UnitCurve.Storage {
     func velocity(_ t: Double) -> Double {
         switch self {
         case .bezier(let p1, let p2):
-            if p1 == .zero && p2 == CGPoint(x: 1, y: 1) { return 1 }  // linear
+            if p1 == .zero && p2 == CGPoint(x: 1, y: 1) { return 1 }
             let b = Bezier(p1, p2)
             let s = b.solveX(t)
             let dx = b.dx(s), dy = b.dy(s)
             if abs(dx) < 1e-12 {
-                // A control point on an end point makes both derivatives
-                // vanish there. Observed (05 §2): such an end reports 1 at
-                // the start (easeOut) and 0 at the end (easeIn).
                 if abs(dy) < 1e-12 { return t < 0.5 ? 1 : 0 }
                 return .infinity
             }
@@ -114,9 +97,7 @@ private extension UnitCurve.Storage {
     }
 }
 
-/// A cubic Bézier with end points (0, 0) and (1, 1).
 private struct Bezier {
-    // Polynomial coefficients: f(s) = ((a·s + b)·s + c)·s.
     let ax, bx, cx, ay, by, cy: Double
 
     init(_ p1: CGPoint, _ p2: CGPoint) {
@@ -133,7 +114,6 @@ private struct Bezier {
     func dx(_ s: Double) -> Double { (3 * ax * s + 2 * bx) * s + cx }
     func dy(_ s: Double) -> Double { (3 * ay * s + 2 * by) * s + cy }
 
-    /// The parameter s with x(s) = t (Newton steps, then bisection).
     func solveX(_ t: Double) -> Double {
         var s = t
         for _ in 0..<8 {

@@ -47,16 +47,13 @@ RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-27-1"
 DEVICES = os.path.expanduser("~/Library/Developer/CoreSimulator/Devices")
 REPORTS = os.path.expanduser("~/Library/Logs/DiagnosticReports")
 
-
 def swift_list(name):
     text = open(LEAN_SWIFT).read()
     m = re.search(r"static let " + name + r": \[String\] = \[(.*?)\n    \]", text, re.S)
     return re.findall(r'"([^"]+)"', m.group(1))
 
-
 LABELS = swift_list("defaultDisabledLabels")
 SUBSYSTEMS = swift_list("loggingOffSubsystems")
-
 
 def run(*args, timeout=600, check=True):
     p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
@@ -64,19 +61,15 @@ def run(*args, timeout=600, check=True):
         raise RuntimeError(f"{' '.join(args)}: {p.returncode} {p.stderr.strip()}")
     return p.stdout.strip()
 
-
 def tmp_dir(udid):
     return f"/private/var/tmp/com.apple.CoreSimulator.SimDevice.{udid}"
-
 
 def brightness(path):
     from PIL import Image, ImageStat
     im = Image.open(path).convert("L").resize((70, 102))
     return ImageStat.Stat(im).mean[0]
 
-
 def parse_cputime(s):
-    # [[dd-]hh:]mm:ss.cc
     days = 0
     if "-" in s:
         d, s = s.split("-", 1); days = int(d)
@@ -85,7 +78,6 @@ def parse_cputime(s):
     for x in parts:
         sec = sec * 60 + x
     return days * 86400 + sec
-
 
 def device_processes(udid):
     out = run("ps", "-axww", "-o", "pid=,ppid=,time=,command=")
@@ -104,8 +96,6 @@ def device_processes(udid):
         for c in children.get(todo.pop(), []):
             if c not in keep:
                 keep.add(c); todo.append(c)
-    # Names from the executable path (`comm`); runtime paths contain spaces,
-    # so the argument list cannot be split reliably.
     comm = {}
     for line in run("ps", "-axww", "-o", "pid=,comm=").splitlines():
         p = line.strip().split(None, 1)
@@ -116,7 +106,6 @@ def device_processes(udid):
         if pid in keep:
             procs[f"{comm.get(pid, cmd[:40])}[{pid}]"] = cpu
     return procs
-
 
 def host_context(udid):
     """Contention covariates: other booted simulator devices, and the CPU
@@ -131,7 +120,6 @@ def host_context(udid):
         except ValueError:
             pass
     return booted, total
-
 
 def launchd_log_stats(udid):
     path = os.path.join(tmp_dir(udid), "launchd.log")
@@ -149,7 +137,6 @@ def launchd_log_stats(udid):
         pass
     return spawns, exits
 
-
 def _ips_time(path):
     """Header timestamp of a .ips report ("YYYY-MM-DD HH:MM:SS.ss +ZZZZ")."""
     from datetime import datetime
@@ -159,7 +146,6 @@ def _ips_time(path):
         return datetime.strptime(head["timestamp"], "%Y-%m-%d %H:%M:%S.%f %z").timestamp(), head.get("name") or head.get("app_name")
     except Exception:
         return None, None
-
 
 def crash_reports(udid, since, until):
     names = []
@@ -181,7 +167,6 @@ def crash_reports(udid, since, until):
             if t is None or since - 1 <= t <= until + 1:
                 names.append(f"{proc or f}@{round(t - since, 1) if t else '?'}s")
     return len(names), sorted(names)
-
 
 def write_lean(udid, mode, keep, enable):
     labels = [l for l in (enable if enable is not None else LABELS) if l not in keep]
@@ -205,7 +190,6 @@ def write_lean(udid, mode, keep, enable):
                               fmt=plistlib.FMT_BINARY)
     return labels
 
-
 def measure_boot(udid, outdir, tag, sample_at, timeout, cpu_every):
     shots = os.path.join(outdir, "shots"); os.makedirs(shots, exist_ok=True)
     load = os.getloadavg()[0]
@@ -220,8 +204,6 @@ def measure_boot(udid, outdir, tag, sample_at, timeout, cpu_every):
         if bootstatus is None and bs.poll() is not None:
             bootstatus = round(now, 1)
         if home is None:
-            # The iPhone Duo type has several displays; "primary" (LCD, 1398x2034)
-            # is the one SwiftCode renders. Without --display simctl picks LCD-1.
             try:
                 r = subprocess.run(["xcrun", "simctl", "io", udid, "screenshot", "--display=primary", shot],
                                    capture_output=True, timeout=20)
@@ -240,10 +222,6 @@ def measure_boot(udid, outdir, tag, sample_at, timeout, cpu_every):
         if not sampled and now >= next_cpu:
             alive = device_processes(udid)
             for k, v in alive.items():
-                # One entry per pid, named after the program it runs last
-                # (xpcproxy_sim execs the daemon under the same pid); an
-                # exited, unreaped process shows as "(name)" cut to 16
-                # characters and keeps its earlier name.
                 pid = k.rsplit("[", 1)[1]
                 old = pids.get(pid)
                 key = old if (old and k.startswith("(")) else k
@@ -259,8 +237,6 @@ def measure_boot(udid, outdir, tag, sample_at, timeout, cpu_every):
         bs.kill()
     t_end = time.time()
     _, host_cpu1 = host_context(udid)
-    # Cores used by everything except this device during the window (the
-    # device's own CPU is cpu_total_s up to the sample time).
     others_cores = max(0.0, (host_cpu1 - host_cpu0 - sum(cpu.values())) / (t_end - t0))
     spawns, exits = launchd_log_stats(udid)
     crashes, crash_names = crash_reports(udid, t0, t_end)
@@ -271,7 +247,6 @@ def measure_boot(udid, outdir, tag, sample_at, timeout, cpu_every):
             "cpu": dict(sorted(cpu.items(), key=lambda kv: -kv[1])),
             "spawns": spawns, "exits": exits, "crashes": crashes, "crash_reports": crash_names[:40],
             "last_brightness": last_b, "screenshot_timeouts": shot_timeouts}
-
 
 def one_device(mode, index, args, keep, enable):
     name = f"{args.prefix}-{mode}-{index}"
@@ -302,7 +277,6 @@ def one_device(mode, index, args, keep, enable):
                 shutil.rmtree(d, ignore_errors=True)
     return result
 
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", default="full")
@@ -328,7 +302,6 @@ def main():
     for i in range(args.start_index, args.start_index + args.runs):
         for mode in modes:
             one_device(mode, i, args, keep, enable)
-
 
 if __name__ == "__main__":
     main()

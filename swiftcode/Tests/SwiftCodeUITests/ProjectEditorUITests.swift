@@ -5,9 +5,6 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// Drives the project editor's AppKit views (reference-ui-3.md §1) and
-/// checks that the controls and labels exist. No window is shown and no
-/// defaults are written.
 @MainActor
 @Suite struct ProjectEditorUITests {
     func controller() throws -> ProjectEditorController {
@@ -36,7 +33,6 @@ import SwiftCodeProject
         for s in ["Display Name", "Bundle Identifier", "iPhone Orientation", "iPad Orientation", "Hide during application launch", "Landscape Left"] {
             #expect(l.contains(s), "\(s)")
         }
-        // An orientation checkbox writes the setting.
         var written: PBXProj?
         pe.onChange = { written = $0 }
         pe.setOrientation("UIInterfaceOrientationPortrait", device: "iPhone", on: true)
@@ -44,7 +40,6 @@ import SwiftCodeProject
         #expect(pe.model.orientations(device: "iPhone", target: "App", configuration: "Debug") == ["UIInterfaceOrientationPortrait"])
         let box = all(pe.content).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "iPhone:UIInterfaceOrientationPortrait" }
         #expect(box?.state == .on)
-        // Collapsing survives a reload.
         pe.toggleSection("Identity")
         #expect(pe.sectionViews["Identity"]?.isCollapsed == true)
         pe.select(tab: .general)
@@ -70,7 +65,6 @@ import SwiftCodeProject
         let sections = pe.settingsLines.compactMap { if case .section(let s) = $0 { s } else { nil } }
         #expect(sections.first == "Deployment" && sections.contains("Swift Compiler - Language") && sections.last == "User-Defined")
         #expect(pe.settingRows.contains { $0.name == "MY_FLAG" })
-        // Titles by default; the customized PRODUCT_NAME is bold, an inherited one is not.
         let row = try #require(pe.settingsLines.firstIndex(of: .setting("PRODUCT_NAME")))
         #expect(pe.settingsCellText(row: row, column: "name") == "Product Name")
         #expect(pe.settingIsBold("PRODUCT_NAME") && !pe.settingIsBold("INSTALL_PATH"))
@@ -78,12 +72,10 @@ import SwiftCodeProject
         #expect(cell?.font?.fontDescriptor.symbolicTraits.contains(.bold) == true)
         pe.showsTitles = false
         #expect(pe.settingsCellText(row: row, column: "name") == "PRODUCT_NAME")
-        // Collapsing a section hides its settings.
         pe.collapsedSettingSections = ["Packaging"]
         #expect(!pe.settingsLines.contains(.setting("PRODUCT_NAME")))
         pe.collapsedSettingSections = []
 
-        // Levels: Setting | Resolved | target | project | platform default.
         pe.filter = .all
         pe.search = "SWIFT_OPTIMIZATION_LEVEL"
         pe.settingsView = .levels
@@ -95,7 +87,6 @@ import SwiftCodeProject
         #expect(pe.settingsLines.contains(.configuration(setting: "SWIFT_OPTIMIZATION_LEVEL", name: "Debug")))
         let dbg = try #require(pe.settingsLines.firstIndex(of: .configuration(setting: "SWIFT_OPTIMIZATION_LEVEL", name: "Release")))
         #expect(pe.settingsCellText(row: dbg, column: "resolved") == "-O")
-        // The providing level's cell is outlined.
         let projectCol = try #require(pe.settingsTable.tableColumns.first { $0.identifier.rawValue == "project" })
         let outlined = pe.tableView(pe.settingsTable, viewFor: projectCol, row: dbg) as? NSTextField
         #expect(outlined?.layer?.borderWidth == 1)
@@ -146,7 +137,6 @@ import SwiftCodeProject
         #expect(titles.contains("New Run Script Phase") && titles.contains("New Copy Files Phase"))
         #expect(menu.item(withTitle: "New Compile Sources Phase")?.isEnabled == false)
         #expect(pe.sectionViews["Compile Sources"] != nil && pe.tables["S1"]?.columns == ["Name", "Compiler Flags"])
-        // The menu item adds a phase; its trash button removes it.
         let item = try #require(menu.item(withTitle: "New Run Script Phase"))
         _ = item.target?.perform(item.action, with: item)
         let script = try #require(pe.model.phaseSections(target: "App").first { $0.title == "Run Script" }?.phaseID)
@@ -156,7 +146,6 @@ import SwiftCodeProject
         trash.map { _ = $0.target?.perform($0.action, with: $0) }
         #expect(!pe.model.phaseSections(target: "App").contains { $0.title == "Run Script" })
         #expect(pe.model.proj[script] == nil)
-        // Target Dependencies has no trash button.
         #expect(pe.sectionViews["Target Dependencies"]?.arrangedSubviews.first.map { all($0).contains { $0 is ProjectEditorController.PhaseButton } } == false)
     }
 

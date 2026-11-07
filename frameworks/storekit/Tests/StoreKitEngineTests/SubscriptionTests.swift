@@ -1,5 +1,3 @@
-// C-ENGINE part 2: the subscription scheduler and its control calls
-// (testing-session.md §2.1, §3; plan.md §3.2; simulator-baseline.md §8 S1–S6).
 import Foundation
 import Testing
 import StoreKitConfiguration
@@ -44,13 +42,10 @@ struct TimeRateTests {
     @Test("§3 item 1 real time: calendar periods in the device time zone (DST end adds an hour)")
     func realTime() {
         let rt = TimeRate.realTime
-        // One week from 2026-10-19.
         #expect(rt.end(of: week, from: t0, calendar: cal) - t0 == 604_800_000)
-        // One month from 2026-10-19 and from 2026-10-05 crosses 2026-11-01: 31 days + 1 hour.
         #expect(rt.end(of: month, from: t0, calendar: cal) - t0 == 2_682_000_000)
         let oct5 = Int64(1_791_201_600_000)
         #expect(rt.end(of: month, from: oct5, calendar: cal) - oct5 == 2_682_000_000)
-        // One month from 2026-09-05: 30 days.
         let sep5 = Int64(1_788_609_600_000)
         #expect(rt.end(of: month, from: sep5, calendar: cal) - sep5 == 2_592_000_000)
     }
@@ -79,7 +74,6 @@ struct SubscriptionTests {
             #expect(b.purchaseDate == a.expiresDate)
             #expect(b.expiresDate! - b.purchaseDate == 10_000)
         }
-        // Renewals reach a running app as updates.
         #expect(log.transactions.map(\.id) == chain.dropFirst().map(\.id))
         let status = store.subscriptionStatuses(groupID: ID.plus)
         #expect(status.count == 1 && status[0].state == .subscribed && status[0].transaction.id == chain.last!.id)
@@ -88,7 +82,6 @@ struct SubscriptionTests {
         #expect(status[0].renewal.renewalBillingPlanType == "BILLED_UPFRONT")
         #expect(status[0].renewal.recentSubscriptionStartDate == first.purchaseDate)
         #expect(store.nextEventDate() == Date(storeMilliseconds: chain.last!.expiresDate!))
-        // Still not eligible after it expires.
         try store.disableAutoRenew(transactionID: first.id)
         clock.advance(by: 20)
         #expect(store.subscriptionStatuses(groupID: ID.plus)[0].state == .expired)
@@ -134,7 +127,6 @@ struct SubscriptionTests {
         let weekly = try store.purchase(productID: ID.weekly).record
         #expect(weekly.originalID == weekly.id && weekly.id != monthly.id)
         #expect(store.subscriptionStatuses(groupID: ID.extra).count == 1)
-        // The downgrade takes effect at the next renewal.
         clock.advance(by: 10)
         let renewal = store.latestTransaction(for: ID.lite)!
         #expect(renewal.reason == .renewal && renewal.originalID == monthly.id && renewal.priceMilli == 1990)
@@ -188,10 +180,8 @@ struct SubscriptionTests {
         #expect(expired.expiresDate == clock.now().storeMilliseconds)
         let status = store.subscriptionStatuses(groupID: ID.extra)[0]
         #expect(status.state == .expired)
-        // The reference leaves one failed transaction with a purchase issue, listed by Transaction.all.
         let failed = store.transactionHistory().first!
         #expect(failed.state == .failed && failed.hasPurchaseIssue && failed.purchaseDate == forced.purchaseDate)
-        // Errors (§11): an expired subscription, a non-subscription, an unknown product.
         #expect(throws: TestSessionError.self) { try store.expireSubscription(productID: ID.weekly) }
         #expect(throws: TestSessionError(.invalidProductType, "\(ID.pro) is not an auto-renewable subscription.")) {
             try store.expireSubscription(productID: ID.pro)

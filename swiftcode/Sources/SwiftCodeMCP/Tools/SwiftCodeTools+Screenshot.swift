@@ -14,29 +14,6 @@ import UniformTypeIdentifiers
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// `take_screenshot` beyond fullscreen-only: Legacy's
-/// `AssistTakeScreenshotTool` (fullscreen via
-/// `SCScreenshotManager`, region via capture + crop) plus
-/// window capture via `SCContentFilter(desktopIndependentWindow:)`.
-///
-/// * `capture_mode: "fullscreen"` (default): unchanged.
-/// * `capture_mode: "region"` with a `region` object
-///   `{x, y, width, height}` (screen points, origin TOP-LEFT of
-///   the main display): fullscreen capture of the containing
-///   display + crop with Legacy's scale / integral-rect math
-///   (scale = image width / display width).
-/// * `capture_mode: "window"` with a `window_id`
-///   (`window_<CGWindowID>` as listed by `use_app`
-///   `list_windows`, or a bare number): the window alone.
-/// * Other `capture_mode` values behave as fullscreen (Legacy).
-/// * Result `capture_mode` reports the mode actually used.
-/// * NOT ported: the interactive region-selection overlay (it
-///   needs a live AppKit runloop + user drag while the tool call
-///   blocks, and the MCP host also runs headless). A bare
-///   `capture_mode: "region"` with no `region` object still fails
-///   honestly naming the overlay and pointing at `region`.
-///
-/// See `specs/ide/gap-closure-failing-tools.md` §4.
 extension SwiftCodeMCPHost {
     func takeScreenshotReal(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -110,8 +87,6 @@ extension SwiftCodeMCPHost {
             }
         }
 
-        // Save the artifact (plus Legacy's `image.png` latest-copy
-        // mirror) under the single approval for this capture.
         let timestamp = Int(Date().timeIntervalSince1970)
         let uniqueName = "screenshot_\(timestamp)_\(UUID().uuidString.prefix(8)).png"
         let rel = ".assist_temp/artifacts/\(uniqueName)"
@@ -151,9 +126,6 @@ extension SwiftCodeMCPHost {
     }
 
 #if canImport(ScreenCaptureKit) && canImport(CoreGraphics)
-    /// Captures one on-screen window by its CGWindowList number
-    /// (`window_<id>` or a bare number) via
-    /// `SCContentFilter(desktopIndependentWindow:)`.
     nonisolated static func terminalCaptureWindow(windowID: String, includeCursor: Bool) async throws -> TerminalScreenshot {
         let numberText = windowID.replacingOccurrences(of: "window_", with: "")
         guard let number = UInt32(numberText) else {
@@ -179,10 +151,6 @@ extension SwiftCodeMCPHost {
         return TerminalScreenshot(png: pngData, width: image.width, height: image.height, displayID: CGMainDisplayID())
     }
 
-    /// Crops a fullscreen capture to a screen-point rect (origin
-    /// top-left of the main display) with Legacy's scale /
-    /// integral-rect math. Nil when the rect lies outside the
-    /// image or the crop fails.
     nonisolated static func terminalCropScreenshot(_ shot: TerminalScreenshot, to rect: CGRect) -> TerminalScreenshot? {
         guard let source = CGImageSourceCreateWithData(shot.png as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
@@ -202,12 +170,7 @@ extension SwiftCodeMCPHost {
 #endif
 }
 
-// MARK: - Static screen-capture helpers
-
 extension SwiftCodeMCPHost {
-    /// `terminalScreenCaptureAuthorized` as a static (the window
-    /// capture above is static because it runs before any host
-    /// state exists).
     nonisolated static func terminalScreenCaptureAuthorizedStatic() -> Bool {
 #if canImport(CoreGraphics)
         if CGPreflightScreenCaptureAccess() { return true }
@@ -218,7 +181,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    /// `terminalEncodePNG` as a static.
     nonisolated static func terminalEncodePNGStatic(_ image: CGImage) -> Data? {
 #if canImport(ImageIO) && canImport(UniformTypeIdentifiers)
         let data = NSMutableData()

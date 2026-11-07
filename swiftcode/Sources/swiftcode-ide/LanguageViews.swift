@@ -7,15 +7,6 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// The language features' views (`specs/ide/language.md` §Features,
-// `specs/ide/refactoring.md`): Quick Help in a popover and in the
-// inspector, the rename sheet with its preview, and a short notice when a
-// request finds nothing. The state is `WorkspaceShellModel.languageFeatures`.
-
-/// Quick Help's sections in the order of `reference-ui-4.md` §7: the title
-/// and summary, the declaration box, the defining file, Parameters, Return
-/// Value, Throws, Discussion, callouts, then "Open in Developer
-/// Documentation". The inspector and the popover both show it.
 struct QuickHelpContent: View {
     var document: QuickHelpDocument
     var model: WorkspaceShellModel
@@ -38,8 +29,6 @@ struct QuickHelpContent: View {
                         RoundedRectangle(cornerRadius: 5, style: .continuous).fill(c.tertiaryLabel.opacity(0.12))
                             .overlay { RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(c.tertiaryLabel.opacity(0.35), lineWidth: 1) }
                     }
-                    // The macOS IDE's declaration is selectable text with
-                    // the text menu's Copy; here the box's own menu copies it.
                     .contextMenu { Button("Copy") { ShellPasteboard.copy(d.declaration) } }
                     .shellTarget("quickhelp declaration")
             }
@@ -107,8 +96,6 @@ struct QuickHelpContent: View {
     }
 }
 
-/// The Quick Help inspector tab (⌥⌘3): the symbol at the insertion point,
-/// or "No Quick Help" centered.
 struct QuickHelpInspector: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -134,11 +121,6 @@ struct QuickHelpInspector: View {
     }
 }
 
-/// Quick Help over the editor: a popover hanging under the symbol, its
-/// arrow pointing up at the symbol's start. The bubble and its arrow are one
-/// outline (one fill, one edge, one shadow), so the arrow reads in both
-/// appearances. The editor closes it when the insertion point moves, on
-/// Escape and when it scrolls.
 struct QuickHelpPopoverLayer: View {
     var model: WorkspaceShellModel
     let controller: SourceEditorController
@@ -147,7 +129,6 @@ struct QuickHelpPopoverLayer: View {
     static let width: CGFloat = 420
 
     var body: some View {
-        // Raised over the editor: white in light mode, a lighter grey in dark.
         let fill = scheme == .dark ? Color(.sRGB, red: 0.19, green: 0.19, blue: 0.2) : Color.white
         let edge = scheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.2)
         GeometryReader { geo in
@@ -172,11 +153,6 @@ struct QuickHelpPopoverLayer: View {
         .allowsHitTesting(model.languageFeatures.popover != nil)
     }
 
-    /// The bubble's leading edge and top (the arrow's tip) in the editor,
-    /// and the arrow's tip from the bubble's leading edge: the tip just
-    /// under the symbol's line, at the symbol's start; the bubble 8 points
-    /// before it, kept inside the editor and with the arrow clear of its
-    /// rounded corners.
     static func placement(anchorX: CGFloat, lineBottom: CGFloat, width: CGFloat) -> (x: CGFloat, y: CGFloat, arrowX: CGFloat) {
         let tipX = anchorX + 6
         let x = min(max(8, tipX - 28), max(8, width - Self.width - 8))
@@ -186,9 +162,6 @@ struct QuickHelpPopoverLayer: View {
     }
 }
 
-/// A popover's outline: a rounded rectangle with an arrow on its top edge
-/// whose tip is `arrowX` from the leading edge, at the shape's top. The
-/// rectangle starts `arrowSize.height` below the top.
 struct PopoverBubble: Shape {
     static let arrowSize = CGSize(width: 20, height: 10)
     static let cornerRadius: CGFloat = 10
@@ -217,8 +190,6 @@ struct PopoverBubble: Shape {
     }
 }
 
-/// A request that found nothing ("No definition found"): a capsule at the
-/// editor's top for two seconds.
 struct LanguageNotice: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -244,9 +215,6 @@ struct LanguageNotice: View {
     }
 }
 
-/// Editor ▸ Refactor ▸ Rename…: the new name, then (several files) the
-/// preview of every changed line, file by file; Rename applies the edits,
-/// one undo step per open file.
 struct RenameSheet: View {
     var model: WorkspaceShellModel
     let request: RenameRequest
@@ -353,7 +321,6 @@ struct RenameSheet: View {
     }
 }
 
-/// The language sheets of a workspace window, and the app's link opener.
 struct LanguageSheets: ViewModifier {
     var model: WorkspaceShellModel
     var app: ShellAppModel
@@ -368,10 +335,6 @@ struct LanguageSheets: ViewModifier {
     }
 }
 
-/// The jump bar's symbol component (`navigators.md` §Symbols): the
-/// declaration the insertion point is in, with its letter badge, or "No
-/// Selection"; a click lists the file's declarations (Show Document Items)
-/// and choosing one goes to its line.
 struct DocumentItemsMenu: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -406,7 +369,6 @@ struct DocumentItemsMenu: View {
     }
 }
 
-/// A declaration's letter in a small rounded square, tinted by kind.
 struct SymbolBadge: View {
     var kind: SymbolScanner.Symbol.Kind
 
@@ -429,10 +391,7 @@ struct SymbolBadge: View {
     }
 }
 
-// MARK: - The editor's part
-
 extension SourceEditorController {
-    /// The top-left of the character at `offset` in the editor's coordinates.
     func symbolAnchor(_ offset: Int) -> CGPoint {
         let b = buffer
         let o = min(max(0, offset), b.length)
@@ -441,9 +400,6 @@ extension SourceEditorController {
     }
 }
 
-/// Clicks with a modifier on a symbol (`language.md` §Features): ⌥-click
-/// shows Quick Help; ⌘-click (the Super key) or Ctrl-click jumps to the
-/// definition. True when the click was one of them.
 @MainActor
 enum SymbolClick {
     #if os(Linux)

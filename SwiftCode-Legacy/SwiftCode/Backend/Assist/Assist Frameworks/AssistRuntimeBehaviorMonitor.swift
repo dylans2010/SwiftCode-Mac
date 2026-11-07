@@ -1,6 +1,5 @@
 import Foundation
 
-/// Monitors runtime behavior of autonomous execution
 @MainActor
 public final class AssistRuntimeBehaviorMonitor {
     private let context: AssistContext
@@ -17,20 +16,18 @@ public final class AssistRuntimeBehaviorMonitor {
         let totalRuntime: TimeInterval
         let averageIterationTime: TimeInterval
         let slowestTool: String?
-        let memoryGrowth: Double // bytes per second
+        let memoryGrowth: Double
     }
 
     public init(context: AssistContext) {
         self.context = context
     }
 
-    /// Starts monitoring
     public func startMonitoring() {
         startTime = Date()
         recordMemorySnapshot()
     }
 
-    /// Records execution time for a tool
     public func recordToolExecution(toolId: String, duration: TimeInterval) {
         if stepExecutionTimes[toolId] == nil {
             stepExecutionTimes[toolId] = []
@@ -38,21 +35,17 @@ public final class AssistRuntimeBehaviorMonitor {
         stepExecutionTimes[toolId]?.append(duration)
     }
 
-    /// Records current memory usage
     public func recordMemorySnapshot() {
         let usedMemory = getMemoryUsage()
         memorySnapshots.append(MemorySnapshot(timestamp: Date(), usedMemory: usedMemory))
     }
 
-    /// Gets current behavior metrics
     public func getMetrics() -> BehaviorMetrics {
         let totalRuntime = Date().timeIntervalSince(startTime ?? Date())
 
-        // Calculate average iteration time
         let allExecutionTimes = stepExecutionTimes.values.flatMap { $0 }
         let averageIterationTime = allExecutionTimes.isEmpty ? 0 : allExecutionTimes.reduce(0, +) / Double(allExecutionTimes.count)
 
-        // Find slowest tool
         var slowestTool: String?
         var maxAverage: TimeInterval = 0
         for (toolId, times) in stepExecutionTimes {
@@ -63,7 +56,6 @@ public final class AssistRuntimeBehaviorMonitor {
             }
         }
 
-        // Calculate memory growth rate
         var memoryGrowth: Double = 0
         if memorySnapshots.count >= 2 {
             let first = memorySnapshots.first!
@@ -81,18 +73,15 @@ public final class AssistRuntimeBehaviorMonitor {
         )
     }
 
-    /// Checks if behavior is healthy
     public func isHealthy() async -> Bool {
         let metrics = getMetrics()
 
-        // Check for memory leak
-        if metrics.memoryGrowth > 1_000_000 { // 1MB per second
+        if metrics.memoryGrowth > 1_000_000 {
             await context.logger.warning("Possible memory leak detected: \(Int(metrics.memoryGrowth)) bytes/sec", toolId: "BehaviorMonitor")
             return false
         }
 
-        // Check for excessive runtime
-        if metrics.totalRuntime > 3600 { // 1 hour
+        if metrics.totalRuntime > 3600 {
             await context.logger.warning("Excessive runtime: \(Int(metrics.totalRuntime))s", toolId: "BehaviorMonitor")
             return false
         }

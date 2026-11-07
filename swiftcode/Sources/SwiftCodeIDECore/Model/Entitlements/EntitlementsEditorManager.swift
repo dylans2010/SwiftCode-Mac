@@ -1,18 +1,13 @@
-// Ported from Legacy `SwiftCode/Core/Editor/EntitlementsEditorManager.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: EntitlementsEditorManager.
-
 import Foundation
 import os
 
 public final class EntitlementsEditorManager: Sendable {
     public let fileURL: URL
 
-    // Non-isolated / concurrency isolated states handled by Thread-safe mechanisms or MainActor UI
     public init(fileURL: URL) {
         self.fileURL = fileURL
     }
 
-    /// Read entitlements dictionary from disk.
     public func readEntitlements() throws -> [String: Any] {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), !isDir.boolValue else {
@@ -26,7 +21,6 @@ public final class EntitlementsEditorManager: Sendable {
         return [:]
     }
 
-    /// Write active entitlements dictionary back to disk.
     public func writeEntitlements(_ entitlements: [String: Any]) throws {
         var isDir: ObjCBool = false
         if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
@@ -54,12 +48,10 @@ public final class EntitlementsEditorManager: Sendable {
         return sorted
     }
 
-    /// Run deep structural validation on entitlements.
     public func validate(_ entitlements: [String: Any]) -> EntitlementValidationResult {
         var warnings: [EntitlementWarning] = []
         var errors: [EntitlementError] = []
 
-        // 1. Sandbox verification
         if let sandboxVal = entitlements["com.apple.security.app-sandbox"] as? Bool {
             if !sandboxVal {
                 warnings.append(EntitlementWarning(
@@ -74,7 +66,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // 2. Outgoing network without sandbox warning
         let hasNetwork = entitlements["com.apple.security.network.client"] as? Bool ?? false
         let hasSandbox = entitlements["com.apple.security.app-sandbox"] as? Bool ?? false
         if hasNetwork && !hasSandbox {
@@ -84,7 +75,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // 3. App group format check
         if let groups = entitlements["com.apple.security.application-groups"] {
             if !(groups is [String]) {
                 errors.append(EntitlementError(
@@ -98,19 +88,14 @@ public final class EntitlementsEditorManager: Sendable {
         return EntitlementValidationResult(isValid: isValid, warnings: warnings, errors: errors)
     }
 
-    /// Cross-entitlement consistency checks beyond the base validate(_:).
-    /// Kept as a separate function so the base validation contract is unchanged.
-    /// Pure function: inspects the dictionary, performs no I/O.
     public func crossEntitlementIssues(_ entitlements: [String: Any]) -> EntitlementValidationResult {
         var warnings: [EntitlementWarning] = []
         var errors: [EntitlementError] = []
 
         let sandbox = entitlements["com.apple.security.app-sandbox"] as? Bool ?? false
 
-        // aps-environment must be one of the two real values.
         if let aps = entitlements["aps-environment"] {
             if let value = aps as? String, value == "development" || value == "production" {
-                // valid
             } else {
                 errors.append(EntitlementError(
                     rawKey: "aps-environment",
@@ -119,7 +104,6 @@ public final class EntitlementsEditorManager: Sendable {
             }
         }
 
-        // Sandbox resource entitlements have no effect without the sandbox master switch.
         if !sandbox {
             for key in ["com.apple.security.network.client", "com.apple.security.network.server"] {
                 if entitlements[key] != nil {
@@ -131,7 +115,6 @@ public final class EntitlementsEditorManager: Sendable {
             }
         }
 
-        // Hardware / personal-information keys only apply to sandboxed apps on macOS.
         for key in [
             "com.apple.security.device.camera",
             "com.apple.security.device.audio-input",
@@ -144,7 +127,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // Redundant read-only + read-write pairs for the same folder.
         let folderPairs = [
             ("com.apple.security.files.user-selected.read-only", "com.apple.security.files.user-selected.read-write"),
             ("com.apple.security.assets.downloads.read-only", "com.apple.security.assets.downloads.read-write"),
@@ -160,7 +142,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // Hardened Runtime keys only matter for Developer ID / notarized distribution.
         let csKeys = [
             "com.apple.security.cs.allow-jit",
             "com.apple.security.cs.allow-unsigned-executable-memory",
@@ -175,7 +156,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // iCloud consistency.
         let containers = entitlements["com.apple.developer.icloud-container-identifiers"]
         let services = entitlements["com.apple.developer.icloud-services"] as? [String]
         if containers != nil && (services?.isEmpty ?? true) {
@@ -197,7 +177,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // App Groups format.
         if let groups = entitlements["com.apple.security.application-groups"] {
             if let arr = groups as? [String] {
                 if arr.isEmpty {
@@ -219,7 +198,6 @@ public final class EntitlementsEditorManager: Sendable {
             }
         }
 
-        // Keychain access groups format.
         if let keychain = entitlements["keychain-access-groups"] {
             if let arr = keychain as? [String] {
                 if arr.isEmpty {
@@ -236,7 +214,6 @@ public final class EntitlementsEditorManager: Sendable {
             }
         }
 
-        // Associated Domains prefixes.
         let knownPrefixes = ["applinks:", "webcredentials:", "activitycontinuation:", "appclips:"]
         if let domains = entitlements["com.apple.developer.associated-domains"] as? [String] {
             let bad = domains.filter { domain in !knownPrefixes.contains(where: domain.hasPrefix) }
@@ -248,7 +225,6 @@ public final class EntitlementsEditorManager: Sendable {
             }
         }
 
-        // Default data protection value.
         let validDDP = [
             "NSFileProtectionComplete",
             "NSFileProtectionCompleteUnlessOpen",
@@ -263,7 +239,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // Incoming connections draw extra review scrutiny — honest heads-up, not an error.
         if entitlements["com.apple.security.network.server"] as? Bool == true {
             warnings.append(EntitlementWarning(
                 rawKey: "com.apple.security.network.server",
@@ -271,7 +246,6 @@ public final class EntitlementsEditorManager: Sendable {
             ))
         }
 
-        // Special-approval entitlements: the key alone does not grant access.
         for key in [
             "com.apple.developer.driverkit",
             "com.apple.developer.endpoint-security.client",
@@ -287,7 +261,6 @@ public final class EntitlementsEditorManager: Sendable {
         return EntitlementValidationResult(isValid: errors.isEmpty, warnings: warnings, errors: errors)
     }
 
-    /// Generates raw XML content for previewing or debugging.
     public func generateRawXML(_ entitlements: [String: Any]) -> String {
         let sorted = sortDictionary(entitlements)
         guard let data = try? PropertyListSerialization.data(fromPropertyList: sorted, format: .xml, options: 0),
@@ -297,7 +270,6 @@ public final class EntitlementsEditorManager: Sendable {
         return xmlString
     }
 
-    /// Parse raw XML text back to structured dictionary.
     public func parseRawXML(_ xml: String) throws -> [String: Any] {
         guard let data = xml.data(using: .utf8) else {
             throw NSError(domain: "EntitlementsEditorManager", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 encoding"])

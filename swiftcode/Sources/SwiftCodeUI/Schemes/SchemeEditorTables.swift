@@ -2,14 +2,10 @@ import AppKit
 import SwiftCodeProject
 import SwiftCodeWorkspace
 
-/// A scheme-editor table with column headers, prebuilt cell views, an
-/// empty text, and a footer with +, − and a filter field (the Build
-/// targets and Test plans tables, reference-ui-5.md §11.3, P11).
 @MainActor
 final class SchemeTable: NSView, NSTableViewDataSource, NSTableViewDelegate {
     let table = NSTableView()
     let rows: [[NSView]]
-    /// One ID per row (a blueprint identifier, a test plan reference).
     let ids: [String]
     let plusButton = NSButton(image: NSImage(systemSymbolName: "plus", accessibilityDescription: "Add")!, target: nil, action: nil)
     let minusButton = NSButton(image: NSImage(systemSymbolName: "minus", accessibilityDescription: "Remove")!, target: nil, action: nil)
@@ -89,7 +85,6 @@ final class SchemeTable: NSView, NSTableViewDataSource, NSTableViewDelegate {
     }
     @objc func filterChanged() { onFilter?(filterField.stringValue) }
 
-    /// The first column's text of every row (tests).
     var titles: [String] {
         rows.map { r in
             if let f = r.first as? NSTextField { return f.stringValue }
@@ -101,9 +96,7 @@ final class SchemeTable: NSView, NSTableViewDataSource, NSTableViewDelegate {
 }
 
 extension SchemeEditorController {
-    // MARK: Build targets
 
-    /// The project targets a scheme can add (from the workspace's projects).
     public static func buildableTargets(projects: [String: PBXProj], container: URL) -> [Scheme.BuildableReference] {
         projects.keys.sorted().flatMap { path -> [Scheme.BuildableReference] in
             guard let proj = projects[path] else { return [] }
@@ -118,7 +111,6 @@ extension SchemeEditorController {
         }
     }
 
-    /// Targets "+" can add: the available ones not in the scheme.
     public var addableBuildTargets: [Scheme.BuildableReference] {
         let have = Set(scheme.buildEntries.map(\.reference.blueprintIdentifier))
         return availableTargets.filter { !have.contains($0.blueprintIdentifier) }
@@ -140,8 +132,6 @@ extension SchemeEditorController {
         if let id = i.representedObject as? String, let t = availableTargets.first(where: { $0.blueprintIdentifier == id }) { addBuildTarget(t) }
     }
 
-    /// Adds a target to Build: every action on, except Test only for test
-    /// bundles (".xctest").
     public func addBuildTarget(_ ref: Scheme.BuildableReference) {
         let tests = ref.buildableName.hasSuffix(".xctest")
         scheme.addBuildEntry(ref, actions: tests ? [.testing] : Set(Scheme.Action.allCases))
@@ -153,13 +143,10 @@ extension SchemeEditorController {
         reloadPane()
     }
 
-    // MARK: Test plans
-
     static func testPlanName(_ reference: String) -> String {
         URL(fileURLWithPath: reference.replacingOccurrences(of: "container:", with: "")).deletingPathExtension().lastPathComponent
     }
 
-    /// A plan row's subtitle: its location inside the container.
     static func testPlanSubtitle(_ reference: String) -> String { reference.replacingOccurrences(of: "container:", with: "") }
 
     static func autocreatedSubtitle(_ n: Int) -> String { "\(n) test target\(n == 1 ? "" : "s") \u{2014} from the scheme" }
@@ -183,7 +170,6 @@ extension SchemeEditorController {
         return NSStackView(views: [text, arrow])
     }
 
-    /// The file a `container:` reference names.
     public func testPlanURL(_ reference: String) -> URL? {
         guard let dir = containerDirectory else { return nil }
         return dir.appendingPathComponent(reference.replacingOccurrences(of: "container:", with: ""))
@@ -207,8 +193,6 @@ extension SchemeEditorController {
         }
     }
 
-    /// Adds an existing `.xctestplan` (a `container:` path relative to the
-    /// folder that holds the container).
     public func addTestPlan(file: URL) {
         let path = file.standardizedFileURL.path
         let base = containerDirectory?.standardizedFileURL.path ?? ""
@@ -227,8 +211,6 @@ extension SchemeEditorController {
         reloadPane()
     }
 
-    /// The folder `container:` paths are relative to: the one holding the
-    /// `.xcodeproj` / `.xcworkspace` the scheme belongs to.
     public var containerDirectory: URL? {
         if let explicit = containerDirectoryOverride { return explicit }
         var u = scheme.url

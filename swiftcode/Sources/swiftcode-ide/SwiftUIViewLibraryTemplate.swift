@@ -1,10 +1,3 @@
-// SwiftUIViewLibraryTemplate.swift
-//
-// Ported from Legacy `SwiftCode/Backend/Persistence/Templates/SwiftUIViewLibraryTemplate.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: distinct 'SwiftUI View Library' template producing MyComponent.swift (a SwiftUI View with Text("Custom Component"))
-// Ambiguous type reference(s) defined in several modules, import left out: TemplateFile.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import Foundation
 

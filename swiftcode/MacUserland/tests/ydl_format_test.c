@@ -1,6 +1,3 @@
-// ydl_format_test.c - host unit tests for the format layer of SwiftCode's
-// dynamic linker (specs/macos/dyld.md §11). The inputs are built by hand
-// from the public format facts of dyld.md §2. Run by `sh build.sh test`.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,12 +46,10 @@ static void test_leb(void) {
     CHECK(bad);
 }
 
-// root: edges "_a" -> A (regular, value 0x1000) and "_b" -> B (re-export
-// of "_c" from dependency 1).
 static const uint8_t trie[] = {
-    0x00, 0x02, '_', 'a', 0, 10, '_', 'b', 0, 15,     // root (0)
-    0x03, 0x00, 0x80, 0x20, 0x00,                    // A (10)
-    0x05, 0x08, 0x01, '_', 'c', 0, 0x00,             // B (15)
+    0x00, 0x02, '_', 'a', 0, 10, '_', 'b', 0, 15,
+    0x03, 0x00, 0x80, 0x20, 0x00,
+    0x05, 0x08, 0x01, '_', 'c', 0, 0x00,
 };
 
 static void test_trie(void) {
@@ -65,32 +60,30 @@ static void test_trie(void) {
     CHECK(ydl_trie_find(trie, sizeof trie, "_x", &e) == 0);
     CHECK(ydl_trie_find(trie, sizeof trie, "_", &e) == 0);
     CHECK(ydl_trie_find(trie, sizeof trie, "_ab", &e) == 0);
-    CHECK(ydl_trie_find(trie, 12, "_b", &e) == -1);  // the child offset is past the end
+    CHECK(ydl_trie_find(trie, 12, "_b", &e) == -1);
 }
 
-// A chained-fixups blob: two segments, the second with one 16 KB page whose
-// chain is a rebase at +0 and a bind of import 1 (+4) at +8.
 static size_t make_chained(uint8_t *b, uint16_t pointer_format) {
     memset(b, 0, 128);
-    put32(b + 0, 0);     // version
-    put32(b + 4, 32);    // starts
-    put32(b + 8, 68);    // imports
-    put32(b + 12, 76);   // symbols
-    put32(b + 16, 2);    // import count
+    put32(b + 0, 0);
+    put32(b + 4, 32);
+    put32(b + 8, 68);
+    put32(b + 12, 76);
+    put32(b + 16, 2);
     put32(b + 20, YC_CHAINED_IMPORT);
     put32(b + 24, 0);
-    put32(b + 32, 2);    // segment count
+    put32(b + 32, 2);
     put32(b + 36, 0);
-    put32(b + 40, 12);   // -> 44
+    put32(b + 40, 12);
     put32(b + 44, 24);
     put16(b + 48, 0x4000);
     put16(b + 50, pointer_format);
     put64(b + 52, 0x4000);
     put32(b + 60, 0);
     put16(b + 64, 1);
-    put16(b + 66, 0);    // the chain starts at the page's first byte
-    put32(b + 68, 1u | 0u << 8 | 1u << 9);      // ordinal 1, "_foo"
-    put32(b + 72, 0xFEu | 1u << 8 | 6u << 9);   // flat lookup, weak, "_bar"
+    put16(b + 66, 0);
+    put32(b + 68, 1u | 0u << 8 | 1u << 9);
+    put32(b + 72, 0xFEu | 1u << 8 | 6u << 9);
     memcpy(b + 76, "\0_foo\0_bar\0", 11);
     return 87;
 }
@@ -117,17 +110,15 @@ static void test_chained(void) {
     CHECK(v0 == (uint64_t)(uintptr_t)image + 0x100);
     CHECK(v1 == 0x2222 + 4);
 
-    // DYLD_CHAINED_PTR_64: an unslid target, with a high byte.
     size = make_chained(blob, YC_CHAINED_PTR_64);
     put64(image + 0x4000, 0x5Aull << 36 | 0x100000100ull);
     CHECK(ydl_chained_apply(blob, size, image, 0x100000000ull, targets, 1, &why) == 1);
     memcpy(&v0, image + 0x4000, 8);
     CHECK(v0 == (((uint64_t)(uintptr_t)image + 0x100) | 0x5Aull << 56));
 
-    // A bind past the import table and an unsupported format are errors.
     put64(image + 0x4000, 1ull << 63 | 7);
     CHECK(ydl_chained_apply(blob, size, image, 0x100000000ull, targets, 2, &why) == -1);
-    make_chained(blob, 1 /* arm64e */);
+    make_chained(blob, 1 );
     CHECK(ydl_chained_apply(blob, size, image, 0, targets, 2, &why) == -1);
     free(image);
 }

@@ -1,8 +1,5 @@
 import Foundation
 
-/// VS Code / v2 identity: `"<publisher>.<name>"`. It is the lookup key
-/// everywhere (UI, storage, host, Assist); display names are never keys.
-/// Parsing splits on the **first** `.`; both parts must be non-empty.
 public struct ExtensionIdentity: Codable, Hashable, Sendable, CustomStringConvertible {
     public let publisher: String
     public let name: String
@@ -39,10 +36,6 @@ public enum ExtensionKind: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// The user-visible lifecycle state (spec §3.2). `activationFailed` is
-/// declared for wire/source compatibility; no transition into it is
-/// specified in this wave — activation failures surface as thrown
-/// errors and a stopped host instead.
 public enum ExtensionState: String, Codable, Sendable, CaseIterable {
     case notInstalled
     case installed

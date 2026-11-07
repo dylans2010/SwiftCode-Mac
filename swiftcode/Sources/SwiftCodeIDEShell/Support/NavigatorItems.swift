@@ -2,9 +2,6 @@ import Foundation
 import SwiftCodeBuild
 import SwiftCodeIDECore
 
-/// A project navigator row as a value (the SwiftUI outline's element),
-/// mirrored from the core's `NavigatorNode`. Files have no children
-/// (`children == nil`), so the outline draws no disclosure triangle.
 public struct NavigatorItem: Identifiable, Hashable, Sendable {
     public var id: String
     public var name: String
@@ -27,11 +24,8 @@ public struct NavigatorItem: Identifiable, Hashable, Sendable {
 
     public var isFile: Bool { kind == .file }
 
-    /// The row's symbol: the AppKit navigator's (`WorkspaceChrome.symbol`).
     public var symbolName: String { WorkspaceChrome.symbol(kind: kind, name: name, path: path) }
 
-    /// Ids of the rows from the root to the row with `path` (inclusive), or
-    /// nil when no row has it.
     public func idPath(to path: String) -> [String]? {
         if self.path == path { return [id] }
         for c in children ?? [] {
@@ -40,21 +34,17 @@ public struct NavigatorItem: Identifiable, Hashable, Sendable {
         return nil
     }
 
-    /// The row with this id.
     public func find(id: String) -> NavigatorItem? {
         if self.id == id { return self }
         for c in children ?? [] { if let f = c.find(id: id) { return f } }
         return nil
     }
 
-    /// Every file row, depth first.
     public var allFiles: [NavigatorItem] {
         isFile ? [self] : (children ?? []).flatMap(\.allFiles)
     }
 }
 
-/// Symbol names the shell uses (the system names; on Linux OpenViews draws
-/// its own artwork for each).
 public enum ShellSymbols {
     public static func file(named name: String) -> String { WorkspaceChrome.fileSymbol(name) }
 

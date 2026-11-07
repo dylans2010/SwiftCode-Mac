@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-# Writes the .DS_Store of the disk image's root: window size, icon positions and
-# the background picture. Finder is not involved, so this runs on a machine with
-# nobody logged in and never takes over a screen. Standard library only.
-#
-# The file format (a buddy-allocated block file holding one B-tree of records)
-# and the alias record are taken from public descriptions of those formats.
-#
-# usage: make-dsstore.py <mounted volume> <background path inside the volume> <config.json>
-# config: {"window": [w, h], "icon_size": n, "icons": {"SwiftCode.app": [x, y], ...}}
 import json
 import os
 import plistlib
@@ -15,17 +6,14 @@ import struct
 import sys
 import time
 
-HFS_EPOCH_OFFSET = 2082844800  # seconds from 1904 to 1970
-
+HFS_EPOCH_OFFSET = 2082844800
 
 def hfs_time(t):
     return (int(t) + HFS_EPOCH_OFFSET) & 0xFFFFFFFF
 
-
 def pascal(s, size):
     raw = s.encode("mac_roman", "replace")[: size - 1]
     return bytes([len(raw)]) + raw + b"\0" * (size - 1 - len(raw))
-
 
 def alias_record(volume, relative):
     """A version 2 alias record for a file inside a mounted volume."""
@@ -35,11 +23,11 @@ def alias_record(volume, relative):
     volume_name = os.path.basename(volume)
     fields = struct.pack(
         ">h28sI2shI64sII4s4shhI2s10s",
-        0,  # a file
-        pascal(volume_name, 28), hfs_time(vol.st_birthtime), b"H+", 5,  # 5: an ejectable disk image
+        0,
+        pascal(volume_name, 28), hfs_time(vol.st_birthtime), b"H+", 5,
         parent.st_ino, pascal(name, 64), st.st_ino, hfs_time(st.st_birthtime),
         b"\0\0\0\0", b"\0\0\0\0",
-        1, 1,  # one folder level from the root in each direction is not searched for
+        1, 1,
         0, b"\0\0", b"\0" * 10,
     )
 
@@ -63,7 +51,6 @@ def alias_record(volume, relative):
     body = fields + tags
     return struct.pack(">4shh", b"\0\0\0\0", 8 + len(body), 2) + body
 
-
 def record(filename, code, kind, value):
     head = struct.pack(">I", len(filename)) + filename.encode("utf-16-be") + code + kind
     if kind == b"blob":
@@ -74,11 +61,9 @@ def record(filename, code, kind, value):
         return head + value
     raise ValueError(kind)
 
-
 def sort_key(rec):
     filename, code = rec[0], rec[1]
     return (filename.lower(), code)
-
 
 def free_lists(allocated):
     """The buddy allocator's free lists for an address space of 2**31 bytes."""
@@ -100,7 +85,6 @@ def free_lists(allocated):
     walk(0, 31)
     return lists
 
-
 def build(records):
     """The file: allocator block 0, tree header block 1, one leaf node block 2."""
     records = sorted(records, key=sort_key)
@@ -113,8 +97,6 @@ def build(records):
     header = struct.pack(">IIIII", 2, 0, len(records), 1, 0x1000)
     header += b"\0" * (32 - len(header))
 
-    # (offset, log2 size). The first 32 bytes hold the file header. Offsets are
-    # relative to the fourth byte of the file.
     alloc_block, header_block, leaf_block = (0x800, 11), (0x20, 5), (0x1000, 12)
     allocated = [(0, 5), alloc_block, header_block, leaf_block]
     free = free_lists(allocated)
@@ -137,10 +119,8 @@ def build(records):
     image[0x20:0x40] = header
     image[0x800:0x1000] = root
     image[0x1000:0x2000] = leaf
-    # The header: "Bud1", the allocator block's offset and size, the offset again.
     image[0:32] = b"Bud1" + struct.pack(">III", 0x800, 0x800, 0x800) + b"\0" * 16
     return struct.pack(">I", 1) + bytes(image)
-
 
 def check(data, expected):
     """Reads the file back: the same walk a reader makes."""
@@ -164,7 +144,6 @@ def check(data, expected):
     leaf = data[4 + (table[node] & ~31):]
     if struct.unpack(">II", leaf[:8]) != (0, expected):
         raise ValueError("bad leaf")
-
 
 def main():
     volume, background = sys.argv[1], sys.argv[2]
@@ -196,7 +175,6 @@ def main():
     check(data, len(records))
     with open(os.path.join(volume, ".DS_Store"), "wb") as f:
         f.write(data)
-
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-/// Collects a response stream.
 func collect(_ s: AsyncThrowingStream<ChatEvent, Error>) async throws -> (text: String, events: [ChatEvent]) {
     var text = ""
     var events: [ChatEvent] = []
@@ -25,7 +24,6 @@ func sse(_ objects: [Any]) -> [Data] {
     }
 }
 
-/// Requests a stand-in server received.
 final class Recorder: @unchecked Sendable {
     private let lock = NSLock()
     private var items: [LoopbackServer.Request] = []
@@ -33,7 +31,6 @@ final class Recorder: @unchecked Sendable {
     var requests: [LoopbackServer.Request] { lock.lock(); defer { lock.unlock() }; return items }
 }
 
-/// A port nothing listens on.
 func closedPort() throws -> String {
     let s = try LoopbackServer { _ in .text("") }
     let url = s.baseURL
@@ -108,7 +105,6 @@ func closedPort() throws -> String {
         }
     }
 
-    /// Cancelling the consumer closes the connection; the stream ends at once.
     @Test func cancellationStopsTheRequest() async throws {
         let server = try LoopbackServer { _ in
             .init(contentType: "application/x-ndjson", chunks: ndjson((0..<200).map { _ in ["message": ["content": "x"], "done": false] }), delay: 0.05)
@@ -220,7 +216,6 @@ func closedPort() throws -> String {
         #expect(throws: AssistantError.usageLimit("You've reached a usage limit. Check your usage in ChatGPT settings.")) {
             _ = try OpenAIProvider.parseEvent(#"{"type":"response.failed","response":{"error":{"code":"subscription_sharing_usage_limit_exceeded","message":"x"}}}"#, plan: true)
         }
-        // At the output limit the reply is cut off, not failed (GenerationOptionsTests); other reasons stay errors.
         #expect(throws: AssistantError.incomplete("content_filter")) {
             _ = try OpenAIProvider.parseEvent(#"{"type":"response.incomplete","response":{"incomplete_details":{"reason":"content_filter"}}}"#, plan: true)
         }
@@ -231,7 +226,6 @@ func closedPort() throws -> String {
                 == .unsupported("This request uses a feature that isn't supported with ChatGPT plan usage."))
     }
 
-    /// With a ChatGPT sign-in, a 401 refreshes the token once and retries.
     @Test func accountRefreshesOnUnauthorized() async throws {
         let rec = Recorder()
         let server = try LoopbackServer { req in

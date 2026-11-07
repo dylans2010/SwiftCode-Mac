@@ -81,8 +81,6 @@ struct ProjectDependencyGraphView: View {
         }
     }
 
-    // MARK: - Graphviz status
-
     @ViewBuilder
     private var graphvizStatusRow: some View {
         HStack(spacing: 8) {
@@ -153,8 +151,6 @@ struct ProjectDependencyGraphView: View {
             }
         }
     }
-
-    // MARK: - Graph generation
 
     private func generateGraph() {
         guard let project = sessionStore.activeProject else { return }

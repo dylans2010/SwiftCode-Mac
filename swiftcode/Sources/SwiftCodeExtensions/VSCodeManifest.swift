@@ -1,10 +1,5 @@
 import Foundation
 
-/// Semver value object (spec §2.1.1). Parsing: trim whitespace, strip a
-/// leading `v`, discard everything from the first `-` (pre-release/build
-/// suffixes are discarded for comparison; the original string is kept
-/// for display). `minor`/`patch` default to `0` when absent or
-/// unparseable. Comparison is lexicographic on (major, minor, patch).
 public struct SemanticVersion: Comparable, Hashable, Sendable, CustomStringConvertible {
     public let major: Int
     public let minor: Int
@@ -42,11 +37,6 @@ public struct SemanticVersion: Comparable, Hashable, Sendable, CustomStringConve
         return lhs.patch < rhs.patch
     }
 
-    /// Engine-requirement forms (spec §2.1.1): `"*"`, `"x"`, or empty →
-    /// true; `">=1.80.0"` → host >= floor; `"^1.80.0"` → same major and
-    /// host >= base (Legacy caret is same-major, not npm's `0.x` rule);
-    /// `"1.80.x"` / `"1.80.*"` → major equal and, when a minor is given,
-    /// minor equal; anything else → exact equality. Unparseable → false.
     public func satisfies(engineRequirement requirement: String) -> Bool {
         let req = requirement.trimmingCharacters(in: .whitespaces)
         if req.isEmpty || req == "*" || req.lowercased() == "x" { return true }
@@ -88,9 +78,6 @@ public enum ExtensionAPILevel: String, Codable, Sendable {
     }
 }
 
-/// The versioned VS Code API matrix (spec §7.5). Host engine 1.85.0.
-/// Adding an API means adding a row **and** an implementation, never a
-/// success-returning stub.
 public enum VSCodeAPI {
     public static let hostEngineVersion = SemanticVersion(major: 1, minor: 85, patch: 0)
 
@@ -139,7 +126,6 @@ public enum VSCodeAPI {
         matrix[api] ?? .unsupported
     }
 
-    /// The explicit unsupported list (spec §9.2).
     public static let unsupportedAPIs: [String] = [
         "vscode.debug",
         "vscode.notebooks",
@@ -166,7 +152,6 @@ public struct CompatibilityReport: Sendable {
     }
 }
 
-/// Pure compatibility evaluation (spec §2.1.2).
 public enum Compatibility {
     public static func evaluate(manifest: VSCodeManifest) -> CompatibilityReport {
         var reasons: [String] = []
@@ -192,8 +177,6 @@ public enum Compatibility {
                                    engineRequirement: manifest.enginesVscode, unsupportedAPIs: unsupported)
     }
 }
-
-// MARK: - VS Code package.json
 
 public struct VSCodeCommand: Codable, Hashable, Sendable {
     public let command: String
@@ -237,9 +220,6 @@ public struct ConfigurationProperty: Codable, Hashable, Sendable {
     }
 }
 
-/// Decoded `package.json` (spec §2.1). Decoding is deliberately tolerant:
-/// unknown keys are ignored; every known key is optional except the
-/// identity triple (name, publisher, version).
 public struct VSCodeManifest: Sendable {
     public let name: String
     public let publisher: String
@@ -294,7 +274,6 @@ public enum VSCodeManifestParser {
         return try parse(data: data)
     }
 
-    /// Absolute or containing a `..` segment.
     public static func isUnsafeRelativePath(_ path: String) -> Bool {
         if path.hasPrefix("/") { return true }
         let components = path.split(separator: "/", omittingEmptySubsequences: false)
@@ -331,7 +310,6 @@ public enum VSCodeManifestParser {
         }
         var views: [VSCodeView] = []
         if let rawViews = contributes["views"] as? [String: Any] {
-            // Views are flattened across containers; the container key is discarded.
             for (_, container) in rawViews {
                 guard let entries = container as? [[String: Any]] else { continue }
                 for entry in entries {

@@ -1,12 +1,9 @@
 import SwiftUI
 
-// MARK: - Create Extension View
-
 struct CreateExtensionView: View {
     @StateObject private var manager = ExtensionManager.shared
     @Environment(\.dismiss) private var dismiss
 
-    // Manifest fields
     @State private var name = ""
     @State private var author = ""
     @State private var version = "1.0.0"
@@ -14,7 +11,6 @@ struct CreateExtensionView: View {
     @State private var selectedCategory: ExtensionManifest.ExtensionCategory = .other
     @State private var selectedCapabilities: Set<ExtensionManifest.ExtensionCapability> = []
 
-    // Swift files
     @State private var swiftFiles: [SwiftFileEntry] = [
         SwiftFileEntry(name: "Main.swift", content: "// MARK: - Extension Entry Point\n\nimport Foundation\n\n// TODO: Implement your extension logic here.\n")
     ]
@@ -23,7 +19,6 @@ struct CreateExtensionView: View {
     @State private var editingFileIndex: Int?
     @State private var swiftCodeAssistCapable = false
 
-    // Status
     @State private var installImmediately = true
     @State private var isCreating = false
     @State private var creationError: String?
@@ -75,8 +70,6 @@ struct CreateExtensionView: View {
         }
         .preferredColorScheme(.dark)
     }
-
-    // MARK: - Sections
 
     private var basicInfoSection: some View {
         Section("Extension Info") {
@@ -212,8 +205,6 @@ struct CreateExtensionView: View {
         }
     }
 
-    // MARK: - Add File Sheet
-
     private var addFileSheet: some View {
         NavigationStack {
             Form {
@@ -245,8 +236,6 @@ struct CreateExtensionView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Edit File Sheet
-
     private func editFileSheet(index: Int) -> some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
@@ -273,15 +262,12 @@ struct CreateExtensionView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Create Action
-
     private func createExtension() async {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
         isCreating = true
         defer { isCreating = false }
 
-        // Build a safe folder ID from the name
         let safeID = trimmedName
             .lowercased()
             .replacingOccurrences(of: " ", with: "-")
@@ -315,8 +301,6 @@ struct CreateExtensionView: View {
         }
     }
 }
-
-// MARK: - Supporting Types
 
 private struct SwiftFileEntry: Identifiable {
     let id = UUID()

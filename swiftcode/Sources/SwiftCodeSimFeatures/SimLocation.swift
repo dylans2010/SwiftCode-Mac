@@ -1,9 +1,3 @@
-// Location simulation (specs/simulator/simulator-features.md §4.10,
-// "SwiftCode implementation"): the request sequences SwiftCode's guest agent sends
-// to locationd's simulation service through CoreLocation's simulation
-// manager, the presets, the scenarios, and the route and scenario files the
-// host reads (GPX, the route JSON of §7.2, plain coordinate lists).
-
 import Foundation
 
 public struct Coordinate: Equatable, Sendable, CustomStringConvertible {
@@ -14,7 +8,6 @@ public struct Coordinate: Equatable, Sendable, CustomStringConvertible {
         self.longitude = longitude
     }
 
-    /// "lat,lon" (`.` decimals; simctl's form). Nil when malformed or out of range.
     public init?(argument: String) {
         let parts = argument.split(separator: ",", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -25,7 +18,6 @@ public struct Coordinate: Equatable, Sendable, CustomStringConvertible {
 
     public var description: String { "\(latitude),\(longitude)" }
 
-    /// Great-circle distance in metres.
     public func distance(to other: Coordinate) -> Double {
         let r = 6_371_000.0
         let p1 = latitude * .pi / 180, p2 = other.latitude * .pi / 180
@@ -34,7 +26,6 @@ public struct Coordinate: Equatable, Sendable, CustomStringConvertible {
         return 2 * r * atan2(sqrt(a), sqrt(1 - a))
     }
 
-    /// Initial great-circle bearing in degrees, 0…360.
     public func bearing(to other: Coordinate) -> Double {
         let p1 = latitude * .pi / 180, p2 = other.latitude * .pi / 180
         let dl = (other.longitude - longitude) * .pi / 180
@@ -44,8 +35,6 @@ public struct Coordinate: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// One fix of a scenario file (§4.10 "Scenario file format": the coding keys
-/// of a keyed-archived CLLocation).
 public struct ScenarioPoint: Equatable, Sendable {
     public var coordinate: Coordinate
     public var altitude: Double = 0
@@ -53,7 +42,6 @@ public struct ScenarioPoint: Equatable, Sendable {
     public var verticalAccuracy: Double = -1
     public var course: Double = -1
     public var speed: Double = -1
-    /// Seconds from the scenario's start.
     public var time: Double
 
     public init(_ coordinate: Coordinate, time: Double, altitude: Double = 0, horizontalAccuracy: Double = 5,
@@ -67,7 +55,6 @@ public struct ScenarioPoint: Equatable, Sendable {
         self.speed = speed
     }
 
-    /// The agent's wire form.
     public var dictionary: [String: Any] {
         ["latitude": coordinate.latitude, "longitude": coordinate.longitude, "altitude": altitude,
          "horizontalAccuracy": horizontalAccuracy, "verticalAccuracy": verticalAccuracy,
@@ -75,13 +62,11 @@ public struct ScenarioPoint: Equatable, Sendable {
     }
 }
 
-/// How often a route delivers a fix.
 public enum RouteSpacing: Equatable, Sendable {
-    case interval(Double)   // seconds
-    case distance(Double)   // metres
+    case interval(Double)
+    case distance(Double)
 }
 
-/// One request to the simulation manager, in order.
 public enum LocationStep: Equatable, Sendable {
     case stop
     case clear
@@ -90,15 +75,10 @@ public enum LocationStep: Equatable, Sendable {
     case interval(Double)
     case distance(Double)
     case speed(Double)
-    /// `LocationRepeatBehavior` of the scenario that follows (1 once, 2 loop).
     case repeatBehavior(Int)
-    /// Loads a scenario file (a guest path; locationd reads it).
     case loadScenario(String)
-    /// SwiftCode: the agent writes this scenario file (guest path) from points,
-    /// then a `loadScenario` of it follows.
     case writeScenario(path: String, points: [ScenarioPoint], repeatBehavior: Int)
 
-    /// The agent's wire form: { call, … }.
     public var dictionary: [String: Any] {
         switch self {
         case .stop: ["call": "stop"]
@@ -119,9 +99,7 @@ public enum LocationStep: Equatable, Sendable {
 public enum LocationCommand: Equatable, Sendable {
     case set(Coordinate)
     case route([Coordinate], speed: Double, spacing: RouteSpacing)
-    /// A scenario file in the runtime (by name).
     case scenario(name: String)
-    /// SwiftCode's own scenario (from a GPX or route file), written into the device.
     case points([ScenarioPoint], loop: Bool)
     case clear
 
@@ -130,15 +108,10 @@ public enum LocationCommand: Equatable, Sendable {
 }
 
 public enum SimLocation {
-    /// The runtime's scenario directory (a guest path: the runtime is the guest's root).
     public static let scenarioDirectory = "/System/Library/Frameworks/CoreLocation.framework/Support/SimulationScenarios"
-    /// The scenarios of §7.1 in menu order (files of the runtime; their data
-    /// is never copied into SwiftCode).
     public static let builtInScenarios = ["City Run", "City Bicycle Ride", "Freeway Drive", "Apple"]
-    /// The guest path SwiftCode's own scenarios are written to (DEV/data/tmp).
     public static let swiftcodeScenarioPath = "/tmp/swiftcode-location-scenario.plist"
 
-    /// The request sequences of §4.10.
     public static func steps(for command: LocationCommand, scenarioDirectory: String = scenarioDirectory,
                              swiftcodeScenarioPath: String = swiftcodeScenarioPath) -> [LocationStep] {
         switch command {
@@ -165,9 +138,6 @@ public enum SimLocation {
         }
     }
 
-    /// Device Hub's preset places (§7.1). **SwiftCode decision** (open question
-    /// Q5): the reference's coordinates were not read; these are each city's
-    /// commonly published centre.
     public static let presets: [(name: String, coordinate: Coordinate)] = [
         ("Berlin, Germany", Coordinate(52.5200, 13.4050)),
         ("Cupertino, CA, USA", Coordinate(37.3230, -122.0322)),
@@ -185,13 +155,10 @@ public enum SimLocation {
         ("Warsaw, Poland", Coordinate(52.2297, 21.0122)),
     ]
 
-    /// A preset by name: its full name, or the city alone, any case.
     public static func preset(named name: String) -> Coordinate? {
         let n = name.lowercased()
         return presets.first { $0.name.lowercased() == n || $0.name.lowercased().split(separator: ",").first.map(String.init) == n }?.coordinate
     }
-
-    // MARK: Files
 
     public enum FileError: Error, Equatable, CustomStringConvertible {
         case empty
@@ -204,10 +171,6 @@ public enum SimLocation {
         }
     }
 
-    /// A location file: GPX (track, route or way points), the route JSON of
-    /// §7.2 ({ mode, distance|interval, speed, waypoints: [{latitude, longitude}] }),
-    /// or a list of "lat,lon" lines. GPX with times becomes a scenario that
-    /// replays the times; everything else becomes a route.
     public static func parseFile(_ text: String) throws -> LocationCommand {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.hasPrefix("{") { return try parseRouteJSON(t) }
@@ -249,8 +212,6 @@ public enum SimLocation {
         return .route(points, speed: speed, spacing: spacing)
     }
 
-    /// GPX 1.1 (public schema): `trkpt`, `rtept` and `wpt` elements with
-    /// `lat` and `lon` attributes and optional `ele` and `time` children.
     static func parseGPX(_ text: String) throws -> LocationCommand {
         struct Raw { var c: Coordinate; var ele: Double?; var time: Date? }
         var found: [String: [Raw]] = ["trkpt": [], "rtept": [], "wpt": []]
@@ -290,8 +251,6 @@ public enum SimLocation {
         let list = !found["trkpt"]!.isEmpty ? found["trkpt"]! : !found["rtept"]!.isEmpty ? found["rtept"]! : found["wpt"]!
         guard !list.isEmpty else { throw FileError.empty }
         if list.count == 1 { return .set(list[0].c) }
-        // Times on every point: a scenario that replays them (course and
-        // speed from the neighbouring points).
         if list.allSatisfy({ $0.time != nil }) {
             let t0 = list[0].time!
             var points: [ScenarioPoint] = []

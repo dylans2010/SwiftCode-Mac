@@ -1,6 +1,5 @@
 import Foundation
 
-/// A little-endian cursor over bytes (ELF and DWARF reading).
 struct ByteCursor {
     let bytes: [UInt8]
     var pos: Int
@@ -71,27 +70,19 @@ struct ByteCursor {
     }
 }
 
-/// Address → (file, line) from DWARF line programs (`.debug_line`, DWARF
-/// 2–5; `specs/ide/profiler.md` §4.3).
 public struct DWARFLineTable: Sendable {
     public struct Row: Sendable, Equatable {
         public var address: UInt64
         public var file: Int
         public var line: Int
-        /// The first address after a sequence (no line of its own).
         public var endSequence: Bool
     }
 
-    /// Every unit's file paths, in one list.
     public private(set) var files: [String] = []
-    /// Sorted by address.
     public private(set) var rows: [Row] = []
 
     public init() {}
 
-    /// Parses `.debug_line`; `lineStrings` is `.debug_line_str`, `strings`
-    /// `.debug_str` (DWARF 5 path forms). A unit that cannot be read ends
-    /// the parse (units read before it are kept).
     public init(debugLine: [UInt8], lineStrings: [UInt8] = [], strings: [UInt8] = []) {
         var c = ByteCursor(debugLine)
         var all: [Row] = []
@@ -102,8 +93,6 @@ public struct DWARFLineTable: Sendable {
             _ = unitEnd
             c.pos = next
         }
-        // By address; at one address non-end rows before end rows, and in
-        // program order (the later row wins a lookup).
         rows = all.enumerated().sorted { a, b in
             if a.element.address != b.element.address { return a.element.address < b.element.address }
             if a.element.endSequence != b.element.endSequence { return !a.element.endSequence }
@@ -111,15 +100,12 @@ public struct DWARFLineTable: Sendable {
         }.map(\.element)
     }
 
-    /// The line of an address: the row with the largest address ≤ it, unless
-    /// that row ends a sequence.
     public func lookup(_ address: UInt64) -> (file: String, line: Int)? {
         var low = 0, high = rows.count
         while low < high {
             let mid = (low + high) / 2
             if rows[mid].address <= address { low = mid + 1 } else { high = mid }
         }
-        // Among rows at the same address prefer a non-end row.
         var i = low - 1
         while i > 0, rows[i].endSequence, rows[i - 1].address == rows[i].address { i -= 1 }
         guard i >= 0, !rows[i].endSequence, rows[i].line > 0, files.indices.contains(rows[i].file) else { return nil }
@@ -130,7 +116,6 @@ public struct DWARFLineTable: Sendable {
     static let formData1: UInt64 = 0x0B, formData2: UInt64 = 0x05, formData4: UInt64 = 0x06, formData8: UInt64 = 0x07
     static let formData16: UInt64 = 0x1E, formBlock: UInt64 = 0x09, formSdata: UInt64 = 0x0D
 
-    /// Returns (end of header, next unit offset).
     static func parseUnit(_ c: inout ByteCursor, lineStrings: [UInt8], strings: [UInt8],
                           files: inout [String], rows: inout [Row]) throws -> (Int, Int) {
         var length = UInt64(try c.u32())
@@ -146,7 +131,7 @@ public struct DWARFLineTable: Sendable {
         var addressSize = 8
         if version >= 5 {
             addressSize = Int(try c.u8())
-            _ = try c.u8() // segment selector size
+            _ = try c.u8()
         }
         let headerLength = Int(try c.fixed(offsetSize))
         let programStart = c.pos + headerLength
@@ -162,7 +147,6 @@ public struct DWARFLineTable: Sendable {
         var standardLengths: [Int] = [0]
         for _ in 1..<opcodeBase { standardLengths.append(Int(try c.u8())) }
 
-        // Directories and files; `fileBase` maps the unit's file numbers to `files`.
         var dirs: [String] = []
         var unitFiles: [String] = []
         func join(_ dir: String, _ name: String) -> String {
@@ -199,7 +183,6 @@ public struct DWARFLineTable: Sendable {
                 return out
             }
             dirs = try readEntries().map { $0[1] as? String ?? "" }
-            // Directories other than 0 are relative to the compilation directory (entry 0).
             if let base = dirs.first, !base.isEmpty {
                 for i in dirs.indices.dropFirst() where !dirs[i].hasPrefix("/") { dirs[i] = join(base, dirs[i]) }
             }
@@ -215,7 +198,7 @@ public struct DWARFLineTable: Sendable {
                 if d.isEmpty { break }
                 dirs.append(d)
             }
-            unitFiles = [""] // file numbers start at 1
+            unitFiles = [""]
             while true {
                 let name = try c.cString()
                 if name.isEmpty { break }
@@ -256,7 +239,6 @@ public struct DWARFLineTable: Sendable {
                     line = 1
                 case 2: address = try c.fixed(len > 1 ? min(8, len - 1) : addressSize)
                 case 3:
-                    // DW_LNE_define_file (DWARF 2–4).
                     let name = try c.cString()
                     let d = Int(try c.uleb())
                     unitFiles.append(join(dirs.indices.contains(d) ? dirs[d] : "", name))

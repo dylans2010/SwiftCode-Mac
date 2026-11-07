@@ -1,13 +1,3 @@
-// Ported verbatim from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/ModuleKind.swift`
-// (Dylan's own code; direct port authorised under MIT). Destination:
-// SwiftCodeIDECore — the shared model layer both SwiftCodeIDEShell and
-// SwiftCodeUI depend on (SwiftCodeUI cannot see SwiftCodeIDEShell, where
-// `PersonalDocModuleKind` lives, and `NSPersonalDocumentationView` uses the
-// bare `ModuleKind` name). `PersonalDocModuleKind` is a parallel 55-case
-// enum in SwiftCodeIDEShell; the two are NOT unified here — the view's
-// `kind: ModuleKind?` vs the coordinator's
-// `selectedModuleKind: PersonalDocModuleKind?` mismatch is a wiring gap
-// for the coordinator, not this file.
 import Foundation
 import SwiftUI
 
@@ -19,7 +9,6 @@ public enum Archetype: String, Sendable, Codable {
 }
 
 public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
-    // A. Freeform Document
     case personalDocumentation = "Personal Documentation"
     case dailyNotes = "Daily Notes"
     case weeklyReviews = "Weekly Reviews"
@@ -46,7 +35,6 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
     case userStory = "User Story"
     case freeformDocument = "Freeform Document"
 
-    // B. Structured Record
     case featurePlanning = "Feature Planning"
     case bugDatabase = "Bug Database"
     case techDebtTracker = "Technical Debt Tracker"
@@ -59,13 +47,11 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
     case releaseChecklist = "Release Checklist"
     case structuredRecord = "Structured Record"
 
-    // C. Generated/Derived Document
     case projectWiki = "Project Wiki"
     case dashboard = "Dashboard"
     case architectureDecisions = "Architecture Decisions"
     case aiInsights = "AI Insights"
 
-    // D. Container/Organizer
     case smartCollections = "Smart Collections"
     case favorites = "Favorites"
     case archivedDocuments = "Archived Documents"
@@ -75,7 +61,6 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
     case images = "Images"
     case referenceLibrary = "Reference Library"
 
-    // E. Advanced Ecosystem Extensions
     case knowledgeGraph = "Knowledge Graph"
     case timeline = "Project Timeline"
     case analytics = "Project Analytics"

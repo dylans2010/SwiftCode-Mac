@@ -1,77 +1,5 @@
-// AssistRuntimeTestSuite.swift — Assist v3 Runtime Evaluation & Regression Test Suite
-// (SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistRuntimeTestSuite.swift`;
-// Dylan's own code, direct port authorised under MIT.)
-//
-// FULL LANDING by writer agent H-TEST (2026-11-06), building on F1B's
-// compilable-today subset (10 methods + AssistToolKnowledgeValidator, landed
-// 2026-11-06 in commit 7ac654a9). Method bodies are byte-identical to F1's
-// staged full port (and, except for the one MuseLocalProxyServer.start
-// adaptation below, byte-identical to Legacy). No test was simplified,
-// mocked, or stubbed. RuntimeTestCaseResult / RuntimeTestSuiteReport are
-// reused from RuntimeTestHarness.swift, not redefined.
-//
-// LANDED: all 40 test methods except testCodingToolsNativeContextMenuPayload
-// (HELD — see below) + 6 of 8 sub-suites:
-//   AssistToolKnowledgeValidator, SystemIndexTestSuite, SDKProviderTests,
-//   HermesProviderTests, GoogleCloudSDKTests, AssistProviderTests.
-//   (The last two were moved into SwiftCodeAssistant from their test targets
-//   by H-TEST so this production aggregator can call them; the test-target
-//   copies are gone to avoid duplicate types. GoogleCloudSDKConfiguration,
-//   which GoogleCloudSDKTests needs, was ported from Legacy alongside.)
-//
-// HELD (method removed / call commented, NOT silently dropped — the staged
-// full port in `staging-wire/runtime-tests/` still carries them verbatim):
-//   - testCodingToolsNativeContextMenuPayload: needs `CodingToolsUI`,
-//     `CodingAction`, `CodingToolMenuPayload`, defined ONLY in SwiftCodeUI
-//     (`swiftcode/Sources/SwiftCodeUI/Window/CodingToolsUI.swift:13,28`).
-//     SwiftCodeAssistant cannot import SwiftCodeUI (UI depends on
-//     Assistant — a cycle). Duplicating the enum would test a copy, not the
-//     real payload. Unblock by moving the payload types down to
-//     SwiftCodeAssistant or by moving this test to a UI test target.
-//   - ReverseTestSuite sub-suite: needs `ReverseBridgeRequest` /
-//     `ReverseBridgeParams` / `ReverseBridgeMessage` / `ReverseBridgeProtocol`,
-//     defined ONLY in SwiftCodeMCP, plus the ReverseBridge.mjs bundle
-//     resource. SwiftCodeAssistant cannot import SwiftCodeMCP (MCP depends
-//     on Assistant). Unblock by moving the four bridge types down to
-//     SwiftCodeAssistant (same direction as MCP-DEP's registry move).
-//   - AssistDocsGitHubToolsTestSuite sub-suite: needs
-//     `AssistFetchDocumentationTool` / `AssistGitHubRepoTool` (the
-//     `fetch_documentation` / `github_repo` tools), which exist ONLY in
-//     Legacy (`SwiftCode/Backend/Assist/Tools/AssistFetchDocumentationTool.swift`,
-//     `AssistGitHubRepoTool.swift`) — unported anywhere. Unblock by porting
-//     those two tools into SwiftCodeMCP and this suite with them.
-//
-// KNOWN RUNTIME FAILURES (file compiles; these checks fail until the named
-// work lands — documented, not hidden):
-//   - testRegistryExpansionCount asserts 290 registered schemas + 60
-//     expansion tool ids + fetch_documentation/github_repo. Only ~20
-//     Assistant-side + 17 MCP-side tools exist in the tree today; the 60
-//     expansion tools are unported. Expect schemas=<current count>.
-//   - testAssistFinderToolsAndAliases asserts resolve("git")?.id ==
-//     "run_command", but the alias chain (`AssistToolRegistry.swift`
-//     toolAliases: "git" -> "version_control_operator") resolves to the
-//     operator tool whose id is "version_control_operator". That is a
-//     genuine Legacy test bug (the expectation fails against Legacy too);
-//     the alias map was NOT changed to satisfy it.
-//
-// ADAPTATION (carried over from F1/F1B, inline note in the test):
-//   testMuseBridgeModelPreservationAndLocalProxy calls the synchronous
-//   `MuseLocalProxyServer.start(active:streamChat:)` — Legacy's no-arg
-//   async start() does not exist on main.
-//
-// DEPENDENCY NOTE: three ported support files (`AgentTerminalService.swift`,
-// `AssistVerificationPipeline.swift`, `BuildLogLineParser.swift`) import
-// SwiftCodeBuild for `BuildDiagnostic`; SwiftCodeAssistant has no
-// SwiftCodeBuild dependency yet. Until `Package.swift:113` gains
-// `"SwiftCodeBuild"` (G-DEPS / coordinator owns Package.swift), the target
-// does not compile. See the H-TEST report for the exact one-line change.
-//
-// Static checks only — no Swift toolchain here; never claim a build passed.
-
 import Foundation
 import os
-
-// MARK: - Assist v3 Runtime Evaluation & Regression Test Suite
 
 @MainActor
 public final class AssistRuntimeTestSuite: Sendable {
@@ -80,7 +8,6 @@ public final class AssistRuntimeTestSuite: Sendable {
 
     private init() {}
 
-    /// Executes the full suite of regression and evaluation checks for the Assist v3 runtime.
     public func runAllTests() async -> RuntimeTestSuiteReport {
         let startTime = Date()
         var results: [RuntimeTestCaseResult] = []
@@ -125,12 +52,9 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testSystemAssetsToolRoutingPolicyRulesAThroughJ())
         results.append(await testUseWorkersResilientDecodingAndStatePropagation())
         results.append(await testParallelExecutionEngineAndTerminalSessions())
-        // HELD (SwiftCodeUI-only types — see header): results.append(await testCodingToolsNativeContextMenuPayload())
         results.append(await testNaturalLanguageIntentMatrixAndCapabilityCatalog())
-        // HELD (ReverseBridge types live in SwiftCodeMCP — see header): results.append(contentsOf: await ReverseTestSuite.runAll())
         results.append(contentsOf: await AssistToolKnowledgeValidator.shared.runAllTests())
         results.append(contentsOf: await SystemIndexTestSuite.shared.runAllTests())
-        // HELD (AssistFetchDocumentationTool / AssistGitHubRepoTool unported — see header): results.append(contentsOf: await AssistDocsGitHubToolsTestSuite.shared.runAllTests())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
         results.append(contentsOf: await AssistProviderTests.shared.runAllTests())
         results.append(contentsOf: await SDKProviderTests.shared.runAllTests())
@@ -151,12 +75,10 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 1. Agent State Transitions
     public func testAgentStateTransitions() async -> RuntimeTestCaseResult {
         let start = Date()
         let session = AssistAgentSession()
 
-        // Valid transition flow
         session.transition(to: .receivingRequest, reason: "Testing initial receive")
         session.transition(to: .analyzingRepository, reason: "Testing analysis")
         session.transition(to: .planning, reason: "Testing planning")
@@ -172,7 +94,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 2. Task Budget Enforcement
     public func testTaskBudgetEnforcement() async -> RuntimeTestCaseResult {
         let start = Date()
         let task = AgentTask(originalRequest: "Test budget limits", budgets: TaskExecutionBudget(maxIterations: 5, maxToolCalls: 10, maxRepeatedFailures: 3))
@@ -188,7 +109,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 3. Tool Router Phase Filtering
     public func testToolRouterPhaseFiltering() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistToolRouter.shared
@@ -197,9 +117,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         let discoveryTools = router.filterTools(for: .analyzingRepository, in: registry)
         let validationTools = router.filterTools(for: .validating, in: registry)
 
-        // Discovery phase should not prioritize write file
         let hasNoWriteInDiscovery = !discoveryTools.contains(where: { $0.id == "file_write" })
-        // Validation phase should prioritize build or review
         let hasBuildInValidation = validationTools.contains(where: { $0.id == "project_build" || $0.id == "code_review" })
 
         let passed = hasNoWriteInDiscovery && hasBuildInValidation
@@ -212,7 +130,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 4. Unified Diff Generation
     public func testUnifiedDiffGeneration() async -> RuntimeTestCaseResult {
         let start = Date()
         let oldContent = "func hello() {\n    print(\"old\")\n}\n"
@@ -230,16 +147,13 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 5. Targeted Replacement & Conflict Detection
     public func testTargetedReplacementAndConflictDetection() async -> RuntimeTestCaseResult {
         let start = Date()
         let content = "let x = 1\nlet y = 2\n"
 
-        // Positive case: single exact match
         let (modified, _) = try! AssistDiffEngine.shared.applyTargetedReplacement(filePath: "Math.swift", originalContent: content, targetContent: "let y = 2", replacementContent: "let y = 42")
         let positivePassed = modified.contains("let y = 42")
 
-        // Negative case: target not found must throw
         var negativePassed = false
         do {
             _ = try AssistDiffEngine.shared.applyTargetedReplacement(filePath: "Math.swift", originalContent: content, targetContent: "let z = 99", replacementContent: "let z = 100")
@@ -264,7 +178,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 6. Failure Memory & Thrashing Detection
     public func testFailureMemoryAndThrashingDetection() async -> RuntimeTestCaseResult {
         let start = Date()
         var task = AgentTask(originalRequest: "Test failure memory", budgets: TaskExecutionBudget(maxRepeatedFailures: 3))
@@ -284,7 +197,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 7. Completion Contract Evaluation
     public func testCompletionContractEvaluation() async -> RuntimeTestCaseResult {
         let start = Date()
         var task = AgentTask(originalRequest: "Implement feature", interpretedObjective: "Feature XYZ", filesInvolved: ["Feature.swift"])
@@ -321,9 +233,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 8. Path Sandbox Security — real calls into AssistFileSystem.resolve,
-    // not string predicates on literals (the old version passed regardless
-    // of whether the sandbox worked).
     public func testPathSandboxSecurity() async -> RuntimeTestCaseResult {
         let start = Date()
         let fm = FileManager.default
@@ -331,10 +240,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         let root = base.appendingPathComponent("Proj")
         do {
             try fm.createDirectory(at: root, withIntermediateDirectories: true)
-            // Sibling directory sharing the workspace prefix (the old
-            // hasPrefix-without-trailing-slash bypass target).
             try fm.createDirectory(at: base.appendingPathComponent("Proj-evil"), withIntermediateDirectories: true)
-            // Symlink inside the workspace pointing outside it.
             try fm.createSymbolicLink(at: root.appendingPathComponent("escape"), withDestinationURL: URL(fileURLWithPath: "/etc"))
         } catch {
             return RuntimeTestCaseResult(testName: "Path Sandbox Security", passed: false, message: "Fixture setup failed: \(error)", duration: Date().timeIntervalSince(start))
@@ -367,7 +273,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 8b. Tool Ecosystem: file_read lines, dir_cd, governance, no-fake-success
     public func testToolEcosystemFileReadLinesAndGovernance() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
@@ -411,7 +316,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             try? await tool.execute(input: input, context: context)
         }
 
-        // --- file_read lines ---
         let readTool = AssistReadFileTool()
         if let r = await run(readTool, ["path": "big.swift"]) {
             check("file_read full: success", r.success)
@@ -453,7 +357,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             check("file_read missing: failure", !r.success)
         }
 
-        // --- dir_cd / dir_pwd ---
         let cdTool = AssistChangeDirectoryTool()
         let pwdTool = AssistPrintWorkingDirectoryTool()
         if let r = await run(cdTool, ["path": "sub"]) {
@@ -479,7 +382,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             check("dir_cd missing: failure", !r.success)
         }
 
-        // --- copy/move refuse existing destination; delete missing fails ---
         let copyTool = AssistCopyFileTool()
         if let r = await run(copyTool, ["source": "src.txt", "destination": "dst.txt"]) {
             check("file_copy onto existing: failure", !r.success)
@@ -499,7 +401,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             check("dir_delete missing: failure (no fake success)", !r.success)
         }
 
-        // --- code_insert pattern miss + code_multi_edit empty search ---
         let insertTool = AssistInsertCodeBlockTool()
         if let r = await run(insertTool, ["path": "small.txt", "code": "NEW", "mode": "before", "pattern": "zzz-not-present"]) {
             check("code_insert pattern miss: failure", !r.success)
@@ -516,7 +417,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             check("code_multi_edit missing path: failure (no silent skip)", !r.success)
         }
 
-        // --- tree_view symlink cycle terminates ---
         let treeTool = AssistTreeViewTool()
         if let r = await run(treeTool, ["path": "cyc", "maxDepth": 10]) {
             check("tree_view symlink cycle: success, no hang", r.success)
@@ -526,7 +426,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             check("tree_view non-integral maxDepth: failure", !r.success)
         }
 
-        // --- registry / router / validator governance ---
         let registry = AssistToolRegistry()
         let ids = Set(registry.allTools.map(\.id))
         check("registry: file_read + dir_cd + dir_pwd registered", ids.contains("file_read") && ids.contains("dir_cd") && ids.contains("dir_pwd"))
@@ -553,13 +452,11 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 9. Phase Coordination & Dependency Gating
     public func testPhaseCoordinationAndDependencyGating() async -> RuntimeTestCaseResult {
         let start = Date()
         let coordinator = AgentPhaseCoordinator.shared
         coordinator.reset()
 
-        // Initial state: 180+ phases initialized
         let initialCount = coordinator.phases.count
         guard initialCount >= 180 else {
             return RuntimeTestCaseResult(
@@ -570,7 +467,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // Test dependency gating: Cannot activate Phase 004 without completing Phase 003
         let canActivate004 = coordinator.canStartPhase("PHASE_004_AGENTS_INTERPRETATION")
         coordinator.completePhase("PHASE_001_REPO_INIT", evidence: "Verified root")
         coordinator.completePhase("PHASE_002_GIT_AUDIT", evidence: "Working tree clean")
@@ -589,7 +485,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 10. Agent Notes Lifecycle & Contract Formatting
     public func testAgentNotesLifecycleAndGitExclusion() async -> RuntimeTestCaseResult {
         let start = Date()
         let notesManager = AgentNotesManager.shared
@@ -631,7 +526,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 11a. Artifact store lifecycle (create/list/read/update/append/delete)
     public func testArtifactStoreLifecycle() async -> RuntimeTestCaseResult {
         let start = Date()
         let store = await AssistArtifactStore.shared
@@ -642,38 +536,28 @@ public final class AssistRuntimeTestSuite: Sendable {
         var ok = true
         var notes: [String] = []
         do {
-            // create
             let rec = try await store.createArtifact(name: "Repository Analysis", content: "# Analysis\n\nFindings.", description: "Test analysis", mode: .create, workspaceRoot: ws)
             ok = ok && rec.filename == "repository_analysis.md" && rec.title == "Repository Analysis"
-            // create duplicate must fail
             do {
                 _ = try await store.createArtifact(name: "repository_analysis", content: "x", description: "", mode: .create, workspaceRoot: ws)
                 ok = false; notes.append("duplicate create did not fail")
             } catch { }
-            // update
             _ = try await store.createArtifact(name: "repository_analysis", content: "# Analysis v2", description: "", mode: .update, workspaceRoot: ws)
-            // append
             _ = try await store.createArtifact(name: "repository_analysis", content: "More.", description: "", mode: .append, workspaceRoot: ws)
-            // read
             let (readRec, content, truncated) = try await store.readArtifact(name: "repository_analysis", workspaceRoot: ws)
             ok = ok && !truncated && content.contains("Analysis v2") && content.contains("More.") && readRec.filename == "repository_analysis.md"
-            // list
             let listed = await store.listArtifacts(workspaceRoot: ws)
             ok = ok && listed.contains(where: { $0.filename == "repository_analysis.md" })
-            // invalid name rejected
             do {
                 _ = try await store.createArtifact(name: "../escape", content: "x", description: "", mode: .create, workspaceRoot: ws)
                 ok = false; notes.append("unsafe name accepted")
             } catch { }
-            // empty content rejected
             do {
                 _ = try await store.createArtifact(name: "empty_test", content: "   ", description: "", mode: .create, workspaceRoot: ws)
                 ok = false; notes.append("empty content accepted")
             } catch { }
-            // delete without confirm path is tool-level; store delete works
             let deleted = try await store.deleteArtifact(name: "repository_analysis", workspaceRoot: ws)
             ok = ok && deleted == "repository_analysis.md"
-            // agent_notes.md is protected
             try? "# notes".write(to: ws.appendingPathComponent("agent_notes.md"), atomically: true, encoding: .utf8)
             do {
                 _ = try await store.deleteArtifact(name: "agent_notes", workspaceRoot: ws)
@@ -692,7 +576,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 11b. Artifact naming normalization and display titles
     public func testArtifactNamingDisplayTitles() async -> RuntimeTestCaseResult {
         let start = Date()
         let cases: [(String, String?)] = [
@@ -721,7 +604,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 11c. Registry holds all 290 tools including the 60 expansion tools
     public func testRegistryExpansionCount() async -> RuntimeTestCaseResult {
         let start = Date()
         let registry = AssistToolRegistry.shared
@@ -739,7 +621,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 11. Skill Discovery & Keyword Matching
     public func testAgentSkillDiscoveryAndMatching() async -> RuntimeTestCaseResult {
         let start = Date()
         let resolver = AgentSkillResolver.shared
@@ -773,7 +654,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 12. Repository Instruction Scope & Precedence
     public func testAgentRepositoryScannerScopePrecedence() async -> RuntimeTestCaseResult {
         let start = Date()
         let scanner = AgentRepositoryScanner.shared
@@ -803,7 +683,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 13. Model Adapter Capabilities & JSON Trailing Comma Repair
     public func testAgentModelAdapterCapabilityNegotiationAndJSONRepair() async -> RuntimeTestCaseResult {
         let start = Date()
         let adapter = AgentModelAdapter.shared
@@ -837,7 +716,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 14. Terminal Service & Developer Directory Resolution
     public func testAgentTerminalServiceDeveloperDirResolution() async -> RuntimeTestCaseResult {
         let start = Date()
         let terminalService = AgentTerminalService.shared
@@ -852,7 +730,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 15. Continuous Multi-Goal Autonomous Takeover Safeguards
     public func testContinuousMultiGoalTakeoverSafeguards() async -> RuntimeTestCaseResult {
         let start = Date()
 
@@ -873,7 +750,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             expectedOutcome: "Actor compiles"
         )
 
-        // 1. Valid candidate should pass
         let valid = AssistGoalSafeguards.validateCandidate(
             candidateTitle: "Add Unit Tests for NetworkSession",
             candidateObjective: "Write comprehensive unit tests for NetworkSession",
@@ -883,7 +759,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             consecutiveFailures: 0
         )
 
-        // 2. Duplicate title should fail
         let duplicate = AssistGoalSafeguards.validateCandidate(
             candidateTitle: "Implement NetworkSession actor",
             candidateObjective: "Re-implement the same actor",
@@ -893,7 +768,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             consecutiveFailures: 0
         )
 
-        // 3. Unrelated goal should fail
         let unrelated = AssistGoalSafeguards.validateCandidate(
             candidateTitle: "Write a cooking recipe for pasta",
             candidateObjective: "Unrelated culinary text",
@@ -903,7 +777,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             consecutiveFailures: 0
         )
 
-        // 4. Excessive depth should fail
         let tooDeep = AssistGoalSafeguards.validateCandidate(
             candidateTitle: "Deeply nested subtask",
             candidateObjective: "Subtask at excessive depth",
@@ -913,7 +786,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             consecutiveFailures: 0
         )
 
-        // 5. Consecutive failures threshold should fail
         let failureStall = AssistGoalSafeguards.validateCandidate(
             candidateTitle: "Another follow up",
             candidateObjective: "Another attempt after multiple failures",
@@ -937,14 +809,12 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 16. Myers O(ND) Diff Engine & Live Streamer
     public func testMyersDiffAlgorithmAndLiveStreamer() async -> RuntimeTestCaseResult {
         let start = Date()
 
         let oldText = "func calculate() -> Int {\n    let a = 1\n    return a\n}"
         let newText = "func calculate() -> Int {\n    let a = 1\n    let b = 2\n    return a + b\n}"
 
-        // Compute Myers unified diff
         let diffResult = MyersDiffAlgorithm.shared.computeUnifiedDiff(
             filePath: "Sources/Math.swift",
             oldContent: oldText,
@@ -958,7 +828,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let hasInsertion = diff.contains("+    let b = 2")
         let hasReplacement = diff.contains("-    return a") && diff.contains("+    return a + b")
 
-        // Live Diff Streamer integration
         let streamer = LiveDiffStreamer.shared
         streamer.beginEdit(filePath: "Sources/Math.swift", operationType: .write, beforeContent: oldText)
         streamer.streamMutation(filePath: "Sources/Math.swift", currentContent: newText, isFinal: true)
@@ -977,12 +846,10 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 17. Offline Model Fallback Classification & Context Rehydration
     public func testOfflineModelFallbackClassificationAndRehydration() async -> RuntimeTestCaseResult {
         let start = Date()
         let manager = OfflineFallbackManager.shared
 
-        // 1. Classification tests
         let dnsError = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost, userInfo: nil)
         let dnsClassification = manager.classify(error: dnsError)
         let dnsMatches = dnsClassification == .dnsFailure
@@ -991,11 +858,9 @@ public final class AssistRuntimeTestSuite: Sendable {
         let timeoutClassification = manager.classify(error: timeoutError)
         let timeoutMatches = timeoutClassification == .connectionTimeout
 
-        // 2. Resolve fallback model
         let localFallback = manager.selectBestLocalFallback()
         let hasFallback = !localFallback.modelId.isEmpty
 
-        // 3. Fallback state recording and deactivation
         let testState = ModelFallbackState(
             primaryModel: "claude-3-5-sonnet",
             fallbackModel: localFallback.displayName,
@@ -1022,12 +887,10 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 18. Assist Workers Subsystem (M-TOOL, M-MODEL, M-SCHED, M-PERSIST, M-HANDOFF)
     public func testAssistWorkersSubsystem() async -> RuntimeTestCaseResult {
         let start = Date()
         let parentTaskID = UUID()
 
-        // 1. Tool Input Validation Test (use_workers schema enforcement)
         let tool = UseWorkersTool()
         let dummyContext = AssistContext(
             sessionId: parentTaskID,
@@ -1042,18 +905,15 @@ public final class AssistRuntimeTestSuite: Sendable {
             isAutonomous: true
         )
 
-        // Missing workers array
         let resEmpty = try? await tool.execute(input: [:], context: dummyContext)
         let rejectedEmpty = resEmpty?.success == false
 
-        // Empty task / scope rejection
         let invalidWorker: [[String: Any]] = [
             ["name": "TestWorker", "scope": "", "task": "Do something"]
         ]
         let resInvalid = try? await tool.execute(input: ["workers": invalidWorker], context: dummyContext)
         let rejectedInvalid = resInvalid?.success == false
 
-        // Duplicate worker name rejection
         let duplicateWorkers: [[String: Any]] = [
             ["name": "WorkerDup", "scope": "ScopeA", "task": "TaskA"],
             ["name": "WorkerDup", "scope": "ScopeB", "task": "TaskB"]
@@ -1061,7 +921,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let resDup = try? await tool.execute(input: ["workers": duplicateWorkers], context: dummyContext)
         let rejectedDup = resDup?.success == false
 
-        // Task > 500 characters rejection
         let longTask = String(repeating: "X", count: 501)
         let oversizedWorkers: [[String: Any]] = [
             ["name": "OversizedWorker", "scope": "ScopeA", "task": longTask]
@@ -1069,7 +928,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let resOversized = try? await tool.execute(input: ["workers": oversizedWorkers], context: dummyContext)
         let rejectedOversized = resOversized?.success == false
 
-        // 2. Worker State Transitions & Aggregations
         let state = WorkerRuntimeState.shared
         let testWorker = Worker(
             name: "Architecture Worker",
@@ -1088,7 +946,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         state.transitionWorker(id: testWorker.id, to: .reviewing, reason: "Awaiting review")
         let isReviewing = state.getWorker(id: testWorker.id)?.status == .reviewing
 
-        // 3. Stop Worker Flow & Mode B (Handoff) Continuity
         let coordinator = WorkerHandoffCoordinator.shared
         let handoffResult = coordinator.stopWorker(
             workerID: testWorker.id,
@@ -1098,7 +955,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let stopped = state.getWorker(id: testWorker.id)?.status == .cancelled
         let replacementCreated = handoffResult?.replacementWorker != nil
 
-        // 4. Task Tree Durable Persistence & Restoration
         let store = WorkerPersistenceStore.shared
         store.persistWorkers(state.allWorkers, parentTaskID: parentTaskID)
         let restored = store.restoreLastSession()
@@ -1114,7 +970,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 19. Event Normalization & Activity Trajectory Regression Test
     public func testEventNormalizationAndActivityTrajectory() async -> RuntimeTestCaseResult {
         let start = Date()
         let normalizer = AssistEventNormalizer.shared
@@ -1122,30 +977,22 @@ public final class AssistRuntimeTestSuite: Sendable {
 
         var activityGroup = AssistActivityGroup(isExecuting: true)
 
-        // 1. Simulate Directory Inspection: Failure -> Retry -> Success + Duplicate Event
         let dirCallId1 = UUID().uuidString
         let dirArgs: [String: Any] = ["path": "SwiftCode"]
 
         normalizer.normalizeToolStarted(callId: dirCallId1, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
         normalizer.normalizeToolFailed(callId: dirCallId1, toolName: "read_directory", error: "Failed to inspect directory", in: &activityGroup)
 
-        // The Antigravity SDK commonly uses opaque, non-UUID call IDs. Verify
-        // that retries still map their completion back to the active attempt.
         let dirCallId2 = "call-\(UUID().uuidString)"
         normalizer.normalizeToolStarted(callId: dirCallId2, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
         normalizer.normalizeToolCompleted(callId: dirCallId2, toolName: "read_directory", output: "Sources, Tests", arguments: dirArgs, in: &activityGroup)
 
-        // Replay duplicate completed event
         normalizer.normalizeToolCompleted(callId: dirCallId2, toolName: "read_directory", output: "Sources, Tests", arguments: dirArgs, in: &activityGroup)
 
-        // Verify directory inspection results in exactly 1 logical activity
         let dirToolCount = activityGroup.tools.filter { $0.toolId == "read_directory" }.count
         let dirToolState = activityGroup.tools.first(where: { $0.toolId == "read_directory" })
         let dirPassed = dirToolCount == 1 && dirToolState?.status == .completed && dirToolState?.retryCount == 1
 
-        // A later intentional repeat is a new operation, not a late completion
-        // for the previous same-arguments call. This guards the long durations
-        // caused by matching opaque IDs to the first completed semantic item.
         let repeatCallId = "call-repeat-\(UUID().uuidString)"
         normalizer.normalizeToolStarted(callId: repeatCallId, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
         let repeatedOperationId = activityGroup.tools.last?.id
@@ -1155,7 +1002,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             dirToolState?.result == "Sources, Tests" &&
             repeatedItem?.status == .completed && repeatedItem?.result == "Sources, Tests, README.md"
 
-        // 2. Simulate Search: Failure -> Retry -> Success
         let searchCallId1 = UUID().uuidString
         let searchArgs: [String: Any] = ["query": "import"]
 
@@ -1170,14 +1016,12 @@ public final class AssistRuntimeTestSuite: Sendable {
         let searchToolState = activityGroup.tools.first(where: { $0.toolId == "search_files" })
         let searchPassed = searchToolCount == 1 && searchToolState?.status == .completed && searchToolState?.retryCount == 1
 
-        // 3. Simulate Worker Lifecycle with clean user-facing title
         let workerId = UUID().uuidString
         normalizer.normalizeWorkerStarted(workerId: workerId, name: "start_subagent Codebase audit", args: "Audit code", in: &activityGroup)
         let workerTitleClean = activityGroup.workers.first?.userFacingTitle == "Worker · Codebase audit"
         normalizer.normalizeWorkerCompleted(workerId: workerId, result: "Audit finished", in: &activityGroup)
         let workerPassed = workerTitleClean && activityGroup.workers.first?.status == .completed
 
-        // 4. Simple Task Simulation ("Hello"): Ensure resetForNewTask clears operations
         normalizer.resetForNewTask()
         var simpleTaskActivity = AssistActivityGroup(isExecuting: true)
         let simpleTaskPassed = !simpleTaskActivity.hasContent && simpleTaskActivity.tools.isEmpty && simpleTaskActivity.workers.isEmpty
@@ -1192,7 +1036,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 21. Assist Intent Classifier
     public func testAssistIntentClassifier() async -> RuntimeTestCaseResult {
         let start = Date()
         let classifier = AssistIntentClassifier.shared
@@ -1226,14 +1069,13 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 22. Assist Build Project Incremental Parsing
     public func testAssistBuildProjectIncrementalParsing() async -> RuntimeTestCaseResult {
         let start = Date()
         let accumulator = BuildOutputAccumulator()
 
         accumulator.processLine("Building SwiftCode...")
         accumulator.processLine("ContentView.swift:14:5: error: cannot find 'testVar' in scope")
-        accumulator.processLine("ContentView.swift:14:5: error: cannot find 'testVar' in scope") // duplicate
+        accumulator.processLine("ContentView.swift:14:5: error: cannot find 'testVar' in scope")
         accumulator.processLine("ContentView.swift:20:1: warning: variable 'unused' was never used")
         accumulator.processLine("** BUILD FAILED **")
 
@@ -1258,7 +1100,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 23. Empty Template Blank State
     public func testEmptyTemplateBlankState() async -> RuntimeTestCaseResult {
         let start = Date()
         let template = EmptyTemplate()
@@ -1276,7 +1117,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 24. Coding Tools Service Actions
     public func testCodingToolsServiceActions() async -> RuntimeTestCaseResult {
         let start = Date()
         let service = CodingToolsService.shared
@@ -1299,7 +1139,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 25. Assist Conversation Memory
     public func testAssistConversationMemory() async -> RuntimeTestCaseResult {
         let start = Date()
         let memory = AssistConversationMemory.shared
@@ -1333,7 +1172,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 26. Assist Finder Tools & Alias Resolution
     public func testAssistFinderToolsAndAliases() async -> RuntimeTestCaseResult {
         let start = Date()
         let registry = AssistToolRegistry.shared
@@ -1359,7 +1197,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 27. Assist Model Eligibility Policy (Strict Model ID Rule)
     public func testAssistModelEligibilityPolicyStrictRule() async -> RuntimeTestCaseResult {
         let start = Date()
 
@@ -1403,7 +1240,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             }
         }
 
-        // Display name can NEVER override model ID
         let fakeModelWithFreeDisplayName = AssistAvailableModel(
             id: "paid-corp/model-v1",
             displayName: "Free Model For Everyone",
@@ -1440,11 +1276,9 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 28. Assist Model Execution Eligibility Validation
     public func testAssistModelEligibilityExecutionValidation() async -> RuntimeTestCaseResult {
         let start = Date()
 
-        // Eligible model passes execution validation
         var eligiblePassed = false
         do {
             try AssistModelEligibilityPolicy.validateExecutionEligibility(
@@ -1456,7 +1290,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             eligiblePassed = false
         }
 
-        // Ineligible model throws AssistModelEligibilityError
         var ineligibleBlocked = false
         do {
             try AssistModelEligibilityPolicy.validateExecutionEligibility(
@@ -1474,7 +1307,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             ineligibleBlocked = false
         }
 
-        // Ineligible model succeeds when onlyUseFreeModels is disabled
         var disabledAllowsIneligible = false
         do {
             try AssistModelEligibilityPolicy.validateExecutionEligibility(
@@ -1495,7 +1327,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 29. Assist Model Fallback Strict Eligibility Resolver
     public func testAssistModelEligibilityFallbackResolver() async -> RuntimeTestCaseResult {
         let start = Date()
 
@@ -1523,19 +1354,12 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 30. Muse Bridge Model Preservation & Local Proxy Server
     public func testMuseBridgeModelPreservationAndLocalProxy() async -> RuntimeTestCaseResult {
         let start = Date()
 
         let proxy = MuseLocalProxyServer()
         var startedSuccessfully = false
         do {
-            // Destination adaptation (SwiftCodeAssistant/Models/MuseOtherModelsBridge.swift:507):
-            // start() is synchronous and requires the active model resolution plus a
-            // streamChat backend; Legacy's no-arg async start() had neither. This
-            // test exercises proxy lifecycle only (start -> isRunning -> stop) and
-            // never issues a proxied chat call, so the backend closure fails loudly
-            // if ever invoked instead of faking model output.
             let resolution = MuseOtherModelResolution(
                 modelID: "mistral/mistral-7b-free",
                 displayName: "Mistral 7B Free",
@@ -1557,7 +1381,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         }
         let stoppedSuccessfully = !proxy.isRunning
 
-        // Test free-model enforcement in bridge context
         var eligibleAllowed = false
         do {
             try AssistModelEligibilityPolicy.validateExecutionEligibility(
@@ -1588,13 +1411,11 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 31. System Assets Tool Routing Policy (Rules A–J)
     public func testSystemAssetsToolRoutingPolicyRulesAThroughJ() async -> RuntimeTestCaseResult {
         let start = Date()
 
         let baseline = SystemIndexService.shared.baselinePrompt()
 
-        // Verify tool routing policy rules A through J in baseline prompt
         let hasRuleA = baseline.contains("Rule A") || baseline.contains("Native Tools")
         let hasRuleB = baseline.contains("Rule B") || baseline.contains("Explicit Tool Requests")
         let hasRuleC = baseline.contains("Rule C") || baseline.contains("Task to Tool")
@@ -1610,7 +1431,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 32. UseWorkers Resilient Argument Decoding & State Propagation
     public func testUseWorkersResilientDecodingAndStatePropagation() async -> RuntimeTestCaseResult {
         let start = Date()
         let tool = UseWorkersTool()
@@ -1627,7 +1447,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             isAutonomous: true
         )
 
-        // 1. Array of worker dictionaries
         let arrayInput: [String: Any] = [
             "workers": [
                 ["name": "BackendWorker", "scope": "Backend", "task": "Build data service", "role": "Backend Engineer"],
@@ -1637,7 +1456,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let res1 = try? await tool.execute(input: arrayInput, context: dummyContext)
         let arrayPassed = (res1?.success ?? false) && ((res1?.output.contains("workers assigned")) ?? false || (res1?.output.contains("BackendWorker") ?? false))
 
-        // 2. Stringified JSON array
         let stringifiedInput: [String: Any] = [
             "workers": """
             [
@@ -1648,7 +1466,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let res2 = try? await tool.execute(input: stringifiedInput, context: dummyContext)
         let stringifiedPassed = (res2?.success ?? false) && ((res2?.output.contains("QAWorker")) ?? false || (res2?.output.contains("workers assigned") ?? false))
 
-        // 3. Single object passed directly
         let singleObjectInput: [String: Any] = [
             "name": "Architect",
             "scope": "Architecture",
@@ -1658,7 +1475,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let res3 = try? await tool.execute(input: singleObjectInput, context: dummyContext)
         let singlePassed = (res3?.success ?? false) && ((res3?.output.contains("Architect")) ?? false || (res3?.output.contains("workers assigned") ?? false))
 
-        // 4. Duplicate scope auto-disambiguation check
         let duplicateScopeInput: [String: Any] = [
             "workers": [
                 ["name": "WorkerA", "scope": "SharedScope", "task": "Task A"],
@@ -1668,7 +1484,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         let res4 = try? await tool.execute(input: duplicateScopeInput, context: dummyContext)
         let duplicatePassed = (res4?.success ?? false) && (res4?.output.contains("SharedScope") ?? false)
 
-        // 5. WorkerRuntimeState UI visibility trigger check
         let dummyWorker = Worker(name: "Tester", scope: "Testing", task: "Run test suite", parentTaskID: UUID())
         WorkerRuntimeState.shared.register(worker: dummyWorker)
         let hasWorkersUI = WorkerRuntimeState.shared.workers.isEmpty == false
@@ -1684,11 +1499,9 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 33. Parallel Execution Engine & Terminal Session Manager
     public func testParallelExecutionEngineAndTerminalSessions() async -> RuntimeTestCaseResult {
         let start = Date()
 
-        // 1. Test AssistOperation dependency tracking and safe read-only concurrency
         let op1 = AssistOperation(
             id: "op_git",
             name: "Git Status",
@@ -1716,12 +1529,10 @@ public final class AssistRuntimeTestSuite: Sendable {
         let engine = AssistParallelExecutionEngine.shared
         let concurrencyLimitOk = engine.maxConcurrentOperations > 1
 
-        // Check dependency satisfaction logic
         let op1Ready = op1.dependencies.isEmpty
         let op2Ready = op2.dependencies.isEmpty
         let op3Blocked = !op3.dependencies.isEmpty
 
-        // 2. Test AgentTerminalSessionManager multi-session tracking & genuine cancellation
         let termManager = AgentTerminalSessionManager.shared
         let session = AgentTerminalExecutionSession(
             id: "test_term_session_\(UUID().uuidString)",
@@ -1746,19 +1557,10 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 34. Coding Tools Native Context Menu Payload Integration
-    // HELD — testCodingToolsNativeContextMenuPayload (see file header):
-    // needs CodingToolsUI / CodingAction / CodingToolMenuPayload, defined
-    // only in SwiftCodeUI. SwiftCodeAssistant cannot import SwiftCodeUI.
-    // Full method body is preserved verbatim in
-    // `staging-wire/runtime-tests/.../AssistRuntimeTestSuite.swift`.
-
-    // Native screen capture, screen recording, and app interaction tools
     public func testNativeScreenAndAppInteractionTools() async -> RuntimeTestCaseResult {
         let start = Date()
         let registry = AssistToolRegistry.shared
 
-        // Verify tools exist in registry
         guard let screenshotTool = registry.getTool("take_screenshot"),
               let screenrecordTool = registry.getTool("take_screenrecord"),
               let useAppTool = registry.getTool("use_app") else {
@@ -1770,7 +1572,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // Verify schemas
         let screenshotSchema = screenshotTool.parametersSchema
         let screenrecordSchema = screenrecordTool.parametersSchema
         let useAppSchema = useAppTool.parametersSchema
@@ -1802,7 +1603,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             sessionExecutionMode: .autopilot
         )
 
-        // Verify validation: screenrecord requires app_identifier
         let recordMissingApp = (try? await screenrecordTool.execute(input: [:], context: dummyContext))?.success == false
         guard recordMissingApp else {
             return RuntimeTestCaseResult(
@@ -1813,7 +1613,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // Verify validation: use_app requires app_identifier and action
         let useAppMissingParams = (try? await useAppTool.execute(input: [:], context: dummyContext))?.success == false
         guard useAppMissingParams else {
             return RuntimeTestCaseResult(
@@ -1832,7 +1631,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // Comprehensive Native App Interaction Engine Evaluation
     public func testNativeAppInteractionEngine() async -> RuntimeTestCaseResult {
         let start = Date()
         let registry = AssistToolRegistry.shared
@@ -1860,7 +1658,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             sessionExecutionMode: .autopilot
         )
 
-        // 1. Parameter schema verification
         let schema = useApp.parametersSchema
         let requiredProps = ["app_identifier", "action", "target", "value", "coordinates", "drag_destination", "scroll_delta", "window_id", "timeout", "verification", "confirm", "purpose"]
         for prop in requiredProps {
@@ -1874,7 +1671,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             }
         }
 
-        // 2. Action: list_applications succeeds without app_identifier
         let listResult = try? await useApp.execute(input: ["action": "list_applications"], context: dummyContext)
         guard let listRes = listResult, listRes.success else {
             return RuntimeTestCaseResult(
@@ -1885,7 +1681,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 3. Consequential action safeguard: close_application without confirm fails
         let closeWithoutConfirm = try? await useApp.execute(
             input: ["action": "close_application", "app_identifier": "com.apple.calculator", "confirm": false],
             context: dummyContext
@@ -1899,7 +1694,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 4. Missing required action validation
         let missingActionRes = try? await useApp.execute(input: ["app_identifier": "com.apple.finder"], context: dummyContext)
         guard missingActionRes?.success == false, missingActionRes?.toolErrorCode == .missingArgument else {
             return RuntimeTestCaseResult(
@@ -1910,7 +1704,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 5. Geometry, Normalization & Session Manager
         let rect = AccessibleRect(x: 100, y: 150, width: 200, height: 100)
         guard rect.center == CGPoint(x: 200, y: 200) else {
             return RuntimeTestCaseResult(
@@ -1937,7 +1730,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 6. Discovery service returns real applications
         let discovered = AssistAppInteractionEngine.shared.listApplications()
         guard !discovered.isEmpty else {
             return RuntimeTestCaseResult(
@@ -1956,15 +1748,12 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // MARK: - Natural-Language Intent Test Matrix & Tool Capability Catalog (Objective A)
-
     public func testNaturalLanguageIntentMatrixAndCapabilityCatalog() async -> RuntimeTestCaseResult {
         let start = Date()
         let classifier = AssistIntentClassifier.shared
         let router = AssistToolRouter.shared
         let registry = AssistToolRegistry()
 
-        // 1. Screenshot Intent Matrix
         let screenshotPrompts = [
             "Take a screenshot of Finder.",
             "Show me what Finder looks like right now.",
@@ -1984,7 +1773,6 @@ public final class AssistRuntimeTestSuite: Sendable {
                 )
             }
         }
-        // Verify target app extracted
         let finderScreenshot = classifier.classify(prompt: "Take a screenshot of Finder.")
         if case .screenshot(let target, _, _) = finderScreenshot.primaryIntent {
             guard target?.lowercased() == "finder" else {
@@ -1996,7 +1784,6 @@ public final class AssistRuntimeTestSuite: Sendable {
                 )
             }
         }
-        // Verify ranked tool top choice
         let rankedScreenshotTools = router.rankTools(for: .screenshot(targetApp: "Finder", isRegion: false, purpose: nil), in: registry.allTools)
         guard rankedScreenshotTools.first?.id == "take_screenshot" else {
             return RuntimeTestCaseResult(
@@ -2007,7 +1794,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 2. Screen-recording Intent Matrix
         let recordingPrompts = [
             "Record Xcode for ten seconds.",
             "Capture a video of what happens in this application.",
@@ -2046,7 +1832,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 3. Application-interaction Intent Matrix
         let appPrompts = [
             "Open Finder.",
             "Navigate to the Downloads folder in Finder.",
@@ -2074,7 +1859,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 4. Mixed-intent Multi-step Requests
         let multiStepPrompt = "Open Finder, navigate to Downloads, and take a screenshot."
         let multiStepRes = classifier.classify(prompt: multiStepPrompt)
         guard case .multiStep(let subIntents) = multiStepRes.primaryIntent else {
@@ -2096,7 +1880,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 5. Informational Queries (Negative Test: Must NOT execute tools)
         let informationalPrompts = [
             "Explain how screen recording works.",
             "What does the screenshot tool do?",
@@ -2123,7 +1906,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // 6. Capability Catalog Validation
         let catalog = ToolCapabilityCatalog.shared
         let validationIssues = catalog.validateRegistration(in: registry)
         guard validationIssues.isEmpty else {
@@ -2135,7 +1917,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // Truthful permissions check
         let screenshotMeta = router.metadata(for: "take_screenshot")
         let recordMeta = router.metadata(for: "take_screenrecord")
         let appMeta = router.metadata(for: "use_app")
@@ -2151,7 +1932,6 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
-        // Truthful limitations check: recordMeta audio limitation
         guard recordMeta.knownLimitations.contains(where: { $0.contains("Audio capture is not supported") }) else {
             return RuntimeTestCaseResult(
                 testName: "Natural-Language Intent Matrix & Capability Catalog",
@@ -2169,4 +1949,3 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 }
-

@@ -1,16 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - SDKManifestEditorView
-//
-// Full visual editor and validator for `swiftcode.json` in SwiftCode Studio
-// (`Review.md` §7 & §8). Allows developers to inspect, configure, validate,
-// and save all extension manifest fields (identity, runtime, SDK version range,
-// capabilities + reasons from the canonical 32-capability registry, contributed
-// commands, Assist metadata, and preserved unknown fields) without manually
-// editing raw JSON, while maintaining bidirectional synchronization with the
-// raw JSON buffer in `SDKCodeEditorState`.
-
 @MainActor
 public struct SDKManifestEditorView: View {
     @ObservedObject private var editorState: SDKCodeEditorState
@@ -110,8 +100,6 @@ public struct SDKManifestEditorView: View {
         }
     }
 
-    // MARK: - Toolbar Header
-
     private var toolbarHeader: some View {
         HStack(spacing: 10) {
             Image(systemName: "slider.horizontal.below.square.and.square.filled")
@@ -201,8 +189,6 @@ public struct SDKManifestEditorView: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    // MARK: - Malformed JSON Fallback
-
     private func malformedJSONBanner(_ errorText: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
@@ -268,8 +254,6 @@ public struct SDKManifestEditorView: View {
         .padding(10)
         .liquidGlass(style: .standard, cornerRadius: 7, tint: .green)
     }
-
-    // MARK: - Sections
 
     private var validationSummarySection: some View {
         GroupBox {
@@ -730,8 +714,6 @@ public struct SDKManifestEditorView: View {
         }
     }
 
-    // MARK: - Helpers
-
     private var filteredCapabilities: [SDKCapability] {
         let enabledIDs = Set(manifest.capabilities.map(\.id))
         let catFiltered = SDKCapability.all.filter { cap in
@@ -810,7 +792,6 @@ public struct SDKManifestEditorView: View {
                 granted.insert(record.capabilityID)
             }
         }
-        // Also union scopes from any active non-revoked SDK API key
         if let keys = try? SDKAPIKeyStore.shared.listKeys() {
             for key in keys where !key.isRevoked {
                 granted.formUnion(key.scopes)
@@ -838,7 +819,6 @@ public struct SDKManifestEditorView: View {
 
     private func loadManifestFromSource() {
         parseError = nil
-        // Prefer in-memory buffer if swiftcode.json is open in SDKCodeEditorState
         if let url = effectiveManifestURL,
            let openTab = editorState.tabs.first(where: { $0.document.fileURL?.standardizedFileURL == url.standardizedFileURL }) {
             let text = openTab.document.text

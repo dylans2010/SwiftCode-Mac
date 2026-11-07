@@ -1,10 +1,8 @@
 import SwiftUI
 
-/// Panel configuring transitions, animation timelines, timing curves, spring values, and interactive states.
 public struct VisualUIAnimationsPanel: View {
     @Bindable var document: VisualUIDocument
 
-    // Custom animation presets
     private let curves = ["Spring", "EaseInOut", "EaseIn", "EaseOut", "Linear"]
     private let transitions = ["None", "Opacity", "Slide", "Scale", "Move"]
 
@@ -25,7 +23,6 @@ public struct VisualUIAnimationsPanel: View {
                         Text("Configure Animation for '\(node.name)'")
                             .font(.subheadline.bold())
 
-                        // Timing curve picker
                         GroupBox("Timing Curve") {
                             VStack(spacing: 10) {
                                 Picker("Curve:", selection: Binding(
@@ -62,7 +59,6 @@ public struct VisualUIAnimationsPanel: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Transitions preset
                         GroupBox("Transition Preset") {
                             VStack(spacing: 10) {
                                 Picker("Transition:", selection: Binding(
@@ -77,7 +73,6 @@ public struct VisualUIAnimationsPanel: View {
                         }
                         .groupBoxStyle(.liquidGlass)
 
-                        // Playback Control Simulation
                         Button {
                             VisualUISettings.shared.addLog("Triggered simulated transition preview for \(node.name).")
                         } label: {

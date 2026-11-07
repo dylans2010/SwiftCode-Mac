@@ -8,7 +8,6 @@ struct SCInspectorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // Title
                 HStack {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.blue)
@@ -19,7 +18,6 @@ struct SCInspectorView: View {
 
                 Divider()
 
-                // System Specs
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Environment")
                         .font(.caption)
@@ -36,7 +34,6 @@ struct SCInspectorView: View {
 
                 Divider()
 
-                // Health rating
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Workspace Integrity")
                         .font(.caption)
@@ -50,7 +47,6 @@ struct SCInspectorView: View {
 
                 Divider()
 
-                // Quick actions
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Operations Actions")
                         .font(.caption)

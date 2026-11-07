@@ -1,9 +1,3 @@
-// The viewer app: one device in SwiftCode's compact device window
-// (specs/ide/device-hub.md §2.2, "SwiftCode implementation"; the shared window,
-// canvas, frame and controls are in SwiftCodeDeviceUI), and the menu bar of a
-// device window: View (zoom, bezels), Device (the settings submenus,
-// Orientation, Keyboard, Fold) and Controls (§7).
-
 #if os(macOS)
 import AppKit
 import SwiftCodeDeviceModel
@@ -16,7 +10,6 @@ final class ViewerController: NSObject, DeviceMenuTarget, NSMenuDelegate {
     let session: DeviceLiveSession
     let windowController: DeviceWindowController
     private lazy var menus = DeviceMenus(target: self)
-    /// The settings items of the Device menu (SettingsMenu.swift).
     private lazy var settingsMenu = ViewerSettingsMenu(
         send: { [weak self] text, reply in self?.session.sendCommand(text, reply: reply) },
         report: { [weak self] text in self?.windowController.canvas.showBanner(text, seconds: 3) })
@@ -36,8 +29,6 @@ final class ViewerController: NSObject, DeviceMenuTarget, NSMenuDelegate {
         windowController.onClose = { NSApp.terminate(nil) }
     }
 
-    // MARK: What the script runner drives
-
     var window: NSWindow { windowController.window! }
     var canvas: DeviceCanvasView { windowController.canvas }
     var deviceView: DeviceView { canvas.frameView.screen }
@@ -56,14 +47,9 @@ final class ViewerController: NSObject, DeviceMenuTarget, NSMenuDelegate {
     func requestScreenshot(_ done: @escaping ([UInt8]?) -> Void) { session.requestScreenshot(done) }
     func shownPNG() -> [UInt8]? { session.shownPNG() }
 
-    /// A command as the controls and menus run it (the script's `control`).
     func perform(_ c: DeviceCommand) { canvas.perform(c) }
 
-    // MARK: DeviceMenuTarget
-
     var activeCanvas: DeviceCanvasView? { windowController.canvas }
-
-    // MARK: Menus
 
     func buildMenu() -> NSMenu {
         let main = NSMenu()
@@ -97,21 +83,17 @@ final class ViewerController: NSObject, DeviceMenuTarget, NSMenuDelegate {
         view.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
         top(view)
 
-        // Device (simulator-features.md §7.1 order: Accessibility, Appearance,
-        // Location, Orientation, Sound, Keyboard; SwiftCode adds Color Filter and
-        // the iPhone Duo's Fold).
         let device = NSMenu(title: "Device")
         let settings = settingsMenu.items()
         let own = menus.deviceItems()
-        // Accessibility, Appearance, Color Filter, Location
         for i in settings.prefix(4) { device.addItem(i) }
-        device.addItem(own[0])  // Orientation
-        for i in settings.dropFirst(4) { device.addItem(i) }  // Sound
-        device.addItem(own[1])  // Keyboard
+        device.addItem(own[0])
+        for i in settings.dropFirst(4) { device.addItem(i) }
+        device.addItem(own[1])
         device.addItem(.separator())
-        device.addItem(own[2])  // Fold
+        device.addItem(own[2])
         foldItem = own[2]
-        device.addItem(own[3])  // Room (a Vision Pro)
+        device.addItem(own[3])
         roomItem = own[3]
         device.addItem(.separator())
         device.addItem(item("Refresh Display", #selector(refreshDisplay(_:)), "r", target: self))

@@ -1,6 +1,3 @@
-// Enumerations of Contacts with the raw values of
-// specs/frameworks/contacts/identifiers.md ("Contacts enumerations").
-
 import Foundation
 
 public enum CNAuthorizationStatus: Int, Sendable {
@@ -50,6 +47,5 @@ public enum CNPostalAddressFormatterStyle: Int, Sendable {
 }
 
 extension Notification.Name {
-    /// Posted after each successful save (interface.md §6.1).
     public static let CNContactStoreDidChange = Notification.Name("CNContactStoreDidChangeNotification")
 }

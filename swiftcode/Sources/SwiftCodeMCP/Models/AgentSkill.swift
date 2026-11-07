@@ -1,16 +1,9 @@
 import Foundation
 import SwiftCodeAssistant
 
-/// The SwiftCode skill: a short Markdown file for agents that load skills
-/// (Claude Code reads `.claude/skills/<name>/SKILL.md`; other agents the
-/// same file under `.agents/skills/`), describing SwiftCode's MCP tools and
-/// the build-and-run workflow. Written into a project only when the user
-/// asks (the IDE's Install SwiftCode Skill, `swiftcode mcp install-skill`).
 public enum AgentSkill {
-    /// Where the skill goes, relative to the workspace folder.
     public static let paths = [".claude/skills/swiftcode/SKILL.md", ".agents/skills/swiftcode/SKILL.md"]
 
-    /// The skill's text for a tool list.
     public static func markdown(tools: [MCPTool]) -> String {
         func firstSentence(_ s: String) -> String {
             guard let r = s.range(of: ". ") else { return s }
@@ -51,7 +44,6 @@ public enum AgentSkill {
         """
     }
 
-    /// Writes the skill into `folder` (both locations); the files written.
     @discardableResult
     public static func install(into folder: URL, tools: [MCPTool]) throws -> [URL] {
         let text = markdown(tools: tools)

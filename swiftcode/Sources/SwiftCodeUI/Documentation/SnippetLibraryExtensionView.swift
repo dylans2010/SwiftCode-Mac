@@ -1,12 +1,5 @@
-// SnippetLibraryExtensionView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/SnippetLibraryExtensionView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: legacy built-in snippet set (swiftui-view, init, guard-let, async-func, protocol-ext, combine-sink); tab-expansion and inline-suggestion toggles
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 
-// MARK: - Snippet Library Extension View
 struct SnippetLibraryExtensionView: View {
     @State private var tabExpansionEnabled = true
     @State private var showSuggestionsInline = true

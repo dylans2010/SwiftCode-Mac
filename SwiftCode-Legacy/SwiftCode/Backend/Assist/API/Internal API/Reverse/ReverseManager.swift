@@ -1,15 +1,3 @@
-//  ReverseManager.swift
-//  SwiftCode
-//
-//  Central coordinator for the Reverse subsystem. Owns lifecycle,
-//  readiness, the capability cache, active operations, and
-//  progress/cancellation propagation.
-//
-//  This manager contains NO analysis logic: analysis lives in REA
-//  (via ReverseBridge / ReverseBridge.mjs). It also contains no
-//  tool-registry or parsing logic; those live in ReverseToolAdapter
-//  and ReverseCommandParser respectively.
-
 import Foundation
 
 @MainActor
@@ -20,7 +8,6 @@ public final class ReverseManager: Sendable {
     private var cachedCapabilities: [ReverseCapability]?
     private var cachedCapabilitiesAt: Date?
     private var active: [UUID: ReverseActiveOperation] = [:]
-    /// Manager operation ID -> bridge request (correlation/cancel) ID.
     private var bridgeRequestIDs: [UUID: String] = [:]
     private var lastErrorMessage: String?
     private var lastPing: ReversePingInfo?
@@ -28,28 +15,16 @@ public final class ReverseManager: Sendable {
 
     private init() {}
 
-    // MARK: - Lifecycle
-
-    /// Warms the capability cache and records readiness. Safe to call
-    /// repeatedly; results are cached for 60 seconds.
     public func warmUp() async {
         _ = await statusSnapshot(refresh: true)
     }
 
-    /// No persistent child process exists (one bridge process per
-    /// request), so shutdown only clears cached state. In-flight
-    /// operations are NOT cancelled by shutdown; cancel them explicitly.
     public func shutdown() {
         active.removeAll()
         cachedCapabilities = nil
         cachedCapabilitiesAt = nil
     }
 
-    // MARK: - Readiness / status
-
-    /// Readiness snapshot for Settings / diagnostics. With
-    /// `refresh: false` returns cached capabilities (or an
-    /// unprobed snapshot when nothing is cached yet).
     public func statusSnapshot(refresh: Bool = false) async -> ReverseStatusSnapshot {
         let enabled = AppSettings.shared.reverseEnabled
         var nodeVersion: String?
@@ -84,7 +59,6 @@ public final class ReverseManager: Sendable {
         let bridgeURL = ReverseBridge.resolveBridgeURL()
         let reaDir = bridgeURL.flatMap { ReverseBridge.resolveREADirectory(bridgeURL: $0) }
         let nodeURL = ReverseBridge.resolveNodeURL()
-        // Probe off MainActor: `node --version` blocks until exit.
         let nodeMajor: Int? = await {
             guard let nodeURL else { return nil }
             return await Task.detached { ReverseBridge.nodeMajorVersion(for: nodeURL) }.value
@@ -139,12 +113,6 @@ public final class ReverseManager: Sendable {
         )
     }
 
-    // MARK: - Analysis
-
-    /// Runs one allow-listed operation. Registers the operation for
-    /// Settings visibility + cancellation, enforces the enabled flag
-    /// and the caller's timeout, and returns processed evidence.
-    /// Throws `ReverseError` on any failure (including cancellation).
     public func analyze(
         invocation: ReverseInvocation,
         targetPath: String,
@@ -222,11 +190,6 @@ public final class ReverseManager: Sendable {
         }
     }
 
-    /// Requests cancellation of an in-flight operation. The exact
-    /// bridge process for this operation is terminated (SIGTERM, then
-    /// SIGKILL); the in-flight `analyze` call then throws a `.cancelled`
-    /// error. Cancellation is best-effort: if the underlying REA work
-    /// already finished, the result stands.
     public func cancelOperation(id: UUID) {
         guard active[id] != nil else { return }
         if let requestID = bridgeRequestIDs[id] {
@@ -240,8 +203,6 @@ public final class ReverseManager: Sendable {
     public var activeOperationCount: Int { active.count }
 }
 
-/// An error that also carries partial evidence, so the caller can show
-/// what was learned before the failure instead of discarding it.
 public struct ReversePartialError: Error, LocalizedError, Sendable {
     public let error: ReverseError
     public let processed: ReverseProcessedEvidence

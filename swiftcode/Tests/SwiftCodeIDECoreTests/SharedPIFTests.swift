@@ -6,7 +6,6 @@ import SwiftCodeXcodebuild
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// The IDE's swift-build engine with swiftcodebuild's XcodePIF as PIF source.
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(5))) struct SharedPIFTests {
     @Test func xcodePIFSourceBuildsProjectsAndWorkspaces() async throws {
         let probe = swiftcodeDir.appendingPathComponent("Tools/swiftcode-swb/.build/debug/swbuild").path
@@ -32,7 +31,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
         """.write(to: ws.appendingPathComponent("contents.xcworkspacedata"), atomically: true, encoding: .utf8)
 
-        // The PIF uses the reference GUID scheme: workspace GUID = md5(name).
         let (data, targets) = try XcodePIFSource().pif(for: BuildRequest(container: .workspace(ws.path)))
         #expect(targets.sorted() == ["Shared", "Shown"])
         let objects = try JSONSerialization.jsonObject(with: data) as! [[String: Any]]
@@ -51,8 +49,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         _ = appProj
     }
 
-    /// Product lookup through swift-build's exported settings (`swiftcode-swb`),
-    /// instead of `xcodebuild -showBuildSettings`.
     @Test func settingsFromTheHelper() throws {
         let helper = swiftcodeDir.appendingPathComponent("Tools/swiftcode-swb/.build/debug/swiftcode-swb").path
         guard FileManager.default.isExecutableFile(atPath: helper) else { return }
@@ -60,7 +56,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         try? FileManager.default.removeItem(at: dir)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let proj = try ProjectTemplate.commandLineTool.create(name: "Lookup", organization: "org.swiftcode.tests", in: dir)
-        var engine = XcodebuildEngine(command: ["/usr/bin/false"]) // must not be run
+        var engine = XcodebuildEngine(command: ["/usr/bin/false"])
         engine.settingsSource = SwiftBuildSettingsSource(helper: helper)
         let req = BuildRequest(container: .project(proj.path), scheme: "Lookup", configuration: "Debug",
                                derivedDataPath: dir.appendingPathComponent("dd").path)
@@ -68,8 +64,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(all.first?.target == "Lookup")
         let s = try #require(all.first?.settings)
         #expect(s["EXECUTABLE_PATH"] == "Lookup" && s["CONFIGURATION"] == "Debug")
-        // The products folder carries the platform's suffix: none for macOS, and on
-        // Linux, which has no macOS platform, swift-build's "-unknown".
         let folder = "Debug" + (s["EFFECTIVE_PLATFORM_NAME"] ?? "")
         #expect(s["TARGET_BUILD_DIR"]?.hasSuffix("dd/Build/Products/\(folder)") == true)
         #expect(engine.executablePath(for: req)?.hasSuffix("Products/\(folder)/Lookup") == true)
@@ -77,8 +71,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     }
 }
 
-/// The IDE's package checkouts and the build's `SourcePackages` folder
-/// follow one rule (package-dependencies.md; build-pif.md).
 @Suite struct PackageCheckoutFolderTests {
     @Test func defaultCheckoutsAreInTheDefaultSourcePackagesFolder() {
         for path in ["/tmp/A/App.xcodeproj", "/tmp/B/App.xcodeproj", "/tmp/Both.xcworkspace"] {

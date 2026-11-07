@@ -1,19 +1,3 @@
-/* SwiftCode stage-4b probe: rights between tasks (processes.md sections 4.1,
- * 4.2, 4.6). Original SwiftCode code.
- *   1. The parent's port P is the child's bootstrap port. The child sends
- *      "hello" to it with a send right to its own port C as the reply port.
- *   2. The parent makes port Q, keeps a send right, and moves Q's receive
- *      right to the child in a message on C. It arms a dead-name request on
- *      its send right to Q, then sends a message to Q.
- *   3. The child receives Q's receive right and the queued message on it,
- *      then sends back on P a message whose reply port is a send right to
- *      Q: in the parent it must merge into the parent's existing name.
- *      The child then waits for the parent's acknowledgement on C: if it
- *      exited first, Q would die while that send right is still in
- *      transit and the parent would correctly receive MACH_PORT_DEAD.
- *   4. After the acknowledgement the child exits. Q dies with the child's space: the parent gets a
- *      MACH_NOTIFY_DEAD_NAME for its name of Q, and the name is a dead name.
- * Prints: rights ok */
 #include <mach/mach.h>
 
 #include "probe_util.h"
@@ -98,14 +82,12 @@ static int child(void)
     if (r.simple.h.msgh_id != ID_ON_Q || r.simple.value != VALUE_ON_Q)
         probe_fail("child: message on Q has id %d value %#x", r.simple.h.msgh_id, r.simple.value);
 
-    /* Back to the parent, carrying a new send right to Q as the reply port. */
     send_simple(bootstrap_port, MACH_MSG_TYPE_COPY_SEND, q, MACH_MSG_TYPE_MAKE_SEND, ID_BACK, 0, "back");
 
-    /* Stay alive until the parent has received that right. */
     receive(c, &r, "the acknowledgement");
     if (r.simple.h.msgh_id != ID_ACK)
         probe_fail("child: expected the acknowledgement, got id %d", r.simple.h.msgh_id);
-    return 0; /* exit: Q's receive right dies with this task */
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -131,7 +113,6 @@ int main(int argc, char **argv)
         probe_fail("posix_spawn: %d (%s)", err, strerror(err));
     posix_spawnattr_destroy(&attr);
 
-    /* 1. hello, with a send right to the child's port C. */
     rcv_buf_t r;
     receive(p, &r, "hello");
     if (r.simple.h.msgh_id != ID_HELLO || r.simple.value != pid)
@@ -140,7 +121,6 @@ int main(int argc, char **argv)
     if (MACH_MSGH_BITS_REMOTE(r.simple.h.msgh_bits) != MACH_MSG_TYPE_PORT_SEND || !MACH_PORT_VALID(c))
         probe_fail("hello: no send right to the child's port (bits %#x name %#x)", r.simple.h.msgh_bits, c);
 
-    /* 2. Q: keep a send right, move the receive right to the child. */
     mach_port_t q = new_receive_right();
     kr = mach_port_insert_right(task, q, q, MACH_MSG_TYPE_MAKE_SEND);
     if (kr != KERN_SUCCESS)
@@ -171,7 +151,6 @@ int main(int argc, char **argv)
         probe_fail("dead-name request on Q: %#x", kr);
     send_simple(q, MACH_MSG_TYPE_COPY_SEND, MACH_PORT_NULL, 0, ID_ON_Q, VALUE_ON_Q, "a message to Q");
 
-    /* 3. The child answers with a send right to Q: same name as ours. */
     receive(p, &r, "the child's answer");
     if (r.simple.h.msgh_id != ID_BACK)
         probe_fail("answer: id %d", r.simple.h.msgh_id);
@@ -179,10 +158,8 @@ int main(int argc, char **argv)
         probe_fail("the send right to Q arrived as %#x, expected it to merge into %#x", r.simple.h.msgh_remote_port,
                    q);
 
-    /* Let the child exit now that the right has arrived. */
     send_simple(c, MACH_MSG_TYPE_COPY_SEND, MACH_PORT_NULL, 0, ID_ACK, 0, "the acknowledgement");
 
-    /* 4. Child exit kills Q: dead-name notification and a dead name. */
     probe_expect_exit(pid, 0, "child");
     receive(notify, &r, "the dead-name notification");
     if (r.dead.not_header.msgh_id != MACH_NOTIFY_DEAD_NAME)

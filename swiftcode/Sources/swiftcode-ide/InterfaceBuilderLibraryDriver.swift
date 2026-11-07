@@ -6,25 +6,15 @@ import SwiftCodeIDEShell
 import OVPlatform
 #endif
 
-// The Library part of the SWIFTCODE_IDE_IB walk (#84): the panel in list and
-// icon view, with and without details; then a sample of kinds, each found
-// with the search field, inserted with Return, and one Attributes inspector
-// field edited with the pointer or keyboard. Each step prints
-// "ib library <step>: ..." and writes <prefix>-library-<step>.png. Run once
-// with OV_COLOR_SCHEME=dark for the dark shots.
-
 #if os(Linux)
 @MainActor
 enum InterfaceBuilderLibraryDriver {
     static func say(_ s: String) { ShellDriver.say("ib library " + s) }
 
-    /// One sampled kind: the field edited, how, and the attribute to check.
     struct Step {
         var kind: IBDocument.NewObject
-        /// A shell target in the inspector, and text to type (nil: a click).
         var target: String
         var typed: String?
-        /// The edited object's attribute (or a path) and its value afterwards.
         var check: (IBDocument, String) -> String?
     }
 
@@ -47,7 +37,6 @@ enum InterfaceBuilderLibraryDriver {
         }
         func click(_ t: String) async { await ShellDriver.click(t) }
 
-        // The panel: list view with details, then the icon view, then no details.
         await selectRoot()
         if !m.isLibraryShown { await click("ib bar Library") }
         say("open: shown=\(m.isLibraryShown) tab=\(m.libraryTab.title) count=\(m.libraryObjects.count) selection=\(m.librarySelection?.rawValue ?? "-")")
@@ -60,7 +49,6 @@ enum InterfaceBuilderLibraryDriver {
         await shot("no-details")
         await click("ib library Show Details")
         await click("ib library Switch to List View")
-        // The search rule: every word in the name or the class name.
         await click("ib library filter")
         OpenViewsAutomation.type("UIButton")
         OpenViewsAutomation.press(.return)
@@ -76,12 +64,10 @@ enum InterfaceBuilderLibraryDriver {
             OpenViewsAutomation.type(step.kind.rawValue)
             OpenViewsAutomation.press(.return)
             await ShellDriver.pause(0.5)
-            // The first match is selected; Return in the list inserts it.
             say("search \(step.kind.rawValue): \(m.libraryObjects.map(\.rawValue)) selection=\(m.librarySelection?.rawValue ?? "-")")
             let before = m.saveCount
             for _ in 0..<2 where m.saveCount == before {
                 await click("ib library \(step.kind.rawValue)")
-                // A single click is told from a double click after a short wait.
                 await ShellDriver.pause(0.5)
                 OpenViewsAutomation.press(.return)
                 await ShellDriver.pause(0.6)

@@ -1,9 +1,3 @@
-// translate.cpp: AIR -> SPIR-V emission (metal-shaders.md section 4):
-// types and constants, the memory model of section 4.3 (buffers as 64-bit
-// device addresses, threadgroup memory as aliased explicit-layout arrays,
-// private memory as a word arena), the binding model of section 4.4 (abi.h),
-// the stage interface of section 4.5, compute built-ins of section 4.6,
-// structured control flow of section 4.8, validation and reflection.
 #include "translator_impl.h"
 
 #include "llvm/ADT/PostOrderIterator.h"
@@ -31,9 +25,6 @@ using namespace llvm;
 
 namespace airc {
 
-// The module's target triple as text. LLVM 21 made Module::getTargetTriple()
-// return a Triple; LLVM 17 to 20 return the string (the Flatpak's SDK
-// extension is LLVM 22, a distribution's may be 18).
 static std::string targetTriple(const Module &M) {
 #if LLVM_VERSION_MAJOR >= 21
     return M.getTargetTriple().str();
@@ -65,9 +56,6 @@ bool isSignedTypeName(const std::string &t) {
         if (t.rfind(p, 0) == 0) return true;
     return false;
 }
-
-// ---------------------------------------------------------------------------
-// Types, constants, values
 
 std::string Translator::type(Type *T) {
     if (T->isVoidTy()) return E.tVoid();
@@ -149,7 +137,7 @@ std::string Translator::val(Value *V) {
     auto it = vals.find(V);
     if (it != vals.end()) return it->second;
     if (isa<Argument>(V)) fail("internal", "argument without a value: " + printValue(V));
-    std::string id = E.fresh();  // forward reference (phi operand)
+    std::string id = E.fresh();
     vals[V] = id;
     return id;
 }
@@ -182,7 +170,6 @@ std::string Translator::addConst(const std::string &addr, int64_t off) {
 
 std::string Translator::toU32(const std::string &v) { return E.op("OpUConvert", E.tInt(32), {v}); }
 
-// Integer width change with the given signedness (vectors too).
 std::string Translator::castInt(const std::string &v, Type *from, unsigned toBits, bool sign) {
     unsigned fb = from->getScalarSizeInBits();
     if (fb == toBits) return v;
@@ -191,13 +178,6 @@ std::string Translator::castInt(const std::string &v, Type *from, unsigned toBit
     return E.op(sign && toBits > fb ? "OpSConvert" : "OpUConvert", t, {v});
 }
 
-// ---------------------------------------------------------------------------
-// Memory (section 4.3)
-
-// Whether a device or constant load through P gets the null guard: P is
-// not derived from a bound buffer argument, a table entry, a global or a
-// private allocation (it was loaded from memory, made from an integer, or
-// merged from such values). `all`: every such load (bisection).
 bool Translator::nullGuardLoad(Value *P, bool all) const {
     static const bool off = getenv("AIRC_NULL_GUARD") && std::string(getenv("AIRC_NULL_GUARD")) == "0";
     if (all) return true;
@@ -209,8 +189,6 @@ bool Translator::nullGuardLoad(Value *P, bool all) const {
     return true;
 }
 
-// The argument table's address in the function being emitted (always
-// mapped: a safe address for guarded loads).
 std::string Translator::tableAddrHere() { return tableAddr; }
 
 bool Translator::experiment(const char *what) const {
@@ -266,8 +244,6 @@ std::string Translator::workgroupElement(const std::string &addr, unsigned width
 
 std::string Translator::privateWord(const std::string &wordIndex) {
     if (arenaVar.empty()) {
-        // One per-invocation arena shared by all functions (pointers to
-        // private memory are byte offsets into it).
         std::string arr = E.global("arena", "OpTypeArray " + E.tInt(32) + " " + E.u32(std::max<uint64_t>(4, (privateBytes + 3) / 4)));
         std::string pt = E.tPtr("Private", arr);
         arenaVar = E.fresh();
@@ -419,7 +395,6 @@ std::string Translator::load(const std::string &addr, unsigned as, Type *T, uint
             return r;
         }
         if (el->isIntegerTy(1)) {
-            // Booleans are bytes in memory.
             auto *BT = FixedVectorType::get(Type::getInt8Ty(T->getContext()), V->getNumElements());
             std::string b = load(addr, as, BT, align);
             return E.op("OpINotEqual", type(T), {b, E.null(type(BT))});
@@ -474,7 +449,6 @@ void Translator::store(const std::string &addr, unsigned as, Type *T, const std:
     scalarStore(addr, as, T, v, align);
 }
 
-// Serializes a constant initializer into bytes with the data layout.
 static void serialize(const DataLayout &DL, Constant *C, std::string &out, uint64_t at) {
     Type *T = C->getType();
     uint64_t size = DL.getTypeStoreSize(T);
@@ -510,9 +484,6 @@ static void serialize(const DataLayout &DL, Constant *C, std::string &out, uint6
 }
 
 void Translator::layoutMemory() {
-    // Private memory: every alloca of every function gets a fixed offset in
-    // one word arena (Metal functions do not recurse, so frames of
-    // different functions never need to coexist twice).
     for (Function *G : allFunctions())
     for (BasicBlock &B : *G)
         for (Instruction &I : B)
@@ -524,7 +495,6 @@ void Translator::layoutMemory() {
                 allocaOffset[A] = off;
                 privateBytes = off + DL.getTypeAllocSize(A->getAllocatedType()) * N->getZExtValue();
             }
-    // Globals referenced by the functions.
     std::set<GlobalVariable *> used;
     for (Function *G : allFunctions())
     for (BasicBlock &B : *G)
@@ -548,8 +518,6 @@ void Translator::layoutMemory() {
             continue;
         }
         if (constexprSamplerIndex.count(G) || fconsts.count(G)) continue;
-        // Address-space-2 memory is read-only for shaders: an initialized
-        // global the static initializer does not write is constant data.
         if ((as == kConstant || as == kDevice) && G->hasInitializer() && (G->isConstant() || as == kConstant)) {
             uint64_t align = std::max<uint64_t>(16, G->getAlign() ? G->getAlign()->value() : 16);
             uint64_t off = alignTo(constData.size(), align);
@@ -566,9 +534,6 @@ void Translator::layoutMemory() {
 
 uint64_t Translator::wgStaticBytesAligned() const { return std::max<uint64_t>(16, alignTo(wgStaticBytes, 16)); }
 
-// ---------------------------------------------------------------------------
-// Interface (sections 4.4 to 4.6)
-
 std::string Translator::tableEntry(unsigned e) {
     auto it = tableLoads.find(e);
     if (it != tableLoads.end()) return it->second;
@@ -580,8 +545,6 @@ std::string Translator::tableEntry(unsigned e) {
 }
 
 std::string Translator::ioVar(const std::string &storage, const std::string &t, const std::string &decoration) {
-    // Built-in outputs that occur twice (members gated by different
-    // function constants) share one variable.
     std::string key = "io|" + storage + "|" + t + "|" + decoration;
     if (decoration.rfind("BuiltIn ", 0) == 0 && E.memo.count(key)) return E.memo[key];
     std::string pt = E.tPtr(storage, t);
@@ -604,7 +567,6 @@ std::string Translator::builtin(const std::string &name, const std::string &t) {
     return builtins[name] = var;
 }
 
-// Converts a built-in value (u32 scalar or vector of n) to the AIR argument type T.
 std::string Translator::fitBuiltin(const std::string &v, const std::string &vType, unsigned n, Type *T) {
     (void)vType;
     unsigned want = 1;
@@ -624,10 +586,8 @@ std::string Translator::fitBuiltin(const std::string &v, const std::string &vTyp
     return r;
 }
 
-// Stage I/O type: 8/16-bit values are widened to 32 bits (the Thor lacks
-// storageInputOutput16); signedness follows the Metal type name.
 struct IOType {
-    std::string spv;      // SPIR-V type of the variable
+    std::string spv;
     bool widened = false;
     bool isInt = false, isSigned = false;
 };
@@ -655,7 +615,6 @@ static IOType ioTypeOf(Translator &X, Type *T, const std::string &metalType) {
     return r;
 }
 
-// Reads an input variable and converts it to the AIR type.
 static std::string readIO(Translator &X, const std::string &var, const IOType &io, Type *T) {
     std::string v = X.E.op("OpLoad", io.spv, {var});
     std::string t = X.type(T);
@@ -683,7 +642,6 @@ static std::string writeIOValue(Translator &X, const std::string &v, const IOTyp
 
 void Translator::setupInterface() {
     std::string u32 = E.tInt(32), u64 = E.tInt(64), v3 = E.tVec(u32, 3);
-    // Push constants (abi.h).
     std::string pcT = E.global("pcblock", "OpTypeStruct " + u64 + " " + u64 + " " + v3 + " " + u32);
     E.decorate(pcT, "Block");
     E.memberDecorate(pcT, 0, "Offset " + std::to_string(abi::kPushTableVertexOrKernel));
@@ -705,7 +663,6 @@ void Translator::setupInterface() {
         wgSizeId = E.fresh();
         E.globals << wgSizeId << " = OpSpecConstantComposite " << v3 << " " << specX << " " << specY << " " << specZ << "\n";
     }
-    // Outputs: the members of the return value, in order.
     Type *RT = F.getReturnType();
     if (RT->isVoidTy()) return;
     for (unsigned i = 0; i < EI.outputs.size(); i++) {
@@ -738,14 +695,6 @@ void Translator::setupInterface() {
             jBuiltins.push("render_target_array_index");
         } else if (o.kind == "air.viewport_array_index") {
             jBuiltins.push("viewport_array_index");
-            // SwiftCode's render passes have one viewport and one scissor (the
-            // host keeps the first of a setViewports: array), so every
-            // primitive uses viewport 0: the output is not written. An index
-            // of 1 or more would select a Vulkan viewport and scissor that
-            // were never set; with the stereo pipelines of visionOS (an
-            // instance per eye, the index from the instance) that hung the
-            // Thor's GPU (visionos.md section 10.13). AIRC_VIEWPORT_INDEX=1
-            // writes it as before (experiments).
             static const bool keep = getenv("AIRC_VIEWPORT_INDEX") && std::string(getenv("AIRC_VIEWPORT_INDEX")) == "1";
             if (!keep) {
                 out.ioType = "";
@@ -799,12 +748,6 @@ void Translator::setupInterface() {
             out.var = ioVar("Output", out.ioType, "BuiltIn FragStencilRefEXT");
             jBuiltins.push("stencil");
         } else if (o.kind == "air.imageblock_data" && EI.stage == Stage::Fragment) {
-            // A fragment function's explicit imageblock result goes to tile
-            // memory, which only tile functions and later imageblock reads
-            // of the same pass see. SwiftCode has neither in render passes
-            // (metal-shaders.md section 4.9), so the value has no reader:
-            // it is not written anywhere (no Vulkan output); the function's
-            // other outputs and side effects are kept.
             out.ioType = "";
             out.var = "";
             uses.insert("imageblock_output_dropped");
@@ -815,13 +758,6 @@ void Translator::setupInterface() {
     }
 }
 
-// Whether a buffer argument is threadgroup memory ([[threadgroup(n)]]):
-// by its node's air.address_space, or by the address space of the
-// argument's pointer when the node gives another one or none. visionOS
-// RealityKit's kernelSFBBlurAndFilter has a threadgroup strip whose node
-// reads as a device buffer at the index of a real buffer (visionos.md
-// §10.24); bound as that buffer, its blur wrote nothing and window glass
-// showed a flat grey.
 static bool isThreadgroupBuffer(const AirNode &n, const Argument *A) {
     if (n.kind != "air.buffer" && n.kind != "air.indirect_buffer") return false;
     if (n.intAt("air.address_space", 0, 1) == kThreadgroup) return true;
@@ -830,9 +766,7 @@ static bool isThreadgroupBuffer(const AirNode &n, const Argument *A) {
 
 void Translator::prologue() {
     std::string u32 = E.tInt(32), u64 = E.tInt(64), v3 = E.tVec(u32, 3);
-    // This stage's argument table address.
     loadTableAddr();
-    // Threadgroup memory size and slots (kernels).
     std::string wgBase;
     for (Argument &A : F.args()) {
         auto a = EI.args.find(A.getArgNo());
@@ -846,8 +780,6 @@ void Translator::prologue() {
         if (EI.stage != Stage::Kernel) fail("unsupported-feature", "imageblock in a tile or fragment function");
         const AirNode &n = a.second;
         hasImageblock = true;
-        // Field offsets and pixel size from air.struct_type_info (offset,
-        // size, count, type name, member name per field).
         uint64_t end = 0;
         for (auto &kv : n.keys)
             if (kv.first == "air.struct_type_info" && !kv.second.empty())
@@ -871,7 +803,6 @@ void Translator::prologue() {
         E.globals << wgBytesId << " = OpSpecConstant " << u32 << " " << base + 16 * wgSlots.size() << "\n";
         E.decorate(wgBytesId, "SpecId " + std::to_string(abi::kSpecThreadgroupBytes));
     } else if (hasImageblock) {
-        // Size = imageblock base + threadgroup width * height * pixel size.
         wgDynamic = true;
         std::string xy = E.global("ibxy", "OpSpecConstantOp " + u32 + " IMul " + specX + " " + specY);
         std::string st = E.u32(ibStride), base = E.u32(imageblockBase());
@@ -980,12 +911,6 @@ void Translator::prologue() {
         } else if (k == "air.vertex_input" && dynamicIndex) {
             fail("unsupported-feature", "vertex attribute index set by a function constant (needs the specialized function)");
         } else if (k == "air.vertex_input" && !used && !getenv("AIRC_UNUSED_VERTEX_INPUTS")) {
-            // A stage-in attribute the function never reads gets no input
-            // variable: the pipeline's vertex descriptor need not describe
-            // it (Metal's does not), and a Vulkan vertex shader input with
-            // no vertex attribute behind it is undefined (visionOS
-            // RealityKit's vsUnlit declares 15 and reads 2; visionos.md
-            // §10.13). AIRC_UNUSED_VERTEX_INPUTS=1 declares them as before.
             Json j = Json::object();
             j.set("location", loc);
             j.set("type", n.typeName());
@@ -1007,10 +932,6 @@ void Translator::prologue() {
             jVertexInputs.push(j);
             r = readIO(*this, var, io, T);
         } else if (k == "air.fragment_input" && opts.haveVaryings && !used && !opts.varyings.count(n.ident)) {
-            // An input the function never reads and the linked vertex
-            // function does not write: no interface variable (Vulkan would
-            // reject an input without a matching output); the argument has
-            // no uses, so its value is irrelevant (metal-shaders.md 4.5).
             Json j = Json::object();
             j.set("name", n.ident);
             j.set("type", n.typeName());
@@ -1019,7 +940,6 @@ void Translator::prologue() {
             jVaryings.push(j);
             continue;
         } else if (k == "air.fragment_input" && n.has("air.interpolation_function")) {
-            // interpolant<T, ...>: the shader interpolates explicitly.
             std::string tn = n.typeName();
             Interpolant ip;
             ip.half = tn.rfind("half", 0) == 0;
@@ -1082,17 +1002,12 @@ void Translator::prologue() {
             if (T->getScalarType()->isHalfTy()) r = E.op("OpFConvert", type(T), {r});
             jBuiltins.push("position");
         } else if (k == "air.imageblock_data" && EI.stage == Stage::Fragment && !T->isPointerTy()) {
-            // The pixel's explicit imageblock as a fragment input. SwiftCode keeps
-            // no tile memory between draws (fragment imageblock results are
-            // dropped, see the outputs), so the value read is all zeros.
             if (used) r = E.null(type(T));
             uses.insert("imageblock_input_zero");
         } else if (k == "air.imageblock") {
-            r = E.u64(0);  // accessed through the imageblock intrinsics only
+            r = E.u64(0);
             uses.insert(n.intAt("air.imageblock_data_size", 0, -1) > 0 ? "imageblock_explicit" : "imageblock_implicit");
         } else if (k == "air.render_target") {
-            // Programmable blending: the current colour of attachment `loc`
-            // through an input attachment (abi.h).
             if (EI.stage != Stage::Fragment) fail("unsupported-feature", "render target input outside a fragment function");
             E.caps.insert("InputAttachment");
             char st = 'f';
@@ -1130,7 +1045,6 @@ void Translator::prologue() {
             jInputAttachments.push(j);
             uses.insert("framebuffer_fetch");
         } else {
-            // Scalar and vector built-ins.
             static const std::map<std::string, std::pair<std::string, unsigned>> table = {
                 {"air.thread_position_in_grid", {"GlobalInvocationId", 3}},
                 {"air.thread_position_in_threadgroup", {"LocalInvocationId", 3}},
@@ -1156,7 +1070,6 @@ void Translator::prologue() {
             } else if (k == "air.threads_per_threadgroup") {
                 if (used) r = fitBuiltin(wgSizeId, v3, 3, T);
             } else if (k == "air.dispatch_threads_per_threadgroup") {
-                // Edge threadgroups of a non-uniform grid are smaller.
                 if (used) {
                     std::string p = E.op("OpAccessChain", E.tPtr("PushConstant", v3), {pcVar, E.u32(2)});
                     std::string grid = E.op("OpLoad", v3, {p});
@@ -1174,8 +1087,6 @@ void Translator::prologue() {
                 }
             } else if (k == "air.front_facing") {
                 r = E.op("OpLoad", E.tBool(), {builtin("FrontFacing", E.tBool())});
-                // A `bool` argument may arrive widened (i8: RenderBox's
-                // path_interior fragments): 1 or 0 of that width.
                 if (T->isIntegerTy() && !T->isIntegerTy(1)) {
                     std::string it = type(T);
                     r = E.op("OpSelect", it, {r, E.constant(it, "1"), E.null(it)});
@@ -1216,12 +1127,8 @@ void Translator::prologue() {
             vals[&A] = r;
         }
     }
-    // Global addresses.
     globalAddresses(F);
 }
-
-// ---------------------------------------------------------------------------
-// Instructions
 
 void Translator::instruction(Instruction &I) {
     Type *RT = I.getType();
@@ -1253,16 +1160,12 @@ void Translator::instruction(Instruction &I) {
         if (isBool && (B->getOpcode() == Instruction::UDiv || B->getOpcode() == Instruction::Shl))
             fail("unsupported-instruction", std::string("boolean ") + B->getOpcodeName());
         if (B->getOpcode() == Instruction::SDiv || B->getOpcode() == Instruction::SRem) {
-            // Use signed integer types: the Thor's driver takes OpSRem's
-            // signedness from the type (observed: -500 % 7 gave 1).
             unsigned n = RT->isVectorTy() ? cast<FixedVectorType>(RT)->getNumElements() : 1;
             std::string st = E.tVec(E.tSInt(RT->getScalarSizeInBits()), n);
             std::string a = E.op("OpBitcast", st, {val(I.getOperand(0))}), b = E.op("OpBitcast", st, {val(I.getOperand(1))});
             std::string r;
             if (B->getOpcode() == Instruction::SDiv) r = E.op("OpSDiv", st, {a, b});
             else {
-                // a - (a / b) * b: the Thor's driver computed OpSRem of a
-                // negative dividend by a constant as an unsigned remainder.
                 std::string q = E.op("OpSDiv", st, {a, b});
                 r = E.op("OpISub", st, {a, E.op("OpIMul", st, {q, b})});
             }
@@ -1285,7 +1188,6 @@ void Translator::instruction(Instruction &I) {
             {CmpInst::ICMP_SLT, "OpSLessThan"}, {CmpInst::ICMP_SLE, "OpSLessThanEqual"}};
         Value *a = C->getOperand(0), *b = C->getOperand(1);
         if (a->getType()->isIntOrIntVectorTy(1)) {
-            // Booleans: eq/ne directly; orderings through 0/1 integers.
             if (C->getPredicate() == CmpInst::ICMP_EQ || C->getPredicate() == CmpInst::ICMP_NE) {
                 E.body << def(&I) << " = " << (C->getPredicate() == CmpInst::ICMP_EQ ? "OpLogicalEqual" : "OpLogicalNotEqual")
                        << " " << t << " " << val(a) << " " << val(b) << "\n";
@@ -1293,7 +1195,6 @@ void Translator::instruction(Instruction &I) {
             }
             Type *IT = Type::getInt32Ty(I.getContext());
             if (auto *VT = dyn_cast<FixedVectorType>(a->getType())) IT = FixedVectorType::get(IT, VT->getNumElements());
-            // i1 true is -1 as a signed value.
             std::string one = constant(C->isSigned() ? Constant::getAllOnesValue(IT) : ConstantInt::get(IT, 1));
             std::string zero = constant(ConstantInt::get(IT, 0));
             std::string ai = E.op("OpSelect", type(IT), {val(a), one, zero});
@@ -1372,8 +1273,6 @@ void Translator::instruction(Instruction &I) {
             E.body << def(&I) << " = OpFConvert " << t << " " << s << "\n";
             return;
         case Instruction::FPExt:
-            // fpext(fptrunc(x)): the Thor's driver folds the conversion
-            // pair away (observed); OpQuantizeToF16 keeps the rounding.
             if (ST->getScalarType()->isHalfTy() && RT->getScalarType()->isFloatTy())
                 if (auto *Tr = dyn_cast<FPTruncInst>(S))
                     if (Tr->getSrcTy() == RT) {
@@ -1429,17 +1328,14 @@ void Translator::instruction(Instruction &I) {
         if (auto *G = dyn_cast<GlobalVariable>(P->stripPointerCasts())) {
             auto fc = fconsts.find(G);
             if (fc != fconsts.end() && G == fc->second.init && G->hasInitializer() && !isa<UndefValue>(G->getInitializer())) {
-                // A resolved function constant (the guest specialized the function).
                 bind(&I, constant(G->getInitializer()));
                 return;
             }
             if (fc != fconsts.end()) {
-                // A function constant: a specialization constant.
                 unsigned base = abi::kSpecFunctionConstant0 + fc->second.index * 8;
                 Type *VT = L->getType();
                 std::string id = E.memo.count("fc" + std::to_string(fc->second.index) + t) ? E.memo["fc" + std::to_string(fc->second.index) + t] : "";
                 if (id.empty() && VT->isVectorTy()) {
-                    // One specialization constant per component.
                     auto *VV = cast<FixedVectorType>(VT);
                     Type *ET = VV->getElementType();
                     if (ET->isIntegerTy(1)) fail("unsupported-feature", "boolean vector function constant " + fc->second.name);
@@ -1496,14 +1392,10 @@ void Translator::instruction(Instruction &I) {
         }
         unsigned as = P->getType()->getPointerAddressSpace();
         if ((as == kDevice || as == kConstant) && isa<ConstantPointerNull>(getUnderlyingObject(P, 32))) {
-            // A load through a null buffer pointer has no defined value
-            // (functions specialized with a constant that disables a
-            // buffer keep such loads on dead paths).
             bind(&I, E.undef(type(L->getType())));
             return;
         }
         if ((as == kDevice || as == kConstant) && experiment("psbslot") && getenv("AIRC_EXP_SLOTS")) {
-            // Bisection: loads through buffer arguments of the listed indices.
             if (auto *A = dyn_cast<Argument>(getUnderlyingObject(P, 64))) {
                 auto it = EI.args.find(A->getArgNo());
                 std::string slots = std::string(",") + getenv("AIRC_EXP_SLOTS") + ",";
@@ -1514,7 +1406,6 @@ void Translator::instruction(Instruction &I) {
             }
         }
         if ((as == kDevice || as == kConstant) && experiment("psbindslot") && getenv("AIRC_EXP_SLOTS")) {
-            // Bisection: loads through a pointer loaded from a buffer argument of the listed indices.
             if (auto *L2 = dyn_cast<LoadInst>(getUnderlyingObject(P, 64)))
                 if (auto *A = dyn_cast<Argument>(getUnderlyingObject(L2->getPointerOperand(), 64))) {
                     auto it = EI.args.find(A->getArgNo());
@@ -1526,15 +1417,6 @@ void Translator::instruction(Instruction &I) {
                 }
         }
         if ((as == kDevice || as == kConstant) && nullGuardLoad(P, experiment("psbnullall"))) {
-            // A load through a pointer the function took from memory (or
-            // made from an integer): an address below 64 KiB is a null
-            // pointer plus a field offset. Such a read is undefined; on the
-            // Thor a read of unmapped memory does not fault but stalls the
-            // GPU until the driver kills the context (stage8-contract.md
-            // §15.6), which visionOS RealityKit's fsCALayer did in every
-            // boot (visionos.md §10.13). The guarded load reads the
-            // argument table instead and yields zero. AIRC_NULL_GUARD=0
-            // turns it off.
             std::string a = val(P);
             std::string ok = E.op("OpUGreaterThanEqual", E.tBool(), {a, E.u64(65536)});
             std::string safe = E.op("OpSelect", E.tInt(64), {ok, a, tableAddrHere()});
@@ -1544,8 +1426,6 @@ void Translator::instruction(Instruction &I) {
             return;
         }
         if ((as == kDevice || as == kConstant) && (experiment("psbind") || experiment("psbdir"))) {
-            // Bisection: loads through a pointer that is a bound buffer
-            // (an argument-table entry) or through one loaded from memory.
             const Value *O = getUnderlyingObject(P, 64);
             auto *CI = dyn_cast<CallInst>(O);
             bool direct = isa<Argument>(O) || (CI && CI->getCalledFunction() &&
@@ -1601,7 +1481,6 @@ void Translator::instruction(Instruction &I) {
         unsigned n0 = cast<FixedVectorType>(X->getOperand(0)->getType())->getNumElements();
         auto mask = X->getShuffleMask();
         if (mask.size() == 1) {
-            // <1 x T> results are not SPIR-V vectors; not produced by Metal.
             fail("unsupported-type", "single-element vector");
         }
         E.body << def(&I) << " = OpVectorShuffle " << t << " " << val(X->getOperand(0)) << " " << val(X->getOperand(1));
@@ -1658,7 +1537,7 @@ void Translator::terminator(BasicBlock &B) {
             std::string v = val(V);
             for (unsigned i = 0; i < outputs.size(); i++) {
                 Output &o = outputs[i];
-                if (o.var.empty()) continue;  // dropped (imageblock data, viewport index)
+                if (o.var.empty()) continue;
                 std::string m = v;
                 if (V->getType()->isStructTy()) m = E.op("OpCompositeExtract", type(o.type), {v, std::to_string(i)});
                 const AirNode &n = EI.outputs[i];
@@ -1691,9 +1570,6 @@ void Translator::terminator(BasicBlock &B) {
     }
     fail("unsupported-instruction", std::string("terminator ") + T->getOpcodeName());
 }
-
-// ---------------------------------------------------------------------------
-// Module assembly, validation, reflection
 
 void Translator::emitBlocks(Function &G) {
     bool first = true;
@@ -1728,7 +1604,6 @@ std::string Translator::run() {
     head << mainId << " = OpFunction " << E.tVoid() << " None " << fnT << "\n";
     cur = &F;
     emitBlocks(F);
-    // Helpers: fresh per-function state.
     StructurePlan entryPlanSaved = plan;
     for (Function *H : helpers) {
         vals.clear();
@@ -1901,10 +1776,6 @@ Json Translator::reflection() {
     return r;
 }
 
-// Resource arguments whose slot is a function-constant expression, and
-// arrays of resources (passed as a private array), read their handles or
-// addresses from the argument table through `airc.table_entry(i32 entry)`
-// calls at the start of the function (lowered by the emitter).
 static void lowerResourceArgs(Module &M, Function &F, EntryInfo &EI) {
     LLVMContext &C = F.getContext();
     Type *I32 = Type::getInt32Ty(C);
@@ -1946,7 +1817,6 @@ static void lowerResourceArgs(Module &M, Function &F, EntryInfo &EI) {
     }
 }
 
-// Visible-function test kernel (TranslateOptions::wrapVisible).
 static Function *wrapVisible(Module &M, Function *V, EntryInfo &EI) {
     LLVMContext &C = M.getContext();
     Type *P1 = PointerType::get(C, kDevice);
@@ -1982,8 +1852,6 @@ static Function *wrapVisible(Module &M, Function *V, EntryInfo &EI) {
         if (V->getArg(i)->hasStructRetAttr())
             B.CreateAlignedStore(B.CreateLoad(V->getArg(i)->getParamStructRetType(), callArgs[i]), slot(V->getArg(i)->getParamStructRetType()), Align(16));
     B.CreateRetVoid();
-    // The test function's interface: buffer 0, device, read-write. A
-    // fragment function when the body needs fragment-only operations.
     bool fragmentOnly = false;
     std::set<Function *> seen;
     std::function<void(Function *)> scan = [&](Function *Fn) {
@@ -2026,9 +1894,6 @@ static bool isVisible(Module &M, Function *F) {
     return false;
 }
 
-// Links visible-function modules and binds the `.MTL_VISIBLE_FN_REF`
-// declarations to their definitions; unresolved ones are asked from the
-// resolver (functions of the same library).
 static void linkVisible(Module &M, const TranslateOptions &opts) {
     auto link = [&](const std::string &bytes) {
         auto lm = parseBitcodeFile(MemoryBufferRef(StringRef(bytes), "air-linked"), M.getContext());
@@ -2048,8 +1913,6 @@ static void linkVisible(Module &M, const TranslateOptions &opts) {
         bool progress = false;
         for (Function *D : refs) {
             if (!D->getName().ends_with(".MTL_VISIBLE_FN_REF")) {
-                // A function of a linked library (dynamic library): linking
-                // its module defines the declaration.
                 std::string bytes;
                 if (opts.resolveVisible && opts.resolveVisible(D->getName().str(), bytes)) {
                     link(bytes);
@@ -2076,11 +1939,6 @@ static void linkVisible(Module &M, const TranslateOptions &opts) {
     }
 }
 
-// write_imageblock_slice_to_texture_2d(texture, member pointer, i1,
-// ushort2 origin, ushort2 size (undef: the whole imageblock), ushort2
-// texture coordinate, ushort lod, i1, i32 access): one thread writes one
-// member of every pixel of the imageblock to the texture. Expanded into two
-// loops of write_texture_2d calls before structurization.
 static void expandImageblockSlices(Function &F, uint64_t stride) {
     std::vector<CallInst *> calls;
     for (BasicBlock &B : F)
@@ -2095,12 +1953,11 @@ static void expandImageblockSlices(Function &F, uint64_t stride) {
     Type *I16 = Type::getInt16Ty(Cx), *I32 = Type::getInt32Ty(Cx), *I64 = Type::getInt64Ty(Cx);
     for (CallInst *C : calls) {
         StringRef name = C->getCalledFunction()->getName();
-        StringRef suffix = name.substr(name.rfind('.') + 1);  // v4f16, v4f32, ...
+        StringRef suffix = name.substr(name.rfind('.') + 1);
         if (!suffix.contains('f')) fail("unsupported-intrinsic", name.str() + " (integer slices)");
         Value *tex = C->getArgOperand(0), *member = C->getArgOperand(1);
         Value *origin = C->getArgOperand(3), *size = C->getArgOperand(4), *dst = C->getArgOperand(5);
         Value *lod = C->getArgOperand(6), *access = C->getArgOperand(8);
-        // The element type from the suffix: vNfM.
         unsigned n = 1, bits = 32;
         if (suffix.starts_with("v")) n = (unsigned)(suffix[1] - '0');
         bits = suffix.ends_with("f16") ? 16 : 32;
@@ -2207,8 +2064,6 @@ TranslateResult translate(const std::string &module, const std::string &name, co
     } else {
         EI = entryInfo(M, F);
     }
-    // Kernels without barriers get an early return for threads outside the
-    // Metal grid (dispatchThreads with a non-uniform grid; section 4.6).
     bool wantGuard = EI.stage == Stage::Kernel;
     if (!opts.functionConstantValues.empty())
         for (auto &fc : functionConstants(M)) {
@@ -2217,7 +2072,7 @@ TranslateResult translate(const std::string &module, const std::string &name, co
             Type *T = fc.init->getValueType();
             Constant *C;
             Type *S = T->getScalarType();
-            if (S->isFloatingPointTy()) C = ConstantFP::get(T, v->second);  // vectors: splat
+            if (S->isFloatingPointTy()) C = ConstantFP::get(T, v->second);
             else if (S->isIntegerTy()) C = ConstantInt::get(T, (uint64_t)(int64_t)v->second, true);
             else fail("unsupported-feature", "value for function constant " + fc.name + " of type " + fc.typeName);
             fc.init->setInitializer(C);
@@ -2240,7 +2095,6 @@ TranslateResult translate(const std::string &module, const std::string &name, co
         }
         fprintf(stderr, "airc-stats %s: %zu blocks, %zu instructions, %zu calls, %zu allocas\n", when, blocks, insts, calls, allocas);
         if (getenv("AIRC_STATS_OPS")) {
-            // Opcode and callee-name counts (names only).
             std::map<std::string, size_t> ops;
             for (BasicBlock &B : *F)
                 for (Instruction &I : B) {
@@ -2257,7 +2111,6 @@ TranslateResult translate(const std::string &module, const std::string &name, co
     };
     stats("before");
     if (getenv("AIRC_STATS_CALLS")) {
-        // Call graph of defined helpers reachable from F: size and call sites (counts only).
         std::map<Function *, size_t> sites;
         std::set<Function *> seen;
         std::vector<Function *> work{F};
@@ -2288,8 +2141,6 @@ TranslateResult translate(const std::string &module, const std::string &name, co
                                    opts.loopLimit != 0);
     stats("prepared");
     if (EI.stage == Stage::Kernel) {
-        // A kernel that still calls discard_fragment with no function
-        // constant left to remove the call is what Metal refuses.
         bool discard = false, constants = false;
         std::set<const GlobalVariable *> fcGlobals;
         for (auto &fc : functionConstants(M)) {
@@ -2322,7 +2173,6 @@ TranslateResult translate(const std::string &module, const std::string &name, co
     TranslateResult res;
     if (opts.wantAssembly) res.assembly = text;
     if (const char *dump = getenv("AIRC_DUMP")) {
-        // Debugging aid: the SPIR-V text before assembly and validation.
         if (FILE *f = fopen(dump, "w")) { fputs(text.c_str(), f); fclose(f); }
     }
     if (const char *dump = getenv("AIRC_DUMP_LL")) {
@@ -2341,7 +2191,6 @@ TranslateResult translate(const std::string &module, const std::string &name, co
         Error e("internal", "SPIR-V assembly failed: " + diag);
         throw e;
     }
-    // The same checks as `spirv-val --target-env vulkan1.3` with default options.
     spvtools::ValidatorOptions vo;
     stats("assembled");
     if (!tools.Validate(res.spirv.data(), res.spirv.size(), vo)) fail("validation-failed", diag);
@@ -2368,4 +2217,4 @@ TranslateResult translate(const std::string &module, const std::string &name, co
     return res;
 }
 
-}  // namespace airc
+}

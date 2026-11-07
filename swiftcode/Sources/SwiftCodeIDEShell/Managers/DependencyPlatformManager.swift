@@ -1,55 +1,14 @@
-// Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/DependencyPlatformManager.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SecurityAdvisory, DependencyPlatformManager.
-// Fixed by W-V2: dropped the bogus `import PackageDescription` (only usable in a
-// Package.swift manifest — this file only *generates* manifest text inside string
-// literals) and added the real imports (SwiftCodeAssistant for LLMService/KeychainService,
-// SwiftCodeIDECore for Project/ProjectSessionStore). This unblocks
-// DependencyVisualizerView's `DependencyPlatformManager.shared` ref.
-//
-// CLEANUP (2026-11-06, triage §C20) — fabricated package data deleted:
-// (a) Seeded featured/trending catalogs (stale fixed stars/forks/versions,
-//     e.g. swift-collections 4800 stars, tools "5.9") are gone; both lists
-//     start empty and fill only from live GitHub search results.
-// (b) Seeded advisories are gone. The "UnsafeCoreKit / CVE-2026-99999"
-//     advisory was invented (no such CVE, no such package) and is deleted,
-//     never re-seeded. The "Alamofire / GHSA-9pxf-2ur3-3p2g" entry is
-//     deleted too: its advisory page and its API record both return 404
-//     (checked 2026-11-06), so it cannot be presented as verified.
-//     `knownAdvisories` starts empty until a live advisory source
-//     (GitHub Advisory Database / OSV API) populates it.
-// (c) `recentActivity` / `continueBrowsing` start empty and are recorded
-//     from real user actions only (install/remove, package detail views).
-// (d) On GitHub API failure the search no longer falls back to the seed
-//     catalog filtered by name ("offline-cached fallback matches"); it
-//     clears results, records `searchError`, and surfaces the failure.
-// (e) `buildDependencyGraph` no longer invents children by name match
-//     (composable -> CasePaths/…, alamofire -> Foundation); it delegates
-//     to `PackageDependencyGraph.build`, which never invents edges.
-//     Transitive edges need `Package.resolved` / `swift package
-//     show-dependencies --format json` — not a flat list.
-// (f) Live GitHub search results are no longer re-stamped with
-//     tools "5.10", platforms ["macOS 14+", "iOS 17+"], version "1.0.0"
-//     (and no "MIT" license is assumed when the API returns none):
-//     only values the API returns are kept; the rest stay unset.
-//
-// NOTE: `PackageMetadata`'s own init defaults (in the sibling
-// `PackageDiscoveryModel.swift`, out of this slice) still stamp
-// "5.10" / ["macOS 14+", "iOS 17+"] / "1.0.0" for callers that rely
-// on them — that residue needs a follow-up in that file. This file
-// passes explicit unset values instead of relying on the defaults.
-
 import Foundation
 import Observation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 import os
 
-/// Model for Security Advisories.
 public struct SecurityAdvisory: Identifiable, Codable, Hashable {
     public var id = UUID()
     public var packageName: String
     public var title: String
-    public var severity: String // e.g. "High", "Critical", "Moderate"
+    public var severity: String
     public var affectedVersions: String
     public var fixedVersion: String
     public var advisoryUrl: String
@@ -64,7 +23,6 @@ public final class DependencyPlatformManager {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "DependencyPlatformManager")
     private let fm = FileManager.default
 
-    // MARK: - State Properties
     public var collections: [PackageCollection] = []
     public var favoritePackages: [String] = []
     public var watchlistPackages: [String] = []
@@ -72,24 +30,18 @@ public final class DependencyPlatformManager {
     public var continueBrowsing: [String] = []
     public var recentActivity: [String] = []
 
-    // Search & Explorer Cache
     public var searchResults: [PackageMetadata] = []
-    /// The last GitHub search failure, if any; `nil` after a success.
-    /// Search failures are surfaced here (and in `operationLogs`) instead
-    /// of being papered over with seeded data.
     public var searchError: String? = nil
     public var trendingPackages: [PackageMetadata] = []
     public var featuredPackages: [PackageMetadata] = []
-    public var cachedReadmes: [String: String] = [:] // Key: cloneUrl -> Readme text
-    public var cachedManifests: [String: String] = [:] // Key: cloneUrl -> Package.swift syntax
+    public var cachedReadmes: [String: String] = [:]
+    public var cachedManifests: [String: String] = [:]
 
-    // Operation & Execution states
     public var isOperationRunning: Bool = false
     public var operationProgress: Double = 0.0
     public var operationStatus: String = "Idle"
     public var operationLogs: [String] = []
 
-    // AI Assistant States
     public var chatHistory: [PackageAIChat] = []
     public var savedPrompts: [String] = [
         "Recommend a high-performance network caching library for swift",
@@ -104,18 +56,15 @@ public final class DependencyPlatformManager {
         "Performance Optimization": "How can I optimize the build times of a workspace with 15+ external packages?"
     ]
 
-    // Security Center States
     public var knownAdvisories: [SecurityAdvisory] = []
     public var securityScanRunning: Bool = false
     public var securityScore: Int = 100
 
-    // MARK: - Initializer
     private init() {
         loadState()
         loadPresets()
     }
 
-    // MARK: - Persistence Keys
     private let collectionsKey = "com.swiftcode.dependencies.collections"
     private let favoritesKey = "com.swiftcode.dependencies.favorites"
     private let watchlistKey = "com.swiftcode.dependencies.watchlist"
@@ -125,7 +74,6 @@ public final class DependencyPlatformManager {
     private func loadState() {
         let defaults = UserDefaults.standard
 
-        // Favorites
         self.favoritePackages = defaults.stringArray(forKey: favoritesKey) ?? [
             "https://github.com/Alamofire/Alamofire.git",
             "https://github.com/apple/swift-algorithms.git",
@@ -134,21 +82,17 @@ public final class DependencyPlatformManager {
             "https://github.com/SDWebImage/SDWebImageSwiftUI.git"
         ]
 
-        // Watchlist
         self.watchlistPackages = defaults.stringArray(forKey: watchlistKey) ?? [
             "https://github.com/apple/swift-async-algorithms.git",
             "https://github.com/grpc/grpc-swift.git"
         ]
 
-        // Search History
         self.searchHistory = defaults.stringArray(forKey: historyKey) ?? ["Alamofire", "swift-collections", "Keychain", "sqlite"]
 
-        // Collections
         if let data = defaults.data(forKey: collectionsKey),
            let decoded = try? JSONDecoder().decode([PackageCollection].self, from: data) {
             self.collections = decoded
         } else {
-            // Seed default collections
             self.collections = [
                 PackageCollection(
                     name: "Core Networking Kit",
@@ -167,7 +111,6 @@ public final class DependencyPlatformManager {
             ]
         }
 
-        // Chat History
         if let data = defaults.data(forKey: chatKey),
            let decoded = try? JSONDecoder().decode([PackageAIChat].self, from: data) {
             self.chatHistory = decoded
@@ -189,34 +132,15 @@ public final class DependencyPlatformManager {
     }
 
     private func loadPresets() {
-        // No seeded catalogs: featured/trending lists populate only from
-        // live GitHub search results (see executeGitHubSearch). The stale
-        // fixed star/fork/version rows Legacy shipped (swift-collections
-        // 4800 stars, tools "5.9", etc.) are deleted, not re-seeded.
         self.featuredPackages = []
         self.trendingPackages = []
 
-        // No seeded advisories. Advisories come only from a live advisory
-        // source (GitHub Advisory Database / OSV API); nothing is invented
-        // here. Deleted: the fabricated "UnsafeCoreKit / CVE-2026-99999"
-        // entry (no such CVE, no such package) and the "Alamofire /
-        // GHSA-9pxf-2ur3-3p2g" entry, whose advisory page and API record
-        // both return 404, so it cannot be presented as verified either.
         self.knownAdvisories = []
 
-        // Browsing history and activity start empty and are recorded from
-        // real user actions only (PackageDetailsView appends to
-        // continueBrowsing; install/remove append to recentActivity).
         self.continueBrowsing = []
         self.recentActivity = []
     }
 
-    // MARK: - Actions & Operations
-
-    /// Searches GitHub for Swift packages via the live Search API.
-    /// On failure the error is surfaced (`searchError`, operation log,
-    /// `operationStatus`) and results are cleared — no seeded or cached
-    /// data is ever substituted for failed search results.
     public func executeGitHubSearch(query: String, language: String, license: String, minStars: Int) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -235,14 +159,12 @@ public final class DependencyPlatformManager {
         operationProgress = 0.2
         operationStatus = "Connecting to GitHub Search API..."
 
-        // Add log
         operationLogs.append("Initiated search for query: '\(trimmed)' with star filter: \(minStars)")
 
         do {
             let encodedQuery = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
             let urlStr = "https://api.github.com/search/repositories?q=\(encodedQuery)+topic:swift-package+language:swift"
             guard let url = URL(string: urlStr) else {
-                // Do not return with the manager stuck "running".
                 self.searchError = "Could not build the GitHub search URL."
                 operationLogs.append("Search failed: \(self.searchError ?? "")")
                 isOperationRunning = false
@@ -254,7 +176,6 @@ public final class DependencyPlatformManager {
             var request = URLRequest(url: url)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
-            // Apply Keychain Token if present
             if let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty {
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 operationLogs.append("Authorized request using configured GitHub API token.")
@@ -277,11 +198,6 @@ public final class DependencyPlatformManager {
 
             let result = try JSONDecoder().decode(GHSearchResult.self, from: data)
 
-            // Only values the Search API actually returns are kept. The
-            // search payload carries no Swift tools version, platform
-            // list, latest release, or (sometimes) license, so those stay
-            // unset (""/[]/nil) instead of being re-stamped with "5.10",
-            // ["macOS 14+", "iOS 17+"], "1.0.0", or an assumed "MIT".
             let mapped = (result.items ?? []).map { item in
                 PackageMetadata(
                     name: item.name,
@@ -308,8 +224,6 @@ public final class DependencyPlatformManager {
             logger.error("GitHub search failed: \(error.localizedDescription)")
             operationLogs.append("Search failed: \(error.localizedDescription)")
 
-            // Surface the failure instead of substituting seed data:
-            // stale or invented results would present as search results.
             self.searchResults = []
             self.searchError = error.localizedDescription
             operationLogs.append("No results: the search failed and no cached or seeded data is substituted.")
@@ -320,7 +234,6 @@ public final class DependencyPlatformManager {
         operationStatus = searchError == nil ? "Idle" : "Search failed"
     }
 
-    /// Installs a package to the active project's Package.swift
     public func installPackage(url: String, requirementType: String, requirementValue: String, activeProject: Project?) async -> Bool {
         guard let project = activeProject else {
             operationLogs.append("Installation failed: No active project session.")
@@ -339,7 +252,6 @@ public final class DependencyPlatformManager {
 
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
 
-        // Read dependencies
         var dependencies: [ParsedDependency] = []
         if let content = try? String(contentsOf: packageURL, encoding: .utf8) {
             let nsContent = content as NSString
@@ -366,10 +278,8 @@ public final class DependencyPlatformManager {
             }
         }
 
-        // Remove existing duplicate if any
         dependencies.removeAll { $0.url.lowercased().replacingOccurrences(of: ".git", with: "") == url.lowercased().replacingOccurrences(of: ".git", with: "") }
 
-        // Add new dependency
         let reqType = DependencyRequirementType(rawValue: requirementType) ?? .from
         let isLocal = (requirementType == "local" || requirementType == "path")
         dependencies.append(ParsedDependency(url: url, requirementType: isLocal ? .exact : reqType, value: requirementValue, isLocal: isLocal))
@@ -408,7 +318,6 @@ let package = Package(
             ProjectSessionStore.shared.refreshFileTree(for: project)
             operationLogs.append("Successfully imported \(url) to Package.swift.")
 
-            // Cache manifest syntax
             cachedManifests[url] = packageContent
 
             if !recentActivity.contains("Imported \(url)") {
@@ -429,7 +338,6 @@ let package = Package(
         }
     }
 
-    /// Removes a package from the active project's Package.swift
     public func removePackage(url: String, activeProject: Project?) async -> Bool {
         guard let project = activeProject else { return false }
 
@@ -522,7 +430,6 @@ let package = Package(
         }
     }
 
-    // MARK: - Security Auditing
     public func executeSecurityScan(dependencies: [ParsedDependency]) async {
         securityScanRunning = true
         operationLogs.append("Initiating security audit for \(dependencies.count) dependencies...")
@@ -545,7 +452,6 @@ let package = Package(
         securityScanRunning = false
     }
 
-    // MARK: - Project Compatibility Analysis
     public func analyzeCompatibility(packageUrl: String, activeProject: Project?) -> CompatibilityReport {
         let repoName = packageUrl.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? "SelectedPackage"
 
@@ -559,14 +465,12 @@ let package = Package(
         )
 
         if let project = activeProject {
-            // Check for existing package structure
             let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
             if !FileManager.default.fileExists(atPath: packageURL.path) {
                 report.recommendations.append("The active project does not contain a Package.swift manifest yet. SwiftCode will automatically generate one upon installation.")
                 report.healthScore -= 10
             }
 
-            // High star/featured triggers
             let isPopular = featuredPackages.contains(where: { $0.cloneUrl == packageUrl }) || trendingPackages.contains(where: { $0.cloneUrl == packageUrl })
             if isPopular {
                 report.recommendations.append("\(repoName) is a highly-rated community resource. Integration path is fully tested.")
@@ -582,7 +486,6 @@ let package = Package(
         return report
     }
 
-    // MARK: - AI Assistant Queries
     public func askAIAssistant(prompt: String) async -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
@@ -601,10 +504,8 @@ Give specific package recommendations, Package.swift configurations, or dependen
 
         var aiAnswer = ""
         do {
-            // Leverage the central LLMService if available
             aiAnswer = try await LLMService.shared.generateResponse(prompt: promptWithContext, useContext: false)
         } catch {
-            // Robust offline knowledge-base fallback response
             aiAnswer = generateAIFallback(for: trimmed)
         }
 
@@ -670,7 +571,6 @@ Your request regarding **"\(prompt)"** has been analyzed.
         }
     }
 
-    // MARK: - Collections CRUD
     public func createCollection(name: String, description: String, category: String) {
         let col = PackageCollection(name: name, description: description, packageURLs: [], category: category)
         collections.append(col)
@@ -695,16 +595,6 @@ Your request regarding **"\(prompt)"** has been analyzed.
         saveState()
     }
 
-    // MARK: - Graph Generation
-    /// Builds the dependency graph from a flat dependency list. Edges
-    /// are NOT invented: only the direct dependencies become nodes, with
-    /// no children, because a flat list cannot prove transitive edges
-    /// (this delegates to `PackageDependencyGraph.build`, which never
-    /// invents edges). Transitive edges require `Package.resolved` or
-    /// `swift package show-dependencies --format json`; until a caller
-    /// supplies that data, nodes honestly have no children. The only
-    /// overlay is `hasConflict`, set from the live known-advisory list
-    /// (and from duplicate requirement values, per that builder).
     public func buildDependencyGraph(dependencies: [ParsedDependency]) -> [DependencyVisualNode] {
         PackageDependencyGraph.build(dependencies: dependencies).map { node in
             var node = node

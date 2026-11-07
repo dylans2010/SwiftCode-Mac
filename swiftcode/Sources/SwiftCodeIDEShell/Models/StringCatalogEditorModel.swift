@@ -2,37 +2,23 @@ import Foundation
 import Observation
 import SwiftCodeIDECore
 
-/// The String Catalog editor of the Linux IDE (`specs/ide/string-catalog.md`
-/// §Editor): the languages sidebar with progress, the Key | Default
-/// Localization | Comment | <language> | State table, its filter and
-/// sort, Add Key, Remove, Mark as Needs Review / Reviewed, Add Language and
-/// Refresh from Source. Every edit is written at once; an untouched catalog
-/// is never written, so it stays byte for byte. No toolkit types.
 @MainActor
 @Observable
 public final class StringCatalogEditorModel {
     public let path: String
     public private(set) var catalog: StringCatalog
-    /// The language whose translations the table shows.
     public private(set) var language: String
     public private(set) var selectedKey: String?
     public private(set) var filter = ""
     public private(set) var sortColumn: Column?
     public private(set) var sortAscending = true
     public private(set) var problem: String?
-    /// What the last Refresh from Source changed.
     public private(set) var lastRefresh: StringCatalog.MergeSummary?
-    /// Bumped on every write.
     public private(set) var saveCount = 0
 
-    /// The sources Refresh from Source reads (the catalog's targets');
-    /// nil or empty: every source file under the catalog's folder.
     @ObservationIgnored public var sourceFiles: (() -> [String])?
-    /// Called with a language code the user added (the project's
-    /// `knownRegions` gets it).
     @ObservationIgnored public var onAddLanguage: ((String) -> Void)?
 
-    /// The + menu's languages (codes).
     public static let commonLanguages = ["ar", "de", "es", "fr", "hi", "it", "ja", "ko", "nl", "pl", "pt-BR", "ru", "sv", "tr", "uk", "zh-Hans", "zh-Hant"]
 
     public enum Column: String, CaseIterable, Sendable { case key = "Key", defaultValue = "Default Localization", comment = "Comment", translation = "Translation", state = "State" }
@@ -47,12 +33,10 @@ public final class StringCatalogEditorModel {
     public var isSourceLanguage: Bool { language == catalog.sourceLanguage }
     public var languages: [String] { catalog.languages }
 
-    /// "German (de)" style names: the English name of the code.
     public static func displayName(_ code: String) -> String {
         Locale(identifier: "en").localizedString(forIdentifier: code) ?? code
     }
 
-    /// The sidebar's line for a language: "(Source)" or its percentage.
     public func sidebarDetail(_ code: String) -> String {
         code == catalog.sourceLanguage ? "Source" : "\(catalog.progress(language: code))%"
     }
@@ -68,8 +52,6 @@ public final class StringCatalogEditorModel {
         }
     }
 
-    /// The table's rows: filtered by key, value, comment or translation
-    /// (ignoring case), in file order or the header's sort.
     public var rows: [StringCatalog.Row] {
         var rs = catalog.rows(language: language)
         let f = filter.trimmingCharacters(in: .whitespaces)
@@ -94,7 +76,6 @@ public final class StringCatalogEditorModel {
         }.map(\.element)
     }
 
-    /// Counts for the bar under the table.
     public var countText: String {
         let all = catalog.keys.count, shown = rows.count
         let s = all == 1 ? "1 string" : "\(all) strings"
@@ -123,10 +104,6 @@ public final class StringCatalogEditorModel {
         }
     }
 
-    // MARK: Edits
-
-    /// "+" ▸ a language: adds its column (written once it has a string)
-    /// and tells the project.
     public func addLanguage(_ code: String) {
         catalog.addLanguage(code)
         onAddLanguage?(code)
@@ -141,7 +118,6 @@ public final class StringCatalogEditorModel {
         return save()
     }
 
-    /// The source language's value (the Default Localization column).
     @discardableResult
     public func setDefaultValue(_ value: String, key: String) -> Bool {
         guard let row = catalog.rows(language: catalog.sourceLanguage).first(where: { $0.key == key }),
@@ -157,7 +133,6 @@ public final class StringCatalogEditorModel {
         return save()
     }
 
-    /// Mark for Review / Mark as Reviewed on the selected language.
     @discardableResult
     public func setNeedsReview(_ on: Bool, key: String) -> Bool {
         guard let row = catalog.rows(language: language).first(where: { $0.key == key }),
@@ -166,8 +141,6 @@ public final class StringCatalogEditorModel {
         return save()
     }
 
-    /// Add Key: "New Key", "New Key 2" … with `extractionState = manual`;
-    /// selects it.
     @discardableResult
     public func addKey(_ key: String? = nil) -> String {
         var k = key ?? "New Key"
@@ -181,7 +154,6 @@ public final class StringCatalogEditorModel {
         return k
     }
 
-    /// Removes the selected key and its translations.
     @discardableResult
     public func removeSelectedKey() -> Bool {
         guard let k = selectedKey, catalog.keys.contains(k) else { return false }
@@ -193,8 +165,6 @@ public final class StringCatalogEditorModel {
         return save()
     }
 
-    /// Extracts this catalog's table from the sources, merges, and saves
-    /// when something changed (`specs/ide/string-catalog.md` C.6).
     @discardableResult
     public func refreshFromSource() -> StringCatalog.MergeSummary {
         var files = sourceFiles?() ?? []
@@ -207,7 +177,6 @@ public final class StringCatalogEditorModel {
         return summary
     }
 
-    /// The last refresh in words.
     public var refreshText: String? {
         guard let s = lastRefresh else { return nil }
         if s.isEmpty { return "Up to date with the source code." }
@@ -221,7 +190,6 @@ public final class StringCatalogEditorModel {
 
     public func clearProblem() { problem = nil }
 
-    /// Rereads the file (after the source view edited it).
     public func reload() throws {
         catalog = try StringCatalog(data: Data(contentsOf: URL(fileURLWithPath: path)))
         if !catalog.languages.contains(language) { language = catalog.sourceLanguage }

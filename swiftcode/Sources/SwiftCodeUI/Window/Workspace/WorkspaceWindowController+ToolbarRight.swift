@@ -1,17 +1,12 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The toolbar's right group and the Adjust Editor Options menu
-/// (`specs/ide/reference-ui-4.md` §14, `reference-ui-6.md` §2.1).
 public enum EditorOptionsMenu {
     static let addEditorID = NSToolbarItem.Identifier("addEditor")
     static let editorOptionsID = NSToolbarItem.Identifier("editorOptions")
 
-    /// The right group, left to right, ending with the three-way toggle
-    /// (no Account item, reference-ui-6.md §2.1).
     public static let rightGroup = ["addEditor", "editorOptions", "editorModes"]
 
-    /// Adjust Editor Options, in order. The choices apply to the focused editor.
     static var items: [MenuItemSpec] {
         let u = CommandTable.unavailable
         return [
@@ -35,7 +30,6 @@ public enum EditorOptionsMenu {
         ]
     }
 
-    /// Add Editor Tabs or Editor Panes.
     static var addItems: [MenuItemSpec] {
         [
             .command(.init("Add Editor Tab", "", [], "newTab:")),
@@ -48,11 +42,6 @@ public enum EditorOptionsMenu {
     @MainActor public static func addMenu() -> NSMenu { MainMenu.menu("Add Editor Tabs or Editor Panes", addItems) }
 }
 
-/// Segment widths that give the toolbar's glass capsules the drawn sizes
-/// of `specs/ide/liquid-glass.md` §2.2 (the system adds its own padding):
-/// Navigators | Coding Assistant 78, Run | Stop and Back | Forward 75,
-/// Canvas | Assistant | Code Review 125 points; all 38 tall. Before macOS
-/// 26 the earlier 38-point segments stay.
 enum ToolbarGlass {
     static var glass: Bool { if #available(macOS 26, *) { return true }; return false }
     static var leftPanesSegment: CGFloat { glass ? 31.5 : 38 }
@@ -61,9 +50,6 @@ enum ToolbarGlass {
 }
 
 extension WorkspaceWindowController {
-    /// Toolbar items of the right group (nil for other identifiers). The
-    /// accessibility title is the short label ("Add Editor", "Editor
-    /// Options"); the tooltips keep the long text (reference-ui-6.md §2.1).
     func rightGroupToolbarItem(_ id: NSToolbarItem.Identifier) -> NSToolbarItem? {
         func menuItem(_ symbol: String, _ label: String, _ tip: String, _ menu: NSMenu) -> NSToolbarItem {
             let item = NSMenuToolbarItem(itemIdentifier: id)
@@ -85,12 +71,8 @@ extension WorkspaceWindowController {
         }
     }
 
-    // MARK: State-dependent titles (reference-ui-6.md §2.5, T7)
-
     public static func inspectorToggleTitle(shown: Bool) -> String { shown ? "Hide Inspector" : "Show Inspector" }
 
-    /// The toolbar inspector toggle and the debug bar's debug-area toggle
-    /// name the action they perform.
     func updateAreaToggleTitles() {
         guard let inspectorItem, let debugItem else { return }
         if let item = window?.toolbar?.items.first(where: { $0.itemIdentifier == Self.inspectorToggleID }) {
@@ -100,16 +82,10 @@ extension WorkspaceWindowController {
         debugArea.setDebugAreaShown(!debugItem.isCollapsed)
     }
 
-    /// The inspector toggle's title as the toolbar shows it (tests).
     public var inspectorToggleItemTitle: String? {
         window?.toolbar?.items.first { $0.itemIdentifier == Self.inspectorToggleID }?.label
     }
 
-    // MARK: Room (reference-ui-6.md §2.2, T1)
-
-    /// Refits the toolbar whenever its room or its items' widths change:
-    /// the window's size, the left area and the inspector (shown, hidden,
-    /// divider drags), the debug area (toggle titles).
     func observeToolbarRoom() {
         let center = NotificationCenter.default
         leftAreaObservation.tokens.append(center.addObserver(forName: NSWindow.didResizeNotification, object: window, queue: .main) { [weak self] _ in
@@ -132,8 +108,6 @@ extension WorkspaceWindowController {
         updateAreaToggleTitles()
     }
 
-    /// Fits the toolbar on the next turn of the run loop (changes come in
-    /// bursts: a build's activity text, issue counts).
     func scheduleToolbarFit() {
         guard !toolbarControls.fitScheduled else { return }
         toolbarControls.fitScheduled = true
@@ -146,29 +120,17 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// The toolbar's current fitting state (tests).
     public var toolbarFit: ToolbarFit { toolbarControls.fit }
 
-    /// The toolbar items in the overflow menu (none once it fits).
     public var overflowedToolbarItems: [String] {
         guard let toolbar = window?.toolbar else { return [] }
         let visible = Set((toolbar.visibleItems ?? []).map(\.itemIdentifier))
-        // A hidden item (the issue capsule with nothing to show) is not
-        // an overflow.
         return toolbar.items.filter { !$0.isHidden }.map(\.itemIdentifier)
             .filter { !visible.contains($0) && !Self.toolbarSpacers.contains($0) }.map(\.rawValue)
     }
     static let toolbarSpacers: Set<NSToolbarItem.Identifier> = [.flexibleSpace, .space, .sidebarTrackingSeparator, FlushSidebar.trackingSeparatorID,
                                                                  .inspectorTrackingSeparator]
 
-    /// Recovers room in the order of `ToolbarFit` (liquid-glass.md §8.2)
-    /// until nothing but what the step allows sits in the overflow: the
-    /// editor-mode group goes into the "»" menu, then the scheme capsule
-    /// drops its titles, then the activity subtitle truncates in the
-    /// middle. Each step is tried after a layout of the window's frame; a
-    /// wider window undoes them. Show Inspector has the highest visibility
-    /// priority and the editor modes the lowest, so the system's overflow
-    /// takes them first.
     public func fitToolbar() {
         guard let window, let frame = window.contentView?.superview, window.toolbar != nil, !toolbarControls.fitting else { return }
         toolbarControls.fitting = true
@@ -183,8 +145,6 @@ extension WorkspaceWindowController {
             toolbarControls.fit = f
             return
         }
-        // Nothing fits: keep the tightest step; the remaining items
-        // overflow by visibility priority.
         toolbarControls.fit = steps.last ?? ToolbarFit()
         apply(toolbarControls.fit)
     }
@@ -194,10 +154,6 @@ extension WorkspaceWindowController {
         activityView.maximumWidth = f.activityWidth ?? .greatestFiniteMagnitude
     }
 
-    /// The scheme capsule with its titles (the scheme's name, "›", the
-    /// destination's name) or, short of room, its glyphs only
-    /// (liquid-glass.md §8.2: about 87 points). The titles move to the
-    /// tooltips meanwhile; the accessibility titles stay.
     func setSchemeGlyphsOnly(_ glyphsOnly: Bool) {
         for p in [schemePopUp, destinationPopUp] {
             let position: NSControl.ImagePosition = glyphsOnly ? .imageOnly : .imageLeading
@@ -208,7 +164,6 @@ extension WorkspaceWindowController {
             let tip = glyphsOnly ? p.titleOfSelectedItem : nil
             if p.toolTip != tip { p.toolTip = tip }
         }
-        // The glyphs keep the reference's spacing: about 87 points in all.
         if #available(macOS 26, *), let stack = schemePopUp.superview as? NSStackView {
             let side: CGFloat = glyphsOnly ? 14 : 8
             if stack.edgeInsets.left != side { stack.edgeInsets = NSEdgeInsets(top: 0, left: side, bottom: 0, right: side) }
@@ -216,20 +171,14 @@ extension WorkspaceWindowController {
         }
     }
 
-    /// Whether the scheme capsule shows glyphs only (tests).
     public var schemeShowsGlyphsOnly: Bool { schemePopUp.imagePosition == .imageOnly }
 
-    /// The scheme capsule's width (its content and side insets; tests).
     public var schemeCapsuleWidth: CGFloat {
         guard let v = window?.toolbar?.items.first(where: { $0.itemIdentifier == Self.schemeID })?.view else { return 0 }
         v.layoutSubtreeIfNeeded()
         return v.fittingSize.width
     }
 
-    // MARK: Editor modes in the overflow menu (liquid-glass.md §8.2)
-
-    /// The editor-mode group's entry in the "»" menu: "Editor Modes" with
-    /// the three modes, the current one checked.
     func updateEditorModesPullDown() {
         guard let item = window?.toolbar?.items.first(where: { $0.itemIdentifier == Self.editorModesID }) else { return }
         item.menuFormRepresentation = editorModesMenuItem()
@@ -260,8 +209,6 @@ extension WorkspaceWindowController {
 }
 
 extension WorkspaceChrome.ToolbarItem {
-    /// The item's symbols as AppKit images (the tooltips as descriptions,
-    /// or `descriptions`).
     @MainActor func images(descriptions: [String]? = nil) -> [NSImage] {
         zip(symbols, descriptions ?? toolTips).map { NSImage(systemSymbolName: $0, accessibilityDescription: $1)! }
     }

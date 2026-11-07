@@ -4,7 +4,6 @@ import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "SourceControlView")
 
-// MARK: - Native Source Control Window Manager
 @MainActor
 public final class SourceControlWindowManager: NSObject, NSWindowDelegate {
     public static let shared = SourceControlWindowManager()
@@ -32,7 +31,6 @@ public final class SourceControlWindowManager: NSObject, NSWindowDelegate {
     }
 }
 
-// MARK: - Native Source Control Window Controller
 @MainActor
 public class SourceControlWindowController: NSWindowController {
     public let gitViewModel: GitViewModel
@@ -111,17 +109,12 @@ extension SourceControlWindowController {
     }
 }
 
-// MARK: - Compatibility shim for GitFileStatus conflict detection
 private extension GitFileStatus {
-    // Provides a uniform way to check if a file is in a conflicted state,
-    // accommodating different underlying models without changing their definitions.
     var isConflicted: Bool {
-        // Common boolean flags used by various models
         if let value = (self as AnyObject).value(forKey: "isConflicted") as? Bool { return value }
         if let value = (self as AnyObject).value(forKey: "isUnmerged") as? Bool { return value }
         if let value = (self as AnyObject).value(forKey: "hasConflicts") as? Bool { return value }
 
-        // Some models expose an enum `status` or `state` that can be string-described
         if let status = (self as AnyObject).value(forKey: "status") {
             let s = String(describing: status).lowercased()
             if s.contains("conflict") || s.contains("unmerged") { return true }
@@ -134,9 +127,6 @@ private extension GitFileStatus {
         return false
     }
 }
-// ====================================================================
-// CONFLICT RESOLVER WORKSPACE CONTAINER
-// ====================================================================
 @MainActor
 struct ConflictResolverWorkspaceView: View {
     var gitViewModel: GitViewModel
@@ -212,9 +202,6 @@ struct ConflictResolverWorkspaceView: View {
     }
 }
 
-// ====================================================================
-// NAVIGATION SELECTIONS
-// ====================================================================
 public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable {
     case localWorkspace = "Local Workspace"
     case gitWorktrees = "Git Worktrees"
@@ -309,7 +296,6 @@ public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable 
     }
 }
 
-// MARK: - Native Split View Controller
 public class SourceControlSplitViewController: NSSplitViewController {
     public let gitViewModel: GitViewModel
     public let project: Project
@@ -337,7 +323,6 @@ public class SourceControlSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // Sidebar Panel (Pure AppKit OutlineView Controller)
         let sidebarVC = SourceControlSidebarViewController()
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
         sidebarItem.minimumThickness = 220
@@ -346,7 +331,6 @@ public class SourceControlSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // Main Workspace (SwiftUI View Wrapper)
         let mainView = SourceControlMainWrapper(gitViewModel: gitViewModel, project: project)
             .environment(ProjectSessionStore.shared)
             .environmentObject(AppSettings.shared)
@@ -362,7 +346,6 @@ public class SourceControlSplitViewController: NSSplitViewController {
     }
 }
 
-// MARK: - AppKit Sidebar Selection State
 @Observable
 @MainActor
 final class SourceControlSidebarState {
@@ -371,7 +354,6 @@ final class SourceControlSidebarState {
     private init() {}
 }
 
-// MARK: - Native Sidebar View Controller
 public class SourceControlSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     private var scrollView: NSScrollView?
     private var outlineView: NSOutlineView?
@@ -440,8 +422,6 @@ public class SourceControlSidebarViewController: NSViewController, NSOutlineView
         }
     }
 
-    // MARK: - NSOutlineViewDataSource
-
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if item == nil {
             return nodes.count
@@ -466,8 +446,6 @@ public class SourceControlSidebarViewController: NSViewController, NSOutlineView
         }
         return false
     }
-
-    // MARK: - NSOutlineViewDelegate
 
     public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
         if let node = item as? SourceControlSidebarNode {
@@ -538,7 +516,6 @@ public class SourceControlSidebarViewController: NSViewController, NSOutlineView
     }
 }
 
-// MARK: - AppKit Sidebar Helpers & Nodes
 public final class SourceControlSidebarNode: NSObject {
     public let title: String
     public let icon: String?
@@ -593,7 +570,6 @@ class SourceControlSidebarCellView: NSTableCellView {
 func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     var nodes: [SourceControlSidebarNode] = []
 
-    // 1. LOCAL WORKSPACE
     let workspace = SourceControlSidebarNode(title: "LOCAL WORKSPACE", isGroup: true)
     workspace.children = [
         SourceControlSidebarNode(title: "Dashboard", icon: "laptopcomputer", selection: .localWorkspace),
@@ -606,7 +582,6 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     ]
     nodes.append(workspace)
 
-    // 2. REPOSITORY
     let repo = SourceControlSidebarNode(title: "REPOSITORY", isGroup: true)
     repo.children = [
         SourceControlSidebarNode(title: "Branches", icon: "arrow.triangle.branch", selection: .branches),
@@ -617,7 +592,6 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     ]
     nodes.append(repo)
 
-    // 3. GITHUB INTEGRATION
     let github = SourceControlSidebarNode(title: "GITHUB INTEGRATION", isGroup: true)
     github.children = [
         SourceControlSidebarNode(title: "GitHub Account", icon: "person.crop.circle.fill", selection: .githubAccount),
@@ -634,7 +608,6 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     ]
     nodes.append(github)
 
-    // 4. REPOSITORY INTELLIGENCE
     let intel = SourceControlSidebarNode(title: "REPOSITORY INTELLIGENCE", isGroup: true)
     intel.children = [
         SourceControlSidebarNode(title: "Intelligence", icon: "chart.bar.doc.horizontal", selection: .repositoryIntelligence),
@@ -647,7 +620,6 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     return nodes
 }
 
-// MARK: - Source Control Off View
 struct SourceControlOffView: View {
     var body: some View {
         ContentUnavailableView {
@@ -662,21 +634,20 @@ struct SourceControlOffView: View {
     }
 }
 
-// MARK: - SourceControl SwiftUI Main Wrapper
 struct SourceControlMainWrapper: View {
     let gitViewModel: GitViewModel
     let project: Project
-    
+
     @State private var successMessage: String?
     @State private var showSuccess = false
     @State private var errorMessage: String?
     @State private var showError = false
-    
+
     var isSourceControlOff: Bool {
         let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
         return token.isEmpty
     }
-    
+
     var body: some View {
         let state = SourceControlSidebarState.shared
         Group {
@@ -825,23 +796,19 @@ struct SourceControlMainWrapper: View {
     }
 }
 
-// MARK: - Reconstructed SourceControlView Fallback (Non-UI, Logic Only)
 @MainActor
 public struct SourceControlView {
     public let gitViewModel: GitViewModel
-    
+
     public init(gitViewModel: GitViewModel) {
         self.gitViewModel = gitViewModel
     }
-    
+
     public func show(for project: Project) {
         SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
     }
 }
 
-// ====================================================================
-// UNIFIED DIFF VIEW
-// ====================================================================
 struct UnifiedDiffView: View {
     var gitViewModel: GitViewModel
     @State private var hunks: [GitDiffHunk] = []

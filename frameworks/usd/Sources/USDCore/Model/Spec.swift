@@ -1,5 +1,3 @@
-/// The kinds of spec in a layer. Raw values are the crate format's
-/// spec-type numbers (an interop fact of OpenUSD's file format).
 public enum SpecType: UInt32, Hashable, Sendable {
     case unknown = 0
     case attribute = 1
@@ -15,7 +13,6 @@ public enum SpecType: UInt32, Hashable, Sendable {
     case variantSet = 11
 }
 
-/// One spec: its kind and its fields.
 public struct Spec: Hashable, Sendable {
     public var type: SpecType
     public var fields: [String: Value]
@@ -31,10 +28,7 @@ public struct Spec: Hashable, Sendable {
     }
 }
 
-/// Field names of the Sdf data model (interop identifiers: they appear in
-/// `.usda` metadata and as tokens in `.usdc` files).
 public enum FieldKey {
-    // Children lists.
     public static let primChildren = "primChildren"
     public static let properties = "properties"
     public static let variantSetChildren = "variantSetChildren"
@@ -42,7 +36,6 @@ public enum FieldKey {
     public static let targetChildren = "targetChildren"
     public static let connectionChildren = "connectionChildren"
 
-    // Prims.
     public static let specifier = "specifier"
     public static let typeName = "typeName"
     public static let active = "active"
@@ -66,7 +59,6 @@ public enum FieldKey {
     public static let displayGroup = "displayGroup"
     public static let permission = "permission"
 
-    // Properties.
     public static let defaultValue = "default"
     public static let timeSamples = "timeSamples"
     public static let variability = "variability"
@@ -78,7 +70,6 @@ public enum FieldKey {
     public static let elementSize = "elementSize"
     public static let colorSpace = "colorSpace"
 
-    // Layer (pseudo-root).
     public static let defaultPrim = "defaultPrim"
     public static let upAxis = "upAxis"
     public static let metersPerUnit = "metersPerUnit"
@@ -91,8 +82,6 @@ public enum FieldKey {
     public static let customLayerData = "customLayerData"
     public static let owner = "owner"
 
-    /// Fields that hold children lists; the USDA writer derives them from
-    /// the nesting instead of writing them.
     public static let childrenFields: Set<String> = [
         primChildren, properties, variantSetChildren, variantChildren, targetChildren, connectionChildren,
     ]

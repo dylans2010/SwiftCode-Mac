@@ -1,12 +1,7 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/Color+Hex.swift
-// Adapted for SwiftCode: Verbatim. SwiftUI Color(hex:) / toHex; lives in the SwiftUI shell target (SwiftCodeUI is AppKit).
-
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
 #endif
-
 
 extension Color {
     init(hex: String) {

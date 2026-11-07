@@ -23,7 +23,6 @@ final class DocumentationAnalyzer: ObservableObject {
         results = nil
 
         do {
-            // Step 1 & 2: Capture URL and Extract relevant documentation content
             let documentationSummary: String
             if let documentationContent = documentationContent {
                 documentationSummary = documentationContent
@@ -31,10 +30,8 @@ final class DocumentationAnalyzer: ObservableObject {
                 documentationSummary = try await extractDocumentationContent(from: url)
             }
 
-            // Step 3: Scan the user’s project codebase
             let projectContext = try await scanProjectContext()
 
-            // Step 4: Send both to LLMService
             let analysis = try await requestAIAnalysis(docSummary: documentationSummary, projectContext: projectContext)
 
             self.results = analysis
@@ -46,8 +43,6 @@ final class DocumentationAnalyzer: ObservableObject {
     }
 
     private func extractDocumentationContent(from url: URL) async throws -> String {
-        // In a real app, this would scrape the page or use a documentation API.
-        // For this implementation, we'll use the URL to infer the topic.
         let topic = url.lastPathComponent.capitalized
         return "Documentation for \(topic). This API provides methods and properties for building user interfaces and handling data in \(topic) framework."
     }
@@ -62,7 +57,6 @@ final class DocumentationAnalyzer: ObservableObject {
 
         var context = "Project Name: \(project.name)\n"
 
-        // Use an enumerator to find Swift files and gather some context
         if let enumerator = fm.enumerator(at: projectDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
             var swiftFileCount = 0
             var imports = Set<String>()
@@ -77,7 +71,7 @@ final class DocumentationAnalyzer: ObservableObject {
                         }
                     }
                 }
-                if swiftFileCount > 50 { break } // Limit scan
+                if swiftFileCount > 50 { break }
             }
 
             context += "Total Swift files: \(swiftFileCount)\n"
@@ -109,16 +103,15 @@ final class DocumentationAnalyzer: ObservableObject {
         ]
 
         let response = try await LLMService.shared.sendChatRequest(
-            model: "gpt-4-turbo", // Defaulting to a high-quality model if available
+            model: "gpt-4-turbo",
             messages: messages,
-            key: nil // Uses stored key
+            key: nil
         )
 
         return parseAIResponse(response.completionText)
     }
 
     private func parseAIResponse(_ text: String) -> AIInsightResults {
-        // Naive parsing based on expected sections
         let sections = ["Overview", "Integration Opportunities", "Suggested Code Implementation", "Potential Improvements"]
         var results: [String: String] = [:]
 

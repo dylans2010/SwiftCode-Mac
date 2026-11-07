@@ -1,8 +1,3 @@
-//
-//  AssistNetworkSecurityAuditorTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistNetworkSecurityAuditorTool: AssistTool {

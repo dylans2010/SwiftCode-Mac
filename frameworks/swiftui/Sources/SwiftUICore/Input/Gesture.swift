@@ -1,12 +1,5 @@
 import Foundation
 
-// Gesture values (06-app-and-components.md §7; names per api-inventory.md,
-// "Gestures, input and drag and drop": `Gesture`, `TapGesture`,
-// `SimultaneousGesture`, `ExclusiveGesture`, `AnyGesture`, `GestureMask` and
-// `EventModifiers` are declared in SwiftUICore). The recognizers are in
-// GestureRuntime.swift.
-
-/// An input interaction attached to a view with `gesture(_:)`.
 @MainActor @preconcurrency
 public protocol Gesture<Value> {
     associatedtype Value
@@ -22,9 +15,6 @@ extension Gesture where Body == Never {
     public var body: Never { fatalError("\(Self.self) is a primitive gesture") }
 }
 
-// MARK: - Callbacks and mapping
-
-/// A gesture that calls an action when its value changes.
 public struct _ChangedGesture<Content: Gesture>: Gesture where Content.Value: Equatable {
     public typealias Value = Content.Value
     public typealias Body = Never
@@ -32,7 +22,6 @@ public struct _ChangedGesture<Content: Gesture>: Gesture where Content.Value: Eq
     package let action: (Content.Value) -> Void
 }
 
-/// A gesture that calls an action when it ends.
 public struct _EndedGesture<Content: Gesture>: Gesture {
     public typealias Value = Content.Value
     public typealias Body = Never
@@ -40,7 +29,6 @@ public struct _EndedGesture<Content: Gesture>: Gesture {
     package let action: (Content.Value) -> Void
 }
 
-/// A gesture whose value is transformed.
 public struct _MapGesture<Content: Gesture, Value>: Gesture {
     public typealias Body = Never
     package let content: Content
@@ -48,34 +36,27 @@ public struct _MapGesture<Content: Gesture, Value>: Gesture {
 }
 
 extension Gesture {
-    /// Calls `action` each time the value changes while the gesture is in
-    /// progress.
     public func onChanged(_ action: @escaping (Value) -> Void) -> _ChangedGesture<Self> where Value: Equatable {
         _ChangedGesture(content: self, action: action)
     }
 
-    /// Calls `action` with the final value when the gesture ends.
     public func onEnded(_ action: @escaping (Value) -> Void) -> _EndedGesture<Self> {
         _EndedGesture(content: self, action: action)
     }
 
-    /// Transforms the gesture's value.
     public func map<T>(_ body: @escaping (Value) -> T) -> _MapGesture<Self, T> {
         _MapGesture(content: self, transform: body)
     }
 
-    /// Both gestures at once.
     public func simultaneously<Other: Gesture>(with other: Other) -> SimultaneousGesture<Self, Other> {
         SimultaneousGesture(self, other)
     }
 
-    /// This gesture, or `other` if this one fails.
     public func exclusively<Other: Gesture>(before other: Other) -> ExclusiveGesture<Self, Other> {
         ExclusiveGesture(self, other)
     }
 }
 
-/// Calls an action when the (typed) value changes.
 package final class ChangedRecognizer: WrappingRecognizer {
     let action: (Any) -> Void
     let equal: (Any, Any) -> Bool
@@ -89,7 +70,6 @@ package final class ChangedRecognizer: WrappingRecognizer {
 
     override package func flush() {
         super.flush()
-        // While in progress only: the final value goes to onEnded.
         guard phase == .possible || phase == .active, let v = currentValue else { return }
         if let last, equal(last, v) { return }
         last = v
@@ -102,7 +82,6 @@ package final class ChangedRecognizer: WrappingRecognizer {
     }
 }
 
-/// Calls an action once with the final value.
 package final class EndedRecognizer: WrappingRecognizer {
     let action: (Any) -> Void
     private var delivered = false
@@ -120,7 +99,6 @@ package final class EndedRecognizer: WrappingRecognizer {
     }
 }
 
-// swiftlint:disable force_cast - recognizer values are the gesture's Value by construction
 extension _ChangedGesture: PrimitiveGesture {
     package func _makeRecognizer(context: GestureContext) -> GestureRecognizer {
         let action = action
@@ -142,11 +120,7 @@ extension _MapGesture: PrimitiveGesture {
         mapping(GestureFactory.make(content, context: context), transform)
     }
 }
-// swiftlint:enable force_cast
 
-// MARK: - Type erasure
-
-/// A type-erased gesture.
 public struct AnyGesture<Value>: Gesture {
     public typealias Body = Never
     private let make: @MainActor (GestureContext) -> GestureRecognizer
@@ -160,13 +134,6 @@ extension AnyGesture: PrimitiveGesture {
     package func _makeRecognizer(context: GestureContext) -> GestureRecognizer { make(context) }
 }
 
-// MARK: - Tap
-
-/// Recognizes `count` taps: each a press released within 10 pt of where it
-/// went down; successive taps follow within 0.35 s and 40 pt of the first
-/// (our thresholds; the spec measured 120 ms double taps). While waiting for
-/// a further tap it defers gestures of lower priority (06 §7: a double tap
-/// fires only the double-tap action).
 package final class TapRecognizer: GestureRecognizer {
     package static let movementTolerance: CGFloat = 10
     package static let multiTapInterval: TimeInterval = 0.35
@@ -227,7 +194,6 @@ package final class TapRecognizer: GestureRecognizer {
     }
 }
 
-/// Recognizes one or more taps (fires on touch-up, 06 §7).
 public struct TapGesture: Gesture {
     public typealias Value = Void
     public typealias Body = Never
@@ -241,9 +207,6 @@ extension TapGesture: PrimitiveGesture {
     }
 }
 
-// MARK: - Composition
-
-/// Two gestures recognized at the same time.
 public struct SimultaneousGesture<First: Gesture, Second: Gesture>: Gesture {
     public typealias Body = Never
     public var first: First
@@ -254,7 +217,6 @@ public struct SimultaneousGesture<First: Gesture, Second: Gesture>: Gesture {
         self.second = second
     }
 
-    /// The values of both gestures (nil for one that has not started).
     public struct Value {
         public var first: First.Value?
         public var second: Second.Value?
@@ -264,8 +226,6 @@ public struct SimultaneousGesture<First: Gesture, Second: Gesture>: Gesture {
 extension SimultaneousGesture.Value: Equatable where First.Value: Equatable, Second.Value: Equatable {}
 extension SimultaneousGesture.Value: Hashable where First.Value: Hashable, Second.Value: Hashable {}
 
-/// Runs two recognizers side by side; its value is the pair of their
-/// current values (nil for one that has not started).
 package final class SimultaneousRecognizer: GestureRecognizer {
     let a: GestureRecognizer
     let b: GestureRecognizer
@@ -319,7 +279,6 @@ extension SimultaneousGesture: PrimitiveGesture {
     }
 }
 
-/// The first gesture, or the second if the first fails.
 public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture {
     public typealias Body = Never
     public var first: First
@@ -330,7 +289,6 @@ public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture {
         self.second = second
     }
 
-    /// Which gesture was recognized, with its value.
     public enum Value {
         case first(First.Value)
         case second(Second.Value)
@@ -339,7 +297,6 @@ public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture {
 
 extension ExclusiveGesture.Value: Equatable where First.Value: Equatable, Second.Value: Equatable {}
 
-/// The first recognizer, or the second once the first failed.
 package final class ExclusiveRecognizer: GestureRecognizer {
     let a: GestureRecognizer
     let b: GestureRecognizer
@@ -387,7 +344,6 @@ package final class ExclusiveRecognizer: GestureRecognizer {
     }
 }
 
-// swiftlint:disable:next force_cast - recognizer values are the gestures' Values by construction
 private func cast<T>(_ v: Any) -> T { v as! T }
 
 extension ExclusiveGesture: PrimitiveGesture {
@@ -397,21 +353,15 @@ extension ExclusiveGesture: PrimitiveGesture {
     }
 }
 
-// MARK: - Masks and modifiers
-
-/// Which gestures of a view and its subviews are enabled.
 public struct GestureMask: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
     public static let none = GestureMask([])
-    /// The gesture being attached.
     public static let gesture = GestureMask(rawValue: 1)
-    /// Gestures of the view's subviews.
     public static let subviews = GestureMask(rawValue: 2)
     public static let all = GestureMask([.gesture, .subviews])
 }
 
-/// Keyboard modifiers of an event.
 public struct EventModifiers: OptionSet, Sendable, Hashable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }

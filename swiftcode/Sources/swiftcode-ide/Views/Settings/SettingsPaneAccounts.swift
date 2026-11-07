@@ -2,18 +2,11 @@ import Foundation
 import SwiftUI
 import SwiftCodeIDECore
 
-/// Settings ▸ Accounts (`specs/ide/settings.md` §Accounts) in the card
-/// style, as the macOS IDE's pane: one card holding the account list
-/// ("No Accounts" centred while it is empty) and, under a separator, a bar
-/// with +. SwiftCode does not sign in: + shows a sheet that says so. Nothing is
-/// read or stored; the list's rows come from an `AppStoreConnectKeyStore`,
-/// which has no keys until #43.
 struct AccountsSettingsPane: View {
     @Bindable var model: ShellSettingsModel
     var store: any AppStoreConnectKeyStore = NoAppStoreConnectKeys()
     @Environment(\.colorScheme) private var scheme
 
-    /// The card: the list, then the + bar (the macOS IDE's 240 and 28).
     static let listHeight: CGFloat = 240
     static let barHeight: CGFloat = 28
     static let addSize = CGSize(width: 20, height: 20)

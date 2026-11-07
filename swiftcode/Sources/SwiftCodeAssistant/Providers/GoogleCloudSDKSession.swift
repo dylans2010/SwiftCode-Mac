@@ -1,27 +1,5 @@
-// Moved from SwiftCodeGoogleAuth by R-GOOGLE-MOVE (W-V2 decision 1, 2026-11-06):
-// SwiftCodeAssistant cannot depend on SwiftCodeGoogleAuth, so the types AssistManager
-// needs live here. Still in SwiftCodeGoogleAuth (follow-up move): GoogleCloudSDKBridge, GoogleCloudSDKEvent,
-// GoogleCloudSDKAttachment (via GoogleCloudSDKMessage).
-
-//
-//  GoogleCloudSDKSession.swift
-//  SwiftCode
-//
-//  Native representation of an active Antigravity SDK session.
-//
-//  Ported from Legacy (Dylan's own code; direct port authorised
-//  under MIT):
-//    SwiftCode/Backend/Assist/Assist Frameworks/Google Cloud SDK/GoogleCloudSDKSession.swift
-//
-//  Adaptation for the destination: the session configuration is
-//  `SDKSessionConfiguration` from SwiftCodeAssistant (the
-//  destination replacement for Legacy's
-//  `GoogleCloudSDKConfiguration` — see AssistSDKModelSelection.swift).
-//  All behaviour is otherwise verbatim.
-
 import Foundation
 import os
-
 
 private let logger = Logger(subsystem: "com.swiftcode.GoogleCloudSDK", category: "GoogleCloudSDKSession")
 
@@ -38,7 +16,6 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
         self.conversationId = conversationId
     }
 
-    /// Subscribes to events specifically for this session.
     public func subscribeEvents() async -> AsyncStream<GoogleCloudSDKEvent> {
         let stream = await bridge.subscribeEvents()
         let targetId = self.id
@@ -67,12 +44,10 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
                             continuation.yield(event)
                         }
                     case .toolFailed(_, _, _):
-                        // Forward tool failure
                         continuation.yield(event)
                     case .toolProgress:
                         continuation.yield(event)
                     case .runtimeReady, .runtimeStopped, .error:
-                        // Global runtime events
                         continuation.yield(event)
                     }
                 }
@@ -85,17 +60,14 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
         }
     }
 
-    /// Sends a conversational prompt to the agent and initiates execution.
     public func sendMessage(_ content: String, attachments: [GoogleCloudSDKAttachment] = []) async throws {
         _ = try await bridge.sendMessage(sessionId: self.id, content: content, attachments: attachments)
     }
 
-    /// Cancels in-progress generation or tool execution.
     public func cancel() async throws {
         _ = try await bridge.cancelMessage(sessionId: self.id)
     }
 
-    /// Closes the session and frees memory in the bridge.
     public func close() async throws {
         _ = try await bridge.closeSession(sessionId: self.id)
     }

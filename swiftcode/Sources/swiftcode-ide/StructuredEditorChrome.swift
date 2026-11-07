@@ -3,11 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-// Pieces the property list, asset catalog and String Catalog editors share:
-// the editor for the open file's type, column headers that sort, a cell
-// that edits in place, the problem banner, small pop-ups.
-
-/// The structured editor for the open file (`StructuredEditors.swift`).
 struct StructuredEditorView: View {
     var model: WorkspaceShellModel
     var editor: StructuredEditor
@@ -18,13 +13,11 @@ struct StructuredEditorView: View {
         case .assetCatalog(let m): AssetCatalogEditorView(model: m)
         case .stringCatalog(let m): StringCatalogEditorView(model: m)
         case .interfaceBuilder(let m): InterfaceBuilderEditorView(model: m)
+        case .xcodeProject(let m): XcodeProjViewer(model: m)
         }
     }
 }
 
-/// The jump bar's Open As switch for files with a structured editor and a
-/// text form: the structured editor's icon, then the source code's; the
-/// shown one is on.
 struct OpenAsSwitch: View {
     var model: WorkspaceShellModel
     @Environment(\.colorScheme) private var scheme
@@ -57,7 +50,6 @@ struct OpenAsSwitch: View {
     }
 }
 
-/// A column header: its title, and the sort arrow when it sorts the view.
 struct SortHeader: View {
     var title: String
     var sorted: Bool?
@@ -84,8 +76,6 @@ struct SortHeader: View {
     }
 }
 
-/// A one-line text cell that edits in place: Return or leaving the field
-/// commits, Escape gives the edit up.
 struct InlineField: View {
     var text: String
     var placeholder = ""
@@ -127,7 +117,6 @@ struct InlineField: View {
     }
 }
 
-/// A yellow strip at the editor's top saying why the last edit failed.
 struct ProblemBanner: View {
     var message: String
     var dismiss: () -> Void
@@ -152,7 +141,6 @@ struct ProblemBanner: View {
     }
 }
 
-/// A borderless pop-up for table cells: the value and the up/down chevrons.
 struct CellPopUp: View {
     var title: String
     var choices: [String]
@@ -178,8 +166,6 @@ struct CellPopUp: View {
     }
 }
 
-/// The bottom bar of an editor's list: a "+" (button or pull-down), "−",
-/// and a filter field (`navigators.md` bars, at the editor's scale).
 struct EditorListBar<Add: View>: View {
     var removeEnabled: Bool
     var remove: () -> Void
@@ -224,7 +210,6 @@ struct EditorListBar<Add: View>: View {
     }
 }
 
-/// The "+" of a list bar as a plain button.
 struct PlusButton: View {
     var help: String
     var target: String
@@ -244,8 +229,6 @@ struct PlusButton: View {
 }
 
 extension View {
-    /// No pull-down arrow beside a menu's label (OpenViews draws none for
-    /// a borderless menu).
     @ViewBuilder
     func hidingMenuIndicator() -> some View {
         #if os(Linux)

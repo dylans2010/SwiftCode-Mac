@@ -1,18 +1,11 @@
-// C-CODABLE (plan.md §2): the archive format of codable.md. The reference
-// goldens (W-CODABLE, R0b) are not available to the clean room, so these
-// tests check our archives against codable.md's key tables directly: exact
-// key sets, required vs optional keys, non-public keys preserved, value
-// forms, and lossless round trips.
 import Foundation
 import Testing
 @testable import WeatherKit
 
-/// Expected keys per type: required and optional ("opt") keys of codable.md.
 struct KeyTable: Sendable {
     let name: String
     let required: Set<String>
     let optional: Set<String>
-    /// Picks the object for this type out of the encoded fixture `Weather`.
     let pick: @Sendable ([String: Any]) -> [String: Any]
     let decodes: @Sendable (Data) throws -> Void
 }
@@ -233,7 +226,6 @@ struct CodableTests {
         ])
         #expect(storage["logoURL"] as? String == "https://a.invalid/logo.png")
         #expect(storage["sourceURL"] as? String == "https://a.invalid/source")
-        // Without the opt keys.
         var reduced = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
         var reducedStorage = reduced["storage"] as! [String: Any]
         reducedStorage["logoURL"] = nil
@@ -241,7 +233,6 @@ struct CodableTests {
         reduced["storage"] = reducedStorage
         let minimal = try decode(WeatherAttribution.self, try data(reduced))
         #expect(Set((try jsonObject(minimal)["storage"] as! [String: Any]).keys).count == 5)
-        // legalAttributionText is not archived.
         #expect(!String(decoding: try encode(attribution), as: UTF8.self).contains("legalAttributionText"))
     }
 
@@ -256,7 +247,6 @@ struct CodableTests {
         let converter = unit["converter"] as! [String: Any]
         #expect(Set(converter.keys) == ["coefficient", "constant"])
         #expect(converter["constant"] as? Double == 273.15)
-        // Our own encoding of a Foundation unit matches Foundation's.
         let foundation = try jsonObject(Measurement(value: 1.5, unit: UnitSpeed.kilometersPerHour))
         let wind = (current["wind"] as! [String: Any])["speed"] as! [String: Any]
         #expect(NSDictionary(dictionary: foundation["unit"] as! [String: Any]) == NSDictionary(dictionary: wind["unit"] as! [String: Any]))
@@ -334,7 +324,6 @@ struct CodableTests {
         let backend = try FixtureWeatherBackend.bundled(rebase: WeatherKit.FixtureWeatherBackend.Rebase.none)
         for (file, wrapperKeys, elementKeys, decodeFile) in cases {
             let raw = try Data(contentsOf: backend.directory.appendingPathComponent(file))
-            // Normalize the fixture's ISO dates to the archive's default form.
             let value = try decodeFile(try reencode(raw, file: file))
             let object = try JSONSerialization.jsonObject(with: try encode(AnyEncodable(value))) as! [String: Any]
             #expect(Set(object.keys) == wrapperKeys, "\(file)")
@@ -353,7 +342,6 @@ struct CodableTests {
         let again = try decode(Weather.self, first)
         #expect(again == weather)
         #expect(try encode(again) == first)
-        // Every bundled product file too.
         let comparisons = try fixtureFile(HistoricalComparisons.self, "historical-comparisons.json")
         #expect(try decode(HistoricalComparisons.self, try encode(comparisons)) == comparisons)
         let attribution = try fixtureFile(WeatherAttribution.self, "attribution.json")
@@ -404,7 +392,6 @@ struct CodableTests {
         let back = try jsonObject(weather)
         #expect(back["airQuality"] != nil)
         #expect(back["news"] != nil)
-        // Without them nothing extra is written.
         #expect(Set(try jsonObject(try fixtureWeather()).keys) == [
             "currentWeather", "minuteForecast", "hourlyForecast", "dailyForecast", "weatherAlerts", "availability",
             "weatherChanges",
@@ -442,7 +429,6 @@ struct CodableTests {
     }
 }
 
-/// Re-encodes a fixture file's dates in the archive's default form.
 private func reencode(_ raw: Data, file: String) throws -> Data {
     let object = try JSONSerialization.jsonObject(with: raw)
     return try JSONSerialization.data(withJSONObject: convertDates(object))

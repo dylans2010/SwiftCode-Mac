@@ -6,10 +6,6 @@ import SwiftCodeBuild
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// IOS27 (`specs/ide/run.md` §Runtimes and device types): SwiftCode's remote
-/// simulator with more than one runtime root, one destination row per
-/// runtime and device type, each with its own device directory, and the
-/// run command naming the runtime and the type. No network.
 @MainActor
 @Suite(.serialized) struct RemoteRuntimesTests {
     func settings() -> RemoteSimulatorSettings {
@@ -37,7 +33,6 @@ import SwiftCodeProject
         RemoteSimulatorSettings.saveRuntimeVersion("27.1", root: "/rt/iOS-27.1-24A94401/RuntimeRoot", p.defaults)
         RemoteSimulatorSettings.saveRuntimeVersion("27.0", root: "/rt/iOS-27.0-24A434/RuntimeRoot", p.defaults, primary: false)
         var o = ProjectOptions()
-        // The fixtures' simulator runtimes predate V(iOS) (templates.md § Notation).
         o.deploymentTarget = "18.0"
         o.productName = "Tour"
         o.organizationIdentifier = "org.swiftcode.tests"
@@ -58,13 +53,11 @@ import SwiftCodeProject
         let pad27 = "swiftcode-remote-simulator:ipad-pro-13-m5@/rt/iOS-27.0-24A434/RuntimeRoot"
         wc.selectDestinationRow(pad27)
         #expect(wc.session.destination?.identifier == pad27 && wc.session.destination?.osVersion == "27.0")
-        // Reopening restores the same runtime and type.
         let again = try window()
         again.setDestinationGroups(DestinationCatalog.groups(devices: [], simulators: []))
         #expect(again.session.destination?.identifier == pad27)
         let remote = RemoteSimulator(settings: RemoteSimulatorSettings.load(p.defaults), destination: again.session.destination)
         #expect(remote.remoteDevicePath == "/data/swiftcode/devices/swiftcode-device-ipad-pro-13-m5-27.0")
-        // The Devices window lists one row per runtime and type.
         let c = DevicesController(devices: [], simulators: [])
         again.configureSwiftCodeRemoteDevice(c, defaults: p.defaults)
         #expect(c.simulators.map { "\($0.name) \($0.osVersion)" } == ["iPhone Duo (SwiftCode) 27.1", "iPad (A16) (SwiftCode) 27.1",

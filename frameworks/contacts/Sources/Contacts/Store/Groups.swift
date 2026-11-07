@@ -1,5 +1,3 @@
-// Groups, containers, fetch requests and results (interface.md §1, §3, §4.1).
-
 import Foundation
 
 public class CNGroup: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
@@ -12,7 +10,6 @@ public class CNGroup: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable
         self._name = name
     }
 
-    /// An empty group with a new `<UUID>:ABGroup` identifier.
     public override convenience init() {
         self.init(identifier: newGroupIdentifier(), name: "")
     }
@@ -29,8 +26,6 @@ public class CNGroup: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable
     }
     public override var hash: Int { identifier.hashValue }
     public override var description: String { "<\(type(of: self)): identifier=\(identifier), name=\(_name)>" }
-
-    // MARK: Predicates
 
     public class func predicateForGroups(withIdentifiers identifiers: [String]) -> NSPredicate {
         CNStorePredicate(.groupIdentifiers(identifiers))
@@ -90,8 +85,6 @@ public final class CNContainer: NSObject, NSCopying, @unchecked Sendable {
     }
 }
 
-// MARK: - Fetch requests and results
-
 public class CNFetchRequest: NSObject, @unchecked Sendable {
     override init() {}
 }
@@ -108,7 +101,6 @@ public final class CNContactFetchRequest: CNFetchRequest, @unchecked Sendable {
     }
 }
 
-/// A fetch result with the history token current at the time of the fetch.
 public final class CNFetchResult<ValueType: AnyObject>: NSObject, @unchecked Sendable {
     public let value: ValueType
     public let currentHistoryToken: Data
@@ -119,7 +111,6 @@ public final class CNFetchResult<ValueType: AnyObject>: NSObject, @unchecked Sen
     }
 }
 
-/// An enumerator over a fixed array (the `value` of a CNFetchResult).
 final class ArrayEnumerator: NSEnumerator {
     private var items: [Any]
     private var index = 0

@@ -6,32 +6,18 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Help tags (round R13; `help(_:)`, public documentation: a tooltip on
-// macOS, and the view's accessibility hint).
-//
-// Design (SwiftCode's): a pointer that rests on a view with help text for
-// `TooltipMetrics.delay` seconds shows the text in a small box under the
-// pointer, kept inside the window (above the pointer when there is no room
-// below). Leaving the view, pressing a pointer button or a key hides it; a
-// tooltip that was just hidden by leaving shows again at once on the next
-// view with help (within `TooltipMetrics.grace`), as desktop tooltips do.
-// The box is drawn in the window, over everything else, and takes no input.
-
 enum TooltipMetrics {
     static let delay: TimeInterval = 0.8
     static let grace: TimeInterval = 0.5
-    /// Below the pointer (room for the cursor).
     static let offset: CGFloat = 18
     static let maxWidth: CGFloat = 320
 }
 
-/// The tooltip a window shows.
 @MainActor
 @Observable
 package final class TooltipCenter {
     package struct Tip: Equatable {
         package let text: String
-        /// The pointer in window coordinates when the tip appeared.
         package let point: CGPoint
         package let owner: ObjectIdentifier
     }
@@ -49,14 +35,12 @@ package final class TooltipCenter {
         lastHidden = time
     }
 
-    /// Hides whatever is shown (a press or a key).
     package func dismiss() {
         current = nil
         lastHidden = -.infinity
     }
 }
 
-/// Hover state of one view with help text.
 @MainActor
 final class HelpState: HoverHandling {
     var text: String
@@ -119,8 +103,6 @@ struct HelpModifier: PrimitiveModifier {
 }
 
 extension View {
-    /// Help text: a tooltip while the pointer rests on the view, and the
-    /// view's accessibility hint.
     public func help(_ textKey: LocalizedStringKey) -> some View { help(Text(textKey)) }
 
     public func help(_ text: Text) -> some View {
@@ -132,8 +114,6 @@ extension View {
     public func help<S: StringProtocol>(_ text: S) -> some View { help(Text(verbatim: String(text))) }
 }
 
-/// The window's tooltip layer (over the content, presentations and
-/// overlay pop-ups).
 struct TooltipLayer: View {
     let center: TooltipCenter
     @Environment(\.colorScheme) private var scheme
@@ -161,7 +141,6 @@ struct TooltipLayer: View {
     }
 }
 
-/// Places its one subview under `point`, kept inside the bounds.
 struct TooltipPlacement: Layout {
     let point: CGPoint
 

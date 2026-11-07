@@ -6,41 +6,11 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// List (round R9; 06 §3, PARITY §5.4 R12: the navigators need selection and
-// outlines).
-//
-// A list is a vertical scroll view over a lazy container (LazyStacks.swift)
-// whose items are the list's rows: rows are created as they scroll into view
-// (06 §3: 13 rows of 52 points in the reference's 678-point window). Rows
-// are at least `defaultMinListRowHeight` high (52 at the default content
-// size, 06 §3). Spec values: the inset-grouped rows' content at x = 40 (a
-// 20-point section inset and a 20-point row inset, 06 §2.1) and the content
-// offset of `scrollTo(500, anchor: .top)`, 500 × 52 + 13.33, which puts the
-// first row 13.33 points below the list's top (06 §3; golden `list.two`, an
-// informative row, shows 35, the form's first-row offset). Plain lists inset
-// rows 20 points (golden `list.plain`). Everything else is SwiftCode's look
-// (09-open-design.md §4.2 palette): separators inset like the row content,
-// rounded section groups (radius 10), footnote headers, 20 points between
-// sections; the sidebar style is SwiftCode's desktop navigator: 28-point rows,
-// 16 points of indentation per outline level, a rounded selection.
-//
-// Selection (SwiftCode's desktop rules): a click selects the row (and focuses
-// the list); with a multiple selection, Ctrl (or Super) toggles the row and
-// Shift extends from the last clicked row. When the list has keyboard focus,
-// Up and Down move the selection (Shift extends), Home and End go to the
-// ends, Right expands an outline row (or moves to its first child), Left
-// collapses it (or moves to its parent); the selected row is scrolled into
-// view. A row's selection value is its `tag(_:)`, else its `ForEach` ID.
-
-// MARK: - Styles
-
-/// How a list looks.
 @MainActor @preconcurrency
 public protocol ListStyle {
     var _ovListKind: ListKind { get }
 }
 
-/// SwiftCode's list looks.
 public enum ListKind: Sendable, Equatable {
     case plain, insetGrouped, grouped, inset, sidebar
 }
@@ -117,18 +87,15 @@ extension EnvironmentValues {
 extension View {
     public func listStyle<S: ListStyle>(_ style: S) -> some View { environment(\._listKind, style._ovListKind) }
 
-    /// `.hidden` removes the list's (or form's) own background.
     public func scrollContentBackground(_ visibility: Visibility) -> some View {
         environment(\._scrollContentBackgroundVisible, visibility != .hidden)
     }
 }
 
-/// Whether something is shown.
 public enum Visibility: Hashable, Sendable, CaseIterable {
     case automatic, visible, hidden
 }
 
-/// Metrics of a list look.
 struct ListMetrics {
     let kind: ListKind
     let minRowHeight: CGFloat
@@ -143,11 +110,8 @@ struct ListMetrics {
     static let sectionGap: CGFloat = 20
     static let cornerRadius: CGFloat = 10
 
-    /// Margin between the list's edges and its section groups.
     var margin: CGFloat { kind == .insetGrouped || kind == .inset ? 20 : 0 }
-    /// Leading and trailing inset of row content inside the group.
     var rowInset: CGFloat { kind == .sidebar ? 10 : 20 }
-    /// Space above the first section (06 §3: 13.33 for the inset-grouped list).
     var top: CGFloat {
         switch kind {
         case .insetGrouped, .grouped: return 13.33
@@ -159,13 +123,9 @@ struct ListMetrics {
     var grouped: Bool { kind == .insetGrouped || kind == .grouped || kind == .inset }
 }
 
-// MARK: - Selection
-
-/// A list's selection, type-erased.
 @MainActor
 struct ListSelection {
     let allowsMultiple: Bool
-    /// The selection value an ID or tag stands for (nil: another type).
     let accepts: (AnyHashable) -> AnyHashable?
     let current: () -> Set<AnyHashable>
     let set: (Set<AnyHashable>) -> Void
@@ -194,7 +154,6 @@ struct ListSelection {
     }
 }
 
-/// Connects a list's rows, keyboard handling and scrolling.
 @MainActor
 final class ListController {
     weak var state: LazyContainerState?
@@ -203,8 +162,6 @@ final class ListController {
     var anchor: AnyHashable?
     var lastHasSelection: Bool?
 
-    /// The selection value of item `i` (its tag when materialised and
-    /// tagged, else its ID).
     func value(ofItem i: Int) -> AnyHashable? {
         guard let state, let selection, i < state.items.count else { return nil }
         let item = state.items.item(at: i)
@@ -213,7 +170,6 @@ final class ListController {
         return item.id.flatMap(selection.accepts)
     }
 
-    /// Tags of materialised rows, by item key.
     var tags: [AnyHashable: AnyHashable] = [:]
 
     func index(ofValue v: AnyHashable) -> Int? {
@@ -241,7 +197,6 @@ final class ListController {
         selection.set(s)
     }
 
-    /// Keyboard navigation (header comment).
     func handleKey(_ k: KeyEvent) -> Bool {
         guard k.isDown, let state, let selection else { return false }
         let n = state.items.count
@@ -295,7 +250,6 @@ final class ListController {
         return true
     }
 
-    /// Scrolls item `i` into view.
     func reveal(item i: Int) {
         guard let state, let node = state.windowFrameNode, let viewport = node.enclosingScrollViewport,
               let wf = state.windowFrame, let f = state.frame(ofItem: i) else { return }
@@ -305,14 +259,9 @@ final class ListController {
 }
 
 extension LazyContainerState {
-    /// The container's node (for its scroll view).
     @MainActor var windowFrameNode: ViewNode? { node }
 }
 
-// MARK: - Rows
-
-/// What a row's own modifiers ask of the list (`listRowInsets`,
-/// `listRowBackground`, `listRowSeparator`, `tag`).
 @MainActor
 struct RowTraits {
     var insets: EdgeInsets?
@@ -386,7 +335,6 @@ extension View {
 
 public enum Prominence: Hashable, Sendable { case standard, increased }
 
-/// One row of a list: the item's view in the look of the list's style.
 struct ListRowView: View {
     let item: LazyItem
     let content: AnyView
@@ -458,14 +406,12 @@ struct ListRowView: View {
             a.children = .combine
             if isSelected { a.addTraits = .isSelected }
             if let value { a.actions["default"] = { controller.click(value, modifiers: []) } }
-            // R10 export: outline rows with children expand and collapse.
             if let o = item.outline, o.hasChildren {
                 a.isExpanded = o.isExpanded
                 a.actions["expand or collapse"] = o.toggle
             }
         }
         .modifier(ContextMenuModifier(items: { [listMenu, value, controller] in
-            // R11: the selection when the row is in it, else the row alone.
             guard let listMenu, let value else { return nil }
             let current = controller.selection?.current() ?? []
             return listMenu.make(current.contains(value) ? Array(current) : [value])
@@ -510,8 +456,6 @@ struct ListRowView: View {
                 .frame(width: 12, height: 16)
                 .contentShape(Rectangle())
                 .gesture(TapGesture().onEnded { o.toggle() })
-                // The row's expanded state and its "expand or collapse"
-                // action stand for the chevron (OV-ATSPI).
                 .accessibilityHidden(true)
         } else {
             Color.clear.frame(width: 12, height: 16)
@@ -519,7 +463,6 @@ struct ListRowView: View {
     }
 }
 
-/// A rectangle with rounded top and/or bottom corners (section groups).
 struct RowGroupShape: Shape {
     let radius: CGFloat
     let top: Bool
@@ -542,9 +485,6 @@ struct RowGroupShape: Shape {
     }
 }
 
-// MARK: - List
-
-/// A scrolling column of rows, optionally selectable (06 §3).
 public struct List<SelectionValue: Hashable, Content: View>: View {
     let content: Content
     let selection: ListSelection?
@@ -563,8 +503,6 @@ public struct List<SelectionValue: Hashable, Content: View>: View {
         controller.selection = selection
         let current = selection?.current() ?? []
         if let split = collapsedSplit, columnIndex >= 0, let selection {
-            // In a collapsed split view a selection shows the next column
-            // (06 §2.2); going back clears it.
             let has = !current.isEmpty
             if controller.lastHasSelection != has {
                 controller.lastHasSelection = has
@@ -627,7 +565,6 @@ extension List where SelectionValue == Never {
         selection = nil
     }
 
-    /// A hierarchical list (06; the IDE's navigators).
     public init<Data: RandomAccessCollection, RowContent: View>(
         _ data: Data, children: KeyPath<Data.Element, Data?>, @ViewBuilder rowContent: @escaping (Data.Element) -> RowContent)
         where Content == OutlineGroup<Data, Data.Element.ID, RowContent, RowContent, DisclosureGroup<RowContent, OutlineSubgroupChildren>>,
@@ -695,14 +632,11 @@ extension List {
     }
 }
 
-// MARK: - Sections in lazy containers
-
 extension Section: LazyItemEnumerating where Parent: View, Content: View, Footer: View {
     package func _lazyItems(prefix: [AnyHashable], into items: inout LazyItems, context: LazyEnumerationContext) {
         let key = AnyHashable(prefix)
         let index = context.sectionCount
         context.sectionCount += 1
-        // A section's element ID is not a row's selection value.
         context.elementID = nil
         let start = items.count
         if !(header is EmptyView) {

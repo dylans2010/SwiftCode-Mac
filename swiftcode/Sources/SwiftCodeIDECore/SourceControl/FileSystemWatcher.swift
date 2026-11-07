@@ -5,10 +5,6 @@ import Glibc
 #endif
 import Foundation
 
-/// Watches a folder tree and reports changed paths on the main queue,
-/// coalesced over `latency` seconds: FSEvents on macOS, inotify on Linux.
-/// The window uses it to refresh source-control state after changes made
-/// outside SwiftCode (a terminal `git add`, an editor in another app).
 @MainActor
 package final class FileSystemWatcher {
     private let handler: @MainActor ([String]) -> Void
@@ -17,8 +13,6 @@ package final class FileSystemWatcher {
 
     isolated deinit { stop() }
 
-    /// Whether a change under `path` can alter what git reports: not git's
-    /// object store or lock files, not build output.
     nonisolated package static func affectsSourceControl(_ path: String) -> Bool {
         let parts = path.split(separator: "/")
         if parts.contains(where: { [".build", ".build-ide", "DerivedData", ".swiftpm"].contains($0) }) { return false }
@@ -33,7 +27,6 @@ package final class FileSystemWatcher {
     #if canImport(CoreServices)
     private var stream: FSEventStreamRef?
 
-    /// Starts watching `path` (and everything under it).
     package func start(path: String, latency: TimeInterval = 0.3) {
         stop()
         var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
@@ -44,7 +37,6 @@ package final class FileSystemWatcher {
             let list = (0..<count).compactMap { array[$0] as? String }
             MainActor.assumeIsolated { watcher.handler(list) }
         }
-        // File-level events: the filter below needs the changed file, not its folder.
         let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagWatchRoot | kFSEventStreamCreateFlagFileEvents)
         guard let s = FSEventStreamCreate(nil, callback, &context, [path] as CFArray,
                                           FSEventStreamEventId(kFSEventStreamEventIdSinceNow), latency, flags) else { return }
@@ -61,9 +53,6 @@ package final class FileSystemWatcher {
         stream = nil
     }
     #elseif canImport(Glibc)
-    // inotify watches one directory, not a tree: every directory under the
-    // root gets a watch, and a directory created or moved in later gets one
-    // when its event arrives.
     private var source: DispatchSourceRead?
     private var directories: [Int32: String] = [:]
     private var fd: Int32 = -1
@@ -73,7 +62,6 @@ package final class FileSystemWatcher {
     private static let mask = UInt32(IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE | IN_CREATE | IN_DELETE | IN_DELETE_SELF
                                      | IN_MOVED_FROM | IN_MOVED_TO | IN_MOVE_SELF)
 
-    /// Starts watching `path` (and everything under it).
     package func start(path: String, latency: TimeInterval = 0.3) {
         stop()
         let fd = inotify_init1(Int32(IN_CLOEXEC | IN_NONBLOCK))
@@ -102,8 +90,6 @@ package final class FileSystemWatcher {
         if wd >= 0 { directories[wd] = directory }
     }
 
-    /// Watches `root` and every directory under it (symbolic links are not
-    /// followed).
     private func watchTree(_ root: String) {
         watch(root)
         guard let e = FileManager.default.enumerator(at: URL(fileURLWithPath: root), includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey])
@@ -114,7 +100,6 @@ package final class FileSystemWatcher {
         }
     }
 
-    /// Reads every queued event, then delivers the paths after `latency`.
     private func drain() {
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         let header = MemoryLayout<inotify_event>.size
@@ -154,7 +139,6 @@ package final class FileSystemWatcher {
         handler(paths)
     }
     #else
-    /// No file-system events on this platform: nothing is reported.
     package func start(path: String, latency: TimeInterval = 0.3) {}
     package func stop() {}
     #endif

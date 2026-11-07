@@ -1,39 +1,14 @@
 import Foundation
 import Security
 
-// MARK: - SDKSecurityService
-//
-// Ported from Legacy `SwiftCode/SDK/Host/Security/SDKSecurityService.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The host mediator for extension secrets. Every call authorizes the
-// `.useSecurity` UMBRELLA capability first — the granular `security.*`
-// IDs are method scopes, never checked separately. Values live in the
-// extension's own namespace
-// `com.swiftcode.sdk.security.<extensionID>.<appSecurityID>`; a forged
-// pre-composed namespace is rejected, never trusted.
-//
-// The extension NEVER sees plaintext: `addValue` collects the secret
-// through the host's secure prompt, and `useValue` injects it host-side
-// into one approved HTTPS request, zeroing the bytes afterwards.
-
 public actor SDKSecurityService {
     public static let shared = SDKSecurityService()
 
-    /// Maximum response body returned to the extension (1 MiB).
     public static let maxResponseBodyBytes = 1_048_576
 
     private init() {}
 
-    // MARK: - Namespace
-
-    /// The vault namespace for one extension + app Security ID.
-    /// Pre-composed namespaces are rejected by the caller-facing
-    /// methods — the namespace is always built here, never accepted.
     public func namespacedSecurityID(extensionID: String, appSecurityID: String) throws -> String {
-        // The app Security ID must itself be a valid Security ID, and
-        // the extension ID must be a plain identifier — anything else
-        // is a forgery attempt.
         try KeychainSDK.validateSecurityID(appSecurityID)
         guard !extensionID.isEmpty,
               extensionID.unicodeScalars.allSatisfy({ $0.isASCIIAlphanumeric || $0 == "-" || $0 == "." }),
@@ -43,14 +18,6 @@ public actor SDKSecurityService {
         return "\(extensionID).\(appSecurityID)"
     }
 
-    // MARK: - Add / has / list / delete
-
-    /// Stores a secret. The value is collected through the host's
-    /// secure prompt — this method never receives plaintext from the
-    /// extension. Validates the value ID and label first; a cancelled
-    /// prompt surfaces as `.userCancelled`. The audit event for the add
-    /// is recorded by the prompt, not here. Returns whether a value
-    /// already existed (`created == false`).
     public func addValue(
         caller: SDKCallerIdentity,
         request: SDKSecurityAddRequest
@@ -82,8 +49,6 @@ public actor SDKSecurityService {
         return SDKSecurityHasValue(hasValue: exists)
     }
 
-    /// Metadata only: value IDs, labels, and creation times. Values
-    /// are never returned.
     public func listValueIDs(caller: SDKCallerIdentity, request: SDKSecurityListRequest) async throws -> SDKSecurityValueList {
         try await SDKCapabilityBroker.authorize(.useSecurity, for: caller)
         let securityID = try namespacedSecurityID(extensionID: caller.extensionID, appSecurityID: request.securityID)
@@ -105,20 +70,6 @@ public actor SDKSecurityService {
         )
     }
 
-    // MARK: - List all apps (host-only enumeration, S-4)
-
-    /// Every app Security namespace that holds at least one stored
-    /// value, with per-app value metadata. Metadata only — secret values
-    /// are never returned.
-    ///
-    /// HOST-ONLY: this is a Studio/host surface, never reachable from
-    /// extension IPC (extensions list only their own namespace via
-    /// `listValueIDs`). The grouping key is the namespaced Security ID
-    /// (`<extensionID>.<appSecurityID>`) recorded in each value's
-    /// envelope; values written before the envelope carried it fall back
-    /// to a last-dot split of the account name (the value ID is the last
-    /// segment), which mis-groups only pre-existing values whose value
-    /// IDs themselves contain dots.
     public func listAllApps() async throws -> [SDKSecurityAppSummary] {
         await SDKExtensionRegistry.shared.scan()
         let installed = await SDKExtensionRegistry.shared.installedExtensions()
@@ -145,8 +96,6 @@ public actor SDKSecurityService {
                 securityIDs.insert(recorded)
                 continue
             }
-            // Legacy envelope: split at the last dot — the value ID is
-            // the last segment, the rest is the namespaced Security ID.
             let segments = remainder.split(separator: ".", omittingEmptySubsequences: false)
             guard segments.count >= 3 else { continue }
             securityIDs.insert(segments.dropLast().joined(separator: "."))
@@ -168,13 +117,6 @@ public actor SDKSecurityService {
         return summaries
     }
 
-    // MARK: - Use (host-side injection only)
-
-    /// The only supported use of a stored value: inject it as the
-    /// `Authorization` header of an approved HTTPS request performed by
-    /// the host. The extension never sees the plaintext; the bytes are
-    /// zeroed after the request. Only the `httpAuthorization` kind is
-    /// supported — anything else is `.invalidArgument`.
     public func useValue(
         caller: SDKCallerIdentity,
         request: SDKSecurityUseRequest
@@ -190,7 +132,6 @@ public actor SDKSecurityService {
             throw SDKError(code: .invalidArgument, message: "No stored value exists for that ID.")
         }
         defer {
-            // Zero the secret bytes the moment the request is done.
             secret.withUnsafeMutableBytes { buffer in
                 guard let base = buffer.baseAddress else { return }
                 memset(base, 0, buffer.count)
@@ -208,23 +149,13 @@ public actor SDKSecurityService {
         return response
     }
 
-    // MARK: - Uninstall wipe (host-only)
-
-    /// Deletes every value the extension stored, across all app
-    /// Security IDs. Host-only: called by the uninstall flow, never by
-    /// an extension. Returns the count wiped. Audited.
     public func deleteAllValues(securityID extensionID: String) async throws -> Int {
-        // The wipe namespace is the extension's own prefix — every app
-        // Security ID under it. The prefix scan uses the raw extension
-        // ID, so validate it as an identifier first.
         guard !extensionID.isEmpty,
               extensionID.unicodeScalars.allSatisfy({ $0.isASCIIAlphanumeric || $0 == "-" || $0 == "." }),
               !extensionID.contains("..") else {
             throw SDKError(code: .invalidArgument, message: "The extension ID is invalid.")
         }
         let prefix = "\(KeychainSDK.servicePrefix).\(extensionID)."
-        // KeychainSDK's per-namespace delete needs a valid Security ID;
-        // enumerate the vault directly for the extension prefix instead.
         let store = SDKSecretStoreFactory.defaultStore()
         let accounts = (try? store.accountNames(withPrefix: prefix)) ?? []
         var count = 0
@@ -240,9 +171,6 @@ public actor SDKSecurityService {
         return count
     }
 
-    // MARK: - Private
-
-    /// Display name for the prompt, from the registry when installed.
     public func displayName(for extensionID: String) async -> String {
         await SDKExtensionRegistry.shared.installedExtension(id: extensionID)?.name ?? extensionID
     }
@@ -252,19 +180,16 @@ public actor SDKSecurityService {
     }
 
     private func validateHTTPRequest(_ request: SDKSecurityHTTPRequest) throws {
-        // Method: bare token, 1–16 letters.
         guard (1...16).contains(request.method.count),
               request.method.unicodeScalars.allSatisfy({ ($0.value >= 65 && $0.value <= 90) || ($0.value >= 97 && $0.value <= 122) }) else {
             throw SDKError(code: .invalidArgument, message: "The HTTP method is invalid.")
         }
-        // Absolute HTTPS URL, no embedded credentials.
         guard let url = URL(string: request.url),
               url.scheme?.lowercased() == "https",
               url.host != nil, !url.host!.isEmpty,
               url.user == nil, url.password == nil else {
             throw SDKError(code: .invalidArgument, message: "The request URL must be an absolute HTTPS URL without embedded credentials.")
         }
-        // The host owns `Authorization`; the client must not supply it.
         if let headers = request.headers {
             for key in headers.keys where key.lowercased() == "authorization" {
                 throw SDKError(code: .invalidArgument, message: "The request must not supply its own Authorization header.")
@@ -317,9 +242,6 @@ public actor SDKSecurityService {
     }
 }
 
-/// Redirect policy for host-performed security requests: HTTPS only,
-/// and the `Authorization` header is stripped on any cross-host
-/// redirect so the secret never leaks to another host.
 private final class SDKSecurityRedirectHandler: NSObject, URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
@@ -340,14 +262,7 @@ private final class SDKSecurityRedirectHandler: NSObject, URLSessionTaskDelegate
     }
 }
 
-/// One app Security namespace in the host vault, as returned by
-/// `SDKSecurityService.listAllApps`. Metadata only: value IDs, labels,
-/// and creation times — secret values are never returned.
-/// `extensionID` is the longest installed-extension prefix of the
-/// namespaced Security ID, or nil when the extension is not installed
-/// (leftover values from an uninstalled extension).
 public struct SDKSecurityAppSummary: Sendable, Codable, Equatable {
-    /// Namespaced Security ID (`<extensionID>.<appSecurityID>`).
     public let securityID: String
     public let extensionID: String?
     public let values: [SDKSecurityStoredValue]
@@ -365,19 +280,6 @@ private extension Unicode.Scalar {
     }
 }
 
-
-// Ported from Legacy `SwiftCode/SDK/Host/Security/SDKSecurityService.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: SecurityHTTPRedirectDelegate.
-
-/// Redirect policy for host-performed `useValue` requests. Stateless —
-/// safe to share across requests.
-///
-/// - Redirects to non-https URLs are refused (no downgrade, ever).
-/// - The `Authorization` header the host attached is stripped when the
-///   redirect leaves the original host: a compromised or malicious
-///   endpoint must not be able to bounce the secret to another origin
-///   via a 30x. The follow-up request then goes out unauthenticated and
-///   the extension sees the endpoint's honest 401 in `{status, body}`.
 private final class SecurityHTTPRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private let originalHost: String?
 

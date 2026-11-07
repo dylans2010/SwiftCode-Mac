@@ -1,23 +1,15 @@
-// swiftcode-simd --device: the Metal host service's wiring (stage8-contract.md
-// §5.2): the resolvers it needs from the VMM (guest-shared memory entries,
-// IOSurface ports) and its start and registration.
-
 import Foundation
 import SwiftCodeDarwinABI
 import SwiftCodeDarwinKernel
 import SwiftCodeHostServices
 import SwiftCodeMetalHost
 
-/// Memory-entry rights of the host task → host memory (the kernel's
-/// memory entries are SharedMemoryObjects, one host allocation each).
 final class HostMemoryEntryResolver: MetalGuestMemoryResolver {
     let host: MachHostTask
     init(host: MachHostTask) { self.host = host }
     private let lock = NSLock()
     private var reported: Set<UInt64> = []
 
-    /// Diagnostics: a Metal buffer over a guest MAP_SHARED file mapping (the
-    /// GPU then reads and writes the host file's pages).
     private func noteFileView(_ object: SharedMemoryObject) {
         let first = lock.withLock { reported.insert(object.serial).inserted }
         if first {
@@ -34,7 +26,6 @@ final class HostMemoryEntryResolver: MetalGuestMemoryResolver {
     }
 }
 
-/// IOSurface ports (Method 14 rights the guest sends) → the surface's memory and layout.
 final class IOSurfacePortResolver: IOSurfaceResolver {
     let service: IOSurfaceHostService
     init(service: IOSurfaceHostService) { self.service = service }
@@ -69,9 +60,6 @@ final class IOSurfacePortResolver: IOSurfaceResolver {
     }
 }
 
-/// Names a Metal client process for the GPU back end's hang messages
-/// (metal-sim-protocol.md §8.8): "WeatherPoster, guest pid 312". The
-/// service is set once it exists; before that only the number is known.
 final class MetalClientNames: @unchecked Sendable {
     let system: DarwinSystem
     private let lock = NSLock()
@@ -92,8 +80,6 @@ final class MetalClientNames: @unchecked Sendable {
         return "\(name), guest pid \(pid)" + (label.isEmpty || label == name ? "" : ", job \(label)")
     }
 
-    /// The render server or SpringBoard, by launchd label or executable
-    /// path (`MetalSystemUI`): they never lose GPU access.
     func isSystemUI(_ process: MetalProcessID) -> Bool {
         guard let pid = service?.guestPID(of: process), let record = system.process(pid: pid) else { return false }
         return MetalSystemUI.isSystemUI(label: record.launchdLabel, executablePath: record.executablePath)

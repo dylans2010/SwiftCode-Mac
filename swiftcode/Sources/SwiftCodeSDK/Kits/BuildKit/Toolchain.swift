@@ -49,8 +49,6 @@ public final class Toolchain: Sendable {
             }
         }
 
-        // Fall back to `which` via the shared subprocess seam (SwiftCodeSubprocess).
-        // Legacy ran /usr/bin/which directly through Process; behaviour is identical.
         let which = "/usr/bin/which"
         guard FileManager.default.isExecutableFile(atPath: which) else { return nil }
         guard let output = try? Subprocess.run(which, [name]),
@@ -61,9 +59,6 @@ public final class Toolchain: Sendable {
     }
 
     private func queryVersion(toolPath: String) -> String? {
-        // Legacy invoked `<tool> --version` and kept the first line (max 80 chars).
-        // SwiftCodeSubprocess reads both pipes concurrently, so a chatty tool
-        // cannot deadlock us the way Legacy's sequential reads could.
         guard let output = try? Subprocess.run(toolPath, ["--version"]) else { return nil }
         let combined = output.stdoutText + output.stderrText
         let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)

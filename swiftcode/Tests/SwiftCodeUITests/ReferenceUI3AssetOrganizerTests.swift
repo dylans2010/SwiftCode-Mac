@@ -2,7 +2,6 @@ import XCTest
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// specs/ide/reference-ui-3.md §3 (asset catalog) and §6 (Organizer).
 @MainActor
 final class ReferenceUI3AssetOrganizerTests: XCTestCase {
     func tempCatalog() throws -> AssetCatalog {

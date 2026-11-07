@@ -5,14 +5,12 @@ struct IssueDetailView: View {
     let issue: GitHubIssue
     @Environment(\.dismiss) private var dismiss
 
-    // Details tabs
     @State private var commentText = ""
     @State private var commentList: [IssueComment] = [
         IssueComment(author: "Jules", body: "We should focus on keeping memory allocations flat while rendering 10k items.", date: "2 days ago"),
         IssueComment(author: "reviewer-prime", body: "Agreed. Adding LazyVStack bounds inside ScrollView handles this perfectly.", date: "1 day ago")
     ]
 
-    // AI Issue summarizing states
     @State private var isRunningAISummary = false
     @State private var aiSummaryText = ""
 
@@ -25,7 +23,6 @@ struct IssueDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Issue #\(issue.number): \(issue.title)", systemImage: "exclamationmark.circle.fill")
                     .font(.headline)
@@ -45,7 +42,6 @@ struct IssueDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // State Metadata block
                     Section {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 8) {
@@ -71,7 +67,6 @@ struct IssueDetailView: View {
                         .cornerRadius(6)
                     }
 
-                    // Metadata Labels
                     VStack(alignment: .leading, spacing: 8) {
                         Text("LABELS & MILESTONES")
                             .font(.caption2.bold())
@@ -106,7 +101,6 @@ struct IssueDetailView: View {
 
                     Divider()
 
-                    // AI Issue Diagnostics
                     VStack(alignment: .leading, spacing: 8) {
                         Text("AI Issue Analyzer").font(.subheadline.bold())
                         Text("Let AI analyze the issue's scope, bug origin, and recommend a specific solution plan.")
@@ -137,7 +131,6 @@ struct IssueDetailView: View {
 
                     Divider()
 
-                    // Comments feed thread
                     VStack(alignment: .leading, spacing: 12) {
                         Text("CONVERSATION FEED")
                             .font(.caption2.bold())
@@ -157,7 +150,6 @@ struct IssueDetailView: View {
                             Divider()
                         }
 
-                        // Add comment form
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Add comment").font(.caption.bold())
                             TextEditor(text: $commentText)

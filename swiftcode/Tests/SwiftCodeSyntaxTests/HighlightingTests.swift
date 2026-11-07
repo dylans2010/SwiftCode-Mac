@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeSyntax
 
-/// Token snapshots per language (`specs/ide/source-editor.md`, "SwiftCode implementation").
 @Suite struct HighlightingTests {
     @Test func languagesByFileName() {
         #expect(SyntaxLanguage(fileName: "a.swift") == .swift)
@@ -13,7 +12,7 @@ import Testing
         #expect(SyntaxLanguage(fileName: "README.md") == .markdown && SyntaxLanguage(fileName: "c.yml") == .yaml && SyntaxLanguage(fileName: "x.json") == .json)
         #expect(SyntaxLanguage(fileName: "build.sh") == .shell && SyntaxLanguage(fileName: "Debug.xcconfig") == .xcconfig)
         #expect(SyntaxLanguage(fileName: "notes.txt") == .plain)
-        #expect(SyntaxLanguage.allCases.prefix(4) == [.swift, .objc, .c, .plain])   // menu tags stay stable
+        #expect(SyntaxLanguage.allCases.prefix(4) == [.swift, .objc, .c, .plain])
     }
 
     @Test func swiftThroughTheParser() {

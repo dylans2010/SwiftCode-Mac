@@ -1,34 +1,3 @@
-// swiftcode-simd --device: the host side of pairing an iPhone with an Apple
-// Watch (specs/simulator/device-pairing.md §7, P-2 … P-5; §8 for SwiftCode's
-// decisions).
-//
-// Each running device has one PairingHost. It
-//   - reads the device set's pair records (SwiftCodeSimFeatures/DevicePairing.swift);
-//   - serves the device's rendezvous socket (`PairLinkFrame.socketPath`, in
-//     the memory directory): the watch's host connects to its phone's
-//     socket (retrying every 2 s while the phone is not running), and the
-//     pairing commands send their requests there (`command` frames);
-//   - while both devices of a pair run (the link is up) and the control
-//     session is bound, registers `com.apple.IDSSimRPC.remote.<peer>` in its
-//     guest (701; `system` on watchOS, `user/<uid>` on iOS) with a host port
-//     of its own (PeerEndpoint), and unregisters it (709) and destroys the
-//     port when the peer stops, so the guest's send right becomes a dead name;
-//   - drives SwiftCode's guest pairing agent (SimGuestAgents/pairing) over the
-//     host channel /private/var/run/dev.swiftcode.pairing in the order of
-//     PairingSequencer: remove-unpaired at boot, connect then set-active when
-//     both endpoints exist, unpair then disconnect on the phone at an unpair,
-//     disconnect on the survivor when its peer stops; a switch-only
-//     set-active at once when a pair is made active while its watch does not
-//     run (SWIFTCODE_PAIRING_SWITCH_ABSENT=defer: when the watch runs)
-//     (device-pairing.md P-10, P-11, §12). No request blocks a command: the
-//     outcome of the last set-active per peer is in `pairing state`.
-//
-// What arrives on an endpoint port goes to a PairingRelay (W5, P-6, P-7):
-// `TransportPairingRelay`, the two halves of SwiftCodeHostServices'
-// PairingTransportRelay (device-pairing.md §10), carries each request into
-// the peer's guest and the peer's reply back. The W4 stub
-// (`AcknowledgingPairingRelay`) stays for diagnostics (`SWIFTCODE_PAIRING_RELAY`).
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -36,34 +5,16 @@ import SwiftCodeDarwinKernel
 import SwiftCodeHostServices
 import SwiftCodeSimFeatures
 
-// MARK: - The relay interface (W5)
-
-/// What the pairing host offers a relay: the device's UDID, the host task,
-/// `sendToPeer(_:frame:)` over the link, and `findInGuest(_:)` (702 in this
-/// device's guest, for its own `com.apple.IDSSimRPC.local`).
 protocol PairingRelayContext: PairingRelayLink {}
 
-/// Carries the traffic of a guest's `com.apple.IDSSimRPC.remote.<peer>`
-/// into the peer's guest (device-pairing.md P-6, P-7; round W5).
 protocol PairingRelay: AnyObject, Sendable {
-    /// A message taken off the endpoint for `peer` (the relay owns its rights:
-    /// it replies or discards). Called on the endpoint's receive thread.
     func endpoint(peer: String, received message: MachHostReceivedMessage, context: PairingRelayContext)
-    /// A link frame whose type the pairing host does not handle. Called on
-    /// the link's reader thread.
     func link(peer: String, received frame: [String: Any], context: PairingRelayContext)
-    /// The link with `peer` came up or went down (the far half's look-ups
-    /// are per boot of the peer, §7.2).
     func linkChanged(peer: String, up: Bool, context: PairingRelayContext)
-    /// The pairing host stops (the device's session ends).
     func stop(context: PairingRelayContext)
-    /// One line for `pairing relay` (counters and times).
     var summary: String { get }
 }
 
-/// The relay of round W5 (`SWIFTCODE_PAIRING_RELAY=relay`, the default): each
-/// device's PairingTransportRelay is the near half for its guest's requests
-/// and the far half for the peer's (device-pairing.md §7.2, §10).
 final class TransportPairingRelay: PairingRelay, @unchecked Sendable {
     let core: PairingTransportRelay
 
@@ -90,12 +41,6 @@ final class TransportPairingRelay: PairingRelay, @unchecked Sendable {
     var summary: String { core.statistics.summary() }
 }
 
-/// The relay of round W4 (a stub, `SWIFTCODE_PAIRING_RELAY=ack`; diagnostics):
-/// every transport request (MIG 1000) is answered at once with the
-/// reference's reply (1100, NDR, `RetCode` 0, §4.3) and its payload is
-/// dropped; other ids are discarded. Nothing reaches the peer's guest.
-/// `SWIFTCODE_PAIRING_RELAY=none` answers nothing (the request's reply right is
-/// dropped, the sender sees a send-once notification).
 final class AcknowledgingPairingRelay: PairingRelay, @unchecked Sendable {
     let log: (String) -> Void
     let answer: Bool
@@ -129,7 +74,6 @@ final class AcknowledgingPairingRelay: PairingRelay, @unchecked Sendable {
             context.host.discard(m)
             return
         }
-        // The rights the request brought (none expected besides the reply right).
         for d in m.descriptors {
             switch d {
             case let .port(name, _), let .guardedPort(name, _, _): try? context.host.deallocate(name)
@@ -159,10 +103,6 @@ final class AcknowledgingPairingRelay: PairingRelay, @unchecked Sendable {
     var statistics: [String: (requests: Int, bytes: Int)] { lock.withLock { counts } }
 }
 
-// MARK: - The endpoint (`remote.<peer>` in this guest)
-
-/// A host port registered in the guest as `com.apple.IDSSimRPC.remote.<peer>`,
-/// with a thread that takes its messages to the relay.
 final class PeerEndpoint: @unchecked Sendable {
     let peer: String
     let port: UInt32
@@ -187,7 +127,7 @@ final class PeerEndpoint: @unchecked Sendable {
                 } catch let e as MachHostError where e == .timedOut || e == .interrupted {
                     continue
                 } catch {
-                    return  // the port was destroyed (stop) or the host task ended
+                    return
                 }
                 deliver(m)
                 host.finishedMessage()
@@ -197,22 +137,17 @@ final class PeerEndpoint: @unchecked Sendable {
         t.start()
     }
 
-    /// Destroys the port: senders' rights become dead names (P-5, §4.2).
     func stop() {
         lock.withLock { stopping = true }
         try? host.destroyPort(port)
     }
 }
 
-// MARK: - A link between two hosts (or a command connection)
-
-/// One connected rendezvous socket with frames both ways.
 final class PeerLink: @unchecked Sendable {
     let fd: Int32
     private let writeLock = NSLock()
     private var buffer: [UInt8] = []
     private var closed = false
-    /// The peer's UDID once known.
     var peer: String?
 
     init(fd: Int32) {
@@ -237,7 +172,6 @@ final class PeerLink: @unchecked Sendable {
         }
     }
 
-    /// The next frame (blocking); nil at end of file, on an error or a bad frame.
     func receive(timeout seconds: Int? = nil) -> [String: Any]? {
         if let seconds {
             var tv = timeval(tv_sec: seconds, tv_usec: 0)
@@ -267,13 +201,11 @@ final class PeerLink: @unchecked Sendable {
     }
 }
 
-/// Unix-socket helpers for the rendezvous sockets.
 enum PairSockets {
     static func base() -> String { DeviceLayout.memoryBase ?? NSTemporaryDirectory() }
 
     static func path(udid: String) -> String { PairLinkFrame.socketPath(base: base(), uid: getuid(), udid: udid) }
 
-    /// A connected socket to the running device `udid`, or nil (not running).
     static func connect(udid: String) -> Int32? {
         let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue) | Int32(SOCK_CLOEXEC.rawValue), 0)
         guard fd >= 0 else { return nil }
@@ -282,8 +214,6 @@ enum PairSockets {
         return nil
     }
 
-    /// Sends one command to the running device `udid` and returns its
-    /// answer frame (nil: the device does not run, or no answer in `timeout` s).
     static func command(udid: String, verb: String, args: [String] = [], timeout: Int = 30) -> [String: Any]? {
         guard let fd = connect(udid: udid) else { return nil }
         let link = PeerLink(fd: fd)
@@ -293,12 +223,9 @@ enum PairSockets {
     }
 }
 
-// MARK: - The pairing host
-
 final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Sendable {
     let udid: String
     let dev: String
-    /// The device set: the directory holding the pair records.
     let set: String
     let family: PairingFamily
     let host: MachHostTask
@@ -312,20 +239,15 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
     private var endpoints: [String: PeerEndpoint] = [:]
     private var listenFD: Int32 = -1
     private var running = true
-    /// Endpoint and link actions, in order.
     private let endpointQueue = DispatchQueue(label: "swiftcode.pairing.endpoints")
-    /// Agent requests, in order (each waits for its answer).
     private let agentQueue = DispatchQueue(label: "swiftcode.pairing.agent")
-    /// When this run started (the first-paired-boot times of §8).
     private let started = Date()
 
-    // The agent channel.
     private var agentLink: SettingsAgentLink?
     private var agentBuffer: [UInt8] = []
     private var agentPID: Int?
     private var nextID = 1
     private var waiting: [Int: (semaphore: DispatchSemaphore, reply: [String: Any]?)] = [:]
-    /// The last set-active per peer: "sent …", "done: …", "failed: …" (P-11).
     private var activation: [String: String] = [:]
     var agentReplyTimeout: TimeInterval = Double(ProcessInfo.processInfo.environment["SWIFTCODE_PAIRING_AGENT_WAIT_S"] ?? "") ?? 120
 
@@ -338,8 +260,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         self.host = host
         self.session = session
         self.log = log
-        // P-11 (device-pairing.md §12.2): a watch made active while it does not
-        // run is switched to at once (the default), or when it runs (`defer`).
         sequencer.switchAbsentPeers = ProcessInfo.processInfo.environment["SWIFTCODE_PAIRING_SWITCH_ABSENT"] != "defer"
         switch ProcessInfo.processInfo.environment["SWIFTCODE_PAIRING_RELAY"] ?? "relay" {
         case "ack": relay = AcknowledgingPairingRelay(answer: true, log: log)
@@ -350,18 +270,14 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
 
     private func elapsed() -> String { String(format: "%.1f s", Date().timeIntervalSince(started)) }
 
-    /// The device set of a device directory: `SWIFTCODE_DEVICE_SET`, else the directory that holds it.
     static func deviceSet(for dev: String) -> String {
         if let s = ProcessInfo.processInfo.environment["SWIFTCODE_DEVICE_SET"], !s.isEmpty { return absolutePath(s) }
         return (dev as NSString).deletingLastPathComponent
     }
 
-    // MARK: Start
-
     func start() {
         reloadRecords(reason: "boot")
         startListener()
-        // The control session: 701/709 need it bound.
         Thread.detachNewThread { [self] in
             while lock.withLock({ running }) {
                 if session?.boundControl != nil {
@@ -372,7 +288,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
                 Thread.sleep(forTimeInterval: 0.5)
             }
         }
-        // The watch looks for its phone.
         if family == .watch {
             let t = Thread { [self] in connectorLoop() }
             t.name = "swiftcode-pair-connector"
@@ -393,8 +308,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         unlink(PairSockets.path(udid: udid))
     }
 
-    // MARK: Records
-
     private func loadPairs() -> [DevicePair] {
         do {
             return try DevicePairStore.load(set: set).pairs(of: udid)
@@ -404,8 +317,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         }
     }
 
-    /// The peers this device's guest has been made active with before (SwiftCode's
-    /// record of "paired before: switch", §3.1 set-active).
     var pairedBeforePath: String { dev + "/swiftcode-paired-peers" }
 
     private func pairedBefore() -> Set<String> {
@@ -419,15 +330,12 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         try? (s.sorted().joined(separator: "\n") + (s.isEmpty ? "" : "\n")).write(toFile: pairedBeforePath, atomically: true, encoding: .utf8)
     }
 
-    /// Re-reads the records: new pairs join the sequencer, removed ones leave it.
     @discardableResult
     func reloadRecords(reason: String) -> [DevicePair] {
         let pairs = loadPairs()
         let before = pairedBefore()
         let list = pairs.map { p -> (peer: String, active: Bool, previouslyPaired: Bool) in
             let peer = p.peer(of: udid)!
-            // A watch's only pair counts as active for its guest (§2.2: the
-            // watch has one phone).
             return (peer, family == .watch || p.active, before.contains(peer))
         }
         var actions: [PairingSequencer.Action] = []
@@ -446,8 +354,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         log("pairing: \(reason): \(pairs.isEmpty ? "no pairs" : pairs.map { "pair \($0.id) with \($0.peer(of: udid)!)\($0.active ? " (active)" : "")" }.joined(separator: ", "))"
             + (gone.isEmpty ? "" : "; removed: \(gone.joined(separator: ", "))"))
         perform(actions)
-        // An unpair (§3.2): the guest unpairs and disconnects first; then the
-        // endpoint goes and the link to the peer is closed.
         for a in unpairActions {
             if case .agent = a { perform([a]) }
         }
@@ -462,8 +368,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         }
         return pairs
     }
-
-    // MARK: Actions
 
     private func perform(_ actions: [PairingSequencer.Action]) {
         for a in actions {
@@ -498,7 +402,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
             do {
                 try c.registerEndpoint(name, port: ep.port)
             } catch let e as LaunchSimControlError where e.errno == 17 || e.code == 17 {
-                // A name left from an earlier run of the peer (a restore): replace it.
                 try? c.unregisterEndpoint(name)
                 try c.registerEndpoint(name, port: ep.port)
             }
@@ -547,7 +450,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
             lock.withLock { sequencer.activated(peer: peer, ok: ok) }
             if ok { setPairedBefore(peer, true) }
         case let .switchTo(peer):
-            // Switched (the registry had the peer): it is paired before.
             if ok, reply?["switched"] as? Bool == true {
                 lock.withLock { sequencer.activated(peer: peer, ok: true) }
                 setPairedBefore(peer, true)
@@ -558,8 +460,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
             break
         }
     }
-
-    // MARK: Links
 
     private func linkUp(_ peer: String, _ link: PeerLink) {
         link.peer = peer
@@ -572,7 +472,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         log("pairing: link with \(peer) up (both devices run; \(elapsed()) after the start)")
         relay.linkChanged(peer: peer, up: true, context: self)
         perform(lock.withLock { sequencer.linkUp(peer: peer) })
-        // The link's frames, until it ends.
         while let frame = link.receive() {
             switch frame["type"] as? String {
             case "registered":
@@ -598,7 +497,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         lock.withLock { links[peer] }?.close()
     }
 
-    /// The watch: connects to its phone's socket while the phone is not linked.
     private func connectorLoop() {
         var said = false
         while lock.withLock({ running }) {
@@ -620,8 +518,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
             Thread.sleep(forTimeInterval: 2)
         }
     }
-
-    // MARK: The rendezvous socket
 
     private func startListener() {
         let path = PairSockets.path(udid: udid)
@@ -658,7 +554,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         switch first["type"] as? String {
         case "hello":
             guard let peer = (first["udid"] as? String)?.uppercased() else { link.close(); return }
-            // The records are read again: a pair made a moment ago counts.
             let pairs = reloadRecords(reason: "hello from \(peer)")
             guard family == .phone, pairs.contains(where: { $0.gizmo == peer }) else {
                 _ = link.send(["type": "refused", "reason": "no pair with \(peer)"])
@@ -682,8 +577,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         }
     }
 
-    // MARK: Commands (the pairing commands, the control socket)
-
     func stateDictionary() -> [String: Any] {
         lock.withLock {
             var peers: [String: Any] = [:]
@@ -697,9 +590,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         }
     }
 
-    /// `state`, `reload`, `unpair <peer>` (the phone's side of an unpair: the
-    /// guest unpairs and disconnects, the endpoint goes), `shutdown` (the
-    /// watch's side: the session ends).
     func command(_ verb: String, _ args: [String]) -> (Bool, String) {
         switch verb {
         case "state":
@@ -716,15 +606,12 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         case "unpair":
             guard let peer = args.first?.uppercased() else { return (false, "unpair <peer UDID>") }
             reloadRecords(reason: "unpair from \(peer)")
-            // Wait for the agent's requests and the endpoint's removal.
             agentQueue.sync {}
             endpointQueue.sync {}
             dropLink(peer)
             setPairedBefore(peer, false)
             return (true, "unpaired from \(peer)")
         case "agent":
-            // Diagnostics: one request to the guest agent, `pairing agent <op> [key=value]…`
-            // (e.g. `pairing agent connect peer=<UDID> argKind=uuid`).
             guard let op = args.first else { return (false, "agent <op> [key=value]…") }
             var body: [String: Any] = ["op": op]
             for kv in args.dropFirst() {
@@ -735,7 +622,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
             let ok = r["ok"] as? Bool ?? false
             return (ok, [r["detail"] as? String, r["error"] as? String].compactMap { $0 }.joined(separator: "; "))
         case "relay":
-            // The relay's counters and times (device-pairing.md §10).
             return (true, relay.summary)
         case "shutdown":
             log("pairing: shutting the device down (\(args.joined(separator: " ")))")
@@ -746,14 +632,11 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         }
     }
 
-    /// The control socket's `pairing …` commands.
     func controlCommand(_ words: [String]) -> String? {
         guard words.first == "pairing" else { return nil }
         let (ok, text) = command(words.count > 1 ? words[1] : "state", Array(words.dropFirst(2)))
         return (ok ? "ok " : "error: ") + text
     }
-
-    // MARK: PairingRelayContext
 
     @discardableResult
     func sendToPeer(_ peer: String, frame: [String: Any]) -> Bool {
@@ -764,8 +647,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         guard let c = session?.boundControl else { throw LaunchSimControlError(operation: "find \(name): no session", code: 3) }
         return try c.findEndpoint(name)
     }
-
-    // MARK: The agent channel (HostChannelServer)
 
     func channelOpened(_ connection: HostChannelConnection) {
         let old = lock.withLock { () -> SettingsAgentLink? in
@@ -831,7 +712,6 @@ final class PairingHost: HostChannelServer, PairingRelayContext, @unchecked Send
         s?.signal()
     }
 
-    /// Sends one request to the agent and waits for its reply (nil: no agent, or no answer).
     func agentRequest(_ body: [String: Any]) -> [String: Any]? {
         let s = DispatchSemaphore(value: 0)
         let (link, id) = lock.withLock { () -> (SettingsAgentLink?, Int) in

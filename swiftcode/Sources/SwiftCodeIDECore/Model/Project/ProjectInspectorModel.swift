@@ -2,21 +2,6 @@ import Foundation
 import Observation
 import SwiftCodeProject
 
-/// Project Inspector — Legacy's `Views/Utilities/ProjectInspector/` subsystem
-/// (scanner, architecture graph, inspector view), ported onto SwiftCode's systems.
-///
-/// - File metrics come from a real walk of the workspace (skipping `.git`,
-///   `.build`, `DerivedData`, `xcuserdata`), with a JSON line-count cache
-///   in Application Support `SwiftCode/ProjectInspector/<hash>/cache.json`
-///   (Legacy kept the same cache in UserDefaults).
-/// - Targets, schemes, build settings and package references come from
-///   SwiftCode's own `PBXProj` parser — not a second pbxproj parser.
-/// - The health score and recommendations are Legacy's
-///   `calculateHealthAndRecommendations` rules, ported verbatim.
-/// - The AI Review tab in the view takes a text provider (the coding
-///   assistant's); with none configured it says so instead of inventing a
-///   review. The health recommendations here are local and always real.
-
 public struct FileMetrics: Identifiable, Hashable, Sendable {
     public var id: String { path }
     public let name: String
@@ -51,7 +36,6 @@ public struct InspectorCacheEntry: Codable, Sendable {
     public let actorDefined: Bool
 }
 
-/// A build target discovered in the .xcodeproj, with per-configuration build settings.
 public struct InspectorTargetInfo: Identifiable, Hashable, Sendable {
     public var id: String
     public let name: String
@@ -83,7 +67,6 @@ public struct InspectorPackageInfo: Identifiable, Hashable, Sendable {
     }
 }
 
-/// Per-file detail (Legacy `InspectorFileMetadata`).
 public struct InspectorFileMetadata: Sendable {
     public let url: URL
     public let size: Int64
@@ -153,7 +136,6 @@ public struct InspectorGraphNode: Identifiable, Hashable, Sendable {
     }
 }
 
-/// The scanner (Legacy `InspectorProjectScanner`).
 @Observable
 @MainActor
 public final class InspectorProjectScanner {
@@ -272,7 +254,6 @@ public final class InspectorProjectScanner {
         calculateHealthAndRecommendations()
     }
 
-    /// Legacy's health rules, ported verbatim.
     private func calculateHealthAndRecommendations() {
         var score = 100
         var recs: [String] = []
@@ -461,7 +442,6 @@ extension InspectorProjectScanner {
     }
 
     nonisolated private static func countPackages(at rootURL: URL) -> Int {
-        // Packages referenced by .xcodeproj files and nested Package.swift manifests.
         var count = 0
         guard let enumerator = FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: [.isDirectoryKey]) else { return 0 }
         for case let url as URL in enumerator {

@@ -1,26 +1,13 @@
-// SwiftCode extension, plan.md R4: developer tokens for the WeatherKit REST API
-// (rest-api.md §2) and the HTTP transport the REST backend uses.
-//
-// Token format: a JWT signed with ES256 (ECDSA P-256, SHA-256), header
-// {alg: "ES256", kid: <key ID>, id: "<team ID>.<services ID>"}, claims
-// exactly {iss: <team ID>, iat, exp, sub: <services ID>} (seconds since the
-// Unix epoch). The private key is the PKCS#8 PEM (`.p8`) the owner downloads
-// when creating a WeatherKit key; it is read at run time and never shipped.
 import Crypto
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 
-// MARK: - HTTP transport
-
-/// Sends one HTTP request. The REST backend and the remote token provider
-/// use it; tests substitute their own.
 public protocol WeatherHTTPClient: Sendable {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
 
-/// `URLSession` transport. Transport failures surface as `URLError`.
 public struct URLSessionWeatherHTTPClient: WeatherHTTPClient {
     public init() {}
 
@@ -40,14 +27,10 @@ public struct URLSessionWeatherHTTPClient: WeatherHTTPClient {
     }
 }
 
-// MARK: - Tokens
-
-/// Supplies the developer token sent as `Authorization: Bearer <token>`.
 public protocol WeatherTokenProvider: Sendable {
     func token() async throws -> String
 }
 
-/// A token obtained elsewhere (for example from the developer's own server).
 public struct StaticWeatherTokenProvider: WeatherTokenProvider {
     let value: String
 
@@ -56,8 +39,6 @@ public struct StaticWeatherTokenProvider: WeatherTokenProvider {
     public func token() async throws -> String { value }
 }
 
-/// Signs tokens locally with the developer's WeatherKit key and reuses each
-/// one until shortly before it expires.
 public actor SigningWeatherTokenProvider: WeatherTokenProvider {
     let teamID: String
     let serviceID: String
@@ -67,9 +48,6 @@ public actor SigningWeatherTokenProvider: WeatherTokenProvider {
     let clock: @Sendable () -> Date
     private var cached: (token: String, expires: Date)?
 
-    /// - Parameters:
-    ///   - privateKeyPEM: the PKCS#8 PEM text of the `.p8` key.
-    ///   - lifetime: seconds between `iat` and `exp` (SwiftCode default one hour).
     public init(
         teamID: String, serviceID: String, keyID: String, privateKeyPEM: String, lifetime: TimeInterval = 3600,
         clock: @escaping @Sendable () -> Date = { Date() }
@@ -86,7 +64,6 @@ public actor SigningWeatherTokenProvider: WeatherTokenProvider {
         self.clock = clock
     }
 
-    /// Reads the key from a `.p8` file.
     public init(
         teamID: String, serviceID: String, keyID: String, privateKeyFile: URL, lifetime: TimeInterval = 3600,
         clock: @escaping @Sendable () -> Date = { Date() }
@@ -106,9 +83,6 @@ public actor SigningWeatherTokenProvider: WeatherTokenProvider {
     }
 }
 
-/// Fetches tokens from a URL the developer controls (the way Apple advises
-/// apps to obtain them). The response body is the token text, or JSON with a
-/// `token` member. A token is reused until shortly before its `exp` claim.
 public actor RemoteWeatherTokenProvider: WeatherTokenProvider {
     let url: URL
     let httpClient: any WeatherHTTPClient
@@ -145,11 +119,7 @@ public actor RemoteWeatherTokenProvider: WeatherTokenProvider {
     }
 }
 
-// MARK: - JWT
-
-/// ES256 JSON Web Tokens in the developer-token shape of rest-api.md §2.
 public enum DeveloperToken {
-    /// Signs a developer token.
     public static func sign(
         teamID: String, serviceID: String, keyID: String, key: P256.Signing.PrivateKey, issuedAt: Date,
         lifetime: TimeInterval
@@ -164,8 +134,6 @@ public enum DeveloperToken {
         return signingInput + "." + base64URL(signature.rawRepresentation)
     }
 
-    /// Splits a token into its decoded header, claims, signing input and
-    /// raw (r‖s) signature. Does not verify.
     public static func decode(_ token: String) throws
         -> (header: [String: Any], claims: [String: Any], signingInput: Data, signature: Data)
     {

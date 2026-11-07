@@ -4,62 +4,39 @@ import SwiftCodeDeviceModel
 import SwiftCodeIDECore
 import SwiftCodePreviews
 
-/// The Linux IDE's preview canvas (`specs/ide/previews.md` §Canvas and
-/// §Linux, "The Linux canvas"): the canvas beside or below the source
-/// editor, a tab per preview, the selected preview in a device frame (or
-/// every preview in Grid, or its variants), live updates as the file is
-/// edited, errors in place, and the "needs a simulator host" state for
-/// UIKit previews when no simulator host is set up. The toolkit-free half;
-/// `swiftcode-ide/Views/Preview/PreviewCanvasView.swift` draws it.
 @MainActor
 @Observable
 public final class PreviewCanvasShellModel {
-    /// Where the canvas goes: Editor ▸ Layout (Automatic: beside the
-    /// editor, below it when the editor area is narrower than 760 points).
     public enum LayoutChoice: Int, Sendable { case automatic, right, bottom }
 
     public enum State: Equatable, Sendable {
-        /// Nothing to show ("No Previews").
         case empty(String)
-        /// The first picture is on its way: a spinner and what happens.
         case starting(String)
-        /// Tiles with pictures.
         case rendered
-        /// No picture yet and the update failed: the error card.
         case failed(title: String, message: String, issues: [PreviewIssue])
-        /// UIKit previews without a simulator host: what to set up.
         case needsSimulator(title: String, message: String)
     }
 
-    /// One shown picture.
     public struct Tile: Equatable, Identifiable, Sendable {
         public var id: Int
         public var preview: Int
         public var title: String
-        /// The variant's label in Variants ("Dark"), else "".
         public var caption: String
         public var variant: PreviewVariant
-        /// The size the preview is laid out at, in points (0 × 0: its ideal size).
         public var requested: CGSize
-        /// The picture and its size in points (nil: not rendered yet).
         public var image: URL?
         public var size: CGSize
-        /// Drawn in the device's frame (a preview without a layout trait).
         public var isDevice: Bool
-        /// A picture of the whole device screen: the tile's region of it
-        /// (screen points) and the screen's size (UIKit previews).
         public var crop: CGRect?
         public var screen: CGSize?
     }
 
-    /// A failed update over the last picture (`previews.md` §Live canvas: Errors).
     public struct Banner: Equatable, Sendable {
         public var title: String
         public var issues: [PreviewIssue]
         public var message: String?
     }
 
-    /// One update's times in seconds, from the edit (or the action) to new pixels.
     public struct Timing: Equatable, Sendable {
         public var reason: String
         public var decision: String
@@ -71,53 +48,30 @@ public final class PreviewCanvasShellModel {
         }
     }
 
-    // MARK: Configuration (set by the workspace)
-
-    /// The engine for SwiftUI previews (OpenViews on Linux); made on first use.
     @ObservationIgnored public var makeEngine: () -> PreviewCanvasEngine? = { nil }
-    /// The engine for UIKit previews on a simulator host, when one is set up.
     @ObservationIgnored public var makeSimulatorEngine: () -> PreviewCanvasEngine? = { nil }
-    /// The module's location (the workspace's container).
     @ObservationIgnored public var locator: () -> PreviewModuleLocator? = { nil }
-    /// Opens a file at a line (an issue's link, Selectable's reveal).
     @ObservationIgnored public var reveal: (String, Int) -> Void = { _, _ in }
-    /// The wait after an edit before the update (a live canvas: 0.15 s).
     @ObservationIgnored public var refreshDelay: TimeInterval = 0.15
 
-    // MARK: State
-
-    /// Canvas mode (Editor ▸ Canvas, the Canvas toolbar segment): on in a
-    /// new window; while on, a file that declares previews shows the canvas.
     public private(set) var isModeOn = true
     public var layoutChoice: LayoutChoice = .automatic
-    /// The focused Swift file that declares previews (nil: no canvas).
     public private(set) var path: String?
     public private(set) var previews: [PreviewDeclaration] = []
-    /// Until resumed the canvas shows the "Canvas paused" capsule and
-    /// builds nothing (`reference-ui-4.md` §10.2).
     public private(set) var isPaused = true
     public private(set) var state: State = .empty("No Previews")
     public private(set) var tiles: [Tile] = []
     public private(set) var selectedIndex = 0
     public private(set) var isGrid = false
-    /// Live (the default) or Selectable.
     public private(set) var mode: PreviewCanvasMode = .live
-    /// The Variants button's choice (nil: off).
     public private(set) var variantKind: PreviewVariantKind?
-    /// Zoom factor; nil fits every tile.
     public private(set) var zoom: CGFloat?
     public private(set) var settings = PreviewCanvasSettings()
-    /// The device previews are laid out on (nil: Automatic).
     public private(set) var deviceTypeID: String?
-    /// An update is in flight: tabs show a spinner, the last picture stays.
     public private(set) var isUpdating = false
-    /// What the update in flight is doing ("Compiling the preview").
     public private(set) var progressText = ""
     public private(set) var banner: Banner?
-    /// Times of the updates, newest last.
     public private(set) var timings: [Timing] = []
-    /// The UIKit path is chosen for this file (it imports UIKit or a
-    /// preview returns a UIKit view or view controller).
     public private(set) var usesSimulator = false
 
     @ObservationIgnored private var text = ""
@@ -129,30 +83,21 @@ public final class PreviewCanvasShellModel {
     @ObservationIgnored private var editStart: Date?
 
     public static let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1, 1.5, 2]
-    /// The devices a preview can be laid out on (phones, then iPads).
     public static let devices: [DeviceFrameSpec] = [.iPhone18Pro, .iPhoneDuo, .iPadA16, .iPadPro13M5]
     public static let automaticDevice = DeviceFrameSpec.iPhone18Pro
 
     public init() {}
 
-    /// The canvas is drawn: canvas mode is on and the focused file has previews.
     public var isShown: Bool { isModeOn && path != nil }
 
-    /// The update in flight (tests await it).
     public var pendingUpdate: Task<Void, Never>? { updateTask }
-    /// The debounced update waiting after an edit (tests await it).
     public var pendingDebounce: Task<Void, Never>? { debounce }
 
     public var device: DeviceFrameSpec { Self.devices.first { $0.typeID == deviceTypeID } ?? Self.automaticDevice }
-    /// The device's screen in points, upright.
     public var screen: CGSize { device.panels[0].uprightPointSize }
-    /// The bottom-left pop-up's title.
     public var deviceTitle: String { deviceTypeID == nil ? "Automatic – \(Self.automaticDevice.name)" : device.name }
-    /// Header titles: `#Preview("name")`, else the view type at the start of the body.
     public var tabTitles: [String] { previews.map(\.tabTitle) }
-    /// The zoom pop-up's title ("Fit" or "<n>%").
     public var zoomTitle: String { zoom.map { "\(Int(($0 * 100).rounded()))%" } ?? "Fit" }
-    /// The status at the header's end.
     public var statusText: String {
         if isPaused { return "" }
         switch state {
@@ -165,7 +110,6 @@ public final class PreviewCanvasShellModel {
     }
     private var grid: Bool { isGrid }
 
-    /// Where the canvas goes for an editor area `width` points wide.
     public func placement(forWidth width: CGFloat) -> CanvasPlacement {
         switch layoutChoice {
         case .automatic: CanvasPlacement.placement(forWidth: width)
@@ -174,10 +118,6 @@ public final class PreviewCanvasShellModel {
         }
     }
 
-    // MARK: The focused file
-
-    /// The editor shows `path` with `text` (nil: no Swift file): the canvas
-    /// follows it, shown when the file declares previews.
     public func focus(path newPath: String?, text newText: String?) {
         let has = newPath.map { CanvasAutoShow.hasPreviews(fileName: ($0 as NSString).lastPathComponent, text: newText ?? "") } ?? false
         let changed = newPath != path
@@ -201,8 +141,6 @@ public final class PreviewCanvasShellModel {
         if !isPaused, !same { update(reason: changed ? "open" : "refresh") }
     }
 
-    /// The focused file was edited: discover its previews again, and after
-    /// `refreshDelay` without another edit, update the pictures.
     public func edited(path p: String, text newText: String) {
         guard p == path || CanvasAutoShow.hasPreviews(fileName: (p as NSString).lastPathComponent, text: newText) else { return }
         if p != path { focus(path: p, text: newText); return }
@@ -223,28 +161,21 @@ public final class PreviewCanvasShellModel {
         }
     }
 
-    /// Whether a file's previews need SwiftCode's simulator: it imports UIKit,
-    /// or a preview's body makes a UIKit view or view controller.
     public static func needsSimulator(text: String, previews: [PreviewDeclaration]) -> Bool {
         PreviewDiscovery.needsUIKit(text: text, previews: previews)
     }
 
-    // MARK: Commands
-
-    /// Editor ▸ Canvas and the toolbar's Canvas segment.
     public func toggleMode() {
         isModeOn.toggle()
         if isModeOn, !isPaused, path != nil { update(reason: "canvas") }
     }
 
-    /// The paused capsule's resume button: the first build.
     public func resume() {
         guard isPaused else { return }
         isPaused = false
         update(reason: "resume")
     }
 
-    /// A header tab: selects that preview (and leaves the grid).
     public func select(_ index: Int) {
         guard previews.indices.contains(index) else { return }
         selectedIndex = index
@@ -252,8 +183,6 @@ public final class PreviewCanvasShellModel {
         relayout()
     }
 
-    /// The mode buttons: Live and Selectable are exclusive; Grid toggles;
-    /// Variants cycles Color Scheme → Orientation → Dynamic Type → off.
     public func setMode(_ m: PreviewCanvasMode) {
         switch m {
         case .live, .selectable: mode = m
@@ -267,7 +196,6 @@ public final class PreviewCanvasShellModel {
         }
     }
 
-    /// The Variants menu's choice (nil: off).
     public func setVariants(_ kind: PreviewVariantKind?) {
         variantKind = kind
         if kind != nil { isGrid = false }
@@ -276,36 +204,28 @@ public final class PreviewCanvasShellModel {
 
     public func setZoom(_ z: CGFloat?) { zoom = z }
 
-    /// A canvas settings switch; Color Scheme, Orientation and Dynamic Type
-    /// change the pictures' traits.
     public func setSetting(_ name: String, _ on: Bool) {
         if on { settings.on.insert(name) } else { settings.on.remove(name) }
         if ["Color Scheme", "Orientation", "Dynamic Type"].contains(name) { relayout() }
     }
 
-    /// The device pop-up (nil: Automatic).
     public func chooseDevice(_ typeID: String?) {
         deviceTypeID = typeID
         relayout()
     }
 
-    /// Editor ▸ Layout.
     public func setLayout(_ choice: LayoutChoice) { layoutChoice = choice }
 
-    /// A click on a tile: it becomes the selected preview; in Selectable
-    /// mode its `#Preview` line is revealed in the editor.
     public func tileClicked(_ tile: Tile) {
         if selectedIndex != tile.preview, isGrid { selectedIndex = tile.preview }
         if mode == .selectable, let path, previews.indices.contains(tile.preview) { reveal(path, previews[tile.preview].line) }
     }
 
-    /// A banner's issue: its file at its line.
     public func open(_ issue: PreviewIssue) {
         guard let f = issue.file else { return }
         reveal(f.path, issue.line)
     }
 
-    /// The workspace closes.
     public func stop() {
         debounce?.cancel()
         updateTask?.cancel()
@@ -313,17 +233,12 @@ public final class PreviewCanvasShellModel {
         simulatorEngine?.stop()
     }
 
-    // MARK: Updating
-
-    /// The base variant from the canvas settings.
     public var baseVariant: PreviewVariant {
         PreviewVariant(colorScheme: settings.on.contains("Color Scheme") ? "dark" : "light",
                        dynamicType: settings.on.contains("Dynamic Type") ? "accessibility1" : nil,
                        orientation: settings.on.contains("Orientation") ? .landscapeLeft : nil)
     }
 
-    /// The tiles the canvas asks for: Grid → every preview; Variants → the
-    /// selected preview in each variant; otherwise the selected preview.
     public func plannedTiles() -> [Tile] {
         guard !previews.isEmpty else { return [] }
         let base = baseVariant
@@ -343,15 +258,11 @@ public final class PreviewCanvasShellModel {
         return [tile(0, sel, base, caption: "")]
     }
 
-    /// The layout changed (selection, grid, variants, settings, device): new
-    /// pictures for the loaded payload, no compile (the update planner's
-    /// relayout).
     private func relayout() {
         guard !isPaused, isShown else { return }
         update(reason: "layout")
     }
 
-    /// Brings the pictures up to date (the engine's planner decides how).
     public func update(reason: String) {
         guard isShown, !isPaused, let path else { return }
         debounce?.cancel()
@@ -359,7 +270,6 @@ public final class PreviewCanvasShellModel {
         editStart = nil
         let planned = plannedTiles()
         guard !planned.isEmpty else { state = .empty("No Previews"); return }
-        // UIKit previews need a simulator host.
         let eng: PreviewCanvasEngine
         if usesSimulator {
             if simulatorEngine == nil { simulatorEngine = makeSimulatorEngine() }
@@ -378,7 +288,6 @@ public final class PreviewCanvasShellModel {
         guard let locator = locator() else { return }
         generation += 1
         let g = generation
-        // Keep the last pictures while the new ones are made.
         if case .rendered = state {
             if tiles.map(\.preview) != planned.map(\.preview) || tiles.map(\.variant) != planned.map(\.variant) {
                 tiles = zip(planned, planned.indices).map { t, i in
@@ -428,7 +337,6 @@ public final class PreviewCanvasShellModel {
             timings.append(timing)
             if timings.count > 100 { timings.removeFirst(timings.count - 100) }
         case .failure(.unsupported(let why)) where usesSimulator:
-            // The simulator path's setup (the SDK copy, a linker): a card, not an error.
             tiles = []
             banner = nil
             state = .needsSimulator(title: "UIKit Previews Need Setup", message: why)
@@ -450,22 +358,13 @@ public final class PreviewCanvasShellModel {
     public static let needsSimulatorMessage = "UIKit previews run in SwiftCode's iOS simulator, on an arm64 Linux simulator host. "
         + "Pair one with swiftcode sim remote pair (Window ▸ Downloads checks it), then choose Check Again. SwiftUI previews render here without one."
 
-    // MARK: Layout of the tiles
-
-    /// Space around the tiles and between them, and the caption's height.
     public static let gap: CGFloat = 24
     public static let captionHeight: CGFloat = 18
 
-    /// The zoom that fits every tile in `area` (at most 1, at least 0.1),
-    /// with one row per `columns` tiles.
     public func fitZoom(area: CGSize) -> CGFloat { Self.arrange(tiles, area: area, zoom: nil).zoom }
 
-    /// The tiles' frames (picture only; the caption sits above), the
-    /// content's size and the zoom used.
     public func frames(area: CGSize) -> (frames: [CGRect], size: CGSize, zoom: CGFloat) { Self.arrange(tiles, area: area, zoom: zoom) }
 
-    /// Arranges tiles in rows: the column count that gives the largest
-    /// fitting zoom (Fit), or the most columns that fit at a set zoom.
     public static func arrange(_ tiles: [Tile], area: CGSize, zoom: CGFloat?) -> (frames: [CGRect], size: CGSize, zoom: CGFloat) {
         guard !tiles.isEmpty else { return ([], .zero, zoom ?? 1) }
         let sizes = tiles.map { $0.size.width > 0 && $0.size.height > 0 ? $0.size : CGSize(width: 200, height: 120) }

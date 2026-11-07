@@ -6,9 +6,6 @@ private let logger = Logger(
     category: "CloudSyncEngine"
 )
 
-/// Actor-isolated synchronization engine for SwiftCode.
-/// Coordinates queues, heartbeats, automatic updates, and continuous delta syncs.
-/// Requires an explicitly configured CloudProvider.
 public actor CloudSyncEngine {
     public static let shared = CloudSyncEngine()
 
@@ -27,23 +24,16 @@ public actor CloudSyncEngine {
         setupAutoSync()
     }
 
-    // MARK: - Provider Configuration
-
-    /// Sets or updates the active cloud provider.
     public func setProvider(_ provider: CloudProvider) {
         self.provider = provider
         logger.info("CloudSyncEngine active provider initialized successfully.")
     }
 
-    /// Removes the active cloud provider.
     public func clearProvider() {
         provider = nil
         logger.info("CloudSyncEngine provider cleared.")
     }
 
-    // MARK: - Sync Configuration
-
-    /// Enables or disables continuous cloud synchronization.
     public func setSyncEnabled(_ enabled: Bool) {
         isSyncEnabled = enabled
 
@@ -68,16 +58,12 @@ public actor CloudSyncEngine {
         return statistics
     }
 
-    // MARK: - Pending Payloads
-
-    /// Appends a payload to the pending outbound updates list.
     public func addPendingPayload(_ payload: SyncPayload) {
         pendingPayloads.append(payload)
         statistics.pendingUploadsCount = pendingPayloads.count
         triggerSync()
     }
 
-    /// Queues a local persistence modification payload for synchronization.
     public func queueLocalUpdate(
         tableName: String,
         recordID: String,
@@ -113,9 +99,6 @@ public actor CloudSyncEngine {
         }
     }
 
-    // MARK: - Synchronization
-
-    /// Explicitly triggers a synchronization cycle.
     public func triggerSync() {
         guard isSyncEnabled && !isSyncing else {
             return
@@ -138,7 +121,6 @@ public actor CloudSyncEngine {
             }
 
             do {
-                // Require Appwrite authentication before synchronizing.
                 guard
                     await AuthManager.shared.isAuthenticated,
                     let swiftCodeID = await AuthManager.shared.swiftCodeID
@@ -149,7 +131,6 @@ public actor CloudSyncEngine {
                     return
                 }
 
-                // Process outbound pending updates.
                 if !pendingPayloads.isEmpty {
                     let uploads = pendingPayloads
 
@@ -163,7 +144,6 @@ public actor CloudSyncEngine {
                     statistics.pendingUploadsCount = pendingPayloads.count
                 }
 
-                // Pull inbound updates.
                 let lastSync = statistics.lastSyncTimestamp
                     ?? Date().addingTimeInterval(-86_400)
 
@@ -198,7 +178,6 @@ public actor CloudSyncEngine {
         }
     }
 
-    /// Cancels the currently running synchronization task.
     public func cancelSync() {
         syncTask?.cancel()
         syncTask = nil
@@ -211,17 +190,11 @@ public actor CloudSyncEngine {
         )
     }
 
-    // MARK: - Inbound Updates
-
     private func handleInboundPayload(_ delta: SyncPayload) async {
-        // Resolve conflicts or apply the update locally.
-        // Actual persistence integration must be implemented separately.
         logger.info(
             "Handling inbound sync payload for \(delta.tableName): \(delta.recordID)"
         )
     }
-
-    // MARK: - Automatic Synchronization
 
     nonisolated private func setupAutoSync() {
         DispatchQueue.main.async {

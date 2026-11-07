@@ -1,21 +1,5 @@
 import Foundation
 
-/// Heuristic code suggestions over a directory (Legacy
-/// `SwiftCode/Services/CodeSuggestionsML.swift`, Dylan's own code,
-/// ported under MIT).
-///
-/// The destination had no suggestion engine at all. Legacy's engine
-/// is deterministic heuristics over the project's `.swift` files, not
-/// a model call — the suggestion set is ordered by
-/// `category.rawValue`, so all `codeQuality` suggestions come before
-/// `performance`, etc. The `MLModelConfiguration()` in Legacy was a
-/// placeholder for a future Core ML model and is dropped: there is no
-/// bundled model, and the heuristics say so wherever it matters.
-/// `analyze(directory:)` replaces Legacy's `analyze(project:)` —
-/// Legacy took a `Project` model that does not exist in the
-/// destination; the caller passes the directory to scan (typically
-/// the workspace root).
-
 public struct CodeSuggestion: Identifiable, Hashable {
     let id = UUID()
     let title: String
@@ -43,7 +27,6 @@ public final class CodeSuggestionsML: ObservableObject {
 
     public init() {}
 
-    /// Heuristic analysis of all `.swift` files below `directory`.
     public func analyze(directory: URL) {
         guard !isAnalyzing else { return }
         isAnalyzing = true

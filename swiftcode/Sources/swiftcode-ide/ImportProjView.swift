@@ -1,9 +1,3 @@
-// ImportProjView.swift
-//
-// Ported from Legacy `SwiftCode/Views/ImportProjView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: import picker UI (Select Archive File for .scproj with error alert); Open sheet accepting .scproj archives
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -112,7 +106,6 @@ struct ImportProjView: View {
                     await sessionStore.openProject(project)
                     dismiss()
                 } catch {
-                    // Error is handled by importManager
                 }
             }
         }

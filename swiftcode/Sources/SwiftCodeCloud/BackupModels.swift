@@ -1,11 +1,5 @@
 import Foundation
 
-/// Point-in-time backup metadata, ported verbatim from Legacy's
-/// `Frameworks/Internal/Backups/Models/BackupModels.swift`.
-/// `deviceName` defaults to the machine's host name (Legacy used
-/// `Host.current().localizedName`, which is AppKit-only);
-/// `appVersion` defaults to the bundle's short version string,
-/// `"1.0.0"` when the bundle carries none.
 public struct BackupManifest: Codable, Sendable, Identifiable, Equatable {
     public var id: String { backupID }
     public let backupID: String
@@ -34,17 +28,11 @@ public struct BackupManifest: Codable, Sendable, Identifiable, Equatable {
         self.deviceName = deviceName
     }
 
-    /// The bundle's short version string, or `"1.0.0"` when the
-    /// bundle carries none (Legacy's default).
     public static var defaultAppVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
     }
 }
 
-/// One file included in a snapshot, ported verbatim from Legacy's
-/// `BackupModels.swift`. (Recorded for the manifest format; the
-/// engine archives whole directories and does not build per-file
-/// entries, as in Legacy.)
 public struct BackupEntry: Codable, Sendable, Identifiable, Equatable {
     public var id: String { relativePath }
     public let relativePath: String
@@ -58,8 +46,6 @@ public struct BackupEntry: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-/// The result of a restore, ported verbatim from Legacy's
-/// `BackupModels.swift`.
 public struct RestoreResult: Codable, Sendable, Equatable {
     public let isSuccess: Bool
     public let restoredFileCount: Int

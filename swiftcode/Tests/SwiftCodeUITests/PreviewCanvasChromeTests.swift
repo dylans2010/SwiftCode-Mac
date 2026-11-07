@@ -4,8 +4,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// reference-ui-4.md §10 and §17: canvas states, header tabs, bottom bar,
-/// device menu, settings and placement (no builds).
 @MainActor
 @Suite(.timeLimit(.minutes(10))) struct PreviewCanvasChromeTests {
     func rendered(_ names: [String]) throws -> [PreviewRenderer.Rendered] {

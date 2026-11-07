@@ -1,12 +1,3 @@
-// RecordListView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/RecordListView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: sort options; rename/duplicate/delete actions in the list UI; middle-pane collapse
-// Legacy types now resolved in production: BrowserItemKind + UnifiedBrowserItem are declared
-// in this file; ModuleKind/WikiPage map to PersonalDocModuleKind/PersonalDocWikiPage in
-// SwiftCodeIDEShell (PersonalDocumentationModel.swift).
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -14,7 +5,6 @@ import AppKit
 
 @MainActor
 public func collapseMiddlePane() {
-    // Safe no-op in the modernized two-region desktop architecture
 }
 
 public struct RecordListView: View {
@@ -23,26 +13,21 @@ public struct RecordListView: View {
     @Binding public var selectedDocumentID: UUID?
     public var onSelect: (() -> Void)? = nil
 
-    // Unified list of all browseable items
     @State private var items: [UnifiedBrowserItem] = []
 
-    // Search, Filter, Sort States
     @State private var searchQuery = ""
     @State private var selectedKind: BrowserItemKind = .document
     @State private var sortOption: SortOption = .updatedAt
 
-    // Creation States
     @State private var showingCreateSheet = false
     @State private var newTitle = ""
     @State private var newKind: BrowserItemKind = .document
     @State private var newDocModuleKind: PersonalDocModuleKind = .personalDocumentation
 
-    // Snippet-specific creation states
     @State private var snippetLanguage = "Swift"
     @State private var snippetCategory = "Utility"
     @State private var snippetCode = ""
 
-    // Snapshot-specific creation state
     @State private var snapshotDescription = ""
 
     public enum SortOption: String, CaseIterable, Identifiable {
@@ -119,7 +104,6 @@ public struct RecordListView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Document Browser Control Bar
             VStack(spacing: 8) {
                 HStack(spacing: 12) {
                     NativeSearchField(text: $searchQuery, placeholder: "Search documentation titles or contents...")
@@ -156,7 +140,6 @@ public struct RecordListView: View {
 
             Divider()
 
-            // Main List Content
             if filteredAndSortedItems.isEmpty {
                 ContentUnavailableView {
                     Label(searchQuery.isEmpty ? "No Items Found" : "No Results", systemImage: "doc.text")
@@ -455,7 +438,6 @@ public struct RecordListView: View {
             }
         }
 
-        // Pinned prioritisation
         filtered.sort {
             let pin0 = $0.rawDocument?.pinned ?? false
             let pin1 = $1.rawDocument?.pinned ?? false
@@ -516,8 +498,6 @@ public struct RecordListView: View {
                 }
             case .wikiPage:
                 if let page = item.rawWikiPage {
-                    // No rename in the store: copy under the new title, then
-                    // delete the old-titled page.
                     _ = coordinator.store.createOrUpdateWikiPage(title: newName, content: page.markdownSource)
                     coordinator.store.deleteWikiPage(page)
                 }
@@ -539,7 +519,6 @@ public struct RecordListView: View {
             }
             loadAllItems()
         } catch {
-            // silent catch
         }
     }
 
@@ -615,7 +594,6 @@ public struct RecordListView: View {
             showingCreateSheet = false
             onSelect?()
         } catch {
-            // silent catch
         }
     }
 
@@ -624,8 +602,6 @@ public struct RecordListView: View {
             switch item.kind {
             case .document:
                 if let doc = item.rawDocument {
-                    // The store's create has no archetype/attachment parameters:
-                    // the copy keeps title (suffixed), kind, content and tags.
                     _ = try coordinator.documents.createDocument(
                         title: "\(doc.title) Copy",
                         kind: doc.moduleKind,
@@ -667,7 +643,6 @@ public struct RecordListView: View {
 
             loadAllItems()
         } catch {
-            // silent catch
         }
     }
 
@@ -718,7 +693,6 @@ public struct RecordListView: View {
 
             loadAllItems()
         } catch {
-            // silent catch
         }
     }
 }

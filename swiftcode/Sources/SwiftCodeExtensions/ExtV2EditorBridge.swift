@@ -1,28 +1,4 @@
-// Ported from Legacy SwiftCode/Backend/Extensions v2/Editor/ExtV2EditorBridge.swift
-// (Dylan's own code; direct port authorised under MIT). Landed by H-E.
-// Adaptations: `ExtV2WorkspaceBridge` -> the rebuilt `WorkspaceBridge`
-// (same `readFile(relativePath:extensionId:)` / `writeFile(relativePath:content:extensionId:)`
-// API); `ExtV2Error.invalidRequest` -> `SwiftCodeExtensionError.invalidRequest`
-// (the destination error type, same case). Declares ExtV2TextPosition /
-// ExtV2TextRange / ExtV2TextEdit / ExtV2DocumentState / ExtV2DocumentStore /
-// ExtV2FileDocumentStore / ExtV2EditorBridge. Resolves ExtV2VSCodeAPI.swift's
-// header note (`ExtV2Diagnostic.range: ExtV2TextRange`) and the
-// `host.applyEdit` path in Legacy ExtV2Manager.
 import Foundation
-
-// MARK: - Editor bridge
-//
-// Honest scope note (see Docs/Extensions-v2.md): v1 of this bridge
-// operates on workspace files through the workspace bridge and posts
-// `ExtV2DocumentDidChange` for the app's editor to observe. It does not
-// reach into an NSTextView's undo stack, so an extension edit is a file
-// write that the editor reloads — undo for extension edits lives in the
-// file's own history, not in the editor's undo manager. Direct NSTextView
-// integration is the documented next wiring step, not something this
-// file pretends to already do. What it *does* guarantee: edits are
-// validated against the on-disk content they were based on (optimistic
-// concurrency via expected content), selections are preserved as data,
-// and conflicting edits fail instead of silently overwriting.
 
 public struct ExtV2TextPosition: Codable, Hashable, Sendable {
     public let line: Int
@@ -45,14 +21,9 @@ public struct ExtV2TextEdit: Codable, Hashable, Sendable {
 public struct ExtV2DocumentState: Sendable {
     public let relativePath: String
     public let content: String
-    /// Selection preserved across an edit, as character offsets into the
-    /// document, so callers can restore it after applying edits.
     public let selection: Range<Int>?
 }
 
-/// Document store protocol: the app wires its real document model here.
-/// The file-backed implementation below is the default; it is a real
-/// store (reads/writes real workspace files), not a disconnected buffer.
 public protocol ExtV2DocumentStore: Sendable {
     func read(relativePath: String) throws -> String
     func write(relativePath: String, content: String) throws
@@ -77,14 +48,8 @@ public struct ExtV2FileDocumentStore: ExtV2DocumentStore {
 }
 
 public enum ExtV2EditorBridge {
-    /// Applies edits to a document's lines, in reverse order so earlier
-    /// ranges stay valid. Lines/characters are 0-based; characters count
-    /// Swift Characters (grapheme clusters), so emoji and combining marks
-    /// do not split. Overlapping edits are rejected, not merged silently.
     public static func applyEdits(_ edits: [ExtV2TextEdit], to content: String) throws -> String {
         var lines = content.components(separatedBy: "\n")
-        // Keep a trailing-newline round-trip: components() drops the final
-        // empty segment's meaning, so re-joining reproduces the original.
         let sorted = edits.sorted { lhs, rhs in
             if lhs.range.start.line != rhs.range.start.line { return lhs.range.start.line > rhs.range.start.line }
             return lhs.range.start.character > rhs.range.start.character
@@ -92,8 +57,6 @@ public enum ExtV2EditorBridge {
         var previousStart: (line: Int, character: Int)?
         for edit in sorted {
             if let prev = previousStart {
-                // Sorted descending: this edit must end at or before the
-                // previous (later) edit's start, or the ranges overlap.
                 if edit.range.end.line > prev.line
                     || (edit.range.end.line == prev.line && edit.range.end.character > prev.character) {
                     throw SwiftCodeExtensionError.invalidRequest("Overlapping text edits are not supported.")
@@ -119,8 +82,6 @@ public enum ExtV2EditorBridge {
         return lines.joined(separator: "\n")
     }
 
-    /// Offset of a (line, character) position in the full document text,
-    /// or nil when out of range. Used to preserve selections across edits.
     public static func offset(for position: ExtV2TextPosition, in content: String) -> Int? {
         let lines = content.components(separatedBy: "\n")
         guard position.line < lines.count, position.character <= lines[position.line].count else { return nil }

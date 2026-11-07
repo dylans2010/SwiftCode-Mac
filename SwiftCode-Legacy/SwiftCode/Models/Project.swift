@@ -42,9 +42,6 @@ public struct CIBuildConfiguration: Codable {
 }
 
 public struct ProjectBuildSettings: Codable, Sendable {
-    /// Persisted per-project build metadata edited in Project Settings.
-    /// All properties carry defaults so the synthesized Codable conformance
-    /// tolerates older project.json payloads that lack these keys.
     public var organizationName: String = ""
     public var bundleIdentifier: String = ""
     public var marketingVersion: String = "1.0.0"
@@ -54,16 +51,9 @@ public struct ProjectBuildSettings: Codable, Sendable {
     public var swiftLanguageVersion: String = "6.0"
     public var deploymentTargetPlatform: String = "macOS"
     public var deploymentTargetVersion: String = "15.0"
-    /// When nil, build configurations are derived from the .xcodeproj on disk.
-    /// Set once the user edits the list in Project Settings.
     public var buildConfigurationOverrides: [String]? = nil
-    /// Per-target bundle identifier overrides, keyed by target name.
     public var targetBundleIDOverrides: [String: String] = [:]
-    /// Persisted Xcode build-setting overrides, keyed by setting name
-    /// (e.g. "SWIFT_OPTIMIZATION_LEVEL"). Keys absent here fall back to the
-    /// values detected in the project's build settings.
     public var xcodeSettings: [String: String] = [:]
-    /// Relative paths inside the project directory; empty = auto-detect.
     public var infoPlistPath: String = ""
     public var entitlementsPath: String = ""
     public var codeSignStyle: String = "Automatic"
@@ -80,7 +70,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
     public var lastOpened: Date
     public var files: [FileNode]
     public var githubRepo: String?
-    public var githubToken: String? // stored in keychain, not persisted here
+    public var githubToken: String?
     public var description: String
     public var ciBuildConfiguration: CIBuildConfiguration?
     public var transferConfiguration: ProjectTransferConfiguration?
@@ -165,7 +155,6 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
 
     public var fileCount: Int = 0
 }
-
 
 public struct ProjectTransferConfiguration: Codable, Hashable, Sendable {
     public var originPeerID: String?

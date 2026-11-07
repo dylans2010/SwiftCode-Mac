@@ -1,8 +1,5 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIAIAssistant.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
-/// Elegant AI prompt assistant to redesign, optimize, or generate SwiftUI screens using native macOS patterns.
 public struct VisualUIAIAssistant: View {
     @Environment(\.dismiss) private var dismiss
     let document: VisualUIDocument
@@ -11,7 +8,6 @@ public struct VisualUIAIAssistant: View {
     @State private var isProcessing = false
     @State private var responseOutput = ""
 
-    // Native preset prompts for professional workflow
     private let quickActions = [
         ("Clean Layout", "Optimize padding, spacing, and center alignment for maximum elegance."),
         ("Modern Grid", "Convert the current container layout into an adaptive grid structure."),
@@ -26,9 +22,7 @@ public struct VisualUIAIAssistant: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Main split content
                 HSplitView {
-                    // Left Side: AI Prompts and Inputs
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Co-Design Assistant")
@@ -38,7 +32,6 @@ public struct VisualUIAIAssistant: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        // Prompts input area
                         VStack(alignment: .leading, spacing: 6) {
                             Text("AI Assistant Prompt")
                                 .font(.caption.bold())
@@ -53,7 +46,6 @@ public struct VisualUIAIAssistant: View {
                                 .frame(height: 100)
                         }
 
-                        // Generate Button
                         HStack {
                             Spacer()
                             Button {
@@ -76,7 +68,6 @@ public struct VisualUIAIAssistant: View {
 
                         Divider()
 
-                        // Quick Actions List
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Quick Actions")
                                 .font(.caption.bold())
@@ -116,7 +107,6 @@ public struct VisualUIAIAssistant: View {
                     .padding(16)
                     .frame(minWidth: 260, maxWidth: .infinity, maxHeight: .infinity)
 
-                    // Right Side: Live Suggestion View & Applying Code
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Generated Recommendations")
                             .font(.caption.bold())

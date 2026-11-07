@@ -1,13 +1,4 @@
 #!/bin/sh
-# Build the R6 render-check tools for the iOS simulator.
-# Usage: build.sh <output-dir>   (outside the repo; binaries are not committed)
-# Produces:
-#   <out>/capture/SimFramebuffer.framework/SimFramebuffer  headless framebuffer + capture (sfbcapture.c)
-#   <out>/rcenv.dylib   getenv/dlopen logger and service deny list (rcenv.c)
-#   <out>/isdump        R5 test IOSurface server + dump by surface ID (isdump.c)
-#   <out>/mtlprobe      Metal device probe (mtlprobe.m)
-#   <out>/YcodeProbe.app  the probe app (../ProbeApp, unmodified)
-#   <out>/YcodeTick.app   TickApp/: content changes 5 times a second
 set -e
 OUT=${1:?output directory}
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -29,7 +20,6 @@ for f in capture/SimFramebuffer.framework/SimFramebuffer rcenv.dylib isdump mtlp
   codesign -s - -f "$OUT/$f" >/dev/null
 done
 echo "built in $OUT"
-# TickApp: an app whose content changes 5 times a second (liveness check)
 mkdir -p "$OUT/YcodeTick.app"
 xcrun --sdk iphonesimulator swiftc -target $TARGET -sdk "$SDK" -module-name YcodeTick \
     -O -o "$OUT/YcodeTick.app/YcodeTick" "$HERE/TickApp/main.swift"

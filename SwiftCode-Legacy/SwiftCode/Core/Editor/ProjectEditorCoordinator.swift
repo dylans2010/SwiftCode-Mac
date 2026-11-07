@@ -109,17 +109,14 @@ public final class ProjectEditorCoordinator: Sendable {
     public var selectedCapabilityID: String?
     public var selectedInfoPlistEntryKey: String?
 
-    // Navigation persistence and restoration
     public var expandedDisclosureGroups: Set<String> = []
     public var scrollPosition: Double = 0.0
     public var searchState: String = ""
 
-    // Navigation history
     private var history: [ProjectSection] = [.overview]
     private var historyIndex: Int = 0
     public var recentlyViewed: [ProjectSection] = [.overview]
 
-    // Undo / Redo for routing state
     private struct RouteState: Equatable {
         let tab: ProjectSection
         let targetID: String?
@@ -139,7 +136,6 @@ public final class ProjectEditorCoordinator: Sendable {
     private func recordNavigation(_ section: ProjectSection) {
         guard isRecordingHistory else { return }
 
-        // Remove forward history if we navigated to a new place
         if historyIndex < history.count - 1 {
             history.removeSubrange((historyIndex + 1)...)
         }
@@ -154,7 +150,6 @@ public final class ProjectEditorCoordinator: Sendable {
             }
         }
 
-        // Push current state to undo stack
         let state = RouteState(
             tab: section,
             targetID: selectedTargetID,

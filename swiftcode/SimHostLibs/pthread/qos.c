@@ -1,22 +1,3 @@
-/*
- * qos.c - quality-of-service classes and the dispatch-facing workqueue SPI
- * of SwiftCode's libsystem_pthread.
- *
- * Clean-room SwiftCode code, from the public <sys/qos.h> / <pthread/qos.h>
- * documentation (qos_class_self, pthread_set_qos_class_self_np, ...) and
- * host-library-init.md sections 3.3, 5.3 and 6.
- *
- * pthread_priority_t encoding (from the default value 0x8FF in section
- * 5.3): thread QoS index q (1 maintenance ... 6 user-interactive) sets bit
- * 8 + q - 1; the low byte is (relative priority - 1) as an unsigned byte
- * (0xFF = relative priority 0); the top byte holds flags. TSD slot 4 holds
- * the thread's pthread_priority_t.
- *
- * QoS is recorded in TSD slot 4. SwiftCode's kernel has no QoS scheduler, so
- * QoS changes and overrides are not sent to it; the one property change the
- * kernel must see is a workqueue thread unbinding from its kqueue bucket
- * (threads-and-events.md sections 1.5 and 3.8 K5).
- */
 #include "yc_pthread.h"
 
 static const unsigned qos_classes[7] = {
@@ -61,13 +42,11 @@ YC_HIDDEN unsigned __yc_pp_decode(yc_u64 pp, int *relpri, yc_u64 *flags)
     return __yc_qos_class(index);
 }
 
-/* ---- public QoS API ----------------------------------------------------- */
-
 YC_EXPORT unsigned YC_FN(qos_class_self)(void)
 {
     yc_u64 pp = __yc_tsd()[YC_TSD_QOS];
     if (pp == 0 && !__yc_pt.init_done)
-        pp = __yc_pt.main_qos; /* before __pthread_init: the main default */
+        pp = __yc_pt.main_qos;
     return __yc_pp_decode(pp, YC_NULL, YC_NULL);
 }
 
@@ -110,7 +89,6 @@ YC_EXPORT int YC_FN(pthread_get_qos_class_np)(yc_pthread_t t, unsigned *qos, int
     return 0;
 }
 
-/* Overrides have no effect with one thread; the handle is a token. */
 static yc_u64 override_token;
 
 YC_EXPORT void *YC_FN(pthread_override_qos_class_start_np)(yc_pthread_t t, unsigned qos, int relpri)
@@ -192,8 +170,6 @@ YC_EXPORT int YC_FN(_pthread_workqueue_asynchronous_override_reset_all_self)(voi
     return 0;
 }
 
-/* ---- pthread_priority_t SPI --------------------------------------------- */
-
 YC_EXPORT yc_u64 YC_FN(_pthread_qos_class_encode)(unsigned qos, int relpri, unsigned long flags)
 {
     int idx = __yc_qos_index(qos);
@@ -211,11 +187,6 @@ YC_EXPORT unsigned YC_FN(_pthread_qos_class_decode)(yc_u64 pp, int *relpri, unsi
     return q;
 }
 
-/* Applies properties to the calling thread. The flags are the kernel's
- * SET_SELF flags (threads-and-events.md 1.5): QOS 0x01 sets slot 4 from
- * `priority`; VOUCHER, FIXEDPRIORITY and TIMESHARE are accepted and have no
- * effect; WQ_KEVENT_UNBIND 0x10 is passed to the kernel (bsdthread_ctl
- * SET_SELF), and on success the thread's NEEDS_UNBIND bit is cleared. */
 YC_EXPORT int YC_FN(_pthread_set_properties_self)(unsigned flags, yc_u64 priority, yc_u32 voucher)
 {
     yc_uintptr_t *tsd = __yc_tsd();
@@ -229,5 +200,3 @@ YC_EXPORT int YC_FN(_pthread_set_properties_self)(unsigned flags, yc_u64 priorit
     }
     return 0;
 }
-
-/* The workqueue SPI (setup, thread requests, workloops) is in workq.c. */

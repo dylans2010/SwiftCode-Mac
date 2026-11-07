@@ -43,7 +43,7 @@ public struct VMPortForwarding: Codable, Sendable, Identifiable, Hashable {
     public var name: String
     public var hostPort: Int
     public var guestPort: Int
-    public var protocolType: String // "TCP" or "UDP"
+    public var protocolType: String
 
     public init(id: UUID = UUID(), name: String, hostPort: Int, guestPort: Int, protocolType: String = "TCP") {
         self.id = id
@@ -75,7 +75,7 @@ public struct VMSnapshot: Codable, Sendable, Identifiable, Hashable {
 public struct VirtualMachine: Codable, Sendable, Identifiable, Hashable {
     public let id: UUID
     public var name: String
-    public var osType: String // Ubuntu, Debian, Fedora, Alpine
+    public var osType: String
     public var version: String
     public var status: VMStatus
     public var cpuCores: Int
@@ -89,9 +89,8 @@ public struct VirtualMachine: Codable, Sendable, Identifiable, Hashable {
     public var sharedFolders: [VMSharedFolder]
     public var portForwardings: [VMPortForwarding]
     public var snapshots: [VMSnapshot]
-    public var attachedProjects: [UUID] // Attached project IDs
+    public var attachedProjects: [UUID]
 
-    // Expanded SwiftCode Virtualization Subsystems
     public var isPinned: Bool
     public var isFavorite: Bool
     public var isBookmarked: Bool

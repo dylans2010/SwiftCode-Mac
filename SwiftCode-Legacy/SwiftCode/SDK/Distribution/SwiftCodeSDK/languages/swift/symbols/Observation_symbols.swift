@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for Observation
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct ObservationSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "observation.symbol.0"
     public var name: String = "ObservationSymbolName_0"

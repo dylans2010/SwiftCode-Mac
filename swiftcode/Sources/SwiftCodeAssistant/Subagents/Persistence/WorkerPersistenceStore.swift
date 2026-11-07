@@ -1,57 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Worker Persistence (ported from Legacy, adapted)
-//
-// Ported from Legacy (Dylan's own code; direct port authorised under
-// MIT): `SwiftCode/Backend/Assist/Subagents/Persistence/WorkerPersistenceStore.swift`
-// — durable persistence and crash-recovery for Assist Workers
-// (M-PERSIST). The persistence logic (JSON snapshot to UserDefaults
-// + workspace `.swiftcode/workers/worker_state.json`, tolerant
-// decode, filesystem reconciliation, interrupted-worker resume) is
-// Legacy-verbatim.
-//
-// Destination: `SwiftCodeAssistant` (SwiftPM target, depends only on
-// `SwiftCodeSubprocess`). Imports Foundation + os only (`Logger` is
-// already used this way elsewhere in this target, e.g.
-// `SkillsRuntime.swift`).
-//
-// Adaptations (Legacy dependencies with no destination equivalent —
-// each becomes a narrow injected seam instead of an invented fake):
-//   * `WorkerRuntimeState.shared` — no destination equivalent
-//     (`docs/ma-reconciliation.md` lists
-//     `Subagents/Engine/WorkerRuntimeState.swift` as
-//     GENUINELY_MISSING). Replaced by the injected
-//     `WorkerRuntimeStateProviding` protocol below, which carries
-//     exactly the surface this store uses (`allWorkers`, `handoffs`,
-//     `register(worker:)`, `stopWorker(id:reason:mode:)`,
-//     `getWorker(id:)`). The orchestrator slice that ports
-//     `WorkerRuntimeState` conforms it (see the
-//     `WorkerRuntimeStateProviding` conformance appended to
-//     `WorkerRuntimeState.swift`); the host constructs the store
-//     with the real implementations, and `WorkerRecoveryEngine`
-//     holds a store built on the real shared state and scheduler.
-//   * `WorkerScheduler.shared.scheduleAndExecute` — no destination
-//     equivalent (`Subagents/Coordination/WorkerScheduler.swift` is
-//     likewise GENUINELY_MISSING). Replaced by the injected
-//     `WorkerScheduling` protocol below. The scheduler slice
-//     conforms it.
-//   * `AssistContext` — no destination equivalent (only
-//     `context.sessionId`, a UUID, was ever read). The resume entry
-//     points now take `parentTaskID: UUID` directly.
-// Persistence locations are Legacy-verbatim: the per-workspace file
-// (`.swiftcode/workers/worker_state.json`) is workspace-scoped state
-// by design, the UserDefaults key is the cross-workspace fallback,
-// and `clear()` removes the Application Support
-// `SwiftCode/workers` directory, matching the destination's
-// Application Support convention (`OfflineModelStorage.swift`).
-
-/// The exact runtime-state surface `WorkerPersistenceStore` needs.
-///
-/// Provided by the orchestrator slice that ports Legacy's
-/// `WorkerRuntimeState`; this store never invents worker state.
-/// `@MainActor`: the runtime state is a `@MainActor` type, so a
-/// non-isolated protocol would reject its conformance under Swift 6.
 @MainActor
 public protocol WorkerRuntimeStateProviding: AnyObject {
     var allWorkers: [Worker] { get }
@@ -61,16 +10,6 @@ public protocol WorkerRuntimeStateProviding: AnyObject {
     func getWorker(id: UUID) -> Worker?
 }
 
-/// The exact scheduling surface `WorkerPersistenceStore` needs to
-/// resume interrupted workers.
-///
-/// Provided by the scheduler slice that ports Legacy's
-/// `WorkerScheduler`. `workspaceRoot` is threaded through because the
-/// scheduler builds a `WorkerExecutionContext` per resume, and the
-/// context needs the real workspace root — never a guessed one.
-/// Both seam protocols are `@MainActor`: the runtime state and the
-/// scheduler are `@MainActor` types, so a non-isolated protocol
-/// would reject their conformances under Swift 6.
 @MainActor
 public protocol WorkerScheduling: AnyObject {
     func scheduleAndExecute(assignments: [WorkerAssignment], parentTaskID: UUID, workspaceRoot: URL) async -> [WorkerResult]
@@ -122,10 +61,9 @@ public struct WorkerReconciliationReport: Codable, Sendable {
     }
 }
 
-/// Durable persistence and crash-recovery engine for Assist Workers (M-PERSIST).
-/// Extends existing Assist persistence architecture to ensure no Worker work is ever lost (INV-10).
 @MainActor
 public final class WorkerPersistenceStore: Sendable {
+    public static let shared = WorkerPersistenceStore(runtimeState: WorkerRuntimeState.shared, scheduler: WorkerScheduler.shared)
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkerPersistenceStore")
     private let storageKey = "com.swiftcode.assist.workers.tree"
     private let fileManager = FileManager.default
@@ -180,10 +118,6 @@ public final class WorkerPersistenceStore: Sendable {
         }
     }
 
-    /// The host supplies the real runtime state and scheduler (see
-    /// the file header: neither exists in the destination yet, so
-    /// there is no `shared` singleton until the orchestrator and
-    /// scheduler slices land and can back one).
     public init(runtimeState: any WorkerRuntimeStateProviding, scheduler: any WorkerScheduling) {
         self.runtimeState = runtimeState
         self.scheduler = scheduler
@@ -207,7 +141,6 @@ public final class WorkerPersistenceStore: Sendable {
         }
     }
 
-    /// Persists the complete Worker tree continuously to durable storage
     public func persistWorkers(_ workers: [Worker], parentTaskID: UUID, workspaceRoot: URL? = nil) {
         let assignments = mergedAssignments(for: workers)
         let reviews = workers
@@ -283,7 +216,6 @@ public final class WorkerPersistenceStore: Sendable {
         return result
     }
 
-    /// Restores previously persisted Workers upon application restart or recovery
     public func restoreLastSession(from workspaceRoot: URL? = nil) -> PersistedTaskTree? {
         var tree = workspaceRoot != nil ? loadFromFile(in: workspaceRoot!) : nil
         if tree == nil {
@@ -329,7 +261,6 @@ public final class WorkerPersistenceStore: Sendable {
         }
     }
 
-    /// Verifies claimed file changes against the actual filesystem after a session restore
     public func reconcileWithFilesystem(workspaceRoot: URL) -> WorkerReconciliationReport {
         var discrepancies: [WorkerReconciliationDiscrepancy] = []
         var verifiedClaims = 0
@@ -386,7 +317,6 @@ public final class WorkerPersistenceStore: Sendable {
         return workspaceRoot.appendingPathComponent(path).path
     }
 
-    /// Re-schedules workers that were interrupted mid-flight (non-terminal status at restore time)
     public func resumeInterruptedWorkers(parentTaskID: UUID, workspaceRoot: URL) async -> [WorkerResult] {
         let interrupted = runtimeState.allWorkers.filter { !$0.status.isTerminal }
         guard !interrupted.isEmpty else {
@@ -422,7 +352,6 @@ public final class WorkerPersistenceStore: Sendable {
         )
     }
 
-    /// Full crash-recovery entry point: restore state, reconcile claims with disk, resume interrupted work
     public func restoreReconcileAndResume(parentTaskID: UUID, workspaceRoot: URL) async -> (tree: PersistedTaskTree?, report: WorkerReconciliationReport, results: [WorkerResult]) {
         let tree = restoreLastSession(from: workspaceRoot)
         let report = reconcileWithFilesystem(workspaceRoot: workspaceRoot)
@@ -430,7 +359,6 @@ public final class WorkerPersistenceStore: Sendable {
         return (tree, report, results)
     }
 
-    /// Clears persisted records for a completed and cleanly archived task
     public func clear() {
         UserDefaults.standard.removeObject(forKey: storageKey)
         recordedAssignments.removeAll()

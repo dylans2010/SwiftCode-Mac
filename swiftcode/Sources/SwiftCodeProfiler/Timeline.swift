@@ -1,24 +1,13 @@
 import Foundation
 
-/// Hangs, signpost intervals and the timeline's per-column counts
-/// (`specs/ide/profiler.md` §2.2, §2.3, §4.4).
 public enum GaugeTimeline {
-    // MARK: Hangs
 
-    /// Hangs of `thread` (default: the main thread): maximal runs of samples
-    /// in a non-idle state, at least `threshold` long. A run ends at the
-    /// first idle sample; its end is the last non-idle sample plus one
-    /// sample interval.
     public static func hangs(_ t: GaugeTrace, thread: UInt64? = nil, threshold: UInt64? = nil) -> [GaugeTrace.Hang] {
         guard let tid = thread ?? t.mainThread?.id else { return [] }
         let limit = threshold ?? t.recording.hangThresholdNs
         let step = t.recording.sampleIntervalNs
         var out: [GaugeTrace.Hang] = []
         var begin: UInt64?, last: UInt64 = 0
-        // A long gap between samples (the thread did not exist or the
-        // recorder paused) also ends a run. Short gaps do not: a sampler
-        // under host load, or a kicked vCPU that did not answer, skips a
-        // few samples of a thread that kept running.
         let gap = Self.hangGapLimit(interval: step, threshold: limit)
         func close() {
             if let b = begin, last &+ step &- b >= limit { out.append(.init(thread: tid, begin: b, end: last &+ step)) }
@@ -38,16 +27,10 @@ public enum GaugeTimeline {
         return out
     }
 
-    /// The longest gap between two samples of a thread that a hang
-    /// bridges: max(4 sample intervals, a quarter of the threshold).
     public static func hangGapLimit(interval: UInt64, threshold: UInt64) -> UInt64 {
         max(4 * interval, threshold / 4)
     }
 
-    /// Signpost rows for a timeline: names, the target's own first (its
-    /// subsystem is the recorded command, an app's bundle identifier),
-    /// then intervals before events, then by count; ties by first
-    /// appearance. At most `limit` names.
     public static func signpostRows(_ t: GaugeTrace, limit: Int = .max) -> [String] {
         struct Row { var first: Int; var own = false; var interval = false; var count = 0 }
         var rows: [String: Row] = [:]
@@ -68,14 +51,10 @@ public enum GaugeTimeline {
         return ordered.prefix(limit).map(\.key)
     }
 
-    /// "Hang" or "Severe Hang" (4 × the threshold).
     public static func severity(_ h: GaugeTrace.Hang, threshold: UInt64) -> String {
         h.duration >= 4 * threshold ? "Severe Hang" : "Hang"
     }
 
-    // MARK: Signposts
-
-    /// A raw signpost record (as the in-app agent writes it).
     public struct SignpostEvent: Sendable, Equatable {
         public enum Kind: UInt8, Sendable { case event = 0, begin = 1, end = 2 }
         public var time: UInt64
@@ -98,13 +77,8 @@ public enum GaugeTimeline {
         }
     }
 
-    /// `OS_SIGNPOST_ID_EXCLUSIVE` (os/signpost.h).
     public static let exclusiveID: UInt64 = 0xEEEE_B0B5_B2B2_EEEE
 
-    /// Matches begins and ends (§2.3): key (subsystem, category, id, name);
-    /// exclusive ids match by (subsystem, category, name). Events stay
-    /// events; an unmatched end becomes an event flagged `unmatched`; an
-    /// open begin ends at `recordingEnd`, flagged `open`.
     public static func intervals(_ events: [SignpostEvent], recordingEnd: UInt64) -> [GaugeTrace.Signpost] {
         struct Key: Hashable { var subsystem: String; var category: String; var id: UInt64; var name: String }
         var open: [Key: [Int]] = [:]
@@ -147,7 +121,6 @@ public enum GaugeTimeline {
         public var minNs: UInt64
         public var meanNs: UInt64 { totalNs / UInt64(max(1, count)) }
 
-        /// Nothing counted yet.
         public init(name: String) {
             self.name = name
             count = 0
@@ -157,7 +130,6 @@ public enum GaugeTimeline {
         }
     }
 
-    /// Per name: intervals' count, total, min, max (events count with 0).
     public static func summarize(_ s: [GaugeTrace.Signpost]) -> [SignpostSummary] {
         var by: [String: SignpostSummary] = [:]
         for p in s {
@@ -172,9 +144,6 @@ public enum GaugeTimeline {
         return by.values.sorted { $0.totalNs != $1.totalNs ? $0.totalNs > $1.totalNs : $0.name < $1.name }
     }
 
-    // MARK: CPU track
-
-    /// CPU samples per column: `columns` equal slices of [range]; (user, kernel) counts.
     public static func cpuColumns(_ t: GaugeTrace, range: Range<UInt64>, columns: Int,
                                   threads: Set<UInt64>? = nil) -> [(user: Int, kernel: Int)] {
         guard columns > 0, range.upperBound > range.lowerBound else { return [] }
@@ -190,8 +159,6 @@ public enum GaugeTimeline {
         return out
     }
 
-    /// Frame intervals between presents longer than `factor` × the median
-    /// interval: (present time, interval ns).
     public static func longFrames(_ presents: [UInt64], factor: Double = 1.5) -> [(time: UInt64, interval: UInt64)] {
         guard presents.count > 2 else { return [] }
         let intervals = zip(presents.dropFirst(), presents).map { $0 &- $1 }

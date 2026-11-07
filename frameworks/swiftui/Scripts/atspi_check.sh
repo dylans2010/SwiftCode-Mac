@@ -1,16 +1,4 @@
 #!/bin/bash
-# OV-ATSPI: the AT-SPI client check on a Linux machine, without root.
-#
-#   Scripts/atspi_check.sh <out-dir>
-#
-# Runs, inside a private session bus (dbus-run-session), the mini IDE
-# (.build/debug/ov-mini-ide, built beforehand) on $DISPLAY, then
-# Scripts/atspi_client.py against it. The accessibility bus comes from the
-# system's at-spi2-core (the bus launcher is activated on the private
-# session bus; it starts its own bus daemon and the registry). Needs an X
-# server on $DISPLAY (Xvfb is fine), $OV_SDL3_LIBRARY, python3 with the
-# Atspi GObject bindings; $XDOTOOL (a command line) adds real clicks.
-# Writes app.log, client.log and the final state to <out-dir>.
 set -u
 OUT=${1:?out dir}
 HERE=$(cd "$(dirname "$0")/.." && pwd)

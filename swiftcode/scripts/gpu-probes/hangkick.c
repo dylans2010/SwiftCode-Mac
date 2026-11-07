@@ -1,12 +1,3 @@
-// hangkick: what ends a stuck submission on this device (metal-sim-protocol.md
-// §8.7)? A one-thread kernel reads address 0 (null) or loops until the host
-// writes a word (loop); after 3 s the probe either creates a second device
-// and submits there (KICK 1), waits the stuck device idle (KICK 2) or does
-// nothing (KICK 0), then destroys the device and runs a kernel on a third.
-// usage: hangkick oob.spv loop.spv null|loop|ok 0|1|2
-// Build (from swiftcode/, on a host with Vulkan):
-//   glslangValidator --target-env vulkan1.3 -V scripts/gpu-probes/oob.comp -o oob.spv (also loop.comp)
-//   gcc -O1 -I Sources/CVulkan/include -I Sources/CVulkan -o hangkick scripts/gpu-probes/hangkick.c Sources/CVulkan/CVulkan.c -ldl -lpthread
 #include "CVulkan.h"
 #include <stdio.h>
 #include <stdlib.h>

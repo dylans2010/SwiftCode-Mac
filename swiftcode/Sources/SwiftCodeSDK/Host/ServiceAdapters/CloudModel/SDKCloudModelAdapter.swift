@@ -1,26 +1,9 @@
 import Foundation
 import SwiftCodeAssistant
 
-// MARK: - SDKCloudModelAdapter
-//
-// Ported from Legacy `SwiftCode/SDK/Host/ServiceAdapters/CloudModel/SDKCloudModelAdapter.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Completes text through the SwiftCode Cloud Model for an entitled
-// extension. Pipeline: authorize `.useSwiftCodeModel` → validate bounds
-// → `SCCloudRateLimiter` pre-check (quota → `.resourceLimitExceeded`)
-// → `SCCloudProvider.complete` via the injected `AssistantProvider`.
-//
-// Cloud calls delegate to SwiftCodeAssistant's `SCCloudProvider` — never a
-// parallel client. When the cloud is unconfigured, `SCCloudProvider`
-// reports honestly (`AssistantError.notSignedIn`) and this adapter maps
-// it to `.serviceUnavailable`; the extension never sees raw endpoint or
-// credential detail.
-
 public actor SDKCloudModelAdapter {
     public static let shared = SDKCloudModelAdapter()
 
-    /// Bounds (Legacy §12).
     public static let maxPromptBytes = 65_536
     public static let maxHistoryEntries = 100
     public static let maxHistoryEntryBytes = 16_384
@@ -34,9 +17,6 @@ public actor SDKCloudModelAdapter {
         self.provider = provider
     }
 
-    /// Completes `request` for `caller`, returning the assistant reply
-    /// text. Quota is enforced before the call and consumed on a
-    /// completed round-trip by the provider.
     public func complete(caller: SDKCallerIdentity, request: SDKCloudModelCompletionRequest) async throws -> String {
         try await SDKCapabilityBroker.authorize(.useSwiftCodeModel, for: caller)
         try validate(request)
@@ -72,8 +52,6 @@ public actor SDKCloudModelAdapter {
         return text
     }
 
-    // MARK: - Private
-
     private func validate(_ request: SDKCloudModelCompletionRequest) throws {
         guard !request.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               request.prompt.utf8.count <= Self.maxPromptBytes else {
@@ -100,11 +78,6 @@ public actor SDKCloudModelAdapter {
         }
     }
 
-    /// Maps provider errors onto the SDK taxonomy. Rate limiting is
-    /// quota (`.resourceLimitExceeded`); not-configured, fingerprint,
-    /// network, server, and invalid-response failures are
-    /// `.serviceUnavailable` with a sanitized message (truncated, no
-    /// credentials, status code only in diagnostics).
     private func mapCloudError(_ error: Error) -> SDKError {
         if let assistantError = error as? AssistantError {
             switch assistantError {

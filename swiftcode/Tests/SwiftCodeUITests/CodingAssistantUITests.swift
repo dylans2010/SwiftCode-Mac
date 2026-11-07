@@ -5,14 +5,11 @@ import SwiftCodeAssistant
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// A scripted back end: answers with `reply` (in pieces), or keeps
-/// streaming until cancelled when `endless`.
 final class FakeProvider: AssistantProvider, @unchecked Sendable {
     let kind: ProviderKind
     let state: ProviderAvailability
     var reply: String
     var endless = false
-    /// The reply stops at the output limit (`.truncated` before `.finished`).
     var truncate = false
     private let lock = NSLock()
     private var received: [ChatRequest] = []
@@ -73,7 +70,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
             try "import SwiftUI\nstruct V: View { var body: some View { Text(\"x\") } }\n".write(to: src.appendingPathComponent("V.swift"), atomically: true, encoding: .utf8)
             defaults = TestDefaults("assist-\(tag)")
             savedServices = CodingAssistantServices.shared
-            // Not Preferences.shared: other suites run meanwhile and use it.
             prefs = Preferences(defaults: defaults.defaults)
             for k in ProviderKind.allCases {
                 fakes[k] = FakeProvider(k, ready.contains(k) ? .ready([ModelInfo(id: "\(k.rawValue)-model", contextWindow: 8192)])
@@ -119,7 +115,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         #expect(pane.model.sourceLabel == "Ollama · ollama-model")
         #expect(pane.modelChoiceTitles.contains("Ollama/ollama-model") && pane.modelChoiceTitles.contains("Codex/codex-model"))
         #expect(pane.statusText == nil)
-        // Choosing a back end that is not running explains it and offers the ready ones.
         pane.model.choose(.llamaCpp, model: nil)
         #expect(pane.statusText?.contains("llama.cpp is not running.") == true)
         let titles: [String] = pane.statusButtons.arrangedSubviews.compactMap { v in (v as? NSButton).map(\.title) }
@@ -138,7 +133,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         await pane.model.refreshAvailability().value
         #expect(!pane.model.hasUsableBackend)
         #expect(pane.statusText == AssistantBackends.noBackendText)
-        // Sending anyway explains instead of calling a server.
         let id = try #require(pane.model.send("Hi"))
         #expect(pane.model.conversation(id)?.messages.last?.error == "No Ollama model is available. Ollama is not running.")
         #expect(env.fakes[.ollama]?.requests.isEmpty == true)
@@ -173,15 +167,12 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         #expect(request.workingDirectory?.path == env.dir.path)
         #expect(request.messages.last?.content.contains("Current file Sources/Demo/Model.swift") == true)
         #expect(request.messages.last?.content.hasSuffix("What is Model?") == true)
-        // A follow-up carries the earlier turn.
         pane.messageView.string = "And value?"
         pane.sendClicked()
         await pane.model.response(id)?.value
         #expect(env.fakes[.ollama]?.requests.last?.messages.map(\.role) == [.user, .assistant, .user])
     }
 
-    /// coding-assistant.md §3.5: a reply cut off at the output limit says
-    /// so and offers Continue; requests carry the output limit.
     @Test func cutOffReplyOffersContinue() async throws {
         let env = try Env("cutoff", reply: "The first half")
         defer { env.restore() }
@@ -205,7 +196,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         #expect(c.messages[2].text == CodingAssistantModel.continuePrompt)
         #expect(c.messages[3].text == "and the rest." && c.messages[3].isCutOff == nil)
         #expect(pane.messageViews.last?.continueButton == nil)
-        // Not cut off: Continue does nothing.
         #expect(pane.model.continueReply(in: id) == nil)
     }
 
@@ -225,10 +215,8 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         #expect(pane.model.selectedID == first)
         #expect(pane.sendButton.title == "Stop")
         let running = pane.model.response(first)
-        // Stop only once the endless stand-in has streamed something, so the
-        // kept partial text below is not a race with the first chunk.
         #expect(await waitUntil(10) { !(pane.model.conversation(first)?.messages.last?.text.isEmpty ?? true) })
-        pane.sendClicked()   // Stop
+        pane.sendClicked()
         await running?.value
         #expect(pane.model.conversation(first)?.messages.last?.error == "Stopped.")
         #expect(pane.model.conversation(first)?.messages.last?.text.hasPrefix(".") == true)
@@ -249,14 +237,11 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         #expect(!wc.validateMenuItem(item("codingToolGeneratePreview:")))
         wc.open(path: env.dir.appendingPathComponent("Sources/Demo/V.swift").path, line: nil)
         #expect(wc.validateMenuItem(item("codingToolGeneratePreview:")))
-        // The menu bar entries send these actions.
         let file = CommandTable.menus.first { $0.0 == "File" }!.1
         guard case .submenu(_, let new)? = file.first, case .command(let conversation)? = new.first else { Issue.record("File ▸ New"); return }
         #expect(conversation.title == "Conversation" && conversation.action == "newConversation:" && conversation.isAvailable)
     }
 
-    /// Document on a selection: a proposal for the selection, reviewed in
-    /// the comparison view and applied to the open document only on Accept.
     @Test func documentProposalIsReviewedThenApplied() async throws {
         let env = try Env("document", reply: "Here:\n```swift selection\n/// A model.\nstruct Model {\n    var value = 1\n}\n```")
         defer { env.restore() }
@@ -279,7 +264,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         #expect(proposal.kind == .replaceSelection)
         #expect(pane.messageViews.last?.reviewButtons.count == 1)
 
-        // Reject: nothing changes.
         let rejected = try #require(wc.reviewProposal(proposal, message: reply, conversation: id))
         _ = rejected.view
         #expect(rejected.headline == "Change Model.swift: +1 −0 lines")
@@ -288,7 +272,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         #expect(wc.editor.text == original)
         #expect(pane.model.conversation(id)?.messages[1].resolvedProposals[0] == .rejected)
 
-        // Accept: the open document changes as one undoable edit; the file on disk does not.
         let accepted = try #require(wc.reviewProposal(proposal, message: reply, conversation: id))
         accepted.accept()
         #expect(wc.editor.text == "/// A model.\n" + original)
@@ -331,7 +314,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
         pane.choose("API key", inRow: "Sign-in method")
         #expect(env.prefs.codingAssistant.openAIAuth == .apiKey)
         #expect(pane.rowTitles.contains("API key") && !pane.rowTitles.contains("Account"))
-        // Enter and save a key: it goes to the secret store only.
         let row = try #require(pane.control(NSSecureTextField.self, inRow: "API key"))
         row.stringValue = "sk-test-not-real"
         let save = try #require((row.superview as? NSStackView)?.arrangedSubviews.compactMap { $0 as? NSButton }.first { $0.title == "Save" })
@@ -348,9 +330,6 @@ final class FakeProvider: AssistantProvider, @unchecked Sendable {
     }
 }
 
-/// Renders the Coding Assistant pane with a short conversation to a PNG
-/// (opt-in: `SWIFTCODE_ASSISTANT_SNAPSHOT=<path.png>`), for checking the layout
-/// without driving the screen.
 @MainActor
 @Suite(.serialized) struct CodingAssistantSnapshotTests {
     nonisolated static let path = ProcessInfo.processInfo.environment["SWIFTCODE_ASSISTANT_SNAPSHOT"]

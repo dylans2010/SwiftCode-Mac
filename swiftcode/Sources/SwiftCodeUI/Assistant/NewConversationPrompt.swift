@@ -2,17 +2,9 @@ import AppKit
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The toolbar New Conversation button's popover (reference-ui-6.md §9.4,
-/// A3), about 342 × 146: a multi-line prompt whose placeholder rotates
-/// through hints (the first "New conversation with <provider>"), and a
-/// bottom row with the attach and options buttons at the left and a round
-/// send button at the right, disabled while the prompt is empty. Return or
-/// the send button starts the conversation in the Coding Assistant pane;
-/// Escape closes the popover.
 @MainActor
 public final class NewConversationPromptController: NSViewController, NSTextViewDelegate {
     public static let size = NSSize(width: 342, height: 146)
-    /// Seconds between placeholder hints.
     public static let hintInterval: TimeInterval = 4
 
     public let model: CodingAssistantModel
@@ -21,11 +13,8 @@ public final class NewConversationPromptController: NSViewController, NSTextView
     public let optionsButton = NSPopUpButton(frame: .zero, pullsDown: true)
     public let sendButton = NSButton()
     let attachedLabel = NSTextField(labelWithString: "")
-    /// The current file and selection, for the attach menu.
     public var attachmentSource: (() -> (file: Attachment?, selection: Attachment?))?
-    /// Starts the conversation (the window shows the pane and sends).
     public var onSend: ((String, [Attachment]) -> Void)?
-    /// Escape: the window closes the popover.
     public var onCancel: (() -> Void)?
     public var onOpenSettings: (() -> Void)?
     public private(set) var pendingAttachments: [Attachment] = []
@@ -40,7 +29,6 @@ public final class NewConversationPromptController: NSViewController, NSTextView
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The placeholder's hints, in order.
     public var hints: [String] {
         ["New conversation with \(model.providerKind.displayName)",
          "Ask about the current file",
@@ -68,7 +56,7 @@ public final class NewConversationPromptController: NSViewController, NSTextView
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
-        scroll.autohidesScrollers = true   // no empty scroller track on the glass
+        scroll.autohidesScrollers = true
 
         AttachMenu.configure(attachButton, target: self, action: #selector(attachChosen(_:)))
         optionsButton.isBordered = false
@@ -130,7 +118,6 @@ public final class NewConversationPromptController: NSViewController, NSTextView
         timer = nil
     }
 
-    /// The next hint (the timer calls it while the popover is shown).
     public func advanceHint() {
         hintIndex = (hintIndex + 1) % hints.count
         showHint()
@@ -160,7 +147,6 @@ public final class NewConversationPromptController: NSViewController, NSTextView
         sendButton.isEnabled = !promptView.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Sets the prompt as if typed (tests).
     public func setPrompt(_ s: String) {
         promptView.string = s
         updateSendButton()

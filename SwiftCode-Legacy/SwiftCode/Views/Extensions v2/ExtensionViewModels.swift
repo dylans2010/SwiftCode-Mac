@@ -1,13 +1,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Extensions v2 view models
-//
-// View models translate manager state into what a view shows. They own
-// no install state themselves: every action goes through ExtV2Manager,
-// and every list re-reads from it, so the UI can never drift from the
-// authoritative records.
-
 public enum ExtV2HomeSection: String, CaseIterable, Identifiable {
     case discover, installed, updates, enabled, disabled, native, xcode, permissions, settings, diagnostics
 

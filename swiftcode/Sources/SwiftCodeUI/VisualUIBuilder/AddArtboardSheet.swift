@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/AddArtboardSheet.swift` (Dylan's own code; direct port authorised under MIT).
-// M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
 import SwiftUI
 
 public struct AddArtboardSheet: View {
@@ -106,9 +104,6 @@ struct MyCustomView: View {
                         }
                     }
                     .task {
-                        // BuildDestinationResolver is absent from production; its audit
-                        // cover is DestinationCatalog (SwiftCodeBuild/Destinations.swift).
-                        // Loaded off the main actor: it shells out to xcrun simctl.
                         let names = await Task.detached {
                             DestinationCatalog.load().flatMap { $0.destinations }.filter { $0.kind == .simulator }.map { $0.name }
                         }.value

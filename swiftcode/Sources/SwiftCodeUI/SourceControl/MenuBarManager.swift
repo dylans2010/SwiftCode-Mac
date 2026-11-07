@@ -1,25 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Menu Bar/MenuBarManager.swift
-//
-// Adapted for SwiftCode: `GitMenuBarCommandExecutor.runGitCommand`
-// ran through Legacy's `ProcessRunnerTool` (missing here; audit-A
-// records it COVERED-BY-REDESIGN by `SwiftCodeSubprocess.Subprocess.run`),
-// so it now runs the synchronous `Subprocess.run` on a detached task
-// (same helper shape as `WorkflowManager.runShell`). Everything else
-// is verbatim. DANGLING DEPS, all pre-existing tree gaps, not new:
-//   - RESOLVED (Q-GH2): the 17 `NS*View` cases in `MenuBarRootView`
-//     are now ported verbatim-then-adapted into
-//     `SwiftCodeUI/SourceControl/`; the three A4-redesigned views
-//     (`NSPushOptionsView`, `NSForcePushView`, `NSCherryPickView`)
-//     resolve through `MenuBarRootView.activeRepository`.
-//   - `GitHubSettingsView` (in `NoLinkedRepositoryCard`) does not exist.
-//     (P-GH's slice: Legacy `Views/GitHub/GitHubSettingsView.swift`.)
-//   - `PreferencesStore` (git executable override) is staged in
-//     staging-wire/unowned/ (F2's slice); `GitService` and
-//     `SettingsViewModel` already wait on it too.
-// `ProjectSessionStore` / `Project` are in `SwiftCodeIDECore`;
-// `GitService` is in `SwiftCodeSDK`.
-
 import SwiftCodeIDECore
 import SwiftCodeSDK
 import SwiftCodeSubprocess
@@ -55,7 +33,6 @@ public class MenuBarManager: NSObject, NSMenuDelegate {
             button.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Git Controls")
         }
 
-        // Create native menu
         let menu = NSMenu()
         menu.delegate = self
         for opt in options {
@@ -141,11 +118,6 @@ struct NoLinkedRepositoryCard: View {
 struct MenuBarRootView: View {
     @State private var selectedTab = "Commit"
 
-    /// The active project's repository for the three A4-redesigned views
-    /// (`NSPushOptionsView`, `NSForcePushView`, `NSCherryPickView`), which
-    /// take `init(repository:)` instead of Legacy's parameterless init.
-    /// Resolved on demand (one `git rev-parse`); nil with no active
-    /// project or no git checkout — those tabs then show an empty pane.
     private var activeRepository: GitRepository? {
         ProjectSessionStore.shared.activeProject.flatMap { GitRepository(containing: $0.directoryURL) }
     }
@@ -220,7 +192,6 @@ struct MenuBarRootView: View {
     }
 }
 
-// MARK: - No Active Project Fallback View
 public struct NoActiveProjectView: View {
     public var title: String
 
@@ -251,7 +222,6 @@ public struct NoActiveProjectView: View {
     }
 }
 
-// MARK: - Git Menu Bar Command Executor
 public enum GitMenuBarError: LocalizedError {
     case noActiveProject
     case gitError(String)
@@ -285,10 +255,6 @@ public struct GitMenuBarCommandExecutor {
         return URL(fileURLWithPath: "/usr/bin/git")
     }
 
-    /// Run a git command to completion via `SwiftCodeSubprocess`
-    /// (the production successor of Legacy's `ProcessRunnerTool`):
-    /// `Subprocess.run` is synchronous, so it runs on a detached task
-    /// to stay off the main thread.
     private static func runProcess(executableURL: URL, arguments: [String], workingDirectory: URL?) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
         let output = try await Task.detached {
             try Subprocess.run(executableURL.path, arguments, currentDirectory: workingDirectory)

@@ -3,68 +3,35 @@ import Observation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The Linux IDE's Coding Assistant pane (`specs/ide/coding-assistant.md`
-/// §4, issue #18) over the shared `CodingAssistantModel`: whether the left
-/// area shows it, the message being written and its attachments, and the
-/// review of proposed changes. The conversations, back ends, prompts and
-/// streaming are the shared model's; this class mirrors its changes into
-/// Observation (`revision`) so the SwiftUI views redraw, and applies
-/// accepted changes through the workspace's editor. It has no toolkit
-/// types, so it is tested headless on macOS and Linux.
 @MainActor
 @Observable
 public final class ShellAssistantModel {
     @ObservationIgnored public weak var workspace: WorkspaceShellModel?
 
-    /// The left area shows the pane instead of the navigators.
     public var isShown = false
-    /// The shared model, made the first time the pane is shown or used.
     public private(set) var core: CodingAssistantModel?
-    /// Bumped on every change of the shared model (views read it).
     public private(set) var revision = 0
-    /// The message being written, and what goes with it.
     public var draft = ""
     public private(set) var attachments: [Attachment] = []
-    /// The review sheet's change (Review…).
     public var review: AssistantChangeReview?
-    /// "The change can't be applied" (a path outside the workspace, a
-    /// selection that changed, a file that could not be created).
     public var alertText: String?
-    /// Bumped when the message field should take the keyboard.
     public private(set) var focusCount = 0
-    /// The toolbar's New Conversation prompt is open (`reference-ui-6.md`
-    /// §9.4), and what is typed in it.
     public var isPromptShown = false
     public var promptDraft = ""
-    /// The conversation or group whose title is being edited in the list.
     public var renamingID: UUID?
     public var renameText = ""
-    /// Opens Settings ▸ Coding Assistant (set by the app).
     @ObservationIgnored public var onOpenSettings: (() -> Void)?
-    /// The secret store, account and providers (nil: the app's
-    /// `CodingAssistantServices.shared`; tests pass their own).
     @ObservationIgnored public var services: CodingAssistantServices?
 
     @ObservationIgnored private var lastSettings: AssistantSettings?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
-    /// Proposal previews by message, block and text (the diff of a
-    /// proposal is computed once per version of the file it changes).
     @ObservationIgnored private var previewCache: [String: AssistantChangePreview] = [:]
-    /// The diff each decided proposal was accepted or rejected on (the
-    /// file moves on afterwards), by message and block.
     @ObservationIgnored private var decidedDiffs: [String: AssistantChangeDiff] = [:]
 
-    /// Posted by the settings pane when a key is saved or removed, or the
-    /// OpenAI sign-in changes: back ends are checked again.
     public static let credentialsDidChange = Notification.Name("SwiftCodeShellAssistantCredentialsDidChange")
 
     public init() {}
 
-    // MARK: The shared model
-
-    /// The shared model, made on first use: conversations saved per
-    /// workspace with SwiftCode's user data (not in test processes), context
-    /// from the workspace's editor, back ends checked at once.
     @discardableResult
     public func ensure() -> CodingAssistantModel {
         if let core { return core }
@@ -77,8 +44,6 @@ public final class ShellAssistantModel {
         m.observe(owner: self) { [weak self] _ in self?.revision &+= 1 }
         core = m
         lastSettings = prefs.codingAssistant
-        // No delivery queue: on Linux, Foundation waits for a queued
-        // observer to run, which deadlocks a poster on another thread.
         let center = NotificationCenter.default
         observers = [
             center.addObserver(forName: Preferences.didChange, object: nil, queue: nil) { [weak self] _ in
@@ -92,8 +57,6 @@ public final class ShellAssistantModel {
         return m
     }
 
-    /// Changed addresses, tool paths or the sign-in method: check the back
-    /// ends again; other changes redraw.
     private func settingsChanged() {
         guard let core else { return }
         let now = core.settings, before = lastSettings
@@ -107,8 +70,6 @@ public final class ShellAssistantModel {
         }
     }
 
-    // MARK: What the pane shows
-
     public var outline: [ConversationLibrary.Node] { _ = revision; return core?.library.outline ?? [ConversationLibrary.Node.archive([])] }
     public var selectedID: UUID? { _ = revision; return core?.selectedID }
     public var selected: Conversation? { _ = revision; return core?.selected }
@@ -117,7 +78,6 @@ public final class ShellAssistantModel {
     public var isSurveying: Bool { _ = revision; return core?.isSurveying ?? false }
     public var hasUsableBackend: Bool { _ = revision; return core?.hasUsableBackend ?? false }
     public var usesChatGPTPlan: Bool { _ = revision; return core?.usesChatGPTPlan ?? false }
-    /// The selected conversation's response is streaming (Send reads Stop).
     public var isResponding: Bool {
         _ = revision
         guard let core, let id = core.selectedID else { return false }
@@ -126,8 +86,6 @@ public final class ShellAssistantModel {
     public var hasActiveConversations: Bool { _ = revision; return !(core?.activeIDs.isEmpty ?? true) }
     public var canSend: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isResponding }
 
-    /// The note above the transcript when the chosen back end can't be
-    /// used: its hint and "Use <ready back end>" choices (nil: none).
     public var status: AssistantStatus? {
         _ = revision
         guard let core else { return nil }
@@ -138,8 +96,6 @@ public final class ShellAssistantModel {
                                alternatives: Array(core.readyProviders.prefix(3)), checking: false)
     }
 
-    /// The model pull-down: each back end with its state and its models
-    /// (coding-assistant.md §4).
     public var providerChoices: [AssistantProviderChoice] {
         _ = revision
         guard let core else { return [] }
@@ -169,30 +125,23 @@ public final class ShellAssistantModel {
         }
     }
 
-    // MARK: Showing the pane
-
-    /// Shows the pane in the left area (making the model the first time).
     public func show() {
         ensure()
         isShown = true
         workspace?.isNavigatorShown = true
     }
 
-    /// File ▸ New ▸ Conversation (⌃⌘H): the pane, a new conversation, the
-    /// message field focused. An untouched new conversation is reused.
     public func newConversation() {
         show()
         core?.newConversation()
         focusCount &+= 1
     }
 
-    /// The toolbar's New Conversation: opens its prompt, or closes it.
     public func togglePrompt() {
         ensure()
         isPromptShown.toggle()
     }
 
-    /// Sending from the prompt: a new conversation in the pane.
     @discardableResult
     public func sendPrompt() -> UUID? {
         let text = promptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -204,7 +153,6 @@ public final class ShellAssistantModel {
         return core.send(text, in: core.newConversation().id)
     }
 
-    /// Navigate ▸ Jump to Next Active Conversation (⌃⌘K).
     @discardableResult
     public func jumpToNextActive() -> Bool {
         guard let core, core.selectNextActive() != nil else { return false }
@@ -221,8 +169,6 @@ public final class ShellAssistantModel {
     public func checkAgain() { ensure().refreshAvailability() }
     public func choose(_ kind: ProviderKind, model: String?) { ensure().choose(kind, model: model) }
 
-    // MARK: The list
-
     public func newGroup() {
         let g = ensure().newGroup()
         beginRename(g.id, title: g.title)
@@ -233,7 +179,6 @@ public final class ShellAssistantModel {
         renameText = title
     }
 
-    /// Ends the rename in the list (a conversation's or a group's title).
     public func commitRename() {
         guard let id = renamingID, let core else { return }
         renamingID = nil
@@ -249,9 +194,6 @@ public final class ShellAssistantModel {
     public func setArchived(_ id: UUID, _ archived: Bool) { core?.setArchived(id, archived) }
     public func move(_ id: UUID, toGroup group: UUID?) { core?.move(id, toGroup: group) }
 
-    // MARK: The message field
-
-    /// The attach menu's choices: the current file and the selection.
     public var attachmentChoices: (file: Attachment?, selection: Attachment?) {
         guard let ctx = workspace?.assistantContext() else { return (nil, nil) }
         let file = ctx.currentFile.map { Attachment(kind: .file, path: $0.path, text: $0.text) }
@@ -265,8 +207,6 @@ public final class ShellAssistantModel {
 
     public func removeAttachment(_ a: Attachment) { attachments.removeAll { $0 == a } }
 
-    /// Send (Return): the message with its attachments in the selected
-    /// conversation (a new one if none); the answer streams in.
     @discardableResult
     public func send() -> UUID? {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -279,19 +219,13 @@ public final class ShellAssistantModel {
         return id
     }
 
-    /// Stop: cancels the selected conversation's response.
     public func stop() {
         guard let core, let id = core.selectedID else { return }
         core.stop(id)
     }
 
-    /// Continue after a reply cut off at the output limit.
     public func continueReply(in id: UUID) { core?.continueReply(in: id) }
 
-    // MARK: Coding tools (Editor ▸ Show Coding Tools)
-
-    /// Enabled for an editable file the tool applies to, while a back end
-    /// is usable (assumed until the back ends were first checked).
     public func canRun(_ tool: CodingTool) -> Bool {
         guard let w = workspace, let e = w.editor, e.readOnlyReason == nil else { return false }
         if let core, !core.availability.isEmpty, !core.hasUsableBackend { return false }
@@ -305,21 +239,15 @@ public final class ShellAssistantModel {
         return core?.run(tool)
     }
 
-    // MARK: Proposals
-
-    /// The proposals in a response (closed blocks only).
     public func proposals(in message: ConversationMessage) -> [ChangeProposal] {
         guard message.role == .assistant else { return [] }
         return ChangeProposal.parse(message.text, target: message.target)
     }
 
-    /// Proposals not yet accepted or rejected.
     public func undecided(in message: ConversationMessage) -> [ChangeProposal] {
         proposals(in: message).filter { message.resolvedProposals[$0.blockIndex] == nil }
     }
 
-    /// What accepting the proposal would do: the file's change as a diff,
-    /// or why it can't be applied.
     public func preview(_ p: ChangeProposal, in message: ConversationMessage) -> AssistantChangePreview {
         guard let w = workspace else { return .failed("No workspace is open.") }
         guard let path = w.assistantPath(p.path) else {
@@ -340,9 +268,6 @@ public final class ShellAssistantModel {
         return r
     }
 
-    /// Accept: the change goes into the file's editor (opened first) as
-    /// one undoable edit, unsaved; a new file is created and opened. Agent
-    /// changes are saved too (the agent builds from disk next).
     @discardableResult
     public func accept(_ p: ChangeProposal, message: ConversationMessage, conversation: UUID) -> Bool {
         guard message.resolvedProposals[p.blockIndex] == nil else { return false }
@@ -358,18 +283,14 @@ public final class ShellAssistantModel {
         return applied
     }
 
-    /// Reject: nothing changes; the block is marked Rejected.
     public func reject(_ p: ChangeProposal, message: ConversationMessage, conversation: UUID) {
         guard message.resolvedProposals[p.blockIndex] == nil else { return }
         if case .ready(let d) = preview(p, in: message) { decidedDiffs["\(message.id) \(p.blockIndex)"] = d }
         core?.resolve(message: message.id, in: conversation, proposal: p.blockIndex, .rejected)
     }
 
-    /// Accept All: every undecided proposal of the response, in order.
     public func acceptAll(in message: ConversationMessage, conversation: UUID) {
         for p in undecided(in: message) {
-            // The message is read again: an accepted change can move the
-            // text the next selection proposal applies to.
             guard let m = core?.conversation(conversation)?.messages.first(where: { $0.id == message.id }) else { return }
             accept(p, message: m, conversation: conversation)
         }
@@ -379,12 +300,10 @@ public final class ShellAssistantModel {
         for p in undecided(in: message) { reject(p, message: message, conversation: conversation) }
     }
 
-    /// The diff a decided proposal was decided on (nil after a relaunch).
     public func decidedDiff(_ p: ChangeProposal, in message: ConversationMessage) -> AssistantChangeDiff? {
         decidedDiffs["\(message.id) \(p.blockIndex)"]
     }
 
-    /// Review…: the change side by side in a sheet.
     public func openReview(_ p: ChangeProposal, message: ConversationMessage, conversation: UUID) {
         if message.resolvedProposals[p.blockIndex] != nil, let d = decidedDiff(p, in: message) {
             review = AssistantChangeReview(conversation: conversation, message: message.id, proposal: p, diff: d,
@@ -413,7 +332,6 @@ public final class ShellAssistantModel {
         reject(r.proposal, message: m, conversation: r.conversation)
     }
 
-    /// The text shown for a proposal's code block ("Proposed: …").
     public static func proposalTitle(_ p: ChangeProposal) -> String {
         switch p.kind {
         case .wholeFile: "Proposed: \(p.path)"
@@ -424,44 +342,33 @@ public final class ShellAssistantModel {
 }
 
 extension CodingAssistantModel {
-    /// The pull-down's title before the model exists.
     static let placeholderLabel = "Coding Assistant"
 }
 
-/// The status note above the transcript.
 public struct AssistantStatus: Equatable, Sendable {
     public var text: String
-    /// Ready back ends offered as "Use <name>".
     public var alternatives: [ProviderKind]
     public var checking: Bool
 }
 
-/// One back end in the model pull-down.
 public struct AssistantProviderChoice: Equatable, Sendable, Identifiable {
     public struct Model: Equatable, Sendable {
-        /// nil: the back end has no models listed (choosing it sets the
-        /// back end; the pane then says how to make it ready).
         public var id: String?
         public var title: String
         public var isCurrent: Bool
     }
     public var kind: ProviderKind
-    /// "Ollama (not running)".
     public var title: String
     public var isReady: Bool
     public var models: [Model]
     public var id: String { kind.rawValue }
 }
 
-/// What a proposal would change.
 public enum AssistantChangePreview: Equatable, Sendable {
     case ready(AssistantChangeDiff)
     case failed(String)
 }
 
-/// A proposed change to one file, as a diff: the file's current text (the
-/// open editor's, unsaved edits included, else the disk's; nil for a new
-/// file) and the text with the change.
 public struct AssistantChangeDiff: Equatable, Sendable {
     public var path: String
     public var relativePath: String
@@ -487,8 +394,6 @@ public struct AssistantChangeDiff: Equatable, Sendable {
     public var name: String { (path as NSString).lastPathComponent }
     public var isNewFile: Bool { original == nil }
 
-    /// The review's title: "Change Model.swift: +3 −1 lines" or "Create
-    /// Sources/New.swift" (coding-assistant.md §5.3).
     public var title: String {
         isNewFile ? "Create \(relativePath)" : "Change \(name): +\(added) \u{2212}\(removed) lines"
     }
@@ -501,8 +406,6 @@ public struct AssistantChangeDiff: Equatable, Sendable {
     }
 }
 
-/// One line of a compact unified diff: old and new line numbers, or a
-/// separator between the change's parts.
 public struct AssistantDiffLine: Equatable, Sendable {
     public enum Kind: Sendable { case context, added, removed, gap }
     public var kind: Kind
@@ -510,7 +413,6 @@ public struct AssistantDiffLine: Equatable, Sendable {
     public var new: Int?
     public var text: String
 
-    /// The changed lines with `context` unchanged lines around each.
     public static func unified(_ ops: [LineDiff.Op], context: Int = 3) -> [AssistantDiffLine] {
         var numbered: [AssistantDiffLine] = []
         var o = 0, n = 0
@@ -536,20 +438,16 @@ public struct AssistantDiffLine: Equatable, Sendable {
     }
 }
 
-/// The review sheet's change.
 public struct AssistantChangeReview: Identifiable, Equatable, Sendable {
     public var conversation: UUID
     public var message: UUID
     public var proposal: ChangeProposal
     public var diff: AssistantChangeDiff
-    /// Already accepted or rejected (the sheet then only shows it).
     public var decided: ProposalResolution?
     public var id: String { "\(message) \(proposal.blockIndex)" }
     public var acceptTitle: String { diff.isNewFile ? "Create File" : "Accept" }
 }
 
-/// Inline Markdown in a response's prose (coding-assistant.md §4: code
-/// spans and emphasis), as styled runs a view joins into one text.
 public enum AssistantInline {
     public struct Run: Equatable, Sendable {
         public var text: String
@@ -578,8 +476,6 @@ public enum AssistantInline {
             if c == "*" || c == "_" {
                 let next = s.index(after: i)
                 if next < s.endIndex, s[next] == c {
-                    // "**" (or "__") toggles bold when it opens before a
-                    // word or closes after one.
                     flush()
                     bold.toggle()
                     i = s.index(after: next)

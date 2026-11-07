@@ -1,15 +1,3 @@
-// llvm_libc.cpp - libSystem's math library and decimal-to-binary
-// conversions, taken from LLVM's libc (Apache-2.0 WITH LLVM-exception;
-// specs/macos/libsystem.md §13). LLVM libc implements each function in its
-// own namespace (LIBC_NAMESPACE, set by build.sh); this file gives them
-// their C names. Darwin's libm does not set errno (math_errhandling is
-// MATH_ERREXCEPT), so build.sh compiles LLVM libc with LIBC_MATH_NO_ERRNO.
-//
-// The few double-precision functions LLVM libc does not have yet (the
-// hyperbolic functions, erf, the gamma functions) are written here from
-// their textbook identities; they are accurate to a few ulps, not
-// correctly rounded.
-
 #include "src/math/acos.h"
 #include "src/math/acosf.h"
 #include "src/math/acoshf.h"
@@ -170,7 +158,6 @@ EXPORT long long llrintf(float x) { return L::llrintf(x); }
 EXPORT void sincos(double x, double *s, double *c) { L::sincos(x, s, c); }
 EXPORT void sincosf(float x, float *s, float *c) { L::sincosf(x, s, c); }
 
-// long double is double on arm64 Darwin.
 EXPORT long double fabsl(long double x) { return L::fabs((double)x); }
 EXPORT long double floorl(long double x) { return L::floor((double)x); }
 EXPORT long double ceill(long double x) { return L::ceil((double)x); }
@@ -184,8 +171,6 @@ EXPORT long double truncl(long double x) { return L::trunc((double)x); }
 EXPORT long double ldexpl(long double x, int e) { return L::ldexp((double)x, e); }
 EXPORT long double frexpl(long double x, int *e) { return L::frexp((double)x, e); }
 
-// The Darwin entry points clang emits for a sin/cos pair and for exp10:
-// the two results come back in d0/d1 (s0/s1).
 struct ycl_sincos {
     double s, c;
 };
@@ -209,8 +194,6 @@ EXPORT ycl_sincos __sincospi_stret(double x) {
 }
 EXPORT double __exp10(double x) { return L::exp10(x); }
 EXPORT float __exp10f(float x) { return L::exp10f(x); }
-
-// --- double-precision functions LLVM libc does not provide yet ---
 
 EXPORT double sinh(double x) {
     double ax = L::fabs(x);
@@ -252,8 +235,6 @@ EXPORT double acosh(double x) {
 
 EXPORT double atanh(double x) { return 0.5 * L::log1p(2.0 * x / (1.0 - x)); }
 
-// erf: the Maclaurin series near zero, else 1 - erfc from erfc's
-// continued fraction.
 EXPORT double erf(double x) {
     double ax = L::fabs(x);
     if (ax < 0.5) {
@@ -267,7 +248,6 @@ EXPORT double erf(double x) {
         return 1.1283791670955126 * sum;
     }
     if (ax > 6.0) return L::copysign(1.0, x);
-    // Continued fraction for erfc, then 1 - erfc.
     double t = 0.0;
     for (int n = 60; n >= 1; n--) t = (n / 2.0) / (ax + t);
     double erfc_ax = L::exp(-ax * ax) / (ax + t) * 0.5641895835477563;
@@ -284,7 +264,6 @@ EXPORT double erfc(double x) {
 
 EXPORT float erfcf(float x) { return (float)erfc(x); }
 
-// Lanczos approximation (g = 7, n = 9).
 static double lanczos_sum(double z) {
     static const double c[9] = {0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
                                 771.32342877765313,   -176.61502916214059,   12.507343278686905,
@@ -308,11 +287,10 @@ EXPORT double tgamma(double x) {
 
 EXPORT float lgammaf(float x) { return (float)lgamma(x); }
 
-// The reentrant forms also report the sign of Gamma(x).
 static int gamma_sign(double x) {
     if (x > 0.0) return 1;
     double f = L::floor(x);
-    if (f == x) return 1;  // a pole
+    if (f == x) return 1;
     return ((long long)f & 1) ? -1 : 1;
 }
 EXPORT double lgamma_r(double x, int *sign) {
@@ -328,15 +306,9 @@ EXPORT double nan(const char *tag) { return L::nan(tag); }
 EXPORT float nanf(const char *tag) { return L::nanf(tag); }
 EXPORT long double nanl(const char *tag) { return L::nan(tag); }
 
-// --- Bessel functions of the first and second kind (<math.h> j0 ... yn):
-//     power series below |x| = 8, Hankel's asymptotic expansion above,
-//     recurrences in the order. Accurate to about 1e-10, not correctly
-//     rounded. ---
-
 static const double kPi = 3.141592653589793238462643383279502884;
 static const double kEulerGamma = 0.577215664901532860606512090082402431;
 
-// J_n(x) by its power series (n = 0 or 1, |x| < 8).
 static double bessel_j_series(int n, double x) {
     double q = -0.25 * x * x, term = n ? 0.5 * x : 1.0, sum = term;
     for (int k = 1; k < 60; k++) {
@@ -347,13 +319,12 @@ static double bessel_j_series(int n, double x) {
     return sum;
 }
 
-// Hankel's asymptotic P and Q for order n (0 or 1), |x| >= 8.
 static void hankel_pq(int n, double x, double *p, double *q) {
     double mu = 4.0 * n * n, z = 8.0 * x, t = 1.0, ps = 1.0, qs = 0.0;
     for (int k = 1; k < 30; k++) {
         double a = (2 * k - 1), before = L::fabs(t);
         t *= (mu - a * a) / (k * z);
-        if (L::fabs(t) > before) break;  // the asymptotic series started to diverge
+        if (L::fabs(t) > before) break;
         if (k & 1) {
             qs += (k & 2) ? -t : t;
         } else {
@@ -394,7 +365,6 @@ EXPORT double y0(double x) {
     if (x < 0.0) return L::nan("");
     if (x == 0.0) return -__builtin_inf();
     if (x >= 8.0) return bessel_y_large(0, x);
-    // Y0 = (2/pi)(ln(x/2) + gamma) J0 + (2/pi) sum (-1)^(k+1) H_k (x^2/4)^k / (k!)^2
     double q = 0.25 * x * x, term = 1.0, h = 0.0, sum = 0.0;
     for (int k = 1; k < 60; k++) {
         term *= q / ((double)k * k);
@@ -410,12 +380,8 @@ EXPORT double y1(double x) {
     if (x < 0.0) return L::nan("");
     if (x == 0.0) return -__builtin_inf();
     if (x >= 8.0) return bessel_y_large(1, x);
-    // Y1 = (2/pi)(ln(x/2) + gamma) J1 - 2/(pi x)
-    //      - (1/pi) sum_k (-1)^k (H_k + H_{k+1} - 2 H_0 ...) form:
-    // Y1 = (2/pi) ln(x/2) J1 - 2/(pi x)
-    //      - (1/pi) sum_{k>=0} (-1)^k (psi(k+1) + psi(k+2)) (x/2)^(2k+1) / (k! (k+1)!)
     double half = 0.5 * x, q = half * half, term = half, sum = 0.0;
-    double psi1 = -kEulerGamma, psi2 = 1.0 - kEulerGamma;  // psi(k+1), psi(k+2) at k = 0
+    double psi1 = -kEulerGamma, psi2 = 1.0 - kEulerGamma;
     for (int k = 0; k < 60; k++) {
         if (k > 0) {
             term *= -q / ((double)k * (k + 1));
@@ -436,7 +402,6 @@ EXPORT double jn(int n, double x) {
     if (x == 0.0) return 0.0;
     double ax = L::fabs(x), r;
     if (ax > n) {
-        // Forward recurrence is stable above the order.
         double a = j0(ax), b = j1(ax);
         for (int k = 1; k < n; k++) {
             double c = (2.0 * k / ax) * b - a;
@@ -445,7 +410,6 @@ EXPORT double jn(int n, double x) {
         }
         r = b;
     } else {
-        // Miller's backward recurrence, normalized with J0.
         int start = 2 * ((n + (int)L::sqrt(40.0 * n)) / 2) + 2;
         double next = 0.0, cur = 1e-300, at_n = 0.0, sum = 0.0;
         for (int k = start; k > 0; k--) {
@@ -461,7 +425,7 @@ EXPORT double jn(int n, double x) {
             if (k - 1 == n) at_n = cur;
             if (((k - 1) & 1) == 0 && k - 1 > 0) sum += cur;
         }
-        double norm = cur + 2.0 * sum;  // J0 + 2 (J2 + J4 + ...) = 1
+        double norm = cur + 2.0 * sum;
         r = at_n / norm;
     }
     return (x < 0 && (n & 1)) ? -r : r;
@@ -490,13 +454,10 @@ EXPORT float y1f(float x) { return (float)y1(x); }
 EXPORT float ynf(int n, float x) { return (float)yn(n, x); }
 EXPORT float tgammaf(float x) { return (float)tgamma(x); }
 
-// --- decimal and hexadecimal strings to floating point ---
-
 EXPORT double strtod(const char *s, char **end) { return L::strtod(s, end); }
 EXPORT float strtof(const char *s, char **end) { return L::strtof(s, end); }
 EXPORT long double strtold(const char *s, char **end) { return L::strtold(s, end); }
 EXPORT double atof(const char *s) { return L::strtod(s, nullptr); }
-// The C locale is the only one SwiftCode's libSystem has (locale.c).
 EXPORT double strtod_l(const char *s, char **end, void *) { return L::strtod(s, end); }
 EXPORT float strtof_l(const char *s, char **end, void *) { return L::strtof(s, end); }
 EXPORT long double strtold_l(const char *s, char **end, void *) { return L::strtold(s, end); }

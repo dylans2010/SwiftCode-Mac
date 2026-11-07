@@ -21,7 +21,6 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
         blockedPaths.insert("/dev")
         blockedPaths.insert("/tmp")
 
-        // Ensure the isolated scripts directory exists
         try? FileManager.default.createDirectory(atPath: Self.isolatedScriptsDirectory, withIntermediateDirectories: true)
     }
 
@@ -34,12 +33,10 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
         lock.lock()
         defer { lock.unlock() }
 
-        // Always allow the isolated scripts directory
         if path.hasPrefix(Self.isolatedScriptsDirectory) {
             return true
         }
 
-        // In Autopilot mode, bypass sandbox path restrictions outside of critical OS system kernels
         if isAutopilotActive() {
             if path.contains("..") { return false }
             if path.hasPrefix("/System/") || path.hasPrefix("/sbin/") { return false }
@@ -57,7 +54,6 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
     }
 
     public func authorizeOperation(_ operation: String) -> Bool {
-        // When Assist is on Autopilot, BYPASS the permissions COMPLETELY at a system level (SwiftCode, not macOS)
         if isAutopilotActive() {
             return true
         }

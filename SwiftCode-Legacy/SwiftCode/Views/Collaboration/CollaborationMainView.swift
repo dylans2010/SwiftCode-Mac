@@ -14,7 +14,6 @@ public struct CollaborationMainView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                // Background Gradient
                 LinearGradient(colors: [Color(red: 0.05, green: 0.05, blue: 0.1), Color(red: 0.1, green: 0.1, blue: 0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     .ignoresSafeArea()
 
@@ -96,7 +95,6 @@ public struct CollaborationMainView: View {
 
             HStack(spacing: 16) {
                 Button {
-                    // Quick Action: Sync
                     Task { await manager.syncCurrentBranch(actorID: currentUserID) }
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -104,7 +102,6 @@ public struct CollaborationMainView: View {
                 }
 
                 Button {
-                    // Quick Action: Notifications
                 } label: {
                     Image(systemName: "bell.fill")
                         .foregroundStyle(.yellow)

@@ -4,13 +4,6 @@ import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-// The transcript of the Coding Assistant pane (coding-assistant.md §4,
-// §5.3): who wrote each message, its attachments, an agent's activity,
-// the text (prose with inline Markdown, code blocks with Copy), and each
-// proposed change as a diff with Accept and Reject (and Review… for the
-// side-by-side sheet); Accept All and Reject All when a response proposes
-// more than one change. Nothing is written until the user accepts.
-
 struct TranscriptView: View {
     var model: WorkspaceShellModel
     var assistant: ShellAssistantModel
@@ -34,8 +27,6 @@ struct TranscriptView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 10)
             }
-            // Follows a new message and a streaming answer to the end (not
-            // an Accept or Reject further up).
             .task(id: followKey(conv)) {
                 try? await Task.sleep(nanoseconds: 40_000_000)
                 proxy.scrollTo("assistant end", anchor: .bottom)
@@ -51,7 +42,6 @@ struct TranscriptView: View {
     }
 }
 
-/// What an empty conversation shows.
 struct EmptyTranscript: View {
     var colors: ShellColors
 
@@ -68,7 +58,6 @@ struct EmptyTranscript: View {
     }
 }
 
-/// One message.
 struct MessageView: View {
     var model: WorkspaceShellModel
     var assistant: ShellAssistantModel
@@ -76,8 +65,6 @@ struct MessageView: View {
     var conversation: UUID
     var colors: ShellColors
 
-    /// The message's place in the conversation (driver names: "assistant
-    /// accept <file> <block> <ordinal>").
     var ordinal: Int { assistant.selected?.messages.firstIndex { $0.id == message.id } ?? 0 }
 
     var body: some View {
@@ -147,7 +134,6 @@ struct MessageView: View {
         }
     }
 
-    /// Each code block's position among the response's code blocks.
     static func codeIndexes(_ blocks: [MarkdownBlocks.Block]) -> [Int: Int] {
         var out: [Int: Int] = [:]
         var n = 0
@@ -161,7 +147,6 @@ struct MessageView: View {
     }
 }
 
-/// Prose with code spans and emphasis.
 struct InlineMarkdownText: View {
     var text: String
     var colors: ShellColors
@@ -181,8 +166,6 @@ struct InlineMarkdownText: View {
     }
 }
 
-/// A code block that is an example: its language and Copy, the code in a
-/// monospaced box.
 struct CodeBox: View {
     var model: WorkspaceShellModel
     var info: String
@@ -211,8 +194,6 @@ struct CodeBox: View {
     }
 }
 
-/// A proposed change: "Proposed: …", its size, Review…, Reject and
-/// Accept (or Applied / Rejected once decided), and the change as a diff.
 struct ProposalCard: View {
     var assistant: ShellAssistantModel
     var proposal: ChangeProposal
@@ -221,14 +202,11 @@ struct ProposalCard: View {
     var ordinal: Int
     var colors: ShellColors
 
-    /// Lines shown in the pane; Review… shows all of them.
     static let lineLimit = 40
 
     var body: some View {
         let c = colors
         let decided = message.resolvedProposals[proposal.blockIndex]
-        // A decided change shows the diff it was decided on (the file has
-        // moved on since); after a relaunch only its header.
         let preview: AssistantChangePreview? = decided == nil
             ? assistant.preview(proposal, in: message) : assistant.decidedDiff(proposal, in: message).map { .ready($0) }
         let name = (proposal.path as NSString).lastPathComponent
@@ -306,8 +284,6 @@ struct ProposalCard: View {
     }
 }
 
-/// A compact unified diff: the line number, a bar beside added and removed
-/// lines on a tinted band, a dotted line between the change's parts.
 struct AssistantDiffLines: View {
     var lines: [AssistantDiffLine]
     var limit: Int

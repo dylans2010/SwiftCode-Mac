@@ -30,7 +30,6 @@ public class MenuBarManager: NSObject, NSMenuDelegate {
             button.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Git Controls")
         }
 
-        // Create native menu
         let menu = NSMenu()
         menu.delegate = self
         for opt in options {
@@ -186,7 +185,6 @@ struct MenuBarRootView: View {
     }
 }
 
-// MARK: - No Active Project Fallback View
 public struct NoActiveProjectView: View {
     public var title: String
 
@@ -217,7 +215,6 @@ public struct NoActiveProjectView: View {
     }
 }
 
-// MARK: - Git Menu Bar Command Executor
 public enum GitMenuBarError: LocalizedError {
     case noActiveProject
     case gitError(String)

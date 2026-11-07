@@ -5,20 +5,10 @@ import Glibc
 import Darwin
 #endif
 
-/// Runs a command and streams its standard output line by line, for tools
-/// that report progress as they work (JSON-lines event streams). Nothing
-/// here blocks the caller: the child is read on its own threads.
-///
-/// Cancelling the consumer (ending the iteration, or cancelling the task
-/// that iterates) interrupts the child: SIGINT first, so a tool can end its
-/// turn cleanly, then SIGTERM after `interruptGrace`, then SIGKILL.
 public enum StreamingSubprocess {
-    /// The command exited with a non-zero status.
     public struct ExitError: Error, Sendable, CustomStringConvertible {
         public var status: Int32
-        /// The end of the command's standard error (at most 4 KB).
         public var stderrTail: String
-        /// The command was stopped by `cancel`, not by itself.
         public var wasInterrupted: Bool
         public var description: String {
             let tail = stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -26,14 +16,8 @@ public enum StreamingSubprocess {
         }
     }
 
-    /// Seconds between SIGINT and SIGTERM, and between SIGTERM and SIGKILL.
     nonisolated(unsafe) public static var interruptGrace: TimeInterval = 2
 
-    /// Starts `executable` and returns its standard output as lines (without
-    /// the line terminator). `input` is written to its standard input, which
-    /// is then closed; nil gives it the null device. The stream finishes
-    /// when the command exits with status 0 and throws `ExitError`
-    /// otherwise. A command that cannot start throws from the stream.
     public static func lines(_ executable: URL, _ arguments: [String], environment: [String: String]? = nil,
                              currentDirectory: URL? = nil, input: Data? = nil) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
@@ -61,7 +45,6 @@ public enum StreamingSubprocess {
             if let inPipe, let input {
                 let h = inPipe.fileHandleForWriting
                 Thread.detachNewThread {
-                    // A child that exits early closes its end; ignore SIGPIPE's error.
                     h.writeQuietly(input)
                     try? h.close()
                 }
@@ -118,7 +101,6 @@ public enum StreamingSubprocess {
         }
     }
 
-    /// Escalating stop: SIGINT, then SIGTERM, then SIGKILL while it runs.
     final class RunState: @unchecked Sendable {
         private let lock = NSLock()
         private var running = false
@@ -152,7 +134,6 @@ public enum StreamingSubprocess {
 }
 
 extension FileHandle {
-    /// Writes all of `data`, stopping silently when the reader has gone.
     func writeQuietly(_ data: Data) {
         let fd = fileDescriptor
         data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in

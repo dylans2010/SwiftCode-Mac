@@ -4,8 +4,6 @@ import Testing
 import SwiftCodeMachO
 @testable import swiftcode_simd
 
-/// `swiftcode-simd --macos` (specs/macos/macos-apps.md §3, §4): which
-/// executables each mode accepts, the userland root, the environment.
 @Suite(.serialized) struct MacOSModeTests {
     @Test func platformGateFollowsTheMode() {
         let saved = MacOSMode.enabled

@@ -1,17 +1,10 @@
 import Foundation
 
-/// A foldable block. A brace region is a `{ … }` pair spanning at least
-/// three lines; folding hides the lines strictly between the brace lines.
-/// A comment region is a multi-line block comment or a run of three or
-/// more `//` lines; folding hides every line after its first. See
-/// `specs/ide/source-editor.md` §Code folding and `reference-ui-5.md` §6.4.
 public struct FoldRegion: Equatable, Hashable, Sendable {
     public enum Kind: Sendable, Hashable { case braces, comment }
 
-    /// 1-based first and last lines (the brace lines for a brace region).
     public var startLine: Int
     public var endLine: Int
-    /// Nesting depth (0 = top level).
     public var depth: Int
     public var kind: Kind
 
@@ -28,10 +21,7 @@ public struct FoldRegion: Equatable, Hashable, Sendable {
     public func contains(line: Int) -> Bool { line >= startLine && line <= endLine }
 }
 
-/// Finds the foldable regions of a source text (see `FoldRegion`).
 public enum FoldRegions {
-    /// The text with comments, strings and preprocessor lines blanked out
-    /// (newlines kept), as UTF-16 units.
     static func code(_ text: String, language: SourceTokenizer.Language) -> [UInt16] {
         var units = Array(text.utf16)
         for t in SourceTokenizer(language: language).tokens(in: text) where [.comment, .docComment, .string, .preprocessor].contains(t.kind) {
@@ -40,13 +30,11 @@ public enum FoldRegions {
         return units
     }
 
-    /// Brace pairs from the lexer's view of the text (comments, strings and
-    /// preprocessor lines ignored), innermost last.
     public static func regions(in text: String, language: SourceTokenizer.Language) -> [FoldRegion] {
         guard language != .plain else { return [] }
         let units = code(text, language: language)
         let index = LineIndex(String(decoding: units, as: UTF16.self))
-        var stack: [Int] = []   // offsets of open braces
+        var stack: [Int] = []
         var out: [FoldRegion] = []
         for (i, u) in units.enumerated() {
             if u == 123 { stack.append(i) }
@@ -58,15 +46,10 @@ public enum FoldRegions {
         return out.sorted { ($0.startLine, -$0.endLine) < ($1.startLine, -$1.endLine) }
     }
 
-    /// The innermost region whose lines include `line`.
     public static func innermost(_ regions: [FoldRegion], containing line: Int) -> FoldRegion? {
         regions.filter { $0.contains(line: line) }.max { $0.depth < $1.depth }
     }
 
-    /// The brace regions that are function, method, initializer or
-    /// accessor bodies (Editor ▸ Code Folding ▸ Fold Methods & Functions).
-    /// A region qualifies when the code before its `{` on the start line,
-    /// joined with the signature lines just above it, is such a declaration.
     public static func functionRegions(in text: String, language: SourceTokenizer.Language) -> [FoldRegion] {
         let all = regions(in: text, language: language)
         guard !all.isEmpty else { return [] }
@@ -97,31 +80,26 @@ public enum FoldRegions {
         case .swift:
             if w.contains("func") || w.contains("deinit") || w.contains("subscript") { return true }
             if w.contains("init"), h.contains("("), !h.contains(".init") { return true }
-            // Accessors (`get {`, `set(newValue) {`, `willSet`, `didSet`) and
-            // computed properties (`var x: Int {`).
             if let first = w.first, ["get", "set", "willSet", "didSet", "_read", "_modify"].contains(first), w.count <= 3 { return true }
             if w.contains("var"), h.contains(":"), !h.contains("=") { return true }
             return false
         case .objc, .c, .cpp, .metal:
-            if h.hasPrefix("-") || h.hasPrefix("+") { return true } // Objective-C method
+            if h.hasPrefix("-") || h.hasPrefix("+") { return true }
             guard h.hasSuffix(")") else { return false }
             let control: Set<String> = ["if", "for", "while", "switch", "do", "else", "catch", "return", "@synchronized", "@autoreleasepool", "@try", "@catch", "@finally"]
             guard let first = w.first, !control.contains(first) else { return false }
-            // A definition names a type before the function name.
             return w.count >= 2 && !h.contains("=") && !h.contains("^")
         default:
             return false
         }
     }
 
-    /// Multi-line block comments and runs of three or more `//` lines
-    /// (Editor ▸ Code Folding ▸ Fold Comment Blocks).
     public static func commentRegions(in text: String, language: SourceTokenizer.Language) -> [FoldRegion] {
         guard language != .plain else { return [] }
         let index = LineIndex(text)
         let ns = text as NSString
         var out: [FoldRegion] = []
-        var lineComments = Set<Int>()   // lines holding only a `//` comment
+        var lineComments = Set<Int>()
         for t in SourceTokenizer(language: language).tokens(in: text) where t.kind == .comment || t.kind == .docComment {
             let s = ns.substring(with: t.range)
             let a = index.line(at: t.range.location)

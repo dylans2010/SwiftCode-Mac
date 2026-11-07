@@ -1,6 +1,5 @@
 import Foundation
 
-/// What the Debug navigator shows about the debugged process.
 public struct DebugProcessInfo: Equatable {
     public var product: String
     public var pid: Int?

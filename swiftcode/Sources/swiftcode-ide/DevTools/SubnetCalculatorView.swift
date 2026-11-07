@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct SubnetCalculatorView: View {
@@ -15,7 +12,6 @@ struct SubnetCalculatorView: View {
                 Stepper("Subnet Mask (CIDR): /\(subnetMask)", value: $subnetMask, in: 0...32)
             }
             .padding()
-            
 
             Button("Calculate") { calculate() }
                 .buttonStyle(.borderedProminent)

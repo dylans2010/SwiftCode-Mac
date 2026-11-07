@@ -4,14 +4,11 @@ import Testing
 import SwiftCodeDisplayStream
 @testable import SwiftCodeSimLink
 
-/// The simulator link (specs/simulator/sim-link.md).
 struct SimLinkTests {
     static func tempStore(_ name: String) -> LinkStore {
         let d = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-simlink-\(name)-\(UUID().uuidString)")
         return LinkStore(directory: d)
     }
-
-    // MARK: Noise
 
     func handshake(psk: [UInt8]? = nil, responderPSK: [UInt8]? = nil) throws -> (NoiseXX, NoiseXX, [UInt8], [UInt8]) {
         var i = NoiseXX(initiator: true, staticKey: Curve25519.KeyAgreement.PrivateKey(), prologue: [1, 2], psk: psk)
@@ -38,11 +35,9 @@ struct SimLinkTests {
         #expect(try rr.decrypt(ad: [], c) == Array("hello".utf8))
         let d = try rs.encrypt(ad: [], [9, 9])
         #expect(try ir.decrypt(ad: [], d) == [9, 9])
-        // Rekeyed on both sides, still in step.
         try is_.rekey(); try rr.rekey()
         let e = try is_.encrypt(ad: [], [7])
         #expect(try rr.decrypt(ad: [], e) == [7])
-        // A replayed record fails (the receiver's nonce moved on), and so does a tampered one.
         #expect(throws: NoiseError.decryptFailed) { try rr.decrypt(ad: [], e) }
         var t = try is_.encrypt(ad: [], [1, 2, 3])
         t[0] ^= 1
@@ -55,15 +50,12 @@ struct SimLinkTests {
     }
 
     @Test func noiseHKDFMatchesRFC5869Shape() {
-        // Noise's HKDF with one output pair is RFC 5869 with an empty info and L = 64 (§4.3).
         let ck = [UInt8](repeating: 0x0b, count: 32), ikm = Array("ikm".utf8)
         let o = NoiseSymmetricState.hkdf(ck, ikm, 2)
         let rfc = HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: ikm), salt: ck, info: [UInt8](), outputByteCount: 64)
         let bytes = rfc.withUnsafeBytes { Array($0) }
         #expect(o[0] + o[1] == bytes)
     }
-
-    // MARK: Pairing and trust
 
     @Test func pairingCodesAndWindow() throws {
         let code = Pairing.newCode()
@@ -74,9 +66,9 @@ struct SimLinkTests {
         try Pairing.open(code: code, store: store)
         #expect(Pairing.isOpen(store: store))
         #expect(Pairing.take(store: store) == Pairing.psk(code: code))
-        #expect(Pairing.take(store: store) == nil)  // one attempt
+        #expect(Pairing.take(store: store) == nil)
         try Pairing.open(code: code, store: store, now: Date(timeIntervalSinceNow: -400))
-        #expect(Pairing.take(store: store) == nil)  // expired
+        #expect(Pairing.take(store: store) == nil)
     }
 
     @Test func storeKeepsIdentityAndPeers() throws {
@@ -87,19 +79,16 @@ struct SimLinkTests {
         #expect((attrs[.posixPermissions] as? Int) == 0o600)
         try store.addPeer(TrustedPeer(name: "thor", publicKey: [UInt8](repeating: 3, count: 32), role: "host", address: "h:1"))
         try store.addPeer(TrustedPeer(name: "thor", publicKey: [UInt8](repeating: 4, count: 32), role: "host", address: "h:1"))
-        #expect(store.peers().count == 1)  // a host name names one key
+        #expect(store.peers().count == 1)
         #expect(store.trusted([UInt8](repeating: 4, count: 32), role: "host") != nil)
         #expect(store.trusted([UInt8](repeating: 4, count: 32), role: "client") == nil)
         #expect(LinkIdentity.fingerprint(a.publicKey).count == 24)
     }
 
-    // MARK: Channels over loopback
-
     final class Pair: @unchecked Sendable {
         var result: Result<SecureChannel.Accepted, Error>?
     }
 
-    /// A responder on a loopback listener, one connection.
     func respond(_ l: LinkListener, _ host: LinkIdentity, trusted: [UInt8]?, psk: [UInt8]? = nil) -> (Pair, DispatchSemaphore) {
         let out = Pair(), done = DispatchSemaphore(value: 0)
         Thread.detachNewThread {
@@ -124,7 +113,6 @@ struct SimLinkTests {
         #expect(accepted.hello.device == "p18" && accepted.channel.peerKey == client.publicKey)
         #expect(ch.peerKey == host.publicKey)
         #expect(ch.mediaKeys.initiatorToResponder == accepted.channel.mediaKeys.initiatorToResponder)
-        // A large write arrives in records of at most 65 519 bytes, intact.
         let big = (0..<200_000).map { UInt8(truncatingIfNeeded: $0 &* 7) }
         try ch.send(big)
         var got: [UInt8] = []
@@ -190,22 +178,20 @@ struct SimLinkTests {
         c.close()
     }
 
-    // MARK: Media
-
     @Test func mediaPacketsAuthenticateAndRejectReplays() throws {
         let k = SymmetricKey(size: .bits256)
         var s = MediaCrypto(key: k, session: 77, direction: 1)
         var r = MediaCrypto(key: k, session: 77, direction: 1)
         let p = try s.seal([1, 2, 3])
         #expect(r.open(p, expectDirection: 1) == [1, 2, 3])
-        #expect(r.open(p, expectDirection: 1) == nil)  // replay
+        #expect(r.open(p, expectDirection: 1) == nil)
         var t = try s.seal([4])
         t[t.count - 1] ^= 1
-        #expect(r.open(t, expectDirection: 1) == nil)  // tampered
+        #expect(r.open(t, expectDirection: 1) == nil)
         let q = try s.seal([5])
-        #expect(r.open(q, expectDirection: 2) == nil)  // wrong direction
+        #expect(r.open(q, expectDirection: 2) == nil)
         var other = MediaCrypto(key: k, session: 78, direction: 1)
-        #expect(r.open(try other.seal([6]), expectDirection: 1) == nil)  // another session
+        #expect(r.open(try other.seal([6]), expectDirection: 1) == nil)
         #expect(r.open(q, expectDirection: 1) == [5])
     }
 
@@ -224,18 +210,14 @@ struct SimLinkTests {
         #expect(r.add(fa[2], now: 0).isEmpty)
         #expect(r.add(fa[0], now: 0).isEmpty)
         #expect(r.add(fa[1], now: 0) == [.message(a)])
-        // Message 1 is lost; 2 completes and overtakes it.
         for f in fc.dropLast() { #expect(r.add(f, now: 1).isEmpty) }
         #expect(r.add(fc.last!, now: 1) == [.lost(1), .message(c)])
-        #expect(r.add(fb[0], now: 2).isEmpty)  // late: stale
-        // A partial message times out.
+        #expect(r.add(fb[0], now: 2).isEmpty)
         let fd = MediaPayload.fragments(of: c, id: 3)
         _ = r.add(fd[0], now: 10)
         #expect(r.expire(now: 10 + MediaReassembler.timeout + 1) == [.lost(3)])
         #expect(r.lost == 2)
     }
-
-    // MARK: Archive
 
     @Test func archiveRoundTripsATree() throws {
         let fm = FileManager.default
@@ -279,8 +261,6 @@ struct SimLinkTests {
         }
     }
 
-    // MARK: Host configuration
-
     @Test func hostConfigurationAndLaunchArguments() throws {
         let text = """
             # comment
@@ -299,7 +279,6 @@ struct SimLinkTests {
         #expect(env["SWIFTCODE_WARM_BOOT"] == "1" && env["SWIFTCODE_WARM_FORCE_COLD"] == "1" && env["SWIFTCODE_SIM_DATA"] == "/data/area")
         #expect(args == ["--device", "/data/area/devices/p18", "--runtime-root", "/rt/27.0", "--display-server", "unix:/data/area/run/p18.sock",
                          "--device-type", "iphone-18-pro", "--install-app", "/data/area/apps/A.app", "--launch", "com.x.a", "--environment-overrides"])
-        // Under the debugger (debug.md, "The Linux IDE: apps on the simulator"): the stub on a socket in the run folder.
         let debugged = c.launch(device: "p18", type: "iphone-18-pro", app: "/data/area/apps/A.app", bundleID: "com.x.a", cold: false, debug: true).args
         #expect(Array(debugged.suffix(2)) == ["--debug-server", "unix:/data/area/run/p18.debug.sock"])
         #expect(c.debugSocketPath("p18") == "/data/area/run/p18.debug.sock")
@@ -313,7 +292,6 @@ struct SimLinkTests {
         let r = LinkRequest(op: "run", device: "tc", app: "T.app", bundleID: "x.t", debug: true)
         let back = try JSONDecoder().decode(LinkRequest.self, from: JSONEncoder().encode(r))
         #expect(back.debug == true && back == r)
-        // Requests and answers of hosts and clients without the fields still decode.
         let old = try JSONDecoder().decode(LinkRequest.self, from: Data(#"{"op":"run","device":"tc","app":"T.app"}"#.utf8))
         #expect(old.debug == nil)
         var a = LinkResponse(ok: true, message: "tc starting")

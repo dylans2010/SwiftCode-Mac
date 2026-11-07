@@ -10,10 +10,6 @@ import Glibc
 import Darwin
 #endif
 
-/// lldb-dap attached to a simulator app's stub, in the DAP specification's
-/// shapes: the attach stops the app (a signal), Continue runs it, and a
-/// "tap" (`tap()`) stops it at the button handler's breakpoint with the
-/// handler's variables.
 final class StubScriptedAdapter: DAPTransport, @unchecked Sendable {
     let file: String
     private var receiving: (@Sendable (Data?) -> Void)?
@@ -39,7 +35,6 @@ final class StubScriptedAdapter: DAPTransport, @unchecked Sendable {
 
     private func event(_ name: String, _ body: JSON) { emit(["type": "event", "event": .string(name), "body": body]) }
 
-    /// The user taps the app's button: the breakpoint in its handler stops it.
     func tap() {
         lock.lock()
         defer { lock.unlock() }
@@ -98,7 +93,6 @@ final class StubScriptedAdapter: DAPTransport, @unchecked Sendable {
     func close() { receiving?(nil) }
 }
 
-/// A Unix socket that accepts connections and holds them (a stub that is up).
 final class ListeningStub: @unchecked Sendable {
     let path: String
     let fd: Int32
@@ -123,8 +117,6 @@ final class ListeningStub: @unchecked Sendable {
 
 @MainActor final class Flag { var on = false }
 
-/// Run under the debugger on a simulator host on this computer
-/// (ShellSimulatorDebug, WorkspaceSession.attachToSimulatorStub).
 @MainActor
 @Suite(.serialized) struct ShellSimulatorDebugTests {
     @Test nonisolated func onlyAHostOnThisComputerIsDebugged() {
@@ -162,7 +154,6 @@ final class ListeningStub: @unchecked Sendable {
         #expect(condition(), "timed out waiting for \(what)")
     }
 
-    /// A TapCounter.app with its Info.plist.
     static func app(in dir: URL) throws -> URL {
         let app = dir.appendingPathComponent("TapCounter.app")
         try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
@@ -187,36 +178,30 @@ final class ListeningStub: @unchecked Sendable {
             await m.session.attachToSimulatorStub(socketPath: stub.path, app: app, device: "tc (thor)", adapter: adapter,
                                                   waitForLaunch: { while !launched.on { try? await Task.sleep(nanoseconds: 5_000_000) }; return true })
         }
-        // Until the device launched the app: "Launching TapCounter", Stop enabled.
         await wait("launching") { m.activityText == "Launching TapCounter" }
         #expect(m.isBusy && m.isEnabled(.stop))
         launched.on = true
         let result = await attach.value
         #expect(result == .attached)
-        // lldb-dap attached through the loopback forward with the build's executable and the stub's lldb settings.
         let port = try #require(adapter.attachArguments["gdb-remote-port"]?.int)
         #expect(port > 0 && adapter.attachArguments["gdb-remote-hostname"]?.string == "127.0.0.1")
         #expect(adapter.attachArguments["program"]?.string == app.appendingPathComponent("TapCounter").path)
         let pre = adapter.attachArguments["preRunCommands"]?.array?.compactMap(\.string) ?? []
         #expect(pre.contains("settings set target.enable-trampoline-support false"))
         #expect(pre.contains { $0.hasPrefix("settings set target.exec-search-paths") && $0.contains("TapCounter.app") })
-        // The attach stop was resumed once; the app runs.
         #expect(adapter.commands.contains("continue"))
         #expect(adapter.breakpointLines == [2])
         await wait("running") { m.activityText == "Running TapCounter on tc (thor)" }
         #expect(m.session.isDebuggingSimulatorStub && !m.debug.isPaused)
 
-        // A tap stops in the handler: frames, variables, the activity.
         adapter.tap()
         await wait("the breakpoint") { m.debug.isPaused && !m.debug.variables.isEmpty }
         #expect(m.activityText == "Paused TapCounter")
         #expect(m.debug.frames.first?.name == "CounterController.buttonTapped(_:)")
         #expect(m.debug.variableRows.map(\.name) == ["sender", "step", "self"])
-        // Continue: it runs again.
         m.perform(.pauseOrContinue)
         await wait("continued") { !m.debug.isPaused && m.activityText == "Running TapCounter on tc (thor)" }
 
-        // Stop detaches: the app runs on on the device.
         m.stop()
         await wait("the end") { !m.session.isDebuggingSimulatorStub && !m.debug.isDebugging }
         #expect(adapter.disconnectArguments["terminateDebuggee"]?.bool == false)
@@ -232,7 +217,6 @@ final class ListeningStub: @unchecked Sendable {
         #expect(r == .failed("no debug stub"))
         #expect(adapter.commands.isEmpty && !m.debug.isDebugging)
         #expect(m.session.console.contains("could not reach the app on tc"))
-        // A launch that never comes (the device stopped): nothing attaches.
         let r2 = await m.session.attachToSimulatorStub(socketPath: "/nonexistent/tc.debug.sock", app: app, device: "tc", adapter: adapter,
                                                        waitForLaunch: { false })
         #expect(r2 == .failed("not launched") && m.session.console.contains("TapCounter did not launch on tc"))

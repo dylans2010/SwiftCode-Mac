@@ -1,31 +1,7 @@
 import Foundation
 import SwiftCodeSubprocess
 
-/// Hosted tests on the SwiftCode simulator (an iOS-family app's `TEST_HOST`
-/// tests on the arm64 Linux host, `specs/ide/run.md` §Remote SwiftCode
-/// simulator): the host app, with its test bundles in `PlugIns/` and
-/// SwiftCode's test agent (built for the simulator) in `Frameworks/`, is copied
-/// to the simulator host, installed and launched there by `swiftcode-simd`
-/// with the agent inserted (`--app-env DYLD_INSERT_LIBRARIES=…`,
-/// `--app-env SWIFTCODE_TEST_PLAN=…`). The app's standard error (where the
-/// agent reports and the libraries print) is followed on the host and
-/// streamed back over the same ssh connection; when the agent reports the
-/// end of the run the simulator is stopped like an IDE run's Stop (a
-/// SIGINT: the launcher saves a warm-boot device).
-/// See `specs/xcodebuild/test-actions.md`, "SwiftCode implementation".
 public struct RemoteTestHost {
-    /// Where the simulator runs. From the environment (the IDE sets these
-    /// from Settings ▸ Simulators; machine names never go into files):
-    ///
-    /// | Variable | Meaning |
-    /// |---|---|
-    /// | `SWIFTCODE_SIM_HOST` | ssh destination `user@host` (keys only) |
-    /// | `SWIFTCODE_SIM_DATA` | remote data directory (apps, devices) |
-    /// | `SWIFTCODE_SIM_RUNTIME` | remote runtime root |
-    /// | `SWIFTCODE_SIM_SIMD` | remote `swiftcode-simd` or launcher (`swiftcode-sim`) |
-    /// | `SWIFTCODE_SIM_DEVICE` | device directory name under `<data>/devices` (default `swiftcode-device`) |
-    /// | `SWIFTCODE_SIM_OPTIONS` | more `swiftcode-simd` options, split like a shell |
-    /// | `SWIFTCODE_SIM_ENV` | `K=V` words for the remote environment (`SWIFTCODE_WARM_BOOT=1`) |
     public struct Settings: Equatable, Sendable {
         public var destination: String
         public var dataDirectory: String
@@ -36,9 +12,7 @@ public struct RemoteTestHost {
         public var environment: [String] = []
         public var ssh = HostTool.path("ssh")
         public var rsync = HostTool.path("rsync")
-        /// Seconds until the agent must have reported (boot, install, launch).
         public var launchTimeout: Double = 900
-        /// Seconds the whole run may take.
         public var timeout: Double = 3600
 
         public init(destination: String, dataDirectory: String, runtimeRoot: String, simd: String) {
@@ -66,9 +40,6 @@ public struct RemoteTestHost {
         public func remoteApp(_ name: String) -> String { dataDirectory + "/test-apps/" + name }
     }
 
-    /// Whether a `-destination` names the SwiftCode simulator:
-    /// `name=SwiftCode Simulator` (any "SwiftCode" device name) or
-    /// `id=swiftcode-remote-simulator`, on an iOS-family simulator platform.
     public static func isSwiftCodeSimulator(_ spec: String) -> Bool {
         let (_, fields) = Destinations.parse(spec)
         guard (fields["platform"] ?? "").hasSuffix("Simulator") else { return false }
@@ -83,10 +54,8 @@ public struct RemoteTestHost {
         self.context = context
     }
 
-    /// POSIX shell single quoting.
     static func quote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
 
-    /// Shell-like words: whitespace separates, quotes group, backslash escapes.
     static func words(_ text: String) -> [String] {
         var out: [String] = [], cur = "", inWord = false
         var quote: Character?
@@ -109,14 +78,9 @@ public struct RemoteTestHost {
         return out
     }
 
-    /// The line prefix of the app's standard error in the stream.
     static let appPrefix = "SWIFTCODE-APP|"
-    /// The agent's guest path, inside the app.
     static let agentInApp = "@executable_path/Frameworks/libSwiftCodeTestAgent.dylib"
 
-    /// The remote command: removes the app's previous output, prints the
-    /// shell's pid, follows the app's standard error (`tail --pid` ends
-    /// with the simulator), then becomes `swiftcode-simd`.
     func command(app remoteApp: String, bundleID: String, plan: TestHostProtocol.Plan) -> String {
         let q = Self.quote
         let err = settings.devicePath + "/data/tmp/swiftcode-app.err"
@@ -138,7 +102,6 @@ public struct RemoteTestHost {
         return (r.status, r.output)
     }
 
-    /// Runs every target, one simulator run per host app.
     func run(_ targets: [TestTarget], quiet: Bool, outcome: inout TestActions.Outcome) {
         var groups: [(app: String, executable: String, targets: [TestTarget])] = []
         for t in targets {
@@ -172,14 +135,10 @@ public struct RemoteTestHost {
             outcome.errors.append("\(hostName) has no bundle identifier in its Info.plist.")
             return
         }
-        // swift-build embedded the testing libraries in the host when it
-        // built it for testing (TestActions.testFrameworkCopying); the
-        // simulator runtime has none of them.
         guard fm.fileExists(atPath: app + "/Frameworks/XCTest.framework") else {
             outcome.errors.append("\(hostName) has no testing frameworks in its Frameworks folder: build it with build-for-testing for this destination first.")
             return
         }
-        // A copy of the app with the agent, and any bundle not yet in PlugIns.
         let stage = fm.temporaryDirectory.appendingPathComponent("swiftcodebuild-test-host-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: stage) }
         let staged = stage.appendingPathComponent(name).path
@@ -208,7 +167,6 @@ public struct RemoteTestHost {
             outcome.errors.append("Could not prepare \(hostName) for testing: \(error)")
             return
         }
-        // Upload.
         let remoteApp = settings.remoteApp(name)
         let (mk, mkOut) = ssh("mkdir -p \(Self.quote(settings.dataDirectory + "/test-apps"))")
         guard mk == 0 else {
@@ -234,7 +192,6 @@ public struct RemoteTestHost {
         }
     }
 
-    /// The simulator's own lines (not the app's), the last ones kept.
     final class SimulatorLines: @unchecked Sendable {
         private let lock = NSLock()
         private var kept: [String] = []
@@ -250,8 +207,6 @@ public struct RemoteTestHost {
         var failed: String? { lock.withLock { failure } }
     }
 
-    /// Runs the remote command; stops the simulator once the agent reports
-    /// the end of the run (or a launch fails, or a timeout passes).
     func runRemote(_ command: String, collector: HostRunCollector, simulator: SimulatorLines) -> TestActions.HostStatus {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: settings.ssh)
@@ -268,7 +223,6 @@ public struct RemoteTestHost {
         var stoppedAt: Date?
         let watchdog = TestActions.Watchdog("swiftcodebuild.remote-test.watchdog") { [self] in
             guard p.isRunning else { return false }
-            // Stopping: the launcher saves the device and ends; do not wait forever.
             if let at = stoppedAt {
                 if Date().timeIntervalSince(at) > 150 {
                     p.terminate()

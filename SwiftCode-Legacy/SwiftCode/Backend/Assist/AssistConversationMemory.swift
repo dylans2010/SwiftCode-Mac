@@ -1,12 +1,3 @@
-//
-//  AssistConversationMemory.swift
-//  SwiftCode
-//
-//  Authoritative multi-turn conversation memory and context persistence for SwiftCode Assist.
-//  Preserves turn history, inspected files, user decisions, build states, and rolling summaries
-//  scoped to the active conversation and project workspace.
-//
-
 import Foundation
 
 public struct ConversationTurnRecord: Codable, Sendable, Identifiable {
@@ -61,7 +52,6 @@ public final class AssistConversationMemory: Sendable {
 
     private init() {}
 
-    /// Binds memory to the active conversation and workspace root. Clears state only if switching to an unrelated conversation.
     public func bindConversation(id: UUID, workspaceRoot: URL) {
         let rootPath = workspaceRoot.path
         if activeConversationId != id || workspaceRootPath != rootPath {
@@ -76,14 +66,12 @@ public final class AssistConversationMemory: Sendable {
         }
     }
 
-    /// Records the start of a new turn in the active conversation.
     public func recordTurnStart(prompt: String, intent: String) -> UUID {
         let turn = ConversationTurnRecord(userPrompt: prompt, intentSummary: intent)
         turns.append(turn)
         return turn.id
     }
 
-    /// Records an inspected file.
     public func recordFileInspected(_ path: String) {
         inspectedFiles.insert(path)
         if let idx = turns.indices.last {
@@ -93,7 +81,6 @@ public final class AssistConversationMemory: Sendable {
         }
     }
 
-    /// Records a modified file.
     public func recordFileModified(_ path: String) {
         modifiedFiles.insert(path)
         if let idx = turns.indices.last {
@@ -103,14 +90,12 @@ public final class AssistConversationMemory: Sendable {
         }
     }
 
-    /// Records a tool execution in the active turn.
     public func recordToolExecution(toolId: String) {
         if let idx = turns.indices.last {
             turns[idx].executedTools.append(toolId)
         }
     }
 
-    /// Records a build outcome.
     public func recordBuildOutcome(_ outcome: String) {
         lastVerifiedBuildOutcome = outcome
         if let idx = turns.indices.last {
@@ -118,7 +103,6 @@ public final class AssistConversationMemory: Sendable {
         }
     }
 
-    /// Records a key decision or constraint established by the user.
     public func recordDecision(_ decision: String) {
         if !establishedDecisions.contains(decision) {
             establishedDecisions.append(decision)
@@ -128,7 +112,6 @@ public final class AssistConversationMemory: Sendable {
         }
     }
 
-    /// Finalizes the current turn with a summary and updates the rolling summary.
     public func finalizeTurn(summary: String) {
         guard let idx = turns.indices.last else { return }
         turns[idx].finalSummary = summary
@@ -156,7 +139,6 @@ public final class AssistConversationMemory: Sendable {
         rollingSummary = lines.joined(separator: "\n")
     }
 
-    /// Assembles compact historical context suitable for prompt injection.
     public func buildHistoricalContextPrompt() -> String {
         guard turns.count > 1 || !rollingSummary.isEmpty else { return "" }
 
@@ -181,7 +163,6 @@ public final class AssistConversationMemory: Sendable {
         return prompt
     }
 
-    /// Resets all memory (e.g. when clearing the chat completely).
     public func reset() {
         activeConversationId = nil
         workspaceRootPath = ""

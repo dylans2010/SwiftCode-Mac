@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct ASCIIArtGeneratorView: View {
@@ -21,7 +18,7 @@ struct ASCIIArtGeneratorView: View {
                     .font(.system(.body, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    
+
                     .foregroundColor(.green)
             }
             .padding()
@@ -32,8 +29,6 @@ struct ASCIIArtGeneratorView: View {
     }
 
     func generate() {
-        // A real ASCII art generator would use FIGlet or similar.
-        // This is a simplified "blocky" representation.
         output = input.uppercased().map { char -> String in
             switch char {
             case "S": return " #### \n#     \n ###  \n    # \n####  "

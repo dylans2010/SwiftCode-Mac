@@ -1,9 +1,3 @@
-// SimulatorRuntimeView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorRuntimeView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: standalone runtime list view with availability status
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
@@ -14,7 +8,6 @@ struct SimulatorRuntimeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("SDK Runtimes", systemImage: "square.stack.3d.down.right")
                     .font(.headline)
@@ -23,7 +16,6 @@ struct SimulatorRuntimeView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     GroupBox {

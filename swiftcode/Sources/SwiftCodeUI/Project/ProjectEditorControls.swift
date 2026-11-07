@@ -3,15 +3,6 @@ import SwiftCodeIDECore
 import SwiftCodePlist
 import SwiftCodeProject
 
-// The project editor's Resource Tags, Build Rules, Project ▸ Info and
-// Package Dependencies tabs as real controls (reference-ui-5.md §11.1.3,
-// P3; reference-ui-3.md §1.6, §1.10–§1.12): segmented scopes, tables with
-// +/−, buttons and pop-ups. Every edit goes through the model and is
-// reported with `onChange`.
-// The model half is in SwiftCodeIDECore (ProjectEditorModel+Controls.swift).
-
-// MARK: - Views
-
 extension ProjectEditorController {
     func filterField(_ key: String, value: String) -> NSSearchField {
         let f = NSSearchField()
@@ -42,8 +33,6 @@ extension ProjectEditorController {
         b.identifier = .init(id)
         return b
     }
-
-    // MARK: Resource Tags
 
     func resourceTagsView(_ t: String) -> NSView {
         let plus = symbolButton("plus", "Add resource tag", #selector(addResourceTagClicked), id: "addResourceTag")
@@ -118,8 +107,6 @@ extension ProjectEditorController {
         if r >= 0, r < st.itemIDs.count { removeResourceTag(st.itemIDs[r]) }
     }
 
-    // MARK: Build Rules
-
     func buildRulesView(_ t: String) -> NSView {
         let plus = symbolButton("plus", "Add build rule", #selector(addBuildRuleClicked), id: "addBuildRule")
         let scope = NSSegmentedControl(labels: ProjectEditorModel.buildRuleScopes, trackingMode: .selectOne, target: self,
@@ -179,8 +166,6 @@ extension ProjectEditorController {
 
     @objc func copyRuleClicked(_ b: NSButton) { if let id = b.identifier?.rawValue.dropFirst("copy:".count) { copyBuildRule(String(id)) } }
     @objc func removeRuleClicked(_ b: NSButton) { if let id = b.identifier?.rawValue.dropFirst("remove:".count) { removeBuildRule(String(id)) } }
-
-    // MARK: Project ▸ Info
 
     func projectInfoView() -> NSView {
         let info = model.projectInfo
@@ -351,8 +336,6 @@ extension ProjectEditorController {
         onChange?(model.proj)
         showTab()
     }
-
-    // MARK: Package Dependencies
 
     func packageDependenciesView() -> NSView {
         let rows = packageRows

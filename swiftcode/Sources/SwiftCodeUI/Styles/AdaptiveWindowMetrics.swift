@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// Window metrics + environment key (Legacy
-/// `SwiftCode/UI/Styles/Styling/AdaptiveWindowMetrics.swift`, Dylan's own
-/// code, ported under MIT). Direct port; `adaptiveMetrics` is read by
-/// `AdaptiveGrid` and written by `MacDesktopOptimizedModifier`.
-
 public struct AdaptiveWindowMetrics: Sendable {
     public var windowWidth: CGFloat = 0
     public var windowHeight: CGFloat = 0
@@ -22,7 +17,6 @@ public struct AdaptiveWindowMetrics: Sendable {
 
     public init() {}
 
-    // Convenience computed properties for adaptive layout
     public var standardPadding: CGFloat { currentBreakpoint.standardPadding }
     public var standardSpacing: CGFloat { currentBreakpoint.standardSpacing }
     public var isCompact: Bool { currentBreakpoint == .compactDesktop }

@@ -1,9 +1,3 @@
-// OperationsSecurityCenterView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/OperationsSecurityCenterView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: developer-credentials / Keychain certificate section; finding descriptions and fix suggestions
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 
@@ -14,7 +8,6 @@ struct OperationsSecurityCenterView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Security Center")
@@ -38,7 +31,6 @@ struct OperationsSecurityCenterView: View {
                 }
                 .padding(.bottom, 10)
 
-                // Signing certificates section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Developer Credentials")
@@ -74,7 +66,6 @@ struct OperationsSecurityCenterView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Audit findings
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Source Code Secrets Scan")

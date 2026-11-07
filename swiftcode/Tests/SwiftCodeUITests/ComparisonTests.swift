@@ -43,7 +43,7 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
         let sheet = try #require(await wc.presentCommitSheet())
         _ = sheet.view
-        await sheet.diffIdle()   // git diff runs in the background
+        await sheet.diffIdle()
         #expect(sheet.diffView.string.contains("-let b = 2\n+let b = 20"))
         #expect(sheet.diffView.string.contains("+print(\"done\")"))
         let w = NSWindow(contentRect: sheet.view.frame, styleMask: [.titled], backing: .buffered, defer: false)

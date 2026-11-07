@@ -1,14 +1,6 @@
 import Foundation
 import SwiftUI
 
-/// Named-device dimension / safe-area table (Legacy
-/// `SwiftCode/Core/Preview/PreviewDeviceManager.swift`, Dylan's own
-/// code, ported under MIT). The destination had device names only
-/// (`PreviewConfiguration` / `PreviewCanvasModel`); this restores
-/// the width/height/cornerRadius/safeAreaTop/safeAreaBottom table
-/// and the `device(named:)` lookup (substring match both ways,
-/// first device as fallback).
-
 public struct PreviewDeviceConfig: Sendable, Identifiable {
     public var id: String { name }
     public let name: String
@@ -35,8 +27,6 @@ public final class PreviewDeviceManager {
     private init() {}
 
     public func device(named name: String) -> PreviewDeviceConfig {
-        // FORCE-UNWRAP SAFETY JUSTIFICATION: array 'devices' is hardcoded with non-empty items,
-        // and default fallback is guaranteed to exist at index 0.
         return devices.first(where: { name.contains($0.name) || $0.name.contains(name) }) ?? devices[0]
     }
 }

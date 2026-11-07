@@ -1,28 +1,8 @@
-// The host seam for SwiftCode Connect.
-//
-// Legacy's Connect services reached straight into app singletons
-// (`ProjectSessionStore.shared.activeProject`, `GitService`,
-// `XcodeBuildAPI`, `DeviceManager`, the Assist tool internals). SwiftCode has
-// no such singletons, and Connect must not acquire them: the IDE shell
-// supplies a workspace provider, and Connect only ever talks to that
-// protocol. Until the shell wires one in, every service answers honestly
-// with NO_ACTIVE_PROJECT / a named error instead of inventing a project.
-//
-// Wiring (for the coordinator/parent — not done here, this file only
-// defines the seam): the macOS shell sets
-// `ConnectServer.shared.workspaceProvider` from the open workspace
-// (`WorkspaceSession`), with git via `/usr/bin/git` (see `ConnectLocalGit`
-// below), builds/tests via `SwiftCodeBuild`/`SwiftCodeXcodebuild`, assist via
-// `CodingAssistantModel`, and devices via the Device Hub / `simctl`.
-
 import Foundation
 
-/// A project as SwiftCode Connect reports it: identity, name, on-disk path,
-/// and the build metadata the sync payload carries.
 public struct ConnectProjectSummary: Codable, Sendable, Hashable {
     public var id: UUID
     public var name: String
-    /// On-disk path of the project root.
     public var path: String
     public var scheme: String
     public var destinations: [String]
@@ -40,7 +20,6 @@ public struct ConnectProjectSummary: Codable, Sendable, Hashable {
 
     public var directoryURL: URL { URL(fileURLWithPath: path) }
 
-    /// The wire form the sync/project responses carry.
     public var connectProjectInfo: ConnectProjectInfo {
         ConnectProjectInfo(id: id.uuidString, name: name, path: path,
                            activeScheme: scheme, activeTarget: name,
@@ -48,9 +27,6 @@ public struct ConnectProjectSummary: Codable, Sendable, Hashable {
     }
 }
 
-/// The git status of a project root, in the shape the git-status response
-/// carries. Produced by the provider (see `ConnectLocalGit` for a
-/// `/usr/bin/git` implementation the shell can reuse).
 public struct ConnectGitStatus: Sendable {
     public var branch: String
     public var isClean: Bool
@@ -73,8 +49,6 @@ public struct ConnectGitStatus: Sendable {
     }
 }
 
-/// The outcome of a remote-triggered build, in the shape the build-completed
-/// broadcast carries.
 public struct ConnectBuildOutcome: Sendable {
     public var success: Bool
     public var diagnostics: [ConnectBuildDiagnosticPayload]
@@ -90,7 +64,6 @@ public struct ConnectBuildOutcome: Sendable {
     }
 }
 
-/// The outcome of a remote-triggered test run.
 public struct ConnectTestOutcome: Sendable {
     public var success: Bool
     public var message: String
@@ -101,37 +74,17 @@ public struct ConnectTestOutcome: Sendable {
     }
 }
 
-/// What the Mac-side IDE offers a connected iOS device. Every method is
-/// host-supplied: Connect itself knows no project, no git binary, no build
-/// engine, and no assistant. A method throws when its capability is not
-/// configured, and the calling service turns that into a wire error instead
-/// of a canned success.
 public protocol ConnectWorkspaceProvider: Sendable {
-    /// The project the IDE currently has open, if any.
     var activeProject: ConnectProjectSummary? { get }
-    /// Every project the IDE knows about (the library), for the project list.
     var availableProjects: [ConnectProjectSummary] { get }
-    /// `git status` for a project root (see `ConnectLocalGit.status`).
     func gitStatus(at root: URL) async throws -> ConnectGitStatus
-    /// Local branch names for a project root (see `ConnectLocalGit.branches`).
     func gitBranches(at root: URL) async throws -> [String]
-    /// Build the project at `root` for `scheme` (nil: the project's default).
     func buildProject(scheme: String?, at root: URL) async throws -> ConnectBuildOutcome
-    /// Run the tests of the project at `root` for `scheme`.
     func runTests(scheme: String?, at root: URL) async throws -> ConnectTestOutcome
-    /// Answer an assist query in the context of the named project. This is
-    /// the only route an assist answer may take: Legacy answered with a
-    /// canned string ("Prompt received: ..."), which this port refuses to
-    /// reproduce — no handler means an honest error, never a fake answer.
     func assist(query: String, contextFiles: [String]?, projectName: String) async throws -> String
-    /// Devices the IDE can run on (simulators / connected devices).
     func devices() async -> [ConnectDeviceItem]
 }
 
-/// The provider used until the shell wires a real one: no project, and
-/// every operation fails with a named error. Connect stays silent about
-/// nothing — the device gets NO_ACTIVE_PROJECT / NOT_CONFIGURED, never an
-/// empty success.
 public struct ConnectUnavailableWorkspaceProvider: ConnectWorkspaceProvider {
     public static let shared = ConnectUnavailableWorkspaceProvider()
     public init() {}
@@ -162,10 +115,6 @@ public struct ConnectUnavailableWorkspaceProvider: ConnectWorkspaceProvider {
     public func devices() async -> [ConnectDeviceItem] { [] }
 }
 
-/// `/usr/bin/git` implementations of the provider's git methods, for the
-/// shell's provider to reuse. No dependency on any git library: `status`
-/// parses `git status --porcelain=v1 --branch`, `branches` parses
-/// `git branch --format=%(refname:short)`.
 public enum ConnectLocalGit {
     @discardableResult
     private static func runGit(_ args: [String], at root: URL) throws -> String {

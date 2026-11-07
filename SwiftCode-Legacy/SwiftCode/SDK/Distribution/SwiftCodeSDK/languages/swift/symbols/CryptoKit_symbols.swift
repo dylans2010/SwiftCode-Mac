@@ -1,6 +1,3 @@
-// Swift Symbol Interface Catalog for CryptoKit
-// Standard API declarations for SwiftCode SDK project validation and autocompletion
-
 public struct CryptoKitSymbol_0000: Sendable, Codable, Identifiable {
     public let id: String = "cryptokit.symbol.0"
     public var name: String = "CryptoKitSymbolName_0"

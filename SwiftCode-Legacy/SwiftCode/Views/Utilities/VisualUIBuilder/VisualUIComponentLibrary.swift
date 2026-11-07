@@ -1,12 +1,10 @@
 import SwiftUI
 
-/// Panel containing categorizations of native Apple components for easy visual placement.
 public struct VisualUIComponentLibrary: View {
     @Bindable var document: VisualUIDocument
     @State private var searchText = ""
     @State private var settings = VisualUISettings.shared
 
-    // Substantially expanded categories
     private let categories: [String: [VisualComponentType]] = [
         "Layout & Stacks": [.vStack, .hStack, .zStack, .group, .groupBox, .grid, .lazyVGrid, .lazyHGrid, .anyLayout, .viewThatFits, .safeAreaInset],
         "Input Controls": [.button, .toggle, .picker, .slider, .stepper, .textField, .secureField, .photosPicker, .shareLink, .menu],
@@ -23,7 +21,6 @@ public struct VisualUIComponentLibrary: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -37,10 +34,8 @@ public struct VisualUIComponentLibrary: View {
 
             Divider()
 
-            // Library List
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // 1. Recently Used (if not empty)
                     let recents = settings.recentlyUsedComponents
                     if !recents.isEmpty && searchText.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -63,7 +58,6 @@ public struct VisualUIComponentLibrary: View {
                         }
                     }
 
-                    // 2. Favorites (if not empty)
                     let favorites = Array(settings.favoriteComponents).sorted(by: { $0.rawValue < $1.rawValue })
                     if !favorites.isEmpty && searchText.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -86,7 +80,6 @@ public struct VisualUIComponentLibrary: View {
                         }
                     }
 
-                    // 3. Regular Categories
                     ForEach(categories.keys.sorted(), id: \.self) { category in
                         let items = filteredItems(forCategory: category)
                         if !items.isEmpty {
@@ -122,27 +115,22 @@ public struct VisualUIComponentLibrary: View {
         document.checkpoint()
         let newNode = VisualComponentNode(type: type)
 
-        // Track in Recently Used
         settings.addToRecentlyUsed(type)
 
         if let activeID = document.scene.activeArtboardID,
            let artboard = document.scene.artboards.first(where: { $0.id == activeID }) {
 
-            // If there's a selected node, insert as child or sibling of it
             if let selectedID = document.scene.selectedNodeIDs.first,
                let targetNode = document.scene.findNode(byID: selectedID) {
                 targetNode.children.append(newNode)
                 VisualUISettings.shared.addLog("Inserted \(type.rawValue) inside \(targetNode.name)")
             } else {
-                // Insert into root
                 artboard.rootNode.children.append(newNode)
                 VisualUISettings.shared.addLog("Inserted \(type.rawValue) into artboard root")
             }
         }
     }
 }
-
-// MARK: - Individual Component Library Button
 
 struct ComponentItemButton: View {
     let type: VisualComponentType

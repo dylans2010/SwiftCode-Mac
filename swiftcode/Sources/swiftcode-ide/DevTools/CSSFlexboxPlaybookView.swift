@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 import SwiftCodeUI
 
@@ -41,7 +38,6 @@ public struct CSSFlexboxPlaybookView: View {
                 }
 
                 HStack(alignment: .top, spacing: 20) {
-                    // Left Control Card
                     VStack(alignment: .leading, spacing: 14) {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
@@ -99,19 +95,16 @@ public struct CSSFlexboxPlaybookView: View {
                     }
                     .frame(width: 320)
 
-                    // Right Interactive Preview Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Interactive Layout Preview")
                                 .font(.headline)
 
-                            // Simulated flex container view
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8)
                                     .fill(Color.black.opacity(0.12))
                                     .frame(height: 250)
 
-                                // Dynamically layout the boxes based on selections
                                 let isColumn = flexDirection.contains("column")
                                 let isReverse = flexDirection.contains("reverse")
 
@@ -143,7 +136,7 @@ public struct CSSFlexboxPlaybookView: View {
             }
             .padding(24)
         }
-        
+
     }
 
     private func previewBox(_ num: Int) -> some View {

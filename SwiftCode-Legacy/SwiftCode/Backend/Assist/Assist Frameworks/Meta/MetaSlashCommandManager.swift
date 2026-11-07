@@ -1,16 +1,6 @@
-//
-//  MetaSlashCommandManager.swift
-//  SwiftCode
-//
-//  Discovers, caches, parses, and manages Meta Code slash commands (/ commands)
-//  from the muse CLI and built-in Meta Code capabilities.
-//
-
 import Foundation
 import SwiftUI
 import Combine
-
-// MARK: - Command Argument Definition
 
 public enum MetaCommandArgument: Identifiable, Hashable, Sendable {
     case options(name: String, choices: [String], defaultValue: String?)
@@ -31,16 +21,14 @@ public enum MetaCommandArgument: Identifiable, Hashable, Sendable {
     }
 }
 
-// MARK: - Meta Slash Command Model
-
 public struct MetaSlashCommand: Identifiable, Hashable, Sendable {
     public let id: String
-    public let name: String           // e.g. "/effort"
-    public let title: String          // e.g. "Effort Level"
-    public let description: String    // e.g. "Set model reasoning effort"
-    public let syntax: String         // e.g. "/effort [<none|minimal|low|medium|high|xhigh|max|ultra>]"
-    public let icon: String           // SF Symbol
-    public let category: String       // e.g. "Configuration", "Skills", "Session"
+    public let name: String
+    public let title: String
+    public let description: String
+    public let syntax: String
+    public let icon: String
+    public let category: String
     public let arguments: [MetaCommandArgument]
     public let isTerminalSkill: Bool
 
@@ -71,8 +59,6 @@ public struct MetaSlashCommand: Identifiable, Hashable, Sendable {
     }
 }
 
-// MARK: - Meta Slash Command Manager
-
 @MainActor
 public final class MetaSlashCommandManager: ObservableObject {
     public static let shared = MetaSlashCommandManager()
@@ -87,8 +73,6 @@ public final class MetaSlashCommandManager: ObservableObject {
             await captureCommandsFromTerminal()
         }
     }
-
-    // MARK: - Built-in Commands (Extracted from Meta Code Spec & Runtime)
 
     private func loadBuiltInCommands() {
         var list: [MetaSlashCommand] = [
@@ -519,9 +503,6 @@ public final class MetaSlashCommandManager: ObservableObject {
         self.commands = list
     }
 
-    // MARK: - Dynamic Terminal Command Capture
-
-    /// Captures actual skills and commands live from the `muse` terminal binary.
     public func captureCommandsFromTerminal() async {
         guard !isCapturing else { return }
         isCapturing = true
@@ -531,7 +512,6 @@ public final class MetaSlashCommandManager: ObservableObject {
             return
         }
 
-        // 1. Capture dynamic skills from terminal: `muse skills list`
         do {
             let result = try await MuseCodeCLIHelper.shared.runProcess(
                 executablePath: executablePath,
@@ -562,7 +542,6 @@ public final class MetaSlashCommandManager: ObservableObject {
                         }
                     }
 
-                    // Format title from skillName (e.g. replica-architect -> Replica Architect)
                     let formattedTitle = skillName
                         .replacingOccurrences(of: "-", with: " ")
                         .replacingOccurrences(of: "_", with: " ")
@@ -589,7 +568,6 @@ public final class MetaSlashCommandManager: ObservableObject {
                 }
 
                 if !dynamicSkills.isEmpty {
-                    // Merge dynamic skills, avoiding duplicates
                     var merged = self.commands.filter { !$0.isTerminalSkill }
                     merged.append(contentsOf: dynamicSkills)
                     self.commands = merged
@@ -597,11 +575,8 @@ public final class MetaSlashCommandManager: ObservableObject {
                 }
             }
         } catch {
-            // Silently fallback to built-in commands if terminal capture is interrupted
         }
     }
-
-    // MARK: - Search & Filtering
 
     public func searchCommands(query: String) -> [MetaSlashCommand] {
         let trimmed = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -618,9 +593,6 @@ public final class MetaSlashCommandManager: ObservableObject {
         }
     }
 
-    // MARK: - Execution Dispatcher
-
-    /// Executes or applies a selected Meta slash command with its UI-provided argument.
     public func executeCommand(_ command: MetaSlashCommand, argument: String?) async -> String {
         let argString = (argument ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -645,7 +617,6 @@ public final class MetaSlashCommandManager: ObservableObject {
             break
         }
 
-        // Default: return the full command string to place in input or send
         if argString.isEmpty {
             return command.name
         } else {

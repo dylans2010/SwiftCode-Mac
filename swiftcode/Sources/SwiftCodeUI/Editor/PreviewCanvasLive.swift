@@ -3,8 +3,6 @@ import SwiftCodeDeviceUI
 import SwiftCodeDisplayStream
 import SwiftCodeIDECore
 
-/// A tile on the canvas: the region of the preview device's picture, and in
-/// Live mode the mouse acts as a finger on it (`display-stream.md` §5.1).
 final class PreviewLiveTileView: NSView {
     var tile: PreviewLiveTile
     weak var input: DeviceInputHandler?
@@ -12,9 +10,6 @@ final class PreviewLiveTileView: NSView {
     var onClick: ((Int) -> Void)?
     var isSelected = false { didSet { layer?.borderWidth = isSelected ? 2 : 0.5; layer?.borderColor = (isSelected ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor } }
     private var down = false
-    /// A visionOS preview device (its hello says `spatial`): the mouse is the
-    /// gaze and a right-hand pinch instead of a finger (visionos.md "SwiftCode
-    /// implementation"; the Vision Pro's display is 1920 × 1080 points).
     private var spatial = SpatialInteraction()
 
     init(tile: PreviewLiveTile) {
@@ -34,11 +29,8 @@ final class PreviewLiveTileView: NSView {
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    /// The tile's part of the device picture (drawn in `draw`, so window
-    /// snapshots made with `cacheDisplay` include it).
     private(set) var picture: CGImage?
 
-    /// Shows the device picture's part for this tile.
     func show(_ image: CGImage?, screen: CGSize) {
         guard let image else { return }
         let rect = PreviewCanvasLayout.pixelRect(tile.region, screen: screen, imageSize: CGSize(width: image.width, height: image.height))
@@ -97,8 +89,6 @@ final class PreviewLiveTileView: NSView {
     }
 }
 
-/// The banner over a canvas whose last update failed (`previews.md`
-/// §Errors): the first issue, a button per issue that has a source position.
 final class PreviewBannerView: NSView {
     var onIssue: ((PreviewIssue) -> Void)?
     private(set) var issues: [PreviewIssue] = []
@@ -152,11 +142,9 @@ final class PreviewBannerView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     @objc private func issueClicked(_ b: NSButton) { if b.tag < issues.count { onIssue?(issues[b.tag]) } }
-    /// Clicks the first issue with a position (tests).
     func clickFirstIssue() { if let i = issues.first(where: { $0.file != nil }) { onIssue?(i) } }
 }
 
-/// A flipped container (the live tiles' document view).
 final class PreviewLiveDocumentView: NSView {
     override var isFlipped: Bool { true }
 }
@@ -172,15 +160,12 @@ extension PreviewCanvasController: DeviceLiveSessionObserver {
         }
     }
 
-    /// The zoom live tiles are shown at: the chosen one, else Fit.
     func liveZoom(_ tiles: [PreviewLiveTile]) -> CGFloat {
         if let z = zoom { return z }
         let area = CGSize(width: max(body.bounds.width, 200), height: max(body.bounds.height, 200))
         return PreviewCanvasLayout.fitZoom(tiles, area: area)
     }
 
-    /// The live tiles in device-screen order, each with its caption, in a
-    /// scroll view; the banner (if any) on top.
     func liveContent(_ tiles: [PreviewLiveTile]) -> NSView {
         liveTileViews = []
         let z = liveZoom(tiles)
@@ -206,7 +191,6 @@ extension PreviewCanvasController: DeviceLiveSessionObserver {
             cardTitles.append(t.title)
         }
         framedCount = tiles.count
-        // Centre the tiles horizontally when they are narrower than the canvas.
         let centring = PreviewLiveDocumentView()
         doc.translatesAutoresizingMaskIntoConstraints = false
         centring.addSubview(doc)

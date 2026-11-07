@@ -1,11 +1,3 @@
-//
-//  AssistConversationsSheet.swift
-//  SwiftCode
-//
-//  Clean, modern interface displaying conversation history with search,
-//  AFM auto-titling, name suggestion (<25 chars), archiving, deletion, and context inspection.
-//
-
 import SwiftUI
 import AppKit
 
@@ -42,7 +34,6 @@ public struct AssistConversationsSheet: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Sleek Top Controls Bar
                 VStack(spacing: 10) {
                     HStack(spacing: 12) {
                         HStack(spacing: 8) {
@@ -83,7 +74,6 @@ public struct AssistConversationsSheet: View {
 
                 Divider()
 
-                // Content Area
                 if filteredConversations.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: selectedTab == .active ? "bubble.left.and.bubble.right" : "archivebox")
@@ -139,8 +129,6 @@ public struct AssistConversationsSheet: View {
         }
     }
 
-    // MARK: - Conversation Card
-
     @ViewBuilder
     private func conversationCard(_ item: ConversationItem) -> some View {
         let isActive = item.id == history.activeConversationID
@@ -151,7 +139,6 @@ public struct AssistConversationsSheet: View {
             loadConversation(item)
         } label: {
             HStack(alignment: .top, spacing: 10) {
-                // Status / Kind Icon
                 ZStack {
                     Circle()
                         .fill(isActive ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.10))
@@ -168,7 +155,6 @@ public struct AssistConversationsSheet: View {
                 }
                 .padding(.top, 2)
 
-                // Info
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(item.title)
@@ -187,7 +173,6 @@ public struct AssistConversationsSheet: View {
 
                         Spacer()
 
-                        // Relative timestamp
                         Text(item.updatedAt, style: .relative)
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)

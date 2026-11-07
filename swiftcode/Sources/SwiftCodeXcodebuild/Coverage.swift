@@ -1,9 +1,5 @@
 import Foundation
 
-/// Code coverage of a test run, gathered with the toolchain's open-source
-/// `llvm-cov` from the merged profile, and its two result-bundle forms: the
-/// coverage report and the coverage archive.
-/// See `specs/xcodebuild/coverage.md`.
 public struct CoverageData: Sendable {
     public struct Function: Sendable, Equatable {
         public var name: String
@@ -12,9 +8,6 @@ public struct CoverageData: Sendable {
         public var executableLines: Int
         public var coveredLines: Int
     }
-    /// One source line: executable or not, its count, and the column
-    /// ranges whose count differs from the line's (column, length with 0 =
-    /// to the end of the line, count).
     public struct Line: Sendable, Equatable {
         public var executable: Bool
         public var count: Int
@@ -46,23 +39,16 @@ public struct CoverageData: Sendable {
     public var fraction: Double { executableLines == 0 ? 0 : Double(coveredLines) / Double(executableLines) }
 }
 
-/// A target whose code coverage is reported.
 struct CoverageTarget {
     var name: String
     var blueprintIdentifier: String
-    /// The binary with the target's code (nil for static libraries, whose
-    /// code is in the binaries that link them).
     var binary: String?
     var productPath: String
-    /// Source files of the target (absolute) and folders whose files it
-    /// builds (synchronized groups).
     var sources: Set<String>
     var folders: [String]
-    /// Reported even when it owns no covered file (package library products).
     var listedWithoutFiles = false
 
     func owns(_ path: String) -> Bool {
-        // `/private/tmp/x` and `/tmp/x` name the same file on macOS.
         let p = PathText.withoutPrivatePrefix(path)
         return sources.contains(path) || sources.contains(p) || folders.contains {
             let f = PathText.withoutPrivatePrefix($0)
@@ -72,14 +58,9 @@ struct CoverageTarget {
 }
 
 public enum Coverage {
-    // MARK: Gathering
 
-    /// The scheme's targets as coverage sees them: test bundles first, then
-    /// the other targets in scheme order.
     static func targets(plan: Plan, context ctx: XcodebuildContext) -> [CoverageTarget] {
         if let package = plan.package { return packageTargets(package, plan: plan, context: ctx) }
-        // The scheme's targets and every other target of its projects (the
-        // test bundles' dependencies are reported too).
         var all = plan.targets
         for p in plan.container.projects {
             for t in p.targets where ProjectPIF.targetKind(t) != nil && !all.contains(where: { $0.target.id == t.id && $0.project.url == p.url }) {
@@ -115,9 +96,6 @@ public enum Coverage {
         return zip(out, tests).filter { $0.1 }.map(\.0) + zip(out, tests).filter { !$0.1 }.map(\.0)
     }
 
-    /// A package scheme's coverage targets: its library products, each with
-    /// its package framework and no files, then the test targets with their
-    /// bundles' executables and the files in their folders.
     static func packageTargets(_ package: Plan.PackageBuild, plan: Plan, context ctx: XcodebuildContext) -> [CoverageTarget] {
         let tests = (try? TestActions.packageTargets(package, plan: plan, context: ctx)) ?? []
         let products = tests.first?.productsDirectory ?? plan.arena.map { $0.buildProductsPath + "/" + plan.configuration } ?? ""
@@ -134,7 +112,6 @@ public enum Coverage {
         return out
     }
 
-    /// `<ProfileData>/<device id>/Coverage.profdata`.
     static func profilePath(profileDirectory: String) -> String {
         profileDirectory + "/" + (Destinations.macProvisioningUDID() ?? "local") + "/Coverage.profdata"
     }
@@ -144,8 +121,6 @@ public enum Coverage {
         return FileManager.default.isExecutableFile(atPath: p) ? p : nil
     }
 
-    /// The coverage of `targets` from the merged profile, or nil when there
-    /// is nothing to report.
     static func collect(profile: String, targets: [CoverageTarget], developerDirectory dev: String) -> CoverageData? {
         guard FileManager.default.fileExists(atPath: profile), let llvmCov = toolchainTool("llvm-cov", developerDirectory: dev) else { return nil }
         let binaries = targets.compactMap(\.binary).filter { FileManager.default.fileExists(atPath: $0) }.uniqued()
@@ -160,10 +135,8 @@ public enum Coverage {
         let functions = data["functions"] as? [[String: Any]] ?? []
         let paths = files.compactMap { $0["filename"] as? String }
         guard !paths.isEmpty else { return nil }
-        // Per-function line counts, from llvm-cov's own function report.
         let report = TestActions.run(llvmCov, ["report", "-show-functions", "-instr-profile", profile] + objects + paths, environment: env)
         let rows = parseFunctionReport(report.output)
-        // Start line and entry count of each function, by file and name.
         var starts: [String: (line: Int, count: Int)] = [:]
         for f in functions {
             guard let name = f["name"] as? String, let file = (f["filenames"] as? [String])?.first,
@@ -194,8 +167,6 @@ public enum Coverage {
 
     struct ReportRow { var name: String; var lines: Int; var missed: Int }
 
-    /// `llvm-cov report -show-functions` text: per `File '<path>':` block,
-    /// rows of name and counters; the `Lines` and following `Miss` columns.
     static func parseFunctionReport(_ text: String) -> [String: [ReportRow]] {
         var out: [String: [ReportRow]] = [:]
         var file: String?
@@ -209,7 +180,7 @@ public enum Coverage {
             }
             let tokens = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
             if tokens.first == "Name", let i = tokens.firstIndex(of: "Lines") {
-                linesColumn = tokens.count - i   // position from the end
+                linesColumn = tokens.count - i
                 numeric = tokens.count - 1
                 continue
             }
@@ -220,8 +191,6 @@ public enum Coverage {
         return out
     }
 
-    /// Swift symbol names in the simplified form (`static Calc.add(_:_:)`),
-    /// through the toolchain's open-source `swift-demangle`; others as is.
     static func demangle(_ names: [String], developerDirectory dev: String) -> [String: String] {
         let swiftNames = names.filter { $0.hasPrefix("$s") || $0.hasPrefix("_$s") }.uniqued()
         guard !swiftNames.isEmpty, let tool = toolchainTool("swift-demangle", developerDirectory: dev) else { return [:] }
@@ -244,10 +213,6 @@ public enum Coverage {
         return map
     }
 
-    // MARK: Lines
-
-    /// One llvm-cov export segment: line, column, count, has-count,
-    /// region entry, gap region.
     struct Segment {
         var line: Int, column: Int, count: Int, hasCount: Bool, isRegionEntry: Bool, isGap: Bool
         init?(_ a: [Any]) {
@@ -263,11 +228,6 @@ public enum Coverage {
         }
     }
 
-    /// Per-line coverage from a file's segments, lines 1 through the last
-    /// executable one. Whether a line is executable and its count follow
-    /// LLVM's line-coverage rules (open-source `LineCoverageStats`); the
-    /// subranges are the column ranges between the segments on the line
-    /// whose count differs from the line's.
     static func lineCoverage(_ segments: [Segment]) -> [CoverageData.Line] {
         guard let lastLine = segments.map(\.line).max() else { return [] }
         var lines: [CoverageData.Line] = []
@@ -287,7 +247,6 @@ public enum Coverage {
             }
             var subranges: [CoverageData.Subrange] = []
             if mapped {
-                // Ranges: [1, first) with the wrapped count, then between segments.
                 var bounds: [(column: Int, count: Int?)] = [(1, (wrapped?.hasCount ?? false) ? wrapped!.count : nil)]
                 for s in onLine { bounds.append((s.column, s.hasCount ? s.count : nil)) }
                 for (i, b) in bounds.enumerated() {
@@ -309,9 +268,6 @@ public enum Coverage {
         return lines
     }
 
-    // MARK: Result-bundle forms
-
-    /// The coverage archive's files: `Coverage`, `Index`, `Metadata.plist`.
     static func archiveFiles(_ c: CoverageData) -> [(name: String, bytes: [UInt8])] {
         var coverage: [UInt8] = []
         var offsets: [String: Int] = [:]
@@ -320,7 +276,6 @@ public enum Coverage {
         for t in c.targets {
             for f in t.files where offsets[f.path] == nil {
                 offsets[f.path] = coverage.count
-                // Runs of lines with the same executability and count.
                 var runs: [(count: Int, executable: Bool, length: Int)] = []
                 for l in f.lines {
                     if let last = runs.last, last.executable == l.executable, last.count == l.count, last.length < 0x8000 {
@@ -354,10 +309,6 @@ public enum Coverage {
         return [("Coverage", coverage), ("Index", index), ("Metadata.plist", metadata)]
     }
 
-    /// The coverage report: a keyed archive of the report, target and file
-    /// objects (class names and keys from the format;
-    /// `specs/xcodebuild/coverage.md` §3), written by hand so that every
-    /// platform gives the same bytes. `name` is the report's identifier.
     static func reportArchive(_ c: CoverageData, name: String = UUID().uuidString) -> [UInt8]? {
         let container = "XCTHCoverageDataContainer"
         func counts(_ covered: Int, _ executable: Int) -> [(String, BPlist)] {
@@ -388,10 +339,6 @@ public enum Coverage {
         return archive.encoded(root: root)
     }
 
-    /// The per-file function table: count, then per function six 32-bit
-    /// little-endian fields (covered lines, executable lines, line number,
-    /// executable lines, execution count, 0), then the names, each ending
-    /// with a NUL byte.
     static func functionTable(_ fns: [CoverageData.Function]) -> Data {
         func u32(_ v: Int) -> [UInt8] { (0..<4).map { UInt8(truncatingIfNeeded: UInt32(truncatingIfNeeded: v) >> (8 * UInt32($0))) } }
         var b = u32(fns.count)
@@ -403,16 +350,7 @@ public enum Coverage {
     }
 }
 
-// MARK: - Summary for the IDE
-
 extension Coverage {
-    /// The environment variable that asks swiftcodebuild to write a coverage
-    /// summary for SwiftCode's test report (Coverage page) to the named path.
-    /// SwiftCode's own JSON, not an Apple format: `{"targets": [{"name",
-    /// "coveredLines", "executableLines", "files": [{"path",
-    /// "coveredLines", "executableLines", "lines"}]}]}`; `lines` holds one
-    /// execution count per source line from line 1 (-1: not executable),
-    /// for the editor's coverage ribbon.
     public static let summaryVariable = "SWIFTCODE_COVERAGE_SUMMARY"
 
     static func summaryJSON(_ c: CoverageData) -> Data {
@@ -426,9 +364,6 @@ extension Coverage {
         return (try? JSONSerialization.data(withJSONObject: ["targets": targets], options: [.sortedKeys])) ?? Data()
     }
 
-    /// Execution counts per line (from line 1; -1: not executable) of one
-    /// file of an llvm-cov export (`data[0].files[].segments`), by LLVM's
-    /// line-coverage rules (`lineCoverage`).
     public static func lineCounts(llvmCovSegments segments: [[Any]]) -> [Int] {
         lineCoverage(segments.compactMap(Segment.init)).map { $0.executable ? $0.count : -1 }
     }

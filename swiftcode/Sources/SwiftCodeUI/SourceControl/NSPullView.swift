@@ -1,6 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Views/GitHub/Menu Bar/NSPullView.swift
-//
 import SwiftUI
 import SwiftCodeIDECore
 
@@ -106,7 +103,6 @@ public struct NSPullView: View {
         let list = await GitMenuBarCommandExecutor.getBranchesList()
         branches = list.isEmpty ? ["main"] : list
 
-        // Use current branch if it exists in the list, otherwise default to main (or first available)
         if let current = try? await GitMenuBarCommandExecutor.getCurrentBranchName(), list.contains(current) {
             selectedBranch = current
         } else if list.contains("main") {

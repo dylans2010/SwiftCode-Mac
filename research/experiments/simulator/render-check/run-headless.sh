@@ -1,15 +1,10 @@
 #!/bin/sh
-# R6: boot a throwaway device with the capture framebuffer (sfbcapture) and the
-# Metal host names denied, then capture the home screen, Settings, and the probe
-# app. Original Ycode script.
-# Usage: run-headless.sh <udid> <build dir> <run dir> [extra SIMCTL_CHILD_ K=V ...]
-# Writes into <run dir>: frames.log, sfb.log, env/*.env.log, <name>.raw/.txt/.png, log-*.txt
 set -e
 UDID=${1:?udid}; B=${2:?build}; R=${3:?run dir}; shift 3
 HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$R/env"
 cd /tmp
-snap() {   # snap <name>: ask the framebuffer for the last presented surface
+snap() {
   rm -f "$R/$1.txt"; echo "$1" > "$R/snap"
   for i in $(seq 1 40); do [ -f "$R/$1.txt" ] && break; sleep 0.25; done
   sleep 0.5
@@ -21,7 +16,7 @@ export SIMCTL_CHILD_SFBC_DIR="$R" SIMCTL_CHILD_SFBH_LOG="$R/sfb.log"
 export SIMCTL_CHILD_DYLD_INSERT_LIBRARIES="$B/rcenv.dylib"
 export SIMCTL_CHILD_RC_DIR="$R/env" SIMCTL_CHILD_RC_ONLY="backboardd,SpringBoard,Preferences,YcodeProbe"
 export SIMCTL_CHILD_RC_DENY="${RC_DENY-com.apple.metal.simulator*,com.apple.gputools.service.simulator}"
-T0=$(date +%s); touch "$R/t0.mark"   # crash reports newer than this
+T0=$(date +%s); touch "$R/t0.mark"
 xcrun simctl boot "$UDID"
 echo "booted; waiting 60 s"; sleep 60
 snap home

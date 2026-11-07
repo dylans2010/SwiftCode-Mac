@@ -1,11 +1,3 @@
-//
-//  ModernSkillsBrowserView.swift
-//  SwiftCode
-//
-//  Modern, native macOS Agent Skills browser with fast indexed search,
-//  source metadata inspection, category filtering, and SKILL.md preview.
-//
-
 import SwiftUI
 import AppKit
 
@@ -81,11 +73,8 @@ public struct ModernSkillsBrowserView: View {
         }
     }
 
-    // MARK: - Sidebar List & Search Surface
-
     private var sidebarView: some View {
         VStack(spacing: 0) {
-            // Main Search Surface
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -118,7 +107,6 @@ public struct ModernSkillsBrowserView: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
 
-            // Source Filter Filter Chips
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     sourceChip(title: "All (\(skillIndex.skills.count))", isSelected: selectedSourceFilter == nil) {
@@ -145,7 +133,6 @@ public struct ModernSkillsBrowserView: View {
             Divider()
                 .padding(.top, 4)
 
-            // Dynamic Skill Rows
             if filteredSkills.isEmpty {
                 VStack(spacing: 10) {
                     Spacer()
@@ -173,7 +160,6 @@ public struct ModernSkillsBrowserView: View {
                 .listStyle(.plain)
             }
 
-            // Footer status bar
             HStack {
                 HStack(spacing: 6) {
                     Circle()
@@ -224,12 +210,9 @@ public struct ModernSkillsBrowserView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Detail Inspector View
-
     private func skillDetailView(skill: SkillDescriptor) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header Banner
                 HStack(alignment: .top, spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
@@ -278,7 +261,6 @@ public struct ModernSkillsBrowserView: View {
                         .stroke(Color.primary.opacity(0.06), lineWidth: 1)
                 )
 
-                // Metadata Details
                 VStack(alignment: .leading, spacing: 10) {
                     Text("METADATA & PROVENANCE")
                         .font(.system(size: 10, weight: .bold))
@@ -318,7 +300,6 @@ public struct ModernSkillsBrowserView: View {
                     .cornerRadius(8)
                 }
 
-                // SKILL.md Markdown Content Viewer
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("INSTRUCTION SPECIFICATION (SKILL.MD)")
@@ -425,8 +406,6 @@ public struct ModernSkillsBrowserView: View {
     }
 }
 
-// MARK: - Skill Row View
-
 private struct SkillRowView: View {
     let skill: SkillDescriptor
     let isSelected: Bool
@@ -474,8 +453,6 @@ private struct SkillRowView: View {
         .contentShape(Rectangle())
     }
 }
-
-// MARK: - Tag Flow Layout Helper
 
 private struct FlowTagLayout: Layout {
     var spacing: CGFloat = 6
@@ -526,8 +503,6 @@ private struct FlowTagLayout: Layout {
         }
     }
 }
-
-// MARK: - View Border Helper Extension
 
 private extension View {
     func border(width: CGFloat, edges: [Edge], color: Color) -> some View {

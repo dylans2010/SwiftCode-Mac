@@ -1,13 +1,3 @@
-// What the data volume's capability bits commit SwiftCode to
-// (specs/simulator/file-system-features.md; service-fidelity.md §11):
-// BSD file flags and document IDs (VOL_CAP_FMT_DOCUMENT_ID), write
-// generation counts (VOL_CAP_FMT_WRITE_GENERATION_COUNT), clones
-// (VOL_CAP_INT_CLONE), and the feed of file changes the host's file-event
-// service reads (fsevents-host.md, "SwiftCode implementation"). Semantics from
-// the public headers and open source (xnu `bsd/sys/attr.h`, `bsd/sys/stat.h`,
-// `bsd/sys/clonefile.h`, `bsd/vfs/vfs_attrlist.c`, `bsd/vfs/vfs_syscalls.c`;
-// the HFS sources' document-id and generation-count rules); level 1.
-
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -17,35 +7,16 @@ import Musl
 #endif
 import Synchronization
 
-// MARK: - File flags and document IDs
-
-/// SwiftCode's per-file metadata that a Linux host file cannot hold itself: the
-/// BSD file flags (`st_flags`, chflags(2)) and the document ID. Kept as one
-/// host extended attribute, `user.swiftcodevfs.meta` (8 bytes: u32 flags, u32
-/// document ID, little-endian), so it moves with the file on renames, goes
-/// with it when it is removed, and is copied with it by copies that keep
-/// extended attributes. The guest never sees the attribute: guest
-/// attributes live under `user.swiftcode.` (DarwinFileSystem's xattr calls).
 public enum VolumeMetadata {
-    /// The host extended attribute that holds a file's `Record`
-    /// (`file-system-features.md` §3).
     public static let hostAttributeName = "user.swiftcodevfs.meta"
-    /// The document-ID allocator's state: a host attribute of the directory
-    /// `documentIDStateDirectory` (DEV/data in device mode), so the counter
-    /// travels with the files whose IDs it issued.
     public static let allocatorAttributeName = "user.swiftcodevfs.next-document-id"
 
-    // BSD file-flag bits for `st_flags` (xnu `bsd/sys/stat.h`); which ones a
-    // guest may change is in `file-system-features.md` §3.
     public static let ufTracked: UInt32 = 0x40
     public static let ufDataVault: UInt32 = 0x80
     public static let ufCompressed: UInt32 = 0x20
-    /// The owner-settable flags (the low 16 bits).
     public static let ufSettable: UInt32 = 0x0000_FFFF
-    /// The superuser-settable flags; a guest that changes one gets EPERM.
     public static let sfSettable: UInt32 = 0x3FFF_0000
 
-    /// One file's flags and document ID (0: none), as stored in the attribute.
     public struct Record: Equatable, Sendable {
         public var flags: UInt32
         public var documentID: UInt32
@@ -66,9 +37,6 @@ public enum VolumeMetadata {
         }
     }
 
-    /// The record of a host file (by path, not following a final link, or
-    /// by descriptor); an empty record when it has none or the host cannot
-    /// say.
     public static func read(hostPath: String? = nil, fd: Int32? = nil) -> Record {
         var buffer = [UInt8](repeating: 0, count: 16)
         let n = buffer.withUnsafeMutableBytes { b -> Int in
@@ -84,8 +52,6 @@ public enum VolumeMetadata {
         return Record(bytes: Array(buffer.prefix(n))) ?? Record()
     }
 
-    /// Stores (or, for an empty record, removes) the record. Throws the
-    /// Darwin errno (ENOTSUP when the host file system keeps no attributes).
     public static func write(_ record: Record, hostPath: String? = nil, fd: Int32? = nil) throws {
         if record.isEmpty {
             #if canImport(Darwin)
@@ -122,18 +88,11 @@ public enum VolumeMetadata {
         #endif
     }
 
-    // MARK: Document-ID allocation
-
-    /// Set once before the guest runs (device mode: DEV/data). nil: an
-    /// in-memory counter (tests, `--exec`).
     nonisolated(unsafe) public static var documentIDStateDirectory: String?
-    /// The first document ID of a volume that has issued none.
     public static let firstDocumentID: UInt32 = 16
     private static let allocatorLock = NSLockLike(name: "document ids")
     nonisolated(unsafe) private static var memoryNext: UInt32 = firstDocumentID
 
-    /// A new document ID: never 0, never issued before on this volume
-    /// (the counter is stored before the ID is handed out).
     public static func allocateDocumentID() -> UInt32 {
         allocatorLock.withLock {
             guard let dir = documentIDStateDirectory else {
@@ -164,32 +123,19 @@ public enum VolumeMetadata {
         }
     }
 
-    /// Tests: forget the in-memory counter.
     public static func resetMemoryAllocator() { allocatorLock.withLock { memoryNext = firstDocumentID } }
 }
 
-// MARK: - Write generation counts
-
-/// `ATTR_CMN_GEN_COUNT` (sys/attr.h; HFS keeps a per-file counter bumped by
-/// every write). SwiftCode's value for a regular file or directory is an opaque
-/// nonzero number that changes whenever the contents change and stays the
-/// same otherwise, also across boots: a hash of the host modification time
-/// and size, and of the number of writes made through SwiftCode since the last
-/// time the value was read with that same modification time (the host
-/// clock's granularity can leave two writes with one time stamp). Other
-/// object types have none (0, as HFS answers).
 public enum WriteGenerations {
     struct Key: Hashable { let dev: UInt32; let ino: UInt64 }
     struct Entry { var writes: UInt32 = 0; var seenMtime: DarwinTimespec?; var base: UInt32 = 0 }
     private static let lock = NSLockLike(name: "write generations")
     nonisolated(unsafe) private static var table: [Key: Entry] = [:]
 
-    /// A write (or truncation) of the file `dev`/`ino` through SwiftCode.
     public static func noteWrite(dev: UInt32, ino: UInt64) {
         lock.withLock { table[Key(dev: dev, ino: ino), default: Entry()].writes &+= 1 }
     }
 
-    /// The count `getattrlist` reports for an object with stat data `st`.
     public static func count(_ st: DarwinStat) -> UInt32 {
         guard st.isRegularFile || st.isDirectory else { return 0 }
         let delta: UInt32 = lock.withLock {
@@ -212,19 +158,12 @@ public enum WriteGenerations {
     }
 }
 
-// MARK: - File changes (the feed of the host's file-event service)
-
-/// One change the guest made to its file system.
 public struct FileChange: Equatable, Sendable {
-    /// What changed (`file-system-features.md` §7).
     public enum Kind: UInt8, Sendable { case created, removed, renamed, modified, inodeMetadata, owner, extendedAttribute, cloned }
-    /// The type of the object that changed.
     public enum Item: UInt8, Sendable { case file, directory, symbolicLink, other }
     public var kind: Kind
     public var item: Item
-    /// The object's canonical guest path.
     public var path: String
-    /// The guest process that made it (0: the host).
     public var pid: Int32
     public init(kind: Kind, item: Item, path: String, pid: Int32) {
         self.kind = kind
@@ -233,7 +172,6 @@ public struct FileChange: Equatable, Sendable {
         self.pid = pid
     }
 
-    /// The item type for a stat result; nil (the object is gone) counts as a file.
     public static func item(_ st: DarwinStat?) -> Item {
         guard let st else { return .file }
         if st.isDirectory { return .directory }
@@ -242,40 +180,25 @@ public struct FileChange: Equatable, Sendable {
     }
 }
 
-/// Where the VFS reports changes. One observer (the file-event service),
-/// installed before the guest runs; `listening` is false while it has
-/// nothing to watch, so the VFS's calls cost one atomic load.
 public enum FileChangeFeed {
     nonisolated(unsafe) private static var observer: (@Sendable (FileChange) -> Void)?
     private static let listeningFlag = Atomic<Bool>(false)
 
-    /// Sets the one observer (nil removes it and stops listening). Call
-    /// before the guest runs; the observer is not guarded by a lock.
     public static func install(_ body: (@Sendable (FileChange) -> Void)?) {
         observer = body
         if body == nil { listeningFlag.store(false, ordering: .releasing) }
     }
 
-    /// The observer has (true) or has no (false) interest in changes.
     public static func setListening(_ on: Bool) { listeningFlag.store(on && observer != nil, ordering: .releasing) }
 
-    /// True when an observer is installed and wants changes; one atomic load.
     @inline(__always) public static var isListening: Bool { listeningFlag.load(ordering: .acquiring) }
 
-    /// Reports one change to the observer when it is listening; a no-op
-    /// otherwise. `pid` 0 means the host made the change.
     @inline(__always) public static func note(_ kind: FileChange.Kind, _ item: FileChange.Item, _ path: String, pid: Int32) {
         guard isListening, let o = observer else { return }
         o(FileChange(kind: kind, item: item, path: path, pid: pid))
     }
 }
 
-// MARK: - Host clones
-
-/// Clones of host files: a copy-on-write clone where the host file system
-/// has one (Linux FICLONE: btrfs, XFS; macOS clonefile), otherwise a copy
-/// with the same observable result (contents, mode, times, guest extended
-/// attributes, flags). ext4, the Thor's data drive, has no clones.
 enum HostClone {
     #if os(Linux)
     typealias IoctlInt = @convention(c) (Int32, UInt, Int32) -> Int32
@@ -283,11 +206,9 @@ enum HostClone {
     static let ioctlInt: IoctlInt? = dlsym(UnsafeMutableRawPointer(bitPattern: 0), "ioctl").map { unsafeBitCast($0, to: IoctlInt.self) }
     static let copyFileRange: CopyRange? = dlsym(UnsafeMutableRawPointer(bitPattern: 0), "copy_file_range")
         .map { unsafeBitCast($0, to: CopyRange.self) }
-    /// FICLONE = _IOW(0x94, 9, int).
     static let ficlone: UInt = 0x4004_9409
     #endif
 
-    /// Copies the data of `from` into the empty file `to` (both open).
     static func copyData(from: Int32, to: Int32) throws {
         #if os(Linux)
         if let ioctlInt, ioctlInt(to, ficlone, from) == 0 { return }
@@ -300,8 +221,6 @@ enum HostClone {
                 if errno == EXDEV || errno == ENOSYS || errno == EINVAL || errno == EOPNOTSUPP { break }
                 throw DarwinErrnoError(hostErrno())
             }
-            // Start over with plain reads (nothing was copied, or the
-            // offsets moved: rewind both).
             guard ftruncate(to, 0) == 0 else { throw DarwinErrnoError(hostErrno()) }
             _ = lseek(from, 0, SEEK_SET)
             _ = lseek(to, 0, SEEK_SET)
@@ -329,8 +248,6 @@ enum HostClone {
         }
     }
 
-    /// The guest's extended attributes of `from` (host names `user.swiftcode.*`)
-    /// copied to `to` (paths, links not followed).
     static func copyGuestAttributes(from: String, to: String) {
         func list(_ path: String) -> [String] {
             var buffer = [CChar](repeating: 0, count: 65536)
@@ -361,10 +278,7 @@ enum HostClone {
     }
 }
 
-// MARK: - The VFS side
-
 extension GuestFile {
-    /// A write or truncation through this open file.
     func noteWritten(pid: Int32) {
         WriteGenerations.noteWrite(dev: stat.dev, ino: stat.ino)
         FileChangeFeed.note(.modified, .file, guestPath, pid: pid)
@@ -372,16 +286,7 @@ extension GuestFile {
 }
 
 extension DarwinFileSystem {
-    // MARK: File flags (chflags, fchflags, setattrlist ATTR_CMN_FLAGS)
 
-    /// chflags(2): stores the owner-settable flags (`UF_SETTABLE`, except
-    /// UF_COMPRESSED, which only a file system sets). Changing a
-    /// superuser flag (`SF_SETTABLE`) or UF_DATAVAULT is EPERM: guest
-    /// processes are never the superuser. Setting UF_TRACKED gives the
-    /// object a document ID (a new one unless it has one); clearing it
-    /// clears the ID (HFS `hfs_set_bsd_flags`). Read-only volumes: EROFS.
-    /// The flags are kept and reported; SwiftCode does not enforce
-    /// UF_IMMUTABLE or UF_APPEND.
     public func setFileFlags(_ target: XattrTarget, _ flags: UInt32) throws {
         let host = try xattrHost(target)
         guard host.path != nil || host.fd != nil else { throw DarwinErrnoError(DarwinErrnoCode.EROFS) }
@@ -406,10 +311,6 @@ extension DarwinFileSystem {
         VnodeNotes.postAttrib(path: host.path, fd: host.fd)
     }
 
-    /// The document ID of the object at a canonical guest path (its final
-    /// component not followed), as `ATTR_CMN_DOCUMENT_ID` reports it: 0 for
-    /// an untracked object; a tracked object without one gets a new one
-    /// (HFS `hfs_vnop_getattr`; e.g. a clone of a tracked file).
     public func documentID(atCanonicalPath path: String) -> UInt32 {
         guard let r = try? resolve(path, followFinal: false), let st = r.stat, r.prefix.writable, !r.hostPath.isEmpty
         else { return 0 }
@@ -422,15 +323,11 @@ extension DarwinFileSystem {
         return record.documentID
     }
 
-    /// For the file-event service: the inode number and document ID of the
-    /// object at a canonical guest path (not followed), or nil if it is gone.
     public func identity(atCanonicalPath path: String) -> (inode: UInt64, documentID: UInt32)? {
         guard let r = try? resolve(path, followFinal: false), let st = r.stat else { return nil }
         let id = r.prefix.writable && !r.hostPath.isEmpty ? VolumeMetadata.read(hostPath: r.hostPath).documentID : 0
         return (st.ino, id)
     }
-
-    // MARK: Document-ID tombstones (safe saves)
 
     private static func split(_ guestPath: String) -> (directory: String, name: String) {
         guard let slash = guestPath.lastIndex(of: "/") else { return ("", guestPath) }
@@ -438,13 +335,10 @@ extension DarwinFileSystem {
         return (dir, String(guestPath[guestPath.index(after: slash)...]))
     }
 
-    /// xnu `doc_tombstone_should_ignore_name`: names of temporary files.
     static func isTemporaryName(_ name: String) -> Bool {
         name.hasPrefix("atmp") || (name.utf8.count > 4 && (name.hasSuffix(".bak") || name.hasSuffix(".tmp")))
     }
 
-    /// A tracked object left `guestPath` (removed, or renamed away to a
-    /// free name): its document ID waits for the next object made there.
     func leaveTombstone(guestPath: String, _ record: VolumeMetadata.Record) {
         guard record.documentID != 0, record.flags & VolumeMetadata.ufTracked != 0 else { return }
         let (dir, name) = Self.split(guestPath)
@@ -452,10 +346,6 @@ extension DarwinFileSystem {
         tombstone = (dir, name, record.documentID)
     }
 
-    /// A new object appeared at `guestPath` (created, or renamed there to a
-    /// free name): it takes the tombstone's document ID when the tombstone
-    /// names the same place, and keeps its own if it has one. Any other
-    /// name, except a temporary one, clears the tombstone.
     func inheritTombstone(guestPath: String, hostFD: Int32? = nil, hostPath: String? = nil) {
         guard let t = tombstone else { return }
         let (dir, name) = Self.split(guestPath)
@@ -471,23 +361,9 @@ extension DarwinFileSystem {
         try? VolumeMetadata.write(record, hostPath: hostPath, fd: hostFD)
     }
 
-    // MARK: Clones (clonefileat, fclonefileat)
-
-    /// `sys/clonefile.h`.
     public static let cloneNoFollow: UInt32 = 0x1, cloneNoOwnerCopy: UInt32 = 0x2, cloneACL: UInt32 = 0x4,
                       cloneNoFollowAny: UInt32 = 0x8, cloneResolveBeneath: UInt32 = 0x10
 
-    /// clonefileat(2): a new object `to` (which must not exist) with the
-    /// contents and attributes of `from`, a regular file, symbolic link or
-    /// directory (recursively; not a volume's root). xnu
-    /// `clonefile_internal`: unknown flags EINVAL; another type EINVAL; an
-    /// existing target EEXIST; a read-only target volume EROFS; another
-    /// volume EXDEV. The clone has the source's mode, times, extended
-    /// attributes and flags (UF_DATAVAULT excepted), the caller as owner
-    /// (guests are never the superuser), and no document ID of its own (a
-    /// tracked clone gets a new one when it is read). CLONE_ACL is accepted
-    /// (SwiftCode keeps no ACLs); CLONE_RESOLVE_BENEATH is not implemented
-    /// (EINVAL), as for renameatx_np.
     public func clone(_ from: String, to: String, flags: UInt32) throws {
         try checkCloneFlags(flags)
         let a = try resolve(from, followFinal: flags & Self.cloneNoFollow == 0,
@@ -497,8 +373,6 @@ extension DarwinFileSystem {
                           to: to, flags: flags)
     }
 
-    /// fclonefileat(2): the source is an open descriptor (EBADF unless it
-    /// was opened for reading).
     public func clone(fd: Int32, to: String, flags: UInt32) throws {
         try checkCloneFlags(flags)
         let d = try entry(fd)
@@ -518,8 +392,6 @@ extension DarwinFileSystem {
 
     private func cloneResolved(guestPath: String, hostPath: String, prefix: Prefix, st: DarwinStat, device: Bool,
                                to: String, flags: UInt32) throws {
-        // The source: a file, link or directory with a host object behind
-        // it; a directory that is a volume root or mount point is EINVAL.
         guard !device, !hostPath.isEmpty, st.isRegularFile || st.isSymbolicLink || st.isDirectory else {
             throw DarwinErrnoError(DarwinErrnoCode.EINVAL)
         }
@@ -533,11 +405,9 @@ extension DarwinFileSystem {
         guard b.prefix.writable, !b.hostPath.isEmpty else { throw DarwinErrnoError(DarwinErrnoCode.EROFS) }
         let parent = Self.split(b.guestPath).directory
         let targetDevice = (try? stat(parent.isEmpty ? "/" : parent, followSymlinks: true))?.dev
-        guard targetDevice == st.dev else { throw DarwinErrnoError(18) }  // EXDEV
+        guard targetDevice == st.dev else { throw DarwinErrnoError(18) }
         let watched = VnodeNotes.capture(b.hostPath)
         try HostClone.cloneTree(from: hostPath, to: b.hostPath, st: st)
-        // xnu VNOP_CLONEFILE: the target's directory gets a new entry
-        // (and a new link for a cloned directory, as mkdir).
         watched?.post(directory: VnodeNote.write | (st.isDirectory ? VnodeNote.link : 0))
         FileChangeFeed.note(.cloned, FileChange.item(st), guestPath, pid: ownerPID)
         FileChangeFeed.note(.cloned, FileChange.item(st), b.guestPath, pid: ownerPID)
@@ -545,12 +415,6 @@ extension DarwinFileSystem {
     }
 }
 
-// MARK: - Atomic host renames
-
-/// RENAME_EXCL (`swap` false) or RENAME_SWAP done by the host in one step:
-/// Linux renameat2 RENAME_NOREPLACE / RENAME_EXCHANGE (glibc 2.28), macOS
-/// renamex_np. false: the host cannot (no such call, or the file system
-/// refuses the flag); the caller falls back.
 func hostRenameAtomically(_ from: String, _ to: String, swap: Bool) throws -> Bool {
     #if canImport(Darwin)
     if renamex_np(from, to, swap ? UInt32(RENAME_SWAP) : UInt32(RENAME_EXCL)) == 0 { return true }
@@ -572,8 +436,6 @@ enum LinuxRename {
 #endif
 
 extension HostClone {
-    /// Clones the host object `from` (stat data `st`, links not followed
-    /// below it) to the new name `to`; on failure nothing is left at `to`.
     static func cloneTree(from: String, to: String, st: DarwinStat) throws {
         do {
             try cloneOne(from: from, to: to, st: st)
@@ -601,8 +463,6 @@ extension HostClone {
                 if name == "." || name == ".." { continue }
                 let child = from + "/" + name
                 guard let cst = try? hostStatCall(child, follow: false) else { continue }
-                // Only files, links and directories are cloned (a socket or
-                // FIFO has no contents to share).
                 guard cst.isRegularFile || cst.isSymbolicLink || cst.isDirectory else { continue }
                 try cloneOne(from: child, to: to + "/" + name, st: cst)
             }
@@ -618,8 +478,6 @@ extension HostClone {
         copyAttributes(from: from, to: to, st: st, fd: target)
     }
 
-    /// Times, guest extended attributes and flags (not UF_DATAVAULT, not the
-    /// document ID) of `from` onto the new `to`.
     private static func copyAttributes(from: String, to: String, st: DarwinStat, fd: Int32?) {
         copyGuestAttributes(from: from, to: to)
         var record = VolumeMetadata.read(hostPath: from)
@@ -631,7 +489,6 @@ extension HostClone {
         _ = hostSetTimes(path: fd == nil ? to : nil, fd: fd, st.atime, st.mtime, follow: false)
     }
 
-    /// Removes what a failed clone made (a file, a link, or a tree).
     static func removeTree(_ path: String) {
         guard let st = try? hostStatCall(path, follow: false) else { return }
         if st.isDirectory, let dir = opendir(path) {

@@ -1,10 +1,3 @@
-// vprobe: the guest's view of its visionOS device and Metal device
-// (specs/simulator/visionos.md §3.4, §4.5; round R1 of §7.2). SwiftCode's own
-// probe, built for the visionOS simulator platform (build-visionos.sh) and
-// run under SwiftCode as a one-shot: `vprobe [delay s]`. It prints UIDevice
-// values and the MTLDevice properties that visionos.md §4.5 lists for the
-// reference, so the two can be compared line by line.
-
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <UIKit/UIKit.h>
@@ -12,7 +5,7 @@
 
 int main(int argc, char **argv) {
     @autoreleasepool {
-        setvbuf(stdout, NULL, _IOLBF, 0);  // a probe killed later keeps what it printed
+        setvbuf(stdout, NULL, _IOLBF, 0);
         int delay = argc > 1 ? atoi(argv[1]) : 0;
         if (delay > 0) sleep((unsigned)delay);
         printf("vprobe: start\n");
@@ -48,7 +41,6 @@ int main(int argc, char **argv) {
         for (NSUInteger s = 1; s <= 8; s *= 2) printf(" %lu=%d", (unsigned long)s, [m supportsTextureSampleCount:s]);
         printf("\n");
         printf("BCformats=%d 32bitFloatFiltering=%d\n", m.supportsBCTextureCompression, m.supports32BitFloatFiltering);
-        // A private heap and a texture from it (ops 20-22, metal-sim-protocol.md §4.2).
         MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                                                       width:256 height:256 mipmapped:YES];
         td.storageMode = MTLStorageModePrivate;
@@ -69,7 +61,6 @@ int main(int argc, char **argv) {
         id<MTLFence> fence = [m newFence];
         id<MTLCommandQueue> q = [m newCommandQueue];
         printf("sharedEvent=%s fence=%s queue=%s\n", ev ? "yes" : "nil", fence ? "yes" : "nil", q ? "yes" : "nil");
-        // Last: UIDevice may wait for system services (backboardd) under a partial boot.
         UIDevice *d = UIDevice.currentDevice;
         printf("UIDevice model=%s systemName=%s systemVersion=%s idiom=%ld\n", d.model.UTF8String, d.systemName.UTF8String,
                d.systemVersion.UTF8String, (long)d.userInterfaceIdiom);

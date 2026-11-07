@@ -6,27 +6,12 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Picker (round R8): segmented, menu and inline styles. 06 §4: in a Form the
-// default style shows the selection with a menu. Golden `picker.segmented`:
-// 84 × 31 for "A" and "Bee" unproposed (equal segments: the widest label + 8
-// + 8; SwiftCode's segment font is the subheadline style), the proposed width
-// otherwise, 31 high, baselines 20.67.
-//
-// The options are the views of the content that carry a `tag(_:)` (or, in a
-// `ForEach`, the element IDs when they have the selection's type). The
-// content is kept in the graph but not laid out; each style draws the
-// option views itself.
-
-// MARK: - Tags
-
-/// The value a view stands for in a picker.
 struct TagModifier<V: Hashable>: PrimitiveModifier {
     let value: V
     let includeOptional: Bool
 }
 
 extension View {
-    /// Sets the value this view stands for in a `Picker` (or a `TabView`).
     public func tag<V: Hashable>(_ tag: V, includeOptional: Bool = true) -> some View {
         modifier(TagModifier(value: tag, includeOptional: includeOptional))
     }
@@ -55,23 +40,19 @@ extension TagModifier: TagModifierProtocol {
     var _includeOptional: Bool { includeOptional }
 }
 
-/// `ForEach` views give their element IDs as implicit tags.
 @MainActor protocol ImplicitTagSource {}
 extension ForEach: ImplicitTagSource where Content: View {}
 
-/// One choice of a picker.
 struct PickerOption {
     let tag: AnyHashable
     let view: AnyView
 }
 
-/// The options found below `root` for a selection of type `V`.
 @MainActor
 func collectOptions<V: Hashable>(_ root: ViewNode, selection: V.Type) -> [PickerOption] {
     var out: [PickerOption] = []
     func matches(_ tag: AnyHashable, includeOptional: Bool) -> AnyHashable? {
         if tag.base is V { return tag }
-        // A tag of type T matches a selection of type T? (includeOptional).
         if includeOptional, let v = tag.base as? V { return AnyHashable(v) }
         return nil
     }
@@ -100,7 +81,6 @@ func collectOptions<V: Hashable>(_ root: ViewNode, selection: V.Type) -> [Picker
 }
 
 extension ViewNode {
-    /// True if a tagged view is in this subtree.
     @MainActor var containsTag: Bool {
         var found = false
         forEachNode { if $0.view is any TaggedView { found = true } }
@@ -108,9 +88,6 @@ extension ViewNode {
     }
 }
 
-// MARK: - Picker
-
-/// A control that selects one of its tagged options.
 public struct Picker<Label: View, SelectionValue: Hashable, Content: View>: View {
     let selection: Binding<SelectionValue>
     let label: Label
@@ -145,8 +122,6 @@ extension Picker where Label == _TitleAndIconLabel {
 
 extension Picker: PrimitiveView {
     private func build(_ node: ViewNode, _ transaction: Transaction) {
-        // The content first (its tags are the options); an existing
-        // presentation keeps its identity.
         if let c = node.children.first, node.children.count == 2 {
             c.update(content, environment: node.childEnvironment, transaction: transaction)
         } else {
@@ -207,12 +182,8 @@ extension Picker: PrimitiveView {
     }
 }
 
-// MARK: - Styles
-
-/// How a picker presents its options.
 @MainActor @preconcurrency
 public protocol PickerStyle {
-    /// SwiftCode's style identifier (the reference API has no public requirement).
     var _ovStyleKind: Int { get }
 }
 
@@ -236,7 +207,6 @@ public struct InlinePickerStyle: PickerStyle {
     public var _ovStyleKind: Int { 3 }
 }
 
-/// Shown inline (Linux has no wheel).
 public struct WheelPickerStyle: PickerStyle {
     public init() {}
     public var _ovStyleKind: Int { 4 }
@@ -275,18 +245,12 @@ extension View {
     public func pickerStyle<S: PickerStyle>(_ style: S) -> some View { environment(\._pickerStyle, style._ovStyleKind) }
 }
 
-// MARK: - Segmented
-
 enum SegmentedMetrics {
     static let height: CGFloat = 31
     static let labelPadding: CGFloat = 8
     static let inset: CGFloat = 2
 }
 
-/// Equal segments: each the widest label's ideal width + 2 × 8 unproposed;
-/// a proposed width is shared out evenly. 31 high. Each title is centred in
-/// its segment, its top on the pixel grid (rounded down; that puts the
-/// golden first baseline at 20.67).
 struct SegmentedLayout: Layout {
     var scale: CGFloat = 3
 
@@ -372,10 +336,6 @@ struct SegmentedPicker: View {
     }
 }
 
-// MARK: - Menu and inline
-
-/// The selection and a chevron in the tint colour; a click opens a pop-up
-/// menu of the options with a check mark at the selected one.
 struct MenuPickerButton: View {
     let options: [PickerOption]
     let selected: Int?
@@ -400,8 +360,6 @@ struct MenuPickerButton: View {
         }
         Group {
             if columnWidth != nil {
-                // A `.columns` form's pop-up button (the desktop's): the
-                // choice and up/down chevrons on a filled rounded bezel.
                 HStack(spacing: 6) {
                     if let selected, options.indices.contains(selected) {
                         options[selected].view.lineLimit(1)
@@ -436,7 +394,6 @@ struct MenuPickerButton: View {
     }
 }
 
-/// The options as rows with a check mark at the selected one.
 struct InlinePicker: View {
     let options: [PickerOption]
     let selected: Int?

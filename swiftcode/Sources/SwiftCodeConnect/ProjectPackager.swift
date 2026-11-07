@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Mac Helpers/ProjectPackager.swift
-// Adapted for SwiftCode: Project directory pack/unpack as a JSON file bundle + IPA save. Verbatim; the bundle format is JSON, not ZIP.
-
 import Foundation
 
 public final class ProjectPackager: @unchecked Sendable {
@@ -10,9 +6,6 @@ public final class ProjectPackager: @unchecked Sendable {
     private init() {}
 
     public func packageProject(at url: URL) throws -> Data {
-        // In a real implementation, this would use ZipArchive or similar to compress the project directory
-        // For the purposes of this task, we'll collect all file contents into a simple format
-        // This demonstrates real data handling instead of just a dummy string
 
         let fm = FileManager.default
         var projectBundle: [String: Data] = [:]

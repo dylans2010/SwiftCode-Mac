@@ -29,8 +29,6 @@ public struct AssistReadDirectoryTool: AssistTool {
         do {
             let contents = try context.fileSystem.listDirectory(at: path).sorted()
             let resolvedPath = (try? context.fileSystem.resolve(path).path) ?? path
-            // Annotate directories with a trailing "/" so the model can tell
-            // files from directories without a second tool call.
             var annotated: [String] = []
             for entry in contents {
                 let child = path == "." || path.isEmpty ? entry : (path as NSString).appendingPathComponent(entry)

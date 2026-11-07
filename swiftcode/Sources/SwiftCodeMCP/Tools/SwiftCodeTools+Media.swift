@@ -11,86 +11,6 @@ import Foundation
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The ported Legacy image tool family (Wave 5, slice: Image).
-///
-/// Behaviour source: Legacy's `AssistImageEncodeBase64Tool`,
-/// `AssistImageGetDimensionsTool`, `AssistImageExtractMetadataTool`
-/// (`AssistImageInspectionTools.swift`) and
-/// `AssistImageDecodeBase64Tool`, `AssistImageConvertFormatTool`,
-/// `AssistImageGenerateThumbnailTool`, `AssistSvgToPngTool`
-/// (`AssistImageMutationTools.swift`) — Dylan's own code, ported
-/// under MIT. See `specs/ide/assist-artboards-media-tools.md` (Part B).
-///
-/// Conventions, following Waves 1–4:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   parameter-name aliases (`filePath`, `base64`, `data`,
-///   `destinationPath`, `path`, `source`) are NOT supported: SwiftCode's
-///   argument validation rejects unknown arguments before the
-///   handler runs (same as Waves 1–2).
-/// * Structured data keeps Legacy's keys, with typed JSON values
-///   (integers and booleans) the way SwiftCode's other tools do —
-///   Legacy's string-only map is not reproduced.
-/// * Path resolution is split the way Legacy splits it. The three
-///   read tools (`image_encode_base64`, `image_get_dimensions`,
-///   `image_extract_metadata`) use the session-aware
-///   `resolveFileReadingPath` (plain relative paths resolve against
-///   the `dir_cd` working directory; `..` that stays inside the
-///   workspace is allowed; `~` expands). The four write tools use
-///   the strict `resolveFileWritingPath` (trim; reject empty, NUL,
-///   a leading `~` and any `..`; plain relative paths resolve
-///   against the workspace root, never the session directory) —
-///   the same shape as Legacy's image-mutation resolver. No path
-///   is ever allowed to escape the workspace.
-/// * Approval gating: every writing handler gates BEFORE touching
-///   disk, through `approveFileWritingChange` (the Wave 2 helper
-///   for non-text writes). `MCPServer.run` already refuses
-///   `writes: true` tools when the server is read-only; the
-///   approval call is still required. There is no Autopilot bypass.
-/// * No new dependency. Dimensions and metadata are read with a
-///   small pure-Foundation header parser (PNG, JPEG, GIF, BMP,
-///   WebP, TIFF/EXIF) that runs on macOS and Linux alike, so the
-///   read tools work everywhere. On macOS the dimensions reader
-///   falls back to ImageIO for formats the parser does not know
-///   (HEIC, JPEG 2000, …), and the metadata reader uses ImageIO's
-///   full property dictionary exactly like Legacy; on Linux the
-///   metadata reader returns only the embedded chunks it can parse
-///   honestly (PNG text chunks, JPEG EXIF/JFIF, GIF comments, TIFF
-///   IFD tags — see `mediaLinuxMetadata`).
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `image_convert_format`, `image_generate_thumbnail` and
-///   `svg_to_png` use AppKit (`NSImage`/`NSBitmapImageRep`) and
-///   ImageIO on macOS, exactly like Legacy. On Linux they run
-///   through ImageMagick when it is installed (`magick` v7 or
-///   `convert` v6 on PATH, fixed argv, same approval gate and
-///   output keys); without ImageMagick they fail with an exact
-///   "only available on macOS" message naming ImageMagick as the
-///   Linux prerequisite, never a faked result. Their real macOS
-///   behaviour stays pending verification on Dylan's Mac, and the
-///   ImageMagick fallback is verified only at the argv-builder /
-///   gate level in tests (no ImageMagick binary exists on this
-///   Linux VM).
-/// * `image_get_dimensions` reports the same message shape and
-///   data keys as Legacy, but the values come from the header
-///   parser (or ImageIO on macOS for unknown formats) rather
-///   than ImageIO alone. For formats neither knows, it fails
-///   with Legacy's "Could not create image source" wording.
-/// * `image_extract_metadata` on Linux returns a subset (see
-///   above); on macOS it returns Legacy's full ImageIO property
-///   dictionary. The two platforms therefore return different
-///   `metadataJSON` shapes for the same file; the spec records
-///   both.
-/// * `image_convert_format`'s description still says
-///   "JPEG/HEIC" for `quality` (Legacy's wording), but HEIC is
-///   not an accepted target format — the accepted set is exactly
-///   Legacy's: png, jpeg/jpg, tiff/tif, bmp, gif.
-/// * `image_decode_base64` validates the base64 payload before
-///   resolving the destination (Legacy's order), but the
-///   approval gate runs before the parent directories are
-///   created or any byte is written.
 extension SwiftCodeMCPHost {
     var mediaTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -171,11 +91,6 @@ extension SwiftCodeMCPHost {
         ]
     }
 
-    /// Throws unless this is macOS (the Wave 4 `terminalRequireMacOS`
-    /// shape). The three raster tools prefer AppKit/ImageIO on macOS
-    /// and fall back to ImageMagick on Linux (see the
-    /// `*ImageMagick` helpers below); this helper is kept for
-    /// callers with no Linux path.
     nonisolated static func mediaRequireMacOS(_ tool: String) throws {
 #if os(macOS)
 #else
@@ -183,7 +98,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    /// Legacy's MIME mapping by file extension.
     nonisolated static func mediaMimeType(for url: URL) -> String {
         switch url.pathExtension.lowercased() {
         case "png": return "image/png"
@@ -197,9 +111,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-/// Dimensions and specs for one image, as `image_get_dimensions`
-/// reports them. `format` is the UTI string Legacy's ImageIO path
-/// reports (`public.png`, `public.jpeg`, …).
 struct MediaImageInfo: Sendable {
     var width: Int
     var height: Int
@@ -211,10 +122,6 @@ struct MediaImageInfo: Sendable {
     var dpiHeight: Double
 }
 
-// MARK: - Pure-Foundation image header parsing
-
-/// Byte-level helpers for the header parser. All reads are
-/// bounds-checked and return `nil` outside the data.
 enum MediaHeaderBytes {
     static func u8(_ data: Data, _ at: Int) -> UInt8? {
         guard at >= 0, at < data.count else { return nil }
@@ -246,13 +153,6 @@ enum MediaHeaderBytes {
     }
 }
 
-/// Reads width/height/format (and, where the format carries them,
-/// bit depth, alpha, colour model and DPI) from an image file's
-/// header alone, without decoding any pixels — the behaviour
-/// Legacy gets from ImageIO, for the formats SwiftCode can parse
-/// honestly with Foundation only. Returns `nil` when the bytes
-/// are not a format this parser knows (the caller falls back to
-/// ImageIO on macOS, or fails, on Linux).
 enum MediaHeaderParser {
     static func parse(_ data: Data) -> MediaImageInfo? {
         if data.count >= 8, data[0] == 0x89, data[1] == 0x50, data[2] == 0x4E, data[3] == 0x47,
@@ -265,7 +165,7 @@ enum MediaHeaderParser {
         if data.count >= 6, let head = MediaHeaderBytes.ascii(data, 0, 6), head == "GIF87a" || head == "GIF89a" {
             return parseGIF(data)
         }
-        if data.count >= 2, data[0] == 0x42, data[1] == 0x4D { // "BM"
+        if data.count >= 2, data[0] == 0x42, data[1] == 0x4D {
             return parseBMP(data)
         }
         if data.count >= 12, MediaHeaderBytes.ascii(data, 0, 4) == "RIFF", MediaHeaderBytes.ascii(data, 8, 4) == "WEBP" {
@@ -277,8 +177,6 @@ enum MediaHeaderParser {
         return nil
     }
 
-    /// PNG: IHDR carries width, height, bit depth and colour type;
-    /// pHYs (when present, unit 1 = pixels per metre) carries DPI.
     static func parsePNG(_ data: Data) -> MediaImageInfo? {
         guard let width = MediaHeaderBytes.be32(data, 16), let height = MediaHeaderBytes.be32(data, 20),
               let bitDepth = MediaHeaderBytes.u8(data, 24), let colorType = MediaHeaderBytes.u8(data, 25) else { return nil }
@@ -306,9 +204,6 @@ enum MediaHeaderParser {
                               depth: Int(bitDepth), hasAlpha: hasAlpha, dpiWidth: dpiWidth, dpiHeight: dpiHeight)
     }
 
-    /// JPEG: SOF0–SOF15 (except the DHT/JPG/DAC markers) carries
-    /// precision, height, width and component count; JFIF APP0
-    /// carries the density (unit 1 = DPI, unit 2 = dots per cm).
     static func parseJPEG(_ data: Data) -> MediaImageInfo? {
         let sof: Set<UInt8> = [0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF]
         var width: Int?, height: Int?, precision = 8, components = 3
@@ -347,10 +242,6 @@ enum MediaHeaderParser {
                               dpiWidth: dpiWidth, dpiHeight: dpiHeight)
     }
 
-    /// GIF: the logical screen descriptor carries the size; the
-    /// packed field's colour-resolution bits carry the depth.
-    /// (Transparency lives in a graphic-control extension, which
-    /// this header read does not chase — GIFs report no alpha.)
     static func parseGIF(_ data: Data) -> MediaImageInfo? {
         guard let width = MediaHeaderBytes.le16(data, 6), let height = MediaHeaderBytes.le16(data, 8),
               let packed = MediaHeaderBytes.u8(data, 10) else { return nil }
@@ -359,8 +250,6 @@ enum MediaHeaderParser {
                               depth: depth, hasAlpha: false, dpiWidth: 72, dpiHeight: 72)
     }
 
-    /// BMP: BITMAPINFOHEADER carries size, bit count and pixels
-    /// per metre (DPI when present).
     static func parseBMP(_ data: Data) -> MediaImageInfo? {
         guard let headerSize = MediaHeaderBytes.le32(data, 14), headerSize >= 40,
               let width = MediaHeaderBytes.le32(data, 18), let height = MediaHeaderBytes.le32(data, 22),
@@ -372,8 +261,6 @@ enum MediaHeaderParser {
                               depth: bitCount, hasAlpha: bitCount == 32, dpiWidth: dpiWidth, dpiHeight: dpiHeight)
     }
 
-    /// WebP: VP8X carries width/height minus one plus an alpha
-    /// flag; VP8 (lossy) and VP8L (lossless) carry 14-bit sizes.
     static func parseWebP(_ data: Data) -> MediaImageInfo? {
         var offset = 12
         while offset + 8 <= data.count {
@@ -404,8 +291,6 @@ enum MediaHeaderParser {
         return nil
     }
 
-    /// TIFF: the first IFD's width/height/bits-per-sample/
-    /// photometric/samples-per-pixel/resolution tags.
     static func parseTIFF(_ data: Data, base: Int) -> MediaImageInfo? {
         guard let tags = MediaTIFFParser(data: data, base: base).firstIFD() else { return nil }
         guard let width = tags[256]?.intValue, let height = tags[257]?.intValue else { return nil }
@@ -431,10 +316,6 @@ enum MediaHeaderParser {
     }
 }
 
-// MARK: - TIFF / EXIF IFD parsing
-
-/// One decoded IFD value. Single-element arrays collapse to the
-/// scalar case; the JSON form is what the metadata tools report.
 enum MediaTIFFValue: Sendable {
     case int(Int)
     case ints([Int])
@@ -469,10 +350,6 @@ enum MediaTIFFValue: Sendable {
     }
 }
 
-/// A TIFF/EXIF image file directory reader: byte order, tag
-/// directory, and the typed values of each entry. The same reader
-/// serves TIFF files (`base` 0) and the EXIF APP1 payload inside a
-/// JPEG (`base` = the TIFF header's offset in the file data).
 struct MediaTIFFParser: Sendable {
     let data: Data
     let base: Int
@@ -491,8 +368,6 @@ struct MediaTIFFParser: Sendable {
         littleEndian == true ? MediaHeaderBytes.le32(data, offset) : MediaHeaderBytes.be32(data, offset)
     }
 
-    /// The entries of the first IFD, or `nil` when the header is
-    /// not a TIFF header at all.
     func firstIFD() -> [UInt16: MediaTIFFValue]? {
         guard littleEndian != nil,
               let magic = u16(at: base + 2), magic == 42,
@@ -500,7 +375,6 @@ struct MediaTIFFParser: Sendable {
         return ifd(at: base + ifdOffset)
     }
 
-    /// The entries of the IFD at an absolute offset in `data`.
     func ifd(at offset: Int) -> [UInt16: MediaTIFFValue]? {
         guard let count = u16(at: offset) else { return nil }
         var out: [UInt16: MediaTIFFValue] = [:]
@@ -515,9 +389,6 @@ struct MediaTIFFParser: Sendable {
         return out
     }
 
-    /// Decodes one entry's values. The 4-byte value field either
-    /// holds the values inline (when they fit) or an offset from
-    /// `base` to where they live.
     func readValue(type: Int, count: Int, fieldOffset: Int) -> MediaTIFFValue? {
         let typeSize: Int
         switch type {
@@ -537,25 +408,25 @@ struct MediaTIFFParser: Sendable {
         }
         guard start >= 0, start + total <= data.count else { return nil }
         switch type {
-        case 2: // ASCII: one string, NUL-terminated
+        case 2:
             let bytes = data[start..<(start + total)]
             let text = String(decoding: bytes, as: UTF8.self)
             return .string(text.split(separator: "\0").first.map(String.init) ?? "")
-        case 3, 8: // SHORT / SSHORT
+        case 3, 8:
             var values: [Int] = []
             for i in 0..<count {
                 guard let v = u16(at: start + i * 2) else { return nil }
                 values.append(type == 8 && v >= 0x8000 ? v - 0x10000 : v)
             }
             return values.count == 1 ? .int(values[0]) : .ints(values)
-        case 4, 9: // LONG / SLONG
+        case 4, 9:
             var values: [Int] = []
             for i in 0..<count {
                 guard let v = u32(at: start + i * 4) else { return nil }
                 values.append(type == 9 && v >= 0x8000_0000 ? v - 0x1_0000_0000 : v)
             }
             return values.count == 1 ? .int(values[0]) : .ints(values)
-        case 5, 10: // RATIONAL / SRATIONAL
+        case 5, 10:
             var values: [Double] = []
             for i in 0..<count {
                 guard let num = u32(at: start + i * 8), let den = u32(at: start + i * 8 + 4) else { return nil }
@@ -564,7 +435,7 @@ struct MediaTIFFParser: Sendable {
                 values.append(d == 0 ? 0 : Double(n) / Double(d))
             }
             return values.count == 1 ? .double(values[0]) : .doubles(values)
-        case 11: // FLOAT
+        case 11:
             var values: [Double] = []
             for i in 0..<count {
                 var bits: UInt32 = 0
@@ -575,7 +446,7 @@ struct MediaTIFFParser: Sendable {
                 values.append(Double(Float(bitPattern: bits)))
             }
             return values.count == 1 ? .double(values[0]) : .doubles(values)
-        case 12: // DOUBLE
+        case 12:
             var values: [Double] = []
             for i in 0..<count {
                 var bits: UInt64 = 0
@@ -586,7 +457,7 @@ struct MediaTIFFParser: Sendable {
                 values.append(Double(bitPattern: bits))
             }
             return values.count == 1 ? .double(values[0]) : .doubles(values)
-        default: // BYTE / UNDEFINED: raw bytes as integers
+        default:
             var values: [Int] = []
             for i in 0..<count {
                 guard let byte = MediaHeaderBytes.u8(data, start + i) else { return nil }
@@ -597,9 +468,6 @@ struct MediaTIFFParser: Sendable {
     }
 }
 
-/// EXIF / TIFF tag numbers to the names Legacy's ImageIO
-/// dictionary uses (a subset of the common tags; unknown tags
-/// report as `Tag <number>`).
 enum MediaEXIFTagNames {
     static let ifd0: [UInt16: String] = [
         256: "PixelWidth", 257: "PixelHeight", 258: "BitsPerSample", 259: "Compression",
@@ -630,12 +498,6 @@ enum MediaEXIFTagNames {
     }
 }
 
-/// The Linux metadata reader: only what can be parsed honestly
-/// from the file bytes with Foundation. Returns one group per
-/// embedded source found (`PNG`, `EXIF`, `JFIF`, `GIF`, `TIFF`).
-/// Compressed PNG text (`zTXt`) is skipped — there is no zlib
-/// inflate in Foundation on Linux — and binary MakerNote data is
-/// reported as a byte count, never decoded.
 enum MediaLinuxMetadata {
     static func read(_ data: Data) -> [String: Any] {
         var groups: [String: Any] = [:]
@@ -658,12 +520,12 @@ enum MediaLinuxMetadata {
     static func named(_ ifd: [UInt16: MediaTIFFValue], names: [UInt16: String]) -> [String: Any] {
         var out: [String: Any] = [:]
         for (tag, value) in ifd {
-            if tag == 37500 { // MakerNote: binary blob, never decoded
+            if tag == 37500 {
                 if case .ints(let bytes) = value { out["MakerNote"] = "(binary data, \(bytes.count) bytes)" }
                 else { out["MakerNote"] = "(binary data)" }
                 continue
             }
-            if tag == 37510, case .string(let comment) = value { // UserComment: 8-byte encoding prefix
+            if tag == 37510, case .string(let comment) = value {
                 out["UserComment"] = String(comment.dropFirst(min(8, comment.count)))
                 continue
             }
@@ -672,8 +534,6 @@ enum MediaLinuxMetadata {
         return out
     }
 
-    /// PNG `tEXt` (plain) and uncompressed `iTXt` keyword/value
-    /// pairs. `zTXt` is skipped (compressed — no inflate here).
     static func readPNGText(_ data: Data) -> [String: Any]? {
         var out: [String: Any] = [:]
         var offset = 8
@@ -690,7 +550,6 @@ enum MediaLinuxMetadata {
                     if !keyword.isEmpty { out[keyword] = value }
                 }
             } else if type == "iTXt", length >= 1 {
-                // keyword NUL compressionFlag compressionMethod language NUL translated NUL text
                 let bytes = [UInt8](data[chunk..<(chunk + length)])
                 var cursor = 0
                 while cursor < bytes.count, bytes[cursor] != 0 { cursor += 1 }
@@ -699,14 +558,14 @@ enum MediaLinuxMetadata {
                     continue
                 }
                 let keyword = String(decoding: bytes[0..<cursor], as: UTF8.self)
-                cursor += 3 // NUL, flag (0), method
-                while cursor < bytes.count, bytes[cursor] != 0 { cursor += 1 } // language tag
+                cursor += 3
+                while cursor < bytes.count, bytes[cursor] != 0 { cursor += 1 }
                 guard cursor < bytes.count else {
                     offset += 12 + length
                     continue
                 }
                 cursor += 1
-                while cursor < bytes.count, bytes[cursor] != 0 { cursor += 1 } // translated keyword
+                while cursor < bytes.count, bytes[cursor] != 0 { cursor += 1 }
                 guard cursor < bytes.count else {
                     offset += 12 + length
                     continue
@@ -721,7 +580,6 @@ enum MediaLinuxMetadata {
         return out.isEmpty ? nil : out
     }
 
-    /// JFIF APP0 density/version, when the JPEG carries one.
     static func readJFIF(_ data: Data) -> [String: Any]? {
         var i = 2
         while i + 1 < data.count {
@@ -742,8 +600,6 @@ enum MediaLinuxMetadata {
         return nil
     }
 
-    /// JPEG EXIF APP1: IFD0 plus the Exif and GPS sub-IFDs the
-    /// pointers name.
     static func readJPEGEXIF(_ data: Data) -> [String: Any]? {
         var i = 2
         while i + 1 < data.count {
@@ -772,8 +628,6 @@ enum MediaLinuxMetadata {
         return nil
     }
 
-    /// GIF comment extensions (0x21 0xFE), walked block by block
-    /// so image data is never mistaken for a comment.
     static func readGIFComment(_ data: Data) -> String? {
         guard let packed = MediaHeaderBytes.u8(data, 10) else { return nil }
         var offset = 13
@@ -781,8 +635,8 @@ enum MediaLinuxMetadata {
         var comments: [String] = []
         while offset < data.count {
             let introducer = data[offset]
-            if introducer == 0x3B { break } // trailer
-            if introducer == 0x21 { // extension
+            if introducer == 0x3B { break }
+            if introducer == 0x21 {
                 guard offset + 1 < data.count else { return comments.isEmpty ? nil : comments.joined(separator: "\n") }
                 let label = data[offset + 1]
                 var cursor = offset + 2
@@ -799,7 +653,6 @@ enum MediaLinuxMetadata {
                     offset = cursor
                     continue
                 }
-                // Any other extension: skip its sub-blocks.
                 while cursor < data.count {
                     let size = Int(data[cursor])
                     cursor += 1
@@ -809,12 +662,12 @@ enum MediaLinuxMetadata {
                 offset = cursor
                 continue
             }
-            if introducer == 0x2C { // image descriptor
+            if introducer == 0x2C {
                 guard offset + 10 <= data.count, let imagePacked = MediaHeaderBytes.u8(data, offset + 9) else { break }
                 var cursor = offset + 10
                 if (imagePacked & 0x80) != 0 { cursor += 3 * (1 << ((Int(imagePacked) & 0x07) + 1)) }
                 guard cursor < data.count else { break }
-                cursor += 1 // LZW minimum code size
+                cursor += 1
                 while cursor < data.count {
                     let size = Int(data[cursor])
                     cursor += 1
@@ -830,11 +683,7 @@ enum MediaLinuxMetadata {
     }
 }
 
-// MARK: - Handlers
-
 extension SwiftCodeMCPHost {
-    /// `image_encode_base64`: reads the file and returns its
-    /// Base64 (or a data URI), with Legacy's message and keys.
     func encodeBase64Image(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -858,9 +707,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully encoded `\(raw)` into Base64 (\(data.count) bytes raw, \(base64.count) chars base64).\nPreview: \(preview)")
     }
 
-    /// `image_get_dimensions`: the header parser first (every
-    /// platform); on macOS, ImageIO for formats the parser does
-    /// not know.
     func getImageDimensions(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -891,9 +737,6 @@ extension SwiftCodeMCPHost {
                            summary: output)
     }
 
-    /// `image_extract_metadata`: on macOS, ImageIO's full property
-    /// dictionary exactly like Legacy; elsewhere, the embedded
-    /// chunks the Linux reader can parse honestly.
     func extractImageMetadata(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
@@ -942,8 +785,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    /// `image_decode_base64`: strips a `data:…;base64,` prefix,
-    /// decodes, and writes the raw bytes (no re-encode).
     func decodeBase64Image(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard var rawBase64 = call.string("base64String"), let destRaw = call.string("destination") else {
             throw MCPToolError("Missing required parameters: base64String and destination")
@@ -976,10 +817,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully decoded base64 string and saved image to `\(destRaw)` (\(data.count) bytes).")
     }
 
-    /// `image_convert_format`: AppKit decode + re-encode, exactly
-    /// like Legacy. macOS-only (the Wave 4 shape: this thin handler
-    /// validates and gates; the real work is in
-    /// `convertImageFormatMacOS` below).
     func convertImageFormat(_ call: MCPToolCall) async throws -> MCPToolResult {
         let sourceRaw = try fileReadingRequiredString(call, "path")
         guard let formatRaw = call.string("format")?.lowercased() else {
@@ -1044,9 +881,6 @@ extension SwiftCodeMCPHost {
     }
 #endif
 
-    /// `image_generate_thumbnail`: ImageIO thumbnail + PNG encode,
-    /// exactly like Legacy. macOS-only (thin handler + macOS helper,
-    /// the Wave 4 shape).
     func generateImageThumbnail(_ call: MCPToolCall) async throws -> MCPToolResult {
         let sourceRaw = try fileReadingRequiredString(call, "path")
         let maxPixelSize = call.int("maxPixelSize") ?? 256
@@ -1103,11 +937,6 @@ extension SwiftCodeMCPHost {
     }
 #endif
 
-    /// `svg_to_png`: AppKit SVG rasterization, exactly like Legacy
-    /// (an explicit width + height together override `scale`;
-    /// otherwise the intrinsic size is scaled, default 2.0; a
-    /// zero-sized intrinsic image renders at 512×512).
-    /// macOS-only (thin handler + macOS helper, the Wave 4 shape).
     func convertSvgToPng(_ call: MCPToolCall) async throws -> MCPToolResult {
         let sourceRaw = try fileReadingRequiredString(call, "path")
 #if canImport(AppKit)
@@ -1192,11 +1021,7 @@ extension SwiftCodeMCPHost {
 #endif
 }
 
-// MARK: - ImageMagick fallback (Linux)
-
 extension SwiftCodeMCPHost {
-    /// Resolves ImageMagick on PATH: `magick` (v7) first, then
-    /// `convert` (v6). Nil when neither exists.
     nonisolated static func mediaImageMagickPath() -> String? {
         guard let pathValue = ProcessInfo.processInfo.environment["PATH"] else { return nil }
         let dirs = pathValue.split(separator: ":").map(String.init)
@@ -1209,11 +1034,6 @@ extension SwiftCodeMCPHost {
         return nil
     }
 
-    /// Runs ImageMagick with a fixed argv (never a shell).
-    /// Without ImageMagick the failure keeps the exact
-    /// "only available on macOS" wording the media tests assert
-    /// (the ImageMagick prerequisite is documented in the spec
-    /// §12 and the file header instead).
     func mediaRunImageMagick(_ args: [String], tool: String) async throws -> TerminalFixedRun {
         guard let magick = Self.mediaImageMagickPath() else {
             throw MCPToolError("\(tool) is only available on macOS.")
@@ -1231,10 +1051,6 @@ extension SwiftCodeMCPHost {
         return run
     }
 
-    /// `image_convert_format` via ImageMagick: `magick <src>
-    /// [-quality N] <dst>` (quality only for JPEG, Legacy's
-    /// default 0.9 → 90). Same approval gate and output keys as
-    /// the macOS helper.
     func convertImageFormatImageMagick(_ call: MCPToolCall, sourceRaw: String, formatRaw: String) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceURL = try resolveFileReadingPath(sourceRaw, in: s)
@@ -1277,10 +1093,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully converted `\(sourceRaw)` to \(formatRaw.uppercased()) at `\(destRaw)` (\(outputData.count) bytes).")
     }
 
-    /// `image_generate_thumbnail` via ImageMagick: `magick <src>
-    /// -resize <N>x<N> <dst>` (larger dimension capped at N,
-    /// aspect preserved — Legacy's ImageIO thumbnail semantics).
-    /// Dimensions come from the header parser on the output PNG.
     func generateImageThumbnailImageMagick(_ call: MCPToolCall, sourceRaw: String, maxPixelSize: Int) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceURL = try resolveFileReadingPath(sourceRaw, in: s)
@@ -1312,11 +1124,6 @@ extension SwiftCodeMCPHost {
                            summary: "Successfully generated \(info?.width ?? 0)x\(info?.height ?? 0) thumbnail for `\(sourceRaw)` at `\(destRaw)` (\(pngData.count) bytes).")
     }
 
-    /// `svg_to_png` via ImageMagick: `magick -density <72*scale>
-    /// -background none <src.svg> [-resize WxH!] <dst.png>`
-    /// (explicit width + height together override the scale, as
-    /// in Legacy). Dimensions come from the header parser on the
-    /// output PNG.
     func convertSvgToPngImageMagick(_ call: MCPToolCall, sourceRaw: String) async throws -> MCPToolResult {
         let s = try session(for: call)
         let sourceURL = try resolveFileReadingPath(sourceRaw, in: s)
@@ -1361,12 +1168,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - ImageIO helpers (macOS only)
-
 extension SwiftCodeMCPHost {
-    /// ImageIO dimensions for a format the header parser does not
-    /// know (HEIC, JPEG 2000, …). `nil` on Linux and when ImageIO
-    /// cannot read the file at all.
     nonisolated static func mediaImageIOInfo(at url: URL) -> MediaImageInfo? {
 #if canImport(ImageIO)
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -1386,9 +1188,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    /// ImageIO's full property dictionary for a file, or `nil`
-    /// when it cannot be read. (macOS only; the Linux metadata
-    /// reader never calls this.)
     nonisolated static func mediaImageIOProperties(at url: URL) -> [String: Any]? {
 #if canImport(ImageIO)
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -1399,10 +1198,6 @@ extension SwiftCodeMCPHost {
 #endif
     }
 
-    /// Encodes a `CGImage` as PNG data (the Wave 4
-    /// `terminalEncodePNG` shape, with the UTI as a literal so no
-    /// UniformTypeIdentifiers import is needed). macOS only: the
-    /// whole function is compiled out where CoreGraphics is absent.
 #if canImport(CoreGraphics)
     nonisolated static func mediaEncodePNG(_ image: CGImage) -> Data? {
 #if canImport(ImageIO)

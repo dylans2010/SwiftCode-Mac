@@ -1,8 +1,3 @@
-/* CSwiftCodeCodec audio (see include/CSwiftCodeCodec.h): Opus (libopus, BSD,
- * xiph.org; the constants below are those of its public opus_defines.h,
- * v1.5.2) and PulseAudio's simple API (libpulse-simple, served by PipeWire's
- * pulse server on current desktops; values from its public documentation),
- * both opened at run time with dlopen. Nothing is linked. */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
@@ -12,8 +7,6 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* ---- Opus ---- */
 
 #define Y_OPUS_OK 0
 #define Y_OPUS_APPLICATION_RESTRICTED_LOWDELAY 2051
@@ -85,10 +78,8 @@ int swiftcodec_opus_decode(void *d, const uint8_t *data, int size, float *pcm, i
 
 void swiftcodec_opus_decoder_free(void *d) { if (d) OP.dec_destroy(d); }
 
-/* ---- PulseAudio simple API ---- */
-
-typedef struct { int format; uint32_t rate; uint8_t channels; } y_pa_sample_spec;   /* pa_sample_spec */
-typedef struct { uint32_t maxlength, tlength, prebuf, minreq, fragsize; } y_pa_buffer_attr;  /* pa_buffer_attr */
+typedef struct { int format; uint32_t rate; uint8_t channels; } y_pa_sample_spec;
+typedef struct { uint32_t maxlength, tlength, prebuf, minreq, fragsize; } y_pa_buffer_attr;
 #define Y_PA_SAMPLE_FLOAT32LE 5
 #define Y_PA_STREAM_PLAYBACK 1
 

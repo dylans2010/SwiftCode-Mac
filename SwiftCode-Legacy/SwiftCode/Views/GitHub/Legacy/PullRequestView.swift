@@ -35,7 +35,6 @@ struct PullRequestView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("New Pull Request", systemImage: "arrow.triangle.pull")
                     .font(.headline)
@@ -46,10 +45,8 @@ struct PullRequestView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Card 1: Branch Target Selection
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -97,7 +94,6 @@ struct PullRequestView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Pull Request Title
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -115,7 +111,6 @@ struct PullRequestView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 3: Description Body
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -148,7 +143,6 @@ struct PullRequestView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 4: Reviewers & Tags Options
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -200,7 +194,6 @@ struct PullRequestView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Action Submission Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             if !canSubmit {
@@ -298,8 +291,6 @@ struct PullRequestView: View {
         }
     }
 
-    // MARK: - Success Sheet
-
     private var successSheet: some View {
         VStack(spacing: 24) {
             Image(systemName: "checkmark.circle.fill")
@@ -331,8 +322,6 @@ struct PullRequestView: View {
         .frame(width: 400)
     }
 
-    // MARK: - PR Notification Banner
-
     private func prNotificationBanner(_ n: PRNotification) -> some View {
         HStack(spacing: 10) {
             Image(systemName: n.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
@@ -353,8 +342,6 @@ struct PullRequestView: View {
         .padding(.horizontal, 16)
     }
 
-    // MARK: - Validation
-
     private var canSubmit: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty &&
         !headBranch.isEmpty &&
@@ -370,8 +357,6 @@ struct PullRequestView: View {
         return ""
     }
 
-    // MARK: - Actions
-
     private func loadBranches() async {
         guard !owner.isEmpty else { return }
         do {
@@ -382,7 +367,6 @@ struct PullRequestView: View {
                 ?? fetched.first(where: { $0.name != currentBranch })?.name
                 ?? currentBranch
         } catch {
-            // Fallback
         }
     }
 

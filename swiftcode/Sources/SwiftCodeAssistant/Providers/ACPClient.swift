@@ -1,30 +1,19 @@
 import Foundation
 
-// The Agent Client Protocol (agentclientprotocol.com, protocol version 1,
-// Apache-2.0): SwiftCode is the client (the editor); the agent runs as a
-// subprocess and speaks newline-delimited JSON-RPC on its standard input
-// and output. See specs/ide/coding-assistant.md, "SwiftCode implementation".
-
-/// What an ACP agent reports while it works on a prompt.
 public enum ACPEvent: Sendable, Equatable {
     case message(String)
     case thought(String)
-    /// A tool call starts or changes (`tool_call`, `tool_call_update`).
     case toolCall(ACPToolCall)
     case plan([ACPPlanEntry])
     case mode(String)
-    /// A notice or other line worth showing.
     case notice(String)
-    /// The turn ended (`stopReason`: end_turn, max_tokens, max_turn_requests, refusal, cancelled).
     case stopped(String)
 }
 
 public struct ACPToolCall: Sendable, Equatable {
     public var id: String
     public var title: String?
-    /// read, edit, delete, move, search, execute, think, fetch, switch_mode, other.
     public var kind: String?
-    /// pending, in_progress, completed, failed.
     public var status: String?
     public var locations: [String]
     public init(id: String, title: String? = nil, kind: String? = nil, status: String? = nil, locations: [String] = []) {
@@ -57,14 +46,9 @@ public struct ACPPlanEntry: Sendable, Equatable {
     }
 }
 
-/// How the client answers the agent's requests.
 public struct ACPClientHandlers: Sendable {
-    /// `fs/read_text_file`: the file's text (path absolute; line 1-based).
     public var readTextFile: @Sendable (_ path: String) async throws -> String
-    /// `fs/write_text_file`: true when the write happened (the IDE: the
-    /// user accepted the proposal).
     public var writeTextFile: @Sendable (_ path: String, _ content: String) async throws -> Bool
-    /// `session/request_permission`: the chosen option's id, nil to cancel.
     public var requestPermission: @Sendable (_ toolCall: ACPToolCall, _ options: [AgentAttachment.PermissionOption]) async -> String?
 
     public init(readTextFile: @escaping @Sendable (String) async throws -> String,
@@ -75,7 +59,6 @@ public struct ACPClientHandlers: Sendable {
         self.requestPermission = requestPermission
     }
 
-    /// Reads from disk inside `root`; refuses writes and permissions.
     public static func readOnly(root: URL) -> ACPClientHandlers {
         ACPClientHandlers(readTextFile: { path in
             guard ACPConnection.isInside(path, root: root) else { throw JSONRPCError.invalidParams("\(path) is outside the workspace") }
@@ -84,7 +67,6 @@ public struct ACPClientHandlers: Sendable {
     }
 }
 
-/// One connection to an ACP agent.
 public final class ACPConnection: @unchecked Sendable {
     public static let protocolVersion = 1
 
@@ -98,10 +80,7 @@ public final class ACPConnection: @unchecked Sendable {
     public private(set) var agentInfo: AnyJSON?
     public private(set) var agentCapabilities: AnyJSON?
 
-    /// Over two file descriptors (tests run an agent in process).
     public init(readFrom input: Int32, writeTo output: Int32, handlers: ACPClientHandlers) {
-        // A write to an agent that has exited fails (EPIPE) instead of
-        // ending SwiftCode.
         signal(SIGPIPE, SIG_IGN)
         self.handlers = handlers
         peer = JSONRPCPeer { data in FDWriter.write(output, data) }
@@ -109,7 +88,6 @@ public final class ACPConnection: @unchecked Sendable {
         LineReader(fileDescriptor: input, onLine: { [weak self] in self?.peer.receive($0) }, onEnd: { [weak self] in self?.endOfStream() }).start()
     }
 
-    /// Starts the agent's executable.
     public convenience init(executable: URL, arguments: [String], currentDirectory: URL, environment: [String: String]? = nil,
                             handlers: ACPClientHandlers) throws {
         let p = Process()
@@ -118,7 +96,6 @@ public final class ACPConnection: @unchecked Sendable {
         p.currentDirectoryURL = currentDirectory
         var env = environment ?? ProcessInfo.processInfo.environment
         env["NO_COLOR"] = "1"
-        // Node-based agents need `node` next to them.
         env["PATH"] = ([executable.deletingLastPathComponent().path] + (env["PATH"].map { [$0] } ?? ["/usr/bin:/bin"])).joined(separator: ":")
         p.environment = env
         let toAgent = Pipe(), fromAgent = Pipe(), errors = Pipe()
@@ -133,13 +110,11 @@ public final class ACPConnection: @unchecked Sendable {
             guard !d.isEmpty, let self else { h.readabilityHandler = nil; return }
             self.lock.withLock { self.stderrTail = String((self.stderrTail + String(decoding: d, as: UTF8.self)).suffix(2000)) }
         }
-        // Keep the pipes' write ends alive with the process.
         keptPipes = [toAgent, fromAgent, errors]
     }
 
     private var keptPipes: [Pipe] = []
 
-    /// The agent's last standard-error output (for failure messages).
     public var errorOutput: String { lock.withLock { stderrTail } }
 
     public func setHandlers(_ h: ACPClientHandlers) { lock.withLock { handlers = h } }
@@ -198,7 +173,6 @@ public final class ACPConnection: @unchecked Sendable {
         }
     }
 
-    /// The event a `session/update` carries (nil: not shown).
     static func event(_ u: AnyJSON) -> ACPEvent? {
         switch u["sessionUpdate"]?.string {
         case "agent_message_chunk":
@@ -220,10 +194,6 @@ public final class ACPConnection: @unchecked Sendable {
         }
     }
 
-    // MARK: Client → agent
-
-    /// `initialize`: protocol version 1, file reads and writes through the
-    /// client, no terminals.
     @discardableResult
     public func initialize() async throws -> AnyJSON {
         let r = try await peer.request("initialize", [
@@ -241,8 +211,6 @@ public final class ACPConnection: @unchecked Sendable {
         return r
     }
 
-    /// `session/new` in `cwd`, with MCP servers for the agent (SwiftCode's own
-    /// over HTTP when it has one; agents that do not support HTTP get none).
     public func newSession(cwd: URL, mcp: [AgentAttachment.MCPEndpoint] = []) async throws -> String {
         let http = agentCapabilities?["mcpCapabilities"]?["http"]?.bool ?? false
         let servers: [AnyJSON] = http ? mcp.map { m in
@@ -253,9 +221,6 @@ public final class ACPConnection: @unchecked Sendable {
         return id
     }
 
-    /// `session/prompt` with one text block; the stream carries the
-    /// session's updates and ends with `.stopped(reason)`. Ending the
-    /// iteration sends `session/cancel`.
     public func prompt(session: String, text: String) -> AsyncThrowingStream<ACPEvent, Error> {
         let (stream, continuation) = AsyncThrowingStream<ACPEvent, Error>.makeStream()
         lock.withLock { streams[session] = continuation }
@@ -273,8 +238,6 @@ public final class ACPConnection: @unchecked Sendable {
         continuation.onTermination = { [weak self] reason in
             if case .cancelled = reason {
                 self?.peer.notify("session/cancel", ["sessionId": .string(session)])
-                // The agent answers the prompt with stopReason "cancelled";
-                // give it a moment, then stop waiting.
                 Task {
                     try? await Task.sleep(for: .seconds(2))
                     task.cancel()
@@ -298,7 +261,6 @@ public final class ACPConnection: @unchecked Sendable {
         open.forEach { $0.finish(throwing: error) }
     }
 
-    /// Ends the agent process.
     public func close() {
         let p = lock.withLock { process }
         if let p, p.isRunning {

@@ -1,17 +1,3 @@
-// Camera diagnostics (specs/simulator/camera-host.md §8): no VM starts.
-//
-//   swiftcode-simd --camera-list
-//   swiftcode-simd --camera-probe [--camera auto|synthetic|/dev/videoN|<id>] [--frames N]
-//              [--size WxH] [--fps F] [--pixel-format 420v|420f|BGRA]
-//              [--source-format YUYV|MJPG|NV12|...] [--out frame.png] [--scale K]
-//
-// `--camera-list` prints every camera with its formats, sizes and rates.
-// `--camera-probe` streams N frames (default 30) through the host camera
-// service into host-made IOSurfaces, prints each frame's surface, time and
-// drops, and writes the last frame as a PNG (`--scale K` shrinks it K
-// times). Exit status: 0; 69 when there is no camera or it is busy; 64 for
-// bad usage; 1 for other failures.
-
 import Foundation
 import SwiftCodeDarwinKernel
 import SwiftCodeHostServices

@@ -2,8 +2,6 @@ import Foundation
 import USDCore
 import USDStage
 
-/// Copied prims: a layer whose root prims are the copied subtrees. Its
-/// USDA text is what goes to a system pasteboard.
 public struct Clipboard: Equatable, Sendable {
     public var layer: Layer
 
@@ -15,11 +13,8 @@ public struct Clipboard: Equatable, Sendable {
     public var rootNames: [String] { layer.primChildren(of: .root) }
 }
 
-/// The editing operations of the composer. Each is one undo step.
 extension SceneDocument {
-    // MARK: Prims
 
-    /// Creates `def <type> "<name>"` under `parent` (name made unique).
     @discardableResult
     public func createPrim(named name: String, type: String? = nil, under parent: Path) throws -> Path {
         let unique = uniqueName(name, under: parent)
@@ -33,8 +28,6 @@ extension SceneDocument {
         return path
     }
 
-    /// Deletes prims authored in this layer; prims that only come from other
-    /// layers are deactivated instead (`active = false`).
     public func delete(_ paths: [Path]) throws {
         let roots = Selection(paths).roots
         try perform(roots.count == 1 ? "Delete \(roots[0].name)" : "Delete \(roots.count) Prims") { layer in
@@ -50,14 +43,10 @@ extension SceneDocument {
         }
     }
 
-    /// True when a weaker site (reference, payload, inherit, variant or
-    /// sublayer) also defines the prim, so deleting the local spec would not
-    /// remove it.
     func isIntroducedByArcs(_ path: Path) -> Bool {
         stage.opinions(path).contains { $0.layer.identifier != layer.identifier || $0.node.arc != .root }
     }
 
-    /// Renames a prim and retargets paths in this layer that pointed into it.
     public func rename(_ path: Path, to newName: String) throws {
         guard let parsed = Path(parsing: "/" + newName), parsed.elements.count == 1, parsed.isPrimPath else {
             throw USDError("'\(newName)' is not a valid prim name")
@@ -68,7 +57,6 @@ extension SceneDocument {
         try move(path, to: destination, name: "Rename \(path.name) to \(newName)")
     }
 
-    /// Moves a prim under another parent (at `index` among its children).
     public func reparent(_ path: Path, to parent: Path, index: Int? = nil) throws {
         guard !parent.hasPrefix(path) else { throw USDError("cannot move \(path) under itself") }
         let name = parent == path.parent ? path.name : uniqueName(path.name, under: parent)
@@ -91,7 +79,6 @@ extension SceneDocument {
         }
     }
 
-    /// Rewrites relationship targets and connections that point into `from`.
     static func retarget(_ layer: inout Layer, from: Path, to: Path) {
         for p in layer.allPaths {
             guard let spec = layer.spec(at: p) else { continue }
@@ -107,7 +94,6 @@ extension SceneDocument {
         func m(_ x: Path) -> Path { x.hasPrefix(from) ? x.replacingPrefix(from, with: to) : x }
     }
 
-    /// Duplicates prims next to themselves; returns the new paths.
     @discardableResult
     public func duplicate(_ paths: [Path]) throws -> [Path] {
         var created: [Path] = []
@@ -119,11 +105,6 @@ extension SceneDocument {
         return created
     }
 
-    // MARK: Clipboard
-
-    /// Copies prims. Specs authored in this layer are copied as they are
-    /// (arcs included); prims that exist only through composition are
-    /// copied in flattened form.
     public func copy(_ paths: [Path]) throws -> Clipboard {
         var clip = Layer(identifier: "clipboard.usda")
         var flat: Layer?
@@ -141,8 +122,6 @@ extension SceneDocument {
         return Clipboard(layer: clip)
     }
 
-    /// Pastes clipboard prims under `parent` with unique names; paths inside
-    /// the pasted subtrees are remapped. Returns the new paths.
     @discardableResult
     public func paste(_ clipboard: Clipboard, under parent: Path) throws -> [Path] {
         var created: [Path] = []
@@ -165,10 +144,6 @@ extension SceneDocument {
         return created
     }
 
-    // MARK: Properties and metadata
-
-    /// Sets an attribute value (creating the attribute when `type` is given),
-    /// or a time sample when `time` is given.
     public func setAttribute(_ path: Path, _ value: Value, type: TypeName? = nil, time: Double? = nil) throws {
         guard path.isPropertyPath else { throw USDError("\(path) is not a property path") }
         let resolvedType = type ?? stage.prim(at: path.primPath)?.attribute(path.name)?.typeName
@@ -194,8 +169,6 @@ extension SceneDocument {
         }
     }
 
-    /// Removes this layer's opinion of an attribute (the composed value
-    /// falls back to weaker layers).
     public func clearAttribute(_ path: Path) throws {
         try perform("Clear \(path.name)") { layer in layer.removeSpec(at: path) }
     }
@@ -211,21 +184,15 @@ extension SceneDocument {
         try setMetadata(path, FieldKey.active, .bool(active))
     }
 
-    /// Writes a local transform as T·orient·S ops.
     public func setTransform(_ path: Path, _ trs: TRS, time: Double? = nil) throws {
         try perform("Transform \(path.name)") { layer in try Xform.setTRS(trs, at: path, in: &layer, time: time) }
     }
 
-    /// Places a prim at a world-space transform.
     public func setWorldTransform(_ path: Path, _ world: Matrix4, time: Double? = nil) throws {
         guard let p = prim(path) else { throw USDError("no prim at \(path)") }
         try setTransform(path, TRS(matrix: Xform.local(forWorld: world, of: p, time: time)), time: time)
     }
 
-    // MARK: Composition
-
-    /// Adds a prim that references another file (`scene-usd.md` §2: a
-    /// typeless prim with a prepended reference).
     @discardableResult
     public func addReference(named name: String, asset: String, primPath: Path = .empty, under parent: Path) throws -> Path {
         let unique = uniqueName(name, under: parent)
@@ -250,8 +217,6 @@ extension SceneDocument {
         }
     }
 
-    /// Binds a material: `MaterialBindingAPI` plus `rel material:binding`
-    /// with `bindMaterialAs = "weakerThanDescendants"` (`scene-usd.md` §1).
     public func bindMaterial(_ prim: Path, to material: Path?) throws {
         try perform("Bind Material") { layer in
             if !layer.hasSpec(at: prim) { try layer.createPrim(at: prim, specifier: .over) }
@@ -269,11 +234,8 @@ extension SceneDocument {
         }
     }
 
-    // MARK: Components
-
     public func componentsOf(_ prim: Path) -> [Component] { components.components(of: prim, in: layer) }
 
-    /// Adds a catalogue component with the reference's always-written fields.
     @discardableResult
     public func addComponent(_ id: String, to prim: Path, catalogue: ComponentCatalogue = .realityKit) throws -> Component {
         var c = try catalogue.makeComponent(id)
@@ -282,7 +244,6 @@ extension SceneDocument {
         return c
     }
 
-    /// Writes a component (replacing a prim of the same name).
     public func setComponent(_ component: Component, on prim: Path) throws {
         let storage = components
         try perform("Set \(component.primName)") { layer in

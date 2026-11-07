@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Assist v3 Tool Capabilities & Risk Levels
-
 public enum ToolCapability: String, Codable, Sendable, CaseIterable {
     case repositoryDiscovery = "Repository Discovery"
     case fileReading = "File Reading"
@@ -64,7 +62,6 @@ public struct ToolMetadata: Codable, Sendable {
     public let isMutating: Bool
     public let requiresVerificationAfterward: Bool
 
-    // Unified capability extensions:
     public let outputFormat: ToolOutputFormat
     public let requiredPermission: ToolPermissionRequirement
     public let prerequisites: [String]
@@ -110,8 +107,6 @@ public struct ToolMetadata: Codable, Sendable {
         self.resourceScope = resourceScope
     }
 }
-
-// MARK: - Assist v3 Tool Router
 
 @MainActor
 public final class AssistToolRouter: Sendable {
@@ -256,19 +251,10 @@ public final class AssistToolRouter: Sendable {
             )
 
         default:
-            // Fail closed: unknown tools must never default to safe/read-only,
-            // or the phase gate and permission checks would treat a destructive
-            // or mutating tool as harmless. Callers with a registry should use
-            // metadata(for: tool), which derives from the tool's own declaration.
             return ToolMetadata(id: toolId, name: toolId, description: "Unknown tool — fail closed.", capability: .general, riskLevel: .potentiallyDestructive, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
         }
     }
 
-    /// Builds metadata from a registered tool's own declared properties.
-    /// This is the single source of truth for capability and risk: tools declare
-    /// their own `capability` and `riskLevel`, and routing/serialization derive
-    /// from those declarations. The `metadata(for toolId:)` overload remains as a
-    /// fallback for unregistered or legacy tool ids.
     public func metadata(for tool: AssistTool) -> ToolMetadata {
         ToolMetadata(
             id: tool.id,
@@ -534,8 +520,6 @@ public final class AssistToolRouter: Sendable {
         return lines.joined(separator: "\n")
     }
 }
-
-// MARK: - Unified Tool Capability Catalog
 
 @MainActor
 public final class ToolCapabilityCatalog: Sendable {

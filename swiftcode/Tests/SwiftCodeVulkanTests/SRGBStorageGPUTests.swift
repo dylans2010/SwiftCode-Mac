@@ -1,12 +1,3 @@
-// Kernel writes and reads of sRGB textures (visionos.md §10.21): the back
-// end gives an sRGB texture with shaderWrite a storage view in the unorm
-// format of its layout and sets bit 32 of its handle; swiftcode-airc's storage
-// writes then encode linear to sRGB and its storage reads decode, as Metal
-// does. Translator/tests/ir/interface-forms.sh leaves `srgbw` translated: a
-// kernel that writes linear (0.5, 0.25, 2^-9, 0.5) at its position and
-// copies the texel at (1, 1), read back, into out[x]; dispatched twice.
-//   SWIFTCODE_TEST_SRGBW_SPV=WORK/srgbw.spv SWIFTCODE_TEST_SRGBW_JSON=WORK/srgbw.json
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost
@@ -29,7 +20,6 @@ struct SRGBStorageGPUTests {
         _ = try b.createComputePipeline(pipe, function: fn)
         let mem = HostPages(65536)
         try b.createBuffer(out, length: 16 * 8, storage: .shared, guestMemory: mem.region(0, 16 * 8))
-        // (pixel format, the bytes a write of the value stores, the value a read gives back)
         let cases: [(UInt32, [UInt8], [Float])] = [
             (MetalPixelFormat.rgba8UnormSRGB, [188, 137, 6, 128], [0.5, 0.25, 0.001953125, 0.5]),
             (MetalPixelFormat.rgba8Unorm, [128, 64, 0, 128], [128 / 255, 64 / 255, 0, 128 / 255]),
@@ -45,7 +35,6 @@ struct SRGBStorageGPUTests {
             b.submit(MetalCommandBuffer(process: 1, queue: nil, commandBufferRef: VK.nextID(), passes: [.compute([
                 .setComputePipelineState(pipe), .setBuffer(index: 0, buffer: out, offset: 0), .setTexture(index: 0, texture: tex),
                 .dispatchThreads(MetalSize3(8, 8, 1), threadsPerThreadgroup: MetalSize3(8, 8, 1)),
-                // Again: every thread now reads (1, 1) after the first dispatch wrote it.
                 .dispatchThreads(MetalSize3(8, 8, 1), threadsPerThreadgroup: MetalSize3(8, 8, 1)),
             ])]), scheduled: {}, completed: { s in status.value = s; done.signal() })
             #expect(done.wait(timeout: .now() + 10) == .success && status.value == 4)
@@ -53,7 +42,7 @@ struct SRGBStorageGPUTests {
                            bytesPerRow: 32, bytesPerImage: 256)
             let px = Array(mem.bytes(32768 + 4 * 9, 4))
             #expect(zip(px, stored).allSatisfy { abs(Int($0) - Int($1)) <= 1 }, "format \(format): stored \(px), expected \(stored)")
-            let got = Array(mem.floats(16 * 7, 4))  // out[7] (a byte offset)
+            let got = Array(mem.floats(16 * 7, 4))
             #expect(zip(got, readBack).allSatisfy { abs($0 - $1) < 0.01 }, "format \(format): read \(got)")
             b.release(tex)
         }

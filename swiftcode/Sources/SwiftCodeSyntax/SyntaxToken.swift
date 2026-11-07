@@ -1,20 +1,14 @@
 import Foundation
 
-/// What a highlighted range is. Finer than the editor theme's color
-/// roles: `role` maps each kind onto one (the theme has a color per role).
 public enum SyntaxTokenKind: UInt8, Sendable, CaseIterable, Hashable {
-    // Code
     case keyword, comment, docComment, string, character, number, preprocessor, attribute, typeName, identifier
     case regex, escape, variable, placeholder
-    // Data and markup
     case key, tagName, attributeName, entity, heading, emphasis, strong, codeSpan, link, url, listMarker, quote
 
-    /// The editor theme's color roles (`EditorTheme.tokens` keys).
     public enum Role: String, Sendable, CaseIterable, Hashable {
         case keyword, comment, docComment, string, number, preprocessor, attribute, typeName, identifier
     }
 
-    /// The color role a kind is drawn with.
     public var role: Role {
         switch self {
         case .keyword, .heading, .tagName, .listMarker: .keyword
@@ -29,8 +23,6 @@ public enum SyntaxTokenKind: UInt8, Sendable, CaseIterable, Hashable {
         }
     }
 
-    /// Comments and strings: brackets inside them do not count for the
-    /// structure model and typing does not pair inside them.
     public var isCommentOrString: Bool {
         switch self {
         case .comment, .docComment, .string, .character, .regex, .codeSpan: true
@@ -39,8 +31,6 @@ public enum SyntaxTokenKind: UInt8, Sendable, CaseIterable, Hashable {
     }
 }
 
-/// One highlighted range, in UTF-16 code units (the editor's and LSP's
-/// offsets).
 public struct SyntaxToken: Equatable, Sendable, Hashable {
     public var kind: SyntaxTokenKind
     public var location: Int

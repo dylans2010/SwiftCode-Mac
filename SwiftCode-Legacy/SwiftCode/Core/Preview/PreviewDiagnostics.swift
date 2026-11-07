@@ -4,7 +4,7 @@ import Observation
 public struct PreviewDiagnosticsRecord: Identifiable, Sendable {
     public let id = UUID()
     public let timestamp = Date()
-    public let category: String // "compile", "render", "cache", "error"
+    public let category: String
     public let message: String
 }
 

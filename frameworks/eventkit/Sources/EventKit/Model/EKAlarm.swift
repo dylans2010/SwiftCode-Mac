@@ -1,11 +1,7 @@
-// EKAlarm and EKStructuredLocation (interface.md §3.5).
-
 import Foundation
 #if canImport(CoreLocation)
 import CoreLocation
 #else
-/// Minimal stand-in for Core Location's coordinate on platforms without it.
-/// (A shared open Core Location package may replace it later.)
 public struct CLLocationCoordinate2D: Hashable, Sendable {
     public var latitude: Double
     public var longitude: Double
@@ -13,7 +9,6 @@ public struct CLLocationCoordinate2D: Hashable, Sendable {
     public init(latitude: Double, longitude: Double) { self.latitude = latitude; self.longitude = longitude }
 }
 
-/// Minimal stand-in for Core Location's `CLLocation` (coordinate only).
 public class CLLocation: NSObject {
     public let coordinate: CLLocationCoordinate2D
     public init(latitude: Double, longitude: Double) {
@@ -32,7 +27,6 @@ struct LocationValue: Hashable {
 public class EKStructuredLocation: EKObject, NSCopying {
     public var title: String?
     public var geoLocation: CLLocation?
-    /// Radius in meters (0 = system default).
     public var radius: Double = 0
 
     public override init() { super.init() }
@@ -63,8 +57,6 @@ struct AlarmValue: Hashable {
     var location: LocationValue?
     var proximity: Int
 
-    /// Read-back order: location alarms, relative alarms, absolute alarms,
-    /// each by value (interface.md §3.5).
     static func readBackOrder(_ a: AlarmValue, _ b: AlarmValue) -> Bool {
         func kind(_ v: AlarmValue) -> Int { v.location != nil ? 0 : (v.absoluteDate == nil ? 1 : 2) }
         if kind(a) != kind(b) { return kind(a) < kind(b) }
@@ -77,14 +69,11 @@ public class EKAlarm: EKObject, NSCopying {
     private var _relativeOffset: TimeInterval = 0
     private var _absoluteDate: Date?
 
-    /// Seconds relative to the item's start (negative = before). Setting it
-    /// clears `absoluteDate`.
     public var relativeOffset: TimeInterval {
         get { _relativeOffset }
         set { _relativeOffset = newValue; _absoluteDate = nil }
     }
 
-    /// Setting a date makes the alarm absolute and sets `relativeOffset` to 0.
     public var absoluteDate: Date? {
         get { _absoluteDate }
         set { _absoluteDate = newValue; if newValue != nil { _relativeOffset = 0 } }

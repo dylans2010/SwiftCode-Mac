@@ -1,5 +1,3 @@
-// Swift Symbol Catalog for AudioToolbox
-
 public struct AudioToolboxAPIEntity_0000: Sendable, Codable {
     public let id: String = "audiotoolbox.api.0"
     public var name: String = "AudioToolboxEntity_0"

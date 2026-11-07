@@ -1,26 +1,6 @@
-// STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/UseTermFunction.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/Tools/UseTermFunction.swift`).
-// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
-// in this environment: static checks only — never claim a build passed.
-// Audit gap this port closes (claimed-covered-audit):
-//   - Allow-list / Full Access / Autopilot approval model: allow-listed commands run without a prompt and Full Access disables prompts
-// ADAPTATIONS: none — verbatim body (imports adjusted only as noted).
-// UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
-//   - AgentTerminalService — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AgentTerminalService.swift`)
-//   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
-//   - TerminalApprovalSettings — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/TerminalApprovalSettings.swift`)
-//   - ToolCapability — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-//   - ToolRiskLevel — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistToolRouter.swift`)
-// WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/Tools/SwiftCodeTools+Terminal.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
-
 import Foundation
 import SwiftCodeAssistant
 
-// NOTE (MCP-DEP, 2026-11-06): TerminalApprovalRequest moved to SwiftCodeAssistant
-// (swiftcode/Sources/SwiftCodeAssistant/Models/TerminalApprovalRequest.swift) — it is a
-// Foundation-only struct, and SwiftCodeAssistant (which cannot import SwiftCodeMCP)
-// needs it. This file uses it through `import SwiftCodeAssistant` below.
 public struct UseTermFunction: AssistTool {
     public let id = "use_terminal"
     public let name = "Use Terminal"
@@ -64,9 +44,6 @@ public struct UseTermFunction: AssistTool {
             return .failure("Command cannot be empty", code: .missingArgument)
         }
 
-        // 1. Resolve working directory URL through the filesystem layer so
-        // traversal / symlink / containment checks apply. Empty means the
-        // session working directory (see dir_cd), not the workspace root.
         let workingDirURL: URL
         if relativeWorkDir.isEmpty {
             workingDirURL = context.fileSystem.currentDirectory
@@ -82,14 +59,10 @@ public struct UseTermFunction: AssistTool {
             }
         }
 
-        // Ensure isolated scripts directory exists if targeted
         if workingDirURL.path.hasPrefix("/tmp/swiftcode/scripts") {
             try? FileManager.default.createDirectory(atPath: "/tmp/swiftcode/scripts", withIntermediateDirectories: true)
         }
 
-        // 2. Approval policy: If Assist is on Autopilot, BYPASS the permissions COMPLETELY at a system level.
-        // Otherwise, the user's allow-list and Full Access toggle decide whether this
-        // command may run without an explicit approval prompt.
         let isAutopilot = context.sessionExecutionMode == .autopilot ||
             (UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? "").lowercased() == ExecutionMode.autopilot.rawValue
         let bypassesApproval = isAutopilot || TerminalApprovalSettings.shared.isApprovalBypassed(for: command)
@@ -100,7 +73,6 @@ public struct UseTermFunction: AssistTool {
             await context.logger.info("Terminal command bypasses approval (\(reason)): \(command)", toolId: id)
             approved = true
         } else {
-            // 2a. Request user approval through AssistManager
             let request = TerminalApprovalRequest(
                 id: UUID(),
                 command: command,
@@ -119,7 +91,6 @@ public struct UseTermFunction: AssistTool {
             return .failure("Terminal execution rejected by user.", code: .cancelled)
         }
 
-        // 3. Execute command asynchronously with live output streaming via AgentTerminalService
         await context.logger.info("Executing approved command: \(command)", toolId: id)
 
         do {
@@ -129,8 +100,6 @@ public struct UseTermFunction: AssistTool {
             )
 
             let diagStrings = res.diagnostics.map { "\($0.filePath):\($0.line): \($0.severity.rawValue): \($0.message)" }
-            // Truncation is marked explicitly: a long build log must never
-            // look complete when it was cut off.
             let stdoutTruncated = res.stdout.count > 3000
             let stderrTruncated = res.stderr.count > 2000
             let stdoutTail = String(res.stdout.suffix(3000)) + (stdoutTruncated ? "\n… [stdout truncated to last 3000 chars]" : "")

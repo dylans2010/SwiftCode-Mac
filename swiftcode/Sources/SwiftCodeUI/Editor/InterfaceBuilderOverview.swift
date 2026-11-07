@@ -1,10 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The canvas overview at the canvas's top right (reference-ui-4.md §13
-/// item 6): every scene as a small box, and the visible part of the canvas
-/// as an accent outline. Drawn from the shared layout (`IBCanvasLayout.overview`),
-/// as the Linux IDE draws it.
 @MainActor
 final class IBCanvasOverviewView: NSView {
     static let size = CGSize(width: 150, height: 96)
@@ -25,7 +21,6 @@ final class IBCanvasOverviewView: NSView {
 
     @objc func changed() { needsDisplay = true }
 
-    /// What the panel shows (tests): the scene boxes and the visible rectangle.
     var drawn: (boxes: [CGRect], visible: CGRect?) {
         guard let layout = canvas?.layout else { return ([], nil) }
         let (_, boxes) = layout.overview(in: Self.size)

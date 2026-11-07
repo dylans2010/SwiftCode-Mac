@@ -1,19 +1,10 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// Device Hub: the camera of SwiftCode's simulators (`specs/ide/devices.md`
-/// §Camera; `specs/simulator/camera.md` "SwiftCode implementation"). A SwiftCode
-/// simulator's Settings tab shows, under FEAT-IMPL's boxes, a Camera box
-/// with a pop-up (Off, Host webcam, Synthetic pattern). It is the same
-/// setting as Settings ▸ Simulators ▸ Camera, shared by SwiftCode's simulators,
-/// and it applies when a device boots: the next run or start passes
-/// `--camera <mode>` (and boots cold once, since the warm-boot fingerprint
-/// includes it). It is shown whether or not the device runs.
 extension DevicesController {
     public static let cameraTitles = ["Off", "Host webcam", "Synthetic pattern"]
     public static let cameraNote = "Applies the next time the simulator boots."
 
-    /// The setting in `defaults` (the window passes the IDE's preferences).
     public static func cameraSetting(_ defaults: UserDefaults) -> (get: () -> String, set: (String) -> Void) {
         (get: { RemoteSimulatorSettings.load(defaults).camera },
          set: { mode in
@@ -24,16 +15,13 @@ extension DevicesController {
          })
     }
 
-    /// Shown for SwiftCode's remote simulator rows when the window can read the setting.
     public var cameraControlsShown: Bool { selected?.isSwiftCodeRemote == true && cameraSetting != nil }
 
-    /// The setting's title ("Off", "Host webcam", "Synthetic pattern").
     public var cameraTitle: String {
         let mode = cameraSetting?.get() ?? "off"
         return RemoteSimulatorSettings.cameraModes.firstIndex(of: mode).map { Self.cameraTitles[$0] } ?? "Off"
     }
 
-    /// Chooses a camera by its title; unknown titles are ignored.
     public func chooseCamera(_ title: String) {
         guard let i = Self.cameraTitles.firstIndex(of: title), let cameraSetting else { return }
         cameraSetting.set(RemoteSimulatorSettings.cameraModes[i])
@@ -44,8 +32,6 @@ extension DevicesController {
         if let title = sender.titleOfSelectedItem { chooseCamera(title) }
     }
 
-    /// The Camera card of the Settings tab (as the settings cards: symbol,
-    /// label, pop-up; device-hub.md §11.3), with its note under it.
     func cameraControls() -> NSView {
         let popUp = NSPopUpButton(frame: .zero, pullsDown: false)
         popUp.addItems(withTitles: Self.cameraTitles)

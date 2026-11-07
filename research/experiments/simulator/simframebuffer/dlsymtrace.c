@@ -1,18 +1,3 @@
-/*
- * dlsymtrace: Ycode research interposer (original Ycode code). Inserted with
- * DYLD_INSERT_LIBRARIES into OUR OWN probe process only. Logs to stderr every
- * dlopen and dlsym call (with the calling image's file name) and every
- * bootstrap_look_up / XPC Mach-service connection, so we can see which names
- * a client library resolves from the framebuffer library it loads and which
- * Mach services are contacted.
- * Lines: "YCODE-DL <api> <arg> -> <result> [from <image>]".
- * YCODE_DL_DIR=<dir>: write to <dir>/<process>-<pid>.log instead of stderr;
- * YCODE_DL_ONLY=<name>: stay silent in every process except that one (for a
- * whole-device boot where the library is inserted into every job).
- * YCODE_DL_DENY=<name>[,<name>...]: in every process, bootstrap_look_up of
- * those names fails with 1102 (unknown service) and XPC connections to them
- * are made to a name that does not exist, imitating a host without them.
- */
 #include <mach/mach.h>
 #include <xpc/xpc.h>
 #include <dispatch/dispatch.h>

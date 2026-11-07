@@ -13,139 +13,6 @@ import ApplicationServices
 import AppKit
 #endif
 
-/// The ported Legacy Agentic data / environment / secrets / UI /
-/// profiling tool family (Wave 8, slice G).
-///
-/// Behaviour source: Legacy's `ParseJSONTool` (`ParseJSON.swift`),
-/// `ParseYAMLTool` (`ParseYAML.swift`), `ParseXMLTool`
-/// (`ParseXML.swift`), `ParseMarkdownTool` (`ParseMarkdown.swift`),
-/// `SQLQueryTool` (`SQLQuery.swift`),
-/// `DatabaseSchemaInspectorTool` (`DatabaseSchemaInspector.swift`),
-/// `DatabaseMigrationTool` (`DatabaseMigrationTool.swift`),
-/// `ReadEnvironmentVariablesTool`
-/// (`ReadEnvironmentVariables.swift`),
-/// `UpdateEnvironmentVariablesTool`
-/// (`UpdateEnvironmentVariables.swift`), `ManageSecretsTool`
-/// (`ManageSecrets.swift`), `OpenBrowserTool` (`OpenBrowser.swift`),
-/// `BrowserAutomationTool` (`BrowserAutomation.swift`),
-/// `UIInspectorTool` (`UIInspector.swift`),
-/// `AccessibilityInspectorTool` (`AccessibilityInspector.swift`),
-/// `PerformanceProfilerTool` (`PerformanceProfiler.swift`),
-/// `MemoryProfilerTool` (`MemoryProfiler.swift`),
-/// `NetworkInspectorTool` (`NetworkInspector.swift`),
-/// `CrashAnalyzerTool` (`CrashAnalyzer.swift`),
-/// `SymbolicateCrashLogsTool` (`SymbolicateCrashLogs.swift`) and
-/// `TakeScreenshotTool` (`TakeScreenshot.swift`) — Dylan's own
-/// code, ported under MIT. See `specs/ide/agentic-data-draft.md`.
-///
-/// Conventions, following Waves 1–7:
-///
-/// * Schemas are Legacy's `parametersSchema` verbatim, plus the
-///   `workspace` parameter every SwiftCode tool carries. Legacy's
-///   Agentic tools declare no parameter descriptions, so the
-///   SwiftCode schema adds short neutral descriptions. Legacy's
-///   Agentic tools declare no capability or risk level (the
-///   `AgentTool` protocol carries neither), so annotations are
-///   assigned by behaviour: reads are `.read`, the three writers
-///   are `safeMutation` with `writes: true`, `open_browser` is an
-///   external side effect (`openWorld: true`, `writes: true`).
-/// * Structured data keeps Legacy's keys where Legacy had any,
-///   with typed JSON values the way SwiftCode's other tools do —
-///   Legacy's string-only map is not reproduced. Tools whose
-///   Legacy result carries no data return a plain text result.
-/// * Path resolution: database and crash-log paths use the strict
-///   `resolveFileWritingPath` (trim; reject empty, NUL, a leading
-///   `~` and any `..`; plain relative paths resolve against the
-///   workspace root, never the session directory) for database
-///   files, and the session-aware `resolveFileReadingPath` for
-///   crash logs (the same resolver Wave 6's `crash_log_parse`
-///   uses). No path is ever allowed to escape the workspace.
-/// * Approval gating: every writing handler gates BEFORE touching
-///   disk or state. `database_migration` goes through
-///   `approveFileWritingChange`; `update_environment_variables`,
-///   `manage_secrets` (save) and `open_browser` go through
-///   `terminalApproveChange` (the Wave 4 shape for non-file
-///   operations, whose change path is the workspace root). There
-///   is no Autopilot bypass.
-/// * Subprocesses are fixed argument vectors, never a shell.
-///   `sqlite3`, `ps`, `netstat` / `ss`, `open` / `xdg-open` and
-///   `atos` run by absolute path with Legacy-equivalent argv.
-/// * Secrets: a secret VALUE never appears in tool output.
-///   `manage_secrets` `get` reports only whether a secret exists
-///   for the key; `read_environment_variables` reports variable
-///   names only, never values. This is a deliberate deviation
-///   from Legacy (which dumped `KEY=value` lines and returned the
-///   stored secret), following the Wave 6 `secrets_scan`
-///   precedent of reporting file:line:label only.
-/// * Profilers and inspectors that need a live device, simulator
-///   or Xcode session implement the local/static part honestly
-///   and fail honestly where live capture is impossible here —
-///   no measurement, query result or secret value is ever
-///   invented.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `parse_json` keeps Legacy's dictionary-only rule (a JSON
-///   document whose top level is not an object fails with
-///   "JSON is not a dictionary"); the parsed object is returned
-///   as structured data instead of Legacy's `"\(result)"` string.
-/// * `parse_yaml`, `parse_xml` and `parse_markdown` were stubs in
-///   Legacy (each returned a hardcoded "Parsed … (simulated)"
-///   string). The port implements real parsers instead: a YAML
-///   subset parser, a Foundation `XMLParser` tree builder, and a
-///   structural Markdown block parser. Each documents its limits
-///   in the spec; unsupported constructs fail with the exact
-///   construct and line instead of pretending to parse.
-/// * `sql_query` was a stub in Legacy ("Result of query: …").
-///   The port runs the query for real against SQLite via the
-///   `sqlite3` CLI (`-json -readonly`), and accepts read-only
-///   statements only (`SELECT`, `WITH`, `EXPLAIN`); anything else
-///   fails before running. Writes go through
-///   `database_migration`, never through this tool.
-/// * `database_schema_inspector` and `database_migration` were
-///   stubs in Legacy. The port runs them for real via the
-///   `sqlite3` CLI: schema from `sqlite_master` plus per-table
-///   `PRAGMA table_info` / `PRAGMA foreign_key_list`, migration
-///   from the migration file via `.read` with `-bail` (stops at
-///   the first failing statement; the file's own transaction
-///   handling applies, so a file without `BEGIN` can leave a
-///   partial apply behind on error).
-/// * `read_environment_variables` returns names only (see
-///   "Secrets" above); Legacy returned `KEY=value` lines.
-/// * `manage_secrets` `get` reports existence only (see
-///   "Secrets" above); Legacy returned the stored value.
-///   `save` without a `value` fails in the port (Legacy silently
-///   reported "Secret saved" without saving anything). The store
-///   is SwiftCode's `SecretStore` (login keychain on macOS, a 0600
-///   file under `~/.config/swiftcode/secrets` on Linux).
-/// * `open_browser` opens http(s) URLs only. Legacy passed any
-///   string to `/usr/bin/open`; the port validates the scheme
-///   first and uses `xdg-open` on Linux.
-/// * `performance_profiler` and `memory_profiler` were stubs in
-///   Legacy. The port takes a single live `ps` snapshot of the
-///   named process (CPU %, RSS, VSZ, % memory) — real
-///   measurements, but a snapshot, not a time series or a
-///   sampling profiler.
-/// * `network_inspector` was a stub in Legacy. The port returns
-///   a snapshot of the active connection table (`netstat -an`,
-///   else `ss -tan`) — it is not packet capture, and says so.
-/// * `crash_analyzer` was a stub in Legacy. The port parses the
-///   crash log for real, reusing Wave 6's
-///   `testingParseCrashLog` (same parser as `crash_log_parse`,
-///   different parameter name: `logPath`, not `path`).
-/// * `symbolicate_crash_logs` was a stub in Legacy. The port
-///   symbolicates for real on macOS via `atos` against the
-///   dSYM's DWARF binary, using the load address from the log's
-///   Binary Images section. On Linux it fails honestly naming
-///   the missing `atos` (Xcode command line tools).
-/// * `take_screenshot` is NOT registered here: SwiftCode already has
-///   `take_screenshot` (Wave 4, `SwiftCodeTools+Terminal.swift`),
-///   which is the served target for the Agentic ID — see the
-///   spec. `browser_automation`, `ui_inspector` and
-///   `accessibility_inspector` are registered with their full
-///   Legacy schemas but always fail, naming the exact missing
-///   prerequisite (no browser automation driver, no live target
-///   application with accessibility access).
 extension SwiftCodeMCPHost {
     var agenticDataTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -324,37 +191,21 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Shared helpers (all `agenticData`-prefixed)
-
 extension SwiftCodeMCPHost {
-    /// Test seam for `manage_secrets`: when set, the secret store
-    /// used instead of `defaultSecretStore()`. Tests set a
-    /// `MemorySecretStore` so no real keychain or config file is
-    /// touched; production never sets it.
     static var agenticDataTestSecretStore: SecretStore?
 
-    /// The secret store for `manage_secrets`.
     static func agenticDataSecretStore() -> SecretStore {
         agenticDataTestSecretStore ?? defaultSecretStore()
     }
 
-    /// The `sqlite3` CLI, or `nil` when it is not installed.
     nonisolated static func agenticDataSQLite3Executable() -> String? {
         FileManager.default.isExecutableFile(atPath: "/usr/bin/sqlite3") ? "/usr/bin/sqlite3" : nil
     }
 
-    /// Runs `sqlite3` with a fixed argument vector (120-second
-    /// timeout, via the Wave 5 runner). `nil` when the process
-    /// cannot start at all.
     func agenticDataRunSQLite3(_ args: [String]) async -> TerminalFixedRun? {
         await archiveRunFixed("/usr/bin/sqlite3", args)
     }
 
-    /// A `sqlite3` run that must succeed: start failure, timeout
-    /// and a non-zero exit all become a tool error naming the
-    /// operation. A zero-exit run with empty stdout is a success
-    /// with no rows (that is what `sqlite3 -json` prints for an
-    /// empty result).
     func agenticDataRequireSQLite3(_ args: [String], what: String) async throws -> String {
         guard Self.agenticDataSQLite3Executable() != nil else {
             throw MCPToolError("\(what) needs the `sqlite3` command-line tool, which is not installed on this system.")
@@ -371,8 +222,6 @@ extension SwiftCodeMCPHost {
         return run.stdout
     }
 
-    /// Parses `sqlite3 -json` output (an array of objects, or
-    /// empty output for zero rows) into `AnyJSON`.
     nonisolated static func agenticDataParseSQLiteJSON(_ stdout: String, what: String) throws -> [AnyJSON] {
         let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
@@ -388,7 +237,6 @@ extension SwiftCodeMCPHost {
         return rows
     }
 
-    /// One live `ps` snapshot of a process.
     struct AgenticDataProcessSample {
         let pid: Int
         let cpuPercent: Double
@@ -398,11 +246,6 @@ extension SwiftCodeMCPHost {
         let command: String
     }
 
-    /// Samples a process with `/bin/ps -o
-    /// pid=,%cpu=,rss=,vsz=,%mem=,comm= -p <pid>` (the same
-    /// columns on macOS and Linux; `rss`/`vsz` are KiB). Throws
-    /// when `ps` is missing, the pid is invalid, or no such
-    /// process is visible.
     func agenticDataSampleProcess(pid: Int) async throws -> AgenticDataProcessSample {
         guard pid >= 1 else {
             throw MCPToolError("Invalid pid '\(pid)': expected a process ID of 1 or more.")
@@ -421,8 +264,6 @@ extension SwiftCodeMCPHost {
         guard run.exitCode == 0, !line.isEmpty else {
             throw MCPToolError("No running process with pid \(pid) was found (or it is not visible to this user).")
         }
-        // Five fields, then the command name (which may contain
-        // spaces, so the split stops after the fifth field).
         let parts = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
         guard parts.count == 6,
               let foundPid = Int(parts[0]), foundPid == pid,
@@ -434,7 +275,6 @@ extension SwiftCodeMCPHost {
                                         memPercent: mem, command: String(parts[5]))
     }
 
-    /// One row of the active connection table.
     struct AgenticDataConnection {
         let proto: String
         let local: String
@@ -442,8 +282,6 @@ extension SwiftCodeMCPHost {
         let state: String
     }
 
-    /// Parses `netstat -an` output: header lines and UNIX-domain
-    /// rows are skipped; TCP rows carry a state, UDP rows do not.
     nonisolated static func agenticDataParseNetstat(_ text: String) -> [AgenticDataConnection] {
         var rows: [AgenticDataConnection] = []
         for line in text.components(separatedBy: .newlines) {
@@ -455,8 +293,6 @@ extension SwiftCodeMCPHost {
         return rows
     }
 
-    /// Parses `ss -tan` output: the header line is skipped; each
-    /// row is `State Recv-Q Send-Q Local Peer [Process]`.
     nonisolated static func agenticDataParseSS(_ text: String) -> [AgenticDataConnection] {
         var rows: [AgenticDataConnection] = []
         for line in text.components(separatedBy: .newlines) {
@@ -468,26 +304,12 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Legacy's YAML subset (ported, not a full parser)
-
-/// One non-blank, non-comment line of a YAML document.
 struct AgenticDataYAMLLine {
     let indent: Int
     let content: String
     let number: Int
 }
 
-/// A YAML subset parser: block mappings and sequences by
-/// indentation, plain / single- / double-quoted scalars, `null` /
-/// booleans / integers / doubles, flow collections (`[a, b]`,
-/// `{k: v}`), block scalars (`|` literal / `>` folded, with
-/// chomping and explicit indent indicators), anchors (`&name`),
-/// aliases (`*name`), and merge keys (`<<: *name`). Tags,
-/// multi-document streams beyond `---` / `...` separators, and
-/// tab indentation are rejected with the line number. Duplicate
-/// mapping keys are rejected, as in YAML. Full YAML 1.2 needs the
-/// Yams dependency (see the Package.swift wiring list); this
-/// subset covers the shapes real configs use.
 struct AgenticDataYAMLParser {
     var lines: [AgenticDataYAMLLine]
     var rawLines: [String]
@@ -513,8 +335,6 @@ struct AgenticDataYAMLParser {
         lines = parsed
     }
 
-    /// Strips a trailing `#` comment: a `#` at the start of the
-    /// line, or preceded by a space or tab, outside quotes.
     static func stripComment(_ line: String) -> String {
         var inSingle = false
         var inDouble = false
@@ -548,8 +368,6 @@ struct AgenticDataYAMLParser {
         return try parseBlock(at: lines[index].indent)
     }
 
-    /// Parses the block starting at `index`, whose lines share
-    /// `indent` (a mapping, a sequence, or a lone scalar).
     mutating func parseBlock(at indent: Int) throws -> AnyJSON {
         guard index < lines.count else { return .null }
         let line = lines[index]
@@ -597,14 +415,9 @@ struct AgenticDataYAMLParser {
                     items.append(.null)
                 }
             } else if rest == "-" || rest.hasPrefix("- ") {
-                // A nested sequence on the same line ("- - a"):
-                // rewrite it as a virtual line one level deeper.
                 lines[index] = AgenticDataYAMLLine(indent: indent + 2, content: rest, number: line.number)
                 items.append(try parseBlock(at: indent + 2))
             } else if Self.isMappingLine(rest) {
-                // A mapping starting on the item line ("- name: x"):
-                // rewrite it as a virtual mapping line one level
-                // deeper; the following deeper lines belong to it.
                 lines[index] = AgenticDataYAMLLine(indent: indent + 2, content: rest, number: line.number)
                 items.append(try parseMapping(at: indent + 2))
             } else {
@@ -636,8 +449,6 @@ struct AgenticDataYAMLParser {
 
     mutating func parseMapping(at indent: Int) throws -> AnyJSON {
         var object: [String: AnyJSON] = [:]
-        // Merge keys (`<<: *name`) are applied after the loop so
-        // explicit keys always win, wherever `<<` appears.
         var pendingMerges: [(value: AnyJSON, line: Int)] = []
         while index < lines.count {
             let line = lines[index]
@@ -661,8 +472,6 @@ struct AgenticDataYAMLParser {
                 if let anchor { anchors[anchor] = value }
                 object[key] = value
             } else if anchorRest.isEmpty {
-                // `key:` or `key: &name` — the value is the
-                // following block (or null).
                 let value: AnyJSON
                 if index < lines.count, lines[index].indent > indent {
                     value = try parseBlock(at: lines[index].indent)
@@ -695,16 +504,10 @@ struct AgenticDataYAMLParser {
         return .object(object)
     }
 
-    /// A mapping line: a top-level colon followed by a space or
-    /// the end of the line (so `http://x` and `key:value` are
-    /// plain scalars, not mappings).
     static func isMappingLine(_ content: String) -> Bool {
         Self.splitMapping(content).key != nil
     }
 
-    /// Splits `key: value` on the first top-level colon, or
-    /// returns `nil` when the line is not a mapping line. The key
-    /// may be single- or double-quoted.
     static func splitMapping(_ content: String) -> (key: String?, value: String) {
         var inSingle = false
         var inDouble = false
@@ -739,9 +542,6 @@ struct AgenticDataYAMLParser {
         return (nil, content)
     }
 
-    /// Splits an optional `&name` anchor prefix off a value.
-    /// Returns (anchor name, rest). `&` with no name is not an
-    /// anchor and is returned untouched.
     static func splitAnchorPrefix(_ text: String) -> (String?, String) {
         guard text.hasPrefix("&") else { return (nil, text) }
         let afterAmp = text.dropFirst()
@@ -751,10 +551,6 @@ struct AgenticDataYAMLParser {
         return (String(name), rest)
     }
 
-    /// Parses a block-scalar header (`|`, `>`, with optional
-    /// chomping `-`/`+` and an explicit indent indicator).
-    /// Returns (literal, chomping, indent indicator), or nil when
-    /// the text is not a block-scalar header.
     static func parseBlockScalarHeader(_ text: String) -> (literal: Bool, chomping: Character?, indent: Int?)? {
         var rest = text
         guard rest.first == "|" || rest.first == ">" else { return nil }
@@ -778,14 +574,6 @@ struct AgenticDataYAMLParser {
         return (literal, chomping, indent)
     }
 
-    /// Collects a block scalar's raw lines following the header at
-    /// `headerLine` (1-based), whose parent block sits at
-    /// `parentIndent`, and folds them per the header (literal
-    /// keeps newlines; folded turns single newlines into spaces,
-    /// keeping newlines around blank or more-indented lines).
-    /// Chomping: clip (default) keeps one trailing newline, strip
-    /// (`-`) keeps none, keep (`+`) keeps them all. Advances
-    /// `index` past the consumed lines.
     mutating func collectBlockScalar(header: (literal: Bool, chomping: Character?, indent: Int?),
                                     headerLine: Int, parentIndent: Int) throws -> String {
         var collected: [(indent: Int, text: String, number: Int)] = []
@@ -861,12 +649,6 @@ struct AgenticDataYAMLParser {
         return raw
     }
 
-    /// One scalar value: `null` / booleans / integers / doubles /
-    /// quoted strings / flow collections / plain strings, plus
-    /// aliases (`*name`) resolved against the anchors seen so
-    /// far. Anything with an unsupported leading indicator fails
-    /// (tags, `%` directives, block scalars outside a value
-    /// position — those are intercepted by the caller).
     func scalar(_ raw: String, line: Int) throws -> AnyJSON {
         let text = raw.trimmingCharacters(in: .whitespaces)
         if text.isEmpty || text == "~" || text == "null" || text == "Null" || text == "NULL" { return .null }
@@ -922,8 +704,6 @@ struct AgenticDataYAMLParser {
         return .string(text)
     }
 
-    /// Splits a flow collection's inside on top-level commas
-    /// (quote- and bracket-aware).
     static func splitFlow(_ text: String) -> [String] {
         var items: [String] = []
         var depth = 0
@@ -968,14 +748,10 @@ struct AgenticDataYAMLParser {
             cursor = text.index(after: cursor)
         }
         let last = current.trimmingCharacters(in: .whitespaces)
-        // A trailing comma adds no item ("[a,]" is ["a"]); an
-        // empty slot before a comma does ("[,]" is [null, null]).
         if !last.isEmpty || items.last?.isEmpty == true { items.append(last) }
         return items
     }
 
-    /// The escapes a double-quoted YAML scalar understands.
-    /// Unknown escapes keep the escaped character itself.
     static func unescapeDoubleQuoted(_ text: String) -> String {
         var out = ""
         var cursor = text.startIndex
@@ -1004,15 +780,7 @@ struct AgenticDataYAMLParser {
     }
 }
 
-// MARK: - Markdown structure (subset, not a renderer)
-
 extension SwiftCodeMCPHost {
-    /// Splits Markdown into structural blocks: ATX headings,
-    /// fenced code blocks, lists (flat — nested items are
-    /// separate items), blockquotes, horizontal rules and
-    /// paragraphs. Links and images are collected separately.
-    /// Tables, reference-style links, HTML blocks and nested
-    /// emphasis are not parsed: their lines become paragraphs.
     nonisolated static func agenticDataParseMarkdown(_ text: String) -> (blocks: [AnyJSON], headings: [String], links: [AnyJSON]) {
         var blocks: [AnyJSON] = []
         var headings: [String] = []
@@ -1021,7 +789,6 @@ extension SwiftCodeMCPHost {
         var index = 0
 
         func collectLinks(from text: String) {
-            // One pass: `!` before the bracket marks an image.
             let pattern = #"(!?)\[([^\]]+)\]\(([^)]+)\)"#
             guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
             let range = NSRange(text.startIndex..., in: text)
@@ -1053,7 +820,6 @@ extension SwiftCodeMCPHost {
             for marker in ["- ", "* ", "+ "] where trimmed.hasPrefix(marker) {
                 return (false, String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces))
             }
-            // Ordered: digits, a dot, a space.
             var digits = ""
             for ch in trimmed {
                 if ch.isNumber { digits.append(ch) } else { break }
@@ -1079,7 +845,7 @@ extension SwiftCodeMCPHost {
                     code.append(lines[index])
                     index += 1
                 }
-                index += 1 // the closing fence (or past the end)
+                index += 1
                 blocks.append(.object(["type": .string("code"), "language": .string(language),
                                        "text": .string(code.joined(separator: "\n"))]))
                 continue
@@ -1118,15 +884,10 @@ extension SwiftCodeMCPHost {
                     collectLinks(from: next.text)
                     index += 1
                 }
-                // A list that changes marker kind mid-run is one
-                // block per kind; the outer loop picks the rest up.
                 blocks.append(.object(["type": .string("list"), "ordered": .bool(ordered),
                                        "items": .strings(items)]))
                 continue
             }
-            // A paragraph: consecutive lines that start no other
-            // block (soft line breaks join with a space, as
-            // Markdown renders them).
             var paragraph: [String] = []
             while index < lines.count {
                 let p = lines[index].trimmingCharacters(in: .whitespaces)
@@ -1145,10 +906,6 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - XML tree (Foundation XMLParser)
-
-/// One XML element: its tag, attributes, element children and
-/// the character data directly inside it.
 final class AgenticDataXMLNode {
     let tag: String
     let attributes: [String: String]
@@ -1198,12 +955,7 @@ final class AgenticDataXMLTreeBuilder: NSObject, XMLParserDelegate {
     }
 }
 
-// MARK: - Crash-log images (for symbolicate)
-
 extension SwiftCodeMCPHost {
-    /// `(name, loadAddress, arch)` for each image in a `.crash`
-    /// log's Binary Images section (`0x… - 0x…  Name  arch
-    /// <uuid>  /path`). `.ips` (JSON) logs have no such section.
     nonisolated static func agenticDataCrashImages(_ text: String) -> [(name: String, loadAddress: String, arch: String)] {
         var images: [(name: String, loadAddress: String, arch: String)] = []
         var inImages = false
@@ -1222,8 +974,6 @@ extension SwiftCodeMCPHost {
         return images
     }
 
-    /// Frame lines (`N  ImageName  0x…  …`) anywhere in the log,
-    /// as `(image, address)` pairs in order, duplicates removed.
     nonisolated static func agenticDataCrashFrames(_ text: String) -> [(image: String, address: String)] {
         var frames: [(image: String, address: String)] = []
         var seen = Set<String>()
@@ -1239,11 +989,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Handlers: parsers
-
 extension SwiftCodeMCPHost {
-    /// `parse_json`: Legacy's dictionary-only rule is kept; the
-    /// parsed object is returned as structured data.
     func agenticDataParseJSON(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
         let raw = try fileReadingRequiredString(call, "json")
@@ -1260,9 +1006,6 @@ extension SwiftCodeMCPHost {
                            summary: "Parsed JSON object with \(object.count) top-level key\(object.count == 1 ? "" : "s").")
     }
 
-    /// `parse_yaml`: the subset parser above. Legacy returned a
-    /// hardcoded string; this parses for real or fails naming
-    /// the unsupported construct and line.
     func agenticDataParseYAML(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
         let raw = try fileReadingRequiredString(call, "yaml")
@@ -1283,8 +1026,6 @@ extension SwiftCodeMCPHost {
         return .structured(["parsed": parsed, "topLevelKeys": .strings(keys)], summary: summary)
     }
 
-    /// `parse_xml`: a Foundation `XMLParser` tree builder.
-    /// Legacy returned a hardcoded string.
     func agenticDataParseXML(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
         let raw = try fileReadingRequiredString(call, "xml")
@@ -1305,8 +1046,6 @@ extension SwiftCodeMCPHost {
                            summary: "Parsed XML document with root element <\(root.tag)>.")
     }
 
-    /// `parse_markdown`: the structural block parser above.
-    /// Legacy returned a hardcoded string.
     func agenticDataParseMarkdown(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
         let raw = try fileReadingRequiredString(call, "markdown")
@@ -1317,11 +1056,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Handlers: SQLite
-
 extension SwiftCodeMCPHost {
-    /// The first SQL keyword, ignoring leading `--` line
-    /// comments and `/* */` block comments.
     nonisolated static func agenticDataSQLFirstKeyword(_ query: String) -> String {
         var text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         while true {
@@ -1338,9 +1073,6 @@ extension SwiftCodeMCPHost {
         return text.components(separatedBy: .whitespacesAndNewlines).first?.uppercased() ?? ""
     }
 
-    /// `sql_query`: read-only statements only, run for real via
-    /// `sqlite3 -json -readonly`. Legacy returned a hardcoded
-    /// string and never touched a database.
     func agenticDataSQLQuery(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let query = try fileReadingRequiredString(call, "query")
@@ -1363,8 +1095,6 @@ extension SwiftCodeMCPHost {
                            summary: "Query returned \(rows.count) row\(rows.count == 1 ? "" : "s") from \(dbRel).")
     }
 
-    /// `PRAGMA table_info` for one table, as structured column
-    /// objects (name, type, notNull, primaryKey, defaultValue).
     func agenticDataSQLiteTableColumns(dbURL: URL, table: String, dbRel: String) async throws -> [AnyJSON] {
         let quoted = "\"" + table.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         let stdout = try await agenticDataRequireSQLite3(["-json", "-readonly", dbURL.path, "PRAGMA table_info(\(quoted))"],
@@ -1379,7 +1109,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// `PRAGMA foreign_key_list` for one table.
     func agenticDataSQLiteForeignKeys(dbURL: URL, table: String, dbRel: String) async throws -> [AnyJSON] {
         let quoted = "\"" + table.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         let stdout = try await agenticDataRequireSQLite3(["-json", "-readonly", dbURL.path, "PRAGMA foreign_key_list(\(quoted))"],
@@ -1394,9 +1123,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// `database_schema_inspector`: `sqlite_master` plus
-    /// per-table pragmas, run for real. Legacy returned a
-    /// hardcoded string and never opened the database.
     func agenticDataDatabaseSchemaInspector(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let dbRaw = try fileReadingRequiredString(call, "databasePath")
@@ -1436,10 +1162,6 @@ extension SwiftCodeMCPHost {
                            summary: "Schema for \(dbRel): \(tables.count) table\(tables.count == 1 ? "" : "s"), \(views.count) view\(views.count == 1 ? "" : "s"), \(indexes.count) index\(indexes.count == 1 ? "" : "es").")
     }
 
-    /// `database_migration`: applies the migration file for real
-    /// via `sqlite3 -bail <db> ".read <path>"`, approval-gated.
-    /// Legacy returned a hardcoded string and applied nothing.
-    /// The database file is created when it does not exist.
     func agenticDataDatabaseMigration(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let dbRaw = try fileReadingRequiredString(call, "databasePath")
@@ -1466,10 +1188,6 @@ extension SwiftCodeMCPHost {
         let migRel = fileReadingRelativePath(of: migURL, in: s)
         try await approveFileWritingChange(tool: call.name, path: dbURL, relativePath: dbRel, original: nil,
                                            summary: "Apply migration \(migRel) to \(dbRel)", call: call)
-        // `.read` with the quoted absolute path (spaces in the
-        // path survive; the argument is a fixed argv element,
-        // never a shell). `-bail` stops at the first failing
-        // statement; the file's own transaction handling applies.
         let quoted = "\"" + migURL.path.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"") + "\""
         _ = try await agenticDataRequireSQLite3(["-bail", dbURL.path, ".read \(quoted)"],
@@ -1480,12 +1198,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Handlers: environment and secrets
-
 extension SwiftCodeMCPHost {
-    /// `read_environment_variables`: names only, never values.
-    /// Legacy dumped `KEY=value` lines; values can be secrets,
-    /// so the port reports the sorted names and the count.
     func agenticDataReadEnvironmentVariables(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
         let names = ProcessInfo.processInfo.environment.keys.sorted()
@@ -1493,10 +1206,6 @@ extension SwiftCodeMCPHost {
                            summary: "Found \(names.count) environment variable\(names.count == 1 ? "" : "s") in the MCP host process (names only; values are never reported).")
     }
 
-    /// `update_environment_variables`: `setenv` in the host
-    /// process (so children spawned afterwards inherit the new
-    /// values), approval-gated. Legacy did the same `setenv`
-    /// loop with no gate.
     func agenticDataUpdateEnvironmentVariables(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let variables = call.arguments["variables"]?.object, !variables.isEmpty else {
@@ -1521,12 +1230,6 @@ extension SwiftCodeMCPHost {
         return .text("Environment variables updated (\(pairs.count) variable\(pairs.count == 1 ? "" : "s"): \(pairs.map { $0.key }.joined(separator: ", "))).")
     }
 
-    /// `manage_secrets`: `save` stores through SwiftCode's
-    /// `SecretStore` (keychain on macOS, a 0600 file on Linux);
-    /// `get` reports only whether a secret exists for the key —
-    /// the value is never returned, never logged, never echoed.
-    /// Legacy returned the stored value. An unknown action keeps
-    /// Legacy's "No result" answer.
     func agenticDataManageSecrets(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let action = try fileReadingRequiredString(call, "action")
@@ -1563,12 +1266,7 @@ extension SwiftCodeMCPHost {
     }
 }
 
-// MARK: - Handlers: browser and inspectors
-
 extension SwiftCodeMCPHost {
-    /// `open_browser`: `/usr/bin/open` on macOS, `xdg-open` on
-    /// Linux, with a fixed argument vector. Only http(s) URLs:
-    /// Legacy passed any string to `open`.
     func agenticDataOpenBrowser(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "url")
@@ -1599,15 +1297,6 @@ extension SwiftCodeMCPHost {
         return .text("Opened \(trimmed)")
     }
 
-    /// `browser_automation`: evaluates `script` as JavaScript in
-    /// Safari's front document via AppleScript (`osascript`, macOS
-    /// only), after the same approval gate `open_browser` uses.
-    /// Legacy's `run` was a stub that returned a hardcoded string
-    /// and executed nothing; there is still no WebDriver/Playwright
-    /// driver here, so Safari JavaScript evaluation is the real
-    /// automation path this host can offer. An optional `url` opens
-    /// in Safari first. On Linux the tool fails honestly: there is
-    /// no Safari to drive.
     func agenticDataBrowserAutomation(_ call: MCPToolCall) async throws -> MCPToolResult {
         let script = try fileReadingRequiredString(call, "script")
         let s = try session(for: call)
@@ -1621,7 +1310,6 @@ extension SwiftCodeMCPHost {
                 throw MCPToolError("Failed to open \(url) in Safari: \((run.stdout + run.stderr).trimmingCharacters(in: .whitespacesAndNewlines))")
             }
         }
-        // Escape the script into one AppleScript string literal.
         let escaped = script.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         let source = "tell application \"Safari\" to do JavaScript \"" + escaped + "\" in front document"
         guard let run = await archiveRunFixed("/usr/bin/osascript", ["-e", source]) else {
@@ -1640,29 +1328,16 @@ extension SwiftCodeMCPHost {
         #endif
     }
 
-    /// `ui_inspector`: walks the accessibility tree of a running
-    /// macOS app with `AXUIElement` and returns role/title/value
-    /// per node (depth- and node-capped). Legacy returned a hardcoded
-    /// string; this reads the live hierarchy. Requires the host to
-    /// be trusted for accessibility (`AXIsProcessTrusted()`); when
-    /// it is not, the tool fails naming the permission instead of
-    /// returning invented UI.
     func agenticDataUIInspector(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
         return try agenticDataInspectAccessibility(call, detailed: false)
     }
 
-    /// `accessibility_inspector`: the same live `AXUIElement` walk
-    /// as `ui_inspector`, plus the accessibility attributes Legacy
-    /// never read (subrole, help, enabled, focused, min/max value).
     func agenticDataAccessibilityInspector(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
         return try agenticDataInspectAccessibility(call, detailed: true)
     }
 
-    /// Shared accessibility-tree walk for `ui_inspector` /
-    /// `accessibility_inspector`. `detailed` adds the extra
-    /// accessibility attributes.
     private func agenticDataInspectAccessibility(_ call: MCPToolCall, detailed: Bool) throws -> MCPToolResult {
         #if canImport(ApplicationServices) && os(macOS)
         guard AXIsProcessTrusted() else {
@@ -1686,8 +1361,6 @@ extension SwiftCodeMCPHost {
     }
 
     #if canImport(ApplicationServices) && os(macOS)
-    /// The pid of the app to inspect: `app` names a bundle
-    /// identifier or process name, or the frontmost app when absent.
     private func agenticDataTargetPID(_ call: MCPToolCall) throws -> pid_t {
         #if canImport(AppKit)
         let apps = NSWorkspace.shared.runningApplications
@@ -1706,15 +1379,12 @@ extension SwiftCodeMCPHost {
         #endif
     }
 
-    /// One node's attribute, or nil when the element does not have it.
     private func agenticDataAXValue(_ element: AXUIElement, _ attribute: String) -> AnyObject? {
         var value: AnyObject?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
         return value
     }
 
-    /// Depth-first walk of one accessibility subtree, appending one
-    /// indented line per node. Stops at `maxDepth` and at 500 nodes.
     private func agenticDataWalkAX(_ element: AXUIElement, depth: Int, maxDepth: Int, detailed: Bool,
                                    lines: inout [String], nodeCount: inout Int) {
         guard depth <= maxDepth, nodeCount < 500 else { return }
@@ -1740,12 +1410,7 @@ extension SwiftCodeMCPHost {
     #endif
 }
 
-// MARK: - Handlers: profilers, network, crashes
-
 extension SwiftCodeMCPHost {
-    /// Runs `netstat` or `ss` with a fixed argument vector and
-    /// returns stdout; start failure, timeout and a non-zero
-    /// exit all become tool errors naming the command.
     func agenticDataRunNetworkLister(_ executable: String, _ args: [String], what: String) async throws -> String {
         guard let run = await archiveRunFixed(executable, args) else {
             throw MCPToolError("Failed to execute \(what): could not start \(executable)")
@@ -1759,8 +1424,6 @@ extension SwiftCodeMCPHost {
         return run.stdout
     }
 
-    /// `performance_profiler`: a single live `ps` snapshot
-    /// (CPU %, RSS, VSZ). Legacy returned a hardcoded string.
     func agenticDataPerformanceProfiler(_ call: MCPToolCall) async throws -> MCPToolResult {
         _ = try session(for: call)
         guard let pid = call.int("pid") else {
@@ -1773,8 +1436,6 @@ extension SwiftCodeMCPHost {
                            summary: "Process \(sample.pid) (\(sample.command)): CPU \(sample.cpuPercent)%, RSS \(sample.rssBytes) bytes, VSZ \(sample.vszBytes) bytes (single ps snapshot, not a time series).")
     }
 
-    /// `memory_profiler`: a single live `ps` snapshot (RSS, VSZ,
-    /// % of physical memory). Legacy returned a hardcoded string.
     func agenticDataMemoryProfiler(_ call: MCPToolCall) async throws -> MCPToolResult {
         _ = try session(for: call)
         guard let pid = call.int("pid") else {
@@ -1787,11 +1448,6 @@ extension SwiftCodeMCPHost {
                            summary: "Process \(sample.pid) (\(sample.command)): RSS \(sample.rssBytes) bytes (\(sample.memPercent)% of physical memory), VSZ \(sample.vszBytes) bytes (single ps snapshot).")
     }
 
-    /// `network_inspector`: a snapshot of the active connection
-    /// table (`netstat -an`, else `ss -tan`). That is the honest
-    /// local part — live packet capture is not available in
-    /// SwiftCode's MCP host, and the summary says so. Legacy
-    /// returned a hardcoded string.
     func agenticDataNetworkInspector(_ call: MCPToolCall) async throws -> MCPToolResult {
         _ = try session(for: call)
         let rows: [AgenticDataConnection]
@@ -1817,10 +1473,6 @@ extension SwiftCodeMCPHost {
                            summary: "Active connections (\(jsonRows.count) shown, via \(source)). This is a connection-table snapshot, not packet capture: live traffic content is not available in SwiftCode's MCP host.")
     }
 
-    /// `crash_analyzer`: parses the crash log for real with
-    /// Wave 6's `testingParseCrashLog` — the same parser as
-    /// `crash_log_parse`, under the Agentic parameter name
-    /// `logPath`. Legacy returned a hardcoded string.
     func agenticDataCrashAnalyzer(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
         guard let raw = call.arguments["logPath"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
@@ -1849,13 +1501,6 @@ extension SwiftCodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    /// `symbolicate_crash_logs`: on macOS, symbolicates the
-    /// crashed frames that belong to the dSYM's binary for real
-    /// via `atos`, using the load address from the log's Binary
-    /// Images section. On Linux it fails honestly naming the
-    /// missing `atos`. Legacy returned a hardcoded string and
-    /// symbolicated nothing. The macOS path is unverified in
-    /// this environment (Linux only); see the spec.
     func agenticDataSymbolicateCrashLogs(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let logRaw = try fileReadingRequiredString(call, "logPath")
@@ -1873,9 +1518,6 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("dSYM not found at: \(dsymRaw)")
         }
 #if os(macOS)
-        // Resolve the DWARF binary: a .dSYM bundle holds it at
-        // Contents/Resources/DWARF/<name>; a plain file is used
-        // as-is.
         let binaryURL: URL
         if isDir.boolValue {
             let dwarf = dsymURL.appendingPathComponent("Contents/Resources/DWARF")

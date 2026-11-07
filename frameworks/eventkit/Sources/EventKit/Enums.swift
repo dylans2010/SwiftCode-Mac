@@ -1,6 +1,3 @@
-// Enumerations and string constants of EventKit (specs/frameworks/eventkit/identifiers.md).
-// Case names follow the Swift spelling of the interop names; raw values are the spec's.
-
 import Foundation
 
 public enum EKEntityType: UInt, Sendable {
@@ -22,7 +19,6 @@ public enum EKAuthorizationStatus: Int, Sendable {
     case fullAccess = 3
     case writeOnly = 4
 
-    /// Deprecated alias of `fullAccess` (same raw value 3).
     @available(*, deprecated, renamed: "fullAccess")
     public static var authorized: EKAuthorizationStatus { .fullAccess }
 }
@@ -158,17 +154,12 @@ public enum EKReminderPriority: UInt, Sendable {
     case low = 9
 }
 
-/// `EKErrorDomain` (identifiers.md, string constants).
 public let EKErrorDomain = "EKErrorDomain"
 
 extension Notification.Name {
-    /// `EKEventStoreChangedNotification`; the string value equals the name
-    /// (identifiers.md). Posted on the main queue with the store as object.
     public static let EKEventStoreChanged = Notification.Name("EKEventStoreChangedNotification")
 }
 
-/// User-info keys of the change notification (interface.md §5). They are
-/// observations, not SDK declarations; SwiftCode fills them with its own values.
 enum ChangeKeys {
     static let changeType = "EKEventStoreChangeTypeUserInfoKey"
     static let calendarDataChanged = "EKEventStoreCalendarDataChangedUserInfoKey"

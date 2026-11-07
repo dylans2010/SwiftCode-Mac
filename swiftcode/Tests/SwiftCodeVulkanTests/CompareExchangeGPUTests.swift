@@ -1,11 +1,3 @@
-// The weak compare-exchange atomic on the GPU (visionos.md §10.13):
-// Translator/tests/ir/interface-forms.sh leaves `cas` translated, a kernel
-// in which every thread adds 1 to out[0] with a compare-exchange loop whose
-// `expected` lives in private memory. out[0] ends at the thread count only
-// if the intrinsic's result is the success flag and a failed exchange
-// refreshes `expected` (otherwise the loop never ends or counts wrongly).
-//   SWIFTCODE_TEST_CAS_SPV=WORK/cas.spv SWIFTCODE_TEST_CAS_JSON=WORK/cas.json
-
 import Foundation
 import Testing
 @testable import SwiftCodeMetalHost

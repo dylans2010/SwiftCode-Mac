@@ -77,7 +77,6 @@ public struct AssistSymbolMoveFileTool: AssistTool {
             return .failure("Symbol '\(symbol)' declaration not found in \(relativePath(sourceURL, root: context.workspaceRoot)).")
         }
 
-        // Extract the brace-balanced block starting at the declaration line.
         var depth = 0
         var sawBrace = false
         var endIndex: Int? = nil
@@ -124,7 +123,6 @@ public struct AssistSymbolMoveFileTool: AssistTool {
             return .failure("Move failed while writing files: \(error.localizedDescription). Original contents were restored.")
         }
 
-        // Verify: declaration present in destination, declaration gone from source.
         let verifySource = readFile(sourceURL) ?? ""
         let verifyDestination = readFile(destinationURL) ?? ""
         let sourceRange = NSRange(verifySource.startIndex..., in: verifySource)

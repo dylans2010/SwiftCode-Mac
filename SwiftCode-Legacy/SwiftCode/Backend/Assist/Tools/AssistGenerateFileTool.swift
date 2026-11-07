@@ -41,8 +41,6 @@ public struct AssistGenerateFileTool: AssistTool {
         if (resolvedInput["module"] as? String)?.isEmpty != false {
             resolvedInput["module"] = defaultModule
         }
-        // Unknown templates are a failure, never a success that writes a
-        // comment-only file.
         guard let rendered = renderTemplate(template: template, fileName: fileName, input: resolvedInput) else {
             return .failure("Unknown template '\(template)': expected swift_struct, swift_class, swiftui_view, or test.")
         }
@@ -66,8 +64,6 @@ public struct AssistGenerateFileTool: AssistTool {
         case "swiftui_view":
             return "import SwiftUI\n\nstruct \(fileName): View {\n    var body: some View {\n        Text(\"\(fileName)\")\n    }\n}\n\n#Preview {\n    \(fileName)()\n}\n"
         case "test":
-            // Honest scaffold: fails until a real assertion replaces it,
-            // instead of a vacuous XCTAssertTrue(true) counted as a test.
             return "import XCTest\n@testable import \(moduleName)\n\nfinal class \(fileName): XCTestCase {\n    func testExample() {\n        XCTFail(\"Not implemented: replace with a real assertion for \(fileName).\")\n    }\n}\n"
         default:
             return nil

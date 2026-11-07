@@ -3,18 +3,12 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// The console while it shows the run's output: its rows (one per line,
-/// `ConsoleRows`), newest at the bottom and kept scrolled to the end. A
-/// click selects a row; its menu has the Debug ▸ Console ▸ Copy Row items
-/// (the macOS IDE's console rows, `debug.md`).
 struct ConsoleRowsView: View {
     var model: WorkspaceShellModel
     let colors: ShellColors
 
     var body: some View {
         let d = model.debug
-        // The session's entries are not observed; the console's text and
-        // the filter are, and change with them.
         let rows = model.console.isEmpty && d.consoleText.isEmpty ? [] : d.consoleRows
         ScrollViewReader { proxy in
             ScrollView {
@@ -54,7 +48,6 @@ struct ConsoleRowsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// A row's menu acts on that row (it becomes the selection).
     func copy(_ row: Int, _ kind: ShellDebugModel.ConsoleRowCopy) {
         model.debug.selectedConsoleRow = row
         model.debug.copyConsoleRow(kind)

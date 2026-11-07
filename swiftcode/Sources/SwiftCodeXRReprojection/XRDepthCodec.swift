@@ -1,10 +1,3 @@
-// The depth codec of the frame depth message (specs/simulator/xr-depth.md
-// §4.2): lossless. Each row is delta-coded from its left neighbour (the
-// first sample from the one above), the u16 deltas are split into a plane of
-// low bytes and a plane of high bytes (smooth surfaces make the high plane
-// almost all zero or 0xFF), and both planes are compressed with zlib
-// (RFC 1950; the system's libz through CSwiftCodeCodec).
-
 import CSwiftCodeCodec
 import Foundation
 import SwiftCodeDisplayStream
@@ -12,7 +5,6 @@ import SwiftCodeDisplayStream
 public enum XRDepthCodec {
     public enum Failure: Error, Equatable { case noZlib, size, corrupt }
 
-    /// The packed form of `samples` (width × height, rows top to bottom).
     public static func encode(_ samples: [UInt16], width: Int, height: Int, level: Int32 = 1) throws -> [UInt8] {
         guard width > 0, height > 0, samples.count == width * height else { throw Failure.size }
         let n = samples.count
@@ -45,7 +37,6 @@ public enum XRDepthCodec {
         return out
     }
 
-    /// The samples of a packed image.
     public static func decode(_ data: [UInt8], width: Int, height: Int) throws -> [UInt16] {
         guard width > 0, height > 0 else { throw Failure.size }
         let n = width * height
@@ -73,7 +64,6 @@ public enum XRDepthCodec {
         return samples
     }
 
-    /// The samples of a frame depth message.
     public static func samples(of d: XRFrameDepth) throws -> [UInt16] {
         let w = Int(d.width), h = Int(d.height)
         switch d.encoding {
@@ -86,10 +76,8 @@ public enum XRDepthCodec {
     }
 }
 
-/// A decoded depth image with its projection: what the re-projection reads.
 public struct XRDepthImage: Equatable, Sendable {
     public var width: Int, height: Int
-    /// Inverse-depth samples (q / 65535 = near / z; 0: nothing drawn).
     public var samples: [UInt16]
     public var near: Float
     public var fov: XRFieldOfView
@@ -102,7 +90,6 @@ public struct XRDepthImage: Equatable, Sendable {
         self.init(width: Int(d.width), height: Int(d.height), samples: try XRDepthCodec.samples(of: d), near: d.near, fov: d.fov)
     }
 
-    /// The sample nearest to source coordinates (u, v) ∈ [0, 1]² (v down).
     public func sample(u: Double, v: Double) -> UInt16 {
         let x = min(width - 1, max(0, Int(u * Double(width)))), y = min(height - 1, max(0, Int(v * Double(height))))
         return samples[y * width + x]

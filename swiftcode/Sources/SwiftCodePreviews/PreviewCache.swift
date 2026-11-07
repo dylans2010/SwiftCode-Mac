@@ -1,8 +1,5 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Preview/PreviewCache.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 
-/// Actor-isolated, thread-safe caching layer storing layout calculations, compiled binaries, and environmental profiles.
 public actor PreviewCache {
     public static let shared = PreviewCache()
 
@@ -21,7 +18,6 @@ public actor PreviewCache {
         compiledBinaryPaths[path] = url
     }
 
-    // Modern Content Hash Caching Interfaces
     public func getBinary(forHash hash: String) -> URL? {
         return compiledBinaryPathsByHash[hash]
     }

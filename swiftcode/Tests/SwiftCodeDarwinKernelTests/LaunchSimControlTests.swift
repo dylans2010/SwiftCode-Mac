@@ -3,11 +3,8 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// The control-channel client (launch-sim-control.md): the spawn blob, and
-/// requests and replies against a fake service served by the host task.
 @Suite struct LaunchSimControlTests {
     @Test func spawnBlobMatchesTheSpecExample() {
-        // launch-sim-control.md §4, the 221-byte example.
         let a = LaunchSimSpawnAttributes(path: "/tmp/swiftcode-R3/lsguest", argv: ["lsguest-raw", "com.swiftcode.rawsvc"],
                                          environment: ["YC_RAW=1"], workingDirectory: "/tmp")
         let b = a.blob
@@ -18,16 +15,12 @@ import SwiftCodeDarwinABI
         for i in [8, 9, 10, 11, 12, 13, 15, 22, 25, 38] { #expect(w(i) == 0) }
         let region = Array(b[156...])
         #expect(region == Array("/tmp/swiftcode-R3/lsguest\0lsguest-raw\0com.swiftcode.rawsvc\0YC_RAW=1\0/tmp\0".utf8))
-        // CPU preference and the suspended flag.
         let c = LaunchSimSpawnAttributes(path: "/x", argv: [], cpuType: 0x0100_000C, startSuspended: true).blob
         #expect(c.readLE(UInt32.self, at: 24) == 1 && c.readLE(UInt32.self, at: 28) == 3)
         #expect(c.readLE(UInt32.self, at: 92) == 1 && c.count == 156 + 3 + 8)
         #expect(c.readLE(UInt32.self, at: 159) == 0x0100_000C && c.readLE(UInt32.self, at: 163) == 0xFFFF_FFFF)
     }
 
-    /// Registrations queued before launchd_sim reads its port: the queue
-    /// holds five; the sixth fails at once instead of waiting 5 s
-    /// (visionos.md §10.19.3), so the session registers it later.
     @Test func aFullQueueFailsAtOnce() throws {
         let w = TaskWorld()
         let host = w.system.hostTask
@@ -45,7 +38,6 @@ import SwiftCodeDarwinABI
         let host = w.system.hostTask
         let service = try host.makePort(sendRight: true)
         let control = LaunchSimControl(host: host, channel: service, log: { _ in })
-        // The fake launchd_sim: answers each request by id.
         let served = ResultBox<[Int32]>()
         served.value = []
         let server = Thread {

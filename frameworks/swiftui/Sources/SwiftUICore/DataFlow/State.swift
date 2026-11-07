@@ -1,15 +1,5 @@
 import Foundation
 
-// State storage (03-architecture.md §2–§4). A `@State` property's value
-// lives in the graph, keyed by the view's identity: the struct a parent
-// creates carries only the initial value (its initial-value expression runs
-// every time the struct is created; the value is discarded once the identity
-// has storage). Before a body runs, the runtime installs every dynamic
-// property of the view value into the node's slots.
-
-/// A stored property whose value the graph manages (`State`,
-/// `Environment`, …). The runtime calls `update()` before each body
-/// evaluation.
 public protocol DynamicProperty {
     mutating func update()
 }
@@ -18,7 +8,6 @@ extension DynamicProperty {
     public mutating func update() {}
 }
 
-/// A dynamic property the graph installs into a node slot.
 @MainActor
 package protocol GraphDynamicProperty {
     func _install(in node: ViewNode, slot: Int)
@@ -26,9 +15,6 @@ package protocol GraphDynamicProperty {
 
 @MainActor
 package enum DynamicPropertyInstaller {
-    /// Installs the dynamic properties among the stored fields of `value`
-    /// (and of nested `DynamicProperty` structs), numbering slots in field
-    /// order.
     package static func install(_ value: Any, in node: ViewNode) {
         var slot = 0
         walk(value, node, &slot, depth: 0)
@@ -52,24 +38,17 @@ package enum DynamicPropertyInstaller {
     }
 }
 
-/// A value cell in the graph that bodies can depend on.
 package final class StateLocation<Value>: DependencySource, @unchecked Sendable {
     package private(set) var value: Value
-    /// Runs after a change (R13: a `FocusState` write schedules an update
-    /// even when no body read it, so programmatic focus is applied).
     package var onChange: (@MainActor () -> Void)?
 
     package init(_ value: Value) { self.value = value }
 
-    /// Reads the value and records the dependency of the body being evaluated.
     package func read() -> Value {
         DependencyTracker.recordRead(self)
         return value
     }
 
-    /// Writes from any thread; writes off the main thread are applied on it.
-    /// Writing a value equal to the current one schedules nothing (03 §4.2
-    /// rule 4).
     package func write(_ newValue: Value, transaction: Transaction?) {
         if MainActorCheck.isCurrent {
             let box = UncheckedBox((newValue, transaction ?? Transaction._current))
@@ -95,8 +74,6 @@ package final class UncheckedBox<T>: @unchecked Sendable {
     package init(_ value: T) { self.value = value }
 }
 
-/// The reference part of a `State` value: the initial value, and the graph
-/// location once installed.
 package final class StateBox<Value>: @unchecked Sendable {
     package let initial: Value
     package var location: StateLocation<Value>?
@@ -104,7 +81,6 @@ package final class StateBox<Value>: @unchecked Sendable {
     package init(_ initial: Value) { self.initial = initial }
 }
 
-/// A value owned by the view identity.
 @propertyWrapper
 public struct State<Value>: DynamicProperty {
     package let box: StateBox<Value>
@@ -117,8 +93,6 @@ public struct State<Value>: DynamicProperty {
         nonmutating set { box.location?.write(newValue, transaction: nil) }
     }
 
-    /// A binding to the stored value. Outside an installed view it is a
-    /// constant binding to the initial value.
     public var projectedValue: Binding<Value> {
         guard let loc = box.location else { return .constant(box.initial) }
         return Binding(location: loc)
@@ -144,13 +118,9 @@ extension State: GraphDynamicProperty {
 }
 
 extension State: GraphInputComparable {
-    /// State belongs to the identity, not to the value the parent creates.
     package func _isGraphInputEqual(to other: Any) -> Bool { true }
 }
 
-// MARK: - Namespace
-
-/// A stable identity for matched effects, unique per view identity.
 @propertyWrapper
 public struct Namespace: DynamicProperty, Sendable {
     public struct ID: Hashable, Sendable {

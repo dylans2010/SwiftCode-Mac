@@ -3,36 +3,13 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// A local OpenCode server through its native HTTP + SSE API (the
-/// OpenCode server API): `GET /config/providers` lists models,
-/// `POST /session` creates a session, `GET /event` is the SSE feed,
-/// `POST /session/<id>/prompt_async` sends a prompt,
-/// `POST /session/<id>/abort` cancels a run.
-///
-/// Ported from Legacy's `OpenCodeClient` (native client) — see
-/// specs/ide/assist-providers-opencode.md. The server is loopback by
-/// default and SwiftCode only ever connects out to the configured URL.
-/// No API key: model credentials live in OpenCode's own configuration.
-///
-/// Differences from Legacy (deliberate, see the spec): SwiftCode does NOT
-/// auto-start a managed server or install the `opencode` binary — a
-/// missing server is reported as `.notRunning` with a hint telling the
-/// user how to start it, like the other local-server providers. The
-/// `swiftcode` agent (all permissions denied) must already exist on the
-/// server; a tool part on the event stream fails the run closed.
 public struct OpenCodeProvider: AssistantProvider {
     public let kind = ProviderKind.openCode
     public var baseURL: String
-    /// The OpenCode agent every session names (Legacy's default).
     public var agentName: String
     public static let defaultBaseURL = "http://127.0.0.1:4096"
     public static let defaultAgentName = "swiftcode"
-    /// Legacy's conservative context default (`AgentModelAdapter`):
-    /// the server's provider catalog reports no context window, and
-    /// the true limit varies by underlying model, so SwiftCode uses the
-    /// same 128k figure Legacy used rather than inventing one.
     public static let defaultContextWindow = 128_000
-    /// Model-list cache lifetime. `refreshModels()` clears it early.
     public static let modelCacheTTL: TimeInterval = 3600
 
     private let modelCache = OpenCodeModelCache()
@@ -50,12 +27,8 @@ public struct OpenCodeProvider: AssistantProvider {
         "OpenCode lists no models. Configure a model provider in OpenCode first, then refresh."
     }
 
-    /// The cached model list, if it was fetched within the TTL.
     public func refreshModels() { modelCache.clear() }
 
-    /// Drops every cached OpenCode session id (e.g. when the user
-    /// switches providers), so a later run can never resume a session
-    /// from a previous provider selection.
     public func resetSessions() { sessions.removeAll() }
 
     public func resetSession(directory: String?) { sessions.remove(key: directory ?? "") }
@@ -68,9 +41,6 @@ public struct OpenCodeProvider: AssistantProvider {
         do {
             let r = try await HTTP.send(URLRequest(url: url), timeout: 5)
             if r.status == 401 {
-                // Legacy checkHealth: a 401 means the server requires
-                // authentication SwiftCode deliberately does not handle —
-                // keep the server on loopback without server auth.
                 return .failed("OpenCode requires server authentication, which SwiftCode does not handle. Run it on loopback without server auth.")
             }
             guard r.status == 200 else {
@@ -87,12 +57,6 @@ public struct OpenCodeProvider: AssistantProvider {
         }
     }
 
-    /// Models from a `GET /config/providers` body, sorted by provider
-    /// then model. The endpoint has returned both a `providers` array
-    /// and provider-keyed objects across versions, and model entries
-    /// use `id` or `modelID`; anything unrecognised is skipped rather
-    /// than fabricated into a model. Ported from Legacy's
-    /// `OpenCodeProviderCatalog.parseModels`.
     public static func parseModels(_ body: Data) -> [ModelInfo] {
         guard let root = try? JSONSerialization.jsonObject(with: body) else { return [] }
         var providerDicts: [[String: Any]] = []
@@ -104,7 +68,6 @@ public struct OpenCodeProvider: AssistantProvider {
                 if let providers = dict["providers"] {
                     collectProviders(from: providers)
                 } else {
-                    // Provider-keyed object: { "acme": { "models": [...] }, … }
                     for (key, entry) in dict {
                         if var entryDict = entry as? [String: Any] {
                             if entryDict["id"] == nil { entryDict["id"] = key }
@@ -150,9 +113,6 @@ public struct OpenCodeProvider: AssistantProvider {
                 }
             }
         }
-        // Legacy sorts by provider, then model — not by the stored
-        // string, where "/" would misorder a provider that is a prefix
-        // of another ("acme-x" vs "acme").
         return models.sorted {
             let a = parseStoredID($0.id), b = parseStoredID($1.id)
             if a?.providerID != b?.providerID { return (a?.providerID ?? "") < (b?.providerID ?? "") }
@@ -162,11 +122,6 @@ public struct OpenCodeProvider: AssistantProvider {
 
     public func contextWindow(model: String) async -> Int? { Self.defaultContextWindow }
 
-    /// The `POST /session/<id>/prompt_async` request body: the model
-    /// as `{providerID, modelID}`, the `swiftcode` agent, the turn as
-    /// one text part, and SwiftCode's instructions in `system` so they —
-    /// not an OpenCode default — govern the turn. Generation options
-    /// are not sent: Legacy never sent them either.
     static func promptBody(_ request: ChatRequest, model: OpenCodeModelID, agent: String) -> [String: Any] {
         var body: [String: Any] = [
             "model": ["providerID": model.providerID, "modelID": model.modelID],
@@ -179,9 +134,6 @@ public struct OpenCodeProvider: AssistantProvider {
         return body
     }
 
-    /// The conversation as one text part (instructions travel in
-    /// `system`, not here). Falls back to the instructions when there
-    /// are no messages yet.
     static func promptText(_ request: ChatRequest) -> String {
         guard !request.messages.isEmpty else { return request.instructions }
         return request.messages.map { "<\($0.role.rawValue)>\n\($0.content)\n</\($0.role.rawValue)>" }.joined(separator: "\n")
@@ -197,13 +149,6 @@ public struct OpenCodeProvider: AssistantProvider {
             }
             let directory = request.workingDirectory?.path
             var sessionID = try await provider.sessionID(directory: directory)
-            // Subscribe to the event stream BEFORE sending the prompt:
-            // if the prompt goes first, the server can emit
-            // `session.idle` before this subscriber is connected, and
-            // the run then waits for an event that already passed.
-            // `/event` is a global feed (events carry a sessionID and
-            // are filtered below), so one subscription survives the
-            // stale-session retry, which only re-sends the prompt.
             guard let eventURL = provider.endpointURL("event", directory: directory) else {
                 throw AssistantError.failed("The OpenCode address “\(provider.baseURL)” is not a valid URL.")
             }
@@ -212,9 +157,6 @@ public struct OpenCodeProvider: AssistantProvider {
             eventRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
             let stream = HTTP.stream(eventRequest, timeout: 3600)
             do {
-                // A stale cached session (server restarted) surfaces as
-                // a 404. Drop it and retry exactly once with a fresh
-                // session; any other failure propagates unchanged.
                 var prompted = false
                 for attempt in 0..<2 where !prompted {
                     do {
@@ -277,11 +219,6 @@ public struct OpenCodeProvider: AssistantProvider {
         }
     }
 
-    /// Yields the events in one SSE `data:` payload. Returns true when
-    /// the run is over (`session.idle`). Events for another session are
-    /// ignored; text `updated` frames carry the full accumulated part,
-    /// not a delta, so they are deliberately ignored to avoid
-    /// duplicating every delta already streamed.
     func handle(eventData data: String, sessionID: String, directory: String?, out: AsyncThrowingStream<ChatEvent, Error>.Continuation) throws -> Bool {
         guard let (eventSessionID, event) = Self.parseEvent(data) else { return false }
         if let eventSessionID, eventSessionID != sessionID { return false }
@@ -304,10 +241,6 @@ public struct OpenCodeProvider: AssistantProvider {
         }
     }
 
-    /// One parsed OpenCode SSE frame. Only the shapes SwiftCode acts on are
-    /// distinguished; everything else is `.ignored` so a new event type
-    /// from a newer server can never be mistaken for model text or a
-    /// tool result.
     enum OpenCodeStreamEvent: Equatable, Sendable {
         case text(String)
         case tool
@@ -316,8 +249,6 @@ public struct OpenCodeProvider: AssistantProvider {
         case ignored
     }
 
-    /// Parses one SSE `data:` payload (the JSON after `data: `).
-    /// Returns the event's session id, when present, and the event.
     static func parseEvent(_ data: String) -> (sessionID: String?, event: OpenCodeStreamEvent)? {
         let payload = data.trimmingCharacters(in: .whitespacesAndNewlines)
         guard payload != "[DONE]", !payload.isEmpty,
@@ -364,8 +295,6 @@ public struct OpenCodeProvider: AssistantProvider {
         }
         return (sessionID, .ignored)
     }
-
-    // MARK: Session plumbing
 
     func sessionID(directory: String?) async throws -> String {
         let key = directory ?? ""
@@ -424,8 +353,6 @@ public struct OpenCodeProvider: AssistantProvider {
         }
     }
 
-    /// Best-effort abort of a run (`POST /session/<id>/abort`).
-    /// Cancellation never needs provider state beyond this request.
     func fireAbort(sessionID: String, directory: String?) {
         guard let url = endpointURL("session/\(sessionID)/abort", directory: directory) else { return }
         var request = URLRequest(url: url)
@@ -434,16 +361,10 @@ public struct OpenCodeProvider: AssistantProvider {
         Task { _ = try? await HTTP.send(request, timeout: 5) }
     }
 
-    /// Cancels an event subscription that was opened but will never be
-    /// consumed (e.g. the prompt failed before streaming started).
-    /// Iterating then cancelling trips `HTTP.stream`'s onTermination,
-    /// which cancels the underlying request.
     func cancelStream(_ stream: AsyncThrowingStream<HTTP.Chunk, Error>) {
         let task = Task { for try await _ in stream { } }
         task.cancel()
     }
-
-    // MARK: URL plumbing
 
     func endpointURL(_ path: String, directory: String?) -> URL? {
         guard let base = URL(string: baseURL) else { return nil }
@@ -457,10 +378,6 @@ public struct OpenCodeProvider: AssistantProvider {
         return components?.url
     }
 
-    /// Parses a stored `opencode:` model identifier (Legacy's canonical
-    /// form, e.g. `opencode:acme/alpha`), or a bare
-    /// `provider/model` id. Returns nil for anything else, including
-    /// an empty selection.
     static func parseStoredID(_ storedID: String?) -> OpenCodeModelID? {
         guard var remainder = storedID, !remainder.isEmpty else { return nil }
         if remainder.hasPrefix("opencode:") { remainder = String(remainder.dropFirst("opencode:".count)) }
@@ -472,10 +389,6 @@ public struct OpenCodeProvider: AssistantProvider {
     }
 }
 
-// `OpenCodeModelID` is declared once, in AssistModelRouting.swift (the
-// stored-identifier model shared with the routing layer).
-
-/// Thread-safe model-list cache shared by copies of the provider struct.
 final class OpenCodeModelCache: @unchecked Sendable {
     private let lock = NSLock()
     private var models: [ModelInfo]?
@@ -503,8 +416,6 @@ final class OpenCodeModelCache: @unchecked Sendable {
     }
 }
 
-/// Thread-safe session-id store (one cached session per workspace
-/// directory) shared by copies of the provider struct.
 final class OpenCodeSessionStore: @unchecked Sendable {
     private let lock = NSLock()
     private var ids: [String: String] = [:]

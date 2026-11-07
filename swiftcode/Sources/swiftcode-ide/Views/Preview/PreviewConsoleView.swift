@@ -1,9 +1,3 @@
-// PreviewConsoleView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/PreviewConsoleView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: preview-scoped log filtering; search; export
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
 

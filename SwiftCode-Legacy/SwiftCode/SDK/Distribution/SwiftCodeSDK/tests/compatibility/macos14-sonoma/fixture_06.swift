@@ -1,5 +1,3 @@
-// Compatibility Verification Fixture for macos14-sonoma - Target 6
-
 public struct CompatEntity_macos14_sonoma_06_0000: Sendable, Codable {
     public let id: String = "macos14-sonoma.6.0"
     public init() {}

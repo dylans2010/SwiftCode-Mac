@@ -1,12 +1,5 @@
-// STAGED PORT — SwiftCode-Legacy `Backend/Assist/Assist Frameworks/AssistRecoveryStrategyGenerator.swift`
-// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
-// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
-// Dependency of _AssistCriticalAutonomousEngine (recovery phase). Ledger SUPERSEDED by SwiftCodeMCP/Tools/SwiftCodeTools+Planning.swift — same note as AssistFailureRootCauseAnalyzer: MCP tool surface, non-importable module, no RecoveryStrategy class API. Ported verbatim.
-// Remaining deps (now staged in AssistModels.swift by the parallel port — see _notes/agent-models-decisions.md): AssistContext (logger), AssistExecutionStep; AssistFailureRootCauseAnalyzer.RootCauseAnalysis (staged alongside here).
-
 import Foundation
 
-/// Generates recovery strategies for failed operations
 @MainActor
 public final class AssistRecoveryStrategyGenerator {
     private let context: AssistContext
@@ -14,7 +7,7 @@ public final class AssistRecoveryStrategyGenerator {
     public struct RecoveryStrategy {
         let approach: RecoveryApproach
         let steps: [String]
-        let estimatedSuccess: Double // 0.0 to 1.0
+        let estimatedSuccess: Double
     }
 
     public enum RecoveryApproach {
@@ -29,14 +22,12 @@ public final class AssistRecoveryStrategyGenerator {
         self.context = context
     }
 
-    /// Generates a recovery strategy based on root cause analysis
     public func generateStrategy(
         rootCause: AssistFailureRootCauseAnalyzer.RootCauseAnalysis,
         failedStep: AssistExecutionStep
     ) async -> RecoveryStrategy {
         await context.logger.info("Generating recovery strategy for: \(rootCause.primaryCause)", toolId: "RecoveryStrategy")
 
-        // Select strategy based on root cause
         switch rootCause.primaryCause {
         case let cause where cause.contains("Missing file"):
             return RecoveryStrategy(

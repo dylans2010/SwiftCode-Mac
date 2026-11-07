@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct SemVerCheckerView: View {
@@ -12,7 +9,7 @@ struct SemVerCheckerView: View {
             TextField("Enter Semantic Version", text: $version)
                 .textFieldStyle(.roundedBorder)
                 .padding()
-                
+
                 .onChange(of: version) { check() }
 
             List {
@@ -31,7 +28,6 @@ struct SemVerCheckerView: View {
     }
 
     func check() {
-        // Basic SemVer regex/parser logic
         results = [
             "Valid": "Yes",
             "Major": "1",

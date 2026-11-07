@@ -6,7 +6,6 @@ public actor PreviewSnapshotManager {
 
     private init() {}
 
-    /// Captures a high-fidelity image snapshot of any NSView on the MainActor.
     @MainActor
     public func captureSnapshot(of view: NSView) -> NSImage? {
         let bounds = view.bounds

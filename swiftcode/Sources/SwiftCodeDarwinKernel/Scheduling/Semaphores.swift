@@ -1,15 +1,6 @@
 import Foundation
 import SwiftCodeDarwinABI
 
-// Mach semaphores with several threads (`specs/simulator/threads-and-events.md`
-// §4.3, traps −33…−39). The semaphore object lives behind a port name in the
-// task's space; agent I's `MachIPC` creates and destroys it
-// (`semaphore_create`/`semaphore_destroy`, private traps 0x7963_2003/4) and
-// hands it out through `MachIPCHandling.semaphore(named:)`.
-
-/// A Mach semaphore. `count` is the number of free permits; threads wait only
-/// while it is 0. A signal with a waiter hands its permit straight to that
-/// waiter. Every method must be called with the kernel lock held.
 public final class KernelSemaphore: @unchecked Sendable {
     public private(set) var count: Int32
     public private(set) var isDestroyed = false
@@ -19,35 +10,27 @@ public final class KernelSemaphore: @unchecked Sendable {
         count = max(0, value)
     }
 
-    /// The number of threads waiting.
     public var waiterCount: Int { waiters.count }
 
-    /// `semaphore_signal`: wakes one waiter, or adds a permit.
     public func signal() {
         if waiters.wake(count: 1) == 0 { count &+= 1 }
     }
 
-    /// `semaphore_signal_all`: wakes every waiter; the count does not change.
     public func signalAll() {
         waiters.wakeAll()
     }
 
-    /// `semaphore_signal_thread` with a thread: true when it was waiting here.
     public func signal(thread: ThreadContext) -> Bool {
         waiters.wake(limit: 1) { c, _ in c === thread } == 1
     }
 
-    /// `semaphore_destroy`: every waiter returns `KERN_TERMINATED`.
     public func destroy() {
         isDestroyed = true
         waiters.wakeAll()
     }
 
-    /// Takes a permit or waits for one. `deadline` nil = forever; a deadline
-    /// in the past polls. Returns a `kern_return_t`.
     func wait(lock: KernelLock, deadline: UInt64?, beforeSleeping: (() -> Void)? = nil) -> UInt64 {
         if isDestroyed { return DarwinKernel.KernReturn.terminated }
-        // swiftlint:disable:next empty_count - the semaphore value, not a collection
         if count > 0 {
             count -= 1
             beforeSleeping?()
@@ -66,14 +49,10 @@ public final class KernelSemaphore: @unchecked Sendable {
 }
 
 extension DarwinKernel {
-    /// The semaphore behind the port name `name`.
     public func semaphore(named name: UInt32) -> KernelSemaphore? {
         machIPC?.semaphore(named: name)
     }
 
-    /// Diagnostics (`SWIFTCODE_DEBUG_SEMAPHORES=<process name>`): one stderr line
-    /// per semaphore create, destroy and failed trap in processes of that
-    /// name (the first 5000 per process).
     static let debugSemaphoresProcess = getenv("SWIFTCODE_DEBUG_SEMAPHORES").map { String(cString: $0) }
 
     func debugSemaphore(_ text: @autoclosure () -> String) {
@@ -83,7 +62,6 @@ extension DarwinKernel {
         FileHandle.standardError.write(Data("swiftcode-semaphore: pid \(pid) (\(comm)) thread \(current.threadID): \(text())\n".utf8))
     }
 
-    /// The semaphore traps −33…−39. Returns nil for other numbers.
     func handleSemaphoreTrap(_ n: Int, _ frame: inout TrapFrame) -> Outcome? {
         guard (Mach.semaphoreTimedwaitSignal...Mach.semaphoreSignal).contains(n) else { return nil }
         let a = frame.x.prefixArray(8)
@@ -140,7 +118,6 @@ extension DarwinKernel {
                 return kr(KernReturn.invalidName)
             }
             if s.isDestroyed { return kr(KernReturn.terminated) }
-            // Start waiting on w, then signal s (so w == s succeeds).
             let r = w.wait(lock: lock, deadline: timed ? timeout(a[2], a[3]) : nil, beforeSleeping: { s.signal() })
             return kr(r, " [count \(w.count)]")
 

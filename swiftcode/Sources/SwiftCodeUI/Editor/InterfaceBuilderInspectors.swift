@@ -1,30 +1,19 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The inspector sections (reference-ui-4.md §13, `interface-builder.md`
-/// §Reference Attributes inspector) rendered as controls: a 77-point
-/// right-aligned label, the control from x 83 about 171 points wide, check
-/// boxes under their group's label, number fields with steppers, colour
-/// pop-ups with a swatch, icon rows and combo boxes. Every edit writes the
-/// attribute the row names (IBInspectorModel.swift, IBAttributesCatalog.swift)
-/// through the session shared with the Linux IDE.
 extension InterfaceBuilderController {
     public func inspectorSections(_ t: InspectorTab) -> [IBInspectorSection] { session.inspectorSections(t) }
 
-    /// Writes an attribute (nil removes); `initialViewController` goes on
-    /// the document element.
     public func setAttribute(_ name: String, _ value: String?, of id: String) {
         session.setAttribute(name, value, of: id)
         refresh()
     }
 
-    /// A pop-up or icon row set to a value (or its title).
     public func setChoice(_ row: IBInspectorRow, _ value: String) {
         session.setChoice(row, value)
         refresh()
     }
 
-    /// A colour pop-up set to a colour by title.
     public func setColor(_ row: IBInspectorRow, _ title: String) {
         session.setColor(row, title)
         refresh()
@@ -40,7 +29,6 @@ extension InterfaceBuilderController {
         apply { try $0.removingRuntimeAttribute(keyPath, of: id) }
     }
 
-    /// The × on a connected outlet's capsule.
     public func disconnect(_ connectionID: String) { apply { try $0.removingConnection(connectionID) } }
 
     static func key(_ target: String, _ attr: String) -> NSUserInterfaceItemIdentifier { .init("ib:\(target)|\(attr)") }
@@ -49,7 +37,6 @@ extension InterfaceBuilderController {
         return (String(r[r.index(r.startIndex, offsetBy: 3)..<bar]), String(r[r.index(after: bar)...]))
     }
 
-    /// The row of the shown inspectors bound to a target and attribute.
     func row(target: String, attribute: String) -> IBInspectorRow? {
         for t in InspectorTab.allCases {
             for sec in inspectorSections(t) {
@@ -59,7 +46,6 @@ extension InterfaceBuilderController {
         return nil
     }
 
-    /// Inspector metrics (`interface-builder.md` §Layout of the inspector).
     static let labelWidth: CGFloat = 77
     static let controlWidth: CGFloat = 171
 
@@ -83,7 +69,6 @@ extension InterfaceBuilderController {
             color.setFill()
             NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 2, yRadius: 2).fill()
             if title == "Default" {
-                // No colour set: a slash across the swatch.
                 NSColor.systemRed.setStroke()
                 let slash = NSBezierPath()
                 slash.move(to: NSPoint(x: r.minX + 2, y: r.minY + 1))
@@ -229,7 +214,6 @@ extension InterfaceBuilderController {
                     let seg = NSSegmentedControl(labels: titles.map { String($0.prefix(1)) }, trackingMode: .selectOne, target: self, action: #selector(iconsChosen(_:)))
                     for (i, t) in titles.enumerated() {
                         seg.setToolTip(t, forSegment: i)
-                        // SwiftCode's own glyph for the choice (IBLibraryObjects.swift), as a template.
                         if let g = IBIcon.choiceGlyph(attribute: attr, value: values[i], ink: .init(0, 0, 0)) {
                             let image = IBIconDrawing.image(g, size: 16)
                             image.isTemplate = true
@@ -348,7 +332,6 @@ extension InterfaceBuilderController {
         session.setToggle(r, on: b.state == .on)
         refresh()
     }
-    /// Writes one frame component (X, Y, Width, Height).
     public func setFrameComponent(_ component: String, _ value: CGFloat, of id: String) {
         apply { try $0.settingFrameComponent(component, value, of: id) }
     }

@@ -1,8 +1,3 @@
-// Samples and workouts of SwiftCode's health tools (health-simulation.md §8.1
-// H-2, §8.3 H-9): the host's model, its validation against the type table
-// (HealthTypes.swift) and its encoding for the guest agent's channel
-// (HealthChannel.swift).
-
 import Foundation
 
 public enum HealthMetadataValue: Sendable, Equatable {
@@ -11,8 +6,6 @@ public enum HealthMetadataValue: Sendable, Equatable {
     case date(Date)
     case quantity(Double, String)
 
-    /// The channel's form: a string, a number, seconds since 1970 in a
-    /// `{date}` dictionary, or `{value, unit}`.
     var plistObject: Any {
         switch self {
         case .string(let s): s
@@ -27,7 +20,6 @@ public struct HealthSample: Sendable, Equatable {
     public var type: String
     public var start: Date
     public var end: Date
-    /// Quantities: the value in `unit`; categories: the integer value.
     public var value: Double
     public var unit: String?
     public var metadata: [String: HealthMetadataValue]
@@ -43,8 +35,6 @@ public struct HealthSample: Sendable, Equatable {
 
     public var duration: TimeInterval { end.timeIntervalSince(start) }
 
-    /// The channel's dictionary. Dates are seconds since 1970 as numbers: an
-    /// XML property list keeps whole seconds only.
     public var plist: [String: Any] {
         var d: [String: Any] = ["type": type, "start": start.timeIntervalSince1970, "end": end.timeIntervalSince1970]
         if let unit {
@@ -57,7 +47,6 @@ public struct HealthSample: Sendable, Equatable {
         return d
     }
 
-    /// The value in the type's store unit (quantities with a known one).
     public func storeValue() -> Double? {
         guard let t = HealthTypes.all[type], t.kind == .quantity, let storeUnit = t.storeUnit, let unit,
               let from = try? HealthUnit(unit), let to = try? HealthUnit(storeUnit) else { return nil }
@@ -66,13 +55,11 @@ public struct HealthSample: Sendable, Equatable {
 }
 
 public struct HealthWorkout: Sendable, Equatable {
-    /// `HKWorkoutActivityType` raw value (identifiers.md).
     public var activity: Int
     public var start: Date
     public var end: Date
     public var indoor: Bool
     public var samples: [HealthSample]
-    /// (latitude, longitude, time)
     public var route: [(Double, Double, Date)]
     public var metadata: [String: HealthMetadataValue]
 
@@ -101,7 +88,6 @@ public struct HealthWorkout: Sendable, Equatable {
         return d
     }
 
-    /// Activity names (`running`, `HKWorkoutActivityTypeRunning`) → raw values (identifiers.md).
     public static let activities: [String: Int] = [
         "americanfootball": 1, "archery": 2, "badminton": 4, "baseball": 5, "basketball": 6, "bowling": 7, "boxing": 8,
         "climbing": 9, "cricket": 10, "crosstraining": 11, "cycling": 13, "elliptical": 16, "fencing": 18,
@@ -123,13 +109,9 @@ public struct HealthWorkout: Sendable, Equatable {
     }
 }
 
-// MARK: - Validation
-
 public struct HealthValidationError: Error, Equatable, CustomStringConvertible, Sendable {
-    /// Where (a line or entry number), and what.
     public let location: String
     public let message: String
-    /// The sample's type is read-only for apps (health-simulation.md §3.2).
     public let readOnly: Bool
 
     public init(_ location: String, _ message: String, readOnly: Bool = false) {
@@ -142,13 +124,11 @@ public struct HealthValidationError: Error, Equatable, CustomStringConvertible, 
 }
 
 public enum HealthValidation {
-    /// What a read-only type gets at import.
     public static func readOnlyMessage(_ type: HealthType) -> String {
         "\(type.identifier) is read-only for apps: HealthKit refuses to save it (health-simulation.md §3.2), so SwiftCode's agent "
             + "cannot write it. Seed it into a shut-down device instead: swiftcode-sim --device DEV --health seed <file> (HEALTH-3)."
     }
 
-    /// The problems of one sample (empty: valid). `seeding` accepts read-only types.
     public static func check(_ s: HealthSample, seeding: Bool = false) -> [String] {
         guard let t = HealthTypes.all[s.type] else {
             return ["unknown sample type '\(s.type)' (use a HealthKit identifier such as HKQuantityTypeIdentifierHeartRate)"]

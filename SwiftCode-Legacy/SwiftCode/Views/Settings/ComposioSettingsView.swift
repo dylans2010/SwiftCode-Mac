@@ -17,7 +17,6 @@ public struct ComposioSettingsView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // 1. Connection Header & Status Badge
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 12) {
@@ -121,7 +120,6 @@ public struct ComposioSettingsView: View {
                 .padding(12)
             }
 
-            // 2. API Credentials Section
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -217,7 +215,6 @@ public struct ComposioSettingsView: View {
                 .padding(12)
             }
 
-            // 3. Connected Accounts
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -279,7 +276,6 @@ public struct ComposioSettingsView: View {
                 .padding(12)
             }
 
-            // 4. Quick Connect Integrations
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -339,7 +335,6 @@ public struct ComposioSettingsView: View {
                 .padding(12)
             }
 
-            // 5. Live Tool Execution & Diagnostic Test
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -414,7 +409,6 @@ public struct ComposioSettingsView: View {
                 .padding(12)
             }
 
-            // 6. External Links & Assist Usage Guide
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     Label("Assist Tool Integration Guide", systemImage: "sparkles")

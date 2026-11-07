@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Reusable Modern Detail Header Component
 struct TabHeaderView: View {
     let title: String
     let icon: String
@@ -29,7 +28,6 @@ struct TabHeaderView: View {
     }
 }
 
-// MARK: - 1. General Tab
 public struct GeneralTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -128,7 +126,6 @@ public struct GeneralTabView: View {
     }
 }
 
-// MARK: - 2. Identity Tab
 public struct IdentityTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -249,7 +246,6 @@ public struct IdentityTabView: View {
     }
 }
 
-// MARK: - 3. Deployment Tab
 public struct DeploymentTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -337,7 +333,6 @@ public struct DeploymentTabView: View {
     }
 }
 
-// MARK: - 4. Build Settings Tab
 public struct BuildSettingsTabView: View {
     public let model: XcodeProjModel
     public let searchQuery: String
@@ -518,7 +513,6 @@ public struct BuildSettingsTabView: View {
     }
 }
 
-// MARK: - 5. Build Rules Tab
 public struct BuildRulesTabView: View {
     public let model: XcodeProjModel
 
@@ -537,7 +531,6 @@ public struct BuildRulesTabView: View {
     }
 }
 
-// MARK: - 6. Build Phases Tab
 public struct BuildPhasesTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -572,7 +565,6 @@ public struct BuildPhasesTabView: View {
 
                                 Divider()
 
-                                // Display actual compiled/copied file lists inside each build phase card!
                                 VStack(alignment: .leading, spacing: 4) {
                                     if phase.files.isEmpty {
                                         Text("No files registered in this build phase.")
@@ -608,7 +600,6 @@ public struct BuildPhasesTabView: View {
     }
 }
 
-// MARK: - 7. Build Configurations Tab
 public struct BuildConfigurationsTabView: View {
     public let model: XcodeProjModel
 
@@ -635,7 +626,6 @@ public struct BuildConfigurationsTabView: View {
     }
 }
 
-// MARK: - 8. Targets Tab
 public struct TargetsTabView: View {
     public let model: XcodeProjModel
 
@@ -667,7 +657,6 @@ public struct TargetsTabView: View {
     }
 }
 
-// MARK: - 9. Products Tab
 public struct ProductsTabView: View {
     public let model: XcodeProjModel
 
@@ -702,7 +691,6 @@ public struct ProductsTabView: View {
     }
 }
 
-// MARK: - 10. Packages Tab
 public struct PackagesTabView: View {
     public let model: XcodeProjModel
 
@@ -721,7 +709,6 @@ public struct PackagesTabView: View {
     }
 }
 
-// MARK: - 11. Frameworks Tab
 public struct FrameworksTabView: View {
     public let model: XcodeProjModel
 
@@ -740,7 +727,6 @@ public struct FrameworksTabView: View {
     }
 }
 
-// MARK: - 12. Dependencies Tab
 public struct DependenciesTabView: View {
     public let model: XcodeProjModel
 
@@ -759,7 +745,6 @@ public struct DependenciesTabView: View {
     }
 }
 
-// MARK: - 13. Signing & Capabilities Tab
 public struct SigningCapabilitiesTabView: View {
     public let model: XcodeProjModel
 
@@ -803,7 +788,6 @@ public struct SigningCapabilitiesTabView: View {
     }
 }
 
-// MARK: - 14. Entitlements Tab
 public struct EntitlementsTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -819,7 +803,6 @@ public struct EntitlementsTabView: View {
     }
 }
 
-// MARK: - 15. Info.plist Tab
 public struct InfoPlistTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -835,7 +818,6 @@ public struct InfoPlistTabView: View {
     }
 }
 
-// MARK: - 16. Assets Tab
 public struct AssetsTabView: View {
     public let model: XcodeProjModel
 
@@ -854,7 +836,6 @@ public struct AssetsTabView: View {
     }
 }
 
-// MARK: - 17. Localization Tab
 public struct LocalizationTabView: View {
     public let model: XcodeProjModel
 
@@ -873,7 +854,6 @@ public struct LocalizationTabView: View {
     }
 }
 
-// MARK: - 18. Resources Tab
 public struct ResourcesTabView: View {
     public let model: XcodeProjModel
 
@@ -912,7 +892,6 @@ public struct ResourcesTabView: View {
     }
 }
 
-// MARK: - 19. Source Files Tab
 public struct SourceFilesTabView: View {
     public let model: XcodeProjModel
 
@@ -951,7 +930,6 @@ public struct SourceFilesTabView: View {
     }
 }
 
-// MARK: - 20. Headers Tab
 public struct HeadersTabView: View {
     public let model: XcodeProjModel
 
@@ -970,7 +948,6 @@ public struct HeadersTabView: View {
     }
 }
 
-// MARK: - 21. Swift Packages Tab
 public struct SwiftPackagesTabView: View {
     public let model: XcodeProjModel
 
@@ -989,7 +966,6 @@ public struct SwiftPackagesTabView: View {
     }
 }
 
-// MARK: - 22. Project Overview Tab
 public struct ProjectOverviewTabView: View {
     public let model: XcodeProjModel
     @State private var copiedPath = false
@@ -1000,7 +976,6 @@ public struct ProjectOverviewTabView: View {
 
     public var body: some View {
         VStack(spacing: 20) {
-            // Project Hero Card
             HStack(spacing: 16) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1053,7 +1028,6 @@ public struct ProjectOverviewTabView: View {
                     .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
             )
 
-            // Stat Metric Tiles (2x2 Grid)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                 overviewStatCard(
                     title: "Defined Targets",
@@ -1085,7 +1059,6 @@ public struct ProjectOverviewTabView: View {
                 )
             }
 
-            // Targets Breakdown Section
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Label("Project Targets", systemImage: "square.stack.3d.up")
@@ -1168,7 +1141,6 @@ public struct ProjectOverviewTabView: View {
     }
 }
 
-// MARK: - 23. Warnings Tab
 public struct WarningsTabView: View {
     public let model: XcodeProjModel
 
@@ -1187,7 +1159,6 @@ public struct WarningsTabView: View {
     }
 }
 
-// MARK: - 24. Diagnostics Tab
 public struct DiagnosticsTabView: View {
     public let model: XcodeProjModel
 
@@ -1206,7 +1177,6 @@ public struct DiagnosticsTabView: View {
     }
 }
 
-// MARK: - 25. Search Tab
 public struct SearchTabView: View {
     public let model: XcodeProjModel
 
@@ -1225,7 +1195,6 @@ public struct SearchTabView: View {
     }
 }
 
-// MARK: - 26. Relationships Tab
 public struct RelationshipsTabView: View {
     public let model: XcodeProjModel
 
@@ -1263,7 +1232,6 @@ public struct RelationshipsTabView: View {
     }
 }
 
-// MARK: - 27. Project Statistics Tab
 public struct ProjectStatisticsTabView: View {
     public let model: XcodeProjModel
 
@@ -1290,7 +1258,6 @@ public struct ProjectStatisticsTabView: View {
     }
 }
 
-// MARK: - 28. Metadata Tab
 public struct MetadataTabView: View {
     public let model: XcodeProjModel
 
@@ -1315,7 +1282,6 @@ public struct MetadataTabView: View {
     }
 }
 
-// MARK: - 29. Project Summary Tab
 public struct ProjectSummaryTabView: View {
     public let model: XcodeProjModel
 
@@ -1328,7 +1294,6 @@ public struct ProjectSummaryTabView: View {
     }
 }
 
-// MARK: - 30. Target Summary Tab
 public struct TargetSummaryTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -1343,7 +1308,6 @@ public struct TargetSummaryTabView: View {
     }
 }
 
-// MARK: - 31. File References Tab
 public struct FileReferencesTabView: View {
     public let model: XcodeProjModel
 
@@ -1380,7 +1344,6 @@ public struct FileReferencesTabView: View {
     }
 }
 
-// MARK: - 32. Groups Tab
 public struct GroupsTabView: View {
     public let model: XcodeProjModel
 
@@ -1415,7 +1378,6 @@ public struct GroupsTabView: View {
     }
 }
 
-// MARK: - 33. Copy Files Tab
 public struct CopyFilesTabView: View {
     public let model: XcodeProjModel
 
@@ -1447,7 +1409,6 @@ public struct CopyFilesTabView: View {
     }
 }
 
-// MARK: - 34. Shell Scripts Tab
 public struct ShellScriptsTabView: View {
     public let model: XcodeProjModel
 
@@ -1481,7 +1442,6 @@ public struct ShellScriptsTabView: View {
     }
 }
 
-// MARK: - 35. Header Phases Tab
 public struct HeaderPhasesTabView: View {
     public let model: XcodeProjModel
 
@@ -1500,7 +1460,6 @@ public struct HeaderPhasesTabView: View {
     }
 }
 
-// MARK: - 36. Resources Phase Tab
 public struct ResourcesPhaseTabView: View {
     public let model: XcodeProjModel
 
@@ -1513,7 +1472,6 @@ public struct ResourcesPhaseTabView: View {
     }
 }
 
-// MARK: - 37. Framework Phase Tab
 public struct FrameworkPhaseTabView: View {
     public let model: XcodeProjModel
 
@@ -1545,7 +1503,6 @@ public struct FrameworkPhaseTabView: View {
     }
 }
 
-// MARK: - 38. Package Dependencies Tab
 public struct PackageDependenciesTabView: View {
     public let model: XcodeProjModel
 
@@ -1564,7 +1521,6 @@ public struct PackageDependenciesTabView: View {
     }
 }
 
-// MARK: - 39. Project Inspector Tab
 public struct ProjectInspectorTabView: View {
     public let model: XcodeProjModel
 
@@ -1577,7 +1533,6 @@ public struct ProjectInspectorTabView: View {
     }
 }
 
-// MARK: - 40. Target Inspector Tab
 public struct TargetInspectorTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
@@ -1614,7 +1569,6 @@ public struct TargetInspectorTabView: View {
     }
 }
 
-// MARK: - 41. Build Logs Tab
 public struct BuildLogsTabView: View {
     public let model: XcodeProjModel
 

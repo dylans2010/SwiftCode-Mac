@@ -1,19 +1,12 @@
 import Foundation
 
-/// What the assistant editor shows. See `specs/ide/editor-area.md`
-/// §Assistant modes.
 public enum AssistantMode: String, CaseIterable, Sendable {
     case counterparts = "Counterparts"
-    /// The assistant keeps what the user opened in it.
     case manual = "Manual"
-    /// Interface Builder documents: class files of top-level custom objects.
     case topLevelObjects = "Top Level Objects"
-    /// C-family files: the workspace files named by `#include` / `#import "…"`.
     case includes = "Includes"
-    /// Test files that mention the file's first declared type.
     case tests = "Tests"
 
-    /// Modes offered for a file (Counterparts and Manual always).
     public static func available(for path: String) -> [AssistantMode] {
         let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
         var out: [AssistantMode] = [.counterparts, .manual]
@@ -23,7 +16,6 @@ public enum AssistantMode: String, CaseIterable, Sendable {
         return out
     }
 
-    /// The files the mode lists for `path` (empty for Manual).
     public func files(for path: String, in files: [String], readFile: (String) -> String? = { try? String(contentsOfFile: $0, encoding: .utf8) }) -> [String] {
         switch self {
         case .counterparts: return Counterparts.of(path, in: files, readFile: readFile)
@@ -58,7 +50,6 @@ public enum AssistantMode: String, CaseIterable, Sendable {
         }
     }
 
-    /// Custom classes of objects directly inside an `objects` element.
     static func topLevelClasses(in text: String) -> [String] {
         guard let root = try? XMLSource.parse(Array(text.utf8)) else { return [] }
         var out: [String] = []
@@ -69,7 +60,6 @@ public enum AssistantMode: String, CaseIterable, Sendable {
         return out
     }
 
-    /// The first `class` / `struct` / `enum` / `actor` / `@interface` name.
     static func firstDeclaredType(_ text: String) -> String? {
         for line in text.split(separator: "\n") {
             let words = line.split(whereSeparator: { " \t:{(<".contains($0) }).map(String.init)

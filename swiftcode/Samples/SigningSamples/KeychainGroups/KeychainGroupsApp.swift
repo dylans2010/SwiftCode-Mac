@@ -1,9 +1,6 @@
 import Security
 import SwiftUI
 
-/// Uses the app's entitlements (specs/ide/signing.md §4): stores and reads
-/// a keychain item in the shared keychain group and asks for the app
-/// group's container. Prints one line for the run log, then shows it.
 @main
 struct KeychainGroupsApp: App {
     static let report: String = {

@@ -8,7 +8,6 @@ public final class ExtensionValidator: Sendable {
     public func validate(manifest: ExtensionManifest, packageRoot: String? = nil) -> [Diagnostic] {
         var diagnostics: [Diagnostic] = []
 
-        // Manifest version
         if manifest.manifestVersion != 1 {
             diagnostics.append(Diagnostic(
                 code: .manifestInvalidVersion,
@@ -18,7 +17,6 @@ public final class ExtensionValidator: Sendable {
             ))
         }
 
-        // Extension ID
         if manifest.id.isEmpty {
             diagnostics.append(Diagnostic(
                 code: .manifestMissingRequiredField,
@@ -35,7 +33,6 @@ public final class ExtensionValidator: Sendable {
             ))
         }
 
-        // Name
         if manifest.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             diagnostics.append(Diagnostic(
                 code: .manifestMissingRequiredField,
@@ -45,7 +42,6 @@ public final class ExtensionValidator: Sendable {
             ))
         }
 
-        // Semver version
         let semverParts = manifest.version.components(separatedBy: ".")
         if semverParts.count != 3 || semverParts.contains(where: { Int($0) == nil }) {
             diagnostics.append(Diagnostic(
@@ -56,7 +52,6 @@ public final class ExtensionValidator: Sendable {
             ))
         }
 
-        // Entrypoint
         let ep = manifest.runtime.entrypoint
         if ep.hasPrefix("/") || ep.contains("..") {
             diagnostics.append(Diagnostic(
@@ -67,7 +62,6 @@ public final class ExtensionValidator: Sendable {
             ))
         }
 
-        // Protocol version
         if manifest.sdk.protocolVersion != 1 {
             diagnostics.append(Diagnostic(
                 code: .manifestUnsupportedProtocol,
@@ -77,7 +71,6 @@ public final class ExtensionValidator: Sendable {
             ))
         }
 
-        // Capabilities validation
         for cap in manifest.capabilities {
             if ExtensionCapabilityID(rawValue: cap.id) == nil {
                 diagnostics.append(Diagnostic(
@@ -98,7 +91,6 @@ public final class ExtensionValidator: Sendable {
             }
         }
 
-        // Check file existence if packageRoot is provided
         if let root = packageRoot {
             let ws = Workspace(path: root)
             if !ws.fileAccess.exists(at: ep) {

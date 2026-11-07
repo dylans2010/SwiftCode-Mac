@@ -7,7 +7,6 @@ struct GitChangesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Git Workspace Changes", systemImage: "plus.minus.circle")
                     .font(.headline)
@@ -45,11 +44,9 @@ struct GitChangesView: View {
             }
             .padding(.bottom, 16)
 
-            // Scrollable Content
             ScrollView {
                 VStack(spacing: 20) {
                     if let status = viewModel.status {
-                        // Card 1: Staged Changes Card
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack {
@@ -91,7 +88,6 @@ struct GitChangesView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // Card 2: Unstaged Changes Card
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack {
@@ -134,7 +130,6 @@ struct GitChangesView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // Card 3: Commit Composer
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             Label("Commit Changes", systemImage: "pencil.and.outline")

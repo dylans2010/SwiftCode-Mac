@@ -6,7 +6,6 @@ struct AgentMessageBubbleView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header
             HStack(alignment: .center, spacing: 10) {
                 if message.role == .user {
                     Image(systemName: "person.circle.fill")
@@ -31,7 +30,6 @@ struct AgentMessageBubbleView: View {
             .padding(.horizontal, 4)
             .liquidGlass(style: .subtle, cornerRadius: 8)
 
-            // Content Bubble
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(0..<message.content.count, id: \.self) { index in
                     contentView(message.content[index])

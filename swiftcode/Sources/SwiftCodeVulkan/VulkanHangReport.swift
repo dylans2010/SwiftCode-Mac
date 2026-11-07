@@ -1,26 +1,7 @@
-// GPU hang and device-loss reports (diagnostics; stage8-contract.md §15).
-//
-// A submission that runs longer than `Options.hangReportSeconds` is logged
-// once with a description of its Metal command buffer: every pass with its
-// attachments and every draw, dispatch and blit with its pipeline, counts
-// and bound resources. On device loss the back end logs the same for the
-// submissions still pending and, when the device has
-// VK_NV_device_diagnostic_checkpoints (`SWIFTCODE_GPU_CHECKPOINTS=0` turns it
-// off), the last checkpoint markers the queue passed at the top and bottom
-// of the pipe: which command of which command buffer was running.
-//
-// Markers: (recording id << 32) | (pass << 20) | command. Pass 4095 is the
-// prologue (IOSurface copy-ins, command 0) and epilogue (copy-outs, command
-// 1); command 0xFFFFF is the pass's begin; command | 0x80000 is the point
-// after a dispatch and the barrier that follows it (the dispatch finished).
-// The markers are also read while a submission runs (the reports at 2 s and
-// every 10 s): NVIDIA's driver answers the query before a device loss too.
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
 
-/// A recorded command buffer the checkpoint markers can name.
 struct CheckpointRecord {
     var id: UInt32
     var process: MetalProcessID
@@ -35,14 +16,12 @@ extension VulkanMetalBackend {
 
     var checkpointsOn: Bool { ctx.pointee.features.diagnosticCheckpoints != 0 }
 
-    /// A checkpoint marker in `rec` (nothing without the extension).
     func checkpoint(_ rec: Recording, pass: Int, command: Int) {
         guard checkpointsOn else { return }
         let marker = UInt64(rec.checkpointID) << 32 | UInt64(min(pass, 4095)) << 20 | UInt64(min(command, 0xFFFFF))
         yvk_cmd_checkpoint(rec.cb, marker)
     }
 
-    /// Notes which command buffer a recording's markers belong to. Under the lock.
     func registerCheckpoints(_ rec: Recording, _ mcb: MetalCommandBuffer) {
         guard checkpointsOn else { return }
         checkpointRecords.append(CheckpointRecord(id: rec.checkpointID, process: mcb.process,
@@ -50,7 +29,6 @@ extension VulkanMetalBackend {
         if checkpointRecords.count > 128 { checkpointRecords.removeFirst(checkpointRecords.count - 128) }
     }
 
-    /// What a marker points at. Under the lock.
     func describeMarker(_ marker: UInt64) -> String {
         let id = UInt32(truncatingIfNeeded: marker >> 32)
         let pass = Int((marker >> 20) & 0xFFF), command = Int(marker & 0xFFFFF)
@@ -73,12 +51,10 @@ extension VulkanMetalBackend {
         return text
     }
 
-    /// One command of a pass, for a marker.
     func describeCommand(_ pass: MetalPass, _ index: Int) -> String {
         switch pass {
         case .render(let p):
             guard index < p.commands.count else { return "?" }
-            // The render pipeline and fragment textures in effect at the command.
             var pipeline: MetalHandle?
             var ft: [Int: MetalHandle?] = [:]
             for c in p.commands[..<index] {
@@ -95,8 +71,6 @@ extension VulkanMetalBackend {
         default: return "?"
         }
     }
-
-    // MARK: Command-buffer descriptions
 
     func describeTexture(_ h: MetalHandle?) -> String {
         guard let h else { return "nil" }
@@ -124,8 +98,6 @@ extension VulkanMetalBackend {
         return s
     }
 
-    /// A description of a command buffer for a hang report (at most
-    /// `limit` commands with work). Under the lock.
     func describeCommandBuffer(_ mcb: MetalCommandBuffer, limit: Int = 240) -> String {
         var lines: [String] = []
         var budget = limit
@@ -246,7 +218,6 @@ extension VulkanMetalBackend {
         return lines.joined(separator: "\n    ")
     }
 
-    /// `SWIFTCODE_GPU_SKIP_SHADERS`: whether a draw with `p` is skipped (experiments).
     func skippedByName(_ p: VKRenderPipeline) -> Bool {
         for s in [p.vertex, p.fragment] {
             guard let s else { continue }
@@ -255,10 +226,6 @@ extension VulkanMetalBackend {
         return false
     }
 
-    /// Checks of one draw for a hang report: the pipeline's sample count
-    /// against the pass's, the stage built-ins that select a viewport or a
-    /// layer, the range of indices the CPU can read now, and whether the
-    /// highest vertex fits each Vulkan vertex buffer. Under the lock.
     func describeDrawChecks(_ pipeline: MetalHandle?, passSamples: Int, vertexBuffers vb: [Int: (MetalHandle?, Int)],
                             firstVertex: Int, vertexCount: Int, instances: (base: Int, count: Int),
                             indexed: (MetalIndexedDraw)?) -> String {
@@ -270,7 +237,6 @@ extension VulkanMetalBackend {
         for b in ["viewport_array_index", "render_target_array_index", "clip_distance", "amplification_id", "instance_id", "base_instance"] where vsOut.contains(b) {
             notes.append("vs \(b)")
         }
-        // The vertices the draw reaches.
         var lo = firstVertex, hi = firstVertex + vertexCount - 1
         if let d = indexed {
             let size = d.indexType == MetalIndexType.uint32 ? 4 : 2
@@ -292,7 +258,6 @@ extension VulkanMetalBackend {
         if let vd = p.desc.vertexDescriptor {
             for idx in p.vertexBufferIndices {
                 let l = vd.layouts.first { $0.bufferIndex == idx }
-                // Step function 0 constant, 1 per vertex, 2 per instance.
                 guard let l, l.stepFunction != 0 else { continue }
                 var lo = lo, hi = hi
                 if l.stepFunction == 2 {
@@ -313,13 +278,6 @@ extension VulkanMetalBackend {
         return notes.joined(separator: ", ")
     }
 
-    /// Pointer check of a hang report: every aligned 8-byte word of the
-    /// buffers a draw binds (and, one level down, of the buffers those words
-    /// point into) that looks like a device address of this back end (within
-    /// 1 GiB of the live buffers' range) is looked up among the live buffers.
-    /// A word that points into none is a dangling address: a shader that
-    /// reads through it reads unmapped memory, which stalls the Thor's GPU
-    /// (stage8-contract.md §15.6). Under the lock.
     func describeDanglingPointers(_ bound: [(String, MetalHandle?, Int)]) -> String {
         var ranges: [(UInt64, UInt64, MetalHandle)] = []
         for (h, b) in buffers where b.length > 0 { ranges.append((b.address, b.address + UInt64(b.length), h)) }
@@ -346,12 +304,6 @@ extension VulkanMetalBackend {
             var i = start
             while i + 8 <= end {
                 let v = p.load(fromByteOffset: i, as: UInt64.self)
-                // Candidates: inside the live buffers' range and 16-byte
-                // aligned, or a released buffer's address, or SwiftCode's
-                // synthetic address range (MetalHostCore's addresses for
-                // buffers the back end does not know). Float data falls in
-                // the live range too, so only exact released or synthetic
-                // matches and live hits count for certain.
                 let synthetic = v >= 0x100_0000_0000 && v < 0x200_0000_0000
                 if synthetic || (v >= lo && v < hi && v & 3 == 0) {
                     if let o = owner(v) {
@@ -377,16 +329,12 @@ extension VulkanMetalBackend {
             + (notes.isEmpty ? "" : ": " + notes.joined(separator: "; "))
     }
 
-    /// The first words of an indirect-arguments buffer when the CPU can read it.
     func indirectArguments(_ h: MetalHandle?, _ offset: Int, words: Int) -> String {
         guard let h, let b = buffers[h], let p = b.hostPointer, offset >= 0, offset + 4 * words <= b.length else { return "" }
         let values = (0..<words).map { p.load(fromByteOffset: offset + 4 * $0, as: UInt32.self) }
         return " (now " + values.map(String.init).joined(separator: " ") + ")"
     }
 
-    // MARK: Reports
-
-    /// Logs the description of the oldest pending submission (a hang). Under the lock.
     func reportRunningSubmission(serial: UInt64, seconds: Double) {
         guard let e = pending.first(where: { $0.serial == serial }) ?? pending.first else { return }
         var text = String(format: "serial %llu has run for %.1f s: ", serial, seconds) + e.label
@@ -400,13 +348,6 @@ extension VulkanMetalBackend {
         log(text)
     }
 
-    /// The argument tables of a pending submission's dispatches as the GPU
-    /// reads them: each non-zero buffer entry (0–30) and the constant data
-    /// (31) resolved to the live buffer, pipeline constant data or the dummy
-    /// buffer it points into, or "NOT LIVE" when it points into none (a read
-    /// there reaches unmapped memory, which stalls the Thor's GPU,
-    /// stage8-contract.md §15.6); texture entries (32–159) resolved to the
-    /// live texture with that heap index. Under the lock.
     func describeDispatchTables(_ tables: [(pass: Int, command: Int, table: UnsafeMutableRawPointer)]) -> String {
         var ranges: [(UInt64, UInt64, String)] = []
         for (h, b) in buffers { ranges.append((b.address, b.address + UInt64(max(b.length, 1)), "b\(h.raw)")) }
@@ -424,7 +365,6 @@ extension VulkanMetalBackend {
             let (w, hh, _) = t.levelSize(0)
             let name = "t\(h.raw) \(w)x\(hh) level \(t.baseLevel)" + (t.storageView == nil ? " (no storage view)" : "")
                 + (t.heapIndex >= ctx.pointee.heapStorageImages ? " (index past the storage array)" : "")
-            // Two live textures with one index: the later descriptor write won.
             heap[t.heapIndex] = heap[t.heapIndex].map { "SHARED by \($0) and \(name)" } ?? name
         }
         func resolve(_ v: UInt64) -> String {
@@ -449,8 +389,6 @@ extension VulkanMetalBackend {
         return text
     }
 
-    /// The last markers the queue passed at the top and bottom of the pipe,
-    /// one line each (empty without the extension or an answer). Under the lock.
     func currentCheckpoints() -> String {
         guard checkpointsOn else { return "" }
         var markers = [UInt64](repeating: 0, count: 16), stages = [UInt64](repeating: 0, count: 16)
@@ -464,12 +402,8 @@ extension VulkanMetalBackend {
         return text
     }
 
-    /// `SWIFTCODE_GPU_HANG_CAPTURE=<dir>`: a hang report also saves the command
-    /// buffer's translated shaders (SPIR-V and reflection) and the bytes of
-    /// the buffers it binds that the CPU can read, for offline replay.
     static let hangCaptureDirectory = ProcessInfo.processInfo.environment["SWIFTCODE_GPU_HANG_CAPTURE"].flatMap { $0.isEmpty ? nil : $0 }
 
-    /// Writes the capture; returns its directory or why it failed. Under the lock.
     func capture(_ mcb: MetalCommandBuffer, description: String, into root: String, serial: UInt64) -> String {
         let dir = "\(root)/hang-\(getpid())-\(serial)"
         let fm = FileManager.default
@@ -529,7 +463,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Logs what was pending and running when the device was lost (once). Under the lock.
     func reportDeviceLoss(_ context: String) {
         guard !deviceLossReported else { return }
         deviceLossReported = true

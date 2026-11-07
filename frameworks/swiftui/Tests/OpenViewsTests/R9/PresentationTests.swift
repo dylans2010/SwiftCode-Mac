@@ -9,10 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// Round R9, suite T-MODAL (10-plan.md §3.2; 06 §6): sheet frames per detent
-// in the reference's window, the order of `onAppear`, `onDismiss` and
-// `onDisappear`, detent changes, covers, alerts, dialogs and popovers.
-
 @MainActor
 final class ModalControls {
     var shown = Controls<Bool>()
@@ -38,7 +34,6 @@ struct SheetProbe: View {
     }
 }
 
-/// The reference's window: 466 × 678 with the safe area 382 × 644.
 @MainActor
 func phoneHarness<V: View>(@ViewBuilder _ content: @escaping () -> V) -> Harness {
     let h = Harness(size: CGSize(width: 466, height: 678), content: content)
@@ -57,17 +52,13 @@ struct PresentationTests {
         let h = phoneHarness { SheetProbe(log: log, controls: c) }
         c.shown.value = true
         h.run(until: 0.65)
-        // onAppear when the presentation starts (06 §6).
         #expect(log.take() == ["sheet appear"])
         h.run(until: 1.2)
         #expect(cardFrame(h) == CGRect(x: 8, y: 280, width: 374, height: 356))
-        // Setting the detent resizes the sheet.
         c.detent.value = .large
         h.run(until: 1.5)
         #expect(cardFrame(h) == CGRect(x: 8, y: 8, width: 374, height: 636))
-        // Idle: nothing left to update or animate.
         #expect(!h.window.graph.needsUpdate && !h.window.graph.isAnimating)
-        // Dismissal: onDismiss then onDisappear, both at the end (0.5 s).
         c.shown.value = false
         h.run(until: 1.8)
         #expect(log.take().isEmpty)
@@ -109,7 +100,6 @@ struct PresentationTests {
         }
         let h = phoneHarness { Probe() }
         h.run(until: 1.5)
-        // 06 §6: content frame (0, 0, 382, 644) with the window's safe area.
         #expect(cardFrame(h) == CGRect(x: 0, y: 0, width: 382, height: 644))
     }
 
@@ -131,7 +121,6 @@ struct PresentationTests {
         let h = Harness(size: CGSize(width: 600, height: 500)) { Probe(log: log) }
         h.run(until: 1.0)
         guard let del = frameOfText("Delete", h.window.graph) else { Issue.record("alert"); return }
-        // Alerts are 270 points wide on this host and centred.
         let width = h.frame { $0 is AlertCard }?.width
         #expect(width == 270)
         h.tap(del.center, at: 1.1)

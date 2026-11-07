@@ -1,25 +1,8 @@
 import Foundation
 
-// `Animation` values (05-animation.md §2–4). An `Animation` wraps a
-// `CustomAnimation`; the built-in ones are timing curves (the `UnitCurve`s of
-// §2 over a duration, 0.35 s when none is given), springs (§3) and the
-// modifiers delay, speed, repeat and logical completion.
-//
-// Rules (05 §4):
-//  - A curve animation reaches its target at `duration` and is then both
-//    logically complete and finished.
-//  - A spring is logically complete at its perceptual duration (`response`)
-//    and finishes when it has settled (see `SpringAnimation`).
-//  - `delay` produces no change during the delay; `speed` scales time;
-//    `repeatCount(n, autoreverses:)` counts traversals (two = there and back)
-//    and then jumps to the model value; `repeatForever` never completes.
-
-/// How a value changes over time when it is animated.
 public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
-    /// The animation this value wraps.
     public let base: any CustomAnimation
 
-    /// An animation from a custom animation type.
     public init<A: CustomAnimation>(_ base: A) {
         if let a = base as? Animation { self = a } else { self.base = base }
     }
@@ -29,8 +12,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
 
     public var description: String { String(describing: base) }
     public var debugDescription: String { description }
-
-    // MARK: Evaluation
 
     public func animate<V: VectorArithmetic>(value: V, time: TimeInterval, context: inout AnimationContext<V>) -> V? {
         base.animate(value: value, time: time, context: &context)
@@ -45,9 +26,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
         base.shouldMerge(previous: previous, value: value, time: time, context: &context)
     }
 
-    /// The time at which one run of the animation finishes for a unit change
-    /// (curves: their duration; others: found by sampling; nil when it never
-    /// finishes within an hour).
     package func cycleDuration() -> TimeInterval? {
         if let c = base as? TimingCurveAnimation { return c.duration }
         if let d = base as? DelayAnimation, let inner = d.animation.cycleDuration() { return d.delay + inner }
@@ -61,8 +39,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
         }
         return nil
     }
-
-    // MARK: Curves (default duration 0.35 s, 05 §4)
 
     private static let defaultCurveDuration: TimeInterval = 0.35
 
@@ -85,20 +61,14 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
     public static var easeInOut: Animation { easeInOut(duration: defaultCurveDuration) }
     public static func easeInOut(duration: TimeInterval) -> Animation { timingCurve(.easeInOut, duration: duration) }
 
-    // MARK: Springs (05 §4 table)
-
-    /// A spring like `.smooth` (response 0.5, critically damped).
     public static let `default` = Animation(SpringAnimation(spring: Spring(response: 0.5, dampingRatio: 1)))
 
     public static func spring(_ spring: Spring, blendDuration: TimeInterval = 0) -> Animation {
         Animation(SpringAnimation(spring: spring, blendDuration: blendDuration))
     }
 
-    /// Response 0.5, damping fraction 1, blend 0 (measured `.spring()`).
     public static var spring: Animation { spring(duration: 0.5, bounce: 0) }
 
-    /// (`.spring()` with no arguments is the duration/bounce form: response
-    /// 0.5, damping 1, as measured in 05 §4.)
     @_disfavoredOverload
     public static func spring(response: Double = 0.5, dampingFraction: Double = 0.825,
                               blendDuration: TimeInterval = 0) -> Animation {
@@ -109,7 +79,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
         spring(Spring(duration: duration, bounce: bounce), blendDuration: blendDuration)
     }
 
-    /// Response 0.15, damping 0.85, blend 0.25 (measured).
     public static var interactiveSpring: Animation { interactiveSpring(response: 0.15, dampingFraction: 0.85, blendDuration: 0.25) }
 
     @_disfavoredOverload
@@ -138,7 +107,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
         spring(.bouncy(duration: duration, extraBounce: extraBounce))
     }
 
-    /// Mass 1, stiffness 157.9137, damping 25.1327 (measured).
     public static var interpolatingSpring: Animation {
         interpolatingSpring(mass: 1, stiffness: 157.9137, damping: 25.1327)
     }
@@ -158,8 +126,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
         interpolatingSpring(Spring(duration: duration, bounce: bounce), initialVelocity: initialVelocity)
     }
 
-    // MARK: Modifiers
-
     public func delay(_ delay: TimeInterval) -> Animation { Animation(DelayAnimation(animation: self, delay: delay)) }
     public func speed(_ speed: Double) -> Animation { Animation(SpeedAnimation(animation: self, speed: speed)) }
 
@@ -171,7 +137,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
         Animation(RepeatAnimation(animation: self, count: nil, autoreverses: autoreverses))
     }
 
-    /// Reports logical completion `duration` seconds after the start.
     public func logicallyComplete(after duration: TimeInterval) -> Animation {
         Animation(LogicallyCompleteAnimation(animation: self, after: duration))
     }
@@ -179,9 +144,6 @@ public struct Animation: Hashable, Sendable, CustomStringConvertible, CustomDebu
 
 extension Animation: CustomAnimation {}
 
-// MARK: - Built-in animations
-
-/// A unit curve stretched over `duration` (05 §2, §4).
 package struct TimingCurveAnimation: CustomAnimation, CustomStringConvertible {
     package let curve: UnitCurve
     package let duration: TimeInterval
@@ -199,16 +161,6 @@ package struct TimingCurveAnimation: CustomAnimation, CustomStringConvertible {
     package var description: String { "curve(\(curve), duration: \(duration))" }
 }
 
-/// A spring towards the target (05 §3). Logically complete at the spring's
-/// perceptual duration; finished at the first sample where both the distance
-/// to the target and the speed (divided by ω₀ = 2π/response) are within
-/// `settleEpsilon` of the motion's scale. The value of `settleEpsilon`
-/// (2 × 10⁻⁶) is fitted to the one measurement there is: `.spring()` is
-/// removed ≈ 1.28 s after the change, after ≈ 77 frames (05 §4).
-///
-/// A spring retargeted while a spring runs merges with it: it starts from
-/// the current value *and velocity* (05 §4.2). Any other previous animation
-/// leaves velocity zero.
 package struct SpringAnimation: CustomAnimation, CustomStringConvertible {
     package static let settleEpsilon = 2e-6
 
@@ -259,7 +211,6 @@ package struct SpringAnimation: CustomAnimation, CustomStringConvertible {
     }
 }
 
-/// No change for `delay` seconds, then the wrapped animation.
 package struct DelayAnimation: CustomAnimation, CustomStringConvertible {
     package let animation: Animation
     package let delay: TimeInterval
@@ -282,7 +233,6 @@ package struct DelayAnimation: CustomAnimation, CustomStringConvertible {
     package var description: String { "\(animation).delay(\(delay))" }
 }
 
-/// The wrapped animation with time scaled by `speed`.
 package struct SpeedAnimation: CustomAnimation, CustomStringConvertible {
     package let animation: Animation
     package let speed: Double
@@ -303,8 +253,6 @@ package struct SpeedAnimation: CustomAnimation, CustomStringConvertible {
     package var description: String { "\(animation).speed(\(speed))" }
 }
 
-/// `count` traversals of the wrapped animation (nil: forever); with
-/// `autoreverses`, every second traversal runs backwards.
 package struct RepeatAnimation: CustomAnimation, CustomStringConvertible {
     package let animation: Animation
     package let count: Int?
@@ -315,8 +263,6 @@ package struct RepeatAnimation: CustomAnimation, CustomStringConvertible {
         var k = Int((time / d).rounded(.down))
         var local = time - Double(k) * d
         if let n = count, n > 0, k == n, local <= 1e-9 {
-            // The end of the last traversal is still shown (05 §4: back at
-            // 0 at 1.0 s, the jump to the model value comes after).
             k = n - 1
             local = d
         }
@@ -342,7 +288,6 @@ package struct RepeatAnimation: CustomAnimation, CustomStringConvertible {
     }
 }
 
-/// The wrapped animation, logically complete after a fixed time.
 package struct LogicallyCompleteAnimation: CustomAnimation, CustomStringConvertible {
     package let animation: Animation
     package let after: TimeInterval

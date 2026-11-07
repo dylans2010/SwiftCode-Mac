@@ -2,44 +2,6 @@ import Foundation
 import Security
 import SwiftUI
 
-// MARK: - SDKSecurityManagerView
-//
-// Studio → Security (use.Security manager).
-//
-// Lists every Security ID (per-app namespace) that has stored sensitive
-// values, and per Security ID the value IDs with METADATA ONLY (label,
-// created date). Secret values are never listed, never displayed, and never
-// pass through this view: there is deliberately no reveal button and no
-// copy-secret button.
-//
-// HOST SURFACES (all real, no mocks):
-// - `KeychainSDK.listValueIDs(securityID:)` — value metadata for one
-//   namespace (value ID, optional label, created/modified dates; never the
-//   secret bytes).
-// - `KeychainSDK.deleteValue(securityID:valueID:)` — deletes one value
-//   (idempotent).
-// - `KeychainSDK.deleteAllValues(securityID:)` — deletes a whole namespace
-//   (idempotent).
-// - `SDKSensitiveValuePrompt.requestValue(securityID:appDisplayName:valueID:label:prompt:)`
-//   — the narrow surface to the host secure-prompt coordinator (the same
-//   coordinator the IPC layer uses). The coordinator presents the secure
-//   prompt and stores the secret directly into the Keychain; Studio never
-//   sees the value.
-//
-// Namespace enumeration (`enumerateSecurityIDs`) is a private helper here
-// because `KeychainSDK` exposes per-namespace listing but no namespace
-// enumeration. It is an attributes-only Keychain query (`kSecReturnData` is
-// never set), filtered client-side to `KeychainSDK.servicePrefix`; when the
-// sibling security store/broker lands namespace enumeration, this helper
-// should defer to it.
-//
-// Errors are typed (`SDKError` message + suggestion) and shown inline, like
-// `SDKStudioAPIKeysView`. Per the store's contract, no error from the
-// security system ever carries secret material, so displaying errors
-// verbatim is safe.
-//
-// Native macOS SwiftUI: Foundation + Security + SwiftUI only, no AppKit.
-
 public struct SDKSecurityManagerView: View {
     public init() {}
 
@@ -52,7 +14,6 @@ public struct SDKSecurityManagerView: View {
     @State private var confirmingDeleteAll = false
     @State private var deleteAllTarget: DeleteAllTarget?
 
-    /// One Security ID (per-app namespace) with its stored value metadata.
     private struct SecurityApp {
         let securityID: String
         let values: [KeychainSDK.ValueMetadata]
@@ -117,8 +78,6 @@ public struct SDKSecurityManagerView: View {
         }
     }
 
-    // MARK: - List
-
     private var appList: some View {
         List {
             ForEach(apps, id: \.securityID) { app in
@@ -158,9 +117,6 @@ public struct SDKSecurityManagerView: View {
     private func valueRow(app: SecurityApp, entry: KeychainSDK.ValueMetadata) -> some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                // Metadata only. The secret bytes are never returned by
-                // `listValueIDs` and there is no path in this view to read
-                // them — no reveal, no copy.
                 if let label = entry.label, !label.isEmpty {
                     Text(label)
                         .font(.body)
@@ -193,8 +149,6 @@ public struct SDKSecurityManagerView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Empty state
-
     private var emptyState: some View {
         ContentUnavailableView {
             Label("No Stored Values", systemImage: "lock.shield")
@@ -205,8 +159,6 @@ public struct SDKSecurityManagerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    // MARK: - Errors
 
     private func errorBanner(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
@@ -230,8 +182,6 @@ public struct SDKSecurityManagerView: View {
         .padding(.top, 8)
     }
 
-    // MARK: - Store access
-
     @MainActor
     private func loadApps() async {
         isLoading = true
@@ -241,7 +191,6 @@ public struct SDKSecurityManagerView: View {
             let ids = try enumerateSecurityIDs()
             var loaded: [SecurityApp] = []
             for id in ids {
-                // Metadata only — `listValueIDs` never returns secret bytes.
                 let values = try KeychainSDK.listValueIDs(securityID: id)
                 guard !values.isEmpty else { continue }
                 loaded.append(SecurityApp(securityID: id, values: values))
@@ -274,10 +223,6 @@ public struct SDKSecurityManagerView: View {
         }
     }
 
-    /// Returns every Security ID with at least one stored value. Temporary
-    /// enumeration path (see the file header): an attributes-only Keychain
-    /// query filtered client-side to `KeychainSDK.servicePrefix`. Secret
-    /// data is never requested.
     private func enumerateSecurityIDs() throws -> [String] {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -314,9 +259,6 @@ public struct SDKSecurityManagerView: View {
         return ids.sorted()
     }
 
-    /// Renders the user-safe `SDKError` message (plus suggestion) inline.
-    /// Per the security store's contract, no error from the security system
-    /// ever carries secret material, so this is safe to display verbatim.
     @MainActor
     private func presentError(_ error: Error) {
         if let sdkError = error as? SDKError {
@@ -327,8 +269,6 @@ public struct SDKSecurityManagerView: View {
             errorMessage = error.localizedDescription
         }
     }
-
-    // MARK: - Delete targets
 
     private struct DeleteValueTarget: Identifiable {
         let securityID: String
@@ -345,14 +285,6 @@ public struct SDKSecurityManagerView: View {
         var id: String { securityID }
     }
 
-    // MARK: - AddValueSheet
-
-    /// Collects the Security ID, value ID, label, and explanatory prompt,
-    /// then hands off to `SDKSensitiveValuePrompt.requestValue` — the same
-    /// host secure-prompt coordinator the IPC layer uses. The sheet never
-    /// sees the secret: the coordinator presents the secure prompt and
-    /// stores the value directly into the Keychain under the app's
-    /// namespace.
     private struct AddValueSheet: View {
         let apps: [SecurityApp]
         var onStored: () -> Void
@@ -475,9 +407,6 @@ public struct SDKSecurityManagerView: View {
             isStoring = true
             defer { isStoring = false }
             do {
-                // The narrow host surface: the same secure-prompt coordinator
-                // the IPC layer uses. The secret is collected by the prompt
-                // and stored directly — it never passes through this sheet.
                 try await SDKSensitiveValuePrompt.requestValue(
                     securityID: securityID,
                     appDisplayName: securityID,
@@ -488,8 +417,6 @@ public struct SDKSecurityManagerView: View {
                 onStored()
                 dismiss()
             } catch is CancellationError {
-                // The user dismissed the secure prompt: not an error, the
-                // sheet just closes with nothing stored.
                 dismiss()
             } catch {
                 presentError(error)

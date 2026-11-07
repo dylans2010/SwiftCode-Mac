@@ -11,7 +11,6 @@ struct DatabaseRecordViewer: View {
     @State private var activeEditorRow: Int?
     @State private var activeEditorCol: String?
 
-    // Undo / Redo Stacks
     @State private var undoStack: [String] = []
     @State private var redoStack: [String] = []
     @State private var feedbackMsg = ""
@@ -27,7 +26,6 @@ struct DatabaseRecordViewer: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter / Action bar
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -36,7 +34,6 @@ struct DatabaseRecordViewer: View {
 
                 Spacer()
 
-                // Undo/Redo Buttons
                 Button(action: executeUndo) {
                     Label("Undo", systemImage: "arrow.uturn.backward")
                 }
@@ -83,7 +80,6 @@ struct DatabaseRecordViewer: View {
             } else {
                 ScrollView([.horizontal, .vertical]) {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        // Header row
                         HStack(spacing: 0) {
                             ForEach(table.columns) { col in
                                 HStack(spacing: 4) {
@@ -101,7 +97,6 @@ struct DatabaseRecordViewer: View {
                                 .border(Color.secondary.opacity(0.2), width: 0.5)
                             }
 
-                            // Actions column
                             Text("Actions")
                                 .font(.system(size: 11, weight: .bold))
                                 .padding(8)
@@ -110,7 +105,6 @@ struct DatabaseRecordViewer: View {
                                 .border(Color.secondary.opacity(0.2), width: 0.5)
                         }
 
-                        // Body Rows
                         ForEach(0..<filteredRows.count, id: \.self) { rowIdx in
                             let row = filteredRows[rowIdx]
                             HStack(spacing: 0) {
@@ -123,7 +117,6 @@ struct DatabaseRecordViewer: View {
                                         .background(Color(NSColor.controlBackgroundColor))
                                 }
 
-                                // Delete row action
                                 Button(action: { deleteRow(row) }) {
                                     Image(systemName: "trash")
                                         .foregroundColor(.red)
@@ -173,8 +166,6 @@ struct DatabaseRecordViewer: View {
     private func addRow() {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite, let path = conn.sqliteFilePath else { return }
 
-        // Dynamically inspect column properties to generate a safe INSERT statement
-        // Omit auto-increment columns (usually primary keys)
         let colsList = table.columns.filter { !$0.isPrimaryKey || !$0.isAutoIncrement }
 
         let colNames = colsList.map { $0.name }.joined(separator: ", ")
@@ -204,7 +195,6 @@ struct DatabaseRecordViewer: View {
             do {
                 _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: insertSql)
 
-                // Fetch the rowid or primary key of the last inserted row to prepare the undo statement
                 let lastRowIdRows = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: "SELECT last_insert_rowid() AS last_id;")
                 if let lastId = lastRowIdRows.first?["last_id"] {
                     let undoSql: String
@@ -216,7 +206,7 @@ struct DatabaseRecordViewer: View {
 
                     await MainActor.run {
                         undoStack.append(undoSql)
-                        redoStack.removeAll() // Clear redo stack on new action
+                        redoStack.removeAll()
                         feedbackMsg = "Inserted new row successfully. Undo action recorded."
                     }
                 }
@@ -234,7 +224,6 @@ struct DatabaseRecordViewer: View {
     private func deleteRow(_ row: [String: String]) {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite, let path = conn.sqliteFilePath else { return }
 
-        // We need a primary key column or unique identifier to perform a safe delete
         guard let pkCol = table.columns.first(where: { $0.isPrimaryKey }),
               let pkVal = row[pkCol.name] else {
             feedbackMsg = "Cannot delete row: Table has no Primary Key defined."
@@ -243,7 +232,6 @@ struct DatabaseRecordViewer: View {
 
         let deleteSql = "DELETE FROM \(table.name) WHERE \(pkCol.name) = '\(pkVal)';"
 
-        // Build the reverse INSERT to support UNDO!
         let colsList = table.columns.map { $0.name }.joined(separator: ", ")
         let valsList = table.columns.map { col -> String in
             if let val = row[col.name] {
@@ -279,12 +267,9 @@ struct DatabaseRecordViewer: View {
 
         let lastAction = undoStack.removeLast()
 
-        // To support REDO, we record the opposite of what undo is executing.
-        // If undo is deleting, redo is inserting (and vice versa).
         let redoAction: String
         if lastAction.uppercased().hasPrefix("DELETE") {
-            // Find corresponding insert values or generate them
-            redoAction = "INSERT" // Simple indicator, or we can push the reverse queries correctly!
+            redoAction = "INSERT"
         } else {
             redoAction = "DELETE"
         }
@@ -294,7 +279,7 @@ struct DatabaseRecordViewer: View {
                 _ = try DatabaseManager.shared.executeSQLiteQuery(filePath: path, sql: lastAction)
 
                 await MainActor.run {
-                    redoStack.append(lastAction) // Add undone statement back to redo
+                    redoStack.append(lastAction)
                     feedbackMsg = "Last transaction undone successfully!"
                 }
                 loadRecords()

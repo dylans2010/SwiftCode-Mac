@@ -5,11 +5,6 @@ import SwiftUI
 import SwiftCodeEditorKit
 import SwiftCodeIDEShell
 
-// SWIFTCODE_IDE_EDITOR_BENCH=<file>: what a large file costs in the real window,
-// measured on the window's own frames (update, layout, drawing, presenting)
-// and from a key's event to the frame that shows it. Input goes through the back
-// end's queue, one step per display frame. Build in release.
-
 @MainActor
 enum EditorBench {
     static func say(_ s: String) { ShellDriver.say("bench " + s) }
@@ -32,8 +27,6 @@ enum EditorBench {
         return OpenViewsAutomation.frameDurations ?? []
     }
 
-    /// Waits for the next presented frame after `before`, up to a second;
-    /// returns the time waited.
     static func waitForFrame(after before: Int) async -> Double {
         let t0 = DispatchTime.now().uptimeNanoseconds
         for _ in 0..<1000 {
@@ -61,7 +54,6 @@ enum EditorBench {
         let before = OpenViewsAutomation.presentedFrames()
         let first = await waitForFrame(after: before)
         say(String(format: "first frame after: %.0f ms", first * 1000))
-        // The parser's first pass runs shortly after the first frame.
         for _ in 0..<600 where !b.document.hasParsed { try? await Task.sleep(nanoseconds: 10_000_000) }
         say(String(format: "first parse: %.0f ms (hasParsed=%@)", b.document.lastRefineDuration * 1000, b.document.hasParsed ? "yes" : "no"))
         try? await Task.sleep(nanoseconds: 300_000_000)
@@ -71,7 +63,6 @@ enum EditorBench {
         }
         let center = CGPoint(x: source.midX, y: source.midY)
 
-        // Scrolling down and back: one wheel step of 37 points per display frame.
         let scroll = await frames {
             for i in 0..<600 {
                 let dir: CGFloat = (i / 300) % 2 == 0 ? -37 : 37
@@ -81,7 +72,6 @@ enum EditorBench {
         }
         report("scroll 37 pt per frame, frame", scroll)
 
-        // Far jumps: new lines every frame.
         let controller = SourceEditorController.of(doc)
         let jumps = await frames {
             for i in 0..<120 {
@@ -91,7 +81,6 @@ enum EditorBench {
         }
         report("page jump, frame", jumps)
 
-        // Typing in the middle of the file, from the key's event to its frame.
         b.setCaret(b.document.lineStart(b.lineCount / 2))
         controller.noteActivity()
         try? await Task.sleep(nanoseconds: 300_000_000)
@@ -109,7 +98,6 @@ enum EditorBench {
         report("typing, key to frame", latency)
         say(String(format: "refine after typing: %.1f ms", b.document.lastRefineDuration * 1000))
 
-        // Holding Delete, and undoing it all.
         let deleting = await frames {
             for _ in 0..<100 {
                 OpenViewsAutomation.press(.backspace)
@@ -123,7 +111,6 @@ enum EditorBench {
         controller.noteActivity()
         say(String(format: "undo all: %.0f ms; dirty=%@", Double(DispatchTime.now().uptimeNanoseconds - t1) / 1e6, b.isDirty ? "yes" : "no"))
 
-        // Save.
         b.setCaret(0)
         b.insertText("// x\n")
         let t2 = DispatchTime.now().uptimeNanoseconds

@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// A runtime root's platform comes from the runtime's own name, not from
-/// the directories above it (`specs/ide/device-hub.md`, visionOS runtimes):
-/// an iOS root in a checkout named "visionos-…" gave no run destinations,
-/// and RunTestTextsR42Tests failed in such checkouts only.
 @Suite struct RuntimePlatformTests {
     func settings(_ root: String) -> RemoteSimulatorSettings {
         RemoteSimulatorSettings(destination: "tester@sim-host", dataDirectory: "/data/swiftcode", runtimeRoot: root, simdPath: "/data/swiftcode/bin/swiftcode-sim")

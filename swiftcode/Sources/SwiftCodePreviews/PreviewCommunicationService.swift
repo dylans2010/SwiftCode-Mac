@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Core/Preview/PreviewCommunicationService.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Verbatim. Used by PreviewManager. NOTE (Legacy-verbatim behaviour): establishConnection() waits 0.3s and logs success; there is no real IPC socket behind it yet — the preview host transport is a follow-up, not silently claimed here.
-
 import Foundation
 import os
 

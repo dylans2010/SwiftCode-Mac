@@ -1,30 +1,19 @@
-// Swift wrappers over the CKVM bindings: a KVM virtual machine with one RAM
-// slot, and arm64 vCPUs. Linux only; on other hosts the module exposes just
-// `Hypervisor.isAvailable == false`.
-// Contract: specs/simulator/vm-shim-protocol.md.
-
 import CKVM
 import SwiftCodeDarwinABI
 
 public enum Hypervisor {
-    /// True when this build contains the KVM backend (arm64 Linux hosts).
     public static var isAvailable: Bool { ckvm_available() != 0 }
 }
 
 #if os(Linux) && arch(arm64)
 extension Hypervisor {
-    /// The host's virtual counter (`CNTVCT_EL0`, read at EL0). A guest's
-    /// `CNTVCT_EL0` differs from it by a constant (`VCPU.counterOffset()`).
     public static func hostCounter() -> UInt64 { ckvm_host_cntvct() }
-    /// ID_AA64MMFR2_EL1 as Linux exposes it to user space (0 when hidden).
     public static func hostIDAA64MMFR2() -> UInt64 { ckvm_host_id_aa64mmfr2() }
 }
 #endif
 
-/// A failed KVM or host operation.
 public struct KVMError: Error, CustomStringConvertible, Equatable, Sendable {
     public var operation: String
-    /// Positive errno value, or 0 when the error is not an errno failure.
     public var errno: Int32
     public var detail: String
 
@@ -46,23 +35,15 @@ public struct KVMError: Error, CustomStringConvertible, Equatable, Sendable {
 import Glibc
 import Synchronization
 
-/// Diagnostics (`SWIFTCODE_DEBUG_QUARANTINE=1`): host memory the VMM gives back
-/// (guest RAM, pool, file slots, vCPU run areas) stays reserved as
-/// inaccessible pages instead of being unmapped, so a stale access faults
-/// at once instead of landing in whatever the host maps there next.
 let quarantineHostMemory = getenv("SWIFTCODE_DEBUG_QUARANTINE").map { String(cString: $0) == "1" } ?? false
 
-/// Diagnostics: hardware write watchpoints (see `ckvm_hwwatch_arm`).
 public enum HardwareWatchpoint {
     public static func arm(_ slot: Int, _ address: UInt64) -> Int32 { ckvm_hwwatch_arm_slot(Int32(slot), address) }
     public static func disarm(_ slot: Int) { ckvm_hwwatch_disarm_slot(Int32(slot)) }
-    /// Starts the lost-write checker threads (`ckvm_memcheck_start`).
     public static func startMemoryCheck(threads: Int) { _ = ckvm_memcheck_start(Int32(threads)) }
-    /// Gives the map reader/writer check (`SWIFTCODE_DEBUG_RW_GUARD`) its call chains.
     public static func installFrameCapture() { DebugAccessGuard.captureFrames = ckvm_capture_frames }
 }
 
-/// Unmaps [address, address+size) (or quarantines it, see above).
 func releaseHostMemory(_ address: UnsafeMutableRawPointer, _ size: Int) {
     if quarantineHostMemory {
         _ = mmap(address, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED, -1, 0)
@@ -77,22 +58,14 @@ func kvmCheck(_ result: Int32, _ operation: String) throws -> Int32 {
     return result
 }
 
-/// One KVM memslot: a guest-physical range backed by host memory the VM owns.
 public struct MemorySlot: Sendable, CustomStringConvertible {
-    /// `shared`: the host memory of a `SharedMemoryObject`, owned by the
-    /// object (never unmapped by the VM). `readOnlyFiles`: the process-wide
-    /// `SharedFileArena` (never unmapped by the VM; registered read-only).
     public enum Kind: Sendable, Equatable { case ram, anonymousPool, file, shared, readOnlyFiles }
     public var slot: UInt32
     public var gpa: UInt64
     public var size: UInt64
-    /// Host address of the backing memory, as an integer (Sendable).
     public var hostAddress: UInt
     public var kind: Kind
-    /// For tracing: the file path or the purpose.
     public var name: String
-    /// Registered with KVM_MEM_READONLY: guest writes exit as MMIO, and the
-    /// VMM refuses to write it.
     public var readOnly: Bool = false
 
     public var end: UInt64 { gpa + size }
@@ -106,105 +79,47 @@ public struct MemorySlot: Sendable, CustomStringConvertible {
     }
 }
 
-/// A KVM virtual machine that owns `/dev/kvm`, the VM fd, one anonymous
-/// RAM region registered as memslot 0, and any further memslots added with
-/// `addMemorySlot`. Guest-physical reads and writes reach every slot.
 public final class VirtualMachine: @unchecked Sendable {
     public let kvmFD: Int32
     public let vmFD: Int32
     public let ramGPA: UInt64
     public let ramSize: Int
-    /// Host address of guest RAM.
     public let ram: UnsafeMutableRawPointer
-    /// Every vCPU created so far (index = vCPU id). Read under `lock`.
     public var vcpus: [VCPU] { lock.withLock { vcpuList } }
     private var vcpuList: [VCPU] = []
-    /// vCPUs created ahead by a batch (`makeVCPU`), by id, until asked for.
     private var spareVCPUs: [Int: VCPU] = [:]
-    /// Ids whose KVM_CREATE_VCPU is in flight (a `makeVCPU` for one of them
-    /// waits for it).
     private var creatingIDs: Set<Int> = []
-    /// The ids a batch may use: 0 ..< `vcpuIDLimit` (the owner's capacity;
-    /// set before the first `makeVCPU`).
     public var vcpuIDLimit: Int {
         get { lock.withLock { idLimit } }
         set { lock.withLock { idLimit = newValue } }
     }
     private var idLimit = Int.max
 
-    /// `SWIFTCODE_VCPU_BATCH=<n>` (default 3; 0 = off): a `makeVCPU` that has
-    /// to create its vCPU creates the next `n` ids too, back to back.
-    ///
-    /// Why (measured on the Thor, Linux 6.8 arm64): once a VM has run with
-    /// more than one vCPU, the KVM_CREATE_VCPU that follows a vCPU's first
-    /// KVM_RUN waits for an RCU grace period, 25-60 ms (35 ms mean; SwiftCode
-    /// boots averaged 30 ms per new vCPU). Creations with no first run in
-    /// between, and every creation before the VM's second vCPU runs, take
-    /// microseconds. A batch pays one grace period for `n + 1` vCPUs, and
-    /// the batch made with vCPU 0 at image build pays none.
     public static let creationBatch = getenv("SWIFTCODE_VCPU_BATCH").flatMap { Int(String(cString: $0)) }.map { max(0, $0) } ?? 3
 
-    /// `SWIFTCODE_VCPU_PRECREATE=<n>` (thread-latency.md §3.1; default 4, the
-    /// earlier batch; 16 measured no faster to the home screen): the
-    /// batch made with vCPU 0 (at image build, before any vCPU of the VM
-    /// ran) has `n` vCPUs instead of `creationBatch + 1`.
-    ///
-    /// Why: Linux arm64 KVM keeps a VM-wide MPIDR-to-vCPU table, built at
-    /// a vCPU's first KVM_RUN once the VM has more than one vCPU, and every
-    /// KVM_CREATE_VCPU discards it and waits for an RCU grace period
-    /// (`synchronize_rcu`) before freeing it. While no vCPU has run there is
-    /// no table and a creation costs microseconds; afterwards each creation
-    /// batch costs one grace period (25-60 ms on a loaded host), and a
-    /// burst of thread starts queues behind them. Creating the vCPUs a
-    /// process will need before it runs avoids every grace period.
     public static let precreateCount = getenv("SWIFTCODE_VCPU_PRECREATE").flatMap { Int(String(cString: $0)) }
         .map { max(1, min($0, 64)) } ?? (creationBatch + 1)
 
-    /// `SWIFTCODE_VCPU_BATCH_GROW=1` (thread-latency.md §3.1): a later batch
-    /// creates as many vCPUs as the VM has (doubling it), at least
-    /// `creationBatch + 1`, so a process that grows to n threads pays
-    /// about log2(n / precreateCount) grace periods instead of one per
-    /// `creationBatch + 1` threads.
     public static let batchGrow = getenv("SWIFTCODE_VCPU_BATCH_GROW").map { String(cString: $0) == "1" } ?? false
-    /// `KVM_CAP_NR_MEMSLOTS`: the number of memslots the VM may register.
     public let maxMemorySlots: Int
-    /// `KVM_CAP_READONLY_MEM`: memslots may be registered read-only.
     public let supportsReadOnlyMemory: Bool
-    /// `KVM_CAP_MAX_VCPUS` (the hard limit) and `KVM_CAP_NR_VCPUS` (the
-    /// recommended limit), from the VM fd (falling back to /dev/kvm).
     public let maxVCPUs: Int
     public let recommendedVCPUs: Int
-    /// Every registered slot (slot 0 first), sorted by GPA. Many host threads
-    /// (one per vCPU) read it while a trap may add a slot, so it is guarded by
-    /// `lock` and readers get a snapshot.
     public var memorySlots: [MemorySlot] { lock.withLock { slotList } }
     private var slotList: [MemorySlot] = []
     private var nextSlotNumber: UInt32 = 1
-    /// Guards `slotList`, `nextSlotNumber`, `vcpuList` and
-    /// `creationsInFlight`.
     private let lock = HostMutex(name: "VM")
-    /// vCPU creations and memslot additions whose ioctls run without `lock`
-    /// (`makeVCPU`, `addMemorySlot`); `close` waits for them before it
-    /// closes the VM fd.
     private var creationsInFlight = 0
-    /// Serializes memslot additions (`addMemorySlot`).
     private let slotChangeLock = HostMutex(name: "VM memslot changes")
     private let creationsDone = HostCondition()
-    /// Set by `close()`; read without the lock on the RAM fast path.
     private let closedFlag = Atomic<Bool>(false)
-    /// True once `close()` released the VM.
     public var isClosed: Bool { closedFlag.load(ordering: .acquiring) }
 
-    /// KVM_CAP_READONLY_MEM and KVM_MEM_READONLY (linux/kvm.h).
     static let capReadOnlyMemory = 81
     static let memoryFlagReadOnly: UInt32 = 1 << 1
 
-    /// Diagnostics: KVM_CREATE_VM calls and their time (the kernel registers
-    /// the VM's MMU notifier on the host process's address space there).
     public static let createVMCount = Atomic<UInt64>(0)
     public static let createVMNanoseconds = Atomic<UInt64>(0)
-    /// Diagnostics: VM closes and the time of the VM fd's close (the
-    /// kernel tears the VM down there when it holds the last reference).
     public static let closeCount = Atomic<UInt64>(0)
     public static let closeNanoseconds = Atomic<UInt64>(0)
 
@@ -225,7 +140,6 @@ public final class VirtualMachine: @unchecked Sendable {
             vm = try kvmCheck(ckvm_create_vm(kvm, 0), "KVM_CREATE_VM")
             Self.createVMNanoseconds.wrappingAdd(monotonicNanoseconds() &- createBegan, ordering: .relaxed)
             Self.createVMCount.wrappingAdd(1, ordering: .relaxed)
-            // The VM-level check reports the per-VM limit; fall back to the system one.
             slotLimit = Int(ckvm_check_extension(vm, Int(CKVM_CAP_NR_MEMSLOTS)))
             if slotLimit <= 0 { slotLimit = Int(ckvm_check_extension(kvm, Int(CKVM_CAP_NR_MEMSLOTS))) }
             readOnlyMemory = ckvm_check_extension(vm, Self.capReadOnlyMemory) > 0
@@ -235,7 +149,6 @@ public final class VirtualMachine: @unchecked Sendable {
                 let v = Int(ckvm_check_extension(vm, cap))
                 return v > 0 ? v : max(0, Int(ckvm_check_extension(kvm, cap)))
             }
-            // KVM_CAP_NR_VCPUS absent means 4; KVM_CAP_MAX_VCPUS absent means NR_VCPUS (KVM API docs).
             let recommended = capability(Int(CKVM_CAP_NR_VCPUS))
             vcpuLimits.recommended = recommended > 0 ? recommended : 4
             let hard = capability(Int(CKVM_CAP_MAX_VCPUS))
@@ -267,22 +180,9 @@ public final class VirtualMachine: @unchecked Sendable {
 
     deinit { close() }
 
-    /// Destroys the VM now (stage 4b teardown): closes every vCPU, the VM
-    /// and /dev/kvm fds, and unmaps every memslot's host memory (guest RAM,
-    /// the anonymous pool reservation, file mappings). No vCPU may be
-    /// running. Afterwards every guest-physical access fails (no memslot)
-    /// and `makeVCPU`/`addMemorySlot` throw. Idempotent.
-    ///
-    /// The VM is marked closed and its slots dropped under the VM's lock;
-    /// the slow part (KVM tears down the stage-2 tables and waits for an
-    /// SRCU grace period: milliseconds to tens of milliseconds for a VM
-    /// that ran) happens after, without the lock. Callers should not hold
-    /// the kernel lock across `close()` either (stage 6 §5).
     public func close() {
         let detached: (vcpus: [VCPU], slots: [MemorySlot])? = lock.withLock {
             guard !closedFlag.exchange(true, ordering: .acquiringAndReleasing) else { return nil }
-            // A creation in flight uses the VM fd: let it finish (its vCPU
-            // is in the list then, and is closed below).
             while creationsInFlight > 0 { creationsDone.wait(lock) }
             let taken = (vcpuList + spareVCPUs.values, slotList)
             spareVCPUs.removeAll()
@@ -302,34 +202,21 @@ public final class VirtualMachine: @unchecked Sendable {
         Self.closeCount.wrappingAdd(1, ordering: .relaxed)
     }
 
-    /// `KVM_CAP_COUNTER_OFFSET`: `setCounterOffset` is available.
     public var supportsCounterOffset: Bool {
         ckvm_check_extension(vmFD, Int(CKVM_CAP_COUNTER_OFFSET)) > 0
             || ckvm_check_extension(kvmFD, Int(CKVM_CAP_COUNTER_OFFSET)) > 0
     }
 
-    /// Sets the VM-wide counter offset (`KVM_ARM_SET_COUNTER_OFFSET`): every
-    /// vCPU of this VM, present and future, reads `CNTVCT_EL0` as
-    /// `Hypervisor.hostCounter() &- offset`, and creating a vCPU no longer
-    /// resets it (fast-traps.md §3.1). Call before any vCPU runs.
     public func setCounterOffset(_ offset: UInt64) throws {
-        // A reused VM (`resetForReuse`) keeps the offset it was given; KVM
-        // refuses a change once a vCPU has run.
         if lock.withLock({ counterOffsetSet == offset }) { return }
         try kvmCheck(ckvm_set_counter_offset(vmFD, offset), "KVM_ARM_SET_COUNTER_OFFSET")
         lock.withLock { counterOffsetSet = offset }
     }
-    /// The VM-wide counter offset set so far (nil: none).
     private var counterOffsetSet: UInt64?
-    /// The HVC doorbell filter is installed (a reused VM keeps it).
     private var hvcDoorbellInstalled = false
 
-    /// The forwarded-HVC doorbell's SMCCC function ID (vm-shim-protocol.md §5.1).
     public static let hvcDoorbellFunction: UInt32 = 0xC600_5943
 
-    /// Installs the SMCCC filter that forwards the HVC doorbell to user space
-    /// (vm-shim-protocol.md §5.1). Call before any vCPU runs; throws when
-    /// the host kernel has no SMCCC filter.
     public func installHVCDoorbell() throws {
         if lock.withLock({ hvcDoorbellInstalled }) { return }
         try kvmCheck(ckvm_set_smccc_filter(vmFD, Self.hvcDoorbellFunction, 1, UInt8(CKVM_SMCCC_FILTER_FWD_TO_USER)),
@@ -337,18 +224,8 @@ public final class VirtualMachine: @unchecked Sendable {
         lock.withLock { hvcDoorbellInstalled = true }
     }
 
-    // MARK: Reuse (boot-profile.md §9, SP1)
-
-    /// How many times this VM was reset for another image.
     public private(set) var reuseCount = 0
 
-    /// Makes this VM ready for another image (`SWIFTCODE_VM_REUSE`): every vCPU
-    /// is reset to its initial state (`KVM_ARM_VCPU_INIT` again, which KVM
-    /// allows after a vCPU ran) and becomes a spare under its id, and guest
-    /// RAM is returned to the host (it reads as zeros). The memslots, the
-    /// counter offset and the HVC doorbell stay. No vCPU may be running (the
-    /// image's pool threads were joined), and no other thread may use the VM.
-    /// False (nothing usable: close the VM) when a vCPU cannot be reset.
     public func resetForReuse() -> Bool {
         let vcpus: [VCPU]? = lock.withLock {
             guard !isClosed, creationsInFlight == 0, creatingIDs.isEmpty else { return nil }
@@ -361,7 +238,6 @@ public final class VirtualMachine: @unchecked Sendable {
         var ok = true
         for vcpu in vcpus where ok { ok = vcpu.reset(vmFD: vmFD) }
         lock.withLock {
-            // On failure the vCPUs stay listed (closed with the VM).
             if ok { for vcpu in vcpus { spareVCPUs[vcpu.id] = vcpu } } else { vcpuList += vcpus }
             if ok { reuseCount += 1 }
         }
@@ -370,18 +246,6 @@ public final class VirtualMachine: @unchecked Sendable {
         return true
     }
 
-    /// Creates and initializes a vCPU (preferred target, PSCI 0.2). `id`
-    /// defaults to the next free vCPU id. Safe to call from any host thread,
-    /// also while other vCPUs of the VM run.
-    ///
-    /// The ioctls (KVM_CREATE_VCPU, KVM_ARM_VCPU_INIT, the kvm_run mapping)
-    /// run without `lock`. In a busy host process they can wait for an RCU
-    /// grace period (tens of ms), and `lock` also guards the memslot list
-    /// that every guest-physical access outside RAM reads. `close` waits for
-    /// a creation in flight.
-    ///
-    /// A vCPU made ahead by a batch (`creationBatch`) is handed out at once;
-    /// one whose batch is still in flight is waited for.
     public func makeVCPU(id: Int? = nil) throws -> VCPU {
         enum Plan { case spare(VCPU), create([Int]) }
         let plan: Plan = try lock.withLock {
@@ -394,7 +258,6 @@ public final class VirtualMachine: @unchecked Sendable {
                 vcpuList.append(spare)
                 return .spare(spare)
             }
-            // This id, then up to `creationBatch` free ids after it.
             var ids = [vcpuID]
             var next = vcpuID + 1
             let taken = known.union(creatingIDs)
@@ -414,8 +277,6 @@ public final class VirtualMachine: @unchecked Sendable {
             fatalError("unreachable")
         }
         let created = Result { try VCPU(vm: self, id: ids[0]) }
-        // The batch: no grace period between these creations (none of them
-        // has run). A failure only ends the batch.
         var spares: [VCPU] = []
         if case .success = created {
             for spareID in ids.dropFirst() {
@@ -433,10 +294,6 @@ public final class VirtualMachine: @unchecked Sendable {
         return try created.get()
     }
 
-    /// Creates vCPUs 0 ..< `count` as spares (thread-latency.md §3.1), on
-    /// a VM that has no vCPU yet, without its lock held during the ioctls;
-    /// `makeVCPU` hands them out. Off the kernel lock: the prebuilt VMs.
-    /// Does nothing when the VM already has vCPUs. Failures end the batch.
     public func makeSpareVCPUs(count: Int) {
         let ids: [Int]? = lock.withLock {
             guard !isClosed, vcpuList.isEmpty, spareVCPUs.isEmpty, creatingIDs.isEmpty else { return nil }
@@ -459,21 +316,9 @@ public final class VirtualMachine: @unchecked Sendable {
         }
     }
 
-    // MARK: Memslots
-
-    /// Registers `size` bytes of host memory at `host` as a new memslot at
-    /// `gpa`. The VM takes ownership of the host mapping (it is unmapped when
-    /// the VM is destroyed). `gpa`, `size`, and `host` must be aligned to the
-    /// host page size, and the range must not overlap another slot. Throws a
-    /// fatal error when the VM has no memslot left. `readOnly` registers it
-    /// with KVM_MEM_READONLY (needs `supportsReadOnlyMemory`).
     @discardableResult
     public func addMemorySlot(gpa: UInt64, size: UInt64, host: UnsafeMutableRawPointer,
                               kind: MemorySlot.Kind, name: String, readOnly: Bool = false) throws -> MemorySlot {
-        // Additions are serialized by `slotChangeLock`; the ioctl (an SRCU
-        // grace period: milliseconds) runs without `lock`, which every
-        // guest-physical access outside RAM takes to find its slot. The slot
-        // is listed once KVM has it.
         try slotChangeLock.withLock {
             let (number, index) = try lock.withLock { () throws -> (UInt32, Int) in
                 let reserved = try reserveMemorySlot(gpa: gpa, size: size, name: name, readOnly: readOnly)
@@ -496,8 +341,6 @@ public final class VirtualMachine: @unchecked Sendable {
         }
     }
 
-    /// Checks a new slot and takes its number; returns (number, list index).
-    /// `lock` held; additions serialized by `slotChangeLock`.
     private func reserveMemorySlot(gpa: UInt64, size: UInt64, name: String, readOnly: Bool) throws -> (UInt32, Int) {
         guard !isClosed else { throw KVMError("KVM_SET_USER_MEMORY_REGION", errno: EBADF, detail: "the VM is closed") }
         guard Int(nextSlotNumber) < maxMemorySlots else {
@@ -507,7 +350,6 @@ public final class VirtualMachine: @unchecked Sendable {
         if readOnly && !supportsReadOnlyMemory {
             throw KVMError("KVM_SET_USER_MEMORY_REGION", detail: "read-only memslots are not supported (\(name))")
         }
-        // The slots are sorted by GPA: only the neighbours can overlap.
         let index = slotIndex(after: gpa)
         for i in [index - 1, index] where i >= 0 && i < slotList.count {
             let other = slotList[i]
@@ -520,12 +362,8 @@ public final class VirtualMachine: @unchecked Sendable {
         return (number, index)
     }
 
-    /// The number of memslots registered so far, slot 0 included.
     public var memorySlotCount: Int { lock.withLock { slotList.count } }
 
-    // MARK: Guest-physical access
-
-    /// The index of the first slot whose start is > gpa (binary search). Call under `lock`.
     private func slotIndex(after gpa: UInt64) -> Int {
         var low = 0, high = slotList.count
         while low < high {
@@ -535,8 +373,6 @@ public final class VirtualMachine: @unchecked Sendable {
         return low
     }
 
-    /// The memslot that holds `gpa` (binary search for the last slot whose
-    /// start is <= gpa). RAM (slot 0) is answered without taking the lock.
     public func memorySlot(containing gpa: UInt64) -> MemorySlot? {
         if isClosed { return nil }
         if gpa >= ramGPA, gpa - ramGPA < UInt64(ramSize) {
@@ -549,8 +385,6 @@ public final class VirtualMachine: @unchecked Sendable {
         }
     }
 
-    /// The host address of [gpa, gpa+count) for writing: it must lie inside
-    /// one memslot that is not read-only.
     public func writableHostPointer(gpa: UInt64, count: Int) throws -> UnsafeMutableRawPointer {
         guard let slot = memorySlot(containing: gpa), slot.contains(gpa: gpa, count: count) else {
             throw KVMError("guest physical access", detail: "GPA 0x\(String(gpa, radix: 16)) + \(count) is outside every memslot")
@@ -561,12 +395,10 @@ public final class VirtualMachine: @unchecked Sendable {
         return UnsafeMutableRawPointer(bitPattern: slot.hostAddress)! + Int(gpa - slot.gpa)
     }
 
-    /// True when [gpa, gpa+count) lies inside one memslot.
     public func contains(gpa: UInt64, count: Int) -> Bool {
         memorySlot(containing: gpa)?.contains(gpa: gpa, count: count) ?? false
     }
 
-    /// Host address of [gpa, gpa+count), which must lie inside one memslot.
     public func hostPointer(gpa: UInt64, count: Int) throws -> UnsafeMutableRawPointer {
         guard let slot = memorySlot(containing: gpa), slot.contains(gpa: gpa, count: count) else {
             throw KVMError("guest physical access", detail: "GPA 0x\(String(gpa, radix: 16)) + \(count) is outside every memslot")
@@ -574,9 +406,6 @@ public final class VirtualMachine: @unchecked Sendable {
         return UnsafeMutableRawPointer(bitPattern: slot.hostAddress)! + Int(gpa - slot.gpa)
     }
 
-    /// Cleans and invalidates [gpa, gpa+count) to the point of coherency, so
-    /// a vCPU that reads it with its MMU off (non-cacheable) sees what the VMM
-    /// wrote through its cacheable host mapping.
     public func cleanDataCache(gpa: UInt64, count: Int) throws {
         let pointer = try hostPointer(gpa: gpa, count: count)
         ckvm_clean_dcache_range(pointer, count)
@@ -606,36 +435,23 @@ public final class VirtualMachine: @unchecked Sendable {
         destination.storeBytes(of: value.littleEndian, as: UInt64.self)
     }
 
-    /// Zero-fills [gpa, gpa+count).
     public func zero(gpa: UInt64, count: Int) throws {
         let destination = try writableHostPointer(gpa: gpa, count: count)
         destination.initializeMemory(as: UInt8.self, repeating: 0, count: count)
     }
 }
 
-/// Why a vCPU returned to the VMM.
 public enum VCPUExit: Equatable, Sendable, CustomStringConvertible {
     public enum MMIODirection: Equatable, Sendable { case read, write }
-    /// A guest access to a GPA with no memslot. For writes, `data` holds the
-    /// stored value (little-endian, zero-extended). For reads, complete the
-    /// access with `VCPU.completeMMIORead(_:)` before the next `run()`.
     case mmio(MMIODirection, address: UInt64, data: UInt64, length: Int)
     case hlt
     case shutdown
-    /// PSCI SYSTEM_OFF / SYSTEM_RESET and similar (KVM_SYSTEM_EVENT_* type).
     case systemEvent(type: UInt32, data: [UInt64])
     case internalError(suberror: UInt32, data: [UInt64])
     case failEntry(reason: UInt64, cpu: UInt32)
-    /// A data abort KVM could not decode (no valid instruction syndrome).
     case armNISV(esrISS: UInt64, faultIPA: UInt64)
-    /// The run was interrupted by the watchdog timer.
     case watchdog
-    /// KVM_EXIT_HYPERCALL: an SMCCC call the VM's SMCCC filter forwards to
-    /// user space (`function` = the function ID; `flags` bit 0 = SMC). The
-    /// guest PC is already after the HVC/SMC (vm-shim-protocol.md §5.1).
     case hypercall(function: UInt64, flags: UInt64)
-    /// `runOnce()` only: KVM_RUN returned -EINTR (a kick signal or
-    /// `immediate_exit`).
     case interrupted
     case other(reason: UInt32)
 
@@ -658,7 +474,6 @@ public enum VCPUExit: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// A core register of the vCPU.
 public enum CoreRegister: Equatable, Sendable {
     case x(Int)
     case spEL0, pc, pstate, spEL1, elrEL1, spsrEL1
@@ -678,7 +493,6 @@ public enum CoreRegister: Equatable, Sendable {
     }
 }
 
-/// A system register, by its MRS/MSR encoding.
 public struct SystemRegister: Equatable, Sendable {
     public var op0, op1, crn, crm, op2: UInt32
     public init(op0: UInt32, op1: UInt32, crn: UInt32, crm: UInt32, op2: UInt32) {
@@ -701,17 +515,14 @@ public struct SystemRegister: Equatable, Sendable {
     public static let idAA64MMFR2EL1 = SystemRegister(op0: 3, op1: 0, crn: 0, crm: 7, op2: 2)
 }
 
-/// One arm64 vCPU with its mapped `struct kvm_run`.
 public final class VCPU: @unchecked Sendable {
     public let fd: Int32
     public let id: Int
     private let runArea: UnsafeMutableRawPointer
     private let runSize: Int
     private var closed = false
-    /// Number of KVM_RUN calls that returned to user space.
     public private(set) var exitCount = 0
 
-    /// PSTATE for EL1h with D, A, I, F masked.
     public static let pstateEL1hMasked: UInt64 = 0x3C5
 
     init(vm: VirtualMachine, id: Int) throws {
@@ -742,13 +553,10 @@ public final class VCPU: @unchecked Sendable {
 
     deinit { close() }
 
-    /// Resets the vCPU to its initial state (`KVM_ARM_VCPU_INIT` with the
-    /// features it was made with) for a reused VM. No thread may run it.
     func reset(vmFD: Int32) -> Bool {
         guard !closed else { return false }
         ckvm_run_set_immediate_exit(runArea, 0)
         guard ckvm_arm_vcpu_init_preferred(vmFD, fd, UInt32(1) << UInt32(CKVM_ARM_VCPU_FEATURE_PSCI_0_2)) == 0 else { return false }
-        // Diagnostics count from here for the next image.
         exitCount = 0
         if VCPUPool.profiling {
             let names = ["exits", "wfe_exit_stat", "wfi_exit_stat"]
@@ -756,11 +564,8 @@ public final class VCPU: @unchecked Sendable {
         }
         return true
     }
-    /// KVM statistics at the last reset (subtracted by `kvmStatistics`).
     private var statisticsBaseline: [String: UInt64] = [:]
 
-    /// Diagnostics: this vCPU's KVM binary statistics by name
-    /// (KVM_GET_STATS_FD; 0 for a name the kernel does not have).
     public func kvmStatistics(_ names: [String]) -> [UInt64] {
         let raw = rawStatistics(names)
         return zip(names, raw).map { $1 &- (statisticsBaseline[$0] ?? 0) }
@@ -782,17 +587,11 @@ public final class VCPU: @unchecked Sendable {
         _ = ckvm_close(fd)
     }
 
-    // MARK: Registers
-
     public func get(_ register: CoreRegister) throws -> UInt64 { try getRaw(register.id, "\(register)") }
     public func set(_ register: CoreRegister, _ value: UInt64) throws { try setRaw(register.id, value, "\(register)") }
     public func get(_ register: SystemRegister) throws -> UInt64 { try getRaw(register.id, "sysreg") }
     public func set(_ register: SystemRegister, _ value: UInt64) throws { try setRaw(register.id, value, "sysreg") }
 
-    /// Sets the guest's virtual counter (`KVM_REG_ARM_TIMER_CNT`): KVM
-    /// adjusts the counter offset (VM-wide on current kernels), so every
-    /// vCPU of the VM then reads `value` now. Used to give all VMs of one
-    /// simulated system the same `mach_absolute_time` base.
     public func setVirtualCounter(_ value: UInt64) throws {
         try setRaw(ckvm_reg_timer_cnt(), value, "KVM_REG_ARM_TIMER_CNT")
     }
@@ -807,15 +606,8 @@ public final class VCPU: @unchecked Sendable {
         try kvmCheck(ckvm_set_one_reg_u64(fd, id, value), "KVM_SET_ONE_REG \(name)")
     }
 
-    // MARK: Generic timer
-
-    /// The guest's virtual counter (`CNTVCT_EL0`), through ONE_REG
-    /// (`KVM_REG_ARM_TIMER_CNT`).
     public func virtualCounter() throws -> UInt64 { try getRaw(ckvm_reg_timer_cnt(), "KVM_REG_ARM_TIMER_CNT") }
 
-    /// host counter − guest counter, sampled now: the guest's `CNTVCT_EL0`
-    /// equals `Hypervisor.hostCounter() &- offset` from any host thread,
-    /// without an ioctl on a vCPU that may be running.
     public func counterOffset() throws -> UInt64 {
         let before = ckvm_host_cntvct()
         let guest = try virtualCounter()
@@ -823,9 +615,6 @@ public final class VCPU: @unchecked Sendable {
         return (before &+ (after &- before) / 2) &- guest
     }
 
-    /// `CNTFRQ_EL0` as the guest sees it. Read through ONE_REG when KVM
-    /// exposes it; otherwise the host's value, which the guest shares (KVM
-    /// does not virtualize the counter frequency).
     public func counterFrequency() -> (hz: UInt64, source: String) {
         if let value = try? getRaw(SystemRegister.cntfrqEL0.id, "CNTFRQ_EL0"), value != 0 {
             return (value, "ONE_REG")
@@ -833,9 +622,6 @@ public final class VCPU: @unchecked Sendable {
         return (ckvm_host_cntfrq(), "host CNTFRQ_EL0")
     }
 
-    // MARK: Running
-
-    /// Runs the vCPU until it exits to user space.
     public func run() throws -> VCPUExit {
         while true {
             let result = ckvm_run(fd)
@@ -849,9 +635,6 @@ public final class VCPU: @unchecked Sendable {
         }
     }
 
-    /// Runs the vCPU until it exits to user space or a signal interrupts the
-    /// run (`.interrupted`). Pooled vCPUs use this: a kick (signal plus
-    /// `immediate_exit`) must bring the host thread back.
     public func runOnce() throws -> VCPUExit {
         while true {
             let result = ckvm_run(fd)
@@ -863,11 +646,8 @@ public final class VCPU: @unchecked Sendable {
         }
     }
 
-    /// Sets or clears `kvm_run.immediate_exit`: while set, KVM_RUN returns
-    /// -EINTR without entering the guest. Any host thread may set it.
     public func setImmediateExit(_ on: Bool) { ckvm_run_set_immediate_exit(runArea, on ? 1 : 0) }
 
-    /// Supplies the value for a pending MMIO read (little-endian, `length` bytes).
     public func completeMMIORead(_ value: UInt64, length: Int) {
         var little = value.littleEndian
         withUnsafeBytes(of: &little) { bytes in
@@ -910,9 +690,7 @@ public final class VCPU: @unchecked Sendable {
     }
 }
 
-/// A one-shot timer that interrupts KVM_RUN on the arming thread.
 public enum Watchdog {
-    /// Arms (or, with 0, disarms) the watchdog for the calling thread.
     public static func arm(milliseconds: UInt64) throws {
         try kvmCheck(ckvm_watchdog_arm(milliseconds), "watchdog timer")
     }

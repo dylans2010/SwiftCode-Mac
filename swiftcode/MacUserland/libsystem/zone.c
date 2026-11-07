@@ -1,8 +1,3 @@
-// zone.c - the malloc zone interface of <malloc/malloc.h> over SwiftCode's one
-// allocator (specs/macos/libsystem.md §5, §12). Clean-room SwiftCode code; the
-// malloc_zone_t layout is the public header's (version 13 fields). Every
-// zone is the default zone: malloc_create_zone returns it too, and
-// malloc_zone_from_ptr answers it for any non-NULL pointer.
 #include "ycl.h"
 
 typedef struct ycl_zone ycl_zone;
@@ -121,9 +116,6 @@ YCL_EXPORT size_t malloc_zone_pressure_relief(ycl_zone *z, size_t goal) {
     (void)goal;
     return 0;
 }
-
-// --- typed allocation (<malloc/_malloc_type.h>): the type identifier is a
-//     hint for segregating allocations; SwiftCode's allocator ignores it ---
 
 typedef unsigned long long ycl_type_id;
 void *aligned_alloc(size_t, size_t);

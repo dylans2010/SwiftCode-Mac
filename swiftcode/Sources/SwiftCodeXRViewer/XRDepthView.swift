@@ -1,11 +1,3 @@
-// The headset viewer's depth path (specs/simulator/xr-depth.md §5–§7): the
-// stream's depth (0x0C) and environment (0x0D) feed SwiftCodeXRReprojection,
-// which draws each eye every headset frame into the session's rendered
-// swapchains (CSwiftCodeOpenXR's hooks a, b, d): the environment at infinity,
-// the world cache, then the newest picture re-projected from the pose it
-// was rendered for to the eye's current pose. Both eyes come from one view
-// (`--stereo synth`), or from each eye's newest picture (alternate).
-
 import CSwiftCodeCodec
 import CSwiftCodeOpenXR
 import Foundation
@@ -15,16 +7,13 @@ import SwiftCodeXRReprojection
 
 final class XRDepthView: @unchecked Sendable {
     let reprojector: XRReprojector
-    /// nil: offscreen (replay without a headset; the reprojector's own device).
     let session: XRSession?
-    /// Offscreen: the eye size, and where to write a PNG of the right eye now and then.
     var offscreenSize = (1350, 1485)
     var shotDirectory: String?
     private var lastShot: UInt64 = 0
     private(set) var shots = 0
     let log: (String) -> Void
     private let lock = NSLock()
-    /// Decoded depths by frame sequence (the newest few).
     private var depths: [UInt64: (XRDepthImage, XRFrameDepth.Flags, UInt64)] = [:]
     private var pendingEnvironment: (XREnvironment, [UInt8])?
     private var shownSequence: UInt64 = 0
@@ -32,7 +21,6 @@ final class XRDepthView: @unchecked Sendable {
     private var insetSerial = -1
     private var cacheCentre: SpatialVector?
     let options: XRViewerOptions
-    // Measurements (xr-depth.md §7).
     private(set) var uploads = 0, withDepth = 0, withoutDepth = 0, rendered = 0, depthBytes = 0, depthMessages = 0, otherFrame = 0
     private var gpu: [Double] = [], cacheGpu: [Double] = [], loop: [Double] = []
     private var translationError: [Double] = [], angleError: [Double] = [], pictureAge: [Double] = [], disocclusion: [Double] = []
@@ -41,33 +29,26 @@ final class XRDepthView: @unchecked Sendable {
     private var source: (pose: SpatialPose, fov: XRFieldOfView, sentAt: UInt64)?
     private var reference: (colour: [UInt8], w: Int, h: Int, depth: XRDepthImage, view: XRViewGeometry)?
     private var newestDepth: XRDepthImage?
-    /// The environment as received (for the calibration) and its calibration.
     private var environmentCube: (XREnvironment, XREnvironmentCalibration.Cube)?
     private var lastEnvironmentSerial: UInt32 = 0
     private var environmentChanged = false
     private var calibrating = false
     private var calibration: XREnvironmentCalibration.Result?
-    /// Surface points of final pictures, for the calibration.
     private var calibrationSamples: [XREnvironmentCalibration.Sample] = []
     private(set) var cacheTaken = 0
-    /// The shown picture's pose was settled (else the cache goes over it).
     private var pictureSettled = true
     private var currentCached = false, currentHasDepth = false
     private var uploadedAt: UInt64 = 0
-    /// This frame's predicted display time, ms ahead of now.
     private var aheadMilliseconds = 0.0
     private(set) var framesUnder = 0
 
-    /// The camera the guest was told: one view for both eyes (mono, synth).
-    /// The head's pose in the stage frame → the pose to send: held while the
-    /// head stays in a band, or the sweep's stop. Remembers it for `settleCurrent`.
     func camera(_ head: SpatialPose, anchor: XRStageAnchor, recentred: Bool) -> SpatialPose {
         let now = viewerNanoseconds()
         hold.bandRadians = options.holdBandDegrees * .pi / 180
         hold.bandMetres = options.holdBandCentimetres / 100
         if recentred {
             hold.reset()
-            sweepAt = now + 1_500_000_000      // the guest's own recentre first (a held crown)
+            sweepAt = now + 1_500_000_000
             sweep = nil
         }
         var pose = hold.apply(head, time: Double(now) / 1e9)
@@ -84,8 +65,6 @@ final class XRDepthView: @unchecked Sendable {
             log("swiftcode-xr-viewer: sweep: \(sweep!.stops.count) stops")
         }
         if var s = sweep {
-            // The next stop once this one's picture is in the cache, or after its time. Out of time with a
-            // picture of this stop's pose: that picture goes in, nearly right beats the cube's blur.
             if finalAtStop || now &- stopStart > UInt64(options.sweepStopMs) * 1_000_000 {
                 if !finalAtStop {
                     if uploadedAt >= stopStart + 300_000_000 { forceFinal = true; return anchor.toStage(commanded ?? anchor.fromStage(pose)) }
@@ -118,15 +97,11 @@ final class XRDepthView: @unchecked Sendable {
         return pose
     }
 
-    /// The newest picture is under the cache now (its pose is not trusted yet).
     private(set) var pictureHidden = false
-    /// It is on top before it is final: the camera has rested long enough for the guest to have nearly converged (§13.5).
     private var onTop = false, retagged = false
     private var cameraSpeed = XRCameraSpeed()
-    /// A sweep is running or still to come.
     var sweeping: Bool { sweep != nil || sweepAt != nil || (options.sweep && options.cacheFaceSize > 0 && !sweptOnce) }
 
-    /// How far along a ray (base space) the guest's newest depth has a surface: where a gaze dot belongs.
     func surfaceDistance(origin: SpatialVector, direction: SpatialVector) -> Double? {
         guard let src = source, let d = lock.withLock({ newestDepth }) else { return nil }
         let inverse = src.pose.rotation.conjugate
@@ -142,18 +117,8 @@ final class XRDepthView: @unchecked Sendable {
         }
     }
 
-    /// The shown picture is **final** when it shows the camera's pose exactly
-    /// (xr-depth.md §5.3): it arrived `holdMs` or more after the camera came to
-    /// rest (the guest's smoothing has converged), or the camera is at rest and
-    /// no newer picture has come for `settleWindowMs` (the guest stops rendering
-    /// once it has converged). The tag of a turn's last picture often names a
-    /// pose of the turn; a final picture is re-tagged with the camera's pose and
-    /// goes on top and into the cache. Until then the cache is drawn over it.
-    /// A mistaken final picture (a stall of the guest) is overwritten by the next.
     private func settleCurrent(_ viewer: XRViewer, anchor: XRStageAnchor) {
         let now = viewerNanoseconds()
-        // Not final yet, but the camera has rested for this long: on top, at the camera's pose. Only the
-        // cache waits for a final picture; a hover or a window opening is seen now (xr-viewer.md §13.5).
         if !pictureSettled, let camera = commanded, let src = source, uploadedAt > 0 {
             let oneView = shownView == .mono && !options.stereo
             if XRFreshOnTopRule(afterNanoseconds: UInt64(options.freshTopMs) * 1_000_000).isOnTop(now: now, commandedAt: commandedAt, oneView: oneView, sweeping: sweep != nil) {
@@ -163,7 +128,6 @@ final class XRDepthView: @unchecked Sendable {
                     reprojector.retag(XRViewGeometry(pose: camera, fov: src.fov, near: reprojector.source?.near ?? 0.1))
                 }
             } else {
-                // Still moving: on top while slowly, at its tag's pose.
                 onTop = oneView && sweep == nil && cameraSpeed.isSlow(limitDegrees: options.freshTopSpeed)
             }
         } else if !pictureSettled {
@@ -173,7 +137,7 @@ final class XRDepthView: @unchecked Sendable {
             let camera = options.stereo ? nil : commanded
             let settled: Bool
             if shownView != .mono {
-                settled = true       // the server shows an eye only once settled, and its tag names it.
+                settled = true
             } else if camera != nil {
                 settled = forceFinal || XRFinalPictureRule(holdNanoseconds: UInt64(options.holdMs) * 1_000_000, settleNanoseconds: UInt64(options.settleWindowMs) * 1_000_000)
                     .isFinal(uploadedAt: uploadedAt, commandedAt: commandedAt, now: now, finalFor: finalFor, sweeping: sweep != nil)
@@ -196,24 +160,19 @@ final class XRDepthView: @unchecked Sendable {
                 dumpFinal(viewer, anchor: anchor, pose: camera ?? src.pose, fov: src.fov)
             }
         }
-        // Into the cache at most every 250 ms (a playing animation brings a picture a frame).
         if pictureSettled, !currentCached, currentHasDepth, reprojector.cacheFaceSize > 0, now &- lastCacheAt > 250_000_000 {
             lockQueue { if (try? reprojector.updateCache()) != nil { cacheTaken += 1 } }
             currentCached = true
             lastCacheAt = now
         }
     }
-    /// For final pictures: how far their tag was from the pose they show (degrees, mm).
     private var tagErrors: [(Double, Double)] = []
     private var hold = XRCameraHold()
     private var commanded: SpatialPose?
     private var commandedAt: UInt64 = 0
-    /// The camera command that has a final picture (0: none yet).
     private var finalFor: UInt64 = 0
-    /// A sweep stop ran out of time: its newest picture counts as final.
     private var forceFinal = false
     private var lastCacheAt: UInt64 = 0
-    /// The sweep (--sweep): when it starts, and its progress.
     private var sweepAt: UInt64?
     private var sweep: XRSweep?
     private var sweepPosition = SpatialVector.zero
@@ -222,8 +181,6 @@ final class XRDepthView: @unchecked Sendable {
     private var sweptOnce = false
     private var sweepMissed = 0
 
-    /// `--reproject-shots`: each final picture beside its raw depth and pose
-    /// in the stage frame, for checks of the depth's scale (xr-depth.md §5.5).
     private func dumpFinal(_ viewer: XRViewer, anchor: XRStageAnchor, pose: SpatialPose, fov: XRFieldOfView) {
         guard let dir = options.reprojectShots, let (d, _, _) = lock.withLock({ depths[shownSequence] }), let canvas = viewer.client.canvas(for: shownView),
               dumpedFor != commandedAt, viewerNanoseconds() >= commandedAt + 1_000_000_000 else { return }
@@ -256,18 +213,14 @@ final class XRDepthView: @unchecked Sendable {
             reprojector = try XRReprojector(vulkan: nil)
         }
         reprojector.settings = XRWarpSettings(gridStep: options.depthGridStep, edgeRatio: 1.08, mode: .background)
-        // The exposure measured on the room (xr-depth.md §8), until a sweep's calibration.
         reprojector.environmentGain = options.environmentGain ?? 0.62
         self.session = session
         self.options = options
         self.log = log
     }
 
-    // MARK: Stream (connection thread)
-
     func depthArrived(_ d: XRFrameDepth) {
         guard var image = try? XRDepthImage(d) else { return }
-        // An older server's low bit is only depth: it marks nothing (xr-depth.md §3.1).
         if !d.flags.contains(.windowsMarked) { image.samples = image.samples.map { $0 == 0 ? 0 : max(2, $0 & 0xFFFE) } }
         lock.withLock {
             depths[d.frameSequence] = (image, d.flags, viewerNanoseconds())
@@ -303,18 +256,12 @@ final class XRDepthView: @unchecked Sendable {
         log("swiftcode-xr-viewer: environment \(e.serial): \(e.faceSize)² per face, level \(e.level)")
     }
 
-    // MARK: Headset loop
-
-    /// Uploads the newest picture (with its depth, its inset) when there is
-    /// one, then draws both eyes. Returns the poses and fields of view the
-    /// projection layer must carry, or nil when nothing could be drawn.
     func frame(_ viewer: XRViewer, _ frame: XRFrameState, anchor: XRStageAnchor) -> (poses: [SpatialPose], fovs: [XRFieldOfView])? {
         guard let s = frame.sample, frame.fov.count == 2 else { return nil }
         let ahead = frame.displayTime > 0 && session != nil ? Double(max(0, frame.displayTime - session!.xrNow)) / 1e6 : 0
         return draw(viewer, eyes: [s.leftEye, s.rightEye], fovs: frame.fov, anchor: anchor, ahead: ahead)
     }
 
-    /// The same without a headset (replay): offscreen eyes of `offscreenSize`.
     func offscreen(_ viewer: XRViewer, _ s: XRTrackingSample, fovs: [XRFieldOfView], anchor: XRStageAnchor) {
         _ = draw(viewer, eyes: [s.leftEye, s.rightEye], fovs: fovs, anchor: anchor, ahead: 0)
     }
@@ -325,7 +272,6 @@ final class XRDepthView: @unchecked Sendable {
         aheadMilliseconds = ahead
         let yaw = SpatialQuaternion(axis: SpatialVector(0, 1, 0), radians: anchor.yaw)
         if cacheCentre == nil || cacheCentre! != anchor.origin {
-            // The cache is kept in the base space about the anchor (the stage's origin).
             if reprojector.cacheFaceSize != options.cacheFaceSize {
                 try? reprojector.enableCache(faceSize: options.cacheFaceSize, centre: anchor.origin)
             } else {
@@ -333,13 +279,11 @@ final class XRDepthView: @unchecked Sendable {
             }
             cacheCentre = anchor.origin
             cacheTaken = 0
-            // The stage moved: the probe's place is found again by the next sweep.
             lockQueue { try? reprojector.setEnvironmentShape(centre: nil, depth: [], n: 0) }
             if let (e, _) = lock.withLock({ environmentCube }) { reprojector.setEnvironmentOrientation((yaw * environmentTurn(e)).normalized) }
             lock.withLock { calibrationSamples = [] }
         }
         if lock.withLock({ defer { environmentChanged = false }; return environmentChanged }) {
-            // A new room: what the cache holds is gone, and the sweep fills it again.
             lockQueue {
                 try? reprojector.clearCache()
                 try? reprojector.setEnvironmentShape(centre: nil, depth: [], n: 0)
@@ -354,7 +298,6 @@ final class XRDepthView: @unchecked Sendable {
                                                 orientation: (yaw * environmentTurn(e)).normalized, mirrored: !e.orientationKnown)
             }
         }
-        // A calibration that finished: the cube on the room's box, from its probe, at its exposure.
         if let c = lock.withLock({ () -> XREnvironmentCalibration.Result? in defer { calibration = nil }; return calibration }) {
             if options.environmentGain == nil { reprojector.environmentGain = min(2, max(0.2, c.gain)) }
             if c.score > 0.45, options.environmentYaw == nil {
@@ -366,14 +309,12 @@ final class XRDepthView: @unchecked Sendable {
         uploadNewest(viewer, anchor: anchor)
         settleCurrent(viewer, anchor: anchor)
         pictureHidden = !pictureSettled && cacheTaken > 0 && !onTop
-        // Both eyes at their current poses (the views of this frame's predicted display time).
         var ok = true
         for eye in 0..<2 {
             var image: UInt64 = 0, w = Int32(offscreenSize.0), h = Int32(offscreenSize.1), format: Int64 = 0
             if let session { guard yxr_acquire_render(session.handle, Int32(eye), &image, &w, &h, &format) == 0 else { ok = false; break } }
             lockQueue {
                 do {
-                    // During a sweep only final pictures show: the others name their place only roughly.
                     try reprojector.render(eye: eyes[eye], fov: fovs[eye], target: .init(image: image, format: format, width: Int(w), height: Int(h)),
                                            picture: sweep == nil || pictureSettled, freshUnder: pictureHidden)
                 } catch {
@@ -391,7 +332,6 @@ final class XRDepthView: @unchecked Sendable {
                         shots += 1
                         FileManager.default.createFile(atPath: "\(dir)/eye-\(String(format: "%03d", shots)).png", contents: Data(png))
                     }
-                    // Once, the picture as decoded, for comparing the encodings (RGBA rows and a PNG).
                     if shots == 3, let canvas = viewer.client.canvas(for: shownView) {
                         let rgba = canvas.rgba()
                         FileManager.default.createFile(atPath: "\(dir)/picture.rgba", contents: rgba.withUnsafeBytes { Data($0) })
@@ -399,7 +339,6 @@ final class XRDepthView: @unchecked Sendable {
                             FileManager.default.createFile(atPath: "\(dir)/picture.png", contents: Data(png))
                         }
                     }
-                    // The newest depth beside it: grey = 255 at 0.5 m, falling as 0.5 / distance (black: nothing).
                     if let d = lock.withLock({ newestDepth }) {
                         var rgba = [UInt8](repeating: 255, count: d.width * d.height * 4)
                         var lo = Float.infinity, hi: Float = 0
@@ -420,7 +359,6 @@ final class XRDepthView: @unchecked Sendable {
         guard ok else { return nil }
         rendered += 1
         if let src = source {
-            // What the re-projection makes up for: the picture's viewpoint against the eye's.
             let base = SpatialPose(position: (eyes[0].position + eyes[1].position) * 0.5, rotation: eyes[0].rotation)
             let q = (src.pose.rotation.conjugate * base.rotation).normalized
             lock.withLock {
@@ -430,10 +368,8 @@ final class XRDepthView: @unchecked Sendable {
                 if pictureAge.count > 200_000 { pictureAge.removeFirst(100_000) }
             }
         }
-        // The disoccluded area, from the CPU reference at a small size, twice a second.
         if viewerNanoseconds() &- lastDisocclusion > 500_000_000, let r = reference, let src = source {
             lastDisocclusion = viewerNanoseconds()
-            // The right eye against the picture's own view: what stereo synthesis uncovers.
             let dst = XRViewGeometry(pose: eyes[1], fov: fovs[1])
             _ = src
             DispatchQueue.global(qos: .utility).async { [weak self] in
@@ -450,21 +386,18 @@ final class XRDepthView: @unchecked Sendable {
         return (eyes, fovs)
     }
 
-    /// The cube's frame → the stage: the server's, or `--env-yaw` after the mirror.
     private func environmentTurn(_ e: XREnvironment) -> SpatialQuaternion {
         if e.orientationKnown { return e.orientation }
         if let y = options.environmentYaw { return SpatialQuaternion(axis: SpatialVector(0, 1, 0), radians: y * .pi / 180) }
         return .identity
     }
 
-    /// Keeps surface points of a final picture (stage frame) for the calibration.
     private func collectSamples(_ viewer: XRViewer, anchor: XRStageAnchor, pose: SpatialPose, fov: XRFieldOfView) {
         guard !options.stereo, lock.withLock({ calibrationSamples.count < 40_000 && environmentCube != nil }),
               let (d, _, _) = lock.withLock({ depths[shownSequence] }), let canvas = viewer.client.canvas(for: shownView) else { return }
         let stage = anchor.toStage(pose), t = fov.tangents
         var out: [XREnvironmentCalibration.Sample] = []
         let columns = 48, rows = max(16, columns * canvas.height / max(1, canvas.width))
-        // Point samples, whatever the canvas holds: no whole picture is converted on the headset's loop.
         var points: [(x: Int, y: Int)] = [], places: [(u: Double, v: Double, q: UInt16)] = []
         for j in 0..<rows {
             for i in 0..<columns {
@@ -484,7 +417,6 @@ final class XRDepthView: @unchecked Sendable {
         lock.withLock { calibrationSamples += out }
     }
 
-    /// After a sweep: where the cube was taken, its exposure and the room's box.
     private func startCalibration() {
         guard options.environment, options.environmentYaw == nil,
               let (cube, samples) = lock.withLock({ () -> (XREnvironmentCalibration.Cube, [XREnvironmentCalibration.Sample])? in
@@ -515,13 +447,10 @@ final class XRDepthView: @unchecked Sendable {
         yxr_queue_unlock(session.handle)
     }
 
-    /// The newest picture of any view, once its depth is here (or 40 ms
-    /// after it arrived without one: an older server, or a lost message).
     private func uploadNewest(_ viewer: XRViewer, anchor: XRStageAnchor) {
         let views: [XRView] = [.mono, .left, .right]
         guard let (v, entry) = views.compactMap({ v in viewer.board.get(v).map { (v, $0) } }).max(by: { $0.1.sequence < $1.1.sequence }) else { return }
         if entry.sequence == shownSequence {
-            // The gaze moved and the picture did not: a new inset of the same picture.
             if let inset = viewer.inset(v), inset.serial != insetSerial, inset.inset.frameSequence == entry.sequence {
                 insetSerial = inset.serial
                 let i = inset.inset
@@ -535,7 +464,6 @@ final class XRDepthView: @unchecked Sendable {
             return
         }
         guard let canvas = viewer.client.canvas(for: v) else { return }
-        // A picture whose frame view was lost (media over UDP) names no pose: skip it, the next will.
         if entry.tag == nil, viewer.xrServer, source != nil { shownSequence = entry.sequence; return }
         let depth = lock.withLock { depths[entry.sequence] }
         if depth == nil {
@@ -575,7 +503,6 @@ final class XRDepthView: @unchecked Sendable {
                 } else if viewer.inset(v)?.inset.frameSequence != entry.sequence {
                     try reprojector.setInset(bgra: nil, width: 0, height: 0, bytesPerRow: 0, rect: (0, 0, 0, 0), fullWidth: 0, fullHeight: 0)
                 }
-                // The cache takes a picture once it is final (§5.3): see `settleCurrent`.
                 pictureSettled = false
                 onTop = false
                 retagged = false
@@ -594,7 +521,6 @@ final class XRDepthView: @unchecked Sendable {
         source = (pose, fov, entry.tag.flatMap { viewer.poseSent($0.poseSequence) } ?? 0)
         uploadedAt = viewerNanoseconds()
         if let sentAt = source?.sentAt, sentAt > 0 { lock.withLock { pictureAge.append(Double(uploadedAt &- sentAt) / 1e6) } }
-        // The stages of this picture (xr-viewer.md §6): the summary's "ours" and --measure.
         var sample = XRLatencySample(received: entry.receivedAt, decoded: entry.decodedAt, uploaded: uploadedAt,
                                      display: uploadedAt + UInt64(aheadMilliseconds * 1e6))
         sample.poseSent = source?.sentAt ?? 0
@@ -605,7 +531,6 @@ final class XRDepthView: @unchecked Sendable {
         }
         viewer.addLatency(sample)
         viewer.pictureShown(entry, sample)
-        // For the disocclusion measurement only the depth matters: the colour is one grey texel.
         if let (d, _, _) = depth, uploads % 30 == 1 { reference = ([128, 128, 128, 255], 1, 1, d, view) }
     }
 

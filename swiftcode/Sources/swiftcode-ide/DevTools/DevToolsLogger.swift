@@ -3,14 +3,6 @@ import Foundation
 import os
 #endif
 
-/// Cross-platform logging shim for the ported developer tools.
-///
-/// Legacy used `os.Logger` throughout (`import os.log`), which is
-/// Darwin-only. SwiftCode targets macOS and Linux, and no SwiftCode file uses
-/// `import os`. On Apple platforms this forwards to `os.Logger` with the
-/// same subsystem/category discipline; elsewhere it writes to stderr so
-/// diagnostics are never silently dropped. (Same pattern as
-/// `SwiftCodeSDK/Runtime/Diagnostics/SDKOSLog.swift`.)
 struct DevToolsLogger {
     private let subsystem: String
     private let category: String

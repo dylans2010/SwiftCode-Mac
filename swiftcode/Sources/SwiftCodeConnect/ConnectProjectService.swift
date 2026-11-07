@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Local Building/Connectivity/ConnectProjectService.swift
-// Adapted for SwiftCode: ProjectSessionStore/ProjectRegistryManager replaced by the ConnectWorkspaceProvider seam.
-
 import Foundation
 import os.log
 

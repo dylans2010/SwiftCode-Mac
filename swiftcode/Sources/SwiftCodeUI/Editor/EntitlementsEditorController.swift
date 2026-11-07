@@ -1,12 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The `.entitlements` editor for the AppKit IDE: the capability catalog
-/// as a table (name, key, on/off checkbox), the selected capability's
-/// payload editor below it, and the validation findings at the bottom.
-/// Every edit goes through `EntitlementsEditorModel` and is written back
-/// as a sorted XML plist. The Linux IDE renders the same model with
-/// `EntitlementsEditorView` (swiftcode-ide).
 @MainActor
 public final class EntitlementsEditorController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     public let url: URL
@@ -23,7 +17,6 @@ public final class EntitlementsEditorController: NSViewController, NSTableViewDa
         super.init(nibName: nil, bundle: nil)
     }
 
-    /// An in-memory editor (tests).
     public init(model: EntitlementsEditorModel, url: URL) {
         self.url = url
         self.model = model
@@ -32,8 +25,6 @@ public final class EntitlementsEditorController: NSViewController, NSTableViewDa
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    // MARK: - View
 
     public override func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 560))
@@ -109,13 +100,10 @@ public final class EntitlementsEditorController: NSViewController, NSTableViewDa
         statusLabel.stringValue = "\(model.entitlements.count) active — \(model.sandboxIsOn ? "Sandbox on" : "Sandbox off")"
     }
 
-    /// Writes the file as a sorted XML plist.
     func commit() {
         do { try model.save() } catch { presentError(error) }
         reload()
     }
-
-    // MARK: - Table
 
     private var visibleDefinitions: [CapabilityDefinition] {
         EntitlementCapabilityCatalog.definitions(in: model.selectedSection)
@@ -169,8 +157,6 @@ public final class EntitlementsEditorController: NSViewController, NSTableViewDa
         reload()
     }
 
-    // MARK: - Actions (also used by tests)
-
     @objc private func saveClicked() { commit() }
 
     @objc private func revertClicked() {
@@ -192,12 +178,10 @@ public final class EntitlementsEditorController: NSViewController, NSTableViewDa
         statusLabel.stringValue = "\(model.entitlements.count) active — \(issues.filter { $0.severity == .error }.count) errors, \(issues.filter { $0.severity == .warning }.count) warnings"
     }
 
-    /// Applies one of Legacy's four capability presets.
     public func applyPreset(_ preset: EntitlementsPreset) {
         model.applyPreset(preset)
         commit()
     }
 
-    /// The raw XML text of the current dictionary (Copy Raw XML).
     public var xmlText: String { model.xmlText() }
 }

@@ -1,8 +1,3 @@
-//
-//  AssistProvisioningProfileReaderTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistProvisioningProfileReaderTool: AssistTool {

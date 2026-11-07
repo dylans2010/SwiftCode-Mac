@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Diagnostics: structured log, exportable as plain text
-
 public struct ExtensionDiagnosticsView: View {
     @StateObject private var viewModel = ExtV2DiagnosticsViewModel()
     @State private var copied = false

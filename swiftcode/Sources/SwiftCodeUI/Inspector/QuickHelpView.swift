@@ -1,15 +1,9 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Quick Help inspector body (`specs/ide/reference-ui-4.md` §7): title
-/// and summary, a wrapped declaration box, the file link, Parameters,
-/// Return Value, Throws, Discussion, boxed callouts, then "Open in
-/// Developer Documentation".
 @MainActor
 public enum QuickHelpView {
-    /// Opens the defining file (set by the window).
     public static var onOpenFile: ((String) -> Void)?
-    /// "Open in Developer Documentation" (set by the window).
     public static var onOpenDocumentation: ((String) -> Void)?
 
     public static func make(_ doc: QuickHelpDocument, width: CGFloat = 230) -> NSStackView {
@@ -97,7 +91,6 @@ public enum QuickHelpView {
     }
 }
 
-/// A target that runs a closure (keeps button wiring local).
 final class ClosureTarget: NSObject {
     nonisolated(unsafe) static var key = 0
     let body: () -> Void

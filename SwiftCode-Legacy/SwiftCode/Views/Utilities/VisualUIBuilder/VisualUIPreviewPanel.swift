@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Preview panel displaying real-time rendering using the modernized PreviewEngine and PreviewHost.
-/// Visual UI Builder acts as a pure client of the Preview Engine, generating SwiftUI source code and delegating execution.
 public struct VisualUIPreviewPanel: View {
     let document: VisualUIDocument
     let settings: VisualUISettings
@@ -46,7 +44,6 @@ public struct VisualUIPreviewPanel: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(NSColor.windowBackgroundColor))
             } else {
-                // Preview sub-toolbar
                 HStack {
                     Text("LIVE VIEWPORT")
                         .font(.caption.bold())
@@ -111,7 +108,6 @@ public struct VisualUIPreviewPanel: View {
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
-                            // Premium structured diagnostics panel with Retry support
                             PreviewDiagnosticsPanel(session: PreviewManager.shared.activeSession) {
                                 Task {
                                     if let activeDoc = DocumentCoordinator.shared.activeDocument {
@@ -126,7 +122,6 @@ public struct VisualUIPreviewPanel: View {
                             }
                         }
                     } else {
-                        // Regular / Custom Artboard View
                         if let activeID = document.scene.activeArtboardID,
                            let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }) {
                             ScrollView([.horizontal, .vertical]) {
@@ -205,8 +200,6 @@ public struct VisualUIPreviewPanel: View {
         }
     }
 
-
-
     private func compileArtboardSource(_ artboard: VisualUIArtboard) async {
         guard isProcessStarted else { return }
         guard let customSource = artboard.customSwiftUISource, !customSource.isEmpty else { return }
@@ -242,8 +235,6 @@ public struct VisualUIPreviewPanel: View {
     }
 }
 
-// MARK: - Premium Diagnostics UI Panel
-
 @MainActor
 struct PreviewDiagnosticsPanel: View {
     let session: PreviewSession?
@@ -253,7 +244,6 @@ struct PreviewDiagnosticsPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header
             HStack {
                 Label("Preview Build Pipeline Error", systemImage: "xmark.octagon.fill")
                     .font(.title2.bold())
@@ -270,7 +260,6 @@ struct PreviewDiagnosticsPanel: View {
 
             Divider()
 
-            // Session Environment Grid
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                 GridRow {
                     HStack {
@@ -307,7 +296,6 @@ struct PreviewDiagnosticsPanel: View {
             .background(Color(NSColor.windowBackgroundColor))
             .cornerRadius(8)
 
-            // Structured Errors / Compiler Diagnostics
             if let diagnostics = session?.diagnostics, !diagnostics.isEmpty {
                 Text("Structured Errors")
                     .font(.headline)
@@ -378,7 +366,6 @@ struct PreviewDiagnosticsPanel: View {
                 .frame(maxHeight: 250)
             }
 
-            // Raw logs & actions
             HStack {
                 Button(showingRawLogs ? "Hide Raw Logs" : "Show Raw Logs") {
                     showingRawLogs.toggle()

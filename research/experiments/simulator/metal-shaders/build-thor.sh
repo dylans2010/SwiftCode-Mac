@@ -1,7 +1,4 @@
 #!/bin/sh
-# build-thor.sh: build the R8 tools on the Thor (Ubuntu 24.04 aarch64) with
-# the system llvm-18-dev, spirv-tools, libvulkan-dev and glslang-tools.
-# Usage: build-thor.sh SRC_DIR OUT_DIR   (no sudo, nothing installed)
 set -eu
 SRC=$1; OUT=$2
 mkdir -p "$OUT"

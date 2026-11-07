@@ -1,10 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The breakpoint editor (double-click or ⌘-click a breakpoint): condition,
-/// ignore count, one action (log message or debugger command), and
-/// "Automatically continue after evaluating actions". See
-/// `specs/ide/debug.md` §Breakpoint editing.
 @MainActor
 public final class BreakpointEditorController: NSViewController {
     public private(set) var breakpoint: BreakpointStore.Breakpoint
@@ -40,7 +36,6 @@ public final class BreakpointEditorController: NSViewController {
         switch breakpoint.actions.first {
         case .log(let m)?: actionPopUp.selectItem(at: 1); actionField.stringValue = m
         case .debuggerCommand(let c)?: actionPopUp.selectItem(at: 2); actionField.stringValue = c
-        // A sound (set in the Linux IDE's editor) is kept as it is.
         case .sound?, nil: actionPopUp.selectItem(at: 0)
         }
         continueCheckbox.state = breakpoint.autoContinue ? .on : .off
@@ -90,7 +85,6 @@ public final class BreakpointEditorController: NSViewController {
         actionField.placeholderString = actionPopUp.indexOfSelectedItem == 2 ? "lldb command" : "Message (use {expression} to show a value)"
     }
 
-    /// Reads the controls into the breakpoint and reports it.
     @objc public func changed() {
         breakpoint.condition = conditionField.stringValue.trimmingCharacters(in: .whitespaces)
         breakpoint.ignoreCount = max(0, Int(ignoreField.stringValue) ?? 0)

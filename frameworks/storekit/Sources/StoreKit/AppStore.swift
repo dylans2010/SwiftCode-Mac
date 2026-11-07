@@ -1,22 +1,17 @@
-// `AppStore`, `AppTransaction`, `Storefront` (formats.md §2.4; simulator-baseline.md §1–§2).
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
 import StoreKitSigning
 
 public enum AppStore {
-    /// Payments are always possible in the local store.
     public static var canMakePayments: Bool { true }
 
-    /// The vendor identifier used in `deviceVerification`.
     public static var deviceVerificationID: UUID? { SwiftCodeStoreKit.shared.vendorID }
 
-    /// `AppStore.sync()`: succeeds at once unless an error is simulated (testing-session.md §9).
     public static func sync() async throws {
         do { try SwiftCodeStoreKit.shared.store.sync() } catch { throw StoreKitError(error.kind) }
     }
 
-    /// The environment of a signed value.
     public struct Environment: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -35,7 +30,6 @@ public enum AppStore {
     }
 }
 
-/// The signed app transaction (formats.md §2.4).
 public struct AppTransaction: Hashable, Sendable, SwiftCodeSignedValue {
     let jws: String
     let payload: JSONValue
@@ -65,8 +59,6 @@ public struct AppTransaction: Hashable, Sendable, SwiftCodeSignedValue {
     public var deviceVerification: Data { string("deviceVerification").flatMap { Data(base64Encoded: $0) } ?? Data() }
     public var deviceVerificationNonce: UUID { string("deviceVerificationNonce").flatMap(UUID.init(uuidString:)) ?? UUID() }
 
-    /// `AppTransaction.shared`: fails with `systemError` (no account) until a
-    /// configuration is installed (formats.md §2.4).
     public static var shared: VerificationResult<AppTransaction> {
         get async throws {
             let rt = SwiftCodeStoreKit.shared
@@ -76,24 +68,18 @@ public struct AppTransaction: Hashable, Sendable, SwiftCodeSignedValue {
         }
     }
 
-    /// `AppTransaction.refresh()`.
     public static func refresh() async throws -> VerificationResult<AppTransaction> { try await shared }
 
     public static func == (a: AppTransaction, b: AppTransaction) -> Bool { a.jws == b.jws }
     public func hash(into h: inout Hasher) { h.combine(jws) }
 }
 
-/// The App Store storefront.
 public struct Storefront: Identifiable, Hashable, Sendable {
     public typealias ID = String
-    /// ISO 3166-1 alpha-3 (`USA`).
     public let countryCode: String
-    /// The numeric storefront id (`143441`).
     public let id: String
-    /// The storefront's currency code (`USD`).
     public let currencyCode: String?
 
-    /// The storefront in force (the configuration's, or the session's override).
     public static var current: Storefront? {
         get async {
             let s = SwiftCodeStoreKit.shared.store.settings.storefront
@@ -103,9 +89,6 @@ public struct Storefront: Identifiable, Hashable, Sendable {
 }
 
 extension Transaction {
-    /// SwiftCode extension: the refund request without a sheet (simulator-baseline.md §6:
-    /// the sheet's two choices are "Developer Issue" and "Other"). Completing it
-    /// refunds the transaction and the app receives it through `Transaction.updates`.
     public func swiftcodeRequestRefund(developerIssue: Bool = false) async throws -> RefundRequestStatus {
         let rt = SwiftCodeStoreKit.shared
         do { try rt.store.checkSimulatedError(for: .refundRequest) } catch {

@@ -27,7 +27,6 @@ struct AdvancedPlugin {
 
     private var availableTools: [any AgentTool] { Array(ListTools.shared.tools.values) }
 
-    // Desktop Tab Selection
     enum CreateTab: String, CaseIterable, Identifiable {
         case metadata = "Metadata"
         case capabilities = "Capabilities"
@@ -50,7 +49,6 @@ struct AdvancedPlugin {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Compact Segmented Picker for fast navigation without tall scrolling
                 Picker("Section", selection: $activeTab) {
                     ForEach(CreateTab.allCases) { tab in
                         Label(tab.rawValue, systemImage: tab.icon).tag(tab)
@@ -120,7 +118,7 @@ struct AdvancedPlugin {
                 }
             }
         }
-        .frame(width: 700, height: 490) // Medium-sized desktop dialog frame
+        .frame(width: 700, height: 490)
     }
 
     private var metadataSection: some View {

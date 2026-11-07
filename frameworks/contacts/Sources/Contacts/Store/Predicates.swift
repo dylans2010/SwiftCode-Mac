@@ -1,10 +1,5 @@
-// Predicates and their matching rules (interface.md §4.2, design.md §4).
-
 import Foundation
 
-/// The predicates built by the Contacts constructors. They are NSPredicate
-/// subclasses so that they can be passed wherever an NSPredicate is
-/// expected; the store recognizes them and matches with its own rules.
 final class CNStorePredicate: NSPredicate {
     enum Kind {
         case name(String)
@@ -33,8 +28,6 @@ final class CNStorePredicate: NSPredicate {
 
     required init?(coder: NSCoder) { nil }
 
-    /// Evaluates name, email, phone and identifier predicates on a contact
-    /// object (group and container predicates need the store).
     override func evaluate(with object: Any?) -> Bool {
         guard let c = object as? CNContact else { return false }
         return Matching.matches(kind, identifier: c.identifier, data: c.data, countryCode: CNContactStore.swiftcodeDefaultConfiguration.countryCode)
@@ -88,19 +81,16 @@ enum Matching {
         s.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
     }
 
-    /// Words of a string: runs of letters and digits, folded.
     static func words(_ s: String) -> [String] {
         fold(s).split { !($0.isLetter || $0.isNumber) }.map(String.init)
     }
 
-    /// The fields searched by name (design.md §4; job title per §4.2).
     static func nameFields(_ d: ContactData) -> [String] {
         [d.givenName, d.middleName, d.familyName, d.nickname, d.organizationName, d.jobTitle,
          d.phoneticGivenName, d.phoneticMiddleName, d.phoneticFamilyName, d.phoneticOrganizationName,
          d.familyName + d.givenName, d.phoneticFamilyName + d.phoneticGivenName]
     }
 
-    /// Every word of the query must be a prefix of some word of the fields.
     static func matchesName(_ query: String, _ d: ContactData) -> Bool {
         let q = words(query)
         guard !q.isEmpty else { return false }
@@ -113,7 +103,6 @@ enum Matching {
         return d.emailAddresses.contains { String(describing: $0.value).trimmingCharacters(in: .whitespaces).lowercased() == q }
     }
 
-    /// Country calling codes by region (a small SwiftCode table).
     static let callingCodes: [String: String] = [
         "us": "1", "ca": "1", "gb": "44", "de": "49", "fr": "33", "jp": "81", "cn": "86", "kr": "82",
         "in": "91", "au": "61", "br": "55", "mx": "52", "es": "34", "it": "39", "nl": "31", "ch": "41",

@@ -6,12 +6,10 @@ public struct SkillsParser: Sendable {
     public func parse(content: String, url: URL? = nil) throws -> Skill {
         let lines = content.components(separatedBy: .newlines)
 
-        // Extract Name from first H1
         let name = lines.first(where: { $0.hasPrefix("# ") })?
             .dropFirst(2)
             .trimmingCharacters(in: .whitespaces) ?? "Unknown Skill"
 
-        // Extract Description/Summary from first non-empty line after title
         var summary = "No description"
         if let titleIndex = lines.firstIndex(where: { $0.hasPrefix("# ") }) {
             for i in (titleIndex + 1)..<lines.count {
@@ -23,7 +21,6 @@ public struct SkillsParser: Sendable {
             }
         }
 
-        // Extract Metadata (YAML-like block at top if exists)
         var metadata: [String: String] = [:]
         if content.hasPrefix("---") {
             let parts = content.components(separatedBy: "---")
@@ -40,7 +37,6 @@ public struct SkillsParser: Sendable {
             }
         }
 
-        // Use a consistent UUID if provided in metadata, otherwise generate new
         let id = metadata["id"].flatMap { UUID(uuidString: $0) } ?? UUID()
 
         let author = metadata["author"] ?? "SwiftCode"

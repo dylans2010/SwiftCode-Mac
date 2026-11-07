@@ -7,24 +7,6 @@ import SwiftCodePreviews
 import OVPlatform
 #endif
 
-// SWIFTCODE_IDE_PREVIEWS=<prefix>  the preview canvas's walk (B3-PREVIEWS,
-//                              previews.md §Linux "The Linux canvas") with
-//                              the pointer and the keyboard: open
-//                              SWIFTCODE_IDE_PREVIEW_FILE (default: the first
-//                              Swift file with a #Preview), the paused
-//                              canvas, Resume, the first picture; then
-//                              SWIFTCODE_IDE_PREVIEW_EDITS (default 5) edits typed
-//                              into the file's first string literal, each
-//                              timed from the keystroke to the new picture
-//                              ("preview edit N: X s"); a compile error (the
-//                              banner over the last picture) and its fix;
-//                              the second tab, Grid, the Color Scheme and
-//                              Dynamic Type variants, an iPad, Selectable's
-//                              reveal; with SWIFTCODE_IDE_PREVIEW_UIKIT_FILE that
-//                              file (UIKit previews: needs a simulator host,
-//                              or the simulator's picture). Writes
-//                              <prefix>-<state>.png after each step and quits.
-
 #if os(Linux)
 @MainActor
 enum PreviewsDriver {
@@ -53,7 +35,6 @@ enum PreviewsDriver {
         OpenViewsAutomation.terminate()
     }
 
-    /// Waits until an update that started after `count` timings finishes (or fails).
     static func settled(_ c: PreviewCanvasShellModel, after count: Int, seconds: Double) async -> Bool {
         await wait(seconds) { (c.timings.count > count || c.banner != nil || { if case .failed = c.state { return true }; return false }()) && !c.isUpdating }
     }
@@ -73,7 +54,6 @@ enum PreviewsDriver {
         await ShellDriver.pause(1.0)
         await shot(prefix, "paused", c)
 
-        // Resume: the first picture (the first run builds the host: minutes).
         await ShellDriver.click("canvas resume")
         let t0 = Date()
         _ = await wait(2, { if case .starting = c.state { return true }; return false })
@@ -83,7 +63,6 @@ enum PreviewsDriver {
         await shot(prefix, "rendered", c)
         guard first, case .rendered = c.state else { return }
 
-        // Edits typed into the first string literal, timed to the new picture.
         let edits = Int(env["SWIFTCODE_IDE_PREVIEW_EDITS"] ?? "") ?? 5
         var times: [Double] = []
         if let source = ShellDriver.frame("source") {
@@ -111,10 +90,8 @@ enum PreviewsDriver {
             say(String(format: "preview edits: median %.2f s, min %.2f, max %.2f (n=%d)", sorted[sorted.count / 2], sorted.first!, sorted.last!, sorted.count))
         }
 
-        // SWIFTCODE_IDE_PREVIEW_QUICK: the first picture and the edits only (a slow path, such as UIKit previews).
         if env["SWIFTCODE_IDE_PREVIEW_QUICK"] != nil { say("done: \(state(c))"); return }
 
-        // A compile error: the banner over the last picture, then the fix.
         if let editor = w.editor, let source = ShellDriver.frame("source") {
             _ = source
             let text = editor.buffer.text as NSString
@@ -134,7 +111,6 @@ enum PreviewsDriver {
             }
         }
 
-        // Another tab, Grid, variants, a device, Selectable.
         if c.previews.count > 1 {
             await ShellDriver.click("canvas tab 1")
             _ = await settled(c, after: c.timings.count - 1, seconds: 30)
@@ -172,12 +148,10 @@ enum PreviewsDriver {
         OpenViewsAutomation.press(.escape)
         await ShellDriver.pause(0.3)
 
-        // Editor ▸ Layout ▸ Canvas on Bottom, then back.
         w.perform(.canvasLayoutBottom)
         await shot(prefix, "below", c)
         w.perform(.canvasLayoutAutomatic)
 
-        // UIKit previews.
         if let name = env["SWIFTCODE_IDE_PREVIEW_UIKIT_FILE"], let f = w.root.allFiles.first(where: { $0.name == name }), let p = f.path {
             w.open(p)
             await ShellDriver.pause(1.0)
@@ -187,15 +161,12 @@ enum PreviewsDriver {
         say("done: \(state(c))")
     }
 
-    /// Where previews start: the first `#Preview`'s line (string literals
-    /// before it are the views' own), else 0.
     static func bodyStart(_ text: NSString) -> Int {
         let r = text.range(of: "#Preview")
         return r.location == NSNotFound ? 0 : r.location
     }
 }
 
-/// Device type ids the walk picks.
 enum DeviceFrameSpecID {
     static let iPad = "ipad-a16"
 }

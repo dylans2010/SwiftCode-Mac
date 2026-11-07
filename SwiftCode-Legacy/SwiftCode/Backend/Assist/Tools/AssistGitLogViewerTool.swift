@@ -1,8 +1,3 @@
-//
-//  AssistGitLogViewerTool.swift
-//  SwiftCode
-//
-
 import Foundation
 
 public struct AssistGitLogViewerTool: AssistTool {

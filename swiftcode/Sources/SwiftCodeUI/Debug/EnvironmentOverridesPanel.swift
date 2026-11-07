@@ -1,23 +1,12 @@
 import AppKit
 import SwiftCodeSimFeatures
 
-/// The debug bar's Environment Overrides pop-over (`specs/ide/debug.md`
-/// §Environment Overrides; `specs/simulator/simulator-features.md` §7.3).
-/// SwiftCode's layout (the reference's was not observed, Q11): one section per
-/// category — Appearance (Light / Dark), Dynamic Type (a 12-step slider with
-/// the size's name), Accessibility (the nine switches as check boxes) —
-/// each with a switch that turns its overrides on (off: No Override), and
-/// "Disable All Overrides" at the bottom. Every change is sent at once to
-/// the running app only (`overrides <bundle id> …`); the device's settings
-/// stay as they are.
 @MainActor
 public final class EnvironmentOverridesController: NSViewController {
     weak var debugArea: DebugAreaController?
     public private(set) var sections: EnvironmentOverrides.Sections
-    /// The last result shown under the sections.
     public private(set) var status = ""
     private let statusLabel = NSTextField(labelWithString: "")
-    /// The send in flight (tests await it).
     public private(set) var sendTask: Task<Void, Never>?
 
     public init(debugArea: DebugAreaController) {
@@ -29,7 +18,6 @@ public final class EnvironmentOverridesController: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    // The sections' controls (tests read them).
     let appearanceSwitch = NSSwitch()
     let appearanceControl = NSSegmentedControl(labels: ["Light", "Dark"], trackingMode: .selectOne, target: nil, action: nil)
     let typeSwitch = NSSwitch()
@@ -94,7 +82,6 @@ public final class EnvironmentOverridesController: NSViewController {
         show()
     }
 
-    /// Puts `sections` into the controls.
     func show() {
         appearanceSwitch.state = sections.appearance != nil ? .on : .off
         appearanceControl.selectedSegment = sections.appearance == .dark ? 1 : 0
@@ -112,7 +99,6 @@ public final class EnvironmentOverridesController: NSViewController {
         statusLabel.stringValue = status
     }
 
-    /// Reads the controls into `sections`.
     func read() {
         sections.appearance = appearanceSwitch.state == .on ? (appearanceControl.selectedSegment == 1 ? .dark : .light) : nil
         sections.dynamicType = typeSwitch.state == .on ? ContentSize.allCases[min(11, max(0, typeSlider.integerValue))] : nil
@@ -130,7 +116,6 @@ public final class EnvironmentOverridesController: NSViewController {
         send()
     }
 
-    /// Applies the sections to the running app.
     @discardableResult
     public func send() -> Task<Void, Never>? {
         let overrides = EnvironmentOverrides(sections: sections)
@@ -149,7 +134,6 @@ public final class EnvironmentOverridesController: NSViewController {
         return task
     }
 
-    /// For tests: set the controls as a user would, then send.
     public func set(_ s: EnvironmentOverrides.Sections) -> Task<Void, Never>? {
         _ = view
         sections = s

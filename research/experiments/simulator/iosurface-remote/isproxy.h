@@ -1,23 +1,3 @@
-/*
- * isproxy.h: a recording Mach-message relay (original Ycode code, R5).
- *
- * The relay owns a port set. Each member ("proxy port") has a destination
- * send right. Every message that arrives on a proxy port is recorded (header,
- * descriptors, inline body, our own decoding of XPC-serialized payloads) and
- * sent on to the destination:
- *   - the message's reply right (header) is replaced by a new proxy port whose
- *     destination is that reply right, so the answer is recorded too;
- *   - in a connection hand-shake message (id 0x77303074) every port
- *     descriptor is replaced the same way (a receive right is kept and a new
- *     receive right goes on; a send right gets a proxy), so later traffic on
- *     the new connection also passes through the relay;
- *   - all other descriptors (ports, OOL memory) are passed through unchanged.
- * Nothing is ever read from executable memory: OOL regions are fresh copies
- * made by the kernel in this process, and the optional memory-entry test maps
- * a received send right read-only and records only its size and protection.
- *
- * Include once, then call isp_start(log FILE*), isp_add(proxy, dest, label).
- */
 #ifndef ISPROXY_H
 #define ISPROXY_H
 #include <mach/mach.h>
@@ -33,11 +13,11 @@
 #define ISP_HANDSHAKE 0x77303074
 
 typedef struct {
-    mach_port_t rcv;   /* proxy receive right (member of the set) */
-    mach_port_t dst;   /* destination send / send-once right */
-    int once;          /* destination is a send-once right */
-    int dir;           /* 0: client->server, 1: server->client */
-    int conn;          /* connection number for the log */
+    mach_port_t rcv;
+    mach_port_t dst;
+    int once;
+    int dir;
+    int conn;
 } isp_entry;
 
 static isp_entry g_isp[ISP_MAX];
@@ -76,10 +56,8 @@ static void isp_hex(const uint8_t *p, size_t n, size_t base)
 }
 
 static void isp_ind(int d);
-/* Magics: "?cpx"/"@cpx" (bootstrap-wire.md §3.1) and "!CPX" (seen on this service). */
 static int isp_magic(uint32_t m) { return m == 0x7870633f || m == 0x78706340 || m == 0x58504321; }
 
-/* Decoder of the OSSerialize binary format (xnu libkern OSSerializeBinary.h, level 1). */
 static void isp_osser(const uint8_t *p, size_t n, int depth)
 {
     FILE *o = g_isp_out;
@@ -122,7 +100,6 @@ static void isp_osser(const uint8_t *p, size_t n, int depth)
 
 static void isp_ind(int d) { for (int i = 0; i < d; i++) fprintf(g_isp_out, "  "); }
 
-/* Our decoder of the XPC object stream (format: bootstrap-wire.md §3). */
 static size_t isp_xpc(const uint8_t *p, size_t n, size_t off, int depth, int *ports)
 {
     FILE *o = g_isp_out;
@@ -181,7 +158,6 @@ static size_t isp_xpc(const uint8_t *p, size_t n, size_t off, int depth, int *po
     }
 }
 
-
 static const char *isp_disp(unsigned d)
 {
     switch (d) {
@@ -191,7 +167,6 @@ static const char *isp_disp(unsigned d)
     }
 }
 
-/* Optional: is a received send right a memory entry? Map it read-only. */
 static void isp_maptest(mach_port_t p)
 {
     if (!g_isp_maptest || !MACH_PORT_VALID(p)) return;
@@ -285,7 +260,6 @@ static int isp_find(mach_port_t rcv)
     return -1;
 }
 
-/* Make a new proxy port whose messages go to dst. Returns the receive right name. */
 static mach_port_t isp_new_proxy(mach_port_t dst, int once, int dir, int conn)
 {
     mach_port_t p = MACH_PORT_NULL;
@@ -297,7 +271,6 @@ static mach_port_t isp_new_proxy(mach_port_t dst, int once, int dir, int conn)
     return p;
 }
 
-/* Add an existing receive right (kept by us) as a proxy for dst. */
 static void isp_add_existing(mach_port_t rcv, mach_port_t dst, int once, int dir, int conn)
 {
     mach_port_move_member(mach_task_self(), rcv, g_isp_set);
@@ -342,10 +315,9 @@ static void *isp_thread(void *arg)
             tag = tagbuf;
         }
         if (h->msgh_bits & MACH_MSGH_BITS_COMPLEX) {
-            /* Notifications (no-senders etc.) come from the kernel and carry no payload of interest. */
         }
         isp_dump(tag, e.conn, h, 1);
-        unsigned rtype = MACH_MSGH_BITS_REMOTE(h->msgh_bits);  /* received reply right type */
+        unsigned rtype = MACH_MSGH_BITS_REMOTE(h->msgh_bits);
         unsigned vtype = MACH_MSGH_BITS_VOUCHER(h->msgh_bits);
         unsigned complex = h->msgh_bits & MACH_MSGH_BITS_COMPLEX;
         mach_port_t reply = h->msgh_remote_port;
@@ -367,7 +339,6 @@ static void *isp_thread(void *arg)
                     uint8_t d = b[off + 10];
                     if (h->msgh_id == ISP_HANDSHAKE && MACH_PORT_VALID(pn)) {
                         if (d == 16) {
-                            /* Keep the sender's receive right; hand on a new one. */
                             mach_port_t fresh = MACH_PORT_NULL;
                             mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &fresh);
                             mach_port_insert_right(mach_task_self(), fresh, fresh, MACH_MSG_TYPE_MAKE_SEND);
@@ -401,7 +372,7 @@ static void *isp_thread(void *arg)
         kr = mach_msg(h, MACH_SEND_MSG | MACH_SEND_TIMEOUT, h->msgh_size, 0, MACH_PORT_NULL, 3000, MACH_PORT_NULL);
         if (kr != KERN_SUCCESS) {
             fprintf(g_isp_out, "  relay send failed 0x%x\n", kr);
-            if (kr == MACH_SEND_INVALID_DEST && i >= 0) { /* destination gone */ }
+            if (kr == MACH_SEND_INVALID_DEST && i >= 0) {  }
             mach_msg_destroy(h);
         }
         if (e.once) {
@@ -429,8 +400,6 @@ static void isp_start(FILE *out)
     pthread_detach(t);
 }
 
-/* Make the first-level proxy for a service send right. Returns a receive right
- * name; the caller hands out a send right made from it. */
 static mach_port_t isp_service_proxy(mach_port_t service)
 {
     return isp_new_proxy(service, 0, 0, 0);

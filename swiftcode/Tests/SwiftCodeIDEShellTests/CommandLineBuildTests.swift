@@ -3,9 +3,6 @@ import Testing
 import SwiftCodeBuild
 @testable import SwiftCodeIDEShell
 
-/// `swiftcode build`'s engine (`specs/ide/build.md`, "The command line"): on
-/// Linux and in the Flatpak a package folder builds with SwiftPM, as in the
-/// Linux IDE.
 @Suite struct CommandLineBuildTests {
     func engine(_ name: String?, _ container: BuildRequest.Container, linux: Bool, env: [String: String] = [:],
                 packages: Set<String> = ["/work/Tools"]) -> CommandLineBuild.Engine? {
@@ -14,14 +11,12 @@ import SwiftCodeBuild
 
     @Test func linuxBuildsPackageFoldersWithSwiftPM() {
         #expect(engine(nil, .package("/work/Tools"), linux: true) == .swiftPM)
-        // The same in the Flatpak: the choice does not depend on the sandbox.
         #expect(engine(nil, .package("/work/Tools"), linux: true, env: ["FLATPAK_ID": "io.github.MarcoDotIO.Ycode"]) == .swiftPM)
     }
 
     @Test func linuxBuildsProjectsWithSwiftCodebuild() {
         #expect(engine(nil, .project("/work/App/App.xcodeproj"), linux: true) == .xcodebuild)
         #expect(engine(nil, .workspace("/work/App/App.xcworkspace"), linux: true) == .xcodebuild)
-        // A folder without a package (or with a project beside it).
         #expect(engine(nil, .package("/work/App"), linux: true) == .xcodebuild)
     }
 
@@ -72,9 +67,6 @@ import SwiftCodeBuild
         #expect(noSwbuild?.description == "swift-build not found (set SWIFTCODE_SWB to SwiftCode's swiftcode-swb, or SWIFTCODE_SWBUILD to swbuild). Swift packages build with --engine swiftpm, the default here.")
     }
 
-    /// No `swift` on the host: the build fails at once with the toolchain
-    /// message as its issue (inside the Flatpak the host-tool wrapper says
-    /// the same, `packaging/flatpak/host-tool.sh`).
     @Test func noHostSwiftIsOneClearIssue() async {
         let request = BuildRequest(container: .package("/work/Tools"))
         let op = PackageBuildEngine(swift: ["/usr/bin/env", "swift"], environment: ["PATH": "/nonexistent"]).start(request)
@@ -89,9 +81,6 @@ import SwiftCodeBuild
         #expect(log == [ShellToolchain.noSwift])
     }
 
-    /// In the Flatpak `swift` is the host-tool wrapper. When it cannot run
-    /// the host's Swift it explains why and exits 127; that explanation is
-    /// the build's error, not only a log line.
     @Test func theHostToolWrappersExplanationIsTheError() async throws {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("swiftcode-cli-wrapper-\(UUID().uuidString)")

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Monitors resource usage during autonomous execution
 @MainActor
 public final class AssistResourceUsageMonitor {
     private let context: AssistContext
@@ -20,14 +19,12 @@ public final class AssistResourceUsageMonitor {
         self.context = context
     }
 
-    /// Starts monitoring resources
     public func startMonitoring() {
         startMemory = getMemoryUsage()
         peakMemory = startMemory
         startTime = Date()
     }
 
-    /// Updates peak memory if current exceeds it
     public func updateMetrics() {
         let current = getMemoryUsage()
         if current > peakMemory {
@@ -35,7 +32,6 @@ public final class AssistResourceUsageMonitor {
         }
     }
 
-    /// Gets current resource metrics
     public func getCurrentMetrics() -> ResourceMetrics {
         let currentMemory = getMemoryUsage()
         let delta = Int64(currentMemory) - Int64(startMemory)
@@ -45,23 +41,20 @@ public final class AssistResourceUsageMonitor {
             memoryUsed: currentMemory,
             peakMemory: peakMemory,
             memoryDelta: delta,
-            cpuTime: 0, // Would require more complex tracking
+            cpuTime: 0,
             elapsed: elapsed
         )
     }
 
-    /// Checks if resource usage is acceptable
     public func isResourceUsageHealthy() async -> Bool {
         let metrics = getCurrentMetrics()
 
-        // Check for excessive memory growth
-        if metrics.memoryDelta > 500_000_000 { // 500MB
+        if metrics.memoryDelta > 500_000_000 {
             await context.logger.error("Excessive memory usage: \(metrics.memoryDelta / 1_000_000)MB delta", toolId: "ResourceMonitor")
             return false
         }
 
-        // Check for excessive runtime
-        if metrics.elapsed > 7200 { // 2 hours
+        if metrics.elapsed > 7200 {
             await context.logger.error("Excessive runtime: \(Int(metrics.elapsed))s", toolId: "ResourceMonitor")
             return false
         }
@@ -69,7 +62,6 @@ public final class AssistResourceUsageMonitor {
         return true
     }
 
-    /// Logs resource summary
     public func logResourceSummary() async {
         let metrics = getCurrentMetrics()
         await context.logger.info("""

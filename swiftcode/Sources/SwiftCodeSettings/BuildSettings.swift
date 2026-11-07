@@ -1,11 +1,9 @@
 import Foundation
 
-/// One `NAME[cond=pattern]... = value` assignment.
 public struct SettingAssignment: Equatable, Sendable {
     public var name: String
     public var conditions: [(parameter: String, pattern: String)]
     public var value: MacroExpression
-    /// Where it came from, for diagnostics (`file:line` or a level name).
     public var origin: String
 
     public init(name: String, conditions: [(String, String)] = [], value: String, origin: String = "") {
@@ -15,8 +13,6 @@ public struct SettingAssignment: Equatable, Sendable {
         self.origin = origin
     }
 
-    /// Parses a pbxproj/xcconfig key such as `OTHER_LDFLAGS[sdk=iphoneos*][arch=arm64]`.
-    /// Bracket groups may also hold comma-separated conditions.
     public static func splitKey(_ key: String) -> (name: String, conditions: [(String, String)])? {
         guard let open = key.firstIndex(of: "[") else { return (key, []) }
         let name = String(key[..<open])
@@ -40,8 +36,6 @@ public struct SettingAssignment: Equatable, Sendable {
     }
 }
 
-/// A level in the settings stack (defaults, project xcconfig, project, …).
-/// Within a level, later assignments take precedence.
 public struct SettingsLevel: Sendable {
     public var name: String
     public var assignments: [SettingAssignment]
@@ -51,8 +45,6 @@ public struct SettingsLevel: Sendable {
         self.assignments = assignments
     }
 
-    /// A level from a pbxproj `buildSettings` dictionary. Unconditional
-    /// assignments come first so that matching conditional ones win.
     public init(name: String, buildSettings: [(key: String, value: String)]) {
         self.name = name
         var plain: [SettingAssignment] = []
@@ -65,7 +57,6 @@ public struct SettingsLevel: Sendable {
         assignments = plain + conditional
     }
 
-    /// A level of literal values (no macro parsing of `$`).
     public init(name: String, literals: [String: String]) {
         self.name = name
         assignments = literals.keys.sorted().map {
@@ -76,26 +67,16 @@ public struct SettingsLevel: Sendable {
     }
 }
 
-/// Values for condition parameters (`config`, `sdk`, `arch`, `variant`, …).
 public typealias ConditionContext = [String: String]
 
-/// Resolves settings over a stack of levels, lowest first.
-/// See `specs/build-settings.md` §3.
 public final class BuildSettings {
-    /// The levels, lowest precedence first.
     public let levels: [SettingsLevel]
-    /// The condition values that decide which conditional assignments apply.
     public let context: ConditionContext
-    /// Assignment chain per name, highest precedence first.
     private var chains: [String: [SettingAssignment]] = [:]
     private var cache: [String: String] = [:]
     private var inProgress: Set<String> = []
-    /// Problems found while evaluating, such as a reference cycle (which
-    /// evaluates to empty). Grows as values are evaluated.
     public private(set) var diagnostics: [String] = []
 
-    /// Keeps only the assignments whose conditions match `context`.
-    /// Values are evaluated lazily and cached.
     public init(levels: [SettingsLevel], context: ConditionContext) {
         self.levels = levels
         self.context = context
@@ -106,15 +87,12 @@ public final class BuildSettings {
         }
     }
 
-    /// Every setting name that has at least one applicable assignment.
     public var names: [String] { chains.keys.sorted() }
 
-    /// True if any applicable assignment to `name` is in one of `levelNames`.
     public func isAssigned(_ name: String, inLevels levelNames: Set<String>) -> Bool {
         levels.contains { levelNames.contains($0.name) && $0.assignments.contains { $0.name == name && Self.matches($0, context) } }
     }
 
-    /// The fully evaluated value of `name` ("" if unset).
     public func value(_ name: String) -> String {
         if let v = cache[name] { return v }
         let v = evaluate(name, depth: 0)
@@ -122,18 +100,12 @@ public final class BuildSettings {
         return v
     }
 
-    /// Same as `value(_:)`.
     public subscript(name: String) -> String { value(name) }
 
-    /// All settings, evaluated.
     public func all() -> [String: String] {
         Dictionary(uniqueKeysWithValues: names.map { ($0, value($0)) })
     }
 
-    // MARK: - Evaluation
-
-    /// Evaluates the assignment at `depth` in `name`'s chain. `depth` is the
-    /// position below the top that `$(inherited)` has reached.
     private func evaluate(_ name: String, depth: Int) -> String {
         guard let chain = chains[name], depth < chain.count else { return "" }
         let key = "\(name)#\(depth)"
@@ -177,7 +149,6 @@ public final class BuildSettings {
         }
     }
 
-    /// `*` matches any run of characters; everything else is literal.
     static func glob(_ pattern: String, _ s: String) -> Bool {
         let p = Array(pattern), t = Array(s)
         var pi = 0, ti = 0, star = -1, mark = 0

@@ -5,23 +5,15 @@ import SwiftCodeSettings
 import SwiftCodeWorkspace
 import SwiftCodeSubprocess
 
-/// Product menu actions beyond Build / Run / Test (`specs/ide/reference-ui-5.md`
-/// §2.9, R36): Build For ▸ Running / Testing / Profiling, Perform Action ▸
-/// Test Without Building, Test Again, the single-file actions, Clear Test
-/// Results, test plans, and the project-level checks of §11.6 (T8).
 extension WorkspaceSession {
-    /// One test run, for Test Again and Test Without Building Again.
     public struct TestRun: Equatable, Sendable {
-        /// The tests that ran; empty = all.
         public var tests: [DiscoveredTest]
         public var withoutBuilding: Bool
     }
 
-    /// Product ▸ Build For ▸ …
     public enum BuildPurpose: String, Sendable, CaseIterable {
         case running, testing, profiling
 
-        /// The scheme action whose build configuration is used.
         var schemeAction: String {
             switch self {
             case .running: "LaunchAction"
@@ -31,32 +23,22 @@ extension WorkspaceSession {
         }
     }
 
-    /// The scheme file of the selected scheme (nil when it is autocreated).
     var selectedScheme: Scheme? {
         guard let name = scheme else { return nil }
         return model.loadSchemes().first { $0.name == name }
     }
 
-    /// The configuration a scheme action builds with: the scheme's, else
-    /// Debug, or Release for Profile and Archive (`Scheme.configuration`).
     package func configuration(for schemeAction: String) -> String {
         if let s = selectedScheme { return s.configuration(for: schemeAction) }
         return ["ProfileAction", "ArchiveAction"].contains(schemeAction) ? "Release" : "Debug"
     }
 
-    /// The runner tests use (swiftcodebuild for swift-build), with the active
-    /// test plan.
     var selectedTestRunner: TestRunner {
         var r = TestRunnerSelection.runner(testRunner, preference: buildSystemPreference)
         if let plan = activeTestPlan, testPlanNames.contains(plan) { r.testPlan = plan }
         return r
     }
 
-    /// Product ▸ Build For ▸ Running (⇧⌘R) / Testing (⇧⌘U) / Profiling
-    /// (⇧⌘I). Running and Profiling build the scheme with the Run or
-    /// Profile action's configuration; Testing builds the tests only
-    /// (`build-for-testing`), with the tool that runs them, so Test Without
-    /// Building can run them afterwards.
     @discardableResult
     public func buildFor(_ purpose: BuildPurpose) async -> BuildResult {
         let subject = scheme ?? model.displayName
@@ -70,21 +52,15 @@ extension WorkspaceSession {
         return await performBuild(request, presentation: .init(action: .build, subject: subject), start: engine.start)
     }
 
-    /// Product ▸ Perform Action ▸ Test Again (⌃⌥⌘G): the last test run
-    /// again, building first. Test Without Building Again: the same tests,
-    /// without building. Nil when nothing has been tested yet.
     @discardableResult
     public func testAgain(withoutBuilding: Bool = false) async -> [TestOutcome]? {
         guard let last = lastTestRun else { return nil }
-        // Tests found again: the identifiers stay, the lines may move.
         discoverTests()
         await testsDiscovered()
         let again = last.tests.compactMap { t in tests.first { $0.identifier == t.identifier && $0.file == t.file } ?? t }
         return await runTests(only: again, withoutBuilding: withoutBuilding)
     }
 
-    /// Product ▸ Clear Test Results (⌃⌥⌘K): every test back to "not run",
-    /// and the capsule's failure count cleared.
     public func clearTestResults() {
         testResults = [:]
         failedTestCount = 0
@@ -92,9 +68,6 @@ extension WorkspaceSession {
         notify(.issues)
     }
 
-    /// Perform Action ▸ Test (⌃⌥⌘U) with no selection: the test whose
-    /// declaration is at or above `line` in `file` (the caret), or every
-    /// test of the suite declared on that line.
     public func tests(atCaret file: String, line: Int) -> [DiscoveredTest] {
         let suite = testsForDiamond(file: file, line: line)
         if !suite.isEmpty { return suite }
@@ -103,39 +76,26 @@ extension WorkspaceSession {
         return [nearest]
     }
 
-    // MARK: Run Without Building
-
-    /// Run Without Building found no product to launch.
     package func reportMissingProduct(_ path: String) {
         let name = URL(fileURLWithPath: path).lastPathComponent
         appendConsole("SwiftCode: \(name) has not been built. Build the scheme first (Product ▸ Build For ▸ Running).\n")
         setActivity(.finished("Run Failed"))
     }
 
-    // MARK: Test plans (§2.9 item 21)
-
-    /// The test plans of the selected scheme, by name (empty: the scheme
-    /// has none and runs its autocreated plan).
     public var testPlanNames: [String] {
         (selectedScheme?.testPlans ?? []).map { Self.testPlanName($0.reference) }
     }
 
-    /// A plan's name from its reference ("container:Tests/Smoke.xctestplan"
-    /// → "Smoke").
     static func testPlanName(_ reference: String) -> String {
         let path = reference.split(separator: ":", maxSplits: 1).last.map(String.init) ?? reference
         return URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
     }
 
-    /// The Test Plan submenu's rows: one per plan, or "<scheme>
-    /// (Autocreated)" when the scheme has none.
     public var testPlanRows: [String] {
         let names = testPlanNames
         return names.isEmpty ? ["\(scheme ?? model.displayName) (Autocreated)"] : names
     }
 
-    /// The plan the next test run uses: the chosen one, else the scheme's
-    /// default plan, else the first.
     public var effectiveTestPlan: String {
         let names = testPlanNames
         if let p = activeTestPlan, names.contains(p) { return p }
@@ -145,7 +105,6 @@ extension WorkspaceSession {
         return testPlanRows[0]
     }
 
-    /// Select Next / Previous Test Plan, wrapping.
     public func stepTestPlan(_ delta: Int) {
         let names = testPlanNames
         guard names.count > 1 else { return }
@@ -153,14 +112,8 @@ extension WorkspaceSession {
         activeTestPlan = names[(i + delta + names.count) % names.count]
     }
 
-    // MARK: Single-file actions
-
-    /// Perform Action ▸ Compile / Analyze / Preprocess / Assemble “<file>”.
-    /// Returns the result and, when it succeeded, the output file
-    /// (preprocessed source, assembly, object file or analyzer report).
     @discardableResult
     public func perform(_ action: FileAction, file: String, productsDirectory: String? = nil) async -> (result: BuildResult, output: String?) {
-        // The SDK lookup runs xcrun once per SDK: off the main thread.
         let sdkName = fileActionSDKName
         _ = await Task.detached { SDKInfo.lookup(sdkName) }.value
         let ctx = fileBuildContext(for: file, productsDirectory: productsDirectory)
@@ -176,29 +129,22 @@ extension WorkspaceSession {
         return (result, result.status == .succeeded ? out : nil)
     }
 
-    /// Whether a single-file action applies to the file (its language).
     public static func canPerform(_ action: FileAction, file: String?) -> Bool {
         guard let file, let lang = SourceLanguage(path: file) else { return false }
         return action.supports(lang)
     }
 
-    /// Where single-file outputs go: a scratch folder per workspace.
     var fileActionOutputDirectory: String {
         FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-file-actions")
             .appendingPathComponent(FileBuildContext.moduleIdentifier(model.displayName)).path
     }
 
-    /// The SDK single-file actions compile against (the destination's).
     var fileActionSDKName: String {
         let platform = destination.map { $0.kind == .mac ? "macOS" : $0.platform } ?? "macOS"
         let simulator = destination.map { $0.kind == .simulator || $0.specifier.hasSuffix("Simulator") || $0.isSwiftCodeRemoteSimulator } ?? false
         return Self.sdkName(platform: platform, simulator: simulator)
     }
 
-    /// The module context of a file: for a project, the target whose
-    /// Sources phase (or synchronized folder) holds it, with its build
-    /// settings for the selected destination; for a package, the source
-    /// folder (`Sources/<Module>` or `Tests/<Module>`) that holds it.
     public func fileBuildContext(for file: String, productsDirectory: String? = nil) -> FileBuildContext {
         let path = URL(fileURLWithPath: file).standardizedFileURL.path
         let language = SourceLanguage(path: path)
@@ -244,7 +190,6 @@ extension WorkspaceSession {
         ctx.defines = language == .swift ? list("SWIFT_ACTIVE_COMPILATION_CONDITIONS") : list("GCC_PREPROCESSOR_DEFINITIONS")
         ctx.includePaths = list("HEADER_SEARCH_PATHS") + list("USER_HEADER_SEARCH_PATHS") + (language == .swift ? list("SWIFT_INCLUDE_PATHS") : [])
         ctx.frameworkPaths = list("FRAMEWORK_SEARCH_PATHS")
-        // The products of the scheme's other targets (modules it imports).
         if let p = productsDirectory, FileManager.default.fileExists(atPath: p) {
             ctx.includePaths.append(p)
             ctx.frameworkPaths.append(p)
@@ -252,7 +197,6 @@ extension WorkspaceSession {
         return ctx
     }
 
-    /// The SDK of a platform: `macosx`, `iphoneos` / `iphonesimulator`, ….
     static func sdkName(platform: String, simulator: Bool) -> String {
         let names: [String: (String, String)] = ["macOS": ("macosx", "macosx"), "iOS": ("iphoneos", "iphonesimulator"),
                                                  "watchOS": ("watchos", "watchsimulator"), "tvOS": ("appletvos", "appletvsimulator"),
@@ -261,7 +205,6 @@ extension WorkspaceSession {
         return simulator ? n.1 : n.0
     }
 
-    /// The target triple: `<arch>-apple-<os><version>[-simulator]`.
     static func triple(platform: String, version: String, simulator: Bool) -> String {
         let os = ["macOS": "macosx", "iOS": "ios", "watchOS": "watchos", "tvOS": "tvos", "visionOS": "xros"][platform] ?? "macosx"
         let arch = platform == "macOS" || simulator ? SwiftBuildEngine.hostArchitecture : "arm64"
@@ -273,7 +216,6 @@ extension WorkspaceSession {
         return e.compactMap { ($0 as? URL)?.standardizedFileURL }.filter { $0.pathExtension == "swift" }.map(\.path).sorted()
     }
 
-    /// The project target that compiles a file, and the target's source files.
     static func target(compiling path: String, in model: WorkspaceModel) -> (proj: PBXProj, url: URL, target: String, sources: [String])? {
         for (projPath, project) in model.projects.sorted(by: { $0.key < $1.key }) {
             let url = URL(fileURLWithPath: projPath)
@@ -302,10 +244,6 @@ extension WorkspaceSession {
         return nil
     }
 
-    // MARK: Project-level checks (§11.6, T8)
-
-    /// Re-runs the project checks; the capsule and the Issue navigator
-    /// count their warnings.
     public func refreshProjectIssues() {
         let found = ProjectChecks.issues(in: model, configuration: configuration(for: "LaunchAction"))
         guard found != projectIssues else { return }
@@ -314,8 +252,6 @@ extension WorkspaceSession {
     }
 }
 
-/// Splits a list-valued build setting as the build system does: on
-/// whitespace, with double quotes grouping.
 enum MacroExpressionList {
     static func split(_ text: String) -> [String] {
         var out: [String] = [], cur = "", quoted = false, any = false
@@ -333,8 +269,6 @@ enum MacroExpressionList {
     }
 }
 
-/// An installed SDK's path and version (`xcrun --sdk <name>`), looked up
-/// once per name.
 enum SDKInfo {
     struct Info: Sendable { var path: String; var version: String? }
     nonisolated(unsafe) private static var cache: [String: Info?] = [:]
@@ -366,10 +300,7 @@ enum SDKInfo {
     }
 }
 
-/// Checks of the project itself, reported as project-level warnings
-/// (`reference-ui-5.md` §11.6, T8; `reference-ui-3.md` §1 Signing).
 public enum ProjectChecks {
-    /// Product types that are signed for a device and so need a team.
     static let signedProductTypes: Set<String> = [
         "com.apple.product-type.application", "com.apple.product-type.app-extension",
         "com.apple.product-type.application.watchapp2", "com.apple.product-type.application.watchapp2-container",
@@ -377,11 +308,6 @@ public enum ProjectChecks {
         "com.apple.product-type.application.on-demand-install-capable",
     ]
 
-    /// "Signing for “<target>” requires a development team." for each
-    /// device-platform app or extension target that manages signing
-    /// automatically and has no `DEVELOPMENT_TEAM`. Mac-only targets sign
-    /// to run locally and need none. ("Update to recommended settings" is
-    /// left out: the recommended set is not specified yet.)
     public static func issues(in model: WorkspaceModel, configuration: String) -> [Diagnostic] {
         var out: [Diagnostic] = []
         for (path, proj) in model.projects.sorted(by: { $0.key < $1.key }) {
@@ -400,11 +326,6 @@ public enum ProjectChecks {
     }
 }
 
-/// A test run's activity texts (`reference-ui-6.md` §3.4), moved on by
-/// the runner's output: "Test" when the action is accepted, the build
-/// texts while the tests build ("Building • n/m", counted as for a build,
-/// §3.2), "Configuring Debugger Actions" once the build is done, then
-/// "Testing <scheme>" once the first test starts. It only moves forward.
 @MainActor
 public final class TestActivityProgress {
     public enum Phase: Int, Comparable, Sendable {
@@ -421,7 +342,6 @@ public final class TestActivityProgress {
         text = WorkspaceSession.RunActivityText.testAccepted
     }
 
-    /// The new text after an output line, or nil when it stays.
     public func feed(_ line: String) -> String? {
         let next: String
         if Self.startsTesting(line) {
@@ -443,15 +363,11 @@ public final class TestActivityProgress {
         return next
     }
 
-    /// The build part of a test run is done: SwiftPM's "Build complete!",
-    /// xcodebuild's "** TEST BUILD SUCCEEDED **" or "Testing started".
     static func endsBuilding(_ line: String) -> Bool {
         let l = line.trimmingCharacters(in: .whitespaces)
         return l.hasPrefix("Build complete!") || l == "** TEST BUILD SUCCEEDED **" || l == "Testing started"
     }
 
-    /// The first test starts: an XCTest suite or case line, or
-    /// swift-testing's run start.
     static func startsTesting(_ line: String) -> Bool {
         let l = line.trimmingCharacters(in: .whitespaces)
         return l.hasPrefix("Test Suite '") || l.hasPrefix("Test Case '") || l.contains("Test run started")

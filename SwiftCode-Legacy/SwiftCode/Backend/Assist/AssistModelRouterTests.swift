@@ -1,12 +1,3 @@
-//
-//  AssistModelRouterTests.swift
-//  SwiftCode
-//
-//  Comprehensive test suite for Assist Available Models discovery, capability gating,
-//  deterministic ranking, rate-limiting quarantine, autonomous provider failover,
-//  and session handoff continuation.
-//
-
 import Foundation
 import os
 
@@ -18,7 +9,6 @@ public final class AssistModelRouterTests: Sendable {
 
     private init() {}
 
-    /// Executes all tests in the Model Router & Discovery suite.
     public func runAllTests() async -> [RuntimeTestCaseResult] {
         var results: [RuntimeTestCaseResult] = []
 
@@ -47,7 +37,6 @@ public final class AssistModelRouterTests: Sendable {
         return results
     }
 
-    // 1. Model Representation & Capabilities
     public func testModelRepresentationAndCapabilities() async -> RuntimeTestCaseResult {
         let start = Date()
         let model = AssistAvailableModel(
@@ -95,7 +84,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 2. Capability Gating (Apple Foundation Models without tools rejected for agentic use)
     public func testCapabilityGating() async -> RuntimeTestCaseResult {
         let start = Date()
         let toolModel = AssistAvailableModel(
@@ -128,10 +116,10 @@ public final class AssistModelRouterTests: Sendable {
             isConfigured: true,
             isAvailable: true,
             supportsStreaming: true,
-            supportsToolCalling: false, // AFM lacks function calling
+            supportsToolCalling: false,
             supportsVision: false,
             supportsStructuredOutput: true,
-            supportsAgenticUse: false, // Correctly gated
+            supportsAgenticUse: false,
             supportsSubagents: false,
             priority: 40,
             statusDescription: "Unsupported for agentic use (no tool calling)",
@@ -150,12 +138,10 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 3. Discovery Service Caching & Stats
     public func testDiscoveryServiceCachingAndStats() async -> RuntimeTestCaseResult {
         let start = Date()
         let service = AssistModelDiscoveryService.shared
 
-        // Initial discovery or cache load
         let models = await service.discoverAllModels(forceRefresh: false)
         let stats = service.getDiscoveryStats()
         let grouped = service.modelsByProvider
@@ -184,7 +170,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 4. Deterministic Model Ranking
     public func testDeterministicModelRanking() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistModelRouter.shared
@@ -241,7 +226,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 5. Rate Limit and Quota Error Detection
     public func testRateLimitAndQuotaDetection() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistModelRouter.shared
@@ -281,7 +265,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 6. Model Quarantine and Retry-After Backoff
     public func testModelQuarantineAndBackoff() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistModelRouter.shared
@@ -290,7 +273,6 @@ public final class AssistModelRouterTests: Sendable {
         router.markRateLimited(modelIdentifier: testModelId, retryAfterSeconds: 60)
         let isQuarantined = router.isModelQuarantined(modelIdentifier: testModelId)
 
-        // Clear quarantine for cleanup
         router.markHealthy(modelIdentifier: testModelId)
         let isCleared = !router.isModelQuarantined(modelIdentifier: testModelId)
 
@@ -304,7 +286,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 7. Autonomous Failover Candidate Selection
     public func testAutonomousFailoverCandidateSelection() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistModelRouter.shared
@@ -328,7 +309,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 8. Continuation Handoff Prompt Construction
     public func testContinuationHandoffPromptConstruction() async -> RuntimeTestCaseResult {
         let start = Date()
         let prompt = "Implement user authentication in AuthManager.swift"
@@ -353,7 +333,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 9. SDK Configuration Bridge Mapping
     public func testSDKConfigurationBridgeMapping() async -> RuntimeTestCaseResult {
         let start = Date()
         let config = GoogleCloudSDKConfiguration.resolveDefault()
@@ -370,17 +349,14 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 10. Saved Models Settings Persistence
     public func testSavedModelsSettingsPersistence() async -> RuntimeTestCaseResult {
         let start = Date()
         let initial = AppSettings.shared.useSavedModels
 
-        // Toggle and verify persistence
         AppSettings.shared.useSavedModels = !initial
         let toggled = UserDefaults.standard.bool(forKey: "assist.useSavedModels")
         let passedToggle = (toggled == !initial)
 
-        // Restore
         AppSettings.shared.useSavedModels = initial
         let restored = UserDefaults.standard.bool(forKey: "assist.useSavedModels")
         let passedRestore = (restored == initial)
@@ -395,14 +371,13 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 11. Alternative Keys Import Normalization
     public func testAlternativeKeyImportNormalization() async -> RuntimeTestCaseResult {
         let start = Date()
         let manager = AlternativeKeyManager.shared
         manager.removeAllKeys()
 
         let rawInput = """
-          AIzaSyFakeKeyNumberOneForTesting123456  
+          AIzaSyFakeKeyNumberOneForTesting123456
         AIzaSyFakeKeyNumberTwoForTesting123456
 
         AIzaSyFakeKeyNumberOneForTesting123456
@@ -417,7 +392,6 @@ public final class AssistModelRouterTests: Sendable {
                      (result.invalidKeysRejected == 1) &&
                      (manager.keys.count == 3)
 
-        // Verify masked values format
         let firstMasked = manager.keys.first?.maskedValue ?? ""
         let validMask = firstMasked.hasPrefix("AIza") && firstMasked.contains("••••")
 
@@ -431,7 +405,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 12. Alternative Keys Rotation & Cooldown State
     public func testAlternativeKeyRotationAndDelay() async -> RuntimeTestCaseResult {
         let start = Date()
         let manager = AlternativeKeyManager.shared
@@ -456,16 +429,13 @@ public final class AssistModelRouterTests: Sendable {
         let firstKey = manager.getActiveOrNextKey()
         let firstMeta = firstKey?.metadata
 
-        // Mark first key rate limited with 2s cooldown
         if let id1 = firstMeta?.id {
             manager.markRateLimited(id: id1, retryAfterSeconds: 2.0)
         }
 
-        // Next key should be selected and not be the rate limited one
         let nextKey = manager.selectNextAvailableKey(excludingId: firstMeta?.id)
         let isRotated = nextKey != nil && nextKey?.metadata.id != firstMeta?.id
 
-        // Reset cooldowns
         manager.resetHealth()
         let allReady = manager.keys.allSatisfy { $0.state == .ready || $0.state == .active }
 
@@ -481,7 +451,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 13. Alternative Keys Security - No Raw Keys in UserDefaults or Logs
     public func testAlternativeKeySecurityNoRawLeak() async -> RuntimeTestCaseResult {
         let start = Date()
         let manager = AlternativeKeyManager.shared
@@ -490,7 +459,6 @@ public final class AssistModelRouterTests: Sendable {
         let rawSecret = "AIzaSySecretNeverLeakThisRawKeyToUserDefaults1234"
         manager.importRawKeys(rawSecret)
 
-        // Check UserDefaults
         let defaultsData = UserDefaults.standard.data(forKey: "com.swiftcode.gemini.altkeys.metadata") ?? Data()
         let defaultsString = String(data: defaultsData, encoding: .utf8) ?? ""
 
@@ -509,7 +477,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 14. All Keys Exhausted Terminal State
     public func testAlternativeKeyAllExhaustedTerminalState() async -> RuntimeTestCaseResult {
         let start = Date()
         let manager = AlternativeKeyManager.shared
@@ -538,12 +505,10 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 15. Composition: Alternative Keys & Saved Models Fallover
     public func testAlternativeKeyAndSavedModelsComposition() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistModelRouter.shared
 
-        // Test failover candidate returns a non-Gemini provider when Gemini quota is exhausted
         let failover = await router.handleTurnFailure(
             failedModelIdentifier: "gemini-3.8-flash",
             errorText: "RESOURCE_EXHAUSTED: 429 quota exceeded",
@@ -553,10 +518,8 @@ public final class AssistModelRouterTests: Sendable {
 
         let passed: Bool
         if let next = failover?.nextModel {
-            // Next model should not be the same failed Gemini identifier
             passed = next.modelIdentifier != "gemini-3.8-flash"
         } else {
-            // No other models configured in environment
             passed = true
         }
 
@@ -568,7 +531,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 16. Alternative Keys Settings Persistence
     public func testAlternativeKeySettingsPersistence() async -> RuntimeTestCaseResult {
         let start = Date()
         let initial = AppSettings.shared.alternativeKeysEnabled
@@ -591,7 +553,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 17. Default Assist Model Claude Routing
     public func testDefaultAssistModelClaudeRouting() async -> RuntimeTestCaseResult {
         let start = Date()
         let initialSaved = AppSettings.shared.useSavedModels
@@ -602,7 +563,6 @@ public final class AssistModelRouterTests: Sendable {
 
         let routed = await AssistModelRouter.shared.selectModelForSDK()
 
-        // Restore
         AppSettings.shared.useSavedModels = initialSaved
         AppSettings.shared.selectedAssistModelID = initialModel
 
@@ -629,7 +589,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 18. Default Assist Model OpenAI Routing
     public func testDefaultAssistModelOpenAIRouting() async -> RuntimeTestCaseResult {
         let start = Date()
         let initialSaved = AppSettings.shared.useSavedModels
@@ -640,7 +599,6 @@ public final class AssistModelRouterTests: Sendable {
 
         let routed = await AssistModelRouter.shared.selectModelForSDK()
 
-        // Restore
         AppSettings.shared.useSavedModels = initialSaved
         AppSettings.shared.selectedAssistModelID = initialModel
 
@@ -667,7 +625,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 19. Local and Custom Model Routing
     public func testLocalAndCustomModelRouting() async -> RuntimeTestCaseResult {
         let start = Date()
         let initialSaved = AppSettings.shared.useSavedModels
@@ -678,7 +635,6 @@ public final class AssistModelRouterTests: Sendable {
 
         let routed = await AssistModelRouter.shared.selectModelForSDK()
 
-        // Restore
         AppSettings.shared.useSavedModels = initialSaved
         AppSettings.shared.selectedAssistModelID = initialModel
 
@@ -703,12 +659,10 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 20. No Silent Gemini Fallback
     public func testNoSilentGeminiFallback() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistModelRouter.shared
 
-        // Test with handleTurnFailure
         let _ = await router.handleTurnFailure(
             failedModelIdentifier: "claude-3-5-sonnet",
             errorText: "HTTP 401 Unauthorized",
@@ -716,7 +670,6 @@ public final class AssistModelRouterTests: Sendable {
             priorTurnOutput: "Starting refactoring"
         )
 
-        // The failed model must have been classified as anthropic / Claude
         let passed: Bool
         if let event = router.lastFailoverEvent {
             let wasClaude = event.failedProviderID.lowercased().contains("claude") || event.failedModelID.contains("claude")
@@ -733,7 +686,6 @@ public final class AssistModelRouterTests: Sendable {
         )
     }
 
-    // 21. Capabilities Resolution Across Providers
     public func testCapabilityResolutionAcrossProviders() async -> RuntimeTestCaseResult {
         let start = Date()
         let router = AssistModelRouter.shared

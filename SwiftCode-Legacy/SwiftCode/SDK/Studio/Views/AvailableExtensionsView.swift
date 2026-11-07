@@ -1,29 +1,8 @@
 import Foundation
 import SwiftUI
 
-// MARK: - AvailableExtensionsView
-//
-// The Studio view where users see and use every installed extension/app
-// (Docs/Intro-to-SDK.md §7).
-//
-// Real work only — every control calls a real API:
-//   - The list comes from `SDKExtensionManager.snapshot()` (live discovery
-//     of ~/.swiftcode/extensions merged with runtime lifecycle state).
-//   - Each item shows its contributed commands (manifest-declared plus
-//     commands the runtime registered via `context.commands`).
-//   - Invoking a command calls `SDKExtensionManager.invokeCommand`, which
-//     sends a `commands.execute` host event to the extension's TS runtime
-//     and awaits its `commands.executeResult` — never native injection.
-//   - Enable/disable/uninstall call the manager's real lifecycle paths.
-// Errors are shown inline and are never swallowed.
-//
-// This view is hosted inside the Studio shell's NavigationStack; it does
-// not create its own navigation container.
-
 @MainActor
 public struct AvailableExtensionsView: View {
-
-    // MARK: - Nested types
 
     private struct CommandResult: Identifiable {
         let id = UUID()
@@ -32,13 +11,9 @@ public struct AvailableExtensionsView: View {
         let text: String
     }
 
-    // MARK: - State
-
     @State private var items: [SDKManagedExtension] = []
     @State private var runtimeCommands: [String: [SDKCommandDefinition]] = [:]
     @State private var selection: String?
-    // Starts true so the first paint doesn't flash the "no extensions"
-    // empty state before the initial snapshot completes.
     @State private var isLoading = true
     @State private var isBusy = false
     @State private var errorMessage: String?
@@ -48,8 +23,6 @@ public struct AvailableExtensionsView: View {
     @State private var commandResult: CommandResult?
 
     public init() {}
-
-    // MARK: - Derived
 
     private var selectedItem: SDKManagedExtension? {
         guard let selection else { return nil }
@@ -66,8 +39,6 @@ public struct AvailableExtensionsView: View {
         }
         return merged.sorted { $0.key < $1.key }.map { (id: $0.key, title: $0.value) }
     }
-
-    // MARK: - Body
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -100,8 +71,6 @@ public struct AvailableExtensionsView: View {
             commandResultSheet(result)
         }
     }
-
-    // MARK: - List
 
     private var extensionList: some View {
         List(items, id: \.id, selection: $selection) { item in
@@ -215,8 +184,6 @@ public struct AvailableExtensionsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Toolbar
-
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
@@ -234,8 +201,6 @@ public struct AvailableExtensionsView: View {
             .help("Uninstall the selected extension: stops it, removes its commands, revokes its grants, wipes its secrets.")
         }
     }
-
-    // MARK: - Banners and sheets
 
     private func errorBanner(message: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
@@ -291,8 +256,6 @@ public struct AvailableExtensionsView: View {
         .frame(minWidth: 480, minHeight: 300)
         .liquidGlass(style: .sheet, cornerRadius: 12)
     }
-
-    // MARK: - Actions (all real)
 
     private func refresh() async {
         isLoading = true
@@ -367,8 +330,6 @@ public struct AvailableExtensionsView: View {
         }
     }
 
-    // MARK: - Helpers
-
     private func clearMessages() {
         errorMessage = nil
         statusMessage = nil
@@ -386,7 +347,6 @@ public struct AvailableExtensionsView: View {
         }
     }
 
-    /// Renders an `SDKJSONValue` command result as readable text.
     private func renderJSONValue(_ value: SDKJSONValue, indent: Int = 0) -> String {
         let pad = String(repeating: "  ", count: indent)
         switch value {

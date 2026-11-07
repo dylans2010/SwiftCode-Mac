@@ -1,9 +1,4 @@
 #!/bin/sh
-# Regenerates the SPIR-V of SwiftCode's own depth shaders (specs/simulator/xr-depth.md):
-#   Sources/CSwiftCodeXRReprojection/shaders/*.{vert,frag} -> Sources/CSwiftCodeXRReprojection/reproject_spv.h
-#   Sources/SwiftCodeVulkan/shaders/depth_tap.comp          -> Sources/SwiftCodeVulkan/DepthTapShader.swift
-# Needs glslc (shaderc, Apache-2.0) on the PATH; the generated files are committed,
-# so ordinary builds need no shader compiler. Run from swiftcode/.
 set -e
 cd "$(dirname "$0")/.."
 command -v glslc >/dev/null || { echo "xr-depth-shaders: glslc not found" >&2; exit 69; }

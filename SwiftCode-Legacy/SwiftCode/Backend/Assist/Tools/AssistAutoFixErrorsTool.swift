@@ -32,7 +32,6 @@ public struct AssistAutoFixErrorsTool: AssistTool {
                 return .success("No lint issues to fix in \(path)")
             }
 
-            // LLM-powered fix
             let original = try context.fileSystem.readFile(at: path)
             let provider = AssistModelProvider.openAI
             let apiKey = await provider.storedAPIKey()

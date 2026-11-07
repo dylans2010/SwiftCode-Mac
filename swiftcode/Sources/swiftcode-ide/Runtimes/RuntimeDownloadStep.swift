@@ -3,11 +3,6 @@ import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 
-/// Get a Runtime in Window ▸ Downloads (#55, `runtime-downloads.md` §6.1):
-/// on Linux SwiftCode's own download first (its decryptor, disk image reader and
-/// space are the checks below), then how to get one with Xcode on a Mac, then
-/// a runtime you have. The same model as the macOS window; each route starts
-/// from the confirmation that shows its exact command.
 extension RuntimeSetupSheet {
     var downloads: RuntimeDownloadModel { session.downloads }
 

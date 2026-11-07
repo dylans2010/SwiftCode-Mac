@@ -1,12 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - SDKManifestInspectorView
-//
-// Read-only inspector for an installed extension (`SDKInstalledExtension`)
-// plus a one-click toggle to open the full Visual `swiftcode.json` Manifest
-// Editor when the extension's package directory is writable on disk.
-
 public struct SDKManifestInspectorView: View {
 
     public let installedExtension: SDKInstalledExtension
@@ -267,19 +261,6 @@ public struct SDKManifestInspectorView: View {
     }
 }
 
-// MARK: - SDKManifestEditorView
-//
-// Full visual editor for `swiftcode.json` inside SwiftCode Studio (Review.md §7 & §8).
-// Supports:
-// - Visual editing of Identity, Runtime, SDK Target, Capabilities & Reasons
-//   (backed by the canonical 32-capability `SDKCapability.all` registry),
-//   Contributed Commands, and Assist declaration.
-// - Unknown top-level JSON field preservation (`manifest.unknownFields`).
-// - Real-time syntactic + semantic + capability-grant validation via
-//   `SDKManifestValidator.validateWithDiagnostics`.
-// - Bidirectional synchronization between the Visual Form, Raw JSON text,
-//   `SDKCodeEditorState` open tabs, and disk (`swiftcode.json`).
-
 @MainActor
 public struct SDKManifestEditorView: View {
 
@@ -400,8 +381,6 @@ public struct SDKManifestEditorView: View {
         }
     }
 
-    // MARK: - Toolbar Header
-
     private var toolbarHeader: some View {
         HStack(spacing: 10) {
             Image(systemName: "doc.badge.gearshape.fill")
@@ -503,8 +482,6 @@ public struct SDKManifestEditorView: View {
         )
     }
 
-    // MARK: - Visual Editor Body
-
     private var visualEditorBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -521,8 +498,6 @@ public struct SDKManifestEditorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-
-    // MARK: - Diagnostics Section
 
     private var diagnosticsSection: some View {
         GroupBox {
@@ -571,8 +546,6 @@ public struct SDKManifestEditorView: View {
                 .font(.subheadline.weight(.semibold))
         }
     }
-
-    // MARK: - Identity Section
 
     private var identitySection: some View {
         GroupBox {
@@ -671,8 +644,6 @@ public struct SDKManifestEditorView: View {
                 .font(.subheadline.weight(.semibold))
         }
     }
-
-    // MARK: - Runtime & SDK Target Section
 
     private var runtimeAndSDKSection: some View {
         GroupBox {
@@ -811,8 +782,6 @@ public struct SDKManifestEditorView: View {
         }
     }
 
-    // MARK: - Capabilities Section
-
     private var filteredRegistryCapabilities: [SDKCapability] {
         SDKCapability.all.filter { cap in
             if let cat = selectedCapabilityCategory, cap.category != cat {
@@ -936,8 +905,6 @@ public struct SDKManifestEditorView: View {
         .padding(.vertical, 2)
     }
 
-    // MARK: - Commands Section
-
     private var commandsSection: some View {
         let commands = manifest.contributes?.commands ?? []
         return GroupBox {
@@ -1017,8 +984,6 @@ public struct SDKManifestEditorView: View {
         }
     }
 
-    // MARK: - Assist & Unknown Fields Section
-
     private var assistAndUnknownFieldsSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
@@ -1077,8 +1042,6 @@ public struct SDKManifestEditorView: View {
         }
     }
 
-    // MARK: - Raw JSON Editor Body
-
     private var rawJSONEditorBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -1111,8 +1074,6 @@ public struct SDKManifestEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
-
-    // MARK: - Actions & Synchronization
 
     private func resolveAndLoadManifest() {
         if let explicitURL = manifestFileURL, FileManager.default.fileExists(atPath: explicitURL.path) {
@@ -1251,8 +1212,6 @@ public struct SDKManifestEditorView: View {
             }
         }
     }
-
-    // MARK: - Capability & Command Helpers
 
     private func isCapabilityEnabled(_ id: String) -> Bool {
         manifest.capabilities.contains(where: { $0.id == id })

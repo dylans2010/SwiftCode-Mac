@@ -21,23 +21,19 @@ import os
 import subprocess
 import sys
 
-
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"{' '.join(cmd[:3])}…: {r.stderr.strip()[-400:]}")
     return r.stdout
 
-
 def xcb(project, target, config):
     out = run(["xcodebuild", "-showBuildSettings", "-json", "-project", project, "-target", target, "-configuration", config])
     return json.loads(out)[0]["buildSettings"]
 
-
 def targets(ycode, project):
     out = run([ycode, "describe", project])
     return [l.split("target ", 1)[1].split("  [")[0] for l in out.splitlines() if l.startswith("  target ")]
-
 
 def main():
     ycode, scratch, manifest = sys.argv[1:4]
@@ -65,9 +61,6 @@ def main():
                     assigned = json.loads(run([ycode, "settings", proj, "-target", target, "-configuration", config,
                                                "--assigned-only", "--json"]))
                     defaults = dict(probed)
-                    # The probe's values already contain Xcode's derived
-                    # additions; remove them so Ycode's derived level does
-                    # not apply twice through $(inherited).
                     osf = defaults.get("OTHER_SWIFT_FLAGS", "")
                     cut = osf.find(" -plugin-path ")
                     if cut < 0 and osf.startswith("-plugin-path "):
@@ -90,7 +83,7 @@ def main():
                     entry.update(compared=len(assigned), mismatches=diffs)
                     totals["compared"] += len(assigned)
                     totals["mismatched"] += len(diffs)
-                except Exception as e:  # noqa: BLE001 - report and continue
+                except Exception as e:
                     entry["error"] = str(e)
                     totals["errors"] += 1
                 report.append(entry)
@@ -98,6 +91,5 @@ def main():
                 print(f"{name} {target} {config}: {status}", file=sys.stderr)
     print(json.dumps({"totals": totals, "results": report}, indent=1))
     print(f"TOTAL {totals}", file=sys.stderr)
-
 
 main()

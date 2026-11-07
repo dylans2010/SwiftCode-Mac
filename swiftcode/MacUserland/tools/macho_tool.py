@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-# macho_tool.py - small Mach-O helpers for MacUserland/build.sh
-# (specs/macos/libsystem.md §9, dyld.md §10). Clean-room SwiftCode code from
-# the public <mach-o/loader.h> and <mach-o/fixup-chains.h> facts.
-#
-#   retag FILE PLATFORM MINOS SDK   rewrite the one LC_BUILD_VERSION of an
-#                                   unsigned thin image (versions "14.0")
-#   no-fixups FILE                  fail unless the image has no chained
-#                                   fixups and no classic rebase/bind data
-#   tbd OUT INSTALL_NAME SYMS...    write a tbd-v4 link stub for arm64-macos
-#                                   whose exports are the symbol files' lines
 
 import struct
 import sys
@@ -19,7 +9,6 @@ LC_CODE_SIGNATURE = 0x1D
 LC_DYLD_INFO = 0x22
 LC_DYLD_INFO_ONLY = 0x80000022
 LC_DYLD_CHAINED_FIXUPS = 0x80000034
-
 
 def commands(data):
     magic, _, _, _, ncmds, sizeofcmds = struct.unpack_from("<6I", data, 0)
@@ -33,11 +22,9 @@ def commands(data):
         yield cmd, at, size
         at += size
 
-
 def packed(version):
     parts = [int(p) for p in version.split(".")] + [0, 0]
     return parts[0] << 16 | parts[1] << 8 | parts[2]
-
 
 def retag(path, platform, minos, sdk):
     data = bytearray(open(path, "rb").read())
@@ -51,7 +38,6 @@ def retag(path, platform, minos, sdk):
         raise SystemExit(f"{path}: expected one LC_BUILD_VERSION, found {len(found)}")
     struct.pack_into("<3I", data, found[0] + 8, int(platform), packed(minos), packed(sdk))
     open(path, "wb").write(data)
-
 
 def no_fixups(path):
     data = open(path, "rb").read()
@@ -69,7 +55,6 @@ def no_fixups(path):
             if imports_count or any(offsets):
                 raise SystemExit(f"{path}: has chained fixups (imports {imports_count}, segment starts {list(offsets)})")
     print(f"{path}: no fixups")
-
 
 def tbd(out, install_name, symbol_files):
     names = set()
@@ -93,7 +78,6 @@ def tbd(out, install_name, symbol_files):
     lines.append("...")
     open(out, "w").write("\n".join(lines) + "\n")
 
-
 def main(argv):
     if len(argv) >= 6 and argv[1] == "retag":
         retag(argv[2], argv[3], argv[4], argv[5])
@@ -103,7 +87,6 @@ def main(argv):
         tbd(argv[2], argv[3], argv[4:])
     else:
         raise SystemExit(__doc__ or "usage: macho_tool.py retag|no-fixups|tbd ...")
-
 
 if __name__ == "__main__":
     main(sys.argv)

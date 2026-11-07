@@ -1,21 +1,6 @@
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/NSPushOptionsView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// Push-options sheet: set-upstream and push-all-branches toggles, then
-/// Apply & Push. Legacy drove this through `ProjectSessionStore` +
-/// `GitMenuBarCommandExecutor`; this port takes the `GitRepository`
-/// directly and runs real git operations:
-///
-/// - Set upstream → `GitRepository.push(remote:branch:setUpstream:)` on
-///   the current branch.
-/// - Push all branches → `GitRepository.pushAll(remote:)` (added for this
-///   port; `git push --all`).
-/// - Neither → a plain `GitRepository.push(remote:branch:)`.
-///
-/// Hook: present from the source-control navigator's push menu.
 @MainActor
 public struct NSPushOptionsView: View {
     public var repository: GitRepository

@@ -55,7 +55,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 1. This Mac Section
     private var thisMacSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 14) {
@@ -157,7 +156,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 2. Nearby Devices (Discovered iOS)
     private var nearbyDevicesSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -236,7 +234,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 3. Manual Connection Section
     private var manualConnectSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -285,7 +282,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 4. Connected Devices Section
     private var connectedDevicesSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -350,7 +346,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 5. Trusted Devices Section
     private var trustedDevicesSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -433,7 +428,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - 6. Diagnostics Section
     private var diagnosticsSection: some View {
         GroupBox {
             DisclosureGroup(isExpanded: $showDiagnostics) {
@@ -496,7 +490,6 @@ struct ConnectSettingsView: View {
         }
     }
 
-    // MARK: - Actions
     private func applyPortChange() {
         guard let port = UInt16(portInputString), ConnectProtocol.validPortRange.contains(port) else {
             portErrorMessage = "Invalid port number. Please enter a port between \(ConnectProtocol.validPortRange.lowerBound) and \(ConnectProtocol.validPortRange.upperBound)."

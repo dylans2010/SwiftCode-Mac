@@ -69,7 +69,6 @@ struct TemplatePickerView: View {
     var body: some View {
         VStack(spacing: 0) {
             if showsHeader {
-                // Elegant Dark Header
                 HStack(spacing: 16) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -105,9 +104,7 @@ struct TemplatePickerView: View {
             }
 
             HStack(spacing: 0) {
-                // Left Panel: Configuration & Grid
                 VStack(spacing: 16) {
-                    // Project Name Input Card
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Project Name")
                             .font(.caption.weight(.semibold))
@@ -123,7 +120,6 @@ struct TemplatePickerView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // Template Search Bar
                     HStack(spacing: 10) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 13))
@@ -138,7 +134,6 @@ struct TemplatePickerView: View {
                     .liquidGlass(style: .subtle, cornerRadius: 10)
                     .padding(.horizontal, 16)
 
-                    // Grid Browser
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 105, maximum: 140), spacing: 10)], spacing: 10) {
                             ForEach(filteredTemplates, id: \.name) { template in
@@ -160,14 +155,12 @@ struct TemplatePickerView: View {
                     .fill(Color.white.opacity(0.08))
                     .frame(width: 1)
 
-                // Right Panel: Template Inspector Detail
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Template Inspector")
                         .font(.system(size: 11.5, weight: .bold))
                         .foregroundStyle(Color.white.opacity(0.5))
                         .padding(.bottom, 2)
 
-                    // Header Info
                     HStack(spacing: 12) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -193,7 +186,6 @@ struct TemplatePickerView: View {
                         .fill(Color.white.opacity(0.08))
                         .frame(height: 1)
 
-                    // Description
                     VStack(alignment: .leading, spacing: 6) {
                         Text("About this Template")
                             .font(.caption.weight(.bold))
@@ -207,7 +199,6 @@ struct TemplatePickerView: View {
 
                     Spacer()
 
-                    // Quick Specs
                     VStack(alignment: .leading, spacing: 8) {
                         TemplateSpecRow(label: "Files Included", value: "\(selectedTemplate.files.count)")
                         TemplateSpecRow(label: "Target Platform", value: "macOS, iOS, Swift Package")
@@ -223,7 +214,6 @@ struct TemplatePickerView: View {
                 .fill(Color.white.opacity(0.08))
                 .frame(height: 1)
 
-            // Footer Action Bar
             HStack {
                 if showsBackButton {
                     Button(action: { dismiss() }) {
@@ -279,8 +269,6 @@ struct TemplatePickerView: View {
         }
     }
 }
-
-// MARK: - Helper Views
 
 struct TemplateGridCard: View {
     let template: any ProjectScaffoldTemplate

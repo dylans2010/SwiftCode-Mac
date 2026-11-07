@@ -2,23 +2,14 @@ import Foundation
 import SwiftCodePlist
 import SwiftCodeProject
 
-/// Object-graph edits behind the project navigator's file operations
-/// (`specs/ide/navigators.md` §SwiftCode implementation). They touch only the
-/// objects they change, so the writer keeps every other object's bytes.
 extension PBXProj {
-    /// The group a navigator row stands for: the project object means the
-    /// main group.
     public func groupID(_ id: String) -> String {
         id == rootObject ? (project?.string("mainGroup") ?? id) : id
     }
 
-    /// Classes whose `children` the navigator edits.
     static let editableGroupClasses: Set<String> = ["PBXGroup"]
     static let groupClasses: Set<String> = ["PBXGroup", "PBXVariantGroup", "XCVersionGroup"]
 
-    /// Inserts `child` into a group's `children` at `index` (nil or past
-    /// the end: at the end, except that in the main group the Products
-    /// group stays last).
     mutating func insertChild(_ child: String, into group: String, at index: Int?) {
         guard var g = self[group] else { return }
         var kids = g.references("children")
@@ -30,7 +21,6 @@ extension PBXProj {
         self[group] = g
     }
 
-    /// Takes `child` out of its group; returns the group and the index it had.
     @discardableResult
     mutating func detachChild(_ child: String) -> (group: String, index: Int)? {
         for (gid, var g) in objects {
@@ -43,10 +33,6 @@ extension PBXProj {
         return nil
     }
 
-    /// Removes an object and everything under it: a group's children, the
-    /// build files that point at any of them, a synchronized folder's
-    /// exception sets and its place in targets, and their entries in
-    /// groups.
     mutating func removeTree(_ id: String) {
         guard let obj = self[id] else { return }
         for child in obj.references("children") { removeTree(child) }
@@ -64,7 +50,6 @@ extension PBXProj {
         self[id] = nil
     }
 
-    /// Adds a new object at `index` in a group; returns its ID.
     mutating func addObject(_ attributes: [(String, PlistValue)], to group: String, at index: Int?) -> String {
         let id = makeObjectID()
         self[id] = PBXObject(id: id, attributes: PlistDictionary(attributes))
@@ -72,13 +57,11 @@ extension PBXProj {
         return id
     }
 
-    /// A new group: with a folder (`path`) or without one (`name`).
     mutating func addGroup(named name: String, withFolder: Bool, to group: String, at index: Int?) -> String {
         addObject([("isa", .string("PBXGroup")), ("children", .array([])),
                    (withFolder ? "path" : "name", .string(name)), ("sourceTree", .string("<group>"))], to: group, at: index)
     }
 
-    /// A new synchronized folder at `path` (relative to the group).
     mutating func addSynchronizedFolder(path: String, to group: String, at index: Int?, targets: [String]) -> String {
         let id = addObject([("isa", .string("PBXFileSystemSynchronizedRootGroup")), ("path", .string(path)),
                             ("sourceTree", .string("<group>"))], to: group, at: index)
@@ -92,8 +75,6 @@ extension PBXProj {
         self[t] = target
     }
 
-    /// A file reference at `index` (`path` relative to the group). A
-    /// folder reference has the type `folder`.
     mutating func addReference(path: String, fileType: String, to group: String, at index: Int?) -> String {
         let id = addObject([("isa", .string("PBXFileReference")), ("lastKnownFileType", .string(fileType)),
                             ("path", .string(path)), ("sourceTree", .string("<group>"))], to: group, at: index)
@@ -101,8 +82,6 @@ extension PBXProj {
         return id
     }
 
-    /// Sets an item's `path`. A path through other folders keeps the
-    /// item's name in `name`; a plain one needs no `name` equal to it.
     mutating func setPath(_ path: String, of id: String) {
         guard var obj = self[id] else { return }
         let display = obj.string("name") ?? obj.string("path").map { ($0 as NSString).lastPathComponent }
@@ -115,8 +94,6 @@ extension PBXProj {
         self[id] = obj
     }
 
-    /// The build phase class a file joins in a target, by type (nil: none,
-    /// as for headers, xcconfig files, entitlements and Info.plist).
     static func buildPhaseClass(forFile name: String, isFolderReference: Bool = false) -> String? {
         if isFolderReference { return "PBXResourcesBuildPhase" }
         let ext = (name as NSString).pathExtension.lowercased()
@@ -126,8 +103,6 @@ extension PBXProj {
         return "PBXResourcesBuildPhase"
     }
 
-    /// Adds a reference's build file to each target's matching phase
-    /// (creating the phase when the target has none).
     mutating func addToTargets(_ ref: String, fileName: String, targets: [String], isFolderReference: Bool = false) {
         guard let isa = Self.buildPhaseClass(forFile: fileName, isFolderReference: isFolderReference) else { return }
         for t in targets where self[t] != nil {
@@ -137,17 +112,11 @@ extension PBXProj {
         }
     }
 
-    /// The targets whose build phases hold a build file for `ref`.
     func targetsContaining(_ ref: String) -> [String] {
         targets.filter { t in buildPhases(ofTarget: t.id).contains { $0.references("files").contains { self[$0]?.string("fileRef") == ref } } }
             .map(\.id)
     }
 
-    // MARK: Synchronized folders' exception sets
-
-    /// Rewrites the paths a folder's exception sets name: `old` (and any
-    /// path under it) becomes `new`; nil drops them. Empty sets that say
-    /// nothing else are removed (as `setMembership` does).
     mutating func rewriteExceptionPaths(in folder: String, from old: String, to new: String?) {
         guard var root = self[folder] else { return }
         func map(_ p: String) -> String?? {
@@ -194,7 +163,6 @@ extension PBXProj {
     }
 }
 
-/// Paths relative to a directory, with ".." where needed.
 enum RelativePath {
     static func from(_ dir: String, to path: String) -> String {
         let a = URL(fileURLWithPath: dir).standardizedFileURL.pathComponents
@@ -205,7 +173,6 @@ enum RelativePath {
         return parts.isEmpty ? "" : parts.joined(separator: "/")
     }
 
-    /// Whether `path` is `dir` or inside it.
     static func isInside(_ path: String, _ dir: String) -> Bool {
         let p = URL(fileURLWithPath: path).standardizedFileURL.path, d = URL(fileURLWithPath: dir).standardizedFileURL.path
         return p == d || p.hasPrefix(d.hasSuffix("/") ? d : d + "/")

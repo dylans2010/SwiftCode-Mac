@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SwiftCodeIDECore
 
-/// Project Inspector scanner: file metrics, framework-usage counts, the
-/// health rules and the pbxproj parse, all against throwaway fixtures.
 @MainActor
 struct ProjectInspectorTests {
     private func makeFixture() throws -> URL {

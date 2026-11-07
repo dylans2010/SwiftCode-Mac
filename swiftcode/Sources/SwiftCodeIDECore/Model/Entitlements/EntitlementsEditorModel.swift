@@ -2,23 +2,6 @@ import Foundation
 import Observation
 import SwiftCodeSigning
 
-/// The entitlements editor's document model: a `.entitlements` file as an
-/// `Entitlements` dictionary (SwiftCodeSigning's `EntitlementValue`), edited
-/// through the capability catalog and written back as a sorted XML plist.
-///
-/// Ported from Legacy's `EntitlementsEditorManager`
-/// (`Core/Editor/EntitlementsEditorManager.swift`) + `EntitlementsEditorView`
-/// (`Views/Editor/EntitlementsEditorView.swift`): the same read/write,
-/// capability toggles, four presets, base + cross-entitlement validation,
-/// change history, and raw-XML round trip. The 17-entry manager catalog is
-/// subsumed by `EntitlementCapabilityCatalog` (123 definitions); the
-/// manager's `EntitlementMetadata` display data (minimum OS, SF symbol,
-/// colour) that the view catalog does not carry is not reproduced — the
-/// view catalog's symbol is the one the editor shows.
-///
-/// A file that is only looked at is never written. Saving writes the whole
-/// dictionary as XML with keys sorted, as Legacy did.
-
 public struct EntitlementIssue: Identifiable, Equatable, Sendable {
     public var id: String { rawKey + "|" + message }
     public enum Severity: String, Sendable { case error, warning }
@@ -55,8 +38,6 @@ public enum EntitlementsPreset: String, CaseIterable, Sendable {
     case mediaHardware = "Media & Hardware Access"
     case iCloudKeyValueContainers = "iCloud Key-Value & Containers"
 
-    /// The keys the preset sets, exactly as Legacy's
-    /// `EntitlementsEditorView` preset menu.
     public var keys: Entitlements {
         switch self {
         case .appStoreSandbox:
@@ -86,8 +67,6 @@ public enum EntitlementsPreset: String, CaseIterable, Sendable {
     }
 }
 
-/// A short readable summary of an entitlement value, for search, history
-/// and the raw view. Mirrors what Legacy showed via `String(describing:)`.
 public func entitlementSummary(_ value: EntitlementValue) -> String {
     switch value {
     case .string(let s): return s
@@ -105,34 +84,20 @@ public func entitlementSummary(_ value: EntitlementValue) -> String {
 @MainActor
 @Observable
 public final class EntitlementsEditorModel {
-    /// The file on disk, if the editor was opened on one.
     public let url: URL?
-    /// The live dictionary. Every edit goes through `set(_:forKey:)` /
-    /// `setCapability(_:on:)` so history and the dirty flag stay correct.
     public private(set) var entitlements: Entitlements
-    /// Whether the in-memory dictionary differs from disk.
     public private(set) var isDirty = false
-    /// Why the last load, save or raw-XML parse failed.
     public private(set) var problem: String?
 
-    /// Sets the problem message.
     public func setProblem(_ message: String) { problem = message }
 
-    /// Clears the problem banner.
     public func clearProblem() { problem = nil }
-    /// The last modification date seen on disk.
     public private(set) var lastModified: Date?
-    /// The search text filtering capabilities and uncovered keys.
     public var searchText = ""
-    /// The section filter (`.all` shows every catalog section).
     public var selectedSection: EntitlementCapabilitySection = .all
-    /// The selected capability key, for the inspector.
     public var selectedKey: String?
-    /// The edit history, newest first (Legacy's `EntitlementChange`).
     public private(set) var history: [EntitlementChange] = []
 
-    /// Opens `url`; a missing file starts empty (Legacy's
-    /// `readEntitlements` returned `[:]` for a missing file).
     public init(url: URL?) throws {
         self.url = url
         if let url, FileManager.default.fileExists(atPath: url.path) {
@@ -144,7 +109,6 @@ public final class EntitlementsEditorModel {
         }
     }
 
-    /// An in-memory document with no file (used by tests and new files).
     public init(entitlements: Entitlements = [:]) {
         self.url = nil
         self.entitlements = entitlements
@@ -154,10 +118,6 @@ public final class EntitlementsEditorModel {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
-    // MARK: - Persistence
-
-    /// Writes the dictionary back as a sorted XML plist. A directory at
-    /// the target path is refused, as Legacy refused it.
     public func save() throws {
         guard let url else { throw EntitlementsEditorError.noFile }
         var isDir: ObjCBool = false
@@ -170,8 +130,6 @@ public final class EntitlementsEditorModel {
         lastModified = Self.modifiedDate(of: url)
     }
 
-    /// Writes to a different file (the editor keeps pointing at the
-    /// file it was opened on).
     public func save(to newURL: URL) throws {
         let data = try xmlData()
         try data.write(to: newURL, options: .atomic)
@@ -179,7 +137,6 @@ public final class EntitlementsEditorModel {
         lastModified = Self.modifiedDate(of: newURL)
     }
 
-    /// Re-reads the file, dropping unsaved changes.
     public func revert() throws {
         guard let url else { throw EntitlementsEditorError.noFile }
         let data = try Data(contentsOf: url)
@@ -189,11 +146,8 @@ public final class EntitlementsEditorModel {
         lastModified = Self.modifiedDate(of: url)
     }
 
-    /// The dictionary as XML plist data (keys sorted, as Foundation writes
-    /// them — the same bytes Legacy's sorted writer produced).
     public func xmlData() throws -> Data { try entitlements.xmlPropertyList() }
 
-    /// The dictionary as XML text, for the raw view and Copy Raw XML.
     public func xmlText() -> String {
         guard let data = try? xmlData(), let text = String(data: data, encoding: .utf8) else {
             return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n</dict>\n</plist>"
@@ -201,8 +155,6 @@ public final class EntitlementsEditorModel {
         return text
     }
 
-    /// Replaces the dictionary from raw XML text; throws when it is not a
-    /// dictionary plist (Legacy's `parseRawXML`).
     public func setXMLText(_ xml: String) throws {
         guard let data = xml.data(using: .utf8) else { throw EntitlementsEditorError.invalidXML }
         let parsed = try Entitlements.fromPropertyList(data)
@@ -211,9 +163,6 @@ public final class EntitlementsEditorModel {
         isDirty = true
     }
 
-    // MARK: - Editing
-
-    /// Sets or removes one key, recording the change.
     public func set(_ value: EntitlementValue?, forKey key: String) {
         let old = entitlements[key].map(entitlementSummary) ?? "(absent)"
         if let value {
@@ -226,8 +175,6 @@ public final class EntitlementsEditorModel {
         isDirty = true
     }
 
-    /// Whether the capability's key is present — for iCloud, whether any of
-    /// its composite keys is present (Legacy's `isCapabilityOn`).
     public func isCapabilityOn(_ def: CapabilityDefinition) -> Bool {
         if def.rawKey == EntitlementCapabilityCatalog.iCloudContainersKey {
             return entitlements[EntitlementCapabilityCatalog.iCloudContainersKey] != nil
@@ -237,10 +184,6 @@ public final class EntitlementsEditorModel {
         return entitlements[def.rawKey] != nil
     }
 
-    /// Turns a capability on (writes its default value) or off (removes
-    /// the key). iCloud writes the containers key plus the key-value store
-    /// identifier, and off removes all three composite keys
-    /// (Legacy's `setCapability(_:on:)`).
     public func setCapability(_ def: CapabilityDefinition, on: Bool) {
         if def.rawKey == EntitlementCapabilityCatalog.iCloudContainersKey {
             if on {
@@ -260,12 +203,10 @@ public final class EntitlementsEditorModel {
         set(on ? def.defaultValue : nil, forKey: def.rawKey)
     }
 
-    /// Applies one of Legacy's four capability presets.
     public func applyPreset(_ preset: EntitlementsPreset) {
         for (key, value) in preset.keys { set(value, forKey: key) }
     }
 
-    /// The string array of a key (an id-list payload), or [].
     public func stringArray(forKey key: String) -> [String] {
         entitlements[key]?.strings ?? []
     }
@@ -274,7 +215,6 @@ public final class EntitlementsEditorModel {
         set(.array(values.map(EntitlementValue.string)), forKey: key)
     }
 
-    /// The string of a key (a choice / string payload), or `fallback`.
     public func string(forKey key: String, fallback: String) -> String {
         entitlements[key]?.stringValue ?? fallback
     }
@@ -283,14 +223,10 @@ public final class EntitlementsEditorModel {
         set(.string(value), forKey: key)
     }
 
-    /// Sets a boolean key (a plain toggle payload).
     public func setBool(_ value: Bool, forKey key: String) {
         set(.bool(value), forKey: key)
     }
 
-    // MARK: - iCloud composite payload
-
-    /// The iCloud container identifiers.
     public func iCloudContainers() -> [String] {
         entitlements[EntitlementCapabilityCatalog.iCloudContainersKey]?.strings ?? []
     }
@@ -299,7 +235,6 @@ public final class EntitlementsEditorModel {
         set(.array(values.map(EntitlementValue.string)), forKey: EntitlementCapabilityCatalog.iCloudContainersKey)
     }
 
-    /// The ubiquity key-value store identifier.
     public func iCloudKVStore() -> String {
         entitlements[EntitlementCapabilityCatalog.iCloudKVStoreKey]?.stringValue ?? ""
     }
@@ -308,8 +243,6 @@ public final class EntitlementsEditorModel {
         set(.string(value), forKey: EntitlementCapabilityCatalog.iCloudKVStoreKey)
     }
 
-    /// One ubiquitous container: id, display name, whether its documents
-    /// are public, and its supported folder levels.
     public func ubiquitousContainers() -> [(id: String, name: String, isPublic: Bool, folderLevels: String)] {
         guard let dict = entitlements[EntitlementCapabilityCatalog.ubiquitousContainersKey]?.dictionaryValue else { return [] }
         return dict.keys.sorted().map { id in
@@ -341,11 +274,8 @@ public final class EntitlementsEditorModel {
         }
     }
 
-    /// Whether App Sandbox is on.
     public var sandboxIsOn: Bool { entitlements["com.apple.security.app-sandbox"]?.boolValue ?? false }
 
-    /// Entitlement keys present in the file that no capability toggle
-    /// manages (Legacy's `uncoveredKeys`), filtered by the search text.
     public var uncoveredKeys: [String] {
         let known = EntitlementCapabilityCatalog.allRawKeys
         return entitlements.keys.filter { !known.contains($0) }.sorted().filter { key in
@@ -356,8 +286,6 @@ public final class EntitlementsEditorModel {
         }
     }
 
-    /// Whether a capability matches the search text (Legacy's
-    /// `capabilityMatchesSearch`).
     public func capabilityMatchesSearch(_ def: CapabilityDefinition) -> Bool {
         guard !searchText.isEmpty else { return true }
         let q = searchText.lowercased()
@@ -369,7 +297,6 @@ public final class EntitlementsEditorModel {
         return false
     }
 
-    /// The sections the filter shows (Legacy's `visibleSections`).
     public var visibleSections: [EntitlementCapabilitySection] {
         switch selectedSection {
         case .all: return [.sandbox, .hardenedRuntime, .cloud, .sharing, .personal, .services, .systemExtensions]
@@ -386,10 +313,6 @@ public final class EntitlementsEditorModel {
         }
     }
 
-    // MARK: - Validation
-
-    /// Base validation plus cross-entitlement checks, deduplicated by
-    /// message (Legacy's `combinedIssues` = `validate` + `crossEntitlementIssues`).
     public func validate() -> [EntitlementIssue] {
         var seen: Set<String> = []
         var out: [EntitlementIssue] = []
@@ -403,8 +326,6 @@ public final class EntitlementsEditorModel {
     public var warnings: [EntitlementIssue] { validate().filter { $0.severity == .warning } }
     public var isValid: Bool { errors.isEmpty }
 
-    /// Legacy's `validate(_:)`: sandbox presence, network-without-sandbox,
-    /// App Groups format.
     func baseValidation() -> [EntitlementIssue] {
         var issues: [EntitlementIssue] = []
         let sandbox = entitlements["com.apple.security.app-sandbox"]
@@ -432,8 +353,6 @@ public final class EntitlementsEditorModel {
         return issues
     }
 
-    /// Legacy's `crossEntitlementIssues(_:)`, ported to `EntitlementValue`.
-    /// Pure: inspects the dictionary, performs no I/O.
     func crossEntitlementIssues() -> [EntitlementIssue] {
         var warnings: [EntitlementIssue] = []
         var errors: [EntitlementIssue] = []
@@ -556,9 +475,6 @@ public final class EntitlementsEditorModel {
         return errors + warnings
     }
 
-    /// The restricted entitlements a provisioning profile does not allow
-    /// (SwiftCodeSigning's `EntitlementPolicy.mismatches`). The editor itself
-    /// has no profile; callers pass the target's resolved profile.
     public func profileMismatches(profile: ProvisioningProfile, platform: SigningPlatform) -> [EntitlementPolicy.Mismatch] {
         EntitlementPolicy.mismatches(entitlements, profile: profile, platform: platform)
     }

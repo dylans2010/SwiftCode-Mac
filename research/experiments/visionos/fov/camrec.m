@@ -1,14 +1,3 @@
-// camrec (our own code, OBS-VISION-FOV 2026-11-01, dirty room): per-frame picture timing for the
-// visionOS reference simulator. Inserted into a boot with SIMCTL_CHILD_DYLD_INSERT_LIBRARIES.
-// backboardd: logs every PalomaPose event (vendor 0xFF00 / 0x72) at dispatch: mach time now, the
-//   event's timestamp, translation and quaternion (fields as in visionos.md §5.5.10).
-//   (pose timestamps are changed on the host side: vhid TS_OFFSET_MS.)
-// wakeboardd: at every SFBSwapchainSwapAddSurface records mach time and the surface; while the file
-//   $CR_DIR/on exists it samples the surface given at the previous swap (complete by then): rows
-//   y = H/2, H/4, 3H/4, every 2nd pixel, as 8-bit luma, appended to $CR_DIR/frames.<pid>.bin as
-//   (the file is closed when "on" goes away and reopened, appending, when it returns), as
-//   records {u64 swap time of that surface, u32 surface id, u32 width, u32 rows, u32 samples, u8[rows*samples]}.
-// Output: $CR_DIR/cr.<process>.<pid> (text log).
 #import <Foundation/Foundation.h>
 #import <IOSurface/IOSurfaceRef.h>
 #include <mach/mach_time.h>
@@ -25,7 +14,6 @@ static void cr(const char *fmt, ...) {
     pthread_mutex_lock(&g_mx); fprintf(g_log, "%llu %s\n", mach_absolute_time(), line); fflush(g_log); pthread_mutex_unlock(&g_mx);
 }
 
-// ---------------------------------------------------------------- backboardd: pose events
 typedef void *IOHIDServiceRef; typedef void *IOHIDEventRef;
 extern void _IOHIDServiceDispatchEvent(IOHIDServiceRef, IOHIDEventRef) __attribute__((weak_import));
 extern uint32_t IOHIDEventGetType(IOHIDEventRef) __attribute__((weak_import));
@@ -35,8 +23,6 @@ extern CFIndex IOHIDEventGetIntegerValue(IOHIDEventRef, uint32_t) __attribute__(
 extern uint64_t IOHIDEventGetTimeStamp(IOHIDEventRef) __attribute__((weak_import));
 extern uint32_t IOHIDEventGetEventFlags(IOHIDEventRef) __attribute__((weak_import));
 extern void IOHIDEventSetEventFlags(IOHIDEventRef, uint32_t) __attribute__((weak_import));
-// CR_PFLAGS / CR_TFLAGS / CR_OFLAGS (hex): before dispatch, set the event flags of a pose event's parent,
-// Translation child and Orientation child (experiments on whether a flag changes the guest's camera smoothing).
 static long envhex(const char *n) { const char *v = getenv(n); return v ? strtol(v, NULL, 16) : -1; }
 static unsigned long g_other;
 static void cr_dispatch(IOHIDServiceRef s, IOHIDEventRef e) {
@@ -58,7 +44,6 @@ static void cr_dispatch(IOHIDServiceRef s, IOHIDEventRef e) {
     _IOHIDServiceDispatchEvent(s, e);
 }
 
-// ---------------------------------------------------------------- wakeboardd: swaps and samples
 typedef struct { double x, y, w, h; } crrect_t;
 extern bool SFBSwapchainSwapAddSurface(void *sc, void *surf, crrect_t src, crrect_t dst, long a, long b) __attribute__((weak_import));
 static IOSurfaceRef g_prev; static uint64_t g_prevT; static unsigned long g_n; static char g_on[600];

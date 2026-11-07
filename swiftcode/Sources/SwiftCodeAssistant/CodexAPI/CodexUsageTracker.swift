@@ -1,14 +1,6 @@
 import Foundation
 import Observation
 
-/// Tracks Codex usage for the app-owned key's limits (ported from
-/// Legacy's `CodexUsageTracker`).
-///
-/// When the API returns real token usage those numbers are used; otherwise
-/// tokens are estimated at 4 characters per token (Legacy's estimate,
-/// labelled as an estimate — it is a fallback, not a measurement). In
-/// restricted (app-owned key) mode the running totals are capped at
-/// 200,000 tokens, matching the manager's enforcement limit.
 @Observable
 @MainActor
 public final class CodexUsageTracker {

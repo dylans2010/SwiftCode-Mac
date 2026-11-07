@@ -1,11 +1,3 @@
-/*
- * Ycode research probe (iOS simulator guest side): look up names in this
- * process's bootstrap (the guest launchd_sim) and send one message to each
- * port found, so the host side can see that the message arrives on the port it
- * registered. Prints its environment variables starting with YC or SIMULATOR_UDID.
- * Original Ycode code. Contains no Apple code.
- * Usage: lsguest <name>...
- */
 #include <mach/mach.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +26,7 @@ int main(int argc, char **argv)
             m.h.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
             m.h.msgh_size = sizeof m;
             m.h.msgh_remote_port = p;
-            m.h.msgh_id = 0x59434f44; /* "YCOD" */
+            m.h.msgh_id = 0x59434f44;
             snprintf(m.text, sizeof m.text, "hello from guest pid %d via %s", getpid(), argv[i]);
             kr = mach_msg(&m.h, MACH_SEND_MSG | MACH_SEND_TIMEOUT, sizeof m, 0, 0, 1000, 0);
             printf("lsguest: sent message to %s: 0x%x\n", argv[i], kr);

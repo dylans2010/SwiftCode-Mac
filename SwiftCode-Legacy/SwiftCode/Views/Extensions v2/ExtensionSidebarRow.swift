@@ -1,12 +1,5 @@
 import SwiftUI
 
-// MARK: - One extension row, used by search, installed, and updates lists
-//
-// The row shows only real state: the record's state (never a guessed
-// one), the registry metadata, and the install action appropriate to
-// that state. Installing shows progress and disables the button so a
-// duplicate install cannot start.
-
 public struct ExtensionSidebarRow: View {
     public let metadata: ExtV2ExtensionMetadata
     public let state: ExtV2State?

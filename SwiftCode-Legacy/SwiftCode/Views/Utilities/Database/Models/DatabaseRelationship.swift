@@ -21,7 +21,7 @@ public struct DatabaseRelationship: Identifiable, Codable, Hashable {
     public var sourceColumn: String
     public var targetTable: String
     public var targetColumn: String
-    public var junctionTable: String? // for Many-to-Many relationships
+    public var junctionTable: String?
     public var onDelete: ReferentialAction
     public var onUpdate: ReferentialAction
 

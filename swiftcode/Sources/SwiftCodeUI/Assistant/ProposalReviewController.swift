@@ -2,20 +2,14 @@ import AppKit
 import SwiftCodeAssistant
 import SwiftCodeIDECore
 
-/// The review sheet for a proposed change (coding-assistant.md §5.3): the
-/// file now and with the change, side by side in the comparison view
-/// (`specs/ide/comparison.md`), with Reject and Accept. Nothing is written
-/// until the user accepts.
 @MainActor
 public final class ProposalReviewController: NSViewController {
     public let proposal: ChangeProposal
-    /// The file's text now (nil: the file does not exist yet).
     public let original: String?
     public let proposed: String
     public let comparison = ComparisonView()
     public let acceptButton = NSButton(title: "Accept", target: nil, action: nil)
     public let rejectButton = NSButton(title: "Reject", target: nil, action: nil)
-    /// Called once with the decision.
     public var onDecision: ((Bool) -> Void)?
 
     public init(proposal: ChangeProposal, original: String?, proposed: String) {
@@ -46,7 +40,7 @@ public final class ProposalReviewController: NSViewController {
         path.textColor = .secondaryLabelColor
         path.font = .systemFont(ofSize: 11)
         let name = (proposal.path as NSString).lastPathComponent
-        comparison.workingCopyOnLeft = false  // current on the left, proposed on the right
+        comparison.workingCopyOnLeft = false
         comparison.show(old: original ?? "", new: proposed, oldTitle: original == nil ? "\(name) (New File)" : "\(name) (Current)",
                         newTitle: "\(name) (Proposed)")
         acceptButton.title = original == nil ? "Create File" : "Accept"

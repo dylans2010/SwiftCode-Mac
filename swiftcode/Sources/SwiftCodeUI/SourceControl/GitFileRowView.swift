@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/Legacy/GitFileRowView.swift` (Dylan's own code; direct port authorised under MIT).
-// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Adaptation: GitFileStatus.path is String in the destination model (URL in Legacy): lastPathComponent via URL(fileURLWithPath:).
 import SwiftUI
 import SwiftCodeSDK
 

@@ -1,10 +1,3 @@
-// mtl-oracle.m: runs our test shaders (tests/shaders/*.metal) on the Mac's
-// Metal device to produce the expected outputs of tests/gpu/tests.txt
-// (black-box runs of our own programs). The Thor runner (airc-gpu.c) sets
-// up the same inputs for the translated SPIR-V.
-//
-// Build: clang -fobjc-arc -O2 -framework Metal -framework Foundation mtl-oracle.m -o mtl-oracle
-// Usage: mtl-oracle SHADER_DIR TESTS.txt OUT_DIR
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include "gpu-data.h"
@@ -59,7 +52,6 @@ static void runCompute(NSString *shaderDir, NSString *outDir, NSArray<NSString *
     NSError *err = nil;
     id<MTLComputePipelineState> ps;
     if ([name isEqual:@"call_visible"]) {
-        // Visible functions are linked at pipeline creation.
         MTLComputePipelineDescriptor *cd = [MTLComputePipelineDescriptor new];
         cd.computeFunction = fn;
         MTLLinkedFunctions *lf = [MTLLinkedFunctions new];
@@ -116,7 +108,6 @@ static void runCompute(NSString *shaderDir, NSString *outDir, NSArray<NSString *
         [e setTexture:texture2d(MTLPixelFormatRGBA32Float, 16, 16, t0, 16 * 16, NO) atIndex:0];
     }
     if (!strcmp(n, "t_argbuf")) {
-        // Argument buffer: texture resource ID, sampler resource ID, buffer GPU address.
         float t0[16 * 16 * 4];
         gd_tex0(t0);
         id<MTLTexture> t = texture2d(MTLPixelFormatRGBA32Float, 16, 16, t0, 16 * 16, NO);

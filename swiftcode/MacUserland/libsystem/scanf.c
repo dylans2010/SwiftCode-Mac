@@ -1,18 +1,12 @@
-// scanf.c - formatted input from strings and streams for SwiftCode's libSystem
-// (specs/macos/libsystem.md §12). Clean-room SwiftCode code from the C
-// standard's description of fscanf: directives, conversions
-// d i u o x X c s [ ] n p and the floating-point ones, the * suppression,
-// field widths and the length modifiers hh h l ll L q j z t.
 #include "ycl.h"
 
 double strtod(const char *, char **);
 int fgetc(FILE *);
 int ungetc(int, FILE *);
 
-// An input source: a string or a stream, one byte of look-ahead.
 struct input {
-    const char *s;  // string source
-    FILE *f;        // stream source
+    const char *s;
+    FILE *f;
     long consumed;
     int eof;
 };
@@ -63,7 +57,6 @@ static void store_integer(void *p, int len, unsigned long long v) {
     }
 }
 
-// Reads an integer of `base` (0: by prefix); returns 0 if no digits.
 static int scan_integer(struct input *in, int base, long width, unsigned long long *out) {
     char buf[96];
     int n = 0;
@@ -111,9 +104,6 @@ static int scan_integer(struct input *in, int base, long width, unsigned long lo
 static int scan_float(struct input *in, long width, double *out) {
     char buf[512];
     int n = 0;
-    // Take the longest prefix that can belong to a floating-point number
-    // (sign, digits, point, exponent, hex prefix, inf/nan letters), then
-    // let strtod decide how much of it is the number.
     while (width && n < (int)sizeof buf - 1) {
         int c = peek(in);
         int ok = (c >= '0' && c <= '9') || c == '.' || ((c == '+' || c == '-') && (n == 0 || buf[n - 1] == 'e' || buf[n - 1] == 'E' || buf[n - 1] == 'p' || buf[n - 1] == 'P')) ||
@@ -126,7 +116,6 @@ static int scan_float(struct input *in, long width, double *out) {
     char *end;
     double v = strtod(buf, &end);
     if (end == buf) return 0;
-    // Give back what strtod did not use (string sources only can rewind).
     if (in->s) {
         long extra = (long)(buf + n - end);
         in->s -= extra;
@@ -280,7 +269,6 @@ input_failure:
 YCL_EXPORT int vsscanf(const char *s, const char *fmt, va_list args) {
     struct input in = {s, 0, 0, 0};
     if (!*s) {
-        // EOF before the first conversion.
         const char *f = fmt;
         while (is_space((unsigned char)*f)) f++;
         if (*f) return -1;
@@ -319,7 +307,6 @@ YCL_EXPORT int scanf(const char *fmt, ...) {
 
 YCL_EXPORT int vscanf(const char *fmt, va_list args) { return vfscanf(__stdinp, fmt, args); }
 
-// The _l forms: the C locale is the only one (locale.c).
 YCL_EXPORT int sscanf_l(const char *s, void *locale, const char *fmt, ...) {
     (void)locale;
     va_list args;

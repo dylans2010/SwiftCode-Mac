@@ -107,7 +107,6 @@ public struct AssistStringsLocalizationTool: AssistTool {
             }
             return .success("Set key '\(key)' in \(fileURL.lastPathComponent).", data: ["key": key, "value": value ?? "", "file": fileURL.lastPathComponent])
         }
-        // delete
         guard let foundIndex = foundIndex else {
             return .failure("Key '\(key)' not found in \(fileURL.lastPathComponent).")
         }
@@ -152,7 +151,6 @@ public struct AssistStringsLocalizationTool: AssistTool {
             }
             return .success("Set key '\(key)' (\(locale)) in \(fileURL.lastPathComponent).", data: ["key": key, "value": value ?? "", "locale": locale, "file": fileURL.lastPathComponent])
         }
-        // delete
         guard var entry = strings[key] as? [String: Any],
               var localizations = entry["localizations"] as? [String: Any],
               localizations[locale] != nil else {

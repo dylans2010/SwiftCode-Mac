@@ -60,8 +60,6 @@ public struct AssistLocalizeAppTool: AssistTool {
         }
     }
 
-    // MARK: - localize
-
     private func localize(workspaceRoot: URL, languages: [String], translations: [String: [String: String]], developmentRegion: String) -> AssistToolResult {
         let plistURL = findInfoPlist(in: workspaceRoot)
         let targetDir = plistURL?.deletingLastPathComponent() ?? workspaceRoot
@@ -121,8 +119,6 @@ public struct AssistLocalizeAppTool: AssistTool {
         )
     }
 
-    // MARK: - status
-
     private func localizationStatus(workspaceRoot: URL) -> AssistToolResult {
         let targetDir = findInfoPlist(in: workspaceRoot)?.deletingLastPathComponent() ?? workspaceRoot
         let discovered = discoverLocalizableKeys(in: targetDir)
@@ -160,8 +156,6 @@ public struct AssistLocalizeAppTool: AssistTool {
         )
     }
 
-    // MARK: - set_development_region
-
     private func setDevelopmentRegion(_ region: String, workspaceRoot: URL) -> AssistToolResult {
         guard let plistURL = findInfoPlist(in: workspaceRoot) else {
             return .failure("No Info.plist found in the workspace; cannot set the development region.", code: .notFound)
@@ -194,8 +188,6 @@ public struct AssistLocalizeAppTool: AssistTool {
             filesChanged: [relativePath(of: plistURL, workspaceRoot: workspaceRoot)]
         )
     }
-
-    // MARK: - Validation helpers
 
     private func validatedLanguages(_ value: Any?) -> (languages: [String]?, error: String?) {
         guard let raw = value as? [Any], !raw.isEmpty else {
@@ -245,8 +237,6 @@ public struct AssistLocalizeAppTool: AssistTool {
         }
         return result
     }
-
-    // MARK: - Discovery
 
     private func discoverLocalizableKeys(in targetDir: URL) -> (keys: Set<String>, skippedTableKeys: Int, filesScanned: Int) {
         let fm = FileManager.default
@@ -303,8 +293,6 @@ public struct AssistLocalizeAppTool: AssistTool {
             .replacingOccurrences(of: "\\t", with: "\t")
     }
 
-    // MARK: - String Catalog (.xcstrings)
-
     private func findCatalog(named name: String, in targetDir: URL) -> URL? {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: targetDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
@@ -343,7 +331,6 @@ public struct AssistLocalizeAppTool: AssistTool {
         for key in keys.sorted() {
             var entry = strings[key] as? [String: Any] ?? [:]
             var localizations = entry["localizations"] as? [String: Any] ?? [:]
-            // Source language always carries the key itself as the source text.
             if localizations[sourceLanguage] == nil {
                 localizations[sourceLanguage] = ["stringUnit": ["state": "translated", "value": key]]
                 added += 1
@@ -384,8 +371,6 @@ public struct AssistLocalizeAppTool: AssistTool {
         }
         return true
     }
-
-    // MARK: - Info.plist
 
     private func updatePlistLocalization(plistURL: URL, languages: [String], developmentRegion: String) -> Bool {
         guard var dict = readPlist(at: plistURL) else { return false }

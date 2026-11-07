@@ -5,20 +5,14 @@ import Testing
 import SwiftCodeProject
 @testable import SwiftCodeUI
 
-/// The spacing audit's fixes (`specs/ide/metrics.md`), measured in a real
-/// workspace window (toolbar, full-size content, the navigator and the
-/// inspector as the window's split items) at 1400 × 900.
 @MainActor
 @Suite(.serialized) struct UISpacingTests {
-    /// A frame in window points with the origin at the window's top left.
     static func box(_ v: NSView) -> NSRect {
         let r = v.convert(v.bounds, to: nil)
         let h = v.window?.contentView?.superview?.bounds.height ?? v.window?.frame.height ?? 0
         return NSRect(x: r.minX, y: h - r.maxY, width: r.width, height: r.height)
     }
 
-    /// Opens the Demo package (`UISpacingProbeTests.demoPackage`) with
-    /// Model.swift in the editor, and runs `body` on the laid-out window.
     func withWindow(_ body: (WorkspaceWindowController, NSWindow) throws -> Void) throws {
         _ = NSApplication.shared
         let prefs = IsolatedPreferences("ui-spacing")
@@ -35,11 +29,6 @@ import SwiftCodeProject
         try body(wc, win)
     }
 
-    // MARK: §2 — the navigator's outline below the selector bar
-
-    /// The owner's report: the project tree hugged the navigator tabs. In
-    /// the window's sidebar the outline draws its first row with no
-    /// padding, so the first row sat 3 points under the selector capsule.
     @Test func projectOutlineStartsSevenPointsBelowTheSelector() throws {
         try withWindow { wc, win in
             let nav = wc.navigator
@@ -49,7 +38,6 @@ import SwiftCodeProject
             let rowTop = (win.contentView?.superview?.bounds.height ?? 0) - o.convert(o.rect(ofRow: 0), to: nil).maxY
             #expect(abs(rowTop - (selector.maxY + 7)) <= 0.5, "first row \(rowTop - selector.maxY) points below the selector")
             #expect(o.rect(ofRow: 0).height == 22 && o.rect(ofRow: 1).height == 22)
-            // Another navigator and back keeps the gap.
             nav.select(4)
             nav.select(0)
             win.contentView?.layoutSubtreeIfNeeded()
@@ -58,8 +46,6 @@ import SwiftCodeProject
         }
     }
 
-    /// With header rows (Tests here) the outline is clipped below them; its
-    /// first row starts 4 points below the clip's top, not cut off by it.
     @Test func headerNavigatorsKeepTheirFirstRowBelowTheHeader() throws {
         try withWindow { wc, win in
             let nav = wc.navigator
@@ -78,21 +64,14 @@ import SwiftCodeProject
         }
     }
 
-    // MARK: §4 — jump bar
-
     @Test func jumpBarIsTheReferenceBandAndASeparator() throws {
         try withWindow { wc, _ in
             let bar = Self.box(wc.editor.jumpBar)
-            // metrics.md §12.3: the band y 52–83, then a 2-point separator;
-            // the text scrolls under both (liquid-glass.md §7.3), kept clear
-            // of them at rest by the content inset.
             #expect(bar.minY == 52 && bar.height == 34)
             #expect(Self.box(wc.editor.scrollView).minY <= bar.minY)
             #expect(Self.box(wc.editor.scrollView).minY + wc.editor.scrollView.contentInsets.top == bar.maxY)
         }
     }
-
-    // MARK: §5 — inspector rows
 
     @Test func inspectorRowsKeepTheRightInset() throws {
         try withWindow { wc, _ in
@@ -101,20 +80,16 @@ import SwiftCodeProject
             let area = Self.box(insp.view)
             let limit = area.maxX - InspectorAreaController.contentInset
             let name = try #require(insp.nameField)
-            // metrics.md §12.4: values run to 7 before the edge (the rows to 8).
             #expect(abs(Self.box(name).maxX - (area.maxX - 7)) <= 1, "the name field ends \(area.maxX - Self.box(name).maxX) from the edge")
             for key in ["Type", "Location", "Text Encoding", "Line Endings", "Indent Using"] {
                 let c = try #require(insp.fileControls[key])
                 #expect(Self.box(c).maxX <= limit + 1, "\(key) ends \(area.maxX - Self.box(c).maxX) from the edge")
                 #expect(Self.box(c).minX >= area.minX + InspectorAreaController.contentInset)
             }
-            // The pop-ups line up on one right edge with the name field.
             let ends = ["Type", "Text Encoding", "Line Endings", "Indent Using"].compactMap { insp.fileControls[$0] }.map { Self.box($0).maxX }
             #expect(Set(ends.map { $0.rounded() }).count == 1)
         }
     }
-
-    // MARK: §7 — debug area bottom bars
 
     @Test func debugAreaBottomBarsShareOneHeight() throws {
         try withWindow { wc, win in
@@ -127,10 +102,7 @@ import SwiftCodeProject
                 let b = Self.box(bar)
                 #expect(b.height == DebugAreaController.bottomBarHeight)
                 #expect(abs(b.maxY - height) <= 0.5)
-                // The drawn control (its alignment rectangle): before macOS 26
-                // a small pop-up's frame reaches 2 below its bezel (metrics.md §14.1).
                 for v in bar.arrangedSubviews where !v.isHidden {
-                    // Window coordinates: the origin is the bottom left.
                     let bottom = (v.superview ?? bar).convert(v.alignmentRect(forFrame: v.frame), to: nil).minY
                     #expect(bottom >= 3.5, "\(type(of: v)) is \(bottom) from the window's bottom edge")
                 }
@@ -138,16 +110,12 @@ import SwiftCodeProject
         }
     }
 
-    // MARK: §8 — Settings
-
     @Test func settingsLabelsAreNotCutOff() throws {
         let t = TestDefaults("ui-spacing-settings")
         defer { t.remove() }
         let wc = SettingsWindowController(prefs: Preferences(defaults: t.defaults), components: [])
         let pane = try #require(wc.pane(GeneralSettingsPane.self))
         pane.view.layoutSubtreeIfNeeded()
-        // The card rows (settings.md R3.3): left-aligned labels in full,
-        // the help text wrapping under them.
         let rows = pane.cards.flatMap(\.rowViews).compactMap { $0 as? SettingsRowView }
         let restore = try #require(rows.first { $0.label.stringValue.hasPrefix("Restore open projects") })
         #expect(restore.help.map { $0.frame.height > 20 } == true)
@@ -157,14 +125,6 @@ import SwiftCodeProject
         wc.window?.close()
     }
 
-    // MARK: §9 — Device Hub toolbar
-
-    // Verified on macOS 27.2 here, and on 27.0 and 15.6 with the layout
-    // probe (`specs/ide/metrics.md` §14.1). macOS 26 floats the sidebar as an
-    // inset panel whose toolbar section ends the circle 5 points before the
-    // edge: a recorded deviation, so the test does not run there.
-    /// The sidebar's toolbar group hugs the sidebar's edge (device-hub.md
-    /// §3 items 2–4): the Hide Sidebar circle ends 7 points before x 240.
     @Test(.enabled(if: ProcessInfo.processInfo.operatingSystemVersion.majorVersion != 26,
                    "macOS 26 floats the hub's sidebar; the circle ends 5 points before its edge (metrics.md §14.1)"))
     func hubSidebarGroupEndsAtTheSidebarEdge() throws {
@@ -179,8 +139,6 @@ import SwiftCodeProject
         hub.splitView.autosaveName = nil
         defer { w.close() }
         w.contentView?.layoutSubtreeIfNeeded()
-        // What the window does when it first appears (the test keeps it
-        // off screen), as the layout probe does.
         hub.placeFirstDividers()
         let frame = try #require(w.contentView?.superview)
         frame.layoutSubtreeIfNeeded()

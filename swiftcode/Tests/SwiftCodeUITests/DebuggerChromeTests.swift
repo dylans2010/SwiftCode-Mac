@@ -5,9 +5,6 @@ import Testing
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// An in-memory adapter for reference-ui-4.md §5/§6: a breakpoint stop
-/// with `hitBreakpointIds`, queue-named threads, user and system frames,
-/// argument and local variables, a kill without an exit event.
 private final class ChromeAdapter: DAPTransport, @unchecked Sendable {
     var receiving: (@Sendable (Data?) -> Void)?
     var decoder = DAPFraming.Decoder()
@@ -68,7 +65,6 @@ private final class ChromeAdapter: DAPTransport, @unchecked Sendable {
 
 @MainActor
 @Suite(.serialized, .heavyIntegration) struct DebuggerChromeTests {
-    // MARK: Session and window
 
     @Test func pausedSessionChrome() async throws {
         _ = NSApplication.shared
@@ -87,14 +83,11 @@ private final class ChromeAdapter: DAPTransport, @unchecked Sendable {
         await session.debug(program: "/tmp/prod/Shapes", adapter: adapter)
         #expect(await waitUntil(30) { session.stoppedThread == 11 && !session.variables.isEmpty })
 
-        // Activity and stop annotation.
         #expect(session.activity == .paused("Paused Shapes"))
         #expect(session.stopAnnotation?.text == "Thread 1: breakpoint 3.1 (1)")
         #expect(wc.editor.stopAnnotationText == "Thread 1: breakpoint 3.1 (1)")
-        // The Debug navigator is selected on the stop.
         #expect(wc.navigator.selectedIndex == 6)
 
-        // Process row, gauges, thread rows, frame grouping.
         let root = try #require(wc.navigator.rows(6).first)
         #expect(root.title == "Shapes  PID \(getpid())")
         #expect(root.children.prefix(5).map(\.title) == ["CPU", "Memory", "Energy Impact", "Disk", "Network"])
@@ -105,7 +98,6 @@ private final class ChromeAdapter: DAPTransport, @unchecked Sendable {
         #expect(frames.map(\.title) == ["0 Shape.area(scale:)", "1 main", frames[2].title, "2 start"])
         #expect(frames[2].isSeparator && frames[3].dimmed && frames[0].symbol == "person.fill")
 
-        // Debug bar: path, extra buttons, branch.
         #expect(wc.debugArea.shownPath == "Shapes › Thread 1 › 0 Shape.area(scale:)")
         let tips = wc.debugArea.barButtonViews.map { $0.toolTip ?? "" }
         for t in ["Enable Backtrace in Editor", "Debug View Hierarchy", "Debug Memory Graph", "Environment Overrides", "Simulate Location"] {
@@ -117,13 +109,11 @@ private final class ChromeAdapter: DAPTransport, @unchecked Sendable {
 
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "debugger-chrome.png")
 
-        // Variables: A/L badges.
         #expect(wc.debugArea.variableRowText("self") == "A self: Shape = {...}")
         #expect(wc.debugArea.variableRowText("scale") == "A scale: Int = 2")
         #expect(wc.debugArea.variableRowText("total") == "L total: Int = 8")
         #expect(!wc.debugArea.isLoadingVariables)
 
-        // Breakpoint navigator: root, file group, row with symbol, ID and marker.
         wc.navigator.select(7)
         let bpRoot = try #require(wc.navigator.rows(7).first)
         #expect(bpRoot.title == "\(session.model.displayName)  1 Breakpoint")
@@ -138,12 +128,10 @@ private final class ChromeAdapter: DAPTransport, @unchecked Sendable {
         wc.addSpecialBreakpoint(.testFailure)
         #expect(session.breakpoints.symbolic.map(\.name) == ["XCTFail"])
         #expect(!wc.navigator.recentToggle.isHidden && !wc.navigator.sourceControlToggle.isHidden)
-        // reference-ui-5.md §5.2: Modified breakpoints, then Enabled breakpoints.
         wc.navigator.sourceControlToggle.performClick(nil)
         #expect(wc.navigator.breakpointFilter.enabledOnly)
         #expect(!wc.navigator.breakpointGroups.contains { $0.title == "Shapes.swift" })
 
-        // Stopping while paused: the kill lines, then Finished running.
         session.stop()
         #expect(await waitUntil(30) { session.debugClient == nil })
         let console = session.consoleText(.all)

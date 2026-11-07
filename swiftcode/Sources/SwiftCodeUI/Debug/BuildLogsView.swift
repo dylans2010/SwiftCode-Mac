@@ -1,20 +1,9 @@
-// BuildLogsView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/BuildLogsView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: level filter (Info/Warning/Error/Debug); export build logs; assistant log analysis (explicitly not ported)
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/BuildLogsView.swift (derived from Legacy).
-// Ambiguous type reference(s) defined in several modules, import left out: Role.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, AssistantMessage, BuildLogEntry, LogCategory, LogLevel, WorkflowRunInfo.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeBuild
 import SwiftCodeGitHub
 import SwiftCodeXcodebuild
 import SwiftUI
 import AppKit
-
-// MARK: - Structured Log Entry
 
 struct StructuredLogEntry: Identifiable {
     let id = UUID()
@@ -68,9 +57,6 @@ struct StructuredLogEntry: Identifiable {
     }
 }
 
-
-// MARK: - Build Log Manager
-
 @MainActor
 final class BuildLogManager: ObservableObject {
     static let shared = BuildLogManager()
@@ -95,8 +81,6 @@ final class BuildLogManager: ObservableObject {
     }
 }
 
-// MARK: - Build Logs View
-
 struct BuildLogsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
@@ -110,11 +94,9 @@ struct BuildLogsView: View {
     @State private var selectedRun: WorkflowRunInfo?
     @State private var filterLevel: StructuredLogEntry.LogLevel?
 
-    // Project Verification States
     @State private var showNoProjectAlert = false
     @State private var showProjectGeneratorSheet = false
 
-    // AI Chat Assistant state
     @State private var showAssistant = false
     @State private var assistantMessages: [AssistantMessage] = []
     @State private var isAnalyzing = false
@@ -176,7 +158,6 @@ struct BuildLogsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Detailed build diagnostics summary header card
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -231,7 +212,6 @@ struct BuildLogsView: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
 
-                    // Diagnostic Actions Bar
                     HStack(spacing: 12) {
                         Button {
                             let cmd = "xcodebuild -scheme \"\(XcodeBuildManager.shared.selectedScheme ?? "Default")\" -destination \"\(XcodeBuildManager.shared.selectedDestination)\""
@@ -282,7 +262,6 @@ struct BuildLogsView: View {
 
                 Divider()
 
-                // Filter bar
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         levelFilterButton(nil, label: "All")
@@ -315,7 +294,6 @@ struct BuildLogsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
-                        // Structured local logs
                         if !filteredLocalLogs.isEmpty {
                             Section("Local Logs") {
                                 ForEach(filteredLocalLogs.reversed()) { entry in
@@ -324,7 +302,6 @@ struct BuildLogsView: View {
                             }
                         }
 
-                        // Remote CI logs
                         if !logs.isEmpty {
                             Section("CI Builds") {
                                 ForEach(logs) { log in
@@ -507,8 +484,6 @@ struct BuildLogsView: View {
         }
     }
 
-    // MARK: - AI Build Assistant
-
     private var buildAssistantSheet: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -634,7 +609,6 @@ struct BuildLogsView: View {
         Task {
             var logContent = ""
 
-            // 1. Gather local logs
             if !logManager.entries.isEmpty {
                 logContent += "--- LOCAL BUILD LOGS ---\n"
                 for entry in logManager.entries.suffix(50) {
@@ -646,7 +620,6 @@ struct BuildLogsView: View {
                 logContent += "\n"
             }
 
-            // 2. Gather CI logs from GitHub Actions
             if !owner.isEmpty && !repo.isEmpty {
                 do {
                     let runs = try await GitHubService.shared.listWorkflowRuns(owner: owner, repo: repo)
@@ -656,8 +629,7 @@ struct BuildLogsView: View {
                         for job in jobs where job.conclusion == "failure" {
                             logContent += "\nJob: \(job.name)\n"
                             let logs = try await GitHubService.shared.getJobLogs(owner: owner, repo: repo, jobID: job.id)
-                            // Clean logs to remove noise (timestamps, etc. if possible, or just truncate)
-                            logContent += logs.suffix(10000) // Get the last 10k characters which usually contain the error
+                            logContent += logs.suffix(10000)
                         }
                     }
                 } catch {
@@ -678,7 +650,6 @@ struct BuildLogsView: View {
                 ))
             }
 
-            // 3. Perform AI analysis using OpenRouter (Llama 3.3 70B)
             do {
                 let systemPrompt = """
                 You are the SwiftCode Build Assistant, an expert in Swift, SwiftUI, and iOS development.
@@ -716,7 +687,6 @@ struct BuildLogsView: View {
             }
         }
     }
-
 
     private func regenerateAssistantAnalysis() {
         guard !isAnalyzing, !lastAnalysisPrompt.isEmpty else { return }

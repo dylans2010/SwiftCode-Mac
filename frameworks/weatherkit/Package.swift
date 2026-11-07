@@ -1,13 +1,4 @@
 // swift-tools-version:6.0
-//
-// swiftcode-weatherkit: an open, Linux-buildable WeatherKit written from
-// specs/frameworks/weatherkit/ under the clean-room protocol of AGENTS.md.
-//
-// The library module is named `WeatherKit` (an interop identifier) so that
-// existing `import WeatherKit` code compiles against it. On Linux the package
-// also provides a minimal `CoreLocation` module with the location types the
-// WeatherKit API needs; on Apple platforms the system CoreLocation is used
-// and the shim target is not part of the build.
 import PackageDescription
 
 #if os(Linux) || os(Windows) || os(Android) || os(FreeBSD) || os(OpenBSD)
@@ -31,7 +22,6 @@ let package = Package(
         .library(name: "WeatherKit", targets: ["WeatherKit"])
     ],
     dependencies: [
-        // Apache-2.0. ES256 developer tokens for the Apple REST backend (R4).
         .package(url: "https://github.com/apple/swift-crypto.git", exact: "4.5.2")
     ],
     targets: coreLocationTargets + [

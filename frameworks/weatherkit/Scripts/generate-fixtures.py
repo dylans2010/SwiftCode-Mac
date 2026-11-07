@@ -22,53 +22,39 @@ ANCHOR = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
 DAY0 = datetime(2026, 1, 15, 0, 0, 0, tzinfo=timezone.utc)
 LAT, LON = 41.5, -81.5
 
-
 def iso(d):
     return d.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-
-# Foundation's Measurement archive form: unit symbol and linear converter
-# to the dimension's base unit.
 def m(value, symbol, coefficient, constant=0):
     return {"value": round(value, 3), "unit": {"symbol": symbol, "converter": {"coefficient": coefficient, "constant": constant}}}
-
 
 def celsius(v):
     return m(v, "°C", 1, 273.15)
 
-
 def kmh(v):
     return m(v, "km/h", 0.277778)
-
 
 def mmh(v):
     return m(v, "mm/h", 2.7777777777777776e-07)
 
-
 def mbar(v):
     return m(v, "mbar", 100)
-
 
 def meters(v):
     return m(v, "m", 1)
 
-
 def mm(v):
     return m(v, "mm", 0.001)
 
-
 def degrees(v):
     return m(v, "°", 1)
-
 
 COMPASS = ["north", "northNortheast", "northeast", "eastNortheast", "east", "eastSoutheast", "southeast",
            "southSoutheast", "south", "southSouthwest", "southwest", "westSouthwest", "west", "westNorthwest",
            "northwest", "northNorthwest"]
 
-
 def compass(deg):
     return COMPASS[int(round((deg % 360) / 22.5)) % 16]
-
 
 def uv(value):
     for name, low, high in [("low", 0, 2), ("moderate", 3, 5), ("high", 6, 7), ("veryHigh", 8, 10)]:
@@ -76,49 +62,40 @@ def uv(value):
             return {"value": value, "category": name}
     return {"value": value, "category": "extreme"}
 
-
 def wind(deg, speed, gust):
     w = {"compassDirection": compass(deg), "direction": degrees(deg), "speed": kmh(speed)}
     if gust is not None:
         w["gust"] = kmh(gust)
     return w
 
-
 def intensity(value):
     category = "none" if value == 0 else ("light" if value < 2.5 else "moderate")
     return {"category": category, "value": value}
-
 
 def snowfall(amount):
     return {"amount": mm(amount), "maximum": mm(amount * 1.5), "minimum": mm(amount * 0.5),
             "amountLiquidEquivalent": mm(amount / 10), "maximumLiquidEquivalent": mm(amount * 0.15),
             "minimumLiquidEquivalent": mm(amount * 0.05)}
 
-
 def by_type(rain, snow=0.0):
     return {"hail": mm(0), "mixed": mm(0), "rainfall": mm(rain), "sleet": mm(0),
             "precipitation": mm(rain + snow / 10), "snowfallAmount": snowfall(snow)}
 
-
 def metadata(date, expires):
     return {"date": iso(date), "expirationDate": iso(expires), "latitude": LAT, "longitude": LON}
-
 
 def temperature_at(t):
     hours = (t - DAY0).total_seconds() / 3600
     return -2 + 6 * math.sin((hours - 9) / 24 * 2 * math.pi) + 0.2 * (hours / 24)
 
-
 def is_daylight(t):
     return 8 <= t.hour < 17
-
 
 def condition_at(t):
     day = (t - DAY0).days
     cycle = ["partlyCloudy", "mostlyCloudy", "snow", "flurries", "cloudy", "mostlyClear", "clear", "rain", "drizzle",
              "breezy"]
     return cycle[day % len(cycle)]
-
 
 SYMBOLS = {
     ("clear", True): "sun.max", ("clear", False): "moon.stars",
@@ -133,14 +110,12 @@ SYMBOLS = {
     ("breezy", True): "wind", ("breezy", False): "wind",
 }
 
-
 def precipitation_kind(cond):
     if cond in ("snow", "flurries"):
         return "snow"
     if cond in ("rain", "drizzle"):
         return "rain"
     return "none"
-
 
 def hour(t):
     cond = condition_at(t)
@@ -163,7 +138,6 @@ def hour(t):
         "apparentPrecipitationIntensity": intensity(amount),
     }
 
-
 def day_part(start, end, cond, high, low, rain, snow):
     return {
         "forecastStart": iso(start), "forecastEnd": iso(end), "cloudCover": 0.6,
@@ -177,10 +151,8 @@ def day_part(start, end, cond, high, low, rain, snow):
         "wind": wind(230, 15, 28), "highWindSpeed": kmh(30),
     }
 
-
 MOON = ["waningCrescent", "new", "waxingCrescent", "waxingCrescent", "firstQuarter", "waxingGibbous", "waxingGibbous",
         "full", "waningGibbous", "lastQuarter"]
-
 
 def day(i):
     start = DAY0 + timedelta(days=i)
@@ -221,7 +193,6 @@ def day(i):
         d["restOfDayForecast"] = day_part(ANCHOR, start + timedelta(hours=24), cond, high, low, rain / 2, snow / 2)
     return d
 
-
 def current():
     t = ANCHOR
     h = hour(t)
@@ -242,7 +213,6 @@ def current():
         "nextHourPrecipitationAmountByType": by_type(0), "nextSixHoursPrecipitationAmountByType": by_type(0, 2),
         "nextTwentyFourHoursPrecipitationAmountByType": by_type(0, 8),
     }
-
 
 def minutes():
     items = []
@@ -270,7 +240,6 @@ def minutes():
         ],
     }
 
-
 def alerts():
     return [{
         "summary": "Fixture Winter Weather Advisory", "source": "SwiftCode Fixture Weather Office",
@@ -285,7 +254,6 @@ def alerts():
         "expirationDate": iso(ANCHOR + timedelta(hours=20)),
     }]
 
-
 def changes():
     directions = ["increase", "decrease", "steady"]
     items = []
@@ -296,11 +264,9 @@ def changes():
                       "nightPrecipitationAmount": {"steady": {}}})
     return {"changes": items, "metadata": metadata(ANCHOR, ANCHOR + timedelta(hours=1))}
 
-
 def trend(value, baseline, deviation, unit):
     return {"baseline": {"kind": {"mean": {}}, "value": unit(baseline), "startDate": "1991-01-01T00:00:00Z"},
             "currentValue": unit(value), "deviation": {deviation: {}}}
-
 
 def comparisons():
     return {"comparisons": [
@@ -309,7 +275,6 @@ def comparisons():
         {"precipitationAmount": {"_0": trend(3.0, 2.4, "normal", mm)}},
         {"snowfallAmount": {"_0": trend(52.0, 20.0, "muchHigher", mm)}},
     ], "metadata": metadata(ANCHOR, ANCHOR + timedelta(hours=6))}
-
 
 def statistics():
     meta = metadata(ANCHOR, ANCHOR + timedelta(days=1))
@@ -344,7 +309,6 @@ def statistics():
         "monthly-precipitation-statistics.json": monthly_p, "daily-temperature-summary.json": summary_t,
         "daily-precipitation-summary.json": summary_p,
     }
-
 
 def main():
     os.makedirs(OUT, exist_ok=True)
@@ -395,7 +359,6 @@ def main():
             json.dump(content, handle, indent=1, ensure_ascii=False, sort_keys=True)
             handle.write("\n")
     print(f"wrote {len(files)} files to {os.path.normpath(OUT)}", file=sys.stderr)
-
 
 if __name__ == "__main__":
     main()

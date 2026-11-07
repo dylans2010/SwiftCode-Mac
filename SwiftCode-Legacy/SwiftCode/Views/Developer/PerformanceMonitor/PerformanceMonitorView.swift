@@ -11,17 +11,14 @@ struct PerformanceMonitorView: View {
     var body: some View {
         AdaptiveDashboardPage {
             VStack(spacing: 24) {
-                // CPU Metric
                 PerformanceMetricCard(title: "CPU Usage", value: String(format: "%.1f%%", cpuUsage), icon: "cpu", color: .blue) {
                     PerformanceChart(data: cpuHistory, color: .blue)
                 }
 
-                // Memory Metric
                 PerformanceMetricCard(title: "Memory Usage", value: String(format: "%.1f MB", memoryUsage), icon: "memorychip", color: .purple) {
                     PerformanceChart(data: memoryHistory, color: .purple)
                 }
 
-                // App Lifetime
                 PerformanceMetricCard(title: "Active Threads", value: "\(Thread.isMainThread ? 1 : 2)+", icon: "arrow.up.right.circle", color: .green) {
                     PerformanceChart(data: [1, 1, 1, 1], color: .green)
                 }
@@ -38,11 +35,8 @@ struct PerformanceMonitorView: View {
     }
 
     private func updateMetrics() {
-        // Use real system info where possible in Swift (simplified for this environment)
-        let _ = Double(ProcessInfo.processInfo.physicalMemory) / 1024 / 1024 / 1024 // GB
-        // In actual iOS, we'd use task_info, but ProcessInfo provides some basics
+        let _ = Double(ProcessInfo.processInfo.physicalMemory) / 1024 / 1024 / 1024
 
-        // Mocking the trend but based on actual ProcessInfo constants
         cpuUsage = Double.random(in: 5.0...15.0)
         memoryUsage = 150.0 + Double.random(in: -10...50)
 

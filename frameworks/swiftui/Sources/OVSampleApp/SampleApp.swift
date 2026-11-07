@@ -8,24 +8,6 @@ import SwiftUI
 import SwiftUICore
 #endif
 
-// The R7 sample: an OpenViews app with a button, a draggable box and a text
-// field in one window. Run it with a display (X11 or Wayland) and libSDL3:
-//
-//   OV_SDL3_LIBRARY=<prefix>/lib/libSDL3.so.0 swift run ov-sample
-//
-// Environment switches (all optional):
-//   OV_SAMPLE_SCRIPT=1      drive the window with synthetic events pushed
-//                           through SDL's queue: tap, drag, focus, type "hi",
-//                           Return; then quit
-//   OV_SCREENSHOT=<file>    write the window surface (read back) as PNG
-//                           before quitting
-//   OV_QUIT_AFTER=<s>       quit after s seconds (screenshot first)
-//   OV_PRINT_TARGETS=1      print the window-coordinate centres of the
-//                           button, box and field (for external drivers)
-//   OV_VULKAN_PROBE=1       open a second window with a Vulkan surface and
-//                           report which devices can present to it
-//   OV_TRACE=1              trace the app host's lifecycle on stderr
-
 @main
 struct SampleApp: App {
     var body: some Scene {
@@ -109,7 +91,6 @@ struct SampleView: View {
     }
 }
 
-/// Automation for the done-criterion runs (see the header).
 @MainActor
 enum SampleDriver {
     static var started = false

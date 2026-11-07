@@ -47,8 +47,6 @@ public struct WorkerReconciliationReport: Codable, Sendable {
     }
 }
 
-/// Durable persistence and crash-recovery engine for Assist Workers (M-PERSIST).
-/// Extends existing Assist persistence architecture to ensure no Worker work is ever lost (INV-10).
 @MainActor
 public final class WorkerPersistenceStore: Sendable {
     public static let shared = WorkerPersistenceStore()
@@ -125,7 +123,6 @@ public final class WorkerPersistenceStore: Sendable {
         }
     }
 
-    /// Persists the complete Worker tree continuously to durable storage
     public func persistWorkers(_ workers: [Worker], parentTaskID: UUID, workspaceRoot: URL? = nil) {
         let assignments = mergedAssignments(for: workers)
         let reviews = workers
@@ -201,7 +198,6 @@ public final class WorkerPersistenceStore: Sendable {
         return result
     }
 
-    /// Restores previously persisted Workers upon application restart or recovery
     public func restoreLastSession(from workspaceRoot: URL? = nil) -> PersistedTaskTree? {
         var tree = workspaceRoot != nil ? loadFromFile(in: workspaceRoot!) : nil
         if tree == nil {
@@ -247,7 +243,6 @@ public final class WorkerPersistenceStore: Sendable {
         }
     }
 
-    /// Verifies claimed file changes against the actual filesystem after a session restore
     public func reconcileWithFilesystem(workspaceRoot: URL) -> WorkerReconciliationReport {
         var discrepancies: [WorkerReconciliationDiscrepancy] = []
         var verifiedClaims = 0
@@ -304,7 +299,6 @@ public final class WorkerPersistenceStore: Sendable {
         return workspaceRoot.appendingPathComponent(path).path
     }
 
-    /// Re-schedules workers that were interrupted mid-flight (non-terminal status at restore time)
     public func resumeInterruptedWorkers(context: AssistContext) async -> [WorkerResult] {
         let interrupted = WorkerRuntimeState.shared.allWorkers.filter { !$0.status.isTerminal }
         guard !interrupted.isEmpty else {
@@ -340,7 +334,6 @@ public final class WorkerPersistenceStore: Sendable {
         )
     }
 
-    /// Full crash-recovery entry point: restore state, reconcile claims with disk, resume interrupted work
     public func restoreReconcileAndResume(context: AssistContext, workspaceRoot: URL) async -> (tree: PersistedTaskTree?, report: WorkerReconciliationReport, results: [WorkerResult]) {
         let tree = restoreLastSession(from: workspaceRoot)
         let report = reconcileWithFilesystem(workspaceRoot: workspaceRoot)
@@ -348,7 +341,6 @@ public final class WorkerPersistenceStore: Sendable {
         return (tree, report, results)
     }
 
-    /// Clears persisted records for a completed and cleanly archived task
     public func clear() {
         UserDefaults.standard.removeObject(forKey: storageKey)
         recordedAssignments.removeAll()

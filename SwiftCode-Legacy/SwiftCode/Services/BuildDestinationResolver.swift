@@ -52,7 +52,6 @@ public final class BuildDestinationResolver {
         public let workspaceOrProject: URL
     }
 
-    /// Queries xcodebuild -showBuildSettings to resolve platform details
     public func resolveSettings(for projectURL: URL, scheme: String) async throws -> ResolvedSettings {
         let xcodebuildPath = XcodeBuildManager.shared.getXcodeBuildPath()
         let projectArgKey = projectURL.pathExtension == "xcworkspace" ? "-workspace" : "-project"
@@ -75,7 +74,6 @@ public final class BuildDestinationResolver {
             logger.warning("Failed to run showBuildSettings: \(error.localizedDescription)")
         }
 
-        // Fallback if xcodebuild fails or lacks Xcode
         return try resolveSettingsFallback(for: projectURL, scheme: scheme)
     }
 
@@ -133,7 +131,6 @@ public final class BuildDestinationResolver {
             }
         }
 
-        // Direct inspection of project.pbxproj if available
         let pbxprojURL = projectURL.pathExtension == "xcodeproj" ? projectURL.appendingPathComponent("project.pbxproj") : projectURL.appendingPathComponent("\(scheme).xcodeproj/project.pbxproj")
         if let pbxContent = try? String(contentsOf: pbxprojURL, encoding: .utf8) {
             let lower = pbxContent.lowercased()
@@ -153,7 +150,6 @@ public final class BuildDestinationResolver {
         )
     }
 
-    /// Queries xcodebuild -showdestinations and filters them based on active platforms
     public func resolveDestinations(for projectURL: URL, scheme: String, settings: ResolvedSettings) async -> [ResolvedDestination] {
         let xcodebuildPath = XcodeBuildManager.shared.getXcodeBuildPath()
         let projectArgKey = projectURL.pathExtension == "xcworkspace" ? "-workspace" : "-project"
@@ -178,7 +174,6 @@ public final class BuildDestinationResolver {
             logger.warning("Failed to run showdestinations: \(error.localizedDescription)")
         }
 
-        // Filter out unusable placeholder destinations
         destinations = destinations.filter { !$0.idString.contains("placeholder") }
 
         if destinations.isEmpty {
@@ -222,7 +217,6 @@ public final class BuildDestinationResolver {
         return results
     }
 
-    /// Dynamically fetches available simulator devices via simctl CLI process
     public func fetchAvailableSimulators() async -> [ResolvedDestination] {
         do {
             let result = try await ProcessRunnerTool.shared.run(
@@ -330,7 +324,6 @@ public final class BuildDestinationResolver {
         return list
     }
 
-    /// Selects the best compatible destination and SDK automatically
     public func selectBestDestination(settings: ResolvedSettings, destinations: [ResolvedDestination]) -> (sdk: String, destination: ResolvedDestination)? {
         let validDestinations = destinations.filter { !$0.idString.contains("placeholder") }
 
@@ -340,7 +333,6 @@ public final class BuildDestinationResolver {
         let isWatchOS = settings.supportedPlatforms.contains { $0.lowercased().contains("watch") }
         let isTvOS = settings.supportedPlatforms.contains { $0.lowercased().contains("appletv") || $0.lowercased().contains("tvos") }
 
-        // iOS priority if configured
         if isiOS {
             if let booted = validDestinations.first(where: { $0.platform.lowercased() == "ios simulator" && $0.variant == "Booted" && !$0.idString.isEmpty }) {
                 return ("iphonesimulator", booted)

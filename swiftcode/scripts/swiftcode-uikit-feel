@@ -1,25 +1,4 @@
 #!/usr/bin/env python3
-# swiftcode-uikit-feel: drives the UIKitFeel probe app (Samples/UIKitFeelSamples)
-# on a SwiftCode simulator device through the display stream, and turns its log
-# into the values of specs/simulator/uikit-feel.md, compared with the spec
-# (specs/simulator/uikit-feel-swiftcode.md). Python standard library only; run
-# with `python3 -I`. Original SwiftCode code.
-#
-# usage:
-#   swiftcode-uikit-feel drive --connect unix:<socket> --app-tmp <DEV/data/tmp> --out <dir> [--suite s1,s2,...] [--runs N]
-#       Runs the trials of the chosen suites (default: all) against the probe,
-#       which must be running in the device. Writes <dir>/guest.log (the
-#       probe's log), <dir>/host.jsonl (inputs and frames as the driver saw
-#       them) and <dir>/screen.png (the pixels page, from the server).
-#       Suites: info flick rubber edge paging top highlight long double pan
-#       swipe pinch keyboard rotation display pixels
-#   swiftcode-uikit-feel analyze <dir> [--json <file>] [--check]
-#       Prints the comparison table (markdown); --check exits 1 when a value
-#       that should match does not.
-#   swiftcode-uikit-feel pattern <png> <guest.log> [--scale S] [--crop x,y]
-#       Finds the probe's pixel-exact pattern in an image (a screenshot, or a
-#       capture of a device window at 1:1) and reports how many of its pixels
-#       differ from the expected values.
 import json
 import math
 import os
@@ -31,12 +10,8 @@ import threading
 import time
 import zlib
 
-
 def now():
     return time.monotonic()
-
-
-# ---------------------------------------------------------------- the stream
 
 class Stream:
     """A display-stream client (specs/simulator/display-stream.md §2–§5)."""
@@ -52,13 +27,13 @@ class Stream:
         self.lock = threading.Lock()
         self.cond = threading.Condition()
         self.hello = None
-        self.frames = []        # (host time, guest frame, input seq)
+        self.frames = []
         self.notices = []
         self.shots = {}
         self.seq = 0
         self.token = 0
         self.closed = False
-        self.inputs = []        # (host time, seq, kind, detail)
+        self.inputs = []
         threading.Thread(target=self._reader, daemon=True).start()
         self._send(0x81, json.dumps({"protocol": "swiftcode-display/1", "client": "swiftcode-uikit-feel", "maxFPS": 120,
                                      "encoding": "jpeg", "quality": 40, "downscale": 4}).encode())
@@ -144,14 +119,10 @@ class Stream:
                 f.write(png)
         return bool(png)
 
-
 def sleep_until(t):
     d = t - now()
     if d > 0:
         time.sleep(d)
-
-
-# ---------------------------------------------------------------- the probe
 
 class Probe:
     """The probe app's command file and log (in the device's DEV/data/tmp)."""
@@ -197,7 +168,6 @@ class Probe:
                 r[p[2]] = tuple(float(v) for v in p[3:7])
         return r
 
-
 class Driver:
     def __init__(self, stream, probe, runs):
         self.s = stream
@@ -222,8 +192,6 @@ class Driver:
 
     def settle(self, s):
         time.sleep(s)
-
-    # -- touch shapes (60 Hz samples, as XCUITest's 16.7 ms cadence, §4.4)
 
     def drag(self, x0, y0, dx, dy, speed, press_ms=50, hold_ms=0, hz=60.0):
         """Down at (x0, y0), still for press_ms, then a straight move of
@@ -277,8 +245,6 @@ class Driver:
         time.sleep(0.1)
         self.s.touches(pair(d1, 2))
 
-    # -- suites
-
     def suite_info(self):
         self.mark("info")
         self.p.command("info")
@@ -328,7 +294,6 @@ class Driver:
                 for r in range(self.runs):
                     self.p.command("offset top" if edge == "top" else "offset bottom")
                     time.sleep(0.4)
-                    # 600 pt away from the edge
                     lines = self.p.lines()
                     cfg = [ln for ln in lines if " scroll-config " in ln][-1]
                     off = float(re.search(r"off=[-\d.]+,([-\d.]+)", cfg).group(1))
@@ -430,8 +395,6 @@ class Driver:
         rects = self.gestures_page()
         x, y = self.center(rects["pinch"])
         w = rects["pinch"][2]
-        # Slow enough (0.5 pt of finger distance per 60 Hz sample) that the
-        # sample step does not hide the threshold.
         for kind, d0, d1 in (("spread", 6.0, 46.0), ("pinch", 160.0, 120.0)):
             for r in range(self.runs):
                 self.mark(f"pinch kind={kind} run={r}")
@@ -476,7 +439,6 @@ class Driver:
                 time.sleep(2.3)
             self.p.command("dl-stop")
             time.sleep(0.3)
-        # Tracking a drag and decelerating, on the scroll page.
         self.scroll_page()
         self.p.command("dl default")
         for r in range(self.runs):
@@ -500,10 +462,8 @@ class Driver:
         ok = self.s.screenshot(os.path.join(out, "screen.png"))
         print("screenshot:", "ok" if ok else "none", flush=True)
 
-
 SUITES = ["info", "flick", "rubber", "edge", "paging", "top", "highlight", "long", "double", "pan", "swipe",
           "pinch", "keyboard", "rotation", "display", "pixels"]
-
 
 def drive(argv):
     args = {"--suite": ",".join(SUITES), "--runs": "3"}
@@ -542,9 +502,6 @@ def drive(argv):
             f.write(json.dumps({"t": t, "notice": n}) + "\n")
     print("done:", out, flush=True)
 
-
-# ---------------------------------------------------------------- analysis
-
 def parse_log(path):
     """→ list of trials: (name, [(t, kind, fields dict, raw)])."""
     trials = []
@@ -576,7 +533,6 @@ def parse_log(path):
     trials.append(cur)
     return trials
 
-
 def med(v):
     v = sorted(v)
     if not v:
@@ -584,25 +540,21 @@ def med(v):
     n = len(v)
     return v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2
 
-
 def mmm(v, fmt="{:.3f}"):
     v = [x for x in v if x is not None]
     if not v:
         return "—"
     return (fmt.format(med(v)) + " [" + fmt.format(min(v)) + ".." + fmt.format(max(v)) + "]") if len(v) > 1 else fmt.format(v[0])
 
-
 def trial_args(name):
     return dict(w.split("=", 1) for w in name.split()[1:] if "=" in w)
-
 
 def touches(events):
     return [(t, f) for t, k, f, _ in events if k == "touch"]
 
-
 class Report:
     def __init__(self):
-        self.rows = []      # (section, item, spec, swiftcode, verdict, note)
+        self.rows = []
         self.failed = 0
 
     def row(self, section, item, spec, swiftcode, verdict, note=""):
@@ -624,17 +576,14 @@ class Report:
             out.append("| " + " | ".join(str(x) for x in r) + " |")
         return "\n".join(out)
 
-
 def scroll_series(events):
     return [(t, float(f["off"])) for t, k, f, _ in events if k == "did-scroll"]
-
 
 def first(events, kind, pred=None):
     for e in events:
         if e[1] == kind and (pred is None or pred(e[2])):
             return e
     return None
-
 
 def analyze_flick(trials, rep, scale):
     rows = {}
@@ -646,7 +595,7 @@ def analyze_flick(trials, rep, scale):
         de = first(ev, "did-end-decel")
         if not we or not de:
             continue
-        v0 = -float(we[2]["vel"])     # UIKit reports pt/ms; moving content up = positive offset change
+        v0 = -float(we[2]["vel"])
         v0 = abs(float(we[2]["vel"]))
         target = float(we[2]["target"])
         off_rel = float(we[2]["off"])
@@ -656,7 +605,6 @@ def analyze_flick(trials, rep, scale):
         travel = abs(target - off_rel)
         t_end = de[0] - we[0]
         final = float(de[2]["off"])
-        # fitted factor: per-frame velocities from 30 ms after release until 0.05 pt/ms
         vel = []
         for (t1, o1), (t2, o2) in zip(series, series[1:]):
             if t2 - t1 <= 0:
@@ -673,14 +621,12 @@ def analyze_flick(trials, rep, scale):
             sxx = sum((x - mx) ** 2 for x, _ in vel)
             sxy = sum((x - mx) * (y - my) for x, y in vel)
             factor = math.exp(sxy / sxx) if sxx else None
-        # fraction of travel at fixed times
         fr = {}
         for ms in (100, 250, 500, 1000, 2000):
             tt = we[0] + ms / 1000
             o = next((o for t, o in series if t >= tt), series[-1][1])
             fr[ms] = abs(o - off_rel) / travel if travel else None
         last_step = abs(series[-1][1] - series[-2][1]) if len(series) >= 2 else None
-        # did-scroll interval
         iv = [(b[0] - a[0]) * 1000 for a, b in zip(series, series[1:])]
         on_pixel = abs(final * scale - round(final * scale)) < 0.01
         rows.setdefault(int(a["v"]), []).append(dict(v0=v0, travel=travel, ratio=travel / v0 if v0 else None, t_end=t_end,
@@ -715,7 +661,6 @@ def analyze_flick(trials, rep, scale):
     rep.compare("3.1", "scrollViewDidScroll interval (median)", 16.667, med([r["iv"] for r in allr if r["iv"]]), 0.5, "{:.2f} ms",
                 note="frames the guest drew; a longer median means dropped frames")
 
-
 def finger_travel(ev, t_limit, axis="y"):
     ts = touches(ev)
     if not ts:
@@ -729,7 +674,6 @@ def finger_travel(ev, t_limit, axis="y"):
     if last is None:
         return None
     return abs(float(last[axis]) - float(f0[axis]))
-
 
 def analyze_rubber(trials, rep, height, scale):
     by = {}
@@ -760,8 +704,6 @@ def analyze_rubber(trials, rep, height, scale):
             v = next((o for t, o in after if t >= ms / 1000), 0.0)
             fr[ms] = v / exc if exc else None
         within = next((t for t, o in after if o <= 0.5), None)
-        # Past rest on the way back: below the top edge's rest (offsets grow
-        # into the content), above the bottom edge's.
         into = (lambda o: o - rest) if a["edge"] == "top" else (lambda o: rest - o)
         stop = de[0] if de else float("inf")
         ret.setdefault(int(a["d"]), []).append(dict(fr=fr, within=within, end=(de[0] - ed[0]) if de else None,
@@ -776,7 +718,6 @@ def analyze_rubber(trials, rep, height, scale):
     spec_ret = {100: (0.548, 0.251, 0.107, 0.043, 0.517, 0.568), 200: (0.448, 0.185, 0.076, 0.029, 0.535, 0.585),
                 400: (0.408, 0.160, 0.062, 0.023, 0.567, 0.619)}
     for d, v in sorted(by.items()):
-        # The pan threshold (10 pt) plus at most one touch sample (5 pt at 300 pt/s).
         before = [r["before"] for r in v if r["before"] is not None]
         ok = bool(before) and all(9.99 <= b <= 15.01 for b in before)
         rep.row("3.2", f"movement before scrolling starts, {d} pt drag", f"{spec_before.get(d, 12)} pt (10 pt + ≤ 1 sample of 5 pt)",
@@ -784,7 +725,6 @@ def analyze_rubber(trials, rep, height, scale):
         rep.compare("3.2", f"excursion, {d} pt drag (model c = 0.55, d = {height:g}: {mmm([r['model'] for r in v], '{:.1f}')})",
                     med([r["model"] for r in v if r["model"]]) or spec_exc[d], med([r["exc"] for r in v]), 1.0, "{:.1f} pt",
                     spec_text=f"{spec_exc[d]} pt on 874 pt; model for this run")
-    # fitted c
     pts = [(r, d) for d, v in by.items() for r in v if r["model"] and r["before"] is not None]
     best = None
     for c1000 in range(400, 701):
@@ -792,7 +732,6 @@ def analyze_rubber(trials, rep, height, scale):
         err = 0
         for r, d in pts:
             x = None
-            # recompute x from the model inversion of the logged total
             x = (r["model"] and (height / (1 - r["model"] / height) - height) / 0.55)
             m = (1 - 1 / (x * c / height + 1)) * height
             err += (m - r["exc"]) ** 2
@@ -813,7 +752,6 @@ def analyze_rubber(trials, rep, height, scale):
         vs = [r["v"] for r in v if r["v"] is not None]
         rep.row("3.3", f"release velocity after the 0.6 s hold, {d} pt drag", "not logged (0 assumed)", mmm(vs, "{:.3f}") + " pt/ms",
                 "info", "the drag's speed: a held finger sends nothing; the return times match only with it (uikit-feel-swiftcode.md §3.3)")
-
 
 def analyze_edge(trials, rep, inset_top, inset_bottom, content_h, view_h):
     by = {}
@@ -854,7 +792,6 @@ def analyze_edge(trials, rep, inset_top, inset_bottom, content_h, view_h):
                 mmm([r["peak"] for r in rs], "{:.1f}") + " pt", "info", "grows with the velocity at the edge")
         rep.row("3.4", f"{edge} edge, drag {v} pt/s: within 0.5 pt / didEndDecelerating", "0.65–0.70 s / 0.70–0.77 s",
                 mmm([r["within"] for r in rs]) + " / " + mmm([r["end"] for r in rs]) + " s", "info")
-
 
 def analyze_paging(trials, rep, width):
     by = {}
@@ -901,7 +838,6 @@ def analyze_paging(trials, rep, width):
             rep.compare("3.5", f"{case}: fraction of the snap at {ms} ms", s[3][i],
                         med([r["fr"][ms] for r in rs if r["fr"][ms] is not None]), 0.04, "{:.2f}")
 
-
 def analyze_top(trials, rep, inset_top):
     by = {}
     for name, ev in trials:
@@ -938,7 +874,6 @@ def analyze_top(trials, rep, inset_top):
         rep.compare("3.6", f"start {start}: scrollViewDidScrollToTop", 1614, med([r["did"] for r in fired if r["did"]]), 25,
                     "{:.0f} ms")
 
-
 def touch_down_up(ev):
     ts = touches(ev)
     down = next((t for t, f in ts if f["phase"] == "began"), None)
@@ -946,7 +881,6 @@ def touch_down_up(ev):
     downts = next((float(f["ts"]) for t, f in ts if f["phase"] == "began"), None)
     upts = next((float(f["ts"]) for t, f in ts if f["phase"] in ("ended", "cancelled")), None)
     return down, up, downts, upts
-
 
 def analyze_highlight(trials, rep):
     by = {}
@@ -961,8 +895,6 @@ def analyze_highlight(trials, rep):
         on = first(ev, "highlight", lambda f: f.get("on") == "1")
         off = first(ev, "highlight", lambda f: f.get("on") == "0")
         upin = first(ev, "up-inside")
-        # From the moment the window received the touch (spec §1: both are logged;
-        # these sub-millisecond values are from the window's receipt).
         by.setdefault((a["target"], a["kind"]), []).append(dict(
             began=(b[0] - down) * 1000 if b else None, on=(on[0] - down) * 1000 if on else None,
             off=(off[0] - up) * 1000 if off and up else None, upts=(up - down) * 1000 if up else None, fired=bool(upin),
@@ -991,7 +923,6 @@ def analyze_highlight(trials, rep):
         rep.row("4.1", f"{label}: touch event timestamp → the window has it", "—", mmm([r["delivery"] for r in rs], "{:.1f}") + " ms",
                 "info", "backboardd → app delivery in the guest")
 
-
 def analyze_long(trials, rep):
     by = {}
     for name, ev in trials:
@@ -1014,7 +945,6 @@ def analyze_long(trials, rep):
         if spec[ms] and n:
             rep.compare("4.2", f"press of {ms} ms: touch-down → .began", 501.5, med([r["began"] for r in rs if r["began"]]), 5,
                         "{:.1f} ms", spec_text="501.5 [500.6..506] ms")
-
 
 def analyze_double(trials, rep):
     singles, doubles = [], []
@@ -1039,7 +969,6 @@ def analyze_double(trials, rep):
         rep.row("4.3", "double tap (taps of 60 ms, 20 ms apart)", "recognized 5/5; single never", f"{n}/{len(doubles)}",
                 "match" if n == len(doubles) else "mismatch")
 
-
 def analyze_pan(trials, rep):
     rs = []
     for name, ev in trials:
@@ -1051,7 +980,6 @@ def analyze_pan(trials, rep):
             continue
         ts = touches(ev)
         y0 = float(ts[0][1]["y"])
-        # the touch sample delivered in the same pass as .began
         last = None
         for t, f in ts:
             if t <= b[0]:
@@ -1068,7 +996,6 @@ def analyze_pan(trials, rep):
     tz = all(abs(r["tr"][0]) < 0.01 and abs(r["tr"][1]) < 0.01 for r in rs)
     rep.row("4.4", "translation at .began", "(0, 0)", "(0, 0)" if tz else ", ".join(f"({x:g}, {y:g})" for x, y in [r["tr"] for r in rs][:3]),
             "match" if tz else "mismatch")
-
 
 def analyze_swipe(trials, rep):
     by = {}
@@ -1107,7 +1034,6 @@ def analyze_swipe(trials, rep):
                     f"{n}/{len(rs)}, " + (f"{trv:.1f} pt, " if trv is not None else "— , ") + mmm([r["t"] for r in rs if r["t"]], "{:.0f}") + " ms",
                     "match" if ok else "mismatch", "within one touch sample")
 
-
 def analyze_pinch(trials, rep):
     by = {}
     for name, ev in trials:
@@ -1119,7 +1045,6 @@ def analyze_pinch(trials, rep):
         if not b or not ts:
             by.setdefault(a["kind"], []).append(None)
             continue
-        # distance at touch-down and in the pass of .began, from the window's touch log
         downs = [f for t, f in ts if f["phase"] == "began"]
         d0 = math.hypot(float(downs[0]["x"]) - float(downs[1]["x"]), float(downs[0]["y"]) - float(downs[1]["y"])) if len(downs) >= 2 else None
         dist_b = float(b[2]["distance"]) if "distance" in b[2] else None
@@ -1134,7 +1059,6 @@ def analyze_pinch(trials, rep):
                         2.0, "{:.2f} pt", spec_text="about 8–9 pt")
             rep.compare("4.6", f"{kind}: scale at .began", 1.0, med([r["scale"] for r in ok]), 0.05, "{:.3f}",
                         spec_text="≈ 1.0 (1.018 / 1.000)")
-
 
 def analyze_keyboard(trials, rep, scale, height):
     shows, hides = [], []
@@ -1167,7 +1091,6 @@ def analyze_keyboard(trials, rep, scale, height):
     rep.row("5.1", "curve in user info", "7", ", ".join(curves), "match" if curves == ["7"] else "mismatch")
     begin = shown[0]["will"][1]["begin"] if "begin" in shown[0]["will"][1] else None
     words = shown[0]["will"][1]["_words"]
-    # begin=x y w h is split: the rect values follow in words
     raw = next(r for t, k, ff, r in [e for _, ev in trials for e in ev] if k == "kb" and "will-show" in r)
     m = re.search(r"begin=([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) end=([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)", raw)
     if m:
@@ -1182,7 +1105,6 @@ def analyze_keyboard(trials, rep, scale, height):
     rep.compare("5.1", "will-show → did-show", 403.7, med(wd), 25, "{:.1f} ms", spec_text="403.7 [389.6..586.1] ms")
     wh = [(h["did"][0] - h["will"][0]) * 1000 for h in hides if h["will"] and h["did"]]
     rep.compare("5.1", "will-hide → did-hide", 401.2, med(wh), 25, "{:.1f} ms", spec_text="401.2 ms (Duo: 8–10 ms also allowed)")
-    # §5.2 visible motion: fraction of the travel per frame since the first movement
     spec_show = (0.080, 0.197, 0.350, 0.484, 0.694, 0.874, 0.951, 0.993, 1.0)
     spec_hide = (0.115, 0.273, 0.416, 0.542, 0.737, 0.892, 0.959, 0.995, 1.0)
     frames = (1, 2, 3, 4, 6, 9, 12, 18, 24)
@@ -1197,7 +1119,6 @@ def analyze_keyboard(trials, rep, scale, height):
                 continue
             samples = [(t, (y - y0) / (y1 - y0)) for t, y in pos]
             will = s_["will"][0]
-            # p(t) = 1 − (1 + ω(t − t0)) e^(−ω(t − t0)): ω and the start t0 free.
             best = None
             for w10 in range(150, 360, 2):
                 w = w10 / 10
@@ -1216,7 +1137,6 @@ def analyze_keyboard(trials, rep, scale, height):
             moving = [t for t, p in samples if 0.001 < p < 0.999]
             frames_expected = (moving[-1] - moving[0]) * 60 + 1 if len(moving) > 1 else 0
             drops.append(max(0, round(frames_expected) - len(moving)))
-            # the curve at n frames after the start, from the samples (linear between them)
             frac = {}
             for n in frames:
                 tt = t0 + n / 60.0
@@ -1239,7 +1159,6 @@ def analyze_keyboard(trials, rep, scale, height):
                     spec_text="23.7–24.3 rad/s")
         rep.compare("5.2", f"{label}: motion starts after the notification", 12, med(lags), 17, "{:.0f} ms",
                     spec_text="within 1 frame (6–18 ms)", note=f"frames not drawn during the motion: {mmm(drops, '{:.0f}')}")
-
 
 def analyze_rotation(trials, rep, hello, notices):
     rots = [(n, ev) for n, ev in trials if n.startswith("rotation ")]
@@ -1272,7 +1191,6 @@ def analyze_rotation(trials, rep, hello, notices):
         if len(pos) >= 3:
             lens.append((pos[-1][0] - pos[0][0]) * 1000)
     rep.compare("6.2", "bounds animation length", 300, med(lens), 34, "{:.0f} ms", spec_text="300 [295..620] ms, ease-in-ease-out")
-
 
 def analyze_display(trials, rep, info, host):
     if info:
@@ -1307,7 +1225,6 @@ def analyze_display(trials, rep, info, host):
         if variant == "max":
             short = sum(1 for x in iv if x < 16.0)
             rep.row("7.2", f"max, {phase}: intervals shorter than 16.66 ms", "none", str(short), "match" if short == 0 else "mismatch")
-    # §7.3 what the host receives
     frames = host.get("frames", [])
     marks = host.get("marks", [])
     if frames:
@@ -1324,7 +1241,6 @@ def analyze_display(trials, rep, info, host):
             t0, t1 = idle
             n = sum(1 for t in frames if t0 <= t <= t1)
             rep.row("7.3", f"frames sent while nothing moves ({t1 - t0:.1f} s)", "none", str(n), "match" if n == 0 else "mismatch")
-
 
 def read_png(path):
     """→ (width, height, channels, rows as bytearray list) for 8-bit PNGs."""
@@ -1377,7 +1293,6 @@ def read_png(path):
         prev = line
     return w, h, ch, rows, chunks
 
-
 def pattern_pixels(n):
     """The probe's pattern (UIKitFeel.swift, PixelsPage.pattern)."""
     s = 12345
@@ -1386,7 +1301,6 @@ def pattern_pixels(n):
         s = (s * 1103515245 + 12345) & 0xFFFFFFFF
         out.append((s >> 16) & 0xFF)
     return out
-
 
 def find_pattern(img, expected, n, hint=None):
     """Searches the image for the n × n pattern; → (x, y, mismatched pixels, max error)."""
@@ -1418,7 +1332,6 @@ def find_pattern(img, expected, n, hint=None):
                         bad += 1
             return x, y, bad, worst
     return None
-
 
 def analyze_pixels(dirpath, rep, info, rects, scale):
     path = os.path.join(dirpath, "screen.png")
@@ -1463,7 +1376,6 @@ def analyze_pixels(dirpath, rep, info, rects, scale):
         rep.row("8.2", "text17: distinct gray levels", "254–256", str(levels), "match" if levels >= 200 else "mismatch")
     a, b = crop("text17"), crop("text17-1px")
     if a and b:
-        # b's crop starts one pixel to the right: equal pixels mean the same rendering moved by 1 px.
         n = min(len(a), len(b))
         m = min(len(a[0]), len(b[0]))
         diff = sum(abs(a[y][x][0] - b[y][x][0]) for y in range(n) for x in range(m)) / (n * m)
@@ -1472,7 +1384,6 @@ def analyze_pixels(dirpath, rep, info, rects, scale):
     if a and b and hp:
         n = min(len(a), len(b), len(hp))
         m = min(len(a[0]), len(b[0]), len(hp[0]))
-        # 3×: glyphs are rasterized again at the fractional origin (spec: 7.8 from either, 15.4 from their average).
         d_orig = sum(abs(hp[y][x][0] - a[y][x][0]) for y in range(n) for x in range(m)) / (n * m)
         d_avg = sum(abs(hp[y][x][0] - (a[y][x][0] + (a[y][x - 1][0] if x else 255)) / 2) for y in range(n) for x in range(m)) / (n * m)
         rep.row("8.2", "label moved by ½ px: mean difference from the original, from the 1-px average",
@@ -1480,7 +1391,6 @@ def analyze_pixels(dirpath, rep, info, rects, scale):
                 "the guest's own rendering; compared, not required to be equal")
     c = crop("text17")
     if c:
-        # Stem hinting: a vertical stem's columns are not snapped (partial coverage on both sides).
         cols = [sum(1 for row in c if row[x][0] < 128) for x in range(len(c[0]))]
         partial = sum(1 for row in c for p in row if 30 < p[0] < 225)
         rep.row("8.2", "text17: partially covered pixels (no stem hinting)", "many (stems 2.4–3.6 px wide)", str(partial),
@@ -1520,7 +1430,6 @@ def analyze_pixels(dirpath, rep, info, rects, scale):
         rep.row("8.3", "pixel-exact pattern (96 × 96 device pixels)", "exact", "not found" if not r else f"{r[2]} pixels differ (max {r[3]})",
                 "match" if r and r[2] == 0 else "mismatch")
 
-
 def load_host(dirpath, trials_times):
     path = os.path.join(dirpath, "host.jsonl")
     frames = []
@@ -1537,7 +1446,6 @@ def load_host(dirpath, trials_times):
                 elif "notice" in j:
                     notices.append(j["notice"])
     return frames, hello, notices
-
 
 def analyze(argv):
     dirpath = argv[0]
@@ -1592,7 +1500,6 @@ def analyze(argv):
     analyze_keyboard(trials, rep, scale, float(info["_bounds"][1]) if info else 874)
     frames, hello, notices = load_host(dirpath, None)
     analyze_rotation(trials, rep, hello, notices)
-    # host frame windows: the flick trials (moving) and the final idle phase, in host time
     host = {"frames": frames}
     hostlog = os.path.join(dirpath, "host.jsonl")
     host["moving"], host["idle"] = host_windows(hostlog, trials)
@@ -1613,7 +1520,6 @@ def analyze(argv):
     if check and rep.failed:
         sys.exit(1)
 
-
 def host_windows(hostlog, trials):
     """Host-time windows: while a flick decelerates (moving), and the
     driver's last idle phase. The guest and host clocks differ, so these come
@@ -1628,7 +1534,6 @@ def host_windows(hostlog, trials):
             j = json.loads(line)
             if "input" in j:
                 inputs.append(j)
-    # releases of single-finger drags longer than 100 pt (flicks)
     downs = {}
     for j in inputs:
         det = j.get("detail")
@@ -1644,9 +1549,6 @@ def host_windows(hostlog, trials):
     if last:
         idle = (last + 4.0, last + 4.0)
     return moving, idle
-
-
-# ---------------------------------------------------------------- pattern check
 
 def pattern_cmd(argv):
     png, logp = argv[0], argv[1]
@@ -1669,7 +1571,6 @@ def pattern_cmd(argv):
     print(f"{png}: pattern at ({x}, {y}): {bad} of {96 * 96} pixels differ (max {worst})")
     sys.exit(0 if bad == 0 else 1)
 
-
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
         print(open(__file__).read().split("\nimport ")[0])
@@ -1683,7 +1584,6 @@ def main():
         pattern_cmd(sys.argv[2:])
     else:
         sys.exit(f"unknown command {cmd}")
-
 
 if __name__ == "__main__":
     main()

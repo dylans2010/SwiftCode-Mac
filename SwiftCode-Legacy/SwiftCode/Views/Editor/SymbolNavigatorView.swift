@@ -23,7 +23,6 @@ struct SymbolNavigatorView: View {
         AdaptiveSheet {
             NavigationStack {
                 VStack(spacing: 0) {
-                // Search
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -35,7 +34,6 @@ struct SymbolNavigatorView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
 
-                // Kind filter
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         kindFilterButton(nil, label: "All")
@@ -49,7 +47,6 @@ struct SymbolNavigatorView: View {
 
                 Divider().opacity(0.3)
 
-                // Symbols list
                 if filteredSymbols.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "list.bullet.indent")

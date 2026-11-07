@@ -2,40 +2,28 @@ import AppKit
 import SwiftCodeCompletion
 import SwiftCodeIDECore
 
-/// The suggestion drawn after the caret (grey ghost text).
 struct GhostText: Equatable {
     var anchor: Int
     var text: String
-    /// Option is held: every line shows, not only the first.
     var expanded: Bool
 }
 
-/// The editor's predictive completion state (specs/ide/predictive-completion.md §3).
 @MainActor
 final class PredictionState {
     let session = PredictionSession()
-    /// The edit between `shouldChangeText` and `textDidChange`.
     var pendingEdit: (location: Int, removed: Int, inserted: String)?
-    /// More than one edit arrived before the change notification.
     var severalEdits = false
     var expanded = false
     var settingsOverride: PredictiveCompletionSettings?
 }
 
-// Predictive code completion in the source editor: the session follows
-// edits and caret moves; Tab accepts what is shown (⌥Tab all, ⌃Tab the
-// next word), Escape dismisses, ⌥ shows every line; Show Predictive
-// Completion (⌃⌥Space) asks at once.
 extension SourceEditorController {
     var prediction: PredictionSession { predictionState.session }
 
-    /// The suggestion shown, if any (tests).
     public var predictionSuggestion: PredictionSession.Suggestion? { prediction.suggestion }
-    /// What the editor draws: the collapsed or expanded ghost text (tests).
     public var shownPredictionText: String? {
         textView.ghostText.map { $0.expanded ? $0.text : PredictionSession.collapsed($0.text) }
     }
-    /// The session (tests and the window read its status).
     public var predictionSession: PredictionSession { prediction }
 
     func setUpPrediction() {
@@ -50,8 +38,6 @@ extension SourceEditorController {
         prediction.settings = predictionState.settingsOverride ?? p.predictiveCompletion
     }
 
-    /// Settings that replace the user's for this editor (tests: other suites
-    /// swap `Preferences.shared` while they run). Nil: the user's settings.
     public var predictionSettingsOverride: PredictiveCompletionSettings? {
         get { predictionState.settingsOverride }
         set {
@@ -64,7 +50,6 @@ extension SourceEditorController {
         textView.ghostText = s.map { GhostText(anchor: $0.anchor, text: $0.text, expanded: predictionState.expanded) }
     }
 
-    /// The document as the session sees it.
     func predictionSnapshot() -> PredictionSession.Snapshot? {
         guard let url = fileURL, textView.isEditable else { return nil }
         let sel = textView.selectedRange()
@@ -74,13 +59,11 @@ extension SourceEditorController {
                                           language: CompletionContext.language(forPath: url.path), otherFiles: others)
     }
 
-    /// From `shouldChangeText`.
     func notePredictionEdit(range: NSRange, replacement: String) {
         if predictionState.pendingEdit != nil { predictionState.severalEdits = true }
         predictionState.pendingEdit = (range.location, range.length, replacement)
     }
 
-    /// From `textDidChange`.
     func predictionTextDidChange() {
         defer {
             predictionState.pendingEdit = nil
@@ -91,21 +74,18 @@ extension SourceEditorController {
         prediction.textDidChange(snap, location: e.location, removed: predictionState.severalEdits ? max(1, e.removed) : e.removed, inserted: e.inserted)
     }
 
-    /// From `textViewDidChangeSelection` (ignored while an edit is in progress).
     func predictionSelectionDidChange() {
         guard predictionState.pendingEdit == nil else { return }
         let sel = textView.selectedRange()
         prediction.selectionDidChange(caret: sel.location, length: sel.length)
     }
 
-    /// Editor ▸ Show Predictive Completion (⌃⌥Space).
     @objc public func showPredictiveCompletion(_ sender: Any?) {
         guard let snap = predictionSnapshot() else { return }
         hideCompletions()
         prediction.forceRequest(snap)
     }
 
-    /// Accepts all, what is shown, a line or a word; false when nothing is shown.
     @discardableResult
     public func acceptPrediction(_ unit: PredictionSession.AcceptUnit) -> Bool {
         guard let s = prediction.suggestion, let text = prediction.acceptText(unit), !text.isEmpty else { return false }
@@ -118,7 +98,6 @@ extension SourceEditorController {
 
     public func dismissPrediction() { prediction.dismiss() }
 
-    /// Tab, ⌥Tab, ⌃Tab and Escape while a suggestion shows.
     func handlePredictionKey(_ e: NSEvent) -> Bool {
         guard prediction.suggestion != nil else { return false }
         let flags = e.modifierFlags.intersection([.shift, .command, .option, .control])
@@ -133,7 +112,6 @@ extension SourceEditorController {
         }
     }
 
-    /// Holding Option shows the whole suggestion.
     func predictionFlagsChanged(_ e: NSEvent) {
         let expanded = e.modifierFlags.intersection([.shift, .command, .option, .control]) == .option
         guard expanded != predictionState.expanded else { return }
@@ -142,10 +120,6 @@ extension SourceEditorController {
     }
 }
 
-/// A transparent view over the text view that draws the ghost text. TextKit
-/// 2 draws text in fragment views above the text view's own drawing, so
-/// the suggestion (which covers the rest of the caret line) needs a view
-/// above them. Clicks go through.
 final class GhostTextOverlay: NSView {
     weak var textView: SourceTextView?
     override var isFlipped: Bool { true }
@@ -154,13 +128,11 @@ final class GhostTextOverlay: NSView {
 }
 
 extension SourceTextView {
-    /// TextKit 2 adds layout-fragment views as it lays out: the overlay stays on top.
     override func didAddSubview(_ subview: NSView) {
         super.didAddSubview(subview)
         if subview !== ghostOverlay, ghostOverlay.superview === self { addSubview(ghostOverlay, positioned: .above, relativeTo: nil) }
     }
 
-    /// Shows, moves or hides the overlay for `ghostText`.
     func updateGhostOverlay() {
         guard ghostText != nil else {
             ghostOverlay.removeFromSuperview()
@@ -175,9 +147,6 @@ extension SourceTextView {
         ghostOverlay.needsDisplay = true
     }
 
-    /// Draws the suggestion after the caret: its first line in the caret's
-    /// line (what follows the caret on that line moves right of it), the
-    /// other lines on a background-filled block over the lines below.
     func drawGhostText(in dirty: NSRect) {
         guard let g = ghostText, let caret = caretRect(at: g.anchor) else { return }
         let shown = g.expanded ? g.text : PredictionSession.collapsed(g.text)
@@ -192,14 +161,12 @@ extension SourceTextView {
         let first = lines.first ?? ""
         if !first.isEmpty {
             let width = (first as NSString).size(withAttributes: ghost).width
-            // The caret (about 2 points wide) stays visible left of the suggestion.
             let x = caret.minX + 1
             if !rest.isEmpty {
                 for r in segmentRects(NSRange(location: g.anchor, length: (rest as NSString).length)) {
                     let cover = NSRect(x: max(r.minX, x + 1), y: r.minY, width: r.maxX - max(r.minX, x + 1) + 1, height: r.height)
                     background.setFill()
                     cover.fill()
-                    // The caret line's tint (drawBackground) over the cover.
                     if caretLine != nil, caretLine != highlightedLine {
                         NSColor.labelColor.withAlphaComponent(0.05).setFill()
                         cover.fill(using: .sourceOver)

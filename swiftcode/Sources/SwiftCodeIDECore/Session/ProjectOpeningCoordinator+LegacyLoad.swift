@@ -1,49 +1,8 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Services/ProjectOpeningCoordinator.swift
-//   (Legacy main ab03f681) — the `loadProjectWithTimeout` /
-//   `buildFileTreeInternal` half only.
-//
-// Destination: SwiftCodeIDECore/Session/ProjectOpeningCoordinator+LegacyLoad.swift.
-//
-// Why an extension file: the landed `ProjectOpeningCoordinator`
-// (`Session/ProjectOpeningCoordinator.swift`, batch A2) is a different
-// coordinator — it opens `WorkspaceSession`s through `WorkspaceModel`
-// with its own nested `ProjectOpenError` (`timeout(URL)`,
-// `cancelled`, `failed(URL, Error)`). It cannot serve the session
-// store, which loads a `Project` record from `project.json` plus a
-// first-level file tree. Rather than re-implementing the load inside
-// the store, the two missing Legacy coordinator methods land here, so
-// the store's call sites stay verbatim
-// (`coordinator.loadProjectWithTimeout(url:)`,
-// `coordinator.buildFileTreeInternal(at:relativeTo:)`).
-//
-// Error-type disambiguation: these methods throw the TOP-LEVEL
-// `ProjectOpenError` (`Model/ProjectOpenError.swift`: `.pathNotFound`,
-// `.corruptedProjectFile`, `.timeout`, `.cancelled`, `.underlyingIO`),
-// not the actor's nested one. Inside an extension of
-// `ProjectOpeningCoordinator` the bare name resolves to the nested
-// type, so this file aliases the top-level type at file scope
-// (`LegacyProjectOpenError`) and uses the alias throughout.
-//
-// Adaptations (behaviour preserved unless noted):
-// * The actor's `timeout` default is 15 seconds, matching Legacy's
-//   `defaultTimeout`; the parameter default here is the same literal.
-// * Legacy's `logger` / `fm` were private members of its coordinator;
-//   the landed actor's `logger` is private to its own file, so this
-//   file uses a file-scope logger with the same subsystem/category and
-//   a computed `fm` in the extension.
-// * `buildFileTree` keeps Legacy's `nonisolated` (it runs in a detached
-//   task) and its `Task.checkCancellation()` in the directory loop.
-
 import Foundation
 import os.log
 
-/// File-scope alias for the top-level `ProjectOpenError` (see header):
-/// inside `ProjectOpeningCoordinator` the bare name means the actor's
-/// nested error type, which has different cases.
 fileprivate typealias LegacyProjectOpenError = ProjectOpenError
 
-/// Same subsystem/category as Legacy's coordinator logger.
 private let legacyProjectOpeningLogger = Logger(subsystem: "com.swiftcode.app", category: "ProjectOpening")
 
 extension ProjectOpeningCoordinator {
@@ -89,20 +48,17 @@ extension ProjectOpeningCoordinator {
     private func resolveAndLoad(url: URL) async throws -> Project {
         legacyProjectOpeningLogger.info("Starting load for project at: \(url.path)")
 
-        // 1. Resolve security-scoped bookmark if necessary
         let isAccessing = url.startAccessingSecurityScopedResource()
         defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
 
         try Task.checkCancellation()
 
-        // 2. Validate path
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
             legacyProjectOpeningLogger.error("Project path not found or not a directory: \(url.path)")
             throw LegacyProjectOpenError.pathNotFound
         }
 
-        // 3. Parse project.json
         let metaURL = url.appendingPathComponent("project.json")
         guard fm.fileExists(atPath: metaURL.path) else {
             legacyProjectOpeningLogger.error("Metadata missing at: \(metaURL.path)")
@@ -130,7 +86,6 @@ extension ProjectOpeningCoordinator {
             throw LegacyProjectOpenError.corruptedProjectFile
         }
 
-        // 4. Ensure necessary configurations exist
         if project.ciBuildConfiguration == nil {
             project.ciBuildConfiguration = CIBuildConfiguration()
         }
@@ -142,8 +97,6 @@ extension ProjectOpeningCoordinator {
 
         try Task.checkCancellation()
 
-        // 5. Build only the initial navigator level. The workspace lazily expands folders later,
-        // which avoids recursive package traversal and oversized project metadata during open.
         project.files = try await buildFileTreeInternal(at: url, relativeTo: url)
 
         legacyProjectOpeningLogger.info("Successfully loaded project: \(project.name)")
@@ -186,7 +139,6 @@ extension ProjectOpeningCoordinator {
         }
     }
 
-    // Retained for backward compatibility/external interface callers
     func buildFileTreeInternal(at url: URL, relativeTo base: URL) async throws -> [FileNode] {
         try await Task.detached(priority: .userInitiated) {
             try self.buildFileTree(at: url, relativeTo: base)

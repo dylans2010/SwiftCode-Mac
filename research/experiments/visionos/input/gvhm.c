@@ -1,5 +1,3 @@
-// gvhm: guest-side client for vhmdd (our code), run with simctl spawn.
-//  gvhm <service> key=s:str key=i:n key=d:x key=b:0/1 key=m:16 floats ... [WAIT=s] [NOREPLY=1]
 #include <xpc/xpc.h>
 extern xpc_connection_t ycode_mach_service(const char *, dispatch_queue_t, uint64_t) __asm__("_xpc_connection_create_mach_service");
 #include <dispatch/dispatch.h>

@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Project Template View
-
 struct ProjectTemplateView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @StateObject private var templateManager = ProjectTemplateManager.shared
@@ -15,7 +13,6 @@ struct ProjectTemplateView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 1. Overview Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -33,7 +30,6 @@ struct ProjectTemplateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Templates Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -65,7 +61,6 @@ struct ProjectTemplateView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Selection Details & Actions Card
                 if let selected = selectedTemplate {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -130,8 +125,6 @@ struct ProjectTemplateView: View {
         }
     }
 
-    // MARK: - Apply
-
     private func applyTemplate() {
         guard let template = selectedTemplate,
               let project = sessionStore.activeProject else {
@@ -146,7 +139,6 @@ struct ProjectTemplateView: View {
             do {
                 try templateManager.applyTemplate(template, to: project)
 
-                // Block until repository is initialized
                 try await GitHubService.shared.initializeGitHubRepository(for: project) { @Sendable log in
                     Task { @MainActor in
                         LogManager.shared.logDeployment("[GitHub Init] \(log)")
@@ -169,8 +161,6 @@ struct ProjectTemplateView: View {
         }
     }
 }
-
-// MARK: - Template Row
 
 private struct TemplateRowView: View {
     let template: ProjectTemplate
@@ -227,8 +217,6 @@ private struct TemplateRowView: View {
         .onTapGesture { onSelect() }
     }
 }
-
-// MARK: - Template Detail
 
 private struct TemplateDetailView: View {
     let template: ProjectTemplate

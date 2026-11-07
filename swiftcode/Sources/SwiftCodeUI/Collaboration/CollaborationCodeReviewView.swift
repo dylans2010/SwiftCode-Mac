@@ -1,15 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Collaboration/CollaborationCodeReviewView.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// The code-review workflow UI: commits pending review, reviewer
-// assignment, inline comment threads (with threaded replies), and the
-// Approve / Request Changes / Reject decision actions, plus review
-// history. The backend (`CollaborationCodeReviewManager` in
-// SwiftCodeCollaboration — assignReviewer, addComment with `parentID`
-// threads, approve/reject/requestChanges) already exists in the
-// destination; only this SwiftUI surface was absent.
-// `CollaborationMainView` instantiates this view for its `.reviews` tab.
-
 import Foundation
 import SwiftUI
 import SwiftCodeCollaboration

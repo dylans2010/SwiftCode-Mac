@@ -1,25 +1,16 @@
 import Foundation
 
-// The `Layout` protocol (04-layout.md §1; public documentation of `Layout`,
-// level 1). A layout container answers sizes for proposals and places its
-// subviews; the engine (Engine/) drives it.
-
-/// Properties of a layout container that its subviews can observe.
 public struct LayoutProperties: Sendable {
-    /// The axis along which the container stacks its subviews, if any
-    /// (`Divider` and `Spacer` orient themselves by it).
     public var stackOrientation: Axis?
 
     public init() { stackOrientation = nil }
 }
 
-/// A key for a value a view attaches for its layout container to read.
 public protocol LayoutValueKey {
     associatedtype Value
     static var defaultValue: Value { get }
 }
 
-/// A container that sizes and places its subviews.
 public protocol Layout: Animatable, Sendable {
     static var layoutProperties: LayoutProperties { get }
 
@@ -44,16 +35,12 @@ extension Layout {
         cache = makeCache(subviews: subviews)
     }
 
-    /// Default: the union of every subview's preferences on every edge.
     public func spacing(subviews: Subviews, cache: inout Cache) -> ViewSpacing {
         var s = ViewSpacing.zero
         for sv in subviews { s.formUnion(sv.spacing) }
         return s
     }
 
-    /// Default: the subviews' explicit values for the guide, at the positions
-    /// where `placeSubviews` puts them, merged with the guide's rule
-    /// (baselines: first = smallest, last = largest; other guides: mean).
     public func explicitAlignment(of guide: HorizontalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
                                   subviews: Subviews, cache: inout Cache) -> CGFloat? {
         mergedExplicitAlignment(guide.key, in: bounds, proposal: proposal, subviews: subviews, cache: &cache)
@@ -83,7 +70,6 @@ extension Layout where Cache == () {
     public func makeCache(subviews: Subviews) -> Cache { () }
 }
 
-/// Collects the `place(at:anchor:proposal:)` calls a layout makes.
 package final class PlacementSink {
     package struct Entry {
         var position: CGPoint
@@ -96,8 +82,6 @@ package final class PlacementSink {
 
     func record(_ node: LayoutNode, _ e: Entry) { entries[ObjectIdentifier(node)] = e }
 
-    /// Where `subview` ends up: its recorded placement, or (when the layout
-    /// did not place it) centred in `bounds` with the container's proposal.
     package func resolved(_ subview: LayoutSubview, in bounds: CGRect,
                           containerProposal: ProposedViewSize) -> (origin: CGPoint, size: CGSize, proposal: ProposedViewSize) {
         if let e = entries[ObjectIdentifier(subview.node)] {
@@ -110,7 +94,6 @@ package final class PlacementSink {
     }
 }
 
-/// A proxy for one subview of a layout container.
 public struct LayoutSubview: Equatable {
     package let node: LayoutNode
     package let sink: PlacementSink?
@@ -120,25 +103,18 @@ public struct LayoutSubview: Equatable {
         self.sink = sink
     }
 
-    /// The size the subview answers for `proposal`.
     public func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize { node.sizeThatFits(proposal) }
 
-    /// The subview's size and alignment guides for `proposal`.
     public func dimensions(in proposal: ProposedViewSize) -> ViewDimensions { node.dimensions(proposal) }
 
-    /// The subview's layout priority (`layoutPriority(_:)`; 0 by default).
     public var priority: Double { node.layoutPriority }
 
-    /// The subview's spacing preferences.
     public var spacing: ViewSpacing { node.spacing }
 
-    /// Places the subview so that its `anchor` lies at `position`, sizing it
-    /// for `proposal`.
     public func place(at position: CGPoint, anchor: UnitPoint = .topLeading, proposal: ProposedViewSize) {
         sink?.record(node, .init(position: position, anchor: anchor, proposal: proposal))
     }
 
-    /// The value the subview attached for `key` with `layoutValue(key:value:)`.
     public subscript<K: LayoutValueKey>(key: K.Type) -> K.Value {
         (node.layoutValue(ObjectIdentifier(key)) as? K.Value) ?? K.defaultValue
     }
@@ -146,7 +122,6 @@ public struct LayoutSubview: Equatable {
     public static func == (lhs: LayoutSubview, rhs: LayoutSubview) -> Bool { lhs.node === rhs.node }
 }
 
-/// The subviews of a layout container, in order.
 public struct LayoutSubviews: Equatable, RandomAccessCollection, @unchecked Sendable {
     public typealias Element = LayoutSubview
     public typealias Index = Int
@@ -154,7 +129,6 @@ public struct LayoutSubviews: Equatable, RandomAccessCollection, @unchecked Send
 
     package let elements: [LayoutSubview]
     public let startIndex: Int
-    /// The layout direction the container works in.
     public let layoutDirection: LayoutDirection
 
     package init(_ elements: [LayoutSubview], startIndex: Int = 0, layoutDirection: LayoutDirection = .leftToRight) {
@@ -172,7 +146,6 @@ public struct LayoutSubviews: Equatable, RandomAccessCollection, @unchecked Send
                        startIndex: bounds.lowerBound, layoutDirection: layoutDirection)
     }
 
-    /// The subviews at `indices`, in that order.
     public subscript<S: Sequence>(indices: S) -> LayoutSubviews where S.Element == Int {
         LayoutSubviews(indices.map { self[$0] }, layoutDirection: layoutDirection)
     }

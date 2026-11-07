@@ -2,13 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftCodeAssistant
 
-// Wave 17, Slice A: slash-command host effects + the execute-turn
-// timeout. The applier tests are pure (no process); the timeout
-// tests drive fixture `muse` scripts (a hanging one and the
-// normal one from `MetaAssistBridgeTests`), never a live binary.
-
 @Suite(.serialized) struct MetaSlashCommandEffectsTests {
-    // MARK: - Effect applier
 
     @Test func effortSetsSettings() {
         let outcome = MetaSlashCommandEffectApplier.apply(
@@ -44,9 +38,6 @@ import Testing
     }
 
     @Test func unknownModelIsRecordedVerbatimWithCaveat() {
-        // The router's rule: the selected id is never silently
-        // replaced by another model — it is recorded as-is and
-        // the user is told it is unknown to the catalog.
         let known: Set<String> = ["muse-wonder-1.0"]
         let outcome = MetaSlashCommandEffectApplier.apply(
             .setModel("muse-swift-2.0"), settings: AssistantSettings(), knownModelIDs: known)
@@ -71,26 +62,17 @@ import Testing
         #expect(outcome.clearsSession == false)
     }
 
-    // MARK: - Timeout value and classification
-
     @Test func defaultTurnTimeoutIs300() {
         #expect(MetaAssistTurnExecutor.defaultTurnTimeout == 300)
         #expect(AssistantSettings().metaTurnTimeoutSeconds == 300)
     }
 
     @Test func turnTimeoutClassifiesAsTimeout() {
-        // The Wave 15 router must see this as a timeout (and,
-        // with "Automatically Switch Models" off, never silently
-        // substitute another model for it).
         let error = MuseCodeCLIError.turnTimeout(300)
         #expect(error.localizedDescription.contains("timed out"))
         #expect(AssistModelRouter.classify(error: error) == .timeout)
     }
 
-    // MARK: - Hanging host times out
-
-    /// A fixture `muse` that answers `initialize` / `session/start` /
-    /// `turn/start` and then never completes the turn — the host hangs.
     static let hangingMuseScript = """
         #!/usr/bin/env python3
         import sys, json
@@ -145,10 +127,7 @@ import Testing
             #expect(error == .turnTimeout(1))
             #expect(error.localizedDescription.contains("timed out after 1 seconds"))
         }
-        // The budget was ~1s, not the hang: the turn never hangs.
         #expect(Date().timeIntervalSince(started) < 30)
-        // The host was stopped and the executor's session state
-        // cleared, so the next turn starts fresh.
         #expect(await bridge.isRunning == false)
         #expect(await executor.activeSessionID == nil)
     }

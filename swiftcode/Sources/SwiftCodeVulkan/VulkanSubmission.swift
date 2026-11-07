@@ -1,7 +1,3 @@
-// Submission, completion and CPU texture access of VulkanMetalBackend:
-// command-buffer recycling, transient memory, the setup command buffer,
-// the completion thread, replaceRegion and getBytes.
-
 import CVulkan
 import Foundation
 import SwiftCodeMetalHost
@@ -11,15 +7,12 @@ func roundUp(_ v: Int, _ a: Int) -> Int { a <= 1 ? v : (v + a - 1) / a * a }
 private func gcd(_ a: Int, _ b: Int) -> Int { b == 0 ? a : gcd(b, a % b) }
 func lcm(_ a: Int, _ b: Int) -> Int { a / gcd(a, b) * b }
 
-/// Pipeline stages and access masks used for the coarse barriers.
 let allCommands = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT
 let memoryWrite = VK_ACCESS_2_MEMORY_WRITE_BIT
 let memoryReadWrite = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT
 
 extension VulkanMetalBackend {
-    // MARK: - Recordings
 
-    /// A command buffer in the recording state (recycled when possible). Under the lock.
     func newRecording() throws -> Recording {
         let rec: Recording
         if let cb = freeCommandBuffers.popLast(), yvk_command_buffer_restart(ctx, cb) == 0 {
@@ -36,8 +29,6 @@ extension VulkanMetalBackend {
         return rec
     }
 
-    /// The setup command buffer (image initialisation, uploads), submitted
-    /// before the next command buffer or synchronous operation. Under the lock.
     func setupRecording() throws -> Recording {
         if let s = setup { return s }
         let s = try newRecording()
@@ -45,7 +36,6 @@ extension VulkanMetalBackend {
         return s
     }
 
-    /// Submits pending setup work. Under the lock.
     func flushSetup() throws {
         guard let s = setup else { return }
         setup = nil
@@ -58,7 +48,6 @@ extension VulkanMetalBackend {
         _ = try submitRecording(s, entry: nil)
     }
 
-    /// Ends and submits a recording; queues its completion entry. Under the lock.
     @discardableResult
     func submitRecording(_ rec: Recording, entry: PendingSubmission?) throws -> UInt64 {
         let r = fn.vkEndCommandBuffer!(rec.cb)
@@ -68,7 +57,6 @@ extension VulkanMetalBackend {
         return try submitPreparedRecording(rec, entry: entry)
     }
 
-    /// Submits an ended recording; queues its completion entry. Under the lock.
     @discardableResult
     func submitPreparedRecording(_ rec: Recording, entry: PendingSubmission?) throws -> UInt64 {
         let serial = lastSubmitted + 1
@@ -84,14 +72,9 @@ extension VulkanMetalBackend {
         statistics.submissions += 1
         retireVisibilityPools(rec, serial: serial)
         for id in rec.writtenSurfaces { surfaceWriteSerials[id] = serial }
-        // Held work's copy-outs were recorded (and their generation raised)
-        // before images recorded since then copied the surface in; those
-        // copies ran before this write, so they no longer match the surface.
         if rec.deferred { for k in rec.writtenSurfaceKeys { surfaceGenerations[k, default: 0] &+= 1 } }
         var e = entry ?? PendingSubmission(serial: serial, cb: nil, chunks: [], status: MetalCommandBufferStatus.completed)
         if options.earlyScheduled, let scheduled = e.scheduled {
-            // On the queue, after every earlier submission: Metal's
-            // "scheduled". Called once the lock is released (flushEarlyScheduled).
             earlyScheduledQueue.append(scheduled)
             e.scheduled = nil
             statistics.earlyScheduled += 1
@@ -109,19 +92,11 @@ extension VulkanMetalBackend {
         return serial
     }
 
-    /// Calls the `scheduled` handlers queued at submission, in order. Not
-    /// under the lock; the submitting thread and the completion thread both
-    /// call it (the completion thread before any completion handler).
     func flushEarlyScheduled() {
         cond.lock()
-        // A list another thread took and is still running counts too: the
-        // completion thread must not run a completion handler before the
-        // scheduled handler of the same command buffer has run.
         let any = !earlyScheduledQueue.isEmpty || scheduledFlushRunning
         cond.unlock()
         guard any else { return }
-        // One flusher at a time keeps the order; taken before the backend
-        // lock (a handler may take that lock).
         flushingScheduled.lock()
         cond.lock()
         let list = earlyScheduledQueue
@@ -135,8 +110,6 @@ extension VulkanMetalBackend {
         flushingScheduled.unlock()
     }
 
-    /// Queues a completion that needs no GPU work of its own (it completes
-    /// after everything submitted so far). Under the lock.
     func enqueueCompletion(status: Int, scheduled: (@Sendable () -> Void)?, completed: (@Sendable (Int) -> Void)?,
                            after: ((Bool) -> Void)? = nil) {
         pending.append(PendingSubmission(serial: lastSubmitted, cb: nil, chunks: [], status: status, scheduled: scheduled,
@@ -153,7 +126,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Host-visible memory with a device address for the recording's lifetime.
     func allocTransient(_ rec: Recording, _ size: Int, align: Int = 64) throws -> TransientSlice {
         if let c = rec.current {
             let off = roundUp(c.used, align)
@@ -180,7 +152,6 @@ extension VulkanMetalBackend {
         return TransientSlice(chunk: chunk, offset: 0, length: size)
     }
 
-    /// A translated function's name and hash prefix (diagnostics).
     func shaderName(_ t: TranslatedShader?) -> String {
         guard let t else { return "-" }
         return "\(t.reflection.entryPoint ?? "?")#\(t.reflection.hash.map { String($0.prefix(8)) } ?? "?")"
@@ -190,13 +161,9 @@ extension VulkanMetalBackend {
         yvk_cmd_memory_barrier(cb, allCommands, memoryWrite, allCommands, memoryReadWrite)
     }
 
-    // MARK: - Completion thread
-
     func completionLoop() {
         while true {
             cond.lock()
-            // At shutdown the held-work thread queues error completions for
-            // what it still holds, so this thread ends after it.
             while pending.isEmpty && earlyScheduledQueue.isEmpty && (running || heldThread != nil)
                     && !(deviceLost && canRecover) { cond.wait() }
             if !earlyScheduledQueue.isEmpty {
@@ -204,7 +171,6 @@ extension VulkanMetalBackend {
                 flushEarlyScheduled()
                 continue
             }
-            // A loss seen by a submission (nothing pending to wait for): reset.
             if pending.isEmpty && deviceLost && canRecover {
                 cond.unlock()
                 recoverDevice(stuckSerial: 0)
@@ -228,11 +194,6 @@ extension VulkanMetalBackend {
                 let waitStart = DispatchTime.now().uptimeNanoseconds
                 let slice = options.completionPollNs
                 while true {
-                    // Waits in short slices and reads the counter after each:
-                    // on the Thor a blocking wait sometimes returned hundreds
-                    // of milliseconds after the GPU had signaled the value
-                    // (stage8-contract.md §14), which delays the guest's
-                    // completion handlers and so its next frame.
                     var r = yvk_timeline_wait(ctx, sem, serial, slice)
                     if r == VK_TIMEOUT && yvk_timeline_value(ctx, sem) >= serial {
                         r = VK_SUCCESS
@@ -241,10 +202,6 @@ extension VulkanMetalBackend {
                     if r == VK_SUCCESS { break }
                     if r == VK_TIMEOUT {
                         let ran = Double(DispatchTime.now().uptimeNanoseconds &- waitStart) / 1e9
-                        // The watchdog (metal-sim-protocol.md §8.7, §8.8):
-                        // after its limit, or after the blocking limit while
-                        // other clients' command buffers wait behind this one
-                        // (looked at every 16th slice: it scans the queue).
                         let due = slices % 16 == 0 ? watchdogReason(serial: serial, ran: ran) : nil
                         if !reported, options.hangReportSeconds > 0 || due != nil {
                             if ran >= options.hangReportSeconds || due != nil {
@@ -252,9 +209,6 @@ extension VulkanMetalBackend {
                                 cond.lock(); reportRunningSubmission(serial: serial, seconds: ran); cond.unlock()
                             }
                         }
-                        // Waiting the device idle makes the driver stop the
-                        // stuck work (about 1.3 s on the Thor, then
-                        // VK_ERROR_DEVICE_LOST); the loss is handled below.
                         if let due {
                             let who = describeClient(due.blocked.stuck)
                             cond.lock()
@@ -268,11 +222,6 @@ extension VulkanMetalBackend {
                                 watchdogFired = true
                             }
                             cond.unlock()
-                            // The kick (VulkanClientIsolation.swift): the
-                            // driver ends the stuck work when another context
-                            // needs the GPU; waiting the device idle then
-                            // returns at once. Without it the wait alone took
-                            // 4–59 s on the Thor.
                             let stopStart = DispatchTime.now().uptimeNanoseconds
                             let kick = isRunning ? kickGPU() : "-"
                             cond.lock()
@@ -295,8 +244,6 @@ extension VulkanMetalBackend {
                         waited += 1
                         cond.lock()
                         let label = pending.first?.label ?? ""
-                        // Shutting down (stage8-contract.md §12): stop waiting
-                        // at the deadline; the unfinished work is abandoned.
                         let giveUp = !running && DispatchTime.now().uptimeNanoseconds >= shutdownDeadline
                         if giveUp { abandonedAtShutdown = true }
                         cond.unlock()
@@ -310,7 +257,6 @@ extension VulkanMetalBackend {
                             cond.lock(); let where_ = currentCheckpoints(); cond.unlock()
                             log("serial \(serial) still running after \(waited) s\(label.isEmpty ? "" : " (\(label))")" + where_)
                         }
-                        // A killed context does not always make the wait fail; the counter query says so.
                         var value: UInt64 = 0
                         if yvk_timeline_query(ctx, sem, &value) == VK_ERROR_DEVICE_LOST {
                             r = VK_ERROR_DEVICE_LOST
@@ -325,8 +271,6 @@ extension VulkanMetalBackend {
                 }
             }
 
-            // A lost device is made again (VulkanDeviceReset.swift): the work
-            // that was running fails, the rest runs again on the new device.
             cond.lock()
             let recover = !ok && canRecover && !abandonedAtShutdown
             cond.unlock()
@@ -337,8 +281,6 @@ extension VulkanMetalBackend {
 
             cond.lock()
             if !ok { deviceLost = true }
-            // Abandoned at shutdown, the GPU may still use this work's
-            // memory and objects: complete it as failed, but free nothing.
             let abandoning = abandonedAtShutdown
             var ready: [PendingSubmission] = []
             while let first = pending.first, first.serial <= serial || !ok {
@@ -395,14 +337,9 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// Waits (at most `timeout` seconds) until the GPU work submitted so far
-    /// that writes the IOSurface `surfaceID` is complete; true when it is
-    /// (or there is none). Any thread; never under the IOSurface service's lock.
     @discardableResult
     public func waitForSurfaceWrites(_ surfaceID: UInt32, timeout: Double = 0.5) -> Bool {
         guard isAvailable else { return true }
-        // The waits below use the device outside the lock: a device reset
-        // (VulkanDeviceReset.swift) may not run meanwhile.
         enterDevice()
         defer { leaveDevice() }
         cond.lock()
@@ -414,10 +351,6 @@ extension VulkanMetalBackend {
         guard serial > 0, !lost, let sem else { return true }
         let now = yvk_timeline_value(ctx, sem)
         guard now < serial else { return true }
-        // A GPU that made no progress since an earlier wait timed out (a
-        // submission that never completes, app-launch.md §3.7) gets only a
-        // short look (5 ms): every lock and display read would otherwise
-        // cost the whole timeout. Full waits resume once the counter moves.
         let limit = stuckAt == now ? min(timeout, 0.005) : timeout
         let start = DispatchTime.now().uptimeNanoseconds
         let limitNs = UInt64(max(limit, 0) * 1e9)
@@ -425,8 +358,6 @@ extension VulkanMetalBackend {
         if options.surfaceWaitPollNs == 0 {
             r = yvk_timeline_wait(ctx, sem, serial, limitNs)
         } else {
-            // In slices, reading the counter after each (a blocking wait often
-            // wakes late on the Thor).
             while true {
                 let waited = DispatchTime.now().uptimeNanoseconds &- start
                 r = yvk_timeline_wait(ctx, sem, serial, min(options.surfaceWaitPollNs, limitNs &- min(waited, limitNs)))
@@ -449,7 +380,6 @@ extension VulkanMetalBackend {
         return r == VK_SUCCESS
     }
 
-    /// Blocks until all work submitted so far is complete.
     public func waitIdle() {
         guard isAvailable else { return }
         let done = DispatchSemaphore(value: 0)
@@ -460,9 +390,6 @@ extension VulkanMetalBackend {
         done.wait()
     }
 
-    // MARK: - CPU access to textures
-
-    /// The copy aspect and bytes per texel/block of a texture for buffer copies.
     func copyAspect(_ tex: VKTexture, options: UInt32 = 0) -> (VkImageAspectFlags, Int) {
         let f = tex.format
         if f.isColor { return (VK_IMAGE_ASPECT_COLOR_BIT.rawValue, f.bytesPerBlock) }
@@ -475,7 +402,6 @@ extension VulkanMetalBackend {
         }
     }
 
-    /// A buffer↔image copy region for a Metal region of one level and slice.
     func copyRegion(_ tex: VKTexture, level: Int, slice: Int, origin: (Int, Int, Int), size: (Int, Int, Int),
                     bufferOffset: Int, bytesPerRow: Int, bytesPerImage: Int, options: UInt32 = 0) -> VkBufferImageCopy {
         let (aspect, bpb) = copyAspect(tex, options: options)
@@ -494,7 +420,6 @@ extension VulkanMetalBackend {
             imageExtent: VkExtent3D(width: UInt32(w), height: UInt32(h), depth: UInt32(d)))
     }
 
-    /// Bytes a Metal region occupies with the given row and image pitches.
     func regionBytes(_ tex: VKTexture, width: Int, height: Int, depth: Int, bytesPerRow: Int, bytesPerImage: Int) -> Int {
         let f = tex.format
         let (_, bpb) = copyAspect(tex)
@@ -504,10 +429,6 @@ extension VulkanMetalBackend {
         return depth <= 1 ? image : (depth - 1) * max(bytesPerImage, image) + image
     }
 
-    /// Writes pixels into a texture. An IOSurface-backed texture (level 0,
-    /// slice 0) is written directly in surface memory; any other texture
-    /// gets a staged copy recorded into the setup command buffer. Throws
-    /// without a GPU or for an unknown texture.
     public func replaceRegion(texture: MetalHandle, _ region: MetalRegion, level: Int, slice: Int, bytes: [UInt8],
                               bytesPerRow: Int, bytesPerImage: Int) throws {
         guard isAvailable else { throw VulkanBackendError("no GPU") }
@@ -515,16 +436,11 @@ extension VulkanMetalBackend {
         guard let tex = textures[texture] else { throw VulkanBackendError("replaceRegion of unknown texture \(texture)") }
         let need = regionBytes(tex, width: region.width, height: region.height, depth: region.depth,
                                bytesPerRow: bytesPerRow, bytesPerImage: bytesPerImage)
-        // The guest sends exactly `need` bytes (metal-sim-protocol.md §5.3).
-        // A shorter body is malformed: the IOSurface path below writes only
-        // whole rows it has, and the staged path zero-fills the missing tail
-        // so the GPU copy never reads past the guest's data.
         guard need > 0, !bytes.isEmpty else { return }
         if bytes.count < need {
             log("replaceRegion of texture \(texture): short body, \(bytes.count) bytes for a region of \(need)")
         }
         if let s = tex.image.surface, level == 0, slice == 0, let base = s.allocation.base {
-            // IOSurface texture: the surface memory is the texture's content.
             surfaceChanged(s)
             let bpb = tex.format.bytesPerBlock
             let x0 = region.x * bpb
@@ -552,10 +468,6 @@ extension VulkanMetalBackend {
         rec.empty = false
     }
 
-    /// Reads pixels into guest memory through a staging copy, and blocks
-    /// until the GPU has run it (after all work submitted before). At most
-    /// `into.length` bytes are written. Throws without a GPU or for an
-    /// unknown texture.
     public func getBytes(texture: MetalHandle, _ region: MetalRegion, level: Int, slice: Int, into: GuestSharedRegion,
                          bytesPerRow: Int, bytesPerImage: Int) throws {
         guard isAvailable else { throw VulkanBackendError("no GPU") }
@@ -594,7 +506,6 @@ extension VulkanMetalBackend {
     }
 }
 
-/// The text of a NUL-terminated C error buffer.
 func cString(_ a: [CChar]) -> String {
     String(decoding: a.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }

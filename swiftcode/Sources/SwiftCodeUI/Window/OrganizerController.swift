@@ -1,20 +1,13 @@
 import AppKit
 import SwiftCodeIDECore
 
-/// The Organizer (Window ▸ Organizer): Archives grouped by application,
-/// the selected archive's details, and Distribute App…. See
-/// `specs/ide/organizer.md`. Its state is the core's `OrganizerState`,
-/// which the Linux IDE's Organizer draws too.
 @MainActor
 public final class OrganizerController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSMenuItemValidation {
     public let archivesDirectory: URL
-    /// The shared state (archives, rows, selection, page and history).
     public private(set) var state = OrganizerState()
     public var groups: [(app: String, archives: [ArchiveEntry])] { state.groups }
-    /// Rows: an application heading, or an archive.
     public var rows: [OrganizerState.Row] { state.rows }
     public var selected: ArchiveEntry? { state.selected }
-    /// The last Distribute App result (status, output).
     public private(set) var lastExport: (status: Int32, output: String)?
     let table = NSTableView()
     let sidebarTable = NSTableView()
@@ -22,20 +15,15 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
     let emptyMessage = NSTextField(labelWithString: "")
     var emptyView: NSView?
     var archivesViews: [NSView] = []
-    /// The page shown (sidebar selection) and its section.
     public var page: String { state.page }
     public var pageSection: String { state.section }
 
-    /// Shows a sidebar page: Archives shows the archive list; the others
-    /// show their empty state.
     public func showPage(_ page: String, section: String) {
         _ = view
         state.showPage(page, section: section)
         refreshPage()
     }
 
-    /// Draws the current page: the list or the empty state, the titles,
-    /// the back/forward buttons and the sidebar selection.
     private func refreshPage() {
         let has = state.showsArchives
         archivesViews.forEach { $0.isHidden = !has }
@@ -51,19 +39,15 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
             sidebarTable.selectRowIndexes([i], byExtendingSelection: false)
         }
     }
-    // MARK: Toolbar: back/forward, page title, notifications (§6)
 
-    /// Visited pages (section, page) and the current position.
     public var history: [(section: String, page: String)] { state.history }
     public var historyIndex: Int { state.historyIndex }
     public let backButton = NSButton()
     public let forwardButton = NSButton()
     public let bellButton = NSButton()
     let pageTitle = NSTextField(labelWithString: "Archives")
-    /// Whether the notifications popover is shown (toggled by the bell).
     public var notificationsShown: Bool { state.notificationsShown }
     private var notificationsPopover: NSPopover?
-    /// SwiftCode has no App Store Connect feed, so the list is always empty.
     public static let noNotificationsText = OrganizerState.noNotificationsText
 
     public var canGoBack: Bool { state.canGoBack }
@@ -100,12 +84,10 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         }
     }
 
-    /// Toolbar item identifiers, in order.
     public static let toolbarItems: [NSToolbarItem.Identifier] = [
         .init("organizer.back"), .init("organizer.forward"), .init("organizer.title"), .flexibleSpace, .init("organizer.bell"),
     ]
 
-    /// The Organizer window's toolbar: back/forward, page title, bell.
     public private(set) lazy var toolbar: NSToolbar = {
         for (b, sym, desc, sel) in [(backButton, "chevron.left", "Back", #selector(goBack)), (forwardButton, "chevron.right", "Forward", #selector(goForward)),
                                     (bellButton, "bell", "Notifications", #selector(toggleNotifications))] {
@@ -136,7 +118,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         }
     }
 
-    /// The columns share the list's width, so all four show.
     public override func viewDidLayout() {
         super.viewDidLayout()
         table.sizeToFit()
@@ -147,7 +128,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         installToolbar()
     }
 
-    /// Puts the toolbar on the window the Organizer is shown in.
     public func installToolbar() {
         guard let w = view.window, w.toolbar !== toolbar else { return }
         w.toolbar = toolbar
@@ -232,23 +212,13 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         showPage("Archives", section: "Products")
     }
 
-    /// Archives distributed in this run of SwiftCode (their status stays
-    /// "Exported" when the list is re-read).
     static var exportedPaths: Set<String> = []
 
-    // MARK: App picker (§6: at the top of the sidebar)
-
-    /// The sidebar's app picker: one item per application with archives
-    /// ("No App", disabled, before any archive is found).
     public let appPicker = NSPopUpButton(frame: .zero, pullsDown: false)
-    /// The application whose archives are listed; nil = none chosen yet
-    /// (the first application is used).
     public var selectedApp: String? { state.selectedApp }
 
-    /// The picker's titles for the current archives.
     public var appPickerTitles: [String] { state.appPickerTitles }
 
-    /// Chooses the application whose archives (and pages) are shown.
     public func chooseApp(_ app: String) {
         state.chooseApp(app)
         reload()
@@ -275,7 +245,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         showDetails()
     }
 
-    /// Selects the archive at a path (Product ▸ Archive opens on the new one).
     public func select(archiveAt url: URL) {
         _ = view
         reload()
@@ -286,7 +255,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         showDetails()
     }
 
-    /// Detail rows for the selection: (label, value).
     public var detailRows: [(String, String)] { state.detailRows }
 
     func showDetails() {
@@ -303,7 +271,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         distributeButton.isEnabled = state.canDistribute
     }
 
-    /// Distribute App → Copy App into `folder`. Returns the exported app.
     @discardableResult
     public func distribute(to folder: URL) -> URL? {
         guard let a = selected, a.hasApplication else { return nil }
@@ -317,9 +284,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         return folder.appendingPathComponent(a.appName + ".app")
     }
 
-    // MARK: Show in Finder
-
-    /// The archive rows' context menu: Show in Finder.
     private lazy var rowMenu: NSMenu = {
         let m = NSMenu()
         let item = NSMenuItem(title: OrganizerState.showInFilesTitle, action: #selector(showClickedInFinder), keyEquivalent: "")
@@ -328,8 +292,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
         return m
     }()
 
-    /// Shows the archive at a row (the clicked one, else the selection) in
-    /// the Finder, selected in its folder. Returns the archive.
     @discardableResult
     public func showInFinder(row: Int? = nil) -> URL? {
         let r = row ?? state.selectedRow
@@ -358,8 +320,6 @@ public final class OrganizerController: NSViewController, NSTableViewDataSource,
             if r == .OK, let url = panel.url { self?.distribute(to: url) }
         }
     }
-
-    // MARK: Table
 
     public func numberOfRows(in t: NSTableView) -> Int { t === sidebarTable ? OrganizerSidebar.rows.count : rows.count }
     public func tableView(_ t: NSTableView, isGroupRow row: Int) -> Bool {

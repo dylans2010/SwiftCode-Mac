@@ -6,8 +6,6 @@ import SwiftCodeDebug
 @testable import SwiftCodeIDECore
 @testable import SwiftCodeUI
 
-/// Stale issues (reference-ui-5.md §5.3.2, N10) and the Debug navigator's
-/// process row (§11.6, D3).
 @MainActor
 @Suite struct StaleIssuesAndProcessRowTests {
     func d(_ msg: String, _ file: String?) -> Diagnostic {
@@ -32,7 +30,6 @@ import SwiftCodeDebug
         let all = DebugNavigatorRows.debugTree(process: nil, threads: threads, stoppedThread: nil, frames: [], byQueue: true, runningBlocksOnly: false)
         #expect(all.map(\.title) == ["com.apple.main-thread", "Threads"])
 
-        // The navigator's third toggle drives it (on by default).
         let nav = NavigatorAreaController()
         _ = nav.view
         nav.showThreadsByQueue = true

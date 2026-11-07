@@ -1,11 +1,5 @@
 import AppKit
 
-/// The scroll view around a multi-line message field (the Coding
-/// Assistant pane's composer). With the Liquid Glass design (macOS 26 and
-/// later) it is a rounded field — continuous corners, the text background
-/// and a hairline in the separator color, heavier with Increase Contrast —
-/// instead of the sunken bezel, which earlier systems keep
-/// (`specs/ide/liquid-glass-swiftcode.md` §8).
 @MainActor
 final class ComposerScrollView: NSScrollView {
     static let cornerRadius: CGFloat = 8
@@ -37,8 +31,6 @@ final class ComposerScrollView: NSScrollView {
         updateStroke()
     }
 
-    /// The stroke's color is resolved under the view's appearance (a layer
-    /// color does not follow light and dark by itself).
     private func updateStroke() {
         guard #available(macOS 26, *), let layer else { return }
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast

@@ -1,6 +1,3 @@
-// Milestone A sample: a small Embedded Swift program (no Swift runtime
-// library; it needs only libc's allocator and putchar).
-// specs/macos/macos-apps.md §9.1. SwiftCode's own test program.
 struct Fibonacci: Sequence, IteratorProtocol {
     var a = 0, b = 1
     mutating func next() -> Int? {
@@ -22,7 +19,7 @@ struct Main {
         print("hello from Swift on SwiftCode")
         let fib = Array(Fibonacci().prefix(15))
         var line = "fibonacci:"
-        for n in fib { line += " \(n)" }  // Embedded Swift cannot print an Array directly
+        for n in fib { line += " \(n)" }
         print(line)
         let counter = Counter()
         for word in ["a", "b", "a", "c", "a", "b"] { counter.record(word) }

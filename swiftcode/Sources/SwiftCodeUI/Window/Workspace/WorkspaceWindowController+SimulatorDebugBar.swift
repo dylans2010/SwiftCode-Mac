@@ -1,10 +1,6 @@
 import AppKit
 import SwiftCodeSimFeatures
 
-/// The debug bar's Environment Overrides and Simulate Location for an app
-/// running on the SwiftCode simulator (`specs/ide/debug.md` §Environment
-/// Overrides): each change is one control command through ssh to the run's
-/// device (`overrides <bundle id> …`, `location …`).
 extension WorkspaceWindowController {
     func wireSimulatorDebugBar() {
         debugArea.simulatorRunKey = { [weak self] in

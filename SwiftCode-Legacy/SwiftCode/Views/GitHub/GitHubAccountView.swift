@@ -15,7 +15,6 @@ struct GitHubAccountView: View {
                 }
                 .padding(.vertical, 40)
             } else if let u = user {
-                // Section 1: Profile Details
                 Section(header: Text("GitHub Profile").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
                     VStack(spacing: 16) {
                         HStack(spacing: 16) {
@@ -58,7 +57,6 @@ struct GitHubAccountView: View {
 
                         Divider()
 
-                        // Grid for profile properties
                         Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 10) {
                             if let company = u.company, !company.isEmpty {
                                 GridRow {
@@ -117,7 +115,6 @@ struct GitHubAccountView: View {
                     .liquidGlass(style: .standard, cornerRadius: 14)
                 }
 
-                // Section 2: Developer Statistics
                 Section(header: Text("Developer Statistics").font(.system(size: 10, weight: .bold)).foregroundStyle(.green)) {
                     statBox(title: "Public Repositories", value: "\(u.publicRepos)", icon: "folder.fill", color: .orange)
                     if let priv = u.totalPrivateRepos {
@@ -129,7 +126,6 @@ struct GitHubAccountView: View {
                     statBox(title: "Following", value: "\(u.following ?? 0)", icon: "person.badge.plus", color: .purple)
                 }
 
-                // Section 3: Account Integration
                 Section(header: Text("Account Integration").font(.system(size: 10, weight: .bold)).foregroundStyle(.purple)) {
                     HStack {
                         Label("Profile Created", systemImage: "calendar")

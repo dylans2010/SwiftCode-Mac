@@ -1,10 +1,5 @@
 import Foundation
 
-// Deliberate CPU work with its own ground truth: the program times each
-// part and prints the shares, which a profile of it should reproduce.
-// `collatzSteps` is the hot function (about three quarters of the main
-// thread's time), `checksum` the second; a helper thread adds a little.
-
 @inline(never)
 func collatzSteps(upTo limit: Int) -> Int {
     var total = 0
@@ -48,7 +43,6 @@ var collatzTime = 0.0, checksumTime = 0.0
 var hash: UInt64 = 0
 while now() - start < seconds {
     let a = now()
-    // The limit changes with the round, so the call cannot be hoisted out of the loop.
     sum &+= collatzSteps(upTo: 30_000 + rounds & 7)
     let b = now()
     hash &+= checksum(values)

@@ -8,18 +8,9 @@ import SwiftCodeProject
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// R37 (`specs/ide/reference-ui-5.md` §0, §11.5, §11.6): SwiftCode's remote
-/// simulator in the Simulators section with its runtime version (R1),
-/// its run status and Stop with the save at the stop (R2, `snapshot.md`
-/// §12.2), erasing it (`run.md` §Warm boot item 7), the preview activity
-/// text (P15), and Debug View Hierarchy / Memory Graph as disabled
-/// placeholders (D4). ssh, rsync and the launcher are local stand-ins: no
-/// network.
 @MainActor
 @Suite(.serialized, .timeLimit(.minutes(5))) struct SimulatorSideR37Tests {
-    // MARK: Fixtures
 
-    /// A private Preferences installed as `shared` for `body`.
     func withPrefs(_ tag: String, _ body: (Preferences, URL) async throws -> Void) async throws {
         let t = TestDefaults("r37-\(tag)")
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-r37-\(tag)-\(UUID().uuidString)").resolvingSymlinksInPath()
@@ -38,7 +29,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
 
     func iosApp(in dir: URL, name: String = "Tour") throws -> URL {
         var o = ProjectOptions()
-        // The fixtures' simulator runtimes predate V(iOS) (templates.md § Notation).
         o.deploymentTarget = "18.0"
         o.productName = name
         o.organizationIdentifier = "org.swiftcode.tests"
@@ -58,10 +48,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                          startLanguageService: false, openFirstFile: false, userStateURL: state)
     }
 
-    /// Stand-ins in a fresh folder: `fake-ssh` (drops the options and the
-    /// destination and runs the command with /bin/sh; logs every call;
-    /// delays the run command when `delay-run` exists; fails `kill` when
-    /// `fail-kill` exists), a slow `rsync` when asked, and the launcher.
     struct Remote {
         let root: URL
         let settings: RemoteSimulatorSettings
@@ -118,8 +104,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         WorkspaceSession(model: try WorkspaceModel(url: try WindowSnapshotTests().samplePackage()))
     }
 
-    // MARK: R1: the remote simulator's row
-
     @Test func runtimeVersionFromPathPlistAndDefaults() throws {
         #expect(RemoteSimulatorSettings.version(inPath: "/rt/iOS_27.1.simruntime/Contents/Resources/RuntimeRoot") == "27.1")
         #expect(RemoteSimulatorSettings.version(inPath: "/rr/iOS 27.1") == "27.1")
@@ -135,13 +119,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(RemoteSimulatorSettings.load(t.defaults).runtimeVersion == nil)
         RemoteSimulatorSettings.saveRuntimeVersion("27.1", root: "/data/rt", t.defaults)
         #expect(RemoteSimulatorSettings.load(t.defaults).runtimeVersion == "27.1")
-        // Another runtime root: the remembered version no longer applies.
         s.runtimeRoot = "/data/rt2"
         s.save(t.defaults)
         #expect(RemoteSimulatorSettings.load(t.defaults).runtimeVersion == nil)
         #expect(!RemoteSimulatorSettings.hasRuntimeVersion(for: "/data/rt2", t.defaults))
 
-        // The row: "<device name> <runtime version>"; identity by identifier.
         let d = RemoteSimulator.destination(runtimeVersion: "27.1")
         #expect(d.name == "SwiftCode Simulator" && d.osVersion == "27.1" && d.isSwiftCodeRemoteSimulator && RemoteSimulator.destination.isSwiftCodeRemoteSimulator)
         #expect(DestinationMenuModel.submenuTitle(d) == "SwiftCode Simulator 27.1")
@@ -154,13 +136,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                          platforms: ["iOS"], designedForIPad: true)
         #expect(model.sections.map(\.title) == ["Devices", "Simulators", "Build"])
         #expect(model.rows("Simulators").map(DestinationMenuModel.submenuTitle) == ["iPhone 18 27.1", "iPad Air 27.1", "SwiftCode Simulator 27.1", "iPhone 17 26.4"])
-        // An older runtime sorts lower.
         let older = DestinationMenuModel(current: nil, devices: [], simulators: sims + [RemoteSimulator.destination(runtimeVersion: "26.0")], platforms: ["iOS"])
         #expect(older.rows("Simulators").last?.isSwiftCodeRemoteSimulator == true)
-        // Version unknown: with the newest runtime, and the row has no version.
         let unknown = DestinationMenuModel(current: nil, devices: [], simulators: sims + [RemoteSimulator.destination], platforms: ["iOS"])
         #expect(unknown.rows("Simulators").map(DestinationMenuModel.submenuTitle) == ["iPhone 18 27.1", "iPad Air 27.1", "SwiftCode Simulator", "iPhone 17 26.4"])
-        // A Mac product: incompatible, like the other iOS simulators.
         let mac = DestinationMenuModel(current: nil, devices: [], simulators: sims + [RemoteSimulator.destination(runtimeVersion: "27.1")], platforms: ["macOS"])
         #expect(mac.rows("Simulators").isEmpty)
         #expect(mac.incompatible.contains { $0.isSwiftCodeRemoteSimulator && $0.name == "SwiftCode Simulator (mismatched platform)" })
@@ -178,23 +157,17 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.setDestinationGroups(DestinationCatalog.groups(devices: [], simulators: [sim("iPhone 17", "26.4"), sim("iPhone 18", "27.1")]))
             let menu = try #require(wc.destinationPopUp.menu)
             let titles = menu.items.map { $0.isSeparatorItem ? "—" : $0.title }
-            // No section of its own (§11.5).
             #expect(!titles.contains("SwiftCode"))
             let simsHeader = try #require(titles.firstIndex(of: "Simulators"))
             let buildHeader = try #require(titles.firstIndex(of: "Build"))
             let remoteIndex = try #require(menu.items.firstIndex { ($0.representedObject as? String) == RemoteSimulator.identifier })
             #expect(remoteIndex > simsHeader && remoteIndex < buildHeader)
-            // The menu row (while the menu is open, reference-ui-6.md §2.4):
-            // the name, then the version right-aligned.
             #expect(menu.items[remoteIndex].title.hasPrefix("iPhone Duo (SwiftCode)"))
             menu.delegate?.menuNeedsUpdate?(menu)
             #expect(menu.items[remoteIndex].attributedTitle?.string == "iPhone Duo (SwiftCode)\t27.1")
-            // Newest runtime first: iPhone 18 (27.1), the remote's rows (27.1: its
-            // device types, phones before iPads), iPhone 17 (26.4).
             let rowTitles = menu.items[(simsHeader + 1)..<buildHeader].filter { !$0.isSeparatorItem }.map { $0.title.components(separatedBy: "\t")[0] }
             #expect(rowTitles == ["iPhone 18", "iPhone Duo (SwiftCode)", "iPad (A16) (SwiftCode)", "iPad Pro 13-inch (M5) (SwiftCode)", "iPhone 17"])
 
-            // Product ▸ Destination: the same row, "<name> <version>", under Simulators.
             let bar = MainMenu.make()
             let sub = try #require(bar.item(withTitle: "Product")?.submenu?.item(withTitle: "Destination")?.submenu)
             DynamicMenus.fillDestinations(sub, model: wc.destinationMenuModel(), current: wc.session.destination, target: wc)
@@ -204,7 +177,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
                                                           "iPad Pro 13-inch (M5) (SwiftCode) 27.1", "iPhone 17 26.4"])
             #expect(subTitles.filter { $0.contains("(SwiftCode)") }.count == 3)
 
-            // Choosing it selects the remote simulator (with its version).
             wc.selectDestinationRow(RemoteSimulator.identifier)
             #expect(wc.session.destination?.isSwiftCodeRemoteSimulator == true && wc.session.destination?.osVersion == "27.1")
             #expect(WorkspaceWindowController.symbol(for: wc.session.destination!) == "candybarphone")
@@ -231,12 +203,9 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(RemoteSimulatorSettings.load(p.defaults).runtimeVersion == "27.1")
             #expect(wc.destinationMenuModel().rows("Simulators").first?.isSwiftCodeRemoteSimulator == true)
             #expect(wc.destinationMenuModel().rows("Simulators").first?.osVersion == "27.1")
-            // Known now: no second ssh call.
             #expect(wc.refreshRemoteRuntimeVersion(defaults: p.defaults, ssh: r.settings.ssh) == nil)
         }
     }
-
-    // MARK: Erase
 
     static let eraseLauncher = """
     #!/bin/sh
@@ -255,13 +224,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(r.log.contains("-o BatchMode=yes tester@fakehost exec"))
         #expect(s.consoleText(.debugger).contains("swiftcode-sim: erased \(r.data.path)/devices/dev1"))
 
-        // A failing launcher: the message says so.
         let bad = try makeRemote("erase-bad", launcher: "#!/bin/sh\necho 'swiftcode-sim: --erase needs --device' >&2\nexit 64\n")
         defer { try? FileManager.default.removeItem(at: bad.root) }
         let (ok2, m2) = await s.eraseRemoteSimulator(remote: bad.remote)
         #expect(!ok2 && m2 == "Erase failed (status 64): swiftcode-sim: --erase needs --device")
 
-        // Not set up; and refused while this workspace runs an app on it.
         #expect(await s.eraseRemoteSimulator(remote: RemoteSimulator(settings: RemoteSimulatorSettings())).0 == false)
         let app = try app(in: r.root)
         s.simulatorRun = SimulatorRunState(target: .remote(destination: "tester@fakehost"), app: try #require(AppBundle(url: app)))
@@ -285,25 +252,19 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             let row = try #require(c.simulators.dropFirst().first)
             #expect(row.isSwiftCodeRemote && row.osVersion == "27.1" && row.state == "Shutdown" && row.identifier == "tester@fakehost:\(r.data.path)/devices/dev1")
 
-            // Only the remote row has the command.
             #expect(c.contextMenu(forRow: 0).items.isEmpty)
             let menu = c.contextMenu(forRow: 1)
-            // The iPhone Duo row also has Start, Open in New Window and the
-            // pose commands (device-hub.md), disabled while it is not running
-            // (Start needs the window's start action).
             #expect(menu.items.map(\.title) == ["Start", "", "Open in New Window", "", "Closed", "Partially Open", "Open", "Rotate Left",
                                                 "Rotate Right", "", "Erase All Content and Settings…"] && menu.items.last!.isEnabled)
             #expect(menu.items.filter { ["Closed", "Partially Open", "Open", "Rotate Left", "Rotate Right", "Open in New Window"].contains($0.title) }
                 .allSatisfy { !$0.isEnabled })
 
-            // Cancelled: nothing runs.
             var asked: [String] = []
             c.confirmErase = { asked.append($0.name); return false }
             #expect(c.erase(row: 1) == nil)
             #expect(asked == ["iPhone Duo (SwiftCode)"] && !r.log.contains("--erase"))
             #expect(c.erase(row: 0) == nil && asked.count == 1)
 
-            // Confirmed: the launcher erases the device.
             c.confirmErase = { _ in true }
             c.select(row: 1)
             let task = try #require(c.erase(row: 1))
@@ -314,7 +275,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             #expect(r.log.contains("--erase --device '\(r.data.path)/devices/dev1'"))
             #expect(wc.session.consoleText(.debugger).contains("swiftcode-sim: erased"))
         }
-        // Not set up: no row.
         try await withPrefs("devices-none") { _, dir in
             let wc = try window(try iosApp(in: dir), state: dir.appendingPathComponent("state.json"))
             let c = DevicesController(devices: [], simulators: [])
@@ -323,11 +283,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         }
     }
 
-    // MARK: R2: run status and Stop with the save at the stop
-
-    /// A launcher stand-in like the real one at a stop: the first SIGINT
-    /// "saves" and reports it, then keeps the connection open (swiftcode-simd's
-    /// teardown); a second SIGINT ends it.
     static let savingLauncher = """
     #!/bin/sh
     n=0
@@ -346,7 +301,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         await s.runOnRemoteSimulator(app: try app(in: r.root), remote: r.remote)
         #expect(await waitUntil(20) { s.console.contains("hello from the remote app") && s.simulatorRun?.remotePID != nil })
         #expect(s.activity == .running("Running Remote on \(r.remote.destination.name)"))
-        // The launcher's own lines are SwiftCode status, not program output.
         #expect(s.consoleText(.debugger).contains("swiftcode-sim: warm boot: restoring the device"))
         #expect(!s.consoleText(.target).contains("swiftcode-sim:") && s.consoleText(.target).contains("hello from the remote app"))
         let pid = try #require(s.simulatorRun?.remotePID)
@@ -360,8 +314,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
     }
 
     @Test func stopWithWarmBootOffAndWhenTheSignalFails() async throws {
-        // The fake simd ends on SIGINT; the signal through ssh fails, so the
-        // connection is closed (the local SIGINT).
         let r = try makeRemote("stop-fail", launcher: """
         #!/bin/sh
         trap 'echo "stopped by SIGINT"; exit 130' INT
@@ -380,16 +332,11 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(s.activity == .running("Stopping Remote…"))
         #expect(await waitUntil(20) { s.simulatorRun == nil })
         #expect(s.console.contains("the stop signal did not reach tester@fakehost (ssh status 255)"))
-        // The launcher's last line, written as it ends, is in the console
-        // when the run is over (the exit is reported after the output: it
-        // used to be dropped when the exit was noticed first, under load).
         #expect(s.console.contains("stopped by SIGINT"))
-        // A stopped run is not a failed run.
         #expect(s.activity == .finished("Finished running Remote on \(remote.destination.name)"))
     }
 
     @Test func stopAfterTheGraceTimeAndBeforeThePid() async throws {
-        // Ignores the first SIGINT silently (a save that never reports).
         let r = try makeRemote("stop-grace", launcher: """
         #!/bin/sh
         n=0
@@ -407,7 +354,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(await waitUntil(20) { s.simulatorRun == nil })
         #expect(s.console.contains("did not end 1 s after Stop; closing the connection"))
 
-        // Stop before the pid line: the signal goes out when it arrives.
         r.touch("delay-run")
         await s.runOnRemoteSimulator(app: try app(in: r.root), remote: remote)
         #expect(s.simulatorRun?.remotePID == nil)
@@ -429,7 +375,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(s.console.contains("stopped before Remote was launched"))
         #expect(!r.log.contains("SWIFTCODE-REMOTE-PID"))
 
-        // A second Stop does not wait for the save.
         var slow = r.remote
         slow.stopGrace = 600
         var fast = r.settings
@@ -441,8 +386,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         s.stopSimulatorRun(remote: slow)
         #expect(await waitUntil(20) { s.simulatorRun == nil })
     }
-
-    // MARK: P15: the preview activity text
 
     @Test func previewFamilyAndActivityText() async throws {
         #expect(WorkspaceWindowController.family(ofDeviceNamed: "iPhone 17 Pro") == "iPhone")
@@ -464,21 +407,17 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
             wc.activityView.status = "Build Succeeded • Today at 10:00"
             let token = wc.beginPreviewActivity()
             #expect(token != nil && wc.activityView.status == "Preparing iPhone Simulator" && wc.activityView.isBusy)
-            // A newer preview build takes over; the older one's end changes nothing.
             let newer = wc.beginPreviewActivity()
             wc.endPreviewActivity(token)
             #expect(wc.activityView.status == "Preparing iPhone Simulator")
             wc.endPreviewActivity(newer)
             #expect(wc.activityView.status == "Build Succeeded • Today at 10:00" && !wc.activityView.isBusy)
         }
-        // A package previews on the Mac: no simulator text.
         let pkg = try WindowSnapshotTests().samplePackage()
         let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: pkg)), loadDestinations: false,
                                            startLanguageService: false, openFirstFile: false)
         #expect(wc.previewActivityText == nil && wc.beginPreviewActivity() == nil)
     }
-
-    // MARK: D4: disabled placeholders
 
     @Test func viewHierarchyAndMemoryGraphAreDisabledPlaceholders() throws {
         _ = NSApplication.shared

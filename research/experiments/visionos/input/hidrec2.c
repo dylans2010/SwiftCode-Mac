@@ -1,14 +1,3 @@
-// hidrec2: our recorder for pose events (OBS-VISION-POSE, 2026-11-01), inserted into the guest's
-// backboardd like hidrec. For every dispatched event it logs the sender ID, the event's own
-// description, and for the event and each child: type, event flags, and the float and integer
-// value of field (type << 16) | i for i = 0..15 (IOHIDFamily's field numbering, IOHIDEventFieldDefs.h).
-// HIDREC_REWRITE=1 replaces a pose event (vendor 0xFF00 / 0x72) before dispatch with one built the
-// way Ycode's HID bundle builds it (generic Orientation event, integer field 3 = 3, floats in
-// fields 8..11 = w, x, y, z), keeping the received translation and quaternion; HIDREC_REWRITE=2 the
-// same with fields 4..7; HIDREC_REWRITE=3 drops the Orientation child. HIDREC_QBASE (default 4) is the
-// first field the received quaternion is read from: set 8. A "LOADED" line is written per process.
-// HIDREC_FILE must be writable from the guest: a folder in the device's data directory other than
-// tmp (cleared at boot) worked; a path on the USB volume gave no log.
 #include <CoreFoundation/CoreFoundation.h>
 #include <stdio.h>
 #include <stdlib.h>

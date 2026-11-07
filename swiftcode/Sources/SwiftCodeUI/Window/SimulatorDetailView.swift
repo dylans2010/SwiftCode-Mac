@@ -1,10 +1,3 @@
-// SimulatorDetailView.swift
-//
-// Ported from Legacy `SwiftCode/Views/Utilities/Sims/SimulatorDetailView.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: standalone detail view composing actions + device info + apps + console
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): SimulatorActionsView, SimulatorAppsView.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
 
@@ -14,7 +7,6 @@ struct SimulatorDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Label("Simulator Control Center", systemImage: "iphone")
                     .font(.headline)

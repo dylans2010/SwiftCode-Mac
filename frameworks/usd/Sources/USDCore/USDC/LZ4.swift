@@ -1,12 +1,5 @@
-/// LZ4 block compression (the public LZ4 block format), and the chunked
-/// wrapper the crate format uses around it: one leading byte with the chunk
-/// count (0 = a single block follows), then for several chunks a 32-bit
-/// compressed size before each block.
 public enum LZ4 {
-    /// Largest input of one LZ4 block (LZ4_MAX_INPUT_SIZE).
     static let maxInputSize = 0x7E00_0000
-
-    // MARK: Block decoding
 
     public static func decompressBlock(_ src: ArraySlice<UInt8>, maxOutput: Int) throws -> [UInt8] {
         var out: [UInt8] = []
@@ -29,7 +22,7 @@ public enum LZ4 {
             guard i + literalLength <= end else { throw USDError("lz4: literals past end of input") }
             out.append(contentsOf: src[i..<(i + literalLength)])
             i += literalLength
-            if i >= end { break } // last sequence has no match
+            if i >= end { break }
             guard i + 2 <= end else { throw USDError("lz4: truncated offset") }
             let offset = Int(src[i]) | Int(src[i + 1]) << 8
             i += 2
@@ -55,11 +48,6 @@ public enum LZ4 {
         return out
     }
 
-    // MARK: Block encoding
-
-    /// Greedy single-pass compressor with a 4-byte hash table. Produces a
-    /// valid LZ4 block (last 5 bytes literal, no match starting in the last
-    /// 12 bytes).
     public static func compressBlock(_ src: [UInt8]) -> [UInt8] {
         let n = src.count
         var out: [UInt8] = []
@@ -112,8 +100,6 @@ public enum LZ4 {
         return out
     }
 
-    // MARK: Chunked wrapper
-
     public static func compress(_ src: [UInt8]) -> [UInt8] {
         if src.count <= maxInputSize {
             return [0] + compressBlock(src)
@@ -152,10 +138,7 @@ public enum LZ4 {
     }
 }
 
-/// The crate format's integer coding: deltas, a most-common value, 2-bit
-/// width codes and variable-width integers, then LZ4.
 public enum IntegerCoding {
-    /// Decodes `count` 32-bit integers (as Int64, sign-extended).
     public static func decode32(_ compressed: ArraySlice<UInt8>, count: Int) throws -> [Int64] {
         try decode(compressed, count: count, wide: false)
     }
@@ -215,7 +198,6 @@ public enum IntegerCoding {
             deltas.append(wide ? value &- previous : Int64(Int32(truncatingIfNeeded: value &- previous)))
             previous = value
         }
-        // Most common delta (ties: the smallest value).
         var counts: [Int64: Int] = [:]
         for d in deltas { counts[d, default: 0] += 1 }
         let common = counts.max { $0.value != $1.value ? $0.value < $1.value : $0.key > $1.key }!.key

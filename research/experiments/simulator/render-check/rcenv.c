@@ -1,22 +1,3 @@
-/*
- * rcenv: Ycode research interposer R6 (original Ycode code, no Apple code).
- * Inserted with DYLD_INSERT_LIBRARIES into the jobs of a throwaway simulator
- * boot (simctl boot with SIMCTL_CHILD_ variables). Black-box only: it records
- * NAMES the runtime asks for, never code.
- *
- *  - getenv(name): logs each distinct (name, calling image) pair once, with
- *    whether the variable was set. Shows which environment switches the render
- *    server reads.
- *  - dlopen(path): logs paths (shows which drivers/bundles are loaded).
- *  - bootstrap_look_up / xpc_connection_create_mach_service: names in
- *    RC_DENY (comma list, '*' suffix = prefix) fail (1102 / a connection to a
- *    name that does not exist), imitating a host without them (as R4/R5).
- *    Denied look-ups are counted, not logged one by one.
- *
- * Env: RC_DIR=<dir>  log to <dir>/<process>-<pid>.env.log
- *      RC_ONLY=a,b   log only in these process names (deny applies everywhere)
- *      RC_DENY=a,b*  names to deny
- */
 #include <mach/mach.h>
 #include <xpc/xpc.h>
 #include <dispatch/dispatch.h>
@@ -39,9 +20,6 @@ extern xpc_connection_t rc_xpc_mach(const char *name, dispatch_queue_t q, uint64
 static FILE *g_log;
 static int g_logging = -1;
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
-/* No thread-local storage: getenv is called by libmalloc before libSystem has
- * initialized TLS. Before our constructor runs we pass through; afterwards a
- * global owner thread id guards against re-entry while we hold the lock. */
 static volatile int g_ready;
 static pthread_t g_owner;
 __attribute__((constructor)) static void rc_init(void) { g_ready = 1; }
@@ -69,7 +47,6 @@ static int listed(const char *list, const char *name)
     return 0;
 }
 
-/* Our own reads of the environment use environ directly so they are not logged. */
 extern char **environ;
 static const char *raw_env(const char *k)
 {
@@ -102,7 +79,6 @@ static const char *image_of(const void *addr)
     return s ? s + 1 : di.dli_fname;
 }
 
-/* distinct (name, image) pairs */
 #define SEEN_MAX 4096
 static struct { char name[96]; char img[64]; } g_seen[SEEN_MAX];
 static int g_nseen;
@@ -141,7 +117,6 @@ static void *my_dlopen(const char *path, int mode)
     return h;
 }
 INTERPOSE(my_dlopen, dlopen)
-
 
 static kern_return_t my_look_up(mach_port_t bp, const char *name, mach_port_t *sp)
 {

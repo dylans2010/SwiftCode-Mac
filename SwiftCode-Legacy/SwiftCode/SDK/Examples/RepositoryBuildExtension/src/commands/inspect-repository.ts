@@ -1,11 +1,5 @@
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 
-/**
- * "inspect-repository" command.
- *
- * Fetches the live repository status and diff from the host's source-control service,
- * logs a summary, and returns the combined object unchanged.
- */
 export function createInspectRepositoryCommand(context: SwiftCodeContext) {
   return {
     id: "inspect-repository",

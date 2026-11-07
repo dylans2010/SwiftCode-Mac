@@ -17,7 +17,6 @@ public struct PreviewCompilationDiagnostic: Sendable, Identifiable {
     public let line: Int?
 }
 
-/// Actor-isolated compiler coordinates native swiftc live SwiftUI library generation.
 public actor PreviewRuntimeCompiler {
     private var cachedSignatures: [URL: Date] = [:]
 
@@ -36,7 +35,6 @@ public actor PreviewRuntimeCompiler {
             .appendingPathComponent(uniqueID, isDirectory: true)
         try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
 
-        // Read active files to parse previews
         var parsedPreviews: [ParsedPreview] = []
         for file in projectStructure.swiftFiles {
             if let content = try? String(contentsOf: file, encoding: .utf8) {
@@ -51,7 +49,6 @@ public actor PreviewRuntimeCompiler {
 
         let outputLibrary = temporaryRoot.appendingPathComponent("lib\(uniqueModuleName).dylib")
 
-        // Isolate files into temporary folder with unique names to completely avoid duplicate filename conflicts
         var isolatedFiles: [URL] = []
         var seenFilenames: [String: Int] = [:]
 
@@ -78,7 +75,6 @@ public actor PreviewRuntimeCompiler {
 #if os(macOS)
         let process = Process()
 
-        // Use a direct path to swiftc if possible to avoid xcrun sandbox issues
         let swiftcPaths = [
             "/usr/bin/swiftc",
             "/usr/local/bin/swiftc",
@@ -96,17 +92,8 @@ public actor PreviewRuntimeCompiler {
         process.executableURL = resolvedSwiftc
         process.currentDirectoryURL = sandboxPolicy.projectDirectory
 
-        // The JIT module is dlopen'd in-process by PreviewDynamicLoader inside the
-        // macOS SwiftCode host, and it must vend an AppKit NSView (see
-        // makeBootstrapSource and DocumentCoordinator.compiledArtboardViews).
-        // It is therefore ALWAYS compiled against the macOS SDK, regardless of
-        // the open project's deployment target. Targeting iphonesimulator is
-        // invalid here: the generated bootstrap imports AppKit (NSHostingView),
-        // which does not exist on the simulator SDK, so compilation fails and
-        // the preview falls back to the sandbox runtime.
         let sdkName = "macosx"
 
-        // Query the SDK path dynamically
         let sdkPathResult = try? await ProcessRunnerTool.shared.run(
             executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
             arguments: ["--show-sdk-path", "--sdk", sdkName]
@@ -132,7 +119,6 @@ public actor PreviewRuntimeCompiler {
 
         try process.run()
 
-        // Implement compile process timeout handling to prevent indefinite compile blocks
         let timeout: TimeInterval = 20.0
         let startTime = Date()
 
@@ -184,29 +170,19 @@ public actor PreviewRuntimeCompiler {
         return PreviewError.compilationError(details: message)
     }
 
-    /// Generates the JIT bootstrap source compiled into the preview dylib.
-    ///
-    /// This source is ALWAYS compiled against the macOS SDK (see `compile`):
-    /// the dylib is dlopen'd in-process by `PreviewDynamicLoader` inside the
-    /// macOS host, so the `__swiftcode_make_hosting_view` entry point must vend
-    /// an AppKit `NSView`. Do NOT switch this to UIKit: a UIKit-based module
-    /// cannot be loaded into the macOS host process.
     private func makeBootstrapSource(viewTypes: [String], defaultRoot: String, parsedPreviews: [ParsedPreview]) -> String {
         var cases: [String] = []
 
-        // Add cases for parsed #Previews
         for preview in parsedPreviews {
             cases.append("case \"\(preview.title)\": root = AnyView({\n            \(preview.body)\n        }())")
         }
 
-        // Add default cases for bare views
         for viewType in viewTypes {
             if !parsedPreviews.contains(where: { $0.title == viewType }) {
                 cases.append("case \"\(viewType)\": root = AnyView(\(viewType)())")
             }
         }
 
-        // Add case for default root
         if !parsedPreviews.contains(where: { $0.title == defaultRoot }) && !viewTypes.contains(defaultRoot) {
             cases.append("case \"\(defaultRoot)\": root = AnyView(\(defaultRoot)())")
         }

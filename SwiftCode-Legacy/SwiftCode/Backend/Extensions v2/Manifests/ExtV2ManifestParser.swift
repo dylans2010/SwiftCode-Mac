@@ -1,12 +1,5 @@
 import Foundation
 
-// MARK: - VS Code extension manifest (package.json)
-//
-// Decoding is deliberately tolerant: unknown keys are ignored, every
-// known key is optional except the identity triple (name, publisher,
-// version). A manifest that fails validation is reported, never loaded
-// with invented defaults for its identity.
-
 public struct ExtV2VSCodeCommand: Codable, Hashable, Sendable {
     public let command: String
     public let title: String
@@ -43,8 +36,6 @@ public struct ExtV2VSCodeManifest: Sendable {
     public let contributesCommands: [ExtV2VSCodeCommand]
     public let contributesViews: [ExtV2VSCodeView]
     public let configurationProperties: [String: ExtV2ConfigurationProperty]
-    /// API names the extension declares in `contributes` / known keys, used
-    /// only for the compatibility report — never a claim of support.
     public let declaredAPIs: [String]
 
     public var identity: ExtV2Identity { ExtV2Identity(publisher: publisher, name: name) }
@@ -96,8 +87,6 @@ public enum ExtV2ManifestParser {
         }
     }
 
-    /// Parses and validates a package.json payload. Throws ExtV2Error.manifest
-    /// with a specific reason; callers surface that reason verbatim.
     public static func parse(data: Data) throws -> ExtV2VSCodeManifest {
         let raw: RawManifest
         do {

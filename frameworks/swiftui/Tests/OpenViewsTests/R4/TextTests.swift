@@ -9,17 +9,12 @@ import OVText
 @testable import SwiftUI
 #endif
 
-// Round R4: fonts, Dynamic Type and text (07-text-images-color.md §1–2,
-// 04-layout.md §3; plan suites T-TEXT and T-L10N).
-
 private let categories = DynamicTypeSize.allCases
 
-/// The default measurer on the bundled fonts only (deterministic).
 let notoMeasurer = TypesetTextMeasurer(fonts: CatalogFontProvider(catalog: .bundled))
 
 @Suite("T-TEXT: text styles and Dynamic Type (07 §1)")
 struct DynamicTypeTests {
-    /// 07 §1.1, columns xSmall … AX5.
     static let pointSizes: [(DynamicTypeTable.Style, [CGFloat])] = [
         (.largeTitle, [31, 32, 33, 34, 36, 38, 40, 44, 48, 52, 56, 60]),
         (.title1, [25, 26, 27, 28, 30, 32, 34, 38, 43, 48, 53, 58]),
@@ -99,7 +94,6 @@ struct DynamicTypeTests {
         #expect(Font.Width.expanded.widthClass == 7)
     }
 
-    /// 07 §1.3: height of Text("Ag").font(style) per Dynamic Type size.
     static let heights: [(Font.TextStyle, [CGFloat])] = [
         (.largeTitle, [37, 38.33, 39.67, 40.67, 43, 45.67, 48, 52.67, 57.33, 62.33, 67, 71.67]),
         (.title, [30, 31.33, 32.33, 33.67, 36, 38.33, 40.67, 45.67, 51.33, 57.33, 63.33, 69.33]),
@@ -126,7 +120,7 @@ struct DynamicTypeTests {
 
     @Test("Reference metrics (07 §1.2): ascender and descender ratios, line height, rounded baselines")
     func referenceMetrics() {
-        let rows: [(CGFloat, Double, Double, Double)] = [   // size, ascender, descender, line height
+        let rows: [(CGFloat, Double, Double, Double)] = [
             (34, 32.37, 8.20, 40.57), (28, 26.66, 6.75, 33.41), (22, 20.95, 5.31, 26.25), (20, 19.04, 4.82, 23.87),
             (17, 16.19, 4.10, 20.29), (16, 15.23, 3.86, 19.09), (13, 12.38, 3.14, 15.51), (12, 11.43, 2.89, 14.32),
             (11, 10.47, 2.65, 13.13),
@@ -136,7 +130,6 @@ struct DynamicTypeTests {
             #expect(abs(m.ascent - asc) < 0.006 && abs(m.descent - desc) < 0.006 && abs(m.lineHeight - lh) < 0.011,
                     "\(size)")
         }
-        // Body: one line 20.33, pitch 22, baselines 16.33 / 38.33 (04 §3).
         let two = Fixture.measurer.measure(ResolvedText("Hello\nWorld"), proposal: .unspecified)
         #expect(Golden.close(two.size.height, 42.33) && Golden.close(two.firstBaseline!, 16.33)
                 && Golden.close(two.lastBaseline!, 38.33))
@@ -265,7 +258,6 @@ struct TextStylingTests {
 @MainActor
 @Suite("T-L10N: string tables and formatting (08 §3)")
 struct LocalizationTests {
-    /// A bundle directory with en, fr and ar tables (the probe's keys of 08 §3).
     static let bundle: Bundle = {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("openviews-l10n-\(ProcessInfo.processInfo.processIdentifier).bundle")

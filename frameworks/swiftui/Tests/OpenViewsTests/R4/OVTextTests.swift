@@ -2,17 +2,12 @@ import Foundation
 import Testing
 import OVText
 
-// OVText on its own: the OpenType reader on the bundled Noto Sans, font
-// matching, UAX #14 line breaking, UAX #9 visual order, and the paragraph
-// rules of Layout/Typesetter.swift with a table face of round numbers.
-
 private let catalog = FontCatalog.bundled
 
 private func noto(weight: Int = 400) -> any FontFace {
     catalog.face(for: FontRequest(traits: FontTraits(weight: weight)))!
 }
 
-/// A table face whose every character advances `size / 2` (spaces `size / 4`).
 private let grid = TableFace(familyName: "Grid", ascentRatio: 0.8, descentRatio: 0.2, defaultLeadingRatio: 0.1,
                              estimatedAdvanceRatio: 0.5)
 
@@ -74,9 +69,9 @@ struct OpenTypeTests {
     @Test("Bold is a separate face; CSS matching picks the nearest weight in the right direction")
     func matching() {
         #expect(noto(weight: 700).traits.weight == 700)
-        #expect(noto(weight: 600).traits.weight == 700)   // > 500: heavier first
-        #expect(noto(weight: 500).traits.weight == 400)   // 400–500: up to 500, then lighter
-        #expect(noto(weight: 300).traits.weight == 400)   // < 400: lighter first, then heavier
+        #expect(noto(weight: 600).traits.weight == 700)
+        #expect(noto(weight: 500).traits.weight == 400)
+        #expect(noto(weight: 300).traits.weight == 400)
         #expect(noto(weight: 900).traits.weight == 700)
         let traits = [FontTraits(weight: 300), FontTraits(weight: 500), FontTraits(weight: 800)]
         #expect(FontCatalog.bestMatch(traits, for: FontTraits(weight: 400)) == 1)
@@ -101,14 +96,13 @@ struct OpenTypeTests {
     func damaged() {
         #expect(throws: FontFileError.notAFont) { try OpenTypeFace(data: Data([1, 2, 3])) }
         var bytes = [UInt8](repeating: 0, count: 64)
-        bytes[1] = 1 // version 0x00010000, no tables
+        bytes[1] = 1
         #expect(throws: FontFileError.missingTable("head")) { try OpenTypeFace(data: Data(bytes)) }
     }
 }
 
 @Suite("OVText: UAX #14 line break opportunities")
 struct LineBreakTests {
-    /// Indices of clusters before which a break is allowed (or mandatory, `!`).
     private func breaks(_ s: String) -> [String] {
         let chars = Array(s)
         let o = LineBreaker.opportunities(chars)
@@ -312,6 +306,6 @@ struct TypesetterTests {
         let shaped = Shaper.shape([AttributedRun("a", style: RunStyle(face: noto(), size: 10, fallback: c))])
         #expect(shaped[0].face === noto())
         let cjk = Shaper.shape([AttributedRun("漢", style: RunStyle(face: noto(), size: 10, fallback: c))])
-        #expect(cjk[0].face === main) // the table face claims every scalar
+        #expect(cjk[0].face === main)
     }
 }

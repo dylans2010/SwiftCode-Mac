@@ -1,11 +1,4 @@
 #!/bin/sh
-# Builds the camera probe app CameraProbe.app (dev.swiftcode.CameraProbe;
-# camera/CameraProbe.m; specs/simulator/camera.md "SwiftCode implementation",
-# verification) for the iOS simulator platform. Runs on macOS only.
-#   ../out/guest-tests/camera/CameraProbe.app
-# Install and launch it on the Thor with swiftcode-simd --camera on --install-app
-# <dir>/CameraProbe.app --launch dev.swiftcode.CameraProbe --app-arg <mode> …;
-# its "camprobe: …" lines go to the app's stdout and DEV/data/tmp/camprobe.txt.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out="${OUT:-$here/../out/guest-tests/camera}"

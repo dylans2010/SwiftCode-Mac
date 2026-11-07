@@ -2,56 +2,22 @@ import Foundation
 import SwiftParser
 import SwiftSyntax
 
-/// Real Swift AST inspection through swift-syntax (the same library
-/// `SwiftCodeSyntax` is built on; `SwiftCodeSyntax` itself exposes no parse
-/// tree — only `SyntaxDocument` tokens and classification — so the
-/// engine parses with `SwiftParser` directly instead of duplicating
-/// `SwiftCodeSyntax`'s lexer work).
-///
-/// This replaces the Wave 6 regex structural fallback in
-/// `swift_ast_inspector` (Legacy's own fallback when `xcrun swiftc
-/// -dump-ast` was unavailable; the port never shelled out to Apple's
-/// toolchain). Declarations now come from the parse tree, with real
-/// line numbers, nesting, inheritance clauses and function
-/// signatures — not from `(class|struct|…)\s+(\w+)` matches, so a
-/// type name inside a string or a comment is no longer reported as
-/// a declaration.
-///
-/// Limits, stated plainly: this is syntactic, not semantic. There
-/// is no type checker, so there is no resolved type of an
-/// expression, no overload set, and no cross-file symbol index.
-/// `hasError` reports only whether the file failed to parse.
 enum SwiftASTInspection {
-    /// One declaration found in the parse tree.
     struct Declaration: Equatable, Sendable {
-        /// `class` / `struct` / `enum` / `protocol` / `actor` /
-        /// `extension` / `func` / `var` / `let` / `typealias` /
-        /// `case`.
         var kind: String
         var name: String
-        /// Dot-joined enclosing type names, e.g. `Outer.Inner`.
         var qualifiedName: String
-        /// 1-based line of the declaration.
         var line: Int
-        /// Inherited / conformed types, as written.
         var inheritance: [String]
-        /// Extra detail: a function's parameter list and return
-        /// type, a variable's type annotation, else "".
         var detail: String
-        /// Declarations nested inside this one.
         var members: [Declaration]
     }
 
-    /// The inspection of one source file.
     struct Inspection: Sendable {
-        /// Top-level declarations (types carry their members).
         var declarations: [Declaration]
-        /// Imported module paths, in order (`Foundation`, `SwiftUI`).
         var imports: [String]
-        /// Whether the file failed to parse (`tree.hasError`).
         var hasError: Bool
 
-        /// Every declaration, flattened in source order.
         var allDeclarations: [Declaration] {
             var out: [Declaration] = []
             func walk(_ decls: [Declaration]) {
@@ -61,16 +27,11 @@ enum SwiftASTInspection {
             return out
         }
 
-        /// The kind of the first declaration named `name`, if any.
         func kind(of name: String) -> String? {
             allDeclarations.first { $0.name == name }?.kind
         }
     }
 
-    /// Parses `source` and collects its declarations. `symbolFilter`
-    /// keeps declarations whose name contains it (case-insensitive,
-    /// Legacy's filter); a matching member keeps its ancestors,
-    /// with only matching descendants.
     static func inspect(source: String, file: String = "", symbolFilter: String? = nil) -> Inspection {
         let tree = Parser.parse(source: source)
         let converter = SourceLocationConverter(fileName: file, tree: tree)
@@ -83,8 +44,6 @@ enum SwiftASTInspection {
         return Inspection(declarations: declarations, imports: visitor.imports, hasError: tree.hasError)
     }
 
-    /// Keeps a declaration when it or any descendant matches the
-    /// filter (case-insensitive substring on the name).
     private static func filterDeclaration(_ decl: Declaration, filter: String) -> Declaration? {
         let members = decl.members.compactMap { filterDeclaration($0, filter: filter) }
         if decl.name.localizedCaseInsensitiveContains(filter) || !members.isEmpty {
@@ -95,9 +54,6 @@ enum SwiftASTInspection {
         return nil
     }
 
-    /// One mutable declaration under construction; the visitor
-    /// holds a stack of these so members land on their enclosing
-    /// type.
     private final class Builder {
         var kind: String
         var name: String
@@ -202,8 +158,6 @@ enum SwiftASTInspection {
             let isStatic = node.modifiers.contains { $0.name.text == "static" || $0.name.text == "class" }
             addLeaf(Builder(kind: "func", name: node.name.text, qualifiedName: qualified(node.name.text),
                             line: line(of: node), detail: "\(isStatic ? "static " : "")(\(params))\(returns)"))
-            // Bodies may contain local declarations; they are not
-            // members of the function, so do not descend.
             return .skipChildren
         }
 

@@ -1,5 +1,3 @@
-// Adapted from SwiftCode-Legacy SwiftCode/Core/Preview/PreviewSnapshotManager.swift (Dylan's own code;
-// direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import AppKit
 import SwiftUI
 
@@ -8,7 +6,6 @@ public actor PreviewSnapshotManager {
 
     private init() {}
 
-    /// Captures a high-fidelity image snapshot of any NSView on the MainActor.
     @MainActor
     public func captureSnapshot(of view: NSView) -> NSImage? {
         let bounds = view.bounds

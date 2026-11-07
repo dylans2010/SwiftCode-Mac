@@ -39,7 +39,6 @@ public struct DatabaseUtilities {
             columnsSql.append(colDef)
         }
 
-        // Relationships / Foreign Keys
         for rel in table.relationships {
             if rel.type == .oneToMany || rel.type == .oneToOne {
                 var fkDef = "    FOREIGN KEY (\(rel.sourceColumn)) REFERENCES \(rel.targetTable)(\(rel.targetColumn))"

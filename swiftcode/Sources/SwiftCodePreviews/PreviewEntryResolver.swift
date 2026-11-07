@@ -1,11 +1,5 @@
 import Foundation
 
-/// @main/WindowGroup app-entry resolution (Legacy
-/// `SwiftCode/Core/Preview/PreviewEntryResolver.swift`, Dylan's own
-/// code, ported under MIT). Direct port — the destination's
-/// `PreviewDiscovery` finds `#Preview` declarations but never
-/// resolved which view an app entry should run.
-
 public struct PreviewSimulationEntry: Sendable {
     public let appName: String
     public let rootViewType: String

@@ -1,12 +1,3 @@
-/*
- * Host unit tests for libsystem_kernel's library-side spawn and libproc code
- * (kernel/spawn.c, kernel/libproc.c), built with -DYC_HOST_TEST so every
- * exported name is yc_test_<name> and every kernel call it makes is
- * yc_testk_<name>; this file supplies those fakes. Checked against
- * specs/simulator/processes.md sections 1.1, 1.2, 1.4, 1.7, 1.8, 1.14 and
- * 2.11. Original SwiftCode code. arm64 hosts only (yc_kernel.h uses arm64
- * register names).
- */
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,16 +5,12 @@
 #include <string.h>
 #include <sys/mman.h>
 
-/* Darwin errno values where they differ from the host's (Linux). The
- * others used here (EPERM, ESRCH, EBADF, ENOMEM, EINVAL) are the same. */
 #define D_ENAMETOOLONG 63
 #define D_EOVERFLOW 84
 
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (!(cond)) { failures++; \
     fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
-
-/* ---- fakes --------------------------------------------------------------- */
 
 static int fake_errno;
 int *yc_testk___error(void) { return &fake_errno; }
@@ -38,7 +25,6 @@ void *yc_testk_mmap(void *addr, size_t len, int prot, int flags, int fd, int64_t
 }
 int yc_testk_munmap(void *addr, size_t len) { return munmap(addr, len); }
 
-/* _libkernel_functions v5 (host-library-init.md 2.1): only malloc/free used. */
 static long mallocs, frees;
 static void *t_malloc(size_t n) { mallocs++; return malloc(n); }
 static void t_free(void *p) { frees++; free(p); }
@@ -52,7 +38,6 @@ struct libkernel_functions {
 static struct libkernel_functions fns = {5, NULL, t_malloc, t_free, {0}};
 const struct libkernel_functions *yc_libkernel_fns;
 
-/* BSD 244: record the descriptor. */
 struct pair { uint64_t size; const void *ptr; };
 static struct pair last_desc[9];
 static int spawn_calls, spawn_had_desc, spawn_result;
@@ -68,7 +53,6 @@ int yc_testk_posix_spawn_trap(int *pid, const char *path, const void *desc, char
     return spawn_result;
 }
 
-/* BSD 336 / 545: answer from a small table. */
 static int pi_call, pi_pid, pi_size, pi_result, pi_errno;
 static uint32_t pi_flavor, pi_ext_flags;
 static uint64_t pi_arg, pi_ext_id;
@@ -76,13 +60,13 @@ static int fill_proc_info(int callnum, int pid, uint32_t flavor, uint64_t arg, v
 {
     pi_call = callnum; pi_pid = pid; pi_flavor = flavor; pi_arg = arg; pi_size = size;
     if (pi_errno) { fake_errno = pi_errno; return -1; }
-    if (callnum == 2 && flavor == 3 && buf) { /* TBSDINFO */
+    if (callnum == 2 && flavor == 3 && buf) {
         memset(buf, 0, 136);
         memcpy((char *)buf + 48, "shortcomm", 10);
         memcpy((char *)buf + 64, pid == 7 ? "" : "the-long-name", pid == 7 ? 1 : 14);
         return 136;
     }
-    if (callnum == 2 && flavor == 11 && buf) { /* PATHINFO */
+    if (callnum == 2 && flavor == 11 && buf) {
         memset(buf, 0, (size_t)size);
         strcpy(buf, "/usr/libexec/thing");
         return 0;
@@ -101,8 +85,6 @@ int yc_testk___proc_info_extended_id(int callnum, int pid, uint32_t flavor, uint
     pi_ext_flags = flags; pi_ext_id = ext_id;
     return r;
 }
-
-/* ---- functions under test ------------------------------------------------ */
 
 typedef void *attr_t;
 typedef void *fa_t;
@@ -144,14 +126,11 @@ int yc_test_proc_pid_rusage(int, int, void *);
 static uint32_t u32_at(const void *p, size_t off) { uint32_t v; memcpy(&v, (const char *)p + off, 4); return v; }
 static uint64_t u64_at(const void *p, size_t off) { uint64_t v; memcpy(&v, (const char *)p + off, 8); return v; }
 
-/* ---- tests --------------------------------------------------------------- */
-
 static void test_attr(void)
 {
     attr_t a = NULL;
     CHECK(yc_test_posix_spawnattr_init(NULL) == EINVAL);
     CHECK(yc_test_posix_spawnattr_init(&a) == 0 && a != NULL);
-    /* Defaults (section 1.4). */
     CHECK(u64_at(a, 56) == 1);
     CHECK(u32_at(a, 68) == 0xFFFFFFFFu && u32_at(a, 72) == 0xFFFFFFFFu && u32_at(a, 76) == 0xFFFFFFFFu);
     for (int i = 0; i < 4; i++)
@@ -180,7 +159,6 @@ static void test_attr(void)
     CHECK((u32_at(a, 128) & 4) && u32_at(a, 152) == (2 | 4));
     CHECK(yc_test_posix_spawnattr_set_use_sanitizers_np(&a, 1) == 0);
 
-    /* Port actions: 24-byte records, growth past 2 and 4. */
     CHECK(yc_test_posix_spawnattr_setspecialport_np(&a, 0x1103, 4) == 0);
     CHECK(yc_test_posix_spawnattr_setexceptionports_np(&a, 0x3FFE, 0x1207, 0x80000001, 6) == 0);
     uint32_t regs[4] = {0x1303, 0x1403, 0x1503, 0x1603};
@@ -201,7 +179,6 @@ static void test_attr(void)
     CHECK(yc_test_posix_spawnattr_set_subsystem_root_path_np(&a, "/sub/root") == 0);
     CHECK(strcmp((const char *)(uintptr_t)u64_at(a, 232), "/sub/root") == 0);
 
-    /* posix_spawn: descriptor contents. */
     int pid = 0;
     spawn_result = 0;
     CHECK(yc_test_posix_spawn(&pid, "/bin/x", NULL, &a, NULL, NULL) == 0 && pid == 4242 && spawn_had_desc);
@@ -212,7 +189,6 @@ static void test_attr(void)
     CHECK(last_desc[3].size == 0 && last_desc[4].size == 0 && last_desc[5].size == 0 && last_desc[6].size == 0 &&
           last_desc[8].size == 0);
 
-    /* The error number is the result; errno is untouched. */
     fake_errno = 0;
     spawn_result = 2;
     CHECK(yc_test_posix_spawn(&pid, "/missing", NULL, &a, NULL, NULL) == 2 && fake_errno == 0);
@@ -228,7 +204,6 @@ static void test_file_actions(void)
     fa_t fa = NULL;
     CHECK(yc_test_posix_spawn_file_actions_init(&fa) == 0 && fa != NULL);
 
-    /* No attributes and no file actions: no descriptor at all. */
     int pid = 0;
     CHECK(yc_test_posix_spawn(&pid, "/bin/x", &fa, NULL, NULL, NULL) == 0 && !spawn_had_desc);
     CHECK(yc_test_posix_spawn(&pid, "/bin/x", NULL, NULL, NULL, NULL) == 0 && !spawn_had_desc);
@@ -317,7 +292,6 @@ int main(void)
     test_file_actions();
     test_libproc();
     CHECK(mallocs == frees);
-    /* Without the libSystem table the blocks come from mmap. */
     yc_libkernel_fns = NULL;
     attr_t a = NULL;
     CHECK(yc_test_posix_spawnattr_init(&a) == 0 && u64_at(a, 56) == 1);

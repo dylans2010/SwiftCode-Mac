@@ -1,3 +1,1 @@
-# SPDX-License-Identifier: MIT
-
-from attr.filters import *  # noqa: F403
+from attr.filters import *

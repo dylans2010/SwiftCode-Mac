@@ -1,19 +1,5 @@
 import Foundation
 
-/// Backups — Legacy's `Core/DatabaseBackupManager.swift`, ported.
-///
-/// Deviation, recorded: Legacy registered backups in `UserDefaults`
-/// (`com.swiftcode.database.backups`). A registry drifts the moment
-/// a backup file is moved or deleted outside the app, so the port
-/// lists backups by scanning the backup directory for the
-/// timestamped names it writes (`<stem>_backup_yyyyMMdd_HHmmss.db`)
-/// — the directory is the source of truth, as in Legacy's
-/// file-copy approach itself. Backups are plain file copies of the
-/// SQLite file, exactly as Legacy made them; restoring one copies it
-/// back over the database file, so the caller must close any open
-/// connection to that database first (the explorer window closes
-/// and reopens the model around a restore).
-
 public struct DatabaseBackup: Sendable, Equatable, Identifiable {
     public var id: URL { url }
     public var url: URL
@@ -54,10 +40,6 @@ public final class DatabaseBackupManager {
         return formatter
     }()
 
-    /// - Parameters:
-    ///   - databasePath: the SQLite file to back up.
-    ///   - backupDirectory: where backups live; defaults to the
-    ///     database file's own directory, as Legacy did.
     public init(databasePath: String, backupDirectory: URL? = nil) {
         self.databasePath = databasePath
         self.backupDirectory = backupDirectory
@@ -77,7 +59,6 @@ public final class DatabaseBackupManager {
         return name.hasPrefix("\(stem)_backup_") && url.pathExtension == "db"
     }
 
-    /// Copies the database file to a new timestamped backup.
     public func createBackup(date: Date = Date()) throws -> DatabaseBackup {
         guard fileManager.fileExists(atPath: databasePath) else {
             throw DatabaseBackupError.databaseFileMissing(databasePath)
@@ -89,7 +70,6 @@ public final class DatabaseBackupManager {
         return DatabaseBackup(url: url, createdAt: date, sizeBytes: size)
     }
 
-    /// Backups in the directory, newest first.
     public func listBackups() -> [DatabaseBackup] {
         guard let urls = try? fileManager.contentsOfDirectory(
             at: backupDirectory, includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey]
@@ -101,8 +81,6 @@ public final class DatabaseBackupManager {
         }.sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// Copies the backup back over the database file. The caller must
-    /// have closed any open connection to the database first.
     public func restore(_ backup: DatabaseBackup) throws {
         guard fileManager.fileExists(atPath: backup.url.path) else {
             throw DatabaseBackupError.backupFileMissing(backup.url)
@@ -113,8 +91,6 @@ public final class DatabaseBackupManager {
         try fileManager.copyItem(at: backup.url, to: URL(fileURLWithPath: databasePath))
     }
 
-    /// Deletes all but the `keeping` newest backups. Returns the
-    /// number deleted.
     @discardableResult
     public func prune(keeping: Int) throws -> Int {
         let backups = listBackups()

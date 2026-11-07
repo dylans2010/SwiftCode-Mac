@@ -14,7 +14,6 @@ struct RepositoryDashboardView: View {
     @State private var aiAnalysisResult = ""
     @State private var isRunningAIAnalysis = false
 
-    // State for live timeline events to combine with commits for a full activity timeline
     @State private var liveCIEvents: [TimelineEvent] = []
 
     private func fetchLiveTimelineEvents() {
@@ -36,7 +35,6 @@ struct RepositoryDashboardView: View {
                     )
                 }
             } catch {
-                // Keep liveCIEvents empty on error
             }
         }
     }
@@ -62,7 +60,6 @@ struct RepositoryDashboardView: View {
     private var activeSuggestions: [DashboardSuggestion] {
         var list: [DashboardSuggestion] = []
 
-        // 1. Uncommitted changes suggestion
         let filesCount = gitViewModel.status?.files.count ?? 0
         if filesCount > 0 {
             list.append(
@@ -77,7 +74,6 @@ struct RepositoryDashboardView: View {
             )
         }
 
-        // 2. Sync / Ahead commits suggestion
         let aheadCount = gitViewModel.status?.ahead ?? 0
         if aheadCount > 0 {
             list.append(
@@ -92,7 +88,6 @@ struct RepositoryDashboardView: View {
             )
         }
 
-        // 3. No connected remote upstream suggestion
         if connectedRepo.isEmpty {
             list.append(
                 DashboardSuggestion(
@@ -106,7 +101,6 @@ struct RepositoryDashboardView: View {
             )
         }
 
-        // 4. Fallback healthy suggestions
         if list.isEmpty {
             list.append(
                 DashboardSuggestion(
@@ -126,7 +120,6 @@ struct RepositoryDashboardView: View {
     var body: some View {
         let context = RepositoryContext.shared
         List {
-            // SECTION 1: Welcome Header
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Repository Command Center")
@@ -140,7 +133,6 @@ struct RepositoryDashboardView: View {
             }
             .listRowSeparator(.hidden)
 
-            // SECTION 2: Overview & Connected Remotes
             Section(header: Text("Repository Status").font(.caption.bold()).foregroundStyle(.blue)) {
                 HStack {
                     Label("Current Branch", systemImage: "arrow.triangle.branch")
@@ -187,7 +179,6 @@ struct RepositoryDashboardView: View {
                 }
             }
 
-            // SECTION 3: AI-Powered Smart Suggestions
             Section(header: Text("Smart Suggestions").font(.caption.bold()).foregroundStyle(.orange)) {
                 ForEach(activeSuggestions) { suggestion in
                     HStack(spacing: 12) {
@@ -218,7 +209,6 @@ struct RepositoryDashboardView: View {
                 }
             }
 
-            // SECTION 4: Repository Statistics & Health Indicators
             Section(header: Text("Repository Statistics").font(.caption.bold()).foregroundStyle(.purple)) {
                 HStack {
                     Label("Repository Size", systemImage: "shippingbox.fill")
@@ -290,7 +280,6 @@ struct RepositoryDashboardView: View {
                 }
             }
 
-            // SECTION 5: AI Insights Engine
             Section(header: Text("AI Workspace Diagnostics").font(.caption.bold()).foregroundStyle(.teal)) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("AI Diagnostics uses live repository metadata to inspect project health and draft recommended work actions.")
@@ -338,7 +327,6 @@ struct RepositoryDashboardView: View {
                 .padding(.vertical, 6)
             }
 
-            // SECTION 6: Quick Actions Hub
             Section(header: Text("Quick Actions Hub").font(.caption.bold()).foregroundStyle(.orange)) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
@@ -387,9 +375,7 @@ struct RepositoryDashboardView: View {
                 .padding(.vertical, 6)
             }
 
-            // SECTION 7: Unified Activity Timeline (Commits & Events)
             Section(header: Text("Repository Activity Timeline").font(.caption.bold()).foregroundStyle(.yellow)) {
-                // Combine recent commits and live CI events sorted by date
                 let commitsAsEvents = gitViewModel.history.prefix(5).map {
                     TimelineEvent(title: "Commit: \($0.subject)", detail: "Authored by \($0.author) [\($0.sha.prefix(7))]", type: .commit, date: $0.date)
                 }
@@ -404,7 +390,6 @@ struct RepositoryDashboardView: View {
                 } else {
                     ForEach(allEvents) { event in
                         HStack(alignment: .top, spacing: 10) {
-                            // Timeline node indicator
                             VStack(spacing: 4) {
                                 Circle()
                                     .fill(eventColor(for: event.type))
@@ -438,8 +423,6 @@ struct RepositoryDashboardView: View {
         }
     }
 
-    // MARK: - Helper Colors
-
     private func eventColor(for type: TimelineEvent.EventType) -> Color {
         switch type {
         case .commit: return .purple
@@ -447,8 +430,6 @@ struct RepositoryDashboardView: View {
         case .system: return .blue
         }
     }
-
-    // MARK: - Smart Suggestions Helpers
 
     struct DashboardSuggestion: Identifiable {
         let id = UUID()
@@ -459,8 +440,6 @@ struct RepositoryDashboardView: View {
         let actionLabel: String
         let action: () -> Void
     }
-
-    // MARK: - Quick Actions Implementations
 
     private func runQuickPull() {
         guard let proj = project else { return }

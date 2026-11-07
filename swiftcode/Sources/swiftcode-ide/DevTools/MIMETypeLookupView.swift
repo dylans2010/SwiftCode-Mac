@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct MIMETypeLookupView: View {
@@ -12,7 +9,7 @@ struct MIMETypeLookupView: View {
             TextField("Search extension (e.g. .json) or MIME type (e.g. application/pdf)", text: $query)
                 .textFieldStyle(.roundedBorder)
                 .padding()
-                
+
                 .onChange(of: query) { lookup() }
 
             VStack(alignment: .leading, spacing: 10) {

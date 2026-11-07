@@ -1,29 +1,12 @@
 import Foundation
 
-/// What can go wrong talking to the Appwrite Account API over REST.
-///
-/// The server's error body carries a machine-readable `code` and
-/// `type` plus a human `message`; those are preserved verbatim in
-/// `.http` so callers (and the settings UI) can map them, exactly as
-/// Legacy's `CloudAuthViews.mapErrorToUserMessage` matched on the
-/// SDK error's text (`invalid credentials` / `401`, `already exists` /
-/// `409`, `network`, `weak password`).
 public enum AppwriteError: Error, LocalizedError, Equatable, Sendable {
-    /// The server answered with a non-2xx status. `code` and `type`
-    /// are the Appwrite error body's fields when the body parsed.
     case http(status: Int, code: Int?, type: String?, message: String)
-    /// The request never reached the server (no network, DNS, TLS).
     case network(String)
-    /// A 2xx response whose body did not decode.
     case decoding(String)
-    /// The configuration itself is unusable (bad endpoint URL).
     case invalidConfiguration(String)
-    /// An authenticated call was made with no session secret stored.
     case missingSession
-    /// The OAuth provider, or Appwrite, reported the flow failed.
     case oauthFailed(String)
-    /// `beginOAuth` waited for the app to deliver the callback and
-    /// none arrived within the timeout (see `CloudAuthManager`).
     case oauthCallbackTimeout
 
     public var errorDescription: String? {
@@ -45,12 +28,6 @@ public enum AppwriteError: Error, LocalizedError, Equatable, Sendable {
         }
     }
 
-    /// The user-facing sentence for this failure, following Legacy's
-    /// `CloudAuthViews.mapErrorToUserMessage` mapping. Specific
-    /// server messages win over the raw text: a 401 / "invalid
-    /// credentials" is a wrong email or password, a 409 / "already
-    /// exists" is a registered email, a network failure is a
-    /// connection problem, and a weak-password message says so.
     public var userFacingMessage: String {
         switch self {
         case .http(let status, _, _, let message):

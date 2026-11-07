@@ -30,7 +30,6 @@ public struct AssistTargetSourceListTool: AssistTool {
               let text = try? String(contentsOf: pbxproj, encoding: .utf8) else {
             return .failure("No .pbxproj found in the workspace.")
         }
-        // File refs: id -> path.
         var fileRefPaths: [String: String] = [:]
         if let p = try? NSRegularExpression(pattern: #"([0-9A-F]{24}) /\* (.+?) \*/ = \{isa = PBXFileReference;[^}]*?path = ([^;]+);"#, options: [.dotMatchesLineSeparators]) {
             for m in p.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
@@ -39,10 +38,6 @@ public struct AssistTargetSourceListTool: AssistTool {
                 }
             }
         }
-        // Sources phases: id -> target name (via the target block's buildPhases list is complex;
-        // instead map phase id -> files, then attribute phases to targets by proximity scan).
-        // Practical approach: for each PBXNativeTarget block, extract its Sources phase ids,
-        // then resolve each phase's files.
         var targetSources: [(String, [String])] = []
         guard let targetBlockPattern = try? NSRegularExpression(
             pattern: #"([0-9A-F]{24}) /\* (.+?) \*/ = \{\s*isa = PBXNativeTarget;(.*?)buildPhases = \((.*?)\); "#,
@@ -62,7 +57,6 @@ public struct AssistTargetSourceListTool: AssistTool {
             } ?? []
             var sources: [String] = []
             for phaseId in phaseIds {
-                // Find the PBXSourcesBuildPhase block and its fileRef ids.
                 let phasePattern = try? NSRegularExpression(
                     pattern: phaseId + #" /\* Sources \*/ = \{\s*isa = PBXSourcesBuildPhase;.*?files = \((.*?)\);"#,
                     options: [.dotMatchesLineSeparators]
@@ -71,7 +65,6 @@ public struct AssistTargetSourceListTool: AssistTool {
                       let pm = pp.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
                       let fr = Range(pm.range(at: 1), in: text) else { continue }
                 let filesBlock = String(text[fr])
-                // Each build file: `<id> /* X in Sources */ = {isa = PBXBuildFile; fileRef = <refId> ...`
                 if let bp = try? NSRegularExpression(pattern: #"fileRef = ([0-9A-F]{24})"#) {
                     for bm in bp.matches(in: filesBlock, range: NSRange(filesBlock.startIndex..., in: filesBlock)) {
                         if let r = Range(bm.range(at: 1), in: filesBlock),

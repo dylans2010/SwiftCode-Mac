@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2020 - 2026 ThorVG project. All rights reserved.
-
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 #ifndef _TVG_PICTURE_H_
 #define _TVG_PICTURE_H_
 
@@ -35,8 +13,8 @@ struct PictureImpl : Picture
 {
     Paint::Impl impl;
     ImageLoader* loader = nullptr;
-    Paint* vector = nullptr;          //vector picture uses
-    RenderSurface* bitmap = nullptr;  //bitmap picture uses
+    Paint* vector = nullptr;
+    RenderSurface* bitmap = nullptr;
     AssetResolver* resolver = nullptr;
     Point origin = {};
     float w = 0, h = 0;
@@ -56,7 +34,6 @@ struct PictureImpl : Picture
 
     bool skip(RenderUpdateFlag flag)
     {
-        // The media have its own playback update
         return !loader || (flag == RenderUpdateFlag::None && loader->type != FileType::Media);
     }
 
@@ -72,7 +49,6 @@ struct PictureImpl : Picture
                 TVGERR("RENDERER", "Unknown colorspace picture data");
                 return false;
             }
-            //Overriding Transformation by the desired image size
             auto sx = w / loader->w;
             auto sy = h / loader->h;
             auto scale = sx < sy ? sx : sy;
@@ -84,7 +60,7 @@ struct PictureImpl : Picture
                 resizing = false;
             }
             needComposition(opacity);
-            vector->blend(pImpl->blendMethod); //propagate blend method to nested vector scene
+            vector->blend(pImpl->blendMethod);
             translateR(const_cast<Matrix*>(&transform), pivot);
             return vector->pImpl->update(renderer, transform, clips, opacity, flag, false);
         }
@@ -232,11 +208,8 @@ struct PictureImpl : Picture
     {
         if (!loader) return RenderUpdateFlag::None;
 
-        // reload the next frame if any
         if (vector || bitmap) {
-            // sync call must be guaranteed.
             if (loader->sync() && bitmap) return RenderUpdateFlag::Image;
-        // load the first frame
         } else {
             if ((vector = loader->paint())) {
                 vector->ref();
@@ -254,18 +227,15 @@ struct PictureImpl : Picture
                 if (bitmap) return RenderUpdateFlag::Image;
             }
         }
-        // animations updates the properties essentially. here update is not necessary.
         return RenderUpdateFlag::None;
     }
 
     void needComposition(uint8_t opacity)
     {
-        impl.cmpFlag = CompositionFlag::Invalid;  //must clear after the rendering
+        impl.cmpFlag = CompositionFlag::Invalid;
 
-        //In this case, paint(scene) would try composition itself.
         if (opacity < 255) return;
 
-        //Composition test
         const Paint* target;
         PAINT(this)->mask(&target);
         if (!target || target->pImpl->opacity == 255 || target->pImpl->opacity == 0) return;
@@ -300,10 +270,9 @@ struct PictureImpl : Picture
 
     Result load(Loader* loader)
     {
-        //Same resource has been loaded.
         if (this->loader == loader) {
-            this->loader->sharing--;  //make it sure the reference counting.
-            if (bitmap) impl.mark(RenderUpdateFlag::Image);  // force the bitmap updated
+            this->loader->sharing--;
+            if (bitmap) impl.mark(RenderUpdateFlag::Image);
             return Result::Success;
         } else if (this->loader) {
             LoaderMgr::retrieve(this->loader);
@@ -344,4 +313,4 @@ struct PictureImpl : Picture
 
 }
 
-#endif //_TVG_PICTURE_H_
+#endif

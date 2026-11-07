@@ -9,11 +9,6 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// T-PERSIST (10-plan.md §3.2; 06 §8): `@AppStorage` round trips and sees
-// writes made through `UserDefaults` directly; `@SceneStorage` values belong
-// to a window, survive view re-creation, and are restored only when the app
-// did not end with a user quit.
-
 @MainActor
 final class PersistLog {
     static let shared = PersistLog()
@@ -74,7 +69,6 @@ struct PersistenceTests {
         reset()
         let h = Harness { StorageView() }
         #expect(PersistLog.shared.entries.last == "body 0 none plain nil")
-        // A launch counter as in the reference's `persist` mode (06 §8).
         guard let node = h.window.graph.root else { return }
         var view: StorageView?
         node.forEachNode { n in if view == nil, let v = n.view as? StorageView { view = v } }
@@ -82,15 +76,12 @@ struct PersistenceTests {
         h.run(until: 1)
         #expect(PersistLog.shared.defaults.integer(forKey: "launchCount") == 1)
         #expect(PersistLog.shared.entries.last == "body 1 none plain nil")
-        // An external write through UserDefaults updates the view and fires
-        // onChange (06 §8).
         PersistLog.shared.entries = []
         PersistLog.shared.defaults.set("Ada", forKey: "name")
         PersistLog.shared.defaults.set("solar", forKey: "theme")
         h.run(until: 1.5)
         #expect(PersistLog.shared.entries.contains("body 1 Ada solar nil"))
         #expect(PersistLog.shared.entries.contains("onChange Ada"))
-        // Optional values and removal.
         view?.optional = "x"
         h.run(until: 2)
         #expect(PersistLog.shared.defaults.string(forKey: "optional") == "x")
@@ -120,11 +111,9 @@ struct PersistenceTests {
         h.run(until: 1)
         #expect(PersistLog.shared.entries.last == "scene 3 swift")
         #expect(h.window.sceneStorage.value(forKey: "tab") as? Int == 3)
-        // Remove the view and bring it back: the scene keeps the value.
         if let f = h.frame(where: { ($0 as? Text)?.plainString == "Toggle" }) { h.tap(f.center, at: 1.5) }
         if let f = h.frame(where: { ($0 as? Text)?.plainString == "Toggle" }) { h.tap(f.center, at: 2) }
         #expect(PersistLog.shared.entries.last == "scene 3 swift")
-        // Another window of the group starts with the default.
         h.host.openWindow(id: nil)
         h.run(until: 2.5)
         #expect(h.host.windows.count == 2)
@@ -149,16 +138,13 @@ struct PersistenceTests {
             v?.tab = tab
             host.run(until: host.backend.now + 0.2)
         }
-        // 1. Set a value, go to the background (archived), end without a quit.
         var (b, host) = launch()
         set(host, 5)
         if let id = host.windows.first?.platform.id { b.post(.window(id, .minimized)) }
         host.run(until: 1.5)
         #expect(host.appPhase == .background)
-        // 2. The next launch restores it.
         (b, host) = launch()
         #expect(host.windows[0].sceneStorage.value(forKey: "tab") as? Int == 5)
-        // 3. A user quit discards it (06 §8): the next launch reads the default.
         b.post(.quit)
         host.run(until: 1)
         #expect(host.isFinished)

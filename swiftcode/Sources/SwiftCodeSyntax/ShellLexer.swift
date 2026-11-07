@@ -1,7 +1,3 @@
-/// POSIX shell, bash and zsh scripts (the POSIX Shell Command Language,
-/// public): comments, `#!` lines, single- and double-quoted strings (over
-/// lines), `$VAR` / `${…}` / `$(` expansions, here-documents, keywords and
-/// built-ins, `NAME=` assignments, numbers.
 struct ShellLexer: LineLexer {
     static let keywords: Set<String> = [
         "if", "then", "else", "elif", "fi", "case", "esac", "for", "while", "until", "do", "done", "in", "function",
@@ -13,8 +9,6 @@ struct ShellLexer: LineLexer {
 
     func lex(_ l: LineText, state: inout LexState, into out: inout [SyntaxToken]) {
         var i = l.start
-        // `#!` on the first line (the initial state is the only one with
-        // mode 0 before any line was lexed; later lines carry `started`).
         let firstLine = state == .initial
         defer { if state == .initial { state.mode = Mode.started.rawValue } }
         if firstLine, l.matches("#!", at: i) { out.add(.preprocessor, i, l.end); return }
@@ -30,7 +24,6 @@ struct ShellLexer: LineLexer {
             i = e
             state = LexState(mode: Mode.started.rawValue)
         case .heredoc:
-            // The terminator line: the word alone (leading tabs allowed with <<-).
             var s = l.start
             if state.aux != 0 { while l[s] == 9 { s += 1 } }
             if l.end - s == state.delimiter.count, (0..<state.delimiter.count).allSatisfy({ l[s + $0] == state.delimiter[$0] }) {
@@ -48,7 +41,7 @@ struct ShellLexer: LineLexer {
         while i < l.end {
             let c = l[i]
             let s = i
-            if isSpace(c) || c == 59 || c == 124 || c == 38 || c == 40 || c == 41 {   // space ; | & ( )
+            if isSpace(c) || c == 59 || c == 124 || c == 38 || c == 40 || c == 41 {
                 wordStart = true
                 i += 1
                 continue
@@ -78,7 +71,7 @@ struct ShellLexer: LineLexer {
                 wordStart = false
                 continue
             }
-            if c == 60, l[i + 1] == 60, l[i + 2] != 60 {   // <<WORD, <<-WORD, <<'WORD'
+            if c == 60, l[i + 1] == 60, l[i + 2] != 60 {
                 var j = i + 2
                 let strip = l[j] == 45
                 if strip { j += 1 }
@@ -100,7 +93,7 @@ struct ShellLexer: LineLexer {
                 var j = i
                 while j < l.end, isIdentPart(l[j]) || l[j] == 45 || l[j] == 46 || l[j] == 47 { j += 1 }
                 if l[j] == 61, wordStart, isIdentStart(c), (i..<j).allSatisfy({ isIdentPart(l[$0]) }) {
-                    out.add(.variable, s, j)   // NAME=value
+                    out.add(.variable, s, j)
                 } else if wordStart, l.word(s, j, in: Self.keywords), j == l.end || !isIdentPart(l[j]) {
                     out.add(.keyword, s, j)
                 } else if isDigit(c), (i..<j).allSatisfy({ isDigit(l[$0]) }) {
@@ -116,15 +109,14 @@ struct ShellLexer: LineLexer {
         if let h = pendingHeredoc { state = h }
     }
 
-    /// The end of `$NAME`, `${…}`, `$(`, `$1`, `$@`, … at `i`.
     func expansionEnd(_ l: LineText, _ i: Int) -> Int {
         let n = l[i + 1]
-        if n == 123 {   // ${…}
+        if n == 123 {
             var j = i + 2
             while j < l.end, l[j] != 125 { j += 1 }
             return min(j + 1, l.end)
         }
-        if n == 40 { return i + 2 }   // $( — the command follows
+        if n == 40 { return i + 2 }
         if isIdentStart(n) {
             var j = i + 1
             while j < l.end, isIdentPart(l[j]) { j += 1 }
@@ -134,8 +126,6 @@ struct ShellLexer: LineLexer {
         return i + 1
     }
 
-    /// A double-quoted string body from `i`: string pieces and `$`
-    /// expansions inside it. Returns the end and whether it closed.
     func doubleQuoted(_ l: LineText, from i: Int, segmentStart: Int, into out: inout [SyntaxToken]) -> (Int, Bool) {
         var j = i
         var seg = segmentStart

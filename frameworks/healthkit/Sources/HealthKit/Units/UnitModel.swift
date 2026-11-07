@@ -1,17 +1,7 @@
 import Foundation
 
-// Unit model of `units.md` §1–§3: a unit is a product of factors, each an atom
-// (base symbol, optional metric prefix, optional molar mass) raised to a non-zero
-// integer power. Every atom has a dimension vector and a scale relative to the
-// reference units (g, m, s, K, …); degC/degF also carry an offset.
-
-/// Dimension vector over the base quantities this library distinguishes.
 struct Dimension: Hashable, Sendable {
     static let count = 15
-    // 0 mass, 1 length, 2 time, 3 temperature, 4 amount (mol without molar mass),
-    // 5 conductance, 6 electric potential, 7 illuminance, 8 angle,
-    // 9 sound pressure level, 10 hearing level, 11 international unit,
-    // 12 optical power (diopter), 13 prism diopter, 14 effort score.
     var exponents: [Int]
 
     init(_ pairs: [(Int, Int)] = []) {
@@ -38,14 +28,12 @@ private let M = 0, Lg = 1, T = 2, TEMP = 3, AMOUNT = 4
 struct AtomDefinition: Sendable {
     let symbol: String
     let dimension: Dimension
-    let scale: Double        // in reference units (g, m, s, K, …)
-    let offset: Double       // affine offset to the reference (temperature only)
+    let scale: Double
+    let offset: Double
     let prefixable: Bool
-    let rank: Int            // canonical ordering class within a side of `/`
+    let rank: Int
 }
 
-/// Ordering classes for `unitString` (`units.md` §3: length and time before mass;
-/// the full rule is an open spec question, so this is SwiftCode's choice).
 private enum Rank {
     static let scalar = 0, length = 1, volume = 2, time = 3, energy = 4, pressure = 5,
                other = 6, temperature = 7, mass = 9
@@ -77,7 +65,7 @@ enum UnitTables {
     }()
 
     static let fixed: [String: AtomDefinition] = {
-        let pa = 1000.0  // one pascal in reference units (g/(m·s²))
+        let pa = 1000.0
         let list = [
             def("lb", [(M, 1)], 453.59237, rank: Rank.mass),
             def("oz", [(M, 1)], 28.349523125, rank: Rank.mass),
@@ -118,7 +106,6 @@ enum UnitTables {
         return Dictionary(uniqueKeysWithValues: list.map { ($0.symbol, $0) })
     }()
 
-    /// Metric prefixes (`units.md` §2.1); `u` is not micro, peta/atto do not exist.
     static let prefixes: [(symbol: String, prefix: HKMetricPrefix, factor: Double)] = [
         ("mc", .micro, 1e-6), ("da", .deca, 1e1),
         ("f", .femto, 1e-15), ("p", .pico, 1e-12), ("n", .nano, 1e-9), ("m", .milli, 1e-3),
@@ -134,7 +121,6 @@ enum UnitTables {
     }
 }
 
-/// One atom of a unit: base symbol, metric prefix, and for moles the molar mass.
 struct UnitAtom: Hashable, Sendable {
     let base: String
     let prefix: HKMetricPrefix
@@ -173,7 +159,6 @@ struct UnitFactor: Hashable, Sendable {
 }
 
 enum UnitAlgebra {
-    /// Combine equal atoms, drop zero exponents, order canonically.
     static func canonical(_ factors: [UnitFactor]) -> [UnitFactor] {
         var order: [String] = []
         var byText: [String: UnitFactor] = [:]
@@ -191,7 +176,6 @@ enum UnitAlgebra {
             .sorted { ($0.atom.rank, $0.atom.text) < ($1.atom.rank, $1.atom.text) }
     }
 
-    /// `unitString` rules of `units.md` §3.
     static func format(_ factors: [UnitFactor]) -> String {
         func one(_ f: UnitFactor) -> String {
             let e = abs(f.exponent)
@@ -206,8 +190,6 @@ enum UnitAlgebra {
     }
 }
 
-/// Parser for the unit-string grammar of `units.md` §2. Accepts `*` and the
-/// middle dot `·` (so that every `unitString` parses back).
 struct UnitParser {
     private let chars: [Character]
     private var i = 0
@@ -264,7 +246,6 @@ struct UnitParser {
             let e = try parseExponent()
             return inner.map { UnitFactor(atom: $0.atom, exponent: $0.exponent * e) }
         }
-        // Token: everything up to an operator, with `<…>` kept whole.
         var tok = ""
         while let c = peek, !UnitParser.isMul(c), c != "/", c != "^", c != "(", c != ")" {
             if c == " " || c == "\t" || c == "\n" { throw fail() }
@@ -277,7 +258,6 @@ struct UnitParser {
         }
         if tok.isEmpty { throw fail() }
         if tok == "1" {
-            // "1" stands for the empty product (e.g. `1/min`).
             if peek == "^" { _ = try parseExponent() }
             return []
         }
@@ -299,7 +279,6 @@ struct UnitParser {
     private func resolveAtom(_ tok: String) throws(HKRaise) -> UnitAtom {
         if UnitTables.prefixable[tok] != nil { return UnitAtom(base: tok, prefix: .none, molarMass: nil) }
         if UnitTables.fixed[tok] != nil { return UnitAtom(base: tok, prefix: .none, molarMass: nil) }
-        // mole, optionally prefixed, optionally with a molar mass
         if let r = tok.range(of: "mol") {
             let pre = String(tok[tok.startIndex..<r.lowerBound])
             let rest = String(tok[r.upperBound...])

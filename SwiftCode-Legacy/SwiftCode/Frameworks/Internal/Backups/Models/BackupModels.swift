@@ -1,6 +1,5 @@
 import Foundation
 
-/// Represents a point-in-time backup instance metadata structure.
 public struct BackupManifest: Codable, Sendable, Identifiable, Equatable {
     public var id: String { backupID }
     public let backupID: String
@@ -30,7 +29,6 @@ public struct BackupManifest: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-/// Holds information about individual files included in the snapshot.
 public struct BackupEntry: Codable, Sendable, Identifiable, Equatable {
     public var id: String { relativePath }
     public let relativePath: String
@@ -44,7 +42,6 @@ public struct BackupEntry: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-/// Unified result payload returned upon successful state restoration.
 public struct RestoreResult: Codable, Sendable, Equatable {
     public let isSuccess: Bool
     public let restoredFileCount: Int

@@ -3,24 +3,6 @@ import Observation
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Personal Documentation — Legacy's `Views/Utilities/NSPersonalDocumentation/`
-/// subsystem, ported onto SwiftCode's systems (spec-first where it costs nothing;
-/// Legacy is Dylan's own code, direct porting authorised under MIT).
-///
-/// Deliberate deviations from Legacy, all in the direction of SwiftCode's rules:
-/// - Legacy persisted with SwiftData (`@Model Document`, `ModelContainer`).
-///   SwiftCode's IDE has no database layer (UserDefaults + JSON files), so the
-///   store here is plain `Codable` models in JSON files under Application
-///   Support `SwiftCode/PersonalDocs/<project-hash>/`, one file per collection —
-///   the same pattern as `CodingAssistantModel`'s conversation archive.
-/// - Legacy's `AIAnalysisManager` called `LLMService.shared` directly. Here
-///   analysis goes through an injected `PersonalDocTextProvider`; when none
-///   is set the store runs a real local extractive analysis
-///   (`PersonalDocLocalAnalyzer`) instead of pretending an LLM answered.
-/// - Legacy's per-module `accentColor` (including orange) is dropped; SwiftCode
-///   uses the default accent. The module icons (SF Symbol names) are kept.
-
-/// Archetype of a documentation module (Legacy `Archetype`).
 public enum PersonalDocArchetype: String, Sendable, Codable, CaseIterable {
     case freeform = "Freeform Document"
     case structured = "Structured Record"
@@ -28,7 +10,6 @@ public enum PersonalDocArchetype: String, Sendable, Codable, CaseIterable {
     case container = "Container/Organizer"
 }
 
-/// A documentation module (Legacy `ModuleKind`, all 55 cases, same raw values).
 public enum PersonalDocModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
     case personalDocumentation = "Personal Documentation"
     case dailyNotes = "Daily Notes"
@@ -169,9 +150,6 @@ public enum PersonalDocModuleKind: String, Sendable, Codable, CaseIterable, Iden
         }
     }
 
-    /// Accent colour (Legacy `ModuleKind.accentColor` logic). Added so the
-    /// ported `GlobalSearchView` can colour rows by module kind; the enum
-    /// previously had `icon` but no colour.
     public var accentColor: Color {
         switch self {
         case .knowledgeGraph, .intelligence: return .purple
@@ -189,7 +167,6 @@ public enum PersonalDocModuleKind: String, Sendable, Codable, CaseIterable, Iden
     }
 }
 
-/// A documentation record (Legacy `Document`, as a value type).
 public struct PersonalDocDocument: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID
     public var projectID: UUID
@@ -344,7 +321,6 @@ public struct PersonalDocWhiteboard: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID
     public var projectID: UUID
     public var title: String
-    /// Nodes, shapes, connectors and drawings, encoded as JSON (Legacy stored the same blob).
     public var elementsJSON: String
     public var createdAt: Date
     public var updatedAt: Date
@@ -372,12 +348,6 @@ public struct PersonalDocSnippet: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
-/// A point-in-time capture of the documentation workspace (Legacy
-/// `ProjectSnapshotRecord`). The ID lists name what the snapshot holds;
-/// the JSON payloads hold the full content at capture time, so restoring
-/// recovers edited or deleted content instead of only archiving /
-/// un-archiving whatever still exists. New fields default to `"[]"` so
-/// snapshots written before this change still decode.
 public struct PersonalDocSnapshot: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID
     public var projectID: UUID
@@ -386,14 +356,8 @@ public struct PersonalDocSnapshot: Identifiable, Codable, Sendable, Hashable {
     public var documentIDs: [UUID]
     public var whiteboardIDs: [UUID]
     public var snippetIDs: [UUID]
-    /// Full `PersonalDocDocument` records at capture time (Legacy
-    /// `ProjectSnapshotRecord.documentsJSON`).
     public var documentsJSON: String
-    /// Full `PersonalDocWhiteboard` records at capture time (Legacy
-    /// `ProjectSnapshotRecord.whiteboardsJSON`).
     public var whiteboardsJSON: String
-    /// Full `PersonalDocSnippet` records at capture time (Legacy
-    /// `ProjectSnapshotRecord.snippetsJSON`).
     public var snippetsJSON: String
     public var createdAt: Date
     public init(id: UUID = UUID(), projectID: UUID, title: String, description: String, documentIDs: [UUID] = [], whiteboardIDs: [UUID] = [], snippetIDs: [UUID] = [], documentsJSON: String = "[]", whiteboardsJSON: String = "[]", snippetsJSON: String = "[]", createdAt: Date = Date()) {
@@ -409,7 +373,7 @@ public struct PersonalDocTimelineItem: Identifiable, Sendable, Hashable {
     public var id: UUID
     public var title: String
     public var detail: String
-    public var category: String // "document", "whiteboard", "snippet", "ai"
+    public var category: String
     public var date: Date
     public var tags: [String]
     public init(id: UUID = UUID(), title: String, detail: String, category: String, date: Date, tags: [String] = []) {
@@ -425,7 +389,6 @@ public struct PersonalDocSearchResult: Identifiable, Sendable {
     public let snippet: String
 }
 
-/// A structured-record field schema (Legacy `ModuleFieldSchema`).
 public struct PersonalDocFieldSchema: Sendable, Codable {
     public var fields: [FieldDefinition]
     public struct FieldDefinition: Sendable, Codable, Identifiable {
@@ -444,16 +407,10 @@ public struct PersonalDocFieldSchema: Sendable, Codable {
     public init(fields: [FieldDefinition] = []) { self.fields = fields }
 }
 
-/// The text-generation seam for AI analysis. Legacy called its own
-/// `LLMService` directly; SwiftCode routes text generation through the coding
-/// assistant's providers. A host wires a provider-backed implementation here;
-/// with none set, analysis falls back to `PersonalDocLocalAnalyzer`.
 public protocol PersonalDocTextProvider: Sendable {
     func generate(prompt: String) async throws -> String
 }
 
-/// Local, honest analysis without an LLM: extractive summaries and counts
-/// computed from the documents themselves. It never claims an LLM wrote it.
 public enum PersonalDocLocalAnalyzer {
     public static func summarize(documents: [PersonalDocDocument], maxSentences: Int = 5) -> String {
         let text = documents.map { $0.markdownSource }.joined(separator: "\n")
@@ -491,9 +448,6 @@ public enum PersonalDocLocalAnalyzer {
     }
 }
 
-/// The JSON-backed store for one project's personal documentation.
-/// One file per collection under Application Support
-/// `SwiftCode/PersonalDocs/<project-hash>/`; writes are atomic.
 @Observable
 @MainActor
 public final class PersonalDocStore {
@@ -514,7 +468,6 @@ public final class PersonalDocStore {
     public private(set) var snippets: [PersonalDocSnippet] = []
     public private(set) var snapshots: [PersonalDocSnapshot] = []
 
-    /// Word -> document IDs, rebuilt on load and on every mutation.
     private var index: [String: Set<UUID>] = [:]
 
     public var storeDirectory: URL {
@@ -535,8 +488,6 @@ public final class PersonalDocStore {
         loadAll()
         if templates.isEmpty { seedDefaultTemplates() }
     }
-
-    // MARK: - Persistence
 
     private func fileURL(_ name: String) -> URL { storeDirectory.appendingPathComponent(name) }
 
@@ -579,8 +530,6 @@ public final class PersonalDocStore {
         }
         index = fresh
     }
-
-    // MARK: - Documents
 
     public func fetchDocuments(for kind: PersonalDocModuleKind? = nil) -> [PersonalDocDocument] {
         let list = documents.filter { !$0.archived && (kind == nil || $0.moduleKind == kind) }
@@ -632,8 +581,6 @@ public final class PersonalDocStore {
         updateDocument(updated)
     }
 
-    // MARK: - Journal / planning
-
     public func getOrCreateDailyNote(for date: Date = Date()) throws -> PersonalDocDocument {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -655,8 +602,6 @@ public final class PersonalDocStore {
         return fetchDocument(id: doc.id) ?? doc
     }
 
-    // MARK: - Search
-
     public func search(query: String) -> [PersonalDocSearchResult] {
         let needle = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return [] }
@@ -665,7 +610,6 @@ public final class PersonalDocStore {
         for word in words {
             for id in index[word] ?? [] { scores[id, default: 0] += 1 }
         }
-        // Title matches count double.
         for doc in documents where doc.title.lowercased().contains(needle) { scores[doc.id, default: 0] += 2 }
         return scores.compactMap { (id, score) -> PersonalDocSearchResult? in
             guard let doc = fetchDocument(id: id) else { return nil }
@@ -681,8 +625,6 @@ public final class PersonalDocStore {
             return PersonalDocSearchResult(document: doc, score: score, snippet: snippet)
         }.sorted { $0.score > $1.score }
     }
-
-    // MARK: - Templates
 
     public func fetchTemplates(for kind: PersonalDocModuleKind) -> [PersonalDocTemplate] {
         templates.filter { $0.moduleKind == kind || $0.projectID == nil }
@@ -710,8 +652,6 @@ public final class PersonalDocStore {
         }
     }
 
-    // MARK: - Version history
-
     public func recordVersion(for doc: PersonalDocDocument) {
         let version = PersonalDocVersion(projectID: projectID, documentID: doc.id, titleSnapshot: doc.title, markdownSnapshot: doc.markdownSource)
         versions.append(version)
@@ -721,8 +661,6 @@ public final class PersonalDocStore {
     public func fetchVersions(for documentID: UUID) -> [PersonalDocVersion] {
         versions.filter { $0.documentID == documentID }.sorted { $0.timestamp > $1.timestamp }
     }
-
-    // MARK: - Wiki / relationships / attachments
 
     public func fetchWikiPages() -> [PersonalDocWikiPage] {
         wikiPages.sorted { $0.title < $1.title }
@@ -779,8 +717,6 @@ public final class PersonalDocStore {
         storeDirectory.appendingPathComponent(record.relativePath)
     }
 
-    // MARK: - Dashboard / analytics
-
     public struct DashboardSnapshot: Sendable {
         public let totalDocuments: Int
         public let totalTasks: Int
@@ -803,8 +739,6 @@ public final class PersonalDocStore {
     public func fetchEventCount(named name: String) -> Int {
         events.filter { $0.eventName == name }.count
     }
-
-    // MARK: - Ecosystem: whiteboards / snippets / snapshots / timeline
 
     public func fetchWhiteboards() -> [PersonalDocWhiteboard] { whiteboards.sorted { $0.updatedAt > $1.updatedAt } }
     @discardableResult
@@ -841,9 +775,6 @@ public final class PersonalDocStore {
     public func fetchSnapshots() -> [PersonalDocSnapshot] { snapshots.sorted { $0.createdAt > $1.createdAt } }
     @discardableResult
     public func createSnapshot(title: String, description: String) -> PersonalDocSnapshot {
-        // Full content at capture time (Legacy `SnapshotManager.createSnapshot`):
-        // the snapshot stores the records themselves, not just their IDs,
-        // so a later restore can recover content that was edited or deleted.
         let snapshot = PersonalDocSnapshot(
             projectID: projectID, title: title, description: description,
             documentIDs: documents.map { $0.id }, whiteboardIDs: whiteboards.map { $0.id }, snippetIDs: snippets.map { $0.id },
@@ -851,11 +782,6 @@ public final class PersonalDocStore {
         snapshots.append(snapshot); save(snapshots, "snapshots.json"); return snapshot
     }
     public func restoreSnapshot(_ snapshot: PersonalDocSnapshot) {
-        // Full-content restore (Legacy `SnapshotManager.restoreSnapshot`):
-        // the captured records replace the live ones, so edited or deleted
-        // content comes back. Snapshots written before content payloads
-        // existed carry `"[]"` and fall back to the old ID-only behaviour
-        // (archive everything not in the snapshot, un-archive what it holds).
         let restoredDocs = decoded([PersonalDocDocument].self, from: snapshot.documentsJSON)
         let restoredBoards = decoded([PersonalDocWhiteboard].self, from: snapshot.whiteboardsJSON)
         let restoredSnippets = decoded([PersonalDocSnippet].self, from: snapshot.snippetsJSON)
@@ -880,9 +806,6 @@ public final class PersonalDocStore {
         }
     }
 
-    /// Duplicates a snapshot under a new id (the "Copy" action): all payloads
-    /// are copied verbatim, so the copy restores exactly what the original
-    /// captured. Defaults to "<title> Copy".
     @discardableResult
     public func duplicateSnapshot(_ snapshot: PersonalDocSnapshot, title: String? = nil) -> PersonalDocSnapshot {
         let copy = PersonalDocSnapshot(
@@ -894,33 +817,25 @@ public final class PersonalDocStore {
         snapshots.append(copy); save(snapshots, "snapshots.json"); return copy
     }
 
-    /// Replaces a snapshot in place (e.g. after a rename). No-op when the id
-    /// is not in the store.
     public func updateSnapshot(_ snapshot: PersonalDocSnapshot) {
         guard let idx = snapshots.firstIndex(where: { $0.id == snapshot.id }) else { return }
         snapshots[idx] = snapshot; save(snapshots, "snapshots.json")
     }
 
-    /// Removes a snapshot. No-op when the id is not in the store.
     public func deleteSnapshot(_ snapshot: PersonalDocSnapshot) {
         snapshots.removeAll { $0.id == snapshot.id }; save(snapshots, "snapshots.json")
     }
 
-    /// Removes a wiki page. No-op when the id is not in the store.
     public func deleteWikiPage(_ page: PersonalDocWikiPage) {
         wikiPages.removeAll { $0.id == page.id }; save(wikiPages, "wiki.json")
     }
 
-    /// Encodes records as the JSON payload a snapshot stores (`"[]"` when
-    /// encoding fails, so a snapshot is never lost to a codec error).
     private func encoded<T: Encodable>(_ value: [T]) -> String {
         guard let data = try? JSONEncoder().encode(value),
               let text = String(data: data, encoding: .utf8) else { return "[]" }
         return text
     }
 
-    /// Decodes a snapshot payload; nil when the payload is absent or corrupt
-    /// (the caller falls back to ID-only behaviour).
     private func decoded<T: Decodable>(_ type: T.Type, from json: String) -> T? {
         guard let data = json.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(type, from: data)
@@ -935,8 +850,6 @@ public final class PersonalDocStore {
         items += insights.map { PersonalDocTimelineItem(title: $0.kind, detail: "AI insight", category: "ai", date: $0.generatedAt) }
         return items.sorted { $0.date > $1.date }
     }
-
-    // MARK: - Export / import
 
     public func exportToMarkdown(document: PersonalDocDocument, destinationURL: URL) throws {
         let text = "# \(document.title)\n\n\(document.markdownSource)\n"
@@ -959,8 +872,6 @@ public final class PersonalDocStore {
         let title = lines.first(where: { $0.hasPrefix("# ") })?.dropFirst(2).trimmingCharacters(in: .whitespaces) ?? url.deletingPathExtension().lastPathComponent
         return (String(title), text)
     }
-
-    // MARK: - AI analysis
 
     public enum PersonalDocAnalysisKind: String, Sendable, CaseIterable {
         case dailySummary = "Daily Summary"
@@ -996,8 +907,6 @@ public final class PersonalDocStore {
     }
 }
 
-/// Navigation state for the Personal Documentation window
-/// (Legacy `PersonalDocumentationCoordinator` + `WorkspaceState`).
 @Observable
 @MainActor
 public final class PersonalDocumentationCoordinator {
@@ -1014,11 +923,6 @@ public final class PersonalDocumentationCoordinator {
 
     public let store: PersonalDocStore
 
-    /// Live manager adapters over the store (Legacy exposed these as separate
-    /// per-area sub-stores: `coordinator.documents/.whiteboards/.snippets/
-    /// .snapshots/.timeline/.intelligence/.relationships`). The managers are
-    /// thin wrappers that preserve the Legacy call sites; the store owns the
-    /// data. Created on access — they hold no state beyond the store.
     public var whiteboards: WhiteboardManager { WhiteboardManager(store: store) }
     public var snippets: SnippetManager { SnippetManager(store: store) }
     public var snapshots: SnapshotManager { SnapshotManager(store: store) }
@@ -1042,10 +946,6 @@ public final class PersonalDocumentationCoordinator {
     }
 }
 
-/// Throwing adapter over `PersonalDocStore` document CRUD, preserving the
-/// Legacy `DocumentManager` call shape (`coordinator.documents.*`) used by the
-/// Personal Documentation views. The store itself is non-throwing; the
-/// `throws` here exists only so existing `try?`/`try` call sites keep working.
 public final class PersonalDocDocumentManager {
     private let store: PersonalDocStore
     public init(store: PersonalDocStore) { self.store = store }
@@ -1058,8 +958,6 @@ public final class PersonalDocDocumentManager {
     public func deleteDocument(_ doc: PersonalDocDocument) throws { store.deleteDocument(doc) }
 }
 
-/// Throwing adapter over `PersonalDocStore` relationship CRUD, preserving the
-/// Legacy call shape (`coordinator.relationships.*`).
 public final class PersonalDocRelationshipManager {
     private let store: PersonalDocStore
     public init(store: PersonalDocStore) { self.store = store }

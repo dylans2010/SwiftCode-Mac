@@ -1,10 +1,3 @@
-// `swiftcode sim headset …` and `swiftcode sim remote view <device> --xr --background
-// | --desktop` (specs/ide/device-hub.md §I.12): the headset checklist and the
-// switch from a terminal, with the viewer on this machine (Linux) or on a
-// viewer host reached by ssh. The Linux shell's hook: until `swiftcode-ide`
-// shows devices itself, its Run opens the desktop viewer and these commands
-// move the running device to the headset and back.
-
 import Foundation
 
 public enum HeadsetCLI {
@@ -20,7 +13,6 @@ public enum HeadsetCLI {
           Nothing is installed and nothing runs sudo: check prints the commands for you to run.
         """
 
-    /// Runs a command line; `out` gets the lines. Returns the exit status.
     public static func main(_ arguments: [String], runner override: (any HeadsetCommandRunner)? = nil,
                             out: @escaping @Sendable (String) -> Void = { print($0) }) async -> Int32 {
         var a = arguments
@@ -126,9 +118,6 @@ public enum HeadsetCLI {
 }
 
 extension HeadsetCLI {
-    /// `remote [--host N] view <device> --xr --background [viewer options]` → `headset view <device> --link [--host N] -- options`;
-    /// `remote [--host N] view <device> --desktop [--no-window]` → `headset desktop <device>`, then the desktop viewer
-    /// (`remote [--host N] view <device>`) unless `--no-window`. nil: not a switch (the plain `view`).
     public static func remoteView(_ args: [String]) -> (headset: [String], viewer: [String]?)? {
         var a = args
         var host: [String] = []

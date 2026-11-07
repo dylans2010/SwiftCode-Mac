@@ -6,24 +6,7 @@ import OpenViewsCore
 import SwiftUICore
 #endif
 
-// Key presses (round R13; public API names: `KeyPress`, `KeyPress.Phases`,
-// `KeyPress.Result`, `onKeyPress`).
-//
-// Delivery (as the public documentation describes it): a view's handlers
-// receive the key presses of the window while the view or a view inside it
-// has keyboard focus. Handlers are tried from the focused view outwards (the
-// modifiers on the focused view itself first, innermost first, then its
-// ancestors); the first that returns `.handled` ends the key's delivery, so
-// the focused control, menu shortcuts and Tab do not see it, and the text a
-// handled character key would have typed is not inserted.
-//
-// On Linux the Ctrl key reads as `.command` (OpenViews' shortcut rule, so
-// that ⌘-shortcuts written for Apple platforms work); Ctrl+Super is
-// `[.command, .control]`; Alt is `.option`.
-
-/// A key press, auto-repeat or release given to `onKeyPress` handlers.
 public struct KeyPress: Sendable {
-    /// Which events a handler wants.
     public struct Phases: OptionSet, Sendable, Hashable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
@@ -33,14 +16,12 @@ public struct KeyPress: Sendable {
         public static let all: Phases = [.down, .repeat, .up]
     }
 
-    /// Whether a handler used the key.
     public enum Result: Sendable, Equatable {
         case handled, ignored
     }
 
     public let phase: Phases
     public let key: KeyEquivalent
-    /// The text the key types (modifiers applied: Shift gives capitals).
     public let characters: String
     public let modifiers: EventModifiers
 
@@ -51,8 +32,6 @@ public struct KeyPress: Sendable {
         self.modifiers = modifiers
     }
 
-    /// The press for a platform key event (nil for keys with no
-    /// equivalent).
     package init?(_ e: KeyEvent) {
         guard let k = KeyEquivalent(platformKey: e.key) else { return nil }
         let phase: Phases = !e.isDown ? .up : (e.isRepeat ? .repeat : .down)
@@ -69,7 +48,6 @@ public struct KeyPress: Sendable {
     }
 }
 
-/// The handlers one `onKeyPress` modifier installs.
 @MainActor
 final class KeyPressHandlers {
     var phases: KeyPress.Phases
@@ -111,12 +89,8 @@ extension KeyPressModifier: GraphInputComparable {
 
 @MainActor
 enum KeyPressDispatch {
-    /// Offers `event` to the handlers around the focused view; true when one
-    /// handled it.
     static func deliver(_ event: KeyEvent, focused: ViewNode?) -> Bool {
         guard let focused, let press = KeyPress(event) else { return false }
-        // Modifiers on the focused view itself (its modifier chain below the
-        // focus registration), innermost first.
         var inner: [KeyPressHandlers] = []
         var n = focused
         var depth = 0
@@ -136,8 +110,6 @@ enum KeyPressDispatch {
 }
 
 extension View {
-    /// Runs `action` when `key` is pressed while this view (or a view in it)
-    /// has focus.
     public func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPress.Result) -> some View {
         onKeyPress(key, phases: [.down, .repeat]) { _ in action() }
     }

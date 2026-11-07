@@ -1,17 +1,8 @@
 import AppKit
 import SwiftCodeIDECore
 
-// The Settings window's chrome and its grouped-card form
-// (`specs/ide/settings.md`, "Council round 3", R3.1–R3.3): the window's
-// metrics and colours, the back/forward capsule, the sidebar's rows, and the
-// cards, rows, separators, help text, pop-ups and switches of the panes.
-// Everything is drawn by SwiftCode (paths and fills); the sidebar's symbols are
-// the system's, looked up at run time.
-
-/// The measured geometry, shared with the Linux IDE (`SettingsLayout`).
 public typealias SettingsMetrics = SettingsLayout
 
-/// The colours (light as measured; dark is SwiftCode's, R3.4 leaves it open).
 @MainActor
 public enum SettingsColors {
     static func rgb(_ v: UInt32, _ a: CGFloat = 1) -> NSColor {
@@ -39,7 +30,6 @@ public enum SettingsColors {
     public static let popUpChevron = dynamic(SettingsPaletteHex.popUpChevron)
 }
 
-/// A view filled with one (dynamic) colour.
 final class SettingsFillView: NSView {
     var color: NSColor { didSet { needsDisplay = true } }
     var cornerRadius: CGFloat = 0
@@ -65,10 +55,6 @@ final class SettingsFillView: NSView {
     }
 }
 
-// MARK: The back/forward capsule
-
-/// One chevron of the capsule, drawn as a path: the title colour when there
-/// is history, #AEAEAE when there is none (R3.1).
 final class SettingsChevronButton: NSButton {
     let pointsLeft: Bool
 
@@ -87,7 +73,6 @@ final class SettingsChevronButton: NSButton {
     override var isEnabled: Bool { didSet { needsDisplay = true } }
 
     override func draw(_ dirtyRect: NSRect) {
-        // 8 wide and 14.5 tall, centred.
         let w: CGFloat = 8, h: CGFloat = 14.5
         let r = NSRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
         let p = NSBezierPath()
@@ -108,8 +93,6 @@ final class SettingsChevronButton: NSButton {
     }
 }
 
-/// The glass back/forward capsule: a near-white capsule with a faint rim
-/// and a soft shadow, a divider at its centre, a chevron in each half.
 final class SettingsNavigationCapsule: NSView {
     let back = SettingsChevronButton(left: true, label: "Back")
     let forward = SettingsChevronButton(left: false, label: "Forward")
@@ -143,18 +126,12 @@ final class SettingsNavigationCapsule: NSView {
         SettingsColors.capsuleRim.setStroke()
         capsule.lineWidth = 0.5
         capsule.stroke()
-        // The divider: 1 point, y 16–36 in the window (7.5–27.5 here).
         SettingsColors.capsuleDivider.setFill()
         NSRect(x: (bounds.midX - 0.5).rounded(), y: 7.5, width: 1, height: 20).fill()
     }
 }
 
-// MARK: The sidebar
-
-/// A pane row: the rounded selection band, 160 × 32 inset 10, #0070F5.
 final class SettingsSidebarRowView: NSTableRowView {
-    // The window's selection stays the accent band (R3.4: the inactive
-    // colour is not settled).
     override var isEmphasized: Bool {
         get { true }
         set { _ = newValue }
@@ -167,8 +144,6 @@ final class SettingsSidebarRowView: NSTableRowView {
     }
 }
 
-/// A pane row's symbol (accent-tinted, centred on x 29) and label (ink at
-/// x 47 on every row, whatever the symbol's width).
 final class SettingsSidebarCellView: NSTableCellView {
     let symbol = NSImageView()
     let label = NSTextField(labelWithString: "")
@@ -190,7 +165,6 @@ final class SettingsSidebarCellView: NSTableCellView {
         NSLayoutConstraint.activate([
             symbol.centerXAnchor.constraint(equalTo: leadingAnchor, constant: SettingsMetrics.symbolCenterX),
             symbol.centerYAnchor.constraint(equalTo: centerYAnchor),
-            // A label's ink starts about 1 point after its alignment rect.
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SettingsMetrics.sidebarLabelX - 1),
             label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -SettingsMetrics.selectionInset - 4),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -210,10 +184,6 @@ final class SettingsSidebarCellView: NSTableCellView {
     }
 }
 
-// MARK: The cards
-
-/// A section header over a card: bold, the label colour, its ink 10 inside
-/// the card's edge.
 final class SettingsHeaderView: NSView {
     let label: NSTextField
 
@@ -235,8 +205,6 @@ final class SettingsHeaderView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// A rounded card (#F7F7F7, radius 12, no border, no shadow) holding rows
-/// with 1-point separators between them.
 public final class SettingsCardView: NSView {
     let rows = NSStackView()
     public private(set) var rowViews: [NSView] = []
@@ -264,7 +232,6 @@ public final class SettingsCardView: NSView {
         NSBezierPath(roundedRect: bounds, xRadius: SettingsMetrics.cardRadius, yRadius: SettingsMetrics.cardRadius).fill()
     }
 
-    /// Adds a row, after a separator when it is not the first.
     func add(_ row: NSView) {
         if !rowViews.isEmpty { append(SettingsSeparatorView()) }
         append(row)
@@ -278,7 +245,6 @@ public final class SettingsCardView: NSView {
     }
 }
 
-/// The line between two rows: 1 point, #EBEBEB, inset 10 from both edges.
 final class SettingsSeparatorView: NSView {
     override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: SettingsMetrics.separatorHeight) }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -289,10 +255,6 @@ final class SettingsSeparatorView: NSView {
     }
 }
 
-/// One row of a card: the label left-aligned (no colon), optional help
-/// text under it in the secondary colour, and the trailing controls centred
-/// on the label's line. A row whose content is not a label and a control
-/// (a list, a preview) holds that view instead, inset 10.
 public final class SettingsRowView: NSView {
     public let label: NSTextField
     public let controls: [NSView]
@@ -300,9 +262,7 @@ public final class SettingsRowView: NSView {
     private var helpConstraints: [NSLayoutConstraint] = []
     private var oneLine: [NSLayoutConstraint] = []
     private let controlStack: NSStackView?
-    /// Whether the row holds one view instead of a label and controls.
     public let isContent: Bool
-    /// Called when the row is clicked (drill-down rows).
     var onClick: (() -> Void)?
 
     init(label title: String, controls: [NSView]) {
@@ -338,13 +298,11 @@ public final class SettingsRowView: NSView {
         } else {
             cs.append(label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -SettingsMetrics.controlInset))
         }
-        // One line: the label centred in the 37.5-point row.
         oneLine = [label.centerYAnchor.constraint(equalTo: centerYAnchor)]
         let tall = label.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 9)
         NSLayoutConstraint.activate(cs + oneLine + [tall])
     }
 
-    /// A row that holds one view (a list, a preview, a table) inset 10.
     init(content: NSView, inset: CGFloat = SettingsMetrics.labelInset) {
         label = NSTextField(labelWithString: "")
         controls = [content]
@@ -366,8 +324,6 @@ public final class SettingsRowView: NSView {
 
     public override var isFlipped: Bool { true }
 
-    /// The help text under the label: 11 points, the secondary colour, a
-    /// 14-point pitch, the first baseline 19 under the label's.
     func setHelp(_ text: String) {
         if let help {
             help.attributedStringValue = Self.helpText(help.stringValue + "\n" + text)
@@ -407,11 +363,6 @@ public final class SettingsRowView: NSView {
     }
 }
 
-// MARK: Controls
-
-/// A card's pop-up: the value text, then a 20-point circular button with
-/// up/down chevrons whose right edge is 3.5 inside the frame (13.5 inside
-/// the card); the menu is the pop-up's own.
 final class SettingsCardPopUpCell: NSPopUpButtonCell {
     override func drawBezel(withFrame frame: NSRect, in controlView: NSView) {}
     override func drawBorderAndBackground(withFrame cellFrame: NSRect, in controlView: NSView) {}
@@ -423,7 +374,6 @@ final class SettingsCardPopUpCell: NSPopUpButtonCell {
         let alpha: CGFloat = isEnabled ? 1 : 0.45
         SettingsColors.popUpCircle.withAlphaComponent(alpha).setFill()
         NSBezierPath(ovalIn: circle).fill()
-        // Up and down chevrons, 7 wide.
         let p = NSBezierPath()
         let cx = circle.midX, cy = circle.midY
         let flipped = controlView.isFlipped ? CGFloat(1) : -1
@@ -438,7 +388,6 @@ final class SettingsCardPopUpCell: NSPopUpButtonCell {
         p.lineJoinStyle = .round
         SettingsColors.popUpChevron.withAlphaComponent(alpha).setStroke()
         p.stroke()
-        // The value, ending 13 before the circle.
         let text = NSAttributedString(string: titleOfSelectedItem ?? "", attributes: [
             .font: NSFont.systemFont(ofSize: SettingsMetrics.fontSize),
             .foregroundColor: isEnabled ? NSColor.labelColor : NSColor.disabledControlTextColor,
@@ -455,9 +404,7 @@ final class SettingsCardPopUpCell: NSPopUpButtonCell {
     }
 }
 
-/// A switch with the row's title (the label beside it is the row's).
 final class ClosureSwitch: NSSwitch {
-    /// The row's title.
     let title: String
     var onChange: ((ClosureSwitch) -> Void)?
 

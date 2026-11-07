@@ -1,13 +1,6 @@
-// XcodeBuildManager.swift
-//
-// Ported from Legacy `SwiftCode/Views/Build/Xcode Build/XcodeBuildManager.swift` (SwiftCode-Mac migration, Views/UI worklist).
-// Worklist verdict: PARTIAL.
-// Missing behaviour ported: assist fix loop (startAssistFixLoop/stopAssistFixLoop/runAssistFix); build diagnostic bundle builder; copyGeneratedAppToManagedDirectory
-// Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/Xcode Build/XcodeBuildManager.swift (derived from Legacy).
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CheckedContinuation.
-// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import Observation
+import SwiftCodeSubprocess
 import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.Build", category: "XcodeBuild")
@@ -39,6 +32,9 @@ public enum SDKDetectionState: Sendable, Codable, Equatable {
 public final class XcodeBuildManager: Sendable {
     public static let shared = XcodeBuildManager()
 
+    public var archivePackager: (@Sendable (_ projectName: String, _ outputDirectory: String) async -> (success: Bool, ipaPath: String?, errorMessage: String?))?
+    public var assistHandler: (@Sendable (_ prompt: String) async -> Void)?
+
     public var isBuilding = false
     public var buildLogs: [String] = []
     public var currentStatus: BuildStatus = .idle
@@ -66,7 +62,6 @@ public final class XcodeBuildManager: Sendable {
     public var selectedSDKType: String = "Default" {
         didSet {
             UserDefaults.standard.set(selectedSDKType, forKey: "com.swiftcode.build.selectedSDKType")
-            // Automatically reset the selected version to "Default" when the platform changes
             if selectedSDKType != oldValue {
                 selectedSDKVersion = "Default"
             }
@@ -87,7 +82,6 @@ public final class XcodeBuildManager: Sendable {
         "platform=tvOS Simulator"
     ]
 
-    // Dynamic SDK detection properties
     public var detectedSDKs: [DetectedSDK] = []
     public var sdkDetectionState: SDKDetectionState = .idle
     public var sdkDetectionError: String? = nil
@@ -96,9 +90,6 @@ public final class XcodeBuildManager: Sendable {
     public var sdkDetectionExitCode: Int32? = nil
     public var activeXcodePath: String = ""
 
-    // MARK: - Fix Build with Assist loop state
-
-    /// Last xcodebuild termination status (nil if the build never launched).
     public var lastExitCode: Int32? = nil
     public var isAssistFixRunning = false
     public var assistFixAttempt = 0
@@ -136,13 +127,11 @@ public final class XcodeBuildManager: Sendable {
             if let matched = platformSDKs.first(where: { $0.version == selectedSDKVersion }) {
                 return matched.identifier
             }
-            // Fallback: construct it from first SDK's prefix
             if let firstSDK = platformSDKs.first {
                 let prefix = String(firstSDK.identifier.prefix { $0.isLetter })
                 return "\(prefix)\(selectedSDKVersion)"
             }
         } else {
-            // Version is "Default", we want to pass the generic platform prefix (e.g. "macosx", "iphoneos")
             if let firstSDK = platformSDKs.first {
                 return String(firstSDK.identifier.prefix { $0.isLetter })
             }
@@ -213,14 +202,6 @@ public final class XcodeBuildManager: Sendable {
         }
 
         if schemes.isEmpty {
-            for (_, model) in ProjectResolutionService.shared.parsedProjects {
-                for target in model.targets {
-                    schemes.insert(target.name)
-                }
-            }
-        }
-
-        if schemes.isEmpty {
             schemes.insert(url.lastPathComponent)
         }
 
@@ -246,7 +227,6 @@ public final class XcodeBuildManager: Sendable {
         }
     }
 
-    // Dynamic SDK detection logic
     public func detectAvailableSDKs(forceRefresh: Bool = false) async {
         guard sdkDetectionState != .detecting else { return }
 
@@ -278,7 +258,6 @@ public final class XcodeBuildManager: Sendable {
 
             let newXcodePath = xcodeSelectResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // If active path is unchanged and we already have parsed SDKs, use cached results
             if !forceRefresh && newXcodePath == activeXcodePath && !detectedSDKs.isEmpty {
                 sdkDetectionState = .success
                 return
@@ -317,7 +296,6 @@ public final class XcodeBuildManager: Sendable {
             self.detectedSDKs = sdkList
             self.sdkDetectionState = .success
 
-            // Validate selections
             if !availableSDKTypes.contains(selectedSDKType) {
                 selectedSDKType = "Default"
             }
@@ -353,7 +331,6 @@ public final class XcodeBuildManager: Sendable {
                 let displayName = components[0].trimmingCharacters(in: .whitespacesAndNewlines)
                 let identifier = components[1].trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Extract version: drop alphabetic prefix of identifier
                 var version = String(identifier.drop { !$0.isNumber })
 
                 if version.isEmpty {
@@ -425,7 +402,7 @@ public final class XcodeBuildManager: Sendable {
             return
         }
 
-        let effectiveURL = projectURL ?? DocumentCoordinator.shared.projectURL ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let effectiveURL = projectURL ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 
         let buildPath = getXcodeBuildPath()
         guard validatePath(buildPath) else {
@@ -464,15 +441,7 @@ public final class XcodeBuildManager: Sendable {
         if !finalScheme.isEmpty {
             arguments.append(contentsOf: ["-scheme", finalScheme])
         }
-        // Add dynamically selected SDK identifier if resolved
         var finalSDK = sdk
-        if finalSDK == nil {
-            if let activeProj = ProjectSessionStore.shared.activeProject,
-               let savedDests = activeProj.destinations,
-               let firstSDK = savedDests.first {
-                finalSDK = firstSDK
-            }
-        }
         if finalSDK == nil {
             finalSDK = currentSDKArgument
         }
@@ -499,7 +468,6 @@ public final class XcodeBuildManager: Sendable {
             appendLog("[SYSTEM] Forcing dynamic target SDK: \(sdkArg)")
         }
 
-        // Add explicit build action and relax code signing for simulator builds
         arguments.append("build")
         if isSimulatorTarget || effectiveDest.lowercased().contains("simulator") {
             arguments.append(contentsOf: [
@@ -523,15 +491,19 @@ public final class XcodeBuildManager: Sendable {
         let errorHandle = errorPipe.fileHandleForReading
 
         Task.detached {
-            for try await line in outputHandle.bytes.lines {
-                await self.processLogLine(line, isError: false)
-            }
+            do {
+                for try await line in outputHandle.bytes.lines {
+                    await self.processLogLine(line, isError: false)
+                }
+            } catch {}
         }
 
         Task.detached {
-            for try await line in errorHandle.bytes.lines {
-                await self.processLogLine(line, isError: true)
-            }
+            do {
+                for try await line in errorHandle.bytes.lines {
+                    await self.processLogLine(line, isError: true)
+                }
+            } catch {}
         }
 
         let terminationStatusTask = Task<Int32, Error> {
@@ -565,18 +537,17 @@ public final class XcodeBuildManager: Sendable {
 
                 await copyGeneratedAppToManagedDirectory(projectURL: effectiveURL, scheme: finalScheme, configuration: finalConfig, destination: finalDest)
 
-                // "Always Build Archive": turn the freshest .app into an .ipa.
-                if IPABuildService.shared.alwaysBuildArchive {
+                if UserDefaults.standard.bool(forKey: "com.swiftcode.ipa.alwaysBuildArchive") {
                     appendLog("[SYSTEM] Always Build Archive is on — packaging the most up-to-date .app…")
                     let outDir = ((UserDefaults.standard.string(forKey: "com.swiftcode.ipa.outputDirectory") ?? "~/Desktop") as NSString).expandingTildeInPath
-                    let archiveResult = await IPABuildService.shared.packageLatestApp(
-                        projectName: effectiveURL.deletingPathExtension().lastPathComponent,
-                        outputDirectory: outDir
-                    )
-                    if archiveResult.success {
-                        appendLog("[SYSTEM] Latest Archive updated: \(archiveResult.ipaPath ?? "")")
-                    } else {
-                        appendLog("[ERROR] Archive packaging failed: \(archiveResult.errorMessage ?? "unknown error")")
+                    let projName = effectiveURL.deletingPathExtension().lastPathComponent
+                    if let packager = self.archivePackager {
+                        let archiveResult = await packager(projName, outDir)
+                        if archiveResult.success {
+                            appendLog("[SYSTEM] Latest Archive updated: \(archiveResult.ipaPath ?? "")")
+                        } else {
+                            appendLog("[ERROR] Archive packaging failed: \(archiveResult.errorMessage ?? "unknown error")")
+                        }
                     }
                 }
             }
@@ -590,20 +561,11 @@ public final class XcodeBuildManager: Sendable {
         }
     }
 
-    // MARK: - Fix Build with Assist
-
-    /// A build counts as failed when xcodebuild exits non-zero OR the log
-    /// explicitly reports "BUILD FAILED".
     public func buildDidFail(exitCode: Int32) -> Bool {
         if exitCode != 0 { return true }
         return buildLogs.joined(separator: "\n").localizedCaseInsensitiveContains("BUILD FAILED")
     }
 
-    /// Starts the iterative Assist repair loop. Captures all logs plus project
-    /// context, opens Assist in a new session with the diagnostic bundle, then
-    /// rebuilds to verify. The loop ONLY finishes when xcodebuild reports
-    /// "BUILD SUCCEEDED" (exit code 0); it stops after `maxAssistFixAttempts`
-    /// attempts and surfaces the failure to the user.
     public func startAssistFixLoop() {
         guard !isAssistFixRunning, !isBuilding else { return }
         guard currentStatus == .failed || errorsCount > 0 || buildDidFail(exitCode: lastExitCode ?? -1) else {
@@ -637,12 +599,9 @@ public final class XcodeBuildManager: Sendable {
         \(bundle)
         """
 
-        await MainActor.run {
-            AssistNavigationRouter.revealAssistPanel()
+        if let handler = assistHandler {
+            await handler(prompt)
         }
-
-        // Wait for the model to finish without retrying
-        await AssistManager.shared.sendMessage(prompt)
 
         guard isAssistFixRunning else { return }
 
@@ -651,14 +610,13 @@ public final class XcodeBuildManager: Sendable {
         appendLog("[SYSTEM] Fix Build with Assist finished: model response received.")
     }
 
-    /// Full diagnostic bundle: project context, failed command, error lines, log tail.
     private func buildDiagnosticBundle() -> String {
         let errorLines = buildLogs.filter { $0.lowercased().contains("error") }.suffix(40)
         let tail = buildLogs.suffix(60)
         let failedCommand = buildCommandDescription()
         return """
         ## Build context
-        - Project: \(DocumentCoordinator.shared.projectURL?.path ?? "unknown")
+        - Project: \(selectedScheme ?? "unknown")
         - Scheme: \(selectedScheme ?? "Automatic")
         - Configuration: \(selectedConfiguration)
         - Destination: \(selectedDestination)
@@ -683,7 +641,7 @@ public final class XcodeBuildManager: Sendable {
     }
 
     public func cleanBuild(projectURL: URL? = nil) {
-        if let url = projectURL ?? ProjectSessionStore.shared.activeProject?.directoryURL {
+        if let url = projectURL {
             let derivedData = url.appendingPathComponent("build/DerivedData")
             try? FileManager.default.removeItem(at: derivedData)
         }
@@ -712,8 +670,10 @@ public final class XcodeBuildManager: Sendable {
 
     private func startTimer() {
         durationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            guard let self = self, let start = self.startTime else { return }
-            self.buildDuration = Date().timeIntervalSince(start)
+            Task { @MainActor [weak self] in
+                guard let self = self, let start = self.startTime else { return }
+                self.buildDuration = Date().timeIntervalSince(start)
+            }
         }
     }
 

@@ -1,7 +1,3 @@
-// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
-//   SwiftCode/Backend/Projects/Collaboration/OfflineSyncManager.swift
-// Adapted for SwiftCode: Offline change queue. Verbatim.
-
 import Foundation
 import Combine
 
@@ -47,18 +43,14 @@ public final class OfflineSyncManager: ObservableObject {
     public func processQueue() async {
         guard !queue.isEmpty && isOnline else { return }
 
-        // In a real implementation, this would iterate and execute changes
-        // against the CollaborationManager or PushManager.
         print("Processing \(queue.count) offline changes...")
         queue.removeAll()
     }
 
     private func startNetworkMonitor() {
-        // Mock network monitoring
         Timer.publish(every: 10.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                // Logic to update self?.isOnline
             }
             .store(in: &cancellables)
     }

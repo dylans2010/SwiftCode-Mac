@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-# Writes THIRD_PARTY_NOTICES.md at the repository's root: what each package
-# bundles and the full licence texts. Run it when a dependency changes, after a
-# build (the Swift dependencies' licences are read from SwiftPM's checkouts):
-#
-#   python3 -I packaging/generate-notices.py <folder with checkouts>...
-#
-# for example swiftcode/.build-release/arm64/checkouts /tmp/swiftcode-release-<uid>/swb-arm64/checkouts
 import hashlib
 import os
 import sys
@@ -13,8 +6,6 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 L = "packaging/licenses/"
 OV = "frameworks/swiftui/Sources/"
-# component, version, source, licence, where it ships, licence files (repo paths or
-# checkout:<identity>/<file>).
 COMPONENTS = [
     ("Swift runtime and standard libraries, Foundation, Dispatch", "6.4.2", "https://github.com/swiftlang/swift",
      "Apache-2.0 WITH Swift Runtime Library Exception", "Flatpak (libraries in /app/lib)", [L + "swift-LICENSE.txt"]),
@@ -49,8 +40,6 @@ COMPONENTS = [
     ("SPIRV-Headers", "vulkan-sdk-1.4.363.0", "https://github.com/KhronosGroup/SPIRV-Headers", "MIT-style (Khronos)", "aarch64 Flatpak only (compiled into swiftcode-airc)", [L + "spirv-headers-LICENSE.txt"]),
 ]
 
-# Programs SwiftCode runs when the user asks for a runtime download (#55) but
-# never ships or links: name, version, source, licence, how SwiftCode uses it.
 RUN_ONLY = [
     ("python-aea", "1.1.0", "https://github.com/kinnay/AEA", "MIT",
      "Decrypts a runtime archive on Linux (route B). Installed on request, with pip, into a Python environment in SwiftCode's runtime folder; run as a separate program."),
@@ -65,7 +54,6 @@ RUN_ONLY = [
 ]
 RUN_ONLY_TEXTS = [("python-aea", L + "python-aea-LICENSE.txt")]
 
-
 def read_license(ref, checkouts):
     if ref.startswith("checkout:"):
         relative = ref[len("checkout:"):]
@@ -75,14 +63,13 @@ def read_license(ref, checkouts):
                 with open(path, encoding="utf-8", errors="replace") as f:
                     return f.read()
         raise SystemExit("no checkout has " + relative)
-    if ref.endswith("#license"):  # the licence in a source file's opening comment
+    if ref.endswith("#license"):
         with open(os.path.join(ROOT, ref[: -len("#license")]), encoding="utf-8", errors="replace") as f:
             head = f.read().split("*/")[0]
         lines = [line.strip(" */") for line in head.splitlines()]
         return "\n".join(line for line in lines if line) + "\n"
     with open(os.path.join(ROOT, ref), encoding="utf-8", errors="replace") as f:
         return f.read()
-
 
 def main():
     checkouts = sys.argv[1:]
@@ -118,7 +105,6 @@ def main():
         out += ["### " + name, "", "```text", read_license(ref, checkouts).rstrip(), "```", ""]
     with open(os.path.join(ROOT, "THIRD_PARTY_NOTICES.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(out))
-
 
 if __name__ == "__main__":
     main()

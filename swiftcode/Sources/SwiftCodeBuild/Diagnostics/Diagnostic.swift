@@ -1,12 +1,10 @@
 import Foundation
 
-/// One compiler or build-system issue. See `specs/ide/build.md` §Diagnostics.
 public struct Diagnostic: Equatable, Sendable, Hashable {
     public enum Severity: String, Sendable, Hashable, CaseIterable {
         case error, warning, note, remark
     }
 
-    /// A 1-based source position. `column` is 0 when the tool gave none.
     public struct Location: Equatable, Sendable, Hashable {
         public var file: String
         public var line: Int
@@ -18,7 +16,6 @@ public struct Diagnostic: Equatable, Sendable, Hashable {
         }
     }
 
-    /// A suggested replacement of the half-open range `start..<end`.
     public struct FixIt: Equatable, Sendable, Hashable {
         public var file: String
         public var start: Location
@@ -34,9 +31,7 @@ public struct Diagnostic: Equatable, Sendable, Hashable {
 
     public var severity: Severity
     public var message: String
-    /// nil for issues that name no source file (linker, build system).
     public var location: Location?
-    /// Notes that follow the issue and explain it.
     public var notes: [Diagnostic]
     public var fixIts: [FixIt]
 
@@ -50,7 +45,6 @@ public struct Diagnostic: Equatable, Sendable, Hashable {
 }
 
 extension Diagnostic: CustomStringConvertible {
-    /// The same `file:line:col: severity: message` shape the parser reads.
     public var description: String {
         var s = ""
         if let l = location {

@@ -1,20 +1,3 @@
-/*
- * init.c - __libplatform_init of SwiftCode's libsystem_platform.
- *
- * Clean-room SwiftCode code, from host-library-init.md section 1.3 (platform
- * steps) and host-libraries.md section 7. Called by libSystem's
- * initializer as __libplatform_init(NULL, envp, apple, vars). Like every
- * SwiftCode init function it is safe to skip and safe to call twice: the
- * library works from static state, and repeated calls only refresh it.
- *
- * Steps:
- *  1. security_config=<hex> from apple[] is kept in a private global
- *     (SwiftCode's VMM passes 0x0);
- *  2. a pfz=... string in apple[] is erased (zero-filled, key included);
- *     libsystem_kernel has already read it;
- *  3. the simple-ASL context is set up (simple.c);
- *  4. __libkernel_platform_init receives the version-1 string table.
- */
 #include "yc_platform.h"
 
 YC_HIDDEN void __yc_simple_asl_init(const char **envp, const void *vars);
@@ -61,8 +44,6 @@ _Static_assert(sizeof(struct yc_libkernel_string_functions) == 136, "string tabl
 
 static yc_u64 security_config;
 
-/* Parses "0x<hex digits>" (either case). Returns 0 and leaves *out alone
- * on any malformed input. */
 static int parse_hex(const char *s, yc_u64 *out)
 {
     if (s == YC_NULL || s[0] != '0' || (s[1] != 'x' && s[1] != 'X'))

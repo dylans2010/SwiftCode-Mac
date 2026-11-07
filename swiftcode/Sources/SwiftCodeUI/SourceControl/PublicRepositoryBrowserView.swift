@@ -3,35 +3,6 @@ import SwiftCodeGitHub
 import SwiftCodeIDECore
 import SwiftUI
 
-/// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/GitHubCodeSearchView.swift`
-/// (Dylan's own code; direct port authorised under MIT).
-///
-/// The public-repository browser: Overview / Source Tree / Commits /
-/// Releases tabs for any `owner/repo`, with star, fork, clone, ZIP
-/// download, and copy-URL actions.
-///
-/// Adaptations for the destination:
-/// - Legacy drove this through `GitHubService` + `KeychainService` +
-///   `GitHubRepoDetail` (topics, sshUrl, cloneUrl) + nested
-///   `commit.author.name` commit models. This port takes a `GitHubClient`
-///   and uses the flat destination models: `GitHubRepository.topics/sshUrl/
-///   cloneUrl` (added to the staged `GitHubModels.swift` for this port),
-///   `GitHubCommit.message/authorName/sha`, `GitHubRelease.name/tagName/
-///   createdAt`.
-/// - Legacy's `cloneRepo()` only showed an alert. This port really clones:
-///   a folder picker chooses the parent directory and
-///   `GitHistory.clone(_:into:)` runs `git clone`.
-/// - Fork/star use the new `GitHubClient.forkRepository` /
-///   `starRepository` / `isRepositoryStarred` (staged `GitHubClient.swift`
-///   additions for this port).
-/// - ZIP download uses `GitHubClient.downloadRepositoryZip` and saves
-///   `<repo>-<branch>.zip` into Downloads.
-/// - `DiscoverHFlowLayout` (Legacy's flow-layout helper) is ported as-is
-///   for the topic chips.
-///
-/// Hook: present from the package-discovery / code-search results
-/// (`PackageDiscoveryView`) when the user opens a repository, passing the
-/// search view's `GitHubClient`.
 @MainActor
 public struct PublicRepositoryBrowserView: View {
     public var repoFullName: String
@@ -45,7 +16,6 @@ public struct PublicRepositoryBrowserView: View {
     @State private var activeTab: BrowserTab = .overview
     @State private var errorMessage: String?
 
-    // Files state
     @State private var fileTree: [GitHubTreeEntry] = []
     @State private var selectedFilePath = ""
     @State private var selectedFileContent = ""
@@ -54,7 +24,6 @@ public struct PublicRepositoryBrowserView: View {
     @State private var isCloning = false
     @State private var statusMessage: String?
 
-    // Actions state
     @State private var isStarred = false
 
     public enum BrowserTab: String, CaseIterable, Identifiable {
@@ -155,8 +124,6 @@ public struct PublicRepositoryBrowserView: View {
         .task { await loadRepositoryInfo() }
     }
 
-    // MARK: - Overview Pane
-
     private var overviewPane: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -253,8 +220,6 @@ public struct PublicRepositoryBrowserView: View {
         }
     }
 
-    // MARK: - Files Pane
-
     private var filesPane: some View {
         HSplitView {
             VStack(spacing: 0) {
@@ -308,8 +273,6 @@ public struct PublicRepositoryBrowserView: View {
         .task { await loadFileTree() }
     }
 
-    // MARK: - Loading
-
     private func loadRepositoryInfo() async {
         guard let ownerAndRepo else {
             errorMessage = "Expected an owner/repo name."
@@ -347,8 +310,6 @@ public struct PublicRepositoryBrowserView: View {
             selectedFileContent = "Could not load \(path): \(error.localizedDescription)"
         }
     }
-
-    // MARK: - Actions
 
     private func toggleStar() async {
         guard let ownerAndRepo else { return }
@@ -422,7 +383,6 @@ public struct PublicRepositoryBrowserView: View {
     }
 }
 
-/// Live commit history for a repository (Legacy `LiveCommitsHistoryListView`).
 @MainActor
 public struct LiveCommitsHistoryListView: View {
     public var repoFullName: String
@@ -484,7 +444,6 @@ public struct LiveCommitsHistoryListView: View {
     }
 }
 
-/// Live releases list for a repository (Legacy `LiveReleasesListView`).
 @MainActor
 public struct LiveReleasesListView: View {
     public var repoFullName: String
@@ -548,8 +507,6 @@ public struct LiveReleasesListView: View {
     }
 }
 
-/// Flow layout: lays children out left-to-right, wrapping to the next line
-/// (Legacy `DiscoverHFlowLayout`).
 public struct DiscoverHFlowLayout: Layout {
     public var spacing: CGFloat
 

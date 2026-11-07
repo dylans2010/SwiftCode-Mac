@@ -3,41 +3,14 @@ import Foundation
 import SwiftCodeIDECore
 import SwiftCodeProject
 
-/// The layout probe (`specs/ide/metrics.md` §14): with
-/// `SWIFTCODE_LAYOUT_PROBE=<out.json>` the app opens a workspace window on a
-/// project at the default size (1400 × 900), lets layout settle, writes
-/// the frames of the IDE's chrome in window points (origin at the top
-/// left) and each one against its `metrics.md` value, then quits. It needs
-/// no developer tools, so it runs on any Mac with the app, including the
-/// CI runner and older systems (`scripts/layout-probe.sh`).
-///
-/// Environment (all optional except the first):
-/// - `SWIFTCODE_LAYOUT_PROBE`: where the JSON report goes.
-/// - `SWIFTCODE_LAYOUT_PROBE_PROJECT`: the project, workspace or package to
-///   open; by default a package "Demo" (two sources and a test target) in
-///   a temporary folder, as `UISpacingTests` opens.
-/// - `SWIFTCODE_LAYOUT_PROBE_SHOTS`: a folder for `cacheDisplay` snapshots of
-///   each state (no screen capture, so no privacy permission).
-/// - `SWIFTCODE_LAYOUT_PROBE_SETTLE`: seconds to let layout settle per state
-///   (default 1.5).
-/// - `SWIFTCODE_LAYOUT_PROBE_SHOW=1`: order the windows in (behind the
-///   others). By default they stay off screen, as in the tests.
-///
-/// The probe reads its values from the same views the spacing tests read
-/// (`UISpacingTests`, `NavigatorInspectorR45Tests`, `LiquidGlassTests`),
-/// so a probe run on another macOS tells which of those checks would hold
-/// there. It uses its own preferences domain in a temporary folder and
-/// writes no window frames or workspace state.
 @MainActor
 public enum LayoutProbe {
-    /// A frame in window points, origin at the top left.
     public struct Frame: Codable, Equatable {
         public var x, y, w, h: Double
         public var maxX: Double { x + w }
         public var maxY: Double { y + h }
     }
 
-    /// One value against its spec value: `op` is "=", "<=" or ">=".
     public struct Measure: Codable {
         public var name: String
         public var value: Double
@@ -45,13 +18,10 @@ public enum LayoutProbe {
         public var op: String
         public var tolerance: Double
         public var source: String
-        /// value − spec (nil without a spec).
         public var delta: Double?
-        /// Whether the value meets the spec within the tolerance.
         public var ok: Bool?
     }
 
-    /// The probe's report.
     public struct Report: Codable {
         public var macOS: String
         public var macOSVersion: String
@@ -65,7 +35,6 @@ public enum LayoutProbe {
         public var notes: [String] = []
     }
 
-    /// Collects frames and measures.
     @MainActor public final class Recorder {
         public private(set) var frames: [String: Frame] = [:]
         public private(set) var measures: [Measure] = []
@@ -73,14 +42,12 @@ public enum LayoutProbe {
 
         init(root: NSView) { self.root = root }
 
-        /// A recorder for `window`'s frame view, laid out.
         public convenience init?(window: NSWindow) {
             guard let frame = window.contentView?.superview else { return nil }
             frame.layoutSubtreeIfNeeded()
             self.init(root: frame)
         }
 
-        /// `v`'s frame in window points (origin at the top left).
         public func box(_ v: NSView) -> Frame {
             let r = v.convert(v.bounds, to: nil)
             return Frame(x: Double(r.minX), y: Double(root.bounds.height - r.maxY), w: Double(r.width), h: Double(r.height))
@@ -116,7 +83,6 @@ public enum LayoutProbe {
             measures.append(m)
         }
 
-        /// The given edges of a frame against their spec values.
         func edges(_ name: String, _ f: Frame?, x: Double? = nil, y: Double? = nil, maxX: Double? = nil, maxY: Double? = nil,
                    w: Double? = nil, h: Double? = nil, tolerance: Double = 0.5, source: String) {
             guard let f else { return }
@@ -126,15 +92,10 @@ public enum LayoutProbe {
         }
     }
 
-    // MARK: Launch
-
     static var environment: [String: String] { ProcessInfo.processInfo.environment }
-    /// Whether this launch is a probe run.
     public static var isRequested: Bool { environment["SWIFTCODE_LAYOUT_PROBE"]?.isEmpty == false }
     private static var running: Runner?
 
-    /// Before anything reads the preferences: a fresh domain in a
-    /// temporary folder, so the probe neither sees nor changes the user's.
     public static func prepareIfRequested() {
         guard isRequested else { return }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-layout-probe-\(UUID().uuidString)")
@@ -144,8 +105,6 @@ public enum LayoutProbe {
         }
     }
 
-    /// Starts the probe when asked; true when it runs (the app then opens
-    /// nothing else and quits when the probe is done).
     public static func startIfRequested() -> Bool {
         guard let out = environment["SWIFTCODE_LAYOUT_PROBE"], !out.isEmpty else { return false }
         let r = Runner(out: URL(fileURLWithPath: out), environment: environment)
@@ -154,26 +113,17 @@ public enum LayoutProbe {
         return true
     }
 
-    // MARK: Measuring (shared with the tests)
-
-    /// The workspace window's chrome in its default layout.
     public static func measureWorkspace(_ wc: WorkspaceWindowController, into r: Recorder) {
         guard let win = wc.window else { return }
         let src = "metrics.md"
-        // §3 Toolbar.
         let toolbarHeight = Double(r.root.bounds.height - win.contentLayoutRect.maxY)
         r.measure("toolbar.height", toolbarHeight, "=", 52, source: "\(src) §3")
         measureToolbar(win, into: r)
         let glass = GlassBars.enabled
-        // The glass toolbar's positions. Before macOS 26 the toolbar keeps
-        // the earlier design (liquid-glass-swiftcode.md §2: bordered controls
-        // 40 tall at y 6, the earlier segment widths), which no spec gives
-        // positions for; only the activity icon's gap applies there.
         if glass {
             r.edges("toolbar.run", r.frames["toolbar.run"], x: 208.5, maxX: 281.5, source: "\(src) §3")
             r.edges("toolbar.history", r.frames["toolbar.history"], x: 297.5, maxX: 370.5, source: "\(src) §3")
         }
-        // The activity icon 14 after Back | Forward: x 385 (liquid-glass.md §7.1).
         if let history = r.frames["toolbar.history"], wc.activityView.window != nil, !wc.activityView.isHiddenOrHasHiddenAncestor {
             let icon = r.frame("toolbar.activityIcon", r.box(wc.activityView.icon))
             r.measure("toolbar.activityIcon.gapAfterHistory", icon.x - history.maxX, "=", Double(ActivityView.gapAfterNeighbor),
@@ -181,7 +131,6 @@ public enum LayoutProbe {
             if glass { r.measure("toolbar.activityIcon.x", icon.x, "=", 385, source: "liquid-glass.md §7.1") }
         }
 
-        // §2 Navigator.
         let nav = wc.navigator
         let navArea = r.frame("navigator.area", nav.view)
         r.edges("navigator.area", navArea, x: 0, w: Double(WorkspaceWindowController.navigatorWidth), source: "\(src) §2")
@@ -210,7 +159,6 @@ public enum LayoutProbe {
         nav.select(0)
         nav.view.layoutSubtreeIfNeeded()
 
-        // §4 Editor.
         let e = wc.editor
         let bar = r.frame("editor.jumpBar", e.jumpBar)
         r.edges("editor.jumpBar", bar, y: 52, h: 34, source: "\(src) §12.3, UISpacingTests")
@@ -222,7 +170,6 @@ public enum LayoutProbe {
         r.edges("editor.debugBar", debugBar, maxY: Double(r.root.bounds.height), h: Double(DebugAreaController.debugBarHeight),
                 source: "\(src) §4")
 
-        // §5 Inspector.
         let insp = wc.inspector
         insp.view.layoutSubtreeIfNeeded()
         if let area = r.frame("inspector.area", insp.view) {
@@ -248,8 +195,6 @@ public enum LayoutProbe {
         }
     }
 
-    /// The navigator's filter field, its options pull-down, the text and
-    /// the toggles (`NavigatorInspectorR45Tests.filterOptionsAndTogglesSitInsideTheField`).
     public static func measureFilter(_ nav: NavigatorAreaController, prefix: String, into r: Recorder) {
         guard let field = nav.filter as? NavigatorFilterField, !field.isHiddenOrHasHiddenAncestor else { return }
         let src = "NavigatorInspectorR45Tests (reference-ui-6.md §5.6)"
@@ -257,8 +202,6 @@ public enum LayoutProbe {
         let opts = r.frame("\(prefix).filterOptions", r.rect(nav.filterOptions.alignmentRect(forFrame: nav.filterOptions.frame),
                                                                in: nav.filterOptions.superview ?? nav.view))
         let text = r.frame("\(prefix).filterText", r.rect(field.rectForSearchText(whenCentered: false), in: field))
-        // Horizontally the button's frame, from which it draws its glyph,
-        // against the field's alignment rectangle, which the layout uses.
         let optsFrame = r.rect(nav.filterOptions.frame, in: nav.filterOptions.superview ?? nav.view)
         let fieldAlign = r.rect(field.alignmentRect(forFrame: field.frame), in: field.superview ?? nav.view)
         r.measure("\(prefix).options.leadingGap", optsFrame.x - fieldAlign.x, "=", NavigatorFilterField.optionsLeading, tolerance: 0.5,
@@ -279,7 +222,6 @@ public enum LayoutProbe {
         }
     }
 
-    /// The debug area's bottom bars (metrics.md §7), with the area open.
     public static func measureDebugArea(_ wc: WorkspaceWindowController, into r: Recorder) {
         let d = wc.debugArea
         let height = Double(r.root.bounds.height)
@@ -287,9 +229,6 @@ public enum LayoutProbe {
         for (name, bar) in [("debug.variablesBar", d.variablesBarStack), ("debug.consoleBar", d.consoleBarStack)] {
             guard let bar, let b = r.frame(name, bar) else { continue }
             r.edges(name, b, maxY: height, h: Double(DebugAreaController.bottomBarHeight), source: "metrics.md §7")
-            // The drawn controls (their alignment rectangles, which the stack
-            // view centres): before macOS 26 a small pop-up's frame reaches
-            // 2 points further down than its bezel (metrics.md §14.1).
             var lowest = Double.infinity
             for (i, v) in bar.arrangedSubviews.enumerated() where !v.isHidden {
                 r.frame("\(name).control\(i)", r.box(v))
@@ -300,8 +239,6 @@ public enum LayoutProbe {
         }
     }
 
-    /// Device Hub's toolbar (metrics.md §9): the Hide Sidebar circle and
-    /// Add Device | Filter at the sidebar's edge.
     public static func measureDeviceHub(_ w: NSWindow, into r: Recorder) {
         measureToolbar(w, prefix: "hub.toolbar", into: r)
         measureHubOverflow(w, prefix: "hub.toolbar", into: r)
@@ -313,9 +250,6 @@ public enum LayoutProbe {
         }
     }
 
-    /// The toolbar's items in its overflow menu ("»") with the window 1100
-    /// wide (device-hub.md §I.13: none). The window keeps its own width
-    /// afterwards.
     static func measureHubOverflow(_ w: NSWindow, prefix: String, into r: Recorder) {
         guard let tb = w.toolbar else { return }
         let old = w.frame
@@ -337,8 +271,6 @@ public enum LayoutProbe {
         w.contentView?.layoutSubtreeIfNeeded()
     }
 
-    /// The toolbar's controls (outside the content view, in the top 60
-    /// points), not the window's own buttons.
     static func toolbarControls(_ w: NSWindow) -> [NSView] {
         guard let frame = w.contentView?.superview else { return [] }
         let content = w.contentView
@@ -357,9 +289,6 @@ public enum LayoutProbe {
         return out
     }
 
-    /// Every toolbar item by its identifier: an item's own view, or the
-    /// system's button whose action or label is the item's. Other controls
-    /// (the system's own items) are numbered.
     static func measureToolbar(_ w: NSWindow, prefix: String = "toolbar", into r: Recorder) {
         let items = w.toolbar?.items ?? []
         func key(_ i: NSToolbarItem) -> String {
@@ -386,9 +315,6 @@ public enum LayoutProbe {
         }
     }
 
-    // MARK: The run
-
-    /// Runs the probe's steps on the main run loop, a settle delay apart.
     @MainActor final class Runner {
         let out: URL
         let env: [String: String]
@@ -416,8 +342,6 @@ public enum LayoutProbe {
                             glass: GlassBars.enabled, shown: show)
         }
 
-        /// `<out>.pid` holds the process id while the probe runs, so a
-        /// runner can end exactly this process after a timeout.
         var pidFile: URL { out.appendingPathExtension("pid") }
 
         func start() {
@@ -460,15 +384,11 @@ public enum LayoutProbe {
             win.contentView?.layoutSubtreeIfNeeded()
         }
 
-        /// The window at `size`, at the screen's top left; ordered in
-        /// behind every other window only when asked.
         func place(_ win: NSWindow, size: NSSize) {
             let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
             win.setFrame(NSRect(x: visible.minX, y: visible.maxY - size.height, width: size.width, height: size.height), display: false)
             if show {
                 win.orderBack(nil)
-                // Ordering in may fit the window to a smaller screen; the
-                // probe wants the default size.
                 win.setFrame(NSRect(x: visible.minX, y: visible.maxY - size.height, width: size.width, height: size.height), display: true)
             }
             if win.frame.size != size {
@@ -513,8 +433,6 @@ public enum LayoutProbe {
             after { self.measureHubState() }
         }
 
-        /// The navigator alone in a 280 × 600 window with a small tree, as
-        /// `NavigatorInspectorR45Tests.laidOutNavigator` lays it out.
         func measurePlainNavigator() {
             let nav = NavigatorAreaController()
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 280, height: 600), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
@@ -539,8 +457,6 @@ public enum LayoutProbe {
 
         func openDeviceHub() {
             let row = DeviceRow.shutDownSwiftCodeSimulator(name: "Phone (SwiftCode)", identifier: "layout-probe-1")
-            // A booted foldable on a simulator host (as DeviceHubR3Tests selects):
-            // its controls widen the toolbar (no connection is made).
             var booted = DeviceRow.shutDownSwiftCodeSimulator(name: "Foldable (SwiftCode)", identifier: "h:/layout-probe-2")
             booted.state = "Booted"
             booted.osVersion = "27.1"
@@ -556,7 +472,6 @@ public enum LayoutProbe {
             w.appearance = NSAppearance(named: .aqua)
             place(w, size: w.frame.size)
             w.contentView?.layoutSubtreeIfNeeded()
-            // What the window does when it first appears.
             if !show { hub.placeFirstDividers() }
             self.hub = hub
             hubWindow = w
@@ -590,8 +505,6 @@ public enum LayoutProbe {
         }
     }
 
-    /// A package "Demo" (as `UISpacingTests` opens): two sources and a
-    /// test target, in a new temporary folder.
     public static func demoPackage() throws -> URL {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-layout-probe-\(UUID().uuidString)").resolvingSymlinksInPath()
         let dir = base.appendingPathComponent("Demo")

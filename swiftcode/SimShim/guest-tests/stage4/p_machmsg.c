@@ -1,4 +1,3 @@
-/* SwiftCode stage-4 probe: Mach IPC within one task: a port right, a complex message, receive. Original SwiftCode code. */
 #include <mach/mach.h>
 #include <stdio.h>
 #include <string.h>

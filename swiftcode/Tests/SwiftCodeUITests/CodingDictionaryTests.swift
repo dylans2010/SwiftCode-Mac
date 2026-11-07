@@ -2,20 +2,8 @@ import XCTest
 @testable import SwiftCodeUI
 import SwiftCodeAssistant
 
-// NOTE: No Swift toolchain exists in this environment, so these tests
-// have NOT been compiled or run — statically verified only. On Dylan's
-// Mac: run with `swift test --filter CodingDictionaryTests`.
-//
-// Wave 17, Slice C: tests for the Coding Dictionary
-// (`CodingDictionaryService` + models + entry rendering). The
-// provider is always a fake — no network, no host provider, no key
-// is ever involved. History tests use a throwaway UserDefaults
-// suite, removed in tearDown.
-
 @MainActor
 final class CodingDictionaryTests: XCTestCase {
-
-    // MARK: - Fake provider
 
     private final class FakeProvider: AssistantProvider, @unchecked Sendable {
         let kind: ProviderKind
@@ -51,8 +39,6 @@ final class CodingDictionaryTests: XCTestCase {
             }
         }
     }
-
-    // MARK: - Fixtures
 
     private var suiteName = ""
     private var defaults: UserDefaults!
@@ -117,8 +103,6 @@ final class CodingDictionaryTests: XCTestCase {
         }
         """
 
-    // MARK: - Models
-
     func testSparseEntryDecodesWithDefaults() throws {
         let data = #"{"query": "Foo", "title": "Foo", "definition": "A thing."}"#.data(using: .utf8)!
         let entry = try JSONDecoder().decode(CodingDictionaryResult.self, from: data)
@@ -142,8 +126,6 @@ final class CodingDictionaryTests: XCTestCase {
         XCTAssertEqual(entry.complexity, "O(n)")
     }
 
-    // MARK: - Prompt and extraction
-
     func testSystemPromptContainsQueryAndSchema() {
         let prompt = CodingDictionaryService.systemPrompt(for: "TaskGroup")
         XCTAssertTrue(prompt.contains("SwiftCode Coding Dictionary"))
@@ -166,14 +148,11 @@ final class CodingDictionaryTests: XCTestCase {
         XCTAssertNil(CodingDictionaryService.extractJSON(from: ""))
     }
 
-    // MARK: - History
-
     func testHistoryAddPinDeleteClear() {
         let service = CodingDictionaryService(userDefaults: defaults)
         service.addToHistory(query: "TaskGroup")
         service.addToHistory(query: "Actor")
         XCTAssertEqual(service.history.map(\.query), ["Actor", "TaskGroup"])
-        // Re-adding moves nothing and duplicates nothing.
         service.addToHistory(query: "TaskGroup")
         XCTAssertEqual(service.history.map(\.query), ["Actor", "TaskGroup"])
         let actorID = service.history[0].id
@@ -192,8 +171,6 @@ final class CodingDictionaryTests: XCTestCase {
         let second = CodingDictionaryService(userDefaults: defaults)
         XCTAssertEqual(second.history.map(\.query), ["TaskGroup"])
     }
-
-    // MARK: - Lookup through a fake provider
 
     func testDefineReturnsDecodedEntry() async throws {
         let provider = FakeProvider(scriptedText: Self.entryJSON)
@@ -289,8 +266,6 @@ final class CodingDictionaryTests: XCTestCase {
             XCTFail("Expected CodingDictionaryError, got \(error)")
         }
     }
-
-    // MARK: - Rendering
 
     func testEntryTextRendersAllSections() throws {
         let entry = try JSONDecoder().decode(CodingDictionaryResult.self, from: Self.entryJSON.data(using: .utf8)!)

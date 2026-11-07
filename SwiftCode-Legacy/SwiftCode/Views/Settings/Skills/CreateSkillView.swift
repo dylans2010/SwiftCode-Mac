@@ -17,7 +17,6 @@ struct CreateSkillView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // GroupBox 1: Skill Metadata
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -75,7 +74,6 @@ struct CreateSkillView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // GroupBox 2: Guidelines & Markdown Content
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -99,7 +97,6 @@ struct CreateSkillView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // GroupBox 3: Actions
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -195,7 +192,6 @@ struct CreateSkillView: View {
 
             try await SkillsRuntime.shared.saveSkill(skill, at: fileURL)
 
-            // Reload skills in manager
             let loaded = await SkillsRuntime.shared.getAllSkills()
             await MainActor.run {
                 manager.uploadedSkills = loaded

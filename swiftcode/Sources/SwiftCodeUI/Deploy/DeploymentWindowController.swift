@@ -2,22 +2,6 @@ import AppKit
 import Foundation
 import SwiftCodeAssistant
 
-// MARK: - Deployments window (gap closure)
-//
-// The `deployConsole.view` window (specs/ide/gap-closure-windows-
-// artboards.md §5): platform picker (Netlify / Vercel / GitHub
-// Pages), custom-domain toggle, per-provider token storage in the
-// secret store, Deploy, logs, and the result URL. Legacy's
-// `DeploymentsView` shape, rebuilt in SwiftCode style — no orange
-// accents, no Legacy chrome.
-//
-// The window states plainly, next to Deploy, that Netlify/Vercel
-// build from their GitHub integration after the push; the returned
-// URL is the dashboard (or the custom domain), never a fabricated
-// site URL.
-
-/// The Deployments window manager: one shared window per workspace
-/// folder, raised when already open.
 @MainActor
 public final class DeploymentWindowManager: NSObject {
     public static let shared = DeploymentWindowManager()
@@ -59,7 +43,6 @@ public final class DeploymentWindowController: NSWindowController {
     public static let size = NSSize(width: 900, height: 640)
 
     public let workspaceFolder: URL
-    /// The service under test (tests inject a stub session + git).
     public let service: DeploymentService
 
     private var platform: DeploymentPlatform = .netlify
@@ -191,8 +174,6 @@ public final class DeploymentWindowController: NSWindowController {
         return row
     }
 
-    // MARK: - Token
-
     func refreshTokenStatus() {
         let stored = service.token(for: platform) != nil
         tokenStatusLabel.stringValue = stored
@@ -214,8 +195,6 @@ public final class DeploymentWindowController: NSWindowController {
             appendLog("Could not save the token: \(error.localizedDescription)")
         }
     }
-
-    // MARK: - Deploy
 
     @objc private func platformChanged() {
         platform = DeploymentPlatform.allCases[platformControl.selectedSegment]

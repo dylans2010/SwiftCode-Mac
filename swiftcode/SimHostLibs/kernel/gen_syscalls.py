@@ -1,30 +1,4 @@
 #!/usr/bin/env python3
-# gen_syscalls.py - generates libsystem_kernel's plain system-call and
-# Mach-trap wrappers (SimHostLibs/kernel/syscalls.S).
-#
-# Clean-room SwiftCode code. Inputs (all under specs/simulator/):
-#   data/host-lib-surface-kernel.json   the names libsystem_kernel exports
-#   data/bsd-syscalls.json              BSD numbers, argument and return types
-#   data/mach-traps.json                Mach trap numbers and user-stub names
-# Conventions: darwin-arm64-abi.md, stage3-contract.md section 10,
-# host-library-init.md section 4.2:
-#   BSD:  x16 = number, svc #0x80; carry clear = success (x0, x1 untouched);
-#         carry set = x0 holds the errno -> tail-call cerror / cerror_nocancel.
-#   Mach: x16 = -number, svc #0x80; the result is in x0; no carry, no errno.
-#
-# Usage (from swiftcode/SimHostLibs):
-#   python3 -I kernel/gen_syscalls.py [--data-dir ../../specs/simulator/data]
-# writes kernel/syscalls.S and kernel/syscalls-map.tsv. Both are committed;
-# build.sh only assembles syscalls.S, so the generator is run by hand when
-# the tables or the rules below change.
-#
-# A table row becomes a generated wrapper only when its name maps with
-# confidence onto one system call whose C signature equals the public one.
-# Names that need argument shuffling (variadic calls, two-result calls,
-# by-value arguments, extra kernel arguments) are written by hand in
-# syscall_special.S / *.c and listed in HANDWRITTEN. Names that cannot be
-# mapped confidently are listed in LEAVE_AS_STUB and keep the generated
-# unimplemented stub (host-libraries.md section 4).
 
 import argparse
 import json
@@ -35,9 +9,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 BSD_CATEGORIES = ("bsd-syscall", "bsd-syscall-private")
 
-# On arm64, Darwin's public struct stat / statfs are the 64-bit-inode
-# layouts (there is no $INODE64 variant), so the public names use the "64"
-# system calls. Private "__name" wrappers keep the exact kernel name.
 PUBLIC_RENAMES = {
     "stat": "stat64",
     "fstat": "fstat64",
@@ -48,8 +19,6 @@ PUBLIC_RENAMES = {
     "getfsstat": "getfsstat64",
 }
 
-# Public names whose system call has a different kernel name but the same
-# arguments.
 ALIASES = {
     "getsgroups_np": "getsgroups",
     "setsgroups_np": "setsgroups",
@@ -61,42 +30,23 @@ ALIASES = {
 }
 ALIAS_CATEGORIES = BSD_CATEGORIES + ("other",)
 
-# Written by hand (syscall_special.S, mach.c, misc.c): the generator must
-# not emit them. Each must be a row of the table.
 HANDWRITTEN = {
-    # two results / special return conventions
     "_pipe", "___fork",
-    # extra kernel argument or by-value argument
     "___gettimeofday",
     "_kill", "_sigsuspend", "_sigsuspend$NOCANCEL", "_reboot",
-    # FD_SETSIZE check for the non-$DARWIN_EXTSN select family
     "_select", "_select$NOCANCEL", "_pselect", "_pselect$NOCANCEL",
-    # ULF_NO_ERRNO handling
     "___ulock_wait", "___ulock_wait2", "___ulock_wake",
-    # variadic: the optional argument is read from the caller's stack
     "_open", "_open$NOCANCEL", "_openat", "_openat$NOCANCEL",
     "_fcntl", "_fcntl$NOCANCEL", "_ioctl", "_sem_open", "_shm_open",
     "_semctl", "_open_dprotected_np", "_guarded_open_np",
     "_guarded_open_dprotected_np",
-    # commpage fast path
     "_kdebug_trace",
-    # cached in the library, as xnu's libsyscall caches it (misc.c)
     "_getpid",
-    # answered from the commpage credential block when the VMM allows it
-    # (misc.c; fast-traps.md section 5)
     "_getuid", "_geteuid", "_getgid", "_getegid",
-    # answered in the library when the commpage allows it (misc.c;
-    # fast-traps.md section 5a)
     "_madvise", "_issetugid", "___sysctl",
-    # library routine that builds the BSD 244 argument block and returns
-    # the error number as its result (spawn.c, processes.md section 1)
     "_posix_spawn",
 }
 
-# Rows that stay generated unimplemented stubs: the public function is a
-# library routine (not one raw call), its signature differs from the
-# kernel's in a way not covered by a public document, or the exact system
-# call is ambiguous.
 LEAVE_AS_STUB = {
     "_mach_eventlink_signal": "public kern_return_t API over a call that returns a packed u64",
     "_mach_eventlink_wait_until": "public kern_return_t API over a call that returns a packed u64",
@@ -125,13 +75,7 @@ LEAVE_AS_STUB = {
     "_getdirentries": "legacy 32-bit-inode directory format",
 }
 
-# Mach-routine rows written by hand in mach.c / machmsg.c on top of traps
-# (listed here only so the map file can report them; the generator emits
-# nothing for them). name -> (trap number(s) used, note). Private traps
-# are 0x7963_2000 + n (host-libraries.md section 10, stage4a-contract.md
-# section 7).
 MACH_ROUTINES = {
-    # time and self ports
     "_mach_absolute_time": ("-3", "mach.c"),
     "_mach_continuous_time": ("-4", "mach.c"),
     "_mach_timebase_info": ("-89", "mach.c: cached"),
@@ -140,7 +84,6 @@ MACH_ROUTINES = {
     "_mach_host_self": ("-29", "mach.c"),
     "_host_self": ("-29", "mach.c: as mach_host_self"),
     "_mach_thread_self": ("-27", "mach.c"),
-    # port routines over the _kernelrpc_mach_port_*_trap traps
     "_mach_port_allocate": ("-16", "mach.c"),
     "_mach_port_deallocate": ("-18", "mach.c"),
     "_mach_port_mod_refs": ("-19", "mach.c"),
@@ -173,7 +116,6 @@ MACH_ROUTINES = {
     "__kernelrpc_mach_port_type": ("-76", "mach.c: MIG name, uses the trap"),
     "__kernelrpc_mach_port_request_notification": ("-77", "mach.c: MIG name, uses the trap"),
     "__kernelrpc_mach_port_destroy": ("-76,-19,-18", "mach.c: MIG name, as mach_port_destroy"),
-    # VM
     "_mach_vm_allocate": ("-10", "mach.c"),
     "_mach_vm_deallocate": ("-12", "mach.c"),
     "_mach_vm_protect": ("-14", "mach.c"),
@@ -184,7 +126,6 @@ MACH_ROUTINES = {
     "_vm_protect": ("-14", "mach.c"),
     "_vm_purgable_control": ("-11", "mach.c"),
     "_vm_map": ("-15", "syscall_special.S: anonymous memory only"),
-    # semaphores
     "_semaphore_signal": ("-33", "mach.c"),
     "_semaphore_signal_all": ("-34", "mach.c"),
     "_semaphore_signal_thread": ("-35", "mach.c"),
@@ -194,14 +135,12 @@ MACH_ROUTINES = {
     "_semaphore_timedwait_signal": ("-39", "mach.c: mach_timespec_t split into sec, nsec"),
     "_semaphore_create": ("0x79632003", "mach.c: private trap"),
     "_semaphore_destroy": ("0x79632004", "mach.c: private trap"),
-    # other private-trap routines
     "_host_get_clock_service": ("0x79632001", "mach.c: private trap"),
     "_clock_get_time": ("0x79632002", "mach.c: private trap"),
     "_task_get_special_port": ("0x79632005", "mach.c: private trap"),
     "_task_set_special_port": ("0x79632006", "mach.c: private trap"),
     "_mach_ports_register": ("0x79632008", "mach.c: private trap, padded to three ports"),
     "_mach_ports_lookup": ("0x79632009,-10,-12", "mach.c: private trap into a vm_allocate'd array"),
-    # messages
     "_mach_msg": ("-47", "machmsg.c: packed mach_msg2, MQ_CALL, interrupt retry"),
     "_mach_msg_overwrite": ("-47,-32", "machmsg.c: -32 only with a separate receive buffer"),
     "_mach_msg_send": ("-47", "machmsg.c: via mach_msg"),
@@ -211,7 +150,6 @@ MACH_ROUTINES = {
     "_mach_msg_priority_encode": ("-", "machmsg.c: library routine"),
     "_mach_msg_server": ("-47,-12,-18,-19", "machmsg.c: MIG server loop (mach-ipc.md 5.1)"),
     "_mach_msg_server_once": ("-47,-12,-18,-19", "machmsg.c: one MIG request and its reply (mach-ipc.md 5.1)"),
-    # MIG reply ports and special reply ports
     "_mig_get_reply_port": ("-26", "mach.c: TSD slot 2"),
     "_mig_dealloc_reply_port": ("-19", "mach.c"),
     "_mig_put_reply_port": ("-", "mach.c: no-op"),
@@ -219,14 +157,12 @@ MACH_ROUTINES = {
     "_mig_dealloc_special_reply_port": ("-25", "mach.c: thread_destruct_special_reply_port(ALL)"),
     "_thread_destruct_special_reply_port": ("-25,-19,-18", "mach.c"),
     "_mig_deallocate": ("-12", "mach.c"),
-    # vouchers
     "_host_create_mach_voucher": ("0x79632007", "mach.c: private trap, voucher 0"),
     "__kernelrpc_host_create_mach_voucher": ("0x79632007", "mach.c: private trap, voucher 0"),
     "_mach_voucher_extract_attr_recipe": ("-72", "mach.c"),
     "__kernelrpc_mach_voucher_extract_attr_recipe": ("-72", "mach.c"),
     "_mach_voucher_deallocate": ("-18", "mach.c"),
     "_mach_voucher_attr_command": ("-", "mach.c: MACH_SEND_INVALID_DEST (no voucher objects)"),
-    # host
     "_host_info": ("-", "mach.c: HOST_PRIORITY_INFO only"),
     "_host_page_size": ("-", "mach.c"),
     "__host_page_size": ("-", "mach.c"),
@@ -234,17 +170,14 @@ MACH_ROUTINES = {
 
 KNOWN_VARIANTS = {"NOCANCEL", "DARWIN_EXTSN"}
 
-
 def die(msg):
     sys.stderr.write("gen_syscalls.py: error: %s\n" % msg)
     sys.exit(1)
-
 
 def norm_kernel_name(name):
     if name.startswith("sys_"):
         name = name[4:]
     return name.lstrip("_")
-
 
 def load(data_dir):
     with open(os.path.join(data_dir, "host-lib-surface-kernel.json"), encoding="utf-8") as f:
@@ -269,7 +202,6 @@ def load(data_dir):
             if n:
                 mach[n] = r
     return table, bsd, mach
-
 
 def map_bsd(cname, category, bsd):
     """(row, nocancel) for a C symbol name, or (None, reason)."""
@@ -300,10 +232,8 @@ def map_bsd(cname, category, bsd):
         return None, "no system call named %s" % key
     return (row, nocancel), None
 
-
 def asm_name(n):
     return '"%s"' % n
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -319,7 +249,7 @@ def main():
             die("%s is listed but is not a row of the kernel table" % n)
 
     text = []
-    mapping = []  # (name, surface?, kind, number, error path or note)
+    mapping = []
     counts = {}
 
     def bump(k):
@@ -373,14 +303,10 @@ def main():
         text.append("    .globl %s\n    .p2align 2\n%s:\n" % (asm_name(name), asm_name(name)))
         text.append("    mov x16, #%d\n    svc #0x80\n" % num)
         if r["returns"] == "void":
-            # exit-like calls: they must not return.
             text.append("    brk #0x7963\n")
             mapping.append((name, surf, cat, str(num), "noreturn"))
             bump("bsd")
             continue
-        # Cancellation points (calls with a _nocancel twin) use cerror;
-        # $NOCANCEL / _nocancel variants and every other call use
-        # cerror_nocancel (host-library-init.md section 4.2).
         kernel_key = norm_kernel_name(r["name"])
         cancelable = (not nocancel) and (kernel_key + "_nocancel") in bsd
         target = "Lyc_cerror" if cancelable else "Lyc_cerror_nocancel"
@@ -404,7 +330,6 @@ def main():
         for m in mapping:
             f.write("\t".join(m) + "\n")
     sys.stdout.write("gen_syscalls.py: %s\n" % ", ".join("%s %d" % kv for kv in sorted(counts.items())))
-
 
 if __name__ == "__main__":
     main()

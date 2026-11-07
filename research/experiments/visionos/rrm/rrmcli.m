@@ -1,14 +1,3 @@
-// rrmcli (our own code, OBS-VISION-RRM 2026-11-01, dirty room): what the visionOS simulator's Metal device
-// answers about rasterization rate maps, and whether the answer involves the host.
-// Run with `simctl spawn <dev> <path>/rrmcli [-make] [-render]`. Prints "RC:" lines.
-//  1. device name/class; for each rate-map selector: responds?, the class that defines it, the image of its IMP.
-//  2. supportsRasterizationRateMapWithLayerCount: 0..4 (and the private-looking maxRasterizationRateLayerCount /
-//     supportsVariableRateRasterization when the device responds), with the Mach messages this task sent
-//     during 1000 calls (task_info TASK_EVENTS_INFO), so a host round trip would show.
-//  3. -make: newRasterizationRateMapWithDescriptor: with a 5x3-zone single-layer descriptor (screen 3840x2160) and
-//     a two-layer one; logs the result and, when non-nil, its sizes, granularity, parameter buffer size and mappings.
-//  4. -render: if a map exists, a render pass with it (clear + full-screen triangle) into a texture of the physical size.
-//  5. compiles a fragment shader that uses rasterization_rate_map_decoder (always; logs success/error).
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <objc/runtime.h>
@@ -93,7 +82,6 @@ int main(int argc, char **argv) {
            [d supportsFamily:MTLGPUFamilyApple6], [d supportsFamily:MTLGPUFamilyApple7], [d supportsFamily:MTLGPUFamilyMac2], [d supportsFamily:MTLGPUFamilyCommon1],
            [d supportsFamily:MTLGPUFamilyCommon2], [d supportsFamily:MTLGPUFamilyCommon3], [d supportsFamily:MTLGPUFamilyMetal3]);
 
-        // shader-side decoder
         NSString *src = @"#include <metal_stdlib>\nusing namespace metal;\n"
                          "fragment float4 fsrrm(float4 p [[position]], constant rasterization_rate_map_data &m [[buffer(0)]]) {\n"
                          "  rasterization_rate_map_decoder dec(m); float2 s = dec.map_physical_to_screen_coordinates(p.xy); return float4(s / 4096.0, 0, 1); }\n";

@@ -3,15 +3,9 @@ import SwiftCodePlist
 import SwiftCodeProject
 import SwiftCodeSettings
 
-/// What the project editor shows, computed from the project model. See
-/// `specs/ide/project-editor.md`.
 public struct ProjectEditorModel {
     public var proj: PBXProj
     public let xcodeprojURL: URL
-    /// Build-system defaults for (target, configuration): the Levels view's
-    /// Defaults column. Nil = SwiftCodeSettings' own defaults level; a
-    /// provider returning nil has not read them yet (it reads them in the
-    /// background and reloads the editor).
     public var defaultsProvider: ((String?, String) -> [String: String]?)?
 
     public init(proj: PBXProj, xcodeprojURL: URL) {
@@ -24,7 +18,6 @@ public struct ProjectEditorModel {
 
     public func target(named name: String) -> PBXObject? { proj.targets.first { $0.string("name") == name } }
 
-    /// Configuration names of a target (or the project), and the default.
     public func configurations(of owner: String?) -> (names: [String], defaultName: String?) {
         let id = owner.flatMap { target(named: $0)?.id } ?? proj.rootObject
         let listID = proj[id]?.string("buildConfigurationList")
@@ -35,8 +28,6 @@ public struct ProjectEditorModel {
     public func resolve(target: String?, configuration: String) -> ProjectSettingsBuilder.Resolved? {
         try? ProjectSettingsBuilder(proj: proj, xcodeprojURL: xcodeprojURL).resolve(target: target, configuration: configuration)
     }
-
-    // MARK: Build settings
 
     public enum Filter: String, CaseIterable, Sendable { case basic = "Basic", customized = "Customized", all = "All" }
 
@@ -57,8 +48,6 @@ public struct ProjectEditorModel {
         public var projectXCConfig: String?
         public var defaults: String?
 
-        /// The level whose value is the resolved one: the highest-precedence
-        /// level that assigns the setting.
         public var providingLevel: String? {
             if target != nil { return "target" }
             if targetXCConfig != nil { return "targetXCConfig" }
@@ -87,7 +76,6 @@ public struct ProjectEditorModel {
         return rows(names.filter { q.isEmpty || $0.lowercased().contains(q) }.sorted(), resolved: r, defaults: defaults, target: target)
     }
 
-    /// Rows for the given setting names, in the given order.
     public func settingRows(names: [String], target: String?, configuration: String) -> [SettingRow] {
         guard let r = resolve(target: target, configuration: configuration) else { return [] }
         return rows(names, resolved: r, defaults: defaultsProvider?(target, configuration), target: target)
@@ -106,22 +94,17 @@ public struct ProjectEditorModel {
         }
     }
 
-    /// Writes a setting at target level (or project level for nil) in every
-    /// configuration; an empty value removes it.
     public mutating func setSetting(_ name: String, _ value: String, target: String?) {
         let owner = target.flatMap { self.target(named: $0)?.id } ?? proj.rootObject
         let v = value.trimmingCharacters(in: .whitespaces)
         proj.setBuildSetting(name, v.isEmpty ? nil : .string(v), inListOf: owner)
     }
 
-    // MARK: Build phases
-
     public struct PhaseSection: Equatable, Sendable {
         public var title: String
         public var phaseID: String?
         public var items: [(id: String, name: String)]
         public var script: String?
-        /// A Run Script phase's shell (`shellPath`).
         public var shell: String?
         public static func == (a: Self, b: Self) -> Bool {
             a.title == b.title && a.phaseID == b.phaseID && a.script == b.script && a.shell == b.shell
@@ -129,9 +112,6 @@ public struct ProjectEditorModel {
         }
     }
 
-    /// Names of a target's files that are embedded and signed: build files
-    /// of a copy-files phase to Frameworks (`dstSubfolderSpec` 10) whose
-    /// `settings.ATTRIBUTES` holds `CodeSignOnCopy`.
     public func embeddedAndSigned(target name: String) -> Set<String> {
         guard let t = target(named: name) else { return [] }
         var out = Set<String>()
@@ -153,9 +133,6 @@ public struct ProjectEditorModel {
             guard let tid = proj[d]?.string("target"), let n = proj[tid]?.string("name") else { return nil }
             return (d, n)
         }
-        // Build tool plug-ins are package-product dependencies named
-        // "plugin:<name>"; their row follows Target Dependencies even when
-        // empty (reference-ui-5.md §11.1.4, P4).
         let plugins = t.references("dependencies").compactMap { d -> (String, String)? in
             guard let p = proj[d]?.string("productRef"), let n = proj[p]?.string("productName"), n.hasPrefix("plugin:") else { return nil }
             return (d, String(n.dropFirst("plugin:".count)))
@@ -186,9 +163,6 @@ public struct ProjectEditorModel {
         return out
     }
 
-    /// Adds a file (a path relative to the project directory) to a phase:
-    /// reuses an existing reference with that path, else adds one to the
-    /// main group. Returns the build file ID.
     @discardableResult
     public mutating func addFile(_ relativePath: String, toPhase phase: String) -> String {
         let existing = proj.objects.values.first { $0.isa == "PBXFileReference" && $0.string("path") == relativePath }?.id
@@ -207,15 +181,12 @@ public struct ProjectEditorModel {
         }
     }
 
-    // MARK: Info
-
     public struct InfoRow: Equatable, Sendable {
         public var key: String
         public var type: String
         public var value: String
     }
 
-    /// The Info.plist file's top-level keys, then `INFOPLIST_KEY_*` settings.
     public func infoRows(target name: String, configuration: String) -> [InfoRow] {
         guard let r = resolve(target: name, configuration: configuration) else { return [] }
         var rows: [InfoRow] = []
@@ -233,7 +204,6 @@ public struct ProjectEditorModel {
         return rows
     }
 
-    /// The keys of the target's entitlements file (Capabilities, read-only).
     public func entitlementKeys(target name: String, configuration: String) -> [String] {
         guard let r = resolve(target: name, configuration: configuration) else { return [] }
         let file = r.settings["CODE_SIGN_ENTITLEMENTS"]

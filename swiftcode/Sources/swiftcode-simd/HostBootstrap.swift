@@ -1,24 +1,3 @@
-// swiftcode-simd --device: the host bootstrap server (stage4c-contract.md §3,
-// §8.2 row V; specs/simulator/bootstrap-wire.md §5, §7, §8). A host thread
-// receives on the host bootstrap port (a port of the VMM's host task, agent
-// M's `MachHostTask`), logs every message (header, ids, descriptors, body
-// bytes, the sender's audit token, and the decoded pipe dictionary), and
-// answers:
-//
-// - `launchd_sim`'s startup request: `msgh_id` 708, 24 bytes, not complex
-//   (bootstrap-wire.md §5.1). The host makes a port, keeps a send right to
-//   it (the host end of the control channel), and replies `msgh_id` 808,
-//   complex, 40 bytes, one port descriptor moving the receive right, no NDR
-//   (§5.2).
-// - pipe routines (`0x40000000 | n`, §2): 207 → `{error: 1102}`, 804 →
-//   `{error: 3}` (no host names yet), 206 and 805 → `{port: receive right}`
-//   (a new port), anything else → `{error: 45}`; reply id `0x20000000`.
-// - one-way pipe messages (`0x10000000`) and anything else are logged and
-//   dropped.
-//
-// `--debug-bootstrap-discard` restores the 4c-i behavior: log and drop,
-// answer nothing.
-
 #if os(Linux) && arch(arm64)
 import Foundation
 import Glibc
@@ -28,9 +7,7 @@ import SwiftCodeHypervisor
 import SwiftCodeXPC
 
 final class HostBootstrapLogger: @unchecked Sendable {
-    /// The host-task name of the control channel's send right (708), once given.
     private(set) var controlChannel: UInt32?
-    /// Names checked in (206/805) and the host-task port each got (statistics).
     private(set) var checkIns: [(name: String, routine: Int)] = []
     let host: MachHostTask
     let logPath: String
@@ -41,12 +18,7 @@ final class HostBootstrapLogger: @unchecked Sendable {
     private var started = false
     private var logFile: UnsafeMutablePointer<FILE>?
     private(set) var count = 0
-    /// Called (on the service thread) with the control channel's host-task
-    /// name right after the 808 reply.
     var onControlChannel: ((UInt32) -> Void)?
-    /// Called with the new service port's host-task name before the 808
-    /// reply moves its receive right to launchd_sim (701s queued there are
-    /// answered once the domains exist; launch-sim-control.md §5.1).
     var beforeServicePortHandoff: ((UInt32) -> Void)?
 
     init(host: MachHostTask, logPath: String, discard: Bool) {
@@ -55,7 +27,6 @@ final class HostBootstrapLogger: @unchecked Sendable {
         self.discard = discard
     }
 
-    /// Starts the receiving thread.
     func start() throws {
         logFile = fopen(logPath, "w")
         if logFile == nil { stderrLine("swiftcode-simd: warning: cannot write \(logPath): \(String(cString: strerror(errno)))") }
@@ -74,7 +45,6 @@ final class HostBootstrapLogger: @unchecked Sendable {
         started = true
     }
 
-    /// Stops the thread (it notices within one receive timeout) and joins it.
     func stop() {
         lock.withLock { stopping = true }
         if started { pthread_join(thread, nil); started = false }
@@ -103,8 +73,6 @@ final class HostBootstrapLogger: @unchecked Sendable {
         }
     }
 
-    // MARK: Serving
-
     private func serve(_ m: MachHostReceivedMessage) {
         let id = UInt32(bitPattern: m.id)
         do {
@@ -125,8 +93,6 @@ final class HostBootstrapLogger: @unchecked Sendable {
         }
     }
 
-    /// bootstrap-wire.md §5.2: a new port; the receive right goes to the
-    /// requester, the host keeps a send right (the control channel).
     private func serveServicePortRequest(_ m: MachHostReceivedMessage) throws {
         let port = try host.makePort(sendRight: true)
         beforeServicePortHandoff?(port)
@@ -142,7 +108,6 @@ final class HostBootstrapLogger: @unchecked Sendable {
         onControlChannel?(port)
     }
 
-    /// bootstrap-wire.md §2, §4.2, §8 item 1 (decoding and replies: `SwiftCodeXPC`).
     private func servePipeRoutine(_ m: MachHostReceivedMessage, routine: Int) throws {
         let wire: [XPCWireDescriptor] = m.descriptors.map {
             switch $0 {
@@ -194,18 +159,15 @@ final class HostBootstrapLogger: @unchecked Sendable {
         if newPort != nil { lock.withLock { checkIns.append((name ?? "?", routine)) } }
         let summary = (try? reply.decodeDictionary()).map { "\($0)" } ?? "\(reply.body.count) bytes"
         emit("  -> \(hex(UInt64(reply.id))): \(summary)" + (name.map { " (name \"\($0)\")" } ?? ""))
-        // The request's own rights (descriptors) are not kept; the reply right was used.
         dropRights(of: m, includingReply: false)
     }
 
-    /// Drops the rights a received message brought.
     private func dropRights(of m: MachHostReceivedMessage, includingReply: Bool) {
         var copy = m
         if !includingReply { copy.replyPort = 0 }
         host.discard(copy)
     }
 
-    /// One line per field group (the first line is the summary).
     static func describe(_ m: MachHostReceivedMessage, number: Int) -> String {
         func h32(_ v: UInt32) -> String { String(format: "0x%x", v) }
         var lines: [String] = []
@@ -234,7 +196,6 @@ final class HostBootstrapLogger: @unchecked Sendable {
         return lines.joined(separator: "\n")
     }
 
-    /// 16 bytes per line: offset, hex, printable ASCII.
     static func hexDump(_ bytes: [UInt8], indent: String) -> [String] {
         guard !bytes.isEmpty else { return [indent + "(empty)"] }
         var lines: [String] = []

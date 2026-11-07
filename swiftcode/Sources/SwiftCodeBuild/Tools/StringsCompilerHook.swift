@@ -1,21 +1,5 @@
 import Foundation
 
-/// Which String Catalog compiler a build uses (`specs/ide/string-catalog.md`,
-/// "SwiftCode implementation"): Xcode's `xcstringstool`, which swift-build runs
-/// for `.xcstrings` files, or SwiftCode's `swiftcode strings`, which accepts the same
-/// `compile` and `generate-symbols` command lines.
-///
-/// The setting is `SWIFTCODE_STRINGS_COMPILER` = `xcstringstool` | `swiftcode`, as a
-/// build setting on the command line or in the environment. The default is
-/// `swiftcode` off macOS, and on macOS when the selected Xcode has no
-/// `xcstringstool`. The `swiftcode` binary is `SWIFTCODE_STRINGS_TOOL` (setting or
-/// environment), else the one `AssetCompilerHook` finds.
-///
-/// swift-build has no build setting naming the tool: it looks `xcstringstool`
-/// up in its executable search paths, the first of which come from the
-/// client's `__XCODE_BUILT_PRODUCTS_DIR_PATHS` environment variable. The hook
-/// writes a wrapper named `xcstringstool` and puts its folder there, in the
-/// environment of the swift-build process.
 public enum StringsCompilerHook {
     public enum Choice: String, Sendable { case xcstringstool, swiftcode }
 
@@ -26,8 +10,6 @@ public enum StringsCompilerHook {
 
     static func last(_ name: String, _ settings: [(String, String)]) -> String? { settings.last { $0.0 == name }?.1 }
 
-    /// Whether the selected Xcode (`DEVELOPER_DIR`, else the `xcode-select`
-    /// link, else `/Applications/Xcode.app`) has an `xcstringstool`.
     public static func xcodeHasStringsTool(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
         let fm = FileManager.default
         var dev = environment["DEVELOPER_DIR"]
@@ -51,15 +33,11 @@ public enum StringsCompilerHook {
         return AssetCompilerHook.swiftcodeExecutable(settings: settings, environment: environment)
     }
 
-    /// `#!/bin/sh` that runs `swiftcode strings` with every argument.
     public static func wrapperScript(swiftcode: String) -> String {
         "#!/bin/sh\n# Written by SwiftCode: the String Catalog compiler swift-build runs (SWIFTCODE_STRINGS_COMPILER=swiftcode).\n"
             + "exec '\(swiftcode.replacingOccurrences(of: "'", with: "'\\''"))' strings \"$@\"\n"
     }
 
-    /// The environment for the swift-build process: `base` with the
-    /// wrapper's folder (`directory`) first in `__XCODE_BUILT_PRODUCTS_DIR_PATHS`.
-    /// Nil when the choice is `xcstringstool` or no `swiftcode` is found.
     public static func environment(settings: [(String, String)], directory: URL,
                                    base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String]? {
         guard choice(settings: settings, environment: base) == .swiftcode,
@@ -77,11 +55,6 @@ public enum StringsCompilerHook {
         return env
     }
 
-    /// Build-setting overrides that go with SwiftCode's compiler. Off macOS,
-    /// swift-build cannot guess a `.strings` file's encoding, so files with
-    /// no encoding of their own (the compiled tables) are read as UTF-8:
-    /// `STRINGS_FILE_INPUT_ENCODING = $(InputFileTextEncoding:default=utf-8)`,
-    /// unless the setting is given.
     public static func overrides(settings: [(String, String)], environment: [String: String] = ProcessInfo.processInfo.environment) -> [(String, String)] {
         #if os(macOS)
         return []

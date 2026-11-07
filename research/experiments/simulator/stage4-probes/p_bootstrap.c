@@ -1,4 +1,3 @@
-/* Ycode stage-4 probe: a bootstrap lookup through libxpc, to see what reaches the bootstrap port. Original Ycode code. */
 #include <mach/mach.h>
 extern kern_return_t bootstrap_look_up(mach_port_t, const char *, mach_port_t *);
 #include <stdio.h>

@@ -1,6 +1,3 @@
-// Ported from SwiftCode-Legacy (Dylan's own code, MIT-authorised direct port).
-// Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
-
 import SwiftUI
 
 struct ColorConverterView: View {
@@ -13,7 +10,7 @@ struct ColorConverterView: View {
             ColorPicker("Pick a color", selection: $color)
                 .font(.headline)
                 .padding()
-                
+
                 .onChange(of: color) { updateFromColor() }
 
             RoundedRectangle(cornerRadius: 12)
@@ -63,7 +60,6 @@ struct ColorConverterView: View {
     }
 
     func updateFromRGB() {
-        // Basic parser for rgb(r, g, b)
         let components = rgb.components(separatedBy: CharacterSet.decimalDigits.inverted).filter { !$0.isEmpty }
         if components.count == 3,
            let r = Double(components[0]),

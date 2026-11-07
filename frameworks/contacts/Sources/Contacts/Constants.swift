@@ -1,6 +1,3 @@
-// String constants of Contacts (specs/frameworks/contacts/identifiers.md).
-// Generated from the spec table; the values are interop identifiers.
-
 import Foundation
 
 public let CNContactBirthdayKey: String = "birthday"
@@ -312,7 +309,6 @@ public let CNSocialProfileURLStringKey: String = "urlString"
 public let CNSocialProfileUserIdentifierKey: String = "userIdentifier"
 public let CNSocialProfileUsernameKey: String = "username"
 
-/// Every label constant of the spec (for tests and localization).
 let swiftcodeAllLabelConstants: [(name: String, value: String)] = [
     ("CNLabelContactRelationAssistant", "_$!<Assistant>!$_"),
     ("CNLabelContactRelationAunt", "_$!<Aunt>!$_"),
@@ -547,7 +543,6 @@ let swiftcodeAllLabelConstants: [(name: String, value: String)] = [
     ("CNLabelWork", "_$!<Work>!$_"),
 ]
 
-/// Every string constant of the spec with its value (C-CN-MODEL).
 let swiftcodeAllStringConstants: [(name: String, value: String)] = [
     ("CNContactBirthdayKey", CNContactBirthdayKey),
     ("CNContactDatesKey", CNContactDatesKey),

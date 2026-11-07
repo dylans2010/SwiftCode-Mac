@@ -1,11 +1,6 @@
 import Foundation
 
-/// Fuzzy matching for Open Quickly. See `specs/ide/open-quickly.md`.
 public enum FuzzyMatch {
-    /// A score when every query character appears in `candidate` in order
-    /// (ignoring case), else nil. Higher is better: matches at the start,
-    /// at word starts (after `/ . _ -` or a lower→upper case change) and in
-    /// runs score more; long candidates score slightly less.
     public static func score(_ query: String, _ candidate: String) -> Int? {
         let q = Array(query.lowercased().filter { !$0.isWhitespace })
         guard !q.isEmpty else { return 0 }
@@ -34,7 +29,6 @@ public enum FuzzyMatch {
     public struct Candidate: Equatable, Sendable {
         public enum Kind: String, Sendable { case file, symbol }
         public var title: String
-        /// Shown under the title: the folder for files, the file for symbols.
         public var detail: String
         public var path: String
         public var line: Int?
@@ -42,7 +36,6 @@ public enum FuzzyMatch {
         public var symbolKind: SymbolScanner.Symbol.Kind?
     }
 
-    /// Files and declarations (with members) of a workspace tree.
     public static func candidates(in root: NavigatorNode) -> [Candidate] {
         var out: [Candidate] = []
         for f in root.allFiles {
@@ -59,7 +52,6 @@ public enum FuzzyMatch {
         return out
     }
 
-    /// The best `limit` candidates for `query`; ties keep files first.
     public static func search(_ query: String, in candidates: [Candidate], limit: Int = 20) -> [Candidate] {
         var scored: [(candidate: Candidate, score: Int)] = []
         for c in candidates {

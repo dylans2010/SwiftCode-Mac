@@ -1,12 +1,3 @@
-// Guest probe: JavaScriptCore's conservative collector across threads
-// (specs/simulator/threads-and-events.md §1.6). Several threads share one
-// context group. Each keeps objects it made referenced only from its own
-// stack (unprotected JSValueRefs in a volatile array) while the threads
-// allocate garbage and collect. A collection on one thread must suspend the
-// others (thread_suspend), read their registers (thread_get_state) and scan
-// their stacks; if it cannot, objects still in use are freed and their
-// properties read back wrong, or the process crashes.
-//   p_jsgc [threads] [seconds]      defaults 4 and 20
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -33,14 +24,12 @@ static void *worker(void *arg) {
     double end = now() + seconds;
     long round = 0;
     while (now() < end) {
-        // Objects referenced only from this thread's stack.
         JSObjectRef volatile keep[32];
         for (int i = 0; i < 32; i++) {
             keep[i] = JSObjectMake(ctx, NULL, NULL);
             JSObjectSetProperty(ctx, keep[i], name, JSValueMakeNumber(ctx, (double)(id * 1000000 + round * 32 + i)),
                                 kJSPropertyAttributeNone, NULL);
         }
-        // Garbage, and sometimes a full collection on this thread.
         for (int k = 0; k < 4; k++) JSEvaluateScript(ctx, script, NULL, NULL, 0, NULL);
         if (round % 8 == id % 8) {
             JSGarbageCollect(ctx);

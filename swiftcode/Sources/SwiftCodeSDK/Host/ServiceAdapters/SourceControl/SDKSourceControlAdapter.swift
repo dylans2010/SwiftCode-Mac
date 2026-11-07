@@ -1,37 +1,14 @@
 import Foundation
 
-// MARK: - SDKSourceControlAdapter
-//
-// Ported from Legacy `SwiftCode/SDK/Host/ServiceAdapters/SourceControl/SDKSourceControlAdapter.swift`
-// (Dylan's own code; direct port authorised under MIT).
-//
-// Read-only source-control access for extensions: repository status
-// and diffs. Git runs directly through `Process` here and raw git
-// output is parsed in this file.
-//
-// IMPROVEMENT over Legacy (recorded in the slice spec draft): Legacy
-// routed through the app's `GitService`, whose hunk parser dropped
-// `diff --git` headers and lost the first file header, forcing a
-// positional `git diff --name-only` fallback (and `"unknown"` paths
-// when counts mismatched). Parsing raw `git diff` output directly
-// removes that quirk — paths always come from the diff headers. The
-// diff path filter is likewise honored here (Legacy rejected any
-// non-empty filter because its service could not honor it).
-
 public actor SDKSourceControlAdapter {
     public static let shared = SDKSourceControlAdapter()
 
-    /// Default diff byte budget (256 KiB).
     public static let defaultDiffByteLimit = 262_144
     public static let statusTimeout: TimeInterval = 30
     public static let diffTimeout: TimeInterval = 60
 
     private init() {}
 
-    // MARK: - Repository probe (host-internal, broker-exempt)
-
-    /// Whether `projectRoot` is inside a git work tree. Used internally
-    /// by the status/diff paths; it performs no authorization itself.
     public func isRepository(projectRoot: String) async -> Bool {
         guard let git = Self.resolveGitExecutable() else { return false }
         do {
@@ -42,11 +19,6 @@ public actor SDKSourceControlAdapter {
         }
     }
 
-    // MARK: - Status / diff
-
-    /// Repository status. Authorizes `.sourceControlRead` first. A
-    /// non-repository returns the empty shape (`isRepository: false`),
-    /// never a throw.
     public func getStatus(caller: SDKCallerIdentity) async throws -> SDKRepositoryStatus {
         try await SDKCapabilityBroker.authorize(.sourceControlRead, for: caller)
         guard let git = Self.resolveGitExecutable() else {
@@ -69,10 +41,6 @@ public actor SDKSourceControlAdapter {
         return parseStatus(result.stdout)
     }
 
-    /// Repository diff. Authorizes `.sourceControlRead` first. A
-    /// non-repository throws `.notARepository`. The diff is byte-bounded
-    /// (default 256 KiB): over-budget output sets the truncation flags,
-    /// never `.outputTooLarge`.
     public func getDiff(caller: SDKCallerIdentity, options: SDKDiffOptions) async throws -> SDKRepositoryDiff {
         try await SDKCapabilityBroker.authorize(.sourceControlRead, for: caller)
         try validateDiffOptions(options)
@@ -101,8 +69,6 @@ public actor SDKSourceControlAdapter {
         return parseDiff(result.stdout, byteLimit: byteLimit)
     }
 
-    // MARK: - Validation
-
     private func validateDiffOptions(_ options: SDKDiffOptions) throws {
         guard options.maxBytes >= 1 else {
             throw SDKError(code: .invalidArgument, message: "The diff byte limit must be at least 1.")
@@ -114,12 +80,7 @@ public actor SDKSourceControlAdapter {
                 }
             }
         }
-        // `includeUntracked` is accepted but unsupported: `git diff`
-        // has no untracked output, and inventing hunks for untracked
-        // files would misrepresent the diff. Recorded in the spec draft.
     }
-
-    // MARK: - Parsing
 
     private func parseStatus(_ output: String) -> SDKRepositoryStatus {
         var branchName: String?
@@ -133,7 +94,6 @@ public actor SDKSourceControlAdapter {
         for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(line)
             if line.hasPrefix("## ") {
-                // `## main...origin/main [ahead 2, behind 1]`
                 let header = String(line.dropFirst(3))
                 let branchPart = header.split(separator: ".", maxSplits: 1).first.map(String.init) ?? header
                 branchName = branchPart.split(separator: " ").first.map(String.init)
@@ -190,7 +150,6 @@ public actor SDKSourceControlAdapter {
         var totalBytes = 0
         var truncated = false
 
-        // Split on `diff --git a/<path> b/<path>` headers.
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var currentPath: String?
         var currentLines: [String] = []
@@ -200,7 +159,6 @@ public actor SDKSourceControlAdapter {
             let (hunks, isBinary) = hunksFrom(currentLines)
             let fileBytes = hunks.joined(separator: "\n").utf8.count
             if totalBytes + fileBytes > byteLimit {
-                // Fit what remains of the budget, then stop.
                 truncated = true
                 var kept: [String] = []
                 var keptBytes = 0
@@ -222,7 +180,6 @@ public actor SDKSourceControlAdapter {
         for line in lines {
             if line.hasPrefix("diff --git ") {
                 flush()
-                // `diff --git a/<path> b/<path>` — the b-side is the path.
                 let parts = line.split(separator: " ")
                 if parts.count >= 4 {
                     var path = String(parts[3])
@@ -241,9 +198,6 @@ public actor SDKSourceControlAdapter {
         return SDKRepositoryDiff(files: files, truncated: truncated, totalBytes: totalBytes, byteLimit: byteLimit)
     }
 
-    /// Splits one file's diff body into hunks. Lines before the first
-    /// `@@` (index/extended headers) are skipped. Binary files yield
-    /// empty hunks and are flagged truncated.
     private func hunksFrom(_ lines: [String]) -> (hunks: [String], isBinary: Bool) {
         for line in lines where line.hasPrefix("Binary files ") {
             return ([], true)
@@ -262,16 +216,12 @@ public actor SDKSourceControlAdapter {
         return (hunks, false)
     }
 
-    // MARK: - Git execution
-
     private struct GitResult {
         let stdout: String
         let stderr: String
         let exitCode: Int32
     }
 
-    /// Git executable lookup: well-known locations, then every
-    /// directory on `PATH`.
     static func resolveGitExecutable() -> String? {
         let candidates = [
             "/usr/local/bin/git",
@@ -291,9 +241,6 @@ public actor SDKSourceControlAdapter {
         return nil
     }
 
-    /// Runs git with a timeout. Stdin is /dev/null; the timeout kills
-    /// the process and throws `.requestTimeout` — never a fabricated
-    /// exit code.
     private func runGit(
         _ git: String,
         arguments: [String],
@@ -311,13 +258,9 @@ public actor SDKSourceControlAdapter {
                 let stderrPipe = Pipe()
                 process.standardOutput = stdoutPipe
                 process.standardError = stderrPipe
-                // Drain both pipes on their own threads so a chatty
-                // child can never deadlock against a full pipe buffer.
                 let stdoutTask = Task.detached { stdoutPipe.fileHandleForReading.readDataToEndOfFile() }
                 let stderrTask = Task.detached { stderrPipe.fileHandleForReading.readDataToEndOfFile() }
                 defer {
-                    // If this task is cancelled (timeout), terminate the
-                    // child so the pipe readers finish instead of leaking.
                     if process.isRunning { process.terminate() }
                 }
                 do {

@@ -1,39 +1,25 @@
 import Foundation
 
-/// The kind of editor that has focus; each has its own Editor menu
-/// (`specs/ide/reference-ui-5.md` §2.7, §2.8).
 public enum EditorKind: String, CaseIterable, Sendable {
-    /// A source file, or no document (the generic menu bar).
     case source
     case propertyList
     case interfaceBuilder
     case assetCatalog
-    /// Any other editor (project editor, string catalog, reports): the
-    /// first block only (§2.8; the project editor's menu is still to be
-    /// observed, §12).
     case other
 }
 
-/// The Editor menu per editor kind, in `reference-ui-5.md` §2.7 / §2.8
-/// order. Commands SwiftCode does not perform are listed disabled (§1.1).
 public enum EditorMenu {
-    /// Shorthand for the modifier set in the tables below.
     public typealias M = MenuCommand.Modifiers
 
-    /// Items of the source editor's menu shown with a check mark by default.
     public static let checkedByDefault: Set<String> = ["Inline Comparison", "Minimap", "Wrap Lines"]
 
-    /// Disabled items that carry a check mark (§2.8: "Nothing ✓", …). Items
-    /// SwiftCode performs get their state from validation instead.
     public static let checkedDisabled: [EditorKind: Set<String>] = [
         .interfaceBuilder: ["Nothing", "Constraints", "Device Bezels", "Placeholder Backgrounds", "Snap to Guides"],
         .assetCatalog: ["Show Overview"],
     ]
 
-    /// The source editor's menu (the generic menu bar's Editor menu).
     static var items: [MenuItemSpec] { items(for: .source) }
 
-    /// The Editor menu shown while an editor of `kind` has focus.
     public static func items(for kind: EditorKind) -> [MenuItemSpec] {
         switch kind {
         case .source: sourceItems
@@ -48,8 +34,6 @@ public enum EditorMenu {
     private static func u(_ t: String, _ s: String = "") -> MenuItemSpec { CommandTable.u(t, s) }
     private static let sep = MenuItemSpec.separator
 
-    /// Show Editor Only … Layout ▸ (§2.7 items 1–4; §2.8's first block,
-    /// where the canvas is titled Preview).
     static func firstBlock(source: Bool) -> [MenuItemSpec] {
         [
             c("Show Editor Only", "⌘↩", "showEditorOnly:"),
@@ -60,33 +44,23 @@ public enum EditorMenu {
             .submenu("Layout", [
                 c("Automatic", "", "setCanvasLayout:", tag: 0),
                 sep,
-                // The items name where the canvas goes (reference-ui-6.md §8 item 5, M5).
                 c(source ? "Canvas on Right" : "Preview on Right", "", "setCanvasLayout:", tag: 1),
                 c(source ? "Canvas on Bottom" : "Preview on Bottom", "", "setCanvasLayout:", tag: 2),
             ]),
         ]
     }
 
-    /// Syntax Coloring ▸ languages SwiftCode colors, alphabetical.
     public static let syntaxLanguages: [(title: String, language: SourceTokenizer.Language)] =
         SourceTokenizer.Language.allCases.filter { $0 != .plain }.map { ($0.displayName, $0) }.sorted { $0.0 < $1.0 }
-    /// Syntax Coloring ▸ Default for File Type's tag; the others carry the
-    /// language's index in `SourceTokenizer.Language.allCases`.
     public static let defaultSyntaxTag = -1
 
-    /// The Syntax Coloring item tag for a language: its index in
-    /// `SourceTokenizer.Language.allCases`.
     public static func syntaxTag(_ l: SourceTokenizer.Language) -> Int { SourceTokenizer.Language.allCases.firstIndex(of: l) ?? 0 }
 
-    /// §2.7.
     static var sourceItems: [MenuItemSpec] {
         firstBlock(source: true) + [
             sep,
             c("Show Completions", "⌃Space", "complete:"),
             c("Show Predictive Completion", "⌃⌥Space", "showPredictiveCompletion:"),
-            // §2.0: ⌥⌘0 shows the code actions at the caret; the four tools
-            // send the selection (or the file) to the coding assistant
-            // (specs/ide/coding-assistant.md §5).
             .submenu("Show Coding Tools", [
                 c("Show Coding Tools…", "⌥⌘0", "showCodeActions:"),
                 sep,
@@ -103,7 +77,6 @@ public enum EditorMenu {
             sep,
             c("Fix All Issues", "⌃⌥⌘F", "fixAllIssues:"),
             c("Show Issues", "⌃⌥⌘L", "showInlineIssues:"),
-            // "Show / Hide All Issues" (§1.3: the generic title is the first).
             c("Show All Issues", "⌃⌘L", "toggleInlineIssues:"),
             sep,
             u("Show Markdown"),
@@ -117,7 +90,6 @@ public enum EditorMenu {
                 c("Select Column Down", "⌃⇧↓", "selectColumnDown:"),
             ]),
             .submenu("Structure", [
-                // §2.0 (M2): Re-Indent moved here from Edit ▸ Format.
                 c("Re-Indent", "⌃I", "reindent:"),
                 c("Shift Left", "⌘[", "shiftLeft:"),
                 c("Shift Right", "⌘]", "shiftRight:"),
@@ -132,7 +104,6 @@ public enum EditorMenu {
                 c("Comment Selection", "⌘/", "commentSelection:"),
                 c("Add Documentation", "⌥⌘/", "addDocumentation:"),
             ]),
-            // §2.0 (M1): ⌥⇧⌘← / → fold and unfold methods and functions.
             .submenu("Code Folding", [
                 c("Fold", "⌥⌘←", "fold:"),
                 c("Unfold", "⌥⌘→", "unfold:"),
@@ -155,7 +126,6 @@ public enum EditorMenu {
                 sep,
                 c("Reset", "⌃⌘0", "resetFontSize:"),
             ]),
-            // The title as the reference spells it (three periods).
             c("Choose Theme...", "", "chooseTheme:"),
             sep,
             c("Inline Comparison", "", "showInlineComparison:"),
@@ -177,7 +147,6 @@ public enum EditorMenu {
         ]
     }
 
-    /// §2.8, property list.
     static var propertyListItems: [MenuItemSpec] {
         let types = PlistTree.types
         func t(_ name: String) -> MenuItemSpec { c(name, "", "setPlistValueType:", tag: types.firstIndex(of: name) ?? 0) }
@@ -190,14 +159,12 @@ public enum EditorMenu {
         ]
     }
 
-    /// Editor ▸ Zoom ▸ "Zoom to N%" (tag = N × 100).
     public static let zoomPercents: [Double] = [6.25, 12.5, 25, 50, 75, 100, 125, 150, 200, 300, 400]
 
     static func zoomTitle(_ p: Double) -> String {
         "Zoom to " + (p == p.rounded() ? String(Int(p)) : String(p)) + "%"
     }
 
-    /// §2.8, storyboard / xib.
     static var interfaceBuilderItems: [MenuItemSpec] {
         let resolve: [MenuItemSpec] = [u("Update Frames"), u("Update Constraint Constants"), u("Add Missing Constraints")]
         return [
@@ -210,7 +177,6 @@ public enum EditorMenu {
             .submenu("Arrange", [u("Send to Front"), u("Send to Back"), u("Send Forward"), u("Send Backward")]),
             u("Size to Fit Content", "⌘="),
             c("Update Frames", "⌥⌘=", "updateCanvasFrames:"),
-            // SwiftCode's constraint sheet (reference-ui-4.md §13) belongs here, after Update Frames.
             c("Add New Constraints…", "", "showAddConstraints:"),
             sep,
             .submenu("Embed In", [
@@ -245,7 +211,6 @@ public enum EditorMenu {
         ]
     }
 
-    /// §2.8, asset catalog.
     static var assetCatalogItems: [MenuItemSpec] {
         func spec(_ entries: [AssetCatalog.AddMenuEntry]) -> [MenuItemSpec] {
             entries.map { e in
@@ -277,8 +242,6 @@ public enum EditorMenu {
 }
 
 extension AssetCatalog {
-    /// Editor ▸ Add New Asset (`reference-ui-5.md` §2.8): the "+" menu with
-    /// the platform submenus' further items.
     public static func editorAddMenu() -> [AddMenuEntry] {
         func items(_ ts: [String]) -> [AddMenuEntry] { ts.map { .item($0, enabled: true) } }
         return addMenu().map { e in

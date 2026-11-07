@@ -6,9 +6,6 @@ public final class ProjectPackager: @unchecked Sendable {
     private init() {}
 
     public func packageProject(at url: URL) throws -> Data {
-        // In a real implementation, this would use ZipArchive or similar to compress the project directory
-        // For the purposes of this task, we'll collect all file contents into a simple format
-        // This demonstrates real data handling instead of just a dummy string
 
         let fm = FileManager.default
         var projectBundle: [String: Data] = [:]

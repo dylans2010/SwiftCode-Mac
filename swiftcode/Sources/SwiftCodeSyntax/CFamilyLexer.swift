@@ -1,12 +1,3 @@
-/// C, C++, Objective-C and Metal (`specs/ide/source-editor.md`, "SwiftCode
-/// implementation"): comments and doc comments (`///`, `//!`, `/** */`,
-/// `/*! */`), string and character literals (with `L`, `u`, `U`, `u8`
-/// prefixes, ObjC `@"…"`, C++ raw strings `R"d(…)d"` over lines),
-/// numbers (with `'` separators), preprocessor lines (with `\`
-/// continuations), C++ / Metal `[[attributes]]`, ObjC `@keywords`,
-/// placeholders, keywords per dialect, and type names (capitalized,
-/// `…_t`, the dialect's built-in types). Lexical rules: the public C, C++,
-/// Objective-C and Metal Shading Language documentation.
 struct CFamilyLexer: LineLexer {
     let dialect: SyntaxLanguage
 
@@ -46,8 +37,6 @@ struct CFamilyLexer: LineLexer {
         }
     }
 
-    /// Metal's vector and matrix types (`float4`, `half3x3`, `uint2`) and
-    /// texture / atomic types.
     func isMetalType(_ w: String) -> Bool {
         if w.hasPrefix("texture") || w.hasPrefix("depth") || w.hasPrefix("atomic") || w.hasPrefix("packed_")
             || w.hasPrefix("simd_") || w == "array" || w == "metal" || w.hasPrefix("sampler") { return true }
@@ -64,7 +53,7 @@ struct CFamilyLexer: LineLexer {
 
     func lex(_ l: LineText, state: inout LexState, into out: inout [SyntaxToken]) {
         var i = l.start
-        let continued = l.end > l.start && l[l.end - 1] == 92   // ends with a backslash
+        let continued = l.end > l.start && l[l.end - 1] == 92
         switch Mode(rawValue: state.mode) ?? .plain {
         case .blockComment:
             let kind = state.open ?? .comment
@@ -98,7 +87,6 @@ struct CFamilyLexer: LineLexer {
         case .plain:
             break
         }
-        // A preprocessor directive: `#` first on the line, up to a comment.
         let first = l.firstNonSpace(from: i)
         if i == l.start, l[first] == 35 {
             var j = first + 1
@@ -138,10 +126,8 @@ struct CFamilyLexer: LineLexer {
                 }
                 continue
             }
-            // String prefixes: L"", u"", U"", u8"", R"(…)", @"".
             if let q = stringStart(l, i) {
                 if q.raw {
-                    // R"delim( … )delim"
                     var j = q.quote + 1
                     while j < l.end, l[j] != 40, j - q.quote <= 17 { j += 1 }
                     let delimiter = Array(UnsafeBufferPointer(rebasing: l.units[(q.quote + 1)..<j]))
@@ -166,7 +152,7 @@ struct CFamilyLexer: LineLexer {
                 out.add(.number, s, i)
                 continue
             }
-            if c == 91, l[i + 1] == 91, dialect != .objc || l[i + 2] != 91 {   // [[attribute]]
+            if c == 91, l[i + 1] == 91, dialect != .objc || l[i + 2] != 91 {
                 var j = i + 2
                 var depth = 0
                 while j < l.end {
@@ -181,7 +167,7 @@ struct CFamilyLexer: LineLexer {
                 i += 1
                 continue
             }
-            if c == 64, isIdentStart(l[i + 1]) {   // @interface, @end, @property
+            if c == 64, isIdentStart(l[i + 1]) {
                 i += 1
                 while i < l.end, isIdentPart(l[i]) { i += 1 }
                 out.add(.keyword, s, i)
@@ -204,7 +190,7 @@ struct CFamilyLexer: LineLexer {
                     out.add(.keyword, s, i)
                 } else if isUpper(c) {
                     out.add(.typeName, s, i)
-                } else if i - s > 2, l[i - 2] == 95, l[i - 1] == 116 {   // …_t
+                } else if i - s > 2, l[i - 2] == 95, l[i - 1] == 116 {
                     out.add(.typeName, s, i)
                 } else if dialect == .metal, isMetalType(l.string(s, i)) {
                     out.add(.typeName, s, i)
@@ -215,27 +201,22 @@ struct CFamilyLexer: LineLexer {
         }
     }
 
-    /// A string or character literal starting at `i`: where its quote is
-    /// and whether it is a C++ raw string.
     func stringStart(_ l: LineText, _ i: Int) -> (quote: Int, raw: Bool)? {
         let c = l[i]
         if c == 34 || c == 39 {
-            // Not a C++14 digit separator (1'000 is lexed with the number).
             return (i, false)
         }
         if c == 64, l[i + 1] == 34, dialect == .objc { return (i + 1, false) }
         guard dialect != .c || c == 76 || c == 117 || c == 85 else { return nil }
-        // Encoding prefix, then optional R.
         var j = i
-        if c == 117, l[j + 1] == 56 { j += 2 }               // u8
-        else if c == 76 || c == 117 || c == 85 { j += 1 }    // L u U
+        if c == 117, l[j + 1] == 56 { j += 2 }
+        else if c == 76 || c == 117 || c == 85 { j += 1 }
         if i > l.start, isIdentPart(l[i - 1]) { return nil }
-        if l[j] == 82, l[j + 1] == 34, dialect != .c { return (j + 1, true) }   // R"
+        if l[j] == 82, l[j + 1] == 34, dialect != .c { return (j + 1, true) }
         if j > i, l[j] == 34 || l[j] == 39 { return (j, false) }
         return nil
     }
 
-    /// The end of a quoted literal whose body starts at `i`, and whether it closed.
     func quotedEnd(_ l: LineText, from i: Int, quote: UInt16) -> (Int, Bool) {
         var j = i
         while j < l.end {
@@ -246,7 +227,6 @@ struct CFamilyLexer: LineLexer {
         return (l.end, false)
     }
 
-    /// The end of a raw string body: `)delimiter"`.
     func rawStringEnd(_ l: LineText, from i: Int, delimiter: [UInt16]) -> Int? {
         var j = i
         while j < l.end {

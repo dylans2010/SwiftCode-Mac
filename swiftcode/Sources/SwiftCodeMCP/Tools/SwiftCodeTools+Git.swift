@@ -4,144 +4,10 @@ import SwiftCodeGitHub
 import SwiftCodeIDECore
 import SwiftCodeSubprocess
 
-/// The ported Legacy Git / source-control tool family (Wave 3, Git slice).
-///
-/// Behaviour source: Legacy's `AssistConflictMarkerScanTool`,
-/// `AssistGitBisectTool`, `AssistGitBlameTool`,
-/// `AssistGitBranchCompareTool`, `AssistGitBranchManagerTool`,
-/// `AssistGitCherryPickTool`, `AssistGitConflictResolverTool`,
-/// `AssistGitLogViewerTool`, `AssistGitPRSummaryTool`,
-/// `AssistGitStashTool`, `AssistGitHubRepoTool`,
-/// `AssistRecentChangesTool` and `AssistVersionControlOperator`
-/// (Dylan's own code, ported under MIT), plus `AssistTool.swift` for
-/// the capability/risk/permission defaults and
-/// `AssistToolRegistry.swift` for the alias table. Schemas below are
-/// Legacy's `parametersSchema` verbatim, plus the `workspace`
-/// parameter Wave 1 adds to every tool; descriptions are Legacy's
-/// verbatim. Structured data keeps Legacy's keys, with typed JSON
-/// values (integers and booleans) the way SwiftCode's other tools do —
-/// Legacy's string-only map is not reproduced. Tools whose Legacy
-/// result carries no data return a plain text result instead.
-///
-/// Conventions, following Wave 1 (`SwiftCodeTools+FileReading.swift`) and
-/// Wave 2 (`SwiftCodeTools+FileWriting.swift`):
-///
-/// * Every git operation runs the `git` CLI (via `SwiftCodeSubprocess`,
-///   `HostTool.path("git")`) as an argument vector — never a shell —
-///   with the workspace folder as its working directory, exactly as
-///   Legacy's `runGit` helpers do (`/usr/bin/git` there; the
-///   Flatpak-aware `HostTool` path here). The environment mirrors
-///   `GitRepository.environment`: inherited, minus the variables
-///   that could point git at another repository, plus the
-///   never-wait-for-a-person settings. Remote operations exist
-///   only in `version_control_operator` (Wave 10: push/pull/fetch/
-///   clone — Legacy implements no remote sub-operations at all, so
-///   those are a SwiftCode addition, not a port; the URL policy and
-///   GitHub credential seeding live in `SwiftCodeTools+AgenticGit.swift`).
-///   `github_repo` is the one GitHub API call in this file (Wave
-///   10): it reads repositories through the shared `GitHubClient`
-///   (`SwiftCodeGitHubHost.swift`), unauthenticated for public
-///   repositories, with the saved GitHub token when one is stored.
-/// * Workspace confinement: paths resolve with
-///   `resolveFileReadingPath` (plain relative paths against the
-///   session working directory; `..` past the workspace root is an
-///   error). Branch/ref/commit arguments are validated with
-///   Legacy's own validators before they reach git. A workspace
-///   that is not a git repository fails with git's own "not a git
-///   repository" message — never invented log/blame/status output.
-/// * Approval gating: every mutating git operation gates BEFORE
-///   running git, through an explicit `MCPChange` + `call.approve`
-///   (the Wave 2 §6.2 shape for non-text operations; the change's
-///   path is the workspace root, relative path `"."`). Text
-///   resolution in `git_conflict_resolver` goes through `commit()`
-///   instead (Wave 2 §6.1). Read-only actions of a writing tool
-///   (`git_bisect` log, `git_branch_manager` list/current,
-///   `git_stash_operator` list/show,
-///   `version_control_operator` status/diff) request no approval,
-///   but the tool is still registered `writes: true`, so
-///   `MCPServer.run` refuses them in `readOnly` server mode — the
-///   same treatment Wave 2 gives dry-run tools.
-/// * `github_repo` reads real GitHub repositories through the
-///   shared `GitHubClient` (Wave 10): public repositories work
-///   unauthenticated; private repositories use the user's saved
-///   GitHub token. It is read-only and needs no approval. (Wave 2's
-///   `code_refactor` precedent no longer applies — the client the
-///   honest failure was waiting for exists now.)
-///
-/// SwiftCode's existing source-control seams, and why they are (mostly)
-/// not the implementation here:
-///
-/// * `GitRepository` (`SwiftCodeIDECore/Model/GitRepository.swift`) runs
-///   git the same way, but its methods return IDE shapes (a `Ref`
-///   list, a status map, parsed blame commits) that do not
-///   reproduce Legacy's verbatim git output, and most of these
-///   operations (bisect, cherry-pick, stash push/pop/list, `log`
-///   with a format, `diff --stat`) have no seam method at all. The
-///   one runner is therefore shared here, and the seams are used
-///   only where they fit Legacy's behaviour exactly: none of the
-///   thirteen tools routes through `GitRepository` — see the notes
-///   below for the two near-misses.
-/// * `GitBlame.parse` is not used by `git_blame_inspector`:
-///   Legacy's output is the `git blame -s` rendering (short hash,
-///   author, date, line number, line text), and the parse drops the
-///   line text, so it cannot reproduce that output. The tool runs
-///   the same two git commands Legacy runs.
-/// * `GitRepository.resolveConflict(path:text:)` is not used by
-///   `git_conflict_resolver`: it also stages the file (`git add`),
-///   while Legacy only writes the resolved text. The tool writes
-///   through `commit()` like every other SwiftCode text write.
-/// * `GitRepository.commit(files:message:)` is not used by
-///   `version_control_operator`: Legacy stages everything
-///   (`git add -A`) and commits with a default message, which that
-///   seam does not do.
-///
-/// Deliberate deviations from Legacy, recorded here:
-///
-/// * `git_bisect` declares Legacy risk `.execution`, which the
-///   Wave 1/2 risk table (§1.3/§27.2) does not cover (it covers
-///   only `safeRead` / `safeMutation` / `potentiallyDestructive`).
-///   `.execution` ranks between `safeMutation` and
-///   `potentiallyDestructive` in Legacy, and bisect moves the
-///   checkout, so the port maps it to `readOnly: false,
-///   idempotent: false`, `writes: true`, with the approval gate on
-///   every action except `log`. Legacy's derived permission for it
-///   is `none` (only mutating tools require `fileSystem`, and
-///   `.execution` is not mutating by that derivation).
-/// * `git_cherry_pick`'s `noCommit` keeps Legacy's **string** schema
-///   type (`"true"` / `"1"` / `"yes"`), not a boolean — Legacy
-///   declares it a string and parses it with its `boolValue`.
-/// * `git_conflict_resolver` does NOT reproduce Legacy's
-///   absolute-path carve-out (a leading-`/` path used as a raw
-///   filesystem path, which could resolve conflicts outside the
-///   workspace). Paths resolve inside the workspace like every
-///   other SwiftCode tool.
-/// * `version_control_operator` drops Legacy's `#if os(macOS)`
-///   gate ("Version control operations require macOS runtime"):
-///   the git CLI exists on Linux too, so the port runs there.
-/// * Ref/branch validation is tightened where Legacy passed raw
-///   strings to argv: `git_branch_manager` and
-///   `version_control_operator` validate branch names with the
-///   strict allow-list Legacy's `version_control_operator` uses,
-///   and `git_stash_operator` validates `stashIndex` as
-///   `stash@{N}` (or a plain number). An argument vector cannot
-///   inject shell, but a leading `-` could otherwise be parsed as
-///   a git flag.
-/// * `git_pr_summary` is implemented locally, not honestly
-///   failing: Legacy's own description says it uses "only local
-///   git history. No network, no GitHub API", and its
-///   implementation is four local git commands.
-/// * `version_control_operator` has no remote sub-operations in
-///   Legacy (only status/commit/branch/rollback/diff); the
-///   push/pull/fetch/clone actions are a Wave 10 SwiftCode addition,
-///   not a Legacy port — see the `version_control_operator` handler
-///   and `specs/ide/github-service.md` (Wave 10 draft).
 extension SwiftCodeMCPHost {
     var gitTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
         let destructive = MCPToolAnnotations(readOnly: false, destructive: true)
-        // `git_bisect`'s Legacy risk `.execution`: mutates the
-        // checkout, but is neither `safeMutation` nor
-        // `potentiallyDestructive` — not idempotent, not destructive.
         let execution = MCPToolAnnotations(readOnly: false, idempotent: false)
         return [
             tool("conflict_marker_scan", "Conflict Marker Scan",
@@ -188,12 +54,6 @@ extension SwiftCodeMCPHost {
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.gitBranchManager(call)
             },
-            // ALIGNED (Wave 8): the Legacy Agentic registry also owns
-            // `git_cherry_pick` with its own spelling (`hash` +
-            // `repositoryPath`), so this one registration serves both
-            // shapes instead of a second registration. `commit` and
-            // `hash` are alternatives (either one is required);
-            // `repositoryPath` defaults to the workspace root.
             tool("git_cherry_pick", "Git Cherry-Pick",
                  "Cherry-picks one commit onto the current branch. On conflict it reports the conflicted files and leaves the state for manual resolution.",
                  input: Schema.object(["workspace": Schema.workspace,
@@ -287,11 +147,7 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Git runner and validators (shared by the Git tools)
 
-    /// One git run's result. `combined` is stdout then stderr, trimmed —
-    /// Legacy merged both pipes into one, and its messages report that
-    /// merged text.
     struct GitRunOutput {
         var status: Int32
         var stdout: String
@@ -302,12 +158,6 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// The environment every git command runs with: a mirror of
-    /// `GitRepository.environment` (`SwiftCodeIDECore`, internal there, so
-    /// restated here) — this process's environment, minus anything
-    /// that points git at another repository, plus settings that keep
-    /// git from ever waiting for a person, and `GIT_OPTIONAL_LOCKS=0`
-    /// so reads never rewrite the index.
     nonisolated static func gitEnvironment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         for key in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
@@ -327,13 +177,6 @@ extension SwiftCodeMCPHost {
         return env
     }
 
-    /// Runs `git` with `args` as an argument vector (never a shell) in
-    /// `directory` (the workspace folder; git discovers the repository
-    /// upward from there, as Legacy's `runGit` does). Throws only when
-    /// git cannot start; a non-zero exit is returned, never thrown, so
-    /// the caller reports git's own message — including "not a git
-    /// repository" for a workspace with no repository, never invented
-    /// output.
     nonisolated static func runGit(_ args: [String], in directory: URL) throws -> GitRunOutput {
         let out: Subprocess.Output
         do {
@@ -344,23 +187,12 @@ extension SwiftCodeMCPHost {
         return GitRunOutput(status: out.status, stdout: out.stdoutText, stderr: out.stderrText)
     }
 
-    /// Asks the approval path about one git operation before it runs
-    /// (the Wave 2 §6.2 shape for non-text operations): the change's
-    /// path is the workspace root, since a git operation has no single
-    /// file. Text resolution in `git_conflict_resolver` uses
-    /// `commit()` instead.
     func gitApproveChange(tool: String, summary: String, in s: WorkspaceSession, call: MCPToolCall) async throws {
         let root = Self.folder(of: s.model)
         let change = MCPChange(tool: tool, path: root.path, relativePath: ".", original: nil, proposed: "", summary: summary)
         guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
     }
 
-    /// Legacy's shared ref validator (`AssistGitBisectTool`,
-    /// `AssistGitBranchCompareTool`, `AssistGitPRSummaryTool`,
-    /// `AssistGitCherryPickTool` all carry the same copy): `HEAD`
-    /// and `HEAD~N` / `HEAD^N` forms pass; anything with a space,
-    /// shell metacharacter, `..`, `~`, `^`, `:`, `?`, `*`, `[`, a
-    /// leading `-`, `@{`, a leading/trailing `/` or `//` fails.
     nonisolated static func gitIsValidRef(_ ref: String) -> Bool {
         guard !ref.isEmpty else { return false }
         if ref == "@" { return false }
@@ -391,8 +223,6 @@ extension SwiftCodeMCPHost {
         return true
     }
 
-    /// Legacy `AssistGitCherryPickTool.isValidCommit`: a 7–40 hex SHA,
-    /// or a valid ref.
     nonisolated static func gitIsValidCommit(_ value: String) -> Bool {
         if value.hasPrefix("-") { return false }
         if value.contains("\0") || value.contains("\n") || value.contains("\r") { return false }
@@ -400,12 +230,6 @@ extension SwiftCodeMCPHost {
         return gitIsValidRef(value)
     }
 
-    /// Legacy `AssistVersionControlOperator.isValidRefName` (the strict
-    /// allow-list): letters, digits, `.` `_` `/` `-`, plus the `HEAD`
-    /// and `HEAD[~^]N` forms; at most 256 characters; no `..`, no
-    /// leading/trailing `/`, no `.lock` suffix — and, tightened here,
-    /// no leading `-` or `.` (a leading `-` could otherwise be parsed
-    /// as a git flag). Used for branch names and rollback refs.
     nonisolated static func gitIsValidRefName(_ ref: String) -> Bool {
         guard !ref.isEmpty, ref.count <= 256 else { return false }
         if ref == "HEAD" { return true }
@@ -421,10 +245,6 @@ extension SwiftCodeMCPHost {
         return true
     }
 
-    /// A stash identifier for `git_stash_operator` pop/show/drop:
-    /// Legacy passed it through unchecked; the port accepts only
-    /// `stash@{N}` or a plain number, so a leading `-` can never be
-    /// parsed as a git flag.
     nonisolated static func gitIsValidStashRef(_ ref: String) -> Bool {
         if !ref.isEmpty, ref.allSatisfy({ $0.isNumber }) { return true }
         guard ref.hasPrefix("stash@{"), ref.hasSuffix("}") else { return false }
@@ -432,8 +252,6 @@ extension SwiftCodeMCPHost {
         return !middle.isEmpty && middle.allSatisfy({ $0.isNumber })
     }
 
-    /// Legacy `AssistGitCherryPickTool.boolValue`: a boolean, or the
-    /// strings `"true"` / `"1"` / `"yes"` (case-insensitive, trimmed).
     nonisolated static func gitBoolValue(_ value: AnyJSON?) -> Bool {
         if let bool = value?.bool { return bool }
         if let string = value?.string {
@@ -443,17 +261,6 @@ extension SwiftCodeMCPHost {
         return false
     }
 
-    // MARK: - Workspace scans (Legacy `AssistWorkspaceScan`)
-
-    /// Files under `root`, skipping hidden files and the top-level
-    /// VCS/build/dependency directories Legacy skips (`.git`,
-    /// `.build`, `build`, `DerivedData`, `.swiftpm`, `Pods`,
-    /// `Carthage`, `node_modules`, `.venv`), at most 20,000 files.
-    /// `extensions` filters by lowercase extension when given
-    /// (the source extensions `conflict_marker_scan` uses). Legacy
-    /// checks only the FIRST path component against the skip list,
-    /// so a nested `build` directory is not skipped — reproduced
-    /// here.
     nonisolated static func gitScanFiles(under root: URL, extensions: Set<String>? = nil) -> [URL] {
         let skippedDirs: Set<String> = [".git", ".build", "build", "DerivedData", ".swiftpm",
                                         "Pods", "Carthage", "node_modules", ".venv"]
@@ -472,9 +279,6 @@ extension SwiftCodeMCPHost {
         return results
     }
 
-    /// Legacy `AssistGitPRSummaryTool.numberBefore`: the integer
-    /// immediately before `marker` in `text` (e.g. `3` before
-    /// `"file"` in `" 3 files changed, 10 insertions(+)"`).
     nonisolated static func gitNumberBefore(_ marker: String, in text: String) -> Int {
         guard let range = text.range(of: marker) else { return 0 }
         let before = text[..<range.lowerBound]
@@ -491,21 +295,17 @@ extension SwiftCodeMCPHost {
         return Int(digits) ?? 0
     }
 
-    /// ISO-8601 timestamps for `recent_changes` (Legacy
-    /// `AssistWorkspacePaths.iso8601`).
     nonisolated static func gitISO8601(_ date: Date) -> String {
         ISO8601DateFormatter().string(from: date)
     }
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Git tool handlers
 
     func conflictMarkerScan(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let limit = max(1, min(500, call.int("limit") ?? 50))
         let root = Self.folder(of: s.model)
-        // Source files only (Legacy `AssistWorkspaceScan.sourceExts`).
         let sourceExts: Set<String> = ["swift", "m", "mm", "h", "c", "cpp", "hpp"]
         var hits: [(String, [Int])] = []
         for url in Self.gitScanFiles(under: root, extensions: sourceExts) {
@@ -548,7 +348,6 @@ extension SwiftCodeMCPHost {
                 }
             }
         }
-        // `log` only reports; every other step moves the checkout.
         if action != "log" {
             try await gitApproveChange(tool: call.name, summary: "Git bisect \(action)\(args.count > 2 ? " \(args[2])" : "")", in: s, call: call)
         }
@@ -571,11 +370,6 @@ extension SwiftCodeMCPHost {
         let url = try resolveFileReadingPath(raw, in: s)
         let rel = fileReadingRelativePath(of: url, in: s)
         let root = Self.folder(of: s.model)
-        // Legacy runs porcelain first (its failure is the tool's
-        // failure), then `blame -s` for the readable snippet. The
-        // `-L` range rules differ between the two runs, preserved
-        // here: porcelain also takes a lone start line (start,
-        // start+30); the readable run only takes a full range.
         var args = ["blame", "--porcelain"]
         if let start = startLine, let end = endLine, start > 0, end >= start {
             args += ["-L", "\(start),\(end)"]
@@ -592,8 +386,6 @@ extension SwiftCodeMCPHost {
             formatArgs += ["-L", "\(start),\(end)"]
         }
         formatArgs += ["--", rel]
-        // Legacy ignores a failure of the readable run (`try?`): the
-        // porcelain run above already decided success or failure.
         let readable = (try? Self.runGit(formatArgs, in: root))?.stdout ?? ""
         let lines = readable.components(separatedBy: .newlines).filter { !$0.isEmpty }
         return .text("Git blame for `\(raw)`:\n\n" + lines.prefix(50).joined(separator: "\n"))
@@ -644,8 +436,6 @@ extension SwiftCodeMCPHost {
         case "create":
             guard !branchName.isEmpty else { throw MCPToolError("Action 'create' requires 'branchName'.") }
             guard Self.gitIsValidRefName(branchName) else { throw MCPToolError("Invalid branch name: \(branchName)") }
-            // Legacy creates with `checkout -b`: the branch is created
-            // AND checked out.
             gitArgs = ["checkout", "-b", branchName]
             mutating = true
         case "switch", "checkout":
@@ -656,7 +446,6 @@ extension SwiftCodeMCPHost {
         case "delete":
             guard !branchName.isEmpty else { throw MCPToolError("Action 'delete' requires 'branchName'.") }
             guard Self.gitIsValidRefName(branchName) else { throw MCPToolError("Invalid branch name: \(branchName)") }
-            // Safe delete (`-d`): refuses an unmerged branch, as Legacy does.
             gitArgs = ["branch", "-d", branchName]
             mutating = true
         default:
@@ -676,13 +465,9 @@ extension SwiftCodeMCPHost {
 }
 
 extension SwiftCodeMCPHost {
-    // MARK: - Git tool handlers (continued)
 
     func gitCherryPick(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
-        // Wave 8 alignment: `commit` (Assist) and `hash` (Agentic) are
-        // alternatives; `repositoryPath` (Agentic) defaults to the
-        // workspace root. Either spelling must name the commit.
         guard let commitRaw = call.arguments["commit"]?.string ?? call.arguments["hash"]?.string else { throw MCPToolError("Missing required parameter: commit") }
         let commit = commitRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !commit.isEmpty else { throw MCPToolError("Missing required parameter: commit") }
@@ -711,9 +496,6 @@ extension SwiftCodeMCPHost {
                            summary: "Cherry-picked \(commit).\n\(display)")
     }
 
-    /// The conflicted files of a stopped cherry-pick, from
-    /// `git status --porcelain` (Legacy's `conflictedFiles`): the
-    /// two-letter codes for unmerged paths.
     nonisolated static func gitCherryPickConflictedFiles(in root: URL) -> [String] {
         guard let status = try? runGit(["status", "--porcelain"], in: root), status.status == 0 else { return [] }
         let conflictCodes: Set<String> = ["DD", "AU", "UD", "UA", "DU", "AA", "UU"]
@@ -773,8 +555,6 @@ extension SwiftCodeMCPHost {
         guard resolution == "take_ours" || resolution == "take_theirs" else {
             throw MCPToolError("Unknown resolution '\(resolution)'. Use 'inspect', 'take_ours', or 'take_theirs'.")
         }
-        // The state machine from Legacy: marker lines are dropped, and
-        // only the chosen side's lines survive.
         enum ConflictState { case normal, inOurs, inTheirs }
         var resolvedLines: [String] = []
         var state: ConflictState = .normal
@@ -935,7 +715,6 @@ extension SwiftCodeMCPHost {
         guard result.status == 0 else {
             throw MCPToolError("Git stash \(actionRaw) failed (exit \(result.status)):\n\(result.stderr)\n\(result.stdout)")
         }
-        // Legacy prefers stdout, then stderr, then a completion message.
         let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         if !stdout.isEmpty { return .text(result.stdout) }
@@ -944,13 +723,6 @@ extension SwiftCodeMCPHost {
     }
 
     func gitHubRepo(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Wave 10: reads real GitHub repositories through the shared
-        // `GitHubClient` (public repositories unauthenticated,
-        // private ones with the saved GitHub token). Read-only: no
-        // approval gate. Legacy's behaviour is in
-        // `AssistGitHubRepoTool` (Dylan's own code, ported under
-        // MIT); where the client cannot express a Legacy behaviour
-        // it is recorded in the Wave 10 spec draft, not faked.
         _ = try session(for: call)
         guard let operationRaw = call.string("operation") else {
             throw MCPToolError("Missing required parameter: operation")
@@ -1004,13 +776,11 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// The seven `github_repo` operations, in Legacy's order.
     nonisolated static let gitHubRepoOperations = [
         "repository_info", "list_files", "get_file", "get_directory",
         "get_tree", "search_code", "fetch_repository",
     ]
 
-    /// Legacy's per-operation `maxResults` defaults (schema §82).
     nonisolated static func gitHubRepoDefaultMaxResults(for operation: String) -> Int {
         switch operation {
         case "get_tree": return 5000
@@ -1019,17 +789,11 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// Resolves a nil/empty `ref` to the repository's default branch
-    /// (Legacy's `resolveRef`); a given ref passes through
-    /// unchanged. The client defaults to "main", which is wrong for
-    /// repositories whose default branch is not `main`.
     func gitHubRepoResolvedRef(client: GitHubClient, owner: String, repo: String, ref: String?) async throws -> String {
         if let ref, !ref.isEmpty { return ref }
         let info = try await client.getRepository(owner: owner, repo: repo)
         return info.defaultBranch ?? "main"
     }
-
-    // MARK: - `github_repo` operations
 
     func gitHubRepoInfo(client: GitHubClient, owner: String, repo: String) async throws -> MCPToolResult {
         let info = try await client.getRepository(owner: owner, repo: repo)
@@ -1055,11 +819,6 @@ extension SwiftCodeMCPHost {
                              path: String, recursive: Bool, includeContent: Bool, maxResults: Int,
                              maxBytes: Int) async throws -> MCPToolResult {
         let resolvedRef = try await gitHubRepoResolvedRef(client: client, owner: owner, repo: repo, ref: ref)
-        // The tree API has no directory-listing call, so both the
-        // one-level listing (`get_directory`, or non-recursive
-        // `list_files`) and the recursive listing go through the
-        // recursive tree — the visible result is the same one level
-        // Legacy's Contents API returned.
         let tree = try await client.getRepoTree(owner: owner, repo: repo, ref: resolvedRef, recursive: true)
         let prefix = path.isEmpty ? "" : path + "/"
         let entries: [GitHubTreeEntry]
@@ -1101,10 +860,6 @@ extension SwiftCodeMCPHost {
 
     func gitHubRepoGetFile(client: GitHubClient, owner: String, repo: String, ref: String?, path: String,
                            maxBytes: Int) async throws -> MCPToolResult {
-        // Legacy classifies binary files by extension and never
-        // decodes them; the client decodes base64 as UTF-8 and
-        // reports binary content only as a decoding failure, so
-        // check the extension first.
         if Self.gitHubRepoIsBinaryPath(path) {
             return .structured(["content": .string("Binary file: \(path) (binary file extension). Contents not retrieved."),
                                 "truncated": .bool(false), "path": .string(path)],
@@ -1149,10 +904,6 @@ extension SwiftCodeMCPHost {
 
     func gitHubRepoSearchCode(client: GitHubClient, owner: String, repo: String, query: String,
                               maxResults: Int) async throws -> MCPToolResult {
-        // The GitHub Code Search API, unlike Legacy's client-side
-        // search over fetched files: it needs authentication, so an
-        // unauthenticated call fails with the client's unauthorized
-        // error, and it takes no ref (the ref is ignored here).
         let result = try await client.searchCode(query: "repo:\(owner)/\(repo) \(query)", perPage: maxResults)
         var lines = ["# Code search: \"\(query)\" in \(owner)/\(repo)",
                      "Matches: \(result.totalCount)", ""]
@@ -1178,7 +929,6 @@ extension SwiftCodeMCPHost {
         let resolvedRef = try await gitHubRepoResolvedRef(client: client, owner: owner, repo: repo, ref: ref)
         let tree = try await client.getRepoTree(owner: owner, repo: repo, ref: resolvedRef, recursive: true)
 
-        // Classify every entry before fetching anything.
         var textFiles: [GitHubTreeEntry] = []
         var skippedBinary: [String] = []
         var skippedOversize: [String] = []
@@ -1192,8 +942,6 @@ extension SwiftCodeMCPHost {
             textFiles.append(entry)
         }
 
-        // Prioritize: query-relevant paths first, then project
-        // configuration, then smaller files (more signal per byte).
         let queryTokens = (query ?? "").lowercased()
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
         textFiles.sort {
@@ -1204,12 +952,6 @@ extension SwiftCodeMCPHost {
         }
         let selected = Array(textFiles.prefix(maxResults))
 
-        // Sequential fetches (Legacy fetched four at a time; the
-        // byte budget is exact either way, and sequential keeps the
-        // accounting — and the tests — deterministic). A file that
-        // does not fit the remaining budget is skipped, not
-        // truncated; a file that cannot be read is reported, not
-        // silently dropped.
         var fetched: [(path: String, text: String)] = []
         var bytesUsed = 0
         var skippedUnreadable: [String] = []
@@ -1258,10 +1000,6 @@ extension SwiftCodeMCPHost {
                            summary: "Retrieved \(fetched.count) files (\(bytesUsed) bytes) from \(owner)/\(repo).\(truncated ? " Result is PARTIAL — see the retrieval report." : "")")
     }
 
-    // MARK: - `github_repo` path classification (Legacy, ported)
-
-    /// Extensions that are never useful as decoded text (Legacy
-    /// `AssistGitHubRepoTool.binaryExtensions`).
     nonisolated static let gitHubRepoBinaryExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "icns", "tiff",
         "pdf", "zip", "gz", "tar", "bz2", "xz", "7z", "dmg", "pkg",
@@ -1273,8 +1011,6 @@ extension SwiftCodeMCPHost {
         "xcarchive", "ipa", "appex",
     ]
 
-    /// Directory prefixes excluded from full-repository retrieval
-    /// (build artifacts, vendored dependencies, VCS metadata).
     nonisolated static let gitHubRepoSkippedDirectoryPrefixes = [
         ".git/", "node_modules/", "Pods/", "Carthage/", "DerivedData/",
         "build/", ".build/", "vendor/", "__pycache__/", ".venv/",
@@ -1289,8 +1025,6 @@ extension SwiftCodeMCPHost {
         gitHubRepoSkippedDirectoryPrefixes.contains { path.hasPrefix($0) || path == String($0.dropLast()) }
     }
 
-    /// Ranking for `fetch_repository`: query hits > project config >
-    /// docs > rest (Legacy's `priorityScore`).
     nonisolated static func gitHubRepoPriorityScore(path: String, queryTokens: [String]) -> Int {
         let lower = path.lowercased()
         var score = 0
@@ -1338,9 +1072,6 @@ extension SwiftCodeMCPHost {
         let root = Self.folder(of: s.model)
         switch action {
         case "status", "diff":
-            // Read-only actions: no approval, but the tool is
-            // registered `writes: true`, so the server still refuses
-            // them in `readOnly` mode.
             let args = action == "status" ? ["status", "--short"] : ["diff", "--", "."]
             let result = try Self.runGit(args, in: root)
             guard result.status == 0 else {
@@ -1378,13 +1109,6 @@ extension SwiftCodeMCPHost {
             }
             return .structured(["output": .string(result.combined)], summary: "Git action executed: rollback")
         case "push", "pull", "fetch":
-            // Wave 10 addition (Legacy implements no remote
-            // sub-operations at all): plain `git push` / `git pull`
-            // / `git fetch <remote>` in the workspace repository.
-            // HTTPS auth comes from the user's configured credential
-            // helper, plus a best-effort seed from the stored GitHub
-            // token when `origin` is a github.com HTTPS URL (see
-            // `seedGitHubCredentialForOrigin`).
             var args = [action]
             if action == "fetch" {
                 let remote = call.arguments["remote"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "origin"
@@ -1401,10 +1125,6 @@ extension SwiftCodeMCPHost {
             }
             return .structured(["output": .string(result.combined)], summary: "Git action executed: \(action)")
         case "clone":
-            // Wave 10 addition (Legacy implements no remote
-            // sub-operations at all): `git clone <url>
-            // <destination>`, with the Wave 10 URL policy on the
-            // URL and the destination confined to the workspace.
             guard let urlRaw = call.arguments["url"]?.string, !urlRaw.isEmpty else {
                 throw MCPToolError("Action 'clone' requires 'url'.")
             }

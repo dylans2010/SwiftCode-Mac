@@ -1,22 +1,8 @@
 import Foundation
 
-// Marshalling (D-Bus Specification 0.43, "Marshaling (Wire Format)"):
-// every value is aligned to its type's natural boundary counted from the
-// start of the message, padding is nul bytes and the minimum needed,
-// structs and dict entries align to 8, strings are a UINT32 length, the
-// bytes and a nul, signatures a BYTE length, the bytes and a nul, arrays a
-// UINT32 byte length, padding to the element alignment (even when empty),
-// then the elements; a variant is a signature and the value.
-//
-// Encoders and decoders here work on a buffer whose offset 0 is a multiple
-// of 8 from the start of the message (the header and the body both are).
-
-/// Writes values in one byte order.
 public struct DBusEncoder {
     public private(set) var bytes: [UInt8] = []
     public let bigEndian: Bool
-    /// Alignment is counted from this offset of the message (0 for a
-    /// message start or a body).
     private let base: Int
 
     public init(bigEndian: Bool = false, base: Int = 0) {
@@ -113,7 +99,6 @@ public struct DBusEncoder {
     }
 }
 
-/// Reads values in one byte order.
 public struct DBusDecoder {
     public let bytes: [UInt8]
     public let bigEndian: Bool
@@ -121,8 +106,6 @@ public struct DBusDecoder {
     private let base: Int
     private let end: Int
 
-    /// Decodes `bytes[start..<end]`, counting alignment from `base`
-    /// (`start` is at message offset `base + start`).
     public init(_ bytes: [UInt8], bigEndian: Bool = false, start: Int = 0, end: Int? = nil, base: Int = 0) {
         self.bytes = bytes
         self.bigEndian = bigEndian
@@ -148,11 +131,9 @@ public struct DBusDecoder {
         var v: T = 0
         for i in 0..<n { v |= T(truncatingIfNeeded: bytes[offset + i]) << (8 * i) }
         offset += n
-        // `v` was assembled as if the bytes were little-endian.
         return bigEndian ? v.byteSwapped : v
     }
 
-    /// Reads the values of `signature` in sequence.
     public mutating func read(signature: String) throws -> [DBusValue] {
         try DBusType.parse(signature).map { try read($0) }
     }
@@ -231,7 +212,6 @@ public struct DBusDecoder {
 }
 
 extension DBusValue {
-    /// The value marshalled alone at an 8-aligned position.
     public func marshalled(bigEndian: Bool = false) throws -> [UInt8] {
         var e = DBusEncoder(bigEndian: bigEndian)
         try e.write(self)

@@ -1,26 +1,8 @@
-/*
- * appsupport.c - libsystem_kernel functions that apps and their frameworks
- * call at start and that had only the unimplemented-function stub
- * (specs/simulator/app-launch.md section 3.4): thread_info,
- * thread_policy_set/get, host_statistics(64), and libproc's CPU and wakeup
- * monitor controls.
- *
- * Clean-room SwiftCode code. Facts used: the public Mach headers
- * mach/thread_info.h, mach/thread_policy.h, mach/host_info.h and
- * mach/vm_statistics.h (flavor numbers, structure layouts and counts), and
- * libsyscall's libproc_internal.h (the monitor functions' signatures;
- * level 1). The values are SwiftCode's choices and are noted on each function.
- */
 #include "yc_kernel.h"
 
 #define YC_PRIV_ROUTINE(n) ((long)(0x79632000u + (n)))
 #define YC_PRIV_THREAD_INFO 0x30
 
-/* kern_return_t thread_info(thread_inspect_t target_act, thread_flavor_t flavor,
- *     thread_info_t thread_info_out, mach_msg_type_number_t *thread_info_outCnt)
- * Private routine 0x30: the VMM answers THREAD_BASIC_INFO,
- * THREAD_IDENTIFIER_INFO, THREAD_EXTENDED_INFO and
- * THREAD_SCHED_TIMESHARE_INFO for a thread of the caller's task. */
 YC_EXPORT int thread_info(yc_port_t thread, yc_u32 flavor, int *info, yc_u32 *count)
 {
     if (info == YC_NULL || count == YC_NULL)
@@ -29,7 +11,6 @@ YC_EXPORT int thread_info(yc_port_t thread, yc_u32 flavor, int *info, yc_u32 *co
                              (yc_uintptr_t)count, 0, 0, 0);
 }
 
-/* Thread policy flavors (mach/thread_policy.h). */
 #define YC_THREAD_EXTENDED_POLICY 1
 #define YC_THREAD_TIME_CONSTRAINT_POLICY 2
 #define YC_THREAD_PRECEDENCE_POLICY 3
@@ -39,7 +20,6 @@ YC_EXPORT int thread_info(yc_port_t thread, yc_u32 flavor, int *info, yc_u32 *co
 #define YC_THREAD_THROUGHPUT_QOS_POLICY 8
 #define YC_THREAD_TIME_CONSTRAINT_WITH_PRIORITY_POLICY 10
 
-/* The count (32-bit words) of each policy flavor, 0 for an unknown one. */
 static yc_u32 yc_policy_count(int flavor)
 {
     switch (flavor) {
@@ -55,13 +35,6 @@ static yc_u32 yc_policy_count(int flavor)
     }
 }
 
-/* kern_return_t thread_policy_set(thread_act_t thread, thread_policy_flavor_t flavor,
- *     thread_policy_t policy_info, mach_msg_type_number_t policy_infoCnt)
- * Accepted and not applied: SwiftCode's guest threads are scheduled by the
- * host (scheduling-policy.md); a real-time request (QuartzCore's render
- * thread, Core Audio) succeeds as it does for an unprivileged macOS
- * process. A null thread or an unknown flavor is KERN_INVALID_ARGUMENT;
- * a short count too. */
 YC_EXPORT int thread_policy_set(yc_port_t thread, int flavor, const int *info, yc_u32 count)
 {
     yc_u32 need = yc_policy_count(flavor);
@@ -75,12 +48,6 @@ YC_EXPORT int _kernelrpc_thread_policy_set(yc_port_t thread, int flavor, const i
     return thread_policy_set(thread, flavor, info, count);
 }
 
-/* kern_return_t thread_policy_get(thread_inspect_t thread, thread_policy_flavor_t flavor,
- *     thread_policy_t policy_info, mach_msg_type_number_t *policy_infoCnt,
- *     boolean_t *get_default)
- * Every thread reports the default policy (*get_default = TRUE): extended
- * timeshare = 1; time constraint period 0, computation 5 ms, constraint
- * 10 ms, preemptible 1 (in Mach absolute time units); the others 0. */
 YC_EXPORT int thread_policy_get(yc_port_t thread, int flavor, int *info, yc_u32 *count, int *get_default)
 {
     yc_u32 need = yc_policy_count(flavor);
@@ -104,20 +71,12 @@ YC_EXPORT int thread_policy_get(yc_port_t thread, int flavor, int *info, yc_u32 
     return YC_KERN_SUCCESS;
 }
 
-/* Host statistics flavors (mach/host_info.h). */
 #define YC_HOST_LOAD_INFO 1
 #define YC_HOST_VM_INFO 2
 #define YC_HOST_CPU_LOAD_INFO 3
 #define YC_HOST_VM_INFO64 4
-#define YC_GUEST_PAGES 65536u /* 1 GiB of 16 KiB pages, as host_info reports */
+#define YC_GUEST_PAGES 65536u
 
-/* kern_return_t host_statistics(host_t host_priv, host_flavor_t flavor,
- *     host_info_t host_info_out, mach_msg_type_number_t *host_info_outCnt)
- * HOST_LOAD_INFO (6 words): no load. HOST_VM_INFO (15 words) and
- * HOST_VM_INFO64 (38 words): the guest's 1 GiB as half free, a quarter
- * active, an eighth inactive and an eighth wired, no paging activity.
- * HOST_CPU_LOAD_INFO (4 words: user, system, idle, nice ticks at 100 Hz):
- * the time since boot as idle. Other flavors: KERN_INVALID_ARGUMENT. */
 static int yc_host_statistics(int flavor, int *info, yc_u32 *count, int wide)
 {
     if (info == YC_NULL || count == YC_NULL)
@@ -137,17 +96,17 @@ static int yc_host_statistics(int flavor, int *info, yc_u32 *count, int wide)
     for (yc_u32 i = 0; i < need; i++)
         info[i] = 0;
     if (flavor == YC_HOST_VM_INFO || flavor == YC_HOST_VM_INFO64) {
-        info[0] = (int)(YC_GUEST_PAGES / 2); /* free_count */
-        info[1] = (int)(YC_GUEST_PAGES / 4); /* active_count */
-        info[2] = (int)(YC_GUEST_PAGES / 8); /* inactive_count */
-        info[3] = (int)(YC_GUEST_PAGES / 8); /* wire_count */
+        info[0] = (int)(YC_GUEST_PAGES / 2);
+        info[1] = (int)(YC_GUEST_PAGES / 4);
+        info[2] = (int)(YC_GUEST_PAGES / 8);
+        info[3] = (int)(YC_GUEST_PAGES / 8);
     } else if (flavor == YC_HOST_CPU_LOAD_INFO) {
         struct yc_mach_timebase_info tb = {1, 1};
         YC_KFN(mach_timebase_info)(&tb);
         yc_u64 ns = YC_KFN(mach_absolute_time)();
         if (tb.denom)
             ns = ns / tb.denom * tb.numer;
-        info[2] = (int)(yc_u32)(ns / 10000000ull); /* idle ticks */
+        info[2] = (int)(yc_u32)(ns / 10000000ull);
     }
     *count = need;
     return YC_KERN_SUCCESS;
@@ -165,10 +124,6 @@ YC_EXPORT int host_statistics64(yc_port_t host, int flavor, int *info, yc_u32 *c
     return yc_host_statistics(flavor, info, count, 1);
 }
 
-/* libproc's CPU and wakeup monitors (libproc_internal.h). SwiftCode has no
- * resource monitors: setting, resuming or disabling one succeeds and has no
- * effect, and a query reports a disabled monitor (0, 0). Daemons and
- * frameworks call these at start (mediaanalysisd, QuartzCore). */
 YC_EXPORT int proc_set_cpumon_params(int pid, int percentage, int interval)
 {
     (void)pid; (void)percentage; (void)interval;
@@ -218,35 +173,17 @@ YC_EXPORT int proc_setcpu_percentage(int pid, int action, int percentage)
 
 YC_EXPORT int proc_clear_cpulimits(int pid) { (void)pid; return 0; }
 
-/* int proc_setthread_cpupercent(uint8_t percentage, uint32_t ms_refill) */
 YC_EXPORT int proc_setthread_cpupercent(yc_u8 percentage, yc_u32 ms_refill)
 {
     (void)percentage; (void)ms_refill;
     return 0;
 }
 
-/* ------------------------------------------------- task identity tokens */
-
-/* kern_return_t task_create_identity_token(task_t task, task_id_token_t *token)
- * kern_return_t task_identity_token_get_task_port(task_id_token_t token,
- *     task_flavor_t flavor, mach_port_t *task_port)
- * (xnu osfmk/mach/task.defs and task_identity_token.defs; level 1.) In xnu
- * the token is a port that names the task without granting control, and
- * the second call turns it back into a task port of the requested flavor
- * (TASK_FLAVOR_CONTROL 0 ... TASK_FLAVOR_NAME 3). RealityKit (CoreRE)
- * makes one in every process that starts a render client (visionOS
- * datamigrator, RealityChrome, RealityEnvironment, pointeruid ...) and
- * aborts when the call fails (visionos.md section 10.11). SwiftCode's choice:
- * the token is a send right to the task port itself (an extra send
- * reference on the caller's name for it); task ports travel between
- * processes in SwiftCode's kernel (processes.md section 3.5), so a receiver
- * can use it with pid_for_task. Turning it back gives another send
- * reference on the same name, for every flavor. */
 YC_EXPORT int task_create_identity_token(yc_port_t task, yc_port_t *token)
 {
     if (token == YC_NULL || task == 0)
         return YC_KERN_INVALID_ARGUMENT;
-    (void)mach_port_mod_refs(mach_task_self_, task, 0 /* MACH_PORT_RIGHT_SEND */, 1);
+    (void)mach_port_mod_refs(mach_task_self_, task, 0 , 1);
     *token = task;
     return 0;
 }
@@ -255,7 +192,7 @@ YC_EXPORT int task_identity_token_get_task_port(yc_port_t token, int flavor, yc_
 {
     if (task_port == YC_NULL || token == 0 || flavor < 0 || flavor > 3)
         return YC_KERN_INVALID_ARGUMENT;
-    (void)mach_port_mod_refs(mach_task_self_, token, 0 /* MACH_PORT_RIGHT_SEND */, 1);
+    (void)mach_port_mod_refs(mach_task_self_, token, 0 , 1);
     *task_port = token;
     return 0;
 }

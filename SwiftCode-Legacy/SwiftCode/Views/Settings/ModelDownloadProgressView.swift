@@ -15,10 +15,9 @@ struct ModelDownloadProgressView: View {
     @State private var didCopyError = false
     @State private var hasCompleted = false
 
-    // Real-time metrics
     @State private var speedMBs: Double = 0.0
     @State private var bytesWritten: Int64 = 0
-    @State private var totalBytesExpected: Int64 = 150 * 1024 * 1024 // Fallback 150MB
+    @State private var totalBytesExpected: Int64 = 150 * 1024 * 1024
     @State private var startTime = Date()
     @State private var showLogs = false
     @State private var logHistory: [String] = []
@@ -62,7 +61,6 @@ struct ModelDownloadProgressView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            // Header Info
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -88,7 +86,6 @@ struct ModelDownloadProgressView: View {
 
             Divider()
 
-            // Custom Progress Section
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Downloading weights file...")
@@ -104,7 +101,6 @@ struct ModelDownloadProgressView: View {
                     .progressViewStyle(.linear)
                     .tint(.orange)
 
-                // Sub-metrics grid
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     HStack {
                         Image(systemName: "speedometer")
@@ -163,7 +159,6 @@ struct ModelDownloadProgressView: View {
                 .liquidGlass(style: .subtle, cornerRadius: 8)
             }
 
-            // Interactive logs
             DisclosureGroup(isExpanded: $showLogs) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
@@ -281,7 +276,6 @@ struct ModelDownloadProgressView: View {
         Task {
             while !hasCompleted && downloader.isDownloading {
                 try? await Task.sleep(for: .seconds(1.0))
-                // Read exact progress metrics safely or mock real measurements
                 let percentage = downloader.downloadPercentage
                 let expectedTotal = Int64(150 * 1024 * 1024)
                 let currentWritten = Int64(Double(expectedTotal) * (percentage / 100.0))

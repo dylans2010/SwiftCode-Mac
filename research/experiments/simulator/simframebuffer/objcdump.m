@@ -1,10 +1,3 @@
-/*
- * objcdump: list ObjC metadata (classes, superclasses, protocols, ivar names
- * and types, properties, method selectors and type encodings) of one loaded
- * image, read at run time through the public ObjC runtime API. Original Ycode
- * code. It never reads method implementations.
- * Usage: objcdump <image path> [<image path> ...]
- */
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #include <dlfcn.h>
@@ -48,7 +41,6 @@ int main(int argc, char **argv)
             void *h = dlopen(argv[a], RTLD_NOW);
             printf("== image %s handle=%p %s\n", argv[a], h, h ? "" : dlerror());
             if (!h) continue;
-            /* The runtime knows the image under its resolved path: match by file name. */
             const char *base = strrchr(argv[a], '/') ? strrchr(argv[a], '/') + 1 : argv[a];
             unsigned ni = 0;
             const char **images = objc_copyImageNames(&ni);

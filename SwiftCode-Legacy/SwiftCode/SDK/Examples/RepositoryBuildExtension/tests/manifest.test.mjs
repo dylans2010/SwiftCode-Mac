@@ -1,4 +1,3 @@
-// Manifest contract tests — run with `node --test tests/` AFTER `npm run build`.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";

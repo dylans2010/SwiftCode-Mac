@@ -1,6 +1,3 @@
-// Ported from Legacy `SwiftCode/Views/Deployments/DeploymentLogsView.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: DeploymentLogsView, AnalysisResultView.
-
 import SwiftUI
 
 struct DeploymentLogsView: View {

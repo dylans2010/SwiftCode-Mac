@@ -1,23 +1,6 @@
 import Foundation
 import os
 
-// MARK: - Assist Tool Knowledge Validator
-//
-// Runtime validation that the behavioral tool documentation in System Assets
-// (`AvailableTools.md` catalog + `CallTool.md` procedures) does not drift from
-// the actual registered tools in `AssistToolRegistry`:
-//   - every registered tool has a catalog entry,
-//   - no catalog entry refers to a tool that is not registered,
-//   - the mandatory Safeguards.md baseline is present,
-//   - the AgentSystemAsset.md index references the expected document set.
-//
-// The runtime tool registry remains authoritative for tool availability,
-// schemas, authorization, and execution; this validator only checks that the
-// Markdown documentation is consistent with it.
-//
-// Follows the same pattern as `AssistModelRouterTests`: `runAllTests()` returns
-// `[RuntimeTestCaseResult]` for aggregation by `AssistRuntimeTestSuite`.
-
 @MainActor
 public final class AssistToolKnowledgeValidator: Sendable {
     public static let shared = AssistToolKnowledgeValidator()
@@ -26,7 +9,6 @@ public final class AssistToolKnowledgeValidator: Sendable {
 
     private init() {}
 
-    /// Executes all tool-knowledge validation checks.
     public func runAllTests() async -> [RuntimeTestCaseResult] {
         var results: [RuntimeTestCaseResult] = []
         results.append(await testCatalogPresent())
@@ -37,17 +19,10 @@ public final class AssistToolKnowledgeValidator: Sendable {
         return results
     }
 
-    // MARK: - Helpers
-
     private func loadAsset(_ relativePath: String) -> String? {
         SystemIndexService.shared.bundledText(forRelativePath: relativePath)
     }
 
-    /// Parses catalog lines of the form `` - `tool_id` (riskPosture) — description ``
-    /// into tool ids in document order. Stops at the Cloud Toolkit section:
-    /// those IDs are provided by the Antigravity cloud runtime, not the
-    /// registry, and must not be reported as orphans. The ID pattern accepts
-    /// `plan-AskUser` (hyphen + uppercase), which the old pattern rejected.
     private func catalogToolIds(in catalog: String) -> [String] {
         var ids: [String] = []
         let sections = catalog.components(separatedBy: "## Cloud Toolkit")
@@ -73,8 +48,6 @@ public final class AssistToolKnowledgeValidator: Sendable {
             duration: Date().timeIntervalSince(start)
         )
     }
-
-    // MARK: - Tests
 
     private func testCatalogPresent() async -> RuntimeTestCaseResult {
         let start = Date()
@@ -131,8 +104,6 @@ public final class AssistToolKnowledgeValidator: Sendable {
             return result(testName: "Tool Knowledge: Safeguards Baseline", passed: false,
                           message: "Safeguards.md not found in bundled System Assets.", start: start)
         }
-        // Sanity: the mandatory baseline must address credentials and
-        // destructive operations; an empty/gutted file must not pass silently.
         let lower = safeguards.lowercased()
         let required = ["credential", "destructive"]
         let missing = required.filter { !lower.contains($0) }

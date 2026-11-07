@@ -1,5 +1,3 @@
-// Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationSidebarView.swift` (Dylan's own code; direct port authorised under MIT).
-// Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
 import SwiftCodeUI
 
@@ -27,7 +25,6 @@ public struct VirtualizationSidebarView: View {
             .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                // Polished Header (native-styled title bar inspector block)
                 HStack(spacing: 10) {
                     Image(systemName: "macwindow.on.rectangle")
                         .font(.system(size: 16, weight: .bold))
@@ -58,7 +55,6 @@ public struct VirtualizationSidebarView: View {
 
                 Divider()
 
-                // Main Sidebar List
                 List {
                     Section(header: Text("DASHBOARD").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)) {
                         sidebarRow(tab: .dashboard, title: "Dashboard", icon: "square.grid.2x2.fill")
@@ -135,7 +131,6 @@ public struct VirtualizationSidebarView: View {
 
                 Spacer()
 
-                // Bottom Action
                 Button {
                     stateStore.showCreateWizard = true
                 } label: {

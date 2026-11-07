@@ -58,17 +58,14 @@ public struct AssistMemoryLeakDetectorTool: AssistTool {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.hasPrefix("//") { continue }
 
-                // 1. Strong self capture in escaping closure
                 if (trimmed.contains(".sink") || trimmed.contains("Task {") || trimmed.contains("DispatchQueue.")) && trimmed.contains("self.") && !trimmed.contains("[weak self]") && !trimmed.contains("[unowned self]") {
                     findings.append("\(relPath):\(idx + 1) Potential retain cycle: escaping closure captures strong 'self'. Consider adding '[weak self]'.")
                 }
 
-                // 2. Unowned self hazard in async / network call
                 if trimmed.contains("[unowned self]") && (trimmed.contains("async") || trimmed.contains("await") || trimmed.contains("URLSession")) {
                     findings.append("\(relPath):\(idx + 1) Memory crash hazard: '[unowned self]' used in asynchronous or network context. Use '[weak self]' instead.")
                 }
 
-                // 3. Delegate property declared without 'weak'
                 if (trimmed.hasPrefix("var delegate:") || trimmed.hasPrefix("public var delegate:") || trimmed.hasPrefix("weak var delegate:")) && !trimmed.contains("weak ") {
                     findings.append("\(relPath):\(idx + 1) Retain cycle risk: Delegate property should be declared 'weak var delegate'.")
                 }

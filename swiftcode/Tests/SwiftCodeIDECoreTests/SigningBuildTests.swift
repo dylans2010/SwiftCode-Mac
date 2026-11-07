@@ -6,10 +6,6 @@ import SwiftCodeProject
 
 private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-/// IDE builds keep the target's entitlements (specs/ide/signing.md §6): a
-/// macOS app with capabilities added in the project editor, built through
-/// the IDE's engine (swift-build through the `swiftcode-swb` helper), is signed
-/// ad hoc with its entitlements, build settings in them expanded.
 @Suite(.serialized, .heavyIntegration, .timeLimit(.minutes(5))) struct SigningBuildTests {
     @Test func ideBuildsSignTheirEntitlements() async throws {
         #if os(macOS)
@@ -23,7 +19,6 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         var model = ProjectEditorModel(proj: try PBXProj(contentsOf: url), xcodeprojURL: url)
         try model.addCapability(.outgoingNetwork, target: "Signed", configuration: "Debug")
         try model.proj.serialized(projectName: "Signed").write(to: url.appendingPathComponent("project.pbxproj"), atomically: true, encoding: .utf8)
-        // An app group whose name uses a build setting.
         let entitlementsFile = try #require(model.entitlementsURL(target: "Signed", configuration: "Debug"))
         var ents = try PropertyListSerialization.propertyList(from: Data(contentsOf: entitlementsFile), format: nil) as! [String: Any]
         ents["com.apple.security.application-groups"] = ["$(PRODUCT_BUNDLE_IDENTIFIER).shared"]
@@ -41,12 +36,10 @@ private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathCompo
         #expect(signed["com.apple.security.network.client"] as? Bool == true)
         #expect(signed["com.apple.security.get-task-allow"] as? Bool == true)
         #expect(signed["com.apple.security.application-groups"] as? [String] == ["org.swiftcode.tests.Signed.shared"])
-        // No application identifier without a profile: macOS would not launch it.
         #expect(signed["com.apple.application-identifier"] == nil)
         #endif
     }
 
-    /// `codesign -d --entitlements :-` of a bundle, as a dictionary.
     func signedEntitlements(_ path: String) throws -> [String: Any] {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")

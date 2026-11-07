@@ -3,12 +3,9 @@ import Testing
 import SwiftCodeDarwinABI
 @testable import SwiftCodeDarwinKernel
 
-/// Blocking sends and receives with real host threads (stage4a-contract.md
-/// §2: one kernel lock, waits release it).
 @Suite(.serialized) struct MachIPCBlockingTests {
     let rcv = MachMsgOption.rcvMsg
 
-    /// Runs `body` on a new host thread; returns a way to wait for its result.
     func spawn<T: Sendable>(_ body: @escaping @Sendable () -> T) -> () -> T? {
         let done = DispatchSemaphore(value: 0)
         let box = ResultBox<T>()
@@ -22,10 +19,6 @@ import SwiftCodeDarwinABI
         }
     }
 
-    /// Waits until `context` sleeps in the kernel (queued as a waiter, the
-    /// lock released), at most 10 s. A fixed pause raced the new host
-    /// thread's start on a loaded machine (x86 full runs): the send or
-    /// interrupt came before the wait, and the test saw no blocked thread.
     func blocked(_ env: IPCEnv, _ context: ThreadContext) -> Bool {
         let end = Date().addingTimeInterval(10)
         while Date() < end {
@@ -64,11 +57,6 @@ import SwiftCodeDarwinABI
         #expect(code2 == 0 && Received(raw2).id == 2)
     }
 
-    /// `mach-ipc.md` §2.9 (`SWIFTCODE_PORT_SLOT_HANDOFF`, boot-profile.md §8):
-    /// a receive from a full queue wakes the oldest blocked sender only and
-    /// keeps the freed slot for it; a sender that arrives meanwhile finds the
-    /// queue still full; the second blocked sender stays asleep until the
-    /// next receive. Messages arrive in the senders' blocking order.
     @Test func dequeueHandsTheSlotToTheOldestBlockedSender() throws {
         let env = try IPCEnv()
         let (_, p) = env.construct(flags: MachPortConstruct.qlimit, qlimit: 1)
@@ -86,7 +74,6 @@ import SwiftCodeDarwinABI
         let (code, raw) = env.receive(p)
         #expect(code == 0 && Received(raw).id == 1)
         #expect(wait1() == 0)
-        // The second sender was not woken by that receive.
         #expect(env.lock.withLock { second.blockedInKernel })
         #expect(env.send(TestMessage(remote: p, remoteDisposition: MachMsgType.makeSend, id: 4).bytes,
                          options: MachMsgOption.sendMsg | MachMsgOption.sendTimeout) == MachMsgReturn.sendTimedOut)
@@ -108,7 +95,6 @@ import SwiftCodeDarwinABI
         #expect(env.modRefs(p, MachPortRight.receive, -1) == 0)
         #expect(wait() == MachMsgReturn.rcvPortChanged)
 
-        // Adding the port to a set while a thread waits on it: PORT_CHANGED too.
         let q = env.allocate(), set = env.allocate(MachPortRight.portSet)
         let wait2 = spawn { env.kr(-31, [buffer, MachMsgOption.rcvMsg, 0, 0x100, UInt64(q), 0, 0], context: worker) }
         #expect(blocked(env, worker))
@@ -124,7 +110,6 @@ import SwiftCodeDarwinABI
         let buffer = IPCEnv.scratch + 0x10000
         let wait = spawn { env.kr(-31, [buffer, MachMsgOption.rcvMsg, 0, 0x100, UInt64(set), 0, 0], context: worker) }
         #expect(blocked(env, worker))
-        // Joining the set with a queued message makes the set ready.
         #expect(env.send(TestMessage(remote: b, remoteDisposition: MachMsgType.makeSend, id: 5).bytes) == 0)
         #expect(env.kr(-22, [env.task, UInt64(b), UInt64(set)]) == 0)
         #expect(wait() == 0)
@@ -142,7 +127,6 @@ import SwiftCodeDarwinABI
             env.kr(-31, [buffer, MachMsgOption.rcvMsg | MachMsgOption.rcvTimeout, 0, 0x100, UInt64(p), 80, 0],
                    context: worker)
         }
-        // The lock is free while it waits: the main thread can still use IPC.
         Thread.sleep(forTimeInterval: 0.02)
         #expect(env.allocate() != 0)
         #expect(wait() == MachMsgReturn.rcvTimedOut)
@@ -152,7 +136,6 @@ import SwiftCodeDarwinABI
     @Test func directHandoffBypassesAZeroQueueLimit() throws {
         let env = try IPCEnv()
         let (_, p) = env.construct(flags: MachPortConstruct.qlimit, qlimit: 0)
-        // No receiver waiting: a zero-limit queue is full.
         #expect(env.send(TestMessage(remote: p, remoteDisposition: MachMsgType.makeSend).bytes,
                          options: MachMsgOption.sendMsg | MachMsgOption.sendTimeout) == MachMsgReturn.sendTimedOut)
         let worker = ThreadContext(threadID: 2, portName: env.ipc.allocateThreadPort(), vcpuIndex: 1, kind: .pthread)
@@ -174,7 +157,6 @@ import SwiftCodeDarwinABI
         #expect(blocked(env, worker))
         #expect(env.lock.withLock { env.lock.interrupt(worker) })
         #expect(wait() == MachMsgReturn.rcvInterrupted)
-        // A blocked send is interrupted the same way (and pseudo-received).
         let (_, q) = env.construct(flags: MachPortConstruct.qlimit, qlimit: 0)
         env.put(TestMessage(remote: q, remoteDisposition: MachMsgType.makeSend).bytes, at: buffer)
         let wait2 = spawn { env.kr(-31, [buffer, MachMsgOption.sendMsg, 24, 0, 0, 0, 0], context: worker) }
@@ -189,7 +171,6 @@ import SwiftCodeDarwinABI
         let server = env.allocate()
         #expect(env.insertRight(server, server, MachMsgType.makeSend) == 0)
         let count = 4, rounds = 25
-        // A server thread echoes every request to its reply port.
         let serverContext = ThreadContext(threadID: 10, portName: env.ipc.allocateThreadPort(), vcpuIndex: 9,
                                           kind: .pthread)
         let serverBuffer = IPCEnv.scratch + 0x20000
@@ -246,7 +227,6 @@ import SwiftCodeDarwinABI
         #expect(env.ipc.receiveTarget(of: p) == .port)
         #expect(env.ipc.receiveTarget(of: 0x103) == .notReceivable)
         #expect(env.ipc.receiveTarget(of: 0x55503) == .none)
-        // A kevent receive: never waits; too small → TOO_LARGE with the needed size.
         let buffer = IPCEnv.scratch + 0x10000
         let large = UInt32(MachMsgOption.rcvMsg | MachMsgOption.rcvLarge | MachMsgOption.rcvLargeIdentity) | 7 << 24
         let small = env.ipc.receiveForKevent(port: set, options: large, buffer: buffer, size: 16, context: env.main,

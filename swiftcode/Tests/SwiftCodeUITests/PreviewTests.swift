@@ -39,7 +39,6 @@ struct Badge_Previews: PreviewProvider {
 }
 """
 
-/// Counts pixels that differ from the first pixel (a blank image has none).
 func nonBlankPixels(_ png: URL) throws -> Int {
     let rep = try #require(NSBitmapImageRep(data: try Data(contentsOf: png)))
     let first = rep.colorAt(x: 0, y: 0)
@@ -50,8 +49,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
     return n
 }
 
-/// The time limit covers the wait for the machine-wide debugger-test lock,
-/// which other test runs may hold for many minutes.
 @MainActor
 @Suite(.serialized, .heavyIntegration, .previewHostCheck, .timeLimit(.minutes(30))) struct PreviewTests {
     @Test func discovery() {
@@ -81,7 +78,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
     }
 
     @Test func rendersPreviewsToPNGs() async throws {
-        // Heavy work (builds, debugger, language server) takes turns across test processes.
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { heavy.unlock() }
         let pkg = try makePackage("ok", source: previewSource)
@@ -97,7 +93,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
     }
 
     @Test func canvasInTheWindow() async throws {
-        // Heavy work (builds, debugger, language server) takes turns across test processes.
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { heavy.unlock() }
         _ = NSApplication.shared
@@ -107,14 +102,11 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         wc.window?.appearance = NSAppearance(named: .aqua)
         wc.applyDefaultLayout()
         wc.previewWorkDirectory = swiftcodeDir.appendingPathComponent(".build-ide/previews/work-canvas")
-        // The canvas's Mac preview host ends with the test (also on a failure).
         defer { PreviewRenderer.stopMacHosts() }
         wc.canvasRefreshDelay = 0.1
         wc.open(path: file.path, line: nil)
-        // Shown by itself for a file with previews (reference-ui-6.md §4.4).
         let canvas = try #require(wc.canvas)
         #expect(wc.canvasShownAutomatically)
-        // Paused until resumed (reference-ui-4.md §10), then building.
         #expect(canvas.isPaused && canvas.names == ["Small", "Preview", "Badge_Previews"])
         #expect(canvas.tabTitles == ["Small", "VStack", "Badge_Previews"])
         canvas.resume()
@@ -123,11 +115,9 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         guard case .rendered(let list) = canvas.state else { Issue.record("not rendered: \(canvas.state)"); return }
         #expect(list.count == 6 && list.filter { $0.scheme == .dark }.count == 3)
         #expect(canvas.layout == .single && canvas.framedCount == 1 && canvas.headerTabs.allSatisfy { $0.badge == "eye" })
-        // All previews at once, as cards.
         canvas.setMode(.grid)
         #expect(canvas.layout == .grid && canvas.cardTitles == ["Small", "Preview", "Badge_Previews"])
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "preview-canvas-grid.png")
-        // Zoom into one; dark variant.
         canvas.select(1, zoom: true)
         #expect(canvas.layout == .single && canvas.cardTitles == ["Preview"])
         canvas.setColorScheme(.dark)
@@ -135,7 +125,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "preview-canvas.png")
         canvas.setColorScheme(.light)
 
-        // A save with a broken view refreshes (debounced) into an error card.
         let tv = wc.editor.textView
         let r = (tv.string as NSString).range(of: "Text(text)")
         tv.insertText("Text(nope)", replacementRange: r)
@@ -151,7 +140,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
     }
 
     @Test func buildErrorsAndUnsupportedTargets() async throws {
-        // Heavy work (builds, debugger, language server) takes turns across test processes.
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { heavy.unlock() }
         let broken = previewSource.replacingOccurrences(of: "Text(text)", with: "Text(missingName)")
@@ -171,18 +159,11 @@ func nonBlankPixels(_ png: URL) throws -> Int {
     }
 }
 
-/// macOS previews through a payload loaded into the long-lived Mac host
-/// (specs/ide/previews.md §The macOS host): same PNGs as the SwiftPM host,
-/// and an edit costs one payload compile.
-/// The time limit covers the wait for the machine-wide debugger-test lock,
-/// which other test runs may hold for many minutes.
 @MainActor
 @Suite(.serialized, .heavyIntegration, .previewHostCheck, .timeLimit(.minutes(30))) struct MacPayloadPreviewTests {
     @Test func rendersThroughPayloadsAndRefreshesFast() async throws {
         let heavy = await InterprocessLock.acquire(path: InterprocessLock.debuggerTestLockPath)
         defer { heavy.unlock() }
-        // Every host this test starts ends with it, whatever happens; no
-        // request waits longer than a minute.
         MacPreviewHostProcess.requestTimeout = 60
         defer {
             PreviewRenderer.stopMacHosts()
@@ -203,7 +184,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         for r in out { #expect(try nonBlankPixels(r.png) > 50, "\(r.name) \(r.scheme)") }
         let small = try #require(NSBitmapImageRep(data: try Data(contentsOf: out[0].png)))
         #expect(small.size == NSSize(width: 120, height: 60))
-        // An edit of a body: one compile, the host stays.
         let edited = previewSource.replacingOccurrences(of: "Badge(text: \"Hi\")", with: "Badge(text: \"Hello there\")")
         try edited.write(to: file, atomically: true, encoding: .utf8)
         let s2 = Date()
@@ -215,7 +195,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         #expect(wide.size == NSSize(width: 120, height: 60) && out2.count == 3)
         print(String(format: "mac payload previews: first %.2f s (compile+host build %.2f, render %.2f); refresh after an edit %.2f s (compile %.2f, render %.2f)",
                      first, t1.values.first?.build ?? -1, t1.values.first?.run ?? -1, refresh, t2.values.first?.build ?? -1, t2.values.first?.run ?? -1))
-        // A compile error maps to the user's file and line.
         let broken = previewSource.replacingOccurrences(of: "Badge(text: \"Hi\")", with: "Badge(text: nope)")
         try broken.write(to: file, atomically: true, encoding: .utf8)
         do {
@@ -231,8 +210,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
     }
 }
 
-/// The Mac preview host never outlives its parent and no wait on it is
-/// unbounded (specs/ide/previews.md §The macOS host).
 @MainActor
 @Suite(.serialized, .heavyIntegration, .previewHostCheck, .timeLimit(.minutes(10))) struct MacPreviewHostLifetimeTests {
     func script(_ body: String) throws -> URL {
@@ -244,7 +221,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
 
     func alive(_ pid: pid_t) -> Bool { kill(pid, 0) == 0 }
 
-    /// `body`'s result and how long it took, in seconds.
     nonisolated static func timed<T>(_ body: () -> T) -> (T, TimeInterval) {
         let started = Date()
         let r = body()
@@ -254,24 +230,18 @@ func nonBlankPixels(_ png: URL) throws -> Int {
     nonisolated static let request = PreviewMacHost.Request(generation: 1, payload: "/nonexistent", output: "/tmp", schemes: ["light"], items: [])
 
     @Test(.timeLimit(.minutes(2))) func aHungHostIsKilledAfterTheRequestTimeout() async throws {
-        // A host that reads nothing, never answers, and ignores SIGTERM.
         let exe = try script("trap '' TERM\nwhile :; do sleep 1; done")
         defer { try? FileManager.default.removeItem(at: exe) }
         let h = try MacPreviewHostProcess(executable: exe)
         MacPreviewHostProcess.requestTimeout = 1.5
         defer { MacPreviewHostProcess.requestTimeout = 120; h.stop(grace: 0.2) }
-        // Timed on the thread that sends: the code under test, not how soon a thread was free.
         let (r, took) = try await offMain { Self.timed { h.send(Self.request, newPayload: true) } }
         #expect(r == nil)
-        // The timeout, then end of input, SIGTERM and SIGKILL, each with a short grace.
         #expect(took >= 1.5 && took < 10, "\(took)")
         #expect(!h.process.isRunning && h.process.terminationReason == .uncaughtSignal)
     }
 
     @Test(.timeLimit(.minutes(2))) func aHostThatClosedItsInputFailsTheRequestAtOnce() async throws {
-        // Writing to it fails (EPIPE, no SIGPIPE for this process); it is stopped.
-        // It says when its input is closed (a file next to it), so the request
-        // never races the shell's start.
         let exe = try script("trap '' TERM\nexec 0</dev/null\ntouch \"$0.closed\"\nwhile :; do sleep 1; done")
         let marker = exe.path + ".closed"
         defer { try? FileManager.default.removeItem(at: exe); try? FileManager.default.removeItem(atPath: marker) }
@@ -281,7 +251,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         #expect(await waitUntil(30) { FileManager.default.fileExists(atPath: marker) })
         let (r, took) = try await offMain { Self.timed { h.send(Self.request, newPayload: true) } }
         #expect(r == nil && !h.process.isRunning)
-        // Well before the request timeout: the write failed.
         #expect(took < 10, "\(took)")
     }
 
@@ -298,19 +267,15 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         try? FileManager.default.removeItem(at: work)
         defer { try? FileManager.default.removeItem(at: work) }
         let exe = try await offMain { try PreviewMacHost.build(deploymentTarget: PreviewMacHost.deploymentTarget(sdkVersion: PreviewRenderer.macSDKVersion()), workDirectory: work) }
-        // The process audit sees it under its full name.
         let h = try MacPreviewHostProcess(executable: exe)
         #expect(ProcessAudit.children().contains { $0.pid == h.pid && $0.name == PreviewMacHost.executableName })
-        // End of input: the host ends by itself (an exit, not a signal).
         try await offMain { h.stop(grace: 10) }
         #expect(!h.process.isRunning && h.process.terminationReason == .exit)
 
-        // Its parent goes away while its input stays open: it ends within a few seconds.
         let fifo = work.appendingPathComponent("in.fifo").path
         #expect(mkfifo(fifo, 0o600) == 0)
         let sh = Process()
         sh.executableURL = URL(fileURLWithPath: "/bin/sh")
-        // The shell becomes `sleep` (same pid), the host's parent, until it is killed.
         sh.arguments = ["-c", "\"$0\" 3<>\"$1\" <\"$1\" >/dev/null 2>&1 & echo $!; exec sleep 60", exe.path, fifo]
         let pipe = Pipe()
         sh.standardOutput = pipe
@@ -330,7 +295,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         let pid = pid_t(first.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
         try #require(pid > 0)
         defer { if alive(pid) { kill(pid, SIGKILL) } }
-        // Running, with the shell as its parent (it would have ended at once without one).
         try await Task.sleep(for: .seconds(2))
         #expect(alive(pid))
         sh.terminate()
@@ -346,8 +310,6 @@ func nonBlankPixels(_ png: URL) throws -> Int {
         final class PidBox: @unchecked Sendable { var pid: pid_t = 0 }
         let box = PidBox()
         let test = try #require(Test.current)
-        // A test body that starts a host and forgets it: the check records an
-        // issue (expected here) and kills the host.
         await withKnownIssue("the check reports the host the body left running") {
             try await PreviewHostCheckTrait().provideScope(for: test, testCase: Test.Case.current) {
                 box.pid = try MacPreviewHostProcess(executable: exe).pid
